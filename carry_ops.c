@@ -869,6 +869,8 @@ make_space_for_flow_insertion ()
 #endif
 
 #define flow_insert_point(op) ( ( op ) -> u.insert_flow.insert_point )
+#define flow_insert_flow(op) ( ( op ) -> u.insert_flow.flow )
+#define flow_insert_data(op) ( ( op ) -> u.insert_flow.data )
 
 /*
  * FIXME-VS: this is called several times during one make_flow_for_insertion
@@ -876,7 +878,8 @@ make_space_for_flow_insertion ()
  * by calculating this value once at the beginning and passing it around. That
  * would reduce some flexibility in future changes
  */
-static int can_paste( carry_op *op /* carry operation to check */ );
+static int can_paste( carry_op *op /* carry operation to check */,
+		      coord_t *, const reiser4_key *, const reiser4_item_data * );
 static size_t flow_insertion_overhead( carry_op *op )
 {
 	znode *node;
@@ -884,7 +887,10 @@ static size_t flow_insertion_overhead( carry_op *op )
 
 	node = flow_insert_point( op ) -> node;
 	insertion_overhead = 0;
-	if( node -> nplug -> item_overhead && !can_paste( op ) )
+	if( node -> nplug -> item_overhead &&
+	    !can_paste( op, flow_insert_point( op ),
+			&flow_insert_flow( op ) -> key,
+			flow_insert_data( op ) ) )
 		insertion_overhead = node -> nplug -> item_overhead( node, 0 );
 	return insertion_overhead;
 }
@@ -892,10 +898,13 @@ static size_t flow_insertion_overhead( carry_op *op )
 /* how many bytes of flow can be written to node */
 static int what_can_be_written( carry_op *op )
 {
-	size_t free;
+	size_t free, overhead;
 
-	free = znode_free_space( flow_insert_point( op ) -> node ) -
-		flow_insertion_overhead( op );
+	overhead = flow_insertion_overhead( op );
+	free = znode_free_space( flow_insert_point( op ) -> node );
+	if( free <= overhead )
+		return 0;
+	free -=	overhead;
 	return min( free, op -> u.insert_flow.flow -> length );
 }
 
@@ -926,7 +935,7 @@ static int make_space_by_shift_left( carry_op *op, carry_level *doing,
 	znode *orig;
 
 
-	left = find_left_neighbor( op -> node, doing );
+	left = find_left_neighbor( op, doing );
 	if( unlikely( IS_ERR( left ) ) ) {
 		warning( "vs-899", "make_space_by_shift_left: "
 			 "error accessing left neighbor: %li",
@@ -977,27 +986,26 @@ static int make_space_by_shift_right( carry_op *op, carry_level *doing,
 	carry_node *right;
 
 
-	right = find_right_neighbor( op -> node, doing );
+	right = find_right_neighbor( op, doing );
 	if( unlikely( IS_ERR( right ) ) ) {
 		warning( "nikita-1065", "shift_right_excluding_insert_point: "
 			 "error accessing right neighbor: %li",
 			 PTR_ERR( right ) );
 		return 1;
 	}
-	if( right == NULL ) {
+	if( right ) {
+		/*
+		 * shift everything possible on the right of but excluding
+		 * insertion coord into the right neighbor
+		 */
+		carry_shift_data( RIGHT_SIDE, flow_insert_point( op ),
+				  right -> real_node, doing, todo,
+				  0 /* not including insert point */);
+	} else {
 		/* right neighbor either does not exist or is unformatted
 		 * node */
-		return 1;
+		;
 	}
-
-	/*
-	 * shift everything possible on the right of but excluding insertion
-	 * coord into the right neighbor
-	 */
-	carry_shift_data( RIGHT_SIDE, flow_insert_point( op ),
-			  right -> real_node, doing, todo,
-			  0 /* not including insert point */);
-
 	if( coord_is_after_rightmost( flow_insert_point( op ) ) ) {
 		if( enough_space_for_min_flow_fraction( op ) ) {
 			/* part of flow is to be written to the end of node */
@@ -1110,7 +1118,6 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 	flow_t *f;
 	coord_t *insert_point;
 	node_plugin *nplug;
-	reiser4_item_data data;
 	int something_written;
 	carry_plugin_info info;
 
@@ -1144,25 +1151,49 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 		nplug = node_plugin_by_node( insert_point -> node );
 
 		/* compose item data for insertion/pasting */
-		data.data = f -> data;
-		data.user = 1;
-		data.length = what_can_be_written( op );
-		data.iplug = item_plugin_by_id( TAIL_ID );
-		data.arg = 0;
+		flow_insert_data( op ) -> data = f -> data;
+		flow_insert_data( op ) -> length = what_can_be_written( op );
 
-		if( can_paste( op ) ) {
+		if( can_paste( op, insert_point, &f -> key,
+			       flow_insert_data( op ) ) ) {
 			/* existing item must be expanded */
-			nplug -> change_item_size( insert_point, data.length );
-			data.iplug -> common.paste( insert_point, &data, &info );
+			assert( "vs-903", insert_point -> between == AFTER_UNIT );
+			nplug -> change_item_size( insert_point, flow_insert_data( op ) -> length );
+			flow_insert_data( op ) -> iplug -> common.paste(
+				insert_point, flow_insert_data( op ), &info );
+			coord_init_after_item( insert_point );
 		} else {
 			/* new item must be inserted */
+			pos_in_node new_pos;
+
+			/* FIXME-VS: this is because node40_create_item changes
+			 * insert_point for some reasons */
+			switch( insert_point -> between ) {
+			case AFTER_ITEM:
+				new_pos = insert_point -> item_pos + 1;
+				break;
+			case EMPTY_NODE:
+				new_pos = 0;
+				break;
+			case BEFORE_ITEM:
+				assert( "vs-905", insert_point -> item_pos == 0 );
+				new_pos = 0;
+				break;
+			default:
+				impossible( "vs-906", "carry_insert_flow: invalid coord" );
+				new_pos = 0;
+				break;
+			}
+
 			nplug -> create_item( insert_point, &f -> key,
-					      &data, &info );
+					      flow_insert_data( op ), &info );
+			insert_point -> item_pos = new_pos;
+			coord_init_after_item( insert_point );
 		}
 		doing -> restartable = 0;
 		znode_set_dirty( insert_point -> node );
 
-		move_flow_forward( f, data.length );
+		move_flow_forward( f, 	flow_insert_data( op ) -> length );
 		something_written = 1;
 	}
 	return result;
@@ -1302,17 +1333,19 @@ static int carry_cut( carry_op *op /* operation to be performed */,
  * helper function for carry_paste(): returns true if @op can be continued as
  * paste 
  */
-static int can_paste( carry_op *op /* carry operation to check */ )
+static int can_paste( carry_op *op /* carry operation to check */,
+		      coord_t *icoord, const reiser4_key *key,
+		      const reiser4_item_data *data )
 {
-	coord_t *icoord;
+	/*coord_t *icoord;*/
 	coord_t  circa;
 	item_plugin *new_iplug;
 	item_plugin *old_iplug;
-	const reiser4_key *key;
-	reiser4_item_data *data;
+	/*const reiser4_key *key;
+	  reiser4_item_data *data;*/
 	int result;
 
-	icoord = op -> u.insert.d -> coord;
+	/*icoord = op -> u.insert.d -> coord;*/
 	assert( "nikita-2512", icoord -> between != AT_UNIT );
 
 	/*
@@ -1329,8 +1362,8 @@ static int can_paste( carry_op *op /* carry operation to check */ )
 	coord_dup( &circa, icoord );
 	circa.between = AT_UNIT;
 
-	key = op -> u.insert.d -> key;
-	data = op -> u.insert.d -> data;
+	/*key = op -> u.insert.d -> key;
+	  data = op -> u.insert.d -> data;*/
 	old_iplug = item_plugin_by_coord( &circa );
 	new_iplug  = data -> iplug;
 
@@ -1347,9 +1380,11 @@ static int can_paste( carry_op *op /* carry operation to check */ )
 		 * otherwise, try to glue to the item at the left, if any
 		 */
 		coord_dup( &circa, icoord );
-		if( coord_set_to_left( &circa ) )
+		if( coord_set_to_left( &circa ) ) {
 			result = 0;
-		else {
+			icoord -> unit_pos = 0;
+			icoord -> between = BEFORE_ITEM;
+		} else {
 			old_iplug = item_plugin_by_coord( &circa );
 			result = ( old_iplug == new_iplug ) &&
 				item_can_contain_key( icoord, key, data );
@@ -1364,9 +1399,11 @@ static int can_paste( carry_op *op /* carry operation to check */ )
 		/*
 		 * otherwise, try to glue to the item at the right, if any
 		 */
-		if( coord_set_to_right( &circa ) )
+		if( coord_set_to_right( &circa ) ) {
 			result = 0;
-		else {
+			icoord -> unit_pos = 0;
+			icoord -> between = AFTER_ITEM;
+		} else {
 			int ( *cck )( const coord_t *, const reiser4_key *,
 				      const reiser4_item_data * );
 
@@ -1440,7 +1477,8 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	 * handle case when op -> u.insert.coord doesn't point to the item
 	 * of required type. restart as insert.
 	 */
-	if( !can_paste( op ) ) {
+	if( !can_paste( op, op -> u.insert.d -> coord, op -> u.insert.d -> key,
+			op -> u.insert.d -> data ) ) {
 		op -> op = COP_INSERT;
 		op -> u.insert.type = COPT_PASTE_RESTARTED;
 		reiser4_stat_level_add( doing, paste_restarted );
