@@ -4788,8 +4788,7 @@ void declare_memory_pressure( void )
 	is_mp = 1;
 	spin_unlock( &mp_guard );
 	kcond_broadcast( &memory_pressed );
-	dinfo( "nikita-1940", "Memory pressure declared: %lli",
-	       total_allocations );
+	dinfo( "Memory pressure declared: %lli", total_allocations );
 	/*total_allocations = 0;*/
 }
 
