@@ -2016,19 +2016,28 @@ jnode_set_dirty(jnode * node)
 	spin_lock_jnode(node);
 	atom = atom_get_locked_by_jnode (node);
 
+	assert("vs-1094", atom);
+
 	if (!jnode_is_dirty(node)) {
 		JF_SET(node, JNODE_DIRTY);
 
 		assert("jmacd-3981", jnode_is_dirty(node));
 
-		/* Make if flush_reserved if either leaf or unformatted for not FAKE_BLOCKNR. */
-		if (!JF_ISSET(node, JNODE_CREATED)/* && !is_flush_mode()*/) {
+		/* We grab2flush_reserve one additional block only if node was
+		   not CREATED and jnode_flush did not sort it into neither
+		   relocate set nor overwrite one. If node is in overwrite or
+		   relocate set we assume that atom's flush reserved counter was
+		   already adjusted. */
+		if (!JF_ISSET(node, JNODE_CREATED)
+		    && !JF_ISSET(node, JNODE_RELOC) 
+		    && !JF_ISSET(node, JNODE_OVRWR))
+		{
 			assert("vs-1093", !blocknr_is_fake(&node->blocknr));
 			trace_on(TRACE_RESERVE1, 
 				 "jnode_set_dirty: moving 1 grabbed block to flush reserved. Atom %u: block %llu\n", atom ? atom->atom_id : 0, node->blocknr);
 			grabbed2flush_reserved_nolock(atom, 1);
 		}
-		assert("vs-1094", atom);
+
 		if (atom && !JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 			/* If the atom is not set yet, it will be added to the appropriate list in
 			   capture_assign_block_nolock. */
@@ -2049,8 +2058,7 @@ jnode_set_dirty(jnode * node)
 		}
 	}
 
-	if (atom)
-		spin_unlock_atom (atom);
+	spin_unlock_atom (atom);
 
 	if (jnode_is_znode(node)) {
 		reiser4_tree *tree;
