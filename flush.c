@@ -2646,12 +2646,13 @@ static int flush_empty_queue (flush_position *pos)
  			max_j = min (pos->queue_num, (bdev_get_queue (super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9)));
 #endif
 
-			nr = 1;
-
-			while (1) {
+			for (nr = 1;
+			     /* true */;
+			     ++ nr, node = capture_list_next (node))
+			{
 				struct page *npage;
 
-				if (capture_list_end(&pos->queue, node) || nr > max_j)
+				if (capture_list_end(&pos->queue, node) || nr >= max_j)
 					break;
 
 				npage = jnode_lock_page (node);
@@ -2659,14 +2660,12 @@ static int flush_empty_queue (flush_position *pos)
 
 				if ((WRITE_LOG && JF_ISSET (node, JNODE_WANDER)) /* NOTE*** Wandered blocks should not enter the queue.  See the note above */ ||
 				    /*JF_ISSET (node, JNODE_FLUSH_BUSY) ||*/
-				    (*jnode_get_block (node) != *jnode_get_block (check) + 1) ||
+				    (*jnode_get_block (node) != *jnode_get_block (check) + nr) ||
 				    PageWriteback (npage)) {
 					unlock_page (npage);
 					break;
 				}
 
-				nr ++;
-				node = capture_list_next (node);
 			}
 
 			/* FIXME: JMACD->NIKITA: Is this GFP flag right? */
