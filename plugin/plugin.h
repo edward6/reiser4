@@ -121,6 +121,7 @@ struct reiser4_dir_entry_desc {
 	struct inode *obj;
 };
 
+/* FIXME-HANS what does this mean? Can you explain? */
 struct reg_file_builtins
 {
 	int (*body_write_flow)();
@@ -136,7 +137,8 @@ struct reg_file_builtins
 	int (*body_read_flow)();
 	int (*sd_read_flow)();
 	int (*attr_read_flow)();
-}
+};
+
 /**
  * File (object) plugin.  Defines the set of methods that file plugins implement, some of which are optional.  This
  * includes all of the file related VFS operations.
@@ -183,7 +185,7 @@ typedef struct file_plugin {
 
 /* reiser4 required file operations */
 	 union {
-		 reg_file_builtins rf;
+		 struct reg_file_builtins rf;
 	 } builtins;
 
 	/* VFS required/defined operations */
@@ -218,7 +220,7 @@ typedef struct file_plugin {
 	*/
 	int (*is_flow_built_in)(char * name, int length);
 
-	int (*select_method_and_key)(char *builtin_name, int length, int (*builtin_method), key * key )
+	int (*select_method_and_key)(char *builtin_name, int length, int (*builtin_method), reiser4_key * key );
 
 	/**
 	 * Construct flow into @flow according to user-supplied data.

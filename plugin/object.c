@@ -559,8 +559,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		},
 		.u = {
 			.file = {
-				.write_flow          = NULL,
-				.read_flow           = NULL,
 				.truncate            = ordinary_file_truncate,
 				.create              = ordinary_file_create,
 				.write_sd_by_inode   = common_file_save,
@@ -591,8 +589,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		},
 		.u = {
 			.file = {
-				.write_flow          = NULL,
-				.read_flow           = NULL,
 				.truncate            = NULL, /* EISDIR */
 				.create              = hashed_create,
 				.write_sd_by_inode   = common_file_save,
@@ -623,8 +619,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		},
 		.u = {
 			.file = {
-				.write_flow          = NULL,
-				.read_flow           = NULL,
 				.truncate            = NULL,
 				.create              = NULL,
 				.write_sd_by_inode   = common_file_save,
@@ -658,8 +652,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 		},
 		.u = {
 			.file = {
-				.write_flow          = NULL,
-				.read_flow           = NULL,
 				.truncate            = NULL,
 				.create              = NULL,
 				.write_sd_by_inode   = common_file_save,

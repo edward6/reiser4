@@ -402,7 +402,6 @@ reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
 		},
 		.u = {
 			.dir = {
-				.is_built_in         = NULL,
 				.unlink              = common_unlink,
 				.link                = common_link,
 				.lookup              = hashed_lookup,
