@@ -2076,9 +2076,6 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 	node_check(to, REISER4_NODE_PANIC);
 
 	source = from->node;
-	/* if source or target node are "immovable"---shift nothing. */
-	if (ZF_ISSET(source, JNODE_IMMOVABLE) || ZF_ISSET(to, JNODE_IMMOVABLE))
-		return 0;
 
 	/* set @shift.wish_stop to rightmost/leftmost unit among units we want
 	   shifted */
@@ -2199,6 +2196,19 @@ node40_max_item_size(void)
 {
 	return reiser4_get_current_sb()->s_blocksize - sizeof (node40_header) - sizeof (item_header40);
 }
+
+/* plugin->u.node.set_item_plugin */
+int
+node40_set_item_plugin(coord_t *coord, item_id id)
+{
+	item_header40 *ih;
+
+	ih = node40_ih_at_coord(coord);
+	cputod16(id, &ih->plugin_id);
+	coord->iplugid = id;
+	return 0;
+}
+
 
 /*
    Local variables:
