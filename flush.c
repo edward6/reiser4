@@ -343,6 +343,14 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 	flush_pos_done (& flush_pos);
 	flush_scan_done (& left_scan);
 	flush_scan_done (& right_scan);
+
+	/*
+	 * flush is lengthy procedure. Give other threads chance to run. Also,
+	 * if signal was caught, return -EINTR.
+	 */
+	if (preempt_point())
+		ret = -EINTR;
+
 	return ret;
 }
 
