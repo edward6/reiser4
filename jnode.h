@@ -9,7 +9,7 @@
 #include "tshash.h"
 #include "tslist.h"
 #include "txnmgr.h"
-#include "plugin/plugin.h"
+#include "key.h"
 #include "debug.h"
 #include "dformat.h"
 #include "spin_macros.h"
@@ -308,7 +308,6 @@ jnode_get_io_block(const jnode * node)
 }
 
 /* Jnode flush interface. */
-extern long jnode_flush(jnode * node, long *nr_to_flush, int flags);
 extern int enqueue_unformatted(jnode * node, flush_pos_t * pos);
 extern reiser4_blocknr_hint *pos_hint(flush_pos_t * pos);
 extern int pos_leaf_relocate(flush_pos_t * pos);
@@ -480,6 +479,15 @@ jnode_get_tree(const jnode * node)
 
 extern void pin_jnode_data(jnode *);
 extern void unpin_jnode_data(jnode *);
+
+typedef enum {
+	JNODE_UNFORMATTED_BLOCK,
+	JNODE_FORMATTED_BLOCK,
+	JNODE_BITMAP,
+	JNODE_CLUSTER_PAGE,
+	JNODE_IO_HEAD,
+	LAST_JNODE_TYPE
+} jnode_type;
 
 static inline jnode_type
 jnode_get_type(const jnode * node)
