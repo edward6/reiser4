@@ -179,13 +179,9 @@ lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coor
 
 	/* key we are looking for must be greater than key of item @coord */
 	assert("vs-414", keygt(key, &item_key));
-
-	if (keygt(key, max_key_inside_extent(coord, &item_key))) {
-		/* @key is key of another file */
-		coord->unit_pos = 0;
-		coord->between = AFTER_ITEM;
-		return CBK_COORD_NOTFOUND;
-	}
+	
+	assert("umka-99945", 
+	        !keygt(key, max_key_inside_extent(coord, &item_key)));
 
 	ext = extent_item(coord);
 	assert("vs-1350", ext == coord->body);
