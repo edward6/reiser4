@@ -87,13 +87,14 @@ int
 utmost_child_real_block_extent(const coord_t *coord, sideof side, reiser4_block_nr *block)
 {
 	reiser4_extent *ext;
-	reiser4_block_nr pos_in_unit;
-
-	ext = extent_utmost_ext(coord, side, &pos_in_unit);
+	
+	ext = extent_by_coord(coord);
 
 	switch (state_of_extent(ext)) {
 	case ALLOCATED_EXTENT:
-		*block = extent_get_start(ext) + pos_in_unit;
+		*block = extent_get_start(ext);
+		if (side == RIGHT_SIDE) 
+			*block += extent_get_width(ext) - 1;
 		break;
 	case HOLE_EXTENT:
 	case UNALLOCATED_EXTENT:
