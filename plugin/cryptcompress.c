@@ -44,6 +44,7 @@ Cryptcompress specific fields of reiser4 inode/stat-data:
 #include <linux/pagemap.h>
 #include <linux/crypto.h>
 #include <linux/swap.h>
+#include <linux/hardirq.h>
 
 int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
 int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
