@@ -331,7 +331,7 @@ txn_end (reiser4_context *context)
  * the lock-ordering cycle.  May not return NULL. */
 /* Audited by: umka (2002.06.13) */
 txn_atom*
-atom_get_locked_by_txnh (txn_handle *txnh)
+atom_get_locked_with_txnh_locked (txn_handle *txnh)
 {
 	txn_atom *atom;
 	
@@ -358,6 +358,7 @@ atom_get_locked_by_txnh (txn_handle *txnh)
 	return atom;
 }
 
+/* Get the current atom and spinlock it. */
 txn_atom * get_current_atom_locked (void)
 {
 	reiser4_context * cx;
@@ -370,9 +371,10 @@ txn_atom * get_current_atom_locked (void)
 	txnh = cx -> trans;
 	assert ("zam-435", txnh != NULL);
 	
-	atom = atom_get_locked_by_txnh (txnh);
+	atom = atom_get_locked_with_txnh_locked (txnh);
 	assert ("zam-436", atom != NULL);
 
+	spin_unlock_txnh (txnh);
 	return atom;
 }
 
@@ -744,7 +746,7 @@ commit_txnh (txn_handle *txnh)
 	
  again:
 	/* Get the atom and txnh locked. */
-	atom = atom_get_locked_by_txnh (txnh);
+	atom = atom_get_locked_with_txnh_locked (txnh);
 
 	/* The txnh stays open while we try to commit, since it is still being used, but
 	 * we don't need the txnh lock while trying to commit. */
@@ -1164,7 +1166,7 @@ void txn_delete_page (struct page *pg)
 
 	ret = blocknr_set_add_block (atom, & atom->delete_set, & blocknr_entry, jnode_get_block (node));
 
-	if (ret == EAGAIN) {
+	if (ret == -EAGAIN) {
 		/* Jnode is still locked, which atom_get_locked_by_jnode expects. */
 		goto repeat;
 	}

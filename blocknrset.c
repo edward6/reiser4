@@ -162,7 +162,7 @@ static int blocknr_set_add (txn_atom                *atom,
 		if (*new_bsep == NULL) {
 			spin_unlock_atom (atom);
 			*new_bsep = bse_alloc ();
-			return (*new_bsep != NULL) ? EAGAIN : ENOMEM;
+			return (*new_bsep != NULL) ? -EAGAIN : -ENOMEM;
 		}
 
 		/* Put it on the head of the list. */

@@ -805,8 +805,9 @@ void bitmap_pre_commit_hook (void)
 	tx = ctx->trans;
 	assert ("zam-434", tx != NULL);
 
-	atom = atom_get_locked_by_txnh(tx);
+	atom = atom_get_locked_with_txnh_locked(tx);
 	assert ("zam-435", atom != 0);
+	spin_unlock_txnh(tx);
 
 	blocknr_set_iterator (atom, &atom->delete_set, apply_dset_to_commit_bmap, &commit_list, 0);
 
@@ -920,16 +921,11 @@ static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 
 /** called after transaction commit, apply DELETE SET to WORKING BITMAP */
 /* Audited by: green(2002.06.12) */
-void bitmap_post_commit_hook (void) {
-	reiser4_context * ctx = get_current_context ();
-
-	txn_handle * tx;
+void bitmap_post_commit_hook (void) 
+{
 	txn_atom   * atom;
 
-	tx = ctx->trans;
-	assert ("zam-451", tx != NULL);
-
-	atom = atom_get_locked_by_txnh (tx);
+	atom = get_current_atom_locked ();
 	assert ("zam-452", atom != NULL);
 
 	blocknr_set_iterator (atom, &atom->delete_set, apply_dset_to_working_bmap, NULL, 1);

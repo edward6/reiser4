@@ -2705,6 +2705,9 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 				 * cut_node() with a to_key argument.  So if this
 				 * allocation fails in the middle and only some of the
 				 * extent was copied, cut_node needs a to_key.  Right? */
+				/* FIXME: JMACD->VS/ZAM: This free_blocks does not need to
+				 * 'defer' releasing these blocks, since they were not
+				 * used. free_blocks() passes 1 for defer. */
 				free_blocks (first_allocated, allocated);
 				result = SQUEEZE_TARGET_FULL;
 				trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);

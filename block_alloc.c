@@ -196,29 +196,29 @@ void reiser4_dealloc_blocks (
 	/* defer actual block freeing until transaction commit */
 	int defer )
 {
-	txn_atom          * atom; 
+	txn_atom          * atom = NULL; 
 	int                 ret;
 	
 	assert ("zam-431", *len != 0);
 	assert ("zam-432", *start != 0);
 
 	if (defer) {
+		blocknr_set_entry * bsep = NULL;
+
 		/* storing deleted block numbers in a blocknr set
 		 * datastructure for further actual deletion */
 		do {
-			txn_handle        * tx;
-			blocknr_set_entry * bsep = NULL;
-
-			tx = get_current_context() -> trans;
-			assert ("zam-429", tx != NULL);
-
-			atom = atom_get_locked_by_txnh (tx);
+			atom = get_current_atom_locked ();
 			assert ("zam-430", atom != NULL);
 
 			ret = blocknr_set_add_extent (atom, & atom->delete_set, &bsep, start, len);
 
+			if (ret == -ENOMEM) {
+				/* FIXME: JMACD->ZAM: return FAILURE. */
+			}
+
 			/* This loop might spin at most two times */
-		} while (ret != -EAGAIN);
+		} while (ret == -EAGAIN);
 
 		assert ("zam-477", ret == 0);
 
