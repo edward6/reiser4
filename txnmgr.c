@@ -785,6 +785,7 @@ commit_txnh (txn_handle *txnh)
 		if (ret != 0) {
 			assert ("jmacd-1027", spin_atom_is_not_locked (atom));
 			if (ret != -EAGAIN) {
+				warning ("jmacd-7881", "transaction commit failed");
 				failed = 1;
 			} else {
 				ret = 0;
