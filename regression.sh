@@ -13,6 +13,12 @@ function run()
 	/usr/bin/time -f " T: %e/%S/%U F: %F/%R" $*
 }
 
+function do_mkfs()
+{
+	echo 'mkfs'
+	echo "mkfs $REISER4_MOUNT" | a.out sh
+}
+
 export REISER4_PRINT_STATS=1
 export REISER4_CRASH_MODE=debugger
 
@@ -21,8 +27,7 @@ rm -f gmon.out.*
 #ORDER='000'
 ORDER=${2:-''}
 
-echo mkfs
-echo mkfs $REISER4_MOUNT | a.out sh
+do_mkfs
 
 for r in `seq 1 $ROUNDS` 
 do
