@@ -1144,6 +1144,8 @@ void __reiser4_wake_up (lock_stack *owner)
  */
 int go_to_sleep (lock_stack *owner)
 {
+	/* Well, we might sleep here, so holding of any spinlocks is no-no */
+	assert( "green-30", lock_counters() -> spin_locked == 0 );
 	/* return down_interruptible(&owner->sema); */
 	down(&owner->sema);
 	return 0;
