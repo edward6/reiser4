@@ -228,18 +228,26 @@ static int reiser4_rename (struct inode *old_dir UNUSED_ARG,
 	return -ENOSYS;
 }
 
-static int reiser4_readlink (struct dentry *denrty UNUSED_ARG,
-			     char *buf UNUSED_ARG, int buflen UNUSED_ARG)
+static int reiser4_readlink (struct dentry *dentry,
+			     char *buf, int buflen)
 {
-	printk("reiser4_readlink\n");
-	return -ENOSYS;
+	assert( "vs-852", S_ISLNK( dentry -> d_inode -> i_mode ) );
+	if( !dentry -> d_inode -> u.generic_ip ||
+	    !inode_get_flag( dentry -> d_inode, REISER4_GENERIC_VP_USED ) )
+		return -EINVAL;
+	return vfs_readlink( dentry, buf, buflen,
+			     dentry -> d_inode -> u.generic_ip );
 }
 
-static int reiser4_follow_link (struct dentry *dentry UNUSED_ARG,
-				struct nameidata *data UNUSED_ARG)
+static int reiser4_follow_link (struct dentry *dentry,
+				struct nameidata *data)
 {
-	printk("reiser4_follow_link\n");
-	return -ENOSYS;
+	assert( "vs-851", S_ISLNK( dentry -> d_inode -> i_mode ) );
+
+	if( !dentry -> d_inode -> u.generic_ip ||
+	    !inode_get_flag( dentry -> d_inode, REISER4_GENERIC_VP_USED ) )
+		return -EINVAL;
+	return vfs_follow_link (data, dentry -> d_inode -> u.generic_ip);
 }
 
 static int reiser4_revalidate (struct dentry *dentry UNUSED_ARG)
@@ -1310,6 +1318,12 @@ static void reiser4_destroy_inode( struct inode *inode /* inode being
 							* destroyed */ )
 {
 	assert( "nikita-1697", inode != NULL );
+	if( inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
+		assert( "vs-839", S_ISLNK( inode -> i_mode ) );
+		kfree( inode -> u.generic_ip );
+		inode -> u.generic_ip = 0;
+		inode_clr_flag( inode, REISER4_GENERIC_VP_USED );
+	}
 	kmem_cache_free( inode_cache, reiser4_inode_data( inode ) );
 }
 
@@ -1869,8 +1883,8 @@ struct inode_operations reiser4_inode_operations = {
  	.rmdir       = reiser4_rmdir, /* d */
 	.mknod       = reiser4_mknod, /* d */
  	.rename      = reiser4_rename,
-/* 	.readlink    = reiser4_readlink, */
-/* 	.follow_link = reiser4_follow_link, */
+ 	.readlink    = NULL,
+ 	.follow_link = NULL,
  	.truncate    = reiser4_truncate, /* d */
  	.permission  = reiser4_permission, /* d */
 /* 	.revalidate  = reiser4_revalidate, */
@@ -1899,6 +1913,11 @@ struct file_operations reiser4_file_operations = {
 /* 	.writev            = reiser4_writev, */
 /* 	.sendpage          = reiser4_sendpage, */
 /* 	.get_unmapped_area = reiser4_get_unmapped_area */
+};
+
+struct inode_operations reiser4_symlink_inode_operations = {
+ 	.readlink    = reiser4_readlink,
+ 	.follow_link = reiser4_follow_link
 };
 
 define_never_ever_op( prepare_write_vfs )
