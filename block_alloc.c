@@ -656,9 +656,18 @@ int block_alloc_pre_commit_hook (txn_atom * atom)
 		/* apply DELETED SET */
 		if (jnode_is_in_deleteset(node))
 			reiser4_clear_bit(offset, bnode->commit->data);
-		/* set bits for freshly allocated nodes */
-		if (JF_ISSET(node, ZNODE_ALLOC))
+
+		/* adjust blocks_free_committed counter -- a free blocks
+		 * counter we write to disk */
+		if (JF_ISSET(node, ZNODE_DELETED))
+			info_data->blocks_free_committed ++;
+
+		if (JF_ISSET(node, ZNODE_ALLOC)) {
+			/* set bits for freshly allocated nodes */
 			reiser4_set_bit(offset, bnode->commit->data);
+			/* count block which are allocated in the transaction, */
+			info_data->blocks_free_committed --;
+		}
 	}
 
 	spin_unlock_atom(atom);
@@ -675,13 +684,27 @@ int block_alloc_post_commit_hook (txn_atom * atom) {
 	assert ("zam-382", info_data->bitmap != NULL);
 
 	spin_lock_atom (atom);
+
 	WALK_ATOM {
 		int bmap, offset;
 		struct reiser4_bnode * bnode;
 
+		/* At this moment after successful commit we replay previously
+		 * recorded in atom's deleted_nodes list changes to working
+		 * bitmap and working free blocks counter ... */
+
+		/* ... count all blocks which are freed in a "working" free
+		 * block counter */
+		if (JF_ISSET(node, ZNODE_DELETED)) {
+			spin_lock (&info_data->guard);
+			info_data->blocks_free ++;
+			spin_lock (&info_data->guard);
+		}
+
 		if (! jnode_is_in_deleteset(node))
 			continue;
 
+		/* ... apply DELETED_SET to the WORKING bitmap */
 		assert ("zam-403", !reiser4_blocknr_is_fake(&node->blocknr));
 
 		parse_blocknr(node->blocknr.blk, &bmap, &offset);
@@ -693,6 +716,7 @@ int block_alloc_post_commit_hook (txn_atom * atom) {
 
 		reiser4_clear_bit(offset, bnode->working->data);
 	}
+
 	spin_unlock_atom (atom);
 
 	/* FIXME_ZAM: I think jnodes for DELETED_SET should disappear at this
@@ -733,6 +757,10 @@ int block_alloc_post_writeback_hook (txn_atom * atom)
 		assert ("zam-381", bnode->working != NULL);
 
 		reiser4_clear_bit(offset, bnode->working->data);
+
+		spin_lock (&info_data->guard);
+		info_data->blocks_free ++;
+		spin_unlock (&info_data->guard);
 	}
 
 	spin_unlock_atom(atom);
