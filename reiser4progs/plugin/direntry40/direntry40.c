@@ -264,10 +264,11 @@ static errno_t direntry40_print(reiser4_body_t *body,
     Helper function that is used by lookup method for getting n-th element of 
     direntry.
 */
-static inline void *callback_get_entry(void *direntry, 
+static inline void *callback_get_entry(void *array, 
     uint32_t pos, void *data) 
 {
-    return &((direntry40_t *)direntry)->entry[pos].entryid;
+    direntry40_t *direntry = (direntry40_t *)array;
+    return &direntry->entry[pos].entryid;
 }
 
 /* 

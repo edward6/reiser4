@@ -434,7 +434,7 @@ struct reiser4_dir_ops {
     uint32_t (*tell) (reiser4_entity_t *);
 
     /* Makes lookup inside dir */
-    int (*lookup) (reiser4_entity_t *, reiser4_entry_hint_t *);
+    int (*lookup) (reiser4_entity_t *, char *, reiser4_key_t *);
 };
 
 typedef struct reiser4_dir_ops reiser4_dir_ops_t;

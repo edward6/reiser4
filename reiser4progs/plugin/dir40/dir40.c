@@ -84,7 +84,7 @@ static errno_t dir40_realize(dir40_t *dir) {
 	&dir->statdata.data, &dir->statdata.len);
 }
 
-static int dir40_mergeable(reiser4_entity_t *entity, 
+static int dir40_continue(reiser4_entity_t *entity, 
     reiser4_place_t *next_place) 
 {
     rpid_t next_pid;
@@ -147,7 +147,7 @@ static errno_t dir40_read(reiser4_entity_t *entity,
     if (dir->place.pos.unit >= count) {
 	reiser4_place_t place = dir->place;
 	
-	if (!dir40_mergeable(entity, &place)) {
+	if (!dir40_continue(entity, &place)) {
 	    dir->place = place;
 	    return -1;
 	}
@@ -170,22 +170,23 @@ static errno_t dir40_read(reiser4_entity_t *entity,
 }
 
 static int dir40_lookup(reiser4_entity_t *entity, 
-    reiser4_entry_hint_t *entry) 
+    char *name, reiser4_key_t *key) 
 {
-    reiser4_key_t key;
+    reiser4_key_t k;
     reiser4_item_ops_t *item_ops;
     dir40_t *dir = (dir40_t *)entity;
     
     aal_assert("umka-1117", entity != NULL, return -1);
-    aal_assert("umka-1118", entry != NULL, return -1);
-    aal_assert("umka-1119", entry->name != NULL, return -1);
+    aal_assert("umka-1118", name != NULL, return -1);
+
+    aal_assert("umka-1119", key != NULL, return -1);
+    aal_assert("umka-1120", key->plugin != NULL, return -1);
 
     /* Forming the directory key */
-    key.plugin = dir->key.plugin;
+    k.plugin = dir->key.plugin;
 
-    plugin_call(return -1, key.plugin->key_ops, 
-	build_direntry, key.body, dir->hash_plugin, 
-	dir40_locality(dir), dir40_objectid(dir), entry->name);
+    plugin_call(return -1, k.plugin->key_ops, build_direntry, k.body, 
+	dir->hash_plugin, dir40_locality(dir), dir40_objectid(dir), name);
     
     item_ops = &dir->direntry_plugin->item_ops;
 
@@ -194,18 +195,27 @@ static int dir40_lookup(reiser4_entity_t *entity,
 	reiser4_place_t place;
 	
 	if (plugin_call(return -1, item_ops->common, lookup, 
-	    dir->direntry, &key, &dir->place.pos.unit) == 1) 
+	    dir->direntry, &k, &dir->place.pos.unit) == 1) 
 	{
+	    roid_t locality;
+	    reiser4_entry_hint_t entry;
+	    
 	    if ((plugin_call(return -1, item_ops->specific.direntry, 
-		    entry, dir->direntry, dir->place.pos.unit, entry)))
+		    entry, dir->direntry, dir->place.pos.unit, &entry)))
 		return -1;
 
+	    locality = plugin_call(return -1, key->plugin->key_ops,
+		get_locality, &entry.objid);
+	    
+	    plugin_call(return -1, key->plugin->key_ops, build_generic,
+		key->body, KEY_STATDATA_TYPE, locality, entry.objid.objectid, 0);
+	    
 	    return 1;
 	}
 	
 	place = dir->place;
     	
-	if (!dir40_mergeable(entity, &place)) {
+	if (!dir40_continue(entity, &place)) {
 	    dir->place = place;
 	    return 0;
 	}
