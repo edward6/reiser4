@@ -35,7 +35,7 @@ symlink_create(struct inode *symlink,	/* inode of symlink */
 	assert("nikita-686", data->id == SYMLINK_FILE_PLUGIN_ID);
 
 	/* stat data of symlink has symlink extension */
-	mask = &reiser4_inode_data(symlink)->extmask;
+	mask = &reiser4_inode_by_inode(symlink)->extmask;
 	scint_pack(mask, scint_unpack(mask) | (1 << SYMLINK_STAT), GFP_ATOMIC);
 
 	assert("vs-838", symlink->u.generic_ip == 0);
@@ -49,6 +49,7 @@ symlink_create(struct inode *symlink,	/* inode of symlink */
 	if (result) {
 		/* FIXME-VS: Make sure that symlink->u.generic_ip is not attached
 		   to kmalloced data */
+		INODE_SET_FIELD(symlink, i_size, 0);
 	} else {
 		assert("vs-849", symlink->u.generic_ip && inode_get_flag(symlink, REISER4_GENERIC_VP_USED));
 		assert("vs-850", !memcmp((char *) symlink->u.generic_ip, data->name, (size_t) symlink->i_size + 1));
