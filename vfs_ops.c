@@ -1428,6 +1428,7 @@ static void reiser4_destroy_inode( struct inode *inode /* inode being
 static void reiser4_dirty_inode( struct inode *inode )
 {
 	int result;
+	__REISER4_ENTRY( inode -> i_sb, );
 
 	assert( "nikita-2523", inode != NULL );
 
@@ -1435,6 +1436,8 @@ static void reiser4_dirty_inode( struct inode *inode )
 	if( result != 0 )
 		warning( "nikita-2524", "Failed to write sd of %llu: %i",
 			 get_inode_oid( inode ), result );
+
+	__REISER4_EXIT( &__context );
 }
 
 
