@@ -258,8 +258,14 @@ int reiser4_grab_space (__u64 * grabbed, __u64 min_block_count, __u64 max_block_
 
 	free_blocks = reiser4_free_blocks (super);
 
+	/*trace_if (TRACE_ALLOC, info ("reiser4_grab_space: free_blocks %llu\n",
+	  free_blocks));*/
+
 	if (free_blocks < min_block_count) {
 		ret = -ENOSPC;
+		trace_if (TRACE_ALLOC, info ("reiser4_grab_space: ENOSPC: min %llu, max %llu\n",
+					     min_block_count, max_block_count));
+
 		goto unlock_and_ret;
 	}
 
@@ -270,6 +276,9 @@ int reiser4_grab_space (__u64 * grabbed, __u64 min_block_count, __u64 max_block_
 
 	free_blocks -= *grabbed;
 	reiser4_set_free_blocks (super, free_blocks);
+
+	/*trace_if (TRACE_ALLOC, info ("reiser4_grab_space: grabbed %llu, free blocks left %llu\n",
+	 *grabbed, reiser4_free_blocks (super)));*/
 
  unlock_and_ret:
 	reiser4_spin_unlock_sb (super);
