@@ -589,14 +589,82 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 	return set_size;
 }
 
+/* overwrite set nodes IO completion handler */
+static void wander_end_io (struct bio * bio)
+{
+	int i;
+
+	for (i = 0; i < bio->bi_vcnt; i += 1) {
+		struct page *pg = bio->bi_io_vec[i].bv_page;
+
+		if (! test_bit (BIO_UPTODATE, & bio->bi_flags)) {
+			SetPageError (pg);
+		}
+
+		if (! TestClearPageWriteback (pg)) {
+			BUG ();
+		}
+
+		ClearPageDirty (pg);
+
+		unlock_page (pg);
+		page_cache_release (pg);
+	}
+
+	bio_put (bio);
+}
+
 /* create a BIO object for all pages for all j-nodes and submit write
  * request. j-nodes are in a double-linked list (capture_list)*/
-static int submit_write (jnode * first UNUSED_ARG,
-			 int nr UNUSED_ARG,
-			 const reiser4_block_nr * start_block UNUSED_ARG)
+/* FIXME: it should be combined with similar code in flush.c */
+static int submit_write (jnode * first, int nr, const reiser4_block_nr  * block)
 {
+	struct super_block * super;
+	jnode * cur = first;
+
+	struct bio * bio;
+	int i;
+
+	assert ("zam-571", first != NULL);
+	assert ("zam-572", block != NULL);
+	assert ("zam-570", nr > 0);
+
+	bio = bio_alloc(GFP_NOIO, nr);
+	if (!bio) return -ENOMEM;
+
+	assert ("zam-574", jnode_page (first) != NULL);
+	super = jnode_page(cur)->mapping->host->i_sb;
+
+	bio->bi_sector = *block * (super->s_blocksize >>9);
+	bio->bi_bdev   = super->s_dev;
+	bio->bi_vcnt   = nr;
+	bio->bi_size   = super->s_blocksize * nr;
+	bio->bi_end_io = wander_end_io;
+
+	for (i = 0; i < nr; i++) {
+		struct page * pg;
+
+		pg = jnode_page(cur);
+		assert ("zam-573", pg != NULL);
+
+		page_cache_get (pg);
+		lock_page (pg);
+		SetPageWriteback (pg);
+
+		ClearPageUptodate(pg);
+
+		bio->bi_io_vec[i].bv_page   = pg;
+		bio->bi_io_vec[i].bv_len    = super->s_blocksize;
+		bio->bi_io_vec[i].bv_offset = 0;
+
+		cur = capture_list_next (cur);
+	}
+
+	submit_bio(WRITE, bio);
+
 	return 0;
 }
+
 
 /* add given wandered mapping to atom's wandered map */
 static int add_region_to_wmap (txn_atom * atom,
