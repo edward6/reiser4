@@ -91,9 +91,9 @@ static int set_journal_info (struct super_block * s)
 
 	ret = -ENOMEM;
 
-	if ((private->journal_header = jnew())) return ret;
+	if ((private->journal_header = jnew()) == NULL) return ret;
 
-	if ((private->journal_footer = jnew())) goto fail;
+	if ((private->journal_footer = jnew()) == NULL) goto fail;
 
 	private->journal_header->blocknr = FORMAT_40_JOURNAL_HEADER_BLOCKNR;
 	private->journal_footer->blocknr = FORMAT_40_JOURNAL_FOOTER_BLOCKNR;
