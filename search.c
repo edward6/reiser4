@@ -1130,7 +1130,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
 
-	if (result == 0 && ZF_ISSET(node, JNODE_RIP))
+	if (unlikely(result == 0 && ZF_ISSET(node, JNODE_RIP)))
 		result = -ENOENT;
 
 	rcu_read_unlock();
