@@ -161,6 +161,8 @@ typedef union reiser4_file_fsdata {
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry );
 extern reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f );
 
+extern void reiser4_make_bad_inode( struct inode *inode );
+
 
 /* __REISER4_INODE_H__ */
 #endif
