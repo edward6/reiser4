@@ -356,17 +356,17 @@ static void reiser4_truncate( struct inode *inode )
  * fill ->f_ffiles */
 static long oids_used( struct super_block *s )
 {
-	oid_mgr_plugin *oplug;
+	oid_allocator_plugin *oplug;
 	__u64 used;
 
 
 	assert( "vs-484", get_super_private( s ) );
 
-	oplug = get_super_private( s ) -> oplug;
+	oplug = get_super_private( s ) -> oid_plug;
 	if( !oplug || oplug -> oids_used )
 		return (long)-1;
 
-	used = oplug -> oids_used( &get_super_private( s ) -> allocator );
+	used = oplug -> oids_used( &get_super_private( s ) -> oid_allocator );
 	if( used < ( __u64 )( ( long )~0 ) >> 1 )
 		return ( long )used;
 	else
@@ -378,17 +378,17 @@ static long oids_used( struct super_block *s )
  * fill ->f_ffree */
 static long oids_free( struct super_block *s )
 {
-	oid_mgr_plugin *oplug;
+	oid_allocator_plugin *oplug;
 	__u64 used;
 
 
 	assert( "vs-485", get_super_private( s ) );
 
-	oplug = get_super_private( s ) -> oplug;
+	oplug = get_super_private( s ) -> oid_plug;
 	if( !oplug || oplug -> oids_free )
 		return (long)-1;
 
-	used = oplug -> oids_free( &get_super_private( s ) -> allocator );
+	used = oplug -> oids_free( &get_super_private( s ) -> oid_allocator );
 	if( used < ( __u64 )( ( long )~0 ) >> 1 )
 		return ( long )used;
 	else
@@ -1022,27 +1022,6 @@ static void reiser4_destroy_inode( struct inode *inode )
 	kmem_cache_free( inode_cache, reiser4_inode_data( inode ) );
 }
 
-/* helper for ->fill_super() super operation
- * get layout plugin by disk_plugin_id field of struct reiser4_master_sb if
- * @master_sb != 0, call guess method for all layout plugins available
- * otherwise */
-static layout_plugin * find_layout_plugin (struct super_block * s UNUSED_ARG,
-					   struct reiser4_master_sb * master_sb,
-					   struct buffer_head ** super_bh UNUSED_ARG)
-{
-	__u16 plugin_id;
-
-	if (!master_sb) {
-		/* FIXME-VS: call guess method for all available layout plugins */
-		return ERR_PTR (-EINVAL);
-	} else {
-		plugin_id = d16tocpu (&master_sb->disk_plugin_id);
-		/* only one plugin is available for now */
-		assert ("vs-476", plugin_id == LAYOUT_40_ID);
-	}
-
-	return layout_plugin_by_id (plugin_id);
-}
 
 /**
  * read super block from device and fill remaining fields in @s.
@@ -1052,11 +1031,12 @@ static layout_plugin * find_layout_plugin (struct super_block * s UNUSED_ARG,
 const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
 const int REISER4_MAGIC_OFFSET = 16 * 4096; /* offset to magic string from the
 					     * beginning of device */
-static int reiser4_fill_super (struct super_block * s, void * data UNUSED_ARG,
+static int reiser4_fill_super (struct super_block * s, void * data,
 			       int silent UNUSED_ARG)
 {
 	struct buffer_head * super_bh;
 	struct reiser4_master_sb * master_sb;
+	int plugin_id;
 	layout_plugin * lplug;
 	struct inode * inode;
 	int result;
@@ -1071,24 +1051,23 @@ static int reiser4_fill_super (struct super_block * s, void * data UNUSED_ARG,
 	master_sb = (struct reiser4_master_sb *)super_bh->b_data;
 	/* check reiser4 magic string */
 	if (!strncmp (master_sb->magic, REISER4_SUPER_MAGIC_STRING, 4)) {
-		/* reset block size if it is not a right one */
+		/* reset block size if it is not a right one FIXME-VS: better comment is needed */
 		if (d16tocpu (&master_sb->blocksize) != s->s_blocksize) {
 			brelse (super_bh);
 			if (!sb_set_blocksize (s, d16tocpu (&master_sb->blocksize)))
 				REISER4_EXIT (-EINVAL);
 			goto read_super_block;
 		}
+		plugin_id = d16tocpu (&master_sb->disk_plugin_id);
+		/* only one plugin is available for now */
+		assert ("vs-476", plugin_id == LAYOUT_40_ID);
+		lplug = layout_plugin_by_id (plugin_id);
+		brelse (super_bh);
 	} else {
 		/* no standard reiser4 super block found */
 		brelse (super_bh);
-		master_sb = 0;
-		super_bh = 0;
-	}
-
-	lplug = find_layout_plugin (s, master_sb, &super_bh);
-	if (IS_ERR (lplug)) {
-		brelse (super_bh);
-		REISER4_EXIT (-EINVAL);
+		/* FIXME-VS: call guess method for all available layout plugins */
+		return -EINVAL;
 	}
 
 	s->s_op = &reiser4_super_operations;
@@ -1105,15 +1084,15 @@ static int reiser4_fill_super (struct super_block * s, void * data UNUSED_ARG,
 
 	/* init layout plugin */
 	get_super_private (s)->lplug = lplug;
- 
+
 	/*
 	 * FIXME-JMACD: init txn mgr here?
 	 */
 	txn_mgr_init (&get_super_private (s)->tmgr);
 
 	/* call disk format plugin method to do all the preparations like
-	 * journal replay, super_info_data initialization, etc */
-	result = lplug->get_ready (s, get_super_private (s), super_bh);
+	 * journal replay, reiser4_super_info_data initialization, read oid allocator, etc */
+	result = lplug->get_ready (s, data);
 	if (result)
 		REISER4_EXIT (result);
 
