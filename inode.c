@@ -608,12 +608,20 @@ inode_set_plugin(struct inode *inode, reiser4_plugin * plug, pset_member memb)
 }
 
 reiser4_internal void
+inode_check_scale_nolock(struct inode *inode, __u64 old, __u64 new)
+{
+	assert("edward-1287", inode != NULL);
+	if (!dscale_fit(old, new))
+		inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
+	return;
+}
+
+reiser4_internal void
 inode_check_scale(struct inode *inode, __u64 old, __u64 new)
 {
 	assert("nikita-2875", inode != NULL);
 	spin_lock_inode(inode);
-	if (!dscale_fit(old, new))
-		inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
+		inode_check_scale_nolock(inode, old, new);
 	spin_unlock_inode(inode);
 }
 
