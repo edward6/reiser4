@@ -27,7 +27,7 @@ is_longname_key(const reiser4_key *key)
 }
 
 int
-is_longname(const char *name, int len)
+is_longname(const char *name UNUSED_ARG, int len)
 {
 	return len > OID_CHARS + OFFSET_CHARS;
 }
@@ -431,10 +431,14 @@ cmp_t de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
 cmp_t de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
 		    const reiser4_key * key /* key to compare */ )
 {
-	reiser4_key k1;
+	cmp_t        result;
+	reiser4_key *k1;
 
-	extract_key_from_de_id(get_key_locality(key), id, &k1);
-	return keycmp(&k1, key);
+	k1 = (reiser4_key *)(((unsigned long)id) - sizeof key->el[0]);
+	result = KEY_DIFF_EL(k1, key, 1);
+	if (result == EQUAL_TO)
+		result = KEY_DIFF_EL(k1, key, 2);
+	return result;
 }
 
 /* true if key of root directory sd */

@@ -88,7 +88,7 @@
 
 
 /* return body of compound directory item at @coord */
-static cde_item_format *
+static inline cde_item_format *
 formatted_at(const coord_t * coord)
 {
 	assert("nikita-1282", coord != NULL);
@@ -96,7 +96,7 @@ formatted_at(const coord_t * coord)
 }
 
 /* return entry header at @coord */
-static cde_unit_header *
+static inline cde_unit_header *
 header_at(const coord_t * coord /* coord of item */ ,
 	  int idx /* index of unit */ )
 {
@@ -577,7 +577,7 @@ lookup_result lookup_cde(const reiser4_key * key /* key to search for */ ,
 			return CBK_COORD_FOUND;
 		case GREATER_THAN:
 			coord->between = BEFORE_UNIT;
-			return -ENOENT;
+			return RETERR(-ENOENT);
 		case LESS_THAN:
 		default:
 			impossible("nikita-1298", "Broken find");
@@ -931,7 +931,7 @@ add_entry_cde(struct inode *dir /* directory object */ ,
 
 	/* NOTE-NIKITA quota plugin? */
 	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, data.length))
-		return -EDQUOT;
+		return RETERR(-EDQUOT);
 
 	if (result)
 		result = insert_by_coord(coord, &data, &dir_entry->key, lh,
