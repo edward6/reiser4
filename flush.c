@@ -1176,8 +1176,6 @@ static int jnode_is_allocated (jnode *node)
 static int jnode_allocate_flush (flush_position *pos)
 {
 	int ret;
-	reiser4_block_nr len;
-	reiser4_block_nr blk;
 	tree_coord parent_coord;
 	lock_handle parent_lock;
 
@@ -1213,7 +1211,9 @@ static int jnode_allocate_flush (flush_position *pos)
 	/* And for RELOC blocks, allocate a block number now. */
 	if (JF_ISSET (pos->point, ZNODE_RELOC)) {
 		/* allocate 1 block using pos->preceder as a hint */
-		len = 1;
+		reiser4_block_nr len = 1;
+		reiser4_block_nr blk;
+
 		if ((ret = reiser4_alloc_blocks (& pos->preceder, & blk, & len))) {
 			goto exit;
 		}
