@@ -1543,13 +1543,13 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 		/* Move next_node_lock to the next node on the left. */
 		result = reiser4_get_left_neighbor(
 			&next_node_lock, node, ZNODE_WRITE_LOCK, GN_CAN_USE_UPPER_LEVELS);
-		if ((result != 0) && (result != -E_NO_NEIGHBOR))
+		if (result != 0 && result != -E_NO_NEIGHBOR)
 			break;
 		/* Check can we delete the node as a whole. */
 		if (iterations && znode_get_level(node) == LEAF_LEVEL &&
 		    UNDER_RW(dk, current_tree, read,
 			     (lazy ? keyle(from_key, znode_get_ld_key(node)) :
-			      keylt(from_key, znode_get_ld_key(node)) ))) {
+			      keylt(from_key, znode_get_ld_key(node))))) {
 			result = delete_node(node, smallest_removed, object);
 		} else {
 			result = tap_load(tap);
