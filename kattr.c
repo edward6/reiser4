@@ -28,10 +28,7 @@ to_kattr(struct attribute *attr)
 static inline struct super_block *
 to_super(struct kobject *kobj)
 {
-	reiser4_super_info_data *info;
-
-	info = container_of(kobj, reiser4_super_info_data, kobj);
-	return info->tree.super;
+	return container_of(kobj, struct super_block, kobj);
 }
 
 static ssize_t
@@ -141,13 +138,10 @@ static struct sysfs_ops attr_ops = {
 	.show = kattr_show,
 };
 
-static struct kobj_type ktype_reiser4 = {
+struct kobj_type ktype_reiser4 = {
 	.sysfs_ops	= &attr_ops,
 	.default_attrs	= def_attrs,
 };
-
-/* define reiser4_subsys */
-static decl_subsys(reiser4, &ktype_reiser4);
 
 #if REISER4_STATS
 
@@ -236,11 +230,11 @@ int reiser4_sysfs_init(struct super_block *super)
 
 	info = get_super_private(super);
 
-	kobj = &info->kobj;
+	kobj = &super->kobj;
 
 	snprintf(kobj->name, KOBJ_NAME_LEN, "%s", 
 		 kdevname(to_kdev_t(super->s_dev)));
-	kobj_set_kset_s(info, reiser4_subsys);
+	kobj_set_kset_s(super, super->s_type->subsys);
 	result = kobject_register(kobj);
 	if (result != 0)
 		return result;
@@ -269,17 +263,16 @@ int reiser4_sysfs_init(struct super_block *super)
 
 void reiser4_sysfs_done(struct super_block *super)
 {
-	kobject_unregister(&get_super_private(super)->kobj);
+	kobject_unregister(&super->kobj);
 }
 
 int reiser4_sysfs_init_all(void)
 {
-	return subsystem_register(&reiser4_subsys);
+	return 0;
 }
 
 void reiser4_sysfs_done_all(void)
 {
-	subsystem_unregister(&reiser4_subsys);
 }
 
 /* Make Linus happy.

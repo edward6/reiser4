@@ -257,10 +257,12 @@ struct reiser4_super_info_data {
 	/* committed number of files (oid allocator state variable ) */
 	__u64 nr_files_committed;
 
-	struct kobject kobj;
 #if REISER4_STATS
 	struct kobject stats_kobj;
 	reiser4_level_stats_kobj level[REAL_MAX_ZTREE_HEIGHT];
+#endif
+#if REISER4_PROF
+	reiser4_prof prof;
 #endif
 #if REISER4_DEBUG
 	/* minimum used blocks value (includes super blocks, bitmap blocks and

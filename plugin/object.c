@@ -97,11 +97,7 @@ check_inode_seal(const struct inode *inode,
 	       WITH_DATA_RET(coord->node, 1, keyeq(key, &unit_key)));
 	assert("nikita-2753", get_inode_oid(inode) == get_key_objectid(key));
 }
-#else
-#define check_inode_seal(inode, coord, key) noop
-#endif
 
-#if REISER4_DEBUG
 static void
 check_sd_coord(const coord_t *coord, const reiser4_key *key)
 {
@@ -122,9 +118,12 @@ check_sd_coord(const coord_t *coord, const reiser4_key *key)
 	}
 	zrelse(coord->node);
 }
+
 #else
+#define check_inode_seal(inode, coord, key) noop
 #define check_sd_coord(coord, key) noop
 #endif
+
 
 
 /* find sd of inode in a tree, deal with errors */
@@ -392,7 +391,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 
 /* save object's stat-data to disk */
 int
-common_file_save(struct inode *inode /* object to save */ )
+common_file_save(struct inode *inode /* object to save */)
 {
 	int result;
 
@@ -600,7 +599,8 @@ static reiser4_block_nr common_estimate_create_dir(struct inode *object)
 
 /* ->create method of object plugin */
 static int
-common_file_create(struct inode *object, struct inode *parent UNUSED_ARG, reiser4_object_create_data * data UNUSED_ARG)
+common_file_create(struct inode *object, struct inode *parent, 
+		   reiser4_object_create_data * data)
 {
 	reiser4_block_nr reserve;
 	assert("nikita-744", object != NULL);

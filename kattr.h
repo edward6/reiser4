@@ -25,6 +25,8 @@ extern void reiser4_sysfs_done_all(void);
 extern int  reiser4_sysfs_init(struct super_block *super);
 extern void reiser4_sysfs_done(struct super_block *super);
 
+extern struct kobj_type ktype_reiser4;
+
 /* __REISER4_KATTR_H__ */
 #endif
 

@@ -525,6 +525,7 @@ jload(jnode * node)
 {
 	int result;
 	struct page *page;
+	PROF_BEGIN(jload);
 
 	schedulable();
 
@@ -638,6 +639,7 @@ jload(jnode * node)
 	assert("nikita-2814", ergo(result == 0, jnode_is_loaded(node)));
 	assert("nikita-2816", ergo(result == 0 && jnode_is_znode(node),
 				   JZNODE(node)->nplug != NULL));
+	PROF_END(jload, jload);
 	return result;
 }
 
