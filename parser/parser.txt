@@ -179,6 +179,9 @@ ascii_command = "/home/teletubbies/(glove_location<-( ..object_t<-audit/regular,
 
 ascii_command = "/home/teletubbies/(glove_location<-( ..object_t<-audit/regular, ..perm_t<-acl); glove_location / ( ..acl<-(uid<-357, access<-denied) ; ..audit<-mailto<-teletubbies@pbs.org); glove_location<-'we stole it quite some number of years ago, and put it in the very first loot pile (in the hole near the purple flower).')";
 
+
+a/b/(new/(name<-"new_file_name"; type<-"regular file"; perm_t<-"acl"); new_file_name/acl<- ( uid<-"357", access<-"denied" ))
+
 ascii_command = 
    "/home/teletubbies/glove_location<-
              ( (..object_t<-audit, ..perm_t<-acl) ; 
