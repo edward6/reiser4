@@ -125,7 +125,7 @@ void spinlock_bug (const char *msg)
 
 __u64 total_allocations = 0ull;
 
-void *xmalloc( size_t size )
+void *xxmalloc( size_t size )
 {
 	++ total_allocations;
 
@@ -147,7 +147,7 @@ void *kmalloc( size_t size, int flag UNUSE )
 	size += sizeof (__u32);
 #endif
 
-	addr = xmalloc( size );
+	addr = xxmalloc( size );
 
 #if KMEM_CHECK
 	if (addr != NULL) {
@@ -1116,7 +1116,7 @@ int ulevel_read_node( reiser4_tree *tree, jnode *node, char **data )
 			return 0;
 		}
 	} else {
-		*data = xmalloc( blksz );
+		*data = xxmalloc( blksz );
 		if( *data != NULL )
 			return 0;
 		else
@@ -1380,7 +1380,7 @@ void test_search( int rounds, int size, int num )
 	u_int64_t cycles;
 
 	for( i = 0 ; i < num ; ++ i ) {
-		key[ i ] = xmalloc( sizeof key[ i ][ 0 ] * size );
+		key[ i ] = xxmalloc( sizeof key[ i ][ 0 ] * size );
 	}
 	for( i = 0 ; i < num ; ++ i ) {
 		for( j = 0 ; j < size ; ++ j ) {
@@ -1858,7 +1858,7 @@ static int mt_queue_put( mt_queue_t *queue, int value )
 	mt_queue_el_t *el;
 	int ret;
 
-	el = xmalloc( sizeof *el );
+	el = xxmalloc( sizeof *el );
 	if( el == NULL )
 		return -ENOMEM;
 
@@ -2033,7 +2033,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		create_twig( tree, f );
 		threads = atoi( argv[ 3 ] );
 		assert( "nikita-1494", threads > 0 );
-		tid = xmalloc( threads * sizeof tid[ 0 ] );
+		tid = xxmalloc( threads * sizeof tid[ 0 ] );
 		assert( "nikita-1495", tid != NULL );
 
 		print_inode( "inode", f );
@@ -2091,7 +2091,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		ret = mt_queue_init( capacity, &queue );
 		assert( "nikita-1918", ret == 0 ); /* Civil war */
 
-		tid = xmalloc( ( threads + 2 ) * sizeof tid[ 0 ] );
+		tid = xxmalloc( ( threads + 2 ) * sizeof tid[ 0 ] );
 		assert( "nikita-1919", tid != NULL );
 
 		for( i = 0 ; i < capacity / 2 ; ++ i )
@@ -2702,9 +2702,9 @@ static int copy_file (const char * oldname, struct inode * dir,
 		return 1;
 	}	
 
-	buf = xmalloc (BUFSIZE);
+	buf = xxmalloc (BUFSIZE);
 	if (!buf) {
-		perror ("copy_file: xmalloc failed");
+		perror ("copy_file: xxmalloc failed");
 		iput (inode);
 		return 1;
 	}
@@ -3381,10 +3381,10 @@ static int bash_diff (char * real_file, struct inode * cwd, const char * name)
 		return 0;
 	}
 	
-	buf1 = xmalloc (BUFSIZE);
-	buf2 = xmalloc (BUFSIZE);
+	buf1 = xxmalloc (BUFSIZE);
+	buf2 = xxmalloc (BUFSIZE);
 	if (!buf1 || !buf2) {
-		perror ("diff: xmalloc failed");
+		perror ("diff: xxmalloc failed");
 		iput (inode);
 		return 0;
 	}
@@ -3469,9 +3469,9 @@ static int bash_read (struct inode * dir, const char * name)
 		return 0;
 	}
 	
-	buf = xmalloc (count);
+	buf = xxmalloc (count);
 	if (!buf) {
-		info ("read: xmalloc failed\n");
+		info ("read: xxmalloc failed\n");
 		return 0;
 	}
 	if (call_read (inode, buf, (loff_t)from, count) != (ssize_t)count) {
@@ -4189,8 +4189,8 @@ int jmacd_test( int argc UNUSED_ARG,
 	_jmacd_items = atoi (argv[4]);
 	_jmacd_ops   = atoi (argv[5]);
 
-	proc_ids              = xmalloc (sizeof (pthread_t) * procs);
-	_jmacd_exists_map     = xmalloc (_jmacd_items);
+	proc_ids              = xxmalloc (sizeof (pthread_t) * procs);
+	_jmacd_exists_map     = xxmalloc (_jmacd_items);
 
 	for (i = 0; i < _jmacd_items; i += 1) {
 		_jmacd_exists_map[i] = 1;
