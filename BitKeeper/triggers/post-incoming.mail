@@ -2,7 +2,7 @@
 #
 # A BitKeeper commit-message trigger
 #
-# Copyright (C) 2002 by Hans Reiser <jmacd@namesys.com>
+# Copyright (C) 2002 by Hans Reiser <reiser@namesys.com>
 # Author Joshua MacDonald <jmacd@namesys.com>
 #
 
@@ -41,6 +41,30 @@ if test "X$BK_CSETLIST" == X; then
     exit 0
 fi
 
+function export_patch() # parent, version
+{
+  local rspec
+  
+  if test -z "$2"; then
+    return;
+  fi
+
+  if test "$1" != "$2"; then
+    rspec="$1,$2"
+  else
+    rspec="$2"
+  fi
+
+  echo "# bk export -tpatch -r$rspec" >> $OUTFILE
+  echo "# --------------------------------------------" >> $OUTFILE
+  bk -R export -T -tpatch -du -r$rspec                           \
+    | tail +5 -                                                  \
+    | grep -v "^#$"                                              \
+    | grep -v "^# The following is the BitKeeper ChangeSet Log$" \
+    >> $OUTFILE
+  echo >> $OUTFILE
+}
+
 # Scan the list of changesets
 CSETS_COMMA=
 CSETS_REAL=
@@ -48,7 +72,7 @@ FIRST_PARENT=
 LAST_VERSION=
 EXPORT_PARENT=
 EXPORT_VERSION=
-for cset in `cat $BK_CSETLIST`; do
+for cset in `cat $BK_CSETLIST`; do 
 
   # Test if it is a mergeset
   if test -z `bk -R prs -h -C$cset -d':MPARENT:'`; then
@@ -75,26 +99,14 @@ for cset in `cat $BK_CSETLIST`; do
 
   if test "$mset"; then
     # Export diffs up to, not including, each merge.
-    bk export -T -tpatch -du -r$EXPORT_PARENT,$EXPORT_VERSION      \
-      | tail +5 -                                                  \
-      | grep -v "^#$"                                              \
-      | grep -v "^# The following is the BitKeeper ChangeSet Log$" \
-      >> $OUTFILE
-
-    echo >> $OUTFILE
-    EXPORT_PARENT=$cset
-    EXPORT_VERSION=$cset
+    export_patch "$EXPORT_PARENT" "$LAST_VERSION"
+    EXPORT_PARENT="$cset"
+    EXPORT_VESION=""
   fi
 done
 
 # Export the last range of changes
-if test $EXPORT_PARENT != $EXPORT_VERSION; then
-  bk export -T -tpatch -du -r$EXPORT_PARENT,$EXPORT_VERSION      \
-    | tail +5 -                                                  \
-    | grep -v "^#$"                                              \
-    | grep -v "^# The following is the BitKeeper ChangeSet Log$" \
-    >> $OUTFILE
-fi
+export_patch "$EXPORT_PARENT" "$EXPORT_VERSION"
 
 # Use 'bk rset' to list changed files, versions, excluding ChangeSet
 # save to temp file.
