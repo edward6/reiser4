@@ -1220,7 +1220,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			 },
 			 .try         = try_by_label,
 			 .lookup      = lookup_pagecache,
-			 .lookup_mode = S_IFREG | S_IRUGO | S_IXUGO,
+			 .lookup_mode = S_IFDIR | S_IRUGO | S_IXUGO,
 			 .read_type   = PSEUDO_READ_SINGLE,
 			 .read        = {
 				 .single_show = show_pagecache
@@ -1326,7 +1326,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			 },
 			 .try         = NULL,
 			 .lookup      = lookup_plugin_field,
-			 .lookup_mode = S_IFREG | S_IRUGO | S_IXUGO,
+			 .lookup_mode = S_IFDIR | S_IRUGO | S_IXUGO,
 			 .read_type   = PSEUDO_READ_SINGLE,
 			 .read        = {
 				 .single_show = show_plugin
@@ -1345,7 +1345,7 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			 },
 			 .try         = try_by_label,
 			 .lookup      = lookup_plugins,
-			 .lookup_mode = S_IFREG | S_IRUGO | S_IXUGO,
+			 .lookup_mode = S_IFDIR | S_IRUGO | S_IXUGO,
 			 .read_type   = PSEUDO_READ_NONE,
 			 .write_type  = PSEUDO_WRITE_NONE,
 			 .readdir     = readdir_plugins
