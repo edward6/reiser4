@@ -1033,8 +1033,9 @@ static int append_one_block (tree_coord * coord,
 	reiser4_key key;
 
 	assert ("vs-228",
-		coord->unit_pos == last_unit_pos (coord) &&
-		coord->between == AFTER_UNIT);
+		(coord->unit_pos == last_unit_pos (coord) &&
+		 coord->between == AFTER_UNIT) ||
+		coord->between == AFTER_ITEM);
 
 	ext = extent_by_coord (coord);	
 	switch (state_of_extent (ext)) {
@@ -1204,31 +1205,37 @@ int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp )
 		reiser4_block_nr offset;
 		struct inode * inode;
 		struct page * pg;
-		int ret;
 
-		if ((ret = extent_get_inode_and_key (coord, & inode, & key))) {
-			return ret;
+		item_key_by_coord (coord, &key);
+
+		/* FIXME: Probably not quite right. */
+		set_key_type (&key, KEY_SD_MINOR);
+		set_key_offset (&key, 0ull);
+		inode = reiser4_iget (reiser4_get_current_sb (), &key);
+		if (!inode) {
+			/* inode must be in memory */
+			return -EIO;
 		}
 
-		offset = get_key_offset (&key) + pos_in_unit * reiser4_get_current_sb ()->s_blocksize;
-
+		offset   = get_key_offset (&key) +
+			pos_in_unit * reiser4_get_current_sb ()->s_blocksize;
 		assert ("vs-544", offset >> PAGE_CACHE_SHIFT < ~0ul);
-
 		pg = find_get_page (inode->i_mapping, (unsigned long)(offset >> PAGE_CACHE_SHIFT));
 
-		iput (inode);
-
 		if (pg == NULL || IS_ERR (pg)) {
+			iput (inode);
 			return -EIO;
 		}
 
 		*childp = jnode_of_page (pg);
 
 		page_cache_release (pg);
+		iput (inode);
 	}
 
 	return 0;
 }
+
 
 /**
  * Return whether the child is dirty.
