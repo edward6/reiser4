@@ -4703,6 +4703,7 @@ int main (int argc, char **argv)
 void funJustAfterMain()
 {}
 
+#if REISER4_DEBUG
 
 /** helper called by print_tree_rec() */
 static void tree_rec_dot( reiser4_tree *tree /* tree to print */, 
@@ -4892,6 +4893,7 @@ void print_inode( const char *prefix /* prefix to print */,
 	      ref -> flags, ref -> bytes, ref -> extmask, 
 	      ( int ) ref -> sd_len, ref -> plugin_mask, ref -> locality_id );
 }
+#endif
 
 /*
  * Make Linus happy.
