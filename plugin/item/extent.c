@@ -2420,7 +2420,7 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord,
 
 	return relocate;
 
-      fail:
+fail:
 	return ret;
 }
 
@@ -2698,7 +2698,7 @@ allocate_and_copy_extent(znode * left, coord_t * right,
 			result = SQUEEZE_CONTINUE;
 		}
 	}
-      done:
+done:
 
 	assert("vs-421",
 	       result < 0 || result == SQUEEZE_TARGET_FULL || SQUEEZE_CONTINUE);
@@ -3403,12 +3403,12 @@ extent_write_flow(struct inode *inode, struct sealed_coord *hint, flow_t * f)
 
 		continue;
 
-	      exit3:
+exit3:
 		jput(j);
-	      exit2:
+exit2:
 		reiser4_unlock_page(page);
 		page_cache_release(page);
-	      exit1:
+exit1:
 		break;
 
 		/*
