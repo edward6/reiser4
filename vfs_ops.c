@@ -1417,7 +1417,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	reiser4_stat_inc_at(inode->i_sb, vfs_calls.destroy_inode);
 
 	assert("vs-1220", list_empty(&info->eflushed_jnodes));
-	assert("", inode->eflushed == 0);
+	assert("", info->eflushed == 0);
 
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
 
