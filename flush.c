@@ -96,6 +96,13 @@
      bit is set on a znode, the parent node's internal item is modified and the znode is
      rehashed.
 
+     JNODE_SQUEEZABLE: Before shifting everything left, the flush algorithm scans the node
+     and calls plugin->f.squeeze() method for its items. By this technology we update disk
+     clusters of cryptcompress objects. Also if leftmost point that was found by flush scan
+     has this flag (races with write(), rare case) the flush algorythm makes the decision
+     to pass it to squalloc() in spite of its flushprepped status for squeezing, not for
+     repeated allocation.
+
      JNODE_FLUSH_QUEUED: This bit is set when a call to flush enters the jnode into its
      flush queue.  This means the jnode is not on any clean or dirty list, instead it is
      moved to one of the flush queue (see flush_queue.h) object private list. This
@@ -792,7 +799,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	/* Check jnode state after flush_scan completed. Having a lock on this
 	   node or its parent (in case of unformatted) helps us in case of
 	   concurrent flushing. */
-	if (jnode_check_flushprepped(leftmost_in_slum)) {
+	if (jnode_check_flushprepped(leftmost_in_slum) && !jnode_squeezable(leftmost_in_slum)) {
 		ON_TRACE(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", pos_tostring(&flush_pos));
 		ret = 0;
 		goto failed;
@@ -812,7 +819,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 		goto failed;
 	}
 
-	if (jnode_check_flushprepped(leftmost_in_slum)) {
+	if (jnode_check_flushprepped(leftmost_in_slum) && !jnode_squeezable(leftmost_in_slum)) {
 		ON_TRACE(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", pos_tostring(&flush_pos));
 		ret = 0;
 		goto failed;
@@ -1217,6 +1224,9 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 	load_count pload;
 	coord_t pcoord;
 
+	if (znode_check_flushprepped(pos->lock.node))
+		return 0;
+	
 	ON_TRACE(TRACE_FLUSH_VERB, "flush alloc ancestors: %s\n", pos_tostring(pos));
 
 	coord_init_invalid(&pcoord, NULL);
@@ -1557,7 +1567,7 @@ out:
 
 /* This is special node method which scans node items and check for each
    one, if we need to apply flush squeeze item method. This item method
-   may resize/kill the item, and also may change its content.
+   may resize/kill the item, and also may change the tree.
 */
 static int squeeze_node(flush_pos_t * pos, znode * node)
 {
@@ -1568,6 +1578,7 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 	assert("edward-304", pos != NULL);
 	assert("edward-305", pos->child == NULL);
 	assert("edward-475", znode_squeezable(node));
+	assert("edward-669", znode_is_wlocked(node));
 	
 	if (znode_get_level(node) != LEAF_LEVEL)
 		/* do not squeeze this node */
@@ -1653,6 +1664,7 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 	}
  exit:
 	JF_CLR(ZJNODE(node), JNODE_SQUEEZABLE);
+	znode_make_dirty(node);
 	return ret;
 }
 
@@ -1940,11 +1952,11 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		if (ret)
 			break;
 
-		/* we don't prep nodes for flushing twice.  This can be suboptimal, or it
+		/* we don't prep(allocate) nodes for flushing twice.  This can be suboptimal, or it
 		 * can be optimal.  For now we choose to live with the risk that it will
 		 * be suboptimal because it would be quite complex to code it to be
 		 * smarter. */
-		if (znode_check_flushprepped(right_lock.node)) {
+		if (znode_check_flushprepped(right_lock.node) && !znode_squeezable(right_lock.node)) {
 			pos_stop(pos);
 			break;
 		}
@@ -1971,7 +1983,12 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		check_pos(pos);
 		if (ret < 0)
 			break;
-
+		
+		if (znode_check_flushprepped(right_lock.node)) {
+			pos_stop(pos);
+			break;
+		}
+		
 		if (node_is_empty(right_lock.node)) {
 			/* repeat if right node was squeezed completely */
 			done_load_count(&right_load);
@@ -2927,6 +2944,11 @@ jnode_lock_parent_coord(jnode         * node,
 			ret = incr_load_count_znode(parent_zh, parent_lh->node);
 			if (ret != 0)
 				return ret;
+			if (jnode_is_cluster_page(node)) {
+				assert("edward-670", znode_squeezable(parent_lh->node));
+				/* races with write() */
+				//znode_make_dirty(parent_lh->node);
+			}
 			break;
 		default:
 			return ret;
