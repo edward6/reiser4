@@ -427,6 +427,9 @@ static int load_bnode_half (struct bnode * bnode, jnode * node)
 	int    ret;
 
 	assert ("zam-478", bnode != NULL);
+
+	read_node = tree -> ops -> read_node;
+
 	assert ("zam-415", read_node != NULL);
 
 	assert ("zam-479", 
