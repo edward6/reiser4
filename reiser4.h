@@ -172,6 +172,8 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 /* Mark function argument as unused to avoid compiler warnings. */
 #define UNUSED_ARG __attribute__( ( unused ) )
 
+/** size of VFS block */
+#define VFS_BLKSIZE 512
 /** number of bits in size of VFS block (512==2^9) */
 #define VFS_BLKSIZE_BITS 9
 
