@@ -2641,6 +2641,7 @@ page_extent_jnode(reiser4_tree *tree, oid_t oid, reiser4_key *key, uf_coord_t *u
 			}
 		} else {
 			assert("vs-1390", jnode_mapped(j));
+			bind_jnode_and_page(j, oid, page);
 		}
 	} else {
 		/* page has jnode already. Therefore, there is non hole extent which points to this page */
