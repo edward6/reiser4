@@ -91,7 +91,7 @@ int assign_fake_blocknr_unformatted(reiser4_block_nr *);
 
 int __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags, const char *);
 void __all_grabbed2free(const char *);
-void __grabbed2free(__u64 count, const char *);
+void __grabbed2free(reiser4_context *, reiser4_super_info_data *, __u64 count, const char *);
 void __fake_allocated2free(__u64 count, reiser4_ba_flags_t flags, const char *);
 void __grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count, const char *);
 void __grabbed2flush_reserved(__u64 count, const char *);
