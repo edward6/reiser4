@@ -212,13 +212,13 @@ int tail_paste (new_coord * coord, reiser4_item_data * data,
 
 	if (data->data) {
 		assert ("vs-554", data->user == 0 || data->user == 1);
-		if (data->user)
+		if (data->user) {
 			assert( "green-6", lock_counters() -> spin_locked == 0 );
 			/* AUDIT: return result is not checked! */
 			/* copy from user space */
 			__copy_from_user (item + coord->unit_pos, data->data,
 					  (unsigned)data->length);
-		else
+		} else
 			/* copy from kernel space */
 			xmemcpy (item + coord->unit_pos, data->data,
 				 (unsigned)data->length);
