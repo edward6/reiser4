@@ -495,7 +495,7 @@ static void inode_detach_jnode(jnode * node)
 	ON_DEBUG(info->nr_jnodes --);
 	check_me("zam-1046", radix_tree_delete(rtree, node->key.j.index));
 	if (rtree->rnode == NULL) {
-		inode->i_state &= I_JNODES;
+		inode->i_state &= ~I_JNODES;
 	}
 	spin_unlock(&inode_lock);
 	clog_op(UNHASH_JNODE, inode);
