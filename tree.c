@@ -101,7 +101,7 @@ static spinlock_t        active_contexts_lock;
 static context_list_head active_contexts;
 #endif
 
-
+/* Audited by: umka (2002.06.16) */
 node_plugin *node_plugin_by_coord ( const coord_t *coord )
 {
 	assert( "vs-1", coord != NULL );
@@ -114,6 +114,7 @@ node_plugin *node_plugin_by_coord ( const coord_t *coord )
 
 /** insert item into tree. Fields of "coord" are updated so
     that they can be used by consequent insert operation. */
+/* Audited by: umka (2002.06.16) */
 insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 						 * into */,
 			     const reiser4_key *key /* key of new item */,
@@ -167,6 +168,7 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
  * insert item by calling carry. Helper function called if short-cut
  * insertion failed 
  */
+/* Audited by: umka (2002.06.16) */
 static insert_result insert_with_carry_by_coord( coord_t  *coord /* coord
 								     * where
 								     * to
@@ -196,6 +198,8 @@ static insert_result insert_with_carry_by_coord( coord_t  *coord /* coord
 	carry_level lowest_level;
 	carry_op * op;
 	carry_insert_data cdata;
+
+	assert("umka-314", coord != NULL);
 
 	init_carry_pool( &pool );
 	init_carry_level( &lowest_level, &pool );
@@ -230,6 +234,7 @@ static insert_result insert_with_carry_by_coord( coord_t  *coord /* coord
  * different block.
  *
  */
+/* Audited by: umka (2002.06.16) */
 static int paste_with_carry( coord_t *coord /* coord of paste */, 
 			     lock_handle *lh /* lock handle of node
 						      * where item is
@@ -244,6 +249,9 @@ static int paste_with_carry( coord_t *coord /* coord of paste */,
 	carry_level lowest_level;
 	carry_op * op;
 	carry_insert_data cdata;
+
+	assert("umka-315", coord != NULL);
+	assert("umka-316", key != NULL);
 
 	init_carry_pool( &pool );
 	init_carry_level( &lowest_level, &pool );
@@ -278,6 +286,7 @@ static int paste_with_carry( coord_t *coord /* coord of paste */,
  * that will do full carry().
  *
  */
+/* Audited by: umka (2002.06.16) */
 insert_result insert_by_coord( coord_t  *coord /* coord where to
 						    * insert. coord->node has
 						    * to be write locked by
@@ -361,6 +370,7 @@ insert_result insert_by_coord( coord_t  *coord /* coord where to
 /*
  * @coord is set to leaf level and @data is to be inserted to twig level
  */
+/* Audited by: umka (2002.06.16) */
 insert_result insert_extent_by_coord( coord_t  *coord /* coord where to
 							  * insert. coord->node
 							  * has to be write
@@ -393,6 +403,7 @@ insert_result insert_extent_by_coord( coord_t  *coord /* coord where to
  *
  */
 /* paste_into_item */
+/* Audited by: umka (2002.06.16) */
 static int insert_into_item( coord_t *coord /* coord of pasting */,
 			    lock_handle *lh /* lock handle on node
 						     * involved */,
@@ -406,6 +417,9 @@ static int insert_into_item( coord_t *coord /* coord of pasting */,
 	node_plugin *nplug;
 	item_plugin *iplug;
 
+	assert("umka-317", coord != NULL);
+	assert("umka-318", key != NULL);
+	
 	iplug = item_plugin_by_coord( coord );
 	nplug = node_plugin_by_coord( coord );
 
@@ -466,6 +480,7 @@ static int insert_into_item( coord_t *coord /* coord of pasting */,
 }
 
 /** this either appends or truncates item @coord */
+/* Audited by: umka (2002.06.16) */
 resize_result resize_item( coord_t *coord /* coord of item being resized */, 
 			   reiser4_item_data *data /* parameters of resize*/,
 			   reiser4_key *key /* key of new unit */, 
@@ -516,6 +531,7 @@ resize_result resize_item( coord_t *coord /* coord of item being resized */,
 /**
  * Given a coord in parent node, obtain a znode for the corresponding child
  */
+/* Audited by: umka (2002.06.16) */
 znode *child_znode( const coord_t *parent_coord /* coord of pointer to
 						    * child */, 
 		    int setup_dkeys_p /* if !0 update delimiting keys of
@@ -563,11 +579,13 @@ znode *child_znode( const coord_t *parent_coord /* coord of pointer to
 }
 
 
+/* Audited by: umka (2002.06.16) */
 unsigned node_num_items (const znode * node)
 {
 	return node_plugin_by_node (node)->num_of_items (node);
 }
 
+/* Audited by: umka (2002.06.16) */
 int node_is_empty (const znode * node)
 {
 	return node_plugin_by_node( node ) -> num_of_items (node) == 0;
@@ -586,6 +604,7 @@ static const __u32 context_magic = 0x4b1b5d0a;
  * This function should be called at the beginning of reiser4 part of
  * syscall.
  */
+/* Audited by: umka (2002.06.16) */
 int init_context( reiser4_context *context /* pointer to the reiser4 context
 					    * being initalised */, 
 		  struct super_block *super /* super block we are going to
@@ -643,6 +662,7 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
  * Call to this function is optional.
  *
  */
+/* Audited by: umka (2002.06.16) */
 void done_context( reiser4_context *context UNUSED_ARG /* context being
 							* released */ )
 {
@@ -663,6 +683,7 @@ void done_context( reiser4_context *context UNUSED_ARG /* context being
 #endif
 }
 
+/* Audited by: umka (2002.06.16) */
 void
 init_context_mgr (void)
 {
@@ -708,10 +729,13 @@ void show_context (int show_tree)
  * the node that has been removed from the tree. At this point node is removed
  * from sibling list and its lock is invalidated.
  */
+/* Audited by: umka (2002.06.16) */
 void forget_znode (lock_handle *handle)
 {
 	znode *node;
 
+	assert ("umka-319", handle != NULL);
+	
 	node = handle -> node;
 	assert ("vs-164", znode_is_write_locked (node));
 	assert ("nikita-1280", ZF_ISSET (node, ZNODE_HEARD_BANSHEE));
@@ -737,8 +761,10 @@ void forget_znode (lock_handle *handle)
  * also calls this function, but I don't know what the call in unlock_carry_node
  * should really do.
  */
+/* Audited by: umka (2002.06.16) */
 int deallocate_znode( znode *node /* znode released */ )
 {
+	assert ("umka-320", node != NULL);
 	assert ("nikita-1281", ZF_ISSET (node, ZNODE_HEARD_BANSHEE));
 	zdestroy( node );
 	return 0;
@@ -747,6 +773,7 @@ int deallocate_znode( znode *node /* znode released */ )
 /**
  * Check that internal item at @pointer really contains pointer to @child.
  */
+/* Audited by: umka (2002.06.16) */
 int check_tree_pointer( const coord_t *pointer /* would-be pointer to
 						   * @child */, 
 			const znode *child /* child znode */ )
@@ -788,6 +815,7 @@ int check_tree_pointer( const coord_t *pointer /* would-be pointer to
  * be in.
  *
  */
+/* Audited by: umka (2002.06.16) */
 int find_new_child_ptr( znode *parent /* parent znode, passed locked */,
 			znode *child UNUSED_ARG /* child znode, passed locked */,
 			znode *left /* left brother of new node */,
@@ -817,6 +845,7 @@ int find_new_child_ptr( znode *parent /* parent znode, passed locked */,
  * Find the &coord_t in the @parent where pointer to a given @child is in.
  *
  */
+/* Audited by: umka (2002.06.16) */
 int find_child_ptr( znode *parent /* parent znode, passed locked */,
 		    znode *child /* child znode, passed locked */,
 		    coord_t *result /* where result is stored in */ )
@@ -830,6 +859,9 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	assert( "nikita-935", child != NULL );
 	assert( "nikita-936", result != NULL );
 	assert( "zam-356", znode_is_loaded(parent)); 
+
+	assert( "umka-321", current_tree != NULL );
+	assert( "umka-322", !spin_is_locked(&current_tree->tree_lock) );
 
 	ncoord_init_zero( result );
 	result -> node = parent;
@@ -888,6 +920,7 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
  * numbers in them with that of @child.
  *
  */
+/* Audited by: umka (2002.06.16) */
 int find_child_by_addr( znode *parent /* parent znode, passed locked */, 
 			znode *child /* child znode, passed locked */, 
 			coord_t *result /* where result is stored in */ )
@@ -898,6 +931,9 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 	assert( "nikita-1321", child != NULL );
 	assert( "nikita-1322", result != NULL );
 
+	assert( "umka-323", current_tree != NULL );
+	assert( "umka-324", !spin_is_locked(&current_tree->tree_lock) );
+	
 	ret = NS_NOT_FOUND;
 
 	/* FIXME_NIKITA: The following loop is awkward.  It looks as if it
@@ -930,6 +966,7 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
  * true, if @addr is "unallocated block number", which is just address, with
  * highest bit set.
  */
+/* Audited by: umka (2002.06.16) */
 int is_disk_addr_unallocated( const reiser4_block_nr *addr /* address to
 							    * check */ )
 {
@@ -943,6 +980,7 @@ int is_disk_addr_unallocated( const reiser4_block_nr *addr /* address to
  *
  * FIXME: This needs a big comment.
  */
+/* Audited by: umka (2002.06.16) */
 void *unallocated_disk_addr_to_ptr( const reiser4_block_nr *addr /* address to
 								  * convert */ )
 {
@@ -953,6 +991,7 @@ void *unallocated_disk_addr_to_ptr( const reiser4_block_nr *addr /* address to
 
 /* try to shift everything from @right to @left. If everything was shifted -
  * @right is removed from the tree.  Result is the number of bytes shifted. FIXME: right? */
+/* Audited by: umka (2002.06.16) */
 int shift_everything_left (znode * right, znode * left, carry_level *todo)
 {
 	int result;
@@ -974,6 +1013,7 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 
 /* allocate new node and insert a pointer to it into the tree such that new
    node becomes a right neighbor of @insert_coord->node */
+/* Audited by: umka (2002.06.16) */
 znode *insert_new_node (coord_t * insert_coord, lock_handle *lh)
 {
 	int result;
@@ -1007,6 +1047,7 @@ znode *insert_new_node (coord_t * insert_coord, lock_handle *lh)
 
 /* returns true if removing bytes of given range of key [from_key, to_key]
  * causes removing of whole item @from */
+/* Audited by: umka (2002.06.16) */
 static int item_removed_completely (coord_t * from,
 				    const reiser4_key * from_key, 
 				    const reiser4_key * to_key)
@@ -1014,7 +1055,8 @@ static int item_removed_completely (coord_t * from,
 	item_plugin * iplug;
 	reiser4_key key_in_item;
 
-
+	assert("umka-325", from != NULL);
+	
 	/* check first key just for case */
 	item_key_by_coord (from, &key_in_item);
 	if (keygt (from_key, &key_in_item))
@@ -1040,6 +1082,7 @@ static int item_removed_completely (coord_t * from,
  * extent. This may return -EDEADLK because of trying to get left neighbor
  * locked. So, caller should repeat an attempt
  */
+/* Audited by: umka (2002.06.16) */
 static int prepare_twig_cut (coord_t * from, coord_t * to,
 			     const reiser4_key * from_key, 
 			     const reiser4_key * to_key,
@@ -1053,10 +1096,12 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 	znode * right_child;
 
 
+	assert ("umka-326", from != NULL);
+	assert ("umka-327", to != NULL);
+	
 	/* for one extent item only yet */
 	assert ("vs-591", item_is_extent (from));
 	assert ("vs-592", from->item_pos == to->item_pos);
-
 
 	if (keygt (from_key, item_key_by_coord (from, &key))) {
 		/* head of item @from is not removed, there is nothing to
@@ -1207,6 +1252,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
  * removed key is stored in @smallest_removed 
  *
  */
+/* Audited by: umka (2002.06.16) */
 int cut_node (coord_t * from /* coord of the first unit/item that will be
 				  * eliminated */, 
 	      coord_t * to /* coord of the last unit/item that will be
@@ -1227,6 +1273,7 @@ int cut_node (coord_t * from /* coord of the first unit/item that will be
 	carry_op * op;
 	carry_cut_data cdata;
 
+	assert ("umka-328", from != NULL);
 	assert ("vs-316", !node_is_empty (from->node));
 
 	if (ncoord_eq (from, to) && !ncoord_is_existing_unit (from)) {
@@ -1304,6 +1351,7 @@ int cut_node (coord_t * from /* coord of the first unit/item that will be
    the deletion.
 */
 
+/* Audited by: umka (2002.06.16) */
 int cut_tree (reiser4_tree * tree, 
 	      const reiser4_key * from_key, const reiser4_key * to_key)
 {
@@ -1313,6 +1361,9 @@ int cut_tree (reiser4_tree * tree,
 	int result;
 	znode * loaded;
 
+	assert("umka-329", tree != NULL);
+	assert("umka-330", from_key != NULL);
+	assert("umka-331", to_key != NULL);
 
 	ncoord_init_zero (&intranode_to);
 	ncoord_init_zero (&intranode_from);
