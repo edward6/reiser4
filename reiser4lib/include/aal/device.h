@@ -39,7 +39,6 @@ struct aal_device_block {
     int flags;
     void *data;
     uint64_t offset;
-    aal_device_t *device;
 };
 
 typedef struct aal_device_block aal_device_block_t;
@@ -65,13 +64,13 @@ extern char *aal_device_name(aal_device_t *device);
 extern aal_device_block_t *aal_device_alloc_block(aal_device_t *device, blk_t blk, char c);
 extern aal_device_block_t *aal_device_read_block(aal_device_t *device, blk_t blk);
 extern int aal_device_write_block(aal_device_t *device, aal_device_block_t *block);
-extern blk_t aal_device_get_block_location(aal_device_block_t *block);
-extern void aal_device_set_block_location(aal_device_block_t *block, blk_t blk);
+extern blk_t aal_device_get_block_location(aal_device_t *device, aal_device_block_t *block);
+extern void aal_device_set_block_location(aal_device_t *device, aal_device_block_t *block, blk_t blk);
 extern void aal_device_free_block(aal_device_block_t *block);
 
 #define B_DIRTY 0 
 
-#define aal_block_get_size(block) aal_device_get_blocksize(block->device)
+//#define aal_block_get_size(block) aal_device_get_blocksize(block->device)
 
 #define aal_block_mark_dirty(block) do { block->flags |= (1 << B_DIRTY); } while (0)
 #define aal_block_dirty(block)	    (block->flags & (1 << B_DIRTY))
