@@ -726,6 +726,7 @@ extern int reiser4_populate_kattr_level_dir(struct kobject * kobj, int level);
 #define reiser4_stat_add(counter, delta) noop
 
 #define	reiser4_stat_inc_at_level(lev, stat) noop
+#define reiser4_stat_add_at_level_value(lev, stat, cnt) noop
 #define	reiser4_stat_level_inc(l, stat) noop
 #define reiser4_stat_nuniq_max(gen) noop
 #define reiser4_stat_stack_check_max(gap) noop
