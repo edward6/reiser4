@@ -144,6 +144,9 @@ int tail_paste (tree_coord * coord, reiser4_item_data * data,
 		 */
 		memmove (item + data->length, item, old_item_length);
 
+	if (coord->between == AFTER_UNIT)
+		coord->unit_pos ++;
+
 	if (data->data)
 		memcpy (item + coord->unit_pos, data->data, (unsigned)data->length);
 	else
@@ -192,7 +195,7 @@ void tail_copy_units (tree_coord * target, tree_coord * source,
 	assert ("vs-366", (unsigned)item_length_by_coord (target) >= count);
 	assert ("vs-370", free_space >= count);
 
-	if (where_is_free_space == SHIFT_APPEND) {
+	if (where_is_free_space == SHIFT_LEFT) {
 		/*
 		 * append item @target with @count first bytes of @source
 		 */
@@ -234,25 +237,39 @@ void tail_copy_units (tree_coord * target, tree_coord * source,
  * plugin->u.item.b.cut_units
  * plugin->u.item.b.kill_units
  */
-int tail_cut_units (tree_coord * coord, unsigned from, unsigned count,
-		    shift_direction where_to_move_free_space,
-		    const reiser4_key * from_key UNUSED_ARG,
-		    const reiser4_key * to_key UNUSED_ARG,
+int tail_cut_units (tree_coord * coord, unsigned * from, unsigned * to,
+		    const reiser4_key * from_key,
+		    const reiser4_key * to_key,
 		    reiser4_key * smallest_removed)
 {
+	reiser4_key key;
+	unsigned count;
+
+
+	count = *to - *from + 1;
 	/*
 	 * regarless to whether we cut from the beginning or from the end of
 	 * item - we have nothing to do
 	 */
 	assert ("vs-374", count > 0 &&
 		count <= (unsigned)item_length_by_coord (coord));
+	/*
+	 * tails items are never cut from the middle of an item
+	 */
+	assert ("vs-396", ergo (*from != 0, *to == last_unit_pos (coord)));
 
-	if (where_to_move_free_space == SHIFT_APPEND) {
-		assert ("vs-371", 
-			from + count == (unsigned)item_length_by_coord (coord));
-	} else {
-		assert ("vs-372", from == 0);
-	}
+	/*
+	 * check @from_key and @to_key if they are set
+	 */
+	assert ("vs-397",
+		ergo (from_key,				
+		      get_key_offset (from_key) ==
+		      get_key_offset (item_key_by_coord (coord, &key)) + *from)
+		);
+	assert ("vs-398",
+		ergo (to_key,
+		      get_key_offset (to_key) ==
+		      get_key_offset (item_key_by_coord (coord, &key)) + *to));
 
 	if (smallest_removed) {
 		/*
@@ -260,18 +277,19 @@ int tail_cut_units (tree_coord * coord, unsigned from, unsigned count,
 		 */
 		item_key_by_coord (coord, smallest_removed);
 		set_key_offset (smallest_removed,
-				get_key_offset (smallest_removed) + from);
+				get_key_offset (smallest_removed) + *from);
 	}
-	if (from == 0) {
+	if (*from == 0) {
 		/*
 		 * head of item is removed, update item key therefore
 		 */
-		reiser4_key key;
-		
 		item_key_by_coord (coord, &key);
 		set_key_offset (&key, get_key_offset (&key) + count);
 		node_plugin_by_node (coord->node)->update_item_key (coord, &key, 0/*todo*/);
 	}
+
+	if (REISER4_DEBUG)
+		memset ((char *)item_body_by_coord (coord) + *from, 0, count);
 	return count;
 }
 
@@ -550,6 +568,9 @@ int tail_write (struct inode * inode, tree_coord * coord,
 			break;
 		}
 		if (result < 0)
+			/*
+			 * error occured or research is required
+			 */
 			return result;
 
 		if (result) {
