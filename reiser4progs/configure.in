@@ -174,7 +174,6 @@ AC_OUTPUT([
     include/aal/Makefile
     include/misc/Makefile
     include/reiser4/Makefile
-    include/progs/Makefile
     libaal/Makefile
     libmisc/Makefile
     libreiser4/Makefile
@@ -199,7 +198,8 @@ AC_OUTPUT([
     plugin/sdext_unix/Makefile
     demos/Makefile
     progs/Makefile
-    progs/libprogs/Makefile
+    progs/include/Makefile
+    progs/libmisc/Makefile
     progs/mkfs/Makefile
     progs/fsck/Makefile
     debug/Makefile

@@ -22,7 +22,7 @@
 #include <sys/stat.h>
 
 #include <reiser4/reiser4.h>
-#include <progs/misc.h>
+#include <misc.h>
 
 static void mkfs_print_usage(void) {
     fprintf(stderr, "Usage: mkfs.reiser4 [ options ] FILE1 FILE2 ... [ size[K|M|G] ]\n");

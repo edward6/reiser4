@@ -16,7 +16,7 @@
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
-#include <progs/misc.h>
+#include <misc.h>
 
 static void info_print_usage(void) {
     fprintf(stderr, "Usage: info FILE\n");

@@ -3,9 +3,9 @@ mkfs_reiser4_SOURCES 	= mkfs.c
 
 mkfs_reiser4_LDADD 	= $(top_builddir)/libreiser4/libreiser4.la \
 			  $(top_builddir)/libaal/libaal.la \
-			  $(top_builddir)/progs/libprogs/libprogs.a \
+			  $(top_builddir)/progs/libmisc/libmisc.a \
 			  $(PROGS_LDADD)
 			  
 mkfs_reiser4_LDFLAGS 	= $(PROGS_LDFLAGS)
 
-INCLUDES		= -I$(top_srcdir)/include
+INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/progs/include
