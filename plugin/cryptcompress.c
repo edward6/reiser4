@@ -1465,6 +1465,19 @@ find_file_idx(struct inode *inode, unsigned long * idx)
 	return 0;
 }
 
+static int
+cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
+{
+	return 0;
+}
+
+
+static int
+writepage_cryptcompress(struct page * page)
+{
+	return 0;
+}
+
 /* The following two procedures are called when truncate decided
    to deal with real items */
 static int
@@ -1476,7 +1489,41 @@ cryptcompress_append_hole(struct inode * inode, loff_t new_size)
 static int
 shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 {
-	return 0;	
+	int result;
+	struct page * page;
+	loff_t old_size;
+	char * kaddr;
+	
+	assert("edward-290", inode->i_size > new_size);
+	
+	old_size = inode->i_size;
+	result = cut_items_cryptcompress(inode, new_size, update_sd);
+	if(result)
+		return result;
+	if (off_to_cloff(old_size, inode))
+		return 0;
+	/* FIXME-EDWARD: reserve partial page */
+	page = read_cache_page(inode->i_mapping, off_to_pg(old_size), readpage_cryptcompress, 0);
+	if (IS_ERR(page))
+		return PTR_ERR(page);
+	wait_on_page_locked(page);
+	if (!PageUptodate(page)) {
+		page_cache_release(page);
+		return RETERR(-EIO);
+	}
+	set_page_dirty_internal(page);
+	result = writepage_cryptcompress(page);
+
+	assert("edward-291", PageLocked(page));
+	
+	kaddr = kmap_atomic(page, KM_USER0);
+	memset(kaddr + off_to_pgoff(old_size), 0, PAGE_CACHE_SIZE - off_to_pgoff(old_size));
+	flush_dcache_page(page);
+	kunmap_atomic(kaddr, KM_USER0);
+	reiser4_unlock_page(page);
+	page_cache_release(page);
+
+	return 0;
 }
 
 /* This is called in setattr_cryptcompress when it is used to truncate,
