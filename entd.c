@@ -290,9 +290,6 @@ static int dont_wait_for_flush(struct super_block *super)
 	reiser4_context * cur;
 	unsigned long flush_started;
 
-	if (!USE_ENTD)
-		return 1;
-
 	cur = get_current_context();
 
 	if (cur->entd) {
@@ -370,6 +367,9 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 
 	result     = 0;
 	iterations = 0;
+
+	if (!USE_ENTD)
+		return 0;
 
 	while (result == 0) {
 		flushers = get_flushers(super, &flush_started);
