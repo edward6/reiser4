@@ -471,56 +471,6 @@ inode_has_no_jnodes(reiser4_inode *r4_inode)
 }
 #endif
 
-#if 0
-/* insert jnode into reiser4 inode's radix tree of jnodes. This is performed under tree spin lock. It also sets a bit
-   (I_JNODES) in inode's i_state so that fs/inode.c:can_unuse never returns 1, so, jnodes in inode's jnode tree prevent
-   inode from being pruned. This is important because jnodes store pointer to inode's mapping */
-static void
-inode_attach_jnode(jnode *node)
-{
-	struct inode *inode;
-	reiser4_inode *r4_inode;
-
-	assert("vs-1439", node->key.j.mapping);
-
-	inode = node->key.j.mapping->host;
-	r4_inode = reiser4_inode_data(inode);
-	spin_lock(&inode_lock);
-	if (inode_has_no_jnodes(r4_inode)) {
-		assert("vs-1433", (inode->i_state & I_JNODES) == 0);
-		inode->i_state |= I_JNODES;
-	}
-	check_me("vs-1431", radix_tree_insert(&r4_inode->jnode_tree, node->key.j.index, node) == 0);
-	ON_DEBUG(r4_inode->jnodes ++);
-	spin_unlock(&inode_lock);
-}
-
-/* remove jnode into reiser4 inode's radix tree. This is performed under tree spin lock. If last jnode is removed from
-   inode's jnode tree inode gets "released" - bit I_JNODES is cleared */
-static void
-inode_detach_jnode(jnode *node)
-{
-	struct inode *inode;
-	reiser4_inode *r4_inode;
-
-	assert("vs-1440", node->key.j.mapping);
-	inode = node->key.j.mapping->host;
-	assert("vs-1441", node->key.j.objectid == get_inode_oid(inode));
-	r4_inode = reiser4_inode_data(inode);
-	assert("vs-1431", r4_inode->jnodes > 0 && (inode->i_state & I_JNODES));
-
-	spin_lock(&inode_lock);
-	check_me("vs-1431", radix_tree_delete(&r4_inode->jnode_tree, jnode_get_index(node)));
-	ON_DEBUG(r4_inode->jnodes --);
-	if (r4_inode->jnode_tree.rnode == 0) {
-		assert("vs-1432", inode->i_state & I_JNODES);
-		assert("vs-1432", r4_inode->jnodes == 0);
-		inode->i_state &= ~I_JNODES;
-	}
-	spin_unlock(&inode_lock);
-}
-#endif
-
 /* put jnode into hash table (where they can be found by flush who does not know mapping) and to inode's tree of jnodes
    (where they can be found (hopefully faster) in places where mapping is known). Currently it is used by
    fs/reiser4/plugin/item/extent_file_ops.c:index_extent_jnode when new jnode is created */
@@ -528,6 +478,7 @@ static void
 hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long index)
 {
 	j_hash_table *jtable;
+	struct inode *inode;
 
 	assert("vs-1446", jnode_is_unformatted(node));
 	assert("vs-1442", node->key.j.mapping == 0);
@@ -550,17 +501,34 @@ hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long
 	/* assert("nikita-3211", j_hash_find(jtable, &node->key.j) == NULL); */
 	j_hash_insert_rcu(jtable, node);
 
-	/*inode_attach_jnode(node);*/
+	/* protect inode from being pruned by setting I_JNODES state bit */
+	spin_lock(&inode_lock);
+	inode = mapping->host;
+	assert("vs-1432", ergo((inode->i_state & I_JNODES), reiser4_inode_data(inode)->jnodes > 0));
+	assert("vs-1685", ergo((inode->i_state & I_JNODES) == 0, reiser4_inode_data(inode)->jnodes == 0));
+	reiser4_inode_data(inode)->jnodes ++;
+	inode->i_state |= I_JNODES;
+	spin_unlock(&inode_lock);
 }
 
 static void
 unhash_unformatted_node_nolock(jnode *node)
 {
+	struct inode *inode;
+
+	assert("vs-1683", node->key.j.mapping != NULL);
+	assert("vs-1684", node->key.j.objectid == get_inode_oid(node->key.j.mapping->host));
+
 	/* remove jnode from hash-table */	
 	j_hash_remove_rcu(&node->tree->jhash_table, node);
 
-	/* remove jnode from inode's tree of jnodes */
-	/*inode_detach_jnode(node);*/
+	/* when last jnode of inode is removed hash table - clear I_JNODES bit so that it can be pruned */
+	spin_lock(&inode_lock);
+	inode = node->key.j.mapping->host;
+	assert("vs-1682", (inode->i_state & I_JNODES) && reiser4_inode_data(inode)->jnodes > 0);
+	if ((reiser4_inode_data(inode)->jnodes --) == 1)
+		inode->i_state &= ~I_JNODES;
+	spin_unlock(&inode_lock);
 
 	node->key.j.mapping = 0;
 	node->key.j.index = (unsigned long)-1;
