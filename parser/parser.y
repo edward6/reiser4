@@ -58,7 +58,7 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 	//	vnode_t * vnode;
 }
 
-%type <charType> L_BRAKET R_BRAKET level_up
+%type <charType> L_BRACKET R_BRACKET level_up
 
 %type <wrd> WORD
 %type <wrd> P_RUNNER 
@@ -84,7 +84,7 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 
 %token PLUS               /* + */
 
-%token L_BRAKET R_BRAKET
+%token L_BRACKET R_BRACKET
 //%token R_PARENT           /* ) */
 //%token L_PARENT           /* ( */
 
@@ -153,7 +153,7 @@ Expression
 | Expression PLUS       Expression                { $$ = connect_expression( ws, $1, $3 ); }
 | Expression SEMICOLON  Expression                { $$ = list_expression( ws, $1, $3 ); }
 | Expression COMMA      Expression                { $$ = list_async_expression( ws, $1, $3 ); }
-| level_up  Expression R_BRAKET                   { $$ =  $2 ; run_it( ws, $2 ); level_down( ws, $1, $3 );}
+| level_up  Expression R_BRACKET                   { $$ =  $2 ; run_it( ws, $2 ); level_down( ws, $1, $3 );}
 //| Expression            Expression                { $$ = list_unordered_expression( ws, $1, $2 ); }
 | if_statement                                    { $$ = $1; level_down( ws, IF_STATEMENT ); }
                                                                             /* the ASSIGNMENT operator return a value: bytes written */
@@ -212,7 +212,7 @@ Object_Name
 //;
 
 level_up
-: L_BRAKET                                        { $$=level_up( ws, $1 ); set_curr_path( ws ) }
+: L_BRACKET                                        { $$=level_up( ws, $1 ); set_curr_path( ws ) }
 
 
 //Object_Name 
@@ -235,11 +235,11 @@ level_up
 
 //name
 //: WORD                                            { $$ = set_curr_path( ws, pars_path_walk( ws, $1 ) ); }    /* change current path to $1 */  /*$$=?????*/
-//| level_up  Expression R_BRAKET                   { $$ = set_curr_path( ws, $2 );  /*$$=?????*/; level_down( ws, $1, $3 );}  /*$$=?????*/
+//| level_up  Expression R_BRACKET                   { $$ = set_curr_path( ws, $2 );  /*$$=?????*/; level_down( ws, $1, $3 );}  /*$$=?????*/
 //;
 
 //level_up
-//: L_BRAKET                                        { $$=level_up( ws, $1 ); }
+//: L_BRACKET                                        { $$=level_up( ws, $1 ); }
 
 
 %%
