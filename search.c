@@ -1134,6 +1134,9 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 	cbk_cache_slot     *slot;
 	cbk_cache          *cache;
 	tree_level          level;
+	tree_level          stop_level;
+	tree_level          lock_level;
+	reiser4_key        *key;
 	int                 result;
 
 	assert( "nikita-1317", h != NULL );
@@ -1152,44 +1155,36 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 	node  = NULL; /* to keep gcc happy */
 	level = LEAF_LEVEL; /* to keep gcc happy */
 
+	stop_level = h -> stop_level;
+	lock_level = h -> lock_level;
+	key = h -> key;
+
+	/*
+	 * keep cache spin locked during this test, to avoid race with
+	 * cbk_cache_invalidate()
+	 */
+	spin_lock_tree( tree );
 	cbk_cache_lock( cache );
-	slot = cbk_cache_list_front( &cache -> lru );
-	cbk_cache_unlock( cache );
-	while( 1 ) {
-		/*
-		 * keep cache spin locked during this test, to avoid race with
-		 * cbk_cache_invalidate()
-		 */
-		spin_lock_tree( tree );
-		cbk_cache_lock( cache );
-		slot = cbk_cache_list_next( slot );
 
-		if( !cbk_cache_list_end( &cache -> lru, slot ) ) {
-			node = slot -> node;
-			if( node != NULL )
-				zref( node );
-		} else
-			node = NULL;
-		/*
-		 * we can safely release cbk cache lock here, because cbk
-		 * cache is organized as LRU list of persistent entries and
-		 * all list modifications are protected by cbk cache
-		 * spin-lock, but entries themselves never disappear.
-		 */
-		cbk_cache_unlock( cache );
-		spin_unlock_tree( tree );
-
+	for_all_slots( cache, slot ) {
+		node = slot -> node;
 		if( node == NULL )
 			break;
 
 		level = znode_get_level( node );
-		if( h -> stop_level <= level && level <= h -> lock_level &&
+		if( ( stop_level <= level ) && ( level <= h -> level ) &&
 		    /* min_key <= key <= max_key */
-		    znode_contains_key_lock( node, h -> key ) )
+		    znode_contains_key_lock( node, key ) ) {
+			zref( node );
 			break;
-		zput( node );
+		}
 	}
+
+	spin_unlock_tree( tree );
+	cbk_cache_unlock( cache );
+
 	assert( "nikita-2475", cbk_cache_invariant( cache ) );
+
 	if( ( node == NULL ) || cbk_cache_list_end( &cache -> lru, slot ) ) {
 		h -> result = CBK_COORD_NOTFOUND;
 		return -ENOENT;
