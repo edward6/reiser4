@@ -351,8 +351,8 @@ jnode *             nth_jnode              (struct page *           page, int bl
 jnode *             next_jnode             (jnode *                 node);
 
 /* flush code takes care about how to fuse flush queues */
-extern void flush_fluse_queues (txn_atom *, txn_atom *); 
-extern void flush_init_atom (txn_atom * atom);
+extern void flush_init_atom   (txn_atom *atom);
+extern void flush_fuse_queues (txn_atom *large, txn_atom *small);
 
 /*****************************************************************************************
 				     INLINE FUNCTIONS

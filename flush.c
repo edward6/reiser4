@@ -2430,7 +2430,7 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 
 		if (coord_is_invalid (& scan->parent_coord)) {
 
-			if ((ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_WRITE_LOCK /*ZNODE_READ_LOCK*/))) {
+			if ((ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_WRITE_LOCK))) {
 				/* FIXME: check EINVAL, EDEADLK */
 				return ret;
 			}
@@ -3159,7 +3159,7 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 
 	pos->point = child;
 
-	if ((ret = longterm_lock_znode (& pos->point_lock, JZNODE (child), ZNODE_WRITE_LOCK /*ZNODE_READ_LOCK*/, ZNODE_LOCK_LOPRI))) {
+	if ((ret = longterm_lock_znode (& pos->point_lock, JZNODE (child), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
 		return ret;
 	}
 
@@ -3263,30 +3263,28 @@ int flush_pos_leaf_relocate (flush_position *pos)
 	return pos->leaf_relocate;
 }
 
-/*  */
+/* During atom fusion, splice together the list of current flush positions. */
 void flush_fuse_queues (txn_atom *large, txn_atom *small)
 {
-	struct flush_position * pos;
+	flush_position *pos;
 
 	assert ("zam-659", spin_atom_is_locked (large));
 	assert ("zam-660", spin_atom_is_locked (small));
 
-	pos = flushers_list_front (&small->flushers);
-	while (!flushers_list_end (&small->flushers, pos)) {
+	for (pos = flushers_list_front (&small->flushers);
+	     /**/! flushers_list_end   (&small->flushers, pos);
+	     pos = flushers_list_next (pos)) {
 		jnode * scan;
 
 		pos->atom = large;
 
-		scan = capture_list_front (&pos->queue);
-		while (!capture_list_end (&pos->queue, scan)) {
+		for (scan = capture_list_front (&pos->queue);
+		     /**/ ! capture_list_end   (&pos->queue, scan);
+		     scan = capture_list_next (scan)) {
 			spin_lock_jnode (scan);
 			scan->atom = large;
-			spin_unlock_jnode (scan);
-
-			scan = capture_list_next (scan);
-		}
-
-		pos = flushers_list_next (pos);
+			spin_unlock_jnode (scan); 
+		} 
 	}
 
 	flushers_list_splice (&large->flushers, & small->flushers);

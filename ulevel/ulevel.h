@@ -571,7 +571,10 @@ struct task_struct {
 	__u32         fsuid;
 	__u32         fsgid;
 	int i_am_swapd; /**/
+	int flags;
 };
+
+#define PF_MEMALLOC 1 /* NOTE: Not currently set in ulevel.  Should be set in task_struct->flags. */
 
 
 struct block_device {

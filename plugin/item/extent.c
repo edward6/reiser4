@@ -2911,7 +2911,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 				if (relocate == 0) {
 					/* If not relocating and dirty, WANDER it */
 					/*
-					 * FIXME:NIKITA->* I see this failing
+					 * FIXME:NIKITA->JMACD I see this failing
 					 * because @j already has JNODE_RELOC
 					 * set on it. I DONT KNOW WHAT I AM
 					 * DOING.
