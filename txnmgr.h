@@ -353,8 +353,11 @@ extern void         txn_begin             (reiser4_context    *context);
 extern int          txn_end               (reiser4_context    *context);
 
 extern int          txn_mgr_force_commit_all (struct super_block *super);
-extern int          txn_commit_some       (txn_mgr *mgr);
-extern int          txn_flush_one         (txn_mgr *mgr);
+
+extern int          txn_commit_some       (txn_mgr  *);
+extern int          txn_flush_one         (txn_mgr  *, long *, int);
+extern int          txn_flush_some_atom   (long *, int);
+
 extern int          txn_same_atom_dirty   (jnode              *base,
 					   jnode              *check,
 					   int                 alloc_check,
@@ -527,6 +530,7 @@ extern void fq_put         (flush_queue_t *);
 extern void fq_fuse        (txn_atom * to, txn_atom *from);
 extern void fq_queue_node  (flush_queue_t *, jnode *);
 extern int  fq_write       (flush_queue_t *, int);
+extern int  fq_scan_and_write (flush_queue_t *, int);
 extern int  finish_all_fq  (txn_atom *, int *);
 extern int  current_atom_finish_all_fq (void);
 extern void fq_init_atom   (txn_atom *);

@@ -242,6 +242,8 @@ void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason )
 			kcond_signal( &ctx -> wait );
 		}
 		spin_unlock( &ctx -> guard );
+
+		sched_yield ();
 	}
 }
 
@@ -282,7 +284,7 @@ static int scan_mgr( txn_mgr *mgr )
 			goto out;
 
 		if (need_flush( mgr )) {
-			ret = txn_flush_one (mgr);
+			ret = txn_flush_one (mgr, NULL, JNODE_FLUSH_WRITE_BLOCKS);
 
 			if (ret)
 				goto out;
@@ -303,8 +305,10 @@ int ktxnmgr_writeback (struct super_block * s, struct writeback_control *wbc)
 		tmgr->flush_control.nr_to_flush += wbc->nr_to_write * 2;
 		spin_unlock_txnmgr (tmgr);
 		ktxnmgrd_kick (tmgr->daemon, 0);
-	} else
+	} else {
 		spin_unlock_txnmgr (tmgr);
+		sched_yield ();
+	}
 
 	return 0;
 }
