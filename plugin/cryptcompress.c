@@ -2808,8 +2808,7 @@ crc_inode_has_anon_pages(struct inode *inode)
 
 /* plugin->u.file.capture */
 reiser4_internal int
-capture_cryptcompress(struct inode *inode, const struct writeback_control *wbc,
-		      long *captured)
+capture_cryptcompress(struct inode *inode, const struct writeback_control *wbc)
 {
 	int result;
 	pgoff_t index = 0;
