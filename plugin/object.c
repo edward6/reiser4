@@ -526,9 +526,7 @@ int common_file_owns_item( const struct inode *inode /* object to check
  */
 void move_flow_forward (flow_t * f, unsigned count)
 {
-	if (f->what == USER_BUF) {
-		f->data.user_buf += count;
-	}
+	f->data += count;
 	f->length -= count;
 	set_key_offset (&f->key, get_key_offset (&f->key) + count);
 }
@@ -538,13 +536,9 @@ void move_flow_forward (flow_t * f, unsigned count)
  * data.
  */
 static int common_build_flow( struct inode *inode /* file to build flow for */, 
-			      void *data,
-			      int what,
-#if 0
 			      char *buf /* user level buffer */,
 			      int user /* 1 if @buf is of user space, 0 - if
 					* it is kernel space */,
-#endif
 			      size_t size /* buffer size */, 
 			      loff_t off /* offset to start io from */, 
 			      rw_op op UNUSED_ARG /* io operation */, 
@@ -555,18 +549,15 @@ static int common_build_flow( struct inode *inode /* file to build flow for */,
 	assert( "nikita-1100", inode != NULL );
 
 	f -> length = size;
-	f -> what   = what;
-	if( what == USER_BUF )
-		f -> data.user_buf = ( char * )data;
-	else
-		f -> data.page     = ( struct page * )data;
+	f -> data   = buf;
+	f -> user   = user;
 	fplug = inode_file_plugin( inode );
 	assert( "nikita-1931", fplug != NULL );
 	assert( "nikita-1932", fplug -> key_by_inode != NULL );
 	return fplug -> key_by_inode( inode, off, &f -> key );
 }
 
-static int ordinary_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key )
+static int unix_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key )
 {
 	build_sd_key (inode, key);
 	set_key_type (key, KEY_BODY_MINOR );
@@ -587,22 +578,22 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			},
 			.write_flow          = NULL,
 			.read_flow           = NULL,
-			.truncate            = ordinary_file_truncate,
+			.truncate            = unix_file_truncate,
 			.write_sd_by_inode   = common_file_save,
-			.readpage            = ordinary_readpage,
-			.read                = ordinary_file_read,
-			.write               = ordinary_file_write,
-			.release             = ordinary_file_release,
+			.readpage            = unix_file_readpage,
+			.read                = unix_file_read,
+			.write               = unix_file_write,
+			.release             = unix_file_release,
 			.flow_by_inode       = common_build_flow/*NULL*/,
-			.key_by_inode        = ordinary_key_by_inode,
+			.key_by_inode        = unix_key_by_inode,
 			.set_plug_in_sd      = NULL,
 			.set_plug_in_inode   = NULL,
 			.create_blank_sd     = NULL,
-			.create              = ordinary_file_create,
+			.create              = unix_file_create,
 			.destroy_stat_data   = common_file_delete,
 			.add_link            = NULL,
 			.rem_link            = NULL,
-			.owns_item           = ordinary_file_owns_item,
+			.owns_item           = unix_file_owns_item,
 			.can_add_link        = common_file_can_add_link,
 		}
 	},
