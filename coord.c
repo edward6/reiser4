@@ -610,7 +610,6 @@ coords_equal(const coord_t * c1, const coord_t * c2)
 		c1->node == c2->node &&
 		c1->item_pos == c2->item_pos &&
 		c1->unit_pos == c2->unit_pos &&
-		c1->iplugid == c2->iplugid &&
 		c1->between == c2->between;
 }
 

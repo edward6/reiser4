@@ -2375,7 +2375,7 @@ extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord
 		return RETERR(-EAGAIN);
 
 	result = hint_validate(hint, &f->key, lh, 0/* do not check key */);
-	assert("vs-1283", ergo(result == 0, !memcmp(&hint->coord, coord, sizeof(coord_t))));
+	assert("vs-1283", ergo(result == 0, coords_equal(&hint->coord, coord)));
 	return result;
 }
 
