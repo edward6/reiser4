@@ -8,7 +8,7 @@ typedef d16 node_offset_40;
 /*
     flushstamp is made of mk_id and write_counter. mk_id is an id generated 
     randomly at mkreiserfs time. So we can just skip all nodes with different 
-    mk_id. write_counter is d64 increamenting counter of writes on disk. It is 
+    mk_id. write_counter is d64 incrementing counter of writes on disk. It is 
     used for choosing the newest data at fsck time.
  */
 
@@ -61,9 +61,11 @@ typedef struct item_header_40 {
 	/* 24 */ node_offset_40  offset;
 	/* 26 */ d16             length;
 	/* 28 */ d16             plugin_id;
-	/* two bytes will be lost due to padding anyway. Think
-		    how can they be used. */
-  /* why pad?  Because of cachelines?  I need more convincing.... No. Because of C language. */
+	/* 30 */ d16             flags; /* fsck may want to mark some items 
+					   as unreachable and so on. 
+					   Deleting of this field leads to 
+					   losing 2 bytes anyway due to C 
+					   language padding. */		
 } item_header_40;
 
 size_t             node40_item_overhead    ( const znode *node, flow_t * aflow);
