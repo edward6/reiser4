@@ -454,25 +454,6 @@ int common_file_delete( struct inode *inode, struct inode *parent UNUSED_ARG )
 	return result;
 }
 
-/* 
- * regular file plugin methods. This should be moved into
- * fs/reiser4/plugin/file.c
- */
-
-/** create sd for ordinary file. Just pass control to
-    fs/reiser4/plugin/object.c:common_file_save() */
-int ordinary_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
-			  reiser4_object_create_data *data UNUSED_ARG )
-{
-	assert( "nikita-744", object != NULL );
-	assert( "nikita-745", parent != NULL );
-	assert( "nikita-747", data != NULL );
-	assert( "nikita-748", 
-		*reiser4_inode_flags( object ) & REISER4_NO_STAT_DATA );
-	assert( "nikita-749", data -> id == REGULAR_FILE_PLUGIN_ID );
-	
-	return common_file_save( object );
-}
 
 file_lookup_result noent( struct inode *inode UNUSED_ARG, 
 			  const struct qstr *name UNUSED_ARG,
@@ -597,24 +578,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.owns_item           = common_file_owns_item,
 				.can_add_link        = common_file_can_add_link,
 			}
-#if 0
-				.write_inode         = common_file_save,
-				.create_child        = NULL,
-				.create              = ordinary_file_create,
-				.unlink              = NULL,
-				.link                = NULL,
-				.add_entry           = NULL,
-				.rem_entry           = NULL,
-				.inherit             = total_inheritance,
-				.is_empty            = is_file_empty,
-				.io                  = common_io,
-				.build_flow          = common_build_flow,
-				.is_name_acceptable  = NULL,
-				.lookup              = noent,
-				.item_plugin_at      = NULL,
-				.find_item	     = NULL,
-			}
-#endif
 		}
 	},
 	[ DIRECTORY_FILE_PLUGIN_ID ] = {
@@ -647,36 +610,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.owns_item           = hashed_owns_item,
 				.can_add_link        = common_file_can_add_link,
 			}
-#if 0
-				.install             = common_file_install,
-				.activate            = NULL,
-				.write_inode         = common_file_save,
-				.create_child        = common_create_child,
-				.create              = hashed_create,
-				.destroy_stat_data   = hashed_delete,
-				.add_link            = NULL,
-				.rem_link            = NULL,
-				.can_add_link        = common_file_can_add_link,
-				.inherit             = total_inheritance,
-				/* directory is empty iff it only contains
-				   dot and dotdot. */
-				/* is_directory_empty() will be declared
-				   in dir/hashed_dir.h */
-				.is_empty            = NULL,
-				.io                  = NULL,
-				.rw_f = {
-					[ READ_OP ]  = NULL,
-					[ WRITE_OP ] = NULL,
-				},
-				.build_flow          = common_build_flow,
-				.is_name_acceptable  = is_name_acceptable,
-				.owns_item           = hashed_owns_item,
-				.item_plugin_at      = NULL,
-				.truncate            = NULL,
-				.find_item            = NULL,
-				.readpage	      = NULL
-			}
-#endif
 		}
 	},
 	[ SYMLINK_FILE_PLUGIN_ID ] = {
@@ -712,37 +645,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.owns_item           = NULL,
 				.can_add_link        = common_file_can_add_link,
 			}
-#if 0
-				.install             = common_file_install,
-				.activate            = NULL,
-				.write_inode         = common_file_save,
-				.create_child        = NULL,
-				.create              = ordinary_file_create,
-				.unlink              = NULL,
-				.link                = NULL,
-				.destroy_stat_data   = common_file_delete,
-				.add_entry           = NULL,
-				.rem_entry           = NULL,
-				.add_link            = NULL,
-				.rem_link            = NULL,
-				.can_add_link        = common_file_can_add_link,
-				.inherit             = no_inheritance,
-				.is_empty            = is_file_empty,
-				.io                  = NULL,
-				.rw_f = {
-					[ READ_OP ]  = NULL,
-					[ WRITE_OP ] = NULL,
-				},
-				.build_flow          = common_build_flow,
-				.is_name_acceptable  = NULL,
-				.lookup              = noent,
-				.owns_item           = common_file_owns_item,
-				.item_plugin_at      = NULL,
-				.truncate            = NULL,
-				.find_item            = NULL,
-				.readpage	      = NULL
-			}
-#endif
 		}
 	},
 	[ SPECIAL_FILE_PLUGIN_ID ] = {
@@ -775,37 +677,6 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.owns_item           = common_file_owns_item,
 				.can_add_link        = common_file_can_add_link,
 			}
-#if 0
-				.install             = common_file_install,
-				.activate            = NULL,
-				.write_inode         = common_file_save,
-				.create_child        = NULL,
-				.create              = ordinary_file_create,
-				.unlink              = NULL,
-				.link                = NULL,
-				.destroy_stat_data   = common_file_delete,
-				.add_entry           = NULL,
-				.rem_entry           = NULL,
-				.add_link            = NULL,
-				.rem_link            = NULL,
-				.can_add_link        = common_file_can_add_link,
-				.inherit             = total_inheritance,
-				.is_empty            = is_file_empty,
-				.io                  = NULL,
-				.rw_f = {
-					[ READ_OP ]  = NULL,
-					[ WRITE_OP ] = NULL,
-				},
-				.build_flow          = common_build_flow,
-				.is_name_acceptable  = NULL,
-				.lookup              = noent,
-				.owns_item           = common_file_owns_item,
-				.item_plugin_at      = NULL,
-				.truncate            = NULL,
-				.find_item            = NULL,
-				.readpage	      = NULL
-			}
-#endif
 		}
 	},
 };
