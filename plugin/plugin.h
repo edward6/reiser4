@@ -227,6 +227,12 @@ typedef struct file_plugin {
 	 */
 	int ( *setattr )( struct inode * inode, struct iattr * attr );
 
+	/**
+	 * obtain inode attributes
+	 */
+	int ( *getattr )( struct vfsmount *mnt UNUSED_ARG,
+			  struct dentry *dentry, struct kstat *stat );
+
 	loff_t ( *seek )( struct file *, loff_t, int );
 } file_plugin;
 

@@ -829,6 +829,36 @@ static loff_t dir_seek( struct file *file UNUSED_ARG,
 	return result;
 }
 
+/** simplest implementation of ->getattr() method. Completely static. */
+static int common_getattr( struct vfsmount *mnt UNUSED_ARG,
+			   struct dentry *dentry, struct kstat *stat )
+{
+	struct inode *obj;
+
+	assert( "nikita-2298", dentry != NULL );
+	assert( "nikita-2299", stat != NULL );
+	assert( "nikita-2300", dentry -> d_inode != NULL );
+
+	obj = dentry -> d_inode;
+
+	stat -> dev     = obj -> i_dev;
+	stat -> ino     = obj -> i_ino;
+	stat -> mode    = obj -> i_mode;
+	stat -> nlink   = obj -> i_nlink;
+	stat -> uid     = obj -> i_uid;
+	stat -> gid     = obj -> i_gid;
+	stat -> rdev    = kdev_t_to_nr( obj -> i_rdev );
+	stat -> atime   = obj -> i_atime;
+	stat -> mtime   = obj -> i_mtime;
+	stat -> ctime   = obj -> i_ctime;
+	stat -> ctime   = obj -> i_ctime;
+	stat -> size    = obj -> i_size;
+	stat -> blocks  = obj -> i_blocks;
+	stat -> blksize = obj -> i_blksize;
+
+	return 0;
+}
+
 reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 	[ REGULAR_FILE_PLUGIN_ID ] = {
 		.file = {
@@ -863,6 +893,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.can_rem_link        = NULL,
 			.single_link         = common_single_link,
 			.setattr             = inode_setattr,
+			.getattr             = common_getattr,
 			.seek                = NULL
 		}
 	},
@@ -899,6 +930,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.can_rem_link        = dir_can_rem_link,
 			.single_link         = dir_single_link,
 			.setattr             = inode_setattr,
+			.getattr             = common_getattr,
 			.seek                = dir_seek
 		}
 	},
@@ -938,6 +970,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.can_rem_link        = NULL,
 			.single_link         = common_single_link,
 			.setattr             = inode_setattr,
+			.getattr             = common_getattr,
 			.seek                = NULL
 		}
 	},
@@ -974,6 +1007,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.can_rem_link        = NULL,
 			.single_link         = common_single_link,
 			.setattr             = inode_setattr,
+			.getattr             = common_getattr,
 			.seek                = NULL
 		}
 	}

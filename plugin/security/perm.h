@@ -53,6 +53,10 @@ typedef struct perm_plugin {
 	int ( *mask_ok )( struct inode *inode, int mask );
 	/** check whether attribute change is acceptable */
 	int ( *setattr_ok )( struct dentry *dentry, struct iattr *attr );
+
+	/** check whether stat(2) is allowed */
+	int ( *getattr_ok )( struct vfsmount *mnt UNUSED_ARG,
+			     struct dentry *dentry, struct kstat *stat );
 } perm_plugin;
 
 /** call ->check_ok method of perm plugin for inode */
