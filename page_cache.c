@@ -749,8 +749,9 @@ reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from, unsigned l
 {
 	loff_t from_bytes, count_bytes;
 
+	if (count == 0)
+		return;
 	from_bytes = ((loff_t)from) << PAGE_CACHE_SHIFT;
-	assert("vs-1621", count != 0);
 	count_bytes = ((loff_t)count) << PAGE_CACHE_SHIFT;
 
 	invalidate_mmap_range(mapping, from_bytes, count_bytes);
