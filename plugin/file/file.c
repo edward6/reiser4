@@ -1500,6 +1500,7 @@ readpage_unix_file(void *vp, struct page *page)
 	coord_t *coord;
 	struct file *file;
 
+
 	reiser4_stat_inc(file.page_ops.readpage_calls);
 
 	assert("vs-1062", PageLocked(page));
@@ -1513,6 +1514,8 @@ readpage_unix_file(void *vp, struct page *page)
 	if (result)
 		return result;
 
+	clog_op(READPAGE_IN, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
+
 	/* get key of first byte of the page */
 	key_by_inode_unix_file(inode, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
 
@@ -1523,20 +1526,22 @@ readpage_unix_file(void *vp, struct page *page)
 	if (result != CBK_COORD_FOUND) {
 		/* this indicates file corruption */
 		done_lh(&lh);
+		clog_op(READPAGE_ERROR, (void *)result, (void *)page->index);
 		return result;
 	}
 
 	if (PageUptodate(page)) {
 		done_lh(&lh);
 		unlock_page(page);
+		clog_op(READPAGE_OUT, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
 		return 0;
 	}
 	
 	coord = &hint.coord.base_coord;
-	/*coord_clear_iplug(coord);*/
 	result = zload(coord->node);
 	if (result) {
 		done_lh(&lh);
+		clog_op(READPAGE_ERROR, (void *)result, (void *)page->index);
 		return result;
 	}
 	if (!hint.coord.valid)
@@ -1551,6 +1556,7 @@ readpage_unix_file(void *vp, struct page *page)
 			page->index, get_inode_oid(inode), inode->i_size, result);
 		zrelse(coord->node);
 		done_lh(&lh);
+		clog_op(READPAGE_ERROR, (void *)EIO, (void *)page->index);
 		return RETERR(-EIO);
 	}
 
@@ -1574,6 +1580,11 @@ readpage_unix_file(void *vp, struct page *page)
 	save_file_hint(file, &hint);
 
 	assert("vs-979", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
+	if (result == 0)
+		clog_op(READPAGE_OUT, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
+	else
+		clog_op(READPAGE_ERROR, (void *)result, (void *)page->index);
+
 	return result;
 }
 
@@ -1747,6 +1758,9 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 	file_container_t cur_container, new_container;
 	znode *loaded;
 	unix_file_info_t *uf_info;
+	struct page *page;
+	loff_t saved_flow_length;
+	size_t count;
 
 	assert("nikita-3031", schedulable());
 	assert("vs-1109", get_current_context()->grabbed_blocks == 0);
@@ -1761,23 +1775,44 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 
 	to_write = flow->length;
 	while (flow->length) {
+		saved_flow_length = 0;
+		page = NULL;
 		assert("vs-1123", get_current_context()->grabbed_blocks == 0);
 
 		{
-			size_t count;
+			unsigned long offset;
 
-			count = PAGE_CACHE_SIZE;			
+			assert("nikita-3172", lock_stack_isclean(get_current_lock_stack()));
+
+			offset = get_key_offset(&flow->key) & (PAGE_CACHE_SIZE - 1);
+			count = PAGE_CACHE_SIZE - offset;
 			if (count > flow->length)
 				count = flow->length;
-			fault_in_pages_readable(flow->data, count);
+
+			assert("reiser4-1", flow->user == 1);
+			if (flow->data != NULL && current->mm) {
+				/* bring user page to memory and pin it */
+				fault_in_pages_readable(flow->data, count);
+
+				down_read(&current->mm->mmap_sem);
+				result = get_user_pages(current, current->mm, (unsigned long)flow->data, 1, 0, 0, &page, NULL);
+				up_read(&current->mm->mmap_sem);
+				if (result < 0)
+					return result;
+				assert("reiser4-2", result == 1);
+				clog_op(GET_USER_PAGES, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
+			}
 		}
 
 		if (to_write == flow->length) {
 			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
 			   node between two extent items) */
 			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(inode)), 0);
-			if (result)
+			if (result) {
+				if (page != NULL)
+					page_cache_release(page);
 				return result;
+			}
 		}
 		/* look for file's metadata (extent or tail item) corresponding to position we write to */
 		result = find_file_item(&hint, &flow->key, ZNODE_WRITE_LOCK, NULL/* ra_info */, inode);
@@ -1785,6 +1820,8 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 		if (IS_CBKERR(result)) {
 			/* error occurred */
 			done_lh(&lh);
+			if (page != NULL)
+				page_cache_release(page);
 			return result;
 		}
 
@@ -1798,6 +1835,8 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 			} else {
 				new_container = UF_CONTAINER_TAILS;
 				write_f = item_plugin_by_id(FORMATTING_ID)->s.file.write;
+				saved_flow_length = flow->length;
+				flow->length = count;				
 			}
 			break;
 
@@ -1808,6 +1847,8 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 
 		case UF_CONTAINER_TAILS:
 			if (should_have_notail(uf_info, get_key_offset(&flow->key) + flow->length)) {
+				if (page != NULL)
+					page_cache_release(page);
 				longterm_unlock_znode(&lh);
 				if (!ea_obtained(uf_info))
 					return RETERR(-E_REPEAT);
@@ -1819,26 +1860,43 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 			}
 			write_f = item_plugin_by_id(FORMATTING_ID)->s.file.write;
 			new_container = cur_container;
+			saved_flow_length = flow->length;
+			flow->length = count;
 			break;
 
 		default:			
 			longterm_unlock_znode(&lh);
+			if (page != NULL)
+				page_cache_release(page);
 			return RETERR(-EIO);
 		}
 		
 		result = zload(lh.node);
 		if (result) {
 			longterm_unlock_znode(&lh);
+			if (page != NULL)
+				page_cache_release(page);
 			return result;
 		}
-		loaded = lh.node;
-		/*coord_clear_iplug(&hint.coord.base_coord);*/
+		loaded = lh.node;		
 
 		result = write_f(inode,
 				 flow,
 				 &hint,
 				 0/* not grabbed */,
 				 how_to_write(&hint.coord, &flow->key));
+		if (page != NULL) {
+			clog_op(PUT_USER_PAGES, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
+			page_cache_release(page);
+		}
+
+		if (write_f == item_plugin_by_id(FORMATTING_ID)->s.file.write) {
+			size_t written;
+
+			assert("reiser4-3", saved_flow_length > 0 && saved_flow_length >= count);
+			written = count - flow->length;
+			flow->length = saved_flow_length - written;
+		}
 
 		assert("nikita-3142", get_current_context()->grabbed_blocks == 0);
 		if (cur_container == UF_CONTAINER_EMPTY && to_write != flow->length) {
