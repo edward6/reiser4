@@ -1139,6 +1139,16 @@ static reiser4_block_nr in_extent (const coord_t * coord,
 }
 
 
+static void extent_assign_fake_blocknr (jnode * j)
+{
+	reiser4_block_nr fake_blocknr;
+
+
+	assign_fake_blocknr (&fake_blocknr);
+	jnode_set_block (j, &fake_blocknr);
+}
+
+
 /* insert extent item (containing one unallocated extent of width 1) to place
    set by @coord */
 /* Audited by: green(2002.06.13) */
@@ -1149,6 +1159,7 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	reiser4_extent ext;
 	reiser4_item_data unit;
 	reiser4_key first_key;
+
 
 	/* make sure that we really write to first block */
 	assert ("vs-240",
@@ -1171,12 +1182,9 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 		return result;
 	}
 
-	// reiser4_unformatted_grabbed2unallocated (1);
-
 	jnode_set_mapped (j);
 	jnode_set_created (j);
-	assign_fake_blocknr (jnode_get_block (j));
-	// jnode_set_block (j, &null_block_nr);
+	extent_assign_fake_blocknr (j);
 
 	reiser4_stat_file_add (pointers);
 	reiser4_stat_file_add (write_repeats);
@@ -1248,13 +1256,10 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 		coord->between = AFTER_UNIT;
 		break;
 	}
-	// reiser4_unformatted_grabbed2unallocated (1);
-	/*reiser4_count_fake_allocation ((__u64)1);*/
 
 	jnode_set_mapped (j);
 	jnode_set_created (j);
-	assign_fake_blocknr (jnode_get_block (j));
-	// jnode_set_block (j, &null_block_nr);
+	extent_assign_fake_blocknr (j);
 
 	reiser4_stat_file_add (pointers);
 	return 0;
@@ -1645,13 +1650,10 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 			return result;
 		}
 
-		// reiser4_unformatted_grabbed2unallocated (1);
-		/*reiser4_count_fake_allocation((__u64)1);*/
-
 		jnode_set_mapped (j);
 		jnode_set_created (j);
-		// jnode_set_block (j, &null_block_nr);
-		assign_fake_blocknr (jnode_get_block (j));
+		extent_assign_fake_blocknr (j);
+
 		reiser4_stat_file_add (pointers);
 		break;
 
