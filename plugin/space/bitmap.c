@@ -607,6 +607,27 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
  * and WORKING BITMAP objects.
  */
 
+#if REISER4_DEBUG
+
+static void check_block_range (const reiser4_block_nr * start, const reiser4_block_nr * len)
+{
+	struct super_block * sb = reiser4_get_current_sb();
+
+	assert ("zam-436", sb != NULL);
+
+	assert ("zam-437", *start != 0);
+	assert ("zam-438", *len != 0);
+
+	assert ("zam-441", *start < reiser4_block_count(sb));
+	assert ("zam-442", *start + *len <= reiser4_block_count(sb));
+}
+
+#else
+
+#  define check_block_range(start, len) do { /* nothing */} while(0)
+
+#endif
+
 static int pre_commit_actor (txn_atom               * atom UNUSED_ARG,
 			     const reiser4_block_nr * start,
 			     const reiser4_block_nr * len,
@@ -620,13 +641,7 @@ static int pre_commit_actor (txn_atom               * atom UNUSED_ARG,
 
 	struct super_block * sb = reiser4_get_current_sb();
 
-	assert ("zam-436", sb != NULL);
-
-	assert ("zam-437", *start != 0);
-	assert ("zam-438", *len != 0);
-
-	assert ("zam-441", *start < reiser4_block_count(sb));
-	assert ("zam-442", *start + *len <= reiser4_block_count(sb));
+	check_block_range (start, len);
 
 	parse_blocknr(start, &bmap, &offset);
 
@@ -637,6 +652,7 @@ static int pre_commit_actor (txn_atom               * atom UNUSED_ARG,
 	assert ("zam-443", offset + *len <= sb->s_blocksize);
 
 	bnode = get_bnode(sb, bmap);
+	assert ("zam-448", bnode != NULL);
 
 	/* put bnode in a special list for post-processing */
 	if (bnode->next_in_commit_list == NULL) {
@@ -699,60 +715,79 @@ void bitmap_pre_commit_hook (void)
 	}
 }
 
+static int post_commit_actor (txn_atom               * atom UNUSED_ARG,
+			      const reiser4_block_nr * start,
+			      const reiser4_block_nr * len,
+			      void                   * data UNUSED_ARG)
+{
+	struct super_block * sb = reiser4_get_current_sb ();
+
+	struct bnode * bnode;
+	int bmap, offset;
+
+	check_block_range (start, len);
+
+	parse_blocknr (start, &bmap, &offset);
+	assert ("zam-449", offset + *len <= sb->s_blocksize);
+
+	bnode = get_bnode (sb, bmap);
+	assert ("zam-447", bnode != NULL);
+
+	assert ("zam-450", bnode->wpage != NULL);
+
+	spin_lock_bnode (bnode);
+	reiser4_clear_bits(bnode->wpage, offset, (int)(offset + *len));
+	spin_unlock_bnode(bnode);
+
+	return 0;
+}
+
 /** called after transaction commit, apply DELETE SET to WORKING BITMAP */
 void bitmap_post_commit_hook (void) {
-#if 0
-	struct super_block      * super     = reiser4_get_current_sb ();
-	reiser4_super_info_data * info_data = get_super_private (super); 
-	reiser4_space_allocator * allocator = &info_data->space_allocator;
-	int ret = 0;
-	WALK_ATOM_VARS;
+	reiser4_context * ctx = get_current_context ();
 
-	assert ("zam-382", allocator->u.generic != NULL);
-	assert ("zam-418", get_barray(super) != NULL);
+	txn_handle * tx;
+	txn_atom   * atom;
 
-	spin_lock_atom (atom);
+	tx = ctx->trans;
+	assert ("zam-451", tx != NULL);
 
-	WALK_ATOM {
-		int bmap, offset;
-		struct bnode * bnode;
+	atom = atom_get_locked_by_txnh (tx);
+	assert ("zam-452", atom != NULL);
 
-		/* At this moment after successful commit we replay previously
-		 * recorded in atom's deleted_nodes list changes to working
-		 * bitmap and working free blocks counter ... */
-
-		/* ... count all blocks which are freed in a "working" free
-		 * block counter */
-		if (JF_ISSET(node, ZNODE_DELETED)) {
-			spin_lock (&info_data->guard);
-			
-			reiser4_inc_free_blocks (super);
-			spin_lock (&info_data->guard);
-		}
-
-		if (! jnode_is_in_deleteset(node))
-			continue;
-
-		/* ... apply DELETED_SET to the WORKING bitmap */
-		assert ("zam-403", !blocknr_is_fake(&node->blocknr));
-
-		parse_blocknr(& node->blocknr, &bmap, &offset);
-
-		bnode = get_bnode (super, bmap);
-
-		assert ("zam-383", bnode->wpage != NULL);
-		assert ("zam-384", bnode->cpage != NULL);
-
-		reiser4_clear_bit(offset, bnode->wpage);
-	}
+	blocknr_set_iterator (atom, &atom->delete_set, post_commit_actor, NULL, 1);
 
 	spin_unlock_atom (atom);
+}
 
-	/* FIXME_ZAM: I think jnodes for DELETED_SET should disappear at this
-	 * moment */
+/* FIXME: needs to be changed when I get understanding what wandered map
+ * format Josh proposed */
+static int post_write_back_actor (txn_atom               * atom UNUSED_ARG,
+				  const reiser4_block_nr * start,
+				  const reiser4_block_nr * len,
+				  void                   * data UNUSED_ARG)
+{
+	struct super_block * sb = reiser4_get_current_sb ();
 
-	return ret;
-#endif
+	struct bnode * bnode;
+	int bmap, offset;
+
+	check_block_range (start, len);
+
+	parse_blocknr (start, &bmap, &offset);
+	assert ("zam-449", offset + *len <= sb->s_blocksize);
+
+	bnode = get_bnode (sb, bmap);
+	assert ("zam-447", bnode != NULL);
+
+	assert ("zam-450", bnode->wpage != NULL);
+
+	spin_lock_bnode (bnode);
+	reiser4_clear_bits(bnode->wpage, offset, (int)(offset + *len));
+	spin_unlock_bnode(bnode);
+
+	return 0;
+
 }
 
 /** This function is called after write-back (writing blocks from OVERWRITE
@@ -760,47 +795,20 @@ void bitmap_post_commit_hook (void) {
  * WORKING BITMAP) */
 void bitmap_post_write_back_hook (void)
 {
-#if 0
-	struct super_block      * super     = reiser4_get_current_sb ();
-	reiser4_super_info_data * info_data = get_super_private (super);
-	reiser4_space_allocator * allocator =  &info_data->space_allocator;
-	int ret = 0;
-	WALK_ATOM_VARS;
+	reiser4_context * ctx = get_current_context ();
 
-	assert ("zam-380", allocator->u.generic != NULL);
-	assert ("zam-417", get_barray(super) != NULL);
+	txn_handle * tx;
+	txn_atom   * atom;
 
-	spin_lock_atom(atom);
+	tx = ctx->trans;
+	assert ("zam-453", tx != NULL);
 
-	/* FIXME_ZAM: we do not know what dynamic objects will be used to keep
-	 * informations about wandered blocks locations. This alg. is done
-	 * under an assumption that those objects are jnodes. */
-	WALK_ATOM {
-		int bmap, offset;
-		struct bnode * bnode;
+	atom = atom_get_locked_by_txnh (tx);
+	assert ("zam-454", atom != NULL);
 
-		if (!JF_ISSET(node, ZNODE_WANDER))
-			continue;
+	blocknr_set_iterator (atom, &atom->wandered_map, post_write_back_actor, NULL, 1);
 
-		assert ("zam-404", !blocknr_is_fake(&node->blocknr));
-
-		parse_blocknr(& node->blocknr, &bmap, &offset);
-		bnode = get_bnode(super, bmap);
-
-		assert ("zam-379", bnode->cpage != NULL);
-		assert ("zam-381", bnode->wpage != NULL);
-
-		reiser4_clear_bit(offset, bnode->wpage);
-
-		spin_lock (&info_data->guard);
-		reiser4_inc_free_blocks (super);
-		spin_unlock (&info_data->guard);
-	}
-
-	spin_unlock_atom(atom);
-
-	return ret;
-#endif
+	spin_unlock_atom (atom);
 }
 
 /* 
