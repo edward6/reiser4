@@ -74,10 +74,8 @@ static int lock_neighbor (
 		reiser4_stat_znode_add(lock_neighbor_iteration);
 		neighbor = GET_NODE_BY_PTR_OFFSET(node, ptr_offset);
 
-		if (neighbor == NULL) return -ENAVAIL;
-
-		if (!((flags & GN_ALLOW_NOT_CONNECTED) || znode_is_connected(neighbor))) {
-			assert ("zam-682", ergo (ptr_offset == PARENT_PTR_OFFSET, znode_above_root(neighbor)));
+		if (neighbor == NULL || 
+		    !((flags & GN_ALLOW_NOT_CONNECTED) || znode_is_connected(neighbor))) {
 			return -ENAVAIL;
 		}
 
