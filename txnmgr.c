@@ -399,7 +399,7 @@ txn_end (reiser4_context *context)
 /* Get the atom belonging to a txnh, which is not locked.  Return with both
  * txnh and atom locked.  This performs the necessary spin_trylock to break
  * the lock-ordering cycle.  May not return NULL. */
-static txn_atom*
+txn_atom*
 atom_get_locked_by_txnh (txn_handle *txnh)
 {
 	txn_atom *atom;
