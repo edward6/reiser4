@@ -1701,7 +1701,7 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 	assert("vs-1022", item_is_extent(coord));
 	assert("vs-1024", extent_by_coord(coord) == extent);
 
-	preceder = flush_pos_hint(pos);
+	preceder = pos_hint(pos);
 
 	/* Note: code very much copied from assign_jnode_blocknrs. */
 	/* Find the inode (if it is in-memory). */
@@ -1780,7 +1780,7 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 		   differently?
 		*/
 		relocate = (all_need_alloc == 1)
-		    && flush_pos_leaf_relocate(pos);
+		    && pos_leaf_relocate(pos);
 		/* FIXME-VS: no relocation of allocated extents yet */
 		relocate = 0;
 		check = 0;
@@ -2099,7 +2099,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 			   disk space will be freed. */		
 			can_be_allocated = unflush_part(oid, index, to_allocate);
 
-			check_me("vs-1137", extent_allocate_blocks(flush_pos_hint(flush_pos),
+			check_me("vs-1137", extent_allocate_blocks(pos_hint(flush_pos),
 								   can_be_allocated, &first_allocated, &allocated) == 0);
 			if (allocated < can_be_allocated)
 				unflush_finish_part(oid, index + allocated, can_be_allocated - allocated);
@@ -2363,7 +2363,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		   freed. */
 		can_be_allocated = unflush_part(oid, index, width);
 
-		check_me("vs-1138", extent_allocate_blocks(flush_pos_hint(flush_pos), 
+		check_me("vs-1138", extent_allocate_blocks(pos_hint(flush_pos), 
 							   can_be_allocated, &first_allocated, &allocated) == 0);
 		assert("vs-440", allocated > 0 && allocated <= can_be_allocated);
 		if (allocated < can_be_allocated)

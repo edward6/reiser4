@@ -747,9 +747,9 @@ typedef struct reiser4_statistics {
 		stat_cnt squeezed_leaf_bytes;
 		/* how many times jnode_flush was called */
 		stat_cnt flush;
-		/* how many nodes were scanned by flush_scan_left() */
+		/* how many nodes were scanned by scan_left() */
 		stat_cnt left;
-		/* how many nodes were scanned by flush_scan_right() */
+		/* how many nodes were scanned by scan_right() */
 		stat_cnt right;
 		/* an overhead of MTFLUSH semaphore */
 		stat_cnt slept_in_mtflush_sem;

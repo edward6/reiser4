@@ -145,7 +145,7 @@
    the right neighbor and the current position have different parents, then it allocates
    the right-neighbors-with-different-parents on the way back down.  This process is
    described in more detail in flush_squalloc_changed_ancestor and the recursive function
-   flush_squalloc_one_changed_ancestor.  But the purpose here is not to discuss the
+   squalloc_one_changed_ancestor.  But the purpose here is not to discuss the
    specifics of the bottom-up approach as it is to contrast the bottom-up and top-down
    approaches.
   
@@ -304,7 +304,7 @@
    is expected to be a rare case, which is why we do nothing special about it.  However,
    memory pressure may pass an internal node to flush when there are still dirty leaf
    nodes that need to be flushed, which could prove our original assumptions
-   "inoperative".  If this needs to be fixed, then flush_scan_left/right should have
+   "inoperative".  If this needs to be fixed, then scan_left/right should have
    special checks for the non-leaf levels.  For example, instead of passing from a node to
    the left neighbor, it should pass from the node to the left neighbor's rightmost
    descendent (if dirty).
@@ -369,7 +369,7 @@
    single level of the tree.  A flush-scan is used for counting the number of adjacent
    nodes to flush, which is used to determine whether we should relocate, and it is also
    used to find a starting point for flush.  A flush-scan object can scan in both right
-   and left directions via the flush_scan_left() and flush_scan_right() interfaces.  The
+   and left directions via the scan_left() and scan_right() interfaces.  The
    right- and left-variations are similar but perform different functions.  When scanning
    left we (optionally perform rapid scanning and then) longterm-lock the endpoint node.
    When scanning right we are simply counting the number of adjacent, dirty nodes. */
@@ -439,19 +439,19 @@ struct flush_position {
 };
 
 /* Flush-scan helper functions. */
-static void flush_scan_init(flush_scan * scan);
-static void flush_scan_done(flush_scan * scan);
-static int flush_scan_set_current(flush_scan * scan, jnode * node, unsigned add_size, const coord_t * parent);
-static int flush_scan_finished(flush_scan * scan);
-static int flush_scanning_left(flush_scan * scan);
+static void scan_init(flush_scan * scan);
+static void scan_done(flush_scan * scan);
+static int scan_set_current(flush_scan * scan, jnode * node, unsigned add_size, const coord_t * parent);
+static int scan_finished(flush_scan * scan);
+static int scanning_left(flush_scan * scan);
 
 /* Flush-scan algorithm. */
-static int flush_scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit);
-static int flush_scan_right(flush_scan * scan, jnode * node, unsigned limit);
-static int flush_scan_common(flush_scan * scan, flush_scan * other);
-static int flush_scan_formatted(flush_scan * scan);
-static int flush_scan_extent(flush_scan * scan, int skip_first);
-static int flush_scan_extent_coord(flush_scan * scan, const coord_t * in_coord);
+static int scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit);
+static int scan_right(flush_scan * scan, jnode * node, unsigned limit);
+static int scan_common(flush_scan * scan, flush_scan * other);
+static int scan_formatted(flush_scan * scan);
+static int scan_extent(flush_scan * scan, int skip_first);
+static int scan_extent_coord(flush_scan * scan, const coord_t * in_coord);
 
 /* Initial flush-point ancestor allocation. */
 static int flush_alloc_ancestors(flush_position * pos);
@@ -460,8 +460,8 @@ static int flush_set_preceder(const coord_t * coord_in, flush_position * pos);
 
 /* Main flush algorithm.  Note on abbreviation: "squeeze and allocate" == "squalloc". */
 static int squalloc(flush_position * pos);
-static int flush_squalloc_one_changed_ancestor(znode * node, int call_depth, flush_position * pos);
-static int flush_squalloc_changed_ancestors(flush_position * pos);
+static int squalloc_one_changed_ancestor(znode * node, int call_depth, flush_position * pos);
+static int squalloc_changed_ancestors(flush_position * pos);
 
 /* Flush squeeze implementation. */
 static int squalloc_right_neighbor(znode * left, znode * right,
@@ -497,15 +497,15 @@ znode_check_flushprepped(znode * node)
 }
 
 /* Flush position functions */
-static void flush_pos_init(flush_position * pos);
-static int flush_pos_valid(flush_position * pos);
-static void flush_pos_done(flush_position * pos);
-static int flush_pos_stop(flush_position * pos);
+static void pos_init(flush_position * pos);
+static int pos_valid(flush_position * pos);
+static void pos_done(flush_position * pos);
+static int pos_stop(flush_position * pos);
 static int flush_pos_on_twig_level(flush_position * pos);
 static int flush_pos_to_child_and_alloc(flush_position * pos);
 static int flush_pos_to_parent(flush_position * pos);
-static int flush_pos_set_point(flush_position * pos, jnode * node);
-static void flush_pos_release_point(flush_position * pos);
+static int pos_set_point(flush_position * pos, jnode * node);
+static void pos_release_point(flush_position * pos);
 static int flush_pos_lock_parent(flush_position * pos, coord_t * parent_coord,
 				 lock_handle * parent_lock, load_count * parent_load, znode_lock_mode mode);
 
@@ -776,14 +776,14 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	trace_on(TRACE_FLUSH, "flush squalloc %s %s\n", flush_jnode_tostring(node), flush_flags_tostring(flags));
 
 	/* Initialize a flush position. */
-	flush_pos_init(&flush_pos);
+	pos_init(&flush_pos);
 
 	flush_pos.nr_to_flush = nr_to_flush;
 	flush_pos.fq = fq;
 	flush_pos.flags = flags;
 
-	flush_scan_init(&right_scan);
-	flush_scan_init(&left_scan);
+	scan_init(&right_scan);
+	scan_init(&left_scan);
 
 	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF)); */
 	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK)); */
@@ -800,7 +800,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   and, hence, is kept during leftward scan. As a result, we have to
 	   use try-lock when taking long term locks during the leftward scan.
 	*/
-	if ((ret = flush_scan_left(&left_scan, &right_scan, node, flush_get_params()->scan_maxnodes))) {
+	if ((ret = scan_left(&left_scan, &right_scan, node, flush_get_params()->scan_maxnodes))) {
 		goto failed;
 	}
 
@@ -814,13 +814,13 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	/* ZAM-FIXME-HANS: reduce the layers of wrappings, eliminate flush_get_params function please */
 	todo = flush_get_params()->relocate_threshold - left_scan.count;
 	if (todo > 0) {
-		ret = flush_scan_right(&right_scan, node, (unsigned)todo);
+		ret = scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
 			goto failed;
 	}
 
 	/* Only the right-scan count is needed, release any rightward locks right away. */
-	flush_scan_done(&right_scan);
+	scan_done(&right_scan);
 
 	trace_on(TRACE_FLUSH, "flush: left: %i, right: %i\n", 
 		 left_scan.count, right_scan.count);
@@ -853,7 +853,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   NOTE-NIKITA actually, flush can meet HEARD_BANSHEE node at any
 	   point and in any moment, because of the concurrent file system
 	   activity (for example, truncate). */
-	if ((ret = flush_pos_set_point(&flush_pos, left_scan.node))) {
+	if ((ret = pos_set_point(&flush_pos, left_scan.node))) {
 		goto failed;
 	}
 
@@ -870,7 +870,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   leftward scan.  Copy it. */
 	flush_pos.preceder.blk = left_scan.preceder_blk;
 	check_preceder(flush_pos.preceder.blk);
-	flush_scan_done(&left_scan);
+	scan_done(&left_scan);
 
 	/* Check for relocation and allocate ancestors of the initial flush position.  First
 	   perform a relocation check of the flush point (in reverse parent-first
@@ -904,14 +904,14 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	}
 
 	/* FIXME_NFQUCMPD: Here, handle the twig-special case for unallocated children.
-	   First, the flush_pos_stop() and flush_pos_valid() routines should be modified
-	   so that flush_pos_stop() sets a flush_position->stop flag to 1 without
+	   First, the pos_stop() and pos_valid() routines should be modified
+	   so that pos_stop() sets a flush_position->stop flag to 1 without
 	   releasing the current position immediately--instead release it in
-	   flush_pos_done().  This is a better implementation than the current one anyway.
+	   pos_done().  This is a better implementation than the current one anyway.
 	  
 	   It is not clear that all fields of the flush_position should not be released,
 	   but at the very least the parent_lock, parent_coord, and parent_load should
-	   remain held because they are hold the last twig when flush_pos_stop() is
+	   remain held because they are hold the last twig when pos_stop() is
 	   called.
 	  
 	   When we reach this point in the code, if the parent_coord is set to after the
@@ -987,9 +987,9 @@ failed:
 	if (!ret)
 		ret = flush_pos.nr_written;
 
-	flush_pos_done(&flush_pos);
-	flush_scan_done(&left_scan);
-	flush_scan_done(&right_scan);
+	pos_done(&flush_pos);
+	scan_done(&left_scan);
+	scan_done(&right_scan);
 
 	/* The clean_out label is reached by calls to jnode_flush that return before
 	   initializing the flush_position and the two flush_scan objects.  After those
@@ -1154,7 +1154,7 @@ flush_reverse_relocate_end_of_twig(flush_position * pos)
 			/* Now finished with twig node. */
 			trace_on(TRACE_FLUSH_VERB,
 				 "end_of_twig: STOP (end of twig, no right): %s\n", flush_pos_tostring(pos));
-			ret = flush_pos_stop(pos);
+			ret = pos_stop(pos);
 		}
 		goto exit;
 	}
@@ -1179,14 +1179,14 @@ flush_reverse_relocate_end_of_twig(flush_position * pos)
 	}
 
 	if (IS_ERR(child)) {
-		flush_pos_stop(pos);
+		pos_stop(pos);
 		ret = -EINVAL;
 		goto exit;
 	}
 	if (child == NULL || !jnode_check_dirty(child)) {
 		/* Finished at this twig. */
 		trace_on(TRACE_FLUSH_VERB, "end_of_twig: STOP right node & leftmost child clean\n");
-		ret = flush_pos_stop(pos);
+		ret = pos_stop(pos);
 		goto exit;
 	}
 
@@ -1197,7 +1197,7 @@ flush_reverse_relocate_end_of_twig(flush_position * pos)
 
 	/* All we are interested in here is possibly dirtying the right twig.  The child
 	   will be allocated after its ancestors are processed by the next
-	   flush_squalloc_changed_ancestors. */
+	   squalloc_changed_ancestors. */
 
 exit:
 	if (child != NULL && !IS_ERR(child)) {
@@ -1422,7 +1422,7 @@ exit:
    flush_reverse_relocate_end_of_twig to possibly dirty the next (right) twig, prior to
    step #5 which moves to the right.
   
-   Step 5: calls flush_squalloc_changed_ancestors, which initiates a recursive call up the
+   Step 5: calls squalloc_changed_ancestors, which initiates a recursive call up the
    tree to allocate any ancestors of the next-right flush position that are not also
    ancestors of the current position.  Those ancestors (in top-down order) are the next in
    parent-first order.  We squeeze adjacent nodes on the way up until the right node and
@@ -1451,13 +1451,13 @@ squalloc(flush_position * pos)
 
 		if (JF_ISSET(pos->point, JNODE_HEARD_BANSHEE)) {
 			/* race with extent->tail. */
-			flush_pos_stop(pos);
+			pos_stop(pos);
 			ret = -EINVAL;
 			break;
 		}
 	
 		/* Step 4: Allocate the current extent (if current position is an extent). */
-		if (flush_pos_valid(pos) && flush_pos_on_twig_level(pos)) {
+		if (pos_valid(pos) && flush_pos_on_twig_level(pos)) {
 
 			assert("jmacd-8712", item_is_extent(&pos->parent_coord));
 
@@ -1509,7 +1509,7 @@ squalloc(flush_position * pos)
 					   extent_utmost_child() puts either 0 or
 					   result of jlook() into *child.
 					*/
-					flush_pos_stop(pos);
+					pos_stop(pos);
 					ret = -EINVAL;
 					break;
 				}
@@ -1558,7 +1558,7 @@ squalloc(flush_position * pos)
 				/* end of the twig reached */
 
 				/* We are about to try to allocate the right twig by calling
-				   flush_squalloc_changed_ancestors in the flush_pos_on_twig_level state.
+				   squalloc_changed_ancestors in the flush_pos_on_twig_level state.
 				   However, the twig may need to be dirtied first if its left-child will
 				   be relocated. */
 				if ((ret = flush_reverse_relocate_end_of_twig(pos))) {
@@ -1570,16 +1570,16 @@ squalloc(flush_position * pos)
 			}
 		}
 
-		if (flush_pos_valid(pos)) {
+		if (pos_valid(pos)) {
 			/* Step 5: Formatted and unformatted cases.  Squeeze upward, allocate
 			   downward, for any ancestors that are not in common between current
 			   position and its right neighbor. */
-			if ((ret = flush_squalloc_changed_ancestors(pos))) {
+			if ((ret = squalloc_changed_ancestors(pos))) {
 				break;
 			}
 		}
 
-	} while (flush_pos_valid(pos));
+	} while (pos_valid(pos));
 
 	ENABLE_NODE_CHECK;
 	PROF_END(forward_squalloc, forward_squalloc);
@@ -1587,12 +1587,12 @@ squalloc(flush_position * pos)
 }
 
 /* This implements "step 5" described in squalloc.  This is the entry point
-   for the recursive function flush_squalloc_one_changed_ancestor, described above.  This
+   for the recursive function squalloc_one_changed_ancestor, described above.  This
    function mainly deals with special cases related to the twig-level and extents, then
    initiates the upward-recursive call, then establishes the next flush position after the
    recursive call is complete.  */
 static int
-flush_squalloc_changed_ancestors(flush_position * pos)
+squalloc_changed_ancestors(flush_position * pos)
 {
 	int ret;
 	int on_twig_level;
@@ -1621,16 +1621,16 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 
 	/* Recursive step: the on_twig_level argument passed in as the call_depth requires
 	   a note--its quite subtle.  If we are on the twig level,
-	   flush_squalloc_one_changed_ancestor behaves as if it is already at a recursion
+	   squalloc_one_changed_ancestor behaves as if it is already at a recursion
 	   depth of one, otherwise we start at zero.  Read the comments there for more
 	   explanation. */
-	if ((ret = flush_squalloc_one_changed_ancestor(node,	/*call_depth */
+	if ((ret = squalloc_one_changed_ancestor(node,	/*call_depth */
 						       on_twig_level, pos))) {
 		warning("jmacd-61432", "sq1_ca failed: %d", ret);
 		goto exit;
 	}
 
-	if (!flush_pos_valid(pos)) {
+	if (!pos_valid(pos)) {
 		goto exit;
 	}
 
@@ -1670,7 +1670,7 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 			if (ret == -ENAVAIL) {
 				trace_on(TRACE_FLUSH_VERB,
 					 "sq_rca: STOP (ENAVAIL, ancestors allocated): %s\n", flush_pos_tostring(pos));
-				ret = flush_pos_stop(pos);
+				ret = pos_stop(pos);
 			} else {
 				warning("jmacd-61433", "znode_get_if_dirty failed: %d", ret);
 			}
@@ -1709,7 +1709,7 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 			}
 
 			/* If end_of_twig stops the flush, we are finished. */
-			if (!flush_pos_valid(pos)) {
+			if (!pos_valid(pos)) {
 				goto exit;
 			}
 
@@ -1723,7 +1723,7 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 		if (item_is_internal(&pos->parent_coord)) {
 			trace_on(TRACE_FLUSH_VERB,
 				 "sq_rca stop at twig, next is internal: %s\n", flush_pos_tostring(pos));
-			ret = flush_pos_stop(pos);
+			ret = pos_stop(pos);
 			goto exit;
 		}
 
@@ -1735,13 +1735,13 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 		}
 
 		if (IS_ERR(child)) {
-			flush_pos_stop(pos);
+			pos_stop(pos);
 			ret = -EINVAL;
 			goto exit;
 		}
 
 		if (child == NULL) {
-			ret = flush_pos_stop(pos);
+			ret = pos_stop(pos);
 			goto exit;
 		}
 
@@ -1753,7 +1753,7 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 		if (!keep_going) {
 			trace_on(TRACE_FLUSH_VERB,
 				 "sq_rca stop at twig, child already flushprepped: %s\n", flush_pos_tostring(pos));
-			ret = flush_pos_stop(pos);
+			ret = pos_stop(pos);
 			goto exit;
 		}
 
@@ -1765,11 +1765,11 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 	trace_on(TRACE_FLUSH_VERB, "sq_rca ready to move right %s\n", flush_znode_tostring(right_lock.node));
 
 	/* We have a new right and it should have been flushprepped by the call to
-	   flush_squalloc_one_changed_ancestor.  However, a concurrent thread could
+	   squalloc_one_changed_ancestor.  However, a concurrent thread could
 	   possibly insert a new node, so just stop if ! flushprepped. */
 	if (!jnode_check_flushprepped(ZJNODE(right_lock.node))) {
 		trace_on(TRACE_FLUSH_VERB, "sq_rca: STOP (right not allocated): %s\n", flush_pos_tostring(pos));
-		ret = flush_pos_stop(pos);
+		ret = pos_stop(pos);
 		goto exit;
 	}
 
@@ -1797,8 +1797,8 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 		}
 	} else {
 		done_lh(&pos->point_lock);
-		if ((ret = flush_pos_set_point(pos, ZJNODE(right_lock.node)))) {
-			warning("jmacd-61439", "flush_pos_set_point failed: %d", ret);
+		if ((ret = pos_set_point(pos, ZJNODE(right_lock.node)))) {
+			warning("jmacd-61439", "pos_set_point failed: %d", ret);
 			goto exit;
 		}
 		move_lh(&pos->point_lock, &right_lock);
@@ -1816,7 +1816,7 @@ exit:
    Note that the greater (recursive) call_depth, the higher tree level.  When the comments
    below discuss "lower-level", it means lower smaller call_depth as well.  */
 static int
-flush_squalloc_one_changed_ancestor(znode * node, int call_depth, flush_position * pos)
+squalloc_one_changed_ancestor(znode * node, int call_depth, flush_position * pos)
 {
 	int ret;
 	int same_parents;
@@ -1843,7 +1843,7 @@ flush_squalloc_one_changed_ancestor(znode * node, int call_depth, flush_position
 
 	/* FIXME_NFQUCMPD: We want to squeeze and allocate one twig at a time, thus: We do
 	   not need to allocate in this routine at all.  The calling function,
-	   flush_squalloc_changed_ancestors, can handle allocating the leaf level (rename
+	   squalloc_changed_ancestors, can handle allocating the leaf level (rename
 	   this to flush_squeeze_one_changed_ancestor?).  Allocating the twig level is
 	   already done in flush_alloc_ancestors.  But this is where we detect that we
 	   have reached the end of a twig--see below.
@@ -1873,7 +1873,7 @@ RIGHT_AGAIN:
 	   to the right) will reduce by a node. */
 	if (znode_check_flushprepped(right_lock.node)) {
 		trace_on(TRACE_FLUSH_VERB, "sq1_ca: STOP (right already prepped): %s\n", flush_pos_tostring(pos));
-		ret = flush_pos_stop(pos);
+		ret = pos_stop(pos);
 		goto exit;
 	}
 
@@ -2002,7 +2002,7 @@ RIGHT_AGAIN:
 			goto exit;
 		}
 
-		if ((ret = flush_squalloc_one_changed_ancestor(parent_lock.node, call_depth + 1, pos))) {
+		if ((ret = squalloc_one_changed_ancestor(parent_lock.node, call_depth + 1, pos))) {
 			warning("jmacd-61429", "sq1_ca recursion failed: %d", ret);
 			goto exit;
 		}
@@ -2771,7 +2771,7 @@ znode_same_parents(znode * a, znode * b)
 
 /* Initialize the flush_scan data structure. */
 static void
-flush_scan_init(flush_scan * scan)
+scan_init(flush_scan * scan)
 {
 	memset(scan, 0, sizeof (*scan));
 	init_lh(&scan->node_lock);
@@ -2783,7 +2783,7 @@ flush_scan_init(flush_scan * scan)
 
 /* Release any resources held by the flush scan, e.g., release locks, free memory, etc. */
 static void
-flush_scan_done(flush_scan * scan)
+scan_done(flush_scan * scan)
 {
 	done_load_count(&scan->node_load);
 	if (scan->node != NULL) {
@@ -2797,7 +2797,7 @@ flush_scan_done(flush_scan * scan)
 
 /* Returns true if flush scanning is finished. */
 static int
-flush_scan_finished(flush_scan * scan)
+scan_finished(flush_scan * scan)
 {
 	return scan->stop || scan->count >= scan->max_count;
 }
@@ -2805,7 +2805,7 @@ flush_scan_finished(flush_scan * scan)
 /* Return true if the scan should continue to the @tonode.  True if the node meets the
    same_atom_dirty condition.  If not, deref the "left" node and stop the scan. */
 static int
-flush_scan_goto(flush_scan * scan, jnode * tonode)
+scan_goto(flush_scan * scan, jnode * tonode)
 {
 	int go = same_atom_dirty(scan->node, tonode, 1, 0);
 
@@ -2813,10 +2813,10 @@ flush_scan_goto(flush_scan * scan, jnode * tonode)
 		scan->stop = 1;
 		trace_on(TRACE_FLUSH_VERB,
 			 "flush %s scan stop: stop at node %s\n",
-			 flush_scanning_left(scan) ? "left" : "right", flush_jnode_tostring(scan->node));
+			 scanning_left(scan) ? "left" : "right", flush_jnode_tostring(scan->node));
 		trace_on(TRACE_FLUSH_VERB,
 			 "flush %s scan stop: do not cont at %s\n",
-			 flush_scanning_left(scan) ? "left" : "right", flush_jnode_tostring(tonode));
+			 scanning_left(scan) ? "left" : "right", flush_jnode_tostring(tonode));
 		jput(tonode);
 	}
 
@@ -2827,7 +2827,7 @@ flush_scan_goto(flush_scan * scan, jnode * tonode)
    count, e.g., skipped unallocated nodes), deref previous current, and copy the current
    parent coordinate. */
 static int
-flush_scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, const coord_t * parent)
+scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, const coord_t * parent)
 {
 	/* Release the old references, take the new reference. */
 	done_load_count(&scan->node_load);
@@ -2838,7 +2838,7 @@ flush_scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, cons
 	scan->node = node;
 	scan->count += add_count;
 
-	/* This next stmt is somewhat inefficient.  The flush_scan_extent_coord code could
+	/* This next stmt is somewhat inefficient.  The scan_extent_coord code could
 	   delay this update step until it finishes and update the parent_coord only once.
 	   It did that before, but there was a bug and this was the easiest way to make it
 	   correct. */
@@ -2853,7 +2853,7 @@ flush_scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, cons
 
 /* Return true if scanning in the leftward direction. */
 static int
-flush_scanning_left(flush_scan * scan)
+scanning_left(flush_scan * scan)
 {
 	return scan->direction == LEFT_SIDE;
 }
@@ -2893,18 +2893,18 @@ flush_scanning_left(flush_scan * scan)
    For now we implement the first policy.
 */
 static int
-flush_scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit)
+scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit)
 {
 	int ret = 0;
 
 	scan->max_count = limit;
 	scan->direction = LEFT_SIDE;
 
-	if ((ret = flush_scan_set_current(scan, jref(node), 1, NULL))) {
+	if ((ret = scan_set_current(scan, jref(node), 1, NULL))) {
 		return ret;
 	}
 
-	if ((ret = flush_scan_common(scan, right))) {
+	if ((ret = scan_common(scan, right))) {
 		return ret;
 	}
 
@@ -2922,7 +2922,7 @@ flush_scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned li
 }
 
 /* Performs rightward scanning... Does not count the starting node.  The limit parameter
-   is described in flush_scan_left.  If the starting node is unformatted then the
+   is described in scan_left.  If the starting node is unformatted then the
    parent_coord was already set during scan_left.  The rapid_after parameter is not used
    during right-scanning.
   
@@ -2931,23 +2931,23 @@ flush_scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned li
    the difference between scan-left's count and FLUSH_RELOCATE_THRESHOLD, meaning
    scan-right counts as high as FLUSH_RELOCATE_THRESHOLD and then stops. */
 static int
-flush_scan_right(flush_scan * scan, jnode * node, unsigned limit)
+scan_right(flush_scan * scan, jnode * node, unsigned limit)
 {
 	int ret;
 
 	scan->max_count = limit;
 	scan->direction = RIGHT_SIDE;
 
-	if ((ret = flush_scan_set_current(scan, jref(node), 0, NULL))) {
+	if ((ret = scan_set_current(scan, jref(node), 0, NULL))) {
 		return ret;
 	}
 
-	return flush_scan_common(scan, NULL);
+	return scan_common(scan, NULL);
 }
 
 /* Common code to perform left or right scanning. */
 static int
-flush_scan_common(flush_scan * scan, flush_scan * other)
+scan_common(flush_scan * scan, flush_scan * other)
 {
 	int ret;
 
@@ -2982,27 +2982,27 @@ flush_scan_common(flush_scan * scan, flush_scan * other)
 
 		/* The common scan code is structured as a loop that repeatedly calls:
 
-		   \_ flush_scan_formatted
-		      \_ flush_scan_extent
-		         \_ flush_scan_extent_coord
+		   \_ scan_formatted
+		      \_ scan_extent
+		         \_ scan_extent_coord
 		  
 		   But if we start at an unformatted node (extent) then we begin with a
-		   call to flush_scan_extent then fall into the loop at a formatted
+		   call to scan_extent then fall into the loop at a formatted
 		   position below.
 		*/
 		/* skip_first = false (i.e., starting position is
 		 * unformatted) */
-		if ((ret = flush_scan_extent(scan, 0)))
+		if ((ret = scan_extent(scan, 0)))
 			return ret;
 	}
 
 	/* This loop expects to start at a formatted position, which explains the
-	   flush_scan_extent case above.  After scanning from a formatted position the
+	   scan_extent case above.  After scanning from a formatted position the
 	   code then checks for an extent and scans past all extents until the next
 	   formatted position, then returns and repeats this loop. */
-	while (!flush_scan_finished(scan)) {
+	while (!scan_finished(scan)) {
 
-		if ((ret = flush_scan_formatted(scan))) {
+		if ((ret = scan_formatted(scan))) {
 			return ret;
 		}
 	}
@@ -3019,12 +3019,12 @@ flush_scan_common(flush_scan * scan, flush_scan * other)
    - scan has not reached maximum count
 */
 static int
-flush_scan_formatted(flush_scan * scan)
+scan_formatted(flush_scan * scan)
 {
 	int ret;
 	znode *neighbor = NULL;
 
-	assert("jmacd-1401", !flush_scan_finished(scan));
+	assert("jmacd-1401", !scan_finished(scan));
 
 	do {
 		znode *node = JZNODE(scan->node);
@@ -3042,7 +3042,7 @@ flush_scan_formatted(flush_scan * scan)
 		   left sibling while the tree lock is released, but the flush-scan count
 		   does not need to be precise.  Thus, we release the tree lock as soon as
 		   we get the neighboring node. */
-		if ((neighbor = flush_scanning_left(scan) ? node->left : node->right) != NULL) {
+		if ((neighbor = scanning_left(scan) ? node->left : node->right) != NULL) {
 			zref(neighbor);
 		}
 
@@ -3055,25 +3055,25 @@ flush_scan_formatted(flush_scan * scan)
 		}
 
 		trace_on(TRACE_FLUSH_VERB, "format scan %s %s\n",
-			 flush_scanning_left(scan) ? "left" : "right", flush_znode_tostring(neighbor));
+			 scanning_left(scan) ? "left" : "right", flush_znode_tostring(neighbor));
 
 		/* Check the condition for going left, break if it is not met.  This also
 		   releases (jputs) the neighbor if false. */
-		if (!flush_scan_goto(scan, ZJNODE(neighbor))) {
+		if (!scan_goto(scan, ZJNODE(neighbor))) {
 			break;
 		}
 
 		/* Advance the flush_scan state to the left, repeat. */
-		if ((ret = flush_scan_set_current(scan, ZJNODE(neighbor), 1, NULL))) {
+		if ((ret = scan_set_current(scan, ZJNODE(neighbor), 1, NULL))) {
 			return ret;
 		}
 
-	} while (!flush_scan_finished(scan));
+	} while (!scan_finished(scan));
 
 	/* If neighbor is NULL then we reached the end of a formatted region, or else the
 	   sibling is out of memory, now check for an extent to the left (as long as
 	   LEAF_LEVEL). */
-	if (neighbor != NULL || jnode_get_level(scan->node) != LEAF_LEVEL || flush_scan_finished(scan)) {
+	if (neighbor != NULL || jnode_get_level(scan->node) != LEAF_LEVEL || scan_finished(scan)) {
 		scan->stop = 1;
 		return 0;
 	}
@@ -3087,7 +3087,7 @@ flush_scan_formatted(flush_scan * scan)
 		init_lh(&end_lock);
 
 		try = 
-			flush_scanning_left(scan) && 
+			scanning_left(scan) && 
 			!lock_stack_isclean(get_current_lock_stack());
 
 		/* Need the node locked to get the parent lock, We have to
@@ -3115,10 +3115,10 @@ flush_scan_formatted(flush_scan * scan)
 			return ret;
 		}
 
-		/* With the parent coordinate set, call flush_scan_extent.  If the next
-		   position is not an extent, flush_scan_extent will detect it and do
+		/* With the parent coordinate set, call scan_extent.  If the next
+		   position is not an extent, scan_extent will detect it and do
 		   nothing. */
-		return flush_scan_extent(scan, 1
+		return scan_extent(scan, 1
 					 /* skip_first = true (i.e., current position is formatted) */
 		    );
 	}
@@ -3127,12 +3127,12 @@ flush_scan_formatted(flush_scan * scan)
 /* Performs leftward scanning starting from a (possibly) unformatted node.  Skip_first
    indicates that the scan->node is set to a formatted node and we are interested in
    continuing at the next neighbor only if it is unformatted.  When called initially from
-   flush_scan_common, it sets skip_first=0 (because the first node is unformatted), but
-   when called from flush_scan_formatted, it sets skip_first=1 (because the current
+   scan_common, it sets skip_first=0 (because the first node is unformatted), but
+   when called from scan_formatted, it sets skip_first=1 (because the current
    position is formatted).  After one iteration through the loop below, skip_first is
    reset to zero and the flush .  */
 static int
-flush_scan_extent(flush_scan * scan, int skip_first)
+scan_extent(flush_scan * scan, int skip_first)
 {
 	int ret = 0;
 	lock_handle next_lock;
@@ -3143,11 +3143,11 @@ flush_scan_extent(flush_scan * scan, int skip_first)
 	init_lh(&next_lock);
 	init_load_count(&next_load);
 
-	for (; !flush_scan_finished(scan); skip_first = 0) {
+	for (; !scan_finished(scan); skip_first = 0) {
 
 		/* If not skipping the first item (only true the first iteration of this
-		   loop when called from flush_scan_formatted), then we call
-		   flush_scan_extent_coord, which scans as many extent units as it can
+		   loop when called from scan_formatted), then we call
+		   scan_extent_coord, which scans as many extent units as it can
 		   until either finding a non-dirty jnode, a formatted node (internal
 		   unit), or reaching the end of node. */
 		if (skip_first == 0) {
@@ -3163,11 +3163,11 @@ flush_scan_extent(flush_scan * scan, int skip_first)
 			}
 			assert("jmacd-1230", item_is_extent(&scan->parent_coord));
 
-			if ((ret = flush_scan_extent_coord(scan, &scan->parent_coord))) {
+			if ((ret = scan_extent_coord(scan, &scan->parent_coord))) {
 				goto exit;
 			}
 
-			if (flush_scan_finished(scan)) {
+			if (scan_finished(scan)) {
 				break;
 			}
 		} else {
@@ -3208,7 +3208,7 @@ flush_scan_extent(flush_scan * scan, int skip_first)
 
 		/* If skip_first was set, then we are only interested in continuing if the
 		   next item is an extent.  If this is not the case, stop now.  Otherwise,
-		   if the next item is an extent we will return to the flush_scan_common
+		   if the next item is an extent we will return to the scan_common
 		   loop and the next call will be to scan_formatted() to handle this
 		   case. */
 		if (!item_is_extent(&next_coord) && skip_first) {
@@ -3232,12 +3232,12 @@ flush_scan_extent(flush_scan * scan, int skip_first)
 		assert("nikita-2374", jnode_is_unformatted(child) || jnode_is_znode(child));
 
 		/* See if it is dirty, part of the same atom. */
-		if (!flush_scan_goto(scan, child)) {
+		if (!scan_goto(scan, child)) {
 			break;
 		}
 
 		/* If so, make it current. */
-		if ((ret = flush_scan_set_current(scan, child, 1, &next_coord))) {
+		if ((ret = scan_set_current(scan, child, 1, &next_coord))) {
 			goto exit;
 		}
 
@@ -3257,7 +3257,7 @@ flush_scan_extent(flush_scan * scan, int skip_first)
 		assert("jmacd-1239", item_is_extent(&scan->parent_coord));
 	}
 
-	assert("jmacd-6233", flush_scan_finished(scan)
+	assert("jmacd-6233", scan_finished(scan)
 	       || jnode_is_znode(scan->node));
 exit:
 	if (jnode_is_znode(scan->node)) {
@@ -3280,11 +3280,11 @@ exit:
    any case, the code below asserts this case for unallocated extents.  Unallocated
    extents are thus optimized because we can skip to the endpoint when scanning.
   
-   It returns control to flush_scan_extent, handles these terminating conditions, e.g., by
+   It returns control to scan_extent, handles these terminating conditions, e.g., by
    loading the next twig.
 */
 static int
-flush_scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
+scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
 {
 	coord_t coord;
 	jnode *neighbor;
@@ -3305,7 +3305,7 @@ flush_scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
 
 	coord_dup(&coord, in_coord);
 
-	assert("jmacd-1404", !flush_scan_finished(scan));
+	assert("jmacd-1404", !scan_finished(scan));
 	assert("jmacd-1405", jnode_get_level(scan->node) == LEAF_LEVEL);
 	assert("jmacd-1406", jnode_is_unformatted(scan->node));
 
@@ -3316,7 +3316,7 @@ flush_scan_extent_coord(flush_scan * scan, const coord_t * in_coord)
 	assert("jmacd-7889", item_is_extent(&coord));
 
 	trace_on(TRACE_FLUSH_VERB, "%s scan starts %lu: %s\n",
-		 (flush_scanning_left(scan) ? "left" : "right"), scan_index, flush_jnode_tostring(scan->node));
+		 (scanning_left(scan) ? "left" : "right"), scan_index, flush_jnode_tostring(scan->node));
 
 repeat:
 	/* If the get_inode call is expensive we can be a bit more clever and only call
@@ -3332,7 +3332,7 @@ repeat:
 	}
 */
 	trace_on(TRACE_FLUSH_VERB, "%s scan index %lu: parent %p oid %llu\n",
-		 (flush_scanning_left(scan) ? "left" : "right"), scan_index, coord.node, oid);
+		 (scanning_left(scan) ? "left" : "right"), scan_index, coord.node, oid);
 
 	/* FIXME:NIKITA->* this is wrong: hole is treated as allocated extent
 	   by this function---this leads to incorrect preceder update in
@@ -3352,7 +3352,7 @@ repeat:
 	   (scan_max) and the number of nodes that would be passed if the scan goes the
 	   entire way (scan_dist).  Incr is an integer reflecting the incremental
 	   direction of scan_index. */
-	if (flush_scanning_left(scan)) {
+	if (scanning_left(scan)) {
 		scan_max = unit_index;
 		scan_dist = scan_index - unit_index;
 		incr = -1;
@@ -3375,12 +3375,12 @@ repeat:
 			trace_on(TRACE_FLUSH_VERB, "alloc scan index %lu: %s\n",
 				 scan_index, flush_jnode_tostring(neighbor));
 
-			if (scan->node != neighbor && !flush_scan_goto(scan, neighbor)) {
-				/* @neighbor was jput() by flush_scan_goto(). */
+			if (scan->node != neighbor && !scan_goto(scan, neighbor)) {
+				/* @neighbor was jput() by scan_goto(). */
 				goto stop_same_parent;
 			}
 
-			if ((ret = flush_scan_set_current(scan, neighbor, 1, &coord))) {
+			if ((ret = scan_set_current(scan, neighbor, 1, &coord))) {
 				goto exit;
 			}
 
@@ -3405,7 +3405,7 @@ repeat:
 		assert("jmacd-3551", !jnode_check_flushprepped(neighbor)
 		       && same_atom_dirty(neighbor, scan->node, 0, 0));
 
-		if ((ret = flush_scan_set_current(scan, neighbor, scan_dist, &coord))) {
+		if ((ret = scan_set_current(scan, neighbor, scan_dist, &coord))) {
 			goto exit;
 		}
 	}
@@ -3414,7 +3414,7 @@ repeat:
 		/* Continue as long as there are more extent units. */
 
 		scan_index =
-		    extent_unit_index(&coord) + (flush_scanning_left(scan) ? extent_unit_width(&coord) - 1 : 0);
+		    extent_unit_index(&coord) + (scanning_left(scan) ? extent_unit_width(&coord) - 1 : 0);
 		/*assert ("vs-835", ino); */
 		/*iput (ino); */
 		goto repeat;
@@ -3426,7 +3426,7 @@ stop_same_parent:
 		/* If we are scanning left and we stop in the middle of an allocated
 		   extent, we know the preceder immediately.. */
 		/* middle of extent is (scan_index - unit_index) != 0. */
-		if (flush_scanning_left(scan) && (scan_index - unit_index) != 0) {
+		if (scanning_left(scan) && (scan_index - unit_index) != 0) {
 			/* FIXME(B): Someone should step-through and verify that this preceder
 			   calculation is indeed correct. */
 			/* @unit_start is starting block (number) of extent
@@ -3459,7 +3459,7 @@ exit:
 
 /* Initialize the fields of a flush_position. */
 static void
-flush_pos_init(flush_position * pos)
+pos_init(flush_position * pos)
 {
 	xmemset(pos, 0, sizeof *pos);
 	coord_init_invalid(&pos->parent_coord, NULL);
@@ -3471,7 +3471,7 @@ flush_pos_init(flush_position * pos)
 	init_load_count(&pos->point_load);
 }
 
-/* The flush loop inside squalloc periodically checks flush_pos_valid to
+/* The flush loop inside squalloc periodically checks pos_valid to
    determine when "enough flushing" has been performed.  This will return true until one
    of the following conditions is met:
   
@@ -3479,11 +3479,11 @@ flush_pos_init(flush_position * pos)
    parameter, meaning we have flushed as many blocks as the kernel requested.  When
    flushing to commit, this parameter is NULL.
   
-   2. flush_pos_stop() is called because squalloc discovers that the "next" node in the
+   2. pos_stop() is called because squalloc discovers that the "next" node in the
    flush order is either non-existant, not dirty, or not in the same atom.
 */
 static int
-flush_pos_valid(flush_position * pos)
+pos_valid(flush_position * pos)
 {
 	if (pos->nr_to_flush != NULL && pos->prep_or_free_cnt >= *pos->nr_to_flush) {
 		return 0;
@@ -3493,16 +3493,16 @@ flush_pos_valid(flush_position * pos)
 
 /* Release any resources of a flush_position.  Called when jnode_flush finishes. */
 static void
-flush_pos_done(flush_position * pos)
+pos_done(flush_position * pos)
 {
-	flush_pos_stop(pos);
+	pos_stop(pos);
 	blocknr_hint_done(&pos->preceder);
 }
 
 /* Reset the point and parent.  Called during flush subroutines to terminate the
    squalloc loop. */
 static int
-flush_pos_stop(flush_position * pos)
+pos_stop(flush_position * pos)
 {
 	done_load_count(&pos->parent_load);
 	done_load_count(&pos->point_load);
@@ -3537,7 +3537,7 @@ flush_pos_to_child_and_alloc(flush_position * pos)
 	}
 
 	if (IS_ERR(child)) {
-		flush_pos_stop(pos);
+		pos_stop(pos);
 		return -EINVAL;
 	}
 
@@ -3572,7 +3572,7 @@ flush_pos_to_child_and_alloc(flush_position * pos)
 
 	if (0) {
 stop:
-		ret = flush_pos_stop(pos);
+		ret = pos_stop(pos);
 		return ret;
 	}
 
@@ -3625,7 +3625,7 @@ flush_pos_on_twig_level(flush_position * pos)
 /* Release all references associated with flush_position->point: a reference count,
    load_count, and lock_handle. */
 static void
-flush_pos_release_point(flush_position * pos)
+pos_release_point(flush_position * pos)
 {
 	if (pos->point != NULL) {
 		jput(pos->point);
@@ -3639,9 +3639,9 @@ flush_pos_release_point(flush_position * pos)
    point (its ref_count, load_count, and lock_handle) then refcounting and load_counting
    the new point.  Setting the new point's lock_handle is left to the calling code. */
 static int
-flush_pos_set_point(flush_position * pos, jnode * node)
+pos_set_point(flush_position * pos, jnode * node)
 {
-	flush_pos_release_point(pos);
+	pos_release_point(pos);
 	pos->point = jref(node);
 	return incr_load_count_jnode(&pos->point_load, node);
 }
@@ -3680,7 +3680,7 @@ flush_pos_lock_parent(flush_position * pos, coord_t * parent_coord,
 
 /* Return the flush_position's block allocator hint. */
 reiser4_blocknr_hint *
-flush_pos_hint(flush_position * pos)
+pos_hint(flush_position * pos)
 {
 	return &pos->preceder;
 }
@@ -3688,7 +3688,7 @@ flush_pos_hint(flush_position * pos)
 /* Return true if we have decided to unconditionally relocate leaf nodes, thus write
    optimizing. */
 int
-flush_pos_leaf_relocate(flush_position * pos)
+pos_leaf_relocate(flush_position * pos)
 {
 	return pos->leaf_relocate;
 }
