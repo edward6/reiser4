@@ -79,6 +79,7 @@ reiser4-objs := \
 		   prof.o \
 		   repacker.o \
 		   reiser4_status_flags.o \
+		   init_super.o \
            \
 		   plugin/plugin.o \
 		   plugin/plugin_set.o \
