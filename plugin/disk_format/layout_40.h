@@ -12,6 +12,9 @@
  * - declarations of functions used to get/set fields in layout 40 super block
  */
 
+/* magic for default reiser4 layout */
+#define LAYOUT_40_MAGIC "R4Sb-Default"
+
 /* ondisk super block for layout 40. It is 512 bytes long */
 typedef struct layout_40_disk_super_block {	
 	/*   0 */ d64 block_count; /* number of block in a filesystem */
