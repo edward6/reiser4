@@ -492,7 +492,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
 		if (inode_get_flag(inode, REISER4_GENERIC_PTR_USED)) {
 			assert("vs-839", S_ISLNK(inode->i_mode));
-			reiser4_kfree_in_sb(inode->u.generic_ip, (size_t) inode->i_size + 1, inode->i_sb);
+			reiser4_kfree_in_sb(inode->u.generic_ip, inode->i_sb);
 			inode->u.generic_ip = 0;
 			inode_clr_flag(inode, REISER4_GENERIC_PTR_USED);
 		}
@@ -502,13 +502,12 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 			assert("edward-35", cplug != NULL);
 			assert("edward-37", cryptcompress_inode_data(inode)->expkey != NULL);
 			xmemset(cryptcompress_inode_data(inode)->expkey, 0, (cplug->nr_keywords)*sizeof(__u32));
-			reiser4_kfree_in_sb(cryptcompress_inode_data(inode)->expkey, (cplug->nr_keywords)*sizeof(__u32), inode->i_sb);
+			reiser4_kfree_in_sb(cryptcompress_inode_data(inode)->expkey, inode->i_sb);
 			inode_clr_flag(inode, REISER4_SECRET_KEY_INSTALLED);
 		}
 		if (inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED)) {
-			digest_plugin *dplug = inode_digest_plugin(inode);
 			assert("edward-38", info->crypt != NULL);
-			reiser4_kfree_in_sb(info->crypt->keyid, dplug->digestsize, inode->i_sb);
+			reiser4_kfree_in_sb(info->crypt->keyid, inode->i_sb);
 			inode_clr_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 		}
 		if (inode_get_flag(inode, REISER4_CLUSTER_KNOWN))
@@ -1299,8 +1298,7 @@ reiser4_kill_super(struct super_block *s)
 	sbinfo = (reiser4_super_info_data *) s->s_fs_info;
 	if (!sbinfo) {
 		/* mount failed */
-		s->s_op = 0;
-		kill_block_super(s);
+		s->s_op->write_super = NULL;
 		return;
 	}
 
@@ -1312,8 +1310,9 @@ reiser4_kill_super(struct super_block *s)
 
 	reiser4_sysfs_done(s);
 
-	/* FIXME-VS: the problem is that there still might be dirty pages which
-	   became dirty via mapping. Have them to go through reiser4_writepages */
+	/* FIXME-VS: the problem is that there still might be dirty pages
+	   which became dirty via mapping. Have them to go through
+	   reiser4_writepages */
 	fsync_super(s);
 
 	/* complete removal of directories which were not deleted when they
