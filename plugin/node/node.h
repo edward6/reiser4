@@ -100,17 +100,17 @@ typedef enum {
 #define REISER4_NODE_MAX_OVERHEAD ( sizeof( reiser4_key ) + 32 )
 
 typedef enum {
-	REISER4_NODE_PRINT_HEADER  = ( 1 << 0 ),
-	REISER4_NODE_PRINT_KEYS    = ( 1 << 1 ),
-	REISER4_NODE_PRINT_PLUGINS = ( 1 << 2 ),
-	REISER4_NODE_PRINT_ITEMS   = ( 1 << 3 ),
-	REISER4_NODE_PRINT_DATA    = ( 1 << 4 ),
-	REISER4_NODE_CHECK         = ( 1 << 5 ),
-	REISER4_NODE_PANIC         = ( 1 << 6 ),
-	REISER4_NODE_PRINT_ZNODE   = ( 1 << 7 ),
-	REISER4_NODE_DKEYS         = ( 1 << 8 ),
-	REISER4_NODE_TREE_STABLE   = ( 1 << 9 ),
-	REISER4_NODE_DONT_DOT      = ( 1 << 10 ),
+	REISER4_NODE_PRINT_HEADER  = ( 1u << 0 ),
+	REISER4_NODE_PRINT_KEYS    = ( 1u << 1 ),
+	REISER4_NODE_PRINT_PLUGINS = ( 1u << 2 ),
+	REISER4_NODE_PRINT_ITEMS   = ( 1u << 3 ),
+	REISER4_NODE_PRINT_DATA    = ( 1u << 4 ),
+	REISER4_NODE_CHECK         = ( 1u << 5 ),
+	REISER4_NODE_PANIC         = ( 1u << 6 ),
+	REISER4_NODE_PRINT_ZNODE   = ( 1u << 7 ),
+	REISER4_NODE_DKEYS         = ( 1u << 8 ),
+	REISER4_NODE_TREE_STABLE   = ( 1u << 9 ),
+	REISER4_NODE_DONT_DOT      = ( 1u << 10 ),
 	REISER4_NODE_PRINT_ALL     = ~0u,
 } reiser4_node_print_flag;
 
