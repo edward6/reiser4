@@ -628,7 +628,8 @@ atom_should_commit (txn_atom *atom)
 		(atom->flags & ATOM_FORCE_COMMIT);
 }
 
-/* FIXME: temporary */
+/* FIXME: JMACD->ZAM: This should be removed after a transaction can wait on all its
+ * active io_handles here. */
 static void txn_wait_on_io (txn_atom *atom)
 {
 	jnode *scan;
@@ -709,7 +710,8 @@ atom_try_commit_locked (txn_atom *atom)
 		}
 	}
 
-	/* FIXME: temporary */
+	/* FIXME: JMACD->ZAM: This should be removed after a transaction can wait on all
+	 * its active io_handles here. */
 	txn_wait_on_io (atom);
 
 	trace_on (TRACE_FLUSH, "everything written back atom %u\n", atom->atom_id);

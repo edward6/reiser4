@@ -108,44 +108,9 @@ struct flush_position {
 						* until it reaches capacity at which point flush_empty_queue() is called. */
  	int                   queue_num;       /* The current number of queue entries. */
 
-	flushers_list_link    flushers_link;
-	txn_atom             *atom;
-
-	/* FIXME: Currently there is no checking for (internal) nodes that have
-	 * un-allocated children when the node is flushed.  This needs to be fixed for
-	 * performance reasons, but it will not cause file system corruption since the
-	 * unallocated children will need to be flushed later before the transaction
-	 * commits, causing the internal node to be re-written.  This is how it will be
-	 * fixed:
-	 *
-	 * 1. (ALMOST FINISHED: flush_scan_rapid()) In scan-left (but not right), after counting at least RELOCATE_THRESHOLD
-	 * nodes, flush begins an accelerated scan-left trying to find a node which is the
-	 * leftmost child of its parent with a left-neighbor that is clean.  The scan
-	 * end-point skips past non-rightmost, non-leftmost children of the parent because
-	 * flush has to pass by all potentially unallocated children.  If flush finds a
-	 * leftmost child with a left-neighbor that is clean, it stops.
-	 *
-	 * 2. Add a "int unalloc_mask", initially set to 0, which is bitwise-indexed by
-	 * tree level.  The first time a node is 'released' (see flush_release_jnode) at a
-	 * certain level the bit is set.  Except at the leaf level (which has no children)
-	 * and the twig level, which we scanned to the end of in step #1, setting this bit
-	 * means the node (with level > TWIG) may have unallocated children to the left.
-	 *
-	 * 3. If the bit is already set then it means a node to-the-left of the
-	 * currently-being-released node was already flushed, therefore it is known that
-	 * all its children were flushed.
-	 *
-	 * 4. After flush is finished (flush_empty_queue called with finish=1), there may
-	 * exist some nodes in the queue with FLUSH_BUSY still set.  Those nodes may have
-	 * unallocated children to the right.
-	 *
-	 * The general idea described here is to handle the leaf and twig cases as a
-	 * special case and then use the bitmask to detect possible unallocated children
-	 * to the left and the finished queue/FLUSH_BUSY to detect possible unallocated
-	 * children to the right.
-	 */
-
-	struct reiser4_io_handle * hio;
+	flushers_list_link    flushers_link;   /* A list link of all flush_positions active for an atom. */
+	txn_atom             *atom;            /* The current atom of this flush_position--maintained during atom fusion. */
+	struct reiser4_io_handle * hio;        /* The handle for waiting on I/O completions. */
 };
 
 TS_LIST_DEFINE(flushers, struct flush_position, flushers_link);
@@ -220,14 +185,58 @@ static const char*   flush_flags_tostring         (int flags);
  * no static initializer function...) */
 ON_DEBUG (atomic_t flush_cnt;)
 
+/* Implementation notes:
+ *
+ *
+ * 
+ *
+ */
+
+	/* FIXME: Currently there is no checking for (internal) nodes that have
+	 * un-allocated children when the node is flushed.  This needs to be fixed for
+	 * performance reasons, but it will not cause file system corruption since the
+	 * unallocated children will need to be flushed later before the transaction
+	 * commits, causing the internal node to be re-written.  This is how it will be
+	 * fixed:
+	 *
+	 * 1. (ALMOST FINISHED: flush_scan_rapid()) In scan-left (but not right), after counting at least RELOCATE_THRESHOLD
+	 * nodes, flush begins an accelerated scan-left trying to find a node which is the
+	 * leftmost child of its parent with a left-neighbor that is clean.  The scan
+	 * end-point skips past non-rightmost, non-leftmost children of the parent because
+	 * flush has to pass by all potentially unallocated children.  If flush finds a
+	 * leftmost child with a left-neighbor that is clean, it stops.
+	 *
+	 * 2. Add a "int unalloc_mask", initially set to 0, which is bitwise-indexed by
+	 * tree level.  The first time a node is 'released' (see flush_release_jnode) at a
+	 * certain level the bit is set.  Except at the leaf level (which has no children)
+	 * and the twig level, which we scanned to the end of in step #1, setting this bit
+	 * means the node (with level > TWIG) may have unallocated children to the left.
+	 *
+	 * 3. If the bit is already set then it means a node to-the-left of the
+	 * currently-being-released node was already flushed, therefore it is known that
+	 * all its children were flushed.
+	 *
+	 * 4. After flush is finished (flush_empty_queue called with finish=1), there may
+	 * exist some nodes in the queue with FLUSH_BUSY still set.  Those nodes may have
+	 * unallocated children to the right.
+	 *
+	 * The general idea described here is to handle the leaf and twig cases as a
+	 * special case and then use the bitmask to detect possible unallocated children
+	 * to the left and the finished queue/FLUSH_BUSY to detect possible unallocated
+	 * children to the right.
+	 */
+
+
 /********************************************************************************
  * JNODE_FLUSH: MAIN ENTRY POINT
  ********************************************************************************/
 
 /* This is the main entry point for flushing a jnode, called by the transaction manager
- * when an atom closes (to commit writes) and called by the VM under memory pressure (to
- * early-flush dirty blocks).
+ * when an atom closes (to commit writes) and called by the VM under memory pressure (via
+ * page_cache.c:page_common_writeback() to early-flush dirty blocks).
  *
+ * 
+
  * Two basic steps are performed: first the "leftpoint" of the input jnode is located,
  * which is found by scanning leftward past dirty nodes and upward as long as the parent
  * is dirty or the child is being relocated.  A config option determines whether
@@ -259,12 +268,10 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		flush_pos.hio = NULL;
 	}
 
-	/* temporary debugging code */
+	/* Flush-concurrency debug code */
 	ON_DEBUG (atomic_inc (& flush_cnt);
 		  trace_on (TRACE_FLUSH, "flush enter: pid %ul %u concurrent procs\n", current_pid, atomic_read (& flush_cnt));
-		  if (atomic_read (& flush_cnt) > 1) {
-			  /*trace_on (TRACE_FLUSH, "flush concurrency\n");*/
-		  });
+		  trace_if (TRACE_FLUSH, if (atomic_read (& flush_cnt) > 1) { info ("flush concurrency\n"); }););
 
 	spin_lock_jnode (node);
 
@@ -273,9 +280,10 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	 * a new root block address.  This causes atoms to fuse.  However, this node is
 	 * never flushed.  This special case used to be in lock.c to prevent the
 	 * above-root node from ever being captured, but now that it is captured we simply
-	 * prevent it from flushing. */
+	 * prevent it from flushing.  The log-writer code relies on this to properly log
+	 * superblock modifications of the tree height. */
 	if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
-		/* just pass dirty znode-above-root to overwrite set */
+		/* Just pass dirty znode-above-root to overwrite set. */
 		jnode_set_wander(node);
 		spin_unlock_jnode(node);
 		jnode_set_clean(node);
@@ -450,7 +458,24 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	 * objects are initialized any abnormal return goes to the 'failed' label. */
  clean_out:
 
-	/* wait for io completion */
+	/* Wait for io completion.
+	 *
+	 * FIXME: JMACD->ZAM,HANS: I don't think this will work, conditionally waiting for
+	 * an IO completion here.  Certainly it is easiest if we allocate the io_handle on
+	 * the stack, but the check for JNODE_FLUSH_COMMIT doesn't work because a call to
+	 * early-flush will not wait here.  If the transaction commits shortly after
+	 * memory pressure causes early flushing, then the transaction will not wait for
+	 * the early-flush writes to complete.  I propose this solution:
+	 *
+	 * 1. Allocate io_handles w/ kmalloc
+	 * 2. Maintain per-atom list of active io_handles
+	 * 3. Fuse lists when atoms commit
+	 * 4. Wait on all io_handles prior in PRE_COMMIT.
+	 * 5. After this is accomplished, remove txn_wait_on_io() from txnmgr.c
+	 *
+	 * The alternative is to undconditionally call done_io_handle here, not just when
+	 * JNODE_FLUSH_COMMIT is called, but that will make performance suck.
+	 */
 	if (flags & JNODE_FLUSH_COMMIT) {
 		int rc = done_io_handle(&hio);
 		if (rc && ret == 0) {
