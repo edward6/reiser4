@@ -1463,9 +1463,21 @@ static struct vm_operations_struct unix_file_vm_ops = {
 	.nopage = unix_file_filemap_nopage,
 };
 
+static void
+set_file_notail(struct inode *inode)
+{
+	reiser4_inode *state;
+	tail_plugin   *tplug;
+
+	state = reiser4_inode_data(inode);
+	tplug = tail_plugin_by_id(NEVER_TAIL_ID);
+	plugin_set_tail(&state->pset, tplug);
+	inode_set_plugin(inode, tail_plugin_to_plugin(tplug));
+}
+
 /* if file is built of tails - convert it to extents */
 static int
-unpack(struct inode *inode)
+unpack(struct inode *inode, int forever)
 {
 	int            result = 0;
 
@@ -1480,14 +1492,8 @@ unpack(struct inode *inode)
 	if (result == 0) {
 		if (file_is_built_of_tails(inode))
 			result = tail2extent(inode);
-#if 0
-		if (result == 0) {
-			state = reiser4_inode_data(inode);
-			tplug = tail_plugin_by_id(NEVER_TAIL_ID);
-			plugin_set_tail(&state->pset, tplug);
-			inode_set_plugin(inode, tail_plugin_to_plugin(tplug));
-		}
-#endif
+		if (result == 0 && forever)
+			set_file_notail(inode);
 	}
 
 	drop_exclusive_access(inode);
@@ -1513,7 +1519,7 @@ unix_file_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsign
 
 	switch (cmd) {
 	case REISER4_IOC_UNPACK:
-		result = unpack(inode);
+		result = unpack(inode, 1);
 		break;
 
 	default:
@@ -1533,7 +1539,7 @@ unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 
 	inode = file->f_dentry->d_inode;
 
-	result = unpack(inode);
+	result = unpack(inode, 0);
 	if (result)
 		return result;
 
