@@ -4320,6 +4320,8 @@ int real_main( int argc, char **argv )
 	e = getenv( "REISER4_KMALLOC_FAILURE_RATE" );
 	if( KMEM_FAILURES && ( e != NULL ) )
 		kmalloc_failure_rate = strtol( e, NULL, 0 );
+	else
+		kmalloc_failure_rate = 0;
 
 	INIT_LIST_HEAD( &inode_hash_list );
 	pc_hash_init( &page_htable, PAGE_HASH_TABLE_SIZE );
