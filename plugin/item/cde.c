@@ -120,7 +120,7 @@ static char *address( const coord_t *coord /* coord of item */,
 /** return pointer to the body of @idx-th entry in @coord */
 /* Audited by: green(2002.06.13) */
 static directory_entry_format *entry_at( const coord_t *coord /* coord of
-								  * item */, 
+							       * item */, 
 					 int idx /* index of unit */ )
 {
 	return ( directory_entry_format * ) address
@@ -331,8 +331,6 @@ int cde_estimate( const coord_t *coord /* coord of item */,
 	result += e -> num_of_entries * 
 		( sizeof( cde_unit_header ) + sizeof( directory_entry_format ) );
 	for( i = 0 ; i < e -> num_of_entries ; ++i ) {
-		/* AUDIT Huh?! Why to use expensive strlen() thing if there is
-		   ...name -> len already? */
 		assert( "nikita-2054", 
 			strlen( e -> entry[ i ].name -> name ) == e -> entry[ i ].name -> len );
 		result += e -> entry[ i ].name -> len + 1;
@@ -924,7 +922,7 @@ char *cde_extract_name( const coord_t *coord /* coord of item */ )
 
 /** ->s.dir.add_entry() method for this item plugin */
 /* Audited by: green(2002.06.13) */
-int cde_add_entry( const struct inode *dir /* directory object */, 
+int cde_add_entry( struct inode *dir /* directory object */, 
 		   coord_t *coord /* coord of item */, 
 		   lock_handle *lh /* lock handle for insertion */, 
 		   const struct dentry *name /* name to insert */, 
@@ -962,6 +960,10 @@ int cde_add_entry( const struct inode *dir /* directory object */,
 		result = resize_item( coord, &data, 
 				      &dir_entry -> key, lh, 0/*flags*/ );
 	}
+
+	if( result == 0 )
+		dir -> i_size += 1;
+
 	return result;
 }
 
@@ -969,9 +971,10 @@ int cde_add_entry( const struct inode *dir /* directory object */,
 
 /** ->s.dir.max_name_len() method for this item plugin */
 /* Audited by: green(2002.06.13) */
-int cde_max_name_len( int block_size /* block size */ )
+int cde_max_name_len( const struct inode *dir /* directory */ )
 {
-	return block_size - REISER4_NODE_MAX_OVERHEAD - 
+	return
+		tree_by_inode( dir ) -> nplug -> max_item_size() - 
 		sizeof( directory_entry_format ) - 
 		sizeof( cde_item_format ) - 
 		sizeof( cde_unit_header ) - 2;

@@ -175,7 +175,6 @@ static int common_unlink( struct inode *parent /* parent object */,
 		/* remove file body. This is probably done in a whole
 		 * lot of transactions and takes a lot of time. We keep
 		 * @object locked. So, nlink shouldn't change. */
-		object -> i_size = 0;
 		if( fplug -> truncate != NULL ) {
 			result = truncate_object( object, ( loff_t ) 0 );
 			if( result != 0 )
@@ -183,7 +182,6 @@ static int common_unlink( struct inode *parent /* parent object */,
 		}
 		assert( "nikita-871", fplug -> single_link( object ) );
 		assert( "nikita-873", atomic_read( &object -> i_count ) == 1 );
-		assert( "nikita-872", object -> i_size == 0 );
 
 		uf_type = UNLINK_BY_DELETE;
 	} else if( fplug -> rem_link == 0 )

@@ -100,7 +100,7 @@ unsigned de_extract_file_type( const coord_t *coord UNUSED_ARG /* coord of
 }
 
 /* Audited by: green(2002.06.14) */
-int de_add_entry( const struct inode *dir /* directory of item */, 
+int de_add_entry( struct inode *dir /* directory of item */, 
 		  coord_t *coord /* coord of item */, 
 		  lock_handle *lh /* insertion lock handle */, 
 		  const struct dentry *name /* name to add */, 
@@ -118,19 +118,25 @@ int de_add_entry( const struct inode *dir /* directory of item */,
 	
 	result = insert_by_coord( coord, &data, &entry -> key, lh,
 				  inter_syscall_ra( dir ), NO_RAP, 0/*flags*/ );
+	if( result != 0 )
+		return result;
+
 	dent = ( directory_entry_format * ) item_body_by_coord( coord );
 	build_inode_key_id( entry -> obj, &dent -> id );
 	assert( "nikita-1163", 
 		strlen( name -> d_name.name ) == name -> d_name.len );
-	/* AUDIT: The lenght of source is known, so using of memcpy
+	/* AUDIT: The length of source is known, so using of memcpy
 	   would be much cheaper here */
 	strcpy( ( unsigned char * ) dent -> name, name -> d_name.name );
 	cputod8( 0, &dent -> name[ name -> d_name.len ] );
+
+	dir -> i_size += 1;
+
 	return 0;
 }
 
 /* Audited by: green(2002.06.14) */
-int de_rem_entry( const struct inode *dir UNUSED_ARG /* directory of item */, 
+int de_rem_entry( struct inode *dir /* directory of item */, 
 		  coord_t *coord /* coord of item */,
 		  lock_handle *lh UNUSED_ARG /* lock handle for
 						      * removal */, 
@@ -138,8 +144,8 @@ int de_rem_entry( const struct inode *dir UNUSED_ARG /* directory of item */,
 							    * directory entry
 							    * being removed */ )
 {
-	int         result;
-	coord_t coord_shadow;
+	int     result;
+	coord_t shadow;
 
 	/*
 	 * cut_node() is supposed to take pointers to _different_
@@ -147,17 +153,26 @@ int de_rem_entry( const struct inode *dir UNUSED_ARG /* directory of item */,
 	 * possible aliasing. To work around this, create temporary copy
 	 * of @coord.
 	 */
-	coord_dup( &coord_shadow, coord );
-	result = cut_node( coord, coord, NULL, NULL, NULL, DELETE_KILL/*flags*/,
-			   0 );
+	coord_dup( &shadow, coord );
+	result = cut_node( coord, &shadow, NULL, NULL, NULL, DELETE_KILL, 0 );
 
+	if( result == 0 ) {
+		if( dir -> i_size >= 1 )
+			dir -> i_size -= 1;
+		else {
+			warning( "nikita-2509", "Dir %li is runt",
+				 ( long ) dir -> i_ino );
+			result = -EIO;
+		}
+	}
 	return result;
 }
 
 /* Audited by: green(2002.06.14) */
-int de_max_name_len( int block_size /* block size */ )
+int de_max_name_len( const struct inode *dir )
 {
-	return block_size - REISER4_NODE_MAX_OVERHEAD - 
+	return 
+		tree_by_inode( dir ) -> nplug -> max_item_size() - 
 		sizeof( directory_entry_format ) - 2;
 }
 

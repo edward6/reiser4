@@ -875,8 +875,10 @@ txn_mgr_force_commit_all (struct super_block *super)
 	assert ("nikita-2095", get_current_context() == NULL);
 
 	ret = init_context (& local_context, super);
-	if (ret != 0)
+	if (ret != 0) {
+		init_context (host_context, super);
 		return ret;
+	}
 	mgr = & get_super_private (super)->tmgr;
 	
 	txnh = get_current_context ()->trans;

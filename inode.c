@@ -120,7 +120,7 @@ int reiser4_max_filename_len( const struct inode *inode /* inode queried */ )
 	assert( "nikita-1710", inode_dir_item_plugin( inode ) );
 	if( inode_dir_item_plugin( inode ) -> s.dir.max_name_len )
 		return inode_dir_item_plugin( inode ) -> 
-			s.dir.max_name_len( reiser4_blksize( inode -> i_sb ) );
+			s.dir.max_name_len( inode );
 	else
 		return 255;
 }
