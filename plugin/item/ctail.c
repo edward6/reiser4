@@ -366,8 +366,8 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	/* FIXME-EDWARD:
 	   - kmalloc?
 	   - optimize it for the clusters which represent end of file */
-	clust->bufsize = inode_scaled_cluster_size(inode);
-	clust->buf = reiser4_kmalloc(clust->bufsize, GFP_KERNEL);
+	clust->len = inode_scaled_cluster_size(inode);
+	clust->buf = reiser4_kmalloc(clust->len, GFP_KERNEL);
 	if (!clust->buf) 
 		return -ENOMEM;
 	result = find_cluster(clust, inode, 1 /* read */, write);
@@ -636,7 +636,6 @@ write_ctail(flow_t *f, coord_t *coord, lock_handle *lh, int grabbed, crc_write_m
 		break;
 	case CRC_OVERWRITE_ITEM:
 		result = overwrite_ctail(coord, f);
-		break;
 	case CRC_CUT_ITEM:
 		result = cut_ctail(coord);
 		break;
@@ -787,13 +786,13 @@ attach_squeeze_ctail_data(flush_pos_t * pos, struct inode * inode)
 }
 
 static void
-invalidate_squeeze_ctail_data(flush_squeeze_item_data_t * idata)
+invalidate_squeeze_ctail_data(flush_squeeze_item_data_t ** idata)
 {
 
 	ctail_squeeze_info_t * info;
 	
 	assert("edward-253", idata != NULL);
-	info = &idata->ctail_info;
+	info = &(*idata)->ctail_info;
 
 	assert("edward-254", info->clust != NULL);
 	assert("edward-255", info->inode != NULL);
@@ -802,6 +801,8 @@ invalidate_squeeze_ctail_data(flush_squeeze_item_data_t * idata)
 	reiser4_kfree(info->clust->buf, inode_scaled_cluster_size(info->inode));
 	reiser4_kfree(info->clust, sizeof(reiser4_cluster_t));
 	reiser4_kfree(info, sizeof(ctail_squeeze_info_t));
+	
+	*idata = NULL;
 }
 
 /* plugin->u.item.f.utmost_child */
@@ -862,7 +863,7 @@ int squeeze_ctail(flush_pos_t * pos, int child)
 	info = &pos->idata->ctail_info;
 	result = write_ctail(&info->flow, &pos->coord, &pos->lock, 0, guess_write_mode(pos, child), info->inode);
 	if (result != 0 || child == 0)
-		invalidate_squeeze_ctail_data(pos->idata); 
+		invalidate_squeeze_ctail_data(&pos->idata); 
 	return result;
 }
 
