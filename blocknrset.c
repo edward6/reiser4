@@ -321,7 +321,7 @@ blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 	}
 }
 
-/* Iterate over all blocknr set elements, should be called under atom (spin)lock held. */
+/* Iterate over all blocknr set elements. */
 int
 blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f actor, void *data, int delete)
 {
@@ -329,7 +329,7 @@ blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f ac
 	blocknr_set_entry *entry;
 
 	assert("zam-429", atom != NULL);
-	assert("zam-430", spin_atom_is_locked(atom));
+	assert("zam-430", spin_atom_is_locked(atom) || atom->stage >= ASTAGE_PRE_COMMIT);
 	assert("zam-431", bset != 0);
 	assert("zam-432", actor != NULL);
 
