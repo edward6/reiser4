@@ -515,6 +515,17 @@ static int node40_lookup(reiser4_entity_t *entity,
     return lookup;
 }
 
+static uint8_t node40_get_level(reiser4_entity_t *entity) {
+    aal_assert("umka-1116", entity != NULL, return 0);
+    return nh40_get_level(nh40(((node40_t *)entity)->block));
+}
+
+static errno_t node40_set_level(reiser4_entity_t *entity, uint8_t level) {
+    aal_assert("umka-1115", entity != NULL, return -1);
+    nh40_set_level(nh40(((node40_t *)entity)->block), level);
+    return 0;
+}
+
 static reiser4_plugin_t node40_plugin = {
     .node_ops = {
 	.h = {
@@ -540,6 +551,7 @@ static reiser4_plugin_t node40_plugin = {
 	.pid		= node40_pid,
 	
 	.get_key	= node40_get_key,
+	.get_level	= node40_get_level,
 	
 #ifndef ENABLE_COMPACT
 	.create		= node40_create,
@@ -549,6 +561,7 @@ static reiser4_plugin_t node40_plugin = {
 	.cut		= node40_cut,
 	.check		= node40_check,
 	.set_key	= node40_set_key,
+	.set_level	= node40_set_level,
 #else
 	.create		= NULL,
 	.insert		= NULL,
@@ -557,6 +570,7 @@ static reiser4_plugin_t node40_plugin = {
 	.cut		= NULL,
 	.check		= NULL,
 	.set_key	= NULL,
+	.set_level	= NULL,
 #endif
 	.item_len	= node40_item_len,
 	.item_body	= node40_item_body,

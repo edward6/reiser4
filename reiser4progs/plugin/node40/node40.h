@@ -55,11 +55,11 @@ typedef struct node40_header node40_header_t;
 
 #define	nh40(block)				((node40_header_t *)block->data)
 
-#define nh40_get_pid(header)			aal_get_le16(&header->h, pid)
-#define nh40_set_pid(header, val)		aal_set_le16(&header->h, pid, val)
+#define nh40_get_pid(header)			aal_get_le16(&(header)->h, pid)
+#define nh40_set_pid(header, val)		aal_set_le16(&(header)->h, pid, val)
 
-#define nh40_get_num_items(header)		aal_get_le16(&header->h, num_items)
-#define nh40_set_num_items(header, val)		aal_set_le16(&header->h, num_items, val)
+#define nh40_get_num_items(header)		aal_get_le16(&(header)->h, num_items)
+#define nh40_set_num_items(header, val)		aal_set_le16(&(header)->h, num_items, val)
 
 #define nh40_get_free_space(header)		aal_get_le16(header, free_space)
 #define nh40_set_free_space(header, val)	aal_set_le16(header, free_space, val)

@@ -602,9 +602,15 @@ struct reiser4_node_ops {
     errno_t (*cut) (reiser4_entity_t *, reiser4_pos_t *);
     
     /* Gets/sets key at pos */
-    errno_t (*get_key) (reiser4_entity_t *, reiser4_pos_t *, reiser4_key_t *);
-    errno_t (*set_key) (reiser4_entity_t *, reiser4_pos_t *, reiser4_key_t *);
+    errno_t (*get_key) (reiser4_entity_t *, reiser4_pos_t *, 
+	reiser4_key_t *);
+    
+    errno_t (*set_key) (reiser4_entity_t *, reiser4_pos_t *, 
+	reiser4_key_t *);
 
+    uint8_t (*get_level) (reiser4_entity_t *);
+    errno_t (*set_level) (reiser4_entity_t *, uint8_t);
+    
     /* Gets item at passed pos */
     reiser4_body_t *(*item_body) (reiser4_entity_t *, reiser4_pos_t *);
 
