@@ -288,6 +288,19 @@ struct txn_flush_control {
 	long nr_to_flush;
 };
 
+/* The transaction manager statistics */
+struct txn_mgr_stats {
+	/* A guard lock for protecting just this structure; no other locks can
+	 * be taken with this lock hold */
+	spinlock_t guard;
+
+	/* A number of dirty nodes */
+	long nr_dirty;
+
+	/* A number of nodes on all flush queues */
+	long nr_queued;
+};
+
 /* The transaction manager: one is contained in the reiser4_super_info_data */
 struct txn_mgr
 {
@@ -314,6 +327,9 @@ struct txn_mgr
 
 	/* A control object for early flushing (it is done by ktxnmgrd) */
 	struct txn_flush_control flush_control;
+
+	/* statistics */
+	struct txn_mgr_stats  stats;
 };
 
 TS_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
@@ -409,6 +425,27 @@ extern void flush_fuse_queues (txn_atom *large, txn_atom *small);
 /*****************************************************************************************
 				     INLINE FUNCTIONS
  *****************************************************************************************/
+
+/* The macros to manage txn statistics */
+#define txn_mgr_stat_inc(tmgr,field)         \
+do {                                         \
+	spin_lock (&(tmgr)->stats.guard);    \
+	(tmgr)->stats.##field ++;            \
+	spin_unlock (&(tmgr)->stats.guard);  \
+} while (0)
+
+#define txn_mgr_stat_dec(tmgr,field)         \
+do {                                         \
+	spin_lock (&(tmgr)->stats.guard);    \
+	(tmgr)->stats.##field --;            \
+	spin_unlock (&(tmgr)->stats.guard);  \
+} while (0)
+
+/* Initialize txn stats object embedded into the txn_mgr */
+static inline void txn_mgr_stat_init (txn_mgr * tmgr)
+{
+	spin_lock_init (&tmgr->stats.guard);
+}
 
 #define spin_ordering_pred_atom(atom)				\
 	( ( lock_counters() -> spin_locked_txnh == 0 ) &&	\

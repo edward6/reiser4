@@ -349,6 +349,8 @@ txn_mgr_init (txn_mgr *mgr)
 	spin_lock_init (& mgr->tmgr_lock);
 
 	sema_init (&mgr->commit_semaphore, 1);
+
+	txn_mgr_stat_init (mgr);
 }
 
 /* Free transaction manager. */
