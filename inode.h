@@ -157,13 +157,17 @@ extern ino_t oid_to_uino(oid_t oid) __attribute__ ((const));
 
 extern reiser4_tree *tree_by_inode(const struct inode *inode);
 
+extern void inode_invariant(const struct inode *inode);
+
 static inline void spin_lock_inode(struct inode *inode)
 {
 	spin_lock_inode_object(reiser4_inode_data(inode));
+	inode_invariant(inode);
 }
 
 static inline void spin_unlock_inode(struct inode *inode)
 {
+	inode_invariant(inode);
 	spin_unlock_inode_object(reiser4_inode_data(inode));
 }
 

@@ -595,6 +595,17 @@ print_inode(const char *prefix /* prefix to print */ ,
 }
 #endif
 
+void
+inode_invariant(const struct inode *inode)
+{
+	reiser4_inode * object;
+
+	assert("nikita-3077", spin_inode_is_locked(inode));
+	object = reiser4_inode_data(inode);
+	DEBUGON(object->eflushed < 0);
+}
+
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"
