@@ -267,18 +267,32 @@ static int reiser4_setattr( struct dentry *dentry, struct iattr *attr )
 
 		fplug = inode_file_plugin( inode );
 		assert( "nikita-2271", fplug != NULL );
-		if( fplug -> setattr != NULL )
-			result = fplug -> setattr( inode, attr );
+		assert( "nikita-2296", fplug -> setattr != NULL );
+		result = fplug -> setattr( inode, attr );
 	}
 	REISER4_EXIT( result );
 }
 
-static int reiser4_getattr (struct vfsmount *mnt UNUSED_ARG,
-			    struct dentry *dentry UNUSED_ARG,
-			    struct kstat *stat UNUSED_ARG)
+/**
+ * ->getattr() inode operation called (indirectly) by sys_stat().
+ */
+static int reiser4_getattr( struct vfsmount *mnt UNUSED_ARG,
+			    struct dentry *dentry, struct kstat *stat )
 {
-	printk("reiser4_getattr\n");
-	return -ENOSYS;
+	struct       inode *inode = dentry -> d_inode;
+	int          result;
+	REISER4_ENTRY( inode -> i_sb );
+
+	result = perm_chk( inode, getattr, mnt, dentry, stat );
+	if( result == 0 ) {
+		file_plugin *fplug;
+
+		fplug = inode_file_plugin( inode );
+		assert( "nikita-2295", fplug != NULL );
+		assert( "nikita-2297", fplug -> getattr != NULL );
+		result = fplug -> getattr( mnt, dentry, stat );
+	}
+	REISER4_EXIT( result );
 }
 
 
@@ -1495,7 +1509,6 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 
 static int reiser4_show_options( struct seq_file *m, struct vfsmount *mnt )
 {
-#if 0
 	struct super_block      *super;
 	reiser4_super_info_data *info;
 
@@ -1518,7 +1531,6 @@ static int reiser4_show_options( struct seq_file *m, struct vfsmount *mnt )
 		    default_dir_item_plugin( super ) -> h.label );
 	seq_printf( m, ",default_sd_plugin=\"%s\"",
 		    default_sd_plugin( super ) -> h.label );
-#endif
 	return 0;
 }
 
@@ -1862,8 +1874,8 @@ struct inode_operations reiser4_inode_operations = {
  	.truncate    = reiser4_truncate, /* d */
  	.permission  = reiser4_permission, /* d */
 /* 	.revalidate  = reiser4_revalidate, */
- 	.setattr     = reiser4_setattr,
-/* 	.getattr     = reiser4_getattr,  */
+ 	.setattr     = reiser4_setattr,  /* d */
+ 	.getattr     = reiser4_getattr,  /* d */
 /* 	.getxattr    = reiser4_getxattr, */
 /* 	.listxattr   = reiser4_listxattr, */
 /* 	.removexattr = reiser4_removexattr */
