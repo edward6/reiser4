@@ -1379,10 +1379,10 @@ int cut_tree (reiser4_tree * tree,
 	do {
 		/* look for @to_key in the tree or use @to_coord if it is set
 		   properly */
-		result = coord_by_hint_and_key (tree, to_key,
-						&intranode_to, /* was set as hint in previous loop iteration (if there was one) */
-						&lock_handle,
-						FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, LEAF_LEVEL);
+		result = find_next_item (0, to_key,
+					 &intranode_to, /* was set as hint in previous loop iteration (if there was one) */
+					 &lock_handle,
+					 ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
 			/* -EIO, or something like that */
 			break;
@@ -1396,7 +1396,7 @@ int cut_tree (reiser4_tree * tree,
 		assert ("vs-686", intranode_to.node->nplug);
 		assert ("vs-687", intranode_to.node->nplug->lookup);
 		result = intranode_to.node->nplug->lookup (intranode_to.node,
-							   from_key, FIND_EXACT,
+							   from_key, FIND_MAX_NOT_MORE_THAN,
 							   &intranode_from);
                
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
