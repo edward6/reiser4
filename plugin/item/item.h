@@ -263,10 +263,9 @@ typedef struct {
 	 * from flow into it because all the data are already */
 	int (* write) (struct inode *, struct sealed_coord *, flow_t *,
 		       struct page *);
-	int (* read) (struct inode *, coord_t *,
-		      lock_handle *, flow_t *);
+	int (* read) (struct inode *, struct sealed_coord *, flow_t *);
 	int (* readpage) (void *, struct page *);
-	int (* writepage) (coord_t *, lock_handle * lh, struct page *);
+	int (* writepage) (void *, struct page *);
 	int (* page_cache_readahead) (struct file *, coord_t *, lock_handle *,
 				      unsigned long start, unsigned long count);
 } file_ops;
