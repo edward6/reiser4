@@ -272,6 +272,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 
 	ON_TRACE(TRACE_VFS_OPS,
 		 "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n", inode->i_ino, inode->i_size, size, *off);
+	/*XXXX*/printk("WRITE to pages [%lu-%lu]\n", (unsigned long)(*off >> PAGE_CACHE_SHIFT), (unsigned long)((*off + size - 1) >> PAGE_CACHE_SHIFT));
 
 	result = perm_chk(inode, write, file, buf, size, off);
 	if (likely(result == 0)) {
