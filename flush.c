@@ -953,6 +953,7 @@ skip_jnode(const jnode *node)
 	if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
 		return 1;
 
+#if 0
 	if (jnode_is_unformatted(node)) {
 		struct inode *inode;
 		reiser4_inode *info;
@@ -969,6 +970,7 @@ skip_jnode(const jnode *node)
 		if (ghost)
 			return 1;
 	}
+#endif
 	return 0;
 }
 
@@ -1465,7 +1467,7 @@ static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * l
 	item_key_by_coord(&from, &from_key);
 
 	return cut_node(&from, to, &from_key, to_key, NULL /* smallest_removed */ , DELETE_DONT_COMPACT,
-			left);
+			left, 0);
 }
 
 /* Copy as much of the leading extents from @right to @left, allocating
