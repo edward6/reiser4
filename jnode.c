@@ -726,7 +726,7 @@ jrelse(jnode * node /* jnode to release references to */)
 
 	assert("nikita-487", node != NULL);
 	assert("nikita-489", atomic_read(&node->d_count) > 0);
-	assert("nikita-1906", spin_jnode_is_locked(node));
+	assert("nikita-1906", spin_jnode_is_not_locked(node));
 
 	ON_DEBUG_CONTEXT(--lock_counters()->d_refs);
 
