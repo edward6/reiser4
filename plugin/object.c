@@ -170,6 +170,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	if( !( *reiser4_inode_flags( inode ) & REISER4_NO_STAT_DATA ) )
 		return 0;
 
+	ref = reiser4_inode_data( inode );
 	if( ref -> sd == NULL ) {
 		ref -> sd = inode_sd_plugin( inode );
 	}
