@@ -1330,10 +1330,10 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		} sd;
 
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
-			reiser4_init_carry_pool( &pool );
-			reiser4_init_carry_level( &lowest_level, &pool );
+			init_carry_pool( &pool );
+			init_carry_level( &lowest_level, &pool );
 		
-			op = reiser4_post_carry( &lowest_level, 
+			op = post_carry( &lowest_level, 
 						 COP_INSERT, root, 0 );
 			assert( "nikita-1268", !IS_ERR( op ) && ( op != NULL ) );
 			// fill in remaining fields in @op, according to
@@ -1369,7 +1369,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			print_coord( "before", &coord, 1 );
 			ret = carry( &lowest_level, NULL );
 			printf( "result: %i\n", ret );
-			reiser4_done_carry_pool( &pool );
+			done_carry_pool( &pool );
 			print_coord( "after", &coord, 1 );
 			print_znode_content( root, REISER4_NODE_PRINT_ALL );
 			info( "____end______%i_____________\n", i );
@@ -1524,14 +1524,14 @@ static struct inode * create_root_dir (znode * root)
 	reiser4_lock_handle lh;
 
 
-	reiser4_init_carry_pool( &pool );
-	reiser4_init_carry_level( &lowest_level, &pool );
+	init_carry_pool( &pool );
+	init_carry_level( &lowest_level, &pool );
 
 	reiser4_init_lh( &lh );
 	ret = longterm_lock_znode( &lh, root, 
 				   ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
 	assert( "nikita-1792", ret == 0 );
-	op = reiser4_post_carry( &lowest_level,
+	op = post_carry( &lowest_level,
 				 COP_INSERT, root, 0 );
 
 	reiser4_done_lh( &lh );
@@ -1565,7 +1565,7 @@ static struct inode * create_root_dir (znode * root)
 	ret = carry( &lowest_level, NULL );
 	printf( "result: %i\n", ret );
 	info( "_____________sd inserted_____________\n" );
-	reiser4_done_carry_pool( &pool );
+	done_carry_pool( &pool );
 
 
 	rii = malloc (sizeof *rii);
@@ -2964,7 +2964,7 @@ int real_main( int argc, char **argv )
 		reiser4_current_trace_flags = 
 			strtol( getenv( "REISER4_TRACE_FLAGS" ), NULL, 0 );
 		rlog( "nikita-1496", "reiser4_current_trace_flags: %x", 
-		      reiser4_get_current_trace_flags() );
+		      get_current_trace_flags() );
 	}
 
 	spin_lock_init( &inode_hash_guard );

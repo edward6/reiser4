@@ -324,10 +324,10 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord,
 	carry_op * op;
 	carry_insert_data cdata;
 
-	reiser4_init_carry_pool( &pool );
-	reiser4_init_carry_level( &lowest_level, &pool );
+	init_carry_pool( &pool );
+	init_carry_level( &lowest_level, &pool );
 
-	op = reiser4_post_carry( &lowest_level, cop, coord->node, 0 );
+	op = post_carry( &lowest_level, cop, coord->node, 0 );
 	if( IS_ERR( op ) || ( op == NULL ) )
 		return op ? PTR_ERR (op) : -EIO;
 	cdata.coord = coord;
@@ -344,7 +344,7 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord,
 
 	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
 	result = carry( &lowest_level, 0 );
-	reiser4_done_carry_pool( &pool );
+	done_carry_pool( &pool );
 
 	return result;
 }
@@ -367,10 +367,10 @@ static int paste_with_carry( tree_coord *coord, reiser4_lock_handle *lh,
 	carry_op * op;
 	carry_insert_data cdata;
 
-	reiser4_init_carry_pool( &pool );
-	reiser4_init_carry_level( &lowest_level, &pool );
+	init_carry_pool( &pool );
+	init_carry_level( &lowest_level, &pool );
 
-	op = reiser4_post_carry( &lowest_level, COP_PASTE, coord -> node, 0 );
+	op = post_carry( &lowest_level, COP_PASTE, coord -> node, 0 );
 	if( IS_ERR( op ) || ( op == NULL ) )
 		return op ? PTR_ERR (op) : -EIO;
 	cdata.coord = coord;
@@ -386,7 +386,7 @@ static int paste_with_carry( tree_coord *coord, reiser4_lock_handle *lh,
 
 	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
 	result = carry( &lowest_level, 0 );
-	reiser4_done_carry_pool( &pool );
+	done_carry_pool( &pool );
 
 	return result;
 }
@@ -585,8 +585,8 @@ resize_result resize_item( tree_coord *coord, reiser4_item_data *data,
 	assert( "vs-245", data -> length != 0 );
 
 
-	reiser4_init_carry_pool( &pool );
-	reiser4_init_carry_level( &lowest_level, &pool );
+	init_carry_pool( &pool );
+	init_carry_level( &lowest_level, &pool );
 
 	/*
 	 * FIXME-NIKITA add shortcut versions here like one for insertion above.
@@ -594,7 +594,7 @@ resize_result resize_item( tree_coord *coord, reiser4_item_data *data,
 	 */
 
 	if( data -> length < 0 ) {
-		op = reiser4_post_carry( &lowest_level, COP_CUT, coord->node, 0 );
+		op = post_carry( &lowest_level, COP_CUT, coord->node, 0 );
 		if( IS_ERR( op ) || ( op == NULL ) )
 			return op ? PTR_ERR (op) : -EIO;
 		not_yet( "nikita-1263", "resize_item() can not cut data yet" );
@@ -607,7 +607,7 @@ resize_result resize_item( tree_coord *coord, reiser4_item_data *data,
 	 */
 	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
 	result = carry (&lowest_level, 0);
-	reiser4_done_carry_pool( &pool );
+	done_carry_pool( &pool );
 #endif
 	return result;
 }
@@ -1070,9 +1070,9 @@ znode *insert_new_node (tree_coord * insert_coord, reiser4_lock_handle *lh)
 	znode * new_znode;
 
 
-	reiser4_init_carry_pool (&pool);
-	reiser4_init_carry_level (&this_level, &pool);
-	reiser4_init_carry_level (&parent_level, &pool);
+	init_carry_pool (&pool);
+	init_carry_level (&this_level, &pool);
+	init_carry_level (&parent_level, &pool);
 
 	cn = add_new_znode (insert_coord->node, 0, &this_level, &parent_level);
 	if (!IS_ERR (cn)) {
@@ -1086,7 +1086,7 @@ znode *insert_new_node (tree_coord * insert_coord, reiser4_lock_handle *lh)
 	} else
 		new_znode = ERR_PTR (PTR_ERR (cn));
 
-	reiser4_done_carry_pool (&pool);
+	done_carry_pool (&pool);
 	return new_znode;
 }
 
@@ -1134,10 +1134,10 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 	assert ("vs-161", coord_of_unit (from));
 	assert ("vs-162", coord_of_unit (to));
 
-	reiser4_init_carry_pool( &pool );
-	reiser4_init_carry_level( &lowest_level, &pool );
+	init_carry_pool( &pool );
+	init_carry_level( &lowest_level, &pool );
 
-	op = reiser4_post_carry( &lowest_level, COP_CUT, from->node, 0 );
+	op = post_carry( &lowest_level, COP_CUT, from->node, 0 );
 	if( IS_ERR( op ) || ( op == NULL ) )
 		return op ? PTR_ERR (op) : -EIO;
 
@@ -1150,7 +1150,7 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 	op->u.cut = &cdata;
 
 	result = carry (&lowest_level, 0);
-	reiser4_done_carry_pool( &pool );
+	done_carry_pool( &pool );
 
 	return result;
 }
