@@ -95,7 +95,7 @@ int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 int flush_cluster_pages(reiser4_cluster_t *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
-void truncate_pages_cryptcompress(struct address_space * mapping, unsigned long index);
+void truncate_cluster(struct inode * inode, pgoff_t start, long count);
 
 #endif /* __FS_REISER4_CTAIL_H__ */
 
