@@ -1785,14 +1785,14 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
  * cut_tree_object. */
 reiser4_internal int
 cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to,
-	     struct inode *inode)
+	 struct inode *inode, int mode)
 {
 	int result;
 
 	do {
-		result = cut_tree_object(tree, from, to, NULL, inode, 1);
+		result = cut_tree_object(tree, from, to, NULL, inode, mode);
 	} while (result == -E_REPEAT);
-
+	
 	return result;
 }
 
