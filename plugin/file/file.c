@@ -2038,6 +2038,8 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 				break;
 			}
 			to_read = adjust_nr_bytes(addr, to_read, nr_pages);
+			/* get_user_pages might create a transaction */
+			txn_restart_current();
 		} else
 			to_read = left;
 
@@ -2512,10 +2514,10 @@ write_unix_file(struct file *file, /* file to write to */
 				break;
 			}
 			to_write = adjust_nr_bytes(addr, to_write, nr_pages);
+			/* get_user_pages might create a transaction */
+			txn_restart_current();
 		} else
 			to_write = left;
-
-		txn_restart_current();
 
 		if (inode->i_size == 0) {
 			get_exclusive_access(uf_info);
