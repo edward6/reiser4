@@ -235,6 +235,27 @@ jnode_init (jnode *node)
 	capture_list_clean (node);
 }
 
+/* Increment to the jnode's reference counter. */
+jnode *jref( jnode *node )
+{
+	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
+		return ZJNODE (zref (JZNODE (node)));
+	} else {
+		/* FIXME_JMACD: What to do here? */
+		return NULL;
+	}
+}
+
+/* Decrement the jnode's reference counter. */
+void   jput( jnode *node )
+{
+	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
+		zput (JZNODE (node));
+	} else {
+		/* FIXME_JMACD: What to do here? */
+	}
+}
+
 /* FIXME_LATER_JMACD Not sure how this is used yet.  The idea is to reserve a number of
  * blocks for use by the current transaction handle. */
 int
@@ -915,7 +936,7 @@ capture_assign_block_nolock (txn_atom *atom,
 	}
 
 	atom->capture_count += 1;
-	/* FIXME_JMACD zref (node); */
+	jref (node);
 
 	trace_on (TRACE_TXN, "capture %llu for atom %u (captured %u)\n", JNODE_ID (node), atom->atom_id, atom->capture_count);
 }
@@ -1455,7 +1476,7 @@ uncapture_block (txn_atom *atom,
 
 	spin_unlock_jnode (node);
 
-	/* FIXME_JMACD zput (node); */
+	jput (node);
 }
 
 /*****************************************************************************************

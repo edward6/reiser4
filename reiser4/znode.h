@@ -529,6 +529,10 @@ extern void  jnode_init      (jnode *node);
 extern void  jnode_set_dirty (jnode *node);
 extern void  jnode_set_clean (jnode *node);
 
+/* Similar to zref() and zput() for jnodes, calls those routines if the node is formatted. */
+extern jnode *jref( jnode *node );
+extern void   jput( jnode *node );
+
 /** get the level field for a jnode */
 static inline tree_level jnode_get_level (const jnode *node)
 {
