@@ -54,6 +54,7 @@ void set_file_state(struct inode *inode, item_id id)
 		inode_set_flag(inode, REISER4_FILE_STATE_KNOWN);
 }
 
+#if REISER4_DEBUG
 /* get key of item next to one @coord is set to */
 static reiser4_key *
 get_next_item_key(const coord_t * coord, reiser4_key * next_key)
@@ -72,6 +73,7 @@ get_next_item_key(const coord_t * coord, reiser4_key * next_key)
 	}
 	return next_key;
 }
+#endif
 
 static void
 check_coord(const coord_t * coord, const reiser4_key * key)
@@ -90,11 +92,13 @@ less_than_ldk(znode * node, const reiser4_key * key)
 	return UNDER_SPIN(dk, current_tree, keylt(key, znode_get_ld_key(node)));
 }
 
+#if REISER4_DEBUG
 static int
 equal_to_ldk(znode * node, const reiser4_key * key)
 {
 	return UNDER_SPIN(dk, current_tree, keyeq(key, znode_get_ld_key(node)));
 }
+#endif
 
 static int
 equal_to_rdk(znode * node, const reiser4_key * key)
@@ -117,6 +121,7 @@ item_of_that_file(const coord_t * coord, const reiser4_key * key)
 	return keylt(key, coord->iplug->b.max_key_inside(coord, &max_possible));
 }
 
+#if REISER4_DEBUG
 static int
 item_contains_key(const coord_t * coord, const reiser4_key * key)
 {
@@ -127,6 +132,7 @@ item_contains_key(const coord_t * coord, const reiser4_key * key)
 	return (keyge(key, item_key_by_coord(coord, &tmp)) &&
 		keyle(key, coord->iplug->b.real_max_key_inside(coord, &tmp)));
 }
+#endif
 
 static int
 can_append(const coord_t * coord, const reiser4_key * key)
@@ -169,7 +175,7 @@ goto_right_neighbor(coord_t * coord, lock_handle * lh)
 write_mode how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * key)
 {
 	write_mode result;
-	reiser4_key check;
+	ON_DEBUG(reiser4_key check);
 
 	result = zload(coord->node);
 	if (result)
