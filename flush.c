@@ -1661,6 +1661,7 @@ static int flush_finish (flush_position *pos, int none_busy)
 			/* Set j to the first non-consecutive, non-wandered block (or end-of-queue) */
 			for (j = i + 1; j < max_j; j += 1) {
 				if (JF_ISSET (pos->queue[j], ZNODE_WANDER) ||
+				    JF_ISSET (pos->queue[j], ZNODE_FLUSH_BUSY) ||
 				    (*jnode_get_block (prev) + 1 != *jnode_get_block (pos->queue[j]))) {
 					break;
 				}
@@ -1692,6 +1693,8 @@ static int flush_finish (flush_position *pos, int none_busy)
 				struct page *pg   = node->pg;
 
 				pos->queue[j] = NULL;
+
+				trace_on (TRACE_FLUSH, "flush_finish writes %s\n", flush_jnode_tostring (node));
 
 				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
 
