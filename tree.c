@@ -1458,6 +1458,7 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
 
 	/* remove a pointer from the parent node to the node being deleted. */
 	coord_dup(&cut_to, &cut_from);
+	/* FIXME: shouldn't this be kill_node_content */
 	ret = cut_node_content(&cut_from, &cut_to, NULL, NULL, NULL);
 	if (ret)
 		/* FIXME(Zam): Should we re-connect the node to its parent if
