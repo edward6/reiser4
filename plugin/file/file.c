@@ -426,6 +426,8 @@ find_file_size(struct inode *inode, loff_t *file_size)
 /* estimate and reserve space needed to cut one item and update one stat data */
 static int reserve_cut_iteration(tree_level height)
 {
+	assert("nikita-3172", lock_stack_isclean(get_current_lock_stack()));
+
 	grab_space_enable();
 	return reiser4_grab_reserved(reiser4_get_current_sb(),
 				     estimate_one_item_removal(height) + 
@@ -469,6 +471,14 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 		coord_init_zero(&intranode_to);
 		coord_init_zero(&intranode_from);
 		init_lh(&lh);
+
+		/* estimate and reserve space for removal of one item. This
+		 * has to be done before find_file_item(), because long term
+		 * lock nests within delete_sema. */
+		result = reserve_cut_iteration(tree_by_inode(inode)->height);
+		if (result)
+			break;
+
 		/* look for @to_key in the tree or use @to_coord if it is set
 		   properly */
 		result = find_file_item(0, &to_key, &intranode_to,	/* was set as hint in
@@ -482,10 +492,8 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 
 		loaded = intranode_to.node;
 		result = zload(loaded);
-		if (result) {
-			done_lh(&lh);
+		if (result)
 			break;
-		}
 
 		/* lookup for @from_key in current node */
 		assert("vs-686", intranode_to.node->nplug);
@@ -496,7 +504,6 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* -EIO, or something like that */
 			zrelse(loaded);
-			done_lh(&lh);
 			break;
 		}
 
@@ -504,17 +511,8 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 			/* nothing to cut */
 			result = 0;
 			zrelse(loaded);
-			done_lh(&lh);
 			break;
 		}
-		/* estimate and reserve space for removal of one item */
-		result = reserve_cut_iteration(tree_by_inode(inode)->height);
-		if (result) {
-			zrelse(loaded);
-			done_lh(&lh);
-			break;
-		}
-
 		/* cut data from one node */
 		smallest_removed = *max_key();
 		result = cut_node(&intranode_from, &intranode_to,	/* is used as an input and
@@ -549,6 +547,8 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 
 	} while (keygt(&smallest_removed, &from_key));
 
+	done_lh(&lh);
+	all_grabbed2free(__FUNCTION__);
 	reiser4_release_reserved(inode->i_sb);
 
 	return result;
