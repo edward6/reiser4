@@ -466,6 +466,7 @@ restart:
 			     IS_POW(iterations))) {
 			warning("nikita-1481", "Too many iterations: %i", iterations);
 			print_key("key", h->key);
+			++iterations;
 		} else if (unlikely(iterations > REISER4_MAX_CBK_ITERATIONS)) {
 			h->error =
 			    "reiser-2018: Too many iterations. Tree corrupted, or (less likely) starvation occurring.";
