@@ -141,7 +141,7 @@ int coord_next (tree_coord * coord)
 
 
 /* this assumes that @coord is set to existing unit within a node. Move @coord
-   to previous unit. 1 is returned if coord is set already to firstt unit in
+   to previous unit. 1 is returned if coord is set already to first unit in
    the node. 0 - otherwise */
 int coord_prev (tree_coord * coord)
 {
