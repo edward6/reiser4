@@ -820,8 +820,11 @@ pip_file(params_t *params)
 	errno = 0;
 	result = readdir_r(params->cwd[dirno], &entry, &ptr);
 	if (result == 0 && errno == 0 && ptr == &entry) {
+		char fname[100];
+
+		sprintf(fname, "d%x/%s", dirno, entry.d_name);
 		if (dogc) {
-			if (unlink(entry.d_name) == -1) {
+			if (unlink(fname) == -1) {
 				switch (errno) {
 				case ENOENT:
 					STEX(++ops[gcop].result.missed);
@@ -837,8 +840,7 @@ pip_file(params_t *params)
 		} else {
 			STEX(++ops[pipop].result.ok);
 			if (verbose)
-				printf("[%li] P: %s\n",
-				       pthread_self(), entry.d_name);
+				printf("[%li] P: %s\n", pthread_self(), fname);
 		}
 	} else if (errno == ENOENT || ptr == NULL)
 		rewinddir(params->cwd[dirno]);
