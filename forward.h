@@ -25,6 +25,8 @@ typedef struct reiser4_item_data reiser4_item_data;
 typedef union reiser4_key reiser4_key;
 typedef union reiser4_dblock_nr reiser4_dblock_nr;
 typedef struct reiser4_tree reiser4_tree;
+typedef struct carry_cut_data carry_cut_data;
+typedef struct carry_kill_data carry_kill_data;
 typedef struct carry_tree_op carry_tree_op;
 typedef struct carry_tree_node carry_tree_node;
 typedef struct carry_plugin_info carry_plugin_info;
@@ -47,7 +49,7 @@ typedef struct flush_scan flush_scan;
 typedef struct flush_position flush_pos_t;
 
 typedef unsigned short pos_in_node_t;
-typedef unsigned short pos_in_item_t;
+#define MAX_POS_IN_NODE 65535
 
 typedef struct jnode jnode;
 typedef struct reiser4_blocknr_hint reiser4_blocknr_hint;
