@@ -1,1 +1,1 @@
-SUBDIRS = aal reiserfs
+SUBDIRS = aal misc reiserfs progs
