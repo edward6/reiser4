@@ -727,6 +727,8 @@ no_counters_are_held()
 		(counters->read_locked_tree == 0) &&
 		(counters->write_locked_tree == 0) &&
 		(counters->rw_locked_dk == 0) &&
+		(counters->read_locked_dk == 0) &&
+		(counters->write_locked_dk == 0) &&
 		(counters->spin_locked_txnh == 0) &&
 		(counters->spin_locked_atom == 0) &&
 		(counters->spin_locked_stack == 0) &&
