@@ -14,7 +14,9 @@ extern reiser4_plugin_t alloc36_plugin;
 
 static reiser4_core_t *core = NULL;
 
-static reiser4_entity_t *alloc36_open(reiser4_entity_t *format) {
+static reiser4_entity_t *alloc36_open(reiser4_entity_t *format, 
+    count_t len) 
+{
     reiser4_alloc36_t *alloc;
 
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
@@ -33,7 +35,9 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-static reiser4_entity_t *alloc36_create(reiser4_entity_t *format) {
+static reiser4_entity_t *alloc36_create(reiser4_entity_t *format, 
+    count_t len) 
+{
     reiser4_alloc36_t *alloc;
 
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))

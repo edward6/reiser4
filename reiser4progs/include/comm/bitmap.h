@@ -17,13 +17,11 @@
     chunk bit array placed in and bit array size.
 */
 struct reiser4_bitmap {
-    aal_device_t *device;
-    
     count_t used_blocks;
     count_t total_blocks;
     
-    char *map;
     uint32_t size;
+    char *map;;
 };
 
 typedef struct reiser4_bitmap reiser4_bitmap_t;
@@ -40,23 +38,17 @@ extern count_t reiser4_bitmap_calc_unused(reiser4_bitmap_t *bitmap);
 extern count_t reiser4_bitmap_used(reiser4_bitmap_t *bitmap);
 extern count_t reiser4_bitmap_unused(reiser4_bitmap_t *bitmap);
 
-extern count_t reiser4_bitmap_calc_used_in_block(aal_block_t *block);
-extern count_t reiser4_bitmap_calc_unused_in_block(aal_block_t *block);
-		
 extern count_t reiser4_bitmap_calc_used_in_area(reiser4_bitmap_t *bitmap, 
     blk_t start, blk_t end);
 
 extern count_t reiser4_bitmap_calc_unused_in_area(reiser4_bitmap_t *bitmap, 
     blk_t start, blk_t end);
 
-extern reiser4_bitmap_t *reiser4_bitmap_create(void);
+extern reiser4_bitmap_t *reiser4_bitmap_create(count_t len);
 extern reiser4_bitmap_t *reiser4_bitmap_clone(reiser4_bitmap_t *bitmap);
 
 extern void reiser4_bitmap_close(reiser4_bitmap_t *bitmap);
 extern char *reiser4_bitmap_map(reiser4_bitmap_t *bitmap);
-
-extern errno_t reiser4_bitmap_attach(reiser4_bitmap_t *bitmap,
-    aal_block_t *block);
 
 #endif
 

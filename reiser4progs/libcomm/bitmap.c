@@ -110,24 +110,10 @@ static blk_t reiser4_bitmap_calc(
     reiser4_bitmap_range_check(bitmap, end - 1, return 0);
 	
     for (i = start; i < end; ) {
-#if !defined(__sparc__) && !defined(__sparcv9)
-	uint64_t *block64 = (uint64_t *)(bitmap->map + (i >> 0x3));
-	uint16_t bits = sizeof(uint64_t) * 8;
-		
-	if (i + bits < end && i % 0x8 == 0 &&
-	    *block64 == (flag == 0 ? ~0ull : 0)) 
-	{
-	    blocks += bits;
-	    i += bits;
-	} else {
-	    blocks += reiser4_bitmap_test(bitmap, i) ? flag : !flag;
-	    i++;
-	}
-#else
 	blocks += reiser4_bitmap_test(bitmap, i) ? flag : !flag;
 	i++;	
-#endif
     }
+
     return blocks;
 }
 
@@ -135,7 +121,8 @@ static blk_t reiser4_bitmap_calc(
 blk_t reiser4_bitmap_calc_used(
     reiser4_bitmap_t *bitmap	/* bitmap, calculating will be performed in */
 ) {
-    return reiser4_bitmap_calc(bitmap, 0, bitmap->total_blocks, 1);
+    return (bitmap->used_blocks = reiser4_bitmap_calc(bitmap, 0, 
+	bitmap->total_blocks, 1));
 }
 
 /* The same as previous one */
@@ -143,25 +130,6 @@ blk_t reiser4_bitmap_calc_unused(
     reiser4_bitmap_t *bitmap	/* bitmap, calculating will be performed in */
 ) {
     return reiser4_bitmap_calc(bitmap, 0, bitmap->total_blocks, 0);
-}
-
-static count_t reiser4_bitmap_calc_in_block(aal_block_t *block, int flag) {
-    uint32_t i, count = 0;
-    
-    aal_assert("umka-1050", block != NULL, return 0);
-    
-    for (i = 0; i < aal_block_size(block); i++)
-	count += aal_test_bit(i, (char *)block->data) ? flag : !flag;
-
-    return count;
-}
-
-count_t reiser4_bitmap_calc_used_in_block(aal_block_t *block) {
-    return reiser4_bitmap_calc_in_block(block, 1);
-}
-
-count_t reiser4_bitmap_calc_unused_in_block(aal_block_t *block) {
-    return reiser4_bitmap_calc_in_block(block, 0);
 }
 
 /* 
@@ -201,39 +169,25 @@ count_t reiser4_bitmap_unused(
     return bitmap->total_blocks - bitmap->used_blocks;
 }
 
-/* Attach one more bitmap block to passed bitmap */
-errno_t reiser4_bitmap_attach(
-    reiser4_bitmap_t *bitmap,	    /* bitmap we are working with */
-    aal_block_t *block		    /* block to be atached */
-) {
-    aal_assert("umka-1047", bitmap != NULL, return -1);
-    aal_assert("umka-1048", block != NULL, return -1);
-
-    if (!aal_realloc((void **)&bitmap->map, bitmap->size + aal_block_size(block)))
-	return -1;
-    
-    aal_memcpy(bitmap->map + bitmap->size, block->data, 
-	aal_block_size(block));
-    
-    bitmap->size += aal_block_size(block);
-    bitmap->total_blocks += (aal_block_size(block) * 8);
-    bitmap->used_blocks += reiser4_bitmap_calc_used_in_block(block);
-
-    return 0;
-}
-
 /* Creates instance of bitmap */
-reiser4_bitmap_t *reiser4_bitmap_create(void) {
+reiser4_bitmap_t *reiser4_bitmap_create(count_t len) {
     reiser4_bitmap_t *bitmap;
 	    
     if (!(bitmap = (reiser4_bitmap_t *)aal_calloc(sizeof(*bitmap), 0)))
 	return NULL;
 	
-    bitmap->size = 0;
     bitmap->used_blocks = 0;
-    bitmap->total_blocks = 0;
+    bitmap->total_blocks = len;
+    bitmap->size = (len + 7) / 8;
+    
+    if (!(bitmap->map = aal_calloc(bitmap->size, 0)))
+	goto error_free_bitmap;
     
     return bitmap;
+    
+error_free_bitmap:
+    aal_free(bitmap);
+    return NULL;
 }
 
 /* Makes clone of specified bitmap. Returns it to caller */
@@ -244,12 +198,11 @@ reiser4_bitmap_t *reiser4_bitmap_clone(
 
     aal_assert("umka-358", bitmap != NULL, return 0);	
 
-    if (!(clone = reiser4_bitmap_create()))
+    if (!(clone = reiser4_bitmap_create(bitmap->total_blocks)))
 	return NULL;
 	
     clone->size = bitmap->size;
     clone->used_blocks = bitmap->used_blocks;
-    clone->total_blocks = bitmap->total_blocks;
     
     aal_memcpy(clone->map, bitmap->map, clone->size);
     
@@ -261,10 +214,9 @@ void reiser4_bitmap_close(
     reiser4_bitmap_t *bitmap	    /* bitmap to be closed */
 ) {
     aal_assert("umka-354", bitmap != NULL, return);
+    aal_assert("umka-1082", bitmap->map != NULL, return);
 	
-    if (bitmap->map)
-	aal_free(bitmap->map);
-
+    aal_free(bitmap->map);
     aal_free(bitmap);
 }
 

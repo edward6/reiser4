@@ -53,6 +53,7 @@ reiser4_fs_t *reiser4_fs_open(
     aal_device_t *journal_device,   /* device journal will lie on */
     int replay			    /* flag that specify whether replaying is needed */
 ) {
+    count_t len;
     reiser4_fs_t *fs;
     reiser4_id_t pid;
 
@@ -86,8 +87,10 @@ reiser4_fs_t *reiser4_fs_open(
     if (reiser4_format_valid(fs->format))
 	goto error_free_format;
     
+    len = reiser4_format_get_len(fs->format);
+    
     /* Initializes block allocator. See alloc.c for details */
-    if (!(fs->alloc = reiser4_alloc_open(fs->format)))
+    if (!(fs->alloc = reiser4_alloc_open(fs->format, len)))
 	goto error_free_format;
     
     if (reiser4_alloc_valid(fs->alloc))
@@ -243,7 +246,7 @@ reiser4_fs_t *reiser4_fs_create(
 	goto error_free_master;
 
     /* Creates block allocator */
-    if (!(fs->alloc = reiser4_alloc_create(fs->format)))
+    if (!(fs->alloc = reiser4_alloc_create(fs->format, len)))
 	goto error_free_format;
 
     if (reiser4_format_mark(fs->format, fs->alloc))

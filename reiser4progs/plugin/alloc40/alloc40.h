@@ -16,8 +16,6 @@ struct alloc40 {
 	
     reiser4_bitmap_t *bitmap;
     reiser4_entity_t *format;
-
-    char *map;
 };
 
 typedef struct alloc40 alloc40_t;

@@ -26,7 +26,9 @@ static errno_t repair_fs_check_setup(reiser4_fs_t *fs,
     repair_traverse_data_t *traverse) 
 {
     /* Prepare a control allocator */
-    if (!(traverse->a_control = reiser4_alloc_create(fs->format))) {
+    if (!(traverse->a_control = reiser4_alloc_create(fs->format, 
+	reiser4_format_get_len(fs->format)))) 
+    {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, 
 	    "Failed to create a control allocator.");
 	return -1;
@@ -167,6 +169,7 @@ reiser4_fs_t *repair_fs_open(repair_data_t *data, callback_ask_user_t ask_blocks
 	return NULL;
     
     fs->data = data;
+    
     /* Try to open master and rebuild if needed. */
     fs->master = reiser4_master_open(data->host_device);
 	
@@ -175,13 +178,15 @@ reiser4_fs_t *repair_fs_open(repair_data_t *data, callback_ask_user_t ask_blocks
 	goto error_free_master;
     
     /* Try to open the disk format. */
-    fs->format = reiser4_format_open(data->host_device, reiser4_master_format(fs->master));
+    fs->format = reiser4_format_open(data->host_device, 
+	reiser4_master_format(fs->master));
     
     /* Check the opened disk format or rebuild it if needed. */
     if (repair_format_check(fs))
 	goto error_free_format;
     
-    fs->alloc = reiser4_alloc_open(fs->format);
+    fs->alloc = reiser4_alloc_open(fs->format, 
+	reiser4_format_get_len(fs->format));
     
     if (repair_alloc_check(fs))
 	goto error_free_alloc;

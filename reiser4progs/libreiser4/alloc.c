@@ -16,7 +16,8 @@
     used in all further operations.
 */
 reiser4_alloc_t *reiser4_alloc_open(
-    reiser4_format_t *format	/* disk-format allocator is going to be opened on */
+    reiser4_format_t *format,	/* disk-format allocator is going to be opened on */
+    count_t len			/* filesystem size in blocks */
 ) {
     reiser4_id_t pid;
     reiser4_alloc_t *alloc;
@@ -40,7 +41,7 @@ reiser4_alloc_t *reiser4_alloc_open(
 
     /* Calling "open" method from block allocator plugin */
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
-	plugin->alloc_ops, open, format->entity)))
+	plugin->alloc_ops, open, format->entity, len)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize block allocator.");
@@ -62,7 +63,8 @@ error_free_alloc:
     instance to caller.
 */
 reiser4_alloc_t *reiser4_alloc_create(
-    reiser4_format_t *format	    /* format block allocator is going to be created on */
+    reiser4_format_t *format,   /* format block allocator is going to be created on */
+    count_t len			/* filesystem size in blocks */
 ) {
     reiser4_id_t pid;
     reiser4_alloc_t *alloc;
@@ -86,7 +88,7 @@ reiser4_alloc_t *reiser4_alloc_create(
 
     /* Query the block allocator plugin for creating allocator entity */
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
-	plugin->alloc_ops, create, format->entity)))
+	plugin->alloc_ops, create, format->entity, len)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't create block allocator.");

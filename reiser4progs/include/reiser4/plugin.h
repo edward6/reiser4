@@ -763,10 +763,12 @@ struct reiser4_alloc_ops {
     reiser4_plugin_header_t h;
     
     /* Opens block allocator */
-    reiser4_entity_t *(*open) (reiser4_entity_t *);
+    reiser4_entity_t *(*open) (reiser4_entity_t *, 
+	count_t);
 
     /* Creates block allocator */
-    reiser4_entity_t *(*create) (reiser4_entity_t *);
+    reiser4_entity_t *(*create) (reiser4_entity_t *, 
+	count_t);
     
     /* Closes blcok allocator */
     void (*close) (reiser4_entity_t *);
