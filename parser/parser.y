@@ -19,9 +19,10 @@
 %type <wrd> P_RUNNER 
 %type <wrd> STRING_CONSTANT
 
-%type <expr> Object_Name name  target named_expr
+%type <expr> Object_Name name  target
+//%type <expr> named_expr
 %type <expr> begin_from
-%type <expr> Expression 
+%type <expr> Expression
 
 %type <expr> if_statement 
 %type <expr> if_statement if_Expression if_Begin
@@ -86,18 +87,18 @@ reiser4
 ;
 
 Expression
-     : Object_Name                                     { $$ = $1;}
+    : Object_Name                                     { $$ = $1;}
     | STRING_CONSTANT                                 { $$ = const_to_expr( ws, $1 ); }
     | Expression PLUS       Expression                { $$ = concat_expression( ws, $1, $3 ); }
     | Expression SEMICOLON  Expression                { $$ = list_expression( ws, $1, $3 ); }
     | Expression COMMA      Expression                { $$ = list_async_expression( ws, $1, $3 ); }
     | if_statement                                    { $$ = $1; level_down( ws, IF_STATEMENT, IF_STATEMENT ); }
-                                                                            /* the ASSIGNMENT operator return a value: bytes written */
+                                                                            /* the ASSIGNMENT operator return a value: the expression of target */
     |  target  L_ASSIGN        Expression             { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
     |  target  L_APPEND        Expression             { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
     |  target  L_ASSIGN  INV_L Expression INV_R       { $$ = assign_invert( ws, $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
     |  target  L_SYMLINK       Expression             { $$ = symlink( ws, $1, $3 ); }           /*   ->  symlink  the SYMLINK operator return a value: bytes ???? */
-//    | error /*SEMICOLON*/
+//    | WORD NAMED level_up Expression R_BRACKET        { $$ = named_level_down( ws, $1, $3, $4,$5); }
 
 //| level_up  Expression R_BRACKET                   { $$ = $2  level_down( ws, $1, $3 );}
 //| Expression            Expression                { $$ = list_unordered_expression( ws, $1, $2 ); }
@@ -153,13 +154,13 @@ name
 ;
 
 level_up
-//    : L_BRACKET                                        { $$ = $1; level_up( ws, $1 ); } 
-    : named_expr L_BRACKET                             { $$ = $2; level_up_named( ws, $1, $2 ); }
+    : L_BRACKET                                        { $$ = $1; level_up( ws, $1 ); } 
+//    : named_expr L_BRACKET                             { $$ = $2; level_up_named( ws, $1, $2 ); }
 ;
 
-named_expr
-    : WORD  NAMED                                     { $$ = lookup_word( ws, $1 ); }
-    |                                                 { $$ = NULL; }
+//named_expr
+//    : WORD  NAMED                                     { $$ = lookup_word( ws, $1 ); }
+//    |                                                 { $$ = NULL; }
 
 
 %%
