@@ -4,7 +4,6 @@
 #define __REISER4_PLUGIN_SPACE_BITMAP_H__
 
 #include "../../dformat.h"
-#include "space_allocator.h"
 #include "../../block_alloc.h"
 
 #include <linux/types.h>	/* for __u??  */
@@ -16,6 +15,7 @@ extern int init_allocator_bitmap(reiser4_space_allocator *, struct super_block *
 extern int destroy_allocator_bitmap(reiser4_space_allocator *, struct super_block *);
 extern int alloc_blocks_bitmap(reiser4_space_allocator *,
 			       reiser4_blocknr_hint *, int needed, reiser4_block_nr * start, reiser4_block_nr * len);
+
 #if REISER4_DEBUG
 
 extern void check_blocks_bitmap(const reiser4_block_nr *, const reiser4_block_nr *, int);
@@ -24,6 +24,10 @@ extern void check_blocks_bitmap(const reiser4_block_nr *, const reiser4_block_nr
 
 extern void dealloc_blocks_bitmap(reiser4_space_allocator *, reiser4_block_nr, reiser4_block_nr);
 extern int pre_commit_hook_bitmap(void);
+
+#define post_commit_hook_bitmap() do{}while(0)
+#define post_write_back_hook_bitmap() do{}while(0)
+#define print_info_bitmap(pref, al) do{}while(0)
 
 typedef __u64 bmap_nr_t;
 typedef __u32 bmap_off_t;

@@ -17,7 +17,6 @@
 
 #include "plugin/space/space_allocator.h"
 
-#include "plugin/disk_format/test.h"
 #include "plugin/disk_format/disk_format40.h"
 #include "plugin/security/perm.h"
 
@@ -149,7 +148,6 @@ struct reiser4_super_info_data {
 	oid_t oids_in_use;
 
 	/* space manager plugin */
-	space_allocator_plugin *space_plug;
 	reiser4_space_allocator space_allocator;
 
 	/* reiser4 internal tree */
@@ -236,7 +234,6 @@ struct reiser4_super_info_data {
 	/* disk layout specific part of reiser4 super info data */
 	union {
 		format40_super_info format40;
-		test_format_super_info test_format;
 	} u;
 
 	unsigned long optimal_io_size;

@@ -484,8 +484,7 @@ print_fs_info(const char *prefix, const struct super_block *s)
 
 	printk("================ fs info (%s) =================\n", prefix);
 	printk("root block: %lli\ntree height: %i\n", sbinfo->tree.root_block, sbinfo->tree.height);
-	if (sbinfo->space_plug->print_info)
-		sbinfo->space_plug->print_info("", get_space_allocator(s));
+	sa_print_info("", get_space_allocator(s));
 
 	printk("Oids: next to use %llu, in use %llu\n", sbinfo->next_to_use, sbinfo->oids_in_use);
 	printk("Block counters:\n\tblock count\t%llu\n\tfree blocks\t%llu\n"

@@ -117,11 +117,8 @@ reiser4-objs := \
 		   plugin/pseudo/pseudo.o \
            \
 		   plugin/space/bitmap.o \
-		   plugin/space/test.o \
-		   plugin/space/space_allocator.o \
            \
 		   plugin/disk_format/disk_format40.o \
-		   plugin/disk_format/test.o \
 		   plugin/disk_format/disk_format.o \
            \
 		   plugin/file/pseudo.o \

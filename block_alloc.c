@@ -709,7 +709,6 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 #endif
 	)
 {
-	space_allocator_plugin *splug;
 	__u64 needed = *len;
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -723,7 +722,6 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	ON_TRACE(TRACE_RESERVE2, "reiser4_alloc_blocks: needed %llu for %s..", needed, message);
 
 	assert("vpf-339", hint != NULL);
-	assert("vs-514", (sbinfo && sbinfo->space_plug && sbinfo->space_plug->alloc_blocks));
 
 	ON_TRACE(TRACE_ALLOC,
 		 "alloc_blocks: requested %llu, search from %llu\n",
@@ -748,8 +746,7 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 			return ret;
 	}
 
-	splug = sbinfo->space_plug;
-	ret = splug->alloc_blocks(get_space_allocator(ctx->super), hint, (int) needed, blk, len);
+	ret = sa_alloc_blocks(get_space_allocator(ctx->super), hint, (int) needed, blk, len);
 
 	if (!ret) {
 		assert("zam-680", *blk < reiser4_block_count(ctx->super));
@@ -1104,13 +1101,7 @@ used2free(reiser4_super_info_data *sbinfo, __u64 count)
 void
 reiser4_check_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
 {
-	space_allocator_plugin *splug = get_current_super_private()->space_plug;
-
-	assert("zam-625", splug != NULL);
-
-	if (splug->check_blocks != NULL) {
-		splug->check_blocks(start, len, desired);
-	}
+	sa_check_blocks(start, len, desired);
 }
 
 /* check "allocated" state of given block */
@@ -1190,17 +1181,8 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 		UNLOCK_ATOM(atom);
 
 	} else {
-		/* actual deletion is done through space allocator plugin */
-		space_allocator_plugin *splug;
-
 		assert("zam-425", get_current_super_private() != NULL);
-
-		splug = sbinfo->space_plug;
-
-		assert("zam-461", splug != NULL);
-		assert("zam-462", splug->dealloc_blocks != NULL);
-
-		splug->dealloc_blocks(get_space_allocator(ctx->super), *start, *len);
+		sa_dealloc_blocks(get_space_allocator(ctx->super), *start, *len);
 
 		if (flags & BA_PERMANENT) {
 			/* These blocks were counted as allocated, we have to revert it
@@ -1267,15 +1249,8 @@ __reiser4_dealloc_block(const reiser4_block_nr * block, block_stage_t stage, rei
 extern int
 pre_commit_hook(void)
 {
-	space_allocator_plugin *splug;
-
 	assert("zam-502", get_current_super_private() != NULL);
-	splug = get_current_super_private()->space_plug;
-	assert("zam-503", splug != NULL);
-
-	if (splug->pre_commit_hook != NULL)
-		return splug->pre_commit_hook();
-
+	sa_pre_commit_hook();
 	return 0;
 }
 
@@ -1283,7 +1258,6 @@ pre_commit_hook(void)
 static int
 apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4_block_nr * b, void *data UNUSED_ARG)
 {
-	space_allocator_plugin *splug;
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
 
@@ -1294,8 +1268,6 @@ apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4
 
 	assert("zam-877", atom->stage >= ASTAGE_PRE_COMMIT);
 	assert("zam-552", sbinfo != NULL);
-	splug = sbinfo->space_plug;
-	assert("zam-553", splug != NULL);
 
 	if (b != NULL)
 		len = *b;
@@ -1309,19 +1281,15 @@ apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4
 		reiser4_spin_unlock_sb(sbinfo);
 	}
 
-	if (splug->dealloc_blocks != NULL)
-		splug->dealloc_blocks(&sbinfo->space_allocator, *a, len);
-
+	sa_dealloc_blocks(&sbinfo->space_allocator, *a, len);
 	/* adjust sb block counters */
 	used2free(sbinfo, len);
-
 	return 0;
 }
 
 void
 post_commit_hook(void)
 {
-	space_allocator_plugin *splug;
 	txn_atom *atom;
 
 	atom = get_current_atom_locked();
@@ -1333,24 +1301,15 @@ post_commit_hook(void)
 	blocknr_set_iterator(atom, &atom->delete_set, apply_dset, NULL, 1);
 
 	assert("zam-504", get_current_super_private() != NULL);
-	splug = get_current_super_private()->space_plug;
-	assert("zam-505", splug != NULL);
-
-	if (splug->post_commit_hook != NULL)
-		splug->post_commit_hook();
+	sa_post_commit_hook();
 }
 
 void
 post_write_back_hook(void)
 {
-	space_allocator_plugin *splug;
-
 	assert("zam-504", get_current_super_private() != NULL);
-	splug = get_current_super_private()->space_plug;
-	assert("zam-505", splug != NULL);
 
-	if (splug->post_commit_hook != NULL)
-		splug->post_commit_hook();
+	sa_post_commit_hook();
 }
 
 /*
