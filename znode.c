@@ -254,7 +254,9 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 
 	assert( "nikita-795", tree != NULL );
 
+	spin_lock_tree( tree );
 	print_znodes( "umount", tree );
+	spin_unlock_tree( tree );
 
 	/* 
 	 * Remove all znodes.
@@ -1287,18 +1289,25 @@ void print_znodes( const char *prefix, reiser4_tree *tree )
 	znode        *node;
 	znode        *next;
 	z_hash_table *htable;
+	int           tree_lock_taken;
 
 	if( tree == NULL )
 		tree = current_tree;
 
-	spin_lock_tree( tree );
+	/*
+	 * this is debugging function. It can be called by reiser4_panic()
+	 * with tree spin-lock already held. Trylock is not exactly what we
+	 * want here, but it is passable.
+	 */
+	tree_lock_taken = spin_trylock_tree( tree );
 	htable = &tree -> hash_table;
 
 	for_all_ht_buckets( htable, bucket ) {
 		for_all_in_bucket( bucket, node, next, link )
 			info_znode( prefix, node );
 	}
-	spin_unlock_tree( tree );
+	if( tree_lock_taken )
+		spin_unlock_tree( tree );
 }
 
 #endif
