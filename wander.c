@@ -424,7 +424,8 @@ update_journal_header(struct commit_handle *ch)
 	if (ret)
 		return ret;
 
-	blk_run_queues();
+	/* FIXME: no need for this?*/
+	/*blk_run_queues();*/
 
 	ret = jwait_io(jh, WRITE);
 
@@ -454,7 +455,8 @@ update_journal_footer(struct commit_handle *ch)
 	if (ret)
 		return ret;
 
-	blk_run_queues();
+	/*FIXME: no need for this?*/
+	/*blk_run_queue();*/
 
 	ret = jwait_io(jf, WRITE);
 	if (ret)
@@ -1225,21 +1227,12 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, con
 			JF_CLR(cur, JNODE_DIRTY);
 			UNLOCK_JNODE(cur);
 
-			SetPageWriteback(pg);
-
-			spin_lock(&pg->mapping->page_lock);
-
 			if (REISER4_STATS && !PageDirty(pg))
 				reiser4_stat_inc(pages_clean);
 
-			/* don't check return value: submit page even if it
-			   wasn't dirty. */		
-			test_clear_page_dirty(pg);
-
-			list_del(&pg->list);
-			list_add(&pg->list, &pg->mapping->locked_pages);
-
-			spin_unlock(&pg->mapping->page_lock);
+			set_page_writeback(pg);
+			/* clear DIRTY or REISER4_MOVED tag if it is set */
+			reiser4_clear_page_dirty(pg);
 
 			unlock_page(pg);
 
