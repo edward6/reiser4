@@ -224,6 +224,9 @@ void reiser4_print_stats()
 	      "\t flush_carry:\t %lli\n"
 	      "\t squeezed_completely:\t %lli\n"
 	      "\t flushed with unallocated children: \t %lli\n"
+	      "\t XXXX leaves squeezed to left:\t %llu\n"
+	      "\t XXXX items squeezed in those leaves:\t %lli\n"
+	      "\t XXXX bytes in those items:\t %lli\n"
 
 	      "pool:\n"
 	      "\t alloc:\t %lli\n"
@@ -292,6 +295,12 @@ void reiser4_print_stats()
 	      s -> flush.flush_carry,
 	      s -> flush.squeezed_completely,
 	      s -> flush.flushed_with_unallocated,
+	      /*
+	       * FIXME-VS: urgently added leaf squeeze stats
+	       */
+	      s -> flush.squeezed_leaves,
+	      s -> flush.squeezed_leaf_items,
+	      s -> flush.squeezed_leaf_bytes,
 
 	      s -> pool.pool_alloc,
 	      s -> pool.pool_kmalloc,
