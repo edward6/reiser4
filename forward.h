@@ -92,18 +92,13 @@ typedef enum {
 	LEAF_LEVEL = 1,
 
 	/**
-	 * number of level one above leaf level of the tree: a #define because
-	 * LEAF_LEVEL is, thought not used in per-level arrays.
-
-NIKITA-FIXME-HANS: last clause of sentence above is not clear 
+	 * number of level one above leaf level of the tree.
 	 *
 	 * It is supposed that internal tree used by reiser4 to store file
 	 * system data and meta data will have height 2 initially (when
 	 * created by mkfs).
 	 */
 	TWIG_LEVEL = 2,
-/* I guess we don't happen to need BRANCH_LEVEL anywhere in the code, I guess this is because searches never stop above
- * the twig level?.... -Hans */
 } tree_level;
 
 /* The "real" maximum ztree height is the 0-origin size of any per-level

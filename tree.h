@@ -65,12 +65,12 @@ typedef struct cbk_cache {
  */
 typedef enum {
 	/** continue to the next level */
-	LLR_CONT,
+	LOOKUP_CONT,
 	/** done. Either required item was found, or we can prove it
 	 * doesn't exist, or some error occurred. */
-	LLR_DONE,
+	LOOKUP_DONE,
 	/** restart traversal from the root. Infamous "repetition". */
-	LLR_REST
+	LOOKUP_REST
 } level_lookup_result;
 
 /** PUT THIS IN THE SUPER BLOCK
@@ -184,8 +184,11 @@ struct reiser4_item_data {
 
 /** cbk flags: options for coord_by_key() */
 typedef enum {
-/* NIKITA-FIXME-HANS: is this field used?  if so, for what and where? -Hans */
-	/** coord_by_key() is called for insertion */
+	/** 
+	 * coord_by_key() is called for insertion. This is necessary because
+	 * of extents being located at the twig level. For explanation, see
+	 * comment just above is_next_item_internal(). 
+	 */
 	CBK_FOR_INSERT =    ( 1 << 0 ),
 	/** coord_by_key() is called with key that is known to be unique */
 	CBK_UNIQUE     =    ( 1 << 1 ),
@@ -194,7 +197,9 @@ typedef enum {
 	 * accessible. coord_by_key() will set it automatically. It will be
 	 * only celared by special-case in extents-on-the-twig-level handling
 	 * where it is necessary to insert item with a key smaller than
-	 * leftmost key in a node. 
+	 * leftmost key in a node. This is necessary because of extents being
+	 * located at the twig level. For explanation, see comment just above
+	 * is_next_item_internal().
 	 */
 	CBK_TRUST_DK   =    ( 1 << 2 )
 } cbk_flags;
@@ -354,6 +359,55 @@ extern int deallocate_znode( znode *node );
 
 extern int is_disk_addr_unallocated( const reiser4_block_nr *addr );
 extern void *unallocated_disk_addr_to_ptr( const reiser4_block_nr *addr );
+
+/** struct used internally to pack all numerous arguments of tree lookup.
+    Used to avoid passing a lot of arguments to helper functions. */
+typedef struct cbk_handle {
+	/** tree we are in */
+	reiser4_tree        *tree;
+	/** key we are going after */
+	const reiser4_key   *key;
+	/** coord we will store result in */
+	coord_t  	    *coord;
+	/** type of lock to take on target node */
+	znode_lock_mode      lock_mode;
+	/** lookup bias. See comments at the declaration of lookup_bias */
+	lookup_bias          bias;
+	/** lock level */
+	tree_level           lock_level;
+	/** 
+	 * level where search will stop. Either item will be found between
+	 * lock_level and stop_level, or CBK_COORD_NOTFOUND will be
+	 * returned. 
+	 */
+	tree_level           stop_level;
+	/** level we are currently at */
+	tree_level           level;
+	/** 
+	 * block number of @active node. Tree traversal operates on two
+	 * nodes: active and parent. 
+	 */
+	reiser4_block_nr     block;
+	/** put here error message to be printed by caller */
+	const char          *error;
+	/** result passed back to caller */
+	lookup_result        result;
+	/** lock handles for active and parent */
+	lock_handle         *parent_lh;
+	lock_handle         *active_lh;
+	reiser4_key          ld_key;
+	reiser4_key          rd_key;
+	/**
+	 * flags, passed to the cbk routine. Bits of this bitmask are defined
+	 * in tree.h:cbk_flags enum.
+	 */
+	__u32                flags;
+} cbk_handle;
+
+extern znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h );
+
+/* eottl.c */
+extern int handle_eottl( cbk_handle *h, int *outcome );
 
 /* list of active lock stacks */
 TS_LIST_DECLARE(context);

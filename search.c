@@ -258,43 +258,6 @@ void print_cbk_cache( const char *prefix /* prefix to print */,
 }
 #endif
 
-/** struct to pack all numerous arguments of tree lookup.  Used to avoid
-    passing a lot of arguments to helper functions. */
-typedef struct cbk_handle {
-	/** tree we are in */
-	reiser4_tree        *tree;
-	/** key we are going after */
-	const reiser4_key   *key;
-	/** coord we will store result in */
-	coord_t  	    *coord;
-	/** type of lock to take on target node */
-	znode_lock_mode      lock_mode;
-/* NIKITA-FIXME-HANS:why exactly do we need both a tween field and a lookup bias? */
-	/** lookup bias */
-	lookup_bias          bias;
-	/** lock level */
-	tree_level           llevel;
-	/** stop level */
-/* NIKITA-FIXME-HANS: needs a bigger comment. */
-/* NIKITA-FIXME-HANS: rename it to stop_level  */
-	tree_level           slevel;
-	/** level we are currently at */
-	tree_level           level;
-	/** block number of "active" node */
-/* does this differ from the current node?  what does active mean?  Is this the iterator? -Hans */
-	reiser4_block_nr    block;
-	/** put here error message to be printed by caller */
-	const char          *error;
-	/** result passed back to caller */
-	lookup_result        result;
-	/** lock handles for active and parent */
-	lock_handle *parent_lh;
-	lock_handle *active_lh;
-	reiser4_key          ld_key; /* of iterator? */
-	reiser4_key          rd_key;
-	__u32                flags; /* NIKITA-FIXME-HANS: totally inadequate commenting here.... */
-} cbk_handle;
-
 static lookup_result traverse_tree( cbk_handle *h );
 static int cbk_cache_search( cbk_handle *h );
 
@@ -303,9 +266,6 @@ static level_lookup_result cbk_node_lookup ( cbk_handle *h );
 
 /* helper functions */
 
-/** type of lock we want to obtain during tree traversal. On stop level
-    we want type of lock user asked for, on upper levels: read lock. */
-static znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h );
 /** release parent node during traversal */
 static void put_parent( cbk_handle *h );
 /** check consistency of fields */
@@ -383,18 +343,18 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 
 	xmemset( &handle, 0, sizeof handle );
 
-	handle.tree      = tree;
-	handle.key       = key;
-	handle.lock_mode = lock_mode;
-	handle.bias      = bias;
-	handle.llevel    = lock_level;
-	handle.slevel    = stop_level;
-	handle.coord     = coord;
+	handle.tree       = tree;
+	handle.key        = key;
+	handle.lock_mode  = lock_mode;
+	handle.bias       = bias;
+	handle.lock_level = lock_level;
+	handle.stop_level = stop_level;
+	handle.coord      = coord;
 	/* set flags. See comment in tree.h:cbk_flags */
-	handle.flags     = flags | CBK_TRUST_DK;
+	handle.flags      = flags | CBK_TRUST_DK;
 
-	handle.active_lh = lh;
-	handle.parent_lh = &parent_lh;
+	handle.active_lh  = lh;
+	handle.parent_lh  = &parent_lh;
 
 	/* first check whether "key" is in cache of recent lookups. */
 	if( cbk_cache_search( &handle ) == 0 )
@@ -494,7 +454,7 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 	assert( "nikita-368", h -> coord != NULL );
 	assert( "nikita-369", ( h -> bias == FIND_EXACT ) ||
 		( h -> bias == FIND_MAX_NOT_MORE_THAN ) );
-	assert( "nikita-370", h -> slevel >= LEAF_LEVEL );
+	assert( "nikita-370", h -> stop_level >= LEAF_LEVEL );
 	trace_stamp( TRACE_TREE );
 	reiser4_stat_tree_add( cbk );
 
@@ -550,16 +510,15 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 			print_key( "key", h -> key );
 		}
 		switch( cbk_level_lookup( h ) ) {
-/* NIKITA-FIXME-HANS: rename these cases or comment them */
-		    case LLR_CONT:
+		    case LOOKUP_CONT:
 			    move_lh(h->parent_lh, h->active_lh);
 			    continue;
 		    default:
 			    wrong_return_value( "nikita-372", "cbk_level" );
-		    case LLR_DONE:
+		    case LOOKUP_DONE:
 			    done = 1;
 			    break;
-		    case LLR_REST:
+		    case LOOKUP_REST:
 			    reiser4_stat_tree_add( cbk_restart );
 			    hput(h);
 			    ++ iterations;
@@ -572,7 +531,7 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 		warning( "nikita-373", "%s: level: %i, "
 			 "lock_level: %i, stop_level: %i "
 			 "lock_mode: %s, bias: %s",
-			 h -> error, h -> level, h -> llevel, h -> slevel,
+			 h -> error, h -> level, h -> lock_level, h -> stop_level,
 			 lock_mode_name( h -> lock_mode ), bias_name( h -> bias ) );
 		print_address( "block", &h -> block );
 		print_key( "key", h -> key );
@@ -580,7 +539,7 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 		print_znode( "active", h -> active_lh -> node);
 		print_znode( "parent", h -> parent_lh -> node);
 	}
-/* the unlikely asssumes misses are rarer than finds */
+	/* the unlikely asssumes misses are rarer than finds */
 	if( ( unlikely (h -> result != CBK_COORD_FOUND) ) &&
 	    ( h -> result != CBK_COORD_NOTFOUND ) ) {
 		/* failure. do cleanup */
@@ -596,30 +555,29 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 	return h -> result;
 }
 
-/** coord_by_key level function that maintains znode sibling/parent
-    pointers (web of znodes)) */
-
-/* NIKITA-FIXME-HANS: Is the following comment correct?  Please add to it.... particularly in regard to checking to see if the key is in this node, and all the locking issues associated with that (perhaps it needs a paragraph or three for the web page?)
-
-Loads the node if it needs to be loaded, worries about whether balancing occuring during this search shifted the key we
-are looking for out of the subtree rooted at this node, and then calls a function to search within the node.
-
-*/
-/* Audited by: green(2002.06.15) */
+/**
+ * Perform tree lookup at one level. This is called from cbk_traverse()
+ * function that drives lookup through tree and calls cbk_node_lookup() to
+ * perform lookup within one node.
+ *
+ * See comments in a code.
+ */
 static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 {
 	int ret;
 	znode * active;
 
+	/* acquire reference to @active node */
 	active = zget( h -> tree, &h -> block,
 		       h -> parent_lh -> node,
 		       h -> level, GFP_KERNEL );
 
 	if (IS_ERR(active)) {
 		h->result = PTR_ERR(active);
-		return LLR_DONE;
+		return LOOKUP_DONE;
 	}
 
+	/* lock @active */
 	h->result = longterm_lock_znode(h->active_lh, active,
 					cbk_lock_mode(h->level, h), ZNODE_LOCK_LOPRI);
 	zput(active);
@@ -628,12 +586,24 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 
 	put_parent(h);
 
-/* NIKITA-FIXME-HANS: what does this do and why? */
+	/* 
+	 * if @active is accessed for the first time, setup delimiting keys on
+	 * it. Delimiting keys are taken from the parent node. See
+	 * setup_delimiting_keys() for details. 
+	 */
 	if( ! znode_is_loaded( active ) )
 		setup_delimiting_keys( h );
 
 	/*
-	 * FIXME-NIKITA this is ugly kludge. 
+	 * FIXME-NIKITA this is ugly kludge. Remainder: this is necessary,
+	 * because ->lookup() method returns coord with ->between field
+	 * probably set to something different from AT_UNIT.
+	 *
+	 * This is what is meant by "between field is stupid"--- ->between is
+	 * only meaningful for insertions and here (just as in the most of the
+	 * code) coord_t is used for something different. As a result,
+	 * ->between field is not only useless---it is strictly
+	 * counter-productive.
 	 */
 	h->coord->between = AT_UNIT;
 
@@ -689,17 +659,17 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 		h -> result = -EAGAIN;
 	}
 	if( h -> result == -EAGAIN )
-		return LLR_REST;
+		return LOOKUP_REST;
 
 	h -> result = zload( active );
 	if( h -> result ) {
-		return LLR_DONE;
+		return LOOKUP_DONE;
 	}
 
 	/* sanity checks */
 	if( sanity_check( h ) ) {
 		zrelse(active);
-		return LLR_DONE;
+		return LOOKUP_DONE;
 	}
 
 	ret =  cbk_node_lookup(h);
@@ -715,181 +685,28 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 
  fail_or_restart:
 	if (h->result == -EDEADLK)
-		return LLR_REST;
-	return LLR_DONE;
-}
-
-
-/*
- * look to the right of @coord. If it is an item of internal type - 1 is
- * returned. If that item is in right neighbor and it is internal - @coord and
- * @lh are switched to that node: move lock handle, zload right neighbor and
- * zrelse znode coord was set to at the beginning
- */
-/* Audited by: green(2002.06.15) */
-static int is_next_item_internal( coord_t *coord,  lock_handle *lh )
-{
-	int result;
-
-
-	if( coord -> item_pos != node_num_items( coord -> node ) - 1 ) {
-		/*
-		 * next item is in the same node
-		 */
-		coord_t right;
-
-		coord_dup (&right, coord);
-		check_me ("vs-742", coord_next_item (&right) == 0);
-		if( item_is_internal( &right ) ) {
-			coord_dup (coord, &right);
-			return 1;
-		}
-		return 0;
-	} else {
-		/*
-		 * look for next item in right neighboring node
-		 */
-		lock_handle right_lh;
-		coord_t right;
-
-
-		init_lh( &right_lh );
-		result = reiser4_get_right_neighbor( &right_lh,
-						     coord -> node,
-						     ZNODE_READ_LOCK,
-						     GN_DO_READ);
-		if( result && result != -ENAVAIL ) {
-			/* error occured */
-			/*
-			 * FIXME-VS: error code is not returned. Just that
-			 * there is no right neighbor
-			 */
-			done_lh( &right_lh );
-			return 0;
-		}
-		if( !result && ( result = zload( right_lh.node ) ) == 0 ) {
-			coord_init_first_unit( &right, right_lh.node );
-			if( item_is_internal( &right ) ) {
-				/*
-				 * switch to right neighbor
-				 */
-				zrelse( coord -> node );
-				done_lh( lh );
-
-				coord_init_zero( coord );
-				coord_dup( coord, &right );
-				move_lh( lh, &right_lh );
-
-				return 1;
-			}
-			/* zrelse right neighbor */
-			zrelse( right_lh.node );
-		}
-		/* item to the right of @coord either does not exist or is not
-		   of internal type */
-		done_lh( &right_lh );
-		return 0;
-	}
-}
-
-
-/*
- * inserting empty leaf after (or between) item of not internal type we have to
- * know which right delimiting key corresponding znode has to be inserted with
- */
-/* Audited by: green(2002.06.15) */
-static reiser4_key *rd_key( coord_t *coord, reiser4_key *key )
-{
-	if( coord -> item_pos != node_num_items( coord -> node ) - 1 ) {
-		/*
-		 * get right delimiting key from an item to the right of @coord
-		 */
-		coord_t tmp;
-
-		coord_dup( &tmp, coord );
-		tmp.item_pos ++;
-		item_key_by_coord( &tmp, key );
-	} else {
-		/*
-		 * use right delimiting key of znode we insert new pointer to
-		 */
-		spin_lock_dk( current_tree );
-		*key = *znode_get_rd_key( coord -> node );
-		spin_unlock_dk( current_tree );
-	}
-	return key;
-}
-
-
-/*
- * this is used to insert empty node into leaf level if tree lookup can not go
- * further down because it stopped between items of not internal type
- */
-/* Audited by: green(2002.06.15) */
-static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
-			   const reiser4_key *key, const reiser4_key *rdkey )
-{
-	int result;
-	carry_pool        pool;
-	carry_level       todo;
-	carry_op         *op;
-	znode            *node;
-	reiser4_item_data item;
-	carry_insert_data cdata;
-
-	init_carry_pool( &pool );
-	init_carry_level( &todo, &pool );
-	ON_STATS( todo.level_no = TWIG_LEVEL );
-
-	node = new_node( insert_coord -> node, LEAF_LEVEL );	
-	if( IS_ERR( node ) )
-		return PTR_ERR( node );
-	/*
-	 * setup delimiting keys for node being inserted
-	 */
-	spin_lock_dk( current_tree );
-	*znode_get_ld_key( node ) = *key;
-	*znode_get_rd_key( node ) = *rdkey;
-	spin_unlock_dk( current_tree );
-
-	zrelse( insert_coord -> node );
-	op = post_carry( &todo, COP_INSERT, insert_coord -> node, 0 );
-	if( !IS_ERR( op ) ) {
-		cdata.coord = insert_coord;
-		cdata.key   = key;
-		cdata.data  = &item;
-		op -> u.insert.d = &cdata;
-		op -> u.insert.type = COPT_ITEM_DATA;
-		build_child_ptr_data( node, &item );
-		item.arg = NULL;
-		/*
-		 * have @insert_coord to be set at inserted item after
-		 * insertion is done
-		 */
-		op -> node -> track = 1;
-		op -> node -> tracked = lh;
-		
-		result = carry( &todo, 0 );
-	} else
-		result = PTR_ERR( op );
-	zput( node );
-	done_carry_pool( &pool );
-	if( result == 0 )
-		result = zload( insert_coord -> node );
-	return result;
+		return LOOKUP_REST;
+	return LOOKUP_DONE;
 }
 
 /*
-   Process one node during tree traversal.
-   This is standard function independent of tree locking protocols.  (Meaning that the node must be locked at entry or what? NIKITA-FIXME-HANS)
+ * Process one node during tree traversal.
+ *
+ * This is called by cbk_level_lookup().
  */
 static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 {
+	/* node plugin of @active */
 	node_plugin      *nplug;
+	/* item plugin of item that was found */
 	item_plugin      *iplug;
+	/* search bias */
 	lookup_bias       node_bias;
-	znode            *active; /* NIKITA-FIXME-HANS: this is what? suggest use of cur_node instead of active....*/
+	/* node we are operating upon */
+	znode            *active;
+	/* tree we are searching in */
 	reiser4_tree     *tree;
+	/* result */
 	int               result;
 
 	/**
@@ -912,8 +729,6 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 
 	assert( "nikita-379", h != NULL );
 
-	/* disinter actively used active out of handle */
-/* NIKITA-FIXME-HANS: this means what? maybe it is clearer without a comment? */
 	active = h -> active_lh -> node;
 	tree   = h -> tree;
 
@@ -929,9 +744,9 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 	if( unlikely(result != NS_FOUND && result != NS_NOT_FOUND) ) {
 		/* error occured */
 		h -> result = result;
-		return LLR_DONE;
+		return LOOKUP_DONE;
 	}
-	if( h -> level == h -> slevel ) {
+	if( h -> level == h -> stop_level ) {
 		/* welcome to the stop level */
 		assert( "nikita-381", h -> coord -> node == active );
 		if( result == NS_FOUND ) {
@@ -950,117 +765,35 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 			reiser4_stat_tree_add( cbk_notfound );
 		}
 		cbk_cache_add( active );
-		return LLR_DONE;
+		return LOOKUP_DONE;
 	}
 
 	if( h -> level > TWIG_LEVEL && result == NS_NOT_FOUND ) {
 		h -> error = "not found on internal node";
 		h -> result = result;
-		return LLR_DONE;
+		return LOOKUP_DONE;
 	}
 
-	assert( "vs-361", h -> level > h -> slevel );
+	assert( "vs-361", h -> level > h -> stop_level );
 
-	/*
-	 * FIXME-VS: work around twig thing: h->coord can be set such that
-	 * item_plugin can not be taken (h->coord->between == AFTER_ITEM)
-	 */
-	if( !coord_is_existing_item( h -> coord ) || !item_is_internal( h -> coord ) ) {
-		/* strange item type found on non-stop level?!  Twig
-		   horrors? */
-		assert( "vs-356", h -> level == TWIG_LEVEL );
-		assert( "vs-357",
-			({
-				coord_t coord;
+	if( handle_eottl( h, &result ) )
+		return result;
 
-				coord_dup( &coord, h -> coord );
-				check_me( "vs-733", coord_set_to_left( &coord ) == 0);
-				item_id_by_coord( &coord )== EXTENT_POINTER_ID;
-			 }));
-
-		if( result == NS_FOUND ) {
-			/*
-			 * we have found desired key on twig level in extent item
-			 */
-			h -> result = CBK_COORD_FOUND;
-			reiser4_stat_tree_add( cbk_found );
-			return LLR_DONE;
-		}
-
-		/* take a look at the item to the right of h -> coord */
-		result = is_next_item_internal( h -> coord, h -> active_lh );
-		if( result < 0 ) {
-			/*
-			 * error occured while we were trying to look at the
-			 * item to the right
-			 */
-			h -> error = "could not check next item";
-			h -> result = result;
-			return LLR_DONE;
-		}
-		if ( !result ) {
-			/*
-			 * item to the right is not internal one. Allocate a
-			 * new node and insert pointer to it after item h ->
-			 * coord
-			 */
-/* NIKITA-FIXME-HANS: needs better comment, one that explains how this is the result of extents being at the twig level. */
-			reiser4_key key;
-			
-			
-			if (cbk_lock_mode( h -> level, h ) != ZNODE_WRITE_LOCK ) {
-				/*
-				 * we got node read locked, restart
-				 * coord_by_key to have write lock on twig
-				 * level
-				 */
-				assert( "vs-360", h -> llevel < TWIG_LEVEL );
-				h -> llevel = TWIG_LEVEL;
-				return LLR_REST;
-			}
-			
-			result = add_empty_leaf( h -> coord, h -> active_lh,
-						 h -> key, rd_key( h -> coord, &key ) );
-			if( result ) {
-				h -> error = "could not add empty leaf";
-				h -> result = result;
-				return LLR_DONE;
-			}
-			assert( "vs-358",
-				keyeq( h -> key,
-				       item_key_by_coord( h -> coord, &key ) ) );
-		} else {
-			/* 
-			 * this is special case mentioned in the comment on
-			 * tree.h:cbk_flags. We have found internal item
-			 * immediately on the right of extent, and we are
-			 * going to insert new item there. Key of item we are
-			 * going to insert is smaller than leftmost key in the
-			 * node pointed to by said internal item (otherwise
-			 * search wouldn't come to the extent in the first
-			 * place).
-			 */	/* NIKITA-FIXME-HANS: explain what we do as a result, do we go into the child of that internal item on the right? */
-			h -> flags &= ~CBK_TRUST_DK;
-		}
-		assert( "vs-362", item_is_internal( h -> coord ) );
-				   
-		iplug = item_plugin_by_coord( h -> coord );
-	} else {
-		iplug = item_plugin_by_coord( h -> coord );
-	}
+	assert( "nikita-2116", item_is_internal( h -> coord ) );
+	iplug = item_plugin_by_coord( h -> coord );
 
 	/* prepare delimiting keys for the next node */
 	if( prepare_delimiting_keys( h ) ) {
 		h -> error = "cannot prepare delimiting keys";
 		h -> result = CBK_IO_ERROR;
-		return LLR_DONE;
+		return LOOKUP_DONE;
 	}
 
 	/* go down to next level */
 	assert( "vs-515", item_is_internal ( h -> coord ) );
 	iplug -> s.internal.down_link( h -> coord, h -> key, &h -> block );
 	-- h -> level;
-	return LLR_CONT; /* continue */
+	return LOOKUP_CONT; /* continue */
 }
 
 /** true if @key is one of delimiting keys in @node */
@@ -1113,7 +846,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 			break;
 
 		level = znode_get_level( node );
-		if( ( h -> slevel > level ) || ( level > h -> llevel ) )
+		if( ( h -> stop_level > level ) || ( level > h -> lock_level ) )
 			zput( node );
 		else {
 			/* min_key <= key <= max_key */
@@ -1148,7 +881,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		h -> level = level;
 		llr = cbk_node_lookup( h );
 		
-		if( llr != LLR_DONE )
+		if( llr != LOOKUP_DONE )
 			/* restart of continue on the next level */
 			result = -ENOENT;
 		else if( ( h -> result != CBK_COORD_NOTFOUND ) &&
@@ -1222,11 +955,11 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 /** type of lock we want to obtain during tree traversal. On stop level
     we want type of lock user asked for, on upper levels: read lock. */
 /* Audited by: green(2002.06.15) */
-static znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h )
+znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h )
 {
 	assert( "nikita-382", h != NULL );
 
-	return ( level <= h -> llevel ) ? h -> lock_mode : ZNODE_READ_LOCK;
+	return ( level <= h -> lock_level ) ? h -> lock_mode : ZNODE_READ_LOCK;
 }
 
 /**
@@ -1305,7 +1038,7 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 	lock_handle lh;
 
 	assert( "nikita-1761", h != NULL );
-	assert( "nikita-1762", h -> level == h -> slevel );
+	assert( "nikita-1762", h -> level == h -> stop_level );
 
 	init_lh( &lh );
 	coord = h -> coord;
@@ -1319,7 +1052,7 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 	neighbor = NULL;
 	switch( h -> result ) {
 	case -EDEADLK:
-		result = LLR_REST;
+		result = LOOKUP_REST;
 		break;
 	case 0: {
 		node_plugin         *nplug;
@@ -1329,7 +1062,7 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 		neighbor = lh.node;
 		h -> result = zload( neighbor );
 		if( h -> result != 0 ) {
-			result = LLR_DONE;
+			result = LOOKUP_DONE;
 			break;
 		}
 
@@ -1348,7 +1081,7 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 			reiser4_stat_tree_add( cbk_found );
 			cbk_cache_add( node );
 	default: /* some other error */ 
-			result = LLR_DONE;
+			result = LOOKUP_DONE;
 		} else if( h -> result == NS_FOUND ) {
 			reiser4_stat_tree_add( left_nonuniq_found );
 			spin_lock_dk( current_tree );
@@ -1356,9 +1089,9 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 			leftmost_key_in_node( neighbor, &h -> ld_key );
 			spin_unlock_dk( current_tree );
 			h -> block = *znode_get_block( neighbor );
-			result = LLR_CONT;
+			result = LOOKUP_CONT;
 		} else {
-			result = LLR_DONE;
+			result = LOOKUP_DONE;
 		}
 		if( neighbor != NULL )
 			zrelse( neighbor );
@@ -1475,14 +1208,14 @@ static int sanity_check( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-384", h != NULL );
 
-	if( h -> level < h -> slevel ) {
+	if( h -> level < h -> stop_level ) {
 		h -> error = "Buried under leaves";
 		h -> result = CBK_IO_ERROR;
-		return LLR_DONE;
+		return LOOKUP_DONE;
 	} else if( !block_nr_is_correct( &h -> block, h -> tree ) ) {
 		h -> error = "bad block number";
 		h -> result = CBK_IO_ERROR;
-		return LLR_DONE;
+		return LOOKUP_DONE;
 	} else
 		return 0;
 }

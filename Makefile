@@ -21,6 +21,7 @@ reiser4-objs := \
 	   kassign.o \
 	   flush.o \
 	   wander.o \
+	   eottl.o \
 	   search.o \
 	   blocknrset.o \
 	   super.o \
