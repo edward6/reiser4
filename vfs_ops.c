@@ -99,11 +99,8 @@ static struct dentry_operations reiser4_dentry_operation;
 static int            create_object  ( struct inode *parent, 
 				       struct dentry *dentry, 
 				       reiser4_object_create_data *data );
-#if !REISER4_USER_LEVEL_SIMULATION
-static
-#endif
-struct dentry *lookup_object  ( struct inode *parent, 
-				struct dentry *dentry );
+static struct dentry *lookup_object  ( struct inode *parent, 
+				       struct dentry *dentry );
 
 
 static int readdir_actor( reiser4_tree *tree, 
@@ -148,10 +145,8 @@ static struct dentry *reiser4_lookup( struct inode *parent, /* directory within 
  * Called by reiser4_lookup(). Call plugin to perform real lookup. If
  * this fails try lookup_pseudo(). 
  */
-#if !REISER4_USER_LEVEL_SIMULATION
-static
-#endif
-struct dentry *lookup_object( struct inode *parent, struct dentry *dentry )
+static struct dentry *lookup_object( struct inode *parent, 
+				     struct dentry *dentry )
 {
 	dir_plugin          *dplug;
 	struct inode        *inode;
