@@ -173,11 +173,16 @@ static void *xxmalloc( size_t size )
 		spin_unlock( &mp_guard );
 		kcond_broadcast( &memory_pressed );
 
-		/* wait until it is done */
-		spin_lock( &mp_guard );
-		while( !is_mp_done )
-			kcond_wait( &memory_pressure_done, &mp_guard, 0 );
-		spin_unlock( &mp_guard );
+		if (/*BLOCKING_MEMORY_PRESSURE*/ 0) {
+			/* wait until it is done */
+			spin_lock( &mp_guard );
+			while( !is_mp_done )
+				kcond_wait( &memory_pressure_done, &mp_guard, 0 );
+			spin_unlock( &mp_guard );
+		} else {
+			/* Josh's hack: screw memory pressure, let's make progress! */
+			break;
+		}
 	}
 
 	addr = malloc( size );
@@ -4665,16 +4670,6 @@ static void *uswapd( void *untyped )
 			break;
 		rlog( "nikita-1939", "uswapd wakes up..." );
 
-/*
-		while (flushed < MEMORY_PRESSURE_HOWMANY) {
-			to_flush = MEMORY_PRESSURE_HOWMANY - flushed;
-			result = memory_pressure( super, & to_flush );
-			if( result != 0 )
-				warning( "nikita-1937", "flushing failed: %i", result );
-			flushed += to_flush;
-		}
-*/
-		
 		flushed = shrink_cache ();
 		trace_on (TRACE_PCACHE, "shrink_cache released %d pages\n",
 			  flushed);
@@ -4783,9 +4778,6 @@ static int shrink_cache (void)
 
 void declare_memory_pressure( void )
 {
-	/* FIXME: To disable ulevel memory pressure, return here.  Make it an
-	 * environment option? */
-	/*return;*/
 	spin_lock( &mp_guard );
 	is_mp = 1;
 	spin_unlock( &mp_guard );
