@@ -525,6 +525,7 @@ int inode_onwire_size(const struct inode *inode)
 
 	result  = dscale_bytes(get_inode_oid(inode));
 	result += dscale_bytes(get_inode_locality(inode));
+
 	/*
 	 * ordering is large (it usually has highest bits set), so it makes
 	 * little sense to dscale it.

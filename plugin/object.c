@@ -877,6 +877,7 @@ seek_dir(struct file *file, loff_t off, int origin)
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "dir_seek: %s: %lli -> %lli/%i\n",
 		 file->f_dentry->d_name.name, file->f_pos, off, origin);
 	down(&inode->i_sem);
+
 	/* update ->f_pos */
 	result = default_llseek(file, off, origin);
 	if (result >= 0) {
