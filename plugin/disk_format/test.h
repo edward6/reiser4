@@ -33,3 +33,4 @@ typedef struct {
 int                 test_layout_get_ready    (struct super_block *, void * data);
 const reiser4_key * test_layout_root_dir_key (const struct super_block *);
 void                test_layout_release      (struct super_block *);
+void                test_layout_print_info   (struct super_block *);

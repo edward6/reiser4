@@ -4,6 +4,7 @@
 
 #include "reiser4.h"
 
+
 /* initialization of disk layout plugins */
 reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ] = {
 	[ LAYOUT_40_ID ] = {
@@ -18,7 +19,8 @@ reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ] = {
 			},
 			.get_ready     = layout_40_get_ready,
 			.root_dir_key  = layout_40_root_dir_key,
-			.release       = NULL
+			.release       = NULL,
+			.print_info    = NULL
 		}
 	},
 	[ TEST_LAYOUT_ID ] = {
@@ -33,7 +35,8 @@ reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ] = {
 			},
 			.get_ready     = test_layout_get_ready,
 			.root_dir_key  = test_layout_root_dir_key,
-			.release       = test_layout_release
+			.release       = test_layout_release,
+			.print_info    = test_layout_print_info
 		}
 	}
 };
