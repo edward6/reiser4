@@ -281,6 +281,12 @@
 #define REISER4_DEBUG_SIBLING_LIST (0)
 #endif
 
+#if defined(CONFIG_TEST_CRC)
+#define TEST_CRC (1)
+#else
+#define TEST_CRC (0)
+#endif
+
 #if defined(CONFIG_CRYPTO_DEFLATE)
 #define REISER4_GZIP_TFM (1)
 #else

@@ -1574,7 +1574,6 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 struct inode * inode)
 {
 	int result = 0;
-#ifdef FLUSH_CLUSTER_PAGES_GANG
 	int i;
 	int nr_pages = 0;
 	int do_transform = 0;
@@ -1664,7 +1663,6 @@ struct inode * inode)
 		forget_cluster_pages(clust);
 		result = -E_REPEAT;
 	}
-#endif
 	return result;
 }
 
