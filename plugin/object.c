@@ -1006,11 +1006,15 @@ static void delete_inode_common(struct inode *object)
 
 	uncapture_inode(object);
 
-	if (!is_bad_inode(object))
+	if (!is_bad_inode(object)) {
 		drop_object_body(object);
+		assert("vs-1430", reiser4_inode_data(object)->jnodes == 0);
+	}
 
-	if (object->i_data.nrpages)
+	if (object->i_data.nrpages) {
+		warning("vs-1434", "nrpages %ld\n", object->i_data.nrpages);
 		truncate_inode_pages(&object->i_data, 0);
+	}
 
 	security_inode_delete(object);
 	if (!is_bad_inode(object))
