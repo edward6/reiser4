@@ -845,7 +845,6 @@ seek_dir(struct file *file, loff_t off, int origin)
 		 file->f_dentry->d_name.name, file->f_pos, off, origin);
 	down(&inode->i_sem);
 	result = default_llseek(file, off, origin);
-	up(&inode->i_sem);
 	if (result >= 0) {
 		int ff;
 		coord_t coord;
@@ -862,6 +861,7 @@ seek_dir(struct file *file, loff_t off, int origin)
 			result = (loff_t) ff;
 		tap_done(&tap);
 	}
+	up(&inode->i_sem);
 	return result;
 }
 
