@@ -840,7 +840,7 @@ atom_try_commit_locked (txn_atom *atom)
 {
 	int level;
 	int ret = 0;
-	jnode *scan;
+	jnode *first_dirty;		/* a variable for atom's dirty lists scanning */
 
 	assert ("umka-190", atom != NULL);	
 	assert ("jmacd-150", atom->txnh_count == 1);
@@ -854,7 +854,7 @@ atom_try_commit_locked (txn_atom *atom)
 
 	/* FIXME_NFQUCMPD: Read the comment at the end of jnode_flush() about only calling
 	 * jnode_flush() on the leaf level. */
-
+				/* comment the looping here ZAM-FIXME-HANS */
 	/* From the leaf level up, find dirty nodes in this transaction that need balancing/flushing. */
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
 
@@ -862,12 +862,12 @@ atom_try_commit_locked (txn_atom *atom)
 			continue;
 		}
 
-		scan = capture_list_front (& atom->dirty_nodes[level]);
+		first_dirty = capture_list_front (& atom->dirty_nodes[level]);
 
 		/* add an extra reference to jnode we begin flush from,
 		 * because concurrent flushing may flush it faster than we
 		 * and, probably, even throw it from memory */
-		jref (scan);
+		jref (first_dirty);
 
 		/* jnode_flush requires node locks, which require the atom
 		 * lock and so on.  We begin this processing with the atom in
@@ -875,8 +875,8 @@ atom_try_commit_locked (txn_atom *atom)
 		spin_unlock_atom (atom);
 
 		/* Call jnode_flush() without tree_lock held. */
-		ret = jnode_flush (scan, NULL, JNODE_FLUSH_COMMIT);
-		jput (scan);
+		ret = jnode_flush (first_dirty, NULL, JNODE_FLUSH_COMMIT);
+		jput (first_dirty);
 
 		if (ret != 0) {
 			warning ("nikita-2420", "jnode flush failed: %i", ret);
@@ -1099,14 +1099,14 @@ static void invalidate_clean_list (txn_atom * atom)
 {
 
 	while (! capture_list_empty (& atom->clean_nodes)) {
-		jnode * scan;
+		jnode * pos_in_atom;
 
-		scan = capture_list_front (& atom->clean_nodes);
+		pos_in_atom = capture_list_front (& atom->clean_nodes);
 		
-		assert ("jmacd-1063", scan != NULL);
-		assert ("jmacd-1061", scan->atom == atom);
+		assert ("jmacd-1063", pos_in_atom != NULL);
+		assert ("jmacd-1061", pos_in_atom->atom == atom);
 		
-		uncapture_block (atom, scan);
+		uncapture_block (atom, pos_in_atom);
 	}
 }
 
@@ -2564,7 +2564,7 @@ void txn_insert_into_clean_list (txn_atom * atom, jnode * node)
 void
 print_atom (const char *prefix, txn_atom *atom)
 {
-	jnode *scan;
+	jnode *pos_in_atom;
 	char list[32];
 	int level;
 	
@@ -2579,20 +2579,20 @@ print_atom (const char *prefix, txn_atom *atom)
 
 		sprintf (list, "capture level %d", level);
 
-		for (scan = capture_list_front (& atom->dirty_nodes[level]);
-		     /**/ ! capture_list_end   (& atom->dirty_nodes[level], scan);
-		     scan = capture_list_next  (scan)) {
+		for (pos_in_atom = capture_list_front (& atom->dirty_nodes[level]);
+		     /**/ ! capture_list_end   (& atom->dirty_nodes[level], pos_in_atom);
+		     pos_in_atom = capture_list_next  (pos_in_atom)) {
 
-			info_jnode (list, scan);
+			info_jnode (list, pos_in_atom);
 			info ("\n");
 		}
 	}
 
-	for (scan = capture_list_front (& atom->clean_nodes);
-	     /**/ ! capture_list_end   (& atom->clean_nodes, scan);
-	     scan = capture_list_next  (scan)) {
+	for (pos_in_atom = capture_list_front (& atom->clean_nodes);
+	     /**/ ! capture_list_end   (& atom->clean_nodes, pos_in_atom);
+	     pos_in_atom = capture_list_next  (pos_in_atom)) {
 		
-		info_jnode ("clean", scan);
+		info_jnode ("clean", pos_in_atom);
 		info ("\n");
 	}
 }
