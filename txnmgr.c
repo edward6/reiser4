@@ -270,7 +270,7 @@ ktxnmgrd_context kdaemon;
 
 /* Initialize static variables in this file. */
 int
-init_static(void)
+txnmgr_init_static(void)
 {
 	assert("jmacd-600", _atom_slab == NULL);
 	assert("jmacd-601", _txnh_slab == NULL);
@@ -308,7 +308,7 @@ error:
 
 /* Un-initialize static variables in this file. */
 int
-done_static(void)
+txnmgr_done_static(void)
 {
 	int ret1, ret2, ret3;
 
@@ -329,7 +329,7 @@ done_static(void)
 
 /* Initialize a new transaction manager.  Called when the super_block is initialized. */
 void
-mgr_init(txn_mgr * mgr)
+txnmgr_init(txn_mgr * mgr)
 {
 	assert("umka-169", mgr != NULL);
 
@@ -346,7 +346,7 @@ mgr_init(txn_mgr * mgr)
 
 /* Free transaction manager. */
 int
-mgr_done(txn_mgr * mgr UNUSED_ARG)
+txnmgr_done(txn_mgr * mgr UNUSED_ARG)
 {
 	assert("umka-170", mgr != NULL);
 
@@ -404,7 +404,7 @@ atom_init(txn_atom * atom)
 	blocknr_set_init(&atom->delete_set);
 	blocknr_set_init(&atom->wandered_map);
 
-	fq_init_atom(atom);
+	init_atom_fq_parts(atom);
 }
 
 #if REISER4_DEBUG
@@ -1060,7 +1060,7 @@ again:
  * called periodically from ktxnmgrd to commit old atoms.
  */
 int
-commit_some(txn_mgr * mgr)
+commit_one_atom(txn_mgr * mgr)
 {
 	int ret = 0;
 	txn_atom *atom;
@@ -1182,7 +1182,7 @@ flush_this_atom(txn_atom * atom, long *nr_submitted, int flags)
 
 /* Call jnode_flush for a node from one atom, count submitted nodes */
 int
-flush_one(txn_mgr * tmgr, long *nr_submitted, int flags)
+flush_one_atom(txn_mgr * tmgr, long *nr_submitted, int flags)
 {
 	txn_atom *atom;
 	reiser4_context *ctx = get_current_context();
@@ -1268,7 +1268,7 @@ flush_some_atom(long *nr_submitted, int flags)
 		ret = flush_this_atom (atom, nr_submitted, flags);
 	} else {
 		txn_mgr *tmgr = &get_super_private(ctx->super)->tmgr;
-		ret = flush_one(tmgr, nr_submitted, flags);
+		ret = flush_one_atom(tmgr, nr_submitted, flags);
 	}
 
 	return ret;
@@ -1959,7 +1959,7 @@ fail_unlock:
  * second call is guaranteed to provide a pre-allocated blocknr_entry so it can only
  * "repeat" once.  */
 void
-delete_page(struct page *pg)
+uncapture_page(struct page *pg)
 {
 	int ret;
 	jnode *node;
@@ -2720,7 +2720,7 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	large->nr_waiters += small->nr_waiters;
 
 	/* splice flush queues */
-	fq_fuse(large, small);
+	fuse_fq(large, small);
 
 	/* count flushers in result atom */
 	large->nr_flushers += small->nr_flushers;
@@ -2848,7 +2848,7 @@ uncapture_block(txn_atom * atom, jnode * node)
  * bitmap-based allocator code for adding modified bitmap blocks the
  * transaction. @atom and @node are spin locked */
 void
-insert_into_clean_list(txn_atom * atom, jnode * node)
+insert_into_atom_clean_list(txn_atom * atom, jnode * node)
 {
 	assert("zam-538", spin_atom_is_locked(atom));
 	assert("zam-539", spin_jnode_is_locked(node));

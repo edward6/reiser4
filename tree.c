@@ -872,7 +872,7 @@ forget_znode(lock_handle * handle)
 	/*
 	 * and remove node from transaction. FIXME-NIKITA Locking?
 	 */
-	delete_page(znode_page(node));
+	uncapture_page(znode_page(node));
 }
 
 /**

@@ -2014,7 +2014,7 @@ read_super_block:
 	/* init layout plugin */
 	info->df_plug = df_plug;
 
-	mgr_init(&info->tmgr);
+	txnmgr_init(&info->tmgr);
 
 	result = ktxnmgrd_attach(&kdaemon, &info->tmgr);
 	if (result) {
@@ -2106,7 +2106,7 @@ error3:
 	/* shutdown daemon */
 	ktxnmgrd_detach(&info->tmgr);
 error2:
-	mgr_done(&info->tmgr);
+	txnmgr_done(&info->tmgr);
 error1:
 	kfree(info);
 	s->s_fs_info = NULL;
@@ -2334,7 +2334,7 @@ try_to_lock:
 					goto try_to_lock;
 				}
 			} else {
-				delete_page(page);
+				uncapture_page(page);
 
 				UNDER_SPIN_VOID(jnode, node,
 						page_clear_jnode(page, node));
@@ -2494,7 +2494,7 @@ done_reiser4(void)
 	DONE_IF(INIT_JNODES, jnode_done_static());
 	DONE_IF(INIT_FAKES,;
 	    );
-	DONE_IF(INIT_TXN, done_static());
+	DONE_IF(INIT_TXN, txnmgr_done_static());
 	DONE_IF(INIT_PLUGINS,;
 	    );
 	DONE_IF(INIT_ZNODES, znodes_done());
@@ -2553,7 +2553,7 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(init_context_mgr());
 	CHECK_INIT_RESULT(znodes_init());
 	CHECK_INIT_RESULT(init_plugins());
-	CHECK_INIT_RESULT(init_static());
+	CHECK_INIT_RESULT(txnmgr_init_static());
 	CHECK_INIT_RESULT(init_fakes());
 	CHECK_INIT_RESULT(jnode_init_static());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));

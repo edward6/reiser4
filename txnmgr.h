@@ -334,11 +334,11 @@ TS_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
 /* These are the externally (within Reiser4) visible transaction functions, therefore they
  * are prefixed with "txn_".  For comments, see txnmgr.c. */
 
-extern int init_static(void);
-extern void mgr_init(txn_mgr * mgr);
+extern int txnmgr_init_static(void);
+extern void txnmgr_init(txn_mgr * mgr);
 
-extern int done_static(void);
-extern int mgr_done(txn_mgr * mgr);
+extern int txnmgr_done_static(void);
+extern int txnmgr_done(txn_mgr * mgr);
 
 extern int txn_reserve(int reserved);
 
@@ -347,8 +347,8 @@ extern int txn_end(reiser4_context * context);
 
 extern int mgr_force_commit_all(struct super_block *super);
 
-extern int commit_some(txn_mgr *);
-extern int flush_one(txn_mgr *, long *, int);
+extern int commit_one_atom(txn_mgr *);
+extern int flush_one_atom(txn_mgr *, long *, int);
 extern int flush_some_atom(long *, int);
 
 extern int same_atom_dirty(jnode * base,
@@ -362,7 +362,7 @@ extern int try_capture_page(struct page *pg,
 extern int attach_txnh_to_node(txn_handle * txnh, jnode * node,
 			       txn_flags flags);
 
-extern void delete_page(struct page *pg);
+extern void uncapture_page(struct page *pg);
 
 extern txn_atom *atom_get_locked_with_txnh_locked_nocheck(txn_handle * txnh);
 extern txn_atom *get_current_atom_locked_nocheck(void);
@@ -396,7 +396,7 @@ extern txn_atom *atom_get_locked_by_jnode(jnode *);
 extern txn_atom *atom_wait_event(txn_handle *);
 extern void atom_send_event(txn_atom *);
 
-extern void insert_into_clean_list(txn_atom * atom, jnode * node);
+extern void insert_into_atom_clean_list(txn_atom * atom, jnode * node);
 extern int capture_super_block(struct super_block *s);
 
 extern int jnodes_of_one_atom(jnode *, jnode *);
@@ -515,7 +515,7 @@ struct flush_queue {
 	capture_list_head prepped;
 	/* 
 	 * list of already submitted to disk nodes (more precisely, sent or just about to be sent, see
-	 * fq_prepare_node_for_write() details */
+	 * prepare_node_for_write() details */
 	capture_list_head sent;
 	/*
 	 * total number of queued nodes */
@@ -539,19 +539,19 @@ struct flush_queue {
 	flush_queue_t *next_to_write;
 };
 
-extern int fq_get(txn_atom *, flush_queue_t **);
+extern int fq_by_atom(txn_atom *, flush_queue_t **);
 extern void fq_put(flush_queue_t *);
-extern void fq_fuse(txn_atom * to, txn_atom * from);
-extern void fq_queue_node(flush_queue_t *, jnode *);
-extern int fq_write(flush_queue_t *, int);
-extern int fq_scan_and_write(flush_queue_t *, int);
+extern void fuse_fq(txn_atom * to, txn_atom * from);
+extern void queue_jnode(flush_queue_t *, jnode *);
+extern int write_fq(flush_queue_t *, int);
+extern int scan_and_write_fq(flush_queue_t *, int);
 extern int finish_all_fq(txn_atom *, int *);
 extern int current_atom_finish_all_fq(void);
-extern void fq_init_atom(txn_atom *);
-extern int fq_writeback(struct super_block *, jnode *,
+extern void init_atom_fq_parts(txn_atom *);
+extern int writeback_queued_jnodes(struct super_block *, jnode *,
 			struct writeback_control *);
 
-extern void fq_add_bio(flush_queue_t *, struct bio *);
+extern void add_fq_to_bio(flush_queue_t *, struct bio *);
 extern flush_queue_t *get_fq_for_current_atom(void);
 
 /* Debugging */

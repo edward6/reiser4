@@ -1089,7 +1089,7 @@ cond_add_to_clean_list(txn_atom * atom, jnode * node)
 
 	if (node->atom == NULL) {
 		jnode_set_wander(node);
-		insert_into_clean_list(atom, node);
+		insert_into_atom_clean_list(atom, node);
 	} else {
 		assert("zam-549", node->atom == atom);
 	}

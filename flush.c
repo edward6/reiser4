@@ -779,7 +779,7 @@ jnode_flush(jnode * node, long *nr_to_flush, int flags)
 		if (atom == NULL)
 			goto clean_out;
 
-		ret = fq_get(atom, &fq);
+		ret = fq_by_atom(atom, &fq);
 
 		if (ret) {
 			if (ret == -EAGAIN)
@@ -861,7 +861,7 @@ jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 		} else {
 			/* put it back into flush queue */
-			fq_queue_node(fq, node);
+			queue_jnode(fq, node);
 		}
 		if (nr_to_flush != NULL) {
 			(*nr_to_flush) = 1;
@@ -1040,7 +1040,7 @@ jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 	/* Write anything left in the queue, if specified by flags */
 	if (flags & JNODE_FLUSH_WRITE_BLOCKS) {
-		ret = fq_scan_and_write(fq, 0);
+		ret = scan_and_write_fq(fq, 0);
 	} else {
 		ret = 0;
 	}
@@ -2698,7 +2698,7 @@ flush_allocate_znode(znode * node, coord_t * parent_coord, flush_position * pos)
 		atom = atom_get_locked_by_jnode(ZJNODE(node));
 
 		if (atom) {
-			fq_queue_node(pos->fq, ZJNODE(node));
+			queue_jnode(pos->fq, ZJNODE(node));
 			spin_unlock_atom(atom);
 		}
 
@@ -2798,7 +2798,7 @@ flush_enqueue_unformatted(jnode * node, flush_position * pos)
 
 	if (atom) {
 		if (JF_ISSET(node, JNODE_DIRTY))
-			fq_queue_node(pos->fq, node);
+			queue_jnode(pos->fq, node);
 
 		spin_unlock_atom(atom);
 	}

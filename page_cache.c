@@ -620,7 +620,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	 * there are no prepared nodes, we say VM that we can write nothing to disk.*/
 	flush_some = !JF_ISSET(node, JNODE_FLUSH_QUEUED);
 
-	fq_writeback(s, node, wbc);
+	writeback_queued_jnodes(s, node, wbc);
 
 	if (flush_some) {
 		ktxnmgr_writeback(s, wbc);

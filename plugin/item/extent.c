@@ -1675,7 +1675,7 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 	result = extent_get_block(page->mapping->host, coord, lh, j);
 	reiser4_lock_page(page);
 	if (result) {
-		delete_page(page);
+		uncapture_page(page);
 
 		trace_on(TRACE_EXTENTS, "extent_writepage failed: %d\n",
 			 result);

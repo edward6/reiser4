@@ -680,7 +680,7 @@ submit_write(jnode * first, int nr,
 
 		/*
 		 * FIXME:NIKITA->ZAM this is very similar to the
-		 * fq_submit_write().
+		 * submit_write().
 		 */
 
 		bio->bi_sector = block * (super->s_blocksize >> 9);
@@ -727,7 +727,7 @@ submit_write(jnode * first, int nr,
 			cur = capture_list_next(cur);
 		}
 
-		fq_add_bio(fq, bio);
+		add_fq_to_bio(fq, bio);
 
 		submit_bio(WRITE, bio);
 
