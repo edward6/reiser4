@@ -405,8 +405,6 @@ static void wander_end_io (struct bio * bio)
 		if (! test_bit (BIO_UPTODATE, & bio->bi_flags)) {
 			SetPageError (pg);
 			if (io_hdl) atomic_inc(&io_hdl->nr_errors); 
-		} else {
-			SetPageUptodate(pg);
 		}
 
 		end_page_writeback (pg);
@@ -511,7 +509,6 @@ static int submit_write (jnode * first, int nr,
 			assert ("zam-605", !PageWriteback(pg));
 
 			SetPageWriteback (pg);
-			ClearPageUptodate(pg);
 			ClearPageDirty   (pg);
 
 			unlock_page (pg);
