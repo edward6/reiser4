@@ -697,7 +697,8 @@ readpage_cryptcompress(void *vp, struct page *page)
 	assert("edward-89", page->mapping && page->mapping->host);
 	
 	file = vp;
-	assert("edward-113", page->mapping == file->f_dentry->d_inode->i_mapping);
+	if (file)
+		assert("edward-113", page->mapping == file->f_dentry->d_inode->i_mapping);
 	
 	if (PageUptodate(page)) {
 		printk("readpage_cryptcompress: page became already uptodate\n");
@@ -1257,7 +1258,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	int i;
 	flow_t f;
 	int result = 0;
-	size_t to_write;
+	size_t to_write = 0;
 	loff_t file_off;
 	reiser4_cluster_t clust;
 	struct page ** pages;
@@ -1392,6 +1393,7 @@ write_file(struct file * file, /* file to write to */
 	return written;
 }
 
+/* plugin->u.file.write */
 ssize_t
 write_cryptcompress(struct file * file, /* file to write to */
 		    const char *buf, /* address of user-space buffer */
@@ -1474,7 +1476,7 @@ cryptcompress_append_hole(struct inode * inode, loff_t new_size)
 static int
 shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 {
-	return 0;
+	return 0;	
 }
 
 /* This is called in setattr_cryptcompress when it is used to truncate,
