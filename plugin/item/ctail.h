@@ -56,6 +56,8 @@ crypto_stat_t * inode_crypto_stat(struct inode *);
 unsigned long pg_to_clust(unsigned long, struct inode *);
 loff_t clust_to_off(unsigned long, struct inode *);
 unsigned long off_to_pg(loff_t);
+unsigned off_to_pgoff(loff_t);
+unsigned pg_to_off_to_cloff(unsigned long, struct inode *);
 
 void reiser4_cluster_init(reiser4_cluster_t *);
 void put_cluster_data(reiser4_cluster_t *, struct inode *);
