@@ -46,9 +46,12 @@ error:
 #ifndef ENABLE_COMPACT
 
 /*
-    Tree in its creation time should just create root node (squeeze).
-    That is all. The leaf node, root directory lies in must create 
-    directory plugin by tree API (inserting items).
+    Tree in its creation time should create root node (squeeze) and leaf.
+    Then dir object plugin should create directory, what leads to item 
+    insertion.
+    
+    FIXME-VITALY: as dir object plugin does not exist for know this contains
+    all item creation. To be changed when ready.
 */
 error_t reiserfs_tree_create(reiserfs_fs_t *fs, 
     reiserfs_profile_t *profile) 
@@ -64,8 +67,8 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     reiserfs_direntry_info_t direntry_info;
 
     /* 
-	FIXME-VITALY: Directory object plugin should define what will be created in 
-	the empty directory. Move it there when ready. 
+	FIXME-VITALY: Directory object plugin should define what will be 
+	created in the empty directory. Move it there when ready. 
     */
     reiserfs_entry_info_t entry[2] = {
 	[0] = {
@@ -137,7 +140,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	Insert an internal item. Item will be created automatically from 
 	the node insert API method. 
     */
-    if (reiserfs_node_item_insert(squeeze, &coord, &key, &item_info)) {
+    if (reiserfs_node_insert(squeeze, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_block_get_nr(squeeze->block));
@@ -158,34 +161,27 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     stat_info.extmask = 0;
     stat_info.nlink = 2;
     stat_info.size = 0;
-   
+    
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &stat_info;
     
-    if (!(item_info.plugin = libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, 
-	profile->item.statdata))) 
+    if (!(item_info.plugin = libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN,
+	profile->item.statdata)))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find stat data item plugin by its id %x.", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find stat data item plugin by its id %x.",
 	    profile->item.statdata);
 	goto error_free_leaf;
     }
-
+    
     /* Insert the stat data. */
-    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
+    if (reiserfs_node_insert(leaf, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_block_get_nr(leaf->block));
 	goto error_free_leaf;
     }
    
-    /* 
-	Initializing direntry.
-	
-	FIXME-UMKA: This should be in directory object plugin. It should 
-	decide what is configuration of empty dir. It's possible that in the
-	future will be empty directories with more than two entries.
-    */
     direntry_info.count = 2;
     direntry_info.entry = entry;
 
@@ -215,7 +211,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	Insert an internal item. Item will be created automatically from 
 	the node insert API method.
     */
-    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
+    if (reiserfs_node_insert(leaf, &coord, &key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert direntry item into the node %llu.", 
 	    aal_block_get_nr(leaf->block));

@@ -189,7 +189,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .check = NULL,
 
 	    .unit_add = NULL,
-	    .units_count = NULL,
+	    .unit_count = NULL,
 	    .unit_remove = NULL
 	},
 	.specific = {

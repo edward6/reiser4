@@ -96,7 +96,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	    .confirm = NULL,
 	    .check = NULL,
 	    .unit_add = NULL,
-	    .units_count = NULL,
+	    .unit_count = NULL,
 	    .unit_remove = NULL
 	},
 	.specific = {
