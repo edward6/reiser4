@@ -24,7 +24,12 @@ struct reiser4_super_info_data {
 	 * just counter and
 	 * used by reiser 4.0 default oid manager
 	 */
-	reiser4_oid_allocator allocator;
+	oid_allocator_plugin   * oid_plug;
+	reiser4_oid_allocator    oid_allocator;
+
+	/* space manager plugin */
+	space_allocator_plugin * space_plug;
+	reiser4_space_allocator  space_allocator;
 
 	/**
 	 * reiser4 internal tree
@@ -44,21 +49,26 @@ struct reiser4_super_info_data {
 	gid_t              default_gid;
 
 	/**
+	 * amount of blocks in a file system
+	 */
+	__u64    block_count2;
+
+	/**
 	 * amount of blocks used by file system data and meta-data.
 	 */
-	__u64    blocks_used;
+	__u64    blocks_used2;
 
 	/**
 	 * amount of free blocks. This is "working" free blocks counter. It is
 	 * like "working" bitmap, please see block_alloc.c for description.
 	 */
-	__u64    blocks_free;
+	__u64    blocks_free2;
 
 	/**
 	 * free block count for fs committed state. This is "commit" version
 	 * of free block counter.
 	 */
-	__u64    blocks_free_committed;
+	__u64    blocks_free_committed2;
 
 	/**
 	 * current inode generation.
@@ -105,26 +115,20 @@ struct reiser4_super_info_data {
 	/** fake inode used to bind formatted nodes */
 	struct inode        *fake;
 
-	/** an array for bitmap blocks direct access */
-	struct reiser4_bnode * bitmap;
-
 #if REISER4_DEBUG
 	/**
 	 * amount of space allocated by kmalloc. For debugging.
 	 */
 	int                  kmalloc_allocated;
 #endif
-	/* oid manager plugin */
-	oid_mgr_plugin * oplug;
-
-	/* space manager plugin */
-	space_mgr_plugin * splug;
 
 	/* disk layout plugin */
 	layout_plugin * lplug;
-	/* disk layout specific part of reiser4 super info data */
-	void * layout_private;
 
+	/* disk layout specific part of reiser4 super info data */
+	union {
+		layout_40_super_info layout_40;
+	} u;
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck( const struct super_block *super );
@@ -137,10 +141,24 @@ extern const __u32 REISER4_SUPER_MAGIC;
 
 extern long statfs_type( const struct super_block *super );
 extern int  reiser4_blksize( const struct super_block *super );
-extern long reiser4_data_blocks( const struct super_block *super );
-extern long reiser4_free_blocks( const struct super_block *super );
+__u64 reiser4_block_count( const struct super_block *super );
+void reiser4_set_block_count( const struct super_block *super, __u64 nr );
+__u64 reiser4_data_blocks( const struct super_block *super );
+void reiser4_set_data_blocks( const struct super_block *super, __u64 nr );
+__u64 reiser4_free_blocks( const struct super_block *super );
+void reiser4_set_free_blocks( const struct super_block *super, __u64 nr );
+void reiser4_inc_free_blocks( const struct super_block *super );
+
+__u64 reiser4_free_committed_blocks( const struct super_block *super );
+void reiser4_set_free_committed_blocks( const struct super_block *super,
+					__u64 nr );
+void reiser4_inc_free_committed_blocks( const struct super_block *super );
+void reiser4_dec_free_committed_blocks( const struct super_block *super );
+
 extern long reiser4_reserved_blocks( const struct super_block *super, 
 				     uid_t uid, gid_t gid );
+extern reiser4_space_allocator *get_space_allocator(
+	const struct super_block *super );
 extern reiser4_oid_allocator *get_oid_allocator( const struct super_block *super );
 extern struct inode *get_super_fake( const struct super_block *super );
 extern reiser4_tree *get_tree( const struct super_block *super );
