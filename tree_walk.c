@@ -302,14 +302,18 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 	assert("umka-247", child != NULL);
 	assert("umka-303", tree != NULL);
 
-	ret = UNDER_RW(tree, tree, write, far_next_coord(coord, handle, flags));
+	write_lock_tree(tree);
+	ret = far_next_coord(coord, handle, flags);
 
 	if (ret) {
-		if (ret != -ENOENT)
+		if (ret != -ENOENT) {
+			write_unlock_tree(tree);
 			return ret;
+		}
 	} else {
 		item_plugin *iplug;
 
+		write_unlock_tree(tree);
 		if (handle->owner != NULL) {
 			(*nr_locked)++;
 			side_parent = handle->node;
