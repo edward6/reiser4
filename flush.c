@@ -1860,8 +1860,6 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 	if (ret)
 		goto out;
 
-	coord_init_first_unit(&at_right, right_lock.node);
-
 	if (znode_check_dirty(right_lock.node)) {
 		ret = full_squeeze_right_twig(pos, right_lock.node);
 		if (ret <=0) {
@@ -1874,7 +1872,20 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 		/* repeat if right twig was squeezed completely */
 		if (node_is_empty(right_lock.node))
 			goto out;
+
+		/* Prep the right dirty twig if it is not yet prepped */
+		if (!znode_check_flushprepped(right_lock.node)) {
+			ret = squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
+			if (ret)
+				goto out;
+
+			ret = lock_parent_and_allocate_znode(right_lock.node, pos);
+			if (ret)
+				goto out;
+		}
 	} else {
+		coord_init_first_unit(&at_right, right_lock.node);
+
 		/* check first child of next twig, should we continue there ? */
 		ret = leftmost_child_of_unit_check_flushprepped(&at_right);
 		if (ret < 0)
@@ -1892,7 +1903,7 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 			goto became_dirty;
 #endif
 	}
-
+	coord_init_first_unit(&at_right, right_lock.node);
 	assert("zam-868", coord_is_existing_unit(&at_right));
 
 	if (item_is_extent(&at_right))
