@@ -103,7 +103,6 @@ typedef struct convert_item_info {
 
 typedef struct convert_info {
 	int                    count; /* for squalloc terminating */
-	coa_set                coa;   /* specific info of compression algorithms */
 	reiser4_cluster_t      clust;   /* transform cluster */
 	item_plugin *          iplug; /* current item plugin */
 	convert_item_info_t *  itm;   /* current item info */
