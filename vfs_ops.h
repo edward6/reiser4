@@ -10,6 +10,7 @@
 #include "seal.h"
 #include "tslist.h"
 #include "plugin/dir/dir.h"
+#include "plugin/file/file.h"
 
 #include <linux/types.h>	/* for loff_t */
 #include <linux/fs.h>		/* for struct address_space */
@@ -85,10 +86,9 @@ typedef struct reiser4_file_fsdata {
 		readdir_list_link linkage;
 	} dir;
 	struct {
-		struct sealed_coord hint;
-		/* this is set by extent_read before calling page_cache_readahead so that reiser4_readpages could use
-		   it */
-		coord_t *coord;
+		hint_t hint;
+		/* this is set by read_extent before calling page_cache_readahead */
+		void *coord;
 	} reg;
 /* NIKITA-FIXME-HANS: reg means what? */
 } reiser4_file_fsdata;
