@@ -2955,23 +2955,34 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 
 	switch (state_of_extent(ext)) {
 	case HOLE_EXTENT:
-		{
-			char *kaddr = kmap_atomic(page, KM_USER0);
-
-			xmemset(kaddr, 0, PAGE_CACHE_SIZE);
-			flush_dcache_page(page);
-			kunmap_atomic(kaddr, KM_USER0);
-			SetPageUptodate(page);
-			reiser4_unlock_page(page);
-			ON_TRACE(TRACE_EXTENTS, "hole, OK\n");
-
-			return 0;
-		}
+	{
+		char *kaddr = kmap_atomic(page, KM_USER0);
+		
+		xmemset(kaddr, 0, PAGE_CACHE_SIZE);
+		flush_dcache_page(page);
+		kunmap_atomic(kaddr, KM_USER0);
+		SetPageUptodate(page);
+		reiser4_unlock_page(page);
+		ON_TRACE(TRACE_EXTENTS, "hole, OK\n");
+		
+		return 0;
+	}
 
 	case ALLOCATED_EXTENT:
+	{
+		reiser4_block_nr blocknr;
+
 		j = jnode_of_page(page);
 		if (IS_ERR(j))
 			return PTR_ERR(j);
+		if (!jnode_mapped(j)) {
+			jnode_set_mapped(j);
+			blocknr = extent_get_start(ext) + pos;
+			jnode_set_block(j, &blocknr);
+		} else
+			assert("vs-1403", j->blocknr == extent_get_start(ext) + pos);
+		break;
+	}
 		
 #if 0
 		if (!PagePrivate(page)) {
@@ -3003,8 +3014,6 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 			ON_TRACE(TRACE_EXTENTS, "allocated, page was private, read issued\n");
 		}
 #endif
-
-		break;
 
 	case UNALLOCATED_EXTENT:
 		j = jlook_lock(current_tree, get_inode_oid(page->mapping->host),
