@@ -192,6 +192,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan right_scan;
 	flush_scan left_scan;
 
+	trace_on (TRACE_FLUSH, "flush enter: %u\n", current_pid);
 	if (FLUSH_SERIALIZE) {
 		atomic_inc (& flush_cnt);
 		if (atomic_read (& flush_cnt) > 1) {
