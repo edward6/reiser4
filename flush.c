@@ -69,7 +69,7 @@ struct flush_position {
 						*
 						* - Nodes may be deleted that never get enqueued
 						* - The final, rightmost set of ancestors are never enqueued */
-	jnode               **queue;           /* The flush queue holds allocated but not-yet-submitted jnodes
+	capture_list_head     queue;           /* The flush queue holds allocated but not-yet-submitted jnodes
 						* until it reaches capacity at which point flush_empty_queue() is called. */
  	int                   queue_num;       /* The current number of queue entries. */
 
@@ -1641,21 +1641,58 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 
 	JF_SET (node, ZNODE_FLUSH_QUEUED);
 
-	assert ("jmacd-4279", pos->queue_num < FLUSH_QUEUE_SIZE);
+	// assert ("jmacd-4279", pos->queue_num < FLUSH_QUEUE_SIZE);
 	assert ("jmacd-1771", jnode_is_allocated (node));
 
-	pos->queue[pos->queue_num++] = jref (node);
+	// pos->queue[pos->queue_num++] = jref (node);
+	{
+		txn_atom * atom;
+
+		pos->queue_num++;
+
+		atom = atom_get_locked_by_jnode (node);
+
+		capture_list_remove (node);
+		capture_list_push_back(&pos->queue, jref (node));
+
+		spin_unlock_atom (atom);
+	}
 
 	/*trace_if (TRACE_FLUSH, if (jnode_is_unformatted (node)) { info ("queue: %s\n", flush_jnode_tostring (node)); });*/
 
 	spin_unlock_jnode (node);
 
-	if (pos->queue_num == FLUSH_QUEUE_SIZE) {
-		return flush_empty_queue (pos, 0);
-	}
+	// if (pos->queue_num == FLUSH_QUEUE_SIZE) {
+	//	return flush_empty_queue (pos, 0);
+	// }
 
 	return 0;
 }
+
+/* take jnode from flush queue and put it on clean_nodes list */
+static void flush_dequeue_jnode (flush_position * pos, jnode * node) 
+{
+	txn_atom * atom;
+
+	spin_lock_jnode (node);
+	atom = atom_get_locked_by_jnode (node);
+
+	assert ("zam-645", JF_ISSET (node, ZNODE_FLUSH_QUEUED));
+
+	JF_CLR (node, ZNODE_FLUSH_QUEUED);
+	JF_CLR (node, ZNODE_DIRTY);
+
+	capture_list_remove (node);
+	capture_list_push_back (&atom->clean_nodes, node);
+
+	pos->queue_num --;
+
+	spin_unlock_atom (atom);
+	spin_unlock_jnode (node);
+
+	jput (node);
+}
+
 
 /* This enqueues the node into the developing "struct bio" queue. */
 static int flush_release_znode (znode *node)
@@ -1717,9 +1754,10 @@ static void flush_bio_write (struct bio *bio)
  */
 static int flush_empty_queue (flush_position *pos, int finish)
 {
-	int i;
 	int refill = 0;
 	int ret = 0;
+
+	jnode * node;
 
 	trace_on (TRACE_FLUSH, "flush_empty_queue with %u queued; finish? %u\n", pos->queue_num, finish);
 
@@ -1727,21 +1765,19 @@ static int flush_empty_queue (flush_position *pos, int finish)
 		return 0;
 	}
 
-	for (i = 0; ret == 0 && i < pos->queue_num; ) {
-
-		jnode *check;
+	node = capture_list_front (&pos->queue);
+	while (!capture_list_end (&pos->queue, node)) {
+		jnode * check = node;
 		struct page *cpage;
-
-		check = pos->queue[i];
 
 		assert ("jmacd-71235", check != NULL);
 		assert ("jmacd-71236", JF_ISSET (check, ZNODE_FLUSH_QUEUED));
 
+		node = capture_list_next (node);
+
 		/* FIXME: See the comment in flush_rewrite_jnode. */
 		if (! jnode_check_dirty (check) || JF_ISSET (check, ZNODE_HEARD_BANSHEE)) {
-			JF_CLR (check, ZNODE_FLUSH_QUEUED);
-			jput (check);
-			pos->queue[i++] = NULL;
+			flush_dequeue_jnode (pos, check);
 			trace_on (TRACE_FLUSH, "flush_empty_queue not dirty %s\n", flush_jnode_tostring (check));
 			continue;
 		}
@@ -1752,16 +1788,18 @@ static int flush_empty_queue (flush_position *pos, int finish)
 		if (JF_ISSET (check, ZNODE_FLUSH_BUSY)) {
 
 			if (finish == 0) {
+				txn_atom * atom;
 
-				if (i != refill) {
-					assert ("jmacd-71237", pos->queue[refill] == NULL);
-					pos->queue[refill] = check;
-					pos->queue[i] = NULL;
-				}
+				spin_lock_jnode (check);
+				atom = atom_get_locked_by_jnode (node);
 
-				refill += 1;
-				i += 1;
-				trace_on (TRACE_FLUSH, "flush_empty_queue refiles busy %s\n", flush_jnode_tostring (check));
+				capture_list_remove (node);
+				capture_list_push_front (&pos->queue, node);
+
+				spin_unlock_atom(atom);
+				spin_unlock_jnode (check);
+
+				trace_on (TRACE_FLUSH, "flush_empty_queue refills busy %s\n", flush_jnode_tostring (check));
 				continue;
 			}
 
@@ -1773,14 +1811,15 @@ static int flush_empty_queue (flush_position *pos, int finish)
 		 * implemented and debugged.
 		 */
 		if (WRITE_LOG && JF_ISSET (check, ZNODE_WANDER)) {
-			/* It will be written later. */
-
 			/* Log-writer expects these to be on the clean list.  They cannot
 			 * leave memory and will remain captured. */
-			jnode_set_clean (check);
-			JF_CLR (check, ZNODE_FLUSH_QUEUED);
-			jput (check);
-			pos->queue[i++] = NULL;
+			flush_dequeue_jnode (pos, check);
+
+			// jnode_set_clean (check);
+			// JF_CLR (check, ZNODE_FLUSH_QUEUED);
+			// jput (check);
+			// pos->num_queue --;
+
 			trace_on (TRACE_FLUSH, "flush_empty_queue skips wandered %s\n", flush_jnode_tostring (check));
 			continue;
 
@@ -1794,10 +1833,14 @@ static int flush_empty_queue (flush_position *pos, int finish)
 		if (PageWriteback (cpage)) {
 			/* FIXME: It is being written, presumably it is clean already?  In
 			 * any case, deal with it later. */
+			/* FIXME-ZAM: This situation seems impossible with new
+			 * flush queue implementation */
 			unlock_page (cpage);
-			JF_CLR (check, ZNODE_FLUSH_QUEUED);
-			jput (check);
-			pos->queue[i++] = NULL;
+			// JF_CLR (check, ZNODE_FLUSH_QUEUED);
+			// jput (check);
+			// pos->queue[i++] = NULL;
+
+			flush_dequeue_jnode (pos, check);
 			warning ("jmacd-74232", "flush_empty_queue: page in writeback already: %s", flush_jnode_tostring (check));
 			continue;
 
@@ -1806,7 +1849,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			/* Find consecutive nodes. */
 			struct bio *bio;
 			jnode *prev = check;
-			int j, c, nr;
+			int nr, i;
 			struct super_block *super;
 			int blksz;
 			int max_j;
@@ -1822,7 +1865,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 #endif
 
 			/* Set j to the first non-consecutive, non-wandered block (or end-of-queue) */
-			for (j = i + 1; j < max_j; j += 1) {
+			/* for (j = i + 1; j < max_j; j += 1) {
 				jnode *next;
 				struct page *npage;
 				next = pos->queue[j];
@@ -1836,9 +1879,32 @@ static int flush_empty_queue (flush_position *pos, int finish)
 					break;
 				}
 				prev = next;
+			} */
+
+			nr = 1;
+
+			while (1) {
+				struct page *npage;
+
+				if (capture_list_end(&pos->queue, node) || nr > max_j) 
+					break;
+
+				npage = jnode_page (node);
+				lock_page (npage);
+
+				if ((WRITE_LOG && JF_ISSET (node, ZNODE_WANDER)) ||
+				    JF_ISSET (node, ZNODE_FLUSH_BUSY) ||
+				    (*jnode_get_block (node) != *jnode_get_block (check) + 1) ||
+				    PageWriteback (npage)) {
+					unlock_page (npage);
+					break;
+				}
+				
+				nr ++;
+				node = capture_list_next (node);
 			}
 
-			nr = j - i;
+			// nr = j - i;
 
 			/* FIXME: What GFP flag? */
 			if ((bio = bio_alloc (GFP_NOIO, nr)) == NULL) {
@@ -1853,26 +1919,19 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 			bio->bi_sector = *jnode_get_block (check) * (blksz >> 9);
 			bio->bi_bdev   = super->s_bdev;
-			bio->bi_vcnt   = nr;
-			bio->bi_size   = blksz * nr;
 			bio->bi_end_io = flush_bio_write;
 
 			trace_on (TRACE_FLUSH_VERB, "flush_empty_queue writes");
 
-			for (c = 0, j = i; c < nr; c += 1, j += 1) {
-
-				jnode       *node = pos->queue[j];
+			for (node = check, i = 0; i < nr; i++) { 
 				struct page *pg   = jnode_page (node);
+				jnode * tmp = node;
 
-				pos->queue[j] = NULL;
+				node = capture_list_next (node);
 
-				JF_CLR (node, ZNODE_FLUSH_QUEUED);
-
-				trace_on (TRACE_FLUSH_VERB, " %s", flush_jnode_tostring (node));
+				trace_on (TRACE_FLUSH_VERB, " %s", flush_jnode_tostring (tmp));
 
 				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
-
-				jnode_set_clean (node);
 
 				/* FIXME: Use TestClearPageDirty? */
 				
@@ -1882,9 +1941,9 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				SetPageWriteback (pg);
 				unlock_page (pg);
 
-				bio->bi_io_vec[c].bv_page   = pg;
-				bio->bi_io_vec[c].bv_len    = blksz;
-				bio->bi_io_vec[c].bv_offset = 0;
+				bio->bi_io_vec[i].bv_page   = pg;
+				bio->bi_io_vec[i].bv_len    = blksz;
+				bio->bi_io_vec[i].bv_offset = 0;
 				/*
 				* FIXME-VS: page can be not dirty: do_writepages clears dirty bit
 				*/
@@ -1892,10 +1951,12 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 				/* The page cannot be purged while it is in writeback,
 				 * release last reference. */
-				jput (node);
+				flush_dequeue_jnode(pos, tmp);
 			}
 
-			i = j;
+			bio->bi_vcnt = nr;
+			bio->bi_size   = blksz * nr;
+
 			pos->enqueue_cnt += nr;
 
 			trace_on (TRACE_FLUSH_VERB, "\n");
@@ -1910,7 +1971,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 	blk_run_queues ();
 	trace_if (TRACE_FLUSH, if (ret == 0) { info ("flush_empty_queue wrote %u leaving %u queued\n", pos->queue_num - refill, refill); });
-	pos->queue_num = refill;
+//	pos->queue_num = refill;
 
 	return ret;
 }
@@ -2646,11 +2707,8 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 /* Initialize the fields of a flush_position. */
 static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 {
-	if ((pos->queue = reiser4_kmalloc (FLUSH_QUEUE_SIZE * sizeof (jnode*), GFP_NOFS)) == NULL) {
-		return -ENOMEM;
-	}
-	memset (pos->queue, 0, FLUSH_QUEUE_SIZE * sizeof (jnode*));
-
+	capture_list_init (&pos->queue);
+	
 	pos->queue_num = 0;
 	pos->point = NULL;
 	pos->leaf_relocate = 0;
@@ -2683,17 +2741,25 @@ static void flush_pos_done (flush_position *pos)
 {
 	flush_pos_stop (pos);
 	blocknr_hint_done (& pos->preceder);
-	if (pos->queue != NULL) {
-		int i;
-		for (i = 0; i < pos->queue_num; i += 1) {
-			if (pos->queue[i] != NULL) {
-				JF_CLR (pos->queue[i], ZNODE_FLUSH_BUSY);
-				JF_CLR (pos->queue[i], ZNODE_FLUSH_QUEUED);
-				jput (pos->queue[i]);
-			}
-		}
-		kfree (pos->queue);
-		pos->queue = NULL;
+
+	while (!capture_list_empty(&pos->queue)) {
+		jnode * cur = capture_list_pop_front(&pos->queue);
+		txn_atom * atom;
+		
+		spin_lock_jnode (cur);
+		atom = atom_get_locked_by_jnode (cur);
+
+		JF_CLR (cur, ZNODE_FLUSH_BUSY);
+		JF_CLR (cur, ZNODE_FLUSH_QUEUED);
+		
+		capture_list_remove (cur);
+		pos->queue_num --;
+
+		if (jnode_is_dirty(cur)) capture_list_push_back (&atom->dirty_nodes[jnode_get_level(cur)], cur);
+		else                     capture_list_push_back (&atom->clean_nodes, cur);
+
+		spin_unlock_atom (atom);
+		spin_unlock_jnode (cur);
 	}
 }
 
