@@ -9,6 +9,7 @@
 #include "../plugin_header.h"
 #include "sde.h"
 #include "tail.h"
+#include "ctail.h"
 #include "internal.h"
 #include "item.h"
 #include "extent.h"
@@ -583,6 +584,60 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			}
 		}
 	},
+	[CTAIL_ID] = {
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id = CTAIL_ID,
+			.pops = NULL,
+			.label = "ctail",
+			.desc = "cryptcompress tail item",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.b = {
+			.item_type = ORDINARY_FILE_METADATA_TYPE,
+			.max_key_inside = tail_max_key_inside,
+			.can_contain_key = tail_can_contain_key,
+			.mergeable = ctail_mergeable,
+#if REISER4_DEBUG_OUTPUT
+			.print = ctail_print,
+#endif
+			.check = NULL,
+			.nr_units = ctail_nr_units,
+			.lookup = tail_lookup,
+			.init = NULL,
+			.paste = ctail_paste,
+			.fast_paste = agree_to_fast_op,
+			.can_shift = ctail_can_shift,
+			.create_hook = NULL,
+			.copy_units = ctail_copy_units,
+			.kill_hook = NULL,
+			.shift_hook = NULL,
+			.cut_units = ctail_cut_units,
+			.kill_units = ctail_cut_units,
+			.unit_key = tail_unit_key,
+			.estimate = ctail_estimate,
+			.item_data_by_flow = NULL,
+			.item_stat = NULL
+		},
+		.f = {
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
+			.update                  = NULL
+		},
+		.s = {
+			.file = {
+				.write = ctail_write,
+				.read = ctail_read,
+				.readpage = ctail_readpage,
+				.writepage = ctail_writepage,
+				.page_cache_readahead = NULL,
+				.get_block = NULL,
+				.readpages = ctail_readpages,
+				.append_key = ctail_append_key,
+				.key_in_item = ctail_key_in_item
+			}
+		}
+	},	
 	/* the below two items are used in tail conversion. Before tail conversion starts all items of file becomes
 	   frozen. That is nothing of them can be shifted to another node. This guarantees that estimation/reservation
 	   remains valid during tail conversion operation */
