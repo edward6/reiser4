@@ -286,11 +286,10 @@ static int process_extent_backward (tap_t * tap, void * arg)
 
 	assert("zam-978", (unsigned)(cursor->count) <= get_current_context()->grabbed_blocks);
 
-	ret = process_extent_backward_for_repacking(tap, &cursor->count, &cursor->hint);
-	if (ret < 0)
+	ret = process_extent_backward_for_repacking(
+		tap, &cursor->count, &cursor->hint, &cursor->stats.jnodes_dirtied);
+	if (ret)
 		return ret;
-
-	cursor->stats.jnodes_dirtied += ret;
 	if (cursor->count <= 0)
 		return -E_REPEAT;
 
