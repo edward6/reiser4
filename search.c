@@ -944,16 +944,6 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 
 	assert( "vs-361", h -> level > h -> slevel );
 
-	/* FIXME-VS: remove this after debugging is done */
-	if (get_key_objectid (h -> key) == 0x100c6 &&
-	    znode_get_level (h -> coord -> node) == TWIG_LEVEL) {
-		int i;
-		for (i = 0; i < 2; i ++)
-			i ++;
-	}
-	/* FIXME-VS: remove this after debuggin is done */
-		
-
 	iplug = item_plugin_by_coord( h -> coord );
 	if( !iplug -> down_link ) {
 		/* strange item type found on non-stop level?!  Twig
@@ -970,9 +960,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 			return LLR_DONE;
 		}
 
-		/*
-		 * take a look at the item to the right of h -> coord
-		 */
+		/* take a look at the item to the right of h -> coord */
 		result = is_next_item_internal( h -> coord, h -> active_lh );
 		if( result < 0 ) {
 			/*
@@ -1030,9 +1018,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 		iplug = item_plugin_by_coord( h -> coord );
 		assert( "vs-362", iplug -> down_link );
 	}
-	/*
-	 * prepare delimiting keys for the next node
-	 */
+
+	/* prepare delimiting keys for the next node */
 	if( prepare_delimiting_keys( h ) ) {
 		h -> error = "cannot prepare delimiting keys";
 		h -> result = CBK_IO_ERROR;
@@ -1046,9 +1033,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 	return LLR_CONT; /* continue */
 }
 
-/**
- * true if @key is one of delimiting keys in @node
- */
+/** true if @key is one of delimiting keys in @node */
 static int key_is_delimiting( znode *node /* node to check key against */, 
 			      const reiser4_key *key /* key to check */ )
 {
@@ -1124,30 +1109,23 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 	result = zload( node );
 	if( result != 0 )
 		return result;
-	/*
-	 * recheck keys
-	 */
+
+	/* recheck keys */
 	spin_lock_dk( current_tree );
 	result = znode_contains_key( node, h -> key ) && 
 		! ZF_ISSET( node, ZNODE_HEARD_BANSHEE );
 	spin_unlock_dk( current_tree );
 	if( result ) {
-		/*
-		 * do lookup inside node
-		 */
+		/* do lookup inside node */
 		h -> level = level;
 		llr = cbk_node_lookup( h );
 		
 		if( llr != LLR_DONE )
-			/*
-			 * restart of continue on the next level
-			 */
+			/* restart of continue on the next level */
 			result = -ENOENT;
 		else if( ( h -> result != CBK_COORD_NOTFOUND ) &&
 			 ( h -> result != CBK_COORD_FOUND ) )
-			/*
-			 * io or oom
-			 */
+			/* io or oom */
 			result = -ENOENT;
 		else if( key_is_delimiting( node, h -> key ) ) {
 			/*
@@ -1158,9 +1136,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 			reiser4_stat_tree_add( cbk_cache_utmost );
 			result = -ENOENT;
 		} else 
-			/*
-			 * good. Either item found or definitely not found.
-			 */
+			/* good. Either item found or definitely not found. */
 			result = 0;
 	} else {
 		/*
@@ -1249,9 +1225,7 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 	dup_coord( &neighbor, parent_coord );
 
 	if( neighbor.between == AT_UNIT )
-		/*
-		 * imitate item ->lookup() behavior.
-		 */
+		/* imitate item ->lookup() behavior. */
 		neighbor.between = AFTER_UNIT;
 
 	if( coord_of_unit( &neighbor ) || 
