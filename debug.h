@@ -517,6 +517,10 @@ typedef struct reiser4_level_statistics {
 		stat_cnt jload_async;
 		/* calls to jload() that actually had to read data */
 		stat_cnt jload_read;
+		/* calls to jput() */
+		stat_cnt jput;
+		/* calls to jput() that released last reference */
+		stat_cnt jputlast;
 	} jnode;
 	struct {
 		/* calls to lock_znode() */

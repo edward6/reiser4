@@ -629,9 +629,11 @@ jput(jnode * node)
 	assert("zam-926", schedulable());
 	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
 
+	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jput);
 	if (atomic_dec_and_lock(&node->x_count, &node->guard.lock)) {
 		spin_lock_jnode_acc(node, 0);
 		jput_final(node);
+		reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jputlast);
 	}
 }
 

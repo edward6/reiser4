@@ -474,6 +474,8 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(jnode.jload_page),
 	DEFINE_STAT_LEVEL_CNT(jnode.jload_async),
 	DEFINE_STAT_LEVEL_CNT(jnode.jload_read),
+	DEFINE_STAT_LEVEL_CNT(jnode.jput),
+	DEFINE_STAT_LEVEL_CNT(jnode.jputlast),
 
 	DEFINE_STAT_LEVEL_CNT(znode.lock),
 	DEFINE_STAT_LEVEL_CNT(znode.lock_iteration),
