@@ -480,6 +480,7 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 		reiser4_stat_tree_add( fast_insert );
 		result = node_plugin_by_node( coord -> node ) -> create_item
 			( coord, key, data, NULL );
+		znode_set_dirty( coord -> node );
 		return result;
 	} else {
 		/*
@@ -584,6 +585,7 @@ static int paste_into_item( tree_coord *coord /* coord of pasting */,
 		 * FIXME-NIKITA: huh? where @key is used?
 		 */
 		result = iplug -> common.paste( coord, data, NULL );
+		znode_set_dirty( coord -> node );
 		if( size_change < 0 )
 			nplug -> change_item_size( coord, size_change );
 	} else
@@ -1090,6 +1092,8 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 			    1/* delete node @right if all its contents was moved to @left */,
 			    1/* @from will be set to @left node */,
 			    todo);
+	znode_set_dirty( right );
+	znode_set_dirty( left );
 	return result;
 }
 
