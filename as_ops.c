@@ -481,7 +481,8 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	   are hold it means we can call begin jnode_flush right from there having no
 	   deadlocks between the caller of balance_dirty_pages() and jnode_flush(). */
 
-	assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
+	assert("zam-760", ergo(is_in_reiser4_context(), 
+			       lock_stack_isclean(get_current_lock_stack())));
 
 	init_context(&ctx, mapping->host->i_sb);
 	if (mapping_has_anonymous_pages(mapping)) {
