@@ -171,7 +171,8 @@ SRC		:= \
 		   page_cache.c \
 		   lnode.c \
 		   kcond.c \
-		   seal.c
+		   seal.c \
+		   io_handle.c
 
 OBJ		:= $(SRC:.c=.o)
 

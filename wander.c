@@ -27,13 +27,7 @@ int WRITE_LOG = 1;		/* journal is written by default  */
  * are written in place) and _before_ wandered blocks and log records are
  * freed in WORKING bitmap */
 
-struct io_handle {
-	struct semaphore io_sema;
-	atomic_t         nr_submitted;
-	atomic_t         nr_errors;
-};
-
-static int submit_write (jnode*, int, const reiser4_block_nr *, struct io_handle *);
+static int submit_write (jnode*, int, const reiser4_block_nr *, struct reiser4_io_handle*);
 
 /**
  * fill journal header block data 
@@ -414,15 +408,12 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 static void wander_end_io (struct bio * bio)
 {
 	int i;
-	struct io_handle * io_hdl = bio->bi_private;
 
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 
-		if (! test_bit (BIO_UPTODATE, & bio->bi_flags)) {
+		if (! test_bit (BIO_UPTODATE, & bio->bi_flags))
 			SetPageError (pg);
-			if (io_hdl) atomic_inc(&io_hdl->nr_errors); 
-		}
 
 		end_page_writeback (pg);
 
@@ -436,40 +427,9 @@ static void wander_end_io (struct bio * bio)
 		page_cache_release (pg);
 	}
 
-	if (io_hdl && atomic_sub_and_test(bio->bi_vcnt, &io_hdl->nr_submitted)) {
-		up (&io_hdl->io_sema);
-	}
+	io_handle_end_io(bio);
 
-	bio_put (bio);
-}
-
-
-static void init_io_handle (struct io_handle * io)
-{
-	sema_init(&io->io_sema, 0);
-
-	/* This setting makes the wakeup code in wander_and_io working only
-	 * after io->nr_submitted gets decremented in done_io_handle. */
-	atomic_set(&io->nr_submitted, 1);
-
-	atomic_set(&io->nr_errors, 0);
-}
-
-static int done_io_handle (struct io_handle * io)
-{
-	/* this 1 was from init_io_handle() */
-	if (! atomic_dec_and_test(&io->nr_submitted)) {
-		/* sort and pass requests to driver */
-		blk_run_queues();
-		/* wait all IO to complete */
-		down (&io->io_sema);
-
-		assert ("zam-577", atomic_read(&io->nr_submitted) == 0);
-
-	}
-
-	if (atomic_read(&io->nr_errors)) return -EIO;
-	return 0;
+	bio_put(bio);
 }
 
 
@@ -477,8 +437,8 @@ static int done_io_handle (struct io_handle * io)
  * request. j-nodes are in a double-linked list (capture_list)*/
 /* FIXME: it should be combined with similar code in flush.c */
 static int submit_write (jnode * first, int nr, 
-			 const reiser4_block_nr  * block,
-			 struct io_handle * io_hdl)
+			 const reiser4_block_nr * block,
+			 struct reiser4_io_handle * io_hdl)
 {
 	struct super_block * super = reiser4_get_current_sb();
 	int max_blocks;
@@ -510,10 +470,6 @@ static int submit_write (jnode * first, int nr,
 		bio->bi_size   = super->s_blocksize * nr_blocks;
 		bio->bi_end_io = wander_end_io;
 
-		if (io_hdl) atomic_add(nr_blocks, &io_hdl->nr_submitted);
-
-		bio->bi_private = io_hdl;
-
 		for (i = 0; i < nr_blocks; i++) {
 			struct page * pg;
 
@@ -537,6 +493,8 @@ static int submit_write (jnode * first, int nr,
 			cur = capture_list_next (cur);
 		}
 
+		io_handle_add_bio(io_hdl, bio);
+
 		submit_bio(WRITE, bio);
 
 		nr -= nr_blocks;
@@ -548,7 +506,7 @@ static int submit_write (jnode * first, int nr,
 /* This is a procedure which recovers a contiguous sequences of disk block
  * numbers in the given list of j-nodes and submits write requests on this
  * per-sequence basis */
-static int submit_batched_write (capture_list_head * head, struct io_handle * io)
+static int submit_batched_write (capture_list_head * head, struct reiser4_io_handle * io)
 {
 	int ret;
 	jnode * beg = capture_list_front(head);
@@ -574,7 +532,7 @@ static int submit_batched_write (capture_list_head * head, struct io_handle * io
 
 /* allocate given number of nodes over the journal area and link them into a
  * list, return pinter to the first jnode in the list */
-static int alloc_tx (int nr, capture_list_head * tx_list, struct io_handle * io)
+static int alloc_tx (int nr, capture_list_head * tx_list, struct reiser4_io_handle * io)
 {
 	reiser4_blocknr_hint  hint;
 
@@ -727,7 +685,7 @@ static int add_region_to_wmap (jnode * cur,
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
  * submit IO for allocated blocks.  We assume that current atom is in a stage
  * when any atom fusion is impossible and atom is unlocked and it is safe. */
-int alloc_wandered_blocks (int set_size, capture_list_head * set, struct io_handle * io_hdl)
+int alloc_wandered_blocks (int set_size, capture_list_head * set, struct reiser4_io_handle * io_hdl)
 {
 	reiser4_block_nr block;
 
@@ -776,7 +734,7 @@ int reiser4_write_logs (void)
 	struct super_block * super = reiser4_get_current_sb();
 	reiser4_super_info_data * private = get_super_private(super);
 
-	struct io_handle io_hdl;
+	struct reiser4_io_handle io_hdl;
 
 	capture_list_head overwrite_set, tx_list;
 	int overwrite_set_size, tx_size;
@@ -999,7 +957,7 @@ static int replay_transaction (const struct super_block * s,
 
 
 	{       /* write wandered set in place */
-		struct io_handle io;
+		struct reiser4_io_handle io;
 
 		init_io_handle(&io);
 		submit_batched_write(&overwrite, &io);

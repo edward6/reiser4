@@ -31,6 +31,7 @@ CFLAGS_page_cache.o += -O0
 CFLAGS_lnode.o += -O0
 CFLAGS_kcond.o += -O0
 CFLAGS_seal.o += -O0
+CFLAGS_io_handle.o += -O0
 endif
 reiser4-objs := \
 	   debug.o \
@@ -59,7 +60,8 @@ reiser4-objs := \
 	   page_cache.o \
 	   lnode.o \
 	   kcond.o \
-	   seal.o
+	   seal.o \
+	   io_handle.o
 
 obj-$(CONFIG_REISER4_FS) += plugin/
 
