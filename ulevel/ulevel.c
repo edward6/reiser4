@@ -856,12 +856,12 @@ int generic_file_mmap(struct file * file UNUSED_ARG,
 
 void wait_on_page_locked(struct page * page)
 {
-	if (PageLocked (page)) {
-		reiser4_stat_file_add (wait_on_page);
-		SetPageUptodate (page);
-		kunmap (page);
-		unlock_page (page);
-	}
+	reiser4_stat_file_add (wait_on_page);
+	/* SetPageUptodate (page); */
+	/* FIXME:NIKITA->VS why kunmap? */
+	/* kunmap (page); */
+	lock_page (page);
+	unlock_page (page);
 }
 
 void wait_on_page_writeback(struct page * page UNUSED_ARG)
