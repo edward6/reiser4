@@ -663,7 +663,7 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.fallback      = file_fallback,
 		.label         = "file",
 		.desc          = "Object plugins",
-		.builtin_num   = sizeof file_plugins / sizeof file_plugins[ 0 ],
+		.builtin_num   = sizeof_array( file_plugins ),
 		.builtin       = file_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
@@ -672,7 +672,7 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.fallback      = hash_fallback,
 		.label         = "hash",
 		.desc          = "Directory hashes",
-		.builtin_num   = sizeof hash_plugins / sizeof hash_plugins[ 0 ],
+		.builtin_num   = sizeof_array( hash_plugins ),
 		.builtin       = hash_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
@@ -681,7 +681,7 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.fallback      = tail_fallback,
 		.label         = "tail",
 		.desc          = "Tail inlining policies",
-		.builtin_num   = sizeof tail_plugins / sizeof tail_plugins[ 0 ],
+		.builtin_num   = sizeof_array( tail_plugins ),
 		.builtin       = tail_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
@@ -690,7 +690,7 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.fallback      = hook_fallback,
 		.label         = "hook",
 		.desc          = "Generic loadable hooks",
-		.builtin_num   = sizeof hook_plugins / sizeof hook_plugins[ 0 ],
+		.builtin_num   = sizeof_array( hook_plugins ),
 		.builtin       = hook_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
@@ -699,7 +699,7 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.fallback      = perm_fallback,
 		.label         = "perm",
 		.desc          = "Permission checks",
-		.builtin_num   = sizeof perm_plugins / sizeof perm_plugins[ 0 ],
+		.builtin_num   = sizeof_array( perm_plugins ),
 		.builtin       = perm_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
@@ -708,7 +708,7 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.fallback      = item_fallback,
 		.label         = "item",
 		.desc          = "Item handlers",
-		.builtin_num   = sizeof item_plugins / sizeof item_plugins[ 0 ],
+		.builtin_num   = sizeof_array( item_plugins ),
 		.builtin       = item_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
@@ -717,7 +717,7 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.fallback      = node_fallback,
 		.label         = "node",
 		.desc          = "node layout handlers",
-		.builtin_num   = sizeof node_plugins / sizeof node_plugins[ 0 ],
+		.builtin_num   = sizeof_array( node_plugins ),
 		.builtin       = node_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
@@ -726,7 +726,7 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.fallback      = sd_ext_fallback,
 		.label         = "sd_ext",
 		.desc          = "Parts of stat-data",
-		.builtin_num   = sizeof sd_ext_plugins / sizeof sd_ext_plugins[ 0 ],
+		.builtin_num   = sizeof_array( sd_ext_plugins ),
 		.builtin       = sd_ext_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	}
