@@ -121,6 +121,22 @@ struct reiser4_dir_entry_desc {
 	struct inode *obj;
 };
 
+struct reg_file_builtins
+{
+	int (*body_write_flow)();
+	int (*sd_write_flow)();
+	/* attributes differ from child files in that they are packed in the major packing locality of the parent file
+	   rather than a major packing locality based on the objectid of their parent.  They also differ in that based
+	   on their name the is_builtin() method for the parent file determines that they are a built_in().  What it is
+	   about their name that causes the is_built_in() method to determine that they are a built_in() depends on how
+	   the plugin is written.  Checking whether they are pre-pended with '..' is a common name distinction method,
+	   but this is only a style convention, not a plugin authoring requirement. */
+	int (*attr_write_flow)();
+	/* others? */
+	int (*body_read_flow)();
+	int (*sd_read_flow)();
+	int (*attr_read_flow)();
+}
 /**
  * File (object) plugin.  Defines the set of methods that file plugins implement, some of which are optional.  This
  * includes all of the file related VFS operations.
@@ -166,11 +182,10 @@ struct reiser4_dir_entry_desc {
 typedef struct file_plugin {
 
 /* reiser4 required file operations */
+	 union {
+		 reg_file_builtins rf;
+	 } builtins;
 
-
-	int (*write_flow)(flow *);
-	int (*read_flow)(flow *);
-	
 	/* VFS required/defined operations */
 	int ( *truncate )( struct inode *inode, loff_t size );
 
@@ -178,6 +193,7 @@ typedef struct file_plugin {
 	    reiserfs_update_sd() in 3.x */
 	int ( *write_sd_by_inode)( struct inode *inode );
 	int ( *readpage )( struct file *file, struct page * );
+	/* these should be implemented using body_read_flow and body_write_flow builtins */
 	ssize_t ( *read )( struct file *file, char *buf, size_t size, 
 			 loff_t *off );
 	ssize_t ( *write )( struct file *file, char *buf, size_t size, 
@@ -189,6 +205,20 @@ typedef struct file_plugin {
 	 * minimize the amount of code needed to implement a deviation from
 	 * some other method that also uses them.
 	 */
+
+	/* for reiser4, the directory lookup procedure will first check to see if a name is a file builtin, if not it
+	   will invoke the directory lookup method, if it is a file builtin it will call this function to determine
+	   which builtin method to invoke, with what key value setting in the flow->key that it passes to the builtin at
+	   invocation time. */
+	/*
+
+	You might think that this should be a directory plugin method, except that since flow_builtins methods are
+	defined by the file plugin, it seems that this should be tied to the file plugin method.
+
+	*/
+	int (*is_flow_built_in)(char * name, int length);
+
+	int (*select_method_and_key)(char *builtin_name, int length, int (*builtin_method), key * key )
 
 	/**
 	 * Construct flow into @flow according to user-supplied data.
@@ -245,13 +275,6 @@ typedef struct file_plugin {
 } file_plugin;
 
 typedef struct dir_plugin {
-
-	/* returns whether it is a builtin. 
-	 *
-	 * FIXME-HANS What does this mean? If builtin means pseudo-file,
-	 * does it mean that pseudo files are necessary directories and why it
-	 * is so?*/
-	int (*is_built_in)(char * name, int length);
 
 	/* VFS required/defined operations below this line */
 	int ( *unlink )( struct inode *parent, struct dentry *victim );
