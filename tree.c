@@ -621,8 +621,13 @@ forget_znode(lock_handle * handle)
 		uncapture_page(page);
 		reiser4_unlock_page(page);
 		page_cache_release(page);
-	} else
+	} else {
+#ifdef REISER4_USE_EFLUSH
+		if (ZF_ISSET(node, JNODE_EFLUSH))
+			eflush_del(ZJNODE(node), 0);
+#endif
 		spin_unlock_znode(node);
+	}
 }
 
 /* Check that internal item at @pointer really contains pointer to @child. */
@@ -1181,6 +1186,15 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 	return result;
 }
 
+/**
+ * Delete whole @node from the reiser4 tree without loading it.
+ *  
+ * @left: locked left neighbor,
+ * @node: node to be deleted,
+ * @smallest_removed: leftmost key of deleted node,
+ *
+ * @return: 0 if success, error code otherwise.
+ */
 static int delete_node (znode * left, znode * node, reiser4_key * smallest_removed)
 {
 	lock_handle parent_lock;
@@ -1190,6 +1204,7 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 
 	assert ("zam-937", node != NULL);
 	assert ("zam-933", znode_is_write_locked(node));
+	assert ("zam-939", ergo(left != NULL, znode_is_locked(left)));
 
 	init_lh(&parent_lock);
 
@@ -1207,8 +1222,15 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 	if (ret)
 		goto failed;
 
+	/* decrement child counter and set parent pointer to NULL before
+	   deleting the list from parent node because of checks in
+	   internal_kill_item_hook (we can delete the last item from the parent
+	   node, the parent node is going to be deleted and its c_count should
+	   be zero). */
 	atomic_dec(&parent_lock.node->c_count);
 	node->in_parent.node = NULL;
+
+	assert("zam-940", item_is_internal(&cut_from));
 
 	/* remove a pointer from the parent node to the node being deleted. */
 	coord_dup(&cut_to, &cut_from);
@@ -1238,8 +1260,22 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 	return ret;
 }
 
+/**
+ * The cut_tree subroutine which does progressive deletion of items and whole
+ * nodes from left to right (which is not optimal but implementation seems to be
+ * easier).
+ *
+ * @tap: the point deletion process begins from,
+ * @from_key: the beginning of the deleted key range,
+ * @to_key: the end of the deleted key range,
+ * @smallest_removed: the smallest removed key,
+ *
+ * @return: 0 if success, error code otherwise, -EAGAIN means that long cut_tree
+ * operation was interrupted for allowing atom commit .
+ */
 static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, 
-			    const reiser4_key * to_key, reiser4_key * smallest_removed)
+			    const reiser4_key * to_key, reiser4_key * smallest_removed,
+			    struct inode * object)
 {
 	lock_handle next_node_lock;
 	coord_t left_coord;
@@ -1260,9 +1296,10 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 		if ((result != 0) && (result != -E_NO_NEIGHBOR))
 			break;
 
-		/* FIXME:NIKITA->ZAM temporary fix */
-		if (znode_get_level(tap->coord->node) == LEAF_LEVEL &&
-		    iterations && UNDER_RW(dk, current_tree, read, keyle(from_key, &tap->coord->node->ld_key))) {
+		/* Check can we deleted the node as a whole. */
+		if (iterations && znode_get_level(tap->coord->node) == LEAF_LEVEL &&
+		    UNDER_RW(dk, current_tree, read, keyle(from_key, &tap->coord->node->ld_key))) 
+		{
 			result = delete_node(next_node_lock.node, tap->coord->node, smallest_removed);
 			if (result)
 				break;
@@ -1289,7 +1326,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 			/* cut data from one node */
 			*smallest_removed = *min_key();
 			result = cut_node(&left_coord, tap->coord, from_key, to_key, 
-					  smallest_removed, DELETE_KILL, next_node_lock.node, NULL);
+					  smallest_removed, DELETE_KILL, next_node_lock.node, object);
 			tap_relse(tap);
 			if (result)
 				break;
@@ -1344,9 +1381,26 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
    the deletion.
 */
 
+
+/**
+ * Delete everything from the reiser4 tree between two keys: @from_key and
+ * @to_key.
+ *
+ * @from_key: the beginning of the deleted key range,
+ * @to_key: the end of the deleted key range,
+ * @smallest_removed: the smallest removed key,
+ * @object: owner of cutting items.
+ *
+ * @return: 0 if success, error code otherwise, -EAGAIN means that long cut_tree
+ * operation was interrupted for allowing atom commit .
+ *
+ * FIXME(Zam): the cut_tree interruption is not implemented. 
+ */
+
 int
-cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, 
-	 const reiser4_key * to_key, reiser4_key * smallest_removed_p)
+cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, 
+		const reiser4_key * to_key, reiser4_key * smallest_removed_p,
+		struct inode * object)
 {
 	lock_handle lock;
 	int result;
@@ -1375,7 +1429,8 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 			break;
 
 		tap_init(&tap, &right_coord, &lock, ZNODE_WRITE_LOCK);
-		result = cut_tree_worker(&tap, from_key, to_key, smallest_removed_p);
+		result = cut_tree_worker
+			(&tap, from_key, to_key, smallest_removed_p, object);
 		tap_done(&tap);
 
 		preempt_point();
