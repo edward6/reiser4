@@ -197,6 +197,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     direntry_info.entry = entry;
     direntry_info.key_plugin = key_plugin;
     direntry_info.hash_plugin = NULL;
+    
     libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, clean, key);
     libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, 
 	build_dir_key, key, direntry_info.parent_id, direntry_info.object_id, ".", 

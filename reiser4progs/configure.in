@@ -173,10 +173,10 @@ AC_OUTPUT([
     plugin/stat40/Makefile
     plugin/direntry40/Makefile
     plugin/key40/Makefile
+    plugin/dir40/Makefile
     plugin/format36/Makefile
     plugin/journal36/Makefile
     plugin/alloc36/Makefile
-    plugin/dir40/Makefile
     demos/Makefile
     reiser4progs/Makefile
     reiser4progs/libmisc/Makefile

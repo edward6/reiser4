@@ -203,7 +203,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key, reiserfs_coord_t *coo
 	We are on the position where key is less then wanted. Key could lies within
 	the item or after the item.
     */
-    memcpy (max_key_inside, reiserfs_node_item_key_at(node, coord->item_pos), 
+    aal_memcpy(max_key_inside, reiserfs_node_item_key_at(node, coord->item_pos), 
 	key_plugin->key.size());
 
     if (item_plugin->item.common.max_key_inside) {
@@ -215,19 +215,19 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key, reiserfs_coord_t *coo
 	}
 	
 	if (libreiser4_plugins_call(return -1, key_plugin->key, compare, 
-	    key, max_key_inside) > 0)
+		key, max_key_inside) > 0)
 	    goto after_item;
     }
 
-    if (item_plugin->item.common.lookup) {
-	if ((found = item_plugin->item.common.lookup(body, key, coord)) == -1) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Lookup in the item %d in the node %llu failed.", coord->item_pos,
-		aal_block_get_nr(node->block));
-	    return -1;
-	}
-    } else 
+    if (!item_plugin->item.common.lookup)
 	goto after_item;
+	    
+    if ((found = item_plugin->item.common.lookup(body, key, coord)) == -1) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Lookup in the item %d in the node %llu failed.", coord->item_pos,
+	    aal_block_get_nr(node->block));
+	return -1;
+    }
     
     return found;
 

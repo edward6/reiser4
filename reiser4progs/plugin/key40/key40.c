@@ -8,19 +8,6 @@
 #include <reiser4/plugin.h>
 #include "key40.h"
 
-static uint64_t key40_pack_string(const char *name, int start) {
-    unsigned i;
-    uint64_t str;
-
-    str = 0;
-    for (i = 0 ; (i < sizeof str - start) && name[i] ; ++ i) {
-        str <<= 8;
-        str |= (unsigned char)name[i];
-    }
-    str <<= (sizeof str - i - start) << 3;
-    return str;
-}
-
 static reiserfs_plugin_factory_t *factory = NULL;
 
 static const reiserfs_key40_t MINIMAL_KEY = {
@@ -30,6 +17,19 @@ static const reiserfs_key40_t MINIMAL_KEY = {
 static const reiserfs_key40_t MAXIMAL_KEY = {
     .el = { ~0ull, ~0ull, ~0ull }
 };
+
+static uint64_t key40_pack_string(const char *name, int start) {
+    unsigned i;
+    uint64_t str;
+
+    str = 0;
+    for (i = 0 ; (i < sizeof(str) - start) && name[i] ; ++ i) {
+        str <<= 8;
+        str |= (unsigned char)name[i];
+    }
+    str <<= (sizeof(str) - i - start) << 3;
+    return str;
+}
 
 static const reiserfs_key40_t *key40_minimal(void) {
     return &MINIMAL_KEY;
@@ -56,9 +56,10 @@ static int key40_confirm(reiserfs_key40_t *key) {
 }
 
 /* 
-    Useful for temp key creation, when all fields are built already. (Reason to 
-    take just one parameter - *key). When want to just build the key, use 
-    key40_build_file/dir_key depending on whether you need file or dir key.
+    Useful for temp key creation, when all fields are built already. 
+    (Reason to take just one parameter - *key). When want to just 
+    build the key, use key40_build_file/dir_key depending on whether 
+    you need file or dir key.
 */
 static reiserfs_key40_t *key40_create(uint32_t type, oid_t locality, 
     oid_t objectid, uint64_t offset) 
