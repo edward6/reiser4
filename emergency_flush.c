@@ -562,37 +562,14 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 
 	tree = jnode_get_tree(node);
 
-	ef->magic = EFLUSH_MAGIC;
 	ef->node = node;
 	ef->blocknr = *blocknr;
 	ef->hadatom = (node->atom != NULL);
 	ef->incatom = 0;
 	jref(node);
 	spin_lock_eflush(tree->super);
-#if 0
-	{
-		/* check eflush hash table */
-		eflush_node_t *next, *item;
-
-		for_all_in_htable(get_jnode_enhash(node), ef, item, next) {
-			assert("vs-1693", item->magic == EFLUSH_MAGIC);
-		}
-	}
-#endif
 	ef_hash_insert(get_jnode_enhash(node), ef);
 	ON_DEBUG(++ get_super_private(tree->super)->eflushed);
-
-#if 0
-	{
-		/* check eflush hash table */
-		eflush_node_t *next, *item;
-
-		for_all_in_htable(get_jnode_enhash(node), ef, item, next) {
-			assert("vs-1693", item->magic == EFLUSH_MAGIC);
-		}
-	}
-#endif
-
 	spin_unlock_eflush(tree->super);
 
 	if (jnode_is_unformatted(node)) {
@@ -682,14 +659,6 @@ static void eflush_free (jnode * node)
 	tree = jnode_get_tree(node);
 
 	spin_lock_eflush(tree->super);
-	{
-		/* check eflush hash table */
-		eflush_node_t *next, *item;
-
-		for_all_in_htable(get_jnode_enhash(node), ef, item, next) {
-			assert("vs-1693", item->magic == EFLUSH_MAGIC);
-		}
-	}
 	ef = ef_hash_find(table, C(node));
 	if (ef == NULL)
 		print_clog();
