@@ -1394,6 +1394,7 @@ reiser4_kill_super(struct super_block *s)
 	   dentries had negative child dentries */
 	shrink_dcache_parent(s->s_root);
 	
+#if REISER4_TRACE
 	if (reiser4_is_debugged(s, REISER4_VERBOSE_UMOUNT))
 		get_current_context()->trace_flags |= (TRACE_PCACHE |
 						       TRACE_TXN    |
@@ -1401,6 +1402,8 @@ reiser4_kill_super(struct super_block *s)
 						       TRACE_ZNODES | 
 						       TRACE_IO_R   | 
 						       TRACE_IO_W);
+#endif
+
 	/* flushes transactions, etc. */
 	if (get_super_private(s)->df_plug->release(s) != 0)
 		goto out;
