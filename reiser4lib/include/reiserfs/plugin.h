@@ -9,6 +9,7 @@
 
 #include <aal/aal.h>
 #include <reiserfs/key.h>
+#include <reiserfs/item.h>
 #include <reiserfs/path.h>
 
 typedef void reiserfs_opaque_t;
@@ -65,77 +66,75 @@ struct reiserfs_dir_plugin {
 
 typedef struct reiserfs_dir_plugin reiserfs_dir_plugin_t;
 
-struct common_item_plugin {
+struct reiserfs_common_item_plugin {
     reiserfs_item_type_id_t item_type;
 
     reiserfs_opaque_t *(*create) (reiserfs_key_t *);
 
-    int (*paste) (reiserfs_opaque_t *coord, 
-	reiserfs_opaque_t *item_data);
+    int (*add_unit) (reiserfs_opaque_t *, int32_t, 
+	reiserfs_opaque_t *unit_info);
     
     error_t (*confirm) (reiserfs_opaque_t *);
     error_t (*check) (reiserfs_opaque_t *);
     void (*print) (reiserfs_opaque_t *, char *);
-    uint16_t (*nr_units) (reiserfs_opaque_t *coord);
+    uint16_t (*units_count) (reiserfs_opaque_t *);
     
-    int (*remove_units) (reiserfs_opaque_t *from_key,
-	reiserfs_opaque_t *to_key);
+    int (*remove_units) (reiserfs_opaque_t *, int32_t, int32_t);
     
-    uint32_t (*estimate) (reiserfs_opaque_t *coord,
-	reiserfs_opaque_t *data);
+    uint32_t (*estimate) (reiserfs_opaque_t *, int32_t,
+	reiserfs_item_info_t *);
+    int (*is_internal) (reiserfs_opaque_t *, reiserfs_plugin_id_t);
 };
 
-typedef struct common_item_plugin common_item_plugin_t;
+typedef struct reiserfs_common_item_plugin reiserfs_common_item_plugin_t;
 
-struct dir_entry_ops {
-    int (*add_entry) (reiserfs_opaque_t *coord, reiserfs_opaque_t *parent, 
-	reiserfs_opaque_t *name, reiserfs_opaque_t *entry);
+struct reiserfs_dir_entry_ops {
+    int (*add_entry) (reiserfs_opaque_t *, int32_t, reiserfs_opaque_t *parent, 
+	char *, reiserfs_opaque_t *entry);
     
-    int (*rem_entry) (reiserfs_opaque_t *coord, reiserfs_opaque_t *parent,
-        reiserfs_opaque_t *entry);
+    int (*remove_entry) (reiserfs_opaque_t *, int32_t, reiserfs_opaque_t *parent);
     
-    int (*max_name_len) (int block_size);
+    int (*max_name_len) (int blocksize);
 };
 
-typedef struct dir_entry_ops dir_entry_ops_t;
+typedef struct reiserfs_dir_entry_ops reiserfs_dir_entry_ops_t;
 
-struct file_ops {
+struct reiserfs_file_ops {
     int (*write) (reiserfs_opaque_t *coord, reiserfs_opaque_t *file, 
-	reiserfs_opaque_t *buffer);
+	void *buff);
     
     int (*read) (reiserfs_opaque_t *coord, reiserfs_opaque_t *file, 
-	reiserfs_opaque_t *buffer);
+	void *buff);
 };
 
-typedef struct file_ops file_ops_t;
+typedef struct reiserfs_file_ops reiserfs_file_ops_t;
 
-struct stat_ops {
+struct reiserfs_stat_ops {
 };
 
-typedef struct stat_ops stat_ops_t;
+typedef struct reiserfs_stat_ops reiserfs_stat_ops_t;
 
-struct internal_ops {
-    void (*down_link) (reiserfs_opaque_t *coord, reiserfs_opaque_t *key,
-	aal_block_t *block);
+struct reiserfs_internal_ops {
+    blk_t (*down_link) (reiserfs_opaque_t *, int32_t);
     
     /* check that given internal item contains given pointer. */
-    int (*has_pointer_to) (reiserfs_opaque_t *coord, aal_block_t *block);
+    int (*has_pointer_to) (reiserfs_opaque_t *, blk_t);
 };
 
-typedef struct internal_ops internal_ops_t;
+typedef struct reiserfs_internal_ops reiserfs_internal_ops_t;
 
 struct reiserfs_item_plugin {
     reiserfs_plugin_header_t h;
 
     /* methods common for all item types */
-    common_item_plugin_t common;
+    reiserfs_common_item_plugin_t common;
 
     /* methods specific to particular type of item */
     union {
-	dir_entry_ops_t dir;
-	file_ops_t file;
-        stat_ops_t stat;
-        internal_ops_t internal;
+	reiserfs_dir_entry_ops_t dir;
+	reiserfs_file_ops_t file;
+	reiserfs_stat_ops_t stat;
+	reiserfs_internal_ops_t internal;
     } ops;
 };
 
@@ -303,7 +302,7 @@ typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugins_factory_
 #   define reiserfs_plugin_register(entry) \
 	reiserfs_plugin_entry_t __plugin_entry = entry
 #endif
-	
+
 #define REISERFS_GUESS_PLUGIN_ID 0xff
 
 extern error_t reiserfs_plugins_init(void);
@@ -316,10 +315,11 @@ extern reiserfs_plugin_t *reiserfs_plugins_load_by_name(const char *name);
 extern reiserfs_plugin_t *reiserfs_plugins_load_by_entry(reiserfs_plugin_entry_t entry);
 extern void reiserfs_plugins_unload(reiserfs_plugin_t *plugin);
 
-extern reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_id_t type, 
+extern reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_id_t type,
     reiserfs_plugin_id_t id);
 
 extern reiserfs_plugin_t *reiserfs_plugins_find_by_label(const char *label);
+
 
 #endif
 
