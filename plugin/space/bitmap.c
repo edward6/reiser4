@@ -48,69 +48,69 @@ static inline void reiser4_clear_bit (int nr, void * addr)
 	*base &= ~(1 << (nr & 0x7));
 }
 
-static int reiser4_find_next_zero_bit (void * addr, int size, int start_offset)
+static int reiser4_find_next_zero_bit (void * addr, int max_offset, int start_offset)
 {
 	unsigned char * base = addr;
 	int byte_nr = start_offset >> 3;
 	int bit_nr  = start_offset & 0x7;
-	int max_byte_nr = (size - 1) >> 3;
+	int max_byte_nr = (max_offset - 1) >> 3;
 
-	assert ("zam-388", size != 0);
+	assert ("zam-388", max_offset != 0);
 
 	if (bit_nr != 0) {
 		int nr;
 
-		nr = find_next_zero_bit_in_byte(*base, bit_nr);
+		nr = find_next_zero_bit_in_byte(base[byte_nr], bit_nr);
 
 		if (nr < 8) return (byte_nr << 3) + nr;
 
 		++ byte_nr;
 	}
 
-	while (byte_nr < max_byte_nr) {
+	while (byte_nr <= max_byte_nr) {
 		if (base[byte_nr] != 0xFF) {
 			return (byte_nr << 3) 
-				+ find_next_zero_bit_in_byte(base[byte_nr + 1], 0);
+				+ find_next_zero_bit_in_byte(base[byte_nr], 0);
 		}
 
 		++ byte_nr;
 	}
 
-	return size;
+	return max_offset;
 }
 
 #endif
 
-static int reiser4_find_next_set_bit (void * addr, int size, int start_offset)
+static int reiser4_find_next_set_bit (void * addr, int max_offset, int start_offset)
 {
 	unsigned char * base = addr;
 	int byte_nr = start_offset >> 3;
 	int bit_nr  = start_offset & 0x7;
-	int max_byte_nr = (size - 1) >> 3;
+	int max_byte_nr = (max_offset - 1) >> 3;
 
-	assert ("zam-387", size != 0);
+	assert ("zam-387", max_offset != 0);
 
 	if (bit_nr != 0) {
 		int nr;
 
-		nr = find_next_zero_bit_in_byte(~ (unsigned int) (*base), bit_nr);
+		nr = find_next_zero_bit_in_byte(~ (unsigned int) (base[byte_nr]), bit_nr);
 
 		if (nr < 8) return (byte_nr << 3) + nr;
 
 		++ byte_nr;
 	}
 
-	while (byte_nr < max_byte_nr) {
+	while (byte_nr <= max_byte_nr) {
 		if (base[byte_nr] != 0) {
 			return (byte_nr << 3) 
 				+ find_next_zero_bit_in_byte(
-					~ (unsigned int) (base[byte_nr + 1]), 0);
+					~ (unsigned int) (base[byte_nr]), 0);
 		}
 
 		++ byte_nr;
 	}
 
-	return size;
+	return max_offset;
 }
 
 static void reiser4_clear_bits (char * addr, int start, int end)
@@ -126,9 +126,11 @@ static void reiser4_clear_bits (char * addr, int start, int end)
 	first_byte = start >> 3;
 	last_byte = (end - 1) >> 3;
 
-	if (last_byte > first_byte + 1) xmemset (addr + start + 1, 0, (unsigned)(last_byte - first_byte - 1));
+	if (last_byte > first_byte + 1)
+		xmemset (addr + first_byte + 1, 0,
+			 (size_t)(last_byte - first_byte - 1));
 
-	first_byte_mask >>= 8 - (start & 0x7);
+	first_byte_mask >>= 7 - (start & 0x7);
 	last_byte_mask  <<= (end - 1) & 0x7;
 
 	if (first_byte == last_byte) {
@@ -145,18 +147,19 @@ static void reiser4_set_bits (char * addr, int start, int end)
 	int last_byte;
 
 	unsigned char first_byte_mask = 0xFF;
-	unsigned char last_byte_mask = 0xFF;
+	unsigned char last_byte_mask  = 0xFF;
 
 	assert ("zam-386", start < end);
 
 	first_byte = start >> 3;
 	last_byte = (end - 1) >> 3;
 
-	if (last_byte > first_byte + 1) xmemset (addr + start + 1, 0xFF, 
-						 (unsigned)(last_byte - first_byte - 1));
+	if (last_byte > first_byte + 1) 
+		xmemset (addr + first_byte + 1, 0xFF,
+			 (size_t)(last_byte - first_byte - 1));
 
-	first_byte_mask <<= 8 - (start & 0x7);
-	last_byte_mask  >>= (end - 1) & 0x7;
+	first_byte_mask <<= start & 0x7;
+	last_byte_mask  >>= 7 - ((end - 1)& 0x7);
 
 	if (first_byte == last_byte) {
 		addr[first_byte] |= (first_byte_mask & last_byte_mask);
@@ -198,8 +201,8 @@ static void parse_blocknr (const reiser4_block_nr *block, int *bmap, int *offset
 {
 	struct super_block * super = get_current_context()->super;
 
-	*bmap   = *block / super->s_blocksize;
-	*offset = *block % super->s_blocksize;
+	*bmap   = *block / (super->s_blocksize * 8);
+	*offset = *block % (super->s_blocksize * 8);
 } 
 
 /** A number of bitmap blocks for given fs. This number can be stored on disk
@@ -451,11 +454,16 @@ int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_
 	int end_bmap, end_offset;
 	int len;
 
+	reiser4_block_nr tmp;
+
 	struct super_block * super = get_current_context()->super;
 	int max_offset = super->s_blocksize * 8;
 
 	parse_blocknr(start, &bmap, &offset);
-	parse_blocknr(end, &end_bmap, &end_offset);
+
+	tmp = *end - 1;
+	parse_blocknr(&tmp, &end_bmap, &end_offset);
+	++ end_offset;
 
 	assert("zam-358", end_bmap >= bmap);
 	assert("zam-359", ergo(end_bmap == bmap, end_offset > offset));
@@ -519,7 +527,9 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	}
 
  out:
-	if (actual_len <= 0) return actual_len;
+	if (actual_len == 0) return -ENOSPC;
+
+	if (actual_len < 0) return actual_len;
 
 	*len = actual_len;
 	*start = search_start;
