@@ -2687,10 +2687,6 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j)
 		break;
 	}
 
-	/* FIXME: remove after debugging */
-	if (!result)
-		reiser4_inode_data(inode)->items ++;
-		
 	zrelse(loaded);
 	return result;
 }

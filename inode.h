@@ -121,11 +121,6 @@ typedef struct reiser4_inode {
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;
 #endif
-
-	/* FIXME: remove after debugging */
-	int items;
-	/* FIXME: remove after debugging */
-	
 } reiser4_inode;
 
 typedef struct reiser4_inode_object {
