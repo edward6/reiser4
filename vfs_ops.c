@@ -2038,13 +2038,18 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 		node = jnode_by_page( page );
 		if( node != NULL ) {
 			jref( node );
-			JF_SET( node, JNODE_HEARD_BANSHEE );
-		}
 
-		txn_delete_page( page );
-		page_clear_jnode( page );
-		if( node != NULL )
+			txn_delete_page( page );
+
+			UNDER_SPIN_VOID( jnode, node, 
+					 page_clear_jnode( page, node ) );
+			JF_SET( node, JNODE_HEARD_BANSHEE );
+			/*
+			 * can safely call jput() under page lock, because
+			 * page was just detached from jnode.
+			 */
 			jput( node );
+		}
 	}
 	/*
 	 * return with page still locked. truncate_list_pages() expects this.
@@ -2106,7 +2111,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 		}
 
 		jref( node );
-		page_clear_jnode_nolock( page, node );
+		page_clear_jnode( page, node );
 		spin_unlock_jnode( node );
 
 		/*
