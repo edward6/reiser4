@@ -32,7 +32,7 @@
 #include <linux/quotaops.h>
 #include <linux/dcache.h>	/* for struct dentry */
 
-/* helper function. Standards require than for many file-system operations
+/* helper function. Standards require that for many file-system operations
    on success ctime and mtime of parent directory is to be updated. */
 reiser4_internal int
 reiser4_update_dir(struct inode *dir)
@@ -57,7 +57,7 @@ static reiser4_block_nr common_estimate_link(
 
 	fplug = inode_file_plugin(object);
 	dplug = inode_dir_plugin(parent);
-
+				/* VS-FIXME-HANS: why do we do fplug->estimate.update(object) twice instead of multiplying by 2? */
 	/* reiser4_add_nlink(object) */
 	res += fplug->estimate.update(object);
 	/* add_entry(parent) */
@@ -185,13 +185,13 @@ static reiser4_block_nr common_estimate_unlink (
 	reiser4_block_nr res = 0;
 	file_plugin *fplug;
 	dir_plugin *dplug;
-
+	
 	assert("vpf-317", object != NULL);
 	assert("vpf-318", parent != NULL );
 
 	fplug = inode_file_plugin(object);
 	dplug = inode_dir_plugin(parent);
-
+	
 	/* rem_entry(parent) */
 	res += dplug->estimate.rem_entry(parent);
 	/* reiser4_del_nlink(object) */
