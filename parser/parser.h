@@ -106,6 +106,13 @@ struct wrd
 	struct qstr u ;             /* u.name  is ptr to space     */
 };
 
+typedef enum 
+{
+	noV4Space,
+	V4Space,
+	V4Plugin
+};
+
 struct vnode
 {
 	vnode_t * next ;            /* next                          */
