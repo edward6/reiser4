@@ -1,4 +1,4 @@
- /* System call for accessing enhanced semantics of the Reiser Filesystem Version 4 (reiser4). */
+/* System call for accessing enhanced semantics of the Reiser Filesystem Version 4 (reiser4). */
 
 /* This system call feeds a string to parser.c, parser.c converts the
    string into a set of commands which are executed, and then this
@@ -67,7 +67,8 @@ sys_reiser4(char *p_string)
 
 	struct reiser4_syscall_w_space *work_space;
 
-	printk("sys_reiser4.parser(0) command string is ------>%s<--------\n",p_string);
+
+	reiser4_current_trace_flags |= TRACE_PARSE;
 
 	/* allocate work space for parser 
 	   working variables, attached to this call */
@@ -78,16 +79,12 @@ sys_reiser4(char *p_string)
 
 	/* initialize fields */
 	/* this field used for parsing string, one (inline) stay on begin of token*/
-	work_space->ws_pline = p_string;
 
+	work_space->ws_pline = p_string;
+	PTRACE(work_space, "%s", "begin parsing");
 	ret = yyparse(work_space);	/* parse command */
-	//	if (ret != -1 /*-ENOMEM*/) {
-	//		ret = execute_this_code(work_space);
-	//	}
 	reiser4_pars_free(work_space);
 	return ret;
-
-	return 0;
 }
 
 #else

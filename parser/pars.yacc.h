@@ -40,18 +40,18 @@ struct reiser4_syscall_w_space
 	int	ws_level;              /* current level            */
 	int	ws_errco;              /* number of errors         */
 	                               /* working fields  */
-	char      * tmpWrdEnd; 
-	char      * yytext;
+	char        * tmpWrdEnd; 
+	char        * yytext;
 	                               /* space for   */
-	freeSpace * freeSpHead;
-	freeSpace * freeSpCur;
-	wrd_t     * wrdHead;
-	vnode_t   * Head_vnode;
-	streg_t   * Head_level;	
-	streg_t   * cur_level;	 
-	expr_v4_t * root_e;          /* root expression  for this task */
+	freeSpace_t * freeSpHead;
+	freeSpace_t * freeSpCur;
+	wrd_t       * wrdHead;
+	vnode_t     * Head_vnode;
+	streg_t     * Head_level;	
+	streg_t     * cur_level;	 
+	expr_v4_t   * root_e;          /* root expression  for this task */
 
-	vnode_t   * wvn;              /* work    for this task */
+	vnode_t     * wvn;              /* work    for this task */
 
 	struct dentry * de;            /* work dentry for this task */
 	struct nameidata nd;

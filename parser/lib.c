@@ -31,9 +31,9 @@ static int yywrap()
 }
 
 
-static void freeList(freeSpace * list)
+static void freeList(freeSpace_t * list)
 {
-	freeSpace * curr,* next;
+	freeSpace_t * curr,* next;
 	next = list;
 	while (next)
 		{
@@ -60,10 +60,10 @@ static int reiser4_pars_free(struct reiser4_syscall_w_space * ws)
                                 (fs)->freeSpaceMax   = (fs)->freeSpaceBase+FREESPACESIZE;         \
 			        (fs)->freeSpace      = (fs)->freeSpaceBase
 
-static freeSpace * freeSpaceAlloc()
+static freeSpace_t * freeSpaceAlloc()
 {
-	freeSpace * fs;
-	if ( ( fs = ( freeSpace * ) kmalloc( sizeof( freeSpace ),0 ) ) != NULL )
+	freeSpace_t * fs;
+	if ( ( fs = ( freeSpace_t * ) kmalloc( sizeof( freeSpace_t ),GFP_KERNEL ) ) != NULL )
 		{
 			initNextFreeSpace(fs);
 		}
@@ -73,13 +73,15 @@ static freeSpace * freeSpaceAlloc()
 #define get_first_freeSpHead(ws) (ws)->freeSpHead
 #define get_next_freeSpHead(curr) (curr)->freeSpace_next
 
-static freeSpace * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws)
+static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws)
 {
-	freeSpace * curr,* next;
+	freeSpace_t * curr,* next;
+	PTRACE(ws, "%s", "begin");
 	curr=NULL;
 	next = get_first_freeSpHead(ws);
 	while (next)
 		{
+	PTRACE(ws, "%s", "next");
 			curr = next;
 			next = get_next_freeSpHead(curr);
 		}
@@ -95,13 +97,20 @@ static freeSpace * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws)
 				}
 			next->freeSpace_next=NULL;
 		}
+else
+{
+
+	PTRACE(ws, "%s", "else");
+}
 	return next;
 }
 
 static char* list_alloc(struct reiser4_syscall_w_space * ws, int size)
 {
 	char * rez;
-	if( ws->freeSpCur->freeSpace > (ws->freeSpCur->freeSpaceMax - size) )
+	PTRACE(ws, "%s, space=%p, free=%p", "begin",ws->freeSpCur,ws->freeSpCur->freeSpace);
+	assert("list_alloc:bad ws",ws!=NULL);
+	if( (unsigned long)(ws->freeSpCur->freeSpace) > ((unsigned long)(ws->freeSpCur->freeSpaceMax) - size) )
 		{
 			ws->freeSpCur = freeSpaceNextAlloc(ws);
 			assert("VD-LIST_ALLOC",ws->freeSpCur!=NULL);
@@ -115,12 +124,14 @@ static char* list_alloc(struct reiser4_syscall_w_space * ws, int size)
 
 static streg_t *alloc_new_level(struct reiser4_syscall_w_space * ws)
 {
+	PTRACE(ws, "%s", "begin");
 	return ( streg_t *)  list_alloc(ws,sizeof(streg_t));
 }
 
 static vnode_t * alloc_vnode(struct reiser4_syscall_w_space * ws, vnode_t * last_vnode)
 {
 	vnode_t * vnode;
+	PTRACE(ws, "%s", "begin");
 
 	vnode = (vnode_t *)list_alloc(ws,sizeof(vnode_t));
 
@@ -146,25 +157,30 @@ static vnode_t * alloc_vnode(struct reiser4_syscall_w_space * ws, vnode_t * last
 
 
 
-static lnode * get_lnode(struct inode * inode)
+static lnode * get_lnode(struct reiser4_syscall_w_space * ws, struct inode * inode)
 {
 	lnode * ln,* l_rez;
 	reiser4_key * k_rez;
+	PTRACE( ws, " inode=%p", inode );
 
-	if ( ( ln = ( lnode * ) kmalloc( sizeof( lnode ),0 ) ) != NULL )
+	if ( ( ln = ( lnode * ) kmalloc( sizeof( lnode ), GFP_KERNEL) ) != NULL )
 		{
 			if (is_reiser4_inode(inode))
 				{
 					ln->h.type = LNODE_LW;
 					k_rez = build_sd_key( inode, &ln->lw.key);
 					l_rez = lget( ln, LNODE_LW, get_key_objectid(&ln->lw.key ) );
+					PTRACE( ws, "r4: lnode=%p", ln );
 				}
 			else
 				{
 					ln->h.type = LNODE_INODE;
 					ln->inode.inode = inode;
+					PTRACE( ws, "no r4 lnode=%p", ln );
 				}
 		}
+	PTRACE( ws, " lnode=%p", ln );
+
 	return ln;
 }
 
@@ -173,10 +189,11 @@ static struct reiser4_syscall_w_space * reiser4_pars_init()
 	struct reiser4_syscall_w_space * ws;
                                                             /* allocate work space for parser 
 							       working variables, attached to this call */
-	if ( ( ws = kmalloc( sizeof( struct reiser4_syscall_w_space ),0 ) )==NULL )
+	if ( ( ws = kmalloc( sizeof( struct reiser4_syscall_w_space ), GFP_KERNEL ) )==NULL )
 		{
 		  return NULL; /*-ENOMEM;*/
 		}
+	PTRACE(ws, "%s", "allocated");
 	ws->ws_yystacksize = MAXLEVELCO; /* must be 500 by default */
 	ws->ws_yymaxdepth  = MAXLEVELCO; /* must be 500 by default */
 	
@@ -184,6 +201,7 @@ static struct reiser4_syscall_w_space * reiser4_pars_init()
 	                                                    /* allocate first part of working tables
 							       and initialise headers */
 	ws->freeSpHead          = freeSpaceAlloc();
+	ws->freeSpCur           = ws->freeSpHead;
 	ws->wrdHead             = NULL;
 	ws->root_e              = init_root(ws);
 	ws->cur_level           = alloc_new_level(ws);
@@ -200,6 +218,7 @@ static struct reiser4_syscall_w_space * reiser4_pars_init()
 
 static void level_up(struct reiser4_syscall_w_space *ws, int type)
 {
+	PTRACE(ws, "%s", "begin");
 	if (ws->cur_level->next==NULL)
 		{
 			ws->cur_level->next       = alloc_new_level(ws);
@@ -216,6 +235,7 @@ static void level_up(struct reiser4_syscall_w_space *ws, int type)
 
 static  void  level_down(struct reiser4_syscall_w_space * ws, int type1, int type2)
 {
+	PTRACE(ws, "%s", "begin");
 	assert("VD-level_down, type mithmatch",type1==type2);
 	assert("VD-level_down, type level mithmatch",type2==ws->cur_level->stype);
 //	path_release(ws->cur_level->path_walk->nd); ??????
@@ -300,7 +320,7 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 					if ( ws->freeSpCur->freeSpace > ws->freeSpCur->freeSpaceBase ) /* we can reallocate new space and copy all
 											       symbols of current token inside it */
 						{
-							freeSpace * tmp;
+							freeSpace_t * tmp;
 							tmp=ws->freeSpCur;
 							if ( (ws->freeSpCur = freeSpaceNextAlloc(ws))!=NULL)
 								{
@@ -362,6 +382,7 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 #else
 	len = ws->tmpWrdEnd - ws->freeSpCur->freeSpace - 1 ;
 #endif
+        PTRACE( ws, "wrd %s len=%d wrdHead=%p", ws->tmpWrdEnd, len ,ws->wrdHead );
 	cur_wrd = NULL;
 	while ( !( new_wrd == NULL ) )
 		{
@@ -370,6 +391,7 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 				{
 					if( !memcmp( cur_wrd->u.name, ws->freeSpCur->freeSpace, cur_wrd->u.len ) )
 						{
+							PTRACE( ws, "wrd %s len=%d founded=%p", ws->tmpWrdEnd, len ,cur_wrd );
 							return cur_wrd;
 						}
 				}
@@ -388,6 +410,7 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 		{
 			cur_wrd->next = new_wrd;
 		}
+							PTRACE( ws, "wrd %s len=%d new=%p", ws->tmpWrdEnd, len , new_wrd );
 	return new_wrd;
 }
 
@@ -484,23 +507,29 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 static expr_v4_t * alloc_new_expr(struct reiser4_syscall_w_space * ws, int type)
 {
 	expr_v4_t * e;
-	e         = ( expr_v4_t *)  list_alloc(ws,sizeof(expr_v4_t));
+	PTRACE(ws, "%s", "begin");
+	assert("alloc_new_expr: bad ws",ws!=NULL);
+	e         = ( expr_v4_t *)  list_alloc( ws, sizeof(expr_v4_t));
 	e->h.type = type;
 	return e;
 }
 
 wrd_t * nullname(struct reiser4_syscall_w_space * ws)
 {
-	return NULL;
+	PTRACE(ws, "%s", "begin");
+	ws->tmpWrdEnd = ws->freeSpCur->freeSpace;
+	*ws->tmpWrdEnd++ = 0;
+	return _wrd_inittab(ws);
 }
 
 static expr_v4_t *  init_root(struct reiser4_syscall_w_space * ws)
 {
 	expr_v4_t * e;
+	PTRACE(ws, "%s", "begin");
 	e                  = alloc_new_expr(ws,EXPR_VNODE);
 	e->vnode.v         = alloc_vnode(ws,NULL);
 	e->vnode.v->w      = nullname(ws) ; /* or '/' ????? */
-	e->vnode.v->ln     = get_lnode(current->fs->root->d_inode) ;
+	e->vnode.v->ln     = get_lnode(ws,current->fs->root->d_inode) ;
 	e->vnode.v->parent = NULL;
 	return e;
 }
@@ -508,11 +537,13 @@ static expr_v4_t *  init_root(struct reiser4_syscall_w_space * ws)
 static expr_v4_t *  init_pwd(struct reiser4_syscall_w_space * ws)
 {
 	expr_v4_t * e;
+	PTRACE(ws, "%s", "begin");
 	e                  = alloc_new_expr(ws,EXPR_VNODE);
 	e->vnode.v         = alloc_vnode(ws,ws->root_e->vnode.v);
 	e->vnode.v->w      = nullname(ws) ;  /* better if it will point to full pathname for pwd */
-	e->vnode.v->ln     = get_lnode(current->fs->pwd->d_inode) ; 
+	e->vnode.v->ln     = get_lnode(ws,current->fs->pwd->d_inode) ; 
 	e->vnode.v->parent = ws->root_e->vnode.v;
+	PTRACE(ws, "%s", "end");
 	return e;
 }
 
@@ -538,6 +569,7 @@ static expr_v4_t *  pars_lookup(struct reiser4_syscall_w_space * ws, expr_v4_t *
 
 static expr_v4_t *  pars_expr(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2)
 {
+	PTRACE(ws, "%s", "begin");
 	ws->cur_level->wrk_exp=e2;
 	return e2;
 }
@@ -546,6 +578,7 @@ static expr_v4_t *  lookup_word(struct reiser4_syscall_w_space * ws, wrd_t * w)
 {
 	expr_v4_t * e;
 	vnode_t * vnode;
+	PTRACE(ws, "%s", "begin");
 #if 1           /* tmp.  this is fist version.  for II we need do "while" throus expression for all vnode */
 	vnode        = ws->cur_level->wrk_exp->vnode.v; 
 #else
@@ -566,6 +599,7 @@ static expr_v4_t *  lookup_word(struct reiser4_syscall_w_space * ws, wrd_t * w)
 
 static inline expr_v4_t * pars_lookup_curr(struct reiser4_syscall_w_space * ws)
 {
+	PTRACE(ws, "%s", "begin");
 	ws->cur_level->wrk_exp  = ws->cur_level->cur_exp;                        /* current wrk for pwd of level */
 	return ws->cur_level->wrk_exp;
 }
@@ -573,6 +607,7 @@ static inline expr_v4_t * pars_lookup_curr(struct reiser4_syscall_w_space * ws)
 
 static inline expr_v4_t * pars_lookup_root(struct reiser4_syscall_w_space * ws)
 {
+	PTRACE(ws, "%s", "begin");
 	ws->cur_level->wrk_exp  = ws->root_e;                                    /* set current to root */
 	return ws->cur_level->wrk_exp;
 }
@@ -585,6 +620,7 @@ static vnode_t *  lookup_vnode_word(struct reiser4_syscall_w_space * ws, vnode_t
 	struct dentry  * de;
 	vnode_t * rez_vnode;
 	vnode_t * last_vnode;
+	PTRACE(ws, "%s", "begin");
 
 	last_vnode  = NULL;
 	rez_vnode   = ws->Head_vnode;
@@ -629,16 +665,19 @@ static vnode_t *  lookup_vnode_word(struct reiser4_syscall_w_space * ws, vnode_t
 /* execute code: walk tree, call plugins and return value */
 static expr_v4_t * make_do_it(struct reiser4_syscall_w_space * ws, expr_v4_t * e1 )
 {
+	PTRACE(ws, "%s", "begin");
 	return e1;
 }
 
 static expr_v4_t * if_then_else(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2 , expr_v4_t * e3  )
 {
+	PTRACE(ws, "%s", "begin");
 	return e1;
 }
 
 static expr_v4_t * if_then(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2 )
 {
+	PTRACE(ws, "%s", "begin");
 	return e1;
 }
 
@@ -650,6 +689,7 @@ static void goto_end(struct reiser4_syscall_w_space * ws)
 /* STRING_CONSTANT to expression */
 static expr_v4_t * constToExpr(struct reiser4_syscall_w_space * ws, wrd_t * e1 )
 {
+	PTRACE(ws, "%s", "begin");
 	return NULL;
 }
 
@@ -822,14 +862,14 @@ static mm_segment_t __ski_old_fs;
 static tube_t * get_tube_general(vnode_t *sink, expr_v4_t *source)
 {
 	tube_t * tube=NULL;
-	tube = kmalloc(sizeof(struct tube),0);
+	tube = kmalloc(sizeof(struct tube), GFP_KERNEL);
 
 	assert("get_tube_general: no tube",!IS_ERR(tube));
 	assert("get_tube_general: src expression wrong",source->h.type == EXPR_VNODE);
 	assert("get_tube_general: src no dentry",source->vnode.vnode->ln->h.type== LNODE_DENTRY);
 	assert("get_tube_general: dst no dentry",sink->ln->h.type== LNODE_DENTRY);
 
-	tube->buf = kmalloc(PUMP_BUF_SIZE,0);
+	tube->buf = kmalloc(PUMP_BUF_SIZE, GFP_KERNEL);
 
 	tube->readoff     = 0;
 	tube->writeoff    = 0;

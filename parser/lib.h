@@ -14,14 +14,14 @@
 static void yy_exit(void);
 static void yyerror( struct reiser4_syscall_w_space *ws, int msgnum , ...);
 static int yywrap(void);
-static void freeList(freeSpace * list);
+static void freeList(freeSpace_t * list);
 static int reiser4_pars_free(struct reiser4_syscall_w_space * ws);
-static freeSpace * freeSpaceAlloc(void);
-static freeSpace * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws);
+static freeSpace_t * freeSpaceAlloc(void);
+static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws);
 static char* list_alloc(struct reiser4_syscall_w_space * ws, int size);
 static streg_t *alloc_new_level(struct reiser4_syscall_w_space * ws);
 static vnode_t * alloc_vnode(struct reiser4_syscall_w_space * ws, vnode_t * last_vnode);
-static lnode * get_lnode(struct inode * inode);
+static lnode * get_lnode(struct reiser4_syscall_w_space * ws, struct inode * inode);
 static struct reiser4_syscall_w_space * reiser4_pars_init(void);
 static void level_up(struct reiser4_syscall_w_space *ws, int type);
 static  void  level_down(struct reiser4_syscall_w_space * ws, int type1, int type2);

@@ -64,6 +64,11 @@ typedef enum
 
 #define  PARSER_DEBUG
 
+#define PTRACE(ws, format, ... )						\
+({										\
+	ON_TRACE(TRACE_PARSE, "parse:%s %p %s: " format "\n",	\
+		 __FUNCTION__, ws, (ws)->ws_pline, __VA_ARGS__);					\
+})
 
 typedef struct vnode vnode_t;
 
@@ -261,14 +266,14 @@ union expr_v4
 };
 
 /* ok this is space for names, constants and tmp*/
-typedef struct freeSpace freeSpace;
+typedef struct freeSpace freeSpace_t;
 
 struct freeSpace
 {
-	freeSpace  * freeSpace_next;                 /* next buffer   */
-	char       * freeSpace;                      /* pointer to free space */
-	char       * freeSpaceMax;                   /* for overflow control */
-	char         freeSpaceBase[FREESPACESIZE];   /* current buffer */
+	freeSpace_t  * freeSpace_next;                 /* next buffer   */
+	char         * freeSpace;                      /* pointer to free space */
+	char         * freeSpaceMax;                   /* for overflow control */
+	char           freeSpaceBase[FREESPACESIZE];   /* current buffer */
 };
 
 /*
