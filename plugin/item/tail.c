@@ -330,13 +330,13 @@ int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 			
 			/* unlocking page in order to avoid keep it locked durring tree lookup,
 			   which takes long term locks. */
-			reiser4_unlock_page(page);
+			unlock_page(page);
 
 			/* getting right neighbour. */
 			result = go_dir_el(&tap, RIGHT_SIDE, 0);
 
 			/* lock page back */
-			reiser4_lock_page(page);
+			lock_page(page);
 
 			/* page is uptodate due to another thread made it up to date. Getting
 			   out of here. */
