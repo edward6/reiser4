@@ -220,10 +220,10 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #include <asm/uaccess.h>
 #include <linux/sched.h>
 #include <linux/module.h>
-
+/* for {get|put}_unaligned() in dformat.h */
+#include <asm/unaligned.h>
 /* For __init definitions */
 #include <linux/init.h>
-
 
 #define no_context      ( in_interrupt() || in_irq() )
 #define current_pname   ( current -> comm )
