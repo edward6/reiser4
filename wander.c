@@ -1053,11 +1053,11 @@ static int wait_on_jnode_list (capture_list_head * head)
 	     ! capture_list_end   (head, scan);
 	     scan = capture_list_next  (scan))
 	{
-		struct page * pg = scan->pg;
+		struct page * pg = jnode_page(scan);
 
 		if (pg) {
 			if (PageWriteback (pg))
-				wait_on_page_writeback (scan->pg);
+				wait_on_page_writeback (pg);
 
 			if (PageError (pg))
 				ret ++;

@@ -898,11 +898,18 @@ static int reiser4_permission( struct inode *inode /* object */,
 					 * for */ )
 {
 	int result;
-	REISER4_ENTRY( inode -> i_sb );
+	/*
+	 * reiser4_context creation/destruction removed from here,
+	 * because permission checks currently don't require this.
+	 *
+	 * Permission plugin have to create context itself if necessary.
+	 */
+	/* REISER4_ENTRY( inode -> i_sb ); */
 	assert( "nikita-1687", inode != NULL );
 
 	result = perm_chk( inode, mask, inode, mask ) ? -EACCES : 0;
-	REISER4_EXIT( result );
+	/* REISER4_EXIT( result ); */
+	return result;
 }
 
 /**
