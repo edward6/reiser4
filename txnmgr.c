@@ -1216,10 +1216,9 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	}
 
 	/* Up to this point we have been flushing and after flush is called we
-	   return -E_REPEAT.  Now we can commit.  We cannot return -E_REPEAT at this
-	   point, commit should be successful. */
-	/* XXX why waiters are not waken up at atom stage change? --nikita */
-	(*atom)->stage = ASTAGE_PRE_COMMIT;
+	   return -E_REPEAT.  Now we can commit.  We cannot return -E_REPEAT
+	   at this point, commit should be successful. */
+	atom_set_stage(*atom, ASTAGE_PRE_COMMIT);
 	ON_DEBUG(((*atom)->committer = current));
 
 	ON_TRACE(TRACE_TXN, "commit atom %u: PRE_COMMIT\n", (*atom)->atom_id);
@@ -1257,12 +1256,11 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	assert("zam-927", capture_list_empty(&(*atom)->inodes));
 
 	LOCK_ATOM(*atom);
-	(*atom)->stage = ASTAGE_DONE;
+	atom_set_stage(*atom, ASTAGE_DONE);
 	ON_DEBUG((*atom)->committer = 0);
 
 	/* Atom's state changes, so wake up everybody waiting for this
 	   event. */
-	wakeup_atom_waitfor_list(*atom);
 	wakeup_atom_waiting_list(*atom);
 
 	/* Decrement the "until commit" reference, at least one txnh (the caller) is
@@ -1653,6 +1651,20 @@ reiser4_internal void atom_wait_event(txn_atom * atom)
 	atom_dec_and_unlock (atom);
 }
 
+reiser4_internal void
+atom_set_stage(txn_atom *atom, txn_stage stage)
+{
+	assert("nikita-3535", atom != NULL);
+	assert("nikita-3538", spin_atom_is_locked(atom));
+	assert("nikita-3536", ASTAGE_FREE <= stage && stage <= ASTAGE_INVALID);
+	/* Excelsior! */
+	assert("nikita-3537", stage >= atom->stage);
+	if (atom->stage != stage) {
+		atom->stage = stage;
+		atom_send_event(atom);
+	}
+}
+
 /* wake all threads which wait for an event */
 reiser4_internal void
 atom_send_event(txn_atom * atom)
@@ -1718,29 +1730,49 @@ try_commit_txnh(commit_data *cd)
 		return 0;
 
 	if (atom_should_commit(cd->atom)) {
+		/* if atom is  _very_ large schedule it for  common as soon as
+		 * possible. */
 		if (atom_should_commit_asap(cd->atom)) {
-			cd->atom->stage = ASTAGE_CAPTURE_WAIT;
+			/*
+			 * When atom is in PRE_COMMIT or later stage following
+			 * invariant (encoded   in    atom_can_be_committed())
+			 * holds:  there is exactly one non-waiter transaction
+			 * handle opened  on this atom.  When  thread wants to
+			 * wait  until atom  commits (for  example  sync()) it
+			 * waits    on    atom  event     after     increasing
+			 * atom->nr_waiters (see blow  in  this  function). It
+			 * cannot be guaranteed that atom is already committed
+			 * after    receiving event,  so     loop has   to  be
+			 * re-started. But  if  atom switched into  PRE_COMMIT
+			 * stage and became  too  large, we cannot  change its
+			 * state back   to CAPTURE_WAIT (atom  stage can  only
+			 * increase monotonically), hence this check.
+			 */
+			if (cd->atom->stage < ASTAGE_CAPTURE_WAIT)
+				atom_set_stage(cd->atom, ASTAGE_CAPTURE_WAIT);
 			cd->atom->flags |= ATOM_FORCE_COMMIT;
-			atom_send_event(cd->atom);
 		}
 		if (cd->txnh->flags & TXNH_DONT_COMMIT) {
 			/*
-			 * this thread (transaction handle that is) doesn't
-			 * want to commit atom. Notify waiters that handle is
-			 * closed. This can happen, for example, when we are
-			 * under VFS directory lock and don't want to commit
-			 * atom right now to avoid stalling other threads
+			 * this  thread (transaction  handle  that is) doesn't
+			 * want to commit  atom. Notify waiters that handle is
+			 * closed. This can happen, for  example, when we  are
+			 * under  VFS directory lock  and don't want to commit
+			 * atom  right   now to  avoid  stalling other threads
 			 * working in the same directory.
 			 */
 
-			/* Wake the ktxnmgrd up if the ktxnmgrd is needed to
-			 * commit this atom: no atom waiters and only one (our)
-			 * open transaction handle. */
-			cd->wake_ktxnmgrd_up = cd->atom->txnh_count == 1 && cd->atom->nr_waiters == 0;
+			/* Wake  the ktxnmgrd up if  the ktxnmgrd is needed to
+			 * commit this  atom: no  atom  waiters  and only  one
+			 * (our) open transaction handle. */
+			cd->wake_ktxnmgrd_up =
+				cd->atom->txnh_count == 1 &&
+				cd->atom->nr_waiters == 0;
 			atom_send_event(cd->atom);
 			result = 0;
 		} else if (!atom_can_be_committed(cd->atom)) {
 			if (should_wait_commit(cd->txnh)) {
+				/* sync(): wait for commit */
 				cd->atom->nr_waiters++;
 				cd->wait = 1;
 				atom_wait_event(cd->atom);
@@ -1751,10 +1783,10 @@ try_commit_txnh(commit_data *cd)
 			}
 		} else if (cd->preflush > 0 && !is_current_ktxnmgrd()) {
 			/*
-			 * optimization: flush atom without switching it into
+			 * optimization: flush  atom without switching it into
 			 * ASTAGE_CAPTURE_WAIT.
 			 *
-			 * But don't do this for ktxnmgrd, because ktxnmgrd
+			 * But don't  do this for  ktxnmgrd, because  ktxnmgrd
 			 * should never block on atom fusion.
 			 */
 			result = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS,
@@ -1768,12 +1800,11 @@ try_commit_txnh(commit_data *cd)
 				 * completely. Rinse. Repeat. */
 				-- cd->preflush;
 		} else {
-			/* We change atom state to ASTAGE_CAPTURE_WAIT to
-			   prevent atom fusion and count ourself as an active
+			/* We change   atom state  to   ASTAGE_CAPTURE_WAIT to
+			   prevent atom fusion and count  ourself as an active
 			   flusher */
-			cd->atom->stage = ASTAGE_CAPTURE_WAIT;
+			atom_set_stage(cd->atom, ASTAGE_CAPTURE_WAIT);
 			cd->atom->flags |= ATOM_FORCE_COMMIT;
-			atom_send_event(cd->atom);
 
 			result = commit_current_atom(&cd->nr_written, &cd->atom);
 			if (result != 0 && result != -E_REPEAT)
@@ -1784,7 +1815,7 @@ try_commit_txnh(commit_data *cd)
 
 	assert("jmacd-1027", ergo(result == 0, spin_atom_is_locked(cd->atom)));
 	/* perfectly valid assertion, except that when atom/txnh is not locked
-	 * fusion can take place, and cd->atom point nowhere. */
+	 * fusion can take place, and cd->atom points nowhere. */
 	/*
 	  assert("jmacd-1028", ergo(result != 0, spin_atom_is_not_locked(cd->atom)));
 	*/
@@ -2519,6 +2550,7 @@ capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
 	assert("jmacd-822", spin_txnh_is_locked(txnh));
 	assert("jmacd-823", spin_atom_is_locked(atom));
 	assert("jmacd-824", txnh->atom == NULL);
+	assert("nikita-3540", atom_isopen(atom));
 
 	atomic_inc(&atom->refcount);
 
@@ -3650,17 +3682,15 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 
 	if (large->stage < small->stage) {
 		/* Large only needs to notify if it has changed state. */
-		large->stage = small->stage;
-		wakeup_atom_waitfor_list(large);
+		atom_set_stage(large, small->stage);
 		wakeup_atom_waiting_list(large);
 	}
 
-	small->stage = ASTAGE_INVALID;
+	atom_set_stage(small, ASTAGE_INVALID);
 
 	/* Notify any waiters--small needs to unload its wait lists.  Waiters
 	   actually remove themselves from the list before returning from the
 	   fuse_wait function. */
-	wakeup_atom_waitfor_list(small);
 	wakeup_atom_waiting_list(small);
 
 	/* Unlock atoms */

@@ -1641,9 +1641,7 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 
 	reiser4_stat_inc(txnmgr.commits);
 
-	LOCK_ATOM(atom);
-	atom->stage = ASTAGE_POST_COMMIT;
-	UNLOCK_ATOM(atom);
+	UNDER_SPIN_VOID(atom, atom, atom_set_stage(atom, ASTAGE_POST_COMMIT));
 
 	trace_mark(ovrwr);
 
