@@ -827,7 +827,8 @@ unix_file_interfile_readahead_amount(struct file * file, off, read_amount)
 typedef enum {
 	WRITE_EXTENT,
 	WRITE_TAIL,
-	CONVERT
+	CONVERT,
+	ERROR
 } write_todo;
 
 static write_todo unix_file_how_to_write (struct inode *, flow_t *, coord_t *);
@@ -845,6 +846,9 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 	lock_handle lh;	
 	size_t to_write;
 	item_plugin * iplug;
+	write_todo mode;
+	seal_t seal;
+	lw_coord_t lw_coord = {&seal, &coord};
 
 
 	init_lh (&lh);
@@ -852,10 +856,10 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 
 	to_write = f->length;
 	while (1) {
-		znode * loaded;
-
-		/* look for file's metadata (extent or tail item) corresponding to position we write to */
-		result = find_next_item (file, &f->key, &coord, &lh, ZNODE_WRITE_LOCK,
+		/* look for file's metadata (extent or tail item) corresponding
+		 * to position we write to */
+		result = find_next_item (file, &f->key, &coord, &lh,
+					 ZNODE_WRITE_LOCK,
 					 CBK_UNIQUE | CBK_FOR_INSERT);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occurred */
@@ -863,19 +867,24 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 			return result;
 		}
 
-		/* store what we zload so that we were able to zrelse */
-		loaded = coord.node;
-		result = zload (loaded);
-		if (result) {
-			break;
+		mode = unix_file_how_to_write (inode, f, &coord);
+		if (mode == ERROR) {
+			done_lh (&lh);
+			return -EIO;
 		}
 
-		switch (unix_file_how_to_write (inode, f, &coord)) {
+		seal_init (&seal, &coord, &f->key);
+		done_lh (&lh);
+
+		switch (mode) {
 		case WRITE_EXTENT:
 			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 			/* resolves to extent_write function */
 
-			result = iplug->s.file.write (inode, &coord, &lh, f, 0);
+			result = iplug->s.file.write (inode, &lw_coord, f, 0);
+			if (result == -EAGAIN) {
+				continue;
+			}
 			if (!result) {
 				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
 				inode_clr_flag (inode, REISER4_HAS_TAIL);
@@ -886,7 +895,10 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 			iplug = item_plugin_by_id (TAIL_ID);
 			/* resolves to tail_write function */
 
-			result = iplug->s.file.write (inode, &coord, &lh, f, 0);
+			result = iplug->s.file.write (inode, &lw_coord, f, 0);
+			if (result == -EAGAIN) {
+				continue;
+			}
 			if (!result) {
 				inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
 				inode_set_flag (inode, REISER4_HAS_TAIL);
@@ -894,8 +906,6 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 			break;
 
 		case CONVERT:
-			zrelse (loaded);
-			done_lh (&lh);
 			result = tail2extent (inode);
 			if (result) {
 				return result;
@@ -907,23 +917,26 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 		default:
 			impossible ("vs-293", "unknown write mode");
 		}
-		zrelse (loaded);
 
-		if (result && result != -EAGAIN)
+		if (result)
 			/* error */
 			break;
+
 		if ((loff_t)get_key_offset (&f->key) > inode->i_size)
 			/* file got longer */
 			inode->i_size = get_key_offset (&f->key);
+
 		if (!to_write) {
 			/* expanding truncate */
 			if ((loff_t)get_key_offset (&f->key) < inode->i_size)
 				continue;
 		}
+
 		if (f->length == 0)
 			/* write is done */
 			break;
 	}
+
 	if (coord.node && coord_set_properly (&f->key, &coord) && file) {
 		reiser4_file_fsdata * fdata;
 		seal_t seal;
@@ -937,7 +950,6 @@ static loff_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 			fdata->reg.level = znode_get_level (coord.node);
 		}
 	}
-	done_lh (&lh);
 
 	/* if nothing were written - there must be an error */
 	assert ("vs-951", ergo ((to_write == f->length), result < 0));
@@ -1024,22 +1036,6 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	return written;
 }
 
-#if 0
-/*
- * unix files of reiser4 are built either of extents only or of tail items
- * only. If looking for file item coord_by_key stopped at twig level - file
- * consists of extents only, if at leaf level - file is built of extents only
- * FIXME-VS: it is possible to imagine different ways for finding that
- */
-/* AUDIT: Comment above is incorrect, both cases it looks at is dealing with extents, how about file tails? */
-/* Audited by: green(2002.06.15) */
-static int built_of_extents (struct inode * inode UNUSED_ARG,
-			     coord_t * coord)
-{
-	return znode_get_level (coord->node) == TWIG_LEVEL;
-}
-#endif
-
 
 /* returns 1 if file of that size (@new_size) has to be stored in unformatted
  * nodes */
@@ -1056,6 +1052,7 @@ static int should_have_notail (struct inode * inode, loff_t new_size)
 static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
 					  coord_t * coord)
 {
+	int result;
 	reiser4_item_data data;
 	loff_t new_size;
 
@@ -1066,21 +1063,30 @@ static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
 	if (znode_get_level (coord->node) == TWIG_LEVEL) {
 		/* extent item of this file found */
 		data.iplug = item_plugin_by_id (EXTENT_POINTER_ID);
-		assert ("vs-919", item_can_contain_key (coord, &f->key, &data));
+		assert ("vs-919", WITH_DATA (coord->node,
+					     item_can_contain_key (coord, &f->key, &data)));
 		return WRITE_EXTENT;
 	}
 
 	assert ("vs-920", znode_get_level (coord->node) == LEAF_LEVEL);
 
+	
+	result = zload (coord->node);
+	if (result)
+		return result;
+
 	data.iplug = item_plugin_by_id (TAIL_ID);
 	if (!node_is_empty (coord->node) &&
 	    coord_is_existing_item (coord) &&
 	    item_can_contain_key (coord, &f->key, &data)) {
+		zrelse (coord->node);
 		/* tail item of this file found */
 		if (should_have_notail (inode, new_size))
 			return CONVERT;
 		return WRITE_TAIL;
 	}
+
+	zrelse (coord->node);
 
 	/* there are no any items of this file yet */
 	if (should_have_notail (inode, new_size))
