@@ -904,19 +904,8 @@ int znode_just_created( const znode *node )
 
 int znode_io_hook( jnode *node, struct page *page UNUSED_ARG, int rw )
 {
-	return 0;
-
-	/*
-	 * It still breaks reiser4 flushing :(
-	 */
-
-	if( REISER4_DEBUG && ( rw == WRITE ) && 
-	    ( jnode_get_level( node ) > LEAF_LEVEL ) ) {
-		/* make sure we don't write unallocated pointers to disk */
-		coord_t coord;
+	if( REISER4_STATS && ( rw == WRITE )) {
 		int     result = 0;
-		znode  *z;
-
 		txn_atom * atom;
 
 		/* current flush alg. implementation allows internal nodes
@@ -933,22 +922,11 @@ int znode_io_hook( jnode *node, struct page *page UNUSED_ARG, int rw )
 		spin_unlock_jnode (node);
 		if (result) return 0; /* not a commit */
 
-		z = JZNODE( node );
-		result = zload( z );
-		if( result != 0 )
-			return result;
-
-		for_all_units( &coord, z ) {
-			reiser4_block_nr block;
-
-			if( !item_is_internal( &coord ) )
-				continue;
-			item_plugin_by_coord( &coord ) -> 
-				s.internal.down_link( &coord, NULL, &block );
-			assert( "nikita-2413", !blocknr_is_fake( &block ) );
+		if (check_jnode_for_unallocated(node)) {
+			reiser4_stat_flush_add (flushed_with_unallocated);
 		}
-		zrelse( z );
 	}
+
 	return 0;
 }
 
