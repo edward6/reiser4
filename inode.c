@@ -350,12 +350,15 @@ struct inode *reiser4_iget( struct super_block *super /* super block  */,
 					self -> tail = root -> tail;
 				if( self -> perm == NULL )
 					self -> perm = root -> perm;
+				if( self -> dir_item == NULL )
+					self -> dir_item = root -> dir_item;
 			} else {
 				assert( "nikita-1814", self -> dir  != NULL );
 				assert( "nikita-1815", self -> sd   != NULL );
 				assert( "nikita-1816", self -> hash != NULL );
 				assert( "nikita-1817", self -> tail != NULL );
 				assert( "nikita-1818", self -> perm != NULL );
+				assert( "vs-545", self -> dir_item != NULL );
 			}
 		}
 	}
