@@ -744,15 +744,6 @@ plugin_sd_present(struct inode *inode /* object being processed */ ,
 		if (plugin == NULL) {
 			return unknown_plugin(d16tocpu(&slot->id), inode);
 		}
-		next_stat(len, area, sizeof *slot);
-		align(inode, len, area, plugin->h.pops->alignment);
-		/* load plugin data, if any */
-		if (plugin->h.pops->load) {
-			result = plugin->h.pops->load(inode, plugin, area, len);
-			if (result != 0) {
-				return result;
-			}
-		}
 		/* plugin is loaded into inode, mark this into inode's
 		   bitmask of loaded non-standard plugins */
 		if (!(mask & (1 << plugin->h.type_id))) {
@@ -761,6 +752,17 @@ plugin_sd_present(struct inode *inode /* object being processed */ ,
 			warning("nikita-658", "duplicate plugin for %llu", get_inode_oid(inode));
 			print_plugin("plugin", plugin);
 			return -EINVAL;
+		}
+		next_stat(len, area, sizeof *slot);
+		if (plugin->h.pops == NULL)
+			continue;
+		align(inode, len, area, plugin->h.pops->alignment);
+		/* load plugin data, if any */
+		if (plugin->h.pops->load) {
+			result = plugin->h.pops->load(inode, plugin, area, len);
+			if (result != 0) {
+				return result;
+			}
 		}
 	}
 	/* if object plugin wasn't loaded from stat-data, guess it by
@@ -859,8 +861,9 @@ save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 	assert("nikita-665", inode != NULL);
 	assert("nikita-666", area != NULL);
 	assert("nikita-667", *area != NULL);
-	assert("nikita-668", plugin != NULL);
 
+	if (plugin == NULL)
+		return 0;
 	if (!(reiser4_inode_data(inode)->plugin_mask & (1 << plugin->h.type_id)))
 		return 0;
 	slot = (reiser4_plugin_slot *) * area;
