@@ -625,6 +625,7 @@ conv_extent(coord_t *coord, reiser4_extent *replace)
 
 	if (try_to_merge_with_left(coord, ext, replace)) {
 		/* merged @replace with left neighbor. Current unit is either removed or narrowed */
+		assert("nikita-3563", znode_at_read(coord->node));
 		return 0;
 	}
 
@@ -634,8 +635,9 @@ conv_extent(coord_t *coord, reiser4_extent *replace)
 		       start, width,
 		       extent_get_start(replace), extent_get_width(replace));
 
-		znode_make_dirty(coord->node);
 		*ext = *replace;
+		znode_make_dirty(coord->node);
+		assert("nikita-3563", znode_at_read(coord->node));
 		return 0;
 	}
 
@@ -657,6 +659,7 @@ conv_extent(coord_t *coord, reiser4_extent *replace)
 	result = replace_extent(coord, znode_lh(coord->node), &key, init_new_extent(&item, &padd_ext, 1),
 				replace, COPI_DONT_SHIFT_LEFT, 0/* return replaced position */);
 
+	assert("nikita-3563", znode_at_read(coord->node));
 	free_replace_reserved(grabbed);
 	return result;
 }
@@ -780,6 +783,8 @@ alloc_extent(flush_pos_t *flush_pos)
 
 	coord = &flush_pos->coord;
 
+	check_pos(flush_pos);
+
 	ext = extent_by_coord(coord);
 	state = state_of_extent(ext);
 	if (state == HOLE_EXTENT) {
@@ -802,6 +807,7 @@ alloc_extent(flush_pos_t *flush_pos)
 		if (flush_pos->pos_in_unit) {
 			/* split extent unit into two */
 			result = split_allocated_extent(coord, flush_pos->pos_in_unit);
+			check_pos(flush_pos);
 			flush_pos->pos_in_unit = 0;
 			return result;
 		}
@@ -816,6 +822,7 @@ alloc_extent(flush_pos_t *flush_pos)
 		protected_jnodes_init(&jnodes);
 
 		result = protect_extent_nodes(flush_pos, oid, index, width, &protected, ext, &jnodes.nodes);
+		check_pos(flush_pos);
 		if (result) {
   			warning("vs-1469", "Failed to protect extent. Should not happen\n");
 			protected_jnodes_done(&jnodes);
@@ -838,6 +845,7 @@ alloc_extent(flush_pos_t *flush_pos)
 
 		/* allocate new block numbers for protected nodes */
 		extent_allocate_blocks(pos_hint(flush_pos), protected, &first_allocated, &allocated, block_stage);
+		check_pos(flush_pos);
 
 		ON_TRACE(TRACE_EXTENT_ALLOC, "allocated: (first %llu, cound %llu) - ", first_allocated, allocated);
 
@@ -846,14 +854,18 @@ alloc_extent(flush_pos_t *flush_pos)
 			 * allocated/relocated on this iteration */
 			unprotect_extent_nodes(flush_pos, protected - allocated,
 					       &jnodes.nodes);
+		check_pos(flush_pos);
 		if (state == ALLOCATED_EXTENT) {
 			/* on relocating - free nodes which are going to be
 			 * relocated */
 			reiser4_dealloc_blocks(&start, &allocated, BLOCK_ALLOCATED, BA_DEFER);
 		}
 
+		check_pos(flush_pos);
 		/* assign new block numbers to protected nodes */
 		assign_real_blocknrs(flush_pos, first_allocated, allocated, state, &jnodes.nodes);
+
+		check_pos(flush_pos);
 		protected_jnodes_done(&jnodes);
 
 		/* send to log information about which blocks were allocated for what */
@@ -867,6 +879,7 @@ alloc_extent(flush_pos_t *flush_pos)
 
 		/* adjust extent item */
 		result = conv_extent(coord, &replace_ext);
+		check_pos(flush_pos);
 		if (result != 0 && result != -ENOMEM) {
   			warning("vs-1461", "Failed to allocate extent. Should not happen\n");
 			return result;
@@ -879,6 +892,7 @@ alloc_extent(flush_pos_t *flush_pos)
 		mark_jnodes_overwrite(flush_pos, oid, index, width);
 	}
 	flush_pos->pos_in_unit = 0;
+	check_pos(flush_pos);
 	return 0;
 }
 
