@@ -1310,7 +1310,9 @@ atom_wait_event(txn_handle * h)
 	assert("zam-744", spin_atom_is_locked(atom));
 
 	init_wlinks(&_wlinks);
+
 	fwaitfor_list_push_back(&atom->fwaitfor_list, &_wlinks);
+	atom->refcount ++;
 
 	spin_unlock_atom(atom);
 
@@ -1320,6 +1322,8 @@ atom_wait_event(txn_handle * h)
 	atom = atom_get_locked_with_txnh_locked(h);
 
 	fwaitfor_list_remove(&_wlinks);
+	atom->refcount --;
+
 	spin_unlock_txnh(h);
 
 	return atom;
