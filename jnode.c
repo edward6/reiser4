@@ -487,9 +487,19 @@ jnode_lock_page(jnode * node)
 static inline int
 jparse(jnode * node)
 {
+	int result;
+
 	assert("nikita-2466", node != NULL);
 
-	return UNDER_SPIN(jnode, node, jnode_ops(node)->parse(node));
+	LOCK_JNODE(node);
+	if (likely(!jnode_is_parsed(node))) {
+		result = jnode_ops(node)->parse(node);
+		if (likely(result == 0))
+			JF_SET(node, JNODE_PARSED);
+	} else
+		result = 0;
+	UNLOCK_JNODE(node);
+	return result;
 }
 
 /* Lock a page attached to jnode, create and attach page to jnode if it had no one. */
@@ -572,7 +582,7 @@ int jload_gfp (jnode * node, int gfp_flags)
 			result = PTR_ERR(page);
 			goto failed;
 		}
-		
+
 		result = jnode_start_read(node, page);
 		if (unlikely(result != 0))
 			goto failed;
@@ -584,14 +594,11 @@ int jload_gfp (jnode * node, int gfp_flags)
 		}
 
 		node->data = kmap(page);
-			
-		if (likely(!jnode_is_parsed(node))) {
-			result = jparse(node);
-			if (unlikely(result != 0)) {
-				kunmap(page);
-				goto failed;
-			}
-			JF_SET(node, JNODE_PARSED);
+
+		result = jparse(node);
+		if (unlikely(result != 0)) {
+			kunmap(page);
+			goto failed;
 		}
 	} else {
 		page = jnode_page(node);
