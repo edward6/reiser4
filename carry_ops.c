@@ -1680,7 +1680,7 @@ update_delimiting_key(znode * parent	/* node key is updated
 			*error_msg = "Right child is bastard";
 			return RETERR(-EIO);
 		}
-		if ((left_pos.node != NULL) && !coord_are_neighbors(&left_pos, &right_pos)) {
+		if (left_pos.node != NULL && !coord_are_neighbors(&left_pos, &right_pos)) {
 			*error_msg = "Children are not direct siblings";
 			return RETERR(-EIO);
 		}
