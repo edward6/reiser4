@@ -445,7 +445,6 @@ typedef struct inter_syscall_ra_hint {
 
 */
 struct reiser4_plugin_ref {
-	lnode_header            lnode_header;
 	/** plugin of file */
 	file_plugin            *file;
 	/** plugin of dir */
@@ -463,7 +462,7 @@ struct reiser4_plugin_ref {
 	/** reiser4-specific inode flags. They are "transient" and 
 	    are not supposed to be stored on a disk. Used to trace
 	    "state" of inode. Bitmasks for this field are defined in 
-	    fs/reiser4/plugin/types.h:reiser4_file_plugin_flags */
+	    fs/reiser4/plugin/plugin.h:reiser4_file_plugin_flags */
 	__u32                      flags;
 	/** bytes actually used by the file */
 	__u64                      bytes;

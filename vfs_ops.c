@@ -709,7 +709,7 @@ int reiser4_del_nlink( struct inode *object )
 	assert( "nikita-1446", object -> i_nlink > 0 );
 
 	if( fplug -> rem_link != NULL ) {
-		/* call plugin to do actual addition of link */
+		/* call plugin to do actual deletion of link */
 		return fplug -> rem_link( object );
 	} else {
 		/* do reasonable default stuff */
