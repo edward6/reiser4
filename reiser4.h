@@ -234,7 +234,9 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 
 #include "reiser4_sb.h"
 
+#ifndef __KERNEL__
 #include "build.h"
+#endif
 #include "debug.h"
 
 /** Define serveral inline functions for each type of spinlock. */
