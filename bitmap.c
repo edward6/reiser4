@@ -15,7 +15,7 @@ extern block_nr reiser4_get_bmap_blocknr (int bmap);
 struct reiser4_bnode {
 	znode * working;	/* working bitmap block */
 	znode * commit;		/* commit bitmap block */
-};
+};h
 
 /** calculate bitmap block number and offset within that bitmap block */
 static void parse_blocknr (block_nr block, int *bmap, int *offset)
@@ -55,14 +55,13 @@ static int load_bmap_node (struct reiser4_bnode * bnode)
 
 		spin_lock_tree(current_tree);
 
-		if (bnode->working) bnode->working = node;
+		if (bnode->working == NULL) bnode->working = node;
 		else           zput(node);
 	} else {
 		zref (bnode->working);
 	}
 
 	if (bnode->commit == NULL) {
-
 		znode * node;
 		reiser4_disk_addr addr;
 
@@ -74,7 +73,7 @@ static int load_bmap_node (struct reiser4_bnode * bnode)
 
 		spin_lock_tree(current_tree);
 
-		if (bnode->commit) bnode->commit = node;
+		if (bnode->commit == NULL) bnode->commit = node;
 		else           zput(node);
 	} else {
 		zref(bnode->commit);
@@ -217,12 +216,12 @@ int reiser4_bitmap_alloc (block_nr *start, block_nr end, int min_len, int max_le
         int    h; \
         jnode *node;
 
-#define WALK_ATOM \
+#define WALK_ATOM                                             \
         for (h = 0; h < REAL_MAX_ZTREE_HEIGHT; h ++)          \
         for (node = capture_list_front(&atom->dirty_nodes[h]; \
              capture_list_end(&atom->dirty_nodes[h];          \
              node = capture_list_next(node))
- 
+
 /*
  * These functions are hooks from the journal code to manipulate COMMIT BITMAP
  * and WORKING BITMAP objects.
@@ -233,7 +232,6 @@ int reiser4_bitmap_alloc (block_nr *start, block_nr end, int min_len, int max_le
  * BITMAP blocks, copy COMMIT BITMAP blocks data). */
 int reiser4_bitmap_prepare_commit (txn_atom * atom)
 {
-	int nr_bitmap_modified;
 	reiser4_super_info_data * info = reiser4_get_current_super_private(); 
 	WALK_ATOM_VARS;
 
@@ -287,6 +285,24 @@ int reiser4_bitmap_prepare_commit (txn_atom * atom)
 	spin_unlock_atom(atom);
 
 	return 0;
+}
+
+/** called after transaction commit, apply DELETE SET to WORKING BITMAP */
+int reiser4_bitmap_done_commit (txn_atom * atom) {
+	WALK_ATOM_VARS;
+	reiser4_super_info_data * info = reiser4_get_current_super_private(); 
+
+	spin_lock_atom (atom);
+	WALK_ATOM {
+		block_nr block;
+
+		if (!JF_SET(node, ZNODE_DELETESET))
+			continue;
+
+		block = reconstruct_blocknr(node);
+		
+	}
+	spin_unlock_atom (atom);
 }
 
 /** This function is called after write-back (writing blocks from OVERWRITE
