@@ -1477,8 +1477,10 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 		/* stop_key is used to find what was copied and what to cut */
 		stop_key = *min_key();
 		ret = squalloc_extent(left, &coord, pos, &stop_key);
-		if (ret != SQUEEZE_CONTINUE)
+		if (ret != SQUEEZE_CONTINUE) {
+			ON_DEBUG(reiser4_kfree(vp));
 			break;
+		}
 		assert("vs-1465", !keyeq(&stop_key, min_key()));
 			
 		/* Helper function to do the cutting. */
