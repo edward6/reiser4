@@ -523,15 +523,15 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.cut_units = cut_units_extent,
 			.kill_units = kill_units_extent,
 			.unit_key = unit_key_extent,
-			.show = show_extent,
 			.estimate = NULL,
-			.item_data_by_flow = NULL
+			.item_data_by_flow = NULL,
+			.show = show_extent,
 #if REISER4_DEBUG_OUTPUT
-			, .print = print_extent,
-			.item_stat = item_stat_extent
+			.print = print_extent,
+			.item_stat = item_stat_extent,
 #endif
 #if REISER4_DEBUG
-			, .check = check_extent
+			.check = check_extent
 #endif
 		},
 		.f = {
@@ -587,14 +587,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = cut_units_tail,
 			.unit_key = unit_key_tail,
 			.estimate = NULL,
+			.item_data_by_flow = NULL,
 			.show = show_tail,
-			.item_data_by_flow = NULL
 #if REISER4_DEBUG_OUTPUT
-			, .print = NULL,
-			.item_stat = NULL
+			.print = NULL,
+			.item_stat = NULL,
 #endif
 #if REISER4_DEBUG
-			, .check = NULL
+			.check = NULL
 #endif
 		},
 		.f = {
@@ -715,15 +715,15 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.cut_units = cut_units_tail,
 			.kill_units = cut_units_tail,
 			.unit_key = unit_key_tail,
-			.show = show_tail,
 			.estimate = NULL,
-			.item_data_by_flow = NULL
+			.item_data_by_flow = NULL,
+			.show = show_tail,
 #if REISER4_DEBUG_OUTPUT
-			, .print = NULL,
-			.item_stat = NULL
+			.print = NULL,
+			.item_stat = NULL,
 #endif
 #if REISER4_DEBUG
-			, .check = NULL
+			.check = NULL
 #endif
 		},
 		.f = {
@@ -778,9 +778,9 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.cut_units = cut_units_extent,
 			.kill_units = kill_units_extent,
 			.unit_key = unit_key_extent,
-			.show = show_extent,
 			.estimate = NULL,
 			.item_data_by_flow = NULL,
+			.show = show_extent,
 #if REISER4_DEBUG_OUTPUT
 			.print = print_extent,
 			.item_stat = item_stat_extent,
