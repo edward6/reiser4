@@ -486,7 +486,10 @@ typedef struct data_handle {
 extern void init_dh( data_handle *dh );
 extern void done_dh( data_handle *dh );
 extern int  load_dh( data_handle *dh );
-extern int  load_dh_node( data_handle *dh, znode *node );
+extern int  load_dh_znode( data_handle *dh, znode *node );
+extern int  load_dh_jnode( data_handle *dh, jnode *node );
+extern void move_dh( data_handle *new, data_handle *old );
+extern void copy_dh( data_handle *new, data_handle *old );
 
 #define INIT_DH ( data_handle * ){ .node = NULL, .d_ref = 0 }
 #define INIT_DH_NODE( n ) ( data_handle ){ .node = ( n ), .d_ref = 0 }
