@@ -745,15 +745,20 @@ int znode_is_loaded( const znode *node )
 /**
  * block number of node
  */
-const reiser4_block_nr *znode_get_block( const znode *node )
+const reiser4_block_nr *jnode_get_block( const jnode *node )
 {
 	assert( "nikita-528", node  != NULL );
 
 /* As soon as we implement accessing nodes not stored on block devices
    (e.g. distributed reiserfs), then we need to replace this line with
-   a call to a node plugin. */
-	return & ZJNODE(node) -> blocknr;
+   a call to a node plugin.
 
+   Josh replies: why not extent the block number to be
+   node_id/device/block_nr.  I don't think the concept of a block number
+   changes in a distributed setting, but you will need a node method to get
+   the block: likely we already have that.
+*/
+	return & node -> blocknr;
 }
 
 /**

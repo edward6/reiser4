@@ -203,10 +203,8 @@ static int flush_lock_greatest_dirty_ancestor (jnode                *start_node,
 
 	/* This policy should be a plugin.  I am concerned that breaking these
 	 * things into plugins will result in duplicated effort.  Returns 0
-	 * for no-relocate, 1 for relocate, < 0 for error.  Never relocate at
-	 * the root level. */
-	if (! znode_above_root (parent_node) &&
-	    (ret = flush_should_relocate (end_node, & parent_coord)) < 0) {
+	 * for no-relocate, 1 for relocate, < 0 for error. */
+	if ((ret = flush_should_relocate (end_node, & parent_coord)) < 0) {
 		goto failure;
 	}
 
@@ -268,7 +266,7 @@ static int flush_lock_greatest_dirty_ancestor (jnode                *start_node,
  *
  *   (leftmost_of_parent && (is_leaf || leftmost_child_is_relocated))
  *
- * This may become a plugin.
+ * This may become a plugin.  Also, do not relocate the root node.
  */
 static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
 {
@@ -278,6 +276,11 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
 	jnode *left_child;
 	znode *parent = parent_coord->node;
 	tree_coord coord;
+
+	/* Don't relocate the root node. */
+	if (znode_above_root (parent)) {
+		return 0;
+	}
 
 	dup_coord (& coord, parent_coord);
 
@@ -325,13 +328,69 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
  * since we may need it.
  *
  * This may become a plugin.
+ *
+ * If the GDA is a non-leftmost leaf node, return its left neighbhor's block
+ * number.  This can be computed whether the left neighbor is in memory or
+ * not.
+ *
+ * If the GDA is a leftmost node, return its parent block number, which is
+ * definetly available.
+ *
+ * If the GDA is an non-leftmost internal node, its preceder is its left
+ * neighbor's rightmost descendant, but these nodes are not required to be in
+ * memory.
+ *
+ * If they are not in memory, pick random ()?  Use the gda's parent?  Use the
+ * rightmost descendant that is in memory, defaulting to GDA's parent?
  */
 static int flush_preceder_hint (jnode *gda,
 				const tree_coord *parent_coord,
 				reiser4_blocknr_hint *preceder)
 {
+	int is_leftmost;
+	int is_leaf;
+	znode *parent = parent_coord->node;
+	tree_coord coord;
+	item_plugin *iplug;
+
+	/* FIXME: This is not the right place, is it?  The GDA is dirty but may
+	 * be already allocated, in which case we want to set preceder the
+	 * first time we encounter an unallocated node in the parent-first
+	 * squalloc traversal. */
+	if (znode_above_root (parent)) {
+		/* FIXME: */
+		return 0;
+	}
+
+	dup_coord (& coord, parent_coord);
+
+	/* If coord_prev_unit returns 1, its the leftmost coord of this node. */
+	is_leftmost = coord_prev_unit (& coord);
+	is_leaf     = jnode_get_level (gda) == LEAF_LEVEL;
+
+	/* Leaf, non-lefmost case: return left-of-GDA block number */
+	if (is_leaf && ! is_leftmost) {
+		
+		iplug = item_plugin_by_coord (& coord);
+
+		assert ("jmacd-2040", iplug->utmost_child != NULL);
+
+		/* Get the rightmost block number of this coord, which is the
+		 * child to the left of GDA. */
+		return iplug->utmost_child (& coord, RIGHT_SIDE, 0, NULL, & preceder->blk);
+	}
+
+	/* Leftmost case */
+	if (is_leftmost) {
+
+		assert ("jmacd-2041", jnode_is_allocated (ZJNODE (parent)));
+
+		preceder->blk = *znode_get_block (parent);
+		return 0;
+	}
+
+	/* Internal node case. */
 	/* FIXME: */
-	preceder->blk = 0;
 	return 0;
 }
 
@@ -787,17 +846,28 @@ static jnode* jnode_get_neighbor_in_memory (jnode *node, unsigned long node_inde
 	return jnode_of_page (pg);
 }
 
-/* return true if "node" is allocated */
-static int jnode_is_allocated (jnode *node UNUSED_ARG)
+/* Return true if "node" has a real block number */
+static int jnode_is_allocated (jnode *node)
 {
-	/* FIXME_JMACD: Zam: here's the flush/block-alloc interface, how to proceed? */
-	return 0;
+	return ! blocknr_is_fake (jnode_get_block (node));
 }
 
-static int jnode_allocate (jnode *node UNUSED_ARG, reiser4_blocknr_hint *preceder UNUSED_ARG)
+static int jnode_allocate (jnode *node, reiser4_blocknr_hint *preceder)
 {
-	/* FIXME_JMACD: Zam: here's the flush/block-alloc interface, how to proceed? */
-	return -EINVAL;
+	int ret;
+	int len;
+	reiser4_block_nr blk;
+
+	/* FIXME_ZAM: Interface issues... */
+	if (0 && (ret = reiser4_alloc_blocks (preceder, & blk, & len))) {
+		return ret;
+	}
+
+	jnode_set_clean (node);
+
+	node->blocknr = blk;
+
+	return 0;
 }
 
 /* Lock a node (if formatted) and then get its parent locked, set the child's

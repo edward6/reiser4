@@ -501,7 +501,6 @@ extern unsigned znode_size( const znode *node );
 extern unsigned znode_free_space( znode *node );
 extern int znode_is_loaded( const znode *node );
 extern int znode_is_loaded_nolock( const znode *node );
-extern const reiser4_block_nr* znode_get_block( const znode *node );
 
 extern reiser4_key *znode_get_rd_key( znode *node );
 extern reiser4_key *znode_get_ld_key( znode *node );
@@ -588,6 +587,7 @@ extern jnode* jnode_of_page   (struct page* pg);
 extern void   jnode_init      (jnode *node);
 extern void   jnode_set_dirty (jnode *node);
 extern void   jnode_set_clean (jnode *node);
+extern const reiser4_block_nr* jnode_get_block( const jnode *node );
 
 extern int    jnode_flush     (jnode *node);
 
@@ -605,6 +605,7 @@ extern void   jput( jnode *node );
  * jnodes in znode-specific code. */
 #define znode_get_level(x)          jnode_get_level ( ZJNODE(x) )
 #define znode_set_level(x,l)        jnode_set_level ( ZJNODE(x), (l) )
+#define znode_get_block(x)          jnode_get_block ( ZJNODE(x) )
 
 #define znode_is_dirty(x)           jnode_is_dirty  ( ZJNODE(x) )
 #define znode_set_dirty(x)          jnode_set_dirty ( ZJNODE(x) )
