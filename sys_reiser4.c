@@ -72,7 +72,7 @@ sys_reiser4(char *p_string)
 	/* allocate work space for parser 
 	   working variables, attached to this call */
 
-	if ((work_space = sys_reiser4_init()) == -ENOMEM) {
+	if ((work_space = sys_reiser4_init()) == NULL) {
 		return -ENOMEM;
 	}
 
