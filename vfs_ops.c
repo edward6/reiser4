@@ -500,18 +500,28 @@ static int reiser4_writepage( struct page *page )
 {	
 	int result;
 	file_plugin * fplug;
+	jnode * j;
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 
 
 	trace_on( TRACE_VFS_OPS, "WRITEPAGE: (i_ino %li, page index %lu)\n",
 		  page -> mapping -> host -> i_ino, page ->index );
 
-	if( !PagePrivate( page ) || !jnode_mapped( jnode_by_page( page ) ) ) {
-		/* page does not have jnode attached to it. Get page mapping */
-		fplug = inode_file_plugin( page -> mapping -> host );
+	fplug = inode_file_plugin( page -> mapping -> host );
+	if( !PagePrivate( page ) ) {
+		/* there is no jnode */
 		result = fplug -> writepage( page );
 		if( result )
 			REISER4_EXIT( result );
+	} else {
+		/* there is jnode. Call writepage if it has no disk mapping */
+		j = jnode_of_page( page );
+		if( !jnode_mapped( j ) ) {
+			result = fplug -> writepage( page );
+			if( result )
+				REISER4_EXIT( result );
+		}
+		jput( j );
 	}
 	result = 1;
 	REISER4_EXIT( page_common_writeback( page, &result, 
