@@ -1851,7 +1851,7 @@ void jnode_set_dirty( jnode *node )
 
 			int level = jnode_real_level (node);
 
-			assert ("zam-654", !(JF_ISSET(node, JNODE_WANDER) && atom->stage >= ASTAGE_PRE_COMMIT));
+			assert ("zam-654", !(JF_ISSET(node, JNODE_OVRWR) && atom->stage >= ASTAGE_PRE_COMMIT));
 			assert ("nikita-2607", 0 <= level);
 			assert ("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
 
@@ -2522,7 +2522,7 @@ uncapture_block (txn_atom *atom,
 	spin_lock_jnode (node);
 
 	JF_CLR (node, JNODE_RELOC);
-	JF_CLR (node, JNODE_WANDER);
+	JF_CLR (node, JNODE_OVRWR);
 	JF_CLR (node, JNODE_CREATED);
 
 	if (!JF_ISSET (node, JNODE_FLUSH_QUEUED)) {
