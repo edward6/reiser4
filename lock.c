@@ -129,7 +129,7 @@
  * sleep but after a "fast" attempt to lock a node fails. Any signal wakes
  * sleeping process up and forces him to re-check lock status and received
  * signal info. If "must-yield-this-lock" signals were received the locking
- * primitive (reiser4_lock_znode()) fails with -EDEADLK error code.
+ * primitive (longterm_lock_znode()) fails with -EDEADLK error code.
  *
  * USING OF V4 LOCKING ALGORITHM IN V4 TREE TRAVERSAL CODE
  *
@@ -204,7 +204,7 @@
  * available to high-priority requests from any balancing that goes upward. It
  * is not good.  First, for most cases it is not a deadlock situation; second,
  * locking of left neighbor node is impossible in that situation. -EDEADLK is
- * returned from reiser4_lock_znode() until we release all nodes requested by
+ * returned from longterm_lock_znode() until we release all nodes requested by
  * high-pri processes, we can't do it because nodes we need to unlock contain
  * modified data, we can't unroll changes due to reiser4 journal limits.
  *
@@ -603,13 +603,17 @@ static void set_low_priority(reiser4_lock_stack *owner)
 }
 
 /**
- * Internal function that unlocks a znode
+ * lock a znode
  */
 
-static void internal_unlock_znode (reiser4_lock_handle *handle)
+void longterm_unlock_znode (reiser4_lock_handle *handle)
 {
 	znode *node =  handle->node;
 	reiser4_lock_stack *oldowner = handle->owner;
+
+	assert ("jmacd-1021", handle != NULL);
+	assert ("jmacd-1022", handle->owner != NULL);
+	assert ("nikita-1392", lock_counters()->long_term_locked_znode > 0);
 
 	assert("zam-130", oldowner == reiser4_get_current_lock_stack());
 
@@ -673,12 +677,17 @@ static void internal_unlock_znode (reiser4_lock_handle *handle)
 	}
 
 	spin_unlock_znode(node);
+
+	/* minus one reference from lh->node */
+	zput(node);
+
+	ON_DEBUG(-- lock_counters()->long_term_locked_znode);
 }
 
 /**
  * locks given lock object
  */
-static int internal_lock_znode (
+int longterm_lock_znode (
 	/* local link object (may be allocated on the process owner); */
 	reiser4_lock_handle *handle,
 	/* znode we want to lock. */
@@ -698,6 +707,8 @@ static int internal_lock_znode (
 
 	/* Check that the lock handle is initialized and isn't already being used. */
 	assert ("jmacd-808", handle->owner == NULL);
+
+	assert("nikita-1391", lock_counters()->spin_locked == 0);
 
 	/* If we are changing our process priority we must adjust a number
 	 * of high priority owners for each znode that we already lock */
@@ -832,6 +843,15 @@ static int internal_lock_znode (
 	}
 
 	spin_unlock_znode(node);
+
+
+	if (!ret) {
+		/* count a reference from lockhandle->node */
+		zref (node);
+
+		ON_DEBUG(++ lock_counters()->long_term_locked_znode);
+	}
+
 	return ret;
 }
 
@@ -886,6 +906,8 @@ void reiser4_invalidate_lock (reiser4_lock_handle *handle /* path to lock
 	spin_unlock_znode(node);
 }
 
+#if 0
+
 /**
  * User visible znode locking function. Differs from internal lock_znode() in incrementing
  * znode usage counter.  A lock handle counts its own znode reference (in some situations
@@ -928,6 +950,8 @@ void reiser4_unlock_znode (reiser4_lock_handle *handle)
 	ON_DEBUG(-- lock_counters()->long_term_locked_znode);
 }
 
+#endif
+
 /**
  * Initializes lock_stack.
  */
@@ -968,7 +992,7 @@ void reiser4_done_lh (reiser4_lock_handle *handle)
 {
 	assert ("zam-342", handle != NULL);
 	if (handle->owner != NULL)
-		reiser4_unlock_znode(handle);
+		longterm_unlock_znode(handle);
 }
 
 /**
