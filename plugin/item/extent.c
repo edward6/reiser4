@@ -616,9 +616,21 @@ static int cut_or_kill_units (coord_t * coord,
 		/* when @from_key (and @to_key) are specified things become
 		 * more complex. It may happen that @from-th or @to-th extent
 		 * will only decrease their width */
-
-		assert ("vs-695", !cut);
 		assert ("vs-311", to_key);
+
+		if (cut) {
+			/*
+			 * head of unallocated extent is allocated and copied
+			 * to left neighbor. So, it has to be cut. Make sure
+			 * that this is the case
+			 */
+			assert ("vs-695",
+				state_of_extent (extent_by_coord (coord)) ==
+				UNALLOCATED_EXTENT);
+			assert ("vs-791", keyle (from_key, &key));
+			assert ("vs-792", (get_key_offset (to_key) &
+					   (current_blocksize - 1)) == (current_blocksize - 1));
+		}
 
 		key_inside = key;
 		set_key_offset (&key_inside, (offset +
