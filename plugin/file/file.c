@@ -226,6 +226,7 @@ update_inode_and_sd_if_necessary(struct inode *inode, loff_t new_size, int updat
 {
 	int result;
 	int update_sd;
+	PROF_BEGIN(update_sd);
 
 	update_sd = 0;
 	result = 0;
@@ -248,6 +249,7 @@ update_inode_and_sd_if_necessary(struct inode *inode, loff_t new_size, int updat
 		if (result)
 			warning("vs-636", "updating stat data failed: %i", result);
 	}
+	PROF_END(update_sd,update_sd);
 	return result;
 }
 
@@ -738,7 +740,7 @@ unset_hint(struct sealed_coord *hint)
 	if (hint)
 		memset(hint, 0, sizeof (hint));
 }
-
+#if 0
 void
 set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord)
 {
@@ -775,6 +777,24 @@ set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord)
 	hint->level = znode_get_level(coord->node);
 	hint->lock = znode_is_wlocked(coord->node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK;
 }
+#endif
+
+/* coord must be set properly. So, that set_hint has nothing to do */
+void
+set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord)
+{
+	int result;
+
+	assert("vs-1208", coord->node);
+	assert("vs-1207",
+	       WITH_DATA_RET(coord->node, 1, (coord_is_existing_item(coord) &&
+					      item_plugin_by_coord(coord)->s.file.key_in_item(coord, key, 0))));
+	seal_init(&hint->seal, coord, key);
+	hint->coord = *coord;
+	hint->key = *key;
+	hint->level = znode_get_level(coord->node);
+	hint->lock = znode_is_wlocked(coord->node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK;
+}
 
 int
 hint_is_set(const struct sealed_coord *hint)
@@ -786,6 +806,7 @@ int
 hint_validate(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord, lock_handle * lh)
 {
 	int result;
+	PROF_BEGIN(validate);
 
 	if (!hint || !hint_is_set(hint) || !keyeq(key, &hint->key))
 		/* hint either not set or set for different key */
@@ -796,6 +817,7 @@ hint_validate(struct sealed_coord *hint, const reiser4_key * key, coord_t * coor
 	if (result)
 		return result;
 	coord_dup_nocheck(coord, &hint->coord);
+	PROF_END(validate, validate);
 	return 0;
 }
 

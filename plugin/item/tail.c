@@ -311,13 +311,16 @@ overwrite_tail(coord_t * coord, flow_t * f)
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
    therefore we have to update stat data if necessary */
 static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh,
-				    	struct sealed_coord *hint)
+				    struct sealed_coord *hint)
 {
 	int result;
 	loff_t new_size;
 	
-	set_hint(hint, &f->key, coord);
-	done_lh(lh);
+	if (hint && coord->node)
+		set_hint(hint, &f->key, coord);
+	else
+		unset_hint(hint);
+	longterm_unlock_znode(lh);
 	coord->node = 0;
 	new_size = get_key_offset(&f->key);
 	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0);
@@ -409,12 +412,27 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 			break;
 
 		}
-		zrelse(loaded);
 
 		if (result) {
+			zrelse(loaded);
 			all_grabbed2free("tail_write: on error");
 			break;
 		}
+
+		/* check whether coord is set properly. If coord is set such that it can not be later sealed - set coord->node
+		   to 0	*/
+		if (coord->node == loaded && coord_is_existing_item(coord)) {
+			if (tail_key_in_item(coord, &f->key, 0)) {
+				/* coord is set properly, it will be sealed before calling balance_dirty_pages */;
+			} else {
+				coord->node = 0;
+			}
+		} else {
+			/* FIXME: zload before key_in_item is needed */
+			coord->node = 0;
+		}
+		zrelse(loaded);
+		
 		/* throttle the writer */
 		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh, hint);
 		all_grabbed2free("tail_write");
