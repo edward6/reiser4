@@ -288,8 +288,10 @@ static int process_extent_backward (tap_t * tap, void * arg)
 
 	assert("zam-978", (unsigned)(cursor->count) <= get_current_context()->grabbed_blocks);
 
-	ret = process_extent_backward_for_repacking(
-		tap, &cursor->count, &cursor->hint, &cursor->stats.jnodes_dirtied);
+	if (check_repacker_state_bit(get_current_super_private()->repacker, REPACKER_STOP))
+		return -EINTR;
+
+	ret = process_extent_backward_for_repacking(tap, cursor);
 	if (ret)
 		return ret;
 	if (cursor->count <= 0)
