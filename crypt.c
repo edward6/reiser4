@@ -25,8 +25,9 @@
             |
 	  @pad
 */
-static int align_cluster_common(__u8 *pad /* pointer to the first byte of aligning format */,
-				int flow_size /* size of non-aligned flow */,
+UNUSED_ARG static int
+align_cluster_common(__u8 *pad /* pointer to the first byte of aligning format */,
+		     int flow_size /* size of non-aligned flow */,
 				int blocksize /* crypto-block size */)
 {
 	int pad_size;
