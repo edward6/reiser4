@@ -235,7 +235,38 @@ static struct page *add_page( struct super_block *super, jnode *node )
 	 * only blocks smaller or equal to page size are supported
 	 */
 	assert( "nikita-1773", PAGE_CACHE_SHIFT >= blksizebits );
-	page_idx = *jnode_get_block( node ) >> ( PAGE_CACHE_SHIFT - blksizebits );
+	/* page_idx = *jnode_get_block( node ) >> ( PAGE_CACHE_SHIFT - blksizebits ); */
+
+	/*
+	 * Our initial design was to index pages with formatted data by their
+	 * block numbers. One disadvantage of this is that such setup makes
+	 * relocation harder to implement: when tree node is relocated we need
+	 * to re-index its data in a page cache. To avoid data copying during
+	 * this re-indexing it was decided that first version of reiser4 will
+	 * only support block size equal to PAGE_CACHE_SIZE.
+	 *
+	 * But another problem came up: our block numbers are 64bit and pages
+	 * are indexed by 32bit ->index. Moreover:
+	 *
+	 *  - there is strong opposition for enlarging ->index field (and for
+	 *  good reason: size of struct page is critical, because there are so
+	 *  many of them).
+	 *
+	 *  - our "unallocated" block numbers have highest bit set, which
+	 *  makes 64bit block number support essential independently of device
+	 *  size.
+	 *
+	 * Code below uses jnode _address_ as page index. This has following
+	 * advantages:
+	 *
+	 *  - relocation is simplified
+	 *
+	 *  - if ->index is jnode address, than ->private is free for use. It
+	 *  can be used to store some jnode data making it smaller (not yet
+	 *  implemented). Pointer to atom?
+	 *
+	 */
+	page_idx = ( unsigned long ) node;
 	page = grab_cache_page( get_super_fake( super ) -> i_mapping, page_idx );
 	if( unlikely( page == NULL ) )
 		return NULL;
