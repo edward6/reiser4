@@ -893,15 +893,35 @@ static int call_mkdir (struct inode * dir, const char * name);
 
 typedef struct echo_filldir_info {
 	int eof;
-	__u32 flags;
 	const char *prefix;
-	struct inode *dir;
-	reiser4_context *context;
+	int fired;
+	char *name;
+	int inum;
 } echo_filldir_info;
 
 typedef enum {
 	EFF_SHOW_INODE      = ( 1 << 0 )
 } echo_filldir_flag;
+
+static int one_shot_filldir(void *arg, const char *name, int namelen, 
+			    loff_t offset, ino_t inum, unsigned ftype)
+{
+	echo_filldir_info *info;
+
+	info = arg;
+	info -> eof = 0;
+	if( info -> fired > 0 ) {
+		info -> fired = 0;
+		info -> name = strdup( name );
+		info -> inum = ( int ) inum;
+		return -EINVAL;
+	} else
+		info -> name = NULL;
+	++ info -> fired;
+	info( "%s[%i]: %s (%i), %Lx, %Lx, %i\n", info -> prefix,
+	      current_pid, name, namelen, offset, inum, ftype );
+	return 0;
+}
 
 static int echo_filldir(void *arg, const char *name, int namelen, 
 			loff_t offset, ino_t inum, unsigned ftype)
@@ -914,25 +934,6 @@ static int echo_filldir(void *arg, const char *name, int namelen,
 		return -EINVAL;
 	info( "%s[%i]: %s (%i), %Lx, %Lx, %i\n", info -> prefix,
 	      current_pid, name, namelen, offset, inum, ftype );
-	if( ( info -> flags & EFF_SHOW_INODE ) && strcmp( name, "." ) ) {
-		struct dentry d;
-
-		d.d_name.name = name;
-		d.d_name.len = namelen;
-		if( !IS_ERR( lookup_object( info -> dir, &d ) ) ) {
-			struct inode *i;
-
-			i = d.d_inode;
-			if( i == NULL )
-				warning( "nikita-1722", "Not found: %s", name );
-			else if( i -> i_ino != inum )
-				warning( "nikita-1721", 
-					 "Wrong inode number: %i != %i",
-					 ( int ) inum, ( int ) i -> i_ino );
-			else
-				print_inode( name, i );
-		}
-	}
 	return 0;
 }
 
@@ -941,19 +942,38 @@ static int readdir( const char *prefix, struct file *dir, __u32 flags )
 	echo_filldir_info info;
 	int result;
 		
+	xmemset( &info, 0, sizeof info );
 	info.prefix = prefix;
-	info.flags = flags;
-	info.dir = dir -> f_dentry -> d_inode;
-	info.context = reiser4_get_current_context();
-	SUSPEND_CONTEXT( info.context );
 
 	do {
+		reiser4_context *ctx;
+
 		info.eof = 1;
+		ctx = reiser4_get_current_context();
+		SUSPEND_CONTEXT( ctx );
 		result = dir -> f_dentry -> d_inode -> i_fop -> 
-			readdir( dir, &info, echo_filldir );
+			readdir( dir, &info, 
+				 flags ? one_shot_filldir : echo_filldir );
+		reiser4_init_context( ctx, dir -> f_dentry -> d_inode -> i_sb );
+		if( info.eof )
+			break;
+		if( ( flags & EFF_SHOW_INODE ) && ( info.name != NULL ) ) {
+			struct inode *i;
+
+			i = call_lookup( dir -> f_dentry -> d_inode, info.name );
+			if( IS_ERR( i ) )
+				warning( "nikita-1722", "Not found: %s", 
+					 info.name );
+			else if( ( int ) i -> i_ino != info.inum )
+				warning( "nikita-1721", 
+					 "Wrong inode number: %i != %i",
+					 ( int ) info.inum, ( int ) i -> i_ino );
+			else
+				print_inode( info.name, i );
+			free( info.name );
+		}
 	} while( !info.eof && ( result == 0 ) );
 
-	reiser4_init_context( info.context, info.dir -> i_sb );
 	return result;
 }
 
@@ -1017,9 +1037,26 @@ static int call_link( struct inode *dir, const char *old, const char *new )
 
 	old_dentry.d_inode = call_lookup( dir, old );
 	if( !IS_ERR( old_dentry.d_inode ) ) {
-		return dir -> i_op -> link( &old_dentry, dir, &old_dentry );
+		reiser4_context *old_context;
+		int r;
+
+		old_context = reiser4_get_current_context();
+		SUSPEND_CONTEXT( old_context );
+		r = dir -> i_op -> link( &old_dentry, dir, &new_dentry );
+		reiser4_init_context( old_context, dir -> i_sb );
+		return r;
 	} else
 		return PTR_ERR( old_dentry.d_inode );
+}
+
+static int call_ln( struct inode *dir, char *cmd )
+{
+	char *old;
+	char *new;
+
+	old = strsep( &cmd, " " );
+	new = cmd;
+	return call_link( dir, old, new );
 }
 
 void *mkdir_thread( mkdir_thread_info *info )
@@ -2267,6 +2304,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			BASH_CMD ("rm ", call_rm);
 			BASH_CMD ("ls", call_readdir);
 			BASH_CMD ("ll", call_readdir_long);
+			BASH_CMD ("ln ", call_ln);
 			if (!strncmp (command, "cp ", 3)) {
 				/*
 				 * cp
