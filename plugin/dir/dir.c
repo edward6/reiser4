@@ -113,8 +113,9 @@ link_common(struct inode *parent /* parent directory */ ,
 		return RETERR(-EISDIR);
 
 	/* check permissions */
-	if (perm_chk(parent, link, existing, parent, newname))
-		return RETERR(-EPERM);
+	result = perm_chk(parent, link, existing, parent, newname);
+	if (result != 0)
+		return result;
 
 	parent_dplug = inode_dir_plugin(parent);
 
@@ -209,8 +210,9 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 	assert("vs-949", !inode_get_flag(child, REISER4_NO_SD));
 
 	/* check permissions */
-	if (perm_chk(parent, unlink, parent, victim))
-		return RETERR(-EPERM);
+	result = perm_chk(parent, unlink, parent, victim);
+	if (result != 0)
+		return result;
 
 	/* ask object plugin */
 	if (fplug->can_rem_link != NULL) {
@@ -338,8 +340,9 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 	assert("nikita-1419", dentry != NULL);
 	par_dir = inode_dir_plugin(parent);
 	/* check permissions */
-	if (perm_chk(parent, create, parent, dentry, data))
-		return RETERR(-EPERM);
+	result = perm_chk(parent, create, parent, dentry, data);
+	if (result != 0)
+		return result;
 
 	/* check, that name is acceptable for parent */
 	if (par_dir->is_name_acceptable &&
