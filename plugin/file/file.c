@@ -66,7 +66,7 @@ int unix_file_readpage (struct file * file UNUSED_ARG, struct page * page)
 
 	/* get key of first byte of the page */
 	unix_file_key_by_inode (page->mapping->host,
-				(loff_t)page->index << PAGE_SHIFT, &key);
+				(loff_t)page->index << PAGE_CACHE_SHIFT, &key);
 	
 	init_coord (&coord);
 	init_lh (&lh);
@@ -440,7 +440,7 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 		inode_file_plugin (inode)->
 			flow_by_inode (inode, p_data, 0/* not user space */,
 				       (unsigned)to_page,
-				       (loff_t)(pages[i]->index << PAGE_SHIFT),
+				       (loff_t)(pages[i]->index << PAGE_CACHE_SHIFT),
 				       WRITE_OP, &f);
 
 		do {
@@ -503,7 +503,7 @@ static int replace (struct inode * inode, struct page ** pages, int nr_pages,
 	assert ("vs-596", nr_pages > 0 && pages [0]);
 
 	/* cut copied items */
-	result = cut_tail_items (inode, (loff_t)pages [0]->index << PAGE_SHIFT,
+	result = cut_tail_items (inode, (loff_t)pages [0]->index << PAGE_CACHE_SHIFT,
 				 count);
 	if (result) {
 		return result;
@@ -621,7 +621,7 @@ static int tail2extent (struct inode * inode)
 				(get_key_offset (&key) & ~PAGE_MASK) == 0);
 			page = grab_cache_page (inode->i_mapping,
 						(unsigned long)(get_key_offset (&key) >>
-								PAGE_SHIFT));
+								PAGE_CACHE_SHIFT));
 			if (!page) {
 				drop_pages (pages, nr_pages);
 				result = -ENOMEM;
@@ -811,8 +811,8 @@ static int extent2tail (struct file * file)
 		lock_page (page);
 
 		/* cut part of file we have read */
-		set_key_offset (&from, (__u64)(i << PAGE_SHIFT));
-		set_key_offset (&to, (__u64)((i << PAGE_SHIFT) + PAGE_SIZE - 1));
+		set_key_offset (&from, (__u64)(i << PAGE_CACHE_SHIFT));
+		set_key_offset (&to, (__u64)((i << PAGE_CACHE_SHIFT) + PAGE_SIZE - 1));
 		result = cut_tree (tree_by_inode (inode), &from, &to);
 		if (result) {
 			unlock_page (page);

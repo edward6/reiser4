@@ -660,7 +660,7 @@ static void truncate_inode_pages (struct address_space * mapping,
 	unsigned ind;
 
 
-	ind = (from + PAGE_SIZE - 1) >> PAGE_SHIFT;
+	ind = (from + PAGE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	list_for_each (cur, &page_list) {
 		page = list_entry (cur, struct page, list);
 		if (page->mapping == mapping) {
