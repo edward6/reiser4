@@ -3768,10 +3768,12 @@ capturable(const jnode *node, const txn_atom *atom)
 	assert("vs-1429", spin_jnode_is_locked(node));
 	assert("vs-1487", check_spin_is_locked(&scan_lock));
 	
+/*
 	if (JF_ISSET(node, JNODE_WRITEBACK)) {
 		reiser4_stat_inc(coc.writeback);
 		return 0;
 	}
+*/
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 		reiser4_stat_inc(coc.flush_queued);
 		return 0;
@@ -3839,6 +3841,7 @@ copy_on_capture_clean(jnode *node, txn_atom *atom)
 
 	assert("vs-1625", spin_atom_is_locked(atom));
 	assert("vs-1432", spin_jnode_is_locked(node));
+	assert("vs-1627", !JF_ISSET(node, JNODE_WRITEBACK));
 
 	spin_lock(&scan_lock);
 	if (capturable(node, atom)) {
