@@ -416,55 +416,6 @@ drop_eflushed_nodes(struct inode *inode, unsigned long index, unsigned long end)
 #endif
 }
 
-
-/* FIXME: debugging code */
-#define KHH_SIZE 30
-struct {
-	
-	struct {
-		reiser4_key key; /* key of item for which kill_hook_extent was called */
-		int from; /* start unit */
-		int count; /* num of units to be cut */
-		int inode_jnodes; /* number of jnodes in inode before kill_hook */
-		int truncated_jnodes; /* number of jnodes truncated in kill_hook */
-		unsigned long index; /* */
-	} data[KHH_SIZE];
-	unsigned from;
-	int oldest;
-	int free;
-	int size;
-} kh_history;
-
-static void
-add_history(const reiser4_key *key, unsigned from, unsigned count, int inode_jnodes, int truncated_jnodes, unsigned long index)
-{
-	int i;
-
-	/* save data */
-	i = kh_history.free;
-	kh_history.data[i].key = *key;
-	kh_history.data[i].from = from;
-	kh_history.data[i].count = count;
-	kh_history.data[i].inode_jnodes = inode_jnodes;
-	kh_history.data[i].truncated_jnodes = truncated_jnodes;
-	
-	/* slot which will be used next */
-	kh_history.free ++;
-	if (kh_history.free == KHH_SIZE)
-		kh_history.free = 0;
-
-	/* history size */
-	if (kh_history.size < KHH_SIZE)
-		kh_history.size ++;
-	else {
-		/* array data is full */
-		kh_history.oldest ++;
-		if (kh_history.oldest == KHH_SIZE)
-			kh_history.oldest = 0;
-	}	
-}
-/* FIXME: end of debugging code */
-
 static int
 truncate_inode_jnodes(struct inode *inode, unsigned long from)
 {
@@ -547,16 +498,9 @@ kill_hook_extent(const coord_t *coord, unsigned from, unsigned count, struct cut
 	}
 
 	if (inode != NULL) {
-		int truncated;
-		int jnodes;
-
-		jnodes = reiser4_inode_data(inode)->jnodes;
-
 		truncate_inode_pages(inode->i_mapping, offset);
-		truncated = truncate_inode_jnodes(inode, index/*offset*/);
+		truncate_inode_jnodes(inode, index);
 		drop_eflushed_nodes(inode, index, 0);
-
-		add_history(&key, from, count, jnodes, truncated, index);
 	}
 
 	ext = extent_item(coord) + from;
@@ -635,8 +579,6 @@ cut_or_kill_units(coord_t *coord,
 			loff_t start;
 			loff_t end;
 			long nr_pages;
-			int truncated_jnodes;
-			int jnodes;
 
 			/* round @start upward */
 			start = round_up(get_key_offset(from_key), 
@@ -650,12 +592,8 @@ cut_or_kill_units(coord_t *coord,
 			nr_pages = end - start + 1;
 			truncate_mapping_pages_range(inode->i_mapping, 
 						     start, nr_pages);
-
 			/* detach jnodes from inode's tree of jnodes */
-			/*XXXX*/jnodes = reiser4_inode_data(inode)->jnodes;
-			truncated_jnodes = truncate_inode_jnodes_range(inode, start, nr_pages);
-			/*XXXX*/add_history(&key, *from, count, jnodes, truncated_jnodes, start);
-
+			truncate_inode_jnodes_range(inode, start, nr_pages);
 			drop_eflushed_nodes(inode, start, start + nr_pages);
 		}
 
