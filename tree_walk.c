@@ -33,7 +33,7 @@
     each case. This is parameterized by dir argument, which ?word missing here? byte offset for
     neighbor pointer field within znode structure. This function should be
     called with the tree lock held */
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 static int lock_neighbor (lock_handle * result /* resulting lock
 							* handle*/, 
 			  znode * node /* node to lock */,
@@ -104,7 +104,7 @@ static int lock_neighbor (lock_handle * result /* resulting lock
 }
 
 /* description is in tree_walk.h */
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 int reiser4_get_parent (lock_handle * result /* resulting lock
 						      * handle */, 
 			znode * node /* child node */,
@@ -135,7 +135,7 @@ int reiser4_get_parent (lock_handle * result /* resulting lock
  * wrapper function to lock right or left neighbor depending on GN_GO_LEFT
  * bit in @flags parameter 
  */
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 static inline
 int lock_side_neighbor( lock_handle * result,
 			znode * node,
@@ -194,7 +194,7 @@ int lock_side_neighbor( lock_handle * result,
 /*
  * FIXME-VS: this is unstatic-ed to use in tree.c in prepare_twig_cut
  */
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 /*static*/ /*inline*/ void link_left_and_right (znode * left, znode * right)
 {
 	assert("umka-239", left != NULL);
@@ -211,7 +211,7 @@ int lock_side_neighbor( lock_handle * result,
 	}
 }
 
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 static void link_znodes (znode * first, znode * second, int to_left)
 {
 	assert("umka-241", first != NULL);
@@ -226,7 +226,7 @@ static void link_znodes (znode * first, znode * second, int to_left)
  * boundary. Should be called under tree lock, it protects nonexistence of
  * sibling link on parent level, if lock_side_neighbor() fails with
  * -ENOENT. */
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 static int far_next_coord (new_coord * coord, lock_handle * handle, int flags)
 {
 	int ret;
@@ -270,7 +270,7 @@ static int far_next_coord (new_coord * coord, lock_handle * handle, int flags)
 /** Very significant function which performs a step in horizontal direction
  * when sibling pointer is not available.  Actually, it is only function which
  * does it. */
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 static int renew_sibling_link (new_coord * coord, lock_handle * handle,
 			       znode * child, tree_level level, int flags, int *nr_locked)
 {
@@ -365,7 +365,7 @@ static int renew_sibling_link (new_coord * coord, lock_handle * handle,
  *
  * This function is for establishing of one side relation.
  */
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 static int connect_one_side (new_coord * coord, znode * node, int flags)
 {
 	new_coord local;
@@ -399,7 +399,7 @@ static int connect_one_side (new_coord * coord, znode * node, int flags)
 
 /* if node is not in `connected' state, performs hash searches for left and
  * right neighbor nodes and establishes horizontal sibling links */
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 int connect_znode (new_coord * coord, znode * node)
 {
 	reiser4_tree * tree = current_tree;
@@ -456,7 +456,7 @@ int connect_znode (new_coord * coord, znode * node)
  * horizontal direction, first one for neighbor node finding/allocation,
  * second one is for finding neighbor of neighbor to connect freshly allocated
  * znode. */
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 static int renew_neighbor (new_coord * coord, znode * node, tree_level level, int flags)
 {
 	new_coord local;
@@ -470,7 +470,7 @@ static int renew_neighbor (new_coord * coord, znode * node, tree_level level, in
 	assert("umka-251", node != NULL);
 	
 	/* 
-	 * umka (2002.06.12) 
+	 * umka (2002.06.14) 
 	 * Here probably should be a check for given "level" validness.
 	 * Something like assert("xxx-yyy", level < REAL_MAX_ZTREE_HEIGHT); 
 	 * */
@@ -528,7 +528,7 @@ static int renew_neighbor (new_coord * coord, znode * node, tree_level level, in
  * locked.
  */
 
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 							  * points to origin
 							  * node we go to
@@ -662,7 +662,7 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 }
 
 /** remove node from sibling list */
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 void sibling_list_remove (znode * node)
 {
 	assert("umka-255", node != NULL);
@@ -685,7 +685,7 @@ void sibling_list_remove (znode * node)
 	ZF_CLR (node, ZNODE_RIGHT_CONNECTED);
 }
 
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 void sibling_list_insert_nolock (znode *new, znode *before)
 {
 	assert("zam-334", new != NULL);
@@ -711,7 +711,7 @@ void sibling_list_insert_nolock (znode *new, znode *before)
 /** Insert new node into sibling list. Regular balancing inserts new node
  * after (at right side) existing and locked node (@before), except one case
  * of adding new tree root node. @before should be NULL in that case. */
-/* Audited by: umka (2002.06.12) */
+/* Audited by: umka (2002.06.14) */
 void sibling_list_insert (znode *new, znode *before)
 {
 	assert("umka-256", new != NULL);
