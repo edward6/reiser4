@@ -33,7 +33,7 @@ extern uint16_t reiserfs_format_get_height(reiserfs_format_t *format);
 extern error_t reiserfs_format_sync(reiserfs_format_t *format);
 
 extern reiserfs_format_t *reiserfs_format_create(aal_device_t *device,
-    count_t len, reiserfs_id_t plugin_id);
+    count_t len, uint16_t tail_policy, reiserfs_id_t plugin_id);
 
 extern void reiserfs_format_set_root(reiserfs_format_t *format, blk_t root);
 extern void reiserfs_format_set_blocks(reiserfs_format_t *format, count_t blocks);

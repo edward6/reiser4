@@ -46,7 +46,7 @@ error_free_format:
 #ifndef ENABLE_COMPACT
 
 reiserfs_format_t *reiserfs_format_create(aal_device_t *device, 
-    count_t len, reiserfs_id_t plugin_id) 
+    count_t len, uint16_t tail_policy, reiserfs_id_t plugin_id) 
 {
     reiserfs_format_t *format;
     reiserfs_plugin_t *plugin;
@@ -62,7 +62,7 @@ reiserfs_format_t *reiserfs_format_create(aal_device_t *device,
     format->plugin = plugin;
 	
     if (!(format->entity = libreiser4_plugin_call(goto error_free_format, 
-	plugin->format, create, device, len))) 
+	plugin->format, create, device, len, tail_policy))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create disk-format %s on %s.", plugin->h.label, 

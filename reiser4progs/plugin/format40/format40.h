@@ -20,6 +20,7 @@ struct reiserfs_format40_super {
     uint64_t sb_block_count;
     uint64_t sb_free_blocks;
     uint64_t sb_root_block;
+    uint16_t sb_tail_policy;
     uint64_t sb_oid;
     uint64_t sb_file_count;
     uint64_t sb_flushes;
@@ -52,6 +53,9 @@ typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 
 #define get_sb_flushes(sb)			get_le64(sb, sb_flushes)
 #define set_sb_flushes(sb, val)			set_le64(sb, sb_flushes, val)
+
+#define get_sb_tail_policy(sb)			get_le16(sb, sb_tail_policy)
+#define set_sb_tail_policy(sb, val)		set_le16(sb, sb_tail_policy, val)
 
 struct reiserfs_format40 {
     aal_device_t *device;

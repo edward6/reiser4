@@ -316,7 +316,7 @@ struct reiserfs_format_ops {
 	super block, initializes plugins and calls their create 
 	method.
     */
-    reiserfs_opaque_t *(*create) (aal_device_t *, count_t);
+    reiserfs_opaque_t *(*create) (aal_device_t *, count_t, uint16_t);
     
     /*
 	Called during filesystem syncing. It calls method sync

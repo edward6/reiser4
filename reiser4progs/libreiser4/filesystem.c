@@ -287,7 +287,7 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     if (reiserfs_master_create(fs, profile->format, blocksize, uuid, label))
 	goto error_free_fs;
 
-    if (!(fs->format = reiserfs_format_create(host_device, len, profile->format)))
+    if (!(fs->format = reiserfs_format_create(host_device, len, profile->tail, profile->format)))
 	goto error_free_master;
 
     if (!(fs->alloc = reiserfs_alloc_create(host_device, len, profile->alloc)))

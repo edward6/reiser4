@@ -138,7 +138,7 @@ static error_t format36_sync(reiserfs_format36_t *format) {
 }
 
 static reiserfs_format36_t *format36_create(aal_device_t *device, 
-    count_t blocks)
+    count_t blocks, uint16_t tail_policy)
 {
     return NULL;
 }
@@ -247,7 +247,7 @@ static reiserfs_plugin_t format36_plugin = {
 
 #ifndef ENABLE_COMPACT
 	.sync = (error_t (*)(reiserfs_opaque_t *))format36_sync,
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, uint16_t))
 	    format36_create,
 #else
 	.sync = NULL,
