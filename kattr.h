@@ -14,7 +14,7 @@
 #define KATTR_LEFT(p, buf) (PAGE_SIZE - (p - buf) - 1)
 #define KATTR_PRINT(p, buf, ...)				\
 ({ 								\
-	p += snprintf(p, LEFT(p, buf) , ## __VA_ARGS__); 	\
+	p += snprintf(p, KATTR_LEFT(p, buf) , ## __VA_ARGS__); 	\
 })
 
 struct super_block;
