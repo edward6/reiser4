@@ -232,7 +232,8 @@ static int replace (struct inode * inode, struct page ** pages, unsigned nr_page
 	iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 
 	for (i = 0; i < nr_pages; i ++) {
-		result = unix_file_writepage_nolock (0, pages [i]);
+		unlock_page (pages [i]);
+		result = unix_file_writepage_nolock (pages [i]);
 		if (result)
 			break;
 		SetPageUptodate (pages [i]);
@@ -243,187 +244,6 @@ static int replace (struct inode * inode, struct page ** pages, unsigned nr_page
 
 #define TAIL2EXTENT_PAGE_NUM 3  /* number of pages to fill before cutting tail
 				 * items */
-#if 0
-int tail2extent (struct inode * inode)
-{
-	int result;
-	reiser4_key key;     /* key of next byte to be moved to page */
-	reiser4_key tmp;
-	char * p_data;       /* data of page */
-	unsigned page_off,   /* offset within the page where to copy data */
-		count,       /* number of bytes of item which can be
-			      * copied to page */
-		copied;      /* number of bytes of item copied already */
-	struct page * pages [TAIL2EXTENT_PAGE_NUM];
-	int done;            /* set to 1 when all file is read */
-	char * item;
-	int i;
-
-
-	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
-	 * to write_down */
-	drop_nonexclusive_access (inode);
-	get_exclusive_access (inode);
-
-	xmemset (pages, 0, sizeof (pages));
-
-	if (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
-	    !inode_get_flag (inode, REISER4_HAS_TAIL)) {
-		/* tail was converted by someone else */
-		result = 0;
-		goto ok;
-	}
-
-	/* collect statistics on the number of tail2extent conversions */
-	reiser4_stat_file_add (tail2extent);
-
-	/* get key of first byte of a file */
-	unix_file_key_by_inode (inode, 0ull, &key);
-
-	page_off = 0;
-	item = 0;
-	copied = 0;
-
-	done = 0;
-	while (!done) {
-		drop_pages (pages, sizeof_array (pages));
-		xmemset (pages, 0, sizeof (pages));
-		for (i = 0; i < sizeof_array (pages) && !done; i ++) {
-			assert ("vs-598",
-				(get_key_offset (&key) & ~PAGE_CACHE_MASK) == 0);
-			pages [i] = grab_cache_page (inode->i_mapping,
-						     (unsigned long)(get_key_offset (&key) >>
-								     PAGE_CACHE_SHIFT));
-			if (!pages [i]) {
-				result = -ENOMEM;
-				goto error;
-			}
-
-			page_off = 0;
-
-			while (page_off < PAGE_CACHE_SIZE) {
-				coord_t coord;
-				lock_handle lh;
-
-				/* get next item */
-				coord_init_zero (&coord);
-				init_lh (&lh);
-				result = find_next_item (0, &key, &coord, &lh,
-							 ZNODE_READ_LOCK, CBK_UNIQUE);
-				if (result != CBK_COORD_FOUND) {
-					if (result == CBK_COORD_NOTFOUND &&
-					    get_key_offset (&key) == 0)
-						/* conversion can be called for
-						 * empty file */
-						result = 0;
-					done_lh (&lh);
-					goto error;
-				}
-				if (coord.between == AFTER_UNIT) {
-					char *kaddr;
-					/*
-					 * FIXME-VS: this is more save way to
-					 * detect end of file
-					 */
-					done_lh (&lh);
-					kaddr = kmap_atomic(pages [i], KM_USER0);
-					memset (kaddr + page_off, 0, PAGE_CACHE_SIZE - page_off);
-					kunmap_atomic (kaddr, KM_USER0);
-					done = 1;
-					break;
-				}
-				
-				result = zload (coord.node);
-				if (result) {
-					done_lh (&lh);
-					goto error;
-				}
-				assert ("vs-562", unix_file_owns_item (inode, &coord));
-				assert ("vs-856", coord.between == AT_UNIT);
-				assert ("green-11",
-					keyeq (&key, unit_key_by_coord (&coord, &tmp)));
-				if (item_id_by_coord (&coord) != TAIL_ID) {
-					/*
-					 * something other than tail found
-					 * This is only possible when first item of a file found during call to reiser4_mmap.
-					 */
-					if (get_key_offset (&key) == (__u64)0) {
-						if (item_id_by_coord (&coord) != EXTENT_POINTER_ID)
-							result = -EIO;
-						else
-							result = 0;
-					} else
-						result = -EIO;
-					zrelse (coord.node);
-					done_lh (&lh);
-					goto error;
-				}
-				item = item_body_by_coord (&coord) + coord.unit_pos;
-				
-				/* how many bytes to copy */
-				count = item_length_by_coord (&coord) - coord.unit_pos;
-				/* limit length of copy to end of page */
-				if (count > PAGE_CACHE_SIZE - page_off)
-					count = PAGE_CACHE_SIZE - page_off;
-			
-				/* kmap/kunmap are necessary for pages which
-				 * are not addressable by direct kernel virtual
-				 * addresses */
-				p_data = kmap_atomic (pages [i], KM_USER0);
-				/* copy item (as much as will fit starting from
-				 * the beginning of the item) into the page */
-				memcpy (p_data + page_off, item, (unsigned)count);
-				kunmap_atomic (p_data, KM_USER0);
-				
-				page_off += count;
-				set_key_offset (&key, get_key_offset (&key) + count);
-				
-				zrelse (coord.node);
-				done_lh (&lh);
-				
-				if (get_key_offset (&key) == inode->i_size) {
-					/*
-					 * FIXME-VS: this can be used to detect
-					 * end of file
-					 */
-					kaddr = kmap_atomic (pages [i], KM_USER0);
-					memset (kaddr + page_off, 0, PAGE_CACHE_SIZE - page_off);
-					kunmap_atomic (kaddr, KM_USER0);
-					done = 1;
-				}
-			} /* while */
-		} /* for */
-
-		result = replace (inode, pages, i, 
-				  (int)((i - 1) * PAGE_CACHE_SIZE +
-					page_off));
-		if (result)
-			goto error;
-	}
-
-	inode_set_flag (inode, REISER4_TAIL_STATE_KNOWN);
-	inode_clr_flag (inode, REISER4_HAS_TAIL);
-
- ok:
-	drop_pages (pages, sizeof_array (pages));
-	drop_exclusive_access (inode);
-	get_nonexclusive_access (inode);
-	
-	/* It is advisabel to check here that all grabbed pages were freed */
-
-	/* file can not be converted back to tails, because tail */
-	assert ("vs-830", (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
-			   !inode_get_flag (inode, REISER4_HAS_TAIL)));
-
-	return 0;
-
- error:
-	drop_pages (pages, sizeof_array (pages));
-	drop_exclusive_access (inode);
-	get_nonexclusive_access (inode);
-	return result;
-}
-#endif
 
 int tail2extent (struct inode * inode)
 {
@@ -635,8 +455,7 @@ int extent2tail (struct file * file)
 	reiser4_key to;
 	int i;
 	unsigned count;
-	int (*filler)(void *,struct page*) = 
-		(int (*)(void *,struct page*))unix_file_readpage_nolock;
+
 
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_file_add (extent2tail);
@@ -660,7 +479,8 @@ int extent2tail (struct file * file)
 	result = 0;
 
 	for (i = 0; i < num_pages; i ++) {
-		page = read_cache_page (inode->i_mapping, (unsigned)i, filler, file);
+		page = read_cache_page (inode->i_mapping, (unsigned)i,
+					unix_file_readpage_nolock_locked_page, file);
 		if (IS_ERR (page)) {
 			result = PTR_ERR (page);
 			break;
@@ -704,7 +524,8 @@ int extent2tail (struct file * file)
 			page_cache_release (page);
 			break;
 		}
-		assert ("nikita-2690", jnode_by_page (page) == NULL);
+		assert ("nikita-2690", ( !PagePrivate( page ) &&
+					 page -> private == 0 ) );
 		drop_page(page, NULL);
 		/*
 		 * release reference taken by read_cache_page() above
