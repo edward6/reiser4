@@ -181,7 +181,7 @@ jnode_of_page (struct page* pg)
 	 * allocated again. All jnode_of_page() callers have to protect
 	 * against this.  Josh says: Huh? What?
 	 */
-	return (jnode*) pg->private;
+	return jref ((jnode*) pg->private);
 }
 
 
@@ -204,9 +204,8 @@ jnode * next_jnode (jnode * node UNUSED_ARG)
 	return 0;
 }
 
-/* Increment to the jnode's reference counter. */
-/* FIXME:NIKITA->JMACD comment is not exactly correct, because there is no
- * reference counter in jnode. */
+/* Increment a reference counter for the jnode.  For formatted nodes use zref(), for
+ * unformatted nodes increment the page count. */
 /* Audited by: umka (2002.06.13) */
 jnode *jref( jnode *node )
 {
@@ -215,14 +214,14 @@ jnode *jref( jnode *node )
 	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
 		return ZJNODE (zref (JZNODE (node)));
 	} else {
-		/* FIXME_JMACD: What to do here? */
+		assert ("jmacd-981273", node->pg != NULL);
+		page_cache_get (node->pg);
 		return node;
 	}
 }
 
-/* Decrement the jnode's reference counter. */
-/* FIXME:NIKITA->JMACD comment is not exactly correct, because there is no
- * reference counter in jnode. */
+/* Decrement a reference counter for the jnode.  For formatted nodes use zput(), for
+ * unformatted nodes decrement the page count. */
 /* Audited by: umka (2002.06.13) */
 void   jput( jnode *node )
 {
@@ -231,7 +230,8 @@ void   jput( jnode *node )
 	if (! JF_ISSET (node, ZNODE_UNFORMATTED)) {
 		zput (JZNODE (node));
 	} else {
-		/* FIXME: */
+		assert ("jmacd-981273", node->pg != NULL);
+		page_cache_release (node->pg);
 	}
 }
 
