@@ -274,13 +274,19 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 		ON_DEBUG( killed = 0 );
 		for_all_ht_buckets( &tree -> hash_table, bucket ) {
 			for_all_in_bucket( bucket, node, next, link ) {
-				if( atomic_read( &node -> c_count ) == 0 ) {
-					assert( "nikita-2179", 
-						atomic_read( &node -> x_count ) == 0 );
-					zdrop( tree, node );
-					ON_DEBUG( ++ killed );
-				} else
+				if( atomic_read( &node -> c_count ) != 0 ) {
 					++ parents;
+					continue;
+				}
+				/*
+				 * FIXME debugging output
+				 */
+				if( atomic_read( &node -> x_count ) != 0 )
+					print_znode( "busy on umount", node );
+				assert( "nikita-2179", 
+					atomic_read( &node -> x_count ) == 0 );
+				zdrop( tree, node );
+				ON_DEBUG( ++ killed );
 			}
 		}
 		assert( "nikita-2178", killed > 0 );
