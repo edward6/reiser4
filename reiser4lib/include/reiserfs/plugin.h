@@ -71,7 +71,7 @@ struct reiserfs_node_plugin {
     error_t (*check) (reiserfs_opaque_t *, int);
     uint32_t (*max_item_size) (reiserfs_opaque_t *);
     uint32_t (*max_item_num) (reiserfs_opaque_t *);
-    uint32_t (*count) (reiserfs_opaque_t *);
+    uint32_t (*item_count) (reiserfs_opaque_t *);
     uint32_t (*get_free_space) (reiserfs_opaque_t *);
     void (*set_free_space) (reiserfs_opaque_t *, uint32_t);
     void (*print) (reiserfs_opaque_t *);
