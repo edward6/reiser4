@@ -2516,15 +2516,14 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 				jnode_make_reloc(ZJNODE(node), pos->fq);
 			} else if (dist < sbinfo->flush.relocate_distance) {
 				/* The present allocation is good enough. */
-				printk("atom's flushreserved counter is broken?\n");
 				jnode_make_wander(ZJNODE(node));
 			} else {
 				/* Otherwise, try to relocate to the best position. */
 			      best_reloc:
 				ret = allocate_znode_update(node, parent_coord, pos);
-				if (ret != 0) {
+				if (ret != 0)
 					return ret;
-				}
+
 				/* set JNODE_RELOC bit _after_ node gets allocated */
 				jnode_make_reloc(ZJNODE(node), pos->fq);
 			}
