@@ -1317,8 +1317,7 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 */
 static int
 carry_cut(carry_op * op /* operation to be performed */ ,
-	  carry_level * doing UNUSED_ARG	/* current carry
-						 * level */ ,
+	  carry_level * doing	/* current carry level */ ,
 	  carry_level * todo /* next carry level */ )
 {
 	int result;
