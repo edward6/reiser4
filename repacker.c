@@ -172,14 +172,79 @@ static int prepare_repacking_session (void * arg)
  * and node squeezing is not supported. */
 static int relocate_znode (tap_t * tap, void * arg)
 {
-	reiser4_blocknr_hint hint;
 	lock_handle parent_lock;
+	coord_t parent_coord;
+	znode * child = tap->lh->node;
+	struct repacker_cursor * cursor = arg;
+	__u64 new_blocknr;
+	int ret;
 
-	blocknr_hint_init(&hint);
+	/* Add node to current transaction like in processing forward. */
+	ret = process_znode(tap, arg);
+	if (ret)
+		return ret;
+
 	init_lh(&parent_lock);
-	
-	blocknr_hint_done(&hint);
-	return 0;
+	ret = reiser4_get_parent(&parent_lock, child, ZNODE_WRITE_LOCK, 0);
+	if (ret)
+		goto out;
+
+	/* Do not relocate nodes which were processed by flush already. */
+	if (ZF_ISSET(child, JNODE_RELOC) || ZF_ISSET(child, JNODE_OVRWR))
+		goto out;
+
+	if (ZF_ISSET(child, JNODE_CREATED)) {
+		assert("zam-962", blocknr_is_fake(znode_get_block(child)));
+	} else {
+		assert("zam-963", !blocknr_is_fake(znode_get_block(child)));
+		ret = reiser4_dealloc_block(znode_get_block(child), 0, 
+					    BA_DEFER | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
+		if (ret) 
+			goto out;
+	}
+
+	cursor->hint.block_stage = BLOCK_UNALLOCATED;
+
+	{
+		__u64 len = 1UL;
+
+		ret = reiser4_alloc_blocks(&cursor->hint, &new_blocknr, &len, 
+					   BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
+		if (ret)
+			goto out;
+
+		ret = znode_rehash(child, &new_blocknr);
+		if (ret)
+			goto out;
+	}
+
+	/* Flush doesn't process nodes twice, it will not discard this block
+	 * relocation. */
+	ZF_SET(child, JNODE_RELOC);
+
+	/* Update parent reference. */
+	if (unlikely(znode_above_root(parent_lock.node))) {
+		reiser4_super_info_data * sbinfo = get_current_super_private();
+		sbinfo->tree.root_block = new_blocknr;
+	} else {
+		item_plugin *iplug;
+
+		ret = find_child_ptr(parent_lock.node, child, &parent_coord);
+		if (ret)
+			goto out;
+
+		assert ("zam-960", item_is_internal(&parent_coord));
+		assert ("zam-961", znode_is_loaded(child));
+		iplug = item_plugin_by_coord(&parent_coord);
+		assert("zam-964", iplug->f.update != NULL);
+		iplug->f.update(&parent_coord, &new_blocknr);
+	}
+
+	znode_make_dirty(parent_lock.node);
+
+ out:
+	done_lh(&parent_lock);
+	return ret;
 }
 
 static int relocate_extent (tap_t * tap, void * arg)
@@ -192,8 +257,6 @@ static struct tree_walk_actor forward_actor = {
 	.process_extent = process_extent,
 	.before         = prepare_repacking_session
 };
-
-
 
 static struct tree_walk_actor backward_actor = {
 	.process_znode  = relocate_znode,
