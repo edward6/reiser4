@@ -295,12 +295,8 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 		2 /* journal footer and header */;
 #endif
 
-	/* layout 40 uses bitmap based space allocator - the one implemented in
-	   plugin/space/bitmap.[ch] */
-	sbinfo->space_plug = space_allocator_plugin_by_id(BITMAP_SPACE_ALLOCATOR_ID);
-	assert("vs-493", (sbinfo->space_plug && sbinfo->space_plug->init_allocator));
 	/* init disk space allocator */
-	result = sbinfo->space_plug->init_allocator(get_space_allocator(s), s, 0);
+	sa_init_allocator(get_space_allocator(s), s, 0);
 	if (result)
 		return result;
 
@@ -373,13 +369,8 @@ release_format40(struct super_block *s)
 
 	/*done_tree(&sbinfo->tree);*/
 
-	assert("zam-580", sbinfo->space_plug != NULL);
-
-	if (sbinfo->space_plug->destroy_allocator != NULL)
-		sbinfo->space_plug->destroy_allocator(&sbinfo->space_allocator, s);
-
+	sa_destroy_allocator(&sbinfo->space_allocator, s);
 	done_journal_info(s);
-
 	eflush_done_at(s);
 	done_super_jnode(s);
 
