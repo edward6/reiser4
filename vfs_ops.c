@@ -523,6 +523,12 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	REISER4_EXIT(0);
 }
 
+static struct list_head *
+get_moved_pages(struct address_space *mapping)
+{
+	return &reiser4_inode_data(mapping->host)->moved_pages;
+}
+
 /* address space operations */
 
 /* as_ops->set_page_dirty() VFS method in reiser4_address_space_operations.
@@ -531,10 +537,9 @@ reiser4_statfs(struct super_block *super	/* super block of file
    itself uses set_page_dirty_internal(). 
 
    The difference is that reiser4_set_page_dirty puts dirty page on
-   mapping->io_pages (it could be a reiser4 inode private list instead of
-   mapping->io_pages).  That list is processed by reiser4_writepages() to do
-   reiser4 specific work over dirty pages (allocation jnode, capturing, atom
-   creation) which cannot be done in the contexts where set_page_dirty is
+   reiser4_inode->moved_pages.  That list is processed by reiser4_writepages()
+   to do reiser4 specific work over dirty pages (allocation jnode, capturing,
+   atom creation) which cannot be done in the contexts where set_page_dirty is
    called.
 
    Mostly this function is __set_page_dirty_nobuffers() but target page list
@@ -553,7 +558,7 @@ static int reiser4_set_page_dirty (struct page * page)
 				if (!mapping->backing_dev_info->memory_backed)
 					inc_page_state(nr_dirty);
 				list_del(&page->list);
-				list_add(&page->list, &mapping->io_pages);
+				list_add(&page->list, get_moved_pages(mapping));
 			}
 			write_unlock(&mapping->page_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
@@ -1256,6 +1261,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		inode_init_once(&info->vfs_inode);
 		init_rwsem(&info->p.sem);
 		info->p.eflushed = 0;
+		INIT_LIST_HEAD(&info->p.moved_pages);
 #if REISER4_DEBUG
 		info->p.ea_owner = 0;
 #endif
@@ -1321,8 +1327,13 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 static void
 reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 {
+	reiser4_inode *info;
+
+	info = reiser4_inode_data(inode);
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
+
 		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
+		assert("nikita-2872", list_empty(&info->moved_pages));
 		if (inode_get_flag(inode, REISER4_GENERIC_VP_USED)) {
 			assert("vs-839", S_ISLNK(inode->i_mode));
 			reiser4_kfree_in_sb(inode->u.generic_ip, (size_t) inode->i_size + 1, inode->i_sb);
@@ -1330,7 +1341,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 			inode_clr_flag(inode, REISER4_GENERIC_VP_USED);
 		}
 	}
-	kmem_cache_free(inode_cache, reiser4_inode_data(inode));
+	kmem_cache_free(inode_cache, info);
 }
 
 extern void generic_drop_inode(struct inode *object);
@@ -2333,7 +2344,7 @@ static int mapping_has_anonymous_pages (struct address_space * mapping )
 	int ret;
 
 	read_lock (&mapping->page_lock);
-	ret = !list_empty (&mapping->io_pages);
+	ret = !list_empty (get_moved_pages(mapping));
 	read_unlock (&mapping->page_lock);
 
 	return ret;
@@ -2360,12 +2371,15 @@ static void capture_page_and_create_extent (struct page * page)
 
 static int capture_anonymous_pages (struct address_space * mapping)
 {
+	struct list_head *mpages;
+
 	write_lock (&mapping->page_lock);
 
-	while (!list_empty (&mapping->io_pages)) {
-		struct page *pg = list_entry(mapping->io_pages.prev, struct page, list);
+	mpages = get_moved_pages(mapping);
+	while (!list_empty (mpages)) {
+		struct page *pg = list_entry(mpages->prev, struct page, list);
 
-		list_move(&pg->list, &mapping->dirty_pages);
+		list_move(&pg->list, &mapping->io_pages);
 		page_cache_get (pg);
 
 		write_unlock (&mapping->page_lock);
@@ -2409,6 +2423,12 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 		if (ret)
 			REISER4_EXIT(ret);
 	}
+
+	/* work around infinite loop in pdflush->sync_sb_inodes. */
+	/* Problem: ->writepages() is supposed to submit io for the pages from
+	 * ->io_pages list clean this list. */
+	mapping->dirtied_when = jiffies|1;
+	list_move(&mapping->host->i_list, &s->s_dirty);
 
 	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
 	   sys_fsync(). */
