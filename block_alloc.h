@@ -85,6 +85,7 @@ typedef enum reiser4_ba_flags reiser4_ba_flags_t;
 extern void blocknr_hint_init(reiser4_blocknr_hint * hint);
 extern void blocknr_hint_done(reiser4_blocknr_hint * hint);
 extern void update_blocknr_hint_default(const struct super_block *, const reiser4_block_nr *);
+extern void get_blocknr_hint_default(reiser4_block_nr *);
 
 extern reiser4_block_nr reiser4_fs_reserved_space(struct super_block * super);
 

@@ -650,6 +650,18 @@ update_blocknr_hint_default (const struct super_block *s, const reiser4_block_nr
 	}
 	reiser4_spin_unlock_sb(sbinfo);
 }
+
+/* get current value of the default blocknr hint. */
+void get_blocknr_hint_default(reiser4_block_nr * result)
+{
+	reiser4_super_info_data * sbinfo = get_current_super_private();
+
+	reiser4_spin_lock_sb(sbinfo);
+	*result = sbinfo->blocknr_hint_default;
+	assert("zam-677", *result < sbinfo->block_count);
+	reiser4_spin_unlock_sb(sbinfo);
+}
+
 /* Allocate "real" disk blocks by calling a proper space allocation plugin
  * method. Blocks are allocated in one contiguous disk region. The plugin
  * independent part accounts blocks by subtracting allocated amount from grabbed
@@ -692,12 +704,8 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	/* For write-optimized data we use default search start value, which is
 	 * close to last write location. */
 	if (flags & BA_USE_DEFAULT_SEARCH_START) {
-		reiser4_spin_lock_sb(sbinfo);
-		hint->blk = sbinfo->blocknr_hint_default;
 		reiser4_stat_inc(block_alloc.nohint);
-		assert("zam-677",
-		       hint->blk < sbinfo->block_count);
-		reiser4_spin_unlock_sb(sbinfo);
+		get_blocknr_hint_default(&hint->blk);
 	}
 
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */

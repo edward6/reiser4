@@ -1282,17 +1282,27 @@ static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos)
 	/* As we ascend at the left-edge of the region to flush, take this opportunity at
 	   the twig level to find our parent-first preceder unless we have already set
 	   it. */
-	if (pos->preceder.blk == 0 && znode_get_level(coord->node) == TWIG_LEVEL) {
+	if (pos->preceder.blk == 0) {
 		ret = set_preceder(coord, pos);
-		if (ret != 0) {
+		if (ret != 0)
 			return ret;
-		}
 	}
 
 	/* If the ancestor is clean or already allocated, or if the child is not a
 	   leftmost child, stop going up, even leaving coord->node not flushprepped. */
 	if (znode_check_flushprepped(coord->node)
 	    || !coord_is_leftmost_unit(coord)) {
+		if (pos->preceder.blk == 0) {
+			if (!blocknr_is_fake(znode_get_block(coord->node))) {
+				pos->preceder.blk = *znode_get_block(coord->node);
+			} else {
+				/* write optimized value of search start is better then
+				 * nothing */
+				get_blocknr_hint_default(&pos->preceder.blk);
+				reiser4_stat_inc(block_alloc.nohint);
+			}
+			check_preceder(pos->preceder.blk);
+		}
 		return 0;
 	}
 
@@ -1316,8 +1326,10 @@ static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos)
 		}
 
 		/* Recursive call. */
-		if (!znode_check_flushprepped(acoord.node) && (ret = alloc_one_ancestor(&acoord, pos))) {
-			goto exit;
+		if (!znode_check_flushprepped(acoord.node)) {
+			ret = alloc_one_ancestor(&acoord, pos);
+			if (ret)
+				goto exit;
 		}
 	}
 
@@ -1354,6 +1366,16 @@ set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 	lock_handle left_lock;
 	load_count  left_load;
 
+#if 0
+	/* do not trust to allocation of nodes above twigs, use the block number of last
+	 * write (write optimized approach). */
+	if (znode_get_level(coord_in->node) > TWIG_LEVEL + 1) {
+		get_blocknr_hint_default(&pos->preceder.blk);
+		reiser4_stat_inc(block_alloc.nohint);
+		return 0;
+	}
+#endif
+
 	coord_dup(&coord, coord_in);
 
 	init_lh(&left_lock);
@@ -1370,7 +1392,9 @@ set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 			/* If we fail for any reason it doesn't matter because the
 			   preceder is only a hint.  We are low-priority at this point, so
 			   this must be the case. */
-			if (ret == -E_REPEAT || ret == -E_NO_NEIGHBOR || ret == -ENOENT || ret == -EINVAL || ret == -E_DEADLOCK) {
+			if (ret == -E_REPEAT || ret == -E_NO_NEIGHBOR || 
+			    ret == -ENOENT || ret == -EINVAL || ret == -E_DEADLOCK) 
+			{
 				ret = 0;
 			}
 			goto exit;
