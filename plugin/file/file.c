@@ -916,7 +916,7 @@ static int capture_page_and_create_extent(struct page * page)
 
 	grab_space_enable ();
 
-	result = fplug->capture(page);
+	result = capture_unix_file_page(page);
 
 	if (result != 0)
 		SetPageError(page);
@@ -971,6 +971,7 @@ static int capture_anonymous_page(struct page *pg)
 				warning("nikita-3329",
 					"Cannot capture anon page: %i", result);
 			jrelse(node);
+			jput(node);
 		} else
 			result = PTR_ERR(node);
 		page_cache_release(pg);

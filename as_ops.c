@@ -64,12 +64,6 @@ sector_t reiser4_bmap(struct address_space *, sector_t);
 
 /* address space operations */
 
-static struct list_head *
-get_moved_pages(struct address_space *mapping)
-{
-	return &reiser4_inode_data(mapping->host)->moved_pages;
-}
-
 /* as_ops->set_page_dirty() VFS method in reiser4_address_space_operations.
 
    It is used by others (except reiser4) to set reiser4 pages dirty. Reiser4

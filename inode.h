@@ -175,6 +175,12 @@ inode_by_reiser4_inode(const reiser4_inode *r4_inode /* inode queried */)
        return &container_of(r4_inode, reiser4_inode_object, p)->vfs_inode;
 }
 
+static inline struct list_head *
+get_moved_pages(struct address_space *mapping)
+{
+	return &reiser4_inode_data(mapping->host)->moved_pages;
+}
+
 /* ordering predicate for inode spin lock: only jnode lock can be held */
 #define spin_ordering_pred_inode_object(inode)			\
 	( lock_counters() -> rw_locked_dk == 0 ) &&		\
