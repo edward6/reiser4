@@ -23,18 +23,28 @@
 /* this file contains:
    tail2extent and extent2tail */
 
+static int ea_obtained(const struct inode *inode)
+{
+	
+	assert("", ergo (reiser4_inode_data(inode)->ea_owner,
+			 reiser4_inode_data(inode)->ea_owner == current));
+	return reiser4_inode_data(inode)->ea_owner != 0;
+}
+
 /* exclusive access to a file is acquired for tail conversion */
-/* Audited by: green(2002.06.15) */
 void
 get_exclusive_access(struct inode *inode)
 {
 	down_write(&reiser4_inode_data(inode)->sem);
+	assert("", !ea_obtained(inode));
+	reiser4_inode_data(inode)->ea_owner = current;
 }
 
-/* Audited by: green(2002.06.15) */
 void
 drop_exclusive_access(struct inode *inode)
 {
+	assert("", ea_obtained(inode));
+	reiser4_inode_data(inode)->ea_owner = 0;
 	up_write(&reiser4_inode_data(inode)->sem);
 }
 
@@ -44,23 +54,25 @@ void
 get_nonexclusive_access(struct inode *inode)
 {
 	down_read(&reiser4_inode_data(inode)->sem);
+	assert("", !ea_obtained(inode));
 }
 
 /* Audited by: green(2002.06.15) */
 void
 drop_nonexclusive_access(struct inode *inode)
 {
+	assert("", !ea_obtained(inode));
 	up_read(&reiser4_inode_data(inode)->sem);
 }
 
-void
+static void
 nea2ea(struct inode *inode)
 {
 	drop_nonexclusive_access(inode);
 	get_exclusive_access(inode);
 }
 
-void
+static void
 ea2nea(struct inode *inode)
 {
 	drop_exclusive_access(inode);
@@ -154,6 +166,7 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 #define TAIL2EXTENT_PAGE_NUM 3	/* number of pages to fill before cutting tail
 				 * items */
 
+/* this can be called with either exclusive (via truncate) or with non-exclusive (via write) access to file obtained */
 int
 tail2extent(struct inode *inode)
 {
@@ -168,14 +181,21 @@ tail2extent(struct inode *inode)
 	int done;		/* set to 1 when all file is read */
 	char *item;
 	int i;
+	int access_switched;
 
 	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
 	   to write_down */
-	nea2ea(inode);
+	access_switched = 0;
+	if (!ea_obtained(inode)) {
+		/* we are called from write */
+		access_switched = 1;
+		nea2ea(inode);
+	}
 
 	if (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) && !inode_get_flag(inode, REISER4_HAS_TAIL)) {
 		/* tail was converted by someone else */
-		ea2nea(inode);
+		if (access_switched)
+			ea2nea(inode);
 		return 0;
 	}
 
@@ -307,7 +327,8 @@ tail2extent(struct inode *inode)
 	inode_clr_flag(inode, REISER4_HAS_TAIL);
 
 	for_all_pages(pages, sizeof_array(pages), RELEASE);
-	ea2nea(inode);
+	if (access_switched)
+		ea2nea(inode);
 
 	/* It is advisabel to check here that all grabbed pages were freed */
 
@@ -320,7 +341,8 @@ tail2extent(struct inode *inode)
 error:
 	for_all_pages(pages, sizeof_array(pages), DROP);
 exit:
-	ea2nea(inode);
+	if (access_switched)
+		ea2nea(inode);
 	return result;
 }
 
