@@ -2992,6 +2992,8 @@ static extent_write_todo extent_what_todo2 (coord_t * coord,
 			   coord->between == AFTER_UNIT));
 
 	if (coord->between == AFTER_ITEM) {
+		assert ("vs-8791", znode_get_level (coord->node) == LEAF_LEVEL);
+		assert ("vs-8801", get_key_offset (key) == 0);
 		return EXTENT_FIRST_BLOCK;
 	}
 
