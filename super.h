@@ -115,9 +115,6 @@ struct reiser4_super_info_data {
 	/** fake inode used to bind formatted nodes */
 	struct inode        *fake;
 
-	/** an array for bitmap blocks direct access */
-	struct reiser4_bnode * bitmap;
-
 	ln_hash_table          lnode_htable;
 	spinlock_t             lnode_htable_guard;
 #if REISER4_DEBUG
