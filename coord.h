@@ -39,53 +39,96 @@ struct coord {
 	/* position of item within node */
 	/*  4 */ pos_in_node item_pos;
 	/* position of unit within item */
-	/*  8 */ pos_in_item unit_pos;
-	/* position of coord w.r.t. to neighboring items and/or units. 
-	   Values are taken from &between_enum above.
-	*/
-	/* 12 */ between_enum between;
+	/*  6 */ pos_in_item unit_pos;
 	/* optimization: plugin of item is stored in coord_t. Until this was
-	   implemented, item_plugin_by_coord() was major CPU consumer. ->iplug
-	   is invalidated (set to NULL) on each modification of ->item_pos,
+	   implemented, item_plugin_by_coord() was major CPU consumer. ->iplugid
+	   is invalidated (set to 0xff) on each modification of ->item_pos,
 	   and all such modifications are funneled through coord_*_item_pos()
 	   functions below.
 	*/
-	/* 16 */ item_plugin *iplug;
-	/* 20 */
+	/*  8 */ char iplugid;
+	/* position of coord w.r.t. to neighboring items and/or units. 
+	   Values are taken from &between_enum above.
+	*/
+	/*  9 */ char between;
+	/* 10 */ __u16 pad; /* padding */
+	/* 12 */
 };
 
-#define MUTABLE_POS( c ) ( *( pos_in_node * )( &( c ) -> item_pos ) )
+#define INVALID_PLUGID  ((char)((1 << sizeof(char)) - 1))
+
+static inline item_plugin *item_plugin_by_id(reiser4_plugin_id id);
+
+static inline item_plugin *
+coord_iplug(const coord_t * coord)
+{
+	assert("nikita-2833", coord != NULL);
+	assert("nikita-2834", coord->iplugid != INVALID_PLUGID);
+	return item_plugin_by_id(coord->iplugid);
+}
+
+static inline void
+coord_clear_iplug(coord_t * coord)
+{
+	assert("nikita-2835", coord != NULL);
+	coord->iplugid = INVALID_PLUGID;
+}
+
+static inline int
+coord_is_iplug_set(const coord_t * coord)
+{
+	assert("nikita-2836", coord != NULL);
+	return coord->iplugid != INVALID_PLUGID;
+}
+
+static inline char get_iplugid(item_plugin *iplug);
+
+static inline void
+coord_set_iplug(coord_t * coord, item_plugin *iplug)
+{
+	assert("nikita-2837", coord != NULL);
+	assert("nikita-2838", iplug != NULL);
+	coord->iplugid = get_iplugid(iplug);
+}
 
 static inline void
 coord_set_item_pos(coord_t * coord, pos_in_node pos)
 {
 	assert("nikita-2478", coord != NULL);
-	MUTABLE_POS(coord) = pos;
-	coord->iplug = NULL;
+	coord->item_pos = pos;
+	coord_clear_iplug(coord);
 }
 
 static inline void
 coord_dec_item_pos(coord_t * coord)
 {
 	assert("nikita-2480", coord != NULL);
-	--MUTABLE_POS(coord);
-	coord->iplug = NULL;
+	--coord->item_pos;
+	coord_clear_iplug(coord);
 }
 
 static inline void
 coord_inc_item_pos(coord_t * coord)
 {
 	assert("nikita-2481", coord != NULL);
-	++MUTABLE_POS(coord);
-	coord->iplug = NULL;
+	++coord->item_pos;
+	coord_clear_iplug(coord);
 }
 
 static inline void
 coord_add_item_pos(coord_t * coord, int delta)
 {
 	assert("nikita-2482", coord != NULL);
-	MUTABLE_POS(coord) += delta;
-	coord->iplug = NULL;
+	coord->item_pos += delta;
+	coord_clear_iplug(coord);
+}
+
+static inline void
+coord_invalid_item_pos(coord_t * coord)
+{
+	assert("nikita-2832", coord != NULL);
+	coord->item_pos = ~0;
+	coord_clear_iplug(coord);
 }
 
 /* Reverse a direction. */
@@ -171,6 +214,8 @@ coord_last_unit_pos(const coord_t * coord)
 /* For assertions only, checks for a valid coordinate. */
 extern int coord_check(const coord_t * coord);
 #endif
+
+extern int coords_equal(const coord_t * c1, const coord_t * c2);
 
 /* Returns true if two coordinates are consider equal.  Coordinates that are between units
    or items are considered equal. */

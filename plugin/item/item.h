@@ -283,6 +283,14 @@ item_id_by_plugin(item_plugin * plugin)
 	return plugin->h.id;
 }
 
+static inline char 
+get_iplugid(item_plugin *iplug)
+{
+	assert("nikita-2838", iplug != NULL);
+	assert("nikita-2839", 0 <= iplug->h.id && iplug->h.id < 0xff);
+	return (char)item_id_by_plugin(iplug);
+}
+
 extern int item_can_contain_key(const coord_t * item, const reiser4_key * key, const reiser4_item_data *);
 extern int are_items_mergeable(const coord_t * i1, const coord_t * i2);
 extern int item_is_internal(const coord_t *);

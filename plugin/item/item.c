@@ -53,11 +53,11 @@ item_plugin_by_coord(const coord_t * coord /* coord to query */ )
 	assert("nikita-332", znode_is_loaded(coord->node));
 	trace_stamp(TRACE_TREE);
 
-	if (coord->iplug == NULL)
-
-		((coord_t *) coord)->iplug = node_plugin_by_node(coord->node)->plugin_by_coord(coord);
-	assert("nikita-2479", coord->iplug == node_plugin_by_node(coord->node)->plugin_by_coord(coord));
-	return coord->iplug;
+	if (!coord_is_iplug_set(coord))
+		coord_set_iplug((coord_t *) coord,
+				node_plugin_by_node(coord->node)->plugin_by_coord(coord));
+	assert("nikita-2479", coord_iplug(coord) == node_plugin_by_node(coord->node)->plugin_by_coord(coord));
+	return coord_iplug(coord);
 }
 
 /* return type of item at @coord */

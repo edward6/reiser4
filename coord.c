@@ -31,7 +31,7 @@ coord_normalize(coord_t * coord)
 	assert("vs-683", node);
 
 	/* FIXME-NIKITA overkill */
-	coord->iplug = NULL;
+	coord_clear_iplug(coord);
 
 	if (node_is_empty(node)) {
 		coord_init_first_unit(coord, node);
@@ -67,7 +67,7 @@ coord_dup_nocheck(coord_t * coord, const coord_t * old_coord)
 	coord_set_item_pos(coord, old_coord->item_pos);
 	coord->unit_pos = old_coord->unit_pos;
 	coord->between = old_coord->between;
-	coord->iplug = old_coord->iplug;
+	coord->iplugid = old_coord->iplugid;
 }
 
 /* Initialize an invalid coordinate. */
@@ -148,7 +148,7 @@ void
 coord_init_parent_hint(coord_t * coord, const znode * node)
 {
 	coord->node = (znode *) node;
-	coord_set_item_pos(coord, ~0u);
+	coord_invalid_item_pos(coord);
 }
 
 /* Initialize a coordinate by 0s. Used in places where init_coord was used and
@@ -601,6 +601,25 @@ coord_sideof_unit(coord_t * coord, sideof dir)
 	}
 }
 
+int
+coords_equal(const coord_t * c1, const coord_t * c2)
+{
+	assert("nikita-2840", c1 != NULL);
+	assert("nikita-2841", c2 != NULL);
+
+	/* assertion to track changes in coord_t */
+	cassert(sizeof(*c1) == sizeof(c1->node) + 
+		sizeof(c1->item_pos) +
+		sizeof(c1->unit_pos) + 
+		sizeof(c1->iplugid) + sizeof(c1->between) + sizeof(c1->pad));
+	return 
+		c1->node == c2->node &&
+		c1->item_pos == c2->item_pos &&
+		c1->unit_pos == c2->unit_pos &&
+		c1->iplugid == c2->iplugid &&
+		c1->between == c2->between;
+}
+
 /* Returns true if two coordinates are consider equal.  Coordinates that are between units
    or items are considered equal. */
 /* Audited by: green(2002.06.15) */
@@ -610,7 +629,7 @@ coord_eq(const coord_t * c1, const coord_t * c2)
 	assert("nikita-1807", c1 != NULL);
 	assert("nikita-1808", c2 != NULL);
 
-	if (memcmp(c1, c2, sizeof (*c1)) == 0) {
+	if (coords_equal(c1, c2)) {
 		return 1;
 	}
 	if (c1->node != c2->node) {

@@ -25,8 +25,6 @@ typedef enum {
 	REISER4_PLUGIN_TYPES
 } reiser4_plugin_type;
 
-typedef int reiser4_plugin_id;
-
 struct reiser4_plugin_ops;
 /* generic plugin operations, supported by each 
     plugin type. */

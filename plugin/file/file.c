@@ -83,7 +83,7 @@ check_coord(const coord_t * coord, const reiser4_key * key)
 	if (!REISER4_DEBUG)
 		return;
 	node_plugin_by_node(coord->node)->lookup(coord->node, key, FIND_MAX_NOT_MORE_THAN, &twin);
-	assert("vs-1004", !memcmp(coord, &twin, sizeof (twin)));
+	assert("vs-1004", coords_equal(coord, &twin));
 }
 
 static int

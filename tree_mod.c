@@ -151,7 +151,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				spin_lock_tree(tree);
 				in_parent = &new_root->in_parent;
 				in_parent->node = fake;
-				coord_set_item_pos(in_parent, ~0u);
+				coord_invalid_item_pos(in_parent);
 				in_parent->between = AT_UNIT;
 				spin_unlock_tree(tree);
 
@@ -278,7 +278,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 
 			/* new root is child on "fake" node */
 			new_root->in_parent.node = fake;
-			coord_set_item_pos(&new_root->in_parent, ~0u);
+			coord_invalid_item_pos(&new_root->in_parent);
 			new_root->in_parent.between = AT_UNIT;
 			atomic_inc(&fake->c_count);
 

@@ -203,7 +203,7 @@ size_t node40_free_space(znode * node)
 /* private inline version of node40_num_of_items() for use in this file. This
    is necessary, because address of node40_num_of_items() is taken and it is
    never inlined as a result. */
-static inline int
+static inline short
 node40_num_of_items_internal(const znode * node)
 {
 	trace_stamp(TRACE_NODES);
@@ -460,7 +460,7 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 		return -EIO;
 	}
 
-	coord->iplug = iplug;
+	coord_set_iplug(coord, iplug);
 
 	/* if exact key from item header was found by binary search, no
 	   further checks are necessary. */
@@ -852,7 +852,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 	/* FIXME: check how does create_item work when between is set to BEFORE_UNIT */
 	target->unit_pos = 0;
 	target->between = AT_UNIT;
-	target->iplug = NULL;
+	coord_clear_iplug(target);
 
 	/* initialise item */
 	if (data->iplug->b.init != NULL) {
@@ -970,8 +970,9 @@ cut_or_kill(struct cut_list *params, int cut)
 	unsigned i;
 	unsigned cut_size;
 	reiser4_key old_first_key;
-	unsigned wrong_item;	/* position of item for which may get mismatching
-				   item key and key of first unit in it */
+	unsigned short wrong_item; /* position of item for which may get
+				      mismatching item key and key of first
+				      unit in it */
 	unsigned from_unit, to_unit;
 
 	assert("vs-184", params->from->node == params->to->node);
@@ -982,7 +983,7 @@ cut_or_kill(struct cut_list *params, int cut)
 	nh = node40_node_header(node);
 	old_first_key = node40_ih_at(node, 0)->key;
 
-	wrong_item = ~0u;
+	wrong_item = ~0;
 	if (params->from->item_pos == params->to->item_pos) {
 		/* cut one item (partially or as whole) */
 		first_removed = params->from->item_pos;
@@ -1107,13 +1108,14 @@ cut_or_kill(struct cut_list *params, int cut)
 	nh40_set_free_space(nh, nh40_get_free_space(nh) +
 			    ((freed_space_end - freed_space_start) + sizeof (item_header40) * removed_entirely));
 
-	if (wrong_item != ~0u) {
+	if (wrong_item != (unsigned short)~0u) {
 		coord_t coord;
 		reiser4_key unit_key;
 
 		assert("vs-313", wrong_item >= removed_entirely);
 		wrong_item -= removed_entirely;
-		assert("vs-314", (int) wrong_item < node40_num_of_items_internal(node));
+		assert("vs-314", 
+		       (short)wrong_item < node40_num_of_items_internal(node));
 		coord.node = node;
 		coord_set_item_pos(&coord, wrong_item);
 		coord.unit_pos = 0;
@@ -1134,8 +1136,8 @@ cut_or_kill(struct cut_list *params, int cut)
 		}
 	}
 
-	/* FIXME-NIKITA overkill */
-	params->from->iplug = params->to->iplug = NULL;
+	coord_clear_iplug(params->from);
+	coord_clear_iplug(params->to);
 
 	/*print_znode_content (node, ~0u); */
 	return removed_entirely;
@@ -1236,7 +1238,7 @@ static void
 node40_estimate_shift(struct shift_params *shift)
 {
 	unsigned target_free_space, size;
-	unsigned stop_item;	/* item which estimating should not consider */
+	pos_in_node stop_item;	/* item which estimating should not consider */
 	unsigned want;		/* number of units of item we want shifted */
 	coord_t source;		/* item being estimated */
 	item_plugin *iplug;
@@ -1758,7 +1760,7 @@ static void
 adjust_coord(coord_t * insert_coord, struct shift_params *shift, int removed, int including_insert_coord)
 {
 	/* item plugin was invalidated by shifting */
-	insert_coord->iplug = NULL;
+	coord_clear_iplug(insert_coord);
 
 	if (node_is_empty(shift->wish_stop.node)) {
 		assert("vs-242", shift->everything);
@@ -1967,7 +1969,7 @@ unit_moved_right(const struct shift_params *shift, const coord_t * old)
 static coord_t *
 adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * new)
 {
-	new->iplug = 0;
+	coord_clear_iplug(new);
 	new->between = old->between;
 
 	if (old->node == shift->target) {
@@ -2027,7 +2029,7 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 			coord_dup(new, old);
 		}
 	}
-	new->iplug = item_plugin_by_coord(new);
+	coord_set_iplug(new, item_plugin_by_coord(new));
 	return new;
 }
 

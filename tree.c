@@ -645,7 +645,7 @@ check_tree_pointer(const coord_t * pointer	/* would-be pointer to
 	if (znode_get_level(pointer->node) != znode_get_level(child) + 1)
 		return NS_NOT_FOUND;
 
-	((coord_t *) pointer)->iplug = NULL;
+	coord_clear_iplug((coord_t *) pointer);
 
 	if (coord_is_existing_unit(pointer)) {
 		item_plugin *iplug;
@@ -736,7 +736,7 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 		}
 
 		reiser4_stat_tree_add(pos_in_parent_miss);
-		coord_set_item_pos(&child->in_parent, ~0u);
+		coord_invalid_item_pos(&child->in_parent);
 	}
 	spin_unlock_tree(tree);
 

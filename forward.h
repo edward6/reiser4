@@ -20,6 +20,7 @@ typedef struct item_coord item_coord;
 typedef struct shift_params shift_params;
 typedef struct reiser4_object_create_data reiser4_object_create_data;
 typedef union reiser4_plugin reiser4_plugin;
+typedef int reiser4_plugin_id;
 typedef struct item_plugin item_plugin;
 typedef struct reiser4_item_data reiser4_item_data;
 typedef union reiser4_key reiser4_key;
@@ -46,8 +47,8 @@ typedef struct reiser4_space_allocator reiser4_space_allocator;
 typedef struct flush_scan flush_scan;
 typedef struct flush_position flush_position;
 
-typedef unsigned pos_in_node;
-typedef unsigned pos_in_item;
+typedef unsigned short pos_in_node;
+typedef unsigned short pos_in_item;
 
 typedef struct jnode jnode;
 typedef struct reiser4_blocknr_hint reiser4_blocknr_hint;
