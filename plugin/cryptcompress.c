@@ -540,6 +540,16 @@ set_nrpages_by_frame(reiser4_cluster_t * clust)
 	clust->nr_pages = count_to_nrpages(clust->off + clust->count + clust->delta);
 }
 
+/* cluster index should be valid */
+reiser4_internal void
+set_nrpages_by_inode(reiser4_cluster_t * clust, struct inode * inode)
+{
+	assert("edward-785", clust != NULL);
+	assert("edward-786", inode != NULL);
+	
+	clust->nr_pages = count_to_nrpages(fsize_to_count(clust, inode));
+}
+
 /* plugin->key_by_inode() */
 /* see plugin/plugin.h for details */
 reiser4_internal int
@@ -1540,6 +1550,35 @@ grab_cache_cluster(struct inode * inode, reiser4_cluster_t * clust)
 	return result;
 }
 
+/* collect unlocked cluster pages */
+reiser4_internal int
+grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
+{
+	int i;
+	int result = 0;
+	
+	assert("edward-787", clust != NULL);
+	assert("edward-788", clust->pages != NULL);
+	assert("edward-789", clust->nr_pages != 0);
+	assert("edward-790", 0 < clust->nr_pages <= inode_cluster_pages(inode));
+	
+	for (i = 0; i < clust->nr_pages; i++) {
+		clust->pages[i] = grab_cache_page(inode->i_mapping, clust_to_pg(clust->index, inode) + i);
+		if (!(clust->pages[i])) {
+			result = RETERR(-ENOMEM);
+			break;
+		}
+		unlock_page(clust->pages[i]);
+	}
+	if (result) {
+		while(i) {
+			i--;
+			page_cache_release(clust->pages[i]);
+		}
+	}
+	return result;
+}
+
 UNUSED_ARG static void
 set_cluster_unlinked(reiser4_cluster_t * clust, struct inode * inode)
 {
@@ -1570,8 +1609,8 @@ put_cluster_jnodes(reiser4_cluster_t * clust)
 	}
 }
 
-/* put cluster pages and jnodes */
-static void
+/* put cluster pages */
+reiser4_internal void
 release_cluster_pages(reiser4_cluster_t * clust, int from)
 {
 	int i;
@@ -1872,6 +1911,7 @@ balance_dirty_page_cluster(reiser4_cluster_t * clust, loff_t off, loff_t to_file
        if (result)
                return result;
        assert("edward-726", clust->hint->coord.lh->owner == NULL);
+       atomic_inc(&inode->i_count);
        balance_dirty_pages_ratelimited(inode->i_mapping);
        
        return 0;
