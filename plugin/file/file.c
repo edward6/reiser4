@@ -6,7 +6,7 @@
 #include "../../reiser4.h"
 
 /* this file contains:
- * - file_plugin methods of reiser4 ordinary file (REGULAR_FILE_PLUGIN_ID)
+ * - file_plugin methods of reiser4 unix file (REGULAR_FILE_PLUGIN_ID)
  */
 
 /* plugin->u.file.write_flow = NULL
@@ -15,7 +15,7 @@
 
 
 /* plugin->u.file.truncate */
-int ordinary_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
+int unix_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
 {
 	reiser4_key from, to;
 
@@ -37,14 +37,14 @@ int ordinary_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
 /* plugin->u.write_sd_by_inode = common_file_save */
 
 
+static int find_item (reiser4_key * key, tree_coord * coord,
+		      lock_handle * lh, znode_lock_mode lock_mode);
+
 /* plugin->u.file.readpage
  * this finds item of file corresponding to page being read in and calls its
  * readpage method
  */
-static int find_item (reiser4_key * key, tree_coord * coord,
-		      lock_handle * lh, znode_lock_mode lock_mode);
-
-int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
+int unix_file_readpage (struct file * file UNUSED_ARG, struct page * page)
 {
 	int result;
 	tree_coord coord;
@@ -54,13 +54,14 @@ int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
 	struct readpage_arg arg;
 
 
-	build_sd_key (page->mapping->host, &key);
-	set_key_type (&key, KEY_BODY_MINOR);
-	set_key_offset (&key, (unsigned long long)page->index << PAGE_SHIFT);
-
+	/* get key of first byte of the page */
+	unix_file_key_by_inode (page->mapping->host,
+				(loff_t)page->index << PAGE_SHIFT, &key);
+	
 	init_coord (&coord);
 	init_lh (&lh);
 
+	/* look for file metadata corresponding to first byte of page */
 	result = find_item (&key, &coord, &lh, ZNODE_READ_LOCK);
 	if (result != CBK_COORD_FOUND) {
 		warning ("vs-280", "No file items found\n");
@@ -69,9 +70,7 @@ int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
 		return result;
 	}
 
-	/*
-	 * get plugin of found item
-	 */
+	/* get plugin of found item */
 	iplug = item_plugin_by_coord (&coord);
 	if (!iplug->s.file.readpage) {
 		done_lh (&lh);
@@ -90,26 +89,8 @@ int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
 
 
 /* plugin->u.file.read */
-/*
- * FIXME: This comment is out of date, there is no call to read_cache_page:
- 
-   this calls mm/filemap.c:read_cache_page() for every page spanned by the
-   flow @f. This read_cache_page allocates a page if it does not exist and
-   calls a function specified by caller (we specify reiser4_ordinary_readpage
-   here) to try to fill that page if it is not
-   uptodate. reiser4_ordinary_readpage looks through the tree to find metadata
-   corresponding to the beginning of a page being read. If that metadata is
-   found - fill_page method of item plugin is called to do mapping of not
-   mapped yet buffers the page is built off and issue read of not uptodate
-   buffers. When read is issued - and we are forced to wait - extent's
-   fill_page fills few more pages in advance using the rest of extent it
-   stopped at and starts reading for them. This will cause only reading ahead
-   of blocks adjacent to block which must be read anyway. So, except for
-   allocation of extra pages there will be no delay in delivering of the page
-   we asked about.
- */
-ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
-			    loff_t * off)
+ssize_t unix_file_read (struct file * file, char * buf, size_t size,
+			loff_t * off)
 {
 	int result;
 	struct inode * inode;
@@ -121,39 +102,36 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 	flow_t f;
 
 
-	/*
-	 * collect statistics on the number of reads
-	 */
+	/* collect statistics on the number of reads */
 	reiser4_stat_file_add (reads);
 
 	inode = file->f_dentry->d_inode;
 	result = 0;
 
-	/*
-	 * build flow
-	 */
+	/* build flow */
 	assert ("vs-528", inode_file_plugin (inode));
 	fplug = inode_file_plugin (inode);
 	if (!fplug->flow_by_inode)
 		return -EINVAL;
 
-	result = fplug->flow_by_inode (inode, buf, USER_BUF, size, *off,
-				       READ_OP, &f);
+	result = fplug->flow_by_inode (inode, buf, 1/* user space */, size,
+				       *off, READ_OP, &f);
 	if (result)
 		return result;
 
 	to_read = f.length;
 	while (f.length) {
 		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
-			/*
-			 * do not read out of file
-			 */
+			/* do not read out of file */
 			break;
 		
+		/* look for file metadata corresponding to position we read
+		 * from */
 		result = find_item (&f.key, &coord, &lh,
 				    ZNODE_READ_LOCK);
 		switch (result) {
 		case CBK_COORD_FOUND:
+			/* call read method of found item */
 			iplug = item_plugin_by_coord (&coord);
 			if (!iplug->s.file.read)
 				result = -EINVAL;
@@ -163,9 +141,8 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 			break;
 
 		case CBK_COORD_NOTFOUND:
-			/* 
-			 * item had to be found, as it was not - we have -EIO
-			 */
+			/* item had to be found, as it was not - we have
+			 * -EIO */
 			result = -EIO;
 		default:
 			break;
@@ -177,23 +154,29 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 		break;
 	}
 
+	/* update position in a file */
 	*off += (to_read - f.length);
+	/* return number of read bytes or error code if nothing is read */
 	return (to_read - f.length) ? (to_read - f.length) : result;
 }
 
 
-/* plugin->u.file.write */
+/* these are write modes. Certain mode is chosen depending on resulting file
+ * size and current metadata of file */
 typedef enum {
 	WRITE_EXTENT,
 	WRITE_TAIL,
 	CONVERT
 } write_todo;
 
-static write_todo what_todo (struct inode *, flow_t *, tree_coord *);
-static int tail2extent (struct inode *, tree_coord *, lock_handle *);
+static write_todo unix_file_how_to_write (struct inode *, flow_t *, tree_coord *);
+static int tail2extent (struct inode *);
 
-ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
-			     loff_t * off)
+/* plugin->u.file.write */
+ssize_t unix_file_write (struct file * file,
+			 char * buf, /* comments are needed */
+			 size_t size,
+			 loff_t * off)
 {
 	int result;
 	struct inode * inode;
@@ -205,56 +188,56 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	flow_t f;
 	
 
-	/*
-	 * collect statistics on the number of writes
-	 */
+	/* collect statistics on the number of writes */
 	reiser4_stat_file_add (writes);
 
 	inode = file->f_dentry->d_inode;
-	result = 0;
 
-	/*
-	 * build flow
-	 */
+	/* build flow */
 	assert ("vs-481", inode_file_plugin (inode));
 	fplug = inode_file_plugin (inode);
 	if (!fplug->flow_by_inode)
 		return -EINVAL;
 
-	result = fplug->flow_by_inode (inode, buf, USER_BUF, size, *off,
+	result = fplug->flow_by_inode (inode, buf, 1/* user space */, size, *off,
 				       WRITE_OP, &f);
 	if (result)
 		return result;
 
 	to_write = f.length;
 	while (f.length) {
+		/* look for file metadata corresponding to position we write
+		 * to */
 		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-			/*
-			 * error occured
-			 */
+			/* error occured */
 			done_lh (&lh);
 			done_coord (&coord);
 			break;
 		}
-		switch (what_todo (inode, &f, &coord)) {
+
+		switch (unix_file_how_to_write (inode, &f, &coord)) {
 		case WRITE_EXTENT:
 			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 			/* resolves to extent_write function */
 
-			result = iplug->s.file.write (inode, &coord, &lh, &f);
+			result = iplug->s.file.write (inode, &coord, &lh, &f, 0);
 			break;
 
 		case WRITE_TAIL:
 			iplug = item_plugin_by_id (TAIL_ID);
 			/* resolves to tail_write function */
 
-			result = iplug->s.file.write (inode, &coord, &lh, &f);
+			result = iplug->s.file.write (inode, &coord, &lh, &f, 0);
 			break;
 			
 		case CONVERT:
-			result = tail2extent (inode, &coord, &lh);
-			break;
+			done_lh (&lh);
+			done_coord (&coord);
+			result = tail2extent (inode);
+			if (result)
+				return result;
+			continue;
 
 		default:
 			impossible ("vs-293", "unknown write mode");
@@ -266,14 +249,10 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 			continue;
 		break;
 	}
-
-	/*
-	 * FIXME-VS: remove after debugging insert_extent is done
-	 */
-	print_tree_rec ("WRITE", tree_by_inode (inode), REISER4_NODE_CHECK);
-
 	
+	/* update position in a file */
 	*off += (to_write - f.length);
+	/* return number of written bytes or error code if nothing is written */
 	return (to_write - f.length) ? (to_write - f.length) : result;
 }
 
@@ -288,12 +267,12 @@ static int find_item (reiser4_key * key, tree_coord * coord,
 	init_lh (lh);
 	return coord_by_key (current_tree, key, coord, lh,
 			     lock_mode, FIND_MAX_NOT_MORE_THAN,
-			     LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE | CBK_FOR_INSERT);
+			     TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE | CBK_FOR_INSERT);
 }
 
 
 /*
- * ordinary files of reiser4 are built either of extents only or of tail items
+ * unix files of reiser4 are built either of extents only or of tail items
  * only. If looking for file item coord_by_key stopped at twig level - file
  * consists of extents only, if at leaf level - file is built of extents only
  * FIXME-VS: it is possible to imagine different ways for finding that
@@ -305,7 +284,8 @@ static int built_of_extents (struct inode * inode UNUSED_ARG,
 }
 
 
-/* all file data have to be stored in unformatted nodes */
+/* returns 1 if file of that size (@new_size) has to be stored in unformatted
+ * nodes */
 static int should_have_notail (struct inode * inode, loff_t new_size)
 {
 	assert ("vs-549", inode_tail_plugin (inode));
@@ -314,22 +294,19 @@ static int should_have_notail (struct inode * inode, loff_t new_size)
 }
 
 
-/* decide how to write @count bytes to position @offset of file @inode */
-static write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coord)
+/* decide how to write flow @f into file @inode */
+static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
+					  tree_coord * coord)
 {
 	loff_t new_size;
 
 
-	/*
-	 * size file will have after write
-	 */
+	/* size file will have after write */
 	new_size = get_key_offset (&f->key) + f->length;
 
 	if (new_size <= inode->i_size) {
-		/*
-		 * if file does not get longer - no conversion will be
-		 * performed
-		 */
+		/* if file does not get longer - no conversion will be
+		 * performed */
 		if (built_of_extents (inode, coord))
 			return WRITE_EXTENT;
 		else
@@ -339,9 +316,7 @@ static write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coor
 	assert ("vs-377", inode_tail_plugin (inode)->have_tail);
 
 	if (inode->i_size == 0) {
-		/*
-		 * no items of this file are in tree yet
-		 */
+		/* no items of this file are in tree yet */
 		assert ("vs-378", znode_get_level (coord->node) == LEAF_LEVEL);
 		if (should_have_notail (inode, new_size))
 			return WRITE_EXTENT;
@@ -349,29 +324,20 @@ static write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coor
 			return WRITE_TAIL;
 	}
 
-	/*
-	 * file is not empty and will get longer
-	 */
+	/* file is not empty and will get longer */
 	if (should_have_notail (inode, new_size)) {
-		/*
-		 * that long file (@new_size bytes) is supposed to be built of
-		 * extents
-		 */
+		/* that long file (@new_size bytes) is supposed to be built of
+		 * extents */
 		if (built_of_extents (inode, coord)) {
-			/*
-			 * it is built that way already
-			 */
+			/* it is built that way already */
 			return WRITE_EXTENT;
 		} else {
-			/*
-			 * file is built of tail items, conversion is required
-			 */
+			/* file is built of tail items, conversion is
+			 * required */
 			return CONVERT;
 		}
 	} else {
-		/*
-		 * "notail" is not required, so keep file in its current form
-		 */
+		/* "notail" is not required, so keep file in its current form */
 		if (built_of_extents (inode, coord))
 			return WRITE_EXTENT;
 		else
@@ -380,8 +346,9 @@ static write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coor
 }
 
 
-/* @count bytes were copied into page starting from the beginning. mark all
- * modifed buffers dirty and uptodate, mark others uptodate */
+/* part of tail2extent. @count bytes were copied into @page starting from the
+ * beginning. mark all modifed buffers dirty and uptodate, mark others
+ * uptodate */
 static void mark_buffers_dirty (struct page * page, unsigned count)
 {
 	struct buffer_head * bh;
@@ -403,385 +370,458 @@ static void mark_buffers_dirty (struct page * page, unsigned count)
 }
 
 
-#ifdef TAIL2EXTENT_ALL_AT_ONCE
-
-NOT THIS
-
-typedef struct {
-	struct inode * inode; /* inode of file being tail2extent converted */
-	struct page * page;   /* page being filled currently */
-	/* FIXME-VS: tail2extent creates pages which do not have extent item
-	 * pointing to them. Do those page need to be collected somehow while
-	 * coping data into them? */
-	unsigned offset;           /* offset within that page */
-	reiser4_key next;     /* key of next byte to be copied to page cache */
-} copy2page_arg;
-
-
-/* iterate_tree actor */
-static int copy2page (reiser4_tree * tree UNUSED_ARG /* tree scanned */,
-		      tree_coord * coord /* current coord */,
-		      lock_handle * lh UNUSED_ARG /* current lock handle */,
-		      void * p /* copy2page arguments */ )
+/* part of tail2extent. Cut all items covering @count bytes starting from
+ * @offset */
+static int cut_tail_items (struct inode * inode, loff_t offset, int count)
 {
-	reiser4_key key;
-	copy2page_arg * arg;
-	int left;
-	char * item;
-
-	arg = (copy2page_arg *)p;
-	item_key_by_coord (coord, &key);
-
-	assert ("vs-522", inode_file_plugin (arg->inode));
-	assert ("vs-523", inode_file_plugin (arg->inode)->owns_item);
-
-	if (inode_file_plugin (arg->inode)->owns_item (arg->inode, coord)) {
-		assert ("vs-548", item_id_by_coord (coord) != TAIL_ID);
-
-		left = item_length_by_coord (coord);
-		item = item_body_by_coord (coord);
-
-		while (left) {
-			int count;
-			char * kaddr;
-			
-			if (arg->offset == PAGE_SIZE) {
-				UnlockPage (arg->page);
-				page_cache_release (arg->page);			
-				arg->page = 0;
-				arg->offset = 0;
-			}
-			if (!arg->page) {
-				arg->page = grab_cache_page (arg->inode->i_mapping,
-							     (unsigned long)(get_key_offset (&arg->next) >> PAGE_SHIFT));
-				if (!arg->page) {
-					return -ENOMEM;
-				}
-				assert ("vs-524", !arg->page->buffers);
-				create_empty_buffers (arg->page,
-						      reiser4_get_current_sb ()->s_blocksize);
-			}
-			count = left;
-			if (arg->offset + count > (int)PAGE_SIZE)
-				count = PAGE_SIZE - arg->offset;
-			
-			kaddr = kmap (arg->page);
-			memcpy (kaddr + arg->offset, item, (unsigned)count);
-			kunmap (arg->page);
-			
-			arg->offset += count;
-			item += count;
-			left -= count;
-			set_key_offset (&arg->next,
-					get_key_offset (&arg->next) + count);
-		}
-
-		if (arg->inode->i_size != (loff_t)get_key_offset (&arg->next)) {
-			/* there can be at least one more item to be read */
-			return 1;
-		}
-	}
-
-	/* item of another file encountered or last of items to be read was
-	 * read, ask iterate_tree to break */
-
-	/* there should have been be at least one item read */
-	assert ("vs-518", arg->page);
-	/* padd the last page with 0s */
-	memset (kmap (arg->page) + arg->offset, 0, PAGE_SIZE - arg->offset);
-	mark_buffers_dirty (arg->page, arg->offset);
-	SetPageUptodate (arg->page);
-	kunmap (arg->page);
-	UnlockPage (arg->page);
-	page_cache_release (arg->page);	
-
-	return 0;
-}
-
-
-/* read all direct items of file into newly created pages
- * remove all those item from the tree
- * insert extent item */
-static int tail2extent (struct inode * inode, tree_coord * coord, 
-			lock_handle * lh)
-{
-	int result;
-	file_plugin * fplug;
-	reiser4_key key;
-	copy2page_arg arg;
-	reiser4_item_data extent_data;
-
-
-	/* collect statistics on the number of tail2extent conversions */
-	reiser4_stat_file_add (tail2extent);
-
-
-	fplug = inode_file_plugin (inode);
-	if (!fplug || !fplug->key_by_inode) {
-		return -EINVAL;
-	}
-	/* get key of first byte of a file */
-	result = fplug->key_by_inode (inode, 0ull, &key);
-	if (result) {
-		return result;
-	}
-
-	done_lh (lh);
-	done_coord (coord);
-	
-
-	result = find_item (&key, coord, lh, ZNODE_READ_LOCK);
-	if (result != CBK_COORD_FOUND) {
-		return result;
-	}
-
-	/* for all items of the file starting from the found one run copy2page */
-	arg.inode = inode;
-	arg.page = 0;
-	arg.offset = 0;
-	arg.next = key;
-	result = iterate_tree (tree_by_inode (inode), coord, lh,
-			       copy2page, &arg, ZNODE_READ_LOCK, 0/*through items*/);
-	done_lh (lh);
-	done_coord (coord);
-	if (result && result != -ENAVAIL) {
-		/* error occured. -ENAVAIL means "no right neighbor or it is an
-		 * unformatted node" which is not an error here */
-		return result;
-	}
-
-	/* cut items which were read and copied into page cache */	
-	result = cut_tree (tree_by_inode (inode), &key, &arg.next);
-	if (result)
-		return result;
-
-	/* insert an unallocated extent. We do not make body of extent item
-	 * here. Width of extent is passed via extent_data.arg. extent_init
-	 * will set extent state (unallocated) and its width directly */
-	extent_data.data = 0;
-	extent_data.user = 0;
-	extent_data.length = sizeof (reiser4_extent);
-	/* width of extent to be inserted */
-	assert ("vs-533", get_key_offset (&arg.next) > 0);
-	extent_data.arg = (void *)(unsigned long)((get_key_offset (&arg.next) - 1) / inode->i_sb->s_blocksize + 1);
-	extent_data.iplug = item_plugin_by_id (EXTENT_POINTER_ID);
-
-	result = find_item (&key, coord, lh, ZNODE_WRITE_LOCK);
-	if (result != CBK_COORD_NOTFOUND) {
-		return result;
-	}
-	return insert_extent_by_coord (coord, &extent_data, &key, lh);
-}
-
-#else /* TAIL2EXTENT_ITEM_BY_ITEM */
-
-/* part of tail2extent. It returns true if coord is set to not last item of
- * file and tail2extent must continue */
-static int must_continue (struct inode * inode, reiser4_key * key,
-			  const tree_coord * coord)
-{
-	reiser4_key coord_key;
-
-	if (coord) {
-		assert ("vs-567", item_id_by_coord (coord) == TAIL_ID);
-		assert ("vs-566", inode->i_size >= (loff_t)get_key_offset (key));
-		item_key_by_coord (coord, &coord_key);
-		set_key_offset (&coord_key,
-				get_key_offset (&coord_key) +
-				item_length_by_coord (coord));
-		assert ("vs-568", keycmp (key, &coord_key) == EQUAL_TO);
-	}
-	/*
-	 * FIXME-VS: do we need to try harder?
-	 */
-	return inode->i_size > (loff_t)get_key_offset (key);
-		
-}
-
-
-/* part of tail2extent. Cut all items of which given page consists */
-static int cut_tail_page (struct page * page)
-{
-	struct inode * inode;
 	reiser4_key from, to;
 
-	inode = page->mapping->host;
 
-	inode_file_plugin (inode)->key_by_inode (inode,
-						 (loff_t)page->index << PAGE_SHIFT,
-						 &from);
+	/* key of first byte in the range to be cut  */
+	unix_file_key_by_inode (inode, offset, &from);
+
+	/* key of last byte in that range */
 	to = from;
-	set_key_offset (&to, get_key_offset (&to) + PAGE_SIZE - 1);
+	set_key_offset (&to, (__u64)(offset + count - 1));
+
+	/* cut everything between those keys */
 	return cut_tree (tree_by_inode (inode), &from, &to);
 }
 
 
-/* part of tail2extent. Page contains data read from tail items. Those tail
- * items are removed from tree already. extent slot pointing to this page will
- * be created by using extent_write. The difference between usual usage of
- * extent_write and how it is used here is that extent_write does not have to
- * deal with page at all. This is done by setting flow->data to 0 */
-static int write_page_by_extent (struct inode * inode, struct page * page,
-				 unsigned count)
+/* @page contains file data. tree does not contain items corresponding to those
+ * data. Put them in using specified item plugin */
+static int write_pages_by_item (struct inode * inode, struct page ** pages,
+				int nr_pages, int count, item_plugin * iplug)
 {
 	flow_t f;
 	tree_coord coord;
 	lock_handle lh;
-	item_plugin * iplug;
 	int result;
+	char * p_data;
+	int i;
+	int to_page;
 
 
-	inode_file_plugin (inode)->
-		flow_by_inode (inode, page, PAGE_PTR,
-			       count, (loff_t)(page->index << PAGE_SHIFT),
-			       WRITE_OP, &f);
-
-	iplug = item_plugin_by_id (EXTENT_POINTER_ID);
+	assert ("vs-604", ergo (iplug->h.id == TAIL_ID, nr_pages == 1));
 	assert ("vs-564", iplug && iplug->s.file.write);
 
-	do {
-		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
-		if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
-			return result;
-		}
+	to_page = PAGE_SIZE;
+	for (i = 0; i < nr_pages; i ++) {
+		p_data = kmap (pages [i]);
 
-		result = iplug->s.file.write (inode, &coord, &lh, &f);
-		done_lh (&lh);
-		done_coord (&coord);
-	} while (result == -EAGAIN);
+		/* build flow */
+		if (count > (int)PAGE_SIZE)
+			to_page = (int)PAGE_SIZE;
+		else
+			to_page = count;
+			
+		inode_file_plugin (inode)->
+			flow_by_inode (inode, p_data, 0/* not user space */,
+				       (unsigned)to_page,
+				       (loff_t)(pages[i]->index << PAGE_SHIFT),
+				       WRITE_OP, &f);
 
-	if (result || f.length) {
-		/*
-		 * FIXME-VS: how do we handle this case? Abort
-		 * transaction?
-		 */
-		warning ("vs-565", "tail2extent conversion has eaten data");
-		return (result < 0) ? result : -ENOSPC;
+		do {
+			result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
+			if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
+				goto done;
+			}
+
+			result = iplug->s.file.write (inode, &coord, &lh, &f,
+						      pages [i]);
+			done_lh (&lh);
+			done_coord (&coord);
+			/* item's write method may return -EAGAIN */
+		} while (result == -EAGAIN);
+		
+		kunmap (pages [i]);
+		/* page is written */
+		count -= to_page;
+	}
+
+ done:
+	/* result of write is 0 or error */
+	assert ("vs-589", result <= 0);
+	/* if result is 0 - all @count bytes is written completely */
+	assert ("vs-588", ergo (result == 0, count == 0));
+	return result;
+}
+
+
+/* part of tail2extent. @page contains data read from tail items. Those tail
+ * items are removed from tree already. extent slot pointing to this page will
+ * be created by using extent_write */
+static int write_pages_by_extent (struct inode * inode, struct page ** pages,
+				  int nr_pages, int count)
+{
+	return write_pages_by_item (inode, pages, nr_pages, count,
+				    item_plugin_by_id (EXTENT_POINTER_ID));
+}
+
+
+static void drop_pages (struct page ** pages, int nr_pages)
+{
+	int i;
+
+	for (i = 0; i < nr_pages; i ++) {
+		unlock_page (pages [i]);
+		page_cache_release (pages [i]);
+	}
+}
+
+
+/* part of tail2extent.  */
+static int replace (struct inode * inode, struct page ** pages, int nr_pages,
+		    int count)
+{
+	int result;
+	int i;
+	unsigned to_page;
+
+	assert ("vs-596", nr_pages > 0 && pages [0]);
+
+	/* cut copied items */
+	result = cut_tail_items (inode, (loff_t)pages [0]->index << PAGE_SHIFT,
+				 count);
+	if (result) {
+		return result;
+	}
+
+	/* put into tree replacement for just removed items: extent item,
+	 * namely */
+	result = write_pages_by_extent (inode, pages, nr_pages, count);
+	if (result) {
+		return result;
+	}
+	
+	/* mark buffers of pages (those only into which removed tail items were
+	 * copied) dirty and all pages - uptodate */
+	to_page = PAGE_SIZE;
+	for (i = 0; i < nr_pages; i ++) {
+		if (i == nr_pages - 1 && (count & ~PAGE_MASK))
+			to_page = (count & ~PAGE_MASK);
+		mark_buffers_dirty (pages [i], to_page);
+		SetPageUptodate (pages [i]);
 	}
 	return 0;
 }
 
 
-/* this does conversion page by page. It starts from very first item of file,
- * when page is filled with data from tail items those items are cut and
- * unallocated extent corresponding to that page gets created. This loops until
- * all the conversion is done */
-static int tail2extent (struct inode * inode, tree_coord * coord, 
-			lock_handle * lh)
+#define TAIL2EXTENT_PAGE_NUM 3  /* number of pages to fill before cutting tail
+				 * items */
+
+static int all_pages_are_full (int nr_pages, int page_off)
+{
+	/* max number of pages is used and last one is full */
+	return nr_pages == TAIL2EXTENT_PAGE_NUM && page_off == PAGE_SIZE;
+}
+
+
+/* part of tail2extent. */
+static int file_is_over (struct inode * inode, reiser4_key * key,
+			    tree_coord * coord)
+{
+	reiser4_key coord_key;
+
+	assert ("vs-567", item_id_by_coord (coord) == TAIL_ID);
+	assert ("vs-566", inode->i_size >= (loff_t)get_key_offset (key));
+	item_key_by_coord (coord, &coord_key);
+	assert ("vs-601", keycmp (key, &coord_key) == GREATER_THAN);
+	set_key_offset (&coord_key,
+			get_key_offset (&coord_key) +
+			item_length_by_coord (coord));
+	assert ("vs-568", keycmp (key, &coord_key) != GREATER_THAN);
+
+	/*
+	 * FIXME-VS: do we need to try harder?
+	 */
+	return (inode->i_size == (loff_t)get_key_offset (key));
+}
+
+
+static int tail2extent (struct inode * inode)
 {
 	int result;
-	file_plugin * fplug;
-	reiser4_key key;
+	tree_coord coord;
+	lock_handle lh;	
+	reiser4_key key;     /* key of next byte to be moved to page */
 	struct page * page;
-	char * p_data;
-	unsigned page_off, count, copied;
+	char * p_data;       /* data of page */
+	int page_off,        /* offset within the page where to copy data */
+		count,       /* number of bytes of item which can be copied to
+			      * page */
+		copied;      /* number of bytes of item copied already */
+	struct page * pages [TAIL2EXTENT_PAGE_NUM];
+	int nr_pages;        /* number of pages in the above array */
+	int done;            /* set to 1 when all file is read */
 	char * item;
+
+
+	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
+	 * to write_down */
+	up_read (&reiser4_inode_data (inode)->sem);
+	down_write (&reiser4_inode_data (inode)->sem);
 
 	/* collect statistics on the number of tail2extent conversions */
 	reiser4_stat_file_add (tail2extent);
 
-	fplug = inode_file_plugin (inode);
-	if (!fplug || !fplug->key_by_inode) {
-		return -EINVAL;
-	}
 	/* get key of first byte of a file */
-	result = fplug->key_by_inode (inode, 0ull, &key);
-	if (result) {
-		return result;
-	}
+	unix_file_key_by_inode (inode, 0ull, &key);
 
-	done_lh (lh);
-	done_coord (coord);
-
+	memset (pages, 0, sizeof (pages));
+	nr_pages = 0;
 	page = 0;
 	item = 0;
 	while (1) {
 		if (!item) {
-			result = find_item (&key, coord, lh, ZNODE_READ_LOCK);
+			/* get next one */
+			result = find_item (&key, &coord, &lh, ZNODE_READ_LOCK);
 			if (result != CBK_COORD_FOUND) {
-				return result;
+				drop_pages (pages, nr_pages);
+				break;
 			}
-			assert ("vs-562", fplug->owns_item (inode, coord));
-			item = item_body_by_coord (coord);
+			if (item_id_by_coord (&coord) != TAIL_ID) {
+				/* tail was converted by someone else */
+				assert ("vs-597", get_key_offset (&key) == 0);
+				assert ("vs-599", nr_pages == 0);
+				result = 0;
+				break;
+			}
+			item = item_body_by_coord (&coord);
 			copied = 0;
 		}
+		assert ("vs-562", unix_file_owns_item (inode, &coord));
 
-		page_off = get_key_offset (&key) & ~PAGE_MASK;
-		if (page_off == 0) {
-			/* we start new page */
-			assert ("vs-561", page == 0);
+		if (!page) {
+			assert ("vs-598",
+				(get_key_offset (&key) & ~PAGE_MASK) == 0);
 			page = grab_cache_page (inode->i_mapping,
-						(unsigned long)(get_key_offset (&key) >> PAGE_SHIFT));
-			if (!page)
-				return -ENOMEM;
-		}
-		count = item_length_by_coord (coord) - copied;
-		if (count > PAGE_SIZE - page_off) {
-			/* page boundary is inside of tail item */
-			count = PAGE_SIZE - page_off;
-		}
-		p_data = kmap (page);
-		memcpy (p_data + page_off, item, count);
-		kunmap (page);
-		item += count;
-		copied += count;
-		page_off += count;
-		set_key_offset (&key, get_key_offset (&key) + count);
-
-		if (page_off == PAGE_SIZE ||
-		    !must_continue (inode, &key, coord)) {
-			/* page is filled completely or last item of file is
-			 * read, cut corresponding tail items and call
-			 * extent_write to write a page */
-			done_lh (lh);
-			done_coord (coord);
-
-			count = page_off;
-			if ((result = cut_tail_page (page)) ||
-			    (result = write_page_by_extent (inode, page, count))) {
-				/*
-				 * FIXME-VS: how do we handle this case? Abort
-				 * transaction?
-				 */
-				warning ("vs-578", "tail2extent conversion has eaten data");
-				UnlockPage (page);
-				page_cache_release (page);
+						(unsigned long)(get_key_offset (&key) >>
+								PAGE_SHIFT));
+			if (!page) {
+				drop_pages (pages, nr_pages);
+				result = -ENOMEM;
 				break;
 			}
-			/* extent corresponding to page is in the tree, tail
-			 * items are not */
-			mark_buffers_dirty (page, count);
-			SetPageUptodate (page);
-			UnlockPage (page);
-			page_cache_release (page);
-
-			if (!must_continue (inode, &key, 0))
-				/* conversion is done */
-				break;
-
-			/* new page will be started */
-			page = 0;
-			/* we have to re-search item*/
-			item = 0;
+			assert ("vs-603", !page->buffers);
+			create_empty_buffers (page, inode->i_sb->s_blocksize);
+			page_off = 0;
+			pages [nr_pages] = page;
+			nr_pages ++;
 		}
-		if (copied == (unsigned)item_length_by_coord (coord)) {
-			/* all content of item is copied into page, therefore
-			 * we have to find new one */
-			done_lh (lh);
-			done_coord (coord);
+
+		/* how many bytes to copy */
+		count = item_length_by_coord (&coord) - copied;
+		/* limit length of copy to end of page */
+		if ((unsigned)count > PAGE_SIZE - page_off) {
+			count = PAGE_SIZE - page_off;
+		}
+
+		/* kmap/kunmap are necessary for pages which are not
+		 * addressable by direct kernel virtual addresses */
+		p_data = kmap (page);
+		/* copy item (as much as will fit starting from the beginning
+		 * of the item) into the page */
+		memcpy (p_data + page_off, item, (unsigned)count);
+		kunmap (page);
+		page_off += count;
+		copied += count;
+		item += count;
+		set_key_offset (&key, get_key_offset (&key) + count);
+
+		if ((done = file_is_over (inode, &key, &coord)) ||
+		    all_pages_are_full (nr_pages, page_off)) {
+			done_lh (&lh);
+			done_coord (&coord);
+			/* replace tail items with extent */
+			result = replace (inode, pages, nr_pages, 
+					  (int)((nr_pages - 1) * PAGE_SIZE +
+						page_off));
+			drop_pages (pages, nr_pages);
+			if (done || result) {
+				/* conversion completed or error occured */
+				goto out;
+			}
+
+			/* go for next set of pages */
+			memset (pages, 0, sizeof (pages));
+			nr_pages = 0;
 			item = 0;
+			page = 0;
+			continue;
+		}
+
+		if (copied == item_length_by_coord (&coord)) {
+			/* item is over, find next one */
+			item = 0;
+			done_lh (&lh);
+			done_coord (&coord);
+		}
+		if (page_off == PAGE_SIZE) {
+			/* page is over */
+			page = 0;
 		}
 	}
+
+	done_lh (&lh);
+	done_coord (&coord);
+
+ out:
+	/* switch inode's rw_semaphore from write_down to read_down */
+	up_write (&reiser4_inode_data (inode)->sem);
+	down_read (&reiser4_inode_data (inode)->sem);
+
 	return result;
 }
 
-#endif /* TAIL2EXTENT_ITEM_BY_ITEM */
+#if 0
+/* this does conversion page by page. It reads tail items of file starting from
+ * very first one and copies their content into grabbed page. When page is
+ * filled those items are cut and an unallocated extent corresponding to that page
+ * gets created (extent's write method is used for this). This loops until all
+ * the conversion is done
+ *
+ * Q: can we use pointer to tail item as flow->data and call extent_write with
+ * that flow?
+ * A: no, because of keys collision. extent which has to be inserted covers the
+ * same range of keys as tail item it is replacing. coord_by_key and
+ * insert_by_coord will not work here
+ */
+static int tail2extent (struct inode * inode)
+{
+	int result;
+	tree_coord coord;
+	lock_handle lh;	
+	file_plugin * fplug;
+	reiser4_key key;     /* key of next byte to be moved to page */
+#define PAGE_NUM 3           /* number of pages to fill before cutting tail
+			      * items */
+	struct page * pages [PAGE_NUM];
+	char * p_data;       /* data of page */
+	unsigned page_off,   /* offset within the page where to copy data */
+		count;       /* number of bytes of item which can be copied to
+			      * page */
+	int i;
+
+
+	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
+	 * to write_down */
+	read_up (&reiser4_inode_data (inode)->sem);
+	down_write (&reiser4_inode_data (inode)->sem);
+
+	/* collect statistics on the number of tail2extent conversions */
+	reiser4_stat_file_add (tail2extent);
+
+	/* get key of first byte of a file */
+	unix_file_key_by_inode (inode, 0ull, &key);
+
+	page_off = 0;
+	i = 0;
+	while (1) {
+		
+		/* find next tail item to be converted */
+		result = find_item (&key, coord, lh, ZNODE_READ_LOCK);
+		if (result != CBK_COORD_FOUND) {
+			/* item must be found */
+			break;
+		}
+		assert ("vs-562", unix_file_owns_item (inode, coord));
+
+		if (!page) {
+			assert ("vs-561", page_off == 0);
+			page = grab_cache_page (inode->i_mapping,
+						(unsigned long)(get_key_offset (&key) >>
+								PAGE_SHIFT));
+			if (!page) {
+				result = -ENOMEM;
+				break;
+			}
+		}
+
+		/* how many bytes to copy */
+		count = item_length_by_coord (coord);
+				/* limit length of copy to end of page */
+		if (count > PAGE_SIZE - page_off) {
+			count = PAGE_SIZE - page_off;
+		}
+
+		/* copy item (as much as will fit starting from the beginning
+		 * of the item) into the page */
+		/* FIXME-VS: comment kmap/kunmap */
+		p_data = kmap (page);
+		memcpy (p_data + page_off, item_body_by_coord (coord), count);
+		kunmap (page);
+		page_off += count;
+		set_key_offset (&key, get_key_offset (&key) + count);
+
+
+		if (page_off != PAGE_SIZE && must_continue (inode, &key, coord)) {
+			/* page is not filled and there should be at least one
+			 * tail item of this file to the right */
+			done_lh (lh);
+			done_coord (coord);
+			continue;
+		}
+
+		/* page is filled completely or last item of file is read into
+		 * page */
+
+		/* to cut tail items read into page cut_tree which calls
+		 * coord_by_key itself is used, so, release coord and lh */
+		done_lh (lh);
+		done_coord (coord);
+
+		/* cut copied items */
+		result = cut_tail_page (page);
+		if (result) {
+			break;
+		}
+
+		/* put into tree replacement for just removed items: extent
+		 * item, namely */
+		result = write_pages_by_extent (inode, page, page_off);
+		if (result) {
+			break;
+		}
+
+		/* mark buffers of page (those only into which removed tail
+		 * items were copied) dirty and page - uptodate */
+		mark_buffers_dirty (page, page_off);
+		SetPageUptodate (page);
+		UnlockPage (page);
+		page_cache_release (page);
+
+		/* new page will be started */
+		page = 0;
+		page_off = 0;
+		if (!must_continue (inode, &key, 0))
+			/* conversion is done */
+			return 0;
+	}
+
+	/* something unexpected happened */
+	warning ("vs-583", "tail2extent conversion failed");
+	if (page) {
+		UnlockPage (page);
+		page_cache_release (page);
+	}
+	done_lh (lh);
+	done_coord (coord);
+
+	/* switch inode's rw_semaphore from write_down to read_down */
+	write_up (&reiser4_inode_data (inode)->sem);
+	down_write (&reiser4_inode_data (inode)->sem);
+
+	return result;
+}
+#endif
 
 
 /* plugin->u.file.release
  * convert all extent items into tail items */
 static int extent2tail (struct file *);
-int ordinary_file_release (struct file * file)
+int unix_file_release (struct file * file)
 {
 	struct inode * inode;
 
@@ -796,49 +836,13 @@ int ordinary_file_release (struct file * file)
 
 /* part of extent2tail. Page contains data which are to be put into tree by
  * tail items. Use tail_write for this. flow is composed like in
- * ordinary_file_write. The only difference is that data for writing are in
+ * unix_file_write. The only difference is that data for writing are in
  * kernel space */
 static int write_page_by_tail (struct inode * inode, struct page * page,
 			       unsigned count)
 {
-	flow_t f;
-	tree_coord coord;
-	lock_handle lh;
-	item_plugin * iplug;
-	int result;
-
-
-	kmap (page);
-	inode_file_plugin (inode)->
-		flow_by_inode (inode, page, PAGE_PTR,
-			       count, (loff_t)(page->index << PAGE_SHIFT),
-			       WRITE_OP, &f);
-
-	iplug = item_plugin_by_id (TAIL_ID);
-	assert ("vs-558", iplug && iplug->s.file.write);
-
-	do {
-		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
-		if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
-			return result;
-		}
-
-		result = iplug->s.file.write (inode, &coord, &lh, &f);
-		done_lh (&lh);
-		done_coord (&coord);
-	} while (result == -EAGAIN);
-
-	kunmap (page);
-
-	if (result || f.length) {
-		/*
-		 * FIXME-VS: how do we handle this case? Abort
-		 * transaction?
-		 */
-		warning ("vs-560", "extent2tail conversion has eaten data");
-		return (result < 0) ? result : -ENOSPC;
-	}
-	return 0;
+	return write_pages_by_item (inode, &page, 1, (int)count,
+				    item_plugin_by_id (TAIL_ID));
 }
 
 
@@ -848,7 +852,6 @@ static int extent2tail (struct file * file)
 {
 	int result;
 	struct inode * inode;
-	file_plugin * fplug;
 	struct page * page;
 	int num_pages;
 	reiser4_key from;
@@ -856,6 +859,9 @@ static int extent2tail (struct file * file)
 	int i;
 	unsigned count;
 
+
+	/* */
+	down_write (&reiser4_inode_data (inode)->sem);
 
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_file_add (extent2tail);
@@ -867,56 +873,104 @@ static int extent2tail (struct file * file)
 	if (!num_pages)
 		return 0;
 
-	fplug = inode_file_plugin (inode);
-	assert ("vs-551", fplug);
-	assert ("vs-552", fplug->key_by_inode);
-
-	fplug->key_by_inode (inode, 0ull, &from);
+	unix_file_key_by_inode (inode, 0ull, &from);
 	to = from;
+
+	{
+		/* find which items file is built of */
+		tree_coord coord;
+		lock_handle lh;
+		int do_conversion;
+		
+		do_conversion = 0;
+		result = find_item (&from, &coord, &lh, ZNODE_READ_LOCK);
+		if (result == CBK_COORD_FOUND) {
+			if (item_id_by_coord (&coord) == EXTENT_POINTER_ID) {
+				do_conversion = 1;
+			}
+		}
+		done_lh (&lh);
+		done_coord (&coord);
+		if (!do_conversion) {
+			assert ("vs-590", CBK_COORD_FOUND == 0);
+			/* error occured or file is built of tail items
+			 * already */
+			up_write (&reiser4_inode_data (inode)->sem);
+			return result;
+		}
+	}
+
+	result = 0;
 
 	for (i = 0; i < num_pages; i ++) {
 		page = grab_cache_page (inode->i_mapping, (unsigned long)i);
 		if (!page) {
 			if (i)
 				warning ("vs-550", "file left extent2tail-ed converted partially");
-			return -ENOMEM;
+			result = -ENOMEM;
+			break;
 		}
-		result = ordinary_readpage (file, page);
+		result = unix_file_readpage (file, page);
 		if (result) {
-			UnlockPage (page);
+			unlock_page (page);
 			page_cache_release (page);
-			return result;
+			break;
 		}
 		wait_on_page (page);
+
 		if (!Page_Uptodate (page)) {
 			page_cache_release (page);
-			return -EIO;
+			result = -EIO;
+			break;
 		}
+		
+		lock_page (page);
+
 		/* cut part of file we have read */
 		set_key_offset (&from, (__u64)(i << PAGE_SHIFT));
 		set_key_offset (&to, (__u64)((i << PAGE_SHIFT) + PAGE_SIZE - 1));
 		result = cut_tree (tree_by_inode (inode), &from, &to);
 		if (result) {
+			unlock_page (page);
 			page_cache_release (page);
-			return -EIO;
+			break;
 		}
 		/* put page data into tree via tail_write */
 		count = PAGE_SIZE;
 		if (i == num_pages - 1)
 			count = (inode->i_size & ~PAGE_MASK) ? : PAGE_SIZE;
 		result = write_page_by_tail (inode, page, count);
-		page_cache_release (page);
-		if (result)
-			return result;
+		if (result) {
+			unlock_page (page);
+			page_cache_release (page);
+			break;
+		}
+		/* remove page from page cache */
+		lru_cache_del (page);
+		remove_inode_page (page);
+		unlock_page (page);
+		page_cache_release (page);		
 	}
 
+	up_write (&reiser4_inode_data (inode)->sem);
+	return result;
+}
+
+
+/* plugin->u.file.flow_by_inode  = common_build_flow */
+
+
+/* plugin->u.file.key_by_inode */
+int unix_file_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key )
+{
+	build_sd_key (inode, key);
+	set_key_type (key, KEY_BODY_MINOR );
+	set_key_offset (key, ( __u64 ) off);
 	return 0;
 }
 
 
-/* plugin->u.file.flow_by_inode  = common_build_flow
- * plugin->u.file.flow_by_key    = NULL
- * plugin->u.file.key_by_inode   = ordinary_key_by_inode
+/*
  * plugin->u.file.set_plug_in_sd = NULL
  * plugin->u.file.set_plug_in_inode = NULL
  * plugin->u.file.create_blank_sd = NULL
@@ -924,11 +978,11 @@ static int extent2tail (struct file * file)
 
 
 /* plugin->u.file.create
- * create sd for ordinary file. Just pass control to
+ * create sd for unix file. Just pass control to
  * fs/reiser4/plugin/object.c:common_file_save()
  */
-int ordinary_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
-			  reiser4_object_create_data *data UNUSED_ARG )
+int unix_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
+		      reiser4_object_create_data *data UNUSED_ARG )
 {
 	assert( "nikita-744", object != NULL );
 	assert( "nikita-745", parent != NULL );
@@ -949,9 +1003,9 @@ int ordinary_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 
 /* plugin->u.file.owns_item 
  * this is common_file_owns_item with assertion */
-int ordinary_file_owns_item( const struct inode *inode /* object to check
-							* against */, 
-			     const tree_coord *coord /* coord to check */ )
+int unix_file_owns_item( const struct inode *inode /* object to check
+						    * against */, 
+			 const tree_coord *coord /* coord to check */ )
 {
 	int result;
 
