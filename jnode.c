@@ -782,7 +782,7 @@ jnode_try_drop(jnode * node)
 
 /* jdelete() -- Remove jnode from the tree */
 int
-jdelete(jnode * node /* jnode to finish with */ )
+jdelete(jnode * node /* jnode to finish with */)
 {
 	struct page *page;
 	int result;
