@@ -224,6 +224,7 @@ cbk_cache_add(const znode * node /* node to add to the cache */ )
 	assert("nikita-2473", cbk_cache_invariant(cache));
 }
 
+static void setup_delimiting_keys(cbk_handle * h);
 static lookup_result coord_by_handle(cbk_handle * handle);
 static lookup_result traverse_tree(cbk_handle * h);
 static int cbk_cache_search(cbk_handle * h);
@@ -554,14 +555,21 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	   it. Delimiting keys are taken from the parent node. See
 	   setup_delimiting_keys() for details. 
 	*/
-	if (!(h->flags & CBK_DKSET)) {
-		ret = zload(h->parent_lh->node);
-		assert("nikita-2953", ret == 0);
-		UNDER_SPIN_VOID(dk, h->tree,
-				set_child_delimiting_keys(h->parent_lh->node,
-							  h->coord, 
-							  h->active_lh->node));
+	if (h->flags & CBK_DKSET) {
+		setup_delimiting_keys(h);
 		h->flags &= ~CBK_DKSET;
+	} else {
+		znode *parent;
+
+		parent = h->parent_lh->node;
+		h->result = zload(parent);
+		if (h->result)
+			goto fail_or_restart;
+
+		UNDER_SPIN_VOID(dk, h->tree,
+				set_child_delimiting_keys(parent, h->coord, 
+							  h->active_lh->node));
+		zrelse(parent);
 	}
 
 	/* this is ugly kludge. Reminder: this is necessary, because
@@ -1202,7 +1210,8 @@ set_child_delimiting_keys(znode * parent,
 {
 	reiser4_tree *tree;
 
-	assert("nikita-2952", parent == coord->node);
+	assert("nikita-2952", 
+	       znode_get_level(parent) == znode_get_level(coord->node));
 
 	tree = znode_get_tree(parent);
 	spin_lock_dk(tree);
@@ -1379,6 +1388,25 @@ hput(cbk_handle * h /* search handle */ )
 	assert("nikita-385", h != NULL);
 	done_lh(h->parent_lh);
 	done_lh(h->active_lh);
+}
+
+/* Helper function used by cbk(): update delimiting keys of child node (stored
+   in h->active_lh->node) using key taken from parent on the parent level. */
+static void
+setup_delimiting_keys(cbk_handle * h /* search handle */)
+{
+	znode *active;
+
+	assert("nikita-1088", h != NULL);
+
+	active = h->active_lh->node;
+	spin_lock_dk(znode_get_tree(active));
+	if (!ZF_ISSET(active, JNODE_DKSET)) {
+		znode_set_ld_key(active, &h->ld_key);
+		znode_set_rd_key(active, &h->rd_key);
+		ZF_SET(active, JNODE_DKSET);
+	}
+	spin_unlock_dk(znode_get_tree(active));
 }
 
 static int
