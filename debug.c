@@ -354,7 +354,7 @@ reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(forward_squalloc),
 	DEFINE_PROF_CNT(atom_wait_event),
 	DEFINE_PROF_CNT(set_child_delimiting_keys),
-/* FIXME: write profiling */
+/* write profiling */
 	DEFINE_PROF_CNT(extent_write),
 	DEFINE_PROF_CNT(copy),
 	DEFINE_PROF_CNT(extent_bdp),
@@ -362,7 +362,12 @@ reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(update_sd),
 	DEFINE_PROF_CNT(bdp),
 	DEFINE_PROF_CNT(validate),
-/* FIXME: write profiling */
+/* read profiling */
+	DEFINE_PROF_CNT(file_read),
+	DEFINE_PROF_CNT(find),
+	DEFINE_PROF_CNT(zload),
+	DEFINE_PROF_CNT(item_read),
+	
 	DEFINE_PROF_CNT(zget),
 	DEFINE_PROF_CNT(submit_bio)
 };
@@ -561,7 +566,15 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 
 	DEFINE_STAT_CNT(non_uniq),
 	DEFINE_STAT_CNT(non_uniq_max),
-	DEFINE_STAT_CNT(stack_size_max)
+	DEFINE_STAT_CNT(stack_size_max),
+
+	DEFINE_STAT_CNT(pcwb_calls),
+	DEFINE_STAT_CNT(pcwb_formatted),
+	DEFINE_STAT_CNT(pcwb_unformatted),
+	DEFINE_STAT_CNT(pcwb_no_jnode),
+	DEFINE_STAT_CNT(pcwb_ented),
+	DEFINE_STAT_CNT(pcwb_not_written),
+	DEFINE_STAT_CNT(pcwb_written)
 };
 
 #define DEFINE_STAT_LEVEL_CNT(field)						\
