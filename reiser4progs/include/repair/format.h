@@ -1,4 +1,3 @@
-
 /*
     repair/format.h -- reiserfs filesystem recovery structures and macros.
     Copyright (C) 1996-2002 Hans Reiser.

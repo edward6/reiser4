@@ -284,3 +284,10 @@ errno_t reiser4_key_print(reiser4_key_t *key, char *buff,
 	print, key->body, buff, n, options); 
 }
 
+errno_t reiser4_key_valid(reiser4_key_t *key) {
+    aal_assert("vpf-259", key != NULL, return -1);
+    aal_assert("vpf-260", key->plugin != NULL, return -1);
+
+    return plugin_call(return -1, key->plugin->key_ops, 
+	valid, key->body);
+}

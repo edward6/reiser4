@@ -60,6 +60,8 @@ extern roid_t reiser4_key_get_locality(reiser4_key_t *key);
 extern void reiser4_key_maximal(reiser4_key_t *key);
 extern void reiser4_key_minimal(reiser4_key_t *key);
 
+extern errno_t reiser4_key_valid(reiser4_key_t *key);
+
 extern errno_t reiser4_key_print(reiser4_key_t *key, char *buff, 
     uint32_t n, uint16_t options);
 
