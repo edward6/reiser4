@@ -331,7 +331,7 @@ void zdestroy( znode *node /* znode to finish with */ )
  * tree->hash_lock.
  */
 znode*
-zlook (reiser4_tree *tree, const reiser4_block_nr *const blocknr, tree_level level UNUSED_ARG)
+zlook (reiser4_tree *tree, const reiser4_block_nr *const blocknr)
 {
 	znode *result;
 
@@ -353,8 +353,6 @@ zlook (reiser4_tree *tree, const reiser4_block_nr *const blocknr, tree_level lev
 
 	/* Release hash table lock: non-null result now referenced. */
 	spin_unlock_tree (tree);
-
-	assert ("jmacd-502", (result == NULL) || (znode_get_level (result) == level));
 
 	return result;
 }
@@ -779,7 +777,8 @@ reiser4_key *znode_get_ld_key( znode *node /* znode to query */ )
 	return &node -> ld_key;
 }
 
-/** znode_contains_key() - true if @key is inside key range for @node */
+
+/** true if @key is inside key range for @node */
 int znode_contains_key( znode *node /* znode to look in */, 
 			const reiser4_key *key /* key to look for */ )
 {
@@ -792,6 +791,18 @@ int znode_contains_key( znode *node /* znode to look in */,
 	return 
 		( keycmp( znode_get_ld_key( node ), key ) != GREATER_THAN ) &&
 		( keycmp( key, znode_get_rd_key( node ) ) != GREATER_THAN );
+}
+
+/** same as znode_contains_key(), but lock dk lock */
+int znode_contains_key_lock( znode *node /* znode to look in */, 
+			     const reiser4_key *key /* key to look for */ )
+{
+	int result;
+
+	spin_lock_dk( current_tree );
+	result = znode_contains_key( node, key );
+	spin_unlock_dk( current_tree );
+	return result;
 }
 
 /** get parent pointer, assuming tree is not locked */

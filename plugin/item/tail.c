@@ -378,12 +378,9 @@ static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
 	reiser4_key item_key;
 
 
-	spin_lock_dk (current_tree);
-	if (!znode_contains_key (coord->node, key)) {
-		spin_unlock_dk (current_tree);
+	if (!znode_contains_key_lock (coord->node, key)) {
 		return TAIL_RESEARCH;
 	}
-	spin_unlock_dk (current_tree);
 
 
 	if (inode->i_size == 0) {

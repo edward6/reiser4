@@ -237,6 +237,9 @@ struct znode {
 	/** pointer to node content */
 	char                  *data;
 
+	/** version of znode data. This is increased on each modification. */
+	__u32                  version;
+
 	/** 
 	 * size of node referenced by this znode. This is not necessary
 	 * block size, because there znodes for extents.
@@ -497,7 +500,7 @@ static inline void reiser4_wake_up (lock_stack *owner)
 extern znode *zref( znode *node );
 extern znode *zget( reiser4_tree *tree, const reiser4_block_nr *const block,
 		    znode *parent, tree_level level, int gfp_flag );
-extern znode *zlook( reiser4_tree *tree, const reiser4_block_nr *const block, tree_level level );
+extern znode *zlook( reiser4_tree *tree, const reiser4_block_nr *const block );
 extern void zput( znode *node );
 extern int zload( znode *node );
 extern int zinit_new( znode *node );
@@ -572,6 +575,7 @@ extern int  znodes_done( void );
 extern int  znodes_tree_init( reiser4_tree *ztree );
 extern void znodes_tree_done( reiser4_tree *ztree );
 extern int znode_contains_key( znode *node, const reiser4_key *key );
+extern int znode_contains_key_lock( znode *node, const reiser4_key *key );
 extern int znode_invariant( const znode *node );
 extern unsigned znode_save_free_space( znode *node );
 extern unsigned znode_recover_free_space( znode *node );

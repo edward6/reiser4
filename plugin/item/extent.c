@@ -1385,9 +1385,7 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 	/* offset of First Byte of Block key->offset falls to */
 	fbb_offset = get_key_offset (key) & ~(reiser4_get_current_sb ()->s_blocksize - 1);
 
-	spin_lock_dk (current_tree);
-	if (!znode_contains_key (coord->node, key)) {
-		spin_unlock_dk (current_tree);
+	if (!znode_contains_key_lock (coord->node, key)) {
 		/* if left neighbor of coord->node is unformatted node of
 		 * another file we can get here even if coord->node does not
 		 * key we are looking for */
@@ -1400,7 +1398,6 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 		}
 		return EXTENT_RESEARCH;
 	}
-	spin_unlock_dk (current_tree);
 
 	if (coord_of_unit (coord))
 		return key_in_extent (coord, key) ? EXTENT_OVERWRITE_BLOCK : EXTENT_RESEARCH;

@@ -663,8 +663,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 			goto fail_or_restart;
 	}
 
-	spin_lock_dk( current_tree );
-	if( ( !znode_contains_key( active, h -> key ) &&
+	if( ( !znode_contains_key_lock( active, h -> key ) &&
 	      ( h -> flags & CBK_TRUST_DK ) ) ||
 	    ZF_ISSET( active, ZNODE_HEARD_BANSHEE ) ) {
 		/*
@@ -677,14 +676,13 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 		 * tree. Release lock and restart.
 		 */
 		if( REISER4_STATS ) {
-			if( znode_contains_key( active, h -> key ) )
+			if( znode_contains_key_lock( active, h -> key ) )
 				reiser4_stat_tree_add( cbk_met_ghost );
 			else
 				reiser4_stat_tree_add( cbk_key_moved );
 		}
 		h -> result = -EAGAIN;
 	}
-	spin_unlock_dk( current_tree );
 	if( h -> result == -EAGAIN )
 		return LLR_REST;
 
@@ -1083,10 +1081,8 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		if( ( h -> slevel > level ) || ( level > h -> llevel ) )
 			zput( node );
 		else {
-			spin_lock_dk( current_tree );
 			/* min_key <= key <= max_key */
-			is_key_inside = znode_contains_key( node, h -> key );
-			spin_unlock_dk( current_tree );
+			is_key_inside = znode_contains_key_lock( node, h -> key );
 			if( ! is_key_inside )
 				zput( node );
 			else
@@ -1110,10 +1106,8 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		return result;
 
 	/* recheck keys */
-	spin_lock_dk( current_tree );
-	result = znode_contains_key( node, h -> key ) && 
+	result = znode_contains_key_lock( node, h -> key ) && 
 		! ZF_ISSET( node, ZNODE_HEARD_BANSHEE );
-	spin_unlock_dk( current_tree );
 	if( result ) {
 		/* do lookup inside node */
 		h -> level = level;
