@@ -1339,3 +1339,4 @@ debug.E
 .stats.o.cmd
 stats
 plugin/.cryptcompress.o.d
+.sys_reiser4.o.cmd
