@@ -887,8 +887,14 @@ struct page {
 		test_bit(PG_locked, &(page)->flags)
 #define SetPageLocked(page)		\
 		set_bit(PG_locked, &(page)->flags)
-#define TestSetPageLocked(page)		\
-		test_and_set_bit(PG_locked, &(page)->flags)
+#define TestSetPageLocked(page)				\
+	({						\
+		int ret;				\
+		ret = spin_trylock (&(page)->lock);	\
+		if(ret)					\
+			SetPageLocked(page);		\
+		!ret;					\
+	})
 #define ClearPageLocked(page)		\
 		clear_bit(PG_locked, &(page)->flags)
 #define TestClearPageLocked(page)	\

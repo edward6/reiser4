@@ -1897,12 +1897,15 @@ define_never_ever_op( direct_IO_vfs )
 /** ->invalidatepage method for reiser4 */
 int reiser4_invalidatepage( struct page *page, unsigned long offset )
 {
-	REISER4_ENTRY (page->mapping->host->i_sb);
+	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 	if( offset == 0 ) {
 		txn_delete_page( page );
-		page_detach_jnode( page );
+		page_clear_jnode( page );
 	}
-	REISER4_EXIT (0);
+	/*
+	 * return with page still locked. truncate_list_pages() expects this.
+	 */
+	REISER4_EXIT( 0 );
 }
 
 /** ->releasepage method for reiser4 */
@@ -1936,11 +1939,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 		 */
 		if( ( node -> atom == NULL ) && 
 		    !blocknr_is_fake( jnode_get_block( node ) ) ) {
-			spin_lock_jnode( node );
-			page -> private = 0ul;
-			ClearPagePrivate( page );
-			node -> pg = NULL;
-			spin_unlock_jnode( node );
+			page_clear_jnode( page );
 			result = 1;
 		}
 	}
