@@ -205,6 +205,7 @@ int coord_is_existing_item (const coord_t * coord)
 		return coord->item_pos < coord_num_items (coord);
 	}
 
+	coord_print ("unreachable", coord, 0);
 	impossible ("jmacd-9900", "unreachable");
 	return 0;
 }
