@@ -331,6 +331,7 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 		assert("nikita-472", atomic_read(&znode_parent(node)->c_count) > 0);
 		/* father, onto your hands I forward my spirit... */
 		del_c_ref(znode_parent(node));
+		node->in_parent.node = NULL;
 	} else {
 		/* orphaned znode?! Root? */
 	}
