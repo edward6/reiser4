@@ -219,12 +219,21 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 	znode            *node;
 	reiser4_item_data item;
 	carry_insert_data cdata;
+	__u64             grabbed;
 
 	init_carry_pool( &pool );
 	init_carry_level( &todo, &pool );
 	ON_STATS( todo.level_no = TWIG_LEVEL );
 
-	node = new_node( insert_coord -> node, LEAF_LEVEL );	
+	grabbed = get_current_context() -> grabbed_blocks;
+	result = reiser4_grab_space1( 1 );
+	if( result != 0 )
+		return result;
+
+	node = new_node( insert_coord -> node, LEAF_LEVEL );
+	reiser4_release_grabbed_space
+		( get_current_context() -> grabbed_blocks - grabbed );
+
 	if( IS_ERR( node ) )
 		return PTR_ERR( node );
 	/*
