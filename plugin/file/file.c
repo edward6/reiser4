@@ -2,11 +2,20 @@
  * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
  */
 
+
 #include "../../reiser4.h"
 
+/*
+ * all file data have to be stored in unformatted nodes
+ */
+#define should_have_notail(inode,new_size) \
+reiser4_get_object_state (inode)->tail->u.tail.notail (inode, size)
 
-#define should_convert2extent() reiser4_get_object_state (inode)->tail->u.tail.tail ()
-#define should_convert2tail() reiser4_get_object_state (inode)->tail->u.tail.extent ()
+/*
+ * not all file data have to be stored in unformatted nodes
+ */
+#define should_have_tail(inode) \
+reiser4_get_object_state (inode)->tail->u.tail.tail (inode, inode->i_size)
 
 /* Dead USING_INSERT_UNITYPE_FLOW code removed from version 1.76 of this file. */
 
@@ -17,15 +26,29 @@ typedef enum {
 } write_todo;
 
 
-
-
-/* look for item of file @inode corresponding to @key */
+/*
+ * look for item of file @inode corresponding to @key
+ */
 static int find_item (struct inode * inode, reiser4_key * key,
 		      tree_coord * coord,
 		      reiser4_lock_handle * lh)
 {
-	return coord_by_key (tree_by_inode (inode), key, coord, lh, ZNODE_WRITE_LOCK,
-			     FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL);
+	return coord_by_key (tree_by_inode (inode), key, coord, lh,
+			     ZNODE_WRITE_LOCK, FIND_EXACT,
+			     LEAF_LEVEL, LEAF_LEVEL);
+}
+
+
+/*
+ * ordinary files of reiser4 are built either of extents only or of tail items
+ * only. If looking for file item coord_by_key stopped at twig level - file
+ * consists of extents only, if at leaf level - file is built of extents only
+ * FIXME-VS: it is possible to imagine different ways for finding that
+ */
+static int built_of_extents (struct inode * inode UNUSED_ARG,
+			     tree_coord * coord)
+{
+	return znode_get_level (coord->node) == TWIG_LEVEL;
 }
 
 
@@ -42,22 +65,65 @@ write_todo what_todo (struct inode * inode, loff_t offset, size_t count,
 	 */
 	new_size = offset + size;
 
-	/*
-	 * if file does not get longer - no conversion will be performed 
-	 */
 	if (new_size <= inode->i_size) {
-		if (coord->node->level == TWIG_LEVEL)
+		/*
+		 * if file does not get longer - no conversion will be
+		 * performed
+		 */
+		if (built_of_extents (inode, coord))
+			return WRITE_EXTENT;
+		else
+			return WRITE_TAIL;
+	}
+
+	assert ("vs-377", reiser4_get_object_state (inode)->u.tail->tail.notail);
+
+	if (inode->i_size == 0) {
+		/*
+		 * no items of this file are in tree yet
+		 */
+		assert ("vs-378", znode_get_level (coord->node) == LEAF_LEVEL);
+		if (should_have_notail (inode, new_size))
 			return WRITE_EXTENT;
 		else
 			return WRITE_TAIL;
 	}
 
 	/*
-	 * regular file should have tail plugin
+	 * file is not empty and will get longer
 	 */
-	assert ("vs-377", reiser4_get_object_state (inode)->tail);
-	if (reiser4_get_object_state (inode)->tail->u.tail.tail)
-	return WRITE_EXTENT;
+	if (should_have_notail (inode, new_size)) {
+		/*
+		 * that long file (@new_size bytes) is supposed to be built of
+		 * extents
+		 */
+		if (built_of_extents (inode, coord)) {
+			/*
+			 * it is built that way already
+			 */
+			return WRITE_EXTENT;
+		} else {
+			/*
+			 * file is built of tail items, conversion is required
+			 */
+			return CONVERT;
+		}
+	} else {
+		/*
+		 * "notail" is not required, so keep file in its current form
+		 */
+		if (built_of_extents (inode, coord))
+			return WRITE_EXTENT;
+		else
+			return WRITE_TAIL;
+	}
+}
+
+
+static int tail2extent (struct inode * inode,
+			tree_coord * coord,
+			reiser4_lock_handle * lh)
+{
 }
 
 
@@ -103,19 +169,27 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 			/* resolves to extent_write function */
 
 			result = iplug->s.file.write (inode, &coord, &lh, f);
-			if (!result || result == -EAGAIN) {
-				reiser4_done_lh (&lh);
-				reiser4_done_coord (&coord);
-				continue;
-			}
-			/* error occured */
 			break;
+
+		case WRITE_TAIL:
+			iplug = item_plugin_by_id (BODY_ITEM_ID);
+			/* resolves to tail_write function */
+
+			result = iplug->s.file.write (inode, &coord, &lh, f);
+			break;
+			
+		case CONVERT:
+			result = tail2extent (inode, &coord, &lh);
+			break;
+
 		default:
-			/* CONVERT or WRITE_TAIL */
-			impossible ("vs-293", "nothing but extents are ready yet");
+			impossible ("vs-293", "unknown write mode");
 		}
+
 		reiser4_done_lh (&lh);
 		reiser4_done_coord (&coord);
+		if (!result || result == -EAGAIN)
+			continue;
 		break;
 	}
 
