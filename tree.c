@@ -1035,7 +1035,7 @@ item_removed_completely(coord_t * from, const reiser4_key * from_key, const reis
  * neighbors of extent item being completely removed. Load and lock neighbors
  * and store lock handles into @cdata for later use by kill_hook_extent() */
 static int
-prepare_children(znode *left, znode *right, carry_cut_data *cdata)
+prepare_children(znode *left, znode *right, carry_kill_data *kdata)
 {
 	int result;
 	int left_loaded;
@@ -1048,7 +1048,7 @@ prepare_children(znode *left, znode *right, carry_cut_data *cdata)
 		result = zload(left);
 		if (result == 0) {
 			left_loaded = 1;
-			result = longterm_lock_znode(cdata->left, left,
+			result = longterm_lock_znode(kdata->left, left,
 						     ZNODE_READ_LOCK,
 						     ZNODE_LOCK_LOPRI);
 		}
@@ -1057,14 +1057,14 @@ prepare_children(znode *left, znode *right, carry_cut_data *cdata)
 		result = zload(right);
 		if (result == 0) {
 			right_loaded = 1;
-			result = longterm_lock_znode(cdata->right, right,
+			result = longterm_lock_znode(kdata->right, right,
 						     ZNODE_READ_LOCK,
 						     ZNODE_LOCK_HIPRI | ZNODE_LOCK_NONBLOCK);
 		}
 	}
 	if (result != 0) {
-		done_lh(cdata->left);
-		done_lh(cdata->right);
+		done_lh(kdata->left);
+		done_lh(kdata->right);
 		if (left_loaded != 0)
 			zrelse(left);
 		if (right_loaded != 0)
@@ -1074,15 +1074,15 @@ prepare_children(znode *left, znode *right, carry_cut_data *cdata)
 }
 
 static void
-done_children(carry_cut_data *cdata)
+done_children(carry_kill_data *kdata)
 {
-	if (cdata->left != NULL && cdata->left->node != NULL) {
-		zrelse(cdata->left->node);
-		done_lh(cdata->left);
+	if (kdata->left != NULL && kdata->left->node != NULL) {
+		zrelse(kdata->left->node);
+		done_lh(kdata->left);
 	}
-	if (cdata->right != NULL && cdata->right->node != NULL) {
-		zrelse(cdata->right->node);
-		done_lh(cdata->right);
+	if (kdata->right != NULL && kdata->right->node != NULL) {
+		zrelse(kdata->right->node);
+		done_lh(kdata->right);
 	}
 }
 
@@ -1095,32 +1095,29 @@ done_children(carry_cut_data *cdata)
 */
 /* Audited by: umka (2002.06.16) */
 static int
-prepare_twig_cut(coord_t * from,
-		 coord_t * to,
-		 const reiser4_key * from_key,
-		 const reiser4_key * to_key,
-		 znode * locked_left_neighbor, carry_cut_data *cdata)
+prepare_twig_kill(carry_kill_data *kdata, znode * locked_left_neighbor)
 {
 	int result;
 	reiser4_key key;
 	lock_handle left_lh;
 	lock_handle right_lh;
 	coord_t left_coord;
+	coord_t *from;
 	znode *left_child;
 	znode *right_child;
 	reiser4_tree *tree;
 	int left_zloaded_here, right_zloaded_here;
 
+	from = kdata->params.from;
 	assert("umka-326", from != NULL);
-	assert("umka-327", to != NULL);
+	assert("umka-327", kdata->params.to != NULL);
 
 	/* for one extent item only yet */
 	assert("vs-591", item_is_extent(from));
-	/* FIXME: Really we should assert that all the items are extents, or not, however
-	   the following assertion was too strict. */
-	/*assert ("vs-592", from->item_pos == to->item_pos); */
+	assert ("vs-592", from->item_pos == kdata->params.to->item_pos); 
 
-	if ((from_key && keygt(from_key, item_key_by_coord(from, &key))) || from->unit_pos != 0) {
+	if ((kdata->params.from_key && keygt(kdata->params.from_key, item_key_by_coord(from, &key))) ||
+	    from->unit_pos != 0) {
 		/* head of item @from is not removed, there is nothing to
 		   worry about */
 		return 0;
@@ -1194,12 +1191,12 @@ prepare_twig_cut(coord_t * from,
 
 	/* left child is acquired, calculate new right delimiting key for it
 	   and get right child if it is necessary */
-	if (item_removed_completely(from, from_key, to_key)) {
+	if (item_removed_completely(from, kdata->params.from_key, kdata->params.to_key)) {
 		/* try to get right child of removed item */
 		coord_t right_coord;
 
-		assert("vs-607", to->unit_pos == coord_last_unit_pos(to));
-		coord_dup(&right_coord, to);
+		assert("vs-607", kdata->params.to->unit_pos == coord_last_unit_pos(kdata->params.to));
+		coord_dup(&right_coord, kdata->params.to);
 		if (coord_next_unit(&right_coord)) {
 			/* @to is rightmost unit in the node */
 			result = reiser4_get_right_neighbor(&right_lh, from->node, ZNODE_READ_LOCK, GN_CAN_USE_UPPER_LEVELS);
@@ -1243,14 +1240,14 @@ prepare_twig_cut(coord_t * from,
 			}
 
 		}
-		result = prepare_children(left_child, right_child, cdata);
+		result = prepare_children(left_child, right_child, kdata);
 	} else {
 		/* only head of item @to is removed. calculate new item key, it
 		   will be used to set right delimiting key of "left child" */
-		key = *to_key;
+		key = *kdata->params.to_key;
 		set_key_offset(&key, get_key_offset(&key) + 1);
 		assert("vs-608", (get_key_offset(&key) & (reiser4_get_current_sb()->s_blocksize - 1)) == 0);
-		cdata->left = cdata->right = NULL;
+		kdata->left = kdata->right = NULL;
 	}
 
 	/* update right delimiting key of left_child */
@@ -1278,6 +1275,48 @@ prepare_twig_cut(coord_t * from,
 	return result;
 }
 
+/* this is used to remove part of node content between coordinates @from and @to. Units to which @from and @to are set
+   are to be cut completely */
+/* for try_to_merge_with_left, delete_copied, delete_node */
+/* cut_node without DELETE_KILL */
+reiser4_internal int
+cut_node_content(coord_t *from, coord_t *to,
+		 const reiser4_key * from_key /* first key to be removed */ ,
+		 const reiser4_key * to_key /* last key to be removed */ ,
+		 reiser4_key * smallest_removed	/* smallest key actually removed */)
+{
+	carry_pool pool;
+	carry_level lowest_level;
+	carry_op *op;
+	carry_cut_data cut_data;
+	int result;
+
+	assert("", coord_compare(from, to) != COORD_CMP_ON_RIGHT);
+
+	init_carry_pool(&pool);
+	init_carry_level(&lowest_level, &pool);
+
+	op = post_carry(&lowest_level, COP_CUT, from->node, 0);
+	assert("vs-1509", op != 0);
+	if (IS_ERR(op))
+		return PTR_ERR(op);
+
+	cut_data.params.from = from;
+	cut_data.params.to = to;
+	cut_data.params.from_key = from_key;
+	cut_data.params.to_key = to_key;
+	cut_data.params.smallest_removed = smallest_removed;
+
+	op->u.cut_or_kill.is_cut = 1;
+	op->u.cut_or_kill.u.cut = &cut_data;
+
+	ON_STATS(lowest_level.level_no = znode_get_level(from->node));
+	result = carry(&lowest_level, 0);
+	done_carry_pool(&pool);
+
+	return result;
+}
+
 /* cut part of the node
 
    Cut part or whole content of node.
@@ -1288,29 +1327,26 @@ prepare_twig_cut(coord_t * from,
    removed key is stored in @smallest_removed
 
 */
-/* Audited by: umka (2002.06.16) */
 reiser4_internal int
-cut_node(coord_t * from		/* coord of the first unit/item that will be
-				   * eliminated */ ,
-	 coord_t * to		/* coord of the last unit/item that will be
-				   * eliminated */ ,
-	 const reiser4_key * from_key /* first key to be removed */ ,
-	 const reiser4_key * to_key /* last key to be removed */ ,
-	 reiser4_key * smallest_removed	/* smallest key actually
-					 * removed */ ,
-	 unsigned flags /* cut flags */ ,
-	 znode * locked_left_neighbor,	/* this is set when cut_node is
-					 * called with left neighbor locked
-					 * (in squalloc_right_twig_cut,
-					 * namely) */
-	 struct inode *inode /* inode of file whose item is to be cut. This is necessary to drop eflushed jnodes
-				together with item */)
+kill_node_content(coord_t * from /* coord of the first unit/item that will be
+				  * eliminated */ ,
+		  coord_t * to   /* coord of the last unit/item that will be
+				  * eliminated */ ,
+		  const reiser4_key * from_key /* first key to be removed */ ,
+		  const reiser4_key * to_key /* last key to be removed */ ,
+		  reiser4_key * smallest_removed	/* smallest key actually
+							 * removed */ ,
+		  unsigned flags /* cut flags */ ,
+		  znode * locked_left_neighbor,	/* this is set when kill_node_content is called with left neighbor
+						 * locked (in squalloc_right_twig_cut, namely) */
+		  struct inode *inode /* inode of file whose item (or its part) is to be killed. This is necessary to
+					 invalidate pages together with item pointing to them */)
 {
 	int result;
 	carry_pool pool;
 	carry_level lowest_level;
 	carry_op *op;
-	carry_cut_data cdata;
+	carry_kill_data kdata;
 	lock_handle left_child;
 	lock_handle right_child;
 
@@ -1336,16 +1372,24 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 	init_lh(&left_child);
 	init_lh(&right_child);
 
-	cdata.left = &left_child;
-	cdata.right = &right_child;
+	kdata.params.from = from;
+	kdata.params.to = to;
+	kdata.params.from_key = from_key;
+	kdata.params.to_key = to_key;
+	kdata.params.smallest_removed = smallest_removed;
+	assert("vs-1570", flags == DELETE_RETAIN_EMPTY || flags == 0);
+	kdata.flags = flags;
+	kdata.inode = inode;
+	kdata.left = &left_child;
+	kdata.right = &right_child;
 
 	if (znode_get_level(from->node) == TWIG_LEVEL && item_is_extent(from)) {
 		/* left child of extent item may have to get updated right
 		   delimiting key and to get linked with right child of extent
 		   @from if it will be removed completely */
-		result = prepare_twig_cut(from, to, from_key, to_key, locked_left_neighbor, &cdata);
+		result = prepare_twig_kill(&kdata, locked_left_neighbor);
 		if (result) {
-			done_children(&cdata);
+			done_children(&kdata);
 			return result;
 		}
 	}
@@ -1355,24 +1399,18 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 
 	op = post_carry(&lowest_level, COP_CUT, from->node, 0);
 	if (IS_ERR(op) || (op == NULL)) {
-		done_children(&cdata);
+		done_children(&kdata);
 		return RETERR(op ? PTR_ERR(op) : -EIO);
 	}
 
-	cdata.from = from;
-	cdata.to = to;
-	cdata.from_key = from_key;
-	cdata.to_key = to_key;
-	cdata.smallest_removed = smallest_removed;
-	cdata.flags = flags;
-	cdata.inode = inode;
-	op->u.cut = &cdata;
+	op->u.cut_or_kill.is_cut = 0;
+	op->u.cut_or_kill.u.kill = &kdata;
 
 	ON_STATS(lowest_level.level_no = znode_get_level(from->node));
 	result = carry(&lowest_level, 0);
 	done_carry_pool(&pool);
 
-	done_children(&cdata);
+	done_children(&kdata);
 	return result;
 }
 
@@ -1440,7 +1478,7 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 
 	/* remove a pointer from the parent node to the node being deleted. */
 	coord_dup(&cut_to, &cut_from);
-	ret = cut_node(&cut_from, &cut_to, NULL, NULL, NULL, 0, 0, NULL);
+	ret = cut_node_content(&cut_from, &cut_to, NULL, NULL, NULL);
 	if (ret)
 		/* FIXME(Zam): Should we re-connect the node to its parent if
 		 * cut_node fails? */
@@ -1547,16 +1585,27 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 			if (IS_CBKERR(result))
 				break;
 
+			if (coord_set_to_right(&left_coord)) {
+				result = RETERR(-EIO);
+				break;
+			}
+
+			if (coord_compare(&left_coord, tap->coord) == COORD_CMP_ON_RIGHT) {
+				/* keys from @from_key to @to_key are not in the tree */
+				result = 0;
+				break;
+			}
+
 			/* cut data from one node */
 			*smallest_removed = *min_key();
-			result = cut_node(&left_coord,
-					  tap->coord,
-					  from_key,
-					  to_key,
-					  smallest_removed,
-					  DELETE_KILL,
-					  next_node_lock.node,
-					  object);
+			result = kill_node_content(&left_coord,
+						   tap->coord,
+						   from_key,
+						   to_key,
+						   smallest_removed,
+						   0,
+						   next_node_lock.node,
+						   object);
 			tap_relse(tap);
 		}
 		if (result)
