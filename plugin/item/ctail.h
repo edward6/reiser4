@@ -39,6 +39,7 @@ int ctail_key_in_item(coord_t * coord, const reiser4_key * key, void *);
 
 __u8 inode_cluster_shift (struct inode *);
 size_t inode_cluster_size (struct inode *);
+crypto_stat_t * inode_crypto_stat(struct inode *);
 
 void put_cluster_data(reiser4_cluster_t *, struct inode *);
 int cluster_is_required (reiser4_cluster_t *);
