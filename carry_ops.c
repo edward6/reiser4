@@ -48,18 +48,11 @@ find_left_neighbor(carry_op * op	/* node to find left
 	node = op->node;
 
 	/* first, check whether left neighbor is already in a @doing queue */
-	left = find_left_carry(node, doing);
-	/* if we are not at the left end of level, check whether left neighbor
-	   was found. */
-	if (left != NULL) {
-		reiser4_tree *tree;
+	if (node->real_node->left != NULL) {
+		/* NOTE: there is locking subtlety here. Look into
+		 * find_right_neighbor() for more info */
+		left = find_carry_node(doing, node->real_node->left);
 
-		tree = znode_get_tree(node->real_node);
-		read_lock_tree(tree);
-		if (node->real_node->left != left->real_node) {
-			left = NULL;
-		}
-		read_unlock_tree(tree);
 		if (left != NULL) {
 			reiser4_stat_level_inc(doing, carry_left_in_carry);
 			return left;
@@ -134,18 +127,22 @@ find_right_neighbor(carry_op * op	/* node to find right
 	node = op->node;
 
 	/* first, check whether right neighbor is already in a @doing queue */
-	right = find_right_carry(node, doing);
-	/* if we are not at the right end of level, check whether right
-	   neighbor was found. */
-	if (right != NULL) {
-		reiser4_tree *tree;
+	if (node->real_node->right != NULL) {
+		/* Subtle:
+		 *
+		 * Q: why don't we need tree lock here, looking for the right
+		 * neighbor?
+		 *
+		 * A: even if value of node->real_node->right were changed
+		 * during find_carry_node() execution, outcome of execution
+		 * wouldn't change, because (in short) other thread cannot add
+		 * elements to the @doing, and if node->real_node->right
+		 * already was in @doing, value of node->real_node->right
+		 * couldn't change, because node cannot be inserted between
+		 * locked neighbors.
+		 */
+		right = find_carry_node(doing, node->real_node->right);
 
-		tree = znode_get_tree(node->real_node);
-		read_lock_tree(tree);
-		if (node->real_node->right != right->real_node) {
-			right = NULL;
-		}
-		read_unlock_tree(tree);
 		if (right != NULL) {
 			reiser4_stat_level_inc(doing, carry_right_in_carry);
 			return right;
@@ -702,7 +699,21 @@ insert_paste_common(carry_op * op	/* carry operation being
 		          -- v6root/usr/sys/ken/slp.c
 		*/
 		if (op->node->real_node != op->u.insert.d->coord->node) {
-			op->node = add_carry_skip(doing, POOLO_AFTER, op->node);
+			pool_ordering direction;
+			znode *z1;
+			znode *z2;
+			reiser4_key k1;
+			reiser4_key k2;
+
+			z1 = op->u.insert.d->coord->node;
+			z2 = op->node->real_node;
+			if (keyle(leftmost_key_in_node(z1, &k1),
+				  leftmost_key_in_node(z2, &k2)))
+				direction = POOLO_BEFORE;
+			else
+				direction = POOLO_AFTER;
+
+			op->node = add_carry_skip(doing, direction, op->node);
 			if (IS_ERR(op->node))
 				return PTR_ERR(op->node);
 			op->node->node = op->u.insert.d->coord->node;

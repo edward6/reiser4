@@ -170,7 +170,11 @@ static int add_new_root(carry_level * level, carry_node * node, znode * fake);
 
 // static __u64 carry_estimate_space(carry_level * level);
 #if REISER4_DEBUG
-static int carry_level_invariant(carry_level * level);
+typedef enum {
+	CARRY_TODO,
+	CARRY_DOING
+} carry_queue_state;
+static int carry_level_invariant(carry_level * level, carry_queue_state state);
 #endif
 
 /* main entry point for tree balancing.
@@ -411,6 +415,7 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 		info.doing = doing;
 		info.todo = todo;
 
+		assert("nikita-3002", carry_level_invariant(doing, CARRY_DOING));
 		for_all_nodes(doing, scan, tmp_scan) {
 			znode *node;
 
@@ -753,7 +758,7 @@ lock_carry_level(carry_level * level /* level to lock */ )
 	carry_node *tmp_node;
 
 	assert("nikita-881", level != NULL);
-	assert("nikita-2229", carry_level_invariant(level));
+	assert("nikita-2229", carry_level_invariant(level, CARRY_TODO));
 
 	trace_stamp(TRACE_CARRY);
 
@@ -1271,17 +1276,8 @@ add_new_znode(znode * brother	/* existing left neighbor of new
    debugging is turned off to print dumps at errors.
 */
 #if REISER4_DEBUG
-static reiser4_key *
-get_min_key(znode * node, reiser4_key * key)
-{
-	if (!node_is_empty(node))
-		return leftmost_key_in_node(node, key);
-	else
-		return znode_get_ld_key(node);
-}
-
 static int
-carry_level_invariant(carry_level * level)
+carry_level_invariant(carry_level * level, carry_queue_state state)
 {
 	carry_node *node;
 	carry_node *tmp_node;
@@ -1297,32 +1293,29 @@ carry_level_invariant(carry_level * level)
 		reiser4_key lkey;
 		reiser4_key rkey;
 
-		spin_lock_dk(current_tree);
 		if (node != carry_node_front(level)) {
-			right = node->node;
-			left = carry_node_prev(node)->node;
-			if (right && left && 
-			    !keyle(get_min_key(left, &lkey), 
-				   get_min_key(right, &rkey))) {
-				print_node_content("left", left, ~REISER4_NODE_SILENT);
-				print_node_content("right", right, ~REISER4_NODE_SILENT);
+			if (state == CARRY_TODO) {
+				right = node->node;
+				left = carry_node_prev(node)->node;
+			} else {
+				right = node->real_node;
+				left = carry_node_prev(node)->real_node;
+			}
+			if (right == NULL || left == NULL)
+				continue;
+			if (node_is_empty(right) || node_is_empty(left))
+				continue;
+			if (!keyle(leftmost_key_in_node(left, &lkey), 
+				   leftmost_key_in_node(right, &rkey))) {
+				print_znode("left", left);
+				print_node_content("left", left, ~0);
+				print_znode("right", right);
+				print_node_content("right", right, ~0);
 				spin_unlock_dk(current_tree);
+				BUG();
 				return 0;
 			}
 		}
-		if (node != carry_node_back(level)) {
-			left = node->node;
-			right = carry_node_next(node)->node;
-			if (right && left && 
-			    !keyle(get_min_key(left, &lkey),
-				   get_min_key(right, &rkey))) {
-				print_node_content("left", left, ~REISER4_NODE_SILENT);
-				print_node_content("right", right, ~REISER4_NODE_SILENT);
-				spin_unlock_dk(current_tree);
-				return 0;
-			}
-		}
-		spin_unlock_dk(current_tree);
 	}
 	return 1;
 }
@@ -1353,6 +1346,10 @@ carry_op_name(carry_opcode op /* carry opcode */ )
 		return "COP_UPDATE";
 	case COP_MODIFY:
 		return "COP_MODIFY";
+	case COP_EXTENT:
+		return "COP_EXTENT";
+	case COP_INSERT_FLOW:
+		return "COP_INSERT_FLOW";
 	default:{
 			/* not mt safe, but who cares? */
 			static char buf[20];
