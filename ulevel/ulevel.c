@@ -8,7 +8,7 @@
 #define _GNU_SOURCE
 #define _FILE_OFFSET_BITS 64
 
-#include "reiser4.h"
+#include "../reiser4.h"
 
 static void
 SUSPEND_CONTEXT( reiser4_context *context )
@@ -953,7 +953,7 @@ void *mkdir_thread( void *arg )
 
 		fno = lc_rand_max( ( __u64 ) info -> max );
 		
-		sprintf( name, "Pst0000000-%lli-хлоп-Zzzz.", fno );
+		sprintf( name, "123456712345-%lli-хлоп-Zzzz.", fno );
 		dentry.d_name.name = name;
 		dentry.d_name.len = strlen( name );
 		SUSPEND_CONTEXT( old_context );
@@ -1142,15 +1142,19 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		info.dir = f;
 		info.num = atoi( argv[ 4 ] );
 		info.max = info.num;
-		for( i = 0 ; i < threads ; ++ i )
-			pthread_create( &tid[ i ], NULL, mkdir_thread, &info );
+		if( threads > 1 ) {
+			for( i = 0 ; i < threads ; ++ i )
+				pthread_create( &tid[ i ], 
+						NULL, mkdir_thread, &info );
 
-		/*
-		 * actually, there is no need to join them. Can either
-		 * call thread_exit() here, or create them detached.
-		 */
-		for( i = 0 ; i < threads ; ++ i )
-			pthread_join( tid[ i ], NULL );
+			/*
+			 * actually, there is no need to join them. Can either
+			 * call thread_exit() here, or create them detached.
+			 */
+			for( i = 0 ; i < threads ; ++ i )
+				pthread_join( tid[ i ], NULL );
+		} else
+			mkdir_thread( &info );
 
 		print_tree_rec( "tree:dir", tree, REISER4_NODE_CHECK );
 
@@ -2708,7 +2712,7 @@ int real_main( int argc, char **argv )
 	tree_height = 1;
 	if( getenv( "REISER4_UL_DURABLE_MMAP" ) != NULL ) {
 		mmap_back_end_fd = open( getenv( "REISER4_UL_DURABLE_MMAP" ),
-					 O_CREAT | O_RDWR | O_LARGEFILE, 0700 );
+					 O_CREAT | O_RDWR, 0700 );
 		if( mmap_back_end_fd == -1 ) {
 			fprintf( stderr, "%s: Cannot open %s: %s\n", argv[ 0 ],
 				 getenv( "REISER4_UL_DURABLE_MMAP" ),
