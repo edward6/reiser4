@@ -617,6 +617,11 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	 * parent.
 	 */
 	spin_lock_tree (h->tree);
+	/*
+	 * FIXME znode_is_loaded() is not right check here. What we actually
+	 * want to detect is that zget() above created new znode. The same for
+	 * setup_delimiting_keys().
+	 */
 	if (!znode_is_loaded(active) && (h->coord->node != NULL))
 		active->ptr_in_parent_hint = *h->coord;
 
@@ -1319,6 +1324,16 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 			leftmost_key_in_node( neighbor, &h -> ld_key );
 			spin_unlock_dk( current_tree );
 			h -> block = *znode_get_block( neighbor );
+			spin_lock_tree( current_tree );
+			/* 
+			 * clear coord -> node so that cbk_level_lookup()
+			 * wouldn't overwrite parent hint in neighbor.
+			 *
+			 * Parent hint was set up by
+			 * reiser4_get_left_neighbor()
+			 */
+			h -> coord -> node = NULL;
+			spin_unlock_tree( current_tree );
 			result = LOOKUP_CONT;
 		} else {
 			result = LOOKUP_DONE;
