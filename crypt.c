@@ -24,6 +24,7 @@ encrypt_slum_crypto_items(reiser4_key * current_slum_key)
 #include <linux/types.h>
 #include <linux/random.h>
 #define MAX_CRYPTO_BLOCKSIZE 256
+#define NONE_KEY_SIZE 8
 #define NONE_BLOCKSIZE 8
 
 /* default align() method of the crypto-plugin
@@ -53,8 +54,9 @@ static int none_blocksize (struct inode * inode UNUSED_ARG /* inode to operate o
 	return NONE_BLOCKSIZE;
 }
 
-static int none_set_key (__u32 *expkey UNUSED_ARG, const __u8 *key UNUSED_ARG)
+static int none_set_key (__u32 *expkey, const __u8 *key)
 {
+	memcpy(expkey, key, NONE_KEY_SIZE);
 	return 0;	
 }
 
@@ -77,6 +79,7 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 			.desc = "Id rearrangement",
 			.linkage = TS_LIST_LINK_ZERO}
 		,
+		.keysize = NONE_KEY_SIZE,
 		.blocksize = none_blocksize,
 	        .align = common_align_cluster,
 	        .set_key = none_set_key,
