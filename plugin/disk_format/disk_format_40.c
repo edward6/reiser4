@@ -139,6 +139,12 @@ static int get_super_jnode (struct super_block * s)
 	if (!(sb_jnode = jnew()))
 		return -ENOMEM;
 
+	/*
+	 * FIXME-NIKITA jnew() returns unreferenced jnode which is
+	 * useless: it can be already wiped out by memory pressure when jnew()
+	 * returns.
+	 */
+
 	sb_jnode->blocknr = FORMAT_40_OFFSET / s->s_blocksize;
 
 	ret = jload (sb_jnode);
