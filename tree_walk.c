@@ -213,7 +213,7 @@ static int far_next_coord (tree_coord * coord, reiser4_lock_handle * handle, int
 
 	handle->owner = NULL;	/* mark lock handle as unused */
 
-	ret = (flags & GN_GO_LEFT) ? coord_prev(coord) : coord_next(coord);
+	ret = (flags & GN_GO_LEFT) ? coord_prev(coord) : coord_next_unit(coord);
 	if (!ret) return 0;
 
 	ret = lock_side_neighbor(handle, coord->node, ZNODE_READ_LOCK, flags);
