@@ -1019,6 +1019,10 @@ txn_try_capture (jnode           *node,
 	} else {
 		/* In this case there's no reason to capture. */
 		/* cap_mode = TXN_CAPTURE_READ_NONCOM; */
+		/*
+		 * FIXME-VS: probably wrong
+		 */
+		jnode_detach_page (node);
 		return 0;
 	}
 
