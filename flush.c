@@ -3421,13 +3421,7 @@ repeat:
 	   this repeats the get_inode call for every unit even when the OID doesn't
 	   change. */
 	oid = get_key_objectid(item_key_by_coord(&coord, &key));
-/* extent_get_inode (& coord, & ino);
 
-	if (ino == NULL) {
-		scan->stop = 1;
-		return 0;
-	}
-*/
 	ON_TRACE(TRACE_FLUSH_VERB, "%s scan index %lu: parent %p oid %llu\n",
 		 (scanning_left(scan) ? "left" : "right"), scan_index, coord.node, oid);
 
@@ -3533,8 +3527,11 @@ stop_same_parent:
 			   the beginning of the file, which is (scan_index -
 			   unit_index) block within extent.
 			*/
-			scan->preceder_blk = unit_start + scan_index - unit_index;
-			check_preceder(scan->preceder_blk);
+			if (unit_start) {
+				/* skip preceder update when we are at hole */
+				scan->preceder_blk = unit_start + scan_index - unit_index;
+				check_preceder(scan->preceder_blk);
+			}
 		}
 
 		/* In this case, we leave coord set to the parent of scan->node. */
