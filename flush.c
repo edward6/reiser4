@@ -451,7 +451,7 @@ struct flush_position {
 	int alloc_cnt;		/* The number of nodes allocated during squeeze and allococate. */
 	int prep_or_free_cnt;	/* The number of nodes prepared for write (allocate) or squeezed and freed. */
 	flush_queue_t *fq;
-	long nr_written;	/* number of nodes submitted to disk */
+	long *nr_written;	/* number of nodes submitted to disk */
 	int flags;		/* a copy of jnode_flush flags argument */
 
 	znode * prev_twig;	/* previous parent pointer value, used to catch
@@ -561,7 +561,7 @@ static int write_prepped_nodes (flush_pos_t * pos, int scan)
 		return 0;
 	ret = scan ? scan_and_write_fq(pos->fq, 0) : write_fq(pos->fq, 0);
 	if (ret > 0) {
-		pos->nr_written += ret;
+		*pos->nr_written += ret;
 		ret = 0;
 	}
 
@@ -702,18 +702,15 @@ static void prepare_flush_pos(flush_pos_t *pos, flush_scan * left_scan)
    audit.
 */
 
-long jnode_flush(jnode * node, long *nr_to_flush, int flags)
+static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush_queue_t * fq, int flags)
 {
 	long ret = 0;
-	flush_pos_t flush_pos;
 	flush_scan right_scan;
 	flush_scan left_scan;
+	flush_pos_t flush_pos;
 	int todo;
 	struct super_block *sb;
 	reiser4_super_info_data *sbinfo;
-
-	txn_atom *atom;
-	flush_queue_t *fq = NULL;
 
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
 	assert("nikita-3022", schedulable());
@@ -730,11 +727,6 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 #endif
 	}
 
-	writeout_mode_enable();
-	write_syscall_trace("in");
-
-	reiser4_stat_inc(flush.flush);
-
 	/* Flush-concurrency debug code */
 #if REISER4_DEBUG
 	atomic_inc(&flush_cnt);
@@ -745,95 +737,13 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 		 if (atomic_read(&flush_cnt) > 1) printk("flush concurrency\n"););
 #endif
 
-	/* The following code gets a fq attached to the atom and takes spin
-	   locks on both atom and jnode */
-
-	LOCK_JNODE(node);
-	ret = fq_by_jnode(node, &fq);
-	if (ret || !fq)
-		goto clean_out;
-
-	atom = node->atom;
-
-	/* count ourself as a flusher */
-	atom->nr_flushers++;
-
-	/* A special case for znode-above-root.  The above-root (fake) znode is captured
-	   and dirtied when the tree height changes or when the root node is relocated.
-	   This causes atoms to fuse so that changes at the root are serialized.  However,
-	   this node is never flushed.  This special case used to be in lock.c to prevent
-	   the above-root node from ever being captured, but now that it is captured we
-	   simply prevent it from flushing.  The log-writer code relies on this to
-	   properly log superblock modifications of the tree height. */
-	if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
-		/* Just pass dirty znode-above-root to overwrite set. */
-		jnode_set_wander(node);
-		jnode_set_clean_nolock(node);
-
-		UNLOCK_JNODE(node);
-		UNLOCK_ATOM(atom);
-
-		trace_on(TRACE_FLUSH, "flush aboveroot %s %s\n",
-			 jnode_tostring(node), flags_tostring(flags));
-		goto clean_out;
-	}
-
-	/* A race is possible where node is not dirty or worse, not connected, by this
-	   point.  It is possible since more than one process may call jnode_flush
-	   concurrently and the node may already be clean by the time we obtain the
-	   spinlock above.  Likewise, a node may be deleted at this point.  It is possible
-	   for a znode to be unconnected as well, since these nodes are taken off the
-	   dirty list (a search-by-key never will encounter an unconnected node, but we
-	   are bypassing that mechanism here). */
-	if (!jnode_is_dirty(node) ||
-	    (jnode_is_znode(node) && !znode_is_connected(JZNODE(node))) ||
-	    JF_ISSET(node, JNODE_HEARD_BANSHEE) || JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
-		if (nr_to_flush != NULL) {
-			(*nr_to_flush) = 0;
-		}
-		UNLOCK_JNODE(node);
-		UNLOCK_ATOM(atom);
-		trace_on(TRACE_FLUSH, "flush nothing %s %s\n", jnode_tostring(node), flags_tostring(flags));
-		goto clean_out;
-	}
-
-	/* Flush may be called on a jnode that has already been flushed once in this
-	   transaction.  In this case, the flush algorithm has already run and made a
-	   decision to relocate/overwrite this node and given it a new/temporary location.
-	   The node was then flushed and subsequently dirtied again.  Now flush is called
-	   again and jnode_is_flushprepped returns true.  At this point we simply re-submit
-	   the block to disk using the previously decided location. */
-	if (jnode_is_flushprepped(node)) {
-
-		trace_on(TRACE_FLUSH, "flush rewrite %s %s\n", jnode_tostring(node), flags_tostring(flags));
-		if (JF_ISSET(node, JNODE_OVRWR)) {
-			jnode_set_clean_nolock(node);
-
-		} else {
-			/* put it back into flush queue */
-			queue_jnode(fq, node);
-		}
-		if (nr_to_flush != NULL) {
-			(*nr_to_flush) = 1;
-		}
-
-		UNLOCK_JNODE(node);
-		UNLOCK_ATOM(atom);
-
-		ret = write_fq(fq, 0);
-
-		goto clean_out;
-	}
-
-	UNLOCK_JNODE(node);
-	UNLOCK_ATOM(atom);
-
 	trace_on(TRACE_FLUSH, "flush squalloc %s %s\n", jnode_tostring(node), flags_tostring(flags));
 
 	/* Initialize a flush position. */
 	pos_init(&flush_pos);
 
 	flush_pos.nr_to_flush = nr_to_flush;
+	flush_pos.nr_written = nr_written;
 	flush_pos.fq = fq;
 	flush_pos.flags = flags;
 
@@ -1013,27 +923,12 @@ failed:
 
 	}
 
-	/* number of submitted to disk nodes is passed to caller as a return value */
-	if (!ret)
-		ret = flush_pos.nr_written;
-
 	pos_done(&flush_pos);
 	scan_done(&left_scan);
 	scan_done(&right_scan);
 
-	/* The clean_out label is reached by calls to jnode_flush that return before
-	   initializing the flush_position and the two flush_scan objects.  After those
-	   objects are initialized any abnormal return goes to the 'failed' label. */
-clean_out:
-
 	ON_DEBUG(atomic_dec(&flush_cnt));
 
-	if (fq)
-		fq_put(fq);
-
-	atom = get_current_atom_locked();
-	atom->nr_flushers--;
-	UNLOCK_ATOM(atom);
 	writeout_mode_disable();
 	write_syscall_trace("ex");
 
@@ -1042,6 +937,131 @@ clean_out:
 
 	return ret;
 }
+
+/* Flush some nodes of current atom, usually slum, return -EAGAIN if there are more nodes
+ * to flush, return 0 if atom's dirty lists empty and keep current atom locked, return
+ * other errors as they are. */
+int flush_current_atom (int flags, long *nr_submitted, txn_atom **locked_atom)
+{
+	txn_atom * atom;
+	flush_queue_t *fq;
+	jnode * node;
+	int nr_queued;
+	int ret;
+
+	fq = get_fq_for_current_atom();
+	if (IS_ERR(fq))
+		return PTR_ERR(fq);
+
+	atom = fq->atom;
+
+	write_syscall_trace("in");
+	reiser4_stat_inc(flush.flush);
+	writeout_mode_enable();
+
+	/* count ourself as a flusher */
+	atom->nr_flushers++;
+
+	nr_queued = 0;
+
+	/* In this loop we process all already prepped (RELOC or OVRWR) and dirtied again
+	 * nodes. The atom spin lock is not released until all dirty nodes processed or
+	 * not prepped node found in the atom dirty lists. */
+	while ((node = find_first_dirty_jnode(atom))) {
+		LOCK_JNODE(node);
+
+		if (JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+			/* ???? move to another list ???? */
+			UNLOCK_JNODE(node);
+			node = NULL;
+			break;
+		}
+
+		assert ("zam-881", jnode_is_dirty(node));
+
+		/* A special case for znode-above-root.  The above-root (fake) znode is
+		   captured and dirtied when the tree height changes or when the root node
+		   is relocated.  This causes atoms to fuse so that changes at the root
+		   are serialized.  However, this node is never flushed.  This special
+		   case used to be in lock.c to prevent the above-root node from ever
+		   being captured, but now that it is captured we simply prevent it from
+		   flushing.  The log-writer code relies on this to properly log
+		   superblock modifications of the tree height. */
+		if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
+			/* Just pass dirty znode-above-root to overwrite set. */
+			jnode_set_wander(node);
+			jnode_set_clean_nolock(node);
+		} else if (JF_ISSET(node, JNODE_RELOC)) {
+			queue_jnode(fq, node);
+			++ nr_queued;
+		} else if (JF_ISSET(node, JNODE_OVRWR)) {
+			jnode_set_clean_nolock(node);
+		} else {
+			break;
+		}
+
+		UNLOCK_JNODE(node);
+	}
+
+	if (node == NULL) {
+		if (nr_queued == 0) {
+			atom->nr_flushers --;
+			fq_put_nolock(fq);
+			/* current atom remains locked */
+			*locked_atom = atom;
+			return 0;
+		}
+		ret = -EAGAIN;
+		UNLOCK_ATOM(atom);
+
+	} else {
+		jref(node);
+
+		UNLOCK_ATOM(atom);
+		UNLOCK_JNODE(node);
+
+		ret = jnode_flush(node, NULL, nr_submitted, fq, flags);
+
+		jput(node);
+
+		if (ret == 0)
+			ret = -EAGAIN;
+	}
+
+	{
+		int ret1;
+
+		ret1 = scan_and_write_fq(fq, 0);
+		if (ret1 > 0)
+			*nr_submitted += ret1;
+	}
+
+	fq_put(fq);
+
+	atom = get_current_atom_locked();
+	atom->nr_flushers --;
+	UNLOCK_ATOM(atom);
+
+	writeout_mode_disable();
+	write_syscall_trace("ex");
+
+	return ret;
+}
+
+int flush_current_atom_not_commit(int flags, long * nr_submitted)
+{
+	int ret;
+	txn_atom * atom;
+
+	ret = flush_current_atom(flags, nr_submitted, &atom);
+	if (ret == 0)
+		UNLOCK_ATOM(atom);
+	else if (ret == -EAGAIN)
+		ret = 0;
+
+	return ret;
+}
+
 
 /* REVERSE PARENT-FIRST RELOCATION POLICIES */
 
@@ -2181,8 +2201,8 @@ static int squalloc (flush_pos_t * pos)
 
 	PROF_END(forward_squalloc, forward_squalloc);
 
-	/* any positive value or -EINVAL are legal return codes for handle_pos*
-	   routines, -EINVAL means that slum edge was reached */
+	/* any positive value or -E_NO_NEIGHBOR are legal return codes for handle_pos*
+	   routines, -E_NO_NEIGHBOR means that slum edge was reached */
 	if (ret > 0 || ret == -E_NO_NEIGHBOR)
 		ret = 0;
 
@@ -3510,6 +3530,8 @@ pos_leaf_relocate(flush_pos_t * pos)
 }
 
 #if REISER4_TRACE
+const char *coord_tween_tostring(between_enum n);
+
 static void
 jnode_tostring_internal(jnode * node, char *buf)
 {
