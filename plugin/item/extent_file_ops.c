@@ -172,7 +172,7 @@ append_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block
 	assert("vs-228", coord->unit_pos == coord_last_unit_pos(coord));
 	assert("vs-1311", coord->between == AFTER_UNIT);
 	assert("vs-1302", ext_coord->pos_in_unit == ext_coord->width - 1);
-	assert("vs-883", 
+	assert("vs-883",
 	       ( {
 		       reiser4_key next;
 		       keyeq(key, append_key_extent(coord, &next));
@@ -497,8 +497,8 @@ index_extent_jnode(reiser4_tree *tree, struct address_space *mapping, oid_t oid,
 	assert("vs-1397", get_key_objectid(key) == oid);
 	assert("vs-1395", get_key_offset(key) == (loff_t)index << PAGE_CACHE_SHIFT);
 
-	j = jlook_lock(tree, oid, index);
-	if (!j) {
+	j = jlookup(tree, oid, index);
+	if (!j || !jnode_mapped(j)) {
 		reiser4_block_nr blocknr;
 
 		result = make_extent(key, uf_coord, mode, &blocknr);
@@ -506,23 +506,23 @@ index_extent_jnode(reiser4_tree *tree, struct address_space *mapping, oid_t oid,
 			return ERR_PTR(result);
 		}
 
-		j = jnew_unformatted();
-		if (unlikely(!j))
-			return ERR_PTR(RETERR(-ENOMEM));
+		if (j == NULL) {
+			j = jnew_unformatted();
+			if (unlikely(!j))
+				return ERR_PTR(RETERR(-ENOMEM));
 		
-		jnode_set_mapped(j);
-		jnode_set_block(j, &blocknr);
+			assert("vs-1402", !jlookup(tree, oid, index));
+			jref(j);
+			hash_unformatted_jnode(j, mapping, index);
+			assert("vs-1424", atomic_read(&j->x_count) == 1);
+		}
 		if (blocknr_is_fake(&blocknr)) {
 			jnode_set_created(j);
 			JF_SET(j, JNODE_NEW);			
 		}
-		assert("vs-1402", !jlook_lock(tree, oid, index));
-		jref(j);
-		hash_unformatted_jnode(j, mapping, index);
-		assert("vs-1424", atomic_read(&j->x_count) == 1);
+		jnode_set_mapped(j);
+		jnode_set_block(j, &blocknr);
 	} else {
-		/* page has jnode already. Therefore, there is non hole extent which points to this page */
-		assert("vs-1390", jnode_mapped(j));
 		assert("vs-1421", mode == OVERWRITE_ITEM);
 	}
 	assert("vs-1430", jnode_get_mapping(j) == mapping);
@@ -542,7 +542,7 @@ set_hint_unlock_node(hint_t *hint, flow_t *f, znode_lock_mode mode)
 
 /* write flow's data into file by pages */
 static int
-extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint, 
+extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		  int grabbed, /* 0 if space for operation is not reserved yet, 1 - otherwise */
 		  write_mode_t mode)
 {
@@ -738,7 +738,7 @@ extent_write_hole(struct inode *inode, flow_t *flow, hint_t *hint, int grabbed)
   2. expanding truncate (@f->data == 0)
 */
 int
-write_extent(struct inode *inode, flow_t *flow, hint_t *hint, 
+write_extent(struct inode *inode, flow_t *flow, hint_t *hint,
 	     int grabbed, /* extent's write may be called from plain unix file write and from tail conversion. In first
 			     case (grabbed == 0) space is not reserved forehand, so, it must be done here. When it is
 			     being called from tail conversion - space is reserved already for whole operation which may
@@ -991,14 +991,23 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 {
 	jnode *j;
 
-	ON_TRACE(TRACE_EXTENTS, "readpage_extent: page (oid %llu, index %lu, count %d)..", 
+	ON_TRACE(TRACE_EXTENTS, "readpage_extent: page (oid %llu, index %lu, count %d)..",
 		 get_inode_oid(page->mapping->host), page->index, page_count(page));
 
 	switch (state_of_extent(ext)) {
 	case HOLE_EXTENT:
 		ON_TRACE(TRACE_EXTENTS, "hole, OK\n");
-		zero_page(page);
-		return 0;
+		/*
+		 * it is possible to have hole page with jnode, if page was
+		 * eflushed previously.
+		 */
+		j = jlookup(current_tree, get_inode_oid(page->mapping->host),
+			       page->index);
+		if (j == NULL) {
+			zero_page(page);
+			return 0;
+		}
+		break;
 
 	case ALLOCATED_EXTENT:
 	{
@@ -1017,7 +1026,7 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 	}
 		
 	case UNALLOCATED_EXTENT:
-		j = jlook_lock(current_tree, get_inode_oid(page->mapping->host),
+		j = jlookup(current_tree, get_inode_oid(page->mapping->host),
 			       page->index);
 		assert("nikita-2688", j);
 		assert("vs-1426", jnode_page(j) == NULL);
@@ -1093,12 +1102,12 @@ readpages_extent(void *vp, struct address_space *mapping, struct list_head *page
 		read_cache_pages(mapping, pages, readahead_readpage_extent, vp);
 }
 
-/* 
+/*
    plugin->s.file.readpage
    reiser4_read->unix_file_read->page_cache_readahead->reiser4_readpage->unix_file_readpage->extent_readpage
    or
    filemap_nopage->reiser4_readpage->readpage_unix_file->->readpage_extent
-   
+
    At the beginning: coord->node is read locked, zloaded, page is
    locked, coord is set to existing unit inside of extent item (it is not necessary that coord matches to page->index)
 */
@@ -1133,11 +1142,11 @@ int
 writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
 {
 	jnode *j;
+	int result;
 
 	ON_TRACE(TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count(page));
 
 	assert("vs-1052", PageLocked(page));
-	// assert("vs-1073", PageDirty(page));
 	assert("vs-1051", page->mapping && page->mapping->host);
 	assert("nikita-3139", !inode_get_flag(page->mapping->host, REISER4_NO_SD));
 	assert("vs-864", znode_is_wlocked(uf_coord->base_coord.node));
@@ -1153,8 +1162,11 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 	if (!jnode_page(j))
 		jnode_attach_page(j, page);
 
-	check_me("", try_capture(j, ZNODE_WRITE_LOCK, 0) == 0);
+	result = try_capture(j, ZNODE_WRITE_LOCK, 0);
+	if (result != 0)
+		reiser4_panic("nikita-3324", "Cannot capture jnode: %i", result);
 	jnode_make_dirty_locked(j);
+	set_page_dirty_internal(page);
 
 	UNLOCK_JNODE(j);
 	jput(j);
@@ -1184,7 +1196,7 @@ int get_block_address_extent(const uf_coord_t *uf_coord, sector_t block, struct 
 /*
   plugin->u.item.s.file.append_key
   key of first byte which is the next to last byte by addressed by this extent
-*/ 
+*/
 reiser4_key *
 append_key_extent(const coord_t *coord, reiser4_key *key)
 {
