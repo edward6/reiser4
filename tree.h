@@ -505,6 +505,7 @@ struct reiser4_context {
 	context_list_link     contexts_link;
 	/** parent context */
 	reiser4_context      *parent;
+	tap_list_head         taps;
 #if REISER4_DEBUG
 	lock_counters_info    locks;
 	int                   nr_children; /* number of child contexts */
@@ -513,7 +514,6 @@ struct reiser4_context {
 };
 
 extern reiser4_context * get_context_by_lock_stack (lock_stack*);
-
 
 /* Debugging helps. */
 extern int  init_context_mgr (void);

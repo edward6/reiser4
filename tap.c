@@ -34,6 +34,13 @@ void tap_init( tap_t *tap, coord_t *coord,
 	tap -> lh = lh;
 	tap -> mode = mode;
 	tap -> loaded = 0;
+	tap_list_clean( tap );
+}
+
+void tap_monitor( tap_t *tap )
+{
+	assert( "nikita-2623", tap != NULL );
+	tap_list_push_front( taps_list(), tap );
 }
 
 void tap_done( tap_t *tap )
@@ -44,6 +51,7 @@ void tap_done( tap_t *tap )
 	if( tap -> loaded > 0 )
 		zrelse( tap -> lh -> node );
 	tap -> loaded = 0;
+	tap_list_remove_clean( tap );
 }
 
 int tap_move( tap_t *tap, lock_handle *target )
@@ -62,10 +70,36 @@ int tap_move( tap_t *tap, lock_handle *target )
 		if( tap -> loaded > 0 )
 			zrelse( tap -> coord -> node );
 		done_lh( tap -> lh );
-		move_lh( tap -> lh, target );
+		copy_lh( tap -> lh, target );
 		tap -> coord -> node = target -> node;
 	}
 	return result;
+}
+
+int tap_to( tap_t *tap, znode *target )
+{
+	int result;
+	
+	assert( "nikita-2624", tap != NULL );
+	assert( "nikita-2625", target != NULL );
+
+	result = 0;
+	if( tap -> coord -> node != target ) {
+		lock_handle here;
+
+		result = longterm_lock_znode( &here, target, tap -> mode,
+					      ZNODE_LOCK_HIPRI );
+		if( result == 0 ) {
+			result = tap_move( tap, &here );
+			done_lh( &here );
+		}
+	}
+	return result;
+}
+
+tap_list_head *taps_list()
+{
+	return &get_current_context() -> taps;
 }
 
 int go_dir_el( tap_t *tap, sideof dir, int units_p )
@@ -112,10 +146,9 @@ int go_dir_el( tap_t *tap, sideof dir, int units_p )
 						   GN_DO_READ );
 			if( result == 0 ) {
 				result = tap_move( tap, &dup );
-				if( result != 0 )
-					done_lh( &dup );
-				else
+				if( result == 0 )
 					coord_init( tap -> coord, dup.node );
+				done_lh( &dup );
 			}
 			/*
 			 * skip empty nodes

@@ -441,8 +441,8 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "tree_mod.h"
 #include "carry.h"
 #include "carry_ops.h"
-#include "tree.h"
 #include "tap.h"
+#include "tree.h"
 
 #include "trace.h"
 
