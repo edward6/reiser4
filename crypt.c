@@ -9,7 +9,10 @@
 #define NONE_EXPKEY_WORDS 8
 #define NONE_BLOCKSIZE 8
 
-/* default align() method of the crypto-plugin
+/* EDWARD-FIXME-HANS: define armoring and aligning
+
+
+default align() method of the crypto-plugin
    1) creates the following aligning armored format of the input flow before encryption :
 
    [ flow | aligninig_padding ]
