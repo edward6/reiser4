@@ -65,40 +65,85 @@ static sector_t reiser4_bmap(struct address_space *, sector_t);
 
 /* address space operations */
 
+/* clear PAGECACHE_TAG_DIRTY tag of a page. This is used in uncapture_page.  This resembles test_clear_page_dirty. The
+   only difference is that page's mapping exists and REISER4_MOVED tag is checked */
+reiser4_internal void
+reiser4_clear_page_dirty(struct page *page)
+{
+	struct address_space *mapping;
+	unsigned long flags;
+
+	mapping = page_mapping(page);
+	BUG_ON(mapping == NULL);
+
+	spin_lock_irqsave(&mapping->tree_lock, flags);
+	if (TestClearPageDirty(page)) {
+		/* clear dirty tag of page in address space radix tree */
+		radix_tree_tag_clear(&mapping->page_tree, page->index,
+				     PAGECACHE_TAG_DIRTY);
+		/* FIXME: remove this when reiser4_set_page_dirty will skip setting this tag for captured pages */
+		radix_tree_tag_clear(&mapping->page_tree, page->index,
+				     PAGECACHE_TAG_REISER4_MOVED);
+#if 0 /* FIXME: uncomment this debugging code when reiser4_set_page_dirty will skip setting this tag for captured
+	 pages */
+#if REISER4_DEBUG
+		{
+			/* tag PAGECACHE_TAG_REISER4_MOVED should not be be set here */
+			struct page *tmp;
+			unsigned int found;
+			
+			found = radix_tree_gang_lookup_tag(&mapping->page_tree, (void **)&tmp, page->index, 1,
+							   PAGECACHE_TAG_REISER4_MOVED);
+			if (found == 1)
+				assert("vs-1653", tmp->index != page->index);
+		}
+#endif
+#endif /* 0 */
+		
+		spin_unlock_irqrestore(&mapping->tree_lock, flags);
+		if (!mapping->backing_dev_info->memory_backed)
+			dec_page_state(nr_dirty);
+		return;
+	}
+	spin_unlock_irqrestore(&mapping->tree_lock, flags);
+}
+
 /* as_ops->set_page_dirty() VFS method in reiser4_address_space_operations.
 
    It is used by others (except reiser4) to set reiser4 pages dirty. Reiser4
    itself uses set_page_dirty_internal().
 
-   The difference is that reiser4_set_page_dirty puts dirty page on
-   reiser4_inode->moved_pages.  That list is processed by reiser4_writepages()
-   to do reiser4 specific work over dirty pages (allocation jnode, capturing,
-   atom creation) which cannot be done in the contexts where set_page_dirty is
-   called.
-
-   Mostly this function is __set_page_dirty_nobuffers() but target page list
-   differs.
+   The difference is that reiser4_set_page_dirty sets MOVED tag on the page and clears DIRTY tag. Pages tagged as MOVED
+   get processed by reiser4_writepages() to do reiser4 specific work over dirty pages (allocation jnode, capturing, atom
+   creation) which cannot be done in the contexts where reiser4_set_page_dirty is called.
+   set_page_dirty_internal sets DIRTY tag and clear MOVED
 */
-static int reiser4_set_page_dirty (struct page * page /* page to mark dirty */)
+static int reiser4_set_page_dirty(struct page *page /* page to mark dirty */)
 {
 	if (!TestSetPageDirty(page)) {
 		struct address_space *mapping = page->mapping;
 
 		if (mapping) {
-			spin_lock(&mapping->page_lock);
+			spin_lock_irq(&mapping->tree_lock);
 			/* check for race with truncate */
 			if (page->mapping) {
+				assert("vs-1652", page->mapping == mapping);
 				if (!mapping->backing_dev_info->memory_backed)
 					inc_page_state(nr_dirty);
-				list_del(&page->list);
-				list_add(&page->list, get_moved_pages(mapping));
+				radix_tree_tag_clear(&mapping->page_tree,
+						   page->index, PAGECACHE_TAG_DIRTY);
+				/* FIXME: if would be nice to not set this tag on pages which are captured already */
+				radix_tree_tag_set(&mapping->page_tree,
+						   page->index, PAGECACHE_TAG_REISER4_MOVED);
 			}			
-			spin_unlock(&mapping->page_lock);
+			spin_unlock_irq(&mapping->tree_lock);
+			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
 	}
 	return 0;
 }
 
+#if 0
 static int reiser4_set_page_dirty_lru(struct page *) __attribute__((unused));
 /* alternative version of reiser4_set_page_dirty() that tried to keep dirty
  * pages in LRU order */
@@ -121,6 +166,7 @@ static int reiser4_set_page_dirty_lru(struct page * page)
 	}
 	return 0;
 }
+#endif
 
 /* ->readpage() VFS method in reiser4 address_space_operations
    method serving file mmapping
@@ -162,6 +208,7 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 		SetPageError(page);
 		unlock_page(page);
 	}
+
 	reiser4_exit_context(&ctx);
 	return 0;
 }
@@ -206,8 +253,8 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 	/* __do_page_cache_readahead expects filesystem's readpages method to
 	 * process every page on this list */
 	while (!list_empty(pages)) {
-		struct page *page = list_entry(pages->prev, struct page, list);
-		list_del(&page->list);
+		struct page *page = list_entry(pages->prev, struct page, lru);
+		list_del(&page->lru);
 		page_cache_release(page);
 	}
 	return 0;
@@ -563,13 +610,13 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 		/* we are under memory pressure so release jnode also. */
 		jput(node);
-		spin_lock(&mapping->page_lock);
+		spin_lock_irq(&mapping->tree_lock);
 		/* shrink_list() + radix-tree */
 		if (page_count(page) == 2) {
 			__remove_from_page_cache(page);
 			__put_page(page);
 		}
-		spin_unlock(&mapping->page_lock);
+		spin_unlock_irq(&mapping->tree_lock);
 		return 1;
 	} else {
 		UNLOCK_JLOAD(node);
