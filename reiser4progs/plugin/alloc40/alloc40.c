@@ -1,5 +1,5 @@
 /*
-    alloc40.c -- Space allocator plugin for reiserfs 4.0.
+    alloc40.c -- Default block allocator plugin for reiserfs 4.0.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -15,7 +15,9 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static reiserfs_alloc40_t *alloc40_open(aal_device_t *device, count_t len) {
+static reiserfs_alloc40_t *alloc40_open(aal_device_t *device, 
+    count_t len) 
+{
     blk_t offset;
     reiserfs_alloc40_t *alloc;
     

@@ -10,7 +10,6 @@
 #include <aal/aal.h>
 
 typedef void reiserfs_opaque_t;
-typedef void reiserfs_params_opaque_t;
 typedef uint64_t oid_t;
 
 enum reiserfs_plugin_id {
@@ -318,15 +317,14 @@ struct reiserfs_format_ops {
 	It reads format-specific super block and initializes
 	plugins suitable for this format.
     */
-    reiserfs_opaque_t *(*open) (aal_device_t *, aal_device_t *);
+    reiserfs_opaque_t *(*open) (aal_device_t *);
     
     /* 
 	Called during filesystem creating. It forms format-specific
 	super block, initializes plugins and calls their create 
 	method.
     */
-    reiserfs_opaque_t *(*create) (aal_device_t *, count_t, 
-	aal_device_t *, reiserfs_params_opaque_t *);
+    reiserfs_opaque_t *(*create) (aal_device_t *, count_t);
     
     /*
 	Called during filesystem syncing. It calls method sync
@@ -386,14 +384,8 @@ struct reiserfs_format_ops {
     reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_opaque_t *);
     reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_opaque_t *);
     reiserfs_plugin_id_t (*oid_plugin_id) (reiserfs_opaque_t *);
-    
-    /* 
-	Returns initialized children entities (journal, block allocator)
-	oid alloactor.
-    */
-    reiserfs_opaque_t *(*journal) (reiserfs_opaque_t *);
-    reiserfs_opaque_t *(*alloc) (reiserfs_opaque_t *);
-    reiserfs_opaque_t *(*oid) (reiserfs_opaque_t *);
+
+    void (*oid)(reiserfs_opaque_t *, void **, void **);
 };
 
 typedef struct reiserfs_format_ops reiserfs_format_ops_t;
@@ -401,7 +393,11 @@ typedef struct reiserfs_format_ops reiserfs_format_ops_t;
 struct reiserfs_oid_ops {
     reiserfs_plugin_header_t h;
 
-    reiserfs_opaque_t *(*open) (void *, uint32_t);
+    reiserfs_opaque_t *(*open) (void *, void *);
+    reiserfs_opaque_t *(*create) (void *, void *);
+
+    error_t (*sync) (reiserfs_opaque_t *);
+
     void (*close) (reiserfs_opaque_t *);
     
     oid_t (*alloc) (reiserfs_opaque_t *);
@@ -443,7 +439,9 @@ struct reiserfs_journal_ops {
     reiserfs_opaque_t *(*open) (aal_device_t *);
     
     reiserfs_opaque_t *(*create) (aal_device_t *, 
-	reiserfs_params_opaque_t *params);
+	reiserfs_opaque_t *);
+    
+    void (*area) (reiserfs_opaque_t *, blk_t *start, blk_t *end);
     
     void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);

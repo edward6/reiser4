@@ -235,7 +235,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Creating reiserfs with \"%s\" profile...", profile->label);
     fflush(stderr);
     
-    if (!(fs = reiserfs_fs_create(device, profile, blocksize, 
+    if (!(fs = reiserfs_fs_create(profile, device, blocksize, 
 	(const char *)uuid, (const char *)label, fs_len, device, NULL))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,

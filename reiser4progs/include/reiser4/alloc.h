@@ -14,24 +14,28 @@
 #include <aal/aal.h>
 #include <reiser4/filesystem.h>
 
-extern error_t reiserfs_alloc_open(reiserfs_fs_t *fs);
+extern reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device, 
+    count_t len, reiserfs_plugin_id_t plugin_id);
 
 #ifndef ENABLE_COMPACT
 
-extern error_t reiserfs_alloc_sync(reiserfs_fs_t *fs);
+extern reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device, 
+    count_t len, reiserfs_plugin_id_t plugin_id);
 
-extern void reiserfs_alloc_mark(reiserfs_fs_t *fs, blk_t blk);
-extern void reiserfs_alloc_dealloc(reiserfs_fs_t *fs, blk_t blk);
-extern blk_t reiserfs_alloc_alloc(reiserfs_fs_t *fs);
+extern error_t reiserfs_alloc_sync(reiserfs_alloc_t *alloc);
+
+extern void reiserfs_alloc_mark(reiserfs_alloc_t *alloc, blk_t blk);
+extern void reiserfs_alloc_dealloc(reiserfs_alloc_t *alloc, blk_t blk);
+extern blk_t reiserfs_alloc_alloc(reiserfs_alloc_t *alloc);
 
 #endif
 
-extern void reiserfs_alloc_close(reiserfs_fs_t *fs);
+extern void reiserfs_alloc_close(reiserfs_alloc_t *alloc);
 
-extern count_t reiserfs_alloc_free(reiserfs_fs_t *fs);
-extern count_t reiserfs_alloc_used(reiserfs_fs_t *fs);
+extern count_t reiserfs_alloc_free(reiserfs_alloc_t *alloc);
+extern count_t reiserfs_alloc_used(reiserfs_alloc_t *alloc);
 
-extern int reiserfs_alloc_test(reiserfs_fs_t *fs, blk_t blk);
+extern int reiserfs_alloc_test(reiserfs_alloc_t *alloc, blk_t blk);
 
 #endif
 

@@ -64,13 +64,13 @@ extern void reiserfs_node_set_free_space(reiserfs_node_t *node,
 
 #endif
 
-extern error_t reiserfs_node_add_children(reiserfs_node_t *node, 
+extern error_t reiserfs_node_add(reiserfs_node_t *node, 
     reiserfs_node_t *children);
 
-extern void reiserfs_node_remove_children(reiserfs_node_t *node, 
+extern void reiserfs_node_remove(reiserfs_node_t *node, 
     reiserfs_node_t *children);
 
-extern reiserfs_node_t *reiserfs_node_find_child(reiserfs_node_t *node, 
+extern reiserfs_node_t *reiserfs_node_find(reiserfs_node_t *node, 
     reiserfs_key_t *key);
 
 #ifndef ENABLE_COMPACT

@@ -29,8 +29,8 @@ static void meat_print_fs(reiserfs_fs_t *fs) {
 
     aal_printf("\nreiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
 	reiserfs_fs_format(fs), reiserfs_fs_blocksize(fs), 
-	reiserfs_format_get_blocks(fs), reiserfs_alloc_used(fs), 
-	reiserfs_alloc_free(fs));
+	reiserfs_format_get_blocks(fs->format), reiserfs_alloc_used(fs->alloc), 
+	reiserfs_alloc_free(fs->alloc));
 
     aal_printf("Used plugins:\n-------------\n");
 
@@ -50,9 +50,6 @@ static void meat_print_fs(reiserfs_fs_t *fs) {
     
     aal_printf("(5) ");
     meat_print_plugin(fs->tree->root_node->plugin);
-    
-    aal_printf("(6) ");
-    meat_print_plugin(fs->tree->dir_plugin);
 }
 
 int main(int argc, char *argv[]) {

@@ -45,7 +45,7 @@ static error_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	reiserfs_key_set_type(&object->key, KEY40_STATDATA_MINOR);
 	reiserfs_key_set_offset(&object->key, 0);
 	
-	if (!reiserfs_tree_lookup(object->fs, &object->key, &object->coord)) {
+	if (!reiserfs_tree_lookup(object->fs->tree, &object->key, &object->coord)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't find stat data of directory %s.", track);
 	    return -1;
@@ -112,7 +112,7 @@ static error_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	    reiserfs_key_get_locality(&object->key), 
 	    reiserfs_key_get_objectid(&object->key), dirname);
 	
-	if (!reiserfs_tree_lookup(object->fs, &object->key, &object->coord)) {
+	if (!reiserfs_tree_lookup(object->fs->tree, &object->key, &object->coord)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't find stat data of directory %s.", track);
 	    return -1;
@@ -131,7 +131,7 @@ static error_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 }
 
 reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
-    reiserfs_key_t parent;
+    reiserfs_key_t *parent;
     reiserfs_object_t *object;
     reiserfs_plugin_t *key_plugin;
     
@@ -146,21 +146,16 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
     /* FIXME-UMKA: Hardcoded key plugin id */
     if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0)))
 	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return NULL);
-    
-    reiserfs_key_init(&parent, key_plugin);
-    reiserfs_key_clean(&parent);
-    
-    reiserfs_key_build_file_key(&parent, KEY40_STATDATA_MINOR, 
-	reiserfs_oid_root_parent_objectid(fs), reiserfs_oid_root_objectid(fs), 0);
-    
-    aal_memcpy(&object->key, &parent, sizeof(parent));
+   
+    parent = reiserfs_oid_root_key(fs->oid); 
+    object->key = *parent;;
     
     /* 
 	I assume that name is absolute name. So, user, who will 
 	call this method should convert name previously into absolute
 	one by getcwd function.
     */
-    if (reiserfs_object_lookup(object, name, &parent)) {
+    if (reiserfs_object_lookup(object, name, parent)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find %s.", name);
 	return NULL;
@@ -175,6 +170,47 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
     
     return object;
 }
+
+#ifndef ENABLE_COMPACT
+
+reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, 
+    reiserfs_coord_t *coord, reiserfs_profile_t *profile)
+{
+    reiserfs_opaque_t *dir;
+    reiserfs_object_t *object;
+    reiserfs_plugin_t *dir_plugin;
+    
+    aal_assert("umka-740", fs != NULL, return NULL);
+
+    if (!(object = aal_calloc(sizeof(*object), 0)))
+	return NULL;
+    
+    if (!(dir_plugin = libreiser4_factory_find_by_coord(REISERFS_DIR_PLUGIN, 
+	profile->dir)))
+    {
+    	libreiser4_factory_find_failed(REISERFS_DIR_PLUGIN, profile->dir,
+	    goto error_free_object);
+    }
+
+    if (!(dir = libreiser4_plugin_call(goto error_free_object, dir_plugin->dir, 
+	create, coord->node->block, coord->pos.item_pos, profile->key, 
+	profile->item.statdata, profile->item.direntry, profile->oid, profile->node)))
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't create directory.");
+	goto error_free_object;
+    }
+    
+    libreiser4_plugin_call(goto error_free_object, dir_plugin->dir, close, dir);
+    
+    return object;
+
+error_free_object:
+    aal_free(object);
+    return NULL;
+}
+
+#endif
 
 void reiserfs_object_close(reiserfs_object_t *object) {
     aal_assert("umka-680", object != NULL, return);

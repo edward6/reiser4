@@ -110,14 +110,14 @@ error_t reiserfs_node_reopen(reiserfs_node_t *node, aal_device_t *device,
 error_t reiserfs_node_close(reiserfs_node_t *node) {
     aal_assert("umka-122", node != NULL, return -1);
     
-    if (node->parent)
-	reiserfs_node_remove_children(node->parent, node);
-    
     if (node->children) {
 	aal_list_t *walk;
 	
 	aal_list_foreach_forward(walk, node->children)
 	    reiserfs_node_close((reiserfs_node_t *)walk->item);
+
+	aal_list_free(node->children);
+	node->children = NULL;
     }
 
     if (node->plugin->node.close != NULL) {
@@ -241,7 +241,7 @@ static int callback_comp_for_find(reiserfs_node_t *node,
 }
 
 /* Finds children node by its key in node cache */
-reiserfs_node_t *reiserfs_node_find_child(reiserfs_node_t *node, 
+reiserfs_node_t *reiserfs_node_find(reiserfs_node_t *node, 
     reiserfs_key_t *key)
 {
     aal_list_t *list;
@@ -273,7 +273,7 @@ static int callback_comp_for_insert(reiserfs_node_t *node1,
 }
 
 /* Connects children into sorted list of specified node */
-error_t reiserfs_node_add_children(reiserfs_node_t *node, 
+error_t reiserfs_node_add(reiserfs_node_t *node, 
     reiserfs_node_t *children) 
 {
     reiserfs_plugin_t *plugin;
@@ -295,20 +295,18 @@ error_t reiserfs_node_add_children(reiserfs_node_t *node,
 }
 
 /* Remove specified childern from node */
-void reiserfs_node_remove_children(reiserfs_node_t *node, 
+void reiserfs_node_remove(reiserfs_node_t *node, 
     reiserfs_node_t *children)
 {
-    uint32_t length;
-    
     aal_assert("umka-562", node != NULL, return);
     aal_assert("umka-563", children != NULL, return);
 
     if (node->children) {
-	length = aal_list_length(aal_list_first(node->children));
-	aal_list_remove(node->children, children);
-
-	if (length == 1)
+	if (aal_list_length(aal_list_first(node->children)) == 1) {
+	    aal_list_remove(node->children, children);
 	    node->children = NULL;
+	} else
+	    aal_list_remove(node->children, children);
     }
     children->parent = NULL;
 }

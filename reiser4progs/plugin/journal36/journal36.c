@@ -63,8 +63,9 @@ static reiserfs_plugin_t journal36_plugin = {
 	    .desc = "Default journal for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *))journal36_open,
 	.create = NULL, 
+	.area = NULL, 
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *))journal36_open,
 	.close = (void (*)(reiserfs_opaque_t *))journal36_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))journal36_sync,
 	.replay = (error_t (*)(reiserfs_opaque_t *))journal36_replay

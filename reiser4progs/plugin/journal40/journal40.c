@@ -93,7 +93,7 @@ error:
 #ifndef ENABLE_COMPACT
 
 static reiserfs_journal40_t *journal40_create(aal_device_t *device, 
-    reiserfs_params_opaque_t *params) 
+    reiserfs_opaque_t *params) 
 {
     reiserfs_journal40_t *journal;
     
@@ -162,6 +162,15 @@ static error_t journal40_replay(reiserfs_journal40_t *journal) {
     return 0;
 }
 
+static void journal40_area(reiserfs_journal40_t *journal, 
+    blk_t *start, blk_t *end) 
+{
+    aal_assert("umka-734", journal != NULL, return);
+    
+    *start = (REISERFS_JOURNAL40_HEADER / aal_device_get_bs(journal->device));
+    *end = (REISERFS_JOURNAL40_FOOTER / aal_device_get_bs(journal->device));
+}
+
 static reiserfs_plugin_t journal40_plugin = {
     .journal = {
 	.h = {
@@ -176,14 +185,14 @@ static reiserfs_plugin_t journal40_plugin = {
 	    journal40_open,
 	
 #ifndef ENABLE_COMPACT
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, reiserfs_params_opaque_t *))
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, reiserfs_opaque_t *))
 	    journal40_create,
 	.sync = (error_t (*)(reiserfs_opaque_t *))journal40_sync,
 #else
 	.create = NULL,
 	.sync = NULL,
 #endif
-	
+	.area = (void (*)(reiserfs_opaque_t *, blk_t *, blk_t *))journal40_area,
 	.close = (void (*)(reiserfs_opaque_t *))journal40_close,
 	.replay = (error_t (*)(reiserfs_opaque_t *))journal40_replay
     }

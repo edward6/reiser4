@@ -101,20 +101,19 @@ static aal_block_t *format36_super_open(aal_device_t *device) {
     return NULL;
 }
 
-static reiserfs_format36_t *format36_open(aal_device_t *host_device, 
-    aal_device_t *journal_device) 
+static reiserfs_format36_t *format36_open(aal_device_t *device) 
 {
     reiserfs_format36_t *format;
 
-    aal_assert("umka-380", host_device != NULL, return NULL);    
+    aal_assert("umka-380", device != NULL, return NULL);    
 	
     if (!(format = aal_calloc(sizeof(*format), 0)))
 	return NULL;
 		
-    if (!(format->super = format36_super_open(host_device)))
+    if (!(format->super = format36_super_open(device)))
 	goto error_free_format;
 	
-    format->device = host_device;
+    format->device = device;
     return format;
 
 error_free_format:
@@ -138,8 +137,8 @@ static error_t format36_sync(reiserfs_format36_t *format) {
     return 0;
 }
 
-static reiserfs_format36_t *format36_create(aal_device_t *host_device, 
-    count_t blocks, aal_device_t *journal_device, reiserfs_params_opaque_t *params)
+static reiserfs_format36_t *format36_create(aal_device_t *device, 
+    count_t blocks)
 {
     return NULL;
 }
@@ -199,21 +198,6 @@ static blk_t format36_offset(reiserfs_format36_t *format) {
     return (REISERFS_MASTER_OFFSET / aal_device_get_bs(format->device));
 }
 
-static reiserfs_opaque_t *format36_journal(reiserfs_format36_t *format) {
-    aal_assert("umka-488", format != NULL, return 0);
-    return format->journal;
-}
-
-static reiserfs_opaque_t *format36_alloc(reiserfs_format36_t *format) {
-    aal_assert("umka-506", format != NULL, return 0);
-    return format->alloc;
-}
-
-static reiserfs_opaque_t *format36_oid(reiserfs_format36_t *format) {
-    aal_assert("umka-507", format != NULL, return 0);
-    return format->oid;
-}
-
 static blk_t format36_get_root(reiserfs_format36_t *format) {
     aal_assert("umka-387", format != NULL, return 0);
     return get_sb_root_block((reiserfs_format36_super_t *)format->super->data);
@@ -228,6 +212,8 @@ static count_t format36_get_free(reiserfs_format36_t *format) {
     aal_assert("umka-389", format != NULL, return 0);
     return get_sb_free_blocks((reiserfs_format36_super_t *)format->super->data);
 }
+
+#ifndef ENABLE_COMPACT
 
 static void format36_set_root(reiserfs_format36_t *format, blk_t root) {
     aal_assert("umka-390", format != NULL, return);
@@ -244,6 +230,8 @@ static void format36_set_free(reiserfs_format36_t *format, count_t blocks) {
     set_sb_free_blocks((reiserfs_format36_super_t *)format->super->data, blocks);
 }
 
+#endif
+
 static reiserfs_plugin_t format36_plugin = {
     .format = {
 	.h = {
@@ -254,18 +242,17 @@ static reiserfs_plugin_t format36_plugin = {
 	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *, aal_device_t *))
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *))
 	    format36_open,
 
 #ifndef ENABLE_COMPACT
 	.sync = (error_t (*)(reiserfs_opaque_t *))format36_sync,
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, 
-	    aal_device_t *, reiserfs_params_opaque_t *))format36_create,
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))
+	    format36_create,
 #else
 	.sync = NULL,
 	.create = NULL,
 #endif
-	
 	.close = (void (*)(reiserfs_opaque_t *))format36_close,
 	.check = (error_t (*)(reiserfs_opaque_t *))format36_check,
 	.confirm = (int (*)(aal_device_t *))format36_confirm,
@@ -285,6 +272,8 @@ static reiserfs_plugin_t format36_plugin = {
 	.get_height = NULL,
 	.set_height = NULL,
 	
+	.oid = NULL,
+	
 	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    format36_journal_plugin,
 		
@@ -293,10 +282,6 @@ static reiserfs_plugin_t format36_plugin = {
 	
 	.oid_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
 	    format36_oid_plugin,
-	
-	.journal = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))format36_journal,
-	.alloc = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))format36_alloc,
-	.oid = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))format36_oid,
     }
 };
 

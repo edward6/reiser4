@@ -16,33 +16,39 @@
 
 #define REISERFS_LEAF_LEVEL 1
 
-extern error_t reiserfs_tree_open(reiserfs_fs_t *fs);
-extern void reiserfs_tree_close(reiserfs_fs_t *fs);
+extern reiserfs_tree_t *reiserfs_tree_open(aal_device_t *device, 
+    blk_t root_blk, reiserfs_key_t *root_key);
+
+extern void reiserfs_tree_close(reiserfs_tree_t *tree);
 
 #ifndef ENABLE_COMPACT
 
-extern error_t reiserfs_tree_create(reiserfs_fs_t *fs, 
-    reiserfs_profile_t *profile);
+extern reiserfs_tree_t *reiserfs_tree_create(aal_device_t *device, 
+    reiserfs_alloc_t *alloc, reiserfs_oid_t *oid, 
+    reiserfs_plugin_id_t node_plugin_id, 
+    reiserfs_plugin_id_t internal_plugin_id);
 
-extern error_t reiserfs_tree_sync(reiserfs_fs_t *fs);
-extern error_t reiserfs_tree_flush(reiserfs_fs_t *fs);
+extern error_t reiserfs_tree_sync(reiserfs_tree_t *tree);
+extern error_t reiserfs_tree_flush(reiserfs_tree_t *tree);
 
-extern error_t reiserfs_tree_item_insert(reiserfs_fs_t *fs, 
+extern error_t reiserfs_tree_item_insert(reiserfs_tree_t *tree, 
     reiserfs_key_t *key, reiserfs_item_info_t *item_info);
 
-extern error_t reiserfs_tree_item_remove(reiserfs_fs_t *fs, 
+extern error_t reiserfs_tree_item_remove(reiserfs_tree_t *tree, 
     reiserfs_key_t *key);
 
-extern error_t reiserfs_tree_node_insert(reiserfs_fs_t *fs, 
+extern error_t reiserfs_tree_node_insert(reiserfs_tree_t *tree, 
     reiserfs_node_t *node);
 
-extern error_t reiserfs_tree_node_remove(reiserfs_fs_t *fs, 
+extern error_t reiserfs_tree_node_remove(reiserfs_tree_t *tree, 
     reiserfs_key_t *key);
 
 #endif
 
-extern int reiserfs_tree_lookup(reiserfs_fs_t *fs, 
+extern int reiserfs_tree_lookup(reiserfs_tree_t *tree, 
     reiserfs_key_t *key, reiserfs_coord_t *coord);
+
+extern reiserfs_node_t *reiserfs_tree_root_node(reiserfs_tree_t *tree);
 
 #endif
 

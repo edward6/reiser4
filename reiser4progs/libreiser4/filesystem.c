@@ -136,7 +136,13 @@ static void reiserfs_master_close(reiserfs_fs_t *fs) {
 reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
     aal_device_t *journal_device, int replay) 
 {
+    count_t len;
     reiserfs_fs_t *fs;
+    reiserfs_plugin_id_t oid_plugin_id;
+    reiserfs_plugin_id_t format_plugin_id;
+    reiserfs_plugin_id_t alloc_plugin_id;
+    reiserfs_plugin_id_t journal_plugin_id;
+    void *oid_area_start, *oid_area_end;
 	
     aal_assert("umka-148", host_device != NULL, return NULL);
 
@@ -149,42 +155,60 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     if (reiserfs_master_open(fs))
 	goto error_free_fs;
 	    
-    if (reiserfs_format_open(fs))
+    format_plugin_id = get_mr_format_id(fs->master);
+    if (!(fs->format = reiserfs_format_open(host_device, format_plugin_id)))
 	goto error_free_master;
 
-    if (reiserfs_alloc_open(fs))
+    alloc_plugin_id = reiserfs_format_alloc_plugin_id(fs->format);
+    journal_plugin_id = reiserfs_format_journal_plugin_id(fs->format);
+    oid_plugin_id = reiserfs_format_oid_plugin_id(fs->format);
+   
+    len = reiserfs_format_get_blocks(fs->format);
+    
+    if (!(fs->alloc = reiserfs_alloc_open(host_device, len, alloc_plugin_id)))
 	goto error_free_super;
 	
     if (journal_device) {
 	aal_device_set_bs(journal_device, reiserfs_fs_blocksize(fs));
 
-	if (reiserfs_journal_open(fs, replay))
+	if (!(fs->journal = reiserfs_journal_open(journal_device, journal_plugin_id)))
 	    goto error_free_alloc;
 	
 	/* Reopening recent superblock */
 	if (replay) {
-	    if (reiserfs_format_reopen(fs))
+	    if (reiserfs_journal_replay(fs->journal)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't replay journal.");
+		goto error_free_journal;
+	    }
+	    if (!(fs->format = reiserfs_format_reopen(fs->format, host_device)))
 		goto error_free_journal;
 	}
     }
     
-    if (reiserfs_oid_open(fs))
+    libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format, 
+	oid, fs->format->entity, &oid_area_start, &oid_area_end);
+    
+    /* FIXME-UMKA: Hardcoded key plugin id */
+    if (!(fs->oid = reiserfs_oid_open(oid_area_start, oid_area_end, 
+	    oid_plugin_id, 0x0)))
 	goto error_free_journal;
     
-    if (reiserfs_tree_open(fs))
+    if (!(fs->tree = reiserfs_tree_open(host_device, reiserfs_format_get_root(fs->format), 
+	    reiserfs_oid_root_key(fs->oid))))
 	goto error_free_oid;
 	
     return fs;
 
 error_free_oid:
-    reiserfs_oid_close(fs);
+    reiserfs_oid_close(fs->oid);
 error_free_journal:
     if (fs->journal)
-	reiserfs_journal_close(fs);
+	reiserfs_journal_close(fs->journal);
 error_free_alloc:
-    reiserfs_alloc_close(fs);
+    reiserfs_alloc_close(fs->alloc);
 error_free_super:
-    reiserfs_format_close(fs);
+    reiserfs_format_close(fs->format);
 error_free_master:
     reiserfs_master_close(fs);
 error_free_fs:
@@ -197,12 +221,18 @@ error:
 
 #define REISERFS_MIN_SIZE (23 + 100)
 
-reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
-    reiserfs_profile_t *profile, size_t blocksize, const char *uuid, 
+reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile, 
+    aal_device_t *host_device, size_t blocksize, const char *uuid, 
     const char *label, count_t len, aal_device_t *journal_device, 
-    reiserfs_params_opaque_t *journal_params)
+    reiserfs_opaque_t *journal_params)
 {
     reiserfs_fs_t *fs;
+    blk_t blk, master_blk;
+    reiserfs_coord_t coord;
+    reiserfs_node_t *root_node;
+    reiserfs_object_t *root_dir;
+    void *oid_area_start, *oid_area_end;
+    blk_t journal_area_start, journal_area_end;
 
     aal_assert("umka-149", host_device != NULL, return NULL);
     aal_assert("umka-150", journal_device != NULL, return NULL);
@@ -228,38 +258,71 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     fs->host_device = host_device;
     fs->journal_device = journal_device;
 
-    if (reiserfs_master_create(fs, profile->format, blocksize, uuid, label))    
+    if (reiserfs_master_create(fs, profile->format, blocksize, uuid, label))
 	goto error_free_fs;
 
-    if (reiserfs_format_create(fs, profile->format, len, journal_params))
+    if (!(fs->format = reiserfs_format_create(host_device, len, profile->format)))
 	goto error_free_master;
 
-    if (reiserfs_alloc_open(fs))
-	goto error_free_super;
+    if (!(fs->alloc = reiserfs_alloc_create(host_device, len, profile->alloc)))
+	goto error_free_format;
 
-    if (reiserfs_journal_open(fs, 0))
+    /* 
+	Marking the skiped area and master super block 
+	(0-16 blocks) as used.
+    */
+    master_blk = (blk_t)(REISERFS_MASTER_OFFSET/aal_device_get_bs(host_device));
+    for (blk = 0; blk <= master_blk; blk++)
+	reiserfs_alloc_mark(fs->alloc, blk);
+    
+    /* Marking format-specific super blocks as used */
+    reiserfs_alloc_mark(fs->alloc, reiserfs_format_offset(fs->format));
+    
+    if (!(fs->journal = reiserfs_journal_create(journal_device, 
+	    journal_params, profile->journal)))
 	goto error_free_alloc;
-
-    if (reiserfs_oid_open(fs))
+   
+    libreiser4_plugin_call(goto error_free_journal, fs->journal->plugin->journal, 
+	area, fs->journal->entity, &journal_area_start, &journal_area_end);
+    
+    for (blk = journal_area_start; blk <= journal_area_end; blk++)
+	reiserfs_alloc_mark(fs->alloc, blk);
+   
+    libreiser4_plugin_call(goto error_free_journal, fs->format->plugin->format, 
+	oid, fs->format->entity, &oid_area_start, &oid_area_end);
+    
+    if (!(fs->oid = reiserfs_oid_create(oid_area_start, oid_area_end, 
+	    profile->oid, profile->key)))
 	goto error_free_journal;
 
-    if (reiserfs_tree_create(fs, profile))
+    if (!(fs->tree = reiserfs_tree_create(host_device, fs->alloc, fs->oid,
+	    profile->node, profile->item.internal)))
 	goto error_free_oid;
     
-    reiserfs_format_set_free(fs, reiserfs_alloc_free(fs));
+    root_node = reiserfs_tree_root_node(fs->tree);
+    reiserfs_format_set_root(fs->format, aal_block_get_nr(root_node->block));
+    
+    coord.node = (reiserfs_node_t *)root_node->children->item;
+    coord.pos.item_pos = 0;
+    coord.pos.unit_pos = -1;
+    
+    root_dir = reiserfs_object_create(fs, &coord, profile);
+    reiserfs_object_close(root_dir);
+    
+    reiserfs_format_set_free(fs->format, reiserfs_alloc_free(fs->alloc));
     
     return fs;
 
 error_free_oid:
-    reiserfs_oid_close(fs);
+    reiserfs_oid_close(fs->oid);
 error_free_journal:
-    reiserfs_journal_close(fs);
+    reiserfs_journal_close(fs->journal);
 error_free_alloc:
-    reiserfs_alloc_close(fs);
-error_free_super:
-    reiserfs_format_close(fs);
+    reiserfs_alloc_close(fs->alloc);
+error_free_format:
+    reiserfs_format_close(fs->format);
 error_free_master:
-    reiserfs_master_close(fs);    
+    reiserfs_master_close(fs);
 error_free_fs:
     aal_free(fs);
 error:
@@ -272,14 +335,19 @@ error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
     if (reiserfs_master_sync(fs))
 	return -1;
     
-    /* 
-	As format is owner of all objects (oid allocator, block allocator),
-	journal, it will sync they itself.
-    */
-    if (reiserfs_format_sync(fs))
+    if (reiserfs_alloc_sync(fs->alloc))
+	return -1;
+    
+    if (reiserfs_journal_sync(fs->journal))
+	return -1;
+    
+    if (reiserfs_oid_sync(fs->oid))
+	return -1;
+    
+    if (reiserfs_format_sync(fs->format))
 	return -1;
 
-    if (reiserfs_tree_sync(fs))
+    if (reiserfs_tree_sync(fs->tree))
 	return -1;
     
     return 0;
@@ -295,21 +363,21 @@ void reiserfs_fs_close(reiserfs_fs_t *fs) {
     
     aal_assert("umka-230", fs != NULL, return);
     
-    reiserfs_tree_close(fs);
+    reiserfs_tree_close(fs->tree);
     
-    reiserfs_oid_close(fs);
+    reiserfs_oid_close(fs->oid);
     
     if (fs->journal)
-	reiserfs_journal_close(fs);
+	reiserfs_journal_close(fs->journal);
 	
-    reiserfs_alloc_close(fs);
-    reiserfs_format_close(fs);
+    reiserfs_alloc_close(fs->alloc);
+    reiserfs_format_close(fs->format);
     reiserfs_master_close(fs);
     aal_free(fs);
 }
 
 const char *reiserfs_fs_format(reiserfs_fs_t *fs) {
-    return reiserfs_format_format(fs);
+    return reiserfs_format_format(fs->format);
 }
 
 reiserfs_plugin_id_t reiserfs_fs_format_plugin_id(reiserfs_fs_t *fs) {

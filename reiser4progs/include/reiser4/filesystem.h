@@ -100,21 +100,8 @@ typedef struct reiserfs_node_header reiserfs_node_header_t;
     chich contains childrens and so on.
 */
 struct reiserfs_tree {
+    reiserfs_key_t *root_key;
     reiserfs_node_t *root_node;
-
-    /*
-	Temporary directory plugin pointer. It is used
-	for destroying root directory. It will be removed
-	when dir API will be complete.
-    */
-    reiserfs_plugin_t *dir_plugin;
-
-    /* 
-	FIXME-UMKA: Here will be reiserfs_dir_t when ready.
-	But for awhile it is just opaque wchich points to 
-	entiry initialized by dir plugin.
-    */
-    reiserfs_opaque_t *root_dir;
 };
 
 typedef struct reiserfs_tree reiserfs_tree_t;
@@ -172,6 +159,7 @@ typedef struct reiserfs_alloc reiserfs_alloc_t;
 struct reiserfs_oid {
     reiserfs_opaque_t *entity;
     reiserfs_plugin_t *plugin;
+    reiserfs_key_t root_key;
 };
 
 typedef struct reiserfs_oid reiserfs_oid_t;
@@ -197,10 +185,10 @@ extern void reiserfs_fs_close(reiserfs_fs_t *fs);
 
 #ifndef ENABLE_COMPACT
 
-extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
-    reiserfs_profile_t *profile, size_t blocksize, const char *uuid, 
+extern reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile, 
+    aal_device_t *host_device, size_t blocksize, const char *uuid, 
     const char *label, count_t len, aal_device_t *journal_device, 
-    reiserfs_params_opaque_t *journal_params);
+    reiserfs_opaque_t *journal_params);
 
 extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
 

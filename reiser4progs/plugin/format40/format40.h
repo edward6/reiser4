@@ -12,11 +12,6 @@
 #define REISERFS_FORMAT40_MAGIC		    "R4Sb-Default"
 #define REISERFS_FORMAT40_OFFSET	    (65536 + 4096)
 
-#define REISERFS_FORMAT40_JOURNAL_HEADER    (4096 * 19)
-#define REISERFS_FORMAT40_JOURNAL_FOOTER    (4096 * 20)
-
-#define REISERFS_FORMAT40_OID_RESERVED	    (1 << 16)
-
 #define REISERFS_FORMAT40_JOURNAL	    0x0
 #define REISERFS_FORMAT40_ALLOC		    0x0
 #define REISERFS_FORMAT40_OID		    0x0
@@ -61,10 +56,6 @@ typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 struct reiserfs_format40 {
     aal_device_t *device;
     aal_block_t *super;
-
-    reiserfs_opaque_t *journal;
-    reiserfs_opaque_t *alloc;
-    reiserfs_opaque_t *oid;
 };
 
 typedef struct reiserfs_format40 reiserfs_format40_t;
