@@ -114,7 +114,7 @@ void spinlock_bug (const char *msg)
 	rpanic ("jmacd-1010", "spinlock: %s", msg); 
 }
 
-#define KMEM_CHECK 0
+#define KMEM_CHECK 1
 #define KMEM_MAGIC 0x74932123U
 
 #define KMEM_FAILURES (1)
@@ -122,11 +122,31 @@ void spinlock_bug (const char *msg)
 static int kmalloc_failure_rate = 0;
 #endif
 
-__u64 total_allocations = 0ull;
+static __u64 total_allocations = 0ull;
 
-void *xxmalloc( size_t size )
+
+/* addr was allocated by xxmalloc. Get size of that area */
+static size_t xx_get_size (void * addr)
 {
-	++ total_allocations;
+	__u32 *check = addr;
+
+	return *(check - 1);
+}
+
+/* check area allocated by xxmalloc */
+static void xx_check_mem (void * addr)
+{
+	__u32 *check = addr;
+	size_t size;
+
+	size = xx_get_size (addr);
+	assert( "jmacd-1065", *(check - 2) == KMEM_MAGIC);
+	assert ("vs-818", *(__u32 *)((char *)check + size) == KMEM_MAGIC);
+}
+
+static void *xxmalloc( size_t size )
+{
+	total_allocations += size;
 
 	if( KMEM_FAILURES && ( rand() < kmalloc_failure_rate ) ) {
 		info( "xxmalloc failed at its discretion\n" );
@@ -137,44 +157,35 @@ void *xxmalloc( size_t size )
 	return malloc( size );
 }
 
-void xfree( void *addr )
+static void xxfree( void *addr )
 {
-	free( addr );
+	xx_check_mem (addr);
+
+	assert ("vs-819", total_allocations >= xx_get_size (addr));
+	total_allocations -= xx_get_size (addr);
+	free( (char *)addr - sizeof (__u32) * 2);
 }
 
 void *kmalloc( size_t size, int flag UNUSE )
 {
 	__u32 *addr;
 
-#if KMEM_CHECK	
-	size += sizeof (__u32);
-#endif
 
-	addr = xxmalloc( size );
-
-#if KMEM_CHECK
+	addr = xxmalloc( size + sizeof (__u32) * 3 );
 	if (addr != NULL) {
 		*addr = KMEM_MAGIC;
-		addr += 1;
+		*(addr + 1) = size;
+		*((__u32 *) ((char *)addr + size + sizeof (__u32) * 2)) = KMEM_MAGIC;
+		addr += 2;
 	}
-#endif
 
+	xx_check_mem (addr);
 	return addr;
 }
 
 void kfree( void *addr )
 {
-	__u32 *check = addr;
-	
-#if KMEM_CHECK	
-	check -= 1;
-
-	assert( "jmacd-1065", *check == KMEM_MAGIC);
-
-	*check = 0;
-#endif
-	
-	free( check );
+	xxfree( addr );
 }
 
 /* 
@@ -332,11 +343,68 @@ static struct inode *get_root_dir( struct super_block *s )
 }
 
 
-/****************************************************************************/
-
-
+/* all inodes are in one list **/
 static spinlock_t inode_hash_guard = SPIN_LOCK_UNLOCKED;
 struct list_head inode_hash_list;
+
+
+#if 0
+/****************************************************************************/
+/* hash table support */
+
+#define PAGE_HASH_TABLE_SIZE 8192
+
+typedef struct page *page_p;
+
+static inline int indexeq( const page_p *p1,
+			   const page_p *p2 )
+{
+	return 
+		( ( *p1 ) -> index == ( *p2 ) -> index ) && 
+		( ( *p1 ) -> mapping == ( *p2 ) -> mapping );
+}
+
+static inline __u32 indexhashfn( const page_p *p )
+{
+	__u32 result;
+
+	result = ( ( __u32 ) ( *p ) -> mapping ) << 16;
+	result = result | ( ( *p ) -> index & 0xffff );
+	return result & ( PAGE_HASH_TABLE_SIZE - 1 );
+}
+
+/** The hash table definition */
+#define KMALLOC( size ) malloc( size )
+#define KFREE( ptr, size ) free( ptr )
+TS_HASH_DEFINE( pc, struct page, page_p, self, link, indexhashfn, indexeq );
+#undef KFREE
+#undef KMALLOC
+
+#endif
+
+
+/** definition of hash table of address space. radix_tree_insert|lookup|delete
+ * deal with it */
+static inline int indexeq (const unsigned long *p1, const unsigned long *p2 )
+{
+	return *p1 == *p2;
+}
+
+#define MAPPING_HASH_TABLE_SIZE 32
+
+static inline __u32 indexhashfn( const unsigned long *p )
+{
+	__u32 result;
+
+	result = ( ( *p ) & 0xffff );
+	return result & ( MAPPING_HASH_TABLE_SIZE - 1 );
+}
+
+#define KMALLOC( size ) malloc( size )
+#define KFREE( ptr, size ) free( ptr )
+TS_HASH_DEFINE( mp, struct page, unsigned long, index, link, indexhashfn, indexeq );
+#undef KFREE
+#undef KMALLOC
 
 
 static struct inode * alloc_inode (struct super_block * sb)
@@ -358,8 +426,17 @@ static struct inode * alloc_inode (struct super_block * sb)
 	INIT_LIST_HEAD (&inode->i_mapping->dirty_pages);
 	INIT_LIST_HEAD (&inode->i_mapping->locked_pages);
 	spin_lock_init (&inode->i_mapping->page_lock);
+
+	/*
+	 * FIXME-VS: init mapping's hash table of pages
+	 */
+	inode->i_mapping->page_tree.vp = (mp_hash_table *)xxmalloc (sizeof (mp_hash_table));
+	assert ("vs-807", inode->i_mapping->page_tree.vp);
+	mp_hash_init ((mp_hash_table *)(inode->i_mapping->page_tree.vp), MAPPING_HASH_TABLE_SIZE);
+
 	return inode;
 }
+
 
 struct inode * new_inode (struct super_block * sb)
 {
@@ -433,6 +510,30 @@ struct inode * find_get_inode(struct super_block * sb, unsigned long ino, int (*
 
 static void truncate_inode_pages (struct address_space * mapping,
 				  loff_t from);
+
+int shrink_icache (void)
+{	
+	struct list_head * cur, * tmp;
+	struct inode * inode;
+	int removed;
+
+	removed = 0;
+	spin_lock (&inode_hash_guard);
+	list_for_each_safe (cur, tmp, &inode_hash_list) {
+		inode = list_entry (cur, struct inode, i_hash);
+		if (atomic_read (&inode->i_count) || (inode->i_state & I_DIRTY))
+			continue;
+		truncate_inode_pages (inode->i_mapping, (loff_t)0);
+		list_del_init (&inode->i_hash);
+		inode->i_sb->s_op->destroy_inode (inode);		
+		removed ++;
+	}
+	spin_unlock (&inode_hash_guard);
+	info ("shrink_icache: removed %d inodes\n", removed);
+	return 0;
+}
+
+
 /* remove all inodes from their list */
 int invalidate_inodes (struct super_block *sb)
 {
@@ -445,7 +546,7 @@ int invalidate_inodes (struct super_block *sb)
 		inode = list_entry (cur, struct inode, i_hash);
 		if (inode->i_sb != sb)
 			continue;
-		truncate_inode_pages (inode->i_mapping, (loff_t)0);
+		/*truncate_inode_pages (inode->i_mapping, (loff_t)0);*/
 		if (atomic_read (&inode->i_count) || (inode->i_state & I_DIRTY)){
 			/* print_inode ("invalidate_inodes", inode); */
 			++ busy;
@@ -464,23 +565,37 @@ void iput( struct inode *inode )
 	if( !inode )
 		return;
 	if( atomic_dec_and_test( & inode -> i_count) ) {
-		/* i_count drops to 0, call release
-		 * FIXME-VS: */
-		struct file file;
-		struct dentry dentry;
+		/* i_count drops to 0 */
+		if( inode->i_nlink == 0 ) {
+			/* file is deleted. free all its pages */
+			truncate_inode_pages (inode->i_mapping, (loff_t)0); 
 
-		xmemset (&dentry, 0, sizeof dentry);
-		xmemset (&file, 0, sizeof file);
-		file.f_dentry = &dentry;
-		dentry.d_inode = inode;
-		if( inode->i_nlink == 0 )
-			 truncate_inode_pages (inode->i_mapping, (loff_t)0); 
-		if (inode->i_fop && inode->i_fop->release (inode, &file))
-			info ("release failed");
+			/* delete file from the tree */
+			/*
+			 * FIXME-VS: reiser4 does not have delete inode!
+			 */
 
-		spin_lock( &inode_hash_guard );
-		/*list_del_init( &inode -> i_hash );*/
-		spin_unlock( &inode_hash_guard );
+			if (inode->i_sb->s_op->delete_inode)
+				inode->i_sb->s_op->delete_inode (inode);
+
+			/* destroy inode */
+			spin_lock( &inode_hash_guard );
+			list_del_init( &inode -> i_hash );
+			spin_unlock( &inode_hash_guard );
+			inode->i_sb->s_op->destroy_inode (inode);
+		} else {
+			/* last reference to file is closed, call release */
+			struct file file;
+			struct dentry dentry;
+			
+			xmemset (&dentry, 0, sizeof dentry);
+			xmemset (&file, 0, sizeof file);
+			file.f_dentry = &dentry;
+			dentry.d_inode = inode;
+			if (inode->i_fop && inode->i_fop->release (inode, &file))
+				info ("release failed\n");
+			/* leave inode in hash table with all its pages */
+		}
 	}
 }
 
@@ -527,6 +642,7 @@ get_new_inode(struct super_block *sb,
 	inode = alloc_inode(sb);
 	if (inode == NULL)
 		return NULL;
+		
 	spin_lock_init( &reiser4_inode_data( inode ) -> guard );
 	init_rwsem( &reiser4_inode_data( inode ) -> sem );
 	if (inode) {
@@ -679,46 +795,59 @@ void lru_cache_del (struct page * page UNUSED_ARG)
 }
 
 
+
+/* lib/radix_tree.c */
+
+/*
+ * radix_tree_insert, radix_tree_lookup, radix_tree_delete are used to attach,
+ * look for and detach page from mapping. Mapping has struct field page_tree
+ * (of type struct radix_tree_root) which is used to attach pages to the
+ * mapping. When page is attached to mapping - it gets reference counter
+ * incremented
+ */
+void * radix_tree_lookup (struct radix_tree_root * tree, unsigned long index)
+{
+	struct page * page;
+
+	page = mp_hash_find ((mp_hash_table *)tree->vp, &index);
+	return page;
+}
+
+
+int radix_tree_insert (struct radix_tree_root * tree, unsigned long index,
+		       void * item)
+{
+	mp_hash_insert ((mp_hash_table *)tree->vp, (struct page *)item);
+	return 0;
+}
+
+
+int radix_tree_delete (struct radix_tree_root * tree, unsigned long index)
+{
+	struct page * page;
+
+	page = (struct page *)radix_tree_lookup (tree, index);
+	assert ("vs-808", page);
+	mp_hash_remove ((mp_hash_table *)tree->vp, page);
+	return 0;
+}
+
+
 /* mm/filemap.c */
 
-/* hash table support */
 
-#define PAGE_HASH_TABLE_SIZE 8192
-
-typedef struct page *page_p;
-
-static inline int indexeq( const page_p *p1,
-			   const page_p *p2 )
-{
-	return 
-		( ( *p1 ) -> index == ( *p2 ) -> index ) && 
-		( ( *p1 ) -> mapping == ( *p2 ) -> mapping );
-}
-
-static inline __u32 indexhashfn( const page_p *p )
-{
-	__u32 result;
-
-	result = ( ( __u32 ) ( *p ) -> mapping ) << 16;
-	result = result | ( ( *p ) -> index & 0xffff );
-	return result & ( PAGE_HASH_TABLE_SIZE - 1 );
-}
-
-/** The hash table definition */
-#define KMALLOC( size ) malloc( size )
-#define KFREE( ptr, size ) free( ptr )
-TS_HASH_DEFINE( pc, struct page, page_p, self, link, indexhashfn, indexeq );
-#undef KFREE
-#undef KMALLOC
-
-pc_hash_table page_htable;
+/* all pages are on this list. uswapd scans this list, writeback-s and frees
+ * pages */
+struct list_head page_lru_list;
 static spinlock_t page_list_guard = SPIN_LOCK_UNLOCKED;
+unsigned long nr_pages;
 
-static void init_page (struct page * page, struct address_space * mapping,
-		       unsigned long ind)
+
+static void init_page (struct page * page, struct address_space * mapping/*,
+					   unsigned long ind*/)
 {
-	page->index = ind;
-	page->mapping = mapping;
+	/*page->index = ind;
+	  page->mapping = mapping;*/
 	page->private = 0;
 	page->self = page;
 	atomic_set (&page->count, 1);
@@ -727,23 +856,30 @@ static void init_page (struct page * page, struct address_space * mapping,
 	spin_lock_init (&page->lock);
 	spin_lock_init (&page->lock2);
 
-	list_add(&page->mapping_list, &mapping->locked_pages);
-	spin_lock( &page_list_guard );
-	pc_hash_insert( &page_htable, page );
-	spin_unlock( &page_list_guard );
 }
 
-static struct page * new_page (struct address_space * mapping,
-			       unsigned long ind)
+
+/* include/linux/pagemap.h */
+struct page * page_cache_alloc (struct address_space * mapping UNUSED_ARG)
 {
 	struct page * page;
+	struct list_head * cur;
+
+
+	spin_lock( &page_list_guard );
 
 	page = kmalloc (sizeof (struct page) + PAGE_CACHE_SIZE, 0);
-	if (page != NULL) {
-		xmemset (page, 0, sizeof (struct page) + PAGE_CACHE_SIZE);
+	assert ("vs-790", page);
+	xmemset (page, 0, sizeof (struct page) + PAGE_CACHE_SIZE);
+	atomic_set (&page->count, 1);
+	
+	init_page (page, mapping/*, ind*/);
 
-		init_page (page, mapping, ind);
-	}
+	/* add page into global lru list */
+	list_add (&page->lru, &page_lru_list);
+	nr_pages ++;
+
+	spin_unlock( &page_list_guard );
 	return page;
 }
 
@@ -764,17 +900,20 @@ void unlock_page (struct page * p)
 }
 
 
-void remove_inode_page (struct page * page)
-{
-	/* assert ("vs-618", atomic_read (&page->count) == 2); */
-
-	page->mapping = 0;
-}
-
-
 struct page * find_get_page (struct address_space * mapping,
 			     unsigned long ind)
 {
+	struct page * page;
+
+	read_lock (&mapping->page_lock);
+
+	page = radix_tree_lookup (&mapping->page_tree, ind);
+	if (page) {
+		page_cache_get (page);
+	}
+	read_unlock (&mapping->page_lock);
+	return page;
+/*
 	struct page * page;
 	struct {
 		unsigned long index;
@@ -788,27 +927,68 @@ struct page * find_get_page (struct address_space * mapping,
 		atomic_inc (&page->count);
 	spin_unlock( &page_list_guard );
 	return page;
-}
-
-
-void * radix_tree_lookup (struct radix_tree_root * tree, unsigned long index)
-{
-	return 0;
-/*
-	struct page * page;
-
-	page = find_get_page ();
-	if (page) {
-		spin_lock( &page_list_guard );
-		atomic_dec (&page->count);
-		spin_unlock( &page_list_guard );
-	}
 */
 }
 
 
-static void truncate_inode_pages (struct address_space * mapping,
-				  loff_t from)
+struct page * find_lock_page (struct address_space * mapping,
+			      unsigned long ind)
+{
+	struct page * page;
+
+	read_lock (&mapping->page_lock);
+ repeat:
+	page = radix_tree_lookup (&mapping->page_tree, ind);
+	if (page) {
+		page_cache_get (page);
+		read_unlock (&mapping->page_lock);
+		lock_page (page);
+		read_lock (&mapping->page_lock);
+		if (page->mapping != mapping || page->index != ind) {
+			unlock_page (page);
+			page_cache_release (page);
+			goto repeat;
+		}			
+	}
+
+	read_unlock (&mapping->page_lock);
+	return page;
+}
+
+
+/* this increases page->count and locks the page */
+struct page * grab_cache_page (struct address_space * mapping,
+			       unsigned long ind)
+{
+	struct page * page;
+
+ repeat:
+	page = find_lock_page (mapping, ind);
+	if (page)
+		return page;
+
+	page = page_cache_alloc (mapping);
+	if (page) {
+		if (add_to_page_cache_unique (page, mapping, ind))
+			goto repeat;
+	}
+	return page;
+}
+
+
+void remove_inode_page (struct page * page)
+{
+	/* remove page from mapping */
+	radix_tree_delete (&page->mapping->page_tree, page->index);
+	/* remove from mapping's list: clean, dirty or locked */
+	list_del (&page->list);
+	page->mapping->nrpages--;
+	page->mapping = NULL;
+}
+
+#if 0
+static void truncate_inode_pages2 (struct address_space * mapping,
+				   loff_t from)
 {
 	struct page *  tmp;
 	struct page *  page;
@@ -842,35 +1022,77 @@ static void truncate_inode_pages (struct address_space * mapping,
 		}
 	}
 }
+#endif
 
-
-struct page * find_lock_page (struct address_space * mapping,
-			      unsigned long ind)
+static void truncate_complete_page (struct page * page)
 {
-	struct page * page;
-
-	page = find_get_page (mapping, ind);
-	if (page)
-		lock_page (page);
-	return page;
+	page->mapping->a_ops->invalidatepage (page, 0);
+	ClearPageDirty (page);
+	ClearPageUptodate (page);
+	remove_inode_page (page);
+	page_cache_release (page);
 }
 
 
-/* this increases page->count and locks the page */
-struct page * grab_cache_page (struct address_space * mapping,
-			       unsigned long ind)
+int truncate_list_pages (struct address_space * mapping,
+			 struct list_head *head,
+			 unsigned long start)
 {
+	struct list_head * cur, * tmp;
 	struct page * page;
 
+ repeat:
+	list_for_each_safe (cur, tmp, head) {
+		int failed;
 
-	page = find_lock_page (mapping, ind);
-	if (page)
-		return page;
-
-	page = new_page (mapping, ind);
-	if (page)
+		if (page->index < start) {
+			continue;
+		}
+		page = list_entry (cur, struct page, list);
+		page_cache_get (page);
+		failed = PageLocked (page);
+		if (failed) {
+			write_unlock (&mapping->page_lock);
+			wait_on_page_locked (page);
+			page_cache_release (page);
+			write_lock (&mapping->page_lock);
+			goto repeat;
+		}
 		lock_page (page);
-	return page;
+		if (PageWriteback(page)) {
+			unlock_page (page);
+			write_unlock (&mapping->page_lock);
+			wait_on_page_writeback (page);
+			assert ("vs-810", !PageWriteback (page));
+			page_cache_release (page);
+			write_lock (&mapping->page_lock);
+			goto repeat;
+		}
+
+		truncate_complete_page (page);
+
+		unlock_page (page);
+		page_cache_release (page);
+	}
+	return 0;
+}
+
+
+/* remove pages which are beyond offset @from */
+static void truncate_inode_pages (struct address_space * mapping,
+				  loff_t from)
+{
+	unsigned ind;
+
+	
+	ind = (from + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	write_lock (&mapping->page_lock);
+
+	truncate_list_pages (mapping, &mapping->clean_pages, ind);
+	truncate_list_pages (mapping, &mapping->dirty_pages, ind);
+	truncate_list_pages (mapping, &mapping->locked_pages, ind);
+
+	write_unlock (&mapping->page_lock);
 }
 
 
@@ -884,16 +1106,26 @@ struct page *read_cache_page (struct address_space * mapping,
 	int result;
 	struct page * page;
 
+
+ repeat:
 	page = find_get_page (mapping, idx);
-	if (!page)
-		page = new_page (mapping, idx);
-	
-	if (page && !PageUptodate (page)) {
+	if (page) {
+		if (PageUptodate(page)) {
+			return page;
+		}
 		lock_page (page);
-		result = filler (data, page);
-		if (result)
-			return ERR_PTR (result);
+	} else {
+		page = page_cache_alloc (mapping);
+		if (!page)
+			return ERR_PTR (-ENOMEM);
+		if (add_to_page_cache_unique (page, mapping, idx))
+			goto repeat;
 	}
+
+	result = filler (data, page);
+	if (result)
+		return ERR_PTR (result);
+
 	return page;
 }
 
@@ -904,12 +1136,37 @@ int generic_file_mmap(struct file * file UNUSED_ARG,
 }
 
 
-/**/
+/* mm/filemap.c:add_to_page_cache_unique
+   look for page in mapping's "page_tree"
+   if it is not found:
+   	add page into it
+	increase page reference counter
+	set Lock bit
+	clear Dirty bit
+	add page into mapping's list of clean pages
+*/
 int add_to_page_cache_unique (struct page * page,
 			      struct address_space * mapping,
 			      unsigned long offset)
 {
-	
+	write_lock (&mapping->page_lock);
+
+	if (radix_tree_lookup (&mapping->page_tree, offset)) {
+		write_unlock (&mapping->page_lock);
+		return -EEXIST;
+	}
+
+	page->index = offset;
+	radix_tree_insert (&mapping->page_tree, offset, page);
+	mapping->nrpages ++;
+
+	page_cache_get (page);
+	page->mapping = mapping;
+	list_add (&page->list, &mapping->clean_pages);
+	lock_page (page);
+	ClearPageDirty (page);
+
+	write_unlock (&mapping->page_lock);
 	return 0;
 }
 
@@ -923,6 +1180,7 @@ void wait_on_page_locked(struct page * page)
 	lock_page (page);
 	unlock_page (page);
 }
+
 
 void wait_on_page_writeback(struct page * page UNUSED_ARG)
 {
@@ -951,6 +1209,7 @@ void page_cache_readahead (struct file * file, unsigned long offset)
 }
 
 
+#if 0
 static void invalidate_pages (void)
 {
 	struct page *  tmp;
@@ -970,7 +1229,9 @@ static void invalidate_pages (void)
 	}
 	spin_unlock( &page_list_guard );
 }
+#endif
 
+/*
 void print_pages (const char *prefix)
 {
 	struct page *  tmp;
@@ -980,7 +1241,7 @@ void print_pages (const char *prefix)
 	for_all_in_htable( &page_htable, bucket, page, tmp, link )
 		print_page( prefix, page );
 }
-
+*/
 
 void print_inodes (const char *prefix)
 {
@@ -990,6 +1251,51 @@ void print_inodes (const char *prefix)
 	list_for_each (cur, &inode_hash_list) {
 		inode = list_entry (cur, struct inode, i_hash);
 		print_inode (prefix, inode);
+	}
+}
+
+
+/* print number of pages atached to inode's mapping */
+static void print_inode_pages (struct inode * inode)
+{
+	struct address_space * mapping;
+	struct page *  tmp;
+	struct page *  page;
+	struct page ** bucket;
+
+
+	mapping = &inode->i_data;
+	read_lock (&mapping->page_lock);
+	info ("\tPAGES %ld:\n", mapping->nrpages);
+
+
+	for_all_in_htable ((mp_hash_table *)mapping->page_tree.vp,
+			   bucket, page, tmp, link) {
+		info ("\t%p, index %lu, count %d, flags (%s, %s, %s)\n",
+		      page, page->index, atomic_read (&page->count),
+		      PageLocked (page) ? "locked" : "not locked",
+		      PageDirty (page) ? "dirty" : "clean",
+		      PageUptodate (page) ? "uptodate" : "not uptodate");
+		if (PagePrivate (page)) {
+			info_jnode ("\tjnode", (jnode *)page->private);
+			info ("\n");
+		}
+	}
+
+	read_unlock (&mapping->page_lock);
+}
+
+
+/* print all the inodes and pages attached to them */
+void print_inodes_2 (void)
+{
+	struct inode * inode;
+	struct list_head * cur;
+
+	list_for_each (cur, &inode_hash_list) {
+		inode = list_entry (cur, struct inode, i_hash);
+		info ("%p: INO %lu: (count=%d)\n", inode, inode->i_ino, atomic_read (&inode->i_count));
+		print_inode_pages (inode);
 	}
 }
 
@@ -1031,6 +1337,7 @@ unsigned long get_jiffies ()
 	return (tv.tv_sec * 1e6 + tv.tv_usec);
 }
 
+
 void page_cache_get(struct page * page)
 {
 	spin_lock( &page_list_guard );
@@ -1038,22 +1345,32 @@ void page_cache_get(struct page * page)
 	spin_unlock( &page_list_guard );
 }
 
+
 /* mm/page_alloc.c */
 void page_cache_release (struct page * page)
 {
-	spin_lock( &page_list_guard );
 	assert ("vs-352", atomic_read (&page->count) > 0);
 	atomic_dec (&page->count);
-	spin_unlock( &page_list_guard );
+	if (!atomic_read (&page->count)) {
+		spin_lock( &page_list_guard );
+
+		list_del (&page->lru);
+		kfree (page);
+		nr_pages --;
+
+		spin_unlock( &page_list_guard );
+	}
 }
 
 
 /* fs/buffer.c */
 int fsync_bdev(struct block_device * bdev)
 {
+#if 0
 	struct page *  tmp;
 	struct page *  page;
 	struct page ** bucket;
+
 
 	for_all_in_htable( &page_htable, bucket, page, tmp, link ) {
 		struct buffer_head bh, *pbh;
@@ -1081,6 +1398,7 @@ int fsync_bdev(struct block_device * bdev)
 		ClearPageDirty (page);
 		// jnode_detach_page (j);
 	}
+#endif
 	return 0;
 }
 
@@ -1210,19 +1528,6 @@ int submit_bio( int rw, struct bio *bio )
 		clear_bit( BIO_UPTODATE, &bio -> bi_flags );
 	bio -> bi_end_io( bio );
 	return success ? 0 : -1;
-}
-
-
-/* include/linux/pagemap.h */
-struct page *page_cache_alloc (struct address_space * mapping UNUSED_ARG)
-{
-	struct page * page;
-
-	page = kmalloc (sizeof (struct page) + PAGE_CACHE_SIZE, 0);
-	assert ("vs-790", page);
-	xmemset (page, 0, sizeof (struct page) + PAGE_CACHE_SIZE);
-	atomic_set (&page->count, 1);
-	return page;
 }
 
 
@@ -2932,7 +3237,7 @@ static void bash_umount (struct super_block * sb/*reiser4_context * context*/)
 	/* free all pages and inodes, make sure that there are no dirty/used
 	 * pages/inodes */
 	invalidate_inodes (sb);
-	invalidate_pages ();
+	/*invalidate_pages ();*/
 
 	/* REISER4_EXIT */
 /*
@@ -2994,7 +3299,7 @@ static int bash_mkfs (char * file_name)
 	} else if (!strcmp (p, "40")) {
 		char * command;
 
-		asprintf (&command, "reiser4progs/reiser4progs/mkfs/mkfs.reiser4 %s", file_name);
+		asprintf (&command, "echo y | reiser4progs/reiser4progs/mkfs/mkfs.reiser4 %s", file_name);
 		if (system (command)) {
 			free (command);
 			info ("mkfs 40: %s\n", strerror (errno));
@@ -3159,8 +3464,6 @@ static int bash_mkfs (char * file_name)
 				return result;
 			}
 			
-			INIT_LIST_HEAD( &inode_hash_list );
-
 			/* get inode of fake parent */
 
 			fake_parent = get_new_inode (&super, 2,
@@ -3254,7 +3557,7 @@ static int bash_mkfs (char * file_name)
 
 		result = __REISER4_EXIT( &__context );
 		call_umount (&super);
-		invalidate_pages ();
+		/*invalidate_pages ();*/
 	}
 	return result;
 } /* bash_mkfs */
@@ -4262,6 +4565,14 @@ static void *uswapd( void *untyped )
 	REISER4_EXIT_PTR( NULL );
 }
 
+
+/* scan list of pages, writeback dirty pages, release freeable pages */
+shrink_cache ()
+{
+	
+}
+
+
 void declare_memory_pressure( void )
 {
 	/* FIXME: To disable ulevel memory pressure, return here.  Make it an environment option? */
@@ -4369,7 +4680,9 @@ int real_main( int argc, char **argv )
 		kmalloc_failure_rate = 0;
 
 	INIT_LIST_HEAD( &inode_hash_list );
-	pc_hash_init( &page_htable, PAGE_HASH_TABLE_SIZE );
+	INIT_LIST_HEAD( &page_lru_list );
+	nr_pages = 0;
+	/*pc_hash_init( &page_htable, PAGE_HASH_TABLE_SIZE );*/
 
 	/*
 	 * FIXME-VS: will be fixed
@@ -4441,7 +4754,7 @@ int real_main( int argc, char **argv )
 		/* free all pages and inodes, make sure that there are no dirty/used
 		 * pages/inodes */
 		invalidate_inodes (s);
-		invalidate_pages ();
+		/*invalidate_pages ();*/
 
 		/*bash_umount ( &__context );*/
 	}
@@ -4543,10 +4856,10 @@ int __set_page_dirty_nobuffers(struct page *page)
 		struct address_space *mapping = page->mapping;
 
 		if (mapping) {
-			spin_lock( &page_list_guard );
-			list_del(&page->mapping_list);
-			list_add(&page->mapping_list, &mapping->dirty_pages);
-			spin_unlock( &page_list_guard );
+			write_lock( &mapping->page_lock );
+			list_del(&page->list);
+			list_add(&page->list, &mapping->dirty_pages);
+			write_unlock( &mapping->page_lock );
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
 	}
@@ -4574,9 +4887,9 @@ int write_one_page(struct page *page, int wait)
 		wait_on_page_writeback(page);
 
 	spin_lock(&mapping->page_lock);
-	list_del(&page->mapping_list);
+	list_del(&page->list);
 	if (TestClearPageDirty(page)) {
-		list_add(&page->mapping_list, &mapping->locked_pages);
+		list_add(&page->list, &mapping->locked_pages);
 		page_cache_get(page);
 		spin_unlock(&mapping->page_lock);
 		ret = mapping->a_ops->writepage(page);
@@ -4587,7 +4900,7 @@ int write_one_page(struct page *page, int wait)
 		}
 		page_cache_release(page);
 	} else {
-		list_add(&page->mapping_list, &mapping->clean_pages);
+		list_add(&page->list, &mapping->clean_pages);
 		spin_unlock(&mapping->page_lock);
 		unlock_page(page);
 	}
