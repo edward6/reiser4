@@ -209,7 +209,7 @@ static void reiser4_set_bits (char * addr, int start, int end)
 /** calculate bitmap block number and offset within that bitmap block */
 static void parse_blocknr (const reiser4_block_nr *block, int *bmap, int *offset)
 {
-	struct super_block * super = reiser4_get_current_context()->super;
+	struct super_block * super = get_current_context()->super;
 
 	*bmap   = *block / super->s_blocksize;
 	*offset = *block % super->s_blocksize;
@@ -271,7 +271,7 @@ static int load_bnode_half (znode ** node_pp, reiser4_block_nr *block)
 static int load_bnode (struct reiser4_bnode * bnode)
 {
 	reiser4_super_info_data * info_data = get_current_super_private(); 
-	struct super_block * super = reiser4_get_current_context()->super;
+	struct super_block * super = get_current_context()->super;
 	int ret = 0;
 	int bmap_nr = info_data->bitmap - bnode;
 	reiser4_block_nr bnr;
@@ -388,7 +388,7 @@ int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_
 	int end_bmap, end_offset;
 	int len;
 
-	struct super_block * super = reiser4_get_current_context()->super;
+	struct super_block * super = get_current_context()->super;
 	int max_offset = super->s_blocksize;
 
 	parse_blocknr(start, &bmap, &offset);
@@ -525,7 +525,7 @@ int alloc_new_block (reiser4_block_nr * block)
 /** */
 void dealloc_new_blocks (int count)
 {
-	struct super_block * super = reiser4_get_current_context()->super;
+	struct super_block * super = get_current_context()->super;
 	reiser4_super_info_data * info_data = get_super_private(super);
 
 	spin_lock (&info_data->guard);
@@ -541,7 +541,7 @@ void dealloc_new_blocks (int count)
 /** FIXME: Zam: isn't start contained in hint? -josh */
 int reiser4_alloc_blocks (struct reiser4_blocknr_hint * hint UNUSED_ARG, reiser4_block_nr *start, int *len)
 {
-	struct super_block      * super = reiser4_get_current_context()->super;
+	struct super_block      * super = get_current_context()->super;
 	reiser4_super_info_data * info_data = get_super_private(super); 
 
 	int      actual_len;
