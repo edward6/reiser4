@@ -726,6 +726,7 @@ int zload( znode *node /* znode to load */ )
 
 	assert( "nikita-484", node != NULL );
 	assert( "nikita-1377", znode_invariant( node ) );
+	assert( "jmacd-7771", ! znode_above_root( node ) );
 
 	result = 0;
 	spin_lock_znode( node );
@@ -826,6 +827,7 @@ static int zrelse_nolock( znode *node /* znode to release references to */ )
 						     ZJNODE( node ) );
 		ZF_CLR( node, ZNODE_LOADED );
 	}
+	/* FIXME: Josh thinks this should return void. */
 	return 0;
 }
 
