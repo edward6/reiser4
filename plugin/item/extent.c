@@ -1301,12 +1301,12 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, fl
 		 * in assign_fake_blocknr(). Thus we convert "flush reserved"
 		 * space to "unallocated" one reflecting that extent allocation
 		 * status change. */
-		flush_reserved2grabbed(atom, count);
+		flush_reserved2grabbed(atom, extent_width);
 		UNLOCK_ATOM(atom);
 
 		start = extent_get_start(extent);
 
-		ret = reiser4_dealloc_blocks(&start, &count, BLOCK_ALLOCATED, BA_DEFER,
+		ret = reiser4_dealloc_blocks(&start, &extent_width, BLOCK_ALLOCATED, BA_DEFER,
 					     "deallocate blocks of already allocated extent");
 		if (ret)
 			return ret;
@@ -1559,7 +1559,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 		trace_on(TRACE_EXTENTS, "alloc_and_copy_extent: unit %u/%u\n", right->unit_pos, coord_num_units(right));
 
 		width = extent_get_width(ext);
-		if ((result = extent_needs_allocation(ext, oid, index, width, flush_pos)) < 0) {
+		if ((result = extent_needs_allocation(ext, oid, index, flush_pos)) < 0) {
 			goto done;
 		}
 
@@ -1833,7 +1833,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_pos_t * f
 
 		width = extent_get_width(ext);
 
-		if ((result = extent_needs_allocation(ext, oid, index, width, flush_pos)) < 0) {
+		if ((result = extent_needs_allocation(ext, oid, index, flush_pos)) < 0) {
 			break;
 		}
 
