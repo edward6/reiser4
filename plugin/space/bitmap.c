@@ -1244,6 +1244,7 @@ pre_commit_hook_bitmap(void)
 	long long blocks_freed = 0;
 
 	atom = get_current_atom_locked ();
+	BUG_ON(atom->stage != ASTAGE_PRE_COMMIT);
 	assert ("zam-876", atom->stage == ASTAGE_PRE_COMMIT);
 	spin_unlock_atom(atom);
 
