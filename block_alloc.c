@@ -303,6 +303,11 @@ reiser4_grab(__u64 count, reiser4_ba_flags_t flags)
 	add_to_ctx_grabbed(count);
 	add_to_sb_grabbed(super, count);
 
+#if REISER4_DEBUG
+	get_current_context()->grabbed_initially = count;
+	get_current_context()->grabbed_at = __builtin_return_address(0);
+#endif
+
 	free_blocks -= count;
 	reiser4_set_free_blocks(super, free_blocks);
 
@@ -311,10 +316,11 @@ reiser4_grab(__u64 count, reiser4_ba_flags_t flags)
 	trace_on(TRACE_ALLOC, "%s: grabbed %llu, free blocks left %llu\n",
 		 __FUNCTION__, count, reiser4_free_blocks (super));
 
+	grab_space_disable();
+
 unlock_and_ret:
 	reiser4_spin_unlock_sb(super);
 
-	grab_space_disable();
 	return ret;
 }
 
@@ -327,6 +333,9 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 #endif
 {
     int ret;
+
+    assert("nikita-2964", ergo(flags & BA_CAN_COMMIT, 
+			       lock_stack_isclean(get_current_lock_stack())));
 
     trace_if(TRACE_RESERVE2, info("grab_space: %llu for: %s..", count, message));
 
