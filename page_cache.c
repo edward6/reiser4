@@ -658,6 +658,9 @@ drop_page(struct page *page)
 	assert("nikita-2181", PageLocked(page));
 	clear_page_dirty(page);
 	ClearPageUptodate(page);
+#if defined(PG_skipped)
+	ClearPageSkipped(page);
+#endif
 	remove_from_page_cache(page);
 
 	reiser4_unlock_page(page);
