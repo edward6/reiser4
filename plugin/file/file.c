@@ -739,8 +739,9 @@ ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 		 * to */
 		result = find_next_item (file, &f->key, &coord, &lh, ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-			/* error occured */
-			break;
+			/* error occurred */
+			done_lh (&lh);
+			return result;
 		}
 
 		/* store what we zload so that we were able to zrelse */
