@@ -1,7 +1,5 @@
 /* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
-
-/* EDWARD-FIXME-HANS: comment goes at top of every file you write, such as... */
-/* See http://www.namesys.com/cryptcompress_design.txt . */
+/* See http://www.namesys.com/cryptcompress_design.html */
 
 #if !defined( __FS_REISER4_CRYPTCOMPRESS_H__ )
 #define __FS_REISER4_CRYPTCOMPRESS_H__
@@ -15,14 +13,14 @@
 #define MIN_CRYPTO_BLOCKSIZE 8
 #define CLUSTER_MAGIC_SIZE (MIN_CRYPTO_BLOCKSIZE >> 1)
 
-/* EDWARD-FIXME-HANS: comment needed... */
+/* cluster status */
 typedef enum {
 	DATA_CLUSTER = 0,
-	HOLE_CLUSTER = 1,
-	FAKE_CLUSTER = 2
+	HOLE_CLUSTER = 1, /* indicates hole for write ops */
+	FAKE_CLUSTER = 2  /* indicates absence of disk cluster for read ops */
 } reiser4_cluster_status;
 
-/* EDWARD-FIXME-HANS: comment needed... */
+/* Write modes for item conversion in flush squeeze phase */
 typedef enum {
 	CRC_FIRST_ITEM = 1,
 	CRC_APPEND_ITEM = 2,
@@ -30,15 +28,17 @@ typedef enum {
 	CRC_CUT_ITEM = 4
 } crc_write_mode_t;
 
-/* reiser4 cluster manager transforms pages into a set of items (and back) via
-   assembling/splitting continuous regions where crypto/compression algorithm live.
-   This manager consists mostly of operations on the following object: */
+/* reiser4 cluster manager transforms page cluster into disk cluster (and back) via
+   input/output stream of crypto/compression algorithms using copy on clustering.
+   COC means that page cluster will be assembled into united stream before compression,
+   and output stream of decompression algorithm will be split into pages.
+   This manager consists mostly of operations on the following object which represents
+   one cluster:
+*/
 typedef struct reiser4_cluster{
-	__u8 * buf;      /* pointer to the beginning of region where crypto/compression
-			    algorithms live; this region contains only one cluster */
-/* EDWARD-FIXME-HANS: I don't understand the comment above, particularly what live means. */
-	size_t bsize;    /* the length of this region */
-	size_t len;      /* current length of the processed cluster */
+	__u8 * buf;      /* pointer to input/output stream of crypto/compression algorithm */
+	size_t bsize;    /* size of the buffer allocated for the stream */
+	size_t len;      /* actual length of the stream above */
 	int nr_pages;    /* number of attached pages */
 	struct page ** pages; /* attached pages */
 	struct file * file;
@@ -47,20 +47,19 @@ typedef struct reiser4_cluster{
 	   like read/write position, size, new size (for truncate), etc.. into number
 	   of pages, cluster status, etc..*/
 	unsigned long index; /* cluster index, coord of the frame */
-	unsigned off;    /* offset we want to read/write/erase from */
-	unsigned count;  /* bytes to read/write/erase */
-	/* EDWARD-FIXME-HANS: does erase mean truncate or? */
+	unsigned off;    /* offset we want to read/write/truncate from */
+	unsigned count;  /* bytes to read/write/truncate */
 	unsigned delta;  /* bytes of user's data to append to the hole */
 } reiser4_cluster_t;
 
-/* secret key params supposed to be stored on disk */
+/* security attributes supposed to be stored on disk
+   are loaded by stat-data methods (see plugin/item/static_stat.c */
 typedef struct crypto_stat {
-	__u8 * keyid;  /* key public id */
-	/* EDWARD-FIXME-HANS: is this the plugin id for the key? If so, call it something like keyplugid. */
+	__u8 * keyid;  /* pointer to a fingerprint */
 	__u16 keysize; /* key size, bits */
 } crypto_stat_t;
 
-/* EDWARD-FIXME-HANS: comment needed... */
+/* cryptcompress specific part of reiser4_inode */
 typedef struct cryptcompress_info {
 	/* cpu-key words */
 	__u32 * expkey;
@@ -73,7 +72,7 @@ int goto_right_neighbor(coord_t *, lock_handle *);
 int load_file_hint(struct file *, hint_t *, lock_handle *);
 void save_file_hint(struct file *, const hint_t *);
 
-/* declarations of functions implementing file plugin for unix file plugin */
+/* declarations of functions implementing methods of cryptcompress object plugin */
 int create_cryptcompress(struct inode *, struct inode *, reiser4_object_create_data *);
 int truncate_cryptcompress(struct inode *, loff_t size);
 int readpage_cryptcompress(void *, struct page *);
