@@ -59,10 +59,11 @@ Use the pluginid field?
   
 */
 
-#include "pseudo.h"
-
+#include "../../inode.h"
 #include "../../debug.h"
 #include "../plugin.h"
+
+#include "pseudo.h"
 
 struct inode *lookup_pseudo(struct inode *parent, const char *name)
 {
@@ -78,11 +79,28 @@ struct inode *lookup_pseudo(struct inode *parent, const char *name)
 		assert("nikita-3001", pplug->try != NULL);
 
 		if (pplug->try(parent, name)) {
-			/*struct inode *inode;*/
+			struct inode  *pseudo;
+			reiser4_inode *idata;
 
 			/*
 			 * construct object id and create inode.
 			 */
+
+			pseudo = new_inode(parent->i_sb);
+			if (pseudo == NULL)
+				return ERR_PTR(RETERR(-ENOMEM));
+
+			idata = reiser4_inode_data(pseudo);
+			idata->locality_id = 0;
+			plugin_set_file(&idata->pset, file_plugin_by_id(PSEUDO_FILE_PLUGIN_ID));
+			idata->file_plugin_data.pseudo_info.host   = parent;
+			idata->file_plugin_data.pseudo_info.plugin = pplug;
+
+			inode_set_flag(pseudo, REISER4_NO_SD);
+			pseudo->i_nlink = 1;
+			/* insert inode into VFS hash table */
+			insert_inode_hash(pseudo);
+			return pseudo;
 		}
 	}
 	return NULL;
