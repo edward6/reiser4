@@ -407,7 +407,7 @@ int reiser4_stat_init(reiser4_stat ** storehere)
 {
 	reiser4_stat *stats;
 	statcnt_t *cnt;
-	int num;
+	int num, i;
 
 	cassert((sizeof *stats) / (sizeof *cnt) * (sizeof *cnt) == (sizeof *stats));
 
@@ -419,7 +419,7 @@ int reiser4_stat_init(reiser4_stat ** storehere)
 
 	num = (sizeof *stats) / (sizeof *cnt);
 	cnt = (statcnt_t *)stats;
-	for (; num >= 0 ; --num, ++cnt)
+	for (i = 0; i < num ; ++i, ++cnt)
 		statcnt_init(cnt);
 	return 0;
 }
