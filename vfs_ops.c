@@ -608,8 +608,12 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 static int
 reiser4_writepage(struct page *page, struct writeback_control *wbc)
 {
-	assert ("zam-822", current->flags & PF_MEMALLOC);
-	return page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
+	int result;
+	assert("zam-822", current->flags & PF_MEMALLOC);
+	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
+	/* check that we fulfill shrink_list() calling conventions */
+	assert("nikita-2907", equi(result == WRITEPAGE_ACTIVATE, PageLocked(page)));
+	return result;
 }
 
 /* ->writepages()

@@ -477,15 +477,12 @@ formatted_writepage(struct page *page, /* page to write */ struct writeback_cont
 {
 	int result;
 
-	assert ("zam-823", current->flags & PF_MEMALLOC);
+	assert("zam-823", current->flags & PF_MEMALLOC);
 	assert("nikita-2632", PagePrivate(page) && jprivate(page));
 
-	/* The mpage_writepages() calls reiser4_writepage with a locked, but
-	   clean page. An extra reference should protect this page from
-	   removing from memory */
-	page_cache_get(page);
 	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_FORMATTED);
-	page_cache_release(page);
+	/* check that we fulfill shrink_list() calling conventions */
+	assert("nikita-2909", equi(result == WRITEPAGE_ACTIVATE, PageLocked(page)));
 	return result;
 }
 
@@ -619,7 +616,6 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 			 * put it back to place from where reiser4_writepages will be able to capture it from (moved_pages list, namely)
 			 */
 			page->mapping->a_ops->set_page_dirty(page);
-			reiser4_unlock_page(page);
 			REISER4_EXIT(WRITEPAGE_ACTIVATE);
 		}
 	} else {
