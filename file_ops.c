@@ -445,8 +445,8 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 	actor:
 		ret = actor(&desc, page, offset, nr);
 
-		page_cache_release(page);
 		unlock_page(page);
+		page_cache_release(page);
 
 		offset += ret;
 		index += offset >> PAGE_CACHE_SHIFT;
