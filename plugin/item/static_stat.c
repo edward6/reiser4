@@ -838,6 +838,8 @@ plugin_sd_save_len(struct inode *inode /* object being processed */ )
 	len = len_for(perm_plugin_to_plugin(state->perm), inode, len);
 	len = len_for(tail_plugin_to_plugin(state->tail), inode, len);
 	len = len_for(hash_plugin_to_plugin(state->hash), inode, len);
+	len = len_for(crypto_plugin_to_plugin(state->crypto), inode, len);
+	len = len_for(compression_plugin_to_plugin(state->compression), inode, len);
 	assert("nikita-664", len > (int) sizeof (reiser4_plugin_stat));
 	return len;
 }
@@ -906,7 +908,9 @@ plugin_sd_save(struct inode *inode /* object being processed */ ,
 	result = save_plug(file_plugin_to_plugin(state->file), inode, area, &num_of_plugins)
 	    && save_plug(perm_plugin_to_plugin(state->perm), inode, area, &num_of_plugins)
 	    && save_plug(tail_plugin_to_plugin(state->tail), inode, area, &num_of_plugins)
-	    && save_plug(hash_plugin_to_plugin(state->hash), inode, area, &num_of_plugins);
+            && save_plug(hash_plugin_to_plugin(state->hash), inode, area, &num_of_plugins)
+	    && save_plug(crypto_plugin_to_plugin(state->crypto), inode, area, &num_of_plugins)
+	    && save_plug(compression_plugin_to_plugin(state->compression), inode, area, &num_of_plugins);
 
 	cputod16((unsigned) num_of_plugins, &sd->plugins_no);
 	return result;
