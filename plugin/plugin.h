@@ -16,8 +16,9 @@
 #include "item/internal.h"
 #include "item/sde.h"
 #include "item/cde.h"
-#include "item/extent.h"
-#include "item/tail.h"
+#include "file/file.h"
+/*#include "item/extent.h"
+  #include "item/tail.h"*/
 #include "pseudo/pseudo.h"
 #include "symlink.h"
 #include "dir/hashed_dir.h"
