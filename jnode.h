@@ -168,8 +168,11 @@ struct jnode {
 	/* Parent item type, unformatted and CRC need it for offset => key conversion.  */
 	/* NOTE: this parent_item_id looks like jnode type. */
 	/*   88 */ reiser4_plugin_id parent_item_id;
-	/*   92 */
+	/*   92 */ 
 #if REISER4_DEBUG
+	/* number of pages referenced by the jnode (meaningful while capturing of 
+	   page clusters) */
+	int page_count;
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
 	/* how many times this jnode was written in one transaction */
