@@ -317,11 +317,11 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
  	DEFINE_STATCNT(coc.ok_clean), /* copy on capture performed for clean node */
 	DEFINE_STATCNT(coc.ok_ovrwr), /* copy on capture performed for block from overwrite set */
  	DEFINE_STATCNT(coc.ok_reloc), /* copy on capture performed for block from relocate set */
-	DEFINE_STATCNT(coc.forbidden),
-	DEFINE_STATCNT(coc.reloc_writeback_dirty_fq),
+	DEFINE_STATCNT(coc.forbidden), /* capture_copy is called with no copy-on-capture allowed */
+	DEFINE_STATCNT(coc.writeback),
+	DEFINE_STATCNT(coc.eflush),
 	DEFINE_STATCNT(coc.scan_race),
-	DEFINE_STATCNT(coc.atom_changed),
-	DEFINE_STATCNT(coc.nopage_eflush)
+	DEFINE_STATCNT(coc.atom_changed)
 };
 
 #define DEFINE_STAT_LEVEL_CNT(field)					\
