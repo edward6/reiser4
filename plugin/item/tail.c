@@ -324,7 +324,7 @@ static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t 
 	longterm_unlock_znode(lh);
 	coord->node = 0;
 	new_size = get_key_offset(&f->key);
-	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0);
+	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0, 1/* update stat data */);
 	if (result)
 		return result;
 
