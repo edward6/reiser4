@@ -976,6 +976,7 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 	unsigned int keyid_size;
 	
 	assert("edward-06", dplug != NULL);
+	assert("edward-684", dplug->dsize);
 	assert("edward-07", area != NULL);
 	assert("edward-08", *area != NULL);
 	assert("edward-09", len != NULL);
@@ -984,7 +985,7 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 	if (*len < (int) sizeof (reiser4_crypto_stat)) {
 		return not_enough_space(inode, "crypto-sd");
 	}	
-	keyid_size = dplug->digestsize;
+	keyid_size = dplug->dsize;
 	/* *len is number of bytes in stat data item from *area to the end of
 	   item. It must be not less than size of this extension */
 	assert("edward-75", sizeof(*sd) + keyid_size <= *len);
@@ -1005,7 +1006,7 @@ static int absent_crypto_sd(struct inode * inode)
 
 static int save_len_crypto_sd(struct inode *inode)
 {
-	return (sizeof(reiser4_crypto_stat) + inode_digest_plugin(inode)->digestsize);
+	return (sizeof(reiser4_crypto_stat) + inode_digest_plugin(inode)->dsize);
 }
 
 static int save_crypto_sd(struct inode *inode, char **area)
@@ -1028,12 +1029,12 @@ static int save_crypto_sd(struct inode *inode, char **area)
 		
 		/* copy inode crypto-stat to the disk stat-data */
 		cputod16(stat->keysize, &sd->keysize);
-		xmemcpy(sd->keyid, stat->keyid, (size_t)dplug->digestsize);
+		xmemcpy(sd->keyid, stat->keyid, (size_t)dplug->dsize);
 		inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	} else {
 		/* do nothing */
 	}
-	*area += (sizeof(*sd) + dplug->digestsize);
+	*area += (sizeof(*sd) + dplug->dsize);
 	return result;
 }
 
@@ -1047,7 +1048,7 @@ print_crypto_sd(const char *prefix, char **area /* position in stat-data */ ,
 	reiser4_crypto_stat *sd = (reiser4_crypto_stat *) * area;
 	
 	printk("%s: keysize: %u keyid: \"%llx\"\n", prefix, d16tocpu(&sd->keysize), *(__u64 *)(sd->keyid));
-	move_on(len, area, sizeof(*sd) + dplug->digestsize);
+	move_on(len, area, sizeof(*sd) + dplug->dsize);
 }
 #endif
 
