@@ -297,9 +297,6 @@ struct reiserfs_dir_ops {
     /* Closes previously opened or created directory */
     void (*close) (reiserfs_entity_t *);
 
-    /* Seeks directory pointer at specified pos */    
-    errno_t (*seek) (reiserfs_entity_t *, uint32_t);
-    
     /* 
 	Resets internal position so that next read from the directory will return
 	first entry.
@@ -692,9 +689,13 @@ union reiserfs_plugin {
     reiserfs_key_ops_t key_ops;
 };
 
+/* 
+    Replica of coord for using in plugins. Field "cache" is void * because we 
+    should keep libreiser4 structures unknown for plugins.
+*/
 struct reiserfs_place {
-    reiserfs_entity_t *node;
-    reiserfs_pos_t pos;
+   void *cache;
+   reiserfs_pos_t pos;
 };
 
 typedef struct reiserfs_place reiserfs_place_t;
@@ -730,6 +731,9 @@ struct reiserfs_core {
 	It is used all object plugins in order to access data stored in items.
     */
     errno_t (*tree_data) (const void *, reiserfs_place_t *, void **, uint32_t *);
+
+    errno_t (*tree_right) (const void *, reiserfs_place_t *);
+    errno_t (*tree_left) (const void *, reiserfs_place_t *);
 };
 
 typedef struct reiserfs_core reiserfs_core_t;

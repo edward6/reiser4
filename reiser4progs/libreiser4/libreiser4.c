@@ -12,61 +12,91 @@
     insert or remove an item from the tree.
 */
 
-static reiserfs_plugin_t *__factory_find(reiserfs_plugin_type_t type, reiserfs_id_t id) {
+static inline reiserfs_plugin_t *__factory_find(reiserfs_plugin_type_t type, reiserfs_id_t id) {
     return libreiser4_factory_find(type, id);
 }
 
-static errno_t __tree_insert(const void *tree, reiserfs_item_hint_t *item) {
+static inline errno_t __tree_insert(const void *tree, reiserfs_item_hint_t *item) {
     aal_assert("umka-846", tree != NULL, return -1);
     aal_assert("umka-847", item != NULL, return -1);
     
     return reiserfs_tree_insert((reiserfs_tree_t *)tree, item);
 }
 
-static errno_t __tree_remove(const void *tree, reiserfs_key_t *key) {
+static inline errno_t __tree_remove(const void *tree, reiserfs_key_t *key) {
     aal_assert("umka-848", tree != NULL, return -1);
     aal_assert("umka-849", key != NULL, return -1);
     
     return reiserfs_tree_remove((reiserfs_tree_t *)tree, key);
 }
 
-static int __tree_lookup(const void *tree, reiserfs_key_t *key, 
+static inline int __tree_lookup(const void *tree, reiserfs_key_t *key, 
     reiserfs_place_t *place) 
 {
-    int lookup;
-    reiserfs_coord_t coord;
-    
-    aal_assert("umka-850", tree != NULL, return -1);
     aal_assert("umka-851", key != NULL, return -1);
+    aal_assert("umka-850", tree != NULL, return -1);
     aal_assert("umka-852", place != NULL, return -1);
     
-    lookup = reiserfs_tree_lookup((reiserfs_tree_t *)tree, 
-	REISERFS_LEAF_LEVEL, key, &coord);
-
-    place->pos = coord.pos;
-    place->node = coord.cache->node->entity;
-    
-    return lookup;
+    return reiserfs_tree_lookup((reiserfs_tree_t *)tree, 
+	REISERFS_LEAF_LEVEL, key, (reiserfs_coord_t *)place);
 }
 
-static errno_t __tree_data(const void *tree, reiserfs_place_t *place, 
+static inline errno_t __tree_data(const void *tree, reiserfs_place_t *place, 
     void **item, uint32_t *len) 
 {
-    reiserfs_plugin_t *node_plugin;
+    reiserfs_node_t *node;
     
     aal_assert("umka-853", tree != NULL, return -1);
     aal_assert("umka-855", place != NULL, return -1);
     aal_assert("umka-856", item != NULL, return -1);
     
-    /* FIXME-UMKA: Here should not be hardcoded node plugin id */
-    if (!(node_plugin = libreiser4_factory_find(REISERFS_NODE_PLUGIN, 0x0)))
-	libreiser4_factory_failed(return -1, find, node, 0x0);
+    node = ((reiserfs_cache_t *)place->cache)->node;
     
-    *item = libreiser4_plugin_call(return -1, node_plugin->node_ops, 
-	item_body, place->node, place->pos.item);
+    *item = libreiser4_plugin_call(return -1, node->node_plugin->node_ops, 
+	item_body, node->entity, place->pos.item);
     
-    *len = libreiser4_plugin_call(return -1, node_plugin->node_ops,
-	item_len, place->node, place->pos.item);
+    *len = libreiser4_plugin_call(return -1, node->node_plugin->node_ops,
+	item_len, node->entity, place->pos.item);
+    
+    return 0;
+}
+
+static inline errno_t __tree_right(const void *tree, 
+    reiserfs_place_t *place) 
+{
+    reiserfs_cache_t *cache;
+    
+    aal_assert("umka-867", tree != NULL, return -1);
+    aal_assert("umka-868", place != NULL, return -1);
+    
+    cache = (reiserfs_cache_t *)place->cache; 
+    
+    if (reiserfs_cache_raise(cache) || !cache->right)
+	return -1;
+
+    place->cache = cache->right;
+    place->pos.item = 0;
+    place->pos.unit = 0;
+    
+    return 0;
+}
+
+static inline errno_t __tree_left(const void *tree, 
+    reiserfs_place_t *place) 
+{
+    reiserfs_cache_t *cache;
+    
+    aal_assert("umka-867", tree != NULL, return -1);
+    aal_assert("umka-868", place != NULL, return -1);
+    
+    cache = (reiserfs_cache_t *)place->cache; 
+    
+    if (reiserfs_cache_raise(cache) || !cache->left)
+	return -1;
+
+    place->cache = cache->left;
+    place->pos.item = 0;
+    place->pos.unit = 0;
     
     return 0;
 }
@@ -88,7 +118,13 @@ reiserfs_core_t core = {
 	And finally this one for getting body of some item and its size by passed 
 	coord.
     */
-    .tree_data   = __tree_data
+    .tree_data = __tree_data,
+
+    /* Returns right neighbour of passed coord */
+    .tree_right = __tree_right,
+    
+    /* Returns left neighbour of passed coord */
+    .tree_left = __tree_left
 };
 
 int libreiser4_get_max_interface_version(void) {

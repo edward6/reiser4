@@ -174,7 +174,7 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
     }
 
     /* Rasing the right neighbour */
-    if (pos.item > 0) {
+    if (!cache->left && pos.item > 0) {
 	if (!(block_nr = reiserfs_node_get_pointer(parent, pos.item - 1))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer to left neighbour.");
@@ -192,7 +192,7 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
     }
 
     /* Raising the right neighbour */
-    if (pos.item < reiserfs_node_count(parent)) {
+    if (!cache->right && pos.item < reiserfs_node_count(parent)) {
 	if (!(block_nr = reiserfs_node_get_pointer(parent, pos.item + 1))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer to right neighbour.");
@@ -246,6 +246,9 @@ errno_t reiserfs_cache_register(reiserfs_cache_t *cache,
     left = cache->list->prev ? cache->list->prev->item : NULL;
     right = cache->list->next ? cache->list->next->item : NULL;
    
+    child->parent = cache;
+    child->tree = cache->tree;
+    
     /* Setting up neighbours */
     if (left) {
 	if (reiserfs_node_ldkey(left->node, &ldkey))
@@ -265,14 +268,11 @@ errno_t reiserfs_cache_register(reiserfs_cache_t *cache,
 	
 	/* Getting right neighbour key */
 	if (!reiserfs_cache_rnkey(child, &rnkey))
-	    child->right = (reiserfs_key_compare(&rnkey, &ldkey) ? right : NULL);
+	    child->right = (reiserfs_key_compare(&rnkey, &ldkey) == 0 ? right : NULL);
 
 	if (child->right)
 	    child->right->left = child;
     }
-    
-    child->parent = cache;
-    child->tree = cache->tree;
     
     return 0;
 }

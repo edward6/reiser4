@@ -50,6 +50,7 @@ static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
     }
 
     dir->pos = 0;
+    dir->place.pos.unit = 0;
 
     return 0;
 }
@@ -72,56 +73,43 @@ static errno_t dir40_realize(reiserfs_dir40_t *dir) {
 	&dir->statdata.data, &dir->statdata.len);
 }
 
-static errno_t dir40_readent(reiserfs_dir40_t *dir,
-    reiserfs_entry_hint_t *entry) 
-{
-    uint32_t len;
-    void *direntry;
-    
-    if (core->tree_data(dir->tree, &dir->place, &direntry, &len))
-	return -1;
-    
-    return libreiser4_plugin_call(return -1, 
-	dir->direntry_plugin->item_ops.specific.direntry, 
-	get_entry, direntry, dir->pos, entry);
-}
-
-static errno_t dir40_seek(reiserfs_dir40_t *dir, uint32_t pos) {
-    void *direntry;
-    uint32_t count, len;
-    
-    if (core->tree_data(dir->tree, &dir->place, &direntry, &len))
-	return -1;
-    
-    if ((count = libreiser4_plugin_call(return -1,
-	    dir->direntry_plugin->item_ops.common, 
-	    count, direntry)) == 0)
-	return -1;
-
-    /* 
-	Checking if next pos will be out of bounds the current direntry item. If so,
-	we need to perform tree lookup for new next item.
-    */
-    if (pos >= count) {
-	
-	/* Here we need to get next node the next direntry lies in */
-	return -1;
-    } else
-	dir->pos = pos;
-    
-    return 0;
-}
-
 static errno_t dir40_read(reiserfs_dir40_t *dir, 
     reiserfs_entry_hint_t *entry) 
 {
+    void *direntry;
+    uint32_t len, count;
+    reiserfs_item_ops_t *item_ops;
+    
     aal_assert("umka-844", dir != NULL, return -1);
     aal_assert("umka-845", entry != NULL, return -1);
 
-    if (dir40_readent(dir, entry))
+    /* Getting current direntry item */
+    if (core->tree_data(dir->tree, &dir->place, &direntry, &len))
+	return -1;
+
+    item_ops = &dir->direntry_plugin->item_ops;
+    
+    /* Getting count entries */
+    if ((count = libreiser4_plugin_call(return -1, item_ops->common, 
+	    count, direntry)) == 0)
 	return -1;
     
-    return dir40_seek(dir, dir->pos + 1);
+    if (dir->place.pos.unit >= count) {
+	
+	if (core->tree_right(dir->tree, &dir->place))
+	    return -1;
+
+	dir->place.pos.unit = 0;
+    }
+    
+    if ((libreiser4_plugin_call(return -1, item_ops->specific.direntry, 
+	    get_entry, direntry, dir->pos, entry)))
+	return -1;
+	    
+    dir->pos++; 
+    dir->place.pos.unit++; 
+    
+    return 0;
 }
 
 static errno_t dir40_add(reiserfs_dir40_t *dir, 
@@ -404,9 +392,6 @@ static reiserfs_plugin_t dir40_plugin = {
 	
 	.read = (errno_t (*)(reiserfs_entity_t *, reiserfs_entry_hint_t *))
 	    dir40_read,
-	
-	.seek = (errno_t (*)(reiserfs_entity_t *, uint32_t))
-	    dir40_seek
     }
 };
 
