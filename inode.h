@@ -62,8 +62,8 @@ typedef enum {
 #define REISER4_INO_IS_OID (1)
 typedef struct {;
 } oid_hi_t;
-#define inode_set_oid(inode, oid) do { inode->i_ino = oid; } while(0)
-#define inode_get_oid(inode) (inode->i_ino)
+#define set_inode_oid(inode, oid) do { inode->i_ino = oid; } while(0)
+#define get_inode_oid(inode) (inode->i_ino)
 #else
 #define REISER4_INO_IS_OID (0)
 typedef __u32 oid_hi_t;
