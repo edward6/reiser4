@@ -287,11 +287,18 @@ int format_40_release (struct super_block * s)
 {
 	int ret;
 
+	if ((ret = capture_super_block (s))) {
+		warning ("vs-898", "capture_super_block failed in umount: %d",
+			 ret);
+	}
+
 	/* FIXME: JMACD->NIKITA: Are we sure this is right?  I don't remember writing this. */
 	if ((ret = txn_mgr_force_commit_all (s))) {
 		warning ("jmacd-74438", 
 			 "txn_force failed in umount: %d", ret);
 	}
+
+	print_fs_info ("umount ok", s);
 
 	done_tree (&get_super_private (s)->tree);
 
@@ -323,4 +330,29 @@ const reiser4_key * format_40_root_dir_key (
 	};
 	
 	return &FORMAT_40_ROOT_DIR_KEY;
+}
+
+
+/* plugin->u.layout.print_info */
+void format_40_print_info (const struct super_block * s)
+{
+	format_40_disk_super_block * sb_copy;
+
+
+	sb_copy = &get_super_private(s)->u.format_40.actual_sb;
+
+	info ("\tblock count %llu\n"
+	      "\tfree blocks %llu\n"
+	      "\troot_block %llu\n"
+	      "\ttail policy %s\n"
+	      "\tmin free oid %llu\n"
+	      "\tfile count %llu\n"
+	      "\ttree height %d\n",
+	      get_format_40_block_count (sb_copy),
+	      get_format_40_free_blocks (sb_copy),
+	      get_format_40_root_block (sb_copy),
+	      tail_plugin_by_id (get_format_40_tail_policy (sb_copy))->h.label,
+	      get_format_40_oid (sb_copy),
+	      get_format_40_file_count (sb_copy),
+	      get_format_40_tree_height (sb_copy));
 }
