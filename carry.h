@@ -131,7 +131,7 @@ typedef enum {
  * Callers supply carry with node where to perform initial operation and lock
  * handle on this node. Trying to optimize node utilization carry may actually
  * move insertion point to different node. Callers expect that lock handle
- * will be transferred to the new node also.
+ * will rebe transferred to the new node also.
  *
  */
 typedef enum {
@@ -154,8 +154,8 @@ typedef struct carry_insert_data {
 	const reiser4_key *key;
 } carry_insert_data;
 
-/* data supplied to COP_CUT by callers */
-typedef struct carry_cut_data {
+/* cut and kill are similar, so carry_cut_data and carry_kill_data share the below structure of parameters */
+struct cut_kill_params {
 	/* coord where cut starts (inclusive) */
 	coord_t *from;
 	/* coord where cut stops (inclusive, this item/unit will also be
@@ -170,11 +170,17 @@ typedef struct carry_cut_data {
 	/* if this is not NULL, smallest actually removed key is stored
 	 * here. */
 	reiser4_key *smallest_removed;
-	/* flags modifying behavior of cut. From cop_delete_flag. */
-	unsigned flags;
+};
+
+struct carry_cut_data {
+	struct cut_kill_params params;
+};
+
+struct carry_kill_data {
+	struct cut_kill_params params;
 	/* parameter to be passed to the ->kill_hook() method of item
-	 * plugin */
-	void *iplug_params;
+	 * plugin */	
+	/*void *iplug_params;*/ /* FIXME: unused currently */
 	/* if not NULL---inode whose items are being removed. This is needed
 	 * for ->kill_hook() of extent item to update VM structures when
 	 * removing pages. */
@@ -189,7 +195,9 @@ typedef struct carry_cut_data {
 	 * 2. said neighbors have to be locked. */
 	lock_handle *left;
 	lock_handle *right;
-} carry_cut_data;
+	/* flags modifying behavior of kill. Currently, it may have DELETE_RETAIN_EMPTY set. */
+	unsigned flags;
+};
 
 /* &carry_tree_op - operation to "carry" upward.
 
@@ -241,7 +249,15 @@ typedef struct carry_op {
 			carry_node *child;
 			znode *brother;
 		} insert, paste, extent;
-		carry_cut_data *cut;
+
+		struct {
+			int is_cut;
+			union {
+				carry_kill_data *kill;
+				carry_cut_data *cut;
+			} u;
+		} cut_or_kill;
+
 		struct {
 			carry_node *left;
 		} update;
