@@ -1741,16 +1741,19 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		if (node_is_empty(node))
 			/* nothing to squeeze */
 			goto exit;
-		if (pos->idata) {
-			iplug = pos->idata->iplug;
+		if (pos->sq && item_squeeze_data(pos)) {
+			iplug = item_squeeze_plug(pos);
 			assert("edward-476", iplug->f.squeeze != NULL);
 		}
 		else if (!coord_is_existing_item(&pos->coord))
-			/* finished */
+			/* finished this node */
 			break;
-		else
+		else {
 			iplug = item_plugin_by_coord(&pos->coord);
-		
+			if (pos->sq && item_squeeze_plug(pos) != iplug) 
+				set_item_squeeze_count(pos, 0);
+		}
+		assert("edward-844", iplug != NULL);
 		if (iplug->f.squeeze == NULL)
 			/* unsqueezable */
 			goto next;
@@ -1764,7 +1767,7 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		
 		assert("edward-307", pos->child == NULL);
 		
-		/* now we should check if (pos->idata != NULL), and if so,
+		/* now we should check if item_squeeze_data is valid, and if so,
 		   call previous method again, BUT if current item is last
 		   and mergeable with the first item of slum right neighbor,
 		   we set idata->mergeable = 1, go to slum right neighbor
@@ -1777,8 +1780,8 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 			load_count right_load;
 			coord_t coord;
 
-			if (pos->idata == NULL)
-				break;		
+			if (!pos->sq || !item_squeeze_data(pos))
+				break;
 			
 			init_lh(&right_lock);
 			init_load_count(&right_load);
@@ -1800,7 +1803,7 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 			
 			if (iplug->b.mergeable(&pos->coord, &coord)) {
 				/* go to slum right neighbor */
-				pos->idata->mergeable = 1;
+				item_squeeze_data(pos)->mergeable = 1;
 				done_load_count(&right_load);
 				done_lh(&right_lock);
 				break;
@@ -2156,7 +2159,11 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		check_pos(pos);
 		if (ret)
 			break;
-
+		
+		if (should_terminate_squalloc(pos)) {
+			set_item_squeeze_count(pos, 0);
+			break;
+		}
 		/* advance the flush position to the right neighbor */
 		move_flush_pos(pos, &right_lock, &right_load, NULL);
 
@@ -3771,6 +3778,8 @@ pos_done(flush_pos_t * pos)
 {
 	pos_stop(pos);
 	blocknr_hint_done(&pos->preceder);
+	if (pos->sq)
+		free_squeeze_data(pos);
 }
 
 /* Reset the point and parent.  Called during flush subroutines to terminate the
