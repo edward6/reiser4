@@ -378,9 +378,11 @@ static int common_create_child( struct inode *parent /* parent object */,
 	result = obj_plug -> create( object, parent, data );
 	if( result != 0 ) {
 		inode_clr_flag( object, REISER4_IMMUTABLE );
-		warning( "nikita-2219", "Failed to create sd for %llu (%lx)",
-			 get_inode_oid( object ), 
-			 reiser4_inode_data( object ) -> flags );
+		if( result != -ENAMETOOLONG )
+			warning( "nikita-2219", 
+				 "Failed to create sd for %llu (%lx)",
+				 get_inode_oid( object ), 
+				 reiser4_inode_data( object ) -> flags );
 		return result;
 	}
 

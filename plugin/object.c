@@ -431,7 +431,10 @@ int common_file_save( struct inode *inode /* object to save */ )
 		result = insert_new_sd( inode );
 	else 
 		result = update_sd( inode );
-	if( result != 0 )
+	if( ( result != 0 ) && ( result != -ENAMETOOLONG ) )
+		/*
+		 * Don't issue warnings about "name is too long"
+		 */
 		warning( "nikita-2221", "Failed to save sd for %llu: %i (%lx)",
 			 get_inode_oid( inode ), result, 
 			 reiser4_inode_data( inode ) -> flags );
