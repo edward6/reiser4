@@ -20,11 +20,6 @@ typedef enum {
 	OTHER_ITEM_TYPE /* not used */
 } item_type_id;
 
-/* flags to utmost_child method */
-typedef enum {
-	UTMOST_GET_CHILD
-} utmost_child_flags;
-
 /* this is the part of each item plugin that all items are expected to
  * support or at least explicitly fail to support by setting the
  * pointer to null. */
