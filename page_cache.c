@@ -506,9 +506,12 @@ static int formatted_invalidatepage( struct page *page UNUSED_ARG /* page to
 				     unsigned long offset UNUSED_ARG /*  truncate
 								      *  offset */ )
 {
-	warning( "nikita-2129", "Shouldn't happen" );
-	print_page( __FUNCTION__, page );
-	return 0;
+/*	warning( "nikita-2129", "Shouldn't happen" );*/
+	REISER4_ENTRY (page->mapping->host->i_sb);
+	assert( "nikita-2160", offset == 0 ); /* FIXME */
+	txn_delete_page( page );
+	page_detach_jnode( page );
+	REISER4_EXIT (0);
 }
 
 int page_io( struct page *page, int rw, int gfp )

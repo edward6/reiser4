@@ -418,10 +418,16 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 		down (&bnode->sema);
 
 		if (jnode_page (&bnode->wjnode) != NULL) {
+			reiser4_tree *tree;
+			
 			assert ("zam-480", jnode_page (&bnode->cjnode) != NULL);
+			
+			tree = &get_super_private(super)->tree;
 
-			jnode_detach_page (& bnode->wjnode);
-			jnode_detach_page (&bnode->cjnode);
+			tree.ops->drop_node(tree, &bnode->wjnode);
+			tree.ops->drop_node(tree, &bnode->cjnode);
+//			jnode_detach_page (&bnode->wjnode);
+//			jnode_detach_page (&bnode->cjnode);
 
 			/* FIXME: check for page state and ref count should be
 			 * added here */
