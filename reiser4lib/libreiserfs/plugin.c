@@ -185,3 +185,18 @@ reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_id_t type,
 	(comp_func_t)callback_match_coords)) ? (reiserfs_plugin_t *)found->data : NULL;
 }
 
+error_t reiserfs_plugins_foreach(reiserfs_plugin_func_t plugin_func, void *data) {
+    error_t res;
+    aal_list_t *walk;
+    
+    aal_assert("umka-479", plugin_func != NULL, return -1);
+
+    aal_list_foreach_forward(walk, plugins) {
+	reiserfs_plugin_t *plugin = (reiserfs_plugin_t *)walk->data;
+	
+	if ((res = plugin_func(plugin, data)))
+	    return res;
+    }
+    return res;
+}
+

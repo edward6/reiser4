@@ -131,7 +131,8 @@ static error_t reiserfs_format36_sync(reiserfs_format36_t *format) {
 }
 
 static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device, 
-    count_t blocks, reiserfs_opaque_t *alloc) 
+    count_t blocks, reiserfs_opaque_t *alloc, reiserfs_plugin_id_t journal_plugin_id, 
+    reiserfs_plugin_id_t alloc_plugin_id_t, reiserfs_plugin_id_t node_plugin_id)
 {
     return NULL;
 }
@@ -231,8 +232,8 @@ static reiserfs_plugin_t format36_plugin = {
 	},
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_format36_open,
 	
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, reiserfs_opaque_t *))
-	    reiserfs_format36_create,
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, reiserfs_opaque_t *, 
+	    reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t))reiserfs_format36_create,
 	
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format36_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format36_sync,

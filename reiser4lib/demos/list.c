@@ -17,7 +17,7 @@ int main(int argc, char *argv[]) {
     
     aal_list_remove(list, "Second test line");
     
-    aal_list_for_each_forward(walk, list)
+    aal_list_foreach_forward(walk, list)
     	aal_printf("%s\n", walk->data);
 	
     aal_list_free(list);

@@ -12,7 +12,7 @@
 
 #ifndef ENABLE_COMPACT
 
-static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t plugin_id, 
+static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plugin_id, 
     unsigned int blocksize, const char *uuid, const char *label) 
 {
     aal_assert("umka-142", fs != NULL, return -1);
@@ -29,7 +29,7 @@ static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t pl
     if (label)
 	aal_strncpy(fs->master->mr_label, label, sizeof(fs->master->mr_label));
 	
-    set_mr_format_id(fs->master, plugin_id);
+    set_mr_format_id(fs->master, format_plugin_id);
     set_mr_block_size(fs->master, blocksize);
 	
     return 0;
@@ -189,10 +189,10 @@ error:
 #ifndef ENABLE_COMPACT
 
 reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
-    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t alloc_plugin_id,
-    reiserfs_plugin_id_t node_plugin_id, size_t blocksize, const char *uuid, 
-    const char *label, count_t len, aal_device_t *journal_device, 
-    reiserfs_params_opaque_t *journal_params)
+    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t alloc_plugin_id, 
+    reiserfs_plugin_id_t journal_plugin_id, reiserfs_plugin_id_t node_plugin_id, 
+    size_t blocksize, const char *uuid, const char *label, count_t len, 
+    aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
 {
     reiserfs_fs_t *fs;
 
@@ -217,7 +217,8 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     if (reiserfs_alloc_create(fs, alloc_plugin_id, len))
 	goto error_free_master;
 
-    if (reiserfs_super_create(fs, format_plugin_id, len))
+    if (reiserfs_super_create(fs, format_plugin_id, journal_plugin_id, 
+	    alloc_plugin_id, node_plugin_id, len))
 	goto error_free_alloc;
 
     if (reiserfs_journal_create(fs, journal_device, journal_params))

@@ -89,7 +89,8 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
 }
 
 static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device, 
-    count_t blocks, reiserfs_opaque_t *alloc)
+    count_t blocks, reiserfs_opaque_t *alloc, reiserfs_plugin_id_t journal_plugin_id, 
+    reiserfs_plugin_id_t alloc_plugin_id, reiserfs_plugin_id_t node_plugin_id)
 {
     blk_t blk;
     reiserfs_plugin_t *plugin;
@@ -132,12 +133,13 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device,
     set_sb_file_count(super, 2);
     set_sb_flushes(super, 0);
 
-    set_sb_journal_plugin_id(super, 0x01);
-    set_sb_alloc_plugin_id(super, 0x01);
+    set_sb_journal_plugin_id(super, journal_plugin_id);
+    set_sb_alloc_plugin_id(super, alloc_plugin_id);
+    set_sb_node_plugin_id(super, node_plugin_id);
 
-    if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 0x1))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find allocator plugin by its id %x.", 0x1);
+    if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, alloc_plugin_id))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find allocator plugin by its id %x.", alloc_plugin_id);
 	goto error_free_format;
     }
 
@@ -251,8 +253,8 @@ static reiserfs_plugin_t format40_plugin = {
 	},
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_format40_open,
 	
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, reiserfs_opaque_t *))
-	    reiserfs_format40_create,
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, reiserfs_opaque_t *, 
+	    reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t))reiserfs_format40_create,
 
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format40_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_sync,

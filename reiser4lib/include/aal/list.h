@@ -38,10 +38,10 @@ extern aal_list_t *aal_list_find_custom(aal_list_t *list, void *data,
 
 extern void aal_list_free(aal_list_t *list);
 
-#define aal_list_for_each_forward(walk, list) \
+#define aal_list_foreach_forward(walk, list) \
     for (walk = aal_list_first(list); walk; walk = aal_list_next(walk))
 
-#define aal_list_for_each_backward(walk, list) \
+#define aal_list_foreach_backward(walk, list) \
     for (walk = aal_list_last(list); walk; walk = aal_list_prev(walk))
     
 #endif

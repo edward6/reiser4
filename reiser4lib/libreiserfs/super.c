@@ -54,17 +54,18 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-error_t reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t plugin_id, 
-    count_t len) 
+error_t reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format_plugin_id, 
+    reiserfs_plugin_id_t journal_plugin_id, reiserfs_plugin_id_t alloc_plugin_id, 
+    reiserfs_plugin_id_t node_plugin_id, count_t len) 
 {
     aal_block_t *block;
     reiserfs_plugin_t *plugin;
 		
     aal_assert("umka-105", fs != NULL, return -1);
 
-    if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_FORMAT_PLUGIN, plugin_id))) {
+    if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_FORMAT_PLUGIN, format_plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find format plugin by its identifier %x.", plugin_id);
+	    "Can't find format plugin by its identifier %x.", format_plugin_id);
 	return -1;
     }
     
@@ -73,7 +74,9 @@ error_t reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t plugin_id,
 	
     /* Creating specified disk-format and format-specific superblock */
     reiserfs_check_method(plugin->format, create, goto error_free_super);
-    if (!(fs->super->entity = plugin->format.create(fs->device, len, fs->alloc->entity))) {
+    if (!(fs->super->entity = plugin->format.create(fs->device, len, fs->alloc->entity, 
+	journal_plugin_id, alloc_plugin_id, node_plugin_id))) 
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create disk-format for %s format.", plugin->h.label);
 	goto error_free_super;

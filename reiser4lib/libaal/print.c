@@ -68,16 +68,22 @@ int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
 			aal_strncat(buff, s, n - aal_strlen(buff));
 			break;
 		    }
+		    case 'l':
 		    case 'd':
 		    case 'x': {
 			int d;
 			char s[11];
 
+			if (c == 'l' && aal_strlen(fmt + 1) > 1 && *(fmt + 2) != 'u')
+			    break; 
+			
 			aal_memset(s, 0, sizeof(s));
 			
 			d = va_arg(arg_list, int);
-			aal_ltos(d, sizeof(s), s, c == 'd' ? 10 : 16);
+			aal_ltos(d, sizeof(s), s, (c == 'd' || c == 'l') ? 10 : 16);
 			aal_strncat(buff, s, n - aal_strlen(buff));
+
+			if (c == 'l') fmt += 1;
 		    }
 		}
 		fmt += 2;
