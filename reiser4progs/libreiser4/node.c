@@ -42,8 +42,6 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
     if (!(node = aal_calloc(sizeof(*node), 0)))
 	return NULL;
     
-    node->cache = NULL;
-    
     if (!(node->block = aal_block_alloc(device, blk, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't allocate block %llu.", blk);
@@ -90,8 +88,6 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
     if (!(node = aal_calloc(sizeof(*node), 0)))
 	return NULL;
    
-    node->cache = NULL;
-    
     if (!(node->block = aal_block_read(device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't read block %llu. %s.", blk, aal_device_error(device));
@@ -137,18 +133,6 @@ errno_t reiserfs_node_reopen(reiserfs_node_t *node, aal_device_t *device,
 }
 
 errno_t reiserfs_node_close(reiserfs_node_t *node) {
-    aal_assert("umka-122", node != NULL, return -1);
-    
-    if (node->cache) {
-	aal_list_t *walk;
-	
-	aal_list_foreach_forward(walk, node->cache)
-	    reiserfs_node_close((reiserfs_node_t *)walk->item);
-
-	aal_list_free(node->cache);
-	node->cache = NULL;
-    }
-
     if (node->node_plugin->node.close != NULL) {
         if (node->node_plugin->node.close (node->block)) {
             aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -163,192 +147,10 @@ errno_t reiserfs_node_close(reiserfs_node_t *node) {
     return 0;
 }
 
-static int callback_comp_for_find(reiserfs_node_t *node, 
-    reiserfs_key_t *key, void *data)
-{
-    aal_assert("umka-653", node != NULL, return -2);
-    aal_assert("umka-654", key != NULL, return -2);
-
-    return (libreiser4_plugin_call(return -2, key->plugin->key, 
-	compare, reiserfs_node_item_key(node, 0), key->body) == 0);
-}
-
-/* Finds children node by its key in node cache */
-reiserfs_node_t *reiserfs_node_find(reiserfs_node_t *node, 
-    reiserfs_key_t *key)
-{
-    aal_list_t *list;
-    
-    if (!node->cache)
-	return NULL;
-    
-    if (!(list = aal_list_find_custom(node->cache, (void *)key, 
-	    (int (*)(const void *, const void *, void *))
-	    callback_comp_for_find, NULL)))
-	return NULL;
-
-    return (reiserfs_node_t *)list->item;
-}
-
-static errno_t reiserfs_node_neighbour_key(reiserfs_node_t *node, int direction,
-    reiserfs_key_t *key) 
-{
-    int res;
-    reiserfs_key_t ldkey;
-    reiserfs_coord_t coord;
-    
-    aal_assert("umka-770", node != NULL, return -1);
-    aal_assert("umka-771", key != NULL, return -1);
-    
-    if (!node->parent)
-	return -1;
-    
-    if (reiserfs_node_ldkey(node, &ldkey)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't get left delimiting key of node %llu.", 
-	    aal_block_get_nr(node->block));
-	return -1;
-    }
-    
-    if (!(res = reiserfs_node_lookup(node->parent, &ldkey, &coord.pos)) == -1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Lookup of registering node %llu failed.", 
-	    aal_block_get_nr(node->block));
-	return -1;
-    }
-    
-    if (res == 0) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find registering node %llu in parent.", 
-	    aal_block_get_nr(node->block));
-	return -1;
-    }
-    
-    if (direction == LEFT) {
-	if (coord.pos.item == 0)
-	    return -1;
-
-	coord.pos.item--;
-    } else {
-	if (coord.pos.item == reiserfs_node_count(node->parent) - 1)
-	    return -1;
-	
-	coord.pos.item++;
-    }
-    
-    reiserfs_key_init(key, reiserfs_node_item_key(node->parent, 
-	coord.pos.item), node->key_plugin);
-    
-    return 0;
-}
-
-errno_t reiserfs_node_lnkey(reiserfs_node_t *node, reiserfs_key_t *key) {
-    return reiserfs_node_neighbour_key(node, LEFT, key);
-}
-
-errno_t reiserfs_node_rnkey(reiserfs_node_t *node, reiserfs_key_t *key) {
-    return reiserfs_node_neighbour_key(node, RIGHT, key);
-}
-
-static int callback_comp_for_insert(reiserfs_node_t *node1, 
-    reiserfs_node_t *node2, reiserfs_plugin_t *plugin) 
-{
-    aal_assert("umka-648", node1 != NULL, return -2);
-    aal_assert("umka-649", node2 != NULL, return -2);
-    aal_assert("umka-719", plugin != NULL, return -2);
-
-    return libreiser4_plugin_call(return -2, plugin->key, compare, 
-	reiserfs_node_item_key(node1, 0), reiserfs_node_item_key(node2, 0));
-}
-
-/*
-    Connects children into sorted children list of specified node. Sets up both
-    beighbors and parent pointer.
-*/
-errno_t reiserfs_node_register(reiserfs_node_t *node, 
-    reiserfs_node_t *child) 
-{
-    reiserfs_key_t ldkey;
-    reiserfs_key_t lnkey, rnkey;
-    reiserfs_node_t *left, *right;
-    
-    aal_assert("umka-561", node != NULL, return -1);
-    aal_assert("umka-564", child != NULL, return -1);
-    
-    node->cache = aal_list_insert_sorted(node->cache, 
-	child, (int (*)(const void *, const void *, void *))
-	callback_comp_for_insert, (void *)node->key_plugin);
-
-    left = node->cache->prev ? node->cache->prev->item : NULL;
-    right = node->cache->next ? node->cache->next->item : NULL;
-   
-    /* Setting up neighboors */
-    if (left) {
-	if (reiserfs_node_ldkey(left, &ldkey))
-	    return -1;
-	
-	/* Getting left neighbour key */
-	if (!reiserfs_node_lnkey(child, &lnkey)) {
-	    child->left = reiserfs_key_compare(&lnkey, &ldkey) == 0 ? 
-		left : NULL;
-	}
-    
-	if (child->left)
-	    child->left->right = child;
-    }
-   
-    if (right) {
-	if (reiserfs_node_ldkey(right, &ldkey))
-	    return -1;
-	
-	/* Getting right neighbour key */
-	if (!reiserfs_node_rnkey(child, &rnkey)) {
-	    child->right = reiserfs_key_compare(&rnkey, &ldkey) ? 
-		right : NULL;
-	}
-
-	if (child->right)
-	    child->right->left = child;
-    }
-    
-    child->parent = node;
-    
-    return 0;
-}
-
-/* 
-    Remove specified childern from the node. Updates all neighbour pointers and 
-    parent pointer.
-*/
-void reiserfs_node_unregister(reiserfs_node_t *node, 
-    reiserfs_node_t *child)
-{
-    aal_assert("umka-562", node != NULL, return);
-    aal_assert("umka-563", child != NULL, return);
-
-    if (node->cache) {
-	if (aal_list_length(aal_list_first(node->cache)) == 1) {
-	    aal_list_remove(node->cache, child);
-	    node->cache = NULL;
-	} else
-	    aal_list_remove(node->cache, child);
-    }
-
-    if (child->left)
-	child->left->right = NULL;
-    
-    if (child->right)
-	child->right->left = NULL;
-    
-    child->left = NULL;
-    child->right = NULL;
-    child->parent = NULL;
-}
-
 errno_t reiserfs_node_split(reiserfs_node_t *node, 
     reiserfs_node_t *right) 
 {
-    uint32_t median;
+/*    uint32_t median;
     reiserfs_coord_t dst, src;
     
     aal_assert("umka-780", node != NULL, return -1);
@@ -361,7 +163,7 @@ errno_t reiserfs_node_split(reiserfs_node_t *node,
 	
 	if (reiserfs_node_move_item(&dst, &src, node->key_plugin))
 	    return -1;
-    }
+    }*/
     
     return 0;
 }
@@ -462,55 +264,6 @@ errno_t reiserfs_node_remove(reiserfs_node_t *node, reiserfs_pos_t *pos) {
 	remove, node->block, pos);
 }
 
-static errno_t reiserfs_node_relocate_item(reiserfs_coord_t *dst, 
-    reiserfs_coord_t *src, reiserfs_plugin_t *key_plugin, int remove) 
-{
-    int res;
-    reiserfs_id_t item_plugin_id;
-    reiserfs_item_hint_t item;
-    
-    aal_memset(&item, 0, sizeof(item));
-    
-    item.data = reiserfs_node_item_body(src->node, src->pos.item);
-    item.length = reiserfs_node_item_length(src->node, src->pos.item);
-    
-    /* Preparing the key of new item */
-    reiserfs_key_init((reiserfs_key_t *)&item.key, reiserfs_node_item_key(src->node, 
-	src->pos.item), key_plugin);
-	
-    item_plugin_id = reiserfs_node_get_item_plugin_id(src->node, src->pos.item);
-	
-    if (!(item.plugin = libreiser4_factory_find(REISERFS_ITEM_PLUGIN, 
-        item_plugin_id)))
-    {
-	libreiser4_factory_failed(return -1, find, 
-	    item, item_plugin_id);
-    }
-
-    /* Insering item into new location */
-    if ((res = reiserfs_node_insert(dst->node, &dst->pos,
-	    (reiserfs_key_t *)&item.key, &item)))
-	return res;
-    
-    /* Remove src item */
-    if (remove)
-	res = reiserfs_node_remove(src->node, &src->pos);
-    
-    return res;
-}
-
-errno_t reiserfs_node_move_item(reiserfs_coord_t *dst, 
-    reiserfs_coord_t *src, reiserfs_plugin_t *key_plugin) 
-{
-    return reiserfs_node_relocate_item(dst, src, key_plugin, 1);
-}
-
-errno_t reiserfs_node_copy_item(reiserfs_coord_t *dst, 
-    reiserfs_coord_t *src, reiserfs_plugin_t *key_plugin) 
-{
-    return reiserfs_node_relocate_item(dst, src, key_plugin, 0);
-}
-
 errno_t reiserfs_node_embed_key(reiserfs_node_t *node, uint32_t pos, 
     reiserfs_key_t *key) 
 {
@@ -528,253 +281,6 @@ errno_t reiserfs_node_embed_key(reiserfs_node_t *node, uint32_t pos,
     aal_memcpy(key_p, key->body, libreiser4_plugin_call(return -1, 
 	key->plugin->key, size,));
     
-    return 0;
-}
-
-static reiserfs_node_t *reiserfs_node_neighbour(reiserfs_node_t *node, 
-    int direction) 
-{
-    blk_t block_nr;
-    int item_pos, res;
-    reiserfs_pos_t pos;
-    reiserfs_key_t ldkey;
-    reiserfs_node_t *neighbour;
-    
-    aal_assert("umka-776", node != NULL, return NULL);
-  
-    if (!node->parent)
-	return NULL;
-    
-    reiserfs_node_ldkey(node, &ldkey);
-    if ((res = reiserfs_node_lookup(node->parent, &ldkey, &pos)) == -1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Lookup for left delimiting key of node %llu failed.", 
-	    aal_block_get_nr(node->block));
-	return NULL;
-    }
-
-    if (res == 0) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find left delimiting key of node %llu.", 
-	    aal_block_get_nr(node->block));
-	return NULL;
-    }
-    
-    item_pos = pos.item + (direction == LEFT ? -1 : 1);
-
-    if (direction == LEFT && item_pos < 0)
-	return NULL;
-	    
-    if (direction == RIGHT && item_pos > reiserfs_node_count(node->parent) - 1)
-	return NULL;
-	    
-    if (!(block_nr = reiserfs_node_get_pointer(node->parent, item_pos))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't get pointer to %s neighbour of node %llu.",
-	    (direction == LEFT ? "left" : "right"), 
-	    aal_block_get_nr(node->block));
-	return NULL;
-    }
-
-    if (!(neighbour = reiserfs_node_open(node->block->device, block_nr, 
-	REISERFS_GUESS_PLUGIN_ID, node->key_plugin->h.id)))
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open node %llu.", block_nr);
-	return NULL;
-    }
-    
-    return neighbour;
-}
-
-reiserfs_node_t *reiserfs_node_left_neighbour(reiserfs_node_t *node) {
-    return reiserfs_node_neighbour(node, LEFT);
-}
-
-reiserfs_node_t *reiserfs_node_right_neighbour(reiserfs_node_t *node) {
-    return reiserfs_node_neighbour(node, RIGHT);
-}
-
-errno_t reiserfs_node_shift(reiserfs_coord_t *old, reiserfs_coord_t *new, 
-    uint32_t needed) 
-{
-    int point = 0;
-    int count, moved = 0;
-    
-    reiserfs_pos_t pos;
-    reiserfs_key_t key;
-    reiserfs_node_t *left;
-    reiserfs_node_t *right;
-    reiserfs_coord_t src, dst;
-	
-    aal_assert("umka-759", old != NULL, return -1);
-    aal_assert("umka-766", new != NULL, return -1);
-    
-    /* Checking for he root node which has not parent and has not any neighbours */
-    if (!old->node->parent)
-	return 0;
-    
-    /* 
-	Checking the left neighbour and loading if it doesn't exists. Both neighbour
-	nodes are needed to perform the shift of items from target node in order
-	to free enoguh free space for inserting new item.
-    */
-    if (!(left = old->node->left)) {
-	if ((left = reiserfs_node_left_neighbour(old->node))) {
-	    if (reiserfs_node_register(old->node->parent, left)) {
-		reiserfs_node_close(left);
-		return -1;
-	    }
-	}
-    }
-    
-    /* 
-	Checking the right neighbour and loading if it doesn't exists. The same 
-	as previous one.
-    */
-    if (!(right = old->node->right)) {
-	if ((right = reiserfs_node_right_neighbour(old->node))) {
-	    if (reiserfs_node_register(old->node->parent, right)) {
-		reiserfs_node_close(right);
-		return -1;
-	    }
-	}
-    }
-   
-    /* 
-	Getting the target node position in its parent. This will be used bellow
-	for updating left delimiting keys after shift will be complete.
-    */
-    if (reiserfs_node_ldkey(old->node, &key)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't get left delimiting key of node %llu.",
-	    aal_block_get_nr(old->node->block));
-	return -1;
-    }
-
-    if (reiserfs_node_lookup(old->node, &key, &pos) != 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find left delimiting key of node %llu.",
-	    aal_block_get_nr(old->node->block));
-	return -1;
-    }
-    
-    *new = *old;
-    point = old->pos.item;
-    
-    /* Trying to move items into the left neighbour */
-    if (left) {
-	uint32_t item_len = reiserfs_node_item_length(old->node, 0) + 
-	    reiserfs_node_item_overhead(old->node);
-	
-	while (reiserfs_node_count(old->node) > 0 && 
-	    reiserfs_node_get_free_space(left) >= item_len)
-	{
-	    /* 
-		Now we are checking for the case when insertion point is almost 
-		shifted into left neighbour.
-	    */
-	    if (point <= 0) {
-		if ((reiserfs_node_get_free_space(left) - item_len) < needed)
-		    break;
-	    }
-	    reiserfs_coord_init(&src, old->node, 0, 0xffff);
-	    reiserfs_coord_init(&dst, left, reiserfs_node_count(left), 0xffff);
-	
-	    if (reiserfs_node_move_item(&dst, &src, old->node->key_plugin)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Left shifting failed. Can't move item.");
-		return -1;
-	    }
-	    
-	    item_len = reiserfs_node_item_length(old->node, 0) + 
-		reiserfs_node_item_overhead(old->node);
-	    
-	    point--;
-	}
-    }
-    
-    if (point < 0) {
-	reiserfs_coord_init(new, left, reiserfs_node_count(left) + 
-	    point, 0xffff);
-    }
-    
-    count = reiserfs_node_count(old->node);
-   
-    /* Trying to move items into the right neghbour */
-    if (right && count > 0) {
-	
-	uint32_t item_len = reiserfs_node_item_length(old->node, 
-	    reiserfs_node_count(old->node) - 1) + 
-	    reiserfs_node_item_overhead(old->node);
-	    
-	while (reiserfs_node_count(old->node) > 0 && 
-	    reiserfs_node_get_free_space(right) >= item_len)
-	{
-	    /* 
-		Checking for the case when insertion point is almost shifted 
-		into right neighbour.
-	    */
-	    if (moved >= count - new->pos.item) {
-		if ((reiserfs_node_get_free_space(right) - item_len) < needed)
-		    break;
-	    }
-	    reiserfs_coord_init(&src, old->node, 
-		reiserfs_node_count(old->node) - 1, 0xffff);
-
-	    reiserfs_coord_init(&dst, right, 0, 0xffff);
-	
-	    if (reiserfs_node_move_item(&dst, &src, old->node->key_plugin)) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Right shifting failed. Can't move item.");
-		return -1;
-	    }
-	    
-	    item_len = reiserfs_node_item_length(old->node, 
-		reiserfs_node_count(old->node) - 1) + 
-		reiserfs_node_item_overhead(old->node);
-	    
-	    moved++;
-	}
-    }
-    
-    if (moved > count - new->pos.item) {
-	reiserfs_coord_init(new, right, 
-	    moved - (count - new->pos.item), 0xffff);
-    }
-    
-    /* Updating internal key for shifted node */
-    if (left && old->pos.item != new->pos.item) {
-	reiserfs_node_ldkey(old->node, &key);
-	if (reiserfs_node_embed_key(old->node->parent, pos.item, &key)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't update left delimiting key for shifted node %llu.",
-		aal_block_get_nr(old->node->block));
-	    return -1;
-	}
-    }
-
-    /* Updating ldkey for left neighbour */
-    if (right && count != reiserfs_node_count(old->node)) {
-	reiserfs_node_ldkey(right, &key);
-	if (reiserfs_node_embed_key(right, pos.item + 1, &key)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't update left delimiting key for right neighbour block %llu.",
-		aal_block_get_nr(right->block));
-	    return -1;
-	}
-    }
-
-    /* 
-	Checking whether target node still contains any items. If no then we 
-	should delete it from the tree.
-    */
-
-    if (reiserfs_node_count(old->node) == 0) {
-	reiserfs_node_unregister(old->node->parent, old->node);
-	reiserfs_node_remove(old->node->parent, &pos);
-    }
-
     return 0;
 }
 
@@ -844,58 +350,9 @@ errno_t reiserfs_node_insert(reiserfs_node_t *node,
 
 #ifndef ENABLE_COMPACT
 
-/*
-    Synchronizes node's cache and frees all childrens.
-    My be used when memory presure event will occur.
-*/
-errno_t reiserfs_node_flush(reiserfs_node_t *node) {
-    aal_assert("umka-575", node != NULL, return 0);
-    
-    if (node->cache) {
-	aal_list_t *walk;
-	
-	aal_list_foreach_forward(walk, node->cache) {
-	    if (reiserfs_node_flush((reiserfs_node_t *)walk->item))
-		return -1;
-	}
-    }
-    
-    if (aal_block_write(node->block)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize block %llu to device. %s.", 
-	    aal_block_get_nr(node->block), 
-	    aal_device_error(node->block->device));
-	return -1;
-    }
-    aal_list_free(node->cache);
-    node->cache = NULL;
-    
-    aal_block_free(node->block);
-    aal_free(node);
-    return 0;
-}
-
-/* Just synchronuizes node's cache */
 errno_t reiserfs_node_sync(reiserfs_node_t *node) {
-    aal_assert("umka-124", node != NULL, return 0);
-    
-    if (node->cache) {
-	aal_list_t *walk;
-	
-	aal_list_foreach_forward(walk, node->cache) {
-	    if (reiserfs_node_sync((reiserfs_node_t *)walk->item))
-		return -1;
-	}
-    }
-    
-    if (aal_block_write(node->block)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize block %llu to device. %s.", 
-	    aal_block_get_nr(node->block), 
-	    aal_device_error(node->block->device));
-	return -1;
-    }
-    return 0;
+    aal_assert("umka-798", node != NULL, return -1);
+    return aal_block_write(node->block);
 }
 
 void reiserfs_node_set_level(reiserfs_node_t *node, uint8_t level) {

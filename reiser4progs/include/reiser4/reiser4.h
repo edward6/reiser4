@@ -37,6 +37,7 @@ extern "C" {
 #include "key.h"
 #include "object.h"
 #include "coord.h"
+#include "cache.h"
 
 extern int libreiser4_get_max_interface_version(void);
 extern int libreiser4_get_min_interface_version(void);

@@ -33,12 +33,31 @@ extern errno_t reiserfs_tree_insert(reiserfs_tree_t *tree,
 extern errno_t reiserfs_tree_remove(reiserfs_tree_t *tree, 
     reiserfs_key_t *key);
 
+extern errno_t reiserfs_tree_move(reiserfs_coord_t *dst, 
+    reiserfs_coord_t *src);
+
+extern errno_t reiserfs_tree_copy(reiserfs_coord_t *dst, 
+    reiserfs_coord_t *src);
+
+extern errno_t reiserfs_tree_move(reiserfs_coord_t *dst, 
+    reiserfs_coord_t *src);
+
+extern errno_t reiserfs_tree_copy(reiserfs_coord_t *dst, 
+    reiserfs_coord_t *src);
+
+extern errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new, 
+    uint32_t needed);
+
 #endif
+
+extern reiserfs_cache_t *reiserfs_tree_lneighbour(reiserfs_cache_t *cache);
+
+extern reiserfs_cache_t *reiserfs_tree_rneighbour(reiserfs_cache_t *cache);
 
 extern int reiserfs_tree_lookup(reiserfs_tree_t *tree, 
     uint8_t stop, reiserfs_key_t *key, reiserfs_coord_t *coord);
 
-extern reiserfs_node_t *reiserfs_tree_root_node(reiserfs_tree_t *tree);
+extern reiserfs_cache_t *reiserfs_tree_root(reiserfs_tree_t *tree);
 
 #endif
 

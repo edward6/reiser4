@@ -52,7 +52,7 @@ static void meat_print_fs(reiserfs_fs_t *fs) {
     meat_print_plugin(fs->key.plugin);
     
     aal_printf("(6) ");
-    meat_print_plugin(fs->tree->root->node_plugin);
+    meat_print_plugin(fs->tree->cache->node->node_plugin);
     
     aal_printf("(7) ");
     meat_print_plugin(fs->dir->plugin);

@@ -9,11 +9,11 @@
 
 #include <reiser4/filesystem.h>
 
-extern reiserfs_coord_t *reiserfs_coord_create(reiserfs_node_t *node, 
+extern reiserfs_coord_t *reiserfs_coord_create(reiserfs_cache_t *cache, 
     uint16_t item, uint16_t unit);
 
 extern errno_t reiserfs_coord_init(reiserfs_coord_t *coord, 
-    reiserfs_node_t *node, uint16_t item, uint16_t unit);
+    reiserfs_cache_t *cache, uint16_t item, uint16_t unit);
 
 extern void reiserfs_coord_free(reiserfs_coord_t *coord);
 

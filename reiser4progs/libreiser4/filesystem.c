@@ -392,7 +392,7 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     
     /* Setts up root block */
     reiserfs_format_set_root(fs->format, 
-	aal_block_get_nr(fs->tree->root->block));
+	aal_block_get_nr(fs->tree->cache->node->block));
 
     /* Creates root directory */
     {

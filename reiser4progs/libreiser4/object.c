@@ -62,27 +62,28 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	}
 	
 	/* Checking whether found item is a link */
-	if (!(body = reiserfs_node_item_body(object->coord.node, 
+	if (!(body = reiserfs_node_item_body(object->coord.cache->node, 
 	    object->coord.pos.item))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get item body. Node %llu, item %u.", 
-		aal_block_get_nr(object->coord.node->block), 
+		aal_block_get_nr(object->coord.cache->node->block), 
 		object->coord.pos.item);
 	    return -1;
 	}
 	
-	if (!(plugin = reiserfs_node_get_item_plugin(object->coord.node, 
+	if (!(plugin = reiserfs_node_get_item_plugin(object->coord.cache->node, 
 	    object->coord.pos.item)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get item plugin. Node %llu, item %u.", 
-		aal_block_get_nr(object->coord.node->block),
+		aal_block_get_nr(object->coord.cache->node->block),
 		object->coord.pos.item);
 	    return -1;
 	}
 	
-	mode = libreiser4_plugin_call(return -1, plugin->item.specific.stat, get_mode, body);
+	mode = libreiser4_plugin_call(return -1, 
+	    plugin->item.specific.stat, get_mode, body);
 
 	if (!S_ISLNK(LE16_TO_CPU(mode)) && !S_ISDIR(LE16_TO_CPU(mode)) && 
 	    !S_ISREG(LE16_TO_CPU(mode))) 

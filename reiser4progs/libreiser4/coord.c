@@ -6,7 +6,7 @@
 
 #include <reiser4/reiser4.h>
 
-reiserfs_coord_t *reiserfs_coord_create(reiserfs_node_t *node, 
+reiserfs_coord_t *reiserfs_coord_create(reiserfs_cache_t *cache, 
     uint16_t item, uint16_t unit)
 {
     reiserfs_coord_t *coord;
@@ -14,15 +14,16 @@ reiserfs_coord_t *reiserfs_coord_create(reiserfs_node_t *node,
     if (!(coord = aal_calloc(sizeof(*coord), 0)))
 	return NULL;
 
-    reiserfs_coord_init(coord, node, item, unit);
+    reiserfs_coord_init(coord, cache, item, unit);
     return coord;
 }
 
 errno_t reiserfs_coord_init(reiserfs_coord_t *coord, 
-    reiserfs_node_t *node, uint16_t item, uint16_t unit)
+    reiserfs_cache_t *cache, uint16_t item, uint16_t unit)
 {
     aal_assert("umka-795", coord != NULL, return -1);
-    coord->node = node;
+    
+    coord->cache = cache;
     coord->pos.item = item;
     coord->pos.unit = unit;
 

@@ -70,25 +70,22 @@ struct reiserfs_profile {
 
 typedef struct reiserfs_profile reiserfs_profile_t;
 
+typedef struct reiserfs_cache reiserfs_cache_t;
 typedef struct reiserfs_node reiserfs_node_t;
 
-struct reiserfs_node {
-    aal_block_t *block;
-    aal_list_t *cache;
-    
-    reiserfs_plugin_t *key_plugin;
-    reiserfs_plugin_t *node_plugin;
-    
-    reiserfs_node_t *parent;
-    reiserfs_node_t *left, *right;
-};
-
 struct reiserfs_coord {
-    reiserfs_node_t *node;
+    reiserfs_cache_t *cache;
     reiserfs_pos_t pos;
 };
 
 typedef struct reiserfs_coord reiserfs_coord_t;
+
+struct reiserfs_node {
+    aal_block_t *block;
+    
+    reiserfs_plugin_t *key_plugin;
+    reiserfs_plugin_t *node_plugin;
+};
 
 struct reiserfs_node_header {
     uint16_t plugin_id; 
@@ -101,8 +98,8 @@ struct reiserfs_object {
     
     reiserfs_key_t key;
     reiserfs_coord_t coord;
-    reiserfs_plugin_t *plugin;
 
+    reiserfs_plugin_t *plugin;
     reiserfs_object_hint_t *hint;
 };
 
@@ -141,9 +138,19 @@ struct reiserfs_oid {
 
 typedef struct reiserfs_oid reiserfs_oid_t;
 
+struct reiserfs_cache {
+    reiserfs_node_t *node;
+    
+    reiserfs_cache_t *parent;
+    reiserfs_cache_t *left;
+    reiserfs_cache_t *right;
+    
+    aal_list_t *list;
+};
+
 struct reiserfs_tree {
     reiserfs_fs_t *fs;
-    reiserfs_node_t *root;
+    reiserfs_cache_t *cache;
 };
 
 typedef struct reiserfs_tree reiserfs_tree_t;
