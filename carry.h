@@ -150,7 +150,28 @@ typedef enum {
 	 * carry is not allowed to allocate new node(s) when trying to find
 	 * free space
 	 */
-	COPI_DONT_ALLOCATE       = ( 1 << 2 )
+	COPI_DONT_ALLOCATE       = ( 1 << 2 ),
+	/**
+	 * try to load left neighbor if its not in a cache
+	 */
+	COPI_LOAD_LEFT           = ( 1 << 3 ),
+	/**
+	 * try to load right neighbor if its not in a cache
+	 */
+	COPI_LOAD_RIGHT          = ( 1 << 4 ),
+	/**
+	 * shift insertion point to the left neighbor
+	 */
+	COPI_GO_LEFT             = ( 1 << 5 ),
+	/**
+	 * shift insertion point to the right neighbor
+	 */
+	COPI_GO_RIGHT            = ( 1 << 6 ),
+	/**
+	 * try to step back into original node if insertion into new node
+	 * fails after shifting data there.
+	 */
+	COPI_STEP_BACK           = ( 1 << 7 )
 } cop_insert_flag;
 
 /* flags to cut and delete */
@@ -313,8 +334,6 @@ struct carry_level {
 struct carry_plugin_info {
 	carry_level *doing;
 	carry_level *todo;
-	carry_node  *source;
-	carry_node  *target;
 };
 
 int carry( carry_level *doing, carry_level *done );

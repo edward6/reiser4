@@ -1459,6 +1459,11 @@ typedef enum {
 	OPT_PLUGIN
 } opt_type_t;
 
+typedef struct opt_bitmask_bit {
+	const char *bit_name;
+	int         bit_nr;
+} opt_bitmask_bit;
+
 typedef struct opt_desc {
 	const char *name;
 	opt_type_t type;
@@ -1482,6 +1487,11 @@ typedef struct opt_desc {
 			reiser4_plugin **addr;
 			const char      *type_label;
 		} plugin;
+		struct {
+			void            *addr;
+			int              nr_bits;
+			opt_bitmask_bit *bits;
+		} bitmask;
 	} u;
 } opt_desc_t;
 
@@ -1706,6 +1716,15 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 		 */
 		SB_FIELD_OPT( optimal_io_size, "%u" ),
 
+		/* carry flags used for insertion of new nodes */
+		SB_FIELD_OPT( tree.carry.new_node_flags, "%u" ),
+		/* carry flags used for insertion of new extents */
+		SB_FIELD_OPT( tree.carry.new_extent_flags, "%u" ),
+		/* carry flags used for paste operations */
+		SB_FIELD_OPT( tree.carry.paste_flags, "%u" ),
+		/* carry flags used for insert operations */
+		SB_FIELD_OPT( tree.carry.insert_flags, "%u" ),
+
 		PLUG_OPT( "plugin.tail",     tail, &info -> plug.t ),
 		PLUG_OPT( "plugin.sd",       item, &info -> plug.sd ),
 		PLUG_OPT( "plugin.dir_item", item, &info -> plug.dir_item ),
@@ -1752,6 +1771,11 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 		info -> plug.h        = hash_plugin_by_id( REISER4_HASH_PLUGIN );
 
 	info -> optimal_io_size = REISER4_OPTIMAL_IO_SIZE;
+
+	info -> tree.carry.new_node_flags   = REISER4_NEW_NODE_FLAGS;
+	info -> tree.carry.new_extent_flags = REISER4_NEW_EXTENT_FLAGS;
+	info -> tree.carry.paste_flags      = REISER4_PASTE_FLAGS;
+	info -> tree.carry.insert_flags     = REISER4_INSERT_FLAGS;
 
 	trace_file_name = NULL;
 
