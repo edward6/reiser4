@@ -1,5 +1,5 @@
 /*
- 	reiserfs.c -- memory allocation functions, version control functions and 
+ 	libreiserfs.c -- memory allocation functions, version control functions and 
 	library initialization code.
 	Copyright (C) 1996 - 2002 Hans Reiser
 */

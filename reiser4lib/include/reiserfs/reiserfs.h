@@ -16,6 +16,10 @@ extern "C" {
 #  include <stdint.h>
 #endif
 
+#ifndef ENABLE_COMPACT
+#  include <sys/types.h>
+#endif
+
 #include "exception.h"
 	
 typedef void *(*libreiserfs_malloc_handler_t) (size_t);
