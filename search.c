@@ -699,6 +699,14 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 
 	ret =  cbk_node_lookup(h);
 
+	/*
+	 * FIXME-VS: add_empty_leaf () (through cbk_node_lookup ->
+	 * handle_eottl) zrelse h->active->lh->node and zload it only of
+	 * success. How to handle it properly?
+	 */
+	/*if( h -> result )
+	  return ret;*/
+
 	/* 
 	 * reget @active from handle, because it can change in
 	 * cbk_node_lookup() 
