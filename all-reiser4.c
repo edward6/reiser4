@@ -26,7 +26,7 @@
 #include "plugin/item/internal.c"
 #include "plugin/item/tail.c"
 #include "plugin/hash.c"
-#include "plugin/tail.c"
+#include "plugin/tail_policy.c"
 #include "plugin/item/item.c"
 #include "plugin/dir/hashed_dir.c"
 #include "plugin/dir/dir.c"
