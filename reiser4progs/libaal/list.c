@@ -1,6 +1,8 @@
 /*
-    list.c -- doble-linked list implementation. This is a utility thing. It is 
-    used for storing plugins, nodes, etc.
+    list.c -- doble-linked list implementation. This is an utility thing. It is 
+    used for storing plugins, nodes, etc. And there is a lot of documentation 
+    related to doble-linked lists desing and purposes. So, I won't describe it 
+    one more time.
     
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.

@@ -51,14 +51,16 @@ static errno_t format36_super_check(reiserfs_format36_super_t *super,
     is_journal_magic = format36_journal_signature(super->s_v1.sb_magic);
 
     if (is_journal_dev != is_journal_magic) {
-	aal_throw_warning(EO_IGNORE, "Journal relocation flags mismatch. Journal "
-	    "device: %x, magic: %s.\n", get_jp_dev(get_sb_jp(super)), super->s_v1.sb_magic);
+	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
+	    "Journal relocation flags mismatch. Journal device: %x, magic: %s.",
+	    get_jp_dev(get_sb_jp(super)), super->s_v1.sb_magic);
     }
 
     dev_len = aal_device_len(device);
     if (get_sb_block_count(super) > dev_len) {
-	aal_throw_error(EO_CANCEL, "Superblock has an invalid block count %llu for device "
-	    "length %llu blocks.\n", (blk_t)get_sb_block_count(super), dev_len);
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+	    "Superblock has an invalid block count %llu for device "
+	    "length %llu blocks.", (blk_t)get_sb_block_count(super), dev_len);
 	return -1;
     }
 
@@ -95,7 +97,8 @@ static aal_block_t *format36_super_open(aal_device_t *device) {
 	    }
 	    aal_block_free(block);
 	} else {
-	    aal_throw_error(EO_OK, "Can't read block %d. %s.\n", super_offset[i], 
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't read block %d. %s.", super_offset[i], 
 		aal_device_error(device));
 	}
     }
@@ -130,7 +133,8 @@ static errno_t format36_sync(reiserfs_format36_t *format) {
     aal_assert("umka-382", format->super != NULL, return -1);    
 
     if (aal_block_write(format->super)) {
-    	aal_throw_warning(EO_IGNORE, "Can't write superblock to block %llu. %s.\n", 
+    	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
+	    "Can't write superblock to block %llu. %s.", 
 	    aal_block_get_nr(format->super), aal_device_error(format->device));
 	return -1;
     }
@@ -182,15 +186,15 @@ static const char *format36_format(reiserfs_format36_t *format) {
 }
 
 static reiserfs_id_t format36_journal_plugin(reiserfs_format36_t *format) {
-    return REISERFS_JOURNAL36_ID;
+    return 0x1;
 }
 
 static reiserfs_id_t format36_alloc_plugin(reiserfs_format36_t *format) {
-    return REISERFS_ALLOC36_ID;
+    return 0x1;
 }
 
 static reiserfs_id_t format36_oid_plugin(reiserfs_format36_t *format) {
-    return REISERFS_OID36_ID;
+    return 0x1;
 }
 
 static blk_t format36_offset(reiserfs_format36_t *format) {
@@ -236,7 +240,7 @@ static reiserfs_plugin_t format36_plugin = {
     .format_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_FORMAT36_ID,
+	    .id = 0x1,
 	    .type = REISERFS_FORMAT_PLUGIN,
 	    .label = "format36",
 	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "

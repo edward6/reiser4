@@ -12,65 +12,86 @@
 #include <aal/aal.h>
 
 #ifndef ENABLE_COMPACT
-static aal_printf_handler_t printf_handler = (aal_printf_handler_t)printf;
-static aal_fprintf_handler_t fprintf_handler = (aal_fprintf_handler_t)fprintf;
-#else
-static aal_printf_handler_t printf_handler = NULL;
-static aal_fprintf_handler_t fprintf_handler = NULL;
+#  include <stdio.h>
 #endif
 
-void aal_printf_set_handler(aal_printf_handler_t handler) {
-    printf_handler = handler;
-}
+static void __default_print_handler(aal_direction_t direction, 
+    const char *str);
 
-aal_printf_handler_t aal_printf_get_handler(void) {
-    return printf_handler;
-}
+#ifndef ENABLE_COMPACT
+static aal_print_handler_t print_handler = __default_print_handler;
+#else
+static aal_print_handler_t print_handler = NULL;
+#endif
 
-void aal_fprintf_set_handler(aal_fprintf_handler_t handler) {
-    fprintf_handler = handler;
-}
+/* Default hanlder for printing */
+static void __default_print_handler(
+    aal_direction_t direction,		/* direction messages will be printed */
+    const char *str			/* string for printing */
+) {
 
-aal_fprintf_handler_t aal_fprintf_get_handler(void) {
-    return fprintf_handler;
+#ifndef ENABLE_COMPACT
+    
+    /* Printing into standard output or into standard error */
+    if (direction == OUT)
+	fprintf(stdout, str);
+    else if (direction == ERR)
+	fprintf(stderr, str);
+    
+#endif
 }
 
 /* 
-    Forms string by passed format string and agruments and prints it to stdout.
-    It is used for messages out, when exception factory not available.
+    Sets new print handler. In the alone mode it most probably will point onto
+    some routine that will be using corresponding bios interrupt for printing
+    string to screen.
 */
-void aal_printf(const char *format, ...) {
-    va_list arg_list;
-    char buff[4096];
-	
-    if (!printf_handler)
-	return;
-	
-    aal_memset(buff, 0, sizeof(buff));
-	
-    va_start(arg_list, format);
-    aal_vsnprintf(buff, sizeof(buff), format, arg_list);
-    va_end(arg_list);
-	
-    printf_handler(buff);
+void aal_print_set_handler(
+    aal_print_handler_t handler		/* new print handler */
+) {
+    print_handler = handler;
 }
 
-void aal_fprintf(void *stream, const char *format, ...) {
-    va_list arg_list;
-    char buff[4096];
+/* Returns print handler */
+aal_print_handler_t aal_print_get_handler(void) {
+    return print_handler;
+}
+
+/* 
+    Forms string by passed format string and agruments and prints it using current
+    print handler. It is used for messages issuing, when exception factory not 
+    available.
+
+    As we do non know nothing about stack volume in alone mode, we should:
+    (1) do not use big variables in stack.
+    (2) do not pass big variables as function parameters.
+    (3) to add into README file our stack requirements for alone applications.
+*/
+void aal_printf(
+    aal_direction_t direction,		/* where messages should be printed */
+    const char *format,			/* format string of message */
+    ...					/* parameters for format string */
+) {
+    va_list arg_list;			/* list for storing parameters */
+    char buff[256];			/* buffer where messages will be formed */
 	
-    if (!fprintf_handler)
+    if (!print_handler)
 	return;
-	
+
+    /* 
+	Filling buff by zeros, since it declared in the stack and therefore will be 
+	containing garbage.
+    */
     aal_memset(buff, 0, sizeof(buff));
-	
+    
+    /* Forming string from format string */
     va_start(arg_list, format);
     aal_vsnprintf(buff, sizeof(buff), format, arg_list);
     va_end(arg_list);
 	
-    fprintf_handler(stream, buff);
-    fflush(stream);
+    print_handler(direction, buff);
 }
+
 enum format_modifier {
     mod_empty,
     mod_long,
@@ -86,7 +107,12 @@ typedef enum format_modifier format_modifier_t;
     function. It was introduced in order to provide formating strings ability
     in the allone mode.
 */
-int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
+int aal_vsnprintf(
+    char *buff,			    /* buffer string will be formed in */
+    size_t n,			    /* size of the buffer */
+    const char *format,		    /* format string */
+    va_list arg_list		    /* list of parameters */
+) {
     int i;
     long int li;
     long long int lli;
@@ -245,13 +271,20 @@ repeat:
     return aal_strlen(buff);
 }
 
-int aal_snprintf(char *buff, size_t n, const char *format, ...) {
+/* Forms string in passed buffer by using format string */
+int aal_snprintf(
+    char *buff,				    /* buffer string will be formed in */
+    size_t n,				    /* size of the buffer */
+    const char *format,			    /* format string */
+    ...					    /* variable list of parametsrs */
+) {
     int len;
     va_list arg_list;
 	
     va_start(arg_list, format);
     len = aal_vsnprintf(buff, n, format, arg_list);
     va_end(arg_list);
+
     return len;
 }
 

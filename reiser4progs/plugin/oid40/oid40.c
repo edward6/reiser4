@@ -42,9 +42,7 @@ static reiserfs_entity_t *oid40_create(void *area_start, void *area_end) {
     oid->area_end = area_end;
     
     oid40_set_next(area_start, REISERFS_OID40_RESERVED);
-    /* on filesystem creation root directory is created. So, number of
-     * objectids in use is 1 */
-    oid40_set_used(area_start, 1);
+    oid40_set_used(area_start, 0);
     
     return oid;
 }
@@ -103,7 +101,7 @@ static reiserfs_plugin_t oid40_plugin = {
     .oid_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_OID40_ID,
+	    .id = 0x0,
 	    .type = REISERFS_OID_PLUGIN,
 	    .label = "oid40",
 	    .desc = "Default inode allocator for reiserfs 4.0, ver. 0.1, "

@@ -50,28 +50,44 @@
 #ifdef WORDS_BIGENDIAN
 
 #  define CPU_TO_LE16(x)		aal_swap16(x)
+#  define CPU_TO_BE16(x)		(x)
 #  define CPU_TO_LE32(x)		aal_swap32(x)
+#  define CPU_TO_BE32(x)		(x)
 #  define CPU_TO_LE64(x)		aal_swap64(x)
+#  define CPU_TO_BE64(x)		(x)
+
 #  define LE16_TO_CPU(x)		aal_swap16(x)
+#  define BE16_TO_CPU(x)		(x)
 #  define LE32_TO_CPU(x)		aal_swap32(x)
+#  define BE32_TO_CPU(x)		(x)
 #  define LE64_TO_CPU(x)		aal_swap64(x)
+#  define BE64_TO_CPU(x)		(x)
+
+inline int aal_be_set_bit (int nr, void *addr);
+inline int aal_be_clear_bit (int nr, void *addr);
+inline int aal_be_test_bit(int nr, const void *addr);
 
 #else
 
 #  define CPU_TO_LE16(x)		(x)
+#  define CPU_TO_BE16(x)		aal_swap16(x)
 #  define CPU_TO_LE32(x)		(x)
+#  define CPU_TO_BE32(x)		aal_swap32(x)
 #  define CPU_TO_LE64(x)		(x)
+#  define CPU_TO_BE64(x)		aal_swap64(x)
+
 #  define LE16_TO_CPU(x)		(x)
+#  define BE16_TO_CPU(x)		aal_swap16(x)
 #  define LE32_TO_CPU(x)		(x)
+#  define BE32_TO_CPU(x)		aal_swap32(x)
 #  define LE64_TO_CPU(x)		(x)
+#  define BE64_TO_CPU(x)		aal_swap64(x)
+
+inline int aal_le_set_bit (int nr, void *addr);
+inline int aal_le_clear_bit (int nr, void *addr);
+inline int aal_le_test_bit(int nr, const void *addr);
 
 #endif
-
-extern inline int aal_set_bit (int nr, void *addr);
-extern inline int aal_clear_bit (int nr, void *addr);
-extern inline int aal_test_bit(int nr, const void *addr);
-extern inline int aal_find_first_zero_bit (const void *vaddr, unsigned size);
-extern inline int aal_find_next_zero_bit (const void *vaddr, unsigned size, unsigned offset);
 
 #define aal_get_leXX(xx, p, field)	(LE##xx##_TO_CPU ((p)->field))
 #define aal_set_leXX(xx, p, field, val)	do { (p)->field = CPU_TO_LE##xx(val); } while (0)

@@ -45,7 +45,7 @@ static errno_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_id_t format_pi
 #endif
 
 /* Reads master super block from disk */
-errno_t reiserfs_master_open(reiserfs_fs_t *fs) {
+static errno_t reiserfs_master_open(reiserfs_fs_t *fs) {
     blk_t master_offset;
     aal_block_t *block;
     reiserfs_master_t *master;
@@ -59,7 +59,8 @@ errno_t reiserfs_master_open(reiserfs_fs_t *fs) {
     
     /* Reading the block where master super block lies */
     if (!(block = aal_block_read(fs->host_device, master_offset))) {
-	aal_throw_fatal(EO_OK, "Can't read master super block at %llu.\n", master_offset);
+	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
+	    "Can't read master super block at %llu.", master_offset);
 	return -1;
     }
     
@@ -70,23 +71,17 @@ errno_t reiserfs_master_open(reiserfs_fs_t *fs) {
 #ifndef ENABLE_COMPACT    
 	reiserfs_plugin_t *format36;
 	
-	if (!(format36 = libreiser4_factory_find_by_id(REISERFS_FORMAT_PLUGIN, 
-	    REISERFS_FORMAT36_ID))) 
-	{
-    	    libreiser4_factory_failed(goto error_free_block, find, format, 
-		REISERFS_FORMAT36_ID);
-	}
+	if (!(format36 = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, 0x1)))
+    	    libreiser4_factory_failed(goto error_free_block, find, format, 0x1);
 	
 	if (!libreiser4_plugin_call(goto error_free_block, 
 		format36->format_ops, confirm, fs->host_device))
 	    goto error_free_block;
 		
 	/* Forming in memory master super block for reiser3 */
-	if (reiserfs_master_create(fs, REISERFS_FORMAT36_ID, 
-	    aal_device_get_bs(fs->host_device), "", "")) 
-	{
-	    aal_throw_error(EO_OK, "Can't create in-memory master super block in order to "
-		"initialize reiser3 filesystem.\n");
+	if (reiserfs_master_create(fs, 0x1, aal_device_get_bs(fs->host_device), "", "")) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Can't create in-memory "
+		"master super block in order to initialize reiser3 filesystem.");
 	    goto error_free_block;
 	}
 #endif	
@@ -99,7 +94,8 @@ errno_t reiserfs_master_open(reiserfs_fs_t *fs) {
 	
 	/* Setting actual used block size from master super block */
 	if (aal_device_set_bs(fs->host_device, get_mr_block_size(master))) {
-	    aal_throw_fatal(EO_OK, "Invalid block size detected %u. It must be power of two.\n", 
+	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
+		"Invalid block size detected %u. It must be power of two.", 
 		get_mr_block_size(master));
 	    
 	    aal_free(fs->master);
@@ -135,7 +131,8 @@ static errno_t reiserfs_master_sync(reiserfs_fs_t *fs) {
     */
     aal_memcpy(block->data, fs->master, REISERFS_DEFAULT_BLOCKSIZE);
     if (aal_block_write(block)) {
-	aal_throw_error(EO_OK, "Can't synchronize master super block at %llu. %s.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't synchronize master super block at %llu. %s.", 
 	    master_offset, aal_device_error(fs->host_device));
 	return -1;
     }
@@ -166,7 +163,7 @@ static errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs,
     reiserfs_plugin_t *plugin;
     
     /* Finding needed key plugin by its identifier */
-    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_KEY_PLUGIN, pid)))
+    if (!(plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, pid)))
 	libreiser4_factory_failed(return -1, find, key, pid);
 
     /* Getting root directory attributes from oid allocator */
@@ -187,12 +184,8 @@ static errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs,
 }
 
 /* 
-    Opens filesystem on specified host device and journal device. Replays the 
+    Opens filesysetm on specified host device and journal device. Replays the 
     journal if "replay" flag is specified.
-*/
-/*
-    FIXME-VITALY: replay is illegal option. All actions with fs must be performed 
-    after the journal replay. We need ro_replay insead to avoid any write on disk.
 */
 reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
     aal_device_t *journal_device, int replay) 
@@ -235,7 +228,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     if (!(fs->alloc = reiserfs_alloc_open(host_device, len, alloc_pid)))
 	goto error_free_super;
     
-    /* Journal device may be not specified. In this case it will not be opened */
+    /* Jouranl device may be not specified. In this case it will not be opened */
     if (journal_device) {
 	    
 	/* Setting up block size in use for journal device */
@@ -251,7 +244,8 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	*/
 	if (replay) {
 	    if (reiserfs_journal_replay(fs->journal)) {
-		aal_throw_error(EO_OK, "Can't replay journal.\n");
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't replay journal.");
 		goto error_free_journal;
 	    }
 	    if (!(fs->format = reiserfs_format_reopen(fs->format, host_device)))
@@ -270,7 +264,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	Initilaizes root directory key.
 	FIXME-UMKA: Here should be not hardcoded key id.
     */
-    if (reiserfs_fs_build_root_key(fs, REISERFS_KEY40_ID))
+    if (reiserfs_fs_build_root_key(fs, 0x0))
 	goto error_free_oid;
     
     /* Opens the tree starting from root block */
@@ -322,16 +316,17 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 
     /* Makes check for validness of specified block size value */
     if (!aal_pow_of_two(blocksize)) {
-	aal_throw_error(EO_OK, "Invalid block size %u. It must be power of two.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Invalid block size %u. It must be power of two.", 
 	    blocksize);
 	return NULL;
     }
 
     /* Checks whether filesystem size is enough big */
     if (aal_device_len(host_device) < REISERFS_MIN_SIZE) {
-	aal_throw_error(EO_OK, "Device %s is too small (%llu). ReiserFS required device %u "
-	    "blocks long.\n", aal_device_name(host_device), aal_device_len(host_device), 
-	    REISERFS_MIN_SIZE);
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Device %s is too small (%llu). ReiserFS required device %u blocks long.", 
+	    aal_device_name(host_device), aal_device_len(host_device), REISERFS_MIN_SIZE);
 	return NULL;
     }
 	    
@@ -346,8 +341,8 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	goto error_free_fs;
 
     /* Creates disk format */
-    if (!(fs->format = reiserfs_format_create(host_device, len, profile->tail_policy, 
-	profile->format)))
+    if (!(fs->format = reiserfs_format_create(host_device, len, 
+	    profile->tail_policy, profile->format)))
 	goto error_free_master;
 
     /* Creates block allocator */
@@ -406,7 +401,7 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	reiserfs_object_hint_t dir_hint;
 	
 	/* Finding directroy plugin */
-	if (!(dir_plugin = libreiser4_factory_find_by_id(REISERFS_OBJECT_PLUGIN, profile->object.dir)))
+	if (!(dir_plugin = libreiser4_factory_find(REISERFS_DIR_PLUGIN, profile->object.dir)))
 	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->object.dir);
 	
 	dir_hint.statdata_pid = profile->item.statdata;
@@ -415,7 +410,8 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 	
 	/* Creating object "dir40". See object.c for details */
 	if (!(fs->dir = reiserfs_dir_create(fs, &dir_hint, dir_plugin, NULL, "/"))) {
-	    aal_throw_error(EO_OK, "Can't create root directory.\n");
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't create root directory.");
 	    goto error_free_tree;
 	}
     }
@@ -465,6 +461,10 @@ errno_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
     if (reiserfs_tree_sync(fs->tree))
 	return -1;
     
+    return 0;
+}
+
+errno_t reiserfs_fs_check(reiserfs_fs_t *fs) {
     return 0;
 }
 

@@ -6,10 +6,14 @@
 
 #include <reiser4/reiser4.h>
 
+/* Macro for neighbors working functions */
 #define LEFT (1)
 #define RIGHT (0)
 
-reiserfs_cache_t *reiserfs_cache_create(reiserfs_node_t *node) {
+/* Function for creating cache instance */
+reiserfs_cache_t *reiserfs_cache_create(
+    reiserfs_node_t *node	/* node to be cached */
+) {
     reiserfs_cache_t *cache;
 
     aal_assert("umka-797", node != NULL, return NULL);
@@ -21,9 +25,13 @@ reiserfs_cache_t *reiserfs_cache_create(reiserfs_node_t *node) {
     return cache;
 }
 
-void reiserfs_cache_close(reiserfs_cache_t *cache) {
+/* Frees pased cache instance */
+void reiserfs_cache_close(
+    reiserfs_cache_t *cache	/* cache instance to be closed */
+) {
     aal_assert("umka-122", cache != NULL, return);
     
+    /* Recurcive calling of the same function in order to free all childrens too */
     if (cache->list) {
 	aal_list_t *walk;
 	
@@ -34,6 +42,7 @@ void reiserfs_cache_close(reiserfs_cache_t *cache) {
 	cache->list = NULL;
     }
     
+    /* Uninitializing all fields */
     if (cache->left)
 	cache->left->right = NULL;
     
@@ -47,23 +56,29 @@ void reiserfs_cache_close(reiserfs_cache_t *cache) {
     aal_free(cache);
 }
 
-static int callback_comp_for_find(reiserfs_cache_t *cache, 
-    reiserfs_key_t *key, void *data)
-{
+/* Helper for comparing during finding in the cashe */
+static int callback_comp_for_find(
+    reiserfs_cache_t *cache,	/* cache find should be operate on */
+    reiserfs_key_t *key,	/* key to be find */
+    void *data			/* user-specified data */
+) {
     reiserfs_key_t ldkey;
     
     reiserfs_node_ldkey(cache->node, &ldkey);
     return reiserfs_key_compare_full(&ldkey, key) == 0;
 }
 
-reiserfs_cache_t *reiserfs_cache_find(reiserfs_cache_t *cache, 
-    reiserfs_key_t *key)
+/* Finds children by its left delimiting key */
+reiserfs_cache_t *reiserfs_cache_find(
+    reiserfs_cache_t *cache,	/* cache to  be greped */
+    reiserfs_key_t *key)	/* left delimiting key */
 {
     aal_list_t *item;
     
     if (!cache->list)
 	return NULL;
     
+    /* Using aal_list find function */
     if (!(item = aal_list_find_custom(aal_list_first(cache->list), (void *)key, 
 	    (int (*)(const void *, const void *, void *))
 	    callback_comp_for_find, NULL)))
@@ -72,9 +87,12 @@ reiserfs_cache_t *reiserfs_cache_find(reiserfs_cache_t *cache,
     return (reiserfs_cache_t *)item->item;
 }
 
-static errno_t reiserfs_cache_nkey(reiserfs_cache_t *cache, 
-    int direction, reiserfs_key_t *key) 
-{
+/* Returns left or right neighbor key for passed cache */
+static errno_t reiserfs_cache_nkey(
+    reiserfs_cache_t *cache,	/* cahce for working with */
+    int direction,		/* direction (left or right) */
+    reiserfs_key_t *key		/* key pointer result should be stored */
+) {
     reiserfs_pos_t pos;
     
     aal_assert("umka-770", cache != NULL, return -1);
@@ -83,10 +101,12 @@ static errno_t reiserfs_cache_nkey(reiserfs_cache_t *cache,
     if (reiserfs_cache_pos(cache, &pos))
 	return -1;
     
+    /* Checking for position */
     if (direction == LEFT) {
 	if (pos.item == 0)
 	    return -1;
     } else {
+	/* Checking and proceccing the special case called "shaft" */
 	if (pos.item == reiserfs_node_count(cache->parent->node) - 1) {
 
 	    /* Here we are checking for the case called "shaft" */
@@ -103,22 +123,27 @@ static errno_t reiserfs_cache_nkey(reiserfs_cache_t *cache,
     return 0;
 }
 
-errno_t reiserfs_cache_lnkey(reiserfs_cache_t *cache, 
-    reiserfs_key_t *key) 
-{
+/* Wrapper for previous function. Returns left delimiting key for specified cache */
+errno_t reiserfs_cache_lnkey(
+    reiserfs_cache_t *cache,	/* cache for working with */
+    reiserfs_key_t *key		/* pointer result will be stored in */
+) {
     return reiserfs_cache_nkey(cache, LEFT, key);
 }
 
-errno_t reiserfs_cache_rnkey(reiserfs_cache_t *cache, 
-    reiserfs_key_t *key) 
-{
+/* The same as previous one */
+errno_t reiserfs_cache_rnkey(
+    reiserfs_cache_t *cache, 
+    reiserfs_key_t *key
+) {
     return reiserfs_cache_nkey(cache, RIGHT, key);
 }
 
 /* Returns position of passed cache in parent node */
-errno_t reiserfs_cache_pos(reiserfs_cache_t *cache, 
-    reiserfs_pos_t *pos) 
-{
+errno_t reiserfs_cache_pos(
+    reiserfs_cache_t *cache,	/* cache position will be obtained for */
+    reiserfs_pos_t *pos		/* pointer result will be stored in */
+) {
     reiserfs_key_t ldkey;
     
     aal_assert("umka-869", cache != NULL, return -1);
@@ -129,7 +154,8 @@ errno_t reiserfs_cache_pos(reiserfs_cache_t *cache,
     reiserfs_node_ldkey(cache->node, &ldkey);
     
     if (reiserfs_node_lookup(cache->parent->node, &ldkey, pos) != 1) {
-	aal_throw_error(EO_OK, "Can't find left delimiting key of node %llu.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find left delimiting key of node %llu.", 
 	    aal_block_get_nr(cache->node->block));
 	return -1;
     }
@@ -141,7 +167,9 @@ errno_t reiserfs_cache_pos(reiserfs_cache_t *cache,
     This function raises up both neighbours of the passed cache. This is used
     by shifting code in tree.c
 */
-errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
+errno_t reiserfs_cache_raise(
+    reiserfs_cache_t *cache	/* cache for working with */
+) {
     uint32_t level;
     reiserfs_key_t key;
     reiserfs_coord_t coord;
@@ -165,8 +193,8 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
     if (!cache->left) {
 	if (!reiserfs_cache_lnkey(cache, &key)) {
 	    if (reiserfs_tree_lookup(cache->tree, level, &key, &coord) != 1) {
-		aal_throw_error(EO_OK, "Can't find left neighbour key when raising "
-		    "left neigbour.\n");
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't find left neighbour key when raising left neigbour.");
 		return -1;
 	    }
 	}
@@ -176,8 +204,8 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
     if (!cache->right) {
 	if (!reiserfs_cache_rnkey(cache, &key)) {
 	    if (reiserfs_tree_lookup(cache->tree, level, &key, &coord) != 1) {
-		aal_throw_error(EO_OK, "Can't find right neighbour key when raising "
-		    "right neigbour.\n");
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Can't find right neighbour key when raising right neigbour.");
 		return -1;
 	    }
 	}
@@ -186,9 +214,12 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
     return 0;
 }
 
-static int callback_comp_for_register(reiserfs_cache_t *cache1, 
-    reiserfs_cache_t *cache2, void *data) 
-{
+/* Helper function for registering in cache */
+static int callback_comp_for_register(
+    reiserfs_cache_t *cache1,	/* the first cache inetance for comparing */
+    reiserfs_cache_t *cache2,	/* the second one */
+    void *data			/* user-specified data */
+) {
     reiserfs_key_t ldkey1, ldkey2;
     
     reiserfs_node_ldkey(cache1->node, &ldkey1);
@@ -201,9 +232,10 @@ static int callback_comp_for_register(reiserfs_cache_t *cache1,
     Connects children into sorted children list of specified node. Sets up both
     neighbours and parent pointer.
 */
-errno_t reiserfs_cache_register(reiserfs_cache_t *cache, 
-    reiserfs_cache_t *child) 
-{
+errno_t reiserfs_cache_register(
+    reiserfs_cache_t *cache,	/* cache child will be connected to */
+    reiserfs_cache_t *child	/* child cache for registering */
+) {
     reiserfs_key_t ldkey;
     reiserfs_key_t lnkey, rnkey;
     reiserfs_cache_t *left, *right;
@@ -216,8 +248,9 @@ errno_t reiserfs_cache_register(reiserfs_cache_t *cache,
     
     if (limit->enabled) {
 	if ((uint32_t)(limit->cur + 1) > limit->max) {
-	    aal_throw_warning(EO_OK, "Cache limit has been exceeded (current: %d, "
-		"allowed: %u). Flushing should be run.\n", limit->cur, limit->max);
+	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
+		"Cache limit has been exceeded (current: %d, allowed: %u). "
+		"Flushing should be run.", limit->cur, limit->max);
 	}
 	limit->cur++;
     }
@@ -315,7 +348,8 @@ errno_t reiserfs_cache_sync(reiserfs_cache_t *cache) {
     }
     
     if (reiserfs_node_sync(cache->node)) {
-	aal_throw_error(EO_OK, "Can't synchronize node %llu to device. %s.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't synchronize node %llu to device. %s.", 
 	    aal_block_get_nr(cache->node->block), 
 	    aal_device_error(cache->node->block->device));
 	return -1;

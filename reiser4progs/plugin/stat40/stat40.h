@@ -34,6 +34,41 @@ typedef struct reiserfs_stat40_base reiserfs_stat40_base_t;
 #define sd40_get_size(stat)		aal_get_le64(stat, size)
 #define sd40_set_size(stat, val)	aal_set_le64(stat, size, val)
 
+/* 
+    Stat-data extension. Please order this by presumed 
+    frequency of use.
+*/
+typedef enum {
+    /* 
+	Data required to implement unix stat(2) call. Layout is in
+	reiserfs_unix_stat. If this is not present, file is light-weight 
+    */
+    UNIX_STAT,
+    /* 
+	If this is present, file is controlled by non-standard
+        plugin (that is, plugin that cannot be deduced from file
+        mode bits), for example, aggregation, interpolation etc. 
+    */
+    PLUGIN_STAT,
+    /* 
+	This extension contains inode generation and persistent inode
+        flags. Layout is in reiserfs_gen_and_flags_stat 
+    */
+    GEN_AND_FLAGS_STAT,
+    /* 
+	This extension contains capabilities sets, associated with this
+        file. Layout is in reiserfs_capabilities_stat
+    */
+    CAPABILITIES_STAT,
+    /* 
+	This contains additional set of 32bit [anc]time fields to
+        implement 64bit times a la BSD. Layout is in reiserfs_large_times_stat 
+    */
+    LARGE_TIMES_STAT,
+    LAST_SD_EXTENSION,
+    LAST_IMPORTANT_SD_EXTENSION = PLUGIN_STAT,
+} reiserfs_stat_extentions;
+
 struct reiserfs_stat40_unix {
     uint32_t uid;
     uint32_t gid;

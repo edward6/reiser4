@@ -17,7 +17,6 @@ int aal_log2(unsigned long n) {
     unsigned long x;
 
     for (x = 0; (unsigned long)(1 << x) <= n; x++);
-    
-    return x - 1;
+	return x - 1;
 }
 

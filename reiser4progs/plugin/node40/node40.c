@@ -11,6 +11,8 @@
 #include <reiser4/reiser4.h>
 #include "node40.h"
 
+#define REISERFS_NODE40_PID (0x0)
+
 static reiserfs_core_t *core = NULL;
 
 #ifndef ENABLE_COMPACT
@@ -28,7 +30,7 @@ static reiserfs_node40_t *node40_create(aal_block_t *block,
     node->block = block;
     
     /* Plugin setup was moved here because we should support reiser3 */
-    nh40_set_pid(reiserfs_nh40(node->block), REISERFS_NODE40_ID);
+    nh40_set_pid(reiserfs_nh40(node->block), REISERFS_NODE40_PID);
 
     nh40_set_free_space(reiserfs_nh40(node->block), 
 	node->block->size - sizeof(reiserfs_nh40_t));
@@ -60,9 +62,10 @@ static reiserfs_node40_t *node40_open(aal_block_t *block) {
     
     node->block = block;
     
-    if (node40_get_pid(node) != REISERFS_NODE40_ID) {
-	aal_throw_error(EO_OK, "Plugin id (%u) does not match current plugin id (%u).\n", 
-	    node40_get_pid(node), REISERFS_NODE40_ID);
+    if (node40_get_pid(node) != REISERFS_NODE40_PID) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Plugin id (%u) does not match current plugin id (%u).", 
+	    node40_get_pid(node), REISERFS_NODE40_PID);
 	goto error_free_node;
     }
     
@@ -358,7 +361,7 @@ static uint32_t node40_maxnum(reiserfs_node40_t *node) {
 	uint32_t pid = ih40_get_pid(node40_ih_at(node->block, i));
 	
 	if (!plugin || plugin->h.id != pid) {
-	    if (!(plugin = core->factory_find(REISERFS_ITEM_PLUGIN, pid)))
+	    if (!(plugin = core->factory_ops.plugin_find(REISERFS_ITEM_PLUGIN, pid)))
 		libreiser4_factory_failed(return 0, find, item, pid);
 	}
 	
@@ -484,7 +487,7 @@ static reiserfs_plugin_t node40_plugin = {
     .node_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_NODE40_ID,
+	    .id = REISERFS_NODE40_PID,
 	    .type = REISERFS_NODE_PLUGIN,
 	    .label = "node40",
 	    .desc = "Node for reiserfs 4.0, ver. 0.1, "

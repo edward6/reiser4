@@ -1,5 +1,7 @@
 This is a library for reiserfs filesystem access and manipulations.
 
-Send reiser4progs bug reports to reiserfs-dev@namesys.com, and for technical support go to www.namesys.com/support.html.
+Send reiser4progs bug reports, requests for help, feature requests, 
+comments, etc. to reiserfs-list@namesys.com, vitaly@namesys.com,
+umka@namesys.com
 
 

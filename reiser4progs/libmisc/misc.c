@@ -13,43 +13,42 @@
     1 - key on *pos found exact key on *pos position; 
     0 - exact key has not been found. key of *pos < then wanted.
 */
-int reiserfs_misc_bin_search(
-    void *array,		    /* array search will be performed on */ 
-    uint32_t count,		    /* array size */
-    void *needle,		    /* element to be found */
-    reiserfs_elem_func_t elem_func, /* getting next element function */
-    reiserfs_comp_func_t comp_func, /* comparing function */
-    void *data,			    /* user-specified data will be passed to both callbacks */
-    uint64_t *pos)		    /* result position will be stored here */
+
+int reiserfs_misc_bin_search(void *array, uint32_t count, void *needle,
+    reiserfs_elem_func_t elem_func, reiserfs_comp_func_t comp_func,
+    void *data, uint64_t *pos)
 {
     void *elem;
-    int ret = 0;
-    int right, left, j;
+    int res = 0;
+    int left, right, i;
 
     if (count == 0) {
-        *pos = 0;
+    	*pos = 0;
         return 0;
     }
 
     left = 0;
     right = count - 1;
 
-    for (j = (right + left) / 2; left <= right; j = (right + left) / 2) {
-	if (!(elem = elem_func(array, j, data)))
+    for (i = (right + left) / 2; left <= right; i = (right + left) / 2) {
+	
+	if (!(elem = elem_func(array, i, data)))
 	    return -1;
 	
-        if ((ret = comp_func(elem, needle, data)) < 0) { 
-            left = j + 1;
-            continue;
-        } else if (ret > 0) { 
-            if (j == 0) 
+	res = comp_func(elem, needle, data);
+	if (res == -1) {
+	    left = i + 1;
+	    continue;
+	} else if (res == 1) {
+	    if (i == 0)
 		break;
-            right = j - 1;
-            continue;
-        } else { 
-            *pos = j;
-            return 1;
-        }
+	    
+	    right = i - 1;
+	    continue;
+	} else {
+	    *pos = i;
+	    return 1;
+	}	
     }
 
     *pos = left;

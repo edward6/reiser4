@@ -19,7 +19,6 @@
 struct walk_desc {
     reiserfs_plugin_type_t type;
     reiserfs_id_t id;
-    const char *name;
 };
 
 typedef struct walk_desc walk_desc_t;
@@ -29,16 +28,7 @@ aal_list_t *plugins = NULL;
 extern reiserfs_core_t core;
 
 static int callback_match_coord(reiserfs_plugin_t *plugin, walk_desc_t *desc) {
-    return (plugin->h.type == desc->type);
-}
-
-static int callback_match_id(reiserfs_plugin_t *plugin, walk_desc_t *desc) {
     return (plugin->h.type == desc->type && plugin->h.id == desc->id);
-}
-
-static int callback_match_name(reiserfs_plugin_t *plugin, walk_desc_t *desc) {
-    return (plugin->h.type == desc->type && !aal_strncmp(plugin->h.label, desc->name, 
-	aal_strlen(desc->name)));
 }
 
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
@@ -51,13 +41,15 @@ reiserfs_plugin_t *libreiser4_plugin_load_by_name(const char *name) {
     aal_assert("umka-260", name != NULL, return NULL);
     
     if (!(handle = dlopen(name, RTLD_NOW))) {
-        aal_throw_error(EO_OK, "Can't load plugin %s.\n", name);
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	   "Can't load plugin %s.", name);
 	return NULL;
     }
 
     addr = dlsym(handle, "__plugin_entry");
     if (dlerror() != NULL || entry == NULL) {
-        aal_throw_error(EO_OK, "Can't find entry point in plugin %s.\n", name);
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	   "Can't find entry point in plugin %s.", name);
 	goto error_free_handle;
     }
     
@@ -82,7 +74,8 @@ reiserfs_plugin_t *libreiser4_plugin_load_by_entry(reiserfs_plugin_entry_t entry
     aal_assert("umka-259", entry != NULL, return NULL);
     
     if (!(plugin = entry(&core))) {
-	aal_throw_error(EO_OK, "Can't initialiaze plugin.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't initialiaze plugin.");
 	return NULL;
     }
     
@@ -115,7 +108,8 @@ errno_t libreiser4_factory_init(void) {
     
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
     if (!(dir = opendir(PLUGIN_DIR))) {
-    	aal_throw_fatal(EO_OK, "Can't open directory %s.\n", PLUGIN_DIR);
+    	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
+	    "Can't open directory %s.", PLUGIN_DIR);
 	return -1;
     }
 	
@@ -163,9 +157,7 @@ void libreiser4_factory_done(void) {
     plugins = NULL;
 }
 
-reiserfs_plugin_t *libreiser4_factory_find_by_id(reiserfs_plugin_type_t type, 
-    reiserfs_id_t id) 
-{
+reiserfs_plugin_t *libreiser4_factory_find(reiserfs_plugin_type_t type, reiserfs_id_t id) {
     aal_list_t *found;
     walk_desc_t desc;
 
@@ -175,63 +167,7 @@ reiserfs_plugin_t *libreiser4_factory_find_by_id(reiserfs_plugin_type_t type,
     desc.id = id;
 	
     return (found = aal_list_find_custom(aal_list_first(plugins), (void *)&desc, 
-	(comp_func_t)callback_match_id, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
-}
-
-reiserfs_plugin_t *libreiser4_factory_find_by_name(reiserfs_plugin_type_t type, 
-    const char *name) 
-{
-    aal_list_t *found;
-    walk_desc_t desc;
-
-    aal_assert("vpf-156", name != NULL, return NULL);    
-	
-    desc.type = type;
-    desc.name = name;
-	
-    return (found = aal_list_find_custom(aal_list_first(plugins), (void *)&desc, 
-	(comp_func_t)callback_match_name, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
-}
-
-/* 
-    Will be useful when we will have a well defined hierarchy of plugin classes when e.g.
-    printing all plugins of one partitcular type.
-*/
-reiserfs_plugin_t *libreiser4_factory_find(reiserfs_plugin_t *start_plugin, 
-    reiserfs_plugin_type_t type)
-{
-    aal_list_t *found, *curr;
-    walk_desc_t desc;
-
-    if (start_plugin) {
-	if ((curr = aal_list_find(aal_list_first(plugins), start_plugin)) == NULL)
-	    return NULL;
-	curr = curr->next;
-    } else {
-	curr = aal_list_first(plugins);	
-    }
-
-    desc.type = type;
-	
-    return (found = aal_list_find_custom(curr, (void *)&desc, 
 	(comp_func_t)callback_match_coord, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
-}
-
-reiserfs_plugin_t *libreiser4_factory_get_next(reiserfs_plugin_t *start_plugin)
-{
-    aal_list_t *found, *curr;
-    walk_desc_t desc;
-
-    if (start_plugin) {
-	if ((curr = aal_list_find(aal_list_first(plugins), start_plugin)) == NULL)
-	    return NULL;
-	if (curr) 
-	    curr = curr->next;
-    } else {
-	curr = aal_list_first(plugins);	
-    }
-    
-    return curr ? curr->item : NULL;
 }
 
 errno_t libreiser4_plugins_foreach(reiserfs_plugin_func_t plugin_func, void *data) {

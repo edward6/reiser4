@@ -42,14 +42,15 @@ static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
     libreiser4_plugin_call(return -1, key.plugin->key_ops, build_entry_full, 
 	key.body, dir->hash_plugin, dir40_locality(dir), dir40_objectid(dir), ".");
 	    
-    if (core->tree_lookup(dir->tree, &key, &dir->place) != 1) {
-	aal_throw_error(EO_OK, "Can't find direntry of object %llx.\n", 
+    if (core->tree_ops.lookup(dir->tree, &key, &dir->place) != 1) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find direntry of object %llx.", 
 	    dir40_objectid(dir));
 	return -1;
     }
 
     /* Updating pointer to direntry item */
-    if (core->tree_data(dir->tree, &dir->place, &dir->direntry, NULL))
+    if (core->tree_ops.item_body(dir->tree, &dir->place, &dir->direntry, NULL))
         return -1;
     
     dir->pos = 0;
@@ -67,13 +68,14 @@ static errno_t dir40_realize(reiserfs_dir40_t *dir) {
 	dir->key.body, KEY40_STATDATA_MINOR, dir40_locality(dir), dir40_objectid(dir), 0);
     
     /* Positioning to the dir stat data */
-    if (core->tree_lookup(dir->tree, &dir->key, &dir->place) != 1) {
-	aal_throw_error(EO_OK, "Can't find stat data of directory with oid %llx.\n", 
+    if (core->tree_ops.lookup(dir->tree, &dir->key, &dir->place) != 1) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find stat data of directory with oid %llx.", 
 	    dir40_objectid(dir));
 	return -1;
     }
     
-    return core->tree_data(dir->tree, &dir->place, 
+    return core->tree_ops.item_body(dir->tree, &dir->place, 
 	&dir->statdata.data, &dir->statdata.len);
 }
 
@@ -102,15 +104,15 @@ static errno_t dir40_read(reiserfs_dir40_t *dir,
 	    return -1;
 	
 	/* Switching to the rest of directory, which lies in other node */
-	if (core->tree_right(dir->tree, &dir->place))
+	if (core->tree_ops.item_right(dir->tree, &dir->place))
 	    return -1;
 	
 	/* Here we check is next item belongs to this directory */
-	if (core->tree_pid(dir->tree, &dir->place, REISERFS_ITEM_PLUGIN) != 
+	if (core->tree_ops.item_pid(dir->tree, &dir->place, REISERFS_ITEM_PLUGIN) != 
 		dir->direntry_plugin->h.id)
 	    return -1;
 	
-	if (core->tree_data(dir->tree, &dir->place, &dir->direntry, NULL))
+	if (core->tree_ops.item_body(dir->tree, &dir->place, &dir->direntry, NULL))
 	    return -1;
 	
 	if ((libreiser4_plugin_call(return -1, item_ops->specific.direntry, 
@@ -158,7 +160,8 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
     
     /* Grabbing stat data */
     if (dir40_realize(dir)) {
-	aal_throw_error(EO_OK, "Can't grab stat data of  directory with oid %llx.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't grab stat data of  directory with oid %llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
@@ -167,14 +170,15 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
 	Initializing stat data plugin after dir40_realize function find and grab 
 	pointer to the statdata item.
     */
-    if ((statdata_pid = core->tree_pid(dir->tree, &dir->place, 
+    if ((statdata_pid = core->tree_ops.item_pid(dir->tree, &dir->place, 
 	REISERFS_ITEM_PLUGIN)) == REISERFS_INVAL_PLUGIN)
     {
-	aal_throw_error(EO_OK, "Can't get stat data plugin id from the tree.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't get stat data plugin id from the tree.");
 	goto error_free_dir;
     }
     
-    if (!(dir->statdata_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+    if (!(dir->statdata_plugin = core->factory_ops.plugin_find(REISERFS_ITEM_PLUGIN, 
 	statdata_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
@@ -187,16 +191,17 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
 	it is a hardcoded value. We will need to fix it after stat data extentions will be 
 	supported.
     */
-    if (!(dir->hash_plugin = core->factory_find(REISERFS_HASH_PLUGIN, 
-	REISERFS_R5_HASH_ID)))
+    if (!(dir->hash_plugin = core->factory_ops.plugin_find(REISERFS_HASH_PLUGIN, 
+	REISERFS_R5_HASH)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
-	    hash, REISERFS_R5_HASH_ID);
+	    hash, REISERFS_R5_HASH);
     }
     
     /* Positioning to the first directory unit */
     if (dir40_rewind(dir)) {
-	aal_throw_error(EO_OK, "Can't rewind directory with oid %llx.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't rewind directory with oid %llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
@@ -205,14 +210,15 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
 	Initializing direntry plugin after dir40_rewind function find and grab pointer
 	to the first direntry item.
     */
-    if ((direntry_pid = core->tree_pid(dir->tree, &dir->place, 
+    if ((direntry_pid = core->tree_ops.item_pid(dir->tree, &dir->place, 
 	REISERFS_ITEM_PLUGIN)) == REISERFS_INVAL_PLUGIN)
     {
-	aal_throw_error(EO_OK, "Can't get direntry plugin id from the tree.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't get direntry plugin id from the tree.");
 	goto error_free_dir;
     }
     
-    if (!(dir->direntry_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+    if (!(dir->direntry_plugin = core->factory_ops.plugin_find(REISERFS_ITEM_PLUGIN, 
 	direntry_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
@@ -252,7 +258,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     dir->tree = tree;
     
-    if (!(dir->hash_plugin = core->factory_find(REISERFS_HASH_PLUGIN, hint->hash_pid)))
+    if (!(dir->hash_plugin = core->factory_ops.plugin_find(REISERFS_HASH_PLUGIN, hint->hash_pid)))
 	libreiser4_factory_failed(goto error_free_dir, find, hash, hint->hash_pid);
     
     parent_objectid = libreiser4_plugin_call(return NULL, 
@@ -266,14 +272,14 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     aal_memset(&item, 0, sizeof(item));
     
-    if (!(dir->statdata_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+    if (!(dir->statdata_plugin = core->factory_ops.plugin_find(REISERFS_ITEM_PLUGIN, 
 	hint->statdata_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
 	    statdata, hint->statdata_pid);
     }
     
-    if (!(dir->direntry_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+    if (!(dir->direntry_plugin = core->factory_ops.plugin_find(REISERFS_ITEM_PLUGIN, 
 	hint->direntry_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
@@ -298,9 +304,10 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     item.hint = &stat;
 
     /* Calling balancing code in order to insert statdata item into the tree */
-    if (core->tree_insert(tree, &item)) {
-	aal_throw_error(EO_OK, "Can't insert stat data item of object %llx into "
-	    "the thee.\n", objectid);
+    if (core->tree_ops.item_insert(tree, &item)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't insert stat data item of object %llx into "
+	    "the thee.", objectid);
 	goto error_free_dir;
     }
     
@@ -347,9 +354,10 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     item.hint = &direntry;
     
     /* Inserting the direntry item into the tree */
-    if (core->tree_insert(tree, &item)) {
-	aal_throw_error(EO_OK, "Can't insert direntry item of object %llx into "
-	    "the thee.\n", objectid);
+    if (core->tree_ops.item_insert(tree, &item)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't insert direntry item of object %llx into "
+	    "the thee.", objectid);
 	goto error_free_dir;
     }
     
@@ -360,14 +368,16 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     /* Grabbing the stat data item */
     if (dir40_realize(dir)) {
-	aal_throw_error(EO_OK, "Can't grab stat data of  directory with oid %llx.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't grab stat data of  directory with oid %llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
 
     /* Positioning onto first directory unit */
     if (dir40_rewind(dir)) {
-	aal_throw_error(EO_OK, "Can't rewind directory with oid %llx.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't rewind directory with oid %llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
@@ -405,8 +415,8 @@ static reiserfs_plugin_t dir40_plugin = {
     .dir_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_DIR40_ID,
-	    .type = REISERFS_OBJECT_PLUGIN,
+	    .id = 0x0,
+	    .type = REISERFS_DIR_PLUGIN,
 	    .label = "dir40",
 	    .desc = "Directory for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",

@@ -37,7 +37,8 @@ static errno_t journal36_sync(reiserfs_journal36_t *journal) {
     aal_assert("umka-407", journal != NULL, return -1);
     
     if (aal_block_write(journal->header)) {
-	aal_throw_warning(EO_IGNORE, "Can't synchronize journal header. %s.\n", 
+	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
+	    "Can't synchronize journal header. %s.", 
 	    aal_device_error(journal->device));
 	return -1;
     }
@@ -57,7 +58,7 @@ static reiserfs_plugin_t journal36_plugin = {
     .journal_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_JOURNAL36_ID,
+	    .id = 0x1,
 	    .type = REISERFS_JOURNAL_PLUGIN,
 	    .label = "journal36",
 	    .desc = "Default journal for reiserfs 3.6.x, ver. 0.1, "

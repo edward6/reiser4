@@ -42,33 +42,28 @@ typedef struct reiserfs_fs reiserfs_fs_t;
     Profile structure. It describes what plugins will be used
     for every corresponding filesystem part.
 */
-
 struct reiserfs_profile {
     char label[255];
     char desc[255];
-
-    reiserfs_id_t node;
     
-    struct {
-	reiserfs_id_t file;
-	reiserfs_id_t dir;
-	reiserfs_id_t symlink;
-	reiserfs_id_t special;	    
-    } object;
+    reiserfs_id_t node;
     
     struct {
 	reiserfs_id_t internal;
 	reiserfs_id_t statdata;
 	reiserfs_id_t direntry;
-	struct {
-	    reiserfs_id_t tail;
-	    reiserfs_id_t extent;
-	} file_body;
-	reiserfs_id_t acl;
+	reiserfs_id_t tail;
+	reiserfs_id_t extent;
     } item;
+    
+    struct {
+	reiserfs_id_t file;
+	reiserfs_id_t dir;
+    } object;
     
     reiserfs_id_t hash;
     reiserfs_id_t tail_policy;
+    reiserfs_id_t hook;
     reiserfs_id_t perm;
     reiserfs_id_t format;
     reiserfs_id_t oid;
@@ -219,7 +214,6 @@ struct reiserfs_fs {
 };
 
 /* Public functions */
-extern errno_t reiserfs_master_open(reiserfs_fs_t *fs);
 extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
     aal_device_t *journal_device, int replay);
 
@@ -233,6 +227,8 @@ extern reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     void *journal_params);
 
 extern errno_t reiserfs_fs_sync(reiserfs_fs_t *fs);
+
+extern errno_t reiserfs_fs_check(reiserfs_fs_t *fs);
 
 #endif
 

@@ -26,7 +26,7 @@
 /* 
     Macro for checking the format string in situations like this:
 
-    aal_exception_throw(NULL, EXCEPTION_ERROR, EXCEPTION_OK, "Operation %d failed.", 
+    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Operation %d failed.", 
 	"open");
 
     As aal_exception_throw is declared with this macro, compiller in the comile 

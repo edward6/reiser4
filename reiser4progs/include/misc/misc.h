@@ -1,5 +1,5 @@
 /*
-    misc.h -- miscellaneous useful code for reiser4 library.
+    misc.h -- miscellaneous useful code.
     Copyright (C) 1996 - 2002 Hans Reiser
     Author Vitaly Fertman.
 */
@@ -9,7 +9,6 @@
 
 #include <stdint.h>
 #include <aal/aal.h>
-#include <reiser4/filesystem.h>
 
 typedef void *(*reiserfs_elem_func_t) (void *, uint32_t, void *);
 typedef int (*reiserfs_comp_func_t) (const void *, const void *, void *);

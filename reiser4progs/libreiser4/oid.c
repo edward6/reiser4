@@ -23,7 +23,7 @@ reiserfs_oid_t *reiserfs_oid_open(void *area_start, void *area_end,
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
 	return NULL;
    
-    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_OID_PLUGIN, oid_pid))) 
+    if (!(plugin = libreiser4_factory_find(REISERFS_OID_PLUGIN, oid_pid))) 
 	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_pid);
     
     oid->plugin = plugin;
@@ -31,7 +31,8 @@ reiserfs_oid_t *reiserfs_oid_open(void *area_start, void *area_end,
     if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
 	plugin->oid_ops, open, area_start, area_end))) 
     {
-	aal_throw_error(EO_OK, "Can't open oid allocator %s.\n", plugin->h.label);
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't open oid allocator %s.", plugin->h.label);
 	goto error_free_oid;
     }
 
@@ -65,7 +66,7 @@ reiserfs_oid_t *reiserfs_oid_create(void *area_start, void *area_end,
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
 	return NULL;
    
-    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_OID_PLUGIN, oid_pid)))
+    if (!(plugin = libreiser4_factory_find(REISERFS_OID_PLUGIN, oid_pid)))
 	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_pid);
     
     oid->plugin = plugin;
@@ -73,7 +74,8 @@ reiserfs_oid_t *reiserfs_oid_create(void *area_start, void *area_end,
     if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
 	plugin->oid_ops, create, area_start, area_end)))
     {
-	aal_throw_error(EO_OK, "Can't create oid allocator %s.\n", plugin->h.label);
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't create oid allocator %s.", plugin->h.label);
 	goto error_free_oid;
     }
 

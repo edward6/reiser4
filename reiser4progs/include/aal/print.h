@@ -12,22 +12,26 @@
 
 #include <aal/aal.h>
 
-#ifndef ENABLE_COMPACT
-#  include <stdio.h>
-#endif
+enum aal_direction {
+    ERR,
+    OUT
+};
 
-typedef void (*aal_printf_handler_t)(const char *);
-typedef void (*aal_fprintf_handler_t)(void *stream, const char *);
+typedef enum aal_direction aal_direction_t;
 
-extern void aal_printf_set_handler(aal_printf_handler_t handler);
-extern aal_printf_handler_t aal_printf_get_handler(void);
-extern void aal_fprintf_set_handler(aal_fprintf_handler_t handler);
-extern aal_fprintf_handler_t aal_fprintf_get_handler(void);
+typedef void (*aal_print_handler_t)(aal_direction_t, const char *);
 
-extern void aal_printf(const char *format, ...) __check_format__(printf, 1, 2);
-extern void aal_fprintf(void *stream, const char *format, ...) __check_format__(printf, 2, 3);
-extern int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list);
-extern int aal_snprintf(char *buff, size_t n, const char *format, ...) __check_format__(printf, 3, 4);
+extern void aal_print_set_handler(aal_print_handler_t handler);
+extern aal_print_handler_t aal_print_get_handler(void);
+
+extern void aal_printf(aal_direction_t direction, 
+    const char *format, ...) __check_format__(printf, 2, 3);
+
+extern int aal_vsnprintf(char *buff, size_t n, const char *format, 
+    va_list arg_list);
+
+extern int aal_snprintf(char *buff, size_t n, const char *format, 
+    ...) __check_format__(printf, 3, 4);
 
 #endif
 

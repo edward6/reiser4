@@ -23,23 +23,25 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
 	return NULL;
     
     if (!(node->block = aal_block_alloc(device, blk, 0))) {
-	aal_throw_error(EO_OK, "Can't allocate block %llu.\n", blk);
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't allocate block %llu.", blk);
 	goto error_free_node;
     }
     
     /* Finding the node plugin by its id */
-    if (!(node->node_plugin = libreiser4_factory_find_by_id(REISERFS_NODE_PLUGIN, node_pid))) 
+    if (!(node->node_plugin = libreiser4_factory_find(REISERFS_NODE_PLUGIN, node_pid))) 
 	libreiser4_factory_failed(goto error_free_block, find, node, node_pid);
 
     /* Finding the key plugin by its id */
-    if (!(node->key_plugin = libreiser4_factory_find_by_id(REISERFS_KEY_PLUGIN, key_pid))) 
+    if (!(node->key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, key_pid))) 
 	libreiser4_factory_failed(goto error_free_block, find, key, key_pid);
    
     /* Requesting the plugin for initialization of the entity */
     if (!(node->entity = libreiser4_plugin_call(goto error_free_block, 
 	node->node_plugin->node_ops, create, node->block, level))) 
     {
-	aal_throw_error(EO_OK, "Can't create node entity.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't create node entity.");
 	goto error_free_block;
     }
     
@@ -84,25 +86,26 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
 	return NULL;
    
     if (!(node->block = aal_block_read(device, blk))) {
-	aal_throw_error(EO_OK, "Can't read block %llu. %s.\n", blk, 
-	    aal_device_error(device));
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't read block %llu. %s.", blk, aal_device_error(device));
 	goto error_free_node;
     }
     
     /* Finding the key plugin by its id */
-    if (!(node->key_plugin = libreiser4_factory_find_by_id(REISERFS_KEY_PLUGIN, key_pid))) 
+    if (!(node->key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, key_pid))) 
 	libreiser4_factory_failed(goto error_free_block, find, key, key_pid);
     
     node_pid = *((uint16_t *)node->block->data);
     
     /* Finding the node plugin by its id */
-    if (!(node->node_plugin = libreiser4_factory_find_by_id(REISERFS_NODE_PLUGIN, node_pid))) 
+    if (!(node->node_plugin = libreiser4_factory_find(REISERFS_NODE_PLUGIN, node_pid))) 
 	libreiser4_factory_failed(goto error_free_block, find, node, node_pid);
 
     if (!(node->entity = libreiser4_plugin_call(goto error_free_block, 
 	node->node_plugin->node_ops, open, node->block)))
     {
-	aal_throw_error(EO_OK, "Can't initialize node entity.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't initialize node entity.");
 	goto error_free_block;
     }    
 	    
@@ -162,7 +165,7 @@ static errno_t reiserfs_node_relocate(reiserfs_node_t *dst_node,
     
     pid = reiserfs_node_item_get_pid(src_node, src_pos->item);
 	
-    if (!(item.plugin = libreiser4_factory_find_by_id(REISERFS_ITEM_PLUGIN, pid)))
+    if (!(item.plugin = libreiser4_factory_find(REISERFS_ITEM_PLUGIN, pid)))
 	libreiser4_factory_failed(return -1, find, item, pid);
 
     /* Insering the item into new location */
@@ -252,7 +255,8 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
     if ((lookup = libreiser4_plugin_call(return -1, 
 	node->node_plugin->node_ops, lookup, node->entity, key, pos)) == -1) 
     {
-	aal_throw_error(EO_OK, "Lookup in the node %llu failed.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Lookup in the node %llu failed.", 
 	    aal_block_get_nr(node->block));
 	return -1;
     }
@@ -262,7 +266,8 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
     item_pos = pos->item - (pos->item > 0 ? 1 : 0);
 	    
     if (!(item_plugin = reiserfs_node_item_get_plugin(node, item_pos))) {
-	aal_throw_error(EO_OK, "Can't find item plugin at node %llu and pos %u.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item plugin at node %llu and pos %u.", 
 	    aal_block_get_nr(node->block), item_pos);
 	return -1;
     }
@@ -276,8 +281,9 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
     if (item_plugin->item_ops.common.maxkey) {
 	    
 	if (item_plugin->item_ops.common.maxkey(&maxkey) == -1) {
-	    aal_throw_error(EO_OK, "Getting max key of the item %d in the node "
-		"%llu failed.\n", pos->item, aal_block_get_nr(node->block));
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Getting max key of the item %d in the node %llu failed.", 
+		pos->item, aal_block_get_nr(node->block));
 	    return -1;
 	}
 	
@@ -291,7 +297,8 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
 	return lookup;
 	    
     if (!(body = reiserfs_node_item_body(node, item_pos))) {
-	aal_throw_error(EO_OK, "Can't find item at node %llu and pos %u.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item at node %llu and pos %u.", 
 	    aal_block_get_nr(node->block), item_pos);
 	return -1;
     }
@@ -299,7 +306,8 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
     if ((lookup = item_plugin->item_ops.common.lookup(body, key, 
 	&pos->unit)) == -1) 
     {
-	aal_throw_error(EO_OK, "Lookup in the item %d in the node %llu failed.\n", 
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Lookup in the item %d in the node %llu failed.", 
 	    item_pos, aal_block_get_nr(node->block));
 	return -1;
     }
@@ -345,8 +353,8 @@ errno_t reiserfs_node_insert(reiserfs_node_t *node,
 	    if item->data not installed.
 	*/
 	if (reiserfs_node_item_estimate(node, pos, item)) {
-	    aal_throw_error(EO_OK, "Can't estimate space that item being inserted "
-		"will consume.\n");
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't estimate space that item being inserted will consume.");
 	    return -1;
 	}
     } else {
@@ -357,8 +365,9 @@ errno_t reiserfs_node_insert(reiserfs_node_t *node,
     if (item->len + reiserfs_node_item_overhead(node) >
         reiserfs_node_get_free_space(node))
     {
-        aal_throw_error(EO_OK, "There is no space to insert the item of (%u) size "
-	    "in the node (%llu).\n", item->len, aal_block_get_nr(node->block));
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+            "There is no space to insert the item of (%u) size in the node (%llu).",
+            item->len, aal_block_get_nr(node->block));
         return -1;
     }
 
@@ -479,7 +488,7 @@ reiserfs_plugin_t *reiserfs_node_item_get_plugin(reiserfs_node_t *node,
 {
     aal_assert("umka-755", node != NULL, return NULL);
     
-    return libreiser4_factory_find_by_id(REISERFS_ITEM_PLUGIN, 
+    return libreiser4_factory_find(REISERFS_ITEM_PLUGIN, 
 	reiserfs_node_item_get_pid(node, pos));
 }
 
@@ -491,18 +500,20 @@ blk_t reiserfs_node_get_pointer(reiserfs_node_t *node, uint32_t pos) {
     aal_assert("umka-778", pos < reiserfs_node_count(node), return 0);
 
     if (!reiserfs_node_item_internal(node, pos)) {
-	aal_throw_error(EO_OK, "An attempt to get the node pointer from "
-	    "non-internal item.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "An attempt to get the node pointer from non-internal item.");
 	return 0;
     }
     
     if (!(plugin = reiserfs_node_item_get_plugin(node, pos))) {
-	aal_throw_error(EO_OK, "Can't find internal item plugin.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find internal item plugin.");
 	return 0;
     }
 
     if (!(body = reiserfs_node_item_body(node, pos))) {
-	aal_throw_error(EO_OK, "Can't find item at node %llu and pos %u.\n",
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find item at node %llu and pos %u",
 	    aal_block_get_nr(node->block), pos);
 	return 0;
     }
@@ -523,12 +534,14 @@ int reiserfs_node_has_pointer(reiserfs_node_t *node,
 	return 0;
 
     if (!(plugin = reiserfs_node_item_get_plugin(node, pos))) {
-	aal_throw_error(EO_OK, "Can't find item plugin.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item plugin.");
 	return 0;
     }
     
     if (!(body = reiserfs_node_item_body(node, pos))) {
-	aal_throw_error(EO_OK, "Can't find item at node %llu and pos %u.\n",
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find item at node %llu and pos %u",
 	    aal_block_get_nr(node->block), pos);
 	return 0;
     }
@@ -539,7 +552,7 @@ int reiserfs_node_has_pointer(reiserfs_node_t *node,
 
 int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos) {
     aal_assert("vpf-042", node != NULL, return 0);
-    return reiserfs_node_item_get_pid(node, pos) == REISERFS_INTERNAL40_ID;
+    return reiserfs_node_item_get_pid(node, pos) == REISERFS_INTERNAL_ITEM;
 }
 
 #ifndef ENABLE_COMPACT
@@ -562,18 +575,20 @@ errno_t reiserfs_node_set_pointer(reiserfs_node_t *node,
     aal_assert("umka-607", node != NULL, return -1);
 
     if (!reiserfs_node_item_internal(node, pos)) {
-	aal_throw_error(EO_OK, "An attempt to set the node pointer inside "
-	    "non-internal item.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "An attempt to set the node pointer inside non-internal item.");
 	return -1;
     }
     
     if (!(plugin = reiserfs_node_item_get_plugin(node, pos))) {
-	aal_throw_error(EO_OK, "Can't find item plugin.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item plugin.");
 	return -1;
     }
     
     if (!(body = reiserfs_node_item_body(node, pos))) {
-	aal_throw_error(EO_OK, "Can't find item at node %llu and pos %u.\n",
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find item at node %llu and pos %u",
 	    aal_block_get_nr(node->block), pos);
 	return -1;
     }
@@ -621,7 +636,8 @@ errno_t reiserfs_node_item_estimate(reiserfs_node_t *node,
     if (!item->plugin && !(item->plugin = 
 	reiserfs_node_item_get_plugin(node, pos->item))) 
     {
-	aal_throw_error(EO_OK, "Can't find item plugin.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item plugin.");
 	return -1;
     }
 

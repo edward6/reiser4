@@ -6,7 +6,10 @@
 
 #include <aal/aal.h>
 
-/* Memory-working functions */
+/* 
+    Memory and string working functions. They are full analog of standard ones.
+    See corresponding man page for details.
+*/
 void *aal_memset(void *dest, char c, uint32_t n) {
     char *dest_p = (char *)dest;
 
@@ -49,7 +52,6 @@ int aal_memcmp(const void *s1, const void *s2, uint32_t n) {
     return p_s1 != s1 ? 0 : -1;
 }
 
-/* String-working functions */
 uint32_t aal_strlen(const char *s) {
     uint32_t len = 0;
 
@@ -159,6 +161,11 @@ char *aal_strsep(char **stringp, const char *delim) {
 #define CONV_HEX_RANGE 0x10000000
 #define CONV_OCT_RANGE 01000000000
 
+/* 
+    Macro for providing function for converting the passed digital into string.
+    It supports converting of decimal, hexadecimal and octal digits. It is used 
+    by aal_vsnprintf function.
+*/
 #define aal_define_convertor(name, type)			\
 int name(type d, uint32_t n, char *a, int base, int flags) {	\
     char *p = a;						\
@@ -210,6 +217,7 @@ int name(type d, uint32_t n, char *a, int base, int flags) {	\
     return p - a;						\
 }								\
 
+/* Declaring converting functions for all supported types (%u, %lu, %llu) */
 aal_define_convertor(aal_utoa, unsigned int);
 aal_define_convertor(aal_lutoa, unsigned long int);
 aal_define_convertor(aal_llutoa, unsigned long long);

@@ -37,7 +37,8 @@ static reiserfs_alloc40_t *alloc40_open(aal_device_t *device,
 
     /* Opening bitmap */
     if (!(alloc->bitmap = reiserfs_bitmap_open(device, offset, len))) {
-	aal_throw_error(EO_OK, "Can't open bitmap.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't open bitmap.");
 	goto error_free_alloc;
     }
   
@@ -71,7 +72,8 @@ static reiserfs_alloc40_t *alloc40_create(aal_device_t *device,
 	aal_device_get_bs(device);
     
     if (!(alloc->bitmap = reiserfs_bitmap_create(device, offset, len))) {
-	aal_throw_error(EO_OK, "Can't create bitmap.\n");
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't create bitmap.");
 	goto error_free_alloc;
     }
 
@@ -176,7 +178,7 @@ static reiserfs_plugin_t alloc40_plugin = {
     .alloc_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_ALLOC40_ID,
+	    .id = 0x0,
 	    .type = REISERFS_ALLOC_PLUGIN,
 	    .label = "alloc40",
 	    .desc = "Space allocator for reiserfs 4.0, ver. 0.1, "

@@ -12,25 +12,25 @@
     insert or remove an item from the tree.
 */
 
-static inline reiserfs_plugin_t *__factory_find(reiserfs_plugin_type_t type, reiserfs_id_t id) {
-    return libreiser4_factory_find_by_id(type, id);
+static inline reiserfs_plugin_t *__plugin_find(reiserfs_plugin_type_t type, reiserfs_id_t id) {
+    return libreiser4_factory_find(type, id);
 }
 
-static inline errno_t __tree_insert(const void *tree, reiserfs_item_hint_t *item) {
+static inline errno_t __item_insert(const void *tree, reiserfs_item_hint_t *item) {
     aal_assert("umka-846", tree != NULL, return -1);
     aal_assert("umka-847", item != NULL, return -1);
     
     return reiserfs_tree_insert((reiserfs_tree_t *)tree, item);
 }
 
-static inline errno_t __tree_remove(const void *tree, reiserfs_key_t *key) {
+static inline errno_t __item_remove(const void *tree, reiserfs_key_t *key) {
     aal_assert("umka-848", tree != NULL, return -1);
     aal_assert("umka-849", key != NULL, return -1);
     
     return reiserfs_tree_remove((reiserfs_tree_t *)tree, key);
 }
 
-static inline int __tree_lookup(const void *tree, reiserfs_key_t *key, 
+static inline int __lookup(const void *tree, reiserfs_key_t *key, 
     reiserfs_place_t *place) 
 {
     aal_assert("umka-851", key != NULL, return -1);
@@ -41,7 +41,7 @@ static inline int __tree_lookup(const void *tree, reiserfs_key_t *key,
 	REISERFS_LEAF_LEVEL, key, (reiserfs_coord_t *)place);
 }
 
-static inline errno_t __tree_data(const void *tree, reiserfs_place_t *place, 
+static inline errno_t __item_body(const void *tree, reiserfs_place_t *place, 
     void **item, uint32_t *len) 
 {
     reiserfs_node_t *node;
@@ -63,7 +63,7 @@ static inline errno_t __tree_data(const void *tree, reiserfs_place_t *place,
     return 0;
 }
 
-static inline errno_t __tree_right(const void *tree, 
+static inline errno_t __item_right(const void *tree, 
     reiserfs_place_t *place) 
 {
     reiserfs_cache_t *cache;
@@ -83,7 +83,7 @@ static inline errno_t __tree_right(const void *tree,
     return 0;
 }
 
-static inline errno_t __tree_left(const void *tree, 
+static inline errno_t __item_left(const void *tree, 
     reiserfs_place_t *place) 
 {
     reiserfs_cache_t *cache;
@@ -103,7 +103,7 @@ static inline errno_t __tree_left(const void *tree,
     return 0;
 }
 
-static inline errno_t __tree_key(const void *tree, 
+static inline errno_t __item_key(const void *tree, 
     reiserfs_place_t *place, reiserfs_key_t *key) 
 {
     aal_assert("umka-870", tree != NULL, return -1);
@@ -113,7 +113,7 @@ static inline errno_t __tree_key(const void *tree,
 	place->pos.item, key);
 }
 
-static inline reiserfs_id_t __tree_pid(const void *tree, 
+static inline reiserfs_id_t __item_pid(const void *tree, 
     reiserfs_place_t *place, reiserfs_plugin_type_t type)
 {
     aal_assert("umka-872", tree != NULL, return -1);
@@ -126,42 +126,47 @@ static inline reiserfs_id_t __tree_pid(const void *tree,
 	case REISERFS_NODE_PLUGIN:
 	    return reiserfs_node_get_pid(((reiserfs_cache_t *)place->cache)->node);
 	default: {
-	    aal_throw_error(EO_OK, "Unknown plugin type %x.\n", type);
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Unknown plugin type %x.", type);
 	    return REISERFS_INVAL_PLUGIN;
 	}
     }
 }
 
 reiserfs_core_t core = {
-    /* Installing callback for make search for a plugin by its attributes */
-    .factory_find = __factory_find,
+    .factory_ops = {
+	/* Installing callback for make search for a plugin by its attributes */
+	.plugin_find = __plugin_find
+    },
     
-    /* Installing callback function for inserting items into the tree */
-    .tree_insert = __tree_insert,
+    .tree_ops = {
+	/* This one for lookuping the tree */
+	.lookup = __lookup,
 
-    /* Installing callback function for removing items from the tree */
-    .tree_remove = __tree_remove,
+	/* Installing callback function for inserting items into the tree */
+	.item_insert = __item_insert,
 
-    /* This one for lookuping the tree */
-    .tree_lookup = __tree_lookup,
+	/* Installing callback function for removing items from the tree */
+	.item_remove = __item_remove,
 
-    /* 
-	And finally this one for getting body of some item and its size by passed 
-	coord.
-    */
-    .tree_data = __tree_data,
+	/* 
+	    And finally this one for getting body of some item and its size by passed 
+	    coord.
+	*/
+	.item_body = __item_body,
 
-    /* Returns key by coords */
-    .tree_key = __tree_key,
+	/* Returns key by coords */
+	.item_key = __item_key,
 
-    /* Returns right neighbour of passed coord */
-    .tree_right = __tree_right,
+	/* Returns right neighbour of passed coord */
+	.item_right = __item_right,
     
-    /* Returns left neighbour of passed coord */
-    .tree_left = __tree_left,
+	/* Returns left neighbour of passed coord */
+	.item_left = __item_left,
 
-    /* Returns tree pid by coord */
-    .tree_pid = __tree_pid
+	/* Returns tree pid by coord */
+	.item_pid = __item_pid
+    }
 };
 
 int libreiser4_get_max_interface_version(void) {
@@ -177,10 +182,9 @@ const char *libreiser4_get_version(void) {
 }
 
 errno_t libreiser4_init(void) {
-    aal_exception_init_streams();
-
     if (libreiser4_factory_init()) {
-	aal_throw_fatal(EO_OK, "Can't initialize plugin factory.\n");
+	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, 
+	    "Can't initialize plugin factory.");
 	return -1;
     }
     return 0;

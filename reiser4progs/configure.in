@@ -38,6 +38,9 @@ AC_ARG_ENABLE(debug,
 )
 AC_SUBST(PROGS_LDFLAGS)
 
+PROGS_LDADD=-luuid
+AC_SUBST(PROGS_LDADD)
+
 AM_ENABLE_SHARED
 
 AC_ARG_ENABLE(compact,
@@ -162,12 +165,11 @@ AC_OUTPUT([
     include/Makefile
     include/aal/Makefile
     include/misc/Makefile
-    include/progs/Makefile
     include/reiser4/Makefile
+    include/progs/Makefile
     libaal/Makefile
     libmisc/Makefile
     libreiser4/Makefile
-    libprogs/Makefile
     plugin/Makefile
     plugin/format40/Makefile
     plugin/journal40/Makefile
@@ -187,8 +189,10 @@ AC_OUTPUT([
     plugin/rupasov_hash/Makefile
     plugin/fnv1_hash/Makefile
     demos/Makefile
-    mkfs/Makefile
-    fsck/Makefile
+    progs/Makefile
+    progs/libprogs/Makefile
+    progs/mkfs/Makefile
+    progs/fsck/Makefile
     debug/Makefile
     doc/Makefile
     reiser4progs.spec
