@@ -3064,6 +3064,9 @@ static tree_operations mkfs_tops = {
 	.dirty_node    = mkfs_dirty_node
 };
 
+#define TEST_MKFS_ROOT_LOCALITY   (41ull)
+#define TEST_MKFS_ROOT_OBJECTID   (42ull)
+
 /* this creates reiser4 filesystem of TEST_LAYOUT_ID */
 static int bash_mkfs (const char * file_name)
 {
@@ -3137,7 +3140,7 @@ static int bash_mkfs (const char * file_name)
 			/* oid allocator */
 			get_super_private (&super)->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
 			get_super_private (&super)->oid_plug->
-				init_oid_allocator (get_oid_allocator (&super), 1ull, 1000ull);
+				init_oid_allocator (get_oid_allocator (&super), 1ull, TEST_MKFS_ROOT_OBJECTID - 2);
 
 			/* test layout super block */
 			test_sb = (test_disk_super_block *)(bh->b_data + sizeof (*master_sb));
@@ -3150,7 +3153,7 @@ static int bash_mkfs (const char * file_name)
 			cputod64 (0ull, &test_sb->root_block);
 			cputod16 (0, &test_sb->tree_height);
 			cputod64 (0ull, &test_sb->new_block_nr);
-			cputod64 (0ull, &test_sb->next_to_use);
+			cputod64 (TEST_MKFS_ROOT_OBJECTID - 2, &test_sb->next_to_use);
 			mark_buffer_dirty (bh);
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
@@ -3185,7 +3188,7 @@ static int bash_mkfs (const char * file_name)
 			key_init( &key );
 			set_key_type( &key, KEY_SD_MINOR );
 			set_key_locality( &key, 1ull );
-			set_key_objectid( &key, 2ull );
+			set_key_objectid( &key, TEST_MKFS_ROOT_LOCALITY );
 
 			/* item body */
 			xmemset( &sd, 0, sizeof sd );
@@ -3269,9 +3272,14 @@ static int bash_mkfs (const char * file_name)
 			iput (fake_parent);
 			super.s_root->d_inode = inode;
 
+			get_super_private (&super)->oid_plug->
+				init_oid_allocator (get_oid_allocator (&super), 1ull, ( 1 << 16 ) );
+
 			cputod64 (reiser4_inode_data( inode ) -> locality_id, 
 				  &test_sb->root_locality);
 			cputod64 (inode -> i_ino, &test_sb->root_objectid);
+			/* OIDS_RESERVED---macro defines in oid.c */
+			cputod64 ( ( 1 << 16 ), &test_sb->next_to_use);
 			mark_buffer_dirty (bh);
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
