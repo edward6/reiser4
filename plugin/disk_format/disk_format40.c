@@ -307,7 +307,7 @@ pack_format40_super(const struct super_block *s, char *data)
 	cputod64(sbinfo->tree.root_block, &super_data->root_block);
 
 	cputod64(oid_next(s), &super_data->oid);
-	cputod64(oid_next(s), &super_data->file_count);
+	cputod64(oids_used(s), &super_data->file_count);
 
 	cputod16(sbinfo->tree.height, &super_data->tree_height);
 }
