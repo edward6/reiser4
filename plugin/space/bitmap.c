@@ -253,13 +253,15 @@ reiser4_find_next_set_bit(void *addr, bmap_off_t max_offset, bmap_off_t start_of
 static int
 find_last_set_bit_in_byte (unsigned byte, int start)
 {
-	unsigned bit_mask = 0x80;
+	unsigned bit_mask;
 	int nr = start;
 
 	assert ("zam-965", start < 8);
 	assert ("zam-966", start >= 0);
 
-	while (nr > 0 ) {
+	bit_mask = (1 << nr);
+
+	while (bit_mask != 0) {
 		if (bit_mask & byte)
 			return nr;
 		bit_mask >>= 1;
@@ -286,7 +288,7 @@ reiser4_find_last_set_bit (bmap_off_t * result, void * addr, bmap_off_t low_off,
 	last_bit = high_off & 0x7;
 	first_byte = low_off >> 3;
 
-	if (last_bit != 0) {
+	if (last_bit <= 7) {
 		nr = find_last_set_bit_in_byte(base[last_byte], last_bit);
 		if (nr < 8) {
 			*result = (last_byte << 3) + nr;
@@ -296,8 +298,9 @@ reiser4_find_last_set_bit (bmap_off_t * result, void * addr, bmap_off_t low_off,
 	}
 	while (last_byte > first_byte) {
 		if (base[last_byte] != 0x0) {
-			*result = (last_byte << 3) + 
-				find_last_set_bit_in_byte((unsigned)base[last_byte], 7);
+			last_bit = find_last_set_bit_in_byte((unsigned)base[last_byte], 7);
+			assert ("zam-972", last_bit < 8);
+			*result = (last_byte << 3) + last_bit;
 			return 0;
 		}
 		-- last_byte;
