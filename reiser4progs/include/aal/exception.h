@@ -56,13 +56,17 @@ struct aal_exception {
 
 typedef struct aal_exception aal_exception_t;
 
+/* 
+    Have a look into include/progs/progs.c to understand how these streams are 
+    supposed to be used.
+*/
 struct aal_exception_streams {
-    void *info;
-    void *warn;
-    void *fatal;
-    void *error;
-    void *bug;
-    void *ask;
+    void *info;  /* Information which is supposed to be viewed on-line. */
+    void *warn;  /* Possible problems. */
+    void *fatal; /* Problems which are supposed to be viewed on-line. */
+    void *error; /* Problems. */
+    void *bug;   /* Unexpected cases. */
+    void *ask;   /* Questions (or their parts). */
 };
 
 typedef struct aal_exception_streams aal_exception_streams_t;
@@ -78,9 +82,8 @@ extern aal_exception_option_t aal_exception_option(aal_exception_t *ex);
 
 extern void aal_exception_set_handler(aal_exception_handler_t handler);
 
-//extern void aal_exception_set_streams(aal_exception_streams_t streams);
-extern void aal_exception_init_streams(aal_exception_streams_t *streams);
-extern aal_exception_streams_t aal_exception_get_streams();
+extern void aal_exception_init_streams();
+extern aal_exception_streams_t *aal_exception_get_streams();
 
 /* 
     Unfortunately stream cannot be hidden here by binding exception type to stream,
@@ -99,22 +102,22 @@ extern void aal_exception_leave_all(void);
     (stream, 0, 0, 0, msg, ##list)
     
 #define aal_throw_fatal(opt, msg, list...) aal_exception_throw\
-    (aal_exception_get_streams().fatal, ET_FATAL, opt, 0, msg, ##list)
+    (aal_exception_get_streams()->fatal, ET_FATAL, opt, 0, msg, ##list)
 
 #define aal_throw_error(opt, msg, list...) aal_exception_throw\
-    (aal_exception_get_streams().error, ET_ERROR, opt, 0, msg, ##list)
+    (aal_exception_get_streams()->error, ET_ERROR, opt, 0, msg, ##list)
 
 #define aal_throw_warning(opt, msg, list...) aal_exception_throw\
-    (aal_exception_get_streams().warn, ET_WARN, opt, 0, msg, ##list)
+    (aal_exception_get_streams()->warn, ET_WARN, opt, 0, msg, ##list)
 
 #define aal_throw_information(opt, msg, list...) aal_exception_throw\
-    (aal_exception_get_streams().info, ET_INFO, opt, 0, msg, ##list)
+    (aal_exception_get_streams()->info, ET_INFO, opt, 0, msg, ##list)
 
 #define aal_throw_bug(opt, msg, list...) aal_exception_throw\
-    (aal_exception_get_streams().bug, ET_BUG, opt, 0, msg, ##list)
+    (aal_exception_get_streams()->bug, ET_BUG, opt, 0, msg, ##list)
 
 #define aal_throw_ask(opt, def, msg, list...) aal_exception_throw\
-    (aal_exception_get_streams().ask, ET_ASK, opt, def, msg, ##list)
+    (aal_exception_get_streams()->ask, ET_ASK, opt, def, msg, ##list)
 
 #endif
 

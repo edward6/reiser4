@@ -37,7 +37,7 @@ static errno_t journal36_sync(reiserfs_journal36_t *journal) {
     aal_assert("umka-407", journal != NULL, return -1);
     
     if (aal_block_write(journal->header)) {
-	aal_throw_warning(EO_IGNORE, "Can't synchronize journal header. %s.", 
+	aal_throw_warning(EO_IGNORE, "Can't synchronize journal header. %s.\n", 
 	    aal_device_error(journal->device));
 	return -1;
     }

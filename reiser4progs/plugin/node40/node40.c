@@ -61,7 +61,7 @@ static reiserfs_node40_t *node40_open(aal_block_t *block) {
     node->block = block;
     
     if (node40_get_pid(node) != REISERFS_NODE40_ID) {
-	aal_throw_error(EO_OK, "Plugin id (%u) does not match current plugin id (%u).", 
+	aal_throw_error(EO_OK, "Plugin id (%u) does not match current plugin id (%u).\n", 
 	    node40_get_pid(node), REISERFS_NODE40_ID);
 	goto error_free_node;
     }

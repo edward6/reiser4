@@ -23,14 +23,14 @@ static errno_t format40_super_check(reiserfs_format40_super_t *super,
     
     if (get_sb_block_count(super) > dev_len) {
 	aal_throw_error(EO_CANCEL, "Superblock has an invalid block count %llu for device "
-	    "length %llu blocks.", get_sb_block_count(super), dev_len);
+	    "length %llu blocks.\n", get_sb_block_count(super), dev_len);
 	return -1;
     }
     
     offset = (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(device));
     if (get_sb_root_block(super) < offset || get_sb_root_block(super) > dev_len) {
 	aal_throw_error(EO_OK, "Superblock has an invalid root block %llu for device "
-	    "length %llu blocks.", get_sb_root_block(super), dev_len);
+	    "length %llu blocks.\n", get_sb_root_block(super), dev_len);
 	return -1;
     }
     return 0;
@@ -49,7 +49,7 @@ static aal_block_t *format40_super_open(aal_device_t *device) {
     offset = (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(device));
 	
     if (!(block = aal_block_read(device, offset))) {
-	aal_throw_error(EO_OK, "Can't read block %llu. %s.", offset, 
+	aal_throw_error(EO_OK, "Can't read block %llu. %s.\n", offset, 
 	    aal_device_error(device));
 	return NULL;
     }
@@ -107,7 +107,7 @@ static reiserfs_format40_t *format40_create(aal_device_t *device,
     if (!(format->super = aal_block_alloc(device, (REISERFS_FORMAT40_OFFSET / 
 	aal_device_get_bs(device)), 0))) 
     {
-	aal_throw_error(EO_OK, "Can't allocate superblock.");
+	aal_throw_error(EO_OK, "Can't allocate superblock.\n");
 	goto error_free_format;
     }
     
@@ -135,7 +135,7 @@ static errno_t format40_sync(reiserfs_format40_t *format) {
    
     if (aal_block_write(format->super)) {
 	offset = aal_block_get_nr(format->super);
-	aal_throw_error(EO_OK, "Can't write superblock to %llu. %s.", offset, 
+	aal_throw_error(EO_OK, "Can't write superblock to %llu. %s.\n", offset, 
 	    aal_device_error(format->device));
 	return -1;
     }

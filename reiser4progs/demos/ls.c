@@ -34,27 +34,27 @@ int main(int argc, char *argv[]) {
     }
 	
     if (libreiser4_init()) {
-	aal_throw_error(EO_OK, "Can't initialize libreiser4.");
+	aal_throw_error(EO_OK, "Can't initialize libreiser4.\n");
 	return 0xff;
     }
     
     if (!(device = aal_file_open(argv[1], REISERFS_DEFAULT_BLOCKSIZE, O_RDONLY))) {
-	aal_throw_error(EO_OK, "Can't open device %s.", argv[1]);
+	aal_throw_error(EO_OK, "Can't open device %s.\n", argv[1]);
 	goto error_free_libreiser4;
     }
     
     if (!(fs = reiserfs_fs_open(device, device, 0))) {
-	aal_throw_error(EO_OK, "Can't open filesystem on %s.", aal_device_name(device));
+	aal_throw_error(EO_OK, "Can't open filesystem on %s.\n", aal_device_name(device));
 	goto error_free_device;
     }
     
     if (!(object = reiserfs_dir_open(fs, argv[2]))) {
-	aal_throw_error(EO_OK, "Can't open dir \"%s\".", argv[2]);
+	aal_throw_error(EO_OK, "Can't open dir \"%s\".\n", argv[2]);
 	goto error_free_fs;
     }
     
     if (reiserfs_dir_rewind(object)) {
-	aal_throw_error(EO_OK, "Can't rewind dir \"%s\".", argv[2]);
+	aal_throw_error(EO_OK, "Can't rewind dir \"%s\".\n", argv[2]);
 	goto error_free_object;
     }
 

@@ -30,7 +30,7 @@ reiserfs_format_t *reiserfs_format_open(aal_device_t *device,
     if (!(format->entity = libreiser4_plugin_call(goto error_free_format, 
 	plugin->format_ops, open, device)))
     {
-	aal_throw_fatal(EO_OK, "Can't open disk-format %s on %s.", plugin->h.label, 
+	aal_throw_fatal(EO_OK, "Can't open disk-format %s on %s.\n", plugin->h.label, 
 	    aal_device_name(device));
 	goto error_free_format;
     }
@@ -63,7 +63,7 @@ reiserfs_format_t *reiserfs_format_create(aal_device_t *device,
     if (!(format->entity = libreiser4_plugin_call(goto error_free_format, 
 	plugin->format_ops, create, device, len, tail_policy))) 
     {
-	aal_throw_error(EO_OK, "Can't create disk-format %s on %s.", plugin->h.label, 
+	aal_throw_error(EO_OK, "Can't create disk-format %s on %s.\n", plugin->h.label, 
 	    aal_device_name(device));
 	goto error_free_format;
     }

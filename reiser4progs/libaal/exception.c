@@ -189,26 +189,13 @@ void aal_exception_set_handler(aal_exception_handler_t handler) {
     exception_handler = handler ? handler : default_handler;
 }
 
-/*
-void aal_exception_set_streams(aal_exception_streams_t streams) {
-    default_streams = streams;
+aal_exception_streams_t *aal_exception_get_streams() {
+    return &default_streams;
 }
-*/
-aal_exception_streams_t aal_exception_get_streams() {
-    return default_streams;
-}
-void aal_exception_init_streams(aal_exception_streams_t *streams){
-    if (streams) {
-	aal_memcpy(&default_streams, streams, sizeof(default_streams));
-    } else {
-	/* Init streams if they have not beed yet. */
-	if (!default_streams.info && !default_streams.warn && !default_streams.ask && 
-	    !default_streams.fatal && !default_streams.error && !default_streams.bug) 
-	{
-	    default_streams.info = default_streams.warn = default_streams.ask = stdout;
-	    default_streams.fatal = default_streams.error = default_streams.bug = stderr;
-	}
-    }
+
+void aal_exception_init_streams(){
+    default_streams.info = default_streams.warn = default_streams.ask = stdout;
+    default_streams.fatal = default_streams.error = default_streams.bug = stderr;
 }
 
 /* Finished exception life cycle, that is destroys exception */

@@ -60,7 +60,7 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
 	if (reiserfs_tree_lookup(object->fs->tree, REISERFS_LEAF_LEVEL, 
 	    &object->key, &object->coord) != 1) 
 	{
-	    aal_throw_error(EO_OK, "Can't find stat data of directory \"%s\".", track);
+	    aal_throw_error(EO_OK, "Can't find stat data of directory \"%s\".\n", track);
 	    return -1;
 	}
 	
@@ -68,7 +68,7 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
 	if (!(item_body = reiserfs_node_item_body(object->coord.cache->node, 
 	    object->coord.pos.item))) 
 	{
-	    aal_throw_error(EO_OK, "Can't get item body. Node %llu, item %u.", 
+	    aal_throw_error(EO_OK, "Can't get item body. Node %llu, item %u.\n", 
 		aal_block_get_nr(object->coord.cache->node->block), 
 		object->coord.pos.item);
 	    return -1;
@@ -77,7 +77,7 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
 	if (!(item_plugin = reiserfs_node_item_get_plugin(object->coord.cache->node, 
 	    object->coord.pos.item)))
 	{
-	    aal_throw_error(EO_OK, "Can't get item plugin. Node %llu, item %u.", 
+	    aal_throw_error(EO_OK, "Can't get item plugin. Node %llu, item %u.\n", 
 		aal_block_get_nr(object->coord.cache->node->block),
 		object->coord.pos.item);
 	    return -1;
@@ -91,12 +91,12 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
 	    item_plugin->item_ops.specific.statdata, get_mode, item_body);
 
 	if (!S_ISLNK(mode) && !S_ISDIR(mode) && !S_ISREG(mode)) {
-	    aal_throw_error(EO_OK, "%s has invalid object type.", track);
+	    aal_throw_error(EO_OK, "%s has invalid object type.\n", track);
 	    return -1;
 	}
 		
 	if (S_ISLNK(mode)) {
-	    aal_throw_error(EO_OK, "Sorry, opening objects by link is not supported yet!");
+	    aal_throw_error(EO_OK, "Sorry, opening objects by link is not supported yet!\n");
 	    return -1;
 	}
 
@@ -117,12 +117,12 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
 	    needed entry inside it.
 	*/
 	if (!(object_plugin = __guess_object_plugin(item_plugin, item_body))) {
-	    aal_throw_error(EO_OK, "Can't guess object plugin for parent of %s.", track);
+	    aal_throw_error(EO_OK, "Can't guess object plugin for parent of %s.\n", track);
 	    return -1;
 	}
 
 	if (!object_plugin->dir_ops.lookup) {
-	    aal_throw_error(EO_OK, "Method \"lookup\" is not implemented in %s plugin.", 
+	    aal_throw_error(EO_OK, "Method \"lookup\" is not implemented in %s plugin.\n", 
 		object_plugin->h.label);
 	    return -1;
 	}
@@ -133,13 +133,13 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
 	    if (!(object_entity = libreiser4_plugin_call(return -1, 
 		object_plugin->dir_ops, open, object->fs->tree, &object->key)))
 	    {
-		aal_throw_error(EO_OK, "Can't open parent of directory \"%s\".", track);
+		aal_throw_error(EO_OK, "Can't open parent of directory \"%s\".\n", track);
 		return -1;
 	    }
 	    
 	    entry.name = dirname;
 	    if (object_plugin->dir_ops.lookup(object_entity, &entry)) {
-		aal_throw_error(EO_OK, "Can't find entry \"%s\".", entry.name);
+		aal_throw_error(EO_OK, "Can't find entry \"%s\".\n", entry.name);
 		
 		libreiser4_plugin_call(return -1, object_plugin->dir_ops, 
 		    close, object_entity);
@@ -158,7 +158,7 @@ static errno_t reiserfs_object_lookup(reiserfs_object_t *object,
 		Here we should check is found object type may contain entries (probably it is 
 		that strange compound object which is file and directory in the time). 
 	    */
-	    aal_throw_error(EO_OK, "Sorry, files are not supported yet!");
+	    aal_throw_error(EO_OK, "Sorry, files are not supported yet!\n");
 	    return -1;
 	}
 
@@ -197,26 +197,26 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs,
     reiserfs_key_init(&parent_key, fs->key.body);
     
     if (reiserfs_object_lookup(object, name, &parent_key)) {
-	aal_throw_error(EO_OK, "Can't find object \"%s\".", name);
+	aal_throw_error(EO_OK, "Can't find object \"%s\".\n", name);
 	goto error_free_object;
     }
     
     if (!(item_plugin = reiserfs_node_item_get_plugin(object->coord.cache->node, 
 	object->coord.pos.item)))
     {
-	aal_throw_error(EO_OK, "Can't find first item plugin.");
+	aal_throw_error(EO_OK, "Can't find first item plugin.\n");
 	goto error_free_object;
     }
     
     if (!(item_body = reiserfs_node_item_body(object->coord.cache->node, 
 	object->coord.pos.item)))
     {
-	aal_throw_error(EO_OK, "Can't find first item plugin.");
+	aal_throw_error(EO_OK, "Can't find first item plugin.\n");
 	goto error_free_object;
     }
     
     if (!(object->plugin = __guess_object_plugin(item_plugin, item_body))) {
-	aal_throw_error(EO_OK, "Can't guess object plugin.");
+	aal_throw_error(EO_OK, "Can't guess object plugin.\n");
 	goto error_free_object;
     }
     
@@ -224,11 +224,11 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs,
 	if (!(object->entity = libreiser4_plugin_call(goto error_free_object, 
 	    object->plugin->dir_ops, open, fs->tree, &object->key)))
 	{
-	    aal_throw_error(EO_OK, "Can't open directory %s.", name);
+	    aal_throw_error(EO_OK, "Can't open directory %s.\n", name);
 	    goto error_free_object;
 	}
     } else {
-	aal_throw_error(EO_OK, "Sorry, files are not supported yet!");
+	aal_throw_error(EO_OK, "Sorry, files are not supported yet!\n");
 	goto error_free_object;
     }
     
@@ -284,12 +284,12 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs,
 	if (!(object->entity = libreiser4_plugin_call(goto error_free_object, 
 	    plugin->dir_ops, create, fs->tree, &parent_key, &object_key, hint)))
 	{
-	    aal_throw_error(EO_OK, "Can't create object with oid %llx.", 
+	    aal_throw_error(EO_OK, "Can't create object with oid %llx.\n", 
 		reiserfs_key_get_objectid(&object_key));
 	    goto error_free_object;
 	}
     } else {
-	aal_throw_error(EO_OK, "Sorry, files are not supported now!");
+	aal_throw_error(EO_OK, "Sorry, files are not supported now!\n");
 	goto error_free_object;
     }
     

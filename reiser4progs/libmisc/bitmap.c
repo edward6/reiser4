@@ -17,7 +17,7 @@
 #define reiserfs_bitmap_range_check(bitmap, blk, action)			\
 do {										\
     if (blk >= bitmap->total_blocks) {						\
-	aal_throw_error(EO_CANCEL, "Block %llu is out of range (0-%llu)",			\
+	aal_throw_error(EO_CANCEL, "Block %llu is out of range (0-%llu).\n",	\
 	    blk, bitmap->total_blocks);						\
 	action;									\
     }										\
@@ -219,7 +219,7 @@ static errno_t callback_bitmap_flush(aal_device_t *device,
     aal_memcpy(block->data, map, chunk); 
 		
     if (aal_block_write(block)) {
-	aal_throw_error(EO_OK, "Can't write bitmap block to %llu. %s.", blk, 
+	aal_throw_error(EO_OK, "Can't write bitmap block to %llu. %s.\n", blk, 
 	    aal_device_error(device));
 	goto error_free_block;
     }
@@ -243,7 +243,7 @@ static errno_t callback_bitmap_fetch(aal_device_t *device,
     aal_block_t *block;
 	
     if (!(block = aal_block_read(device, blk))) {
-	aal_throw_error(EO_OK, "Can't read bitmap block %llu. %s.", 
+	aal_throw_error(EO_OK, "Can't read bitmap block %llu. %s.\n", 
 	    blk, aal_device_error(device));
 	return -1;
     }	

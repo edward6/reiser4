@@ -36,7 +36,7 @@ reiserfs_alloc_t *reiserfs_alloc_open(aal_device_t *device,
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
 	plugin->alloc_ops, open, device, len)))
     {
-	aal_throw_error(EO_OK, "Can't initialize block allocator.");
+	aal_throw_error(EO_OK, "Can't initialize block allocator.\n");
 	goto error_free_alloc;
     }
 	
@@ -73,7 +73,7 @@ reiserfs_alloc_t *reiserfs_alloc_create(aal_device_t *device,
     if (!(alloc->entity = libreiser4_plugin_call(goto error_free_alloc, 
 	plugin->alloc_ops, create, device, len)))
     {
-	aal_throw_error(EO_OK, "Can't create block allocator.");
+	aal_throw_error(EO_OK, "Can't create block allocator.\n");
 	goto error_free_alloc;
     }
 	

@@ -829,7 +829,7 @@ typedef errno_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
     ({								    \
 	if (!ops.method) {					    \
 	    aal_throw_fatal(EO_OK,				    \
-		"Method \"" #method "\" isn't implemented in %s.",  \
+		"Method \"" #method "\" isn't implemented in %s.\n",  \
 		#ops);						    \
 	    action;						    \
 	}							    \
@@ -875,7 +875,7 @@ extern void libreiser4_factory_done(void);
 #define libreiser4_factory_failed(action, oper, type, id)	    \
     do {							    \
 	aal_throw_error(EO_OK,					    \
-	    "Can't " #oper " " #type " plugin by its id %x.", id);  \
+	    "Can't " #oper " " #type " plugin by its id %x.\n", id);  \
 	action;							    \
     } while (0)
 

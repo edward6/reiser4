@@ -52,13 +52,13 @@ static errno_t format36_super_check(reiserfs_format36_super_t *super,
 
     if (is_journal_dev != is_journal_magic) {
 	aal_throw_warning(EO_IGNORE, "Journal relocation flags mismatch. Journal "
-	    "device: %x, magic: %s.", get_jp_dev(get_sb_jp(super)), super->s_v1.sb_magic);
+	    "device: %x, magic: %s.\n", get_jp_dev(get_sb_jp(super)), super->s_v1.sb_magic);
     }
 
     dev_len = aal_device_len(device);
     if (get_sb_block_count(super) > dev_len) {
 	aal_throw_error(EO_CANCEL, "Superblock has an invalid block count %llu for device "
-	    "length %llu blocks.", (blk_t)get_sb_block_count(super), dev_len);
+	    "length %llu blocks.\n", (blk_t)get_sb_block_count(super), dev_len);
 	return -1;
     }
 
@@ -95,7 +95,7 @@ static aal_block_t *format36_super_open(aal_device_t *device) {
 	    }
 	    aal_block_free(block);
 	} else {
-	    aal_throw_error(EO_OK, "Can't read block %d. %s.", super_offset[i], 
+	    aal_throw_error(EO_OK, "Can't read block %d. %s.\n", super_offset[i], 
 		aal_device_error(device));
 	}
     }
@@ -130,7 +130,7 @@ static errno_t format36_sync(reiserfs_format36_t *format) {
     aal_assert("umka-382", format->super != NULL, return -1);    
 
     if (aal_block_write(format->super)) {
-    	aal_throw_warning(EO_IGNORE, "Can't write superblock to block %llu. %s.", 
+    	aal_throw_warning(EO_IGNORE, "Can't write superblock to block %llu. %s.\n", 
 	    aal_block_get_nr(format->super), aal_device_error(format->device));
 	return -1;
     }

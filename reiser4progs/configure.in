@@ -188,6 +188,7 @@ AC_OUTPUT([
     plugin/fnv1_hash/Makefile
     demos/Makefile
     mkfs/Makefile
+    fsck/Makefile
     debug/Makefile
     doc/Makefile
     reiser4progs.spec

@@ -31,7 +31,7 @@ reiserfs_oid_t *reiserfs_oid_open(void *area_start, void *area_end,
     if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
 	plugin->oid_ops, open, area_start, area_end))) 
     {
-	aal_throw_error(EO_OK, "Can't open oid allocator %s.", plugin->h.label);
+	aal_throw_error(EO_OK, "Can't open oid allocator %s.\n", plugin->h.label);
 	goto error_free_oid;
     }
 
@@ -73,7 +73,7 @@ reiserfs_oid_t *reiserfs_oid_create(void *area_start, void *area_end,
     if (!(oid->entity = libreiser4_plugin_call(goto error_free_oid, 
 	plugin->oid_ops, create, area_start, area_end)))
     {
-	aal_throw_error(EO_OK, "Can't create oid allocator %s.", plugin->h.label);
+	aal_throw_error(EO_OK, "Can't create oid allocator %s.\n", plugin->h.label);
 	goto error_free_oid;
     }
 

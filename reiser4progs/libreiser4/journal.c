@@ -29,7 +29,7 @@ reiserfs_journal_t *reiserfs_journal_open(aal_device_t *device,
     if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 
 	plugin->journal_ops, open, device))) 
     {
-	aal_throw_error(EO_OK, "Can't open journal %s on %s.", plugin->h.label, 
+	aal_throw_error(EO_OK, "Can't open journal %s on %s.\n", plugin->h.label, 
 	    aal_device_name(device));
 	goto error_free_journal;
     }
@@ -62,7 +62,7 @@ reiserfs_journal_t *reiserfs_journal_create(aal_device_t *device,
     if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 
 	plugin->journal_ops, create, device, params))) 
     {
-	aal_throw_error(EO_OK, "Can't create journal %s on %s.", plugin->h.label, 
+	aal_throw_error(EO_OK, "Can't create journal %s on %s.\n", plugin->h.label, 
 	    aal_device_name(device));
 	goto error_free_journal;
     }
@@ -80,7 +80,7 @@ errno_t reiserfs_journal_replay(reiserfs_journal_t *journal) {
     if (libreiser4_plugin_call(return -1, journal->plugin->journal_ops, 
 	replay, journal->entity)) 
     {
-	aal_throw_error(EO_OK, "Can't replay journal");
+	aal_throw_error(EO_OK, "Can't replay journal.\n");
 	return -1;
     }
     return 0;

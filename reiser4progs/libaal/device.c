@@ -21,7 +21,7 @@
     do {								    \
 	if (!device->ops->routine) {					    \
 	    aal_throw_fatal(EO_OK,					    \
-		"Device operation \"" #routine "\" isn't implemented.");    \
+		"Device operation \"" #routine "\" isn't implemented.\n");    \
 	    action;							    \
 	}								    \
     } while (0)
@@ -38,7 +38,7 @@ aal_device_t *aal_device_open(struct aal_device_ops *ops, uint16_t blocksize,
     aal_assert("umka-429", ops != NULL, return NULL);
     
     if (!aal_pow_of_two(blocksize)) {
-	aal_throw_error(EO_OK, "Block size %u isn't power of two.", blocksize);
+	aal_throw_error(EO_OK, "Block size %u isn't power of two.\n", blocksize);
 	return NULL;
     }	
 	
@@ -68,7 +68,7 @@ errno_t aal_device_set_bs(aal_device_t *device, uint16_t blocksize) {
     aal_assert("umka-431", device != NULL, return -1);
 	
     if (!aal_pow_of_two(blocksize)) {
-	aal_throw_error(EO_OK, "Block size %u isn't power of two.", blocksize);
+	aal_throw_error(EO_OK, "Block size %u isn't power of two.\n", blocksize);
 	return -1;
     }	
     device->blocksize = blocksize;
@@ -188,7 +188,7 @@ aal_block_t *aal_block_alloc(aal_device_t *device, blk_t blk, char c) {
     aal_assert("umka-443", device != NULL, return NULL);
     
     if (blk > aal_device_len(device)) {
-	aal_throw_error(EO_OK, "Can't allocate block %llu beyond of device (0-%llu).", 
+	aal_throw_error(EO_OK, "Can't allocate block %llu beyond of device (0-%llu).\n", 
 	    blk, aal_device_len(device));
 	return NULL;
     }
@@ -245,7 +245,7 @@ errno_t aal_block_reread(aal_block_t *block, aal_device_t *device, blk_t blk) {
     aal_assert("umka-632", device != NULL, return -1);
 
     if (blk > aal_device_len(device)) {
-	aal_throw_error(EO_OK, "Can't reread block %llu beyond of device (0-%llu).", 
+	aal_throw_error(EO_OK, "Can't reread block %llu beyond of device (0-%llu).\n", 
 	    blk, aal_device_len(device));
 	return -1;
     }
@@ -298,7 +298,7 @@ void aal_block_set_nr(aal_block_t *block, blk_t blk) {
     aal_assert("umka-450", block != NULL, return);
 
     if (blk > aal_device_len(block->device)) {
-	aal_throw_error(EO_OK, "Can't setup block into address out of device.");
+	aal_throw_error(EO_OK, "Can't setup block into address out of device.\n");
 	return;
     }
     

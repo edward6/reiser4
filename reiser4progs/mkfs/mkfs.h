@@ -10,18 +10,17 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <getopt.h>
-#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <uuid/uuid.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <progs/version.h>
 #include <progs/progs.h>
 #include <progs/io.h>
 #include <progs/misc.h>
-#include <reiser4/reiser4.h>
+#include <progs/profile.h>
 
 struct mkfs_data {
     uint16_t mode;

@@ -37,7 +37,7 @@ static reiserfs_alloc40_t *alloc40_open(aal_device_t *device,
 
     /* Opening bitmap */
     if (!(alloc->bitmap = reiserfs_bitmap_open(device, offset, len))) {
-	aal_throw_error(EO_OK, "Can't open bitmap.");
+	aal_throw_error(EO_OK, "Can't open bitmap.\n");
 	goto error_free_alloc;
     }
   
@@ -71,7 +71,7 @@ static reiserfs_alloc40_t *alloc40_create(aal_device_t *device,
 	aal_device_get_bs(device);
     
     if (!(alloc->bitmap = reiserfs_bitmap_create(device, offset, len))) {
-	aal_throw_error(EO_OK, "Can't create bitmap.");
+	aal_throw_error(EO_OK, "Can't create bitmap.\n");
 	goto error_free_alloc;
     }
 

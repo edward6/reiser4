@@ -43,7 +43,7 @@ static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
 	key.body, dir->hash_plugin, dir40_locality(dir), dir40_objectid(dir), ".");
 	    
     if (core->tree_lookup(dir->tree, &key, &dir->place) != 1) {
-	aal_throw_error(EO_OK, "Can't find direntry of object %llx.", 
+	aal_throw_error(EO_OK, "Can't find direntry of object %llx.\n", 
 	    dir40_objectid(dir));
 	return -1;
     }
@@ -68,7 +68,7 @@ static errno_t dir40_realize(reiserfs_dir40_t *dir) {
     
     /* Positioning to the dir stat data */
     if (core->tree_lookup(dir->tree, &dir->key, &dir->place) != 1) {
-	aal_throw_error(EO_OK, "Can't find stat data of directory with oid %llx.", 
+	aal_throw_error(EO_OK, "Can't find stat data of directory with oid %llx.\n", 
 	    dir40_objectid(dir));
 	return -1;
     }
@@ -158,7 +158,7 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
     
     /* Grabbing stat data */
     if (dir40_realize(dir)) {
-	aal_throw_error(EO_OK, "Can't grab stat data of  directory with oid %llx.", 
+	aal_throw_error(EO_OK, "Can't grab stat data of  directory with oid %llx.\n", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
@@ -170,7 +170,7 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
     if ((statdata_pid = core->tree_pid(dir->tree, &dir->place, 
 	REISERFS_ITEM_PLUGIN)) == REISERFS_INVAL_PLUGIN)
     {
-	aal_throw_error(EO_OK, "Can't get stat data plugin id from the tree.");
+	aal_throw_error(EO_OK, "Can't get stat data plugin id from the tree.\n");
 	goto error_free_dir;
     }
     
@@ -196,7 +196,7 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
     
     /* Positioning to the first directory unit */
     if (dir40_rewind(dir)) {
-	aal_throw_error(EO_OK, "Can't rewind directory with oid %llx.", 
+	aal_throw_error(EO_OK, "Can't rewind directory with oid %llx.\n", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
@@ -208,7 +208,7 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
     if ((direntry_pid = core->tree_pid(dir->tree, &dir->place, 
 	REISERFS_ITEM_PLUGIN)) == REISERFS_INVAL_PLUGIN)
     {
-	aal_throw_error(EO_OK, "Can't get direntry plugin id from the tree.");
+	aal_throw_error(EO_OK, "Can't get direntry plugin id from the tree.\n");
 	goto error_free_dir;
     }
     
@@ -300,7 +300,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     /* Calling balancing code in order to insert statdata item into the tree */
     if (core->tree_insert(tree, &item)) {
 	aal_throw_error(EO_OK, "Can't insert stat data item of object %llx into "
-	    "the thee.", objectid);
+	    "the thee.\n", objectid);
 	goto error_free_dir;
     }
     
@@ -349,7 +349,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     /* Inserting the direntry item into the tree */
     if (core->tree_insert(tree, &item)) {
 	aal_throw_error(EO_OK, "Can't insert direntry item of object %llx into "
-	    "the thee.", objectid);
+	    "the thee.\n", objectid);
 	goto error_free_dir;
     }
     
@@ -360,14 +360,14 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     /* Grabbing the stat data item */
     if (dir40_realize(dir)) {
-	aal_throw_error(EO_OK, "Can't grab stat data of  directory with oid %llx.", 
+	aal_throw_error(EO_OK, "Can't grab stat data of  directory with oid %llx.\n", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }
 
     /* Positioning onto first directory unit */
     if (dir40_rewind(dir)) {
-	aal_throw_error(EO_OK, "Can't rewind directory with oid %llx.", 
+	aal_throw_error(EO_OK, "Can't rewind directory with oid %llx.\n", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
     }

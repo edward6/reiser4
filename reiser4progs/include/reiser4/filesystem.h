@@ -219,6 +219,7 @@ struct reiserfs_fs {
 };
 
 /* Public functions */
+extern errno_t reiserfs_master_open(reiserfs_fs_t *fs);
 extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
     aal_device_t *journal_device, int replay);
 
@@ -232,8 +233,6 @@ extern reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     void *journal_params);
 
 extern errno_t reiserfs_fs_sync(reiserfs_fs_t *fs);
-
-extern errno_t reiserfs_fs_check(reiserfs_fs_t *fs);
 
 #endif
 

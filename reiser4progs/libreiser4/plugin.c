@@ -51,13 +51,13 @@ reiserfs_plugin_t *libreiser4_plugin_load_by_name(const char *name) {
     aal_assert("umka-260", name != NULL, return NULL);
     
     if (!(handle = dlopen(name, RTLD_NOW))) {
-        aal_throw_error(EO_OK, "Can't load plugin %s.", name);
+        aal_throw_error(EO_OK, "Can't load plugin %s.\n", name);
 	return NULL;
     }
 
     addr = dlsym(handle, "__plugin_entry");
     if (dlerror() != NULL || entry == NULL) {
-        aal_throw_error(EO_OK, "Can't find entry point in plugin %s.", name);
+        aal_throw_error(EO_OK, "Can't find entry point in plugin %s.\n", name);
 	goto error_free_handle;
     }
     
@@ -82,7 +82,7 @@ reiserfs_plugin_t *libreiser4_plugin_load_by_entry(reiserfs_plugin_entry_t entry
     aal_assert("umka-259", entry != NULL, return NULL);
     
     if (!(plugin = entry(&core))) {
-	aal_throw_error(EO_OK, "Can't initialiaze plugin.");
+	aal_throw_error(EO_OK, "Can't initialiaze plugin.\n");
 	return NULL;
     }
     
@@ -115,7 +115,7 @@ errno_t libreiser4_factory_init(void) {
     
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
     if (!(dir = opendir(PLUGIN_DIR))) {
-    	aal_throw_fatal(EO_OK, "Can't open directory %s.", PLUGIN_DIR);
+    	aal_throw_fatal(EO_OK, "Can't open directory %s.\n", PLUGIN_DIR);
 	return -1;
     }
 	
