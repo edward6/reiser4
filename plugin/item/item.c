@@ -242,6 +242,14 @@ item_can_contain_key(const coord_t * item /* coord of item */ ,
 	}
 }
 
+/* mergeable method for non mergeable items */
+static int
+not_mergeable(const coord_t * i1 UNUSED_ARG,
+	      const coord_t * i2 UNUSED_ARG)
+{
+	return 0;
+}
+
 /* return 0 if @item1 and @item2 are not mergeable, !0 - otherwise */
 reiser4_internal int
 are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
@@ -340,7 +348,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.item_type         = STAT_DATA_ITEM_TYPE,
 			.max_key_inside    = max_key_inside_single_key,
 			.can_contain_key   = NULL,
-			.mergeable         = NULL,
+			.mergeable         = not_mergeable,
 			.nr_units          = nr_units_single_unit,
 			.lookup            = NULL,
 			.init              = NULL,
@@ -737,7 +745,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.item_type         = OTHER_ITEM_TYPE,
 			.max_key_inside    = NULL,
 			.can_contain_key   = NULL,
-			.mergeable         = NULL,
+			.mergeable         = not_mergeable,
 			.nr_units          = nr_units_single_unit,
 			/* to need for ->lookup method */
 			.lookup            = NULL,
