@@ -1138,97 +1138,6 @@ reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_coord, 
 	return 0;
 }
 
-#if 0
-/* This function is called when squalloc reaches the end of a twig node.  At
-   this point the leftmost child of the right twig may be considered for relocation.  This
-   is another case of the reverse parent-first context relocate test (where we are testing
-   the child against its parent which precedes it in parent-first order).  The right twig
-   may already be dirty, in which case this step is unnecessary--we will check the child
-   for relocation in forward parent-first context when we get there.  If neither the right
-   twig or its leftmost child are dirty then we stop flushing here.  But if the right twig
-   is clean, we need to check its leftmost child for dirtiness and relocation, possibly
-   dirtying the right twig so we can continue the flush. */
-static int
-reverse_relocate_end_of_twig(flush_pos_t * pos)
-{
-	int ret;
-	jnode *child = NULL;
-	lock_handle right_lock;
-	load_count right_load;
-	coord_t right_coord;
-
-	/* FIXME_NFQUCMPD: This is NOT the place to check for an end-of-twig condition,
-	   which we need to do to stop after a twig, because this function is not always
-	   called at the end of a twig, it is only called when the last item in the twig
-	   is an extent (because we don't know the leaf-level's right neighbor). */
-
-	init_lh(&right_lock);
-	init_load_count(&right_load);
-
-	/* Not using get_utmost_if_dirty because then we would not discover
-	   a dirty unformatted leftmost child of a clean twig. */
-	if ((ret = reiser4_get_right_neighbor(&right_lock, pos->parent_lock.node, ZNODE_WRITE_LOCK, 0))) {
-		/* If -ENAVAIL,-ENOENT,-EDEADLK,-EINVAL we are finished at the end-of-twig. */
-		if (ret == -ENAVAIL || ret == -ENOENT || ret == -EDEADLK || ret == -EINVAL) {
-
-			/* Now finished with twig node. */
-			trace_on(TRACE_FLUSH_VERB,
-				 "end_of_twig: STOP (end of twig, no right): %s\n", pos_tostring(pos));
-			ret = pos_stop(pos);
-		}
-		goto exit;
-	}
-
-	trace_on(TRACE_FLUSH_VERB, "end_of_twig: right node %s\n", znode_tostring(right_lock.node));
-
-	/* If the right twig is dirty then we don't have to check the child. */
-	if (znode_check_dirty(right_lock.node)) {
-		ret = 0;
-		goto exit;
-	}
-
-	if ((ret = incr_load_count_znode(&right_load, right_lock.node))) {
-		goto exit;
-	}
-
-	/* Then if the child is not dirty, we have nothing to do. */
-	coord_init_first_unit(&right_coord, right_lock.node);
-
-	if ((ret = item_utmost_child(&right_coord, LEFT_SIDE, &child))) {
-		goto exit;
-	}
-
-	if (IS_ERR(child)) {
-		pos_stop(pos);
-		ret = -EINVAL;
-		goto exit;
-	}
-	if (child == NULL || !jnode_check_dirty(child)) {
-		/* Finished at this twig. */
-		trace_on(TRACE_FLUSH_VERB, "end_of_twig: STOP right node & leftmost child clean\n");
-		ret = pos_stop(pos);
-		goto exit;
-	}
-
-	/* Now see if the child should be relocated. */
-	if ((ret = reverse_relocate_check_dirty_parent(child, &right_coord, pos))) {
-		goto exit;
-	}
-
-	/* All we are interested in here is possibly dirtying the right twig.  The child
-	   will be allocated after its ancestors are processed by the next
-	   squalloc_changed_ancestors. */
-
-exit:
-	if (child != NULL && !IS_ERR(child)) {
-		jput(child);
-	}
-	done_lh(&right_lock);
-	done_load_count(&right_load);
-	return ret;
-}
-#endif /* 0 */
-
 /* INITIAL ALLOCATE ANCESTORS STEP (REVERSE PARENT-FIRST ALLOCATION BEFORE FORWARD
    PARENT-FIRST LOOP BEGINS) */
 
@@ -1815,7 +1724,7 @@ static int full_squeeze_right_twig (flush_pos_t * pos, znode * right)
 	assert ("zam-863", znode_is_write_locked(right));
 	assert ("zam-864", znode_is_loaded(right));
 
-	while(!node_is_empty(right)) {
+	while (!node_is_empty(right)) {
 		assert ("zam-865", coord_is_after_rightmost(&pos->coord));
 
 		ret = squeeze_right_twig(pos, pos->lock.node, right);
@@ -1845,6 +1754,8 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 	lock_handle right_lock;
 	load_count right_load;
 	coord_t at_right;
+	jnode * child = NULL;
+
 
 	assert ("zam-848", pos->state == POS_END_OF_TWIG);
 	assert ("zam-849", coord_is_after_rightmost(&pos->coord));
@@ -1861,6 +1772,7 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 		goto out;
 
 	if (znode_check_dirty(right_lock.node)) {
+	became_dirty:
 		ret = full_squeeze_right_twig(pos, right_lock.node);
 		if (ret <=0) {
 			/* pos->coord is on internal item, go to leaf level, or
@@ -1887,21 +1799,20 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 		coord_init_first_unit(&at_right, right_lock.node);
 
 		/* check first child of next twig, should we continue there ? */
-		ret = leftmost_child_of_unit_check_flushprepped(&at_right);
-		if (ret < 0)
-			goto out;
-		if (ret > 0) {
+		ret = get_leftmost_child_of_unit(&at_right, &child);
+		if (ret || child == NULL || jnode_check_flushprepped(child)) {
 			pos_stop(pos);
 			goto out;
 		}
-#if 0
+
 		/* check clean twig for possible relocation */
-		ret = reverse_relocate_end_of_twig(pos, right_lock.node);
-		if (ret)
-			goto out;
-		if (znode_check_dirty(right_lock.node))
-			goto became_dirty;
-#endif
+		if (!znode_check_flushprepped(right_lock.node)) {
+			ret = reverse_relocate_check_dirty_parent(child, &at_right, pos);
+			if (ret)
+				goto out;
+			if (znode_check_dirty(right_lock.node))
+				goto became_dirty;
+		}
 	}
 	coord_init_first_unit(&at_right, right_lock.node);
 	assert("zam-868", coord_is_existing_unit(&at_right));
@@ -1916,6 +1827,10 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
  out:
 	done_load_count(&right_load);
 	done_lh(&right_lock);
+
+	if (child)
+		jput(child);
+
 	return ret;
 }
 
