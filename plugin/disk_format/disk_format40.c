@@ -163,9 +163,9 @@ done_super_jnode(struct super_block *s)
 	}
 }
 
-/* plugin->u.layout.get_ready */
+/* plugin->u.format.get_ready */
 int
-format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
+get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 {
 	int result;
 	struct buffer_head *super_bh;
@@ -303,10 +303,11 @@ pack_format40_super(const struct super_block *s, char *data)
 	cputod16(sbinfo->tree.height, &super_data->tree_height);
 }
 
-/* return a jnode which should be added to transaction when the super block
+/* plugin->u.format.log_super
+   return a jnode which should be added to transaction when the super block
    gets logged */
 jnode *
-format40_log_super(struct super_block *s)
+log_super_format40(struct super_block *s)
 {
 	jnode *sb_jnode;
 
@@ -321,8 +322,9 @@ format40_log_super(struct super_block *s)
 	return sb_jnode;
 }
 
+/* plugin->u.format.release */
 int
-format40_release(struct super_block *s)
+release_format40(struct super_block *s)
 {
 	int ret;
 	reiser4_super_info_data *sbinfo;
@@ -364,9 +366,9 @@ format40_release(struct super_block *s)
 #define FORMAT40_ROOT_LOCALITY 41
 #define FORMAT40_ROOT_OBJECTID 42
 
-/* plugin->u.layout.root_dir_key */
+/* plugin->u.format.root_dir_key */
 const reiser4_key *
-format40_root_dir_key(const struct super_block *super UNUSED_ARG)
+root_dir_key_format40(const struct super_block *super UNUSED_ARG)
 {
 	static const reiser4_key FORMAT40_ROOT_DIR_KEY = {
 		.el = {{(FORMAT40_ROOT_LOCALITY << 4) | KEY_SD_MINOR},
@@ -376,9 +378,9 @@ format40_root_dir_key(const struct super_block *super UNUSED_ARG)
 	return &FORMAT40_ROOT_DIR_KEY;
 }
 
-/* plugin->u.layout.print_info */
+/* plugin->u.format.print_info */
 void
-format40_print_info(const struct super_block *s)
+print_info_format40(const struct super_block *s)
 {
 #if 0
 	format40_disk_super_block *sb_copy;

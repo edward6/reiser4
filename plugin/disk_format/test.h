@@ -41,10 +41,10 @@ typedef struct {
 /* declarations of functions implementing methods of format plugin for
    test format. The functions theirself are in
    plugin/disk_format/test.c */
-int test_format_get_ready(struct super_block *, void *data);
-const reiser4_key *test_format_root_dir_key(const struct super_block *);
-int test_format_release(struct super_block *);
-void test_format_print_info(const struct super_block *);
+int get_ready_test_format(struct super_block *, void *data);
+const reiser4_key *root_dir_key_test_format(const struct super_block *);
+int release_test_format(struct super_block *);
+void print_info_test_format(const struct super_block *);
 
 /* __DISK_FORMAT_TEST_H__ */
 #endif

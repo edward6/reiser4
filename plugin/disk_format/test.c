@@ -27,7 +27,7 @@ static void print_test_disk_sb(const char *, const test_disk_super_block *);
 
 /* plugin->u.format.get_ready */
 int
-test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
+get_ready_test_format(struct super_block *s, void *data UNUSED_ARG)
 {
 	int result;
 	reiser4_key *root_key;
@@ -108,14 +108,14 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 
 /* plugin->u.format.root_dir_key */
 const reiser4_key *
-test_format_root_dir_key(const struct super_block *s)
+root_dir_key_test_format(const struct super_block *s)
 {
 	return &(get_super_private(s)->u.test_format.root_dir_key);
 }
 
 /* plugin->u.format.release */
 int
-test_format_release(struct super_block *s)
+release_test_format(struct super_block *s)
 {
 	struct buffer_head *super_bh;
 	test_disk_super_block *disk_sb;
@@ -196,7 +196,7 @@ print_test_disk_sb(const char *mes, const test_disk_super_block * disk_sb)
 
 /* plugin->u.format.print_info */
 void
-test_format_print_info(const struct super_block *s UNUSED_ARG)
+print_info_test_format(const struct super_block *s UNUSED_ARG)
 {
 	/* there is nothing to print */
 }

@@ -63,11 +63,11 @@ typedef struct format40_super_info {
 
 /* declarations of functions implementing methods of layout plugin for
    format 40. The functions theirself are in disk_format40.c */
-int format40_get_ready(struct super_block *, void *data);
-const reiser4_key *format40_root_dir_key(const struct super_block *);
-int format40_release(struct super_block *s);
-jnode *format40_log_super(struct super_block *s);
-void format40_print_info(const struct super_block *s);
+int get_ready_format40(struct super_block *, void *data);
+const reiser4_key *root_dir_key_format40(const struct super_block *);
+int release_format40(struct super_block *s);
+jnode *log_super_format40(struct super_block *s);
+void print_info_format40(const struct super_block *s);
 
 /* __DISK_FORMAT40_H__ */
 #endif
