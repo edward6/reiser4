@@ -67,12 +67,12 @@ item_plugin * item_plugin_by_jnode(jnode *);
 crypto_stat_t * inode_crypto_stat(struct inode *);
 
 void reiser4_cluster_init(reiser4_cluster_t *);
-void put_cluster_data(reiser4_cluster_t *, struct inode *);
+void put_cluster_data(reiser4_cluster_t *);
 int cluster_is_uptodate (reiser4_cluster_t *);
-void release_cluster_buf(reiser4_cluster_t *, struct inode *);
+void release_cluster_buf(reiser4_cluster_t *);
 size_t inode_scaled_cluster_size(struct inode *);
 loff_t inode_scaled_offset (struct inode *, const loff_t);
-unsigned max_crypto_overhead(crypto_plugin *, crypto_stat_t *);
+unsigned max_crypto_overhead(struct inode *);
 
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
 int find_cluster_item(hint_t * hint, const reiser4_key *key,
@@ -83,6 +83,7 @@ int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 int flush_cluster_pages(reiser4_cluster_t *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_cluster(struct inode * inode, pgoff_t start, long count);
+int hint_prev_cluster(reiser4_cluster_t * clust);
 
 #endif /* __FS_REISER4_CTAIL_H__ */
 
