@@ -487,8 +487,8 @@ atom_begin_andlock (txn_atom **atom_alloc, jnode *node, txn_handle *txnh)
 	txn_atom *atom;
 	txn_mgr  *mgr;
 
-	assert ("jmacd-43228", spin_jnode_is_locked (node));
-	assert ("jmacd-43227", spin_txnh_is_locked (txnh));
+	ON_SMP (assert ("jmacd-43228", spin_jnode_is_locked (node)));
+	ON_SMP (assert ("jmacd-43227", spin_txnh_is_locked (txnh)));
 	assert ("jmacd-43226", node->atom == NULL);
 	assert ("jmacd-43225", txnh->atom == NULL);
 
