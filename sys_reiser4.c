@@ -153,11 +153,22 @@ sys_reiser4(void *p_string)
  *
  * proto_ctx_t contains a stack used to recursively parse
  * sub-expressions. Each subexpression has a value represented by instance of
- * proto_val_t. Values are types, types are represented by proto_val_type_t
+ * proto_val_t. Values have types, types are represented by proto_val_type_t
  * enumeration.
  *
  * Each non-terminal token is parsed by special function, and all terminals
  * are parsed by next_token().
+ *
+ * TO BE DONE:
+ *
+ *     1. more sophisticated fs_point_t with support for lnodes
+ *
+ *     2. hub-based assignment
+ *
+ *     3. locking during name resolutions
+ *
+ *
+ *
  *
  */
 
@@ -200,9 +211,12 @@ typedef struct proto_token {
 		struct {
 			/* for name and string literal: token length */
 			int len;
+			/* offset from ->pos to position where actual token
+			 * content starts */
+			int delta;
 		} name, string;
 		struct {
-			/* for number---its value*/
+			/* for number---its value */
 			long val;
 		} number;
 	} u;
@@ -240,7 +254,10 @@ typedef struct proto_val {
 		/* VAL_NUMBER */
 		long       number;
 		/* VAL_STRING */
-		char      *string;
+		struct {
+			char *string;
+			int   len;
+		} string;
 		/* VAL_ERROR */
 		struct {
 			/* error message */
@@ -379,9 +396,9 @@ static void proto_val_put(proto_val_t *val)
 		fsput(&val->u.fsobj);
 		break;
 	case VAL_STRING:
-		if (val->u.string != NULL) {
-			kfree(val->u.string);
-			val->u.string = NULL;
+		if (val->u.string.string != NULL) {
+			kfree(val->u.string.string);
+			val->u.string.string = NULL;
 		}
 		break;
 	case VAL_NUMBER:
@@ -434,6 +451,9 @@ static proto_token_type_t extract_string(proto_ctx_t *ctx, int *outpos,
 		if (ch == '"') {
 			token->type = TOKEN_STRING;
 			token->u.string.len = len;
+			/* string literal start with a quote that should be
+			 * skipped */
+			token->u.string.delta = 1;
 			*outpos = pos + 1;
 			PTRACE(ctx, "%i", len);
 			break;
@@ -446,34 +466,105 @@ static proto_token_type_t extract_string(proto_ctx_t *ctx, int *outpos,
 	return token->type;
 }
 
+static int unhex(char ch)
+{
+	ch = tolower(ch);
+
+	if (ch >= '0' && ch <= '9')
+		return ch - '0';
+	else if (ch >= 'a' && ch <= 'f')
+		return ch - 'a' + 0xa;
+	return 0xff;
+}
+
+/* construct zero number */
+static proto_token_type_t number_zero(proto_token_t *token)
+{
+	token->type = TOKEN_NUMBER;
+	token->u.number.val = 0;
+	return TOKEN_NUMBER;
+}
+
 /* parse number literal */
 static proto_token_type_t extract_number(proto_ctx_t *ctx, int *pos,
 					 proto_token_t *token)
 {
 	char ch;
+	int  sign;
+	int  base;
+	long val;
 
 	ch = char_at(ctx, *pos);
 
-	/* simplistic number literal---only decimals for now. */
-	if (!isdigit(ch)) {
-		token->type = TOKEN_INVALID;
-		-- *pos;
-	} else {
-		long val;
+	sign = +1;
 
-		val = (ch - '0');
+	if (ch == '+')
 		++ *pos;
-		token->type = TOKEN_NUMBER;
-		for (;; ++ *pos) {
-
-			ch = char_at(ctx, *pos);
-			if (!isdigit(ch))
-				break;
-			val = val * 10 + (ch - '0');
-		}
-		PTRACE(ctx, "%li", val);
-		token->u.number.val = val;
+	else if (ch == '-') {
+		++ *pos;
+		sign = -1;
+	} else if (!isdigit(ch)) {
+		token->type = TOKEN_INVALID;
+		*pos = token->pos;
+		return TOKEN_INVALID;
 	}
+
+	val = (ch - '0');
+	base = 10;
+	++ *pos;
+	if (val == 0) {
+		base = 010;
+		if (!isxdigit(char_at(ctx, *pos)) &&
+		    isxdigit(char_at(ctx, *pos + 1))) {
+			/* 0[xXoOdDtT]<digits> */
+			switch (char_at(ctx, *pos)) {
+			case 'x':
+			case 'X':
+				base = 0x10;
+				break;
+			case 'o':
+			case 'O':
+				base = 010;
+				break;
+			case 'd':
+			case 'D':
+				base = 10;
+				break;
+			case 't':
+			case 'T':
+				base = 2;
+				break;
+			default:
+				return number_zero(token);
+			}
+			if (unhex(char_at(ctx, *pos + 1)) >= base)
+				return number_zero(token);
+			++ *pos;
+		}
+	}
+	for (;; ++ *pos) {
+		int  digit;
+		long newval;
+
+		ch = char_at(ctx, *pos);
+		if (!isxdigit(ch))
+			break;
+		digit = unhex(ch);
+		if (digit < 0 || digit >= base)
+			break;
+		newval = val * base + digit;
+		if (newval > val || (val == newval && digit == 0))
+			val = newval;
+		else {
+			token->type = TOKEN_INVALID;
+			post_error(ctx, "integer overflow");
+			*pos = token->pos;
+			return TOKEN_INVALID;
+		}
+	}
+	token->type = TOKEN_NUMBER;
+	PTRACE(ctx, "%li", val);
+	token->u.number.val = sign * val;
 	return token->type;
 }
 
@@ -492,7 +583,7 @@ static proto_token_type_t extract_name(proto_ctx_t *ctx, int *pos,
 			break;
 		if (ch == 0)
 			break;
-		if (strchr("/+-=()[]<>;,.", ch) != NULL)
+		if (strchr("/+-=()[]<>;,", ch) != NULL)
 			break;
 	}
 	if (len == 0) {
@@ -500,9 +591,57 @@ static proto_token_type_t extract_name(proto_ctx_t *ctx, int *pos,
 	} else {
 		token->type = TOKEN_NAME;
 		token->u.name.len = len;
+		token->u.name.delta = 0;
 		PTRACE(ctx, "%i", len);
 	}
 	return token->type;
+}
+
+static proto_token_type_t extract_extended_string(proto_ctx_t *ctx, int *pos,
+						  proto_token_t *token,
+						  proto_token_type_t ttype)
+{
+	proto_token_t width;
+
+	/* s<width>:bytes */
+	token->type = TOKEN_INVALID;
+	++ *pos;
+	/* <width>:bytes */
+	if (extract_number(ctx, pos, &width) == TOKEN_NUMBER) {
+		/* :bytes */
+		if (char_at(ctx, *pos) == ':') {
+			++ *pos;
+			/* bytes */
+			token->type = ttype;
+			token->u.string.len = width.u.number.val;
+			token->u.string.delta = *pos - token->pos;
+			*pos += token->u.string.len;
+		} 
+	}
+	if (token->type == TOKEN_INVALID)
+		*pos = token->pos;
+	return token->type;
+}
+
+/* parse #-literal */
+static proto_token_type_t extract_extended_literal(proto_ctx_t *ctx, int *pos,
+						   proto_token_t *token)
+{
+	char ch;
+
+	ch = char_at(ctx, *pos);
+	if (isdigit(ch))
+		return extract_number(ctx, pos, token);
+
+	/* "#s<width>:bytes" */
+	if (ch == 's')
+		return extract_extended_string(ctx, pos, token, TOKEN_STRING);
+	if (ch == 'n')
+		return extract_extended_string(ctx, pos, token, TOKEN_NAME);
+	/* put "#" back */
+	-- *pos;
+	token->type = TOKEN_INVALID;
+	return TOKEN_INVALID;
 }
 
 /* return next token */
@@ -548,7 +687,7 @@ static proto_token_type_t next_token(proto_ctx_t *ctx,
 		-- pos;
 		break;
 	case '#':
-		ttype = extract_number(ctx, &pos, token);
+		ttype = extract_extended_literal(ctx, &pos, token);
 		break;
 	default:
 		-- pos;
@@ -615,7 +754,7 @@ static int inlevel(proto_ctx_t *ctx)
 	if (ctx->depth >= PROTO_LEVELS - 1) {
 		/* handle stack overflow */
 		post_error(ctx, "stack overflow");
-		return -EXFULL;
+		return -EOVERFLOW;
 	}
 	++ ctx->depth;
 	xmemset(get_level(ctx), 0, sizeof *get_level(ctx)); 
@@ -638,20 +777,18 @@ static void build_string_val(proto_ctx_t *ctx,
 			     proto_token_t *token, proto_val_t *val)
 {
 	int len;
-	int delta;
 
 	assert("nikita-3238", 
 	       token->type == TOKEN_STRING || token->type == TOKEN_NAME);
 
-	/* string literal start with a quote that should be skipped */
-	delta = token->type == TOKEN_STRING ? 1 : 0;
-
 	len = token->u.string.len;
 	val->type = VAL_STRING;
-	val->u.string = kmalloc(len + 1, GFP_KERNEL);
-	if (val->u.string != NULL) {
-		strncpy(val->u.string, ctx->command + token->pos + delta, len);
-		val->u.string[len] = 0;
+	val->u.string.string = kmalloc(len + 1, GFP_KERNEL);
+	if (val->u.string.string != NULL) {
+		strncpy(val->u.string.string, 
+			ctx->command + token->pos + token->u.string.delta, len);
+		val->u.string.string[len] = 0;
+		val->u.string.len = len;
 	}
 }
 
@@ -747,11 +884,13 @@ static int lookup(fs_point_t * parent, const char * name, fs_point_t * fsobj)
 		mm_segment_t __ski_old_fs;	\
 						\
 		__ski_old_fs = get_fs();	\
-		set_fs( KERNEL_DS )
+		set_fs(KERNEL_DS)
 
 #define END_KERNEL_IO				\
-		set_fs( __ski_old_fs );		\
+		set_fs(__ski_old_fs);		\
 	}
+
+#define PUMP_BUF_SIZE (PAGE_CACHE_SIZE)
 
 /* perform actual assignment (copying) from @righthand to @lefthand */
 static int pump(fs_point_t *lefthand, fs_point_t *righthand)
@@ -763,21 +902,28 @@ static int pump(fs_point_t *lefthand, fs_point_t *righthand)
 	struct file *dst;
 	struct file *src;
 
-	buf = kmalloc(4096, GFP_KERNEL);
+	buf = kmalloc(PUMP_BUF_SIZE, GFP_KERNEL);
 	if (buf == NULL)
 		return RETERR(-ENOMEM);
 
 	src = dentry_open(righthand->dentry, righthand->mnt, O_RDONLY);
 	if (!IS_ERR(src)) {
+		mntget(righthand->mnt); /* simulate open_namei() */
+		dget(righthand->dentry);
 		dst = dentry_open(lefthand->dentry, lefthand->mnt, O_WRONLY);
 		if (!IS_ERR(dst)) {
+			mntget(lefthand->mnt); /* simulate open_namei() */
+			dget(lefthand->dentry);
 			readoff = writeoff = 0;
 			result = 0;
 			START_KERNEL_IO;
 			while (result >= 0) {
-				result = vfs_read(src, buf, 4096, &readoff);
+				result = vfs_read(src, 
+						  buf, PUMP_BUF_SIZE, &readoff);
 				if (result <= 0)
 					break;
+				/* give other threads chance to run */
+				preempt_point();
 				result = vfs_write(dst, buf, result, &writeoff);
 			}
 			END_KERNEL_IO;
@@ -825,6 +971,11 @@ static int proto_assign(proto_ctx_t *ctx, proto_val_t *lhs, proto_val_t *rhs)
 	int result;
 	fs_point_t dst;
 
+	if (lhs->type != VAL_FSOBJ) {
+		post_error(ctx, "cannot assign");
+		return -EINVAL;
+	}
+
 	fscpy(&dst, &lhs->u.fsobj);
 	switch (rhs->type) {
 	case VAL_FSOBJ: {
@@ -839,7 +990,7 @@ static int proto_assign(proto_ctx_t *ctx, proto_val_t *lhs, proto_val_t *rhs)
 		break;
 	}
 	case VAL_STRING: {
-		result = pump_buf(&dst, rhs->u.string, strlen(rhs->u.string));
+		result = pump_buf(&dst, rhs->u.string.string, rhs->u.string.len);
 		break;
 	}
 	default:
@@ -877,14 +1028,15 @@ static int parse_name(proto_ctx_t *ctx)
 		fs_point_t  child;
 
 		build_string_val(ctx, &token, &name);
-		result = lookup(get_cur(ctx), name.u.string, &child);
-		if (result == 0) {
+		result = lookup(get_cur(ctx), name.u.string.string, &child);
+		if (result == -ENOENT || child.dentry->d_inode == NULL) {
+			post_error(ctx, "not found");
+			result = -ENOENT;
+		} else if (result == 0) {
 			proto_val_put(get_val(ctx));
 			get_val(ctx)->type = VAL_FSOBJ;
 			fscpy(&get_val(ctx)->u.fsobj, &child);
-		} else if (result == -ENOENT)
-			post_error(ctx, "not found");
-		else
+		} else
 			post_error(ctx, "lookup failure");
 		proto_val_put(&name);
 		break;
@@ -977,11 +1129,11 @@ static int parse_path(proto_ctx_t *ctx)
 		build_number_val(ctx, &token, get_val(ctx));
 		break;
 	case TOKEN_SLASH:
-		parse_rel_path(ctx, &ctx->root);
+		result = parse_rel_path(ctx, &ctx->root);
 		break;
 	default:
 		back_token(ctx, &token);
-		parse_rel_path(ctx, get_cur(ctx));
+		result = parse_rel_path(ctx, get_cur(ctx));
 		break;
 	case TOKEN_INVALID:
 		post_error(ctx, "cannot parse path");
@@ -1017,9 +1169,12 @@ static int parse_binary_exp(proto_ctx_t *ctx)
 			result = inlevel(ctx);
 			if (result == 0) {
 				result = parse_binary_exp(ctx);
-				if (result == 0)
-					result = proto_assign(ctx, 
-							      lhs, get_val(ctx));
+				if (result == 0) {
+					proto_val_t *rhs;
+
+					rhs = get_val(ctx);
+					result = proto_assign(ctx, lhs, rhs);
+				}
 				proto_val_up(ctx);
 				exlevel(ctx);
 			}
@@ -1076,8 +1231,11 @@ static int execute(proto_ctx_t *ctx)
 		result = get_val(ctx)->u.number;
 	exlevel(ctx);
 	assert("nikita-3234", ctx->depth == 0);
-	if (result == 0 && char_at(ctx, ctx->pos) != 0)
+	if (char_at(ctx, ctx->pos) != 0) {
 		post_error(ctx, "garbage after expression");
+		if (result == 0)
+			result = -EINVAL;
+	}
 
 	if (ctx->flags & CTX_PARSE_ERROR) {
 		int i;
