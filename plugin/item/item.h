@@ -17,6 +17,7 @@
 #include "../plugin_header.h"
 #include "../../dformat.h"
 #include "../../seal.h"
+#include "../../plugin/file/file.h"
 
 #include <linux/fs.h>		/* for struct file, struct inode  */
 #include <linux/mm.h>		/* for struct page */
@@ -110,7 +111,10 @@ typedef struct {
 	   are continuous in the node, if the item's data are not
 	   continuous in the node, all sorts of other things are maybe
 	   going to break as well. */
-	 lookup_result(*lookup) (const reiser4_key * key, lookup_bias bias, coord_t * coord);
+	lookup_result(*lookup) (const reiser4_key * key, lookup_bias bias, coord_t * coord);
+	/* FIXME: temporary. It is called by node lookup method when key matches to item key and item's lookup does not
+	   get called */
+	void (*init_coord)(const reiser4_key * key, coord_t * coord);
 	/* method called by ode_plugin->create_item() to initialise new
 	   item */
 	int (*init) (coord_t * coord, reiser4_item_data * data);
@@ -235,7 +239,7 @@ typedef struct {
 	/* @page is used in extent's write. If it is set (when tail2extent
 	   conversion is in progress) - do not grab a page and do not copy data
 	   from flow into it because all the data are already */
-	int (*write) (struct inode *, coord_t *, lock_handle *, flow_t *, struct sealed_coord *, int grabbed);
+	int (*write) (struct inode *, coord_t *, lock_handle *, flow_t *, hint_t *, int grabbed);
 	int (*read) (struct file *, coord_t *, flow_t *);
 	int (*readpage) (void *, struct page *);
 	int (*writepage) (coord_t *, lock_handle *, struct page *);
