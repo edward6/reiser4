@@ -1,0 +1,8 @@
+#! /bin/sh
+
+FSTYPE=reiser4
+MOPTS=''
+MPOINT=/mnt/b1
+DEVICE=/dev/hdb1
+MKOPTS='-q'
+

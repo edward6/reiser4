@@ -24,7 +24,8 @@ if [ -z $filefound ] ;then
     getfrom $TODO                                                        || die
     if [ -z $filefound ] ;then
 	output Nothing to do. Rebooting.
-        # restart default kernel
+	# restart default kernel
+	mv $TOPDIR/do-bench $TOPDIR/do-not-bench
 	systemrestart
 	exit 0
     else
