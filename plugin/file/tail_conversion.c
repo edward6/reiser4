@@ -231,7 +231,7 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
 
 	for (i = 0; i < nr_pages; i++) {
-		result = unix_file_writepage_nolock(pages[i]);
+		result = unix_file_writepage_nolock_locked_page(pages[i]);
 		if (result)
 			break;
 		SetPageUptodate(pages[i]);
@@ -450,6 +450,12 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 				   item_plugin_by_id(TAIL_ID));
 }
 
+
+static int filler(void *vp, struct page *page)
+{
+	return unix_file_readpage(vp, page);
+}
+
 /* for every page of file: read page, cut part of extent pointing to this page,
  * put data of page tree by tail item */
 int
@@ -458,10 +464,9 @@ extent2tail(struct file *file)
 	int result;
 	struct inode *inode;
 	struct page *page;
-	int num_pages;
+	unsigned long num_pages, i;
 	reiser4_key from;
 	reiser4_key to;
-	int i;
 	unsigned count;
 
 	/* collect statistics on the number of extent2tail conversions */
@@ -487,7 +492,7 @@ extent2tail(struct file *file)
 
 	for (i = 0; i < num_pages; i++) {
 		page = read_cache_page(inode->i_mapping, (unsigned) i,
-				       unix_file_readpage_nolock, file);
+				       filler, file);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
 			break;
@@ -529,11 +534,13 @@ extent2tail(struct file *file)
 			break;
 		}
 		/* release page, detach jnode if any */
-		result = page->mapping->a_ops->invalidatepage(page, 0);
-		if (result) {
-			reiser4_unlock_page(page);
-			page_cache_release(page);
-			break;
+		if (PagePrivate(page)) {
+			result = page->mapping->a_ops->invalidatepage(page, 0);
+			if (result) {
+				reiser4_unlock_page(page);
+				page_cache_release(page);
+				break;
+			}
 		}
 		assert("nikita-2690", (!PagePrivate(page) &&
 				       page->private == 0));
@@ -551,8 +558,8 @@ extent2tail(struct file *file)
 		 */
 		inode_set_flag(inode, REISER4_HAS_TAIL);
 	else
-		warning("nikita-2282", "Partial conversion of %li: %i of %i",
-			(long) inode->i_ino, i, num_pages);
+		warning("nikita-2282", "Partial conversion of %lu: %lu of %lu",
+			inode->i_ino, i, num_pages);
 	drop_exclusive_access(inode);
 	return result;
 }
