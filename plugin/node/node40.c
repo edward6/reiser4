@@ -358,6 +358,7 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	left = 0;
 	right = items - 1;
 	coord->node = node;
+	coord_clear_iplug(coord);
 	found = 0;
 
 	lefth = node40_ih_at(node, left);
@@ -2028,6 +2029,7 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 	coord_clear_iplug(new);
 	new->between = old->between;
 
+	coord_clear_iplug(new);
 	if (old->node == shift->target) {
 		if (shift->pend == SHIFT_LEFT) {
 			/* coord which is set inside of left neighbor does not
