@@ -314,7 +314,7 @@ static struct tree_walk_actor backward_actor = {
 };
 
 
-static int reiser4_repacker (struct repacker * repacker)
+int reiser4_repacker (struct repacker * repacker)
 {
 	struct repacker_cursor cursor;
 	int backward;
@@ -335,7 +335,7 @@ static int reiser4_repacker (struct repacker * repacker)
 }
 
 /* The repacker kernel thread code. */
-static int repacker_d(void *arg)
+int repacker_d(void *arg)
 {
 	struct repacker * repacker = arg;
 	struct task_struct * me = current;
