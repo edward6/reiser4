@@ -855,22 +855,6 @@ atom_should_commit(const txn_atom * atom)
 		atom_is_dotard(atom);
 }
 
-#if 0
-/* FIXME: JMACD->ZAM: This should be removed after a transaction can wait on all its
-   active io_handles here. */
-static void
-txn_wait_on_io(txn_atom * atom)
-{
-	jnode *scan;
-
-	for_all_tslist(capture, &atom->clean_nodes, scan) {
-		if (scan->pg && PageWriteback(scan->pg)) {
-			wait_on_page_writeback(scan->pg);
-		}
-	}
-}
-#endif
-
 /* Get first dirty node from the atom's dirty_nodes[n] lists; return NULL if atom has no dirty
    nodes on atom's lists */
 jnode * find_first_dirty_jnode (txn_atom * atom, int flags)

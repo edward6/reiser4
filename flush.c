@@ -86,9 +86,7 @@
   
      JNODE_OVRWR: The node belongs to atom's overwrite set. The flush algorithm made the
      decision to maintain the pre-existing location for this node and it will be written
-     to the wandered-log.  FIXME-ZAM: Currently the flush code puts such nodes to atom's
-     clean list which is wrong and needs to be fixed by adding a special atom's list for
-     the overwrite set.
+     to the wandered-log.
 
      JNODE_RELOC: The flush algorithm made the decision to relocate this block (if it was
      not created, see note above).  A block with JNODE_RELOC set is eligible for

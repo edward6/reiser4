@@ -320,8 +320,8 @@ reiser4_release(struct inode *i /* inode released */ ,
 	return result;
 }
 
-/* FIXME: This way to support fsync is too expensive. Proper solution support is to commit only atoms which contain
-   dirty pages from given address space. */
+/* FIXME: This way to support fsync is too expensive. Proper solution support is
+   to commit only atoms which contain dirty pages from given address space. */
 static int
 reiser4_fsync(struct file *file UNUSED_ARG, 
 	      struct dentry *dentry, int datasync UNUSED_ARG)

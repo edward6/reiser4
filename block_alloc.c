@@ -126,8 +126,7 @@ blocknr_hint_init(reiser4_blocknr_hint * hint)
 void
 blocknr_hint_done(reiser4_blocknr_hint * hint UNUSED_ARG)
 {
-	/* FIXME: Currently, a blocknr hint has no resources which might be
-	   freed */
+	/* No resources should be freed in current blocknr_hint implementation.*/
 }
 
 /* is it a real block number from real block device or fake block number for
@@ -297,19 +296,11 @@ reiser4_fs_reserved_space(struct super_block * super)
    allocating fake block numbers
   
    @super           -- pointer to reiser4 super block;
-   @min_block_count -- minimum number of blocks we reserve;
-   @max_block_count -- maximum number of blocks we want to reserve;
-   @reserved        -- out parameter for max. number of reserved blocks, 
-                       less than @max_block_count and
-                       more than or equal to @min_block_count;
+   @count           -- number of blocks we reserve;
+
    @return          -- 0 if success,  -ENOSPC, if all
                        free blocks are preserved or already allocated.
 */
-
-/* FIXME-ZAM: reserved blocks could be counted in a reiser4 super block field,
-   it allows more error checks. */
-
-/* ZAM-FIXME-HANS: Is there a coherent account of our space reservation scheme anywhere?  If not, then write it. */
 
 static int
 reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
@@ -665,7 +656,6 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	}
 
 	splug = sbinfo->space_plug;
-	/* FIXME: space allocator could be taken right from sbinfo */
 	ret = splug->alloc_blocks(get_space_allocator(ctx->super), hint, (int) needed, blk, len);
 
 	if (!ret) {
@@ -1077,15 +1067,8 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 
 			ret = blocknr_set_add_extent(atom, &atom->delete_set, &bsep, start, len);
 
-			if (ret == -ENOMEM) {
-				/* FIXME: JMACD->ZAM: return FAILURE. */
-				/* FIXME: ZAM->JMACD: we need a reliable
-				   memory allocation for several things
-				   including this one. It is used in Linux
-				   kernel: see how block heads are
-				   allocated */
+			if (ret == -ENOMEM)
 				return ret;
-			}
 
 			/* This loop might spin at most two times */
 		} while (ret == -EAGAIN);

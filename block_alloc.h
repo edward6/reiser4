@@ -68,7 +68,8 @@ enum reiser4_ba_flags {
 	/* allocate blocks for permanent fs objects (formatted or unformatted), not
 	   wandered of log blocks */
 	BA_PERMANENT        = (1 << 4),
-	/* ZAM-FIXME-HANS: comment */
+
+	/* grab space even it was disabled */
 	BA_FORCE            = (1 << 5)
 };
 

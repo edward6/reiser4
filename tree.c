@@ -883,7 +883,7 @@ unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr	/* address to
 }
 
 /* try to shift everything from @right to @left. If everything was shifted -
-   @right is removed from the tree.  Result is the number of bytes shifted. FIXME: right? */
+   @right is removed from the tree.  Result is the number of bytes shifted. */
 /* Audited by: umka (2002.06.16) */
 int
 shift_everything_left(znode * right, znode * left, carry_level * todo)

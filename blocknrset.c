@@ -339,15 +339,10 @@ blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f ac
 		unsigned int i;
 		int ret;
 
-		/* FIXME: unsigned >= 0 */
-		/*assert ("zam-565", bse_avail(entry) >= 0); */
-
 		for (i = 0; i < entry->nr_singles; i++) {
 			ret = actor(atom, &entry->ents[i], NULL, data);
 
-			/* FIXME: we can't break a loop if delete flag is
-			   set. It is just an implementation issue and could
-			   changed if one needs it. */
+			/* We can't break a loop if delete flag is set. */
 			if (ret != 0 && !delete)
 				return ret;
 		}

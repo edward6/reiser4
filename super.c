@@ -76,7 +76,11 @@ reiser4_set_block_count(const struct super_block *super, __u64 nr)
 	assert("vs-501", super != NULL);
 	assert("vs-502", is_reiser4_super(super));
 	get_super_private(super)->block_count = nr;
-	/* 51. / (2^10) == .0498 */
+	/* The proper calculation of the reserved space counter (%5 of device
+	   block counter) we need a 64 bit division which is missing in Linux on
+	   i386 platform. Because we do not need a precise calculation here we
+	   can replace a div64 operation by this combination of multiplication
+	   and shift: 51. / (2^10) == .0498 .*/
 	get_super_private(super)->blocks_reserved = ((nr * 51) >> 10);
 }
 
