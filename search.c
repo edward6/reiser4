@@ -1132,8 +1132,9 @@ void print_coord_content( const char *prefix /* prefix to print */,
 		info( "%s: null\n", prefix );
 		return;
 	}
-	info( "%s: data: %p, length: %i\n", prefix,
-	      item_body_by_coord( p ), item_length_by_coord( p ));
+	if( ( p -> node != NULL ) && znode_is_loaded( p -> node ) )
+		info( "%s: data: %p, length: %i\n", prefix,
+		      item_body_by_coord( p ), item_length_by_coord( p ));
 	print_znode( prefix, p -> node );
 	item_key_by_coord( p, &key );
 	print_key( prefix, &key );
