@@ -563,7 +563,7 @@ static void put_overwrite_set(struct commit_handle * ch)
 		JF_SET(cur, JNODE_SCANNED);
 		spin_unlock(&scan_lock);
 		JF_CLR(cur, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
-		jrelse(cur);
+		jrelse_tail(cur);
 		spin_lock(&scan_lock);
 		JF_CLR(cur, JNODE_SCANNED);
 		cur = capture_list_next(cur);
@@ -642,7 +642,7 @@ get_overwrite_set(struct commit_handle *ch)
 				UNLOCK_JNODE(sj);
 
 				/* jload it as the rest of overwrite set */
-				jload (sj);
+				jload_gfp(sj, GFP_KERNEL, 0);
 
 				ch->overwrite_set_size++;
 			}
@@ -657,7 +657,7 @@ get_overwrite_set(struct commit_handle *ch)
 		} else {
 			int ret;
 			ch->overwrite_set_size++;
-			ret = jload(cur);
+			ret = jload_gfp(cur, GFP_KERNEL, 0);
 			if (ret)
 				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
 
@@ -1012,7 +1012,7 @@ static void put_overwrite_set(struct commit_handle * ch)
 	jnode * cur;
 
 	for_all_type_safe_list(capture, ch->overwrite_set, cur)
-		jrelse(cur);
+		jrelse_tail(cur);
 }
 
 /* Count overwrite set size, grab disk space for wandered blocks allocation.
@@ -1094,7 +1094,7 @@ get_overwrite_set(struct commit_handle *ch)
 				UNLOCK_JNODE(sj);
 
 				/* jload it as the rest of overwrite set */
-				jload (sj);
+				jload_gfp(sj, GFP_KERNEL, 0);
 
 				ch->overwrite_set_size++;
 			}
@@ -1105,7 +1105,7 @@ get_overwrite_set(struct commit_handle *ch)
 		} else {
 			int ret;
 			ch->overwrite_set_size++;
-			ret = jload(cur);
+			ret = jload_gfp(cur, GFP_KERNEL, 0);
 			if (ret)
 				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
 		}

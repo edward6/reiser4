@@ -3786,13 +3786,13 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 					unlock_page(page);
 
 					if (was_jloaded) {
-						jrelse(node);
+						jrelse_tail(node);
 						assert("vs-1494", JF_ISSET(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET));
 						assert("vs-1495", JF_ISSET(copy, JNODE_JLOADED_BY_GET_OVERWRITE_SET));
 						JF_CLR(node, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
 					} else
 						kunmap(new_page);
-					
+
 					jput(copy);
 					jrelse(node);
 					jput(node);

@@ -543,11 +543,11 @@ static inline void add_d_ref(jnode * node /* node to increase d_count of */ )
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 
-extern int jload_gfp(jnode * node, int gfp) NONNULL;
+extern int jload_gfp(jnode * node, int gfp, int do_kmap) NONNULL;
 
 static inline int jload(jnode * node)
 {
-	return jload_gfp(node, GFP_KERNEL);
+	return jload_gfp(node, GFP_KERNEL, 1);
 }
 
 extern int jinit_new(jnode * node, int gfp_flags) NONNULL;
@@ -747,6 +747,7 @@ jput(jnode * node)
 }
 
 extern void jrelse(jnode * node);
+extern void jrelse_tail(jnode * node);
 
 extern jnode *jnode_rip_sync(reiser4_tree *t, jnode * node);
 

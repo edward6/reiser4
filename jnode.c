@@ -877,8 +877,9 @@ reiser4_internal void jload_prefetch(const jnode * node)
 
 /* load jnode's data into memory */
 reiser4_internal int
-jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
-							   * flags*/)
+jload_gfp (jnode * node /* node to load */,
+	   int gfp_flags /* allocation flags*/,
+	   int do_kmap)
 {
 	struct page * page;
 	int result = 0;
@@ -1009,6 +1010,15 @@ reiser4_internal int jinit_new (jnode * node, int gfp_flags)
 	return result;
 }
 
+reiser4_internal void
+jrelse_tail(jnode * node /* jnode to release references to */)
+{
+	assert("nikita-489", atomic_read(&node->d_count) > 0);
+	atomic_dec(&node->d_count);
+	/* release reference acquired in jload_gfp() or jinit_new() */
+	jput(node);
+}
+
 /* drop reference to node data. When last reference is dropped, data are
    unloaded. */
 reiser4_internal void
@@ -1036,10 +1046,7 @@ jrelse(jnode * node /* jnode to release references to */)
 		 */
 		kunmap(page);
 	}
-	assert("nikita-489", atomic_read(&node->d_count) > 0);
-	atomic_dec(&node->d_count);
-	/* release reference acquired in jload_gfp() or jinit_new() */
-	jput(node);
+	jrelse_tail(node);
 }
 
 /* called from jput() to wait for io completion */
