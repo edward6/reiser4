@@ -61,6 +61,7 @@ jnode_init (jnode *node)
 	
 	node->state = 0;
 	node->level = 0;
+	atomic_set (&node->d_count, 0);
 	spin_lock_init (& node->guard);
 	node->atom = NULL;
 	capture_list_clean (node);
@@ -365,51 +366,90 @@ void jnode_detach_page( jnode *node )
 	page_cache_release( page );
 }
 
+/** bump data counter on @node */
+/* Audited by: umka (2002.06.11) */
+void add_d_ref( jnode *node /* node to increase d_count of */ )
+{
+	assert( "nikita-1962", node != NULL );
+
+	atomic_inc( &node -> d_count );
+	ON_DEBUG( ++ lock_counters() -> d_refs );
+}
+
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 /* jnode ref. counter is missing, it doesn't matter for us because this
  * journal writer uses those jnodes exclusively by only one thread */
+/* load content of jnode into memory in all places except cases of unformatted
+ * nodes access  */
 
-/* loads jnode from disk, spin locks jnode if success */
-/* Note: it _may_ return non-zero positive value if success, so you should
- * check for an error by the following way: */
-/* if((ret = jload(...)) < 0) return ret; */
-static void jkmap_nolock (jnode * node)
+
+/* load jnode's data into memory using tree->read_node method */
+int jload_and_lock( jnode *node )
 {
-	assert ("zam-490", JF_ISSET (node, ZNODE_LOADED));
-	assert ("zam-491", jnode_page (node) != NULL);
+	int result;
 
-	kmap (jnode_page(node));
-	JF_SET(node, ZNODE_KMAPPED);
-}
+	spin_lock_jnode( node );
 
-void jkmap (jnode * node)
-{
-	assert ("zam-492", node != NULL);
+	reiser4_stat_znode_add( zload );
+	if( !jnode_is_loaded( node ) ) {
+		reiser4_tree *tree;
 
-	spin_lock_jnode (node);
-	jkmap_nolock (node);
-}
+		add_d_ref( node );
 
-int jload (jnode * node)
-{
-	reiser4_tree * tree = current_tree;
-	int ret;
+		spin_unlock_jnode( node );
+		
+		tree = current_tree;
 
-	assert ("zam-441", tree->ops);
-	assert ("zam-442", tree->ops->read_node != NULL);
+		/* load data... */
+		assert( "nikita-1097", tree != NULL );
+		assert( "nikita-1098", tree -> ops -> read_node != NULL );
 
-	if (JF_ISSET(node, ZNODE_LOADED)) {
-		return 1;
+		/*
+		 * ->read_node() reads data from page cache. In any case we
+		 * rely on proper synchronization in the underlying
+		 * transport. Page reference counter is incremented and page is
+		 * kmapped, it will kunmapped in zunload
+		 */
+		result = tree -> ops -> read_node( tree, node );
+		reiser4_stat_znode_add( zload_read );
+
+		if( likely( result == 0 ) ) {
+			assert( "nikita-2075", spin_jnode_is_locked( node ) );
+			if( likely( !jnode_is_loaded( node ) ) ) {
+				JF_SET( node, ZNODE_LOADED );
+			} else {
+				jrelse_nolock( node );
+				/* indicates that data was cached */
+				result = 1;
+			}
+		} else {
+			spin_lock_jnode( node );
+			jrelse_nolock( node );
+		}
+	} else {
+		assert( "nikita-2136", atomic_read( &node -> d_count ) > 0 );
+		add_d_ref( node );
+		result = 1;
 	}
+	assert( "nikita-2135", ergo( result >= 0,
+				     JF_ISSET( node, ZNODE_KMAPPED ) ) );
 
-	ret = tree->ops->read_node (tree, node);
+	return result;
+}
 
-	if (ret) return ret;
+/** just like jrelse, but assume jnode is already spin-locked */
+void jrelse_nolock( jnode *node /* jnode to release references to */ )
+{
+	assert( "nikita-487", node != NULL );
+	assert( "nikita-489", atomic_read( &node -> d_count ) > 0 );
+	assert( "nikita-1906", spin_jnode_is_locked( node ) );
 
-	JF_SET (node, ZNODE_LOADED);
-	spin_unlock_jnode(node);
-
-	return 0;
+	ON_DEBUG( -- lock_counters() -> d_refs );
+	if( atomic_dec_and_test( &node -> d_count ) ) {
+		current_tree -> ops -> release_node( current_tree, node);
+		assert( "nikita-2137", jnode_is_loaded( node ) );
+		JF_CLR( node, ZNODE_LOADED );
+	}
 }
 
 int jwrite (jnode * node)
@@ -444,33 +484,6 @@ int jwait_io (jnode * node)
 	}
 
 	return 0;
-}
-
-int jrelse (jnode * node)
-{
-	reiser4_tree * tree = current_tree;
-	int ret;
-
-	assert ("zam-443", tree->ops);
-	assert ("zam-444", tree->ops->release_node != NULL);
-
-	ret =  tree->ops->release_node (tree, node);
-
-	spin_unlock_jnode(node);
-
-	return ret;
-}
-
-void junload (jnode * node)
-{
-	spin_lock_jnode (node);
-
-	assert ("zam-475", jnode_page(node) != NULL);
-	JF_CLR(node, ZNODE_LOADED);
-
-	spin_unlock_jnode (node);
-
-	jnode_detach_page (node);
 }
 
 #if REISER4_DEBUG
