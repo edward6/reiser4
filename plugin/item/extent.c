@@ -3095,12 +3095,22 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 		}
 
 	case ALLOCATED_EXTENT:
+		j = jnode_of_page(page);
+		if (IS_ERR(j))
+			return PTR_ERR(j);
+		
+#if 0
 		if (!PagePrivate(page)) {
 			oid_t oid;
 			reiser4_block_nr blocknr;
 			
 			oid = get_inode_oid(page->mapping->host);
-			assert("vs-1391", !jlook_lock(current_tree, oid, page->index));
+			j = jlook_lock(current_tree, oid, page->index);
+			if (j) {
+				info_jnode("found jnode", j);
+				assert("", 0);
+			}
+			/*assert("vs-1391", !jlook_lock(current_tree, oid, page->index));*/
 
 			j = jnew();
 			if (unlikely(!j))
@@ -3118,6 +3128,7 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 			jref(j);
 			ON_TRACE(TRACE_EXTENTS, "allocated, page was private, read issued\n");
 		}
+#endif
 
 		break;
 
