@@ -318,7 +318,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
 	build_generic_short, &direntry.entry[0].objid, KEY40_STATDATA_MINOR, 
-	locality, objectid);
+	objectid, objectid);
 	
     libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
 	build_entry_short, &direntry.entry[0].entryid, dir->hash_plugin, 
@@ -329,7 +329,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
 	build_generic_short, &direntry.entry[1].objid, KEY40_STATDATA_MINOR, 
-	parent_locality, locality);
+	objectid, locality);
 	
     libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
 	build_entry_short, &direntry.entry[1].entryid, dir->hash_plugin, 
