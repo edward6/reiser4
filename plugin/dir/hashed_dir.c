@@ -745,7 +745,7 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 
 	result = can_rename(old_inode, new_inode);
 	if (result != 0)
-	    return result;
+		return result;
 
 	result = hashed_rename_estimate_and_grab(old_dir, old_name,
 						 new_dir, new_name);
