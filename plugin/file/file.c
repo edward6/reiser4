@@ -597,6 +597,9 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd)
 	set_page_dirty_internal(page);
 	result = unix_file_writepage_nolock(page);
 	assert("vs-98221", PageLocked(page));
+
+	/* FIXME: cut_file_items has already updated inode. Probably it would be better to update it here when file is
+	   really truncated */
 	all_grabbed2free("shorten_file");
 	if (result) {
 		reiser4_unlock_page(page);
@@ -645,6 +648,13 @@ append_hole(unix_file_info_t *uf_info, loff_t new_size)
 	return result;
 }
 
+static int
+setattr_reserve(reiser4_tree *tree)
+{
+	assert("vs-1096", is_grab_enabled(get_current_context()));
+	return reiser4_grab_space(estimate_one_insert_into_item(tree), BA_CAN_COMMIT, "setattr_reserve");
+}
+
 /* this either cuts or add items of/to the file so that items match new_size. It is used in unix_file_setattr when it is
    used to truncate and in unix_file_delete */
 static int
@@ -653,41 +663,39 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 	int result;
 	loff_t cur_size;
 
-	INODE_SET_FIELD(inode, i_size, new_size);
+	/*INODE_SET_FIELD(inode, i_size, new_size);*/
 
 	result = find_file_size(inode, &cur_size);
 	if (!result) {
 		if (new_size != cur_size) {
 			INODE_SET_FIELD(inode, i_size, cur_size);
 			result = (cur_size < new_size) ? append_hole(unix_file_inode_data(inode), new_size) : shorten_file(inode, new_size, update_sd);
-
 		} else {
 			/* when file is built of extens - find_file_size can only calculate old file size up to page
 			 * size. Case of not changing file size is detected in unix_file_setattr, therefore here we have
 			 * expanding file within its last page up to the end of that page */
 			assert("vs-1115", file_is_built_of_extents(inode) || (file_is_empty(inode) && cur_size == 0));
 			assert("vs-1116", (new_size & ~PAGE_CACHE_MASK) == 0);
+
+			/* update stat data */
+			if (update_sd) {
+				result = setattr_reserve(tree_by_inode(inode));
+				if (!result)
+					result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1);
+				all_grabbed2free(__FUNCTION__);
+			}
 		}
 	}
 	return result;
 }
 
 /* plugin->u.file.truncate 
-   FIXME: truncate is not simple. It currently consists of 3 steps:
-   reiser4_setattr
-   	unix_file_setattr
-		1. truncate_file
-		inode_setattr
-			2. vmtruncate
-			3. unix_file_truncate (this function)
+   all the work is done on reiser4_setattr->unix_file_setattr->truncate_file
 */
 int
 truncate_unix_file(struct inode *inode, loff_t new_size)
 {
-	INODE_SET_FIELD(inode, i_size, new_size);
-	inode->i_mtime = inode->i_ctime = CURRENT_TIME;
-	/* "capture" inode */
-	return reiser4_mark_inode_dirty(inode);		
+	return 0;
 }
 
 /* plugin->u.write_sd_by_inode = write_sd_by_inode_common */
@@ -1738,13 +1746,6 @@ owns_item_unix_file(const struct inode *inode	/* object to check against */ ,
 	return 1;
 }
 
-static int
-setattr_reserve(reiser4_tree *tree)
-{
-	assert("vs-1096", is_grab_enabled(get_current_context()));
-	return reiser4_grab_space(estimate_one_insert_into_item(tree), BA_CAN_COMMIT, "setattr_reserve");
-}
-
 /* plugin->u.file.setattr method */
 /* This calls inode_setattr and if truncate is in effect it also takes
    exclusive inode access to avoid races */
@@ -1763,20 +1764,15 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 
 			old_size = inode->i_size;
 
-			if (attr->ia_valid != ATTR_SIZE)
-				get_exclusive_access(unix_file_inode_data(inode));
-			else {
-				/* setattr is called from delete_inode to remove file body */;
-			}
+			get_exclusive_access(unix_file_inode_data(inode));
 			result = truncate_file(inode, attr->ia_size, 1/* update stat data */);
 			if (!result) {
 				/* items are removed already. inode_setattr will call vmtruncate to invalidate truncated
-				   pages and unix_file_truncate which will do nothing */
+				   pages and unix_file_truncate which will do nothing. FIXME: is this necessary? */
 				INODE_SET_FIELD(inode, i_size, old_size);
 				result = inode_setattr(inode, attr);
 			}
-			if (attr->ia_valid != ATTR_SIZE)
-				drop_exclusive_access(unix_file_inode_data(inode));
+			drop_exclusive_access(unix_file_inode_data(inode));
 		} else
 			result = 0;
 	} else {
