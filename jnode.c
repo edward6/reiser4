@@ -733,8 +733,19 @@ jrelse_nolock(jnode * node /* jnode to release references to */ )
 
 	page = jnode_page(node);
 	if (page != NULL) {
+		/*
+		 * it is safe to unlock jnode here, because at this point
+		 * @node->d_count is greater than zero (if jrelse() is used
+		 * correctly, that is). JNODE_LOADED may be not set yet, if,
+		 * for example, we got here as a result of error handling path
+		 * in jload(). Anyway, page cannot be detached by
+		 * reiser4_releasepage() yet. truncate will invalidate page
+		 * regardless, but this should not be a problem.
+		 */
+		UNLOCK_JNODE(node);
 		kunmap(page);
 		page_cache_release(page);
+		LOCK_JNODE(node);
 	}
 
 	if (atomic_dec_and_test(&node->d_count))
