@@ -550,8 +550,8 @@ static lookup_result traverse_tree( cbk_handle *h /* search handle */ )
 		print_address( "block", &h -> block );
 		print_key( "key", h -> key );
 		print_coord_content( "coord", h -> coord );
-		print_znode( "active", h -> active_lh -> node);
-		print_znode( "parent", h -> parent_lh -> node);
+		print_znode( "active", h -> active_lh -> node );
+		print_znode( "parent", h -> parent_lh -> node );
 	}
 	/*
 	 * `unlikely' error case
