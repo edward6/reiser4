@@ -36,6 +36,17 @@ int agree_to_fast_op( const coord_t *coord UNUSED_ARG /* coord of item */ )
 	return 1;
 }
 
+/* ->key_in_coord() method for items which have units referring to one key
+ * only. Currently (2002.06.17) all but extents */
+static int single_key_in_coord( const coord_t *coord, const reiser4_key *key )
+{
+	reiser4_key unit_key;
+
+	assert( "vs-717", ncoord_is_existing_unit( coord ));
+	unit_key_by_coord( coord, &unit_key );
+	return keyeq( key, &unit_key ) ? 1 : 0;
+}
+
 /* Audited by: green(2002.06.14) */
 int item_can_contain_key( const coord_t *item /* coord of item */, 
 			  const reiser4_key *key /* key to check */,
@@ -176,7 +187,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child            = NULL,
 				.utmost_child_dirty      = NULL,
 				.utmost_child_real_block = NULL,
-				.real_max_key_inside     = NULL
+				.real_max_key_inside     = NULL,
+				.key_in_coord            = single_key_in_coord
 			},
 			.s = {
 				.sd = {
@@ -191,7 +203,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 		.item = {
 			.h = {
 				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = DIR_ENTRY_ITEM_TYPE,
+				.id      = SIMPLE_DIR_ENTRY_ID,
 				.pops    = NULL,
 				.label   = "de",
 				.desc    = "directory entry",
@@ -223,7 +235,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child            = NULL,
 				.utmost_child_dirty      = NULL,
 				.utmost_child_real_block = NULL,
-				.real_max_key_inside     = NULL
+				.real_max_key_inside     = NULL,
+				.key_in_coord            = single_key_in_coord
 			},
 			.s = {
 				.dir = {
@@ -272,7 +285,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child            = NULL,
 				.utmost_child_dirty      = NULL,
 				.utmost_child_real_block = NULL,
-				.real_max_key_inside     = NULL
+				.real_max_key_inside     = NULL,
+				.key_in_coord            = single_key_in_coord
 			},
 			.s = {
 				.dir = {
@@ -321,7 +335,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child            = internal_utmost_child,
 				.utmost_child_dirty      = internal_utmost_child_dirty,
 				.utmost_child_real_block = internal_utmost_child_real_block,
-				.real_max_key_inside     = NULL
+				.real_max_key_inside     = NULL,
+				.key_in_coord            = NULL
 			},
 			.s = {
 				.internal = {
@@ -366,7 +381,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child            = extent_utmost_child,
 				.utmost_child_dirty      = extent_utmost_child_dirty,
 				.utmost_child_real_block = extent_utmost_child_real_block,
-				.real_max_key_inside     = extent_max_key
+				.real_max_key_inside     = extent_max_key,
+				.key_in_coord            = extent_key_in_coord
 			},
 			.s = {
 				.file = {
@@ -412,7 +428,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.utmost_child            = NULL,
 				.utmost_child_dirty      = NULL,
 				.utmost_child_real_block = NULL,
-				.real_max_key_inside     = NULL
+				.real_max_key_inside     = NULL,
+				.key_in_coord            = single_key_in_coord
 			},
 			.s = {
 				.file = {
