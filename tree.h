@@ -219,10 +219,10 @@ typedef enum { RESIZE_OK           = 0,
 } resize_result;
 
 typedef int ( *tree_iterate_actor_t )( reiser4_tree *tree, 
-				       tree_coord *coord,
+				       new_coord *coord,
 				       lock_handle *lh,
 				       void *arg );
-extern int iterate_tree( reiser4_tree *tree, tree_coord *coord, lock_handle *lh, 
+extern int iterate_tree( reiser4_tree *tree, new_coord *coord, lock_handle *lh, 
 			 tree_iterate_actor_t actor, void *arg,
 			 znode_lock_mode mode, int through_units_p );
 
@@ -244,19 +244,19 @@ extern int init_tree( reiser4_tree *tree,
 		      node_read_actor read_node, 
 		      node_allocate_actor alloc_node );
 extern void reiser4_done_tree( reiser4_tree *tree );
-extern node_plugin *node_plugin_by_coord ( const tree_coord *coord );
+extern node_plugin *node_plugin_by_coord ( const new_coord *coord );
 extern node_plugin *node_plugin_by_node( const znode *node );
-extern int is_coord_in_node( const tree_coord *coord );
-extern int key_in_node( const reiser4_key *, const tree_coord * );
-extern void coord_item_move_to( tree_coord *coord, int items );
-extern void coord_unit_move_to( tree_coord *coord, int units );
-extern void *item_body_by_coord( const tree_coord *coord );
-extern int item_length_by_coord( const tree_coord *coord );
-extern item_plugin *item_plugin_by_coord( const tree_coord *coord );
-extern item_type_id item_type_by_coord( const tree_coord *coord );
-extern item_id item_id_by_coord( const tree_coord *coord /* coord to query */ );
-extern reiser4_key *item_key_by_coord( const tree_coord *coord, reiser4_key *key );
-extern reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key );
+extern int is_coord_in_node( const new_coord *coord );
+extern int key_in_node( const reiser4_key *, const new_coord * );
+extern void coord_item_move_to( new_coord *coord, int items );
+extern void coord_unit_move_to( new_coord *coord, int units );
+extern void *item_body_by_coord( const new_coord *coord );
+extern int item_length_by_coord( const new_coord *coord );
+extern item_plugin *item_plugin_by_coord( const new_coord *coord );
+extern item_type_id item_type_by_coord( const new_coord *coord );
+extern item_id item_id_by_coord( const new_coord *coord /* coord to query */ );
+extern reiser4_key *item_key_by_coord( const new_coord *coord, reiser4_key *key );
+extern reiser4_key *unit_key_by_coord( const new_coord *coord, reiser4_key *key );
 
 
 /* there are two types of repetitive accesses (ra): intra-syscall
@@ -287,63 +287,63 @@ extern reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key
  */
 
 lookup_result coord_by_key( reiser4_tree *tree, const reiser4_key *key,
-			    tree_coord *coord, lock_handle * handle,
+			    new_coord *coord, lock_handle * handle,
 			    znode_lock_mode lock, lookup_bias bias, 
 			    tree_level lock_level, tree_level stop_level, 
 			    __u32 flags );
 lookup_result coord_by_hint_and_key (reiser4_tree * tree, 
 				     const reiser4_key * key,
-				     tree_coord * coord, lock_handle * handle,
+				     new_coord * coord, lock_handle * handle,
 				     lookup_bias bias, tree_level lock_level,
 				     tree_level stop_level);
 insert_result insert_by_key( reiser4_tree *tree, const reiser4_key *key,
-			     reiser4_item_data *data, tree_coord *coord,
+			     reiser4_item_data *data, new_coord *coord,
 			     lock_handle *lh,
 			     tree_level stop_level,
 			     inter_syscall_rap *ra,
 			     intra_syscall_rap ira, __u32 flags );
-insert_result insert_by_coord( tree_coord  *coord,
+insert_result insert_by_coord( new_coord  *coord,
 			       reiser4_item_data *data, const reiser4_key *key,
 			       lock_handle *lh,
 			       inter_syscall_rap *ra UNUSED_ARG,
 			       intra_syscall_rap ira UNUSED_ARG,
 			       cop_insert_flag );
-insert_result insert_extent_by_coord( tree_coord  *coord,
+insert_result insert_extent_by_coord( new_coord  *coord,
 				      reiser4_item_data *data,
 				      const reiser4_key *key,
 				      lock_handle *lh );
-int cut_node (tree_coord * from, tree_coord * to,
+int cut_node (new_coord * from, new_coord * to,
 	      const reiser4_key * from_key,
 	      const reiser4_key * to_key,
 	      reiser4_key * smallest_removed, unsigned flags,
 	      znode * left);
 
-resize_result resize_item( tree_coord *coord, reiser4_item_data *data,
+resize_result resize_item( new_coord *coord, reiser4_item_data *data,
 			   reiser4_key *key, lock_handle *lh,
 			   cop_insert_flag );
 int find_new_child_ptr( znode *parent, znode *child, znode *left, 
-			tree_coord *result );
+			new_coord *result );
 
 
-int shift_right_of_but_excluding_insert_coord (tree_coord * insert_coord);
-int shift_left_of_and_including_insert_coord (tree_coord * insert_coord);
+int shift_right_of_but_excluding_insert_coord (new_coord * insert_coord);
+int shift_left_of_and_including_insert_coord (new_coord * insert_coord);
 int shift_everything_left (znode * right, znode * left, carry_level *todo);
-znode *insert_new_node (tree_coord * insert_coord, lock_handle * lh);
+znode *insert_new_node (new_coord * insert_coord, lock_handle * lh);
 int cut_tree (reiser4_tree * tree, 
 	      const reiser4_key * from_key, const reiser4_key * to_key);
 
-extern int check_tree_pointer( const tree_coord *pointer, const znode *child );
+extern int check_tree_pointer( const new_coord *pointer, const znode *child );
 extern int find_new_child_ptr( znode *parent, znode *child UNUSED_ARG,
-			       znode *left, tree_coord *result );
-extern int find_child_ptr( znode *parent, znode *child, tree_coord *result );
+			       znode *left, new_coord *result );
+extern int find_child_ptr( znode *parent, znode *child, new_coord *result );
 extern int find_child_by_addr( znode *parent, znode *child, 
-			       tree_coord *result );
+			       new_coord *result );
 extern int find_child_delimiting_keys( znode *parent, 
-				       const tree_coord *in_parent, 
+				       const new_coord *in_parent, 
 				       reiser4_key *ld, reiser4_key *rd );
-extern znode *child_znode( const tree_coord *in_parent, int setup_dkeys_p );
+extern znode *child_znode( const new_coord *in_parent, int setup_dkeys_p );
 
-extern void print_coord_content( const char *prefix, tree_coord *p );
+extern void print_coord_content( const char *prefix, new_coord *p );
 extern void print_address( const char *prefix, const reiser4_block_nr *block );
 extern const char *bias_name( lookup_bias bias );
 extern int cbk_cache_init( cbk_cache *cache );

@@ -19,30 +19,30 @@ typedef struct internal_item_layout {
 	/*  4 */
 } internal_item_layout;
 
-int internal_mergeable (const tree_coord * p1, const tree_coord * p2);
+int internal_mergeable (const new_coord * p1, const new_coord * p2);
 lookup_result internal_lookup (const reiser4_key * key, lookup_bias bias,
-			       tree_coord * coord);
+			       new_coord * coord);
 /** store pointer from internal item into "block". Implementation of
     ->down_link() method */
-extern void internal_down_link    ( const tree_coord *coord, 
+extern void internal_down_link    ( const new_coord *coord, 
 				    const reiser4_key *key, 
 				    reiser4_block_nr *block );
-extern int internal_has_pointer_to( const tree_coord *coord, 
+extern int internal_has_pointer_to( const new_coord *coord, 
 				    const reiser4_block_nr *block );
-extern int internal_create_hook   ( const tree_coord *item, void *arg );
-extern int internal_kill_hook     ( const tree_coord *item, 
+extern int internal_create_hook   ( const new_coord *item, void *arg );
+extern int internal_kill_hook     ( const new_coord *item, 
 				    unsigned from, unsigned count, 
 				    void *kill_params );
-extern int internal_shift_hook    ( const tree_coord *item, 
+extern int internal_shift_hook    ( const new_coord *item, 
 				    unsigned from, unsigned count, 
 				    znode *old_node );
-extern void internal_print        ( const char *prefix, tree_coord *coord );
+extern void internal_print        ( const char *prefix, new_coord *coord );
 
-extern int  internal_utmost_child   ( const tree_coord *coord, sideof side,
+extern int  internal_utmost_child   ( const new_coord *coord, sideof side,
 				      jnode **child );
-int         internal_utmost_child_dirty ( const tree_coord  *coord,
+int         internal_utmost_child_dirty ( const new_coord  *coord,
 				  sideof side, int *is_dirty );
-int         internal_utmost_child_real_block ( const tree_coord  *coord,
+int         internal_utmost_child_real_block ( const new_coord  *coord,
 					       sideof side,
 					       reiser4_block_nr  *block );
 

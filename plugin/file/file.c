@@ -47,7 +47,7 @@ int unix_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
 /* plugin->u.write_sd_by_inode = common_file_save */
 
 
-static int find_item (reiser4_key * key, tree_coord * coord,
+static int find_item (reiser4_key * key, new_coord * coord,
 		      lock_handle * lh, znode_lock_mode lock_mode);
 
 /* plugin->u.file.readpage
@@ -57,18 +57,18 @@ static int find_item (reiser4_key * key, tree_coord * coord,
 int unix_file_readpage (struct file * file UNUSED_ARG, struct page * page)
 {
 	int result;
-	tree_coord coord;
+	new_coord coord;
 	lock_handle lh;
 	reiser4_key key;
 	item_plugin * iplug;
-	struct readpage_arg arg;
+	/*struct readpage_arg arg;*/
 
 
 	/* get key of first byte of the page */
 	unix_file_key_by_inode (page->mapping->host,
 				(loff_t)page->index << PAGE_CACHE_SHIFT, &key);
 	
-	init_coord (&coord);
+	ncoord_init_zero (&coord);
 	init_lh (&lh);
 
 	/* look for file metadata corresponding to first byte of page */
@@ -76,7 +76,6 @@ int unix_file_readpage (struct file * file UNUSED_ARG, struct page * page)
 	if (result != CBK_COORD_FOUND) {
 		warning ("vs-280", "No file items found\n");
 		done_lh (&lh);
-		done_coord (&coord);
 		return result;
 	}
 
@@ -84,16 +83,17 @@ int unix_file_readpage (struct file * file UNUSED_ARG, struct page * page)
 	iplug = item_plugin_by_coord (&coord);
 	if (!iplug->s.file.readpage) {
 		done_lh (&lh);
-		done_coord (&coord);
 		return -EINVAL;
 	}
 
+	/*
 	arg.coord = &coord;
 	arg.lh = &lh;
-	result = iplug->s.file.readpage (&arg, page);
+	*/
+	result = iplug->s.file.readpage (/*&arg, */&coord, &lh, page);
 
 	done_lh (&lh);
-	done_coord (&coord);
+
 	return result;
 }
 
@@ -104,7 +104,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 {
 	int result;
 	struct inode * inode;
-	tree_coord coord;
+	new_coord coord;
 	lock_handle lh;
 	size_t to_read;
 	item_plugin * iplug;
@@ -155,7 +155,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 			break;
 		}
 		done_lh (&lh);
-		done_coord (&coord);
+
 		if (!result)
 			continue;
 		break;
@@ -176,7 +176,7 @@ typedef enum {
 	CONVERT
 } write_todo;
 
-static write_todo unix_file_how_to_write (struct inode *, flow_t *, tree_coord *);
+static write_todo unix_file_how_to_write (struct inode *, flow_t *, new_coord *);
 static int tail2extent (struct inode *);
 
 /* plugin->u.file.write */
@@ -187,7 +187,7 @@ ssize_t unix_file_write (struct file * file,
 {
 	int result;
 	struct inode * inode;
-	tree_coord coord;
+	new_coord coord;
 	lock_handle lh;	
 	size_t to_write;
 	item_plugin * iplug;
@@ -218,7 +218,6 @@ ssize_t unix_file_write (struct file * file,
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occured */
 			done_lh (&lh);
-			done_coord (&coord);
 			break;
 		}
 
@@ -239,7 +238,6 @@ ssize_t unix_file_write (struct file * file,
 			
 		case CONVERT:
 			done_lh (&lh);
-			done_coord (&coord);
 			result = tail2extent (inode);
 			if (result) {
 				up_read (&reiser4_inode_data (inode)->sem);
@@ -252,7 +250,6 @@ ssize_t unix_file_write (struct file * file,
 		}
 
 		done_lh (&lh);
-		done_coord (&coord);
 		if (!result || result == -EAGAIN)
 			continue;
 		break;
@@ -279,10 +276,10 @@ ssize_t unix_file_write (struct file * file,
 /*
  * look for item of file @inode corresponding to @key
  */
-static int find_item (reiser4_key * key, tree_coord * coord,
+static int find_item (reiser4_key * key, new_coord * coord,
 		      lock_handle * lh, znode_lock_mode lock_mode)
 {
-	init_coord (coord);
+	ncoord_init_zero (coord);
 	init_lh (lh);
 	return coord_by_key (current_tree, key, coord, lh,
 			     lock_mode, FIND_MAX_NOT_MORE_THAN,
@@ -297,7 +294,7 @@ static int find_item (reiser4_key * key, tree_coord * coord,
  * FIXME-VS: it is possible to imagine different ways for finding that
  */
 static int built_of_extents (struct inode * inode UNUSED_ARG,
-			     tree_coord * coord)
+			     new_coord * coord)
 {
 	return znode_get_level (coord->node) == TWIG_LEVEL;
 }
@@ -316,7 +313,7 @@ static int should_have_notail (struct inode * inode, loff_t new_size)
 
 /* decide how to write flow @f into file @inode */
 static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
-					  tree_coord * coord)
+					  new_coord * coord)
 {
 	loff_t new_size;
 
@@ -415,7 +412,7 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 				int nr_pages, int count, item_plugin * iplug)
 {
 	flow_t f;
-	tree_coord coord;
+	new_coord coord;
 	lock_handle lh;
 	int result;
 	char * p_data;
@@ -452,7 +449,6 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 			result = iplug->s.file.write (inode, &coord, &lh, &f,
 						      pages [i]);
 			done_lh (&lh);
-			done_coord (&coord);
 			/* item's write method may return -EAGAIN */
 		} while (result == -EAGAIN);
 		
@@ -541,7 +537,7 @@ static int all_pages_are_full (int nr_pages, int page_off)
 
 /* part of tail2extent. */
 static int file_is_over (struct inode * inode, reiser4_key * key,
-			    tree_coord * coord)
+			    new_coord * coord)
 {
 	reiser4_key coord_key;
 
@@ -564,7 +560,7 @@ static int file_is_over (struct inode * inode, reiser4_key * key,
 static int tail2extent (struct inode * inode)
 {
 	int result;
-	tree_coord coord;
+	new_coord coord;
 	lock_handle lh;	
 	reiser4_key key;     /* key of next byte to be moved to page */
 	struct page * page;
@@ -665,7 +661,6 @@ static int tail2extent (struct inode * inode)
 		if ((done = file_is_over (inode, &key, &coord)) ||
 		    all_pages_are_full (nr_pages, page_off)) {
 			done_lh (&lh);
-			done_coord (&coord);
 			/* replace tail items with extent */
 			result = replace (inode, pages, nr_pages, 
 					  (int)((nr_pages - 1) * PAGE_SIZE +
@@ -688,7 +683,6 @@ static int tail2extent (struct inode * inode)
 			/* item is over, find next one */
 			item = 0;
 			done_lh (&lh);
-			done_coord (&coord);
 		}
 		if (page_off == PAGE_SIZE) {
 			/* page is over */
@@ -697,7 +691,6 @@ static int tail2extent (struct inode * inode)
 	}
 
 	done_lh (&lh);
-	done_coord (&coord);
 
  out:
 	/* switch inode's rw_semaphore from write_down to read_down */
@@ -771,7 +764,7 @@ static int extent2tail (struct file * file)
 
 	{
 		/* find which items file is built of */
-		tree_coord coord;
+		new_coord coord;
 		lock_handle lh;
 		int do_conversion;
 		
@@ -783,7 +776,6 @@ static int extent2tail (struct file * file)
 			}
 		}
 		done_lh (&lh);
-		done_coord (&coord);
 		if (!do_conversion) {
 			assert ("vs-590", CBK_COORD_FOUND == 0);
 			/* error occured or file is built of tail items
@@ -898,7 +890,7 @@ int unix_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
  * this is common_file_owns_item with assertion */
 int unix_file_owns_item( const struct inode *inode /* object to check
 						    * against */, 
-			 const tree_coord *coord /* coord to check */ )
+			 const new_coord *coord /* coord to check */ )
 {
 	int result;
 

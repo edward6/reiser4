@@ -35,7 +35,7 @@ typedef struct reiser4_inode_info {
 	/** seal for stat-data */
 	seal_t                    sd_seal;
 	/** coord of stat-data in sealed node */
-	tree_coord                sd_coord;
+	new_coord                sd_coord;
 	/** plugin of items a directory is built of */
 	item_plugin            *dir_item;
 	/** reiser4-specific inode flags. They are "transient" and 
@@ -74,7 +74,7 @@ extern int reiser4_lock_inode_interruptible( struct inode *inode );
 extern void reiser4_unlock_inode( struct inode *inode );
 extern int is_reiser4_inode( const struct inode *inode );
 extern int setup_inode_ops( struct inode *inode );
-extern int init_inode( struct inode *inode, tree_coord *coord );
+extern int init_inode( struct inode *inode, new_coord *coord );
 extern struct inode * reiser4_iget( struct super_block * super, 
 				    const reiser4_key *key );
 extern int reiser4_inode_find_actor( struct inode *inode, void *opaque);
@@ -83,10 +83,10 @@ extern int reiser4_add_nlink( struct inode *object );
 extern int reiser4_del_nlink( struct inode *object );
 extern int truncate_object( struct inode *inode, loff_t size );
 extern int lookup_sd( struct inode *inode, znode_lock_mode lock_mode, 
-			 tree_coord *coord, lock_handle *lh,
+			 new_coord *coord, lock_handle *lh,
 			 reiser4_key *key );
 int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode, 
-		      tree_coord *coord, lock_handle *lh, 
+		      new_coord *coord, lock_handle *lh, 
 		      const reiser4_key *key );
 extern int guess_plugin_by_mode( struct inode *inode );
 extern int common_file_install( struct inode *inode, reiser4_plugin *plug,
@@ -100,7 +100,7 @@ extern int common_build_flow( struct inode *, char *buf,
 
 extern int common_write_inode( struct inode *inode );
 extern int common_file_owns_item( const struct inode *inode, 
-				  const tree_coord *coord );
+				  const new_coord *coord );
 extern void print_inode( const char *prefix, const struct inode *i );
 
 extern file_plugin *inode_file_plugin( const struct inode *inode );
@@ -131,7 +131,7 @@ typedef struct reiser4_dentry_fsdata {
 	/* seal covering directory entry */
 	seal_t     entry_seal;
 	/* coord of directory entry */
-	tree_coord entry_coord;
+	new_coord entry_coord;
 } reiser4_dentry_fsdata;
 
 /**

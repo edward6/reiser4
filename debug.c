@@ -56,7 +56,7 @@ void preempt_point( void )
 /**
  * Debugging aid: return struct where information about locks taken by current
  * thread is accumulated. This can be used to formulate locking ordering
- * constraints and various assrtions.
+ * constraints and various assertions.
  *
  */
 lock_counters_info *lock_counters()
@@ -364,7 +364,7 @@ static void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 			  FILE *dot /* dot-output */ )
 {
 	int i;
-	tree_coord coord;
+	new_coord coord;
 	char buffer_l[ 100 ];
 	char buffer_r[ 100 ];
 
@@ -380,9 +380,8 @@ static void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 		 sprintf_key( buffer_l, &node -> ld_key ),
 		 sprintf_key( buffer_r, &node -> rd_key ) );
 
-	coord_first_unit( &coord, node );
-	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
-		coord.item_pos = i;
+	for( ncoord_init_before_first_item (&coord, node) ; 
+	     ncoord_next_item (&coord) == 0; ) {
 
 		if( item_is_internal( &coord ) ) {
 			znode *child;
@@ -406,7 +405,6 @@ static void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL )
 		print_address( "end children of node", znode_get_block( node ) );
 	*/
-	done_coord( &coord );
 }
 
 /** helper called by print_tree_rec() */
@@ -415,7 +413,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 		      __u32 flags /* print flags */ )
 {
 	int i;
-	tree_coord coord;
+	new_coord coord;
 
 	i = zload( node );
 	if( i != 0 ) {
@@ -436,12 +434,11 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_CHECK )
 		node_check( node, flags );
 
-	coord_first_unit( &coord, node );
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
 		print_address( "children of node", znode_get_block( node ) );
 	}
-	for( i = 0 ; i < ( int ) node_num_items( node ) ; ++ i ) {
-		coord.item_pos = i;
+	for( ncoord_init_before_first_item (&coord, node);
+	     ncoord_next_item (&coord) == 0; ) {
 		if( item_is_internal(&coord ) ) {
 			znode *child;
 
@@ -460,7 +457,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
 		print_address( "end children of node", znode_get_block( node ) );
 	}
-	done_coord( &coord );
+
 }
 
 /**

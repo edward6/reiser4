@@ -8,6 +8,33 @@
 #if !defined( __REISER4_NEW_COORD_H__ )
 #define __REISER4_NEW_COORD_H__
 
+/**
+ * insertions happen between coords in the tree, so we need some means
+ * of specifying the sense of betweenness.
+ */
+typedef enum {
+	BEFORE_UNIT, /* Note: we/init_coord depends on this value being zero. */
+	AT_UNIT,
+	AFTER_UNIT,
+	BEFORE_ITEM,
+	AFTER_ITEM ,
+	INVALID_COORD,
+	EMPTY_NODE,
+} between_enum;
+
+/**
+ * location of coord w.r.t. its node
+ */
+typedef enum {
+	COORD_ON_THE_LEFT  = -1,
+	COORD_ON_THE_RIGHT = +1,
+	COORD_INSIDE       = 0
+} coord_wrt_node;
+
+typedef enum {
+	COORD_CMP_SAME = 0, COORD_CMP_ON_LEFT = -1, COORD_CMP_ON_RIGHT = +1
+} coord_cmp;
+
 struct new_coord {
 	/* node in a tree */
 	znode *node;
@@ -49,9 +76,10 @@ static inline sideof sideof_reverse (sideof side)
 /*****************************************************************************************/
 
 /* Hack. */
-extern void ncoord_to_tcoord (tree_coord *tcoord, const new_coord *ncoord);
-extern void tcoord_to_ncoord (new_coord *ncoord, const tree_coord *tcoord);
-
+/*
+extern void ncoord_to_tcoord (new_coord *tcoord, const new_coord *ncoord);
+extern void tcoord_to_ncoord (new_coord *ncoord, const new_coord *tcoord);
+*/
 extern int          item_utmost_child_real_block (const new_coord *coord, sideof side, reiser4_block_nr *blk);
 extern int          item_utmost_child            (const new_coord *coord, sideof side, jnode **child);
 extern int          item_is_extent_n             (const new_coord *coord);
@@ -108,6 +136,16 @@ extern void ncoord_init_after_last_item (new_coord *coord, znode *node);
 
 /* Calls either ncoord_init_first_unit or ncoord_init_last_unit depending on sideof argument. */
 extern void ncoord_init_sideof_unit (new_coord *coord, znode *node, sideof dir);
+
+/* Initialize a parent hint pointer. (parent hint pointer is a field in znode,
+ * look for comments there)
+ * FIXME-VS: added by vs (2002, june, 8) */
+extern void ncoord_init_parent_hint (new_coord *coord, znode *node);
+
+/* Initialize a coordinate by 0s. Used in places where init_coord was used and
+ * it was not clear how actually 
+ * FIXME-VS: added by vs (2002, june, 8) */
+extern void ncoord_init_zero (new_coord *coord);
 
 /*****************************************************************************************/
 /*				      COORD METHODS                                      */
@@ -201,6 +239,10 @@ extern int ncoord_is_after_sideof_unit (new_coord *coord, sideof dir);
 /* Returns true if coord is set to or before the first (if LEFT_SIDE) unit of the item and
  * to or after the last (if RIGHT_SIDE) unit of the item. */
 extern int ncoord_is_delimiting (new_coord *coord, sideof dir);
+
+/* determine how @coord is located w.r.t. its node.
+ * FIXME-VS: added by vs (2002, june, 8) */
+extern coord_wrt_node ncoord_wrt (const new_coord *coord);
 
 /*****************************************************************************************/
 /* 				      COORD MODIFIERS                                    */
