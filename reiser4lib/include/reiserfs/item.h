@@ -9,15 +9,16 @@
 
 /* On memory structure to work with items */
 /* Thougth: the key should not exist here, we should get it from item. */
-struct reiserfs_item_info {
-    int plugin_id;
+struct reiserfs_item {
     reiserfs_key_t *key;
-    
     uint32_t length;
-    void *data;
+    reiserfs_opaque_t *entity;
+    reiserfs_plugin_t *plugin;
 };
 
-typedef struct reiserfs_item_info reiserfs_item_info_t;
+typedef struct reiserfs_item reiserfs_item_t;
+
+extern blk_t down_link (reiserfs_item_t *);
 
 #endif
 

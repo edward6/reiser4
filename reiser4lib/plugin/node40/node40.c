@@ -215,7 +215,7 @@ static int reiserfs_node40_lookup(reiserfs_node40_t *node, reiserfs_key_t *key,
 }
 
 static error_t reiserfs_node40_insert(reiserfs_coord_t *where, 
-    reiserfs_item_info_t *item_info) 
+    reiserfs_item_t *item_info) 
 {
     int num, i;
     uint32_t size, offset;

@@ -197,8 +197,9 @@ void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value) {
     return node->plugin->node.set_free_space(node->entity, value);
 }
 
-reiserfs_item_info_t *reiserfs_node_item_info(reiserfs_node_t *node, uint32_t pos) {
-    reiserfs_item_info_t *info;
+reiserfs_item_t *reiserfs_node_item_info(reiserfs_node_t *node, uint32_t pos) {
+    reiserfs_item_t *info;
+    reiserfs_pligin_id_t plugin_id;
 
     if (!(info = aal_calloc(sizeof(*info), 0)))
 	return NULL;
@@ -223,7 +224,13 @@ reiserfs_item_info_t *reiserfs_node_item_info(reiserfs_node_t *node, uint32_t po
     }
 
     reiserfs_check_method(node->plugin->node, item_plugin_id, return 0); 
-    info->plugin_id = node->plugin->node.item_plugin_id(node->entity, pos);
+    plugin_id = node->plugin->node.item_plugin_id(node->entity, pos);
+    
+    if (!(info->plugin = reiserfs_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, item_info->plugin_id))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find item plugin by its id %x.", item_info->plugin_id);
+	    goto free_info;
+    }
     
     return info;
 free_info:

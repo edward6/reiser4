@@ -47,7 +47,7 @@ extern reiserfs_plugin_id_t reiserfs_node_plugin_id(reiserfs_node_t *node);
 extern uint32_t reiserfs_node_get_free_space(reiserfs_node_t *node);
 extern void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value);
 
-extern reiserfs_item_info_t *reiserfs_node_item_info(reiserfs_node_t *node, uint32_t pos);
+extern reiserfs_item_t *reiserfs_node_item_info(reiserfs_node_t *node, uint32_t pos);
 extern void *reiserfs_node_item(reiserfs_node_t *node, uint32_t pos);
 
 #endif
