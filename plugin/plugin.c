@@ -187,25 +187,6 @@
 
 #include <linux/fs.h>		/* for struct super_block  */
 
-/* plugin type representation. Nobody outside of this file
-   should care about this, so define it right here. */
-typedef struct reiser4_plugin_type_data {
-	/** internal plugin type identifier. Should coincide with
-	    index of this item in plugins[] array. */
-	reiser4_plugin_type type_id;
-	/** short symbolic label of this plugin type. Should be no longer
-	    than MAX_PLUGIN_TYPE_LABEL_LEN characters including '\0'. */
-	const char *label;
-	/** plugin type description longer than .label */
-	const char *desc;
-	/** number of built-in plugin instances of this type */
-	int builtin_num;
-	/** array of built-in plugins */
-	void *builtin;
-	plugin_list_head plugins_list;
-	size_t size;
-} reiser4_plugin_type_data;
-
 /* public interface */
 
 /** initialise plugin sub-system. Just call this once on reiser4 startup. */
@@ -218,23 +199,9 @@ int locate_plugin(struct inode *inode, plugin_locator * loc);
 
 /* internal functions. */
 
-static int is_type_id_valid(reiser4_plugin_type type_id);
-static int is_plugin_id_valid(reiser4_plugin_type type_id,
-			      reiser4_plugin_id id);
 static reiser4_plugin_type find_type(const char *label);
-static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype,
-				   const char *label);
-static reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES];
+static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype, const char *label);
 static reiser4_plugin_id max_id = 0;
-
-static inline reiser4_plugin *
-plugin_at(reiser4_plugin_type_data * ptype, int i)
-{
-	char *builtin;
-
-	builtin = ptype->builtin;
-	return (reiser4_plugin *) (builtin + i * ptype->size);
-}
 
 /** initialise plugin sub-system. Just call this once on reiser4 startup. */
 int
@@ -249,8 +216,7 @@ init_plugins(void)
 
 		ptype = &plugins[type_id];
 		plugin_list_init(&ptype->plugins_list);
-		trace_on(TRACE_PLUGINS,
-			 "Of type %s (%s):\n", ptype->label, ptype->desc);
+		trace_on(TRACE_PLUGINS, "Of type %s (%s):\n", ptype->label, ptype->desc);
 		for (i = 0; i < ptype->builtin_num; ++i) {
 			reiser4_plugin *plugin;
 
@@ -338,6 +304,24 @@ lookup_plugin_name(char *plug_label /* label to search for */ )
 	return plugin;
 }
 
+/** true if plugin type id is valid */
+int
+is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */)
+{
+	/* "type_id" is unsigned, so no comparison with 0 is
+	   necessary */
+	return (type_id < REISER4_PLUGIN_TYPES);
+}
+
+/** true if plugin id is valid */
+int
+is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
+		   reiser4_plugin_id id /* plugin id */)
+{
+	assert("nikita-1653", is_type_id_valid(type_id));
+	return ((id < plugins[type_id].builtin_num) && (id >= 0));
+}
+
 /** lookup plugin by scanning tables */
 reiser4_plugin *
 lookup_plugin(const char *type_label /* plugin type label */ ,
@@ -382,21 +366,17 @@ locate_plugin(struct inode *inode, plugin_locator * loc)
 		reiser4_plugin *plugin;
 
 		if (loc->plug_label[0] != '\0')
-			plugin = find_plugin(&plugins[type_id],
-					     loc->plug_label);
+			plugin = find_plugin(&plugins[type_id], loc->plug_label);
 		else
 			plugin = reiser4_get_plugin(inode, type_id);
 		if (plugin == NULL)
 			return -ENOENT;
 
-		strncpy(loc->plug_label, plugin->h.label,
-			min(MAX_PLUGIN_PLUG_LABEL_LEN,
-			    strlen(plugin->h.label) + 1));
+		strncpy(loc->plug_label, plugin->h.label, min(MAX_PLUGIN_PLUG_LABEL_LEN, strlen(plugin->h.label) + 1));
 		if (loc->type_label[0] == '\0')
 			strncpy(loc->type_label,
 				plugins[type_id].label,
-				min(MAX_PLUGIN_TYPE_LABEL_LEN,
-				    strlen(plugins[type_id].label) + 1));
+				min(MAX_PLUGIN_TYPE_LABEL_LEN, strlen(plugins[type_id].label) + 1));
 		loc->id = plugin->h.id;
 		return 0;
 	} else
@@ -430,34 +410,6 @@ plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
 	return NULL;
 }
 
-/** return plugin by its @type_id and @id */
-reiser4_plugin *
-plugin_by_id(reiser4_plugin_type type_id /* plugin type id */ ,
-	     reiser4_plugin_id id /* plugin id */ )
-{
-	assert("nikita-1651", is_type_id_valid(type_id));
-	assert("nikita-1652", is_plugin_id_valid(type_id, id));
-	return plugin_at(&plugins[type_id], id);
-}
-
-/** get plugin whose id is stored in disk format */
-reiser4_plugin *
-plugin_by_disk_id(reiser4_tree * tree UNUSED_ARG	/* tree,
-							 * plugin
-							 * belongs
-							 * to */ ,
-		  reiser4_plugin_type type_id	/* plugin type
-						 * id */ ,
-		  d16 * did /* plugin id in disk format */ )
-{
-	/* what we should do properly is to maintain within each
-	   file-system a dictionary that maps on-disk plugin ids to
-	   "universal" ids. This dictionary will be resolved on mount
-	   time, so that this function will perform just one additional
-	   array lookup. */
-	return plugin_by_unsafe_id(type_id, d16tocpu(did));
-}
-
 /** convert plugin id to the disk format */
 int
 save_plugin_id(reiser4_plugin * plugin /* plugin to convert */ ,
@@ -479,24 +431,6 @@ get_plugin_list(reiser4_plugin_type type_id	/* plugin type
 	return &plugins[type_id].plugins_list;
 }
 
-/** true if plugin type id is valid */
-static int
-is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */ )
-{
-	/* "type_id" is unsigned, so no comparison with 0 is
-	   necessary */
-	return (type_id < REISER4_PLUGIN_TYPES);
-}
-
-/** true if plugin id is valid */
-static int
-is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
-		   reiser4_plugin_id id /* plugin id */ )
-{
-	assert("nikita-1653", is_type_id_valid(type_id));
-	return ((id < plugins[type_id].builtin_num) && (id >= 0));
-}
-
 #if REISER4_DEBUG_OUTPUT
 /** print human readable plugin information */
 void
@@ -504,8 +438,7 @@ print_plugin(const char *prefix /* prefix to print */ ,
 	     reiser4_plugin * plugin /* plugin to print */ )
 {
 	if (plugin != NULL) {
-		info("%s: %s (%s:%i)\n",
-		     prefix, plugin->h.desc, plugin->h.label, plugin->h.id);
+		info("%s: %s (%s:%i)\n", prefix, plugin->h.desc, plugin->h.label, plugin->h.id);
 	} else
 		info("%s: (nil)\n", prefix);
 }
@@ -521,8 +454,7 @@ find_type(const char *label	/* plugin type
 
 	assert("nikita-550", label != NULL);
 
-	for (type_id = 0; (type_id < REISER4_PLUGIN_TYPES) &&
-	     strcmp(label, plugins[type_id].label); ++type_id) {;
+	for (type_id = 0; (type_id < REISER4_PLUGIN_TYPES) && strcmp(label, plugins[type_id].label); ++type_id) {;
 	}
 	return type_id;
 }
@@ -577,7 +509,7 @@ extern disk_format_plugin format_plugins[LAST_FORMAT_ID];
 /* defined in jnode.c */
 extern jnode_plugin jnode_plugins[LAST_JNODE_TYPE];
 
-static reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
+reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	/* C90 initializers */
 	[REISER4_FILE_PLUGIN_TYPE] = {
 				      .type_id = REISER4_FILE_PLUGIN_TYPE,
@@ -653,48 +585,35 @@ static reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 					.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
 					.label = "sd_ext",
 					.desc = "Parts of stat-data",
-					.builtin_num =
-					sizeof_array(sd_ext_plugins),
+					.builtin_num = sizeof_array(sd_ext_plugins),
 					.builtin = sd_ext_plugins,
 					.plugins_list = TS_LIST_HEAD_ZERO,
 					.size = sizeof (sd_ext_plugin)
 					}
 	,
 	[REISER4_OID_ALLOCATOR_PLUGIN_TYPE] = {
-					       .type_id =
-					       REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
+					       .type_id = REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
 					       .label = "oid manager",
-					       .desc =
-					       "allocate/deallocate oids",
-					       .builtin_num =
-					       sizeof_array(oid_plugins),
+					       .desc = "allocate/deallocate oids",
+					       .builtin_num = sizeof_array(oid_plugins),
 					       .builtin = oid_plugins,
-					       .plugins_list =
-					       TS_LIST_HEAD_ZERO,
-					       .size =
-					       sizeof (oid_allocator_plugin)}
+					       .plugins_list = TS_LIST_HEAD_ZERO,
+					       .size = sizeof (oid_allocator_plugin)}
 	,
 	[REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE] = {
-						 .type_id =
-						 REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
+						 .type_id = REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
 						 .label = "disk space manager",
-						 .desc =
-						 "allocate/deallocate disk free space",
-						 .builtin_num =
-						 sizeof_array(space_plugins),
+						 .desc = "allocate/deallocate disk free space",
+						 .builtin_num = sizeof_array(space_plugins),
 						 .builtin = space_plugins,
-						 .plugins_list =
-						 TS_LIST_HEAD_ZERO,
-						 .size =
-						 sizeof (space_allocator_plugin)}
+						 .plugins_list = TS_LIST_HEAD_ZERO,
+						 .size = sizeof (space_allocator_plugin)}
 	,
 	[REISER4_FORMAT_PLUGIN_TYPE] = {
 					.type_id = REISER4_FORMAT_PLUGIN_TYPE,
 					.label = "disk layout",
-					.desc =
-					"defines filesystem on disk layout",
-					.builtin_num =
-					sizeof_array(format_plugins),
+					.desc = "defines filesystem on disk layout",
+					.builtin_num = sizeof_array(format_plugins),
 					.builtin = format_plugins,
 					.plugins_list = TS_LIST_HEAD_ZERO,
 					.size = sizeof (disk_format_plugin)
@@ -704,8 +623,7 @@ static reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 				       .type_id = REISER4_JNODE_PLUGIN_TYPE,
 				       .label = "jnode flavor",
 				       .desc = "defined kind of jnode",
-				       .builtin_num =
-				       sizeof_array(jnode_plugins),
+				       .builtin_num = sizeof_array(jnode_plugins),
 				       .builtin = jnode_plugins,
 				       .plugins_list = TS_LIST_HEAD_ZERO,
 				       .size = sizeof (jnode_plugin)
