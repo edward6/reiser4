@@ -1453,6 +1453,56 @@ static int squeeze_right_twig (flush_pos_t * pos, znode * left, znode * right)
 	return ret;
 }
 
+/* Shift items from right twig node to the left one: zero, one or more extents
+ * plus zero or one internal item. Return zero if it finished with internal
+ * item, positive return code means last shift was unsuccessful because of
+ * target node full or source node is empty, negative result is other error. */
+static int full_squeeze_right_twig (flush_pos_t * pos, znode * left, znode * right, coord_t * result)
+{
+	int ret;
+	coord_t dest_coord;
+
+	coord_init_after_last_item(&dest_coord, left);
+
+	assert ("zam-863", znode_is_write_locked(right));
+	assert ("zam-864", znode_is_loaded(right));
+
+	while (!node_is_empty(right)) {
+		assert ("zam-865", coord_is_after_rightmost(&dest_coord));
+
+		ret = squeeze_right_twig(pos, left, right);
+		if (ret)
+			goto out;
+
+		coord_next_unit(&dest_coord);
+		assert ("zam-867", coord_is_existing_unit(&dest_coord));
+
+		if (!item_is_extent(&dest_coord)) {
+			assert ("zam-866", item_is_internal(&dest_coord));
+			goto out;
+		}
+
+		coord_next_item(&dest_coord);
+	}
+
+	return SQUEEZE_SOURCE_EMPTY;
+
+ out:
+	if (result)
+		coord_dup(result, &dest_coord);
+
+	return ret;
+}
+
+static int squeeze_right_neighbor (flush_pos_t * pos, znode * left, znode * right)
+{
+	if (znode_get_level(left) == TWIG_LEVEL)
+		return full_squeeze_right_twig(pos, left, right, NULL);
+
+	return squeeze_right_non_twig(left, right);
+}
+
+
 /* forward declaration */
 static int squalloc_upper_levels (flush_pos_t *, znode *, znode *);
 
@@ -1511,7 +1561,7 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	if (ret)
 		goto out;
 
-	ret = squeeze_right_non_twig(left_parent_lock.node, right_parent_lock.node);
+	ret = squeeze_right_neighbor(pos, left_parent_lock.node, right_parent_lock.node);
 	/* We stop if error. We stop if some items/units were shifted (ret == 0)
 	 * and thus @right changed its parent. It means we have not process
 	 * right_parent node prior to processing of @right. Positive return
@@ -1627,7 +1677,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 			break;
 
 		/* squeeze _before_ going upward. */
-		ret = squeeze_right_non_twig(pos->lock.node, right_lock.node);
+		ret = squeeze_right_neighbor(pos, pos->lock.node, right_lock.node);
 		if (ret < 0)
 			break;
 
@@ -1761,38 +1811,6 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 	return 0;
 }
 
-/* Shift items from right twig node to the left one: zero, one or more extents
- * plus zero or one internal item. Return zero if it finished with internal
- * item, positive return code means last shift was unsuccessful because of
- * target node full or source node is empty, negative result is other error. */
-static int full_squeeze_right_twig (flush_pos_t * pos, znode * right)
-{
-	int ret;
-
-	assert ("zam-863", znode_is_write_locked(right));
-	assert ("zam-864", znode_is_loaded(right));
-
-	while (!node_is_empty(right)) {
-		assert ("zam-865", coord_is_after_rightmost(&pos->coord));
-
-		ret = squeeze_right_twig(pos, pos->lock.node, right);
-		if (ret)
-			return ret;
-
-		coord_next_unit(&pos->coord);
-		assert ("zam-867", coord_is_existing_unit(&pos->coord));
-
-		if (!item_is_extent(&pos->coord)) {
-			assert ("zam-866", item_is_internal(&pos->coord));
-			return 0;
-		}
-
-		coord_next_item(&pos->coord);
-	}
-
-	return SQUEEZE_SOURCE_EMPTY;
-}
-
 /* When we about to return flush position from twig to leaf level we can process
  * the right twig node or move position to the leaf.  This processes right twig
  * if it is possible and jump to leaf level if not. */
@@ -1827,7 +1845,7 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 		/* If right twig node is dirty we always attempt to squeeze it
 		 * content to the left... */
 became_dirty:
-		ret = full_squeeze_right_twig(pos, right_lock.node);
+		ret = full_squeeze_right_twig(pos, pos->lock.node, right_lock.node, &pos->coord);
 		if (ret <=0) {
 			/* pos->coord is on internal item, go to leaf level, or
 			 * we have an error which will be caught in squalloc() */
