@@ -541,7 +541,6 @@ static inline reiser4_context *get_current_context(void)
 #define __REISER4_EXIT( context )		\
 ({						\
         int __ret1 = txn_end( context );	\
-        check_tree();     			\
 	done_context( context );		\
         __ret1;					\
 })
