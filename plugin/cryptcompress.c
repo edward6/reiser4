@@ -212,6 +212,27 @@ create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_
 	return result;
 }
 
+static int
+save_len_cryptcompress_plugin(struct inode * inode, reiser4_plugin * plugin)
+{
+	assert("edward-457", inode != NULL);
+	assert("edward-458", plugin != NULL);
+	assert("edward-459", plugin->h.id == CRC_FILE_PLUGIN_ID);
+	return 0;
+}
+
+int
+load_cryptcompress_plugin(struct inode * inode, reiser4_plugin * plugin, char **area, int *len)
+{
+	assert("edward-455", inode != NULL);
+	assert("edward-456", (reiser4_inode_data(inode)->pset != NULL));
+
+	plugin_set_file(&reiser4_inode_data(inode)->pset, file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	return 0;
+}
+
+struct reiser4_plugin_ops cryptcompress_plugin_ops = {load_cryptcompress_plugin, save_len_cryptcompress_plugin, NULL, 8, NULL};
+
 crypto_stat_t * inode_crypto_stat (struct inode * inode)
 {
 	assert("edward-90", inode != NULL);
