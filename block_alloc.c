@@ -371,13 +371,25 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 	space_allocator_plugin * splug;
 	reiser4_block_nr needed = *len;
 	block_stage_t stage = BLOCK_NOT_COUNTED;
+
+	struct super_block * s = reiser4_get_current_sb();
+
 	int ret;
 
-	assert ("vs-514", (get_current_super_private () &&
-			   get_current_super_private ()->space_plug &&
-			   get_current_super_private ()->space_plug->alloc_blocks));
+	assert ("vs-514", (get_super_private (s) &&
+			   get_super_private (s)->space_plug &&
+			   get_super_private (s)->space_plug->alloc_blocks));
 
-	if (hint != NULL) stage = hint->block_stage;
+	if (hint != NULL) {
+		stage = hint->block_stage;
+
+		/* FIXME-ZAM: should a mount option control this? */
+		if (hint->blk == 0) {
+			reiser4_spin_lock_sb(s);
+			hint->blk = get_super_private(s)->last_written_location;
+			reiser4_spin_unlock_sb(s);
+		}
+	}
 
 	if (stage == BLOCK_NOT_COUNTED) {
 		ret = reiser4_grab_space (&needed, (reiser4_block_nr)1, *len);
