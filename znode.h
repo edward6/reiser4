@@ -71,13 +71,11 @@ struct zlock {
  *  ->state
  *  ->level
  *  ->atom
+ *  ->blocknr
+ *  ->pg
  *
  *  (znode fields:)
- *  ->tree
- *  ->blocknr
  *  ->node_plugin (see below)
- *  ->data (see below)
- *  ->size (see below)
  *
  * Following fields are protected by the global tree lock:
  *
@@ -104,11 +102,9 @@ struct zlock {
  * spin_lock_znode_pair() and spin_lock_znode_triple() functions, FIXME-NIKITA
  * TDB)
  *
- * ->node_plugin, ->data, and ->size are never changed once set. This
- * means that after code made itself sure (by checking ->zstate) that
- * fields are valid they can be accessed without any additional locking.
- *
- *
+ * ->node_plugin is never changed once set. This means that after code made
+ * itself sure that field is valid it can be accessed without any additional
+ * locking.
  */
 struct znode {
 	/* Embedded jnode. */
