@@ -672,7 +672,7 @@ void done_context( reiser4_context *context UNUSED_ARG /* context being
 	reiser4_context *parent;
 	assert( "nikita-860", context != NULL );
 	parent = context -> parent;
-	assert( "nikita-2092", parent != NULL );
+	assert( "nikita-2174", parent != NULL );
 	assert( "nikita-2093", parent == parent -> parent );
 	assert( "nikita-859", parent -> magic == context_magic );
 	assert( "vs-646", current -> journal_info == parent );

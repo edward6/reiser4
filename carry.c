@@ -964,7 +964,7 @@ static void unlock_carry_node( carry_node *node /* node to be released */,
 			deallocate_znode( real_node );
 		}
 		if( node -> free ) {
-			assert( "nikita-2111", 
+			assert( "nikita-2177", 
 				locks_list_is_clean( &node -> lock_handle ) );
 			assert( "nikita-2112", 
 				owners_list_is_clean( &node -> lock_handle ) );

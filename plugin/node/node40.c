@@ -1999,7 +1999,7 @@ int node40_shift (coord_t * from, znode * to,
 	znode * left, * right;
 	znode * source;
 
-	assert ("nikita-2077", coord_check (from));
+	assert ("nikita-2161", coord_check (from));
 
 	xmemset (&shift, 0, sizeof (shift));
 	shift.pend = pend;

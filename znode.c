@@ -402,8 +402,8 @@ void zdrop( reiser4_tree *tree /* tree to remove znode from */,
 	    znode *node /* znode to finish with */ )
 {
 	trace_stamp( TRACE_ZNODES );
-	assert( "nikita-467", node != NULL );
-	assert( "nikita-1443", tree != NULL );
+	assert( "nikita-2153", node != NULL );
+	assert( "nikita-2154", tree != NULL );
 	assert( "nikita-2128", spin_tree_is_locked( tree ) );
 
 	if( atomic_read( &node -> x_count ) > 0 )
@@ -411,13 +411,13 @@ void zdrop( reiser4_tree *tree /* tree to remove znode from */,
 
 	znode_remove( node );
 
-	assert( "nikita-2057", tree -> ops -> drop_node != NULL );
+	assert( "nikita-2155", tree -> ops -> drop_node != NULL );
 
 	/*
 	 * drop backing store (page).
 	 */
 	if( tree -> ops -> drop_node( tree, ZJNODE( node ) ) != 0 ) {
-		warning( "nikita-2058", "Failed to drop node: %llx",
+		warning( "nikita-2156", "Failed to drop node: %llx",
 			 *znode_get_block( node ) );
 	}
 
@@ -513,7 +513,7 @@ void add_d_ref( znode *node /* node to increase d_count of */ )
 /** decrease c_count on @node */
 void del_c_ref( znode *node /* node to decrease c_count of */ )
 {
-	assert( "nikita-1962", node != NULL );
+	assert( "nikita-2157", node != NULL );
 	assert( "nikita-2133", atomic_read( &node -> c_count ) > 0 );
 	atomic_dec( &node -> c_count );
 }
@@ -1068,7 +1068,7 @@ void done_dh( data_handle *dh )
 int load_dh_node( data_handle *dh, znode *node )
 {
 	assert( "nikita-2107", dh != NULL );
-	assert( "nikita-2108", node != NULL );
+	assert( "nikita-2158", node != NULL );
 	assert( "nikita-2109", ergo( dh -> node != NULL, dh -> node == node ) );
 
 	dh -> node = node;

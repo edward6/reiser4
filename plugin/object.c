@@ -641,7 +641,7 @@ static int is_empty_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 
 	iplug = item_plugin_by_coord( coord );
 	name = iplug -> s.dir.extract_name( coord );
-	assert( "nikita-1371", name != NULL );
+	assert( "nikita-2162", name != NULL );
 
 	if( ( name[ 0 ] != '.' ) ||
 	    ( ( name[ 1 ] != '.' ) && ( name[ 1 ] != '\0' ) ) )
@@ -654,8 +654,8 @@ static int is_empty_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 static int common_rem_link( struct inode *object )
 {
 	assert( "nikita-2021", object != NULL );
-	assert( "nikita-2022", object -> i_nlink > 0 );
-	assert( "nikita-2023", 
+	assert( "nikita-2163", object -> i_nlink > 0 );
+	assert( "nikita-2164", 
 		! inode_file_plugin( object ) -> single_link( object ) ||
 		( atomic_read( &object -> i_count ) > 1 ) );
 
@@ -759,7 +759,7 @@ static int common_adjust_to_parent( struct inode *object /* new object */,
 	reiser4_inode_info *self;
 	reiser4_inode_info *ancestor;
 
-	assert( "nikita-2068", object != NULL );
+	assert( "nikita-2165", object != NULL );
 	if( parent == NULL )
 		parent = root;
 	assert( "nikita-2069", parent != NULL );
@@ -782,10 +782,10 @@ static int dir_adjust_to_parent( struct inode *object /* new object */,
 	reiser4_inode_info *self;
 	reiser4_inode_info *ancestor;
 
-	assert( "nikita-2068", object != NULL );
+	assert( "nikita-2166", object != NULL );
 	if( parent == NULL )
 		parent = root;
-	assert( "nikita-2069", parent != NULL );
+	assert( "nikita-2167", parent != NULL );
 
 	self     = reiser4_inode_data( object );
 	ancestor = reiser4_inode_data( parent );

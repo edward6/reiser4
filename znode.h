@@ -532,7 +532,7 @@ extern int  load_dh_node( data_handle *dh, znode *node );
 ({										\
 	__entry_counters.x_refs = lock_counters() -> x_refs;			\
 	__entry_counters.t_refs = lock_counters() -> t_refs;			\
-	assert( "nikita-2107", !memcmp( &__entry_counters, lock_counters(),	\
+	assert( "nikita-2159", !memcmp( &__entry_counters, lock_counters(),	\
 					sizeof __entry_counters ) );		\
 })
 

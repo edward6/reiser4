@@ -158,7 +158,7 @@ int init_formatted_fake( struct super_block *super )
 	fake = iget_locked( super, fake_ino );
 
 	if( fake ) {
-		assert( "nikita-2021", fake -> i_state & I_NEW );
+		assert( "nikita-2168", fake -> i_state & I_NEW );
 		fake -> i_mapping -> a_ops = &formatted_fake_as_ops;
 		fake -> i_blkbits = super -> s_blocksize_bits;
 		fake -> i_size    = ~0ull;
@@ -194,7 +194,7 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 {
 	struct page *page;
 
-	assert( "nikita-2037", node != NULL );
+	assert( "nikita-2169", node != NULL );
 	assert( "nikita-2038", tree != NULL );
 
 	trace_on( TRACE_PCACHE, "read node: %p\n", node );
@@ -326,7 +326,7 @@ static int page_cache_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 /** ->clean_node method of page-cache based tree operations */
 static int page_cache_clean_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
-	assert( "nikita-2045", JF_ISSET( node, ZNODE_LOADED ) );
+	assert( "nikita-2170", JF_ISSET( node, ZNODE_LOADED ) );
 	trace_on( TRACE_PCACHE, "clean node: %p\n", node );
 	ClearPageDirty( jnode_page( node ) );
 	return 0;
@@ -359,7 +359,7 @@ static struct page *add_page( struct super_block *super, jnode *node )
 	struct page  *page;
 	int           blksizebits;
 
-	assert( "nikita-2023", super != NULL );
+	assert( "nikita-2171", super != NULL );
 
 	blksizebits = super -> s_blocksize_bits;
 	/*
@@ -530,7 +530,7 @@ static struct bio *page_bio( struct page *page, int gfp )
 
 		trace_if( TRACE_BUG, print_page( page ) );
 
-		assert( "nikita-2026", jprivate( page ) != NULL );
+		assert( "nikita-2172", jprivate( page ) != NULL );
 		node = jprivate( page );
 		super = page -> mapping -> host -> i_sb;
 		assert( "nikita-2029", super != NULL );
@@ -566,7 +566,7 @@ static int formatted_fake_pressure_handler( struct page *page UNUSED_ARG,
 
 static int formatted_set_page_dirty( struct page *page )
 {
-	assert( "nikita-2095", page != NULL );
+	assert( "nikita-2173", page != NULL );
 	return __set_page_dirty_nobuffers( page );
 }
 
