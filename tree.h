@@ -456,8 +456,13 @@ SPIN_LOCK_FUNCTIONS(tree, reiser4_tree, tree_lock);
 
 /* ordering constraint for delimiting key spin lock: dk lock is weaker than 
    tree lock */
-#define spin_ordering_pred_dk( tree ) 				\
-	( lock_counters() -> spin_locked_tree == 0 )
+#define spin_ordering_pred_dk( tree )				\
+	( lock_counters() -> spin_locked_tree == 0 ) &&		\
+	( lock_counters() -> spin_locked_jnode == 0 ) &&	\
+	( lock_counters() -> spin_locked_txnh == 0 ) &&		\
+	( lock_counters() -> spin_locked_atom == 0 ) &&		\
+	( lock_counters() -> spin_locked_txnmgr == 0 )
+
 /* Define spin_lock_dk(), spin_unlock_dk(), etc: locking for delimiting
    keys. */
 SPIN_LOCK_FUNCTIONS(dk, reiser4_tree, dk_lock);
