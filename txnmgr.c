@@ -1544,7 +1544,10 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 		atom = get_current_atom_locked();
 
 	ret = flush_current_atom(flags, nr_submitted, &atom);
-
+	if (ret == -E_REPEAT) {
+		ret = 0;
+		atom = get_current_atom_locked();
+	}
 	if (ret == 0) {
 		if (*nr_submitted == 0 || atom_should_commit_asap(atom)) {
 			/* if early flushing could not make more nodes clean,
@@ -1558,9 +1561,6 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 		}
 		UNLOCK_ATOM(atom);
 	}
-
-	if (ret == -E_REPEAT)
-		ret = 0;
 
 	ret1 = txn_end(ctx);
 	assert("vs-1692", ret1 == 0);
