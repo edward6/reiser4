@@ -25,7 +25,6 @@ extern int reiser4_submit_bio_helper(const char *moniker,
 #define reiser4_submit_bio(rw, bio)				\
 	reiser4_submit_bio_helper(__FUNCTION__, (rw), (bio))
 #else
-#define jnode_short_info(j, buf) (NULL)
 #define reiser4_submit_bio(rw, bio) submit_bio((rw), (bio))
 #endif
 

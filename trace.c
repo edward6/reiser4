@@ -7,11 +7,14 @@
 #include "key.h"
 #include "trace.h"
 #include "super.h"
+#include "inode.h"
+#include "page_cache.h" /* for jprivate() */
 
 #include <asm/uaccess.h>
 #include <linux/types.h>
 #include <linux/fs.h>		/* for struct super_block  */
 #include <linux/slab.h>
+#include <linux/bio.h>
 
 #if REISER4_TRACE_TREE
 
@@ -173,31 +176,35 @@ flush_trace(reiser4_trace_file * file)
 	result = 0;
 	switch (file->type) {
 	case log_to_file:{
-			struct file *fd;
+		struct file *fd;
 
-			fd = file->fd;
-			if (fd && fd->f_op != NULL && fd->f_op->write != NULL) {
-				int written;
+		fd = file->fd;
+		if (fd && fd->f_op != NULL && fd->f_op->write != NULL) {
+			int written;
 
-				written = 0;
-				START_KERNEL_IO;
-				while (file->used > 0) {
-					result = fd->f_op->write(fd, file->buf + written, file->used, &fd->f_pos);
-					if (result > 0) {
-						file->used -= result;
-						written += result;
-					} else {
+			written = 0;
+			START_KERNEL_IO;
+			while (file->used > 0) {
+				result = vfs_write(fd, file->buf + written, file->used, &fd->f_pos);
+				if (result > 0) {
+					file->used -= result;
+					written += result;
+				} else {
+					static int log_io_failed = 0;
+					
+					if (IS_POW(log_io_failed))
 						warning("nikita-2502", "Error writing trace: %i", result);
-						break;
-					}
+					++ log_io_failed;
+					break;
 				}
-				END_KERNEL_IO;
-			} else {
-				warning("nikita-2504", "no ->write() in trace-file");
-				result = -EINVAL;
 			}
-			break;
+			END_KERNEL_IO;
+		} else {
+			warning("nikita-2504", "no ->write() in trace-file");
+			result = -EINVAL;
 		}
+		break;
+	}
 	default:
 		warning("nikita-2505", "unknown trace-file type: %i. Dumping to console", file->type);
 	case log_to_console:
@@ -228,45 +235,43 @@ free_space(reiser4_trace_file * file, size_t * len)
 	return 0;
 }
 
-int
-write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
+void
+write_tree_trace(reiser4_tree * tree, reiser4_traced_op op, ...)
 {
-	reiser4_trace_file *file;
 	va_list args;
 	char buf[200];
 	char *rest;
 	reiser4_key *key;
 
-	file = &get_super_private(tree->super)->trace_file;
-
 	if (unlikely(in_interrupt() || in_irq())) {
 		info("cannot write trace from interrupt\n");
-		return 0;
+		return;
 	}
 
 	va_start(args, op);
 
-	key = va_arg(args, reiser4_key *);
 	rest = buf;
 	rest += sprintf(rest, "....tree %c ", op);
-	rest += sprintf_key(rest, key);
-	*rest++ = ' ';
-	*rest = '\0';
 
-	switch (op) {
-	case tree_cut: {
+	if (op != tree_cached && op != tree_exit) {
+		key = va_arg(args, reiser4_key *);
+		rest += sprintf_key(rest, key);
+		*rest++ = ' ';
+		*rest = '\0';
+
+		switch (op) {
+		case tree_cut: {
 			reiser4_key *to;
 
 			to = va_arg(args, reiser4_key *);
 			rest += sprintf_key(rest, to);
 			break;
-	}
-	case tree_lookup: {
-	default:
+		}
+		case tree_lookup:
+		default:
 			break;
-	}
-	case tree_insert:
-	case tree_paste: {
+		case tree_insert:
+		case tree_paste: {
 			reiser4_item_data *data;
 			coord_t *coord;
 			__u32 flags;
@@ -278,19 +283,66 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
 			rest += sprintf(rest, "%s (%u,%u) %x",
 					data->iplug->h.label, 
 					coord->item_pos, coord->unit_pos, flags);
-	}
+		}
+		}
 	}
 	va_end(args);
-	return write_tracef(file, tree->super, "%s", buf);
+	write_current_tracef("%s", buf);
 }
 
-int write_in_trace(const char *func, const char *mes)
+char *
+jnode_short_info(const jnode *j, char *buf)
+{
+	if (j == NULL) {
+		sprintf(buf, "null");
+	} else {
+		sprintf(buf, "%i %c %c %i",
+			jnode_get_level(j),
+			jnode_is_znode(j) ? 'Z' :
+			jnode_is_unformatted(j) ? 'J' : '?',
+			JF_ISSET(j, JNODE_OVRWR) ? 'O' :
+			JF_ISSET(j, JNODE_RELOC) ? 'R' : ' ',
+			j->atom ? j->atom->atom_id : -1);
+	}
+	return buf;
+}
+
+
+void
+write_node_trace(const jnode *node)
+{
+	char jbuf[100];
+
+	jnode_short_info(node, jbuf);
+	write_current_tracef(".....node %s %s", 
+			     sprint_address(jnode_get_block(node)), jbuf);
+}
+
+void
+write_page_trace(const struct address_space *mapping, unsigned long index)
+{
+	write_current_tracef(".....page %llu %lu", get_inode_oid(mapping->host),
+			     index);
+}
+
+void
+write_io_trace(const char *moniker, int rw, struct bio *bio)
 {
 	struct super_block *super;
+	reiser4_super_info_data *info;
+	reiser4_block_nr start;
+	char jbuf[100];
 
 	super = reiser4_get_current_sb();
-	return write_tracef(&get_super_private(super)->trace_file, super,
-			    "%s %s", func, mes);
+	info = get_super_private(super);
+
+	start = bio->bi_sector >> (super->s_blocksize_bits - 9);
+	jnode_short_info(jprivate(bio->bi_io_vec[0].bv_page), jbuf);
+	write_current_tracef("......bio %s %c %+lli  (%llu,%u) %s",
+			     moniker, (rw == READ) ? 'r' : 'w',
+			     start - info->last_touched - 1,
+			     start, bio->bi_vcnt, jbuf);
+	info->last_touched = start + bio->bi_vcnt - 1;
 }
 
 #endif

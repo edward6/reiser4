@@ -362,7 +362,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 	ssize_t result;
 
 	REISER4_ENTRY(file->f_dentry->d_inode->i_sb);
-	WRITE_IN_TRACE("read", file->f_dentry->d_name.name);
+	write_syscall_trace("%s", file->f_dentry->d_name.name);
 
 	assert("umka-072", file != NULL);
 	assert("umka-073", buf != NULL);
@@ -384,7 +384,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 		result = fplug->read(file, buf, size, off);
 	}
 
-	WRITE_IN_TRACE("read", "ex");
+	write_syscall_trace("ex");
 	REISER4_EXIT(result);
 }
 
@@ -403,7 +403,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 	ssize_t result;
 
 	REISER4_ENTRY((inode = file->f_dentry->d_inode)->i_sb);
-	WRITE_IN_TRACE("write", file->f_dentry->d_name.name);
+	write_syscall_trace("%s", file->f_dentry->d_name.name);
 
 	assert("nikita-1421", file != NULL);
 	assert("nikita-1422", buf != NULL);
@@ -424,7 +424,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 		up(&inode->i_sem);
 	} else
 		result = 0;
-	WRITE_IN_TRACE("write", "ex");
+	write_syscall_trace("ex");
 	REISER4_EXIT(result);
 }
 
@@ -610,9 +610,11 @@ reiser4_writepage(struct page *page, struct writeback_control *wbc)
 {
 	int result;
 	assert("zam-822", current->flags & PF_MEMALLOC);
+	schedulable();
 	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
 	/* check that we fulfill shrink_list() calling conventions */
 	assert("nikita-2907", equi(result == WRITEPAGE_ACTIVATE, PageLocked(page)));
+	schedulable();
 	return result;
 }
 
@@ -815,7 +817,7 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 	struct inode *inode = f->f_dentry->d_inode;
 
 	REISER4_ENTRY(inode->i_sb);
-	WRITE_IN_TRACE("readdir", f->f_dentry->d_name.name);
+	write_syscall_trace("%s", f->f_dentry->d_name.name);
 
 	dplug = inode_dir_plugin(inode);
 	if ((dplug != NULL) && (dplug->readdir != NULL))
@@ -824,7 +826,7 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 		result = -ENOTDIR;
 
 	UPDATE_ATIME(inode);
-	WRITE_IN_TRACE("readdir", "ex");
+	write_syscall_trace("ex");
 	REISER4_EXIT(result);
 
 }
@@ -836,7 +838,7 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 	struct inode *inode;
 	int result;
 	REISER4_ENTRY(file->f_dentry->d_inode->i_sb);
-	WRITE_IN_TRACE("mmap", file->f_dentry->d_name.name);
+	write_syscall_trace("%s", file->f_dentry->d_name.name);
 
 	trace_on(TRACE_VFS_OPS, "MMAP: (i_ino %lli, size %lld)\n",
 		 get_inode_oid(file->f_dentry->d_inode), 
@@ -847,7 +849,7 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 		result = -ENOSYS;
 	else
 		result = inode_file_plugin(inode)->mmap(file, vma);
-	WRITE_IN_TRACE("mmap", "ex");
+	write_syscall_trace("ex");
 	REISER4_EXIT(result);
 }
 
@@ -859,7 +861,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	int result;
 	dir_plugin *dplug;
 	REISER4_ENTRY(parent->i_sb);
-	WRITE_IN_TRACE("unlink", victim->d_name.name);
+	write_syscall_trace("%s", victim->d_name.name);
 
 	assert("nikita-1435", parent != NULL);
 	assert("nikita-1436", victim != NULL);
@@ -873,7 +875,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 		result = dplug->unlink(parent, victim);
 	else
 		result = -EPERM;
-	WRITE_IN_TRACE("unlink", "ex");
+	write_syscall_trace("ex");
 	/* @victim can be already removed from the disk by this time. Inode is
 	   then marked so that iput() wouldn't try to remove stat data. But
 	   inode itself is still there.
@@ -1036,7 +1038,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 	int result;
 	dir_plugin *dplug;
 	REISER4_ENTRY(parent->i_sb);
-	WRITE_IN_TRACE("create", dentry->d_name.name);
+	write_syscall_trace("%s %o", dentry->d_name.name, data->mode);
 
 	assert("nikita-426", parent != NULL);
 	assert("nikita-427", dentry != NULL);
@@ -1065,7 +1067,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 	} else
 		result = -EPERM;
 
-	WRITE_IN_TRACE("create", "ex");
+	write_syscall_trace("ex");
 	REISER4_EXIT(result);
 }
 
@@ -1080,8 +1082,7 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 	assert("nikita-1027", is_reiser4_inode(inode));
 	assert("nikita-1028", inode->i_sb != NULL);
 
-	write_tracef(&get_super_private(inode->i_sb)->trace_file, inode->i_sb,
-		     "truncate %lli to %lli", get_inode_oid(inode), size);
+	write_syscall_trace("%llu %lli", get_inode_oid(inode), size);
 
 	fplug = inode_file_plugin(inode);
 	assert("vs-142", fplug != NULL);
@@ -1096,7 +1097,7 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 	} else {
 		return -EPERM;
 	}
-	WRITE_IN_TRACE("truncate", "ex");
+	write_syscall_trace("ex");
 }
 
 /* initial prefix of names of pseudo-files like ..plugin, ..acl,
@@ -1360,7 +1361,9 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 		plugin_set_put(info->pset);
 
 	assert("nikita-2872", list_empty(&info->moved_pages));
-	assert("nikita-2894", list_empty(&inode->i_list));
+	/* cannot add similar assertion about ->i_list as prune_icache return
+	 * inode into slab with dangling ->list.{next,prev}. This is safe,
+	 * because they are re-initialized in the new_inode(). */
 	assert("nikita-2895", list_empty(&inode->i_dentry));
 	assert("nikita-2896", list_empty(&inode->i_hash));
 	assert("nikita-2898", readdir_list_empty(get_readdir_list(inode)));

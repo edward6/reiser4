@@ -2804,6 +2804,8 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	page_off = (unsigned) (file_off & (PAGE_CACHE_SIZE - 1));
 
 	do {
+		unsigned long index;
+
 		result = reserve_extent_write_iteration(tree_by_inode(inode)->height);
 		if (result)
 			break;
@@ -2812,7 +2814,9 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		if (to_page > f->length)
 			to_page = f->length;
 
-		page = grab_cache_page(inode->i_mapping, (unsigned long) (file_off >> PAGE_CACHE_SHIFT));
+		index = (unsigned long) (file_off >> PAGE_CACHE_SHIFT);
+		write_page_trace(inode->i_mapping, index);
+		page = grab_cache_page(inode->i_mapping, index);
 		if (!page) {
 			result = -ENOMEM;
 			goto exit1;

@@ -528,6 +528,8 @@ jload(jnode * node)
 
 	schedulable();
 
+	write_node_trace(node);
+
 	result = 0;
 	reiser4_stat_add_at_level(jnode_get_level(node), jnode.jload);
 	jref(node);

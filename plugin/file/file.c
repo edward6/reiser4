@@ -459,7 +459,7 @@ cut_file_items(struct inode *inode, loff_t new_size)
 	to_key = from_key;
 	set_key_offset(&to_key, get_key_offset(max_key()));
 
-	WRITE_TRACE(tree_by_inode(inode), tree_cut, &from_key, &to_key);
+	write_tree_trace(tree_by_inode(inode), tree_cut, &from_key, &to_key);
 
 	do {
 		/* FIXME-VS: find_next_item is highly optimized for sequential

@@ -330,7 +330,7 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 static lookup_result
 coord_by_handle(cbk_handle * handle)
 {
-	WRITE_TRACE(handle->tree, tree_lookup, handle->key);
+	write_tree_trace(handle->tree, tree_lookup, handle->key);
 
 	/* first check whether "key" is in cache of recent lookups. */
 	if (cbk_cache_search(handle) == 0)
@@ -471,7 +471,7 @@ restart:
 
 		if (unlikely((iterations > REISER4_CBK_ITERATIONS_LIMIT) &&
 			     /* is power of 2, which means that we print the message with decaying frequency */
-			     !(iterations & (iterations - 1)))) {
+			     IS_POW(iterations))) {
 			warning("nikita-1481", "Too many iterations: %i", iterations);
 			print_key("key", h->key);
 		} else if (unlikely(iterations > REISER4_MAX_CBK_ITERATIONS)) {
@@ -521,7 +521,7 @@ restart:
 			     (h->bias == FIND_EXACT) &&
 			     (!node_is_empty(h->coord->node)), coord_is_existing_item(h->coord))));
 	}
-	WRITE_IN_TRACE("....tree l", "ex");
+	write_tree_trace(h->tree, tree_exit);
 	return h->result;
 }
 
@@ -1145,7 +1145,7 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 		} else {
 			assert("nikita-1319", (h->result == CBK_COORD_NOTFOUND) || (h->result == CBK_COORD_FOUND));
 			reiser4_stat_tree_add(cbk_cache_hit);
-			WRITE_IN_TRACE("....tree l", "cached");
+			write_tree_trace(h->tree, tree_cached);
 			break;
 		}
 	}
@@ -1467,7 +1467,7 @@ sprint_address(const reiser4_block_nr * block /* block number to print */ )
 	if (block == NULL)
 		sprintf(address, "null");
 	else if (blocknr_is_fake(block))
-		sprintf(address, "%llx (fake)", *block);
+		sprintf(address, "%llx", *block);
 	else
 		sprintf(address, "%llu", *block);
 	return address;

@@ -307,7 +307,7 @@ insert_result insert_by_coord(coord_t * coord	/* coord where to
 	assert("vs-249", data->length > 0);
 	assert("nikita-1191", znode_is_write_locked(coord->node));
 
-	WRITE_TRACE(znode_get_tree(coord->node), tree_insert, key, data, coord, flags);
+	write_tree_trace(znode_get_tree(coord->node), tree_insert, key, data, coord, flags);
 
 	node = coord->node;
 	result = zload(node);
@@ -410,7 +410,7 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 
 	assert("nikita-1480", iplug == data->iplug);
 
-	WRITE_TRACE(znode_get_tree(coord->node), tree_paste, key, data, coord, flags);
+	write_tree_trace(znode_get_tree(coord->node), tree_paste, key, data, coord, flags);
 
 	size_change = space_needed(coord->node, coord, data, 0);
 	if (size_change > (int) znode_free_space(coord->node) &&
@@ -1201,7 +1201,7 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 	assert("umka-330", from_key != NULL);
 	assert("umka-331", to_key != NULL);
 
-	WRITE_TRACE(tree, tree_cut, from_key, to_key);
+	write_tree_trace(tree, tree_cut, from_key, to_key);
 
 #define WE_HAVE_READAHEAD (0)
 #if WE_HAVE_READAHEAD

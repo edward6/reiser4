@@ -299,42 +299,9 @@ reiser4_unlock_page(struct page *page)
 }
 
 #if REISER4_TRACE_TREE
-char *jnode_short_info(const jnode *j, char *buf)
-{
-	if (j == NULL) {
-		sprintf(buf, "null");
-	} else {
-		sprintf(buf, "%i %c %c %i",
-			jnode_get_level(j),
-			jnode_is_znode(j) ? 'Z' :
-			jnode_is_unformatted(j) ? 'J' : '?',
-			JF_ISSET(j, JNODE_OVRWR) ? 'O' :
-			JF_ISSET(j, JNODE_RELOC) ? 'R' : ' ',
-			j->atom ? j->atom->atom_id : -1);
-	}
-	return buf;
-}
-
 int reiser4_submit_bio_helper(const char *moniker, int rw, struct bio *bio)
 {
-	struct super_block *super;
-	reiser4_super_info_data *info;
-	reiser4_block_nr start;
-	char jbuf[100];
-
-	super = reiser4_get_current_sb();
-	info = get_super_private(super);
-
-	start = bio->bi_sector >> (super->s_blocksize_bits - 9);
-	jnode_short_info(jprivate(bio->bi_io_vec[0].bv_page), jbuf);
-	(void)write_trace(&info->trace_file, 
-			  "%i %s %s %lu ......bio %s %c %+lli  (%llu,%u) %s\n",
-			  current->pid, current->comm,
-			  kdevname(to_kdev_t(super->s_dev)), jiffies,
-			  moniker, (rw == READ) ? 'r' : 'w',
-			  start - info->last_touched - 1,
-			  start, bio->bi_vcnt, jbuf);
-	info->last_touched = start + bio->bi_vcnt - 1;
+	write_io_trace(moniker, rw, bio);
 	return submit_bio(rw, bio);
 }
 #endif
@@ -480,9 +447,11 @@ formatted_writepage(struct page *page, /* page to write */ struct writeback_cont
 	assert("zam-823", current->flags & PF_MEMALLOC);
 	assert("nikita-2632", PagePrivate(page) && jprivate(page));
 
+	schedulable();
 	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_FORMATTED);
 	/* check that we fulfill shrink_list() calling conventions */
 	assert("nikita-2909", equi(result == WRITEPAGE_ACTIVATE, PageLocked(page)));
+	schedulable();
 	return result;
 }
 
