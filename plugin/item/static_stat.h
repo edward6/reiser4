@@ -99,16 +99,6 @@ typedef enum {
 	LAST_IMPORTANT_SD_EXTENSION = PLUGIN_STAT,
 } sd_ext_bits;
 
-/* this is not minimal.  I used to think that size was the only stat
-   data which cannot be eliminated/inherited, but then I realized that
-   if you have a directory of files of equal size, you could cause
-   them to be somehow specified by the directory.  Give some thought
-   to how we can allow for directories specifying characteristics of
-   their children if something about the children (a bit flag?) says
-   to check the object whose oid equals the packing locality for the
-   existence of such specifications.  Note that once lightweight files
-   exist, you need compressed item headers to make the solution
-   complete.  Not until v4.1, or later.  */
 /* minimal stat-data. This allows to support light-weight files. */
 typedef struct reiser4_stat_data_base {
 	/*  0 */ d16 extmask;
