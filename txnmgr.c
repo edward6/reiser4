@@ -122,7 +122,7 @@ txn_init_static (void)
 	assert ("jmacd-600", _atom_slab == NULL);
 	assert ("jmacd-601", _txnh_slab == NULL);
 
-	atomic_set (& flush_cnt, 0);
+	ON_DEBUG (atomic_set (& flush_cnt, 0));
 
 	_atom_slab = kmem_cache_create ("txn_atom", sizeof (txn_atom),
 					0, SLAB_HWCACHE_ALIGN, NULL, NULL);
