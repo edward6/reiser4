@@ -232,8 +232,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 int
 internal_kill_hook(const coord_t * item /* coord of item */ ,
 		   unsigned from UNUSED_ARG /* start unit */ ,
-		   unsigned count UNUSED_ARG /* stop unit */ ,
-		   void *kill_params UNUSED_ARG)
+		   unsigned count UNUSED_ARG /* stop unit */)
 {
 	znode *child;
 
