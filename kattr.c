@@ -63,7 +63,7 @@ static reiser4_kattr kattr_super_ ## aname = {			\
 			.mode = amode					\
 		},							\
 		.show = ashow,						\
-		.store = atore						\
+		.store = astore						\
 	},								\
 	.cookie = &__cookie_ ## aname					\
 }
@@ -79,7 +79,7 @@ static reiser4_kattr kattr_super_ ## aname = {			\
 
 #define getat(ptr, offset, type) *(type *)(((char *)(ptr)) + (offset))
 #define setat(ptr, offset, type, val)			\
-	*(type *)(((char *)(ptr)) + (offset)) = (val);
+	({ *(type *)(((char *)(ptr)) + (offset)) = (val); })
 
 static inline void *
 getcookie(struct fs_kattr *attr)
@@ -104,7 +104,8 @@ show_ro_32(struct super_block * s,
 
 static ssize_t
 store_rw_32(struct super_block * s,
-	    struct fs_kobject *o, struct fs_kattr * kattr, char * buf)
+	    struct fs_kobject *o, struct fs_kattr * kattr,
+	    const char * buf, size_t size)
 {
 	super_field_cookie *cookie;
 	__u32 val;
@@ -131,20 +132,24 @@ static ssize_t show_ro_64(struct super_block * s, struct fs_kobject *o,
 	return (p - buf);
 }
 
+#if 0
+/* not yet */
 static ssize_t
 store_rw_64(struct super_block * s,
-	    struct fs_kobject *o, struct fs_kattr * kattr, char * buf)
+	    struct fs_kobject *o, struct fs_kattr * kattr,
+	    char * buf, size_t size)
 {
 	super_field_cookie *cookie;
 	__u64 val;
 
 	cookie = getcookie(kattr);
-	if (sscanf(buf, "%li", &val) == 1)
+	if (sscanf(buf, "%lli", &val) == 1)
 		setat(get_super_private(s), cookie->offset, __u64, val);
 	else
 		size = RETERR(-EINVAL);
 	return size;
 }
+#endif
 
 #undef getat
 #undef setat

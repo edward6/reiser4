@@ -983,8 +983,7 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 		/* If users can be writing to this page using arbitrary virtual addresses, take care about potential
 		   aliasing before reading the page on the kernel side.
 		*/
-/*		if (!list_empty(&inode->i_mapping->i_mmap_shared))*/
-		if (!prio_tree_empty(&inode->i_mapping->i_mmap_shared))
+		if (mapping_writably_mapped(inode->i_mapping))
 			flush_dcache_page(page);
 
 		assert("nikita-3034", schedulable());
