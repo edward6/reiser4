@@ -424,10 +424,10 @@ struct reiser4_file_ops {
     int (*lookup) (reiser4_entity_t *, char *, reiser4_key_t *);
     
     /* Reads the data from file to passed buffer */
-    errno_t (*read) (reiser4_entity_t *, char *, uint64_t);
+    uint64_t (*read) (reiser4_entity_t *, char *, uint64_t);
     
     /* Writes the data to file from passed buffer */
-    errno_t (*write) (reiser4_entity_t *, char *, uint64_t);
+    uint64_t (*write) (reiser4_entity_t *, char *, uint64_t);
 
     /* Truncates file to passed length */
     errno_t (*truncate) (reiser4_entity_t *, uint64_t);

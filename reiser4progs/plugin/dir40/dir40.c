@@ -182,47 +182,51 @@ static int dir40_continue(reiser4_entity_t *entity,
     return (dir_locality == next_locality);
 }
 
-static errno_t dir40_read(reiser4_entity_t *entity, 
+/* Reads n entries to passed buffer buff */
+static uint64_t dir40_read(reiser4_entity_t *entity, 
     char *buff, uint64_t n)
 {
-    uint32_t count;
+    uint32_t i, count;
     reiser4_plugin_t *plugin;
     dir40_t *dir = (dir40_t *)entity;
 
     reiser4_entry_hint_t *entry = (reiser4_entry_hint_t *)buff;
     
-    aal_assert("umka-844", dir != NULL, return -1);
-    aal_assert("umka-845", entry != NULL, return -1);
+    aal_assert("umka-844", dir != NULL, return 0);
+    aal_assert("umka-845", entry != NULL, return 0);
 
     plugin = dir->direntry.plugin;
     
     /* Getting count entries */
-    if ((count = plugin_call(return -1, 
-	    plugin->item_ops, count, dir->direntry.body)) == 0)
+    if ((count = plugin_call(return -1, plugin->item_ops, 
+	    count, dir->direntry.body)) == 0)
 	return -1;
 
-    if (dir->place.pos.unit >= count) {
-	reiser4_place_t place = dir->place;
+    for (i = 0; i < n; i++) {
+	if (dir->place.pos.unit >= count) {
+	    reiser4_place_t place = dir->place;
 	
-	if (!dir40_continue(entity, &place)) {
-	    dir->place = place;
-	    return -1;
+	    if (!dir40_continue(entity, &place)) {
+		dir->place = place;
+		break;
+	    }
+	
+	   /* Items are mergeable, updating pointer to current directory item */
+	    if (core->tree_ops.item_body(dir->tree, &dir->place, 
+		   &dir->direntry.body, NULL))
+		break;
 	}
-	
-	/* Items are mergeable, updating pointer to current directory item */
-	if (core->tree_ops.item_body(dir->tree, &dir->place, 
-		&dir->direntry.body, NULL))
-	    return -1;
+    
+	/* Getting next entry from the current direntry item */
+	if ((plugin_call(break, plugin->item_ops.specific.direntry, 
+		entry, dir->direntry.body, dir->place.pos.unit, entry)))
+	    break;
+
+	entry++;
+	dir->pos++; dir->place.pos.unit++; 
     }
     
-    /* Getting next entry from the current direntry item */
-    if ((plugin_call(return -1, plugin->item_ops.specific.direntry, 
-	    entry, dir->direntry.body, dir->place.pos.unit, entry)))
-	return -1;
-
-    dir->pos++; dir->place.pos.unit++; 
-    
-    return 0;
+    return i;
 }
 
 static int dir40_lookup(reiser4_entity_t *entity, 
@@ -516,59 +520,66 @@ static errno_t dir40_truncate(reiser4_entity_t *entity,
     return -1;
 }
 
-static errno_t dir40_write(reiser4_entity_t *entity, 
+/* Adds n entries from buff to passed entity */
+static uint64_t dir40_write(reiser4_entity_t *entity, 
     char *buff, uint64_t n) 
 {
+    uint64_t i;
     reiser4_item_hint_t hint;
-    reiser4_direntry_hint_t direntry_hint;
     dir40_t *dir = (dir40_t *)entity;
+    reiser4_direntry_hint_t direntry_hint;
     
     reiser4_entry_hint_t *entry = (reiser4_entry_hint_t *)buff;
     
-    aal_assert("umka-844", dir != NULL, return -1);
-    aal_assert("umka-845", entry != NULL, return -1);
+    aal_assert("umka-844", dir != NULL, return 0);
+    aal_assert("umka-845", entry != NULL, return 0);
    
     aal_memset(&hint, 0, sizeof(hint));
     aal_memset(&direntry_hint, 0, sizeof(direntry_hint));
 
     direntry_hint.count = 1;
 
+    /* 
+	FIXME-UMKA: Here we have the funy situation. Direntry plugin can insert more
+	than one entry in turn, but they should be sorted before. Else we will have 
+	broken direntry. So, we should either perform a loop here in order to insert
+	all n entris, or we should sort entries whenever (in direntry plugin or here).
+    */
     if (!(direntry_hint.entry = aal_calloc(sizeof(*entry), 0)))
-	return -1;
+	return 0;
     
     hint.hint = &direntry_hint;
-   
-    plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
-	build_objid, &entry->objid, KEY_STATDATA_TYPE, 
-	entry->objid.locality, entry->objid.objectid);
+  
+    for (i = 0; i < n; i++) {
+	plugin_call(break, dir->key.plugin->key_ops, 
+	    build_objid, &entry->objid, KEY_STATDATA_TYPE, 
+	    entry->objid.locality, entry->objid.objectid);
 	
-    plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
-	build_entryid, &entry->entryid, dir->hash, entry->name);
+	plugin_call(break, dir->key.plugin->key_ops, 
+	    build_entryid, &entry->entryid, dir->hash, entry->name);
     
-    aal_memcpy(&direntry_hint.entry[0], entry, sizeof(*entry));
+	aal_memcpy(&direntry_hint.entry[0], entry, sizeof(*entry));
     
-    hint.key.plugin = dir->key.plugin;
+	hint.key.plugin = dir->key.plugin;
     
-    plugin_call(goto error_free_entry, hint.key.plugin->key_ops, 
-	build_direntry, hint.key.body, dir->hash, dir40_locality(dir), 
-	dir40_objectid(dir), entry->name);
+	plugin_call(break, hint.key.plugin->key_ops, 
+	    build_direntry, hint.key.body, dir->hash, dir40_locality(dir), 
+	    dir40_objectid(dir), entry->name);
     
-    hint.len = 0;
-    hint.plugin = dir->direntry.plugin;
+	hint.len = 0;
+	hint.plugin = dir->direntry.plugin;
     
-    /* Inserting the entry to the tree */
-    if (core->tree_ops.item_insert(dir->tree, &hint)) {
-	aal_exception_error("Can't add entry \"%s\" to the thee.", 
-	    entry->name);
-	goto error_free_entry;
+	/* Inserting the entry to the tree */
+	if (core->tree_ops.item_insert(dir->tree, &hint)) {
+	    aal_exception_error("Can't add entry \"%s\" to the thee.", 
+		entry->name);
+	    break;
+	}
+	entry++;
     }
     
     aal_free(direntry_hint.entry);
-    
-    return 0;
-error_free_entry:
-    aal_free(direntry_hint.entry);
-    return -1;
+    return i;
 }
 
 #endif

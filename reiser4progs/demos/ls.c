@@ -96,8 +96,8 @@ int main(int argc, char *argv[]) {
 	aal_exception_error("Can't rewind dir \"%s\".", argv[2]);
 	goto error_free_object;
     }
-
-    while (!reiser4_file_read(object, (char *)&entry, 1)) {
+    
+    while (reiser4_file_read(object, (char *)&entry, 1)) {
 	fprintf(stdout, "[0x%llx:0x%llx] %s\n", (entry.objid.locality >> 4), 
 	    entry.objid.objectid, entry.name);
     }
