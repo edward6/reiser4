@@ -25,12 +25,22 @@ static int get_reiser4_inode_by_tap (struct inode ** result, tap_t * tap)
 
 	/* We do not need to read reiser4 inode from disk and initialize all
 	 * reiser4 inode fields. */
-	inode = iget(super, (unsigned long)get_key_objectid(&ext_key));
+	inode = iget_locked(super, (unsigned long)get_key_objectid(&ext_key));
 	if (inode == NULL)
 		return -ENOMEM;
 	if (is_bad_inode(inode)) {
 		iput(inode);
 		return -EIO;
+	}
+
+	if (inode->i_state & I_NEW) {
+		reiser4_inode * inode_data = reiser4_inode_data(inode);
+
+		/* These inode fields are required for tree traversal. */
+		inode_data->oid_hi = get_key_objectid(&ext_key) >> OID_HI_SHIFT;
+		inode_data->locality_id = get_key_locality(&ext_key);
+
+		unlock_new_inode(inode);
 	}
 
 	*result = inode;
