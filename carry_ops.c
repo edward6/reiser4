@@ -1283,6 +1283,7 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 		kdata.params.from_key = NULL;
 		kdata.params.to_key = NULL;
 		kdata.params.smallest_removed = NULL;
+		kdata.params.truncate = 1;
 		kdata.flags = op->u.delete.flags;
 		kdata.inode = 0;
 		kdata.left = 0;
