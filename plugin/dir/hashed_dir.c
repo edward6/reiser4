@@ -69,7 +69,8 @@ hashed_init(struct inode *object /* new directory */ ,
 	assert("nikita-687", object->i_mode & S_IFDIR);
 	trace_stamp(TRACE_DIR);
 
-	if (reiser4_grab_space_exact(reserve = hashed_estimate_init(parent, object), BA_CAN_COMMIT))
+	reserve = hashed_estimate_init(parent, object);
+	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT))
 		return -ENOSPC;
 	
 	trace_on(TRACE_RESERVE, info("hashed_init grabs %llu blocks.\n", reserve));
@@ -114,8 +115,9 @@ hashed_done(struct inode *object /* object being deleted */ )
 
 		xmemset(&entry, 0, sizeof entry);
 
-		if (reiser4_grab_space_exact(reserve = hashed_estimate_done(parent, object), 
-			BA_CAN_COMMIT | BA_RESERVED) < 0)
+		reserve = hashed_estimate_done(parent, object);
+		if (reiser4_grab_space_exact(reserve, 
+					     BA_CAN_COMMIT | BA_RESERVED) < 0)
 		{
 			return -ENOSPC;
 		}
@@ -683,7 +685,8 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	}
 
 	seal_done(&new_fsdata->entry_seal);
-	if ((reserve = hashed_estimate_rename(old_dir, old_name, new_dir, new_name)) < 0) {
+	reserve = hashed_estimate_rename(old_dir, old_name, new_dir, new_name);
+	if (reserve < 0) {
 	    /* FIXME-VITALY: What about seal for old_fs_data? */
 	    done_lh(&new_lh);
 	    return reserve;
@@ -815,7 +818,8 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 	if (unlikely(IS_ERR(fsdata)))
 		return PTR_ERR(fsdata);
 		
-	if (reiser4_grab_space_exact(reserve = inode_dir_plugin(object)->estimate.add_entry(object), BA_CAN_COMMIT))
+	reserve = inode_dir_plugin(object)->estimate.add_entry(object);
+	if (reiser4_grab_space_exact(reserve, BA_CAN_COMMIT))
 		return -ENOSPC;
 
 	trace_on(TRACE_RESERVE, info("add entry grabs %llu blocks.\n", reserve));
