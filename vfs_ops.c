@@ -1456,20 +1456,13 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	kmem_cache_free(inode_cache, container_of(info, reiser4_inode_object, p));
 }
 
-extern void generic_drop_inode(struct inode *object);
-
 static void drop_object_body(struct inode *inode)
 {
-	struct iattr attr;
-
-	/* FIXME: this is not necessary for others but unix files */
-	if (!S_ISREG(inode->i_mode))
+	if (!inode_file_plugin(inode)->pre_delete)
 		return;
-	assert("vs-1215", inode_file_plugin(inode)->setattr);
-	attr.ia_size = 0;
-	attr.ia_valid = ATTR_SIZE;
-	if (inode_file_plugin(inode)->setattr(inode, &attr))
-		warning("vs-1216", "Failed to truncate file for %llu)\n", get_inode_oid(inode));
+	if (inode_file_plugin(inode)->pre_delete(inode))
+		warning("vs-1216", "Failed to delete file body for %llu)\n",
+			get_inode_oid(inode));
 }
 
 static void
@@ -2429,102 +2422,6 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 			UNDER_SPIN_VOID(jnode, node, eflush_del(node, 1));
 		uncapture_page(page);
 		UNDER_SPIN_VOID(jnode, node, page_clear_jnode(page, node));
-#if 0
-		jnode *node;
-
-		/* ->private pointer is protected by page lock that we are
-		   holding right now. */
-again:
-		node = jnode_by_page(page);
-		if (node != NULL) {
-			jref(node);
-try_to_lock:
-			LOCK_JNODE(node);
-			reiser4_unlock_page(page);
-
-			ret = try_capture(node, ZNODE_WRITE_LOCK, 0);
-
-			if (!ret) {
-				/* If node is flush queued (i.e. prepard to
-				   write to disk) we are trying to submit flush
-				   queues to disk one by one and wait i/o
-				   completion. We repeat it until our node
-				   becomes not queued. */
-				if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
-					txn_atom *atom;
-					int nr_io_errors;
-
-					atom = atom_locked_by_jnode(node);
-					UNLOCK_JNODE(node);
-
-					assert("zam-x1070", atom != NULL);
-
-					/* FIXME-VS: we call finish_all_fq
-					   because currently it is not possible
-					   to find which flush queue the node
-					   is on
-					*/
-					nr_io_errors = 0;
-					ret = finish_all_fq(atom, &nr_io_errors);
-
-					if (ret) {
-						if (ret == -EBUSY) {
-							/* All flush queues are
-							   busy we have to wait
-							   an atom event and
-							   rescan atom's list
-							   for not busy flush
-							   queues. */
-							atom_wait_event(atom);
-
-							jput(node);
-							reiser4_lock_page(page);
-							goto again;
-						}
-
-						if (ret != -EAGAIN)
-							reiser4_panic
-							    ("zam-x1071", "cannot flush queued node (ret = %d)\n", ret);
-						/* -EAGAIN means we have to
-						   repeat. Repeating of
-						   finish_all_fq() may be not
-						   needed because the node we
-						   wanted to write is already
-						   written to disk and removed
-						   from a flush queue */
-
-					} else {
-						UNLOCK_ATOM(atom);
-					}
-
-					jput(node);
-					reiser4_lock_page(page);
-					goto again;
-				}
-			}
-
-			UNLOCK_JNODE(node);
-			/* return with page still
-			   locked. truncate_list_pages() expects this. */
-			reiser4_lock_page(page);
-			assert("nikita-2676", jprivate(page) == node);
-			if (ret) {
-				warning("green-20", "try_capture returned %d", ret);
-				if ((ret == -EAGAIN) || (ret == -EDEADLK) || (ret == -EINTR)) {
-					preempt_point();
-					goto try_to_lock;
-				}
-			} else {
-				uncapture_page(page);
-
-				UNDER_SPIN_VOID(jnode, node, page_clear_jnode(page, node));
-				JF_SET(node, JNODE_HEARD_BANSHEE);
-			}
-			/* can safely call jput() under page lock, because
-			   page was just detached from jnode. */
-			jput(node);
-		}
-#endif
 	}
 	REISER4_EXIT(ret);
 }
