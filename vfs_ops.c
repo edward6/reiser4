@@ -416,7 +416,7 @@ noop_read_inode(struct inode *inode UNUSED_ARG)
 /* slab cache for inodes */
 static kmem_cache_t *inode_cache;
 
-/* initalisation function passed to the kmem_cache_create() to init new pages
+/* initialization function passed to the kmem_cache_create() to init new pages
    grabbed by our inodecache. */
 static void
 init_once(void *obj /* pointer to new inode */ ,
