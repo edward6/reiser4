@@ -17,10 +17,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <sys/stat.h>
-
 #include <errno.h>
 #include <string.h>
+
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <sys/mount.h>
 
 /* Function for saving last error message into device assosiated buffer */
 static void save_error(
@@ -181,18 +183,18 @@ static uint32_t file_stat(
 static count_t file_len(
     aal_device_t *device	    /* file device, lenght will be obtained from */
 ) {
-    loff_t max_off = 0;
-	
-    if (!device) 
-	return 0;
+    struct stat st;
+    unsigned long size;
+
+    if (ioctl(*((int *)device->entity), BLKGETSIZE, &size) >= 0)
+        return  size / (device->blocksize / 512);
+
+    memset(&st, 0, sizeof(st));
     
-    /* Positioning at file end */
-    if ((max_off = lseek(*((int *)device->entity), 0, SEEK_END)) == (loff_t)-1) {
-	save_error(device);
-	return 0;
-    }
+    if (fstat(*((int *)device->entity), &st) >= 0)
+	return st.st_size / (device->blocksize / 512);
     
-    return (count_t)(max_off / device->blocksize);
+    return 0;
 }
 
 /*
