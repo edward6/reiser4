@@ -1243,7 +1243,9 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	 * current_atom_complete_writes() finishes. It can be safely
 	 * uncaptured after commit_semaphore is taken, because any atom that
 	 * captures these nodes is guaranteed to commit after current one. */
-	invalidate_list(ATOM_CLEAN_LIST(*atom));
+	/* NOTE-NIKITA for some reason this doesn't work: bitmaps are
+	 * not-consistent with the tree after umount. */
+	/* invalidate_list(ATOM_CLEAN_LIST(*atom)); */
 
 	ret = reiser4_write_logs(nr_submitted);
 	if (ret < 0)
