@@ -1262,7 +1262,6 @@ reiser4_get_file_fsdata(struct file *f	/* file
 	if (f->private_data == NULL) {
 		reiser4_file_fsdata *fsdata;
 		struct inode *inode;
-		reiser4_inode *info;
 
 		reiser4_stat_inc(file.private_data_alloc);
 		/* NOTE-NIKITA use slab in stead */
@@ -1272,7 +1271,6 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		xmemset(fsdata, 0, sizeof *fsdata);
 
 		inode = f->f_dentry->d_inode;
-		info = reiser4_inode_data(inode);
 		spin_lock_inode(inode);
 		if (f->private_data == NULL) {
 			fsdata->back = f;
@@ -1288,18 +1286,6 @@ reiser4_get_file_fsdata(struct file *f	/* file
 	assert("nikita-2665", f->private_data != NULL);
 	return f->private_data;
 }
-
-#if REISER4_TRACE
-static const char *
-tail_status(const struct inode *inode)
-{
-	if (!inode_get_flag(inode, REISER4_FILE_STATE_KNOWN))
-		return "unknown";
-	if (inode_get_flag(inode, REISER4_BUILT_OF_TAILS))
-		return "tail";
-	return "notail";
-}
-#endif
 
 /* Release reiser4 file. This is f_op->release() method. Called when last
    holder closes a file */
@@ -1318,7 +1304,7 @@ reiser4_release(struct inode *i /* inode released */ ,
 	assert("umka-082", fplug != NULL);
 
 	trace_on(TRACE_VFS_OPS,
-		 "RELEASE: (i_ino %li, size %lld, tail status: %s)\n", i->i_ino, i->i_size, tail_status(i));
+		 "RELEASE: (i_ino %li, size %lld)\n", i->i_ino, i->i_size);
 
 	if (fplug->release)
 		result = fplug->release(f);
@@ -1368,14 +1354,11 @@ init_once(void *obj /* pointer to new inode */ ,
 		/* NOTE-NIKITA add here initialisations for locks, list heads,
 		   etc. that will be added to our private inode part. */
 		inode_init_once(&info->vfs_inode);
-		rw_latch_init(&info->p.latch);
+		/*		rw_latch_init(&info->p.latch);*/
 		info->p.eflushed = 0;
 		INIT_LIST_HEAD(&info->p.moved_pages);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		INIT_LIST_HEAD(&info->p.eflushed_nodes);
-#if REISER4_DEBUG
-		info->p.ea_owner = 0;
-#endif
 	}
 }
 
