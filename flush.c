@@ -865,8 +865,6 @@ static int squalloc_parent_first (flush_position *pos)
 	assert ("jmacd-1051", znode_is_write_locked (JZNODE (pos->point)));
 	assert ("jmacd-1052", ! flush_pos_unformatted (pos));
 
-	if (FLUSH_DEBUG) print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK);
-
         /* Stop recursion if its not dirty, meaning don't allocate children either.
          * Children might be dirty but there is an overwrite below this level or else this
          * node would be dirty.  Stop recursion if the node is not yet allocated. */
