@@ -1490,6 +1490,7 @@ static int parse_option( char *opt_string, opt_desc_t *opt )
 	}
 
 	err_msg = NULL;
+	result  = 0;
 	switch( opt -> type ) {
 	case OPT_STRING:
 		if( val_start == NULL ) {
