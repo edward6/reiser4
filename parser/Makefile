@@ -15,6 +15,8 @@ YFLAGS= -d
 
 #NOMAN=	noman
 
+YACC=./yacc
+
 #ifdef DEBUG
 CFLAGS+= -DDEBUG -g
 YFLAGS+= -t -v
@@ -29,8 +31,7 @@ clean:
 	rm -f $(CLEANFILES) $(PROG)
 
 y.t.h parser.c: parser.y
-	./yacc $(YFLAGS) parser.y
-#	$(YACC) $(YFLAGS) parser.y
+	$(YACC) $(YFLAGS) parser.y
 	mv y.t.c parser.c
 
 
