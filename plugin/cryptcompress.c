@@ -483,15 +483,14 @@ set_cluster_nrpages(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-180", clust != NULL);
 	assert("edward-1040", inode != NULL);
 	assert("edward-1042", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-	assert("edward-1176", clust->op != PCL_UNKNOWN);
 	
 	win = clust->win;
 	if (!win) {
 		/* FIXME-EDWARD: i_size should be protected */
-		assert("edward-1177", clust->op == PCL_APPEND);
 		clust->nr_pages = count_to_nrpages(fsize_to_count(clust, inode));
 		return;
 	}
+	assert("edward-1176", clust->op != PCL_UNKNOWN);
 	assert("edward-1064", win->off + win->count + win->delta != 0);
 	
 	if (win->stat == HOLE_WINDOW && 
@@ -1195,7 +1194,7 @@ readpage_cryptcompress(void *vp, struct page *page)
 		return 0;
 	}
 	reiser4_cluster_init(&clust, 0);
-
+	clust.file = file;
 	iplug = item_plugin_by_id(CTAIL_ID);
 	if (!iplug->s.file.readpage) {
 		put_cluster_handle(&clust, TFM_READ);
@@ -1219,7 +1218,6 @@ readpages_cryptcompress(struct file *file, struct address_space *mapping,
 {
 	file_plugin *fplug;
 	item_plugin *iplug;
-	cryptcompress_info_t * info;
 	
 	assert("edward-1112", mapping != NULL);
 	assert("edward-1113", mapping->host != NULL);
@@ -1228,17 +1226,9 @@ readpages_cryptcompress(struct file *file, struct address_space *mapping,
 	
 	assert("edward-1114", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
 	
-	info = cryptcompress_inode_data(mapping->host);
-	
 	iplug = item_plugin_by_id(CTAIL_ID);
 
-	down_read(&info->lock);
-	LOCK_CNT_INC(inode_sem_r);
-	
 	iplug->s.file.readpages(file, mapping, pages);
-	
-	up_read(&info->lock);
-	LOCK_CNT_DEC(inode_sem_r);
 	
 	return;
 }
@@ -2216,6 +2206,7 @@ prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture)
    . maybe write hole;
    . maybe create 'unprepped' disk cluster (if parent item is absent)
 */
+
 static int
 prepare_cluster(struct inode *inode,
 		loff_t file_off /* write position in the file */,
@@ -2227,6 +2218,7 @@ prepare_cluster(struct inode *inode,
 	int result = 0;
 	reiser4_slide_t * win = clust->win;
 
+	reset_cluster_params(clust);
 	assert("edward-1190", op != PCL_UNKNOWN);
 
 	clust->op = op;
@@ -2315,6 +2307,7 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust,
 	return 0;
 }
 
+/* reset all the params that not get updated */ 
 reiser4_internal void
 reset_cluster_params(reiser4_cluster_t * clust)
 {
@@ -2364,7 +2357,6 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	file_off = pos;
 	reiser4_slide_init(&win);
 	reiser4_cluster_init(&clust, &win);
-	clust.file = file;
 	clust.hint = &hint;
 
 	result = set_cluster_params(inode, &clust, &win, &f, file_off);
@@ -2524,6 +2516,69 @@ write_cryptcompress(struct file * file, /* file to write to */
 	result = write_crc_file(file, inode, buf, count, off);
 
 	up(&inode->i_sem);
+	return result;
+}
+
+static void
+readpages_crc(struct address_space *mapping, struct list_head *pages, void *data)
+{
+	file_plugin *fplug;
+	item_plugin *iplug;
+	
+	assert("edward-1112", mapping != NULL);
+	assert("edward-1113", mapping->host != NULL);
+
+	fplug = inode_file_plugin(mapping->host);
+	assert("edward-1114", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	iplug = item_plugin_by_id(CTAIL_ID);
+	
+	iplug->s.file.readpages(data, mapping, pages);
+	
+	return;
+}
+
+static reiser4_block_nr
+cryptcompress_estimate_read(struct inode *inode)
+{
+    	/* reserve one block to update stat data item */
+	assert("edward-1193",
+	       inode_file_plugin(inode)->estimate.update == estimate_update_common);
+	return estimate_update_common(inode);
+}
+
+/* plugin->u.file.read */
+ssize_t read_cryptcompress(struct file * file, char *buf, size_t size, loff_t * off)
+{
+	/* FIXME-EDWARD: user pages support */
+	ssize_t result;
+	struct inode *inode;
+	reiser4_file_fsdata * fsdata;
+	cryptcompress_info_t * info;
+	reiser4_block_nr needed;
+	
+	inode = file->f_dentry->d_inode;
+	assert("edward-1194", !inode_get_flag(inode, REISER4_NO_SD));
+	assert("edward-1195", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
+	
+	info = cryptcompress_inode_data(inode);
+	needed = cryptcompress_estimate_read(inode);
+
+	result = reiser4_grab_space(needed, BA_CAN_COMMIT);
+	if (result != 0)
+		return result;
+	
+	fsdata = reiser4_get_file_fsdata(file);
+	fsdata->ra2.data = file;
+	fsdata->ra2.readpages = readpages_crc;
+	
+	down_read(&info->lock);
+	LOCK_CNT_INC(inode_sem_r);
+	
+	result = generic_file_read(file, buf, size, off);
+
+	up_read(&info->lock);
+	LOCK_CNT_DEC(inode_sem_r);
+	
 	return result;
 }
 
@@ -2782,7 +2837,7 @@ cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
 }
 
 reiser4_internal void
-truncate_pg_clusters(struct inode * inode, pgoff_t start)
+truncate_pages_cryptcompress(struct inode * inode, pgoff_t start)
 {
 	/* first not partial cluster to truncate */
 	cloff_t fnp = pgcount_to_nrclust(start, inode);
@@ -2844,7 +2899,6 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 		goto out;
 	}
 	assert("edward-1146", new_size < inode->i_size);
-	assert("edward-1147", inode->i_size - new_size < inode_cluster_size(inode));
 	
 	to_prune = inode->i_size - new_size;
 	
@@ -2878,7 +2932,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	       clust.dstat == UNPR_DISK_CLUSTER);
 	assert("edward-1191", inode->i_size == new_size);
 	
-	truncate_pg_clusters(inode, count_to_nrpages(new_size));
+	truncate_pages_cryptcompress(inode, count_to_nrpages(new_size));
 	goto out;
  fake_prune:
 	INODE_SET_FIELD(inode, i_size, new_size);
@@ -2918,10 +2972,10 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 		/* do not touch items */
 		INODE_SET_FIELD(inode, i_size, new_size);
 		if (old_size > new_size) {
-			cloff_t start;
-			start = count_to_nrclust(new_size, inode);
+			pgoff_t start;
+			start = count_to_nrpages(new_size);
 
-			truncate_pg_clusters(inode, start);
+			truncate_pages_cryptcompress(inode, start);
 			assert("edward-663", ergo(!new_size,
 						  reiser4_inode_data(inode)->anonymous_eflushed == 0 &&
 						  reiser4_inode_data(inode)->captured_eflushed == 0));
