@@ -8,6 +8,7 @@
 #include "znode.h"
 #include "page_cache.h"
 #include "wander.h"
+#include "vfs_ops.h"
 
 #include <linux/bio.h>
 #include <linux/mm.h>
