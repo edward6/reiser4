@@ -365,7 +365,7 @@ int reiser4_sysfs_init(struct super_block *super)
 
 void reiser4_sysfs_done(struct super_block *super)
 {
-	kobject_unregister(&super->kobj);
+	kobject_unregister(&get_super_private(super)->kobj);
 }
 
 /* REISER4_USE_SYSFS */

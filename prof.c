@@ -136,6 +136,8 @@ struct kobj_type ktype_reiser4_prof = {
 	.default_attrs	= NULL
 };
 
+static decl_subsys(prof, &ktype_reiser4_prof, NULL);
+
 #define DEFINE_PROF_ENTRY_0(attr_name,field_name)	\
 	.field_name = {					\
 		.attr = {	       			\
@@ -183,9 +185,9 @@ int init_prof_kobject(struct super_block *super)
 	
 	sbinfo = get_super_private(super);
 	prof_kobj = &sbinfo->prof_kobj;
-	prof_kobj->parent = kobject_get(&super->kobj);
+	prof_kobj->parent = kobject_get(&sbinfo->kobj);
 	snprintf(prof_kobj->name, KOBJ_NAME_LEN, "prof");
-	prof_kobj->ktype = &ktype_reiser4_prof;
+	prof_kobj->kset  = reiser4_subsys.kset;
 	result = kobject_register(prof_kobj);
 	if (result != 0)
 		return result;		
