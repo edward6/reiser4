@@ -138,6 +138,8 @@ typedef enum {
 	 * extent or something similar (indirect item, for example) */
 	JNODE_MAPPED = 10,
 
+	JNODE_EFLUSH = 11,
+
 	/* jnode is queued for flushing. */
 	JNODE_FLUSH_QUEUED = 12,
 
@@ -154,8 +156,7 @@ typedef enum {
 	JNODE_MISSED_IN_CAPTURE = 17,
 
 	/* write is in progress */
-	JNODE_WRITEBACK = 18,
-	JNODE_EFLUSH    = 19
+	JNODE_WRITEBACK = 18
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
