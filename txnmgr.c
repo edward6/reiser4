@@ -85,6 +85,8 @@ TS_LIST_DEFINE(txnh,txn_handle,txnh_link);
 TS_LIST_DEFINE(fwaitfor,txn_wait_links,_fwaitfor_link);
 TS_LIST_DEFINE(fwaiting,txn_wait_links,_fwaiting_link);
 
+/* FIXME: In theory, we should be using the slab cache init & destructor
+ * methods instead of, e.g., jnode_init, etc. */
 static kmem_cache_t *_atom_slab = NULL;
 static kmem_cache_t *_txnh_slab = NULL; /* FIXME_LATER_JMACD Will it be used? */
 static kmem_cache_t *_jnode_slab = NULL;
@@ -257,6 +259,49 @@ jnode_init (jnode *node)
 	spin_lock_init (& node->guard);
 	node->atom = NULL;
 	capture_list_clean (node);
+}
+
+/* Holding the jnode_ptr_lock, check whether the page already has a jnode and
+ * if not, allocate one. */
+jnode*
+jnode_of_page (struct page* pg)
+{
+	/* FIXME: Note: The following code assumes page_size == block_size.
+	 * When support for page_size > block_size is added, we will need to
+	 * add a small per-page array to handle more than one jnode per
+	 * page. */
+	jnode *jal = NULL;
+
+ again:
+	spin_lock (& _jnode_ptr_lock);
+
+	if ((jnode*) pg->private == NULL) {
+		if (jal == NULL) {
+			spin_unlock (& _jnode_ptr_lock);
+			jal = kmem_cache_alloc (_jnode_slab, GFP_KERNEL);
+			goto again;
+		}
+		pg->private = (unsigned long) jal;
+		jal = NULL;
+
+		jnode_init (jal);
+	}
+
+	/* FIXME: This may be called from memory.c, read_in_formatted, which
+	 * does is already synchronized under the page lock, but I imagine
+	 * this will get called from other places, in which case the
+	 * jnode_ptr_lock is probably still necessary, unless...
+	 *
+	 * If jnodes are unconditionally assigned at some other point, then
+	 * this interface and lock not needed? */
+
+	spin_unlock (& _jnode_ptr_lock);
+
+	if (jal != NULL) {
+		kmem_cache_free (_jnode_slab, jal);
+	}
+
+	return (jnode*) pg->private;
 }
 
 /* Increment to the jnode's reference counter. */
@@ -951,54 +996,13 @@ txn_try_capture (jnode           *node,
 }
 
 /* This is the interface to capture unformatted nodes via their struct page
- * reference.  If the page currently has a jnode assigned to it, call
- * txn_try_capture, otherwise assign it a jnode and then make the call.  To
- * protect consistency of the per-page jnode pointer, we use a global
- * spinlock.  This could be improved to a per-txn-mgr spinlock.
- */
+ * reference. */
 int
 txn_try_capture_page  (struct page        *pg,
 		       znode_lock_mode     lock_mode,
 		       int                 non_blocking)
 {
-	/* FIXME: Note: The following code assumes page_size == block_size.
-	 * When support for page_size > block_size is added, we will need to
-	 * add a small per-page array to handle more than one jnode per
-	 * page. */
-	jnode *jal = NULL;
-
- again:
-	spin_lock (& _jnode_ptr_lock);
-
-	if ((jnode*) pg->private == NULL) {
-		if (jal == NULL) {
-			spin_unlock (& _jnode_ptr_lock);
-			jal = kmem_cache_alloc (_jnode_slab, GFP_KERNEL);
-			goto again;
-		}
-		pg->private = (unsigned long) jal;
-		jal = NULL;
-
-		/* FIXME: INITIALIZE JNODE HERE */
-	}
-
-	/* FIXME: This may be called from memory.c, read_in_formatted, which
-	 * does is already synchronized under the page lock, but I imagine
-	 * this will get called from other places, in which case the
-	 * jnode_ptr_lock is probably still necessary, unless...
-	 *
-	 * If jnodes are unconditionally assigned at some other point, then
-	 * this interface and lock not needed? */
-
-	spin_unlock (& _jnode_ptr_lock);
-
-	if (jal != NULL) {
-		kmem_cache_free (_jnode_slab, jal);
-	}
-
-	return txn_try_capture ((jnode*) pg->private,
-				lock_mode,
-				non_blocking);
+	return txn_try_capture (jnode_of_page (pg), lock_mode, non_blocking);
 }
 
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,

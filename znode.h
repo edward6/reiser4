@@ -562,9 +562,10 @@ void info_znode( const char *prefix, const znode *node );
 /**
  * Jnode routines
  */
-extern void  jnode_init      (jnode *node);
-extern void  jnode_set_dirty (jnode *node);
-extern void  jnode_set_clean (jnode *node);
+extern jnode* jnode_of_page   (struct page* pg);
+extern void   jnode_init      (jnode *node);
+extern void   jnode_set_dirty (jnode *node);
+extern void   jnode_set_clean (jnode *node);
 
 #if REISER4_DEBUG
 void info_jnode( const char *prefix, const jnode *node );
