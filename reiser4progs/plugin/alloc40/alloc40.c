@@ -168,6 +168,12 @@ static errno_t callback_flush_bitmap(aal_device_t *device,
 
     aal_memcpy(block->data, alloc->map, aal_block_size(block));
 
+    if (aal_block_write(block)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't write bitmap block %llu. %s.", blk, device->error);
+	goto error_free_block;
+    }
+
     aal_block_free(block);
     alloc->map += aal_block_size(block);
     
