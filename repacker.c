@@ -54,7 +54,7 @@ struct repacker {
 	
 };
 
-
+/* A thread-safe repacker check state bit routine.  */
 static inline int check_repacker_state_bit(struct repacker *repacker, enum repacker_state_bits bits)
 {
 	int result;
@@ -96,6 +96,7 @@ static void repacker_cursor_done (struct repacker_cursor * cursor)
 	blocknr_hint_done(&cursor->hint);
 }
 
+/* Close current transaction and begin new one */
 static int renew_transaction (void)
 {
 	reiser4_context * ctx = get_current_context();
@@ -109,6 +110,7 @@ static int renew_transaction (void)
 	return 0;
 }
 
+/* Processing of a formatted node when the repacker goes forward. */
 static int process_znode_forward (tap_t * tap, void * arg)
 {
 	struct repacker_cursor * cursor = arg;
@@ -132,6 +134,8 @@ static int process_znode_forward (tap_t * tap, void * arg)
 	return 0;
 }
 
+/* Processing of unformatted nodes (of one extent unit) when the repacker goes
+ * forward. */
 static int process_extent_forward (tap_t *tap, void * arg)
 {
 	int ret;
@@ -270,6 +274,7 @@ static int process_znode_backward (tap_t * tap, void * arg)
 	return ret;
 }
 
+/* Processing of unformatted nodes when the repacker goes backward. */
 static int process_extent_backward (tap_t * tap, void * arg)
 {
 	struct repacker_cursor * cursor = arg;
@@ -285,18 +290,20 @@ static int process_extent_backward (tap_t * tap, void * arg)
 	}
 	return ret;
 }
-
+/* A set of functions to be called by tree_walk in repacker forward pass. */
 static struct tree_walk_actor forward_actor = {
 	.process_znode  = process_znode_forward,
 	.process_extent = process_extent_forward,
 	.before         = prepare_repacking_session
 };
 
+/* A set of functions to be called by tree_walk in repacker backward pass. */
 static struct tree_walk_actor backward_actor = {
 	.process_znode  = process_znode_backward,
 	.process_extent = process_extent_backward,
 	.before         = prepare_repacking_session
 };
+
 
 static int reiser4_repacker (struct repacker * repacker)
 {
