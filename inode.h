@@ -139,7 +139,18 @@ struct reiser4_inode {
 	struct list_head eflushed_jnodes;
 
 	jnode inode_jnode; /* this is to capture inode */
+
+	/* currently operations on this tree are protected by tree's spin lock */
+	struct radix_tree_root jnode_tree;	
+#if REISER4_DEBUG
+	/* number of jnodes in jnode tree */
+	int jnodes;
+#endif
 };
+
+#define I_EFLUSH (256)
+#define I_JNODES (512)
+
 
 typedef struct reiser4_inode_object {
 	/* private part */
