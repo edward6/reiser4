@@ -2670,7 +2670,8 @@ static int flush_empty_queue (flush_position *pos)
 				    /*JF_ISSET (node, JNODE_FLUSH_BUSY) ||*/
 				    (*jnode_get_block (node) != *jnode_get_block (check) + nr) ||
 				    !npage || PageWriteback (npage)) {
-					unlock_page (npage);
+					if (npage)
+						unlock_page (npage);
 					break;
 				}
 
