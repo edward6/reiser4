@@ -31,6 +31,7 @@
 void blocknr_hint_init (reiser4_blocknr_hint *hint)
 {
 	hint->blk = 0;
+	hint->max_dist = 0;
 }
 
 /* Release any resources of a blocknr hint. */
