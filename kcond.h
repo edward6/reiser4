@@ -11,19 +11,19 @@
 
 typedef struct kcond_queue_link_s kcond_queue_link_t;
 
-/** condition variable */
+/* condition variable */
 typedef struct kcond_s {
-	/** lock protecting integrity of @queue */
+	/* lock protecting integrity of @queue */
 	spinlock_t lock;
-	/** queue of waiters */
+	/* queue of waiters */
 	kcond_queue_link_t *queue;
 } kcond_t;
 
-/** queue link added to the kcond->queue by each waiter */
+/* queue link added to the kcond->queue by each waiter */
 struct kcond_queue_link_s {
-	/** next link in the queue */
+	/* next link in the queue */
 	kcond_queue_link_t *next;
-	/** semaphore to signal on wake up */
+	/* semaphore to signal on wake up */
 	struct semaphore wait;
 };
 

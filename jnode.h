@@ -26,7 +26,7 @@
    nodes)  */
 TS_HASH_DECLARE(j, jnode);
 
-/** declare hash table of znodes */
+/* declare hash table of znodes */
 TS_HASH_DECLARE(z, znode);
 
 typedef struct {
@@ -224,7 +224,7 @@ extern int jnode_io_hook(jnode *node, struct page *page, int rw);
 
 extern struct page *jnode_lock_page(jnode *);
 
-/** block number of node */
+/* block number of node */
 static inline const reiser4_block_nr *
 jnode_get_block(const jnode * node	/* jnode to
 					 * query */ )
@@ -305,7 +305,7 @@ extern void print_jnodes(const char *prefix, reiser4_tree * tree);
 
 extern int znode_is_root(const znode * node);
 
-/** bump reference counter on @node */
+/* bump reference counter on @node */
 static inline void
 add_x_ref(jnode * node /* node to increase x_count of */ )
 {
@@ -328,7 +328,7 @@ extern int jdelete(jnode * node);
 
 static inline void jput(jnode * node);
 
-/** get the page of jnode */
+/* get the page of jnode */
 static inline char *
 jdata(const jnode * node)
 {
@@ -336,7 +336,7 @@ jdata(const jnode * node)
 	return node->pg ? node->data : NULL;
 }
 
-/** get the page of jnode */
+/* get the page of jnode */
 static inline struct page *
 jnode_page(const jnode * node)
 {
@@ -467,7 +467,7 @@ jnode_is_znode(const jnode * node)
 	return jnode_get_type(node) == JNODE_FORMATTED_BLOCK;
 }
 
-/** return true if "node" is dirty */
+/* return true if "node" is dirty */
 static inline int
 jnode_is_dirty(const jnode * node)
 {
@@ -476,7 +476,7 @@ jnode_is_dirty(const jnode * node)
 	return JF_ISSET(node, JNODE_DIRTY);
 }
 
-/** return true if "node" is dirty, node is unlocked */
+/* return true if "node" is dirty, node is unlocked */
 static inline int
 jnode_check_dirty(jnode * node)
 {
@@ -493,7 +493,7 @@ jnode_is_unformatted(const jnode * node)
 	return jnode_get_type(node) == JNODE_UNFORMATTED_BLOCK;
 }
 
-/** return true if "node" is the root */
+/* return true if "node" is the root */
 static inline int
 jnode_is_root(const jnode * node)
 {

@@ -1,8 +1,6 @@
-/* Declarations of key-related data-structures and operations on keys.
-  
-   Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by reiserfs/README
-  
- */
+/* Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
+
+/* Declarations of key-related data-structures and operations on keys. */
 
 #if !defined( __REISER4_KEY_H__ )
 #define __REISER4_KEY_H__
@@ -27,15 +25,15 @@
 
 /* possible values for minor packing locality (4 bits required) */
 typedef enum {
-	/** file name */
+	/* file name */
 	KEY_FILE_NAME_MINOR = 0,
-	/** stat-data */
+	/* stat-data */
 	KEY_SD_MINOR = 1,
-	/** file attribute name */
+	/* file attribute name */
 	KEY_ATTR_NAME_MINOR = 2,
-	/** file attribute value */
+	/* file attribute value */
 	KEY_ATTR_BODY_MINOR = 3,
-	/** file body (tail or extent) */
+	/* file body (tail or extent) */
 	KEY_BODY_MINOR = 4,
 } key_minor_locality;
 
@@ -51,48 +49,48 @@ typedef enum {
    directories and large files disturbs this symmetry unfortunately.
    However, if tails have a different minor packing locality from
    extents, and no files have both extents and tails, maybe symmetry
-   can be had. */
+   can be had.
+ */
 
 /* 
-Arbitrary major packing localities can be assigned to objects using
-the reiser4(filenameA/..packing<=some_number) system call.
+   Arbitrary major packing localities can be assigned to objects using
+   the reiser4(filenameA/..packing<=some_number) system call.
 
-In reiser4, the creat() syscall creates a directory
+   In reiser4, the creat() syscall creates a directory
 
-  whose default flow (that which is referred to if the directory is
-  read as a file) is the traditional unix file body.
+   whose default flow (that which is referred to if the directory is
+   read as a file) is the traditional unix file body.
 
-  whose directory plugin is the 'filedir'
+   whose directory plugin is the 'filedir'
 
-  whose major packing locality is that of the parent of the object created.
+   whose major packing locality is that of the parent of the object created.
 
-The static_stat item is a particular commonly used directory
-compression (the one for normal unix files).
+   The static_stat item is a particular commonly used directory
+   compression (the one for normal unix files).
 
-The filedir plugin checks to see if the static_stat item exists.
-There is a unique key for static_stat.  If yes, then it uses the
-static_stat item for all of the values that it contains.  The
-static_stat item contains a flag for each stat it contains which
-indicates whether one should look outside the static_stat item for its
-contents.
-
-*/
+   The filedir plugin checks to see if the static_stat item exists.
+   There is a unique key for static_stat.  If yes, then it uses the
+   static_stat item for all of the values that it contains.  The
+   static_stat item contains a flag for each stat it contains which
+   indicates whether one should look outside the static_stat item for its
+   contents.
+ */
 
 /* offset of fields in reiser4_key. Value of each element of this enum
     is index within key (thought as array of __u64's) where this field
     is. */
 typedef enum {
-	/** major "locale", aka dirid. Sits in 1st element */
+	/* major "locale", aka dirid. Sits in 1st element */
 	KEY_LOCALITY_INDEX = 0,
-	/** minor "locale", aka item type. Sits in 1st element */
+	/* minor "locale", aka item type. Sits in 1st element */
 	KEY_TYPE_INDEX = 0,
-	/** "object band". Sits in 2nd element */
+	/* "object band". Sits in 2nd element */
 	KEY_BAND_INDEX = 1,
-	/** objectid. Sits in 2nd element */
+	/* objectid. Sits in 2nd element */
 	KEY_OBJECTID_INDEX = 1,
-	/** Offset. Sits in 3rd element */
+	/* Offset. Sits in 3rd element */
 	KEY_OFFSET_INDEX = 2,
-	/** Name hash. Sits in 3rd element */
+	/* Name hash. Sits in 3rd element */
 	KEY_HASH_INDEX = 2,
 	KEY_LAST_INDEX = 3
 } reiser4_key_field_index;
