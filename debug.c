@@ -198,8 +198,9 @@ typedef struct reiser4_stats_cnt {
 
 #define getat(ptr, offset) *(stat_cnt *)(((char *)(ptr)) + (offset))
 
-static ssize_t show_stat_attr(struct super_block * s, 
-			      reiser4_kattr * kattr, void * opaque, char * buf)
+static ssize_t 
+show_stat_attr(struct super_block * s, reiser4_kattr * kattr, 
+	       void * opaque, char * buf)
 {
 	char *p;
 	reiser4_stats_cnt *cnt;
@@ -213,8 +214,9 @@ static ssize_t show_stat_attr(struct super_block * s,
 	return (p - buf);
 }
 
-static ssize_t show_stat_level_attr(struct super_block * s, 
-				    reiser4_kattr * kattr, void *da, char * buf)
+static ssize_t 
+show_stat_level_attr(struct super_block * s, reiser4_kattr * kattr, 
+		     void *da, char * buf)
 {
 	char *p;
 	reiser4_stats_cnt *cnt;
@@ -239,7 +241,7 @@ static ssize_t show_stat_level_attr(struct super_block * s,
 		.cookie = 0,				\
 		.show = proc				\
 	},						\
-	.format = fmt,					\
+	.format = fmt "\n",				\
 	.offset = offsetof(type, field),		\
 	.size   = sizeof(((type *)0)->field)		\
 }
