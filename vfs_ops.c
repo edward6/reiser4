@@ -17,9 +17,6 @@
 #include "plugin/plugin_set.h"
 #include "plugin/plugin_hash.h"
 #include "plugin/object.h"
-#if defined(XATTR)
-#include "plugin/xattr.h"
-#endif
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
@@ -416,7 +413,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		inode_init_once(&info->vfs_inode);
 		info->p.eflushed_anon = 0;
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
-		rw_latch_init(&info->p.coc_sem);
+		init_rwsem(&info->p.coc_sem);
 		sema_init(&info->p.loading, 1);
 		INIT_LIST_HEAD(&info->p.eflushed_jnodes);
 		INIT_LIST_HEAD(&info->p.anon_jnodes);
@@ -426,9 +423,6 @@ init_once(void *obj /* pointer to new inode */ ,
 		/* inode's builtin jnode is initialized in reiser4_alloc_inode */
 		xmemset(&info->p.perm_plugin_data, 0,
 			sizeof info->p.perm_plugin_data);
-#if defined(XATTR)
-		xattr_list_init(&info->p.xattr_namespaces);
-#endif
 	}
 }
 
@@ -541,10 +535,6 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 		if (inode_get_flag(inode, REISER4_CLUSTER_KNOWN))
 			inode_clr_flag(inode, REISER4_CLUSTER_KNOWN);		
 
-#if defined(XATTR)
-		if (reiser4_is_set(inode->i_sb, REISER4_USE_XATTR))
-			xattr_clean(inode);
-#endif
 	}
 	dispose_cursors(inode);
 	phash_inode_destroy(inode);
@@ -662,24 +652,6 @@ reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 	reiser4_exit_context(&ctx);
 	spin_lock(&inode_lock);
 }
-
-static void
-reiser4_clear_inode(struct inode *object)
-{
-	reiser4_context ctx;
-
-	init_context(&ctx, object->i_sb);
-	reiser4_stat_inc(vfs_calls.delete_inode);
-	if (is_inode_loaded(object)) {
-		file_plugin *fplug;
-
-		fplug = inode_file_plugin(object);
-		if (fplug != NULL && fplug->clear_inode != NULL)
-			fplug->clear_inode(object);
-	}
-	reiser4_exit_context(&ctx);
-}
-
 
 /* ->delete_inode() super operation */
 static void
@@ -1058,9 +1030,6 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		/* Don't load all bitmap blocks at mount time, it is useful
 		   for machines with tiny RAM and large disks. */
 		BIT_OPT("dont_load_bitmap", REISER4_DONT_LOAD_BITMAP),
-
-		BIT_OPT("xattr", REISER4_USE_XATTR),
-		BIT_OPT("acl", REISER4_USE_ACL),
 
 		{
 			/* tree traversal readahead parameters:
@@ -1609,7 +1578,7 @@ struct super_operations reiser4_super_operations = {
  	.put_inode          = NULL, /* d */
 	.drop_inode = reiser4_drop_inode,	/* d */
 	.delete_inode = reiser4_delete_inode,	/* d */
-	.clear_inode  = reiser4_clear_inode,    /* d */
+	.clear_inode  = NULL,    /* d */
 	.put_super = NULL /* d */ ,
 	.write_super = reiser4_write_super,
 /*      .sync_fs = NULL, */
@@ -1617,7 +1586,6 @@ struct super_operations reiser4_super_operations = {
 /* 	.unlockfs           = reiser4_unlockfs, */
 	.statfs = reiser4_statfs,	/* d */
 /* 	.remount_fs         = reiser4_remount_fs, */
-/* 	.clear_inode        = reiser4_clear_inode, */
 /* 	.umount_begin       = reiser4_umount_begin,*/
 	.sync_inodes = reiser4_sync_inodes,
 	.show_options = reiser4_show_options	/* d */

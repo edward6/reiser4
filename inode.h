@@ -16,11 +16,7 @@
 #include "plugin/cryptcompress.h"
 #include "plugin/plugin_set.h"
 #include "plugin/security/perm.h"
-#include "plugin/security/acl.h"
 #include "plugin/pseudo/pseudo.h"
-#if defined(XATTR)
-#include "plugin/xattr.h"
-#endif
 #include "vfs_ops.h"
 #include "jnode.h"
 
@@ -150,18 +146,9 @@ struct reiser4_inode {
 		/* fields specific to pseudo file plugin */
 		pseudo_info_t pseudo_info;
 	} file_plugin_data;
-	rw_latch_t coc_sem; /* filemap_nopage takes it for read, copy_on_capture - for write. Under this it
+	struct rw_semaphore coc_sem; /* filemap_nopage takes it for read, copy_on_capture - for write. Under this it
 			       tries to unmap page for which it is called. This prevents process from using page which
 			       was copied on capture */
-
-	union {
-		acl_perm_info_t acl_perm_info;
-	} perm_plugin_data;
-
-#if defined(XATTR)
-	/* list of object specific xattr namespaces */
-	xattr_list_head xattr_namespaces;
-#endif
 
 	/* list of unformatted jnodes eflushed from this object */
 	struct list_head eflushed_jnodes;

@@ -33,10 +33,6 @@
 #include "disk_format/disk_format40.h"
 #include "disk_format/disk_format.h"
 
-#if defined(XATTR)
-#include "xattr.h"
-#endif
-
 #include <linux/fs.h>		/* for struct super_block, address_space  */
 #include <linux/mm.h>		/* for struct page */
 #include <linux/buffer_head.h>	/* for struct buffer_head */
@@ -159,7 +155,7 @@ typedef struct file_plugin {
 	int (*prepare_write) (struct file *, struct page *, unsigned, unsigned);
 
 	/* captures passed page to current atom and takes care about extents handling.
-	   This is needed for loop back devices support and used from ->commit_write() 
+	   This is needed for loop back devices support and used from ->commit_write()
 
 */				/* ZAM-FIXME-HANS: are you writing to yourself or the reader?  Bigger comment please. */
 	int (*capturepage) (struct page *);
@@ -285,17 +281,7 @@ Elena doing this for you if that helps.  Email me the list of the top 10, with t
 	 * garbage collected. */
 	void (*delete_inode)(struct inode *);
 	void (*forget_inode)(struct inode *);
-	void (*clear_inode)(struct inode *);
 	ssize_t (*sendfile)(struct file *, loff_t *, size_t, read_actor_t, void __user *);
-#if defined(XATTR)
-	struct {
-		int (*set) (struct dentry*, const char*,const void *,size_t,int);
-		ssize_t (*get) (struct dentry *, const char *, void *, size_t);
-		ssize_t (*list) (struct dentry *, char *, size_t);
-		int (*remove) (struct dentry *, const char *);
-		xattr_list_head *ns;
-	} xattr;
-#endif
 	/*
 	 * methods to serialize object identify. This is used, for example, by
 	 * reiser4_{en,de}code_fh().

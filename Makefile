@@ -85,7 +85,6 @@ reiser4-objs := \
 		   prof.o \
 		   status_flags.o \
 		   init_super.o \
-		   crab_lock.o \
 		   safe_link.o \
            \
 		   plugin/plugin.o \
@@ -131,8 +130,6 @@ reiser4-objs := \
 		   plugin/file/pseudo.o \
 		   plugin/file/file.o \
 		   plugin/file/tail_conversion.o
-#		   plugin/xattr.o \
-#		   plugin/security/acl.o \
 
 reiser4-objs += sys_reiser4.o 
 

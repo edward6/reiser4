@@ -403,16 +403,12 @@ build_object_ops(struct super_block *super, object_ops *ops)
 	super->s_op        = &ops->super;
 	super->s_export_op = &ops->export;
 
-	if (!reiser4_is_set(super, REISER4_USE_XATTR)) {
-		iops.setxattr = NULL;
-		iops.getxattr = NULL;
-		iops.listxattr = NULL;
-		iops.removexattr = NULL;
-	}
+	iops.setxattr = NULL;
+	iops.getxattr = NULL;
+	iops.listxattr = NULL;
+	iops.removexattr = NULL;
 
-	if (!reiser4_is_set(super, REISER4_USE_ACL)) {
-		ops->super.clear_inode = NULL;
-	}
+	ops->super.clear_inode = NULL;
 
 	ops->regular = iops;
 	ops->dir     = iops;
