@@ -324,6 +324,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		   etc. that will be added to our private inode part. */
 		inode_init_once(&info->vfs_inode);
 		info->p.eflushed = 0;
+		info->p.eflushed_anon = 0;
 		INIT_LIST_HEAD(&info->p.moved_pages);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		INIT_LIST_HEAD(&info->p.eflushed_jnodes);
