@@ -54,6 +54,7 @@ def out_bio(first, len):
         else:
             # print str(n) + " " + str(block) + " " + rw
             dispatch_bio(n, block, rw)
+        block = block + 1    
         n = n + 1
 
 for line in sys.stdin:
