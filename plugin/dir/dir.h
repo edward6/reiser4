@@ -7,9 +7,11 @@
 
 #include "../../forward.h"
 #include "../../kassign.h"
+#include "../../type_safe_hash.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct file  */
+#include <linux/radix-tree.h>
 
 /* locking: fields of per file descriptor readdir_pos and ->f_pos are
  * protected by ->i_sem on inode. Under this lock following invariant
@@ -67,6 +69,22 @@ struct reiser4_dir_entry_desc {
 int is_name_acceptable(const struct inode *inode, const char *name UNUSED_ARG, int len);
 int is_dir_empty(const struct inode *dir);
 int reiser4_update_dir(struct inode *dir);
+
+void dispose_cursors(struct inode *inode);
+void load_cursors(struct inode *inode);
+void kill_cursors(struct inode *inode);
+
+typedef struct dir_cursor dir_cursor;
+
+TYPE_SAFE_HASH_DECLARE(d_cursor, dir_cursor);
+
+int d_cursor_init_at(struct super_block *s);
+void d_cursor_done_at(struct super_block *s);
+
+typedef struct d_cursor_info {
+	d_cursor_hash_table    table;
+	struct radix_tree_root tree;
+} d_cursor_info;
 
 /* __REISER4_DIR_H__ */
 #endif
