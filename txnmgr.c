@@ -1944,7 +1944,7 @@ repeat:
 		} else {
 			/* jnode has assigned block which is counted as "fake
 			   allocated". Return it back to "free blocks") */
-			fake_allocated2free((__u64) 1, 1 /*formatted */ );
+			fake_allocated2free((__u64) 1, BA_FORMATTED);
 		}
 	}
 
