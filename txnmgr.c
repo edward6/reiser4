@@ -1146,10 +1146,10 @@ flush_this_atom(txn_atom * atom, long *nr_submitted, int flags)
 		ret = jnode_flush(first_dirty, NULL, flags);
 
 		jput(first_dirty);
-
 		if (ret < 0) {
 			info("jnode_flush failed with err = %d\n", ret);
 		} else {
+		/* please cut the dead code below, it can always be found in bk */
 
 			/* we count number of blocks submitted by this jnode_flush call */
 			/* FIXME-ZAM: txn_end() may submit more blocks we should count them too */
