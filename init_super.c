@@ -18,6 +18,7 @@
 #include "emergency_flush.h"
 #include "prof.h"
 #include "safe_link.h"
+#include "plugin/dir/dir.h"
 
 #include <linux/errno.h>
 #include <linux/types.h>
@@ -323,6 +324,18 @@ _INIT_(sb_counters)
 
 _DONE_EMPTY(sb_counters)
 
+_INIT_(d_cursor)
+{
+	/* this should be done before reading inode of root directory, because
+	 * reiser4_iget() used load_cursors(). */
+	return d_cursor_init_at(s);
+}
+
+_DONE_(d_cursor)
+{
+	d_cursor_done_at(s);
+}
+
 static struct {
 	reiser4_plugin_type type;
 	reiser4_plugin_id   id;
@@ -479,6 +492,7 @@ static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(formatted_fake),
 	_SUBSYS(disk_format),
 	_SUBSYS(sb_counters),
+	_SUBSYS(d_cursor),
 	_SUBSYS(fs_root),
 	_SUBSYS(sysfs),
 	_SUBSYS(safelink),
