@@ -471,7 +471,7 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 	   support is to commit only atoms which contain dirty pages from given
 	   address space. */
 	if (wbc->sync_mode != WB_SYNC_NONE)
-		txnmgr_force_commit_all(sb);
+		txnmgr_force_commit_all(sb, 0);
 
 	/*XXXX*/written = 0;
 	/*XXXX*/to_write = wbc->nr_to_write;
@@ -1473,7 +1473,7 @@ reiser4_write_super(struct super_block *s)
 
 	init_context(&ctx, s);
 	reiser4_stat_inc(vfs_calls.write_super);
-	ret = txnmgr_force_commit_all(s);
+	ret = txnmgr_force_commit_all(s, 1);
 	if (ret != 0)
 		warning("jmacd-77113", 
 			"txn_force failed in write_super: %d", ret);

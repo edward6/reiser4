@@ -118,7 +118,7 @@ release_test_format(struct super_block *s)
 	test_disk_super_block *disk_sb;
 	int ret;
 
-	if ((ret = txnmgr_force_commit_all(s))) {
+	if ((ret = txnmgr_force_commit_all(s, 1))) {
 		warning("jmacd-7711", "txn_force failed in umount: %d", ret);
 	}
 

@@ -1152,16 +1152,16 @@ int txnmgr_force_commit_current_atom (void)
 	return force_commit_atom_nolock(txnh);
 } 
 
-/* Called to force commit of any outstanding atoms.  
-ZAM-FIXME-HANS: comment in more detail on the comment below.
-Later this should be
-   improved to not to wait indefinitely if new atoms are created. */
-int txnmgr_force_commit_all (struct super_block *super)
+/* Called to force commit of any outstanding atoms.  @commit_new_atoms controls
+ * should we commit new atoms which are created after this functions is
+ * called. */
+int txnmgr_force_commit_all (struct super_block *super, int commit_new_atoms)
 {
 	int ret;
 	txn_atom *atom;
 	txn_mgr *mgr;
 	txn_handle *txnh;
+	unsigned long start_time = jiffies;
 	reiser4_context * ctx = get_current_context();
 
 	assert("nikita-2965", lock_stack_isclean(get_current_lock_stack()));
@@ -1184,7 +1184,11 @@ again:
 	for_all_tslist(atom, &mgr->atoms_list, atom) {
 		LOCK_ATOM(atom);
 
-		if (atom->stage < ASTAGE_PRE_COMMIT) {
+		/* Commit any atom which can be committed.  If @commit_new_atoms
+		 * is not set we commit only atoms which were created before
+		 * this call is started. */
+		if (atom->stage < ASTAGE_PRE_COMMIT && 
+		    (!commit_new_atoms || (atom->start_time <= start_time))) {
 			spin_unlock_txnmgr(mgr);
 			LOCK_TXNH(txnh);
 
@@ -1202,7 +1206,7 @@ again:
 	}
 
 #if REISER4_DEBUG
-	{
+	if (commit_new_atoms) {
 		reiser4_super_info_data * sbinfo = get_super_private(super);
 		reiser4_spin_lock_sb(sbinfo);
 		assert("zam-813", sbinfo->blocks_fake_allocated_unformatted == 0);

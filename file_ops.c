@@ -350,7 +350,7 @@ reiser4_fsync(struct file *file UNUSED_ARG,
 	reiser4_context ctx;
 
 	init_context(&ctx, dentry->d_inode->i_sb);
-	result = txnmgr_force_commit_all(dentry->d_inode->i_sb);
+	result = txnmgr_force_commit_all(dentry->d_inode->i_sb, 0);
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;

@@ -350,7 +350,7 @@ release_format40(struct super_block *s)
 		warning("vs-898", "capture_super_block failed in umount: %d", ret);
 	}
 
-	if ((ret = txnmgr_force_commit_all(s))) {
+	if ((ret = txnmgr_force_commit_all(s, 1))) {
 		warning("jmacd-74438", "txn_force failed in umount: %d", ret);
 	}
 

@@ -386,7 +386,7 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 
 			ON_TRACE(TRACE_RESERVE2, "force commit!..");
 
-			ret = txnmgr_force_commit_all(ctx->super);
+			ret = txnmgr_force_commit_all(ctx->super, 0);
 			if (ret != 0)
 				reiser4_panic("umka-1272", "Can't commit transactions during block allocation\n");
 
