@@ -326,18 +326,19 @@ int unix_file_readpage (struct file * file, struct page * page)
 }
 
 
+
+
 /* plugin->u.file.read */
-/* Audited by: green(2002.06.15) */
-ssize_t unix_file_read (struct file * file, char * buf, size_t size,
+ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 			loff_t * off)
 {
 	int result;
 	struct inode * inode;
 	coord_t coord;
 	lock_handle lh;
-	size_t to_read;
+	size_t to_read;		/* do we really need both this and read_amount? */
 	item_plugin * iplug;
-	flow_t f;
+	sink_t userspace_sink;
 
 
 	/* collect statistics on the number of reads */
@@ -352,16 +353,14 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 	/* this should now be called userspace_sink_build, now that we have
 	 * both sinks and flows.  See discussion of sinks and flows in
 	 * www.namesys.com/v4/v4.html */
-	result = common_build_flow (inode, buf, 1/* user space */, size,
+	result = userspace_sink_build (inode, buf, 1/* user space */, read_amount,
 				    *off, READ_OP, &f);
 	if (result)
 		return result;
 
 	get_nonexclusive_access (inode);
 	
-#if YOU_CAN_COMPILE_PSEUDO_CODE
-	call_code resembling generic_readahead in its algorithms but which modifies to_read;
-#endif
+	intrafile_readahead_amount = unix_file_readahead(struct file * file, off, read_amount);
 	
 	coord_init_zero (&coord);
 	init_lh (&lh);
@@ -372,7 +371,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 			/* do not read out of file */
 			break;
 
-		/* find_next_item tries hard to avoid tree traversal */
+		/* coord will point to current item on entry and next item on exit */
 		result = find_next_item (file, &f.key, &coord, &lh,
 					 ZNODE_READ_LOCK);
 		if (result != CBK_COORD_FOUND)
@@ -386,16 +385,36 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 			result = -EINVAL;
 			break;
 		}
-		/* use generic read ahead if item has readpage
-		 * method */
-		if (iplug->s.file.readpage)
-			page_cache_readahead (file,
-					      (unsigned long)(get_key_offset (&f.key) >> PAGE_CACHE_SHIFT));
 		
 		result = iplug->s.file.read (inode, &coord, &lh, &f);
 		if (result)
 			break;
 	}
+
+	while (intrafile_readahead_amount) {
+			if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
+			/* do not read out of file */
+			break;		/* coord will point to current item on entry and next item on exit */
+		readahead_result = find_next_item (file, &f.key, &coord, &lh,
+					 ZNODE_READ_LOCK);
+		if (readahead_result != CBK_COORD_FOUND)
+			/* item had to be found, as it was not - we have
+			 * -EIO */
+			break;
+
+		/* call readahead method of found item */
+		iplug = item_plugin_by_coord (&coord);
+		if (!iplug->s.file.readahead) {
+			readahead_result = -EINVAL;
+			break;
+		}
+		
+		readahead_result = iplug->s.file.readahead (inode, &coord, &lh, &intrafile_readahead_amount);
+		if (readahead_result)
+			break;
+	}
+
+	unix_file_interfile_readahead(struct file * file, off, read_amount, coord);
 
 	done_lh (&lh);
 	if( to_read - f.length ) {
@@ -413,7 +432,39 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 	/* update position in a file */
 	*off += (to_read - f.length);
 	/* return number of read bytes or error code if nothing is read */
+
+/* VS-FIXME-HANS: readahead_result needs to be handled here */
 	return (to_read - f.length) ? (to_read - f.length) : result;
+}
+
+unix_file_interfile_readahead(struct file * file, off, read_amount, coord)
+{
+
+	interfile_readahead_amount = unix_file_interfile_readahead_amount(struct file * file, off, read_amount);
+
+	while (interfile_readahead_amount--)
+	{
+		right = get_right_neightbor(current);
+		if (right is just after current)
+		{
+			coord_dup(right, current);
+			zload(current);
+			
+		}
+		else {
+			break;
+/* VS-FIXME-HANS: insert some coord releasing code here */
+		}
+
+	}
+
+			
+}
+
+unix_file_interfile_readahead_amount(struct file * file, off, read_amount)
+{
+				/* current generic guess.  More sophisticated code can come later in v4.1+. */
+	return 8;
 }
 
 
