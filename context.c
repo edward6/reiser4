@@ -93,6 +93,33 @@ get_context_by_lock_stack(lock_stack * owner)
 	return (reiser4_context *) ((char *) owner - (int) (&((reiser4_context *) 0)->stack));
 }
 
+void balance_dirty_pages_at(reiser4_context * context)
+{
+	reiser4_super_info_data * sdata = get_super_private(context->super);
+
+	if (context->nr_marked_dirty != 0 && sdata->fake && 
+	    !(current->flags & PF_MEMALLOC) && !current_is_pdflush()) {
+		balance_dirty_pages(sdata->fake->i_mapping);
+	}
+}
+
+int reiser4_exit_context(reiser4_context * context)
+{
+        int result;
+
+	schedulable();
+
+	log_entry(context->super, ":ex");
+	/*
+	 * FIXME-ZAM: temporary
+	 */
+	if (context == context->parent)
+		balance_dirty_pages_at(context);
+	result = txn_end(context);
+	done_context(context);
+	return (result > 0) ? 0 : result;
+}
+
 /* release resources associated with context.
   
    This function should be called at the end of "session" with reiser4,
@@ -104,7 +131,7 @@ get_context_by_lock_stack(lock_stack * owner)
 */
 /* Audited by: umka (2002.06.16) */
 void
-done_context(reiser4_context * context /* context being released */ )
+done_context(reiser4_context * context /* context being released */)
 {
 	reiser4_context *parent;
 	assert("nikita-860", context != NULL);
@@ -117,20 +144,10 @@ done_context(reiser4_context * context /* context being released */ )
 	/* add more checks here */
 
 	if (parent == context) {
-		reiser4_super_info_data * sdata = get_super_private(context->super);
 		assert("jmacd-673", parent->trans == NULL);
 		assert("jmacd-1002", lock_stack_isclean(&parent->stack));
 		assert("nikita-1936", no_counters_are_held());
 		assert("nikita-2626", tap_list_empty(taps_list()));
-
-		if (context->nr_marked_dirty != 0 && sdata->fake 
-		    && !(current->flags & PF_MEMALLOC) && !current_is_pdflush())
-		{
-			/*
-			 * FIXME-ZAM: temporary
-			 */
-			balance_dirty_pages(sdata->fake->i_mapping);
-		}
 
 		if (context->grabbed_blocks != 0)
 			all_grabbed2free("done_context: free grabbed blocks");

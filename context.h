@@ -212,31 +212,21 @@ extern int write_in_trace(const char *func, const char *mes);
 #define REISER4_ENTRY_PTR(super)  __REISER4_ENTRY(super, ERR_PTR(__ret))
 #define REISER4_ENTRY(super)      __REISER4_ENTRY(super, __ret)
 
-#define __REISER4_EXIT(context)			\
-({						\
-        int __ret1;				\
-						\
-	schedulable();				\
-						\
-	log_entry((context)->super, ":ex");	\
-	__ret1 = txn_end(context);		\
-	done_context(context);			\
-        if (__ret1 > 0) __ret1 = 0;		\
-        __ret1;					\
+extern void balance_dirty_pages_at(reiser4_context * context);
+extern int reiser4_exit_context(reiser4_context * context);
+
+#define REISER4_EXIT( ret_exp )				\
+({							\
+	typeof ( ret_exp ) __result = ( ret_exp );	\
+        int __ret = reiser4_exit_context( &__context );	\
+	return __result ? : __ret;			\
 })
 
-#define REISER4_EXIT( ret_exp ) 		                       \
-({						                       \
-	typeof ( ret_exp ) __result = ( ret_exp );                     \
-        int __ret = __REISER4_EXIT( &__context );                      \
-	return __result ? : __ret;		                       \
-})
-
-#define REISER4_EXIT_PTR( ret_exp ) 		                       \
-({						                       \
-	typeof ( ret_exp ) __result = ( ret_exp );                     \
-        int __ret = __REISER4_EXIT( &__context );                      \
-	return IS_ERR (__result) ? __result : ERR_PTR (__ret);         \
+#define REISER4_EXIT_PTR( ret_exp )				\
+({								\
+	typeof ( ret_exp ) __result = ( ret_exp );		\
+        int __ret = reiser4_exit_context( &__context );		\
+	return IS_ERR (__result) ? __result : ERR_PTR (__ret);	\
 })
 
 

@@ -442,7 +442,7 @@ reiser4_truncate(struct inode *inode /* inode to truncate */ )
 	/* for mysterious reasons ->truncate() VFS call doesn't return
 	   value  */
 
-	__REISER4_EXIT(&__context);
+	(void)reiser4_exit_context(&__context);
 }
 
 /* return number of files in a filesystem. It is used in reiser4_statfs to
@@ -1144,7 +1144,7 @@ reiser4_d_release(struct dentry *dentry /* dentry released */ )
 {
 	__REISER4_ENTRY(dentry->d_sb,);
 	reiser4_free_dentry_fsdata(dentry);
-	__REISER4_EXIT(&__context);
+	(void)reiser4_exit_context(&__context);
 }
 
 /* Return and lazily allocate if necessary per-file data that we attach
@@ -1393,7 +1393,7 @@ reiser4_drop_inode(struct inode *object)
 
 		INODE_SET_FIELD(object, i_nlink, 0);
 		generic_delete_inode(object);
-		__REISER4_EXIT(&__context);
+		(void)reiser4_exit_context(&__context);
 	} else
 		generic_forget_inode(object);
 }
@@ -1413,7 +1413,7 @@ reiser4_delete_inode(struct inode *object)
 
 	object->i_blocks = 0;
 	clear_inode(object);
-	__REISER4_EXIT(&__context);
+	(void)reiser4_exit_context(&__context);
 }
 
 /* Audited by: umka (2002.06.12) */
@@ -2161,7 +2161,7 @@ reiser4_kill_super(struct super_block *s)
 
 out:
 	/* no assertions below this line */
-	__REISER4_EXIT(&context);
+	(void)reiser4_exit_context(&context);
 
 	kfree(info);
 	s->s_fs_info = NULL;
@@ -2180,7 +2180,7 @@ reiser4_write_super(struct super_block *s)
 	/* Oleg says do this: */
 	s->s_dirt = 0;
 
-	__REISER4_EXIT(&__context);
+	(void)reiser4_exit_context(&__context);
 }
 
 /* ->get_sb() method of file_system operations. */
