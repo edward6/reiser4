@@ -79,7 +79,7 @@ static errno_t direntry40_estimate(uint32_t pos, reiserfs_item_hint_t *hint) {
 static errno_t direntry40_insert(reiserfs_direntry40_t *direntry, 
     uint32_t pos, reiserfs_item_hint_t *hint)
 {
-    uint32_t i, offset, len1, len2;
+    uint32_t i, offset, len_before, len_after;
     reiserfs_direntry_hint_t *direntry_hint;
     
     aal_assert("umka-791", direntry != NULL, return -1);
@@ -95,9 +95,10 @@ static errno_t direntry40_insert(reiserfs_direntry40_t *direntry,
     if (de40_get_count(direntry) > 0) {
 	char *name;
 	
-	if (pos < de40_get_count(direntry))
-	    offset = en40_get_offset(&direntry->entry[pos]);
-	else {
+	if (pos < de40_get_count(direntry)) {
+	    offset = en40_get_offset(&direntry->entry[pos]) + 
+		(direntry_hint->count * sizeof(reiserfs_entry40_t));
+	} else {
 	    offset = en40_get_offset(&direntry->entry[de40_get_count(direntry) - 1]);
 	
 	    name = (char *)((char *)direntry) + offset + 
@@ -110,29 +111,30 @@ static errno_t direntry40_insert(reiserfs_direntry40_t *direntry,
 	offset = sizeof(reiserfs_direntry40_t) + 
 	    direntry_hint->count * sizeof(reiserfs_entry40_t);
     
-    /* Updating offsets */
     if (direntry40_estimate(pos, hint))
 	return -1;
+    
+    /* Calculating length of areas to be moved */
+    len_before = (de40_get_count(direntry) - pos)*sizeof(reiserfs_entry40_t);
 	
-    len1 = (de40_get_count(direntry) - pos)*sizeof(reiserfs_entry40_t);
-	
-    for (i = 0; i < de40_get_count(direntry); i++) {
+    for (i = 0; i < pos; i++) {
         char *name = (char *)(((char *)direntry) + 
 	    en40_get_offset(&direntry->entry[i]) + 
 	    sizeof(reiserfs_objid_t));
 	    
-	len1 += aal_strlen(name) + sizeof(reiserfs_objid_t) + 1;
+	len_before += aal_strlen(name) + sizeof(reiserfs_objid_t) + 1;
     }
 	
-    len2 = 0;
+    len_after = 0;
     for (i = pos; i < de40_get_count(direntry); i++) {
 	char *name = (char *)(((char *)direntry) + 
 	    en40_get_offset(&direntry->entry[i]) + 
 	    sizeof(reiserfs_objid_t));
 	    
-	len2 += aal_strlen(name) + sizeof(reiserfs_objid_t) + 1;
+	len_after += aal_strlen(name) + sizeof(reiserfs_objid_t) + 1;
     }
 	
+    /* Updating offsets */
     for (i = 0; i < pos; i++) {
 	en40_set_offset(&direntry->entry[i], 
 	    en40_get_offset(&direntry->entry[i]) + 
@@ -144,16 +146,18 @@ static errno_t direntry40_insert(reiserfs_direntry40_t *direntry,
 	    en40_get_offset(&direntry->entry[i]) + hint->len);
     }
     
-    /* Preparing area for new unit headers and unit bodies */
-    aal_memmove(&direntry->entry[pos] + direntry_hint->count, 
-        &direntry->entry[pos], len1);
-	
+    /* Moving unit bodies */
     if (pos < de40_get_count(direntry)) {
-	
-	aal_memmove(((char *)direntry) + offset + hint->len - 
-	    sizeof(reiserfs_entry40_t), ((char *)direntry) + offset, len2);
+	uint32_t headers = (direntry_hint->count * sizeof(reiserfs_entry40_t));
+		
+	aal_memmove(((char *)direntry) + offset + hint->len - headers, 
+	    ((char *)direntry) + offset - headers, len_after + headers);
     }
     
+    /* Moving unit headers headers */
+    aal_memmove(&direntry->entry[pos] + direntry_hint->count, 
+        &direntry->entry[pos], len_before);
+	
     /* Creating new entries */
     for (i = 0; i < direntry_hint->count; i++) {
 	en40_set_offset(&direntry->entry[pos + i], offset);
@@ -166,11 +170,11 @@ static errno_t direntry40_insert(reiserfs_direntry40_t *direntry,
 	
 	offset += sizeof(reiserfs_objid_t);
 	
-	len1 = aal_strlen(direntry_hint->entry[i].name);
 	aal_memcpy((char *)(direntry) + offset, 
-	    direntry_hint->entry[i].name, len1);
+	    direntry_hint->entry[i].name, 
+	    aal_strlen(direntry_hint->entry[i].name));
 
-	offset += len1;
+	offset += aal_strlen(direntry_hint->entry[i].name);
 	*((char *)(direntry) + offset) = '\0';
 	offset++;
     }

@@ -182,9 +182,9 @@ int main(int argc, char *argv[]) {
     /* Building list of devices filesystem will be created on */
     for (; optind < argc; optind++) {
 	if (stat(argv[optind], &st) == -1) {
-	    if (progs_misc_size_check(argv[optind])) {
-		fs_len = (progs_misc_size_parse(argv[optind], &error));
-		if (!error && fs_len < blocksize) {
+	    fs_len = (progs_misc_size_parse(argv[optind], &error));
+	    if (!error) {
+		if (fs_len < blocksize) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Strange filesystem size has been detected (%s).", argv[optind]);
 		    goto error_free_libreiser4;
@@ -211,106 +211,108 @@ int main(int argc, char *argv[]) {
     /* The loop through all devices */
     aal_list_foreach_forward(walk, devices) {
     
-    host_dev = (char *)walk->item;
+	host_dev = (char *)walk->item;
     
-    if (stat(host_dev, &st) == -1)
-	goto error_free_libreiser4;
+	if (stat(host_dev, &st) == -1)
+	    goto error_free_libreiser4;
     
-    if (!S_ISBLK(st.st_mode)) {
-	if (!force) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Device \"%s\" is not block device. Use -f to force over.", host_dev);
-	    goto error_free_libreiser4;
+	if (!S_ISBLK(st.st_mode)) {
+	    if (!force) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Device \"%s\" is not block device. Use -f to force over.", host_dev);
+		goto error_free_libreiser4;
+	    }
+	} else {
+	    if (((IDE_DISK_MAJOR(MAJOR(st.st_rdev)) && MINOR(st.st_rdev) % 64 == 0) ||
+		(SCSI_BLK_MAJOR(MAJOR(st.st_rdev)) && MINOR(st.st_rdev) % 16 == 0)) && !force)
+	    {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Device \"%s\" is an entire harddrive, not just one partition.", host_dev);
+		goto error_free_libreiser4;
+	    }
 	}
-    } else {
-	if (((IDE_DISK_MAJOR(MAJOR(st.st_rdev)) && MINOR(st.st_rdev) % 64 == 0) ||
-	    (SCSI_BLK_MAJOR(MAJOR(st.st_rdev)) && MINOR(st.st_rdev) % 16 == 0)) && !force)
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Device \"%s\" is an entire harddrive, not just one partition.", host_dev);
-	    goto error_free_libreiser4;
-	}
-    }
    
-    /* Checking if passed partition is mounted */
-    if (progs_misc_dev_mounted(host_dev, NULL) && !force) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Device \"%s\" is mounted at the moment. Use -f to force over.", host_dev);
-	goto error_free_libreiser4;
-    }
+	/* Checking if passed partition is mounted */
+	if (progs_misc_dev_mounted(host_dev, NULL) && !force) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Device \"%s\" is mounted at the moment. Use -f to force over.", host_dev);
+	    goto error_free_libreiser4;
+	}
 
 #ifdef HAVE_UUID
-    if (aal_strlen(uuid) == 0)
-	uuid_generate(uuid);
+	if (aal_strlen(uuid) == 0)
+	    uuid_generate(uuid);
 #endif
 
-    /* Opening device */
-    if (!(device = aal_file_open(host_dev, blocksize, O_RDWR))) {
-	char *error = strerror(errno);
+	/* Opening device */
+	if (!(device = aal_file_open(host_dev, blocksize, O_RDWR))) {
+	    char *error = strerror(errno);
 	
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't open device \"%s\". %s.", host_dev, error);
-	goto error_free_libreiser4;
-    }
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't open device \"%s\". %s.", host_dev, error);
+	    goto error_free_libreiser4;
+	}
     
-    /* Preparing filesystem length */
-    dev_len = aal_device_len(device);
+	/* Preparing filesystem length */
+	dev_len = aal_device_len(device);
     
-    if (!fs_len)
-        fs_len = dev_len;
+	if (!fs_len)
+	    fs_len = dev_len;
 	
-    if (fs_len > dev_len) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Filesystem wouldn't fit into device %llu blocks long,"
-	    " %llu blocks required.", dev_len, fs_len);
-	goto error_free_device;
-    }
-
-    /* Checking for "quiet" mode */
-    if (!quiet) {
-	if (aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_YESNO, 
-		"All data on \"%s\" will be lost.", host_dev) == EXCEPTION_NO)
+	if (fs_len > dev_len) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Filesystem wouldn't fit into device %llu blocks long,"
+		" %llu blocks required.", dev_len, fs_len);
 	    goto error_free_device;
-    }
+	}
+
+	/* Checking for "quiet" mode */
+	if (!quiet) {
+	    if (aal_exception_throw(EXCEPTION_INFORMATION, EXCEPTION_YESNO, 
+		   "All data on \"%s\" will be lost.", host_dev) == EXCEPTION_NO)
+		goto error_free_device;
+	}
     
-    aal_gauge_rename("Creating reiser4 on \"%s\" with "
-	"\"%s\" profile", host_dev, profile->label);
-    aal_gauge_start();
+	aal_gauge_rename("Creating reiser4 on \"%s\" with "
+	    "\"%s\" profile", host_dev, profile->label);
+	aal_gauge_start();
 
-    /* Creating filesystem */
-    if (!(fs = reiserfs_fs_create(profile, device, blocksize, 
-	(const char *)uuid, (const char *)label, fs_len, device, NULL))) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't create filesystem on %s.", aal_device_name(device));
-	goto error_free_device;
-    }
+	/* Creating filesystem */
+	if (!(fs = reiserfs_fs_create(profile, device, blocksize, 
+	    (const char *)uuid, (const char *)label, fs_len, device, NULL))) 
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't create filesystem on %s.", aal_device_name(device));
+	    goto error_free_device;
+	}
 
-    /* Flushing all filesystem buffers onto the device */
-    if (reiserfs_fs_sync(fs)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize created filesystem.");
-	goto error_free_fs;
-    }
+	/* Flushing all filesystem buffers onto the device */
+	if (reiserfs_fs_sync(fs)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't synchronize created filesystem.");
+	    goto error_free_fs;
+	}
 
-    /* Synchronizing device */
-    if (aal_device_sync(device)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize device %s.", aal_device_name(device));
-	goto error_free_fs;
-    }
+	/* Synchronizing device */
+	if (aal_device_sync(device)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Can't synchronize device %s.", aal_device_name(device));
+	    goto error_free_fs;
+	}
 
-    /* Zeroing uuid in order to force mkfs to generate it on its own */
-    aal_memset(uuid, 0, sizeof(uuid));
+	/* 
+	    Zeroing uuid in order to force mkfs to generate it on its own for 
+	    next device form built device list.
+	*/
+	aal_memset(uuid, 0, sizeof(uuid));
 	
-    reiserfs_fs_close(fs);
-    
-    aal_gauge_done();
-    
-    aal_file_close(device);
-
+	reiserfs_fs_close(fs);
+	aal_file_close(device);
+	
+	aal_gauge_done();
     }
     
+    /* Freeing the all used objects */
     aal_gauge_free();
     aal_list_free(devices);
     libreiser4_done();

@@ -61,18 +61,6 @@ int main(int argc, char *argv[]) {
 	goto error_free_fs;
     }
     
-/*    {
-	reiserfs_entry_hint_t entry;
-
-	aal_memset(&entry, 0, sizeof(entry));
-	
-	entry.name = "2";
-	reiserfs_dir_add(object, &entry);
-	
-	entry.name = "1";
-	reiserfs_dir_add(object, &entry);
-    }*/
-    
     {
 	reiserfs_plugin_t *dir_plugin;
 	reiserfs_object_hint_t dir_hint;

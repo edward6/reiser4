@@ -21,6 +21,7 @@
 #define MB (KB * KB)
 #define GB (KB * MB)
 
+/* The all known profiles listed here */
 static reiserfs_profile_t reiser4profiles[] = {
     [0] = {
 	.label = "default40",
@@ -112,7 +113,7 @@ static reiserfs_profile_t reiser4profiles[] = {
     }
 };
 
-/* Converts string denoted a size into digits */
+/* Converts string denoted as size into digits */
 long int progs_misc_strtol(
     const char *str,	    /* string to be converted */
     int *error		    /* error will be stored here */
@@ -138,7 +139,7 @@ long int progs_misc_strtol(
     return result;
 }
 
-/* Converts human readable patition size like "256M" into digits */
+/* Converts human readable size string like "256M" into kb */
 unsigned long long progs_misc_size_parse(
     const char *str,		/* string to be converted */
     int *error			/* error will be stored here */
@@ -177,45 +178,38 @@ unsigned long long progs_misc_size_parse(
     return size;
 }
 
-/* Checks human readable size for validness */
-int progs_misc_size_check(
-    const char *str	    /* string to bwe checked */
-) {
-    int error = 0;
-
-    progs_misc_size_parse(str, &error);
-    return !error;
-}
-
 /* 
     Checking if specified partition is mounted. It is possible devfs is used, and 
     all devices are links like /dev/hda1 -> ide/host0/bus0/target0/lun0/part1. 
-    Therefore we use stat function, rather than lstat: stat(2) follows 
-    links and return stat information for link target. In this case it will return 
-    stat information for /dev/ide/host0/bus0/target0/lun0/part1 file. Then we just 
-    compare its st_rdev field with st_rdev filed of every device from /etc/mtab. If 
-    match occurs then we have device existing in /etc/mtab file, which is therefore 
-    mounted at the moment.
+    Therefore we use stat function, rather than lstat: stat(2) follows links and 
+    return stat information for link target. In this case it will return stat info 
+    for /dev/ide/host0/bus0/target0/lun0/part1 file. Then we compare its st_rdev 
+    field with st_rdev filed of every device from /proc/mounts. If match occurs then 
+    we have device existing in /proc/mounts file, which is therefore mounted at the 
+    moment.
 
     Also this function checks whether passed device mounted with specified options.
     Options string may look like "ro,noatime".
     
-    We are using stating of every mtab entry instead of just name comparing, because 
-    file /proc/mounts may contain as devices like /dev/hda1 as ide/host0/bus0/target0...
+    We are using stating of every mount entry instead of just name comparing, because 
+    file /proc/mounts may contain as devices like /dev/hda1 as ide/host0/bus0/targ...
 */
-int progs_misc_dev_mounted(const char *name, const char *mode)
-{
+int progs_misc_dev_mounted(
+    const char *name,	/* device name to be checked */
+    const char *mode	/* mount options for check */
+) {
     FILE *mnt;
     struct mntent *ent;
     struct stat giv_st;
     struct stat mnt_st;
-    struct statfs stfs;
+    struct statfs fs_st;
 
+    /* Stating given device */
     if (stat(name, &giv_st) == -1) 
 	return -1;
  
     /* Procfs magic is 0x9fa0 */
-    if (statfs("/proc", &stfs) == -1 || stfs.f_type != 0x9fa0) {
+    if (statfs("/proc", &fs_st) == -1 || fs_st.f_type != 0x9fa0) {
 	/* Proc is not mounted, check if it is the root partition. */
 	if (stat("/", &mnt_st) == -1) 
 	    return -1;
@@ -226,6 +220,7 @@ int progs_misc_dev_mounted(const char *name, const char *mode)
 	return -1;
     }
     
+    /* Going to check /proc/mounts */
     if (!(mnt = setmntent("/proc/mounts", "r")))
 	return -1;
     
@@ -233,10 +228,12 @@ int progs_misc_dev_mounted(const char *name, const char *mode)
 	if (stat(ent->mnt_fsname, &mnt_st) == 0) {
 	    if (mnt_st.st_rdev == giv_st.st_rdev) {
 		char *token;
+		
 		while (mode && (token = aal_strsep((char **)&mode, ","))) {
 		    if (!hasmntopt(ent, token))
 			goto error_free_mnt;
 		}
+		
 		endmntent(mnt);
 		return 1;
 	    }
