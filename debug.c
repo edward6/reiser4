@@ -255,7 +255,7 @@ update_prof_trace(reiser4_prof_cnt *cnt)
 
 	fill_backtrace(bt);
 
-	for (i = 0, hash = 0 ; i < REISER4_PROF_TRACE_DEPTH ; ++ i) {
+	for (i = 0, hash = 0 ; i < REISER4_BACKTRACE_DEPTH ; ++ i) {
 		hash <<= 4;
 		hash ^= (((unsigned long)bt[i]) >> 2);
 	}
@@ -271,7 +271,7 @@ update_prof_trace(reiser4_prof_cnt *cnt)
 			minind = i;
 		}
 	}
-	memcpy(&cnt->bt[minind].trace, &bt, sizeof bt);
+	memcpy(&cnt->bt[minind].path, bt, sizeof bt);
 	cnt->bt[minind].hash = hash;
 	cnt->bt[minind].hits = 1;
 }
@@ -316,11 +316,11 @@ show_prof_attr(struct super_block * s, reiser4_kattr * kattr,
 		    val->noswtch_nr, val->noswtch_total, val->noswtch_max,
 		    val->jiffies);
 #ifdef CONFIG_FRAME_POINTER
-	for (i = 0 ; i < REISER4_PROF_TRACE_NUM ; ++ i) {
+	for (i = 0 ; i < REISER4_BACKTRACE_DEPTH ; ++ i) {
 		int j;
 
 		KATTR_PRINT(p, buf, "\t%llu: ", val->bt[i].hits);
-		for (j = 0 ; j < REISER4_PROF_TRACE_DEPTH ; ++ j) {
+		for (j = 0 ; j < REISER4_BACKTRACE_DEPTH ; ++ j) {
 			char         *module;
 			const char   *name;
 			char          namebuf[128];
@@ -328,7 +328,7 @@ show_prof_attr(struct super_block * s, reiser4_kattr * kattr,
 			unsigned long offset;
 			unsigned long size;
 
-			address = (unsigned long) val->bt[i].trace[j];
+			address = (unsigned long) val->bt[i].path[j];
 			name = kallsyms_lookup(address, &size, 
 					       &offset, &module, namebuf);
 			KATTR_PRINT(p, buf, "0x%lx ", address);
