@@ -68,7 +68,6 @@ static aal_block_t *reiserfs_format40_super_open(aal_device_t *device) {
 static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *host_device, 
     aal_device_t *journal_device) 
 {
-    uint16_t oid_offset;
     reiserfs_format40_t *format;
     reiserfs_plugin_t *journal_plugin;
     reiserfs_plugin_t *alloc_plugin;
@@ -130,14 +129,13 @@ static reiserfs_format40_t *reiserfs_format40_open(aal_device_t *host_device,
     }
     
     /* Initializing oid allocator on super block */
-    reiserfs_check_method(oid_plugin->oid, open, goto error_free_journal);
-    
-    oid_offset = (void *)(&(((reiserfs_format40_super_t *)format->super->data)->sb_oid)) -
-	format->super->data;
-	    
-    if (!(format->oid = oid_plugin->oid.open(format->super, oid_offset))) {
+    reiserfs_check_method(oid_plugin->oid, init, goto error_free_journal);
+    if (!(format->oid = oid_plugin->oid.init(
+	get_sb_oid((reiserfs_format40_super_t *)format->super), 
+	get_sb_file_count((reiserfs_format40_super_t *)format->super)))) 
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open oid allocator \"%s\".", oid_plugin->h.label);
+	    "Can't initialize oid allocator \"%s\".", oid_plugin->h.label);
 	goto error_free_journal;
     }
     
@@ -199,8 +197,11 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
 	return -1;
     }
     
-    reiserfs_check_method(plugin->oid, sync, return -1);
-    plugin->oid.sync(format->oid);
+    reiserfs_check_method(plugin->oid, next, return -1);
+    set_sb_oid((reiserfs_format40_super_t *)format->super, plugin->oid.next(format->oid));
+    
+    reiserfs_check_method(plugin->oid, used, return -1);
+    set_sb_file_count((reiserfs_format40_super_t *)format->super, plugin->oid.used(format->oid));
     
     if (aal_device_write_block(format->device, format->super)) {
 	offset = aal_device_get_block_nr(format->device, format->super);
@@ -217,7 +218,6 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
     count_t blocks, aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
 {
     blk_t blk;
-    uint16_t oid_offset;
     reiserfs_format40_t *format;
     reiserfs_format40_super_t *super;
     
@@ -252,6 +252,8 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 
     /* The same as smallest oid */
     set_sb_file_count(super, 2);
+    set_sb_oid(super, REISERFS_FORMAT40_OID_RESERVED);
+    
     set_sb_flushes(super, 0);
 
     if (!(alloc_plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 
@@ -300,10 +302,10 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
     }
 
     /* Marking journal blocks as used */
-    alloc_plugin->alloc.mark(format->alloc, (REISERFS_JOURNAL40_HEADER / 
+    alloc_plugin->alloc.mark(format->alloc, (REISERFS_FORMAT40_JOURNAL_HEADER / 
 	aal_device_get_blocksize(host_device)));
     
-    alloc_plugin->alloc.mark(format->alloc, (REISERFS_JOURNAL40_FOOTER / 
+    alloc_plugin->alloc.mark(format->alloc, (REISERFS_FORMAT40_JOURNAL_FOOTER / 
 	aal_device_get_blocksize(host_device)));
     
     if (!(oid_plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
@@ -314,14 +316,13 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 	goto error_free_journal;
     }
     
-    reiserfs_check_method(oid_plugin->oid, create, goto error_free_journal);
-    
-    oid_offset = (void *)(&(((reiserfs_format40_super_t *)format->super->data)->sb_oid)) -
-	format->super->data;
-	    
-    if (!(format->oid = oid_plugin->oid.create(format->super, oid_offset))) {
+    reiserfs_check_method(oid_plugin->oid, init, goto error_free_journal);
+    if (!(format->oid = oid_plugin->oid.init(
+	get_sb_oid((reiserfs_format40_super_t *)format->super), 
+	get_sb_file_count((reiserfs_format40_super_t *)format->super)))) 
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't create oid allocator \"%s\".", oid_plugin->h.label);
+	    "Can't initialize oid allocator \"%s\".", oid_plugin->h.label);
 	goto error_free_journal;
     }
     

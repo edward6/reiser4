@@ -11,43 +11,14 @@
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
-/* 
-    Oid allocator plugin's init functions accepts block where oid area 
-    lies and offset in this block. Oid area for oid40 plugin is just
-    64-bit counter at offset known to format plugin, which usualy 
-    initializing oid allocator plugin.
-
-    As block oid area lies in may be super block in theory, "sync"
-    function just updates own oid area and return control to caller.
-*/
-static reiserfs_opaque_t *reiserfs_oid40_open(aal_block_t *block, uint16_t offset) {
+static reiserfs_opaque_t *reiserfs_oid40_init(uint64_t next, uint64_t used) {
     reiserfs_oid40_t *oid;
 
-    aal_assert("umka-512", block != NULL, return NULL);
-    
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
 	return NULL;
     
-    oid->block = block;
-    oid->offset = offset;
-    oid->next = *((uint64_t *)(block->data + offset));
-    
-    return oid;
-}
-
-static reiserfs_opaque_t *reiserfs_oid40_create(aal_block_t *block, uint16_t offset) {
-    reiserfs_oid40_t *oid;
-
-    aal_assert("umka-511", block != NULL, return NULL);
-    
-    if (!(oid = aal_calloc(sizeof(*oid), 0)))
-	return NULL;
-    
-    oid->block = block;
-    oid->offset = offset;
-    oid->next = REISERFS_OID40_RESERVED;
-    
-    *((uint64_t *)(block->data + offset)) = oid->next;
+    oid->next = next;
+    oid->used = used;
     
     return oid;
 }
@@ -59,12 +30,14 @@ static void reiserfs_oid40_close(reiserfs_oid40_t *oid) {
 
 static uint64_t reiserfs_oid40_alloc(reiserfs_oid40_t *oid) {
     aal_assert("umka-513", oid != NULL, return 0);
+    oid->used++;
     return oid->next++;
 }
 
 static void reiserfs_oid40_dealloc(reiserfs_oid40_t *oid, uint64_t inode) {
     aal_assert("umka-528", oid != NULL, return);
     oid->next--;
+    oid->used--;
 }
 
 static uint64_t reiserfs_oid40_next(reiserfs_oid40_t *oid) {
@@ -72,11 +45,9 @@ static uint64_t reiserfs_oid40_next(reiserfs_oid40_t *oid) {
     return oid->next;
 }
 
-static error_t reiserfs_oid40_sync(reiserfs_oid40_t *oid) {
-    aal_assert("umka-514", oid != NULL, return -1);
-    
-    *((uint64_t *)(oid->block->data + oid->offset)) = oid->next;
-    return 0;
+static uint64_t reiserfs_oid40_used(reiserfs_oid40_t *oid) {
+    aal_assert("umka-530", oid != NULL, return 0);
+    return oid->used;
 }
 
 static reiserfs_plugin_t oid40_plugin = {
@@ -89,13 +60,14 @@ static reiserfs_plugin_t oid40_plugin = {
 	    .desc = "Inode allocator for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_block_t *, uint16_t))reiserfs_oid40_open,
-	.create = (reiserfs_opaque_t *(*)(aal_block_t *, uint16_t))reiserfs_oid40_create,
+	.init = (reiserfs_opaque_t *(*)(uint64_t, uint64_t))reiserfs_oid40_init,
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_oid40_close,
-	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_oid40_sync,
+	
 	.alloc = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_alloc,
 	.dealloc = (void (*)(reiserfs_opaque_t *, uint64_t))reiserfs_oid40_dealloc,
+	
 	.next = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_next,
+	.used = (uint64_t (*)(reiserfs_opaque_t *))reiserfs_oid40_used
     }
 };
 

@@ -70,3 +70,11 @@ uint64_t reiserfs_oid_next(reiserfs_fs_t *fs) {
     return fs->oid->plugin->oid.next(fs->oid->entity);
 }
 
+uint64_t reiserfs_oid_used(reiserfs_fs_t *fs) {
+    aal_assert("umka-526", fs != NULL, return 0);
+    aal_assert("umka-527", fs->oid != NULL, return 0);
+    
+    reiserfs_check_method(fs->oid->plugin->oid, used, return 0);
+    return fs->oid->plugin->oid.used(fs->oid->entity);
+}
+

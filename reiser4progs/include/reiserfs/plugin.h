@@ -243,16 +243,14 @@ typedef struct reiserfs_format_plugin reiserfs_format_plugin_t;
 struct reiserfs_oid_plugin {
     reiserfs_plugin_header_t h;
 
-    reiserfs_opaque_t *(*open) (aal_block_t *, uint16_t);
-    reiserfs_opaque_t *(*create) (aal_block_t *, uint16_t);
-    
+    reiserfs_opaque_t *(*init) (uint64_t, uint64_t);
     void (*close) (reiserfs_opaque_t *);
-    error_t (*sync) (reiserfs_opaque_t *);
     
     uint64_t (*alloc) (reiserfs_opaque_t *);
     void (*dealloc) (reiserfs_opaque_t *, uint64_t);
     
     uint64_t (*next) (reiserfs_opaque_t *);
+    uint64_t (*used) (reiserfs_opaque_t *);
 };
 
 typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;

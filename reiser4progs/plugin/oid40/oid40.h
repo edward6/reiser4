@@ -12,8 +12,7 @@
 #define REISERFS_OID40_RESERVED (1 << 16)
 
 struct reiserfs_oid40 {
-    aal_block_t *block;
-    uint16_t offset;
+    uint64_t used;
     uint64_t next;
 };
 
