@@ -2125,6 +2125,8 @@ update_taps(const struct shift_params *shift)
 	}
 }
 
+ON_DEBUG_MODIFY(extern __u32 znode_checksum(const znode * node);)
+
 /* plugin->u.node.shift
    look for description of this method in plugin/node/node.h */
 reiser4_internal int
@@ -2142,7 +2144,7 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 
 	assert("nikita-2161", coord_check(from));
 
-	ON_DEBUG_MODIFY(znode_set_checksum(to, 0));
+	ON_DEBUG_MODIFY(znode_set_checksum(ZJNODE(to), 0));
 
 	xmemset(&shift, 0, sizeof (shift));
 	shift.pend = pend;
