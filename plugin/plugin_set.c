@@ -30,6 +30,23 @@ pseq(const atomic_t * a1, const atomic_t * a2)
 	plugin_set *set1;
 	plugin_set *set2;
 
+	/* make sure fields are not missed in the code below */
+	cassert(sizeof *set1 ==
+
+		sizeof set1->ref + 
+		sizeof set1->hashval + 
+		sizeof set1->link + 
+
+		sizeof set1->file + 
+		sizeof set1->dir + 
+		sizeof set1->perm + 
+		sizeof set1->tail + 
+		sizeof set1->hash + 
+		sizeof set1->sd + 
+		sizeof set1->dir_item + 
+		sizeof set1->crypto + 
+		sizeof set1->compression);
+
 	set1 = cast_to(a1);
 	set2 = cast_to(a2);
 	return 
@@ -54,13 +71,9 @@ pseq(const atomic_t * a1, const atomic_t * a2)
 	(hash) ^= (__u32)(set)->field;		\
 })
 
-static inline __u32
-pshash(const atomic_t * a)
+static inline __u32 calculate_hash(const plugin_set *set)
 {
-	plugin_set *set;
 	__u32 result;
-
-	set = cast_to(a);
 
 	result = 0;
 	HASH_FIELD(result, set, file);
@@ -75,6 +88,12 @@ pshash(const atomic_t * a)
 	return result & (PS_TABLE_SIZE - 1);
 }
 
+static inline __u32
+pshash(const atomic_t * a)
+{
+	return cast_to(a)->hashval;
+}
+
 /* The hash table definition */
 #define KMALLOC(size) kmalloc((size), GFP_KERNEL)
 #define KFREE(ptr, size) kfree(ptr)
@@ -85,6 +104,7 @@ TS_HASH_DEFINE(ps, plugin_set, atomic_t, ref, link, pshash, pseq);
 static ps_hash_table ps_table;
 static plugin_set empty_set = {
 	.ref                = ATOMIC_INIT(1),
+	.hashval            = 0,
 	.file               = NULL,
 	.dir                = NULL,
 	.perm               = NULL,
@@ -117,6 +137,7 @@ void plugin_set_put(plugin_set *set)
 	if (atomic_dec_and_lock(&set->ref, &plugin_set_lock)) {
 		assert("nikita-2899", set != &empty_set);
 		ps_hash_remove(&ps_table, set);
+		spin_unlock(&plugin_set_lock);
 		kmem_cache_free(plugin_set_slab, set);
 	}
 }
@@ -138,6 +159,7 @@ int plugin_set_field(plugin_set **set, void *val, int offset, int len)
 
 		replica = *(orig = *set);
 		xmemcpy(((char *)&replica) + offset, val, len);
+		replica.hashval = calculate_hash(&replica);
 		psal = NULL;
 		do {
 			spin_lock(&plugin_set_lock);
