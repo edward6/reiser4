@@ -956,64 +956,45 @@ static int
 capture_anonymous_page(struct page *pg, int keepme)
 {
 	struct address_space *mapping;
+	jnode *node;
 	int result;
 
+	if (PageWriteback(pg))
+		/* FIXME: do nothing? */
+		return 0;
+
 	mapping = pg->mapping;
-	result = 0;
-	if (PageWriteback(pg)) {
-		/* FIXME: do nothing? */;
-#if 0
-		if (PageDirty(pg))
-			list_move(&pg->list, &mapping->dirty_pages);
-		else
-			list_move(&pg->list, &mapping->locked_pages);
-#endif
-	} else if (!PageDirty(pg) && !keepme) {
-#if 0
-		list_move(&pg->list, &mapping->clean_pages);
-#endif
-		/* FIXME: do nothing? */;
-	} else {
-		jnode *node;
 
-		/*list_move(&pg->list, &mapping->io_pages);*/
-		page_cache_get(pg);
-		
-		/*spin_unlock_irq (&mapping->tree_lock);*/
-
-		lock_page(pg);
-		/* page is guaranteed to be in the mapping, because we are
-		 * operating under rw-semaphore. */
-		assert("nikita-3336", pg->mapping == mapping);
-		node = jnode_of_page(pg);
-		unlock_page(pg);
-		if (!IS_ERR(node)) {
-			result = jload(node);
-			assert("nikita-3334", result == 0);
-			assert("nikita-3335", jnode_page(node) == pg);
-			result = capture_page_and_create_extent(pg);
-			if (result == 0) {
-				/*
-				 * node will be captured into atom by
-				 * capture_page_and_create_extent(). Atom
-				 * cannot commit (because we have open
-				 * transaction handle), and node cannot be
-				 * truncated, because we have non-exclusive
-				 * access to the file.
-				 */
-				assert("nikita-3327", node->atom != NULL);
-				JF_CLR(node, JNODE_KEEPME);
-				result = 1;
-			} else
-				warning("nikita-3329",
-					"Cannot capture anon page: %i", result);
-			jrelse(node);
-			jput(node);
+	lock_page(pg);
+	/* page is guaranteed to be in the mapping, because we are operating under rw-semaphore. */
+	assert("nikita-3336", pg->mapping == mapping);
+	node = jnode_of_page(pg);
+	unlock_page(pg);
+	if (!IS_ERR(node)) {
+		result = jload(node);
+		assert("nikita-3334", result == 0);
+		assert("nikita-3335", jnode_page(node) == pg);
+		result = capture_page_and_create_extent(pg);
+		if (result == 0) {
+			/*
+			 * node will be captured into atom by
+			 * capture_page_and_create_extent(). Atom
+			 * cannot commit (because we have open
+			 * transaction handle), and node cannot be
+			 * truncated, because we have non-exclusive
+			 * access to the file.
+			 */
+			assert("nikita-3327", node->atom != NULL);
+			JF_CLR(node, JNODE_KEEPME);
+			result = 1;
 		} else
-			result = PTR_ERR(node);
-		page_cache_release(pg);
-		/*spin_lock_irq(&mapping->tree_lock);*/
-	}
+			warning("nikita-3329",
+				"Cannot capture anon page: %i", result);
+		jrelse(node);
+		jput(node);
+	} else
+		result = PTR_ERR(node);
+
 	return result;
 }
 
@@ -1070,9 +1051,9 @@ capture_anonymous_jnodes(struct inode *inode)
 			jput(node);
 			if (result != 0)
 				return result;
-			/*spin_lock_irq(&inode->i_mapping->tree_lock);*/
+
 			result = capture_anonymous_page(jnode_page(node), keepme);
-			/*spin_unlock_irq(&inode->i_mapping->tree_lock);*/
+
 			jrelse(node);
 			spin_lock_eflush(tree->super);
 
@@ -1102,41 +1083,55 @@ capture_anonymous_jnodes(struct inode *inode)
 #endif /* REISER4_USE_EFLUSH */
 
 static int
-capture_anonymous_pages(struct address_space *mapping)
+capture_anonymous_pages(struct address_space *mapping, pgoff_t *index)
 {
 	int result;
 	int nr;
-	unsigned long from; /* start index for radix_tree_gang_lookup */
 	unsigned int found; /* return value for radix_tree_gang_lookup */
 
 	result = 0;
 	nr = 0;	
 
-	from = 0;
-
 	spin_lock_irq(&mapping->tree_lock);
 
-	while (result == 0 && nr < CAPTURE_APAGE_BURST) {
+	while (nr < CAPTURE_APAGE_BURST) {
 		struct page *pg;
 
-		/* look for dirty pages only */
-		found = radix_tree_gang_lookup_tag(&mapping->page_tree, (void **)&pg, from, 1, PAGECACHE_TAG_REISER4_MOVED);
+		/* look for page with index >= *index tagged as REISER4_MOVED */
+		found = radix_tree_gang_lookup_tag(&mapping->page_tree, (void **)&pg, *index, 1, 
+						   PAGECACHE_TAG_REISER4_MOVED);
 		assert("vs-1652", found < 2);
-		if (found == 0)
+		if (found == 0) {
+			/* there are no */
+			result = 0;
 			break;
+		}
 
-		assert("vs-1455", PageDirty(pg));
+		/* clear PAGECACHE_TAG_REISER4_MOVED tag so that other capture_anonymous_pages callers will not get this
+		   page */
+		radix_tree_tag_clear(&mapping->page_tree, pg->index, PAGECACHE_TAG_REISER4_MOVED);		
+
+		/* note that page can be not dirty if shrink_list sent it down to reiser4_writepage */
 
 		/* page may not leave radix tree because it is protected from truncating by unix file rw latch */
 		page_cache_get(pg);
 		spin_unlock_irq(&mapping->tree_lock);
 
-		from = pg->index + 1;
+		*index = pg->index + 1;
 
 		result = capture_anonymous_page(pg, 0);
-		if (result == 1) {
+		if (result == 1)
 			++ nr;
-			result = 0;
+		else if (result < 0) {
+			/* error happened, set PAGECACHE_TAG_REISER4_MOVED tag back */
+			page_cache_release(pg);
+			spin_lock_irq(&mapping->tree_lock);
+			radix_tree_tag_set(&mapping->page_tree,
+					   pg->index, PAGECACHE_TAG_REISER4_MOVED);
+			break;
+		} else {
+			/* result == 0. capture_anonymous_page returns 0 for Writeback-ed page */
+			;
 		}
 
 		page_cache_release(pg);
@@ -1149,7 +1144,8 @@ capture_anonymous_pages(struct address_space *mapping)
 		return result;
 	}
 
-	if (nr >= CAPTURE_APAGE_BURST)
+	if (nr == CAPTURE_APAGE_BURST)
+		/* there may be left more pages */
 		redirty_inode(mapping->host);
 
 #if REISER4_USE_EFLUSH
@@ -1360,12 +1356,13 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 {
 	int               result;
 	unix_file_info_t *uf_info;
+	pgoff_t index;
 
 	if (!inode_has_anonymous_pages(inode))
 		return 0;
 
 	result = 0;
-
+	index = 0;
 	do {
 		reiser4_context ctx;
 
@@ -1397,7 +1394,7 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 
 		LOCK_CNT_INC(inode_sem_r);
 
-		result = capture_anonymous_pages(inode->i_mapping);
+		result = capture_anonymous_pages(inode->i_mapping, &index);
 		rw_latch_up_read(&uf_info->latch);
 		LOCK_CNT_DEC(inode_sem_r);
 		if (result != 0 || wbc->sync_mode != WB_SYNC_ALL) {
@@ -1406,7 +1403,8 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 		}
 		result = commit_file_atoms(inode);
 		reiser4_exit_context(&ctx);
-	} while (result == 0 && inode_has_anonymous_pages(inode));
+	} while (result == 0 && inode_has_anonymous_pages(inode) /* FIXME: it should be: there are anonymous pages with
+								    page->index >= index */);
 
 	return result;
 }
