@@ -391,10 +391,6 @@ reiser4_key * tail_max_key (const coord_t * coord, reiser4_key * key)
 int tail_key_in_item (coord_t * coord, const reiser4_key * key)
 {
 	reiser4_key item_key;
-	unsigned i, nr_units;
-	__u64 offset;
-	reiser4_extent * ext;
-
 
 	assert ("vs-778", coord_is_existing_item (coord));
 
