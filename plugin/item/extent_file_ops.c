@@ -626,8 +626,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	/* offset within the page */
 	page_off = (unsigned long)(file_off & (PAGE_CACHE_SIZE - 1));
 
-	clog_op(EXTENT_WRITE_IN, (void *)(unsigned long)oid, (void *)(unsigned long)file_off);
-
 	/* key of first byte of page */
 	page_key = flow->key;
 	set_key_offset(&page_key, (loff_t)page_nr << PAGE_CACHE_SHIFT);
@@ -644,7 +642,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		write_page_log(inode->i_mapping, page_nr);
 
-		clog_op(EXTENT_WRITE_IN2, (void *)get_current_lock_stack()->nr_locks, 0);
 		result = make_extent(&page_key, uf_coord, mode, &blocknr, &created, inode/* check quota */);
 		if (result) {
 			goto exit1;
@@ -720,7 +717,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
 
 		/* copy user data into page */
-		clog_op(EXTENT_WRITE_OUT2, (void *)get_current_lock_stack()->nr_locks, 0);
 		result = __copy_from_user((char *)kmap(page) + page_off, flow->data - count, count);
 		kunmap(page);
 		if (unlikely(result)) {
@@ -799,7 +795,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
 */
 
-	clog_op(EXTENT_WRITE_OUT, (void *)(unsigned long)oid, (void *)result);
 	return result;
 }
 

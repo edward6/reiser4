@@ -146,10 +146,8 @@ struct reiser4_context {
 	err_site err;
 	/* information about delayed stat data updates. See above. */
 	dirty_inode_info dirty;
-
-	void *mjd_bt[6]; /* last mark jnode dirty backtrace */
-	int count;
 #endif
+
 #if REISER4_TRACE
 	/* per-thread tracing flags. Use reiser4_trace_flags enum to set
 	   bits in it. */

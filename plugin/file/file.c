@@ -1472,8 +1472,6 @@ readpage_unix_file(void *vp, struct page *page)
 	if (result)
 		return result;
 
-	clog_op(READPAGE_IN, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
-
 	/* get key of first byte of the page */
 	key_by_inode_unix_file(inode, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
 
@@ -1490,7 +1488,6 @@ readpage_unix_file(void *vp, struct page *page)
 	if (PageUptodate(page)) {
 		done_lh(&lh);
 		unlock_page(page);
-		clog_op(READPAGE_OUT, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
 		return 0;
 	}
 	
@@ -1535,7 +1532,6 @@ readpage_unix_file(void *vp, struct page *page)
 	save_file_hint(file, &hint);
 
 	assert("vs-979", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
-	clog_op(READPAGE_OUT, (void *)(unsigned long)get_inode_oid(inode), (void *)page->index);
 
 	return result;
 }

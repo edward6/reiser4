@@ -543,9 +543,7 @@ typedef struct err_site {} err_site;
 #define OP_NUM 10
 
 void clog_op(int op, void *, void *);
-void clog_link_object(int op, void *, void *);
 void print_clog(void);
-void print_symname(unsigned long address);
 
 /* __FS_REISER4_DEBUG_H__ */
 #endif

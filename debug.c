@@ -637,7 +637,6 @@ typedef struct {
 	int op;
 	void *data1;
 	void *data2;
-	unsigned long data[6];
 } clog_t;
 
 clog_t clog[CLOG_LENGTH];
@@ -672,39 +671,6 @@ clog_op(int op, void *data1, void *data2)
 	spin_unlock(&clog_lock);
 }
 
-/* this is to log lock/unlock */
-void
-clog_link_object(int op, void *data1, void *data2)
-{
-	int idx;
-
-	spin_lock(&clog_lock);
-	
-	if (clog_length == CLOG_LENGTH) {
-		idx = clog_start;
-		clog_start ++;
-		clog_start %= CLOG_LENGTH;
-	} else {
-		idx = clog_length;
-		assert("vs-1672", clog_start == 0);
-		clog_length ++;		
-	}
-		
-	clog[idx].id = clog_id ++;
-	clog[idx].op = op;
-	clog[idx].pid = current->pid;
-	clog[idx].data[0] = (unsigned long)__builtin_return_address(1);
-	clog[idx].data[1] = (unsigned long)__builtin_return_address(2);
-	clog[idx].data[2] = (unsigned long)__builtin_return_address(3);
-	clog[idx].data[3] = (unsigned long)__builtin_return_address(4);
-	clog[idx].data[4] = (unsigned long)__builtin_return_address(5);
-	clog[idx].data[5] = (unsigned long)__builtin_return_address(6);
-	clog[idx].data1 = data1;
-	clog[idx].data2 = data2;
-	spin_unlock(&clog_lock);
-}
-
-
 static const char *
 op2str(int op)
 {
@@ -727,25 +693,19 @@ op2str(int op)
 void
 print_clog(void)
 {
-	int i, j, k;
+	int i, j;
 
 	j = clog_start;
 	for (i = 0; i < clog_length; i ++) {
-		if (clog[j].op == LINK_OBJECT || clog[j].op == UNLINK_OBJECT) {
-			printk("%d(%d): id %d: pid %d, op %s, locks %p [",
-			       i, j, clog[j].id, clog[j].pid, op2str(clog[j].op), clog[j].data1);
-			for (k = 0; k < 6; k ++)
-				print_symname(clog[j].data[k]);
-			printk("]\n");
-		} else
-			printk("%d(%d): id %d: pid %d, op %s, data1 %p, data2 %p\n",
-			       i, j, clog[j].id, clog[j].pid, op2str(clog[j].op), clog[j].data1, clog[j].data2);
+		printk("%d(%d): id %d: pid %d, op %s, data1 %p, data2 %p\n",
+		       i, j, clog[j].id, clog[j].pid, op2str(clog[j].op), clog[j].data1, clog[j].data2);
 		j ++;
 		j %= CLOG_LENGTH;
 	}
 	printk("clog length %d\n", clog_length);
 }
 
+#if 0
 void
 print_symname(unsigned long address)
 {
@@ -759,6 +719,7 @@ print_symname(unsigned long address)
 	if (name != NULL)
 		printk("  %s[%lx/%lx]", name, offset, size);
 }
+#endif
 
 /* Make Linus happy.
    Local variables:
