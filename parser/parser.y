@@ -648,7 +648,7 @@ allocate()
 {
 }
 
-reinitial()
+reinitial(struct yy_r4_work_spaces * ws)
 {
 	int i;
 	i=(sizeof(struct var)   * NVAR + sizeof(struct streg) * MAXNEST);
@@ -661,7 +661,7 @@ reinitial()
 	inline  =                     maxtab;
 	maxbuf  =                     maxtab+(MAXBUF);
 
-	pline   = inline;
+	ws->ws_pline   = ws->ws_inline;
 
 
 	yyerrco =  0;
@@ -674,7 +674,7 @@ reinitial()
 	newvar(0);
 }
 
-initial()
+initial(struct yy_r4_work_spaces * ws)
 {
 	int i;
 	reinitial();
@@ -682,28 +682,29 @@ initial()
 
 
 
-insymbol()
+char * insymbol( struct yy_r4_work_spaces * ws )
 {
-	int eof;
-	s=pline++;
-	eof=0;
-	if ( !( *s) ) eof=1;
-	return(eof);
+	( ws->ws_pline ) ++;
+	if ( !( *ws->ws_pline) ) return NULL;
+	else                     return ws->ws_pline;
 }
 
 
-lexem()
+lexem(struct yy_r4_work_spaces * ws )
 {
 	unsigned char term,n,i;
 	int l,m;
 	int ret;
 	term=1;
+	int cls;
+	int lcls;
+	char * s ;
 
-	if (insymbol()) return(0);                      /* first symbl  */
+	if ( ( s = insymbol( ws ) ) == NULL ) return(0);                      /* first symbl  */
 
-	while ( ncl[*s]==6 )
+	while ( ncl[*s] == 6 )
 		{
-		if (insymbol()) return(0);              /* skip blank   */
+		if ( ( s = insymbol( ws ) ) == NULL ) return(0);              /* skip blank   */
 		}
 
 
@@ -711,22 +712,23 @@ lexem()
 	yytext  = s;
 	while( term )
 		{
-		while ( ( n = lexcls[ lcls ][ i=ncl[ *pline ] ] ) > 0 && n < 128)
+		while ( ( n = lexcls[ lcls ][ i=ncl[ * s ] ] ) > 0 && n < 128)
 			{
-			insymbol();
+			s = insymbol(ws);
 			lcls=n;
 			}
 		n=-n;
+
 		switch (n)
 			{
 			case 0:
-				yyerror ( 2222, (lcls-1)* 20+i);
+				yyerror ( ws, 2222, (lcls-1)* 20+i);
 				return(0);
 			case 1:
 				term=0;
 				break;
 			default: 
-				yyerror ( 3333, (lcls-1)* 20+i);
+				yyerror ( ws, 3333, (lcls-1)* 20+i);
 				return(0);
 			}
 		}
@@ -745,9 +747,11 @@ lexem()
  * otherwise next term will owerwrite it
  *  freeSpace is a kernel space no need make getnam()
  */
-move_selected_word()
+move_selected_word(struct yy_r4_work_spaces * ws )
 {
 	int i,j;
+	char * s= ws->ws_pline;
+
 
 	for( tmpWrdEnd = freeSpace; yytext <= s; )
 		{
@@ -787,7 +791,7 @@ move_selected_word()
 										{
 											if ( tmpI & 1 )
 												{
-													yyerror(??); /* x format has odd number of symbols */
+													yyerror( ws, ?? ); /* x format has odd number of symbols */
 												}
 											tmpI = 0;
 										}
@@ -803,7 +807,7 @@ move_selected_word()
 			else *tmpWrdEnd++ = *yytext++;
 	                if( tmpWrdEnd > maxtab )
 		                {
-					yyerror(); /**Internal text buffer overflow./
+					yyerror( ws ); /* Internal text buffer overflow */
 					exit();
 		                }
                 }
@@ -812,7 +816,7 @@ move_selected_word()
 
 
 
-b_check_word()
+b_check_word(struct yy_r4_work_spaces * ws )
 {
 	int i, j, l;
 	j=sizeof(key)/4;
@@ -820,17 +824,17 @@ b_check_word()
 	while( ( j - l ) >= 0 )
 		{
 			i  =  ( j + l + 1 ) >> 1;
-			switch( strcmp( key[i].wrd, freeSpace ) )
+			switch( strcmp( key[i].wrd, ws->ws_freeSpace ) )
 				{
 				case  0: return( key[i].class );  break;
 				case  1: j = i - 1;               break;
 				default: l = i + 1;               break;
 				}
-		}     
+		}
 	return(0);
 }
 
-inttab()
+inttab(struct yy_r4_work_spaces * ws )
 {
 	int i;
 	if (strco)
@@ -839,7 +843,7 @@ inttab()
 				{
 					return(i);
 				}
-	if( strco >= MAXSTRN )             yyerror(MaxStringsNumberOwerflow);
+	if( strco >= MAXSTRN )             yyerror( ws, MaxStringsNumberOwerflow);
 	wrdTab(strco) = freeSpace;
 	freeSpace = tmpWrdEnd;
 	return(strco++);
@@ -847,18 +851,7 @@ inttab()
 
 
 
-
-FILE * errf;
-struct {char cccc[40];} * nollpoit;
-
-
-out(char *msg,int x1,int x2,int x3,int x4,int x5,int x6,int x7,int x8)
-{
-	if (Pflag) printf(msg,x1,x2,x3,x4,x5,x6,x7,x8);
-}
-
-
-yyerror(nmsg,x1,x2,x3,x4,x5,x6,x7,x8)
+yyerror(struct yy_r4_work_spaces * ws , nmsg,x1,x2,x3,x4,x5,x6,x7,x8)
 int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 {
 	int i,j,k;
@@ -866,12 +859,12 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 	char far * fss;
 	char     * nss;
 
-	i=pline-inline;
+	i= ws->ws_pline - ws->ws_inline;
 	if (!freeSpace) freeSpace=malloc(1024);
 	if(i<0 || i>MAXLINE)
 		{
 			i=0;
-			*inline=0;
+			*ws->ws_inline=0;
 		}
 	if (!errf) errf=fopen(errfname,"r");
 	j=0;
@@ -891,8 +884,8 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 			printf("\n");
 			if (i)
 				for(i--;i;i--,j++)
-					printf( ( *(inline+j)=='\t' ) ? "\t" : " " );
-			printf("\n%s\n",inline);
+					printf( ( *(ws->ws_inline+j)=='\t' ) ? "\t" : " " );
+			printf("\n%s\n",ws->ws_inline);
 		}
 	if (j || yylineno[yyinlev] )  printf("FILE %-13s LINE %4d "
 					     , curfile [ yyinlev ]
@@ -902,13 +895,13 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 }
 
 
-	struct nameidata * nd;
 
 
-int pars_path_init()
+int pars_path_init(struct yy_r4_work_space * ws)
 {
-	if (current  is reiser4)
+	if (current "/"  is reiser4)
 		{
+
 		}
 	else
 		{
@@ -920,7 +913,7 @@ int pars_path_init()
 		}
 }
 
-int pars_path_walk(int name)
+int pars_path_walk(struct yy_r4_work_space * ws, int name)
 {
 	struct inode * inode;
 	int error;
@@ -970,26 +963,26 @@ int make_inode_from_plugin( r4_plugin , nd )
 		?	reiser4_plugin *lookup_plugin( char *type_label, char *plug_label );
 }
 
-getvar(int n,int def)
+getvar(struct yy_r4_work_space * ws, int n, int def)
 {                           /* def==1 declare variable  */
 	int i;                  /* def==0 find    variable  */
-	for( i=varco; i ; i-- )
+	for( i=ws->ws_varco; i ; i-- )
 		if(  Vare(i)==n ) break;
 	
 	if ( def  )
 		{
 			if ( i )
 				{
-					if( i > parco )  yyerror(???,wrdTab(n)); /* in use */
+					if( i > parco )  yyerror( ws, ???,wrdTab(n)); /* in use */
 					else
-						if(  !Varc(i)  ) yyerror(???,wrdTab(n)); /* in use */
+						if(  !Varc(i)  ) yyerror( ws, ???,wrdTab(n)); /* in use */
 				}
 			else
-				i = newvar(n);
+				i = newvar( ws, n);
 		}
 	else
 		{
-			if ( !i ) yyerror(???,wrdTab(n)); /* not defined*/
+			if ( !i ) yyerror( ws, ???,wrdTab(n)); /* not defined*/
 			else
 				{
 					Varn( i )|=USED;
@@ -998,15 +991,15 @@ getvar(int n,int def)
 	return( i );
 }
 
-newvar(int n)
+newvar(struct yy_r4_work_space * ws, int n)
 {
 	int i;
-	i=newtmp( getnam( n ) );
+	i=newtmp( ws, getnam( n ) );
 	Vare(i)     = n;
 	return(i);
 }
 
-newtmp(int n)
+newtmp(struct yy_r4_work_space * ws, int n)
 {
 	int i;
 	++varco;
@@ -1021,7 +1014,7 @@ newtmp(int n)
 	return(i);
 }
 
-lup(int s1)
+lup(struct yy_r4_work_space *ws, int s1)
 {
 	switch ( Slist   (level) )
 		{
@@ -1045,10 +1038,10 @@ lup(int s1)
 }
 
 
-ldw()
+ldw(struct yy_r4_work_space * ws)
 {
 	int i;
-	ldwl(1,level);
+	ldwl( ws, 1, level);
 	level--;
 }
 

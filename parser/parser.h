@@ -9,10 +9,77 @@
 typedef int YYSTYPE;
 #endif
 
+
+#define wrdTab(x)   ws->WrdTab[(x)]
+
+#define V_type(x)   ws->Var[(x)]->vtype
+#define V_extn(x)   ws->Var[(x)]->vextn
+#define V_levl(x)   ws->Var[(x)]->vlevel
+
+#define Stype(x)    ws->Str[(x)]->stype
+#define Slab(x)     ws->Str[(x)]->slab
+#define Slsco(x)    ws->Str[(x)]->slsco
+#define Slist(x)    ws->Str[(x)]->slist
+
+
+
+#define inline   ws->ws_inline
+#define pnline   ws->ws_pnline
+#define yyerrco  ws->ws_yyerrco
+#define errco    ws->ws_errco
+#define labco    ws->ws_labco 
+#define strco    ws->ws_strco 
+#define varco    ws->ws_varco 
+
+
+
+struct streg            /* for information compile time level */
+{
+	int stype;              /* cur type of level        */
+	int slab;               /* label 1                  */
+	int sflag;              /*                  flag    */
+	int slsco;              /* cur count of lists       */
+	int slist;              /* cur type  of lists       */
+};
+
+
+
+
+struct var             /* for generator list of variable */
+{
+	int vtype   ;   /* Type of name              */
+	int vextn   ;   /* index of names            */
+	int vlevel  ;   /* level                     */
+	struct inode *  v_inode;    /*  */
+} ;
+
+
+
+/*
+int 	yylval;
+int	yyval;
+*/
+
+
+
+
+
 struct yy_r4_work_space
 {
-	char * inline;
-	char * pline;
+	char * ws_inline;
+	char * ws_pline;
+
+	int	ws_yyerrco;
+	int	ws_level;              /* current level            */
+	int	ws_labco;              /* current label            */
+	int	ws_errco;              /* number of errors         */
+	int	ws_strco;              /* number of entries in tptr*/
+	int	ws_varco;              /* number of variables      */
+	int	ws_varsol;             /* begin number of variables*/
+
+	struct var   ** Var;
+	struct streg ** Str;
+	char         ** WrdTab;
 
 	int ws_yydebug;
 	int ws_yynerrs;
@@ -26,10 +93,12 @@ struct yy_r4_work_space
 	YYSTYPE * ws_yyvs;           /*[YYSTACKSIZE]*/
 	//	short yyss[YYSTACKSIZE];
 	//	YYSTYPE yyvs[YYSTACKSIZE];
-	int  ws_yystacksize 500;
-	int  ws_yymaxdepth 500;
+	int  ws_yystacksize; /*500*/
+	int  ws_yymaxdepth ; /*500*/
 
-} * work_space;
+
+
+};
 
 
 TS_LIST_DECLARE( r4_pars );
@@ -87,45 +156,6 @@ TS_LIST_DEFINE( r4_pars, p_VarTab, links );
  * */
 
 
-
-
-
-
-
-
-
-#define V_type(x)    Var[(x)].vtype
-#define V_extn(x)    Var[(x)].vextn
-#define V_levl(x)    Var[(x)].vlevel
-
-struct var             /* for generator list of variable */
-{
-int
-	vtype   ,   /* Type of name              */
-	vextn   ,   /* index of names            */
-	vlevel  ,   /* level                     */
-struct inode *  v_inode;    /*  */
-
-} ;
-
-
-#define Stype(x)    Str[(x)].stype
-#define Slab(x)     Str[(x)].slab
-#define Slsco(x)    Str[(x)].slsco
-#define Slist(x)    Str[(x)].slist
-
-struct streg            /* for information compile time level */
-{
-  int
-    stype,              /* cur type of level        */
-    slab,               /* label 1                  */
-    sflag,              /*                  flag    */
-    slsco,              /* cur count of lists       */
-    slist;              /* cur type  of lists       */
-};
-
-
-
 static struct
 {
 char    *       wrd;
@@ -172,17 +202,6 @@ int             class;
 	"tw"          ,    TRANSCRASH     
 }
 
-
-
-int 	yylval;
-int	yyval;
-int	yyerrco;
-int	level;              /* current level            */
-int	labco;              /* current label            */
-int	errco;              /* number of errors         */
-int	strco;              /* number of entries in tptr*/
-int	varco;              /* number of variables      */
-int	varsol;             /* begin number of variables*/
 
 
 
