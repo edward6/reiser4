@@ -79,6 +79,9 @@ typedef struct node40_header node40_header_t;
 #define nh40_get_magic(header)			aal_get_le32(header, magic)
 #define nh40_set_magic(header, val)		aal_set_le32(header, magic, val)
 
+#define nh40_set_mkfs_id(header, val)		aal_set_le32(header, flush.mkfs_id, val)
+#define nh40_get_mkfs_id(header)		aal_get_le32(header, flush.mkfs_id)
+
 union key40 {
     d64_t el[3];
     int pad;
@@ -109,8 +112,8 @@ extern inline item40_header_t *node40_ih_at(aal_block_t *block, int pos);
 extern inline void *node40_ib_at(aal_block_t *block, int pos);
 
 static uint16_t node40_free_space_end(aal_block_t *block) {
-    return aal_block_size(block) - 
-	nh40_get_num_items(nh40(block)) * sizeof(item40_header_t);
+    return aal_block_size(block) - nh40_get_num_items(nh40(block)) * 
+	sizeof(item40_header_t);
 }
 
 #endif

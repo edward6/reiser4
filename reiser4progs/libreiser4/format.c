@@ -248,6 +248,16 @@ uint16_t reiser4_format_get_height(
 	get_height, format->entity);
 }
 
+/* Returns current mkfs id from teh format-specific super-block */
+uint32_t reiser4_format_get_stamp(
+    reiser4_format_t *format	/* format to be inspected */
+) {
+    aal_assert("umka-1124", format != NULL, return 0);
+    
+    return plugin_call(return 0, format->entity->plugin->format_ops, 
+	get_stamp, format->entity);
+}
+
 #ifndef ENABLE_COMPACT
 
 /* Sets new root block */
@@ -292,6 +302,17 @@ void reiser4_format_set_height(
     
     plugin_call(return, format->entity->plugin->format_ops, 
 	set_height, format->entity, height);
+}
+
+/* Updates mkfsid in super block */
+void reiser4_format_set_stamp(
+    reiser4_format_t *format,	/* format to be used */
+    uint32_t stamp		/* new tree height */
+) {
+    aal_assert("umka-1125", format != NULL, return);
+    
+    plugin_call(return, format->entity->plugin->format_ops, 
+	set_stamp, format->entity, stamp);
 }
 
 #endif

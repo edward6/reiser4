@@ -55,6 +55,9 @@ static reiser4_cache_t *reiser4_tree_allocate(
     if (!(node = reiser4_node_create(block, pid, level)))
 	goto error_free_block;
 
+    plugin_call(goto error_free_block, node->entity->plugin->node_ops,
+	set_stamp, node->entity, reiser4_format_get_stamp(tree->fs->format));
+    
     if (!(cache = reiser4_cache_create(node))) {
 	reiser4_node_close(node);
 	return NULL;
@@ -343,18 +346,30 @@ int reiser4_tree_lookup(
     reiser4_coord_init(coord, tree->cache, 0, ~0ul);
     
     while (1) {
+	reiser4_key_t k;
+	reiser4_node_t *node;
+
+	/* 
+	    Check for the case when looked key smaller than root key. This is 
+	    the case, when somebody is trying to go up of the root by ".." entry
+	    of root directory.
+	*/
+	if (reiser4_key_compare(key, &tree->key) < 0)
+	    *key = tree->key;
+		    
+	node = coord->cache->node;
+	
 	/* 
 	    Looking up for key inside node. Result of lookuping will be stored
 	    in &coord->pos.
 	*/
-	if ((lookup = reiser4_node_lookup(coord->cache->node, 
-		key, &coord->pos)) == -1)
+	if ((lookup = reiser4_node_lookup(node, key, &coord->pos)) == -1)
 	    return -1;
 
 	if (deep <= level || reiser4_node_count(coord->cache->node) == 0)
 	    return lookup;
        	
-	if (lookup == 0)
+	if (lookup == 0 && coord->pos.item > 0)
 	    coord->pos.item--;
 
 	if (reiser4_item_open(&item, coord->cache->node, &coord->pos)) {

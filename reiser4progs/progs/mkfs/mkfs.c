@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
 		printf(BANNER(argv[0]));
 		return NO_ERROR;
 	    }
-	    case 'd': {
+	    case 'e': {
 		profile_label = optarg;
 		break;
 	    }

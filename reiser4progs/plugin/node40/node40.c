@@ -12,8 +12,8 @@ static reiser4_core_t *core = NULL;
 
 /* Returns item header by pos */
 inline item40_header_t *node40_ih_at(aal_block_t *block, int pos) {
-    return ((item40_header_t *)(block->data + 
-	aal_block_size(block))) - pos - 1;
+    return ((item40_header_t *)(block->data + aal_block_size(block))) - 
+	pos - 1;
 }
 
 /* Retutrns item body by pos */
@@ -474,6 +474,18 @@ static errno_t node40_set_key(reiser4_entity_t *entity,
     return 0;
 }
 
+static errno_t node40_set_level(reiser4_entity_t *entity, uint8_t level) {
+    aal_assert("umka-1115", entity != NULL, return -1);
+    nh40_set_level(nh40(((node40_t *)entity)->block), level);
+    return 0;
+}
+
+static errno_t node40_set_stamp(reiser4_entity_t *entity, uint32_t stamp) {
+    aal_assert("umka-1126", entity != NULL, return -1);
+    nh40_set_mkfs_id(nh40(((node40_t *)entity)->block), stamp);
+    return 0;
+}
+
 #endif
 
 /* 
@@ -536,10 +548,9 @@ static uint8_t node40_get_level(reiser4_entity_t *entity) {
     return nh40_get_level(nh40(((node40_t *)entity)->block));
 }
 
-static errno_t node40_set_level(reiser4_entity_t *entity, uint8_t level) {
-    aal_assert("umka-1115", entity != NULL, return -1);
-    nh40_set_level(nh40(((node40_t *)entity)->block), level);
-    return 0;
+static uint32_t node40_get_stamp(reiser4_entity_t *entity) {
+    aal_assert("umka-1127", entity != NULL, return -1);
+    return nh40_get_mkfs_id(nh40(((node40_t *)entity)->block));
 }
 
 static reiser4_plugin_t node40_plugin = {
@@ -568,6 +579,7 @@ static reiser4_plugin_t node40_plugin = {
 	
 	.get_key	= node40_get_key,
 	.get_level	= node40_get_level,
+	.get_stamp	= node40_get_stamp,
 	
 #ifndef ENABLE_COMPACT
 	.create		= node40_create,
@@ -578,6 +590,7 @@ static reiser4_plugin_t node40_plugin = {
 	.check		= node40_check,
 	.set_key	= node40_set_key,
 	.set_level	= node40_set_level,
+	.set_stamp	= node40_set_stamp,
 #else
 	.create		= NULL,
 	.insert		= NULL,
@@ -587,6 +600,7 @@ static reiser4_plugin_t node40_plugin = {
 	.check		= NULL,
 	.set_key	= NULL,
 	.set_level	= NULL,
+	.set_stamp	= NULL,
 #endif
 	.item_len	= node40_item_len,
 	.item_body	= node40_item_body,

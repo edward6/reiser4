@@ -28,6 +28,7 @@ extern blk_t reiser4_format_get_root(reiser4_format_t *format);
 extern count_t reiser4_format_get_len(reiser4_format_t *format);
 extern count_t reiser4_format_get_free(reiser4_format_t *format);
 extern uint16_t reiser4_format_get_height(reiser4_format_t *format);
+extern uint32_t reiser4_format_get_stamp(reiser4_format_t *format);
 
 #ifndef ENABLE_COMPACT
 
@@ -47,6 +48,9 @@ extern void reiser4_format_set_free(reiser4_format_t *format,
 
 extern void reiser4_format_set_height(reiser4_format_t *format, 
     uint8_t height);
+
+extern void reiser4_format_set_stamp(reiser4_format_t *format, 
+    uint32_t stamp);
 
 extern errno_t reiser4_format_mark(reiser4_format_t *format, 
     reiser4_alloc_t *alloc);

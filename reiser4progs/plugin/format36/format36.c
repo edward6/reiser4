@@ -286,6 +286,7 @@ static reiser4_plugin_t format36_plugin = {
 	.set_len	= format36_set_len,
 	.set_free	= format36_set_free,
 	.set_height	= NULL,
+	.set_stamp	= NULL,
 #else
 	.check		= NULL,
 	.sync		= NULL,
@@ -295,6 +296,7 @@ static reiser4_plugin_t format36_plugin = {
 	.set_len	= NULL,
 	.set_free	= NULL,
 	.set_height	= NULL,
+	.set_stamp	= NULL,
 #endif
 	.close		= format36_close,
 	.confirm	= format36_confirm,
@@ -314,6 +316,7 @@ static reiser4_plugin_t format36_plugin = {
 	.alloc_layout	= NULL,
 	
 	.get_height	= NULL,
+	.get_stamp	= NULL,
 	.oid_area	= NULL
     }
 };

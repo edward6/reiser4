@@ -613,8 +613,13 @@ struct reiser4_node_ops {
     errno_t (*set_key) (reiser4_entity_t *, reiser4_pos_t *, 
 	reiser4_key_t *);
 
+    /* Gets/sets node level */
     uint8_t (*get_level) (reiser4_entity_t *);
     errno_t (*set_level) (reiser4_entity_t *, uint8_t);
+    
+    /* Gets/sets node mkfs stamp */
+    uint32_t (*get_stamp) (reiser4_entity_t *);
+    errno_t (*set_stamp) (reiser4_entity_t *, uint32_t);
     
     /* Gets item at passed pos */
     reiser4_body_t *(*item_body) (reiser4_entity_t *, reiser4_pos_t *);
@@ -727,6 +732,10 @@ struct reiser4_format_ops {
     /* Gets/sets free blocks number for this format */
     count_t (*get_free) (reiser4_entity_t *);
     void (*set_free) (reiser4_entity_t *, count_t);
+    
+    /* Gets/sets free blocks number for this format */
+    uint32_t (*get_stamp) (reiser4_entity_t *);
+    void (*set_stamp) (reiser4_entity_t *, uint32_t);
     
     /* Returns children objects plugins */
     rpid_t (*journal_pid) (reiser4_entity_t *);

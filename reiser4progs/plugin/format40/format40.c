@@ -6,6 +6,11 @@
 
 #include "format40.h"
 
+#ifndef ENABLE_COMPACT
+#  include <stdlib.h>
+#  include <time.h>
+#endif
+
 extern reiser4_plugin_t format40_plugin;
 
 static reiser4_core_t *core = NULL;
@@ -40,10 +45,19 @@ static count_t format40_get_free(reiser4_entity_t *entity) {
 static uint16_t format40_get_height(reiser4_entity_t *entity) {
     format40_super_t *super;
     
-    aal_assert("umka-555", entity != NULL, return 0);
+    aal_assert("umka-1123", entity != NULL, return 0);
     
     super = format40_super(((format40_t *)entity)->block);
     return get_sb_tree_height(super);
+}
+
+static uint32_t format40_get_stamp(reiser4_entity_t *entity) {
+    format40_super_t *super;
+    
+    aal_assert("umka-1122", entity != NULL, return 0);
+    
+    super = format40_super(((format40_t *)entity)->block);
+    return get_sb_mkfs_id(super);
 }
 
 #define FORMAT40_JHEADER (4096 * 19)
@@ -240,7 +254,6 @@ error_free_block:
     return -1;
 }
 
-
 /* This function should create super block and update all copies */
 static reiser4_entity_t *format40_create(aal_device_t *device, 
     count_t blocks, uint16_t tail)
@@ -273,6 +286,9 @@ static reiser4_entity_t *format40_create(aal_device_t *device,
     set_sb_tree_height(super, 2);
     set_sb_flushes(super, 0);
     set_sb_tail_policy(super, tail);
+
+    srandom(time(0));
+    set_sb_mkfs_id(super, random());
 
     /* Clobbering skipped area */
     if (format40_skipped_layout((reiser4_entity_t *)format, 
@@ -424,6 +440,17 @@ static void format40_set_height(reiser4_entity_t *entity,
     set_sb_tree_height(super, height);
 }
 
+static void format40_set_stamp(reiser4_entity_t *entity, 
+    uint32_t mkfsid) 
+{
+    format40_super_t *super;
+    
+    aal_assert("umka-1121", entity != NULL, return);
+
+    super = format40_super(((format40_t *)entity)->block);
+    set_sb_mkfs_id(super, mkfsid);
+}
+
 extern errno_t format40_check(reiser4_entity_t *entity, 
     uint16_t options);
 
@@ -465,6 +492,7 @@ static reiser4_plugin_t format40_plugin = {
 	.get_len	= format40_get_len,
 	.get_free	= format40_get_free,
 	.get_height	= format40_get_height,
+	.get_stamp	= format40_get_stamp,
 
 	.skipped_layout	= format40_skipped_layout,
 	.format_layout	= format40_format_layout,
@@ -476,11 +504,13 @@ static reiser4_plugin_t format40_plugin = {
 	.set_len	= format40_set_len,
 	.set_free	= format40_set_free,
 	.set_height	= format40_set_height,
+	.set_stamp	= format40_set_stamp,
 #else
 	.set_root	= NULL,
 	.set_len	= NULL,
 	.set_free	= NULL,
 	.set_height	= NULL,
+	.set_stamp	= NULL,
 #endif
 	.journal_pid	= format40_journal_pid,
 	.alloc_pid	= format40_alloc_pid,
