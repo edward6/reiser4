@@ -38,12 +38,12 @@ typedef struct reiser4_super_info_data {
 	/**
 	 * amount of blocks used by file system data and meta-data.
 	 */
-	__u32    blocks_used;
+	__u64    blocks_used;
 
 	/**
 	 * amount of free blocks.
 	 */
-	__u32    blocks_free;
+	__u64    blocks_free;
 
 	/**
 	 * current inode generation.
