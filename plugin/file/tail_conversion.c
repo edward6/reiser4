@@ -239,7 +239,7 @@ static int replace (struct inode * inode, struct page ** pages, unsigned nr_page
 
 #define TAIL2EXTENT_PAGE_NUM 3  /* number of pages to fill before cutting tail
 				 * items */
-
+#if 0
 /* Audited by: green(2002.06.15) */
 static int all_pages_are_full (unsigned nr_pages, unsigned page_off)
 {
@@ -270,14 +270,13 @@ static int file_is_over (struct inode * inode, reiser4_key * key,
 	 */
 	return (inode->i_size == (loff_t)get_key_offset (key));
 }
-
+#endif
 
 int tail2extent (struct inode * inode)
 {
 	int result;
 	reiser4_key key;     /* key of next byte to be moved to page */
 	reiser4_key tmp;
-	struct page * page;
 	char * p_data;       /* data of page */
 	unsigned page_off,   /* offset within the page where to copy data */
 		count,       /* number of bytes of item which can be
@@ -287,6 +286,7 @@ int tail2extent (struct inode * inode)
 	unsigned nr_pages;        /* number of pages in the above array */
 	int done;            /* set to 1 when all file is read */
 	char * item;
+	int i;
 
 
 	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
@@ -309,11 +309,11 @@ int tail2extent (struct inode * inode)
 
 	memset (pages, 0, sizeof (pages));
 	nr_pages = 0;
-	page = 0;
 	page_off = 0;
 	item = 0;
 	copied = 0;
 
+	done = 0;
 	while (!done) {
 		memset (pages, 0, sizeof (pages));
 		nr_pages = 0;
@@ -331,7 +331,7 @@ int tail2extent (struct inode * inode)
 
 			page_off = 0;
 
-			while (page_off < PAGE_CACHE_OFFSET) {
+			while (page_off < PAGE_CACHE_SIZE) {
 				coord_t coord;
 				lock_handle lh;
 
@@ -349,7 +349,6 @@ int tail2extent (struct inode * inode)
 						result = 0;
 					goto error;
 				}
-				assert ("vs-562", unix_file_owns_item (inode, &coord));
 				if (coord.between == AFTER_UNIT) {
 					/*
 					 * FIXME-VS: this is more save way to
@@ -357,16 +356,17 @@ int tail2extent (struct inode * inode)
 					 */
 					done_lh (&lh);
 					memset (kmap (pages [i]) + page_off, 0, PAGE_CACHE_SIZE - page_off);
-					kunmap (page);
+					kunmap (pages [i]);
 					done = 1;
 					break;
 				}
 				
 				result = zload (coord.node);
 				if (result) {
+					done_lh (&lh);
 					drop_pages (pages, nr_pages);
-					goto error1;
 				}
+				assert ("vs-562", unix_file_owns_item (inode, &coord));
 				assert ("vs-856", coord.between == AT_UNIT);
 				assert ("green-11",
 					keyeq (&key, unit_key_by_coord (&coord, &tmp)));
@@ -382,10 +382,10 @@ int tail2extent (struct inode * inode)
 							result = 0;
 					} else
 						result = -EIO;
-					drop_pages (pages, nr_pages);
 					zrelse (coord.node);
-					done_lh (&lh);					
-					goto error1;
+					done_lh (&lh);
+					drop_pages (pages, nr_pages);
+					goto error;
 				}
 				item = item_body_by_coord (&coord) + coord.unit_pos;
 				
@@ -398,11 +398,11 @@ int tail2extent (struct inode * inode)
 				/* kmap/kunmap are necessary for pages which
 				 * are not addressable by direct kernel virtual
 				 * addresses */
-				p_data = kmap (page);
+				p_data = kmap (pages [i]);
 				/* copy item (as much as will fit starting from
 				 * the beginning of the item) into the page */
 				memcpy (p_data + page_off, item, (unsigned)count);
-				kunmap (page);
+				kunmap (pages [i]);
 				
 				page_off += count;
 				set_key_offset (&key, get_key_offset (&key) + count);
@@ -416,17 +416,17 @@ int tail2extent (struct inode * inode)
 					 * end of file
 					 */
 					memset (kmap (pages [i]) + page_off, 0, PAGE_CACHE_SIZE - page_off);
-					kunmap (page);
+					kunmap (pages [i]);
 					done = 1;
 					/*break;*/
 				}
 			} /* while */
 		} /* for */
 
-		result = replace (inode, pages, nr_pages, 
-				  (int)((nr_pages - 1) * PAGE_CACHE_SIZE +
+		result = replace (inode, pages, i, 
+				  (int)((i - 1) * PAGE_CACHE_SIZE +
 					page_off));
-		drop_pages (pages, nr_pages);
+		drop_pages (pages, i);
 		if (result)
 			goto error;
 	}
@@ -444,7 +444,7 @@ int tail2extent (struct inode * inode)
 	assert ("vs-830", (inode_get_flag (inode, REISER4_TAIL_STATE_KNOWN) &&
 			   !inode_get_flag (inode, REISER4_HAS_TAIL)));
 
-	return result;
+	return 0;
 
  error:
 	drop_exclusive_access (inode);
