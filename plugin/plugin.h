@@ -466,9 +466,6 @@ struct jnode_plugin {
 	plugin_header h;
 	int (*init) (jnode * node);
 	int (*parse) (jnode * node);
-	int (*is_busy) (const jnode * node);
-	int (*remove) (jnode * node, reiser4_tree * tree);
-	int (*delete) (jnode * node, reiser4_tree * tree);
 	struct address_space *(*mapping) (const jnode * node);
 	unsigned long (*index) (const jnode * node);
 	int (*io_hook) (jnode * node, struct page * page, int rw);
