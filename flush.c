@@ -573,14 +573,20 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	lock_handle parent_lock;
 	load_handle right_load;
 	load_handle parent_load;
+	load_handle node_load;
 	coord_t at_right, right_parent_coord;
 
 	init_lh (& right_lock);
 	init_lh (& parent_lock);
 	init_zh (& right_load);
 	init_zh (& parent_load);
+	init_zh (& node_load);
 
 	assert ("jmacd-9925", znode_is_allocated (node));
+
+	if ((ret = load_zh (& node_load, node))) {
+		goto exit;
+	}
 
  RIGHT_AGAIN:
 	/* Get the right neighbor. */
@@ -654,6 +660,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		goto exit;
 	}
 
+	done_zh (& node_load);
+
 	/* NOTE: A possible optimization is to avoid locking the right_parent here.  It
 	 * requires handling three cases, however, which makes it more complex than I want
 	 * to implement right now.  (1) Same parents (no recursion) case, lift the above
@@ -675,6 +683,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
  exit:
 	done_lh (& right_lock);
 	done_lh (& parent_lock);
+	done_zh (& node_load);
 	done_zh (& right_load);
 	done_zh (& parent_load);
 	return ret;
