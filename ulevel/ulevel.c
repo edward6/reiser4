@@ -1085,7 +1085,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		f -> i_sb = reiser4_get_current_sb();
 		sema_init( &f -> i_sem, 1 );
 		init_inode( f, &coord );
-		reiser4_get_object_state( f ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
+		reiser4_get_object_state( f ) -> hash = hash_plugin_by_id ( TEA_HASH_ID );
 		reiser4_get_object_state( f ) -> tail = tail_plugin_by_id ( NEVER_TAIL_ID );
 		reiser4_get_object_state( f ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
 		reiser4_get_object_state( f ) -> locality_id = get_key_locality( &key );
@@ -1591,6 +1591,7 @@ static struct inode * call_lookup (struct inode * dir, const char * name)
 	result = dir->i_op->lookup (dir, &dentry);
 	reiser4_init_context (old_context, dir->i_sb);
 
+	assert ("vs-415", ergo (result == NULL, dentry.d_inode != NULL));
 	return (result == NULL) ? dentry.d_inode : ERR_PTR (PTR_ERR (result));	
 }
 
@@ -1797,6 +1798,15 @@ static int copy_dir (struct inode * dir)
 					break;
 				}
 				dirs ++;
+				/*
+				 * if parent directory has tails on - make
+				 * child directory to have tail off
+				 */
+				if (tail_plugin_id (reiser4_get_object_state (inodes [depth - 2])->tail) == NEVER_TAIL_ID)
+					reiser4_get_object_state (inodes [depth - 1])->tail = tail_plugin_by_id (ALWAYS_TAIL_ID);
+				else
+					reiser4_get_object_state (inodes [depth - 1])->tail = tail_plugin_by_id (NEVER_TAIL_ID);
+
 			} else if (S_ISREG (st.st_mode)) {
 				printf ("REG\n");
 				if (copy_file (name, inodes [depth - 1], last_name (name + prefix + 1), &st)) {
@@ -1925,7 +1935,7 @@ static void allocate_unallocated (reiser4_tree * tree)
 	set_key_type (&key, KEY_SD_MINOR);
 	set_key_offset (&key, 0ull);
 	result = coord_by_key (tree, &key, &coord, &lh,
-			       ZNODE_WRITE_LOCK, FIND_EXACT,
+			       ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
 			       TWIG_LEVEL, TWIG_LEVEL );
 	coord_first_unit (&coord);
 	result = reiser4_iterate_tree (tree, &coord, &lh, 
