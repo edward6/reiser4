@@ -420,8 +420,9 @@ atom_get_locked_by_jnode (jnode *node)
 	return atom;
 }
 
-/* Returns true if @node is dirty and part of the same atom as one of its
- * neighbors. */
+/* Returns true if @node is dirty and part of the same atom as one of its neighbors.  Used
+ * by flush code to indicate whether the next node (in some direction) is suitable for
+ * flushing. */
 /* Audited by: umka (2002.06.13) */
 int
 txn_same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value)
@@ -433,9 +434,8 @@ txn_same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value
 	assert("umka-183", check != NULL);
 	
 	/*
-	 * FIXME:NIKITA->JMACD Not sure what this function is supposed to do
-	 * if supplied with @check that is neither formatted nor unformatted
-	 * (bitmap or so). Hence adding assertion.
+	 * Not sure what this function is supposed to do if supplied with @check that is
+	 * neither formatted nor unformatted (bitmap or so).
 	 */
 	assert ("nikita-2373", 
 		jnode_is_znode (check) || jnode_is_unformatted (check));
@@ -1946,9 +1946,8 @@ capture_fuse_into (txn_atom  *small,
 	assert ("umka-224", small != NULL);
 	assert ("umka-225", small != NULL);
 	
-	/* AUDIT: These atoms should be locked by caller in order to be safe modified. */
-	assert ("umka-299", check_spin_is_locked(&large->alock));
-	assert ("umka-300", check_spin_is_locked(&small->alock));
+	assert ("umka-299", spin_atom_is_locked (large));
+	assert ("umka-300", spin_atom_is_locked (small));
 	
 	assert ("jmacd-201", atom_isopen (small));
 	assert ("jmacd-202", atom_isopen (large));
