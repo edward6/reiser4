@@ -872,6 +872,7 @@ item_removed_completely(coord_t * from, const reiser4_key * from_key, const reis
 	reiser4_key key_in_item;
 
 	assert("umka-325", from != NULL);
+	assert("", item_is_extent(from));
 
 	/* check first key just for case */
 	item_key_by_coord(from, &key_in_item);
@@ -880,9 +881,10 @@ item_removed_completely(coord_t * from, const reiser4_key * from_key, const reis
 
 	/* check last key */
 	iplug = item_plugin_by_coord(from);
-	assert("vs-611", iplug && iplug->b.real_max_key_inside);
+	assert("vs-611", iplug && iplug->s.file.append_key);
 
-	iplug->b.real_max_key_inside(from, &key_in_item);
+	iplug->s.file.append_key(from, &key_in_item, 0);
+	set_key_offset(&key_in_item, get_key_offset(&key_in_item) - 1);
 
 	if (keylt(to_key, &key_in_item))
 		/* last byte is not removed */
