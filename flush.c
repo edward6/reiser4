@@ -1148,7 +1148,7 @@ flush_reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_c
 
 		if (ret == 1) {
 
-			if (reiser4_grab_space_force(1, 0) != 0)
+			if (reiser4_grab_space_force(1, BA_RESERVED) != 0)
 			    rpanic("umka-1250", "No space left durring flush.");
 			
 			assert("jmacd-18923", znode_is_write_locked(parent_coord->node));
@@ -2157,12 +2157,12 @@ squeeze_right_non_twig(znode * left, znode * right)
 		estimate_internal_amount(2, 
 			get_current_super_private()->tree.height, &amount);
 
-		if ((ret = reiser4_grab_space_force(amount, 0)) != 0) {
+		if ((ret = reiser4_grab_space_force(amount, BA_RESERVED)) != 0) {
 			done_carry_pool(&pool);
 			return ret;
 		}
 		
-		trace_on(TRACE_RESERVE, "squeeze right non twig grabs %llu blocks.\n", amount);
+		trace_on(TRACE_RESERVE, info("squeeze right non twig grabs %llu blocks.\n", amount));
 		
 		ret = carry(&todo, NULL /* previous level */ );
 	}
@@ -2358,7 +2358,7 @@ shift_one_internal_unit(znode * left, znode * right)
 
 	if (moved) {
 		/* Grabbing two blocks for left and right neighbours */
-		if ((ret = reiser4_grab_space_force(2, 0)) != 0)
+		if ((ret = reiser4_grab_space_force(2, BA_RESERVED)) != 0)
 			return ret;
 		
 		znode_set_dirty(left);
@@ -2528,7 +2528,7 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 	lock_handle fake_lock;
 
 	/* for a node and its parent */
-	ret = reiser4_grab_space_force(2, 0);
+	ret = reiser4_grab_space_force(2, BA_RESERVED);
 	
 	if (ret != 0)
 		return ret;
@@ -2539,14 +2539,14 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 	}
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
         if ((ret = reiser4_alloc_blocks(
-		&pos->preceder, &blk, &len, 1/*formatted*/, 0/* do not use 5% */)))
+		&pos->preceder, &blk, &len, BA_FORMATTED/* formatted, do not use 5% */)))
                 return ret;
                             
-        trace_on(TRACE_RESERVE, "flush allocates %llu blocks.\n", len);
+        trace_on(TRACE_RESERVE, info("flush allocates %llu blocks.\n", len));
 
-	if (!ZF_ISSET(node, JNODE_CREATED) && (ret = reiser4_dealloc_block(znode_get_block(node), 1 /* defer */ ,
-									   0	/* target stage, it only matters
-										 * when defer == 0 */ ))) {
+	if (!ZF_ISSET(node, JNODE_CREATED) && (ret = reiser4_dealloc_block(znode_get_block(node), 
+		0 /* target stage, it only matters when BA_DEFER is not present */, BA_DEFER/* defer */))) 
+	{
 		return ret;
 	}
 

@@ -1985,8 +1985,8 @@ capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
 	
 	/* VITALY: set atom->flush_reserve from context->flush_reserve.*/
 	flush_reserved2atom_all_nolock(atom);
-	trace_on(TRACE_RESERVE, "move reserved from context to atom, "
-	    "reserved in atom %llu.\n", reiser4_atom_flush_reserved());
+	trace_on(TRACE_RESERVE, info("move reserved from context to atom, "
+	    "reserved in atom %llu.\n", reiser4_atom_flush_reserved()));
 }
 
 /* No-locking version of assign_block.  Sets the block's atom pointer, references the
@@ -2040,7 +2040,7 @@ jnode_set_dirty(jnode * node)
 
 		/* Make if flush_reserved if either leaf or unformatted for not FAKE_BLOCKNR. */
 		if (!JF_ISSET(node, JNODE_CREATED)/* && !is_flush_mode()*/) {
-			trace_on(TRACE_RESERVE, "moving 1 grabbed block to flush reserved.\n");
+			trace_on(TRACE_RESERVE, info("moving 1 grabbed block to flush reserved.\n"));
 			grabbed2flush_reserved_nolock(atom, 1);
 		}
 		
@@ -2289,7 +2289,7 @@ capture_super_block(struct super_block *s)
 	}
 
 	/* Grabbing one block for superblock */
-	if ((result = reiser4_grab_space_force(1, 1)) != 0)
+	if ((result = reiser4_grab_space_force(1, BA_RESERVED)) != 0)
 		return result;
 	
 	znode_set_dirty(fake);
