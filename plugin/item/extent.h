@@ -28,15 +28,24 @@ static inline reiser4_block_nr extent_get_width(const reiser4_extent *ext)
 	return dblock_to_cpu (& ext->width);
 }
 
+extern __u64 reiser4_block_count (const struct super_block *super);
+extern struct super_block *reiser4_get_current_sb (void);
+
 static inline void extent_set_start(reiser4_extent *ext, reiser4_block_nr start)
 {
 	cassert (sizeof (ext->start) == 8);
+	assert ("nikita-2510", 
+		ergo (start > 1,
+		      start < reiser4_block_count(reiser4_get_current_sb())));
 	cpu_to_dblock (start, & ext->start);
 }
 
 static inline void extent_set_width(reiser4_extent *ext, reiser4_block_nr width)
 {
 	cassert (sizeof (ext->width) == 8);
+	assert ("nikita-2511", 
+		ergo (extent_get_start (ext) > 1,
+		      extent_get_start (ext) + width < reiser4_block_count(reiser4_get_current_sb())));
 	cpu_to_dblock (width, & ext->width);
 }
 
@@ -102,6 +111,7 @@ int           extent_key_in_item        ( coord_t *coord,
 int           extent_key_in_unit        ( const coord_t *coord,
 					  const reiser4_key *key );
 void          extent_item_stat          ( const coord_t *coord, void *vp );
+int           extent_check              ( coord_t *coord, const char **error );
 
 /*
  * plugin->u.item.s.file.*
