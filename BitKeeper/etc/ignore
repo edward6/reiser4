@@ -410,3 +410,5 @@ sfsfdf
 testdir/file
 testdir/s1/file
 ulevel/#ulevel.h#
+regression.sh2
+test1
