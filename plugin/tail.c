@@ -6,6 +6,10 @@
  * Tail policy plugins
  */
 
+/* this is completely uncommented.  Nikita, I want you to systematically review all of the code you have written and comment it.  Then remove this comment. */
+
+/* does this actually get used?  Why is it missing a tail for files larger than or equal to 12k policy */
+
 #include "../reiser4.h"
 
 static int never_tail( const struct inode *inode UNUSED_ARG, 

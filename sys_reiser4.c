@@ -7,3 +7,12 @@
 /* Please read parser.c and return. */
 
 /* Mr. Demidov, please implement by the end of March. */
+
+
+/* Issues of VFS consistency:
+
+It seems most issues of consistency can be resolved by locking the parent directory.
+
+
+
+ */

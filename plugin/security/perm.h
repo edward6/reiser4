@@ -25,17 +25,24 @@ typedef struct perm_plugin {
 	/** check permissions for linking @where to @existing */
 	int ( *link_ok )( struct dentry *existing, struct inode *parent, 
 			  struct dentry *where );
+
 	/** check permissions for unlinking @victim from @parent */
 	int ( *unlink_ok )( struct inode *parent, struct dentry *victim );
-	/** check permissions from deletion of @object whose last
-	    reference is in in @parent */
+
+	/** check permissions for deletion of @object whose last reference is by @parent */
 	int ( *delete_ok )( struct inode *parent, struct dentry *victim );
-	/** check UNIX access bits. This is ->permission() check called by
-	 * VFS */
+
+	/** check UNIX access bits. This is ->permission() check called by VFS.  This needs to be eliminated if we are
+	 * to have real security plugins.  */
 	int ( *mask_ok )( struct inode *inode, int mask );
 } perm_plugin;
 
 /** call ->check_ok method of perm plugin for inode */
+/* you have made assumptions about how a security plugin will work.  This is incompatible with such things as asking a
+   user space program to determine if permission is not granted.  */
+
+/* one of us needs to look at lsm, and analyze if what we are doing is consistent with that.... -Hans */
+#if 0
 #define perm_chk( inode, check, args... )			\
 ({								\
 	perm_plugin *perm;					\
@@ -45,6 +52,7 @@ typedef struct perm_plugin {
 	  ( perm -> ## check ## _ok != NULL ) &&	\
 	    perm -> ## check ## _ok( ##args ) );	\
 })
+#endif /* 0 */
 
 typedef enum { RWX_PERM_ID, LAST_PERM_ID } reiser4_perm_id;
 
