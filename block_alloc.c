@@ -16,7 +16,7 @@
 
 /* Block number allocation and free space counting in reiser4 are done in two
    stages: first, we assign special block numbers to just created nodes and
-   subtracts a number of that nodes from free blocks counter . Those special
+   subtracts a number of those nodes from free blocks counter . Those special
    numbers have nothing common with real block numbers on a disk device and
    they are called "fake" in reiser4. Actually only formatted nodes require
    those numbers because we need something to be inserted into internal nodes
@@ -253,6 +253,7 @@ reiser4_fs_reserved_space(struct super_block * super)
 	reiser4_block_nr b;
 
 	b = reiser4_block_count(super);
+	/* ZAM-FIXME-HANS: by this we avoid a floating point operation? If that is why, say so. */
 	/* 51. / (2^10) == .0498 */
 	return (b * 51) >> 10;
 }
@@ -274,6 +275,8 @@ reiser4_fs_reserved_space(struct super_block * super)
 
 /* FIXME-ZAM: reserved blocks could be counted in a reiser4 super block field,
    it allows more error checks. */
+
+/* ZAM-FIXME-HANS: Is there a coherent account of our space reservation scheme anywhere?  If not, then write it. */
 
 static int
 reiser4_grab(__u64 count, reiser4_ba_flags_t flags)
@@ -335,7 +338,7 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 
     assert("nikita-2964", ergo(flags & BA_CAN_COMMIT, 
 			       lock_stack_isclean(get_current_lock_stack())));
-
+    /* NIKITA-FIXME-HANS: change to if_trace_on */
     trace_on(TRACE_RESERVE2, "grab_space: %llu for: %s..", count, message);
 
     if (!(flags & BA_FORCE) && !is_grab_enabled()) {

@@ -59,7 +59,7 @@ enum reiser4_ba_flags {
 	/* block allocator can do commit trying to recover free space */
 	BA_CAN_COMMIT	    = (1 << 1),
 
-	/* if operation will be aplyed to formated block */
+	/* if operation will be applied to formatted block */
 	BA_FORMATTED	    = (1 << 2),
 
 	/* defer actual block freeing until transaction commit */
@@ -68,7 +68,7 @@ enum reiser4_ba_flags {
 	/* allocate blocks for permanent fs objects (formatted or unformatted), not
 	   wandered of log blocks */
 	BA_PERMANENT        = (1 << 4),
-
+	/* ZAM-FIXME-HANS: comment */
 	BA_FORCE            = (1 << 5)
 };
 

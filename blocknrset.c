@@ -321,7 +321,9 @@ blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 	}
 }
 
-/* Iterate over all blocknr set elements. */
+/* Iterate over all blocknr set elements. 
+
+ZAM-FIXME-HANS: what actors are used in conjunction with this? */
 int
 blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f actor, void *data, int delete)
 {
