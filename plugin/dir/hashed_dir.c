@@ -539,8 +539,7 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 
 	lock_handle new_lh;
 
-	dir_plugin *old_dplug;
-	dir_plugin *new_dplug;
+	dir_plugin *dplug;
 
 	assert( "nikita-2318", old_dir != NULL );
 	assert( "nikita-2319", new_dir != NULL );
@@ -550,8 +549,7 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 	old_inode = old_name -> d_inode;
 	new_inode = new_name -> d_inode;
 
-	old_dplug = inode_dir_plugin( old_dir );
-	new_dplug = inode_dir_plugin( new_dir );
+	dplug = inode_dir_plugin( old_dir );
 
 	old_fsdata = reiser4_get_dentry_fsdata( old_name );
 	new_fsdata = reiser4_get_dentry_fsdata( new_name );
@@ -639,8 +637,8 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 
 	xmemset( &old_entry, 0, sizeof old_entry );
 	old_entry.obj = old_inode;
-	result = old_dplug -> entry_key( old_dir, 
-					 &old_name -> d_name, &old_entry.key );
+	result = dplug -> entry_key( old_dir, 
+				     &old_name -> d_name, &old_entry.key );
 	if( result != 0 )
 		return result;
 
