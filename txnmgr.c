@@ -3857,6 +3857,18 @@ copy_on_capture_clean(jnode *node, txn_atom *atom)
 	return result;
 }
 
+static void
+lock_two_nodes(jnode *node1, jnode *node2)
+{
+	if (node1 > node2) {
+		LOCK_JNODE(node2);
+		LOCK_JNODE(node1);		
+	} else {
+		LOCK_JNODE(node1);
+		LOCK_JNODE(node2);		
+	}
+}
+
 /* capture request is made for node which does not have page. In most cases this
    is "uber" znode */
 static int
@@ -3879,7 +3891,7 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 	}
 	
 	LOCK_ATOM(atom);
-	LOCK_JNODE(node);
+	lock_two_nodes(node, copy);
 	spin_lock(&scan_lock);
 	
 	if (capturable(node, atom) && node->pg == 0) {
@@ -3896,6 +3908,7 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 
 	spin_unlock(&scan_lock);
 	UNLOCK_JNODE(node);
+	UNLOCK_JNODE(copy);
 	UNLOCK_ATOM(atom);
 	assert("nikita-3476", schedulable());
 	jput(copy);
@@ -3904,18 +3917,6 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 	assert("nikita-3478", schedulable());
 	ON_TRACE(TRACE_CAPTURE_COPY, "nopage\n");
 	return result;
-}
-
-static void
-lock_two_nodes(jnode *node1, jnode *node2)
-{
-	if (node1 > node2) {
-		LOCK_JNODE(node2);
-		LOCK_JNODE(node1);		
-	} else {
-		LOCK_JNODE(node1);
-		LOCK_JNODE(node2);		
-	}
 }
 
 static int
@@ -4079,6 +4080,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	}
 
 	if (JF_ISSET(node, JNODE_CCED)) {
+		reiser4_stat_inc(coc.coc_race);
 		UNLOCK_JNODE(node);
 		UNLOCK_ATOM(atom);
 		return RETERR(-E_REPEAT);
