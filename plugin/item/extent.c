@@ -1387,15 +1387,14 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __
 			continue;
 		}
 
-		if (REISER4_DEBUG) {
-			/* all jnodes of this extent unit must belong to
-			   one atom. Check that. */
-			if (check) {
-				assert("vs-936", jnodes_of_one_atom(check, j));
-			} else {
-				check = jref(j);
-			}
-		}
+#if REISER4_DEBUG
+		/* all jnodes of this extent unit must belong to
+		   one atom. Check that. */
+		if (check)
+			assert("vs-936", jnodes_of_one_atom(check, j));
+		else
+			check = jref(j);
+#endif
 
 		/* Was (jnode_check_dirty (j)), but allocated check
 		 * prevents us from relocating/wandering a previously
@@ -1413,8 +1412,10 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __
 		jput(j);
 	}
 
-	if (REISER4_DEBUG && check)
+#if REISER4_DEBUG
+	if (check) 
 		jput(check);
+#endif
 
 	return relocate;
 
