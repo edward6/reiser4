@@ -91,7 +91,7 @@ struct unix_file_info *unix_file_inode_data(const struct inode * inode);
 #include "../item/ctail.h"
 
 struct uf_coord {
-	coord_t base_coord;
+	coord_t coord;
 	lock_handle *lh;
 	int valid;
 	union {
@@ -107,13 +107,16 @@ struct uf_coord {
  * a seal over last file item accessed. */
 struct hint {
 	seal_t seal;
-	uf_coord_t coord;
+	uf_coord_t ext_coord;
 	loff_t offset;
-	tree_level level;
 	znode_lock_mode mode;
+#if REISER4_DEBUG && defined(CONFIG_FRAME_POINTER)
+	void *bt[5];
+#endif
 };
 
 void set_hint(hint_t *, const reiser4_key *, znode_lock_mode);
+int hint_is_set(const hint_t *);
 void unset_hint(hint_t *);
 int hint_validate(hint_t *, const reiser4_key *, int check_key, znode_lock_mode);
 

@@ -66,9 +66,16 @@ seal_init(seal_t * seal /* seal to initialise */ ,
 		assert("nikita-1988", seal->version != 0);
 		seal->block = *znode_get_block(node);
 #if REISER4_DEBUG
-		seal->coord = *coord;
+		seal->coord1 = *coord;
 		if (key != NULL)
 			seal->key = *key;
+#ifdef CONFIG_FRAME_POINTER
+ 		seal->bt[0] = __builtin_return_address(0);
+ 		seal->bt[1] = __builtin_return_address(1);
+ 		seal->bt[2] = __builtin_return_address(2);
+ 		seal->bt[3] = __builtin_return_address(3);
+ 		seal->bt[4] = __builtin_return_address(4);
+#endif
 #endif
 		spin_unlock_znode(node);
 	}
@@ -137,9 +144,7 @@ reiser4_internal int
 seal_validate(seal_t * seal /* seal to validate */ ,
 	      coord_t * coord /* coord to validate against */ ,
 	      const reiser4_key * key /* key to validate against */ ,
-	      tree_level level /* level of node */ ,
 	      lock_handle * lh /* resulting lock handle */ ,
-	      lookup_bias bias /* search bias */ ,
 	      znode_lock_mode mode /* lock node */ ,
 	      znode_lock_request request /* locking priority */ )
 {
@@ -152,7 +157,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 	assert("nikita-1883", coord != NULL);
 	assert("nikita-1884", lh != NULL);
 	assert("nikita-1885", keyeq(&seal->key, key));
-	assert("nikita-1989", coords_equal(&seal->coord, coord));
+	assert("nikita-1989", coords_equal(&seal->coord1, coord));
 
 	/* obtain znode by block number */
 	node = seal_node(seal);
@@ -165,7 +170,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				/* if seal version and znode version
 				   coincide */
 				ON_DEBUG(coord_update_v(coord));
-				assert("nikita-1990", node == seal->coord.node);
+				assert("nikita-1990", node == seal->coord1.node);
 				assert("nikita-1898", WITH_DATA_RET(coord->node, 1, check_seal_match(coord, key)));
 			} else
 				result = RETERR(-E_REPEAT);

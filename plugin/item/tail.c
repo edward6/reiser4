@@ -328,7 +328,7 @@ do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
 	init_lh(&lh);
 	copy_lh(&lh, uf_coord->lh);
 	inode = page->mapping->host;
-	coord_dup(&coord, &uf_coord->base_coord);
+	coord_dup(&coord, &uf_coord->coord);
 
 	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
@@ -428,7 +428,7 @@ reiser4_internal int
 readpage_tail(void *vp, struct page *page)
 {
 	uf_coord_t *uf_coord = vp;
-	ON_DEBUG(coord_t *coord = &uf_coord->base_coord);
+	ON_DEBUG(coord_t *coord = &uf_coord->coord);
 	ON_DEBUG(reiser4_key key);
 
 	assert("umka-2515", PageLocked(page));
@@ -445,20 +445,21 @@ readpage_tail(void *vp, struct page *page)
 	return do_readpage_tail(uf_coord, page);
 }
 
-reiser4_internal int
-item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
-			 hint_t *hint, int back_to_dirty, int do_set_hint)
+/* drop longterm znode lock before calling
+   balance_dirty_pages. balance_dirty_pages may cause transaction to close,
+   therefore we have to update stat data if necessary */
+static int
+tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
+			 hint_t *hint)
 {
 	int result;
 	struct inode *inode;
 
-	if (do_set_hint) {
-		if (hint->coord.valid)
-			set_hint(hint, &f->key, ZNODE_WRITE_LOCK);
-		else
-			unset_hint(hint);
-		longterm_unlock_znode(hint->coord.lh);
-	}
+	if (hint->ext_coord.valid)
+		set_hint(hint, &f->key, ZNODE_WRITE_LOCK);
+	else
+		unset_hint(hint);
+	longterm_unlock_znode(hint->ext_coord.lh);
 
 	inode = mapping->host;
 	if (get_key_offset(&f->key) > inode->i_size) {
@@ -477,19 +478,10 @@ item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 	/* FIXME-VS: this is temporary: the problem is that bdp takes inodes
 	   from sb's dirty list and it looks like nobody puts there inodes of
 	   files which are built of tails */
-	if (back_to_dirty)
-		move_inode_out_from_sync_inodes_loop(mapping);
+	move_inode_out_from_sync_inodes_loop(mapping);
 
 	reiser4_throttle_write(inode);
-	return hint_validate(hint, &f->key, 0/* do not check key */, ZNODE_WRITE_LOCK);
-}
-
-/* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
-   therefore we have to update stat data if necessary */
-static int formatting_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
-				    hint_t *hint)
-{
-	return item_balance_dirty_pages(mapping, f, hint, 1, 1/* set hint */);
+	return 0;
 }
 
 /* calculate number of blocks which can be dirtied/added when flow is inserted and stat data gets updated and grab them.
@@ -523,11 +515,11 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 	int result;
 	coord_t *coord;
 
-	assert("vs-1338", hint->coord.valid == 1);
+	assert("vs-1338", hint->ext_coord.valid == 1);
 
-	coord = &hint->coord.base_coord;
+	coord = &hint->ext_coord.coord;
 	result = 0;
-	while (f->length && hint->coord.valid == 1) {
+	while (f->length && hint->ext_coord.valid == 1) {
 		switch (mode) {
 		case FIRST_ITEM:
 		case APPEND_ITEM:
@@ -540,7 +532,7 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 			if (!grabbed)
 				result = insert_flow_reserve(znode_get_tree(coord->node));
 			if (!result)
-				result = insert_flow(coord, hint->coord.lh, f);
+				result = insert_flow(coord, hint->ext_coord.lh, f);
 			if (f->length)
 				DQUOT_FREE_SPACE_NODIRTY(inode, f->length);
 			break;
@@ -562,14 +554,16 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 		if (result) {
 			if (!grabbed)
 				all_grabbed2free();
+			unset_hint(hint);
+			longterm_unlock_znode(hint->ext_coord.lh);
 			break;
 		}
 
 		/* FIXME: do not rely on a coord yet */
-		hint->coord.valid = 0;
+		unset_hint(hint);
 
 		/* throttle the writer */
-		result = formatting_balance_dirty_pages(inode->i_mapping, f, hint);
+		result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
 		if (!grabbed)
 			all_grabbed2free();
 		if (result) {
@@ -606,8 +600,8 @@ read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	coord_t *coord;
 	uf_coord_t *uf_coord;
 
-	uf_coord = &hint->coord;
-	coord = &uf_coord->base_coord;
+	uf_coord = &hint->ext_coord;
+	coord = &uf_coord->coord;
 
 	assert("vs-571", f->user == 1);
 	assert("vs-571", f->data);

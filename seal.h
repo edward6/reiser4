@@ -12,7 +12,7 @@
 #include "coord.h"
 
 /* for __u?? types */
-#include <linux/types.h>
+/*#include <linux/types.h>*/
 
 /* seal. See comment at the top of seal.c */
 typedef struct seal_s {
@@ -22,22 +22,19 @@ typedef struct seal_s {
 	reiser4_block_nr block;
 #if REISER4_DEBUG
 	/* coord this seal is attached to. For debugging. */
-	coord_t coord;
+	coord_t coord1;
 	/* key this seal is attached to. For debugging. */
 	reiser4_key key;
+	void *bt[5];
 #endif
 } seal_t;
 
-extern void seal_init(seal_t * seal, const coord_t * coord, const reiser4_key * key);
-extern void seal_done(seal_t * seal);
-
-extern int seal_is_set(const seal_t * seal);
-
-extern int seal_validate(seal_t * seal,
-			 coord_t * coord,
-			 const reiser4_key * key,
-			 tree_level level,
-			 lock_handle * lh, lookup_bias bias, znode_lock_mode mode, znode_lock_request request);
+extern void seal_init(seal_t *, const coord_t *, const reiser4_key *);
+extern void seal_done(seal_t *);
+extern int seal_is_set(const seal_t *);
+extern int seal_validate(seal_t *, coord_t *,
+			 const reiser4_key *, lock_handle *,
+			 znode_lock_mode mode, znode_lock_request request);
 
 
 /* __SEAL_H__ */
