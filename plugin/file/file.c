@@ -742,8 +742,7 @@ static ssize_t write_flow (struct file * file, struct inode * inode, flow_t * f)
 	while (1) {
 		znode * loaded;
 
-		/* look for file metadata corresponding to position we write
-		 * to */
+		/* look for file's metadata (extent or tail item) corresponding to position we write to */
 		result = find_next_item (file, &f->key, &coord, &lh, ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occurred */
