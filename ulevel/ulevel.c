@@ -3915,11 +3915,11 @@ static void fill_sb (struct super_block * super)
 {
 	reiser4_super_info_data * info_data = get_super_private (super);
 	
-	info_data -> block_count2 = BLOCK_COUNT;
-	info_data -> blocks_used2  = BLOCK_COUNT / 10;
-	info_data -> blocks_free2  = info_data -> block_count2 - info_data -> blocks_free2;
+	info_data -> block_count = BLOCK_COUNT;
+	info_data -> blocks_used  = BLOCK_COUNT / 10;
+	info_data -> blocks_free  = info_data -> block_count - info_data -> blocks_free;
 
-	info_data -> blocks_free_committed2 = info_data -> blocks_free2;
+	info_data -> blocks_free_committed = info_data -> blocks_free;
 
 	/* set an allocator plugin field to bitmap-based allocator */
 	info_data ->space_plug = &space_plugins[BITMAP_SPACE_ALLOCATOR_ID].space_allocator;

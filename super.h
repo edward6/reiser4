@@ -51,24 +51,24 @@ struct reiser4_super_info_data {
 	/**
 	 * amount of blocks in a file system
 	 */
-	__u64    block_count2;
+	__u64    block_count;
 
 	/**
 	 * amount of blocks used by file system data and meta-data.
 	 */
-	__u64    blocks_used2;
+	__u64    blocks_used;
 
 	/**
 	 * amount of free blocks. This is "working" free blocks counter. It is
 	 * like "working" bitmap, please see block_alloc.c for description.
 	 */
-	__u64    blocks_free2;
+	__u64    blocks_free;
 
 	/**
 	 * free block count for fs committed state. This is "commit" version
 	 * of free block counter.
 	 */
-	__u64    blocks_free_committed2;
+	__u64    blocks_free_committed;
 
 	/**
 	 * current inode generation.
