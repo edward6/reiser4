@@ -2142,12 +2142,11 @@ int extent_readpage (void * vp, struct page * page)
 	struct inode * inode;
 	coord_t * coord;
 	reiser4_extent * ext;
-	reiser4_key page_key, unit_key;
-	__u64 pos_in_extent;
 	reiser4_block_nr block;
 	jnode * j;
 
 
+	assert ("vs-858", PAGE_CACHE_SIZE == current_blocksize);
 	assert ("vs-761", page && page->mapping && page->mapping->host);
 	inode = page->mapping->host;
 
@@ -2160,39 +2159,112 @@ int extent_readpage (void * vp, struct page * page)
 	assert ("vs-758", item_is_extent (coord));
 	assert ("vs-759", coord_is_existing_unit (coord));
 	ext = extent_by_coord (coord);
+
 	/*
 	 * FIXME-VS: it is not possible now. When unformatted nodes will be
 	 * flushable without updating parent this must change
 	 */
 	assert ("vs-760", state_of_extent (ext) != UNALLOCATED_EXTENT);
-
-	/* calculate key of page */
-	inode_file_plugin (inode)->key_by_inode (inode, (loff_t)page->index << PAGE_CACHE_SHIFT,
-						 &page_key);
-	/* make sure that extent is found properly */
-	assert ("vs-762", extent_key_in_unit (coord, &page_key));
-	unit_key_by_coord (coord, &unit_key);
-	pos_in_extent = (get_key_offset (&page_key) - get_key_offset (&unit_key)) >>
-		current_blocksize_bits;
+	/* this will check that unit @coord is set to addresses this page */
+	if (REISER4_DEBUG)
+		in_extent (coord, (loff_t)page->index << PAGE_CACHE_SHIFT);
 
 	j = jnode_of_page (page);
 	if (IS_ERR(j))
 		return PTR_ERR(j);
 
 	if (state_of_extent (ext) == ALLOCATED_EXTENT) {
-		block = extent_get_start (ext) + pos_in_extent;
+		block = extent_get_start (extent_by_coord (coord)) +
+			in_extent (coord, (loff_t)page->index << PAGE_CACHE_SHIFT);
+		jnode_set_mapped (j);
 		jnode_set_block (j, &block);
 		page_io (page, READ, GFP_NOIO);
 	} else {
-		assert ("vs-858", PAGE_CACHE_SIZE == current_blocksize);
 		memset (kmap (page), 0, PAGE_CACHE_SIZE);
 		flush_dcache_page (page);
 		kunmap (page);
 		SetPageUptodate (page);
-		unlock_page(page);
+		unlock_page (page);
 	}
 	jput (j);
 	return 0;
+}
+
+
+int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
+{
+	int result;
+	struct inode * inode;
+	reiser4_extent * ext;
+	reiser4_block_nr block;
+	jnode * j;
+
+
+	assert ("vs-870", PAGE_CACHE_SIZE == current_blocksize);
+	assert ("vs-861", page && page->mapping && page->mapping->host);
+	inode = page->mapping->host;
+
+	/* jnode exists and it is not mapped */
+	assert ("vs-862", (PagePrivate (page) &&
+			   !jnode_mapped (jnode_of_page (page))));
+	assert ("vs-863", znode_is_loaded (coord->node));
+	assert ("vs-864", znode_is_wlocked (coord->node));
+	assert ("vs-865", item_is_extent (coord));
+	assert ("vs-866", coord_is_existing_unit (coord));
+	ext = extent_by_coord (coord);
+	/*
+	 * FIXME-VS: it is not possible now. When unformatted nodes will be
+	 * flushable without updating parent this must change
+	 */
+	assert ("vs-867", state_of_extent (ext) != UNALLOCATED_EXTENT);
+	/* this will check that unit @coord is set to addresses this page */
+	if (REISER4_DEBUG)
+		in_extent (coord, (loff_t)page->index << PAGE_CACHE_SHIFT);
+
+	j = jnode_of_page (page);
+
+	if (state_of_extent (ext) == ALLOCATED_EXTENT) {
+		/* allocated extent found. Calculate block number corresponding
+		 * to page being written and assign it to jnode
+		 * FIXME-VS: not sure that this can happen */
+		info ("extent_writepage: allocated extent found\n");
+		block = extent_get_start (extent_by_coord (coord)) +
+			in_extent (coord, (loff_t)page->index << PAGE_CACHE_SHIFT);
+		jnode_set_mapped (j);
+		jnode_set_block (j, &block);
+		result = 0;
+	} else {
+		/* plug the hole */
+		result = reiser4_grab_space1 ((__u64)1);
+		if (result) {
+			jput (j);
+			return result;
+		}
+		result = plug_hole (coord, lh, (loff_t)page->index << PAGE_CACHE_SHIFT);
+		if (result) {
+			reiser4_release_grabbed_space((__u64)1);
+			jput (j);
+			return result;
+		}
+
+		/* capture page if it was not yet */
+		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
+		if (result) {
+			reiser4_release_grabbed_space((__u64)1);
+			jput (j);
+			return result;
+		}
+		
+		reiser4_count_fake_allocation((__u64)1);
+
+		jnode_set_mapped (j);
+		jnode_set_created (j);
+		jnode_set_block (j, &null_block_nr);
+		jnode_set_loaded (j);
+		jnode_set_dirty (j);
+	}
+	jput (j);
+	return result;
 }
 
 
@@ -2362,6 +2434,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 	struct page * page;
 	unsigned long left;
 	__u64 pages;
+	int sectors_per_block;
 
 
 	page = 0;
@@ -2382,6 +2455,8 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 									 &key);
 			extent_key_in_unit (coord, &key);
 		}));
+
+	sectors_per_block = (current_blocksize >> 9);
 
 	nr_units = extent_nr_units (coord);
 	/* position in item matching to @start_page */
@@ -2436,8 +2511,10 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 				if (state == HOLE_EXTENT)
 					range->sector = 0;
 				else
-					range->sector = extent_get_start (&ext [i]) +
-						pos_in_unit;
+					/* convert block number to sector
+					 * number (512) */
+					range->sector = (extent_get_start (&ext [i]) +
+							 pos_in_unit) * sectors_per_block;
 				INIT_LIST_HEAD (&range->pages);
 				list_add_tail (&range->next, &range_list);
 			}
