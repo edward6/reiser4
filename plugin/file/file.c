@@ -645,7 +645,7 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 	coord_init_zero (&coord);
 	init_lh (&lh);
 
-
+	unlock_page (page);
 	while (1) {
 		result = find_next_item (&hint, &key, &coord, &lh,
 					 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK,
@@ -676,7 +676,9 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 			result = -EIO;
 			break;
 		}
-		
+
+		lock_page (page);
+
 		/* get plugin of found item */
 		iplug = item_plugin_by_coord (&coord);
 		zrelse (coord.node);
@@ -692,15 +694,17 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 			if (iplug->s.file.writepage)
 				result = iplug->s.file.writepage (&hint, page);
 		}
-		if (result == -EAGAIN)
+		if (result == -EAGAIN) {
+			assert ("vs-982", !PageLocked (page));
 			continue;
+		}
 		break;
 	}
 
-	if (result) {
+	assert ("vs-979", ergo (result == 0, PageLocked (page) || PageUptodate(page)) );
+
+	if (result)
 		SetPageError (page);
-		/*unlock_page (page);*/
-	}
 
 	return result;
 }

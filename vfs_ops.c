@@ -2186,6 +2186,7 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 		if( node != NULL ) {
 			int ret;
 			jref( node );
+			unlock_page( page );
 try_to_lock:
 			spin_lock_jnode( node );
 			ret = txn_try_capture( node, ZNODE_WRITE_LOCK, 0 );
@@ -2197,6 +2198,7 @@ try_to_lock:
 					preempt_point();
 					goto try_to_lock;
 				} else {
+					lock_page(page);
 					jput( node );
 					return ret;
 				}
@@ -2205,6 +2207,7 @@ try_to_lock:
 
 			txn_delete_page( page );
 
+			lock_page(page);
 			UNDER_SPIN_VOID( jnode, node,
 					 page_clear_jnode( page, node ) );
 
