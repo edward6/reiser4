@@ -633,7 +633,9 @@ atom_try_commit_locked (txn_atom *atom)
 		return -EAGAIN;
 	}
 
-	/* Now we can commit. */
+	/* Up to this point we have been flushing and after flush is called we return
+	 * -EAGAIN.  Now we can commit.  We cannot return -EAGAIN at this point, commit
+	 * should be successful. */
 	atom->stage = ASTAGE_PRE_COMMIT;
 
 	trace_on (TRACE_TXN, "commit atom %u: PRE_COMMIT\n", atom->atom_id);
@@ -652,7 +654,7 @@ atom_try_commit_locked (txn_atom *atom)
 	spin_unlock_atom (atom);
 
 	/* isolate critical code path which should be executed by only one thread using
-	 * tmgr semaphore */
+ 	 * tmgr semaphore */
 	down (&private->tmgr.commit_semaphore);
 
 	pre_commit_hook ();
@@ -668,6 +670,9 @@ atom_try_commit_locked (txn_atom *atom)
 	/* Now close this txnh's reference to the atom. */
 	spin_lock_atom (atom);
 
+	invalidate_clean_list (atom);
+
+	/* FIXME: Josh needs to clarify this. */
 	wakeup_atom_waitfor_list (atom);
 	wakeup_atom_waiting_list (atom);
 
@@ -676,6 +681,7 @@ atom_try_commit_locked (txn_atom *atom)
 	atom->refcount -= 1;
 
 	assert ("jmacd-1070", atom->refcount > 0);
+	assert ("jmacd-1062", atom->capture_count == 0);
 	assert ("jmacd-1071", spin_atom_is_locked (atom));
 
 	trace_on (TRACE_TXN, "commit atom finished %u refcount %d\n", atom->atom_id, atom->refcount);
@@ -814,7 +820,9 @@ commit_txnh (txn_handle *txnh)
 			}
 			goto again;
 		}
+	}
 
+	assert ("jmacd-1027", spin_atom_is_locked (atom));
 	spin_lock_txnh (txnh);
 
 	atom->txnh_count -= 1;
@@ -1945,7 +1953,6 @@ void txn_insert_into_clean_list (txn_atom * atom, jnode * node)
 
 	capture_list_push_front (&atom->clean_nodes, node);
 	node->atom = atom;
-	node->atom->capture_count ++;
 }
 
 /*****************************************************************************************
