@@ -17,6 +17,7 @@ int mergeable_ctail(const coord_t * p1, const coord_t * p2);
 pos_in_item_t nr_units_ctail(const coord_t * coord);
 int estimate_ctail(const coord_t * coord, const reiser4_item_data * data);
 void print_ctail(const char *prefix, coord_t * coord);
+lookup_result lookup_ctail(const reiser4_key *, lookup_bias, coord_t *);
 int paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG);
 int can_shift_ctail(unsigned free_space, coord_t * coord,
 		  znode * target, shift_direction pend, unsigned *size, unsigned want);
