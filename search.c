@@ -839,6 +839,7 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 	*znode_get_rd_key( node ) = *rdkey;
 	spin_unlock_dk( current_tree );
 
+	zrelse( insert_coord -> node );
 	op = post_carry( &todo, COP_INSERT, insert_coord -> node, 0 );
 	if( !IS_ERR( op ) ) {
 		cdata.coord = insert_coord;
@@ -860,6 +861,8 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 		result = PTR_ERR( op );
 	zput( node );
 	done_carry_pool( &pool );
+	if( result == 0 )
+		result = zload( insert_coord -> node );
 	return result;
 }
 
