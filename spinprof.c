@@ -60,9 +60,7 @@ static struct kobj_type ktype_profregion = {
 
 static decl_subsys(profregion, &ktype_profregion);
 
-DEFINE_PER_CPU(struct profregionstack, inregion) = {
-	.top = 0
-};
+DEFINE_PER_CPU(struct profregionstack, inregion) = {0};
 
 extern struct profregion pregion_spin_jnode_held;
 extern struct profregion pregion_spin_jnode_trying;
