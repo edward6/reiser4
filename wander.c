@@ -510,8 +510,12 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	   blocks */
 	blocknr_hint_init(&hint);
 	hint.block_stage = BLOCK_FLUSH_RESERVED;
-	trace_on(TRACE_RESERVE, "flush allocates %llu blocks for wandering logs.\n", wide_len);
-	ret = reiser4_alloc_blocks (&hint, start, &wide_len, 1/*not unformatted*/, 0);
+	
+	ret = reiser4_alloc_blocks (&hint, start, &wide_len, 
+		BA_FORMATTED/* formatted, not from reserved area */);
+
+	trace_on(TRACE_RESERVE, info("flush allocates %llu blocks for wandering logs.\n", wide_len));
+	
 	*len = (int) wide_len;
 
 	return ret;
@@ -758,9 +762,11 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 		/* FIXME: there should be some block allocation policy for
 		   nodes which contain log records */
+		
 		/* FIXME-VITALY: Who grabbed this? */
-		trace_on(TRACE_RESERVE, "flush allocates %llu blocks for tx lists.\n", len);
-		ret = reiser4_alloc_blocks (&hint, &first, &len, 1/*not unformatted*/, 1);
+		trace_on(TRACE_RESERVE, info("flush allocates %llu blocks for tx lists.\n", len));
+		ret = reiser4_alloc_blocks (&hint, &first, &len, 
+			BA_FORMATTED | BA_RESERVED /* formatted, from reserved area */);
 
 		blocknr_hint_done(&hint);
 
@@ -836,7 +842,8 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 free_not_assigned:
 	/* We deallocate blocks not yet assigned to jnodes on tx_list. The
 	   caller takes care about invalidating of tx list  */
-	reiser4_dealloc_blocks(&first, &len, 0, BLOCK_GRABBED, 1 /* not unformatted */ );
+	reiser4_dealloc_blocks(&first, &len, BLOCK_GRABBED, 
+		BA_FORMATTED/* formatted without defer */);
 
 	return ret;
 }
@@ -867,7 +874,9 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			   map */
 			reiser4_block_nr wide_len = len;
 
-			reiser4_dealloc_blocks(&block, &wide_len, 0, BLOCK_NOT_COUNTED, 1 /* not unformatted */ );
+			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED, 
+				BA_FORMATTED/* formatted, without defer */);
+			
 			return ret;
 		}
 
@@ -968,7 +977,7 @@ reiser4_write_logs(void)
 	}
 
 	/* Grab space for modified bitmaps from 100% of disk space. */
-	if (reiser4_grab_space_force(ch.nr_bitmap, 1))
+	if (reiser4_grab_space_force(ch.nr_bitmap, BA_RESERVED))
 		rpanic("vpf-341", "No space left from reserved area.");
 	
 	grabbed2flush_reserved(ch.nr_bitmap);
@@ -978,7 +987,7 @@ reiser4_write_logs(void)
 	/* VITALY: Check that flush_reserve is enough. */	
 	assert("vpf-279", check_atom_reserved_blocks(atom, ch.overwrite_set_size));
 
-	if ((ret = reiser4_grab_space_force((__u64)(ch.tx_size), 1)))
+	if ((ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED)))
 		goto up_and_ret;
 
 	{
@@ -995,8 +1004,8 @@ reiser4_write_logs(void)
 			ret = alloc_tx(&ch, fq);
 		
 		/* FIXME-VITALY: Check this with Zam. */
-		trace_on(TRACE_RESERVE, "free all (%llu) reserved.\n", 
-			reiser4_atom_flush_reserved());
+		trace_on(TRACE_RESERVE, info("free all (%llu) reserved.\n", 
+			reiser4_atom_flush_reserved()));
 
 		flush_reserved2free_all();
 		
@@ -1069,8 +1078,8 @@ up_and_ret:
 	dealloc_wmap(&ch);
 
 	/* VITALY: Free flush_reserved blocks. */
-	trace_on(TRACE_RESERVE, "release all grabbed blocks (%llu).\n", 
-		get_current_context()->grabbed_blocks);
+	trace_on(TRACE_RESERVE, info("release all grabbed blocks (%llu).\n", 
+		get_current_context()->grabbed_blocks));
 
 	all_grabbed2free();	
 	capture_list_splice(&ch.atom->clean_nodes, &ch.overwrite_set);
