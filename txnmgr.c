@@ -1972,6 +1972,13 @@ capture_fuse_into (txn_atom  *small,
 	blocknr_set_merge (& large->delete_set, & small->delete_set);
 	blocknr_set_merge (& large->wandered_map, & small->wandered_map);
 
+	/* Merge allocated/deleted file counts */
+	large->nr_objects_deleted += small->nr_objects_deleted; 	
+	large->nr_objects_created += small->nr_objects_created;
+
+	small->nr_objects_deleted = 0;
+	small->nr_objects_created = 0;
+
 	/* Notify any waiters--small needs to unload its wait lists.  Waiters actually remove
 	 * themselves from the list before returning from the fuse_wait function. */
 	wakeup_atom_waitfor_list (small);

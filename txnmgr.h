@@ -215,6 +215,13 @@ struct txn_atom
 
 	/* List of this atom's handles that are waiting: see 'capture_fuse_wait' comment. */
 	fwaiting_list_head           fwaiting_list;
+
+	/* Numbers of objects which were deleted/created in this transaction
+	 * thereby numbers of objects IDs where released/deallocated. */
+	/* FIXME-ZAM: It looks like a temporary solution until logical logging
+	 * is implemented */
+	int  nr_objects_deleted;
+	int  nr_objects_created;
 };
 
 /* A transaction handle: the client obtains and commits this handle which is assigned by
