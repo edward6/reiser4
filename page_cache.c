@@ -268,13 +268,16 @@ static int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 /** ->delete_node method of page-cache based tree operations */
 static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
+	spinlock_t  *lock;
 	struct page *page;
 
 	trace_on( TRACE_PCACHE, "delete node: %p\n", node );
 
-	spin_lock( &_jnode_ptr_lock );
+	lock = jnode_to_page_lock( node );
+	spin_lock( lock );
 	page = jnode_page( node );
 	if( page != NULL ) {
+		assert( "nikita-2181", lock == page_to_jnode_lock( page ) );
 		lock_page( page );
 		/* FIXME-NIKITA locking? */
 		ClearPageDirty( page );
@@ -282,11 +285,11 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 		remove_inode_page( page );
 		unlock_page( page );
 		break_page_jnode_linkage( page, node );
-		spin_unlock( &_jnode_ptr_lock );
+		spin_unlock( lock );
 		page_cache_release( page );
 		return 0;
 	}
-	spin_unlock( &_jnode_ptr_lock );
+	spin_unlock( lock );
 	return 0;
 }
 
@@ -294,23 +297,26 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 static int page_cache_drop_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
 	struct page *page;
+	spinlock_t  *lock;
 
 	trace_on( TRACE_PCACHE, "drop node: %p\n", node );
 
-	spin_lock( &_jnode_ptr_lock );
+	lock = jnode_to_page_lock( node );
+	spin_lock( lock );
 	page = jnode_page( node );
 	if( page != NULL ) {
+		assert( "nikita-2182", lock == page_to_jnode_lock( page ) );
 		lock_page( page );
 		assert( "nikita-2126", !PageDirty( page ) );
 		assert( "nikita-2127", PageUptodate( page ) );
 		remove_inode_page( page );
 		unlock_page( page );
 		break_page_jnode_linkage( page, node );
-		spin_unlock( &_jnode_ptr_lock );
+		spin_unlock( lock );
 		page_cache_release( page );
 		return 0;
 	}
-	spin_unlock( &_jnode_ptr_lock );
+	spin_unlock( lock );
 	return 0;
 }
 
@@ -477,7 +483,7 @@ static int formatted_invalidatepage( struct page *page /* page to write */,
 				     unsigned long offset UNUSED_ARG /*  truncate
 								      *  offset */ )
 {
-	warning( "nikita-2129", "Shouldn't happen\n" );
+	warning( "nikita-2129", "Shouldn't happen" );
 	print_page( page );
 	return 0;
 }
