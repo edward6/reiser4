@@ -39,6 +39,11 @@ static __u64 get_format_40_oid (const format_40_disk_super_block * sb)
 	return d64tocpu (&sb->oid);
 }
 
+static __u16 get_format_40_tail_policy(const format_40_disk_super_block * sb)
+{
+	return d16tocpu (&sb->tail_policy);
+}
+
 /* find any valid super block of disk_format_40 (even if the first
  * super block is destroyed) */
 static struct buffer_head * find_a_disk_format_40_super_block (struct super_block * s
@@ -242,6 +247,12 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 				    get_format_40_oid (sb_copy));
 	if (result)
 		return result;
+	
+	/* initializing tail policy */
+	private->tplug = tail_plugin_by_id (get_format_40_tail_policy(sb_copy));
+	assert("umka-751", private->tplug);
+	
+	printk("Tail policy is %x.\n", get_format_40_tail_policy(sb_copy));
 
 	/* layout 40 uses bitmap based space allocator - the one implemented in
 	 * plugin/space/bitmap.[ch] */

@@ -21,6 +21,7 @@ typedef struct format_40_disk_super_block {
 	/*   0 */ d64 block_count; /* number of block in a filesystem */
 	/*   8 */ d64 free_blocks; /* number of free blocks */
 	/*  16 */ d64 root_block;  /* filesystem tree root block */
+		  d16 tail_policy;
 	/*  32 */ d64 oid;	   /* smallest free objectid */
 	/*  40 */ d64 file_count;  /* number of files in a filesystem */
 	/*  48 */ d64 flushes;	   /* number of times super block was
