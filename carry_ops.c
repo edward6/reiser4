@@ -406,7 +406,8 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 			print_znode( "node", node );
 		} else if( right != NULL ) {
 			/*
-			 * node containing insertion point, and its right neighbor node are write locked by now.
+			 * node containing insertion point, and its right
+			 * neighbor node are write locked by now.
 			 *
 			 * shift everything possible on the right of but
 			 * excluding insertion coord into the right neighbor
