@@ -3279,10 +3279,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		neighbor = UNDER_SPIN (tree, tree,
 				       jlook (tree, oid, scan_index));
 		if (neighbor == NULL) {
-			/* jnode of unallocated block must be found */
-			impossible ("jmacd-8337",
-				    "unallocated node index %lu ino %llu not in memory", scan_max, oid);
-			ret = -EIO;
+			/* Race with truncate */
+			ret = -EAGAIN;
 			goto exit;
 		}
 
