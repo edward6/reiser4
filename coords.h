@@ -76,6 +76,7 @@ extern int coord_is_rightmost( const tree_coord *coord );
 extern int coord_is_utmost( const tree_coord *coord, sideof side );
 extern int coord_is_after_item( const tree_coord * coord );
 int coord_is_before_item (const tree_coord * coord, unsigned item_pos);
+extern int coord_eq( const tree_coord *c1, const tree_coord *c2 );
 
 extern int  coord_are_neighbors( tree_coord *c1, tree_coord *c2 );
 void print_coord (const char * mes, const tree_coord * coord, int);

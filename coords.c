@@ -489,6 +489,53 @@ coord_wrt_node coord_wrt( const tree_coord *coord )
 	return COORD_INSIDE;
 }
 
+/** true if @c1 and @c2 points to the same place in a node */
+int coord_eq( const tree_coord *c1, const tree_coord *c2 )
+{
+	assert( "nikita-1807", c1 != NULL );
+	assert( "nikita-1808", c2 != NULL );
+
+	if( ! memcmp( c1, c2, sizeof *c1 ) )
+		return 1;
+	if( c1 -> node != c2 -> node )
+		return 0;
+	switch( c1 -> between ) {
+	default: wrong_return_value( "nikita-1809", c1 -> between );
+	case AT_UNIT:
+		return 0;
+	case BEFORE_UNIT:
+		if( c1 -> unit_pos > 0 )
+			return 
+				( c1 -> item_pos == c2 -> item_pos ) &&
+				( c1 -> unit_pos == c2 -> unit_pos + 1 ) &&
+				( c2 -> between == AFTER_UNIT );
+		else {
+	case BEFORE_ITEM:
+			assert( "nikita-1810", c1 -> unit_pos == 0 );
+			return 
+				( c1 -> item_pos == c2 -> item_pos + 1 ) &&
+				( c2 -> unit_pos == last_unit_pos( c2 ) ) &&
+				( ( c1 -> between == AFTER_UNIT ) ||
+				  ( c1 -> between == AFTER_ITEM ) );
+		}
+	case AFTER_UNIT:
+		if( c1 -> unit_pos == last_unit_pos( c1 ) ) {
+	case AFTER_ITEM:
+			assert( "nikita-1811", 
+				c1 -> unit_pos == last_unit_pos( c1 ) );
+			return 
+				( c1 -> item_pos + 1 == c2 -> item_pos ) &&
+				( c2 -> unit_pos == 0 ) &&
+				( ( c1 -> between == BEFORE_UNIT ) ||
+				  ( c1 -> between == BEFORE_ITEM ) );
+		} else
+			return 
+				( c1 -> item_pos == c2 -> item_pos ) &&
+				( c1 -> unit_pos + 1 == c2 -> unit_pos ) &&
+				( c2 -> between == BEFORE_UNIT );
+	}
+}
+
 static const char * tween (between_enum n)
 {
 	switch (n) {
