@@ -337,6 +337,9 @@ sprintf( string_pointer_bytes_read, "%8.8p", &bytes_readed );
  */
 
 
+
+
+
 /*
   Declare tokens used by our syntax. Priority increases
   downward. Tokens in the same line have the same priority.
@@ -347,7 +350,7 @@ sprintf( string_pointer_bytes_read, "%8.8p", &bytes_readed );
 /*%token DOTDOT*/
 %token EOL
 %token PROCESS SP
-%token SLASH /*SLASH_DOTDOT*/ SLASH2 SLASH3
+%token SLASH /*SLASH_DOTDOT*/ SLASH2 SLASH3 ORDERED
 %token STAT
 %token L_PAREN R_PAREN INV_L INV_R
 %token RANGE OFFSET OFFSET_BACK FIRST_BYTE LAST_BYTE P_BYTES_WRITTEN P_BYTES_READ LAST BYTES FIRST
@@ -431,10 +434,12 @@ asyn_begin
 ;
 
 cd_begin
-: Object_Name SLASH2 '('                                { level_up( CD_BEGIN ); make_current( $1, level ); } 
+: Object_Name SLASH2 '('                                { level_up( CD_BEGIN ); $$ = make_current_path( $1, level ); } 
+;
 
 op_level
 : '('                                                   { level_up( OP_LEVEL ); }
+;
 
 
                                                /* list of operations that will be performed "simultaneously" */
@@ -461,7 +466,7 @@ assignment
 
 Expression          
 : Object_Name                                           {}
-| op_level assignment ')'                               { $$ = $2; level_down( OP_LEVEL );}/*  this expresion mast have value of written bytes    */
+| op_level assignment ')'                               { $$ = $2; level_down( OP_LEVEL );}   /*  this expresion mast have value of written bytes    */
 | Constant                                              { $$ = $1; }
 | Expression '+' Expression                             { $$ = connect_expression( $1,  $3 ); }
 | Expression EQ Expression                              { $$ = compare_expression( $1, $2, $3 ); }
@@ -473,10 +478,13 @@ Expression
 /*                    | Expression IS pattern   */
 | Expression OR  Expression                             { $$ = compare_expression( $1, $2, $3 ); }
 | Expression AND Expression                             { $$ = compare_expression( $1, $2, $3 ); }
-| NOT '(' Expression ')'                                { $$ = not_expression( $3 ); }
+| NOT_head Expression ')'                                { $$ = not_expression( $3 ); level_down( NOT_HEAD );}
 | op_level Expression ')'                               { $$ = $2; level_down( OP_LEVEL ); }
 | EXIST Object_Name                                     { $$ = check_exist( $2 ); }
 ;
+
+NOT_head
+:NOT '('                                                { level_up( NOT_HEAD ); }
 
 if_statement        
 : if_Expression Then_Else                               { $$ = $1; make_end_label(); level_down(IF_STATEMENT);}
@@ -503,10 +511,13 @@ Object_Name
 : Object_Path_Name                                      {}
 | Object_Path_Name SLASH3 range_type                    {}
 | '[' Unordered_list ']'                                {}                            /* gruping: [name1 name2 [name3]]  */
+| Object_Name ORDERED Object_Name {} /* ordered  rule (Hans want ORDERED is "/", but this is not posible, I keep define it for later ) */
 ;
 
+
+
 Unordered_list
-: Object_Name                                           {}
+: Object_Name                                           { }
 | P_RUNNER                                              {}
 | Unordered_list SP Unordered_list                      {}
 ;
@@ -523,7 +534,7 @@ Object_relative_Name
 ;
 
 Object_sub_Name
-:  WORD                                                 {}             /* foo */
+:  WORD                                                 { $$ = pars_pathname($1);} /* foo */
 ;
 
 range_type
@@ -582,6 +593,10 @@ pattern
 char *shell_meta_chars = "()<>;&|";
 char *shell_break_chars = "()<>;&| \t\n";
 
+
+
+
+
 static
 char nullname [] = {"+"};
 
@@ -607,35 +622,35 @@ static unsigned char
 
 static struct
 {
-char    *       wrd;
-int             class;
+	struct inode *inode;
+	int Name_type;
+
 }
-	key [] =
-{
-	"ÿÿÿÿÿ"      ,  0
-};
 
-char copywrite[]=
+static struct
 {
-""
-};
+	char    *       wrd;
+	int             class;
+	int level;
 
+} key [] =
+	{
+		"ÿÿÿÿÿ"      ,  0
+	};
 
 #define version "0"
+
+
 
 #include <sys/types.h>
 
 #include <sys/stat.h>
 #include <linux/ctype.h>
 
+#include "parser.h"
 
 int 	yychar;			/* current input token number */
 
-
-
-static
-char    errfname    [LENFNAME]    =   {   "mes"       },
-	hlpfname    []            =   {   "help"      };
 
 static int warproc;
 struct msglist
@@ -646,76 +661,14 @@ struct msglist
 } ;
 static struct msglist *Fistmsg;
 
-static char comma   []  =   {   ","     };
-static char bsln    []  =   {   "\n"   };
-static char morda   []  =   {   ""     };
-static char tree    []  =   {   "3"     };
-static char blank   []  =   {   " "     };
-static char one     []  =   {   "1"     };
-static char zzzzz   []  =   {   "ÿÿ"     };
 
-unsigned int    n1024   = 50000;
 
 allocate()
 {
-	unsigned int i,j,l,k,n,m;
-	l=n1024;
-
-	while( !( Proct = malloc(l) ) )  l-=512;
-
-	i = sizeof( struct var  )    * NVAR;
-	j = sizeof( struct streg )   * MAXNEST;
-	n = sizeof( struct proctype) * MAXPROC + 2 * MAXPROC;
-	m = n + MAXPROC*10;
-	k = i + j + MAXBUF*2 + MAXTAB ;
-
-	if ( l<=k+m )         yyerror(501);
-	if ( (l-k-m)<1024 )   yyerror(501);
-
-	procsort=   (char *)    Proct + sizeof( struct proctype) * MAXPROC;
-
-	partab  =   (char *)    Proct + n ;
-	parmax  =   (char *)    Proct + m ;
-
-	Var     =   (char *)    parmax ;
-	macarea =   (char *)    Var   + k ;
-	maxmac  =   (char *)    Var   + l ;
-	freetab =   (char *)    Var ; /* temp assigne */
-
-	k=n1024;
-	while(( codarea = _fmalloc(k))==NULL )
-		{
-		k-=1024;
-		if (k<1024)
-			{
-			k=0;
-			yyerror(501);
-			break;
-			}
-		}
-
-	codm    = codarea + k;
-
-	tptr[0] = nullname;
-	tptr[1] = comma  ;
-	tptr[2] = bsln   ;
-	tptr[3] = morda  ;
-	tptr[4] = tree   ;
-	tptr[5] = blank  ;
-	tptr[6] = one    ;
-	tptr[8] = zzzzz   ;
-
-	Fistmsg = NULL;
 }
 
 definit()
 {
-	defco       =  0;
-	ptitle [0]  = "ÿ";
-	tlen   [0]  = 1;
-	blen   [0]  = 1;
-	pbuf   [0]  = ptitle[0];
-	freemac     = macarea;
 }
 
 reinitial()
@@ -759,82 +712,6 @@ initial()
 
 
 
-newline()
-{
-	int i, ii , k ;
-	char * ss;
-	if (!Pflag && yyerrco ) return(1);                  /* simulate EOF   */
-/*
-	if (!(Pflag || yyinlev))   text in memory !
-*/
-	while( fgets( inline, MAXLINE-2, yyin[yyinlev] ) == NULL )
-		{
-		if (yyinlev)
-			{
-			fclose (yyin[yyinlev--]);           /*   end of cur  file */
-			if (Dflag) put(Fileend);
-			}
-		else     return(1);                     /*   end of root file */
-		}
-	i=strlen(inline);
-	if ( *( inline + i - 1 ) == '\n' && i>1 )   *(inline+i-1)='\0';
-	yylineno[yyinlev]++;
-	if (Dflag)
-		{
-			put(Line,yylineno[yyinlev],yyinlev);
-		if ( !(yyinlev) && Tflag )
-			put(Brkpnt,yylineno[yyinlev]);
-		}
-	pline = inline ;
-	return(0);
-}
-
-
-getline()
-{
-	int i,ii,k;
-	*inline=0;
-	coment=1;
-	while(!(*inline))
-		{
-		if ( newline() ) return(1);
-		}
-
-	if(defco)
-		{
-		for(s = inline;  *s ; s++)
-			{
-			for(         ; *s && ncl[*s] != 1 ; s++);
-			if (*s)
-				{
-				for( pline=s ; (i=ncl[*s]) == 1 || i == 2   ; s++);
-				ii = s - pline;
-				if ((k=finddef(pline,ii))!=-1)
-					{
-					strcpy( maxbuf           ,s       );
-					strcpy( pline            ,pbuf[k] );
-					strcpy( pline  + blen[k] ,maxbuf  );
-					if(strlen(inline) > MAXBUF)
-						{
-						pline = inline;
-						*(inline + 79) = '\0';
-						yyerror(1502);
-						*(pline+2)='\0';
-						*(pline+1)='\0';
-						*pline='\n';
-						}
-					s=pline-1;
-					}
-				}
-			else break;
-			}
-		}
-	pline = inline ;
-	s=pline++;
-	if (*s=='#') { *s='\n';*pline=0;}
-	return(0);
-}
-
 
 
 insymbol()
@@ -842,7 +719,7 @@ insymbol()
 	int eof;
 	s=pline++;
 	eof=0;
-	if ( !( *s) ) eof=getline();
+	if ( !( *s) ) eof=1;
 	return(eof);
 }
 
@@ -860,23 +737,6 @@ lexem()
 		if (insymbol()) return(0);              /* skip blank   */
 		}
 
-	while ( *s=='/' && *pline=='*' )            /* skip coment  */
-		{
-		if (insymbol()) return(0);
-		if (insymbol()) return(0);
-		if ( *s=='*' && *pline=='/' )
-			{
-			if (insymbol()) return(0);
-			if (insymbol()) return(0);
-			}
-		}
-
-
-
-	while ( ncl[*s]==6 )
-		{
-		if (insymbol()) return(0);              /* skip blank   */
-		}
 
 	cls     =       lcls    =       ncl[*s] ;
 	yytext  = s;
@@ -896,15 +756,9 @@ lexem()
 			case 1:
 				term=0;
 				break;
-			case 2:
-				if (*pline!='E') term=0;
-				  else
-					{
-					lcls=16;
-					if (insymbol()) return(0);
-					}
-				break;
 			default: 
+				yyerror ( 3333, (lcls-1)* 20+i);
+				return(0);
 			}
 		}
 	 switch (lcls)
@@ -939,50 +793,103 @@ movdigtofr()
 movstrtofr()
 {
 	int i,j;
-	for(freetend=freetab;yytext<=s;)
+
+	for( freetend = freetab; yytext <= s; )
 		{
-		i=0;
-		while(*yytext =='\'')
-			{
-			yytext++;
-			i++;
-			}
-		if (yytext>s) i--;
-		i/=2;
-		if(i) for (;i;i--)      *freetend++='\'';
-		if (yytext<=s)
-			{
-			if (*yytext=='\\')
+			i=0;
+			while( *yytext == '\'' )
 				{
-				yytext++;
-				if (tolower(*yytext)=='n')
-					{
-					*freetend++='\n';
-					yytext++;
-					}
-				else
-					{
-					if ( isdigit(*yytext) )
+				 	yytext++;
+					i++;
+				} 
+			if ( yytext > s ) i--;
+			if ( i ) for ( i/=2; i; i-- )      *freetend++='\'';    /*   in source text for each '' in result will '   */
+			if ( yytext <= s )
+				{
+					if ( *yytext == '\\' )           /*         \????????   */
 						{
-						i=atoi(yytext);
-						while( isdigit( * ( ++yytext ) ) ) ;
-						while (i>255) i-=256;
-						*freetend++ = (unsigned char) i;
-						}
-					else
-						{
-						*freetend++ = *yytext++;
-						}
-					}
-				}
-			else *freetend++ = *yytext++;
-			}
-		if( freetend > maxtab )
-			{
-			yyerror(1101);
-			exit(1101);
-			}
-		}
+							int tmpI;
+							yytext++;
+							switch ( tolower(*yytext) )
+								{
+									
+								case 'n':                       /*  \n  */
+									*freetend++='\n';
+									yytext++;
+									break;
+								case 'b':                       /*  \n  */
+									*freetend++='\b';
+									yytext++;
+									break;
+								case 'r':                       /*  \n  */
+									*freetend++='\r';
+									yytext++;
+									break;
+								case 'f':                       /*  \n  */
+									*freetend++='\f';
+									yytext++;
+									break;
+								case 't':                       /*  \t  */
+									*freetend++='\t';
+									yytext++;
+									break;
+								case 'o':                       /*  \o123  */
+									tmpI = 3;
+									i = 0;
+									while( tmpI-- && isdigit( * ( yytext ) ) )
+										{
+											i = (i * 8) + ( *yytext++ - '0' );
+										}
+									*freetend++ = (unsigned char) i;
+									break;
+								case 'x':                       /*  \x01..9a..e  */
+									i = 0;
+									tmpI = 1;
+									while( tmpI)
+										{
+											if (isdigit( *yytext ) )
+												{
+													i = (i * 16) + ( *yytext++ - '0' );
+												}
+											else if( tolower( *yytext ) >= 'a' && tolower( *yytext ) <= 'e' )
+												{
+													i = (i * 16) + ( *yytext++ - 'a' + 10 );
+												}
+											else 
+												{
+													tmpI = 0;
+												}
+											if ( tmpI && !( tmpI++ % 2 ) )
+												{
+													*freetend++ = (unsigned char) i;
+													i = 0;
+												}
+										}
+									break;
+								default:     
+									if ( isdigit(*yytext) )            /*  decimal notation \123  */
+										{
+											int tmpI;
+											i=atoi(yytext);
+											tmpI=3;
+											while( tmpI-- && isdigit( * ( ++yytext ) ) ) ;
+											i = i % 256 ;    /* ??????? */
+											*freetend++ = (unsigned char) i;
+										}
+									else
+										{                          /*    any symbol */
+											*freetend++ = *yytext++;
+										}
+								}
+				                }
+			                else *freetend++ = *yytext++;
+		                }
+	                if( freetend > maxtab )
+		                {
+					yyerror(1101);
+					exit(1101);
+		                }
+                }
 	*freetend++ = '\0';
 }
 
@@ -1109,6 +1016,16 @@ int 	nmsg,x1,x2,x3,x4,x5,x6,x7,x8;
 	yyerrco++;
 }
 
+int pars_pathname($1)
+{
+	struct nameidata nd;
+	int error;
+
+	error = user_path_walk(yytext, &nd);
+	if (!error) {
+	}
+	return error;
+}
 
 getvar(int n,int def)
 {                           /* def==1 declare variable  */
