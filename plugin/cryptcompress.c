@@ -1938,9 +1938,9 @@ get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode,
 	assert("edward-731", clust != NULL);
 	assert("edward-732", inode != NULL);
 
-	if (clust->hint->coord.valid) {
+	if (clust->hint->ext_coord.valid) {
 		assert("edward-1293", clust->dstat != INVAL_DISK_CLUSTER);
-		assert("edward-1294", znode_is_write_locked(clust->hint->coord.lh->node));
+		assert("edward-1294", znode_is_write_locked(clust->hint->ext_coord.lh->node));
 		/* already have a valid locked position */
 		return (clust->dstat == FAKE_DISK_CLUSTER ? CBK_COORD_NOTFOUND : CBK_COORD_FOUND);
 	}
