@@ -339,6 +339,8 @@ typedef enum {
 
 	TRACE_CAPTURE_ANONYMOUS = (1 << 28), /* 0x10000000 */
 
+	TRACE_UNIX_FILE_WRITE = (1 << 29), /* 0x20000000 */
+
 	/* vague section: used to trace bugs. Use it to issue optional prints
 	   at arbitrary points of code. */
 	TRACE_BUG = (1 << 31),	/* 0x80000000 */
