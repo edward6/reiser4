@@ -526,15 +526,18 @@ assign_fake_blocknr_formatted(reiser4_block_nr *blocknr)
 	return 0;
 }
 
-int
-assign_fake_blocknr_unformatted(reiser4_block_nr *blocknr)
+/* return fake blocknr which will be used for unformatted nodes */
+reiser4_block_nr
+fake_blocknr_unformatted(void)
 {
-	ON_TRACE(TRACE_RESERVE2, "assign_fake_blocknr_unformatted: moving 1 grabbed block to fake allocated unformatted\n");
+	reiser4_block_nr blocknr;
 
-	assign_fake_blocknr(blocknr);
+	ON_TRACE(TRACE_RESERVE2, "fake_blocknr_unformatted: moving 1 grabbed block to fake allocated unformatted\n");
+
+	assign_fake_blocknr(&blocknr);
 	grabbed2fake_allocated_unformatted();
 
-	return 0;
+	return blocknr;
 }
 
 
