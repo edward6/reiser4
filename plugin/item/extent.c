@@ -1543,7 +1543,7 @@ static int
 assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 		      /* FIXME-VS: get better type for number of
 		         blocks */
-		      reiser4_block_nr count, flush_position * flush_pos)
+		      reiser4_block_nr count, flush_pos_t * flush_pos)
 {
 	jnode *j;
 	int i, ret = 0;
@@ -1575,7 +1575,7 @@ assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 }
 
 static int
-extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 count, flush_position * pos)
+extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 count, flush_pos_t * pos)
 {
 	__u64 i;
 	reiser4_tree *tree;
@@ -1646,7 +1646,7 @@ extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 cou
    require changes to allocate_extent_item as well.
 */
 static int
-extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_position * pos)
+extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_pos_t * pos)
 {
 	extent_state st;
 	reiser4_blocknr_hint *preceder;
@@ -2007,7 +2007,7 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
    @flush_pos - needs comment
 */
 int
-allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_pos,
+allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 			 /* biggest key which was moved, it is maintained
 			    while shifting is in progress and is used to
 			    cut right node at the end
@@ -2265,7 +2265,7 @@ free_replace_reserved(reiser4_block_nr grabbed)
    to right
 */
 int
-allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position * flush_pos)
+allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_pos_t * flush_pos)
 {
 	int result = 0;
 	unsigned i, num_units, orig_item_pos;
