@@ -159,6 +159,7 @@ extern int jnode_done_static (void);
 extern jnode* jalloc          (void);
 extern void   jfree           (jnode * node);
 extern jnode* jnew            (void);
+extern void   jnode_set_type  (jnode*, jnode_type);
 extern jnode* jnode_by_page   (struct page* pg);
 extern jnode* jnode_of_page   (struct page* pg);
 extern jnode* page_next_jnode (jnode *node);
