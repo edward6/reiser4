@@ -1323,6 +1323,59 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 
 /* cut_tree, the new version. */
 
+static int delete_node (znode * node)
+{
+	lock_handle parent_lock;
+	coord_t cut_from;
+	coord_t cut_to;
+	int ret;
+
+	assert ("zam-933", znode_is_write_locked(node));
+
+	init_lh(&parent_lock);
+
+	ret = reiser4_get_parent(&parent_lock, node, ZNODE_WRITE_LOCK, 0);
+	if (ret)
+		return ret;
+
+	assert("zam-934", !znode_above_root(parent_lock.node));
+
+	ret = zload(parent_lock.node);
+	if (ret)
+		goto failed_nozrelse;
+
+	ret = find_child_ptr(parent_lock.node, node, &cut_from);
+	if (ret)
+		goto failed;
+
+	/* remove a pointer from the parent node to the node being deleted. */
+	coord_dup(&cut_to, &cut_from);
+	ret = cut_node(&cut_from, &cut_to, NULL, NULL, NULL, 0, 0, NULL);
+	if (ret)
+		goto failed;
+
+	/* @node should be deleted after unlocking. */
+	ZF_SET(node, JNODE_HEARD_BANSHEE);
+
+ failed:
+	zrelse(node);
+ failed_nozrelse:
+	done_lh(&parent_lock);
+
+	return ret;
+}
+
+static int node_can_be_cut_completely (znode * node, const reiser4_key * from_key, const reiser4_key * to_key)
+{
+	int ret;
+	reiser4_tree * tree = current_tree;
+	assert ("zam-935", znode_is_write_locked(node));
+	RLOCK_DK(tree);
+	ret = keyle(from_key, &node->ld_key) && keylt(&node->rd_key, to_key);
+	RUNLOCK_DK(tree);
+	return ret;
+}
+
 static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const reiser4_key * to_key)
 {
 	lock_handle next_node_lock;
@@ -1331,54 +1384,57 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 	int result;
 
 	assert("zam-931", tap->coord->node != NULL);
-	assert("zam-932", znode_is_wlocked(tap->coord->node));
+	assert("zam-932", znode_is_write_locked(tap->coord->node));
 
 	init_lh(&next_node_lock);
 
 	while (1) {
 		node_plugin *nplug;
 
-		result = tap_load(tap);
-		if (result)
-			return result;
+		if (node_can_be_cut_completely(tap->coord->node, from_key, to_key))
+			result = delete_node(tap->coord->node);
+		else {
+			result = tap_load(tap);
+			if (result)
+				return result;
 
-		 /* Prepare the second (right) point for cut_node() */
-		nplug = tap->coord->node->nplug;
+			/* Prepare the second (right) point for cut_node() */
+			nplug = tap->coord->node->nplug;
 
-		assert("vs-686", nplug);
-		assert("vs-687", nplug->lookup);
+			assert("vs-686", nplug);
+			assert("vs-687", nplug->lookup);
 
-		result = nplug->lookup(tap->coord->node, to_key, FIND_EXACT, &left_coord);
+			result = nplug->lookup(tap->coord->node, to_key, FIND_EXACT, &left_coord);
 
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
-			break;
+			if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
+				break;
 
-		/* cut data from one node */
-		smallest_removed = *min_key();
-		result = cut_node(&left_coord, tap->coord, from_key, to_key, 
-				  &smallest_removed, DELETE_KILL, /*flags */ 0, 0/*inode*/);
-		if (result)
-			break;
+			/* cut data from one node */
+			smallest_removed = *min_key();
+			result = cut_node(&left_coord, tap->coord, from_key, to_key, 
+					  &smallest_removed, DELETE_KILL, /*flags */ 0, 0/*inode*/);
+			tap_relse(tap);
+			if (result)
+				break;
 
-		/* Check whether all items with keys >= from_key were removed
-		 * from the tree. */
-		if (keyle(&smallest_removed, from_key))
-			/* result = 0;*/
-			break;
+			/* Check whether all items with keys >= from_key were removed
+			 * from the tree. */
+			if (keyle(&smallest_removed, from_key))
+				/* result = 0;*/
+				break;
+		}
 
 		/* Advance the intranode_from position to the next node. */
 		result = reiser4_get_left_neighbor(&next_node_lock, tap->coord->node, ZNODE_WRITE_LOCK, 0);
 		if (result)
 			break;
 
-		tap_relse(tap);
-
 		result = tap_move(tap, &next_node_lock);
 		if (result)
 			break;
 	}
 
-	assert("vs-301", !keyeq(&smallest_removed, min_key()));
+	// assert("vs-301", !keyeq(&smallest_removed, min_key()));
 	return result;
 }
 
@@ -1412,7 +1468,9 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 		
 	} while (result == -EDEADLK);
 
-	if (result != 0)
+	if (result == -E_NO_NEIGHBOR)
+		result = 0;
+	else if (result != 0)
 		warning("nikita-2861", "failure: %i", result);
 
 	CHECK_COUNTERS;
