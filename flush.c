@@ -1441,12 +1441,11 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 			/* Otherwise, we may want to dirty the right twig if its
 			 * leftmost child (an extent) is dirty. */
-			/*
-			 * FIXME:NIKITA->JMACD this unlocks
-			 * pos->parent_lock.node in flush_pos_stop() which
-			 * violates jmacd-1092 above.
-			 */
 			if ((ret = flush_reverse_relocate_end_of_twig (pos))) {
+				goto exit;
+			}
+
+			if (! flush_pos_valid (pos)) {
 				goto exit;
 			}
 
