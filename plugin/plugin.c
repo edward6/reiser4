@@ -240,7 +240,8 @@ int init_plugins( void )
 				 * uninitialized slot encountered
 				 */
 				continue;
-			assert( "nikita-537", plugin -> h.type_id == type_id );
+			if( plugin -> h.type_id != type_id )
+				BUG();
 			plugin -> h.id = i;
 			print_plugin( "\t", plugin ); 
 			if( plugin -> h.id > max_id ) {
@@ -542,6 +543,14 @@ extern reiser4_plugin perm_plugins[ LAST_PERM_ID ];
 extern reiser4_plugin item_plugins[ LAST_ITEM_IT ];
 /* defined in fs/reiser4/plugin/node/node.c */
 extern reiser4_plugin node_plugins[ LAST_NODE_ID ];
+#if 0
+/* defined in fs/reiser4/dformat.c */
+extern reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ];
+/* defined in fs/reiser4/dformat.c */
+extern reiser4_plugin space_plugins[ LAST_SPACE_MGR_ID ];
+/* defined in fs/reiser4/dformat.c */
+extern reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ];
+#endif
 
 reiser4_plugin hook_plugins[] = {
 	[ DUMP_HOOK_ID ] = {
@@ -633,6 +642,30 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "Parts of stat-data",
 		.builtin_num   = sizeof_array( sd_ext_plugins ),
 		.builtin       = sd_ext_plugins,
+		.plugins_list  = TS_LIST_HEAD_ZERO
+	},
+	[ REISER4_OID_MGR_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_OID_MGR_PLUGIN_TYPE,
+		.label         = "oid manager",
+		.desc          = "allocate/deallocate oids",
+		.builtin_num   = sizeof_array( oid_plugins ),
+		.builtin       = oid_plugins,
+		.plugins_list  = TS_LIST_HEAD_ZERO
+	},
+	[ REISER4_SPACE_MGR_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_SPACE_MGR_PLUGIN_TYPE,
+		.label         = "disk space manager",
+		.desc          = "allocate/deallocate disk free space",
+		.builtin_num   = sizeof_array( space_plugins ),
+		.builtin       = space_plugins,
+		.plugins_list  = TS_LIST_HEAD_ZERO
+	},
+	[ REISER4_LAYOUT_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_LAYOUT_PLUGIN_TYPE,
+		.label         = "disk layout",
+		.desc          = "defines filesystem on disk layout",
+		.builtin_num   = sizeof_array( layout_plugins ),
+		.builtin       = layout_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	}
 };
