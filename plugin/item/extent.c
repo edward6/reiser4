@@ -1729,7 +1729,6 @@ static int extent_get_create_block (coord_t * coord, lock_handle * lh,
 {
 	int result;
 	extent_write_todo todo;
-	reiser4_block_nr file_off;
 
 
 	todo = extent_what_todo (coord, key, to_block);
@@ -1750,7 +1749,7 @@ static int extent_get_create_block (coord_t * coord, lock_handle * lh,
 
 	case EXTENT_OVERWRITE_BLOCK:
 		/* there is found extent (possibly hole one) */
-		return overwrite_one_block (coord, lh, j, file_off);
+		return overwrite_one_block (coord, lh, j, get_key_offset (key));
 		
 	case EXTENT_CANT_CONTINUE:
 		/* unexpected structure of file found */
@@ -1777,7 +1776,7 @@ static int have_to_read_block (struct inode * inode, jnode * j,
 {
 	/* file_off fits into block jnode @j refers to */
 	assert ("vs-705", j->pg);
-	assert ("vs-706", PAGE_CACHE_SIZE == current_blocksize);
+	assert ("vs-706", current_blocksize == (unsigned)PAGE_CACHE_SIZE);
 	assert ("vs-704", ((file_off & ~(current_blocksize - 1)) ==
 			   ((loff_t)j->pg->index << PAGE_CACHE_SHIFT)));
 
@@ -1842,6 +1841,7 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 	jnode * j;
 
 
+	result = 0;
 	kmap (page);
 
 	/* write position */
@@ -1949,6 +1949,7 @@ int extent_write (struct inode * inode, coord_t * coord,
 	reiser4_block_nr file_off; /* offset within a file we write to */
 
 
+	result = 0;
 	while (f->length) {
 		if (f->data) {
 			assert ("vs-586", !page);
