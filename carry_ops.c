@@ -44,14 +44,18 @@ find_left_neighbor(carry_op * op	/* node to find left
 	carry_node *node;
 	carry_node *left;
 	int flags;
+	reiser4_tree *tree;
 
 	node = op->node;
 
+	tree = current_tree;
+	RLOCK_TREE(tree);
 	/* first, check whether left neighbor is already in a @doing queue */
 	if (carry_real(node)->left != NULL) {
 		/* NOTE: there is locking subtlety here. Look into
 		 * find_right_neighbor() for more info */
 		if (find_carry_node(doing, carry_real(node)->left) != NULL) {
+			RUNLOCK_TREE(tree);
 			left = node;
 			do {
 				left = carry_node_prev(left);
@@ -62,6 +66,7 @@ find_left_neighbor(carry_op * op	/* node to find left
 			return left;
 		}
 	}
+	RUNLOCK_TREE(tree);
 
 	left = add_carry_skip(doing, POOLO_BEFORE, node);
 	if (IS_ERR(left))
@@ -126,14 +131,24 @@ find_right_neighbor(carry_op * op	/* node to find right
 	carry_node *right;
 	lock_handle lh;
 	int flags;
+	reiser4_tree *tree;
 
 	init_lh(&lh);
 
 	node = op->node;
 
+	tree = current_tree;
+	RLOCK_TREE(tree);
 	/* first, check whether right neighbor is already in a @doing queue */
 	if (carry_real(node)->right != NULL) {
-		/* Subtle:
+		/*
+		 * Tree lock is taken here anyway, because, even if _outcome_
+		 * of (find_carry_node() != NULL) doesn't depends on
+		 * concurrent updates to ->right, find_carry_node() cannot
+		 * work with second argument NULL. Hence, following comment is
+		 * of historic importance only.
+		 *
+		 * Subtle:
 		 *
 		 * Q: why don't we need tree lock here, looking for the right
 		 * neighbor?
@@ -147,6 +162,7 @@ find_right_neighbor(carry_op * op	/* node to find right
 		 * locked neighbors.
 		 */
 		if (find_carry_node(doing, carry_real(node)->right) != NULL) {
+			RUNLOCK_TREE(tree);
 			/*
 			 * What we are doing here (this is also applicable to
 			 * the find_left_neighbor()).
@@ -185,6 +201,7 @@ find_right_neighbor(carry_op * op	/* node to find right
 			return right;
 		}
 	}
+	RUNLOCK_TREE(tree);
 
 	flags = GN_CAN_USE_UPPER_LEVELS;
 	if (!op->u.insert.flags & COPI_LOAD_RIGHT)
