@@ -1,0 +1,474 @@
+/*
+    plugin.h -- reiserfs plugin factory implementation.
+    Copyright (C) 1996 - 2002 Hans Reiser
+    Author Vitaly Fertman.
+*/
+
+#ifndef PLUGIN_H
+#define PLUGIN_H
+
+#include <aal/aal.h>
+
+typedef void reiserfs_opaque_t;
+typedef void reiserfs_params_opaque_t;
+
+enum reiserfs_plugin_id {
+    REISERFS_FILE_PLUGIN,
+    REISERFS_DIR_PLUGIN,
+    REISERFS_ITEM_PLUGIN,
+    REISERFS_NODE_PLUGIN,
+    REISERFS_HASH_PLUGIN,
+    REISERFS_TAIL_PLUGIN,
+    REISERFS_HOOK_PLUGIN,
+    REISERFS_PERM_PLUGIN,
+    REISERFS_SD_EXT_PLUGIN,
+    REISERFS_FORMAT_PLUGIN,
+    REISERFS_OID_PLUGIN,
+    REISERFS_ALLOC_PLUGIN,
+    REISERFS_JOURNAL_PLUGIN
+};
+
+enum reiserfs_item_type_id {
+    STAT_DATA_ITEM,
+    DIR_ENTRY_ITEM,
+    INTERNAL_ITEM,
+    FILE_ITEM
+};
+
+typedef enum reiserfs_item_type_id reiserfs_item_type_id_t;
+typedef int reiserfs_plugin_id_t;
+
+#define REISERFS_PLUGIN_MAX_LABEL	16
+#define REISERFS_PLUGIN_MAX_DESC	256
+
+/* Common plugins header */
+struct reiserfs_plugin_header {
+    void *handle;				    /* handle filled by plugins factory */
+    reiserfs_plugin_id_t id;			    /* plugin identifier */
+    reiserfs_plugin_id_t type;			    /* plugin type */
+    const char label[REISERFS_PLUGIN_MAX_LABEL];    /* short plugin name */
+    const char desc[REISERFS_PLUGIN_MAX_DESC];	    /* long plugin description */
+};
+
+typedef struct reiserfs_plugin_header reiserfs_plugin_header_t;
+
+struct reiserfs_file_plugin {
+    reiserfs_plugin_header_t h;
+};
+
+typedef struct reiserfs_file_plugin reiserfs_file_plugin_t;
+
+struct reiserfs_dir_plugin {
+    reiserfs_plugin_header_t h;
+};
+
+typedef struct reiserfs_dir_plugin reiserfs_dir_plugin_t;
+
+struct reiserfs_item_coord {
+    int16_t item_pos;		/* pos of an item in the node */
+    int16_t unit_pos;		/* pos of an unit in the item */
+};
+
+typedef struct reiserfs_item_coord reiserfs_item_coord_t;
+
+struct reiserfs_node_coord {
+    void *node;			/* node in the tree */
+    int16_t item_pos;		/* pos of an item in the node */
+    int16_t unit_pos;		/* pos of an unit in the item */
+};
+
+typedef struct reiserfs_node_coord reiserfs_node_coord_t;
+
+struct reiserfs_common_item_plugin {
+    reiserfs_item_type_id_t type;
+
+    error_t (*create) (void *, void *);
+    int (*lookup) (void *, void *);
+
+    error_t (*confirm) (void *);
+    error_t (*check) (void *);
+    void (*print) (void *, char *, uint16_t);
+    
+    /* 
+	Unit-working routines. I'm sorry Vitaly, these names 
+	are more better on my own.
+
+	We need to create special opaque type
+	for item_info and unit_info. But for awhile
+	it will be void *
+    */
+    int (*unit_add) (void *, int32_t, void *);
+    uint16_t (*unit_count) (void *);
+    int (*unit_remove) (void *, int32_t, int32_t);
+    
+    /*  
+	FIXME-UMKA: We can't pass node coord to plugin's methods, because
+	it contains reiserfs_node_t - pointer to high level structure instance,
+	plugins doesn't known about.
+    */
+    void (*estimate) (void *, void *, reiserfs_item_coord_t *);
+    uint32_t (*minsize) (void *);
+    
+    int (*is_internal) (void);
+};
+
+typedef struct reiserfs_common_item_plugin reiserfs_common_item_plugin_t;
+
+struct reiserfs_dir_entry_ops {
+    int (*add_entry) (reiserfs_opaque_t *, int32_t, 
+	reiserfs_opaque_t *parent, char *, reiserfs_opaque_t *entry);
+    
+    int (*max_name_len) (int blocksize);
+};
+
+typedef struct reiserfs_dir_entry_ops reiserfs_dir_entry_ops_t;
+
+struct reiserfs_file_ops {
+    int (*write) (reiserfs_opaque_t *file, void *buff, uint64_t size);
+    int (*read) (reiserfs_opaque_t *file, void *buff, uint64_t size);
+};
+
+typedef struct reiserfs_file_ops reiserfs_file_ops_t;
+
+struct reiserfs_stat_ops {
+};
+
+typedef struct reiserfs_stat_ops reiserfs_stat_ops_t;
+
+struct reiserfs_internal_ops {
+    blk_t (*down_link) (void *);
+    
+    /* Check that given internal item contains given pointer. */
+    int (*has_pointer_to) (void *, blk_t);
+};
+
+typedef struct reiserfs_internal_ops reiserfs_internal_ops_t;
+
+struct reiserfs_item_plugin {
+    reiserfs_plugin_header_t h;
+
+    /* Methods common for all item types */
+    reiserfs_common_item_plugin_t common;
+
+    /* Methods specific to particular type of item */
+    union {
+	reiserfs_dir_entry_ops_t dir;
+	reiserfs_file_ops_t file;
+	reiserfs_stat_ops_t stat;
+	reiserfs_internal_ops_t internal;
+    } specific;
+};
+
+typedef struct reiserfs_item_plugin reiserfs_item_plugin_t;
+
+/*
+    Node plugin operates on passed block. It doesn't any 
+    initialization, so it hasn't fini method and all its
+    methods accepts first argument aal_block_t, not initialized
+    previously hypothetic instance of node.
+*/
+struct reiserfs_node_plugin {
+    reiserfs_plugin_header_t h;
+
+    /* 
+	Forms empty node incorresponding to given level in 
+	specified block.
+    */
+    error_t (*create) (aal_block_t *, uint8_t);
+
+    /*
+	Confirms that given block contains valid node of
+	requested format.
+    */
+    error_t (*confirm) (aal_block_t *);
+
+    /* Make more smart node's check and return result */
+    error_t (*check) (aal_block_t *, int);
+    
+    /* Makes lookup inside node by specified key */
+    int (*lookup) (aal_block_t *, reiserfs_item_coord_t *, 
+	void *);
+    
+    /* Inserts item into specified node */
+    error_t (*insert) (aal_block_t *, reiserfs_item_coord_t *, 
+	void *, void *);
+    
+    /* Returns item's overhead */
+    uint16_t (*item_overhead) (aal_block_t *);
+
+    /* Returns item's max size */
+    uint16_t (*item_maxsize) (aal_block_t *);
+
+    /* Returns max item count */
+    uint16_t (*item_maxnum) (aal_block_t *);
+
+    /* Returns item count */
+    uint16_t (*item_count) (aal_block_t *);
+    
+    /* Returns item's length by pos */
+    uint16_t (*item_length) (aal_block_t *, int32_t);
+    
+    /* Gets item's body and key by pos */
+    void *(*key_at) (aal_block_t *, int32_t);
+    void *(*item_at) (aal_block_t *, int32_t);
+    
+    /* Gets/sets node's free space */
+    uint16_t (*get_free_space) (aal_block_t *);
+    void (*set_free_space) (aal_block_t *, uint32_t);
+
+    /* Gets/sets node's plugin ID */
+    uint16_t (*get_item_plugin_id) (aal_block_t *, int32_t);
+    void (*set_item_plugin_id) (aal_block_t *, int32_t, uint16_t);
+    
+    /*
+	This is optional method. That means that there could be 
+	node formats which do not keep level.
+
+	FIXME-UMKA: At the moment this is not optional methods.
+	This is because balancing is based on node level idiom.
+    */
+    uint8_t (*get_level) (aal_block_t *);
+    void (*set_level) (aal_block_t *, uint8_t);
+
+    /* Prints node into given buffer */
+    void (*print) (aal_block_t *, char *, uint16_t);
+};
+
+typedef struct reiserfs_node_plugin reiserfs_node_plugin_t;
+
+struct reiserfs_hash_plugin {
+    reiserfs_plugin_header_t h;
+};
+
+typedef struct reiserfs_hash_plugin reiserfs_hash_plugin_t;
+
+struct reiserfs_tail_plugin {
+    reiserfs_plugin_header_t h;
+};
+
+typedef struct reiserfs_tail_plugin reiserfs_tail_plugin_t;
+
+struct reiserfs_hook_plugin {
+    reiserfs_plugin_header_t h;
+};
+
+typedef struct reiserfs_hook_plugin reiserfs_hook_plugin_t;
+
+struct reiserfs_perm_plugin {
+    reiserfs_plugin_header_t h;
+};
+
+typedef struct reiserfs_perm_plugin reiserfs_perm_plugin_t;
+
+/* Format plugin. */
+struct reiserfs_format_plugin {
+    reiserfs_plugin_header_t h;
+    
+    /* 
+	Called during filesystem opening (mounting).
+	It reads format-specific super block and initializes
+	plugins suitable for this format.
+    */
+    reiserfs_opaque_t *(*init) (aal_device_t *, aal_device_t *);
+    
+    /* 
+	Called during filesystem creating. It forms format-specific
+	super block, initializes plugins and calls their create 
+	method.
+    */
+    reiserfs_opaque_t *(*create) (aal_device_t *, count_t, 
+	aal_device_t *, reiserfs_params_opaque_t *);
+    
+    /*
+	Called during filesystem syncing. It calls method sync
+	for every "child" plugin (block allocator, journal, etc).
+    */
+    error_t (*sync) (reiserfs_opaque_t *);
+
+    /*
+	Checks format-specific super block for validness. Also checks
+	whether filesystem objects lie in valid places. For example,
+	format-specific supetr block for format40 must lie in 17-th
+	4096 byte block.
+    */
+    error_t (*check) (reiserfs_opaque_t *);
+
+    /*
+	Probes whether filesystem on given device has this format.
+	Returns "true" if so and "false" otherwise.
+    */
+    int (*confirm) (aal_device_t *device);
+
+    /*
+	Closes opened or created previously filesystem. Frees
+	all assosiated memory.
+    */
+    void (*fini) (reiserfs_opaque_t *);
+    
+    /*
+	Returns format string for this format. For example
+	"reiserfs 4.0".
+    */
+    const char *(*format) (reiserfs_opaque_t *);
+
+    /* 
+	Returns offset in blocks where format-specific super block 
+	lies.
+    */
+    blk_t (*offset) (reiserfs_opaque_t *);
+    
+    /* Gets/sets root block */
+    blk_t (*get_root) (reiserfs_opaque_t *);
+    void (*set_root) (reiserfs_opaque_t *, blk_t);
+    
+    /* Gets/sets block count */
+    count_t (*get_blocks) (reiserfs_opaque_t *);
+    void (*set_blocks) (reiserfs_opaque_t *, count_t);
+    
+    /* Gets/sets height field */
+    uint16_t (*get_height) (reiserfs_opaque_t *);
+    void (*set_height) (reiserfs_opaque_t *, uint16_t);
+    
+    /* Gets/sets free blocks number for this format */
+    count_t (*get_free) (reiserfs_opaque_t *);
+    void (*set_free) (reiserfs_opaque_t *, count_t);
+    
+    /* Returns children objects plugins */
+    reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_opaque_t *);
+    reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_opaque_t *);
+    reiserfs_plugin_id_t (*oid_plugin_id) (reiserfs_opaque_t *);
+    
+    /* 
+	Returns initialized children entities (journal, block allocator)
+	oid alloactor.
+    */
+    reiserfs_opaque_t *(*journal) (reiserfs_opaque_t *);
+    reiserfs_opaque_t *(*alloc) (reiserfs_opaque_t *);
+    reiserfs_opaque_t *(*oid) (reiserfs_opaque_t *);
+};
+
+typedef struct reiserfs_format_plugin reiserfs_format_plugin_t;
+
+struct reiserfs_oid_plugin {
+    reiserfs_plugin_header_t h;
+
+    reiserfs_opaque_t *(*init) (uint64_t, uint64_t);
+    void (*fini) (reiserfs_opaque_t *);
+    
+    uint64_t (*alloc) (reiserfs_opaque_t *);
+    void (*dealloc) (reiserfs_opaque_t *, uint64_t);
+    
+    uint64_t (*next) (reiserfs_opaque_t *);
+    uint64_t (*used) (reiserfs_opaque_t *);
+
+    uint64_t (*root_parent_locality) (reiserfs_opaque_t *);
+    uint64_t (*root_parent_objectid) (reiserfs_opaque_t *);
+    
+    uint64_t (*root_objectid) (reiserfs_opaque_t *);
+};
+
+typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;
+
+struct reiserfs_alloc_plugin {
+    reiserfs_plugin_header_t h;
+    
+    reiserfs_opaque_t *(*init) (aal_device_t *, count_t);
+    reiserfs_opaque_t *(*create) (aal_device_t *, count_t);
+    void (*fini) (reiserfs_opaque_t *);
+    error_t (*sync) (reiserfs_opaque_t *);
+
+    void (*mark) (reiserfs_opaque_t *, blk_t);
+    
+    blk_t (*alloc) (reiserfs_opaque_t *);
+    void (*dealloc) (reiserfs_opaque_t *, blk_t);
+
+    count_t (*free) (reiserfs_opaque_t *);
+    count_t (*used) (reiserfs_opaque_t *);
+};
+
+typedef struct reiserfs_alloc_plugin reiserfs_alloc_plugin_t;
+
+struct reiserfs_journal_plugin {
+    reiserfs_plugin_header_t h;
+    
+    reiserfs_opaque_t *(*init) (aal_device_t *);
+    reiserfs_opaque_t *(*create) (aal_device_t *, reiserfs_params_opaque_t *params);
+    void (*fini) (reiserfs_opaque_t *);
+    error_t (*sync) (reiserfs_opaque_t *);
+    error_t (*replay) (reiserfs_opaque_t *);
+};
+
+typedef struct reiserfs_journal_plugin reiserfs_journal_plugin_t;
+
+union reiserfs_plugin {
+    reiserfs_plugin_header_t h;
+	
+    reiserfs_file_plugin_t file;
+    reiserfs_dir_plugin_t dir;
+    reiserfs_item_plugin_t item;
+    reiserfs_node_plugin_t node;
+    reiserfs_hash_plugin_t hash;
+    reiserfs_tail_plugin_t tail;
+    reiserfs_hook_plugin_t hook;
+    reiserfs_perm_plugin_t perm;
+    reiserfs_format_plugin_t format;
+    reiserfs_oid_plugin_t oid;
+    reiserfs_alloc_plugin_t alloc;
+    reiserfs_journal_plugin_t journal;
+};
+
+typedef union reiserfs_plugin reiserfs_plugin_t;
+
+struct reiserfs_plugins_factory {
+    reiserfs_plugin_t *(*find_by_coords)(reiserfs_plugin_id_t, reiserfs_plugin_id_t);
+    reiserfs_plugin_t *(*find_by_label)(const char *);
+};
+
+typedef struct reiserfs_plugins_factory reiserfs_plugins_factory_t;
+
+typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugins_factory_t *);
+typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
+
+#ifndef ENABLE_COMPACT
+#   define reiserfs_check_method(ops, method, action) \
+    do { \
+	if (!ops.##method##) { \
+	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, \
+		"Method \"" #method "\" isn't implemented in %s.", \
+		#ops); \
+	    action; \
+	} \
+    } while(0)
+#else
+#   define reiserfs_check_method(plugin, routine, action) \
+	while(0) {}
+#endif
+
+#if defined(ENABLE_COMPACT) || defined(ENABLE_MONOLITHIC)
+#   define reiserfs_plugin_register(entry) \
+	static reiserfs_plugin_entry_t __plugin_entry \
+	    __attribute__((__section__(".plugins"))) = entry
+#else
+#   define reiserfs_plugin_register(entry) \
+	reiserfs_plugin_entry_t __plugin_entry = entry
+#endif
+
+#define REISERFS_GUESS_PLUGIN_ID 0xff
+
+extern error_t libreiser4_plugins_init(void);
+extern void libreiser4_plugins_fini(void);
+
+#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
+extern reiserfs_plugin_t *libreiser4_plugins_load_by_name(const char *name);
+#endif
+
+extern reiserfs_plugin_t *libreiser4_plugins_load_by_entry(reiserfs_plugin_entry_t entry);
+extern void libreiser4_plugins_unload(reiserfs_plugin_t *plugin);
+
+extern reiserfs_plugin_t *libreiser4_plugins_find_by_coords(reiserfs_plugin_id_t type,
+    reiserfs_plugin_id_t id);
+
+extern reiserfs_plugin_t *libreiser4_plugins_find_by_label(const char *label);
+extern error_t libreiser4_plugins_foreach(reiserfs_plugin_func_t plugin_func, void *data);
+
+#endif

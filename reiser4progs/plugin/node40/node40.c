@@ -129,14 +129,14 @@ static uint16_t reiserfs_node40_item_overhead(aal_block_t *block) {
     size? Then why it calculates it this maner? Probably we need to rename
     it something more suitable it purpose.
 */
-static uint16_t reiserfs_node40_item_max_size(aal_block_t *block) {
+static uint16_t reiserfs_node40_item_maxsize(aal_block_t *block) {
     aal_assert("vpf-016", block != NULL, return 0);
     return block->size - sizeof(reiserfs_nh40_t) - 
 	sizeof(reiserfs_ih40_t);
 }
 
 /* This function counts max item number */
-static uint16_t reiserfs_node40_item_max_num(aal_block_t *block) {
+static uint16_t reiserfs_node40_item_maxnum(aal_block_t *block) {
     uint16_t i;
     uint32_t total_size = 0;
     reiserfs_plugin_t *plugin;
@@ -347,8 +347,8 @@ static reiserfs_plugin_t node40_plugin = {
 	    void *, void *))reiserfs_node40_insert,
 	
 	.item_overhead = (uint16_t (*)(aal_block_t *))reiserfs_node40_item_overhead,
-	.item_max_size = (uint16_t (*)(aal_block_t *))reiserfs_node40_item_max_size,
-	.item_max_num =  (uint16_t (*)(aal_block_t *))reiserfs_node40_item_max_num,
+	.item_maxsize = (uint16_t (*)(aal_block_t *))reiserfs_node40_item_maxsize,
+	.item_maxnum =  (uint16_t (*)(aal_block_t *))reiserfs_node40_item_maxnum,
 	.item_count = (uint16_t (*)(aal_block_t *))reiserfs_node40_item_count,
 	
 	.item_length = (uint16_t (*)(aal_block_t *, int32_t))

@@ -108,6 +108,46 @@ aal_list_t *aal_list_insert(aal_list_t *list, void *data, uint32_t n) {
     return temp == list ? new : list;
 }
 
+aal_list_t *aal_list_insert_sorted(aal_list_t *list,
+    void *data, comp_func_t func)
+{
+    aal_list_t *tmp_list = list;
+    aal_list_t *new_list;
+    int cmp;
+
+    if (!list) {
+	new_list = aal_list_alloc(data);
+	return new_list;
+    }
+  
+    cmp = func(data, tmp_list->data);
+  
+    while ((tmp_list->next) && (cmp > 0)) {
+	tmp_list = tmp_list->next;
+	cmp = func(data, tmp_list->data);
+    }
+
+    new_list = aal_list_alloc(data);
+
+    if ((!tmp_list->next) && (cmp > 0)) {
+	tmp_list->next = new_list;
+	new_list->prev = tmp_list;
+	return list;
+    }
+   
+    if (tmp_list->prev) {
+	tmp_list->prev->next = new_list;
+	new_list->prev = tmp_list->prev;
+    }
+    new_list->next = tmp_list;
+    tmp_list->prev = new_list;
+ 
+    if (tmp_list == list)
+	return new_list;
+    else
+	return list;
+}
+
 aal_list_t *aal_list_prepend(aal_list_t *list, void *data) {
     aal_list_t *new;
     aal_list_t *last;

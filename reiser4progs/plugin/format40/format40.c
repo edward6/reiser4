@@ -398,7 +398,7 @@ static void reiserfs_format40_fini(reiserfs_format40_t *format) {
     aal_free(format);
 }
 
-static int reiserfs_format40_probe(aal_device_t *device) {
+static int reiserfs_format40_confirm(aal_device_t *device) {
     aal_block_t *block;
 
     if (!(block = reiserfs_format40_super_init(device)))
@@ -505,7 +505,7 @@ static reiserfs_plugin_t format40_plugin = {
 	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_format40_fini,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_sync,
 	.check = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_check,
-	.probe = (int (*)(aal_device_t *))reiserfs_format40_probe,
+	.confirm = (int (*)(aal_device_t *))reiserfs_format40_confirm,
 	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format40_format,
 	
 	.offset = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format40_offset,

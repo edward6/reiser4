@@ -33,6 +33,9 @@ extern aal_list_t *aal_list_at(aal_list_t *list, uint32_t n);
 
 extern aal_list_t *aal_list_insert(aal_list_t *list, 
     void *data, uint32_t n);
+
+extern aal_list_t *aal_list_insert_sorted(aal_list_t *list,
+    void *data, comp_func_t func);
     
 extern aal_list_t *aal_list_prepend(aal_list_t *list, void *data);
 extern aal_list_t *aal_list_append(aal_list_t *list, void *data);
