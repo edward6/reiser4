@@ -1475,9 +1475,15 @@ try_commit_txnh(commit_data *cd)
 				result = -EAGAIN;
 			} else
 				result = 0;
-		} else if (cd->txnh->flags & TXNH_DONT_COMMIT)
+		} else if (cd->txnh->flags & TXNH_DONT_COMMIT) {
+			/*
+			 * this thread (transaction handle that is) doesn't
+			 * want to commit atom. Notify waiters that handle is
+			 * closed.
+			 */
+			atom_send_event(cd->atom);
 			result = 0;
-		else if (cd->preflush > 0) {
+		} else if (cd->preflush > 0) {
 			/*
 			 * optimization: flush atom without switching it into
 			 * ASTAGE_CAPTURE_WAIT.
