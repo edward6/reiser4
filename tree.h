@@ -466,7 +466,7 @@ RW_LOCK_FUNCTIONS(tree, reiser4_tree, tree_lock);
 	(lock_counters()->spin_locked_jnode == 0) &&	\
 	(lock_counters()->spin_locked_txnh == 0) &&	\
 	(lock_counters()->spin_locked_atom == 0) &&	\
-	(lock_counters()->spin_locked_inode == 0) &&	\
+	(lock_counters()->spin_locked_inode_object == 0) &&	\
 	(lock_counters()->spin_locked_txnmgr == 0)
 
 /* Define spin_lock_dk(), spin_unlock_dk(), etc: locking for delimiting

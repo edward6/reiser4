@@ -134,7 +134,7 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	     info->spin_locked_atom, info->spin_locked_stack,
 	     info->spin_locked_txnmgr, info->spin_locked_ktxnmgrd,
 	     info->spin_locked_fq, info->spin_locked_super,
-	     info->spin_locked_inode, info->spin_locked,
+	     info->spin_locked_inode_object, info->spin_locked,
 	     info->long_term_locked_znode, info->d_refs, info->x_refs, info->t_refs);
 }
 #endif
@@ -724,7 +724,7 @@ no_counters_are_held()
 		(counters->spin_locked_atom == 0) &&
 		(counters->spin_locked_stack == 0) &&
 		(counters->spin_locked_txnmgr == 0) &&
-		(counters->spin_locked_inode == 0) &&
+		(counters->spin_locked_inode_object == 0) &&
 		(counters->spin_locked == 0) && 
 		(counters->long_term_locked_znode == 0);
 }
