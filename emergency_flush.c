@@ -375,7 +375,7 @@ eflush_get(const jnode *node)
 }
 
 void
-eflush_del(jnode *node)
+eflush_del(jnode *node, int page_locked)
 {
 	eflush_node_t *ef;
 	ef_hash_table *table;
@@ -386,6 +386,7 @@ eflush_del(jnode *node)
 
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
 		reiser4_block_nr blk;
+		struct page *page;
 
 		table = get_jnode_enhash(node);
 
@@ -399,13 +400,27 @@ eflush_del(jnode *node)
 		-- get_super_private(tree->super)->eflushed;
 		spin_unlock_tree(tree);
 
-		JF_CLR(node, JNODE_EFLUSH);
-		spin_unlock_jnode(node);
+		page = jnode_page(node);
+		assert("nikita-2806", ergo(page_locked, page != NULL));
+		assert("nikita-2807", ergo(page_locked, PageLocked(page)));
+		if (!page_locked && page != NULL) {
+			/* emergency flush hasn't reclaimed page yet. Wait
+			 * until io is submitted. Otherwise there is a room
+			 * for a race: emergency_flush() calls page_io() and
+			 * we clear JNODE_EFLUSH bit concurrently---page_io()
+			 * gets wrong block number. */
+			page_cache_get(page);
+			spin_unlock_jnode(node);
+			wait_on_page_locked(page);
+			page_cache_release(page);
+		} else
+			spin_unlock_jnode(node);
 		ef_free_block(node, &blk);
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
 		jput(node);
 		kmem_cache_free(eflush_slab, ef);
 		spin_lock_jnode(node);
+		JF_CLR(node, JNODE_EFLUSH);
 		trace_on(TRACE_EFLUSH, "unflush: %i...\n", 
 			 get_super_private(tree->super)->eflushed);
 	}
@@ -441,16 +456,16 @@ ef_block_flags(const jnode *node)
 	return jnode_is_znode(node) ? BA_FORMATTED : 0;
 }
 
-static const reiser4_block_nr one = 1;
-
 static int ef_free_block(jnode *node, const reiser4_block_nr *blk)
 {
 	block_stage_t stage;
 	int result = 0;
+	reiser4_block_nr one;
 
 	stage = blocknr_is_fake(jnode_get_block(node)) ? 
 		BLOCK_UNALLOCATED : BLOCK_GRABBED;
 
+	one = 1ull;
 	/* We cannot just ask block allocator to return block into flush
 	 * reserved space, because there is no current atom at this point. */
 	result = reiser4_dealloc_blocks(blk, &one, stage, ef_block_flags(node));
@@ -474,14 +489,12 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode)
 {
 	int result;
 	reiser4_blocknr_hint hint;
-	reiser4_block_nr count;
+	reiser4_block_nr one;
 
 	assert("nikita-2760", node != NULL);
 	assert("nikita-2761", blk != NULL);
 	assert("nikita-2762", efnode != NULL);
 	assert("nikita-2763", spin_jnode_is_locked(node));
-
-	count = one;
 
 	hint.blk         = EFLUSH_START_BLOCK;
 	hint.max_dist    = 0;
@@ -505,7 +518,8 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode)
 	 * there is a danger of underflowing block space */
 	spin_unlock_jnode(node);
 
-	result = reiser4_alloc_blocks(&hint, blk, &count, ef_block_flags(node));
+	one = 1ull;
+	result = reiser4_alloc_blocks(&hint, blk, &one, ef_block_flags(node));
 	if (result == 0) {
 		*efnode = ef_alloc(GFP_NOFS | __GFP_HIGH);
 		if (*efnode == NULL)
