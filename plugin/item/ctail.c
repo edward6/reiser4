@@ -513,12 +513,20 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 
 /* 
    plugin->u.item.s.file.append_key
-   key of first byte which is the next to last byte by addressed by this item
 */
 reiser4_key *
 append_key_ctail(const coord_t *coord, reiser4_key *key)
 {
 	return NULL;
+}
+
+/* key of the first item of the next cluster */
+reiser4_key *
+append_cluster_key_ctail(const coord_t *coord, reiser4_key *key)
+{
+	item_key_by_coord(coord, key);
+	set_key_offset(key, ((__u64)(cluster_index_by_coord(coord)) + 1) << cluster_shift_by_coord(coord) << PAGE_CACHE_SHIFT);
+	return key;
 }
 
 static int
