@@ -367,7 +367,7 @@ extern int check_tree_pointer(const coord_t * pointer, const znode * child);
 extern int find_new_child_ptr(znode * parent, znode * child UNUSED_ARG, znode * left, coord_t * result);
 extern int find_child_ptr(znode * parent, znode * child, coord_t * result);
 extern int find_child_by_addr(znode * parent, znode * child, coord_t * result);
-extern void set_child_delimiting_keys(znode * parent, const coord_t * in_parent, znode *child);
+extern int set_child_delimiting_keys(znode * parent, const coord_t * in_parent, znode *child);
 extern znode *child_znode(const coord_t * in_parent, znode * parent, int incore_p, int setup_dkeys_p);
 
 extern int cbk_cache_init(cbk_cache * cache);

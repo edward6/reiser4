@@ -224,7 +224,7 @@ cbk_cache_add(const znode * node /* node to add to the cache */ )
 	assert("nikita-2473", cbk_cache_invariant(cache));
 }
 
-static void setup_delimiting_keys(cbk_handle * h);
+static int setup_delimiting_keys(cbk_handle * h);
 static lookup_result coord_by_handle(cbk_handle * handle);
 static lookup_result traverse_tree(cbk_handle * h);
 static int cbk_cache_search(cbk_handle * h);
@@ -233,6 +233,8 @@ static level_lookup_result cbk_level_lookup(cbk_handle * h);
 static level_lookup_result cbk_node_lookup(cbk_handle * h);
 
 /* helper functions */
+
+static void update_stale_dk(reiser4_tree *tree, znode *node);
 
 /* release parent node during traversal */
 static void put_parent(cbk_handle * h);
@@ -538,6 +540,7 @@ static level_lookup_result
 cbk_level_lookup(cbk_handle * h /* search handle */ )
 {
 	int ret;
+	int setdk;
 	znode *active;
 
 	assert("nikita-3025", schedulable());
@@ -560,14 +563,15 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	if (h->result)
 		goto fail_or_restart;
 
+	setdk = 0;
 	/* if @active is accessed for the first time, setup delimiting keys on
 	   it. Delimiting keys are taken from the parent node. See
 	   setup_delimiting_keys() for details. 
 	*/
 	if (h->flags & CBK_DKSET) {
-		setup_delimiting_keys(h);
+		setdk = setup_delimiting_keys(h);
 		h->flags &= ~CBK_DKSET;
-	} else {
+	} else if (!ZF_ISSET(active, JNODE_DKSET)) {
 		znode *parent;
 
 		parent = h->parent_lh->node;
@@ -575,8 +579,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		if (h->result)
 			goto fail_or_restart;
 
-		set_child_delimiting_keys(parent, h->coord, 
-					  h->active_lh->node);
+		setdk = set_child_delimiting_keys(parent, h->coord, active);
 		zrelse(parent);
 	}
 
@@ -586,26 +589,30 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	*/
 	h->coord->between = AT_UNIT;
 
-	/* if we are going to load znode right now, setup
-	   ->in_parent: coord where pointer to this node is stored in
-	   parent.
-	*/
-	WLOCK_TREE(h->tree);
-
-	if (znode_just_created(active) && (h->coord->node != NULL))
+	if (znode_just_created(active) && (h->coord->node != NULL)) {
+		WLOCK_TREE(h->tree);
+		/* if we are going to load znode right now, setup
+		   ->in_parent: coord where pointer to this node is stored in
+		   parent.
+		*/
 		active->in_parent = *h->coord;
+		/* protect sibling pointers and `connected' state bits, check
+		   znode state */
+		ret = znode_is_connected(active);
+		/* above two operations (setting ->in_parent up and checking
+		   connectedness) are logically separate and one can release
+		   and re-acquire tree lock between them. On the other hand,
+		   releasing-acquiring spinlock requires d-cache flushing on
+		   some architectures and can thus be expensive.
+		*/
+		WUNLOCK_TREE(h->tree);
+	} else {
+		/* do the same check as above, but under read tree lock */
+		RLOCK_TREE(h->tree);
+		ret = znode_is_connected(active);
+		RUNLOCK_TREE(h->tree);
+	}
 
-	/* protect sibling pointers and `connected' state bits, check
-	   znode state */
-	ret = znode_is_connected(active);
-
-	/* above two operations (setting ->in_parent up and checking
-	   connectedness) are logically separate and one can release and
-	   re-acquire tree lock between them. On the other hand,
-	   releasing-acquiring spinlock requires d-cache flushing on some
-	   architectures and can thus be expensive.
-	*/
-	WUNLOCK_TREE(h->tree);
 
 	if (!ret) {
 		/* FIXME: h->coord->node and active are of different levels? */
@@ -616,20 +623,8 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		}
 	}
 
-	/* FIXME: there is a guess that right delimiting key which are brought from the parent can be incorrect
-	   already */
-	write_lock_dk(h->tree);
-	RLOCK_TREE(h->tree);
-	if (ZF_ISSET(active, JNODE_RIGHT_CONNECTED) && active->right) {
-		if (!keyeq(znode_get_rd_key(active), znode_get_ld_key(active->right))) {
-			printk("cbk_level_lookup: right delimiting key changed. Corrected\n");
-			znode_set_rd_key(active, znode_get_ld_key(active->right));
-		}
-	}
-	RUNLOCK_TREE(h->tree);
-	write_unlock_dk(h->tree);
-
-
+	if (setdk)
+		update_stale_dk(h->tree, active);
 
 	/* put_parent() cannot be called earlier, because connect_znode()
 	   assumes parent node is referenced; */
@@ -687,7 +682,7 @@ fail_or_restart:
 void
 check_dkeys(const znode *node)
 {
-	read_lock_dk(current_tree);
+	RLOCK_DK(current_tree);
 	RLOCK_TREE(current_tree);
 
 	assert("vs-1197", !keygt(&node->ld_key, &node->rd_key));
@@ -701,7 +696,7 @@ check_dkeys(const znode *node)
 		assert("vs-1199", keyeq(&node->rd_key, &node->right->ld_key));
 
 	RUNLOCK_TREE(current_tree);
-	read_unlock_dk(current_tree);
+	RUNLOCK_DK(current_tree);
 }
 #else
 #define check_dkeys(node) noop
@@ -733,10 +728,10 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 		 assert("nikita-1716", node != NULL);
 		 assert("nikita-1758", key != NULL);
 
-		 read_lock_dk(znode_get_tree(node));
+		 RLOCK_DK(znode_get_tree(node));
 		 assert("nikita-1759", znode_contains_key(node, key));
 		 ld = keyeq(znode_get_ld_key(node), key);
-		 read_unlock_dk(znode_get_tree(node));
+		 RUNLOCK_DK(znode_get_tree(node));
 		 return ld;
 	}
 	assert("nikita-379", h != NULL);
@@ -1064,7 +1059,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	level = h->level;
 	key = h->key;
 
-	read_lock_dk(tree);
+	RLOCK_DK(tree);
 	RLOCK_TREE(tree);
 	cbk_cache_lock(cache);
 	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
@@ -1089,7 +1084,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 
 	cbk_cache_unlock(cache);
 	RUNLOCK_TREE(tree);
-	read_unlock_dk(tree);
+	RUNLOCK_DK(tree);
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
 
@@ -1247,24 +1242,71 @@ find_child_delimiting_keys(znode * parent	/* parent znode, passed
 	return 0;
 }
 
-void
+int
 set_child_delimiting_keys(znode * parent,
 			  const coord_t * coord, znode * child)
 {
 	reiser4_tree *tree;
+	int result;
+	PROF_BEGIN(set_child_delimiting_keys);
 
 	assert("nikita-2952", 
 	       znode_get_level(parent) == znode_get_level(coord->node));
 
 	tree = znode_get_tree(parent);
-	write_lock_dk(tree);
+	result = 0;
+	/* fast check without taking dk lock. This is safe, because
+	 * JNODE_DKSET is never cleared once set. */
 	if (!ZF_ISSET(child, JNODE_DKSET)) {
-		find_child_delimiting_keys(parent, coord, 
-					   znode_get_ld_key(child),
-					   znode_get_rd_key(child));
-		ZF_SET(child, JNODE_DKSET);
+		WLOCK_DK(tree);
+		if (!ZF_ISSET(child, JNODE_DKSET)) {
+			reiser4_key ld;
+			reiser4_key rd;
+
+			find_child_delimiting_keys(parent, coord, &ld, &rd);
+			znode_set_ld_key(child, &ld);
+			znode_set_rd_key(child, &rd);
+			ZF_SET(child, JNODE_DKSET);
+		}
+		WUNLOCK_DK(tree);
+		result = 1;
 	}
-	write_unlock_dk(tree);
+	PROF_END(set_child_delimiting_keys, set_child_delimiting_keys);
+	return result;
+}
+
+static void stale_dk(reiser4_tree *tree, znode *node)
+{
+	znode *right;
+
+	WLOCK_DK(tree);
+	RLOCK_TREE(tree);
+	right = node->right;
+
+	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && right &&
+	    !keyeq(znode_get_rd_key(node), znode_get_ld_key(right)))
+		znode_set_rd_key(node, znode_get_ld_key(right));
+
+	RUNLOCK_TREE(tree);
+	WUNLOCK_DK(tree);
+}
+
+static void update_stale_dk(reiser4_tree *tree, znode *node)
+{
+	znode *right;
+
+	RLOCK_DK(tree);
+	RLOCK_TREE(tree);
+	right = node->right;
+	if (unlikely(ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && right &&
+		     !keyeq(znode_get_rd_key(node), znode_get_ld_key(right)))) {
+		RUNLOCK_TREE(tree);
+		RUNLOCK_DK(tree);
+		stale_dk(tree, node);
+		return;
+	}
+	RUNLOCK_TREE(tree);
+	RUNLOCK_DK(tree);
 }
 
 static level_lookup_result
@@ -1322,10 +1364,10 @@ search_to_left(cbk_handle * h /* search handle */ )
 			} else if (h->result == NS_FOUND) {
 				reiser4_stat_inc(tree.left_nonuniq_found);
 
-				read_lock_dk(znode_get_tree(neighbor));
+				RLOCK_DK(znode_get_tree(neighbor));
 				h->rd_key = *znode_get_ld_key(node);
 				leftmost_key_in_node(neighbor, &h->ld_key);
-				read_unlock_dk(znode_get_tree(neighbor));
+				RUNLOCK_DK(znode_get_tree(neighbor));
 				h->flags |= CBK_DKSET;
 
 				h->block = *znode_get_block(neighbor);
@@ -1436,21 +1478,29 @@ hput(cbk_handle * h /* search handle */ )
 
 /* Helper function used by cbk(): update delimiting keys of child node (stored
    in h->active_lh->node) using key taken from parent on the parent level. */
-static void
+static int
 setup_delimiting_keys(cbk_handle * h /* search handle */)
 {
 	znode *active;
+	reiser4_tree *tree;
 
 	assert("nikita-1088", h != NULL);
 
 	active = h->active_lh->node;
-	write_lock_dk(znode_get_tree(active));
+	tree = znode_get_tree(active);
+	/* fast check without taking dk lock. This is safe, because
+	 * JNODE_DKSET is never cleared once set. */
 	if (!ZF_ISSET(active, JNODE_DKSET)) {
-		znode_set_ld_key(active, &h->ld_key);
-		znode_set_rd_key(active, &h->rd_key);
-		ZF_SET(active, JNODE_DKSET);
+		WLOCK_DK(tree);
+		if (!ZF_ISSET(active, JNODE_DKSET)) {
+			znode_set_ld_key(active, &h->ld_key);
+			znode_set_rd_key(active, &h->rd_key);
+			ZF_SET(active, JNODE_DKSET);
+		}
+		WUNLOCK_DK(tree);
+		return 1;
 	}
-	write_unlock_dk(znode_get_tree(active));
+	return 0;
 }
 
 static int
