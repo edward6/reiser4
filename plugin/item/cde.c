@@ -372,6 +372,23 @@ reiser4_key *cde_max_key_inside( const tree_coord *coord, reiser4_key *result )
 	return result;
 }
 
+/*
+ * @data contains data which are to be put into tree
+ */
+int cde_can_contain_key( const tree_coord *coord, 
+			 const reiser4_key *key,
+			 const reiser4_item_data *data )
+{
+	reiser4_key item_key;
+
+	assert( "vs-457", data && data ->data );
+	item_key_by_coord( coord, &item_key);
+
+	return 	( item_plugin_by_coord( coord ) == data -> iplug ) &&
+		( extract_dir_id_from_key( &item_key ) ==
+		  extract_dir_id_from_key( key ) );
+}
+
 /**
  * ->print() method for this item plugin.
  */

@@ -66,6 +66,8 @@ int   cde_max_name_len ( int block_size );
 
 reiser4_key  *cde_max_key_inside( const tree_coord *coord, 
 				  reiser4_key *result );
+int   cde_can_contain_key( const tree_coord *coord, const reiser4_key *key,
+			   const reiser4_item_data * );
 
 /* __FS_REISER4_PLUGIN_COMPRESSED_DE_H__ */
 #endif
