@@ -245,6 +245,7 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 	int count;
 	coord_t *coord;
 	extent_coord_extension_t *ext_coord;
+	reiser4_key tmp_key;
 
 	coord = &uf_coord->base_coord;
 	ext_coord = &uf_coord->extension.extent;
@@ -310,11 +311,13 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 
 	/* insert_into_item will insert new units after the one @coord is set
 	   to. So, update key correspondingly */
-	unit_key_by_coord(coord, key);	/* FIXME-VS: how does it work without this? */
-	set_key_offset(key, (get_key_offset(key) + extent_get_width(&replace) * coord->node->zjnode.tree->super->s_blocksize));
+	unit_key_by_coord(coord, &tmp_key);
+	set_key_offset(&tmp_key, (get_key_offset(&tmp_key) + extent_get_width(&replace) * current_blocksize));
+
+	assert("vs-1661", keyeq(key, &tmp_key));
 
 	uf_coord->valid = 0;
-	return replace_extent(coord, uf_coord->lh, key, init_new_extent(&item, new_exts, count), &replace, 0 /* flags */);
+	return replace_extent(coord, uf_coord->lh, &tmp_key, init_new_extent(&item, new_exts, count), &replace, 0 /* flags */);
 }
 
 /* make unallocated node pointer in the position @uf_coord is set to */
@@ -361,7 +364,7 @@ overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *bl
 
 /* after make extent uf_coord's lock handle must be set to node containing unit which was inserted/found */
 static void
-check_make_extent_result(int result, reiser4_key *key, lock_handle *lh, reiser4_block_nr block)
+check_make_extent_result(int result, write_mode_t mode, reiser4_key *key, lock_handle *lh, reiser4_block_nr block)
 {
 	coord_t coord;
 
@@ -375,6 +378,9 @@ check_make_extent_result(int result, reiser4_key *key, lock_handle *lh, reiser4_
 	assert("vs-1656", coord_is_existing_unit(&coord));
 
 	if (blocknr_is_fake(&block)) {
+		assert("vs-1657", state_of_extent(extent_by_coord(&coord)) == UNALLOCATED_EXTENT);
+	} else if (block == 0) {
+		assert("vs-1660", mode == OVERWRITE_ITEM);
 		assert("vs-1657", state_of_extent(extent_by_coord(&coord)) == UNALLOCATED_EXTENT);
 	} else {
 		reiser4_key tmp;
@@ -428,7 +434,7 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_b
 	}
 
 	ENABLE_NODE_CHECK;
-	ON_DEBUG(check_make_extent_result(result, key, uf_coord->lh, *block));
+	ON_DEBUG(check_make_extent_result(result, mode, key, uf_coord->lh, *block));
 	return result;
 }
 
