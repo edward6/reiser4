@@ -15,7 +15,8 @@
 /* Creates node on specified device and block and with spcified key plugin */
 reiser4_node_t *reiser4_node_create(
     aal_block_t *block,		/* block new node will be created on */
-    reiser4_id_t pid		/* node plugin id to be used */
+    reiser4_id_t pid,		/* node plugin id to be used */
+    uint8_t level		/* node level */
 ) {
     reiser4_node_t *node;
     reiser4_plugin_t *plugin;
@@ -33,7 +34,7 @@ reiser4_node_t *reiser4_node_create(
 
     /* Requesting the plugin for initialization of the entity */
     if (!(node->entity = libreiser4_plugin_call(goto error_free_node, 
-	plugin->node_ops, create, node->block))) 
+	plugin->node_ops, create, node->block, level))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create node entity.");

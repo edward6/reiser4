@@ -534,7 +534,7 @@ struct reiser4_node_ops {
 	Forms empty node incorresponding to given level in specified block.
 	Initializes instance of node and returns it to caller.
     */
-    reiser4_entity_t *(*create) (aal_block_t *);
+    reiser4_entity_t *(*create) (aal_block_t *, uint8_t);
 
     /* 
 	Opens node (parses data in orser to check whether it is valid for this

@@ -16,7 +16,9 @@ static reiser4_core_t *core = NULL;
 
 #ifndef ENABLE_COMPACT
 
-static reiser4_entity_t *node40_create(aal_block_t *block) {
+static reiser4_entity_t *node40_create(aal_block_t *block, 
+    uint8_t level) 
+{
     node40_t *node;
     
     aal_assert("umka-806", block != NULL, return NULL);
@@ -36,8 +38,7 @@ static reiser4_entity_t *node40_create(aal_block_t *block) {
     nh40_set_free_space_start(nh40(node->block), 
 	sizeof(node40_header_t));
     
-    /* Level field is not used */
-
+    nh40_set_level(nh40(node->block), level);
     nh40_set_magic(nh40(node->block), NODE40_MAGIC);
     nh40_set_num_items(nh40(node->block), 0);
     

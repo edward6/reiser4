@@ -52,7 +52,7 @@ static reiser4_cache_t *reiser4_tree_alloc(
     }
     
     /* Creating new node */
-    if (!(node = reiser4_node_create(block, pid)))
+    if (!(node = reiser4_node_create(block, pid, level)))
 	goto error_free_block;
 
     if (!(cache = reiser4_cache_create(node))) {
@@ -210,7 +210,9 @@ reiser4_tree_t *reiser4_tree_create(
     }
     
     /* Creating root node */
-    if (!(node = reiser4_node_create(block, profile->node))) {
+    if (!(node = reiser4_node_create(block, profile->node, 
+	reiser4_tree_height(tree)))) 
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create root node.");
 	goto error_free_block;
