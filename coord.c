@@ -27,6 +27,8 @@ void coord_normalize (coord_t * coord)
 	node = coord->node;
 	assert ("vs-683", node);
 
+	trace_if (TRACE_BUG, coord_print ("normalize", coord, 1));
+
 	if (node_is_empty (node)) {
 		coord_init_first_unit (coord, node);
 	} else if (coord->item_pos == coord_num_items (coord) &&
