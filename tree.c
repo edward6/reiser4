@@ -264,19 +264,23 @@ insert_with_carry_by_coord(coord_t * coord /* coord where to insert */ ,
 			   cop_insert_flag flags /* carry flags */)
 {
 	int result;
-	carry_pool pool;
+	carry_pool *pool;
 	carry_level lowest_level;
 	carry_op *op;
 	carry_insert_data cdata;
 
 	assert("umka-314", coord != NULL);
 
-	init_carry_pool(&pool);
-	init_carry_level(&lowest_level, &pool);
+	pool = init_carry_pool();
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	init_carry_level(&lowest_level, pool);
 
 	op = post_carry(&lowest_level, cop, coord->node, 0);
-	if (IS_ERR(op) || (op == NULL))
+	if (IS_ERR(op) || (op == NULL)) {
+		done_carry_pool(pool);
 		return RETERR(op ? PTR_ERR(op) : -EIO);
+	}
 	cdata.coord = coord;
 	cdata.data = data;
 	cdata.key = key;
@@ -294,7 +298,7 @@ insert_with_carry_by_coord(coord_t * coord /* coord where to insert */ ,
 
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
 	result = carry(&lowest_level, 0);
-	done_carry_pool(&pool);
+	done_carry_pool(pool);
 
 	return result;
 }
@@ -317,7 +321,7 @@ paste_with_carry(coord_t * coord /* coord of paste */ ,
 		 unsigned flags /* paste flags */ )
 {
 	int result;
-	carry_pool pool;
+	carry_pool *pool;
 	carry_level lowest_level;
 	carry_op *op;
 	carry_insert_data cdata;
@@ -325,12 +329,16 @@ paste_with_carry(coord_t * coord /* coord of paste */ ,
 	assert("umka-315", coord != NULL);
 	assert("umka-316", key != NULL);
 
-	init_carry_pool(&pool);
-	init_carry_level(&lowest_level, &pool);
+	pool = init_carry_pool();
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	init_carry_level(&lowest_level, pool);
 
 	op = post_carry(&lowest_level, COP_PASTE, coord->node, 0);
-	if (IS_ERR(op) || (op == NULL))
+	if (IS_ERR(op) || (op == NULL)) {
+		done_carry_pool(pool);
 		return RETERR(op ? PTR_ERR(op) : -EIO);
+	}
 	cdata.coord = coord;
 	cdata.data = data;
 	cdata.key = key;
@@ -346,7 +354,7 @@ paste_with_carry(coord_t * coord /* coord of paste */ ,
 
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
 	result = carry(&lowest_level, 0);
-	done_carry_pool(&pool);
+	done_carry_pool(pool);
 
 	return result;
 }
@@ -527,8 +535,6 @@ resize_item(coord_t * coord /* coord of item being resized */ ,
 	    cop_insert_flag flags /* carry flags */ )
 {
 	int result;
-	carry_pool pool;
-	carry_level lowest_level;
 	znode *node;
 
 	assert("nikita-362", coord != NULL);
@@ -540,9 +546,6 @@ resize_item(coord_t * coord /* coord of item being resized */ ,
 	result = zload(node);
 	if (result != 0)
 		return result;
-
-	init_carry_pool(&pool);
-	init_carry_level(&lowest_level, &pool);
 
 	if (data->length < 0)
 		result = node_plugin_by_coord(coord)->shrink_item(coord,
@@ -559,17 +562,21 @@ reiser4_internal int
 insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 {
 	int result;
-	carry_pool pool;
+	carry_pool *pool;
 	carry_level lowest_level;
 	carry_op *op;
 	reiser4_item_data data;
 
-	init_carry_pool(&pool);
-	init_carry_level(&lowest_level, &pool);
+	pool = init_carry_pool();
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	init_carry_level(&lowest_level, pool);
 
 	op = post_carry(&lowest_level, COP_INSERT_FLOW, coord->node, 0 /* operate directly on coord -> node */ );
-	if (IS_ERR(op) || (op == NULL))
+	if (IS_ERR(op) || (op == NULL)) {
+		done_carry_pool(pool);
 		return RETERR(op ? PTR_ERR(op) : -EIO);
+	}
 
 	/* these are permanent during insert_flow */
 	data.user = 1;
@@ -591,7 +598,7 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
 	result = carry(&lowest_level, 0);
-	done_carry_pool(&pool);
+	done_carry_pool(pool);
 
 	return result;
 }
@@ -1240,21 +1247,25 @@ cut_node_content(coord_t *from, coord_t *to,
 		 const reiser4_key * to_key /* last key to be removed */ ,
 		 reiser4_key * smallest_removed	/* smallest key actually removed */)
 {
-	carry_pool pool;
+	carry_pool *pool;
 	carry_level lowest_level;
 	carry_op *op;
 	carry_cut_data cut_data;
 	int result;
 
-	assert("", coord_compare(from, to) != COORD_CMP_ON_RIGHT);
+	assert("vs-1715", coord_compare(from, to) != COORD_CMP_ON_RIGHT);
 
-	init_carry_pool(&pool);
-	init_carry_level(&lowest_level, &pool);
+	pool = init_carry_pool();
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	init_carry_level(&lowest_level, pool);
 
 	op = post_carry(&lowest_level, COP_CUT, from->node, 0);
 	assert("vs-1509", op != 0);
-	if (IS_ERR(op))
+	if (IS_ERR(op)) {
+		done_carry_pool(pool);
 		return PTR_ERR(op);
+	}
 
 	cut_data.params.from = from;
 	cut_data.params.to = to;
@@ -1267,7 +1278,7 @@ cut_node_content(coord_t *from, coord_t *to,
 
 	ON_STATS(lowest_level.level_no = znode_get_level(from->node));
 	result = carry(&lowest_level, 0);
-	done_carry_pool(&pool);
+	done_carry_pool(pool);
 
 	return result;
 }
@@ -1297,7 +1308,7 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 					 invalidate pages together with item pointing to them */)
 {
 	int result;
-	carry_pool pool;
+	carry_pool *pool;
 	carry_level lowest_level;
 	carry_op *op;
 	carry_kill_data kdata;
@@ -1331,12 +1342,15 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 			return result;
 		}
 	}
-
-	init_carry_pool(&pool);
-	init_carry_level(&lowest_level, &pool);
+	
+	pool = init_carry_pool();
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	init_carry_level(&lowest_level, pool);
 
 	op = post_carry(&lowest_level, COP_CUT, from->node, 0);
 	if (IS_ERR(op) || (op == NULL)) {
+		done_carry_pool(pool);
 		done_children(&kdata);
 		return RETERR(op ? PTR_ERR(op) : -EIO);
 	}
@@ -1346,8 +1360,8 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 
 	ON_STATS(lowest_level.level_no = znode_get_level(from->node));
 	result = carry(&lowest_level, 0);
-	done_carry_pool(&pool);
 
+	done_carry_pool(pool);
 	done_children(&kdata);
 	return result;
 }

@@ -343,7 +343,7 @@ extern carry_node *add_carry_atplace(carry_level *doing,
 
 extern carry_node *find_begetting_brother(carry_node * node, carry_level * kin);
 
-extern void init_carry_pool(carry_pool * pool);
+extern carry_pool *init_carry_pool(void);
 extern void done_carry_pool(carry_pool * pool);
 
 extern void init_carry_level(carry_level * level, carry_pool * pool);

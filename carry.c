@@ -462,14 +462,19 @@ init_carry_level(carry_level * level /* level to initialise */ ,
 	pool_level_list_init(&level->ops);
 }
 
-/* initialise pools within queue */
-reiser4_internal void
-init_carry_pool(carry_pool * pool /* pool to initialise */ )
+/* allocate carry pool and initialise pools within queue */
+reiser4_internal carry_pool *
+init_carry_pool(void)
 {
-	assert("nikita-945", pool != NULL);
+	carry_pool * pool;
+
+	pool = kmalloc(sizeof(carry_pool), GFP_KERNEL);
+	if (pool == NULL)
+		return ERR_PTR(RETERR(-ENOMEM));
 
 	reiser4_init_pool(&pool->op_pool, sizeof (carry_op), CARRIES_POOL_SIZE, (char *) pool->op);
 	reiser4_init_pool(&pool->node_pool, sizeof (carry_node), NODES_LOCKED_POOL_SIZE, (char *) pool->node);
+	return pool;
 }
 
 /* finish with queue pools */

@@ -169,24 +169,27 @@ static int
 add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key, const reiser4_key * rdkey)
 {
 	int result;
-	carry_pool pool;
+	carry_pool *pool;
 	carry_level todo;
 	carry_op *op;
-	/*znode *parent_node;*/
 	znode *node;
 	reiser4_item_data item;
 	carry_insert_data cdata;
 	reiser4_tree *tree;
 
-	init_carry_pool(&pool);
-	init_carry_level(&todo, &pool);
+	pool = init_carry_pool();
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	init_carry_level(&todo, pool);
 	ON_STATS(todo.level_no = TWIG_LEVEL);
 	assert("vs-49827", znode_contains_key_lock(insert_coord->node, key));
 
 	tree = znode_get_tree(insert_coord->node);
 	node = new_node(insert_coord->node, LEAF_LEVEL);
-	if (IS_ERR(node))
+	if (IS_ERR(node)) {
+		done_carry_pool(pool);
 		return PTR_ERR(node);
+	}
 
 	/* setup delimiting keys for node being inserted */
 	WLOCK_DK(tree);
@@ -264,7 +267,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	} else
 		result = PTR_ERR(op);
 	zput(node);
-	done_carry_pool(&pool);
+	done_carry_pool(pool);
 	return result;
 }
 

@@ -2620,7 +2620,7 @@ static int
 squeeze_right_non_twig(znode * left, znode * right)
 {
 	int ret;
-	carry_pool pool;
+	carry_pool *pool;
 	carry_level todo;
 	ON_STATS(int old_items; int old_free_space);
 
@@ -2628,9 +2628,11 @@ squeeze_right_non_twig(znode * left, znode * right)
 
 	if (!znode_is_dirty(left) || !znode_is_dirty(right))
 		return SQUEEZE_TARGET_FULL;
-
-	init_carry_pool(&pool);
-	init_carry_level(&todo, &pool);
+	
+	pool = init_carry_pool();
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	init_carry_level(&todo, pool);
 
 	ON_STATS(old_items = node_num_items(left); old_free_space = znode_free_space(left));
 
@@ -2665,7 +2667,7 @@ squeeze_right_non_twig(znode * left, znode * right)
 		ret = node_is_empty(right) ? SQUEEZE_SOURCE_EMPTY : SQUEEZE_TARGET_FULL;
 	}
 
-	done_carry_pool(&pool);
+	done_carry_pool(pool);
 
 #if REISER4_STATS
 	if (znode_get_level(left) == LEAF_LEVEL) {
@@ -2685,7 +2687,7 @@ static int
 shift_one_internal_unit(znode * left, znode * right)
 {
 	int ret;
-	carry_pool pool;
+	carry_pool *pool;
 	carry_level todo;
 	coord_t coord;
 	int size, moved;
@@ -2713,8 +2715,10 @@ shift_one_internal_unit(znode * left, znode * right)
 
 	assert("jmacd-2007", item_is_internal(&coord));
 
-	init_carry_pool(&pool);
-	init_carry_level(&todo, &pool);
+	pool = init_carry_pool();
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	init_carry_level(&todo, pool);
 
 	size = item_length_by_coord(&coord);
 	info.todo = &todo;
@@ -2754,7 +2758,7 @@ shift_one_internal_unit(znode * left, znode * right)
 		 "shift_one %s an item: left has %u items, right has %u items\n",
 		 moved > 0 ? "moved" : "did not move", node_num_items(left), node_num_items(right));
 
-	done_carry_pool(&pool);
+	done_carry_pool(pool);
 
 	if (ret != 0) {
 		/* Shift or carry operation failed. */

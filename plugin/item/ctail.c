@@ -809,14 +809,16 @@ static int
 insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * inode)
 {
 	int result;
-	carry_pool pool;
+	carry_pool *pool;
 	carry_level lowest_level;
 	carry_op *op;
 	reiser4_item_data data;
 	__u8 cluster_shift = inode_cluster_shift(inode);
 
-	init_carry_pool(&pool);
-	init_carry_level(&lowest_level, &pool);
+	pool = init_carry_pool();
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	init_carry_level(&lowest_level, pool);
 
 	assert("edward-466", coord->between == AFTER_ITEM || coord->between == AFTER_UNIT ||
 	       coord->between == BEFORE_ITEM);
@@ -826,8 +828,10 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 		coord->between = AFTER_ITEM;
 	}
 	op = post_carry(&lowest_level, COP_INSERT_FLOW, coord->node, 0 /* operate directly on coord -> node */ );
-	if (IS_ERR(op) || (op == NULL))
+	if (IS_ERR(op) || (op == NULL)) {
+		done_carry_pool(pool);
 		return RETERR(op ? PTR_ERR(op) : -EIO);
+	}
 	data.user = 0;
 	data.iplug = item_plugin_by_id(CTAIL_ID);
 	data.arg = &cluster_shift;
@@ -846,7 +850,7 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
 	result = carry(&lowest_level, 0);
-	done_carry_pool(&pool);
+	done_carry_pool(pool);
 
 	return result;
 }
