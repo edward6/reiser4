@@ -19,7 +19,7 @@ extern "C" {
 
 #include "filesystem.h"
 #include "super.h"
-
+#include "journal.h"
 #include "plugin.h"
 #include "tools.h"
 #include "endian.h"

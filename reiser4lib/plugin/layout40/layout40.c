@@ -82,6 +82,14 @@ static void reiserfs_layout40_done(reiserfs_layout40_t *layout) {
 	aal_free(layout);
 }
 
+static reiserfs_plugin_id_t reiserfs_layout40_journal_plugin(reiserfs_layout40_t *layout) {
+	return 0x1;
+}
+
+static reiserfs_plugin_id_t reiserfs_layout40_alloc_plugin(reiserfs_layout40_t *layout) {
+	return 0x1;
+}
+
 reiserfs_plugin_t plugin_info = {
 	.layout = {
 		.h = {
@@ -93,7 +101,13 @@ reiserfs_plugin_t plugin_info = {
 				"Copyright (C) 1996-2002 Hans Reiser",
 		},
 		.init = (reiserfs_layout_opaque_t *(*)(aal_device_t *))reiserfs_layout40_init,
-		.done = (void (*)(reiserfs_layout_opaque_t *))reiserfs_layout40_done
+		.done = (void (*)(reiserfs_layout_opaque_t *))reiserfs_layout40_done,
+		
+		.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_layout_opaque_t *))
+			reiserfs_layout40_journal_plugin,
+		
+		.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_layout_opaque_t *))
+			reiserfs_layout40_alloc_plugin
 	}
 };
 

@@ -20,8 +20,11 @@ enum reiserfs_plugin_type {
 	REISERFS_SD_EXT_PLUGIN,
 	REISERFS_LAYOUT_PLUGIN,
 	REISERFS_OID_PLUGIN,
-	REISERFS_ALLOC_PLUGIN
+	REISERFS_ALLOC_PLUGIN,
+	REISERFS_JOURNAL_PLUGIN
 };
+
+#define REISERFS_UNSUPPORTED_PLUGIN 255
 
 typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
 typedef int reiserfs_plugin_id_t;
@@ -107,8 +110,11 @@ typedef void reiserfs_layout_opaque_t;
 
 struct reiserfs_layout_plugin {
 	reiserfs_plugin_header_t h;
+	
 	reiserfs_layout_opaque_t *(*init) (aal_device_t *);
 	void (*done) (reiserfs_layout_opaque_t *);
+	reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_layout_opaque_t *);
+	reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_layout_opaque_t *);
 };
 
 typedef struct reiserfs_layout_plugin reiserfs_layout_plugin_t;
@@ -133,6 +139,9 @@ typedef void reiserfs_journal_opaque_t;
 
 struct reiserfs_journal_plugin {
 	reiserfs_plugin_header_t h;
+	reiserfs_journal_opaque_t *(*init) (aal_device_t *);
+	void (*done) (reiserfs_journal_opaque_t *);
+	int (*replay) (reiserfs_journal_opaque_t *);
 };
 
 typedef struct reiserfs_journal_plugin reiserfs_journal_plugin_t;

@@ -8,7 +8,9 @@
 #include <reiserfs/debug.h>
 
 /* Opens the filesystem and journal on the specified devices. */
-reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, aal_device_t *journal_device) {
+reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
+	aal_device_t *journal_device, int replay) 
+{
 	reiserfs_fs_t *fs;
 	
 	ASSERT(host_device != NULL, return NULL);
@@ -22,10 +24,11 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, aal_device_t *journal
 	if (!reiserfs_super_open(fs))
 		goto error_free_fs;
 
-/*	if (!reiserfs_journal_open(fs, journal_device))
+	if (reiserfs_super_journal_supported(fs) && 
+			!reiserfs_journal_open(fs, journal_device, replay))
 		goto error_free_super;
 	
-	if (!reiserfs_alloc_open(fs))
+/*	if (!reiserfs_alloc_open(fs))
 		goto error_free_journal;
 	
 	if (!reiserfs_tree_open(fs))
@@ -36,9 +39,9 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, aal_device_t *journal
 /*error_free_alloc:
 	reiserfs_alloc_close(fs);
 error_free_journal:
-	reiserfs_journal_close(fs);
+	reiserfs_journal_close(fs);*/
 error_free_super:
-	reiserfs_super_close(fs);*/
+	reiserfs_super_close(fs);
 error_free_fs:
 	aal_free(fs);
 error:
@@ -48,8 +51,8 @@ error:
 /* Closes filesystem. Closes all filesystem's entities. Frees all assosiated memory. */
 void reiserfs_fs_close(reiserfs_fs_t *fs) {
 /*	reiserfs_tree_close(fs);
-	reiserfs_alloc_close(fs);
-	reiserfs_journal_close(fs);*/
+	reiserfs_alloc_close(fs);*/
+	reiserfs_journal_close(fs);
 	reiserfs_super_close(fs);
 	aal_free(fs);
 }

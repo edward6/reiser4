@@ -43,11 +43,18 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 }
 
 void reiserfs_super_close(reiserfs_fs_t *fs) {
-	
 	ASSERT(fs != NULL, return);
 	
 	fs->super->plugin->layout.done(fs->super->entity);
 	aal_free(fs->super);
 	fs->super = NULL;
+}
+
+int reiserfs_super_journal_supported(reiserfs_fs_t *fs) {
+	ASSERT(fs != NULL, return 0);
+	ASSERT(fs->super != NULL, return 0);
+
+	return fs->super->plugin->layout.journal_plugin_id(fs->super->entity) != 
+		REISERFS_UNSUPPORTED_PLUGIN;
 }
 
