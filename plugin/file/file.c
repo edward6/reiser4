@@ -725,20 +725,61 @@ expand_file(struct inode *inode, loff_t cur_size, loff_t new_size)
 	return 0;
 }
 
+/* Performs estimate of reserved blocks for truncate operation. Note,
+ * that all estimate fundctions do not count the amount of blocks should
+ * be reserved for internal blocks */
+reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, size_t count) {
+    __u64 file_size;
+    tail_plugin *tail_plugin;
+    
+    assert("umka-1233", inode != NULL);
+   
+    /* Getting the logical file size */
+    file_size = inode->i_size;
+
+    /* Here should be called tail policy plugin in order to handle correctly
+     * the situation of converting extent to tail */
+    tail_plugin = inode_tail_plugin(inode);
+    
+    assert("umka-1234", tail_plugin != NULL);
+    
+    /* The case when truncate will increase file size */
+    if (count > file_size) {
+	    /* Requesting the tail_policy plugin for count the amount of
+	     * blocks needed for truncate operation */
+	    return tail_plugin->estimate(inode, count, 1/*is_fake*/) + 1;
+    } else {
+	/* The file is going to decrease itself size, so, we are reserving
+	 * only one block for stat data updating */
+	return inode_file_plugin(inode)->estimate.update(inode) + 1;
+    }
+}
+
 /* plugin->u.file.truncate
  * this is called with exclusive access obtained in unix_file_setattr
  */
 int
 unix_file_truncate(struct inode *inode, loff_t size)
 {
-	int result;
+	reiser4_block_nr reserve;
 	loff_t file_size;
-
+	reiser4_block_nr needed;
 	inode->i_size = size;
 
 	result = find_file_size(inode, &file_size);
 	if (result)
 		return result;
+	
+	needed = unix_file_estimate_truncate(inode, size);
+	reserve = reiser4_grab_space_exact(needed, 0);
+	
+	if (reserve != 0) {
+//		drop_nonexclusive_access (inode);
+		return -ENOSPC;
+	}
+	
+	warning("umka-1232", "SPACE: file truncate grabs %llu blocks.", needed);
+
 	if (file_size < inode->i_size)
 		result = expand_file(inode, file_size, inode->i_size);
 	else {
@@ -1240,6 +1281,11 @@ unix_file_how_to_read(struct inode *inode, coord_t * coord)
 	return id == EXTENT_POINTER_ID ? READ_EXTENT : READ_TAIL;
 }
 
+reiser4_block_nr unix_file_estimate_read(struct inode *inode, size_t count) {
+    	/* We should reserve the one block, because of updating of the stat data
+	 * item */
+	return inode_file_plugin(inode)->estimate.update(inode);
+}
 /* plugin->u.file.read */
 ssize_t
 unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
@@ -1254,6 +1300,8 @@ unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
 	read_todo mode;
 	struct sealed_coord hint;
 
+	reiser4_block_nr needed;
+
 	if (unlikely(!read_amount))
 		return 0;
 
@@ -1262,6 +1310,15 @@ unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
 	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 
 	get_nonexclusive_access(inode);
+	needed = unix_file_estimate_read(inode, read_amount);
+	result = reiser4_grab_space_exact(needed, 0);
+	
+	if (result != 0) {
+	    drop_nonexclusive_access(inode);
+	    return -ENOSPC;
+	}
+	
+	warning("umka-1231", "SPACE: file read grabs %llu blocks.", needed);
 
 	/* build flow */
 	result = inode_file_plugin(inode)->flow_by_inode(inode, buf,
@@ -1709,6 +1766,24 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 	return (to_write - f->length) ? (to_write - f->length) : result;
 }
 
+reiser4_block_nr unix_file_estimate_write(struct inode *inode, size_t count,
+    loff_t *off) 
+{
+    tail_plugin *tail_plugin;
+    __u64 file_size, new_file_size;
+    
+    assert("umka-1242", inode != NULL);
+    assert("umka-1248", inode != NULL);
+    
+    tail_plugin = inode_tail_plugin(inode);
+    assert("umka-1241", tail_plugin != NULL);
+   
+    file_size = inode->i_size;
+    new_file_size = *off + count > file_size ? *off + count : file_size;
+    
+    return tail_plugin->estimate(inode, new_file_size, 1/*is_fake*/) + 
+	    inode_file_plugin(inode)->estimate.update(inode) + 1;
+}
 /* plugin->u.file.write */
 ssize_t
 unix_file_write(struct file * file,	/* file to write to */
@@ -1721,6 +1796,8 @@ unix_file_write(struct file * file,	/* file to write to */
 	flow_t f;
 	ssize_t written;
 	loff_t pos;
+	reiser4_block_nr needed = 0;
+
 
 	inode = file->f_dentry->d_inode;
 
@@ -1728,7 +1805,21 @@ unix_file_write(struct file * file,	/* file to write to */
 	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
 
 	get_nonexclusive_access(inode);
+	needed = unix_file_estimate_write(inode, count, off);
+	
+	/* 
+	    FIXME-VITALY: grab needed blocks. They will go either 
+	    to fake allocated or to overwrite set.
+	*/
+	result = reiser4_grab_space_exact(needed, 0);
 
+	if (result != 0) {
+		drop_nonexclusive_access(inode);
+		return -ENOSPC;
+	}
+	
+	warning("vpf-301", "SPACE: file write grabs %llu blocks.", needed);
+	
 	pos = *off;
 	if (file->f_flags & O_APPEND)
 		pos = inode->i_size;
@@ -1779,17 +1870,52 @@ unix_file_write(struct file * file,	/* file to write to */
 	return written;
 }
 
+/* Performs estimate of reserved blocks for file release operation. Note,
+ * that all estimate functions do not count the amount of blocks should
+ * be reserved for internal blocks */
+reiser4_block_nr unix_file_estimate_release(struct inode *inode) {
+    __u64 file_size;
+    tail_plugin *tail_plugin;
+    
+    assert("umka-1237", inode != NULL);
+    
+    file_size = inode->i_size;
+
+    if (file_size == 0) {
+	/* If new file size is zero, we are reserving only some amount of blocks 
+	 * for the stat data updating */
+	return inode_file_plugin(inode)->estimate.update(inode);
+    }
+    
+    /* Here should be called tail policy plugin in order to handle correctly
+     * the situation of converting extent to tail */
+    tail_plugin = inode_tail_plugin(inode);
+    assert("umka-1238", tail_plugin != NULL);
+    
+    return tail_plugin->estimate(inode, file_size, 0) + 
+	    inode_file_plugin(inode)->estimate.update(inode) + 1;
+}
+
 /* plugin->u.file.release
  * convert all extent items into tail items if necessary */
 int
 unix_file_release(struct file *file)
 {
+	int result;
 	struct inode *inode;
+	reiser4_block_nr needed;
 
 	inode = file->f_dentry->d_inode;
 
 	if (inode->i_size == 0)
 		return 0;
+
+	needed = unix_file_estimate_release(inode);
+	result = reiser4_grab_space_exact(needed, 0);
+	
+	if (result != 0) return -ENOSPC;
+	
+	warning("umka-1240", "SPACE: file release grabs %llu blocks.", needed);
 
 	/*
 	 * FIXME-VS: it is not clear where to do extent2tail conversion yet
@@ -1827,6 +1953,11 @@ unix_file_filemap_nopage(struct vm_area_struct * area, unsigned long address,
 static struct vm_operations_struct unix_file_vm_ops = {
 	.nopage	= unix_file_filemap_nopage,
 };
+reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, size_t count) 
+{
+	assert("umka-1246", inode != NULL);
+	return inode_file_plugin(inode)->estimate.update(inode);
+}
 
 /* plugin->u.file.mmap
  * make sure that file is built of extent blocks
@@ -1837,8 +1968,17 @@ unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct inode *inode;
 	int result;
+	reiser4_block_nr needed;
 
 	inode = file->f_dentry->d_inode;
+
+	/* FIXME-VITALY: Should get_nonexclusive_access be first? */
+	needed = unix_file_estimate_mmap(inode, find_file_size(inode));
+	result = reiser4_grab_space_exact(needed, 0);
+	
+	if (result != 0) return -ENOSPC;
+	
+	warning("umka-1247", "SPACE: file mmap grabs %llu blocks.", needed);
 
 	/* tail2extent expects file to be nonexclusively locked */
 	get_nonexclusive_access(inode);
