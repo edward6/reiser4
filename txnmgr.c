@@ -189,6 +189,7 @@
 #include "wander.h"
 #include "ktxnmgrd.h"
 #include "super.h"
+#include "page_cache.h"
 #include "reiser4.h"
 
 #include <asm/atomic.h>
@@ -1106,7 +1107,7 @@ int txn_commit_some (txn_mgr *mgr)
 
 		/* we are about to release daemon spin lock, notify daemon it
 		 * has to rescan atoms */
-		++ mgr->daemon->rescan;
+		mgr->daemon->rescan = 1;
 		spin_unlock (&mgr->daemon->guard);
 		ret = txn_end (ctx);
 
@@ -1690,12 +1691,17 @@ static int check_not_fused_lock_owners (txn_handle * txnh, znode *node)
 
 		// repeat = 1;
 
+		reiser4_wake_up (lh->owner);
+
 		spin_unlock_txnh (txnh);
 		spin_unlock_znode (node);
 
+		/*
+		 * @atomf is "small" and @atomh is "large", by
+		 * definition. Small atom is destroyed and large is unlocked
+		 * inside capture_fuse_into()
+		 */
 		capture_fuse_into (atomf, atomh);
-
-		reiser4_wake_up (lh->owner);
 
 		return -EAGAIN;
 	}
@@ -1732,14 +1738,14 @@ txn_try_capture_page  (struct page        *pg,
 	}
 	
 	spin_lock_jnode (node);
-	unlock_page (pg);
+	reiser4_unlock_page (pg);
 
 	ret = txn_try_capture (node, lock_mode, non_blocking ? TXN_CAPTURE_NONBLOCKING : 0);
 	if (ret == 0) {
 		spin_unlock_jnode (node);
 	}
 	jput (node);
-	lock_page (pg);
+	reiser4_lock_page (pg);
 	return ret;
 }
 
