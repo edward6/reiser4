@@ -200,7 +200,7 @@ extern struct page *jnode_lock_page (jnode *);
 /**
  * Jnode flush interface.
  */
-extern int    jnode_flush     (jnode *node, int *nr_to_flush, int flags);
+extern int    jnode_flush     (jnode *node, long *nr_to_flush, int flags);
 extern int    flush_enqueue_unformatted (jnode *node, flush_position *pos);
 extern reiser4_blocknr_hint* flush_pos_hint (flush_position *pos);
 extern int    flush_pos_leaf_relocate (flush_position *pos);

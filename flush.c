@@ -500,7 +500,7 @@ struct flush_position {
 	reiser4_blocknr_hint  preceder;        /* The flush 'hint' state. */
 	int                   leaf_relocate;   /* True if enough leaf-level nodes were
 						* found to suggest a relocate policy. */
-	int                  *nr_to_flush;     /* If called under memory pressure,
+	long                 *nr_to_flush;     /* If called under memory pressure,
 						* indicates how many nodes the VM asked to flush. */
 	int                   alloc_cnt;       /* The number of nodes allocated during squeeze and allococate. */
 	int                   prep_or_free_cnt;/* The number of nodes prepared for write (allocate) or squeezed and freed. */
@@ -571,7 +571,7 @@ static int           znode_get_utmost_if_dirty    (znode *node, lock_handle *rig
 static int           znode_same_parents           (znode *a, znode *b);
 
 /* Flush position functions */
-static int           flush_pos_init               (flush_position *pos, int *nr_to_flush);
+static int           flush_pos_init               (flush_position *pos, long *nr_to_flush);
 static int           flush_pos_valid              (flush_position *pos);
 static void          flush_pos_done               (flush_position *pos);
 static int           flush_pos_stop               (flush_position *pos);
@@ -710,7 +710,7 @@ ON_DEBUG (atomic_t flush_cnt;)
  * probably be handled properly rather than restarting, but there are a bunch of cases to
  * audit.
  */
-int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
+int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
 {
 	int ret = 0;
 	flush_position flush_pos;
@@ -3647,7 +3647,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
  ********************************************************************************/
 
 /* Initialize the fields of a flush_position. */
-static int flush_pos_init (flush_position *pos, int *nr_to_flush)
+static int flush_pos_init (flush_position *pos, long *nr_to_flush)
 {
 	capture_list_init (&pos->queue);
 	flushers_list_clean (pos);

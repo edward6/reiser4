@@ -1620,7 +1620,8 @@ int submit_bio( int rw, struct bio *bio )
 		set_bit( BIO_UPTODATE, &bio -> bi_flags );
 	else
 		clear_bit( BIO_UPTODATE, &bio -> bi_flags );
-	bio -> bi_end_io( bio );
+	bio -> bi_size = 0;
+	bio -> bi_end_io( bio, 0, 0 );
 	return success ? 0 : -1;
 }
 
@@ -4657,7 +4658,7 @@ static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tr
 
 			//	hint.not_counted = 1;
 
-			ret = reiser4_alloc_blocks (&hint, &block, &len);
+			ret = reiser4_alloc_blocks (&hint, &block, &len, 0);
 
 			blocknr_hint_done (&hint);
 

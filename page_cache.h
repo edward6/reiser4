@@ -30,7 +30,9 @@ extern void *xmemset( void *s, int c, size_t n );
 #endif
 
 extern int page_io( struct page *page, jnode *node, int rw, int gfp );
-extern int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags );
+extern int page_common_writeback( struct page *page, 
+				  struct writeback_control *wbc, 
+				  int flush_flags );
 
 #define define_never_ever_op( op )						\
 static int never_ever_ ## op ( void )						\

@@ -86,7 +86,8 @@ static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 static int reiser4_writepage(struct page *);
 static int reiser4_readpage(struct file *, struct page *);
 static int reiser4_sync_page(struct page *);
-static int reiser4_vm_writeback( struct page *page, int *nr_to_write );
+static int reiser4_vm_writeback( struct page *page, 
+				 struct writeback_control *wbc );
 /*
 static int reiser4_prepare_write(struct file *, 
 				 struct page *, unsigned, unsigned);
@@ -495,7 +496,7 @@ static int reiser4_writepage( struct page *page )
 	int result;
 	file_plugin * fplug;
 	jnode * j;
-	int nr_to_write;
+	struct writeback_control wbc;
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 
 
@@ -518,13 +519,14 @@ static int reiser4_writepage( struct page *page )
 				REISER4_EXIT( result );
 		}
 	}
-	nr_to_write = 1;
+	xmemset( &wbc, 0, sizeof wbc );
+	wbc.nr_to_write = 1;
 
 	/* The mpage_writepages() calls reiser4_writepage with a locked, but
 	 * clean page.  An extra reference should protect this page from
 	 * removing from memory */
 	page_cache_get (page);
-	result = page_common_writeback( page, &nr_to_write,
+	result = page_common_writeback( page, &wbc, 
 					JNODE_FLUSH_MEMORY_UNFORMATTED );
 	page_cache_release (page);
 
@@ -572,9 +574,10 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 }
 
 /* nikita-fixme-hans: comment all functions and their parameters */
-static int reiser4_vm_writeback( struct page *page, int *nr_to_write )
+static int reiser4_vm_writeback( struct page *page, 
+				 struct writeback_control *wbc )
 {
-	return page_common_writeback( page, nr_to_write, JNODE_FLUSH_MEMORY_UNFORMATTED);
+	return page_common_writeback( page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
 }
 
 /* ->sync_page()
@@ -2237,7 +2240,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 }
 
 int reiser4_writepages( struct address_space *mapping UNUSED_ARG, 
-			int *nr_to_write UNUSED_ARG )
+			struct writeback_control *wbc UNUSED_ARG )
 {
 	trace_on( TRACE_PCACHE, "Writepages called and ignored for %lli\n",
 		  get_inode_oid( mapping -> host ) );

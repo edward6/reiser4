@@ -1978,29 +1978,6 @@ static void print_range_list (struct list_head * list)
 }
 
 
-/* FIXME-VS: temporary to old end io handler */
-static void extent_end_io_read(struct bio *bio)
-{
-	int uptodate;
-        struct bio_vec * bvec;
-	struct page * page;
-	int i;
-
-	uptodate = test_bit (BIO_UPTODATE, &bio->bi_flags);
-	bvec = &bio->bi_io_vec [0];
-	for (i = 0; i < bio->bi_vcnt; i ++, bvec ++) {
-		page = bvec->bv_page;
-                if (uptodate) {
-                        SetPageUptodate (page);
-                } else {
-                        ClearPageUptodate (page);
-                        SetPageError (page);
-                }
-                unlock_page (page);		
-	}
-        bio_put (bio);
-}
-#if 0
 static int extent_end_io_read(struct bio *bio, unsigned int bytes_done, int err)
 {
 	int uptodate;
@@ -2026,7 +2003,6 @@ static int extent_end_io_read(struct bio *bio, unsigned int bytes_done, int err)
         bio_put (bio);
 	return 0;
 }
-#endif
 
 /* Implements plugin->u.item.s.file.readahead operation for extent items.
  *
@@ -3408,7 +3384,7 @@ static int prepare_page (struct inode * inode, struct page * page,
 			 jnode * j, loff_t file_off, unsigned from,
 			 unsigned count)
 {
-	void * data;
+	char * data;
 
 
 	if (PageUptodate (page))

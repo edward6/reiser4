@@ -512,14 +512,14 @@ static struct bio *page_bio( struct page *page, jnode *node, int rw, int gfp )
  * (or however it will be called by the time you read this).
  */
 static int formatted_vm_writeback( struct page *page /* page to start
-						      * writeback from */, 
-				   int *nr_to_write /* number of pages VM asks
-						     * us to submit. We should
-						     * try to stay reasonable
-						     * close. */ )
+						      * writeback from */,
+				   struct writeback_control *wbc /* writeback
+								  * control
+								  * information
+								  * passed by
+								  * VM */ )
 {
-	return page_common_writeback( page, nr_to_write, 
-				      JNODE_FLUSH_MEMORY_FORMATTED);
+	return page_common_writeback( page, wbc, JNODE_FLUSH_MEMORY_FORMATTED);
 }
 
 /**
@@ -540,7 +540,9 @@ static int formatted_vm_writeback( struct page *page /* page to start
  *
  */
 int page_common_writeback( struct page *page /* page to start writeback from */,
-			   int *nr_to_write /* number of pages to write */, 
+			   struct writeback_control *wbc /* writeback control
+							  * information passed
+							  * by VM */, 
 			   int flush_flags /* Additional hint. Seems to be
 					    * unused currently. */ )
 {
@@ -608,7 +610,7 @@ int page_common_writeback( struct page *page /* page to start writeback from */,
 
 	} else if (result == 0) {
 		/* And flush it... */
-		result = jnode_flush (node, nr_to_write, flush_flags);
+		result = jnode_flush (node, &wbc -> nr_to_write, flush_flags);
 	}
 
 	jput (node);

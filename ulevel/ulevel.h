@@ -624,6 +624,30 @@ struct super_block {
 struct address_space;
 struct kiobuf;
 
+/*
+ * fs/fs-writeback.c
+ */
+enum writeback_sync_modes {
+	WB_SYNC_NONE,	/* Don't wait on anything */
+	WB_SYNC_ALL,	/* Wait on every mapping */
+	WB_SYNC_HOLD,	/* Hold the inode on sb_dirty for sys_sync() */
+};
+
+struct backing_dev_info;
+
+/*
+ * A control structure which tells the writeback code what to do
+ */
+struct writeback_control {
+	struct backing_dev_info *bdi;	/* If !NULL, only write back this
+					   queue */
+	enum writeback_sync_modes sync_mode;
+	unsigned long *older_than_this;	/* If !NULL, only write back inodes
+					   older than this */
+	long nr_to_write;		/* Write this many pages, and decrement
+					   this for each page written */
+};
+
 
 struct address_space_operations {
 	int (*writepage)(struct page *);
@@ -631,10 +655,10 @@ struct address_space_operations {
 	int (*sync_page)(struct page *);
 
 	/* Write back some dirty pages from this mapping. */
-	int (*writepages)(struct address_space *, int *nr_to_write);
+	int (*writepages)(struct address_space *, struct writeback_control *wbc);
 
 	/* Perform a writeback as a memory-freeing operation. */
-	int (*vm_writeback)(struct page *, int *nr_to_write);
+	int (*vm_writeback)(struct page *, struct writeback_control *wbc);
 
 	/* Set a page dirty */
 	int (*set_page_dirty)(struct page *page);
@@ -1189,6 +1213,8 @@ int sb_set_blocksize(struct super_block *, int);
 char *kmap (struct page * page);
 void kunmap (struct page * page UNUSED_ARG);
 
+#define kmap_atomic(p,f) kmap(p)
+#define kunmap_atomic(p,f) kunmap(p)
 
 /* include/asm/uaccess.h */
 int __copy_from_user(char *, char *, unsigned);
@@ -1365,7 +1391,7 @@ enum bh_state_bits {
 
 /* include/linux/bio.h */
 struct bio;
-typedef void (bio_end_io_t) (struct bio *);
+typedef int (bio_end_io_t) (struct bio *, unsigned int bytes_done, int err);
 typedef void (bio_destructor_t) (struct bio *);
 
 struct bio_vec {

@@ -26,7 +26,8 @@ extern struct dentry_operations        reiser4_dentry_operation;
 
 extern int reiser4_invalidatepage( struct page *page, unsigned long offset );
 extern int reiser4_releasepage   ( struct page *page, int gfp );
-extern int reiser4_writepages    ( struct address_space *, int *nr_to_write );
+extern int reiser4_writepages    ( struct address_space *, 
+				   struct writeback_control *wbc );
 
 /**
  * &reiser4_dentry_fsdata - reiser4-specific data attached to dentries.
