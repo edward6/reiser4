@@ -660,7 +660,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			JF_SET(j, JNODE_CREATED);
 			/* new block is added to file. Update inode->i_blocks and inode->i_bytes. FIXME:
 			   inode_set/get/add/sub_bytes is used to be called by quota macros */
-			inode_add_bytes(inode, PAGE_CACHE_SIZE);
+			/*inode_add_bytes(inode, PAGE_CACHE_SIZE);*/
 		}
 		if (*jnode_get_block(j) == 0) {
 			jnode_set_block(j, &blocknr);
