@@ -690,7 +690,8 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 
 	/* ... and the answer is: we should relocate leaf nodes if at least
 	   FLUSH_RELOCATE_THRESHOLD nodes were found. */
-	flush_pos.leaf_relocate = (left_scan.count + right_scan.count >= sbinfo->flush.relocate_threshold);
+	flush_pos.leaf_relocate = JF_ISSET(node, JNODE_REPACK) || 
+		(left_scan.count + right_scan.count >= sbinfo->flush.relocate_threshold);
 
 	/*assert ("jmacd-6218", jnode_check_dirty (left_scan.node)); */
 
