@@ -539,6 +539,9 @@ static int flush_enqueue_ancestors (znode *node, flush_position *pos)
 		return 0;
 	}
 
+	/*
+	 * FIXME:NIKITA->JMACD this also fails.
+	 */
 	assert ("jmacd-7443", znode_is_allocated (node));
 
 	if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
