@@ -178,6 +178,7 @@ int ncoord_is_existing_item (const new_coord * coord)
 	}
 
 	impossible ("jmacd-9900", "unreachable");
+	return 0;
 }
 
 /* Returns true if the coordinate is positioned at an existing unit, not before or after a
@@ -199,6 +200,7 @@ int ncoord_is_existing_unit (const new_coord *coord)
 	}
 
 	impossible ("jmacd-9902", "unreachable");
+	return 0;
 }
 
 /* Returns true if the coordinate is positioned at the first unit of the first item.  Not
@@ -378,6 +380,7 @@ int ncoord_next_unit (new_coord *coord)
 	}
 
 	impossible ("jmacd-9902", "unreachable");
+	return 0;
 }
 
 /* Advances the coordinate by one item to the right.  If empty, no change.  If
@@ -419,6 +422,7 @@ int ncoord_next_item (new_coord *coord)
 	}
 
 	impossible ("jmacd-9903", "unreachable");
+	return 0;
 }
 
 /* Advances the coordinate by one unit to the left.  If empty, no change.  If
@@ -474,6 +478,7 @@ int ncoord_prev_unit (new_coord *coord)
 	}
 
 	impossible ("jmacd-9904", "unreachable");
+	return 0;
 }
 
 /* Advances the coordinate by one item to the left.  If empty, no change.  If
@@ -513,6 +518,7 @@ int ncoord_prev_item (new_coord *coord)
 	}
 
 	impossible ("jmacd-9905", "unreachable");
+	return 0;
 }
 
 /* Calls either ncoord_init_first_unit or ncoord_init_last_unit depending on sideof argument. */
@@ -593,6 +599,7 @@ int ncoord_eq (const new_coord *c1, const new_coord *c2)
 	}
 
 	impossible ("jmacd-9906", "unreachable");
+	return 0;
 }
 
 /* If ncoord_is_after_rightmost return NCOORD_ON_THE_RIGHT, if ncoord_is_after_leftmost
@@ -635,6 +642,7 @@ int ncoord_is_after_rightmost (const new_coord *coord)
 	}
 
 	impossible ("jmacd-9908", "unreachable");
+	return 0;
 }
 
 /* Returns true if the coordinate is positioned before the first item or it is an empty
@@ -659,6 +667,7 @@ int ncoord_is_before_leftmost (const new_coord *coord)
 	}
 
 	impossible ("jmacd-9908", "unreachable");
+	return 0;
 }
 
 /* Returns true if the coordinate is positioned after a item, before a item, after the
@@ -685,6 +694,7 @@ int ncoord_is_between_items (const new_coord *coord)
 	}
 
 	impossible ("jmacd-9908", "unreachable");
+	return 0;
 }
 
 /* Returns true if the coordinates are positioned at adjacent units, regardless of
@@ -779,6 +789,7 @@ int ncoord_set_to_unit (new_coord *coord)
 	}
 
 	impossible ("jmacd-9909", "unreachable");
+	return 0;
 }
 
 /* If the coordinate is between items, shifts it to the right.  Returns 0 on success and
@@ -833,6 +844,7 @@ int ncoord_set_to_right (new_coord *coord)
 	}
 
 	impossible ("jmacd-9920", "unreachable");
+	return 0;
 }
 
 /* If the coordinate is between items, shifts it to the left.  Returns 0 on success and
@@ -890,6 +902,7 @@ int ncoord_set_to_left (new_coord *coord)
 	}
 
 	impossible ("jmacd-9920", "unreachable");
+	return 0;
 }
 
 static const char * ncoord_tween (between_enum n)
