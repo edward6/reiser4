@@ -17,68 +17,35 @@ It seems most issues of consistency can be resolved by locking the parent direct
 
  */
 
-//#include "y.tab.c"
-
 #include "parser/parser.h"
+#include "parser/y.tab.c"
 
-struct yy_r4_work_space * work_space;
 
 int yywrap()
 {
     return 1;
 }
 
-/* comment me */
+/* @str is a command string for parsing  */
 int sys_reiser4(char * str)
 {
-/* comment me */
-  work_space = kmalloc();
+struct yy_r4_work_space * work_space;
+
+                                                            /* allocate work space for parser 
+							       working variables, dependens of task */
+	work_space = kmalloc( sizeof( struct yy_r4_work_space ),0 );
+	
+	                                                    /* initialize fields */
+	                                                    /* this two field used for parsing string, one (inline) stay on begin */
+	work_space->pline  =  work_space->inline = str;     /*   of token, second (pline) walk to end to token                   */
   
-/* comment me */
-  work_space->pline  =  work_space->inline = str;
-  
-
-
-/* comment me */
-	struct nameidata * nd;
-
-/* comment me */
-	int	ws_yyerrco;
-	int	ws_level;              /* current level            */
-	int	ws_labco;              /* current label            */
-	int	ws_errco;              /* number of errors         */
-	int	ws_strco;              /* number of entries in tptr*/
-	int	ws_varco;              /* number of variables      */
-	int	ws_varsol;             /* begin number of variables*/
-
-	struct var   ** Var;
-	struct streg ** Str;
-	char         ** WrdTab;
-
-	int ws_yydebug;
-	int ws_yynerrs;
-	int ws_yyerrflag;
-	int ws_yychar;
-	short * ws_yyssp;
-	YYSTYPE * ws_yyvsp;
-	YYSTYPE ws_yyval;
-	YYSTYPE ws_yylval;
-	short * ws_yyss;             /*[YYSTACKSIZE]*/
-	YYSTYPE * ws_yyvs;           /*[YYSTACKSIZE]*/
-	//	short yyss[YYSTACKSIZE];
-	//	YYSTYPE yyvs[YYSTACKSIZE];
-	int  ws_yystacksize; /*500*/
-	int  ws_yymaxdepth ; /*500*/
-
-
-
-
-
-
-
-    i=yyparse(work_space);
-
-    return 0;
+                                                            /* this is copy of work space structure for remember to initialize fields */
+	work_space->ws_yystacksize = MAXLEVELCO; /*500*/
+	work_space->ws_yymaxdepth  = MAXLEVELCO; /*500*/
+	
+	i=yyparse(work_space);
+	
+	return 0;
 }
 
 
