@@ -326,11 +326,7 @@ static inline int jload (jnode * node)
 	int ret;
 
 	ret = jload_and_lock (node);
-
-	if (unlikely (ret < 0)) return ret;
-
 	spin_unlock_jnode (node);
-
 	return ret;
 }
 

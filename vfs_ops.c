@@ -1667,6 +1667,12 @@ static void reiser4_kill_super (struct super_block *s)
 	/* flushes transactions, etc. */
 	get_super_private (s)->lplug->release (s);
 
+	/*
+	 * temporary fix, until transaction manager waits for io completion
+	 * itself.
+	 */
+	invalidate_inodes (s);
+
 	done_formatted_fake (s);
 
 	/*

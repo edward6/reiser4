@@ -206,15 +206,14 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 		if( !PageUptodate( page ) ) {
 			result = page -> mapping -> a_ops -> readpage( NULL,
 								       page );
-			if( result == 0 ) {
+			if( likely( result == 0 ) ) {
 				wait_on_page_locked( page );
-				if( PageUptodate( page ) )
+				if( likely( PageUptodate( page ) ) )
 					mark_page_accessed( page );
 				else
-					return -EIO;
+					result = -EIO;
 			} else
-				return result;
-			result = 0;
+				unlock_page( page );
 		} else {
 			unlock_page( page );
 			result = 1;
@@ -222,8 +221,10 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 		kmap_once( node, page );
 		/* return with jnode spin-locked */
 		return result;
-	} else
+	} else {
+		spin_lock_jnode( node );
 		return -ENOMEM;
+	}
 }
 
 /** 
@@ -258,12 +259,13 @@ static int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 static int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
 	assert( "nikita-2134", spin_jnode_is_locked( node ) );
-	assert( "nikita-2237", jnode_page( node ) != NULL );
 	trace_on( TRACE_PCACHE, "release node: %p\n", node );
 
-	kunmap( jnode_page( node ) );
-	assert( "nikita-2072", JF_ISSET( node, ZNODE_KMAPPED ) );
-	JF_CLR( node, ZNODE_KMAPPED );
+	if( jnode_page( node ) != NULL ) {
+		kunmap( jnode_page( node ) );
+		assert( "nikita-2072", JF_ISSET( node, ZNODE_KMAPPED ) );
+		JF_CLR( node, ZNODE_KMAPPED );
+	}
 	return 0;
 }
 

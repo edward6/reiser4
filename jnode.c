@@ -418,10 +418,8 @@ int jload_and_lock( jnode *node )
 		if( likely( result >= 0 ) ) {
 			assert( "nikita-2075", spin_jnode_is_locked( node ) );
 			JF_SET( node, ZNODE_LOADED );
-		} else {
-			spin_lock_jnode( node );
+		} else
 			jrelse_nolock( node );
-		}
 	} else {
 		assert( "nikita-2136", atomic_read( &node -> d_count ) > 1 );
 		result = 1;
@@ -441,8 +439,10 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 
 	ON_DEBUG( -- lock_counters() -> d_refs );
 	if( atomic_dec_and_test( &node -> d_count ) ) {
-		current_tree -> ops -> release_node( current_tree, node);
-		assert( "nikita-2137", jnode_is_loaded( node ) );
+		reiser4_tree *tree;
+
+		tree = current_tree;
+		tree -> ops -> release_node( tree, node );
 		JF_CLR( node, ZNODE_LOADED );
 	}
 }

@@ -810,7 +810,10 @@ int zload( znode *node /* znode to load */ )
 
 	result = jload_and_lock (ZJNODE(node));
 
-	if (unlikely (result < 0)) return result;
+	if (unlikely (result < 0)) {
+		spin_unlock_znode (node);
+		return result;
+	}
 
 	assert ("zam-511", zdata(node) != NULL);
 
@@ -854,11 +857,7 @@ int zinit_new( znode *node /* znode to initialise */ )
 		}
 	} else {
 		spin_lock_znode( node );
-		/*
-		 * just decrement d_count on ->allocate_node() failure, no
-		 * other cleanup is necessary.
-		 */
-		atomic_dec( &ZJNODE( node ) -> d_count );
+		zrelse_nolock( node );
 	}
 	spin_unlock_znode( node );
 	return result;

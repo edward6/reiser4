@@ -1222,15 +1222,16 @@ void txn_delete_page (struct page *pg)
 	
 	assert("umka-199", pg != NULL);
 
-	node = (jnode *)(pg->private);
-
-	assert ("jmacd-7192", node != NULL);
-
-	jnode_set_clean (node);
-
 	/* FIXME: JMACD->NIKITA: What do you think of this? */
 	ClearPageDirty (pg);
 	
+	node = (jnode *)(pg->private);
+
+	if (node == NULL)
+		return;
+
+	jnode_set_clean (node);
+
 	spin_lock_jnode (node);
 
  repeat:

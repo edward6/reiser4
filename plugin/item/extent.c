@@ -2048,16 +2048,22 @@ int extent_write (struct inode * inode, coord_t * coord,
 
 		/* Capture the page. Jnodes get created for that page */
 		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
-		if (!result) {
-			result = write_flow_to_page (coord, lh, f, page);
-		}
+		if (result)
+			break;
+		result = write_flow_to_page (coord, lh, f, page);
+		if (result)
+			break;
 		if (f->data) {
 			unlock_page (page);
 			page_cache_release (page);
 			page = 0;
 		}
-		if (result)
-			break;
+	}
+	if (result) {
+		if (f->data) {
+			unlock_page (page);
+			page_cache_release (page);
+		}
 	}
 	return result;
 }
