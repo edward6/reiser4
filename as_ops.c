@@ -428,7 +428,8 @@ static int capture_anonymous_pages (struct address_space * mapping)
 
 /* reiser4 writepages() address space operation */
 int
-reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
+reiser4_writepages(struct address_space *mapping, 
+		   struct writeback_control *wbc UNUSED_ARG)
 {
 	int ret = 0;
 	struct inode *inode;

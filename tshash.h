@@ -83,8 +83,8 @@ struct PREFIX##_hash_link_                                                      
 #define TS_HASH_DEFINE(PREFIX,ITEM_TYPE,KEY_TYPE,KEY_NAME,LINK_NAME,HASH_FUNC,EQ_FUNC)	\
 											\
 static __inline__ void									\
-PREFIX##_check_hash (PREFIX##_hash_table *table,					\
-		     __u32                hash)						\
+PREFIX##_check_hash (PREFIX##_hash_table *table UNUSED_ARG,				\
+		     __u32                hash UNUSED_ARG)				\
 {											\
 	assert("nikita-2780", hash < table->_buckets);					\
 }											\

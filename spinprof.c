@@ -107,8 +107,10 @@ profregion_show(struct kobject * kobj, struct attribute *attr, char *buf)
 	return pattr->show(pregion, buf);
 }
 
-static ssize_t profregion_store(struct kobject * kobj,struct attribute * attr,
-				const char * buf, size_t size)
+static ssize_t profregion_store(struct kobject * kobj,
+				struct attribute * attr UNUSED_ARG,
+				const char * buf UNUSED_ARG,
+				size_t size)
 {
 	struct profregion *pregion;
 
@@ -169,7 +171,8 @@ struct profregion overhead = {
 extern struct profregion pregion_spin_jnode_held;
 extern struct profregion pregion_spin_jnode_trying;
 
-static int callback(struct notifier_block *self, unsigned long val, void *p)
+static int callback(struct notifier_block *self UNUSED_ARG,
+		    unsigned long val UNUSED_ARG, void *p)
 {
 	struct profregionstack *stack;
 	struct pt_regs *regs;
