@@ -362,7 +362,7 @@ find_file_item(hint_t *hint,
 					return result;
 				assert("vs-1152", equal_to_ldk(coord->node, key));
 				/* invalidate extent data of a coord */
-				coord->vp = 0;
+				coord->body = 0;
 				reiser4_stat_inc(file.find_file_item_via_right_neighbor);
 			} else {
 				reiser4_stat_inc(file.find_file_item_via_seal);
@@ -1172,7 +1172,7 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 		if (uf_info->state == UNIX_FILE_BUILT_OF_EXTENTS)/*file_is_built_of_extents(inode))*/ {			
 			assert("vs-1288", znode_get_level(coord.node) == TWIG_LEVEL);
 			iplug = item_plugin_by_id(EXTENT_POINTER_ID);
-			if (!coord.vp && iplug->b.init_coord)
+			if (!coord.body && iplug->b.init_coord)
 				iplug->b.init_coord(&coord);
 			read_f = iplug->s.file.read;
 		} else
