@@ -1,16 +1,27 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README 
+   
+This file contains all cluster operations and methods of the reiser4
+cryptcompress object plugin (see http://www.namesys.com/cryptcompress_design.html
+for details).
+The list of cryptcompress specific EA:
 
-/* The object plugin of reiser4 crypto-compressed (crc-)files (see
-   http://www.namesys.com/cryptcompress_design.txt for details). */
-
-/* We store all the cryptcompress-specific attributes as following
-   non-default plugins in plugin stat-data extension:
-   1) file plugin
-   2) crypto plugin
-   3) digest plugin
-   4) compression plugin
+                 Incore inode                               Disk stat-data
+********************************************************************************************
+* data structure       *         field        * data structure       *          field      *
+********************************************************************************************
+* plugin_set           *file plugin id        * reiser4_plugin_stat  *file plugin id       * 
+*                      *crypto plugin id      *                      *crypto plugin id     *
+*                      *digest plugin id      *                      *digest plugin id     *
+*                      *compression plugin id *                      *compression plugin id*
+********************************************************************************************
+* crypto_stat_t        *      keysize         * reiser4_crypto_stat  *      keysize        * 
+*                      *      keyid           *                      *      keyid          *
+********************************************************************************************
+* cluster_stat_t       *      cluster_shift   * reiser4_cluster_stat *      cluster_shift  *           
+********************************************************************************************
+* cryptcompress_info_t *      expkey          *                      *                     *
+********************************************************************************************		  
 */
-
 #include "../debug.h"
 #include "../inode.h"
 #include "../jnode.h"
@@ -488,7 +499,7 @@ fsize_to_count(reiser4_cluster_t * clust, struct inode * inode)
 }
 
 /* plugin->key_by_inode() */
-/* EDWARD-FIXME-HANS: comment is where? */
+/* see plugin/plugin.h for details */
 reiser4_internal int
 key_by_inode_cryptcompress(struct inode *inode, loff_t off, reiser4_key * key)
 {
@@ -2596,11 +2607,10 @@ validate_crc_extended_coord(uf_coord_t *uf_coord, loff_t offset)
 
 /* plugin->u.file.release */
 /* plugin->u.file.get_block */
-/* EDWARD-FIXME-HANS: comment is where? */
+/* This function is used for ->bmap() VFS method in reiser4 address_space_operations */
 reiser4_internal int
 get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head *bh_result, int create UNUSED_ARG)
 {	
-/* EDWARD-FIXME-HANS: comment is where? unlikely should be used.... */
 	if (current_blocksize != inode_cluster_size(inode))
 		return RETERR(-EINVAL);
 	else {
@@ -2619,7 +2629,7 @@ get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head 
 			return result;
 		}
 		result = zload(hint.coord.base_coord.node);
-		if (result) {
+		if (unlikely(result)) {
 			done_lh(&lh);
 			return result;
 		}
@@ -2680,8 +2690,21 @@ setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 	int result;
 	
 	if (attr->ia_valid & ATTR_SIZE) {
-		/* EDWARD-FIXME-HANS: VS-FIXME-HANS: this case occurs when? truncate? If so, why isn't this code in
-		 * truncate itself instead of here? */
+		/* EDWARD-FIXME-HANS: VS-FIXME-HANS:
+		   Q: this case occurs when? truncate?
+		   A: yes
+		   
+		   Q: If so, why isn't this code in truncate itself instead of here?
+		   
+		   A: because vfs calls fs's truncate after it has called truncate_inode_pages to get rid of pages
+		   corresponding to part of file being truncated. In reiser4 it may cause existence of unallocated
+		   extents which do not have jnodes. Flush code does not expect that. Solution of this problem is
+		   straightforward. As vfs's truncate is implemented using setattr operation (common implementaion of
+		   which calls truncate_inode_pages and fs's truncate in case when size of file changes) - it seems
+		   reasonable to have reiser4_setattr which will take care of removing pages, jnodes and extents
+		   simultaneously in case of truncate.
+		*/
+		
 		/* truncate does reservation itself and requires exclusive access obtained */
 		if (inode->i_size != attr->ia_size) {
 			loff_t old_size;
