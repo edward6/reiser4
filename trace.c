@@ -170,7 +170,7 @@ static int flush_trace( reiser4_trace_file *file )
 		struct file *fd;
 
 		fd = file -> fd;
-		if( fd -> f_op != NULL && fd -> f_op -> write != NULL ) {
+		if( fd && fd -> f_op != NULL && fd -> f_op -> write != NULL ) {
 			int written;
 
 			written = 0;
@@ -201,7 +201,8 @@ static int flush_trace( reiser4_trace_file *file )
 			 "unknown trace-file type: %i. Dumping to console", 
 			 file -> type );
 	case log_to_console:
-		info( file -> buf );
+		if( file -> buf != NULL )
+			info( file -> buf );
 	case log_to_bucket:
 		file -> used = 0;
 		break;
