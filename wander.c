@@ -466,54 +466,66 @@ static int submit_write (jnode * first, int nr,
 			 struct io_handle * io_hdl)
 {
 	struct super_block * super = reiser4_get_current_sb();
+	int max_blocks;
 	jnode * cur = first;
-
-	struct bio * bio;
-	int i;
 
 	assert ("zam-571", first != NULL);
 	assert ("zam-572", block != NULL);
 	assert ("zam-570", nr > 0);
 
-	bio = bio_alloc(GFP_NOIO, nr);
-	if (!bio) return -ENOMEM;
+#if REISER4_USER_LEVEL_SIMULATION
+	max_blocks = nr;
+#else
+	max_blocks = bdev_get_queue (super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9);
+#endif
 
-	assert ("zam-574", jnode_page (first) != NULL);
+	while (nr > 0) {
+		struct bio * bio;
+		int nr_blocks = min (nr, max_blocks);
+		int i;
 
-	bio->bi_sector = *block * (super->s_blocksize >>9);
-	bio->bi_bdev   = super->s_bdev;
-	bio->bi_vcnt   = nr;
-	bio->bi_size   = super->s_blocksize * nr;
-	bio->bi_end_io = wander_end_io;
+		bio = bio_alloc(GFP_NOIO, nr_blocks);
+		if (!bio) return -ENOMEM;
 
-	if (io_hdl) atomic_add(nr, &io_hdl->nr_submitted);
+		assert ("zam-574", jnode_page (first) != NULL);
 
-	bio->bi_private = io_hdl;
+		bio->bi_sector = *block * (super->s_blocksize >>9);
+		bio->bi_bdev   = super->s_bdev;
+		bio->bi_vcnt   = nr_blocks;
+		bio->bi_size   = super->s_blocksize * nr_blocks;
+		bio->bi_end_io = wander_end_io;
 
-	for (i = 0; i < nr; i++) {
-		struct page * pg;
+		if (io_hdl) atomic_add(nr_blocks, &io_hdl->nr_submitted);
 
-		pg = jnode_page(cur);
-		assert ("zam-573", pg != NULL);
+		bio->bi_private = io_hdl;
 
-		page_cache_get (pg);
-		lock_page (pg);
+		for (i = 0; i < nr_blocks; i++) {
+			struct page * pg;
 
-		assert ("zam-605", !PageWriteback(pg));
+			pg = jnode_page(cur);
+			assert ("zam-573", pg != NULL);
 
-		SetPageWriteback (pg);
-		ClearPageUptodate(pg);
+			page_cache_get (pg);
+			lock_page (pg);
 
-		unlock_page (pg);
+			assert ("zam-605", !PageWriteback(pg));
 
-		bio->bi_io_vec[i].bv_page   = pg;
-		bio->bi_io_vec[i].bv_len    = super->s_blocksize;
-		bio->bi_io_vec[i].bv_offset = 0;
+			SetPageWriteback (pg);
+			ClearPageUptodate(pg);
 
-		cur = capture_list_next (cur);
+			unlock_page (pg);
+
+			bio->bi_io_vec[i].bv_page   = pg;
+			bio->bi_io_vec[i].bv_len    = super->s_blocksize;
+			bio->bi_io_vec[i].bv_offset = 0;
+
+			cur = capture_list_next (cur);
+		}
+
+		submit_bio(WRITE, bio);
+
+		nr -= nr_blocks;
 	}
-
-	submit_bio(WRITE, bio);
 
 	return 0;
 }
@@ -521,16 +533,25 @@ static int submit_write (jnode * first, int nr,
 /* This is a procedure which recovers a contiguous sequences of disk block
  * numbers in the given list of j-nodes and submits write requests on this
  * per-sequence basis */
-/* FIXME: it is much simpler now */
-static int submit_batched_write (capture_list_head * head, struct io_handle * io_hdl)
+static int submit_batched_write (capture_list_head * head, struct io_handle * io)
 {
 	int ret;
-	jnode * cur = capture_list_front(head);
+	jnode * beg = capture_list_front(head);
 
-	while (!capture_list_end(head, cur)) {
-		ret = submit_write(cur, 1, jnode_get_block(cur), io_hdl);
+	while (!capture_list_end(head, beg)) {
+		int nr = 1;
+		jnode * cur = capture_list_next(beg);
+
+		while (!capture_list_end(head, cur)) {
+			if (*jnode_get_block(cur) != *jnode_get_block(beg) + nr) break;
+			++ nr;
+			cur = capture_list_next(cur);
+		}
+
+		ret = submit_write(beg, nr, jnode_get_block(beg), io);
 		if (ret) return ret;
-		cur = capture_list_next (cur);
+
+		beg = cur;
 	}
 
 	return 0;
