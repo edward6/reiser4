@@ -9,9 +9,9 @@
 #if !defined( __REISER4_FORWARD_H__ )
 #define __REISER4_FORWARD_H__
 
-typedef struct __reiser4_zlock reiser4_zlock;
-typedef struct __reiser4_lock_stack reiser4_lock_stack;
-typedef struct __reiser4_lock_handle reiser4_lock_handle;
+typedef struct zlock reiser4_zlock;
+typedef struct lock_stack reiser4_lock_stack;
+typedef struct lock_handle reiser4_lock_handle;
 typedef struct znode znode;
 typedef struct flow flow_t;
 typedef struct tree_coord tree_coord;
