@@ -37,7 +37,7 @@ static int get_reiser4_inode_by_tap (struct inode ** result, tap_t * tap)
 		reiser4_inode * inode_data = reiser4_inode_data(inode);
 
 		/* These inode fields are required for tree traversal. */
-		inode_data->oid_hi = get_key_objectid(&ext_key) >> OID_HI_SHIFT;
+		set_inode_oid(inode, get_key_objectid(&ext_key));
 		inode_data->locality_id = get_key_locality(&ext_key);
 
 		unlock_new_inode(inode);
