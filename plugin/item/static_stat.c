@@ -923,6 +923,7 @@ static int keyid_to_inode (struct inode *inode, const __u8 * word)
 	reiser4_inode *info = reiser4_inode_data(inode);
 
 	assert ("edward-11", info->keyid == NULL);
+	assert ("edward-33", !inode_get_flag(inode, REISER4_KEYID_LOADED));
 
 	info->keyid = reiser4_kmalloc(sizeof(reiser4_keyid_stat), GFP_KERNEL);
 	if (!info->keyid)
