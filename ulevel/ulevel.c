@@ -667,10 +667,8 @@ void unlock_page (struct page * p)
 
 void remove_inode_page (struct page * page)
 {
-	spin_lock (&page->lock2);
 	assert ("vs-618", (page->count == 2 && PageLocked (page)));
 	page->mapping = 0;
-	spin_unlock (&page->lock2);
 
 	txn_delete_page (page);
 }
