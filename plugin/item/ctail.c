@@ -57,11 +57,17 @@ cluster_size_by_coord(const coord_t * coord)
 }
 
 static unsigned long
-cluster_index_by_coord(const coord_t * coord)
+pg_by_coord(const coord_t * coord)
 {
 	reiser4_key  key;
 	
-	return get_key_offset(item_key_by_coord(coord, &key)) >>  cluster_shift_by_coord(coord) >> PAGE_CACHE_SHIFT;
+	return get_key_offset(item_key_by_coord(coord, &key)) >> PAGE_CACHE_SHIFT;
+}
+
+static unsigned long
+clust_by_coord(const coord_t * coord)
+{
+	return pg_by_coord(coord) >> cluster_shift_by_coord(coord);
 }
 
 #define cluster_key(key, coord) !(get_key_offset(key) & ~(~0ULL << cluster_shift_by_coord(coord) << PAGE_CACHE_SHIFT))
@@ -185,8 +191,6 @@ init_ctail(coord_t * to /* coord of item */,
 		cluster_shift = (int)(cluster_shift_by_coord(from));
 	}
 	cputod8(cluster_shift, &formatted_at(to)->cluster_shift);
-
-	assert("edward-45", cluster_size_by_coord(to) == 4096);
 	
 	return 0;
 }
@@ -227,8 +231,6 @@ paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
 	
 	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, data->length);
 
-	assert("edward-474", cluster_size_by_coord(coord) == 4096);
-	
 	return 0;
 }
 
@@ -594,7 +596,7 @@ reiser4_key *
 append_cluster_key_ctail(const coord_t *coord, reiser4_key *key)
 {
 	item_key_by_coord(coord, key);
-	set_key_offset(key, ((__u64)(cluster_index_by_coord(coord)) + 1) << cluster_shift_by_coord(coord) << PAGE_CACHE_SHIFT);
+	set_key_offset(key, ((__u64)(clust_by_coord(coord)) + 1) << cluster_shift_by_coord(coord) << PAGE_CACHE_SHIFT);
 	return key;
 }
 
@@ -938,7 +940,7 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 	if (!cluster_key(&key, coord))
 		*child = NULL;
 	else
-		*child = jlookup(current_tree, get_key_objectid(item_key_by_coord(coord, &key)), cluster_index_by_coord(coord));
+		*child = jlookup(current_tree, get_key_objectid(item_key_by_coord(coord, &key)), pg_by_coord(coord));
 	return 0;
 }
 

@@ -1460,7 +1460,7 @@ prepare_cluster(struct inode *inode,
 	if (clust->off == 0 && inode->i_size <= clust_to_off(clust->index, inode) + o_c_d) {
 		/* we don't need to read cluster from disk, just
 		   align the current chunk of data up to nr_pages */
-		unsigned off = off_to_pgoff(o_c_d);
+		unsigned off = off_to_pgcount(o_c_d, clust->nr_pages - 1);
 		struct page * pg = clust->pages[clust->nr_pages - 1];
 		crypto_plugin * cplug = inode_crypto_plugin(inode);
 		
@@ -1471,7 +1471,7 @@ prepare_cluster(struct inode *inode,
 		if (cplug)
 			cplug->align_cluster(data + off, off, PAGE_CACHE_SIZE);
 		else
-			xmemset(data + o_c_d, 0, PAGE_CACHE_SIZE - o_c_d);
+			xmemset(data + off, 0, PAGE_CACHE_SIZE - off);
 		kunmap_atomic(data, KM_USER0);
 		unlock_page(pg);
 	}
@@ -1597,7 +1597,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 			assert("edward-287", pages[i] != NULL);
 			
 			lock_page(pages[i]);
-			result = __copy_from_user((char *)kmap(pages[i]) + page_off, f.data, page_count);
+			result = __copy_from_user((char *)kmap(pages[i]) + page_off, f.data + (i << PAGE_CACHE_SHIFT) , page_count);
 			kunmap(pages[i]);
 			if (unlikely(result)) {
 				unlock_page(pages[i]);
