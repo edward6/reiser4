@@ -93,7 +93,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	statfs->f_blocks = reiser4_block_count(super);
 	bfree = reiser4_free_blocks(super);
 	/*
-	 * 5% of total block space are reserved. This is needed for flush and
+	 * 5% of total block space is reserved. This is needed for flush and
 	 * for truncates (so that we are able to perform truncate/unlink even
 	 * on the otherwise completely full file system). If this reservation
 	 * is hidden from statfs(2), users will mistakenly guess that they
