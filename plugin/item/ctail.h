@@ -14,7 +14,7 @@ typedef struct ctail_item_format {
 
 /* plugin->item.b.* */
 int mergeable_ctail(const coord_t * p1, const coord_t * p2);
-unsigned nr_units_ctail(const coord_t * coord);
+pos_in_item_t nr_units_ctail(const coord_t * coord);
 int estimate_ctail(const coord_t * coord, const reiser4_item_data * data);
 void print_ctail(const char *prefix, coord_t * coord);
 int paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG);
@@ -27,13 +27,15 @@ int cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 /*int check_check(const coord_t * coord, const char **error);*/
 
 /* plugin->u.item.s.* */
-int write_ctail(struct inode *, coord_t *, lock_handle *, flow_t *, hint_t *, int);
-int read_ctail(struct file *, coord_t *, flow_t *);
+int write_ctail(struct inode *, flow_t *, hint_t *, int, write_mode_t);
+int read_ctail(struct file *, flow_t *, uf_coord_t *);
 int readpage_ctail(void *, struct page *);
-int writepage_ctail(coord_t *, lock_handle *, struct page *);
-void readpages_ctail(coord_t *, struct address_space *, struct list_head *);
-reiser4_key *append_key_ctail(const coord_t * coord, reiser4_key * key, void *);
-int key_in_item_ctail(coord_t * coord, const reiser4_key * key, void *);
+int writepage_ctail(uf_coord_t *, struct page *, write_mode_t);
+void readpages_ctail(void *, struct address_space *, struct list_head *);
+reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
+#if REISER4_DEBUG
+int key_in_item_ctail(const uf_coord_t *, const reiser4_key *);
+#endif
 
 __u8 inode_cluster_shift (struct inode *);
 size_t inode_cluster_size (struct inode *);
