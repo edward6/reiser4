@@ -990,7 +990,6 @@ static int capture_anonymous_page(struct page *pg, int keepme)
 			assert("nikita-3335", jnode_page(node) == pg);
 			result = capture_page_and_create_extent(pg);
 			if (result == 0) {
-				assert("nikita-3326", jnode_check_dirty(node));
 				assert("nikita-3327", node->atom != NULL);
 				JF_CLR(node, JNODE_KEEPME);
 				result = 1;
