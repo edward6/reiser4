@@ -871,6 +871,7 @@ create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data 
 	assert("vs-212", coord_is_between_items(target));
 	/* node must have enough free space */
 	assert("vs-254", free_space_node40(target->node) >= data->length + sizeof(item_header40));
+	assert("vs-1410", data->length > 0);
 
 	if (coord_set_to_right(target))
 		/* there are not items to the right of @target, so, new item
