@@ -361,7 +361,6 @@ do_jget(reiser4_tree * tree, struct page * pg)
 	return jal;
 }
 
-/* FIXME-VS: is it still needed? */
 jnode *
 jnode_of_page(struct page * pg)
 {
