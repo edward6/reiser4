@@ -93,6 +93,9 @@ struct flush_position {
 
 	znode * prev_twig;	/* previous parent pointer value, used to catch
 				 * processing of new twig node */
+	unsigned long pos_in_unit; /* for extents only. Position
+				      within an extent unit of first
+				      jnode of slum */
 };
 
 /* used in extent.c */
