@@ -22,30 +22,13 @@ struct reiser4_blocknr_hint {
 extern void blocknr_hint_init (reiser4_blocknr_hint *hint);
 extern void blocknr_hint_done (reiser4_blocknr_hint *hint);
 
-/*
-extern int bitmap_alloc (reiser4_block_nr *, const reiser4_block_nr *, int, int);
-
-extern int block_alloc_pre_commit_hook (txn_atom*);
-extern int block_alloc_post_commit_hook (txn_atom*);
-extern int block_alloc_post_writeback_hook (txn_atom*);
-
-extern int reiser4_init_bitmap ();
-extern void reiser4_done_bitmap ();
-
-extern int blocknr_is_fake (const reiser4_block_nr *);
-
-extern int alloc_new_unf_blocks (int count);
-extern int alloc_new_block (reiser4_block_nr * block);
-extern void dealloc_new_blocks (int count);
-
-extern void reiser4_dealloc_block (jnode *node);
-*/
 
 
 int blocknr_is_fake(const reiser4_block_nr * da);
 void get_next_fake_blocknr (reiser4_block_nr *bnr);
 extern int reiser4_alloc_blocks (reiser4_blocknr_hint * hint,
 				 reiser4_block_nr * start, reiser4_block_nr * len);
+extern int reiser4_alloc_block( znode *neighbor, reiser4_block_nr *blocknr );
 
 
 
