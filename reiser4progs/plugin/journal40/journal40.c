@@ -58,7 +58,7 @@ static reiserfs_journal40_t *reiserfs_journal40_open(aal_device_t *device) {
 	goto error_free_journal;
     }
 	
-    if (!reiserfs_journal40_check_header(journal->header->data, device))
+    if (reiserfs_journal40_check_header(journal->header->data, device))
 	goto error_free_header;
 	
     /* Reading and checking journal footer */
@@ -70,11 +70,10 @@ static reiserfs_journal40_t *reiserfs_journal40_open(aal_device_t *device) {
 	goto error_free_header;
     }
 	
-    if (!reiserfs_journal40_check_footer(journal->footer->data, device))
+    if (reiserfs_journal40_check_footer(journal->footer->data, device))
 	goto error_free_footer;
     
     journal->device = device;
-	
     return journal;
 
 error_free_footer:

@@ -156,8 +156,7 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
     if (journal_device) {
 	aal_device_set_blocksize(journal_device, reiserfs_fs_blocksize(fs));
 
-	if (reiserfs_format_journal_plugin_id(fs) != -1 && 
-		reiserfs_journal_init(fs, replay))
+	if (reiserfs_journal_init(fs, replay))
 	    goto error_free_alloc;
 	
 	/* Reopening recent superblock */

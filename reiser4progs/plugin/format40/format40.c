@@ -157,62 +157,6 @@ error:
     return NULL;
 }
 
-/* This function should update all copies of the super block */
-static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
-    blk_t offset;
-    reiserfs_plugin_t *plugin;
-   
-    aal_assert("umka-394", format != NULL, return -1); 
-   
-    if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 
-	REISERFS_FORMAT40_ALLOC))) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find allocator plugin by its id %x.", 
-	    REISERFS_FORMAT40_ALLOC);
-	return -1;
-    }
-    
-    reiserfs_check_method(plugin->alloc, sync, return -1);
-    plugin->alloc.sync(format->alloc);
-    
-    if (!(plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
-	REISERFS_FORMAT40_JOURNAL))) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find journal plugin by its id %x.", 
-	    REISERFS_FORMAT40_JOURNAL);
-	return -1;
-    }
-    
-    reiserfs_check_method(plugin->journal, sync, return -1);
-    plugin->journal.sync(format->journal);
-    
-    if (!(plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
-	REISERFS_FORMAT40_OID))) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find oid allocator plugin by its id %x.", 
-	    REISERFS_FORMAT40_OID);
-	return -1;
-    }
-    
-    reiserfs_check_method(plugin->oid, next, return -1);
-    set_sb_oid((reiserfs_format40_super_t *)format->super, plugin->oid.next(format->oid));
-    
-    reiserfs_check_method(plugin->oid, used, return -1);
-    set_sb_file_count((reiserfs_format40_super_t *)format->super, plugin->oid.used(format->oid));
-    
-    if (aal_device_write_block(format->device, format->super)) {
-	offset = aal_device_get_block_nr(format->device, format->super);
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't write superblock to %llu.", offset);
-	return -1;
-    }
-    
-    return 0;
-}
-
 /* This function should create super block and update all copies */
 static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device, 
     count_t blocks, aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
@@ -346,6 +290,62 @@ error_free_format:
     aal_free(format);
 error:
     return NULL;
+}
+
+/* This function should update all copies of the super block */
+static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
+    blk_t offset;
+    reiserfs_plugin_t *plugin;
+   
+    aal_assert("umka-394", format != NULL, return -1); 
+   
+    if (!(plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 
+	REISERFS_FORMAT40_ALLOC))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find allocator plugin by its id %x.", 
+	    REISERFS_FORMAT40_ALLOC);
+	return -1;
+    }
+    
+    reiserfs_check_method(plugin->alloc, sync, return -1);
+    plugin->alloc.sync(format->alloc);
+    
+    if (!(plugin = factory->find_by_coords(REISERFS_JOURNAL_PLUGIN, 
+	REISERFS_FORMAT40_JOURNAL))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find journal plugin by its id %x.", 
+	    REISERFS_FORMAT40_JOURNAL);
+	return -1;
+    }
+    
+    reiserfs_check_method(plugin->journal, sync, return -1);
+    plugin->journal.sync(format->journal);
+    
+    if (!(plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
+	REISERFS_FORMAT40_OID))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find oid allocator plugin by its id %x.", 
+	    REISERFS_FORMAT40_OID);
+	return -1;
+    }
+    
+    reiserfs_check_method(plugin->oid, next, return -1);
+    set_sb_oid((reiserfs_format40_super_t *)format->super, plugin->oid.next(format->oid));
+    
+    reiserfs_check_method(plugin->oid, used, return -1);
+    set_sb_file_count((reiserfs_format40_super_t *)format->super, plugin->oid.used(format->oid));
+    
+    if (aal_device_write_block(format->device, format->super)) {
+	offset = aal_device_get_block_nr(format->device, format->super);
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't write superblock to %llu.", offset);
+	return -1;
+    }
+    
+    return 0;
 }
 
 static error_t reiserfs_format40_check(reiserfs_format40_t *format) {

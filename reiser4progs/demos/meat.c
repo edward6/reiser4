@@ -22,23 +22,31 @@ static void usage(void) {
 
 static void print_plugin(reiserfs_plugin_t *plugin) {
     aal_printf("%x:%x (%s)\n", plugin->h.type, plugin->h.id, plugin->h.label);
-    aal_printf("%s\n\n", plugin->h.desc);
 }
 
 static void print_fs(reiserfs_fs_t *fs) {
     reiserfs_plugin_t *plugin;
 
-    aal_printf("reiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
+    aal_printf("\nreiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
 	reiserfs_fs_format(fs), reiserfs_fs_blocksize(fs), 
 	reiserfs_format_get_blocks(fs), reiserfs_alloc_used(fs), 
 	reiserfs_alloc_free(fs));
-    
+
+    aal_printf("Used plugins:\n-------------\n");
+
+    aal_printf("(1) ");
     print_plugin(fs->format->plugin);
     
-    if (fs->journal)
+    if (fs->journal) {
+	aal_printf("(2) ");
 	print_plugin(fs->journal->plugin);
+    }
 
+    aal_printf("(3) ");
     print_plugin(fs->alloc->plugin);
+    
+    aal_printf("(4) ");
+    print_plugin(fs->oid->plugin);
 }
 
 int main(int argc, char *argv[]) {
@@ -71,7 +79,7 @@ int main(int argc, char *argv[]) {
 	    goto error_free_libreiserfs;
 	}
     
-	if (!(fs = reiserfs_fs_open(device, NULL, 0))) {
+	if (!(fs = reiserfs_fs_open(device, device, 0))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't %s filesystem on %s.", argv[1], argv[2]);
 	    goto error_free_device;
