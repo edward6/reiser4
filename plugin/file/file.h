@@ -20,6 +20,7 @@ int  extent2tail               (struct file * file);
 int  unix_file_readpage_nolock (struct file * file, struct page * page);
 int  find_next_item            (struct file *, const reiser4_key *, coord_t *,
 				lock_handle *, znode_lock_mode);
+int  coord_set_properly        (const reiser4_key * key, coord_t * coord);
 
 
 
