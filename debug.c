@@ -7,6 +7,7 @@
  */
 
 #include "debug.h"
+#include "super.h"
 #include "znode.h"
 #include "tree.h"
 #include "super.h"
@@ -55,8 +56,7 @@ reiser4_panic(const char *format /* format string */ , ... /* rest */ )
 		print_lock_counters("pins held", lock_counters());
 		print_contexts();
 		super = get_current_context()->super;
-		if ((get_super_private(super) != NULL) &&
-		    reiser4_is_debugged(super, REISER4_VERBOSE_PANIC))
+		if ((get_super_private(super) != NULL) && reiser4_is_debugged(super, REISER4_VERBOSE_PANIC))
 			print_znodes("znodes", current_tree);
 	}
 	panic("reiser4 panicked cowardly: %s", panic_buf);
@@ -102,8 +102,7 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	     info->spin_locked_atom, info->spin_locked_stack,
 	     info->spin_locked_txnmgr, info->spin_locked_fq,
 	     info->spin_locked_inode, info->spin_locked,
-	     info->long_term_locked_znode, info->d_refs, info->x_refs,
-	     info->t_refs);
+	     info->long_term_locked_znode, info->d_refs, info->x_refs, info->t_refs);
 }
 #endif
 
@@ -124,9 +123,15 @@ check_stack(void)
 			return;
 		gap = abs(&dummy - (char *) context);
 		if (gap > REISER4_STACK_GAP) {
-			warning("nikita-1079", "Stack overflow is close: %i",
-				gap);
+			warning("nikita-1079", "Stack overflow is close: %i", gap);
 		}
+#if REISER4_STATS
+		if (gap > 5000 && STS.stack_size_max < gap) {
+			warning("nikita-2731", "New stack max: %i", gap);
+			dump_stack();
+
+		}
+#endif
 		if (gap > REISER4_STACK_ABORT) {
 			rpanic("nikita-1080", "Stack overflowed: %i", gap);
 		}
@@ -195,9 +200,10 @@ reiser4_print_stats()
 	     s->tree.fast_paste,
 	     s->tree.fast_cut,
 	     s->tree.reparenting,
-	     s->tree.rd_key_skew,
-	     s->tree.multikey_restart,
-	     s->tree.check_left_nonuniq, s->tree.left_nonuniq_found);
+	     s->tree.rd_key_skew, 
+	     s->tree.multikey_restart, 
+	     s->tree.check_left_nonuniq, 
+	     s->tree.left_nonuniq_found);
 
 	info("znode:\n"
 	     "\t zload:\t %lu\n"
@@ -209,12 +215,13 @@ reiser4_print_stats()
 	     s->znode.zload,
 	     s->znode.zload_read,
 	     s->znode.lock_znode,
-	     s->znode.lock_znode_iteration,
-	     s->znode.lock_neighbor, s->znode.lock_neighbor_iteration);
+	     s->znode.lock_znode_iteration, 
+	     s->znode.lock_neighbor, 
+	     s->znode.lock_neighbor_iteration);
 
-	info("vfs:\n"
-	     "\t writes:\t %lu\n"
-	     "\t reads:\t %lu\n", s->vfs_calls.writes, s->vfs_calls.reads);
+	info("vfs:\n" "\t writes:\t %lu\n" "\t reads:\t %lu\n", 
+	     s->vfs_calls.writes, 
+	     s->vfs_calls.reads);
 
 	info("dir:\n"
 	     "\treaddir_calls:\t %lu\n"
@@ -233,9 +240,10 @@ reiser4_print_stats()
 	     s->dir.readdir.left_non_uniq,
 	     s->dir.readdir.left_restart,
 	     s->dir.readdir.rewind_right,
-	     s->dir.readdir.adjust_pos,
-	     s->dir.readdir.adjust_lt,
-	     s->dir.readdir.adjust_gt, s->dir.readdir.adjust_eq);
+	     s->dir.readdir.adjust_pos, 
+	     s->dir.readdir.adjust_lt, 
+	     s->dir.readdir.adjust_gt, 
+	     s->dir.readdir.adjust_eq);
 
 	info("file:\n"
 	     "\t wait_on_page:\t %lu\n"
@@ -254,12 +262,15 @@ reiser4_print_stats()
 	     s->file.extent2tail,
 	     s->file.find_next_item,
 	     s->file.find_next_item_via_seal,
-	     s->file.find_next_item_via_right_neighbor,
+	     s->file.find_next_item_via_right_neighbor, 
 	     s->file.find_next_item_via_cbk);
 	info("extent:\n"
 	     "\t read unformatted nodes:\t %lu\n"
-	     "\t broken seals:\t %lu\n",
-	     s->extent.unfm_block_reads, s->extent.broken_seals);
+	     "\t broken seals:\t %lu\n"
+	     "\t repeats due to balance_dirty_pages:\t%lu\n",
+	     s->extent.unfm_block_reads, 
+	     s->extent.broken_seals,
+	     s->extent.bdp_caused_repeats);
 
 	info("flush:\n"
 	     "\t squeeze:\t %lu\n"
@@ -269,14 +280,16 @@ reiser4_print_stats()
 	     "\t XXXX leaves squeezed to left:\t %lu\n"
 	     "\t XXXX items squeezed in those leaves:\t %lu\n"
 	     "\t XXXX bytes in those items:\t %lu\n",
-	     s->flush.squeeze,
-	     s->flush.flush_carry,
-	     s->flush.squeezed_completely, s->flush.flushed_with_unallocated,
+	     s->flush.squeeze, 
+	     s->flush.flush_carry, 
+	     s->flush.squeezed_completely, 
+	     s->flush.flushed_with_unallocated,
 	     /*
 	      * FIXME-VS: urgently added leaf squeeze stats
 	      */
-	     s->flush.squeezed_leaves,
-	     s->flush.squeezed_leaf_items, s->flush.squeezed_leaf_bytes);
+	     s->flush.squeezed_leaves, 
+	     s->flush.squeezed_leaf_items, 
+	     s->flush.squeezed_leaf_bytes);
 
 	info("pool:\n"
 	     "\t alloc:\t %lu\n"
@@ -291,12 +304,7 @@ reiser4_print_stats()
 	     "global:\n"
 	     "\t non_uniq:\t %lu\n"
 	     "\t non_uniq_max:\t %lu\n"
-	     "\t stack_size_max:\t %lu\n"
-	     "key:\n"
-	     "\t eq0:\t %lu\n"
-	     "\t eq1:\t %lu\n"
-	     "\t eq2:\t %lu\n"
-	     "\t eq3:\t %lu\n",
+	     "\t stack_size_max:\t %lu\n",
 	     s->pool.pool_alloc,
 	     s->pool.pool_kmalloc,
 	     s->seal.perfect_match,
@@ -305,9 +313,9 @@ reiser4_print_stats()
 	     s->seal.wrong_node,
 	     s->seal.didnt_move,
 	     s->seal.found,
-	     s->non_uniq,
-	     s->non_uniq_max,
-	     s->stack_size_max, s->key.eq0, s->key.eq1, s->key.eq2, s->key.eq3);
+	     s->non_uniq, 
+	     s->non_uniq_max, 
+	     s->stack_size_max);
 
 	t = &get_current_super_private()->tree;
 	info("spin locks:\n");
@@ -382,8 +390,9 @@ reiser4_print_stats()
 		     s->level[i].track_lh,
 		     s->level[i].sibling_search,
 		     s->level[i].cbk_key_moved,
-		     s->level[i].cbk_met_ghost,
-		     s->level[i].page_try_release, s->level[i].page_released);
+		     s->level[i].cbk_met_ghost, 
+		     s->level[i].page_try_release, 
+		     s->level[i].page_released);
 	}
 }
 #else
@@ -398,8 +407,7 @@ reiser4_print_stats()
  * per-thread trace flags plus per-fs trace flags.
  *
  */
-__u32
-get_current_trace_flags(void)
+__u32 get_current_trace_flags(void)
 {
 	__u32 flags;
 
@@ -423,8 +431,7 @@ reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
 		int gfp_flag /* allocation flag */ )
 {
 	assert("nikita-1407", get_current_super_private() != NULL);
-	assert("nikita-1408", ergo(gfp_flag & __GFP_WAIT,
-				   lock_counters()->spin_locked == 0));
+	assert("nikita-1408", ergo(gfp_flag & __GFP_WAIT, lock_counters()->spin_locked == 0));
 
 	ON_DEBUG(get_current_super_private()->kmalloc_allocated += size);
 	return kmalloc(size, gfp_flag);
@@ -432,20 +439,32 @@ reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
 
 /**
  * release memory allocated by reiser4_kmalloc() and update counter.
- *
  */
 void
 reiser4_kfree(void *area /* memory to from */ ,
-	      size_t size UNUSED_ARG /* number of bytes to free */ )
+	      size_t size UNUSED_ARG /* number of bytes to free */)
 {
 	assert("nikita-1410", area != NULL);
 	assert("nikita-1411", get_current_super_private() != NULL);
-	assert("nikita-1412",
-	       get_current_super_private()->kmalloc_allocated >= (int) size);
+	assert("nikita-1412", get_current_super_private()->kmalloc_allocated >= (int) size);
 
 	kfree(area);
 	ON_DEBUG(get_current_super_private()->kmalloc_allocated -= size);
 }
+
+void
+reiser4_kfree_in_sb(void *area /* memory to from */,
+		    size_t size UNUSED_ARG /* number of bytes to free */,
+		    struct super_block *sb)
+{
+	assert("nikita-2729", area != NULL);
+	assert("nikita-2730",
+	       get_super_private(sb)->kmalloc_allocated >= (int) size);
+
+	kfree(area);
+	ON_DEBUG(get_super_private(sb)->kmalloc_allocated -= size);
+}
+
 
 #if REISER4_DEBUG
 
@@ -456,16 +475,16 @@ no_counters_are_held()
 
 	counters = lock_counters();
 	return
-	    (counters->spin_locked_jnode == 0) &&
-	    (counters->spin_locked_tree == 0) &&
-	    (counters->spin_locked_dk == 0) &&
-	    (counters->spin_locked_txnh == 0) &&
-	    (counters->spin_locked_atom == 0) &&
-	    (counters->spin_locked_stack == 0) &&
-	    (counters->spin_locked_txnmgr == 0) &&
-	    (counters->spin_locked_inode == 0) &&
-	    (counters->spin_locked == 0) &&
-	    (counters->long_term_locked_znode == 0);
+		(counters->spin_locked_jnode == 0) &&
+		(counters->spin_locked_tree == 0) &&
+		(counters->spin_locked_dk == 0) &&
+		(counters->spin_locked_txnh == 0) &&
+		(counters->spin_locked_atom == 0) &&
+		(counters->spin_locked_stack == 0) &&
+		(counters->spin_locked_txnmgr == 0) &&
+		(counters->spin_locked_inode == 0) &&
+		(counters->spin_locked == 0) && 
+		(counters->long_term_locked_znode == 0);
 }
 
 #endif
