@@ -18,6 +18,14 @@
  *
  * When current blocknr_set_entry is full, allocate a new one. */
 
+/* Auditor comments (green): It appeared that block number pair can represent
+ * two things. It can represent extents, then first number in a pair represents
+ * starting block number of extent and second number is lenght of extent.
+ * Extents cannot be less then 2 blocks in length. Second meaning of block
+ * number pair is used and wandered sets (and the likes?) where the first block
+ * represent original data location and second block represents new data
+ * location (and/or vice versa?). */
+
 typedef struct blocknr_pair      blocknr_pair;
 
 /** The total size of a blocknr_set_entry. */
@@ -48,6 +56,7 @@ struct blocknr_pair {
 TS_LIST_DEFINE(blocknr_set, blocknr_set_entry, link);
 
 /* Return the number of blocknr slots available in a blocknr_set_entry. */
+/* Audited by: green(2002.06.11) */
 static unsigned bse_avail (blocknr_set_entry *bse)
 {
 	unsigned used = bse->nr_singles + 2 * bse->nr_pairs;
@@ -59,6 +68,7 @@ static unsigned bse_avail (blocknr_set_entry *bse)
 }
 
 /** Initialize a blocknr_set_entry. */
+/* Audited by: green(2002.06.11) */
 static void bse_init (blocknr_set_entry *bse)
 {
 	bse->nr_singles = 0;
@@ -67,6 +77,7 @@ static void bse_init (blocknr_set_entry *bse)
 }
 
 /** Allocate and initialize a blocknr_set_entry. */
+/* Audited by: green(2002.06.11) */
 static blocknr_set_entry* bse_alloc (void)
 {
 	blocknr_set_entry *e;
@@ -81,12 +92,14 @@ static blocknr_set_entry* bse_alloc (void)
 }
 
 /** Free a blocknr_set_entry. */
+/* Audited by: green(2002.06.11) */
 static void bse_free (blocknr_set_entry *bse)
 {
 	kfree (bse);
 }
 
 /** Add a block number to a blocknr_set_entry */
+/* Audited by: green(2002.06.11) */
 static void bse_put_single (blocknr_set_entry *bse, const reiser4_block_nr *block)
 {
 	assert ("jmacd-5099", bse_avail (bse) >= 1);
@@ -95,12 +108,16 @@ static void bse_put_single (blocknr_set_entry *bse, const reiser4_block_nr *bloc
 }
 
 /** Get a pair of block numbers */
+/* Audited by: green(2002.06.11) */
 static inline blocknr_pair* bse_get_pair (blocknr_set_entry *bse, unsigned pno)
 {
+	assert ("green-1", BLOCKNR_SET_ENTS_SIZE >= 2 * (pno + 1) );
+
 	return (blocknr_pair*) (bse->ents + BLOCKNR_SET_ENTS_SIZE - 2 * (pno + 1));
 }
 
 /** Add a pair of block numbers to a blocknr_set_entry */
+/* Audited by: green(2002.06.11) */
 static void bse_put_pair (blocknr_set_entry *bse, const reiser4_block_nr *a, const reiser4_block_nr *b)
 {
 	blocknr_pair *pair;
@@ -124,6 +141,7 @@ static void bse_put_pair (blocknr_set_entry *bse, const reiser4_block_nr *a, con
  * returned with the atom unlocked for the operation to be tried again.  If
  * the operation succeeds, 0 is returned.  If new_bsep is non-NULL and not
  * used during the call, it will be freed automatically. */
+/* Audited by: green(2002.06.11) */
 static int blocknr_set_add (txn_atom                *atom,
 			    blocknr_set             *bset,
 			    blocknr_set_entry      **new_bsep,
@@ -172,6 +190,10 @@ static int blocknr_set_add (txn_atom                *atom,
 
 /* Add an extent to the block set.  If the length is 1, it is treated as a
  * single block (e.g., reiser4_set_add_block). */
+/* Audited by: green(2002.06.11) */
+/* Auditor note: Entire call chain cannot hold any spinlocks, because
+   kmalloc might schedule. The only exception is atom spinlock, which is
+   properly freed. */
 int blocknr_set_add_extent (txn_atom                *atom,
 			    blocknr_set             *bset,
 			    blocknr_set_entry      **new_bsep,
@@ -183,6 +205,10 @@ int blocknr_set_add_extent (txn_atom                *atom,
 }
 
 /* Add a single block to the block set. */
+/* Audited by: green(2002.06.11) */
+/* Auditor note: Entire call chain cannot hold any spinlocks, because
+   kmalloc might schedule. The only exception is atom spinlock, which is
+   properly freed. */
 int blocknr_set_add_block (txn_atom                *atom,
 			   blocknr_set             *bset,
 			   blocknr_set_entry      **new_bsep,
@@ -192,7 +218,11 @@ int blocknr_set_add_block (txn_atom                *atom,
 	return blocknr_set_add (atom, bset, new_bsep, block, NULL);
 }
 
-/* Add a single block to the block set. */
+/* Add a block pair to the block set. */
+/* Audited by: green(2002.06.11) */
+/* Auditor note: Entire call chain cannot hold any spinlocks, because
+   kmalloc might schedule. The only exception is atom spinlock, which is
+   properly freed. */
 int blocknr_set_add_pair (txn_atom                *atom,
 			  blocknr_set             *bset,
 			  blocknr_set_entry      **new_bsep,
@@ -204,12 +234,14 @@ int blocknr_set_add_pair (txn_atom                *atom,
 }
 
 /* Initialize a blocknr_set. */
+/* Audited by: green(2002.06.11) */
 void blocknr_set_init (blocknr_set *bset)
 {
 	blocknr_set_list_init (& bset->entries);
 }
 
 /* Release the entries of a blocknr_set. */
+/* Audited by: green(2002.06.11) */
 void blocknr_set_destroy (blocknr_set *bset)
 {
 	while (! blocknr_set_list_empty (& bset->entries)) {
@@ -218,6 +250,15 @@ void blocknr_set_destroy (blocknr_set *bset)
 }
 
 /* Merge blocknr_set entries out of @from into @into. */
+/* Audited by: green(2002.06.11) */
+/* Auditor comments: This mergedoes not know if merged sets contain
+   blocks pairs (As for wandered sets) or extents, so it cannot really merge
+   overlapping ranges if there is some. So I believe it may lead to
+   some blocks being presented several times in one blocknr_set. To help
+   debugging such problems it might help to check for duplicate entries on
+   actual processing of this set. Testing this kind of stuff right here is
+   also complicated by the fact that these sets are not sorted and going
+   through whole set on each element addition is going to be CPU-heavy task */
 void blocknr_set_merge (blocknr_set *from, blocknr_set *into)
 {
 	blocknr_set_entry *bse_into = NULL;
@@ -275,6 +316,7 @@ void blocknr_set_merge (blocknr_set *from, blocknr_set *into)
 }
 
 /* Iterate over all blocknr set elements, should be called under atom (spin)lock held. */
+/* Audited by: green(2002.06.11) */
 int blocknr_set_iterator (txn_atom * atom,
 			  blocknr_set * bset,
 			  blocknr_set_actor_f actor,
