@@ -190,12 +190,6 @@ static int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 		return -ENOMEM;
 }
 
-/** ->delete_node method of page-cache based tree operations */
-static int page_cache_delete_node( reiser4_tree *tree, jnode *node )
-{
-	return 0;
-}
-
 /** ->release_node method of page-cache based tree operations */
 static int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
@@ -472,7 +466,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 tree_operations page_cache_tops = {
 	.read_node     = page_cache_read_node,
 	.allocate_node = page_cache_allocate_node,
-	.delete_node   = page_cache_delete_node,
+	.delete_node   = page_cache_drop_node,
 	.release_node  = page_cache_release_node,
 	.drop_node     = page_cache_drop_node,
 	.dirty_node    = page_cache_dirty_node
