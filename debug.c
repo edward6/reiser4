@@ -799,6 +799,10 @@ void balance_dirty_pages_ratelimited1(struct address_space *mapping)
 	PROF_END(real_bdp, real_bdp);
 }
 
+void debugtrap(void)
+{
+	/* do nothing. Put break point here. */
+}
 
 
 /* Make Linus happy.

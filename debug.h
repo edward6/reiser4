@@ -920,6 +920,14 @@ extern void *xmemset(void *s, int c, size_t n);
 	!(__i & (__i - 1));			\
 })
 
+#define DEBUGON(cond)				\
+({						\
+	extern void debugtrap(void);		\
+						\
+	if (cond)				\
+		debugtrap();			\
+})
+
 /* __FS_REISER4_DEBUG_H__ */
 #endif
 
