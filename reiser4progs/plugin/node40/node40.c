@@ -348,38 +348,29 @@ static int callback_compare_for_lookup(const void *key1,
     Makes lookup inside the node and returns result of lookuping.
 
     coord->item_pos = -1 if the wanted key goes before the first item of the node,
-    count for item_pos if after and -1 for unit_pos if item_lookup method has not been 
-    implemented. Other values for unit_num are set by item lookup method.
-    
+    count for item_pos if after. unit_num is preset on 0.
     Returns: 
-    -1 if problem occured, 
-    0 - exact match has not been found,
-    1 - exact match has been found.
+    -1 if problem occured, 1(0) - exact match has (not) been found.
+    
+    NOTE: coord results differ from api node_lookup method.
 */
 
-static int node40_lookup(aal_block_t *block, 
-    reiserfs_coord_t *coord, void *key) 
+static int node40_lookup(aal_block_t *block, reiserfs_coord_t *coord, 
+    void *key, reiserfs_plugin_t *plugin) 
 {
     int found; int64_t pos;
-    reiserfs_plugin_t *plugin;
     
     aal_assert("umka-472", key != NULL, return -2);
     aal_assert("umka-478", coord != NULL, return -2);
     aal_assert("umka-470", block != NULL, return -2);
  
-    if (!(plugin = factory->find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find key plugin by its id %x.", 0x0);
-	return -2;
-    }
-    
     if ((found = reiserfs_misc_bin_search((void *)block, 
 	    node40_item_count(block), key, callback_elem_for_lookup, 
 	    callback_compare_for_lookup, plugin, &pos)) == -1)
 	return -1;
 
     coord->item_pos = pos;
-    coord->unit_pos = -1;
+    coord->unit_pos = 0;    
 
     return found;
 }
@@ -399,7 +390,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.confirm = (error_t (*)(aal_block_t *))node40_confirm,
 	.check = (error_t (*)(aal_block_t *, int))node40_check,
 	
-	.lookup = (int (*)(aal_block_t *, void *, void *))
+	.lookup = (int (*)(aal_block_t *, void *, void *, void *))
 	    node40_lookup,
 	
 	.print = (void (*)(aal_block_t *, char *, uint16_t))
