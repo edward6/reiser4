@@ -500,86 +500,109 @@ int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos) {
     return libreiserfs_plugins_call(return 0, plugin->item.common, internal,);
 }
 
-error_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
-    reiserfs_item_info_t *info, reiserfs_item_coord_t *coord)
+/*
+    We can estimate size for insertion and for pasting of item_info->data(to be memcpy) 
+    or of item_info->info(data to be created on the base of).
+    1.Insertion of data: 
+    a) coord->unit_pos == -1 
+    b) item_info->data != NULL
+    c) get item_info->plugin on the base of coord.
+    2.Insertion of info: 
+    a) coord->unit_pos == -1 
+    b) item_info->info != NULL
+    c) item_info->plugin != NULL
+    3.Pasting of data: 
+    a) coord->unit_pos != -1 
+    b) item_info->data != NULL
+    c) get item_info->plugin on the base of coord.
+    4.Pasting of info: 
+    a) coord->unit_pos != -1 
+    b) item_info->info != NULL
+    c) get item_info->plugin on the base of coord.
+*/
+
+error_t reiserfs_node_item_estimate (reiserfs_node_t *node, 
+    reiserfs_item_info_t *item_info, reiserfs_item_coord_t *coord)
 {
-    aal_assert("vpf-106", info != NULL, return -1);
+    aal_assert("vpf-106", item_info != NULL, return -1);
     aal_assert("umka-541", node != NULL, return -1);
     aal_assert("umka-604", coord != NULL, return -1);
 
-    if (!info->plugin && !(info->plugin = 
+    /* We must have item_info->plugin initialized for the 2nd case */
+    aal_assert("vpf-118", coord->unit_pos != -1 || item_info->info == NULL || 
+	item_info->plugin != NULL, return -1);
+   
+    if (!item_info->plugin && !(item_info->plugin = 
 	reiserfs_node_item_get_plugin(node, coord->item_pos))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin.");
-	return 0;
+	return -1;
     }
 
-    if (info->data != NULL)
+    /* item_info->has been already set for the 3rd case */
+    if (item_info->data != NULL)
 	return 0;
-
-    libreiserfs_plugins_call(return -1, info->plugin->item.common, 
-	estimate, info, coord);
+    
+    /* Estimate for the 2nd and for the 4th cases */
+    libreiserfs_plugins_call(return -1, item_info->plugin->item.common, estimate, 
+	item_info, coord);
     
     return 0;
 }
 
-error_t reiserfs_node_item_insert(reiserfs_node_t *node, 
-    reiserfs_item_coord_t *coord, void *key, reiserfs_item_info_t *info) 
+error_t reiserfs_node_insert(reiserfs_node_t *node, reiserfs_item_coord_t *coord, 
+    void *key, reiserfs_item_info_t *item_info) 
 {
-    aal_assert("vpf-108", coord != NULL, return -1);
+    error_t ret;
+    
     aal_assert("vpf-109", key != NULL, return -1);
     aal_assert("vpf-111", node != NULL, return -1);
-    aal_assert("vpf-110", info != NULL, return -1);
-    aal_assert("umka-591", info->plugin != NULL, return -1);
-    
+    aal_assert("vpf-110", item_info != NULL, return -1);
+    aal_assert("vpf-108", coord != NULL, return -1);
+
+    if (node->plugin->node.item_insert == NULL)
+	return -1;
+	
     /* Estimate the size and check the free space */
-    if (reiserfs_node_item_estimate(node, info, coord)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't estimate space that item being inserted will consume.");
-	return -1;
+    if (reiserfs_node_item_estimate (node, item_info, coord)) {
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+            "Can't estimate space that item being inserted will consume.");
+        return -1;
     }
 
-    if (info->length + reiserfs_node_item_overhead(node) > 
-	reiserfs_node_get_free_space(node)) 
+    if (item_info->length + reiserfs_node_item_overhead (node) >
+        reiserfs_node_get_free_space(node))
     {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "There is no space to insert the item of (%u) size in the node (%llu).", 
-	    info->length, aal_block_get_nr(node->block));
-	return -1;
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+            "There is no space to insert the item of (%u) size in the node (%llu).",
+            item_info->length, aal_block_get_nr(node->block));
+        return -1;
     }
 
-    return libreiserfs_plugins_call(return -1, node->plugin->node, 
-	item_insert, node->block, coord, key, info); 
-}
-
-error_t reiserfs_node_item_replace(reiserfs_node_t *node, 
-    reiserfs_item_coord_t *coord, void *key, reiserfs_item_info_t *info) 
-{
-    aal_assert("umka-598", coord != NULL, return -1);
-    aal_assert("umka-599", key != NULL, return -1);
-    aal_assert("umka-600", node != NULL, return -1);
-    aal_assert("umka-601", info != NULL, return -1);
-    aal_assert("umka-602", info->data != NULL, return -1);
+    if (coord->unit_pos == -1) {
+	if ((ret = libreiserfs_plugins_call(return -1, node->plugin->node, item_insert, 
+	    node->block, coord, key, item_info)) != 0)
+	return ret;
+    } else {
+	if ((ret = libreiserfs_plugins_call(return -1, node->plugin->node, item_paste, 
+	    node->block, coord, key, item_info)) != 0)
+	return ret;
+    }
     
-    /* Estimate the size and check the free space */
-    if (reiserfs_node_item_estimate(node, info, coord)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't estimate space that item being inserted will consume.");
-	return -1;
-    }
+    /* Item must be inserted/unit pasted in item_insert/item_paste node methods. */
+/*
+    if (item_info->plugin == NULL) {
+        reiserfs_check_method (coord->node->plugin->node, item, return -1);
 
-    if (info->length + reiserfs_node_item_overhead(node) > 
-	reiserfs_node_get_free_space(node)) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "There is no space to insert the item of (%u) size in the node (%llu).", 
-	    info->length, aal_block_get_nr(node->block));
-	return -1;
+        aal_memcpy(coord->node->plugin->node.item(coord->node, coord->item_pos),
+            item_info->data, item_info->length);
+    } else {
+        libreiserfs_plugins_call(return -1, item_info->plugin->item.common, create, 
+	    coord, item_info);
     }
-
-    return libreiserfs_plugins_call(return -1, node->plugin->node, 
-	item_replace, node->block, coord, key, info); 
+*/
+    return 0;
 }
 
 reiserfs_plugin_id_t reiserfs_node_item_get_plugin_id(reiserfs_node_t *node, 

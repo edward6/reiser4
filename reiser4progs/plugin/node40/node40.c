@@ -109,21 +109,18 @@ static void node40_item_set_plugin_id(aal_block_t *block,
     ih40_set_plugin_id(node40_ih_at(block, pos), plugin_id);
 }
 
-/*
-    Helper function, used for inserting and replacing items
-    inside specified block.
-*/
-static error_t node40_item_create(aal_block_t *block, 
+static error_t node40_prepare_space(aal_block_t *block, 
     reiserfs_item_coord_t *coord, reiserfs_key40_t *key, 
     reiserfs_item_info_t *info) 
 {
-    int i;
+    int i, item_pos;
     void *body;
     uint32_t offset;
     
     reiserfs_ih40_t *ih;
     reiserfs_nh40_t *nh;
     int is_enought_space, is_inside_range;
+    int is_new_item = 0;
 
     aal_assert("vpf-006", coord != NULL, return -1);
     aal_assert("vpf-007", info != NULL, return -1);
@@ -135,27 +132,52 @@ static error_t node40_item_create(aal_block_t *block,
     
     aal_assert("vpf-026", is_enought_space, return -1);
     aal_assert("vpf-027", is_inside_range, return -1);
-    aal_assert("vpf-062", coord->unit_pos == -1, return -1);
 
+    if (coord->unit_pos == -1) {
+	is_new_item = 1;
+	item_pos = coord->item_pos;
+    } else {
+	item_pos = coord->item_pos + 1;
+    }
+    
     nh = reiserfs_nh40(block);
-    ih = node40_ih_at(block, coord->item_pos);
+    ih = node40_ih_at(block, item_pos);
 
     /* Insert free space for item and ih, change item heads */
-    if (coord->item_pos < nh40_get_num_items(nh)) {
+    if (item_pos < nh40_get_num_items(nh)) {
 	offset = ih40_get_offset(ih);
-	
+
 	aal_memcpy(block->data + offset + info->length, 
-	    block->data + offset, nh40_get_free_space_start(nh) - offset);
+		block->data + offset, nh40_get_free_space_start(nh) - offset);
 	
-	for (i = coord->item_pos; i < nh40_get_num_items(nh); i++, ih--) 
+	for (i = item_pos; i < nh40_get_num_items(nh); i++, ih--) 
 	    ih40_set_offset(ih, ih40_get_offset(ih) + info->length);
 
-	/* ih is set at the last item head - 1 in the last _for_ clause */
-	aal_memcpy(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
-	    (node40_item_count(block) - coord->item_pos));
-    } else
+	if (!is_new_item) {	    
+	    ih = node40_ih_at(block, coord->item_pos);
+	    ih40_set_length(ih, ih40_get_length(ih) + info->length);
+	} else {
+	    /* ih is set at the last item head - 1 in the last _for_ clause */
+	    aal_memcpy(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
+		(node40_item_count(block) - item_pos)); 
+	}
+    } else {
+	if (!is_new_item) 
+	    return -1;
+	
 	offset = nh40_get_free_space_start(nh);
-
+    } 
+    
+    /* Update node header */
+    nh40_set_free_space(nh, nh40_get_free_space(nh) - 
+	info->length - (is_new_item ? sizeof(reiserfs_ih40_t) : 0));
+    
+    nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + 
+	info->length);
+    
+    if (!is_new_item)	
+	return 0;
+	    
     /* Create a new item header */
     aal_memcpy(&ih->key, key, sizeof(reiserfs_key40_t));
     
@@ -163,58 +185,40 @@ static error_t node40_item_create(aal_block_t *block,
     ih40_set_plugin_id(ih, info->plugin->h.id);
     ih40_set_length(ih, info->length);
     
-    /* Update node header */
-    nh40_set_free_space(nh, nh40_get_free_space(nh) - 
-	info->length - sizeof(reiserfs_ih40_t));
-    
-    nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + 
-	info->length);
-    
-    nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
-    
     return 0;
 }
 
-/* 
-    Replaces item described by info structure into node. Returns
-    result of operation.
-*/
-static error_t node40_item_replace(aal_block_t *block, 
-    reiserfs_item_coord_t *coord, reiserfs_key40_t *key, 
-    reiserfs_item_info_t *info) 
-{
-    void *body;
-   
-    aal_assert("umka-592", info->data != NULL, return -1);
-    
-    if (node40_item_create(block, coord, key, info))
-	return -1;
-
-    if (!(body = node40_item_at_pos(block, coord->item_pos)))
-	return -1;
-
-    aal_memcpy(body, info->data, info->length);
-    
-    return 0;
-}
-
-/*
-    Inserts item described by info structure into node. Returns
-    result of operation.
-*/
+/* Inserts item described by info structure into node. */
 static error_t node40_item_insert(aal_block_t *block, 
     reiserfs_item_coord_t *coord, reiserfs_key40_t *key, 
     reiserfs_item_info_t *info) 
-{
-    void *body;
-   
-    if (node40_item_create(block, coord, key, info))
+{ 
+    reiserfs_nh40_t *nh;
+    
+    aal_assert("vpf-119", coord != NULL && coord->unit_pos == -1, return -1);
+    
+    if (node40_prepare_space(block, coord, key, info))
 	return -1;
 
-    if (!(body = node40_item_at_pos(block, coord->item_pos)))
+    nh = reiserfs_nh40(block);
+    nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
+    
+    return libreiserfs_plugins_call(return -1, info->plugin->item.common,
+	create, node40_item_at_pos(block, coord->item_pos), info);
+}
+
+/* Pastes units into item described by info structure. */
+static error_t node40_item_paste(aal_block_t *block, 
+    reiserfs_item_coord_t *coord, reiserfs_key40_t *key, 
+    reiserfs_item_info_t *info) 
+{   
+    aal_assert("vpf-120", coord != NULL && coord->unit_pos != -1, return -1);
+    
+    if (node40_prepare_space(block, coord, key, info))
 	return -1;
 
-    return info->plugin->item.common.create(body, info);
+    return libreiserfs_plugins_call(return -1, info->plugin->item.common,
+	unit_add, node40_item_at_pos(block, coord->item_pos), coord, info);
 }
 
 /*
@@ -379,12 +383,11 @@ static reiserfs_plugin_t node40_plugin = {
 	.set_free_space = (void (*)(aal_block_t *, uint32_t))
 	    node40_set_free_space,
 	
-
-	.item_insert = (error_t (*)(aal_block_t *, void *, 
-	    void *, void *))node40_item_insert,
+	.item_insert = (error_t (*)(aal_block_t *, void *, void *, void *))
+	    node40_item_insert,
 	
-	.item_replace = (error_t (*)(aal_block_t *, void *,
-	    void *, void *))node40_item_replace,
+	.item_paste = (error_t (*)(aal_block_t *, void *, void *, void *))
+	    node40_item_insert,
 	
 	.item_overhead = (uint16_t (*)(aal_block_t *))node40_item_overhead,
 	.item_maxsize = (uint16_t (*)(aal_block_t *))node40_item_maxsize,

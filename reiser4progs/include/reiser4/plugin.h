@@ -125,8 +125,8 @@ struct reiserfs_item_ops {
 	Vitaly: No, we should not. I wrote about it already in 
 	filesystem.h. 
     */
-    int (*unit_add) (void *, int32_t, void *);
-    uint16_t (*units_count) (void *);
+    int (*unit_add) (void *, void *, void *);
+    uint16_t (*unit_count) (void *);
     int (*unit_remove) (void *, int32_t, int32_t);
     
     void (*estimate) (void *, void *);
@@ -219,13 +219,9 @@ struct reiserfs_node_plugin {
     /* Prints node into given buffer */
     void (*print) (aal_block_t *, char *, uint16_t);
     
-    /* Inserts item into specified node */
-    error_t (*item_insert) (aal_block_t *, void *, 
-	void *, void *);
-    
-    /* Replaces item into specified node */
-    error_t (*item_replace) (aal_block_t *, void *, 
-	void *, void *);
+    /* Inserts item/past units into specified node/item */
+    error_t (*item_insert) (aal_block_t *, void *, void *, void *);
+    error_t (*item_paste) (aal_block_t *, void *, void *, void *);
     
     /* Returns item's overhead */
     uint16_t (*item_overhead) (aal_block_t *);
