@@ -153,6 +153,7 @@ static void store_entry (jnode * node,
 	cputod64(*b, & pairs[index].wandered);
 }
 
+
 /* currently, log records contains contain only wandered map, which depend on
  * Overwrite Set size */
 static int get_tx_size (const struct super_block * super, int overwrite_set_size)
@@ -828,6 +829,47 @@ int reiser4_write_logs (void)
 	return ret;
 }
 
+/* consistency checks for journal data/control blocks: header, footer, log
+ * records, transactions head blocks. All functions return zero on success. */
+
+static int check_journal_header (const jnode * node UNUSED_ARG)
+{
+	/* FIXME: journal header has no magic field yet. */
+	return 0;
+}
+
+static int check_journal_footer (const jnode * node UNUSED_ARG)
+{
+	/* FIXME: journal footer has no magic field yet. */
+	return 0;
+}
+
+static int check_tx_head (const jnode * node)
+{
+	struct tx_header * TH = (struct tx_header*) jdata(node);
+
+	if (memcmp(&TH->magic, TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE) != 0) {
+		warning ("zam-627", "tx head at block %llX corrupted\n",
+			 (unsigned long long int)(*jnode_get_block(node)));
+		return -EIO;
+	}
+
+	return 0;
+}
+
+static int check_log_record (const jnode * node)
+{
+	struct log_record_header *RH = (struct log_record_header *)jdata(node);
+
+	if (memcmp(&RH->magic, LOG_RECORD_MAGIC, LOG_RECORD_MAGIC_SIZE) != 0) {
+		warning ("zam-628", "log record at block %llX corrupted\n",
+			 (unsigned long long int)(*jnode_get_block(node)));
+		return -EIO;
+	}
+
+	return 0;
+}
+
 /** replay one transaction: restore and write overwrite set in place */
 static int replay_transaction (const struct super_block * s,
 			       const reiser4_block_nr * log_rec_block_p, 
@@ -853,6 +895,9 @@ static int replay_transaction (const struct super_block * s,
 
 		ret = jload(log);
 		if (ret < 0) { jfree(log); return ret; }
+
+		ret= check_log_record(log);
+		if (ret) { jrelse(log); jdrop(log); jfree(log); return ret; }
 
 		LH = (struct log_record_header *)jdata(log);
 		log_rec_block = d64tocpu(&LH->next_block);
@@ -959,7 +1004,10 @@ static int replay_oldest_transaction(struct super_block * s)
 		jnode_set_block(tx_head, &prev_tx);
 
 		ret = jload(tx_head);
-		if (ret < 0) { jfree (tx_head); return ret;}
+		if (ret < 0 ) { jfree (tx_head); return ret;}
+
+		ret = check_tx_head(tx_head);
+		if (ret) { jrelse(tx_head); jdrop(tx_head); jfree(tx_head); return ret; }
 
 		T = (struct tx_header*)jdata(tx_head);
 
@@ -1032,6 +1080,9 @@ int reiser4_replay_journal (struct super_block * s)
 	ret = jload(jf);
 	if (ret < 0) return ret;
 
+	ret = check_journal_footer(jf);
+	if (ret) { jrelse(jf); return ret; }
+
 	F = (struct journal_footer *)jdata(jf);
 	if (d64tocpu(&F->free_blocks)) {
 		reiser4_set_free_blocks (s, d64tocpu(&F->free_blocks));
@@ -1043,6 +1094,9 @@ int reiser4_replay_journal (struct super_block * s)
 	 * block */
 	ret = jload(jh);
 	if (ret < 0) return ret;
+
+	ret = check_journal_header(jh);
+	if (ret) { jrelse(jh); return ret; }
 
 	H = (struct journal_header *)jdata(jh);
 	private->last_committed_tx = d64tocpu(&H->last_committed_tx);
