@@ -73,6 +73,9 @@ case "$STAGE" in
 		cd $mongodir                                             || die
                 mkdir -p ./$logdir                                       || die
                 ./mongo.pl $opt LOG=$logdir/$name RUN                    || die
+                if [ -r /proc/profile ] ;then
+                    cp /proc/profile $logdir/$name.profile               || die
+                fi
 		cd $TEST
 		switchto $(($STAGE + 1))
 	    fi
