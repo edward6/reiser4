@@ -64,7 +64,7 @@ lookup_result extent_lookup            (const reiser4_key *, lookup_bias,
 					coord_t *);
 int           extent_init              (coord_t *, reiser4_item_data *);
 int           extent_paste             (coord_t *, reiser4_item_data *,
-					carry_level *);
+					carry_plugin_info *);
 int           extent_can_shift         (unsigned free_space,
 					coord_t * source,
 					znode * target, shift_direction,

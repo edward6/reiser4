@@ -99,7 +99,7 @@ typedef struct {
 	/** method called (e.g., by resize_item()) to place new data into
 	    item when it grows*/
 	int ( *paste )( coord_t *coord, reiser4_item_data *data,
-			carry_level *todo );
+			carry_plugin_info *info );
 	/**
 	 * return true if paste into @coord is allowed to skip
 	 * carry. That is, if such paste would require any changes
