@@ -1482,6 +1482,7 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 	txn_handle *txnh = ctx->trans;
 	txn_atom *atom;
 	int ret;
+	int ret1;
 
 	if (txnh->atom == NULL) {
 		/* current atom is available, take first from txnmgr */
@@ -1558,14 +1559,10 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 	if (ret == -E_REPEAT)
 		ret = 0;
 
-	{
-		int ret1;
-
-		ret1 = txn_end(ctx);
-		if (ret1 > 0)
-			*nr_submitted += ret1;
-		txn_begin(ctx);
-	}
+	ret1 = txn_end(ctx);
+	if (ret1 > 0)
+		*nr_submitted += ret1;
+	txn_begin(ctx);
 
 	return ret;
 }
