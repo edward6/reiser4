@@ -1310,7 +1310,6 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		info->dir_item = NULL;
 		scint_init(&info->extmask);
 		info->locality_id = 0ull;
-		info->parent = NULL;
 		info->plugin_mask = 0;
 #if !REISER4_INO_IS_OID
 		info->oid_hi = 0;
