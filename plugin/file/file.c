@@ -2399,7 +2399,7 @@ reiser4_internal ssize_t sendfile_common (
 
 	desc.error = 0;
 	desc.written = 0;
-	desc.buf = target;
+	desc.arg.data = target;
 	desc.count = count;
 
 	fplug = inode_file_plugin(inode);
