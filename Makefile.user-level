@@ -202,7 +202,7 @@ gtags:
 
 gprof:
 	gprof -C -p -q -c -z --function-ordering -A -I `find . -type d -printf "%p:"` a.out gmon.out* > gprof.out
-	gprof -l > gprof.out.ll
+	gprof -l a.out gmon.out* > gprof.out.ll
 
 check-nikita:
 	python utilities/uniqerrid.py nikita `$(FIND_NON_SCCS)`
