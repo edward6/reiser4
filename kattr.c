@@ -422,7 +422,7 @@ static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 		if (result == 0)
 			result = reiser4_populate_kattr_level_dir(level);
 	} else
-		result = -EBUSY;
+		result = RETERR(-EBUSY);
 	return result;
 }
 #endif
