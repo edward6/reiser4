@@ -1573,7 +1573,6 @@ unsigned find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 		case HOLE_EXTENT:
 			/* slum does not break at hole */
 			assert("vs-1384", pos_in_unit == 0);
-			assert("vs-1385", slum_size != 0);
 			index += extent_get_width(ext);
 			break;
 
