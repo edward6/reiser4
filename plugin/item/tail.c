@@ -8,6 +8,7 @@
 /*
  * plugin->u.item.b.max_key_inside
  */
+/* Audited by: green(2002.06.14) */
 reiser4_key * tail_max_key_inside (const new_coord * coord, 
 				   reiser4_key * key)
 {
@@ -20,6 +21,7 @@ reiser4_key * tail_max_key_inside (const new_coord * coord,
 /*
  * plugin->u.item.b.can_contain_key
  */
+/* Audited by: green(2002.06.14) */
 int tail_can_contain_key (const new_coord * coord, const reiser4_key * key,
 			  const reiser4_item_data * data)
 {
@@ -63,6 +65,7 @@ int tail_can_contain_key (const new_coord * coord, const reiser4_key * key,
  * plugin->u.item.b.mergeable
  * first item is of tail type
  */
+/* Audited by: green(2002.06.14) */
 int tail_mergeable (const new_coord * p1, const new_coord * p2)
 {
 	reiser4_key key1, key2;
@@ -109,6 +112,7 @@ int tail_mergeable (const new_coord * p1, const new_coord * p2)
 /*
  * plugin->u.item.b.nr_units
  */
+/* Audited by: green(2002.06.14) */
 unsigned tail_nr_units (const new_coord * coord)
 {
 	return item_length_by_coord (coord);
@@ -118,6 +122,7 @@ unsigned tail_nr_units (const new_coord * coord)
 /*
  * plugin->u.item.b.lookup
  */
+/* Audited by: green(2002.06.14) */
 lookup_result tail_lookup (const reiser4_key * key, lookup_bias bias,
 			   new_coord * coord)
 {
@@ -172,6 +177,7 @@ lookup_result tail_lookup (const reiser4_key * key, lookup_bias bias,
 /*
  * plugin->u.item.b.paste
  */
+/* Audited by: green(2002.06.14) */
 int tail_paste (new_coord * coord, reiser4_item_data * data,
 		carry_level * todo UNUSED_ARG)
 {
@@ -179,7 +185,7 @@ int tail_paste (new_coord * coord, reiser4_item_data * data,
 	char * item;
 
 	/*
-	 * length the item ahd before resizing has been performed
+	 * length the item had before resizing has been performed
 	 */
 	old_item_length = item_length_by_coord (coord) - data->length;
 
@@ -207,6 +213,8 @@ int tail_paste (new_coord * coord, reiser4_item_data * data,
 	if (data->data) {
 		assert ("vs-554", data->user == 0 || data->user == 1);
 		if (data->user)
+			assert( "green-6", lock_counters() -> spin_locked == 0 );
+			/* AUDIT: return result is not checked! */
 			/* copy from user space */
 			__copy_from_user (item + coord->unit_pos, data->data,
 					  (unsigned)data->length);
@@ -231,6 +239,7 @@ int tail_paste (new_coord * coord, reiser4_item_data * data,
  * number of units is returned via return value, number of bytes via @size. For
  * tail items they coincide
  */
+/* Audited by: green(2002.06.14) */
 int tail_can_shift (unsigned free_space, new_coord * source UNUSED_ARG,
 		    znode * target UNUSED_ARG,
 		    shift_direction direction UNUSED_ARG,
@@ -250,6 +259,7 @@ int tail_can_shift (unsigned free_space, new_coord * source UNUSED_ARG,
 /*
  * plugin->u.item.b.copy_units
  */
+/* Audited by: green(2002.06.14) */
 void tail_copy_units (new_coord * target, new_coord * source,
 		      unsigned from, unsigned count,
 		      shift_direction where_is_free_space,
@@ -303,6 +313,7 @@ void tail_copy_units (new_coord * target, new_coord * source,
  * plugin->u.item.b.cut_units
  * plugin->u.item.b.kill_units
  */
+/* Audited by: green(2002.06.14) */
 int tail_cut_units (new_coord * coord, unsigned * from, unsigned * to,
 		    const reiser4_key * from_key UNUSED_ARG,
 		    const reiser4_key * to_key UNUSED_ARG,
@@ -351,6 +362,7 @@ int tail_cut_units (new_coord * coord, unsigned * from, unsigned * to,
 /*
  * plugin->u.item.b.unit_key
  */
+/* Audited by: green(2002.06.14) */
 reiser4_key * tail_unit_key (const new_coord * coord, reiser4_key * key)
 {
 	assert ("vs-375", ncoord_is_existing_unit (coord));
@@ -379,6 +391,7 @@ typedef enum {
 } tail_write_todo;
 
 
+/* Audited by: green(2002.06.14) */
 static tail_write_todo tail_what_todo (struct inode * inode, new_coord * coord,
 				       reiser4_key * key)
 {
@@ -460,6 +473,7 @@ static tail_write_todo tail_what_todo (struct inode * inode, new_coord * coord,
  * prepare item data which will be passed down to either insert_by_coord or to
  * resize_item
  */
+/* Audited by: green(2002.06.14) */
 static void make_item_data (new_coord * coord, reiser4_item_data * item,
 			    char * data, int user, unsigned desired_len)
 {
@@ -477,6 +491,7 @@ static void make_item_data (new_coord * coord, reiser4_item_data * item,
  * insert tail item consisting of zeros only. Number of bytes appended to the
  * file is returned
  */
+/* Audited by: green(2002.06.14) */
 static int create_hole (new_coord * coord, lock_handle * lh, flow_t * f)
 {
 	int result;
@@ -532,6 +547,7 @@ static int append_hole (new_coord * coord, lock_handle * lh, flow_t * f)
  * insert first item of file into tree. Number of bytes appended to the file is
  * returned
  */
+/* Audited by: green(2002.06.14) */
 static int insert_first_item (new_coord * coord, lock_handle * lh, flow_t * f)
 {
 	reiser4_item_data item;
@@ -554,6 +570,7 @@ static int insert_first_item (new_coord * coord, lock_handle * lh, flow_t * f)
  * append item @coord with flow @f's data. Number of bytes appended to the file
  * is returned
  */
+/* Audited by: green(2002.06.14) */
 static int append_tail (new_coord * coord, lock_handle * lh, flow_t * f)
 {
 	reiser4_item_data item;
@@ -574,6 +591,7 @@ static int append_tail (new_coord * coord, lock_handle * lh, flow_t * f)
 /*
  * copy user data over file tail item
  */
+/* Audited by: green(2002.06.14) */
 static int overwrite_tail (new_coord * coord, flow_t * f)
 {
 	int result;
@@ -588,9 +606,11 @@ static int overwrite_tail (new_coord * coord, flow_t * f)
 	 * FIXME-ME: mark_znode_dirty ?
 	 */
 	assert ("vs-570", f->user == 1);
+	assert( "green-7", lock_counters() -> spin_locked == 0 );
 	result = __copy_from_user ((char *)item_body_by_coord (coord) +
 				   coord->unit_pos, f->data, count);
 	if (result)
+		/* AUDIT: this should return -EFAULT */
 		return result;
 		
 	move_flow_forward (f, count);
@@ -602,6 +622,8 @@ static int overwrite_tail (new_coord * coord, flow_t * f)
  * plugin->u.item.s.file.write
  * access to data stored in tails goes directly through formatted nodes
  */
+/* Audited by: green(2002.06.14) */
+/* AUDIT: Why page marked as unused when it is in fact used be below code? */
 int tail_write (struct inode * inode, new_coord * coord,
 		lock_handle * lh, flow_t * f, struct page * page UNUSED_ARG)
 {
@@ -641,7 +663,7 @@ int tail_write (struct inode * inode, new_coord * coord,
 
 		if (result && !page) {
 			/*
-			 * file became longer and his write is not part of
+			 * file became longer and this write is not part of
 			 * extent2tail
 			 */
 			inode->i_size += result;
@@ -656,6 +678,7 @@ int tail_write (struct inode * inode, new_coord * coord,
 /*
  * plugin->u.item.s.file.read
  */
+/* Audited by: green(2002.06.14) */
 int tail_read (struct inode * inode UNUSED_ARG, new_coord * coord,
 	       lock_handle * lh UNUSED_ARG, flow_t * f)
 {
@@ -677,6 +700,9 @@ int tail_read (struct inode * inode UNUSED_ARG, new_coord * coord,
 		count = f->length;
 
 	assert ("vs-571", f->user == 1);
+	assert( "green-8", lock_counters() -> spin_locked == 0 );
+
+	/* AUDIT: return value of copy_to_user is not checked */
 	__copy_to_user (f->data,  (char *)item_body_by_coord (coord) + coord->unit_pos,
 			count);
 
