@@ -1191,8 +1191,11 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 		if (IS_ERR (fake)) { return PTR_ERR(fake); }
 
 		if ((ret = longterm_lock_znode (& fake_lock, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
+			zput (fake);
 			return ret;
 		}
+
+		zput (fake);
 
 		spin_lock_tree (current_tree);
 		current_tree->root_block = blk;
