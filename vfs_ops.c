@@ -1858,6 +1858,12 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		/* timeout (in seconds) to wait for ent thread in writepage */
 		SB_FIELD_OPT(entd.timeout, "%lu"),
 
+#ifdef CONFIG_REISER4_BADBLOCKS
+		/* Alternative master superblock location in case if it's original
+		   location is not writeable/accessable. This is offset in BYTES. */
+		SB_FIELD_OPT(altsuper, "%lu"),
+#endif
+
 		PLUG_OPT("plugin.tail", tail, &sbinfo->plug.t),
 		PLUG_OPT("plugin.sd", item, &sbinfo->plug.sd),
 		PLUG_OPT("plugin.dir_item", item, &sbinfo->plug.dir_item),
@@ -2166,9 +2172,20 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 		return result;
 	}
 
+	result = reiser4_parse_options(s, data);
+	if (result) {
+		goto error1;
+	}
+
 read_super_block:
-	/* look for reiser4 magic at hardcoded place */
-	super_bh = sb_bread(s, (int) (REISER4_MAGIC_OFFSET / s->s_blocksize));
+#ifdef CONFIG_REISER4_BADBLOCKS
+	if ( sbinfo->altsuper )
+		super_bh = sb_bread(s, (sector_t) (sbinfo->altsuper >> s->s_blocksize_bits));
+	else
+#endif
+		/* look for reiser4 magic at hardcoded place */
+		super_bh = sb_bread(s, (sector_t) (REISER4_MAGIC_OFFSET / s->s_blocksize));
+
 	if (!super_bh) {
 		result = RETERR(-EIO);
 		goto error1;
@@ -2199,9 +2216,7 @@ read_super_block:
 		/* only two plugins are available for now */
 		assert("vs-476", (plugin_id == FORMAT40_ID || plugin_id == TEST_FORMAT_ID));
 		df_plug = disk_format_plugin_by_id(plugin_id);
-#ifdef CONFIG_REISER4_BADBLOCKS
-		sbinfo->fixmap_block = d64tocpu(&master_sb->fixmap);
-#endif
+		sbinfo->diskmap_block = d64tocpu(&master_sb->diskmap);
 		brelse(super_bh);
 	} else {
 		if (!silent)
@@ -2253,11 +2268,8 @@ read_super_block:
 
 	assert("nikita-2687", check_block_counters(s));
 
-	/* NOTE-NIKITA actually, options should be parsed by plugins also. */
-	result = reiser4_parse_options(s, data);
-	if (result) {
-		goto error4;
-	}
+	/* FIXME. Later on, when plugins will be able to parse options too, here
+	   should appear function call to parse plugin's options */
 
 	result = cbk_cache_init(&sbinfo->tree.cbk_cache);
 	if (result) {
