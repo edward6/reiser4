@@ -2153,7 +2153,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		/* If we are scanning left and we stop in the middle of an allocated
 		 * extent, we know the preceder immediately. */
 		if (flush_scanning_left (scan)) {
-			scan->preceder_blk = unit_start + scan_index;
+			if (unit_start)
+				scan->preceder_blk = unit_start + scan_index;
 		}
 
 		/* In this case, we leave coord set to the parent of scan->node. */
