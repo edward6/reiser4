@@ -505,24 +505,47 @@ extent_create_hook(const coord_t * coord, void *arg)
 }
 
 /* check inode's list of eflushed jnodes and drop those which correspond to this extent */
-static void drop_eflushed_nodes(struct inode *inode, unsigned long index, int length)
+static void drop_eflushed_nodes(struct inode *inode, unsigned long index)
 {
 	struct list_head *tmp, *next;
 	reiser4_inode *info;
+	reiser4_tree *tree;
+	int nr;
 
 	if (!inode)
 		/* there should be no eflushed jnodes */
 		return;
+
+	nr = 0;
+	tree = tree_by_inode(inode);
+ repeat:
+	
+	spin_lock_eflush(tree->super);
+
 	info = reiser4_inode_data(inode);
-	spin_lock(&eflushed_guard);
 	list_for_each_safe(tmp, next, &info->eflushed_jnodes) {
 		eflush_node_t *ef;
+		jnode *j;
 
 		ef = list_entry(tmp, eflush_node_t, inode_link);
-		if (jnode_index(ef->node) >= index && jnode_index(ef->node) < index + length)
-			uncapture_jnode(ef->node);
+		j = ef->node;
+		if (jnode_index(j) >= index) {
+			jref(j);			
+			spin_unlock_eflush(tree->super);
+			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 0));
+			if (j->pg) {
+				print_jnode("page left", j);
+				printk("\n");
+			}
+			uncapture_jnode(j);
+			jput(j);
+			nr ++;
+			goto repeat;
+		}
 	}
-	spin_unlock(&eflushed_guard);
+	spin_unlock_eflush(tree->super);
+	if (nr)
+		warning("vs-1223", "drop_eflushed_nodes: %d nodes found\n", nr);
 }
 
 /* plugin->u.item.b.kill_item_hook
@@ -534,6 +557,7 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count, void
 	unsigned i;
 	reiser4_block_nr start, length;
 	reiser4_key key;
+	loff_t offset;
 	unsigned long index;
 	struct inode *inode;
 
@@ -542,16 +566,20 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count, void
 	assert ("zam-811", znode_is_write_locked(coord->node));
 	DEBUGON(znode_get_level(coord->node) != TWIG_LEVEL);
 
-	item_key_by_coord(coord, &key);	
-	index = (get_key_offset(&key) + extent_size(coord, from)) >> current_blocksize_bits;
+	item_key_by_coord(coord, &key);
+	offset = get_key_offset(&key) + extent_size(coord, from);
+	index = offset >> current_blocksize_bits;
+
+	if (inode) {
+		truncate_inode_pages(inode->i_mapping, offset);
+		drop_eflushed_nodes(inode, index);
+	}
 
 	ext = extent_item(coord) + from;
 	for (i = 0; i < count; i++, ext++, index += length) {
 
 		start = extent_get_start(ext);
 		length = extent_get_width(ext);
-
-		drop_eflushed_nodes(inode, index, length);
 
 		if (state_of_extent(ext) == HOLE_EXTENT)
 			continue;
@@ -1590,10 +1618,10 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 
 	eflushed = 0;
 	*protected = 0;
-	for (i = 0; i < count; ++i, ++ind) {
+	for (i = 0; i < count; ++i) {
 		jnode  *node;
 
-		node = jlook_lock(tree, oid, ind);
+		node = jlook_lock(tree, oid, ind + i);
 		/*
 		 * all jnodes of unallocated extent should be in
 		 * place. Truncate first removes extent item, then jnodes.
@@ -1610,18 +1638,20 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 
 		result = jprotect(node);
 		jput(node);
-		if (result < 0)
+		if (result < 0) {
+			warning("vs-1221", "jprotect failed: %d\n", result);
 			goto error;
+		}
 		(*protected) ++;
 	}
 	return 0;
  error:
 	/* unprotect all the jnodes we have protected so far */
-	unprotect_extent_nodes(oid, ind, *protected);
+	unprotect_extent_nodes(oid, ind, i);
 	return result;
 #else
 /* !REISER4_USE_EFLUSH */
-	return count;
+	return 0;
 #endif
 }
 
@@ -1706,10 +1736,11 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 			   will be read from their temporary locations (but not more than certain limit:
 			   JNODES_TO_UNFLUSH) and that disk space will be freed. */
 			result = protect_extent_nodes(oid, index, to_allocate, &protected);
-			if (result)
+			if (result) {
 				/* EAGAIN or error code. EAGAIN is returned when there was a missing jnode. That means
 				   that this item is going  to be removed soon */
 				goto done;
+			}
 
 			/* add extent unit (0, 0) to the end of node @left before allocating */
 			extent_set_start(&new_ext, 0);
