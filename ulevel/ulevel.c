@@ -2984,7 +2984,7 @@ static __u64 get_fs_size (struct super_block * s)
 	check_me ("vs-749", fstat (s->s_bdev->bd_dev, &st) == 0);
 	size = lseek64 (s->s_bdev->bd_dev, 0, SEEK_END);
 	assert ("vs-750", size != (loff_t)-1);
-	return size / (s->s_blocksize / 512);
+	return size / 512 / (s->s_blocksize / 512);
 }
 
 #define TEST_MKFS_ROOT_LOCALITY   (41ull)
@@ -3216,10 +3216,6 @@ static int bash_mkfs (const char * file_name)
 			inode->i_state &= ~I_DIRTY;
 			iput (fake_parent);
 			super.s_root->d_inode = inode;
-
-			get_super_private (&super)->oid_plug->
-				init_oid_allocator (get_oid_allocator (&super), 1ull, (__u64)( 1 << 16 ) );
-
 			cputod64 (reiser4_inode_data( inode ) -> locality_id, 
 				  &test_sb->root_locality);
 			cputod64 ((__u64)inode -> i_ino, &test_sb->root_objectid);
