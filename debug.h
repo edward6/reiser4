@@ -683,6 +683,7 @@ typedef struct reiser4_statistics {
 #define reiser4_stat_vfs_calls_add( stat ) noop
 #define reiser4_stat_file_add( stat ) noop
 #define reiser4_stat_extent_add( stat ) noop
+#define reiser4_stat_tail_add( stat ) noop
 #define	reiser4_stat_add_at_level( lev, stat ) noop
 #define	reiser4_stat_level_add( l, stat ) noop
 #define reiser4_stat_nuniq_max( gen ) noop
