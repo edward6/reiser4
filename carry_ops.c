@@ -845,7 +845,7 @@ static int carry_cut( carry_op *op /* operation to be performed */,
 }
 
 /**
- * implements COP_PASTE opration
+ * implements COP_PASTE operation
  *
  * Paste data into existing item. This is complicated by the fact that after
  * we shifted something to the left or right neighbors trying to free some
