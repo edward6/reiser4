@@ -1029,13 +1029,6 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 		assert("nikita-381", h->coord->node == active);
 		if (result == NS_FOUND) {
 			/* success of tree lookup */
-			/* following assertion doesn't work currently, because
-			   ->lookup method of internal item sets ->between ==
-			   AFTER_UNIT and bias is unconditionally set to
-			   FIND_EXACT above (why?)
-			   NIKITA-FIXME-HANS: clean the above comment or its referenced code
-			*/
-			assert("nikita-1604", 1 || ergo(h->bias == FIND_EXACT, coord_is_existing_unit(h->coord)));
 			if (!(h->flags & CBK_UNIQUE) && key_is_ld(active, h->key)) {
 				return search_to_left(h);
 			} else
