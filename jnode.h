@@ -203,7 +203,6 @@ extern int jnode_done_static(void);
 extern jnode *jalloc(void);
 extern void jfree(jnode * node);
 extern jnode *jnew(void);
-extern void jnode_set_type(jnode *, jnode_type);
 extern jnode *jget(reiser4_tree * tree, struct page *pg);
 extern jnode *jfind(struct page *pg);
 extern jnode *jlook(reiser4_tree *, oid_t objectid, unsigned long index);
@@ -259,8 +258,6 @@ extern int flush_pos_leaf_relocate(flush_position * pos);
 extern int jnode_check_flushprepped(jnode * node);
 extern int znode_check_flushprepped(znode * node);
 
-extern void jnode_set_type(jnode * node, jnode_type type);
-
 /* FIXME-VS: these are used in plugin/item/extent.c */
 
 /* does extent_get_block have to be called */
@@ -270,9 +267,6 @@ extern void jnode_set_type(jnode * node, jnode_type type);
    hole), or zinit_new was called */
 #define jnode_created(node)        JF_ISSET (node, JNODE_CREATED)
 #define jnode_set_created(node)    JF_SET (node, JNODE_CREATED)
-/* similar to buffer_uptodate */
-#define jnode_loaded(node)     JF_ISSET (node, JNODE_LOADED)
-#define jnode_set_loaded(node) JF_SET (node, JNODE_LOADED)
 
 /* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
    doesn't allow overloading of const prototypes. */
@@ -399,8 +393,6 @@ extern void jrelse_nolock(jnode * node);
 extern jnode *alloc_io_head(const reiser4_block_nr * block);
 extern void drop_io_head(jnode * node);
 
-extern int prune_jcache(int goal, int to_scan);
-
 static inline reiser4_tree *
 jnode_get_tree(const jnode * node)
 {
@@ -441,6 +433,8 @@ jnode_get_type(const jnode * node)
 	/* FIXME-NIKITA atomicity? */
 	return mask_to_type[(node->state & state_mask) >> JNODE_TYPE_1];
 }
+
+extern void jnode_set_type(jnode * node, jnode_type type);
 
 /* returns true if node is a znode */
 static inline int
