@@ -238,18 +238,20 @@ check_block_counters(const struct super_block *super)
 
 	sum = reiser4_grabbed_blocks(super) + reiser4_free_blocks(super) +
 	    	reiser4_data_blocks(super) + reiser4_fake_allocated(super) +
-		reiser4_fake_allocated_unformatted(super) + flush_reserved(super);
+		reiser4_fake_allocated_unformatted(super) + flush_reserved(super) +
+		reiser4_clustered_blocks(super);
 	if (reiser4_block_count(super) != sum) {
 		printk("super block counters: "
 		       "used %llu, free %llu, "
 		       "grabbed %llu, fake allocated (formatetd %llu, unformatted %llu), "
-		       "reserved %llu, sum %llu, must be (block count) %llu\n",
+		       "reserved %llu, clustered %llu, sum %llu, must be (block count) %llu\n",
 		       reiser4_data_blocks(super),
 		       reiser4_free_blocks(super),
 		       reiser4_grabbed_blocks(super),
 		       reiser4_fake_allocated(super),
 		       reiser4_fake_allocated_unformatted(super),
 		       flush_reserved(super),
+		       reiser4_clustered_blocks(super),
 		       sum, reiser4_block_count(super));
 		return 0;
 	}
@@ -263,7 +265,7 @@ print_block_counters(const char *prefix,
 {
 	if (super == NULL)
 		super = reiser4_get_current_sb();
-	printk("%s:\tsuper: G: %llu, F: %llu, D: %llu, U: %llu + %llu, R: %llu, T: %llu\n",
+	printk("%s:\tsuper: G: %llu, F: %llu, D: %llu, U: %llu + %llu, R: %llu, C: %llu, T: %llu\n",
 	       prefix,
 	       reiser4_grabbed_blocks(super),
 	       reiser4_free_blocks(super),
@@ -271,6 +273,7 @@ print_block_counters(const char *prefix,
 	       reiser4_fake_allocated(super),
 	       reiser4_fake_allocated_unformatted(super),
 	       flush_reserved(super),
+	       reiser4_clustered_blocks(super),
 	       reiser4_block_count(super));
 	printk("\tcontext: G: %llu",
 	       get_current_context()->grabbed_blocks);
