@@ -12,11 +12,11 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static error_t reiserfs_stat40_confirm(reiserfs_stat40_base_t *stat) {
+static error_t stat40_confirm(stat40_base_t *stat) {
     return 0;
 }
 
-static error_t reiserfs_stat40_create(reiserfs_stat40_base_t *stat, 
+static error_t stat40_create(stat40_base_t *stat, 
     reiserfs_item_info_t *info) 
 {
     reiserfs_stat_info_t *stat_info;
@@ -36,29 +36,29 @@ static error_t reiserfs_stat40_create(reiserfs_stat40_base_t *stat,
     return 0;
 }
 
-static void reiserfs_stat40_estimate(reiserfs_item_info_t *info, 
+static void stat40_estimate(reiserfs_item_info_t *info, 
     reiserfs_item_coord_t *coord) 
 {
     aal_assert("vpf-074", info != NULL, return);
 
     /* Should calculate extentions size also */
-    info->length = sizeof(reiserfs_stat40_base_t);
+    info->length = sizeof(stat40_base_t);
 }
 
-static error_t reiserfs_stat40_check(reiserfs_stat40_base_t *stat) {
+static error_t stat40_check(stat40_base_t *stat) {
     return 0;
 }
 
-static void reiserfs_stat40_print(reiserfs_stat40_base_t *stat, char *buff, uint16_t n) {
+static void stat40_print(stat40_base_t *stat, char *buff, uint16_t n) {
     aal_assert("umka-546", stat != NULL, return);
     aal_assert("umka-547", buff != NULL, return);
 }
 
-static uint32_t reiserfs_stat40_minsize(void) {
-    return sizeof(reiserfs_stat40_base_t);
+static uint32_t stat40_minsize(void) {
+    return sizeof(stat40_base_t);
 }
 
-static int reiserfs_stat40_internal(void) {
+static int stat40_internal(void) {
     return 0;
 }
 
@@ -75,17 +75,17 @@ static reiserfs_plugin_t stat40_plugin = {
 	.common = {
 	    .type = STAT_ITEM,
 	    
-	    .create = (error_t (*)(void *, void *))reiserfs_stat40_create,
-	    .confirm = (error_t (*)(void *))reiserfs_stat40_confirm,
-	    .check = (error_t (*)(void *))reiserfs_stat40_check,
-	    .print = (void (*)(void *, char *, uint16_t))reiserfs_stat40_print,
-	    .estimate = (void (*)(void *, void *))reiserfs_stat40_estimate,
-	    .minsize = (uint32_t (*)(void))reiserfs_stat40_minsize,
-	    .internal = (int (*)(void))reiserfs_stat40_internal,
+	    .create = (error_t (*)(void *, void *))stat40_create,
+	    .confirm = (error_t (*)(void *))stat40_confirm,
+	    .check = (error_t (*)(void *))stat40_check,
+	    .print = (void (*)(void *, char *, uint16_t))stat40_print,
+	    .estimate = (void (*)(void *, void *))stat40_estimate,
+	    .minsize = (uint32_t (*)(void))stat40_minsize,
+	    .internal = (int (*)(void))stat40_internal,
 
 	    .lookup = NULL,
 	    .unit_add = NULL,
-	    .unit_count = NULL,
+	    .units_count = NULL,
 	    .unit_remove = NULL
 	},
 	.specific = {
@@ -94,10 +94,10 @@ static reiserfs_plugin_t stat40_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_stat40_entry(reiserfs_plugin_factory_t *f) {
+reiserfs_plugin_t *stat40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &stat40_plugin;
 }
 
-libreiserfs_plugins_register(reiserfs_stat40_entry);
+libreiserfs_plugins_register(stat40_entry);
 
