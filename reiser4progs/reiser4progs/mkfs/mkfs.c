@@ -67,7 +67,6 @@ static void mkfs_print_usage(void) {
 	"  -p | --profile                  profile to be used\n"
 	"  -k | --known-profiles           prints known profiles\n"
 	"  -b N | --block-size=N           block size (1024, 2048, 4096...)\n"
-	"  -f FORMAT | --format=FORMAT     reiserfs version (3.5, 3.6, 4.0)\n"
 	"  -l LABEL | --label=LABEL        volume label\n"
 	"  -d UUID | --uuid=UUID           sets universally unique identifier\n");
 }
@@ -88,7 +87,6 @@ int main(int argc, char *argv[]) {
 	{"usage", no_argument, NULL, 'u'},
 	{"profile", no_argument, NULL, 'p'},
 	{"block-size", required_argument, NULL, 'b'},
-	{"format", required_argument, NULL, 'f'},
 	{"label", required_argument, NULL, 'l'},
 	{"uuid", required_argument, NULL, 'i'},
 	{0, 0, 0, 0}
@@ -102,7 +100,7 @@ int main(int argc, char *argv[]) {
     memset(uuid, 0, sizeof(uuid));
     memset(label, 0, sizeof(label));
     
-    while ((c = getopt_long_only(argc, argv, "uvp:kb:f:i:l:", long_options, 
+    while ((c = getopt_long_only(argc, argv, "uvp:kb:i:l:", long_options, 
 	(int *)0)) != EOF) 
     {
 	switch (c) {
@@ -132,14 +130,6 @@ int main(int argc, char *argv[]) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, 
 			"Invalid block size %u. It must power of two.", (uint16_t)blocksize);
 		    return 0xfe;	
-		}
-		break;
-	    }
-	    case 'f': {
-		if (strncmp(optarg, "4.0", 3)) {
-		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-			"Sorry, at the moment only 4.0 format is supported.");
-		    return 0xfe;
 		}
 		break;
 	    }
