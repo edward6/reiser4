@@ -1189,10 +1189,11 @@ found:
 	return 0;
 }
 
-/* calls jnode_flush for current atom if it exists; if not, just take another atom and call
-   jnode_flush() for him  
-
-Is using the current atom the right thing when called from balance_dirty_pages()?  Why? What is the advantage of the current atom over, say, the oldest atom.  */
+/* Calls jnode_flush for current atom if it exists; if not, just take another
+   atom and call jnode_flush() for him.  If current transaction handle has
+   already assigned atom (current atom) we have to close current transaction
+   prior to switch to another atom or do something with current atom. This
+   code tries to flush current atom. */
 int
 flush_some_atom(long *nr_submitted, int flags)
 {
