@@ -459,6 +459,11 @@ struct reiser4_context {
 	struct super_block   *super;
 
 	/**
+	 * per-thread grabbed (for further allocation) blocks counter
+	 */
+	reiser4_block_nr      grabbed_blocks;
+
+	/**
 	 * per-thread tracing flags. Use reiser4_trace_flags enum to set
 	 * bits in it.
 	 */

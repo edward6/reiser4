@@ -677,8 +677,7 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
  *
  */
 /* Audited by: umka (2002.06.16) */
-void done_context( reiser4_context *context UNUSED_ARG /* context being
-							* released */ )
+void done_context( reiser4_context *context /* context being released */ )
 {
 	reiser4_context *parent;
 	assert( "nikita-860", context != NULL );
@@ -687,6 +686,12 @@ void done_context( reiser4_context *context UNUSED_ARG /* context being
 	assert( "nikita-2093", parent == parent -> parent );
 	assert( "nikita-859", parent -> magic == context_magic );
 	assert( "vs-646", current -> journal_info == parent );
+
+	if (context->grabbed_blocks != 0) {
+		warning( "zam-520", "grabbed blocks were not freed, free them now");
+		reiser4_release_all_grabbed_space();
+	}
+
 	/* add more checks here */
 
 	if( parent == context ) {
