@@ -416,14 +416,6 @@ static void wander_end_io (struct bio * bio)
 			SetPageError (pg);
 
 		end_page_writeback (pg);
-
-		/*if (! TestClearPageWriteback (pg)) {BUG ();}*/
-
-		/* FIXME: JMACD->ZAM: This isn't right, but I don't know how to fix it
-		 * either.  Still working on flush_finish/flush_bio_write */
-		/* if (clear_dirty) ClearPageDirty (pg); */
-
-		/*unlock_page (pg);*/
 		page_cache_release (pg);
 	}
 
