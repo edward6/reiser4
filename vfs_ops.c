@@ -1492,10 +1492,11 @@ init_reiser4(void)
 })
 
 	int result;
-
+	/*
 	printk(KERN_INFO
 	       "Loading Reiser4. "
 	       "See www.namesys.com for a description of Reiser4.\n");
+	*/
 	init_stage = INIT_NONE;
 
 	CHECK_INIT_RESULT(init_inodecache());
