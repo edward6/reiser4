@@ -524,6 +524,7 @@ int extent_create_hook (const coord_t * coord, void * arg)
 	coord_t * child_coord;
 	znode * node;
 	reiser4_key key;
+	reiser4_tree *tree;
 
 	if (!arg)
 		return 0;
@@ -547,18 +548,19 @@ int extent_create_hook (const coord_t * coord, void * arg)
 	/* FIXME: NIKITA->VS: Nobody knows if this assertion is right or wrong. */
 	/*assert ("vs-413", znode_is_write_locked (node));*/
 
-	UNDER_SPIN_VOID (dk, current_tree,
+	tree = znode_get_tree (node);
+	UNDER_SPIN_VOID (dk, tree,
 			 *znode_get_rd_key (node) = *item_key_by_coord (coord, &key));
 
 	/* break sibling links */
-	spin_lock_tree (current_tree);
+	spin_lock_tree (tree);
 	if (ZF_ISSET (node, JNODE_RIGHT_CONNECTED) && node->right) {
 		/*ZF_CLR (node->right, JNODE_LEFT_CONNECTED);*/
 		node->right->left = NULL;
 		/*ZF_CLR (node, JNODE_RIGHT_CONNECTED);*/
 		node->right = NULL;
 	}
-	spin_unlock_tree (current_tree);
+	spin_unlock_tree (tree);
 	return 0;
 }
 
@@ -2151,10 +2153,12 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 	assert ("vs-750", ((offset & (blocksize - 1)) == 0));
 
 	for (i = 0; i < (int)count; i ++, first ++) {
+		reiser4_tree *tree;
+
 		ind = offset >> PAGE_CACHE_SHIFT;
 
-		j = UNDER_SPIN (tree, current_tree,
-				jlook (current_tree, inode->i_mapping, ind));
+		tree = current_tree;
+		j = UNDER_SPIN (tree, tree, jlook (tree, inode->i_mapping, ind));
 		if (!j) {
 			info ("jnode not found. ino %lu, index %lu, nlink %u, size %lli\n",
 			      inode->i_ino, ind, inode->i_nlink, inode->i_size);
@@ -2718,6 +2722,7 @@ static int paste_unallocated_extent (const coord_t * un_extent, lock_handle * lh
 	tap_init (&watch, &coord_after, &lh_after, ZNODE_WRITE_LOCK);
 	tap_monitor (&watch);
 
+	DISABLE_NODE_CHECK;
 	result = insert_into_item (&coord, 0/*lh*/, key,
 				   init_new_extent (&data, &new_ext, 1),
 				   COPI_DONT_SHIFT_LEFT);
@@ -2734,6 +2739,8 @@ static int paste_unallocated_extent (const coord_t * un_extent, lock_handle * lh
 		extent_set_width (ext, alloc_width);
 		znode_set_dirty (coord_after.node);
 	}
+	ENABLE_NODE_CHECK;
+	node_check(watch.coord->node, REISER4_NODE_DKEYS | REISER4_NODE_PANIC);
 	tap_done (&watch);
 	return result;
 }
@@ -2895,10 +2902,10 @@ static int no_left_neighbor (znode * node)
 {
 	int result;
 
-	spin_lock_tree (current_tree);
+	spin_lock_tree (znode_get_tree (node));
 	result = (znode_is_left_connected (node) &&
 		  node->left == 0);
-	spin_unlock_tree (current_tree);
+	spin_unlock_tree (znode_get_tree (node));
 	return result;
 }
 #endif

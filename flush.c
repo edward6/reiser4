@@ -2110,7 +2110,8 @@ static int squeeze_right_non_twig (znode *left, znode *right)
 	}
 
 
-	UNDER_SPIN_VOID (dk, current_tree, update_znode_dkeys (left, right));
+	UNDER_SPIN_VOID (dk, znode_get_tree (left), 
+			 update_znode_dkeys (left, right));
 
 	if (ret > 0) {
 		/* Carry is called to update delimiting key or to remove empty
@@ -2272,9 +2273,9 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	assert ("nikita-2436", znode_is_write_locked (right));
 
 	if (REISER4_DEBUG) {
-		spin_lock_tree (current_tree);
+		spin_lock_tree (znode_get_tree (left));
 		assert ("nikita-2434", left->right == right);
-		spin_unlock_tree (current_tree);
+		spin_unlock_tree (znode_get_tree (left));
 	}
 
 	coord_init_first_unit (&coord, right);
@@ -2311,7 +2312,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	if (moved) {
 		znode_set_dirty (left);
 		znode_set_dirty (right);
-		UNDER_SPIN_VOID (dk, current_tree,
+		UNDER_SPIN_VOID (dk, znode_get_tree (left),
 				 update_znode_dkeys (left, right));
 
 		ON_STATS (todo.level_no = znode_get_level (left) + 1);
@@ -2491,7 +2492,8 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 		znode_set_dirty (parent_coord->node);
 
 	} else {
-		znode *fake = zget (current_tree, &FAKE_TREE_ADDR, NULL, 0 , GFP_KERNEL);
+		reiser4_tree *tree = znode_get_tree (node);
+		znode *fake = zget (tree, &FAKE_TREE_ADDR, NULL, 0 , GFP_KERNEL);
 
 		if (IS_ERR (fake)) { ret = PTR_ERR(fake); goto exit; }
 
@@ -2505,8 +2507,7 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 			goto exit;
 		}
 
-		UNDER_SPIN_VOID (tree, current_tree,
-				 current_tree->root_block = blk);
+		UNDER_SPIN_VOID (tree, tree, tree->root_block = blk);
 
 		znode_set_dirty(fake);
 
@@ -2587,7 +2588,7 @@ static int jnode_lock_parent_coord (jnode *node,
 			return ret;
 		}
 
-		if ((ret = coord_by_key (current_tree, & key, coord, parent_lh, parent_mode, FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL, CBK_UNIQUE)) != CBK_COORD_FOUND) {
+		if ((ret = coord_by_key (jnode_get_tree (node), & key, coord, parent_lh, parent_mode, FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL, CBK_UNIQUE)) != CBK_COORD_FOUND) {
 			return ret;
 		}
 
@@ -2634,12 +2635,12 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
 
 	assert ("jmacd-6334", znode_is_connected (node));
 
-	spin_lock_tree (current_tree);
+	spin_lock_tree (znode_get_tree (node));
 	neighbor = side == RIGHT_SIDE ? node->right : node->left;
 	if (neighbor != NULL) {
 		zref (neighbor);
 	}
-	spin_unlock_tree (current_tree);
+	spin_unlock_tree (znode_get_tree (node));
 
 	if (neighbor == NULL) {
 		return -ENAVAIL;
@@ -2679,7 +2680,7 @@ static int znode_same_parents (znode *a, znode *b)
 	assert ("jmacd-7011", znode_is_write_locked (a));
 	assert ("jmacd-7012", znode_is_write_locked (b));
 
-	return UNDER_SPIN (tree, current_tree, 
+	return UNDER_SPIN (tree, znode_get_tree (a),
 			   (znode_parent_nolock (a) == znode_parent_nolock (b)));
 }
 
@@ -2938,7 +2939,7 @@ static int flush_scan_formatted (flush_scan *scan)
 		}
 
 		/* Lock the tree, check-for and reference the next sibling. */
-		spin_lock_tree (current_tree);
+		spin_lock_tree (znode_get_tree (node));
 
 		/* It may be that a node is inserted or removed between a node and its
 		 * left sibling while the tree lock is released, but the flush-scan count
@@ -2948,7 +2949,7 @@ static int flush_scan_formatted (flush_scan *scan)
 			zref (neighbor);
 		}
 
-		spin_unlock_tree (current_tree);
+		spin_unlock_tree (znode_get_tree (node));
 
 		/* If neighbor is NULL at the leaf level, need to check for an unformatted
 		 * sibling using the parent--break in any case. */

@@ -55,11 +55,14 @@ static carry_node *find_left_neighbor( carry_op *op /* node to find left
 	 * was found.
 	 */
 	if( left != NULL ) {
-		spin_lock_tree( current_tree );
+		reiser4_tree *tree;
+
+		tree = znode_get_tree( node -> real_node );
+		spin_lock_tree( tree );
 		if( node -> real_node -> left != left -> real_node ) {
 			left = NULL;
 		}
-		spin_unlock_tree( current_tree );
+		spin_unlock_tree( tree );
 		if( left != NULL ) {
 			reiser4_stat_level_add( doing, carry_left_in_carry );
 			return left;
@@ -148,11 +151,14 @@ static carry_node *find_right_neighbor( carry_op *op /* node to find right
 	 * neighbor was found.
 	 */
 	if( right != NULL ) {
-		spin_lock_tree( current_tree );
+		reiser4_tree *tree;
+
+		tree = znode_get_tree( node -> real_node );
+		spin_lock_tree( tree );
 		if( node -> real_node -> right != right -> real_node ) {
 			right = NULL;
 		}
-		spin_unlock_tree( current_tree );
+		spin_unlock_tree( tree );
 		if( right != NULL ) {
 			reiser4_stat_level_add( doing, carry_right_in_carry );
 			return right;
@@ -784,11 +790,11 @@ static int insert_paste_common( carry_op *op /* carry operation being
 				return result;
 		}
 
-		spin_lock_dk( current_tree );
+		spin_lock_dk( znode_get_tree( child ) );
 		op -> u.insert.d -> key = 
 			leftmost_key_in_node( child, znode_get_ld_key( child ) );
 		op -> u.insert.d -> data -> arg = op -> u.insert.brother;
-		spin_unlock_dk( current_tree );
+		spin_unlock_dk( znode_get_tree( child ) );
 	} else {
 		assert( "vs-243", op -> u.insert.d -> coord != NULL );
 		op -> u.insert.d -> coord -> node = op -> node -> real_node;
@@ -1294,6 +1300,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	znode      *parent;
 	znode      *child;
 	carry_plugin_info info;
+	reiser4_tree *tree;
 
 	assert( "nikita-893", op != NULL );
 	assert( "nikita-894", todo != NULL );
@@ -1307,7 +1314,8 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	parent = op -> node -> real_node;
 	child  = op -> u.delete.child ?
 		op -> u.delete.child -> real_node : op -> node -> node;
-	spin_lock_tree( current_tree );
+	tree = znode_get_tree( child );
+	spin_lock_tree( tree );
 	if( znode_parent( child ) != parent ) {
 		/*
 		 * FIXME-NIKITA add stat counter for this.
@@ -1315,7 +1323,7 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 		parent = znode_parent( child );
 		assert( "nikita-2581", find_carry_node( doing, parent ) );
 	}
-	spin_unlock_tree( current_tree );
+	spin_unlock_tree( tree );
 
 	assert( "nikita-1213", znode_get_level( parent ) > LEAF_LEVEL );
 
@@ -1329,12 +1337,12 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	    ( znode_get_level( parent ) <= REISER4_MIN_TREE_HEIGHT ) &&
 	    ( node_num_items( parent ) == 1 ) ) {
 		/* Delimiting key manipulations. */
-		spin_lock_dk( current_tree );
+		spin_lock_dk( tree );
 		*znode_get_ld_key( child ) = *znode_get_ld_key( parent ) = 
 			*min_key();
 		*znode_get_rd_key( child ) = *znode_get_rd_key( parent ) = 
 			*max_key();
-		spin_unlock_dk( current_tree );
+		spin_unlock_dk( tree );
 
 		/* @child escaped imminent death! */
 		ZF_CLR( child, JNODE_HEARD_BANSHEE );
@@ -1711,7 +1719,8 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	insert_extent -> u.insert.d = op -> u.extent.d;
 	assert( "nikita-1719", op -> u.extent.d -> key != NULL );
 	insert_extent -> u.insert.d -> data -> arg = op -> u.extent.d -> coord;
-	insert_extent -> u.insert.flags = current_tree -> carry.new_extent_flags;
+	insert_extent -> u.insert.flags = 
+		znode_get_tree( node ) -> carry.new_extent_flags;
 	return 0;
 }
 
@@ -1784,7 +1793,7 @@ static int update_delimiting_key( znode *parent /* node key is updated
 	if( !ZF_ISSET( right, JNODE_HEARD_BANSHEE ) )
 		leftmost_key_in_node( right, &ldkey );
 	else
-		UNDER_SPIN_VOID( dk, current_tree,
+		UNDER_SPIN_VOID( dk, znode_get_tree( parent ),
 				 ldkey = *znode_get_rd_key( right ) );
 	node_plugin_by_node( parent ) -> update_item_key( &right_pos, 
 							  &ldkey, &info );
@@ -1811,6 +1820,7 @@ static int carry_update( carry_op *op /* operation to be performed */,
 	carry_node *lchild;
 	carry_node *rchild;
 	const char *error_msg;
+	reiser4_tree *tree;
 
 	assert( "nikita-902", op != NULL );
 	assert( "nikita-903", todo != NULL );
@@ -1821,12 +1831,6 @@ static int carry_update( carry_op *op /* operation to be performed */,
 	lchild = op -> u.update.left;
 	rchild = op -> node;
 
-	if( rchild != NULL ) {
-		assert( "nikita-1000", rchild -> parent );
-		assert( "nikita-1002", !rchild -> left );
-		right = rchild -> real_node;
-	} else
-		right = NULL;
 	if( lchild != NULL ) {
 		assert( "nikita-1001", lchild -> parent );
 		assert( "nikita-1003", !lchild -> left );
@@ -1834,28 +1838,36 @@ static int carry_update( carry_op *op /* operation to be performed */,
 	} else
 		left = NULL;
 
-	spin_lock_tree( current_tree );
-	assert( "nikita-1190", znode_parent( rchild -> node ) != NULL );
-	if( znode_parent( rchild -> node ) != right ) {
-		/*
-		 * parent node was split, and pointer to @rchild was
-		 * inserted/moved into new node. Wonders of balkancing (sic.).
-		 */
-		reiser4_stat_level_add( doing, half_split_race );
-		right = znode_parent( rchild -> node );
+	tree = znode_get_tree( rchild -> node );
+	spin_lock_tree( tree );
+	right = znode_parent( rchild -> node );
+	if( REISER4_STATS ) {
+		znode  *old_right;
+		if( rchild != NULL ) {
+			assert( "nikita-1000", rchild -> parent );
+			assert( "nikita-1002", !rchild -> left );
+			old_right = rchild -> real_node;
+		} else
+			old_right = NULL;
+		if( znode_parent( rchild -> node ) != old_right )
+			/*
+			 * parent node was split, and pointer to @rchild was
+			 * inserted/moved into new node. Wonders of balkancing
+			 * (sic.).
+			 */
+			reiser4_stat_level_add( doing, half_split_race );
 	}
-	spin_unlock_tree( current_tree );
+	spin_unlock_tree( tree );
 
-	if( right == NULL ) {
+	if( right != NULL ) {
+		result = update_delimiting_key( right, 
+						lchild ? lchild -> node : NULL,
+						rchild -> node,
+						doing, todo, &error_msg );
+	} else {
 		error_msg = "Cannot find node to update key in";
-		return -EIO;	
+		result = -EIO;
 	}
-	
-	result = update_delimiting_key( right, 
-					lchild ? lchild -> node : NULL,
-					rchild -> node,
-					doing, todo, &error_msg );
-
 	/*
 	 * operation will be reposted to the next level by the
 	 * ->update_item_key() method of node plugin, if necessary.

@@ -62,7 +62,7 @@ static reiser4_key * get_next_item_key (const coord_t * coord,
 {
 	if (coord->item_pos == node_num_items (coord->node) - 1) {
 		/* get key of next item if it is in right neighbor */
-		UNDER_SPIN_VOID (dk, current_tree,
+		UNDER_SPIN_VOID (dk, znode_get_tree (coord->node),
 				 *next_key = *znode_get_rd_key (coord->node));
 	} else {
 		/* get key of next item if it is in the same node */
@@ -89,6 +89,7 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 				   * that item */
 		next_item_key; /* key of item next to that item or right
 				* delimiting key */
+	reiser4_tree *tree;
 
 
 	/*
@@ -96,7 +97,8 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	 * does: left delimiting key <= key <= right delimiting key. We need
 	 * here: left_delimiting key <= key < right delimiting key
 	 */
-	result = UNDER_SPIN (dk, current_tree,
+	tree = znode_get_tree (coord->node);
+	result = UNDER_SPIN (dk, tree,
 			     keyle (znode_get_ld_key (coord->node), key) &&
 			     keylt (key, znode_get_rd_key (coord->node)));
 	
@@ -107,9 +109,9 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 			 * unformatted node */
 			assert ("vs-910", znode_get_level (coord->node) == LEAF_LEVEL);
 			assert ("vs-684", UNDER_SPIN 
-				(tree, current_tree,
+				(tree, tree,
 				 znode_is_left_connected (coord->node) && coord->node->left == 0));
-			if (UNDER_SPIN (dk, current_tree, keylt (key, znode_get_ld_key (coord->node))))
+			if (UNDER_SPIN (dk, tree, keylt (key, znode_get_ld_key (coord->node))))
 				return 1;
 		}
 		return 0;

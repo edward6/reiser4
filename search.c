@@ -207,7 +207,7 @@ void cbk_cache_add( const znode *node /* node to add to the cache */ )
 
 	assert( "nikita-352", node != NULL );
 
-	cache = &current_tree -> cbk_cache;
+	cache = &znode_get_tree( node ) -> cbk_cache;
 	assert( "nikita-2472", cbk_cache_invariant( cache ) );
 	cbk_cache_lock( cache );
 	/* find slot to update/add */
@@ -714,10 +714,10 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 		assert( "nikita-1716", node != NULL );
 		assert( "nikita-1758", key != NULL );
 			
-		spin_lock_dk( current_tree );
+		spin_lock_dk( znode_get_tree( node ) );
 		assert( "nikita-1759", znode_contains_key( node, key ) );
 		ld = keyeq( znode_get_ld_key( node ), key );
-		spin_unlock_dk( current_tree );
+		spin_unlock_dk( znode_get_tree( node ) );
 		return ld;
 	}
 
@@ -1041,7 +1041,7 @@ static int znode_contains_key_strict( znode *node /* node to check key
 	assert( "nikita-1760", node != NULL );
 	assert( "nikita-1722", key != NULL );
 
-	return UNDER_SPIN( dk, current_tree, 
+	return UNDER_SPIN( dk, znode_get_tree( node ),
 			   keylt( znode_get_ld_key( node ), key ) &&
 			   keylt( key, znode_get_rd_key( node ) ) );
 }
@@ -1259,7 +1259,7 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
 	coord_t neighbor;
 	
 	assert( "nikita-1484", parent != NULL );
-	assert( "nikita-1485", spin_dk_is_locked( current_tree ) );
+	assert( "nikita-1485", spin_dk_is_locked( znode_get_tree( parent ) ) );
 	
 	coord_dup( &neighbor, parent_coord );
 
@@ -1294,7 +1294,7 @@ static int prepare_delimiting_keys( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-1095", h != NULL );
 
-	return UNDER_SPIN( dk, current_tree, 
+	return UNDER_SPIN( dk, znode_get_tree( h -> active_lh -> node ),
 			   find_child_delimiting_keys( h -> active_lh -> node, 
 						       h -> coord, 
 						       &h -> ld_key, 
@@ -1358,10 +1358,10 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 			result = LOOKUP_DONE;
 		} else if( h -> result == NS_FOUND ) {
 			reiser4_stat_tree_add( left_nonuniq_found );
-			spin_lock_dk( current_tree );
+			spin_lock_dk( znode_get_tree( neighbor ) );
 			h -> rd_key = *znode_get_ld_key( node );
 			leftmost_key_in_node( neighbor, &h -> ld_key );
-			spin_unlock_dk( current_tree );
+			spin_unlock_dk( znode_get_tree( neighbor ) );
 			h -> block = *znode_get_block( neighbor );
 			/* 
 			 * clear coord -> node so that cbk_level_lookup()
@@ -1370,7 +1370,7 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 			 * Parent hint was set up by
 			 * reiser4_get_left_neighbor()
 			 */
-			UNDER_SPIN_VOID( tree, current_tree,
+			UNDER_SPIN_VOID( tree, znode_get_tree( neighbor ),
 					 h -> coord -> node = NULL );
 			result = LOOKUP_CONT;
 		} else {
@@ -1474,10 +1474,10 @@ static void hput( cbk_handle *h /* search handle */ )
 static void setup_delimiting_keys( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-1088", h != NULL );
-	spin_lock_dk( current_tree );
+	spin_lock_dk( znode_get_tree( h -> active_lh -> node ) );
 	*znode_get_ld_key( h -> active_lh -> node ) = h -> ld_key;
 	*znode_get_rd_key( h -> active_lh -> node ) = h -> rd_key;
-	spin_unlock_dk( current_tree );
+	spin_unlock_dk( znode_get_tree( h -> active_lh -> node ) );
 }
 
 static int block_nr_is_correct( reiser4_block_nr *block UNUSED_ARG /* block

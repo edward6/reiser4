@@ -41,17 +41,17 @@ typedef enum {
 
 struct coord {
 	/* node in a tree */
-	znode        *node;
+	/*  0 */ znode        *node;
 
 	/* position of item within node */
-	pos_in_node item_pos;
+	/*  4 */ pos_in_node   item_pos;
 	/* position of unit within item */
-	pos_in_item   unit_pos;
+	/*  8 */ pos_in_item   unit_pos;
 	/** 
 	 * position of coord w.r.t. to neighboring items and/or units. 
 	 * Values are taken from &between_enum above.
 	 */
-	between_enum  between;
+	/* 12 */ between_enum  between;
 	/*
 	 * optimization: plugin of item is stored in coord_t. Until this was
 	 * implemented, item_plugin_by_coord() was major CPU consumer. ->iplug
@@ -59,7 +59,8 @@ struct coord {
 	 * and all such modifications are funneled through coord_*_item_pos()
 	 * functions below.
 	 */
-	item_plugin  *iplug;
+	/* 16 */ item_plugin  *iplug;
+	/* 20 */
 };
 
 #define MUTABLE_POS( c ) ( *( pos_in_node * )( &( c ) -> item_pos ) )

@@ -90,7 +90,7 @@ static znode *znode_at( const coord_t *item /* coord of item */,
 			znode *parent /* parent node */, int incore_p )
 {
 	/* Take DK lock, as required by child_znode. */
-	return UNDER_SPIN( dk, current_tree, 
+	return UNDER_SPIN( dk, znode_get_tree( item -> node ),
 			   child_znode( item, parent, incore_p, 0 ) );
 }
 
@@ -147,7 +147,7 @@ int internal_utmost_child ( const coord_t  *coord,
 
 	assert ("jmacd-2059", childp != NULL); 
 
-	child = zlook (current_tree, & block);
+	child = zlook (znode_get_tree (coord->node), & block);
 
 	if (IS_ERR (child)) {
 		return PTR_ERR (child);
@@ -207,8 +207,11 @@ int internal_create_hook( const coord_t *item /* coord of item */,
 	child = znode_at( item, item -> node, 0 );
 	if( ! IS_ERR( child ) ) {
 		int result = 0;
-		spin_lock_dk( current_tree );
-		spin_lock_tree( current_tree );
+		reiser4_tree *tree;
+
+		tree = znode_get_tree( item -> node );
+		spin_lock_dk( tree );
+		spin_lock_tree( tree );
 		assert( "nikita-1400", 
 			( child -> in_parent.node == NULL ) ||
 			( znode_above_root( child -> in_parent.node ) ) );
@@ -224,8 +227,8 @@ int internal_create_hook( const coord_t *item /* coord of item */,
 			  atomic_read( &item -> node -> c_count ),
 			  *znode_get_block( child ) );
 
-		spin_unlock_tree( current_tree );
-		spin_unlock_dk( current_tree );
+		spin_unlock_tree( tree );
+		spin_unlock_dk( tree );
 		zput( child );
 		return result;
 	} else
@@ -268,7 +271,7 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
 		assert( "nikita-1397", znode_is_write_locked( child ) );
 		assert( "nikita-1398", atomic_read( &child -> c_count ) == 0 );
 		assert( "nikita-2546", ZF_ISSET( child, JNODE_HEARD_BANSHEE ) );
-		UNDER_SPIN_VOID( tree, current_tree,
+		UNDER_SPIN_VOID( tree, znode_get_tree( item -> node ),
 				 coord_init_zero( &child -> in_parent ) );
 		del_c_ref( item -> node );
 		trace_on( TRACE_ZWEB, "kill: %llx: %i [%llx]\n",
@@ -312,7 +315,7 @@ int internal_shift_hook( const coord_t *item /* coord of item */,
 
 	new_node = item -> node;
 	assert( "nikita-2132", new_node != old_node );
-	tree = current_tree;
+	tree = znode_get_tree( item -> node );
 	child = UNDER_SPIN( dk, tree, child_znode( item, old_node, 1, 1 ) );
 	if( child == NULL )
 		return 0;

@@ -42,28 +42,28 @@ typedef struct {
 struct jnode
 {
 	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */
-	unsigned long/*__u32*/        state;
+	/*   0 */ unsigned long          state;
 
 	/* lock, protecting jnode's fields. */
-	spinlock_t   guard;
+	/*   4 */ spinlock_t             guard;
 
 	/**
 	 * counter of references to jnode's data. Pin data page(s) in
 	 * memory while this is greater than 0. Increased on jload().
 	 * Decreased on jrelse().
 	 */
-	atomic_t               d_count;
+	/*   8 */ atomic_t               d_count;
 
 	/**
 	 * counter of references to jnode itself. Increased on jref().
 	 * Decreased on jput().
 	 */
-	atomic_t               x_count;
+	/*  12 */ atomic_t               x_count;
 
 	/** the real blocknr (where io is going to/from) */
-	reiser4_block_nr blocknr;
+	/*  16 */ reiser4_block_nr       blocknr;
 
-	union {
+	/*  24 */ union {
 		/* znodes are hashed by block number */
 		reiser4_block_nr  z;
 		/* unformatted nodes are hashed by mapping plus offset */
@@ -73,24 +73,26 @@ struct jnode
 	/* 
 	 * pointer to jnode page. 
 	 */
-	struct page *pg;
+	/*  32 */ struct page           *pg;
 	/*
 	 * pointer to node itself. This is page_address(node->pg) when page is
 	 * attached to the jnode
 	 */
-	void        *data;
+	/*  36 */ void                  *data;
 
-	union {
+	/*  40 */ union {
 		/** pointers to maintain hash-table */
 		z_hash_link    z;
 		j_hash_link    j;
 	} link;
 
 	/* atom the block is in, if any */
-	txn_atom    *atom;
+	/*  44 */ txn_atom    *atom;
 
 	/* capture list */
-	capture_list_link capture_link;
+	/*  48 */ capture_list_link capture_link;
+	/*  52 */ reiser4_tree *tree;
+	/*  56 */
 #if REISER4_DEBUG
 	/** list of all jnodes for debugging purposes. */
 	struct list_head  jnodes;
@@ -209,7 +211,7 @@ extern jnode *jlook           (reiser4_tree *, struct address_space *mapping,
 extern jnode* jnode_by_page   (struct page* pg);
 extern jnode* jnode_of_page   (struct page* pg);
 extern jnode* page_next_jnode (jnode *node);
-extern void   jnode_init      (jnode *node);
+extern void   jnode_init      (jnode *node, reiser4_tree *tree);
 extern void   jnode_set_dirty (jnode *node);
 extern void   jnode_set_clean_nolock (jnode *node);
 extern void   jnode_set_clean (jnode *node);
@@ -396,11 +398,17 @@ extern int prune_jcache( int goal, int to_scan );
  */
 static inline void jrelse(jnode *node)
 {
-	assert( "zam-507", node != NULL );
-	assert( "zam-508", atomic_read( &node -> d_count ) > 0 );
+	assert ("zam-507", node != NULL);
+	assert ("zam-508", atomic_read (&node -> d_count) > 0);
 
 	UNDER_SPIN_VOID (jnode, node, jrelse_nolock(node));
 	jput (node);
+}
+
+static inline reiser4_tree *jnode_get_tree(const jnode *node)
+{
+	assert ("nikita-2691", node != NULL);
+	return node->tree;
 }
 
 extern void pin_jnode_data (jnode*);

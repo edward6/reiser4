@@ -676,16 +676,7 @@ int extent2tail (struct file * file)
 		
 		lock_page (page);
 
-		if (page->mapping != inode->i_mapping) {
-			/*
-			 * page was asynchronously removed from the page cache
-			 * while we were waiting for the lock. Re-try.
-			 */
-			unlock_page (page);
-			page_cache_release (page);
-			i --;
-			continue;
-		}
+		assert ("nikita-2689", page->mapping == inode->i_mapping);
 
 		/* cut part of file we have read */
 		set_key_offset (&from, (__u64)(i << PAGE_CACHE_SHIFT));
@@ -707,9 +698,13 @@ int extent2tail (struct file * file)
 			break;
 		}
 		/* release page, detach jnode if any */
-		if (PagePrivate (page)) {
-			page -> mapping -> a_ops -> invalidatepage( page, 0 );
+		result = page -> mapping -> a_ops -> invalidatepage( page, 0 );
+		if (result) {
+			unlock_page (page);
+			page_cache_release (page);
+			break;
 		}
+		assert ("nikita-2690", jnode_by_page (page) == NULL);
 		drop_page(page, NULL);
 		/*
 		 * release reference taken by read_cache_page() above

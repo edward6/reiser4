@@ -142,7 +142,7 @@ jnode_done_static (void)
 /* Initialize a jnode. */
 /* Audited by: umka (2002.06.13) */
 void
-jnode_init (jnode *node)
+jnode_init (jnode *node, reiser4_tree *tree)
 {
 	assert("umka-175", node != NULL);
 
@@ -152,11 +152,12 @@ jnode_init (jnode *node)
 	atomic_set (&node->x_count, 0);
 	spin_lock_init (& node->guard);
 	node->atom = NULL;
+	node->tree = tree;
 	capture_list_clean (node);
 
 #if REISER4_DEBUG
 	UNDER_SPIN_VOID 
-		(tree, current_tree,
+		(tree, tree,
 		 list_add (&node->jnodes, 
 			   &get_current_super_private()->all_jnodes));
 #endif
@@ -203,7 +204,7 @@ jnode * jnew (void)
 
 	if (jal == NULL) return NULL;
 
-	jnode_init (jal);
+	jnode_init (jal, current_tree);
 
 	/* FIXME: not a strictly correct, but should help in avoiding of
 	 * looking to missing znode-only fields */
@@ -737,7 +738,7 @@ int jnode_try_drop( jnode *node )
 
 	trace_on( TRACE_PCACHE, "trying to drop node: %p\n", node );
 
-	tree = current_tree;
+	tree = jnode_get_tree( node );
 	jplug = jnode_ops( node );
 
 	spin_lock_jnode( node );
@@ -786,7 +787,7 @@ void jput (jnode *node)
 				   atomic_read (& JZNODE (node)->c_count) >= 0));
 	ON_DEBUG_CONTEXT (-- lock_counters() -> x_refs);
 
-	tree = current_tree;
+	tree = jnode_get_tree (node);
 
 	if (atomic_dec_and_lock (& node->x_count, & tree->tree_lock)) {
 		int r_i_p;
@@ -832,7 +833,7 @@ int jdelete( jnode *node /* jnode to finish with */ )
 	page = jnode_lock_page( node );
 	assert( "nikita-2402", spin_jnode_is_locked( node ) );
 
-	tree = current_tree;
+	tree = jnode_get_tree( node );
 
 	spin_lock_tree( tree );
 	result = jplug -> is_busy( node );
@@ -915,7 +916,7 @@ int jdrop_in_tree( jnode *node, reiser4_tree *tree )
  */
 void jdrop (jnode * node)
 {
-	jdrop_in_tree (node, current_tree);
+	jdrop_in_tree (node, jnode_get_tree (node));
 }
 
 int jwait_io (jnode * node, int rw)
@@ -1210,7 +1211,7 @@ jnode * alloc_io_head (const reiser4_block_nr * block)
 	jnode * jal = jalloc();
 
 	if (jal != NULL) {
-		jnode_init      (jal);
+		jnode_init      (jal, current_tree);
 		jnode_set_type  (jal, JNODE_IO_HEAD);
 		jnode_set_block (jal, block);
 	}

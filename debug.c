@@ -369,7 +369,9 @@ void reiser4_print_stats()
 		      "\t track_lh:\t %lu\n"
 		      "\t sibling_search:\t %lu\n"
 		      "\t cbk_key_moved:\t %lu\n"
-		      "\t cbk_met_ghost:\t %lu\n",
+		      "\t cbk_met_ghost:\t %lu\n"
+		      "\t page_try_release:\t %lu\n"
+		      "\t page_releases:\t %lu\n",
 
 		      i + LEAF_LEVEL,
 
@@ -401,7 +403,9 @@ void reiser4_print_stats()
 		      s -> level[ i ].track_lh,
 		      s -> level[ i ].sibling_search,
 		      s -> level[ i ].cbk_key_moved,
-		      s -> level[ i ].cbk_met_ghost );
+		      s -> level[ i ].cbk_met_ghost,
+		      s -> level[ i ].page_try_release,
+		      s -> level[ i ].page_released );
 	}
 }
 #else

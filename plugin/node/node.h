@@ -98,11 +98,7 @@ pointers in the nodes that they point to.
 
 typedef enum { 
 	NS_FOUND = 0, 
-	NS_NOT_FOUND = -ENOENT, 
-	NS_IOERROR = -EIO	/* can this really result, or is the
-				   node read into cache (and any IO
-				   errors over with) before any node
-				   methods are called? */
+	NS_NOT_FOUND = -ENOENT
 } node_search_result;
 
 /**
@@ -148,8 +144,7 @@ typedef struct node_plugin {
 	size_t        ( *item_overhead )( const znode *node, flow_t *f );
 
 	/**
-	 * returns free space by looking into node (i.e., without using
-	 * znode->free_space).
+	 * returns free space by looking into node content
 	 */
 	size_t           ( *free_space )( znode *node );
 	/** search within the node for the one item which might
@@ -320,8 +315,6 @@ typedef struct common_node_header {
 	 * of a node.
 	 */
 	d16            plugin_id;
-	/** number of items */
-	d16            nr_items;
 } common_node_header;
 /* __REISER4_NODE_H__ */
 #endif

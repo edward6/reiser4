@@ -832,17 +832,19 @@ static int lock_carry_level( carry_level *level /* level to lock */ )
 static void sync_dkeys( carry_node *node /* node to update */, 
 			carry_level *doing UNUSED_ARG /* level @node is in */ )
 {
-	znode *spot;
-	reiser4_key pivot;
+	znode        *spot;
+	reiser4_key   pivot;
+	reiser4_tree *tree;
 
 	assert( "nikita-1610", node != NULL );
 	assert( "nikita-1611", doing != NULL );
 	ON_DEBUG_CONTEXT( assert( "nikita-1612", 
 				  lock_counters() -> spin_locked_dk == 0 ) );
 
-	spin_lock_dk( current_tree );
+	tree = znode_get_tree( node -> real_node );
+	spin_lock_dk( tree );
 	spot = node -> real_node;
-	spin_lock_tree( current_tree );
+	spin_lock_tree( tree );
 
 	assert( "nikita-2192", znode_is_loaded( spot ) );
 
@@ -875,8 +877,8 @@ static void sync_dkeys( carry_node *node /* node to update */,
 			break;
 	}
 
-	spin_unlock_tree( current_tree );
-	spin_unlock_dk( current_tree );
+	spin_unlock_tree( tree );
+	spin_unlock_dk( tree );
 }
 
 /* unlock all carry nodes in @level */
@@ -1064,7 +1066,7 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 		 *
 		 */
 		reference_point = UNDER_SPIN
-			( tree, current_tree,
+			( tree, znode_get_tree( reference_point ),
 			  find_begetting_brother( node, level ) -> node );
 		assert( "nikita-1186", reference_point != NULL );
 	}
@@ -1358,10 +1360,10 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
 	add_pointer -> u.insert.child = fresh;
 	add_pointer -> u.insert.brother = brother;
 	/* initially new node spawns empty key range */
-	spin_lock_dk( current_tree );
+	spin_lock_dk( znode_get_tree( brother ) );
 	*znode_get_ld_key( new_znode ) = *znode_get_rd_key( new_znode ) = 
 		*znode_get_rd_key( brother );
-	spin_unlock_dk( current_tree );
+	spin_unlock_dk( znode_get_tree( brother ) );
 	return fresh;
 }
 

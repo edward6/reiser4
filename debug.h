@@ -685,6 +685,15 @@ typedef struct reiser4_statistics {
 		 * for the lock
 		 */		
 		stat_cnt cbk_met_ghost;
+		/**
+		 * for how many pages on this level ->releasepage() was
+		 * called.
+		 */
+		stat_cnt page_try_release;
+		/**
+		 * how many pages were released on this level
+		 */
+		stat_cnt page_released;
 		stat_cnt total_hits_at_level;
 	} level[ REAL_MAX_ZTREE_HEIGHT ];
 	struct {

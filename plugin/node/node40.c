@@ -116,14 +116,14 @@ static unsigned nh40_get_level (node40_header * nh)
 /* Audited by: green(2002.06.12) */
 static void nh40_set_num_items (node40_header * nh, unsigned value)
 {
-	cputod16 (value, &nh -> common_header.nr_items);
+	cputod16 (value, &nh->nr_items);
 }
 
 
 /* Audited by: green(2002.06.12) */
 static inline unsigned nh40_get_num_items (node40_header * nh)
 {
-	return d16tocpu (&nh -> common_header.nr_items);
+	return d16tocpu (&nh->nr_items);
 }
 
 /* plugin field of node header should be read/set by
@@ -312,7 +312,10 @@ node_search_result node40_lookup( znode *node /* node to query */,
 	assert( "nikita-583", node != NULL );
 	assert( "nikita-584", key != NULL );
 	assert( "nikita-585", coord != NULL );
+	assert( "nikita-2693", znode_is_rlocked( node ) );
 	trace_stamp( TRACE_NODES );
+
+	node_check( node, REISER4_NODE_DKEYS | REISER4_NODE_PANIC );
 
 	/* binary search for item that can contain given key */
 	left = 0;
@@ -435,14 +438,15 @@ node_search_result node40_lookup( znode *node /* node to query */,
 			print_key( "min", &bstop -> key );
 			print_znode( "node", node );
 			print_coord_content( "coord", coord );
-			return NS_IOERROR;
+			return -EIO;
 		} else {
 			coord -> between = BEFORE_UNIT;
 			return NS_NOT_FOUND;
 		}
 	}
 	/* left <= key, ok */
-	iplug = item_plugin_by_disk_id( current_tree, &bstop -> plugin_id );
+	iplug = item_plugin_by_disk_id( znode_get_tree( node ), 
+					&bstop -> plugin_id );
 
 	if( iplug == NULL ) {
 		warning( "nikita-588", "Unknown plugin %i",
@@ -450,7 +454,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 		print_key( "key", key );
 		print_znode( "node", node );
 		print_coord_content( "coord", coord );
-		return NS_IOERROR;
+		return -EIO;
 	}
 
 	coord -> iplug = iplug;
@@ -699,8 +703,10 @@ int node40_parse( znode *node /* node to parse */)
 		warning( "nikita-495", 
 			 "Wrong magic in tree node: want %x, got %x",
 			 REISER4_NODE_MAGIC, nh40_get_magic( header ) );
-	else
+	else {
+		node -> nr_items = node40_num_of_items( node );
 		result = 0;
+	}
 	if( result != 0 )
 		print_znode( "node", node );
 	return result;
@@ -732,6 +738,7 @@ int node40_init( znode *node /* node to initialise */)
 	save_plugin_id (node_plugin_to_plugin (node -> nplug), &header -> common_header.plugin_id);
 	nh40_set_level (header, znode_get_level( node ));
 	nh40_set_magic (header, REISER4_NODE_MAGIC);
+	node -> nr_items = 0;
 
 	/* flags: 0 */
 	return 0;
@@ -747,7 +754,7 @@ int node40_guess( const znode *node /* node to guess plugin of */)
 	nethack = node40_node_header( node );
 	return
 		( nh40_get_magic( nethack ) == REISER4_NODE_MAGIC ) &&
-		( plugin_by_disk_id( current_tree,
+		( plugin_by_disk_id( znode_get_tree( node ),
 				     REISER4_NODE_PLUGIN_TYPE,
 				     &nethack -> common_header.plugin_id ) -> h.id ==
 		  NODE40_ID );
@@ -818,7 +825,8 @@ void node40_change_item_size (coord_t * coord, int by)
 static int should_notify_parent (const znode *node)
 {
 	/* FIXME_JMACD This looks equivalent to znode_is_root(), right? -josh */
-	return !disk_addr_eq (znode_get_block (node), &current_tree->root_block);
+	return !disk_addr_eq (znode_get_block (node), 
+			      &znode_get_tree (node)->root_block);
 }
 
 /* plugin->u.node.create_item
@@ -884,6 +892,7 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
 			      data->length - sizeof (item_header40));
 	nh40_set_free_space_start (nh, nh40_get_free_space_start (nh) + data->length);
 	nh40_set_num_items (nh, nh40_get_num_items (nh) + 1);
+	target->node->nr_items ++;
 
 	/* FIXME: check how does create_item work when between is set to BEFORE_UNIT */
 	target->unit_pos = 0;
@@ -1215,6 +1224,7 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 
 	/* update node header */
 	nh40_set_num_items (nh, node40_num_of_items (node) - removed_entirely);
+	node->nr_items -= removed_entirely;
 	nh40_set_free_space_start (nh, nh40_get_free_space_start (nh) -
 				    (freed_space_end - freed_space_start));
 	nh40_set_free_space (nh, nh40_get_free_space (nh) +
@@ -1657,6 +1667,7 @@ void node40_copy (struct shift_params * shift)
 
 		/* update node header */
 		nh40_set_num_items (nh, old_items + new_items);
+		shift->target->nr_items = old_items + new_items;
 		assert ("vs-170",
 			nh40_get_free_space (nh) < znode_size (shift->target));
 
@@ -1712,6 +1723,7 @@ void node40_copy (struct shift_params * shift)
 
 		/* update node header */
 		nh40_set_num_items (nh, old_items + new_items);
+		shift->target->nr_items = old_items + new_items;
 		assert ("vs-170",
 			nh40_get_free_space (nh) < znode_size (shift->target));
 
@@ -1813,7 +1825,7 @@ void update_znode_dkeys (znode * left, znode * right)
 {
 	reiser4_key key;
 
-	assert ("nikita-1470", spin_dk_is_locked (current_tree));
+	assert ("nikita-1470", spin_dk_is_locked (znode_get_tree (left)));
 
 	leftmost_key_in_node (right, &key );
 

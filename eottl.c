@@ -260,10 +260,10 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 	/*
 	 * setup delimiting keys for node being inserted
 	 */
-	spin_lock_dk( current_tree );
+	spin_lock_dk( znode_get_tree( node ) );
 	*znode_get_ld_key( node ) = *key;
 	*znode_get_rd_key( node ) = *rdkey;
-	spin_unlock_dk( current_tree );
+	spin_unlock_dk( znode_get_tree( node ) );
 
 	parent_node = insert_coord -> node;
 	op = post_carry( &todo, COP_INSERT, insert_coord -> node, 0 );
