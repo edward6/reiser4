@@ -1624,7 +1624,11 @@ void txn_delete_page (struct page *pg)
 		return;
 	}
 
-	if (!blocknr_is_fake(jnode_get_block(node))) {
+	if (*jnode_get_block(node) && !blocknr_is_fake(jnode_get_block(node))) {
+		/*
+		 * jnode has assigned real disk block. Put it into atom's
+		 * delete set
+		 */
 		if (REISER4_DEBUG) {
 			struct super_block * s = reiser4_get_current_sb();
 
@@ -1640,6 +1644,11 @@ void txn_delete_page (struct page *pg)
 			goto repeat;
 		}
 	} else {
+		/*
+		 * jnode has assigned block which is counted as "fake
+		 * allocated". Return it back to "free blocks" (via "grabbed
+		 * space")
+		 */
 		reiser4_count_fake_deallocation ((__u64)1);
 		reiser4_release_grabbed_space ((__u64)1);
 	}
