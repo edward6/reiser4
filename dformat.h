@@ -145,7 +145,7 @@ typedef struct reiser4_master_sb {
 	d16 blocksize;
 	char uuid[16];		/* unique id */
 	char label[16];		/* filesystem label */
-	d64 fixmap;		/* location of the fixmap. 0 if not present */
+	d64 diskmap;		/* location of the diskmap. 0 if not present */
 } reiser4_master_sb;
 
 /* __FS_REISER4_DFORMAT_H__ */
