@@ -49,7 +49,7 @@ inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode
   FIXME-EDWARD: Cipher and hash key-id by the secret key
   (open method requires armored identification of the key */
 
- __attribute__((unused)) static int cryptcompress_create(struct inode *object, struct inode *parent, reiser4_object_create_data * data)
+int create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_create_data * data)
 {
 	int result;
 	scint_t *extmask;
@@ -66,7 +66,7 @@ inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode
 	assert("edward-23", object != NULL);
 	assert("edward-24", parent != NULL);
 	assert("edward-26", inode_get_flag(object, REISER4_NO_SD));
-	assert("edward-27", data->id = CRC_FILE_PLUGIN_ID);
+	assert("edward-27", data->id == CRC_FILE_PLUGIN_ID);
 	
 	info = reiser4_inode_data(object);
 	crc_info = cryptcompress_inode_data(object);
@@ -138,6 +138,7 @@ inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode
 	result = write_sd_by_inode_common(object);
 	if (!result)
 		return 0;
+	/* FIXME-EDWARD remove me */
 	if (info->crypt == &stat) 
 		goto destroy_key;
 
@@ -245,7 +246,7 @@ inode_scaled_cluster_size (struct inode * inode)
 }
 
 /* plugin->key_by_inode() */
-static int
+int
 cluster_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
 {
 	assert("edward-64", inode != 0);
@@ -260,17 +261,17 @@ cluster_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
 
 /* plugin->flow_by_inode */
 int
-cryptcompress_build_flow(struct inode *inode /* file to build flow for */ ,
-		     char *buf /* user level buffer */ ,
-		     int user	/* 1 if @buf is of user space, 0 - if it is
-				   kernel space */ ,
-		     size_t size /* buffer size */ ,
-		     loff_t off /* offset to start io from */ ,
-		     rw_op op /* READ or WRITE */ ,
-		     flow_t * f /* resulting flow */)
+flow_by_inode_cryptcompress(struct inode *inode /* file to build flow for */ ,
+			    char *buf /* user level buffer */ ,
+			    int user	/* 1 if @buf is of user space, 0 - if it is
+					   kernel space */ ,
+			    loff_t size /* buffer size */ ,
+			    loff_t off /* offset to start io from */ ,
+			    rw_op op /* READ or WRITE */ ,
+			    flow_t * f /* resulting flow */)
 {
 	assert("edward-149", inode != NULL);
-
+	
 	f->length = size;
 	f->data = buf;
 	f->user = user;
@@ -283,8 +284,7 @@ cryptcompress_build_flow(struct inode *inode /* file to build flow for */ ,
 	return cluster_key_by_inode(inode, off, &f->key);
 }
 
-void reiser4_cluster_init (reiser4_cluster_t * clust)
-{
+void reiser4_cluster_init (reiser4_cluster_t * clust){
 	assert("edward-84", clust != NULL);
 	xmemset(clust, 0, sizeof *clust);
 	clust->stat = DATA_CLUSTER;
@@ -342,7 +342,7 @@ static void
 set_cluster_nr_pages(struct inode * inode, reiser4_cluster_t * clust)
 {
 	assert("edward-180", clust != NULL);
-
+	
 	if (clust->count + clust->delta == 0) {
 		/* nothing to write - nothing to read */
 		assert ("edward-199", clust->stat == DATA_CLUSTER);
@@ -486,10 +486,9 @@ int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
    . append end-of-cluster magic (NOTE-EDWARD: this magic should be private)
    . align and encrypt result
 */
-int deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
+void deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		    struct inode *inode)
 {
-	return 0;
 }
 /* plugin->read() :
  * generic_file_read()   
@@ -499,8 +498,8 @@ int deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
  * generic method does) */
 
 /* plugin->readpage() */
-__attribute__((unused)) static int
-cryptcompress_readpage(void *vp, struct page *page)
+int
+readpage_cryptcompress(void *vp, struct page *page)
 {
 	reiser4_cluster_t clust;
 	struct file * file;
@@ -514,7 +513,7 @@ cryptcompress_readpage(void *vp, struct page *page)
 	assert("edward-113", page->mapping == file->f_dentry->d_inode->i_mapping);
 	
 	if (PageUptodate(page)) {
-		printk("cryptcompress_readpage: page became already uptodate\n");
+		printk("readpage_cryptcompress: page became already uptodate\n");
 		unlock_page(page);
 		return 0;
 	}
@@ -534,8 +533,8 @@ cryptcompress_readpage(void *vp, struct page *page)
 }
 
 /* plugin->readpages() */
-__attribute__((unused)) static void
-cryptcompress_readpages(struct file *file UNUSED_ARG, struct address_space *mapping,
+void
+readpages_cryptcompress(struct file *file UNUSED_ARG, struct address_space *mapping,
 			struct list_head *pages)
 {
 	item_plugin *iplug;
@@ -705,6 +704,48 @@ update_cluster(struct inode * inode, reiser4_cluster_t * clust, loff_t file_off,
 	clust->delta = 0;
 }
 
+/* stick pages into united flow, then release the ones */
+int
+flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
+{
+	int i;
+	struct page * page;
+		
+	assert("edward-236", inode != NULL);
+	assert("edward-237", clust != NULL);
+	assert("edward-238", clust->off == 0);
+	assert("edward-239", clust->count == 0);	
+	assert("edward-240", clust->delta == 0);
+	
+	down(&inode->i_sem);
+	
+	assert("edward-241", schedulable());
+	clust->nr_pages = inode_cluster_pages(inode);
+	if (inode->i_size < (clust->index + clust->nr_pages) << PAGE_CACHE_SHIFT) {
+		clust->count = (unsigned)(inode->i_size & inode_cluster_size(inode));
+		set_cluster_nr_pages(inode, clust);
+	}
+	clust->buf = reiser4_kmalloc(inode_scaled_cluster_size(inode), GFP_KERNEL);
+	if (!clust->buf) 
+		return -ENOMEM;
+	for(i=0; i < clust->nr_pages; i++){
+		char * data;
+		page = find_get_page(inode->i_mapping, i + clust->index);
+
+		assert("edward-242", page != NULL);
+		assert("edward-243", PageDirty(page));
+		/* FIXME_EDWARD: Make sure that jnodes are from the same dirty list */ 
+		
+		reiser4_lock_page(page);
+		data = kmap(page);
+		memcpy(clust->buf + (i << PAGE_CACHE_SHIFT), data, PAGE_CACHE_SIZE);
+		kunmap(page);
+		uncapture_page(page);
+		reiser4_unlock_page(page);
+	}
+	return 0;
+}
+
 /* set zeroes to the cluster, update it, and maybe, try to capture its pages */
 static int
 write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff_t to_file)
@@ -857,8 +898,9 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 	to_read = clust->off + clust->count + clust->delta;
 	
 	for (i = 0; i < clust->nr_pages; i++) {
-
-		assert ("edward-218", !PageLocked(clust->pages[i]));
+		
+		/* assert ("edward-218", !PageLocked(clust->pages[i])); */
+		/* FIXME_EDWARD lock pages before each checking */
 		
 		if (clust->off <= (i << PAGE_CACHE_SHIFT) && (i << PAGE_CACHE_SHIFT) <= to_read)
 			/* page will be completely overwritten, skip this */
@@ -980,11 +1022,12 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	size_t to_write;
 	loff_t file_off;
 	reiser4_cluster_t clust;
+	/* FIXME_EDWARD kmalloc this */
 	struct page * pages[1 << inode_cluster_shift(inode)];
 
 	assert("edward-159", current_blocksize == PAGE_CACHE_SIZE);
 		
-	result = cryptcompress_build_flow(inode, (char *)buf, 1, count, pos, WRITE_OP, &f);
+	result = flow_by_inode_cryptcompress(inode, (char *)buf, 1, count, pos, WRITE_OP, &f);
 	if (result)
 		return result;
 	to_write = f.length;
@@ -1076,7 +1119,7 @@ write_file(struct file * file, /* file to write to */
 	if (unlikely(result != 0))
 		return result;
 	
-	       if (unlikely(count == 0))
+	if (unlikely(count == 0))
 		return 0;
 
         /* FIXME-EDWARD: other UNIX features */
@@ -1112,6 +1155,76 @@ write_cryptcompress(struct file * file, /* file to write to */
 
 	up(&inode->i_sem);
 	return result;
+}
+
+/* plugin->u.file.truncate */
+int
+truncate_cryptcompress(struct inode *inode, loff_t new_size)
+{
+	return 0;
+}
+
+/* plugin->u.file.capture */
+int
+capture_cryptcompress(struct page *page)
+{
+	return 0;
+}
+
+/* plugin->u.file.release */
+int
+release_cryptcompress(struct inode *inode, struct file * file)
+{
+	return 0;
+}
+
+/* plugin->u.file.mmap */
+int
+mmap_cryptcompress(struct file *file, struct vm_area_struct *vma)
+{
+	return 0;
+}
+
+/* plugin->u.file.get_block */
+int
+get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head *bh_result, int create UNUSED_ARG)
+{
+	return 0;
+}
+
+/* plugin->u.file.delete */
+int
+delete_cryptcompress(struct inode *inode)
+{
+	return 0;
+}
+
+/* plugin->u.file.init_inode_data */
+void init_inode_data_cryptcompress(struct inode *inode, reiser4_object_create_data *crd, int create)
+{
+}
+
+/* plugin->u.file.owns_item */
+int
+owns_item_cryptcompress(const struct inode *inode	/* object to check against */ ,
+			const coord_t *coord /* coord to check */ )
+{
+	return 0;
+}
+
+/* plugin->u.file.pre_delete */
+int
+pre_delete_cryptcompress(struct inode *inode)
+{
+	return 0;
+}
+
+/* plugin->u.file.setattr method */
+int
+setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
+		      struct iattr *attr /* change description */ )
+{
+	return 0;
 }
 
 /*
