@@ -1353,7 +1353,7 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 		extent_get_inode_and_key_by_coord (coord, & inode, & key);
 
 		if ( !inode )  {
-			if (state_of_extent (ext) != UNALLOCATED_EXTENT) {
+			if (state_of_extent (ext) == UNALLOCATED_EXTENT) {
 				/*
 				 * Unallocated extent without inode.
 				 *
