@@ -18,7 +18,6 @@ extern int bitmap_alloc_blocks      (reiser4_space_allocator *,
 
 extern void bitmap_pre_commit_hook (void);
 extern void bitmap_post_commit_hook (void);
-extern void bitmap_post_write_back_hook (void);
 
 typedef __u64 bmap_nr_t;
 typedef __u32 bmap_off_t;

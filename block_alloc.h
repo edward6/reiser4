@@ -45,6 +45,12 @@ extern int reiser4_alloc_blocks (reiser4_blocknr_hint * hint,
 				 reiser4_block_nr * start, reiser4_block_nr * len);
 extern void reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int);
 
+static inline void reiser4_dealloc_block (const reiser4_block_nr *block, int defer)
+{
+	const reiser4_block_nr one = 1;
+	reiser4_dealloc_blocks (block, &one, defer);
+}
+
 extern int assign_fake_blocknr (reiser4_block_nr *);
 extern void release_blocknr (reiser4_block_nr *);
 

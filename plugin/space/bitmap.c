@@ -937,66 +937,6 @@ void bitmap_post_commit_hook (void) {
 	spin_unlock_atom (atom);
 }
 
-/** an actor which clears all wandered locations in a WORKING BITMAP */
-
-/* FIXME-ZAM: I assume that WANDERED MAP is stored in blocknr set data
- * structure as a set of pairs (a = <real block location>, b = <wandered block
- * location>). So, this procedure just makes all blocks which were temporary
- * used for writing of wandered blocks free for reusing -- i.e. clears bits in
- * WORKING BITMAP */
-
-static int apply_wset_to_working_bmap (
-	txn_atom               * atom UNUSED_ARG,
-	const reiser4_block_nr * a UNUSED_ARG, 
-	const reiser4_block_nr * b,
-	void                   * data UNUSED_ARG)
-{
-	struct bnode * bnode;
-	struct super_block * sb = reiser4_get_current_sb ();
-
-	bmap_nr_t bmap;
-	bmap_off_t offset;
-
-	parse_blocknr (b, &bmap, &offset);
-
-	bnode = get_bnode (sb, bmap);
-
-	check_bnode_loaded (bnode);
-
-	load_and_lock_bnode (bnode);
-	reiser4_clear_bit(offset, bnode_working_data(bnode));
-	adjust_first_zero_bit(bnode, offset);
-	release_and_unlock_bnode(bnode);
-
-	reiser4_spin_lock_sb (sb);
-	reiser4_inc_free_blocks (sb);
-	reiser4_spin_unlock_sb (sb);
-
-	return 0;
-}
-
-/** This function is called after write-back (writing blocks from OVERWRITE
- * SET to real locations) transaction stage completes. (clear WANDERED SET in
- * WORKING BITMAP) */
-/* Audited by: green(2002.06.12) */
-void bitmap_post_write_back_hook (void)
-{
-	reiser4_context * ctx = get_current_context ();
-
-	txn_handle * tx;
-	txn_atom   * atom;
-
-	tx = ctx->trans;
-	assert ("zam-453", tx != NULL);
-
-	atom = atom_get_locked_by_txnh (tx);
-	assert ("zam-454", atom != NULL);
-
-	blocknr_set_iterator (atom, &atom->wandered_map, apply_wset_to_working_bmap, NULL, 1);
-
-	spin_unlock_atom (atom);
-}
-
 /* 
  * Local variables:
  * c-indentation-style: "K&R"

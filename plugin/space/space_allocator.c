@@ -23,7 +23,7 @@ reiser4_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ] = {
 			.dealloc_blocks       = NULL,
 			.pre_commit_hook      = bitmap_pre_commit_hook,
 			.post_commit_hook     = bitmap_post_commit_hook,
-			.post_write_back_hook = bitmap_post_write_back_hook,
+			.post_write_back_hook = NULL,
 			.print_info           = NULL
 		}
 	},

@@ -551,6 +551,69 @@ int reiser4_write_logs (void)
 	return 0;
 }
 
+/* free block numbers of log records of already written in place transaction */
+static void dealloc_tx_list (txn_atom * atom) 
+{
+	while (!capture_list_empty (&atom->tx_list)) {
+		jnode * cur = capture_list_pop_front(&atom->tx_list);
+
+		reiser4_dealloc_block (jnode_get_block (cur), 0);
+
+		jfree (cur);
+	}
+}
+
+static int dealloc_wmap_actor (
+	txn_atom               * atom UNUSED_ARG,
+	const reiser4_block_nr * a UNUSED_ARG, 
+	const reiser4_block_nr * b,
+	void                   * data UNUSED_ARG)
+{
+
+	assert ("zam-499", b != NULL);
+	assert ("zam-500", *b != 0);
+	assert ("zam-501", !blocknr_is_fake(b));
+
+	reiser4_dealloc_block (b, 0);
+
+	return 0;
+}
+
+/* free wandered block locations of  already written in place transaction */
+static void dealloc_wmap (txn_atom * atom)
+{
+	blocknr_set_iterator (atom, &atom->wandered_map, dealloc_wmap_actor, NULL, 1);
+}
+
+/* This function is called after write-back is finished. We update journal
+ * footer block and free blocks which were occupied by wandered blocks and
+ * transaction log records */
+int reiser4_flush_logs (txn_atom * atom)
+{
+	jnode * tx_head = capture_list_back (&atom->tx_list);
+	struct super_block * s = reiser4_get_current_sb();
+	reiser4_super_info_data * private = get_super_private(s);
+	int ret;
+
+	assert ("zam-496", !capture_list_end (&atom->tx_list, tx_head));
+	set_last_flushed_tx (s, (d64*)jnode_get_block(tx_head));
+
+	ret = jwrite (private->journal_footer);
+	if (ret) return ret;
+
+	ret = jwait_io (private->journal_footer);
+	if (ret) return ret;
+
+	/* free blocks of flushed transaction */
+
+	dealloc_tx_list(atom);
+
+	dealloc_wmap (atom);
+
+	return 0;
+}
+
+
 /*
  * Make Linus happy.
  * Local variables:
