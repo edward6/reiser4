@@ -14,6 +14,7 @@
 
 #include <linux/writeback.h>
 #include <linux/pagevec.h>
+#include <linux/syscalls.h>
 
 /* this file contains file plugin methods of reiser4 unix files.
 
@@ -1726,7 +1727,6 @@ readpage_unix_file(void *vp, struct page *page)
 	coord_t *coord;
 	struct file *file;
 
-
 	reiser4_stat_inc(file.page_ops.readpage_calls);
 
 	assert("vs-1062", PageLocked(page));
@@ -1734,6 +1734,10 @@ readpage_unix_file(void *vp, struct page *page)
 	assert("vs-1078", (page->mapping->host->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT)));
 
 	inode = page->mapping->host;
+
+	ON_TRACE(TRACE_UNIX_FILE_OPS,
+		 "readpage: inode: %llu, page: %lu\n",
+		 get_inode_oid(inode), page->index);
 
 	file = vp;
 	result = load_file_hint(file, &hint);
@@ -1833,19 +1837,35 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
 #define NR_PAGES_TO_PIN 8
 
 static int
-reiser4_get_user_pages(struct page **pages, unsigned long addr, size_t count, 
-		       int rw, size_t *bytes)
+get_nr_pages_nr_bytes(unsigned long addr, size_t count, int *nr_pages)
 {
-	int nr_pages;
+	int nr_bytes;
 
-	nr_pages = ((addr + count + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT) -
+	/* number of pages through which count bytes starting of address addr
+	   are spread */
+	*nr_pages = ((addr + count + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT) -
 		(addr >> PAGE_CACHE_SHIFT);
-	if (nr_pages > NR_PAGES_TO_PIN) {
-		nr_pages = NR_PAGES_TO_PIN;
-		*bytes = (nr_pages * PAGE_CACHE_SIZE) - (addr & (PAGE_CACHE_SIZE - 1));
+	if (*nr_pages > NR_PAGES_TO_PIN) {
+		*nr_pages = NR_PAGES_TO_PIN;
+		nr_bytes = (*nr_pages * PAGE_CACHE_SIZE) - (addr & (PAGE_CACHE_SIZE - 1));
 	} else
-		*bytes = count;
+		nr_bytes = count;
 
+	return nr_bytes;
+}
+
+static size_t
+adjust_nr_bytes(unsigned long addr, size_t count, int nr_pages)
+{
+	if (count > nr_pages * PAGE_CACHE_SIZE)
+		return (nr_pages * PAGE_CACHE_SIZE) - (addr & (PAGE_CACHE_SIZE - 1));
+	return count;
+}
+
+static int
+reiser4_get_user_pages(struct page **pages, unsigned long addr, int nr_pages, 
+		       int rw)
+{
 	down_read(&current->mm->mmap_sem);
 	nr_pages = get_user_pages(current, current->mm, addr,
 				nr_pages, (rw == READ), 0,
@@ -1996,8 +2016,10 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	user_space = is_user_space(buf);
 	nr_pages = 0;
 	while (left > 0) {
+		unsigned long addr;
 		size_t to_read;		
 
+		addr = (unsigned long)buf;
 		txn_restart_current();
 
 		size = i_size_read(inode);
@@ -2008,13 +2030,21 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 			left = size - *off;
 
 		if (user_space) {
+			/* lock user pages into memory */
 			int i;
-
-			nr_pages = reiser4_get_user_pages(pages, (unsigned long)buf, left, READ, &to_read);
-			if (nr_pages < 0)
+			
+			to_read = get_nr_pages_nr_bytes(addr, left, &nr_pages);
+			result = sys_mlock(addr, to_read);
+			if (result)
+				return result;
+			nr_pages = reiser4_get_user_pages(pages, addr, nr_pages, READ);
+			if (nr_pages < 0) {
+				sys_munlock(addr, to_read);
 				return nr_pages;
+			}
 			for (i = 0; i < nr_pages; i ++)
 				assert("vs-1735", page_mapped(pages[i]));
+			to_read = adjust_nr_bytes(addr, to_read, nr_pages);
 		} else
 			to_read = left;
 
@@ -2022,6 +2052,10 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 
 		/* define more precisely read size now when filesize can not change */
 		if (*off >= inode->i_size) {
+			if (user_space) {
+				reiser4_put_user_pages(pages, nr_pages);
+				sys_munlock(addr, to_read);
+			}
 			/* position to read from is past the end of file */
 			drop_nonexclusive_access(uf_info);
 			break;
@@ -2034,10 +2068,12 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 		assert("vs-1706", to_read <= left);
 		read = read_file(&hint, uf_info->container, file, buf, to_read, off);
 
-		if (user_space)
+		if (user_space) {
 			reiser4_put_user_pages(pages, nr_pages);
+			sys_munlock(addr, to_read);
+		}
 		drop_nonexclusive_access(uf_info);
-		txn_restart_current();
+		/*txn_restart_current();*/
 
 		if (read < 0) {
 			result = read;
@@ -2229,6 +2265,10 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 	inode = area->vm_file->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
 
+	ON_TRACE(TRACE_UNIX_FILE_OPS,
+		 "filemap_nopage: inode: %llu, address: %p\n",
+		 get_inode_oid(inode), (void *)address);
+
 	/* block filemap_nopage if copy on capture is processing with a node of this file */
 	down_read(&reiser4_inode_data(inode)->coc_sem);
 	get_nonexclusive_access(unix_file_inode_data(inode));
@@ -2239,6 +2279,11 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 	up_read(&reiser4_inode_data(inode)->coc_sem);
 
 	txn_restart_current();
+
+	ON_TRACE(TRACE_UNIX_FILE_OPS,
+		 "filemap_nopage: inode: %llu, index: %lu\n",
+		 get_inode_oid(inode),
+		 (page != NULL && page != NOPAGE_OOM) ? page->index : 0);
 
 	reiser4_exit_context(&ctx);
 	return page;
@@ -2356,121 +2401,6 @@ write_file(hint_t *hint,
 	return written;
 }
 
-#if 0
-
-/* plugin->u.file.write */
-reiser4_internal ssize_t
-write_unix_file(struct file *file, /* file to write to */
-		const char *buf, /* address of user-space buffer */
-		size_t count, /* number of bytes to write */
-		loff_t *off /* position in file to write to */)
-{
-	struct inode *inode;
-	ssize_t written;	/* amount actually written so far */
-	int result;
-
-	if (unlikely(count == 0))
-		return 0;
-
-	inode = file->f_dentry->d_inode;
-	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
-
-	/* linux's VM requires this. See mm/vmscan.c:shrink_list() */
-	current->backing_dev_info = inode->i_mapping->backing_dev_info;
-
-	down(&inode->i_sem);
-	written = generic_write_checks(file, off, &count, 0);
-	if (written == 0) {
-		unix_file_info_t *uf_info;
-
-		uf_info = unix_file_inode_data(inode);
-
-		if (inode_get_flag(inode, REISER4_HAS_MMAP)) {
-			/* file has been mmaped before. If it is built of
-			   tails - invalidate pages created so far and convert
-			   to extents */
-			get_exclusive_access(uf_info);
-			written = finish_conversion(inode);
-			if (written == 0)
-				if (uf_info->container == UF_CONTAINER_TAILS)
-					written = check_pages_unix_file(inode);
-
-			drop_exclusive_access(uf_info);
-		}
-		if (written == 0) {
-			int rep;
-			int try_free_space = 1;
-
-			for (rep = 0; ; ++ rep) {
-				if (inode_get_flag(inode,
-						   REISER4_PART_CONV)) {
-					get_exclusive_access(uf_info);
-					written = finish_conversion(inode);
-					if (written != 0) {
-						drop_access(uf_info);
-						break;
-					}
-				} else if (inode->i_size == 0 || rep)
-					get_exclusive_access(uf_info);
-				else
-					get_nonexclusive_access(uf_info);
-
-				if (rep == 0) {
-					/* UNIX behavior: clear suid bit on
-					 * file modification. This cannot be
-					 * done earlier, because removing suid
-					 * bit captures blocks into
-					 * transaction, which should be done
-					 * after taking exclusive access on
-					 * the file. */
-					written = remove_suid(file->f_dentry);
-					if (written != 0) {
-						drop_access(uf_info);
-						break;
-					}
-					grab_space_enable();
-				}
-
-				all_grabbed2free();
-				written = write_file(file, buf, count, off);
-				drop_access(uf_info);
-
-				/* With no locks held we can commit atoms in
-				 * attempt to recover free space. */
-				if (written == -ENOSPC && try_free_space) {
-					txnmgr_force_commit_all(inode->i_sb, 0);
-					try_free_space = 0;
-					continue;
-				}
-
-				if (written == -E_REPEAT)
-					/* write_file required exclusive
-					 * access (for tail2extent). It
-					 * returned E_REPEAT so that we
-					 * restart it with exclusive access */
-					txn_restart_current();
-				else
-					break;
-			}
-		}
-	}
-
-	if ((file->f_flags & O_SYNC) || IS_SYNC(inode)) {
-		txn_restart_current();
-		result = sync_unix_file(inode, 0/* data and stat data */);
-		if (result)
-			warning("reiser4-7", "failed to sync file %llu",
-				(unsigned long long)get_inode_oid(inode));
-	}
-	up(&inode->i_sem);
-	current->backing_dev_info = 0;
-	return written;
-}
-
-#endif
-
-
-
 /* plugin->u.file.write */
 reiser4_internal ssize_t
 write_unix_file(struct file *file, /* file to write to */
@@ -2488,7 +2418,7 @@ write_unix_file(struct file *file, /* file to write to */
 	int user_space;
 	int try_free_space;
 
-	ON_TRACE(TRACE_UNIX_FILE_WRITE, "UF_WRITE-start: i_ino %li, size %llu, off %llu, count %u\n",
+	ON_TRACE(TRACE_UNIX_FILE_OPS, "UF_WRITE-start: i_ino %li, size %llu, off %llu, count %u\n",
 		 file->f_dentry->d_inode->i_ino, file->f_dentry->d_inode->i_size, *off, write_amount);
 
 	if (unlikely(write_amount == 0))
@@ -2570,23 +2500,37 @@ write_unix_file(struct file *file, /* file to write to */
 	nr_pages = 0;
 	try_free_space = 1;
 
-	ON_TRACE(TRACE_UNIX_FILE_WRITE, "UF_WRITE-in loop: i_ino %li, size %llu, off %llu, left %u\n",
+	ON_TRACE(TRACE_UNIX_FILE_OPS, "UF_WRITE-in loop: i_ino %li, size %llu, off %llu, left %u\n",
 		 inode->i_ino, inode->i_size, *off, left);
 	while (left > 0) {
-		int excl = 0;
+		unsigned long addr;
 		size_t to_write;
+		int excl = 0;
+
+		addr = (unsigned long)buf;
 
 		/* getting exclusive or not exclusive access requires no
 		   transaction open */
 		txn_restart_current();
 
 		if (user_space) {
-			nr_pages = reiser4_get_user_pages(pages, (unsigned long)buf, left, WRITE, &to_write);
+			int i;
+
+			to_write = get_nr_pages_nr_bytes(addr, left, &nr_pages);
+			result = sys_mlock(addr, to_write);
+			if (result)
+				break;
+
+			nr_pages = reiser4_get_user_pages(pages, addr, nr_pages, WRITE);
 			if (nr_pages < 0) {
-				current->backing_dev_info = NULL;
-				up(&uf_info->write);
-				return nr_pages;
+				sys_munlock(addr, to_write);
+				result = nr_pages;
+				break;
 			}
+			for (i = 0; i < nr_pages; i ++)
+				assert("vs-1736", page_mapped(pages[i]));
+
+			to_write = adjust_nr_bytes(addr, to_write, nr_pages);
 		} else
 			to_write = left;
 
@@ -2600,8 +2544,10 @@ write_unix_file(struct file *file, /* file to write to */
 
 		all_grabbed2free();
 		written = write_file(&hint, file, buf, to_write, off, excl);
-		if (user_space)
+		if (user_space) {
 			reiser4_put_user_pages(pages, nr_pages);
+			sys_munlock(addr, to_write);
+		}
 		if (excl)
 			drop_exclusive_access(uf_info);
 		else
@@ -2610,7 +2556,7 @@ write_unix_file(struct file *file, /* file to write to */
 		/* With no locks held we can commit atoms in attempt to recover
 		 * free space. */
 		if ((ssize_t)written == -ENOSPC && try_free_space) {
-			ON_TRACE(TRACE_UNIX_FILE_WRITE,
+			ON_TRACE(TRACE_UNIX_FILE_OPS,
 				 "UF_WRITE-try-to-free-space: i_ino %li, size %llu, off %llu, left %u\n",
 				 inode->i_ino, inode->i_size, *off, left);			
 			txnmgr_force_commit_all(inode->i_sb, 0);
@@ -2619,7 +2565,7 @@ write_unix_file(struct file *file, /* file to write to */
 		}
 		if ((ssize_t)written < 0) {
 			result = written;
-			ON_TRACE(TRACE_UNIX_FILE_WRITE,
+			ON_TRACE(TRACE_UNIX_FILE_OPS,
 				 "UF_WRITE-error: %d. [i_ino %li, size %llu, off %llu, left %u]\n",
 				 result, inode->i_ino, inode->i_size, *off, left);			
 			break;
@@ -2629,7 +2575,7 @@ write_unix_file(struct file *file, /* file to write to */
 
 		/* total number of written bytes */
 		count += written;
-		ON_TRACE(TRACE_UNIX_FILE_WRITE,
+		ON_TRACE(TRACE_UNIX_FILE_OPS,
 			 "UF_WRITE-written: %u bytes. i_ino %li, size %llu, off %llu, left %u\n",
 			 written, inode->i_ino, inode->i_size, *off, left);			
 	}
@@ -2646,7 +2592,7 @@ write_unix_file(struct file *file, /* file to write to */
  	current->backing_dev_info = 0;
 	save_file_hint(file, &hint);
 
-	ON_TRACE(TRACE_UNIX_FILE_WRITE, "UF_WRITE-end: i_ino %li, size %llu, off %llu, count %u, result %d\n",
+	ON_TRACE(TRACE_UNIX_FILE_OPS, "UF_WRITE-end: i_ino %li, size %llu, off %llu, count %u, result %d\n",
 		 inode->i_ino, inode->i_size, *off, count, result);
 	return count ? count : result;
 }
