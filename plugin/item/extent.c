@@ -2470,7 +2470,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 				assert ("vs-800", ergo (prev != ~0lu, prev + 1 == page->index));
 				prev = page->index;
 
-				if (add_to_page_cache_unique (page, mapping, page->index)) {
+				if (add_to_page_cache (page, mapping, page->index)) {
 					/* someone else added this page */
 					page_cache_release (page);
 					if (bio) {
