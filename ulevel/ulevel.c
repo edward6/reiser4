@@ -79,21 +79,6 @@ void up( semaphore *sem )
 	pthread_mutex_unlock( &sem -> mutex );
 }
 
-inline void *ERR_PTR(long error)
-{
-	return (void *) error;
-}
-
-inline long PTR_ERR(const void *ptr)
-{
-	return (long) ptr;
-}
-
-inline long IS_ERR(const void *ptr)
-{
-	return (unsigned long)ptr > (unsigned long)-1000L;
-}
-
 void show_stack( unsigned long * esp UNUSE )
 {
 }
@@ -640,6 +625,8 @@ int create_empty_buffers (struct page * page, unsigned blocksize)
 
 	assert ("vs-292", !page->buffers);
 
+	bh = NULL;
+	last = NULL;
 	for (i = PAGE_SIZE / blocksize - 1; i >= 0; i --) {
 		bh = kmalloc (sizeof (struct buffer_head), 1);
 		assert ("vs-250", bh);
@@ -1138,7 +1125,8 @@ void *mkdir_thread_start( void *arg )
 	REISER4_EXIT_PTR( NULL );
 }
 
-static char print_percentage( unsigned long reached, unsigned long total, char gap )
+static void print_percentage( unsigned long reached, 
+			      unsigned long total, char gap )
 {
 	int percentage;
 
@@ -1200,14 +1188,16 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			sprintf( name, "%x-%x", i, i*10 );
 			ret = call_create( f, name );
 			assert( "nikita-1769", ret == 0 );
-			print_percentage( i, atoi( argv[ 3 ] ), '+' );
+			print_percentage( ( ulong ) i, 
+					  ( ulong ) atoi( argv[ 3 ] ), '+' );
 		}
 		call_readdir( f, "unlink-filled" );
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
 			sprintf( name, "%x-%x", i, i*10 );
 			ret = call_rm( f, name );
 			assert( "nikita-1770", ret == 0 );
-			print_percentage( i, atoi( argv[ 3 ] ), '-' );
+			print_percentage( ( ulong ) i, 
+					  ( ulong ) atoi( argv[ 3 ] ), '-' );
 		}
 		call_readdir( f, "unlink-end" );
 	} else if( !strcmp( argv[ 2 ], "dir" ) || 

@@ -569,7 +569,7 @@ extern unsigned long get_jiffies ();
 #define jiffies get_jiffies()
 
 extern void show_stack( unsigned long * esp );
-extern inline void panic( const char *format, ... ) __attribute__((noreturn));
+extern void panic( const char *format, ... ) __attribute__((noreturn));
 extern int sema_init( semaphore *sem, int value UNUSE);
 extern int down_interruptible( semaphore *sem );
 extern void down( semaphore *sem );
@@ -595,11 +595,24 @@ void mark_inode_dirty (struct inode * inode);
  * This should be a per-architecture thing, to allow different
  * error and pointer decisions.
  */
-extern inline void *ERR_PTR(long error);
-extern inline long PTR_ERR(const void *ptr);
-extern inline long IS_ERR(const void *ptr);
 extern void *kmalloc( size_t size, int flag UNUSE );
 extern void kfree( void *addr );
+
+static inline void *ERR_PTR(long error)
+{
+	return (void *) error;
+}
+
+static inline long PTR_ERR(const void *ptr)
+{
+	return (long) ptr;
+}
+
+static inline long IS_ERR(const void *ptr)
+{
+	return (unsigned long)ptr > (unsigned long)-1000L;
+}
+
 
 extern kmem_cache_t *kmem_cache_create( const char *name, 
 				 size_t size UNUSED_ARG, 

@@ -164,9 +164,25 @@
 
 #include "reiser4.h"
 
-static inline int   blknreq    ( const reiser4_disk_addr *b1,
-				 const reiser4_disk_addr *b2 );
-static inline __u32 blknrhashfn( const reiser4_disk_addr *b );
+/* hash table support */
+
+/** compare two block numbers for equality. Used by hash-table macros */
+static inline int blknreq( const reiser4_disk_addr *b1,
+			   const reiser4_disk_addr *b2 )
+{
+	assert( "nikita-534", b1 != NULL );
+	assert( "nikita-535", b2 != NULL );
+
+	return( b1 -> blk == b2 -> blk );
+}
+
+/** Hash znode by block number. Used by hash-table macros */
+static inline __u32 blknrhashfn( const reiser4_disk_addr *b )
+{
+	assert( "nikita-536", b != NULL );
+
+	return( b -> blk & ( REISER4_ZNODE_HASH_TABLE_SIZE - 1 ) );
+}
 
 /** The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
@@ -757,26 +773,6 @@ reiser4_key *znode_get_ld_key( znode *node )
 	assert( "nikita-1662", spin_dk_is_locked( current_tree ) );
 
 	return &node -> ld_key;
-}
-
-/* hash table support */
-
-/** compare two block numbers for equality. Used by hash-table macros */
-static inline int blknreq( const reiser4_disk_addr *b1,
-			   const reiser4_disk_addr *b2 )
-{
-	assert( "nikita-534", b1 != NULL );
-	assert( "nikita-535", b2 != NULL );
-
-	return( b1 -> blk == b2 -> blk );
-}
-
-/** Hash znode by block number. Used by hash-table macros */
-static inline __u32 blknrhashfn( const reiser4_disk_addr *b )
-{
-	assert( "nikita-536", b != NULL );
-
-	return( b -> blk & ( REISER4_ZNODE_HASH_TABLE_SIZE - 1 ) );
 }
 
 /**
