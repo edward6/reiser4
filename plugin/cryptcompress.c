@@ -289,45 +289,6 @@ inode_scaled_cluster_size (struct inode * inode)
 	return inode_scaled_offset(inode, inode_cluster_size(inode));
 }
 
-/* plugin->key_by_inode() */
-int
-key_by_inode_cryptcompress(struct inode *inode, loff_t off, reiser4_key * key)
-{
-	assert("edward-64", inode != 0);
-	assert("edward-112", !(off & ~(~0ULL << inode_cluster_shift(inode) << PAGE_CACHE_SHIFT)));
-	/* don't come here with other offsets */
-	
-	build_sd_key(inode, key);
-	set_key_type(key, KEY_BODY_MINOR);
-	set_key_offset(key, (__u64) inode_scaled_offset(inode, off));
-	return 0;
-}
-
-/* plugin->flow_by_inode */
-int
-flow_by_inode_cryptcompress(struct inode *inode /* file to build flow for */ ,
-			    char *buf /* user level buffer */ ,
-			    int user	/* 1 if @buf is of user space, 0 - if it is
-					   kernel space */ ,
-			    loff_t size /* buffer size */ ,
-			    loff_t off /* offset to start io from */ ,
-			    rw_op op /* READ or WRITE */ ,
-			    flow_t * f /* resulting flow */)
-{
-	assert("edward-149", inode != NULL);
-	
-	f->length = size;
-	f->data = buf;
-	f->user = user;
-	f->op = op;
-	assert("edward-150", inode_file_plugin(inode) != NULL);
-	assert("edward-151", inode_file_plugin(inode)->key_by_inode == key_by_inode_cryptcompress);
-
-	if (op == WRITE_OP && user == 1)
-		return 0;
-	return key_by_inode_cryptcompress(inode, off, &f->key);
-}
-
 void reiser4_cluster_init (reiser4_cluster_t * clust){
 	assert("edward-84", clust != NULL);
 	xmemset(clust, 0, sizeof *clust);
@@ -454,14 +415,59 @@ set_cluster_nr_pages(struct inode * inode, reiser4_cluster_t * clust)
 }
 
 static unsigned
-file_to_clust_count(reiser4_cluster_t * clust, struct inode * inode)
+off_to_count(loff_t off, unsigned long idx, struct inode * inode)
+{
+	if(idx > off_to_clust(off, inode))
+		return 0;
+	return min_count(inode_cluster_size(inode), off - clust_to_off(idx, inode));
+}
+
+static unsigned
+fsize_to_count(reiser4_cluster_t * clust, struct inode * inode)
 {
 	assert("edward-288", clust != NULL);
 	assert("edward-289", inode != NULL);
+	
+	return off_to_count(inode->i_size, clust->index, inode);   
+}
 
-	if (clust->index > off_to_clust(inode->i_size, inode))
+/* plugin->key_by_inode() */
+int
+key_by_inode_cryptcompress(struct inode *inode, loff_t off, reiser4_key * key)
+{
+	assert("edward-64", inode != 0);
+	assert("edward-112", !(off_to_cloff(off, inode)));
+	/* don't come here with other offsets */
+	
+	build_sd_key(inode, key);
+	set_key_type(key, KEY_BODY_MINOR);
+	set_key_offset(key, (__u64) inode_scaled_offset(inode, off));
+	return 0;
+}
+
+/* plugin->flow_by_inode */
+int
+flow_by_inode_cryptcompress(struct inode *inode /* file to build flow for */ ,
+			    char *buf /* user level buffer */ ,
+			    int user	/* 1 if @buf is of user space, 0 - if it is
+					   kernel space */ ,
+			    loff_t size /* buffer size */ ,
+			    loff_t off /* offset to start io from */ ,
+			    rw_op op /* READ or WRITE */ ,
+			    flow_t * f /* resulting flow */)
+{
+	assert("edward-149", inode != NULL);
+	
+	f->length = size;
+	f->data = buf;
+	f->user = user;
+	f->op = op;
+	assert("edward-150", inode_file_plugin(inode) != NULL);
+	assert("edward-151", inode_file_plugin(inode)->key_by_inode == key_by_inode_cryptcompress);
+
+	if (op == WRITE_OP && user == 1)
 		return 0;
-	return min_count(inode_cluster_size(inode), inode->i_size - clust_to_off(clust->index, inode));   
+	return key_by_inode_cryptcompress(inode, off, &f->key);
 }
 
 int
@@ -558,7 +564,7 @@ int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		crypto_plugin * cplug = inode_crypto_plugin(inode);
 		size_t cra_bsize = cplug->blocksize(inode_crypto_stat(inode)->keysize);
 		
-		assert("edward-154", clust->len <= inode_scaled_offset(inode, file_to_clust_count(clust, inode)));
+		assert("edward-154", clust->len <= inode_scaled_offset(inode, fsize_to_count(clust, inode)));
 		
 		/* FIXME-EDWARD optimize size of kmalloced buffer */
 		buff_size = inode_cluster_size(inode);
@@ -624,7 +630,7 @@ int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		}
 		cplug->decompress(wbuf, buff, clust->len, clust->buf, &clust->len);
 		/* check the length of decompressed data */
-		assert("edward-157", clust->len == file_to_clust_count(clust, inode));
+		assert("edward-157", clust->len == fsize_to_count(clust, inode));
 	}
 	return 0;
  exit:
@@ -1005,7 +1011,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-240", clust->delta == 0);
 	assert("edward-241", schedulable());
 
-	clust->count = file_to_clust_count(clust, inode);
+	clust->count = fsize_to_count(clust, inode);
 	set_cluster_nr_pages(inode, clust);
 	
 	clust->buf = reiser4_kmalloc(inode_scaled_cluster_size(inode), GFP_KERNEL);
@@ -1021,7 +1027,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 		
 		reiser4_lock_page(page);
 		data = kmap(page);
-		memcpy(clust->buf + (i << PAGE_CACHE_SHIFT), data, PAGE_CACHE_SIZE);
+		xmemcpy(clust->buf + (i << PAGE_CACHE_SHIFT), data, PAGE_CACHE_SIZE);
 		kunmap(page);
 		uncapture_page(page);
 		reiser4_unlock_page(page);
@@ -1716,18 +1722,62 @@ release_cryptcompress(struct inode *inode, struct file * file)
 	return 0;
 }
 
-/* plugin->u.file.mmap */
-int
-mmap_cryptcompress(struct file *file, struct vm_area_struct *vma)
+static inline void
+validate_extended_coord(uf_coord_t *uf_coord, loff_t offset)
 {
-	return 0;
+	assert("edward-418", uf_coord->valid == 0);
+	assert("edward-419", item_plugin_by_coord(&uf_coord->base_coord)->s.file.init_coord_extension);
+	
+	/* FIXME: */
+	item_body_by_coord(&uf_coord->base_coord);
+	item_plugin_by_coord(&uf_coord->base_coord)->s.file.init_coord_extension(uf_coord, offset);
 }
+
+/* plugin->u.file.mmap: 
+   generic_file_mmap */
 
 /* plugin->u.file.get_block */
 int
 get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head *bh_result, int create UNUSED_ARG)
-{
-	return 0;
+{	
+	if (current_blocksize != inode_cluster_size(inode))
+		return RETERR(-EINVAL);
+	else {
+		int result;
+		reiser4_key key;
+		hint_t hint;
+		lock_handle lh;
+		item_plugin *iplug;
+
+		assert("edward-420", create == 0);
+		key_by_inode_cryptcompress(inode, (loff_t)block * current_blocksize, &key);
+		hint_init_zero(&hint, &lh);
+		result = find_cluster_item(&hint, &key, ZNODE_READ_LOCK, 0, FIND_EXACT);
+		if (result != CBK_COORD_FOUND) {
+			done_lh(&lh);
+			return result;
+		}
+		result = zload(hint.coord.base_coord.node);
+		if (result) {
+			done_lh(&lh);
+			return result;
+		}
+		iplug = item_plugin_by_coord(&hint.coord.base_coord);
+		
+		assert("edward-421", iplug == item_plugin_by_id(CTAIL_ID));
+		
+		if (!hint.coord.valid)
+			validate_extended_coord(&hint.coord, 
+						(loff_t) block << PAGE_CACHE_SHIFT);
+		if (iplug->s.file.get_block)
+			result = iplug->s.file.get_block(&hint.coord, block, bh_result);
+		else
+			result = RETERR(-EINVAL);
+		
+		zrelse(hint.coord.base_coord.node);
+		done_lh(&lh);
+		return result;
+	}
 }
 
 /* plugin->u.file.delete */
