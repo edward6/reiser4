@@ -491,13 +491,13 @@ static void end_bio_single_page_write( struct bio *bio )
 static int formatted_readpage( struct file *f UNUSED_ARG, 
 			       struct page *page /* page to read */ )
 {
-	return page_io (page, READ, GFP_NOIO);
+	return page_io( page, READ, GFP_KERNEL );
 }
 
 /** ->writepage() method for formatted nodes */
 static int formatted_writepage( struct page *page /* page to write */ )
 {
-	return page_io( page, WRITE, GFP_NOIO );
+	return page_io( page, WRITE, GFP_NOFS | __GFP_HIGH );
 }
 
 int page_io( struct page *page, int rw, int gfp )
