@@ -272,7 +272,7 @@ pack_string(const char *name /* string to encode */ ,
 	return str;
 }
 
-#if !REISER4_DEBUG_OUTPUT
+#if !REISER4_DEBUG
 static
 #endif
 /* opposite to pack_string(). Takes value produced by pack_string(), restores
@@ -529,7 +529,7 @@ build_obj_key_id(const reiser4_key * key /* key to encode */ ,
 	assert("nikita-1151", key != NULL);
 	assert("nikita-1152", id != NULL);
 
-	xmemcpy(id, key, sizeof *id);
+	memcpy(id, key, sizeof *id);
 	return 0;
 }
 
@@ -564,7 +564,7 @@ extract_key_from_id(const obj_key_id * id	/* object key id to extract key
 	assert("nikita-1154", key != NULL);
 
 	reiser4_key_init(key);
-	xmemcpy(key, id, sizeof *id);
+	memcpy(key, id, sizeof *id);
 	return 0;
 }
 
@@ -618,7 +618,7 @@ build_de_id_by_key(const reiser4_key * entry_key	/* full key of directory
 							 * entry */ ,
 		   de_id * id /* short key of directory entry */ )
 {
-	xmemcpy(id, ((__u64 *) entry_key) + 1, sizeof *id);
+	memcpy(id, ((__u64 *) entry_key) + 1, sizeof *id);
 	return 0;
 }
 
@@ -635,34 +635,10 @@ extract_key_from_de_id(const oid_t locality	/* locality of directory
 		       reiser4_key * key /* result */ )
 {
 	/* no need to initialise key here: all fields are overwritten */
-	xmemcpy(((__u64 *) key) + 1, id, sizeof *id);
+	memcpy(((__u64 *) key) + 1, id, sizeof *id);
 	set_key_locality(key, locality);
 	set_key_type(key, KEY_FILE_NAME_MINOR);
 	return 0;
-}
-
-/* compare two &obj_key_id */
-reiser4_internal cmp_t
-key_id_cmp(const obj_key_id * i1 /* first object key id to compare */ ,
-	   const obj_key_id * i2 /* second object key id to compare */ )
-{
-	reiser4_key k1;
-	reiser4_key k2;
-
-	extract_key_from_id(i1, &k1);
-	extract_key_from_id(i2, &k2);
-	return keycmp(&k1, &k2);
-}
-
-/* compare &obj_key_id with full key */
-reiser4_internal cmp_t
-key_id_key_cmp(const obj_key_id * id /* object key id to compare */ ,
-	       const reiser4_key * key /* key to compare */ )
-{
-	reiser4_key k1;
-
-	extract_key_from_id(id, &k1);
-	return keycmp(&k1, key);
 }
 
 /* compare two &de_id's */
@@ -696,19 +672,6 @@ de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
 		}
 	}
 	return result;
-}
-
-/* true if key of root directory sd */
-reiser4_internal int
-is_root_dir_key(const struct super_block *super /* super block to check */ ,
-		const reiser4_key * key /* key to check */ )
-{
-	assert("nikita-1819", super != NULL);
-	assert("nikita-1820", key != NULL);
-	/* call disk plugin's root_dir_key method if it exists */
-	if (get_super_private(super)->df_plug && get_super_private(super)->df_plug->root_dir_key)
-		return keyeq(key, get_super_private(super)->df_plug->root_dir_key(super));
-	return 0;
 }
 
 /*

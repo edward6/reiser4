@@ -70,8 +70,6 @@ extern oid_t extract_dir_id_from_key(const reiser4_key * de_key);
 extern int build_de_id(const struct inode *dir, const struct qstr *name, de_id * id);
 extern int build_de_id_by_key(const reiser4_key * entry_key, de_id * id);
 extern int extract_key_from_de_id(const oid_t locality, const de_id * id, reiser4_key * key);
-extern cmp_t key_id_cmp(const obj_key_id * i1, const obj_key_id * i2);
-extern cmp_t key_id_key_cmp(const obj_key_id * id, const reiser4_key * key);
 extern cmp_t de_id_cmp(const de_id * id1, const de_id * id2);
 extern cmp_t de_id_key_cmp(const de_id * id, const reiser4_key * key);
 
@@ -80,7 +78,6 @@ extern void build_entry_key_common(const struct inode *dir, const struct qstr *n
 extern void build_entry_key_stable_entry(const struct inode *dir, const struct qstr *name, reiser4_key * result);
 extern int is_dot_key(const reiser4_key * key);
 extern reiser4_key *build_sd_key(const struct inode *target, reiser4_key * result);
-extern int is_root_dir_key(const struct super_block *super, const reiser4_key * key);
 
 extern int is_longname_key(const reiser4_key *key);
 extern int is_longname(const char *name, int len);

@@ -69,7 +69,7 @@ pg_by_coord(const coord_t * coord)
 	return get_key_offset(item_key_by_coord(coord, &key)) >> PAGE_CACHE_SHIFT;
 }
 
-reiser4_internal unsigned long
+static unsigned long
 clust_by_coord(const coord_t * coord)
 {
 	return pg_by_coord(coord) >> cluster_shift_by_coord(coord);
@@ -251,7 +251,7 @@ paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info 
 	else
 		impossible("edward-453", "bad paste position");
 
-	xmemcpy(first_unit(coord) + coord->unit_pos, data->data, data->length);
+	memcpy(first_unit(coord) + coord->unit_pos, data->data, data->length);
 	
 	assert("edward-857", !check_ctail(coord, NULL));
 
@@ -298,21 +298,13 @@ copy_units_ctail(coord_t * target, coord_t * source,
 
 	assert("edward-858", !check_ctail(source, NULL));
 	
-#if 0
-	if (item_length_by_coord(target) == count) {
-		/* new item has been created */
-		assert("edward-465", count > sizeof(ctail_item_format));
-		assert("edward-859", free_space == count + 1);
-		count--;
-	}
-#endif	
 	if (where_is_free_space == SHIFT_LEFT) {
 		/* append item @target with @count first bytes of @source:
 		   this restriction came from ordinary tails */
 		assert("edward-71", from == 0);
 		assert("edward-860", !check_ctail(target, NULL));
 		
-		xmemcpy(first_unit(target) + nr_units_ctail(target) - count, first_unit(source), count);
+		memcpy(first_unit(target) + nr_units_ctail(target) - count, first_unit(source), count);
 	} else {
 		/* target item is moved to right already */
 		reiser4_key key;
@@ -327,7 +319,7 @@ copy_units_ctail(coord_t * target, coord_t * source,
 			/* new item has been created */
 			assert("edward-862", !check_ctail(target, NULL));
 		}
-		xmemcpy(first_unit(target), first_unit(source) + from, count);
+		memcpy(first_unit(target), first_unit(source) + from, count);
 		
 		assert("edward-863", !check_ctail(target, NULL));
 		
@@ -450,7 +442,7 @@ cut_or_kill_ctail_units(coord_t * coord, pos_in_node_t from, pos_in_node_t to, i
 			/* part of item is removed, so move free space at the beginning
 			   of the item and update item key */
 			reiser4_key key;
-			xmemcpy(item + to + 1, item, sizeof(ctail_item_format));
+			memcpy(item + to + 1, item, sizeof(ctail_item_format));
 			item_key_by_coord(coord, &key);
 			set_key_offset(&key, get_key_offset(&key) + count);
 			node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
@@ -463,10 +455,10 @@ cut_or_kill_ctail_units(coord_t * coord, pos_in_node_t from, pos_in_node_t to, i
 			count += sizeof(ctail_item_format);
 		}
 		if (REISER4_DEBUG)
-			xmemset(item, 0, count);
+			memset(item, 0, count);
 	}
 	else if (REISER4_DEBUG)
-		xmemset(item + sizeof(ctail_item_format) + from, 0, count);
+		memset(item + sizeof(ctail_item_format) + from, 0, count);
 	return count;
 }
 
@@ -634,8 +626,6 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		flush_dcache_page(page);
 		kunmap_atomic(data, KM_USER0);
 		SetPageUptodate(page);
-		
-		ON_TRACE(TRACE_CTAIL, " - hole, OK\n");
 		break;
 	case PREP_DISK_CLUSTER:
 		/* fill the page by transformed data */
@@ -651,7 +641,6 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 		flush_dcache_page(page);
 		kunmap(page);
 		SetPageUptodate(page);
-		ON_TRACE(TRACE_CTAIL, " - real data, OK\n");
 		break;
 	default:
 		impossible("edward-1169", "bad disk cluster state");
@@ -885,7 +874,6 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 	lowest_level.track_type = CARRY_TRACK_CHANGE;
 	lowest_level.tracked = lh;
 
-	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
 	result = carry(&lowest_level, 0);
 	done_carry_pool(pool);
 
@@ -942,7 +930,7 @@ overwrite_ctail(coord_t * coord, flow_t * f)
 
 	if (count > f->length)
 		count = f->length;
-	xmemcpy(first_unit(coord), f->data, count);
+	memcpy(first_unit(coord), f->data, count);
 	move_flow_forward(f, count);
 	coord->unit_pos += count;
 	return 0;
@@ -990,7 +978,7 @@ int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode
 	
 	assert("edward-1063", znode_is_write_locked(clust->hint->coord.lh->node));
 	
-	xmemset(buf, 0, UNPREPPED_DCLUSTER_LEN);
+	memset(buf, 0, UNPREPPED_DCLUSTER_LEN);
 	
 	flow_by_inode_cryptcompress(inode,
 				    buf,
@@ -1027,7 +1015,7 @@ int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode
 
 /* the following functions are used by flush item methods */
 /* plugin->u.item.s.file.write ? */
-reiser4_internal int
+static int
 write_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 {
 	int result;
@@ -1180,7 +1168,7 @@ alloc_convert_data(flush_pos_t * pos)
 	pos->sq = reiser4_kmalloc(sizeof(*pos->sq), GFP_KERNEL);
 	if (!pos->sq)
 		return RETERR(-ENOMEM);
-	xmemset(pos->sq, 0, sizeof(*pos->sq));
+	memset(pos->sq, 0, sizeof(*pos->sq));
 	return 0;
 }
 
@@ -1213,7 +1201,7 @@ init_item_convert_data(flush_pos_t * pos, struct inode * inode)
 
 	sq = pos->sq;
 
-	xmemset(sq->itm, 0, sizeof(*sq->itm));
+	memset(sq->itm, 0, sizeof(*sq->itm));
 
 	/* iplug->init_convert_data() */
 	return init_convert_data_ctail(sq->itm, inode);

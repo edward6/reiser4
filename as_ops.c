@@ -18,14 +18,12 @@
 #include "znode.h"
 #include "block_alloc.h"
 #include "tree.h"
-#include "log.h"
 #include "vfs_ops.h"
 #include "inode.h"
 #include "page_cache.h"
 #include "ktxnmgrd.h"
 #include "super.h"
 #include "reiser4.h"
-#include "kattr.h"
 #include "entd.h"
 #include "emergency_flush.h"
 
@@ -331,7 +329,6 @@ reiser4_lblock_to_blocknr(struct address_space *mapping,
 	reiser4_context ctx;
 
 	init_context(&ctx, mapping->host->i_sb);
-	reiser4_stat_inc(vfs_calls.bmap);
 
 	fplug = inode_file_plugin(mapping->host);
 	if (fplug && fplug->get_block) {
@@ -474,7 +471,6 @@ releasable(const jnode *node /* node to check */)
 	/* is some thread is currently using jnode page, later cannot be
 	 * detached */
 	if (atomic_read(&node->d_count) != 0) {
-		INC_NSTAT(node, vm.release.loaded);
 		return 0;
 	}
 
@@ -484,14 +480,12 @@ releasable(const jnode *node /* node to check */)
 	 * otherwise next jload() would load obsolete data from disk
 	 * (up-to-date version may still be in memory). */
 	if (is_cced(node)) {
-		INC_NSTAT(node, vm.release.copy);
 		return 0;
 	}
 
 	/* emergency flushed page can be released. This is what emergency
 	 * flush is all about after all. */
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
-		INC_NSTAT(node, vm.release.eflushed);
 		return 1; /* yeah! */
 	}
 
@@ -500,34 +494,28 @@ releasable(const jnode *node /* node to check */)
 	   node to be clean, not it atom yet, and still having fake block
 	   number. For example, node just created in jinit_new(). */
 	if (blocknr_is_fake(jnode_get_block(node))) {
-		INC_NSTAT(node, vm.release.fake);
 		return 0;
 	}
 	/* dirty jnode cannot be released. It can however be submitted to disk
 	 * as part of early flushing, but only after getting flush-prepped. */
 	if (jnode_is_dirty(node)) {
-		INC_NSTAT(node, vm.release.dirty);
 		return 0;
 	}
 	/* overwrite set is only written by log writer. */
 	if (JF_ISSET(node, JNODE_OVRWR)) {
-		INC_NSTAT(node, vm.release.ovrwr);
 		return 0;
 	}
 	/* jnode is already under writeback */
 	if (JF_ISSET(node, JNODE_WRITEBACK)) {
-		INC_NSTAT(node, vm.release.writeback);
 		return 0;
 	}
 	/* page was modified through mmap, but its jnode is not yet
 	 * captured. Don't discard modified data. */
 	if (jnode_is_unformatted(node) && JF_ISSET(node, JNODE_KEEPME)) {
-		INC_NSTAT(node, vm.release.keepme);
 		return 0;
 	}
 	/* don't flush bitmaps or journal records */
 	if (!jnode_is_znode(node) && !jnode_is_unformatted(node)) {
-		INC_NSTAT(node, vm.release.bitmap);
 		return 0;
 	}
 	return 1;
@@ -569,8 +557,6 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	assert("reiser4-4", page->mapping != NULL);
 	assert("reiser4-5", page->mapping->host != NULL);
 
-	INC_STAT(page, node, vm.release.try);
-
 	oid = (void *)(unsigned long)get_inode_oid(page->mapping->host);
 
 	/* is_page_cache_freeable() check
@@ -589,7 +575,6 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		struct address_space *mapping;
 
 		mapping = page->mapping;
-		INC_STAT(page, node, vm.release.ok);
 		jref(node);
 		/* there is no need to synchronize against
 		 * jnode_extent_write() here, because pages seen by

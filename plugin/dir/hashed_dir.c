@@ -59,7 +59,7 @@ static int find_entry(struct inode *dir, struct dentry *name,
 static int check_item(const struct inode *dir,
 		      const coord_t * coord, const char *name);
 
-reiser4_internal reiser4_block_nr
+static reiser4_block_nr
 hashed_estimate_init(struct inode *parent, struct inode *object)
 {
 	reiser4_block_nr res = 0;
@@ -99,7 +99,6 @@ init_hashed(struct inode *object /* new directory */ ,
 	assert("nikita-684", data != NULL);
 	assert("nikita-686", data->id == DIRECTORY_FILE_PLUGIN_ID);
 	assert("nikita-687", object->i_mode & S_IFDIR);
-	trace_stamp(TRACE_DIR);
 
 	reserve = hashed_estimate_init(parent, object);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
@@ -151,7 +150,7 @@ done_hashed(struct inode *object /* object being deleted */)
 
 	/* of course, this can be rewritten to sweep everything in one
 	   cut_tree(). */
-	xmemset(&entry, 0, sizeof entry);
+	memset(&entry, 0, sizeof entry);
 
 	/* FIXME: this done method is called from delete_directory_common which
 	 * reserved space already */
@@ -159,7 +158,7 @@ done_hashed(struct inode *object /* object being deleted */)
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT | BA_RESERVED))
 		return RETERR(-ENOSPC);
 
-	xmemset(&goodby_dots, 0, sizeof goodby_dots);
+	memset(&goodby_dots, 0, sizeof goodby_dots);
 	entry.obj = goodby_dots.d_inode = object;
 	goodby_dots.d_name.name = ".";
 	goodby_dots.d_name.len = 1;
@@ -190,12 +189,12 @@ detach_hashed(struct inode *object, struct inode *parent)
 	assert("nikita-2885", object != NULL);
 	assert("nikita-2886", !inode_get_flag(object, REISER4_NO_SD));
 
-	xmemset(&entry, 0, sizeof entry);
+	memset(&entry, 0, sizeof entry);
 
 	/* NOTE-NIKITA this only works if @parent is -the- parent of
 	   @object, viz. object whose key is stored in dotdot
 	   entry. Wouldn't work with hard-links on directories. */
-	xmemset(&goodby_dots, 0, sizeof goodby_dots);
+	memset(&goodby_dots, 0, sizeof goodby_dots);
 	entry.obj = goodby_dots.d_inode = parent;
 	goodby_dots.d_name.name = "..";
 	goodby_dots.d_name.len = 2;
@@ -248,7 +247,6 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 	assert("nikita-688", object != NULL);
 	assert("nikita-689", S_ISDIR(object->i_mode));
 	assert("nikita-691", parent != NULL);
-	trace_stamp(TRACE_DIR);
 
 	/* We store dot and dotdot as normal directory entries. This is
 	   not necessary, because almost all information stored in them
@@ -265,8 +263,8 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 
 	*/
 
-	xmemset(&entry, 0, sizeof entry);
-	xmemset(&dots_entry, 0, sizeof dots_entry);
+	memset(&entry, 0, sizeof entry);
+	memset(&dots_entry, 0, sizeof dots_entry);
 	entry.obj = dots_entry.d_inode = object;
 	dots_entry.d_name.name = ".";
 	dots_entry.d_name.len = 1;
@@ -348,8 +346,6 @@ lookup_name_hashed(struct inode *parent /* inode of directory to lookup for
 	coord = &fsdata->dec.entry_coord;
 	coord_clear_iplug(coord);
 	init_lh(&lh);
-
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "lookup inode: %lli \"%s\"\n", get_inode_oid(parent), dentry->d_name.name);
 
 	/* find entry in a directory. This is plugin method. */
 	result = find_entry(parent, dentry, &lh, ZNODE_READ_LOCK, &entry);
@@ -544,7 +540,6 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 		from_dir->i_mtime = CURRENT_TIME;
 	} else {
 		warning("nikita-2326", "Unexpected item type");
-		print_plugin("item", item_plugin_to_plugin(from_item));
 		result = RETERR(-EIO);
 	}
 	zrelse(node);
@@ -569,7 +564,7 @@ add_name(struct inode *inode	/* inode where @coord is to be
 	assert("nikita-2333", lh->node == coord->node);
 	assert("nikita-2334", is_dir == S_ISDIR(inode->i_mode));
 
-	xmemset(&entry, 0, sizeof entry);
+	memset(&entry, 0, sizeof entry);
 	entry.obj = inode;
 	/* build key of directory entry description */
 	inode_dir_plugin(dir)->build_entry_key(dir, &name->d_name, &entry.key);
@@ -959,7 +954,7 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 		reiser4_mark_inode_dirty(new_inode);
 
 	if (result == 0) {
-		xmemset(&old_entry, 0, sizeof old_entry);
+		memset(&old_entry, 0, sizeof old_entry);
 		old_entry.obj = old_inode;
 
 		dplug->build_entry_key(old_dir,
@@ -994,10 +989,10 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 			reiser4_dentry_fsdata  dataonstack;
 			reiser4_dentry_fsdata *fsdata;
 
-			xmemset(&dataonstack, 0, sizeof dataonstack);
-			xmemset(&dotdot_entry, 0, sizeof dotdot_entry);
+			memset(&dataonstack, 0, sizeof dataonstack);
+			memset(&dotdot_entry, 0, sizeof dotdot_entry);
 			dotdot_entry.obj = old_dir;
-			xmemset(&dotdot_name, 0, sizeof dotdot_name);
+			memset(&dotdot_name, 0, sizeof dotdot_name);
 			dotdot_name.d_name.name = "..";
 			dotdot_name.d_name.len = 2;
 			/*
@@ -1075,7 +1070,6 @@ add_entry_hashed(struct inode *object	/* directory to add new name
 		return RETERR(-ENOSPC);
 
 	init_lh(&lh);
-	ON_TRACE(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current->pid, where->d_name.name, get_inode_oid(object));
 	coord = &fsdata->dec.entry_coord;
 	coord_clear_iplug(coord);
 
@@ -1185,12 +1179,7 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 					(unsigned long long)get_inode_oid(object));
 				result = RETERR(-EIO);
 			}
-			write_current_logf(WRITE_TREE_LOG,
-					   "..de k %#llx %#llx %i %lli",
-					   get_inode_oid(where->d_inode),
-					   get_inode_oid(object),
-					   where->d_inode->i_nlink,
-					   where->d_inode->i_size);
+
 			assert("nikita-3405", where->d_inode->i_nlink != 1 ||
 			       where->d_inode->i_size != 2 ||
 			       inode_dir_plugin(where->d_inode) == NULL);
@@ -1447,14 +1436,10 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
  		   directory is built of */
  		warning("nikita-1136", "Wrong item plugin");
  		print_coord("coord", coord, 1);
- 		print_plugin("plugin", item_plugin_to_plugin(iplug));
  		return RETERR(-EIO);
  	}
 	assert("nikita-1137", iplug->s.dir.extract_name);
 
-	ON_TRACE(TRACE_DIR, "[%i]: check_item: \"%s\", \"%s\" in %lli (%lli)\n",
-		 current->pid, name, iplug->s.dir.extract_name(coord, buf),
-		 get_inode_oid(dir), *znode_get_block(coord->node));
 	/* Compare name stored in this entry with name we are looking for.
 
 	   NOTE-NIKITA Here should go code for support of something like

@@ -167,7 +167,7 @@ coord_init_after_item(coord_t * coord)
 reiser4_internal void
 coord_init_zero(coord_t * coord)
 {
-	xmemset(coord, 0, sizeof (*coord));
+	memset(coord, 0, sizeof (*coord));
 }
 
 /* Return the number of units at the present item.  Asserts coord_is_existing_item(). */
@@ -206,7 +206,6 @@ coord_is_existing_item(const coord_t * coord)
 		return coord->item_pos < coord_num_items(coord);
 	}
 
-	IF_TRACE(TRACE_COORDS, print_coord("unreachable", coord, 0));
 	impossible("jmacd-9900", "unreachable coord: %p", coord);
 	return 0;
 }
@@ -610,49 +609,6 @@ coords_equal(const coord_t * c1, const coord_t * c2)
 		c1->item_pos == c2->item_pos &&
 		c1->unit_pos == c2->unit_pos &&
 		c1->between == c2->between;
-}
-
-/* Returns true if two coordinates are consider equal.  Coordinates that are between units
-   or items are considered equal. */
-/* Audited by: green(2002.06.15) */
-reiser4_internal int
-coord_eq(const coord_t * c1, const coord_t * c2)
-{
-	assert("nikita-1807", c1 != NULL);
-	assert("nikita-1808", c2 != NULL);
-
-	if (coords_equal(c1, c2)) {
-		return 1;
-	}
-	if (c1->node != c2->node) {
-		return 0;
-	}
-
-	switch (c1->between) {
-	case INVALID_COORD:
-	case EMPTY_NODE:
-	case AT_UNIT:
-		return 0;
-
-	case BEFORE_UNIT:
-		/* c2 must be after the previous unit. */
-		return (c1->item_pos == c2->item_pos && c2->between == AFTER_UNIT && c2->unit_pos == c1->unit_pos - 1);
-
-	case AFTER_UNIT:
-		/* c2 must be before the next unit. */
-		return (c1->item_pos == c2->item_pos && c2->between == BEFORE_UNIT && c2->unit_pos == c1->unit_pos + 1);
-
-	case BEFORE_ITEM:
-		/* c2 must be after the previous item. */
-		return (c1->item_pos == c2->item_pos - 1 && c2->between == AFTER_ITEM);
-
-	case AFTER_ITEM:
-		/* c2 must be before the next item. */
-		return (c1->item_pos == c2->item_pos + 1 && c2->between == BEFORE_ITEM);
-	}
-
-	impossible("jmacd-9906", "unreachable");
-	return 0;
 }
 
 /* If coord_is_after_rightmost return NCOORD_ON_THE_RIGHT, if coord_is_after_leftmost

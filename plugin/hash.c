@@ -240,7 +240,6 @@ static __u64
 hash_deg(const unsigned char *name UNUSED_ARG /* name to hash */ ,
 	 int len UNUSED_ARG /* @name's length */ )
 {
-	ON_TRACE(TRACE_DIR, "Hashing %s\n", name);
 	return 0xc0c0c0c010101010ull;
 }
 

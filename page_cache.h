@@ -20,15 +20,7 @@ extern reiser4_tree *tree_by_page(const struct page *page);
 
 extern int set_page_dirty_internal (struct page * page, int tag_as_moved);
 
-#if REISER4_LOG
-extern char *jnode_short_info(const jnode *j, char *buf);
-extern int reiser4_submit_bio_helper(const char *moniker,
-				     int rw, struct bio *bio);
-#define reiser4_submit_bio(rw, bio)				\
-	reiser4_submit_bio_helper(__FUNCTION__, (rw), (bio))
-#else
 #define reiser4_submit_bio(rw, bio) submit_bio((rw), (bio))
-#endif
 
 extern void reiser4_wait_page_writeback (struct page * page);
 static inline void lock_and_wait_page_writeback (struct page * page)
@@ -48,7 +40,7 @@ extern void capture_reiser4_inodes (struct super_block *, struct writeback_contr
 
 #define PAGECACHE_TAG_REISER4_MOVED PAGECACHE_TAG_FS_SPECIFIC
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 extern void print_page(const char *prefix, struct page *page);
 #else
 #define print_page(prf, p) noop

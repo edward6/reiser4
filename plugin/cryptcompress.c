@@ -59,7 +59,6 @@ int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t c
 int delete_object(struct inode *inode, int mode);
 __u8 cluster_shift_by_coord(const coord_t * coord);
 int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
-unsigned long clust_by_coord(const coord_t * coord);
 int hint_is_set(const hint_t *hint);
 reiser4_plugin * get_default_plugin(pset_member memb);
 
@@ -80,7 +79,7 @@ init_inode_data_cryptcompress(struct inode *inode,
 	data = cryptcompress_inode_data(inode);
 	assert("edward-685", data != NULL);
 
-	xmemset(data, 0, sizeof (*data));
+	memset(data, 0, sizeof (*data));
 	
 	init_rwsem(&data->lock);
 	init_inode_ordering(inode, crd, create);
@@ -108,7 +107,7 @@ crc_inode_ok(struct inode * inode)
 }
 #endif
 
-reiser4_internal crypto_stat_t * inode_crypto_stat (struct inode * inode)
+static crypto_stat_t * inode_crypto_stat (struct inode * inode)
 {
 	assert("edward-90", inode != NULL);
 	assert("edward-91", reiser4_inode_data(inode) != NULL);
@@ -185,7 +184,7 @@ attach_crypto_stat(struct inode * inode, crypto_data_t * data)
 		reiser4_kfree(stat);
 		return -ENOMEM;
 	}
-	xmemcpy(txt, data->keyid, data->keyid_size);
+	memcpy(txt, data->keyid, data->keyid_size);
 	sg.page = virt_to_page (txt);
 	sg.offset = offset_in_page (txt);
 	sg.length = data->keyid_size;
@@ -223,7 +222,7 @@ init_default_crypto(crypto_data_t * data)
 {
 	assert("edward-692", data != NULL);
 
-	xmemset(data, 0, sizeof(*data));
+	memset(data, 0, sizeof(*data));
 
 	data->cra = get_default_plugin(PSET_CRYPTO)->h.id;
 	data->dia = get_default_plugin(PSET_DIGEST)->h.id;
@@ -235,7 +234,7 @@ init_default_compression(compression_data_t * data)
 {
 	assert("edward-693", data != NULL);
 
-	xmemset(data, 0, sizeof(*data));
+	memset(data, 0, sizeof(*data));
 
 	data->coa = get_default_plugin(PSET_COMPRESSION)->h.id;
 }
@@ -436,8 +435,8 @@ destroy_inode_cryptcompress(struct inode * inode)
 }
 
 /* returns translated offset */
-reiser4_internal loff_t inode_scaled_offset (struct inode * inode,
-					     const loff_t src_off /* input offset */)
+static loff_t inode_scaled_offset (struct inode * inode,
+				   const loff_t src_off /* input offset */)
 {
 	assert("edward-97", inode != NULL);
 
@@ -458,7 +457,8 @@ inode_scaled_cluster_size (struct inode * inode)
 }
 
 /* return true if the cluster contains specified page */
-reiser4_internal int
+#if 0
+static int
 page_of_cluster(struct page * page, reiser4_cluster_t * clust, struct inode * inode)
 {
 	assert("edward-162", page != NULL);
@@ -468,6 +468,7 @@ page_of_cluster(struct page * page, reiser4_cluster_t * clust, struct inode * in
 
 	return (pg_to_clust(page->index, inode) == clust->index);
 }
+#endif
 
 reiser4_internal int
 new_cluster(reiser4_cluster_t * clust, struct inode * inode)
@@ -724,7 +725,7 @@ free_reserved4cluster(struct inode * inode, reiser4_cluster_t * clust)
 
 /* Search a disk cluster item.
    If result is not cbk_errored current znode is locked */
-reiser4_internal int
+static int
 find_cluster_item(hint_t * hint,            
 		  const reiser4_key *key,   /* key of next cluster item to read */
 		  int check_key,            /* 1, if the caller read/write items */
@@ -923,7 +924,7 @@ crypto_overhead(size_t len /* advised length */,
 
 /* maximal aligning overhead which can be appended
    to the flow before encryption if any */
-reiser4_internal unsigned
+static unsigned
 max_crypto_overhead(struct inode * inode)
 {
 	if (!inode_get_crypto(inode) || !inode_crypto_plugin(inode)->align_cluster)
@@ -931,7 +932,7 @@ max_crypto_overhead(struct inode * inode)
 	return crypto_blocksize(inode);
 }
 
-reiser4_internal unsigned
+static unsigned
 compress_overhead(struct inode * inode, int in_len)
 {
 	return inode_compression_plugin(inode)->overrun(in_len);
@@ -994,7 +995,7 @@ static void set_compression_magic(__u8 * magic)
 {
 	/* FIXME-EDWARD: Use a checksum here */
 	assert("edward-279", magic != NULL); 
-	xmemset(magic, 0, DC_CHECKSUM_SIZE);
+	memset(magic, 0, DC_CHECKSUM_SIZE);
 }
 
 reiser4_internal int
@@ -1412,16 +1413,6 @@ try_capture_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	return 0;
 }
 
-reiser4_internal jnode *
-jnode_of_page_cluster(reiser4_cluster_t * clust)
-{
-	assert("edward-916", clust != NULL);
-	assert("edward-917", clust->pages != NULL);
-	assert("edward-918", clust->nr_pages != 0);	
-
-	return jnode_of_page(clust->pages[0]);
-}
-
 /* Collect unlocked cluster pages and jnode */
 static int
 grab_cluster_pages_jnode(struct inode * inode, reiser4_cluster_t * clust)
@@ -1654,7 +1645,7 @@ update_sd_cryptcompress(struct inode *inode)
 	return result;
 }
 
-reiser4_internal void
+static void
 uncapture_cluster_jnode(jnode *node)
 {
 	txn_atom *atom;
@@ -1771,8 +1762,8 @@ struct inode * inode)
 		
 		assert("edward-986", off_to_pgcount(tc->len, i) != 0);
 
-		xmemcpy(tfm_stream_data(tc, INPUT_STREAM) + pg_to_off(i), 
-			data, off_to_pgcount(tc->len, i));
+		memcpy(tfm_stream_data(tc, INPUT_STREAM) + pg_to_off(i), 
+		       data, off_to_pgcount(tc->len, i));
 		kunmap(clust->pages[i]);
 		unlock_page(clust->pages[i]);
 		if (i)
@@ -1875,7 +1866,7 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 		to_pg = min_count(PAGE_CACHE_SIZE - pg_off, cl_count);
 		lock_page(page);
 		data = kmap_atomic(page, KM_USER0);
-		xmemset(data + pg_off, 0, to_pg);
+		memset(data + pg_off, 0, to_pg);
 		flush_dcache_page(page);
 		kunmap_atomic(data, KM_USER0);
 		SetPageUptodate(page);
@@ -3243,10 +3234,6 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index)
 		if (to_capture == 0)
 			/* there may be left more pages */
 			redirty_inode(mapping->host);
-		
-		ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
-			 "capture anonymous: oid %llu: end index %lu, captured %u\n",
-			 get_inode_oid(mapping->host), *index, CAPTURE_APAGE_BURST - to_capture);
 	}
  out:
 	done_lh(&lh);
@@ -3467,7 +3454,7 @@ save_len_cryptcompress_plugin(struct inode * inode, reiser4_plugin * plugin)
 	return 0;
 }
 
-reiser4_internal int
+static int
 load_cryptcompress_plugin(struct inode * inode, reiser4_plugin * plugin, char **area, int *len)
 {
 	assert("edward-455", inode != NULL);

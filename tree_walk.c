@@ -70,8 +70,6 @@ lock_neighbor(
 	assert("umka-237", tree != NULL);
 	assert("umka-301", rw_tree_is_locked(tree));
 
-	reiser4_stat_inc_at_level(znode_get_level(node), znode.lock_neighbor);
-
 	if (flags & GN_TRY_LOCK)
 		req |= ZNODE_LOCK_NONBLOCK;
 	if (flags & GN_SAME_ATOM)
@@ -80,8 +78,6 @@ lock_neighbor(
 	/* get neighbor's address by using of sibling link, quit while loop
 	   (and return) if link is not available. */
 	while (1) {
-		reiser4_stat_inc_at_level(znode_get_level(node),
-					  znode.lock_neighbor_iteration);
 		neighbor = GET_NODE_BY_PTR_OFFSET(node, ptr_offset);
 
 		/* return -E_NO_NEIGHBOR if parent or side pointer is NULL or if
@@ -195,7 +191,8 @@ lock_side_neighbor(lock_handle * result,
 	return ret;
 }
 
-#if REISER4_DEBUG_SIBLING_LIST
+#if REISER4_DEBUG
+
 int check_sibling_list(znode * node)
 {
 	znode *scan;
@@ -230,6 +227,7 @@ int check_sibling_list(znode * node)
 	}
 	return 1;
 }
+
 #endif
 
 /* Znode sibling pointers maintenence. */
@@ -694,7 +692,6 @@ again:
 		znode *child = (h == 0) ? node : path[h - 1].node;
 		znode *parent = path[h].node;
 
-		reiser4_stat_inc_at_level(h + LEAF_LEVEL, sibling_search);
 		ret = zload(parent);
 		if (ret)
 			break;

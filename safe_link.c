@@ -104,7 +104,8 @@ build_link_key(struct inode *inode, reiser4_safe_link_t link, reiser4_key *key)
  * how much disk space is necessary to insert and remove (in the
  * error-handling path) safe-link.
  */
-reiser4_internal __u64 safe_link_tograb(reiser4_tree *tree)
+static __u64
+safe_link_tograb(reiser4_tree *tree)
 {
 	return
 		/* insert safe link */
@@ -284,7 +285,6 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 				"Cannot handle safelink for %lli",
 				(unsigned long long)oid);
 			print_key("key", sdkey);
-			print_inode("inode", inode);
 			result = 0;
 		}
 		if (result != 0) {

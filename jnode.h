@@ -394,7 +394,6 @@ extern void unformatted_make_reloc(jnode*, flush_queue_t*) NONNULL;
 
 extern void jnode_set_block(jnode * node,
 			    const reiser4_block_nr * blocknr) NONNULL;
-extern struct page *jnode_lock_page(jnode *) NONNULL;
 extern struct address_space *jnode_get_mapping(const jnode * node) NONNULL;
 
 /* block number of node */
@@ -423,7 +422,6 @@ jnode_get_io_block(const jnode * node)
 
 /* Jnode flush interface. */
 extern reiser4_blocknr_hint *pos_hint(flush_pos_t * pos);
-extern int pos_leaf_relocate(flush_pos_t * pos);
 extern flush_queue_t * pos_fq(flush_pos_t * pos);
 
 /* FIXME-VS: these are used in plugin/item/extent.c */
@@ -458,23 +456,17 @@ extern int jnodes_tree_done(reiser4_tree * tree);
 #if REISER4_DEBUG
 extern int znode_is_any_locked(const znode * node);
 extern void jnode_list_remove(jnode * node);
-#else
-#define jnode_list_remove(node) noop
-#endif
-
-#if REISER4_DEBUG_NODE_INVARIANT
 extern int jnode_invariant(const jnode * node, int tlocked, int jlocked);
 #else
+#define jnode_list_remove(node) noop
 #define jnode_invariant(n, t, j) (1)
 #endif
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 extern void info_jnode(const char *prefix, const jnode * node);
 extern void print_jnode(const char *prefix, const jnode * node);
-extern void print_jnodes(const char *prefix, reiser4_tree * tree);
 #else
 #define info_jnode(p, n) noop
-#define print_jnodes(p, t) noop
 #define print_jnode(p, n) noop
 #endif
 
@@ -509,8 +501,6 @@ jref(jnode * node)
 	add_x_ref(node);
 	return node;
 }
-
-extern int jdelete(jnode * node) NONNULL;
 
 /* get the page of jnode */
 static inline struct page *
@@ -720,18 +710,9 @@ jnode_is_root(const jnode * node)
 extern struct address_space * mapping_jnode(const jnode * node);
 extern unsigned long index_jnode(const jnode * node);
 
-extern int jnode_try_drop(jnode * node);
-
 static inline void jput(jnode * node);
 extern void jput_final(jnode * node);
 
-#if REISER4_STATS
-extern void reiser4_stat_inc_at_level_jput(const jnode * node);
-extern void reiser4_stat_inc_at_level_jputlast(const jnode * node);
-#else
-#define reiser4_stat_inc_at_level_jput(node) noop
-#define reiser4_stat_inc_at_level_jputlast(node) noop
-#endif
 
 /* jput() - decrement x_count reference counter on znode.
 
@@ -743,21 +724,17 @@ extern void reiser4_stat_inc_at_level_jputlast(const jnode * node);
 static inline void
 jput(jnode * node)
 {
-	trace_stamp(TRACE_ZNODES);
-
 	assert("jmacd-509", node != NULL);
 	assert("jmacd-510", atomic_read(&node->x_count) > 0);
 	assert("nikita-3065", spin_jnode_is_not_locked(node));
 	assert("zam-926", schedulable());
 	LOCK_CNT_DEC(x_refs);
 
-	reiser4_stat_inc_at_level_jput(node);
 	rcu_read_lock();
 	/*
 	 * we don't need any kind of lock here--jput_final() uses RCU.
 	 */
 	if (unlikely(atomic_dec_and_test(&node->x_count))) {
-		reiser4_stat_inc_at_level_jputlast(node);
 		jput_final(node);
 	} else
 		rcu_read_unlock();

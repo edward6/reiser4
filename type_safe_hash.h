@@ -8,7 +8,6 @@
 #define __REISER4_TYPE_SAFE_HASH_H__
 
 #include "debug.h"
-#include "stats.h"
 
 #include <asm/errno.h>
 /* Step 1: Use TYPE_SAFE_HASH_DECLARE() to define the TABLE and LINK objects
@@ -23,7 +22,6 @@ struct PREFIX##_hash_table_                                                     
 {                                                                                             \
   ITEM_TYPE  **_table;                                                                        \
   __u32        _buckets;                                                                      \
-  tshash_stat *_stats;                                                                        \
 };                                                                                            \
                                                                                               \
 struct PREFIX##_hash_link_                                                                    \
@@ -87,17 +85,15 @@ PREFIX##_check_hash (PREFIX##_hash_table *table UNUSED_ARG,				\
 											\
 static __inline__ int									\
 PREFIX##_hash_init (PREFIX##_hash_table *hash,						\
-		    __u32                buckets,					\
-		    tshash_stat         *stats) 					\
+		    __u32                buckets)					\
 {											\
   hash->_table   = (ITEM_TYPE**) KMALLOC (sizeof (ITEM_TYPE*) * buckets);		\
   hash->_buckets = buckets;								\
-  hash->_stats = stats; 								\
   if (hash->_table == NULL)								\
     {											\
       return RETERR(-ENOMEM);								\
     }											\
-  xmemset (hash->_table, 0, sizeof (ITEM_TYPE*) * buckets);				\
+  memset (hash->_table, 0, sizeof (ITEM_TYPE*) * buckets);				\
   ON_DEBUG(printk(#PREFIX "_hash_table: %i buckets\n", buckets));			\
   return 0;										\
 }											\
@@ -136,13 +132,11 @@ PREFIX##_hash_find_index (PREFIX##_hash_table *hash,					\
   ITEM_TYPE *item;									\
 											\
   PREFIX##_check_hash(hash, hash_index);						\
-  TSHASH_LOOKUP(hash->_stats);								\
 											\
   for (item  = hash->_table[hash_index];						\
        item != NULL;									\
        item  = item->LINK_NAME._next)							\
     {											\
-      TSHASH_SCANNED(hash->_stats);							\
       prefetch(item->LINK_NAME._next);							\
       prefetch(item->LINK_NAME._next + offsetof(ITEM_TYPE, KEY_NAME));			\
       if (EQ_FUNC (& item->KEY_NAME, find_key))						\
@@ -162,10 +156,8 @@ PREFIX##_hash_find_index_lru (PREFIX##_hash_table *hash,				\
   ITEM_TYPE ** item = &hash->_table[hash_index];                                        \
 											\
   PREFIX##_check_hash(hash, hash_index);						\
-  TSHASH_LOOKUP(hash->_stats);								\
                                                                                         \
   while (*item != NULL) {                                                               \
-    TSHASH_SCANNED(hash->_stats);							\
     prefetch(&(*item)->LINK_NAME._next);						\
     if (EQ_FUNC (&(*item)->KEY_NAME, find_key)) {                                       \
       ITEM_TYPE *found; 								\
@@ -189,10 +181,8 @@ PREFIX##_hash_remove_index (PREFIX##_hash_table *hash,					\
   ITEM_TYPE ** hash_item_p = &hash->_table[hash_index];                                 \
 											\
   PREFIX##_check_hash(hash, hash_index);						\
-  TSHASH_REMOVE(hash->_stats);								\
                                                                                         \
   while (*hash_item_p != NULL) {                                                        \
-    TSHASH_SCANNED(hash->_stats);							\
     prefetch(&(*hash_item_p)->LINK_NAME._next);						\
     if (*hash_item_p == del_item) {                                                     \
       *hash_item_p = (*hash_item_p)->LINK_NAME._next;                                   \
@@ -209,7 +199,6 @@ PREFIX##_hash_insert_index (PREFIX##_hash_table *hash,					\
 			    ITEM_TYPE           *ins_item)				\
 {											\
   PREFIX##_check_hash(hash, hash_index);						\
-  TSHASH_INSERT(hash->_stats);								\
 											\
   ins_item->LINK_NAME._next = hash->_table[hash_index];					\
   hash->_table[hash_index]  = ins_item;							\
@@ -221,7 +210,6 @@ PREFIX##_hash_insert_index_rcu (PREFIX##_hash_table *hash,				\
 			        ITEM_TYPE           *ins_item)				\
 {											\
   PREFIX##_check_hash(hash, hash_index);						\
-  TSHASH_INSERT(hash->_stats);								\
 											\
   ins_item->LINK_NAME._next = hash->_table[hash_index];					\
   smp_wmb();    									\

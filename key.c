@@ -36,7 +36,7 @@ reiser4_internal void
 reiser4_key_init(reiser4_key * key /* key to init */ )
 {
 	assert("nikita-1169", key != NULL);
-	xmemset(key, 0, sizeof *key);
+	memset(key, 0, sizeof *key);
 }
 
 /* minimal possible key in the tree. Return pointer to the static storage. */
@@ -53,7 +53,7 @@ max_key(void)
 	return &MAXIMAL_KEY;
 }
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 /* debugging aid: print symbolic name of key type */
 static const char *
 type_name(unsigned int key_type /* key type */ )

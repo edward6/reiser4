@@ -41,12 +41,6 @@ calc_estimate_one_insert(tree_level height)
 }
 
 reiser4_internal reiser4_block_nr
-estimate_internal_amount(reiser4_block_nr children, tree_level tree_height)
-{
-	return max_balance_overhead(children, tree_height);
-}
-
-reiser4_internal reiser4_block_nr
 estimate_one_insert_item(reiser4_tree *tree)
 {
 	return tree->estimate_one_insert;

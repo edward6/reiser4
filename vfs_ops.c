@@ -21,18 +21,14 @@
 #include "znode.h"
 #include "block_alloc.h"
 #include "tree.h"
-#include "log.h"
 #include "vfs_ops.h"
 #include "inode.h"
 #include "page_cache.h"
 #include "ktxnmgrd.h"
 #include "super.h"
 #include "reiser4.h"
-#include "kattr.h"
 #include "entd.h"
 #include "emergency_flush.h"
-#include "prof.h"
-#include "repacker.h"
 #include "init_super.h"
 #include "status_flags.h"
 #include "flush.h"
@@ -91,7 +87,6 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	assert("nikita-409", statfs != NULL);
 
 	init_context(&ctx, super);
-	reiser4_stat_inc(vfs_calls.statfs);
 
 	statfs->f_type = statfs_type(super);
 	statfs->f_bsize = super->s_blocksize;
@@ -275,12 +270,11 @@ reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 	assert("nikita-1365", dentry != NULL);
 
 	if (dentry->d_fsdata == NULL) {
-		reiser4_stat_inc(vfs_calls.private_data_alloc);
 		dentry->d_fsdata = kmem_cache_alloc(dentry_fsdata_slab,
 						    GFP_KERNEL);
 		if (dentry->d_fsdata == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
-		xmemset(dentry->d_fsdata, 0, sizeof (reiser4_dentry_fsdata));
+		memset(dentry->d_fsdata, 0, sizeof (reiser4_dentry_fsdata));
 	}
 	return dentry->d_fsdata;
 }
@@ -338,7 +332,7 @@ create_fsdata(struct file *file, int gfp)
 
 	fsdata = kmem_cache_alloc(file_fsdata_slab, gfp);
 	if (fsdata != NULL) {
-		xmemset(fsdata, 0, sizeof *fsdata);
+		memset(fsdata, 0, sizeof *fsdata);
 		fsdata->ra1.max_window_size = VM_MAX_READAHEAD * 1024;
 		fsdata->back = file;
 		readdir_list_clean(fsdata);
@@ -358,7 +352,6 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		reiser4_file_fsdata *fsdata;
 		struct inode *inode;
 
-		reiser4_stat_inc(vfs_calls.private_data_alloc);
 		fsdata = create_fsdata(f, GFP_KERNEL);
 		if (fsdata == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
@@ -474,7 +467,6 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 	reiser4_inode_object *obj;
 
 	assert("nikita-1696", super != NULL);
-	reiser4_stat_inc_at(super, vfs_calls.alloc_inode);
 	obj = kmem_cache_alloc(inode_cache, SLAB_KERNEL);
 	if (obj != NULL) {
 		reiser4_inode *info;
@@ -507,8 +499,6 @@ static void
 reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 {
 	reiser4_inode *info;
-
-	reiser4_stat_inc_at(inode->i_sb, vfs_calls.destroy_inode);
 
 	info = reiser4_inode_data(inode);
 
@@ -651,7 +641,6 @@ reiser4_delete_inode(struct inode *object)
 	reiser4_context ctx;
 
 	init_context(&ctx, object->i_sb);
-	reiser4_stat_inc(vfs_calls.delete_inode);
 	if (is_inode_loaded(object)) {
 		file_plugin *fplug;
 
@@ -1051,16 +1040,6 @@ do {						\
 		}
 	});
 
-#if REISER4_LOG
-	PUSH_OPT({
-		.name = "log_file",
-		.type = OPT_STRING,
-		.u = {
-			.string = &log_file_name
-		}
-	});
-#endif
-
 	sbinfo->tmgr.atom_max_size = txnmgr_get_max_atom_size(s);
 	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
 	sbinfo->tmgr.atom_max_flushers = ATOM_MAX_FLUSHERS;
@@ -1104,12 +1083,6 @@ do {						\
 		warning("nikita-2497", "optimal_io_size is too small");
 		return RETERR(-EINVAL);
 	}
-#if REISER4_LOG
-	if (log_file_name != NULL)
-		result = open_log_file(s, log_file_name, REISER4_TRACE_BUF_SIZE, &sbinfo->log_file);
-	else
-		sbinfo->log_file.type = log_to_bucket;
-#endif
 
 	/* disable single-threaded flush as it leads to deadlock */
 	sbinfo->fs_flags |= (1 << REISER4_MTFLUSH);
@@ -1134,79 +1107,6 @@ reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 	return 0;
 }
 
-/*
- * Lock profiling code.
- *
- * see spin_macros.h and spinprof.[ch]
- *
- */
-
-/* defined profiling regions for spin lock types */
-DEFINE_SPIN_PROFREGIONS(epoch);
-DEFINE_SPIN_PROFREGIONS(jnode);
-DEFINE_SPIN_PROFREGIONS(jload);
-DEFINE_SPIN_PROFREGIONS(stack);
-DEFINE_SPIN_PROFREGIONS(super);
-DEFINE_SPIN_PROFREGIONS(atom);
-DEFINE_SPIN_PROFREGIONS(txnh);
-DEFINE_SPIN_PROFREGIONS(txnmgr);
-DEFINE_SPIN_PROFREGIONS(ktxnmgrd);
-DEFINE_SPIN_PROFREGIONS(inode_object);
-DEFINE_SPIN_PROFREGIONS(fq);
-DEFINE_SPIN_PROFREGIONS(super_eflush);
-
-/* define profiling regions for read-write locks */
-DEFINE_RW_PROFREGIONS(zlock);
-DEFINE_RW_PROFREGIONS(dk);
-DEFINE_RW_PROFREGIONS(tree);
-DEFINE_RW_PROFREGIONS(cbk_cache);
-
-/* register profiling regions defined above */
-static int register_profregions(void)
-{
-	register_super_eflush_profregion();
-	register_epoch_profregion();
-	register_jnode_profregion();
-	register_jload_profregion();
-	register_stack_profregion();
-	register_super_profregion();
-	register_atom_profregion();
-	register_txnh_profregion();
-	register_txnmgr_profregion();
-	register_ktxnmgrd_profregion();
-	register_inode_object_profregion();
-	register_fq_profregion();
-
-	register_zlock_profregion();
-	register_cbk_cache_profregion();
-	register_dk_profregion();
-	register_tree_profregion();
-
-	return 0;
-}
-
-/* unregister profiling regions defined above */
-static void unregister_profregions(void)
-{
-	unregister_super_eflush_profregion();
-	unregister_epoch_profregion();
-	unregister_jload_profregion();
-	unregister_jnode_profregion();
-	unregister_stack_profregion();
-	unregister_super_profregion();
-	unregister_atom_profregion();
-	unregister_txnh_profregion();
-	unregister_txnmgr_profregion();
-	unregister_ktxnmgrd_profregion();
-	unregister_inode_object_profregion();
-	unregister_fq_profregion();
-
-	unregister_zlock_profregion();
-	unregister_cbk_cache_profregion();
-	unregister_dk_profregion();
-	unregister_tree_profregion();
-}
-
 /* ->write_super() method. Called by sync(2). */
 static void
 reiser4_write_super(struct super_block *s)
@@ -1217,7 +1117,6 @@ reiser4_write_super(struct super_block *s)
 	assert("vs-1700", !rofs_super(s));
 
 	init_context(&ctx, s);
-	reiser4_stat_inc(vfs_calls.write_super);
 
 	ret = capture_super_block(s);
 	if (ret != 0)
@@ -1243,11 +1142,7 @@ reiser4_put_super(struct super_block *s)
 	assert("vs-1699", sbinfo);
 
 	init_context(&context, s);
-#if defined(REISER4_REPACKER)
-	done_reiser4_repacker(s);
-#endif /* REISER4_REPACKER */
 	stop_ktxnmgrd(&sbinfo->tmgr);
-	reiser4_sysfs_done(s);
 
 	/* have disk format plugin to free its resources */
 	if (get_super_private(s)->df_plug->release)
@@ -1269,8 +1164,6 @@ reiser4_put_super(struct super_block *s)
 
 	/* no assertions below this line */
 	reiser4_exit_context(&context);
-
-	reiser4_stat_done(&sbinfo->stats);
 
 	kfree(sbinfo);
 	s->s_fs_info = NULL;
@@ -1318,9 +1211,6 @@ typedef enum {
 	INIT_FAKES,              /* fake inode initialized */
 	INIT_JNODES,             /* jnode slab initialized */
 	INIT_EFLUSH,             /* emergency flush initialized */
-	INIT_SPINPROF,           /* spin lock profiling initialized */
-	INIT_SYSFS,              /* sysfs exports initialized */
-	INIT_LNODES,             /* lnodes initialized */
 	INIT_FQS,                /* flush queues initialized */
 	INIT_DENTRY_FSDATA,      /* dentry_fsdata slab initialized */
 	INIT_FILE_FSDATA,        /* file_fsdata slab initialized */
@@ -1349,9 +1239,6 @@ shutdown_reiser4(void)
 	DONE_IF(INIT_FILE_FSDATA, done_file_fsdata());
 	DONE_IF(INIT_DENTRY_FSDATA, done_dentry_fsdata());
 	DONE_IF(INIT_FQS, done_fqs());
-	DONE_IF(INIT_LNODES, lnodes_done());
-	DONE_IF(INIT_SYSFS, reiser4_sysfs_done_once());
-	DONE_IF(INIT_SPINPROF, unregister_profregions());
 	DONE_IF(INIT_EFLUSH, eflush_done());
 	DONE_IF(INIT_JNODES, jnode_done_static());
 	DONE_IF(INIT_FAKES,;);
@@ -1398,16 +1285,11 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(init_fakes());
 	CHECK_INIT_RESULT(jnode_init_static());
 	CHECK_INIT_RESULT(eflush_init());
-	CHECK_INIT_RESULT(register_profregions());
-	CHECK_INIT_RESULT(reiser4_sysfs_init_once());
-	CHECK_INIT_RESULT(lnodes_init());
 	CHECK_INIT_RESULT(init_fqs());
 	CHECK_INIT_RESULT(init_dentry_fsdata());
 	CHECK_INIT_RESULT(init_file_fsdata());
 	CHECK_INIT_RESULT(d_cursor_init());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
-
-	calibrate_prof();
 
 	assert("nikita-2515", init_stage == INIT_FS_REGISTERED);
 	return 0;

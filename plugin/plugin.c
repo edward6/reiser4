@@ -187,7 +187,6 @@ NIKTIA-FIXME-HANS: Do the line above.  It is not exclusive of doing the line bel
 int init_plugins(void);
 int setup_plugins(struct super_block *super, reiser4_plugin ** area);
 reiser4_plugin *lookup_plugin(const char *type_label, const char *plug_label);
-reiser4_plugin *lookup_plugin_name(char *plug_label);
 int locate_plugin(struct inode *inode, plugin_locator * loc);
 
 /* internal functions. */
@@ -201,7 +200,6 @@ init_plugins(void)
 {
 	reiser4_plugin_type type_id;
 
-	ON_TRACE(TRACE_PLUGINS, "Builtin plugins:\n");
 	for (type_id = 0; type_id < REISER4_PLUGIN_TYPES; ++type_id) {
 		reiser4_plugin_type_data *ptype;
 		int i;
@@ -211,8 +209,6 @@ init_plugins(void)
 		assert("nikita-3509", ptype->type_id == type_id);
 
 		plugin_list_init(&ptype->plugins_list);
-		ON_TRACE(TRACE_PLUGINS,
-			 "Of type %s (%s):\n", ptype->label, ptype->desc);
 /* NIKITA-FIXME-HANS: change builtin_num to some other name lacking the term builtin. */
 		for (i = 0; i < ptype->builtin_num; ++i) {
 			reiser4_plugin *plugin;
@@ -224,7 +220,6 @@ init_plugins(void)
 				continue;
 			assert("nikita-3445", plugin->h.type_id == type_id);
 			plugin->h.id = i;
-			IF_TRACE(TRACE_PLUGINS, print_plugin("\t", plugin));
 			if (plugin->h.pops != NULL &&
 			    plugin->h.pops->init != NULL) {
 				int result;
@@ -238,28 +233,6 @@ init_plugins(void)
 		}
 	}
 	return 0;
-}
-
-/* lookup plugin name by scanning tables */
-reiser4_internal reiser4_plugin *
-lookup_plugin_name(char *plug_label /* label to search for */ )
-{
-	reiser4_plugin_type type_id;
-	reiser4_plugin *plugin;
-
-/* DEMIDOV-FIXME-HANS: did you get Saveliev to agree that his name is not Vova?  If not, change to DEMIDOV-001 */
-	assert("vova-001", plug_label != NULL);
-
-	plugin = NULL;
-
-	dinfo("lookup_plugin_name: %s\n", plug_label);
-
-	for (type_id = 0; type_id < REISER4_PLUGIN_TYPES; ++type_id) {
-		plugin = find_plugin(&plugins[type_id], plug_label);
-		if (plugin != NULL)
-			break;
-	}
-	return plugin;
 }
 
 /* true if plugin type id is valid */

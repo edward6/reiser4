@@ -279,9 +279,6 @@ tail2extent(unix_file_info_t *uf_info)
 	int first_iteration;
 	int bytes;
 
-	/* collect statistics on the number of tail2extent conversions */
-	reiser4_stat_inc(file.tail2extent);
-
 	assert("nikita-3362", ea_obtained(uf_info));
 	inode = unix_file_info_to_inode(uf_info);
 	assert("nikita-3412", !IS_RDONLY(inode));
@@ -308,7 +305,7 @@ tail2extent(unix_file_info_t *uf_info)
 	result = 0;
 	first_iteration = 1;
 	while (done == 0) {
-		xmemset(pages, 0, sizeof (pages));
+		memset(pages, 0, sizeof (pages));
 		all_grabbed2free();
 		result = reserve_tail2extent_iteration(inode);
 		if (result != 0)
@@ -358,7 +355,7 @@ tail2extent(unix_file_info_t *uf_info)
 					done_lh(&lh);
 					done = 1;
 					p_data = kmap_atomic(page, KM_USER0);
-					xmemset(p_data + page_off, 0, PAGE_CACHE_SIZE - page_off);
+					memset(p_data + page_off, 0, PAGE_CACHE_SIZE - page_off);
 					kunmap_atomic(p_data, KM_USER0);
 					break;
 				}
@@ -430,7 +427,6 @@ tail2extent(unix_file_info_t *uf_info)
 		release_all_pages(pages, sizeof_array(pages));
 		warning("nikita-2282", "Partial conversion of %llu: %i",
 			(unsigned long long)get_inode_oid(inode), result);
-		print_inode("inode", inode);
 	}
 
  out:
@@ -503,16 +499,6 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 	return result;
 }
 
-/* flow insertion is limited by CARRY_FLOW_NEW_NODES_LIMIT of new nodes. Therefore, minimal number of bytes of flow
-   which can be put into tree by one insert_flow is number of bytes contained in CARRY_FLOW_NEW_NODES_LIMIT nodes if
-   they all are filled completely by one tail item. Fortunately, there is a one to one mapping between bytes of tail
-   items and bytes of flow. If there were not, we would have to have special item plugin */
-reiser4_internal int min_bytes_per_flow(void)
-{
-	assert("vs-1103", current_tree->nplug && current_tree->nplug->max_item_size);
-	return CARRY_FLOW_NEW_NODES_LIMIT * current_tree->nplug->max_item_size();
-}
-
 static int
 reserve_extent2tail_iteration(struct inode *inode)
 {
@@ -553,9 +539,6 @@ extent2tail(unix_file_info_t *uf_info)
 	reiser4_key to;
 	unsigned count;
 	__u64 offset;
-
-	/* collect statistics on the number of extent2tail conversions */
-	reiser4_stat_inc(file.extent2tail);
 
 	assert("nikita-3362", ea_obtained(uf_info));
 	inode = unix_file_info_to_inode(uf_info);
@@ -669,7 +652,6 @@ extent2tail(unix_file_info_t *uf_info)
 			"Partial conversion of %llu: %lu of %lu: %i",
 			(unsigned long long)get_inode_oid(inode), i,
 			num_pages, result);
-		print_inode("inode", inode);
 	}
 	all_grabbed2free();
 	return result;

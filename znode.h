@@ -142,21 +142,13 @@ struct znode {
 	/* number of items in this node. This field is modified by node
 	 * plugin. */
 	__u16 nr_items;
-#if REISER4_DEBUG_MODIFY
-	/* In debugging mode, used to detect loss of znode_set_dirty()
-	   notification. */
-	spinlock_t cksum_lock;
-	__u32 cksum;
-#endif
 
 #if REISER4_DEBUG
 	void *creator;
 	reiser4_key first_key;
 	unsigned long times_locked;
 #endif
-#if REISER4_STATS
-	int last_lookup_pos;
-#endif
+
 } __attribute__((aligned(16)));
 
 /* In general I think these macros should not be exposed. */
@@ -225,8 +217,6 @@ extern void znode_remove(znode *, reiser4_tree *);
 extern znode *znode_parent(const znode * node);
 extern znode *znode_parent_nolock(const znode * node);
 extern int znode_above_root(const znode * node);
-extern int znode_is_true_root(const znode * node);
-extern void zdrop(znode * node);
 extern int znodes_init(void);
 extern int znodes_done(void);
 extern int znodes_tree_init(reiser4_tree * ztree);
@@ -240,26 +230,19 @@ extern int znode_just_created(const znode * node);
 
 extern void zfree(znode * node);
 
-#if REISER4_DEBUG_MODIFY
-extern void znode_pre_write(znode * node);
-extern void znode_post_write(znode * node);
-extern void znode_set_checksum(jnode * node, int locked_p);
-extern int  znode_at_read(const znode * node);
-#else
+/*
 #define znode_pre_write(n) noop
 #define znode_post_write(n) noop
 #define znode_set_checksum(n, l) noop
 #define znode_at_read(n) (1)
-#endif
+*/
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 extern void print_znode(const char *prefix, const znode * node);
-extern void info_znode(const char *prefix, const znode * node);
 extern void print_znodes(const char *prefix, reiser4_tree * tree);
 extern void print_lock_stack(const char *prefix, lock_stack * owner);
 #else
 #define print_znode( p, n ) noop
-#define info_znode( p, n ) noop
 #define print_znodes( p, t ) noop
 #define print_lock_stack( p, o ) noop
 #endif
@@ -287,12 +270,7 @@ extern void print_lock_stack(const char *prefix, lock_stack * owner);
 
 #if REISER4_DEBUG
 extern int znode_x_count_is_protected(const znode * node);
-#endif
-
-#if REISER4_DEBUG_NODE_INVARIANT
 extern int znode_invariant(const znode * node);
-#else
-#define znode_invariant(n) (1)
 #endif
 
 /* acquire reference to @node */
@@ -366,13 +344,7 @@ znode_rip_check(reiser4_tree *tree, znode * node)
 int znode_is_loaded(const znode * node /* znode to query */ );
 #endif
 
-extern z_hash_table *get_htable(reiser4_tree * tree,
-				const reiser4_block_nr * const blocknr);
-extern z_hash_table *znode_get_htable(const znode *node);
-
 extern __u64 znode_build_version(reiser4_tree * tree);
-
-extern int znode_relocate(znode * node, reiser4_block_nr * blk);
 
 /* Data-handles.  A data handle object manages pairing calls to zload() and zrelse().  We
    must load the data for a node in many places.  We could do this by simply calling
@@ -389,7 +361,6 @@ typedef struct load_count {
 
 extern void init_load_count(load_count * lc);	/* Initialize a load_count set the current node to NULL. */
 extern void done_load_count(load_count * dh);	/* Finalize a load_count: call zrelse() if necessary */
-extern int incr_load_count(load_count * dh);	/* Call zload() on the current node. */
 extern int incr_load_count_znode(load_count * dh, znode * node);	/* Set the argument znode to the current node, call zload(). */
 extern int incr_load_count_jnode(load_count * dh, jnode * node);	/* If the argument jnode is formatted, do the same as
 									   * incr_load_count_znode, otherwise do nothing (unformatted nodes
@@ -443,7 +414,7 @@ extern void copy_load_count(load_count * new, load_count * old);	/* Copy the con
 })
 
 
-#if REISER4_DEBUG_SPIN_LOCKS
+#if REISER4_DEBUG
 #define STORE_COUNTERS						\
 	lock_counters_info __entry_counters = *lock_counters()
 #define CHECK_COUNTERS						\

@@ -13,11 +13,8 @@
 #include "ktxnmgrd.h"
 #include "super.h"
 #include "reiser4.h"
-#include "kattr.h"
 #include "entd.h"
 #include "emergency_flush.h"
-#include "prof.h"
-#include "repacker.h"
 #include "safe_link.h"
 #include "plugin/dir/dir.h"
 
@@ -58,7 +55,7 @@ _INIT_(sinfo)
 
 	s->s_fs_info = sbinfo;
 	s->s_op = NULL;
-	xmemset(sbinfo, 0, sizeof (*sbinfo));
+	memset(sbinfo, 0, sizeof (*sbinfo));
 
 	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
 	ON_DEBUG(spin_lock_init(&sbinfo->all_guard));
@@ -79,16 +76,6 @@ _DONE_(sinfo)
 	s->s_fs_info = NULL;
 }
 
-_INIT_(stat)
-{
-	return reiser4_stat_init(&get_super_private(s)->stats);
-}
-
-_DONE_(stat)
-{
-	reiser4_stat_done(&get_super_private(s)->stats);
-}
-
 _INIT_(context)
 {
 	return init_context(ctx, s);
@@ -99,11 +86,6 @@ _DONE_(context)
 	reiser4_super_info_data * sbinfo;
 
 	sbinfo = get_super_private(s);
-
-	close_log_file(&sbinfo->log_file);
-
-	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
-		reiser4_print_stats();
 
 	/* we don't want ->write_super to be called any more. */
 	if (s->s_op)
@@ -120,9 +102,9 @@ _DONE_(context)
 			info_jnode("\nafter umount", busy);
 		}
 	}
-	if (sbinfo->kmalloc_allocated > 0)
+	if (sbinfo->kmallocs > 0)
 		warning("nikita-2622",
-			"%i bytes still allocated", sbinfo->kmalloc_allocated);
+			"%i areas still allocated", sbinfo->kmallocs);
 #endif
 
 	get_current_context()->trans = NULL;
@@ -136,7 +118,7 @@ _INIT_(parse_options)
 
 _DONE_(parse_options)
 {
-	close_log_file(&get_super_private(s)->log_file);
+	return;
 }
 
 _INIT_(object_ops)
@@ -442,28 +424,6 @@ _DONE_(fs_root)
 	
 }
 
-_INIT_(sysfs)
-{
-	return reiser4_sysfs_init(s);
-}
-
-_DONE_(sysfs)
-{
-	reiser4_sysfs_done(s);
-}
-
-#if defined(REISER4_REPACKER)
-_INIT_(repacker)
-{
-	return init_reiser4_repacker(s);
-}
-
-_DONE_(repacker)
-{
-	done_reiser4_repacker(s);
-}
-#endif /*REISER4_REPACKER*/
-
 _INIT_(safelink)
 {
 	process_safelinks(s);
@@ -493,7 +453,6 @@ struct reiser4_subsys {
 static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(mount_flags_check),
 	_SUBSYS(sinfo),
-	_SUBSYS(stat),
 	_SUBSYS(context),
 	_SUBSYS(parse_options),
 	_SUBSYS(object_ops),
@@ -508,10 +467,6 @@ static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(sb_counters),
 	_SUBSYS(d_cursor),
 	_SUBSYS(fs_root),
-	_SUBSYS(sysfs),
-#if defined(REISER4_REPACKER)
-	_SUBSYS(repacker),
-#endif /*REISER4_REPACKER*/
 	_SUBSYS(safelink),
 	_SUBSYS(exit_context)
 };

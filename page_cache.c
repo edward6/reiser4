@@ -286,15 +286,6 @@ done_formatted_fake(struct super_block *super)
 	return 0;
 }
 
-#if REISER4_LOG
-int reiser4_submit_bio_helper(const char *moniker, int rw, struct bio *bio)
-{
-	write_io_log(moniker, rw, bio);
-	submit_bio(rw, bio);
-	return 0;
-}
-#endif
-
 reiser4_internal void reiser4_wait_page_writeback (struct page * page)
 {
 	assert ("zam-783", PageLocked(page));
@@ -313,63 +304,6 @@ tree_by_page(const struct page *page /* page to query */ )
 	assert("nikita-2461", page != NULL);
 	return &get_super_private(page->mapping->host->i_sb)->tree;
 }
-
-#if REISER4_DEBUG_MEMCPY
-
-/* Our own versions of memcpy, memmove, and memset used to profile shifts of
-   tree node content. Coded to avoid inlining. */
-
-struct mem_ops_table {
-	void *(*cpy) (void *dest, const void *src, size_t n);
-	void *(*move) (void *dest, const void *src, size_t n);
-	void *(*set) (void *s, int c, size_t n);
-};
-
-void *
-xxmemcpy(void *dest, const void *src, size_t n)
-{
-	return memcpy(dest, src, n);
-}
-
-void *
-xxmemmove(void *dest, const void *src, size_t n)
-{
-	return memmove(dest, src, n);
-}
-
-void *
-xxmemset(void *s, int c, size_t n)
-{
-	return memset(s, c, n);
-}
-
-struct mem_ops_table std_mem_ops = {
-	.cpy = xxmemcpy,
-	.move = xxmemmove,
-	.set = xxmemset
-};
-
-struct mem_ops_table *mem_ops = &std_mem_ops;
-
-void *
-xmemcpy(void *dest, const void *src, size_t n)
-{
-	return mem_ops->cpy(dest, src, n);
-}
-
-void *
-xmemmove(void *dest, const void *src, size_t n)
-{
-	return mem_ops->move(dest, src, n);
-}
-
-void *
-xmemset(void *s, int c, size_t n)
-{
-	return mem_ops->set(s, c, n);
-}
-
-#endif
 
 /* completion handler for single page bio-based read.
 
@@ -525,9 +459,6 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 /* this function is internally called by jnode_make_dirty() */
 int set_page_dirty_internal (struct page * page, int tag_as_moved)
 {
-	if (REISER4_STATS && !PageDirty(page))
-		reiser4_stat_inc(pages_dirty);
-
 	/* the below resembles __set_page_dirty_nobuffers except that it also clears REISER4_MOVED page tag */
 	if (!TestSetPageDirty(page)) {
 		struct address_space *mapping = page->mapping;
@@ -631,8 +562,6 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 	s = page->mapping->host->i_sb;
 	init_context(&ctx, s);
 
-	reiser4_stat_inc(pcwb.calls);
-
 	assert("vs-828", PageLocked(page));
 
 #if REISER4_USE_ENTD
@@ -664,29 +593,17 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 			if (!(atom->flags & ATOM_FORCE_COMMIT)) {
 				atom->flags |= ATOM_FORCE_COMMIT;
 				ktxnmgrd_kick(&get_super_private(s)->tmgr);
-				reiser4_stat_inc(txnmgr.commit_from_writepage);
 			}
 			UNLOCK_ATOM(atom);
 		}
 		UNLOCK_JNODE(node);
 
 		result = emergency_flush(page);
-		if (result != 0) {
-			/*
-			 * cannot flush page right now, or some error
-			 */
-			reiser4_stat_inc(pcwb.not_written);
-		} else {
-			/*
-			 * page was successfully flushed
-			 */
-			reiser4_stat_inc(pcwb.written);
+		if (result == 0)
 			if (phantom && jnode_is_unformatted(node))
 				JF_SET(node, JNODE_KEEPME);
-		}
 		jput(node);
 	} else {
-		reiser4_stat_inc(pcwb.no_jnode);
 		result = PTR_ERR(node);
 	}
 	if (result != 0) {
@@ -870,7 +787,7 @@ reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from, unsigned l
 }
 
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 
 #define page_flag_name( page, flag )			\
 	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag "|")+3) : "" )

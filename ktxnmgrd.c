@@ -51,7 +51,7 @@ init_ktxnmgrd_context(txn_mgr * mgr)
 
 	assert("nikita-2442", ctx != NULL);
 
-	xmemset(ctx, 0, sizeof *ctx);
+	memset(ctx, 0, sizeof *ctx);
 	init_completion(&ctx->finish);
 	kcond_init(&ctx->startup);
 	kcond_init(&ctx->wait);

@@ -10,11 +10,8 @@
 #include "debug.h"
 #include "tree.h"
 #include "context.h"
-#include "log.h"
-#include "lnode.h"
 #include "entd.h"
 #include "plugin/plugin.h"
-#include "prof.h"
 #include "wander.h"
 
 #include "plugin/space/space_allocator.h"
@@ -68,20 +65,6 @@ typedef enum {
 	/* load all bitmap blocks at mount time */
 	REISER4_DONT_LOAD_BITMAP = 6
 } reiser4_fs_flag;
-
-#if REISER4_STATS
-
-/*
- * Object to export per-level stat-counters through sysfs. See stats.[ch] and
- * kattr.[ch]
- */
-typedef struct reiser4_level_stats_kobj {
-	struct fs_kobject kobj;   /* file system kobject exported for each
-				   * level */
-	int level;                /* tree level */
-} reiser4_level_stats_kobj;
-
-#endif
 
 /*
  * VFS related operation vectors.
@@ -236,9 +219,6 @@ struct reiser4_super_info_data {
 	__u32 log_flags;
 	__u32 oid_to_log;
 
-	/* file where tracing goes (if enabled). */
-	reiser4_log_file log_file;
-
 	/* per-fs debugging flags. This is bitmask populated from
 	   reiser4_debug_flags enum. */
 	__u32 debug_flags;
@@ -325,39 +305,16 @@ struct reiser4_super_info_data {
 	/* dir_cursor_info see plugin/dir/dir.[ch] for more details */
 	d_cursor_info d_info;
 
-#if REISER4_USE_SYSFS
-	/* kobject representing this file system. It is visible as
-	 * /sys/fs/reiser4/<devname>. All other kobjects for this file system
-	 * (statistical counters, tunables, etc.) are below it in sysfs
-	 * hierarchy. */
-	struct fs_kobject kobj;
-#endif
-#if REISER4_STATS
-	/* Statistical counters. reiser4_stat is empty data-type unless
-	   REISER4_STATS is set. See stats.[ch] for details. */
-	reiser4_stat *stats;
-	/* kobject for statistical counters. Visible as
-	 * /sys/fs/reiser4/<devname>/stats */
-	struct fs_kobject stats_kobj;
-	/* kobjects for per-level statistical counters. Each level is visible
-	   as /sys/fs/reiser4/<devname>/stats-NN */
-	reiser4_level_stats_kobj level[REISER4_MAX_ZTREE_HEIGHT];
-#endif
 #ifdef CONFIG_REISER4_BADBLOCKS
 	/* Alternative master superblock offset (in bytes) */
 	unsigned long altsuper;
-#endif
-#if REISER4_LOG
-	/* last disk block IO was performed against by this file system. Used
-	 * by tree tracing code to track seeks. */
-	reiser4_block_nr last_touched;
 #endif
 #if REISER4_DEBUG
 	/* minimum used blocks value (includes super blocks, bitmap blocks and
 	 * other fs reserved areas), depends on fs format and fs size. */
 	__u64 min_blocks_used;
-	/* amount of space allocated by kmalloc. For debugging. */
-	int kmalloc_allocated;
+	/* number of space allocated by kmalloc. For debugging. */
+	int kmallocs;
 
 	/*
 	 * when debugging is on, all jnodes (including znodes, bitmaps, etc.)
@@ -499,31 +456,23 @@ static inline void spin_unlock_eflush(const struct super_block * s)
 
 
 extern __u64 flush_reserved        ( const struct super_block*);
-extern void  set_flush_reserved    ( const struct super_block*, __u64 nr );
 extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);
 extern long statfs_type(const struct super_block *super);
-extern int reiser4_blksize(const struct super_block *super);
 extern __u64 reiser4_block_count(const struct super_block *super);
 extern void reiser4_set_block_count(const struct super_block *super, __u64 nr);
 extern __u64 reiser4_data_blocks(const struct super_block *super);
 extern void reiser4_set_data_blocks(const struct super_block *super, __u64 nr);
 extern __u64 reiser4_free_blocks(const struct super_block *super);
 extern void reiser4_set_free_blocks(const struct super_block *super, __u64 nr);
-extern void reiser4_inc_free_blocks(const struct super_block *super);
 extern __u32 reiser4_mkfs_id(const struct super_block *super);
 extern void reiser4_set_mkfs_id(const struct super_block *super, __u32 id);
 
 extern __u64 reiser4_free_committed_blocks(const struct super_block *super);
-extern void reiser4_set_free_committed_blocks(const struct super_block *super, __u64 nr);
 
 extern __u64 reiser4_grabbed_blocks(const struct super_block *);
-extern void reiser4_set_grabbed_blocks(const struct super_block *, __u64 nr);
 extern __u64 reiser4_fake_allocated(const struct super_block *);
-extern void reiser4_set_fake_allocated(const struct super_block *, __u64 nr);
 extern __u64 reiser4_fake_allocated_unformatted(const struct super_block *);
-extern void reiser4_set_fake_allocated_unformatted(const struct super_block *, __u64 nr);
 extern __u64 reiser4_clustered_blocks(const struct super_block *);
-extern void reiser4_set_clustered_blocks(const struct super_block *, __u64 nr);
 
 extern long reiser4_reserved_blocks(const struct super_block *super, uid_t uid, gid_t gid);
 
@@ -554,10 +503,8 @@ long oids_used(const struct super_block *);
 long oids_free(const struct super_block *);
 
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 void print_fs_info(const char *prefix, const struct super_block *);
-#else
-#define print_fs_info(p,s) noop
 #endif
 
 #if REISER4_DEBUG

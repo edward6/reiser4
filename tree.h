@@ -406,37 +406,28 @@ extern int delete_node(znode * node, reiser4_key *, struct inode *);
 extern int check_tree_pointer(const coord_t * pointer, const znode * child);
 extern int find_new_child_ptr(znode * parent, znode * child UNUSED_ARG, znode * left, coord_t * result);
 extern int find_child_ptr(znode * parent, znode * child, coord_t * result);
-extern int find_child_by_addr(znode * parent, znode * child, coord_t * result);
 extern int set_child_delimiting_keys(znode * parent, const coord_t * in_parent, znode *child);
 extern znode *child_znode(const coord_t * in_parent, znode * parent, int incore_p, int setup_dkeys_p);
 
 extern int cbk_cache_init(cbk_cache * cache);
 extern void cbk_cache_done(cbk_cache * cache);
 extern void cbk_cache_invalidate(const znode * node, reiser4_tree * tree);
-extern void cbk_cache_add(const znode * node);
 
-extern const char *bias_name(lookup_bias bias);
 extern char *sprint_address(const reiser4_block_nr * block);
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 extern void print_coord_content(const char *prefix, coord_t * p);
 extern void print_address(const char *prefix, const reiser4_block_nr * block);
 extern void print_tree_rec(const char *prefix, reiser4_tree * tree, __u32 flags);
-extern void print_cbk_slot(const char *prefix, const cbk_cache_slot * slot);
-extern void print_cbk_cache(const char *prefix, const cbk_cache * cache);
 #else
 #define print_coord_content(p, c) noop
 #define print_address(p, b) noop
-#define print_tree_rec(p, f, t) noop
-#define print_cbk_slot(p, s) noop
-#define print_cbk_cache(p, c) noop
 #endif
 
 extern void forget_znode(lock_handle * handle);
 extern int deallocate_znode(znode * node);
 
 extern int is_disk_addr_unallocated(const reiser4_block_nr * addr);
-extern void *unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr);
 
 /* struct used internally to pack all numerous arguments of tree lookup.
     Used to avoid passing a lot of arguments to helper functions. */
@@ -524,7 +515,6 @@ RW_LOCK_FUNCTIONS(dk, reiser4_tree, dk_lock);
 #endif
 
 /* estimate api. Implementation is in estimate.c */
-reiser4_block_nr estimate_internal_amount(reiser4_block_nr childen, tree_level);
 reiser4_block_nr estimate_one_insert_item(reiser4_tree *);
 reiser4_block_nr estimate_one_insert_into_item(reiser4_tree *);
 reiser4_block_nr estimate_insert_flow(tree_level);

@@ -55,17 +55,10 @@ kcond_init(kcond_t * cvar /* cvar to init */ )
 {
 	assert("nikita-1868", cvar != NULL);
 
-	xmemset(cvar, 0, sizeof *cvar);
+	memset(cvar, 0, sizeof *cvar);
 	spin_lock_init(&cvar->lock);
 	cvar->queue = NULL;
 	return cvar;
-}
-
-/* destroy condition variable. */
-reiser4_internal int
-kcond_destroy(kcond_t * cvar /* cvar to destroy */ )
-{
-	return kcond_are_waiters(cvar) ? -EBUSY : 0;
 }
 
 /* Wait until condition variable is signalled. Call this with @lock locked.
@@ -243,14 +236,6 @@ kcond_broadcast(kcond_t * cvar /* cvar to broadcast */ )
 	cvar->queue = NULL;
 	spin_unlock(&cvar->lock);
 	return 1;
-}
-
-/* true if there are threads sleeping on @cvar */
-reiser4_internal int
-kcond_are_waiters(kcond_t * cvar /* cvar to query */ )
-{
-	assert("nikita-1877", cvar != NULL);
-	return cvar->queue != NULL;
 }
 
 /* timer expiration function used by kcond_timedwait */

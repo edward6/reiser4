@@ -359,7 +359,6 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 							      parent, &data);
 	if (result != 0) {
 		warning("nikita-3203", "Cannot install pseudo plugin");
-		print_plugin("plugin", pseudo_plugin_to_plugin(pplug));
 		return result;
 	}
 
@@ -1342,12 +1341,7 @@ static int items_show(struct seq_file *m, void *v)
 	/* output key... */
 	sprintf_key(buf, unit_key_by_coord(&c->coord, &key));
 	/* ... and item plugin label... */
-	seq_printf(m, "%s %s ", buf, iplug->h.label);
-	if (iplug->b.show != NULL)
-		/* ... and call ->b.show() method of item plugin, if any, to
-		 * do the rest */
-		iplug->b.show(m, &c->coord);
-	seq_printf(m, "\n");
+	seq_printf(m, "%s %s\n", buf, iplug->h.label);
 	return 0;
 }
 
@@ -1372,7 +1366,7 @@ static int get_new(struct file *file, const char *buf)
 		unsigned long hash;
 
 		reiser4_object_create_data data;
-		xmemset(&data, 0, sizeof data);
+		memset(&data, 0, sizeof data);
 
 		data.mode = S_IFREG | 0 /* mode */;
 		data.id = UNIX_FILE_PLUGIN_ID;

@@ -43,17 +43,14 @@ struct plugin_set {
 };
 
 extern plugin_set *plugin_set_get_empty(void);
-extern plugin_set *plugin_set_clone(plugin_set *set);
 extern void        plugin_set_put(plugin_set *set);
 
 extern int plugin_set_file       (plugin_set **set, file_plugin *file);
 extern int plugin_set_dir        (plugin_set **set, dir_plugin *file);
-extern int plugin_set_perm       (plugin_set **set, perm_plugin *file);
 extern int plugin_set_formatting (plugin_set **set, formatting_plugin *file);
 extern int plugin_set_hash       (plugin_set **set, hash_plugin *file);
 extern int plugin_set_fibration  (plugin_set **set, fibration_plugin *file);
 extern int plugin_set_sd         (plugin_set **set, item_plugin *file);
-extern int plugin_set_dir_item   (plugin_set **set, item_plugin *file);
 extern int plugin_set_crypto     (plugin_set **set, crypto_plugin *file);
 extern int plugin_set_digest     (plugin_set **set, digest_plugin *file);
 extern int plugin_set_compression(plugin_set **set, compression_plugin *file);
@@ -64,7 +61,6 @@ extern void plugin_set_done(void);
 extern int pset_set(plugin_set **set, pset_member memb, reiser4_plugin *plugin);
 extern reiser4_plugin *pset_get(plugin_set *set, pset_member memb);
 
-extern reiser4_plugin_type pset_member_to_type(pset_member memb);
 extern reiser4_plugin_type pset_member_to_type_unsafe(pset_member memb);
 
 /* __PLUGIN_SET_H__ */

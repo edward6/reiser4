@@ -212,7 +212,7 @@ struct commit_handle {
 static void
 init_commit_handle(struct commit_handle *ch, txn_atom * atom)
 {
-	xmemset(ch, 0, sizeof (struct commit_handle));
+	memset(ch, 0, sizeof (struct commit_handle));
 	capture_list_init(&ch->tx_list);
 
 	ch->atom = atom;
@@ -306,8 +306,8 @@ format_tx_head(struct commit_handle *ch)
 	assert("zam-460", header != NULL);
 	assert("zam-462", ch->super->s_blocksize >= sizeof (struct tx_header));
 
-	xmemset(jdata(tx_head), 0, (size_t) ch->super->s_blocksize);
-	xmemcpy(jdata(tx_head), TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE);
+	memset(jdata(tx_head), 0, (size_t) ch->super->s_blocksize);
+	memcpy(jdata(tx_head), TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE);
 
 	cputod32((__u32) ch->tx_size, &header->total);
 	cputod64(get_super_private(ch->super)->last_committed_tx, &header->prev_tx);
@@ -336,10 +336,9 @@ format_wander_record(struct commit_handle *ch, jnode * node, int serial)
 	assert("zam-465", LRH != NULL);
 	assert("zam-463", ch->super->s_blocksize > sizeof (struct wander_record_header));
 
-	xmemset(jdata(node), 0, (size_t) ch->super->s_blocksize);
-	xmemcpy(jdata(node), WANDER_RECORD_MAGIC, WANDER_RECORD_MAGIC_SIZE);
+	memset(jdata(node), 0, (size_t) ch->super->s_blocksize);
+	memcpy(jdata(node), WANDER_RECORD_MAGIC, WANDER_RECORD_MAGIC_SIZE);
 
-//      cputod64((__u64)reiser4_trans_id(super), &h->id);
 	cputod32((__u32) ch->tx_size, &LRH->total);
 	cputod32((__u32) serial, &LRH->serial);
 	cputod64((__u64) * jnode_get_block(next), &LRH->next_block);
@@ -1079,10 +1078,6 @@ get_overwrite_set(struct commit_handle *ch)
 	while (!capture_list_end(ch->overwrite_set, cur)) {
 		jnode *next = capture_list_next(cur);
 
-		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
-			ON_TRACE(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
-		}
-
 		/* Count bitmap locks for getting correct statistics what number
 		 * of blocks were cleared by the transaction commit. */
 		if (jnode_get_type(cur) == JNODE_BITMAP)
@@ -1194,10 +1189,6 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 	assert("zam-570", nr > 0);
 
 	block = *block_p;
-
-	ON_TRACE (TRACE_IO_W, "write of %d blocks starting from %llu\n",
-		  nr, (unsigned long long)block);
-
 	max_blocks = bdev_get_queue(super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9);
 
 	while (nr > 0) {
@@ -1234,17 +1225,12 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			}
 
 			LOCK_JNODE(cur);
-			ON_DEBUG_MODIFY(znode_set_checksum(cur, 1));
-			assert("nikita-3166",
-			       pg->mapping == jnode_get_mapping(cur));
+			assert("nikita-3166", pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
 			assert("nikita-3165", !jnode_is_releasable(cur));
 			JF_SET(cur, JNODE_WRITEBACK);
 			JF_CLR(cur, JNODE_DIRTY);
 			UNLOCK_JNODE(cur);
-
-			if (REISER4_STATS && !PageDirty(pg))
-				reiser4_stat_inc(pages_clean);
 
 			set_page_writeback(pg);
                         if (for_reclaim)
@@ -1274,7 +1260,6 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			update_blocknr_hint_default (super, &block);
 			block += 1;
 		} else {
-			reiser4_stat_inc(txnmgr.empty_bio);
 			bio_put(bio);
 		}
 		nr -= nr_used;
@@ -1523,17 +1508,11 @@ free_not_assigned:
 reiser4_internal int reiser4_write_logs(long * nr_submitted)
 {
 	txn_atom *atom;
-
 	struct super_block *super = reiser4_get_current_sb();
 	reiser4_super_info_data *sbinfo = get_super_private(super);
-
 	struct commit_handle ch;
-
 	int ret;
 
-#if REISER4_STATS
-	unsigned long commit_start_time = jiffies;
-#endif
 	writeout_mode_enable();
 
 	/* block allocator may add j-nodes to the clean_list */
@@ -1560,9 +1539,6 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	 * released, wake them up. */
 	atom_send_event(atom);
 	UNLOCK_ATOM(atom);
-
-	/* trace_mark(wander); */
-	write_current_logf(WRITE_IO_LOG, "mark=wander\n");
 
 	if (REISER4_DEBUG) {
 		 int level;
@@ -1595,8 +1571,6 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	/* Inform the caller about what number of dirty pages will be
 	 * submitted to disk. */
 	*nr_submitted += ch.overwrite_set_size - ch.nr_bitmap;
-
-	ON_TRACE(TRACE_LOG, "commit atom (id = %u, count = %u)\n", atom->atom_id, atom->capture_count);
 
 	/* count all records needed for storing of the wandered set */
 	get_tx_size(&ch);
@@ -1642,21 +1616,10 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	if (ret)
 		goto up_and_ret;
 
-	ON_TRACE(TRACE_LOG, "overwrite set (%u blocks) written to wandered locations\n", ch.overwrite_set_size);
-
 	if ((ret = update_journal_header(&ch)))
 		goto up_and_ret;
 
-	ON_TRACE(TRACE_LOG,
-		 "journal header updated (tx head at block %s)\n",
-		 sprint_address(jnode_get_block(capture_list_front(&ch.tx_list))));
-
-	reiser4_stat_inc(txnmgr.commits);
-
 	UNDER_SPIN_VOID(atom, atom, atom_set_stage(atom, ASTAGE_POST_COMMIT));
-
-	/* trace_mark(ovrwr); */
-	write_current_logf(WRITE_IO_LOG, "mark=ovrwr\n");
 
 	post_commit_hook();
 
@@ -1687,19 +1650,10 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	if (ret)
 		goto up_and_ret;
 
-	ON_TRACE(TRACE_LOG, "overwrite set written in place\n");
-
 	if ((ret = update_journal_footer(&ch)))
 		goto up_and_ret;
 
-	ON_TRACE(TRACE_LOG,
-		 "journal footer updated (tx head at block %s)\n",
-		 sprint_address(jnode_get_block(capture_list_front(&ch.tx_list))));
-
 	post_write_back_hook();
-
-	reiser4_stat_inc(txnmgr.post_commit_writes);
-	reiser4_stat_add(txnmgr.time_spent_in_commits, jiffies - commit_start_time);
 
 up_and_ret:
 	if (ret) {
@@ -1987,8 +1941,6 @@ replay_oldest_transaction(struct super_block *s)
 		return 0;
 	}
 
-	ON_TRACE(TRACE_REPLAY, "not flushed transactions found.");
-
 	prev_tx = sbinfo->last_committed_tx;
 
 	/* searching for oldest not flushed transaction */
@@ -2023,10 +1975,6 @@ replay_oldest_transaction(struct super_block *s)
 
 	total = d32tocpu(&T->total);
 	log_rec_block = d64tocpu(&T->next_block);
-
-	ON_TRACE(TRACE_REPLAY,
-		 "not flushed transaction found (head block %s, %u wander records)\n",
-		 sprint_address(jnode_get_block(tx_head)), total);
 
 	pin_jnode_data(tx_head);
 	jrelse(tx_head);
@@ -2148,8 +2096,6 @@ reiser4_journal_replay(struct super_block *s)
 	/* replay committed transactions */
 	while ((ret = replay_oldest_transaction(s)) == -E_REPEAT)
 		nr_tx_replayed++;
-
-	ON_TRACE(TRACE_REPLAY, "%d transactions replayed ret = %d", nr_tx_replayed, ret);
 
 	return ret;
 }

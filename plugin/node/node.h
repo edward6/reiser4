@@ -179,7 +179,7 @@ typedef struct node_plugin {
 	   Uncomment after 4.0 only.
 	*/
 	/*      int ( *guess )( const znode *node ); */
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 	void (*print) (const char *prefix, const znode * node, __u32 flags);
 #endif
 	/* change size of @item by @by bytes. @item->node has enough free
@@ -240,35 +240,8 @@ typedef enum {
 } reiser4_node_id;
 
 extern reiser4_key *leftmost_key_in_node(const znode * node, reiser4_key * key);
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 extern void print_node_content(const char *prefix, const znode * node, __u32 flags);
-extern void print_node_items(const char *prefix /* output prefix */ ,
-			     const znode * node /* node to print */ ,
-			     __u32 flags /* print flags */ ,
-			     unsigned from, unsigned count);
-#else
-#define print_node_content(p,n,f) noop
-#endif
-
-extern void indent(unsigned indentation);
-extern void indent_znode(const znode * node);
-
-#if REISER4_DEBUG_NODE
-extern void node_check(znode * node, __u32 flags);
-#define DISABLE_NODE_CHECK				\
-({							\
-	++ get_current_context() -> disable_node_check;	\
-})
-
-#define ENABLE_NODE_CHECK				\
-({							\
-	-- get_current_context() -> disable_node_check;	\
-})
-
-#else
-#define node_check( n, f ) noop
-#define DISABLE_NODE_CHECK noop
-#define ENABLE_NODE_CHECK noop
 #endif
 
 extern void indent_znode(const znode * node);
@@ -278,6 +251,7 @@ typedef struct common_node_header {
 	   of a node. */
 	d16 plugin_id;
 } common_node_header;
+
 /* __REISER4_NODE_H__ */
 #endif
 /*

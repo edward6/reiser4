@@ -133,7 +133,7 @@ paste_tail(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UNUS
 	if (coord->unit_pos == 0)
 		/* make space for pasted data when pasting at the beginning of
 		   the item */
-		xmemmove(item + data->length, item, old_item_length);
+		memmove(item + data->length, item, old_item_length);
 
 	if (coord->between == AFTER_UNIT)
 		coord->unit_pos++;
@@ -147,9 +147,9 @@ paste_tail(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UNUS
 			__copy_from_user(item + coord->unit_pos, data->data, (unsigned) data->length);
 		} else
 			/* copy from kernel space */
-			xmemcpy(item + coord->unit_pos, data->data, (unsigned) data->length);
+			memcpy(item + coord->unit_pos, data->data, (unsigned) data->length);
 	} else {
-		xmemset(item + coord->unit_pos, 0, (unsigned) data->length);
+		memset(item + coord->unit_pos, 0, (unsigned) data->length);
 	}
 	return 0;
 }
@@ -183,16 +183,16 @@ copy_units_tail(coord_t *target, coord_t *source,
 		/* append item @target with @count first bytes of @source */
 		assert("vs-365", from == 0);
 
-		xmemcpy((char *) item_body_by_coord(target) +
-			item_length_by_coord(target) - count, (char *) item_body_by_coord(source), count);
+		memcpy((char *) item_body_by_coord(target) +
+		       item_length_by_coord(target) - count, (char *) item_body_by_coord(source), count);
 	} else {
 		/* target item is moved to right already */
 		reiser4_key key;
 
 		assert("vs-367", (unsigned) item_length_by_coord(source) == from + count);
 
-		xmemcpy((char *) item_body_by_coord(target), (char *) item_body_by_coord(source) + from, count);
-
+		memcpy((char *) item_body_by_coord(target), (char *) item_body_by_coord(source) + from, count);
+		
 		/* new units are inserted before first unit in an item,
 		   therefore, we have to update item key */
 		item_key_by_coord(source, &key);
@@ -256,7 +256,7 @@ do_cut_or_kill(coord_t *coord, pos_in_node_t from, pos_in_node_t to,
 	}
 
 	if (REISER4_DEBUG)
-		xmemset((char *) item_body_by_coord(coord) + from, 0, count);
+		memset((char *) item_body_by_coord(coord) + from, 0, count);
 	return count;
 }
 
@@ -318,7 +318,9 @@ overwrite_tail(coord_t *coord, flow_t *f)
 }
 
 /* tail redpage function. It is called from readpage_tail(). */
-reiser4_internal int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
+static int
+do_readpage_tail(uf_coord_t *uf_coord, struct page *page)
+{
 	tap_t tap;
 	int result;
 	coord_t coord;
@@ -352,8 +354,8 @@ reiser4_internal int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 		pagedata = kmap_atomic(page, KM_USER0);
 
 		/* copying tail body to page. */
-		xmemcpy(pagedata + mapped,
-			((char *)item_body_by_coord(&coord) + coord.unit_pos), count);
+		memcpy(pagedata + mapped,
+		       ((char *)item_body_by_coord(&coord) + coord.unit_pos), count);
 
 		flush_dcache_page(page);
 

@@ -331,7 +331,7 @@ init_locked_inode(struct inode *inode /* new inode */ ,
    (objectids) are distinguished by their packing locality.
 
 */
-reiser4_internal int
+static int
 reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
 						 * check */ ,
 			 void *opaque	/* "cookie" passed to
@@ -476,7 +476,6 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 		if (inode_file_plugin(inode)->not_linked(inode)) {
 			warning("nikita-3559", "Unlinked inode found: %llu\n",
 				(unsigned long long)get_inode_oid(inode));
-			print_inode("inode", inode);
 		}
 	}
 	return inode;
@@ -676,17 +675,6 @@ inode_set_vroot(struct inode *inode, znode *vroot)
 	info = reiser4_inode_data(inode);
 	LOCK_INODE(info);
 	info->vroot = *znode_get_block(vroot);
-	UNLOCK_INODE(info);
-}
-
-reiser4_internal void
-inode_clean_vroot(struct inode *inode)
-{
-	reiser4_inode *info;
-
-	info = reiser4_inode_data(inode);
-	LOCK_INODE(info);
-	info->vroot = UBER_TREE_ADDR;
 	UNLOCK_INODE(info);
 }
 

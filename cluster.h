@@ -193,13 +193,13 @@ fsize_to_count(reiser4_cluster_t * clust, struct inode * inode)
 static inline void
 reiser4_slide_init (reiser4_slide_t * win){
 	assert("edward-1084", win != NULL);
-	xmemset(win, 0, sizeof *win);
+	memset(win, 0, sizeof *win);
 }
 
 static inline void
 reiser4_cluster_init (reiser4_cluster_t * clust, reiser4_slide_t * window){
 	assert("edward-84", clust != NULL);
-	xmemset(clust, 0, sizeof *clust);
+	memset(clust, 0, sizeof *clust);
 	clust->dstat = INVAL_DISK_CLUSTER;
 	clust->win = window;
 }
@@ -219,10 +219,6 @@ set_dc_item_stat(hint_t * hint, dc_item_stat val)
 }
 
 int inflate_cluster(reiser4_cluster_t *, struct inode *);
-int find_cluster_item(hint_t * hint, const reiser4_key *key, int check_key,
-		      znode_lock_mode lock_mode, ra_info_t *ra_info,
-		      lookup_bias bias, __u32 flags);
-int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 void forget_cluster_pages(struct page ** page, int nrpages);
 int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);

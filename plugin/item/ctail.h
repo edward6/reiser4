@@ -68,8 +68,6 @@ int convert_ctail(flush_pos_t *);
 item_plugin * item_plugin_by_jnode(jnode *);
 
 size_t inode_scaled_cluster_size(struct inode *);
-loff_t inode_scaled_offset (struct inode *, const loff_t);
-unsigned max_crypto_overhead(struct inode *);
 
 #endif /* __FS_REISER4_CTAIL_H__ */
 

@@ -369,7 +369,7 @@ prefetchkey(reiser4_key *key)
 #define KEY_BUF_LEN (80)
 
 extern int sprintf_key(char *buffer, const reiser4_key * key);
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 extern void print_key(const char *prefix, const reiser4_key * key);
 #else
 #define print_key(p,k) noop

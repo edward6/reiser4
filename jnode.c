@@ -113,7 +113,6 @@
 #include "super.h"
 #include "inode.h"
 #include "page_cache.h"
-#include "prof.h"
 
 #include <asm/uaccess.h>        /* UML needs this for PAGE_OFFSET */
 #include <linux/types.h>
@@ -127,7 +126,8 @@
 static kmem_cache_t *_jnode_slab = NULL;
 
 static void jnode_set_type(jnode * node, jnode_type type);
-
+static int jdelete(jnode * node);
+static int jnode_try_drop(jnode * node);
 
 /* true if valid page is attached to jnode */
 static inline int jnode_is_parsed (jnode * node)
@@ -170,8 +170,7 @@ reiser4_internal int
 jnodes_tree_init(reiser4_tree * tree /* tree to initialise jnodes for */ )
 {
 	assert("nikita-2359", tree != NULL);
-	return j_hash_init(&tree->jhash_table, 16384,
-			   reiser4_stat(tree->super, hashes.jnode));
+	return j_hash_init(&tree->jhash_table, 16384);
 }
 
 /* call this to destroy jnode hash table. This is called during umount. */
@@ -187,14 +186,8 @@ jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 	/*
 	 * Scan hash table and free all jnodes.
 	 */
-
-	IF_TRACE(TRACE_ZWEB, UNDER_RW_VOID(tree, tree, read,
-					   print_jnodes("umount", tree)));
-
 	jtable = &tree->jhash_table;
 	for_all_in_htable(jtable, j, node, next) {
-		if (atomic_read(&node->x_count))
-			info_jnode("x_count != 0", node);
 		assert("nikita-2361", !atomic_read(&node->x_count));
 		jdrop(node);
 	}
@@ -246,7 +239,7 @@ jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 {
 	assert("umka-175", node != NULL);
 
-	xmemset(node, 0, sizeof (jnode));
+	memset(node, 0, sizeof (jnode));
 	ON_DEBUG(node->magic = JMAGIC);
 	jnode_set_type(node, type);
 	atomic_set(&node->d_count, 0);
@@ -326,7 +319,7 @@ jfree(jnode * node)
 	/* not yet phash_jnode_destroy(node); */
 
 	/* poison memory. */
-	ON_DEBUG(xmemset(node, 0xad, sizeof *node));
+	ON_DEBUG(memset(node, 0xad, sizeof *node));
 	kmem_cache_free(_jnode_slab, node);
 }
 
@@ -710,8 +703,6 @@ page_clear_jnode(struct page *page, jnode * node)
 	ClearPagePrivate(page);
 	node->pg = NULL;
 	page_cache_release(page);
-	if (REISER4_DEBUG_MODIFY && jnode_is_znode(node))
-		ON_DEBUG_MODIFY(JZNODE(node)->cksum = 0);
 }
 
 /* it is only used in one place to handle error */
@@ -738,7 +729,7 @@ page_detach_jnode(struct page *page, struct address_space *mapping, unsigned lon
    the opposite direction. This is done through standard trylock-and-release
    loop.
 */
-reiser4_internal struct page *
+static struct page *
 jnode_lock_page(jnode * node)
 {
 	struct page *page;
@@ -892,7 +883,6 @@ jload_gfp (jnode * node /* node to load */,
 	int parsed;
 
 	assert("nikita-3010", schedulable());
-	write_node_log(node);
 
 	prefetchw(&node->pg);
 
@@ -910,8 +900,6 @@ jload_gfp (jnode * node /* node to load */,
 	UNLOCK_JLOAD(node);
 
 	if (unlikely(!parsed)) {
-		ON_TRACE(TRACE_PCACHE, "read node: %p\n", node);
-
 		page = jnode_get_page_locked(node, gfp_flags);
 		if (unlikely(IS_ERR(page))) {
 			result = PTR_ERR(page);
@@ -943,8 +931,6 @@ jload_gfp (jnode * node /* node to load */,
 		check_jload(node, page);
 		if (do_kmap)
 			node->data = kmap(page);
-		reiser4_stat_inc_at_level(jnode_get_level(node),
-					  jnode.jload_already);
 	}
 
 	if (unlikely(JF_ISSET(node, JNODE_EFLUSH)))
@@ -1039,8 +1025,6 @@ jrelse(jnode * node /* jnode to release references to */)
 
 	assert("nikita-487", node != NULL);
 	assert("nikita-1906", spin_jnode_is_not_locked(node));
-
-	ON_TRACE(TRACE_PCACHE, "release node: %p\n", node);
 
 	page = jnode_page(node);
 	if (likely(page != NULL)) {
@@ -1391,7 +1375,7 @@ znode *zalloc(int gfp_flag);
 void zinit(znode *, const znode * parent, reiser4_tree *);
 
 /* ->clone() method for formatted nodes */
-reiser4_internal jnode *
+static jnode *
 clone_formatted(jnode *node)
 {
 	znode *clone;
@@ -1409,7 +1393,7 @@ clone_formatted(jnode *node)
 }
 
 /* jplug->clone for unformatted nodes */
-reiser4_internal jnode *
+static jnode *
 clone_unformatted(jnode *node)
 {
 	jnode *clone;
@@ -1625,18 +1609,15 @@ void jnode_list_remove(jnode * node)
  * this is called by jput_final() to remove jnode when last reference to it is
  * released.
  */
-reiser4_internal int
+static int
 jnode_try_drop(jnode * node)
 {
 	int result;
 	reiser4_tree *tree;
 	jnode_type    jtype;
 
-	trace_stamp(TRACE_ZNODES);
 	assert("nikita-2491", node != NULL);
 	assert("nikita-2583", JF_ISSET(node, JNODE_RIP));
-
-	ON_TRACE(TRACE_PCACHE, "trying to drop node: %p\n", node);
 
 	tree = jnode_get_tree(node);
 	jtype = jnode_get_type(node);
@@ -1677,7 +1658,7 @@ jnode_try_drop(jnode * node)
 }
 
 /* jdelete() -- Delete jnode from the tree and file system */
-reiser4_internal int
+static int
 jdelete(jnode * node /* jnode to finish with */)
 {
 	struct page *page;
@@ -1685,14 +1666,11 @@ jdelete(jnode * node /* jnode to finish with */)
 	reiser4_tree *tree;
 	jnode_type    jtype;
 
-	trace_stamp(TRACE_ZNODES);
 	assert("nikita-467", node != NULL);
 	assert("nikita-2531", JF_ISSET(node, JNODE_RIP));
 	/* jnode cannot be eflushed at this point, because emegrency flush
 	 * acquired additional reference counter. */
 	assert("nikita-2917", !JF_ISSET(node, JNODE_EFLUSH));
-
-	ON_TRACE(TRACE_PCACHE, "delete node: %p\n", node);
 
 	jtype = jnode_get_type(node);
 
@@ -1756,7 +1734,6 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 	assert("nikita-2403", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
 	// assert( "nikita-2532", JF_ISSET( node, JNODE_RIP ) );
 
-	ON_TRACE(TRACE_PCACHE, "drop node: %p\n", node);
 
 	jtype = jnode_get_type(node);
 
@@ -1855,7 +1832,7 @@ jnode_get_mapping(const jnode * node)
 	return jnode_ops(node)->mapping(node);
 }
 
-#if REISER4_DEBUG_NODE_INVARIANT
+#if REISER4_DEBUG
 /* debugging aid: jnode invariant */
 reiser4_internal int
 jnode_invariant_f(const jnode * node,
@@ -1937,25 +1914,7 @@ jnode_invariant(const jnode * node, int tlocked, int jlocked)
 	return result;
 }
 
-/* REISER4_DEBUG_NODE_INVARIANT */
-#endif
-
-#if REISER4_STATS
-void reiser4_stat_inc_at_level_jput(const jnode * node)
-{
-	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jput);
-}
-
-void reiser4_stat_inc_at_level_jputlast(const jnode * node)
-{
-	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jputlast);
-}
-/* REISER4_STATS */
-#endif
-
-#if REISER4_DEBUG_OUTPUT
-
-reiser4_internal const char *
+static const char *
 jnode_type_name(jnode_type type)
 {
 	switch (type) {
@@ -2022,11 +1981,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	       jnode_get_level(node), sprint_address(jnode_get_block(node)),
 	       atomic_read(&node->d_count), atomic_read(&node->x_count),
 	       jnode_page(node), node->atom,
-#if REISER4_LOCKPROF && REISER4_LOCKPROF_OBJECTS
-	       node->guard.held, node->guard.trying,
-#else
 	       0, 0,
-#endif
 	       jnode_type_name(jnode_get_type(node)));
 	if (jnode_is_unformatted(node)) {
 		printk("inode: %llu, index: %lu, ",
@@ -2045,35 +2000,7 @@ print_jnode(const char *prefix /* prefix to print */ ,
 		info_jnode(prefix, node);
 }
 
-/* this is cut-n-paste replica of print_znodes() */
-reiser4_internal void
-print_jnodes(const char *prefix, reiser4_tree * tree)
-{
-	jnode *node;
-	jnode *next;
-	j_hash_table *htable;
-	int tree_lock_taken;
-
-	if (tree == NULL)
-		tree = current_tree;
-
-	/* this is a debugging function. It can be called by reiser4_panic()
-	   with tree spin-lock already held. Trylock is not exactly what we
-	   want here, but it is passable.
-	*/
-	tree_lock_taken = write_trylock_tree(tree);
-	htable = &tree->jhash_table;
-
-	for_all_in_htable(htable, j, node, next) {
-		info_jnode(prefix, node);
-		printk("\n");
-	}
-	if (tree_lock_taken)
-		WUNLOCK_TREE(tree);
-}
-
-/* REISER4_DEBUG_OUTPUT */
-#endif
+#endif /* REISER4_DEBUG */
 
 /* this is only used to created jnode during capture copy */
 reiser4_internal jnode *jclone(jnode *node)

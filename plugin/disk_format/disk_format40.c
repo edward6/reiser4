@@ -12,7 +12,6 @@
 #include "../../tree.h"
 #include "../../super.h"
 #include "../../wander.h"
-#include "../../diskmap.h"
 #include "../../inode.h"
 #include "../../ktxnmgrd.h"
 #include "../../status_flags.h"
@@ -276,7 +275,7 @@ try_init_format40(struct super_block *s, format40_init_stage *stage)
 		return PTR_ERR(super_bh);
 	*stage = READ_SUPER;
 
-	xmemcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data), sizeof (*sb_copy));
+	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data), sizeof (*sb_copy));
 	brelse(super_bh);
 
 	if (!equi(REISER4_LARGE_KEY,
@@ -459,10 +458,6 @@ release_format40(struct super_block *s)
 
 		all_grabbed2free();
 	}
-	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
-		print_fs_info("umount ok", s);
-
-	/*done_tree(&sbinfo->tree);*/
 
 	sa_destroy_allocator(&sbinfo->space_allocator, s);
 	done_journal_info(s);

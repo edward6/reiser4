@@ -291,7 +291,6 @@ emergency_flush(struct page *page)
 	assert("vs-1452", node != NULL);
 
 	jref(node);
-	INC_STAT(node, vm.eflush.called);
 
 	result = 0;
 	LOCK_JNODE(node);
@@ -319,7 +318,6 @@ emergency_flush(struct page *page)
 
 			blocknr_hint_init(&hint);
 
-			INC_STAT(node, vm.eflush.needs_block);
 			result = ef_prepare(node, &blk, &efnode, &hint);
 			if (flushable(node, page, 0) && result == 0) {
 				assert("nikita-2759", efnode != NULL);
@@ -327,7 +325,6 @@ emergency_flush(struct page *page)
 
 				result = page_io(page, node, WRITE,
 						 GFP_NOFS | __GFP_HIGH);
-				INC_STAT(node, vm.eflush.ok);
 			} else {
 				JF_CLR(node, JNODE_EFLUSH);
 				UNLOCK_JLOAD(node);
@@ -337,18 +334,14 @@ emergency_flush(struct page *page)
 						      hint.block_stage, efnode);
 					kmem_cache_free(eflush_slab, efnode);
 				}
-				ON_TRACE(TRACE_EFLUSH, "failure-2\n");
 				result = 1;
-				INC_STAT(node, vm.eflush.nolonger);
 			}
 
 			blocknr_hint_done(&hint);
 		} else {
+			/* eflush without allocation temporary location for a node */
 			txn_atom *atom;
 			flush_queue_t *fq;
-
-			/* eflush without allocation temporary location for a node */
-			ON_TRACE(TRACE_EFLUSH, "flushing to relocate place: %llu..", *jnode_get_block(node));
 
 			/* get flush queue for this node */
 			result = fq_by_jnode_gfp(node, &fq, GFP_ATOMIC);
@@ -359,7 +352,6 @@ emergency_flush(struct page *page)
 			atom = node->atom;
 
 			if (!flushable(node, page, 1) || needs_allocation(node) || !jnode_is_dirty(node)) {
-				ON_TRACE(TRACE_EFLUSH, "failure-3\n");
 				UNLOCK_JLOAD(node);
 				UNLOCK_JNODE(node);
 				UNLOCK_ATOM(atom);
@@ -380,7 +372,6 @@ emergency_flush(struct page *page)
 			if (result != 0)
 				lock_page(page);
 
-			ON_TRACE(TRACE_EFLUSH, "flushed %d blocks\n", result);
 			/* Even if we wrote nothing, We unlocked the page, so let know to the caller that page should
 			   not be unlocked again */
 			fq_put(fq);
@@ -389,7 +380,6 @@ emergency_flush(struct page *page)
 	} else {
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
-		ON_TRACE(TRACE_EFLUSH, "failure-1\n");
 		result = 1;
 	}
 
@@ -405,41 +395,32 @@ flushable(const jnode * node, struct page *page, int check_eflush)
 	assert("nikita-3388", spin_jload_is_locked(node));
 
 	if (jnode_is_loaded(node)) {             /* loaded */
-		INC_STAT(node, vm.eflush.loaded);
 		return 0;
 	}
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) { /* already pending io */
-		INC_STAT(node, vm.eflush.queued);
 		return 0;
 	}
 	if (JF_ISSET(node, JNODE_EPROTECTED)) {  /* protected from e-flush */
-		INC_STAT(node, vm.eflush.protected);
 		return 0;
 	}
 	if (JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
-		INC_STAT(node, vm.eflush.heard_banshee);
 		return 0;
 	}
 	if (page == NULL) {           		/* nothing to flush */
-		INC_STAT(node, vm.eflush.nopage);
 		return 0;
 	}
 	if (PageWriteback(page)) {               /* already under io */
-		INC_STAT(node, vm.eflush.writeback);
 		return 0;
 	}
 	/* don't flush bitmaps or journal records */
 	if (!jnode_is_znode(node) && !jnode_is_unformatted(node)) {
-		INC_STAT(node, vm.eflush.bitmap);
 		return 0;
 	}
 	/* don't flush cluster pages */
 	if (jnode_is_cluster_page(node)) {
-		INC_STAT(node, vm.eflush.clustered);
 		return 0;
 	}
 	if (check_eflush && JF_ISSET(node, JNODE_EFLUSH)) {      /* already flushed */
-		INC_STAT(node, vm.eflush.eflushed);
 		return 0;
 	}
 	return 1;
@@ -517,8 +498,7 @@ reiser4_internal int
 eflush_init_at(struct super_block *super)
 {
 	return ef_hash_init(&get_super_private(super)->efhash_table,
-			    8192,
-			    reiser4_stat(super, hashes.eflush));
+			    8192);
 }
 
 reiser4_internal void

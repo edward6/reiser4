@@ -8,7 +8,6 @@
 #include "../../page_cache.h"
 #include "../../ioctl.h"
 #include "../object.h"
-#include "../../prof.h"
 #include "../../safe_link.h"
 #include "funcs.h"
 
@@ -36,31 +35,35 @@ file_is_built_of_tails(const struct inode *inode)
 	return unix_file_inode_data(inode)->container == UF_CONTAINER_TAILS;
 }
 
-reiser4_internal int
+#if REISER4_DEBUG
+
+static int
 file_is_built_of_extents(const struct inode *inode)
 {
 	return unix_file_inode_data(inode)->container == UF_CONTAINER_EXTENTS;
 }
 
-reiser4_internal int
+static int
 file_is_empty(const struct inode *inode)
 {
 	return unix_file_inode_data(inode)->container == UF_CONTAINER_EMPTY;
 }
 
-reiser4_internal int
+#endif
+
+static int
 file_state_is_unknown(const struct inode *inode)
 {
 	return unix_file_inode_data(inode)->container == UF_CONTAINER_UNKNOWN;
 }
 
-reiser4_internal void
+static void
 set_file_state_extents(struct inode *inode)
 {
 	unix_file_inode_data(inode)->container = UF_CONTAINER_EXTENTS;
 }
 
-reiser4_internal void
+static void
 set_file_state_tails(struct inode *inode)
 {
 	unix_file_inode_data(inode)->container = UF_CONTAINER_TAILS;
@@ -77,6 +80,7 @@ set_file_state_unknown(struct inode *inode)
 {
 	unix_file_inode_data(inode)->container = UF_CONTAINER_UNKNOWN;
 }
+
 static int
 less_than_ldk(znode *node, const reiser4_key *key)
 {
@@ -97,7 +101,7 @@ less_than_rdk(znode *node, const reiser4_key *key)
 	return UNDER_RW(dk, current_tree, read, keylt(key, znode_get_rd_key(node)));
 }
 
-int
+static int
 equal_to_ldk(znode *node, const reiser4_key *key)
 {
 	return UNDER_RW(dk, current_tree, read, keyeq(key, znode_get_ld_key(node)));
@@ -147,20 +151,14 @@ check_coord(const coord_t *coord, const reiser4_key *key)
 
 #endif /* REISER4_DEBUG */
 
-void init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh)
+static void
+init_uf_coord(uf_coord_t *uf_coord, lock_handle *lh)
 {
 	coord_init_zero(&uf_coord->base_coord);
         coord_clear_iplug(&uf_coord->base_coord);
 	uf_coord->lh = lh;
 	init_lh(lh);
 	memset(&uf_coord->extension, 0, sizeof(uf_coord->extension));
-	uf_coord->valid = 0;
-}
-
-static inline void
-invalidate_extended_coord(uf_coord_t *uf_coord)
-{
-        coord_clear_iplug(&uf_coord->base_coord);
 	uf_coord->valid = 0;
 }
 
@@ -334,9 +332,6 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 	assert("nikita-3030", schedulable());
 	assert("vs-1707", hint != NULL);
 
-	/* collect statistics on the number of calls to this function */
-	reiser4_stat_inc(file.find_file_item);
-
 	coord = &hint->coord.base_coord;
 	lh = hint->coord.lh;
 	init_lh(lh);
@@ -353,17 +348,11 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 			/* we moved to different node. Invalidate coord extension, zload is necessary to init it
 			   again */
 			hint->coord.valid = 0;
-			reiser4_stat_inc(file.find_file_item_via_right_neighbor);
-		} else {
-			reiser4_stat_inc(file.find_file_item_via_seal);
 		}
 		
 		set_file_state(inode, CBK_COORD_FOUND, znode_get_level(coord->node));
 		return CBK_COORD_FOUND;
 	}
-
-	/* collect statistics on the number of calls to this function which did not get optimized */
-	reiser4_stat_inc(file.find_file_item_via_cbk);
 
 	coord_init_zero(coord);
 	cbk_flags = (lock_mode == ZNODE_READ_LOCK) ? CBK_UNIQUE : (CBK_UNIQUE | CBK_FOR_INSERT);
@@ -419,7 +408,7 @@ find_file_item_nohint(coord_t *coord, lock_handle *lh, const reiser4_key *key,
 reiser4_internal void
 hint_init_zero(hint_t *hint)
 {
-	xmemset(hint, 0, sizeof (*hint));
+	memset(hint, 0, sizeof (*hint));
 }
 
 /* find position of last byte of last item of the file plus 1. This is used by truncate and mmap to find real file
@@ -744,7 +733,7 @@ load_file_hint(struct file *file, hint_t *hint)
 			hint->coord.valid = 0;
 			return 0;
 		}
-		xmemset(&fsdata->reg.hint, 0, sizeof(hint_t));
+		memset(&fsdata->reg.hint, 0, sizeof(hint_t));
 	}
 	hint_init_zero(hint);
 	return 0;
@@ -836,8 +825,6 @@ find_or_create_extent(struct page *page)
 	item_plugin *iplug;
 	znode *loaded;
 	struct inode *inode;
-
-	reiser4_stat_inc(file.page_ops.writepage_calls);
 
 	assert("vs-1065", page->mapping && page->mapping->host);
 	inode = page->mapping->host;
@@ -1013,170 +1000,7 @@ capture_anonymous_page(struct page *pg, int keepme)
 	return result;
 }
 
-
 #define CAPTURE_APAGE_BURST      (1024)
-
-#if 0
-static int
-capture_anonymous_pages(struct address_space *mapping, pgoff_t *index, long *captured)
-{
-	int result;
-	unsigned to_capture;
-	struct pagevec pvec;
-	unsigned found_pages;
-	jnode *jvec[PAGEVEC_SIZE];
-	unsigned found_jnodes;
-	pgoff_t cur, end;
-	unsigned count;
-	reiser4_tree * tree;
-	unsigned i;
-
-	result = 0;
-
-	ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
-		 "capture anonymous: oid %llu: start index %lu\n",
-		 get_inode_oid(mapping->host), *index);
-
-	to_capture = CAPTURE_APAGE_BURST;
-	found_jnodes = 0;
-	tree = &get_super_private(mapping->host->i_sb)->tree;
-
-	do {
-		pagevec_init(&pvec, 0);
-
-		cur = *index;
-		count = min(pagevec_space(&pvec), to_capture);
-
-		/* find and capture "anonymous" pages */
-		found_pages = pagevec_lookup_tag(&pvec, mapping, index, PAGECACHE_TAG_REISER4_MOVED, count);
-		if (found_pages != 0) {
-			ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
-				 "oid %llu: found %u moved pages in range starting from (%lu)\n",
-				 get_inode_oid(mapping->host), found_pages, cur);
-
-			for (i = 0; i < pagevec_count(&pvec); i ++) {
-				/* tag PAGECACHE_TAG_REISER4_MOVED will be cleared by set_page_dirty_internal which is
-				   called when jnode is captured */
-				result = capture_anonymous_page(pvec.pages[i], 0);
-				if (result == 1) {
-					(*captured) ++;
-					result = 0;
-					to_capture --;
-				} else if (result < 0) {
-					warning("vs-1454", "failed for moved page: result=%i (captured=%u)\n",
-						result, CAPTURE_APAGE_BURST - to_capture);
-					break;
-				} else {
-					/* result == 0. capture_anonymous_page returns 0 for Writeback-ed page */
-					;
-				}
-			}
-			pagevec_release(&pvec);
-			if (result)
-				return result;
-
-			end = *index;
-		} else
-			/* there are no more anonymous pages, continue with anonymous jnodes only */
-			end = (pgoff_t)-1;
-
-#if REISER4_USE_EFLUSH
-
-		/* capture anonymous jnodes between cur and end */
-		while (cur < end && to_capture > 0) {
-			pgoff_t nr_jnodes;
-
-			nr_jnodes = min(to_capture, (unsigned)PAGEVEC_SIZE);
-
-			/* spin_lock_eflush(mapping->host->i_sb); */
-			RLOCK_TREE(tree);
-
-			found_jnodes = radix_tree_gang_lookup_tag(jnode_tree_by_inode(mapping->host),
-								  (void **)&jvec, cur, nr_jnodes,
-								  EFLUSH_TAG_ANONYMOUS);
-			if (found_jnodes != 0) {
-				for (i = 0; i < found_jnodes; i ++) {
-					if (index_jnode(jvec[i]) < end) {
-						jref(jvec[i]);
-						cur = index_jnode(jvec[i]) + 1;
-					} else {
-						found_jnodes = i;
-						break;
-					}
-				}
-
-				if (found_jnodes != 0) {
-					/* there are anonymous jnodes from given range */
-					/* spin_unlock_eflush(mapping->host->i_sb); */
-					RUNLOCK_TREE(tree);
-
-					ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
-						 "oid %llu: found %u anonymous jnodes in range (%lu %lu)\n",
-						 get_inode_oid(mapping->host), found_jnodes, cur, end - 1);
-
-					/* start i/o for eflushed nodes */
-					for (i = 0; i < found_jnodes; i ++)
-						jstartio(jvec[i]);
-
-					for (i = 0; i < found_jnodes; i ++) {
-						result = jload(jvec[i]);
-						if (result == 0) {
-							result = capture_anonymous_page(jnode_page(jvec[i]), 0);
-							if (result == 1) {
-								(*captured) ++;
-								result = 0;
-								to_capture --;
-							} else if (result < 0) {
-								jrelse(jvec[i]);
-								warning("nikita-3328",
-									"failed for anonymous jnode: result=%i (captured=%u)\n",
-									result, CAPTURE_APAGE_BURST - to_capture);
-								break;
-							} else {
-								/* result == 0. capture_anonymous_page returns 0 for Writeback-ed page */
-								;
-							}
-							jrelse(jvec[i]);
-						} else {
-							warning("vs-1454", "jload for anonymous jnode failed: captured %u, result=%i\n",
-								result, CAPTURE_APAGE_BURST - to_capture);
-							break;
-						}
-					}
-					for (i = 0; i < found_jnodes; i ++)
-						jput(jvec[i]);
-					if (result)
-						return result;
-					continue;
-				}
-			}
-			RUNLOCK_TREE(tree);
-			/* spin_unlock_eflush(mapping->host->i_sb);*/
-			ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
-				 "oid %llu: no anonymous jnodes are found\n", get_inode_oid(mapping->host));
-			break;
-		}
-#endif /* REISER4_USE_EFLUSH */
-	} while (to_capture && (found_pages || found_jnodes) && result == 0);
-
-	if (result) {
-		warning("vs-1454", "Cannot capture anon pages: result=%i (captured=%d)\n",
-			result, CAPTURE_APAGE_BURST - to_capture);
-		return result;
-	}
-
-	assert("vs-1678", to_capture <= CAPTURE_APAGE_BURST);
-	if (to_capture == 0)
-		/* there may be left more pages */
-		redirty_inode(mapping->host);
-
-	ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
-		 "capture anonymous: oid %llu: end index %lu, captured %u\n",
-		 get_inode_oid(mapping->host), *index, CAPTURE_APAGE_BURST - to_capture);
-
-	return 0;
-}
-#endif
 
 /* look for pages tagged REISER4_MOVED starting from the index-th page, return
    number of captured pages, update index to next page after the last found
@@ -1192,20 +1016,12 @@ capture_anonymous_pages(struct address_space *mapping, pgoff_t *index,
 	int i;
 	int nr;
 
-	ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
-		 "capture anonymous: oid %llu: start index %lu\n",
-		 get_inode_oid(mapping->host), *index);
-
 	pagevec_init(&pvec, 0);	
 	count = min(pagevec_space(&pvec), (unsigned)to_capture);
 	nr = 0;
 
 	found_pages = pagevec_lookup_tag(&pvec, mapping, index, PAGECACHE_TAG_REISER4_MOVED, count);
 	if (found_pages != 0) {
-		ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
-			 "oid %llu: found %u moved pages\n",
-			 get_inode_oid(mapping->host), found_pages);
-		
 		for (i = 0; i < pagevec_count(&pvec); i ++) {
 			/* tag PAGECACHE_TAG_REISER4_MOVED will be cleared by
 			   set_page_dirty_internal which is called when jnode
@@ -1280,9 +1096,6 @@ capture_anonymous_jnodes(struct address_space *mapping,
 	}
        
 	/* there are anonymous jnodes from given range */
-	ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
-		 "oid %llu: found %u anonymous jnodes in range (%lu %lu)\n",
-		 get_inode_oid(mapping->host), found_jnodes, *from, to - 1);
 	
 	/* start i/o for eflushed nodes */
 	for (i = 0; i < found_jnodes; i ++)
@@ -1728,18 +1541,11 @@ readpage_unix_file(void *vp, struct page *page)
 	coord_t *coord;
 	struct file *file;
 
-	reiser4_stat_inc(file.page_ops.readpage_calls);
-
 	assert("vs-1062", PageLocked(page));
 	assert("vs-1061", page->mapping && page->mapping->host);
 	assert("vs-1078", (page->mapping->host->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT)));
 
 	inode = page->mapping->host;
-
-	ON_TRACE(TRACE_UNIX_FILE_OPS,
-		 "readpage: inode: %llu, page: %lu\n",
-		 get_inode_oid(inode), page->index);
-
 	file = vp;
 	result = load_file_hint(file, &hint);
 	if (result)
@@ -2238,16 +2044,7 @@ write_flow(hint_t *hint, struct file *file, struct inode *inode, const char *buf
 	return append_and_or_overwrite(hint, file, inode, &flow, exclusive);
 }
 
-reiser4_internal void
-drop_access(unix_file_info_t *uf_info)
-{
-	if (uf_info->exclusive_use)
-		drop_exclusive_access(uf_info);
-	else
-		drop_nonexclusive_access(uf_info);
-}
-
-reiser4_internal struct page *
+static struct page *
 unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int * unused)
 {
 	struct page *page;
@@ -2256,10 +2053,6 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 	
 	inode = area->vm_file->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
-
-	ON_TRACE(TRACE_UNIX_FILE_OPS,
-		 "filemap_nopage: inode: %llu, address: %p\n",
-		 get_inode_oid(inode), (void *)address);
 
 	/* block filemap_nopage if copy on capture is processing with a node of this file */
 	down_read(&reiser4_inode_data(inode)->coc_sem);
@@ -2272,11 +2065,6 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 	up_read(&reiser4_inode_data(inode)->coc_sem);
 
 	txn_restart_current();
-
-	ON_TRACE(TRACE_UNIX_FILE_OPS,
-		 "filemap_nopage: inode: %llu, index: %lu\n",
-		 get_inode_oid(inode),
-		 (page != NULL && page != NOPAGE_OOM) ? page->index : 0);
 
 	reiser4_exit_context(&ctx);
 	return page;
@@ -2411,9 +2199,6 @@ write_unix_file(struct file *file, /* file to write to */
 	int user_space;
 	int try_free_space;
 
-	ON_TRACE(TRACE_UNIX_FILE_OPS, "UF_WRITE-start: i_ino %li, size %llu, off %llu, count %u\n",
-		 file->f_dentry->d_inode->i_ino, file->f_dentry->d_inode->i_size, *off, write_amount);
-
 	if (unlikely(write_amount == 0))
 		return 0;
 
@@ -2493,8 +2278,6 @@ write_unix_file(struct file *file, /* file to write to */
 	nr_pages = 0;
 	try_free_space = 1;
 
-	ON_TRACE(TRACE_UNIX_FILE_OPS, "UF_WRITE-in loop: i_ino %li, size %llu, off %llu, left %u\n",
-		 inode->i_ino, inode->i_size, *off, left);
 	while (left > 0) {
 		unsigned long addr;
 		size_t to_write;
@@ -2540,18 +2323,12 @@ write_unix_file(struct file *file, /* file to write to */
 		/* With no locks held we can commit atoms in attempt to recover
 		 * free space. */
 		if ((ssize_t)written == -ENOSPC && try_free_space) {
-			ON_TRACE(TRACE_UNIX_FILE_OPS,
-				 "UF_WRITE-try-to-free-space: i_ino %li, size %llu, off %llu, left %u\n",
-				 inode->i_ino, inode->i_size, *off, left);			
 			txnmgr_force_commit_all(inode->i_sb, 0);
 			try_free_space = 0;
 			continue;
 		}
 		if ((ssize_t)written < 0) {
 			result = written;
-			ON_TRACE(TRACE_UNIX_FILE_OPS,
-				 "UF_WRITE-error: %d. [i_ino %li, size %llu, off %llu, left %u]\n",
-				 result, inode->i_ino, inode->i_size, *off, left);			
 			break;
 		}
 		left -= written;
@@ -2559,9 +2336,6 @@ write_unix_file(struct file *file, /* file to write to */
 
 		/* total number of written bytes */
 		count += written;
-		ON_TRACE(TRACE_UNIX_FILE_OPS,
-			 "UF_WRITE-written: %u bytes. i_ino %li, size %llu, off %llu, left %u\n",
-			 written, inode->i_ino, inode->i_size, *off, left);			
 	}
 
 	if ((file->f_flags & O_SYNC) || IS_SYNC(inode)) {
@@ -2576,8 +2350,6 @@ write_unix_file(struct file *file, /* file to write to */
  	current->backing_dev_info = 0;
 	save_file_hint(file, &hint);
 
-	ON_TRACE(TRACE_UNIX_FILE_OPS, "UF_WRITE-end: i_ino %li, size %llu, off %llu, count %u, result %d\n",
-		 inode->i_ino, inode->i_size, *off, count, result);
 	return count ? count : result;
 }
 
@@ -2601,7 +2373,6 @@ release_unix_file(struct inode *object, struct file *file)
 		if (result != 0) {
 			warning("nikita-3233", "Failed to convert in %s (%llu)",
 				__FUNCTION__, (unsigned long long)get_inode_oid(object));
-			print_inode("inode", object);
 		}
 	}
 	drop_exclusive_access(uf_info);

@@ -190,25 +190,7 @@ extern void done_lh(lock_handle *);
 extern znode_lock_mode lock_mode(lock_handle *);
 
 extern int prepare_to_sleep(lock_stack * owner);
-
-#if REISER4_STATS
-
-#define ADD_TO_SLEPT_IN_WAIT_EVENT (-1)
-#define ADD_TO_SLEPT_IN_WAIT_ATOM  (-2)
-
-/* if REISER4_STATS __go_to_sleep() accepts additional parameter @level for
- * gathering per-level sleep statistics. The go_to_sleep wrapper hides the
- * __go_to_sleep() function prototypes difference. */
-void __go_to_sleep(lock_stack*, int);
-#define go_to_sleep(owner, level) __go_to_sleep(owner, level);
-
-#else
-
-void __go_to_sleep(lock_stack*);
-#define go_to_sleep(owner, level) __go_to_sleep(owner)
-
-#endif
-
+extern void go_to_sleep(lock_stack * owner);
 extern void __reiser4_wake_up(lock_stack * owner);
 
 extern int lock_stack_isclean(lock_stack * owner);

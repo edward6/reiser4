@@ -471,9 +471,6 @@ typedef struct sd_ext_plugin {
 	int (*absent) (struct inode * inode);
 	int (*save_len) (struct inode * inode);
 	int (*save) (struct inode * inode, char **area);
-#if REISER4_DEBUG_OUTPUT
-	void (*print) (const char *prefix, char **area, int *len);
-#endif
 	/* alignment requirement for this stat-data part */
 	int alignment;
 } sd_ext_plugin;
@@ -787,11 +784,6 @@ PLUGIN_BY_ID(pseudo_plugin, REISER4_PSEUDO_PLUGIN_TYPE, pseudo);
 
 extern int save_plugin_id(reiser4_plugin * plugin, d16 * area);
 
-#if REISER4_DEBUG_OUTPUT
-extern void print_plugin(const char *prefix, reiser4_plugin * plugin);
-#else
-#define print_plugin( pr, pl ) noop
-#endif
 
 TYPE_SAFE_LIST_DEFINE(plugin, reiser4_plugin, h.linkage);
 

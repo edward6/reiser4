@@ -151,7 +151,7 @@ tap_move(tap_t * tap, lock_handle * target)
  * move @tap to @target. Acquire lock on @target, if @tap was already
  * loaded.
  */
-reiser4_internal int
+static int
 tap_to(tap_t * tap, znode * target)
 {
 	int result;
@@ -282,7 +282,7 @@ go_prev_unit(tap_t * tap)
  * @shift times apply @actor to the @tap. This is used to move @tap by
  * @shift units (or items, or nodes) in either direction.
  */
-reiser4_internal int
+static int
 rewind_to(tap_t * tap, go_actor_t actor, int shift)
 {
 	int result;
@@ -320,9 +320,10 @@ rewind_left(tap_t * tap, int shift)
 	return rewind_to(tap, go_prev_unit, shift);
 }
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 /** debugging function: print @tap content in human readable form */
-reiser4_internal void print_tap(const char * prefix, const tap_t * tap)
+static void
+print_tap(const char * prefix, const tap_t * tap)
 {
 	if (tap == NULL) {
 		printk("%s: null tap\n", prefix);
@@ -333,11 +334,7 @@ reiser4_internal void print_tap(const char * prefix, const tap_t * tap)
 	       lock_mode_name(tap->mode));
 	print_coord("\tcoord", tap->coord, 0);
 }
-#else
-#define print_tap(prefix, tap) noop
-#endif
 
-#if REISER4_DEBUG
 /** check [tap-sane] invariant */
 static int tap_invariant(const tap_t * tap)
 {

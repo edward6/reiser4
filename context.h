@@ -20,7 +20,7 @@
 #include <linux/sched.h>	/* for struct task_struct */
 
 /* list of active lock stacks */
-#if REISER4_DEBUG_CONTEXTS
+#if REISER4_DEBUG
 TYPE_SAFE_LIST_DECLARE(context);
 #endif
 
@@ -136,9 +136,6 @@ struct reiser4_context {
 	/* how many disk blocks were grabbed by the first call to
 	 * reiser4_grab_space() in this context */
 	reiser4_block_nr grabbed_initially;
-	/* stack back-trace of the first call to reiser4_grab_space() in this
-	 * context */
-	backtrace_path   grabbed_at;
 
 	/* list of all threads doing flush currently */
 	flushers_list_link  flushers_link;
@@ -147,26 +144,10 @@ struct reiser4_context {
 	/* information about delayed stat data updates. See above. */
 	dirty_inode_info dirty;
 #endif
-
-#if REISER4_TRACE
-	/* per-thread tracing flags. Use reiser4_trace_flags enum to set
-	   bits in it. */
-	__u32 trace_flags;
-#endif
-#if REISER4_DEBUG_NODE
-	/*
-	 * don't perform node consistency checks while this is greater than
-	 * zero. Used during operations that temporary violate node
-	 * consistency.
-	 */
-	int disable_node_check;
-#endif
 };
 
-#if REISER4_DEBUG_CONTEXTS
-TYPE_SAFE_LIST_DEFINE(context, reiser4_context, contexts_link);
-#endif
 #if REISER4_DEBUG
+TYPE_SAFE_LIST_DEFINE(context, reiser4_context, contexts_link);
 TYPE_SAFE_LIST_DEFINE(flushers, reiser4_context, flushers_link);
 #endif
 
@@ -174,22 +155,8 @@ extern reiser4_context *get_context_by_lock_stack(lock_stack *);
 
 /* Debugging helps. */
 extern int init_context_mgr(void);
-#if REISER4_DEBUG_OUTPUT
-extern void print_context(const char *prefix, reiser4_context * ctx);
-#else
-#define print_context(p,c) noop
-#endif
-
-#if REISER4_DEBUG_CONTEXTS && REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 extern void print_contexts(void);
-#else
-#define print_contexts() noop
-#endif
-
-#if REISER4_DEBUG_CONTEXTS
-extern void check_contexts(void);
-#else
-#define check_contexts() noop
 #endif
 
 #define current_tree (&(get_super_private(reiser4_get_current_sb())->tree))

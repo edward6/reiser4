@@ -7,7 +7,6 @@
 #include "../../inode.h"
 #include "../../page_cache.h"
 #include "../../emergency_flush.h"
-#include "../../prof.h"
 #include "../../flush.h"
 #include "../object.h"
 
@@ -17,9 +16,6 @@
 reiser4_internal reiser4_item_data *
 init_new_extent(reiser4_item_data *data, void *ext_unit, int nr_extents)
 {
-	if (REISER4_ZERO_NEW_NODE)
-		memset(data, 0, sizeof(reiser4_item_data));
-
 	data->data = ext_unit;
 	/* data->data is kernel space */
 	data->user = 0;
@@ -70,14 +66,6 @@ extent_is_unallocated(const coord_t *item)
 	return state_of_extent(extent_by_coord(item)) == UNALLOCATED_EXTENT;
 }
 
-reiser4_internal int
-extent_is_allocated(const coord_t *item)
-{
-	assert("jmacd-5133", item_is_extent(item));
-
-	return state_of_extent(extent_by_coord(item)) == ALLOCATED_EXTENT;
-}
-
 /* set extent's start and width */
 reiser4_internal void
 set_extent(reiser4_extent *ext, reiser4_block_nr start, reiser4_block_nr width)
@@ -125,8 +113,6 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 		assert("vs-1080", keyeq(&tmp, key));
 	}
 
-	DISABLE_NODE_CHECK;
-
 	/* set insert point after unit to be replaced */
 	un_extent->between = AFTER_UNIT;
 
@@ -171,7 +157,6 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 	}
 	tap_done(&watch);
 
-	ENABLE_NODE_CHECK;
 	return result;
 }
 

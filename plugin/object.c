@@ -72,7 +72,6 @@ NIKITA-FIXME-HANS: period?
 #include "../inode.h"
 #include "../super.h"
 #include "../reiser4.h"
-#include "../prof.h"
 #include "../safe_link.h"
 
 #include <linux/types.h>
@@ -96,7 +95,6 @@ key_warning(const reiser4_key * key /* key to print */,
 		warning("nikita-717", "Error for inode %llu (%i)",
 			(unsigned long long)get_key_objectid(key), code);
 		print_key("for key", key);
-		print_inode("inode", inode);
 	}
 }
 
@@ -255,9 +253,6 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	*/
 
 	if (result == IBK_INSERT_OK) {
-		write_current_logf(WRITE_TREE_LOG, "..sd i %#llx %#llx",
-				   get_inode_oid(inode), ref->locality_id);
-
 		coord_clear_iplug(&coord);
 		result = zload(coord.node);
 		if (result == 0) {
@@ -482,7 +477,7 @@ write_sd_by_inode_common(struct inode *inode /* object to save */)
 }
 
 /* checks whether yet another hard links to this object can be added */
-reiser4_internal int
+static int
 can_add_link_common(const struct inode *object /* object to check */ )
 {
 	assert("nikita-732", object != NULL);
@@ -493,7 +488,7 @@ can_add_link_common(const struct inode *object /* object to check */ )
 }
 
 /* remove object stat data. Space for it must be reserved by caller before */
-reiser4_internal int
+static int
 common_object_delete_no_reserve(struct inode *inode /* object to remove */)
 {
 	int result;
@@ -507,7 +502,6 @@ common_object_delete_no_reserve(struct inode *inode /* object to remove */)
 		DQUOT_DROP(inode);
 
 		build_sd_key(inode, &sd_key);
-		write_current_logf(WRITE_TREE_LOG, "..sd k %#llx", get_inode_oid(inode));
 		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key, NULL);
 		if (result == 0) {
 			inode_set_flag(inode, REISER4_NO_SD);
@@ -1106,7 +1100,7 @@ process_truncate(struct inode *inode, __u64 size)
 	return result;
 }
 
-reiser4_internal int
+static int
 safelink_common(struct inode *object, reiser4_safe_link_t link, __u64 value)
 {
 	int result;

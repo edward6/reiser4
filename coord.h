@@ -215,10 +215,6 @@ coord_update_v(coord_t * coord)
 
 extern int coords_equal(const coord_t * c1, const coord_t * c2);
 
-/* Returns true if two coordinates are consider equal.  Coordinates that are between units
-   or items are considered equal. */
-extern int coord_eq(const coord_t * c1, const coord_t * c2);
-
 extern void print_coord(const char *mes, const coord_t * coord, int print_node);
 
 /* If coord_is_after_rightmost return NCOORD_ON_THE_RIGHT, if coord_is_after_leftmost
@@ -317,7 +313,7 @@ extern int coord_sideof_unit(coord_t * coord, sideof dir);
 	for( coord_init_before_first_item( ( coord ), ( node ) ) ; 	\
 	     coord_next_item( coord ) == 0 ; )
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 extern const char *coord_tween_tostring(between_enum n);
 #endif
 

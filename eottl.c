@@ -181,7 +181,6 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	if (IS_ERR(pool))
 		return PTR_ERR(pool);
 	init_carry_level(&todo, pool);
-	ON_STATS(todo.level_no = TWIG_LEVEL);
 	assert("vs-49827", znode_contains_key_lock(insert_coord->node, key));
 
 	tree = znode_get_tree(insert_coord->node);
@@ -299,7 +298,6 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 	if (*outcome == NS_FOUND) {
 		/* we have found desired key on twig level in extent item */
 		h->result = CBK_COORD_FOUND;
-		reiser4_stat_inc(tree.cbk_found);
 		*outcome = LOOKUP_DONE;
 		return 1;
 	}

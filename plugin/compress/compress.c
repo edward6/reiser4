@@ -35,7 +35,7 @@ null_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	assert("edward-797", dst_len != NULL);
 
 	for (i = 0; i < NONE_NRCOPY; i++)
-		xmemcpy(dst_first, src_first, src_len);
+		memcpy(dst_first, src_first, src_len);
 	*dst_len = src_len;
 	return;
 }
@@ -253,7 +253,7 @@ lzo1_alloc(tfm_action act)
 			ret = -ENOMEM;
 			break;
 		}
-		xmemset(coa, 0, LZO_HEAP_SIZE(LZO1X_1_MEM_COMPRESS));
+		memset(coa, 0, LZO_HEAP_SIZE(LZO1X_1_MEM_COMPRESS));
 	case TFM_READ:	/* decompress */
 		break;
 	default:

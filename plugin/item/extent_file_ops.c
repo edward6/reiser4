@@ -474,8 +474,6 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode,
 	assert("vs-960", znode_is_write_locked(uf_coord->base_coord.node));
 	assert("vs-1334", znode_is_loaded(uf_coord->base_coord.node));
 
-	DISABLE_NODE_CHECK;
-
 	*block = 0;
 	switch (mode) {
 	case FIRST_ITEM:
@@ -516,8 +514,6 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode,
 		result = RETERR(-E_REPEAT);
 		break;
 	}
-
-	ENABLE_NODE_CHECK;
 
 	ON_DEBUG(check_make_extent_result(result, mode, key, uf_coord->lh, *block));
 
@@ -702,8 +698,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		if (count > flow->length)
 			count = flow->length;
 
-		write_page_log(inode->i_mapping, page_nr);
-
 		result = make_extent(&page_key, uf_coord, mode, &blocknr, &created, inode/* check quota */);
 		if (result) {
 			goto exit1;
@@ -715,24 +709,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			result = PTR_ERR(j);
 			goto exit1;
 		}
-#if 0
-		LOCK_JNODE(j);
-		if (created) {
-			/* extent corresponding to this jnode was just created */
-			assert("vs-1504", *jnode_get_block(j) == 0);
-			JF_SET(j, JNODE_CREATED);
-			/* new block is added to file. Update inode->i_blocks and inode->i_bytes. FIXME:
-			   inode_set/get/add/sub_bytes is used to be called by quota macros */
-			/*inode_add_bytes(inode, PAGE_CACHE_SIZE);*/
-		}
-		if (*jnode_get_block(j) == 0) {
-			jnode_set_block(j, &blocknr);
-		} else {
-			assert("vs-1508", !blocknr_is_fake(&blocknr));
-			assert("vs-1507", ergo(blocknr, *jnode_get_block(j) == blocknr));
-		}
-		UNLOCK_JNODE(j);
-#endif
 
 		/* get page looked and attached to jnode */
 		page = jnode_get_page_locked(j, GFP_KERNEL);
@@ -805,8 +781,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		assert("vs-1503", UNDER_SPIN(jnode, j, (!JF_ISSET(j, JNODE_EFLUSH) && jnode_page(j) == page)));
 		assert("nikita-3033", schedulable());
-		if (!lock_stack_isclean(get_current_lock_stack()))
-			print_clog();
 		assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
 
 		/* copy user data into page */
@@ -844,7 +818,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		if (!grabbed)
 			all_grabbed2free();
 		if (result) {
-			reiser4_stat_inc(extent.bdp_caused_repeats);
 			break;
 		}
 
@@ -967,7 +940,7 @@ zero_page(struct page *page)
 {
 	char *kaddr = kmap_atomic(page, KM_USER0);
 
-	xmemset(kaddr, 0, PAGE_CACHE_SIZE);
+	memset(kaddr, 0, PAGE_CACHE_SIZE);
 	flush_dcache_page(page);
 	kunmap_atomic(kaddr, KM_USER0);
 	SetPageUptodate(page);
@@ -1173,23 +1146,20 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 	extent_coord_extension_t *ext_coord;
 	unsigned long ra_pages;
 
-	uf_coord = &hint->coord;
-	assert("vs-1318", coord_extension_is_ok(uf_coord));
-
-	inode = file->f_dentry->d_inode;
-	coord = &uf_coord->base_coord;
-	ext_coord = &uf_coord->extension.extent;
-
-	ON_TRACE(TRACE_EXTENTS, "read_extent start: ino %llu, size %llu, offset %llu, count %lld\n",
-		 get_inode_oid(inode), inode->i_size, get_key_offset(&flow->key), flow->length);
-	IF_TRACE(TRACE_EXTENTS, print_ext_coord("read_extent start", uf_coord));
-
 	assert("vs-1353", current_blocksize == PAGE_CACHE_SIZE);
 	assert("vs-572", flow->user == 1);
 	assert("vs-1351", flow->length > 0);
+
+	uf_coord = &hint->coord;
+	assert("vs-1318", coord_extension_is_ok(uf_coord));
+
+	coord = &uf_coord->base_coord;
 	assert("vs-1119", znode_is_rlocked(coord->node));
 	assert("vs-1120", znode_is_loaded(coord->node));
 	assert("vs-1256", coord_matches_key_extent(coord, &flow->key));
+
+	inode = file->f_dentry->d_inode;
+	ext_coord = &uf_coord->extension.extent;
 
 	/* offset in a file to start read from */
 	file_off = get_key_offset(&flow->key);
@@ -1254,9 +1224,6 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 		count = PAGE_CACHE_SIZE;
 	} while (flow->length && uf_coord->valid == 1);
 
-	ON_TRACE(TRACE_EXTENTS, "read_extent done: left %lld\n", flow->length);
-	IF_TRACE(TRACE_EXTENTS, print_ext_coord("read_extent done", uf_coord));
-
 	return 0;
 }
 
@@ -1317,8 +1284,6 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 	int created;
 	int check_quota;
 
-	ON_TRACE(TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count(page));
-
 	assert("vs-1051", page->mapping && page->mapping->host);
 	assert("nikita-3139", !inode_get_flag(page->mapping->host, REISER4_NO_SD));
 	assert("vs-864", znode_is_wlocked(uf_coord->base_coord.node));
@@ -1374,7 +1339,6 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 		reiser4_update_sd(page->mapping->host);
 		/* warning about failure of this is issued already */
 
-	ON_TRACE(TRACE_EXTENTS, "OK\n");
 	return 0;
 }
 

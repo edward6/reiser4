@@ -5,7 +5,6 @@ void get_exclusive_access(unix_file_info_t *);
 void drop_exclusive_access(unix_file_info_t *);
 void get_nonexclusive_access(unix_file_info_t *, int);
 void drop_nonexclusive_access(unix_file_info_t *);
-void drop_access(unix_file_info_t *uf_info);
 
 int tail2extent(unix_file_info_t *);
 int extent2tail(unix_file_info_t *);

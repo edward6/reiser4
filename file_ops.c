@@ -26,14 +26,12 @@
 #include "znode.h"
 #include "block_alloc.h"
 #include "tree.h"
-#include "log.h"
 #include "vfs_ops.h"
 #include "inode.h"
 #include "page_cache.h"
 #include "ktxnmgrd.h"
 #include "super.h"
 #include "reiser4.h"
-#include "kattr.h"
 #include "entd.h"
 #include "emergency_flush.h"
 
@@ -96,10 +94,6 @@ reiser4_llseek(struct file *file, loff_t off, int origin)
 	reiser4_context ctx;
 
 	init_context(&ctx, inode->i_sb);
-	reiser4_stat_inc(vfs_calls.llseek);
-
-	ON_TRACE(TRACE_VFS_OPS,
-		 "llseek: (i_ino %li, size %lld): off %lli, origin %d\n", inode->i_ino, inode->i_size, off, origin);
 
 	fplug = inode_file_plugin(inode);
 	assert("nikita-2291", fplug != NULL);
@@ -139,8 +133,6 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 
 	inode = f->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
-	write_syscall_log("%s", f->f_dentry->d_name.name);
-	reiser4_stat_inc(vfs_calls.readdir);
 
 	dplug = inode_dir_plugin(inode);
 	if ((dplug != NULL) && (dplug->readdir != NULL))
@@ -151,7 +143,6 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 	/*
 	 * directory st_atime is updated by callers (if necessary).
 	 */
-	write_syscall_log("ex");
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;
@@ -167,15 +158,12 @@ reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned
 	reiser4_context ctx;
 
 	init_context(&ctx, inode->i_sb);
-	write_syscall_log("%s", filp->f_dentry->d_name.name);
-	reiser4_stat_inc(vfs_calls.ioctl);
 
 	if (inode_file_plugin(inode)->ioctl == NULL)
 		result = -ENOSYS;
 	else
 		result = inode_file_plugin(inode)->ioctl(inode, filp, cmd, arg);
 
-	write_syscall_log("ex");
 	reiser4_exit_context(&ctx);
 	return result;
 }
@@ -189,17 +177,10 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 	reiser4_context ctx;
 
 	init_context(&ctx, file->f_dentry->d_inode->i_sb);
-	write_syscall_log("%s", file->f_dentry->d_name.name);
-	reiser4_stat_inc(vfs_calls.mmap);
-
-	ON_TRACE(TRACE_VFS_OPS, "MMAP: (i_ino %lli, size %lld)\n",
-		 get_inode_oid(file->f_dentry->d_inode),
-		 file->f_dentry->d_inode->i_size);
 
 	inode = file->f_dentry->d_inode;
 	assert("nikita-2936", inode_file_plugin(inode)->mmap != NULL);
 	result = inode_file_plugin(inode)->mmap(file, vma);
-	write_syscall_log("ex");
 	reiser4_exit_context(&ctx);
 	return result;
 }
@@ -228,12 +209,6 @@ reiser4_read(struct file *file /* file to read from */ ,
 
 	inode = file->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
-	write_syscall_log("%s", file->f_dentry->d_name.name);
-	reiser4_stat_inc(vfs_calls.read);
-
-	ON_TRACE(TRACE_VFS_OPS,
-		 "READ: (i_ino %li, size %lld): %u bytes from pos %lli\n",
-		 inode->i_ino, inode->i_size, (unsigned int)count, *off);
 
 	result = perm_chk(inode, read, file, buf, count, off);
 	if (likely(result == 0)) {
@@ -246,7 +221,6 @@ reiser4_read(struct file *file /* file to read from */ ,
 		/* unix_file_read is one method that might be invoked below */
 		result = fplug->read(file, buf, count, off);
 	}
-	write_syscall_log("ex");
 	reiser4_exit_context(&ctx);
 	return result;
 }
@@ -270,12 +244,6 @@ reiser4_write(struct file *file /* file to write on */ ,
 
 	inode = file->f_dentry->d_inode;
 	init_context(&ctx, inode->i_sb);
-	write_syscall_log("%s", file->f_dentry->d_name.name);
-	reiser4_stat_inc(vfs_calls.write);
-
-	ON_TRACE(TRACE_VFS_OPS,
-		 "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n",
-		 inode->i_ino, inode->i_size, (unsigned int)size, *off);
 
 	result = perm_chk(inode, write, file, buf, size, off);
 	if (likely(result == 0)) {
@@ -286,7 +254,6 @@ reiser4_write(struct file *file /* file to write on */ ,
 
 		result = fplug->write(file, buf, size, off);
 	}
-	write_syscall_log("ex");
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;
@@ -309,8 +276,6 @@ reiser4_release(struct inode *i /* inode released */ ,
 	fplug = inode_file_plugin(i);
 	assert("umka-082", fplug != NULL);
 
-	ON_TRACE(TRACE_VFS_OPS,
-		 "RELEASE: (i_ino %li, size %lld)\n", i->i_ino, i->i_size);
 
 	if (fplug->release != NULL && get_current_context() == &ctx)
 		result = fplug->release(i, f);
@@ -365,7 +330,6 @@ reiser4_open(struct inode * inode, struct file * file)
 	file_plugin *fplug;
 
 	init_context(&ctx, inode->i_sb);
-	reiser4_stat_inc(vfs_calls.open);
 	fplug = inode_file_plugin(inode);
 
 	if (fplug->open != NULL)

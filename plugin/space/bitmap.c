@@ -8,10 +8,7 @@
 #include "../../tree.h"
 #include "../../super.h"
 #include "../../lib.h"
-
 #include "../plugin.h"
-#include "../../diskmap.h"
-
 #include "space_allocator.h"
 #include "bitmap.h"
 
@@ -347,7 +344,7 @@ reiser4_clear_bits(char *addr, bmap_off_t start, bmap_off_t end)
 	last_byte = (end - 1) >> 3;
 
 	if (last_byte > first_byte + 1)
-		xmemset(addr + first_byte + 1, 0, (size_t) (last_byte - first_byte - 1));
+		memset(addr + first_byte + 1, 0, (size_t) (last_byte - first_byte - 1));
 
 	first_byte_mask >>= 8 - (start & 0x7);
 	last_byte_mask <<= ((end - 1) & 0x7) + 1;
@@ -377,7 +374,7 @@ reiser4_set_bits(char *addr, bmap_off_t start, bmap_off_t end)
 	last_byte = (end - 1) >> 3;
 
 	if (last_byte > first_byte + 1)
-		xmemset(addr + first_byte + 1, 0xFF, (size_t) (last_byte - first_byte - 1));
+		memset(addr + first_byte + 1, 0xFF, (size_t) (last_byte - first_byte - 1));
 
 	first_byte_mask <<= start & 0x7;
 	last_byte_mask >>= 7 - ((end - 1) & 0x7);
@@ -597,7 +594,7 @@ adjust_first_zero_bit(struct bitmap_node *bnode, bmap_off_t offset)
 	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 2)
 
 /* Audited by: green(2002.06.12) */
-reiser4_internal void
+static void
 get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr * bnr)
 {
 
@@ -621,7 +618,7 @@ get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr *
 
 /* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
 /* Audited by: green(2002.06.12) */
-reiser4_internal void
+static void
 get_working_bitmap_blocknr(bmap_nr_t bmap, reiser4_block_nr * bnr)
 {
 	*bnr = (reiser4_block_nr) ((bmap & ~REISER4_BLOCKNR_STATUS_BIT_MASK) | REISER4_BITMAP_BLOCKS_STATUS_VALUE);
@@ -632,7 +629,7 @@ static void
 init_bnode(struct bitmap_node *bnode,
 	   struct super_block *super UNUSED_ARG, bmap_nr_t bmap UNUSED_ARG)
 {
-	xmemset(bnode, 0, sizeof (struct bitmap_node));
+	memset(bnode, 0, sizeof (struct bitmap_node));
 
 	sema_init(&bnode->sema, 1);
 	atomic_set(&bnode->loaded, 0);
@@ -782,9 +779,9 @@ load_and_lock_bnode(struct bitmap_node *bnode)
 				/* working bitmap is initialized by on-disk
 				 * commit bitmap. This should be performed
 				 * under semaphore. */
-				xmemcpy(bnode_working_data(bnode),
-					bnode_commit_data(bnode),
-					bmap_size(current_blocksize));
+				memcpy(bnode_working_data(bnode),
+				       bnode_commit_data(bnode),
+				       bmap_size(current_blocksize));
 			} else {
 				up(&bnode->sema);
 			}
@@ -1016,9 +1013,9 @@ static int bitmap_alloc_backward(reiser4_block_nr * start, const reiser4_block_n
 }
 
 /* plugin->u.space_allocator.alloc_blocks() */
-reiser4_internal int
+static int
 alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
-			 reiser4_block_nr * start, reiser4_block_nr * len)
+		     reiser4_block_nr * start, reiser4_block_nr * len)
 {
 	struct super_block *super = get_current_context()->super;
 	int actual_len;

@@ -150,11 +150,6 @@ reiser4_internal void plugin_set_put(plugin_set *set)
 {
 }
 
-reiser4_internal plugin_set *plugin_set_clone(plugin_set *set)
-{
-	return set;
-}
-
 static inline unsigned long *
 pset_field(plugin_set *set, int offset)
 {
@@ -256,6 +251,24 @@ static struct {
 	}
 };
 
+#if REISER4_DEBUG
+static reiser4_plugin_type
+pset_member_to_type(pset_member memb)
+{
+	assert("nikita-3501", 0 <= memb && memb < PSET_LAST);
+	return pset_descr[memb].type;
+}
+#endif
+
+reiser4_plugin_type
+pset_member_to_type_unsafe(pset_member memb)
+{
+	if (0 <= memb && memb < PSET_LAST)
+		return pset_descr[memb].type;
+	else
+		return REISER4_PLUGIN_TYPES;
+}
+
 int pset_set(plugin_set **set, pset_member memb, reiser4_plugin *plugin)
 {
 	assert("nikita-3492", set != NULL);
@@ -276,20 +289,6 @@ reiser4_plugin *pset_get(plugin_set *set, pset_member memb)
 	return *(reiser4_plugin **)(((char *)set) + pset_descr[memb].offset);
 }
 
-reiser4_plugin_type pset_member_to_type(pset_member memb)
-{
-	assert("nikita-3501", 0 <= memb && memb < PSET_LAST);
-	return pset_descr[memb].type;
-}
-
-reiser4_plugin_type pset_member_to_type_unsafe(pset_member memb)
-{
-	if (0 <= memb && memb < PSET_LAST)
-		return pset_descr[memb].type;
-	else
-		return REISER4_PLUGIN_TYPES;
-}
-
 #define DEFINE_PLUGIN_SET(type, field)					\
 reiser4_internal int plugin_set_ ## field(plugin_set **set, type *val)	\
 {									\
@@ -300,12 +299,10 @@ reiser4_internal int plugin_set_ ## field(plugin_set **set, type *val)	\
 
 DEFINE_PLUGIN_SET(file_plugin, file)
 DEFINE_PLUGIN_SET(dir_plugin, dir)
-DEFINE_PLUGIN_SET(perm_plugin, perm)
 DEFINE_PLUGIN_SET(formatting_plugin, formatting)
 DEFINE_PLUGIN_SET(hash_plugin, hash)
 DEFINE_PLUGIN_SET(fibration_plugin, fibration)
 DEFINE_PLUGIN_SET(item_plugin, sd)
-DEFINE_PLUGIN_SET(item_plugin, dir_item)
 DEFINE_PLUGIN_SET(crypto_plugin, crypto)
 DEFINE_PLUGIN_SET(digest_plugin, digest)
 DEFINE_PLUGIN_SET(compression_plugin, compression)
@@ -314,7 +311,7 @@ reiser4_internal int plugin_set_init(void)
 {
 	int result;
 
-	result = ps_hash_init(&ps_table, PS_TABLE_SIZE, NULL);
+	result = ps_hash_init(&ps_table, PS_TABLE_SIZE);
 	if (result == 0) {
 		plugin_set_slab = kmem_cache_create("plugin_set",
 						    sizeof (plugin_set), 0,

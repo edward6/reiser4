@@ -61,7 +61,6 @@
 		 * warnings for things like assert(a = b); */			\
 		;								\
 	} else {								\
-		print_clog();							\
 		DEBUGON(1);							\
 		reiser4_panic(label, "assertion failed: %s", #cond);		\
 	}									\
@@ -87,7 +86,7 @@ extern void call_on_each_assert(void);
 /* REISER4_DEBUG */
 #endif
 
-#if REISER4_DEBUG_SPIN_LOCKS
+#if REISER4_DEBUG
 /* per-thread information about lock acquired by this thread. Used by lock
  * ordering checking in spin_macros.h */
 typedef struct lock_counters_info {
@@ -146,52 +145,20 @@ extern lock_counters_info *lock_counters(void);
  * assertions */
 #define LOCK_CNT_GTZ(counter) IN_CONTEXT(lock_counters()->counter > 0, 1)
 
-/* REISER4_DEBUG_SPIN_LOCKS */
-#else
+#else /* REISER4_DEBUG */
 
 /* no-op versions on the above */
 
 typedef struct lock_counters_info {
 } lock_counters_info;
+
 #define lock_counters() ((lock_counters_info *)NULL)
 #define LOCK_CNT_INC(counter) noop
 #define LOCK_CNT_DEC(counter) noop
 #define LOCK_CNT_NIL(counter) (1)
 #define LOCK_CNT_GTZ(counter) (1)
-/* REISER4_DEBUG_SPIN_LOCKS */
-#endif
 
-/*
- * back-trace recording. In several places in reiser4 we want to record stack
- * back-trace for debugging purposes. This functionality is only supported
- * when kernel was configured with CONFIG_FRAME_POINTER option.
- */
-
-#ifdef CONFIG_FRAME_POINTER
-
-/*
- * how many stack frames to record in back-trace.
- *
- * update debug.c:fill_backtrace() if you change this
- */
-#define REISER4_BACKTRACE_DEPTH (4)
-
-/*
- * data type to store stack back-trace
- */
-typedef struct {
-	void *trace[REISER4_BACKTRACE_DEPTH];
-} backtrace_path;
-
-extern void fill_backtrace(backtrace_path *path, int depth, int shift);
-#else
-
-/* no-op versions on the above */
-
-typedef struct {} backtrace_path;
-#define fill_backtrace(path, depth, shift) noop
-
-#endif
+#endif /* REISER4_DEBUG */
 
 
 /* flags controlling debugging behavior. Are set through debug_flags=N mount
@@ -209,7 +176,6 @@ typedef enum {
 	REISER4_CHECK_NODE = 0x00000008
 } reiser4_debug_flags;
 
-extern int reiser4_are_all_debugged(struct super_block *super, __u32 flags);
 extern int reiser4_is_debugged(struct super_block *super, __u32 flag);
 
 extern int is_in_reiser4_context(void);
@@ -228,15 +194,6 @@ extern int is_in_reiser4_context(void);
  */
 #define ON_DEBUG_CONTEXT( e ) ON_DEBUG( ON_CONTEXT( e ) )
 
-#if REISER4_DEBUG_MODIFY
-/*
- * evaluate expression @exp only if REISER4_DEBUG_MODIFY mode is on.
- */
-#define ON_DEBUG_MODIFY( exp ) exp
-#else
-#define ON_DEBUG_MODIFY( exp )
-#endif
-
 /*
  * complain about unexpected function result and crash. Used in "default"
  * branches of switch statements and alike to assert that invalid results are
@@ -254,125 +211,6 @@ extern int is_in_reiser4_context(void);
 #define not_yet( label, format, ... )				\
 	reiser4_panic( label, "NOT YET IMPLEMENTED: " format , ## __VA_ARGS__ )
 
-#if REISER4_TRACE
-/* helper macro for tracing, see trace_stamp() below. */
-#define IF_TRACE(flags, e) 							\
-	if(get_current_trace_flags() & (flags)) e
-#else
-#define IF_TRACE(flags, e) noop
-#endif
-
-/* just print where we are: file, function, line */
-#define trace_stamp( f )   IF_TRACE( f, reiser4_log( "trace", "" ) )
-/* print value of "var" */
-#define trace_var( f, format, var ) 				\
-        IF_TRACE( f, reiser4_log( "trace", #var ": " format, var ) )
-/* print output only if appropriate trace flag(s) is on */
-#define ON_TRACE( f, ... )   IF_TRACE(f, printk(__VA_ARGS__))
-
-/* tracing flags. */
-typedef enum {
-	/* trace nothing */
-	NO_TRACE = 0,
-	/* trace vfs interaction functions from vfs_ops.c */
-	TRACE_VFS_OPS = (1 << 0),	/* 0x00000001 */
-	/* trace plugin handling functions */
-	TRACE_PLUGINS = (1 << 1),	/* 0x00000002 */
-	/* trace tree traversals */
-	TRACE_TREE = (1 << 2),	/* 0x00000004 */
-	/* trace znode manipulation functions */
-	TRACE_ZNODES = (1 << 3),	/* 0x00000008 */
-	/* trace node layout functions */
-	TRACE_NODES = (1 << 4),	/* 0x00000010 */
-	/* trace directory functions */
-	TRACE_DIR = (1 << 5),	/* 0x00000020 */
-	/* trace flush code verbosely */
-	TRACE_FLUSH_VERB = (1 << 6),	/* 0x00000040 */
-	/* trace flush code */
-	TRACE_FLUSH = (1 << 7),	/* 0x00000080 */
-	/* trace carry */
-	TRACE_CARRY = (1 << 8),	/* 0x00000100 */
-	/* trace how tree (web) of znodes if maintained through tree
-	   balancings. */
-	TRACE_ZWEB = (1 << 9),	/* 0x00000200 */
-	/* trace transactions. */
-	TRACE_TXN = (1 << 10),	/* 0x00000400 */
-	/* trace object id allocation/releasing */
-	TRACE_OIDS = (1 << 11),	/* 0x00000800 */
-	/* trace item shifts */
-	TRACE_SHIFT = (1 << 12),	/* 0x00001000 */
-	/* trace page cache */
-	TRACE_PCACHE = (1 << 13),	/* 0x00002000 */
-	/* trace extents */
-	TRACE_EXTENTS = (1 << 14),	/* 0x00004000 */
-	/* trace locks */
-	TRACE_LOCKS = (1 << 15),	/* 0x00008000 */
-	/* trace coords */
-	TRACE_COORDS = (1 << 16),	/* 0x00010000 */
-	/* trace read-IO functions */
-	TRACE_IO_R = (1 << 17),	/* 0x00020000 */
-	/* trace write-IO functions */
-	TRACE_IO_W = (1 << 18),	/* 0x00040000 */
-
-	/* trace log writing */
-	TRACE_LOG = (1 << 19),	/* 0x00080000 */
-
-	/* trace journal replaying */
-	TRACE_REPLAY = (1 << 20),	/* 0x00100000 */
-
-	/* trace space allocation */
-	TRACE_ALLOC = (1 << 21),	/* 0x00200000 */
-
-	/* trace space reservation */
-	TRACE_RESERVE = (1 << 22),	/* 0x00400000 */
-
-	/* trace emergency flush */
-	TRACE_EFLUSH  = (1 << 23),	/* 0x00800000 */
-
-	/* trace ctails */
-	TRACE_CTAIL = (1 << 24),       /* 0x01000000 */
-
-	TRACE_PARSE = (1 << 25),       /* 0x02000000 */
-
-	TRACE_CAPTURE_COPY = (1 << 26), /* 0x04000000 */
-
-	TRACE_EXTENT_ALLOC = (1 << 27),      /* 0x08000000 */
-
-	TRACE_CAPTURE_ANONYMOUS = (1 << 28), /* 0x10000000 */
-
-	TRACE_UNIX_FILE_OPS = (1 << 29), /* 0x20000000 */
-
-	/* vague section: used to trace bugs. Use it to issue optional prints
-	   at arbitrary points of code. */
-	TRACE_BUG = (1 << 31),	/* 0x80000000 */
-
-	/* trace everything above */
-	TRACE_ALL = 0xffffffffu
-} reiser4_trace_flags;
-
-#if REISER4_LOG
-/* helper macro for tracing, see trace_stamp() below. */
-#define IF_LOG(flags, e) 							\
-	if(get_current_log_flags() & (flags)) e
-#else
-#define IF_LOG(flags, e) noop
-#endif
-
-/* log only if appropriate log flag(s) is on */
-#define ON_LOG( f, ... )   IF_LOG(f, printk(__VA_ARGS__))
-
-typedef enum {
-	WRITE_NODE_LOG = (1 << 0),      /* log [zj]node operations */
-	WRITE_PAGE_LOG = (1 << 1),	/* log make_extent calls */
-	WRITE_IO_LOG = (1 << 2), 	/* log i/o requests */
-	WRITE_TREE_LOG = (1 << 3), 	/* log internal tree operations */
-	WRITE_SYSCALL_LOG = (1 << 4),   /* log system calls */
-	READAHEAD_LOG = (1 << 5),       /* log read-ahead activity */
-	ALLOC_EXTENT_LOG = (1 << 6),    /* log extent allocation */
-	LOG_FILE_PAGE_EVENT = (1 << 7)	/* log events happened to certain file */
-} reiser4_log_flags;
-
-
 extern void reiser4_do_panic(const char *format, ...)
 __attribute__ ((noreturn, format(printf, 1, 2)));
 
@@ -386,33 +224,17 @@ extern void reiser4_print_stats(void);
 extern void *reiser4_kmalloc(size_t size, int gfp_flag);
 extern void reiser4_kfree(void *area);
 extern void reiser4_kfree_in_sb(void *area, struct super_block *sb);
-extern __u32 get_current_trace_flags(void);
-extern __u32 get_current_log_flags(void);
-extern __u32 get_current_oid_to_log(void);
 
-#if REISER4_DEBUG_OUTPUT && REISER4_DEBUG_SPIN_LOCKS
+#if REISER4_DEBUG
 extern void print_lock_counters(const char *prefix,
-				const lock_counters_info * info);
+                                const lock_counters_info * info);
 extern int no_counters_are_held(void);
 extern int commit_check_locks(void);
 #else
-#define print_lock_counters(p, i) noop
 #define no_counters_are_held() (1)
 #define commit_check_locks() (1)
 #endif
 
-#define REISER4_STACK_ABORT          (8192 - sizeof(struct thread_info) - 30)
-#define REISER4_STACK_GAP            (REISER4_STACK_ABORT - 100)
-
-#if REISER4_DEBUG_MEMCPY
-extern void *xmemcpy(void *dest, const void *src, size_t n);
-extern void *xmemmove(void *dest, const void *src, size_t n);
-extern void *xmemset(void *s, int c, size_t n);
-#else
-#define xmemcpy( d, s, n ) memcpy( ( d ), ( s ), ( n ) )
-#define xmemmove( d, s, n ) memmove( ( d ), ( s ), ( n ) )
-#define xmemset( s, c, n ) memset( ( s ), ( c ), ( n ) )
-#endif
 
 /* true if @i is power-of-two. Useful for rate-limited warnings, etc. */
 #define IS_POW(i) 				\
@@ -476,14 +298,12 @@ extern void *xmemset(void *s, int c, size_t n);
  * data-type to store information about where error happened ("error site").
  */
 typedef struct err_site {
-	backtrace_path path; /* stack back trace of error */
 	int            code; /* error code */
 	const char    *file; /* source file, filled by __FILE__ */
 	int            line; /* source file line, filled by __LINE__ */
 } err_site;
 
 extern void return_err(int code, const char *file, int line);
-extern void report_err(void);
 
 /*
  * fill &get_current_context()->err_site with error information.
@@ -505,7 +325,6 @@ extern void report_err(void);
 
 typedef struct err_site {} err_site;
 #define RETERR(code) code
-#define report_err() noop
 #endif
 
 #if REISER4_LARGE_KEY
@@ -517,28 +336,7 @@ typedef struct err_site {} err_site;
 #define ON_LARGE_KEY(...)
 #endif
 
-#if REISER4_ALL_IN_ONE
-/*
- * declarator used by REISER4_ALL_IN_ONE mode. Every reiser4 function that is
- * not used externally (that is, not used by non-reiser4 code) should be
- * tagged with this. Normally it expands to nothing. In REISER4_ALL_IN_ONE
- * expands to statics allowing compiler to perform better optimization.
- */
-#define reiser4_internal static
-#else
 #define reiser4_internal
-#endif
-
-/* operations to clog */
-/* debugging capture_anonymous_pages */
-#define CLOG_UNMAP 0 /* try_to_unmap - swap_success */
-#define CLOG_ADD_RMAP 1 /* page_add_file_rmap */
-#define CLOG_FILEMAP_NOPAGE 2 /* unix_file_filemap_nopage */
-
-#define OP_NUM 3
-
-void clog_op(int op, void *, void *);
-void print_clog(void);
 
 /* __FS_REISER4_DEBUG_H__ */
 #endif

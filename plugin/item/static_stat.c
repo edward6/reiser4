@@ -598,7 +598,7 @@ symlink_target_to_inode(struct inode *inode, const char *target, int len)
 	if (!inode->u.generic_ip)
 		return RETERR(-ENOMEM);
 
-	xmemcpy((char *) (inode->u.generic_ip), target, (size_t) len);
+	memcpy((char *) (inode->u.generic_ip), target, (size_t) len);
 	((char *) (inode->u.generic_ip))[len] = 0;
 	inode_set_flag(inode, REISER4_GENERIC_PTR_USED);
 	return 0;
@@ -663,7 +663,7 @@ save_symlink_sd(struct inode *inode, char **area)
 		result = symlink_target_to_inode(inode, target, length);
 
 		/* copy symlink to stat data */
-		xmemcpy(sd->body, target, (size_t) length);
+		memcpy(sd->body, target, (size_t) length);
 		(*area)[length] = 0;
 	} else {
 		/* there is nothing to do in update but move area */
@@ -791,7 +791,6 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 		} else {
 			warning("nikita-658", "duplicate plugin for %llu",
 				(unsigned long long)get_inode_oid(inode));
-			print_plugin("plugin", plugin);
 			return RETERR(-EINVAL);
 		}
 		move_on(len, area, sizeof *slot);
@@ -971,7 +970,7 @@ static int crypto_stat_to_inode (struct inode *inode,
 	}
 	/* load inode crypto-stat */
 	stat->keysize = tmp->keysize;
-	xmemcpy(stat->keyid, tmp->keyid, (size_t)size);
+	memcpy(stat->keyid, tmp->keyid, (size_t)size);
 	reiser4_inode_data(inode)->crypt = stat;
 
 	inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
@@ -1043,7 +1042,7 @@ static int save_crypto_sd(struct inode *inode, char **area)
 
 		/* copy inode crypto-stat to the disk stat-data */
 		cputod16(stat->keysize, &sd->keysize);
-		xmemcpy(sd->keyid, stat->keyid, (size_t)dplug->dsize);
+		memcpy(sd->keyid, stat->keyid, (size_t)dplug->dsize);
 		inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	} else {
 		/* do nothing */

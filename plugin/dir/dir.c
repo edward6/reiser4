@@ -120,7 +120,7 @@ link_common(struct inode *parent /* parent directory */ ,
 
 	parent_dplug = inode_dir_plugin(parent);
 
-	xmemset(&entry, 0, sizeof entry);
+	memset(&entry, 0, sizeof entry);
 	entry.obj = object;
 
 	data.mode = object->i_mode;
@@ -270,7 +270,7 @@ unlink_common(struct inode *parent /* parent object */ ,
 		reiser4_dir_entry_desc entry;
 
 		parent_dplug = inode_dir_plugin(parent);
-		xmemset(&entry, 0, sizeof entry);
+		memset(&entry, 0, sizeof entry);
 
 		/* first, delete directory entry */
 		result = parent_dplug->rem_entry(parent, victim, &entry);
@@ -412,7 +412,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 		return RETERR(-EDQUOT);
 	}
 
-	xmemset(&entry, 0, sizeof entry);
+	memset(&entry, 0, sizeof entry);
 	entry.obj = object;
 
 	plugin_set_file(&reiser4_inode_data(object)->pset, obj_plug);
@@ -597,7 +597,7 @@ is_dir_empty(const struct inode *dir)
 }
 
 /* compare two logical positions within the same directory */
-reiser4_internal cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
+static cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 {
 	cmp_t result;
 
@@ -654,15 +654,6 @@ adjust_dir_pos(struct file   * dir,
 	 * is currently positioned at @readdir_spot. Latter has to be updated
 	 * to maintain stable readdir.
 	 */
-
-	ON_TRACE(TRACE_DIR, "adjust: %s/%i",
-		 dir ? (char *)dir->f_dentry->d_name.name : "(anon)", adj);
-	ON_TRACE(TRACE_DIR, "\nf_pos: %llu, spot.fpos: %llu entry_no: %llu\n",
-		 dir ? dir->f_pos : 0, readdir_spot->fpos,
-		 readdir_spot->entry_no);
-
-	reiser4_stat_inc(dir.readdir.adjust_pos);
-
 	/* directory is positioned to the beginning. */
 	if (readdir_spot->entry_no == 0)
 		return;
@@ -688,11 +679,9 @@ adjust_dir_pos(struct file   * dir,
 			 */
 			pos->pos += adj;
 		}
-		reiser4_stat_inc(dir.readdir.adjust_lt);
 		break;
 	case GREATER_THAN:
 		/* directory is modified after @pos: nothing to do. */
-		reiser4_stat_inc(dir.readdir.adjust_gt);
 		break;
 	case EQUAL_TO:
 		/* cannot insert an entry readdir is looking at, because it
@@ -710,8 +699,7 @@ adjust_dir_pos(struct file   * dir,
 
 		   NOTE-NIKITA: now, semaphore is used, so...
 		*/
-		xmemset(readdir_spot, 0, sizeof *readdir_spot);
-		reiser4_stat_inc(dir.readdir.adjust_eq);
+		memset(readdir_spot, 0, sizeof *readdir_spot);
 	}
 }
 
@@ -862,8 +850,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, tap_t * tap)
 		return RETERR(-EINVAL);
 	else if (destination == 0ll || dirpos == 0) {
 		/* rewind to the beginning of directory */
-		xmemset(pos, 0, sizeof *pos);
-		reiser4_stat_inc(dir.readdir.reset);
+		memset(pos, 0, sizeof *pos);
 		return dir_go_to(dir, pos, tap);
 	} else if (destination >= inode->i_size)
 		return RETERR(-ENOENT);
@@ -872,11 +859,9 @@ dir_rewind(struct file *dir, readdir_pos * pos, tap_t * tap)
 		/* I am afraid of negative numbers */
 		shift = -shift;
 		/* rewinding to the left */
-		reiser4_stat_inc(dir.readdir.rewind_left);
 		if (shift <= (int) pos->position.pos) {
 			/* destination is within sequence of entries with
 			   duplicate keys. */
-			reiser4_stat_inc(dir.readdir.left_non_uniq);
 			result = dir_go_to(dir, pos, tap);
 		} else {
 			shift -= pos->position.pos;
@@ -888,7 +873,6 @@ dir_rewind(struct file *dir, readdir_pos * pos, tap_t * tap)
 					result = rewind_left(tap, shift);
 					if (result == -E_DEADLOCK) {
 						tap_done(tap);
-						reiser4_stat_inc(dir.readdir.left_restart);
 						continue;
 					}
 				}
@@ -897,7 +881,6 @@ dir_rewind(struct file *dir, readdir_pos * pos, tap_t * tap)
 		}
 	} else {
 		/* rewinding to the right */
-		reiser4_stat_inc(dir.readdir.rewind_right);
 		result = dir_go_to(dir, pos, tap);
 		if (result == 0)
 			result = rewind_right(tap, shift);
@@ -969,9 +952,6 @@ feed_entry(struct file *f,
 	seal_init(&seal, coord, &entry_key);
 
 	longterm_unlock_znode(tap->lh);
-
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu, %llu\n",
-		 name, pos->fpos, pos->entry_no, get_key_objectid(&sd_key));
 
 	/*
 	 * send information about directory entry to the ->filldir() filler
@@ -1123,7 +1103,7 @@ static void kill_cursor(dir_cursor *cursor);
  * shrink d_cursors cache. Scan LRU list of unused cursors, freeing requested
  * number. Return number of still freeable cursors.
  */
-int d_cursor_shrink(int nr, unsigned int gfp_mask)
+static int d_cursor_shrink(int nr, unsigned int gfp_mask)
 {
 	if (nr != 0) {
 		dir_cursor *scan;
@@ -1198,7 +1178,7 @@ d_cursor_init_at(struct super_block *s)
 	p = &get_super_private(s)->d_info;
 
 	INIT_RADIX_TREE(&p->tree, GFP_KERNEL);
-	return d_cursor_hash_init(&p->table, D_CURSOR_TABLE_SIZE, NULL);
+	return d_cursor_hash_init(&p->table, D_CURSOR_TABLE_SIZE);
 }
 
 /*
@@ -1433,7 +1413,7 @@ insert_cursor(dir_cursor *cursor, struct file *f, struct inode *inode)
 	int                  result;
 	reiser4_file_fsdata *fsdata;
 
-	xmemset(cursor, 0, sizeof *cursor);
+	memset(cursor, 0, sizeof *cursor);
 
 	/* this is either first call to readdir, or rewind. Anyway, create new
 	 * cursor. */
@@ -1584,9 +1564,6 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	*pos = &fsdata->dir.readdir;
 	spin_unlock_inode(inode);
 
-	ON_TRACE(TRACE_DIR, " fpos: %llu entry_no: %llu\n",
-		 (*pos)->entry_no, (*pos)->fpos);
-
 	/* move @tap to the current position */
 	return dir_rewind(f, *pos, tap);
 }
@@ -1641,8 +1618,6 @@ readdir_common(struct file *f /* directory file being read */ ,
 	inode = f->f_dentry->d_inode;
 	assert("nikita-1360", inode != NULL);
 
-	reiser4_stat_inc(dir.readdir.calls);
-
 	if (!S_ISDIR(inode->i_mode))
 		return RETERR(-ENOTDIR);
 
@@ -1651,10 +1626,6 @@ readdir_common(struct file *f /* directory file being read */ ,
 	tap_init(&tap, &coord, &lh, ZNODE_READ_LOCK);
 
 	reiser4_readdir_readahead_init(inode, &tap);
-
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
-		 "readdir: inode: %llu offset: %#llx\n",
-		 get_inode_oid(inode), f->f_pos);
 
  repeat:
 	result = dir_readdir_init(f, &tap, &pos);
@@ -1669,8 +1640,6 @@ readdir_common(struct file *f /* directory file being read */ ,
 			assert("nikita-3227", is_valid_dir_coord(inode, coord));
 
 			result = feed_entry(f, pos, &tap, filld, dirent);
-			ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
-				 "readdir: entry: offset: %#llx\n", f->f_pos);
 			if (result > 0) {
 				break;
 			} else if (result == 0) {
@@ -1703,8 +1672,6 @@ readdir_common(struct file *f /* directory file being read */ ,
 	} else if (result == -E_NO_NEIGHBOR || result == -ENOENT)
 		result = 0;
 	tap_done(&tap);
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
-		 "readdir_exit: offset: %#llx\n", f->f_pos);
 	detach_fsdata(f);
 	return (result <= 0) ? result : 0;
 }
@@ -1720,8 +1687,6 @@ seek_dir(struct file *file, loff_t off, int origin)
 	struct inode *inode;
 
 	inode = file->f_dentry->d_inode;
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "seek_dir: %s: %lli -> %lli/%i\n",
-		 file->f_dentry->d_name.name, file->f_pos, off, origin);
 	down(&inode->i_sem);
 
 	/* update ->f_pos */

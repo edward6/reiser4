@@ -44,13 +44,11 @@ extern void tap_monitor(tap_t * tap);
 extern void tap_copy(tap_t * dst, tap_t * src);
 extern void tap_done(tap_t * tap);
 extern int tap_move(tap_t * tap, lock_handle * target);
-extern int tap_to(tap_t * tap, znode * target);
 extern int tap_to_coord(tap_t * tap, coord_t * target);
 
 extern int go_dir_el(tap_t * tap, sideof dir, int units_p);
 extern int go_next_unit(tap_t * tap);
 extern int go_prev_unit(tap_t * tap);
-extern int rewind_to(tap_t * tap, go_actor_t actor, int shift);
 extern int rewind_right(tap_t * tap, int shift);
 extern int rewind_left(tap_t * tap, int shift);
 

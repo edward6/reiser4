@@ -71,7 +71,7 @@ alloc_ts(tfm_stream_t ** stm)
 	*stm = reiser4_kmalloc(sizeof ** stm, GFP_KERNEL);
 	if (*stm == NULL)
 		return -ENOMEM;
-	xmemset(*stm, 0, sizeof ** stm);
+	memset(*stm, 0, sizeof ** stm);
 	return 0;
 }
 
@@ -223,7 +223,7 @@ alloc_tfm_stream(tfm_cluster_t * tc, size_t size, tfm_stream_id id)
 	tc->tun[id] = reiser4_kmalloc(sizeof(tfm_stream_t), GFP_KERNEL);
 	if (!tc->tun[id])
 		return -ENOMEM;
-	xmemset(tfm_stream(tc, id), 0, sizeof(tfm_stream_t));
+	memset(tfm_stream(tc, id), 0, sizeof(tfm_stream_t));
 	return alloc_ts_data(tfm_stream(tc, id), size);
 }
 
@@ -375,7 +375,7 @@ static inline void
 reset_cluster_pgset(reiser4_cluster_t * clust, int nrpages)
 {
 	assert("edward-1057", clust->pages != NULL);
-	xmemset(clust->pages, 0, sizeof(*clust->pages) * nrpages);
+	memset(clust->pages, 0, sizeof(*clust->pages) * nrpages);
 }
 
 static inline int
@@ -406,7 +406,7 @@ put_cluster_handle(reiser4_cluster_t * clust, tfm_action act)
 	put_tfm_cluster(&clust->tc, act);
 	if (clust->pages)
 		free_cluster_pgset(clust);
-	xmemset(clust, 0, sizeof *clust);
+	memset(clust, 0, sizeof *clust);
 }
 
 /* security attributes supposed to be stored on disk
@@ -425,7 +425,6 @@ typedef struct cryptcompress_info {
 
 cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode);
 int equal_to_rdk(znode *, const reiser4_key *);
-int equal_to_ldk(znode *, const reiser4_key *);
 int goto_right_neighbor(coord_t *, lock_handle *);
 int load_file_hint(struct file *, hint_t *);
 void save_file_hint(struct file *, const hint_t *);

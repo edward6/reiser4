@@ -26,7 +26,6 @@ item_body_by_coord_hard(coord_t * coord /* coord to query */ )
 	assert("nikita-325", coord->node != NULL);
 	assert("nikita-326", znode_is_loaded(coord->node));
 	assert("nikita-3200", coord->offset == INVALID_OFFSET);
-	trace_stamp(TRACE_TREE);
 
 	coord->offset = node_plugin_by_node(coord->node)->item_by_coord(coord) - zdata(coord->node);
 	ON_DEBUG(coord->body_v = coord->node->times_locked);
@@ -59,10 +58,8 @@ item_length_by_coord(const coord_t * coord /* coord to query */ )
 	assert("nikita-327", coord != NULL);
 	assert("nikita-328", coord->node != NULL);
 	assert("nikita-329", znode_is_loaded(coord->node));
-	trace_stamp(TRACE_TREE);
 
 	len = node_plugin_by_node(coord->node)->length_by_coord(coord);
-	check_contexts();
 	return len;
 }
 
@@ -72,7 +69,6 @@ obtain_item_plugin(const coord_t * coord)
 	assert("nikita-330", coord != NULL);
 	assert("nikita-331", coord->node != NULL);
 	assert("nikita-332", znode_is_loaded(coord->node));
-	trace_stamp(TRACE_TREE);
 
 	coord_set_iplug((coord_t *) coord,
 			node_plugin_by_node(coord->node)->plugin_by_coord(coord));
@@ -89,8 +85,6 @@ item_type_by_coord(const coord_t * coord /* coord to query */ )
 	assert("nikita-335", znode_is_loaded(coord->node));
 	assert("nikita-336", item_plugin_by_coord(coord) != NULL);
 
-	trace_stamp(TRACE_TREE);
-
 	return item_plugin_by_coord(coord)->b.item_type;
 }
 
@@ -103,10 +97,8 @@ item_id_by_coord(const coord_t * coord /* coord to query */ )
 	assert("vs-538", coord->node != NULL);
 	assert("vs-537", znode_is_loaded(coord->node));
 	assert("vs-536", item_plugin_by_coord(coord) != NULL);
-
-	trace_stamp(TRACE_TREE);
-
 	assert("vs-540", item_id_by_plugin(item_plugin_by_coord(coord)) < LAST_ITEM_ID);
+
 	return item_id_by_plugin(item_plugin_by_coord(coord));
 }
 
@@ -119,7 +111,6 @@ item_key_by_coord(const coord_t * coord /* coord to query */ ,
 	assert("nikita-338", coord != NULL);
 	assert("nikita-339", coord->node != NULL);
 	assert("nikita-340", znode_is_loaded(coord->node));
-	trace_stamp(TRACE_TREE);
 
 	return node_plugin_by_node(coord->node)->key_at(coord, key);
 }
@@ -134,7 +125,6 @@ max_item_key_by_coord(const coord_t *coord /* coord to query */ ,
 	assert("nikita-338", coord != NULL);
 	assert("nikita-339", coord->node != NULL);
 	assert("nikita-340", znode_is_loaded(coord->node));
-	trace_stamp(TRACE_TREE);
 
 	/* make coord pointing to last item's unit */
 	coord_dup(&last, coord);
@@ -153,7 +143,6 @@ unit_key_by_coord(const coord_t * coord /* coord to query */ ,
 	assert("nikita-772", coord != NULL);
 	assert("nikita-774", coord->node != NULL);
 	assert("nikita-775", znode_is_loaded(coord->node));
-	trace_stamp(TRACE_TREE);
 
 	if (item_plugin_by_coord(coord)->b.unit_key != NULL)
 		return item_plugin_by_coord(coord)->b.unit_key(coord, key);
@@ -169,7 +158,6 @@ max_unit_key_by_coord(const coord_t * coord /* coord to query */ ,
 	assert("nikita-772", coord != NULL);
 	assert("nikita-774", coord->node != NULL);
 	assert("nikita-775", znode_is_loaded(coord->node));
-	trace_stamp(TRACE_TREE);
 
 	if (item_plugin_by_coord(coord)->b.max_unit_key != NULL)
 		return item_plugin_by_coord(coord)->b.max_unit_key(coord, key);
@@ -207,7 +195,7 @@ paste_no_paste(coord_t * coord UNUSED_ARG,
 }
 
 /* default ->fast_paste() method */
-reiser4_internal int
+static int
 agree_to_fast_op(const coord_t * coord UNUSED_ARG /* coord of item */ )
 {
 	return 1;
@@ -264,9 +252,6 @@ are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
 
 	iplug = item_plugin_by_coord(i1);
 	assert("nikita-1338", iplug != NULL);
-
-	IF_TRACE(TRACE_NODES, print_key("k1", item_key_by_coord(i1, &k1)));
-	IF_TRACE(TRACE_NODES, print_key("k2", item_key_by_coord(i2, &k2)));
 
 	/* NOTE-NIKITA are_items_mergeable() is also called by assertions in
 	   shifting code when nodes are in "suspended" state. */
@@ -584,11 +569,6 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.max_unit_key      = max_unit_key_extent,
 			.estimate          = NULL,
 			.item_data_by_flow = NULL,
-			.show              = show_extent,
-#if REISER4_DEBUG_OUTPUT
-			.print             = print_extent,
-			.item_stat         = item_stat_extent,
-#endif
 #if REISER4_DEBUG
 			.check = check_extent
 #endif
@@ -644,11 +624,6 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.max_unit_key      = unit_key_tail,
 			.estimate          = NULL,
 			.item_data_by_flow = NULL,
-			.show              = show_tail,
-#if REISER4_DEBUG_OUTPUT
-			.print             = NULL,
-			.item_stat         = NULL,
-#endif
 #if REISER4_DEBUG
 			.check             = NULL
 #endif

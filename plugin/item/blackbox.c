@@ -25,7 +25,7 @@ store_black_box(reiser4_tree *tree,
 	coord_t coord;
 	lock_handle lh;
 
-	xmemset(&idata, 0, sizeof idata);
+	memset(&idata, 0, sizeof idata);
 
 	idata.data = data;
 	idata.user = 0;
@@ -65,7 +65,7 @@ load_black_box(reiser4_tree *tree,
 		if (result == 0) {
 			ilen = item_length_by_coord(&coord);
 			if (ilen <= length) {
-				xmemcpy(data, item_body_by_coord(&coord), ilen);
+				memcpy(data, item_body_by_coord(&coord), ilen);
 				unit_key_by_coord(&coord, key);
 			} else if (exact) {
 				/*
@@ -109,7 +109,7 @@ update_black_box(reiser4_tree *tree,
 		if (result == 0) {
 			ilen = item_length_by_coord(&coord);
 			if (length <= ilen) {
-				xmemcpy(item_body_by_coord(&coord), data, length);
+				memcpy(item_body_by_coord(&coord), data, length);
 			} else {
 				warning("nikita-3437",
 					"Wrong black box length: %i < %i",

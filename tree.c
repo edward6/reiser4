@@ -186,7 +186,6 @@
 #include "carry_ops.h"
 #include "tap.h"
 #include "tree.h"
-#include "log.h"
 #include "vfs_ops.h"
 #include "page_cache.h"
 #include "super.h"
@@ -205,6 +204,8 @@
 const reiser4_block_nr UBER_TREE_ADDR = 0ull;
 
 #define CUT_TREE_MIN_ITERATIONS 64
+
+static int find_child_by_addr(znode * parent, znode * child, coord_t * result);
 
 /* return node plugin of coord->node */
 reiser4_internal node_plugin *
@@ -296,7 +297,6 @@ insert_with_carry_by_coord(coord_t * coord /* coord where to insert */ ,
 		lowest_level.tracked = lh;
 	}
 
-	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
 	result = carry(&lowest_level, 0);
 	done_carry_pool(pool);
 
@@ -352,7 +352,6 @@ paste_with_carry(coord_t * coord /* coord of paste */ ,
 		lowest_level.tracked = lh;
 	}
 
-	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
 	result = carry(&lowest_level, 0);
 	done_carry_pool(pool);
 
@@ -387,8 +386,6 @@ insert_by_coord(coord_t * coord	/* coord where to
 	assert("vs-248", data != NULL);
 	assert("vs-249", data->length >= 0);
 	assert("nikita-1191", znode_is_write_locked(coord->node));
-
-	write_tree_log(znode_get_tree(coord->node), tree_insert, key, data, coord, flags);
 
 	node = coord->node;
 	coord_clear_iplug(coord);
@@ -426,7 +423,6 @@ insert_by_coord(coord_t * coord	/* coord where to
 		   - node plugin agrees with this
 
 		*/
-		reiser4_stat_inc(tree.fast_insert);
 		result = node_plugin_by_node(node)->create_item(coord, key, data, NULL);
 		znode_make_dirty(node);
 	} else {
@@ -482,8 +478,6 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 
 	assert("nikita-1480", iplug == data->iplug);
 
-	write_tree_log(znode_get_tree(coord->node), tree_paste, key, data, coord, flags);
-
 	size_change = space_needed(coord->node, coord, data, 0);
 	if (size_change > (int) znode_free_space(coord->node) &&
 	    (flags & COPI_DONT_SHIFT_LEFT) && (flags & COPI_DONT_SHIFT_RIGHT) && (flags & COPI_DONT_ALLOCATE)) {
@@ -511,7 +505,6 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 	    coord->unit_pos != 0 && nplug->fast_paste != NULL &&
 	    nplug->fast_paste(coord) &&
 	    iplug->b.fast_paste != NULL && iplug->b.fast_paste(coord)) {
-		reiser4_stat_inc(tree.fast_paste);
 		if (size_change > 0)
 			nplug->change_item_size(coord, size_change);
 		/* NOTE-NIKITA: huh? where @key is used? */
@@ -596,7 +589,6 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	lowest_level.track_type = CARRY_TRACK_CHANGE;
 	lowest_level.tracked = lh;
 
-	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
 	result = carry(&lowest_level, 0);
 	done_carry_pool(pool);
 
@@ -813,7 +805,6 @@ check_tree_pointer(const coord_t * pointer	/* would-be pointer to
 			iplug->s.internal.down_link(pointer, NULL, &addr);
 			/* check that cached value is correct */
 			if (disk_addr_eq(&addr, znode_get_block(child))) {
-				reiser4_stat_inc(tree.pos_in_parent_hit);
 				return NS_FOUND;
 			}
 		}
@@ -886,14 +877,12 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	/* fast path. Try to use cached value. Lock tree to keep
 	   node->pos_in_parent and pos->*_blocknr consistent. */
 	if (child->in_parent.item_pos + 1 != 0) {
-		reiser4_stat_inc(tree.pos_in_parent_set);
 		parent_coord_to_coord(&child->in_parent, result);
 		if (check_tree_pointer(result, child) == NS_FOUND) {
 			RUNLOCK_TREE(tree);
 			return NS_FOUND;
 		}
 
-		reiser4_stat_inc(tree.pos_in_parent_miss);
 		child->in_parent.item_pos = (unsigned short)~0;
 	}
 	RUNLOCK_TREE(tree);
@@ -929,7 +918,7 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
    numbers in them with that of @child.
 
 */
-reiser4_internal int
+static int
 find_child_by_addr(znode * parent /* parent znode, passed locked */ ,
 		   znode * child /* child znode, passed locked */ ,
 		   coord_t * result /* where result is stored in */ )
@@ -963,18 +952,6 @@ is_disk_addr_unallocated(const reiser4_block_nr * addr	/* address to
 	assert("nikita-1766", addr != NULL);
 	cassert(sizeof (reiser4_block_nr) == 8);
 	return (*addr & REISER4_BLOCKNR_STATUS_BIT_MASK) == REISER4_UNALLOCATED_STATUS_VALUE;
-}
-
-/* convert unallocated disk address to the memory address
-
-   FIXME: This needs a big comment. */
-reiser4_internal void *
-unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr	/* address to
-								 * convert */ )
-{
-	assert("nikita-1688", addr != NULL);
-	assert("nikita-1689", is_disk_addr_unallocated(addr));
-	return (void *) (long) (*addr << 1);
 }
 
 /* returns true if removing bytes of given range of key [from_key, to_key]
@@ -1276,7 +1253,6 @@ cut_node_content(coord_t *from, coord_t *to,
 	op->u.cut_or_kill.is_cut = 1;
 	op->u.cut_or_kill.u.cut = &cut_data;
 
-	ON_STATS(lowest_level.level_no = znode_get_level(from->node));
 	result = carry(&lowest_level, 0);
 	done_carry_pool(pool);
 
@@ -1358,7 +1334,6 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 	op->u.cut_or_kill.is_cut = 0;
 	op->u.cut_or_kill.u.kill = &kdata;
 
-	ON_STATS(lowest_level.level_no = znode_get_level(from->node));
 	result = carry(&lowest_level, 0);
 
 	done_carry_pool(pool);
@@ -1706,7 +1681,6 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 	if (smallest_removed_p == NULL)
 		smallest_removed_p = &smallest_removed;
 
-	write_tree_log(tree, tree_cut, from_key, to_key);
 	init_lh(&lock);
 
 	do {

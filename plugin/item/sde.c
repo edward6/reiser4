@@ -156,7 +156,7 @@ add_entry_de(struct inode *dir /* directory of item */ ,
 	dent = (directory_entry_format *) item_body_by_coord(coord);
 	build_inode_key_id(entry->obj, &dent->id);
 	if (longname) {
-		xmemcpy(dent->name, name, len);
+		memcpy(dent->name, name, len);
 		cputod8(0, &dent->name[len]);
 	}
 	return 0;

@@ -460,7 +460,6 @@ extern long txn_end(reiser4_context * context);
 extern void txn_restart(reiser4_context * context);
 extern void txn_restart_current(void);
 
-extern int txnmgr_force_commit_current_atom(void);
 extern int txnmgr_force_commit_all(struct super_block *, int);
 extern int current_atom_should_commit(void);
 
@@ -476,10 +475,6 @@ extern void atom_set_stage(txn_atom *atom, txn_stage stage);
 extern int same_slum_check(jnode * base, jnode * check, int alloc_check, int alloc_value);
 extern void atom_dec_and_unlock(txn_atom * atom);
 
-extern txn_capture build_capture_mode(jnode           * node,
-				      znode_lock_mode   lock_mode,
-				      txn_capture       flags);
-
 extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags, int can_coc);
 extern int try_capture_page_to_invalidate(struct page *pg);
 
@@ -490,7 +485,6 @@ extern void uncapture_jnode(jnode *);
 extern int capture_inode(struct inode *);
 extern int uncapture_inode(struct inode *);
 
-extern txn_atom *txnh_get_atom(txn_handle * txnh);
 extern txn_atom *get_current_atom_locked_nocheck(void);
 
 #define atom_is_protected(atom) (spin_atom_is_locked(atom) || (atom)->stage >= ASTAGE_PRE_COMMIT)
@@ -514,8 +508,6 @@ extern void atom_send_event(txn_atom *);
 
 extern void insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node);
 extern int capture_super_block(struct super_block *s);
-
-extern int jnodes_of_one_atom(jnode *, jnode *);
 
 /* See the comment on the function blocknrset.c:blocknr_set_add for the
    calling convention of these three routines. */
@@ -605,7 +597,6 @@ struct flush_queue {
 };
 
 extern int fq_by_atom(txn_atom *, flush_queue_t **);
-extern int fq_by_atom_gfp(txn_atom *, flush_queue_t **, int);
 extern int fq_by_jnode(jnode *, flush_queue_t **);
 extern int fq_by_jnode_gfp(jnode *, flush_queue_t **, int);
 extern void fq_put_nolock(flush_queue_t *);
@@ -637,13 +628,10 @@ void protected_jnodes_init(protected_jnodes *list);
 void protected_jnodes_done(protected_jnodes *list);
 void invalidate_list(capture_list_head * head);
 
-/* Debugging */
-#if REISER4_DEBUG_OUTPUT
-void print_atom(const char *prefix, txn_atom * atom);
+#if REISER4_DEBUG
 void info_atom(const char *prefix, const txn_atom * atom);
 #else
-#define       print_atom(p,a) noop
-#define       info_atom(p,a) noop
+#define info_atom(p,a) noop
 #endif
 
 # endif				/* __REISER4_TXNMGR_H__ */

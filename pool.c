@@ -76,13 +76,13 @@ reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
 	assert("nikita-956", num_of_objs >= 0);
 	assert("nikita-957", data != NULL);
 
-	xmemset(pool, 0, sizeof *pool);
+	memset(pool, 0, sizeof *pool);
 	pool->obj_size = obj_size;
 	pool->data = data;
 	pool_usage_list_init(&pool->free);
 	pool_usage_list_init(&pool->used);
 	pool_extra_list_init(&pool->extra);
-	xmemset(data, 0, obj_size * num_of_objs);
+	memset(data, 0, obj_size * num_of_objs);
 	for (i = 0; i < num_of_objs; ++i) {
 		h = (reiser4_pool_header *) (data + i * obj_size);
 		reiser4_init_pool_obj(h);
@@ -107,22 +107,19 @@ reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
    allocation.
 
 */
-reiser4_internal void *
+static void *
 reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 					 * from */ )
 {
 	reiser4_pool_header *result;
 
 	assert("nikita-959", pool != NULL);
-	trace_stamp(TRACE_CARRY);
-	reiser4_stat_inc(pool.alloc);
 
 	if (!pool_usage_list_empty(&pool->free)) {
 		result = pool_usage_list_pop_front(&pool->free);
 		pool_usage_list_clean(result);
 		assert("nikita-965", pool_extra_list_is_clean(result));
 	} else {
-		reiser4_stat_inc(pool.kmalloc);
 		/* pool is empty. Extra allocations don't deserve dedicated
 		   slab to be served from, as they are expected to be rare. */
 		result = reiser4_kmalloc(pool->obj_size, GFP_KERNEL);
@@ -135,7 +132,7 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 	++pool->objs;
 	pool_level_list_clean(result);
 	pool_usage_list_push_front(&pool->used, result);
-	xmemset(result + 1, 0, pool->obj_size - sizeof *result);
+	memset(result + 1, 0, pool->obj_size - sizeof *result);
 	return result;
 }
 
@@ -147,7 +144,6 @@ reiser4_pool_free(reiser4_pool * pool,
 {
 	assert("nikita-961", h != NULL);
 	assert("nikita-962", pool != NULL);
-	trace_stamp(TRACE_CARRY);
 
 	-- pool->objs;
 	assert("nikita-963", pool->objs >= 0);
@@ -193,8 +189,6 @@ add_obj(reiser4_pool * pool	/* pool from which to
 	reiser4_pool_header *result;
 
 	assert("nikita-972", pool != NULL);
-
-	trace_stamp(TRACE_CARRY);
 
 	result = reiser4_pool_alloc(pool);
 	if (IS_ERR(result))

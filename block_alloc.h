@@ -150,22 +150,12 @@ extern int check_block_counters(const struct super_block *);
 
 #if REISER4_DEBUG
 
-extern void reiser4_check_blocks(const reiser4_block_nr *, const reiser4_block_nr *, int);
 extern void reiser4_check_block(const reiser4_block_nr *, int);
 
 #else
 
-#  define reiser4_check_blocks(beg, len, val)  noop
 #  define reiser4_check_block(beg, val)        noop
 
-#endif
-
-#if REISER4_DEBUG_OUTPUT
-extern void print_block_counters(const char *,
-				 const struct super_block *,
-				 txn_atom *atom);
-#else
-#define print_block_counters(p, s, a) noop
 #endif
 
 extern int pre_commit_hook(void);

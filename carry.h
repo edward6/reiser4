@@ -317,9 +317,6 @@ struct carry_level {
 	/* lock handle supplied by user that we are tracking. See
 	   above. */
 	lock_handle *tracked;
-#if REISER4_STATS
-	tree_level level_no;
-#endif
 };
 
 /* information carry passes to plugin methods that may add new operations to
@@ -333,15 +330,9 @@ int carry(carry_level * doing, carry_level * done);
 
 carry_node *add_carry(carry_level * level, pool_ordering order, carry_node * reference);
 carry_node *add_carry_skip(carry_level * level, pool_ordering order, carry_node * reference);
-carry_op *add_op(carry_level * level, pool_ordering order, carry_op * reference);
 
 extern carry_node *insert_carry_node(carry_level * doing,
 				     carry_level * todo, const znode * node);
-
-extern carry_node *add_carry_atplace(carry_level *doing,
-				     carry_level *todo, znode *node);
-
-extern carry_node *find_begetting_brother(carry_node * node, carry_level * kin);
 
 extern carry_pool *init_carry_pool(void);
 extern void done_carry_pool(carry_pool * pool);
@@ -350,8 +341,6 @@ extern void init_carry_level(carry_level * level, carry_pool * pool);
 
 extern carry_op *post_carry(carry_level * level, carry_opcode op, znode * node, int apply_to_parent);
 extern carry_op *node_post_carry(carry_plugin_info * info, carry_opcode op, znode * node, int apply_to_parent_p);
-
-extern int carry_op_num(const carry_level * level);
 
 carry_node *add_new_znode(znode * brother, carry_node * reference, carry_level * doing, carry_level * todo);
 
@@ -411,18 +400,6 @@ for( node = carry_node_front( level ),						\
 for( node = carry_node_back( level ),		\
      tmp = carry_node_prev( node ) ; ! carry_node_end( level, node ) ;		\
      node = tmp, tmp = carry_node_prev( node ) )
-
-/* debugging function */
-
-#if REISER4_DEBUG_OUTPUT
-extern void print_carry(const char *prefix, carry_node * node);
-extern void print_op(const char *prefix, carry_op * op);
-extern void print_level(const char *prefix, carry_level * level);
-#else
-#define print_carry( p, n ) noop
-#define print_op( p, o ) noop
-#define print_level( p, l ) noop
-#endif
 
 /* __FS_REISER4_CARRY_H__ */
 #endif

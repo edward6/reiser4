@@ -42,17 +42,6 @@ statfs_type(const struct super_block *super UNUSED_ARG	/* super block
 	return (long) REISER4_SUPER_MAGIC;
 }
 
-/* block size used by file system corresponding to @super */
-reiser4_internal int
-reiser4_blksize(const struct super_block *super /* super block queried */ )
-{
-	assert("nikita-450", super != NULL);
-	assert("nikita-451", is_reiser4_super(super));
-	/* FIXME-VS: blocksize has to be 512, 1024, 2048, etc */
-	assert("zam-391", super->s_blocksize > 0);
-	return super->s_blocksize;
-}
-
 /* functions to read/modify fields of reiser4_super_info_data */
 
 /* get number of blocks in file system */
@@ -131,14 +120,6 @@ reiser4_set_free_blocks(const struct super_block *super, __u64 nr)
 	get_super_private(super)->blocks_free = nr;
 }
 
-/* increment reiser4_super_info_data's counter of free blocks */
-reiser4_internal void
-reiser4_inc_free_blocks(const struct super_block *super)
-{
-	assert("vs-496", reiser4_free_blocks(super) < reiser4_block_count(super));
-	get_super_private(super)->blocks_free++;
-}
-
 /* get mkfs unique identifier */
 reiser4_internal __u32
 reiser4_mkfs_id(const struct super_block *super	/* super block
@@ -165,16 +146,6 @@ reiser4_free_committed_blocks(const struct super_block *super)
 	assert("vs-497", super != NULL);
 	assert("vs-498", is_reiser4_super(super));
 	return get_super_private(super)->blocks_free_committed;
-}
-
-/* this is only used once on mount time to number of free blocks in
-   filesystem */
-reiser4_internal void
-reiser4_set_free_committed_blocks(const struct super_block *super, __u64 nr)
-{
-	assert("vs-507", super != NULL);
-	assert("vs-508", is_reiser4_super(super));
-	get_super_private(super)->blocks_free_committed = nr;
 }
 
 /* amount of blocks in the file system reserved for @uid and @gid */
@@ -207,30 +178,12 @@ reiser4_internal __u64 reiser4_grabbed_blocks(const struct super_block * super)
 	return get_super_private(super)->blocks_grabbed;
 }
 
-reiser4_internal void
-reiser4_set_grabbed_blocks(const struct super_block *super, __u64 nr)
-{
-	assert("zam-514", super != NULL);
-	assert("zam-515", is_reiser4_super(super));
-
-	get_super_private(super)->blocks_grabbed = nr;
-}
-
 reiser4_internal __u64 flush_reserved (const struct super_block *super)
 {
 	assert ("vpf-285", super != NULL);
 	assert ("vpf-286", is_reiser4_super (super));
 
 	return get_super_private(super)->blocks_flush_reserved;
-}
-
-reiser4_internal void
-set_flush_reserved (const struct super_block *super, __u64 nr)
-{
-	assert ("vpf-282", super != NULL);
-	assert ("vpf-283", is_reiser4_super (super));
-
-	get_super_private(super)->blocks_flush_reserved = nr;
 }
 
 /* get/set value of/to counter of fake allocated formatted blocks */
@@ -240,15 +193,6 @@ reiser4_internal __u64 reiser4_fake_allocated(const struct super_block *super)
 	assert("zam-517", is_reiser4_super(super));
 
 	return get_super_private(super)->blocks_fake_allocated;
-}
-
-reiser4_internal void
-reiser4_set_fake_allocated(const struct super_block *super, __u64 nr)
-{
-	assert("zam-518", super != NULL);
-	assert("zam-519", is_reiser4_super(super));
-
-	get_super_private(super)->blocks_fake_allocated = nr;
 }
 
 /* get/set value of/to counter of fake allocated unformatted blocks */
@@ -261,16 +205,6 @@ reiser4_fake_allocated_unformatted(const struct super_block *super)
 	return get_super_private(super)->blocks_fake_allocated_unformatted;
 }
 
-reiser4_internal void
-reiser4_set_fake_allocated_unformatted(const struct super_block *super, __u64 nr)
-{
-	assert("zam-518", super != NULL);
-	assert("zam-519", is_reiser4_super(super));
-
-	get_super_private(super)->blocks_fake_allocated_unformatted = nr;
-}
-
-
 /* get/set value of/to counter of clustered blocks */
 reiser4_internal __u64 reiser4_clustered_blocks(const struct super_block *super)
 {
@@ -278,15 +212,6 @@ reiser4_internal __u64 reiser4_clustered_blocks(const struct super_block *super)
 	assert("edward-602", is_reiser4_super(super));
 
 	return get_super_private(super)->blocks_clustered;
-}
-
-reiser4_internal void
-reiser4_set_clustered_blocks(const struct super_block *super, __u64 nr)
-{
-	assert("edward-603", super != NULL);
-	assert("edward-604", is_reiser4_super(super));
-
-	get_super_private(super)->blocks_clustered = nr;
 }
 
 /* space allocator used by this file system */

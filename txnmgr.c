@@ -232,7 +232,6 @@ year old --- define all technical terms used.
 #include "reiser4.h"
 #include "vfs_ops.h"
 #include "inode.h"
-#include "prof.h"
 #include "flush.h"
 
 #include <asm/atomic.h>
@@ -412,7 +411,7 @@ atom_init(txn_atom * atom)
 
 	assert("umka-173", atom != NULL);
 
-	xmemset(atom, 0, sizeof (txn_atom));
+	memset(atom, 0, sizeof (txn_atom));
 
 	atom->stage = ASTAGE_FREE;
 	atom->start_time = jiffies;
@@ -543,7 +542,7 @@ txn_restart_current(void)
 /* Get the atom belonging to a txnh, which is not locked.  Return txnh locked. Locks atom, if atom
    is not NULL.  This performs the necessary spin_trylock to break the lock-ordering cycle.  May
    return NULL. */
-reiser4_internal txn_atom *
+static txn_atom *
 txnh_get_atom(txn_handle * txnh)
 {
 	txn_atom *atom;
@@ -782,7 +781,6 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 
 	/* Check if both atom pointers are still NULL... */
 	if (node->atom != NULL || txnh->atom != NULL) {
-		ON_TRACE(TRACE_TXN, "alloc atom race\n");
 		/* NOTE-NIKITA probably it is rather better to free
 		 * atom_alloc here than thread it up to try_capture(). */
 
@@ -790,7 +788,6 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 		UNLOCK_JNODE(node);
 		spin_unlock_txnmgr(mgr);
 
-		reiser4_stat_inc(txnmgr.restart.atom_begin);
 		return ERR_PTR(-E_REPEAT);
 	}
 
@@ -803,7 +800,7 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 
 	/* Take the atom and txnmgr lock. No checks for lock ordering, because
 	   @atom is new and inaccessible for others. */
-	spin_lock_atom_no_ord(atom, 0, 0);
+	spin_lock_atom_no_ord(atom);
 
 	atom_list_push_back(&mgr->atoms_list, atom);
 	atom->atom_id = mgr->id_count++;
@@ -816,8 +813,6 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	atomic_inc(&atom->refcount);
 
 	atom->stage = ASTAGE_CAPTURE_FUSE;
-
-	ON_TRACE(TRACE_TXN, "begin atom %u\n", atom->atom_id);
 
 	return atom;
 }
@@ -853,9 +848,6 @@ atom_free(txn_atom * atom)
 	txn_mgr *mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
 
 	assert("umka-188", atom != NULL);
-
-	ON_TRACE(TRACE_TXN, "free atom %u\n", atom->atom_id);
-
 	assert("jmacd-18", spin_atom_is_locked(atom));
 
 	/* Remove from the txn_mgr's atom list */
@@ -1075,56 +1067,11 @@ static int submit_wb_list (void)
 	dispatch_wb_list(fq->atom, fq);
 	UNLOCK_ATOM(fq->atom);
 
-	/* trace_mark(flush); */
-	write_current_logf(WRITE_IO_LOG, "mark=flush");
-
 	ret = write_fq(fq, NULL, 1);
 	fq_put(fq);
 
 	return ret;
 }
-
-#if 0
-
-/* when during system call inode is "captured" (by reiser4_mark_inode_dirty) - blocks grabbed for stat data update are
-   moved to atom's flush_reserved bucket. On commit time (right before updating stat datas of all captured inodes) those
-   blocks are moved to grabbed. This function is used to calculate number of blocks reserved for stat data update when
-   those blocks get moved back and forwward between buckets of grabbed and flush_reserved blocks */
-static reiser4_block_nr reserved_for_sd_update(struct inode *inode)
-{
-	return inode_file_plugin(inode)->estimate.update(inode);
-}
-
-static void atom_update_stat_data(txn_atom **atom)
-{
-	jnode *j;
-
-	assert("vs-1241", spin_atom_is_locked(*atom));
-	assert("vs-1616", capture_list_empty(&(*atom)->inodes));
-
-	while (!capture_list_empty(&(*atom)->inodes)) {
-		struct inode *inode;
-
-		j = capture_list_front(&((*atom)->inodes));
-
-		inode = inode_by_reiser4_inode(container_of(j, reiser4_inode, inode_jnode));
-
-		/* move blocks grabbed for stat data update back from atom's
-		 * flush_reserved to grabbed */
-		flush_reserved2grabbed(*atom, reserved_for_sd_update(inode));
-
-		capture_list_remove_clean(j);
-		capture_list_push_back(ATOM_CLEAN_LIST(*atom), j);
-		UNLOCK_ATOM(*atom);
-
-		/* FIXME: it is not clear what to do if update sd fails. A warning will be issued (nikita-2221) */
-		reiser4_update_sd(inode);
-		*atom = get_current_atom_locked();
-	}
-
-	assert("vs-1231", capture_list_empty(&((*atom)->inodes)));
-}
-#endif
 
 /* Wait completion of all writes, re-submit atom writeback list if needed. */
 static int current_atom_complete_writes (void)
@@ -1184,12 +1131,6 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	assert("nikita-3184",
 	       get_current_super_private()->delete_sema_owner != current);
 
-	ON_TRACE(TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n",
-		 (*atom)->atom_id, current->pid);
-
-	/* call reiser4_update_sd for all atom's inodes */
-	/*atom_update_stat_data(atom);*/
-
 	for (flushiters = 0 ;; ++ flushiters) {
 		ret = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS | JNODE_FLUSH_COMMIT, nr_submitted, atom);
 		if (ret != -E_REPEAT)
@@ -1216,7 +1157,6 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 
 	if (!atom_can_be_committed(*atom)) {
 		UNLOCK_ATOM(*atom);
-		reiser4_stat_inc(txnmgr.restart.cannot_commit);
 		return RETERR(-E_REPEAT);
 	}
 
@@ -1226,9 +1166,6 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	atom_set_stage(*atom, ASTAGE_PRE_COMMIT);
 	ON_DEBUG(((*atom)->committer = current));
 
-	ON_TRACE(TRACE_TXN, "commit atom %u: PRE_COMMIT\n", (*atom)->atom_id);
-	ON_TRACE(TRACE_FLUSH, "everything flushed atom %u: PRE_COMMIT\n", (*atom)->atom_id);
-
 	UNLOCK_ATOM(*atom);
 
 	ret = current_atom_complete_writes();
@@ -1236,9 +1173,6 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 		return ret;
 
 	assert ("zam-906", capture_list_empty(ATOM_WB_LIST(*atom)));
-
-	ON_TRACE(TRACE_FLUSH, "everything written back atom %u\n",
-		 (*atom)->atom_id);
 
 	/* isolate critical code path which should be executed by only one
 	 * thread using tmgr semaphore */
@@ -1277,8 +1211,6 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	BUG_ON((*atom)->capture_count != 0);
 	assert("jmacd-1071", spin_atom_is_locked(*atom));
 
-	ON_TRACE(TRACE_TXN, "commit atom finished %u refcount %d\n",
-		 (*atom)->atom_id, atomic_read(&(*atom)->refcount));
 	return ret;
 }
 
@@ -1309,23 +1241,6 @@ static int force_commit_atom_nolock (txn_handle * txnh)
 
 	txn_restart_current();
 	return 0;
-}
-
-/* externally visible function which takes all necessary locks and commits
- * current atom */
-reiser4_internal int txnmgr_force_commit_current_atom (void)
-{
-	txn_handle * txnh = get_current_context()->trans;
-	txn_atom * atom;
-
-	atom = txnh_get_atom(txnh);
-
-	if (atom == NULL) {
-		UNLOCK_TXNH(txnh);
-		return 0;
-	}
-
-	return force_commit_atom_nolock(txnh);
 }
 
 /* Called to force commit of any outstanding atoms.  @commit_all_atoms controls
@@ -1650,9 +1565,8 @@ reiser4_internal void atom_wait_event(txn_atom * atom)
 	atomic_inc(&atom->refcount);
 	UNLOCK_ATOM(atom);
 
-	/* assert("nikita-3056", commit_check_locks()); */
 	prepare_to_sleep(_wlinks._lock_stack);
-	go_to_sleep(_wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_EVENT);
+	go_to_sleep(_wlinks._lock_stack);
 
 	LOCK_ATOM (atom);
 	fwaitfor_list_remove(&_wlinks);
@@ -1729,11 +1643,6 @@ try_commit_txnh(commit_data *cd)
 	if (cd->atom->stage == ASTAGE_DONE)
 		return 0;
 
-	ON_TRACE(TRACE_TXN,
-		 "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n",
-		 cd->atom->atom_id, cd->failed, cd->atom->txnh_count,
-		 atom_should_commit(cd->atom));
-
 	if (cd->failed)
 		return 0;
 
@@ -1784,7 +1693,6 @@ try_commit_txnh(commit_data *cd)
 				cd->atom->nr_waiters++;
 				cd->wait = 1;
 				atom_wait_event(cd->atom);
-				reiser4_stat_inc(txnmgr.restart.should_wait);
 				result = RETERR(-E_REPEAT);
 			} else {
 				result = 0;
@@ -1802,7 +1710,6 @@ try_commit_txnh(commit_data *cd)
 			if (result == 0) {
 				UNLOCK_ATOM(cd->atom);
 				cd->preflush = 0;
-				reiser4_stat_inc(txnmgr.restart.flush);
 				result = RETERR(-E_REPEAT);
 			} else	/* Atoms wasn't flushed
 				 * completely. Rinse. Repeat. */
@@ -1839,7 +1746,7 @@ commit_txnh(txn_handle * txnh)
 	commit_data cd;
 	assert("umka-192", txnh != NULL);
 
-	xmemset(&cd, 0, sizeof cd);
+	memset(&cd, 0, sizeof cd);
 	cd.txnh = txnh;
 	cd.preflush = 10;
 
@@ -1855,9 +1762,6 @@ commit_txnh(txn_handle * txnh)
 	txnh->atom = NULL;
 
 	txnh_list_remove(txnh);
-
-	ON_TRACE(TRACE_TXN, "close txnh atom %u refcount %d\n",
-		 cd.atom->atom_id, atomic_read(&cd.atom->refcount));
 
 	UNLOCK_TXNH(txnh);
 	atom_dec_and_unlock(cd.atom);
@@ -1935,20 +1839,6 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 	LOCK_TXNH(txnh);
 
 	txnh_atom = txnh->atom;
-
-	if (REISER4_STATS) {
-		if (block_atom != NULL && txnh_atom != NULL)
-			if (block_atom == txnh_atom)
-				reiser4_stat_inc(txnmgr.capture_equal);
-			else
-				reiser4_stat_inc(txnmgr.capture_both);
-		else if (block_atom != NULL && txnh_atom == NULL)
-			reiser4_stat_inc(txnmgr.capture_block);
-		else if (block_atom == NULL && txnh_atom != NULL)
-			reiser4_stat_inc(txnmgr.capture_txnh);
-		else
-			reiser4_stat_inc(txnmgr.capture_none);
-	}
 
 	if (txnh_atom != NULL && block_atom == txnh_atom) {
 		UNLOCK_TXNH(txnh);
@@ -2099,7 +1989,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 	return 0;
 }
 
-reiser4_internal txn_capture
+static txn_capture
 build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
 {
 	txn_capture cap_mode;
@@ -2340,8 +2230,6 @@ fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		   inside capture_fuse_into()
 		*/
 		capture_fuse_into(atomf, atomh);
-
-		reiser4_stat_inc(txnmgr.restart.fuse_lock_owners_fused);
 		return RETERR(-E_REPEAT);
 	}
 
@@ -2352,7 +2240,6 @@ fail:
 		UNLOCK_TXNH(txnh);
 		RUNLOCK_ZLOCK(&node->lock);
 		spin_unlock_znode(node);
-		reiser4_stat_inc(txnmgr.restart.fuse_lock_owners);
 		return RETERR(-E_REPEAT);
 	}
 
@@ -2503,9 +2390,6 @@ capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
 	assert("nikita-3540", atom_isopen(atom));
 
 	atomic_inc(&atom->refcount);
-
-	ON_TRACE(TRACE_TXN, "assign txnh atom %u refcount %d\n", atom->atom_id, atomic_read(&atom->refcount));
-
 	txnh->atom = atom;
 	txnh_list_push_back(&atom->txnh_list, txnh);
 	atom->txnh_count += 1;
@@ -2535,8 +2419,6 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 	ON_DEBUG(count_jnode(atom, node, NOT_CAPTURED, CLEAN_LIST, 1));
 
 	LOCK_CNT_INC(t_refs);
-
-	ON_TRACE(TRACE_TXN, "capture %p for atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
 }
 
 #if REISER4_COPY_ON_CAPTURE
@@ -2669,7 +2551,7 @@ znode_make_dirty(znode * z)
 		/* assert("nikita-3292",
 		       !PageWriteback(page) || ZF_ISSET(z, JNODE_WRITEBACK)); */
 		page_cache_get(page);
-		ON_DEBUG_MODIFY(znode_set_checksum(ZJNODE(z), 1));
+
 		/* jnode lock is not needed for the rest of
 		 * znode_set_dirty(). */
 		UNLOCK_JNODE(node);
@@ -2977,7 +2859,6 @@ trylock_throttle(txn_atom *atom, txn_handle * txnh, jnode * node)
 
 	if (unlikely(trylock_wait(atom, txnh, node) != 0)) {
 		atom_dec_and_unlock(atom);
-		reiser4_stat_inc(txnmgr.restart.trylock_throttle);
 		return RETERR(-E_REPEAT);
 	} else
 		return 0;
@@ -3003,7 +2884,6 @@ capture_assign_block(txn_handle * txnh, jnode * node)
 	if (result != 0) {
 		/* this avoid busy loop, but we return -E_REPEAT anyway to
 		 * simplify things. */
-		reiser4_stat_inc(txnmgr.restart.assign_block);
 		return result;
 	} else {
 		assert("jmacd-19", atom_isopen(atom));
@@ -3079,7 +2959,6 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode, int can_c
 			UNLOCK_TXNH(txnh);
 			UNLOCK_JNODE(node);
 			atom_dec_and_unlock(atom);
-			reiser4_stat_inc(txnmgr.restart.assign_txnh);
 			return RETERR(-E_REPEAT);
 		} else {
 			/* atom still has a jnode on its list (node->atom ==
@@ -3255,9 +3134,6 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 			UNLOCK_ATOM(atomh);
 		}
 
-		ON_TRACE(TRACE_TXN, "thread %u nonblocking on atom %u\n", current->pid, atomf->atom_id);
-
-		reiser4_stat_inc(txnmgr.restart.fuse_wait_nonblock);
 		return RETERR(-E_BLOCK);
 	}
 
@@ -3276,22 +3152,13 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 		UNLOCK_ATOM(atomh);
 	}
 
-	ON_TRACE(TRACE_TXN, "thread %u waitfor %u waiting %u\n", current->pid,
-		 atomf->atom_id, atomh ? atomh->atom_id : 0);
-
 	/* Go to sleep. */
 	UNLOCK_TXNH(txnh);
 
 	ret = prepare_to_sleep(wlinks._lock_stack);
-	if (ret != 0) {
-		ON_TRACE(TRACE_TXN, "thread %u deadlock blocking on atom %u\n", current->pid, atomf->atom_id);
-	} else {
-		go_to_sleep(wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_ATOM);
-
-		reiser4_stat_inc(txnmgr.restart.fuse_wait_slept);
+	if (ret == 0) {
+		go_to_sleep(wlinks._lock_stack);
 		ret = RETERR(-E_REPEAT);
-		ON_TRACE(TRACE_TXN, "thread %u wakeup %u waiting %u\n",
-			 current->pid, atomf->atom_id, atomh ? atomh->atom_id : 0);
 	}
 
 	/* Remove from the waitfor list. */
@@ -3373,7 +3240,6 @@ capture_init_fusion_locked(jnode * node, txn_handle * txnh, txn_capture mode, in
 	}
 
 	/* Atoms are unlocked in capture_fuse_into.  No locks held. */
-	reiser4_stat_inc(txnmgr.restart.init_fusion_fused);
 	return RETERR(-E_REPEAT);
 }
 
@@ -3389,15 +3255,12 @@ static int
 capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode, int can_coc)
 {
 	/* Have to perform two trylocks here. */
-	if (likely(spin_trylock_atom(node->atom)))
+	if (likely(spin_trylock_atom(node->atom))) {
 		if (likely(spin_trylock_atom(txnh->atom)))
 			return capture_init_fusion_locked(node, txnh, mode, can_coc);
 		else {
 			UNLOCK_ATOM(node->atom);
-			reiser4_stat_inc(txnmgr.restart.init_fusion_atomh);
 		}
-	else {
-		reiser4_stat_inc(txnmgr.restart.init_fusion_atomf);
 	}
 
 	UNLOCK_JNODE(node);
@@ -3480,8 +3343,6 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 
 	assert("jmacd-201", atom_isopen(small));
 	assert("jmacd-202", atom_isopen(large));
-
-	ON_TRACE(TRACE_TXN, "fuse atom %u into %u\n", small->atom_id, large->atom_id);
 
 	/* Splice and update the per-level dirty jnode lists */
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
@@ -4161,8 +4022,6 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 	reiser4_stat_inc(coc.forbidden);
 	return capture_fuse_wait(node, txnh, atomf, atomh, mode);
 #else
-	ON_TRACE(TRACE_TXN, "capture_copy: fuse wait\n");
-
 	return capture_fuse_wait(node, txnh, atomf, atomh, mode);
 
 #endif
@@ -4191,10 +4050,6 @@ reiser4_internal void uncapture_block(jnode * node)
 	assert("jmacd-1023", atom_is_protected(atom));
 #endif
 
-	/*ON_TRACE (TRACE_TXN, "un-capture %p from atom %u (captured %u)\n",
-	 * node, atom->atom_id, atom->capture_count); */
-
- 	ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
 	JF_CLR(node, JNODE_DIRTY);
 	JF_CLR(node, JNODE_RELOC);
 	JF_CLR(node, JNODE_OVRWR);
@@ -4240,33 +4095,6 @@ insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 	ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), OVRWR_LIST, 1));
 }
 
-/* return 1 if two dirty jnodes belong to one atom, 0 - otherwise */
-reiser4_internal int
-jnodes_of_one_atom(jnode * j1, jnode * j2)
-{
-	int ret = 0;
-	int finish = 0;
-
-	assert("zam-9003", j1 != j2);
-	/*assert ("zam-9004", jnode_check_dirty (j1)); */
-	assert("zam-9005", jnode_check_dirty(j2));
-
-	do {
-		LOCK_JNODE(j1);
-		assert("zam-9001", j1->atom != NULL);
-		if (spin_trylock_jnode(j2)) {
-			assert("zam-9002", j2->atom != NULL);
-			ret = (j2->atom == j1->atom);
-			finish = 1;
-
-			UNLOCK_JNODE(j2);
-		}
-		UNLOCK_JNODE(j1);
-	} while (!finish);
-
-	return ret;
-}
-
 /* when atom becomes that big, commit it as soon as possible. This was found
  * to be most effective by testing. */
 reiser4_internal unsigned int
@@ -4275,8 +4103,7 @@ txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 	return totalram_pages / 4;
 }
 
-
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 
 reiser4_internal void
 info_atom(const char *prefix, const txn_atom * atom)
@@ -4292,36 +4119,6 @@ info_atom(const char *prefix, const txn_atom * atom)
 	       atom->capture_count, atom->stage, atom->start_time, atom->flushed);
 }
 
-
-reiser4_internal void
-print_atom(const char *prefix, txn_atom * atom)
-{
-	jnode *pos_in_atom;
-	char list[32];
-	int level;
-
-	assert("umka-229", atom != NULL);
-
-	info_atom(prefix, atom);
-
-	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
-
-		sprintf(list, "capture level %d", level);
-
-		for (pos_in_atom = capture_list_front(ATOM_DIRTY_LIST(atom, level));
-		     !capture_list_end(ATOM_DIRTY_LIST(atom, level), pos_in_atom);
-		     pos_in_atom = capture_list_next(pos_in_atom)) {
-
-			info_jnode(list, pos_in_atom);
-			printk("\n");
-		}
-	}
-
-	for_all_type_safe_list(capture, ATOM_CLEAN_LIST(atom), pos_in_atom) {
-		info_jnode("clean", pos_in_atom);
-		printk("\n");
-	}
-}
 #endif
 
 static int count_deleted_blocks_actor (

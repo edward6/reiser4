@@ -22,8 +22,6 @@ extern int write_sd_by_inode_common(struct inode *inode);
 extern int owns_item_common(const struct inode *inode,
 			    const coord_t * coord);
 extern reiser4_block_nr estimate_update_common(const struct inode *inode);
-extern int safelink_common(struct inode *object,
-			   reiser4_safe_link_t link, __u64 value);
 extern int prepare_write_common (struct file *, struct page *, unsigned, unsigned);
 extern int key_by_inode_and_offset_common(struct inode *, loff_t, reiser4_key *);
 extern int setattr_reserve_common(reiser4_tree *);

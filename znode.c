@@ -154,12 +154,15 @@
 #include "tree_walk.h"
 #include "super.h"
 #include "reiser4.h"
-#include "prof.h"
 
 #include <linux/pagemap.h>
 #include <linux/spinlock.h>
 #include <linux/slab.h>
 #include <linux/err.h>
+
+static z_hash_table *get_htable(reiser4_tree *, const reiser4_block_nr * const blocknr);
+static z_hash_table *znode_get_htable(const znode *);
+static void zdrop(znode *);
 
 /* hash table support */
 
@@ -232,12 +235,10 @@ znodes_tree_init(reiser4_tree * tree /* tree to initialise znodes for */ )
 
 	rw_dk_init(tree);
 
-	result = z_hash_init(&tree->zhash_table, REISER4_ZNODE_HASH_TABLE_SIZE,
-			     reiser4_stat(tree->super, hashes.znode));
+	result = z_hash_init(&tree->zhash_table, REISER4_ZNODE_HASH_TABLE_SIZE);
 	if (result != 0)
 		return result;
-	result = z_hash_init(&tree->zfake_table, REISER4_ZNODE_HASH_TABLE_SIZE,
-			     reiser4_stat(tree->super, hashes.zfake));
+	result = z_hash_init(&tree->zfake_table, REISER4_ZNODE_HASH_TABLE_SIZE);
 	return result;
 }
 
@@ -249,7 +250,6 @@ extern void jnode_done(jnode * node, reiser4_tree * tree);
 reiser4_internal void
 zfree(znode * node /* znode to free */ )
 {
-	trace_stamp(TRACE_ZNODES);
 	assert("nikita-465", node != NULL);
 	assert("nikita-2120", znode_page(node) == NULL);
 	assert("nikita-2301", owners_list_empty(&node->lock.owners));
@@ -266,7 +266,7 @@ zfree(znode * node /* znode to free */ )
 	/* not yet phash_jnode_destroy(ZJNODE(node)); */
 
 	/* poison memory. */
-	ON_DEBUG(xmemset(node, 0xde, sizeof *node));
+	ON_DEBUG(memset(node, 0xde, sizeof *node));
 	kmem_cache_free(znode_slab, node);
 }
 
@@ -282,9 +282,6 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 	 * themselves. */
 
 	assert("nikita-795", tree != NULL);
-
-	IF_TRACE(TRACE_ZWEB, UNDER_RW_VOID(tree, tree, read,
-					   print_znodes("umount", tree)));
 
 	ztable = &tree->zhash_table;
 
@@ -317,7 +314,6 @@ zalloc(int gfp_flag /* allocation flag */ )
 {
 	znode *node;
 
-	trace_stamp(TRACE_ZNODES);
 	node = kmem_cache_alloc(znode_slab, gfp_flag);
 	return node;
 }
@@ -332,14 +328,13 @@ zinit(znode * node, const znode * parent, reiser4_tree * tree)
 	assert("nikita-466", node != NULL);
 	assert("umka-268", current_tree != NULL);
 
-	xmemset(node, 0, sizeof *node);
+	memset(node, 0, sizeof *node);
 
 	assert("umka-051", tree != NULL);
 
 	jnode_init(&node->zjnode, tree, JNODE_FORMATTED_BLOCK);
 	reiser4_init_lock(&node->lock);
 	init_parent_coord(&node->in_parent, parent);
-	ON_DEBUG_MODIFY(node->cksum = 0);
 }
 
 /*
@@ -373,7 +368,7 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 /* zdrop() -- Remove znode from the tree.
 
    This is called when znode is removed from the memory. */
-reiser4_internal void
+static void
 zdrop(znode * node /* znode to finish with */ )
 {
 	jdrop(ZJNODE(node));
@@ -429,8 +424,6 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	__u32         hash;
 	z_hash_table *htable;
 
-	trace_stamp(TRACE_ZNODES);
-
 	assert("jmacd-506", tree != NULL);
 	assert("jmacd-507", blocknr != NULL);
 
@@ -451,7 +444,7 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 
 /* return hash table where znode with block @blocknr is (or should be)
  * stored */
-reiser4_internal z_hash_table *
+static z_hash_table *
 get_htable(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 {
 	z_hash_table *table;
@@ -463,7 +456,7 @@ get_htable(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 }
 
 /* return hash table where znode @node is (or should be) stored */
-reiser4_internal z_hash_table *
+static z_hash_table *
 znode_get_htable(const znode *node)
 {
 	return get_htable(znode_get_tree(node), znode_get_block(node));
@@ -489,8 +482,6 @@ zget(reiser4_tree * tree,
 	__u32 hashi;
 
 	z_hash_table *zth;
-
-	trace_stamp(TRACE_ZNODES);
 
 	assert("jmacd-512", tree != NULL);
 	assert("jmacd-513", blocknr != NULL);
@@ -604,10 +595,10 @@ znode_guess_plugin(const znode * node	/* znode to guess
 			if ((plugin->u.node.guess != NULL) && plugin->u.node.guess(node))
 				return plugin;
 		}
-#endif
 		warning("nikita-1057", "Cannot guess node plugin");
 		print_znode("node", node);
 		return NULL;
+#endif
 	}
 }
 
@@ -652,7 +643,6 @@ zload_ra(znode * node /* znode to load */, ra_info_t *info)
 		formatted_readahead(node, info);
 
 	result = jload(ZJNODE(node));
-	ON_DEBUG_MODIFY(znode_pre_write(node));
 	assert("nikita-1378", znode_invariant(node));
 	return result;
 }
@@ -803,7 +793,8 @@ znode_above_root(const znode * node /* znode to query */ )
 
 /* check that @node is root---that its block number is recorder in the tree as
    that of root node */
-reiser4_internal int
+#if REISER4_DEBUG
+static int
 znode_is_true_root(const znode * node /* znode to query */ )
 {
 	assert("umka-060", node != NULL);
@@ -811,6 +802,7 @@ znode_is_true_root(const znode * node /* znode to query */ )
 
 	return disk_addr_eq(znode_get_block(node), &znode_get_tree(node)->root_block);
 }
+#endif
 
 /* check that @node is root */
 reiser4_internal int
@@ -838,94 +830,11 @@ znode_build_version(reiser4_tree * tree)
 	return UNDER_SPIN(epoch, tree, ++tree->znode_epoch);
 }
 
-/*
- * relocate znode to the new block number @blk. Caller keeps @node and @parent
- * long-term locked, and loaded.
- */
-static int
-relocate_locked(znode * node, znode * parent, reiser4_block_nr * blk)
-{
-	coord_t  inparent;
-	int      result;
-
-	assert("nikita-3127", node != NULL);
-	assert("nikita-3128", parent != NULL);
-	assert("nikita-3129", blk != NULL);
-	assert("nikita-3130", znode_is_any_locked(node));
-	assert("nikita-3131", znode_is_any_locked(parent));
-	assert("nikita-3132", znode_is_loaded(node));
-	assert("nikita-3133", znode_is_loaded(parent));
-
-	result = find_child_ptr(parent, node, &inparent);
-	if (result == NS_FOUND) {
-		int grabbed;
-
-		grabbed = get_current_context()->grabbed_blocks;
-		/* for a node and its parent */
-		result = reiser4_grab_space_force((__u64)2, BA_RESERVED);
-		if (result == 0) {
-			item_plugin *iplug;
-
-			iplug = item_plugin_by_coord(&inparent);
-			assert("nikita-3126", iplug->f.update != NULL);
-			iplug->f.update(&inparent, blk);
-			znode_make_dirty(inparent.node);
-			result = znode_rehash(node, blk);
-		}
-		grabbed2free_mark(grabbed);
-	} else
-		result = RETERR(-EIO);
-	return result;
-}
-
-/*
- * relocate znode to the new block number @blk. Used for speculative
- * relocation of bad blocks.
- */
-reiser4_internal int
-znode_relocate(znode * node, reiser4_block_nr * blk)
-{
-	lock_handle lh;
-	int         result;
-
-	assert("nikita-3120", node != NULL);
-	assert("nikita-3121", atomic_read(&ZJNODE(node)->x_count) > 0);
-	assert("nikita-3122", blk != NULL);
-	assert("nikita-3123", lock_stack_isclean(get_current_lock_stack()));
-	assert("nikita-3124", schedulable());
-	assert("nikita-3125", !znode_is_root(node));
-
-	init_lh(&lh);
-	result = longterm_lock_znode(&lh, node,
-				     ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI);
-	if (result == 0) {
-		lock_handle parent;
-
-		result = reiser4_get_parent(&parent, node, ZNODE_READ_LOCK, 1);
-		if (result == 0) {
-			result = zload(node);
-			if (result == 0) {
-				result = zload(parent.node);
-				if (result == 0) {
-					result = relocate_locked(node,
-								 parent.node,
-								 blk);
-					zrelse(parent.node);
-				}
-				zrelse(node);
-			}
-			done_lh(&parent);
-		}
-		done_lh(&lh);
-	}
-	return result;
-}
-
 reiser4_internal void
 init_load_count(load_count * dh)
 {
 	assert("nikita-2105", dh != NULL);
-	xmemset(dh, 0, sizeof *dh);
+	memset(dh, 0, sizeof *dh);
 }
 
 reiser4_internal void
@@ -939,18 +848,7 @@ done_load_count(load_count * dh)
 	}
 }
 
-reiser4_internal int
-incr_load_count_znode(load_count * dh, znode * node)
-{
-	assert("nikita-2107", dh != NULL);
-	assert("nikita-2158", node != NULL);
-	assert("nikita-2109", ergo(dh->node != NULL, (dh->node == node) || (dh->d_ref == 0)));
-
-	dh->node = node;
-	return incr_load_count(dh);
-}
-
-reiser4_internal int
+static int
 incr_load_count(load_count * dh)
 {
 	int result;
@@ -962,6 +860,17 @@ incr_load_count(load_count * dh)
 	if (result == 0)
 		++dh->d_ref;
 	return result;
+}
+
+reiser4_internal int
+incr_load_count_znode(load_count * dh, znode * node)
+{
+	assert("nikita-2107", dh != NULL);
+	assert("nikita-2158", node != NULL);
+	assert("nikita-2109", ergo(dh->node != NULL, (dh->node == node) || (dh->d_ref == 0)));
+
+	dh->node = node;
+	return incr_load_count(dh);
 }
 
 reiser4_internal int
@@ -1030,7 +939,7 @@ init_parent_coord(parent_coord_t * pcoord, const znode * node)
 }
 
 
-#if REISER4_DEBUG_NODE_INVARIANT
+#if REISER4_DEBUG
 int jnode_invariant_f(const jnode * node, char const **msg);
 
 /* debugging aid: znode invariant */
@@ -1112,13 +1021,7 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 		 * invariant */
 		/* unfortunately, zlock is unordered w.r.t. jnode_lock, so we
 		 * cannot check this. */
-		/*
-		UNDER_RW(zlock, (zlock *)&node->lock,
-			 read, _ergo(!znode_is_wlocked(node),
-				     znode_at_read(node))) &&
-		*/
 		/* [znode-refs] invariant */
-
 		/* only referenced znode can be long-term locked */
 		_ergo(znode_is_locked(node),
 		      atomic_read(&ZJNODE(node)->x_count) != 0);
@@ -1145,125 +1048,22 @@ znode_invariant(const znode * node /* znode to check */ )
 	spin_unlock_znode((znode *) node);
 	return result;
 }
-/* REISER4_DEBUG_NODE_INVARIANT */
-#endif
 
-/*
- * Node dirtying debug.
- *
- * Whenever formatted node is modified, it should be marked dirty (through
- * call to znode_make_dirty()) before exclusive long term lock (necessary to
- * modify node) is released. This is critical for correct operation of seal.c
- * code.
- *
- * As this is an error easy to make, special debugging mode was implemented to
- * catch it.
- *
- * In this mode new field ->cksum is added to znode. This field contains
- * checksum (adler32) of znode content calculated when znode is loaded into
- * memory and re-calculated whenever znode_make_dirty() is called on it.
- *
- * Whenever long term lock on znode is released, and znode wasn't marked
- * dirty, checksum of its content is calculated and compared with value stored
- * in ->cksum. If they differ, call to znode_make_dirty() is missing.
- *
- * This debugging mode (tunable though fs/Kconfig) is very CPU consuming and
- * hence, unsuitable for normal operation.
- *
- */
-
-#if REISER4_DEBUG_MODIFY
-__u32 znode_checksum(const znode * node)
+/* debugging aid: output human readable information about @node */
+static void
+info_znode(const char *prefix /* prefix to print */ ,
+	   const znode * node /* node to print */ )
 {
-	int i, size = znode_size(node);
-	__u32 l = 0;
-	__u32 h = 0;
-	const char *data = page_address(znode_page(node));
-
-	/* Checksum is similar to adler32... */
-	for (i = 0; i < size; i += 1) {
-		l += data[i];
-		h += l;
+	if (node == NULL) {
+		return;
 	}
+	info_jnode(prefix, ZJNODE(node));
+	if (!jnode_is_znode(ZJNODE(node)))
+		return;
 
-	return (h << 16) | (l & 0xffff);
+	printk("c_count: %i, readers: %i, items: %i\n",
+	       node->c_count, node->lock.nr_readers, node->nr_items);
 }
-
-static inline int znode_has_data(const znode *z)
-{
-	return znode_page(z) != NULL && page_address(znode_page(z)) == zdata(z);
-}
-
-void znode_set_checksum(jnode * node, int locked_p)
-{
-	if (jnode_is_znode(node)) {
-		znode *z;
-
-		z = JZNODE(node);
-
-		if (!locked_p)
-			LOCK_JNODE(node);
-		if (znode_has_data(z))
-			z->cksum = znode_checksum(z);
-		else
-			z->cksum = 0;
-		if (!locked_p)
-			UNLOCK_JNODE(node);
-	}
-}
-
-void
-znode_pre_write(znode * node)
-{
-	assert("umka-066", node != NULL);
-
-	spin_lock_znode(node);
-	if (znode_has_data(node)) {
-		if (node->cksum == 0 && !znode_is_dirty(node))
-			node->cksum = znode_checksum(node);
-	}
-	spin_unlock_znode(node);
-}
-
-void
-znode_post_write(znode * node)
-{
-	__u32 cksum;
-
-	assert("umka-067", node != NULL);
-
-	if (znode_has_data(node)) {
-		cksum = znode_checksum(node);
-
-		if (cksum != node->cksum && node->cksum != 0)
-			reiser4_panic("jmacd-1081",
-				      "changed znode is not dirty: %llu",
-				      node->zjnode.blocknr);
-	}
-}
-
-int
-znode_at_read(const znode * node)
-{
-	__u32 cksum;
-
-	assert("umka-067", node != NULL);
-
-	if (znode_has_data(node)) {
-		cksum = znode_checksum((znode *)node);
-
-		if (cksum != node->cksum && node->cksum != 0) {
-			reiser4_panic("nikita-3561",
-				      "znode is changed: %llu",
-				      node->zjnode.blocknr);
-			return 0;
-		}
-	}
-	return 1;
-}
-#endif
-
-#if REISER4_DEBUG_OUTPUT
 
 /* debugging aid: output more human readable information about @node that
    info_znode(). */
@@ -1285,22 +1085,6 @@ print_znode(const char *prefix /* prefix to print */ ,
 	print_key("\tld", &node->ld_key);
 	print_key("\trd", &node->rd_key);
 	printk("\n");
-}
-
-/* debugging aid: output human readable information about @node */
-reiser4_internal void
-info_znode(const char *prefix /* prefix to print */ ,
-	   const znode * node /* node to print */ )
-{
-	if (node == NULL) {
-		return;
-	}
-	info_jnode(prefix, ZJNODE(node));
-	if (!jnode_is_znode(ZJNODE(node)))
-		return;
-
-	printk("c_count: %i, readers: %i, items: %i\n",
-	       node->c_count, node->lock.nr_readers, node->nr_items);
 }
 
 /* print all znodes in @tree */
@@ -1334,9 +1118,6 @@ print_znodes(const char *prefix, reiser4_tree * tree)
 	if (tree_lock_taken)
 		WUNLOCK_TREE(tree);
 }
-#endif
-
-#if defined(REISER4_DEBUG) || defined(REISER4_DEBUG_MODIFY) || defined(REISER4_DEBUG_OUTPUT)
 
 /* return non-0 iff data are loaded into znode */
 reiser4_internal int
@@ -1346,15 +1127,13 @@ znode_is_loaded(const znode * node /* znode to query */ )
 	return jnode_is_loaded(ZJNODE(node));
 }
 
-#endif
-
-#if REISER4_DEBUG
 reiser4_internal unsigned long
 znode_times_locked(const znode *z)
 {
 	return z->times_locked;
 }
-#endif
+
+#endif /* REISER4_DEBUG */
 
 /* Make Linus happy.
    Local variables:

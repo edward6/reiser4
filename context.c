@@ -40,9 +40,10 @@
 #include <linux/writeback.h> /* balance_dirty_pages() */
 #include <linux/hardirq.h>
 
-#if REISER4_DEBUG_CONTEXTS
+#if REISER4_DEBUG
+
 /* List of all currently active contexts, used for debugging purposes.  */
-context_list_head active_contexts;
+static context_list_head active_contexts;
 /* lock protecting access to active_contexts. */
 spinlock_t active_contexts_lock;
 
@@ -57,8 +58,8 @@ check_contexts(void)
 	}
 	spin_unlock(&active_contexts_lock);
 }
-/* REISER4_DEBUG_CONTEXTS */
-#endif
+
+#endif /* REISER4_DEBUG */
 
 /* initialise context and bind it to the current thread
 
@@ -76,7 +77,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	assert("nikita-3357", super != NULL);
 	assert("nikita-3358", super->s_op == NULL || is_reiser4_super(super));
 
-	xmemset(context, 0, sizeof *context);
+	memset(context, 0, sizeof *context);
 
 	if (is_in_reiser4_context()) {
 		reiser4_context *parent;
@@ -104,14 +105,12 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	context->parent = context;
 	tap_list_init(&context->taps);
 #if REISER4_DEBUG
-#if REISER4_DEBUG_CONTEXTS
 	context_list_clean(context);	/* to satisfy assertion */
 	spin_lock(&active_contexts_lock);
 	context_list_check(&active_contexts);
 	context_list_push_front(&active_contexts, context);
 	/*check_contexts();*/
 	spin_unlock(&active_contexts_lock);
-#endif
 	context->task = current;
 #endif
 	grab_space_enable();
@@ -244,7 +243,7 @@ done_context(reiser4_context * context /* context being released */)
 		spin_lock_stack(&context->stack);
 		spin_unlock_stack(&context->stack);
 
-#if REISER4_DEBUG_CONTEXTS
+#if REISER4_DEBUG
 		/* remove from active contexts */
 		spin_lock(&active_contexts_lock);
 		/*check_contexts();*/
@@ -266,35 +265,29 @@ done_context(reiser4_context * context /* context being released */)
 reiser4_internal int
 init_context_mgr(void)
 {
-#if REISER4_DEBUG_CONTEXTS
+#if REISER4_DEBUG
 	spin_lock_init(&active_contexts_lock);
 	context_list_init(&active_contexts);
 #endif
 	return 0;
 }
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 /* debugging function: output reiser4 context contexts in the human readable
  * form  */
-reiser4_internal void
+static void
 print_context(const char *prefix, reiser4_context * context)
 {
 	if (context == NULL) {
 		printk("%s: null context\n", prefix);
 		return;
 	}
-#if REISER4_TRACE
-	printk("%s: trace_flags: %x\n", prefix, context->trace_flags);
-#endif
 	print_lock_counters("\tlocks", &context->locks);
-#if REISER4_DEBUG
 	printk("pid: %i, comm: %s\n", context->task->pid, context->task->comm);
-#endif
 	print_lock_stack("\tlock stack", &context->stack);
 	info_atom("\tatom", context->trans_in_ctx.atom);
 }
 
-#if REISER4_DEBUG_CONTEXTS
 /* debugging: dump contents of all active contexts */
 void
 print_contexts(void)
@@ -309,7 +302,7 @@ print_contexts(void)
 
 	spin_unlock(&active_contexts_lock);
 }
-#endif
+
 #endif
 
 /* Make Linus happy.

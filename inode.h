@@ -315,7 +315,6 @@ extern int inode_has_no_jnodes(reiser4_inode *);
 
 extern znode *inode_get_vroot(struct inode *inode);
 extern void   inode_set_vroot(struct inode *inode, znode *vroot);
-extern void   inode_clean_vroot(struct inode *inode);
 
 extern int reiser4_max_filename_len(const struct inode *inode);
 extern int max_hash_collisions(const struct inode *dir);
@@ -324,7 +323,6 @@ extern int is_reiser4_inode(const struct inode *inode);
 extern int setup_inode_ops(struct inode *inode, reiser4_object_create_data *);
 extern struct inode *reiser4_iget(struct super_block *super, const reiser4_key * key, int silent);
 extern void reiser4_iget_complete (struct inode * inode);
-extern int reiser4_inode_find_actor(struct inode *inode, void *opaque);
 extern int get_reiser4_inode_by_key (struct inode **, const reiser4_key *);
 
 
@@ -413,10 +411,8 @@ jnode_tree_by_reiser4_inode(reiser4_inode *r4_inode)
 	return &r4_inode->jnodes_tree;
 }
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 extern void print_inode(const char *prefix, const struct inode *i);
-#else
-#define print_inode(p, i) noop
 #endif
 
 /* __REISER4_INODE_H__ */

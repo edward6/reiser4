@@ -262,7 +262,7 @@ expand_item(const coord_t * coord /* coord of item */ ,
 	/* place where new header will be in */
 	header = header_at(coord, pos);
 	/* free space for new entry headers */
-	xmemmove(header + no, header, (unsigned) (address(coord, size) - (char *) header));
+	memmove(header + no, header, (unsigned) (address(coord, size) - (char *) header));
 	/* if adding to the end initialise first new header */
 	if (pos == entries) {
 		set_offset(coord, pos, (unsigned) size);
@@ -272,7 +272,7 @@ expand_item(const coord_t * coord /* coord of item */ ,
 	dent = dent + no * sizeof *header;
 	size += no * sizeof *header;
 	/* free space for new entries */
-	xmemmove(dent + data_size, dent, (unsigned) (address(coord, size) - dent));
+	memmove(dent + data_size, dent, (unsigned) (address(coord, size) - dent));
 
 	/* increase counter */
 	entries += no;
@@ -753,17 +753,11 @@ copy_units_cde(coord_t * target /* coord of target item */ ,
 	int data_size;
 	int data_delta;
 	int i;
-#if REISER4_TRACE && REISER4_DEBUG_OUTPUT
-	reiser4_key debug_key;
-#endif
 
 	assert("nikita-1303", target != NULL);
 	assert("nikita-1304", source != NULL);
 	assert("nikita-1305", (int) from < units(source));
 	assert("nikita-1307", (int) (from + count) <= units(source));
-
-	IF_TRACE(TRACE_DIR | TRACE_NODES, print_key("cde_copy source", item_key_by_coord(source, &debug_key)));
-	IF_TRACE(TRACE_DIR | TRACE_NODES, print_key("cde_copy target", item_key_by_coord(target, &debug_key)));
 
 	if (where_is_free_space == SHIFT_LEFT) {
 		assert("nikita-1453", from == 0);
@@ -771,8 +765,8 @@ copy_units_cde(coord_t * target /* coord of target item */ ,
 	} else {
 		assert("nikita-1309", (int) (from + count) == units(source));
 		pos_in_target = 0;
-		xmemmove(item_body_by_coord(target),
-			 (char *) item_body_by_coord(target) + free_space, item_length_by_coord(target) - free_space);
+		memmove(item_body_by_coord(target),
+			(char *) item_body_by_coord(target) + free_space, item_length_by_coord(target) - free_space);
 	}
 
 	CHECKME(target);
@@ -793,12 +787,12 @@ copy_units_cde(coord_t * target /* coord of target item */ ,
 	/* copy entries */
 	entry_from = (char *) entry_at(source, (int) from);
 	entry_to = (char *) entry_at(source, (int) (from + count));
-	xmemmove(entry_at(target, pos_in_target), entry_from, (unsigned) (entry_to - entry_from));
+	memmove(entry_at(target, pos_in_target), entry_from, (unsigned) (entry_to - entry_from));
 
 	/* copy headers */
 	header_from = (char *) header_at(source, (int) from);
 	header_to = (char *) header_at(source, (int) (from + count));
-	xmemmove(header_at(target, pos_in_target), header_from, (unsigned) (header_to - header_from));
+	memmove(header_at(target, pos_in_target), header_from, (unsigned) (header_to - header_from));
 
 	/* update offsets */
 	for (i = pos_in_target; i < (int) (pos_in_target + count); ++i)
@@ -862,7 +856,7 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 	entry_to = (char *) entry_at(coord, (int) (from + count));
 
 	/* move headers */
-	xmemmove(header_from, header_to, (unsigned) (address(coord, size) - header_to));
+	memmove(header_from, header_to, (unsigned) (address(coord, size) - header_to));
 
 	header_delta = header_to - header_from;
 
@@ -871,7 +865,7 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 	size -= header_delta;
 
 	/* copy entries */
-	xmemmove(entry_from, entry_to, (unsigned) (address(coord, size) - entry_to));
+	memmove(entry_from, entry_to, (unsigned) (address(coord, size) - entry_to));
 
 	entry_delta = entry_to - entry_from;
 	size -= entry_delta;
@@ -888,14 +882,14 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 
 	if (from == 0) {
 		/* entries from head was removed - move remaining to right */
-		xmemmove((char *) item_body_by_coord(coord) +
+		memmove((char *) item_body_by_coord(coord) +
 			 header_delta + entry_delta, item_body_by_coord(coord), (unsigned) size);
 		if (REISER4_DEBUG)
-			xmemset(item_body_by_coord(coord), 0, (unsigned) header_delta + entry_delta);
+			memset(item_body_by_coord(coord), 0, (unsigned) header_delta + entry_delta);
 	} else {
 		/* freed space is already at the end of item */
 		if (REISER4_DEBUG)
-			xmemset((char *) item_body_by_coord(coord) + size, 0, (unsigned) header_delta + entry_delta);
+			memset((char *) item_body_by_coord(coord) + size, 0, (unsigned) header_delta + entry_delta);
 	}
 
 	return header_delta + entry_delta;

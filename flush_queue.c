@@ -58,7 +58,7 @@ SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, guard);
 #define mark_fq_ready(fq)      do { (fq)->state &= ~FQ_IN_USE;   } while (0)
 
 /* get lock on atom from locked flush queue object */
-reiser4_internal txn_atom *
+static txn_atom *
 atom_get_locked_by_fq(flush_queue_t * fq)
 {
 	/* This code is similar to jnode_get_atom(), look at it for the
@@ -102,7 +102,7 @@ atom_locked_by_fq(flush_queue_t * fq)
 static void
 init_fq(flush_queue_t * fq)
 {
-	xmemset(fq, 0, sizeof *fq);
+	memset(fq, 0, sizeof *fq);
 
 	atomic_set(&fq->nr_submitted, 0);
 
@@ -541,7 +541,7 @@ write_fq(flush_queue_t * fq, long * nr_submitted, int flags)
    atom lock is obtained by different ways in different parts of reiser4,
    usually it is current atom, but we need a possibility for getting fq for the
    atom of given jnode. */
-reiser4_internal int
+static int
 fq_by_atom_gfp(txn_atom * atom, flush_queue_t ** new_fq, int gfp)
 {
 	flush_queue_t *fq;

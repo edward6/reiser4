@@ -79,11 +79,10 @@ reiser4_key *key_at_node40(const coord_t * coord, reiser4_key * key);
 size_t estimate_node40(znode * node);
 int check_node40(const znode * node, __u32 flags, const char **error);
 int parse_node40(znode * node);
-#if REISER4_DEBUG_OUTPUT
-void print_node40(const char *prefix, const znode * node, __u32 flags);
-#endif
 int init_node40(znode * node);
+#if GUESS_EXISTS
 int guess_node40(const znode * node);
+#endif
 void change_item_size_node40(coord_t * coord, int by);
 int create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data * data, carry_plugin_info * info);
 void update_item_key_node40(coord_t * target, const reiser4_key * key, carry_plugin_info * info);

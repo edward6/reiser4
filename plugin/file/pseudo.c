@@ -12,8 +12,6 @@
 #include <linux/seq_file.h>
 #include <linux/fs.h>
 
-struct seq_operations pseudo_seq_op;
-
 /* extract pseudo file plugin, stored in @file */
 static pseudo_plugin *
 get_pplug(struct file * file)

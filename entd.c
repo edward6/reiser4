@@ -54,7 +54,7 @@ init_entd_context(struct super_block *super)
 
 	ctx = get_entd_context(super);
 
-	xmemset(ctx, 0, sizeof *ctx);
+	memset(ctx, 0, sizeof *ctx);
 	kcond_init(&ctx->startup);
 	kcond_init(&ctx->wait);
 	init_completion(&ctx->finish);

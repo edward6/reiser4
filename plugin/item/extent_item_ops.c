@@ -249,12 +249,12 @@ paste_extent(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UN
 	}
 
 	/* prepare space for new units */
-	xmemmove(ext + coord->unit_pos + data->length / sizeof (reiser4_extent),
-		 ext + coord->unit_pos, (old_nr_units - coord->unit_pos) * sizeof (reiser4_extent));
+	memmove(ext + coord->unit_pos + data->length / sizeof (reiser4_extent),
+		ext + coord->unit_pos, (old_nr_units - coord->unit_pos) * sizeof (reiser4_extent));
 
 	/* copy new data from kernel space */
 	assert("vs-556", data->user == 0);
-	xmemcpy(ext + coord->unit_pos, data->data, (unsigned) data->length);
+	memcpy(ext + coord->unit_pos, data->data, (unsigned) data->length);
 
 	/* after paste @coord is set to first of pasted units */
 	assert("vs-332", coord_is_existing_unit(coord));
@@ -320,7 +320,7 @@ copy_units_extent(coord_t *target, coord_t *source,
 		node_plugin_by_node(target->node)->update_item_key(target, &key, 0/*info */);
 	}
 
-	xmemcpy(to_ext, from_ext, free_space);
+	memcpy(to_ext, from_ext, free_space);
 }
 
 /* item_plugin->b.create_hook

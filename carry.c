@@ -146,7 +146,6 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
 #include "carry_ops.h"
 #include "super.h"
 #include "reiser4.h"
-#include "prof.h"
 
 #include <linux/types.h>
 
@@ -162,12 +161,16 @@ int lock_carry_node_tail(carry_node * node);
 /* carry processing proper */
 static int carry_on_level(carry_level * doing, carry_level * todo);
 
+static carry_op *add_op(carry_level * level, pool_ordering order, carry_op * reference);
+
 /* handlers for carry operations. */
 
 static void fatal_carry_error(carry_level * doing, int ecode);
 static int add_new_root(carry_level * level, carry_node * node, znode * fake);
 
 static int carry_estimate_reserve(carry_level * level);
+
+static void print_level(const char *prefix, carry_level * level);
 
 #if REISER4_DEBUG
 typedef enum {
@@ -204,8 +207,6 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 
 	assert("nikita-888", doing != NULL);
 
-	trace_stamp(TRACE_CARRY);
-
 	todo = &todo_area;
 	init_carry_level(todo, doing->pool);
 	if (done == NULL) {
@@ -221,10 +222,8 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 		return result;
 
 	/* iterate until there is nothing more to do */
-	while (result == 0 && carry_op_num(doing) > 0) {
+	while (result == 0 && doing->ops_num > 0) {
 		carry_level *tmp;
-
-		ON_STATS(todo->level_no = doing->level_no + 1);
 
 		/* at this point @done is locked. */
 		/* repeat lock/do/unlock while
@@ -266,12 +265,11 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 				fatal_carry_error(doing, result);
 				return result;
 			}
-			reiser4_stat_level_inc(doing, carry_restart);
 			unlock_carry_level(doing, 1);
 		}
 		/* at this point @done can be safely unlocked */
 		done_carry_level(done);
-		reiser4_stat_level_inc(doing, carry_done);
+
 		/* cyclically shift queues */
 		tmp = done;
 		done = doing;
@@ -322,11 +320,6 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 
 	assert("nikita-1034", doing != NULL);
 	assert("nikita-1035", todo != NULL);
-
-	trace_stamp(TRACE_CARRY);
-
-	/* node can be inconsistent while in-transit */
-	DISABLE_NODE_CHECK;
 
 	/* @doing->nodes are locked. */
 
@@ -388,7 +381,6 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 			}
 		}
 	}
-	ENABLE_NODE_CHECK;
 	return result;
 }
 
@@ -439,13 +431,6 @@ post_carry(carry_level * level	/* queue where new operation is to
 	return result;
 }
 
-/* number of carry operations in a @level */
-reiser4_internal int
-carry_op_num(const carry_level * level)
-{
-	return level->ops_num;
-}
-
 /* initialise carry queue */
 reiser4_internal void
 init_carry_level(carry_level * level /* level to initialise */ ,
@@ -455,7 +440,7 @@ init_carry_level(carry_level * level /* level to initialise */ ,
 	assert("nikita-1045", level != NULL);
 	assert("nikita-967", pool != NULL);
 
-	xmemset(level, 0, sizeof *level);
+	memset(level, 0, sizeof *level);
 	level->pool = pool;
 
 	pool_level_list_init(&level->nodes);
@@ -508,7 +493,6 @@ add_carry_skip(carry_level * level	/* &carry_level to add node
 {
 	ON_DEBUG(carry_node * orig_ref = reference);
 
-	trace_stamp(TRACE_CARRY);
 	if (order == POOLO_BEFORE) {
 		reference = find_left_carry(reference, level);
 		if (reference == NULL)
@@ -553,7 +537,7 @@ add_carry(carry_level * level	/* &carry_level to add node
    @order and @reference parameters.
 
 */
-reiser4_internal carry_op *
+static carry_op *
 add_op(carry_level * level /* &carry_level to add node to */ ,
        pool_ordering order	/* where to insert: at the beginning of
 				 * @level, before @reference, after
@@ -562,7 +546,6 @@ add_op(carry_level * level /* &carry_level to add node to */ ,
 {
 	carry_op *result;
 
-	trace_stamp(TRACE_CARRY);
 	result = (carry_op *) add_obj(&level->pool->op_pool, &level->ops, order, &reference->header);
 	if (!IS_ERR(result) && (result != NULL))
 		++level->ops_num;
@@ -578,7 +561,7 @@ add_op(carry_level * level /* &carry_level to add node to */ ,
    parent, it has corresponding bit (JNODE_ORPHAN) set in zstate.
 
 */
-reiser4_internal carry_node *
+static carry_node *
 find_begetting_brother(carry_node * node	/* node to start search
 						 * from */ ,
 		       carry_level * kin UNUSED_ARG	/* level to
@@ -664,7 +647,7 @@ insert_carry_node(carry_level * doing, carry_level * todo, const znode * node)
 	return scan;
 }
 
-reiser4_internal carry_node *
+static carry_node *
 add_carry_atplace(carry_level *doing, carry_level *todo, znode *node)
 {
 	carry_node *reference;
@@ -729,8 +712,6 @@ lock_carry_level(carry_level * level /* level to lock */ )
 
 	assert("nikita-881", level != NULL);
 	assert("nikita-2229", carry_level_invariant(level, CARRY_TODO));
-
-	trace_stamp(TRACE_CARRY);
 
 	/* lock nodes from left to right */
 	result = 0;
@@ -824,8 +805,6 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 
 	assert("nikita-889", level != NULL);
 
-	trace_stamp(TRACE_CARRY);
-
 	if (!failure) {
 		znode *spot;
 
@@ -848,8 +827,6 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 		   parents at this moment. */
 		assert("nikita-1631", ergo(!failure, !ZF_ISSET(carry_real(node),
 							       JNODE_ORPHAN)));
-		if (!failure)
-			node_check(carry_real(node), REISER4_NODE_DKEYS);
 		ON_DEBUG(check_dkeys(carry_real(node)));
 		unlock_carry_node(level, node, failure);
 	}
@@ -868,8 +845,6 @@ done_carry_level(carry_level * level /* level to finish */ )
 	carry_op *tmp_op;
 
 	assert("nikita-1076", level != NULL);
-
-	trace_stamp(TRACE_CARRY);
 
 	unlock_carry_level(level, 0);
 	for_all_nodes(level, node, tmp_node) {
@@ -938,8 +913,6 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
 
 	assert("nikita-887", level != NULL);
 	assert("nikita-882", node != NULL);
-
-	trace_stamp(TRACE_CARRY);
 
 	result = 0;
 	reference_point = node->node;
@@ -1035,8 +1008,6 @@ unlock_carry_node(carry_level * level,
 	znode *real_node;
 
 	assert("nikita-884", node != NULL);
-
-	trace_stamp(TRACE_CARRY);
 
 	real_node = carry_real(node);
 	/* pair to zload() in lock_carry_node_tail() */
@@ -1304,9 +1275,7 @@ carry_level_invariant(carry_level * level, carry_queue_state state)
 			if (!keyle(leftmost_key_in_node(left, &lkey),
 				   leftmost_key_in_node(right, &rkey))) {
 				print_znode("left", left);
-				print_node_content("left", left, ~0);
 				print_znode("right", right);
-				print_node_content("right", right, ~0);
 				return 0;
 			}
 		}
@@ -1315,7 +1284,6 @@ carry_level_invariant(carry_level * level, carry_queue_state state)
 }
 #endif
 
-#if REISER4_DEBUG_OUTPUT
 /* get symbolic name for boolean */
 static const char *
 tf(int boolean /* truth value */ )
@@ -1353,7 +1321,7 @@ carry_op_name(carry_opcode op /* carry opcode */ )
 }
 
 /* dump information about carry node */
-reiser4_internal void
+static void
 print_carry(const char *prefix /* prefix to print */ ,
 	    carry_node * node /* node to print */ )
 {
@@ -1368,7 +1336,7 @@ print_carry(const char *prefix /* prefix to print */ ,
 }
 
 /* dump information about carry operation */
-reiser4_internal void
+static void
 print_op(const char *prefix /* prefix to print */ ,
 	 carry_op * op /* operation to print */ )
 {
@@ -1407,7 +1375,7 @@ print_op(const char *prefix /* prefix to print */ ,
 }
 
 /* dump information about all nodes and operations in a @level */
-reiser4_internal void
+static void
 print_level(const char *prefix /* prefix to print */ ,
 	    carry_level * level /* level to print */ )
 {
@@ -1428,7 +1396,6 @@ print_level(const char *prefix /* prefix to print */ ,
 	for_all_ops(level, op, tmp_op)
 	    print_op("\tcarry op", op);
 }
-#endif
 
 /* Make Linus happy.
    Local variables:

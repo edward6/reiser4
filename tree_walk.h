@@ -98,7 +98,7 @@ struct tree_walk_actor {
 };
 extern int tree_walk(const reiser4_key *, int, struct tree_walk_actor *, void *);
 
-#if REISER4_DEBUG_SIBLING_LIST
+#if REISER4_DEBUG
 int check_sibling_list(znode * node);
 #else
 #define check_sibling_list(n) (1)

@@ -324,9 +324,6 @@ lock_object(lock_stack * owner)
 	if (owner->curpri) {
 		node->lock.nr_hipri_owners++;
 	}
-	ON_TRACE(TRACE_LOCKS,
-		 "%spri lock: %p node: %p: hipri_owners: %u: nr_readers: %d\n",
-		 owner->curpri ? "hi" : "lo", owner, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 }
 
 /* Check for recursive write locking */
@@ -436,7 +433,6 @@ check_lock_object(lock_stack * owner)
 
 	/* See if the node is disconnected. */
 	if (unlikely(ZF_ISSET(node, JNODE_IS_DYING))) {
-		ON_TRACE(TRACE_LOCKS, "attempt to lock dying znode: %p", node);
 		return RETERR(-EINVAL);
 	}
 
@@ -459,15 +455,8 @@ static int
 can_lock_object(lock_stack * owner)
 {
 	int result;
-	znode *node = owner->request.node;
 
 	result = check_lock_object(owner);
-	if (REISER4_STATS && znode_get_level(node) > 0) {
-		if (result != 0)
-			ADDSTAT(node, lock_contented);
-		else
-			ADDSTAT(node, lock_uncontented);
-	}
 	return result;
 }
 
@@ -494,10 +483,6 @@ set_high_priority(lock_stack * owner)
 			WLOCK_ZLOCK(&node->lock);
 
 			node->lock.nr_hipri_owners++;
-
-			ON_TRACE(TRACE_LOCKS,
-				 "set_hipri lock: %p node: %p: hipri_owners after: %u nr_readers: %d\n",
-				 item, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 
 			/* we can safely set signaled to zero, because
 			   previous statement (nr_hipri_owners ++) guarantees
@@ -529,9 +514,6 @@ set_low_priority(lock_stack * owner)
 			WLOCK_ZLOCK(&node->lock);
 			/* this thread just was hipri owner of @node, so
 			   nr_hipri_owners has to be greater than zero. */
-			ON_TRACE(TRACE_LOCKS,
-				 "set_lopri lock: %p node: %p: hipri_owners before: %u nr_readers: %d\n",
-				 handle, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 			assert("nikita-1835", node->lock.nr_hipri_owners > 0);
 			node->lock.nr_hipri_owners--;
 			/* If we have deadlock condition, adjust a nr_signaled
@@ -684,7 +666,6 @@ longterm_unlock_znode(lock_handle * handle)
 
 	LOCK_CNT_DEC(long_term_locked_znode);
 
-	ADDSTAT(node, unlock);
 
 	/*
 	 * to minimize amount of operations performed under lock, pre-compute
@@ -709,14 +690,6 @@ longterm_unlock_znode(lock_handle * handle)
 	node->lock.nr_hipri_owners += hipri;
 	assert("nikita-1836", node->lock.nr_hipri_owners >= 0);
 
-	ON_TRACE(TRACE_LOCKS,
-		 "%spri unlock: %p node: %p: hipri_owners: %u nr_readers %d\n",
-		 oldowner->curpri ? "hi" : "lo",
-		 handle,
-		 node,
-		 node->lock.nr_hipri_owners,
-		 node->lock.nr_readers);
-
 	/* Handle znode deallocation on last write-lock release. */
 	if (znode_is_wlocked_once(node)) {
 		if (youdie) {
@@ -725,7 +698,7 @@ longterm_unlock_znode(lock_handle * handle)
 			zput(node);
 			return;
 		}
-		znode_post_write(node);
+		/*znode_post_write(node);*/
 	}
 
 	if (handle->signaled)
@@ -777,10 +750,6 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 		owner->request.mode = 0;
 		if (mode == ZNODE_READ_LOCK)
 			wake_up_next = 1;
-		if (REISER4_DEBUG_MODIFY) {
-			if (znode_is_wlocked_once(node))
-				znode_post_write(node);
-		}
 	}
 
 	if (wake_up_next)
@@ -798,10 +767,6 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 		zref(node);
 
 		LOCK_CNT_INC(long_term_locked_znode);
-		if (REISER4_DEBUG_NODE && mode == ZNODE_WRITE_LOCK) {
-			node_check(node, 0);
-			ON_DEBUG_MODIFY(znode_pre_write(node));
-		}
 	}
 
 	ON_DEBUG(check_lock_data());
@@ -911,7 +876,6 @@ longterm_lock_znode(
 	}
 
 	level = znode_get_level(node);
-	ADDSTAT(node, lock);
 
 	/* Fill request structure with our values. */
 	owner->request.mode = mode;
@@ -929,19 +893,6 @@ longterm_lock_znode(
 
 	has_atom = (txnh->atom != NULL);
 
-	/* update statistics */
-	if (REISER4_STATS) {
-		if (mode == ZNODE_READ_LOCK)
-			ADDSTAT(node, lock_read);
-		else
-			ADDSTAT(node, lock_write);
-
-		if (hipri)
-			ADDSTAT(node, lock_hipri);
-		else
-			ADDSTAT(node, lock_lopri);
-	}
-
 	/* Synchronize on node's zlock guard lock. */
 	WLOCK_ZLOCK(lock);
 
@@ -950,8 +901,6 @@ longterm_lock_znode(
 		return lock_tail(owner, 0, 0, mode);
 
 	for (;;) {
-		ADDSTAT(node, lock_iteration);
-
 		/* Check the lock's availability: if it is unavaiable we get
 		   E_REPEAT, 0 indicates "can_lock", otherwise the node is
 		   invalid.  */
@@ -961,7 +910,6 @@ longterm_lock_znode(
 			/* @node is dying. Leave it alone. */
 			/* wakeup next requestor to support lock invalidating */
 			wake_up_next = 1;
-			ADDSTAT(node, lock_dying);
 			break;
 		}
 
@@ -969,7 +917,6 @@ longterm_lock_znode(
 			/* either locking of @node by the current thread will
 			 * lead to the deadlock, or lock modes are
 			 * incompatible. */
-			ADDSTAT(node, lock_cannot_lock);
 			break;
 		}
 
@@ -1031,7 +978,7 @@ longterm_lock_znode(
 		 */
 
 		if (likely(has_atom && ZJNODE(node)->atom == txnh->atom)) {
-			ADDSTAT(node, lock_no_capture);
+			;
 		} else {
 			/*
 			 * unlock zlock spin lock here. It is possible for
@@ -1067,7 +1014,6 @@ longterm_lock_znode(
 		/* This time, a return of (ret == 0) means we can lock, so we
 		   should break out of the loop. */
 		if (likely(ret != -E_REPEAT || non_blocking)) {
-			ADDSTAT(node, lock_can_lock);
 			break;
 		}
 
@@ -1106,7 +1052,7 @@ longterm_lock_znode(
 		   a znode ...*/
 		WUNLOCK_ZLOCK(lock);
 		/* ... and sleep */
-		go_to_sleep(owner, level);
+		go_to_sleep(owner);
 
 		WLOCK_ZLOCK(lock);
 
@@ -1162,7 +1108,7 @@ invalidate_lock(lock_handle * handle	/* path to lock
 		prepare_to_sleep(owner);
 
 		WUNLOCK_ZLOCK(&node->lock);
-		go_to_sleep(owner, znode_get_level(node));
+		go_to_sleep(owner);
 		WLOCK_ZLOCK(&node->lock);
 
 		requestors_list_remove(owner);
@@ -1193,7 +1139,7 @@ reiser4_init_lock(zlock * lock	/* pointer on allocated
 				   * uninitialized lock object
 				   * structure. */ )
 {
-	xmemset(lock, 0, sizeof (zlock));
+	memset(lock, 0, sizeof (zlock));
 	rw_zlock_init(lock);
 	requestors_list_init(&lock->requestors);
 	owners_list_init(&lock->owners);
@@ -1203,7 +1149,7 @@ reiser4_init_lock(zlock * lock	/* pointer on allocated
 reiser4_internal void
 init_lh(lock_handle * handle)
 {
-	xmemset(handle, 0, sizeof *handle);
+	memset(handle, 0, sizeof *handle);
 	locks_list_clean(handle);
 	owners_list_clean(handle);
 }
@@ -1340,32 +1286,12 @@ __reiser4_wake_up(lock_stack * owner)
 
 /* Puts a thread to sleep */
 reiser4_internal void
-__go_to_sleep(lock_stack * owner
-#if REISER4_STATS
-	    , int node_level
-#endif
-)
+go_to_sleep(lock_stack * owner)
 {
-#if REISER4_STATS
-	unsigned long sleep_start = jiffies;
-#endif
 	/* Well, we might sleep here, so holding of any spinlocks is no-no */
 	assert("nikita-3027", schedulable());
 	/* return down_interruptible(&owner->sema); */
 	down(&owner->sema);
-#if REISER4_STATS
-	switch (node_level) {
-	    case ADD_TO_SLEPT_IN_WAIT_EVENT:
-		    reiser4_stat_add(txnmgr.slept_in_wait_event, jiffies - sleep_start);
-		    break;
-	    case ADD_TO_SLEPT_IN_WAIT_ATOM:
-		    reiser4_stat_add(txnmgr.slept_in_wait_atom, jiffies - sleep_start);
-		    break;
-	    default:
-		    reiser4_stat_add_at_level(node_level, time_slept,
-					      jiffies - sleep_start);
-	}
-#endif
 }
 
 reiser4_internal int
@@ -1379,7 +1305,7 @@ lock_stack_isclean(lock_stack * owner)
 	return 0;
 }
 
-#if REISER4_DEBUG_OUTPUT
+#if REISER4_DEBUG
 /* Debugging help */
 reiser4_internal void
 print_lock_stack(const char *prefix, lock_stack * owner)
@@ -1407,16 +1333,13 @@ print_lock_stack(const char *prefix, lock_stack * owner)
 
 	spin_unlock_stack(owner);
 }
-#endif
-
-#if REISER4_DEBUG
 
 /*
  * debugging functions
  */
 
 /* check consistency of locking data-structures hanging of the @stack */
-void
+static void
 check_lock_stack(lock_stack * stack)
 {
 	spin_lock_stack(stack);

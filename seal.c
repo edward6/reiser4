@@ -55,7 +55,7 @@ seal_init(seal_t * seal /* seal to initialise */ ,
 						 * attached to */ )
 {
 	assert("nikita-1886", seal != NULL);
-	xmemset(seal, 0, sizeof *seal);
+	memset(seal, 0, sizeof *seal);
 	if (coord != NULL) {
 		znode *node;
 
@@ -167,7 +167,6 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				ON_DEBUG(coord_update_v(coord));
 				assert("nikita-1990", node == seal->coord.node);
 				assert("nikita-1898", WITH_DATA_RET(coord->node, 1, check_seal_match(coord, key)));
-				reiser4_stat_inc(seal.perfect_match);
 			} else
 				result = RETERR(-E_REPEAT);
 		}
@@ -179,7 +178,6 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 		}
 	} else {
 		/* znode wasn't in cache */
-		reiser4_stat_inc(seal.out_of_cache);
 		result = RETERR(-E_REPEAT);
 	}
 	return result;

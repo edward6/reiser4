@@ -167,15 +167,7 @@ typedef struct {
 	/* converts flow @f to item data. @coord == 0 on insert */
 	int (*item_data_by_flow) (const coord_t *, const flow_t *, reiser4_item_data *);
 
-	void (*show) (struct seq_file *, coord_t *);
-
-#if REISER4_DEBUG_OUTPUT
-	/* used for debugging only, prints an ascii description of the
-	   item contents */
-	void (*print) (const char *, coord_t *);
-	/* gather statistics */
-	void (*item_stat) (const coord_t *, void *);
-#endif
+	/*void (*show) (struct seq_file *, coord_t *);*/
 
 #if REISER4_DEBUG
 	/* used for debugging, every item should have here the most
@@ -346,7 +338,6 @@ item_plugin_by_coord(const coord_t * coord /* coord to query */ )
 	assert("nikita-330", coord != NULL);
 	assert("nikita-331", coord->node != NULL);
 	assert("nikita-332", znode_is_loaded(coord->node));
-	trace_stamp(TRACE_TREE);
 
 	if (unlikely(!coord_is_iplug_set(coord)))
 		obtain_item_plugin(coord);
@@ -374,7 +365,6 @@ item_body_by_coord(const coord_t * coord /* coord to query */ )
 	assert("nikita-324", coord != NULL);
 	assert("nikita-325", coord->node != NULL);
 	assert("nikita-326", znode_is_loaded(coord->node));
-	trace_stamp(TRACE_TREE);
 
 	if (coord->offset == INVALID_OFFSET)
 		item_body_by_coord_hard((coord_t *)coord);

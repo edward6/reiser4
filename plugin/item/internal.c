@@ -274,10 +274,6 @@ create_hook_internal(const coord_t * item /* coord of item */ ,
 		assert("nikita-3297", ZF_ISSET(child, JNODE_ORPHAN));
 		ZF_CLR(child, JNODE_ORPHAN);
 
-		ON_TRACE(TRACE_ZWEB, "create: %llx: %i [%llx]\n",
-			 *znode_get_block(item->node), item->node->c_count,
-			 *znode_get_block(child));
-
 		WUNLOCK_TREE(tree);
 		if ((left != NULL) && !keyeq(znode_get_rd_key(left),
 					     znode_get_rd_key(child))) {
@@ -333,10 +329,6 @@ kill_hook_internal(const coord_t * item /* coord of item */ ,
 		init_parent_coord(&child->in_parent, NULL);
 		-- item->node->c_count;
 		WUNLOCK_TREE(tree);
-		ON_TRACE(TRACE_ZWEB, "kill: %llx: %i [%llx]\n",
-			 *znode_get_block(item->node), item->node->c_count,
-			 *znode_get_block(child));
-
 		zput(child);
 		return 0;
 	} else {
@@ -376,7 +368,6 @@ shift_hook_internal(const coord_t * item /* coord of item */ ,
 	if (child == NULL)
 		return 0;
 	if (!IS_ERR(child)) {
-		reiser4_stat_inc(tree.reparenting);
 		WLOCK_TREE(tree);
 		++ new_node->c_count;
 		assert("nikita-1395", znode_parent(child) == old_node);
@@ -387,10 +378,6 @@ shift_hook_internal(const coord_t * item /* coord of item */ ,
 		-- old_node->c_count;
 		WUNLOCK_TREE(tree);
 		zput(child);
-		ON_TRACE(TRACE_ZWEB, "shift: %llx: %i -> %lli: %i [%llx]\n",
-			 *znode_get_block(old_node),
-			 old_node->c_count, *znode_get_block(new_node),
-			 new_node->c_count, *znode_get_block(child));
 		return 0;
 	} else
 		return PTR_ERR(child);

@@ -277,21 +277,17 @@ txn_atom *atom_locked_by_fq(flush_queue_t * fq);
 int init_fqs(void);
 void done_fqs(void);
 
-#if REISER4_TRACE
+#if REISER4_DEBUG
 const char *jnode_tostring(jnode * node);
-#else
-#define jnode_tostring(n) ""
 #endif
 
 #if REISER4_DEBUG
 #define check_preceder(blk) \
 assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
-extern void item_convert_invariant(flush_pos_t * pos);
 extern void check_pos(flush_pos_t *pos);
 #else
 #define check_preceder(b) noop
 #define check_pos(pos) noop
-#define item_convert_invariant(pos) noop
 #endif
 
 /* __REISER4_FLUSH_H__ */
