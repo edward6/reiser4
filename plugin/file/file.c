@@ -453,11 +453,7 @@ static int reserve_partial_page(reiser4_tree *tree)
 }
 
 /* estimate and reserve space needed to cut one item and update one stat data */
-#if REISER4_TRACE
-static int __reserve_cut_iteration(reiser4_tree *tree, const char * message)
-#else
-int __reserve_cut_iteration(reiser4_tree *tree)
-#endif
+static int reserve_cut_iteration(reiser4_tree *tree, const char * message)
 {
 	__u64 estimate = estimate_one_item_removal(tree) 
 		+ estimate_one_insert_into_item(tree);
@@ -467,12 +463,6 @@ int __reserve_cut_iteration(reiser4_tree *tree)
 	grab_space_enable();
 	return reiser4_grab_reserved(reiser4_get_current_sb(), estimate, BA_CAN_COMMIT, message);
 }
-
-#if REISER4_TRACE
-#define reserve_cut_iteration(tree)  __reserve_cut_iteration(tree, __FUNCTION__)
-#else
-#define reserve_cut_iteration(tree)  __reserve_cut_iteration(tree)
-#endif
 
 /* cut file items one by one starting from the last one until new file size (inode->i_size) is reached. Reserve space
    and update file stat data on every single cut from the tree */
@@ -489,7 +479,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 	set_key_offset(&to_key, get_key_offset(max_key()));
 
 	while (1) {
-		result = reserve_cut_iteration(tree_by_inode(inode));
+		result = reserve_cut_iteration(tree_by_inode(inode), __FUNCTION__);
 		if (result)
 			break;
 

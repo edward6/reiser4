@@ -341,13 +341,8 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
  *
  */
 
-#if REISER4_TRACE
 int __reiser4_grab_reserved(struct super_block *super,
 			    __u64 count, reiser4_ba_flags_t flags, const char *message)
-#else
-int __reiser4_grab_reserved(struct super_block *super,
-			    __u64 count, reiser4_ba_flags_t flags)
-#endif
 {
 	assert("nikita-3175", flags & BA_CAN_COMMIT);
 
@@ -359,7 +354,7 @@ int __reiser4_grab_reserved(struct super_block *super,
 		assert("nikita-2929", sbinfo->delete_sema_owner == NULL);
 		sbinfo->delete_sema_owner = current;
 
-		if(reiser4_grab_space(count, flags | BA_RESERVED, message)) {
+		if (reiser4_grab_space(count, flags | BA_RESERVED, message)) {
 			warning("zam-833", 
 				"reserved space is not enough (%llu, %s)",
 				count, message);
