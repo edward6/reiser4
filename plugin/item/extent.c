@@ -3545,9 +3545,9 @@ static int extent_write_flow (struct inode * inode, lw_coord_t * lw_coord, flow_
 		assert ("green-13", lock_counters ()->spin_locked == 0);
 
 		/* copy user data into page */
-		data = kmap_atomic(page, KM_USER0);
+		data = kmap(page);
 		result = __copy_from_user (data + page_off, user_buf, to_page);
-		kunmap_atomic (page, KM_USER0);
+		kunmap (page);
 		if (unlikely (result)) {
 			result = -EFAULT;
 			goto exit3;
