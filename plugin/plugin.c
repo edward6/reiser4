@@ -649,7 +649,6 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = oid_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
-/*
 	[ REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
 		.label         = "disk space manager",
@@ -658,7 +657,6 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.builtin       = space_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	},
-*/
 	[ REISER4_LAYOUT_PLUGIN_TYPE ] = {
 		.type_id       = REISER4_LAYOUT_PLUGIN_TYPE,
 		.label         = "disk layout",
