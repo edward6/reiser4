@@ -300,7 +300,7 @@ int handle_eottl( cbk_handle *h /* cbk handle */,
 
 		/* take a look at the item to the right of h -> coord */
 		result = is_next_item_internal( h -> coord, h -> active_lh );
-		if( result != 0 ) {
+		if( result < 0 ) {
 			/*
 			 * error occured while we were trying to look at the
 			 * item to the right
@@ -309,52 +309,54 @@ int handle_eottl( cbk_handle *h /* cbk handle */,
 			h -> result = result;
 			*outcome = LOOKUP_DONE;
 			return 1;
-		}
-		/*
-		 * item to the right is not internal one. Allocate a new
-		 * node and insert pointer to it after item h -> coord.
-		 *
-		 * This is a result of extents being located at the twig
-		 * level. For explanation, see comment just above
-		 * is_next_item_internal().
-		 */
-		if( cbk_lock_mode( h -> level, h ) != ZNODE_WRITE_LOCK ) {
+		} else if( result == 0 ) {
+		
 			/*
-			 * we got node read locked, restart
-			 * coord_by_key to have write lock on twig
-			 * level
+			 * item to the right is not internal one. Allocate a new
+			 * node and insert pointer to it after item h -> coord.
+			 *
+			 * This is a result of extents being located at the twig
+			 * level. For explanation, see comment just above
+			 * is_next_item_internal().
 			 */
-			assert( "vs-360", h -> lock_level < TWIG_LEVEL );
-			h -> lock_level = TWIG_LEVEL;
-			*outcome = LOOKUP_REST;
-			return 1;
-		}
+			if( cbk_lock_mode( h -> level, h ) != ZNODE_WRITE_LOCK ) {
+				/*
+				 * we got node read locked, restart
+				 * coord_by_key to have write lock on twig
+				 * level
+				 */
+				assert( "vs-360", h -> lock_level < TWIG_LEVEL );
+				h -> lock_level = TWIG_LEVEL;
+				*outcome = LOOKUP_REST;
+				return 1;
+			}
 			
-		result = add_empty_leaf( h -> coord, h -> active_lh,
-					 h -> key, rd_key( h -> coord, &key ) );
-		if( result ) {
-			h -> error = "could not add empty leaf";
-			h -> result = result;
-			*outcome = LOOKUP_DONE;
-			return 1;
+			result = add_empty_leaf( h -> coord, h -> active_lh,
+						 h -> key, rd_key( h -> coord, &key ) );
+			if( result ) {
+				h -> error = "could not add empty leaf";
+				h -> result = result;
+				*outcome = LOOKUP_DONE;
+				return 1;
+			}
+			assert( "vs-358", keyeq( h -> key, item_key_by_coord( h -> coord, &key ) ) );
+		} else {
+			/* 
+			 * this is special case mentioned in the comment on
+			 * tree.h:cbk_flags. We have found internal item
+			 * immediately on the right of extent, and we are
+			 * going to insert new item there. Key of item we are
+			 * going to insert is smaller than leftmost key in the
+			 * node pointed to by said internal item (otherwise
+			 * search wouldn't come to the extent in the first
+			 * place).
+			 *
+			 * This is a result of extents being located at the
+			 * twig level. For explanation, see comment just above
+			 * is_next_item_internal().
+			 */
+			h -> flags &= ~CBK_TRUST_DK;
 		}
-		assert( "vs-358", keyeq( h -> key, item_key_by_coord( h -> coord, &key ) ) );
-	} else {
-		/* 
-		 * this is special case mentioned in the comment on
-		 * tree.h:cbk_flags. We have found internal item
-		 * immediately on the right of extent, and we are
-		 * going to insert new item there. Key of item we are
-		 * going to insert is smaller than leftmost key in the
-		 * node pointed to by said internal item (otherwise
-		 * search wouldn't come to the extent in the first
-		 * place).
-		 *
-		 * This is a result of extents being located at the
-		 * twig level. For explanation, see comment just above
-		 * is_next_item_internal().
-		 */
-		h -> flags &= ~CBK_TRUST_DK;
 	}
 	assert( "vs-362", item_is_internal( h -> coord ) );
 	return 0;
