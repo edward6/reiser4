@@ -92,6 +92,7 @@ typedef enum {
 	PSEUDO_LOCALITY_ID,
 	PSEUDO_PSEUDOS_ID,
 	PSEUDO_BMAP_ID,
+	PSEUDO_READDIR_ID,
 	LAST_PSEUDO_ID
 } reiser4_pseudo_id;
 

@@ -262,7 +262,7 @@ static int get_uid(struct file *file, const char *buf)
 	return result;
 }
 
-int show_gid(struct seq_file *seq, void *cookie)
+static int show_gid(struct seq_file *seq, void *cookie)
 {
 	seq_printf(seq, "%lu", (long unsigned)get_seq_pseudo_host(seq)->i_gid);
 	return 0;
@@ -382,45 +382,45 @@ static int get_rwx(struct file *file, const char *buf)
 }
 
 
-void * pseudos_start(struct seq_file *m, loff_t *pos)
+static void * pseudos_start(struct seq_file *m, loff_t *pos)
 {
 	if (*pos >= LAST_PSEUDO_ID)
 		return NULL;
 	return pseudo_plugin_by_id(*pos);
 }
 
-void pseudos_stop(struct seq_file *m, void *v)
+static void pseudos_stop(struct seq_file *m, void *v)
 {
 }
 
-void * pseudos_next(struct seq_file *m, void *v, loff_t *pos)
+static void * pseudos_next(struct seq_file *m, void *v, loff_t *pos)
 {
 	++ (*pos);
 	return pseudos_start(m, pos);
 }
 
-int pseudos_show(struct seq_file *m, void *v)
+static int pseudos_show(struct seq_file *m, void *v)
 {
 	seq_printf(m, "%s\n", ((pseudo_plugin *)v)->h.label);
 	return 0;
 }
 
-void * bmap_start(struct seq_file *m, loff_t *pos)
+static void * bmap_start(struct seq_file *m, loff_t *pos)
 {
 	struct inode *host;
 
 	host = get_seq_pseudo_host(m);
-	if (*pos >= host->i_blocks >> (host->i_blkbits - VFS_BLKSIZE_BITS))
+	if (*pos << host->i_blkbits >= host->i_size)
 		return NULL;
 	else
 		return (void *)((int)*pos + 1);
 }
 
-void bmap_stop(struct seq_file *m, void *v)
+static void bmap_stop(struct seq_file *m, void *v)
 {
 }
 
-void * bmap_next(struct seq_file *m, void *v, loff_t *pos)
+static void * bmap_next(struct seq_file *m, void *v, loff_t *pos)
 {
 	++ (*pos);
 	return bmap_start(m, pos);
@@ -428,7 +428,7 @@ void * bmap_next(struct seq_file *m, void *v, loff_t *pos)
 
 extern sector_t reiser4_bmap(struct address_space *mapping, sector_t block);
 
-int bmap_show(struct seq_file *m, void *v)
+static int bmap_show(struct seq_file *m, void *v)
 {
 	sector_t lblock;
 	reiser4_block_nr sector;
@@ -443,6 +443,136 @@ int bmap_show(struct seq_file *m, void *v)
 		return 0;
 	} else
 		return sector;
+}
+
+typedef struct readdir_cookie {
+	tap_t       tap;
+	coord_t     coord;
+	lock_handle lh;
+} readdir_cookie;
+
+static int is_host_item(struct inode *host, coord_t *coord)
+{
+	if (item_type_by_coord(coord) != DIR_ENTRY_ITEM_TYPE)
+		return 0;
+	if (!inode_file_plugin(host)->owns_item(host, coord))
+		return 0;
+	return 1;
+}
+
+static void finish(struct inode *host, readdir_cookie *c)
+{
+	up(&host->i_sem);
+	if (c != NULL) {
+		tap_done(&c->tap);
+		kfree(c);
+	}
+}
+
+static void * readdir_start(struct seq_file *m, loff_t *pos)
+{
+	struct inode   *host;
+	readdir_cookie *c;
+	dir_plugin     *dplug;
+	reiser4_key     dotkey;
+	struct qstr     dotname;
+	int             result;
+	loff_t          entryno;
+
+
+	host = get_seq_pseudo_host(m);
+	dplug = inode_dir_plugin(host);
+
+	dotname.name = ".";
+	dotname.len  = 1;
+
+	down(&host->i_sem);
+	if (dplug == NULL) {
+		finish(host, NULL);
+		return NULL;
+	}
+
+	dplug->build_entry_key(host, &dotname, &dotkey);
+
+	c = kmalloc(sizeof *c, GFP_KERNEL);
+	if (c == NULL) {
+		finish(host, NULL);
+		return ERR_PTR(RETERR(-ENOMEM));
+	}
+
+	result = coord_by_key(tree_by_inode(host),
+			      &dotkey,
+			      &c->coord,
+			      &c->lh,
+			      ZNODE_READ_LOCK,
+			      FIND_EXACT,
+			      LEAF_LEVEL,
+			      LEAF_LEVEL,
+			      CBK_READDIR_RA,
+			      NULL);
+
+	tap_init(&c->tap, &c->coord, &c->lh, ZNODE_READ_LOCK);
+	if (result == 0)
+		result = tap_load(&c->tap); {
+		if (result == 0) {
+			for (entryno = 0; entryno != *pos; ++ entryno) {
+				result = go_next_unit(&c->tap);
+				if (result != 0)
+					break;
+				if (!is_host_item(host, c->tap.coord)) {
+					finish(host, c);
+					return NULL;
+				}
+			}
+		}
+	}
+	if (result != 0) {
+		finish(host, c);
+		return ERR_PTR(result);
+	}
+	return c;
+}
+
+static void readdir_stop(struct seq_file *m, void *v)
+{
+}
+
+static void * readdir_next(struct seq_file *m, void *v, loff_t *pos)
+{
+	readdir_cookie *c;
+	struct inode   *host;
+	int result;
+
+	c = v;
+	++ (*pos);
+	host = get_seq_pseudo_host(m);
+	result = go_next_unit(&c->tap);
+	if (result == 0) {
+		if (!is_host_item(host, c->tap.coord)) {
+			finish(host, c);
+			return NULL;
+		} else
+			return v;
+	} else {
+		finish(host, c);
+		return ERR_PTR(result);
+	}
+}
+
+static int readdir_show(struct seq_file *m, void *v)
+{
+	readdir_cookie *c;
+	item_plugin *iplug;
+	char *name;
+	char buf[DE_NAME_BUF_LEN];
+
+	c = v;
+	iplug = item_plugin_by_coord(&c->coord);
+
+	name = iplug->s.dir.extract_name(&c->coord, buf);
+	assert("nikita-3221", name != NULL);
+	seq_printf(m, "%s\n", name);
+	return 0;
 }
 
 pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
@@ -641,6 +771,29 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 					 .stop  = bmap_stop,
 					 .next  = bmap_next,
 					 .show  = bmap_show
+				 }
+			 },
+			 .write_type  = PSEUDO_WRITE_NONE
+	},
+	[PSEUDO_READDIR_ID] = {
+			 .h = {
+			       .type_id = REISER4_PSEUDO_PLUGIN_TYPE,
+			       .id = PSEUDO_READDIR_ID,
+			       .pops = NULL,
+			       .label = "..readdir",
+			       .desc = "returns a list of names in the dir",
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
+			 .try         = try_by_label,
+			 .lookup      = lookup_none,
+			 .lookup_mode = S_IFREG | S_IRUGO,
+			 .read_type   = PSEUDO_READ_SEQ,
+			 .read        = {
+				 .ops = {
+					 .start = readdir_start,
+					 .stop  = readdir_stop,
+					 .next  = readdir_next,
+					 .show  = readdir_show
 				 }
 			 },
 			 .write_type  = PSEUDO_WRITE_NONE
