@@ -32,6 +32,7 @@
 #include "emergency_flush.h"
 #include "prof.h"
 #include "repacker.h"
+#include "init_super.h"
 
 #include <linux/profile.h>
 #include <linux/types.h>
@@ -63,7 +64,6 @@ static void reiser4_write_super(struct super_block *);
 static int reiser4_statfs(struct super_block *, struct kstatfs *);
 static void reiser4_kill_super(struct super_block *);
 static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt);
-static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 static void reiser4_sync_inodes(struct super_block *s, struct writeback_control * wbc);
 
 extern struct dentry_operations reiser4_dentry_operation;
@@ -793,7 +793,7 @@ parse_options(char *opt_string /* starting point */ ,
 		}						\
 	}
 
-static int
+int
 reiser4_parse_options(struct super_block *s, char *opt_string)
 {
 	int result;
@@ -1180,246 +1180,7 @@ static void finish_rcu(reiser4_super_info_data *sbinfo)
 #define finish_rcu(sbinfo) noop
 #endif
 
-/* XXX cleanup is long overdue here */
-
-static int
-reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
-{
-	struct buffer_head *super_bh;
-	struct reiser4_master_sb *master_sb;
-	reiser4_super_info_data *sbinfo;
-	int plugin_id;
-	disk_format_plugin *df_plug;
-	struct inode *inode;
-	int result;
-	unsigned long blocksize;
-	reiser4_context ctx;
-
-
-	first_read_started = second_read_started = 0;
-	assert("umka-085", s != NULL);
-
-	if (bdev_read_only(s->s_bdev) || (s->s_flags & MS_RDONLY)) {
-		warning("nikita-3322", "Readonly reiser4 is not yet supported");
-		return RETERR(-EROFS);
-	}
-
-	/* this is common for every disk layout. It has a pointer where layout
-	   specific part of info can be attached to, though */
-	sbinfo = kmalloc(sizeof (reiser4_super_info_data), GFP_KERNEL);
-
-	if (!sbinfo)
-		return RETERR(-ENOMEM);
-
-	s->s_fs_info = sbinfo;
-	xmemset(sbinfo, 0, sizeof (*sbinfo));
-	result = reiser4_stat_init(&sbinfo->stats);
-	if (result)
-		goto error0;
-
-	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
-	ON_DEBUG(kcond_init(&sbinfo->rcu_done));
-	ON_DEBUG(atomic_set(&sbinfo->jnodes_in_flight, 0));
-	ON_DEBUG(spin_lock_init(&sbinfo->all_guard));
-
-	sema_init(&sbinfo->delete_sema, 1);
-	sema_init(&sbinfo->flush_sema, 1);
-	s->s_op = &reiser4_super_operations;
-
-	result = init_context(&ctx, s);
-	if (result) {
-		goto error_one_half;
-	}
-
-	result = reiser4_parse_options(s, data);
-	if (result) {
-		goto error1;
-	}
-
-read_super_block:
-#ifdef CONFIG_REISER4_BADBLOCKS
-	if ( sbinfo->altsuper )
-		super_bh = sb_bread(s, (sector_t) (sbinfo->altsuper >> s->s_blocksize_bits));
-	else
-#endif
-		/* look for reiser4 magic at hardcoded place */
-		super_bh = sb_bread(s, (sector_t) (REISER4_MAGIC_OFFSET / s->s_blocksize));
-
-	if (!super_bh) {
-		result = RETERR(-EIO);
-		goto error1;
-	}
-
-	master_sb = (struct reiser4_master_sb *) super_bh->b_data;
-	/* check reiser4 magic string */
-	result = -EINVAL;
-	if (!strncmp(master_sb->magic, REISER4_SUPER_MAGIC_STRING, 4)) {
-		/* reset block size if it is not a right one FIXME-VS: better comment is needed */
-		blocksize = d16tocpu(&master_sb->blocksize);
-
-		if (blocksize != PAGE_CACHE_SIZE) {
-			if (!silent)
-				warning("nikita-2609", "%s: wrong block size %ld\n", s->s_id, blocksize);
-			brelse(super_bh);
-			goto error1;
-		}
-		if (blocksize != s->s_blocksize) {
-			brelse(super_bh);
-			if (!sb_set_blocksize(s, (int) blocksize)) {
-				goto error1;
-			}
-			goto read_super_block;
-		}
-
-		plugin_id = d16tocpu(&master_sb->disk_plugin_id);
-		/* only two plugins are available for now */
-		assert("vs-476", (plugin_id == FORMAT40_ID || plugin_id == TEST_FORMAT_ID));
-		df_plug = disk_format_plugin_by_id(plugin_id);
-		sbinfo->diskmap_block = d64tocpu(&master_sb->diskmap);
-		brelse(super_bh);
-	} else {
-		if (!silent)
-			warning("nikita-2608", "Wrong magic: %x != %x",
-				*(__u32 *) master_sb->magic, *(__u32 *) REISER4_SUPER_MAGIC_STRING);
-		/* no standard reiser4 super block found */
-		brelse(super_bh);
-		/* FIXME-VS: call guess method for all available layout
-		   plugins */
-		/* umka (2002.06.12) Is it possible when format-specific super
-		   block exists but there no master super block? */
-		goto error1;
-	}
-
-	spin_super_init(sbinfo);
-	spin_super_eflush_init(sbinfo);
-
-	init_tree_0(&sbinfo->tree);
-
-	/* init layout plugin */
-	sbinfo->df_plug = df_plug;
-	sbinfo->tree.super = s;
-
-	txnmgr_init(&sbinfo->tmgr);
-
-	result = ktxnmgrd_attach(&kdaemon, &sbinfo->tmgr);
-	if (result) {
-		goto error2;
-	}
-
-	init_entd_context(s);
-
-	/* initialize fake inode, formatted nodes will be read/written through
-	   it */
-	result = init_formatted_fake(s);
-	if (result) {
-		goto error2;
-	}
-
-	/* call disk format plugin method to do all the preparations like
-	   journal replay, reiser4_super_info_data initialization, read oid
-	   allocator, etc */
-	result = df_plug->get_ready(s, data);
-	if (result) {
-		goto error3;
-	}
-
-	build_object_ops(s, &sbinfo->ops);
-
-	init_committed_sb_counters(s);
-
-	assert("nikita-2687", check_block_counters(s));
-
-	/* FIXME. Later on, when plugins will be able to parse options too, here
-	   should appear function call to parse plugin's options */
-
-	result = cbk_cache_init(&sbinfo->tree.cbk_cache);
-	if (result) {
-		goto error4;
-	}
-
-	inode = reiser4_iget(s, df_plug->root_dir_key(s));
-	if (IS_ERR(inode)) {
-		result = PTR_ERR(inode);
-		goto error4;
-	}
-	/* allocate dentry for root inode, It works with inode == 0 */
-	s->s_root = d_alloc_root(inode);
-	if (!s->s_root) {
-		result = RETERR(-ENOMEM);
-		goto error4;
-	}
-	s->s_root->d_op = &sbinfo->ops.dentry;
-
-	if (inode->i_state & I_NEW) {
-		reiser4_inode *info;
-
-		info = reiser4_inode_data(inode);
-
-		grab_plugin_from(info, file, default_file_plugin(s));
-		grab_plugin_from(info, dir, default_dir_plugin(s));
-		grab_plugin_from(info, sd, default_sd_plugin(s));
-		grab_plugin_from(info, hash, default_hash_plugin(s));
-		grab_plugin_from(info, tail, default_tail_plugin(s));
-		grab_plugin_from(info, perm, default_perm_plugin(s));
-		grab_plugin_from(info, dir_item, default_dir_item_plugin(s));
-
-		assert("nikita-1951", info->pset->file != NULL);
-		assert("nikita-1814", info->pset->dir != NULL);
-		assert("nikita-1815", info->pset->sd != NULL);
-		assert("nikita-1816", info->pset->hash != NULL);
-		assert("nikita-1817", info->pset->tail != NULL);
-		assert("nikita-1818", info->pset->perm != NULL);
-		assert("vs-545", info->pset->dir_item != NULL);
-
-		unlock_new_inode(inode);
-	}
-	s->s_maxbytes = MAX_LFS_FILESIZE;
-	reiser4_sysfs_init(s);
-
-	result = init_reiser4_repacker(s);
-	if (result) {
-		reiser4_sysfs_done(s);
-		goto error4;
-	}
-
-	if (!silent) {
-		print_fs_info("mount ok", s);
-		if (REISER4_DEBUG ||
-		    REISER4_DEBUG_MODIFY ||
-		    REISER4_TRACE ||
-		    REISER4_STATS ||
-		    REISER4_DEBUG_MEMCPY ||
-		    REISER4_ZERO_NEW_NODE ||
-		    REISER4_TRACE_TREE ||
-		    REISER4_PROF ||
-		    REISER4_LOCKPROF)
-			reiser4_log("nikita-2372",
-				    "Debugging is on. Benchmarking is invalid.");
-
-	}
-	reiser4_exit_context(&ctx);
-	return 0;
-
-error4:
-	get_super_private(s)->df_plug->release(s);
-error3:
-	done_formatted_fake(s);
-	/* shutdown daemon */
-	ktxnmgrd_detach(&sbinfo->tmgr);
-error2:
-	txnmgr_done(&sbinfo->tmgr);
-error1:
-	ctx.trans = NULL;
-	done_context(&ctx);
-
-error_one_half:
-	reiser4_stat_done(&sbinfo->stats);
-error0:
-	finish_rcu(sbinfo);
-	kfree(sbinfo);
-	s->s_fs_info = NULL;
-	return result;
-}
+reiser4_init_super(s, data, silent);
 
 static void
 reiser4_kill_super(struct super_block *s)
@@ -1550,7 +1311,7 @@ reiser4_get_sb(struct file_system_type *fs_type	/* file
 	       const char *dev_name /* device name */ ,
 	       void *data /* mount options */ )
 {
-	return get_sb_bdev(fs_type, flags, dev_name, data, reiser4_fill_super);
+	return get_sb_bdev(fs_type, flags, dev_name, data, reiser4_init_super);
 }
 
 typedef enum {
