@@ -13,7 +13,11 @@
 
 #include <linux/writeback.h>
 
-/* this file contains file plugin methods of regular reiser4 files. Those files are either built of tail items only (FORMATTING_ID) or
+/* this file contains file plugin methods of regular reiser4 files.
+
+NIKITA-FIXME-HANS: inconsistent naming.  change all references to regular files to unix files
+
+ Those files are either built of tail items only (FORMATTING_ID) or
    of extent items only (EXTENT_POINTER_ID) or empty (have no items but stat data) */
 
 static int unpack(struct inode *inode, int forever);
