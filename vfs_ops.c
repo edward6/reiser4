@@ -1944,6 +1944,8 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	 */
 	info("readahead options: max=%lu, flags=0x%x\n", info->ra_params.max, info->ra_params.flags);
 
+	/* disable single-threaded flush as it leads to deadlock */
+	info->fs_flags |= (1 << REISER4_MTFLUSH);
 	return result;
 }
 
