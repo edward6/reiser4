@@ -182,7 +182,6 @@ extern void schedulable (void);
 
 #define dinfo( format, args... ) noop
 #define impossible( label, format, args... ) noop
-#define not_implemented( label, format, args... ) noop
 #define assert( label, cond ) noop
 #define check_me( label, expr )	( ( void ) ( expr ) )
 #define ON_DEBUG( exp )
