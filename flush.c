@@ -1188,7 +1188,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 
 	assert ("jmacd-4277", ! blocknr_is_fake (& pos->preceder.blk));
 
-	info ("allocte node: %p block %llu level %u\n", node, *znode_get_block (node), znode_get_level (node));
+	info ("allocate node: %p block %llu level %u\n", node, *znode_get_block (node), znode_get_level (node));
 	return 0;
 }
 
@@ -1206,7 +1206,12 @@ static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 	}
 
 	lock_page (pg);
-	ret = page_io (pg, WRITE, GFP_NOIO);
+
+	assert ("nikita-2112", pg -> mapping);
+	check_me ("nikita-2113", TestClearPageDirty (pg));
+	assert ("nikita-2114", !PageWriteback (pg));
+
+	write_one_page (pg, 0);
 
 	ON_DEBUG (pos->enqueue_cnt += 1);
 	jnode_set_clean (node);
