@@ -205,9 +205,12 @@ void kfree( void *addr )
 	free( check );
 }
 
-kmem_cache_t *kmem_cache_create( const char *name, int size,
-				 int a UNUSE, int b UNUSE, int *c UNUSE,
-				 int *d  UNUSE )
+kmem_cache_t *kmem_cache_create( const char *name, 
+				 size_t size UNUSED_ARG, 
+				 size_t offset UNUSED_ARG,
+				 unsigned long flags UNUSED_ARG, 
+				 void (*ctor)(void*, kmem_cache_t *, unsigned long) UNUSED_ARG,
+				 void (*dtor)(void*, kmem_cache_t *, unsigned long) UNUSED_ARG )
 {
 	kmem_cache_t *result;
 
@@ -1325,7 +1328,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( pos_in_item );
 		STYPE( tree_coord );
 		STYPE( reiser4_item_data );
-		STYPE( reiser4_inode_info_data );
+		STYPE( reiser4_inode_info );
 		STYPE( reiser4_super_info_data );
 		STYPE( plugin_header );
 		STYPE( file_plugin );
@@ -1599,6 +1602,7 @@ static struct inode * call_cd (struct inode * dir, const char * name)
 		return inode;
 	}
 	/* FIXME-VS */
+	return NULL;
 }
 
 
