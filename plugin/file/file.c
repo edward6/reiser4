@@ -1713,6 +1713,7 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 			result = inode_setattr(inode, attr);
 			if (!result)
 				result = reiser4_write_sd(inode);
+			all_grabbed2free(__FUNCTION__);
 		}
 	}
 	return result;
