@@ -538,7 +538,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	}
 	
 	/* set input stream */
-	result = grab_tfm_stream(inode, &clust->tc, INPUT_STREAM);
+	result = grab_tfm_stream(inode, &clust->tc, TFM_READ, INPUT_STREAM);
 	if (result)
 		goto out;
 
