@@ -487,6 +487,8 @@ extern dir_plugin dir_plugins[LAST_DIR_ID];
 extern sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION];
 /* defined in fs/reiser4/plugin/hash.c */
 extern hash_plugin hash_plugins[LAST_HASH_ID];
+/* defined in fs/reiser4/plugin/crypt.c */
+extern crypto_plugin crypto_plugins[LAST_CRYPTO_ID];
 /* defined in fs/reiser4/plugin/tail.c */
 extern tail_plugin tail_plugins[LAST_TAIL_ID];
 /* defined in fs/reiser4/plugin/security/security.c */
@@ -534,6 +536,16 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 				      .builtin = hash_plugins,
 				      .plugins_list = TS_LIST_HEAD_ZERO,
 				      .size = sizeof (hash_plugin)
+                                     }
+        ,
+	[REISER4_CRYPTO_PLUGIN_TYPE] = {
+                                      .type_id = REISER4_CRYPTO_PLUGIN_TYPE,
+                                      .label = "crypto",
+                                      .desc = "Crypto plugins",
+                                      .builtin_num = sizeof_array(crypto_plugins),
+                                      .builtin = crypto_plugins,
+                                      .plugins_list = TS_LIST_HEAD_ZERO,
+                                      .size = sizeof (crypto_plugin)
 				      }
 	,
 	[REISER4_TAIL_PLUGIN_TYPE] = {
