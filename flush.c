@@ -2807,10 +2807,8 @@ jnode_lock_parent_coord(jnode         * node,
 				assert("edward-166", jnode_page(node)->mapping->host != NULL);
 				assert("edward-167", inode_get_flag(jnode_page(node)->mapping->host, REISER4_CLUSTER_KNOWN));
 				/* file was just created or cluster doesn't have
-				 * appropriate items in the tree.
-				 * FIXME-EDWARD Process one cluster and insert appropriate items 
- 				 * by (ino, coord, parent_lh, get_key_offset(&key)))
-				 */
+				 * appropriate items in the tree. */
+				ret = incr_load_count_znode(parent_zh, parent_lh->node);
 			} else if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 				warning("nikita-3177", "Parent not found");
 				print_jnode("node", node);
@@ -3149,7 +3147,7 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
         /* set parent coord from */ 
 	if (!jnode_is_unformatted(scan->node)) {
 		/* formatted position*/
-
+		
 		lock_handle lock;
 		assert("edward-301", jnode_is_znode(scan->node));
 		init_lh(&lock);
@@ -3182,14 +3180,22 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 		
 		ret = jnode_lock_parent_coord(scan->node, &scan->parent_coord, &scan->parent_lock,
 					      &scan->parent_load, ZNODE_WRITE_LOCK, try);
-		if (ret != 0) {
+		
+		if (ret != CBK_COORD_FOUND && ret != CBK_COORD_NOTFOUND)
+			return ret;
+
+		if (ret == CBK_COORD_NOTFOUND) {
 			/* FIXME(C): check EINVAL, EDEADLK */
-			if (jnode_is_cluster_page(scan->node))
-				goto scan;
 			ON_TRACE(TRACE_FLUSH,
-				 "flush_scan_common: jnode_lock_parent_coord returned %d\n", ret);				
+				 "flush_scan_common: jnode_lock_parent_coord returned %d\n", ret);
+			if (jnode_is_cluster_page(scan->node)) {
+				assert("edward-303", scan->parent_coord.between == AFTER_UNIT);
+				scan->parent_coord.between = INVALID_COORD;
+				goto scan;
+			}
 			return ret;
 		}
+		/* parent was found */
 		ON_TRACE(TRACE_FLUSH,
 			 "flush_scan_common: jnode_lock_parent_coord returned 0\n");
 		assert("jmacd-8661", other != NULL);
@@ -3344,11 +3350,20 @@ scan_by_coord(flush_scan * scan)
 			   the first coordinate. */
 			assert("jmacd-1231", item_is_internal(&scan->parent_coord));
 		}
+
+		if(iplug->f.utmost_child == NULL) {
+			/* stop this coord and continue on parrent level */
+			ret = scan_set_current(scan, ZJNODE(scan->parent_coord.node), 1, NULL);
+			if (ret != 0) 
+				goto exit;
+			break;
+		}
+
 		/* Either way, the invariant is that scan->parent_coord is set to the
-		   parent of scan->node.  Now get the next item. */
+		   parent of scan->node. Now get the next unit. */
 		coord_dup(&next_coord, &scan->parent_coord);
 		coord_sideof_unit(&next_coord, scan->direction);
-
+		
 		/* If off-the-end of the twig, try the next twig. */
 		if (coord_is_after_sideof_unit(&next_coord, scan->direction)) {
 
@@ -3380,16 +3395,11 @@ scan_by_coord(flush_scan * scan)
 			scan->stop = 1;
 			break;
 		}
-
+		
 		/* Get the next child. */
-
-		assert("edward-303", iplug->f.utmost_child != NULL);
-		
-		ret = item_utmost_child(&next_coord, sideof_reverse(scan->direction), &child);
-		if (ret != 0) {
+		ret = iplug->f.utmost_child(&next_coord, sideof_reverse(scan->direction), &child);
+		if (ret != 0)
 			goto exit;
-		}
-		
 		/* If the next child is not in memory, or, item_utmost_child
 		   failed (due to race with unlink, most probably), stop
 		   here. */
@@ -3405,12 +3415,12 @@ scan_by_coord(flush_scan * scan)
 			break;
 		}
 		
-		/* If so, make it current. */
+		/* If so, make this child current. */
 		ret = scan_set_current(scan, child, 1, &next_coord);
 		if (ret != 0) {
 			goto exit;
 		}
-
+		
 		/* Now continue.  If formatted we release the parent lock and return, then
 		   proceed. */
 		if (jnode_is_znode(child)) {
