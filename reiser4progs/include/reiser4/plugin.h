@@ -172,7 +172,7 @@ typedef struct reiser4_key reiser4_key_t;
 #define KEY_STATDATA_TYPE   1
 #define KEY_ATTRNAME_TYPE   2
 #define KEY_ATTRBODY_TYPE   3
-#define KEY_BODY_TYPE	    4
+#define KEY_FILEBODY_TYPE   4
 #define KEY_LAST_TYPE	    5
 
 typedef uint32_t reiser4_key_type_t;
@@ -268,11 +268,25 @@ typedef struct reiser4_direntry_hint reiser4_direntry_hint_t;
 
 struct reiser4_file_hint {
     rpid_t statdata_pid;
-    rpid_t direntry_pid;
-    rpid_t tail_pid;
-    rpid_t extent_pid;
-    rpid_t hash_pid;
+
+    /* Hint for a file body */
+    union {
+	
+	/* Plugin ids for the directory body */
+	struct {
+	    rpid_t direntry_pid;
+	    rpid_t hash_pid;
+	} dir;
+	
+	/* Plugin id for the regular file body */
+	struct {
+	    rpid_t tail_pid;
+	    rpid_t extent_pid;
+	} file;
+	
+    } body;
     
+    /* The plugin in use */
     reiser4_plugin_t *plugin;
 };
 

@@ -257,6 +257,7 @@ AC_OUTPUT([
     plugin/direntry40/Makefile
     plugin/key40/Makefile
     plugin/dir40/Makefile
+    plugin/reg40/Makefile
     plugin/format36/Makefile
     plugin/journal36/Makefile
     plugin/alloc36/Makefile

@@ -63,7 +63,8 @@ static errno_t dir40_reset(reiser4_entity_t *entity) {
     if (!(dir->direntry.plugin = 
 	core->factory_ops.plugin_ifind(ITEM_PLUGIN_TYPE, pid)))
     {
-	aal_exception_error("Can't find direntry item plugin by its id 0x%x.", pid);
+	aal_exception_error("Can't find direntry item plugin by "
+	    "its id 0x%x.", pid);
 	return -1;
     }
     
@@ -72,7 +73,7 @@ static errno_t dir40_reset(reiser4_entity_t *entity) {
 	    &dir->place, &dir->direntry.body, NULL))
         return -1;
     
-    dir->pos = 0;
+    dir->offset = 0;
     dir->place.pos.unit = 0;
 
     return 0;
@@ -184,9 +185,8 @@ static int dir40_continue(reiser4_entity_t *entity,
 
 static uint32_t dir40_count(dir40_t *dir) {
     aal_assert("umka-1156", dir != NULL, return 0);
-    aal_assert("umka-1157", dir->direntry != NULL, return 0);
     
-    return plugin_call(return -1, dir->direntry->plugin->item_ops, 
+    return plugin_call(return -1, dir->direntry.plugin->item_ops, 
         count, dir->direntry.body);
 }
 
@@ -230,7 +230,8 @@ static uint64_t dir40_read(reiser4_entity_t *entity,
 	    break;
 
 	entry++;
-	dir->pos++; dir->place.pos.unit++; 
+	dir->offset++; 
+	dir->place.pos.unit++; 
     }
     
     return i;
@@ -354,9 +355,10 @@ static reiser4_entity_t *dir40_create(const void *tree,
    
     reiser4_sdext_unix_hint_t unix_ext;
     
-    roid_t objectid;
-    roid_t locality;
     roid_t parent_locality;
+    roid_t objectid, locality;
+    
+    rpid_t direntry_pid;
 
     aal_assert("umka-743", parent != NULL, return NULL);
     aal_assert("umka-744", object != NULL, return NULL);
@@ -370,10 +372,10 @@ static reiser4_entity_t *dir40_create(const void *tree,
     dir->plugin = &dir40_plugin;
     
     if (!(dir->hash = core->factory_ops.plugin_ifind(HASH_PLUGIN_TYPE, 
-	hint->hash_pid)))
+	hint->body.dir.hash_pid)))
     {
 	aal_exception_error("Can't find hash plugin by its id 0x%x.", 
-	    hint->hash_pid);
+	    hint->body.dir.hash_pid);
 	goto error_free_dir;
     }
     
@@ -394,12 +396,14 @@ static reiser4_entity_t *dir40_create(const void *tree,
 	
 	goto error_free_dir;
     }
-    
+   
+    direntry_pid = hint->body.dir.direntry_pid;
+
     if (!(dir->direntry.plugin = 
-	core->factory_ops.plugin_ifind(ITEM_PLUGIN_TYPE, hint->direntry_pid)))
+	core->factory_ops.plugin_ifind(ITEM_PLUGIN_TYPE, direntry_pid)))
     {
 	aal_exception_error("Can't find direntry item plugin by its id 0x%x.", 
-	    hint->direntry_pid);
+	    direntry_pid);
 	
 	goto error_free_dir;
     }
@@ -602,7 +606,7 @@ static void dir40_close(reiser4_entity_t *entity) {
 
 static uint64_t dir40_offset(reiser4_entity_t *entity) {
     aal_assert("umka-874", entity != NULL, return 0);
-    return ((dir40_t *)entity)->pos;
+    return ((dir40_t *)entity)->offset;
 }
 
 static errno_t dir40_seek(reiser4_entity_t *entity, 
@@ -614,7 +618,7 @@ static errno_t dir40_seek(reiser4_entity_t *entity,
 
     /* FIXME-UMKA: Not implemented yet! */
 
-    dir->pos = offset;
+    dir->offset = offset;
     return -1;
 }
 

@@ -47,7 +47,7 @@ struct dir40 {
     dir40_item_t direntry;
     
     /* Current position in the directory */
-    uint32_t pos;
+    uint32_t offset;
 
     /* Hash plugin in use */
     reiser4_plugin_t *hash;

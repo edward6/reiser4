@@ -74,8 +74,9 @@ int main(int argc, char *argv[]) {
 	
 	dir_hint.plugin = fs->root->entity->plugin;
 	dir_hint.statdata_pid = ITEM_STATDATA40_ID;
-	dir_hint.direntry_pid = ITEM_CDE40_ID;
-	dir_hint.hash_pid = HASH_R5_ID;
+	
+	dir_hint.body.dir.direntry_pid = ITEM_CDE40_ID;
+	dir_hint.body.dir.hash_pid = HASH_R5_ID;
 	
 	{
 	    int i;

@@ -248,8 +248,8 @@ reiser4_fs_t *reiser4_fs_create(
 	}
 	
 	root_hint.statdata_pid = profile->item.statdata;
-	root_hint.direntry_pid = profile->item.direntry;
-	root_hint.hash_pid = profile->hash;
+	root_hint.body.dir.direntry_pid = profile->item.direntry;
+	root_hint.body.dir.hash_pid = profile->hash;
 	
 	/* Creating object "dir40". See object.c for details */
 	if (!(fs->root = reiser4_file_create(fs, &root_hint, NULL, "/"))) {

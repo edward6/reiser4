@@ -69,8 +69,9 @@ static reiser4_file_t *mkfs_create_lost_found(reiser4_fs_t *fs,
     /* Preparing object hint */
     hint.plugin = fs->root->entity->plugin;
     hint.statdata_pid = profile->item.statdata;
-    hint.direntry_pid = profile->item.direntry;
-    hint.hash_pid = profile->hash;
+
+    hint.body.dir.direntry_pid = profile->item.direntry;
+    hint.body.dir.hash_pid = profile->hash;
 	
     /* Creating lost+found */
     return reiser4_file_create(fs, &hint, fs->root, "lost+found");
