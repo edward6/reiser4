@@ -1,5 +1,5 @@
 /*
- * Copyright 2001, 2002 by HanJNODE_FLUSH_MEMORY_UNFORMATTEDs Reiser, licensing governed by reiser4/README
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
 /*
