@@ -51,8 +51,7 @@ cbk_cache_init(cbk_cache * cache /* cache to init */ )
 
 	assert("nikita-346", cache != NULL);
 
-	cache->slot = kmalloc(sizeof (cbk_cache_slot) * cache->nr_slots,
-			      GFP_KERNEL);
+	cache->slot = kmalloc(sizeof (cbk_cache_slot) * cache->nr_slots, GFP_KERNEL);
 	if (cache->slot == NULL)
 		return -ENOMEM;
 
@@ -61,7 +60,6 @@ cbk_cache_init(cbk_cache * cache /* cache to init */ )
 		cbk_cache_init_slot(cache->slot + i);
 		cbk_cache_list_push_back(&cache->lru, cache->slot + i);
 	}
-	spin_lock_init(&cache->guard);
 	return 0;
 }
 
@@ -75,7 +73,7 @@ cbk_cache_done(cbk_cache * cache /* cache to release */ )
 }
 
 /* Audited by: green(2002.06.15) */
-static void
+static inline void
 cbk_cache_lock(cbk_cache * cache /* cache to lock */ )
 {
 	assert("nikita-1800", cache != NULL);
@@ -83,7 +81,7 @@ cbk_cache_lock(cbk_cache * cache /* cache to lock */ )
 }
 
 /* Audited by: green(2002.06.15) */
-static void
+static inline void
 cbk_cache_unlock(cbk_cache * cache /* cache to unlock */ )
 {
 	assert("nikita-1801", cache != NULL);
@@ -182,8 +180,7 @@ cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 	cbk_cache *cache;
 
 	assert("nikita-350", node != NULL);
-	ON_DEBUG_CONTEXT(assert("nikita-1479",
-				lock_counters()->spin_locked_tree > 0));
+	ON_DEBUG_CONTEXT(assert("nikita-1479", lock_counters()->spin_locked_tree > 0));
 
 	cache = &tree->cbk_cache;
 	assert("nikita-2470", cbk_cache_invariant(cache));
@@ -268,39 +265,38 @@ static level_lookup_result search_to_left(cbk_handle * h);
  * Thread cannot keep any reiser4 locks (tree, znode, dk spin-locks, or znode
  * long term locks) while calling this. 
  */
-lookup_result
-coord_by_key(reiser4_tree * tree	/* tree to perform search
-					 * in. Usually this tree is
-					 * part of file-system
-					 * super-block */ ,
-	     const reiser4_key * key /* key to look for */ ,
-	     coord_t * coord	/* where to store found
-				   * position in a tree. Fields
-				   * in "coord" are only valid if
-				   * coord_by_key() returned
-				   * "CBK_COORD_FOUND" */ ,
-	     lock_handle * lh,	/* NIKITA-FIXME-HANS: comment needed */
-	     znode_lock_mode lock_mode	/* type of lookup we
-					 * want on node. Pass
-					 * ZNODE_READ_LOCK here
-					 * if you only want to
-					 * read item found and
-					 * ZNODE_WRITE_LOCK if
-					 * you want to modify
-					 * it */ ,
-	     lookup_bias bias	/* what to return if coord
-				 * with exactly the @key is
-				 * not in the tree */ ,
-	     tree_level lock_level	/* tree level where to start
-					 * taking @lock type of
-					 * locks */ ,
-	     tree_level stop_level	/* tree level to stop. Pass
-					 * LEAF_LEVEL or TWIG_LEVEL
-					 * here Item being looked
-					 * for has to be between
-					 * @lock_level and
-					 * @stop_level, inclusive */ ,
-	     __u32 flags /* search flags */ )
+lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
+						 * in. Usually this tree is
+						 * part of file-system
+						 * super-block */ ,
+			   const reiser4_key * key /* key to look for */ ,
+			   coord_t * coord	/* where to store found
+						   * position in a tree. Fields
+						   * in "coord" are only valid if
+						   * coord_by_key() returned
+						   * "CBK_COORD_FOUND" */ ,
+			   lock_handle * lh,	/* NIKITA-FIXME-HANS: comment needed */
+			   znode_lock_mode lock_mode	/* type of lookup we
+							 * want on node. Pass
+							 * ZNODE_READ_LOCK here
+							 * if you only want to
+							 * read item found and
+							 * ZNODE_WRITE_LOCK if
+							 * you want to modify
+							 * it */ ,
+			   lookup_bias bias	/* what to return if coord
+						 * with exactly the @key is
+						 * not in the tree */ ,
+			   tree_level lock_level	/* tree level where to start
+							 * taking @lock type of
+							 * locks */ ,
+			   tree_level stop_level	/* tree level to stop. Pass
+							 * LEAF_LEVEL or TWIG_LEVEL
+							 * here Item being looked
+							 * for has to be between
+							 * @lock_level and
+							 * @stop_level, inclusive */ ,
+			   __u32 flags /* search flags */ )
 {
 	cbk_handle handle;
 	lock_handle parent_lh;
@@ -310,8 +306,7 @@ coord_by_key(reiser4_tree * tree	/* tree to perform search
 	assert("nikita-353", tree != NULL);
 	assert("nikita-354", key != NULL);
 	assert("nikita-355", coord != NULL);
-	assert("nikita-356",
-	       (bias == FIND_EXACT) || (bias == FIND_MAX_NOT_MORE_THAN));
+	assert("nikita-356", (bias == FIND_EXACT) || (bias == FIND_MAX_NOT_MORE_THAN));
 	assert("nikita-357", stop_level >= LEAF_LEVEL);
 	/* no locks can be held during tree traversal */
 	assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
@@ -390,8 +385,7 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 		/*
 		 * move further 
 		 */
-		if ((through_units_p && coord_next_unit(coord)) ||
-		    (!through_units_p && coord_next_item(coord))) {
+		if ((through_units_p && coord_next_unit(coord)) || (!through_units_p && coord_next_item(coord))) {
 			do {
 				lock_handle couple;
 
@@ -399,9 +393,7 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 				 * move to the next node 
 				 */
 				init_lh(&couple);
-				result = reiser4_get_right_neighbor
-				    (&couple, coord->node, (int) mode,
-				     GN_DO_READ);
+				result = reiser4_get_right_neighbor(&couple, coord->node, (int) mode, GN_DO_READ);
 				zrelse(coord->node);
 				if (result == 0) {
 
@@ -411,8 +403,7 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 						return result;
 					}
 
-					coord_init_first_unit(coord,
-							      couple.node);
+					coord_init_first_unit(coord, couple.node);
 					done_lh(lh);
 					move_lh(lh, &couple);
 				} else
@@ -438,8 +429,7 @@ traverse_tree(cbk_handle * h /* search handle */ )
 	assert("nikita-366", h->tree != NULL);
 	assert("nikita-367", h->key != NULL);
 	assert("nikita-368", h->coord != NULL);
-	assert("nikita-369", (h->bias == FIND_EXACT) ||
-	       (h->bias == FIND_MAX_NOT_MORE_THAN));
+	assert("nikita-369", (h->bias == FIND_EXACT) || (h->bias == FIND_MAX_NOT_MORE_THAN));
 	assert("nikita-370", h->stop_level >= LEAF_LEVEL);
 	trace_stamp(TRACE_TREE);
 	reiser4_stat_tree_add(cbk);
@@ -465,9 +455,7 @@ restart:
 		if (IS_ERR(fake))
 			return PTR_ERR(fake);
 
-		done =
-		    longterm_lock_znode(h->parent_lh, fake, ZNODE_READ_LOCK,
-					ZNODE_LOCK_LOPRI);
+		done = longterm_lock_znode(h->parent_lh, fake, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI);
 
 		assert("nikita-1637", done != -EDEADLK);
 
@@ -490,8 +478,7 @@ restart:
 		if (unlikely((iterations > REISER4_CBK_ITERATIONS_LIMIT) &&
 			     /* is power of 2, which means that we print the message with decaying frequency */
 			     !(iterations & (iterations - 1)))) {
-			warning("nikita-1481", "Too many iterations: %i",
-				iterations);
+			warning("nikita-1481", "Too many iterations: %i", iterations);
 			print_key("key", h->key);
 		} else if (unlikely(iterations > REISER4_MAX_CBK_ITERATIONS)) {
 			h->error =
@@ -533,8 +520,7 @@ restart:
 	/*
 	 * `unlikely' error case
 	 */
-	if (unlikely((h->result != CBK_COORD_FOUND) &&
-		     (h->result != CBK_COORD_NOTFOUND))) {
+	if (unlikely((h->result != CBK_COORD_FOUND) && (h->result != CBK_COORD_NOTFOUND))) {
 		/* failure. do cleanup */
 		hput(h);
 	} else {
@@ -542,8 +528,7 @@ restart:
 		       (h->coord->node, 1,
 			ergo((h->result == CBK_COORD_FOUND) &&
 			     (h->bias == FIND_EXACT) &&
-			     (!node_is_empty(h->coord->node)),
-			     coord_is_existing_item(h->coord))));
+			     (!node_is_empty(h->coord->node)), coord_is_existing_item(h->coord))));
 	}
 	return h->result;
 }
@@ -562,8 +547,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	znode *active;
 
 	/* acquire reference to @active node */
-	active = zget(h->tree, &h->block, h->parent_lh->node,
-		      h->level, GFP_KERNEL);
+	active = zget(h->tree, &h->block, h->parent_lh->node, h->level, GFP_KERNEL);
 
 	if (IS_ERR(active)) {
 		h->result = PTR_ERR(active);
@@ -571,9 +555,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	}
 
 	/* lock @active */
-	h->result = longterm_lock_znode(h->active_lh, active,
-					cbk_lock_mode(h->level, h),
-					ZNODE_LOCK_LOPRI);
+	h->result = longterm_lock_znode(h->active_lh, active, cbk_lock_mode(h->level, h), ZNODE_LOCK_LOPRI);
 	/*
 	 * longterm_lock_znode() acquires additional reference to znode (which
 	 * will be later released by longterm_unlock_znode()). Release
@@ -639,8 +621,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	put_parent(h);
 
 	if ((!znode_contains_key_lock(active, h->key) &&
-	     (h->flags & CBK_TRUST_DK)) ||
-	    ZF_ISSET(active, JNODE_HEARD_BANSHEE)) {
+	     (h->flags & CBK_TRUST_DK)) || ZF_ISSET(active, JNODE_HEARD_BANSHEE)) {
 		/*
 		 * 1. key was moved out of this node while this thread was
 		 * waiting for the lock. Restart. More elaborate solution is
@@ -652,11 +633,9 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		 */
 		if (REISER4_STATS) {
 			if (znode_contains_key_lock(active, h->key))
-				reiser4_stat_add_at_level(h->level,
-							  cbk_met_ghost);
+				reiser4_stat_add_at_level(h->level, cbk_met_ghost);
 			else
-				reiser4_stat_add_at_level(h->level,
-							  cbk_key_moved);
+				reiser4_stat_add_at_level(h->level, cbk_key_moved);
 		}
 		h->result = -EAGAIN;
 	}
@@ -726,7 +705,8 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 		 ld = keyeq(znode_get_ld_key(node), key);
 		 spin_unlock_dk(znode_get_tree(node));
 		 return ld;
-	} assert("nikita-379", h != NULL);
+	}
+	assert("nikita-379", h != NULL);
 
 	active = h->active_lh->node;
 	tree = h->tree;
@@ -756,11 +736,8 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 			 * sets ->between == AFTER_UNIT and bias is
 			 * unconditionally set to FIND_EXACT above (why?)
 			 */
-			assert("nikita-1604",
-			       1 || ergo(h->bias == FIND_EXACT,
-					 coord_is_existing_unit(h->coord)));
-			if (!(h->flags & CBK_UNIQUE) &&
-			    key_is_ld(active, h->key)) {
+			assert("nikita-1604", 1 || ergo(h->bias == FIND_EXACT, coord_is_existing_unit(h->coord)));
+			if (!(h->flags & CBK_UNIQUE) && key_is_ld(active, h->key)) {
 				return search_to_left(h);
 			} else
 				h->result = CBK_COORD_FOUND;
@@ -849,16 +826,15 @@ lookup_multikey(cbk_handle * handle /* handles to search */ ,
 			for (i = 0; i < nr_keys - 1; ++i)
 				done_lh(handle[i].active_lh);
 		}
-	} assert("nikita-2147", handle != NULL);
-	assert("nikita-2148",
-	       (0 <= nr_keys) && (nr_keys <= REISER4_MAX_MULTI_SEARCH));
+	}
+	assert("nikita-2147", handle != NULL);
+	assert("nikita-2148", (0 <= nr_keys) && (nr_keys <= REISER4_MAX_MULTI_SEARCH));
 
 	if (REISER4_DEBUG) {
 		/* check that @handle is sorted */
 
 		for (i = 1; i < nr_keys; ++i) {
-			assert("nikita-2149", keyle(handle[i - 1].key,
-						    handle[i].key));
+			assert("nikita-2149", keyle(handle[i - 1].key, handle[i].key));
 		}
 	}
 
@@ -880,8 +856,8 @@ lookup_multikey(cbk_handle * handle /* handles to search */ ,
 			h = &handle[i];
 			result = coord_by_handle(h);
 			/* some error, abort */
-			if ((result != CBK_COORD_FOUND) &&
-			    (result != CBK_COORD_NOTFOUND)) break;
+			if ((result != CBK_COORD_FOUND) && (result != CBK_COORD_NOTFOUND))
+				break;
 			else
 				result = 0;
 			if (i == 0)
@@ -902,9 +878,7 @@ lookup_multikey(cbk_handle * handle /* handles to search */ ,
 
 			h = &handle[i];
 			result = seal_validate(&seal[i - 1],
-					       h->coord, h->key, h->level,
-					       h->active_lh, h->bias,
-					       h->lock_mode,
+					       h->coord, h->key, h->level, h->active_lh, h->bias, h->lock_mode,
 					       /*
 					        * going from left to right we
 					        * can request high-priority
@@ -980,8 +954,7 @@ lookup_couple(reiser4_tree * tree /* tree to perform search in */ ,
 	assert("nikita-2143", coord2 != NULL);
 	assert("nikita-2150", lh1 != NULL);
 	assert("nikita-2151", lh2 != NULL);
-	assert("nikita-2144",
-	       (bias == FIND_EXACT) || (bias == FIND_MAX_NOT_MORE_THAN));
+	assert("nikita-2144", (bias == FIND_EXACT) || (bias == FIND_MAX_NOT_MORE_THAN));
 	assert("nikita-2145", stop_level >= LEAF_LEVEL);
 	assert("nikita-2146", lock_stack_isclean(get_current_lock_stack()));
 	trace_stamp(TRACE_TREE);
@@ -1044,8 +1017,7 @@ znode_contains_key_strict(znode * node	/* node to check key
 	assert("nikita-1722", key != NULL);
 
 	return UNDER_SPIN(dk, znode_get_tree(node),
-			  keylt(znode_get_ld_key(node), key) &&
-			  keylt(key, znode_get_rd_key(node)));
+			  keylt(znode_get_ld_key(node), key) && keylt(key, znode_get_rd_key(node)));
 }
 
 static int
@@ -1122,8 +1094,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		return -ENOENT;
 	}
 
-	result = longterm_lock_znode(h->active_lh, node,
-				     cbk_lock_mode(level, h), ZNODE_LOCK_LOPRI);
+	result = longterm_lock_znode(h->active_lh, node, cbk_lock_mode(level, h), ZNODE_LOCK_LOPRI);
 	zput(node);
 	if (result != 0)
 		return result;
@@ -1132,9 +1103,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		return result;
 
 	/* recheck keys */
-	result =
-	    znode_contains_key_strict(node, key) &&
-	    !ZF_ISSET(node, JNODE_HEARD_BANSHEE);
+	result = znode_contains_key_strict(node, key) && !ZF_ISSET(node, JNODE_HEARD_BANSHEE);
 
 	if (result) {
 		/* do lookup inside node */
@@ -1149,8 +1118,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 			/* restart of continue on the next level */
 			reiser4_stat_tree_add(cbk_cache_wrong_node);
 			result = -ENOENT;
-		} else if ((h->result != CBK_COORD_NOTFOUND) &&
-			   (h->result != CBK_COORD_FOUND))
+		} else if ((h->result != CBK_COORD_NOTFOUND) && (h->result != CBK_COORD_FOUND))
 			/* io or oom */
 			result = -ENOENT;
 		else {
@@ -1217,9 +1185,7 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 			done_lh(h->parent_lh);
 			reiser4_stat_tree_add(cbk_cache_miss);
 		} else {
-			assert("nikita-1319",
-			       (h->result == CBK_COORD_NOTFOUND) ||
-			       (h->result == CBK_COORD_FOUND));
+			assert("nikita-1319", (h->result == CBK_COORD_NOTFOUND) || (h->result == CBK_COORD_FOUND));
 			reiser4_stat_tree_add(cbk_cache_hit);
 			break;
 		}
@@ -1229,8 +1195,7 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 
 /** type of lock we want to obtain during tree traversal. On stop level
     we want type of lock user asked for, on upper levels: read lock. */
-znode_lock_mode
-cbk_lock_mode(tree_level level, cbk_handle * h)
+znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h)
 {
 	assert("nikita-382", h != NULL);
 
@@ -1267,8 +1232,7 @@ find_child_delimiting_keys(znode * parent	/* parent znode, passed
 		/* imitate item ->lookup() behavior. */
 		neighbor.between = AFTER_UNIT;
 
-	if (coord_is_existing_unit(&neighbor) ||
-	    (coord_set_to_left(&neighbor) == 0))
+	if (coord_is_existing_unit(&neighbor) || (coord_set_to_left(&neighbor) == 0))
 		unit_key_by_coord(&neighbor, ld);
 	else
 		*ld = *znode_get_ld_key(parent);
@@ -1295,9 +1259,7 @@ prepare_delimiting_keys(cbk_handle * h /* search handle */ )
 	assert("nikita-1095", h != NULL);
 
 	return UNDER_SPIN(dk, znode_get_tree(h->active_lh->node),
-			  find_child_delimiting_keys(h->active_lh->node,
-						     h->coord,
-						     &h->ld_key, &h->rd_key));
+			  find_child_delimiting_keys(h->active_lh->node, h->coord, &h->ld_key, &h->rd_key));
 }
 
 static level_lookup_result
@@ -1319,8 +1281,7 @@ search_to_left(cbk_handle * h /* search handle */ )
 	assert("nikita-1763", coord_is_leftmost_unit(coord));
 
 	reiser4_stat_tree_add(check_left_nonuniq);
-	h->result = reiser4_get_left_neighbor(&lh, node,
-					      (int) h->lock_mode, GN_DO_READ);
+	h->result = reiser4_get_left_neighbor(&lh, node, (int) h->lock_mode, GN_DO_READ);
 	neighbor = NULL;
 	switch (h->result) {
 	case -EDEADLK:
@@ -1343,8 +1304,7 @@ search_to_left(cbk_handle * h /* search handle */ )
 			coord_init_zero(&crd);
 			bias = h->bias;
 			h->bias = FIND_EXACT;
-			h->result = nplug->lookup(neighbor, h->key,
-						  h->bias, &crd);
+			h->result = nplug->lookup(neighbor, h->key, h->bias, &crd);
 			h->bias = bias;
 
 			if (h->result == NS_NOT_FOUND) {
@@ -1368,8 +1328,7 @@ search_to_left(cbk_handle * h /* search handle */ )
 				 * Parent hint was set up by
 				 * reiser4_get_left_neighbor()
 				 */
-				UNDER_SPIN_VOID(tree, znode_get_tree(neighbor),
-						h->coord->node = NULL);
+				UNDER_SPIN_VOID(tree, znode_get_tree(neighbor), h->coord->node = NULL);
 				result = LOOKUP_CONT;
 			} else {
 				result = LOOKUP_DONE;
@@ -1412,16 +1371,13 @@ print_coord_content(const char *prefix /* prefix to print */ ,
 		info("%s: null\n", prefix);
 		return;
 	}
-	if ((p->node != NULL) && znode_is_loaded(p->node) &&
-	    coord_is_existing_item(p))
-		info("%s: data: %p, length: %i\n", prefix,
-		     item_body_by_coord(p), item_length_by_coord(p));
+	if ((p->node != NULL) && znode_is_loaded(p->node) && coord_is_existing_item(p))
+		info("%s: data: %p, length: %i\n", prefix, item_body_by_coord(p), item_length_by_coord(p));
 	print_znode(prefix, p->node);
 	if (znode_is_loaded(p->node)) {
 		item_key_by_coord(p, &key);
 		print_key(prefix, &key);
-		print_plugin(prefix,
-			     item_plugin_to_plugin(item_plugin_by_coord(p)));
+		print_plugin(prefix, item_plugin_to_plugin(item_plugin_by_coord(p)));
 	}
 }
 
