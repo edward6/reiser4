@@ -196,6 +196,8 @@ static void reiser4_set_bits (char * addr, int start, int end)
  * it in v4.0. Current code implements "on-demand" bitmap blocks loading only.
  */
 
+#define LIMIT(val, boundary) ((val) > (boundary) ? (boundary) : (val))
+
 /** calculate bitmap block number and offset within that bitmap block */
 static void parse_blocknr (const reiser4_block_nr *block, int *bmap, int *offset)
 {
@@ -427,7 +429,7 @@ static int search_one_bitmap (int bmap, int *offset, int max_offset,
 
 		if (start >= max_offset) break;
 
-		search_end = ((start + max_len) > max_offset) ? max_offset : start + max_len;
+		search_end = LIMIT(start + max_len, max_offset);
 		end = reiser4_find_next_set_bit((long*) bnode->wpage, search_end, start);
 
 		if (end >= start + min_len) {
@@ -509,22 +511,28 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	/* These blocks should have been allocated as "new", "not-yet-mapped"
 	 * blocks, so we should not decrease blocks_free count twice. */
 
-	/* first, we use *(@start) as a search start and search from this
-	 * @start to the end of the disk */
+	/* first, we use @hint -> blk as a search start and search from it to
+	 * the end of the disk or in given region if @hint -> max_dist is not
+	 * zero */
 
-	search_start = hint->blk;
-	search_end   = reiser4_block_count(super);
+	search_start = hint -> blk;
+
+	if (hint -> max_dist == 0) {
+		search_end = reiser4_block_count(super);
+	} else {
+		search_end = LIMIT(search_start + hint -> max_dist, reiser4_block_count(super));
+	}
 
 	actual_len = bitmap_alloc (&search_start, &search_end, 1, needed);
 
-	if (actual_len != 0) goto out;
+	/* there is only one bitmap search if max_dist was specified or first
+	 * pass was from the beginning of the bitmap */
+	if (actual_len != 0 || hint -> max_dist == 0 || search_start == 0) goto out;
 
 	/* next step is a scanning from 0 to search_start */
-	if (search_start != 0) {
-		search_end = search_start;
-		search_start = 0;
-		actual_len = bitmap_alloc (&search_start, &search_end, 1, needed);
-	}
+	search_end = search_start;
+	search_start = 0;
+	actual_len = bitmap_alloc (&search_start, &search_end, 1, needed);
 
  out:
 	if (actual_len == 0) return -ENOSPC;
