@@ -147,7 +147,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 
 	get_nonexclusive_access (inode);
 
-#if PSEUDO_CODE_CAN_COMPILE
+#if YOU_CAN_COMPILE_PSEUDO_CODE
 		call_code resembling generic_readahead in its algorithms but which modifies to_read
 #endif
 
@@ -157,7 +157,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 			/* do not read out of file */
 			break;
 /* AUDIT: lock handle not initialized */
-#if PSEUDO_CODE_CAN_COMPILE
+#if YOU_CAN_COMPILE_PSEUDO_CODE
 		
 
 		/* look for file metadata corresponding to position we read
