@@ -237,6 +237,12 @@ int item_is_extent (const coord_t *item)
 	return item_id_by_coord (item) == EXTENT_POINTER_ID;
 }
 
+int item_is_tail (const coord_t *item)
+{
+	assert ("vs-482", coord_is_existing_item (item));
+	return item_id_by_coord (item) == TAIL_ID;
+}
+
 /* this returns true if item is of internal type */
 /* Audited by: green(2002.06.14) */
 int item_is_internal (const coord_t *item)
