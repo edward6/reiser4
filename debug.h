@@ -834,6 +834,9 @@ typedef struct reiser4_statistics {
 		stat_cnt wait_congested;
 		stat_cnt kicked;
 		stat_cnt cleaned;
+		stat_cnt skipped_ent;
+		stat_cnt skipped_last;
+		stat_cnt low_priority;
 	} entd;
 	/* how many non-unique keys were scanned into tree */
 	stat_cnt non_uniq;

@@ -262,7 +262,7 @@ emergency_flush(struct page *page)
 	assert("nikita-2721", page != NULL);
 	assert("nikita-2724", PageLocked(page));
 
-	warning("nikita-3112", "Emergency flush. Notify Reiser@Namesys.COM");
+	// warning("nikita-3112", "Emergency flush. Notify Reiser@Namesys.COM");
 
 	/*
 	 * Page is locked, hence page<->jnode mapping cannot change.
@@ -617,10 +617,8 @@ eflush_del(jnode *node, int page_locked)
 			-- info->eflushed;
 			/* remove eflush node from inode's list of eflush nodes */
 			list_del(&ef->inode_link);
-			if (info->eflushed == 0) {
-				if (inode->i_state & I_EFLUSH)
-					inode->i_state &= ~I_EFLUSH;
-			}
+			if (info->eflushed == 0)
+				inode->i_state &= ~I_EFLUSH;
 			spin_unlock(&eflushed_guard);
 		}
 

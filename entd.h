@@ -35,11 +35,7 @@ extern void enter_flush(struct super_block *super);
 extern void leave_flush(struct super_block *super);
 extern void flush_started_io(void);
 
-extern int get_flushers(struct super_block *super, unsigned long *flush_start);
-
-extern void kick_entd(struct super_block *super);
-
-extern entd_context *get_entd_context(struct super_block *super);
+extern int wait_for_flush(struct page *page, struct writeback_control *wbc);
 
 /* __ENTD_H__ */
 #endif

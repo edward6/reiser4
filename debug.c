@@ -551,6 +551,9 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(entd.wait_congested),
 	DEFINE_STAT_CNT(entd.kicked),
 	DEFINE_STAT_CNT(entd.cleaned),
+	DEFINE_STAT_CNT(entd.skipped_ent),
+	DEFINE_STAT_CNT(entd.skipped_last),
+	DEFINE_STAT_CNT(entd.low_priority),
 
 	DEFINE_STAT_CNT(non_uniq),
 	DEFINE_STAT_CNT(non_uniq_max),

@@ -11,22 +11,34 @@
 #include "context.h"
 #include "reiser4.h"
 
-#include <linux/sched.h>	/* for struct task_struct */
+#include <linux/sched.h>	/* struct task_struct */
 #include <linux/suspend.h>
 #include <linux/kernel.h>
 #include <linux/writeback.h>
-#include <linux/time.h>         /* for INITIAL_JIFFIES */
+#include <linux/time.h>         /* INITIAL_JIFFIES */
+#include <linux/backing-dev.h>  /* bdi_write_congested */
+
+/*
+ * set this to 0 if you dont wait to use wait-for-flush in ->writepage(). This
+ * is useful for debugging emergency flush, for example.
+ */
+#define USE_ENTD (1)
 
 static void entd_flush(struct super_block *super);
 
 #define set_comm(state)					\
 	snprintf(current->comm, sizeof(current->comm),	\
-	         "ent:%s%s", bdevname(super->s_bdev, buf), (state))
+	         "ent:%s%s", super->s_id, (state))
+
+static inline entd_context *
+get_entd_context(struct super_block *super)
+{
+	return &get_super_private(super)->entd;
+}
 
 static int
 entd(void *arg)
 {
-	char                buf[BDEVNAME_SIZE];
 	struct super_block *super;
 	struct task_struct *me;
 	entd_context       *ctx;
@@ -35,7 +47,7 @@ entd(void *arg)
 	/* standard kernel thread prologue */
 	me = current;
 	/* reparent_to_init() is done by daemonize() */
-	daemonize("ent:%s", bdevname(super->s_bdev, buf));
+	daemonize("ent:%s", super->s_id);
 
 	/* block all signals */
 	spin_lock_irq(&me->sighand->siglock);
@@ -174,6 +186,11 @@ void flush_started_io(void)
 
 	spin_lock(&ctx->guard);
 	ctx->timeout = (delta + ((1 << decay) - 1) * ctx->timeout) >> decay;
+	/* confine ctx->timeout within [1 .. HZ/10] */
+	if (ctx->timeout > HZ / 10)
+		ctx->timeout = HZ / 10;
+	if (ctx->timeout < 1)
+		ctx->timeout = 1;
 	spin_unlock(&ctx->guard);
 }
 
@@ -196,12 +213,12 @@ void leave_flush(struct super_block *super)
 		ctx->last_flush = INITIAL_JIFFIES;
 #if REISER4_DEBUG
 	flushers_list_remove_clean(get_current_context());
-	get_current_context()->flush_started = INITIAL_JIFFIES;
 #endif
 	spin_unlock(&ctx->guard);
+	get_current_context()->flush_started = INITIAL_JIFFIES;
 }
 
-int get_flushers(struct super_block *super, unsigned long *flush_start)
+static int get_flushers(struct super_block *super, unsigned long *flush_start)
 {
 	entd_context    * ctx;
 	int result;
@@ -219,7 +236,7 @@ int get_flushers(struct super_block *super, unsigned long *flush_start)
 	return result;
 }
 
-void kick_entd(struct super_block *super)
+static void kick_entd(struct super_block *super)
 {
 	assert("nikita-3109", super != NULL);
 
@@ -228,9 +245,197 @@ void kick_entd(struct super_block *super)
 	kcond_signal(&get_entd_context(super)->wait);
 }
 
-entd_context *get_entd_context(struct super_block *super)
+/*
+ * return true if we are done with @page (it is clean), or something really
+ * wrong happened and wait_for_flush() is looping.
+ *
+ * Used in wait_for_flush(), which see for more details.
+ */
+static int
+is_writepage_done(struct page *page, int *iterations)
 {
-	return &get_super_private(super)->entd;
+	reiser4_stat_inc(entd.iteration);
+	/*
+	 * if flush managed to clean this page we are done.
+	 */
+	if (!PageDirty(page)) {
+		reiser4_stat_inc(entd.cleaned);
+		return 1;
+	}
+	/*
+	 * check for some weird condition to avoid stalling
+	 * memory scan.
+	 */
+	if (++ (*iterations) > 100) {
+		warning("nikita-3110", "Flush cannot start");
+		return -ENOMEM;
+	}
+	return 0;
+}
+
+/*
+ * return true if calling thread is either ent thread or the only flusher for
+ * this file system. Used in wait_for_flush(), which see for more details.
+ */
+static int dont_wait_for_flush(struct super_block *super)
+{
+	reiser4_context * cur;
+	unsigned long flush_started;
+
+	if (!USE_ENTD)
+		return 1;
+
+	cur = get_current_context();
+
+	if (cur->entd) {
+		reiser4_stat_inc(entd.skipped_ent);
+		return 1;
+	}
+	if (get_flushers(super, &flush_started) == 1 && 
+	    cur->flush_started != INITIAL_JIFFIES) {
+		reiser4_stat_inc(entd.skipped_last);
+		return 1;
+	}
+	return 0;
+}
+
+/*
+ * This function uses some heuristic algorithm that results in @page being
+ * cleaned by normal flushing (flush.c) in most cases. Reason for this is
+ * whenever possible to avoid emergency flush (emergency_flush.c) that doesn't
+ * perform disk layout optimization.
+ *
+ * Algorithm:
+ *
+ *  1. there is dedicated per-super block "ent" (from Tolkien's LOTR) thread
+ *  used to start flushing if no other flushers are active. Presumably it is
+ *  called ent because one has to wake it up to do anything useful.
+ *
+ *  2. our goal is to wait for some reasonable amount of time ("timeout") in
+ *  hope that ongoing concurrent flush would process and clean @page.
+ *
+ *  3. specifically we wait until following happens:
+ *
+ *       there is flush (possibly being done by the ent) that started more
+ *       than timeout ago, 
+ *  
+ *                              and
+ *
+ *       device queue is not congested.
+ *
+ *
+ *  Intuitively this means that flush stalled, probably waiting for free
+ *  memory.
+ *
+ *  Tricky part here is selection of timeout value. Probably it should be
+ *  dynamically adjusting based on CPU load and average time it takes flush to
+ *  start submitting nodes.
+ *
+ * Return:
+ *
+ *   > 0 we are done with page (it has been cleaned, or we decided we don't
+ *       want to deal with it this time)
+ *   < 0 some error occurred
+ *     0 no luck, proceed with emergency flush
+ *
+ */
+int
+wait_for_flush(struct page *page, struct writeback_control *wbc)
+{
+	struct backing_dev_info *bdi;
+	int                      flushers;
+	unsigned long            flush_started;
+	unsigned long            timeout;
+	int                      result;
+	int                      iterations;
+	struct super_block      *super;
+
+	bdi     = page->mapping->backing_dev_info;
+	super   = page->mapping->host->i_sb;
+	timeout = get_entd_context(super)->timeout;
+
+	reiser4_stat_inc(entd.asked);
+
+	result     = 0;
+	iterations = 0;
+
+	/*
+	 * we don't want to apply usual wait-for-flush logic in ->writepage()
+	 * if current thread is ent or, more generally, if it is the only
+	 * active flusher in this file system. Otherwise we get some thread
+	 * waiting for flush to clean some pages and flush is waiting for
+	 * nothing. This brings VM scanning to almost complete halt.
+	 */
+	if (dont_wait_for_flush(super))
+		return 0;
+
+	while (result == 0) {
+
+		while (result == 0) {
+			flushers = get_flushers(super, &flush_started);
+			/*
+			 * if there is no flushing going on---launch ent
+			 * thread.
+			 */
+			if (flushers == 0) {
+				reiser4_stat_inc(entd.kicked);
+				kick_entd(super);
+			}
+
+			/*
+			 * if scanning priority (which is a measure of memory
+			 * pressure) is lowest, do nothing
+			 */
+			if (wbc->priority == 12) {
+				reiser4_stat_inc(entd.low_priority);
+				result = 1;
+				break;
+			}
+
+			/*
+			 * wait until at least one flushing thread is running
+			 * for at least @timeout
+			 */
+			if (flushers != 0 &&
+			    time_before(flush_started + timeout, jiffies))
+				break;
+
+			schedule_timeout(timeout);
+			reiser4_stat_inc(entd.wait_flush);
+
+			/*
+			 * if flush managed to clean this page we are done.
+			 */
+			result = is_writepage_done(page, &iterations);
+		}
+		/*
+		 * at this point we are either done (result != 0), or there is
+		 * flush going on for at least @timeout. If device in
+		 * congested, we conjecture that flush is actively progressing
+		 * (as opposed to being stalled). Wait more.
+		 */
+		if (result == 0 && bdi_write_congested(bdi)) {
+			schedule_timeout(timeout);
+			reiser4_stat_inc(entd.wait_congested);
+			result = is_writepage_done(page, &iterations);
+			if (result == 0)
+				/*
+				 * still no luck.
+				 */
+				continue;
+		}
+
+		/*
+		 * at this point we are either done (result != 0), or there is
+		 * flushing thread going on for at least @timeout, but nothing
+		 * is send down to the disk. Probably flush stalls waiting for
+		 * memory. This shouldn't happen often for normal file system
+		 * loads, because balance dirty pages ensures there are enough
+		 * clean pages around.
+		 */
+		break;
+	}
+	return result;
 }
 
 static void entd_flush(struct super_block *super)
