@@ -36,14 +36,9 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 	/* AUDIT: In this point passed "level" should be checked for validness */
 	assert( "umka-264", level < REAL_MAX_ZTREE_HEIGHT );
 
-	/*
-	 * interface to block allocator is non-existent as of now.
-	 */
 	retcode = assign_fake_blocknr( &blocknr );
-	/* reiser4_check_block( &blocknr, 1 ); */
 	if( retcode == 0 ) {
-		result = zget( current_tree, &blocknr, NULL, level,
-			       GFP_KERNEL );
+		result = zget( current_tree, &blocknr, NULL, level, GFP_KERNEL );
 		if( IS_ERR( result ) ) {
 			ewarning( PTR_ERR( result ), "nikita-929",
 				  "Cannot allocate znode for carry: %li",
@@ -52,7 +47,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 		}
 
 		if( !znode_just_created( result ) ) {
-			warning( "nikita-2213",
+			warning( "nikita-2213", 
 				 "Allocated already existing block: %llu",
 				 blocknr );
 			return ERR_PTR( -EIO );
