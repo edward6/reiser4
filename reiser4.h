@@ -232,6 +232,13 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "plugin/node/node.h"
 #include "plugin/node/node40.h"
 #include "plugin/security/perm.h"
+
+#include "plugin/oid/oid_40.h"
+#include "plugin/oid/oid.h"
+
+#include "plugin/disk_format/layout_40.h"
+#include "plugin/disk_format/layout.h"
+
 #include "tshash.h"
 #include "tslist.h"
 #include "lnode.h"
