@@ -25,6 +25,7 @@ static const oid_t ABSOLUTE_MIN_OID = ( oid_t )  0;
 /**
  * Initialise object id allocator
  */
+/* Audited by: green(2002.06.15) */
 int init_oid_allocator( reiser4_oid_allocator_t *map /* oid allocator to
 						      * initialise */ )
 {
@@ -37,6 +38,7 @@ int init_oid_allocator( reiser4_oid_allocator_t *map /* oid allocator to
 }
 
 /** helper function: spin lock allocator */
+/* Audited by: green(2002.06.15) */
 static void lock( reiser4_oid_allocator_t *map /* oid allocator to lock */ )
 {
 	assert( "nikita-1648", map != NULL );
@@ -44,6 +46,7 @@ static void lock( reiser4_oid_allocator_t *map /* oid allocator to lock */ )
 }
 
 /** helper function: spin unlock allocator */
+/* Audited by: green(2002.06.15) */
 static void unlock( reiser4_oid_allocator_t *map /* oid allocator to unlock */ )
 {
 	assert( "nikita-1660", map != NULL );
@@ -51,6 +54,7 @@ static void unlock( reiser4_oid_allocator_t *map /* oid allocator to unlock */ )
 }
 
 /** number of oids available for use by users */
+/* Audited by: green(2002.06.15) */
 __u64 oids_free( reiser4_oid_allocator_t *map /* oid allocator to query */ )
 {
 	__u64 result;
@@ -58,6 +62,8 @@ __u64 oids_free( reiser4_oid_allocator_t *map /* oid allocator to query */ )
 	assert( "nikita-1797", map != NULL );
 
 	lock( map );
+	/* AUDIT: this calculation seems to suffer from off-by-one error.
+	   + 1 should be added to correctly represent amount of free oids */
 	result = ABSOLUTE_MAX_OID - OIDS_RESERVED - map -> next_to_use;
 	unlock( map );
 	return result;
@@ -66,6 +72,7 @@ __u64 oids_free( reiser4_oid_allocator_t *map /* oid allocator to query */ )
 
 /** return number of user-visible oids already allocated in this map.
     Used by reiser4_statfs() to report "f_files". */
+/* Audited by: green(2002.06.15) */
 __u64 oids_used( reiser4_oid_allocator_t *map /* oid allocator to query */ )
 {
 	__u64 result;
@@ -79,6 +86,7 @@ __u64 oids_used( reiser4_oid_allocator_t *map /* oid allocator to query */ )
 
 /** allocate new objectid in "map" and store it in "result". Return 0 on
     success, negative error code on failure. */
+/* Audited by: green(2002.06.15) */
 int allocate_oid( reiser4_oid_allocator_t *map /* oid allocator to allocate
 						* oid from */, 
 		  oid_t *result UNUSED_ARG /* result */ )
@@ -95,6 +103,7 @@ int allocate_oid( reiser4_oid_allocator_t *map /* oid allocator to allocate
 }
 
 /** release object id back to "map". */
+/* Audited by: green(2002.06.15) */
 int release_oid( reiser4_oid_allocator_t *map UNUSED_ARG /* oid allocator to
 							  * release oid back
 							  * to */,
@@ -112,6 +121,7 @@ int release_oid( reiser4_oid_allocator_t *map UNUSED_ARG /* oid allocator to
 
 /** how many pages to reserve in transaction for allocation of new
     objectid */
+/* Audited by: green(2002.06.15) */
 int oid_reserve_allocate( reiser4_oid_allocator_t *map UNUSED_ARG /* oid
 								     allocator
 								     to
@@ -122,6 +132,7 @@ int oid_reserve_allocate( reiser4_oid_allocator_t *map UNUSED_ARG /* oid
 
 /** how many pages to reserve in transaction for freeing of an
     objectid */
+/* Audited by: green(2002.06.15) */
 int oid_reserve_release( reiser4_oid_allocator_t *map UNUSED_ARG /* oid
 								  * allocator
 								  * to
