@@ -934,6 +934,8 @@ atom_try_commit_locked (txn_atom *atom)
 
 	ret = current_atom_finish_all_fq ();
 
+	assert ("zam-752", ret != -EBUSY);
+
 	if (ret)
 		return ret;
 

@@ -914,6 +914,7 @@ int alloc_wandered_blocks (struct commit_handle * ch, flush_queue_t * fq)
 /* We assume that at this moment all captured blocks are marked as RELOC or
  * WANDER (belong to Relocate o Overwrite set), all nodes from Relocate set
  * are submitted to write.*/
+
 int reiser4_write_logs (void)
 {
 	txn_atom        * atom;
@@ -971,12 +972,13 @@ int reiser4_write_logs (void)
 			goto up_and_ret;
 		}
 
-		if ((ret = alloc_wandered_blocks (&ch, fq)) 
-		    || (ret = alloc_tx (&ch, fq))) 
-		{
-			fq_put (fq);
+		if (!(ret = alloc_wandered_blocks (&ch, fq))) 
+			ret = alloc_tx (&ch, fq);
+
+		fq_put (fq);
+
+		if (ret) 
 			goto up_and_ret;
-		}
 	}
 
 	ret = current_atom_finish_all_fq();

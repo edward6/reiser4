@@ -350,7 +350,7 @@ int finish_all_fq (txn_atom * atom, int * nr_io_errors)
 		return 0;
 
 	for (fq = fq_list_front (&atom->flush_queues);
-	     ! fq_list_empty (&atom->flush_queues);
+	     ! fq_list_end (&atom->flush_queues, fq);
 	     fq = fq_list_next (fq))
 	{
 		spin_lock_fq (fq);
@@ -389,11 +389,15 @@ int current_atom_finish_all_fq (void)
 
 	} while (ret == -EAGAIN);
 
-	if (ret) 
+	/* we do not need locked atom after this function finishes, SUCCESS or
+	 * -EBUSY are two return codes when atom remains locked after
+	 * finish_all_fq */
+	if (!ret || ret == -EBUSY)
+		spin_unlock_atom (atom);
+
+	if (ret)
 		return ret;
-
-	spin_unlock_atom (atom);
-
+	
 	if (nr_io_errors) 
 		return -EIO;
 
@@ -493,11 +497,10 @@ static int fq_end_io (struct bio * bio, unsigned int bytes_done UNUSED_ARG,
 void fq_add_bio (flush_queue_t * fq, struct bio * bio)
 {
 	bio->bi_private = fq;
+	bio->bi_end_io  = fq_end_io;
 
-	if (fq) {
+	if (fq)
 		atomic_add (bio->bi_vcnt, &fq->nr_submitted);
-		bio->bi_end_io  = fq_end_io;
-	}
 }
 
 /* submitting to write prepared list of jnodes */
@@ -733,6 +736,7 @@ flush_queue_t * get_fq_for_current_atom (void)
 	if (ret)
 		return ERR_PTR (ret);
 
+	spin_unlock_atom (atom);
 	return fq;
 }
 

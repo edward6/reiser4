@@ -1044,7 +1044,8 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
 
 	ON_DEBUG (atomic_dec (& flush_cnt));
 
-	fq_put (fq);
+	if (fq)
+		fq_put (fq);
 
 	return ret;
 }
