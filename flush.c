@@ -2726,12 +2726,13 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord,
 
 	pos->preceder.block_stage = ZF_ISSET(node, JNODE_CREATED) ? BLOCK_UNALLOCATED : BLOCK_NOT_COUNTED ;
 
-        warning("vpf-303", "SPACE: flush allocates %llu blocks from flush_reserved.", len);
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
         if ((ret = reiser4_alloc_blocks(
 		&pos->preceder, &blk, &len, 1/*formatted*/, 0/* do not use 5% */)))
                 return ret;
                             
+        warning("vpf-303", "SPACE: flush allocates %llu blocks.", len);
+
 	if (!ZF_ISSET(node, JNODE_CREATED) &&
 	    (ret = reiser4_dealloc_block(znode_get_block(node), 1 /* defer */ ,
 					 0	/* target stage, it only matters

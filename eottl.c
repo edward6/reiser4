@@ -250,7 +250,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh,
 	/* VITALY: Ungrab block for the balancing needs. */
 	grabbed2free
 	    /*reiser4_release_grabbed_space */
-	    (get_current_context()->grabbed_blocks - grabbed);
+	    (grabbed - get_current_context()->grabbed_blocks);
 
 	if (IS_ERR(node))
 		return PTR_ERR(node);

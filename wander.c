@@ -790,13 +790,13 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 		blocknr_hint_init(&hint);
 
-		hint.block_stage = BLOCK_GRABBED;
+		hint.block_stage = BLOCK_NOT_COUNTED;
 
 		/* FIXME: there should be some block allocation policy for
 		 * nodes which contain log records */
 		/* FIXME-VITALY: Who grabbed this? */
 		warning("vpf-305", "SPACE: flush allocates %llu blocks for tx lists.", len);
-		ret = reiser4_alloc_blocks (&hint, &first, &len, 1/*not unformatted*/, 0);
+		ret = reiser4_alloc_blocks (&hint, &first, &len, 1/*not unformatted*/, 1);
 
 		blocknr_hint_done(&hint);
 
@@ -1018,11 +1018,12 @@ reiser4_write_logs(void)
 
 	/* count all records needed for storing of the wandered set */
 	get_tx_size(&ch);
+
 	/* VITALY: Check that flush_reserve is enough. */	
 	assert("vpf-279", check_atom_reserved_blocks(atom, ch.overwrite_set_size));
 
-	if (reiser4_grab_space_exact((__u64)/*ch.overwrite_set_size + */ch.tx_size, 1))
-		goto up_and_ret;
+/*	if (reiser4_grab_space_exact(ch.tx_size, 1))
+		goto up_and_ret;*/
 
 	warning("vpf-302", "SPACE: tx logs grabs %d blocks.", ch.tx_size);
 
