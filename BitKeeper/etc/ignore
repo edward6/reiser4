@@ -1306,3 +1306,4 @@ vfs_ops.c.orig
 .spinprof.o.cmd
 plugin/.cryptcompress.o.cmd
 spin_macros_template.h
+plugin/pseudo/.pseudo.o.cmd
