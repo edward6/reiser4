@@ -46,8 +46,6 @@ reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type,
     return plugin;
 }
 
-#define make_string(value) ("" #value "")
-
 reiserfs_plugin_t *reiserfs_plugin_load(const char *filename) {
 #ifndef ENABLE_ALONE
     char *error;
@@ -65,10 +63,10 @@ reiserfs_plugin_t *reiserfs_plugin_load(const char *filename) {
 	return NULL;
     }
     
-    plugin = (reiserfs_plugin_t *)dlsym(handle, make_string(PLUGIN_ENTRY));
+    plugin = (reiserfs_plugin_t *)dlsym(handle, PLUGIN_ENTRY);
     if ((error = dlerror()) != NULL || plugin == NULL) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-002", 
-	    "Can't find symbol \"%s\" in plugin %s.", make_string(PLUGIN_ENTRY), filename);
+	    "Can't find symbol \"%s\" in plugin %s.", PLUGIN_ENTRY, filename);
 	goto error_free_handle;
     }
 	
