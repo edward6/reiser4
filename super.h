@@ -211,6 +211,9 @@ struct reiser4_super_info_data {
 #if REISER4_TRACE_TREE
 	reiser4_block_nr last_touched;
 #endif
+
+	ra_params_t ra_params;
+
 	/* A semaphore for serializing cut tree operation if out-of-free-space: the only
 	   one cut_tree tread is allowed to grab space from reserved area (it is 5% of
 	   disk space(2002.11.09)) */
@@ -251,6 +254,12 @@ static inline reiser4_super_info_data *
 get_current_super_private(void)
 {
 	return get_super_private(reiser4_get_current_sb());
+}
+
+static inline ra_params_t *
+get_current_super_ra_params(void)
+{
+	return &(get_current_super_private()->ra_params);
 }
 
 extern __u64 reiser4_current_block_count(void);

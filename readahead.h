@@ -3,11 +3,22 @@
 #ifndef __READAHEAD_H__
 #define __READAHEAD_H__
 
- /* readahead whole directory and all its stat datas */
-#define RA_READDIR 1
+/* reiser4 super block is a field of this type. It controls readahead during tree traversals */
+typedef struct formatted_read_ahead_params {
+	int max;
+	int adjacent_only;
+	int leaves_only;
+	int one_parent_only;
+} ra_params_t;
+
+typedef enum {
+	RA_READDIR,
+	RA_READFILE
+} ra_type;
+
 
 typedef struct read_ahead_info {
-	int flags;
+	ra_type type;
 	union {
 		struct {
 			oid_t oid;
@@ -15,6 +26,7 @@ typedef struct read_ahead_info {
 	} u;
 } ra_info_t;
 
+/* readahead whole directory and all its stat datas */
 void readdir_readahead(znode *node, ra_info_t *info);
 
 /* __READAHEAD_H__ */
