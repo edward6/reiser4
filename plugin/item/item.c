@@ -654,15 +654,15 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 #endif
 		},
 		.f = {
-			/* FIXME-EDWARD: write these */
-			.utmost_child            = NULL,
+			.utmost_child            = utmost_child_ctail,
+			/* FIXME-EDWARD: write this */
 			.utmost_child_real_block = NULL,
 			.update                  = NULL,
 			.scan                    = scan_ctail
 		},
 		.s = {
 			.file = {
-				.write = write_ctail,
+				.write = NULL,
 				.read = read_ctail,
 				.readpage = readpage_ctail,
 				.writepage = writepage_ctail,
