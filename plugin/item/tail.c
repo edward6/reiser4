@@ -208,7 +208,7 @@ copy_units_tail(coord_t *target, coord_t *source,
    this is called when @count units starting from @from-th one are going to be removed
    */
 reiser4_internal int
-kill_hook_tail(const coord_t *coord, pos_in_node_t from UNUSED_ARG, 
+kill_hook_tail(const coord_t *coord, pos_in_node_t from,
 	       pos_in_node_t count, struct carry_kill_data *kdata)
 {
 	reiser4_key key;
