@@ -321,7 +321,8 @@ static int make_space( carry_op *op /* carry operation, insert or
 
 	assert( "nikita-890", op != NULL );
 	assert( "nikita-891", todo != NULL );
-	assert( "nikita-892", op -> op == COP_INSERT || op -> op == COP_PASTE);
+	assert( "nikita-892", op -> op == COP_INSERT || op -> op == COP_PASTE ||
+		op -> op == COP_EXTENT );
 	assert( "nikita-1607", 
 		op -> node -> real_node == op -> u.insert.coord -> node );
 
@@ -559,7 +560,8 @@ static int insert_paste_common( carry_op *op /* carry operation being
 	assert( "nikita-981", op != NULL );
 	assert( "nikita-980", todo != NULL );
 	assert( "nikita-979",
-		( op -> op == COP_INSERT ) || ( op -> op == COP_PASTE ) );
+		( op -> op == COP_INSERT ) || ( op -> op == COP_PASTE ) ||
+		( op -> op == COP_EXTENT ) );
 
 	trace_stamp( TRACE_CARRY );
 
@@ -591,6 +593,7 @@ static int insert_paste_common( carry_op *op /* carry operation being
 		 * FIXME-NIKITA Lookup bias is fixed to FIND_EXACT. Complain
 		 * if you need something else.
 		 */
+		op -> u.insert.coord = coord;
 		node = op -> node -> real_node;
 		intra_node = node_plugin_by_node( node ) -> lookup
 			( node, op -> u.insert.key, FIND_EXACT, 
@@ -1024,6 +1027,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	insert_extent -> u.insert.type = COPT_KEY;
 	insert_extent -> u.insert.data = op -> u.extent.data;
 	insert_extent -> u.insert.key  = op -> u.extent.key;
+	insert_extent -> u.insert.data -> arg = op -> u.extent.coord;
 		
 	return 0;
 }

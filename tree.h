@@ -273,6 +273,10 @@ insert_result insert_by_coord( tree_coord  *coord,
 			       reiser4_lock_handle *lh,
 			       inter_syscall_ra_hint *ra UNUSED_ARG,
 			       intra_syscall_ra_hint ira UNUSED_ARG );
+insert_result insert_extent_by_coord( tree_coord  *coord,
+				      reiser4_item_data *data,
+				      const reiser4_key *key,
+				      reiser4_lock_handle *lh );
 int cut_node (tree_coord * from, tree_coord * to,
 	      const reiser4_key * from_key,
 	      const reiser4_key * to_key,

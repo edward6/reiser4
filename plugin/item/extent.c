@@ -336,13 +336,31 @@ void extent_copy_units (tree_coord * target, tree_coord * source,
  */
 int extent_create_hook (const tree_coord * coord, void * arg)
 {
+	tree_coord * child_coord;
 	znode * node;
 	reiser4_key key;
 
 	if (!arg)
 		return 0;
 
-	node = (znode *)arg;
+	/*
+	 * find a node on the left level for which right delimiting key has to
+	 * be updated
+	 */
+	child_coord = arg;
+	if (coord_wrt (child_coord) == COORD_ON_THE_LEFT) {
+		assert ("vs-411", znode_is_left_connected (child_coord->node));
+		node = child_coord->node->left;
+	} else {
+		assert ("vs-412", coord_wrt (child_coord) == COORD_ON_THE_RIGHT);
+		node = child_coord->node;
+	}
+
+	if (!node)
+		return 0;
+
+	assert ("vs-413", znode_is_write_locked (node));
+
 	spin_lock_dk (current_tree);
 	*znode_get_rd_key (node) = *item_key_by_coord (coord, &key);
 	spin_unlock_dk (current_tree);
@@ -806,6 +824,7 @@ static int insert_first_block (tree_coord * coord, reiser4_lock_handle * lh,
 	assert ("vs-347", left_item_pos (&left) >= 0);
 	left.item_pos = left_item_pos (&left);
 	if (item_plugin_by_coord (&left)->item_type == INTERNAL_ITEM_TYPE) {
+		impossible ("vs-410", "this is no necessary anymore");
 		left.unit_pos = last_unit_pos (&left);
 		left.between = AT_UNIT;
 		spin_lock_dk (current_tree);
@@ -815,10 +834,7 @@ static int insert_first_block (tree_coord * coord, reiser4_lock_handle * lh,
 			return PTR_ERR (unit.arg);
 		}
 	}
-	result = insert_by_coord (coord, &unit, &first_key, lh, 0, 0);
-	if (unit.arg) {
-		zput (unit.arg);
-	}
+	result = insert_extent_by_coord (coord, &unit, &first_key, lh);
 	if (result) {
 		return result;
 	}
@@ -1104,7 +1120,7 @@ static int add_hole (tree_coord * coord, reiser4_lock_handle * lh,
 			}
 		}
 		reiser4_done_coord (&left);
-		result = insert_by_coord (coord, &item, &hole_key, lh, 0, 0);
+		result = insert_extent_by_coord (coord, &item, &hole_key, lh);
 		if (item.arg)
 			zput (item.arg);
 	} else {

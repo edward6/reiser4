@@ -448,7 +448,8 @@ insert_result insert_by_key( reiser4_tree *tree,
 static insert_result insert_with_carry_by_coord( tree_coord  *coord,
 						 reiser4_lock_handle *lh,
 						 reiser4_item_data *data, 
-						 const reiser4_key *key )
+						 const reiser4_key *key,
+						 carry_opcode cop )
 {
 	int result;
 	carry_pool  pool;
@@ -458,7 +459,7 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord,
 	reiser4_init_carry_pool( &pool );
 	reiser4_init_carry_level( &lowest_level, &pool );
 
-	op = reiser4_post_carry( &lowest_level, COP_INSERT, coord->node, 0 );
+	op = reiser4_post_carry( &lowest_level, cop, coord->node, 0 );
 	if( IS_ERR( op ) || ( op == NULL ) )
 		return op ? PTR_ERR (op) : -EIO;
 	op -> u.insert.coord = coord;
@@ -532,7 +533,8 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 			       reiser4_lock_handle *lh /* lock handle of write
 							* lock on node */,
 			       inter_syscall_ra_hint *ra UNUSED_ARG,
-			       intra_syscall_ra_hint ira UNUSED_ARG )
+			       intra_syscall_ra_hint ira UNUSED_ARG
+			       )
 {
 	assert( "vs-247", coord != NULL );
 	assert( "vs-248", data != NULL );
@@ -570,9 +572,35 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 		/*
 		 * otherwise do full-fledged carry().
 		 */
-		return insert_with_carry_by_coord( coord, lh, data, key );
+		return insert_with_carry_by_coord( coord, lh, data, key, COP_INSERT );
 	}
 }
+
+
+/*
+ * @coord is set to leaf level and @data is to be inserted to twig level
+ */
+insert_result insert_extent_by_coord( tree_coord  *coord /* coord where to
+							  * insert. coord->node
+							  * has to be write
+							  * locked by caller */,
+				      reiser4_item_data *data /* data to be
+							       * inserted */, 
+				      const reiser4_key *key /* key of new item */,
+				      reiser4_lock_handle *lh /* lock handle of
+							       * write lock on
+							       * node */
+				      )
+{
+	assert( "vs-405", coord != NULL );
+	assert( "vs-406", data != NULL );
+	assert( "vs-407", data -> length > 0 );
+	assert( "vs-408", znode_is_write_locked( coord -> node ) );
+	assert( "vs-409", znode_get_level( coord -> node ) );
+
+	return insert_with_carry_by_coord( coord, lh, data, key, COP_EXTENT );
+}
+
 
 /**
  * Paste in the item at the given coord.
