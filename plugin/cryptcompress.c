@@ -46,6 +46,7 @@ Cryptcompress specific fields of reiser4 inode/stat-data:
 #include <linux/crypto.h>
 #include <linux/swap.h>
 #include <linux/hardirq.h>
+#include <linux/pagevec.h>
 
 int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
 int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
@@ -606,9 +607,13 @@ crc_hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_loc
 	
 	switch (get_dc_item_stat(hint)) {
 	case DC_BEFORE_CLUSTER:
-		if (check_key)
+		if (check_key) {
 			/* the caller is find_disk_cluster */
 			coord->item_pos ++;
+#if REISER4_DEBUG
+			hint->seal.coord.item_pos ++;
+#endif
+		}
 		break;
 	case DC_AFTER_CLUSTER:
 		if (!check_key) {
@@ -777,6 +782,9 @@ find_cluster_item(hint_t * hint,
 				   so we need do decrenent item position */
 				assert("edward-1099", coord->item_pos > 0);
 				coord->item_pos--;
+#if REISER4_DEBUG
+				hint->seal.coord.item_pos --;
+#endif
 				set_dc_item_stat(hint, DC_BEFORE_CLUSTER);
 			}
 			if (!coord_is_existing_item(coord)) {
@@ -1667,15 +1675,15 @@ uncapture_cluster_jnode(jnode *node)
 }
 
 reiser4_internal void
-forget_cluster_pages(reiser4_cluster_t * clust)
+forget_cluster_pages(struct page ** pages, int nr)
 {
 	int i;
-	for (i = 0; i < clust->nr_pages; i++) {
+	for (i = 0; i < nr; i++) {
 		
-		assert("edward-1045", clust->pages[i] != NULL);
-		assert("edward-1046", PageUptodate(clust->pages[i]));
+		assert("edward-1045", pages[i] != NULL);
+		assert("edward-1046", PageUptodate(pages[i]));
 		
-		page_cache_release(clust->pages[i]);
+		page_cache_release(pages[i]);
 	}
 }
 
@@ -1776,7 +1784,7 @@ struct inode * inode)
 		warning("edward-987", "Nothing to update in disk cluster"
 			" (index %lu, inode %llu\n)",
 			clust->index, (unsigned long long)get_inode_oid(inode));
-		forget_cluster_pages(clust);
+		forget_cluster_pages(clust->pages, clust->nr_pages);
 		result = -E_REPEAT;
 	}
 	return result;
@@ -1996,6 +2004,8 @@ find_cluster(reiser4_cluster_t * clust,
 	/* at least one item was found  */
 	/* NOTE-EDWARD: Callers should handle the case when disk cluster is incomplete (-EIO) */
 	tc->len = inode_scaled_cluster_size(inode) - f.length;
+	assert("edward-1196", tc->len >= UNPREPPED_DCLUSTER_LEN);
+
 	if (disk_cluster_unprepped(tc))
 		clust->dstat = UNPR_DISK_CLUSTER;
 	else
@@ -2089,7 +2099,7 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 		
 		if (win && 
 		    i >= count_to_nrpages(win->off) &&
-		    i <= off_to_pg(win->off + win->count))
+		    i < off_to_pg(win->off + win->count))
 			/* page will be completely overwritten */
 			continue;
 		lock_page(pg);
@@ -2180,6 +2190,18 @@ crc_make_unprepped_cluster (reiser4_cluster_t * clust, struct inode * inode)
 	return 0;
 }
 
+#if REISER4_DEBUG
+static int
+jnode_truncate_ok(struct inode *inode, cloff_t index)
+{
+	jnode * node;
+	node = jlookup(current_tree, get_inode_oid(inode), clust_to_pg(index, inode));
+	if (node)
+		jput(node);
+	return (node == NULL);
+}
+#endif
+
 /* Collect unlocked cluster pages and jnode (the last is in the
    case when the page cluster will be modified and captured) */
 reiser4_internal int
@@ -2194,6 +2216,61 @@ prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture)
 	return (capture ? 
 		grab_cluster_pages_jnode(inode, clust) :
 		grab_cluster_pages      (inode, clust));
+}
+
+reiser4_internal void
+truncate_page_cluster(struct inode *inode, cloff_t index)
+{
+	int i;
+	int found = 0;
+	int nr_pages;
+	jnode * node;
+	struct page * pages[MAX_CLUSTER_NRPAGES];
+	
+	node = jlookup(current_tree, get_inode_oid(inode), clust_to_pg(index, inode));
+	/* jnode is absent, just drop pages which can not 
+	   acquire jnode because of exclusive access */
+	if (!node) {
+		truncate_inode_pages_range(inode->i_mapping,
+					   clust_to_off(index, inode),
+					   pg_to_off(pages[found - 1]->index) + PAGE_CACHE_SIZE - 1);
+		return;
+	}
+	/* jnode is present and may be dirty, if so, put
+	   all the cluster pages except the first one */
+	nr_pages = count_to_nrpages(off_to_count(inode->i_size, index, inode));
+
+	found = find_get_pages(inode->i_mapping, clust_to_pg(index, inode),
+			       nr_pages, pages);
+	assert("edward-1197", found != 0);
+	
+	LOCK_JNODE(node);
+	if (jnode_is_dirty(node)) {
+		/* clear dirty bit to make sure that concurrent
+		   flush won't start convert the disk cluster */
+		JF_CLR(node, JNODE_DIRTY);
+		UNLOCK_JNODE(node);
+		
+		assert("edward-1198", found == nr_pages);
+		assert("edward-1199", PageUptodate(pages[0]));
+		for (i = 1; i < nr_pages ; i++) {
+			assert("edward-1200", PageUptodate(pages[i]));
+			
+			page_cache_release(pages[i]);
+		}
+	}
+	else 
+		UNLOCK_JNODE(node);
+	/* now drop pages and jnode */
+	/* FIXME-EDWARD: Use truncate_complete_page in the loop above instead */
+	
+	jput(node);
+	forget_cluster_pages(pages, found);
+	truncate_inode_pages_range(inode->i_mapping,
+				   clust_to_off(index, inode),
+				   pg_to_off(pages[found - 1]->index) + PAGE_CACHE_SIZE - 1);
+	assert("edward-1201", jnode_truncate_ok(inode, index));
+	return;
 }
 
 /* Prepare cluster handle before write. Called by all the clients which
@@ -2638,6 +2715,8 @@ find_real_disk_cluster(struct inode * inode, cloff_t * found, cloff_t index)
 	iplug = item_plugin_by_coord(coord);
 	assert("edward-277", iplug == item_plugin_by_id(CTAIL_ID));
 	assert("edward-659", cluster_shift_by_coord(coord) == inode_cluster_shift(inode));
+
+	assert("edward-1202", !check_ctail(coord, NULL));
 	
 	/* FIXME-EDWARD: Should it be ->append_key() ? */
 	iplug->s.file.append_key(coord, &key);
@@ -2656,6 +2735,27 @@ static int
 find_actual_cloff(struct inode *inode, cloff_t * index)
 {
 	return find_real_disk_cluster(inode, index, 0 /* find last real one */);
+}
+
+/* Set left coord when unit is not found after node_lookup()
+   This takes into account that there can be holes in a sequence
+   of disk clusters */
+
+static void
+adjust_left_coord(coord_t * left_coord)
+{
+	switch(left_coord->between) {
+	case AFTER_UNIT:
+		assert("edward-1203", 
+		       left_coord->item_pos < coord_num_items(left_coord) - 1);
+		left_coord->between = AFTER_ITEM;
+		break;
+	case BEFORE_UNIT:
+		break;
+	default:
+		impossible("edward-1204", "bad left coord to cut");
+	}
+	return;
 }
 
 #define CRC_CUT_TREE_MIN_ITERATIONS 64
@@ -2706,10 +2806,13 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 		
 		/* left_coord is leftmost unit cut from @node */
 		result = nplug->lookup(node, from_key,
-				       FIND_MAX_NOT_MORE_THAN, &left_coord);
+				       FIND_EXACT, &left_coord);
 		
 		if (IS_CBKERR(result))
 			break;
+		
+		if (result == CBK_COORD_NOTFOUND)
+			adjust_left_coord(&left_coord);
 		
 		/* adjust coordinates so that they are set to existing units */
 		if (coord_set_to_right(&left_coord) || coord_set_to_left(tap->coord)) {
@@ -2732,6 +2835,9 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 					   smallest_removed,
 					   next_node_lock.node,
 					   object);
+#if REISER4_DEBUG
+		node_check(node, ~0U);
+#endif
 		tap_relse(tap);
 		
 		if (result)
@@ -2836,17 +2942,49 @@ cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
 	return result;
 }
 
-reiser4_internal void
-truncate_pages_cryptcompress(struct inode * inode, pgoff_t start)
+#if REISER4_DEBUG
+static int
+page_truncate_ok(struct inode * inode, loff_t old_size, pgoff_t start)
 {
-	/* first not partial cluster to truncate */
-	cloff_t fnp = pgcount_to_nrclust(start, inode);
+	struct pagevec pvec;
+	int i;
+	int count;
+	int rest;
 	
-	truncate_inode_pages(inode->i_mapping, pg_to_off(start));
-	truncate_jnodes_range(inode, 
-			      clust_to_pg(fnp, inode),
-			      count_to_nrpages(inode->i_size));
+	rest = count_to_nrpages(old_size) - start;
+	
+	pagevec_init(&pvec, 0);
+	count = min_count(pagevec_space(&pvec), rest);
+	
+	while (rest) {
+		count = min_count(pagevec_space(&pvec), rest);
+		pvec.nr = find_get_pages(inode->i_mapping, start,
+					  count, pvec.pages);
+		for (i = 0; i < pagevec_count(&pvec); i++) {
+			if (PageUptodate(pvec.pages[i])) {
+				warning("edward-1205",
+					"truncated page of index %lu is uptodate",
+					pvec.pages[i]->index);
+				return 0;
+			}
+		}
+		start += count;
+		rest -= count;
+		pagevec_release(&pvec);
+	}
+	return 1;
 }
+
+static int
+body_truncate_ok(struct inode * inode, cloff_t aidx)
+{
+	int result;
+	cloff_t raidx;
+	
+	result = find_actual_cloff(inode, &raidx);
+	return !result && (aidx == raidx);
+}
+#endif		   
 
 /* prune cryptcompress file in two steps (exclusive access should be acquired!)
    1) cut all disk clusters but the last one partially truncated,
@@ -2860,6 +2998,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	int result = 0;
 	unsigned nr_zeroes;
 	loff_t to_prune;
+	loff_t old_size;
 	cloff_t fidx;
 	
 	hint_t hint;	
@@ -2884,7 +3023,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	fidx = count_to_nrclust(new_size, inode);
 
 	assert("edward-1174", fidx <= aidx);
-	
+	old_size = inode->i_size;
 	if (fidx != aidx) {
 		result = cut_file_items(inode,
 					clust_to_off(fidx, inode),
@@ -2896,7 +3035,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	if (!off_to_cloff(new_size, inode)) {
 		/* no partially truncated clusters */
 		assert("edward-1145", inode->i_size == new_size);
-		goto out;
+		goto finish;
 	}
 	assert("edward-1146", new_size < inode->i_size);
 	
@@ -2908,7 +3047,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 		goto out;
 	if (!aidx)
 		/* yup, this is fake one */
-		goto fake_prune;
+		goto finish;
 	
 	assert("edward-1148", aidx == fidx);
 	
@@ -2930,11 +3069,16 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	assert("edward-1151", 
 	       clust.dstat == PREP_DISK_CLUSTER ||
 	       clust.dstat == UNPR_DISK_CLUSTER);
-	assert("edward-1191", inode->i_size == new_size);
 	
-	truncate_pages_cryptcompress(inode, count_to_nrpages(new_size));
-	goto out;
- fake_prune:
+	assert("edward-1191", inode->i_size == new_size);
+	assert("edward-1206", body_truncate_ok(inode, fidx));
+ finish:
+	/* drop all the pages that don't have jnodes
+	   because of holes represented by fake disk clusters
+	   including the pages of partially truncated cluster 
+	   which was released by prepare_cluster() */
+	truncate_inode_pages(inode->i_mapping,
+			     pg_to_off(count_to_nrpages(new_size)));
 	INODE_SET_FIELD(inode, i_size, new_size);
  out:
 	done_lh(&lh);
@@ -2968,14 +3112,21 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 	result = find_actual_cloff(inode, &aidx);
 	if (result)
 		return result;
+	
+	assert("edward-1207", 
+	       ergo(off_to_cloff(inode->i_size, inode) == 0,
+		    inode->i_size == clust_to_off(aidx, inode)));
+	assert("edward-1208", 
+	       ergo(aidx > 0, inode->i_size > clust_to_off(aidx - 1, inode)));
+
 	if (truncating_last_fake_dc(inode, aidx, new_size)) {
-		/* do not touch items */
+		/* we do not need to truncate items, so just drop pages 
+		   which can not acquire jnodes because of exclusive access */
+
 		INODE_SET_FIELD(inode, i_size, new_size);
 		if (old_size > new_size) {
-			pgoff_t start;
-			start = count_to_nrpages(new_size);
-
-			truncate_pages_cryptcompress(inode, start);
+			truncate_inode_pages(inode->i_mapping,
+					     pg_to_off(count_to_nrpages(new_size)));
 			assert("edward-663", ergo(!new_size,
 						  reiser4_inode_data(inode)->anonymous_eflushed == 0 &&
 						  reiser4_inode_data(inode)->captured_eflushed == 0));
@@ -2990,6 +3141,9 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 	}
 	result = (old_size < new_size ? cryptcompress_append_hole(inode, new_size) :
 		  prune_cryptcompress(inode, new_size, update_sd, aidx));
+	
+	assert("edward-1209", 
+	       page_truncate_ok(inode, old_size, count_to_nrpages(new_size)));
 	return result;
 }
 
