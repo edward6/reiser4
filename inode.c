@@ -25,7 +25,7 @@ reiser4_tree *tree_by_inode( const struct inode *inode )
 
 /** main function for external code to get plugins associated with 
     given file-system object */
-reiser4_plugin_ref *reiser4_get_object_state( const struct inode *inode )
+reiser4_plugin_ref *get_object_state( const struct inode *inode )
 {
 	assert( "nikita-264", inode != NULL );
 	return &reiser4_inode_data( inode ) -> plugin;
@@ -37,7 +37,7 @@ __u32 *reiser4_inode_flags( const struct inode *inode )
 {
 	assert( "nikita-267", inode != NULL );
 
-	return & reiser4_get_object_state( inode ) -> flags;
+	return & get_object_state( inode ) -> flags;
 }
 
 /** file plugin for @inode */
@@ -46,7 +46,7 @@ file_plugin *reiser4_get_file_plugin( const struct inode *inode )
 	assert( "nikita-269", inode != NULL );
 	assert( "nikita-270", is_reiser4_inode( inode ) );
 
-	return reiser4_get_object_state( inode ) -> file;
+	return get_object_state( inode ) -> file;
 }
 
 /** dir plugin for @inode */
@@ -55,7 +55,7 @@ dir_plugin *reiser4_get_dir_plugin( const struct inode *inode )
 	assert( "vs-385", inode != NULL );
 	assert( "vs-386", is_reiser4_inode( inode ) );
 
-	return reiser4_get_object_state( inode ) -> dir;
+	return get_object_state( inode ) -> dir;
 }
 
 /** lock inode. We lock file-system wide spinlock, because we have to lock
@@ -159,7 +159,7 @@ item_plugin *reiser4_get_sd_plugin( const struct inode *inode UNUSED_ARG )
 inter_syscall_ra_hint *reiser4_inter_syscall_ra( const struct inode *inode )
 {
 	assert( "nikita-289", is_reiser4_inode( inode ) );
-	return &reiser4_get_object_state( inode ) -> ra;
+	return &get_object_state( inode ) -> ra;
 }
 
 /* should be moved into .h */
@@ -168,7 +168,7 @@ inter_syscall_ra_hint *reiser4_inter_syscall_ra( const struct inode *inode )
 static int is_inode_loaded( const struct inode *inode )
 {
 	assert( "nikita-1120", inode != NULL );
-	return reiser4_get_object_state( inode ) -> flags & REISER4_LOADED;
+	return get_object_state( inode ) -> flags & REISER4_LOADED;
 }
 
 /**
@@ -231,7 +231,7 @@ int init_inode( struct inode *inode, tree_coord *coord )
 	result = iplug -> s.sd.init_inode( inode, body, length );
 	if( result )
 		return result;
-	reiser4_get_object_state( inode ) -> sd = iplug;
+	get_object_state( inode ) -> sd = iplug;
 	return setup_inode_ops( inode );
 }
 
@@ -252,7 +252,7 @@ static int read_inode( struct inode * inode )
 	if( is_inode_loaded( inode ) )
 		return 0;
 
-	if( reiser4_get_object_state( inode ) -> locality_id == 0 ) {
+	if( get_object_state( inode ) -> locality_id == 0 ) {
 		warning( "nikita-300", "no locality in inode %lx",
 			 ( long ) inode -> i_ino );
 		make_bad_inode( inode );
@@ -277,7 +277,7 @@ static int read_inode( struct inode * inode )
 			 */
 			inode -> i_ino = get_key_objectid( &key );
 			assert( "nikita-1271", 
-				reiser4_get_object_state( inode ) -> 
+				get_object_state( inode ) -> 
 				locality_id == get_key_locality( &key ) );
 		}
 	}
@@ -342,7 +342,7 @@ struct inode * reiser4_iget( struct super_block *super,
 		*/
 		failed = reiser4_lock_inode_interruptible( inode );
 		if( !failed && ! is_inode_loaded( inode ) ) {
-			reiser4_get_object_state( inode ) -> locality_id = 
+			get_object_state( inode ) -> locality_id = 
 				get_key_locality( key );
 			/* now, inode has objectid as -> i_ino and locality in
 			   reiser4-specific part. This data is enough for

@@ -9,13 +9,13 @@
  * all file data have to be stored in unformatted nodes
  */
 #define should_have_notail(inode,new_size) \
-reiser4_get_object_state (inode)->tail->notail (inode, new_size)
+get_object_state (inode)->tail->notail (inode, new_size)
 
 /*
  * not all file data have to be stored in unformatted nodes
  */
 #define should_have_tail(inode) \
-reiser4_get_object_state (inode)->tail->tail (inode, inode->i_size)
+get_object_state (inode)->tail->tail (inode, inode->i_size)
 
 /* Dead USING_INSERT_UNITYPE_FLOW code removed from version 1.76 of this file. */
 
@@ -76,7 +76,7 @@ write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coord)
 			return WRITE_TAIL;
 	}
 
-	assert ("vs-377", reiser4_get_object_state (inode)->tail->notail);
+	assert ("vs-377", get_object_state (inode)->tail->notail);
 
 	if (inode->i_size == 0) {
 		/*

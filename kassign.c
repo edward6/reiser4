@@ -136,7 +136,7 @@ int build_entry_key( const struct inode *dir /* directory where entry is
 		/*
 		 * offset is the hash of the file name.
 		 */
-		offset = reiser4_get_object_state( dir ) -> hash -> hash ( name -> name + OID_CHARS, 
+		offset = get_object_state( dir ) -> hash -> hash ( name -> name + OID_CHARS, 
 									   ( int ) name -> len );
 	}
 
@@ -176,7 +176,7 @@ reiser4_key *build_sd_key( const struct inode *target /* inode of an object */,
 
 	key_init( result );
 	set_key_locality( result, 
-			  reiser4_get_object_state( target ) -> locality_id );
+			  get_object_state( target ) -> locality_id );
 	set_key_objectid( result, ( oid_t ) target -> i_ino );
 	set_key_type    ( result, KEY_SD_MINOR );
 	set_key_offset  ( result, ( __u64 ) 0 );
