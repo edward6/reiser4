@@ -2346,6 +2346,9 @@ reiser4_kill_super(struct super_block *s)
 	check_block_counters(s);
 	done_formatted_fake(s);
 
+	/* FIXME: done_formatted_fake just has finished with last jnodes (bitmap ones) */
+	done_tree(&sbinfo->tree);
+
 	close_trace_file(&sbinfo->trace_file);
 
 	/* we don't want ->write_super to be called any more. */

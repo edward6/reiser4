@@ -330,7 +330,7 @@ format40_release(struct super_block *s)
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		print_fs_info("umount ok", s);
 
-	done_tree(&sbinfo->tree);
+	/*done_tree(&sbinfo->tree);*/
 
 	assert("zam-580", sbinfo->space_plug != NULL);
 
