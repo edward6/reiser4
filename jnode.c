@@ -951,15 +951,15 @@ jnode_type jnode_get_type( const jnode *node )
 		/* 010 */
 		[ 2 ] = JNODE_BITMAP,
 		/* 011 */
-		[ 3 ] = JNODE_LAST_TYPE, /* invalid */
+		[ 3 ] = LAST_JNODE_TYPE, /* invalid */
 		/* 100 */
-		[ 4 ] = JNODE_LAST_TYPE, /* invalid */
+		[ 4 ] = LAST_JNODE_TYPE, /* invalid */
 		/* 101 */
-		[ 5 ] = JNODE_LAST_TYPE, /* invalid */
+		[ 5 ] = LAST_JNODE_TYPE, /* invalid */
 		/* 110 */
 		[ 6 ] = JNODE_IO_HEAD,
 		/* 111 */
-		[ 7 ] = JNODE_LAST_TYPE, /* invalid */
+		[ 7 ] = LAST_JNODE_TYPE, /* invalid */
 	};
 
 	/*
@@ -977,7 +977,7 @@ void jnode_set_type( jnode * node, jnode_type type )
 		[JNODE_IO_HEAD]           = 6
 	};
 
-	assert ("zam-647", type < JNODE_LAST_TYPE);
+	assert ("zam-647", type < LAST_JNODE_TYPE);
 
 	node -> state &= ((1UL << JNODE_TYPE_1) - 1);
 	node -> state |= (type_to_mask[type] << JNODE_TYPE_1);
@@ -1103,92 +1103,84 @@ static int other_remove_op( jnode *node, reiser4_tree *tree UNUSED_ARG )
 
 extern int znode_io_hook( jnode *node, struct page *page, int rw );
 
-reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
+jnode_plugin jnode_plugins[ LAST_JNODE_TYPE ] = {
 	[ JNODE_UNFORMATTED_BLOCK ] = {
-		.jnode = {
-			.h = {
-				.type_id = REISER4_JNODE_PLUGIN_TYPE,
-				.id      = JNODE_UNFORMATTED_BLOCK,
-				.pops    = NULL,
-				.label   = "unformatted",
-				.desc    = "unformatted node",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.init    = noparse,
-			.parse   = noparse,
-			.remove  = jnode_remove_op,
-			.delete  = jnode_remove_op,
-			.is_busy = jnode_is_busy,
-			.mapping = jnode_mapping,
-			.index   = jnode_index,
-			.io_hook = no_hook
-		}
+		.h = {
+			.type_id = REISER4_JNODE_PLUGIN_TYPE,
+			.id      = JNODE_UNFORMATTED_BLOCK,
+			.pops    = NULL,
+			.label   = "unformatted",
+			.desc    = "unformatted node",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.init    = noparse,
+		.parse   = noparse,
+		.remove  = jnode_remove_op,
+		.delete  = jnode_remove_op,
+		.is_busy = jnode_is_busy,
+		.mapping = jnode_mapping,
+		.index   = jnode_index,
+		.io_hook = no_hook
 	},
 	[ JNODE_FORMATTED_BLOCK ] = {
-		.jnode = {
-			.h = {
-				.type_id = REISER4_JNODE_PLUGIN_TYPE,
-				.id      = JNODE_FORMATTED_BLOCK,
-				.pops    = NULL,
-				.label   = "formatted",
-				.desc    = "formatted tree node",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.init    = znode_init,
-			.parse   = znode_parse,
-			.remove  = znode_remove_op,
-			.delete  = znode_delete_op,
-			.is_busy = znode_is_busy,
-			.mapping = znode_mapping,
-			.index   = znode_index,
-			.io_hook = znode_io_hook
-		}
+		.h = {
+			.type_id = REISER4_JNODE_PLUGIN_TYPE,
+			.id      = JNODE_FORMATTED_BLOCK,
+			.pops    = NULL,
+			.label   = "formatted",
+			.desc    = "formatted tree node",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.init    = znode_init,
+		.parse   = znode_parse,
+		.remove  = znode_remove_op,
+		.delete  = znode_delete_op,
+		.is_busy = znode_is_busy,
+		.mapping = znode_mapping,
+		.index   = znode_index,
+		.io_hook = znode_io_hook
 	},
 	[ JNODE_BITMAP ] = {
-		.jnode = {
-			.h = {
-				.type_id = REISER4_JNODE_PLUGIN_TYPE,
-				.id      = JNODE_BITMAP,
-				.pops    = NULL,
-				.label   = "bitmap",
-				.desc    = "bitmap node",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.init    = noparse,
-			.parse   = noparse,
-			.remove  = other_remove_op,
-			.delete  = other_remove_op,
-			.is_busy = jnode_is_busy,
-			.mapping = znode_mapping,
-			.index   = znode_index,
-			.io_hook = no_hook
-		}
+		.h = {
+			.type_id = REISER4_JNODE_PLUGIN_TYPE,
+			.id      = JNODE_BITMAP,
+			.pops    = NULL,
+			.label   = "bitmap",
+			.desc    = "bitmap node",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.init    = noparse,
+		.parse   = noparse,
+		.remove  = other_remove_op,
+		.delete  = other_remove_op,
+		.is_busy = jnode_is_busy,
+		.mapping = znode_mapping,
+		.index   = znode_index,
+		.io_hook = no_hook
 	},
 	[ JNODE_IO_HEAD ] = {
-		.jnode = {
-			.h = {
-				.type_id = REISER4_JNODE_PLUGIN_TYPE,
-				.id      = JNODE_IO_HEAD,
-				.pops    = NULL,
-				.label   = "io head",
-				.desc    = "io head",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.init    = noparse,
-			.parse   = noparse,
-			.remove  = other_remove_op,
-			.delete  = other_remove_op,
-			.is_busy = jnode_is_busy,
-			.mapping = znode_mapping,
-			.index   = znode_index,
-			.io_hook = no_hook
-		}
+		.h = {
+			.type_id = REISER4_JNODE_PLUGIN_TYPE,
+			.id      = JNODE_IO_HEAD,
+			.pops    = NULL,
+			.label   = "io head",
+			.desc    = "io head",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.init    = noparse,
+		.parse   = noparse,
+		.remove  = other_remove_op,
+		.delete  = other_remove_op,
+		.is_busy = jnode_is_busy,
+		.mapping = znode_mapping,
+		.index   = znode_index,
+		.io_hook = no_hook
 	}
 };
 
 jnode_plugin *jnode_ops_of( const jnode_type type )
 {
-	assert( "nikita-2367", type < JNODE_LAST_TYPE );
+	assert( "nikita-2367", type < LAST_JNODE_TYPE );
 	return jnode_plugin_by_id( ( reiser4_plugin_id ) type );
 }
 
@@ -1255,7 +1247,7 @@ const char *jnode_type_name( jnode_type type )
 		return "bitmap";
 	case JNODE_IO_HEAD:
 		return "io head";
-	case JNODE_LAST_TYPE:
+	case LAST_JNODE_TYPE:
 		return "last";
 	default: {
 		static char unknown[ 30 ];
