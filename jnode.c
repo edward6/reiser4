@@ -516,11 +516,6 @@ jparse(jnode * node, struct page *page)
 		result = jnode_ops(node)->parse(node);
 		if (likely(result == 0))
 			JF_SET(node, JNODE_LOADED);
-		else {
-			/* if parsing failed, detach jnode from page. */
-			assert("nikita-2467", page == jnode_page(node));
-			page_clear_jnode(page, node);
-		}
 	}
 	return result;
 }
