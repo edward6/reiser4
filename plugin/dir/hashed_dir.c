@@ -820,6 +820,13 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 		if (result == 0) {
 			result = replace_name(new_dir, old_inode, old_dir, dotdot_coord, &dotdot_lh);
 			/* replace_name() decreases i_nlink on @old_dir */
+			if (result == 0) {
+				/* NIKITA-FIXME-ZAM: in case of moving a directory, one reference to
+				 * @new_dir added by call to add_name/replace_name() when @new_name
+				 * is created/replaced, replacing ".." adds another reference.  In
+				 * result, @new_dir->i_nlink gets one more than needed. */
+				reiser4_del_nlink(new_dir, old_inode, 0);
+			}
 		} else {
 			warning("nikita-2336", "Dotdot not found in %llu", get_inode_oid(old_inode));
 			result = RETERR(-EIO);
