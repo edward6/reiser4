@@ -228,7 +228,7 @@ typedef struct {
 /* operations specific to items regular (unix) file metadata are built of */
 typedef struct {
 	int (*write)(struct inode *, flow_t *, hint_t *, int grabbed, write_mode_t);
-	int (*read)(struct file *, flow_t *, uf_coord_t *);
+	int (*read)(struct file *, flow_t *, hint_t *);
 	int (*readpage) (void *, struct page *);
 	int (*writepage) (reiser4_key *, uf_coord_t *, struct page *, write_mode_t);
 	int (*get_block) (const uf_coord_t *, sector_t, struct buffer_head *);
