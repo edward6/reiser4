@@ -1079,7 +1079,8 @@ int
 reiser4_mark_inode_dirty(struct inode *inode)
 {
 	assert("vs-1207", is_in_reiser4_context());
-	return capture_inode(inode);
+	return reiser4_update_sd(inode);
+	/*return capture_inode(inode);*/
 }
 
 /* update inode stat-data by calling plugin */
