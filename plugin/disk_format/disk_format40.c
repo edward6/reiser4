@@ -23,6 +23,11 @@
 
 /* reiser 4.0 default disk layout */
 
+/* Amount of free blocks needed to perform release_format40 when fs gets 
+   mounted RW: 1 for SB, 1 for non-leaves in overwrite set, 2 for tx header 
+   & tx record. */
+#define RELEASE_RESERVED 4
+
 /* functions to access fields of format40_disk_super_block */
 static __u64
 get_format40_block_count(const format40_disk_super_block * sb)
@@ -390,6 +395,10 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 	default:
 		impossible("nikita-3457", "init stage: %i", stage);
 	}
+
+	if (!rofs_super(s) && reiser4_free_blocks(s) < RELEASE_RESERVED)
+		return RETERR(-ENOSPC);
+	
 	return result;
 }
 
@@ -439,11 +448,6 @@ release_format40(struct super_block *s)
 	sbinfo = get_super_private(s);
 	assert("zam-579", sbinfo != NULL);
 
-	/* FIXME-UMKA: Should we tell block transaction manager to commit all if
-	 * we will have no space left? */
-	if (reiser4_grab_space(1, BA_RESERVED))
-		return RETERR(-ENOSPC);
-
 	if (!rofs_super(s)) {
 		ret = capture_super_block(s);
 		if (ret != 0)
@@ -452,6 +456,8 @@ release_format40(struct super_block *s)
 		ret = txnmgr_force_commit_all(s, 1);
 		if (ret != 0)
 			warning("jmacd-74438", "txn_force failed: %d", ret);
+
+		all_grabbed2free();
 	}
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		print_fs_info("umount ok", s);
