@@ -655,7 +655,7 @@ reiser4_delete_inode(struct inode *object)
 	reiser4_exit_context(&ctx);
 }
 
-const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
+const char *REISER4_SUPER_MAGIC_STRING = "ReIsEr4";
 const int REISER4_MAGIC_OFFSET = 16 * 4096;	/* offset to magic string from the
 						 * beginning of device */
 

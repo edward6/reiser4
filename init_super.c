@@ -130,7 +130,7 @@ _INIT_(read_super)
 
 	master_sb = (struct reiser4_master_sb *) super_bh->b_data;
 	/* check reiser4 magic string */
-	if (!strncmp(master_sb->magic, REISER4_SUPER_MAGIC_STRING, 4)) {
+	if (!strncmp(master_sb->magic, REISER4_SUPER_MAGIC_STRING, sizeof(REISER4_SUPER_MAGIC_STRING))) {
 		/* reset block size if it is not a right one FIXME-VS: better comment is needed */
 		blocksize = d16tocpu(&master_sb->blocksize);
 
@@ -155,9 +155,10 @@ _INIT_(read_super)
 		sbinfo->diskmap_block = d64tocpu(&master_sb->diskmap);
 		brelse(super_bh);
 	} else {
-		if (!silent)
-			warning("nikita-2608", "Wrong magic: %x != %x",
-				*(__u32 *) master_sb->magic, *(__u32 *) REISER4_SUPER_MAGIC_STRING);
+		if (!silent) {
+			warning("nikita-2608", "Wrong master super block magic.");
+		}
+		
 		/* no standard reiser4 super block found */
 		brelse(super_bh);
 		/* FIXME-VS: call guess method for all available layout

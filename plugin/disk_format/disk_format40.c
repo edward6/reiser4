@@ -108,13 +108,16 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block
 		return ERR_PTR(RETERR(-EIO));
 
 	disk_sb = (format40_disk_super_block *) super_bh->b_data;
-	if (strcmp(disk_sb->magic, FORMAT40_MAGIC)) {
+	if (strncmp(disk_sb->magic, FORMAT40_MAGIC, sizeof(FORMAT40_MAGIC))) {
 		brelse(super_bh);
 		return ERR_PTR(RETERR(-EINVAL));
 	}
 
 	reiser4_set_block_count(s, d64tocpu(&disk_sb->block_count));
-	reiser4_set_data_blocks(s, d64tocpu(&disk_sb->block_count) - d64tocpu(&disk_sb->free_blocks));
+	
+	reiser4_set_data_blocks(s, d64tocpu(&disk_sb->block_count) - 
+				d64tocpu(&disk_sb->free_blocks));
+	
 	reiser4_set_free_blocks(s, (d64tocpu(&disk_sb->free_blocks)));
 
 	return super_bh;

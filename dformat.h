@@ -142,7 +142,7 @@ disk_addr_eq(const reiser4_block_nr * b1	/* first block
 
 /* structure of master reiser4 super block */
 typedef struct reiser4_master_sb {
-	char magic[4];		/* "R4Sb" */
+	char magic[16];		/* "ReIsEr4" */
 	d16 disk_plugin_id;	/* id of disk layout plugin */
 	d16 blocksize;
 	char uuid[16];		/* unique id */

@@ -13,7 +13,7 @@
 #define __DISK_FORMAT40_H__
 
 /* magic for default reiser4 layout */
-#define FORMAT40_MAGIC "R4Sb-Default"
+#define FORMAT40_MAGIC "ReIsEr40FoRmAt"
 #define FORMAT40_OFFSET (REISER4_MASTER_OFFSET + PAGE_CACHE_SIZE)
 
 #include "../../dformat.h"
@@ -43,7 +43,7 @@ typedef struct format40_disk_super_block {
 	/*  48 */ d32 mkfs_id;
 	/* unique identifier of fs */
 	/*  52 */ char magic[16];
-	/* magic string R4Sb-Default */
+	/* magic string ReIsEr40FoRmAt */
 	/*  68 */ d16 tree_height;
 	/* height of filesystem tree */
 	/*  70 */ d16 formatting_policy;
