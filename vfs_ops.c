@@ -122,7 +122,7 @@ reiser4_update_sd(struct inode *object)
         file_plugin *fplug;
 
 	assert("nikita-2338", object != NULL);
-
+/* NIKITA-FIXME-HANS: make noatime the default. */
 	/* check for read-only file system. */
 	if (IS_RDONLY(object))
 		return 0;
