@@ -459,7 +459,7 @@ insert_result insert_extent_by_coord(coord_t * coord	/* coord where to
 int
 insert_into_item(coord_t * coord /* coord of pasting */ ,
 		 lock_handle * lh /* lock handle on node involved */ ,
-		 reiser4_key * key /* key of unit being pasted */ ,
+		 const reiser4_key * key /* key of unit being pasted */ ,
 		 reiser4_item_data * data /* parameters for new unit */ ,
 		 unsigned flags /* insert/paste flags */ )
 {
@@ -1467,13 +1467,15 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 
 		node = tap->coord->node;
 
+		/* ZAM-FIXME-HANS: if you can delete the node as a whole, and you can see that from looking in the
+		 * parent which has the child's blocknumber and the key range that it spans, why read it?  Seems like an
+		 * important missing optimization could be here.... */
 		/* Move next_node_lock to the next node on the left. */
 		result = reiser4_get_left_neighbor(&next_node_lock, node,
 						   ZNODE_WRITE_LOCK, GN_DO_READ);
 		if ((result != 0) && (result != -E_NO_NEIGHBOR))
 			break;
-
-		/* Check can we deleted the node as a whole. */
+		/* Check can we delete the node as a whole. */
 		if (iterations && znode_get_level(node) == LEAF_LEVEL &&
 		    UNDER_RW(dk, current_tree, read,
 			     keyle(from_key, znode_get_ld_key(node)))) {
