@@ -208,6 +208,7 @@ typedef struct {
 	
 	int ( *utmost_child_real_block )( const tree_coord *coord, sideof side,
 					  reiser4_block_nr *block );
+	reiser4_key *( *real_max_key_inside )( const tree_coord *coord, reiser4_key * );
 } common_item_plugin;
 
 
@@ -239,8 +240,11 @@ typedef struct {
 
 /* operations specific to items regular file metadata are built of */
 typedef struct {
-	int (* write) (struct inode *, tree_coord *,
-		       lock_handle *, flow_t *);
+	/* @page is used in extent's write. If it is set (when tail2extent
+	 * conversion is in progress) - do not grab a page and do not copy data
+	 * from flow into it because all the data are already */
+	int (* write) (struct inode *, tree_coord *, lock_handle *, flow_t *,
+		       struct page *);
 	int (* read) (struct inode *, tree_coord *,
 		      lock_handle *, flow_t *);
 	int (* readpage) (void *, struct page *);
