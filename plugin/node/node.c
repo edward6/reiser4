@@ -251,6 +251,53 @@ reiser4_plugin node_plugins[ LAST_NODE_ID ] = {
 	},
 };
 
+
+
+/*
+ * Squeeze and allocate @node and its children.
+ * @left and @node are neighboring nodes on the twig level. For node @left and
+ * its children there is nothing already to squeeze/allocate.
+ */
+int allocate_and_shift_twig (znode * left, reiser4_lock_handle * left_lh,
+			     znode * right, reiser4_lock_handle * right_lh)
+{
+	while (something can be shifted from @node to @left) {
+		if (first item in @node is internal) {
+			last_formatted_child = get_last_formatted_child (left);
+			if (!last_formatted_child) {
+				/*
+				 * last child of @left is either unformatted or
+				 * not in memory
+				 */
+			}
+			moved = copy as many internal items as possible to @left;
+			/*
+			 * @moved is number of pointers shifted from @node to @left. Squeeze all 
+			 */
+			for (i = 0; i < moved; i ++)
+				squeeze_left ();
+		} else {
+			/*
+			 * first item in @node is extent item
+			 */
+			width = width of extent;
+			if ((last item of @left is extent item of the same file as first item of @node) &&
+			    (its last extent is not hole extent))
+				create extent item at the end of @left;
+
+		}
+	}
+
+	/*
+	 * allocate block number for @node
+	 */
+	desire_block = block number of last child of @left;
+
+	for (all children of @node which) {
+	}
+}
+
+
 /* 
  * Local variables:
  * c-indentation-style: "K&R"
@@ -263,3 +310,100 @@ reiser4_plugin node_plugins[ LAST_NODE_ID ] = {
  */
 
 
+/*
+ * 2
+ */
+void allocate_and_squeeze_parent_first (jnode *node)
+{
+  /* Stop recursion if its not dirty, meaning don't allocate children either.
+   * Children might be dirty but there is an overwrite below this level
+   * or else this node would be dirty. */
+  if (! is_dirty (node)) {
+    return;
+  }
+
+  /* Allocate (parent) first. */
+  allocate_node (node, parent_first_preceder_of (node));
+
+  if (jnode_is_unformatted (node)) {
+    /* We got here because the parent (twig) of an unformatted node is
+     * not being relocated.  Otherwise this recursion does not descend
+     * to unformatted nodes. */
+     return;
+  }
+
+  /* Recursive case: */
+  if (jnode_get_level (node) > LEAF_LEVEL) {
+
+    for (each_item_left_to_right (node)) {
+
+      if (is_extent_item (item) && extent_item_is_dirty (item)) {
+         allocate_extent_item (item);
+      } else if (is_internal_item (item) && jnode_is_dirty (internal_item_child (item))) {
+         allocate_and_squeeze_parent_first (internal_item_child (item));
+      }
+    }
+  }
+
+  /* Squeeze a node: note that this makes the "one big memcpy"
+   * approach somewhat more difficult, but its still possible. */
+  while (not_empty (node) && jnode_is_formatted (node->right) && is_dirty (node->right)) {
+
+    item = first_item_of (node->right);
+
+    if (is_extent_item (item) && extent_item_is_dirty (item)) {
+       allocate_extent_item_into (item, node);
+    } else if (can_shift_into (item, node)) {
+       shift_item (item, node);
+    }
+  } 
+}
+
+/*
+ * 1
+ */
+void allocate_and_squeeze_parent_first_subtree (jnode *node)
+{
+  /* Stop recursion if its not dirty, meaning don't allocate children either.
+   * Children might be dirty but there is an overwrite below this level
+   * or else this node would be dirty. */
+  if (! is_dirty (node)) {
+    return;
+  }
+
+  /* Allocate (parent) first. */
+  allocate_node (node, parent_first_preceder_of (node));
+
+  if (jnode_is_unformatted (node)) {
+    /* We got here because the parent (twig) of an unformatted node is
+     * not being relocated.  Otherwise this recursion does not descend
+     * to unformatted nodes. */
+     return;
+  }
+
+  /* Recursive case: */
+  if (jnode_get_level (node) > LEAF_LEVEL) {
+
+    for (each_item_left_to_right (node)) {
+
+      if (is_extent_item (item) && extent_item_is_dirty (item)) {
+         allocate_extent_item (item);
+      } else if (is_internal_item (item) && jnode_is_dirty (internal_item_child (item))) {
+         allocate_and_squeeze_parent_first (internal_item_child (item));
+      }
+    }
+  }
+
+  /* Squeeze a node: note that this makes the "one big memcpy"
+   * approach somewhat more difficult, but its still possible. */
+  while (not_empty (node) && jnode_is_formatted (node->right) && is_dirty (node->right)) {
+
+    item = first_item_of (node->right);
+
+    if (is_extent_item (item) && extent_item_is_dirty (item)) {
+       allocate_extent_item_into (item, node);
+    } else if (can_shift_into (item, node)) {
+       shift_item (item, node);
+    }
+  } 
+}
