@@ -2140,7 +2140,6 @@ static void flush_pos_set_point (flush_position *pos, jnode *node)
 }
 
 /*
- * Make Linus happy.
  * Local variables:
  * c-indentation-style: "K&R"
  * mode-name: "LC"
