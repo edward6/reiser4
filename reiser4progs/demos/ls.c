@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
 	ls_print_usage();
 	return 0xfe;
     }
-	
+    
     ls_init();
 
     if (libreiser4_init()) {

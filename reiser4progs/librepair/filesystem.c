@@ -164,9 +164,8 @@ errno_t repair_fs_check(reiser4_fs_t *fs) {
     if (repair_fs_check_setup(fs, &data))
 	return -1;    
     
-    reiser4_tree_traverse(fs->format->device, block, __node_open, __node_check, 
-	__before_traverse, __setup_traverse, __update_traverse, __after_traverse, 
-	&data);
+    reiser4_node_traverse(block, __node_open, __node_check, __before_traverse, 
+	__setup_traverse, __update_traverse, __after_traverse, &data);
 
     return 0;
 }
