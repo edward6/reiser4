@@ -127,6 +127,7 @@ static struct {
 /* hash table support */
 
 /** compare two block numbers for equality. Used by hash-table macros */
+/* Audited by: green(2002.06.15) */
 static inline int oid_eq( const oid_t *o1 /* first oid to compare */, 
 			  const oid_t *o2 /* second oid to compare */ )
 {
@@ -134,6 +135,7 @@ static inline int oid_eq( const oid_t *o1 /* first oid to compare */,
 }
 
 /** Hash znode by block number. Used by hash-table macros */
+/* Audited by: green(2002.06.15) */
 static inline __u32 oid_hash( const oid_t *o /* oid to hash */ )
 {
 	return *o & ( LNODE_HTABLE_BUCKETS - 1 );
@@ -157,6 +159,7 @@ TS_HASH_DEFINE( ln, lnode, oid_t, h.oid, h.link, oid_hash, oid_eq );
  * reiser4() call (that is, there are lnodes with type LNODE_LW).
  *
  */
+/* Audited by: green(2002.06.15) */
 int lnode_compatible_type( lnode_type required /* required lnode type */, 
 			   lnode_type set /* lnode type already set */ )
 {
@@ -164,6 +167,7 @@ int lnode_compatible_type( lnode_type required /* required lnode type */,
 }
 
 /** initialise lnode module for @super. */
+/* Audited by: green(2002.06.15) */
 int lnodes_init( struct super_block *super /* super block to initialise lnodes
 					    * for */ )
 {
@@ -175,6 +179,7 @@ int lnodes_init( struct super_block *super /* super block to initialise lnodes
 }
 
 /** free lnode resources associated with @super. */
+/* Audited by: green(2002.06.15) */
 int lnodes_done( struct super_block *super /* super block to destroy lnodes
 					    * for */ )
 {
@@ -196,6 +201,7 @@ int lnodes_done( struct super_block *super /* super block to destroy lnodes
  *
  *
  */
+/* Audited by: green(2002.06.15) */
 lnode *lget( lnode *node /* lnode to add to the hash table */, 
 	     lnode_type type /* lnode type */, oid_t oid /* objectid */ )
 {
@@ -253,6 +259,7 @@ lnode *lget( lnode *node /* lnode to add to the hash table */,
 }
 
 /** release reference to file system object */
+/* Audited by: green(2002.06.15) */
 void lput( lnode *node /* lnode to release */ )
 {
 	reiser4_super_info_data *sinfo;
@@ -273,6 +280,7 @@ void lput( lnode *node /* lnode to release */ )
 }
 
 /** true if @node1 and @node2 refer to the same object */
+/* Audited by: green(2002.06.15) */
 int lnode_eq( const lnode *node1 /* first node to compare */, 
 	      const lnode *node2 /* second node to compare */ )
 {
@@ -288,6 +296,7 @@ int lnode_eq( const lnode *node1 /* first node to compare */,
 }
 
 /** return key of object behind @node */
+/* Audited by: green(2002.06.15) */
 reiser4_key *lnode_key( const lnode *node /* lnode to query */, 
 			reiser4_key *result /* result */ )
 {
@@ -297,6 +306,7 @@ reiser4_key *lnode_key( const lnode *node /* lnode to query */,
 }
 
 /** return plugins of object behind @node */
+/* Audited by: green(2002.06.15) */
 int get_lnode_plugins( const lnode *node /* lnode to query */, 
 		       reiser4_plugin_ref *area /* result */ )
 {
@@ -306,6 +316,7 @@ int get_lnode_plugins( const lnode *node /* lnode to query */,
 }
 
 /** set plugins of object behind @node */
+/* Audited by: green(2002.06.15) */
 int set_lnode_plugins( lnode *node /* lnode to modify */, 
 		       const reiser4_plugin_ref *area /* plugins to install */)
 {
@@ -315,12 +326,14 @@ int set_lnode_plugins( lnode *node /* lnode to modify */,
 }
 
 /** true if @type is valid lnode type */
+/* Audited by: green(2002.06.15) */
 static int lnode_valid_type( lnode_type type /* would-be lnode type */ )
 {
 	return type < LNODE_NR_TYPES;
 }
 
 /** return key of object behind inode-based @node */
+/* Audited by: green(2002.06.15) */
 static reiser4_key *lnode_inode_key( const lnode *node /* lnode to query */, 
 				     reiser4_key *result /* result */ )
 {
@@ -328,6 +341,7 @@ static reiser4_key *lnode_inode_key( const lnode *node /* lnode to query */,
 }
 
 /** return key of object behind lighweight @node */
+/* Audited by: green(2002.06.15) */
 static reiser4_key *lnode_lw_key( const lnode *node /* lnode to query */, 
 				  reiser4_key *result /* result */ )
 {
@@ -336,6 +350,7 @@ static reiser4_key *lnode_lw_key( const lnode *node /* lnode to query */,
 }
 
 /** compare two inodes */
+/* Audited by: green(2002.06.15) */
 static int lnode_inode_eq( const lnode *node1 /* first node to compare */, 
 			   const lnode *node2 /* second node to compare */ )
 {
@@ -350,6 +365,7 @@ static int lnode_inode_eq( const lnode *node1 /* first node to compare */,
 }
 
 /** compare two lw objects */
+/* Audited by: green(2002.06.15) */
 static int lnode_lw_eq( const lnode *node1 UNUSED_ARG /* first node to
 						       * compare */, 
 			const lnode *node2 UNUSED_ARG /* second node to
