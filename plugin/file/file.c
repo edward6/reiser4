@@ -1468,7 +1468,7 @@ unpack(struct inode *inode)
 	reiser4_inode *state;
 	tail_plugin   *tplug;
 
-	get_nonexclusive_access(inode);
+	get_exclusive_access(inode);
 
 	if (!file_state_is_known(inode)) {
 		loff_t file_size;
@@ -1487,7 +1487,7 @@ unpack(struct inode *inode)
 		}
 	}
 
-	drop_nonexclusive_access(inode);
+	drop_exclusive_access(inode);
 
 	if (result == 0) {
 		__u64 tograb;
