@@ -857,8 +857,10 @@ alloc_extent(flush_pos_t *flush_pos)
 		protected_jnodes_done(&jnodes);
 
 		/* send to log information about which blocks were allocated for what */
-		write_current_logf(ALLOC_EXTENT_LOG, "alloc: oid: %llu, index: %llu, [%llu %llu]",
-				   oid, index, first_allocated, allocated);
+		write_current_logf(ALLOC_EXTENT_LOG,
+				   "alloc: oid: %llu, index: %llu, state %d, width: %llu. "
+				   "prot: %llu. got [%llu %llu]",
+				   oid, index, state, width, protected, first_allocated, allocated);
 
 		/* prepare extent which will replace current one */
 		set_extent(&replace_ext, first_allocated, allocated);
@@ -953,8 +955,8 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 
 	ext = extent_by_coord(coord);
 	index = extent_unit_index(coord);
-	start = extent_unit_start(coord);
-	width = extent_unit_width(coord);
+	start = extent_get_start(ext);
+	width = extent_get_width(ext);
 	state = state_of_extent(ext);
 	unit_key_by_coord(coord, &key);
 	oid = get_key_objectid(&key);
@@ -967,7 +969,7 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 
 		/* relocate */
 		protected_jnodes_init(&jnodes);
-		result = protect_extent_nodes(flush_pos, oid, index, extent_get_width(ext), &protected, ext, &jnodes.nodes);
+		result = protect_extent_nodes(flush_pos, oid, index, width, &protected, ext, &jnodes.nodes);
 		if (result) {
   			warning("vs-1469", "Failed to protect extent. Should not happen\n");
 			protected_jnodes_done(&jnodes);
@@ -1030,8 +1032,10 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 			 "copied to left: [%llu %llu]\n", first_allocated, allocated);
 
 		/* send to log information about which blocks were allocated for what */
-		write_current_logf(ALLOC_EXTENT_LOG, "squalloc: oid: %llu, index: %llu, [%llu %llu]",
-				   oid, index, first_allocated, allocated);
+		write_current_logf(ALLOC_EXTENT_LOG,
+				   "sqalloc: oid: %llu, index: %llu, state %d, width: %llu. "
+				   "prot: %llu. got [%llu %llu]",
+				   oid, index, state, width, protected, first_allocated, allocated);
 	} else {
 		/* overwrite */
 		ON_TRACE(TRACE_EXTENT_ALLOC,
