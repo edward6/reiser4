@@ -266,7 +266,6 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 	 * ->safelink() method to do actual work, then delete safe-link on
 	 * success.
 	 */
-
 	inode = reiser4_iget(super, sdkey, 1);
 	if (!IS_ERR(inode)) {
 		file_plugin *fplug;
