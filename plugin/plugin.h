@@ -387,6 +387,9 @@ struct reiser4_plugin_ref {
 	inter_syscall_ra_hint      ra;
 	/** locality id for this file */
 	oid_t                      locality_id;
+#if REISER4_USE_COLLISION_LIMIT
+	int                        max_collisions;
+#endif
 };
 
 struct reiser4_plugin_ops {
@@ -494,29 +497,29 @@ typedef struct plugin_locator {
 
 extern int locate_plugin( struct inode *inode, plugin_locator *loc );
 
-extern reiser4_plugin *plugin_by_type_id( reiser4_plugin_type type_id, 
-					  reiser4_plugin_id id );
+extern reiser4_plugin *plugin_by_id( reiser4_plugin_type type_id, 
+				     reiser4_plugin_id id );
 
-extern reiser4_plugin *plugin_by_disk_type_id( reiser4_tree *tree, 
-					       reiser4_plugin_type type_id, d16 *did );
+extern reiser4_plugin *plugin_by_disk_id( reiser4_tree *tree, 
+					  reiser4_plugin_type type_id, d16 *did );
 
-extern reiser4_plugin *plugin_by_unsafe_type_id( reiser4_plugin_type type_id, 
-						 reiser4_plugin_id id );
+extern reiser4_plugin *plugin_by_unsafe_id( reiser4_plugin_type type_id, 
+					    reiser4_plugin_id id );
 
 #define PLUGIN_BY_ID(TYPE,ID,FIELD)                                                \
 static inline TYPE *TYPE ## _by_id( reiser4_plugin_id id )                         \
 {                                                                                  \
-	reiser4_plugin *plugin = plugin_by_type_id ( ID, id );                     \
+	reiser4_plugin *plugin = plugin_by_id ( ID, id );                     \
 	return plugin ? & plugin -> u.FIELD : NULL;                                \
 }                                                                                  \
 static inline TYPE *TYPE ## _by_disk_id( reiser4_tree *tree, d16 *id )             \
 {                                                                                  \
-	reiser4_plugin *plugin = plugin_by_disk_type_id ( tree, ID, id );          \
+	reiser4_plugin *plugin = plugin_by_disk_id ( tree, ID, id );          \
 	return plugin ? & plugin -> u.FIELD : NULL;                                \
 }                                                                                  \
 static inline TYPE *TYPE ## _by_unsafe_id( reiser4_plugin_id id )                  \
 {                                                                                  \
-	reiser4_plugin *plugin = plugin_by_unsafe_type_id ( ID, id );              \
+	reiser4_plugin *plugin = plugin_by_unsafe_id ( ID, id );              \
 	return plugin ? & plugin -> u.FIELD : NULL;                                \
 }                                                                                  \
 static inline reiser4_plugin* TYPE ## _to_plugin( TYPE* plugin )                   \

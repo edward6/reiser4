@@ -97,14 +97,38 @@
  */
 #define REISER4_MIN_TREE_HEIGHT       (TWIG_LEVEL)
 
+/**
+ * item plugin used by directories by default to store directory entries.
+ */
 #define REISER4_DIR_ITEM_PLUGIN       (CMPND_DIR_ITEM_ID)
 
+/**
+ * start complaining after that many restarts in coord_by_key().
+ *
+ * This either means incredibly heavy contention for this part of a tree, or
+ * some corruption or bug.
+ */
 #define REISER4_CBK_ITERATIONS_LIMIT  (100)
 
 /**
  * read all blocks when one block on the page is read
  */
 #define REISER4_FORMATTED_CLUSTER_READ (0)
+
+/**
+ * put a per-inode limit on maximal number of directory entries with identical
+ * keys in hashed directory.
+ */
+#define REISER4_USE_COLLISION_LIMIT    (1)
+
+/**
+ * global limit on number of directory entries with identical keys in hashed
+ * directory
+ */
+#define REISER4_GLOBAL_COLLISION_LIMIT (1024)
+
+
+
 
 /* Mark function argument as unused to avoid compiler warnings. */
 #define UNUSED_ARG __attribute__( ( unused ) )

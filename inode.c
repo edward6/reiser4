@@ -126,8 +126,24 @@ int is_reiser4_inode( const struct inode *inode )
 int reiser4_max_filename_len( const struct inode *inode )
 {
 	assert( "nikita-287", is_reiser4_inode( inode ) );
+	assert( "nikita-1710", 
+		item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> item_type == 
+		DIR_ENTRY_ITEM_TYPE );
 	return item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> 
 		s.dir.max_name_len( reiser4_blksize( inode -> i_sb ) );
+}
+
+/**
+ * Maximal number of hash collisions for this directory.
+ */
+int reiser4_max_hash_collisions( const struct inode *dir )
+{
+	assert( "nikita-1711", dir != NULL );
+#if REISER4_USE_COLLISION_LIMIT
+	return reiser4_inode_data( dir ) -> plugin.max_collisions;
+#else
+	return ~0;
+#endif
 }
 
 /** return plugin that should be used to create stat-data for this

@@ -31,6 +31,7 @@ extern __u32 *reiser4_inode_flags( const struct inode *inode );
 extern file_plugin *reiser4_get_file_plugin( const struct inode *inode );
 extern dir_plugin *reiser4_get_dir_plugin( const struct inode *inode );
 extern int reiser4_max_filename_len( const struct inode *inode );
+extern int reiser4_max_hash_collisions( const struct inode *dir );
 extern item_plugin *reiser4_get_sd_plugin( const struct inode *inode );
 extern inter_syscall_ra_hint *reiser4_inter_syscall_ra( const struct inode *inode );
 extern void reiser4_lock_inode( struct inode *inode );

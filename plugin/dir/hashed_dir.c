@@ -163,11 +163,12 @@ file_lookup_result hashed_lookup( struct inode *inode /* inode of
 							   * look for */, 
 				  reiser4_key *key /* length of name to
 						    * look for */,
-				  reiser4_dir_entry_desc *entry /* key of object
-							* found */ )
+				  reiser4_dir_entry_desc *entry /* key of
+								 * object
+								 * found */ )
 {
 	int                 result;
-	tree_coord         coord;
+	tree_coord          coord;
 	reiser4_lock_handle lh;
 
 	assert( "nikita-1247", inode != NULL );
@@ -228,6 +229,9 @@ int hashed_add_entry( struct inode *object, struct dentry *where,
 		 * directory item plugin. This should be done in a way
 		 * similar to sd.
 		 */
+		assert( "nikita-1709", 
+			item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> item_type
+			== DIR_ENTRY_ITEM_TYPE );
 		result = item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> 
 			s.dir.add_entry( object, 
 					 &coord, &lh, where, entry );
@@ -292,8 +296,11 @@ static int entry_actor( reiser4_tree *tree,
 typedef struct entry_actor_args {
 	const char  *name;
 	reiser4_key *key;
+#if REISER4_USE_COLLISION_LIMIT
+	int          max_non_uniq;
+	int          non_uniq;
+#endif
 	int          not_found;
-	unsigned     non_uniq;
 } entry_actor_args;
 
 /**
@@ -335,8 +342,10 @@ static int find_entry( const struct inode *dir, const struct qstr *name,
 		arg.name      = name -> name;
 		arg.key       = &entry -> key;
 		arg.not_found = 0;
-		if( REISER4_STATS )
-			arg.non_uniq = 0;
+#if REISER4_USE_COLLISION_LIMIT
+		arg.non_uniq = 0;
+		arg.max_non_uniq = reiser4_max_hash_collisions( dir );
+#endif
 		result = reiser4_iterate_tree( tree_by_inode( dir ), 
 					       coord, lh, entry_actor, &arg, 
 					       mode, 1 );
@@ -366,7 +375,17 @@ static int entry_actor( reiser4_tree *tree UNUSED_ARG, tree_coord *coord,
 	assert( "nikita-1133", entry_actor_arg != NULL );
 
 	args = entry_actor_arg;
-	reiser4_stat_nuniq_max( ++ args -> non_uniq );
+#if REISER4_USE_COLLISION_LIMIT
+	++ args -> non_uniq;
+	reiser4_stat_nuniq_max( ( unsigned ) args -> non_uniq );
+	if( args -> non_uniq > args -> max_non_uniq ) {
+		args -> not_found = 1;
+		/*
+		 * hash collision overflow.
+		 */
+		return -EBUSY;
+	}
+#endif
 	if( keycmp( args -> key, 
 		    unit_key_by_coord( coord, &unit_key ) ) != EQUAL_TO ) {
 		args -> not_found = 1;
