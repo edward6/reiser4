@@ -213,7 +213,7 @@ uid            - plugin of ..acl plugin
 ,              - 
 access         - ..
 /denied        -  value to assign
-)              - end of parametr list
+)              - end of parameter list
 )              - ? unbalanced brakes
 ;
 ..audit        - plugin - file is unknown!
@@ -473,14 +473,14 @@ asynchronous_list
 /* hte ASSIGNMENT operator mast be have a value: bytes to written */
 
 assignment          
-:  Object_Name L_ASSIGN       Expression                { $$ = assign( $1, $3 ); }            /*  <-  direct assigne  */
+:  Object_Name L_ASSIGN       Expression                { $$ = assign( $1, $3 ); }            /*  <-  direct assign  */
 |  Object_Name L_ASSIGN INV_L Expression INV_R          { $$ = assign_invert( $1, $4 ); }     /*  <-  invert assign. destination mast have ..invert method  */
 |  Object_Name L_SYMLINK      Expression                { $$ = symlink( $1, $3 ); }           /*   ->  symlink   */
 
 
 Expression          
 : Object_Name                                           {}
-| op_level assignment ')'                               { $$ = $2; level_down( OP_LEVEL );}   /*  this expresion mast have value of written bytes    */
+| op_level assignment ')'                               { $$ = $2; level_down( OP_LEVEL );}   /*  this expression mast have value of written bytes    */
 | Constant                                              { $$ = $1; }
 | Expression '+' Expression                             { $$ = connect_expression( $1,  $3 ); }
 | Expression EQ Expression                              { $$ = compare_expression( $1, $2, $3 ); }
@@ -531,8 +531,8 @@ else
 Object_Name
 : Object_Path_Name                                      {varco++?}
 | Object_Path_Name SLASH3 range_type                    {varco++?}
-| '[' Unordered_list ']'                                {}                            /* gruping: [name1 name2 [name3]]  */
-| Object_Name ORDERED Object_Name {} /* ordered  rule (Hans want ORDERED is "/", but this is not posible, I keep define it for later ) */
+| '[' Unordered_list ']'                                {}                            /* grouping: [name1 name2 [name3]]  */
+| Object_Name ORDERED Object_Name {} /* ordered  rule (Hans want ORDERED is "/", but this is not possible, I keep define it for later ) */
 ;
 
 
@@ -686,7 +686,7 @@ lexem( struct yy_r4_work_spaces * ws )
 	int lcls;
 	char * s ;
 
-	if ( ( s = insymbol( ws ) ) == NULL ) return(0);                      /* first symbl  */
+	if ( ( s = insymbol( ws ) ) == NULL ) return(0);                      /* first symbol  */
 	
 	while ( ncl[*s] == 6 )
 		{
