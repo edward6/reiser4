@@ -120,7 +120,11 @@ static item_header_40 *node40_ih_at( const znode *node, unsigned pos )
 {
 	return (item_header_40 *)( zdata( node ) + znode_size( node ) ) - pos - 1;
 }
+/* 
 
+( page_address( node -> pg ) + PAGE_CACHE_SIZE ) - pos - 1
+
+ */
 /* Audited by: green(2002.06.12) */
 static inline item_header_40 *node40_ih_at_coord( const coord_t *coord )
 {
@@ -310,7 +314,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 	 *
 	 * Critical here is the notion of "smallness". Reasonable value of
 	 * REISER4_SEQ_SEARCH_BREAK can be found by playing with code in
-	 * fs/reiser4/ulevel.c:test_search().
+	 * fs/reiser4/ulevel/ulevel.c:test_search().
 	 *
 	 * Don't try to further optimize sequential search by scanning from
 	 * right to left in attempt to use more efficient loop termination
@@ -344,8 +348,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 				if( REISER4_NON_UNIQUE_KEYS && found ) {
 					assert( "nikita-1257", left < right );
 					++ left;
-					assert( "nikita-1258", keyeq
-						( __get_key( left ), key ) );
+					assert( "nikita-1258", keyeq( __get_key( left ), key ) );
 				}
 				break;
 			}
