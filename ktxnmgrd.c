@@ -252,7 +252,7 @@ scan_mgr(txn_mgr * mgr)
 		/* Count a spinlock taken without context */
 		spin_ktxnmgrd_inc();
 
-		ret = commit_one_atom(mgr);
+		ret = commit_some_atoms(mgr);
 
 		if (!ret && need_flush(mgr)) {
 			long nr_submitted = 0;

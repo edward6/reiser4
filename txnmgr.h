@@ -325,7 +325,7 @@ extern long txn_end(reiser4_context * context);
 
 extern int txnmgr_force_commit_all(struct super_block *super);
 
-extern int commit_one_atom(txn_mgr *);
+extern int commit_some_atoms(txn_mgr *);
 extern int flush_one_atom(txn_mgr *, long *, int);
 extern int flush_some_atom(long *, int);
 

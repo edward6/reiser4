@@ -1013,7 +1013,7 @@ again:
 
 /* called periodically from ktxnmgrd to commit old atoms. */
 int
-commit_one_atom(txn_mgr * mgr)
+commit_some_atoms(txn_mgr * mgr)
 {
 	int ret = 0;
 	txn_atom *atom;
