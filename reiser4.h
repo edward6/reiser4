@@ -17,7 +17,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    configuration */
 
 /* default number of slots in coord-by-key caches */
-#define CBK_CACHE_SLOTS    (32)
+#define CBK_CACHE_SLOTS    (16)
 /* how many elementary tree operation to carry on the next level */
 #define CARRIES_POOL_SIZE        (5)
 /* size of pool of preallocated nodes for carry process. */
