@@ -2659,10 +2659,6 @@ jnode_lock_parent_coord(jnode         * node,
 	if (jnode_has_parent(node)) {
 		tree_level stop_level = TWIG_LEVEL ;
 		lookup_bias bias = FIND_EXACT;
-		if (jnode_is_cluster_page(node)) {
-			stop_level = LEAF_LEVEL;
-			bias = FIND_MAX_NOT_MORE_THAN;
-		}
 		/* The case when node is not znode, but can have parent coord
 		   (unformatted node, node which represents cluster page, etc..).
 		   Generate a key for the appropriate entry,
@@ -2676,6 +2672,10 @@ jnode_lock_parent_coord(jnode         * node,
 		file_plugin *fplug = inode_file_plugin(ino);
 		loff_t loff = jnode_index(node) << PAGE_CACHE_SHIFT;
 
+		if (jnode_is_cluster_page(node)) {
+			stop_level = LEAF_LEVEL;
+			bias = FIND_MAX_NOT_MORE_THAN;
+		}
 		assert("jmacd-1812", coord != NULL);
 
 		if ((ret = fplug->key_by_inode(ino, loff, &key))) {
