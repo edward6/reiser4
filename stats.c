@@ -530,7 +530,7 @@ reiser4_internal int
 reiser4_populate_kattr_dir(struct kobject * kobj UNUSED_ARG)
 {
 	int result;
-	int i;
+	ON_STATS(int i);
 
 	result = 0;
 #if REISER4_STATS
