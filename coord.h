@@ -76,40 +76,6 @@ static inline sideof sideof_reverse (sideof side)
 /*				    COORD INITIALIZERS                                   */
 /*****************************************************************************************/
 
-/* Hack. */
-/*
-extern void coord_to_tcoord (coord_t *tcoord, const coord_t *ncoord);
-extern void tcoord_to_ncoord (coord_t *ncoord, const coord_t *tcoord);
-*/
-extern int          item_utmost_child_real_block (const coord_t *coord, sideof side, reiser4_block_nr *blk);
-extern int          item_utmost_child            (const coord_t *coord, sideof side, jnode **child);
-extern int          item_is_extent_n             (const coord_t *coord);
-extern int          item_is_internal_n           (const coord_t *coord);
-extern void         item_key_by_ncoord           (const coord_t *coord, reiser4_key *key);
-extern int          item_length_by_ncoord        (const coord_t *coord);
-
-extern znode*       child_znode_n                (const coord_t *coord, int set_delim);
-extern int          cut_node_n                   (coord_t * from, coord_t * to,
-						  const reiser4_key * from_key,
-						  const reiser4_key * to_key,
-						  reiser4_key * smallest_removed, unsigned flags,
-						  znode * left);
-extern int allocate_extent_item_in_place_n       (coord_t * item, reiser4_blocknr_hint * preceder);
-extern int allocate_and_copy_extent_n            (znode * left, coord_t * right,
-						  reiser4_blocknr_hint * preceder,
-						  reiser4_key * stop_key);
-
-extern int   extent_is_allocated_n               (const coord_t *item);
-extern __u64 extent_unit_index_n                 (const coord_t *item);
-extern __u64 extent_unit_width_n                 (const coord_t *item);
-extern void  extent_get_inode_n                  (const coord_t *item, struct inode **inode);
-
-extern int   node_shift_n (znode *pnode, coord_t *coord, znode *snode, sideof side,
-			   int del_right,
-			   int move_coord,
-			   carry_level *todo);
-extern int find_child_ptr_n( znode *parent, znode *child, coord_t *result );
-
 /* Initialize an invalid coordinate. */
 extern void coord_init_invalid (coord_t *coord, znode *node);
 
@@ -241,10 +207,6 @@ extern int coord_is_after_sideof_unit (coord_t *coord, sideof dir);
  * to or after the last (if RIGHT_SIDE) unit of the item. */
 extern int coord_is_delimiting (coord_t *coord, sideof dir);
 
-/* determine how @coord is located w.r.t. its node.
- * FIXME-VS: added by vs (2002, june, 8) */
-extern coord_wrt_node coord_wrt (const coord_t *coord);
-
 /*****************************************************************************************/
 /* 				      COORD MODIFIERS                                    */
 /*****************************************************************************************/
@@ -304,6 +266,13 @@ extern int coord_sideof_unit (coord_t *coord, sideof dir);
 	for( coord_init_before_first_item( ( coord ), ( node ) ) ; 	\
 	     coord_next_item( coord ) == 0 ; )
 
+/*****************************************************************************************/
+/* 				     COORD/ITEM METHODS                                  */
+/*****************************************************************************************/
+
+extern int          item_utmost_child_real_block (const coord_t *coord, sideof side, reiser4_block_nr *blk);
+extern int          item_utmost_child            (const coord_t *coord, sideof side, jnode **child);
+extern int          item_utmost_child_dirty      (const coord_t *coord, sideof side, int *is_dirty);
 
 /* __REISER4_NEW_COORD_H__ */
 #endif
