@@ -340,6 +340,12 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	if ((ret = reiser4_get_right_neighbor (& right_lock, pos->parent_lock.node, ZNODE_WRITE_LOCK, 0))) {
 		/* If -ENAVAIL we are finished (or do we go upward anyway?). */
 		if (ret == -ENAVAIL) { ret = flush_pos_stop (pos); }
+
+		/*
+		 * FIXME-VS: reiser4_get_right_neighbor returns -ENOENT when it
+		 * could not get right neighbor
+		 */
+		if (ret == -ENOENT) { ret = flush_pos_stop (pos); }
 		goto exit;
 	}
 
