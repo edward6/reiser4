@@ -887,7 +887,9 @@ unix_file_writepage_nolock(struct page *page)
 	loaded = lh.node;
 	/* get plugin of extent item */
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
-	result = iplug->s.file.writepage(&key, &hint.coord, page, how_to_write(&hint.coord, &key));
+	result = iplug->s.file.capture(&key,
+				       &hint.coord,
+				       page, how_to_write(&hint.coord, &key));
 	assert("vs-429378", result != -E_REPEAT);
 	zrelse(loaded);
 	done_lh(&lh);
@@ -990,6 +992,14 @@ static int capture_anonymous_page(struct page *pg, int keepme)
 			assert("nikita-3335", jnode_page(node) == pg);
 			result = capture_page_and_create_extent(pg);
 			if (result == 0) {
+				/*
+				 * node will be captured into atom by
+				 * capture_page_and_create_extent(). Atom
+				 * cannot commit (because we have open
+				 * transaction handle), and node cannot be
+				 * truncated, because we have non-exclusive
+				 * access to the file.
+				 */
 				assert("nikita-3327", node->atom != NULL);
 				JF_CLR(node, JNODE_KEEPME);
 				result = 1;
@@ -1036,6 +1046,8 @@ static int capture_anonymous_jnodes(struct inode *inode)
 			jnode *node;
 
 			ef = list_entry(tmp, eflush_node_t, inode_link);
+			if (!ef->hadatom)
+				-- info->eflushed_anon;
 			node = ef->node;
 			/*
 			 * anonymous jnode doesn't have an atom.
