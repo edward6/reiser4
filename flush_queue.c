@@ -929,19 +929,20 @@ writeback_queued_jnodes(struct super_block *s, jnode * node, struct writeback_co
 
 	assert("zam-747", wbc->nr_to_write > 0);
 
-	/* First, we try to get atom we have jnode from, and write dirty
-	   jnodes from atom's flush queues */
-	spin_lock_jnode(node);
-	atom = atom_get_locked_by_jnode(node);
-
-	if (atom != NULL) {
-		if (atom_has_queues_to_write(atom)) {
-			total_est = get_enough_fq(atom, &list_fq_to_write, wbc->nr_to_write);
+	if (node) {
+		/* First, we try to get atom we have jnode from, and write dirty jnodes from atom's flush queues */
+		spin_lock_jnode(node);
+		atom = atom_get_locked_by_jnode(node);
+		
+		if (atom != NULL) {
+			if (atom_has_queues_to_write(atom)) {
+				total_est = get_enough_fq(atom, &list_fq_to_write, wbc->nr_to_write);
+			}
+			spin_unlock_atom(atom);
 		}
-		spin_unlock_atom(atom);
-	}
 
-	spin_unlock_jnode(node);
+		spin_unlock_jnode(node);
+	}
 
 	/* If scanning of one atom was not enough we scan all atoms for flush
 	   queues in proper state */
