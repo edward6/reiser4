@@ -222,13 +222,12 @@ blocknr_set_add_block(txn_atom * atom,
 	return blocknr_set_add(atom, bset, new_bsep, block, NULL);
 }
 
-/* Add a block pair to the block set. */
+/* Add a block pair to the block set. It adds exactly a pair, which is checked
+ * by an assertion that both arguments are not null.*/
 /* Audited by: green(2002.06.11) */
 /* Auditor note: Entire call chain cannot hold any spinlocks, because
    kmalloc might schedule. The only exception is atom spinlock, which is
    properly freed. */
-
-/* ZAM-FIXME-HANS: this function exists in place of a direct call to blocknr_set_add why? */
 int
 blocknr_set_add_pair(txn_atom * atom,
 		     blocknr_set * bset,
