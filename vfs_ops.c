@@ -2338,6 +2338,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	assert("nikita-2257", PagePrivate(page));
 	assert("nikita-2259", PageLocked(page));
+	assert("nikita-2892", !PageWriteback(page));
 	schedulable();
 
 	/* NOTE-NIKITA: this can be called in the context of reiser4 call. It
@@ -2476,9 +2477,13 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 
 	/* work around infinite loop in pdflush->sync_sb_inodes. */
 	/* Problem: ->writepages() is supposed to submit io for the pages from
-	 * ->io_pages list clean this list. */
+	 * ->io_pages list and to clean this list. */
 	mapping->dirtied_when = jiffies|1;
 	list_move(&mapping->host->i_list, &s->s_dirty);
+
+	/* reiser4 has its own means of periodical write-out */
+	if (wbc->for_kupdate)
+		REISER4_EXIT(0);
 
 	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
 	   sys_fsync(). */
