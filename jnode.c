@@ -148,6 +148,12 @@ jnode_init (jnode *node)
 	spin_lock_init (& node->guard);
 	node->atom = NULL;
 	capture_list_clean (node);
+
+#if REISER4_DEBUG
+	spin_lock_tree (current_tree);
+	list_add (&node->jnodes, &get_current_super_private()->all_jnodes);
+	spin_unlock_tree (current_tree);
+#endif
 }
 
 #define jprivate( page ) ( ( jnode * ) ( page ) -> private )
@@ -174,6 +180,9 @@ void jfree (jnode * node)
 {
 	assert ("zam-449", node != NULL);
 
+	assert ("nikita-2422", !list_empty (&node->jnodes));
+
+	ON_DEBUG (list_del_init (&node->jnodes));
 	/*
 	 * poison memory.
 	 */
@@ -258,7 +267,7 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 
 			if (jal == NULL) {
 				spin_unlock_tree (tree);
-				jal = jalloc();
+				jal = jnew();
 
 				if (jal == NULL) {
 					return ERR_PTR(-ENOMEM);
@@ -267,7 +276,6 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 				goto again;
 			}
 
-			jnode_init (jal);
 			jref (jal);
 
 			jal->key.j.mapping = pg->mapping;
@@ -283,8 +291,6 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 			spin_lock_jnode (jal);
 			jnode_attach_page_nolock (jal, pg);
 			spin_unlock_jnode (jal);
-			jnode_set_type (jal, JNODE_UNFORMATTED_BLOCK);
-
 			jal = NULL;
 		}
 	} else
@@ -293,14 +299,6 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 	assert ("nikita-2046", jprivate(pg)->pg == pg);
 	assert ("nikita-2364", jprivate(pg)->key.j.index == pg -> index);
 	assert ("nikita-2365", jprivate(pg)->key.j.mapping == pg -> mapping);
-
-	/* FIXME: This may be called from page_cache.c, read_in_formatted, which
-	 * does is already synchronized under the page lock, but I imagine
-	 * this will get called from other places, in which case the
-	 * jnode_ptr_lock is probably still necessary, unless...
-	 *
-	 * If jnodes are unconditionally assigned at some other point, then
-	 * this interface and lock not needed? */
 
 	if (jal != NULL) {
 		jfree(jal);
@@ -740,6 +738,12 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 	}
 
 	if( atomic_dec_and_test( &node -> d_count ) )
+		/*
+		 * FIXME it is crucial that we first decrement ->d_count and
+		 * only later clear ZNODE_LOADED bit. I hope that
+		 * atomic_dec_and_test() implies memory barrier (and
+		 * optimization barrier, of course).
+		 */
 		JF_CLR( node, ZNODE_LOADED );
 }
 
@@ -888,7 +892,7 @@ jnode_type jnode_get_type( const jnode *node )
 		/* 011 */
 		[ 3 ] = JNODE_LAST_TYPE, /* invalid */
 		/* 100 */
-		[ 4 ] = JNODE_JOURNAL_RECORD,
+		[ 4 ] = JNODE_LAST_TYPE, /* invalid */
 		/* 101 */
 		[ 5 ] = JNODE_LAST_TYPE, /* invalid */
 		/* 110 */
@@ -909,7 +913,6 @@ void jnode_set_type( jnode * node, jnode_type type )
 		[JNODE_UNFORMATTED_BLOCK] = 1,
 		[JNODE_FORMATTED_BLOCK]   = 0,
 		[JNODE_BITMAP]            = 2,
-		[JNODE_JOURNAL_RECORD]    = 4,
 		[JNODE_IO_HEAD]           = 6
 	};
 
@@ -989,6 +992,12 @@ static int no_hook( const jnode *node, struct page *page, int rw )
 	return 1;
 }
 
+static int other_remove_op( jnode *node )
+{
+	jfree( node );
+	return 0;
+}
+
 extern int znode_io_hook( const jnode *node, struct page *page, int rw );
 
 reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
@@ -1042,29 +1051,10 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			},
 			.init    = noparse,
 			.parse   = noparse,
-			.remove  = noparse,
-			.delete  = noparse,
+			.remove  = other_remove_op,
+			.delete  = other_remove_op,
 			.mapping = znode_mapping,
 			.index   = znode_index,
-			.io_hook = no_hook
-		}
-	},
-	[ JNODE_JOURNAL_RECORD ] = {
-		.jnode = {
-			.h = {
-				.type_id = REISER4_JNODE_PLUGIN_TYPE,
-				.id      = JNODE_JOURNAL_RECORD,
-				.pops    = NULL,
-				.label   = "journal record",
-				.desc    = "journal record",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.init    = noparse,
-			.parse   = noparse,
-			.remove  = noparse,
-			.delete  = noparse,
-			.mapping = NULL,
-			.index   = NULL,
 			.io_hook = no_hook
 		}
 	},
@@ -1080,8 +1070,8 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 			},
 			.init    = noparse,
 			.parse   = noparse,
-			.remove  = noparse,
-			.delete  = noparse,
+			.remove  = other_remove_op,
+			.delete  = other_remove_op,
 			.mapping = znode_mapping,
 			.index   = znode_index,
 			.io_hook = no_hook
@@ -1143,8 +1133,6 @@ const char *jnode_type_name( jnode_type type )
 		return "formatted";
 	case JNODE_BITMAP:
 		return "bitmap";
-	case JNODE_JOURNAL_RECORD:
-		return "journal record";
 	case JNODE_IO_HEAD:
 		return "io head";
 	case JNODE_LAST_TYPE:
@@ -1173,7 +1161,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, type: %s, ",
+	info( "%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, type: %s, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, ZNODE_LOADED ),

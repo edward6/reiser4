@@ -239,6 +239,8 @@ void zfree( znode *node /* znode to free */ )
 	assert( "nikita-2301", owners_list_empty( &node -> lock.owners ) );
 	assert( "nikita-2302", requestors_list_empty( &node -> lock.requestors ) );
 
+	ON_DEBUG( list_del( &ZJNODE( node ) -> jnodes ) );
+
 	/*
 	 * poison memory.
 	 */
@@ -303,11 +305,13 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
  ****************************************************************************************/
 
 /** allocate fresh znode */
-/* Audited by: umka (2002.06.11) */
 static znode *zalloc( int gfp_flag /* allocation flag */ )
 {
+	znode *node;
+
 	trace_stamp( TRACE_ZNODES );
-	return kmem_cache_alloc( znode_slab, gfp_flag );
+	node = kmem_cache_alloc( znode_slab, gfp_flag );
+	return node;
 }
 
 /** initialise fields of znode */
@@ -900,6 +904,12 @@ int znode_just_created( const znode *node )
 
 int znode_io_hook( const jnode *node, struct page *page, int rw )
 {
+	return 0;
+
+	/*
+	 * It doesn't work. I don't know why.
+	 */
+
 	if( REISER4_DEBUG && ( rw == WRITE ) && 
 	    ( jnode_get_level( node ) > LEAF_LEVEL ) ) {
 		/* make sure we don't write unallocated pointers to disk */
@@ -1029,6 +1039,10 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 		       !znode_above_root( znode_parent( node ) ), 
 		      atomic_read( &znode_parent( node ) -> c_count ) > 0 ) &&
 
+#if REISER4_DEBUG
+		( (*msg) = "jnodes.prev", node -> zjnode.jnodes.prev != NULL ) &&
+		( (*msg) = "jnodes.next", node -> zjnode.jnodes.next != NULL ) &&
+#endif
 		/*
 		 * Condition 7+: Flags
 		 */

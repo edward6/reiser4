@@ -74,6 +74,10 @@ struct jnode
 
 	/* capture list */
 	capture_list_link capture_link;
+#if REISER4_DEBUG
+	/** list of all jnodes for debugging purposes. */
+	list_t jnodes;
+#endif
 };
 
 TS_LIST_DEFINE(capture,jnode,capture_link);
@@ -121,7 +125,7 @@ typedef enum {
        /* jnode is queued for flushing. */
        ZNODE_FLUSH_QUEUED      = 12,
 
-       /* The jnode is a unformatted node.  False for all znodes.  */
+       /* In the following bits jnode type is encoded. */
        ZNODE_TYPE_1            = 13,
        ZNODE_TYPE_2            = 14,
        ZNODE_TYPE_3            = 15
