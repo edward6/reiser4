@@ -457,21 +457,6 @@ SPIN_LOCK_FUNCTIONS( tree, reiser4_tree, tree_lock );
  */
 SPIN_LOCK_FUNCTIONS( dk, reiser4_tree, dk_lock );
 
-/*
- * ordering constraint for znode spin lock: znode lock is weaker than 
- * tree lock and dk lock
- */
-#define spin_ordering_pred_jnode( node )			\
-	( ( lock_counters() -> spin_locked_tree == 0 ) &&	\
-	  ( lock_counters() -> spin_locked_dk == 0 ) )
-
-/** 
- * Define spin_lock_znode, spin_unlock_znode, and spin_znode_is_locked.
- * Take and release short-term spinlocks.  Don't hold these across
- * io. 
- */
-SPIN_LOCK_FUNCTIONS(jnode,jnode,guard);
-
 /* __REISER4_TREE_H__ */
 #endif
 

@@ -544,35 +544,28 @@ extern void  jnode_init      (jnode *node);
 extern void  jnode_set_dirty (jnode *node);
 extern void  jnode_set_clean (jnode *node);
 
+#if REISER4_DEBUG
+void info_jnode( const char *prefix, const jnode *node );
+#endif
+
 /* Similar to zref() and zput() for jnodes, calls those routines if the node is formatted. */
 extern jnode *jref( jnode *node );
 extern void   jput( jnode *node );
 
-/** get the level field for a jnode */
-static inline tree_level jnode_get_level (const jnode *node)
-{
-	return node->level;
-}
+/*
+ * ordering constraint for znode spin lock: znode lock is weaker than 
+ * tree lock and dk lock
+ */
+#define spin_ordering_pred_jnode( node )			\
+	( ( lock_counters() -> spin_locked_tree == 0 ) &&	\
+	  ( lock_counters() -> spin_locked_dk == 0 ) )
 
-/** set the level field for a jnode */
-static inline void jnode_set_level (jnode      *node,
-				    tree_level  level)
-{
-	assert ("jmacd-1161", level < 32);
-	node->level = level;
-}
-
-/** return true if "node" is dirty */
-static inline int jnode_is_dirty( const jnode *node )
-{
-	assert( "nikita-782", node != NULL );
-	return JF_ISSET( node, ZNODE_DIRTY );
-}
-
-static inline int jnode_is_unformatted( const jnode *node)
-{
-	return JF_ISSET (node, ZNODE_UNFORMATTED);
-}
+/** 
+ * Define spin_lock_znode, spin_unlock_znode, and spin_znode_is_locked.
+ * Take and release short-term spinlocks.  Don't hold these across
+ * io. 
+ */
+SPIN_LOCK_FUNCTIONS(jnode,jnode,guard);
 
 /* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
  * doesn't allow overloading of const prototypes. */
@@ -594,9 +587,40 @@ static inline int jnode_is_unformatted( const jnode *node)
 #define spin_znode_is_locked(x)     spin_jnode_is_locked ( ZJNODE(x) )
 #define spin_znode_is_not_locked(x) spin_jnode_is_not_locked ( ZJNODE(x) )
 
-#if REISER4_DEBUG
-void info_jnode( const char *prefix, const jnode *node );
-#endif
+/** get the level field for a jnode */
+static inline tree_level jnode_get_level (const jnode *node)
+{
+	return node->level;
+}
+
+/** set the level field for a jnode */
+static inline void jnode_set_level (jnode      *node,
+				    tree_level  level)
+{
+	assert ("jmacd-1161", level < 32);
+	node->level = level;
+}
+
+/* returns true if node is formatted, i.e, it's not a znode */
+static inline int jnode_is_unformatted( const jnode *node)
+{
+	return JF_ISSET (node, ZNODE_UNFORMATTED);
+}
+
+/* returns true if node is formatted, i.e, it's a znode */
+static inline int jnode_is_formatted( const jnode *node)
+{
+	return ! JF_ISSET (node, ZNODE_UNFORMATTED);
+}
+
+/** return true if "node" is dirty */
+static inline int jnode_is_dirty( jnode *node )
+{
+	assert( "nikita-782", node != NULL );
+	assert( "jmacd-1800", spin_jnode_is_locked (node) || (jnode_is_formatted (node) && znode_is_any_locked (JZNODE (node))));
+	return JF_ISSET( node, ZNODE_DIRTY );
+}
+
 
 /* __ZNODE_H__ */
 #endif

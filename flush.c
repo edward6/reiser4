@@ -106,13 +106,18 @@ submanagers should be employed.
 
 #include "reiser4.h"
 
-static void slum_scan_init             (slum_scan *scan);
-static void slum_scan_cleanup          (slum_scan *scan);
-static int  slum_scan_left_finished    (slum_scan *scan);
-static int  slum_scan_left_extent      (slum_scan *scan, jnode *node);
-static int  slum_scan_left_formatted   (slum_scan *scan, znode *node);
-static void slum_scan_set_current      (slum_scan *scan, jnode *node);
-static int  slum_scan_left             (slum_scan *scan, jnode *node);
+static void          slum_scan_init               (slum_scan *scan);
+static void          slum_scan_cleanup            (slum_scan *scan);
+static int           slum_scan_left_finished      (slum_scan *scan);
+static int           slum_scan_left_extent        (slum_scan *scan, jnode *node);
+static int           slum_scan_left_formatted     (slum_scan *scan, znode *node);
+static void          slum_scan_set_current        (slum_scan *scan, jnode *node);
+static int           slum_scan_left               (slum_scan *scan, jnode *node);
+static int           slum_allocate                (slum_scan *scan);
+static int           jnode_lock_parent_coord      (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock_handle *parent_lh, tree_coord *coord);
+static int           jnode_is_allocated           (jnode *node);
+static jnode*        jnode_get_neighbor_in_memory (jnode *node UNUSED_ARG, unsigned long node_index UNUSED_ARG);
+static unsigned long jnode_get_index              (jnode *node);
 
 /* Perform encryption, allocate-on-flush, and squeezing-left of slums. */
 int flush_jnode_slum (jnode *node)
@@ -127,21 +132,167 @@ int flush_jnode_slum (jnode *node)
 
 	/* Scan the slum. */
 	if ((ret = slum_scan_left (& scan, node))) {
-		slum_scan_cleanup (& scan);
-		return ret;
+		goto failed;		
 	}
 
-	slum_scan_cleanup (& scan);
-	
-	/* Get the leftmost node lock. */
-	/*spin_lock_jnode (scan->node);*/
-	/*if ((ret = slum_scan_right ())) {}*/
+	/* Allocate upward, rightward, squeeze. */
+	if ((ret = slum_allocate (& scan))) {
+		goto failed;
+	}
 
 	/* Squeeze, allocate, encrypt, and flush the slum. */
 	     
 	/* The txnmgr expects this to clean the node.  (i.e., move it to the
 	 * clean list).  That's all this does for now. */
 	jnode_set_clean (node);
+	ret = 0;
+
+   failed:
+
+	slum_scan_cleanup (& scan);
+	return ret;
+}
+
+/********************************************************************************
+ * SLUM ALLOCATE
+ ********************************************************************************/
+
+/* Beginning at scan->node, lock parents until clean or allocated, and
+ * allocate on the way back down. */
+static int slum_allocate_ancestors (slum_scan *scan, reiser4_lock_handle *locks)
+{
+	int ret;
+	int start_level = jnode_get_level (scan->node);
+	int ancestor_level;
+	tree_coord coord;
+	znode *ancestor;
+
+	/* Lock the first level above the node, and possibly also the node (if
+	 * it's formatted) */
+	if ((ret = jnode_lock_parent_coord (scan->node, & locks[start_level], & locks[start_level+1], & coord))) {
+		return ret;
+	}
+
+	ancestor_level = start_level+1;
+	ancestor       = locks[ancestor_level].node;
+
+	/* Lock upwards until we find a either an allocated node or a clean node */
+	while (znode_is_dirty (ancestor) && ! jnode_is_allocated (ZJNODE (ancestor))) {
+
+		ancestor_level += 1;
+
+		if ((ret = reiser4_get_parent (& locks[ancestor_level], ancestor, ZNODE_READ_LOCK, 1))) {
+			return ret;
+		}
+
+		ancestor = locks[ancestor_level].node;
+	}
+
+	/* FIXME_JMACD: HERE: extent handle is special, I think, otherwise
+	 * release the last ancestor lock aquired.  allocate the remaining
+	 * ancestors in top-down order. */
+
+	/* The last lock is not needed.  Root special case? */
+	reiser4_done_lh (& locks[ancestor_level--]);
+
+	for (; ancestor_level > start_level; ancestor_level -= 1) {
+		/* allocate it, unlock it */
+	}
+
+	/* left at start_level: now scan right, allocate */
+
+	/* what about squeeze? */
+
+	return 0;
+}
+
+/* NO COMMENTS YET BECAUSE I DON'T KNOW WHAT I'M DOING */
+static int slum_allocate (slum_scan *scan)
+{
+	int ret, i;
+
+	/* Per-level locks. */
+	reiser4_lock_handle locks[REISER4_MAX_ZTREE_HEIGHT];
+
+	for (i = 0; i < REISER4_MAX_ZTREE_HEIGHT; i += 1) {
+		reiser4_init_lh (& locks[i]);
+	}
+
+	/* Step 1: go upward until clean or allocated, and allocate on the way back down. */
+	if ((ret = slum_allocate_ancestors (scan, locks))) {
+		goto fail;
+	}
+
+	ret = 0;
+
+	/* ... */
+ fail:
+
+	for (i = 0; i < REISER4_MAX_ZTREE_HEIGHT; i += 1) {
+		reiser4_done_lh (& locks[i]);
+	}
+	
+	return 0;
+}
+
+/********************************************************************************
+ * SLUM JNODE INTERFACE
+ ********************************************************************************/
+
+/* Gets the sibling of an unformatted jnode using its index, only if it is in memory, and
+ * reference it. */
+static jnode* jnode_get_neighbor_in_memory (jnode *node UNUSED_ARG, unsigned long node_index UNUSED_ARG)
+{
+	/* FIXME_JMACD: jref (), consult with vs. */
+	not_yet ("jmacd-1700", "");
+	return NULL;
+}
+
+/* Get the index of a block. */
+static unsigned long jnode_get_index (jnode *node)
+{
+	not_yet ("jmacd-1700", "");
+	return node->pg->index;
+}
+
+/* return true if "node" is allocated */
+static int jnode_is_allocated (jnode *node UNUSED_ARG)
+{
+	/* FIXME_JMACD: */
+	return 1;
+}
+
+/* Lock a node (if formatted) and then get its parent of a jnode locked, get
+ * the coordinate. */
+static int
+jnode_lock_parent_coord (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock_handle *parent_lh, tree_coord *coord)
+{
+	int ret;
+
+	if (jnode_is_unformatted (node)) {
+
+		/* FIXME_JMACD: how do we do this? */
+		not_yet ("jmacd-1700", "");
+
+	} else {
+		/* Formatted node case: */ 
+
+		/* Lock the node itself, which is necessary for getting its
+		 * parent (FIXME_JMACD: not sure why, LOPRI correct?). */
+		if ((ret = reiser4_lock_znode (node_lh, JZNODE (node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+			return ret;
+		}
+
+		/* Get the parent read locked. */
+		if ((ret = reiser4_get_parent (parent_lh, JZNODE (node), ZNODE_READ_LOCK, 1))) {
+			return ret;
+		}
+
+		/* Make the child's position "hint" up-to-date. */
+		if ((ret = find_child_ptr (parent_lh->node, JZNODE (node), coord))) {
+			return ret;
+		}
+	}
 
 	return 0;
 }
@@ -157,8 +308,11 @@ static void slum_scan_init (slum_scan *scan)
 }
 
 /* Release any resources held by the slum scan, e.g., release locks, free memory, etc. */
-static void slum_scan_cleanup (slum_scan *scan UNUSED_ARG)
+static void slum_scan_cleanup (slum_scan *scan)
 {
+	if (scan->node != NULL) {
+		jput (scan->node);
+	}
 }
 
 /* Returns true if leftward slum scanning is finished. */
@@ -200,34 +354,6 @@ static void slum_scan_set_current (slum_scan *scan, jnode *node)
 	scan->node  = node;
 }
 
-/* Gets the sibling of an unformatted jnode using its index, only if it is in memory, and
- * reference it. */
-static jnode*
-jnode_get_neighbor_in_memory (jnode *node UNUSED_ARG, unsigned long node_index UNUSED_ARG)
-{
-	/* FIXME_JMACD: jref (), consult with vs. */
-	not_yet ("jmacd-1700", "");
-	return NULL;
-}
-
-/* Get the parent znode and coordinate of a jnode, with parent read-locked. */
-static int
-jnode_get_parent_coord_locked (jnode *node UNUSED_ARG, reiser4_lock_handle *lh UNUSED_ARG,
-			       tree_coord *coord UNUSED_ARG)
-{
-	/* FIXME_JMACD: how do we do this? */
-	not_yet ("jmacd-1700", "");
-	return 0;
-}
-
-/* Get the index of a block. */
-static unsigned long
-jnode_get_index (jnode *node)
-{
-	not_yet ("jmacd-1700", "");
-	return node->pg->index;
-}
-
 /* Perform a single leftward step using the parent, finding the next-left item, and
  * descending.  Only used at the left-boundary of an extent or range of znodes. */
 static int slum_scan_left_using_parent (slum_scan *scan)
@@ -245,37 +371,13 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 	reiser4_init_lh    (& parent_lh);
 	reiser4_init_lh    (& left_parent_lh);
 
-	if (jnode_is_unformatted (scan->node)) {
-
-		jnode *node = scan->node;
-
-		/* Get the parent. */
-		if ((ret = jnode_get_parent_coord_locked (node, & parent_lh, & coord))) {
-			goto done;
-		}
-
-	} else {
-		/* Formatted node case: */
-		znode *node = JZNODE (scan->node);
-
-		/* Lock the node itself, which is necessary for getting its parent (FIXME_JMACD: not sure why). */
-		if ((ret = reiser4_lock_znode (& node_lh, node, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
-			goto done;
-		}
-
-		/* Get the parent read locked. */
-		if ((ret = reiser4_get_parent (& parent_lh, node, ZNODE_READ_LOCK, 1))) {
-			goto done;
-		}
-
-		/* Make the child's position "hint" up-to-date. */
-		if ((ret = find_child_ptr (parent_lh.node, node, & coord))) {
-			goto done;
-		}
-		/* Finished with the node lock. */
-		reiser4_done_lh (& node_lh);
+	if ((ret = jnode_lock_parent_coord (scan->node, & node_lh, & parent_lh, & coord))) {
+		goto done;
 	}
 
+	/* Finished with the node lock. */
+	reiser4_done_lh (& node_lh);
+	
 	/* Shift the coord to the left. */
 	if ((ret = coord_prev (& coord)) != 0) {
 		/* If coord_prev returns 1, coord is already leftmost of its node. */

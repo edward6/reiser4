@@ -45,7 +45,7 @@ int reiser4_get_parent (reiser4_lock_handle * result /* empty (uninitialized)
 			znode * node /* original node we start locking from */,
 			int mode /* lock mode {ZNODE_READ_LOCK,
 				  * ZNODE_WRITE_LOCK}. */, 
-			int only_connected_p /* FIXME_ZAM/NIKITA: docuemnt me! */);
+			int only_connected_p /* FIXME_ZAM/NIKITA: docuemnt me!  Please! */);
 
 
 /* bits definition for reiser4_get_neighbor function `flags' arg. */

@@ -951,7 +951,7 @@ void jnode_set_dirty( jnode *node )
 
 	spin_lock_jnode (node);
 
-	if (! JF_ISSET (node, ZNODE_DIRTY)) {
+	if (! jnode_is_dirty (node)) {
 
 		JF_SET (node, ZNODE_DIRTY);
 
@@ -984,7 +984,7 @@ void jnode_set_clean( jnode *node )
 
 	spin_lock_jnode (node);
 
-	if (JF_ISSET (node, ZNODE_DIRTY)) {
+	if (jnode_is_dirty (node)) {
 
 		JF_CLR (node, ZNODE_DIRTY);
 

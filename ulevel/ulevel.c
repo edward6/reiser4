@@ -1361,6 +1361,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( kcondvar_t );
 		STYPE( spinlock_t );
 		STYPE( reiser4_zlock );
+		STYPE( reiser4_lock_handle );
 		STYPE( tree_coord );
 	} else if( !strcmp( argv[ 2 ], "binseq" ) ) {
 		if( argc == 4 )
