@@ -18,11 +18,12 @@ TYPE_SAFE_LIST_DECLARE(wbq);
 
 /* write-back request. */
 struct wbq {
+	wbq_list_link link;
 	struct writeback_control * wbc;
 	struct page * page;
 	struct semaphore sem;
-	wbq_list_link link;
-}; 
+	int    nr_entd_iters;
+};
 
 typedef struct entd_context {
 	kcond_t             startup;
@@ -31,7 +32,6 @@ typedef struct entd_context {
 	spinlock_t          guard;
 	struct task_struct *tsk;
 	int                 done;
-	int                 rerun;
 	unsigned long       last_flush;
 	int                 flushers;
 	unsigned long       timeout;
