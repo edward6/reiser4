@@ -116,6 +116,18 @@ int balance_level_slum (slum_scan *scan)
 		 * solution.  Capturing after the lock request leads to
 		 * blocking with a lock held -- to be avoided for reasons
 		 * discussed at the top of lock.c
+		 *
+		 * FIXME-NIKITA initially line below read just
+		 *
+		 * source = frontier->right;
+		 *
+		 * Some reason to change it to the long term lock came after
+		 * discussing with Josh, but details escape my memory right
+		 * now. Maybe something related to the possibility of new
+		 * nodes being concurrently inserted between @frontier and
+		 * @source once tree lock is released, or something close to
+		 * this.
+		 *
 		 */
 		result = reiser4_get_right_neighbor (source_lh, frontier, 
 						     ZNODE_WRITE_LOCK, 0);
