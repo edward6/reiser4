@@ -357,17 +357,18 @@ reiser4_fsync(struct file *file UNUSED_ARG,
 }
 
 struct file_operations reiser4_file_operations = {
-	.llseek  = reiser4_llseek,	/* d */
-	.read    = reiser4_read,	/* d */
-	.write   = reiser4_write,	/* d */
-	.readdir = reiser4_readdir,	/* d */
+	.llseek   = reiser4_llseek,	/* d */
+	.read     = reiser4_read,	/* d */
+	.write    = reiser4_write,	/* d */
+	.readdir  = reiser4_readdir,	/* d */
 /* 	.poll              = reiser4_poll, */
-	.ioctl   = reiser4_ioctl,
-	.mmap    = reiser4_mmap,	/* d */
+	.ioctl    = reiser4_ioctl,
+	.mmap     = reiser4_mmap,	/* d */
  	.open              = reiser4_open,
 /* 	.flush             = reiser4_flush, */
-	.release = reiser4_release,	/* d */
- 	.fsync   = reiser4_fsync        /* d */,
+	.release  = reiser4_release,	/* d */
+ 	.fsync    = reiser4_fsync        /* d */,
+	.sendfile = generic_file_sendfile,
 /* 	.fasync            = reiser4_fasync, */
 /* 	.lock              = reiser4_lock, */
 /* 	.readv             = reiser4_readv, */
