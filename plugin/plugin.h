@@ -482,7 +482,6 @@ struct jnode_plugin {
 	int (*parse) (jnode * node);
 	struct address_space *(*mapping) (const jnode * node);
 	unsigned long (*index) (const jnode * node);
-	int (*io_hook) (jnode * node, struct page * page, int rw);
 	jnode *(*clone) (jnode * node);
 };
 
