@@ -433,6 +433,9 @@ int setattr_cryptcompress(struct inode *, struct iattr *);
 void readpages_cryptcompress(struct file *, struct address_space *, struct list_head *pages);
 void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_cryptcompress(struct inode *);
+int cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
+				  const reiser4_key * to_key, reiser4_key * smallest_removed,
+				  struct inode * object);
 void hint_init_zero(hint_t *);
 void destroy_inode_cryptcompress(struct inode * inode);
 int crc_inode_ok(struct inode * inode);
