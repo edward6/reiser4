@@ -421,7 +421,7 @@ extern void set_rapid_flush_mode(int);
 #define set_rapid_flush_mode(on) do{}while(0)
 #endif
 
-extern int same_atom_dirty(jnode * base, jnode * check, int alloc_check, int alloc_value);
+extern int same_slum_check(jnode * base, jnode * check, int alloc_check, int alloc_value);
 extern void atom_dec_and_unlock(txn_atom * atom);
 
 extern txn_capture build_capture_mode(jnode           * node, 
@@ -566,8 +566,11 @@ struct flush_queue {
 	/* ZAM-FIXME-HANS: can you use a better name */
 	/* A semaphore for waiting on i/o completion */
 	struct semaphore sema;
-/* ZAM-FIXME-HANS: comment */
-	void *owner;
+#if REISER4_DEBUG
+	/* A thread which took this fq in exclusive use, NULL if fq is free,
+	 * used for debugging. */
+	struct task_struct *owner;
+#endif
 };
 
 extern int fq_by_atom(txn_atom *, flush_queue_t **);
@@ -583,7 +586,7 @@ extern void init_atom_fq_parts(txn_atom *);
 extern unsigned int txnmgr_get_max_atom_size(struct super_block *super);
 
 extern void znode_make_dirty(znode * node);
-extern void unformatted_jnode_make_dirty(jnode * node);
+extern void jnode_make_dirty_locked(jnode * node);
 
 #if REISER4_DEBUG
 extern int atom_fq_parts_are_clean (txn_atom *);
