@@ -170,6 +170,7 @@ extern void inode_set_plugin(struct inode *inode, reiser4_plugin * plug);
 extern void reiser4_make_bad_inode(struct inode *inode);
 
 extern void inode_set_extension(struct inode *inode, sd_ext_bits ext);
+extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
 
 static inline readdir_list_head *
 get_readdir_list(const struct inode *inode)

@@ -179,6 +179,7 @@ SRC		:= \
 		   flush_queue.c \
 		   emergency_flush.c \
 		   scint.c \
+		   dscale.c \
 		   estimate.c \
 		   ioctl.c \
 		   ktxnmgrd.c

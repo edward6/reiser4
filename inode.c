@@ -8,6 +8,7 @@
 #include "kassign.h"
 #include "coord.h"
 #include "seal.h"
+#include "dscale.h"
 #include "plugin/item/item.h"
 #include "plugin/security/perm.h"
 #include "plugin/plugin.h"
@@ -536,6 +537,16 @@ inode_set_plugin(struct inode *inode, reiser4_plugin * plug)
 
 	reiser4_inode_data(inode)->plugin_mask |= (1 << plug->h.type_id);
 	inode_set_extension(inode, PLUGIN_STAT);
+}
+
+void
+inode_check_scale(struct inode *inode, __u64 old, __u64 new)
+{
+	assert("nikita-2875", inode != NULL);
+	spin_lock_inode(inode);
+	if (!dscale_fit(old, new))
+		inode_clr_flag(inode, REISER4_SDLEN_KNOWN);
+	spin_unlock_inode(inode);
 }
 
 #if REISER4_DEBUG_OUTPUT
