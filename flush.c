@@ -137,14 +137,14 @@ int flush_jnode_slum (jnode *node)
 	}
 
 	/* Lock the left edge of the slum, if it's formatted. */
-	if (jnode_is_formatted (scan.node) &&
+	if (0 && jnode_is_formatted (scan.node) &&
 	    (ret = reiser4_lock_znode (& node_lock, JZNODE (scan.node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
 		goto failed;
 	}
 
 	/* Allocate upward, squeeze, allocate any nodes that are immedately
 	 * before scan.node in pre-order. */
-	if ((ret = slum_allocate_left_edge_ancestors (scan.node))) {
+	if (0 && (ret = slum_allocate_left_edge_ancestors (scan.node))) {
 		goto failed;
 	}
 
