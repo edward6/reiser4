@@ -25,7 +25,7 @@
 
 typedef struct parent_coord {
 	znode       *node;
-	pos_in_node  item_pos;
+	pos_in_node_t  item_pos;
 } parent_coord_t;
 
 /* &znode - node in a reiser4 tree.
