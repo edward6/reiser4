@@ -1120,7 +1120,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 	coord_t left_coord;
 	znode * left_child;
 	znode * right_child;
-	int left_zloaded_here;
+	int left_zloaded_here, right_zloaded_here;
 
 
 	assert ("umka-326", from != NULL);
@@ -1140,6 +1140,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 	}
 
 	left_zloaded_here = 0;
+	right_zloaded_here = 0;
 
 	coord_dup (&left_coord, from);
 	init_lh (&left_lh);
@@ -1166,8 +1167,10 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 
 			/* we have acquired left neighbor of from->node */
 			result = zload (left_lh.node);
-			if (result)
+			if (result) {
+				done_lh (&left_lh);
 				return result;
+			}
 			left_zloaded_here = 1;
 			coord_init_last_unit (&left_coord, left_lh.node);
 		} else {
@@ -1221,6 +1224,15 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 							     GN_DO_READ);
 			switch (result) {
 			case 0:
+				result = zload (right_lh.node);
+				if (result) {
+					done_lh (&right_lh);
+					if (left_zloaded_here)
+						zrelse (left_lh.node);
+					done_lh (&left_lh);
+					return result;
+				}
+				right_zloaded_here = 1;
 				coord_init_first_unit (&right_coord, right_lh.node);
 				item_key_by_coord (&right_coord, &key);
 				break;
@@ -1256,6 +1268,8 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 			spin_unlock_dk (current_tree);
 
 			if (IS_ERR (right_child)) {
+				if (right_zloaded_here)
+					zrelse (right_lh.node);
 				done_lh (&right_lh);
 				if (left_zloaded_here)
 					zrelse (left_lh.node);
@@ -1270,10 +1284,13 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 
 			zput (right_child);
 		}
+		if (right_zloaded_here)
+			zrelse (right_lh.node);
 		done_lh (&right_lh);
 
 	} else {
-		/* calculate right delimiting key */
+		/* only head of item @to is removed. calculate new item key, it
+		 * will be used to set right delimiting key of "left child" */
 		key = *to_key;
 		set_key_offset (&key, get_key_offset (&key) + 1);
 		assert ("vs-608", (get_key_offset (&key) & 
