@@ -340,7 +340,7 @@ reiser4_internal int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 
 	/* lookup until page is filled up. */
 	for (mapped = 0; mapped < PAGE_CACHE_SIZE; mapped += count) {
-		void *pagedata;
+		char *pagedata;
 
 		/* number of bytes to be copied to page. */
 		count = item_length_by_coord(&coord) - coord.unit_pos;
@@ -352,7 +352,7 @@ reiser4_internal int do_readpage_tail(uf_coord_t *uf_coord, struct page *page) {
 		pagedata = kmap_atomic(page, KM_USER0);
 
 		/* copying tail body to page. */
-		xmemcpy((char *)(pagedata + mapped),
+		xmemcpy(pagedata + mapped,
 			((char *)item_body_by_coord(&coord) + coord.unit_pos), count);
 
 		flush_dcache_page(page);

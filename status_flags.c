@@ -72,16 +72,16 @@ reiser4_internal int reiser4_status_init(reiser4_block_nr block)
 		return -EIO;
 	}
 
-	statuspage = kmap_atomic(page, KM_USER0);
+	statuspage = (struct reiser4_status *)kmap_atomic(page, KM_USER0);
 	if ( memcmp( statuspage->magic, REISER4_STATUS_MAGIC, sizeof(REISER4_STATUS_MAGIC)) ) {
 		/* Magic does not match. */
-		kunmap_atomic(statuspage, KM_USER0);
+		kunmap_atomic((char *)statuspage, KM_USER0);
 		warning("green-2008", "Wrong magic in status block\n");
 		__free_pages(page, 0);
 		bio_put(bio);
 		return -EINVAL;
 	}
-	kunmap_atomic(statuspage, KM_USER0);
+	kunmap_atomic((char *)statuspage, KM_USER0);
 
 	get_super_private(sb)->status_page = page;
 	get_super_private(sb)->status_bio = bio;
@@ -100,7 +100,8 @@ reiser4_internal int reiser4_status_query(u64 *status, u64 *extended)
 	if ( !get_super_private(sb)->status_page ) { // No status page?
 		return REISER4_STATUS_MOUNT_UNKNOWN;
 	}
-	statuspage = kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
+	statuspage = (struct reiser4_status *)
+		kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
 	switch ( (long)d64tocpu(&statuspage->status) ) { // FIXME: this cast is a hack for 32 bit arches to work.
 	case REISER4_STATUS_OK:
 		retval = REISER4_STATUS_MOUNT_OK;
@@ -123,7 +124,7 @@ reiser4_internal int reiser4_status_query(u64 *status, u64 *extended)
 	if ( extended )
 		*extended = d64tocpu(&statuspage->extended_status);
 
-	kunmap_atomic(statuspage, KM_USER0);
+	kunmap_atomic((char *)statuspage, KM_USER0);
 	return retval;
 }
 
@@ -139,7 +140,8 @@ reiser4_status_write(u64 status, u64 extended_status, char *message)
 	if ( !get_super_private(sb)->status_page ) { // No status page?
 		return -1;
 	}
-	statuspage = kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
+	statuspage = (struct reiser4_status *)
+		kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
 
 	cputod64(status, &statuspage->status);
 	cputod64(extended_status, &statuspage->extended_status);
@@ -163,7 +165,7 @@ reiser4_status_write(u64 status, u64 extended_status, char *message)
 
 #undef GETFRAME
 #endif
-	kunmap_atomic(statuspage, KM_USER0);
+	kunmap_atomic((char *)statuspage, KM_USER0);
 	bio->bi_bdev = sb->s_bdev;
 	bio->bi_io_vec[0].bv_page = get_super_private(sb)->status_page;
 	bio->bi_io_vec[0].bv_len = sb->s_blocksize;
