@@ -192,7 +192,7 @@ static count_t file_len(
     memset(&st, 0, sizeof(st));
     
     if (fstat(*((int *)device->entity), &st) >= 0)
-	return (count_t)(st.st_size / (device->blocksize / 512));
+	return (count_t)(st.st_size / device->blocksize);
 
     save_error(device);
     return 0;
