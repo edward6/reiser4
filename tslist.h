@@ -102,7 +102,7 @@ struct _##PREFIX##_list_head                                                    
   PREFIX##_list_link *_prev;                                                                  \
 }
 
-/* Step 3: Once you have defined the two list classes, you should
+/* Step 2: Once you have defined the two list classes, you should
  * define the item type you intend to use.  The list classes must be
  * declared before the item type because the item type must contain an
  * embedded "list link" object.  Following the example, you might define
@@ -121,7 +121,7 @@ struct _##PREFIX##_list_head                                                    
  * the appropriate type.
  */
 
-/* Step 4: The final step will define the list-functions for a
+/* Step 3: The final step will define the list-functions for a
  * specific list class using the macro TS_LIST_DEFINE.  There are
  * three arguments to the TS_LIST_DEFINE macro: the prefix-name, the
  * item type name, and field name of the "list link" element within
@@ -390,7 +390,6 @@ typedef struct { int foo; } PREFIX##_dummy_decl
 #endif /* __REISER4_TSLIST_H__ */
 
 /*
- * Make Linus happy.
  * Local variables:
  * c-indentation-style: "K&R"
  * mode-name: "LC"

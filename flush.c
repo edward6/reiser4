@@ -325,7 +325,12 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		}
 	}
 
-	if (ret == -EINVAL || ret == -EDEADLK || ret == -ENAVAIL || ret == -ENOENT) {
+	if (ret == -EINVAL || ret == -EDEADLK || ret == -ENAVAIL /*|| ret == -ENOENT
+								  * commented out because
+								  * find_child_ptr returns
+								  * -ENOENT when there is
+								  * no matching child ptr,
+								  * corruption? */) {
 		/* Something bad happened, but difficult to avoid...  Try again! */
 		trace_on (TRACE_FLUSH, "flush restartable failure: %d\n", ret);
 		ret = 0;
