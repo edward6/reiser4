@@ -276,6 +276,9 @@ void jnode_lockprof_hook(const jnode *node)
 }
 #endif
 
+static void
+jnode_attach_page(jnode * node, struct page *pg);
+
 /* jget() (a la zget() but for unformatted nodes). Returns (and possibly
    creates) jnode corresponding to page @pg. jnode is attached to page and
    inserted into jnode hash-table. */
@@ -346,7 +349,7 @@ again:
 	assert("nikita-2367", jprivate(pg)->key.j.mapping == pg->mapping);
 	assert("nikita-2365", jprivate(pg)->key.j.objectid == oid);
 	assert("vs-1200", jprivate(pg)->key.j.objectid == pg->mapping->host->i_ino);
-	assert("nikita-2356", jnode_get_type(jnode_by_page(pg)) == JNODE_UNFORMATTED_BLOCK);
+	assert("nikita-2356", jnode_is_unformatted(jnode_by_page(pg)));
 	assert("nikita-2956", jnode_invariant(jprivate(pg), 0, 0));
 
 	if (jal != NULL) {
@@ -401,7 +404,7 @@ next_jnode(jnode * node UNUSED_ARG)
 }
 
 
-void
+static void
 jnode_attach_page(jnode * node, struct page *pg)
 {
 	assert("nikita-2060", node != NULL);
@@ -435,6 +438,7 @@ page_clear_jnode(struct page *page, jnode * node)
 	page_cache_release(page);
 }
 
+/* it is only used in one place to handle error */
 void
 page_detach_jnode(struct page *page, struct address_space *mapping, unsigned long index)
 {
