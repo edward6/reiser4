@@ -10,6 +10,12 @@ typedef struct ctail_item_format {
 	d8 body[0];
 } __attribute__((packed)) ctail_item_format;
 
+typedef struct ctail_squeeze_info {
+	struct inode * inode;
+	reiser4_cluster_t * clust;
+	flow_t flow;
+} ctail_squeeze_info_t;
+
 #define CTAIL_MIN_BODY_SIZE MIN_CRYPTO_BLOCKSIZE  
 
 #define list_to_page(head) (list_entry((head)->prev, struct page, list))
@@ -31,7 +37,7 @@ int cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 /*int check_check(const coord_t * coord, const char **error);*/
 
 /* plugin->u.item.s.* */
-int write_ctail(struct inode *, flow_t *, hint_t *, int, write_mode_t);
+int write_ctail(flow_t *, coord_t *, lock_handle *, int, crc_write_mode_t);
 int read_ctail(struct file *, flow_t *, uf_coord_t *);
 int readpage_ctail(void *, struct page *);
 int writepage_ctail(reiser4_key *, uf_coord_t *, struct page *, write_mode_t);
@@ -39,6 +45,7 @@ void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
 
 /* plugin->u.item.f */
+int utmost_child_ctail(const coord_t *, sideof, jnode **);
 int scan_ctail(flush_scan *, const coord_t *);
 
 
@@ -57,7 +64,7 @@ int find_cluster_item(const reiser4_key *, coord_t *, lock_handle *, ra_info_t *
 int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 int flush_cluster_pages(reiser4_cluster_t *, struct inode *);
-void deflate_cluster(reiser4_cluster_t *, struct inode *);
+int deflate_cluster(reiser4_cluster_t *, struct inode *);
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"
