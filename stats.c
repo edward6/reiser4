@@ -311,14 +311,18 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(pcwb.not_written),
 	DEFINE_STATCNT(pcwb.written),
 
-	/* coc - copy on capture */
+	/* cop on capture stats */
 	DEFINE_STATCNT(coc.calls),
- 	DEFINE_STATCNT(coc.ok_uber), /* copy on capture performed for super block */
- 	DEFINE_STATCNT(coc.ok_clean), /* copy on capture performed for clean node */
-	DEFINE_STATCNT(coc.ok_ovrwr), /* copy on capture performed for block from overwrite set */
- 	DEFINE_STATCNT(coc.ok_reloc), /* copy on capture performed for block from relocate set */
-	DEFINE_STATCNT(coc.forbidden), /* capture_copy is called with no copy-on-capture allowed */
+	/* satisfied requests */
+ 	DEFINE_STATCNT(coc.ok_uber),
+ 	DEFINE_STATCNT(coc.ok_clean),
+	DEFINE_STATCNT(coc.ok_ovrwr),
+ 	DEFINE_STATCNT(coc.ok_reloc),
+	/* refused copy on capture requests */
+	DEFINE_STATCNT(coc.forbidden),
 	DEFINE_STATCNT(coc.writeback),
+	DEFINE_STATCNT(coc.flush_queued),
+	DEFINE_STATCNT(coc.dirty),
 	DEFINE_STATCNT(coc.eflush),
 	DEFINE_STATCNT(coc.scan_race),
 	DEFINE_STATCNT(coc.atom_changed)

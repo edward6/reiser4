@@ -502,10 +502,12 @@ typedef struct reiser4_statistics {
 		statcnt_t ok_reloc;
 		/* refused copy on capture requests */
 		statcnt_t forbidden;
-		statcnt_t reloc_writeback_dirty_fq;
+		statcnt_t writeback;
+		statcnt_t flush_queued;
+		statcnt_t dirty;
+		statcnt_t eflush;
 		statcnt_t scan_race;
 		statcnt_t atom_changed;
-		statcnt_t nopage_eflush;
 	} coc;
 
 	statcnt_t pages_dirty;
