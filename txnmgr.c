@@ -1040,9 +1040,10 @@ txn_mgr_force_commit_all (struct super_block *super)
 			spin_unlock_txnmgr (mgr);
 			spin_lock_txnh (txnh);
 
-			/* Set txnh flags for: forcing atom commit and waiting for commit
+			/* Set flags for atom and txnh: forcing atom commit and waiting for commit
 			 * completion */
-			txnh->flags |= (TXNH_FORCE_COMMIT | TXNH_WAIT_COMMIT);
+			txnh->flags |= TXNH_WAIT_COMMIT;
+			atom->flags |= ATOM_FORCE_COMMIT;
 
 			/* Add force-context txnh */
 			capture_assign_txnh_nolock (atom, txnh);
@@ -1296,9 +1297,6 @@ commit_txnh (txn_handle *txnh)
  again:
 	/* Get the atom and txnh locked. */
 	atom = atom_get_locked_with_txnh_locked (txnh);
-
-	if (txnh->flags & TXNH_FORCE_COMMIT)
-		atom->flags |= ATOM_FORCE_COMMIT;
 
 	/* The txnh stays open while we try to commit, since it is still being used, but
 	 * we don't need the txnh lock while trying to commit. */

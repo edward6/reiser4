@@ -136,8 +136,6 @@ typedef enum
 /* Flags for controlling commit_txnh */
 typedef enum
 {
-	/* Force commit of the atom this txnh attached to */
-	TXNH_FORCE_COMMIT = 0x1,
 	/* Wait commit atom completion in commit_txnh */
 	TXNH_WAIT_COMMIT  = 0x2
 } txn_handle_flags_t;
