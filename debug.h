@@ -573,6 +573,7 @@ typedef struct reiser4_stat {
 #define reiser4_stat_dir_add( stat ) noop
 #define reiser4_stat_slum_add( stat ) noop
 #define reiser4_stat_pool_add( stat ) noop
+#define reiser4_stat_file_add( stat ) noop
 #define	reiser4_stat_level_add( l, stat ) noop
 #define reiser4_stat_nuniq_max( gen ) noop
 #define reiser4_stat_stack_check_min( gap ) noop
