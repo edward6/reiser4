@@ -235,21 +235,6 @@ static void   invalidate_clean_list           (txn_atom * atom);
 void          print_atom                      (const char *prefix,
 					       txn_atom   *atom);
 
-/* The jnode_real_level() function was originally added for a very good purpose, and then
- * the reason for it to be added was taken away, thus the function now does exactly the
- * same thing as jnode_get_level.  What it used to do was subtract one from the level
- * because LEAF_LEVEL == 1 and all nodes should be higher than the leaf level.  In the
- * txnmgr there are per-level arrays and it was a slight waste of space to never use index
- * 0, thus the subtraction.  However, the transaction code was modified to also capture
- * the fake znode, which has level 0, so this code now does nothing special. */
-/* Audited by: umka (2002.06.13) */
-static inline unsigned jnode_real_level (jnode *node)
-{
-	assert ("umka-167", node != NULL);
-//	assert ("jmacd-1232", jnode_get_level (node) >= 0);
-	return jnode_get_level (node);
-}
-
 /****************************************************************************************
 				    GENERIC STRUCTURES
 ****************************************************************************************/
@@ -730,6 +715,10 @@ atom_begin_andlock (txn_atom **atom_alloc, jnode *node, txn_handle *txnh)
 	/* Check if both atom pointers are still NULL... */
 	if (node->atom != NULL || txnh->atom != NULL) {
 		trace_on (TRACE_TXN, "alloc atom race\n");
+		/*
+		 * FIXME-NIKITA probably it is rather better to free
+		 * *atom_alloc here than thread it up to txn_try_capture().
+		 */
 		return ERR_PTR (-EAGAIN);
 	}
 
@@ -964,7 +953,8 @@ atom_try_commit_locked (txn_atom *atom)
 
 	invalidate_clean_list (atom);
 
-	/* FIXME: Josh needs to clarify this. */
+	/* Atom's state changes, so wake up everybody waiting for this
+	 * event. */
 	wakeup_atom_waitfor_list (atom);
 	wakeup_atom_waiting_list (atom);
 
@@ -1506,6 +1496,8 @@ txn_try_capture (jnode           *node,
 	 * If ret == 0 then jnode is still locked.
 	 * If ret != 0 then jnode is unlocked.
 	 */
+	assert ("nikita-2674", ergo (ret == 0, spin_jnode_is_locked (node)));
+	assert ("nikita-2675", ergo (ret != 0, spin_jnode_is_not_locked (node)));
 
 	if (ret == -EAGAIN && ! non_blocking) {
 		/* EAGAIN implies all locks were released, therefore we need to take the
@@ -1527,7 +1519,23 @@ txn_try_capture (jnode           *node,
 		 * works yet, but it may also return EAGAIN.  When the request is
 		 * legitimately blocked, the requestor goes to sleep in fuse_wait, so this
 		 * is not a busy loop. */
+		/*
+		 * FIXME-NIKITA: still don't understand:
+		 *
+		 * try_capture_block->capture_assign_txnh->spin_trylock_atom->EAGAIN
+		 *
+		 * looks like busy loop?
+		 */
 		goto repeat;
+	}
+
+	/* free extra atom object that was possibly allocated by
+	 * try_capture_block().
+	 *
+	 * Do this before acquiring jnode spin lock to
+	 * minimize time spent under lock. --nikita */
+	if (atom_alloc != NULL) {
+		kmem_cache_free (_atom_slab, atom_alloc);
 	}
 
 	if (ret != 0) {
@@ -1540,10 +1548,6 @@ txn_try_capture (jnode           *node,
 
 	/* Jnode is still locked. */
 	assert ("jmacd-760", spin_jnode_is_locked (node));
-
-	if (atom_alloc != NULL) {
-		kmem_cache_free (_atom_slab, atom_alloc);
-	}
 
 	return ret;
 }
@@ -1655,7 +1659,7 @@ txn_try_capture_page  (struct page        *pg,
 	}
 	
 	spin_lock_jnode (node);
-	
+
 	ret = txn_try_capture (node, lock_mode, non_blocking ? TXN_CAPTURE_NONBLOCKING : 0);
 	if (ret == 0) {
 		spin_unlock_jnode (node);
@@ -1820,10 +1824,13 @@ capture_assign_block_nolock (txn_atom *atom,
 	
 	assert ("jmacd-323", node->atom == NULL);
 
+	/*
+	 * Pointer from jnode to atom is not counted in atom->refcount.
+	 */
 	node->atom = atom;
 
 	if (jnode_is_dirty (node)) {
-		capture_list_push_back (& atom->dirty_nodes[ jnode_real_level (node) ], node);
+		capture_list_push_back (& atom->dirty_nodes[ jnode_get_level (node) ], node);
 	} else {
 		capture_list_push_back (& atom->clean_nodes, node);
 	}
@@ -1855,7 +1862,6 @@ void jnode_set_dirty( jnode *node )
 
 		assert ("jmacd-3981", jnode_is_dirty (node));
 
-
 		if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 			txn_atom *atom;
 			/* If the atom is not set yet, it will be added to the appropriate list in
@@ -1867,7 +1873,7 @@ void jnode_set_dirty( jnode *node )
 			 * in capture_assign_block_nolock. Another reason not to re-link jnode is
 			 * that jnode is on a flush queue (see flush.c for details) */
 			if (atom != NULL) {
-				int level = jnode_real_level (node);
+				int level = jnode_get_level (node);
 
 				assert ("zam-654", !(JF_ISSET(node, JNODE_OVRWR) && atom->stage >= ASTAGE_PRE_COMMIT));
 				assert ("nikita-2607", 0 <= level);
@@ -1996,6 +2002,10 @@ capture_assign_block (txn_handle *txnh,
 		spin_unlock_txnh (txnh);
 		spin_unlock_jnode  (node);
 
+		/*
+		 * FIXME-NIKITA Busy loop here? Look at the comment in
+		 * capture_assign_txnh().
+		 */
 		return -EAGAIN;
 
 	} else {
@@ -2040,6 +2050,13 @@ capture_assign_txnh (jnode       *node,
 		spin_unlock_jnode (node);
 		spin_unlock_txnh  (txnh);
 
+		/* FIXME-NIKITA it looks like we have busy loop on atom spin
+		 * lock here. We cannot simply acquire and immediately release
+		 * atom spin lock here to avoid it because fusion can
+		 * invalidate atom object. The only way to synchronise against
+		 * this is jnode spin lock. Probably, atom->refcounter should
+		 * be used as real reference counter protecting atom from
+		 * destruction. */
 		return -EAGAIN;
 
 	} else if (atom->stage == ASTAGE_CAPTURE_WAIT) {
@@ -2248,7 +2265,7 @@ capture_fuse_wait (jnode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *ato
 	return ret;
 }
 
-/* Perform the necessary work to prepare for fusing two atoms, which involves aquiring two
+/* Perform the necessary work to prepare for fusing two atoms, which involves acquiring two
  * atom locks in the proper order.  If one of the node's atom is blocking fusion (i.e., it
  * is in the CAPTURE_WAIT stage) and the handle's atom is not then the handle's request is
  * put to sleep.  If the node's atom is committing, then the node can be copy-on-captured.
