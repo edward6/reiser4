@@ -959,6 +959,53 @@ redirty_inode(struct inode *inode)
 
 /* this returns 1 if it captured page */
 static int
+capture_anonymous_page(struct page *pg, int keepme)
+{
+	struct address_space *mapping;
+	jnode *node;
+	int result;
+
+	if (PageWriteback(pg))
+		/* FIXME: do nothing? */
+		return 0;
+
+	mapping = pg->mapping;
+
+	lock_page(pg);
+	/* page is guaranteed to be in the mapping, because we are operating under rw-semaphore. */
+	assert("nikita-3336", pg->mapping == mapping);
+	node = jnode_of_page(pg);
+	unlock_page(pg);
+	if (!IS_ERR(node)) {
+		result = jload(node);
+		assert("nikita-3334", result == 0);
+		assert("nikita-3335", jnode_page(node) == pg);
+		result = capture_page_and_create_extent(pg);
+		if (result == 0) {
+			/*
+			 * node will be captured into atom by
+			 * capture_page_and_create_extent(). Atom
+			 * cannot commit (because we have open
+			 * transaction handle), and node cannot be
+			 * truncated, because we have non-exclusive
+			 * access to the file.
+			 */
+			assert("nikita-3327", node->atom != NULL);
+			JF_CLR(node, JNODE_KEEPME);
+			result = 1;
+		} else
+			warning("nikita-3329",
+				"Cannot capture anon page: %i", result);
+		jrelse(node);
+		jput(node);
+	} else
+		result = PTR_ERR(node);
+
+	return result;
+}
+#if 0
+/* this returns 1 if it captured page */
+static int
 capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 {
 	struct address_space *mapping;
@@ -1043,40 +1090,6 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 	if (done == 1)
 		/* page for which this was called were captured */
 		return 1;
-	return result;
-}
-
-#if 0
-	lock_page(pg);
-	/* page is guaranteed to be in the mapping, because we are operating under rw-semaphore. */
-	assert("nikita-3336", pg->mapping == mapping);
-	node = jnode_of_page(pg);
-	unlock_page(pg);
-	if (!IS_ERR(node)) {
-		result = jload(node);
-		assert("nikita-3334", result == 0);
-		assert("nikita-3335", jnode_page(node) == pg);
-		result = capture_page_and_create_extent(pg);
-		if (result == 0) {
-			/*
-			 * node will be captured into atom by
-			 * capture_page_and_create_extent(). Atom
-			 * cannot commit (because we have open
-			 * transaction handle), and node cannot be
-			 * truncated, because we have non-exclusive
-			 * access to the file.
-			 */
-			assert("nikita-3327", node->atom != NULL);
-			JF_CLR(node, JNODE_KEEPME);
-			result = 1;
-		} else
-			warning("nikita-3329",
-				"Cannot capture anon page: %i", result);
-		jrelse(node);
-		jput(node);
-	} else
-		result = PTR_ERR(node);
-
 	return result;
 }
 #endif
