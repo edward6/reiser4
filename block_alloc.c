@@ -415,6 +415,7 @@ reiser4_internal int reiser4_grab_reserved(struct super_block *super,
 		if (reiser4_grab_space(count, (flags | BA_RESERVED) & ~BA_CAN_COMMIT)) {
 			warning("zam-1003", "nested call of grab_reserved fails count=(%llu)",
 				(unsigned long long)count);
+			reiser4_release_reserved(super);
 			return RETERR(-ENOSPC);
 		}
 		return 0;
@@ -428,6 +429,7 @@ reiser4_internal int reiser4_grab_reserved(struct super_block *super,
 		if (reiser4_grab_space(count, flags | BA_RESERVED)) {
 			warning("zam-833",
 				"reserved space is not enough (%llu)", (unsigned long long)count);
+			reiser4_release_reserved(super);
 			return RETERR(-ENOSPC);
 		}
 	}
