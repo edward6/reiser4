@@ -1,4 +1,5 @@
 /* minilzo.c -- mini subset of the LZO real-time data compression library
+   Adopted for reiser4 compression transform plugin.
 
    This file is part of the LZO real-time data compression library.
 
