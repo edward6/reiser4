@@ -929,7 +929,7 @@ static int submit_wb_list (void)
 	scan_wb_list(fq->atom, fq);
 	UNLOCK_ATOM(fq->atom);
 	trace_mark(flush);
-	ret = write_fq(fq);
+	ret = write_fq(fq, NULL);
 	fq_put(fq);
 	
 	return ret;
