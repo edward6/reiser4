@@ -63,7 +63,7 @@ int coord_of_item (const tree_coord * coord)
 }
 
 
-/* 1 is returned if @coord is set to certain unit within a node, 0 -
+/* 1 is returned if @coord is set to any existing unit within a node, 0 -
    otherwise */
 int coord_of_unit (const tree_coord * coord)
 {
@@ -545,7 +545,7 @@ int coord_eq( const tree_coord *c1, const tree_coord *c2 )
 	}
 }
 
-static const char * tween (between_enum n)
+static const char * string_by_tween (between_enum n)
 {
 	switch (n) {
 	case BEFORE_UNIT: return "before unit";
@@ -567,7 +567,7 @@ void print_coord (const char * mes, const tree_coord * coord,
 	}
 	info ("%s: item_pos = %d, unit_pos %d, tween=%s\n",
 	      mes, coord->item_pos, coord->unit_pos, 
-	      tween (coord->between));
+	      string_by_tween (coord->between));
 	if (node)
 		print_znode( "\tnode", coord -> node );
 }
