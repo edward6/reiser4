@@ -487,7 +487,7 @@ void print_znodes( const char *prefix, reiser4_tree *tree );
 
 static inline znode* zref (znode *node)
 {
-	return (znode*) jref (ZJNODE (node));
+	return JZNODE (jref (ZJNODE (node)));
 }
 
 static inline void zput (znode *node)
