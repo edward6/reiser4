@@ -209,7 +209,7 @@ insert_with_carry_by_coord(coord_t * coord /* coord where to insert */ ,
 	op->u.insert.child = 0;
 	if (lh != NULL) {
 		op->node->track = 1;
-		op->node->tracked = lh;
+		lowest_level.tracked = lh;
 	}
 
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
@@ -262,7 +262,7 @@ paste_with_carry(coord_t * coord /* coord of paste */ ,
 	op->u.paste.type = COPT_ITEM_DATA;
 	if (lh != NULL) {
 		op->node->track = 1;
-		op->node->tracked = lh;
+		lowest_level.tracked = lh;
 	}
 
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
@@ -529,7 +529,7 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	op->u.insert_flow.new_nodes = 0;
 
 	op->node->track = 1;
-	op->node->tracked = lh;
+	lowest_level.tracked = lh;
 
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
 	result = carry(&lowest_level, 0);

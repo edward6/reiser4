@@ -570,10 +570,11 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 	if ((result == 0) && (node != orig_node) && tracking->track) {
 		/* inserting or pasting into node different from
 		   original. Update lock handle supplied by caller. */
-		assert("nikita-1417", tracking->tracked != NULL);
-		done_lh(tracking->tracked);
-		init_lh(tracking->tracked);
-		result = longterm_lock_znode(tracking->tracked, node, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+		assert("nikita-1417", doing->tracked != NULL);
+		done_lh(doing->tracked);
+		init_lh(doing->tracked);
+		result = longterm_lock_znode(doing->tracked, node,
+					     ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
 		reiser4_stat_level_inc(doing, track_lh);
 	}
 	assert("nikita-1622", ergo(result == 0, carry_real(op->node) == coord->node));
@@ -1117,7 +1118,7 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 	info.todo = todo;
 
 	orig_node = flow_insert_point(op)->node;
-	orig_lh = op->node->tracked;
+	orig_lh = doing->tracked;
 
 	while (f->length) {
 		result = make_space_for_flow_insertion(op, doing, todo);

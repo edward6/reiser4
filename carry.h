@@ -68,9 +68,6 @@ typedef struct carry_node {
 
 	/* type of lock we want to take on this node */
 	lock_handle lock_handle;
-	/* lock handle supplied by user that we are tracking. See
-	   above. */
-	lock_handle *tracked;
 } carry_node;
 
 /* &carry_opcode - elementary operations that can be carried upward
@@ -266,6 +263,9 @@ struct carry_level {
 	int nodes_num;
 	/* new root created on this level, if any */
 	znode *new_root;
+	/* lock handle supplied by user that we are tracking. See
+	   above. */
+	lock_handle *tracked;
 #if REISER4_STATS
 	tree_level level_no;
 #endif
