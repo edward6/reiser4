@@ -2681,15 +2681,53 @@ static int capture_anonymous_pages (struct address_space * mapping)
 	return 0;
 }
 
+static int
+writeout(struct address_space *mapping, struct writeback_control *wbc)
+{
+	int ret;
+
+	/* reiser4 has its own means of periodical write-out */
+	if (wbc->for_kupdate)
+		return 0;
+
+	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
+	   sys_fsync(). */
+	/* FIXME: This way to support fsync is too expensive. Proper solution
+	   support is to commit only atoms which contain dirty pages from given
+	   address space. */
+	if (wbc->sync_mode != WB_SYNC_NONE)
+		return txnmgr_force_commit_all(mapping->host->i_sb);
+
+	ret = 0;
+	do {
+		long nr_submitted = 0;
+
+		/* do not put more requests to overload write queue */
+		if (wbc->nonblocking && 
+		    bdi_write_congested(mapping->backing_dev_info)) {
+			blk_run_queues();
+			wbc->encountered_congestion = 1;
+			break;
+		}
+
+		ret = flush_some_atom(&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
+
+		if (!nr_submitted)
+			break;
+
+		wbc->nr_to_write -= nr_submitted;
+	} while (0);
+	return ret;
+}
+
 /* reiser4 writepages() address space operation */
 int
 reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 {
 	int ret = 0;
-	struct super_block *s = mapping->host->i_sb;
-	struct backing_dev_info *bdi = mapping->backing_dev_info;
+	struct inode *inode;
 
-	REISER4_ENTRY(s);
+	REISER4_ENTRY(mapping->host->i_sb);
 
 	/* Here we can call synchronously. We can be called from balance_dirty_pages()
 	   Reiser4 code is supposed to call balance_dirty_pages at places where no locks
@@ -2705,46 +2743,35 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 			REISER4_EXIT(ret);
 	}
 
+	inode = mapping->host;
+
 	/* work around infinite loop in pdflush->sync_sb_inodes. */
 	/* Problem: ->writepages() is supposed to submit io for the pages from
 	 * ->io_pages list and to clean this list. */
 	mapping->dirtied_when = jiffies|1;
 	spin_lock(&inode_lock);
-	list_move(&mapping->host->i_list, &s->s_dirty);
+	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
+	/*
+	 * NOTE-NIKITA dubious: we need to clear I_LOCK here, because
+	 * transaction commit from under I_LOCK can dead-lock with
+	 * reiser4_iget() trying to obtain I_LOCK within transaction. I am not
+	 * sure whether it is legal to unlock inode during
+	 * ->writepages(). Should consult AKPM.
+	 */
+	assert("nikita-2991", inode->i_state & I_LOCK);
+	inode->i_state &= ~I_LOCK;
+	wake_up_inode(inode);
 	spin_unlock(&inode_lock);
 
-	/* reiser4 has its own means of periodical write-out */
-	if (wbc->for_kupdate)
-		REISER4_EXIT(0);
+	ret = writeout(mapping, wbc);
 
-	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
-	   sys_fsync(). */
-	/* FIXME: This way to support fsync is too expensive. Proper solution
-	   support is to commit only atoms which contain dirty pages from given
-	   address space. */
-	if (wbc->sync_mode != WB_SYNC_NONE) {
-		ret = txnmgr_force_commit_all(s);
-		REISER4_EXIT(ret);
+	spin_lock(&inode_lock);
+	while (inode->i_state & I_LOCK) {
+		spin_unlock(&inode_lock);
+		wait_on_inode(inode);
+		spin_lock(&inode_lock);
 	}
-
-//	while (wbc->nr_to_write > 0) 
-	do {
-		long nr_submitted = 0;
-
-		/* do not put more requests to overload write queue */
-		if (wbc->nonblocking && bdi_write_congested(bdi)) {
-			blk_run_queues();
-			wbc->encountered_congestion = 1;
-			break;
-		}
-
-		ret = flush_some_atom(&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
-
-		if (!nr_submitted)
-			break;
-
-		wbc->nr_to_write -= nr_submitted;
-	} while (0);
+	spin_unlock(&inode_lock);
 
 	REISER4_EXIT(ret);
 }
