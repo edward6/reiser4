@@ -71,22 +71,6 @@ cbk_cache_done(cbk_cache * cache /* cache to release */ )
 		kfree(cache->slot);
 }
 
-/* Audited by: green(2002.06.15) */
-static inline void
-cbk_cache_lock(cbk_cache * cache /* cache to lock */ )
-{
-	assert("nikita-1800", cache != NULL);
-	spin_lock_cbk_cache(cache);
-}
-
-/* Audited by: green(2002.06.15) */
-static inline void
-cbk_cache_unlock(cbk_cache * cache /* cache to unlock */ )
-{
-	assert("nikita-1801", cache != NULL);
-	spin_unlock_cbk_cache(cache);
-}
-
 /* macro to iterate over all cbk cache slots */
 #define for_all_slots( cache, slot )					\
 	for( ( slot ) = cbk_cache_list_front( &( cache ) -> lru ) ;	\
@@ -134,7 +118,7 @@ cbk_cache_invariant(const cbk_cache * cache)
 	assert("nikita-2469", cache != NULL);
 	unused = 0;
 	result = 1;
-	cbk_cache_lock((cbk_cache *) cache);
+	read_lock_cbk_cache((cbk_cache *) cache);
 	for_all_slots(cache, slot) {
 		/* in LRU first go all `used' slots followed by `unused' */
 		if (unused && (slot->node != NULL))
@@ -157,7 +141,7 @@ cbk_cache_invariant(const cbk_cache * cache)
 		if (!result)
 			break;
 	}
-	cbk_cache_unlock((cbk_cache *) cache);
+	read_unlock_cbk_cache((cbk_cache *) cache);
 	return result;
 }
 
@@ -170,6 +154,7 @@ cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 {
 	cbk_cache_slot *slot;
 	cbk_cache *cache;
+	int i;
 
 	assert("nikita-350", node != NULL);
 	ON_CONTEXT(assert("nikita-1479", lock_counters()->rw_locked_tree > 0));
@@ -177,10 +162,8 @@ cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 	cache = &tree->cbk_cache;
 	assert("nikita-2470", cbk_cache_invariant(cache));
 
-	cbk_cache_lock(cache);
-	for_all_slots(cache, slot) {
-		if (slot->node == NULL)
-			break;
+	write_lock_cbk_cache(cache);
+	for (i = 0, slot = cache->slot; i < cache->nr_slots; ++ i, ++ slot) {
 		if (slot->node == node) {
 			cbk_cache_list_remove(slot);
 			cbk_cache_list_push_back(&cache->lru, slot);
@@ -188,7 +171,7 @@ cbk_cache_invalidate(const znode * node /* node to remove from cache */ ,
 			break;
 		}
 	}
-	cbk_cache_unlock(cache);
+	write_unlock_cbk_cache(cache);
 	assert("nikita-2471", cbk_cache_invariant(cache));
 }
 
@@ -199,29 +182,27 @@ cbk_cache_add(const znode * node /* node to add to the cache */ )
 {
 	cbk_cache *cache;
 	cbk_cache_slot *slot;
+	int i;
 
 	assert("nikita-352", node != NULL);
 
 	cache = &znode_get_tree(node)->cbk_cache;
 	assert("nikita-2472", cbk_cache_invariant(cache));
-	cbk_cache_lock(cache);
+	write_lock_cbk_cache(cache);
 	/* find slot to update/add */
-	for_all_slots(cache, slot) {
+	for (i = 0, slot = cache->slot; i < cache->nr_slots; ++ i, ++ slot) {
 		/* oops, this node is already in a cache */
 		if (slot->node == node)
 			break;
-		if (slot->node == NULL) {
-			slot = NULL;
-			break;
-		}
 	}
 	/* if all slots are used, reuse least recently used one */
-	if ((slot == NULL) || cbk_cache_list_end(&cache->lru, slot))
+	if (i == cache->nr_slots) {
 		slot = cbk_cache_list_back(&cache->lru);
-	slot->node = (znode *) node;
+		slot->node = (znode *) node;
+	}
 	cbk_cache_list_remove(slot);
 	cbk_cache_list_push_front(&cache->lru, slot);
-	cbk_cache_unlock(cache);
+	write_unlock_cbk_cache(cache);
 	assert("nikita-2473", cbk_cache_invariant(cache));
 }
 
@@ -775,7 +756,8 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 			h->result = CBK_COORD_NOTFOUND;
 			reiser4_stat_inc(tree.cbk_notfound);
 		}
-		cbk_cache_add(active);
+		if (!(h->flags & CBK_IN_CACHE))
+			cbk_cache_add(active);
 		return LOOKUP_DONE;
 	}
 
@@ -1096,7 +1078,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	 */
 
 	rcu_read_lock();
-	cbk_cache_lock(cache);
+	read_lock_cbk_cache(cache);
 	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
 	while (1) {
 
@@ -1107,7 +1089,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		else
 			node = NULL;
 
-		if (node == NULL)
+		if (unlikely(node == NULL))
 			break;
 
 		/*
@@ -1125,7 +1107,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 			break;
 		}
 	}
-	cbk_cache_unlock(cache);
+	read_unlock_cbk_cache(cache);
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
 
@@ -1171,14 +1153,14 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 			/* good. Either item found or definitely not found. */
 			result = 0;
 
-			cbk_cache_lock(cache);
+			write_lock_cbk_cache(cache);
 			if (slot->node == node) {
 				/* if this node is still in cbk cache---move
 				   its slot to the head of the LRU list. */
 				cbk_cache_list_remove(slot);
 				cbk_cache_list_push_front(&cache->lru, slot);
 			}
-			cbk_cache_unlock(cache);
+			write_unlock_cbk_cache(cache);
 		}
 	} else {
 		/* race. While this thread was waiting for the lock, node was
@@ -1219,6 +1201,7 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 	int result = 0;
 	tree_level level;
 
+	h->flags |= CBK_IN_CACHE;
 	for (level = h->stop_level; level <= h->lock_level; ++level) {
 		h->level = level;
 		result = cbk_cache_scan_slots(h);
@@ -1233,6 +1216,7 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 			break;
 		}
 	}
+	h->flags &= ~CBK_IN_CACHE;
 	return result;
 }
 
@@ -1409,7 +1393,8 @@ search_to_left(cbk_handle * h /* search handle */ )
 	case -E_NO_NEIGHBOR:
 				h->result = CBK_COORD_FOUND;
 				reiser4_stat_inc(tree.cbk_found);
-				cbk_cache_add(node);
+				if (!(h->flags & CBK_IN_CACHE))
+					cbk_cache_add(node);
 	default:		/* some other error */
 				result = LOOKUP_DONE;
 			} else if (h->result == NS_FOUND) {
