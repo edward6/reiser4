@@ -74,6 +74,7 @@
 
 static struct page *add_page( struct super_block *super, jnode *node );
 static void kmap_once( jnode *node, struct page *page );
+static struct bio *page_bio( struct page *page, int gfp );
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -322,7 +323,6 @@ void *xmemset( void *s, int c, size_t n )
 #endif
 
 
-#if 1
 /** 
  * completion handler for single page bio-based io. 
  *
@@ -344,45 +344,14 @@ static void end_bio_single_page_io_sync( struct bio *bio )
 	unlock_page( page );
 	bio_put( bio );
 }
-#else
-static int formatted_get_block( struct inode *inode, sector_t iblock,
-				struct buffer_head *bh, int create UNUSED_ARG )
-{
-	unsigned long         page_idx;
-	struct page          *page;
-	struct address_space *mapping;
-	jnode                *node;
-
-	assert( "nikita-2032", !create );
-	assert( "nikita-2033", inode != NULL );
-	assert( "nikita-2034", bh != NULL );
-
-	mapping = inode -> i_mapping;
-	page_idx = iblock >> ( PAGE_CACHE_SHIFT - inode -> i_blkbits );
-
-	read_lock( &mapping -> page_lock );
-	page = radix_tree_lookup( & mapping -> page_tree, page_idx );
-	read_unlock( & mapping -> page_lock );
-
-	assert( "nikita-2030", page != NULL );
-	assert( "nikita-2031", PageLocked( page ) );
-	assert( "nikita-2035", jprivate( page ) != NULL );
-
-	node = jnode_by_page( page );
-	assert( "nikita-2036", jnode_is_formatted( node ) );
-	map_bh( bh, inode -> i_sb, jnode_get_block( node ) );
-	/*
-	 * FIXME-NIKITA BH_Boundary optimizations should go here.
-	 */
-	return 0;
-}
-#endif
 
 /** ->readpage() method for formatted nodes */
 static int formatted_readpage( struct file *f UNUSED_ARG, 
 			       struct page *page /* page to read */ )
 {
 	struct bio         *bio;
+
+	rlog( "nikita-2093", "Entering" );
 
 	/*
 	 * Simple implemenation in the assumption that blocksize == pagesize.
@@ -400,9 +369,42 @@ static int formatted_readpage( struct file *f UNUSED_ARG,
 	 *
 	 */
 
-#if 1
 	assert( "nikita-2025", page != NULL );
-	bio = bio_alloc( GFP_NOIO, 1 );
+	bio = page_bio( page, GFP_NOIO );
+	if( !IS_ERR( bio ) ) {
+		/*
+		 * submit_bio() is int. But what does return value mean?
+		 */
+		submit_bio( READ, bio );
+		return 0;
+	} else
+		return PTR_ERR( bio );
+}
+
+/** ->writepage() method for formatted nodes */
+static int formatted_writepage( struct file *f UNUSED_ARG, 
+				struct page *page /* page to write */ )
+{
+	struct bio         *bio;
+
+	rlog( "nikita-2093", "Entering" );
+
+	assert( "nikita-2094", page != NULL );
+	bio = page_bio( page, GFP_NOIO );
+	if( !IS_ERR( bio ) ) {
+		submit_bio( WRITE, bio );
+		return 0;
+	} else
+		return PTR_ERR( bio );
+}
+
+/** helper function to construct bio for page */
+static struct bio *page_bio( struct page *page, int gfp )
+{
+	struct bio *bio;
+	assert( "nikita-2092", page != NULL );
+
+	bio = bio_alloc( gfp, 1 );
 	if( bio != NULL ) {
 		jnode              *node;
 		int                 blksz;
@@ -428,25 +430,18 @@ static int formatted_readpage( struct file *f UNUSED_ARG,
 
 		bio -> bi_end_io = end_bio_single_page_io_sync;
 
-		/*
-		 * submit_bio() is int. But what does return value mean?
-		 */
-		submit_bio( READ, bio );
-		return 0;
+		return bio;
 	} else
-		return -ENOMEM;
-#else
-	return mpage_readpage( page, formatted_get_block );
-#endif
+		return ERR_PTR( -ENOMEM );
 }
 
 /**
- *
+ * memory pressure notification. Flush transaction, etc.
  */
 static int formatted_fake_pressure_handler( struct page *page UNUSED_ARG, 
 					    int *nr_to_write UNUSED_ARG )
 {
-	return -ENOSYS;
+	return 0;
 }
 
 define_never_ever_op( sync_page );
