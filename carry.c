@@ -169,7 +169,6 @@ static int carry_on_level(carry_level * doing, carry_level * todo);
 static void fatal_carry_error(carry_level * doing, int ecode);
 static int add_new_root(carry_level * level, carry_node * node, znode * fake);
 
-// static __u64 carry_estimate_space(carry_level * level);
 #if REISER4_DEBUG
 typedef enum {
 	CARRY_TODO,
@@ -280,57 +279,6 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	ON_DEBUG(CHECK_COUNTERS;)
 	return result;
 }
-
-#define carry_node_next( node ) 					\
-	( ( carry_node * ) pool_level_list_next( &( node ) -> header ) )
-
-#define carry_node_prev( node ) 					\
-	( ( carry_node * ) pool_level_list_prev( &( node ) -> header ) )
-
-#define carry_node_front( level )					\
-	( ( carry_node * ) pool_level_list_front( &( level ) -> nodes ) )
-
-#define carry_node_back( level )					\
-	( ( carry_node * ) pool_level_list_back( &( level ) -> nodes ) )
-
-#define carry_node_end( level, node ) 					\
-	( pool_level_list_end( &( level ) -> nodes, &( node ) -> header ) )
-
-/* macro to iterate over all operations in a @level */
-#define for_all_ops( level /* carry level (of type carry_level *) */, 		\
-		     op    /* pointer to carry operation, modified by loop (of	\
-			    * type carry_op *) */, 				\
-		     tmp   /* pointer to carry operation (of type carry_op *),	\
-			    * used to make iterator stable in the face of	\
-			    * deletions from the level */ )			\
-for( op = ( carry_op * ) pool_level_list_front( &level -> ops ),		\
-     tmp = ( carry_op * ) pool_level_list_next( &op -> header ) ;		\
-     ! pool_level_list_end( &level -> ops, &op -> header ) ;			\
-     op = tmp, tmp = ( carry_op * ) pool_level_list_next( &op -> header ) )
-
-/* macro to iterate over all nodes in a @level */
-#define for_all_nodes( level /* carry level (of type carry_level *) */,		\
-		       node  /* pointer to carry node, modified by loop (of	\
-			      * type carry_node *) */,				\
-		       tmp   /* pointer to carry node (of type carry_node *),	\
-			      * used to make iterator stable in the face of *	\
-			      * deletions from the level */ )			\
-for( node = carry_node_front( level ),						\
-     tmp = carry_node_next( node ) ; ! carry_node_end( level, node ) ;		\
-     node = tmp, tmp = carry_node_next( node ) )
-
-/* macro to iterate over all nodes in a @level in reverse order
-
-   This is used, because nodes are unlocked in reversed order of locking */
-#define for_all_nodes_back( level /* carry level (of type carry_level *) */,	\
-		            node  /* pointer to carry node, modified by loop	\
-				   * (of type carry_node *) */,			\
-		            tmp   /* pointer to carry node (of type carry_node	\
-				   * *), used to make iterator stable in the	\
-				   * face of deletions from the level */ )	\
-for( node = carry_node_back( level ),		\
-     tmp = carry_node_prev( node ) ; ! carry_node_end( level, node ) ;		\
-     node = tmp, tmp = carry_node_prev( node ) )
 
 /* perform carry operations on given level.
 
