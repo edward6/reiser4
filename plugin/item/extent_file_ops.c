@@ -622,8 +622,10 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		/* if page is not completely overwritten - read it if it is not new or fill by zeros otherwise */
 		result = prepare_page(inode, page, file_off, page_off, count);
 		JF_CLR(j, JNODE_NEW);
-		if (result)
+		if (result) {
+			JF_SET(j, JNODE_HEARD_BANSHEE);
 			goto exit3;
+		}
 
 		assert("nikita-3033", schedulable());
 
@@ -631,6 +633,8 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		result = __copy_from_user((char *)kmap(page) + page_off, flow->data - count, count);
 		kunmap(page);
 		if (unlikely(result)) {
+			/* FIXME: write(fd, 0, 10); to empty will write no data but file will get increased size. */
+			JF_SET(j, JNODE_HEARD_BANSHEE);
 			result = RETERR(-EFAULT);
 			goto exit3;
 		}
@@ -647,7 +651,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		   then in jnode_mark_dirty gets moved to dirty list. So, it would be more optimal to put jnode directly
 		   to dirty list */
 		LOCK_JNODE(j);
-		result = try_capture(j, ZNODE_WRITE_LOCK, 0);
+		result = try_capture(j, ZNODE_WRITE_LOCK, 0, 1/* can_coc */);
 		if (!result)
 			jnode_make_dirty_locked(j);
 		else
@@ -1155,6 +1159,7 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 	j = index_extent_jnode(current_tree, page->mapping, get_key_objectid(key), page->index, key, uf_coord, mode);
 	if (IS_ERR(j))
 		return PTR_ERR(j);
+	done_lh(uf_coord->lh);
 	JF_CLR(j, JNODE_NEW);
 	done_lh(uf_coord->lh);
 
@@ -1165,7 +1170,7 @@ writepage_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, writ
 	}
 	unlock_page(page);
 
-	result = try_capture(j, ZNODE_WRITE_LOCK, 0);
+	result = try_capture(j, ZNODE_WRITE_LOCK, 0, 1/* can_coc */);
 	if (result != 0)
 		reiser4_panic("nikita-3324", "Cannot capture jnode: %i", result);
 	jnode_make_dirty_locked(j);
