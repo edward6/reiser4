@@ -1570,26 +1570,27 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 {
 	int ret = 0;
 
-#ifdef SQUEEZE_NODE_SUPPORT
-
 	item_plugin * iplug;
-
+	
 	assert("edward-304", pos != NULL);
 	assert("edward-305", pos->child == NULL);
+	assert("edward-475", znode_squeezable(node));
 	
 	if (znode_get_level(node) != LEAF_LEVEL)
 		/* do not squeeze this node */
-		return 0;
+		goto exit;
 
 	coord_init_before_first_item(&pos->coord, node);
 
 	while (1) {
+		ret = 0;
+
 		if (node_is_empty(node))
 			/* nothing to squeeze */
-			return 0;
+			goto exit;
 		if (pos->idata) {
 			iplug = pos->idata->iplug;
-			assert("edward-xxx", iplug->f.squeeze != NULL);
+			assert("edward-476", iplug->f.squeeze != NULL);
 		}
 		else if (!coord_is_existing_item(&pos->coord))
 			/* finished */
@@ -1606,7 +1607,7 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 		if (ret == -E_REPEAT)
 			continue;
 		if (ret)
-			return ret;
+			goto exit;
 		
 		assert("edward-307", pos->child == NULL);
 		
@@ -1647,7 +1648,8 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 			done_lh(&right_lock);
 		}
 	}
-#endif	/* SQUEEZE_NODE_SUPPORT */
+ exit:
+	JF_CLR(ZJNODE(node), JNODE_SQUEEZABLE);
 	return ret;
 }
 
@@ -1920,13 +1922,13 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 
 	init_lh(&right_lock);
 	init_load_count(&right_load);
-
-	ret = squeeze_node(pos, pos->lock.node);
-	if (ret)
-		return ret;
-
-	/*assert("edward-310", !node_is_empty(pos->lock.node));*/
-
+	
+	if (znode_squeezable(pos->lock.node)) {
+		ret = squeeze_node(pos, pos->lock.node);
+		if (ret)
+			return ret;
+	}
+	
 	while (1) {
 		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
 		if (ret)
@@ -1945,9 +1947,11 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		if (ret)
 			break;
 
-		ret = squeeze_node(pos, right_lock.node);
-		if (ret)
-			break;
+		if (znode_squeezable(right_lock.node)) {
+			ret = squeeze_node(pos, right_lock.node);
+			if (ret)
+				break;
+		}
 
 		if (node_is_empty(right_lock.node)) {
 			/* node was squeezed completely, repeat */
