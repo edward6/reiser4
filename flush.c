@@ -2702,7 +2702,7 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 
 	items[0] = 0;
 	if (! fmttd) {
-		sprintf (items, " index=%u", jnode_get_index (node));
+		sprintf (items, " index=%lu", jnode_get_index (node));
 	}
 
 	sprintf (buf+strlen(buf),
