@@ -476,7 +476,7 @@ static int reserve_partial_page(reiser4_tree *tree)
 }
 
 /* estimate and reserve space needed to cut one item and update one stat data */
-static int reserve_cut_iteration(reiser4_tree *tree, const char * message)
+int reserve_cut_iteration(reiser4_tree *tree, const char * message)
 {
 	__u64 estimate = estimate_one_item_removal(tree) 
 		+ estimate_one_insert_into_item(tree);
