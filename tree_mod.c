@@ -326,7 +326,6 @@ int kill_tree_root( znode *old_root /* tree root that we are removing */ )
 	assert( "nikita-1200", node_num_items( old_root ) == 1 );
 	assert( "nikita-1401", znode_is_write_locked( old_root ) );
 
-	reiser4_init_coord( &down_link );
 	coord_first_unit( &down_link, old_root );
 
 	spin_lock_dk( current_tree );
