@@ -148,7 +148,7 @@ static inline reiser4_context *
 get_context(const struct task_struct *tsk)
 {
 	assert("", ((reiser4_context *) tsk->fs_context)->magic == context_magic);
-	get_context_ok((reiser4_context *)(tsk->fs_context));
+	/* get_context_ok((reiser4_context *)(tsk->fs_context)); */
 	return (reiser4_context *) tsk->fs_context;
 }
 
