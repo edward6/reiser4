@@ -73,39 +73,15 @@
 #include <linux/dcache.h>
 #include <linux/quotaops.h>
 
-#if 0
-/* Amount of internals which will get dirty of get allocated we estimate as 
-    5% of the childs + 1 balancing. 1 balancing is 2 neighbours, 2 new blocks
-    and the current block on the leaf level, 2 neighbour nodes + the current 
-    (or 1 neighbour and 1 new and the current) on twig level, 2 neighbour nodes
-    on upper levels and 1 for a new root. So 5 for leaf level, 3 for twig level, 
-    2 on upper + 1 for root. 
-   
-    Do not calculate the current node of the lowest level here - this is overhead 
-    only. */
-void estimate_internal_amount(__u32 childen, __u32 tree_height, __u64 *amount)
-{
-	__u32 ten_percent;
-	
-	assert("umka-1249", amount != NULL);
-	
-	ten_percent = ((103 * childen) >> 10);
-	
-	/* If we have too many balancings at the time, tree height can raise on more
-	   then 1. Assume that if tree_height is 5, it can raise on 1 only. */
-	*amount = ((tree_height < 5 ? 5 : tree_height) * 2 + (4 + ten_percent));
-}
-#endif
-
 /* helper function to print errors */
 static void
-key_warning(const char *error_message /* message to print */ ,
-	    const reiser4_key * key /* key to print */ ,
-	    int code /* error code to print */ )
+key_warning(const reiser4_key * key /* key to print */,
+	    int code /* error code to print */)
 {
 	assert("nikita-716", key != NULL);
 
-	warning("nikita-717", "%s inode %llu (%i)", error_message ? : "error for", get_key_objectid(key), code);
+	warning("nikita-717", "Error for inode %llu (%i)", 
+		get_key_objectid(key), code);
 	print_key("for key", key);
 }
 
@@ -124,6 +100,32 @@ check_inode_seal(const struct inode *inode,
 #else
 #define check_inode_seal(inode, coord, key) noop
 #endif
+
+#if REISER4_DEBUG
+static void
+check_sd_coord(const coord_t *coord, const reiser4_key *key)
+{
+	reiser4_key ukey;
+
+	if (zload(coord->node))
+		return;
+
+	if (!coord_is_existing_unit(coord) ||
+	    !item_plugin_by_coord(coord) ||
+	    !keyeq(unit_key_by_coord(coord, &ukey), key) ||
+	    (znode_get_level(coord->node) != LEAF_LEVEL) || 
+	    !item_is_statdata(coord)) {
+		warning("nikita-1901", "Conspicuous seal");
+		print_key("key", key);
+		print_coord("coord", coord, 1);
+		impossible("nikita-2877", "no way");
+	}
+	zrelse(coord->node);
+}
+#else
+#define check_sd_coord(coord, key) noop
+#endif
+
 
 /* find sd of inode in a tree, deal with errors */
 int
@@ -150,60 +152,26 @@ lookup_sd_by_key(reiser4_tree * tree /* tree to look in */ ,
 		 const reiser4_key * key /* resulting key */ )
 {
 	int result;
-	const char *error_message;
 	__u32 flags;
-#if REISER4_DEBUG
-	reiser4_key key_found;
-#endif
+
 	assert("nikita-718", tree != NULL);
 	assert("nikita-719", coord != NULL);
 	assert("nikita-720", key != NULL);
 
 	result = 0;
-	error_message = NULL;
 	/* look for the object's stat data in a tree. 
 	   This returns in "node" pointer to a locked znode and in "pos"
 	   position of an item found in node. Both are only valid if
 	   coord_found is returned. */
 	flags = (lock_mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
 	flags |= CBK_UNIQUE;
-	result = coord_by_key(tree, key, coord, lh, lock_mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags);
-	switch (result) {
-	case CBK_OOM:
-		error_message = "out of memory while looking for sd of";
-		break;
-	case CBK_IO_ERROR:
-		error_message = "io error while looking for sd of";
-		break;
-	case CBK_COORD_NOTFOUND:
-		error_message = "sd not found for";
-		break;
-	default:
-		/* something other, for which we don't want to print a message */
-		break;
-	case CBK_COORD_FOUND:{
-			load_count lc = INIT_LOAD_COUNT_NODE(coord->node);
-			;
-			assert("nikita-1082", WITH_DATA_RET(coord->node, 1, coord_is_existing_unit(coord)));
-			assert("nikita-721", WITH_DATA_RET(coord->node, 1, item_plugin_by_coord(coord) != NULL));
-			/* next assertion checks that item we found really has the key
-			   we've been looking for */
-			assert("nikita-722", WITH_DATA_RET
-			       (coord->node, 1, keyeq(unit_key_by_coord(coord, &key_found), key)));
-			assert("nikita-1897", znode_get_level(coord->node) == LEAF_LEVEL);
-			/* check that what we really found is stat data */
-			result = incr_load_count(&lc);
-			if ((result = 0) && !item_is_statdata(coord)) {
-				error_message = "sd found, but it doesn't look like sd";
-				print_plugin("found", item_plugin_to_plugin(item_plugin_by_coord(coord)));
-				result = -ENOENT;
-			}
-			done_load_count(&lc);
-			break;
-		}
-	}
+	result = coord_by_key(tree, key, coord, lh, lock_mode, 
+			      FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags);
+	if (REISER4_DEBUG && result == 0)
+		check_sd_coord(coord, key);
+
 	if (result != 0)
-		key_warning(error_message, key, result);
+		key_warning(key, result);
 	return result;
 }
 
@@ -216,7 +184,6 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	reiser4_key key;
 	coord_t coord;
 	reiser4_item_data data;
-	const char *error_message;
 	char *area;
 	reiser4_inode *ref;
 	lock_handle lh;
@@ -269,40 +236,19 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	   changes in sd size: changing plugins etc.
 	*/
 
-	error_message = NULL;
-	switch (result) {
-	case IBK_OOM:
-		error_message = "out of memory while inserting sd of";
-		break;
-	case IBK_ALREADY_EXISTS:
-		error_message = "sd already exists for";
-		break;
-	default:
-		/* something other, for which we don't want to print a message */
-		break;
-	case IBK_IO_ERROR:
-		error_message = "io error while inserting sd of";
-		break;
-	case IBK_NO_SPACE:
-		error_message = "no space while inserting sd of";
-		break;
-	case IBK_INSERT_OK:
-		{
-			result = zload(coord.node);
-			if (result != 0)
-				break;
+	if (result == IBK_INSERT_OK) {
+		result = zload(coord.node);
+		if (result == 0) {
+			/* have we really inserted stat data? */
+			assert("nikita-725", item_is_statdata(&coord));
 
-			assert("nikita-725",	/* have we really inserted stat
-						   data? */
-			       item_is_statdata(&coord));
-			/* inode was just created. It is inserted into hash table, but
-			   no directory entry was yet inserted into parent. So, inode
-			   is inaccessible through ->lookup(). All places that
-			   directly grab inode from hash-table (like old knfsd),
-			   should check IMMUTABLE flag that is set by
-			   common_create_child.
+			/* inode was just created. It is inserted into hash
+			   table, but no directory entry was yet inserted into
+			   parent. So, inode is inaccessible through
+			   ->lookup(). All places that directly grab inode
+			   from hash-table (like old knfsd), should check
+			   IMMUTABLE flag that is set by common_create_child.
 			*/
-
 			if (ref->sd && ref->sd->s.sd.save) {
 				area = item_body_by_coord(&coord);
 				result = ref->sd->s.sd.save(inode, &area);
@@ -314,10 +260,8 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 					seal_init(&ref->sd_seal, &coord, &key);
 					ref->sd_coord = coord;
 					check_inode_seal(inode, &coord, &key);
-				} else {
-					error_message = "cannot save sd of";
+				} else
 					result = -EIO;
-				}
 			}
 			zrelse(coord.node);
 		}
@@ -325,15 +269,73 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	done_lh(&lh);
 
 	if (result != 0)
-		key_warning(error_message, &key, result);
+		key_warning(&key, result);
 	else
 		oid_count_allocated();
 
 	return result;
 }
 
-/* Update existing stat-data in a tree. Called with inode state
-    locked. Return inode state locked. */
+static int
+update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key, 
+	     lock_handle * lh)
+{
+	int                result;
+	reiser4_item_data  data;
+	char              *area;
+	reiser4_inode     *state;
+
+	state = reiser4_inode_data(inode);
+
+	result = zload(coord->node);
+	if (result != 0)
+		return result;
+
+	spin_lock_inode(inode);
+	assert("nikita-728", state->sd != NULL);
+	data.iplug = state->sd;
+
+	/* data.length is how much space to add to (or remove
+	   from if negative) sd */
+	if (!inode_get_flag(inode, REISER4_SDLEN_KNOWN)) {
+		/* recalculate stat-data length */
+		data.length = 
+			state->sd->s.sd.save_len(inode) - 
+			item_length_by_coord(coord);
+	} else
+		data.length = 0;
+	spin_unlock_inode(inode);
+
+	zrelse(coord->node);
+
+	/* if on-disk stat data is of different length than required
+	   for this inode, resize it */
+	if (0 != data.length) {
+		data.data = NULL;
+		data.user = 0;
+		result = resize_item(coord, &data, key, lh, 0);
+	}
+	if (result == 0) {
+		result = zload(coord->node);
+		if (result == 0) {
+			area = item_body_by_coord(coord);
+			spin_lock_inode(inode);
+			result = state->sd->s.sd.save(inode, &area);
+			znode_set_dirty(coord->node);
+			/* re-initialise stat-data seal */
+			seal_init(&state->sd_seal, coord, key);
+			state->sd_coord = *coord;
+			spin_unlock_inode(inode);
+			check_inode_seal(inode, coord, key);
+			zrelse(coord->node);
+		}
+	} else
+		key_warning(key, result);
+	return result;
+}
+
+/* Update existing stat-data in a tree. Called with inode state locked. Return
+   inode state locked. */
 static int
 update_sd(struct inode *inode /* inode to update sd for */ )
 {
@@ -341,8 +343,6 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 	reiser4_key key;
 	coord_t coord;
 	seal_t seal;
-	reiser4_item_data data;
-	const char *error_message;
 	reiser4_inode *state;
 	lock_handle lh;
 
@@ -363,23 +363,16 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 	if (seal_is_set(&seal)) {
 		/* first, try to use seal */
 		build_sd_key(inode, &key);
-		result = seal_validate(&seal, &coord,
-				       &key, LEAF_LEVEL, &lh, FIND_EXACT, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
-		if (REISER4_DEBUG && (result == 0) && ((result = zload(coord.node)) == 0)) {
-			reiser4_key ukey;
-
-			if (!coord_is_existing_unit(&coord) ||
-			    !item_plugin_by_coord(&coord) ||
-			    !keyeq(unit_key_by_coord(&coord, &ukey), &key) ||
-			    (znode_get_level(coord.node) != LEAF_LEVEL) || !item_is_statdata(&coord)) {
-				warning("nikita-1901", "Conspicuous seal");
-				/*print_inode( "inode", inode ); */
-				print_key("key", &key);
-				print_coord("coord", &coord, 1);
-				result = -EIO;
-			}
-			zrelse(coord.node);
-		}
+		result = seal_validate(&seal, 
+				       &coord, 
+				       &key, 
+				       LEAF_LEVEL, 
+				       &lh, 
+				       FIND_EXACT, 
+				       ZNODE_WRITE_LOCK, 
+				       ZNODE_LOCK_LOPRI);
+		if (result == 0)
+			check_sd_coord(&coord, &key);
 	} else
 		result = -EAGAIN;
 
@@ -387,65 +380,12 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 		coord_init_zero(&coord);
 		result = lookup_sd(inode, ZNODE_WRITE_LOCK, &coord, &lh, &key);
 	}
-	error_message = NULL;
+	
 	/* we don't want to re-check that somebody didn't remove stat-data
 	   while we were doing io, because if it did, lookup_sd returned
 	   error. */
-	if (result == 0 && ((result = zload(coord.node)) == 0)) {
-		char *area;
-
-		spin_lock_inode(inode);
-		assert("nikita-728", state->sd != NULL);
-		data.iplug = state->sd;
-
-		/* data.length is how much space to add to (or remove
-		   from if negative) sd */
-		if (!inode_get_flag(inode, REISER4_SDLEN_KNOWN)) {
-			/* recalculate stat-data length */
-			data.length = 
-				state->sd->s.sd.save_len(inode) - 
-				item_length_by_coord(&coord);
-		} else
-			data.length = 0;
-		spin_unlock_inode(inode);
-
-		zrelse(coord.node);
-
-		/* if on-disk stat data is of different length than required
-		   for this inode, resize it */
-		if (0 != data.length) {
-			data.data = NULL;
-			data.user = 0;
-			result = resize_item(&coord, &data, &key, &lh, 0);
-			switch (result) {
-			case RESIZE_OOM:
-				error_message = "out of memory while resizing sd of";
-			case RESIZE_OK:
-			default:
-				break;
-			case RESIZE_IO_ERROR:
-				error_message = "io error while resizing sd of";
-				break;
-			case RESIZE_NO_SPACE:
-				error_message = "no space to resize sd of";
-				break;
-			}
-		}
-		if (result == 0 && ((result = zload(coord.node)) == 0)) {
-			area = item_body_by_coord(&coord);
-			spin_lock_inode(inode);
-			result = state->sd->s.sd.save(inode, &area);
-			znode_set_dirty(coord.node);
-			/* re-initialise stat-data seal */
-			seal_init(&state->sd_seal, &coord, &key);
-			state->sd_coord = coord;
-			spin_unlock_inode(inode);
-			check_inode_seal(inode, &coord, &key);
-			zrelse(coord.node);
-		} else {
-			key_warning(error_message, &key, result);
-		}
-	}
+	if (result == 0)
+		result = update_sd_at(inode, &coord, &key, &lh);
 	done_lh(&lh);
 
 	return result;
@@ -754,7 +694,7 @@ unix_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
 static int
 common_add_link(struct inode *object, struct inode *parent UNUSED_ARG)
 {
-	++object->i_nlink;
+	INODE_INC_FIELD(object, i_nlink);
 	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
@@ -766,7 +706,7 @@ common_rem_link(struct inode *object, struct inode *parent UNUSED_ARG)
 	assert("nikita-2021", object != NULL);
 	assert("nikita-2163", object->i_nlink > 0);
 
-	--object->i_nlink;
+	INODE_DEC_FIELD(object, i_nlink);
 	object->i_ctime = CURRENT_TIME;
 	return 0;
 }
