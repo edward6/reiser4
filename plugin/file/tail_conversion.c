@@ -617,9 +617,10 @@ static int prepare_extent2tail(struct inode *inode)
 /* for every page of file: read page, cut part of extent pointing to this page,
    put data of page tree by tail item */
 int
-extent2tail(struct inode *inode)
+extent2tail(unix_file_info_t *uf_info)
 {
 	int result;
+	struct inode *inode;
 	struct page *page;
 	unsigned long num_pages, i;
 	reiser4_key from;
@@ -629,6 +630,7 @@ extent2tail(struct inode *inode)
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_inc(file.extent2tail);
 
+	inode = uf_info->inode;
 	result = prepare_extent2tail(inode);
 	if (result) {
 		/* no space? Leave file stored in extent state */

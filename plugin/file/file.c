@@ -18,8 +18,8 @@ void get_exclusive_access(unix_file_info_t *);
 void drop_exclusive_access(unix_file_info_t *);
 void get_nonexclusive_access(unix_file_info_t *);
 void drop_nonexclusive_access(unix_file_info_t *);
-int tail2extent(struct inode *);
-int extent2tail(struct inode *);
+int tail2extent(unix_file_info_t *);
+int extent2tail(unix_file_info_t *);
 
 /* get unix file plugin specific portion of inode */
 inline unix_file_info_t *unix_file_inode_data(const struct inode * inode)
@@ -1229,7 +1229,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t * f
 			assert("vs-1166", old_state == UNIX_FILE_BUILT_OF_TAILS);
 			if (should_have_notail(uf_info, get_key_offset(&f->key) + f->length)) {
 				done_lh(&lh);
-				result = tail2extent(uf_info->inode);
+				result = tail2extent(uf_info);
 				if (result)
 					return result;
 				unset_hint(&hint);
@@ -1482,7 +1482,7 @@ release_unix_file(struct file *file)
 
 	get_exclusive_access(uf_info);
 	if (uf_info->state == UNIX_FILE_BUILT_OF_EXTENTS && !should_have_notail(uf_info, uf_info->inode->i_size))
-		result = extent2tail(uf_info->inode);
+		result = extent2tail(uf_info);
 	else
 		result = 0;
 	drop_exclusive_access(uf_info);
@@ -1534,7 +1534,7 @@ unpack(struct inode *inode, int forever)
 	assert("vs-1074", file_state_is_known(inode));
 	if (result == 0) {
 		if (file_is_built_of_tails(inode))
-			result = tail2extent(inode);
+			result = tail2extent(unix_file_inode_data(inode));
 		if (result == 0 && forever)
 			set_file_notail(inode);
 	}
