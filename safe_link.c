@@ -64,13 +64,13 @@ typedef struct safelink {
 } safelink_t;
 
 /*
- * locality where safe-link items are stored. Next to the locality of root
+ * locality where safe-link items are stored. Next to the objectid of root
  * directory.
  */
 static oid_t
 safe_link_locality(reiser4_tree *tree)
 {
-	return get_inode_oid(tree->super->s_root->d_inode) + 1;
+	return get_key_objectid(get_super_private(tree->super)->df_plug->root_dir_key(tree->super)) + 1;
 }
 
 /*
@@ -273,9 +273,14 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 
 		fplug = inode_file_plugin(inode);
 		assert("nikita-3428", fplug != NULL);
-		if (fplug->safelink != NULL)
+		if (fplug->safelink != NULL) {
+			/* txn_restart_current is not necessary because
+			 * mounting is signle thread. However, without it
+			 * deadlock detection code will complain (see
+			 * nikita-3361). */
+			txn_restart_current();
 			result = fplug->safelink(inode, link, size);
-		else {
+		} else {
 			warning("nikita-3430",
 				"Cannot handle safelink for %lli",
 				(unsigned long long)oid);
