@@ -534,7 +534,7 @@ int extent_kill_item_hook (const coord_t * coord, unsigned from,
 	reiser4_block_nr start, length;
 
 
-	ext = extent_by_coord (coord) + from;
+	ext = extent_item (coord) + from;
 	for (i = 0; i < count; i ++, ext ++) {
 
 		if (state_of_extent (ext) != ALLOCATED_EXTENT) {
@@ -613,6 +613,7 @@ static int cut_or_kill_units (coord_t * coord,
 	/* it may happen that extent @from will not be removed */
 	if (from_key) {
 		reiser4_key key_inside;
+		__u64 last;
 
 		/* when @from_key (and @to_key) are specified things become
 		 * more complex. It may happen that @from-th or @to-th extent
@@ -623,6 +624,7 @@ static int cut_or_kill_units (coord_t * coord,
 		key_inside = key;
 		set_key_offset (&key_inside, (offset +
 					      extent_size (coord, *from)));
+		last = offset + extent_size (coord, *to + 1) - 1;
 		if (keygt (from_key, &key_inside)) {
 			/*
 			 * @from-th extent can not be removed. Its width has to
@@ -664,8 +666,8 @@ static int cut_or_kill_units (coord_t * coord,
 		}
 
 		/* set @key_inside to key of last byte addrressed to extent @to */
-		set_key_offset (&key_inside, (offset +
-					      extent_size (coord, *to + 1) - 1));
+		set_key_offset (&key_inside, last);
+
 		if (keylt (to_key, &key_inside)) {
 			/* @to-th unit can not be removed completely */
 
@@ -2052,19 +2054,15 @@ int extent_write (struct inode * inode, coord_t * coord,
 	znode * loaded;
 
 
+	assert ("vs-859", znode_is_loaded (coord->node));
+
 	result = 0;
 
 	if (!f->length) {
 		/* special case: expanding truncate */
-		loaded = coord->node;
-		result = zload (loaded);
-		if (result)
-			return result;
-		result = add_hole (coord, lh, &f->key,
-				   znode_get_level (coord->node) == TWIG_LEVEL ?
-				   EXTENT_APPEND_HOLE : EXTENT_CREATE_HOLE);
-		zrelse (loaded);
-		return result;
+		return add_hole (coord, lh, &f->key,
+				 znode_get_level (coord->node) == TWIG_LEVEL ?
+				 EXTENT_APPEND_HOLE : EXTENT_CREATE_HOLE);
 	}
 
 	while (f->length) {
@@ -2089,13 +2087,18 @@ int extent_write (struct inode * inode, coord_t * coord,
 		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 		if (result)
 			break;
-
+		
+		/*
+		 * coord->node may change as we loop here. So, we have to
+		 * remember node we zload and zrelse it
+		 */
 		loaded = coord->node;
 		result = zload (loaded);
 		if (result) {
 			txn_delete_page (page);
 			break;
 		}
+
 		result = write_flow_to_page (coord, lh, f, page);
 		if (result) {
 			zrelse (loaded);
