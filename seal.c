@@ -119,6 +119,15 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 				 * coincide */
 				assert( "nikita-1887", 
 					node == seal -> coord.node );
+				assert( "nikita-1898", 
+					({ 
+						reiser4_key ukey;
+
+						coord_of_unit( coord ) && 
+						keyeq( key, 
+						       unit_key_by_coord( coord,
+									  &ukey ) );
+					}) );
 				reiser4_stat_seal_add( perfect_match );
 				result = 0;
 			} else if( znode_contains_key_lock( node, key ) )
@@ -126,9 +135,7 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 				 * seal is broken, but there is a hope that
 				 * key is still in @node
 				 */
-				result = seal_search_node( seal, 
-							   coord, 
-							   node, 
+				result = seal_search_node( seal, coord, node, 
 							   key, bias, level );
 			else {
 				/* key is not in @node */
@@ -166,9 +173,7 @@ static int seal_matches( const seal_t *seal /* seal to check */,
 	assert( "nikita-1891", node != NULL );
 
 	spin_lock_znode( node );
-	spin_lock_tree( current_tree );
-	result = seal -> version == node -> version;
-	spin_unlock_tree( current_tree );
+	result = ( seal -> version == node -> version );
 	spin_unlock_znode( node );
 	return result;
 }
