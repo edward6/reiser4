@@ -3109,6 +3109,10 @@ flush_scan_formatted(flush_scan * scan)
 		done_lh(&end_lock);
 
 		if (ret != 0) {
+			if (ret == -EAGAIN) {
+				scan->stop = 1;
+				return 0;
+			}
 			return ret;
 		}
 
