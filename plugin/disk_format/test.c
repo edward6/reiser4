@@ -33,6 +33,8 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 		return -EINVAL;
 	}
 
+	WRITE_LOG = 0; /* disable log writer for test disk layout */
+
 	/* FIXME-VS: remove this debugging info */
 	print_test_disk_sb ("get_ready:\n", disk_sb);
 

@@ -4,6 +4,8 @@
 
 #include "reiser4.h"
 
+int WRITE_LOG = 1;		/* journal is written by default  */
+
 /* journal header and footer are stored in two dedicated device blocks and
  * contain block numbers of first block of last committed transaction and
  * block number of first block of for oldest not flushed transaction. */

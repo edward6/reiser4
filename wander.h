@@ -7,7 +7,10 @@
                             REISER4 JOURNAL ON-DISK DATA STRUCTURES  
  *****************************************************************************************/
 
-#define WRITE_LOG 1
+/* FIXME: a temporary solution for keep test layout working is to convert
+ * WRITE_LOG constant to a boolean variable which is TRUE by default and it is
+ * set to FALSE in test disk layout initialize code */
+extern int WRITE_LOG;
 
 #define TX_HEADER_MAGIC  "TxMagic4"
 #define LOG_RECORD_MAGIC "LogMagc4"
