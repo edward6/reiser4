@@ -40,7 +40,6 @@ int cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 int write_ctail(flow_t *, coord_t *, lock_handle *, int, crc_write_mode_t, struct inode *);
 int read_ctail(struct file *, flow_t *, uf_coord_t *);
 int readpage_ctail(void *, struct page *);
-int writepage_ctail(reiser4_key *, uf_coord_t *, struct page *, write_mode_t);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
 int kill_hook_ctail(const coord_t *, unsigned, unsigned, void *);

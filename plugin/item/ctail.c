@@ -457,12 +457,6 @@ int readpage_ctail(void * vp, struct page * page)
 }
 
 /* plugin->s.file.writepage */
-int
-writepage_ctail(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
-{
-	return 0;
-}
-
 /* plugin->u.item.s.file.readpages
    populate an address space with some pages, and start reads against them.
    FIXME_EDWARD: this function should return errors

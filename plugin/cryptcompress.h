@@ -23,7 +23,7 @@ typedef enum {
 typedef struct reiser4_cluster{
 	__u8 * buf;      /* pointer to the contiguous region where crypto/compression algorithms live */
 	int bufsize;     /* size of this region */
-	__u8 nr_pages;   /* number of attached pages */
+	int nr_pages;   /* number of attached pages */
 	struct page ** pages; /* attached pages */
 	struct file * file;
 	size_t len;
