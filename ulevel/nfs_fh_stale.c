@@ -10,6 +10,7 @@
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/statfs.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <time.h>
@@ -72,6 +73,8 @@ int max_sleep = 0;
 int max_buf_size = 4096 * 100;
 int max_size = 4096 * 100 * 1000;
 int verbose = 0;
+long long limit = 0;
+long long initiallyused;
 
 /* random integer number in [0, n - 1] */
 #define RND(n) ((int)(((double)(n)) * rand() / (RAND_MAX + 1.0)))
@@ -134,7 +137,7 @@ op_t ops[] = {
 	}
 };
 
-const char optstring[] = "p:f:d:i:s:b:M:BvF:";
+const char optstring[] = "p:f:d:i:s:b:M:BvF:L:";
 
 static double
 rate(unsigned long events, int secs)
@@ -153,6 +156,21 @@ usage(char *argv0)
 		argv0, optstring);
 }
 
+static long long
+getused()
+{
+	int result;
+
+	struct statfs buf;
+
+	result = statfs(".", &buf);
+	if (result != 0) {
+		perror("statfs");
+		exit(1);
+	}
+	return buf.f_bsize * buf.f_bavail;
+}
+
 int benchmark = 0;
 
 int
@@ -167,6 +185,7 @@ main(int argc, char **argv)
 	op_t *op;
 
 	result = ok;
+	ops[gcop].freq = 0;
 	do {
 		opt = getopt(argc, argv, optstring);
 		switch (opt) {
@@ -228,6 +247,10 @@ main(int argc, char **argv)
 			}
 			*eq = '=';
 		}
+			break;
+		case 'L':
+			limit = atoll(optarg);
+			break;
 		case -1:
 			break;
 		}
@@ -244,6 +267,8 @@ main(int argc, char **argv)
 		return 1;
 	}
 	pthread_mutex_init(&stats.lock, NULL);
+
+	initiallyused = getused();
 
 	fprintf(stderr,
 		"%s: %i processes, %i files, delta: %i"
@@ -287,6 +312,17 @@ main(int argc, char **argv)
 			       op->result.busy,
 			       op->result.failure,
 			       rate(done - subtotal, delta), rate(done, i));
+		}
+		if (limit != 0) {
+			long long used;
+
+			used = getused() - initiallyused;
+			if (used > limit / 2) {
+				if (used > limit)
+					ops[gcop].freq *= 2;
+				else
+					ops[gcop].freq = (used - limit / 2) * 100 / (limit / 2);
+			}
 		}
 		_nap(delta, 0);
 	}
@@ -630,6 +666,7 @@ pip_file(params_t *params)
 	struct dirent  entry;
 	struct dirent *ptr;
 	int result;
+	int dogc;
 
 	if (params->cwd == NULL) {
 		params->cwd = opendir(".");
@@ -639,19 +676,37 @@ pip_file(params_t *params)
 		}
 	}
 
-	if (readdir_r(params->cwd, &entry, &ptr) == 0) {
-		if (params->buffer[0] == 0x66)
-			unlink(entry.d_name);
-		else {
+	dogc = (params->buffer[0] == 0x66);
+	errno = 0;
+	result = readdir_r(params->cwd, &entry, &ptr);
+	if (result == 0 && errno == 0 && ptr == &entry) {
+		if (dogc) {
+			if (unlink(entry.d_name) == -1) {
+				switch (errno) {
+				case ENOENT:
+					STEX(++ops[gcop].result.missed);
+					break;
+				case EISDIR:
+					break;
+				default:
+					STEX(++stats.errors);
+					STEX(++ops[gcop].result.failure);
+				}
+			} else
+				STEX(++ops[gcop].result.ok);
+		} else {
 			STEX(++ops[pipop].result.ok);
 			if (verbose)
 				printf("[%li] P: %s\n", 
 				       pthread_self(), entry.d_name);
 		}
-	} else if (errno == ENOENT)
+	} else if (errno == ENOENT || ptr == NULL)
 		rewinddir(params->cwd);
-	else
-		STEX(++ops[pipop].result.failure);
+	else {
+		printf("[%li] P: %i, %i, %p, %s\n", 
+		       pthread_self(), result, errno, ptr, entry.d_name);
+		STEX(++ops[dogc ? gcop : pipop].result.failure);
+	}
 }
 
 static void 
@@ -660,7 +715,6 @@ gc_file(params_t *params)
 	params->buffer[0] = 0x66;
 	pip_file(params);
 	params->buffer[0] = 0x00;
-	STEX(++ops[gcop].result.ok);
 }
 
 static void
