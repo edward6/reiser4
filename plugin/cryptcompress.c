@@ -665,9 +665,12 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 	assert("edward-440", clust != NULL);
 	assert("edward-441", clust->pages != NULL);
 
-	if (clust->nr_pages == 0)
+	if (clust->nr_pages == 0) {
+		assert("edward-1152", clust->win != NULL);
+		assert("edward-1153", clust->win->stat == HOLE_WINDOW);
+		/* don't reserve space for fake disk clusteer */
 		return 0;
-	
+	}
 	assert("edward-442", jprivate(clust->pages[0]) != NULL);
 	
 	reserved = estimate_insert_cluster(inode, 0/* prepped */);
@@ -1773,8 +1776,9 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 	assert ("edward-190", clust != NULL);
 	assert ("edward-1069", clust->win != NULL);
 	assert ("edward-191", inode != NULL);
-	assert ("edward-989", clust->reserved == 1);
 	assert ("edward-727", crc_inode_ok(inode));
+	assert ("edward-1154",
+		ergo(clust->dstat == REAL_DISK_CLUSTER, clust->reserved == 1));
 
 	win = clust->win;
 	
@@ -2096,7 +2100,8 @@ crc_make_unprepped_cluster (reiser4_cluster_t * clust, struct inode * inode)
 	return 0;
 }
 
-/* Collect unlocked pages and maybe jnode (if we wanna modify pages) */
+/* Collect unlocked cluster pages and jnode (the last is in the
+   case when the page cluster will be modified and captured) */
 reiser4_internal int
 prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture)
 {
@@ -2422,7 +2427,7 @@ write_cryptcompress(struct file * file, /* file to write to */
 
 /* If @index > 0, find real disk cluster of the index (@index - 1),
    If @index == 0 find the real disk cluster of the object of maximal index.
-   Keep incremented index of the result in @result.
+   Keep incremented index of the result in @found.
    It succes was returned:
    (@index == 0 && @found == 0) means that the object doesn't have real disk
    clusters.
@@ -2688,7 +2693,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	result = cut_file_items(inode,
 				new_size,
 				update_sd,
-				((loff_t)aidx << inode_cluster_shift(inode)),
+				clust_to_off(aidx, inode),
 				0);
 	if (result)
 		goto out;
@@ -2698,6 +2703,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	if (!off_to_cloff(new_size, inode)) {
 		/* truncating up to cluster boundary */
 		assert("edward-1145", inode->i_size == new_size);
+		//		assert("edward-1155", new_size == 0, inode->i_data.nrpages == 0);
 		goto out;
 	}
 	to_prune = new_size - inode->i_size;
