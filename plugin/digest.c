@@ -11,24 +11,24 @@
 #define NONE_BLOCK_SIZE 64
 #define NONE_DIGEST_SIZE 16
 
-static int none_alloc(void * ctx)
+static int alloc_none(void * ctx)
 {
 	return 0;
 }
 
-static void none_free(void *ctx)
+static void free_none(void *ctx)
 {
 }
 
-static void none_init(void *ctx)
+static void init_none(void *ctx)
 {
 }
 
-static void none_update (void *ctx, const __u8 *data, unsigned int len)
+static void update_none(void *ctx, const __u8 *data, unsigned int len)
 {	
 }
 
-static void none_final (void *ctx, __u8 *out)
+static void final_none(void *ctx, __u8 *out)
 {
 	memset(out, 0, NONE_DIGEST_SIZE); 
 }
@@ -43,13 +43,14 @@ digest_plugin digest_plugins[LAST_DIGEST_ID] = {
 			.pops = NULL,
 			.label = "none",
 			.desc = "trivial digest",
-			.linkage = TS_LIST_LINK_ZERO}
-		,
+			.linkage = TS_LIST_LINK_ZERO
+		},
 		.blksize = NONE_BLOCK_SIZE,
 		.digestsize = NONE_DIGEST_SIZE,
-	        .alloc = none_alloc,
-	        .free = none_free,
-	        .init = none_init,
-	        .update = none_update,
-	        .final = none_final}
+	        .alloc = alloc_none,
+	        .free = free_none,
+	        .init = init_none,
+	        .update = update_none,
+	        .final = final_none
+	}
 };
