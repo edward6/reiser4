@@ -2516,7 +2516,7 @@ releasable(const jnode *node)
 	assert("nikita-2781", node != NULL);
 	assert("nikita-2783", spin_jnode_is_locked(node));
 
-	if (atomic_read(&node->d_count)) {
+	if (node->d_count != 0) {
 		assert("vs-1183", !JF_ISSET(node, JNODE_EFLUSH));
 		return 0;
 	}
