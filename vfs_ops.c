@@ -1647,6 +1647,7 @@ reiser4_decode_fh(struct super_block *s, __u32 *data,
 	char *addr;
 	reiser4_context ctx;
 	struct dentry *dentry;
+	int with_parent;
 
 	TRACE_EXPORT_OPS("started\n");
 
@@ -1654,19 +1655,21 @@ reiser4_decode_fh(struct super_block *s, __u32 *data,
 
 #if REISER4_LARGE_KEY
 	assert("vs-1482", fhtype == 3 || fhtype == 6);
+	with_parent = ((fhtype == 6) ? 1 : 0);
 #else
 	assert("vs-1483", fhtype == 2 || fhtype == 4);
+	with_parent = ((fhtype == 4) ? 1 : 0);
 #endif
 
 	addr = (char *)data;
 	addr += dscale_read(addr, &obj[0]);
 	addr += dscale_read(addr, &obj[1]);
-	TRACE_EXPORT_OPS("obj[0] %llu, obj[1] %llu\n", obj[0], obj[1]);
+	TRACE_EXPORT_OPS("fhtype %d, obj[0] %llu, obj[1] %llu\n", fhtype, obj[0], obj[1]);
 	ON_LARGE_KEY(addr += dscale_read(addr, &obj[2]);
-		     TRACE_EXPORT_OPS("obj[2] %llu", obj[2]);
+		     TRACE_EXPORT_OPS("obj[2] %llu\n", obj[2]);
 		     );
 
-	if (fhtype < 4) {
+	if (with_parent) {
 		addr += dscale_read(addr, &parent[0]);
 		addr += dscale_read(addr, &parent[1]);
 		TRACE_EXPORT_OPS("parent[0] %llu, parent[1] %llu\n", parent[0], parent[1]);
@@ -1675,7 +1678,7 @@ reiser4_decode_fh(struct super_block *s, __u32 *data,
 			     );
 	}
 
-	dentry = s->s_export_op->find_exported_dentry(s, obj, fhtype < 4 ? NULL : parent,
+	dentry = s->s_export_op->find_exported_dentry(s, obj, with_parent ? parent : NULL,
 						      acceptable, context);
 	TRACE_EXPORT_OPS("end\n");
 	reiser4_exit_context(&ctx);
