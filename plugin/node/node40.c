@@ -1838,28 +1838,59 @@ static void adjust_coord (coord_t * insert_coord,
 		return;
 	}
 
+
+	/*
+	 * FIXME-VS: the code below is complicated because with between ==
+	 * AFTER_ITEM unit_pos is set to 0
+	 */
+
 	if (!removed) {
 		/* no items were shifted entirely */
 		assert ("vs-195", shift->merging_units == 0 ||
 			shift->part_units == 0);
+
 		if (shift->real_stop.item_pos == insert_coord->item_pos) {
 			if (shift->merging_units) {
-				assert( "nikita-1441", insert_coord->unit_pos >=
-					shift->merging_units );
-				insert_coord->unit_pos -= shift->merging_units;
+				if (insert_coord->between == AFTER_UNIT) {
+					assert( "nikita-1441", insert_coord->unit_pos >=
+						shift->merging_units );
+					insert_coord->unit_pos -= shift->merging_units;
+				} else if (insert_coord->between == BEFORE_UNIT) {
+					assert( "nikita-2090", insert_coord->unit_pos >
+						shift->merging_units );
+					insert_coord->unit_pos -= shift->merging_units;
+				}
+
 				assert ("nikita-2083", insert_coord->unit_pos + 1);
 			} else {
-				assert( "nikita-1442", insert_coord->unit_pos >=
-					shift->part_units );
-				insert_coord->unit_pos -= shift->part_units;
+				if (insert_coord->between == AFTER_UNIT) {
+					assert ("nikita-1442",
+						insert_coord->unit_pos >= shift->part_units);
+					insert_coord->unit_pos -= shift->part_units;
+				} else if (insert_coord->between == BEFORE_UNIT) {
+					assert ("nikita-2089",
+						insert_coord->unit_pos > shift->part_units);
+					insert_coord->unit_pos -= shift->part_units;
+				}
+
 				assert ("nikita-2084", insert_coord->unit_pos + 1);
 			}
 		}
 		return;
 	}
-	if (shift->real_stop.item_pos == insert_coord->item_pos)
-		insert_coord->unit_pos -= shift->part_units;
-	insert_coord->item_pos -= removed;
+	
+	/* we shifted to left and there was no enough space for everything */
+	switch (insert_coord->between) {
+	case AFTER_UNIT:
+	case BEFORE_UNIT:
+		if (shift->real_stop.item_pos == insert_coord->item_pos)
+			insert_coord->unit_pos -= shift->part_units;
+	case AFTER_ITEM:
+		insert_coord->item_pos -= removed;
+		break;
+	default:
+		impossible ("nikita-2087", "not ready");
+	}
 	assert ("nikita-2085", insert_coord->unit_pos + 1);
 }
 
