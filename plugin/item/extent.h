@@ -11,11 +11,27 @@ typedef struct {
 
 
 /* macros to set/get fields of on-disk extent */
-static inline reiser4_block_nr extent_get_start(const reiser4_extent *ext) { return dblock_to_cpu (& ext->start); }
-static inline reiser4_block_nr extent_get_width(const reiser4_extent *ext) { return dblock_to_cpu (& ext->width); }
+static inline reiser4_block_nr extent_get_start(const reiser4_extent *ext)
+{
+	return dblock_to_cpu (& ext->start);
+}
 
-static inline void extent_set_start(reiser4_extent *ext, reiser4_block_nr start) { cpu_to_dblock (start, & ext->start); }
-static inline void extent_set_width(reiser4_extent *ext, reiser4_block_nr width) { cpu_to_dblock (width, & ext->width); }
+static inline reiser4_block_nr extent_get_width(const reiser4_extent *ext)
+{
+	return dblock_to_cpu (& ext->width);
+}
+
+static inline void extent_set_start(reiser4_extent *ext, reiser4_block_nr start)
+{
+	cassert (sizeof (ext->start) == 8);
+	cpu_to_dblock (start, & ext->start);
+}
+
+static inline void extent_set_width(reiser4_extent *ext, reiser4_block_nr width)
+{
+	cassert (sizeof (ext->width) == 8);
+	cpu_to_dblock (width, & ext->width);
+}
 
 #define extent_item(coord) ((reiser4_extent *)item_body_by_coord (coord))
 #define extent_by_coord(coord) (extent_item (coord) + (coord)->unit_pos)
@@ -85,6 +101,14 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 			      reiser4_blocknr_hint * preceder,
 			      reiser4_key * stop_key);
 
+typedef struct extent_item_plugin {
+	int (* write) (struct inode *, tree_coord *,
+		       reiser4_lock_handle *, flow_t *);
+	int (* read) (struct inode *, tree_coord *,
+		      reiser4_lock_handle *, flow_t *);
+	int (* readpage) (void *, struct page *);
+	common_item_plugin * common;
+} extent_item_plugin;
 
 /* 
  * Local variables:

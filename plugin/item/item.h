@@ -1,31 +1,40 @@
+/*
+ * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ */
+
 /* first read balance.c comments before reading this */
 
 /* An item_plugin implements all of the operations required for
    balancing that are item specific. */
 
-/* an item plugin also implements other operations that are specific to that item.  These go into the item specific
- * operations portion of the item handler, and all of the item specific portions of the item handler are put into a
- * union. */
+/* an item plugin also implements other operations that are specific to that
+ * item.  These go into the item specific operations portion of the item
+ * handler, and all of the item specific portions of the item handler are put
+ * into a union. */
 
 typedef enum { 
-	/* an entry for each item type goes here, suffix _IT for "item type" */
-	/* FIXME_JMACD: These names are U.G.L.Y.  Especially the _IT suffix.  _TID makes more sense. */
+	/* an entry for each item type goes here, suffix _TID for "type id" */
 	
-	SIMPLE_DIR_ENTRY_TID,
-	COMPOUND_DIR_TID,
-	STATIC_STAT_DATA_TID,
-	ACL_TID,
-	EXTENT_POINTER_TID, 
-	TAIL_TID, /* not yet */
-	NODE_POINTER_TID,
-	LAST_ITEM_TID /* used for sizing some arrays */
+	SIMPLE_DIR_ENTRY_ID,
+	COMPOUND_DIR_ID,
+	STATIC_STAT_DATA_ID,
+	ACL_ID,
+	EXTENT_POINTER_ID, 
+	TAIL_ID, 
+	NODE_POINTER_ID,
+	LAST_ITEM_ID 
 } item_plugin_id;
 
+
+/* flags to utmost_child method */
+typedef enum {
+	UTMOST_GET_CHILD
+} utmost_child_flags;
 
 /* this is the part of each item plugin that all items are expected to
  * support or at least explicitly fail to support by setting the
  * pointer to null. */
-typedef struct common_item_plugin {
+struct common_item_plugin {
 	/* in reiser4 the key doesn't contain the full item type only several bits of
 	   it. So after doing coord_by_key() we need to check that we really
 	   found what we have looked for, rather than some different item that
@@ -33,6 +42,8 @@ typedef struct common_item_plugin {
 	   what kind of item you have found.  
 	  */
 	item_plugin_id item_plugin_id;
+
+
 	/** operations called by balancing 
 
 	It is interesting to consider that some of these item
@@ -40,158 +51,183 @@ typedef struct common_item_plugin {
 	really items in nodes.  This could be ok/useful.
 
 	*/
-		/** 
-		 * maximal key that can _possibly_ be occupied by this item
-		 *
-		 *  When node ->lookup() method (called by
-		 *  coord_by_key()) reaches an item after binary search
-		 *  ->max_key_inside() item plugin's method is used to determine
-		 *  whether new item should pasted into existing item 
-		 *   (new_key<=max_key_inside()) or new item has to be created
-		 *  (new_key>max_key_inside()).
-		 *
-		 *  For items that occupy exactly one key (like stat-data)
-		 *  this method should return this key. For items that can
-		 *  grow indefinitely (extent, directory item) this should
-		 *  return max_key().
-		 *  
-		 */
-		reiser4_key *( *max_key_inside )( const tree_coord *coord, 
-						  reiser4_key *area );
-		/**
-		 * true if item @coord can merge data at @key.
-		 */
-		int ( *can_contain_key )( const tree_coord *coord, 
-					  const reiser4_key *key,
-					  const reiser4_item_data *data );
-		/**
-		 * mergeable() - check items for mergeability
-		 *
-		 * Optional method. Returns true if two items can be merged.
-		 *
-		 */
-		int ( *mergeable )( const tree_coord *p1, 
-				    const tree_coord *p2 );
+	/** 
+	 * maximal key that can _possibly_ be occupied by this item
+	 *
+	 *  When node ->lookup() method (called by
+	 *  coord_by_key()) reaches an item after binary search
+	 *  ->max_key_inside() item plugin's method is used to determine
+	 *  whether new item should pasted into existing item 
+	 *   (new_key<=max_key_inside()) or new item has to be created
+	 *  (new_key>max_key_inside()).
+	 *
+	 *  For items that occupy exactly one key (like stat-data)
+	 *  this method should return this key. For items that can
+	 *  grow indefinitely (extent, directory item) this should
+	 *  return max_key().
+	 *  
+	 */
+	reiser4_key *( *max_key_inside )( const tree_coord *coord, 
+					  reiser4_key *area );
+	/**
+	 * true if item @coord can merge data at @key.
+	 */
+	int ( *can_contain_key )( const tree_coord *coord, 
+				  const reiser4_key *key,
+				  const reiser4_item_data *data );
+	/**
+	 * mergeable() - check items for mergeability
+	 *
+	 * Optional method. Returns true if two items can be merged.
+	 *
+	 */
+	int ( *mergeable )( const tree_coord *p1, 
+			    const tree_coord *p2 );
+	
+	/* used for debugging only, prints an ascii description of the
+	   item contents */
+	void ( *print )( const char *, tree_coord *coord ); 
+	/* used for debugging, every item should have here the most
+	   complete possible check of the consistency of the item that
+	   the inventor can construct */
+	int ( *check )( tree_coord *coord, const char **error );
+	
+	/* number of atomic things in an item */
+	unsigned ( *nr_units )( const tree_coord *coord );
+	
+	/* search within item for a unit within the item, and return a
+	   pointer to it.  This can be used to calculate how many
+	   bytes to shrink an item if you use pointer arithmetic and
+	   compare to the start of the item body if the item's data
+	   are continuous in the node, if the item's data are not
+	   continuous in the node, all sorts of other things are maybe
+	   going to break as well. */
+	lookup_result ( *lookup )( const reiser4_key *key, 
+				   lookup_bias bias, 
+				   tree_coord *coord );
+	/** method called by ->create_item() to initialise new item */
+	int ( *init )( tree_coord *coord );
+	/** method called (e.g., by resize_item()) to place new data into
+	    item when it grows*/
+	int ( *paste )( tree_coord *coord, reiser4_item_data *data,
+			carry_level *todo );
+	/**
+	 * return true if paste into @coord is allowed to skip
+	 * carry. That is, if such paste would require any changes
+	 * at the parent level
+	 */
+	int ( *fast_paste )( const tree_coord *coord );
+	/**
+	 * how many but not more than @want units of @source can be
+	 * shifted into @target node. If pend == append - we try to
+	 * append last item of @target by first units of @source. If
+	 * pend == prepend - we try to "prepend" first item in @target
+	 * by last units of @source. @target node has @free_space
+	 * bytes of free space. Total size of those units are returned
+	 * via @size.
+	 *
+	 * @target is not NULL if shifting to the mergeable item and
+	 * NULL is new item will be created during shifting.
+	 */
+	int ( *can_shift )(unsigned free_space, tree_coord * source,
+			   znode * target, shift_direction pend,
+			   unsigned * size, unsigned want);
+	
+	/* starting off @from-th unit of item @source append or
+	   prepend @count units to @target. @target has been already
+	   expanded by @free_space bytes. That must be exactly what is
+	   needed for those items in @target. If @where_is_free_space
+	   == append - free space is at the end of @target item,
+	   othersize - it is in the beginning of it. */
+	void ( *copy_units )( tree_coord *target, tree_coord *source,
+			      unsigned from, unsigned count,
+			      shift_direction where_is_free_space,
+			      unsigned free_space);
+	
+	int  ( *create_hook )( const tree_coord *item, void *arg );
+	/* do whatever is necessary to do when @count units starting
+	 * from @from-th one are removed from the tree */
+	/*
+	 * FIXME-VS: this is used to be here for, in particular,
+	 * extents and items of internal type to free blocks they point
+	 * to at the same time with removing items from a
+	 * tree. Problems start, however, when dealloc_block fails due
+	 * to some reason. Item gets removed, but blocks it pointed to
+	 * are not freed. It is not clear how to fix this for items of
+	 * internal type because a need to remove internal item may
+	 * appear in the middle of balancing, and there is no way to
+	 * undo changes made. OTOH, if space allocator involves
+	 * balancing to perform dealloc_block - this will probably
+	 * break balancing due to deadlock issues
+	 */
+	int ( *kill_hook )( const tree_coord *item, 
+			    unsigned from, unsigned count );
+	int ( *shift_hook )( const tree_coord *item, 
+			     unsigned from, unsigned count, 
+			     znode *old_node );
 
-		/* used for debugging only, prints an ascii description of the
-		   item contents */
-		void ( *print )( const char *, tree_coord *coord ); 
-		/* used for debugging, every item should have here the most
-		   complete possible check of the consistency of the item that
-		   the inventor can construct */
-		int ( *check )( tree_coord *coord, const char **error );
+	/*
+	 * unit @*from contains @from_key. unit @*to contains
+	 * @to_key. Cut all keys between @from_key and @to_key
+	 * including boundaries. Set @from and @to to number of units
+	 * which were removed. When units are cut from item beginning -
+	 * move space which gets freed to head of item. When units are
+	 * cut from item end - move freed space to item end. When units
+	 * are cut from the middle of item - move freed space to item
+	 * head. Return amount of space which got freed. Save smallest
+	 * removed key is @smallest_removed is not 0
+	 */
+	int ( *cut_units )( tree_coord *, unsigned *from, unsigned *to,
+			    const reiser4_key *from_key,
+			    const reiser4_key *to_key,
+			    reiser4_key *smallest_removed );
+	
+	/*
+	 * like cut_units, except that these units are removed from the
+	 * tree, not only from a node
+	 */
+	int ( *kill_units )( tree_coord *, unsigned *from, unsigned *to,
+			     const reiser4_key *from_key,
+			     const reiser4_key *to_key,
+			     reiser4_key *smallest_removed );
 
-		/* number of atomic things in an item */
-		unsigned ( *nr_units )( const tree_coord *coord );
+	/* if @key_of_coord == 1 - returned key of coord, otherwise -
+	   key of unit is returned. If @coord is not set to certain
+	   unit - ERR_PTR(-ENOENT) is returned */
+	reiser4_key * ( *unit_key )( const tree_coord *coord, 
+				     reiser4_key *key );
+	/**
+	 * estimate how much space is needed for paste @data into item
+	 * at @coord.
+	 */
+	int ( *estimate )( const tree_coord *coord, 
+			   const reiser4_item_data *data );
+	
+	/* converts flow @f to item data. @coord == 0 on insert */
+	int ( *item_data_by_flow )( const tree_coord *coord,
+				    const flow_t *f,
+				    reiser4_item_data *data );
+	/* */
+	int ( *utmost_child )( const tree_coord *coord, sideof side, int flags,
+			       jnode **child, reiser4_block_nr *blocknr );
+	
 
-		/* search within item for a unit within the item, and return a
-		   pointer to it.  This can be used to calculate how many
-		   bytes to shrink an item if you use pointer arithmetic and
-		   compare to the start of the item body if the item's data
-		   are continuous in the node, if the item's data are not
-		   continuous in the node, all sorts of other things are maybe
-		   going to break as well. */
-		lookup_result ( *lookup )( const reiser4_key *key, 
-					   lookup_bias bias, 
-					   tree_coord *coord );
-		/** method called by ->create_item() to initialise new item */
-		int ( *init )( tree_coord *coord );
-		/** method called (e.g., by resize_item()) to place new data into
-		    item when it grows*/
-		int ( *paste )( tree_coord *coord, reiser4_item_data *data,
-				carry_level *todo );
-		/**
-		 * return true if paste into @coord is allowed to skip
-		 * carry. That is, if such paste would require any changes
-		 * at the parent level
-		 */
-		int ( *fast_paste )( const tree_coord *coord );
-		/**
-		 * how many but not more than @want units of @source can be
-		 * shifted into @target node. If pend == append - we try to
-		 * append last item of @target by first units of @source. If
-		 * pend == prepend - we try to "prepend" first item in @target
-		 * by last units of @source. @target node has @free_space
-		 * bytes of free space. Total size of those units are returned
-		 * via @size.
-		 *
-		 * @target is not NULL if shifting to the mergeable item and
-		 * NULL is new item will be created during shifting.
-		 */
-		int ( *can_shift )(unsigned free_space, tree_coord * source,
-				   znode * target, shift_direction pend,
-				   unsigned * size, unsigned want);
+	/* if these are set - an item is internal one */
+	void ( *down_link )( const tree_coord *coord,
+			     const reiser4_key *key,
+			     reiser4_block_nr *block );
+	int ( *has_pointer_to )( const tree_coord *coord,
+				 const reiser4_block_nr *block );
 
-		/* starting off @from-th unit of item @source append or
-		   prepend @count units to @target. @target has been already
-		   expanded by @free_space bytes. That must be exactly what is
-		   needed for those items in @target. If @where_is_free_space
-		   == append - free space is at the end of @target item,
-		   othersize - it is in the beginning of it. */
-		void ( *copy_units )( tree_coord *target, tree_coord *source,
-				      unsigned from, unsigned count,
-				      shift_direction where_is_free_space,
-				      unsigned free_space);
-
-		int  ( *create_hook )( const tree_coord *item, void *arg );
-		/* do whatever is necessary to do when @count units starting
-		   from @from-th one are removed from the tree */
-		int ( *kill_hook )( const tree_coord *item, 
-				    unsigned from, unsigned count );
-		int ( *shift_hook )( const tree_coord *item, 
-				     unsigned from, unsigned count, 
-				     znode *old_node );
-
-		/*
-		 * unit @*from contains @from_key. unit @*to contains
-		 * @to_key. Cut all keys between @from_key and @to_key
-		 * including boundaries. Set @from and @to to number of units
-		 * which were removed. When units are cut from item beginning -
-		 * move space which gets freed to head of item. When units are
-		 * cut from item end - move freed space to item end. When units
-		 * are cut from the middle of item - move freed space to item
-		 * head. Return amount of space which got freed. Save smallest
-		 * removed key is @smallest_removed is not 0
-		 */
-		int ( *cut_units )( tree_coord *, unsigned *from, unsigned *to,
-				    const reiser4_key *from_key,
-				    const reiser4_key *to_key,
-				    reiser4_key *smallest_removed );
-
-		/*
-		 * like cut_units, except that these units are removed from the
-		 * tree, not only from a node
-		 */
-		int ( *kill_units )( tree_coord *, unsigned *from, unsigned *to,
-				     const reiser4_key *from_key,
-				     const reiser4_key *to_key,
-				     reiser4_key *smallest_removed );
-
-		/* if @key_of_coord == 1 - returned key of coord, otherwise -
-		   key of unit is returned. If @coord is not set to certain
-		   unit - ERR_PTR(-ENOENT) is returned */
-		reiser4_key * ( *unit_key )( const tree_coord *coord, 
-					     reiser4_key *key );
-		/**
-		 * estimate how much space is needed for paste @data into item
-		 * at @coord.
-		 */
-		int ( *estimate )( const tree_coord *coord, 
-				   const reiser4_item_data *data );
-		
-		/* converts flow @f to item data. @coord == 0 on insert */
-		int ( *item_data_by_flow )( const tree_coord *coord,
-					    const flow_t *f,
-					    reiser4_item_data *data );
-} common_item_plugin;
+};
 
 
 int item_can_contain_key( const tree_coord *item, const reiser4_key *key,
 			  const reiser4_item_data * );
 int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 );
 
-int item_is_extent   (const tree_coord *item);
-int item_is_internal (const tree_coord *item);
+simple_dir_item_plugin simple_dir_plugin;
+compound_dir_item_plugin compound_dir_plugin;
 
 
 /* 

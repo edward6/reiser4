@@ -452,6 +452,20 @@ int extent_create_hook (const tree_coord * coord, void * arg)
 }
 
 
+/*
+ * FIXME-VS: no check for return value here. See the comment in
+ * plugin/item/item.h near kill_hook
+ */
+static int free_blocks (reiser4_block_nr start, reiser4_block_nr length)
+{
+	space_allocator_plugin * splug;
+
+	splug = get_current_super_private ()->space_plug;
+	splug->dealloc_blocks (start, (int)length);
+	return 0;
+}
+
+
 /* plugin->u.item.b.kill_item_hook
  */
 int extent_kill_item_hook (const tree_coord * coord, unsigned from, unsigned count)
@@ -465,8 +479,10 @@ int extent_kill_item_hook (const tree_coord * coord, unsigned from, unsigned cou
 		
 		if (state_of_extent (ext) != ALLOCATED_EXTENT) {
 			continue;
-		} 
-
+		}
+		/*
+		 * FIXME-VS: do I need to do anything for unallocated extents
+		 */
 		free_blocks (extent_get_start (ext), extent_get_width (ext));
 	}
 	return 0;
@@ -571,8 +587,7 @@ static int cut_or_kill_units (tree_coord * coord,
 				/*
 				 * free blocks that are not addressed by this
 				 * extent anymore
-				 */
-				
+				 */				
 				free_blocks (extent_get_start (ext) + new_width,
 					     extent_get_width (ext) - new_width);
 			}
@@ -1682,12 +1697,11 @@ int extent_write (struct inode * inode, tree_coord * coord,
 		}
 
 		/* Capture the page. */
-/*
 		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 		if (result != 0) {
 			goto capture_failed;
 		}
-*/
+
 		kaddr = kmap (page);
 		count = f->length;
 		result = prepare_write (coord, lh, page, &f->key, &count);
@@ -2158,16 +2172,20 @@ int extent_read (struct inode * inode, tree_coord * coord,
  * ask block allocator for some blocks
  */
 static int extent_allocate_blocks (reiser4_block_nr desired_first,
-				   reiser4_block_nr wanted_count,
+				   int wanted_count,
 				   reiser4_block_nr * first_allocated,
-				   reiser4_block_nr * allocated)
+				   int * allocated)
 {
 	int result;
-	reiser4_block_nr start, count;
+	space_allocator_plugin * splug;
+	reiser4_blocknr_hint hint;
 
-	start = desired_first;
-	count = wanted_count;
-	result = allocate_new_blocks (&start, &count);
+
+	splug = get_current_super_private ()->space_plug;
+	assert ("vs-509", splug && splug->alloc_blocks);
+
+	hint.blk = desired_first;
+	result = splug->alloc_blocks (&hint, wanted_count, first_allocated, allocated);
 	if (result) {
 		/*
 		 * no free space
@@ -2175,11 +2193,9 @@ static int extent_allocate_blocks (reiser4_block_nr desired_first,
 		 * here. It should not happen actully
 		 */
 		impossible ("vs-420", "could not allocate unallocated");
-		return result;
 	}
-	*first_allocated = start;
-	*allocated = count;
-	return 0;
+
+	return result;
 }
 
 
@@ -2783,6 +2799,16 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 	allocate_extent_item_in_place (coord, &preceder);
 	return 1;
 }
+
+
+extent_item_plugin extent_plugin = {
+	.write          = extent_write,
+	.read           = extent_read,
+	.readpage       = extent_readpage,
+	.common         = NULL
+};
+
+
 
 /* 
  * Local variables:
