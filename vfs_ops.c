@@ -2184,53 +2184,6 @@ typedef enum {
 static reiser4_init_stage init_stage;
 
 /**
- * initialise reiser4: this is called either at bootup or at module load.
- */
-static int __init init_reiser4(void)
-{
-#define CHECK_INIT_RESULT do {			\
-	if( result == 0 )			\
-		++ init_stage;			\
-	else {					\
-		done_reiser4();			\
-		return result;			\
-	} while( 0 )
-
-	int result;
-
-	info( KERN_INFO "Loading Reiser4. "
-	      "See www.namesys.com for a description of Reiser4.\n" );
-	init_stage = INIT_NONE;
-	result = init_inodecache();
-	CHECK_INIT_RESULT;
-
-	result = init_context_mgr();
-	CHECK_INIT_RESULT;
-
-	result = znodes_init();
-	CHECK_INIT_RESULT;
-		
-	result = init_plugins();
-	CHECK_INIT_RESULT;
-
-	result = txn_init_static();
-	CHECK_INIT_RESULT;
-	
-	result = init_fakes();
-	CHECK_INIT_RESULT;
-
-	result = jnode_init_static();
-	CHECK_INIT_RESULT;
-
-	result = register_filesystem( &reiser4_fs_type );
-	CHECK_INIT_RESULT;
-
-	assert( "nikita-2515", init_stage == INIT_FS_REGISTERED;
-	return 0;
-#undef CHECK_INIT_RESULT
-}
-
-/**
  * finish with reiser4: this is called either at shutdown or at module unload.
  */
 static void __exit done_reiser4(void)
@@ -2243,14 +2196,51 @@ static void __exit done_reiser4(void)
 
         DONE_IF( INIT_FS_REGISTERED, unregister_filesystem( &reiser4_fs_type ) );
 	DONE_IF( INIT_JNODES, jnode_done_static() );
-	DONE_IF( INIT_FAKES, (0) );
+	DONE_IF( INIT_FAKES, ; );
 	DONE_IF( INIT_TXN, txn_done_static() );
-	DONE_IF( INIT_PLUGINS, (0) );
+	DONE_IF( INIT_PLUGINS, ; );
 	DONE_IF( INIT_ZNODES, znodes_done() );
-	DONE_IF( INIT_CONTEXT_MGR, (0) );
+	DONE_IF( INIT_CONTEXT_MGR, ; );
 	DONE_IF( INIT_INODECACHE, destroy_inodecache() );
-	assert( "nikita-2516", init_state == INIT_NONE );
+	assert( "nikita-2516", init_stage == INIT_NONE );
+
 #undef DONE_IF
+}
+
+/**
+ * initialise reiser4: this is called either at bootup or at module load.
+ */
+static int __init init_reiser4(void)
+{
+#define CHECK_INIT_RESULT( exp )		\
+({						\
+	result = exp;				\
+	if( result == 0 )			\
+		++ init_stage;			\
+	else {					\
+		done_reiser4();			\
+		return result;			\
+	}					\
+})
+
+	int result;
+
+	info( KERN_INFO "Loading Reiser4. "
+	      "See www.namesys.com for a description of Reiser4.\n" );
+	init_stage = INIT_NONE;
+
+	CHECK_INIT_RESULT( init_inodecache() );
+	CHECK_INIT_RESULT( init_context_mgr() );
+	CHECK_INIT_RESULT( znodes_init() );
+	CHECK_INIT_RESULT( init_plugins() );
+	CHECK_INIT_RESULT( txn_init_static() );
+	CHECK_INIT_RESULT( init_fakes() );
+	CHECK_INIT_RESULT( jnode_init_static() );
+	CHECK_INIT_RESULT( register_filesystem( &reiser4_fs_type ) );
+
+	assert( "nikita-2515", init_stage == INIT_FS_REGISTERED );
+	return 0;
+#undef CHECK_INIT_RESULT
 }
 
 module_init( init_reiser4 );
