@@ -11,9 +11,6 @@
    (fs/inode.c:can_unuse()) */
 #define I_EFLUSH (256)
 
-extern spinlock_t eflushed_guard;
-
-
 #include "block_alloc.h"
 
 struct eflush_node;
@@ -27,6 +24,7 @@ struct eflush_node {
 	ef_hash_link     linkage;
 	struct list_head inode_link; /* for per inode list of eflush nodes */
 	int              hadatom;
+	int              incatom;
 #if REISER4_DEBUG
 	block_stage_t    initial_stage;
 #endif

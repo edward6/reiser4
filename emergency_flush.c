@@ -237,9 +237,6 @@
 #include <linux/vmalloc.h>
 #include <linux/swap.h>
 
-spinlock_t eflushed_guard = SPIN_LOCK_UNLOCKED;
-
-
 static int flushable(const jnode * node, struct page *page);
 static int needs_allocation(const jnode * node);
 static eflush_node_t *ef_alloc(int flags);
@@ -532,7 +529,6 @@ static int
 eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 {
 	reiser4_tree  *tree;
-	txn_atom      *atom;
 
 	assert("nikita-2737", node != NULL);
 	assert("nikita-2738", !JF_ISSET(node, JNODE_EFLUSH));
@@ -544,7 +540,8 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 
 	ef->node = node;
 	ef->blocknr = *blocknr;
-	ef->hadatom = 0;
+	ef->hadatom = (node->atom != NULL);
+	ef->incatom = 0;
 	jref(node);
 	spin_lock_eflush(tree->super);
 	ef_hash_insert(get_jnode_enhash(node), ef);
@@ -577,8 +574,6 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		/* add eflush node to inode's list */
 		list_add(&ef->inode_link, &info->eflushed_jnodes);
 
-		/*printk("eflush_add: j %p, inode %llu, index %lu, atom %p\n", node, get_inode_oid(inode),
-		  jnode_index(node), node->atom);*/
 		spin_unlock_eflush(tree->super);
 	}
 
@@ -591,11 +586,15 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	 * thanks.
 	 */
 
-	atom = atom_locked_by_jnode(node);
-	if (atom != NULL) {
-		++ atom->flushed;
-		ef->hadatom = 1;
-		UNLOCK_ATOM(atom);
+	if (ef->hadatom) {
+		txn_atom *atom;
+
+		atom = atom_locked_by_jnode(node);
+		if (atom != NULL) {
+			++ atom->flushed;
+			ef->incatom = 1;
+			UNLOCK_ATOM(atom);
+		}
 	}
 
 	UNLOCK_JNODE(node);
@@ -695,7 +694,7 @@ eflush_del(jnode *node, int page_locked)
 		ON_DEBUG(-- get_super_private(tree->super)->eflushed);
 		spin_unlock_eflush(tree->super);
 
-		if (ef->hadatom) {
+		if (ef->incatom) {
 			atom = atom_locked_by_jnode(node);
 			assert("nikita-3311", atom != NULL);
 			-- atom->flushed;
