@@ -17,6 +17,7 @@ SPIN_LOCK_FUNCTIONS(fq,flush_queue_t,guard);
 /* The deadlock-safe order for flush queues and atoms is: first lock atom,
  * then flush queue object, then jnode  */
 
+
 /* get lock on atom from locked flush queue object */
 static txn_atom * atom_get_locked_by_fq (flush_queue_t * fq)
 {
@@ -97,6 +98,7 @@ static void fq_detach_nolock (flush_queue_t * fq)
 	fq->atom = NULL;
 }
 
+
 /* detach fq from atom */
 static void fq_detach (flush_queue_t * fq)
 {
@@ -119,7 +121,110 @@ void fq_done (flush_queue_t * fq)
 	reiser4_kfree (fq, sizeof *fq);
 }
 
-/* */
+
+/* remove queued node from transaction */
+static void uncapture_queued_node (flush_queue_t *fq, jnode *node)
+{
+	assert ("zam-737", spin_jnode_is_locked (node));
+	assert ("zam-738", spin_fq_is_locked (fq));
+	assert ("zam-739", fq->atom);
+	assert ("zam-740", spin_atom_is_locked (fq->atom));
+
+	trace_on (TRACE_FLUSH, "queued jnode removed from memory\n");
+
+	capture_list_remove (node);
+	count_dequeued_node (fq);
+
+	JF_CLR (node, JNODE_FLUSH_QUEUED);
+	JF_CLR (node, JNODE_OVRWR);
+	JF_CLR (node, JNODE_RELOC);
+	JF_CLR (node, JNODE_CREATED);
+
+	node->atom->capture_count --;
+	node->atom = NULL;
+
+	spin_unlock_jnode (node);
+
+	jput (node);
+
+	/* atom and fq are still locked at this moment */
+}
+
+/* Check if this node must be removed from the transaction, if so, remove
+ * it. Return value: 1 if node has been removed from the transaction, 0
+ * otherwise. */
+static inline int try_uncapture_node (flush_queue_t * fq, jnode * node)
+{
+	if (JF_ISSET (node, JNODE_HEARD_BANSHEE)) {
+		uncapture_queued_node (fq, node);
+		return 1;
+	}
+
+	return 0;
+}
+
+/**
+ * Putting jnode into the flush queue. Both atom and jnode should be
+ * spin-locked. */
+void fq_queue_node (flush_queue_t * fq, jnode * node)
+{
+	assert ("zam-711", spin_jnode_is_locked (node));
+	assert ("zam-713", node->atom != NULL);
+	assert ("zam-712", spin_atom_is_locked (node->atom));
+	assert ("zam-714", jnode_is_dirty (node));
+	assert ("zam-716", fq->atom != NULL);
+	assert ("zam-717", fq->atom == node->atom);
+
+	if (JF_ISSET (node, JNODE_FLUSH_QUEUED))
+		return;	/* queued already */
+
+	capture_list_remove_clean (node);
+
+	JF_SET (node, JNODE_FLUSH_QUEUED);
+
+	/* Some tricks with lock ordering. */
+	spin_unlock_jnode (node);
+
+	spin_lock_fq (fq);
+	spin_lock_jnode (node);
+
+	if (JF_ISSET(node, JNODE_WRITEBACK)) {
+		capture_list_push_back (&fq->io, node);
+		atomic_inc (&fq->nr_submitted);
+	} else {
+		capture_list_push_back (&fq->queue, node);
+	}
+
+	count_enqueued_node (fq);
+	spin_unlock_fq (fq);
+}
+
+/* remove jnode from the flush queue; return 0 if node has been uncaptured;
+ * always unlocks jnode */
+static int fq_dequeue_node (flush_queue_t *fq, jnode * node)
+{
+	assert ("zam-724", spin_jnode_is_locked (node));
+	assert ("zam-725", fq->atom != NULL);
+	assert ("zam-726", spin_atom_is_locked (fq->atom));
+	assert ("zam-741", !jnode_is_dirty(node));
+
+	if (try_uncapture_node (fq, node))
+		return 0;
+
+	count_dequeued_node (fq);
+
+	JF_CLR (node, JNODE_FLUSH_QUEUED);
+	JF_CLR (node, JNODE_DIRTY);
+
+	capture_list_remove (node);
+	capture_list_push_back (&fq->atom->clean_nodes, node);
+
+	spin_unlock_jnode (node);
+
+	return 1;
+}
+
+/* repeatable process for waiting io completion on a flush queue object */
 static int fq_wait_io (flush_queue_t * fq)
 {
 	assert ("zam-737", spin_fq_is_locked (fq));
@@ -172,18 +277,14 @@ static void fq_scan_io_list (flush_queue_t * fq)
 
 		assert ("zam-735", !JF_ISSET(cur, JNODE_WRITEBACK));
 
-		capture_list_remove_clean (cur);
-
 		if (JF_ISSET (cur, JNODE_DIRTY)) {
+			capture_list_remove (cur);
 			capture_list_push_back (&fq->queue, cur);
+
+			spin_unlock_jnode (cur);
 		} else {
-			capture_list_push_back (&atom->clean_nodes, cur);
-			JF_CLR (cur, JNODE_FLUSH_QUEUED);
-
-			count_dequeued_node (fq);
+			fq_dequeue_node (fq, cur);
 		}
-
-		spin_unlock_jnode (cur);
 
 		cur = next;
 	}
@@ -259,7 +360,7 @@ int finish_all_fq (txn_atom * atom)
 	return -EBUSY;
 }
 
-/**/
+/* change node->atom field for all jnode from given list */
 static void fq_queue_change_atom (capture_list_head * list, txn_atom * atom)
 {
 	jnode * cur;
@@ -298,63 +399,6 @@ void fq_fuse (txn_atom * to, txn_atom * from)
 	}
 
 	fq_list_splice (&to->flush_queues, &from->flush_queues);
-}
-
-/**
- * Putting jnode into the flush queue. Both atom and jnode should be
- * spin-locked. */
-void fq_queue_node (flush_queue_t * fq, jnode * node)
-{
-	assert ("zam-711", spin_jnode_is_locked (node));
-	assert ("zam-713", node->atom != NULL);
-	assert ("zam-712", spin_atom_is_locked (node->atom));
-	assert ("zam-714", jnode_is_dirty (node));
-	assert ("zam-716", fq->atom != NULL);
-	assert ("zam-717", fq->atom == node->atom);
-
-	if (JF_ISSET (node, JNODE_FLUSH_QUEUED))
-		return;	/* queued already */
-
-	capture_list_remove_clean (node);
-
-	JF_SET (node, JNODE_FLUSH_QUEUED);
-
-	/* Some tricks with lock ordering. */
-	spin_unlock_jnode (node);
-
-	spin_lock_fq (fq);
-	spin_lock_jnode (node);
-
-	if (JF_ISSET(node, JNODE_WRITEBACK)) {
-		capture_list_push_back (&fq->io, node);
-		atomic_inc (&fq->nr_submitted);
-	} else {
-		capture_list_push_back (&fq->queue, node);
-	}
-
-	count_enqueued_node (fq);
-	spin_unlock_fq (fq);
-}
-
-/**
- * */
-static int fq_dequeue_node (flush_queue_t *fq, jnode * node)
-{
-	assert ("zam-724", spin_jnode_is_locked (node));
-	assert ("zam-725", fq->atom != NULL);
-	assert ("zam-726", spin_atom_is_locked (fq->atom));
-
-	if (jnode_is_dirty(node)); /* ???? */
-
-	count_dequeued_node (fq);
-
-	JF_CLR (node, JNODE_FLUSH_QUEUED);
-	JF_CLR (node, JNODE_DIRTY);
-
-	capture_list_remove (node);
-	capture_list_push_back (&fq->atom->clean_nodes, node);
-
-	return 0;
 }
 
 /* bio i/o completion routine */
@@ -468,11 +512,7 @@ static int fq_prepare_node_for_write (flush_queue_t * fq, jnode * node)
 
 	if (!JF_ISSET (node, JNODE_DIRTY)) {
 		/* dequeue it */
-		capture_list_push_back (&atom->clean_nodes, node);
-		JF_CLR (node, JNODE_FLUSH_QUEUED);
-
-		count_dequeued_node (fq);
-		
+		fq_dequeue_node (fq, node);
 		ret = 1;	/* this node should be skipped */
 	} else {
 
@@ -480,10 +520,10 @@ static int fq_prepare_node_for_write (flush_queue_t * fq, jnode * node)
 		JF_CLR (node, JNODE_DIRTY);
 
 		capture_list_push_back (&fq->io, node);
+		spin_unlock_jnode (node);
 	}
 
 	spin_unlock_atom (atom);
-	spin_unlock_jnode (node);
 
 	return ret;
 }
@@ -571,6 +611,8 @@ int fq_write (flush_queue_t * fq, int how_many)
 	return 0;
 }
 
+/* Getting flush queue object for exclusive use by one thread. May require
+ * several iterations which is indicated by -EAGAIN return code. */
 int fq_get (txn_atom * atom, flush_queue_t ** new_fq)
 {
 	flush_queue_t * fq;
@@ -617,6 +659,7 @@ int fq_get (txn_atom * atom, flush_queue_t ** new_fq)
 	return -EAGAIN;
 }
 
+/* Releasing flush queue object after exclusive use */
 void fq_put (flush_queue_t * fq)
 {
 	spin_lock_fq (fq);
@@ -627,6 +670,8 @@ void fq_put (flush_queue_t * fq)
 	spin_unlock_fq (fq);
 }
 
+/* A part of atom object initialization related to the embedded flush queue
+ * list head */
 void fq_init_atom (txn_atom * atom)
 {
 	fq_list_init (&atom->flush_queues);
