@@ -2290,15 +2290,63 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 	ON_TRACE(TRACE_TXN, "capture %p for atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
 }
 
-/* Set the dirty status for this jnode.  If the jnode is not already dirty, this involves locking the atom (for its
+static void
+do_jnode_make_dirty(jnode * node, txn_atom * atom)
+{
+	assert("zam-748", spin_jnode_is_locked(node));
+	assert("zam-750", spin_atom_is_locked(atom));
+	assert("jmacd-3981", !jnode_is_dirty(node));
+
+	JF_SET(node, JNODE_DIRTY);
+
+	get_current_context()->nr_marked_dirty ++;
+
+	/* We grab2flush_reserve one additional block only if node was
+	   not CREATED and jnode_flush did not sort it into neither
+	   relocate set nor overwrite one. If node is in overwrite or
+	   relocate set we assume that atom's flush reserved counter was
+	   already adjusted. */
+	if (!JF_ISSET(node, JNODE_CREATED)
+	    && !JF_ISSET(node, JNODE_RELOC) 
+	    && !JF_ISSET(node, JNODE_OVRWR))
+	{
+		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
+		grabbed2flush_reserved_nolock(atom, (__u64)1, "jnode_set_dirty: for clean, !created, !reloc and !ovrwr");
+	}
+
+	if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
+		/* If the atom is not set yet, it will be added to the appropriate list in
+		   capture_assign_block_nolock. */
+		/* Sometimes a node is set dirty before being captured -- the case for new
+		   jnodes.  In that case the jnode will be added to the appropriate list
+		   in capture_assign_block_nolock. Another reason not to re-link jnode is
+		   that jnode is on a flush queue (see flush.c for details) */
+
+		int level = jnode_get_level(node);
+
+		assert("nikita-3152", !JF_ISSET(node, JNODE_OVRWR));
+		assert("zam-654", !(JF_ISSET(node, JNODE_OVRWR)
+				    && atom->stage >= ASTAGE_PRE_COMMIT));
+		assert("nikita-2607", 0 <= level);
+		assert("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
+
+		capture_list_remove(node);
+		capture_list_push_back(&atom->dirty_nodes[level], node);
+	}
+}
+
+/* Set the dirty status for this znode.  If the znode is not already dirty, this involves locking the atom (for its
    capture lists), removing from the clean list and pushing in to the dirty list of the appropriate level. */
 void
-jnode_make_dirty(jnode * node)
+znode_make_dirty(znode * z)
 {
+	jnode *node;
 	txn_atom * atom;
 	struct page *page;
 
-	assert("umka-204", node != NULL);
+	assert("umka-204", z != NULL);
+
+	node = ZJNODE(z);
 
 	/* We get both locks (atom, jnode) before jnode state check because
 	   atom_locked_by_jnode may unlock jnode in a process of getting
@@ -2308,45 +2356,9 @@ jnode_make_dirty(jnode * node)
 
 	assert("vs-1094", atom);
 
-	if (!JF_TEST_AND_SET(node, JNODE_DIRTY)) {
-		assert("jmacd-3981", jnode_is_dirty(node));
 
-		get_current_context()->nr_marked_dirty ++;
-
-		/* We grab2flush_reserve one additional block only if node was
-		   not CREATED and jnode_flush did not sort it into neither
-		   relocate set nor overwrite one. If node is in overwrite or
-		   relocate set we assume that atom's flush reserved counter was
-		   already adjusted. */
-		if (!JF_ISSET(node, JNODE_CREATED)
-		    && !JF_ISSET(node, JNODE_RELOC) 
-		    && !JF_ISSET(node, JNODE_OVRWR))
-		{
-			assert("vs-1093", !blocknr_is_fake(&node->blocknr));
-			grabbed2flush_reserved_nolock(atom, (__u64)1, "jnode_set_dirty: for clean, !created, !reloc and !ovrwr");
-		}
-
-		if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
-			/* If the atom is not set yet, it will be added to the appropriate list in
-			   capture_assign_block_nolock. */
-			/* Sometimes a node is set dirty before being captured -- the case for new
-			   jnodes.  In that case the jnode will be added to the appropriate list
-			   in capture_assign_block_nolock. Another reason not to re-link jnode is
-			   that jnode is on a flush queue (see flush.c for details) */
-
-			int level = jnode_get_level(node);
-
-			assert("nikita-3152", !JF_ISSET(node, JNODE_OVRWR));
-			assert("zam-654", !(JF_ISSET(node, JNODE_OVRWR)
-						    && atom->stage >= ASTAGE_PRE_COMMIT));
-			assert("nikita-2607", 0 <= level);
-			assert("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
-
-			capture_list_remove(node);
-			capture_list_push_back(&atom->dirty_nodes[level], node);
-		}
-	}
-
+	if (!jnode_is_dirty(node))
+		do_jnode_make_dirty(node, atom);
 	UNLOCK_ATOM (atom);
 
 	page = jnode_page(node);
@@ -2366,26 +2378,36 @@ jnode_make_dirty(jnode * node)
 		page_cache_release(page);
 	}
 
-	if (jnode_is_znode(node)) {
-		reiser4_tree *tree;
-		znode *z;
+	/* bump version counter in znode */
+	z->version = znode_build_version(jnode_get_tree(node));
+	/* FIXME: This makes no sense, delete it, reenable nikita-1900:
 
-		tree = jnode_get_tree(node);
-		z = JZNODE(node);
-		/* bump version counter in znode */
-		z->version = znode_build_version(tree);
-		/* FIXME: This makes no sense, delete it, reenable nikita-1900:
+	the flush code sets a node dirty even though it is read
+	locked... but it captures it first.  However, the new
+	assertion (jmacd-9777) seems to contradict the statement
+	above, that a node is captured before being captured.
+	Perhaps that is no longer true. */
+	assert("nikita-1900", znode_is_write_locked(z));
+	assert("jmacd-9777", node->atom != NULL);
+	ON_DEBUG_MODIFY(znode_set_checksum(z));
+}
 
-		   the flush code sets a node dirty even though it is read
-		   locked... but it captures it first.  However, the new
-		   assertion (jmacd-9777) seems to contradict the statement
-		   above, that a node is captured before being captured.
-		   Perhaps that is no longer true. */
-		assert("nikita-1900", znode_is_write_locked(z));
-		assert("jmacd-9777", node->atom != NULL);
-		ON_DEBUG_MODIFY(znode_set_checksum(z));
+/* this differs from the above that it starts with spin locked jnode and that it doesnot do anythoing with a page */
+void
+unformatted_jnode_make_dirty(jnode * node)
+{
+	txn_atom * atom;
+
+	assert("umka-204", node != NULL);
+	assert("zam-7481", spin_jnode_is_locked(node));
+
+	if (!jnode_is_dirty(node)) {
+		atom = atom_locked_by_jnode (node);
+		assert("vs-1094", atom);
+		if (!jnode_is_dirty(node))
+			do_jnode_make_dirty(node, atom);
+		UNLOCK_ATOM (atom);
 	}
-
 }
 
 /* Unset the dirty status for the node if necessary spin locks are already taken */
