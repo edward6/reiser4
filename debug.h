@@ -139,9 +139,6 @@
     switch() statement. */
 #define impossible( label, format, ... ) 			\
          reiser4_panic( label, "impossible: " format , ## __VA_ARGS__ )
-/* stub for something you are planning to implement in a future */
-#define not_implemented( label, format, ... )	\
-         reiser4_panic( label, "not implemented: " format , ## __VA_ARGS__ )
 /* assert assures that @cond is true. If it is not, reiser4_panic() is
    called. Use this for checking logical consistency and _never_ call
    this to check correctness of external data: disk blocks and user-input . */
