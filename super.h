@@ -190,14 +190,12 @@ int default_read_node (const reiser4_block_nr *addr, char **data,
 int default_allocate_node (znode *);
 void default_unread_node (znode *);
 
-int init_tree( reiser4_tree *tree, 
-	       const reiser4_block_nr *root_block,
-	       tree_level height,
-	       node_plugin *default_plugin,
-	       node_read_actor read_node, 
-	       node_allocate_actor alloc_node,
-	       node_unread_actor unread_node );
-void done_tree( reiser4_tree *tree );
+extern int init_tree( reiser4_tree *tree, struct super_block *super,
+		      const reiser4_block_nr *root_block,
+		      tree_level height, node_plugin *default_plugin,
+		      tree_operations *tops20 );
+extern void done_tree( reiser4_tree *tree );
+
 #if 1 || REISER4_DEBUG
 extern void register_thread( void );
 extern void deregister_thread( void );
