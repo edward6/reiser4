@@ -231,6 +231,15 @@ struct znode {
 #endif 
 };
 
+/* In general I think these macros should not be exposed. */
+#define znode_is_locked(node)          ((node)->lock.nr_readers != 0)
+#define znode_is_rlocked(node)         ((node)->lock.nr_readers > 0)
+#define znode_is_wlocked(node)         ((node)->lock.nr_readers < 0)
+#define znode_is_wlocked_once(node)    ((node)->lock.nr_readers == -1)
+#define znode_can_be_rlocked(node)     ((node)->lock.nr_readers >=0)
+#define is_lock_compatible(node, mode) \
+             (((mode) == ZNODE_WRITE_LOCK && !znode_is_locked(node)) \
+           || ((mode) == ZNODE_READ_LOCK && znode_can_be_rlocked(node)))
 
 /* Macros for accessing the znode state. */
 #define	ZF_CLR(p,f)	        JF_CLR  (ZJNODE(p), (f))
@@ -334,6 +343,11 @@ struct lock_stack {
 	 * it is. */
 	struct semaphore sema;
 };
+
+/* defining of list manipulation functions for lists above */
+TS_LIST_DEFINE(requestors, lock_stack, requestors_link);
+TS_LIST_DEFINE(owners, lock_handle, owners_link);
+TS_LIST_DEFINE(locks, lock_handle, locks_link);
 
 /*****************************************************************************\
  * User-visible znode locking functions

@@ -158,10 +158,6 @@ static int add_new_root( carry_level *level, carry_node *node, znode *fake );
 static __u64 carry_estimate_space( carry_level *level );
 static int carry_level_invariant( carry_level *level );
 
-ON_DEBUG( TS_LIST_DEFINE( owners, lock_handle, owners_link ) );
-ON_DEBUG( TS_LIST_DEFINE( locks, lock_handle, locks_link ) );
-
-
 /**
  * main entry point for tree balancing.
  *
