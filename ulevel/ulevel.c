@@ -1253,7 +1253,7 @@ static void print_percentage( unsigned long reached,
 {
 	int percentage;
 
-	percentage = reached / ( total / 100 );
+	percentage = reached / ( ( ( double ) total ) / 100.0 );
 	if( percentage * ( total / 100 ) == reached )
 	{
 		if( ( percentage / 10 ) * 10 == percentage )
