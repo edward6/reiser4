@@ -180,10 +180,20 @@ struct jnode
 	__u32        level : 5;
 
 	/* lock, protecting jnode's fields. */
-	 /* FIXME_JMACD: Can be probably combined with spinning atomic ops on STATE. */
+	/* 
+	 * FIXME_JMACD: Can be probably combined with spinning atomic ops on
+	 * STATE. 
+	 *
+	 * FIXME-NIKITA This means what? Reusing spare bits in spinlock_t for
+	 * state? This is unportable.
+	 */
 	spinlock_t   guard;
 
-	/* the struct page pointer */
+	/* the struct page pointer 
+	 *
+	 * FIXME-NIKITA pointer to page is not enough when block size is
+	 * smaller than page size.
+	 */
 	struct page *pg;
 
 	/* atom the block is in, if any */
