@@ -100,7 +100,6 @@ static int reiser4_set_page_dirty (struct page * page)
 	}
 	return ret;
 }
-/* VS-FIXME-HANS: how about a nice explanation of why we have both readpage and readpages? */
 
 /* ->readpage() VFS method in reiser4 address_space_operations
    method serving file mmapping
