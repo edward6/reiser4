@@ -480,7 +480,7 @@ page_filler(void *arg, struct page *page)
 
 	assert("nikita-2369", page->mapping == jnode_ops(node)->mapping(node));
 
-	reiser4_stat_jnode_add(jload_read);
+	reiser4_stat_add_at_level(jnode_get_level(node), jnode.jload_read);
 	return page_io(page, node, READ, GFP_KERNEL);
 }
 
@@ -529,7 +529,7 @@ jload(jnode * node)
 	schedulable();
 
 	result = 0;
-	reiser4_stat_jnode_add(jload);
+	reiser4_stat_add_at_level(jnode_get_level(node), jnode.jload);
 	jref(node);
 	spin_lock_jnode(node);
 	add_d_ref(node);
@@ -584,7 +584,8 @@ jload(jnode * node)
 			JF_SET(node, JNODE_LOADED);
 			load_page(page, node);
 			node->data = page_address(page);
-			reiser4_stat_jnode_add(jload_page);
+			reiser4_stat_add_at_level(jnode_get_level(node), 
+						  jnode.jload_page);
 		} else {
 			page = read_cache_page(jplug->mapping(node), 
 					       jplug->index(node), 
@@ -612,7 +613,7 @@ jload(jnode * node)
 				if (REISER4_USE_EFLUSH)
 					eflush_del(node, 1);
 				if (REISER4_STATS && JF_ISSET(node, JNODE_ASYNC))
-					reiser4_stat_jnode_add(jload_async);
+					reiser4_stat_add_at_level(jnode_get_level(node), jnode.jload_async);
 				JF_CLR(node, JNODE_ASYNC);
 				spin_unlock_jnode(node);
 				reiser4_unlock_page(page);
@@ -629,7 +630,8 @@ jload(jnode * node)
 		page = jnode_page(node);
 		assert("nikita-2348", page != NULL);
 		load_page(page, node);
-		reiser4_stat_jnode_add(jload_already);
+		reiser4_stat_add_at_level(jnode_get_level(node), 
+					  jnode.jload_already);
 	}
 	assert("nikita-2814", ergo(result == 0, jnode_is_loaded(node)));
 	assert("nikita-2816", ergo(result == 0 && jnode_is_znode(node),

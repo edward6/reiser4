@@ -762,7 +762,7 @@ int longterm_lock_znode(
 		set_low_priority(owner);
 	}
 
-	reiser4_stat_znode_add(lock_znode);
+	reiser4_stat_add_at_level(znode_get_level(node), znode.lock_znode);
 	/* Synchronize on node's guard lock. */
 	spin_lock_znode(node);
 
@@ -773,7 +773,8 @@ int longterm_lock_znode(
 
 	for (;;) {
 
-		reiser4_stat_znode_add(lock_znode_iteration);
+		reiser4_stat_add_at_level(znode_get_level(node), 
+					  znode.lock_znode_iteration);
 
 		/* Check the lock's availability: if it is unavaiable we get EAGAIN, 0
 		   indicates "can_lock", otherwise the node is invalid.  */

@@ -338,8 +338,6 @@ extern __u32 reiser4_current_trace_flags;
 */
 
 #define	reiser4_stat_tree_add( stat ) ST_INC_CNT( tree . stat )
-#define reiser4_stat_jnode_add( stat ) ST_INC_CNT( jnode . stat )
-#define reiser4_stat_znode_add( stat ) ST_INC_CNT( znode . stat )
 #define reiser4_stat_dir_add( stat ) ST_INC_CNT( dir . stat )
 #define reiser4_stat_vfs_calls_add( stat ) ST_INC_CNT( vfs_calls . stat )
 #define reiser4_stat_file_add( stat ) ST_INC_CNT( file . stat )
@@ -546,32 +544,33 @@ typedef struct reiser4_statistics {
 		/* how many requests for znode long term lock managed to
 		 * succeed immediately. */
 		stat_cnt long_term_lock_uncontented;
+		struct {
+			/* calls to jload() */
+			stat_cnt jload;
+			/* calls to jload() that found jnode already loaded */
+			stat_cnt jload_already;
+			/* calls to jload() that found page already in memory */
+			stat_cnt jload_page;
+			/* calls to jload() that found jnode with asynchronous io
+			 * started */
+			stat_cnt jload_async;
+			/* calls to jload() that actually had to read data */
+			stat_cnt jload_read;
+		} jnode;
+		struct {
+			/* calls to lock_znode() */
+			stat_cnt lock_znode;
+			/* number of times loop inside lock_znode() was
+			 * executed */
+			stat_cnt lock_znode_iteration;
+			/* calls to lock_neighbor() */
+			stat_cnt lock_neighbor;
+			/* number of times loop inside lock_neighbor() was
+			   executed */
+			stat_cnt lock_neighbor_iteration;
+		} znode;
 		stat_cnt total_hits_at_level;
 	} level[REAL_MAX_ZTREE_HEIGHT];
-	struct {
-		/* calls to jload() */
-		stat_cnt jload;
-		/* calls to jload() that found jnode already loaded */
-		stat_cnt jload_already;
-		/* calls to jload() that found page already in memory */
-		stat_cnt jload_page;
-		/* calls to jload() that found jnode with asynchronous io
-		 * started */
-		stat_cnt jload_async;
-		/* calls to jload() that actually had to read data */
-		stat_cnt jload_read;
-	} jnode;
-	struct {
-		/* calls to lock_znode() */
-		stat_cnt lock_znode;
-		/* number of times loop inside lock_znode() was executed */
-		stat_cnt lock_znode_iteration;
-		/* calls to lock_neighbor() */
-		stat_cnt lock_neighbor;
-		/* number of times loop inside lock_neighbor() was
-		   executed */
-		stat_cnt lock_neighbor_iteration;
-	} znode;
 	struct {
 		stat_cnt reads;
 		stat_cnt writes;
@@ -685,8 +684,6 @@ typedef struct reiser4_statistics {
 
 #define	reiser4_stat_tree_add( stat ) noop
 #define	reiser4_stat_tree_level_add( level, stat ) noop
-#define reiser4_stat_jnode_add( stat ) noop
-#define reiser4_stat_znode_add( stat ) noop
 #define reiser4_stat_dir_add( stat ) noop
 #define reiser4_stat_flush_add( stat ) noop
 #define reiser4_stat_flush_add_few( stat, cnt ) noop
