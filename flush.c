@@ -319,6 +319,10 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 	if (start_lock == NULL &&
 	    jnode_is_formatted (end_node) &&
 	    (ret = longterm_lock_znode (& end_lock, JZNODE (end_node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+		/*
+		 * FIXME:NIKITA->JMACD at this point ret may be still
+		 * uninitialised
+		 */
 		goto failure;
 	}
 
