@@ -193,11 +193,23 @@ typedef struct file_plugin {
 
 	/**
 	 * Construct flow into @flow according to user-supplied data.
-	 * needs better comment
+	 * FIXME: needs better comment, further, you can't get an inode
+	 * from a file, so this should either be named flow_by_file or
+	 * its argument should be changed to an inode.
 	 */
 	int ( *flow_by_inode )( struct file *file, char *buf, size_t size, 
-				loff_t *off, rw_op op, flow_t * );
-	/*int ( *flow_by_key )( reiser4_key *key, flow_t * );*/
+				const loff_t *off, rw_op op, flow_t * );
+
+	/**
+	 * FIXME: This needs a better comment too, especially since it isn't being used.
+	 */
+	int ( *flow_by_key )( reiser4_key *key, flow_t * );
+
+	/**
+	 * Return the key used to retrieve an offset of a file.
+	 */
+	int ( *key_by_inode )( struct inode *inode, const loff_t *off, reiser4_key *key );
+
 	/*
 	 * set the plugin for a file.  Called during file creation in reiser4()
 	 * and creat().

@@ -527,7 +527,7 @@ int common_file_owns_item( const struct inode *inode, const tree_coord *coord )
  * data.
  */
 int common_build_flow( struct file *file, char *buf, size_t size, 
-		       loff_t *off, rw_op op UNUSED_ARG, flow_t *f )
+		       const loff_t *off, rw_op op UNUSED_ARG, flow_t *f )
 {
 	assert( "nikita-1100", f != NULL );
 	assert( "nikita-1101", file != NULL );
@@ -540,6 +540,12 @@ int common_build_flow( struct file *file, char *buf, size_t size,
 	set_key_type( &f -> key, KEY_BODY_MINOR );
 	set_key_offset( &f -> key, ( __u64 ) *off );
 	return 0;
+}
+
+static int ordinary_key_by_inode ( struct inode *inode, const loff_t *off, reiser4_key *key )
+{
+	/* FIXME: VS */
+	return -EINVAL;
 }
 
 reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
@@ -563,6 +569,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.write               = ordinary_file_write,
 				.flow_by_inode       = NULL,
 				.flow_by_key         = NULL,
+				.key_by_inode        = ordinary_key_by_inode,
 				.set_plug_in_sd      = NULL,
 				.set_plug_in_inode   = NULL,
 				.create_blank_sd     = NULL,
@@ -595,6 +602,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.write               = NULL, /* EISDIR */
 				.flow_by_inode       = NULL,
 				.flow_by_key         = NULL,
+				.key_by_inode        = NULL,
 				.set_plug_in_sd      = NULL,
 				.set_plug_in_inode   = NULL,
 				.create_blank_sd     = NULL,
@@ -627,6 +635,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.write               = NULL,
 				.flow_by_inode       = NULL,
 				.flow_by_key         = NULL,
+				.key_by_inode        = NULL,
 				.set_plug_in_sd      = NULL,
 				.set_plug_in_inode   = NULL,
 				.create_blank_sd     = NULL,
@@ -663,6 +672,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.write               = NULL,
 				.flow_by_inode       = NULL,
 				.flow_by_key         = NULL,
+				.key_by_inode        = NULL,
 				.set_plug_in_sd      = NULL,
 				.set_plug_in_inode   = NULL,
 				.create_blank_sd     = NULL,

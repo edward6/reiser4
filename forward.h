@@ -112,16 +112,16 @@ struct super_block;
 typedef enum { 
 	CBK_COORD_FOUND    = 0,
 	CBK_COORD_NOTFOUND = -ENOENT, 
-	CBK_IO_ERROR       = -EIO,
-	CBK_OOM            = -ENOMEM
+	CBK_IO_ERROR       = -EIO, /* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
+	CBK_OOM            = -ENOMEM /* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
 } lookup_result;
 
 /** results of lookup with directory file */
 typedef enum { 
 	FILE_NAME_FOUND     = 0, 
 	FILE_NAME_NOTFOUND  = -ENOENT, 
-	FILE_IO_ERROR       = -EIO,
-	FILE_OOM            = -ENOMEM
+	FILE_IO_ERROR       = -EIO, /* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
+	FILE_OOM            = -ENOMEM /* FIXME: it seems silly to have special OOM, IO_ERROR return codes for each search. */
 } file_lookup_result;
 
 /** behaviors of lookup. If coord we are looking for is actually in a tree,

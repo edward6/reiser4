@@ -115,8 +115,8 @@ static int           slum_scan_left_formatted     (slum_scan *scan, znode *node)
 static void          slum_scan_set_current        (slum_scan *scan, jnode *node);
 static int           slum_scan_left               (slum_scan *scan, jnode *node);
 
-static int           flush_preceder_hint          (jnode *gda, znode *parent_node, reiser4_blocknr_hint *preceder);
-static int           flush_should_relocate        (jnode *node, znode *parent);
+static int           flush_preceder_hint          (jnode *gda, const tree_coord *parent_coord, reiser4_blocknr_hint *preceder);
+static int           flush_should_relocate        (jnode *node, const tree_coord *parent_coord);
 
 static int           slum_lock_greatest_dirty_ancestor      (jnode                *start,
 							     reiser4_lock_handle  *start_lock,
@@ -126,8 +126,10 @@ static int           slum_lock_greatest_dirty_ancestor      (jnode              
 
 static int           squalloc_parent_first                  (jnode *gda, reiser4_blocknr_hint *preceder);
 
-static int           jnode_lock_parent_coord      (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock_handle *parent_lh,
-						   tree_coord *coord, znode_lock_mode mode);
+static int           jnode_lock_parent_coord      (jnode *node,
+						   tree_coord *coord,
+						   reiser4_lock_handle *parent_lh,
+						   znode_lock_mode mode);
 static int           jnode_is_allocated           (jnode *node);
 static jnode*        jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index);
 static unsigned long jnode_get_index              (jnode *node);
@@ -206,6 +208,7 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 	int ret;
 	jnode *end_node;
 	znode *parent_node;
+	tree_coord parent_coord;
 	reiser4_lock_handle end_lock;
 	reiser4_lock_handle parent_lock;
 	slum_scan           level_scan;
@@ -243,10 +246,8 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 	 * FIXME: if node is root, reiser4_get_parent() returns error.  Use
 	 * znode_is_root()?  Use znode_is_true_root()?  Don't you need to lock
 	 * the above_root node to determine this?  Confused.
-	 *
-	 * FIXME: This is wrong!!!!! get_parent doesn't work on unformatted nodes.
 	 */
-	if ((ret = reiser4_get_parent (& parent_lock, JZNODE (end_node), ZNODE_READ_LOCK, 1))) {
+	if ((ret = jnode_lock_parent_coord (end_node, & parent_coord, & parent_lock, ZNODE_READ_LOCK))) {
 		goto failure;
 	}
 
@@ -257,7 +258,7 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 	 * breaking these things into plugins will result in duplicated
 	 * effort.  Returns 0 for no-relocate, 1 for relocate, < 0 for
 	 * error. */
-	if ((ret = flush_should_relocate (end_node, parent_node)) < 0) {
+	if ((ret = flush_should_relocate (end_node, & parent_coord)) < 0) {
 		goto failure;
 	}
 
@@ -288,7 +289,7 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
 		 * initialize the preceder hint now.  It could release the
 		 * lock for us after determining we don't need to look at the
 		 * parent to initialize the hint. */
-		if ((ret = flush_preceder_hint (end_node, parent_node, preceder))) {
+		if ((ret = flush_preceder_hint (end_node, & parent_coord, preceder))) {
 			goto failure;
 		}
 		
@@ -324,66 +325,56 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node,
  *
  *   (leftmost_of_parent && (is_leaf || leftmost_child_is_relocated))
  */
-static int flush_should_relocate (jnode *node, znode *parent)
+static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
 {
 	int ret;
+	int is_leftmost;
+	item_plugin *iplug;
+	jnode *left_child;
+	tree_coord coord;
 
-	if (jnode_is_formatted (node)) {
+	reiser4_dup_coord (& coord, parent_coord);
 
-		int is_leftmost;
-		tree_coord coord;
-		item_plugin *iplug;
-		jnode *left_child;
-
-		if ((ret = find_child_ptr (JZNODE (node), parent, & coord))) {
-			assert ("jmacd-2050", ret < 0);
-			return ret;
-		}
-
-		if (! (is_leftmost = coord_prev_item (& coord))) {
-			/* Not leftmost of parent, don't relocate */
-			return 0;
-		}
-
-		if (jnode_get_level (node) == LEAF_LEVEL) {
-			/* Leftmost leaf, relocate */
-			return 1;
-		}
-
-		coord_first_unit (& coord, JZNODE (node));
-
-		iplug = item_plugin_by_coord (& coord);
-
-		if ((ret = iplug->utmost_child (& coord, LEFT_SIDE, 0, & left_child, NULL))) {
-			assert ("jmacd-2051", ret < 0);
-			return ret;
-		}
-
-		if (left_child == NULL) {
-			/* Leftmost of parent, left child not dirty, don't relocate. */
-			return 0;
-		}
-
-		if (jnode_is_dirty (left_child)) {
-			/* Leftmost of parent, leftmost child dirty, relocate. */
-			return 1;
-		}
-
-		/* Leftmost of parent, leftmost child clean, don't relocate. */
+	if (! (is_leftmost = coord_prev_unit (& coord))) {
+		/* Not leftmost of parent, don't relocate */
 		return 0;
-	} else {
-		/* FIXME: how to get parent of unforamtted? */
 	}
+
+	if (jnode_get_level (node) == LEAF_LEVEL) {
+		/* Leftmost leaf, relocate */
+		return 1;
+	}
+
+	coord_first_unit (& coord, JZNODE (node));
+
+	iplug = item_plugin_by_coord (& coord);
+
+	if ((ret = iplug->utmost_child (& coord, LEFT_SIDE, 0, & left_child, NULL))) {
+		assert ("jmacd-2051", ret < 0);
+		return ret;
+	}
+
+	if (left_child == NULL) {
+		/* Leftmost of parent, left child not dirty, don't relocate. */
+		return 0;
+	}
+
+	if (jnode_is_dirty (left_child)) {
+		/* Leftmost of parent, leftmost child dirty, relocate. */
+		return 1;
+	}
+
+	/* Leftmost of parent, leftmost child clean, don't relocate. */
+	return 0;
 }
 
 /* Called while the parent is still locked, since we may need it.
  */
 static int flush_preceder_hint (jnode *gda,
-				znode *parent_node,
+				const tree_coord *parent_coord,
 				reiser4_blocknr_hint *preceder)
 {
-	
-
+	/* FIXME: */
 	return 0;
 }
 
@@ -848,33 +839,37 @@ static int jnode_allocate (jnode *node UNUSED_ARG)
  * the coordinate. */
 static int
 jnode_lock_parent_coord (jnode *node,
-			 reiser4_lock_handle *node_lh,
-			 reiser4_lock_handle *parent_lh,
 			 tree_coord *coord,
+			 reiser4_lock_handle *parent_lh,
 			 znode_lock_mode parent_mode)
 {
 	int ret;
 
+	assert ("jmacd-2060", jnode_is_unformatted (node) || znode_is_any_locked (JZNODE (node)));
+
 	if (jnode_is_unformatted (node)) {
 
-		/* FIXME_JMACD: how do we do this? */
-		not_yet ("jmacd-1700", "");
+		/* Unformatted node case: Generate a key for the extent entry,
+		 * search in the tree using coord_by_key, which handles
+		 * locking for us. */
 
-	} else {
-		/* Formatted node case: */
+		struct inode *ino = node->pg->mapping->host;
+		reiser4_key   key;
+		file_plugin  *fplug = reiser4_get_file_plugin (ino);
+		loff_t        loff = node->pg->index << PAGE_CACHE_SHIFT;
 
-		/* Lock the node itself, which is necessary for getting its
-		 * parent. FIXME_JMACD: Not sure LOPRI is correct. */
-
-		if ((ret = longterm_lock_znode (node_lh, JZNODE (node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+		if ((ret = fplug->key_by_inode (ino, & loff, & key))) {
 			return ret;
 		}
 
-		/* Get the parent read locked.
-		 *
-		 * FIXME_JMACD: if node is root, reiser4_get_parent() returns
-		 * error.
-		 */
+		if ((ret = coord_by_key (current_tree, & key, coord, parent_lh, parent_mode, FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL, 0)) != CBK_COORD_FOUND) {
+			return ret;
+		}
+
+	} else {
+		/* Formatted node case: */
+		assert ("jmacd-2061", ! znode_is_root (JZNODE (node)));
+
 		if ((ret = reiser4_get_parent (parent_lh, JZNODE (node), parent_mode, 1))) {
 			return ret;
 		}
@@ -958,7 +953,15 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 	reiser4_init_lh    (& parent_lh);
 	reiser4_init_lh    (& left_parent_lh);
 
-	if ((ret = jnode_lock_parent_coord (scan->node, & node_lh, & parent_lh, & coord, ZNODE_READ_LOCK))) {
+
+	/* Lock the node itself, (FIXME:) which is necessary for getting its
+	 * parent. FIXME: Not sure LOPRI is correct. */
+	if (jnode_is_formatted (scan->node) &&
+	    (ret = longterm_lock_znode (& node_lh, JZNODE (scan->node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+		goto done;
+	}
+
+	if ((ret = jnode_lock_parent_coord (scan->node, & coord, & parent_lh, ZNODE_READ_LOCK))) {
 		goto done;
 	}
 

@@ -4,14 +4,6 @@
 #define OP_LEVEL
 #define NOT_HEAD
 #define IF_STATEMENT
-#define 
-#define 
-#define 
-#define 
-#define 
-#define 
-#define 
-#define 
 
 
 TS_LIST_DECLARE( r4_pars );

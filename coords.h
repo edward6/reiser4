@@ -43,6 +43,9 @@ struct readpage_arg {
 	reiser4_lock_handle * lh;
 };
 
+extern int reiser4_init_coord( tree_coord *coord );
+extern void reiser4_dup_coord(tree_coord * new, const tree_coord * old);
+extern int reiser4_done_coord( tree_coord *coord );
 
 int coord_correct (const tree_coord * coord);
 int coord_of_item (const tree_coord * coord);
