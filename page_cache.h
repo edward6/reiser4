@@ -32,8 +32,7 @@ static int never_ever_ ## op ( void )						\
 	warning( "nikita-1708",							\
 		 "Unexpected operation" #op " was called for fake znode" );	\
 	return -EIO;								\
-}										\
-typedef int __dummy_never_ever_ ## op 
+}
 
 /* __REISER4_MEMORY_H__ */
 #endif
