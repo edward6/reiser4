@@ -1860,8 +1860,6 @@ carry_shift_data(sideof side /* in what direction to move data */ ,
 		znode_make_dirty(node);
 	}
 
-	ON_DEBUG_MODIFY(znode_post_write(node));
-
 	assert("nikita-2077", coord_check(insert_coord));
 	return 0;
 }
