@@ -734,7 +734,6 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	sdata = ( reiser4_super_info_data* ) super -> u.generic_sbp;
 	tree  = & sdata -> tree;
 
-	xmemset( context, 0, sizeof *context );
 	init_lock_stack( &context -> stack );
 
 	context -> super = super;
