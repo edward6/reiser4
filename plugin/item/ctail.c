@@ -175,13 +175,13 @@ init_ctail(coord_t * to /* coord of item */,
 	   reiser4_item_data * data /* structure used for insertion */)
 {
 	if (data) {
-		assert("edward-xxx", data->length > sizeof(ctail_item_format));
+		assert("edward-463", data->length > sizeof(ctail_item_format));
 		
 		cputod8(*((char *)(data->arg)), &formatted_at(to)->cluster_shift);
 		data->length -= sizeof(ctail_item_format);
 	}
 	else {
-		assert("edward-xxx", from != NULL);
+		assert("edward-464", from != NULL);
 		
 		cputod8(cluster_shift_by_coord(from), &formatted_at(to)->cluster_shift);
 	}
@@ -262,7 +262,7 @@ copy_units_ctail(coord_t * target, coord_t * source,
 
 	if (item_length_by_coord(target) == count) {
 		/* new item has been created */
-		assert("edward-xxx", count > sizeof(ctail_item_format));
+		assert("edward-465", count > sizeof(ctail_item_format));
 		
 		count--; 
 	}
@@ -600,7 +600,7 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 	init_carry_pool(&pool);
 	init_carry_level(&lowest_level, &pool);
 
-	assert("edward-xxx", coord->between == AFTER_ITEM || coord->between == AFTER_UNIT);
+	assert("edward-466", coord->between == AFTER_ITEM || coord->between == AFTER_UNIT);
 	
 	op = post_carry(&lowest_level, COP_INSERT_FLOW, coord->node, 0 /* operate directly on coord -> node */ );
 	if (IS_ERR(op) || (op == NULL))
@@ -656,7 +656,7 @@ overwrite_ctail(coord_t * coord, flow_t * f)
 	assert("edward-273", coord->unit_pos == 0);
 	assert("edward-274", znode_is_write_locked(coord->node));
 	assert("edward-275", schedulable());
-	assert("edward-xxx", item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
+	assert("edward-467", item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
 	
 	count = nr_units_ctail(coord);
 	
@@ -695,8 +695,8 @@ write_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 	int result;
 	ctail_squeeze_info_t * info;
 	
-	assert("edward-xxx", pos != NULL);
-	assert("edward-xxx", pos->idata != NULL);
+	assert("edward-468", pos != NULL);
+	assert("edward-469", pos->idata != NULL);
 	
 	info = &pos->idata->u.ctail_info;
 	
@@ -805,7 +805,7 @@ should_attach_squeeze_idata(flush_pos_t * pos)
 	int result;
 	assert("edward-431", pos != NULL);
 	assert("edward-432", pos->child == NULL);
-	assert("edward-xxx", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
+	assert("edward-470", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
 	
 	/* check for leftmost child */
 	utmost_child_ctail(&pos->coord, LEFT_SIDE, &pos->child);
@@ -823,9 +823,9 @@ should_attach_squeeze_idata(flush_pos_t * pos)
 void
 init_squeeze_idata_ctail(flush_pos_t * pos)
 {
-	assert("edward-xxx", pos != NULL);
-	assert("edward-xxx", pos->idata != NULL);	
-	assert("edward-xxx", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
+	assert("edward-471", pos != NULL);
+	assert("edward-472", pos->idata != NULL);	
+	assert("edward-473", item_plugin_by_coord(&pos->coord) == item_plugin_by_id(CTAIL_ID));
 	
 	xmemset(pos->idata, 0, sizeof(*pos->idata));
 	pos->idata->iplug = item_plugin_by_coord(&pos->coord);
