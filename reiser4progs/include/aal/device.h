@@ -78,6 +78,9 @@ extern aal_block_t *aal_block_alloc(aal_device_t *device,
 extern aal_block_t *aal_block_read(aal_device_t *device, 
     blk_t blk);
 
+extern error_t aal_block_reread(aal_block_t *block, 
+    aal_device_t *device, blk_t blk);
+
 extern error_t aal_block_write(aal_device_t *device, 
     aal_block_t *block);
 

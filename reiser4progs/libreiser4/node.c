@@ -111,7 +111,8 @@ error_free_node:
 }
 
 error_t reiserfs_node_reopen(reiserfs_node_t *node, aal_device_t *device, 
-    blk_t blk, reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id) {    
+    blk_t blk, reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id) 
+{
     return 0;
 }
 

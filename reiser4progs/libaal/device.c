@@ -176,6 +176,25 @@ aal_block_t *aal_block_read(aal_device_t *device, blk_t blk) {
     return block;
 }
 
+error_t aal_block_reread(aal_block_t *block, aal_device_t *device, blk_t blk) {
+    aal_assert("umka-631", block != NULL, return -1);
+    aal_assert("umka-632", device != NULL, return -1);
+
+    if (blk > aal_device_len(device)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't reread block %llu beyond of device (0-%llu).", 
+	    blk, aal_device_len(device));
+	return -1;
+    }
+    
+    if (aal_device_read(device, block->data, blk, 1))
+	return -1;
+
+    aal_block_set_nr(block, blk);
+    block->device = device;
+    return 0;
+}
+
 error_t aal_block_write(aal_device_t *device, aal_block_t *block) {
     error_t error;
 

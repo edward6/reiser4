@@ -464,6 +464,7 @@ struct reiserfs_item_info {
     uint16_t length;
     reiserfs_plugin_t *plugin;
 };
+
 typedef struct reiserfs_item_info reiserfs_item_info_t;
 
 struct reiserfs_internal_info {    
