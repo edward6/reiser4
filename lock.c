@@ -446,7 +446,7 @@ lock_object(lock_stack * owner)
 	if (owner->curpri) {
 		node->lock.nr_hipri_owners++;
 	}
-	trace_on(TRACE_LOCKS,
+	ON_TRACE(TRACE_LOCKS,
 		 "%spri lock: %p node: %p: hipri_owners: %u: nr_readers: %d\n",
 		 owner->curpri ? "hi" : "lo", owner, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 }
@@ -558,7 +558,7 @@ check_lock_object(lock_stack * owner)
 
 	/* See if the node is disconnected. */
 	if (unlikely(ZF_ISSET(node, JNODE_IS_DYING))) {
-		trace_on(TRACE_LOCKS, "attempt to lock dying znode: %p", node);
+		ON_TRACE(TRACE_LOCKS, "attempt to lock dying znode: %p", node);
 		return RETERR(-EINVAL);
 	}
 
@@ -617,7 +617,7 @@ set_high_priority(lock_stack * owner)
 
 			node->lock.nr_hipri_owners++;
 
-			trace_on(TRACE_LOCKS,
+			ON_TRACE(TRACE_LOCKS,
 				 "set_hipri lock: %p node: %p: hipri_owners after: %u nr_readers: %d\n",
 				 item, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 
@@ -651,7 +651,7 @@ set_low_priority(lock_stack * owner)
 			spin_lock_znode(node);
 			/* this thread just was hipri owner of @node, so
 			   nr_hipri_owners has to be greater than zero. */
-			trace_on(TRACE_LOCKS,
+			ON_TRACE(TRACE_LOCKS,
 				 "set_lopri lock: %p node: %p: hipri_owners before: %u nr_readers: %d\n",
 				 handle, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 			assert("nikita-1835", node->lock.nr_hipri_owners > 0);
@@ -809,7 +809,7 @@ longterm_unlock_znode(lock_handle * handle)
 		assert("nikita-1836", node->lock.nr_hipri_owners > 0);
 		node->lock.nr_hipri_owners--;
 	}
-	trace_on(TRACE_LOCKS,
+	ON_TRACE(TRACE_LOCKS,
 		 "%spri unlock: %p node: %p: hipri_owners: %u nr_readers %d\n",
 		 oldowner->curpri ? "hi" : "lo", handle, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 
@@ -871,16 +871,59 @@ longterm_unlock_znode(lock_handle * handle)
 	zput(node);
 }
 
+static int
+lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
+{
+	znode *node = owner->request.node;
+
+	assert("jmacd-807", spin_znode_is_locked(node));
+
+	/* If we broke with (ok == 0) it means we can_lock, now do it. */
+	if (ok == 0) {
+		lock_object(owner);
+		owner->request.mode = 0;
+		if (mode == ZNODE_READ_LOCK)
+			wake_up_next = 1;
+	}
+
+	if (wake_up_next)
+		wake_up_requestor(node);
+	else
+		spin_unlock_znode(node);
+
+	if (ok == 0) {
+		/* count a reference from lockhandle->node 
+		  
+		   znode was already referenced at the entry to this function,
+		   hence taking spin-lock here is not necessary (see comment
+		   in the zref()).
+		*/
+		zref(node);
+
+		ON_DEBUG(++lock_counters()->long_term_locked_znode);
+		if (REISER4_DEBUG_NODE && mode == ZNODE_WRITE_LOCK) {
+			node_check(node, 0);
+			ON_DEBUG_MODIFY(znode_pre_write(node));
+		}
+	}
+
+	ON_DEBUG(check_lock_data());
+	ON_DEBUG(check_lock_node_data(node));
+	return ok;
+}
+
 /* locks given lock object */
-int longterm_lock_znode(
-			       /* local link object (may be allocated on the process owner); */
-			       lock_handle * handle,
-			       /* znode we want to lock. */
-			       znode * node,
-			       /* {ZNODE_READ_LOCK, ZNODE_WRITE_LOCK}; */
-			       znode_lock_mode mode,
-			       /* {0, -EINVAL, -EDEADLK}, see return codes description. */
-			       znode_lock_request request) {
+int 
+longterm_lock_znode(
+	/* local link object (may be allocated on the process owner); */
+	lock_handle * handle,
+	/* znode we want to lock. */
+	znode * node,
+	/* {ZNODE_READ_LOCK, ZNODE_WRITE_LOCK}; */
+	znode_lock_mode mode,
+	/* {0, -EINVAL, -EDEADLK}, see return codes description. */
+	znode_lock_request request) {
+
 	int          ret;
 	int          hipri             = (request & ZNODE_LOCK_HIPRI) != 0;
 	int          wake_up_next      = 0;
@@ -941,6 +984,9 @@ int longterm_lock_znode(
 
 	/* Synchronize on node's guard lock. */
 	spin_lock_znode(node);
+
+	if (mode == ZNODE_WRITE_LOCK && recursive(owner))
+		return lock_tail(owner, wake_up_next, 0, mode);
 
 	for (;;) {
 
@@ -1038,40 +1084,8 @@ int longterm_lock_znode(
 		requestors_list_remove(owner);
 	}
 
-	assert("jmacd-807", spin_znode_is_locked(node));
-
-	/* If we broke with (ret == 0) it means we can_lock, now do it. */
-	if (ret == 0) {
-		lock_object(owner);
-		owner->request.mode = 0;
-		if (mode == ZNODE_READ_LOCK)
-			wake_up_next = 1;
-	}
-
-	if (wake_up_next)
-		wake_up_requestor(node);
-	else
-		spin_unlock_znode(node);
-
-	if (ret == 0) {
-		/* count a reference from lockhandle->node 
-		  
-		   znode was already referenced at the entry to this function,
-		   hence taking spin-lock here is not necessary (see comment
-		   in the zref()).
-		*/
-		zref(node);
-
-		ON_DEBUG(++lock_counters()->long_term_locked_znode);
-		if (REISER4_DEBUG_NODE && mode == ZNODE_WRITE_LOCK) {
-			node_check(node, 0);
-			ON_DEBUG_MODIFY(znode_pre_write(node));
-		}
-	}
-
-	ON_DEBUG(check_lock_data());
-	ON_DEBUG(check_lock_node_data(node));
-	return ret;
+	assert("jmacd-807/a", spin_znode_is_locked(node));
+	return lock_tail(owner, wake_up_next, ret, mode);
 }
 
 /* lock object invalidation means changing of lock object state to `INVALID'
