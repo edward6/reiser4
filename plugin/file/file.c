@@ -139,6 +139,7 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	tree_coord coord;
 	reiser4_lock_handle lh;	
 	size_t to_write;
+	file_plugin * fplug;
 	item_plugin * iplug;
 	flow_t f;
 	
@@ -153,16 +154,15 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 
 	/*
 	 * build flow
-	 *
-	 * FIXME: looks like this does exactly what common_build_flow does,
-	 * which should be the file's flow_by_inode method?  it should use
-	 * that method?
 	 */
-	f.length = size;
-	f.data = buf;
-	build_sd_key (inode, &f.key);
-	set_key_type (&f.key, KEY_BODY_MINOR );
-	set_key_offset (&f.key, ( __u64 ) *off);
+	assert ("vs-481", get_object_state (inode)->file);
+	fplug = get_object_state (inode)->file;
+	if (fplug->flow_by_inode)
+		return -EINVAL;
+
+	result = fplug->flow_by_inode (file, buf, size, off, WRITE_OP, &f);
+	if (result)
+		return result;
 
 	to_write = f.length;
 	while (f.length) {
