@@ -18,11 +18,20 @@ int unix_file_writepage_nolock(struct page *page);
 int file_is_built_of_extents(const struct inode *inode);
 
 
+#if REISER4_DEBUG
 static inline struct task_struct *
 inode_ea_owner(const struct inode *inode)
 {
 	return reiser4_inode_data(inode)->ea_owner;
 }
+
+static void ea_set(const struct inode *inode, void *value)
+{
+	reiser4_inode_data(inode)->ea_owner = value;
+}
+#else
+#define ea_set(inode, value) noop
+#endif
 
 static int ea_obtained(const struct inode *inode)
 {
@@ -31,15 +40,6 @@ static int ea_obtained(const struct inode *inode)
 				inode_ea_owner(inode) == current));
 	return inode_get_flag(inode, REISER4_EXCLUSIVE_USE);
 }
-
-#if REISER4_DEBUG
-static void ea_set(const struct inode *inode, void *value)
-{
-	reiser4_inode_data(inode)->ea_owner = value;
-}
-#else
-#define ea_set(inode, value) noop
-#endif
 
 /* exclusive access to a file is acquired when file state changes: tail2extent, empty2tail, extent2tail, etc */
 void
