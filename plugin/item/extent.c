@@ -1025,32 +1025,6 @@ static reiser4_block_nr in_extent (const coord_t * coord,
         return (off - cur) >> current_blocksize_bits;
 }
 
-#if 0
-/*
- * mark jnode that it corresponds to unallocated page
- */
-/* Audited by: green(2002.06.13) */
-static void set_jnode_unallocated (jnode * j)
-{
-	/*
-	 * FIXME-VS: extent unit of unallocated type matching to this
-	 * jnode(page) has been created
-	 */
-	JF_SET (j, ZNODE_RELOC);
-	JF_SET (j, ZNODE_UNFORMATTED);
-}
-
-/* Audited by: green(2002.06.13) */
-static void set_jnode_allocated (jnode * j)
-{
-	/*
-	 * FIXME-VS: extent unit of allocated type matching to this
-	 * jnode(page) has been found
-	 */
-	JF_CLR (j, ZNODE_RELOC);
-	JF_SET (j, ZNODE_UNFORMATTED);
-}
-#endif
 
 /* insert extent item (containing one unallocated extent of width 1) to place
    set by @coord */
@@ -1379,13 +1353,60 @@ reiser4_key * extent_max_key (const coord_t * coord,
 }
 
 
+/* plugin->u.item.b.key_in_item
+ * return true if unit pointed by @coord addresses byte of file @key refers
+ * to */
+int extent_key_in_item (coord_t * coord, const reiser4_key * key)
+{
+	reiser4_key item_key;
+	unsigned i, nr_units;
+	__u64 offset;
+	reiser4_extent * ext;
+
+
+	assert ("vs-771", coord_is_existing_item (coord));
+
+	if (keygt (key, extent_max_key (coord, &item_key)))
+		/* key > max key of item */
+		return 0;
+
+	/* key of first byte pointed by item */
+	item_key_by_coord (coord, &item_key);
+	if (keylt (key, &item_key))
+		/* key < min key of item */
+		return 0;
+
+	/* maybe coord is set already to needed unit */
+	if (coord_is_existing_unit (coord) && extent_key_in_unit (coord, key))
+		return 1;
+
+	/* calculate position of unit containing key */
+	ext = extent_item (coord);
+	nr_units = extent_nr_units (coord);
+	offset = get_key_offset (&item_key);
+	for (i = 0; i < nr_units; i ++, ext ++) {
+		offset += (current_blocksize * extent_get_width (ext));
+		if (offset > get_key_offset (key)) {
+			coord->unit_pos = i;
+			coord->between = AT_UNIT;
+			return 1;
+		}
+	}
+	
+	impossible ("vs-772", "key must be in item");
+	return 0;
+}
+
+
 /* plugin->u.item.b.key_in_coord
  * return true if unit pointed by @coord addresses byte of file @key refers
  * to */
-int extent_key_in_coord( const coord_t *coord, const reiser4_key *key )
+int extent_key_in_unit( const coord_t *coord, const reiser4_key *key )
 {
 	reiser4_extent * ext;
 	reiser4_key ext_key;
+
+	assert ("vs-770", coord_is_existing_unit (coord));
 
 	/* key of first byte pointed by unit */
 	unit_key_by_coord (coord, &ext_key);
@@ -2299,7 +2320,7 @@ int extent_readpage (void * vp, struct page * page)
 	inode_file_plugin (inode)->key_by_inode (inode, (loff_t)page->index << PAGE_CACHE_SHIFT,
 						 &page_key);
 	/* make sure that extent is found properly */
-	assert ("vs-762", extent_key_in_coord (coord, &page_key));
+	assert ("vs-762", extent_key_in_unit (coord, &page_key));
 	unit_key_by_coord (coord, &unit_key);
 	pos_in_extent = (get_key_offset (&page_key) - get_key_offset (&unit_key)) >>
 		current_blocksize_bits;
@@ -2807,6 +2828,7 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 	blocksize = current_blocksize;
 
 	assert ("vs-451", item->unit_pos == 0 && coord_is_existing_unit (item));
+	assert ("vs-773", item_is_extent (item));
 
 	ext = extent_item (item);
 	for (i = 0; i < coord_num_units (item); i ++, ext ++, item->unit_pos ++) {
