@@ -35,6 +35,23 @@ static reiserfs_node_t *reiserfs_tree_alloc_node(reiserfs_tree_t *tree,
         tree->cache->node->key_plugin->h.id, level);
 }
 
+/* Setting up the tree cache limit */
+static errno_t reiserfs_tree_setup(reiserfs_tree_t *tree) {
+    aal_assert("umka-859", tree != NULL, return -1);
+
+    tree->limit.cur = 0;
+
+    /* 
+	FIXME-UMKA: This value should be calculated basing on available memory in the 
+	system, but for awhile it will be hardcoded value. So, we set it up by 1000 
+	blocks.
+    */
+    tree->limit.max = 1000;
+    tree->limit.enabled = 1;
+    
+    return 0;
+}
+
 reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs) {
     reiserfs_tree_t *tree;
     reiserfs_node_t *node;
@@ -52,6 +69,14 @@ reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs) {
     
     if (!(tree->cache = reiserfs_cache_create(node)))
 	goto error_free_node;
+    
+    tree->cache->tree = tree;
+    
+    if (reiserfs_tree_setup(tree)) {
+	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
+	    "Can't initialize cache limits. Cache limit spying will be disables.");
+	tree->limit.enabled = 0;
+    }
     
     return tree;
 
@@ -100,6 +125,14 @@ reiserfs_tree_t *reiserfs_tree_create(reiserfs_fs_t *fs,
 
     if (!(tree->cache = reiserfs_cache_create(node)))
 	goto error_free_node;
+    
+    tree->cache->tree = tree;
+    
+    if (reiserfs_tree_setup(tree)) {
+	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
+	    "Can't initialize cache limits. Cache limit spying will be disables.");
+	tree->limit.enabled = 0;
+    }
     
     return tree;
 

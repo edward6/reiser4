@@ -72,11 +72,22 @@ static errno_t __tree_data(const void *tree, reiserfs_place_t *place,
 }
 
 reiserfs_core_t core = {
+    /* Installing callback for make search for a plugin by its attributes */
     .factory_find = __factory_find,
     
+    /* Installing callback function for inserting items into the tree */
     .tree_insert = __tree_insert,
+
+    /* Installing callback function for removing items from the tree */
     .tree_remove = __tree_remove,
+
+    /* This one for lookuping the tree */
     .tree_lookup = __tree_lookup,
+
+    /* 
+	And finally this one for getting body of some item and its size by passed 
+	coord.
+    */
     .tree_data   = __tree_data
 };
 

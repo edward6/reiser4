@@ -44,7 +44,7 @@ static errno_t dir40_realize(reiserfs_dir40_t *dir) {
     aal_assert("umka-840", dir->place.node != NULL, return -1);
 
     return core->tree_data(dir->tree, &dir->place, 
-	    &dir->statdata.data, &dir->statdata.len);
+	&dir->statdata.data, &dir->statdata.len);
 }
 
 static errno_t dir40_read(reiserfs_dir40_t *dir, reiserfs_entry_hint_t *entry) {

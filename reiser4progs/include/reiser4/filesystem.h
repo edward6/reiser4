@@ -71,6 +71,7 @@ struct reiserfs_profile {
 
 typedef struct reiserfs_profile reiserfs_profile_t;
 
+typedef struct reiserfs_tree reiserfs_tree_t;
 typedef struct reiserfs_cache reiserfs_cache_t;
 typedef struct reiserfs_node reiserfs_node_t;
 
@@ -134,22 +135,64 @@ struct reiserfs_oid {
 
 typedef struct reiserfs_oid reiserfs_oid_t;
 
+/* Structure of one cached node in the internal libreiser4 tree */
 struct reiserfs_cache {
+    
+    /* Reference to tree instance cache lies in */
+    reiserfs_tree_t *tree;
+       	
+    /* Reference to the node assosiated with this cache node */
     reiserfs_node_t *node;
     
+    /* 
+	Reference to the parent node. It is used for accessing parent durring 
+	balancing.
+    */
     reiserfs_cache_t *parent;
+
+    /* Reference to left neighbour */
     reiserfs_cache_t *left;
+
+    /* Reference to right neighbour */
     reiserfs_cache_t *right;
     
+    /* List onto next level nodes */
     aal_list_t *list;
 };
 
-struct reiserfs_tree {
-    reiserfs_fs_t *fs;
-    reiserfs_cache_t *cache;
+struct reiserfs_cache_limit{
+    /* Current size of cache in blocks */
+    int32_t cur;
+
+    /* Maximal allowed size */
+    uint32_t max;
+
+    /* Is cache limit spying active? */
+    int enabled;
 };
 
-typedef struct reiserfs_tree reiserfs_tree_t;
+typedef struct reiserfs_cache_limit reiserfs_cache_limit_t;
+
+/* Tree structure */
+struct reiserfs_tree {
+
+    /* Reference to filesystem instance tree opened on */
+    reiserfs_fs_t *fs;
+
+    /* 
+	Reference to root cacheed node. It is created by tree initialization routines 
+	and always exists. All other cached nodes are loaded on demand and flushed at
+	memory presure event.
+    */
+    reiserfs_cache_t *cache;
+
+    /* 
+	Limit for number of blocks allowed to be cached. If this value will be exceeded, 
+	tree will perform flush operation until this value reach allowed value minus some
+	customizable and reasonable number of blocks.
+    */
+    reiserfs_cache_limit_t limit;
+};
 
 /* Filesystem compound structure */
 struct reiserfs_fs {

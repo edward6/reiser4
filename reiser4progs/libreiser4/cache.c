@@ -188,9 +188,7 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
 		"Can't open node %llu.", block_nr);
 	    return -1;
 	}
-    
-	cache->left = reiserfs_cache_create(node);
-	cache->left->right = cache;
+	reiserfs_cache_register(cache->parent, reiserfs_cache_create(node));
     }
 
     /* Raising the right neighbour */
@@ -209,8 +207,7 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
 	    return -1;
 	}
     
-	cache->right = reiserfs_cache_create(node);
-	cache->right->left = cache;
+	reiserfs_cache_register(cache->parent, reiserfs_cache_create(node));
     }
     
     return 0;
@@ -226,9 +223,21 @@ errno_t reiserfs_cache_register(reiserfs_cache_t *cache,
     reiserfs_key_t ldkey;
     reiserfs_key_t lnkey, rnkey;
     reiserfs_cache_t *left, *right;
+    reiserfs_cache_limit_t *limit;
     
     aal_assert("umka-561", cache != NULL, return -1);
     aal_assert("umka-564", child != NULL, return -1);
+    
+    limit = &cache->tree->limit;
+    
+    if (limit->enabled) {
+	if ((uint32_t)(limit->cur + 1) > limit->max) {
+	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
+		"Cache limit has been exceeded (current: %d, allowed: %u). "
+		"Flushing should be run.", limit->cur, limit->max);
+	}
+	limit->cur++;
+    }
     
     cache->list = aal_list_insert_sorted(cache->list, 
 	child, (int (*)(const void *, const void *, void *))
@@ -263,6 +272,7 @@ errno_t reiserfs_cache_register(reiserfs_cache_t *cache,
     }
     
     child->parent = cache;
+    child->tree = cache->tree;
     
     return 0;
 }
@@ -274,8 +284,17 @@ errno_t reiserfs_cache_register(reiserfs_cache_t *cache,
 void reiserfs_cache_unregister(reiserfs_cache_t *cache, 
     reiserfs_cache_t *child)
 {
+    reiserfs_cache_limit_t *limit;
+    
     aal_assert("umka-562", cache != NULL, return);
     aal_assert("umka-563", child != NULL, return);
+
+    limit = &cache->tree->limit;
+
+    if (limit->enabled) {
+	/* Current number of blocks should be always positive or equal zero */
+	aal_assert("umka-858", limit->cur > 0, return);
+    }
 
     if (cache->list) {
 	if (aal_list_length(aal_list_first(cache->list)) == 1) {
@@ -284,6 +303,9 @@ void reiserfs_cache_unregister(reiserfs_cache_t *cache,
 	} else
 	    aal_list_remove(cache->list, child);
     }
+    
+    if (limit->enabled)
+	limit->cur--;
 
     if (child->left)
 	child->left->right = NULL;
@@ -294,6 +316,7 @@ void reiserfs_cache_unregister(reiserfs_cache_t *cache,
     child->left = NULL;
     child->right = NULL;
     child->parent = NULL;
+    child->tree = NULL;
 }
 
 errno_t reiserfs_cache_sync(reiserfs_cache_t *cache) {
