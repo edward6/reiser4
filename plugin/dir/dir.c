@@ -35,12 +35,12 @@ void directory_readahead( struct inode *dir /* directory being accessed */,
  * helper function. Standards require than for many file-system operations
  * on success ctime and mtime of parent directory is to be updated.
  */
-static int update_dir( struct inode *parent )
+static int update_dir( struct inode *dir )
 {
-	assert( "nikita-2525", parent != NULL );
+	assert( "nikita-2525", dir != NULL );
 
-	parent -> i_ctime = parent -> i_mtime = CURRENT_TIME;
-	return reiser4_write_sd( parent );
+	dir -> i_ctime = dir -> i_mtime = CURRENT_TIME;
+	return reiser4_write_sd( dir );
 }
 
 /** 
@@ -53,7 +53,6 @@ static int update_dir( struct inode *parent )
  *     . add link to "existing"
  *     . add entry to "parent"
  *     . if last step fails, remove link from "existing"
- *     . close transaction
  *
  */
 static int common_link( struct inode *parent /* parent directory */, 
@@ -100,7 +99,7 @@ static int common_link( struct inode *parent /* parent directory */,
 	data.mode = object -> i_mode;
 	data.id   = inode_file_plugin( object ) -> h.id;
 
-	result = reiser4_add_nlink( object, 1 );
+	result = reiser4_add_nlink( object, parent, 1 );
 	if( result == 0 ) {
 		/* add entry to the parent */
 		result = parent_dplug -> add_entry( parent,
@@ -108,7 +107,7 @@ static int common_link( struct inode *parent /* parent directory */,
 		if( result != 0 ) {
 			/* failure to add entry to the parent, remove
 			   link from "existing" */
-			result = reiser4_del_nlink( object, 1 );
+			result = reiser4_del_nlink( object, parent, 1 );
 			/* now, if this fails, we have a file with too
 			   big nlink---space leak, much better than
 			   directory entry pointing to nowhere */
@@ -139,7 +138,6 @@ static int common_link( struct inode *parent /* parent directory */,
  *     . check permissions
  *     . decrement nlink on @victim
  *     . if nlink drops to 0, delete object
- *     . close transaction
  */
 static int common_unlink( struct inode *parent /* parent object */, 
 			  struct dentry *victim /* name being removed from
@@ -164,7 +162,7 @@ static int common_unlink( struct inode *parent /* parent object */,
 		return -EAGAIN;
 
 	/* victim should have stat data */
-	assert( "vs-949", !inode_get_flag( object, REISER4_NO_STAT_DATA ) );
+	assert( "vs-949", !inode_get_flag( object, REISER4_NO_SD ) );
 
 	/* check permissions */
 	if( perm_chk( parent, unlink, parent, victim ) )
@@ -191,7 +189,7 @@ static int common_unlink( struct inode *parent /* parent object */,
 	 * check for special case:
 	 */
 	if( fplug -> rem_link != 0 )
-		result = reiser4_del_nlink( object, 1 );
+		result = reiser4_del_nlink( object, parent, 1 );
 	else
 		result = -EPERM;
 	if( result != 0 )
@@ -206,13 +204,24 @@ static int common_unlink( struct inode *parent /* parent object */,
 	 * Directories always go through this path (until hard-links on
 	 * directories are allowed).
 	 */
+	/*
+	 * FIXME-NIKITA this is commented out, because ->i_count check is not
+	 * valid---actually we also should check victim->d_count, but this
+	 * requires spin_lock(&dcache_lock), so we need cut-n-paste something
+	 * from d_delete().
+	 */
 	inode_set_flag( object, REISER4_IMMUTABLE );
 	if( fplug -> not_linked( object ) && 
 	    atomic_read( &object -> i_count ) == 1 &&
 	    !perm_chk( object, delete, parent, victim ) ) {
-		/* remove file body. This is probably done in a whole
-		 * lot of transactions and takes a lot of time. We
-		 * keep @object locked. So, nlink shouldn't change. */
+		/* 
+		 * remove file body. This is probably done in a whole lot of
+		 * transactions and takes a lot of time. We keep @object
+		 * locked. i_nlink shouldn't change, because object is
+		 * inaccessible through file-system (last directory entry was
+		 * removed), and direct accessors (like NFS) are blocked by
+		 * REISER4_IMMUTABLE bit. 
+		 */
 		if( fplug -> truncate != NULL )
 			result = truncate_object( object, ( loff_t ) 0 );
 
@@ -244,14 +253,12 @@ static int common_unlink( struct inode *parent /* parent object */,
  * . get object's plugin
  * . get fresh inode
  * . initialize inode
- * . start transaction 
  * . add object's stat-data
+ * . initialize object's directory
  * . add entry to the parent
- * . end transaction
  * . instantiate dentry
  *
  */
-/* Audited by: green(2002.06.15) */
 static int common_create_child( struct inode *parent /* parent object */, 
 				struct dentry *dentry /* new name */, 
 				reiser4_object_create_data *data /* parameters
@@ -260,53 +267,57 @@ static int common_create_child( struct inode *parent /* parent object */,
 {
         int result;
 
-        dir_plugin          *dplug;
-	file_plugin         *fplug;
-	struct inode        *object;
-	reiser4_dir_entry_desc        entry;
+        dir_plugin   *par_dir;   /* directory plugin on the parent*/
+	dir_plugin   *obj_dir;   /* directory plugin on the new object */
+	file_plugin  *obj_plug;  /* object plugin on the new object */
+	struct inode *object;    /* new object */
+
+	reiser4_dir_entry_desc   entry; /* new directory entry */
 
 	assert( "nikita-1418", parent != NULL );
 	assert( "nikita-1419", dentry != NULL );
 	assert( "nikita-1420", data   != NULL );
 
-	dplug = inode_dir_plugin( parent );
+	par_dir = inode_dir_plugin( parent );
 	/* check permissions */
 	if( perm_chk( parent, create, parent, dentry, data ) ) {
 		return -EPERM;
 	}
 
 	/* check, that name is acceptable for parent */
-	if( dplug -> is_name_acceptable && 
-	    !dplug -> is_name_acceptable( parent, 
-					  dentry -> d_name.name, 
-					  (int) dentry -> d_name.len ) ) {
+	if( par_dir -> is_name_acceptable && 
+	    !par_dir -> is_name_acceptable( parent, dentry -> d_name.name, 
+					    ( int ) dentry -> d_name.len ) ) {
 		return -ENAMETOOLONG;
 	}
 
 	result = 0;
-	fplug = file_plugin_by_id( ( int ) data -> id );
-	if( fplug == NULL ) {
+	obj_plug = file_plugin_by_id( ( int ) data -> id );
+	if( obj_plug == NULL ) {
 		warning( "nikita-430", "Cannot find plugin %i", data -> id );
 		return -ENOENT;
 	}
 	object = new_inode( parent -> i_sb );
 	if( object == NULL )
 		return -ENOMEM;
+	/*
+	 * we'll update i_nlink below
+	 */
+	object -> i_nlink  = 0;
 
-	dentry -> d_inode = object; // So that on error iput will be called.
+	dentry -> d_inode = object; /* So that on error iput will be called. */
 
 	if( DQUOT_ALLOC_INODE( object ) ) {
 		DQUOT_DROP( object );
 		object -> i_flags |= S_NOQUOTA;
-		object -> i_nlink  = 0;
 		return -EDQUOT;
 	}
 
 	xmemset( &entry, 0, sizeof entry );
 	entry.obj = object;
 
-	reiser4_inode_data( object ) -> file = fplug;
-	result = fplug -> set_plug_in_inode( object, parent, data );
+	reiser4_inode_data( object ) -> file = obj_plug;
+	result = obj_plug -> set_plug_in_inode( object, parent, data );
 	if( result ) {
 		warning( "nikita-431", "Cannot install plugin %i on %llx", 
 			 data -> id, get_inode_oid( object ) );
@@ -314,19 +325,18 @@ static int common_create_child( struct inode *parent /* parent object */,
 	}
 
 	/* reget plugin after installation */
-	fplug = inode_file_plugin( object );
+	obj_plug = inode_file_plugin( object );
 
-	if ( !fplug->create ) {
+	if ( obj_plug -> create == NULL )
 		return -EPERM;
-	}
 
 	/*
 	 * if any of hash, tail, sd or permission plugins for newly created
 	 * object are not set yet set them here inheriting them from parent
 	 * directory
 	 */
-	assert( "nikita-2070", fplug -> adjust_to_parent != NULL );
-	result = fplug -> adjust_to_parent
+	assert( "nikita-2070", obj_plug -> adjust_to_parent != NULL );
+	result = obj_plug -> adjust_to_parent
 		( object, parent, object -> i_sb -> s_root -> d_inode );
 	if( result != 0 ) {
 		warning( "nikita-432", "Cannot inherit from %llx to %llx", 
@@ -334,34 +344,56 @@ static int common_create_child( struct inode *parent /* parent object */,
 		return result;
 	}
 
+	/* obtain directory plugin (if any) for new object. */
+	obj_dir  = inode_dir_plugin( object );
+	if( ( obj_dir != NULL ) && ( obj_dir -> init == NULL ) )
+		return -EPERM;
+
 	reiser4_inode_data( object ) -> locality_id = get_inode_oid( parent );
 
-	/* mark inode immutable. We disable changes to the file
-	   being created until valid directory entry for it is
-	   inserted. Otherwise, if file were expanded and
-	   insertion of directory entry fails, we have to remove
-	   file, but we only alloted enough space in transaction
-	   to remove _empty_ file. 3.x code used to remove stat
-	   data in different transaction thus possibly leaking
-	   disk space on crash. This all only matters if it's
-	   possible to access file without name, for example, by
-	   inode number */
+	/*
+	 * mark inode `immutable'. We disable changes to the file being
+	 * created until valid directory entry for it is inserted. Otherwise,
+	 * if file were expanded and insertion of directory entry fails, we
+	 * have to remove file, but we only alloted enough space in
+	 * transaction to remove _empty_ file. 3.x code used to remove stat
+	 * data in different transaction thus possibly leaking disk space on
+	 * crash. This all only matters if it's possible to access file
+	 * without name, for example, by inode number
+	 */
 	inode_set_flag( object, REISER4_IMMUTABLE );
 
-	/* create empty object, this includes allocation of new objectid. For
-	   directories this implies creation of dot and dotdot */
-	assert( "nikita-2265", inode_get_flag( object, REISER4_NO_STAT_DATA ) );
+	/* 
+	 * create empty object, this includes allocation of new objectid. For
+	 * directories this implies creation of dot and dotdot 
+	 */
+	assert( "nikita-2265", inode_get_flag( object, REISER4_NO_SD ) );
 
-	result = fplug -> create( object, parent, data );
+	/*
+	 * mark inode as `loaded'. From this point onward
+	 * reiser4_delete_inode() will try to remove its stat-data.
+	 */
+	inode_set_flag( object, REISER4_LOADED );
+
+	result = obj_plug -> create( object, parent, data );
+	if( result != 0 ) {
+		inode_clr_flag( object, REISER4_IMMUTABLE );
+		warning( "nikita-2219", "Failed to create sd for %llu (%lx)",
+			 get_inode_oid( object ), 
+			 reiser4_inode_data( object ) -> flags );
+		return result;
+	}
+
+	if( obj_dir != NULL )
+		result = obj_dir -> init( object, parent, data );
 	if( result == 0 ) {
-		assert( "nikita-434", !inode_get_flag( object,
-						       REISER4_NO_STAT_DATA ) );
-		inode_set_flag( object, REISER4_LOADED );
+		assert( "nikita-434", !inode_get_flag( object, REISER4_NO_SD ) );
 		/* insert inode into VFS hash table */
 		insert_inode_hash( object );
 		/* create entry */
-		result = dplug -> add_entry( parent, dentry, data, &entry );
+		result = par_dir -> add_entry( parent, dentry, data, &entry );
 		if( result == 0 ) {
+			result = reiser4_add_nlink( object, parent, 1 );
 			/*
 			 * If O_CREAT is set and the file did not previously
 			 * exist, upon successful completion, open() shall
@@ -370,24 +402,31 @@ static int common_create_child( struct inode *parent /* parent object */,
 			 * st_mtime fields of the parent directory. --SUS
 			 */
 			/*
-			 * @object times are already updated by ->set_plug()
+			 * @object times are already updated by
+			 * reiser4_add_nlink()
 			 */
-			result = update_dir( parent );
-			reiser4_write_sd( object );
-		} else if( fplug -> delete != NULL )
-			/*
-			 * failure to create entry, remove object
-			 */
-			fplug -> delete( object, parent );
-		else
-			warning( "nikita-1164", 
-				 "Cannot cleanup failed create: %i"
-				 " Possible disk space leak.", result );
-	} else {
-		warning( "nikita-2219", "Failed to create sd for %llu (%lx)",
-			 get_inode_oid( object ), 
-			 reiser4_inode_data( object ) -> flags );
-	}
+			if( result == 0 )
+				result = update_dir( parent );
+			if( result != 0 ) {
+				/* cleanup failure to update times */
+				dentry -> d_inode = object;
+				par_dir -> rem_entry( parent, dentry, &entry );
+				dentry -> d_inode = NULL;
+			}
+		}
+		if( result != 0 )
+			/* cleanup failure to add entry */
+			if( obj_dir != NULL )
+				obj_dir -> done( object );
+	} else
+		warning( "nikita-2219", "Failed to initialize dir for %llu: %i",
+			 get_inode_oid( object ), result );
+
+	if( result != 0 )
+		/*
+		 * failure to create entry, remove object
+		 */
+		obj_plug -> delete( object );
 
 	/* file has name now, clear immutable flag */
 	inode_clr_flag( object, REISER4_IMMUTABLE );
@@ -396,7 +435,7 @@ static int common_create_child( struct inode *parent /* parent object */,
 	 * on error, iput() will call ->delete_inode(). We should keep track
 	 * of the existence of stat-data for this inode and avoid attempt to
 	 * remove it in reiser4_delete_inode(). This is accomplished through
-	 * REISER4_NO_STAT_DATA bit in inode.u.reiser4_i.plugin.flags
+	 * REISER4_NO_SD bit in inode.u.reiser4_i.plugin.flags
 	 */
 	return result;
 }
@@ -881,9 +920,23 @@ static int common_readdir( struct file *f /* directory file being read */,
 			f -> f_pos = pos -> entry_no + 1;
 			f -> f_version = inode -> i_version;
 		}
-	}
+	} else if( result == -ENAVAIL || result == -ENOENT )
+		result = 0;
 	tap_done( &tap );
 	return result;
+}
+
+static int common_attach( struct inode *child, struct inode *parent )
+{
+	reiser4_inode *info;
+	assert( "nikita-2647", child != NULL );
+	assert( "nikita-2648", parent != NULL );
+
+	info = reiser4_inode_data( child );
+	assert( "nikita-2649", 
+		( info -> parent == NULL ) || ( info -> parent == parent ) );
+	info -> parent = parent;
+	return 0;
 }
 
 reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
@@ -908,7 +961,10 @@ reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
 			.rem_entry           = hashed_rem_entry,
 			.create_child        = common_create_child,
 			.rename              = hashed_rename,
-			.readdir             = common_readdir
+			.readdir             = common_readdir,
+			.init                = hashed_init,
+			.done                = hashed_done,
+			.attach              = common_attach
 		}
 	},
 	[ SEEKABLE_HASHED_DIR_PLUGIN_ID ] = {
@@ -932,7 +988,10 @@ reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
 			.rem_entry           = hashed_rem_entry,
 			.create_child        = common_create_child,
 			.rename              = hashed_rename,
-			.readdir             = common_readdir
+			.readdir             = common_readdir,
+			.init                = hashed_init,
+			.done                = hashed_done,
+			.attach              = common_attach
 		}
 	},
 };
