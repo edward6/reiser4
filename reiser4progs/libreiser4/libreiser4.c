@@ -159,15 +159,15 @@ static inline reiserfs_id_t __item_pid(
     aal_assert("umka-873", place != NULL, return -1);
     
     switch (type) {
-	case REISERFS_ITEM_PLUGIN:
+	case ITEM_PLUGIN_TYPE:
 	    return reiserfs_node_item_get_pid(((reiserfs_cache_t *)place->cache)->node, 
 		place->pos.item);
-	case REISERFS_NODE_PLUGIN:
+	case NODE_PLUGIN_TYPE:
 	    return reiserfs_node_get_pid(((reiserfs_cache_t *)place->cache)->node);
 	default: {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Unknown plugin type %x.", type);
-	    return REISERFS_INVAL_PLUGIN;
+	    return INVALID_PLUGIN_ID;
 	}
     }
 }
