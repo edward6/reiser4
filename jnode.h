@@ -215,7 +215,8 @@ typedef enum {
 	/* cheap and effective protection of jnode from emergency flush. This
 	 * bit can only be set by thread that holds long term lock on jnode
 	 * parent node (twig node, where extent unit lives). */
-	JNODE_EPROTECTED = 22
+	JNODE_EPROTECTED = 22,
+	JNODE_CLUSTER_PAGE = 23
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
@@ -464,7 +465,6 @@ typedef enum {
 	JNODE_UNFORMATTED_BLOCK,
 	JNODE_FORMATTED_BLOCK,
 	JNODE_BITMAP,
-	JNODE_CLUSTER_PAGE,
 	JNODE_IO_HEAD,
 	JNODE_INODE,
 	LAST_JNODE_TYPE
@@ -486,7 +486,7 @@ jnode_get_type(const jnode * node)
 		/* 010 */
 		[2] = JNODE_BITMAP,
 		/* 011 */
-		[3] = JNODE_CLUSTER_PAGE,
+		[3] = LAST_JNODE_TYPE,  /*invalid */
 		/* 100 */
 		[4] = JNODE_INODE,
 		/* 101 */
@@ -561,7 +561,7 @@ static inline int
 jnode_is_cluster_page(const jnode * node)
 {
 	assert("edward-50", node != NULL);
-	return jnode_get_type(node) == JNODE_CLUSTER_PAGE;
+	return (JF_ISSET(node, JNODE_CLUSTER_PAGE));
 }
 
 /* returns true is node is builtin inode's jnode */
@@ -570,16 +570,6 @@ jnode_is_inode(const jnode * node)
 {
 	assert("vs-1240", node != NULL);
 	return jnode_get_type(node) == JNODE_INODE;
-}
-
-
-/* returns true if node is not a znode, but can have a "parent"
-   coord in the tree */
-static inline int
-jnode_has_parent(const jnode * node)
-{
-	assert("edward-51", node != NULL);
-	return jnode_is_unformatted(node) || jnode_is_cluster_page(node);
 }
 
 static inline jnode_plugin *
