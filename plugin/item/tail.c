@@ -381,7 +381,7 @@ typedef enum {
 
 
 static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
-				  reiser4_key * key)
+				       reiser4_key * key)
 {
 	reiser4_key item_key;
 
@@ -401,12 +401,20 @@ static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
 			return TAIL_CREATE_HOLE;
 	}
 
-	if (item_id_by_coord (coord) != TAIL_ID)
-		return TAIL_CANT_CONTINUE;
+	if (!inode_file_plugin (inode)->owns_item (inode, coord)) {
+		/* extent2tail conversion is in progress */
+		if (get_key_offset (key))
+			return TAIL_CANT_CONTINUE;
+		return TAIL_FIRST_ITEM;
+	}
+
+	/* found item is tail item of the file we write to */
+	assert ("vs-580", item_id_by_coord (coord) == TAIL_ID);
 
 	item_key_by_coord (coord, &item_key);
-	if (get_key_objectid (key) != get_key_objectid (&item_key))
-		return TAIL_CANT_CONTINUE;
+	assert ("vs-581",
+		get_key_objectid (key) == get_key_objectid (&item_key));
+
 
 	if (coord_of_unit (coord)) {
 		/*
@@ -512,8 +520,9 @@ static int append_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
  */
 static void move_flow_forward (flow_t * f, unsigned count)
 {
-	assert ("vs-573", f->what == USER_BUF);
-	f->data.user_buf += count;
+	if (f->what == USER_BUF) {
+		f->data.user_buf += count;
+	}
 	f->length -= count;
 	set_key_offset (&f->key, get_key_offset (&f->key) + count);
 }

@@ -636,14 +636,15 @@ static int write_page_by_extent (struct inode * inode, struct page * page,
 			       count, (loff_t)(page->index << PAGE_SHIFT),
 			       WRITE_OP, &f);
 
+	iplug = item_plugin_by_id (EXTENT_POINTER_ID);
+	assert ("vs-564", iplug && iplug->s.file.write);
+
 	do {
 		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
 			return result;
 		}
 
-		iplug = item_plugin_by_id (EXTENT_POINTER_ID);
-		assert ("vs-564", iplug && iplug->s.file.write);
 		result = iplug->s.file.write (inode, &coord, &lh, &f);
 		done_lh (&lh);
 		done_coord (&coord);
@@ -804,30 +805,32 @@ static int write_page_by_tail (struct inode * inode, struct page * page,
 	tree_coord coord;
 	lock_handle lh;
 	item_plugin * iplug;
-	char * p_data;
 	int result;
 
 
-	p_data = kmap (page);
+	kmap (page);
 	inode_file_plugin (inode)->
 		flow_by_inode (inode, page, PAGE_PTR,
 			       count, (loff_t)(page->index << PAGE_SHIFT),
 			       WRITE_OP, &f);
 
-	result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
-	if (result != CBK_COORD_NOTFOUND) {
-		assert ("vs-559", result != CBK_COORD_FOUND);
-		page_cache_release (page);
-		return result;
-	}
-
 	iplug = item_plugin_by_id (TAIL_ID);
 	assert ("vs-558", iplug && iplug->s.file.write);
-	result = iplug->s.file.write (inode, &coord, &lh, &f);
+
+	do {
+		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
+		if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
+			return result;
+		}
+
+		result = iplug->s.file.write (inode, &coord, &lh, &f);
+		done_lh (&lh);
+		done_coord (&coord);
+	} while (result == -EAGAIN);
+
 	kunmap (page);
-	done_lh (&lh);
-	done_coord (&coord);
-	if (result != (int)count) {
+
+	if (result || f.length) {
 		/*
 		 * FIXME-VS: how do we handle this case? Abort
 		 * transaction?
@@ -955,8 +958,8 @@ int ordinary_file_owns_item( const struct inode *inode /* object to check
 	result = common_file_owns_item (inode, coord);
 	if (!result)
 		return 0;
-	assert ("vs-546",
-		item_type_by_coord (coord) == ORDINARY_FILE_METADATA_TYPE);
+	if (item_type_by_coord (coord) != ORDINARY_FILE_METADATA_TYPE)
+		return 0;
 	assert ("vs-547", (item_id_by_coord (coord) == EXTENT_POINTER_ID ||
 			   item_id_by_coord (coord) == TAIL_ID));
 	return 1;
