@@ -213,7 +213,8 @@ int tail_paste (coord_t * coord, reiser4_item_data * data,
 	if (data->data) {
 		assert ("vs-554", data->user == 0 || data->user == 1);
 		if (data->user) {
-			assert( "green-6", lock_counters() -> spin_locked == 0 );
+			ON_DEBUG_CONTEXT( assert( "green-6", 
+						  lock_counters() -> spin_locked == 0 ) );
 			/* AUDIT: return result is not checked! */
 			/* copy from user space */
 			__copy_from_user (item + coord->unit_pos, data->data,
@@ -625,7 +626,8 @@ static int overwrite_tail (coord_t * coord, flow_t * f)
 	 * FIXME-ME: mark_znode_dirty ?
 	 */
 	assert ("vs-570", f->user == 1);
-	assert( "green-7", lock_counters() -> spin_locked == 0 );
+	ON_DEBUG_CONTEXT( assert( "green-7", 
+				  lock_counters() -> spin_locked == 0 ) );
 	result = __copy_from_user ((char *)item_body_by_coord (coord) +
 				   coord->unit_pos, f->data, count);
 	if (result)
@@ -736,7 +738,7 @@ int tail_read (struct inode * inode UNUSED_ARG, coord_t * coord,
 		count = f->length;
 
 	assert ("vs-571", f->user == 1);
-	assert( "green-8", lock_counters() -> spin_locked == 0 );
+	ON_DEBUG_CONTEXT( assert( "green-8", lock_counters() -> spin_locked == 0 ) );
 
 	/* AUDIT: return value of copy_to_user is not checked */
 	__copy_to_user (f->data,  (char *)item_body_by_coord (coord) + coord->unit_pos,

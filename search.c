@@ -176,15 +176,17 @@ static void cbk_cache_unlock( cbk_cache *cache /* cache to unlock */)
  * Remove references, if any, to @node from coord cache
  */
 /* Audited by: green(2002.06.15) */
-void cbk_cache_invalidate( const znode *node /* node to remove from cache */ )
+void cbk_cache_invalidate( const znode *node /* node to remove from cache */,
+			   reiser4_tree *tree /* tree to remove node from */ )
 {
 	cbk_cache_slot *slot;
 	cbk_cache      *cache;
 
 	assert( "nikita-350", node != NULL );
-	assert( "nikita-1479", lock_counters() -> spin_locked_tree > 0 );
+	ON_DEBUG_CONTEXT( assert( "nikita-1479", 
+				  lock_counters() -> spin_locked_tree > 0 ) );
 
-	cache = current_tree -> cbk_cache;
+	cache = tree -> cbk_cache;
 	cbk_cache_lock( cache );
 	for_all_slots( cache, slot ) {
 		if( slot -> node == NULL )
@@ -226,7 +228,7 @@ void cbk_cache_add( znode *node /* node to add to the cache */ )
 		slot = cbk_cache_list_back( &cache -> lru );
 	slot -> node = node;
 	cbk_cache_list_remove( slot );
-	cbk_cache_list_push_back( &cache -> lru, slot );
+	cbk_cache_list_push_front( &cache -> lru, slot );
 	cbk_cache_unlock( cache );
 }
 
@@ -1139,10 +1141,11 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		h -> level = level;
 		llr = cbk_node_lookup( h );
 		
-		if( llr != LOOKUP_DONE )
+		if( llr != LOOKUP_DONE ) {
 			/* restart of continue on the next level */
+			reiser4_stat_tree_add( cbk_cache_wrong_node );
 			result = -ENOENT;
-		else if( ( h -> result != CBK_COORD_NOTFOUND ) &&
+		} else if( ( h -> result != CBK_COORD_NOTFOUND ) &&
 			 ( h -> result != CBK_COORD_FOUND ) )
 			/* io or oom */
 			result = -ENOENT;

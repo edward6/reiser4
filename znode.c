@@ -338,7 +338,7 @@ static void zinit( znode *node /* znode to initialise */,
 }
 
 /** remove znode from hash table */
-void znode_remove( znode *node /* znode to remove */ )
+void znode_remove( znode *node /* znode to remove */, reiser4_tree *tree )
 {
 	assert( "nikita-2108", node != NULL );
 
@@ -347,7 +347,7 @@ void znode_remove( znode *node /* znode to remove */ )
 	assert( "nikita-470", atomic_read( &node -> c_count ) == 0 );
 
 	/* remove reference to this znode from pbk cache */
-	cbk_cache_invalidate( node );
+	cbk_cache_invalidate( node, tree );
 	/* 
 	 * while we were taking lock on pbk cache to remove us from
 	 * there, some lucky parallel process could hit reference to
@@ -367,7 +367,7 @@ void znode_remove( znode *node /* znode to remove */ )
 	}
 
 	/* remove znode from hash-table */
-	z_hash_remove( & current_tree -> zhash_table, node );
+	z_hash_remove( &tree -> zhash_table, node );
 }
 
 /** zdrop() -- Remove znode from the tree.
@@ -456,7 +456,7 @@ void add_x_ref( jnode *node /* node to increase x_count of */ )
 	/*trace_on (TRACE_FLUSH, "add_x_ref: %p: %d\n", node, atomic_read (& node->x_count));*/
 
 	atomic_inc( &node -> x_count );
-	ON_DEBUG( ++ lock_counters() -> x_refs );
+	ON_DEBUG_CONTEXT( ++ lock_counters() -> x_refs );
 }
 
 /** decrease c_count on @node */
@@ -623,34 +623,6 @@ zget (reiser4_tree *tree,
 	return result;
 }
 
-/**
- * zput() - decrement x_count reference counter on znode.
- *
- * Count may drop to 0, znode stays in cache until memory pressure causes the eviction of
- * its page.  The c_count variable also ensures that children are pressured out of memory
- * before the parent.  The znode remains hashed as long as the VM allows its page to stay
- * in memory, and then we force its children out first?  There is no zcache_shrink().
- */
-/* Audited by: umka (2002.06.11) */
-void jput (jnode *node)
-{
-	trace_stamp (TRACE_ZNODES);
-
-	assert ("jmacd-509", node != NULL);
-	assert ("jmacd-510", atomic_read (& node->x_count) > 0);
-	assert ("jmacd-511", atomic_read (& node->d_count) >= 0);
-	assert ("jmacd-572", ergo (jnode_is_znode (node),
-				   atomic_read (& JZNODE (node)->c_count) >= 0));
-	ON_DEBUG (-- lock_counters() -> x_refs);
-
-	/*trace_on (TRACE_FLUSH, "del_x_ref: %p: %d\n", node, atomic_read (& node->x_count));*/
-	if (atomic_dec_and_test (& node->x_count)) {
-		if (JF_ISSET (node, JNODE_HEARD_BANSHEE) || (!jnode_page(node) && jnode_is_unformatted (node))  ) {
-			jdelete (node);
-		}
-	}
-}
-
 /****************************************************************************************
 				    ZNODE PLUGINS/DATA
  ****************************************************************************************/
@@ -725,7 +697,8 @@ int zload( znode *node /* znode to load */ )
 	assert( "nikita-1377", znode_invariant( node ) );
 	assert( "jmacd-7771", ! znode_above_root( node ) );
 	assert( "nikita-2125", atomic_read( &ZJNODE(node) -> x_count ) > 0 );
-	assert( "nikita-2189", lock_counters() -> spin_locked == 0 );
+	ON_DEBUG_CONTEXT( assert( "nikita-2189", 
+				  lock_counters() -> spin_locked == 0 ) );
 
 	result = jload( ZJNODE( node ) );
 	assert( "nikita-1378", znode_invariant( node ) );
@@ -846,7 +819,8 @@ znode *znode_parent_nolock( const znode *node /* child znode */ )
 znode *znode_parent( const znode *node /* child znode */ )
 {
 	assert( "nikita-1226", node != NULL );
-	assert( "nikita-1406", lock_counters() -> spin_locked_tree > 0 );
+	ON_DEBUG_CONTEXT( assert( "nikita-1406", 
+				  lock_counters() -> spin_locked_tree > 0 ) );
 	return znode_parent_nolock( node );
 }
 

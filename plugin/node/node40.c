@@ -851,7 +851,8 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
 	else if (data->data != NULL) {
 		if (data->user) {
 			/* AUDIT: Are we really should not check that pointer from userspace was valid and data bytes were available? How will we return -EFAULT of some kind without this check? */
-			assert( "green-2", lock_counters() -> spin_locked == 0 );
+			ON_DEBUG_CONTEXT( assert( "green-2", 
+						  lock_counters() -> spin_locked == 0 ) );
 			/* copy data from user space */
 			__copy_from_user (zdata (target->node) + offset,
 					  data->data, 

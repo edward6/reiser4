@@ -272,7 +272,8 @@ void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag )
 {
 	void *addr;
 
-	assert( "nikita-2267", lock_counters() -> spin_locked == 0 );
+	ON_DEBUG_CONTEXT( assert( "nikita-2267", 
+				  lock_counters() -> spin_locked == 0 ) );
 
 	addr = kmalloc( slab -> size, gfp_flag );
 

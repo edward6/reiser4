@@ -443,7 +443,6 @@ extern unsigned znode_recover_free_space( znode *node );
 
 extern int znode_just_created( const znode *node );
 
-extern void znode_remove( znode *node );
 extern void zfree( znode *node );
 
 #if REISER4_DEBUG_MODIFY
@@ -584,13 +583,15 @@ extern void copy_lc( load_count *new, load_count *old );  /* Copy the contents o
 #if REISER4_DEBUG
 #define STORE_COUNTERS						\
 	lock_counters_info __entry_counters = *lock_counters()
-#define CHECK_COUNTERS								\
-({										\
-	__entry_counters.x_refs = lock_counters() -> x_refs;			\
-	__entry_counters.t_refs = lock_counters() -> t_refs;			\
-	assert( "nikita-2159", !memcmp( &__entry_counters, lock_counters(),	\
-					sizeof __entry_counters ) );		\
-})
+#define CHECK_COUNTERS						\
+ON_DEBUG_CONTEXT(						\
+({								\
+	__entry_counters.x_refs = lock_counters() -> x_refs;	\
+	__entry_counters.t_refs = lock_counters() -> t_refs;	\
+	assert( "nikita-2159",					\
+		!memcmp( &__entry_counters, lock_counters(),	\
+			 sizeof __entry_counters ) );		\
+}) )
 
 #else
 #define STORE_COUNTERS

@@ -2022,7 +2022,8 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 				/* FIXME: JMACD->VS: Are you sure this doesn't cause excess zero-ing? */
 				/*jnode_clear_new (j);*/
 			}
-			assert( "green-13", lock_counters() -> spin_locked == 0 );
+			ON_DEBUG_CONTEXT( assert( "green-13", 
+						  lock_counters() -> spin_locked == 0 ) );
 			/* copy data into page */
 			if (unlikely (__copy_from_user (b_data + block_off,
 							f->data + written,
@@ -2334,7 +2335,8 @@ int extent_read (struct inode * inode, coord_t * coord,
 	/* AUDIT: We must page-in/prepare user area first to avoid deadlocks */
 	kaddr = kmap (page);
 	assert ("vs-572", f->user == 1);
-	assert( "green-6", lock_counters() -> spin_locked == 0 );
+	ON_DEBUG_CONTEXT( assert( "green-6", 
+				  lock_counters() -> spin_locked == 0 ) );
 	result = __copy_to_user (f->data, kaddr + page_off, count);
 	kunmap (page);
 

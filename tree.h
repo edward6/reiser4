@@ -345,7 +345,7 @@ extern void print_coord_content( const char *prefix, coord_t *p );
 extern void print_address( const char *prefix, const reiser4_block_nr *block );
 extern const char *bias_name( lookup_bias bias );
 extern int cbk_cache_init( cbk_cache *cache );
-extern void cbk_cache_invalidate( const znode *node );
+extern void cbk_cache_invalidate( const znode *node, reiser4_tree *tree );
 extern void cbk_cache_add( znode *node );
 
 extern int check_jnode_for_unallocated (jnode * node);

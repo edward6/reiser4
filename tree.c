@@ -1327,8 +1327,7 @@ int cut_node (coord_t * from /* coord of the first unit/item that will be
 	assert ("vs-316", !node_is_empty (from->node));
 
 	if (coord_eq (from, to) && !coord_is_existing_unit (from)) {
-		assert ("nikita-1812", !coord_is_existing_unit (to));
-		/* Napoleon defeated */
+		assert ("nikita-1812", !coord_is_existing_unit (to)); /* Napoleon defeated */
 		return 0;
 	}
 	/* set @from and @to to first and last units which are to be removed

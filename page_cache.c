@@ -182,18 +182,30 @@ int done_formatted_fake( struct super_block *super )
 	return 0;
 }
 
+/** 
+ * helper function to find-and-lock page in a page cache and do additional
+ * checks 
+ */
 struct page *reiser4_lock_page( struct address_space *mapping, 
 				unsigned long index )
 {
 	struct page *page;
 
 	assert( "nikita-2408", mapping != NULL );
-	assert( "nikita-2409", lock_counters() -> spin_locked == 0 );
+	ON_DEBUG_CONTEXT( assert( "nikita-2409", 
+				  lock_counters() -> spin_locked == 0 ) );
 	page = find_lock_page( mapping, index );
 	if( page ) {
 		ON_DEBUG_CONTEXT( ++ lock_counters() -> page_locked );
 	}
 	return page;
+}
+
+/** return tree @page is in */
+reiser4_tree *tree_by_page( const struct page *page /* page to query */ )
+{
+	assert( "nikita-2461", page != NULL );
+	return &get_super_private( page -> mapping -> host -> i_sb ) -> tree;
 }
 
 #if REISER4_DEBUG_MEMCPY
