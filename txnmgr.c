@@ -311,9 +311,38 @@ jnode_by_page (struct page* pg)
 	return node;
 }
 
+/* exported functions to allocate/free jnode objects outside this file */
+jnode * jalloc (void)
+{
+	jnode * jal = kmem_cache_alloc (_jnode_slab, GFP_KERNEL);
+	return jal;
+}
+
+void jfree (jnode * node)
+{
+	assert ("zam-449", node != NULL);
+	kmem_cache_free (_jnode_slab, node);
+}
+
+jnode * jnew (void)
+{
+	jnode * jal;
+
+	jal = jalloc();
+
+	if (jal == NULL) return NULL;
+
+	jnode_init (jal);
+
+	/* FIXME: not a strictly correct, but should help in avoiding of
+	 * looking to missing znode-only fields */
+	JF_SET (node, ZNODE_UNFORMATTED);
+
+	return jal;
+}
+
 /* Holding the jnode_ptr_lock, check whether the page already has a jnode and
  * if not, allocate one. */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
 jnode*
 jnode_of_page (struct page* pg)
 {
@@ -334,7 +363,7 @@ jnode_of_page (struct page* pg)
 	if ((jnode*) pg->private == NULL) {
 		if (jal == NULL) {
 			spin_unlock (& _jnode_ptr_lock);
-			jal = kmem_cache_alloc (_jnode_slab, GFP_KERNEL);
+			jal = jalloc();
 
 			if (jal == NULL) {
 				return NULL;
@@ -369,7 +398,7 @@ jnode_of_page (struct page* pg)
 	spin_unlock (& _jnode_ptr_lock);
 
 	if (jal != NULL) {
-		kmem_cache_free (_jnode_slab, jal);
+		jfree(jal);
 	}
 
 	/*
