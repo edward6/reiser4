@@ -172,8 +172,6 @@ inode_by_reiser4_inode(const reiser4_inode *r4_inode /* inode queried */)
 
 SPIN_LOCK_FUNCTIONS(inode_object, reiser4_inode, guard);
 
-extern oid_t get_inode_oid(const struct inode *inode);
-extern void set_inode_oid(struct inode *inode, oid_t oid);
 extern ino_t oid_to_ino(oid_t oid) __attribute__ ((const));
 extern ino_t oid_to_uino(oid_t oid) __attribute__ ((const));
 
