@@ -65,6 +65,11 @@ mergeable_tail(const coord_t *p1, const coord_t *p2)
 	return 1;
 }
 
+void show_tail(struct seq_file *m, coord_t *coord)
+{
+	seq_printf(m, "length: %i", item_length_by_coord(coord));
+}
+
 /* plugin->u.item.b.print
    plugin->u.item.b.check */
 

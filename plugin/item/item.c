@@ -519,6 +519,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.cut_units = cut_units_extent,
 			.kill_units = kill_units_extent,
 			.unit_key = unit_key_extent,
+			.show = show_extent,
 			.estimate = NULL,
 			.item_data_by_flow = NULL
 #if REISER4_DEBUG_OUTPUT
@@ -581,6 +582,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = cut_units_tail,
 			.unit_key = unit_key_tail,
 			.estimate = NULL,
+			.show = show_tail,
 			.item_data_by_flow = NULL
 #if REISER4_DEBUG_OUTPUT
 			, .print = NULL,
@@ -705,6 +707,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.cut_units = cut_units_tail,
 			.kill_units = cut_units_tail,
 			.unit_key = unit_key_tail,
+			.show = show_tail,
 			.estimate = NULL,
 			.item_data_by_flow = NULL
 #if REISER4_DEBUG_OUTPUT
@@ -766,6 +769,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.cut_units = cut_units_extent,
 			.kill_units = kill_units_extent,
 			.unit_key = unit_key_extent,
+			.show = show_extent,
 			.estimate = NULL,
 			.item_data_by_flow = NULL
 #if REISER4_DEBUG_OUTPUT
