@@ -577,6 +577,7 @@ static int insert_first_block (reiser4_tree * tree UNUSED_ARG,
 	unit.data = (char *)&ext;
 	unit.length = sizeof (reiser4_extent);
 	unit.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID);
+	unit.arg = 0;
 
 	/*
 	 * when inserting item into twig level we also have to update right
