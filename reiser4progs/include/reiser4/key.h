@@ -12,7 +12,10 @@
 extern errno_t reiserfs_key_init(reiserfs_key_t *key, 
     const void *data);
 
-extern int reiserfs_key_compare(reiserfs_key_t *key1, 
+extern int reiserfs_key_compare_full(reiserfs_key_t *key1, 
+    reiserfs_key_t *key2);
+
+extern int reiserfs_key_compare_short(reiserfs_key_t *key1, 
     reiserfs_key_t *key2);
 
 extern void reiserfs_key_clean(reiserfs_key_t *key);

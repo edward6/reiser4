@@ -16,6 +16,7 @@ extern reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs,
 
 extern void reiserfs_object_close(reiserfs_object_t *object);
 extern errno_t reiserfs_object_rewind(reiserfs_object_t *object);
+extern uint32_t reiserfs_object_tell(reiserfs_object_t *object);
 
 extern errno_t reiserfs_object_read(reiserfs_object_t *object, 
     reiserfs_entry_hint_t *hint);

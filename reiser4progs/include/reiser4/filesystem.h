@@ -156,11 +156,11 @@ struct reiserfs_cache {
     /* Reference to right neighbour */
     reiserfs_cache_t *right;
     
-    /* List onto next level nodes */
+    /* List of children nodes */
     aal_list_t *list;
 };
 
-struct reiserfs_cache_limit{
+struct reiserfs_cache_limit {
     /* Current size of cache in blocks */
     int32_t cur;
 

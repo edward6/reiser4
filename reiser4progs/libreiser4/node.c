@@ -238,8 +238,8 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
     reiserfs_pos_t *pos)
 {
     uint32_t item_pos;
+    reiserfs_key_t maxkey;
     int lookup; void *body;
-    reiserfs_key_t max_key;
     reiserfs_plugin_t *item_plugin;
     
     aal_assert("umka-475", pos != NULL, return -1);
@@ -276,20 +276,18 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
 	We are on the position where key is less then wanted. Key could lies 
 	within the item or after the item.
     */
-    reiserfs_node_get_key(node, item_pos, &max_key);
+    reiserfs_node_get_key(node, item_pos, &maxkey);
     
     if (item_plugin->item_ops.common.maxkey) {
 	    
-	if (item_plugin->item_ops.common.maxkey(&max_key) == -1) {
+	if (item_plugin->item_ops.common.maxkey(&maxkey) == -1) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Getting max key of the item %d in the node %llu failed.", 
 		pos->item, aal_block_get_nr(node->block));
 	    return -1;
 	}
 	
-	if (libreiser4_plugin_call(return -1, key->plugin->key_ops, 
-	    compare, key->body, &max_key.body) > 0)
-	{
+	if (reiserfs_key_compare_full(key, &maxkey) > 0) {
 	    pos->item++;
 	    return lookup;
 	}

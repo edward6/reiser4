@@ -41,7 +41,7 @@ static const reiserfs_key40_t *key40_maximal(void) {
     return &MAXIMAL_KEY;
 }
 
-static int key40_compare(reiserfs_key40_t *key1, reiserfs_key40_t *key2) {
+static int key40_compare_short(reiserfs_key40_t *key1, reiserfs_key40_t *key2) {
     int result;
 
     aal_assert("vpf-135", key1 != NULL, return -2);
@@ -50,9 +50,18 @@ static int key40_compare(reiserfs_key40_t *key1, reiserfs_key40_t *key2) {
     if ((result = KEY40_COMP_ELEMENT(key1, key2, 0)) != 0)
 	return result;
 
-    if ((result = KEY40_COMP_ELEMENT(key1, key2, 1)) != 0)
-	return result;
+    return KEY40_COMP_ELEMENT(key1, key2, 1);
+}
+
+static int key40_compare_full(reiserfs_key40_t *key1, reiserfs_key40_t *key2) {
+    int result;
+
+    aal_assert("vpf-135", key1 != NULL, return -2);
+    aal_assert("vpf-136", key2 != NULL, return -2);
     
+    if ((result = key40_compare_short(key1, key2)) != 0)
+	return result;
+
     return KEY40_COMP_ELEMENT(key1, key2, 2);
 }
 
@@ -251,7 +260,6 @@ static reiserfs_plugin_t key40_plugin = {
 	.check = (errno_t (*)(const void *, int))key40_check,
 	.minimal = (const void *(*)(void))key40_minimal,
 	.maximal = (const void *(*)(void))key40_maximal,
-	.compare = (int (*)(const void *, const void *))key40_compare,
 	.clean = (void (*)(void *))key40_clean,
 	.size = (uint8_t (*)(void))key40_size,
 
@@ -272,6 +280,9 @@ static reiserfs_plugin_t key40_plugin = {
 	
 	.set_counter = (void (*)(void *, uint8_t))key40_set_counter,
 	.get_counter = (uint8_t (*)(const void *))key40_get_counter,
+	
+	.compare_full = (int (*)(const void *, const void *))key40_compare_full,
+	.compare_short = (int (*)(const void *, const void *))key40_compare_short,
 	
 	.build_generic_full = (errno_t (*)(void *, uint32_t, oid_t, oid_t, uint64_t))
 	    key40_build_generic_full,

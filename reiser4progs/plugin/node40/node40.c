@@ -461,7 +461,7 @@ static inline int callback_compare_for_lookup(const void *key1,
     aal_assert("umka-656", data != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, ((reiserfs_plugin_t *)data)->key_ops, 
-	compare, key1, key2);
+	compare_full, key1, key2);
 }
 
 static int node40_lookup(reiserfs_node40_t *node, 

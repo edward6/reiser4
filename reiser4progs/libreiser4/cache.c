@@ -53,7 +53,7 @@ static int callback_comp_for_find(reiserfs_cache_t *cache,
     reiserfs_key_t ldkey;
     
     reiserfs_node_ldkey(cache->node, &ldkey);
-    return reiserfs_key_compare(&ldkey, key) == 0;
+    return reiserfs_key_compare_full(&ldkey, key) == 0;
 }
 
 reiserfs_cache_t *reiserfs_cache_find(reiserfs_cache_t *cache, 
@@ -64,7 +64,7 @@ reiserfs_cache_t *reiserfs_cache_find(reiserfs_cache_t *cache,
     if (!cache->list)
 	return NULL;
     
-    if (!(item = aal_list_find_custom(cache->list, (void *)key, 
+    if (!(item = aal_list_find_custom(aal_list_first(cache->list), (void *)key, 
 	    (int (*)(const void *, const void *, void *))
 	    callback_comp_for_find, NULL)))
 	return NULL;
@@ -72,66 +72,27 @@ reiserfs_cache_t *reiserfs_cache_find(reiserfs_cache_t *cache,
     return (reiserfs_cache_t *)item->item;
 }
 
-static int callback_comp_for_register(reiserfs_cache_t *cache1, 
-    reiserfs_cache_t *cache2, void *data) 
-{
-    reiserfs_key_t ldkey1, ldkey2;
-    
-    reiserfs_node_ldkey(cache1->node, &ldkey1);
-    reiserfs_node_ldkey(cache2->node, &ldkey2);
-    
-    return reiserfs_key_compare(&ldkey1, &ldkey2) == 0;
-}
-
 static errno_t reiserfs_cache_nkey(reiserfs_cache_t *cache, 
     int direction, reiserfs_key_t *key) 
 {
-    int res;
-    reiserfs_key_t ldkey;
-    reiserfs_coord_t coord;
+    int32_t pos;
     
     aal_assert("umka-770", cache != NULL, return -1);
     aal_assert("umka-771", key != NULL, return -1);
     
-    if (!cache->parent)
+    if ((pos = reiserfs_cache_pos(cache)) == -1)
 	return -1;
-    
-    if (reiserfs_node_ldkey(cache->node, &ldkey)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't get left delimiting key of node %llu.", 
-	    aal_block_get_nr(cache->node->block));
-	return -1;
-    }
-    
-    if (!(res = reiserfs_node_lookup(cache->parent->node, 
-	&ldkey, &coord.pos)) == -1) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Lookup of registering node %llu failed.", 
-	    aal_block_get_nr(cache->node->block));
-	return -1;
-    }
-    
-    if (res == 0) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find registering node %llu in parent.", 
-	    aal_block_get_nr(cache->node->block));
-	return -1;
-    }
     
     if (direction == LEFT) {
-	if (coord.pos.item == 0)
+	if (pos == 0)
 	    return -1;
-
-	coord.pos.item--;
     } else {
-	if (coord.pos.item == reiserfs_node_count(cache->parent->node) - 1)
+	if ((uint32_t)pos == reiserfs_node_count(cache->parent->node) - 1)
 	    return -1;
-	
-	coord.pos.item++;
     }
+    pos += (direction == RIGHT ? 1 : -1);
     
-    reiserfs_node_get_key(cache->parent->node, coord.pos.item, key);
+    reiserfs_node_get_key(cache->parent->node, pos, key);
     
     return 0;
 }
@@ -144,14 +105,35 @@ errno_t reiserfs_cache_rnkey(reiserfs_cache_t *cache, reiserfs_key_t *key) {
     return reiserfs_cache_nkey(cache, RIGHT, key);
 }
 
+/* Returns position of passed cache in parent node */
+int32_t reiserfs_cache_pos(reiserfs_cache_t *cache) {
+    reiserfs_pos_t pos;
+    reiserfs_key_t ldkey;
+    
+    aal_assert("umka-869", cache != NULL, return -1);
+    
+    if (!cache->parent)
+	return -1;
+    
+    reiserfs_node_ldkey(cache->node, &ldkey);
+    
+    if (reiserfs_node_lookup(cache->parent->node, &ldkey, &pos) != 1) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find left delimiting key of node %llu.", 
+	    aal_block_get_nr(cache->node->block));
+	return -1;
+    }
+    
+    return pos.item;
+}
+
 /* 
     This function raises up both neighbours of the passed cache. This is used
     by shifting code in tree.c
 */
 errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
+    int32_t pos;
     blk_t block_nr;
-    reiserfs_pos_t pos;
-    reiserfs_key_t ldkey;
 
     reiserfs_node_t *node;
     reiserfs_node_t *parent;
@@ -164,18 +146,12 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
     if (!(parent = cache->parent->node))
 	return 0;
     
-    reiserfs_node_ldkey(cache->node, &ldkey);
-    
-    if (reiserfs_node_lookup(parent, &ldkey, &pos) != 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find left delimiting key of node %llu.", 
-	    aal_block_get_nr(cache->node->block));
+    if ((pos = reiserfs_cache_pos(cache)) == -1)
 	return -1;
-    }
-
+    
     /* Rasing the right neighbour */
-    if (!cache->left && pos.item > 0) {
-	if (!(block_nr = reiserfs_node_get_pointer(parent, pos.item - 1))) {
+    if (!cache->left && pos > 0) {
+	if (!(block_nr = reiserfs_node_get_pointer(parent, pos - 1))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer to left neighbour.");
 	    return -1;
@@ -192,8 +168,8 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
     }
 
     /* Raising the right neighbour */
-    if (!cache->right && pos.item < reiserfs_node_count(parent)) {
-	if (!(block_nr = reiserfs_node_get_pointer(parent, pos.item + 1))) {
+    if (!cache->right && (uint32_t)pos < reiserfs_node_count(parent)) {
+	if (!(block_nr = reiserfs_node_get_pointer(parent, pos + 1))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer to right neighbour.");
 	    return -1;
@@ -213,6 +189,17 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
     return 0;
 }
 
+static int callback_comp_for_register(reiserfs_cache_t *cache1, 
+    reiserfs_cache_t *cache2, void *data) 
+{
+    reiserfs_key_t ldkey1, ldkey2;
+    
+    reiserfs_node_ldkey(cache1->node, &ldkey1);
+    reiserfs_node_ldkey(cache2->node, &ldkey2);
+    
+    return reiserfs_key_compare_full(&ldkey1, &ldkey2);
+}
+
 /*
     Connects children into sorted children list of specified node. Sets up both
     neighbours and parent pointer.
@@ -220,6 +207,7 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
 errno_t reiserfs_cache_register(reiserfs_cache_t *cache, 
     reiserfs_cache_t *child) 
 {
+    aal_list_t *new_list;
     reiserfs_key_t ldkey;
     reiserfs_key_t lnkey, rnkey;
     reiserfs_cache_t *left, *right;
@@ -239,12 +227,14 @@ errno_t reiserfs_cache_register(reiserfs_cache_t *cache,
 	limit->cur++;
     }
     
-    cache->list = aal_list_insert_sorted(cache->list, 
+    new_list = aal_list_insert_sorted(cache->list, 
 	child, (int (*)(const void *, const void *, void *))
 	callback_comp_for_register, NULL);
 
-    left = cache->list->prev ? cache->list->prev->item : NULL;
-    right = cache->list->next ? cache->list->next->item : NULL;
+    cache->list = aal_list_first(new_list);
+    
+    left = new_list->prev ? new_list->prev->item : NULL;
+    right = new_list->next ? new_list->next->item : NULL;
    
     child->parent = cache;
     child->tree = cache->tree;
@@ -256,7 +246,7 @@ errno_t reiserfs_cache_register(reiserfs_cache_t *cache,
 	
 	/* Getting left neighbour key */
 	if (!reiserfs_cache_lnkey(child, &lnkey))
-	    child->left = (reiserfs_key_compare(&lnkey, &ldkey) == 0 ? left : NULL);
+	    child->left = (reiserfs_key_compare_full(&lnkey, &ldkey) == 0 ? left : NULL);
     
 	if (child->left)
 	    child->left->right = child;
@@ -268,7 +258,7 @@ errno_t reiserfs_cache_register(reiserfs_cache_t *cache,
 	
 	/* Getting right neighbour key */
 	if (!reiserfs_cache_rnkey(child, &rnkey))
-	    child->right = (reiserfs_key_compare(&rnkey, &ldkey) == 0 ? right : NULL);
+	    child->right = (reiserfs_key_compare_full(&rnkey, &ldkey) == 0 ? right : NULL);
 
 	if (child->right)
 	    child->right->left = child;

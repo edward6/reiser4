@@ -222,14 +222,6 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop_level,
 	    coord->pos.item--;
 	}
 
-	/* Checking for item kind */	
-	if (!reiserfs_node_item_internal(coord->cache->node, coord->pos.item)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Invalid internal item detected. Node %llu, item %u.", 
-		aal_block_get_nr(coord->cache->node->block), coord->pos.item);
-	    return -1;
-	}
-	
 	/* Getting the node pointer from internal item */
 	if (!(block_nr = reiserfs_node_get_pointer(coord->cache->node, 
 	    coord->pos.item))) 

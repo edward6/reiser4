@@ -34,6 +34,9 @@ struct reiserfs_dir40 {
 	uint32_t len;
     } statdata;
 
+    /* Reference to the current direntry item */
+    void *direntry;
+    
     /* Current position in the directory */
     uint32_t pos;
 

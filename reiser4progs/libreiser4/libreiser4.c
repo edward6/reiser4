@@ -55,8 +55,10 @@ static inline errno_t __tree_data(const void *tree, reiserfs_place_t *place,
     *item = libreiser4_plugin_call(return -1, node->node_plugin->node_ops, 
 	item_body, node->entity, place->pos.item);
     
-    *len = libreiser4_plugin_call(return -1, node->node_plugin->node_ops,
-	item_len, node->entity, place->pos.item);
+    if (len) {
+	*len = libreiser4_plugin_call(return -1, node->node_plugin->node_ops,
+	    item_len, node->entity, place->pos.item);
+    }
     
     return 0;
 }
@@ -101,6 +103,26 @@ static inline errno_t __tree_left(const void *tree,
     return 0;
 }
 
+static inline errno_t __tree_key(const void *tree, 
+    reiserfs_place_t *place, reiserfs_key_t *key) 
+{
+    aal_assert("umka-870", tree != NULL, return -1);
+    aal_assert("umka-871", place != NULL, return -1);
+
+    return reiserfs_node_get_key(((reiserfs_cache_t *)place->cache)->node, 
+	place->pos.item, key);
+}
+
+static inline reiserfs_id_t __tree_pid(const void *tree, 
+    reiserfs_place_t *place)
+{
+    aal_assert("umka-872", tree != NULL, return -1);
+    aal_assert("umka-873", place != NULL, return -1);
+
+    return reiserfs_node_item_get_pid(((reiserfs_cache_t *)place->cache)->node, 
+	place->pos.item);
+}
+
 reiserfs_core_t core = {
     /* Installing callback for make search for a plugin by its attributes */
     .factory_find = __factory_find,
@@ -120,11 +142,17 @@ reiserfs_core_t core = {
     */
     .tree_data = __tree_data,
 
+    /* Returns key by coords */
+    .tree_key = __tree_key,
+
     /* Returns right neighbour of passed coord */
     .tree_right = __tree_right,
     
     /* Returns left neighbour of passed coord */
-    .tree_left = __tree_left
+    .tree_left = __tree_left,
+
+    /* Returns tree pid by coord */
+    .tree_pid = __tree_pid
 };
 
 int libreiser4_get_max_interface_version(void) {

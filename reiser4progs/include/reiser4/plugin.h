@@ -189,13 +189,6 @@ struct reiserfs_item_hint {
 
 typedef struct reiserfs_item_hint reiserfs_item_hint_t;
 
-/*struct reiserfs_object_hint {
-    uint16_t count;
-    reiserfs_item_hint_t *item;
-};
-
-typedef struct reiserfs_object_hint reiserfs_object_hint_t;*/
-
 struct reiserfs_pos {
     uint32_t item;
     uint32_t unit;
@@ -232,8 +225,11 @@ struct reiserfs_key_ops {
     /* Returns maximal key for this key-format */
     const void *(*maximal) (void);
 
-    /* Compares two keys */
-    int (*compare) (const void *, const void *);
+    /* Compares two keys by comparing its all components */
+    int (*compare_full) (const void *, const void *);
+
+    /* Compares two keys by comparing only objectid and locality */
+    int (*compare_short) (const void *, const void *);
 
     /* 
 	Cleans key. Actually it just memsets it by zeros,
@@ -317,6 +313,9 @@ struct reiserfs_dir_ops {
 	directory). 
     */
     int (*confirm) (reiserfs_entity_t *);
+
+    /* Returns current position in directory */
+    uint32_t (*tell) (reiserfs_entity_t *);
 };
 
 typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;
@@ -732,8 +731,14 @@ struct reiserfs_core {
     */
     errno_t (*tree_data) (const void *, reiserfs_place_t *, void **, uint32_t *);
 
+    /* Returns key by specified coord */
+    errno_t (*tree_key) (const void *, reiserfs_place_t *, reiserfs_key_t *);
+    
     errno_t (*tree_right) (const void *, reiserfs_place_t *);
     errno_t (*tree_left) (const void *, reiserfs_place_t *);
+
+    /* Returs plugin id by coord */
+    reiserfs_id_t (*tree_pid) (const void *, reiserfs_place_t *);
 };
 
 typedef struct reiserfs_core reiserfs_core_t;

@@ -149,7 +149,7 @@ aal_list_t *aal_list_insert_sorted(aal_list_t *list,
     if ((!tmp_list->next) && (cmp > 0)) {
 	tmp_list->next = new_list;
 	new_list->prev = tmp_list;
-	return list;
+	return new_list;
     }
    
     if (tmp_list->prev) {

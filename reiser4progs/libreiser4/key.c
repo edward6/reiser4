@@ -19,12 +19,20 @@ errno_t reiserfs_key_init(reiserfs_key_t *key, const void *data) {
     return 0;
 }
 
-int reiserfs_key_compare(reiserfs_key_t *key1, reiserfs_key_t *key2) {
+int reiserfs_key_compare_full(reiserfs_key_t *key1, reiserfs_key_t *key2) {
     aal_assert("umka-764", key1 != NULL, return -1);
     aal_assert("umka-765", key2 != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, key1->plugin->key_ops, 
-	compare, key1->body, key2->body);
+	compare_full, key1->body, key2->body);
+}
+
+int reiserfs_key_compare_short(reiserfs_key_t *key1, reiserfs_key_t *key2) {
+    aal_assert("umka-764", key1 != NULL, return -1);
+    aal_assert("umka-765", key2 != NULL, return -1);
+
+    return libreiser4_plugin_call(return -1, key1->plugin->key_ops, 
+	compare_short, key1->body, key2->body);
 }
 
 void reiserfs_key_clean(reiserfs_key_t *key) {

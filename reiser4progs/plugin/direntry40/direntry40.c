@@ -180,7 +180,7 @@ static int callback_comp_for_lookup(const void *key1,
 	&key, KEY40_STATDATA_MINOR, locality, objectid, offset);
     
     return libreiser4_plugin_call(return -1, plugin->key_ops, 
-	compare, &key, key2);
+	compare_full, &key, key2);
 }
 
 static int direntry40_lookup(reiserfs_direntry40_t *direntry, 

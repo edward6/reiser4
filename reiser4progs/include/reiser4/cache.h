@@ -1,5 +1,5 @@
 /*
-    cache.h -- function which work with node cache.
+    cache.h -- functions which work with node cache.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets. 
 */
@@ -12,6 +12,8 @@
 extern reiserfs_cache_t *reiserfs_cache_create(reiserfs_node_t *node);
 
 extern void reiserfs_cache_close(reiserfs_cache_t *cache);
+
+extern int32_t reiserfs_cache_pos(reiserfs_cache_t *cache);
 
 extern reiserfs_cache_t *reiserfs_cache_find(reiserfs_cache_t *cache, 
     reiserfs_key_t *key);

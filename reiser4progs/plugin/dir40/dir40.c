@@ -49,6 +49,10 @@ static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
 	return -1;
     }
 
+    /* Updating pointer to direntry item */
+    if (core->tree_data(dir->tree, &dir->place, &dir->direntry, NULL))
+        return -1;
+    
     dir->pos = 0;
     dir->place.pos.unit = 0;
 
@@ -76,49 +80,56 @@ static errno_t dir40_realize(reiserfs_dir40_t *dir) {
 static errno_t dir40_read(reiserfs_dir40_t *dir, 
     reiserfs_entry_hint_t *entry) 
 {
-    void *direntry;
-    uint32_t len, count;
+    uint32_t count;
     reiserfs_item_ops_t *item_ops;
     
     aal_assert("umka-844", dir != NULL, return -1);
     aal_assert("umka-845", entry != NULL, return -1);
 
-    /* Getting current direntry item */
-    if (core->tree_data(dir->tree, &dir->place, &direntry, &len))
-	return -1;
-
     item_ops = &dir->direntry_plugin->item_ops;
     
     /* Getting count entries */
-    if ((count = libreiser4_plugin_call(return -1, item_ops->common, 
-	    count, direntry)) == 0)
+    if ((count = libreiser4_plugin_call(return -1, 
+	    item_ops->common, count, dir->direntry)) == 0)
 	return -1;
     
     if (dir->place.pos.unit >= count) {
+	reiserfs_entry_hint_t prev_entry;
+	reiserfs_entry_hint_t next_entry;
+    
+	if ((libreiser4_plugin_call(return -1, item_ops->specific.direntry, 
+		get_entry, dir->direntry, count - 1, &prev_entry)))
+	    return -1;
 	
+	/* Switching to the rest of directory, which lies in other node */
 	if (core->tree_right(dir->tree, &dir->place))
 	    return -1;
+	
+	/* Here we check is next item belongs to this directory */
+	if (core->tree_pid(dir->tree, &dir->place) != dir->direntry_plugin->h.id)
+	    return -1;
+	
+	if (core->tree_data(dir->tree, &dir->place, &dir->direntry, NULL))
+	    return -1;
+	
+	if ((libreiser4_plugin_call(return -1, item_ops->specific.direntry, 
+		get_entry, dir->direntry, dir->place.pos.unit, &next_entry)))
+	    return -1;
 
-	dir->place.pos.unit = 0;
+	if (prev_entry.locality != next_entry.locality)
+	    return -1;
     }
     
+    /* Getting next entry from the current direntry item */
     if ((libreiser4_plugin_call(return -1, item_ops->specific.direntry, 
-	    get_entry, direntry, dir->pos, entry)))
+	    get_entry, dir->direntry, dir->place.pos.unit, entry)))
 	return -1;
-	    
+
+    /* Updating positions */    
     dir->pos++; 
     dir->place.pos.unit++; 
     
     return 0;
-}
-
-static errno_t dir40_add(reiserfs_dir40_t *dir, 
-    reiserfs_entry_hint_t *entry) 
-{
-    aal_assert("umka-844", dir != NULL, return -1);
-    aal_assert("umka-845", entry != NULL, return -1);
-
-    return -1;
 }
 
 static reiserfs_dir40_t *dir40_open(const void *tree, 
@@ -353,12 +364,26 @@ error:
     return NULL;
 }
 
+static errno_t dir40_add(reiserfs_dir40_t *dir, 
+    reiserfs_entry_hint_t *entry) 
+{
+    aal_assert("umka-844", dir != NULL, return -1);
+    aal_assert("umka-845", entry != NULL, return -1);
+
+    return -1;
+}
+
+#endif
+
 static void dir40_close(reiserfs_dir40_t *dir) {
     aal_assert("umka-750", dir != NULL, return);
     aal_free(dir);
 }
 
-#endif
+static uint32_t dir40_tell(reiserfs_dir40_t *dir) {
+    aal_assert("umka-874", dir != NULL, return 0);
+    return dir->pos;
+}
 
 static reiserfs_plugin_t dir40_plugin = {
     .dir_ops = {
@@ -389,7 +414,8 @@ static reiserfs_plugin_t dir40_plugin = {
 	.confirm = NULL,
 	.close = (void (*)(reiserfs_entity_t *))dir40_close,
 	.rewind = (errno_t (*)(reiserfs_entity_t *))dir40_rewind,
-	
+	.tell = (uint32_t (*)(reiserfs_entity_t *))dir40_tell,
+
 	.read = (errno_t (*)(reiserfs_entity_t *, reiserfs_entry_hint_t *))
 	    dir40_read,
     }

@@ -292,6 +292,20 @@ errno_t reiserfs_object_read(reiserfs_object_t *object,
     }
 }
 
+uint32_t reiserfs_object_tell(reiserfs_object_t *object) {
+    aal_assert("umka-875", object != NULL, return -1);
+    aal_assert("umka-876", object->entity != NULL, return -1);
+
+    if (object->plugin->h.type == REISERFS_DIR_PLUGIN) {
+	return libreiser4_plugin_call(return -1, object->plugin->dir_ops, 
+	    tell, object->entity);
+    } else {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Sorry, files are not supported now!");
+	return -1;
+    }
+}
+
 errno_t reiserfs_object_add(reiserfs_object_t *object, 
     reiserfs_entry_hint_t *hint) 
 {
