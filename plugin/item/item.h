@@ -213,6 +213,9 @@ typedef struct {
 					  reiser4_block_nr *block );
 
 	reiser4_key *( *real_max_key_inside )( const coord_t *coord, reiser4_key * );
+
+	/* return true if unit to which coord is set contains @key */
+	int ( *key_in_coord )( const coord_t *coord, const reiser4_key *key );
 } common_item_plugin;
 
 
