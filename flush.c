@@ -510,7 +510,6 @@ struct flush_position {
 
 	flushers_list_link    flushers_link;   /* A list link of all flush_positions active for an atom. */
 	txn_atom             *atom;            /* The current atom of this flush_position--maintained during atom fusion. */
-	struct reiser4_io_handle * hio;        /* The handle for waiting on I/O completions. */
 };
 
 /* The flushers list maintains a per-atom list of active flush_positions.  This is because
@@ -705,16 +704,8 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_position flush_pos;
 	flush_scan right_scan;
 	flush_scan left_scan;
-	struct reiser4_io_handle hio;
 
 	assert ("jmacd-76619", lock_stack_isclean (get_current_lock_stack ()));
-
-	if (flags & JNODE_FLUSH_COMMIT) {
-		init_io_handle (&hio);
-		flush_pos.hio = &hio;
-	} else {
-		flush_pos.hio = NULL;
-	}
 
 	/* Flush-concurrency debug code */
 	ON_DEBUG (atomic_inc (& flush_cnt);
@@ -988,14 +979,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	 * The alternative is to undconditionally call done_io_handle here, not just when
 	 * JNODE_FLUSH_COMMIT is called, but that will make performance suck.
 	 */
-	if (flags & JNODE_FLUSH_COMMIT) {
-		int rc = done_io_handle(&hio);
-		if (rc && ret == 0) {
-			warning ("nikita-2421",
-				 "Error waiting for io completion: %i", rc);
-			ret = rc;
-		}
-	}
 
 	ON_DEBUG (atomic_dec (& flush_cnt));
 
@@ -2728,11 +2711,17 @@ static int flush_empty_queue (flush_position *pos)
 			trace_on (TRACE_FLUSH_VERB, "\n");
 			trace_on (TRACE_FLUSH, "flush_empty_queue %u consecutive blocks: BIO %p\n", nr, bio);
 
-			io_handle_add_bio (pos->hio, bio);
-
 			/* FIXME(B): JMACD->ZAM: 'check' is not the last written location,
 			 * bio->bi_vec[i] is? */
 			reiser4_update_last_written_location (super, jnode_get_block (check));
+
+			ret = current_atom_add_bio(bio);
+
+			if (ret) {
+				bio_put (bio);
+				/* FIXME: we should unlock pages before quit */
+				return ret;
+			}
 
 			submit_bio (WRITE, bio);
 		}

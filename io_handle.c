@@ -2,9 +2,10 @@
 
 #include "reiser4.h"
 
-/* The routines to submit and wait for completion node write requests. */
+TS_LIST_DEFINE (io_handles, struct reiser4_io_handle, linkage);
 
-void init_io_handle (struct reiser4_io_handle * io)
+/* The routines to submit and wait for completion node write requests. */
+static void init_io_handle (struct reiser4_io_handle * io)
 {
 	sema_init(&io->io_sema, 0);
 
@@ -15,7 +16,7 @@ void init_io_handle (struct reiser4_io_handle * io)
 	atomic_set(&io->nr_errors, 0);
 }
 
-int done_io_handle (struct reiser4_io_handle * io)
+static int io_handle_wait_io (struct reiser4_io_handle * io)
 {
 	/* this 1 was from init_io_handle() */
 	if (! atomic_dec_and_test(&io->nr_submitted)) {
@@ -28,16 +29,16 @@ int done_io_handle (struct reiser4_io_handle * io)
 
 	}
 
-	if (atomic_read(&io->nr_errors)) return -EIO;
-	return 0;
+	return  atomic_read(&io->nr_errors);
 }
 
-void io_handle_add_bio (struct reiser4_io_handle * io, struct bio * bio)
+static void io_handle_add_bio (struct reiser4_io_handle * io, struct bio * bio)
 {
 	bio->bi_private = io;
 
 	if (io) atomic_add(bio->bi_vcnt, &io->nr_submitted);
 }
+
 
 void io_handle_end_io (struct bio * bio)
 {
@@ -52,6 +53,131 @@ void io_handle_end_io (struct bio * bio)
 		up (&io->io_sema);
 }
 
+int atom_add_bio (txn_atom * atom, struct bio * bio, struct reiser4_io_handle ** iop)
+{
+	struct reiser4_io_handle * hio;
+
+	assert ("zam-693", spin_atom_is_locked (atom));
+
+	if (! io_handles_list_empty (&atom->io_handles)) {
+		hio = io_handles_list_front (&atom->io_handles);
+	} else {
+		if (! *iop) { 
+			spin_unlock_atom (atom);
+			*iop = reiser4_kmalloc (sizeof (struct reiser4_io_handle), GFP_KERNEL);
+			if (*iop == NULL)
+				return -ENOMEM;
+			return -EAGAIN;
+		}
+		hio = *iop;
+		*iop = NULL;
+		init_io_handle (hio);
+		io_handles_list_push_front (&atom->io_handles, hio);
+	}
+
+	io_handle_add_bio (hio, bio);
+
+	if (*iop)
+		reiser4_kfree (*iop, sizeof (struct reiser4_io_handle));
+
+	return 0;
+}
+
+int current_atom_add_bio (struct bio * bio)
+{
+	struct reiser4_io_handle * hio = NULL;
+	txn_atom * atom;
+	int ret;
+
+ repeat: 
+	atom = get_current_atom_locked ();
+
+	ret = atom_add_bio (atom, bio, &hio);
+
+	if (ret == -EAGAIN)
+		goto repeat;
+
+	if (ret)
+		return ret;
+
+	spin_unlock_atom (atom);
+
+	return ret;
+}
+
+/* fuse i/o handles lists at atom fusion time */
+void atom_fuse_io (txn_atom * to, txn_atom * from)
+{
+	assert ("zam-695", spin_atom_is_locked (to));
+	assert ("zam-696", spin_atom_is_locked (from));
+
+	io_handles_list_splice (&to->io_handles, &from->io_handles);
+}
+
+/* wait for all i/o completion, invalidate all i/o handles, @io_error counts
+ * i/o errors */
+int atom_wait_on_io (txn_atom * atom, int * io_error)
+{
+	struct reiser4_io_handle * io;
+
+	assert ("zam-694", spin_atom_is_locked (atom));
+
+	if (io_handles_list_empty (&atom->io_handles))
+		return 0;
+
+	io = io_handles_list_pop_front (&atom->io_handles);
+	spin_unlock_atom (atom);
+	*io_error += io_handle_wait_io (io);
+	kfree (io);
+
+	return -EAGAIN;
+}
+
+int current_atom_wait_on_io (void)
+{
+	int error = 0;
+	int ret;
+	txn_atom * atom;
+
+ repeat:
+	atom = get_current_atom_locked ();
+	ret = atom_wait_on_io (atom, &error);
+
+	if (ret == -EAGAIN)
+		goto repeat;
+
+	if (ret) 
+		return ret;
+
+	spin_unlock_atom (atom);
+
+	if (error)
+		return -EIO;
+
+	return 0;
+}
+
+void atom_init_io (txn_atom * atom)
+{
+	io_handles_list_init (&atom->io_handles);
+}
+
+void atom_done_io (txn_atom * atom) 
+{
+	assert ("zam-698", spin_atom_is_locked (atom));
+
+	/* it is possible to have not active i/o handles at this time because
+	 * jwait_io() was used to wait on i/o which does not invalidate i/o
+	 * handles list */
+
+	while (! io_handles_list_empty (&atom->io_handles)) {
+		struct reiser4_io_handle * io;
+
+		io = io_handles_list_pop_front (&atom->io_handles);
+		assert ("zam-699", atomic_read (&io->nr_submitted) == 1);
+		reiser4_kfree (io, sizeof (struct reiser4_io_handle));
+	}
+}
 
 /*
  * Make Linus happy.
