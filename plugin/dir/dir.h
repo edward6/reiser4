@@ -11,8 +11,6 @@
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct file  */
 
-extern void directory_readahead(struct inode *dir, coord_t * coord);
-
 /* locking: fields of per file descriptor readdir_pos and ->f_pos are
  * protected by ->i_sem on inode. Under this lock following invariant
  * holds:

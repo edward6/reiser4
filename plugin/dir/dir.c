@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Methods of directory plugin. */
 
@@ -30,26 +31,6 @@
 #include <linux/quotaops.h>
 #include <linux/dcache.h>	/* for struct dentry */
 
-/* Directory read-ahead control.
-
-   NOTE-NIKITA this is just stub. This function is supposed to be
-   called during lookup, readdir, and maybe creation.
-
-NIKITA-FIXME-HANS: explain "supposed to be" and "maybe creation"
-
-*/
-void
-directory_readahead(struct inode *dir /* directory being accessed */ ,
-		    coord_t * coord /* coord of access */ )
-{
-	assert("nikita-1682", dir != NULL);
-	assert("nikita-1683", coord != NULL);
-	assert("nikita-1684", coord->node != NULL);
-	assert("nikita-1685", znode_is_any_locked(coord->node));
-
-	trace_stamp(TRACE_DIR);
-}
-
 /* helper function. Standards require than for many file-system operations
    on success ctime and mtime of parent directory is to be updated. */
 int
@@ -62,7 +43,7 @@ reiser4_update_dir(struct inode *dir)
 	/* "capture" inode */
 	return reiser4_mark_inode_dirty(dir);
 }
-/* NIKITA-FIXME-HANS: can we somehow optimize this to a constant for the case where exotic directory plugins are not used (which is all cases for current reiser4)? */
+
 /* estimate disk space necessary to add a link from @parent to @object. */
 static reiser4_block_nr common_estimate_link(
 	struct inode *parent /* parent directory */,
@@ -106,8 +87,7 @@ link_common(struct inode *parent /* parent directory */ ,
 	    struct dentry *existing	/* dentry of object to which
 					 * new link is being
 					 * cerated */ ,
-	    /* NIKITA-FIXME-HANS: how about new_name instead of where? */
-	    struct dentry *where /* new name */ )
+	    struct dentry *newname /* new name */ )
 {
 	int result;
 	struct inode *object;
@@ -118,7 +98,7 @@ link_common(struct inode *parent /* parent directory */ ,
 
 	assert("nikita-1431", existing != NULL);
 	assert("nikita-1432", parent != NULL);
-	assert("nikita-1433", where != NULL);
+	assert("nikita-1433", newname != NULL);
 
 	object = existing->d_inode;
 	assert("nikita-1434", object != NULL);
@@ -129,11 +109,11 @@ link_common(struct inode *parent /* parent directory */ ,
 
 	/* links to directories are not allowed if file-system
 	   logical name-space should be ADG */
-	if ( S_ISDIR(object->i_mode) && reiser4_is_set(parent->i_sb, REISER4_ADG))
+	if (S_ISDIR(object->i_mode) && reiser4_is_set(parent->i_sb, REISER4_ADG))
 		return RETERR(-EISDIR);
 
 	/* check permissions */
-	if (perm_chk(parent, link, existing, parent, where))
+	if (perm_chk(parent, link, existing, parent, newname))
 		return RETERR(-EPERM);
 
 	parent_dplug = inode_dir_plugin(parent);
@@ -154,7 +134,7 @@ link_common(struct inode *parent /* parent directory */ ,
 	result = reiser4_add_nlink(object, parent, 1);
 	if (result == 0) {
 		/* add entry to the parent */
-		result = parent_dplug->add_entry(parent, where, &data, &entry);
+		result = parent_dplug->add_entry(parent, newname, &data, &entry);
 		if (result != 0) {
 			/* failure to add entry to the parent, remove
 			   link from "existing" */
@@ -757,9 +737,6 @@ dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 	else {
 		tap->coord->node = NULL;
 		done_lh(tap->lh);
-		/* NIKITA-FIXME-HANS: why is this assignment done in this function rather than the child close to where
-		 * an IO error is detected? And if this means something other than an IO error under any circumstance,
-		 * fix it.  */
 		result = RETERR(-EIO);
 	}
 	return result;
