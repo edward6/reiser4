@@ -77,8 +77,9 @@ void sd_item_stat( const coord_t *coord, void *vp )
 
 /** helper function used while we are dumping/loading inode/plugin state
     to/from the stat-data. */
+
 /* Audited by: green(2002.06.14) */
-static void move_on( int *length /* space remaining in stat-data */, 
+static void next_stat( int *length /* space remaining in stat-data */, 
 		     char **area /* current coord in stat data */, 
 		     int size_of /* how many bytes to move forward */ )
 {
@@ -105,7 +106,7 @@ static int not_enough_space( struct inode *inode /* object being processed */,
 	return -EINVAL;
 }
 
-/** helper funtion used while loading inode/plugin state from
+/** helper function used while loading inode/plugin state from
     stat-data. Call it if invalid plugin id was found. */
 /* Audited by: green(2002.06.14) */
 static int unknown_plugin( reiser4_plugin_id id /* invalid id */, 
@@ -136,14 +137,14 @@ static int align( struct inode *inode /* object being processed */,
 	if( delta > *length )
 		return not_enough_space( inode, "padding" );
 	if( delta > 0 )
-		move_on( length, area, delta );
+		next_stat( length, area, delta );
 	return 0;
 }
 
 /** this is installed as ->init_inode() method of 
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c).
     Copies data from on-disk stat-data format into inode.
-    Hanldes stat-data extensions. */
+    Handles stat-data extensions. */
 /* Audited by: green(2002.06.14) */
 int sd_load( struct inode *inode /* object being processed */, 
 	     char *sd /* stat-data body */, 
@@ -168,7 +169,8 @@ int sd_load( struct inode *inode /* object being processed */,
 	mask = state -> extmask = d16tocpu( &sd_base -> extmask );
 	state -> sd_len = len;
 
-	move_on( &len, &sd, sizeof *sd_base );
+/* NIKITA-FIXME-HANS: comment this function */
+	next_stat( &len, &sd, sizeof *sd_base );
 	for( bit = 0, chunk = 0 ; 
 	     ( mask != 0 ) || ( bit <= LAST_IMPORTANT_SD_EXTENSION ) ; 
 	     ++ bit, mask >>= 1 ) {
@@ -212,7 +214,7 @@ int sd_load( struct inode *inode /* object being processed */,
 			mask = d16tocpu( ( d16 * ) sd );
 			state -> extmask <<= 16;
 			state -> extmask |= mask;
-			move_on( &len, &sd, sizeof( d16 ) );
+			next_stat( &len, &sd, sizeof( d16 ) );
 			++ chunk;
 			if( chunk == 3 ) {
 				if( !( mask & 0x8000 ) ) {
@@ -345,7 +347,7 @@ static int unix_sd_present( struct inode *inode /* object being processed */,
 		inode -> i_ctime = d32tocpu( &sd -> ctime );
 		inode -> i_rdev  = val_to_kdev( d32tocpu( &sd -> rdev ) );
 		inode_set_bytes( inode, ( loff_t ) d64tocpu( &sd -> bytes ) );
-		move_on( len, area, sizeof *sd );
+		next_stat( len, area, sizeof *sd );
 		return 0;
 	} else
 		return not_enough_space( inode, "unix sd" );
@@ -438,7 +440,7 @@ static int symlink_sd_present( struct inode *inode,
 	sd = ( reiser4_symlink_stat * ) *area;
 	result = symlink_target_to_inode( inode, sd -> body, length );
 
-	move_on( len, area, length + 1 );
+	next_stat( len, area, length + 1 );
 	return result;
 }
 
@@ -507,7 +509,7 @@ static int gaf_sd_present( struct inode *inode /* object being processed */,
 		inode -> i_flags      = d32tocpu( &sd -> flags );
 		inode -> i_generation = d32tocpu( &sd -> generation );
 
-		move_on( len, area, sizeof *sd );
+		next_stat( len, area, sizeof *sd );
 		return 0;
 	} else
 		return not_enough_space( inode, "generation and attrs" );
@@ -564,7 +566,7 @@ static int plugin_sd_present( struct inode *inode /* object being processed */,
 
 	mask = 0;
 	num_of_plugins = d16tocpu( &sd -> plugins_no );
-	move_on( len, area, sizeof *sd );
+	next_stat( len, area, sizeof *sd );
 	result = 0;
 	for( i = 0 ; i < num_of_plugins ; ++ i ) {
 		reiser4_plugin_slot *slot;
@@ -577,7 +579,7 @@ static int plugin_sd_present( struct inode *inode /* object being processed */,
 		if( plugin == NULL ) {
 			return unknown_plugin( d16tocpu( &slot -> id ), inode );
 		}
-		move_on( len, area, sizeof *slot );
+		next_stat( len, area, sizeof *slot );
 		align( inode, len, area, plugin -> h.pops -> alignment );
 		/* load plugin data, if any */
 		if( plugin -> h.pops -> load ) {
@@ -702,7 +704,7 @@ static int save_plug( reiser4_plugin *plugin /* plugin to save */,
 	cputod16( plugin -> h.type_id, &slot -> type_id );
 	cputod16( ( unsigned ) plugin -> h.id, &slot -> id );
 	fake_len = ( int ) 0xffff;
-	move_on( &fake_len, area, sizeof *slot );
+	next_stat( &fake_len, area, sizeof *slot );
 	align( inode, &fake_len, area, plugin -> h.pops -> alignment );
 	++ *count;
 	if( plugin -> h.pops -> save != NULL )
@@ -731,7 +733,7 @@ static int plugin_sd_save( struct inode *inode /* object being processed */,
 		return 0;
 	sd = ( reiser4_plugin_stat * ) *area;
 	fake_len = ( int ) 0xffff;
-	move_on( &fake_len, area, sizeof *sd );
+	next_stat( &fake_len, area, sizeof *sd );
 
 	num_of_plugins = 0;
 	/* for now, use hardcoded list of plugins that can be associated

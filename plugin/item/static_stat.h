@@ -27,35 +27,25 @@ reiser4 is working, then fix it...:-)
 
 /* Stat data layout: goals and implementation.  
 
-   Reiser4 should support extensible means to store attributes with each
-   file. It also should support light-weight files, that is, files that
-   are so cheap space-wise, that creation and access to small files
-   (<50b) is not prohibitively expensive. This was among main goals of
-   reiserfs from its inception.
+We want to be able to have lightweight files which have complete flexibility in what semantic metadata is attached to
+them, including not having semantic metadata attached to them.
 
-   There are attributes that will be always read on access to a file if
-   present: inode generation, persistent inode attributes, capabilities,
-   object plugin etc. It would be too expensive to store such attributes
-   as separate items only to launch a bunch of additional tree lookups
-   immediately after reading stat data. Our decision is to store all
-   such attributes in the stat data item making it of variable size. The
-   same idea allows us to implement light-weight files efficiently:
-   minimal stat data only consist of fields that are absolutely
-   necessary to perform standard set of file operations. This minimal
-   stat-data (reiser4_stat_data_base) is 16 bytes in size and only
-   contains file mode (that is necessary to install proper object
-   plugin), nlink (required for link, unlink and rename) and size (to do
-   read/write).
-   
-   This minimal stat data also contains "extension bitmask": each bit in
-   it indicates presence or absence of or particular stat data extension
-   (see sd_ext_bits enum). For example if bit 0 is set (as it will be in
-   most normal installations), minimal stat data would be immediately
-   followed by the rest of standard UNIX inode fields: owner and group
-   id, times, bytes actually used by file (used to calculate i_block
-   field). If this bit is 0, we have light-weight file whose attributes
-   are either inherited from parent directory (as uid, gid) or
-   initialised to some sane values.
+There is one problem with doing that, which is that if in fact you have exactly the same metadata for most files you want to store, then it takes more space to store that metadata in a dynamically sized structure than in a statically sized structure because the statically sized structure knows without recording it what the names and lengths of the attributes are.
+
+This leads to a natural compromise, which is to special case those files which have simply the standard unix file
+attributes, and only employ the full dynamic stat data mechanism for those files that differ from the standard unix file
+in their use of file attributes.
+
+Yet this compromise deserves to be compromised a little.  
+
+We accomodate the case where you have no more than the standard unix file attributes by using an "extension bitmask":
+each bit in it indicates presence or absence of or particular stat data extension (see sd_ext_bits enum).
+
+NIKITA-FIXME-HANS: explain what an extension is.
+
+  If the first
+bit of the extension bitmask bit is 0, we have light-weight file whose attributes are either inherited from parent
+directory (as uid, gid) or initialised to some sane values.
 
    To capitalize on existing code infrastructure, extensions are
    implemented as plugins of type REISER4_SD_EXT_PLUGIN_TYPE.
@@ -63,6 +53,7 @@ reiser4 is working, then fix it...:-)
 
     ->present() called by sd_load() when this extension is found in stat-data
     ->absent() called by sd_load() when this extension is not found in stat-data
+NIKITA-FIXME-HANS: needs three more sentences to explain absent().
     ->save_len() called by sd_len() to calculate total length of stat-data
     ->save() called by sd_save() to store extension data into stat-data
 
@@ -105,15 +96,12 @@ typedef enum {
    existence of such specifications.  Note that once lightweight files
    exist, you need compressed item headers to make the solution
    complete.  Not until v4.1, or later.  */
+/* NIKITA-FIXME-HANS: read the above */
 /** minimal stat-data. This allows to support light-weight files. */
 typedef struct reiser4_stat_data_base {
-	/*  0 */ d16 mode;
 	/** bitmask indicating what pieces of data (extensions) follow
 	    this minimal stat-data */
 	/*  2 */ d16 extmask;
-	/*  4 */ d32 nlink;
-	/*  8 */ d64 size;	/* size in bytes */
-	/* 16 */
 } reiser4_stat_data_base;
 
 typedef struct reiser4_unix_stat {
@@ -128,6 +116,9 @@ typedef struct reiser4_unix_stat {
 } reiser4_unix_stat;
 
 /** symlink stored as part of inode */
+
+?
+
 typedef struct reiser4_symlink_stat {
 	char body[ 0 ];
 } reiser4_symlink_stat;
@@ -136,9 +127,11 @@ typedef struct reiser4_plugin_slot {
 	/*  0 */ d16 type_id;
 	/*  2 */ d16 id;
 	/*  4 */ /* here plugin stores its persistent state */
+/* NIKITA-FIXME-HANS: what does that mean? */
 } reiser4_plugin_slot;
 
 /** stat-data extension for files with non-standard plugin. */
+/* NIKITA-FIXME-HANS: comment on these things as a set, what they are used for, etc. */
 typedef struct reiser4_plugin_stat {
 	/** number of additional plugins, associated with this object */
 	/*  0 */ d16 plugins_no;
