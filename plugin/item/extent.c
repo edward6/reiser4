@@ -1271,8 +1271,14 @@ extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 cou
 		})
 
 		if (!jnode_check_flushprepped(j)) {
+			txn_atom * atom;
+
+			LOCK_JNODE(j);
+			atom = atom_locked_by_jnode(j);
+			assert("nikita-3111", atom != NULL);
 			jnode_set_wander(j);
-			jnode_set_clean(j);
+			UNLOCK_JNODE(j);
+			UNLOCK_ATOM(atom);
 		}
 
 		jput(j);
