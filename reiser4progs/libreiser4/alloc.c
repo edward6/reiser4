@@ -169,26 +169,26 @@ errno_t reiser4_alloc_mark(
 }
 
 /* Deallocs specified block */
-errno_t reiser4_alloc_dealloc(
+errno_t reiser4_alloc_release(
     reiser4_alloc_t *alloc,	/* allocator for wiorking with */
     blk_t blk			/* block to be deallocated */
 ) {
     aal_assert("umka-503", alloc != NULL, return -1);
 
     plugin_call(return -1, alloc->entity->plugin->alloc_ops, 
-	dealloc, alloc->entity, blk);
+	release, alloc->entity, blk);
 
     return 0;
 }
 
 /* Makes request to plugin for allocating block */
-blk_t reiser4_alloc_alloc(
+blk_t reiser4_alloc_allocate(
     reiser4_alloc_t *alloc	/* allocator for working with */
 ) {
     aal_assert("umka-505", alloc != NULL, return 0);
 
     return plugin_call(return 0, alloc->entity->plugin->alloc_ops, 
-	alloc, alloc->entity);
+	allocate, alloc->entity);
 }
 
 errno_t reiser4_alloc_valid(

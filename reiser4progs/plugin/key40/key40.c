@@ -101,6 +101,17 @@ static int key40_compare(reiser4_body_t *body1,
     return k40_comp_el(key1, key2, 2);
 }
 
+static errno_t key40_assign(reiser4_body_t *dst, 
+    reiser4_body_t *src)
+{
+    aal_assert("umka-1110", dst != NULL, return -1);
+    aal_assert("umka-1111", src != NULL, return -1);
+
+    aal_memcpy(dst, src, sizeof(key40_t));
+
+    return 0;
+}
+
 static int key40_confirm(reiser4_body_t *body) {
     aal_assert("vpf-137", body != NULL, return -1);
     return 1;
@@ -172,13 +183,9 @@ static uint64_t key40_get_hash(reiser4_body_t *body) {
     return k40_get_hash((key40_t *)body);
 }
 
-static uint8_t key40_size(void) {
-    return sizeof(key40_t);
-}
-
 static void key40_clean(reiser4_body_t *body) {
     aal_assert("vpf-139", body != NULL, return);
-    aal_memset(body, 0, key40_size());
+    aal_memset(body, 0, sizeof(key40_t));
 }
 
 static uint64_t key40_pack_string(const char *name, 
@@ -343,7 +350,7 @@ static reiser4_plugin_t key40_plugin = {
 	
 	.confirm	= key40_confirm,
 	.valid		= key40_valid,
-	.size		= key40_size,
+	.assign		= key40_assign,
 	.minimal	= key40_minimal,
 	.maximal	= key40_maximal,
 	.clean		= key40_clean,

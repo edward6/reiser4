@@ -10,22 +10,20 @@
 errno_t reiser4_key_init(
     reiser4_key_t *key,		    /* key to be initialized */
     reiser4_plugin_t *plugin,	    /* key plugin to be used */
-    const void *data		    /* key data */
+    reiser4_body_t *data	    /* key data */
 ) {
     aal_assert("umka-769", data != NULL, return -1);
     aal_assert("umka-691", key != NULL, return -1);
     aal_assert("umka-905", plugin != NULL, return -1);
     
     key->plugin = plugin;
-    aal_memset(key->body, 0, sizeof(key->body));
-    
-    aal_memcpy(key->body, data, plugin_call(return -1,
-	key->plugin->key_ops, size,));
+    plugin_call(return -1, key->plugin->key_ops, assign,
+	key->body, data);
 
     return 0;
 }
 
-reiser4_plugin_t *reiser4_key_guess(const void *data) {
+reiser4_plugin_t *reiser4_key_guess(reiser4_body_t *data) {
     aal_assert("umka-907", data != NULL, return NULL);
 
     /*
@@ -41,7 +39,7 @@ reiser4_plugin_t *reiser4_key_guess(const void *data) {
 */
 int reiser4_key_compare(
     reiser4_key_t *key1,	    /* the first key for comparing */
-    reiser4_key_t *key2	    /* the second one */
+    reiser4_key_t *key2		    /* the second one */
 ) {
     aal_assert("umka-764", key1 != NULL, return -1);
     aal_assert("umka-765", key2 != NULL, return -1);
@@ -51,6 +49,19 @@ int reiser4_key_compare(
 
     return plugin_call(return -1, key1->plugin->key_ops, 
 	compare, key1->body, key2->body);
+}
+
+/* Makes copy src key to dst one */
+errno_t reiser4_key_assign(
+    reiser4_key_t *dst,		    /* destination key */
+    reiser4_key_t *src		    /* source key */
+) {
+    aal_assert("umka-1112", dst != NULL, return -1);
+    aal_assert("umka-1113", src != NULL, return -1);
+    aal_assert("umka-1114", dst->plugin != NULL, return -1);
+    
+    return plugin_call(return -1, dst->plugin->key_ops, 
+	assign, dst->body, src->body);
 }
 
 /* Cleans specified key */

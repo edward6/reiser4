@@ -86,7 +86,7 @@ reiser4_object_t *reiser4_dir_create(
     */
     if (parent) {
         reiser4_key_init(&parent_key, parent->key.plugin, parent->key.body);
-        objectid = reiser4_oid_alloc(parent->fs->oid);
+        objectid = reiser4_oid_allocate(parent->fs->oid);
     } else {
 	roid_t root_locality = reiser4_oid_root_locality(fs->oid);
 	roid_t root_parent_locality = reiser4_oid_root_parent_locality(fs->oid);
@@ -107,12 +107,7 @@ reiser4_object_t *reiser4_dir_create(
         locality, objectid, 0);
     
     /* Updating object key */
-    {
-	uint32_t key_size = plugin_call(goto error_free_object, 
-	    object_key.plugin->key_ops, size,);
-	
-	reiser4_key_init(&object->key, object_key.plugin, object_key.body);
-    }
+    reiser4_key_init(&object->key, object_key.plugin, object_key.body);
     
     if (parent) {   
 	reiser4_entry_hint_t entry;

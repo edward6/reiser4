@@ -123,23 +123,31 @@ error_free_oid:
     return NULL;
 }
 
+/* Returns next object id from specified oid allocator */
+roid_t reiser4_oid_next(reiser4_oid_t *oid) {
+    aal_assert("umka-1108", oid != NULL, return 0);
+    
+    return plugin_call(return 0, oid->entity->plugin->oid_ops, 
+	next, oid->entity);
+}
+
 /* Returns free object id from specified oid allocator */
-uint64_t reiser4_oid_alloc(reiser4_oid_t *oid) {
+roid_t reiser4_oid_allocate(reiser4_oid_t *oid) {
     aal_assert("umka-522", oid != NULL, return 0);
     
     return plugin_call(return 0, oid->entity->plugin->oid_ops, 
-	alloc, oid->entity);
+	allocate, oid->entity);
 }
 
 /* Releases passed objectid */
-void reiser4_oid_dealloc(
+void reiser4_oid_release(
     reiser4_oid_t *oid,	/* oid allocator to be used */
-    uint64_t id			/* object id to be released */
+    roid_t id			/* object id to be released */
 ) {
     aal_assert("umka-525", oid != NULL, return);
     
     plugin_call(return, oid->entity->plugin->oid_ops, 
-	dealloc, oid->entity, id);
+	release, oid->entity, id);
 }
 
 /* Checks specified oid allocator on validness */

@@ -459,8 +459,8 @@ static errno_t node40_set_key(reiser4_entity_t *entity,
     aal_assert("umka-811", pos->item < 
 	nh40_get_num_items(nh40(node->block)), return -1);
 
-    aal_memcpy(&(node40_ih_at(node->block, pos->item)->key), key->body, 
-	key->plugin->key_ops.size());
+    plugin_call(return -1, key->plugin->key_ops, assign,
+	&(node40_ih_at(node->block, pos->item)->key), key->body);
 
     return 0;
 }

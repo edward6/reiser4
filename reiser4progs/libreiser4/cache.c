@@ -511,7 +511,7 @@ errno_t reiser4_cache_remove(
 	    if (reiser4_cache_remove(cache->parent, &p))
 		return -1;
 
-	    reiser4_alloc_dealloc(cache->tree->fs->alloc,
+	    reiser4_alloc_release(cache->tree->fs->alloc,
 		aal_block_number(cache->node->block));
 	    
 	    reiser4_cache_unregister(cache->parent, cache);

@@ -11,12 +11,15 @@
 #include <reiser4/plugin.h>
 
 extern errno_t reiser4_key_init(reiser4_key_t *key, 
-    reiser4_plugin_t *plugin, const void *data);
+    reiser4_plugin_t *plugin, reiser4_body_t *data);
 
-extern reiser4_plugin_t *reiser4_key_guess(const void *data);
+extern reiser4_plugin_t *reiser4_key_guess(reiser4_body_t *data);
 
 extern int reiser4_key_compare(reiser4_key_t *key1, 
     reiser4_key_t *key2);
+
+extern errno_t reiser4_key_assign(reiser4_key_t *dst, 
+    reiser4_key_t *src);
 
 extern void reiser4_key_clean(reiser4_key_t *key);
 

@@ -332,12 +332,12 @@ struct reiser4_key_ops {
     /* Returns maximal key for this key-format */
     reiser4_body_t *(*maximal) (void);
     
-    /* Get size of the key */
-    uint8_t (*size) (void);
-
     /* Compares two keys by comparing its all components */
     int (*compare) (reiser4_body_t *, reiser4_body_t *);
 
+    /* Copyies src key to dst one */
+    errno_t (*assign) (reiser4_body_t *, reiser4_body_t *);
+    
     /* 
 	Cleans key up. Actually it just memsets it by zeros, but more smart behavior 
 	may be implemented.
@@ -748,10 +748,13 @@ struct reiser4_oid_ops {
     errno_t (*valid) (reiser4_entity_t *);
     
     /* Gets next object id */
-    uint64_t (*alloc) (reiser4_entity_t *);
+    roid_t (*next) (reiser4_entity_t *);
+
+    /* Gets next object id */
+    roid_t (*allocate) (reiser4_entity_t *);
 
     /* Releases passed object id */
-    void (*dealloc) (reiser4_entity_t *, uint64_t);
+    void (*release) (reiser4_entity_t *, roid_t);
     
     /* Returns the number of used object ids */
     uint64_t (*used) (reiser4_entity_t *);
@@ -760,9 +763,9 @@ struct reiser4_oid_ops {
     uint64_t (*free) (reiser4_entity_t *);
 
     /* Object ids of root and root parenr object */
-    uint64_t (*root_parent_locality) (void);
-    uint64_t (*root_locality) (void);
-    uint64_t (*root_objectid) (void);
+    roid_t (*root_parent_locality) (void);
+    roid_t (*root_locality) (void);
+    roid_t (*root_objectid) (void);
 };
 
 typedef struct reiser4_oid_ops reiser4_oid_ops_t;
@@ -791,16 +794,16 @@ struct reiser4_alloc_ops {
     int (*test) (reiser4_entity_t *, blk_t);
     
     /* Allocates one block */
-    blk_t (*alloc) (reiser4_entity_t *);
+    blk_t (*allocate) (reiser4_entity_t *);
 
     /* Deallocates passed block */
-    void (*dealloc) (reiser4_entity_t *, blk_t);
-
-    /* Returns number of unused blocks */
-    count_t (*free) (reiser4_entity_t *);
+    void (*release) (reiser4_entity_t *, blk_t);
 
     /* Returns number of used blocks */
     count_t (*used) (reiser4_entity_t *);
+
+    /* Returns number of unused blocks */
+    count_t (*free) (reiser4_entity_t *);
 
     /* Checks blocks allocator on validness */
     errno_t (*valid) (reiser4_entity_t *);

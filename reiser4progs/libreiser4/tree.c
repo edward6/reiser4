@@ -17,7 +17,7 @@
 #ifndef ENABLE_COMPACT
 
 /* Requests block allocator for new block and creates empty node in it */
-static reiser4_cache_t *reiser4_tree_alloc(
+static reiser4_cache_t *reiser4_tree_allocate(
     reiser4_tree_t *tree,	    /* tree for operating on */
     uint8_t level		    /* level of new node */
 ) {
@@ -31,7 +31,7 @@ static reiser4_cache_t *reiser4_tree_alloc(
     aal_assert("umka-756", tree != NULL, return NULL);
     
     /* Allocating the block */
-    if (!(blk = reiser4_alloc_alloc(tree->fs->alloc))) {
+    if (!(blk = reiser4_alloc_allocate(tree->fs->alloc))) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't allocate block for a node.");
 	return NULL;
@@ -69,13 +69,13 @@ error_free_block:
     return NULL;
 }
 
-static void reiser4_tree_dealloc(reiser4_tree_t *tree, 
+static void reiser4_tree_release(reiser4_tree_t *tree, 
     reiser4_cache_t *cache) 
 {
     aal_assert("umka-917", cache != NULL, return);
     aal_assert("umka-918", cache->node != NULL, return);
 
-    reiser4_alloc_dealloc(tree->fs->alloc, 
+    reiser4_alloc_release(tree->fs->alloc, 
 	aal_block_number(cache->node->block));
     
     reiser4_cache_close(cache);
@@ -238,7 +238,7 @@ reiser4_tree_t *reiser4_tree_create(
     }
     
     /* Getting free block from block allocator for place root block in it */
-    if (!(blk = reiser4_alloc_alloc(fs->alloc))) {
+    if (!(blk = reiser4_alloc_allocate(fs->alloc))) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't allocate block for the root node.");
 	goto error_free_tree;
@@ -489,7 +489,7 @@ static errno_t reiser4_tree_grow(
     reiser4_cache_t *cache	/* old root cached node */
 ) {
     /* Allocating new root node */
-    if (!(tree->cache = reiser4_tree_alloc(tree,
+    if (!(tree->cache = reiser4_tree_allocate(tree,
 	reiser4_tree_height(tree) + 1))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -513,7 +513,7 @@ static errno_t reiser4_tree_grow(
     return 0;
 
 error_free_cache:
-    reiser4_tree_dealloc(tree, tree->cache);
+    reiser4_tree_release(tree, tree->cache);
     tree->cache = cache;
     return -1;
 }
@@ -584,7 +584,7 @@ errno_t reiser4_tree_lshift(
 		(new->cache == old->cache && new->pos.item == 0 &&
 		reiser4_node_space(left->node) - item_len < needed)))
 	    {
-		if (!(left = reiser4_tree_alloc(tree, left->level))) {
+		if (!(left = reiser4_tree_allocate(tree, left->level))) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		        "Can't allocate new leaf node durring left shift.");
 		    return -1;
@@ -683,7 +683,7 @@ errno_t reiser4_tree_rshift(
 
 	if (!allocate) return 0;
 	
-	if (!(right = reiser4_tree_alloc(tree, old->cache->level))) {
+	if (!(right = reiser4_tree_allocate(tree, old->cache->level))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't allocate new leaf node durring right shift.");
 	    return -1;
@@ -720,7 +720,7 @@ errno_t reiser4_tree_rshift(
 		(new->cache == old->cache && new->pos.item >= count - 1 &&
 		(reiser4_node_space(right->node) - item_len) < needed)))
 	    {
-		if (!(right = reiser4_tree_alloc(tree, right->level))) {
+		if (!(right = reiser4_tree_allocate(tree, right->level))) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 			"Can't allocate new leaf node durring right shift.");
 		    return -1;
@@ -885,7 +885,7 @@ errno_t reiser4_tree_insert(
     if (level > REISER4_LEAF_LEVEL) {
 	reiser4_cache_t *cache;
 	
-	if (!(cache = reiser4_tree_alloc(tree, REISER4_LEAF_LEVEL))) {
+	if (!(cache = reiser4_tree_allocate(tree, REISER4_LEAF_LEVEL))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't allocate new leaf node.");
 	    return -1;
@@ -898,14 +898,14 @@ errno_t reiser4_tree_insert(
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an item into the node %llu.", 
 		aal_block_number(coord->cache->node->block));
-	    reiser4_tree_dealloc(tree, cache);
+	    reiser4_tree_release(tree, cache);
 	    return -1;
 	}
 	
 	if (reiser4_tree_attach(tree, cache)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't attach node to the tree.");
-	    reiser4_tree_dealloc(tree, cache);
+	    reiser4_tree_release(tree, cache);
 	    return -1;
 	}
 

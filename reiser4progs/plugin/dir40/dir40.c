@@ -153,10 +153,16 @@ static errno_t dir40_read(reiser4_entity_t *entity,
     return 0;
 }
 
+/* Trying to guess hash in use by stat  dfata extention */
+static reiser4_plugin_t *dir40_guess_hash(dir40_t *dir) {
+    reiser4_plugin_t *plugin = NULL;
+
+    return plugin;
+}
+
 static reiser4_entity_t *dir40_open(const void *tree, 
     reiser4_key_t *object) 
 {
-    uint32_t key_size;
     dir40_t *dir;
     rpid_t statdata_pid;
     rpid_t direntry_pid;
@@ -171,11 +177,9 @@ static reiser4_entity_t *dir40_open(const void *tree,
     dir->tree = tree;
     dir->plugin = &dir40_plugin;
     
-    key_size = plugin_call(goto error_free_dir, 
-	object->plugin->key_ops, size,);
-    
     dir->key.plugin = object->plugin;
-    aal_memcpy(dir->key.body, object->body, key_size);
+    plugin_call(goto error_free_dir, object->plugin->key_ops,
+	assign, dir->key.body, object->body);
     
     /* Grabbing stat data */
     if (dir40_realize(dir)) {
@@ -263,7 +267,6 @@ static reiser4_entity_t *dir40_create(const void *tree,
     reiser4_object_hint_t *hint) 
 {
     dir40_t *dir;
-    uint32_t key_size;
     
     reiser4_item_hint_t stat_hint;
     reiser4_statdata_hint_t stat;
@@ -321,9 +324,6 @@ static reiser4_entity_t *dir40_create(const void *tree,
 	goto error_free_dir;
     }
 
-    key_size = plugin_call(goto error_free_dir, 
-	object->plugin->key_ops, size,);
-    
     /* 
 	Initializing direntry item hint. This should be done earlier than 
 	initializing of the stat data item hint, because we will need size 
@@ -372,9 +372,10 @@ static reiser4_entity_t *dir40_create(const void *tree,
     aal_memset(&stat_hint, 0, sizeof(stat_hint));
     
     stat_hint.plugin = dir->statdata_plugin;
-
+    
     stat_hint.key.plugin = object->plugin;
-    aal_memcpy(stat_hint.key.body, object->body, key_size);
+    plugin_call(goto error_free_dir, object->plugin->key_ops,
+	assign, stat_hint.key.body, object->body);
     
     /* Initializing stat data item hint. */
     stat.mode = S_IFDIR | 0755;
@@ -417,7 +418,8 @@ static reiser4_entity_t *dir40_create(const void *tree,
     aal_free(direntry.entry);
     
     dir->key.plugin = object->plugin;
-    aal_memcpy(dir->key.body, object->body, key_size);
+    plugin_call(goto error_free_dir, object->plugin->key_ops,
+	assign, dir->key.body, object->body);
     
     /* Grabbing the stat data item */
     if (dir40_realize(dir)) {

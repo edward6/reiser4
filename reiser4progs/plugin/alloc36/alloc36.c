@@ -89,8 +89,8 @@ static reiser4_plugin_t alloc36_plugin = {
 	.mark	    = NULL,
 	.test	    = NULL,
 	
-	.alloc	    = NULL,
-	.dealloc    = NULL,
+	.allocate   = NULL,
+	.release    = NULL,
 	
 	.free	    = NULL,
 	.used	    = NULL,

@@ -219,7 +219,7 @@ static void alloc40_mark(reiser4_entity_t *entity, blk_t blk) {
 }
 
 /* Marks "blk" as free */
-static void alloc40_dealloc(reiser4_entity_t *entity, blk_t blk) {
+static void alloc40_release(reiser4_entity_t *entity, blk_t blk) {
     alloc40_t *alloc = (alloc40_t *)entity;
     
     aal_assert("umka-372", alloc != NULL, return);
@@ -229,7 +229,7 @@ static void alloc40_dealloc(reiser4_entity_t *entity, blk_t blk) {
 }
 
 /* Finds first free block in bitmap and returns it to caller */
-static blk_t alloc40_alloc(reiser4_entity_t *entity) {
+static blk_t alloc40_allocate(reiser4_entity_t *entity) {
     blk_t blk;
     alloc40_t *alloc = (alloc40_t *)entity;
     
@@ -306,14 +306,14 @@ static reiser4_plugin_t alloc40_plugin = {
 	.create	    = alloc40_create,
 	.sync	    = alloc40_sync,
 	.mark	    = alloc40_mark,
-	.alloc	    = alloc40_alloc,
-	.dealloc    = alloc40_dealloc,
+	.allocate   = alloc40_allocate,
+	.release    = alloc40_release,
 #else
 	.create	    = NULL,
 	.sync	    = NULL,
 	.mark	    = NULL,
-	.alloc	    = NULL,
-	.dealloc    = NULL,
+	.allocate   = NULL,
+	.release    = NULL,
 #endif
 	.test	    = alloc40_test,
 	.free	    = alloc40_free,

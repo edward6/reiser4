@@ -73,7 +73,12 @@ static errno_t oid40_sync(reiser4_entity_t *entity) {
     return 0;
 }
 
-static roid_t oid40_alloc(reiser4_entity_t *entity) {
+static roid_t oid40_next(reiser4_entity_t *entity) {
+    aal_assert("umka-1109", entity != NULL, return 0);
+    return ((oid40_t *)entity)->next;
+}
+
+static roid_t oid40_allocate(reiser4_entity_t *entity) {
     aal_assert("umka-513", entity != NULL, return 0);
 
     ((oid40_t *)entity)->next++;
@@ -82,8 +87,8 @@ static roid_t oid40_alloc(reiser4_entity_t *entity) {
     return ((oid40_t *)entity)->next - 1;
 }
 
-static void oid40_dealloc(reiser4_entity_t *entity, 
-    roid_t id) 
+static void oid40_release(reiser4_entity_t *entity, 
+    roid_t id)
 {
     aal_assert("umka-528", entity != NULL, return);
     ((oid40_t *)entity)->used--;
@@ -136,13 +141,15 @@ static reiser4_plugin_t oid40_plugin = {
 	.valid		= oid40_valid,
 #ifndef ENABLE_COMPACT	
 	.create		= oid40_create,
-	.alloc		= oid40_alloc,
-	.dealloc	= oid40_dealloc,
+	.next		= oid40_next,
+	.allocate	= oid40_allocate,
+	.release	= oid40_release,
 	.sync		= oid40_sync,
 #else
 	.create		= NULL,
-	.alloc		= NULL,
-	.dealloc	= NULL,
+	.next		= NULL,
+	.allocate	= NULL,
+	.release	= NULL,
 	.sync		= NULL,
 #endif
 	.used		= oid40_used,

@@ -21,11 +21,11 @@ extern errno_t reiser4_oid_valid(reiser4_oid_t *oid);
 #ifndef ENABLE_COMPACT
 
 extern reiser4_oid_t *reiser4_oid_create(reiser4_format_t *format);
-
 extern errno_t reiser4_oid_sync(reiser4_oid_t *oid);
 
-extern uint64_t reiser4_oid_alloc(reiser4_oid_t *oid);
-extern void reiser4_oid_dealloc(reiser4_oid_t *oid, uint64_t id);
+extern roid_t reiser4_oid_next(reiser4_oid_t *oid);
+extern roid_t reiser4_oid_allocate(reiser4_oid_t *oid);
+extern void reiser4_oid_release(reiser4_oid_t *oid, roid_t id);
 
 #endif
 
