@@ -1787,7 +1787,7 @@ reserve_replace(void)
 	reiser4_block_nr grabbed, needed;
 
 	grabbed = get_current_context()->grabbed_blocks;
-	needed = estimate_one_insert_into_item(current_tree->height);
+	needed = estimate_one_insert_into_item(current_tree);
 	check_me("vpf-340", !reiser4_grab_space_force(needed, BA_RESERVED, "reserve_replace"));
 	return grabbed;
 }
@@ -2390,13 +2390,13 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 
 /* estimate and reserve space which may be required for writing one page of file */
 static int
-reserve_extent_write_iteration(struct inode *inode, tree_level height)
+reserve_extent_write_iteration(struct inode *inode, reiser4_tree *tree)
 {
 	int result;
 
 	grab_space_enable();
 	/* one unformatted node and one insertion into tree and one stat data update may be involved */
-	result = reiser4_grab_space(1 + estimate_one_insert_into_item(height) +
+	result = reiser4_grab_space(1 + estimate_one_insert_into_item(tree) +
 				    inode_file_plugin(inode)->estimate.update(inode),
 				    0/* flags */, "extent_write");
 	return result;
@@ -2444,7 +2444,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		unsigned long index;
 
 		if (!grabbed) {
-			result = reserve_extent_write_iteration(inode, znode_get_tree(coord->node)->height);
+			result = reserve_extent_write_iteration(inode, znode_get_tree(coord->node));
 			if (result)
 				break;
 		}
@@ -2557,11 +2557,11 @@ exit1:
 
 /* estimate and reserve space which may be required for appending file with hole stored in extent */
 static int
-extent_hole_reserve(tree_level height)
+extent_hole_reserve(reiser4_tree *tree)
 {
 	/* adding hole may require adding a hole unit into extent item and stat data update */
 	grab_space_enable();
-	return reiser4_grab_space(estimate_one_insert_into_item(height) * 2, 0, "extent_hole_reserve");
+	return reiser4_grab_space(estimate_one_insert_into_item(tree) * 2, 0, "extent_hole_reserve");
 }
 
 static int
@@ -2571,7 +2571,7 @@ extent_write_hole(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	loff_t new_size;
 
 	if (!grabbed) {
-		result = extent_hole_reserve(znode_get_tree(coord->node)->height);
+		result = extent_hole_reserve(znode_get_tree(coord->node));
 		if (result)
 			return result;
 	}

@@ -520,7 +520,7 @@ delete_file_common(struct inode *inode /* object to remove */ )
 		reiser4_block_nr reserve;
 
 		/* grab space which is needed to remove one item from the tree */
-		if (reiser4_grab_space_force(reserve = estimate_one_item_removal(tree_by_inode(inode)->height),
+		if (reiser4_grab_space_force(reserve = estimate_one_item_removal(tree_by_inode(inode)),
 					     BA_RESERVED | BA_CAN_COMMIT, "common_file_delete")) {
 			warning("nikita-2847", 
 				"Cannot delete unnamed sd of %lli. Run fsck", 
@@ -543,7 +543,7 @@ static int delete_directory_common(struct inode *inode)
 	assert("vs-1101", dplug && dplug->done);
 
 	/* grab space enough for removing two items */
-	if (reiser4_grab_space(2 * estimate_one_item_removal(tree_by_inode(inode)->height), BA_RESERVED | BA_CAN_COMMIT, "common_delete_directory"))
+	if (reiser4_grab_space(2 * estimate_one_item_removal(tree_by_inode(inode)), BA_RESERVED | BA_CAN_COMMIT, "common_delete_directory"))
 		return RETERR(-ENOSPC);
 
 	result = dplug->done(inode);
@@ -647,14 +647,14 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
    (usualy stat data) into tree */
 static reiser4_block_nr estimate_create_file_common(struct inode *object)
 {
-	return estimate_one_insert_item(tree_by_inode(object)->height);
+	return estimate_one_insert_item(tree_by_inode(object));
 }
 
 /* this comon implementation of create directory estimation function may be used when directory creation involves
    insertion of two items (usualy stat data and item containing "." and "..") into tree */
 static reiser4_block_nr estimate_create_dir_common(struct inode *object)
 {
-	return 2 * estimate_one_insert_item(tree_by_inode(object)->height);
+	return 2 * estimate_one_insert_item(tree_by_inode(object));
 }
 
 /* ->create method of object plugin */
@@ -891,7 +891,7 @@ detach_dir(struct inode *child, struct inode *parent)
 reiser4_block_nr 
 estimate_update_common(const struct inode *inode)
 {
-	return estimate_one_insert_into_item(tree_by_inode(inode)->height);
+	return estimate_one_insert_into_item(tree_by_inode(inode));
 }
 
 static reiser4_block_nr 
@@ -931,7 +931,7 @@ setattr_common(struct inode *inode /* Object to change attributes */,
 
 	assert("nikita-3119", !(attr->ia_valid & ATTR_SIZE));
 
-	tograb = estimate_one_insert_into_item(tree_by_inode(inode)->height);
+	tograb = estimate_one_insert_into_item(tree_by_inode(inode));
 	result = reiser4_grab_space(tograb, BA_CAN_COMMIT, __FUNCTION__);
 	if (!result) {
 		result = inode_setattr(inode, attr);

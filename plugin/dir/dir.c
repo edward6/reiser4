@@ -1016,14 +1016,14 @@ attach_common(struct inode *child, struct inode *parent)
 static reiser4_block_nr
 estimate_add_entry_common(struct inode *inode)
 {
-	return estimate_one_insert_into_item(tree_by_inode(inode)->height);
+	return estimate_one_insert_into_item(tree_by_inode(inode));
 }
 
 /* ->estimate.rem_entry method of directory plugin */
 static reiser4_block_nr
 estimate_rem_entry_common(struct inode *inode) 
 {
-	return estimate_one_item_removal(tree_by_inode(inode)->height);
+	return estimate_one_item_removal(tree_by_inode(inode));
 }
 
 dir_plugin dir_plugins[LAST_DIR_ID] = {
