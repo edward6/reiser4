@@ -14,8 +14,8 @@ typedef enum {
 /* this object is part of reiser4 private in-core super block */
 struct reiser4_space_allocator {
 	union {
-		bitmap_allocator bitmap;
 		test_space_allocator test;
+		void * generic;
 	} u;
 };
 
