@@ -18,6 +18,7 @@
 #include <linux/types.h>
 #include <linux/fs.h>		/* for struct super_block  */
 #include <asm/semaphore.h>
+#include <linux/vmalloc.h>
 
 /* Proposed (but discarded) optimization: dynamic loading/unloading of bitmap
  * blocks
@@ -1458,8 +1459,8 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 	   with that storage device, much less reiser4. ;-) -Hans). Kmalloc is not possible and,
 	   probably, another dynamic data structure should replace a static
 	   array of bnodes. */
-	data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bitmap_node) * bitmap_blocks_nr), GFP_KERNEL);
-
+	/*data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bitmap_node) * bitmap_blocks_nr), GFP_KERNEL);*/
+	data->bitmap = vmalloc(sizeof (struct bitmap_node) * bitmap_blocks_nr);
 	if (data->bitmap == NULL) {
 		reiser4_kfree(data);
 		return RETERR(-ENOMEM);
@@ -1541,7 +1542,8 @@ destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block
 		up(&bnode->sema);
 	}
 
-	reiser4_kfree(data->bitmap);
+	/*reiser4_kfree(data->bitmap);*/
+	vfree(data->bitmap);
 	reiser4_kfree(data);
 
 	allocator->u.generic = NULL;
