@@ -2097,9 +2097,13 @@ jnode_set_dirty(jnode * node)
 		ON_DEBUG_MODIFY(z->cksum = znode_is_loaded(z) ? znode_checksum(z) : 0);
 	}
 
-	if (jnode_page(node) != NULL)
-		set_page_dirty_internal(jnode_page(node));
-	else
+	if (jnode_page(node) != NULL) {
+		struct page *page;
+
+		page = jnode_page(node);
+		set_page_dirty_internal(page);
+		mark_page_accessed(page);
+	} else
 		/* FIXME-NIKITA dubious. What if jnode doesn't have page,
 		   because it was early flushed, or ->releasepaged? */
 		assert("zam-596", znode_above_root(JZNODE(node)));

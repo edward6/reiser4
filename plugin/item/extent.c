@@ -476,7 +476,8 @@ extent_create_hook(const coord_t * coord, void *arg)
 		return 0;
 
 	tree = znode_get_tree(node);
-	UNDER_SPIN_VOID(dk, tree, *znode_get_rd_key(node) = *item_key_by_coord(coord, &key));
+	UNDER_SPIN_VOID(dk, tree, 
+			znode_set_rd_key(node, item_key_by_coord(coord, &key)));
 
 	/* break sibling links */
 	spin_lock_tree(tree);
@@ -2823,7 +2824,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		index = (unsigned long) (file_off >> PAGE_CACHE_SHIFT);
 		write_page_trace(inode->i_mapping, index);
 
-		/* NOTE-NIKITA fault_in_pages_readable() should be used here
+		/* FIXME-NIKITA fault_in_pages_readable() should be used here
 		 * to avoid dead-locks */
 
 		page = grab_cache_page(inode->i_mapping, index);
@@ -2866,11 +2867,8 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		result = __copy_from_user(data + page_off, f->data, to_page);
 		kunmap(page);
 
-		/* mark page accessed. We don't want to use
-		 * mark_page_accessed() here because..., because this is what
-		 * generic_file_aio_write_nolock() does.  */
-		if (!PageReferenced(page))
-			SetPageReferenced(page);
+		/* jnode_set_dirty() will mark page accessed. No need to call
+		 * mark_page_accessed() here */
 
 		if (unlikely(result)) {
 			result = -EFAULT;
@@ -3014,18 +3012,6 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
 	   will allocate page and call extent_readpage to fill it */
 	page = read_cache_page(inode->i_mapping, page_nr, filler, coord);
 
-	/* NOTE-NIKITA do_generic_mapping_read() does the following after
-	 * radix_tree_lookup(): */
-
-	/* If users can be writing to this page using arbitrary
-	 * virtual addresses, take care about potential aliasing
-	 * before reading the page on the kernel side.
-	 */
-	/*
-		if (!list_empty(&mapping->i_mmap_shared))
-			flush_dcache_page(page)
-	*/
-
 	if (IS_ERR(page))
 		return PTR_ERR(page);
 
@@ -3036,6 +3022,13 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
 			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 	}
 	reiser4_unlock_page(page);
+
+	/* If users can be writing to this page using arbitrary
+	 * virtual addresses, take care about potential aliasing
+	 * before reading the page on the kernel side.
+	 */
+	if (!list_empty(&inode->i_mapping->i_mmap_shared))
+		flush_dcache_page(page);
 
 	if (!PageUptodate(page)) {
 		page_detach_jnode(page, inode->i_mapping, page_nr);
@@ -3064,8 +3057,8 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
 	assert("vs-572", f->user == 1);
 	schedulable();
 
-	if (page_off == 0)
-		mark_page_accessed(page);
+	/* read_cache_page() already marked page as accessed. No need to call
+	 * mark_page_accessed() */
 
 	result = __copy_to_user(f->data, kaddr + page_off, count);
 	kunmap(page);

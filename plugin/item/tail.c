@@ -473,6 +473,9 @@ tail_read(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
 	if (__copy_to_user(f->data, ((char *) item_body_by_coord(coord) + coord->unit_pos), count))
 		return -EFAULT;
 
+	/* probably mark_page_accessed() should only be called if
+	 * coord->unit_pos is zero. */
+	mark_page_accessed(znode_page(coord->node));
 	move_flow_forward(f, count);
 
 	return 0;
