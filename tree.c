@@ -548,7 +548,8 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 
 	assert("nikita-1374", parent_coord != NULL);
 	assert("nikita-1482", parent != NULL);
-	assert("nikita-1384", rw_dk_is_not_locked(znode_get_tree(parent)));
+	assert("nikita-1384", ergo(setup_dkeys_p, 
+				   rw_dk_is_not_locked(znode_get_tree(parent))));
 	assert("nikita-2947", znode_is_any_locked(parent));
 
 	if (znode_get_level(parent) <= LEAF_LEVEL) {
@@ -1718,6 +1719,7 @@ init_tree_0(reiser4_tree * tree)
 	assert("zam-683", tree != NULL);
 	rw_tree_init(tree);
 	spin_epoch_init(tree);
+	spin_zgen_init(tree);
 }
 
 /* finishing reiser4 initialization */
@@ -1746,6 +1748,7 @@ init_tree(reiser4_tree * tree	/* pointer to structure being
 	tree->nplug = nplug;
 
 	tree->znode_epoch = 1ull;
+	tree->zgen = 0;
 
 	cbk_cache_list_init(&tree->cbk_cache.lru);
 	spin_cbk_cache_init(&tree->cbk_cache);
