@@ -45,11 +45,11 @@ extern errno_t reiserfs_tree_mkspace(reiserfs_tree_t *tree,
 
 extern errno_t reiserfs_tree_lshift(reiserfs_tree_t *tree, 
     reiserfs_coord_t *old, reiserfs_coord_t *new, 
-    uint32_t needed);
+    uint32_t needed, int allocate);
 
 extern errno_t reiserfs_tree_rshift(reiserfs_tree_t *tree, 
     reiserfs_coord_t *old, reiserfs_coord_t *new, 
-    uint32_t needed);
+    uint32_t needed, int allocate);
 
 #endif
 
