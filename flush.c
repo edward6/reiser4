@@ -351,9 +351,11 @@ static int flush_preceder_hint (jnode *gda,
  * FIXME: should we halt recursion, then?), allocate it.
  *
  * Once the down-recursive case has been applied, see if the right neighbor is
- * dirty and if so, attempt to squeeze it into this
- *
- *
+ * dirty and if so, attempt to squeeze it into this node.  If the item being
+ * squeezed from left to right is and internal node, then the right-squeezing
+ * halts while the shifted subtree is recursively processed.  Once the
+ * shifted-right subtree is squeezed and allocated, squeezing from the left
+ * continues.
  */
 static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 {
@@ -467,7 +469,9 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 		goto again;
 	}
 
-	/* Either an error occured or SQUEEZE_TARGET_FULL */ 
+	/* Either an error occured or SQUEEZE_TARGET_FULL (or
+	 * can't-squeeze-right, e.g., end-of-level or
+	 * unformatted-to-the-right) */ 
 	assert ("vs-443", squeeze == SQUEEZE_TARGET_FULL || squeeze < 0);
 	ret = ((squeeze < 0) ? squeeze : 0);
 
