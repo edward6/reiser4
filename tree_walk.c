@@ -781,7 +781,7 @@ static int lock_tree_root (lock_handle * lock, znode_lock_mode mode)
 	zput(root);
 	done_lh(&fake_znode_lock);
 
-	if (ret == -EDEADLOCK)
+	if (ret == -EDEADLK)
 		goto again;
 
 	return ret;
