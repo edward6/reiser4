@@ -116,6 +116,12 @@ typedef enum {
 	CRC_CUT_ITEM = 4
 } crc_write_mode_t;
 
+typedef enum {
+	PCL_UNKNOWN = 0,       /* invalid option */
+	PCL_APPEND = 1,        /* append and/or overwrite */
+	PCL_TRUNCATE = 2       /* truncate */
+} page_cluster_op;
+
 /* Reiser4 file write/read transforms page cluster into disk cluster (and back)
    using crypto/compression transforms implemented by reiser4 transform plugins.
    Before each transform we allocate a pair of streams (tfm_unit) and assemble
@@ -322,7 +328,7 @@ typedef enum {
 	HOLE_WINDOW  /* zeroes if we write hole */
 } window_stat;
 
-/* Sliding window of cluster size which should be set to the approprite position 
+/* Sliding window of cluster size which should be set to the approprite position
    (defined by cluster index) in a file before page cluster modification by 
    file_write. Then we translate file size, offset to write from, number of
    bytes to write, etc.. to the following configuration needed to estimate
@@ -338,10 +344,12 @@ typedef struct reiser4_slide {
 /* The following is a set of possible disk cluster states */
 typedef enum {
 	INVAL_DISK_CLUSTER,/* unknown state */ 
-	PREP_DISK_CLUSTER, /* disk cluster got converted */
-	UNPR_DISK_CLUSTER, /* disk cluster just created */
-	FAKE_DISK_CLUSTER  /* disk cluster doesn't exist neither in memory nor
-			      on disk */
+	PREP_DISK_CLUSTER, /* disk cluster got converted by flush
+			      at least 1 time */
+	UNPR_DISK_CLUSTER, /* disk cluster just created and should be
+			      converted by flush */
+	FAKE_DISK_CLUSTER  /* disk cluster doesn't exist neither in memory
+			      nor on disk */
 } disk_cluster_stat;
 
 /* 
@@ -353,6 +361,7 @@ typedef struct reiser4_cluster{
 	tfm_cluster_t tc;             /* transform cluster */
 	int nr_pages;                 /* number of pages */
 	struct page ** pages;         /* page cluster */
+	page_cluster_op op;           /* page cluster operation */
 	struct file * file;
 	hint_t * hint;                /* disk cluster item for traversal */
 	disk_cluster_stat dstat;      /* state of the current disk cluster */

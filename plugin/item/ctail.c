@@ -1246,15 +1246,17 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 	if (cplug->alloc && !get_coa(&clust->tc, cplug->h.id)) {
 		ret = alloc_coa(&clust->tc, cplug, TFM_WRITE);
 		if (ret)
-			goto err1;
+			goto err;
 	}
 	
 	if (convert_data(pos)->clust.pages == NULL) {
 		ret = alloc_cluster_pgset(&convert_data(pos)->clust,
 					  MAX_CLUSTER_NRPAGES);
 		if (ret)
-			goto err1;
+			goto err;
 	}
+	reset_cluster_pgset(&convert_data(pos)->clust,
+			    MAX_CLUSTER_NRPAGES);
 	
 	assert("edward-829", pos->sq != NULL);
 	assert("edward-250", item_convert_data(pos) == NULL);
@@ -1263,30 +1265,24 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 
 	ret = alloc_item_convert_data(pos->sq);
 	if (ret)
-		goto err1;
+		goto err;
 	ret = init_item_convert_data(pos, inode);
 	if (ret)
-		goto err1;
+		goto err;
 	info = item_convert_data(pos);
 	
 	clust->index = pg_to_clust(jnode_page(pos->child)->index, inode);
 	
-	/* Cluster pages are about to be clean, so we need to be sure that
-           inode won't be evicted (if there is no more dirty pages) during
-	   disk cluster operations */
-	
-	atomic_inc(&inode->i_count);
-
 	ret = flush_cluster_pages(clust, pos->child, inode);
 	if (ret)
-		goto err2;
+		goto err;
 
 	assert("edward-830", equi(get_coa(&clust->tc, cplug->h.id), cplug->alloc));
 
 	ret = deflate_cluster(clust, inode);
 	if (ret)
-		goto err2;
-
+		goto err;
+	
 	inc_item_convert_count(pos);
 
 	/* make flow by transformed stream */
@@ -1301,9 +1297,7 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 	
 	assert("edward-683", crc_inode_ok(inode));
 	return 0;
- err2:
-	atomic_dec(&inode->i_count);
- err1:
+ err:
 	jput(pos->child);
 	free_convert_data(pos);
 	return ret;
@@ -1314,24 +1308,17 @@ static void
 detach_convert_idata(convert_info_t * sq)
 {
 	convert_item_info_t * info;
-	struct inode * inode;
 	
 	assert("edward-253", sq != NULL);
 	assert("edward-840", sq->itm != NULL);
 	
 	info = sq->itm;
-
 	assert("edward-255", info->inode != NULL);
-
-	inode = info->inode;
+	assert("edward-1175", 
+	       inode_get_flag(info->inode, REISER4_CLUSTER_KNOWN));
 	
 	/* the final release of pages */
 	forget_cluster_pages(&sq->clust);
-	
-	assert("edward-841", atomic_read(&inode->i_count));
-	
-	atomic_dec(&inode->i_count);
-	
 	free_item_convert_data(sq);
 	return;
 }
