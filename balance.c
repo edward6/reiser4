@@ -78,8 +78,8 @@ int balance_level_slum (slum_scan *scan)
 	reiser4_init_carry_level( &todo, &pool );
 
 	/* lock target */
-	result = reiser4_lock_znode( target_lh, target, ZNODE_WRITE_LOCK, 
-				     ZNODE_LOCK_LOPRI );
+	result = longterm_lock_znode( target_lh, target, ZNODE_WRITE_LOCK, 
+				      ZNODE_LOCK_LOPRI );
 	if( result != 0 ) {
 		goto done;
 	}
@@ -238,7 +238,7 @@ int balance_level_slum (slum_scan *scan)
 			}
 		}
 		zrelse( source, 1 );
-		reiser4_unlock_znode( source_lh );
+		longterm_unlock_znode( source_lh );
 	}
 
  done:

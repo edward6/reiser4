@@ -515,9 +515,9 @@ static int make_space( carry_op *op /* carry operation, insert or
 		assert( "nikita-1417", tracking -> tracked != NULL );
 		reiser4_done_lh( tracking -> tracked );
 		reiser4_init_lh( tracking -> tracked );
-		result = reiser4_lock_znode( tracking -> tracked, node, 
-					     ZNODE_WRITE_LOCK, 
-					     ZNODE_LOCK_HIPRI );
+		result = longterm_lock_znode( tracking -> tracked, node, 
+					      ZNODE_WRITE_LOCK, 
+					      ZNODE_LOCK_HIPRI );
 		reiser4_stat_level_add( doing, track_lh );
 	}
 	assert( "nikita-1622", 

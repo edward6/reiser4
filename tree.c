@@ -795,7 +795,7 @@ void reiser4_show_context (int show_tree)
 #endif
 
 /**
- * This is called from reiser4_unlock_znode() when last lock is released from
+ * This is called from longterm_unlock_znode() when last lock is released from
  * the node that has been removed from the tree. At this point node is removed
  * from sibling list and its lock is invalidated.
  */
@@ -1076,7 +1076,7 @@ znode *insert_new_node (tree_coord * insert_coord, reiser4_lock_handle *lh)
 
 	cn = add_new_znode (insert_coord->node, 0, &this_level, &parent_level);
 	if (!IS_ERR (cn)) {
-		result = reiser4_lock_znode (lh, cn->real_node, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+		result = longterm_lock_znode (lh, cn->real_node, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
 		if (!result) {
 			new_znode = cn->real_node;
 			result = carry (&parent_level, &this_level);

@@ -71,7 +71,7 @@ static int lock_neighbor (reiser4_lock_handle * result /* resulting lock
 		zref(neighbor);
 		spin_unlock_tree(tree);
 
-		ret = reiser4_lock_znode(result, neighbor, mode, req);
+		ret = longterm_lock_znode(result, neighbor, mode, req);
 
 		/* The lock handle obtains its own reference, release the one from above. */
 		zput(neighbor);
@@ -94,7 +94,7 @@ static int lock_neighbor (reiser4_lock_handle * result /* resulting lock
 		/* znode was locked by mistake; unlock it and restart locking
 		 * process from beginning. */
 		spin_unlock_tree(tree);
-		reiser4_unlock_znode(result);
+		longterm_unlock_znode(result);
 		spin_lock_tree(tree);
 	}
 }
@@ -233,7 +233,7 @@ static int far_next_coord (tree_coord * coord, reiser4_lock_handle * handle, int
 	ret = zload(handle->node);
 
 	if (ret) {
-		reiser4_unlock_znode(handle);
+		longterm_unlock_znode(handle);
 		spin_lock_tree(current_tree);
 		return ret;
 	}
@@ -276,7 +276,7 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 		iplug = item_plugin_by_coord(coord);
 		if (iplug->item_type != INTERNAL_ITEM_TYPE) {
 			if (handle->owner != NULL) {
-				reiser4_unlock_znode(handle);
+				longterm_unlock_znode(handle);
 			}
 			link_znodes(child, NULL, flags & GN_GO_LEFT);
 			/* we know there can't be formatted neighbor*/
@@ -308,7 +308,7 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 			ret = PTR_ERR(neighbor);
 			if (handle->owner != NULL) {
 				zrelse(handle->node, 1);
-				reiser4_unlock_znode(handle);
+				longterm_unlock_znode(handle);
 				(*nr_locked) --;
 			}
 
@@ -351,7 +351,7 @@ static int connect_one_side (tree_coord * coord, znode * node, int flags)
 	if (handle.owner != NULL) {
 		/* complementary operations for zload() and lock() in far_next_coord() */
 		zrelse(handle.node, 1);
-		reiser4_unlock_znode(&handle);
+		longterm_unlock_znode(&handle);
 	}
 
 	/* we catch error codes which are not interesting for us because we
@@ -446,7 +446,7 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
 
 	while (nr_locked) {
 		zrelse(empty[nr_locked].node, 1);
-		reiser4_unlock_znode(&empty[nr_locked]);
+		longterm_unlock_znode(&empty[nr_locked]);
 		-- nr_locked;
 	}
 
@@ -504,7 +504,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 		/* load znode content if it was specified */
 		if (flags & GN_LOAD_NEIGHBOR) {
 			ret = zload (node);
-			if (ret) reiser4_unlock_znode(neighbor);
+			if (ret) longterm_unlock_znode(neighbor);
 		}
 		return ret;
 	}
@@ -517,7 +517,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 	ret = reiser4_get_parent(&path[0], node, ZNODE_READ_LOCK, 1);
 	if (ret) return ret;
 	if (znode_above_root(path[0].node)) {
-		reiser4_unlock_znode(&path[0]);
+		longterm_unlock_znode(&path[0]);
 		return -ENAVAIL;
 	}
 
@@ -587,7 +587,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
  fail:
 	/* unlock path */
 	do {
-		reiser4_unlock_znode(&path[h]);
+		longterm_unlock_znode(&path[h]);
 		-- h;
 	} while (h + 1 != 0);
 

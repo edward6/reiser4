@@ -123,7 +123,7 @@
  * request queue, this is done by reiser4_invalidate_lock(). Another
  * ZNODE_IS_DYING znode status bit is used to invalidate pending lock
  * requests. Once it set all requesters are forced to return -EINVAL from
- * reiser4_lock_znode(). Future locking attempts are not possible because all
+ * longterm_lock_znode(). Future locking attempts are not possible because all
  * ways to get references to that znode are removed already.
  *
  * When last reference to the dying znode is just about to be released,

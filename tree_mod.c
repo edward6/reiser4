@@ -256,9 +256,9 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 		reiser4_lock_handle handle_for_fake;
 
 		reiser4_init_lh( &handle_for_fake );
-		result = reiser4_lock_znode( &handle_for_fake, 
-					     fake, ZNODE_WRITE_LOCK, 
-					     ZNODE_LOCK_HIPRI );
+		result = longterm_lock_znode( &handle_for_fake, 
+					      fake, ZNODE_WRITE_LOCK, 
+					      ZNODE_LOCK_HIPRI );
 		if( result == 0 ) {
 			tree -> root_block = *new_root_blk;
 			-- tree -> height;
