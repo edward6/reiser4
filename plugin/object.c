@@ -74,8 +74,8 @@ static int no_inheritance( struct inode *inode UNUSED_ARG,
 int total_inheritance( struct inode *inode, 
 		       struct inode *parent, struct inode *root )
 {
-	reiser4_plugin_ref *self;
-	reiser4_plugin_ref *ancestor;
+	inodes_plugins *self;
+	inodes_plugins *ancestor;
 	int changed;
 
 	assert( "nikita-702", inode != NULL );
@@ -227,7 +227,7 @@ static int insert_new_sd( struct inode *inode )
 	reiser4_item_data  data;
 	const char *error_message;
 	char *area;
-	reiser4_plugin_ref *ref;
+	inodes_plugins *ref;
 	reiser4_lock_handle lh;
 	oid_allocator_plugin *oplug;
 	oid_t oid;
@@ -338,7 +338,7 @@ static int update_sd( struct inode *inode )
 	tree_coord coord;
 	reiser4_item_data  data;
 	const char *error_message;
-	reiser4_plugin_ref *state;
+	inodes_plugins *state;
 	reiser4_lock_handle lh;
 
 	assert( "nikita-726", inode != NULL );
