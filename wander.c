@@ -791,7 +791,10 @@ int reiser4_write_logs (void)
 
 	trace_on (TRACE_LOG, "overwrite set contains %d blocks\n", overwrite_set_size);
 
-	if (overwrite_set_size < 0) {
+	if (overwrite_set_size <= 0) {
+		/* It is possible that overwrite set is empty here, it means
+		 * all captured nodes are clean */
+		/* FIXME: an extra check for empty RELOC set should be here */
 		ret = overwrite_set_size;
 		goto up_and_ret;
 	}
