@@ -20,6 +20,7 @@
 .context.o.cmd
 .coord.o.cmd
 .coords.o.cmd
+.crab_lock.o.cmd
 .crypt.o.cmd
 .ctypes
 .debug.o.cmd
@@ -41,6 +42,7 @@
 .flush_queue.o.d
 .gdbinit
 .hdepend
+.init_super.o.cmd
 .inode.o.cmd
 .inode.o.d
 .inode_ops.o.cmd
@@ -66,6 +68,7 @@
 .prof.o.cmd
 .readahead.o.cmd
 .reiser4.o.cmd
+.reiser4_status_flags.o.cmd
 .repacker.o.cmd
 .scint.o.cmd
 .seal.o.cmd
@@ -141,6 +144,7 @@ a1.mmap.meta
 a2.mmap
 a3.mmap
 all-reiser4.c
+as_ops.c.orig
 as_yet_unneeded_abstractions/oid/.oid.o.cmd
 as_yet_unneeded_abstractions/oid/.oid40.o.cmd
 bash.rc
@@ -169,6 +173,7 @@ debug.bbg
 doc/.xvpics/set-theoretic-stuff.gif
 doc/.xvpics/set-theoretic-stuff.jpg
 doc/.xvpics/set-theoretic-stuff.tif
+doc/extent-nodes.txt
 doc/set-theoretic-stuff.aux
 doc/set-theoretic-stuff.dvi
 doc/set-theoretic-stuff.gif
@@ -1394,6 +1399,7 @@ ulevel/test.c
 ulevel/tmp.1001
 ulevel/tmp.998
 ulevel/writes
+version
 vfs_ops.
 vfs_ops.bb
 vfs_ops.bbg
@@ -1408,8 +1414,4 @@ write-test.2
 yet_unneeded_abstractions/oid/.oid40.o.cmd
 znode.bb
 znode.bbg
-as_ops.c.orig
-.reiser4_status_flags.o.cmd
-.crab_lock.o.cmd
-.init_super.o.cmd
-version
+plugin/item/.extent_repack_ops.o.cmd
