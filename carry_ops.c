@@ -909,7 +909,8 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	if( !can_paste_here || 
 	    ( can_paste_here &&
 	      !item_can_contain_key( op -> u.insert.d -> coord, 
-				     op -> u.insert.d -> key ) ) ) {
+				     op -> u.insert.d -> key,
+				     op -> u.insert.d -> data ) ) ) {
 		op -> op = COP_INSERT;
 		op -> u.insert.type = COPT_PASTE_RESTARTED;
 		reiser4_stat_level_add( doing, paste_restarted );
