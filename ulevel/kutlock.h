@@ -1,7 +1,4 @@
-/* -*-Mode: C;-*-
- * $Id$
- * Author: Joshua MacDonald
- * Copyright (C) 2001, 2002 Hans Reiser.  All rights reserved.
+/* Copyright (C) 2001, 2002 Hans Reiser.  All rights reserved.
  */
 
 /* This file, part of KUTLIB (Kernel-User Test Library), provides the

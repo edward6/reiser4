@@ -284,8 +284,8 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		}
 	}
 
-	if (ret == -EINVAL || ret == -EDEADLK) {
-		/* Something bad happened, but can't be avoided...  Try again! */
+	if (ret == -EINVAL || ret == -EDEADLK /* FIXME: What about -ENAVAIL, -ENOENT? */ || ret == -ENAVAIL || ret == -ENOENT) {
+		/* FIXME: Something bad happened, but difficult to avoid...  Try again! */
 		ret = 0;
 	}
 
@@ -417,7 +417,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	}
 
 	/* If it is dirty then we don't care about its leftmost child yet. */
-	if (znode_is_dirty (right_lock.node)) {
+	if (znode_check_dirty (right_lock.node)) {
 		ret = 0;
 		goto exit;
 	}
@@ -515,7 +515,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 
 	/* If the ancestor is clean or already allocated, or if the child is not a
 	 * leftmost child, stop going up. */
-	if (! znode_is_dirty (coord->node) || znode_check_allocated (coord->node) || ! coord_is_leftmost_unit (coord)) {
+	if (! znode_check_dirty (coord->node) || znode_check_allocated (coord->node) || ! coord_is_leftmost_unit (coord)) {
 		return 0;
 	}
 
@@ -528,6 +528,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 	if (! znode_is_root (coord->node)) {
 
 		if ((ret = jnode_lock_parent_coord (ZJNODE (coord->node), & acoord, & alock, & aload, ZNODE_WRITE_LOCK))) {
+			/* FIXME: check EINVAL, EDEADLK */
 			goto exit;
 		}
 
@@ -536,7 +537,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 		}
 
 		/* Recursive call. */
-		if (znode_is_dirty (acoord.node) &&
+		if (znode_check_dirty (acoord.node) &&
 		    ! znode_check_allocated (acoord.node) &&
 		    (ret = flush_alloc_one_ancestor (& acoord, pos))) {
 			goto exit;
@@ -770,6 +771,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	if (! znode_check_allocated (right_lock.node)) {
 		if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, & parent_load, ZNODE_WRITE_LOCK))) {
+			/* FIXME: check EINVAL, EDEADLK */
 			warning ("jmacd-61430", "jnode_lock_parent_coord failed: %d", ret);
 			goto exit;
 		}
@@ -1539,12 +1541,38 @@ int flush_enqueue_unformatted_page_locked (jnode *node, flush_position *pos, str
 }
 
 /* FIXME: comment */
+static void flush_bio_write (struct bio *bio)
+{
+	int i;
+
+	for (i = 0; i < bio->bi_vcnt; i += 1) {
+		struct page *pg = bio->bi_io_vec[i].bv_page;
+		jnode *node;
+
+		if (! test_bit (BIO_UPTODATE, & bio->bi_flags)) {
+			SetPageError (pg);
+		}
+
+		if (! TestClearPageWriteback (pg)) {
+			BUG ();
+		}
+
+		unlock_page (pg);
+		page_cache_release (pg);
+
+		node = jnode_by_page (pg);
+		jput (node);
+	}
+	
+	bio_put (bio);
+}
+
+/* FIXME: comment */
 static int flush_finish (flush_position *pos, int none_busy)
 {
 	int i;
 	int refill = 0;
 	int ret = 0;
-	jnode *ready_to_go = NULL;
 
 	if (REISER4_DEBUG && none_busy) {
 		int nbusy = 0;
@@ -1556,62 +1584,102 @@ static int flush_finish (flush_position *pos, int none_busy)
 		assert ("jmacd-71239", nbusy == 0);
 	}
 
-	for (i = 0; ret == 0 && i < pos->queue_num; i += 1) {
+	for (i = 0; ret == 0 && i < pos->queue_num; ) {
 
-		jnode *node;
+		jnode *check;
 
-		node = pos->queue[i];
-		pos->queue[i] = NULL;
+		check = pos->queue[i];
 
-		assert ("jmacd-71235", node != NULL);
+		assert ("jmacd-71235", check != NULL);
 
 		/* FIXME: See the comment in flush_rewrite_jnode. */
-		if (! jnode_check_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
-			jput (node);
+		if (! jnode_check_dirty (check) || JF_ISSET (check, ZNODE_HEARD_BANSHEE)) {
+			jput (check);
+			pos->queue[i++] = NULL;
 			continue;
 		}
 
-		assert ("jmacd-71236", jnode_check_allocated (node));
+		assert ("jmacd-71236", jnode_check_allocated (check));
 
 		/* Skip if the node is still busy (i.e., its children are being squalloced). */
-		if (JF_ISSET (node, ZNODE_FLUSH_BUSY)) {
-			assert ("jmacd-71237", pos->queue[refill] == NULL);
+		if (JF_ISSET (check, ZNODE_FLUSH_BUSY)) {
+
 			assert ("jmacd-71238", ! none_busy);
-			pos->queue[refill++] = node;
-			continue;
-		}
 
-		/* Keep track of one node (jref'd) that is ready to flush. */
-		if (ready_to_go == NULL) {
-			ready_to_go = node;
-			continue;
-		}
+			if (i != refill) {
+				assert ("jmacd-71237", pos->queue[refill] == NULL);
+				pos->queue[refill++] = check;
+				pos->queue[i] = NULL;
+			}
 
-		/* Now we have at least two nodes to flush, see if they are adjacent. */
-		if (*jnode_get_block (ready_to_go) + 1 != *jnode_get_block (node)) {
-			/* Not adjacent, write one page. */
-			ret = flush_rewrite_jnode (ready_to_go);
-			jput (ready_to_go);
-			ready_to_go = node;
-			continue;
-		}
+			i += 1;
 
-		/* FIXME: @@@ quick hack.  build a struct bio.  get rid of the ready_to_go
-		 * variable, it only makes this worse. */
-		ret = flush_rewrite_jnode (ready_to_go);
-		ret = flush_rewrite_jnode (node);
-		jput (ready_to_go);
-		jput (node);
-		ready_to_go = NULL;
+		} else {
+
+			/* Have at least two consecutive nodes. */
+			struct bio *bio;
+			jnode *prev = check;
+			int j, c, nr;
+			struct super_block *super;
+			int blksz;
+
+			/* Set j to the first non-consecutive block (or end-of-queue) */
+			for (j = i + 1; j < pos->queue_num; j += 1) {
+				if (*jnode_get_block (prev) + 1 != *jnode_get_block (pos->queue[j])) {
+					break;
+				}
+				prev = pos->queue[j];
+			}
+
+			nr = j - i;
+			trace_on (TRACE_FLUSH, "flush_finish writes %u consecutive blocks\n", nr);
+
+			/* FIXME: What GFP flag? */
+			if ((bio = bio_alloc (GFP_NOIO, nr)) == NULL) {
+				ret = -ENOMEM;
+				break;
+			}
+
+			/* Note: very much copied from page_cache.c:page_bio. */
+			super = check->pg->mapping->host->i_sb;
+			assert( "jmacd-2029", super != NULL );
+			blksz = super->s_blocksize;
+			assert( "jmacd-2028", blksz == ( int ) PAGE_CACHE_SIZE );
+
+			bio->bi_sector = *jnode_get_block (check) * (blksz >> 9);
+			bio->bi_bdev   = super->s_bdev;
+			bio->bi_vcnt   = nr;
+			bio->bi_size   = blksz * nr;
+			bio->bi_end_io = flush_bio_write;
+
+			for (c = 0, j = i; c < nr; c += 1, j += 1) {
+
+				jnode       *node = pos->queue[j];
+				struct page *pg   = node->pg;
+
+				pos->queue[j] = NULL;
+
+				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
+
+				/* FIXME: JMACD->NIKITA: can you review this? */
+				jnode_set_clean (node);
+
+				page_cache_get (pg);
+				lock_page (pg);
+				SetPageWriteback (pg);
+
+				bio->bi_io_vec[c].bv_page   = pg;
+				bio->bi_io_vec[c].bv_len    = blksz;
+				bio->bi_io_vec[c].bv_offset = 0;
+			}
+
+			i = j;
+			pos->enqueue_cnt += nr;
+			submit_bio (WRITE, bio);
+		}
 	}
 
-	if (ready_to_go != NULL) {
-		/* FIXME: @@@ quick hack.  build a struct bio. */
-		ret = flush_rewrite_jnode (ready_to_go);
-		jput (ready_to_go);
-	}
-
-	trace_on (TRACE_FLUSH, "flush_finish wrote %u leaving %u queued\n", pos->queue_num - refill, refill);
+	trace_if (TRACE_FLUSH, if (ret == 0) { info ("flush_finish wrote %u leaving %u queued\n", pos->queue_num - refill, refill); });
 	pos->queue_num = refill;
 
 	return ret;
@@ -1734,8 +1802,6 @@ static int jnode_lock_parent_coord (jnode *node,
 		assert ("jmacd-2061", ! znode_is_root (JZNODE (node)));
 
 		if ((ret = reiser4_get_parent (parent_lh, JZNODE (node), parent_mode, 1))) {
-			/* FIXME: check ENAVAIL, EINVAL, EDEADLK */
-			warning ("jmacd-976812", "reiser4_get_parent failed: %d", ret);
 			return ret;
 		}
 
@@ -2253,6 +2319,7 @@ static int flush_scan_formatted (flush_scan *scan)
 		}
 
 		ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_WRITE_LOCK /*ZNODE_READ_LOCK*/);
+		/* FIXME: check EINVAL, EDEADLK */
 
 		done_lh (& end_lock);
 
@@ -2311,6 +2378,7 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 		if (coord_is_invalid (& scan->parent_coord)) {
 
 			if ((ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_WRITE_LOCK /*ZNODE_READ_LOCK*/))) {
+				/* FIXME: check EINVAL, EDEADLK */
 				return ret;
 			}
 
@@ -2350,6 +2418,7 @@ static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 	if ((pos->queue = kmalloc (FLUSH_QUEUE_SIZE * sizeof (jnode*), GFP_NOFS)) == NULL) {
 		return -ENOMEM;
 	}
+	xmemset (pos->queue, 0, FLUSH_QUEUE_SIZE * sizeof (jnode*));
 
 	pos->queue_num = 0;
 	pos->point = NULL;
@@ -2384,6 +2453,12 @@ static void flush_pos_done (flush_position *pos)
 	flush_pos_stop (pos);
 	blocknr_hint_done (& pos->preceder);
 	if (pos->queue != NULL) {
+		int i;
+		for (i = 0; i < pos->queue_num; i += 1) {
+			if (pos->queue[i] != NULL) {
+				jput (pos->queue[i]);
+			}
+		}
 		kfree (pos->queue);
 		pos->queue = NULL;
 	}
@@ -2473,6 +2548,7 @@ static int flush_pos_to_parent (flush_position *pos)
 
 	/* Lock the parent, find the coordinate. */
 	if ((ret = jnode_lock_parent_coord (pos->point, & pos->parent_coord, & pos->parent_lock, & pos->parent_load, ZNODE_WRITE_LOCK))) {
+		/* FIXME: check EINVAL, EDEADLK */
 		return ret;
 	}
 
@@ -2531,6 +2607,7 @@ static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lo
 	} else {
 		assert ("jmacd-9922", ! znode_is_root (JZNODE (pos->point)));
 		assert ("jmacd-9924", lock_mode (& pos->parent_lock) == ZNODE_NO_LOCK);
+		/* FIXME: check EINVAL, EDEADLK */
 		return jnode_lock_parent_coord (pos->point, parent_coord, parent_lock, parent_load, mode);
 	}
 }
@@ -2547,8 +2624,13 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 	char atom[32];
 	char block[32];
 	char items[32];
-	int fmttd = !JF_ISSET (node, ZNODE_UNFORMATTED);
-	int dirty = JF_ISSET (node, ZNODE_DIRTY);
+	int fmttd;
+	int dirty;
+
+	spin_lock_jnode (node);
+
+	fmttd = !JF_ISSET (node, ZNODE_UNFORMATTED);
+	dirty = JF_ISSET (node, ZNODE_DIRTY);
 
 	sprintf (block, " block=%llu", *jnode_get_block (node));
 
@@ -2572,15 +2654,16 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 		sprintf (atom, " atom=%u", node->atom->atom_id);
 	}
 
+	items[0] = 0;
 	if (fmttd) {
 		load_handle zh;
+		spin_unlock_jnode (node);
 		init_zh (& zh);
 		if (load_zh (& zh, JZNODE (node)) == 0) {
 			sprintf (items, " items=%u", node_num_items (JZNODE (node)));
 		}
 		done_zh (& zh);
-	} else {
-		items[0] = 0;
+		spin_lock_jnode (node);
 	}
 
 	sprintf (buf+strlen(buf),
@@ -2593,6 +2676,8 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 		 jnode_get_level (node),
 		 items,
 		 JF_ISSET (node, ZNODE_FLUSH_BUSY) ? " fbusy" : "");
+
+	spin_unlock_jnode (node);
 }
 
 static const char* flush_znode_tostring (znode *node)
