@@ -210,7 +210,7 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 
 	page = jnode_page( page );
 
-	/* Leave it on the LRU if it gets converted into anonymous buffers */
+	/* FIXME-NIKITA locking? */
 	ClearPageDirty( page );
 	ClearPageUptodate( page );
 	remove_inode_page( page );
