@@ -441,6 +441,9 @@ grabbed2fake_allocated(__u64 count, reiser4_ba_flags_t flags)
 	reiser4_spin_unlock_sb(super);
 }
 
+static spinlock_t fake_lock = SPIN_LOCK_UNLOCKED;
+static reiser4_block_nr fake_gen = 0;
+
 /* obtain a block number for new formatted node which will be used to refer
    to this newly allocated node until real allocation is done */
 int
@@ -450,9 +453,6 @@ __assign_fake_blocknr(reiser4_block_nr * blocknr, reiser4_ba_flags_t flags, cons
 __assign_fake_blocknr(reiser4_block_nr * blocknr, reiser4_ba_flags_t flags)
 #endif
 {
-	static spinlock_t fake_lock = SPIN_LOCK_UNLOCKED;
-	static reiser4_block_nr fake_gen = 0;
-
 	spin_lock(&fake_lock);
 	*blocknr = fake_gen++;
 	spin_unlock(&fake_lock);
