@@ -590,20 +590,6 @@ get_overwrite_set(struct commit_handle *ch)
 			ON_TRACE(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
 		}
 
-		/* Count not leaves here because we have to grab disk space for
-		 * wandered blocks. They were not counted as "flush
-		 * reserved". */
-		if (!jnode_is_leaf(cur))
-			nr_not_leaves ++;
-#if REISER4_DEBUG
-		else {
-			if (jnode_is_znode(cur))
-				nr_formatted_leaves ++;
-			else
-				nr_unformatted_leaves ++;
-		}
-#endif		
-
 		/* Count bitmap locks for getting correct statistics what number
 		 * of blocks were cleared by the transaction commit. */
 		if (jnode_get_type(cur) == JNODE_BITMAP)
@@ -662,6 +648,20 @@ get_overwrite_set(struct commit_handle *ch)
 			cur = next;
 		}
 
+		/* Count not leaves here because we have to grab disk space
+		 * for wandered blocks. They were not counted as "flush
+		 * reserved". This should be done after doing jload() to avoid
+		 * races with emergency flush. */
+		if (!jnode_is_leaf(cur))
+			nr_not_leaves ++;
+#if REISER4_DEBUG
+		else {
+			if (jnode_is_znode(cur))
+				nr_formatted_leaves ++;
+			else
+				nr_unformatted_leaves ++;
+		}
+#endif		
 	}
 	spin_unlock(&scan_lock);
 
@@ -766,9 +766,6 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			spin_unlock(&pg->mapping->page_lock);
 
 			reiser4_unlock_page(pg);
-
-			/* prepare node to being written */
-			jnode_io_hook(cur, pg, WRITE);
 
 			bio->bi_io_vec[nr_used].bv_page = pg;
 			bio->bi_io_vec[nr_used].bv_len = super->s_blocksize;
@@ -1184,9 +1181,6 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 			spin_unlock(&pg->mapping->page_lock);
 
 			reiser4_unlock_page(pg);
-
-			/* prepare node to being written */
-			jnode_io_hook(cur, pg, WRITE);
 
 			bio->bi_io_vec[nr_used].bv_page = pg;
 			bio->bi_io_vec[nr_used].bv_len = super->s_blocksize;
