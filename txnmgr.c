@@ -3352,7 +3352,6 @@ print_atom(const char *prefix, txn_atom * atom)
 		printk("\n");
 	}
 }
-#endif
 
 /* Make Linus happy.
    Local variables:
