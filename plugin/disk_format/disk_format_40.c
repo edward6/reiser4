@@ -68,6 +68,7 @@ static struct buffer_head * find_a_disk_format_40_super_block (struct super_bloc
     reiser4_set_block_count(s, d64tocpu(&disk_sb->block_count));
     reiser4_set_data_blocks(s, d64tocpu(&disk_sb->block_count) - d64tocpu(&disk_sb->free_blocks));
     reiser4_set_free_blocks(s, (d64tocpu(&disk_sb->free_blocks)));
+    reiser4_set_free_committed_blocks (s, reiser4_free_blocks(s));
     
     return super_bh;
 }
