@@ -180,12 +180,12 @@ prepare_tail2extent(struct inode *inode)
 	/* number of unformatted nodes which will be created */
 	unformatted_nodes = (inode->i_size + inode->i_sb->s_blocksize - 1) >> inode->i_sb->s_blocksize_bits;
 
-	/* space necessary for tail2extent convertion: space for @nodes removals from tree, @unformatted_nodes blocks
+	/* space necessary for tail2extent conversion: space for @formatted_nodes removals from tree, @unformatted_nodes blocks
 	   for unformatted nodes, and space for @unformatted_nodes insertions into item (extent insertions) */
 	/*
 	 * if grab_space would try to commit current transaction at this point
 	 * we are stymied, because long term lock is held in @first_lh. I
-	 * removed BA_CAN_COMMIT from garbbing flags.
+	 * removed BA_CAN_COMMIT from grabbing flags.
 	 */
 	result = reiser4_grab_space_force(formatted_nodes * estimate_one_item_removal(tree) + unformatted_nodes +
 					  unformatted_nodes * estimate_one_insert_into_item(tree), 0);
@@ -283,7 +283,6 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 #define TAIL2EXTENT_PAGE_NUM 3	/* number of pages to fill before cutting tail
 				 * items */
 
-/* this can be called with either exclusive (via truncate) or with non-exclusive (via write) access to file obtained */
 int
 tail2extent(unix_file_info_t *uf_info)
 {
