@@ -1519,7 +1519,6 @@ capture_fuse_wait (jnode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *ato
 	assert("umka-212", node != NULL);
 	assert("umka-213", txnh != NULL);
 	assert("umka-214", atomf != NULL);
-	assert("umka-215", atomh != NULL);
 
 	if ((mode & TXN_CAPTURE_NONBLOCKING) != 0) {
 		spin_unlock_jnode  (node);
