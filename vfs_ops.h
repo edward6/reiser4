@@ -11,6 +11,7 @@
 #include "tslist.h"
 #include "plugin/dir/dir.h"
 #include "plugin/file/file.h"
+#include "super.h"
 
 #include <linux/types.h>	/* for loff_t */
 #include <linux/fs.h>		/* for struct address_space */
@@ -36,6 +37,10 @@ extern struct dentry_operations reiser4_dentry_operation;
 
 static inline int set_page_dirty_internal (struct page * page) /* NIKITA-FIXME-HANS: what does internal mean in this context? */
 {
+#if REISER4_STATS
+	if (!PageDirty(page))
+		reiser4_stat_inc(pages_dirty);
+#endif
 	return __set_page_dirty_nobuffers (page);
 }
 
