@@ -3827,7 +3827,7 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 		atomic_inc(&atomf->refcount);
 		UNLOCK_ATOM(atomf);
 		result = create_copy_and_replace(node, atomf);
-		LOCK_ATOM(atomf)
+		LOCK_ATOM(atomf);
 		atom_dec_and_unlock(atomf);
 		preempt_point();
 
