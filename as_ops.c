@@ -12,7 +12,6 @@
 #include "plugin/disk_format/disk_format.h"
 #include "plugin/plugin.h"
 #include "plugin/plugin_set.h"
-#include "plugin/plugin_hash.h"
 #include "plugin/object.h"
 #include "txnmgr.h"
 #include "jnode.h"
