@@ -901,15 +901,15 @@ bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end, int min_len
 
 	if (backward) {
 		assert("zam-961", end_bmap <= bmap);
-		assert("zam-962", ergo(end_bmap == bmap, end_offset > offset));
+		assert("zam-962", ergo(end_bmap == bmap, end_offset < offset));
 
-		for (; bmap > end_bmap; end_bmap --, offset = 0) {
-			len = search_one_bitmap_backward(bmap, &offset, max_offset, min_len, max_len);
+		for (; bmap > end_bmap; end_bmap --, offset = max_offset) {
+			len = search_one_bitmap_backward(bmap, &offset, 1, min_len, max_len);
 			if (len != 0)
 				goto out;
 		}
 		
-		len = search_one_bitmap(bmap, &offset, end_offset, min_len, max_len);
+		len = search_one_bitmap_backward(bmap, &offset, end_offset, min_len, max_len);
 	} else {
 		assert("zam-358", end_bmap >= bmap);
 		assert("zam-359", ergo(end_bmap == bmap, end_offset > offset));
@@ -932,8 +932,8 @@ static void set_search_end (reiser4_blocknr_hint * hint, reiser4_block_nr * sear
 {
 	struct super_block * super = reiser4_get_current_sb();
 	if (hint->backward) {
-		if (hint->max_dist == 0 || hint->blk < hint->max_dist)
-			*search_end = 0;
+		if (hint->max_dist == 0 || hint->blk <= hint->max_dist)
+			*search_end = 1;
 		else
 			*search_end = hint->blk - hint->max_dist;
 			
