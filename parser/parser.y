@@ -97,7 +97,7 @@ Expression
     |  target  L_APPEND        Expression             { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
     |  target  L_ASSIGN  INV_L Expression INV_R       { $$ = assign_invert( ws, $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
     |  target  L_SYMLINK       Expression             { $$ = symlink( ws, $1, $3 ); }           /*   ->  symlink  the SYMLINK operator return a value: bytes ???? */
-    | error /*SEMICOLON*/
+//    | error /*SEMICOLON*/
 
 //| level_up  Expression R_BRACKET                   { $$ = $2  level_down( ws, $1, $3 );}
 //| Expression            Expression                { $$ = list_unordered_expression( ws, $1, $2 ); }
