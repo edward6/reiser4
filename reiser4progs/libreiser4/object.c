@@ -9,18 +9,18 @@
 #endif
 
 #include <reiser4/reiser4.h>
+#include <sys/stat.h>
 
-static int reiserfs_object_find_entry(reiserfs_coord_t *coord, 
-    uint64_t hash) 
-{
+static int reiserfs_object_find_entry(reiserfs_coord_t *coord, reiserfs_key_t *key) {
     return 0;
 }
 	
-static error_t reiserfs_object_find_stat(reiserfs_object_t *object, const char *name, 
+static error_t reiserfs_object_lookup(reiserfs_object_t *object, const char *name, 
     reiserfs_key_t *parent) 
 {
-    uint64_t hash;
-    reiserfs_plugin_t key_plugin;
+    reiserfs_plugin_t *key_plugin;
+    reiserfs_plugin_t *hash_plugin;
+    
     char track[4096], path[4096];
     char *pointer = NULL, *dirname = NULL;
 
@@ -38,41 +38,61 @@ static error_t reiserfs_object_find_stat(reiserfs_object_t *object, const char *
 	
     pointer = &path[0];
     while (1) {
-	uint16_t mode;
+	void *body; uint16_t mode;
+	reiserfs_plugin_t *plugin;
 
 	/* FIXME-UMKA: Hardcoded key40 key type */
 	reiserfs_key_set_type(&object->key, KEY40_STATDATA_MINOR);
 	reiserfs_key_set_offset(&object->key, 0);
 	
-	if (!reiserfs_tree_lookup(fs, &object->key, &object->coord)) {
+	if (!reiserfs_tree_lookup(object->fs, &object->key, &object->coord)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't find stat data of directory %s.", track);
 	    return -1;
 	}
 	
 	/* Checking whether found item is a link */
-	mode = *((uint16_t *)reiserfs_node_item_at(object->coord.block, 
-	    object->coord.item_pos));
-		
-	if (!S_ISLNK(LE16_TO_CPU(*mode)) && !S_ISDIR(LE16_TO_CPU(*mode)) && 
-	    !S_ISREG(LE16_TO_CPU(*mode))) 
+	if (!(body = reiserfs_node_item_at(object->coord.node, 
+	    object->coord.pos.item_pos))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"%s has invalid object type."), track;
+		"Can't get item body. Node %llu, item %u.", 
+		aal_block_get_nr(object->coord.node->block), 
+		object->coord.pos.item_pos);
+	    return -1;
+	}
+	
+	if (!(plugin = reiserfs_node_item_get_plugin(object->coord.node, 
+	    object->coord.pos.item_pos)))
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't get item plugin. Node %llu, item %u.", 
+		aal_block_get_nr(object->coord.node->block),
+		object->coord.pos.item_pos);
+	    return -1;
+	}
+	
+	mode = libreiser4_plugin_call(return -1, plugin->item.specific.stat, get_mode, body);
+
+	if (!S_ISLNK(LE16_TO_CPU(mode)) && !S_ISDIR(LE16_TO_CPU(mode)) && 
+	    !S_ISREG(LE16_TO_CPU(mode))) 
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"%s has invalid object type.", track);
 	    return -1;
 	}
 		
-	if (S_ISLNK(LE16_TO_CPU(*mode))) {
+	if (S_ISLNK(LE16_TO_CPU(mode))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Sorry, opening objects by link is not supported yet!");
 	    return -1;
 	}
 
 	/* It will be useful when symlinks ready */
-	reiserfs_key_set_locality(&parent, reiserfs_key_get_locality(&object->key));
-	reiserfs_key_set_objectid(&parent, reiserfs_key_get_objectid(&object->key));
+	reiserfs_key_set_locality(parent, reiserfs_key_get_locality(&object->key));
+	reiserfs_key_set_objectid(parent, reiserfs_key_get_objectid(&object->key));
 
-	if (!(dirname = aal_strsep(&pointer, '/')))
+	if (!(dirname = aal_strsep(&pointer, "/")))
 	    break;
 		
 	if (!aal_strlen(dirname))
@@ -81,22 +101,24 @@ static error_t reiserfs_object_find_stat(reiserfs_object_t *object, const char *
 	aal_strncat(track, dirname, aal_strlen(dirname));
 	
 	/* 
-	    FIXME-UMKA: Here will be calling of the hash plugin
-	    when ready.
+	    FIXME-UMKA: Hardcoded key40 key type should be fixed. Also 
+	    key id should be recived from anywhere. And finally, hash_plugin
+	    should not be initializing every time.
 	*/
-	hash = 0;
-
-	/* FIXME-UMKA: Hardcoded key40 key type */
-	reiserfs_key_set_type(&object->key, KEY40_FILENAME_MINOR);
-	reiserfs_key_set_hash(&object->key, hash);
+	if (!(hash_plugin = libreiser4_factory_find_by_coord(REISERFS_HASH_PLUGIN, 0x0)))
+	    libreiser4_factory_find_failed(REISERFS_HASH_PLUGIN, 0x0, return -1);
 	
-	if (!reiserfs_tree_lookup(fs, &object->key, &object->coord)) {
+	reiserfs_key_build_dir_key(&object->key, hash_plugin, 
+	    reiserfs_key_get_locality(&object->key), 
+	    reiserfs_key_get_objectid(&object->key), dirname);
+	
+	if (!reiserfs_tree_lookup(object->fs, &object->key, &object->coord)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't find stat data of directory %s.", track);
 	    return -1;
 	}
 
-	if (!reiserfs_object_find_entry(&object->coord, hash)) {
+	if (!reiserfs_object_find_entry(&object->coord, &object->key)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't find entry %s.", track);
 	    return -1;
@@ -108,23 +130,8 @@ static error_t reiserfs_object_find_stat(reiserfs_object_t *object, const char *
     return 0;
 }
 
-static void reiserfs_object_absname(const char *name, char *absname, uint16_t n) {
-
-    aal_assert("umka-683", name != NULL, return);
-    aal_assert("umka-684", absname != NULL, return);
-    
-    if (name[0] != '/') {
-	aal_memset(absname, 0, n);
-	getcwd(absname, n);
-	aal_strncat(absname, "/", 1);
-	aal_strncat(absname, name, n - aal_strlen(absname));
-    } else
-        aal_strncpy(absname, name, n);
-}
-
 reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
-    char absname[4096];
-    reiserfs_key_t parent
+    reiserfs_key_t parent;
     reiserfs_object_t *object;
     reiserfs_plugin_t *key_plugin;
     
@@ -133,7 +140,7 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
 
     if (!(object = aal_calloc(sizeof(*object), 0)))
 	return NULL;
-    
+
     object->fs = fs;
     
     /* FIXME-UMKA: Hardcoded key plugin id */
@@ -143,19 +150,29 @@ reiserfs_object_t *reiserfs_object_open(reiserfs_fs_t *fs, const char *name) {
     reiserfs_key_init(&parent, key_plugin);
     reiserfs_key_clean(&parent);
     
-    reiserfs_key_build_file_key(&parent, KEY40_STATDATA_MINOR, reiserfs_oid_root_parent_objectid(fs), 
-	reiserfs_oid_root_objectid(fs), 0);
+    reiserfs_key_build_file_key(&parent, KEY40_STATDATA_MINOR, 
+	reiserfs_oid_root_parent_objectid(fs), reiserfs_oid_root_objectid(fs), 0);
     
     aal_memcpy(&object->key, &parent, sizeof(parent));
     
-    reiserfs_object_absname(name, absname, sizeof(4096));
-    
-    if (reiserfs_object_find_stat(object, absname, &parent)) {
+    /* 
+	I assume that name is absolute name. So, user, who will 
+	call this method should convert name previously into absolute
+	one by getcwd function.
+    */
+    if (reiserfs_object_lookup(object, name, &parent)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find %s.", name);
 	return NULL;
     }
 
+    /*
+	FIXME-UMKA: It will be call of corresponding object plugin here
+	for initialization object-type-specific things.
+    */
+//    object->entity = libreiser4_plugin_call();
+
+    
     return object;
 }
 

@@ -65,7 +65,7 @@ error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
     
     /* Creating root directory */
     if (!(fs->tree->root_dir = libreiser4_plugin_call(goto error_free_tree, 
-	fs->tree->dir_plugin->dir, open, &coord)))
+	fs->tree->dir_plugin->dir, open, coord.node->block, coord.pos.item_pos)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open root directory.");
@@ -88,7 +88,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 {
     blk_t block_nr;
     reiserfs_key_t key;
-    reiserfs_coord_t coord;
+    reiserfs_unit_coord_t coord;
     reiserfs_node_t *squeeze, *leaf;
     reiserfs_plugin_t *key_plugin, *dir_plugin;
     
@@ -132,11 +132,11 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 
     /* Initialize internal item. */
     internal_info.blk = block_nr;
-  
-    libreiser4_plugin_call(goto error_free_squeeze, key_plugin->key, clean, &key);
+    
+    reiserfs_key_init(&key, key_plugin);
+    reiserfs_key_clean(&key);
 
-    libreiser4_plugin_call(goto error_free_squeeze, key_plugin->key, 
-	build_file_key, &key, KEY40_STATDATA_MINOR, reiserfs_oid_root_parent_objectid(fs),
+    reiserfs_key_build_file_key(&key, KEY40_STATDATA_MINOR, reiserfs_oid_root_parent_objectid(fs),
 	reiserfs_oid_root_objectid(fs), 0);
     
     aal_memset(&item_info, 0, sizeof(item_info));
@@ -183,13 +183,9 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	    goto error_free_leaf);
     }
 
-    coord.item_pos = 0;
-    coord.unit_pos = -1;
-    coord.block = leaf->block;
-
     /* Creating root directory */    
     if (!(fs->tree->root_dir = libreiser4_plugin_call(goto error_free_leaf, 
-	dir_plugin->dir, create, &coord, profile->key, profile->item.statdata, 
+	dir_plugin->dir, create, leaf->block, 0, profile->key, profile->item.statdata, 
 	profile->item.direntry, profile->oid, profile->node)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -264,11 +260,11 @@ error_free_root_node:
     nodes, search goes through.
 */
 static int reiserfs_tree_node_lookup(reiserfs_fs_t *fs, reiserfs_node_t *node, 
-    void *key, reiserfs_coord_t *coord) 
+    reiserfs_key_t *key, reiserfs_coord_t *coord) 
 {
-    uint8_t level;
     int found = 0;
-    reiserfs_node_t *children;
+    uint8_t level;
+    uint32_t pointer;
 
     aal_assert("umka-645", node != NULL, return 0);
     
@@ -282,21 +278,24 @@ static int reiserfs_tree_node_lookup(reiserfs_fs_t *fs, reiserfs_node_t *node,
 	    return 0;
 	}
 	
-	if ((found = reiserfs_node_lookup(node, key, coord)) == -1)
+	if ((found = reiserfs_node_lookup(node, key, &coord->pos)) == -1)
 	    return -1;
-	
-	coord->block = node->block;
 	
 	if (level == REISERFS_LEAF_LEVEL)
 	    return found;
-			
-	if (!(children = reiserfs_node_open(fs->host_device, 
-		reiserfs_node_item_get_pointer(node, coord->item_pos), 
+
+	if (!(pointer = reiserfs_node_item_get_pointer(node, coord->pos.item_pos))) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't get pointer from item %u.", coord->pos.item_pos);
+	    return 0;
+	}
+	
+	if (!(coord->node = reiserfs_node_open(fs->host_device, pointer, 
 		REISERFS_GUESS_PLUGIN_ID))) 
 	    return 0;
 	
-	reiserfs_node_add_children(node, children);
-	node = children;
+	reiserfs_node_add_children(node, coord->node);
+	node = coord->node;
     }
 	
     return 0;
@@ -306,7 +305,7 @@ static int reiserfs_tree_node_lookup(reiserfs_fs_t *fs, reiserfs_node_t *node,
     Makes search in the tree by specified key. Fills passed
     coord by coords of found item. 
 */
-int reiserfs_tree_lookup(reiserfs_fs_t *fs, void *key, 
+int reiserfs_tree_lookup(reiserfs_fs_t *fs, reiserfs_key_t *key, 
     reiserfs_coord_t *coord) 
 {
     aal_assert("umka-642", fs != NULL, return 0);
@@ -334,14 +333,14 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, void *key,
     All insert operations shall be performed by calling node API 
     functions.
 */
-error_t reiserfs_tree_item_insert(reiserfs_fs_t *fs, void *key, 
+error_t reiserfs_tree_item_insert(reiserfs_fs_t *fs, reiserfs_key_t *key, 
     reiserfs_item_info_t *item_info)
 {
     return -1;
 }
 
 /* Removes item by specified key */
-error_t reiserfs_tree_item_remove(reiserfs_fs_t *fs, void *key) {
+error_t reiserfs_tree_item_remove(reiserfs_fs_t *fs, reiserfs_key_t *key) {
     return -1;
 }
 
@@ -359,23 +358,17 @@ error_t reiserfs_tree_item_remove(reiserfs_fs_t *fs, void *key) {
     should perform "insert" operation.
 */
 error_t reiserfs_tree_node_insert(reiserfs_fs_t *fs, reiserfs_node_t *node) {
-    void *key;
+    reiserfs_key_t key;
     reiserfs_coord_t coord;
     
     aal_assert("umka-646", fs != NULL, return -1);
     aal_assert("umka-647", node != NULL, return -1);
     
-    /* Getting left delimiting key */
-    key = reiserfs_node_item_key_at(node, 0);
-    
-    if (reiserfs_tree_lookup(fs, key, &coord) == -1)
-	return -1;
-    
     return -1;
 }
 
 /* Removes node from tree by its left delimiting key */
-error_t reiserfs_tree_node_remove(reiserfs_fs_t *fs, void *key) {
+error_t reiserfs_tree_node_remove(reiserfs_fs_t *fs, reiserfs_key_t *key) {
     return -1;
 }
 

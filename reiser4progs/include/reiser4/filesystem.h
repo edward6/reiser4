@@ -82,6 +82,13 @@ struct reiserfs_node {
     aal_list_t *children;
 };
 
+struct reiserfs_coord {
+    reiserfs_node_t *node;
+    reiserfs_unit_coord_t pos;
+};
+
+typedef struct reiserfs_coord reiserfs_coord_t;
+
 struct reiserfs_node_header {
     uint16_t plugin_id; 
 };

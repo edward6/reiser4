@@ -10,7 +10,8 @@
 #include <reiser4/plugin.h>
 
 struct reiserfs_dir40 {
-    reiserfs_coord_t coord;
+    aal_block_t *block;
+    uint32_t pos;
 };
 
 typedef struct reiserfs_dir40 reiserfs_dir40_t;

@@ -31,10 +31,10 @@ static error_t stat40_create(reiserfs_stat40_base_t *stat,
     aal_assert("vpf-078", info->info != NULL, return -1);
     
     stat_info = info->info;
-    stat40_set_mode(stat, stat_info->mode);
-    stat40_set_extmask(stat, stat_info->extmask);
-    stat40_set_nlink(stat, stat_info->nlink);
-    stat40_set_size(stat, stat_info->size);
+    sd40_set_mode(stat, stat_info->mode);
+    sd40_set_extmask(stat, stat_info->extmask);
+    sd40_set_nlink(stat, stat_info->nlink);
+    sd40_set_size(stat, stat_info->size);
   
     /* And its extentions should be created here also */
     
@@ -42,7 +42,7 @@ static error_t stat40_create(reiserfs_stat40_base_t *stat,
 }
 
 static error_t stat40_estimate(reiserfs_item_info_t *info, 
-    reiserfs_coord_t *coord) 
+    reiserfs_unit_coord_t *coord) 
 {
     aal_assert("vpf-074", info != NULL, return -1);
 
@@ -68,6 +68,16 @@ static uint32_t stat40_minsize(void) {
 
 static int stat40_internal(void) {
     return 0;
+}
+
+static uint16_t stat40_get_mode(reiserfs_stat40_base_t *stat) {
+    aal_assert("umka-710", stat != NULL, return 0);
+    return sd40_get_mode(stat);
+}
+
+static void stat40_set_mode(reiserfs_stat40_base_t *stat, uint16_t mode) {
+    aal_assert("umka-711", stat != NULL, return);
+    sd40_set_mode(stat, mode);
 }
 
 static reiserfs_plugin_t stat40_plugin = {
@@ -103,7 +113,10 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .unit_remove = NULL
 	},
 	.specific = {
-	    .stat = { }
+	    .stat = {
+		.get_mode = (uint16_t (*)(void *))stat40_get_mode,
+		.set_mode = (void (*)(void *, uint16_t))stat40_get_mode
+	    }
 	}
     }
 };

@@ -21,43 +21,42 @@ static reiserfs_plugin_factory_t *factory = NULL;
 
 #ifndef ENABLE_COMPACT
 
-static error_t dir40_item_insert(reiserfs_item_info_t *item_info, 
-    reiserfs_coord_t *dir_coord, reiserfs_coord_t *item_coord, 
-    reiserfs_plugin_t *node_plugin, void *key) 
+static error_t dir40_item_insert(reiserfs_item_info_t *item_info, aal_block_t *block, 
+    reiserfs_unit_coord_t *coord, reiserfs_plugin_t *node_plugin, void *key) 
 {
     uint32_t overhead, free_space;
 
     if (libreiser4_plugin_call(return -1, item_info->plugin->item.common, estimate, 
-	item_info, item_coord))
+	item_info, coord))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't estimate stat data item.");
 	return -1;
     }
 
-    overhead = libreiser4_plugin_call(return -1, node_plugin->node, item_overhead, 
-	dir_coord->block);
+    overhead = libreiser4_plugin_call(return -1, node_plugin->node, 
+	item_overhead, block);
     
-    free_space = libreiser4_plugin_call(return -1, node_plugin->node, get_free_space, 
-	dir_coord->block);
+    free_space = libreiser4_plugin_call(return -1, node_plugin->node, 
+	get_free_space, block);
     
     if (item_info->length + overhead > free_space) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "There is not enought free space (%u) for inserting stat data item "
-	    "into block %llu.", free_space, aal_block_get_nr(dir_coord->block));
+	    "into block %llu.", free_space, aal_block_get_nr(block));
 	return -1;
     }
     
     return libreiser4_plugin_call(return -1, node_plugin->node, item_insert, 
-	dir_coord->block, item_coord, key, item_info);
+	block, coord, key, item_info);
 }
 
-static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_plugin_id, 
-    uint16_t stat_plugin_id, uint16_t direntry_plugin_id, uint16_t oid_plugin_id, 
-    uint16_t node_plugin_id) 
+static reiserfs_dir40_t *dir40_create(aal_block_t *block, uint32_t pos, 
+    uint16_t key_plugin_id, uint16_t stat_plugin_id, uint16_t direntry_plugin_id, 
+    uint16_t oid_plugin_id, uint16_t node_plugin_id) 
 {
     reiserfs_key_t key;
-    reiserfs_coord_t item_coord;
+    reiserfs_unit_coord_t coord;
     
     reiserfs_plugin_t *key_plugin;
     reiserfs_plugin_t *oid_plugin;
@@ -74,8 +73,7 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
 
     reiserfs_dir40_t *dir;
 
-    aal_assert("umka-671", dir_coord != NULL, return NULL);
-    aal_assert("umka-672", dir_coord->block != NULL, return NULL);
+    aal_assert("umka-672", block != NULL, return NULL);
 
     /* Initialize plugins */
     if (!(key_plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 
@@ -111,7 +109,8 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
     if (!(dir = aal_calloc(sizeof(*dir), 0)))
 	return NULL;
 
-    aal_memcpy(&dir->coord, dir_coord, sizeof(*dir_coord));
+    dir->block = block;
+    dir->pos = pos;
     
     /* Initialize stat data */
     stat_info.mode = S_IFDIR | 0755;
@@ -122,8 +121,8 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &stat_info;
     
-    item_coord.item_pos = 0;
-    item_coord.unit_pos = -1;
+    coord.item_pos = pos;
+    coord.unit_pos = -1;
     
     libreiser4_plugin_call(goto error_free_dir, key_plugin->key, clean, &key);
     libreiser4_plugin_call(goto error_free_dir, key_plugin->key, build_file_key, 
@@ -136,12 +135,11 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
 	    goto error_free_dir);
     }
     
-    if (dir40_item_insert(&item_info, dir_coord, &item_coord, 
-	node_plugin, &key))
-    {
+    if (dir40_item_insert(&item_info, block, &coord, node_plugin, &key)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't insert stat data item into node %llu", 
-	    aal_block_get_nr(dir_coord->block));
+	    aal_block_get_nr(block));
+	
 	goto error_free_dir;
     }
 
@@ -172,8 +170,8 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
 	&key, direntry_info.hash_plugin, direntry_info.parent_id, 
 	direntry_info.object_id, ".");
      
-    item_coord.item_pos = 1;
-    item_coord.unit_pos = -1;
+    coord.item_pos = pos + 1;
+    coord.unit_pos = -1;
 
     if (!(item_info.plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN, 
 	direntry_plugin_id))) 
@@ -182,12 +180,10 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
 	    goto error_free_dir);
     }
 
-    if (dir40_item_insert(&item_info, dir_coord, &item_coord, 
-	node_plugin, &key))
-    {
+    if (dir40_item_insert(&item_info, block, &coord, node_plugin, &key)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't insert direntry item into node %llu", 
-	    aal_block_get_nr(dir_coord->block));
+	    aal_block_get_nr(block));
 	goto error_free_dir;
     }
     
@@ -201,15 +197,16 @@ error:
 
 #endif
 
-static reiserfs_opaque_t *dir40_open(reiserfs_coord_t *coord) {
+static reiserfs_opaque_t *dir40_open(aal_block_t *block, uint32_t pos) {
     reiserfs_dir40_t *dir;
     
-    aal_assert("umka-674", coord != NULL, return NULL);
+    aal_assert("umka-674", block != NULL, return NULL);
 
     if (!(dir = aal_calloc(sizeof(*dir), 0)))
 	return NULL;
     
-    aal_memcpy(&dir->coord, coord, sizeof(*coord));
+    dir->block = block;
+    dir->pos = pos;
 
     /* 
 	Here will be also initializing of the stat data of 
@@ -235,12 +232,12 @@ static reiserfs_plugin_t dir40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 #ifndef ENABLE_COMPACT
-	.create = (reiserfs_opaque_t *(*)(void *, uint16_t, uint16_t, uint16_t, uint16_t, 
-	    uint16_t))dir40_create,
+	.create = (reiserfs_opaque_t *(*)(aal_block_t *, uint32_t, uint16_t, uint16_t, 
+	    uint16_t, uint16_t, uint16_t))dir40_create,
 #else
 	.create = NULL,
 #endif
-	.open = (reiserfs_opaque_t *(*)(void *))dir40_open,
+	.open = (reiserfs_opaque_t *(*)(aal_block_t *, uint32_t))dir40_open,
 	.close = (void (*)(reiserfs_opaque_t *))dir40_close
     }
 };

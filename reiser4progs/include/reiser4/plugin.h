@@ -54,7 +54,7 @@ struct reiserfs_plugin_header {
 
 typedef struct reiserfs_plugin_header reiserfs_plugin_header_t;
 
-struct reiserfs_key_plugin {
+struct reiserfs_key_ops {
     reiserfs_plugin_header_t h;
 
     /* Confirms key format */
@@ -112,29 +112,28 @@ struct reiserfs_key_plugin {
     error_t (*build_key_by_dir_short_key) (void *, void *, uint8_t); 
 };
 
-typedef struct reiserfs_key_plugin reiserfs_key_plugin_t;
+typedef struct reiserfs_key_ops reiserfs_key_ops_t;
 
-struct reiserfs_file_plugin {
+struct reiserfs_file_ops {
     reiserfs_plugin_header_t h;
 };
 
-typedef struct reiserfs_file_plugin reiserfs_file_plugin_t;
+typedef struct reiserfs_file_ops reiserfs_file_ops_t;
 
-struct reiserfs_dir_plugin {
+struct reiserfs_dir_ops {
     reiserfs_plugin_header_t h;
 
-    /* Creates directory at given coord */
-    reiserfs_opaque_t *(*create) (void *, uint16_t, uint16_t, 
+    /* Creates directory at given block and pos */
+    reiserfs_opaque_t *(*create) (aal_block_t *, uint32_t, uint16_t, uint16_t, 
 	uint16_t, uint16_t, uint16_t);
 
-    /* Opens directory by passed coord */
-    reiserfs_opaque_t *(*open) (void *);
+    reiserfs_opaque_t *(*open) (aal_block_t *, uint32_t);
     void (*close) (reiserfs_opaque_t *);
 };
 
-typedef struct reiserfs_dir_plugin reiserfs_dir_plugin_t;
+typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;
 
-struct reiserfs_item_ops {
+struct reiserfs_item_common_ops {
     reiserfs_item_type_id_t type;
 
     error_t (*create) (void *, void *);
@@ -164,7 +163,7 @@ struct reiserfs_item_ops {
     int (*internal) (void);
 };
 
-typedef struct reiserfs_item_ops reiserfs_item_ops_t;
+typedef struct reiserfs_item_common_ops reiserfs_item_common_ops_t;
 
 struct reiserfs_direntry_ops {
 };
@@ -172,6 +171,8 @@ struct reiserfs_direntry_ops {
 typedef struct reiserfs_direntry_ops reiserfs_direntry_ops_t;
 
 struct reiserfs_stat_ops {
+    uint16_t (*get_mode) (void *);
+    void (*set_mode) (void *, uint16_t);
 };
 
 typedef struct reiserfs_stat_ops reiserfs_stat_ops_t;
@@ -184,11 +185,11 @@ struct reiserfs_internal_ops {
 
 typedef struct reiserfs_internal_ops reiserfs_internal_ops_t;
 
-struct reiserfs_item_plugin {
+struct reiserfs_item_ops {
     reiserfs_plugin_header_t h;
 
     /* Methods common for all item types */
-    reiserfs_item_ops_t common;
+    reiserfs_item_common_ops_t common;
 
     /* Methods specific to particular type of item */
     union {
@@ -198,7 +199,7 @@ struct reiserfs_item_plugin {
     } specific;
 };
 
-typedef struct reiserfs_item_plugin reiserfs_item_plugin_t;
+typedef struct reiserfs_item_ops reiserfs_item_ops_t;
 
 /*
     Node plugin operates on passed block. It doesn't any 
@@ -206,7 +207,7 @@ typedef struct reiserfs_item_plugin reiserfs_item_plugin_t;
     methods accepts first argument aal_block_t, not initialized
     previously hypothetic instance of node.
 */
-struct reiserfs_node_plugin {
+struct reiserfs_node_ops {
     reiserfs_plugin_header_t h;
 
     /* 
@@ -278,34 +279,34 @@ struct reiserfs_node_plugin {
     void *(*item_key_at) (aal_block_t *, int32_t);
 };
 
-typedef struct reiserfs_node_plugin reiserfs_node_plugin_t;
+typedef struct reiserfs_node_ops reiserfs_node_ops_t;
 
-struct reiserfs_hash_plugin {
+struct reiserfs_hash_ops {
     reiserfs_plugin_header_t h;
 };
 
-typedef struct reiserfs_hash_plugin reiserfs_hash_plugin_t;
+typedef struct reiserfs_hash_ops reiserfs_hash_ops_t;
 
-struct reiserfs_tail_plugin {
+struct reiserfs_tail_ops {
     reiserfs_plugin_header_t h;
 };
 
-typedef struct reiserfs_tail_plugin reiserfs_tail_plugin_t;
+typedef struct reiserfs_tail_ops reiserfs_tail_ops_t;
 
-struct reiserfs_hook_plugin {
+struct reiserfs_hook_ops {
     reiserfs_plugin_header_t h;
 };
 
-typedef struct reiserfs_hook_plugin reiserfs_hook_plugin_t;
+typedef struct reiserfs_hook_ops reiserfs_hook_ops_t;
 
-struct reiserfs_perm_plugin {
+struct reiserfs_perm_ops {
     reiserfs_plugin_header_t h;
 };
 
-typedef struct reiserfs_perm_plugin reiserfs_perm_plugin_t;
+typedef struct reiserfs_perm_ops reiserfs_perm_ops_t;
 
 /* Disk-format plugin */
-struct reiserfs_format_plugin {
+struct reiserfs_format_ops {
     reiserfs_plugin_header_t h;
     
     /* 
@@ -391,9 +392,9 @@ struct reiserfs_format_plugin {
     reiserfs_opaque_t *(*oid) (reiserfs_opaque_t *);
 };
 
-typedef struct reiserfs_format_plugin reiserfs_format_plugin_t;
+typedef struct reiserfs_format_ops reiserfs_format_ops_t;
 
-struct reiserfs_oid_plugin {
+struct reiserfs_oid_ops {
     reiserfs_plugin_header_t h;
 
     reiserfs_opaque_t *(*open) (void *, uint32_t);
@@ -410,9 +411,9 @@ struct reiserfs_oid_plugin {
     oid_t (*root_objectid) (void);
 };
 
-typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;
+typedef struct reiserfs_oid_ops reiserfs_oid_ops_t;
 
-struct reiserfs_alloc_plugin {
+struct reiserfs_alloc_ops {
     reiserfs_plugin_header_t h;
     
     reiserfs_opaque_t *(*open) (aal_device_t *, count_t);
@@ -430,36 +431,39 @@ struct reiserfs_alloc_plugin {
     count_t (*used) (reiserfs_opaque_t *);
 };
 
-typedef struct reiserfs_alloc_plugin reiserfs_alloc_plugin_t;
+typedef struct reiserfs_alloc_ops reiserfs_alloc_ops_t;
 
-struct reiserfs_journal_plugin {
+struct reiserfs_journal_ops {
     reiserfs_plugin_header_t h;
     
     reiserfs_opaque_t *(*open) (aal_device_t *);
-    reiserfs_opaque_t *(*create) (aal_device_t *, reiserfs_params_opaque_t *params);
+    
+    reiserfs_opaque_t *(*create) (aal_device_t *, 
+	reiserfs_params_opaque_t *params);
+    
     void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
     error_t (*replay) (reiserfs_opaque_t *);
 };
 
-typedef struct reiserfs_journal_plugin reiserfs_journal_plugin_t;
+typedef struct reiserfs_journal_ops reiserfs_journal_ops_t;
 
 union reiserfs_plugin {
     reiserfs_plugin_header_t h;
 	
-    reiserfs_file_plugin_t file;
-    reiserfs_dir_plugin_t dir;
-    reiserfs_item_plugin_t item;
-    reiserfs_node_plugin_t node;
-    reiserfs_hash_plugin_t hash;
-    reiserfs_tail_plugin_t tail;
-    reiserfs_hook_plugin_t hook;
-    reiserfs_perm_plugin_t perm;
-    reiserfs_format_plugin_t format;
-    reiserfs_oid_plugin_t oid;
-    reiserfs_alloc_plugin_t alloc;
-    reiserfs_journal_plugin_t journal;
-    reiserfs_key_plugin_t key;
+    reiserfs_file_ops_t file;
+    reiserfs_dir_ops_t dir;
+    reiserfs_item_ops_t item;
+    reiserfs_node_ops_t node;
+    reiserfs_hash_ops_t hash;
+    reiserfs_tail_ops_t tail;
+    reiserfs_hook_ops_t hook;
+    reiserfs_perm_ops_t perm;
+    reiserfs_format_ops_t format;
+    reiserfs_oid_ops_t oid;
+    reiserfs_alloc_ops_t alloc;
+    reiserfs_journal_ops_t journal;
+    reiserfs_key_ops_t key;
 };
 
 typedef union reiserfs_plugin reiserfs_plugin_t;
@@ -553,13 +557,12 @@ struct reiserfs_dir_info {
 
 typedef struct reiserfs_dir_info reiserfs_dir_info_t;
 
-struct reiserfs_coord {
-    aal_block_t *block;
+struct reiserfs_unit_coord {
     int16_t item_pos;
     int16_t unit_pos;
 };
 
-typedef struct reiserfs_coord reiserfs_coord_t;
+typedef struct reiserfs_unit_coord reiserfs_unit_coord_t;
 
 struct reiserfs_plugin_factory {
     reiserfs_plugin_t *(*find_by_coord)(reiserfs_plugin_id_t, reiserfs_plugin_id_t);

@@ -34,7 +34,7 @@ void reiserfs_key_clean(reiserfs_key_t *key) {
     aal_assert("umka-675", key != NULL, return);
     aal_assert("umka-676", key->plugin != NULL, return);
     
-    libreiser4_plugin_call(return, key->plugin->key, clean, key);
+    libreiser4_plugin_call(return, key->plugin->key, clean, key->body);
 } 
 
 error_t reiserfs_key_build_file_key(reiserfs_key_t *key, 
@@ -44,7 +44,7 @@ error_t reiserfs_key_build_file_key(reiserfs_key_t *key,
     aal_assert("umka-666", key->plugin != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, key->plugin->key, build_file_key, 
-	key, type, locality, objectid, offset);
+	key->body, type, locality, objectid, offset);
 }
 
 error_t reiserfs_key_build_dir_key(reiserfs_key_t *key, 
@@ -56,7 +56,7 @@ error_t reiserfs_key_build_dir_key(reiserfs_key_t *key,
     aal_assert("umka-670", name != NULL, return -1);
     
     return libreiser4_plugin_call(return -1, key->plugin->key, build_dir_key, 
-	key, hash_plugin, locality, objectid, name);
+	key->body, hash_plugin, locality, objectid, name);
 }
 
 error_t reiserfs_key_set_type(reiserfs_key_t *key, uint32_t type) {
@@ -64,7 +64,7 @@ error_t reiserfs_key_set_type(reiserfs_key_t *key, uint32_t type) {
     aal_assert("umka-687", key->plugin != NULL, return -1);
 
     libreiser4_plugin_call(return -1, key->plugin->key, 
-	set_type, key, type);
+	set_type, key->body, type);
     return 0;
 }
 
@@ -73,7 +73,7 @@ error_t reiserfs_key_set_offset(reiserfs_key_t *key, uint64_t offset) {
     aal_assert("umka-689", key->plugin != NULL, return -1);
     
     libreiser4_plugin_call(return -1, key->plugin->key, 
-	set_offset, key, offset);
+	set_offset, key->body, offset);
     
     return 0;
 }
@@ -83,7 +83,7 @@ error_t reiserfs_key_set_hash(reiserfs_key_t *key, uint64_t hash) {
     aal_assert("umka-707", key->plugin != NULL, return -1);
     
     libreiser4_plugin_call(return -1, key->plugin->key, 
-	set_hash, key, hash);
+	set_hash, key->body, hash);
     
     return 0;
 }
@@ -93,7 +93,7 @@ error_t reiserfs_key_set_objectid(reiserfs_key_t *key, oid_t objectid) {
     aal_assert("umka-695", key->plugin != NULL, return -1);
     
     libreiser4_plugin_call(return -1, key->plugin->key, 
-	set_objectid, key, objectid);
+	set_objectid, key->body, objectid);
 
     return 0;
 }
@@ -103,7 +103,7 @@ error_t reiserfs_key_set_locality(reiserfs_key_t *key, oid_t locality) {
     aal_assert("umka-697", key->plugin != NULL, return -1);
     
     libreiser4_plugin_call(return -1, key->plugin->key, 
-	set_locality, key, locality);
+	set_locality, key->body, locality);
 
     return 0;
 }
@@ -113,7 +113,7 @@ uint32_t reiserfs_key_get_type(reiserfs_key_t *key) {
     aal_assert("umka-699", key->plugin != NULL, return -1);
 
     return libreiser4_plugin_call(return 0, key->plugin->key, 
-	get_type, key);
+	get_type, key->body);
 }
 
 uint64_t reiserfs_key_get_offset(reiserfs_key_t *key) {
@@ -121,7 +121,7 @@ uint64_t reiserfs_key_get_offset(reiserfs_key_t *key) {
     aal_assert("umka-701", key->plugin != NULL, return -1);
 
     return libreiser4_plugin_call(return 0, key->plugin->key, 
-	get_offset, key);
+	get_offset, key->body);
 }
 
 uint64_t reiserfs_key_get_hash(reiserfs_key_t *key) {
@@ -129,7 +129,7 @@ uint64_t reiserfs_key_get_hash(reiserfs_key_t *key) {
     aal_assert("umka-709", key->plugin != NULL, return -1);
 
     return libreiser4_plugin_call(return 0, key->plugin->key, 
-	get_hash, key);
+	get_hash, key->body);
 }
 
 oid_t reiserfs_key_get_objectid(reiserfs_key_t *key) {
@@ -137,7 +137,7 @@ oid_t reiserfs_key_get_objectid(reiserfs_key_t *key) {
     aal_assert("umka-703", key->plugin != NULL, return -1);
 
     return libreiser4_plugin_call(return 0, key->plugin->key, 
-	get_objectid, key);
+	get_objectid, key->body);
 }
 
 oid_t reiserfs_key_get_locality(reiserfs_key_t *key) {
@@ -145,6 +145,6 @@ oid_t reiserfs_key_get_locality(reiserfs_key_t *key) {
     aal_assert("umka-705", key->plugin != NULL, return -1);
 
     return libreiser4_plugin_call(return 0, key->plugin->key, 
-	get_locality, key);
+	get_locality, key->body);
 }
 

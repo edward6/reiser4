@@ -140,8 +140,8 @@ error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     passed coord by coords of found item and unit. This function
     is used by reiserfs_tree_lookup function.
 */
-int reiserfs_node_lookup(reiserfs_node_t *node, void *key, 
-    reiserfs_coord_t *coord) 
+int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key, 
+    reiserfs_unit_coord_t *coord)
 {
     int found; void *body;
     reiserfs_plugin_t *key_plugin;
@@ -160,7 +160,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key,
     	libreiser4_factory_find_failed(REISERFS_KEY_PLUGIN, 0x0, return -2);
     
     if ((found = libreiser4_plugin_call(return -1, node->plugin->node, 
-	lookup, node->block, coord, key, key_plugin)) == -1) 
+	lookup, node->block, coord, key->body, key_plugin)) == -1) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Lookup in the node %llu failed.", 
@@ -177,11 +177,10 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key,
     if (!(item_plugin = reiserfs_node_item_get_plugin(node, coord->item_pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin at node %llu and pos %u.", 
-	    aal_block_get_nr(node->block), 
-	    coord->item_pos);
+	    aal_block_get_nr(node->block), coord->item_pos);
 	return -1;
     }
-   
+
     if (!(body = reiserfs_node_item_at(node, coord->item_pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item at node %llu and pos %u.", 
@@ -206,17 +205,17 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key,
 	}
 	
 	if (libreiser4_plugin_call(return -1, key_plugin->key, compare, 
-		key, &max_key_inside) > 0)
+		key->body, &max_key_inside) > 0)
 	    goto after_item;
     }
 
     if (!item_plugin->item.common.lookup)
 	goto after_item;
 	    
-    if ((found = item_plugin->item.common.lookup(body, key, coord)) == -1) {
+    if ((found = item_plugin->item.common.lookup(body, key->body, coord)) == -1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Lookup in the item %d in the node %llu failed.", coord->item_pos,
-	    aal_block_get_nr(node->block));
+	    "Lookup in the item %d in the node %llu failed.", 
+	    coord->item_pos, aal_block_get_nr(node->block));
 	return -1;
     }
     
@@ -261,11 +260,11 @@ static int callback_comp_for_find(reiserfs_node_t *node, void *key) {
 
 /* Finds children node by its key in node cache */
 reiserfs_node_t *reiserfs_node_find_child(reiserfs_node_t *node, 
-    void *key)
+    reiserfs_key_t *key)
 {
     aal_list_t *list;
     
-    if (!(list = aal_list_bin_search(node->children, key, 
+    if (!(list = aal_list_bin_search(node->children, key->body, 
 	    (int (*)(const void *, const void *))callback_comp_for_find)))
 	return NULL;
 
@@ -603,7 +602,7 @@ void reiserfs_node_item_set_pointer(reiserfs_node_t *node,
 */
 
 error_t reiserfs_node_item_estimate(reiserfs_node_t *node, 
-    reiserfs_item_info_t *item_info, reiserfs_coord_t *coord)
+    reiserfs_item_info_t *item_info, reiserfs_unit_coord_t *coord)
 {
     aal_assert("vpf-106", item_info != NULL, return -1);
     aal_assert("umka-541", node != NULL, return -1);
@@ -630,8 +629,8 @@ error_t reiserfs_node_item_estimate(reiserfs_node_t *node,
 	item_info, coord);
 }
 
-error_t reiserfs_node_item_insert(reiserfs_node_t *node, reiserfs_coord_t *coord, 
-    void *key, reiserfs_item_info_t *item_info) 
+error_t reiserfs_node_item_insert(reiserfs_node_t *node, 
+    reiserfs_unit_coord_t *coord, reiserfs_key_t *key, reiserfs_item_info_t *item_info) 
 {
     error_t ret;
     
@@ -658,11 +657,11 @@ error_t reiserfs_node_item_insert(reiserfs_node_t *node, reiserfs_coord_t *coord
 
     if (coord->unit_pos == -1) {
 	if ((ret = libreiser4_plugin_call(return -1, node->plugin->node, item_insert, 
-		node->block, coord, key, item_info)) != 0)
+		node->block, coord, key->body, item_info)) != 0)
 	    return ret;
     } else {
 	if ((ret = libreiser4_plugin_call(return -1, node->plugin->node, item_paste, 
-		node->block, coord, key, item_info)) != 0)
+		node->block, coord, key->body, item_info)) != 0)
 	    return ret;
     }
     

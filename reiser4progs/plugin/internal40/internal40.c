@@ -34,7 +34,7 @@ static error_t internal40_create(reiserfs_internal40_t *internal,
 }
 
 static error_t internal40_estimate(reiserfs_item_info_t *info, 
-    reiserfs_coord_t *coord) 
+    reiserfs_unit_coord_t *coord) 
 {
     aal_assert("vpf-068", info != NULL, return -1);
 
