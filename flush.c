@@ -162,8 +162,8 @@ int flush_jnode_slum (jnode *node)
 static int slum_allocate_ancestors (slum_scan *scan, reiser4_lock_handle *locks)
 {
 	int ret;
-	int start_level = jnode_get_level (scan->node);
-	int ancestor_level;
+	unsigned int start_level = jnode_get_level (scan->node);
+	unsigned int ancestor_level;
 	tree_coord coord;
 	znode *ancestor;
 
@@ -188,9 +188,41 @@ static int slum_allocate_ancestors (slum_scan *scan, reiser4_lock_handle *locks)
 		ancestor = locks[ancestor_level].node;
 	}
 
-	/* FIXME_JMACD: HERE: extent handle is special, I think, otherwise
-	 * release the last ancestor lock aquired.  allocate the remaining
-	 * ancestors in top-down order. */
+	/* FIXME: What happens if the ancestor is dirty but allocated?  It
+	 * means we have already processed this ancestor once, but what do we
+	 * do about it here? */
+
+	/* At this point, we have at least one znode locked, but it might not
+	 * even be dirty (an unformatted block is modified and its parent
+	 * extent is clean).  If we are going to relocate that block, then the
+	 * parent will be modified, otherwise we have no znodes.  Possibly we
+	 * should ask the flush plugin whether it wants to relocate this
+	 * block, in which case we should mark the parent dirty and continue
+	 * with our allocation.  Once the parent is marked dirty, however, we
+	 * may have a dirty grandparent, which really means we should start
+	 * the "lock upwards" process over again.
+	 */
+	if (ancestor_level == TWIG_LEVEL) {
+
+		/* FIXME: Its a dirty unformatted block: ancestor is either
+		 * allocated and dirty or clean. */
+ 	}
+
+	/* The last-aquired ancestor lock is not needed, since it is either
+	 * clean or allocated (unless we are going to force relocation of the
+	 * ancestor for min-overwrite-set purposes). */
+	reiser4_done_lh (& locks[ancestor_level--]);
+
+	/* We've now got the left-edge of the slum locked on all levels,
+	 * except for the leaf if it is unformatted (unformatted nodes don't
+	 * have locks).  However, the leaf node may not be the leftmost dirty
+	 * child of its parent, the slum-scan-left operation doesn't find that
+	 * node. */
+
+	/* This almost suggests (brain storming): instead of slum_scan_left as
+	 * it is now, slum_scan_left should find the greatest dirty ancestor
+	 * and do tree recursion from there.  Problem: it has low-priority.
+	 */
 
 	/* The last lock is not needed.  Root special case? */
 	reiser4_done_lh (& locks[ancestor_level--]);

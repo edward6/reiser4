@@ -16,11 +16,21 @@ struct slum_scan {
 	/* The number of nodes currently in the slum. */
 	unsigned  size;
 
-	/* True if we found the leftmost node before reaching max size. */
+	/* True if some condition stops the search (e.g., we found a clean
+	 * node before reaching max size). */
 	int       stop;
 
 	/* The current scan position. */
 	jnode    *node;
+
+	/* The current scan parent. */
+	znode    *parent;
+
+	/* Locks for the above two nodes. */
+	reiser4_lock_handle parent_lock;
+
+	/* The current coord of node in parent. */
+	tree_coord coord;
 
 	/* The current scan atom. */
 	txn_atom *atom;
