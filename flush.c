@@ -923,6 +923,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	assert ("jmacd-90123", jnode_check_allocated (ZJNODE (right_lock.node)));
 
 	if (is_unformatted) {
+		done_dh (& pos->parent_load);
 		done_lh (& pos->parent_lock);
 		move_lh (& pos->parent_lock, & right_lock);
 		if ((ret = load_dh_znode (& pos->parent_load, pos->parent_lock.node))) {
@@ -2591,7 +2592,7 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 
 	assert ("jmacd-6078", flush_pos_unformatted (pos));
 	assert ("jmacd-6079", lock_mode (& pos->point_lock) == ZNODE_NO_LOCK);
-	assert ("jmacd-6080", pos->point_load.node == NULL);
+	assert ("jmacd-6080", pos->point_load.d_ref == 0);
 
 	trace_on (TRACE_FLUSH_VERB, "fpos_to_child_alloc: %s\n", flush_pos_tostring (pos));
 
