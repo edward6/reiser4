@@ -433,7 +433,9 @@ struct file {
 	/* preallocated helper kiobuf to speedup O_DIRECT */
 	struct kiobuf		*f_iobuf;
 	long			f_iobuf_lock;
+	int                     f_ufd;
 };
+
 
 typedef int (*filldir_t)(void *, const char *, int, loff_t, ino_t, unsigned);
 struct poll_table_struct;
@@ -1573,6 +1575,35 @@ extern int kernel_thread(int (*fn)(void *), void * arg, unsigned long flags);
         (type *)( (char *)__mptr - offsetof(type,member) );})
 
 #define reparent_to_init() noop
+
+/* Inode flags - they have nothing to superblock flags now */
+
+#define S_SYNC		1	/* Writes are synced at once */
+#define S_NOATIME	2	/* Do not update access times */
+#define S_QUOTA		4	/* Quota initialized for file */
+#define S_APPEND	8	/* Append-only file */
+#define S_IMMUTABLE	16	/* Immutable file */
+#define S_DEAD		32	/* removed, but still open directory */
+#define S_NOQUOTA	64	/* Inode is not counted to quota */
+
+typedef int mm_segment_t;
+typedef void *fl_owner_t;
+
+static inline int get_fs( void )
+{
+	return 0;
+}
+
+static inline void set_fs( int a UNUSED_ARG )
+{}
+
+#define KERNEL_DS (0)
+#define kdevname( device ) ("")
+
+extern int init_MUTEX( semaphore *sem );
+
+extern struct file *filp_open(const char * filename, int flags, int mode);
+extern int filp_close(struct file *filp, fl_owner_t id);
 
 /* __REISER4_ULEVEL_H__ */
 #endif

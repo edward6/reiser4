@@ -800,6 +800,9 @@ int jnode_try_drop( jnode *node )
 	      atomic_read( &JZNODE( node ) -> c_count ) > 0 ) ||
 	    UNDER_SPIN( jnode, node, node -> pg ) )
 		return -EBUSY;
+	/*
+	 * FIXME-NIKITA not finished
+	 */
 }
 
 /**

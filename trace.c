@@ -1,5 +1,3 @@
-/* -*- c -*- */
-
 /*
  * Copyright 2000, 2001, 2002 by Hans Reiser, licensing governed by
  * reiserfs/README
@@ -14,7 +12,7 @@
 #if REISER4_TRACE_TREE
 
 static int flush_trace( reiser4_trace_file *trace );
-static int free_space( reiser4_trace_file *trace, int *len );
+static int free_space( reiser4_trace_file *trace, size_t *len );
 static int lock_trace( reiser4_trace_file *trace );
 static void unlock_trace( reiser4_trace_file *trace );
 
@@ -27,8 +25,8 @@ static void unlock_trace( reiser4_trace_file *trace );
 		return __result;		\
 })
 
-int open_trace_file( struct super_block *super, 
-		     const char *file_name, int size, reiser4_trace_file *trace )
+int open_trace_file( struct super_block *super, const char *file_name, 
+		     size_t size, reiser4_trace_file *trace )
 {
 	assert( "nikita-2498", file_name != NULL );
 	assert( "nikita-2499", trace != NULL );
@@ -69,8 +67,8 @@ int open_trace_file( struct super_block *super,
 
 int write_trace( reiser4_trace_file *file, const char *format, ... )
 {
-	int len;
-	int result;
+	size_t  len;
+	int     result;
 	va_list args;
 
 	if( ( file == NULL ) || ( file -> type == log_to_bucket ) ||
@@ -94,7 +92,7 @@ int write_trace( reiser4_trace_file *file, const char *format, ... )
 	return result;
 }
 
-int write_trace_raw( reiser4_trace_file *file, const void *data, int len )
+int write_trace_raw( reiser4_trace_file *file, const void *data, size_t len )
 {
 	int result;
 
@@ -105,7 +103,7 @@ int write_trace_raw( reiser4_trace_file *file, const void *data, int len )
 	LOCK_OR_FAIL( file );
 	result = free_space( file, &len );
 	if( result == 0 ) {
-		xmemcpy( file -> buf + file -> used, data, len );
+		xmemcpy( file -> buf + file -> used, data, ( size_t ) len );
 		file -> used += len;
 	}
 	unlock_trace( file );
@@ -210,7 +208,7 @@ static int flush_trace( reiser4_trace_file *file )
 	return result;
 }
 
-static int free_space( reiser4_trace_file *file, int *len )
+static int free_space( reiser4_trace_file *file, size_t *len )
 {
 	if( *len > file -> size ) {
 		warning( "nikita-2503",
@@ -240,7 +238,7 @@ int write_trace_stamp( reiser4_tree *tree, reiser4_traced_op op, ... )
 
 	file = &get_super_private( tree -> super ) -> trace_file;
 
-	if( in_interrupt() || in_irq() ) {
+	if( no_context ) {
 		info( "cannot write trace from interrupt\n" );
 		return 0;
 	}

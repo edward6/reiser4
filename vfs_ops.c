@@ -1481,7 +1481,7 @@ static int parse_option( char *opt_string, opt_desc_t *opt )
 	 */
 	char *val_start;
 	int   result;
-	char *err_msg;
+	const char *err_msg;
 
 	val_start = strchr( opt_string, '=' );
 	if( val_start != NULL ) {
