@@ -419,6 +419,8 @@ coord_wrt_node coord_wrt( const tree_coord *coord )
 	assert( "nikita-1714", coord -> node != NULL );
 
 	if( coord_between_items( coord ) ) {
+		if( is_empty_node( coord -> node ) )
+			return COORD_ON_THE_RIGHT;
 		if( left_item_pos( coord ) == -1 )
 			return COORD_ON_THE_LEFT;
 		if( right_item_pos( coord ) >= num_items( coord -> node ) )
