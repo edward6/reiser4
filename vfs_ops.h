@@ -31,6 +31,11 @@ extern struct super_operations reiser4_super_operations;
 extern struct address_space_operations reiser4_as_operations;
 extern struct dentry_operations reiser4_dentry_operation;
 
+static inline int set_page_dirty_internal (struct page * page)
+{
+	return __set_page_dirty_nobuffers (page);
+}
+
 extern int reiser4_invalidatepage(struct page *page, unsigned long offset);
 extern int reiser4_releasepage(struct page *page, int gfp);
 extern int reiser4_writepages(struct address_space *, struct writeback_control *wbc);

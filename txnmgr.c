@@ -190,6 +190,7 @@
 #include "super.h"
 #include "page_cache.h"
 #include "reiser4.h"
+#include "vfs_ops.h"
 
 #include <asm/atomic.h>
 #include <linux/types.h>
@@ -2078,7 +2079,7 @@ jnode_set_dirty(jnode * node)
 	}
 
 	if (jnode_page(node) != NULL)
-		set_page_dirty(jnode_page(node));
+		set_page_dirty_internal(jnode_page(node));
 	else
 		/* FIXME-NIKITA dubious. What if jnode doesn't have page,
 		   because it was early flushed, or ->releasepaged? */
