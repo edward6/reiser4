@@ -23,6 +23,7 @@
 #include <asm/atomic.h>
 #include <asm/bitops.h>
 #include <linux/list.h>
+#include <linux/rcupdate.h>
 
 /* declare hash table of jnodes (jnodes proper, that is, unformatted
    nodes)  */
@@ -139,7 +140,7 @@ struct jnode {
 	/* capture list */
 	/*  48 */ capture_list_link capture_link;
 	/*  52 */ reiser4_tree *tree;
-	/*  56 */
+	/*  56 */ struct rcu_head rcu;
 #if REISER4_DEBUG
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
@@ -611,6 +612,14 @@ extern int jnode_try_drop(jnode * node);
 static inline void jput(jnode * node);
 extern void jput_final(jnode * node);
 
+#if REISER4_STATS
+extern void reiser4_stat_inc_at_level_jput(const jnode * node);
+extern void reiser4_stat_inc_at_level_jputlast(const jnode * node);
+#else
+#define reiser4_stat_inc_at_level_jput(node) noop
+#define reiser4_stat_inc_at_level_jputlast(node) noop
+#endif
+
 /* jput() - decrement x_count reference counter on znode.
   
    Count may drop to 0, jnode stays in cache until memory pressure causes the
@@ -629,11 +638,10 @@ jput(jnode * node)
 	assert("zam-926", schedulable());
 	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
 
-	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jput);
-	if (atomic_dec_and_lock(&node->x_count, &node->guard.lock)) {
-		spin_lock_jnode_acc(node, 0);
+	reiser4_stat_inc_at_level_jput(node);
+	if (unlikely(atomic_dec_and_test(&node->x_count))) {
 		jput_final(node);
-		reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jputlast);
+		reiser4_stat_inc_at_level_jputlast(node);
 	}
 }
 
