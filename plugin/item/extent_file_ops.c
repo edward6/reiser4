@@ -896,6 +896,13 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 		if (IS_ERR(page))
 			return PTR_ERR(page);
 
+		/* number of bytes which can be read from the page */
+		if (count > flow->length)
+			count = flow->length;
+		move_flow_forward(flow, count);
+		if (page_off + count == PAGE_CACHE_SIZE)
+			if (read_move_coord(coord, ext_coord))
+				uf_coord->valid = 0;
 		set_hint_unlock_node(hint, flow, ZNODE_READ_LOCK);
 
 		wait_on_page_locked(page);
@@ -914,13 +921,9 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 
 		assert("nikita-3034", schedulable());
 		
-		/* number of bytes which can be read from the page */
-		if (count > flow->length)
-			count = flow->length;
-
 
 		/* AUDIT: We must page-in/prepare user area first to avoid deadlocks */
-		result = __copy_to_user(flow->data, (char *)kmap(page) + page_off, count);
+		result = __copy_to_user(flow->data - count, (char *)kmap(page) + page_off, count);
 		kunmap(page);
 	
 		page_cache_release(page);
@@ -932,12 +935,6 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 			break;
 		assert("vs-1318", coord_extension_is_ok(uf_coord));
 		assert("vs-1263", coord_matches_key(coord, &flow->key));
-
-		move_flow_forward(flow, count);
-		if (page_off + count == PAGE_CACHE_SIZE)
-			if (read_move_coord(coord, ext_coord))
-				uf_coord->valid = 0;
-
 		page_off = 0;
 		page_nr ++;
 		count = PAGE_CACHE_SIZE;
