@@ -46,6 +46,8 @@ extern void drop_page(struct page *page);
 extern void reiser4_invalidate_pages(struct address_space *, pgoff_t from, unsigned long count);
 extern void capture_reiser4_inodes (struct super_block *, struct writeback_control *);
 
+#define PAGECACHE_TAG_REISER4_MOVED PAGECACHE_TAG_FS_SPECIFIC
+
 #if REISER4_DEBUG_OUTPUT
 extern void print_page(const char *prefix, struct page *page);
 extern void print_page_state(const char *prefix, struct page_state *ps);
