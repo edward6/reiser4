@@ -4,6 +4,10 @@
     Author Vitaly Fertman.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <reiser4/reiser4.h>
 #include <misc/misc.h>
 
@@ -45,6 +49,8 @@ static void direntry40_build_objid_by_params(reiserfs_objid_t *objid,
     aal_memcpy(objid, &locality, sizeof(locality));
     aal_memcpy(((oid_t *)objid) + 1, &objectid, sizeof(objectid));
 }
+
+#ifndef ENABLE_COMPACT
 
 static error_t direntry40_create(reiserfs_direntry40_t *direntry, 
     reiserfs_item_info_t *info)
@@ -111,6 +117,8 @@ static void direntry40_estimate(reiserfs_item_info_t *info,
     if (coord == NULL || coord->unit_pos == -1)
 	info->length += sizeof(reiserfs_direntry40_t);
 }
+
+#endif
 
 static void direntry40_print(reiserfs_direntry40_t *direntry, 
     char *buff, uint16_t n) 
@@ -219,9 +227,14 @@ static reiserfs_plugin_t direntry40_plugin = {
 	},
 	.common = {
 	    .type = DIRENTRY_ITEM,
-	    
+
+#ifndef ENABLE_COMPACT	    
 	    .create = (error_t (*)(void *, void *))direntry40_create,
 	    .estimate = (void (*)(void *, void *))direntry40_estimate,
+#else
+	    .create = NULL,
+	    .estimate = NULL,
+#endif
 	    .minsize = (uint32_t (*)(void))direntry40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))direntry40_print,
 	    .lookup = (int (*) (void *, void *, void *))direntry40_lookup,

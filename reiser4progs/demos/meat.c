@@ -17,7 +17,7 @@
 #include <reiser4/reiser4.h>
 
 static void meat_print_usage(void) {
-    fprintf(stderr, "Usage: meat FILE\n");
+    aal_printf("Usage: meat FILE\n");
 }
 
 static void meat_print_plugin(reiserfs_plugin_t *plugin) {

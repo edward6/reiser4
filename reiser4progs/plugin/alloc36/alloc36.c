@@ -4,6 +4,10 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
@@ -30,6 +34,8 @@ error:
     return NULL;
 }
 
+#ifndef ENABLE_COMPACT
+
 static reiserfs_alloc36_t *alloc36_create(aal_device_t *device, count_t len) {
     reiserfs_alloc36_t *alloc;
 
@@ -55,6 +61,8 @@ static error_t alloc36_sync(reiserfs_alloc36_t *alloc) {
     return -1;
 }
 
+#endif
+
 static void alloc36_close(reiserfs_alloc36_t *alloc) {
     aal_assert("umka-416", alloc != NULL, return);
     aal_free(alloc);
@@ -70,10 +78,16 @@ static reiserfs_plugin_t alloc36_plugin = {
 	    .desc = "Space allocator for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.open = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc36_open,
+
+#ifndef ENABLE_COMPACT
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc36_create,
-	.close = (void (*)(reiserfs_opaque_t *))alloc36_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))alloc36_sync,
+#else
+	.create = NULL,
+	.sync = NULL,
+#endif
+	.close = (void (*)(reiserfs_opaque_t *))alloc36_close,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc36_open,
 
 	.mark = NULL,
 	.test = NULL,

@@ -199,7 +199,7 @@ static error_t callback_bitmap_fetch(aal_device_t *device,
 	    "Can't read bitmap block %llu.", blk);
 	return -1;
     }	
-    memcpy(map, block->data, chunk);
+    aal_memcpy(map, block->data, chunk);
     aal_block_free(block);
 	
     return 0;
@@ -301,7 +301,7 @@ static uint32_t reiserfs_bitmap_resize_map(reiserfs_bitmap_t *bitmap,
 	    return 0;
 
   	if ((chunk = size - bitmap->size) > 0)
-	    memset(bitmap->map + bitmap->size, 0, chunk);
+	    aal_memset(bitmap->map + bitmap->size, 0, chunk);
 
 	return size;
     }

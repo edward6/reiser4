@@ -4,6 +4,10 @@
     Author Vitaly Fertman.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <reiser4/reiser4.h>
 #include "node40.h"
 
@@ -108,6 +112,8 @@ static void node40_item_set_plugin_id(aal_block_t *block,
     aal_assert("vpf-039", block != NULL, return);
     ih40_set_plugin_id(node40_ih_at(block, pos), plugin_id);
 }
+
+#ifndef ENABLE_COMPACT
 
 static error_t node40_prepare_space(aal_block_t *block, 
     reiserfs_coord_t *coord, void *key, reiserfs_item_info_t *info) 
@@ -248,6 +254,8 @@ static error_t node40_create(aal_block_t *block, uint8_t level) {
     return 0;
 }
 
+#endif
+
 /*
     Confirms that passed corresponds current plugin.
     This is something like "probe" method.
@@ -386,7 +394,6 @@ static reiserfs_plugin_t node40_plugin = {
 	    .desc = "Node for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.create = (error_t (*)(aal_block_t *, uint8_t))node40_create,
 	.open = NULL, 
 	.close = NULL,
 	.confirm = (error_t (*)(aal_block_t *))node40_confirm,
@@ -409,13 +416,19 @@ static reiserfs_plugin_t node40_plugin = {
 	
 	.set_free_space = (void (*)(aal_block_t *, uint32_t))
 	    node40_set_free_space,
-	
+
+#ifndef ENABLE_COMPACT
+	.create = (error_t (*)(aal_block_t *, uint8_t))node40_create,
 	.item_insert = (error_t (*)(aal_block_t *, void *, void *, void *))
 	    node40_item_insert,
 	
 	.item_paste = (error_t (*)(aal_block_t *, void *, void *, void *))
 	    node40_item_insert,
-	
+#else
+	.create = NULL,
+	.item_insert = NULL,
+	.item_paste = NULL,
+#endif
 	.item_overhead = (uint16_t (*)(aal_block_t *))node40_item_overhead,
 	.item_maxsize = (uint16_t (*)(aal_block_t *))node40_item_maxsize,
 	.item_maxnum =  (uint16_t (*)(aal_block_t *))node40_item_maxnum,

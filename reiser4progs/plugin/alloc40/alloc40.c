@@ -4,6 +4,10 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
@@ -37,6 +41,8 @@ error_free_alloc:
 error:
     return NULL;
 }
+
+#ifndef ENABLE_COMPACT
 
 static reiserfs_alloc40_t *alloc40_create(aal_device_t *device, 
     count_t len)
@@ -74,6 +80,8 @@ static error_t alloc40_sync(reiserfs_alloc40_t *alloc) {
     
     return reiserfs_bitmap_sync(alloc->bitmap);
 }
+
+#endif
 
 static void alloc40_close(reiserfs_alloc40_t *alloc) {
     
@@ -151,9 +159,15 @@ static reiserfs_plugin_t alloc40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc40_open,
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc40_create,
 	.close = (void (*)(reiserfs_opaque_t *))alloc40_close,
+
+#ifndef ENABLE_COMPACT
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc40_create,
 	.sync = (error_t (*)(reiserfs_opaque_t *))alloc40_sync,
+#else
+	.create = NULL,
+	.sync = NULL,
+#endif
 
 	.mark = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_mark,
 	.test = (int (*)(reiserfs_opaque_t *, blk_t))alloc40_test,

@@ -90,6 +90,7 @@ struct reiserfs_key_plugin {
     uint64_t (*get_offset) (void *);
 
     uint16_t (*size) (void);
+    void (*clean) (void *);
 };
 
 typedef struct reiserfs_key_plugin reiserfs_key_plugin_t;

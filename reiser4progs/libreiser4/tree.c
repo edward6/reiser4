@@ -56,9 +56,10 @@ error:
 error_t reiserfs_tree_create(reiserfs_fs_t *fs, 
     reiserfs_profile_t *profile) 
 {
+    void *key;
     blk_t block_nr;
-    reiserfs_key40_t key;
     reiserfs_coord_t coord;
+    reiserfs_plugin_t *plugin;
     reiserfs_node_t *squeeze, *leaf;
     
     reiserfs_item_info_t item_info;
@@ -116,11 +117,21 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     /* Initialize internal item. */
     internal_info.blk = block_nr;
    
-    reiserfs_key40_init(&key);
-    set_key40_type(&key, KEY40_SD_MINOR);
-    set_key40_locality(&key, reiserfs_oid_root_parent_objectid(fs));
-    set_key40_objectid(&key, reiserfs_oid_root_objectid(fs));
-
+    if (!(plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find key plugin by its id %x.", 0x0);
+	goto error_free_squeeze;
+    }
+    
+    if (!(key = libreiser4_plugins_call(goto error_free_squeeze, plugin->key, 
+	create, KEY40_SD_MINOR, reiserfs_oid_root_parent_objectid(fs), 
+	reiserfs_oid_root_objectid(fs), 0)))
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't create stat-data key.");
+	goto error_free_squeeze;
+    }
+    
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &internal_info;
     
@@ -140,7 +151,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	Insert an internal item. Item will be created automatically from 
 	the node insert API method. 
     */
-    if (reiserfs_node_item_insert(squeeze, &coord, &key, &item_info)) {
+    if (reiserfs_node_item_insert(squeeze, &coord, key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_block_get_nr(squeeze->block));
@@ -175,7 +186,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     }
     
     /* Insert the stat data. */
-    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
+    if (reiserfs_node_item_insert(leaf, &coord, key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert an internal item into the node %llu.", 
 	    aal_block_get_nr(leaf->block));
@@ -185,12 +196,21 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     direntry_info.count = 2;
     direntry_info.entry = entry;
 
-    reiserfs_key40_init(&key);
-    set_key40_type(&key, KEY40_FILE_NAME_MINOR);
-    set_key40_locality(&key, reiserfs_oid_root_objectid(fs));
-
-    /* FIXME-VITALY: This should go into directory object API. */
-    build_entryid_by_info((reiserfs_entryid_t *)key.el + 1, &entry[0]);
+    libreiser4_plugins_call(goto error_free_leaf, plugin->key, 
+	clean, key);
+    
+    libreiser4_plugins_call(goto error_free_leaf, plugin->key, 
+	set_type, key, KEY40_FILE_NAME_MINOR);
+    
+    libreiser4_plugins_call(goto error_free_leaf, plugin->key, 
+	set_locality, key, reiserfs_oid_root_objectid(fs));
+    
+    /* 
+	FIXME-VITALY: This should go into directory object API.
+	FIXME-UMKA: We can't access key's elements directly, we
+	know nothing about key structure here.
+    */
+    build_entryid_by_info((reiserfs_entryid_t *)(key + sizeof(uint64_t)), &entry[0]);
 
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &direntry_info;
@@ -211,13 +231,16 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	Insert an internal item. Item will be created automatically from 
 	the node insert API method.
     */
-    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
+    if (reiserfs_node_item_insert(leaf, &coord, key, &item_info)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't insert direntry item into the node %llu.", 
 	    aal_block_get_nr(leaf->block));
 	goto error_free_leaf;
     }
 
+    libreiser4_plugins_call(goto error_free_leaf, plugin->key, 
+	close, key);
+    
     reiserfs_node_add_children(fs->tree->root, leaf);
     return 0;
 

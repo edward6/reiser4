@@ -4,6 +4,10 @@
     Author Vitaly Fertman.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <reiser4/reiser4.h>
 #include "internal40.h"
 
@@ -15,6 +19,8 @@
 */
 
 static reiserfs_plugin_factory_t *factory = NULL;
+
+#ifndef ENABLE_COMPACT
 
 /* Forms internal item in given memory area */
 static error_t internal40_create(reiserfs_internal40_t *internal, 
@@ -32,15 +38,17 @@ static error_t internal40_create(reiserfs_internal40_t *internal,
     return 0;
 }
 
-static uint32_t internal40_minsize(void) {
-    return sizeof(reiserfs_internal40_t);
-}
-
 static void internal40_estimate(reiserfs_item_info_t *info, 
     reiserfs_coord_t *coord) 
 {
     aal_assert("vpf-068", info != NULL, return);
     info->length = sizeof(reiserfs_internal40_t);
+}
+
+#endif
+
+static uint32_t internal40_minsize(void) {
+    return sizeof(reiserfs_internal40_t);
 }
 
 static int internal40_internal(void) {
@@ -85,9 +93,14 @@ static reiserfs_plugin_t internal40_plugin = {
 	},
 	.common = {
 	    .type = INTERNAL_ITEM,
-	    
+
+#ifndef ENABLE_COMPACT	    
 	    .create = (error_t (*)(void *, void *))internal40_create,
 	    .estimate = (void (*)(void *, void *))internal40_estimate,
+#else
+	    .create = NULL,
+	    .estimate = NULL,
+#endif
 	    .minsize = (uint32_t (*)(void))internal40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))internal40_print,
 	    .internal = (int (*)(void))internal40_internal,

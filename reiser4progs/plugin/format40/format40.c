@@ -4,6 +4,10 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
@@ -69,9 +73,9 @@ static reiserfs_format40_t *format40_open(aal_device_t *host_device,
     aal_device_t *journal_device) 
 {
     reiserfs_format40_t *format;
-    reiserfs_plugin_t *journal_plugin;
-    reiserfs_plugin_t *alloc_plugin;
-    reiserfs_plugin_t *oid_plugin;
+    reiserfs_plugin_t *journal_plugin = NULL;
+    reiserfs_plugin_t *alloc_plugin = NULL;
+    reiserfs_plugin_t *oid_plugin = NULL;
 
     aal_assert("umka-393", host_device != NULL, return NULL);
 
@@ -141,7 +145,7 @@ static reiserfs_format40_t *format40_open(aal_device_t *host_device,
     return format;
 
 error_free_journal:
-    if (format->journal) {
+    if (format->journal && journal_plugin) {
 	libreiser4_plugins_call(goto error_free_alloc, 
 	    journal_plugin->journal, close, format->journal);
     }
@@ -155,6 +159,8 @@ error_free_format:
 error:
     return NULL;
 }
+
+#ifndef ENABLE_COMPACT
 
 /* This function should create super block and update all copies */
 static reiserfs_format40_t *format40_create(aal_device_t *host_device, 
@@ -350,6 +356,8 @@ static error_t format40_sync(reiserfs_format40_t *format) {
     return 0;
 }
 
+#endif
+
 static error_t format40_check(reiserfs_format40_t *format) {
     aal_assert("umka-397", format != NULL, return -1);
     
@@ -504,12 +512,17 @@ static reiserfs_plugin_t format40_plugin = {
 	},
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *, aal_device_t *))
 	    format40_open,
-	
+
+#ifndef ENABLE_COMPACT	
+	.sync = (error_t (*)(reiserfs_opaque_t *))format40_sync,
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, 
 	    aal_device_t *, reiserfs_params_opaque_t *))format40_create,
+#else
+	.sync = NULL,
+	.create = NULL,
+#endif
 
 	.close = (void (*)(reiserfs_opaque_t *))format40_close,
-	.sync = (error_t (*)(reiserfs_opaque_t *))format40_sync,
 	.check = (error_t (*)(reiserfs_opaque_t *))format40_check,
 	.confirm = (int (*)(aal_device_t *))format40_confirm,
 	.format = (const char *(*)(reiserfs_opaque_t *))format40_format,

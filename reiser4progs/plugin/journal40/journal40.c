@@ -4,6 +4,10 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
@@ -86,6 +90,8 @@ error:
     return NULL;
 }
 
+#ifndef ENABLE_COMPACT
+
 static reiserfs_journal40_t *journal40_create(aal_device_t *device, 
     reiserfs_params_opaque_t *params) 
 {
@@ -141,6 +147,8 @@ static error_t journal40_sync(reiserfs_journal40_t *journal) {
     return 0;
 }
 
+#endif
+
 static void journal40_close(reiserfs_journal40_t *journal) {
     aal_assert("umka-411", journal != NULL, return);
 
@@ -167,11 +175,16 @@ static reiserfs_plugin_t journal40_plugin = {
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *))
 	    journal40_open,
 	
+#ifndef ENABLE_COMPACT
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, reiserfs_params_opaque_t *))
 	    journal40_create,
+	.sync = (error_t (*)(reiserfs_opaque_t *))journal40_sync,
+#else
+	.create = NULL,
+	.sync = NULL,
+#endif
 	
 	.close = (void (*)(reiserfs_opaque_t *))journal40_close,
-	.sync = (error_t (*)(reiserfs_opaque_t *))journal40_sync,
 	.replay = (error_t (*)(reiserfs_opaque_t *))journal40_replay
     }
 };

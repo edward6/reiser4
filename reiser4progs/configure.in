@@ -151,6 +151,8 @@ if test x$enable_monolithic = xno; then
 fi
 AC_SUBST(PLUGIN_LDFLAGS)
 
+AM_CONDITIONAL(ENABLE_COMPACT, test x$enable_compact = xyes)
+
 AC_OUTPUT([
     Makefile
     include/Makefile

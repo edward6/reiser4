@@ -4,6 +4,10 @@
     Author Yury Umanets.
 */
 
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
@@ -119,6 +123,8 @@ error:
     return NULL;
 }
 
+#ifndef ENABLE_COMPACT
+
 static error_t format36_sync(reiserfs_format36_t *format) {
     aal_assert("umka-381", format != NULL, return -1);    
     aal_assert("umka-382", format->super != NULL, return -1);    
@@ -137,6 +143,8 @@ static reiserfs_format36_t *format36_create(aal_device_t *host_device,
 {
     return NULL;
 }
+
+#endif
 
 static error_t format36_check(reiserfs_format36_t *format) {
     
@@ -248,12 +256,17 @@ static reiserfs_plugin_t format36_plugin = {
 	},
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *, aal_device_t *))
 	    format36_open,
-	
+
+#ifndef ENABLE_COMPACT
+	.sync = (error_t (*)(reiserfs_opaque_t *))format36_sync,
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, 
 	    aal_device_t *, reiserfs_params_opaque_t *))format36_create,
+#else
+	.sync = NULL,
+	.create = NULL,
+#endif
 	
 	.close = (void (*)(reiserfs_opaque_t *))format36_close,
-	.sync = (error_t (*)(reiserfs_opaque_t *))format36_sync,
 	.check = (error_t (*)(reiserfs_opaque_t *))format36_check,
 	.confirm = (int (*)(aal_device_t *))format36_confirm,
 	.format = (const char *(*)(reiserfs_opaque_t *))format36_format,

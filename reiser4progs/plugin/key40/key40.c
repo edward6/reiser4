@@ -118,6 +118,10 @@ static uint16_t key40_size(void) {
     return sizeof(reiserfs_key40_t);
 }
 
+static void key40_clean(reiserfs_key40_t *key) {
+    aal_memset(key, 0, key40_size());
+}
+
 static reiserfs_plugin_t key40_plugin = {
     .key = {
 	.h = {
@@ -146,7 +150,9 @@ static reiserfs_plugin_t key40_plugin = {
 
 	.set_offset = (void (*)(void *, uint64_t))key40_set_offset,
 	.get_offset = (uint64_t (*)(void *))key40_get_offset,
-	.size = (uint16_t (*)(void))key40_size
+	
+	.size = (uint16_t (*)(void))key40_size,
+	.clean = (void (*)(void *))key40_clean
     }
 };
 

@@ -187,7 +187,7 @@ reiserfs_plugin_t *libreiser4_plugins_find_by_coords(reiserfs_plugin_id_t type,
 }
 
 error_t libreiser4_plugins_foreach(reiserfs_plugin_func_t plugin_func, void *data) {
-    error_t res;
+    error_t res = 0;
     aal_list_t *walk;
     
     aal_assert("umka-479", plugin_func != NULL, return -1);

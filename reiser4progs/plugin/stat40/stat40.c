@@ -4,8 +4,11 @@
     Author Vitaly Fertman.
 */
 
-#include <reiser4/reiser4.h>
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
 
+#include <reiser4/reiser4.h>
 #include "stat40.h"
 
 #define STAT40_ID 0x0
@@ -15,6 +18,8 @@ static reiserfs_plugin_factory_t *factory = NULL;
 static error_t stat40_confirm(reiserfs_stat40_base_t *stat) {
     return 0;
 }
+
+#ifndef ENABLE_COMPACT
 
 static error_t stat40_create(reiserfs_stat40_base_t *stat, 
     reiserfs_item_info_t *info) 
@@ -43,6 +48,8 @@ static void stat40_estimate(reiserfs_item_info_t *info, reiserfs_coord_t *coord)
     /* Should calculate extentions size also */
     info->length = sizeof(reiserfs_stat40_base_t);
 }
+
+#endif
 
 static error_t stat40_check(reiserfs_stat40_base_t *stat) {
     return 0;
@@ -73,12 +80,17 @@ static reiserfs_plugin_t stat40_plugin = {
 	},
 	.common = {
 	    .type = STAT_ITEM,
-	    
+
+#ifndef ENABLE_COMPACT
 	    .create = (error_t (*)(void *, void *))stat40_create,
+	    .estimate = (void (*)(void *, void *))stat40_estimate,
+#else
+	    .create = NULL,
+	    .estimate = NULL,
+#endif
 	    .confirm = (error_t (*)(void *))stat40_confirm,
 	    .check = (error_t (*)(void *))stat40_check,
 	    .print = (void (*)(void *, char *, uint16_t))stat40_print,
-	    .estimate = (void (*)(void *, void *))stat40_estimate,
 	    .minsize = (uint32_t (*)(void))stat40_minsize,
 	    .internal = (int (*)(void))stat40_internal,
 
