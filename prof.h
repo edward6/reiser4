@@ -51,25 +51,8 @@ typedef struct {
 	reiser4_prof_entry zget;
 	/* write profiling */
 	reiser4_prof_entry extent_write;
-	reiser4_prof_entry copy;
-	reiser4_prof_entry extent_bdp;
-	reiser4_prof_entry set_seal;
-	reiser4_prof_entry update_sd;
-	reiser4_prof_entry bdp;
-	reiser4_prof_entry validate;
-	reiser4_prof_entry seal_validate;
-	reiser4_prof_entry update_sd_load;
-	reiser4_prof_entry update_sd_save;
-	reiser4_prof_entry update_sd_seal;
 	/* read profiling */
 	reiser4_prof_entry file_read;
-	reiser4_prof_entry prep;
-	reiser4_prof_entry copy_to_user;
-	reiser4_prof_entry extent_readpage;
-	reiser4_prof_entry extent_read;
-	reiser4_prof_entry item_by_coord;
-	reiser4_prof_entry key_by_coord;
-	reiser4_prof_entry length_by_coord;
 } reiser4_prof;
 
 extern reiser4_prof reiser4_prof_defs;

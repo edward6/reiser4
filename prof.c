@@ -159,25 +159,8 @@ reiser4_prof reiser4_prof_defs = {
 	DEFINE_PROF_ENTRY(zget),
 	/* write profiling */
 	DEFINE_PROF_ENTRY(extent_write),
-	DEFINE_PROF_ENTRY(copy),
-	DEFINE_PROF_ENTRY(extent_bdp),
-	DEFINE_PROF_ENTRY(set_seal),
-	DEFINE_PROF_ENTRY(update_sd),
-	DEFINE_PROF_ENTRY(bdp),
-	DEFINE_PROF_ENTRY(validate),
-	DEFINE_PROF_ENTRY(seal_validate),
-	DEFINE_PROF_ENTRY(update_sd_load),
-	DEFINE_PROF_ENTRY(update_sd_save),
-	DEFINE_PROF_ENTRY(update_sd_seal),
 	/* read profiling */
-	DEFINE_PROF_ENTRY(file_read),
-	DEFINE_PROF_ENTRY(prep),
-	DEFINE_PROF_ENTRY(copy_to_user),
-	DEFINE_PROF_ENTRY(extent_readpage),
-	DEFINE_PROF_ENTRY(extent_read),
-	DEFINE_PROF_ENTRY(item_by_coord),
-	DEFINE_PROF_ENTRY(key_by_coord),
-	DEFINE_PROF_ENTRY(length_by_coord)
+	DEFINE_PROF_ENTRY(file_read)
 };
 
 void calibrate_prof(void)
