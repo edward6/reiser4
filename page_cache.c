@@ -75,6 +75,7 @@
 static struct page *add_page( struct super_block *super, jnode *node );
 static void kmap_once( jnode *node, struct page *page );
 static struct bio *page_bio( struct page *page, int gfp );
+static int page_io( struct page *page, int rw, int gfp );
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -349,7 +350,35 @@ static void end_bio_single_page_io_sync( struct bio *bio )
 static int formatted_readpage( struct file *f UNUSED_ARG, 
 			       struct page *page /* page to read */ )
 {
-	struct bio         *bio;
+	return page_io( page, READ, GFP_NOIO );
+}
+
+/** ->writepage() method for formatted nodes */
+static int formatted_writepage( struct page *page /* page to write */ )
+{
+	return page_io( page, WRITE, GFP_NOIO );
+}
+
+static int page_io( struct page *page, int rw, int gfp )
+{
+	struct bio *bio;
+	int         result;
+
+	assert( "nikita-2094", page != NULL );
+	bio = page_bio( page, gfp );
+	if( !IS_ERR( bio ) ) {
+		submit_bio( rw, bio );
+		result = 0;
+	} else
+		result = PTR_ERR( bio );
+	return result;
+}
+
+/** helper function to construct bio for page */
+static struct bio *page_bio( struct page *page, int gfp )
+{
+	struct bio *bio;
+	assert( "nikita-2092", page != NULL );
 
 	/*
 	 * Simple implemenation in the assumption that blocksize == pagesize.
@@ -366,40 +395,6 @@ static int formatted_readpage( struct file *f UNUSED_ARG,
 	 * page_has_buffers().
 	 *
 	 */
-
-	assert( "nikita-2025", page != NULL );
-	bio = page_bio( page, GFP_NOIO );
-	if( !IS_ERR( bio ) ) {
-		/*
-		 * submit_bio() is int. But what does return value mean?
-		 */
-		submit_bio( READ, bio );
-		return 0;
-	} else
-		return PTR_ERR( bio );
-}
-
-/** ->writepage() method for formatted nodes */
-static int formatted_writepage( struct page *page /* page to write */ )
-{
-	struct bio         *bio;
-
-	rlog( "nikita-2096", "Entering" );
-
-	assert( "nikita-2094", page != NULL );
-	bio = page_bio( page, GFP_NOIO );
-	if( !IS_ERR( bio ) ) {
-		submit_bio( WRITE, bio );
-		return 0;
-	} else
-		return PTR_ERR( bio );
-}
-
-/** helper function to construct bio for page */
-static struct bio *page_bio( struct page *page, int gfp )
-{
-	struct bio *bio;
-	assert( "nikita-2092", page != NULL );
 
 	bio = bio_alloc( gfp, 1 );
 	if( bio != NULL ) {
