@@ -325,7 +325,7 @@ static void znode_remove( znode *node /* znode to remove */ )
 {
 	assert( "nikita-2108", node != NULL );
 
-	assert( "nikita-468", atomic_read( &node -> d_count ) == 0 );
+	assert( "nikita-468", atomic_read( &ZJNODE(node) -> d_count ) == 0 );
 	assert( "nikita-469", atomic_read( &node -> x_count ) == 0 );
 	assert( "nikita-470", atomic_read( &node -> c_count ) == 0 );
 
@@ -508,16 +508,6 @@ void add_x_ref( znode *node /* node to increase x_count of */ )
 
 	atomic_inc( &node -> x_count );
 	ON_DEBUG( ++ lock_counters() -> x_refs );
-}
-
-/** bump data counter on @node */
-/* Audited by: umka (2002.06.11) */
-void add_d_ref( znode *node /* node to increase d_count of */ )
-{
-	assert( "nikita-1962", node != NULL );
-
-	atomic_inc( &node -> d_count );
-	ON_DEBUG( ++ lock_counters() -> d_refs );
 }
 
 /** decrease c_count on @node */
@@ -705,7 +695,7 @@ void zput (znode *node)
 
 	assert ("jmacd-509", node != NULL);
 	assert ("jmacd-510", atomic_read (& node->x_count) > 0);
-	assert ("jmacd-511", atomic_read (& node->d_count) >= 0);
+	assert ("jmacd-511", atomic_read (& ZJNODE(node)->d_count) >= 0);
 	assert ("jmacd-572", atomic_read (& node->c_count) >= 0);
 	ON_DEBUG (-- lock_counters() -> x_refs);
 
@@ -792,7 +782,10 @@ static int zparse( znode *node /* znode to parse */ )
 	return result;
 }
 
-static void zrelse_nolock( znode *node );
+static void zrelse_nolock( znode *node )
+{
+	jrelse_nolock (ZJNODE(node));
+}
 
 /** load content of node into memory */
 /* Audited by: umka (2002.06.11), umka (2002.06.15) */
@@ -805,53 +798,21 @@ int zload( znode *node /* znode to load */ )
 	assert( "jmacd-7771", ! znode_above_root( node ) );
 	assert( "nikita-2125", atomic_read( &node -> x_count ) > 0 );
 
-	result = 0;
-	spin_lock_znode( node );
+	result = jload_and_lock (ZJNODE(node));
 
-	reiser4_stat_znode_add( zload );
-	if( !znode_is_loaded( node ) ) {
-		reiser4_tree *tree;
+	if (unlikely (result < 0)) return result;
 
-		add_d_ref( node );
+	assert ("zam-511", zdata(node) != NULL);
 
-		spin_unlock_znode( node );
-		
-		tree = current_tree;
-
-		/* load data... */
-		assert( "nikita-1097", tree != NULL );
-		assert( "nikita-1098", tree -> ops -> read_node != NULL );
-
-		/*
-		 * ->read_node() reads data from page cache. In any case we
-		 * rely on proper synchronization in the underlying
-		 * transport. Page reference counter is incremented and page is
-		 * kmapped, it will kunmapped in zunload
-		 */
-		result = tree -> ops -> read_node( tree, ZJNODE( node ) );
-		reiser4_stat_znode_add( zload_read );
-
-		if( likely( result == 0 ) ) {
-			assert( "nikita-2075", spin_znode_is_locked( node ) );
-			if( likely( !znode_is_loaded( node ) ) ) {
-				ZF_SET( node, ZNODE_LOADED );
-				result = zparse( node );
-				if( unlikely( result != 0 ) ) {
-					zrelse_nolock( node );
-				}
-			}
-		} else {
-			spin_lock_znode( node );
-			zrelse_nolock( node );
-		}
-	} else {
-		assert( "nikita-2136", atomic_read( &node -> d_count ) > 0 );
-		add_d_ref( node );
+	if (result == 0) { /* znode was loaded from disk  */
+		result = zparse(node);
+		if (result) zrelse_nolock(node);
+	} else {           /* znode data were taken from cache */
+		result = 0;
 	}
-	assert( "nikita-2135", ergo( result == 0,
-				     ZF_ISSET( node, ZNODE_KMAPPED ) ) );
 
-	spin_unlock_znode( node );
+	spin_unlock_znode (node);
+
 	assert( "nikita-1378", znode_invariant( node ) );
 	return result;
 }
@@ -868,7 +829,7 @@ int zinit_new( znode *node /* znode to initialise */ )
 	assert( "umka-274", tree != NULL );
 	assert( "nikita-1908", tree -> ops -> allocate_node != NULL );
 
-	add_d_ref( node );
+	add_d_ref( ZJNODE(node) );
 	result = tree -> ops -> allocate_node( tree, ZJNODE( node ) );
 	if( likely( result == 0 ) ) {
 		assert( "nikita-2076", spin_znode_is_locked( node ) );
@@ -889,37 +850,18 @@ int zinit_new( znode *node /* znode to initialise */ )
 	return result;
 }
 
-/** just like zrelse, but assume znode is already spin-locked */
-/* Audited by: umka (2002.06.11) */
-static void zrelse_nolock( znode *node /* znode to release references to */ )
-{
-	assert( "nikita-487", node != NULL );
-	assert( "nikita-489", atomic_read( &node -> d_count ) > 0 );
-	assert( "nikita-1906", spin_znode_is_locked( node ) );
-
-	ON_DEBUG( -- lock_counters() -> d_refs );
-	if( atomic_dec_and_test( &node -> d_count ) ) {
-		current_tree -> ops -> release_node( current_tree, 
-						     ZJNODE( node ) );
-		assert( "nikita-2137", znode_is_loaded( node ) );
-		ZF_CLR( node, ZNODE_LOADED );
-	}
-}
-
 /**
  * drop reference to node data. When last reference is dropped, data are
  * unloaded.
  */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
 void zrelse( znode *node /* znode to release references to */ )
 {
-	assert( "nikita-1963", node != NULL );
-	assert( "nikita-1964", atomic_read( &node -> d_count ) > 0 );
+	assert( "nikita-489", atomic_read( &ZJNODE(node) -> d_count ) > 0 );
 	assert( "nikita-1381", znode_invariant( node ) );
 
-	spin_lock_znode( node );
-	zrelse_nolock( node );
-	spin_unlock_znode( node );
+	spin_lock_znode(node);
+	jrelse_nolock( ZJNODE(node) );
+	spin_unlock_znode(node);
 
 	assert( "nikita-1382", znode_invariant( node ) );
 }
@@ -1276,7 +1218,7 @@ void info_znode( const char *prefix /* prefix to print */,
 
 	info( "c_count: %i, d_count: %i, x_count: %i readers: %i, ", 
 	      atomic_read( &node -> c_count ),
-	      atomic_read( &node -> d_count ),
+	      atomic_read( &ZJNODE(node) -> d_count ),
 	      atomic_read( &node -> x_count ),
 	      node -> lock.nr_readers );
 
