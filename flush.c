@@ -39,6 +39,7 @@ static void          flush_scan_set_current        (flush_scan *scan, jnode *nod
 static int           flush_scan_left               (flush_scan *scan, jnode *node);
 
 static int           flush_preceder_hint          (jnode *gda, const tree_coord *parent_coord, reiser4_blocknr_hint *preceder);
+static int           flush_preceder_rightmost     (const tree_coord *parent_coord, reiser4_blocknr_hint *preceder);
 static int           flush_should_relocate        (jnode *node, const tree_coord *parent_coord);
 
 static int           flush_lock_greatest_dirty_ancestor (jnode                *start,
@@ -63,6 +64,8 @@ static jnode*        jnode_get_neighbor_in_memory (jnode *node, unsigned long no
 static int           jnode_is_allocated           (jnode *node);
 static int           jnode_allocate               (jnode *node, reiser4_blocknr_hint *preceder);
 
+/* FIXME: Need to fix utmost_child calls to un-ref properly! */
+
 #define FLUSH_WORKS 1
 
 /* This is the main entry point for flushing a jnode.  Two basic steps are
@@ -79,14 +82,12 @@ int jnode_flush (jnode *node)
 	reiser4_lock_handle  gda_lock; /* if gda is formatted, a write lock */
 	reiser4_blocknr_hint preceder; /* hint for block allocation */
 
+	preceder.blk = 0;
 	init_lh (& gda_lock);
 
 	/* Locate the greatest dirty ancestor of the node to flush, which
 	 * found by recursing upward as long as the parent is dirty and
-	 * leftward along each level as long as the left neighbor is dirty.
-	 * When the gda is found the preceder hint is also initialized, since
-	 * the preceder may require the gda's parent to be locked (which it is
-	 * at the end of this traversal).
+	 * leftward along each level as long as the left neighbor is dirty. 
 	 */
 	if (FLUSH_WORKS && (ret = flush_lock_greatest_dirty_ancestor (node, NULL, & gda, & gda_lock, & preceder))) {
 		goto failed;
@@ -148,8 +149,7 @@ int jnode_flush (jnode *node)
  * until the leftmost, higest, dirty node is found, which we call the greatest
  * dirty ancestor.  Returns with only the greatest dirty ancestor locked (and
  * referenced), unless the node is unformatted, in which case only a reference
- * is returned.  The block alloacation preceder hint is also initialized once
- * the GDA is known and its parent is locked.
+ * is returned.
  */
 static int flush_lock_greatest_dirty_ancestor (jnode                *start_node,
 					       reiser4_lock_handle  *start_lock,
@@ -227,14 +227,16 @@ static int flush_lock_greatest_dirty_ancestor (jnode                *start_node,
 	} else {
 		/* End the recursion, get a write lock at the highest level. */
 
-		/* But as long as we have the parent locked, might as well
-		 * initialize the preceder hint now.  It could release the
-		 * lock for us after determining we don't need to look at the
-		 * parent to initialize the hint. */
-		if ((ret = flush_preceder_hint (end_node, & parent_coord, preceder))) {
+		/* The preceder hint may be set at this point without taking
+		 * any additional locks (if GDA is not allocated).  If it is
+		 * possible, do so, otherwise the preceder_hint is initialized
+		 * when the first unallocated node is encountered in the
+		 * sqalloc_parent_first traversal. */
+		if (! jnode_is_allocated (end_node) &&
+		    (ret = flush_preceder_hint (end_node, & parent_coord, preceder))) {
 			goto failure;
 		}
-		
+
 		(*gda) = jref (end_node);
 
 		/* Release any locks we might hold first, they are all read
@@ -322,10 +324,14 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
 	return 0;
 }
 
-/* Called to initialize a hint for block allocation to begin from.  Should set
+/* Called to initialize a hint for block allocation to begin from.  If the
+ * preceder was previously initialized, this call does nothing.  Should set
  * the "preceder" block to a block location left of (i.e., preceding) the
- * block to be allocated (GDA).  Called while the parent is still locked,
- * since we may need it.
+ * block to be allocated (GDA).
+ *
+ * If the parent coord is passed in, then this is being called while the
+ * parent is still locked.  Otherwise, this routine takes the parent lock and
+ * possibly more (see below).
  *
  * This may become a plugin.
  *
@@ -338,37 +344,54 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
  *
  * If the GDA is an non-leftmost internal node, its preceder is its left
  * neighbor's rightmost descendant, but these nodes are not required to be in
- * memory.
+ * memory.  (Further, we're heading in the lo-priority direction.)
  *
- * If they are not in memory, pick random ()?  Use the gda's parent?  Use the
- * rightmost descendant that is in memory, defaulting to GDA's parent?
+ * If they are not in memory, use the rightmost descendant's block number that
+ * is in memory.
  */
 static int flush_preceder_hint (jnode *gda,
 				const tree_coord *parent_coord,
 				reiser4_blocknr_hint *preceder)
 {
+	int ret;
 	int is_leftmost;
 	int is_leaf;
-	znode *parent = parent_coord->node;
+	znode *parent;
 	tree_coord coord;
 	item_plugin *iplug;
+	reiser4_lock_handle parent_lock;
 
-	/* FIXME: This is not the right place, is it?  The GDA is dirty but may
-	 * be already allocated, in which case we want to set preceder the
-	 * first time we encounter an unallocated node in the parent-first
-	 * squalloc traversal. */
-	if (znode_above_root (parent)) {
-		/* FIXME: */
+	/* If the preceder is already initialized, return. */
+	if (preceder->blk != 0) {
 		return 0;
 	}
 
-	dup_coord (& coord, parent_coord);
+	init_lh (& parent_lock);
+
+	/* GDA must not be allocateded yet, otherwise we shouldn't be
+	 * initializing the preceder at this point. */
+	assert ("jmacd-2301", ! jnode_is_allocated (gda));
+
+	/* If the parent coord is set, we already have the parent locked. */
+	if (parent_coord != NULL) {
+		parent = parent_coord->node;
+		dup_coord (& coord, parent_coord);
+	} else {
+		/* Otherwise, lock the parent. */
+
+		if ((ret = jnode_lock_parent_coord (gda, & coord, & parent_lock, ZNODE_READ_LOCK))) {
+			return ret;
+		}
+	}
+
+	/* GDA can't be the root node here, since it is already allocated. */
+	assert ("jmacd-2300", ! znode_above_root (parent));
 
 	/* If coord_prev_unit returns 1, its the leftmost coord of this node. */
 	is_leftmost = coord_prev_unit (& coord);
 	is_leaf     = jnode_get_level (gda) == LEAF_LEVEL;
 
-	/* Leaf, non-lefmost case: return left-of-GDA block number */
+	/* Non-lefmost leaf case: set left-of-GDA block number */
 	if (is_leaf && ! is_leftmost) {
 		
 		iplug = item_plugin_by_coord (& coord);
@@ -377,21 +400,73 @@ static int flush_preceder_hint (jnode *gda,
 
 		/* Get the rightmost block number of this coord, which is the
 		 * child to the left of GDA. */
-		return iplug->utmost_child (& coord, RIGHT_SIDE, 0, NULL, & preceder->blk);
-	}
+		ret = iplug->utmost_child (& coord, RIGHT_SIDE, 0, NULL, & preceder->blk);
 
-	/* Leftmost case */
-	if (is_leftmost) {
+	} else if (is_leftmost) {
+		/* Leftmost case */
 
 		assert ("jmacd-2041", jnode_is_allocated (ZJNODE (parent)));
 
 		preceder->blk = *znode_get_block (parent);
+		ret = 0;
+
+	} else {
+
+		/* Non-leftmost internal node case. */
+		ret = flush_preceder_rightmost (& coord, preceder);
+	}
+
+	done_lh (& parent_lock);
+	return ret;
+}
+
+/* Find the rightmost descendant block number of @node.  Set preceder->blk to
+ * that value.  This can never be called on a leaf node, the leaf case is
+ * handled by flush_preceder_hint. */
+static int flush_preceder_rightmost (const tree_coord *parent_coord, reiser4_blocknr_hint *preceder)
+{
+	int ret;
+	znode *parent = parent_coord->node;
+	item_plugin *iplug;
+	jnode *child;
+	tree_coord child_coord;
+
+	iplug = item_plugin_by_coord (parent_coord);
+
+	assert ("jmacd-2042", iplug->utmost_child != NULL);
+	assert ("jmacd-2043", znode_get_level (parent) >= TWIG_LEVEL);
+
+	if (znode_get_level (parent) == TWIG_LEVEL) {
+		/* End recursion, we made it all the way. */
+
+		/* Get the rightmost block number of this coord, which is the
+		 * child to the left of GDA. */
+		return iplug->utmost_child (parent_coord, RIGHT_SIDE, 0, NULL, & preceder->blk);
+	}
+
+	/* Recurse downwards case: */
+
+	/* Get the child if it is in memory. */
+	if ((ret = iplug->utmost_child (parent_coord, RIGHT_SIDE, UTMOST_GET_CHILD, & child, & preceder->blk))) {
+		return ret;
+	}
+
+	/* If the child is not in memory, set preceder->blk to its blocknr and
+	 * return. */
+	if (child == NULL) {
+		assert ("jmacd-2050", preceder->blk != 0);
 		return 0;
 	}
 
-	/* Internal node case. */
-	/* FIXME: */
-	return 0;
+	assert ("jmacd-2061", jnode_is_formatted (child));
+	
+	/* The child is in memory, recurse. */
+	coord_last_unit (& child_coord, JZNODE (child));
+
+	ret = flush_preceder_rightmost (& child_coord, preceder);
+
+	jput (child);
+	return ret;
 }
 
 /********************************************************************************
@@ -444,8 +519,11 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 	/* Allocate (parent) first. It might be allocated already. */
         if (! jnode_is_allocated (node)) {
 
+		/* Set the preceder hint, if not already done. */
+		if ((ret = flush_preceder_hint (node, NULL, preceder))) { return ret; }
+
 		/* Allocate it. */
-                jnode_allocate (node, preceder);
+		if ((ret = jnode_allocate (node, preceder))) { return ret; }
 
                 /* Recursive case: handles all children. */
                 if ((jnode_get_level (node) > LEAF_LEVEL) &&
