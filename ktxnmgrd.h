@@ -32,7 +32,7 @@ struct ktxnmgrd_context {
 
 #define spin_ordering_pred_ktxnmgrd(ctx) (1)
 
-SPIN_LOCK_FUNCTIONS(ktxnmgrd, struct ktxnmgrd_context, guard);
+SPIN_LOCK_FUNCTIONS(ktxnmgrd, ktxnmgrd_context, guard);
 
 typedef enum {
 	CANNOT_COMMIT,
