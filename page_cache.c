@@ -421,6 +421,8 @@ static struct bio *page_bio( struct page *page, int gfp )
 		trace_on( TRACE_BUG, "page: index: %lu, ino: %li, private: %p",
 			  page -> index, page -> mapping -> host -> i_ino,
 			  jprivate( page ) );
+		trace_if( TRACE_BUG, 
+			  info_jnode( "page", ( jnode * ) page -> index ) );
 
 		assert( "nikita-2026", jprivate( page ) != NULL );
 		node = jprivate( page );
