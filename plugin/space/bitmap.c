@@ -121,6 +121,13 @@ static bmap_nr_t reiser4_find_next_zero_bit (void * addr, bmap_off_t max_offset,
 	return max_offset;
 }
 
+static inline int reiser4_test_bit (bmap_off_t nr, void * addr)
+{
+	unsigned char * base = (char*)addr + (nr  >> 3);
+	return *base & (1 << (nr & 0x7));
+}
+
+
 #endif
 
 static bmap_nr_t reiser4_find_next_set_bit (void * addr, bmap_off_t max_offset, bmap_off_t start_offset)
@@ -455,6 +462,13 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 		/* commit bitmap is initialized by on-disk bitmap content
 		 * (working bitmap in this context) */
+
+		/*
+		 * FIXME:NIKITA->ZAM this doesn't work. 0 from jload means
+		 * that page was either read from disk -or- found after page
+		 * cache lookup. As a result, this overwrites working area
+		 * after each release_and_unlock_bnode().
+		 */
 		xmemcpy(bnode_working_data(bnode), 
 			bnode_commit_data(bnode), 
 			super->s_blocksize);
@@ -696,6 +710,9 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	bnode = get_bnode (super, bmap);
 
 	assert ("zam-470", bnode != NULL);
+	/*
+	 * FIXME:NIKITA->ZAM should this go after load_and_lock_bnode()?
+	 */
 	assert ("zam-471", JF_ISSET(&bnode->wjnode, ZNODE_LOADED));
 
 	ret = load_and_lock_bnode (bnode);
@@ -710,6 +727,38 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	reiser4_spin_lock_sb(super);
 	reiser4_set_free_blocks(super, reiser4_free_blocks(super) + len);
 	reiser4_spin_unlock_sb(super);
+}
+
+int bitmap_is_allocated (reiser4_block_nr *start)
+{
+	struct super_block * super = reiser4_get_current_sb();
+
+	bmap_nr_t  bmap;
+	bmap_off_t offset;
+
+	struct bnode * bnode;
+	int ret;
+	const reiser4_block_nr one = 1;
+
+	check_block_range (start, &one);
+	parse_blocknr (start, &bmap, &offset);
+
+	assert ("nikita-2214", offset + 1 <= (super->s_blocksize << 3));
+
+	bnode = get_bnode (super, bmap);
+
+	assert ("nikita-2215", bnode != NULL);
+
+	ret = load_and_lock_bnode (bnode);
+	if (ret != 0)
+		return ret;
+
+	assert ("nikita-2216", JF_ISSET(&bnode->wjnode, ZNODE_LOADED));
+
+	ret = reiser4_test_bit (offset, bnode_working_data(bnode));
+
+	release_and_unlock_bnode (bnode);
+	return !!ret;
 }
 
 /*

@@ -808,6 +808,11 @@ int zload( znode *node /* znode to load */ )
 
 	assert ("zam-511", zdata(node) != NULL);
 
+	/*
+	 * FIXME-NIKITA this is wrong. 0 from jload_and_lock() means that that
+	 * page was either read from disk -or- found after page cache
+	 * lookup. As a result, this re-parses node on each call.
+	 */
 	if (result == 0) { /* znode was loaded from disk  */
 		result = zparse(node);
 		if (result) zrelse_nolock(node);

@@ -40,6 +40,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 	 * interface to block allocator is non-existent as of now.
 	 */
 	retcode = assign_fake_blocknr( &blocknr );
+	assert( "nikita-2218", bitmap_is_allocated( &blocknr ) );
 	if( retcode == 0 ) {
 		result = zget( current_tree, &blocknr, NULL, level,
 			       GFP_KERNEL );
@@ -49,6 +50,14 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 				  PTR_ERR( result ) );
 			return result;
 		}
+
+		if( !znode_just_created( result ) ) {
+			warning( "nikita-2213",
+				 "Allocated already existing block: %llu",
+				 blocknr );
+			return ERR_PTR( -EIO );
+		}
+
 		/*
 		 * @result is created and inserted into hash-table. There is
 		 * no need to lock it: nobody can access it yet anyway.

@@ -27,4 +27,6 @@ typedef __u32 bmap_off_t;
 /* exported for user-level simulator */
 extern void get_bitmap_blocknr (struct super_block *, bmap_nr_t, reiser4_block_nr *);
 
+extern int bitmap_is_allocated (reiser4_block_nr *start);
+
 #endif /* __REISER4_PLUGIN_SPACE_BITMAP_H__ */
