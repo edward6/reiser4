@@ -102,11 +102,8 @@ static void repacker_cursor_done (struct repacker_cursor * cursor)
 static int end_work (void)
 {
 	reiser4_context * ctx = get_current_context();
-	long _ret;
 
-	_ret = txn_end(ctx);
-	if (_ret < 0)
-		return (int)_ret;
+	txn_end(ctx);
 	return 0;
 }
 static void begin_work (void)
@@ -377,12 +374,8 @@ reiser4_internal int repacker_d(void *arg)
 	printk(KERN_INFO "Repacker: I am alive, pid = %u\n", me->pid);
 	ret = init_context(&ctx, repacker->super);
 	if (!ret) {
-		int ret1;
-
 		ret = reiser4_repacker(repacker);
-		ret1 = reiser4_exit_context(&ctx);
-		if (!ret && ret1)
-			ret = ret1;
+		reiser4_exit_context(&ctx);
 	}
 
 	spin_lock(&repacker->guard);

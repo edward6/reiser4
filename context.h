@@ -259,7 +259,7 @@ static inline void context_set_commit_async(reiser4_context * context)
 	context->trans->flags |= TXNH_DONT_COMMIT;
 }
 
-extern int reiser4_exit_context(reiser4_context * context);
+extern void reiser4_exit_context(reiser4_context * context);
 
 /* __REISER4_CONTEXT_H__ */
 #endif

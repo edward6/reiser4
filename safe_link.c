@@ -180,11 +180,8 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 			if (result == 0)
 				result = safe_link_del(inode, link);
 			safe_link_release(tree_by_inode(inode));
-			if (result == 0) {
-				result = txn_end(get_current_context());
-				if (result == 0)
-					txn_begin(get_current_context());
-			}
+			if (result == 0)
+				txn_restart_current();
 		}
 	} else
 		result = PTR_ERR(inode);

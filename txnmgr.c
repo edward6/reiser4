@@ -524,6 +524,20 @@ txn_end(reiser4_context * context)
 	return ret;
 }
 
+reiser4_internal void
+txn_restart(reiser4_context * context)
+{
+	txn_end(context);
+	preempt_point();
+	txn_begin(context);
+}
+
+reiser4_internal void
+txn_restart_current(void)
+{
+	txn_restart(get_current_context());
+}
+
 /* TXN_ATOM */
 
 /* Get the atom belonging to a txnh, which is not locked.  Return txnh locked. Locks atom, if atom
@@ -1271,7 +1285,6 @@ static int force_commit_atom_nolock (txn_handle * txnh)
 {
 	int ret;
 	txn_atom * atom;
-	reiser4_context * ctx = get_current_context();
 
 	assert ("zam-837", txnh != NULL);
 	assert ("zam-835", spin_txnh_is_locked(txnh));
@@ -1290,14 +1303,7 @@ static int force_commit_atom_nolock (txn_handle * txnh)
 	UNLOCK_TXNH(txnh);
 	UNLOCK_ATOM(atom);
 
-	ret = txn_end(ctx);
-	if (ret < 0)
-		return ret;
-
-	preempt_point();
-
-	txn_begin(ctx);
-
+	txn_restart_current();
 	return 0;
 }
 
@@ -1334,15 +1340,11 @@ txnmgr_force_commit_all (struct super_block *super, int commit_all_atoms)
 	assert("nikita-2965", lock_stack_isclean(get_current_lock_stack()));
 	assert("nikita-3058", commit_check_locks());
 
-	ret = txn_end(ctx);
-	if (ret < 0)
-		return ret;
-
-	txn_begin(ctx);
+	txn_restart(ctx);
 
 	mgr = &get_super_private(super)->tmgr;
 
-	txnh = get_current_context()->trans;
+	txnh = ctx->trans;
 
 again:
 
@@ -1455,14 +1457,8 @@ commit_some_atoms(txn_mgr * mgr)
 	   has to rescan atoms */
 	mgr->daemon->rescan = 1;
 	spin_unlock(&mgr->daemon->guard);
-	ret = txn_end(ctx);
-
-	if (ret >= 0) {
-		txn_begin(ctx);
-		ret = 0;
-	}
-
-	return ret;
+	txn_restart(ctx);
+	return 0;
 }
 
 /* Calls jnode_flush for current atom if it exists; if not, just take another
@@ -1834,16 +1830,7 @@ commit_txnh(txn_handle * txnh)
 	if (cd.wake_ktxnmgrd_up)
 		ktxnmgrd_kick(&get_current_super_private()->tmgr);
 
-	/* VS-FIXME-ANONYMOUS-BUT-ASSIGNED-TO-VS-BY-HANS: Note: We are ignoring the failure code.  Can't change the result of the caller.
-	   E.g., in write():
-	
-	     result = 512;
-	     REISER4_EXIT (result);
-	
-	   It cannot "forget" that 512 bytes were written, even if commit fails.  This
-	   means force_txn_commit will retry forever.  Is there a better solution?
-	*/
-	return cd.nr_written;
+	return 0;
 }
 
 /* TRY_CAPTURE */

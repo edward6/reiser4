@@ -40,10 +40,12 @@ typedef struct pseudo_plugin pseudo_plugin;
 struct pseudo_plugin {
 	plugin_header h;
 
+	int parent;
 	int (*try) (pseudo_plugin *pplug,
 		    const struct inode *parent, const char *name);
+	int readdirable;
 	/* lookup method applicable to this pseudo file by method name.
-	
+
 	   This is for something like "foo/..acl/dup", here "../acl" is the
 	   name of a pseudo file, and "dup" is name of an operation (method)
 	   applicable to "../acl". Once "..acl" is resolved to ACL object,
@@ -83,6 +85,9 @@ typedef struct pseudo_info {
 	/* host object, for /etc/passwd/..oid, this is pointer to inode of
 	 * /etc/passwd */
 	struct inode  *host;
+	/* immediate parent object. This is different from ->host for deeply
+	 * nested pseudo files like foo/..plugin/foo */
+	struct inode  *parent;
 	/* for private use of pseudo file plugin */
 	unsigned long  datum;
 } pseudo_info_t;
@@ -90,6 +95,7 @@ typedef struct pseudo_info {
 extern int lookup_pseudo_file(struct inode *parent, struct dentry **dentry);
 
 typedef enum {
+	PSEUDO_METAS_ID,
 	PSEUDO_UID_ID,
 	PSEUDO_GID_ID,
 	PSEUDO_RWX_ID,

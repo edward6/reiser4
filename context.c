@@ -164,19 +164,16 @@ balance_dirty_pages_at(reiser4_context * context)
 	}
 }
 
-reiser4_internal int reiser4_exit_context(reiser4_context * context)
+reiser4_internal void reiser4_exit_context(reiser4_context * context)
 {
-        int result = 0;
-
 	assert("nikita-3021", schedulable());
 
 	if (context == context->parent) {
 		if (!context->nobalance)
 			balance_dirty_pages_at(context);
-		result = txn_end(context);
+		txn_end(context);
 	}
 	done_context(context);
-	return (result > 0) ? 0 : result;
 }
 
 /* release resources associated with context.
