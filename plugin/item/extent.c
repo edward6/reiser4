@@ -3348,9 +3348,12 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 
 	blocksize = current_blocksize;
 
-	assert ("vs-773", item_is_extent (item));
-	assert ("vs-451", coord_is_existing_unit (item));
 	if (REISER4_DEBUG) {
+		reiser4_key unit_key;
+
+		assert ("vs-773", item_is_extent (item));
+		assert ("vs-451", coord_is_existing_unit (item));
+		/*assert ("vs-901", jnode_is_unformatted (flush_pos->point));*/
 		/*
 		 * FIXME-VS: make sure that there are no unallocated extents in
 		 * this item to the left of coord @item. But, we might also
@@ -3360,6 +3363,27 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 		for (i = 0; i < item->unit_pos; i ++, ext ++) {
 			assert ("vs-797", state_of_extent (ext) != UNALLOCATED_EXTENT);
 		}
+
+		/*
+		 * @item is set to unit which flush_pos->point falls to. Check
+		 * that
+		 */
+		ext = extent_by_coord (item);
+		unit_key_by_coord (item, &unit_key);
+#if 0
+		assert ("vs-899", get_key_offset (&unit_key) <= 
+			(__u64)flush_pos->point->pg->index << PAGE_CACHE_SHIFT);
+		set_key_offset (&unit_key, (get_key_offset (&unit_key) +
+					   extent_get_width (ext) * blocksize));
+		assert ("", get_key_offset (&unit_key) - blocksize >= 
+			(__u64)flush_pos->point->pg->index << PAGE_CACHE_SHIFT);
+#endif
+		assert ("vs-898", state_of_extent (ext) != HOLE_EXTENT);
+#if 0
+		assert ("vs-900",
+			ergo (*jnode_get_block (flush_pos->point) == 0,
+			      state_of_extent (ext) == UNALLOCATED_EXTENT));
+#endif
 	}
 
 
