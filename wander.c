@@ -559,7 +559,7 @@ static void put_overwrite_set(struct commit_handle * ch)
 	spin_lock(&scan_lock);
 	cur = capture_list_front(ch->overwrite_set);
 	while (!capture_list_end(ch->overwrite_set, cur)) {
-		assert("vs-1443", cur->list == OVRWR_LIST);
+		assert("vs-1443", NODE_LIST(cur) == OVRWR_LIST);
 		JF_SET(cur, JNODE_SCANNED);
 		spin_unlock(&scan_lock);
 		JF_CLR(cur, JNODE_JLOADED_BY_GET_OVERWRITE_SET);
@@ -589,7 +589,7 @@ get_overwrite_set(struct commit_handle *ch)
 	
 	assert("zam-697", ch->overwrite_set_size == 0);
 
-	ch->overwrite_set = &ch->atom->ovrwr_nodes;
+	ch->overwrite_set = ATOM_OVRWR_LIST(ch->atom);
 
 	spin_lock(&scan_lock);
 	cur = capture_list_front(ch->overwrite_set);
@@ -598,7 +598,7 @@ get_overwrite_set(struct commit_handle *ch)
 		jnode *next;
 
 		/* FIXME: for all but first this bit is set already */
-		assert("vs-1444", cur->list == OVRWR_LIST);
+		assert("vs-1444", NODE_LIST(cur) == OVRWR_LIST);
 		JF_SET(cur, JNODE_SCANNED);
 		next = capture_list_next(cur);
 		if (!capture_list_end(ch->overwrite_set, next))
@@ -636,18 +636,22 @@ get_overwrite_set(struct commit_handle *ch)
 				if (IS_ERR(sj))
 					return PTR_ERR(sj);
 
+				LOCK_ATOM(ch->atom);
 				LOCK_JNODE(sj);
 				JF_SET(sj, JNODE_OVRWR);
 				insert_into_atom_ovrwr_list(ch->atom, sj);
 				UNLOCK_JNODE(sj);
+				UNLOCK_ATOM(ch->atom);
 
 				/* jload it as the rest of overwrite set */
 				jload_gfp(sj, GFP_KERNEL, 0);
 
 				ch->overwrite_set_size++;
 			}
+			LOCK_ATOM(ch->atom);
 			LOCK_JNODE(cur);
 			uncapture_block(cur);
+			UNLOCK_ATOM(ch->atom);
 			jput(cur);
 				
 			spin_lock(&scan_lock);
@@ -1523,7 +1527,7 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 
 		 for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; ++ level)
 			  assert("nikita-3352",
-				 capture_list_empty(&atom->dirty_nodes[level]));
+				 capture_list_empty(ATOM_DIRTY_LIST(atom, level)));
 	}
 
 	sbinfo->nr_files_committed += (unsigned) atom->nr_objects_created;
