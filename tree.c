@@ -622,8 +622,8 @@ check_tree_pointer(const coord_t * pointer	/* would-be pointer to
 
 	assert("nikita-1325", znode_is_any_locked(pointer->node));
 
-	if (znode_get_level(pointer->node) != znode_get_level(child) + 1)
-		return NS_NOT_FOUND;
+	assert("nikita-2985", 
+	       znode_get_level(pointer->node) == znode_get_level(child) + 1);
 
 	coord_clear_iplug((coord_t *) pointer);
 
