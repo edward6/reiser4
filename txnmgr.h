@@ -226,6 +226,9 @@ struct txn_atom {
 	/* nodes which are being written to disk */
 	capture_list_head writeback_nodes;
 
+	/* list of inodes */
+	capture_list_head inodes;
+
 	/* List of handles associated with this atom. */
 	txnh_list_head txnh_list;
 
@@ -251,6 +254,7 @@ struct txn_atom {
 				 * atom's lists and put on flush_queue */
 	/* ZAM-FIXME-HANS unclear: all flush queue objects that flush this atom are on this list  */
 	fq_list_head flush_queues;
+	int nr_flush_queues; /* FIXME: debugging code. number of elements on a list */
 
 	/* number of threads who waits this atom commit completion */
 	int nr_waiters;
@@ -347,6 +351,9 @@ extern int attach_txnh_to_node(txn_handle * txnh, jnode * node, txn_flags flags)
 extern void uncapture_page(struct page *pg);
 extern void uncapture_block(txn_atom *, jnode *);
 extern void uncapture_jnode(jnode *);
+
+extern int capture_inode(struct inode *);
+extern int uncapture_inode(struct inode *);
 
 extern txn_atom *atom_get_locked_with_txnh_locked_nocheck(txn_handle * txnh);
 extern txn_atom *get_current_atom_locked_nocheck(void);
@@ -471,6 +478,7 @@ struct flush_queue {
 	txn_atom *atom;
 	/* A semaphore for waiting on i/o completion */
 	struct semaphore sema;
+	void *owner;
 };
 
 extern int fq_by_atom(txn_atom *, flush_queue_t **);
