@@ -580,7 +580,7 @@ static znode * get_twig_pointer (flush_pos_t * pos, int twig_is_pos_node)
 /* check fs backing device for write congestion */
 static int check_write_congestion (void)
 {
-	struct backing_device_info * bdi;
+	struct backing_dev_info * bdi;
 
 	bdi = get_current_super_private()->fake->i_mapping->backing_dev_info;
 	return  bdi_write_congested(bdi);
