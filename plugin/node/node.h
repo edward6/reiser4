@@ -143,7 +143,7 @@ typedef struct node_plugin {
 	/*int ( *item_at )( const tree_coord *coord, reiser4_item_data *data );*/
 	char *( *item_by_coord )( const tree_coord *coord );	
 	int ( *length_by_coord )( const tree_coord *coord );
-	item_plugin *( *plugin_by_coord )( const tree_coord *coord );
+	common_item_plugin *( *plugin_by_coord )( const tree_coord *coord );
 
 	/** store item key in @key */
 	reiser4_key * ( *key_at )( const tree_coord *coord, reiser4_key *key );

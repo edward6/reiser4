@@ -894,7 +894,7 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 	entry.name = &name -> d_name;
 
 	data.data   = ( char * ) &edata;
-	data.iplug  = item_plugin_by_id( COMPOUND_DIR_IT );
+	data.iplug  = common_item_plugin_by_id( COMPOUND_DIR_ID );
 	data.arg = dir_entry;
 	assert( "nikita-1302", data.iplug != NULL );
 
@@ -921,6 +921,17 @@ int cde_max_name_len( int block_size )
 		sizeof( cde_item_format ) - 
 		sizeof( cde_unit_header ) - 2;
 }
+
+
+compound_dir_item_plugin compound_dir_plugin = {
+	.compound_extract_key       = cde_extract_key,
+	.compound_extract_name      = cde_extract_name,
+	.compound_extract_file_type = de_extract_file_type,
+	.compound_add_entry         = cde_add_entry,
+	/* the same as uncompressed */
+	.compound_rem_entry         = de_rem_entry,
+	.compound_max_name_len      = cde_max_name_len
+};
 
 /* 
  * Make Linus happy.

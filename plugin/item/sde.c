@@ -84,7 +84,7 @@ int de_add_entry( const struct inode *dir, tree_coord *coord,
 
 	data.length = sizeof *dent + name -> d_name.len + 1;
 	data.data   = NULL;
-	data.iplug  = item_plugin_by_id( SIMPLE_DIR_ENTRY_IT );
+	data.iplug  = common_item_plugin_by_id( SIMPLE_DIR_ENTRY_ID );
 	
 	result = insert_by_coord( coord, &data, &entry -> key, lh,
 				  inter_syscall_ra( dir ), NO_RA, 0/*flags*/ );
@@ -121,6 +121,17 @@ int de_max_name_len( int block_size )
 	return block_size - REISER4_NODE_MAX_OVERHEAD - 
 		sizeof( directory_entry_format ) - 2;
 }
+
+
+simple_dir_item_plugin simple_dir_plugin = {
+	.simple_extract_key       = de_extract_key,
+	.simple_extract_name      = de_extract_name,
+	.simple_extract_file_type = de_extract_file_type,
+	.simple_add_entry         = de_add_entry,
+	.simple_rem_entry         = de_rem_entry,
+	.simple_max_name_len      = de_max_name_len
+};
+
 
 /* 
  * Make Linus happy.

@@ -506,8 +506,8 @@ static int paste_into_item( tree_coord *coord,
 {
 	int result;
 	int size_change;
-	node_plugin      *nplug;
-	item_plugin      *iplug;
+	node_plugin        *nplug;
+	common_item_plugin *iplug;
 
 	iplug = item_plugin_by_coord( coord );
 	nplug = node_plugin_by_coord( coord );
@@ -548,15 +548,15 @@ static int paste_into_item( tree_coord *coord,
 	    ( coord -> unit_pos != 0 ) &&
 	    ( nplug -> fast_paste != NULL ) &&
 	    nplug -> fast_paste( coord ) &&
-	    ( iplug -> b.fast_paste != NULL ) && 
-	    iplug -> b.fast_paste( coord ) ) {
+	    ( iplug -> fast_paste != NULL ) && 
+	    iplug -> fast_paste( coord ) ) {
 		reiser4_stat_tree_add( fast_paste );
 		if( size_change > 0 )
 			nplug -> change_item_size( coord, size_change );
 		/*
 		 * FIXME-NIKITA: huh? where @key is used?
 		 */
-		result = iplug -> b.paste( coord, data, NULL );
+		result = iplug -> paste( coord, data, NULL );
 		if( size_change < 0 )
 			nplug -> change_item_size( coord, size_change );
 	} else
@@ -617,7 +617,7 @@ znode *child_znode( const tree_coord *parent_coord, int setup_dkeys_p )
 {
 	znode *child;
 	znode *parent;
-	item_plugin *iplug;
+	common_item_plugin *iplug;
 
 	assert( "nikita-1374", parent_coord != NULL );
 	assert( "nikita-1482", parent_coord -> node != NULL );
@@ -633,10 +633,11 @@ znode *child_znode( const tree_coord *parent_coord, int setup_dkeys_p )
 		return ERR_PTR( -EIO );
 	}
 	iplug = item_plugin_by_coord( parent_coord );
-	if( iplug -> item_plugin_id == NODE_POINTER_IT ) {
+	if( iplug -> down_link ) {
 		reiser4_block_nr addr;
-
-		iplug -> s.internal.down_link( parent_coord, NULL, &addr );
+		
+		assert( "vs-512", iplug -> down_link );
+		iplug -> down_link( parent_coord, NULL, &addr );
 
 		spin_unlock_dk( current_tree );
 		child = zget( current_tree, &addr, parent, 
@@ -849,12 +850,13 @@ int check_tree_pointer( const tree_coord *pointer, const znode *child )
 		return NS_NOT_FOUND;
 
 	if( coord_of_unit( pointer ) ) {
-		item_plugin    *iplug;
+		common_item_plugin    *iplug;
 		reiser4_block_nr  addr;
 
 		iplug = item_plugin_by_coord( pointer );
-		if( ( iplug -> item_plugin_id == NODE_POINTER_IT ) ) {
-			iplug -> s.internal.down_link( pointer, NULL, &addr );
+		if( iplug -> down_link ) {
+			assert( "vs-513", iplug -> down_link );
+			iplug -> down_link( pointer, NULL, &addr );
 			/*
 			 * check that cached value is correct
 			 */

@@ -76,7 +76,7 @@ int item_length_by_coord( const tree_coord *coord )
 /**
  * return plugin of item at @coord
  */
-item_plugin *item_plugin_by_coord( const tree_coord *coord )
+common_item_plugin *commin_item_plugin_by_coord( const tree_coord *coord )
 {
 	assert( "nikita-330", coord != NULL );
 	assert( "nikita-331", coord -> node != NULL );
@@ -100,7 +100,7 @@ node_plugin * node_plugin_by_node( const znode *node )
 /**
  * return type of item at @coord
  */
-reiser4_item_plugin_id item_plugin_id_by_coord( const tree_coord *coord )
+item_plugin_id item_plugin_id_by_coord( const tree_coord *coord )
 {
 	assert( "nikita-333", coord != NULL );
 	assert( "nikita-334", coord -> node != NULL );
@@ -135,8 +135,8 @@ reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key )
 	assert( "nikita-775", znode_is_loaded( coord -> node ) );
 	trace_stamp( TRACE_TREE );
 
-	if( item_plugin_by_coord( coord )->b.unit_key != NULL )
-		return item_plugin_by_coord( coord )->b.unit_key
+	if( item_plugin_by_coord( coord )->unit_key != NULL )
+		return item_plugin_by_coord( coord )->unit_key
 			( coord, key );
 	else
 		return item_key_by_coord( coord, key );
@@ -726,7 +726,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h)
  */
 static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 {
-	item_plugin *iplug;
+	common_item_plugin *iplug;
 	int result;
 
 
@@ -736,7 +736,7 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 		 */
 		coord -> item_pos ++;
 		iplug = item_plugin_by_coord( coord );
-		if( iplug -> item_plugin_id == NODE_POINTER_IT )
+		if( iplug -> down_link )
 			return 1;
 		coord -> item_pos --;
 		return 0;
@@ -761,7 +761,7 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 		if( !result ) {
 			coord_first_unit( &right, right_lh.node );
 			iplug = item_plugin_by_coord( &right );
-			if( iplug -> item_plugin_id == NODE_POINTER_IT ) {
+			if( iplug -> down_link ) {
 				/*
 				 * switch to right neighbor
 				 */
@@ -873,7 +873,7 @@ static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
 static level_lookup_result cbk_node_lookup( cbk_handle *h )
 {
 	node_plugin      *nplug;
-	item_plugin      *iplug;
+	common_item_plugin      *iplug;
 	lookup_bias       node_bias;
 	znode            *active;
 	reiser4_tree     *tree;
@@ -963,11 +963,11 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 		
 
 	iplug = item_plugin_by_coord( h -> coord );
-	if( iplug -> item_plugin_id != NODE_POINTER_IT ) {
+	if( !iplug -> down_link ) {
 		/* strange item type found on non-stop level?!  Twig
 		   horrors? */
 		assert( "vs-356", h -> level == TWIG_LEVEL );
-		assert( "vs-357", item_plugin_id (iplug) == EXTENT_POINTER_IT );
+		assert( "vs-357", iplug -> item_plugin_id == EXTENT_POINTER_ID );
 
 		if( result == NS_FOUND ) {
 			/*
@@ -1035,8 +1035,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 			 */
 			h -> flags &= ~CBK_TRUST_DK;
 		}
-		assert( "vs-362", item_is_internal( h -> coord ) );
 		iplug = item_plugin_by_coord( h -> coord );
+		assert( "vs-362", iplug -> down_link );
 	}
 	/*
 	 * prepare delimiting keys for the next node
@@ -1048,8 +1048,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 	}
 
 	/* go down to next level */
-	iplug -> s.internal.down_link( h -> coord, h -> key,
-				       &h -> block );
+	assert( "vs-515", iplug -> down_link);
+	iplug -> down_link( h -> coord, h -> key, &h -> block );
 	-- h -> level;
 	return LLR_CONT; /* continue */
 }
@@ -1405,7 +1405,7 @@ void print_coord_content( const char *prefix, tree_coord *p )
 	print_znode( prefix, p -> node );
 	item_key_by_coord( p, &key );
 	print_key( prefix, &key );
-	print_plugin( prefix, item_plugin_to_plugin (item_plugin_by_coord( p ) ) );
+	print_plugin( prefix, common_item_plugin_to_plugin (item_plugin_by_coord( p ) ) );
 }
 
 /** debugging aid: print human readable information about @block */

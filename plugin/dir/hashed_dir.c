@@ -84,7 +84,7 @@ int hashed_owns_item( const struct inode *inode, const tree_coord *coord )
 	assert( "nikita-1335", inode != NULL );
 	assert( "nikita-1334", coord != NULL );
 
-	if( item_plugin_id_by_coord( coord ) == SIMPLE_DIR_ENTRY_IT )
+	if( item_plugin_id_by_coord( coord ) == SIMPLE_DIR_ENTRY_ID )
 		/*
 		 * FIXME-NIKITA move this into kassign.c
 		 */
@@ -202,8 +202,17 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 			     ZNODE_READ_LOCK, &entry );
 	if( result == 0 ) {
 		/* entry was found, extract object key from it. */
-		result = item_plugin_by_coord( &coord ) -> 
-			s.dir.extract_key( &coord, &entry.key );
+		switch( item_plugin_by_coord( &coord ) -> item_plugin_id ) {
+		case SIMPLE_DIR_ENTRY_ID:
+			result = simple_dir_plugin.simple_extract_key( &coord, &entry.key );
+			break;
+		case COMPOUND_DIR_ID:
+			result = compound_dir_plugin.compound_extract_key( &coord, &entry.key );
+			break;
+		default:
+			result = -EINVAL;
+			break;
+		}
 	}
 	done_lh( &lh );
 	done_coord( &coord );
@@ -262,17 +271,31 @@ int hashed_add_entry( struct inode *object, struct dentry *where,
 			     ZNODE_WRITE_LOCK, entry );
 	if( result == -ENOENT ) {
 		/*
-		 * add new entry. Jusr pass control to the directory
+		 * add new entry. Just pass control to the directory
 		 * item plugin.
 		 */
+		switch( get_object_state( object ) -> dir_item_plugin_id) {
+		case SIMPLE_DIR_ENTRY_ID:
+			result = simple_dir_plugin.simple_add_entry( object, 
+								     &coord, &lh, where, entry );
+			break;
+		case COMPOUND_DIR_ID:
+			result = compound_dir_plugin.compound_add_entry( object, 
+									 &coord, &lh, where, entry );
+			break;
+		default:
+			result = -EINVAL;
+			break;
+		}
 		/*
 		 * FIXME-NIKITA hardcode reference to particular
 		 * directory item plugin. This should be done in a way
 		 * similar to sd.
 		 */
+		
 		assert( "nikita-1709", 
-			item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> item_plugin_id
-			== SIMPLE_DIR_ENTRY_IT );
+			common_item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> item_plugin_id
+			== SIMPLE_DIR_ENTRY_ID );
 		result = item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> 
 			s.dir.add_entry( object, 
 					 &coord, &lh, where, entry );
@@ -313,6 +336,20 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 		 * remove entry. Just pass control to the directory item
 		 * plugin.
 		 */
+		switch( get_object_state( object ) -> dir_item_plugin_id) {
+		case SIMPLE_DIR_ENTRY_ID:
+			result = simple_dir_plugin.simple_add_entry( object, 
+								     &coord, &lh, where, entry );
+			break;
+		case COMPOUND_DIR_ID:
+			result = compound_dir_plugin.compound_add_entry( object, 
+									 &coord, &lh, where, entry );
+			break;
+		default:
+			result = -EINVAL;
+			break;
+		}
+
 		if( item_plugin_id_by_coord( &coord ) != SIMPLE_DIR_ENTRY_IT ) {
 			warning( "nikita-1161", "Non directory item found" );
 			print_plugin( "plugin", item_plugin_to_plugin (item_plugin_by_coord( &coord ) ) );

@@ -170,7 +170,7 @@ struct reiser4_item_data {
 	/**
 	 * plugin of item we are inserting
 	 */
-	item_plugin   *iplug;
+	common_item_plugin   *iplug;
 };
 
 /** cbk flags: options for coord_by_key() */
@@ -238,8 +238,8 @@ extern void coord_item_move_to( tree_coord *coord, int items );
 extern void coord_unit_move_to( tree_coord *coord, int units );
 extern void *item_body_by_coord( const tree_coord *coord );
 extern int item_length_by_coord( const tree_coord *coord );
-extern item_plugin *item_plugin_by_coord( const tree_coord *coord );
-extern reiser4_item_plugin_id item_plugin_id_by_coord( const tree_coord *coord );
+extern common_item_plugin *item_plugin_by_coord( const tree_coord *coord );
+extern item_plugin_id item_plugin_id_by_coord( const tree_coord *coord );
 extern reiser4_key *item_key_by_coord( const tree_coord *coord, reiser4_key *key );
 extern reiser4_key *unit_key_by_coord( const tree_coord *coord, reiser4_key *key );
 

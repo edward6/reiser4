@@ -70,7 +70,12 @@ typedef struct {
 	int ( *init_inode )( struct inode *inode, char *sd, int len );
 	int ( *save_len ) ( struct inode *inode );
 	int ( *save ) ( struct inode *inode, char **area );
-} sd_ops;
+	common_item_plugin *common;
+} sd_plugin;
+
+extern sd_plugin sd_plugins [];
+sd_plugin *find_sd_plugin (int);
+
 
 /** stat-data extension. Please order this by presumed frequency of use */
 typedef enum {

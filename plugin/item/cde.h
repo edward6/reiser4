@@ -69,6 +69,32 @@ reiser4_key  *cde_max_key_inside( const tree_coord *coord,
 int   cde_can_contain_key( const tree_coord *coord, const reiser4_key *key,
 			   const reiser4_item_data * );
 
+
+typedef struct compound_dir_item_plugin {
+	/**
+	 * extract stat-data key from directory entry at @coord and place it
+	 * into @key.
+	 */
+	int ( *compound_extract_key )( const tree_coord *coord, reiser4_key *key );
+	/**
+	 * extract name from directory entry at @coord and return it
+	 */
+	char *( *compound_extract_name )( const tree_coord *coord );
+	/**
+	 * extract file type (DT_* stuff) from directory entry at @coord and
+	 * return it
+	 */
+	unsigned ( *compound_extract_file_type )( const tree_coord *coord );
+	int ( *compound_add_entry )( const struct inode *dir,
+				     tree_coord *coord, reiser4_lock_handle *lh,
+				     const struct dentry *name, reiser4_dir_entry_desc *entry );
+	int ( *compound_rem_entry )( const struct inode *dir,
+				     tree_coord *coord, reiser4_lock_handle *lh,
+				     reiser4_dir_entry_desc *entry );
+	int ( *compound_max_name_len )( int block_size );
+} compound_dir_item_plugin;
+
+
 /* __FS_REISER4_PLUGIN_COMPRESSED_DE_H__ */
 #endif
 

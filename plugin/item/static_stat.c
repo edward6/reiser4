@@ -622,6 +622,15 @@ reiser4_plugin sd_ext_plugins[ LAST_SD_EXTENSION ] = {
 };
 
 
+sd_plugin sd_plugins [] = {
+	[ 0 ] = {
+		.init_inode     = sd_load,
+		.save_len       = sd_len,
+		.save           = sd_save,
+		.common         = NULL
+	}
+};
+
 /* 
  * Make Linus happy.
  * Local variables:

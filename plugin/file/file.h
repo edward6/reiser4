@@ -39,19 +39,6 @@ int ordinary_file_create (struct inode * object, struct inode * parent,
 int ordinary_readpage (struct file * file, struct page * page);
 
 
-/*
- * part of item plugin. These are operations specific to items regular file
- * metadata are built of
- */
-typedef struct file_ops {
-	int (* write) (struct inode *, tree_coord *,
-		       reiser4_lock_handle *, flow_t *);
-	int (* read) (struct inode *, tree_coord *,
-		      reiser4_lock_handle *, flow_t *);
-	int (* readpage) (void *, struct page *);
-} file_ops;
-
-
 /* __REISER4_FILE_H__ */
 #endif
 
