@@ -1105,3 +1105,15 @@ reiser4progs/progs/libprogs/Makefile.in
 reiser4progs/libaal/.deps/bitops.Plo
 reiser4progs/progs/fsck/.deps/fsck.Po
 reiser4progs/progs/libprogs/.deps/misc.Po
+reiser4progs/plugin/sdext_unix/.deps/sdext_unix.Plo
+reiser4progs/plugin/sdext_unix/.libs/libsdext_unix-static.al
+reiser4progs/plugin/sdext_unix/.libs/libsdext_unix-static.la
+reiser4progs/plugin/sdext_unix/.libs/libsdext_unix.la
+reiser4progs/plugin/sdext_unix/.libs/libsdext_unix.lai
+reiser4progs/plugin/sdext_unix/.libs/libsdext_unix.so.0
+reiser4progs/plugin/sdext_unix/.libs/libsdext_unix.so.0.0.0
+reiser4progs/plugin/sdext_unix/Makefile
+reiser4progs/plugin/sdext_unix/Makefile.in
+reiser4progs/plugin/sdext_unix/libsdext_unix-static.la
+reiser4progs/plugin/sdext_unix/libsdext_unix.la
+reiser4progs/plugin/sdext_unix/sdext_unix.lo
