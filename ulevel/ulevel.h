@@ -41,6 +41,8 @@
 
 #include <stdio.h>
 
+#include <malloc.h>
+
 #include "bitops.h"
 #include "atomic.h"
 

@@ -4845,6 +4845,9 @@ int real_main( int argc, char **argv )
 	int blocksize;
 	char *e;
 
+	mallopt( M_MMAP_MAX, 0 );
+	mallopt( M_TRIM_THRESHOLD, INT_MAX );
+
 	dinfo("node size: %d\n", sizeof(node_header_40));
 	__prog_name = strrchr( argv[ 0 ], '/' );
 	if( __prog_name == NULL )
@@ -4916,7 +4919,10 @@ int real_main( int argc, char **argv )
 	set_current ();
 	run_init_reiser4 ();
 	s = call_mount( e, getenv( "REISER4_MOUNT_OPTS" ) ? : "" );
-
+	if( IS_ERR( s ) ) {
+		warning( "nikita-2175", "Cannot mount: %i", PTR_ERR( s ) );
+		return PTR_ERR( s );
+	}
 	s = &super_blocks[0];
 	tree = &get_super_private(s) -> tree;
 
