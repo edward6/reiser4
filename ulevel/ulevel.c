@@ -306,6 +306,7 @@ static struct super_block * call_mount (const char * dev_name)
 static spinlock_t inode_hash_guard;
 struct list_head inode_hash_list;
 
+#if 0
 static tree_operations ul_tops = {
 	.read_node     = ulevel_read_node,
 	.allocate_node = ulevel_read_node,
@@ -314,6 +315,7 @@ static tree_operations ul_tops = {
 	.dirty_node    = ulevel_dirty_node,
 	.drop_node     = NULL
 };
+#endif
 
 static struct inode * alloc_inode (struct super_block * sb)
 {
@@ -329,6 +331,9 @@ static struct inode * alloc_inode (struct super_block * sb)
 	atomic_set(&inode->i_count, 1);
 	inode->i_data.host = inode;
 	inode->i_mapping = &inode->i_data;
+	INIT_LIST_HEAD (&inode->i_mapping->clean_pages);
+	INIT_LIST_HEAD (&inode->i_mapping->dirty_pages);
+	INIT_LIST_HEAD (&inode->i_mapping->locked_pages);
 	return inode;
 }
 
@@ -1090,6 +1095,7 @@ int submit_bio( int rw, struct bio *bio )
 	return 0;
 }
 
+#if 0
 int ulevel_read_node( reiser4_tree *tree, jnode *node )
 {
 	const reiser4_block_nr *addr;
@@ -1140,7 +1146,7 @@ int ulevel_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
 	set_page_dirty (jnode_page (node));
 	return 0;
 }
-
+#endif
 
 static struct buffer_head * getblk (struct super_block * sb, int block)
 {
@@ -3275,13 +3281,13 @@ static int bash_mkfs (const char * file_name)
 			super.s_root->d_inode = inode;
 
 			get_super_private (&super)->oid_plug->
-				init_oid_allocator (get_oid_allocator (&super), 1ull, ( 1 << 16 ) );
+				init_oid_allocator (get_oid_allocator (&super), 1ull, (__u64)( 1 << 16 ) );
 
 			cputod64 (reiser4_inode_data( inode ) -> locality_id, 
 				  &test_sb->root_locality);
 			cputod64 ((__u64)inode -> i_ino, &test_sb->root_objectid);
 			/* OIDS_RESERVED---macro defines in oid.c */
-			cputod64 ( ( 1 << 16 ), &test_sb->next_to_use);
+			cputod64 ( (__u64)( 1 << 16 ), &test_sb->next_to_use);
 			mark_buffer_dirty (bh);
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
@@ -4238,7 +4244,7 @@ static int bm_test_read_node (reiser4_tree * tree, jnode * node )
 
 		} else {
 			warning ("zam-411", "bitmap test should not read"
-				 " not bitmap block #%llu", jnode_get_block(node));
+				 " not bitmap block #%llu", *jnode_get_block(node));
 
 			return -EIO;
 		}
@@ -4748,7 +4754,7 @@ void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 
 #endif
 
-void __mark_inode_dirty(struct inode *inode, int flags)
+void __mark_inode_dirty(struct inode *inode UNUSED_ARG, int flags UNUSED_ARG)
 {
 }
 
@@ -4776,7 +4782,7 @@ int __set_page_dirty_nobuffers(struct page *page)
 			spin_lock( &page_list_guard );
 			list_del(&page->list);
 			list_add(&page->list, &mapping->dirty_pages);
-			spin_lock( &page_list_guard );
+			spin_unlock( &page_list_guard );
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
 	}
