@@ -11,9 +11,6 @@ typedef enum {
 	OTHER_ITEM_TYPE
 } item_type;
 
-#define item_type_is_internal( coord ) \
-( item_type_by_coord( coord ) == INTERNAL_ITEM_TYPE )
-
 typedef struct item_plugin {
 	/* in reiser4 key doesn't contain full item type only several bits of
 	   it. So after doing coord_by_key() we need to check that we really
@@ -200,16 +197,25 @@ typedef struct item_plugin {
 	} s;			/* item specific item operations */
 
 	/**
-	 * return rightmost or leftmost child of this item with refcount incremented.
-	 * If there is none, or child is not in a memory return NULL.
+	 * Return information about the rightmost or leftmost child of this
+	 * item according to the @side argument (RIGHT_SIDE or LEFT_SIDE).
 	 *
-	 * This method is optional. It is used by slum gathering code.
+	 * Return the child's block number in @blocknr.
 	 *
-	 * Maybe this method should go in balance_ops (.b)?
+	 * If flags has UMOST_GET_CHILD set it returns the child jnode with
+	 * refcount incremented if it is in memory, else NULL.
+	 *
+	 * This method must be defined for non-leaf items and is left NULL for
+	 * leaf items.  It is used by slum gathering and flushing code.
 	 */
-	jnode * ( *utmost_child )( const tree_coord *coord, sideof side );
+	int ( *utmost_child )( const tree_coord *coord, sideof side, int flags, jnode **child, block_nr *blocknr );
 } item_plugin;
 
+/* Possible flags passed to item_plugin's utmost_child method. */
+typedef enum {
+	UTMOST_GET_CHILD   = (1 << 0), /* Return the jnode with refcount incremented. */
+	/*UTMOST_READ_CHILD  = (1 << 1),*/ /* Return the jnode even if it is not in memory. */
+} umost_child_flags;
 
 typedef enum {
 	SD_ITEM_ID, 

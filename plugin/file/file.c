@@ -153,6 +153,10 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 
 	/*
 	 * build flow
+	 *
+	 * FIXME: looks like this does exactly what common_build_flow does,
+	 * which should be the file's flow_by_inode method?  it should use
+	 * that method?
 	 */
 	f.length = size;
 	f.data = buf;

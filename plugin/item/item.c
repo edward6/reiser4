@@ -108,13 +108,13 @@ int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 )
 
 int item_is_extent   (const tree_coord *item)
 {
-	return item_plugin_id (item_plugin_by_coord (item)) == EXTENT_ITEM_ID;
+	return item_type_by_coord (item) == EXTENT_ITEM_ID;
 }
 
 int item_is_internal (const tree_coord *item)
 {
 	/* FIXME_JMACD: I wonder if these should assert coord_of_item() */
-	return item_plugin_id (item_plugin_by_coord (item)) == INTERNAL_ITEM_ID;
+	return item_type_by_coord (item) == INTERNAL_ITEM_ID;
 }
 
 reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {

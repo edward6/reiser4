@@ -526,7 +526,7 @@ int common_file_owns_item( const struct inode *inode, const tree_coord *coord )
  * Default method to construct flow into @f according to user-supplied
  * data.
  */
-int common_build_flow( struct file *file UNUSED_ARG, char *buf, size_t size, 
+int common_build_flow( struct file *file, char *buf, size_t size, 
 		       loff_t *off, rw_op op UNUSED_ARG, flow_t *f )
 {
 	assert( "nikita-1100", f != NULL );

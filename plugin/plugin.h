@@ -197,7 +197,7 @@ typedef struct file_plugin {
 	 */
 	int ( *flow_by_inode )( struct file *file, char *buf, size_t size, 
 				loff_t *off, rw_op op, flow_t * );
-	int ( *flow_by_key )( reiser4_key *key, flow_t * );
+	/*int ( *flow_by_key )( reiser4_key *key, flow_t * );*/
 	/*
 	 * set the plugin for a file.  Called during file creation in reiser4()
 	 * and creat().
