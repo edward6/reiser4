@@ -53,17 +53,18 @@
 /* assert assures that @cond is true. If it is not, reiser4_panic() is
    called. Use this for checking logical consistency and _never_ call
    this to check correctness of external data: disk blocks and user-input . */
-#define assert(label, cond)						\
-({									\
-	/* call_on_each_assert(); */					\
-	if (cond) {						\
-		/* put negated check to avoid using !(cond) that would lose \
-		 * warnings for things like assert(a = b); */		\
-		;							\
-	} else {							\
-		DEBUGON(1);						\
-		reiser4_panic(label, "assertion failed: %s", #cond);	\
-	}								\
+#define assert(label, cond)							\
+({										\
+	/* call_on_each_assert(); */						\
+	if (cond) {								\
+		/* put negated check to avoid using !(cond) that would lose	\
+		 * warnings for things like assert(a = b); */			\
+		;								\
+	} else {								\
+		print_clog();							\
+		DEBUGON(1);							\
+		reiser4_panic(label, "assertion failed: %s", #cond);		\
+	}									\
 })
 
 /* like assertion, but @expr is evaluated even if REISER4_DEBUG is off. */
@@ -529,20 +530,16 @@ typedef struct err_site {} err_site;
 #endif
 
 /* operations to clog */
-/* debugging re-enterance */
+/* debugging capture_anonymous_pages */
+#define CLOG_CUF_START 0
+#define CLOG_CUF_END 1
+#define CLOG_CAP_START 2
+#define CLOG_CAP_END 3
+#define CLOG_CAJ_START 4
+#define CLOG_CAJ_END 5
+#define CLOG_EFLUSH_PHANTOM 6
 
-#define GET_USER_PAGES 0
-#define PUT_USER_PAGES 1
-#define EXTENT_WRITE_IN 2
-#define EXTENT_WRITE_OUT 3
-#define READPAGE_IN 4
-#define READPAGE_OUT 5
-#define EXTENT_WRITE_IN2 6
-#define EXTENT_WRITE_OUT2 7
-#define LINK_OBJECT 8
-#define UNLINK_OBJECT 9
-
-#define OP_NUM 10
+#define OP_NUM 7
 
 void clog_op(int op, void *, void *);
 void print_clog(void);
