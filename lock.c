@@ -352,6 +352,9 @@
 
 #include <linux/spinlock.h>
 
+#define ADDSTAT(node, counter) 						\
+	reiser4_stat_inc_at_level(znode_get_level(node), znode.counter)
+
 /* Returns a lock owner associated with current thread */
 lock_stack *
 get_current_lock_stack(void)
@@ -363,10 +366,10 @@ get_current_lock_stack(void)
 static void
 wake_up_all_lopri_owners(znode * node)
 {
-	lock_handle *handle = owners_list_front(&node->lock.owners);
+	lock_handle *handle;
 
 	assert("nikita-1824", spin_znode_is_locked(node));
-	while (!owners_list_end(&node->lock.owners, handle)) {
+	for_all_tslist(owners, &node->lock.owners, handle) {
 		spin_lock_stack(handle->owner);
 
 		assert("nikita-1832", handle->node == node);
@@ -379,7 +382,6 @@ wake_up_all_lopri_owners(znode * node)
 		__reiser4_wake_up(handle->owner);
 
 		spin_unlock_stack(handle->owner);
-		handle = owners_list_next(handle);
 	}
 }
 
@@ -584,11 +586,9 @@ can_lock_object(lock_stack * owner)
 	result = check_lock_object(owner);
 	if (REISER4_STATS && znode_get_level(node) > 0) {
 		if (result != 0)
-			reiser4_stat_inc_at_level(znode_get_level(node), 
-						  long_term_lock_contented);
+			ADDSTAT(node, lock_contented);
 		else
-			reiser4_stat_inc_at_level(znode_get_level(node), 
-						  long_term_lock_uncontented);
+			ADDSTAT(node, lock_uncontented);
 	}
 	return result;
 }
@@ -674,9 +674,6 @@ set_low_priority(lock_stack * owner)
 	}
 }
 
-#define ADDSTAT(node, counter) 						\
-	reiser4_stat_inc_at_level(znode_get_level(node), znode.counter)
-
 #define MAX_CONVOY_SIZE ((unsigned)(NR_CPUS - 1))
 
 /* helper function used by longterm_unlock_znode() to wake up requestor(s). */
@@ -730,7 +727,7 @@ wake_up_requestor(znode *node)
 		 * it has been verified experimentally, that there are no
 		 * convoys on the leaf level.
 		 */
-		if (znode_get_level(node) != LEAF_LEVEL && 
+		if (znode_get_level(node) != LEAF_LEVEL &&
 		    convoy[0]->request.mode == ZNODE_READ_LOCK) {
 			lock_stack *item;
 
@@ -784,7 +781,6 @@ wake_up_requestor(znode *node)
 #endif
 }
 
-#undef ADDSTAT
 #undef MAX_CONVOY_SIZE
 
 /* unlock a znode long term lock */
@@ -802,7 +798,7 @@ longterm_unlock_znode(lock_handle * handle)
 
 	ON_DEBUG(--lock_counters()->long_term_locked_znode);
 
-	reiser4_stat_inc_at_level(znode_get_level(node), znode.unlock_znode);
+	ADDSTAT(node, unlock);
 
 	spin_lock_znode(node);
 
@@ -859,10 +855,8 @@ longterm_unlock_znode(lock_handle * handle)
 
 	/* If the node is locked it must have an owners list.  Likewise, if the node is
 	   unlocked it must have an empty owners list. */
-	assert("zam-319", znode_is_locked(node)
-	       || owners_list_empty(&node->lock.owners));
-	assert("zam-320", !znode_is_locked(node)
-	       || !owners_list_empty(&node->lock.owners));
+	assert("zam-319", equi(znode_is_locked(node), 
+			       !owners_list_empty(&node->lock.owners)));
 
 	/* If there are pending lock requests we wake up a requestor */
 	if (!znode_is_wlocked(node))
@@ -889,11 +883,15 @@ int longterm_lock_znode(
 			       znode_lock_mode mode,
 			       /* {0, -EINVAL, -EDEADLK}, see return codes description. */
 			       znode_lock_request request) {
-	int ret;
-	int hipri = (request & ZNODE_LOCK_HIPRI) != 0;
-	int wake_up_next = 0;
-	txn_capture try_capture_flags = 0;
-	int non_blocking = 0;
+	int          ret;
+	int          hipri             = (request & ZNODE_LOCK_HIPRI) != 0;
+	int          wake_up_next      = 0;
+	txn_capture  cap_flags         = 0;
+	int          non_blocking      = 0;
+	zlock       *lock;
+	txn_handle  *txnh;
+	tree_level   level;
+	txn_capture  cap_mode;
 
 	/* Get current process context */
 	lock_stack *owner = get_current_lock_stack();
@@ -903,12 +901,12 @@ int longterm_lock_znode(
 	assert("nikita-3026", schedulable());
 
 	if (request & ZNODE_LOCK_NONBLOCK) {
-		try_capture_flags |= TXN_CAPTURE_NONBLOCKING;
+		cap_flags |= TXN_CAPTURE_NONBLOCKING;
 		non_blocking = 1;
 	}
 
 	if (request & ZNODE_LOCK_DONT_FUSE)
-		try_capture_flags |= TXN_CAPTURE_DONT_FUSE;
+		cap_flags |= TXN_CAPTURE_DONT_FUSE;
 
 	/* If we are changing our process priority we must adjust a number
 	   of high priority owners for each znode that we already lock */
@@ -918,20 +916,37 @@ int longterm_lock_znode(
 		set_low_priority(owner);
 	}
 
-	reiser4_stat_inc_at_level(znode_get_level(node), znode.lock_znode);
+	level = znode_get_level(node);
+	ADDSTAT(node, lock);
 
 	/* Fill request structure with our values. */
 	owner->request.mode = mode;
 	owner->request.handle = handle;
 	owner->request.node = node;
 
+	txnh = get_current_context()->trans;
+	lock = &node->lock;
+
+	if (REISER4_STATS) {
+		if (mode == ZNODE_READ_LOCK)
+			ADDSTAT(node, lock_read);
+		else
+			ADDSTAT(node, lock_write);
+
+		if (hipri)
+			ADDSTAT(node, lock_hipri);
+		else
+			ADDSTAT(node, lock_lopri);
+	}
+
+	cap_mode = (mode == ZNODE_WRITE_LOCK) ? TXN_CAPTURE_WRITE : 0;
+
 	/* Synchronize on node's guard lock. */
 	spin_lock_znode(node);
 
 	for (;;) {
 
-		reiser4_stat_inc_at_level(znode_get_level(node), 
-					  znode.lock_znode_iteration);
+		ADDSTAT(node, lock_iteration);
 
 		/* Check the lock's availability: if it is unavaiable we get EAGAIN, 0
 		   indicates "can_lock", otherwise the node is invalid.  */
@@ -954,7 +969,8 @@ int longterm_lock_znode(
 		assert("nikita-1844", (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
 		/* If we can get the lock... Try to capture first before
 		   taking the lock.*/
-		ret = try_capture(ZJNODE(node), mode, try_capture_flags);
+		ret = try_capture_args(ZJNODE(node), txnh, mode,
+				       cap_flags, non_blocking, cap_mode);
 		if (unlikely(ret != 0)) {
 			/* In the failure case, the txnmgr releases the znode's lock (or
 			   in some cases, it was released a while ago).  There's no need
@@ -992,40 +1008,36 @@ int longterm_lock_znode(
 			/* If we are going in high priority direction then
 			   increase high priority requests counter for the
 			   node */
-			node->lock.nr_hipri_requests++;
+			lock->nr_hipri_requests++;
 			/* If there are no high priority owners for a node,
 			   then immediately wake up low priority owners, so
 			   they can detect possible deadlock */
-			if (node->lock.nr_hipri_owners == 0)
+			if (lock->nr_hipri_owners == 0)
 				wake_up_all_lopri_owners(node);
 			/* And prepare a lock request */
-			requestors_list_push_front(&node->lock.requestors, owner);
+			requestors_list_push_front(&lock->requestors, owner);
 		} else {
 			/* If we are going in low priority direction then we
 			   set low priority to our process. This is the only
 			   case  when a process may become low priority */
 			/* And finally prepare a lock request */
-			requestors_list_push_back(&node->lock.requestors, owner);
+			requestors_list_push_back(&lock->requestors, owner);
 		}
 
-		/* Ok, here we have prepared a lock request, so unlock a
-		   znode ...*/
+		/* Ok, here we have prepared a lock request, so unlock
+		   a znode ...*/
 		spin_unlock_znode(node);
 		/* ... and sleep */
-		ret = go_to_sleep(owner, znode_get_level(node));
+		go_to_sleep(owner, level);
 
 		spin_lock_znode(node);
+
 		if (hipri) {
-			assert("nikita-1838", node->lock.nr_hipri_requests > 0);
-			node->lock.nr_hipri_requests--;
+			assert("nikita-1838", lock->nr_hipri_requests > 0);
+			lock->nr_hipri_requests--;
 		}
 
 		requestors_list_remove(owner);
-		/* signal-interruptible sleep is not supported. */
-		if (0 && ret) {
-			warning("nikita-2266", "Wait interrupted: %i", ret);
-			break;
-		}
 	}
 
 	assert("jmacd-807", spin_znode_is_locked(node));
@@ -1038,12 +1050,10 @@ int longterm_lock_znode(
 			wake_up_next = 1;
 	}
 
-	if (wake_up_next && !requestors_list_empty(&node->lock.requestors)) {
-		lock_stack *next = requestors_list_front(&node->lock.requestors);
-		reiser4_wake_up(next);
-	}
-
-	spin_unlock_znode(node);
+	if (wake_up_next)
+		wake_up_requestor(node);
+	else
+		spin_unlock_znode(node);
 
 	if (ret == 0) {
 		/* count a reference from lockhandle->node 
@@ -1273,7 +1283,7 @@ __reiser4_wake_up(lock_stack * owner)
 }
 
 /* Puts a thread to sleep */
-int
+void
 __go_to_sleep(lock_stack * owner
 #if REISER4_STATS
 	    , int node_level
@@ -1300,8 +1310,6 @@ __go_to_sleep(lock_stack * owner
 						    jiffies - sleep_start);
 	}
 #endif
-	
-	return 0;
 }
 
 int

@@ -468,8 +468,6 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(page_try_release),
 	DEFINE_STAT_LEVEL_CNT(page_released),
 	DEFINE_STAT_LEVEL_CNT(emergency_flush),
-	DEFINE_STAT_LEVEL_CNT(long_term_lock_contented),
-	DEFINE_STAT_LEVEL_CNT(long_term_lock_uncontented),
 
 	DEFINE_STAT_LEVEL_CNT(jnode.jload),
 	DEFINE_STAT_LEVEL_CNT(jnode.jload_already),
@@ -477,16 +475,23 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(jnode.jload_async),
 	DEFINE_STAT_LEVEL_CNT(jnode.jload_read),
 
-	DEFINE_STAT_LEVEL_CNT(znode.lock_znode),
-	DEFINE_STAT_LEVEL_CNT(znode.lock_znode_iteration),
+	DEFINE_STAT_LEVEL_CNT(znode.lock),
+	DEFINE_STAT_LEVEL_CNT(znode.lock_iteration),
 	DEFINE_STAT_LEVEL_CNT(znode.lock_neighbor),
 	DEFINE_STAT_LEVEL_CNT(znode.lock_neighbor_iteration),
-	DEFINE_STAT_LEVEL_CNT(znode.unlock_znode),
+	DEFINE_STAT_LEVEL_CNT(znode.lock_read),
+	DEFINE_STAT_LEVEL_CNT(znode.lock_write),
+	DEFINE_STAT_LEVEL_CNT(znode.lock_lopri),
+	DEFINE_STAT_LEVEL_CNT(znode.lock_hipri),
+	DEFINE_STAT_LEVEL_CNT(znode.lock_contented),
+	DEFINE_STAT_LEVEL_CNT(znode.lock_uncontented),
+	DEFINE_STAT_LEVEL_CNT(znode.unlock),
 	DEFINE_STAT_LEVEL_CNT(znode.wakeup),
 	DEFINE_STAT_LEVEL_CNT(znode.wakeup_found),
 	DEFINE_STAT_LEVEL_CNT(znode.wakeup_found_read),
 	DEFINE_STAT_LEVEL_CNT(znode.wakeup_scan),
 	DEFINE_STAT_LEVEL_CNT(znode.wakeup_convoy),
+
 	DEFINE_STAT_LEVEL_CNT(time_slept),
 	DEFINE_STAT_LEVEL_CNT(total_hits_at_level)
 };

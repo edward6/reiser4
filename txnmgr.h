@@ -348,7 +348,16 @@ extern int flush_some_atom(long *, int);
 extern int same_atom_dirty(jnode * base, jnode * check, int alloc_check, int alloc_value);
 extern void atom_dec_and_unlock(txn_atom * atom);
 
+extern txn_capture build_capture_mode(jnode           * node, 
+				      znode_lock_mode   lock_mode, 
+				      txn_capture       flags);
+
 extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags);
+extern int try_capture_args(jnode * node,
+			    txn_handle * txnh, 
+			    znode_lock_mode lock_mode, 
+			    txn_capture flags,
+			    int non_blocking, txn_capture cap_mode);
 
 extern int try_capture_page(struct page *pg, znode_lock_mode mode, int non_blocking);
 

@@ -364,13 +364,13 @@ extern __u32 reiser4_current_trace_flags;
 
 #define	reiser4_stat_inc_at_level(lev, stat)					\
 ({										\
-	int level;								\
+	int __level;								\
 										\
-	level = (lev) - LEAF_LEVEL;						\
-	if (level >= 0) {							\
-		if(level < REAL_MAX_ZTREE_HEIGHT) {				\
-			reiser4_stat_inc(level[level]. stat);			\
-			reiser4_stat_inc(level[level]. total_hits_at_level);	\
+	__level = (lev) - LEAF_LEVEL;						\
+	if (__level >= 0) {							\
+		if(__level < REAL_MAX_ZTREE_HEIGHT) {				\
+			reiser4_stat_inc(level[__level]. stat);			\
+			reiser4_stat_inc(level[__level]. total_hits_at_level);	\
 		}								\
 	}									\
 })
@@ -502,12 +502,6 @@ typedef struct reiser4_level_statistics {
 	stat_cnt page_released;
 	/* how many times emergency flush was invoked on this level */
 	stat_cnt emergency_flush;
-	/* how many requests for znode long term lock couldn't succeed
-	 * immediately. */
-	stat_cnt long_term_lock_contented;
-	/* how many requests for znode long term lock managed to succeed
-	 * immediately. */
-	stat_cnt long_term_lock_uncontented;
 	struct {
 		/* calls to jload() */
 		stat_cnt jload;
@@ -523,14 +517,24 @@ typedef struct reiser4_level_statistics {
 	} jnode;
 	struct {
 		/* calls to lock_znode() */
-		stat_cnt lock_znode;
+		stat_cnt lock;
 		/* number of times loop inside lock_znode() was executed */
-		stat_cnt lock_znode_iteration;
+		stat_cnt lock_iteration;
 		/* calls to lock_neighbor() */
 		stat_cnt lock_neighbor;
 		/* number of times loop inside lock_neighbor() was executed */
 		stat_cnt lock_neighbor_iteration;
-		stat_cnt unlock_znode;
+		stat_cnt lock_read;
+		stat_cnt lock_write;
+		stat_cnt lock_lopri;
+		stat_cnt lock_hipri;
+		/* how many requests for znode long term lock couldn't succeed
+		 * immediately. */
+		stat_cnt lock_contented;
+		/* how many requests for znode long term lock managed to
+		 * succeed immediately. */
+		stat_cnt lock_uncontented;
+		stat_cnt unlock;
 		stat_cnt wakeup;
 		stat_cnt wakeup_found;
 		stat_cnt wakeup_found_read;

@@ -189,12 +189,12 @@ extern int prepare_to_sleep(lock_stack * owner);
 #define ADD_TO_SLEPT_IN_WAIT_EVENT (-1)
 #define ADD_TO_SLEPT_IN_WAIT_ATOM  (-2)
 
-int __go_to_sleep(lock_stack*, int);
+void __go_to_sleep(lock_stack*, int);
 #define go_to_sleep(owner, level) __go_to_sleep(owner, level);
 
 #else
 
-int __go_to_sleep(lock_stack*);
+void __go_to_sleep(lock_stack*);
 #define go_to_sleep(owner, level) __go_to_sleep(owner)
 
 #endif

@@ -1748,25 +1748,12 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 	return 0;
 }
 
-/* This function sets up a call to try_capture_block and repeats as long as -EAGAIN is
-   returned by that routine.  The txn_capture request mode is computed here depending on
-   the transaction handle's type and the lock request.  This is called from the depths of
-   the lock manager with the jnode lock held and it always returns with the jnode lock
-   held.
-*/
-int
-try_capture(jnode * node, znode_lock_mode lock_mode, txn_capture flags
-	    /* ...NONBLOCKING and ...DONT_FUSE are allowed here */ )
+txn_capture
+build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
 {
-	int ret;
-	txn_handle *txnh;
 	txn_capture cap_mode;
-	txn_atom *atom_alloc = NULL;
 
-	int non_blocking = flags & TXN_CAPTURE_NONBLOCKING;
-
-	txnh = get_current_context()->trans;
-	assert("jmacd-492", txnh);
+	assert("nikita-3187", spin_jnode_is_locked(node));
 
 	/* FIXME_JMACD No way to set TXN_CAPTURE_READ_MODIFY yet. */
 
@@ -1774,30 +1761,50 @@ try_capture(jnode * node, znode_lock_mode lock_mode, txn_capture flags
 		cap_mode = TXN_CAPTURE_WRITE;
 	} else if (node->atom != NULL) {
 		cap_mode = TXN_CAPTURE_WRITE;
-	} else if ((txnh->mode == TXN_READ_FUSING)
-		   && (jnode_get_level(node) == LEAF_LEVEL)) {
+	} else if (0 && /* txnh->mode == TXN_READ_FUSING && */
+		   jnode_get_level(node) == LEAF_LEVEL) {
 		/* NOTE-NIKITA TXN_READ_FUSING is not currently used */
-		/* We only need a READ_FUSING capture at the leaf level.  This is because
-		   the internal levels of the tree (twigs included) are redundant from the
-		   point of the user that asked for a read-fusing transcrash.  The user
-		   only wants to read-fuse atoms due to reading uncommitted data that
-		   another user has written.  It is the file system that reads/writes the
+		/* We only need a READ_FUSING capture at the leaf level.  This
+		   is because the internal levels of the tree (twigs included)
+		   are redundant from the point of the user that asked for a
+		   read-fusing transcrash.  The user only wants to read-fuse
+		   atoms due to reading uncommitted data that another user has
+		   written.  It is the file system that reads/writes the
 		   internal tree levels, the user only reads/writes leaves. */
 		cap_mode = TXN_CAPTURE_READ_ATOMIC;
 	} else {
-		/* In this case (read lock at a non-leaf) there's no reason to capture. */
+		/* In this case (read lock at a non-leaf) there's no reason to
+		 * capture. */
 		/* cap_mode = TXN_CAPTURE_READ_NONCOM; */
 
-		/* Mark this node as "MISSED".  It helps in further deadlock analysis */
+		/* Mark this node as "MISSED".  It helps in further deadlock
+		 * analysis */
 		JF_SET(node, JNODE_MISSED_IN_CAPTURE);
 		return 0;
 	}
 
 	cap_mode |= (flags & (TXN_CAPTURE_NONBLOCKING | TXN_CAPTURE_DONT_FUSE));
+	assert("nikita-3186", cap_mode != 0);
+	return cap_mode;
+}
 
-	assert("jmacd-604", spin_jnode_is_locked(node));
+int
+try_capture_args(jnode * node, txn_handle * txnh, znode_lock_mode lock_mode,
+		 txn_capture flags, int non_blocking, txn_capture cap_mode)
+{
+	txn_atom    *atom_alloc = NULL;
+	int ret;
+
+	assert("jmacd-604/a", spin_jnode_is_locked(node));
 
 repeat:
+
+	if (cap_mode == 0) {
+		cap_mode = build_capture_mode(node, lock_mode, flags);
+		if (cap_mode == 0)
+			return 0;
+	}
+
 	/* Repeat try_capture as long as -EAGAIN is returned. */
 	ret = try_capture_block(txnh, node, cap_mode, &atom_alloc);
 
@@ -1859,8 +1866,23 @@ repeat:
 
 	/* Jnode is still locked. */
 	assert("jmacd-760", spin_jnode_is_locked(node));
-
 	return ret;
+}
+
+/* This function sets up a call to try_capture_block and repeats as long as -EAGAIN is
+   returned by that routine.  The txn_capture request mode is computed here depending on
+   the transaction handle's type and the lock request.  This is called from the depths of
+   the lock manager with the jnode lock held and it always returns with the jnode lock
+   held.
+*/
+int
+try_capture(jnode * node, znode_lock_mode lock_mode, txn_capture flags
+	    /* ...NONBLOCKING and ...DONT_FUSE are allowed here */ )
+{
+	assert("jmacd-604", spin_jnode_is_locked(node));
+
+	return try_capture_args(node, get_current_context()->trans, lock_mode, 
+				flags, flags & TXN_CAPTURE_NONBLOCKING, 0);
 }
 
 /* fuse all 'active' atoms of lock owners of given node. */
@@ -2707,12 +2729,9 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 	if ((ret = prepare_to_sleep(wlinks._lock_stack)) != 0) {
 		trace_on(TRACE_TXN, "thread %u deadlock blocking on atom %u\n", current->pid, atomf->atom_id);
 	} else {
-		ret = go_to_sleep(wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_ATOM);
+		go_to_sleep(wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_ATOM);
 
-		if (ret == 0) {
-			ret = -EAGAIN;
-		}
-
+		ret = -EAGAIN;
 		trace_on(TRACE_TXN, "thread %u wakeup %u waiting %u\n",
 			 current->pid, atomf->atom_id, atomh ? atomh->atom_id : 0);
 	}
