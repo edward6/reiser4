@@ -49,6 +49,25 @@ int de_extract_key( const coord_t *coord /* coord of item */,
 	return extract_key_from_id( &dent -> id, key );
 }
 
+int de_update_key( const coord_t *coord, 
+		   const reiser4_key *key, lock_handle *lh UNUSED_ARG )
+{
+	directory_entry_format *dent;
+	obj_key_id              obj_id;
+	int                     result;
+
+	assert( "nikita-2342", coord != NULL );
+	assert( "nikita-2343", key != NULL );
+
+	dent = ( directory_entry_format * ) item_body_by_coord( coord );
+	result = build_obj_key_id( key, &obj_id );
+	if( result == 0 ) {
+		dent -> id = obj_id;
+		znode_set_dirty( coord -> node );
+	}
+	return 0;
+}
+
 /**
  * ->extract_name() method of simple directory item plugin.
  */

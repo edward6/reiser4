@@ -29,6 +29,8 @@ typedef struct directory_entry_format {
 
 void  de_print        ( const char *prefix, coord_t *coord );
 int   de_extract_key  ( const coord_t *coord, reiser4_key *key );
+int   de_update_key   ( const coord_t *coord, 
+			const reiser4_key *key, lock_handle *lh );
 char *de_extract_name ( const coord_t *coord );
 unsigned de_extract_file_type( const coord_t *coord );
 int   de_add_entry    ( const struct inode *dir, coord_t *coord, 

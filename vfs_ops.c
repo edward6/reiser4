@@ -911,6 +911,20 @@ static int reiser4_permission( struct inode *inode /* object */,
 }
 
 /**
+ * update inode stat-data by calling plugin
+ */
+int reiser4_write_sd( const struct inode *object )
+{
+	file_plugin *fplug;
+
+	assert( "nikita-2338", object != NULL );
+
+	fplug = inode_file_plugin( object );
+	assert( "nikita-2339", fplug != NULL );
+	return fplug -> write_sd_by_inode( object );
+}
+
+/**
  * helper function: increase inode nlink count and call plugin method to save
  * updated stat-data.
  *
@@ -1078,15 +1092,19 @@ reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry /* dentr
 	return dentry -> d_fsdata;
 }
 
+void reiser4_free_dentry_fsdata( struct dentry *dentry /* dentry released */ )
+{
+	if( dentry -> d_fsdata != NULL )
+		reiser4_kfree( dentry -> d_fsdata, 
+			       sizeof( reiser4_dentry_fsdata ) );
+}
+
 /** Release reiser4 dentry. This is d_op->d_delease() method. */
 /* Audited by: umka (2002.06.12) */
 static void reiser4_d_release( struct dentry *dentry /* dentry released */ )
 {
 	__REISER4_ENTRY( dentry -> d_sb, );
-	if( dentry -> d_fsdata != NULL )
-		reiser4_kfree( dentry -> d_fsdata, 
-			       sizeof( reiser4_dentry_fsdata ) );
-
+	reiser4_free_dentry_fsdata( dentry );
 	__REISER4_EXIT( &__context );
 }
 

@@ -62,6 +62,8 @@ int           cde_check      ( coord_t *coord, const char **error );
 
 /* plugin->u.item.s.dir.* */
 int   cde_extract_key  ( const coord_t *coord, reiser4_key *key );
+int   cde_update_key   ( const coord_t *coord, 
+			 const reiser4_key *key, lock_handle *lh );
 char *cde_extract_name ( const coord_t *coord );
 int   cde_add_entry    ( const struct inode *dir, coord_t *coord, 
 			 lock_handle *lh, const struct dentry *name, 

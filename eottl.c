@@ -282,11 +282,33 @@ int handle_eottl( cbk_handle *h /* cbk handle */,
 	int result;
 	reiser4_key key;
 
+	if( h -> level != TWIG_LEVEL ) {
+		/*
+		 * Continue to traverse tree downward.
+		 */
+		assert( "nikita-2341", h -> level > TWIG_LEVEL );
+		return 0;
+	}
+
+	/*
+	 * FIXME-NIKITA not yet. Callers are not ready to set CBK_FOR_INSERT.
+	 */
+	if( 0 && !( h -> flags & CBK_FOR_INSERT ) ) {
+		/*
+		 * tree traversal is not for insertion. Just return
+		 * CBK_COORD_NOTFOUND.
+		 */
+		h -> result = CBK_COORD_NOTFOUND;
+		*outcome = LOOKUP_DONE;
+		return 1;
+	}
+
 	/*
 	 * FIXME-VS: work around twig thing: h->coord can be set such that
 	 * item_plugin can not be taken (h->coord->between == AFTER_ITEM)
 	 */
-	if( !coord_is_existing_item( h -> coord ) || !item_is_internal( h -> coord ) ) {
+	if( !coord_is_existing_item( h -> coord ) || 
+	    !item_is_internal( h -> coord ) ) {
 		/* strange item type found on non-stop level?!  Twig
 		   horrors? */
 		assert( "vs-356", h -> level == TWIG_LEVEL );
@@ -296,7 +318,7 @@ int handle_eottl( cbk_handle *h /* cbk handle */,
 
 				coord_dup( &coord, h -> coord );
 				check_me( "vs-733", coord_set_to_left( &coord ) == 0);
-				item_id_by_coord( &coord )== EXTENT_POINTER_ID;
+				item_id_by_coord( &coord ) == EXTENT_POINTER_ID;
 			}));
 
 		if( *outcome == NS_FOUND ) {
@@ -336,8 +358,8 @@ int handle_eottl( cbk_handle *h /* cbk handle */,
 				 * coord_by_key to have write lock on twig
 				 * level
 				 */
-				assert( "vs-360", h -> lock_level < TWIG_LEVEL );
 				h -> lock_level = TWIG_LEVEL;
+				h -> lock_mode  = ZNODE_WRITE_LOCK;
 				*outcome = LOOKUP_REST;
 				return 1;
 			}

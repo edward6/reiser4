@@ -890,6 +890,26 @@ int cde_extract_key( const coord_t *coord /* coord of item */,
 	return extract_key_from_id( &dent -> id, key );
 }
 
+int cde_update_key( const coord_t *coord, 
+		    const reiser4_key *key, lock_handle *lh UNUSED_ARG )
+{
+	directory_entry_format *dent;
+	obj_key_id              obj_id;
+	int                     result;
+
+	assert( "nikita-2344", coord != NULL );
+	assert( "nikita-2345", key != NULL );
+
+	dent = entry_at( coord, idx_of( coord ) );
+	result = build_obj_key_id( key, &obj_id );
+	if( result == 0 ) {
+		dent -> id = obj_id;
+		znode_set_dirty( coord -> node );
+	}
+	return 0;
+}
+
+
 /** ->s.dir.extract_name() method for this item plugin. */
 /* Audited by: green(2002.06.13) */
 char *cde_extract_name( const coord_t *coord /* coord of item */ )

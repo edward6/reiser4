@@ -201,7 +201,7 @@ static int common_unlink( struct inode *parent /* parent object */,
 			result = fplug -> destroy_stat_data( object, parent );
 			break;
 		case UNLINK_BY_PLUGIN:
-			result = fplug -> rem_link( object );
+			result = reiser4_del_nlink( object, 1 );
 			break;
 		default:
 			wrong_return_value( "nikita-1478", "uf_type" );
@@ -494,7 +494,8 @@ reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
 			.readdir_key         = build_readdir_key,
 			.add_entry           = hashed_add_entry,
 			.rem_entry           = hashed_rem_entry,
-			.create_child        = common_create_child
+			.create_child        = common_create_child,
+			.rename              = hashed_rename
 		}
 	},
 	[ LARGE_DIR_PLUGIN_ID ] = {
@@ -516,7 +517,8 @@ reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
 			.readdir_key         = build_readdir_key,
 			.add_entry           = hashed_add_entry,
 			.rem_entry           = hashed_rem_entry,
-			.create_child        = common_create_child
+			.create_child        = common_create_child,
+			.rename              = hashed_rename
 		}
 	}
 };

@@ -41,7 +41,7 @@ static int seal_search_node( seal_t *seal, coord_t *coord,
  * and @key can be NULL. 
  */
 /* Audited by: green(2002.06.17) */
-void seal_init( seal_t      *seal /* seal to initialise */, 
+void seal_init( seal_t   *seal /* seal to initialise */, 
 		coord_t  *coord /* coord @seal will be attached to */, 
 		const reiser4_key *key UNUSED_ARG /* key @seal will be
 						   * attached to */ )
@@ -192,9 +192,9 @@ static int seal_matches( const seal_t *seal /* seal to check */,
 
 /** intranode search */
 /* Audited by: green(2002.06.17) */
-static int seal_search_node( seal_t      *seal  /* seal to repair */, 
-			     coord_t  *coord /* coord attached to @seal */, 
-			     znode       *node  /* node to search in */, 
+static int seal_search_node( seal_t  *seal  /* seal to repair */, 
+			     coord_t *coord /* coord attached to @seal */, 
+			     znode   *node  /* node to search in */, 
 			     const reiser4_key *key   /* key attached to @seal */, 
 			     lookup_bias  bias  /* search bias */,
 			     tree_level   level /* node level */ )
@@ -207,9 +207,12 @@ static int seal_search_node( seal_t      *seal  /* seal to repair */,
 	assert( "nikita-1892", node != NULL );
 	assert( "nikita-1893", znode_is_any_locked( node ) );
 
+		return -EAGAIN;
+
 	if( ( znode_get_level( node ) != level ) ||
 	    ZF_ISSET( node, ZNODE_HEARD_BANSHEE ) ||
-	    ZF_ISSET( node, ZNODE_IS_DYING ) ) {
+	    ZF_ISSET( node, ZNODE_IS_DYING ) ||
+	    ( node != coord -> node ) ) {
 		reiser4_stat_seal_add( wrong_node );
 		return -EAGAIN;
 	}

@@ -22,6 +22,10 @@ extern file_lookup_result hashed_lookup    ( struct inode *inode, struct dentry 
 /*					     const struct qstr *name, name_t *,
 					     reiser4_key *key, 
 					     reiser4_dir_entry_desc *entry );*/
+extern int                hashed_rename    ( struct inode  *old_dir,
+					     struct dentry *old_name,
+					     struct inode  *new_dir,
+					     struct dentry *new_name );
 extern int                hashed_add_entry ( struct inode *object,
 					     struct dentry *where, 
 					     reiser4_object_create_data *,

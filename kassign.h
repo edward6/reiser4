@@ -56,6 +56,7 @@ typedef struct de_id {
 
 extern int build_inode_key_id( const struct inode *obj, obj_key_id *id );
 extern int extract_key_from_id( const obj_key_id *id, reiser4_key *key );
+extern int build_obj_key_id( const reiser4_key *key, obj_key_id *id );
 extern oid_t extract_dir_id_from_key( const reiser4_key *de_key );
 extern int build_de_id( const struct inode *dir, const struct inode *obj, 
 			const struct qstr *name, de_id *id );
