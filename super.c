@@ -388,74 +388,30 @@ item_plugin *default_dir_item_plugin( const struct super_block *super UNUSED_ARG
 	return item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN );
 }
 
-
-/*
- * FIXME-VS: do we need this level of indirection between
- * read_in_formatted/unread_formatted and init_treee
- */
-int default_read_node (const reiser4_block_nr *addr, char **data,
-			size_t blocksize UNUSED_ARG)
-{
-	return read_in_formatted (reiser4_get_current_sb (), *addr, data);
-}
-
-
-void default_unread_node (znode *node)
-{
-	unread_formatted (node);
-}
-
-int default_allocate_node (znode *node)
-{
-	struct super_block * sb;
-	struct page * page;
-	unsigned long page_idx;
-
-
-	sb = reiser4_get_current_sb ();
-
-	page_idx = *znode_get_block (node) >> (PAGE_CACHE_SHIFT - sb->s_blocksize_bits);
-	page = grab_cache_page (get_super_fake (sb)->i_mapping, 
-				page_idx);
-	if (!page)
-		return -ENOMEM;
-
-	/*
-	 * FIXME-VS: not clear what to map here when blocksize != pagesize 
-	 */
-	assert ("vs-667", sb->s_blocksize == PAGE_CACHE_SIZE);
-	node->size = sb->s_blocksize;
-	node->data = kmap (page);
-	memset (node->data, 0, node->size);
-	SetPageUptodate (page);
-	return 0;
-}
-
-
-int init_tree( reiser4_tree *tree, /* pointer to structure being initialised */
-	const reiser4_block_nr *root_block /* address of a root block
-					    * on a disk */,
+int init_tree( reiser4_tree *tree /* pointer to structure being
+				   * initialised */, 
+	       struct super_block *super /* super block this tree is
+					  * associated with */,
+	       const reiser4_block_nr *root_block /* address of a root block
+						   * on a disk */,
 	       tree_level height /* height of a tree */, 
 	       node_plugin *nplug /* default node plugin */, 
-	       node_read_actor read_node /* function to read nodes from
-					  * disk */,
-	node_allocate_actor allocate_node /* function to allocate new
-						  * nodes */,
-	node_unread_actor unread_node /* function to be called on zunload */)
+	       tree_operations *tops /* tree operations */ )
 {
 	assert( "nikita-306", tree != NULL );
+	assert( "nikita-2043", super != NULL );
 	assert( "nikita-307", root_block != NULL );
 	assert( "nikita-308", height > 0 );
 	assert( "nikita-309", nplug != NULL );
-	assert( "nikita-1099", read_node != NULL );
+	assert( "nikita-2037", tops != NULL );
+	assert( "nikita-1099", tops -> read_node != NULL );
 
 	xmemset( tree, 0, sizeof *tree );
+	tree -> super = super;
 	tree -> root_block = *root_block;
 	tree -> height = height;
 	tree -> nplug = nplug;
-	tree -> read_node = read_node;
-	tree -> allocate_node = allocate_node;
-	tree -> unread_node = unread_node;
+	tree -> ops = tops;
 	tree -> cbk_cache = reiser4_kmalloc( sizeof( cbk_cache ), GFP_KERNEL );
 	if( tree -> cbk_cache == NULL )
 		return -ENOMEM;

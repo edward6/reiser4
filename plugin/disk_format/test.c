@@ -6,6 +6,14 @@
 
 static void print_test_disk_sb (const char *, const test_disk_super_block *);
 
+static tree_operations test_layout_tops = {
+	.read_node     = ulevel_read_node,
+	.allocate_node = ulevel_read_node,
+	.delete_node   = NULL,
+	.release_node  = NULL,
+	.dirty_node    = NULL
+};
+
 /* plugin->u.layout.get_ready */
 int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 {
@@ -68,8 +76,11 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	root_block = d64tocpu (&disk_sb->root_block);
 	height = d16tocpu (&disk_sb->tree_height);
 	assert ("vs-642", d16tocpu (&disk_sb->node_plugin) == NODE40_ID);
-	result = init_tree (&private->tree, &root_block, height, node_plugin_by_id (NODE40_ID),
-			    default_read_node, default_allocate_node, default_unread_node);
+	result = init_tree (&private->tree, s, &root_block, height, 
+			    node_plugin_by_id (NODE40_ID),
+			    &test_layout_tops);
+	if (result)
+		return result;
 
 	/* FIXME-VS: move up to reiser4_fill_super? */
 	result = init_formatted_fake (s);
