@@ -165,6 +165,9 @@ struct reiser4_super_info_data {
 	/* pointers to jnodes for journal header and footer */
 	jnode                 *journal_header;
 	jnode                 *journal_footer;
+
+	/* head block number of last committed transaction */
+	__u64                 last_committed_tx;
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck( const struct super_block *super );
