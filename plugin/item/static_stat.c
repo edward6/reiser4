@@ -601,10 +601,17 @@ present_symlink_sd(struct inode *inode, char **area, int *len)
 	reiser4_symlink_stat *sd;
 
 	length = (int) inode->i_size;
-	/* *len is number of bytes in stat data item from *area to the end of
-	   item. It must be not less than size of symlink + 1 for ending 0 */
-	assert("vs-839", length <= *len);
-	assert("vs-840", *(*area + length) == 0);
+	/*
+	 * *len is number of bytes in stat data item from *area to the end of
+	 * item. It must be not less than size of symlink + 1 for ending 0
+	 */
+	if (length > *len)
+		return not_enough_space(inode, "symlink");
+
+	if (*(*area + length) != 0) {
+		warning("vs-840", "Symlink is not zero terminated");
+		return RETERR(-EIO);
+	}
 
 	sd = (reiser4_symlink_stat *) * area;
 	result = symlink_target_to_inode(inode, sd->body, length);
@@ -613,12 +620,9 @@ present_symlink_sd(struct inode *inode, char **area, int *len)
 	return result;
 }
 
-/* symlink_sd_absent */
-
 static int
 save_len_symlink_sd(struct inode *inode)
 {
-	/* FIXME-VS: no alignment */
 	return inode->i_size + 1;
 }
 
@@ -702,7 +706,6 @@ save_len_flags_sd(struct inode *inode UNUSED_ARG	/* object being
 	return sizeof (reiser4_flags_stat);
 }
 
-/* Audited by: green(2002.06.14) */
 static int
 save_flags_sd(struct inode *inode /* object being processed */ ,
 	    char **area /* position in stat-data */ )
@@ -753,8 +756,9 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 		slot = (reiser4_plugin_slot *) * area;
 		if (*len < (int) sizeof *slot)
 			return not_enough_space(inode, "additional plugin");
-		plugin = plugin_by_id(d16tocpu(&slot->type_id),
-				      d16tocpu(&slot->id));
+
+		plugin = plugin_by_disk_id(tree_by_inode(inode),
+					   d16tocpu(&slot->type_id), &slot->id);
 		if (plugin == NULL)
 			return unknown_plugin(d16tocpu(&slot->id), inode);
 
@@ -1134,6 +1138,11 @@ print_cluster_sd(const char *prefix, char **area /* position in stat-data */,
 }
 #endif
 
+static int eio(struct inode *inode, char **area, int *len)
+{
+	return RETERR(-EIO);
+}
+
 sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 	[LIGHT_WEIGHT_STAT] = {
 			       .h = {
@@ -1236,6 +1245,24 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				      .linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				,
 				.present = present_flags_sd,
+				.absent = NULL,
+				.save_len = save_len_flags_sd,
+				.save = save_flags_sd,
+#if REISER4_DEBUG_OUTPUT
+				.print = NULL,
+#endif
+				.alignment = 8
+	},
+	[CAPABILITIES_STAT] = {
+				.h = {
+				      .type_id = REISER4_SD_EXT_PLUGIN_TYPE,
+				      .id = CAPABILITIES_STAT,
+				      .pops = NULL,
+				      .label = "capabilities-sd",
+				      .desc = "capabilities",
+				      .linkage = TYPE_SAFE_LIST_LINK_ZERO
+				},
+				.present = eio,
 				.absent = NULL,
 				.save_len = save_len_flags_sd,
 				.save = save_flags_sd,
