@@ -251,6 +251,11 @@ zfree(znode * node /* znode to free */ )
 	assert("nikita-2663", capture_list_is_clean(ZJNODE(node)));
 	assert("nikita-2773", !JF_ISSET(ZJNODE(node), JNODE_EFLUSH));
 	assert("nikita-3220", list_empty(&ZJNODE(node)->jnodes));
+	assert("nikita-3293", !znode_is_right_connected(node));
+	assert("nikita-3294", !znode_is_left_connected(node));
+	assert("nikita-3295", node->left == NULL);
+	assert("nikita-3296", node->right == NULL);
+
 
 	/* not yet phash_jnode_destroy(ZJNODE(node)); */
 
@@ -1134,7 +1139,7 @@ znode_invariant(const znode * node /* znode to check */ )
 	RLOCK_TREE(znode_get_tree(node));
 	result = znode_invariant_f(node, &failed_msg);
 	if (!result) {
-		print_znode("corrupted node", node);
+		/* print_znode("corrupted node", node); */
 		warning("jmacd-555", "Condition %s failed", failed_msg);
 	}
 	RUNLOCK_TREE(znode_get_tree(node));

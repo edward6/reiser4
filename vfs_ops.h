@@ -35,10 +35,8 @@ extern struct dentry_operations reiser4_dentry_operation;
 /* this function is internally called by jnode_make_dirty() */
 static inline int set_page_dirty_internal (struct page * page)
 {
-#if REISER4_STATS
-	if (!PageDirty(page))
+	if (REISER4_STATS && !PageDirty(page))
 		reiser4_stat_inc(pages_dirty);
-#endif
 	return __set_page_dirty_nobuffers (page);
 }
 
