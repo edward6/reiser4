@@ -30,6 +30,28 @@ block queried */ )
 	return ( reiser4_super_info_data * )super -> u.generic_sbp;
 }
 
+void reiser4_spin_lock_sb (struct super_block * super)
+{
+	reiser4_super_info_data * info;
+
+	assert ("zam-464", super != NULL);
+	info = get_super_private (super);
+	assert ("zam-465", info != NULL);
+
+	spin_lock(& info->guard);
+}
+
+void reiser4_spin_unlock_sb (struct super_block * super)
+{
+	reiser4_super_info_data * info;
+
+	assert ("zam-466", super != NULL);
+	info = get_super_private (super);
+	assert ("zam-467", info != NULL);
+
+	spin_unlock (& info->guard);
+}
+
 /**
  * Return reiser4 fstype: value that is returned in ->f_type field by statfs()
  */

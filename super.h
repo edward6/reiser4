@@ -147,6 +147,9 @@ extern reiser4_super_info_data *get_current_super_private( void );
 
 extern const __u32 REISER4_SUPER_MAGIC;
 
+extern void reiser4_spin_lock_sb (struct super_block *);
+extern void reiser4_spin_unlock_sb (struct super_block *);
+
 extern long statfs_type( const struct super_block *super );
 extern int  reiser4_blksize( const struct super_block *super );
 __u64 reiser4_block_count( const struct super_block *super );

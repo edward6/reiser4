@@ -257,6 +257,31 @@ static bmap_nr_t get_nr_bmap (struct super_block * super)
 	return ((reiser4_block_count (super) - 1) >> (super->s_blocksize_bits + 3)) + 1;
 }
 
+#if REISER4_DEBUG
+
+/* Audited by: green(2002.06.12) */
+static void check_block_range (const reiser4_block_nr * start, const reiser4_block_nr * len)
+{
+	struct super_block * sb = reiser4_get_current_sb();
+
+	assert ("zam-436", sb != NULL);
+
+	assert ("zam-455", start != NULL);
+	assert ("zam-437", *start != 0);
+	assert ("zam-441", *start < reiser4_block_count(sb));
+
+	if (len != NULL) {
+		assert ("zam-438", *len != 0);
+		assert ("zam-442", *start + *len <= reiser4_block_count(sb));
+	}
+}
+
+#else
+
+#  define check_block_range(start, len) do { /* nothing */} while(0)
+
+#endif
+
 /* bnode structure initialization */
 /* Audited by: green(2002.06.12) */
 static void init_bnode (struct bnode * bnode)
@@ -571,7 +596,7 @@ int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_
 	return len;
 }
 
-/* plugin->u.space_allocator.alloc_blocks */
+/* plugin->u.space_allocator.alloc_blocks() */
 /* Audited by: green(2002.06.12) */
 int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 			 reiser4_blocknr_hint * hint, int needed,
@@ -625,35 +650,46 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	return 0;
 }
 
+/** plugin->u.space_allocator.dealloc_blocks(). */
+/* It just frees blocks in WORKING BITMAP. Usually formatted an unformatted
+ * nodes deletion is deferred until transaction commit.  However, deallocation
+ * of temporary objects like wandered blocks and transaction commit records
+ * requires immediate node deletion from WORKING BITMAP.*/
+void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
+			    const reiser4_block_nr * start,
+			    const reiser4_block_nr * len)
+{
+	struct super_block * super = reiser4_get_current_sb();
+
+	bmap_nr_t  bmap;
+	bmap_off_t offset;
+
+	struct bnode * bnode;
+
+	assert ("zam-468", len != NULL);
+	check_block_range (start, len);
+
+	parse_blocknr (start, &bmap, &offset);
+
+	assert ("zam-469", offset + *len <= super->s_blocksize);
+
+	bnode = get_bnode (super, bmap);
+	assert ("zam-470", bnode != NULL);
+	assert ("zam-471", bnode->wpage != NULL);
+
+	spin_lock_bnode (bnode);
+	reiser4_clear_bits (bnode->wpage, offset, (bmap_off_t)(offset + *len));
+	spin_unlock_bnode (bnode);
+
+	reiser4_spin_lock_sb(super);
+	reiser4_set_free_blocks(super, reiser4_free_blocks(super) + *len);
+	reiser4_spin_unlock_sb(super);
+}
+
 /*
  * These functions are hooks from the journal code to manipulate COMMIT BITMAP
  * and WORKING BITMAP objects.
  */
-
-#if REISER4_DEBUG
-
-/* Audited by: green(2002.06.12) */
-static void check_block_range (const reiser4_block_nr * start, const reiser4_block_nr * len)
-{
-	struct super_block * sb = reiser4_get_current_sb();
-
-	assert ("zam-436", sb != NULL);
-
-	assert ("zam-455", start != NULL);
-	assert ("zam-437", *start != 0);
-	assert ("zam-441", *start < reiser4_block_count(sb));
-
-	if (len != NULL) {
-		assert ("zam-438", *len != 0);
-		assert ("zam-442", *start + *len <= reiser4_block_count(sb));
-	}
-}
-
-#else
-
-#  define check_block_range(start, len) do { /* nothing */} while(0)
-
-#endif
 
 static inline void add_bnode_to_commit_list (struct bnode ** commit_list, struct bnode * bnode)
 {
@@ -705,10 +741,17 @@ static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
 		assert ("zam-443", offset + *len <= sb->s_blocksize);
 		reiser4_clear_bits (bnode->cpage, offset, (bmap_off_t)(offset + *len));
 	} else {
-		reiser4_set_bit (offset, bnode->cpage);
+		reiser4_clear_bit (offset, bnode->cpage);
 	}
 
 	spin_unlock_bnode (bnode);
+
+	reiser4_spin_lock_sb(sb);
+
+	if (len == NULL) reiser4_inc_free_committed_blocks(sb);
+	else reiser4_set_free_committed_blocks (sb, reiser4_free_committed_blocks(sb) + *len);
+
+	reiser4_spin_unlock_sb(sb);
 
 	return 0;
 }
@@ -769,6 +812,10 @@ void bitmap_pre_commit_hook (void)
 					reiser4_set_bit (offset, bn->cpage);
 					spin_unlock_bnode (bn);
 
+					reiser4_spin_lock_sb (ctx->super);
+					reiser4_inc_free_committed_blocks (ctx->super);
+					reiser4_spin_unlock_sb (ctx->super);
+
 					/* we use the same commit list to
 					 * store bnodes we will capture */
 					add_bnode_to_commit_list (&commit_list, bn);
@@ -776,7 +823,6 @@ void bitmap_pre_commit_hook (void)
 
 				node = capture_list_next(node);
 			}
-			
 		}
 	}
 
@@ -816,6 +862,7 @@ static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 	struct super_block * sb = reiser4_get_current_sb ();
 
 	struct bnode * bnode;
+
 	bmap_nr_t bmap;
 	bmap_off_t offset;
 
@@ -838,6 +885,13 @@ static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 	}
 
 	spin_unlock_bnode(bnode);
+
+	reiser4_spin_lock_sb (sb);
+
+	if (len == NULL) reiser4_inc_free_blocks (sb);
+	else reiser4_set_free_blocks (sb, reiser4_free_blocks (sb) + *len);
+
+	reiser4_spin_unlock_sb (sb);
 
 	return 0;
 }
@@ -890,6 +944,10 @@ static int apply_wset_to_working_bmap (
 	spin_lock_bnode(bnode);
 	reiser4_clear_bit(offset, bnode->wpage); 
 	spin_unlock_bnode(bnode);
+
+	reiser4_spin_lock_sb (sb);
+	reiser4_inc_free_blocks (sb);
+	reiser4_spin_unlock_sb (sb);
 
 	return 0;
 }
