@@ -45,7 +45,7 @@ int symlink_create( struct inode * symlink, /* inode of symlink */
 		assert( "vs-849", symlink->u.generic_ip &&
 			inode_get_flag (symlink, REISER4_GENERIC_VP_USED));
 		assert( "vs-850", !memcmp ((char *)symlink->u.generic_ip,
-					   data->name, symlink->i_size + 1));
+					   data->name, (size_t)symlink->i_size + 1));
 	}
 	return result;
 }

@@ -558,7 +558,7 @@ int jload( jnode *node )
 		if( likely( result == 0 ) ) {
 			JF_SET( node, ZNODE_LOADED );
 		} else
-			jrelse_nolock( node );
+			jrelse( node );
 	} else {
 		struct page *page;
 
@@ -676,7 +676,7 @@ jnode_type jnode_get_type( const jnode *node )
 	return mask_to_type[ ( node -> state & state_mask ) >> ZNODE_UNFORMATTED ];
 }
 
-static int noparse( jnode *node )
+static int noparse( jnode *node UNUSED_ARG )
 {
 	return 0;
 }
@@ -691,7 +691,7 @@ static unsigned long jnode_index( const jnode *node )
 	return node -> key.index;
 }
 
-static struct address_space *znode_mapping( const jnode *node )
+static struct address_space *znode_mapping( const jnode *node UNUSED_ARG )
 {
 	return get_super_fake( reiser4_get_current_sb() ) -> i_mapping;
 }
@@ -788,8 +788,8 @@ reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ] = {
 
 jnode_plugin *jnode_ops_of( const jnode_type type )
 {
-	assert( "nikita-2367", ( 0 <= type ) && ( type < JNODE_LAST_TYPE ) );
-	return jnode_plugin_by_id( type );
+	assert( "nikita-2367", type < JNODE_LAST_TYPE );
+	return jnode_plugin_by_id( ( reiser4_plugin_id ) type );
 }
 
 jnode_plugin *jnode_ops( const jnode *node )

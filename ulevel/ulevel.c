@@ -4506,7 +4506,7 @@ static void fill_sb (struct super_block * super)
 	info_data ->space_plug = &space_plugins[BITMAP_SPACE_ALLOCATOR_ID].space_allocator;
 }
 
-static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree)
+static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree UNUSED_ARG)
 {
 	struct super_block * super = reiser4_get_current_sb();
 
@@ -5157,7 +5157,7 @@ int vfs_follow_link(struct nameidata *nd UNUSED_ARG,
 	return 0;
 }
 
-void balance_dirty_pages(struct address_space *mapping)
+void balance_dirty_pages(struct address_space *mapping UNUSED_ARG)
 {
 }
 

@@ -376,11 +376,11 @@ static int symlink_target_to_inode( struct inode *inode, const char *target, int
 	 * FIXME-VS: this is prone to deadlock. Not more than other similar
 	 * places, though
 	 */
-	inode -> u.generic_ip = kmalloc( len + 1, GFP_KERNEL );
+	inode -> u.generic_ip = reiser4_kmalloc( ( size_t )len + 1, GFP_KERNEL );
 	if( !inode -> u.generic_ip )
 		return -ENOMEM;
 
-	memcpy( ( char * )( inode -> u.generic_ip ), target, len );
+	memcpy( ( char * )( inode -> u.generic_ip ), target, ( size_t ) len );
 	( ( char * )( inode -> u.generic_ip ) ) [ len ] = 0;
 	inode_set_flag( inode, REISER4_GENERIC_VP_USED );
 	return 0;
@@ -398,9 +398,9 @@ static int symlink_sd_present( struct inode *inode,
 	assert( "vs-839", inode -> i_size + 1 <= *len );
 	assert( "vs-840", *( *area + inode->i_size ) == 0 );
 
-	result = symlink_target_to_inode( inode, *area, inode -> i_size );
+	result = symlink_target_to_inode( inode, *area, ( int )inode -> i_size );
 
-	move_on( len, area, inode -> i_size + 1 );
+	move_on( len, area, ( int ) inode -> i_size + 1 );
 	return result;
 }
 
@@ -427,7 +427,8 @@ static int symlink_sd_save( struct inode *inode, char **area )
 	if( inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
 		/* there is nothing to do in update but move area */
 		assert( "vs-844", !memcmp( inode -> u.generic_ip,
-					   *area, inode -> i_size + 1 ) );
+					   *area, 
+					   ( size_t ) inode -> i_size + 1 ) );
 		*area += ( inode -> i_size + 1 );
 		return 0;
 	}
@@ -435,10 +436,11 @@ static int symlink_sd_save( struct inode *inode, char **area )
 	target = ( const char * )( inode -> u.generic_ip );
 	inode -> u.generic_ip = 0;
 
-	result = symlink_target_to_inode( inode, target, inode -> i_size );
+	result = symlink_target_to_inode( inode, target, 
+					  ( int ) inode -> i_size );
 
 	/* coopy symlink to stat data */
-	memcpy( *area, target, inode -> i_size );
+	memcpy( *area, target, ( size_t ) inode -> i_size );
 	( *area )[ inode -> i_size ] = 0;
 	*area += ( inode -> i_size + 1 );
 	return result;
