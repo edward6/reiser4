@@ -634,7 +634,7 @@ write_ctail(flow_t *f, coord_t *coord, lock_handle *lh, int grabbed, crc_write_m
 		result = cut_ctail(coord);
 		break;
 	default:
-		assert("edward-244", 0);
+		impossible("edward-244", "wrong ctail write mode");
 	}
 	return result;
 }
@@ -642,7 +642,7 @@ write_ctail(flow_t *f, coord_t *coord, lock_handle *lh, int grabbed, crc_write_m
 /* plugin->u.item.f.scan */
 /* Check if the cluster node we started from doesn't have any items
    in the tree. If so, insert prosessed cluster into the tree.
-   Don't care about scan counter since scanning left will be continue
+   Don't care about scan counter since leftward scanning will be continued
    from rightmost dirty node.
 */  
 int scan_ctail(flush_scan * scan, const coord_t * in_coord)
@@ -672,10 +672,10 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 	reiser4_cluster_init(&clust);
 
 	if (!coord_is_invalid(&scan->parent_coord)) {
-		assert("edward-233", scan->direction == RIGHT_SIDE);
 		/* do nothing */
 		return 0;
 	}
+	assert("edward-233", scan->direction == LEFT_SIDE);
 	/* we start at an unformatted node, which doesn't have any items
 	   in the tree (new file or converted hole), so insert flow and
 	   continue scan from rightmost dirty node */
