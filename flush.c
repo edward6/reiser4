@@ -1714,9 +1714,9 @@ out:
 	return ret;
 }
 
-/* This is special node method which scans node items and check for each
-   one, if we need to apply flush squeeze item method. This item method
-   may resize/kill the item, and also may change the tree.
+/* Scan node items starting from the first one and apply for each
+   item its flush ->squeeze() method (if there exists non-zero one).
+   This method may resize/kill the item, and also may change the tree.
 */
 static int squeeze_node(flush_pos_t * pos, znode * node)
 {
@@ -1786,13 +1786,14 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 			init_lh(&right_lock);
 			init_load_count(&right_load);
 
-			/* check for slum right neighbor */
-			ret = neighbor_in_slum(node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
+			/* check for right neighbor which may be not in slum */
+			
+			ret = reiser4_get_right_neighbor(&right_lock, node, ZNODE_WRITE_LOCK, GN_CAN_USE_UPPER_LEVELS);
 			if (ret == -E_NO_NEIGHBOR)
 				/* no neighbor, repeat on this node */
 				continue;
-			else if (ret)
-				goto exit;
+			if (ret)
+				return ret;
 			ret = incr_load_count_znode(&right_load, right_lock.node);
 			if (ret) {
 				done_lh(&right_lock);
@@ -1802,14 +1803,20 @@ static int squeeze_node(flush_pos_t * pos, znode * node)
 			coord_init_before_first_item(&coord, right_lock.node);
 
 			if (iplug->b.mergeable(&pos->coord, &coord)) {
-				/* go to slum right neighbor */
+				/* go to the right neighbor */
 				item_squeeze_data(pos)->mergeable = 1;
+#if REISER4_DEBUG
+				if (!znode_is_dirty(right_lock.node))
+					warning("edward-952",
+						"first item mergeable, but znode isn't dirty\n");
+#endif
+				znode_make_dirty(right_lock.node);
 				done_load_count(&right_load);
 				done_lh(&right_lock);
 				break;
 			}
-			/* first item of right neighbor is not mergeable,
-			   repeat this node */
+			/* first item of the right neighbor is not mergeable,
+			   repeat on this node */
 			done_load_count(&right_load);
 			done_lh(&right_lock);
 		}
@@ -2091,7 +2098,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 	init_load_count(&right_load);
 
 	check_pos(pos);
-	if (znode_squeezable(pos->lock.node)) {
+	if (should_squeeze_node(pos, pos->lock.node)) {
 		ret = squeeze_node(pos, pos->lock.node);
 		check_pos(pos);
 		if (ret)
@@ -2117,7 +2124,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		if (ret)
 			break;
 
-		if (znode_squeezable(right_lock.node)) {
+		if (should_squeeze_node(pos, right_lock.node)) {
 			ret = squeeze_node(pos, right_lock.node);
 			check_pos(pos);
 			if (ret)
@@ -2137,6 +2144,12 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 			break;
 
 		if (znode_check_flushprepped(right_lock.node)) {
+			if (should_squeeze_next_node(pos, right_lock.node)) {
+				assert("edward-953", squeeze_data(pos));
+				assert("edward-954", item_squeeze_data(pos));
+				
+				goto next;
+			}
 			pos_stop(pos);
 			break;
 		}
@@ -2164,6 +2177,7 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 			set_item_squeeze_count(pos, 0);
 			break;
 		}
+	next:
 		/* advance the flush position to the right neighbor */
 		move_flush_pos(pos, &right_lock, &right_load, NULL);
 
