@@ -54,11 +54,21 @@ extern errno_t reiser4_format_mark(reiser4_format_t *format,
 #endif
 
 extern const char *reiser4_format_name(reiser4_format_t *format);
-extern blk_t reiser4_format_offset(reiser4_format_t *format);
-
 extern reiser4_id_t reiser4_format_journal_pid(reiser4_format_t *format);
 extern reiser4_id_t reiser4_format_alloc_pid(reiser4_format_t *format);
 extern reiser4_id_t reiser4_format_oid_pid(reiser4_format_t *format);
+
+extern errno_t reiser4_format_layout(reiser4_format_t *format, 
+    reiser4_action_func_t action_func, void *data);
+
+extern errno_t reiser4_format_format_layout(reiser4_format_t *format, 
+    reiser4_action_func_t action_func, void *data);
+
+extern errno_t reiser4_format_journal_layout(reiser4_format_t *format, 
+    reiser4_action_func_t action_func, void *data);
+
+extern errno_t reiser4_format_alloc_layout(reiser4_format_t *format, 
+    reiser4_action_func_t action_func, void *data);
 
 #endif
 

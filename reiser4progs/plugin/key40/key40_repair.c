@@ -28,15 +28,19 @@ static const char *__type_name(unsigned int key_type) {
 }
 
 
-void key40_print(reiser4_body_t *body, char *buf, uint32_t size, uint16_t options) {
+errno_t key40_print(reiser4_body_t *body, char *buff, 
+    uint32_t n, uint16_t options) 
+{
     key40_t *key = (key40_t *)body;
-    aal_assert("vpf-191", key != NULL, return);
+    
+    aal_assert("vpf-191", key != NULL, return -1);
 
-    if (!buf)
-	return;
+    if (!buff) return -1;
 
-    reiser4_comm_strcat(buf, size, "[key40: %llu:%u:%llu:%llu:%llu %s]", 
+    reiser4_comm_strcat(buff, n, "[key40: %llu:%u:%llu:%llu:%llu %s]", 
 	k40_get_locality(key), k40_get_type(key),  k40_get_band(key),
 	k40_get_objectid(key), k40_get_offset(key), __type_name(k40_get_type(key)));
+
+    return 0;
 }
 

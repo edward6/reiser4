@@ -140,7 +140,7 @@ static errno_t stat40_valid(reiser4_body_t *body) {
 }
 
 static errno_t stat40_print(reiser4_body_t *body, 
-    char *buff, uint32_t n)
+    char *buff, uint32_t n, uint16_t options)
 {
     aal_assert("umka-546", body != NULL, return -1);
     aal_assert("umka-547", buff != NULL, return -1);

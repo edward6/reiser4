@@ -61,15 +61,13 @@ errno_t repair_fs_check(reiser4_fs_t *fs) {
     aal_memset(&traverse, 0, sizeof(traverse));
     
     blk = reiser4_format_get_root(fs->format);
-    if (!reiser4_format_data_block(fs->format, blk)) {
+/*    if (!reiser4_format_data_block(fs->format, blk)) {
 	aal_exception_error("Bad root block (%llu). (A previous recovery did not "
 	    "complete probably).", blk);
 	return 0;
-    }
+    }*/
  
-    if (!(block = aal_block_read(fs->format->device, 
-	reiser4_format_get_root(fs->format)))) 
-    {
+    if (!(block = aal_block_read(fs->format->device, blk))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't read block %llu. %s.", blk, fs->format->device->error);
 	return -1;

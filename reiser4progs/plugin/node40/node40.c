@@ -468,7 +468,7 @@ static errno_t node40_set_key(reiser4_entity_t *entity,
     decide what it should do with filled buffer.
 */
 static errno_t node40_print(reiser4_entity_t *entity, 
-    char *buff, uint32_t n) 
+    char *buff, uint32_t n, uint16_t options) 
 {
     aal_assert("vpf-023", entity != NULL, return -1);
     aal_assert("umka-457", buff != NULL, return -1);

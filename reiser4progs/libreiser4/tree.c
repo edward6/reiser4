@@ -470,8 +470,9 @@ static errno_t reiser4_tree_attach(
 
     aal_memset(&internal_hint, 0, sizeof(internal_hint));
     
-    reiser4_node_ldkey(cache->node, &ldkey);
     internal_hint.pointer = aal_block_get_nr(cache->node->block);
+
+    reiser4_node_lkey(cache->node, &ldkey);
     reiser4_key_init(&hint.key, ldkey.plugin, ldkey.body);
 
     hint.hint = &internal_hint;

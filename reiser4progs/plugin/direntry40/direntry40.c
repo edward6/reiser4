@@ -251,7 +251,7 @@ static uint32_t direntry40_remove(reiser4_body_t *body,
 #endif
 
 static errno_t direntry40_print(reiser4_body_t *body, 
-    char *buff, uint32_t n) 
+    char *buff, uint32_t n, uint16_t options) 
 {
     aal_assert("umka-548", body != NULL, return -1);
     aal_assert("umka-549", buff != NULL, return -1);

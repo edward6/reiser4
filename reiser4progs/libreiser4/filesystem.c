@@ -62,7 +62,6 @@ reiser4_fs_t *reiser4_fs_open(
     if (!(fs = aal_calloc(sizeof(*fs), 0)))
 	return NULL;
 
-
     /* Reads master super block. See above for details */
     if (!(fs->master = reiser4_master_open(host_device)))
 	goto error_free_fs;

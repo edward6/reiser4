@@ -210,13 +210,6 @@ static reiser4_id_t format40_oid_pid(reiser4_entity_t *entity) {
     return OID_REISER40_ID;
 }
 
-static blk_t format40_offset(reiser4_entity_t *entity) {
-    aal_assert("umka-399", entity != NULL, return 0);
-
-    return (FORMAT40_OFFSET / 
-	aal_device_get_bs(((format40_t *)entity)->device));
-}
-
 static blk_t format40_get_root(reiser4_entity_t *entity) {
     format40_super_t *super;
     
@@ -302,8 +295,8 @@ static void format40_set_height(reiser4_entity_t *entity,
 extern errno_t format40_check(reiser4_entity_t *entity, 
     uint16_t options);
 
-extern void format40_print(reiser4_entity_t *entity, 
-    char *buf, uint32_t n, uint16_t options);
+extern errno_t format40_print(reiser4_entity_t *entity, 
+    char *buff, uint32_t n, uint16_t options);
 
 #endif
 
@@ -404,7 +397,7 @@ static reiser4_plugin_t format40_plugin = {
 	.close		= format40_close,
 	.confirm	= format40_confirm,
 	.name		= format40_name,
-	.offset		= format40_offset,
+	
 	.get_root	= format40_get_root,
 	.get_len	= format40_get_len,
 	.get_free	= format40_get_free,

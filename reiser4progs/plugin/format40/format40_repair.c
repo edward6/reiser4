@@ -126,26 +126,28 @@ errno_t format40_check(reiser4_entity_t *entity, uint16_t options) {
     return 0;
 }
 
-void format40_print(reiser4_entity_t *entity, char *buf, size_t n, uint16_t options) 
+errno_t format40_print(reiser4_entity_t *entity, char *buff, 
+    size_t n, uint16_t options) 
 {
     format40_super_t *super;
     
-    aal_assert("vpf-160", entity != NULL, return);
+    aal_assert("vpf-160", entity != NULL, return -1);
     
-    if (!buf)
-	return;
+    if (!buff) return -1;
 
     super = format40_super(((format40_t *)entity)->block);
     
-    reiser4_comm_strcat(buf, size, "Format40 on-disk format\n");
-    reiser4_comm_strcat(buf, size, "Count of blocks free/all: (%llu)/(%llu)\n", 
+    reiser4_comm_strcat(buff, n, "Format40 on-disk format\n");
+    reiser4_comm_strcat(buff, n, "Count of blocks free/all: (%llu)/(%llu)\n", 
 	get_sb_free_blocks(super), get_sb_block_count(super));
-    reiser4_comm_strcat(buf, size, "Root block (%llu)\n", get_sb_root_block(super));
-    reiser4_comm_strcat(buf, size, "Drop policy (%u)\n", get_sb_drop_policy(super));
-    reiser4_comm_strcat(buf, size, "Oid (%llu)\n", get_sb_oid(super));
-    reiser4_comm_strcat(buf, size, "File count (%llu)\n", get_sb_file_count(super));
-    reiser4_comm_strcat(buf, size, "Flushes (%llu)\n", get_sb_flushes(super));
-    reiser4_comm_strcat(buf, size, "Magic (%s)\n", super->sb_magic);
-    reiser4_comm_strcat(buf, size, "Tree height (%u)\n", get_sb_tree_height(super));
+    reiser4_comm_strcat(buff, n, "Root block (%llu)\n", get_sb_root_block(super));
+    reiser4_comm_strcat(buff, n, "Drop policy (%u)\n", get_sb_drop_policy(super));
+    reiser4_comm_strcat(buff, n, "Oid (%llu)\n", get_sb_oid(super));
+    reiser4_comm_strcat(buff, n, "File count (%llu)\n", get_sb_file_count(super));
+    reiser4_comm_strcat(buff, n, "Flushes (%llu)\n", get_sb_flushes(super));
+    reiser4_comm_strcat(buff, n, "Magic (%s)\n", super->sb_magic);
+    reiser4_comm_strcat(buff, n, "Tree height (%u)\n", get_sb_tree_height(super));
+    
+    return 0;
 }
 

@@ -203,11 +203,6 @@ static reiser4_id_t format36_oid_pid(reiser4_entity_t *entity) {
     return OID_REISER36_ID;
 }
 
-static blk_t format36_offset(reiser4_entity_t *entity) {
-    aal_assert("umka-386", entity != NULL, return 0);
-    return (FORMAT36_OFFSET / aal_device_get_bs(((format36_t *)entity)->device));
-}
-
 static blk_t format36_get_root(reiser4_entity_t *entity) {
     format36_super_t *super;
     
@@ -304,7 +299,6 @@ static reiser4_plugin_t format36_plugin = {
 	.confirm	= format36_confirm,
 	.name		= format36_name,
 
-	.offset		= format36_offset,
 	.get_root	= format36_get_root,
 	.get_len	= format36_get_len,
 	.get_free	= format36_get_free,

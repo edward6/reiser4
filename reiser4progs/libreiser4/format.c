@@ -201,16 +201,6 @@ const char *reiser4_format_name(
 	format->entity->plugin->format_ops, name, format->entity);
 }
 
-/* Retutns position in blocks where format lies */
-blk_t reiser4_format_offset(
-    reiser4_format_t *format	/* disk-format to be used */
-) {
-    aal_assert("umka-360", format != NULL, return 0);
-    
-    return libreiser4_plugin_call(return 0, 
-	format->entity->plugin->format_ops, offset, format->entity);
-}
-
 /* Returns root block from passed disk-format */
 blk_t reiser4_format_get_root(
     reiser4_format_t *format	/* format to be used */
@@ -327,5 +317,47 @@ reiser4_id_t reiser4_format_oid_pid(
 	
     return libreiser4_plugin_call(return -1, format->entity->plugin->format_ops, 
 	oid_pid, format->entity);
+}
+
+errno_t reiser4_format_layout(reiser4_format_t *format, 
+    reiser4_action_func_t action_func, void *data)
+{
+    if (reiser4_format_format_layout(format, action_func, data))
+	return -1;
+    
+    if (reiser4_format_journal_layout(format, action_func, data))
+	return -1;
+    
+    return reiser4_format_alloc_layout(format, action_func, data);
+}
+
+errno_t reiser4_format_format_layout(reiser4_format_t *format, 
+    reiser4_action_func_t action_func, void *data)
+{
+    aal_assert("umka-1076", format != NULL, return -1);
+    aal_assert("umka-1077", action_func != NULL, return -1);
+
+    return libreiser4_plugin_call(return -1, format->entity->plugin->format_ops,
+	format_layout, format->entity, action_func, data);
+}
+
+errno_t reiser4_format_journal_layout(reiser4_format_t *format, 
+    reiser4_action_func_t action_func, void *data)
+{
+    aal_assert("umka-1078", format != NULL, return -1);
+    aal_assert("umka-1079", action_func != NULL, return -1);
+
+    return libreiser4_plugin_call(return -1, format->entity->plugin->format_ops,
+	journal_layout, format->entity, action_func, data);
+}
+
+errno_t reiser4_format_alloc_layout(reiser4_format_t *format, 
+    reiser4_action_func_t action_func, void *data)
+{
+    aal_assert("umka-1080", format != NULL, return -1);
+    aal_assert("umka-1081", action_func != NULL, return -1);
+
+    return libreiser4_plugin_call(return -1, format->entity->plugin->format_ops,
+	alloc_layout, format->entity, action_func, data);
 }
 

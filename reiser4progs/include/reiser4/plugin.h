@@ -374,6 +374,9 @@ struct reiser4_key_ops {
     /* Gets/sets directory key hash */
     void (*set_hash) (reiser4_body_t *, uint64_t);
     uint64_t (*get_hash) (reiser4_body_t *);
+
+    /* Prints key into specified buffer */
+    errno_t (*print) (reiser4_body_t *, char *, uint32_t, uint16_t);
 };
 
 typedef struct reiser4_key_ops reiser4_key_ops_t;
@@ -448,7 +451,7 @@ struct reiser4_item_common_ops {
     errno_t (*valid) (reiser4_body_t *);
 
     /* Prints item into specified buffer */
-    errno_t (*print) (reiser4_body_t *, char *, uint32_t);
+    errno_t (*print) (reiser4_body_t *, char *, uint32_t, uint16_t);
 
     /* Get the max key which could be stored in the item of this type */
     errno_t (*maxkey) (reiser4_key_t *);
@@ -551,7 +554,7 @@ struct reiser4_node_ops {
     errno_t (*valid) (reiser4_entity_t *);
     
     /* Prints node into given buffer */
-    errno_t (*print) (reiser4_entity_t *, char *, uint32_t);
+    errno_t (*print) (reiser4_entity_t *, char *, uint32_t, uint16_t);
     
     /* Returns item count */
     uint32_t (*count) (reiser4_entity_t *);
@@ -666,7 +669,7 @@ struct reiser4_format_ops {
     errno_t (*check) (reiser4_entity_t *, uint16_t);
 
     /* Prints all useful information about the format */
-    void (*print) (reiser4_entity_t *, char *buf, uint32_t n, uint16_t);
+    errno_t (*print) (reiser4_entity_t *, char *, uint32_t, uint16_t);
     
     /*
 	Probes whether filesystem on given device has this format.
@@ -686,12 +689,6 @@ struct reiser4_format_ops {
     */
     const char *(*name) (reiser4_entity_t *);
 
-    /* 
-	Returns offset in blocks where format-specific super block 
-	lies.
-    */
-    blk_t (*offset) (reiser4_entity_t *);
-    
     /* Gets/sets root block */
     blk_t (*get_root) (reiser4_entity_t *);
     void (*set_root) (reiser4_entity_t *, blk_t);
