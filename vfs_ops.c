@@ -1310,25 +1310,21 @@ static int put_super (struct super_block * s)
 {
 	int ret;
 	
-	assert( "umka-086", s != NULL );
+	REISER4_ENTRY (s);
 	assert( "umka-087", get_super_private (s) != NULL );
 	
 	if ((ret = txn_mgr_force_commit (s))) {
 		warning ("jmacd-7711", "txn_force failed in put_super: %u", ret);
 	}
 
-	{
-		REISER4_ENTRY (s);
-
-		if (get_super_private (s)->lplug->release)
-			get_super_private (s)->lplug->release (s);
+	if (get_super_private (s)->lplug->release)
+		get_super_private (s)->lplug->release (s);
 		
-		done_formatted_fake (s);
-		kfree(s->u.generic_sbp);
-		s->u.generic_sbp = NULL;
-		
-		REISER4_EXIT (0);
-	}
+	done_formatted_fake (s);
+	kfree(s->u.generic_sbp);
+	s->u.generic_sbp = NULL;
+	
+	REISER4_EXIT (0);
 }
 
 /* Audited by: umka (2002.06.12) */
