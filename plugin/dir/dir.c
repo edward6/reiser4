@@ -79,7 +79,7 @@ static int common_link( struct inode *parent /* parent directory */,
 	/* links to directories are not allowed if file-system
 	   logical name-space should be ADG */
 	if( reiser4_adg( parent -> i_sb ) && S_ISDIR( object -> i_mode ) )
-		return -EPERM;
+		return -EISDIR;
 
 	/* check permissions */
 	if( perm_chk( parent, link, existing, parent, where ) )
@@ -155,6 +155,13 @@ static int common_unlink( struct inode *parent /* parent object */,
 	if( perm_chk( parent, unlink, parent, victim ) )
 		return -EPERM;
 
+	/* ask object plugin */
+	if( fplug -> can_rem_link != NULL ) {
+		result = fplug -> can_rem_link( object );
+		if( result != 0 )
+			return result;
+	}
+
 	parent_dplug = inode_dir_plugin( parent );
 
 	xmemset( &entry, 0, sizeof entry );
@@ -162,7 +169,7 @@ static int common_unlink( struct inode *parent /* parent object */,
 	/* removing last reference. Check that this is allowed.  This is
 	 * optimization for common case when file having only one name
 	 * is unlinked and is not opened by any process. */
-	if( ( object -> i_nlink == 1 ) && 
+	if( fplug -> single_link( object ) && 
 	    ( atomic_read( &object -> i_count ) == 1 ) ) {
 		if( perm_chk( object, delete, parent, victim ) )
 			return -EPERM;
@@ -170,10 +177,12 @@ static int common_unlink( struct inode *parent /* parent object */,
 		 * lot of transactions and takes a lot of time. We keep
 		 * @object locked. So, nlink shouldn't change. */
 		object -> i_size = 0;
-		result = truncate_object( object, ( loff_t ) 0 );
-		if( result != 0 )
-			return result;
-		assert( "nikita-871", object -> i_nlink == 1 );
+		if( fplug -> truncate != NULL ) {
+			result = truncate_object( object, ( loff_t ) 0 );
+			if( result != 0 )
+				return result;
+		}
+		assert( "nikita-871", fplug -> single_link( object ) );
 		assert( "nikita-873", atomic_read( &object -> i_count ) == 1 );
 		assert( "nikita-872", object -> i_size == 0 );
 
@@ -190,10 +199,9 @@ static int common_unlink( struct inode *parent /* parent object */,
 	}
 
 	/* first, delete directory entry */
-
-	/* and second? -Hans */
 	result = parent_dplug -> rem_entry( parent, victim, &entry );
 	if( result == 0 ) {
+		/* and second, remove or update stat data */
 		switch( uf_type ) {
 		case UNLINK_BY_DELETE:
 			result = fplug -> destroy_stat_data( object, parent );

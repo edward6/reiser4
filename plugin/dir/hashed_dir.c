@@ -60,22 +60,25 @@ int hashed_delete( struct inode *object /* object being deleted */,
 
 	assert( "nikita-1449", object != NULL );
 
-	xmemset( &entry, 0, sizeof entry );
+	if( ! ( *reiser4_inode_flags( object ) & REISER4_NO_STAT_DATA ) ) {
+		xmemset( &entry, 0, sizeof entry );
 
-	entry.obj = goodby_dots.d_inode = object;
-	xmemset( &goodby_dots, 0, sizeof goodby_dots );
-	goodby_dots.d_name.name = ".";
-	goodby_dots.d_name.len = 1;
-	hashed_rem_entry( object, &goodby_dots, &entry );
+		entry.obj = goodby_dots.d_inode = object;
+		xmemset( &goodby_dots, 0, sizeof goodby_dots );
+		goodby_dots.d_name.name = ".";
+		goodby_dots.d_name.len = 1;
+		hashed_rem_entry( object, &goodby_dots, &entry );
 
-	entry.obj = goodby_dots.d_inode = parent;
-	xmemset( &goodby_dots, 0, sizeof goodby_dots );
-	goodby_dots.d_name.name = "..";
-	goodby_dots.d_name.len = 2;
-	result = hashed_rem_entry( object, &goodby_dots, &entry );
+		entry.obj = goodby_dots.d_inode = parent;
+		xmemset( &goodby_dots, 0, sizeof goodby_dots );
+		goodby_dots.d_name.name = "..";
+		goodby_dots.d_name.len = 2;
+		result = hashed_rem_entry( object, &goodby_dots, &entry );
 
-	reiser4_del_nlink( parent );
-	return common_file_delete( object, parent );
+		reiser4_del_nlink( parent );
+		return common_file_delete( object, parent );
+	} else
+		return 0;
 }
 
 /**

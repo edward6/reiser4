@@ -213,6 +213,14 @@ typedef struct file_plugin {
 	 * added 
 	 */
 	int ( *can_add_link )( const struct inode *inode );
+	/** 
+	 * checks whether hard links to this object can be removed
+	 */
+	int ( *can_rem_link )( const struct inode *inode );
+	/**
+	 * true if there is only one link (aka name) for this file
+	 */
+	int ( *single_link )( const struct inode *inode );
 } file_plugin;
 
 

@@ -1184,6 +1184,7 @@ static __u64 lc_rand_max( __u64 max )
 
 static struct inode * call_lookup (struct inode * dir, const char * name);
 static int call_mkdir (struct inode * dir, const char * name);
+static int call_mkdir (struct inode * dir, const char * name);
 static struct inode *sandbox( struct inode * dir );
 
 typedef struct echo_filldir_info {
@@ -3432,7 +3433,8 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			int code;						\
 			code = (function) (cwd, command + strlen (name));	\
 			if (code) {						\
-				info ("%s failed: %i\n", command, code);	\
+				info ("%s failed: %s(%i)\n", 			\
+				      command, strerror(-code), code);		\
 			}							\
 			continue;						\
 		}

@@ -17,7 +17,6 @@ static int reiser4_link (struct dentry *,struct inode *,struct dentry *);
 static int reiser4_unlink (struct inode *,struct dentry *);
 static int reiser4_symlink (struct inode *,struct dentry *,const char *);
 static int reiser4_mkdir (struct inode *,struct dentry *,int);
-static int reiser4_rmdir (struct inode *,struct dentry *);
 static int reiser4_mknod (struct inode *,struct dentry *,int,int);
 static int reiser4_rename (struct inode *, struct dentry *,
 		    struct inode *, struct dentry *);
@@ -557,7 +556,7 @@ static int reiser4_unlink( struct inode *parent /* parent directory */,
 	int result;
 	dir_plugin *dplug;
 	REISER4_ENTRY( parent -> i_sb );
- 
+
 	assert( "nikita-1435", parent != NULL );
 	assert( "nikita-1436", victim != NULL );
 
@@ -585,9 +584,27 @@ static int reiser4_unlink( struct inode *parent /* parent directory */,
 	 */
 	reiser4_unlock_inode( victim -> d_inode );
 	reiser4_unlock_inode( parent );
-       
+
 	REISER4_EXIT( result );
 }
+
+#if 0
+/** 
+ * ->rmdir() VFS method in reiser4 inode_operations
+ *
+ * The same as unlink.
+ *
+ * This only exists as comment place-holder. reiser4_inode_operations refers
+ * to reiser4_unlink directly.
+ */
+static int reiser4_rmdir( struct inode *parent /* parent directory */, 
+			  struct dentry *victim /* name of directory being
+						 * unlinked */ )
+{
+	/* there is no difference between unlink and rmdir for reiser4 */
+	return reiser4_unlink( parent, victim );
+}
+#endif
 
 /** ->permission() method in reiser4_inode_operations. */
 static int reiser4_permission( struct inode *inode /* object */, 
@@ -1213,7 +1230,7 @@ struct inode_operations reiser4_inode_operations = {
  	.unlink      = reiser4_unlink, /* d */
 	.symlink     = reiser4_symlink, /* d */
 	.mkdir       = reiser4_mkdir, /* d */
-/* 	.rmdir       = reiser4_rmdir, */
+ 	.rmdir       = reiser4_unlink, /* SIC */ /* d */
 	.mknod       = reiser4_mknod, /* d */
 /* 	.rename      = reiser4_rename, */
 /* 	.readlink    = reiser4_readlink, */

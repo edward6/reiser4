@@ -565,6 +565,128 @@ static int unix_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key
 	return 0;
 }
 
+/** actor function looking for any entry different from dot or dotdot. */
+static int is_empty_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
+			   tree_coord *coord /* current coord */,
+			   lock_handle *lh UNUSED_ARG /* current lock
+						       * handle */, 
+			   void *arg /* readdir arguments */ )
+{
+	struct inode *dir;
+	file_plugin  *fplug;
+	item_plugin  *iplug;
+	char         *name;
+
+	assert( "nikita-2004", tree != NULL );
+	assert( "nikita-2005", coord != NULL );
+	assert( "nikita-2006", arg != NULL );
+
+	dir = arg;
+	assert( "nikita-2003", dir != NULL );
+
+	if( item_id_by_coord( coord ) !=
+	    item_id_by_plugin( inode_dir_item_plugin( dir ) ) )
+		return 0;
+
+	fplug = inode_file_plugin( dir );
+	if( ! fplug -> owns_item( dir, coord ) )
+		return 0;
+
+	iplug = item_plugin_by_coord( coord );
+	name = iplug -> s.dir.extract_name( coord );
+	assert( "nikita-1371", name != NULL );
+
+	if( ( name[ 0 ] != '.' ) ||
+	    ( ( name[ 1 ] != '.' ) && ( name[ 1 ] != '\0' ) ) )
+		return -ENOTEMPTY;
+	else
+		return 1;
+}
+
+/** ->can_rem_link() method for file plugin of directories */
+static int dir_can_rem_link( const struct inode *dir )
+{
+	reiser4_key de_key;
+	int         result;
+	struct qstr dot;
+	tree_coord  coord;
+	lock_handle lh;
+
+	assert( "nikita-1976", dir != NULL );
+
+	/* Directory has to be empty. */
+
+	/*
+	 * FIXME-NIKITA this is not correct if hard links on directories are
+	 * supported in this fs (if reiser4_adg( dir -> i_sb ) is false). But
+	 * then, how to determine that last "outer" link is removed?
+	 *
+	 */
+
+	dot.name = ".";
+	dot.len  = 1;
+
+	result = build_entry_key( dir, &dot, &de_key );
+	if( result != 0 )
+		return result;
+
+	init_coord( &coord );
+	init_lh( &lh );
+		
+	/* 
+	 * FIXME-NIKITA this looks almost exactly like code in
+	 * readdir(). Consider implementing iterate_dir( dir, actor )
+	 * function.
+	 */
+	result = coord_by_key( tree_by_inode( dir ), &de_key, &coord, &lh, 
+			       ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN,
+			       LEAF_LEVEL, LEAF_LEVEL, 0 );
+	switch( result ) {
+	case CBK_COORD_FOUND:
+		result = iterate_tree( tree_by_inode( dir ), &coord, &lh, 
+				       is_empty_actor, ( void * ) dir, 
+				       ZNODE_READ_LOCK, 1 );
+		switch( result ) {
+		default:
+		case -ENOTEMPTY:
+			break;
+		case 0:
+		case -ENAVAIL:
+			result = 0;
+			break;
+		}
+		break;
+	case CBK_COORD_NOTFOUND:
+		/* no entries?! */
+		warning( "nikita-2002", "Directory %lli is TOO empty",
+			 ( __u64 ) dir -> i_ino );
+		result = 0;
+		break;
+	default:
+		/* some other error */
+		break;
+	}
+	done_lh( &lh );
+	done_coord( &coord );
+	return result;
+}
+
+/** ->single_link() method for file plugins */
+int common_single_link( const struct inode *inode )
+{
+	assert( "nikita-2007", inode != NULL );
+	return ( inode -> i_nlink == 1 );
+}
+
+/** ->single_link() method for directory file plugin */
+int dir_single_link( const struct inode *inode )
+{
+	assert( "nikita-2008", inode != NULL );
+	/* one link from dot */
+	return ( inode -> i_nlink == 2 );
+}
+
+
 reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 	[ REGULAR_FILE_PLUGIN_ID ] = {
 		.file = {
@@ -595,6 +717,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.rem_link            = NULL,
 			.owns_item           = unix_file_owns_item,
 			.can_add_link        = common_file_can_add_link,
+			.can_rem_link        = NULL,
+			.single_link         = common_single_link
 		}
 	},
 	[ DIRECTORY_FILE_PLUGIN_ID ] = {
@@ -626,6 +750,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.rem_link            = NULL,
 			.owns_item           = hashed_owns_item,
 			.can_add_link        = common_file_can_add_link,
+			.can_rem_link        = dir_can_rem_link,
+			.single_link         = dir_single_link
 		}
 	},
 	[ SYMLINK_FILE_PLUGIN_ID ] = {
@@ -660,6 +786,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.rem_link            = NULL,
 			.owns_item           = NULL,
 			.can_add_link        = common_file_can_add_link,
+			.can_rem_link        = NULL,
+			.single_link         = common_single_link
 		}
 	},
 	[ SPECIAL_FILE_PLUGIN_ID ] = {
@@ -691,6 +819,8 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.rem_link            = NULL,
 			.owns_item           = common_file_owns_item,
 			.can_add_link        = common_file_can_add_link,
+			.can_rem_link        = NULL,
+			.single_link         = common_single_link
 		}
 	}
 };
