@@ -893,11 +893,11 @@ reiser4_check_block(const reiser4_block_nr * block, int desired)
 
 int
 #if REISER4_TRACE
-reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len,
-		       block_stage_t target_stage, reiser4_ba_flags_t flags, const char *message)
+__reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len,
+			 block_stage_t target_stage, reiser4_ba_flags_t flags, const char *message)
 #else
-reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len,
-		       block_stage_t target_stage, reiser4_ba_flags_t flags)
+__reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len,
+			 block_stage_t target_stage, reiser4_ba_flags_t flags)
 #endif
 {
 	txn_atom *atom = NULL;

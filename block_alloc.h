@@ -137,7 +137,7 @@ int __reiser4_dealloc_block(const reiser4_block_nr *, block_stage_t, reiser4_ba_
 #define assign_fake_blocknr(pblocknr, flags, message)   __assign_fake_blocknr(pblocknr, flags)
 #define grabbed2flush_reserved_nolock(atom, count, message) __grabbed2flush_reserved_nolock(atom, count)
 #define grabbed2flush_reserved(count, message)          __grabbed2flush_reserved(count)
-#defien flush_reserved2free_all(message)                __flush_reserved2free_all()
+#define flush_reserved2free_all(message)                __flush_reserved2free_all()
 #define reiser4_alloc_blocks(hint,start,len,flags,message) __reiser4_alloc_blocks(hint,start,len,flags)
 #define reiser4_dealloc_blocks(start,len,stage,flags,message) __reiser4_dealloc_blocks(start,len,stage,flags)
 #define reiser4_dealloc_block(block,stage,flags,message) __reiser4_dealloc_block(block,stage,flags)
