@@ -162,7 +162,8 @@ SRC             := \
                    plugin/file/file.c \
 				   ulevel/uabend.c \
 				   ulevel/ulevel.c \
-                   memory.c
+                   memory.c \
+                   lnode.c
 
 OBJ             := $(SRC:.c=.o)
 
