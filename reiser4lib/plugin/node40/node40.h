@@ -9,11 +9,13 @@
 
 #include <aal/aal.h>
 
+typedef uint16_t node40_size_t;
+
 /* format of node header for 40 node layouts. */
 typedef struct node_header_40 {
     reiserfs_node_header_t header;
-    node_offset_40    free_space; 
-    node_offset_40    free_space_start;
+    node40_size_t free_space; 
+    node40_size_t free_space_start;
     uint8_t  level;
     uint32_t magic;
     uint16_t num_items;

@@ -11,4 +11,3 @@ libnode40_la_SOURCES 	= node40.c node40.h
 
 INCLUDES = $(includedir)
 
-
