@@ -320,6 +320,7 @@ static inline reiser4_tree *
 znode_get_tree(const znode * node)
 {
 	assert("nikita-2692", node != NULL);
+/* GREV-FIXME-HANS: make etags search work for all functions and macros, including the below. */
 	return jnode_get_tree(ZJNODE(node));
 }
 
