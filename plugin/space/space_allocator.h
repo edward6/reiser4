@@ -48,9 +48,14 @@ static inline void sa_post_write_back_hook (void) 									\
 	post_write_back_hook_##allocator();										\
 }															\
 															\
-static inline void  sa_print_info(const char * prefix, reiser4_space_allocator * al)					\
+static inline void sa_print_info(const char * prefix, reiser4_space_allocator * al)					\
 {															\
 	print_info_##allocator (prefix, al);                                                                            \
+}															\
+															\
+static inline int sa_check_struct(reiser4_space_allocator *al, const struct super_block *s)					\
+{															\
+	return check_struct_allocator_##allocator (al, s);									\
 }
 
 DEF_SPACE_ALLOCATOR(bitmap)
