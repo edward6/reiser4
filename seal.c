@@ -36,8 +36,6 @@
 
 static znode *seal_node(const seal_t * seal);
 static int seal_matches(const seal_t * seal, znode * node);
-static int seal_search_node(seal_t * seal, coord_t * coord,
-			    znode * node, const reiser4_key * key, lookup_bias bias, tree_level level);
 
 /* initialise seal. This can be called several times on the same seal. @coord
    and @key can be NULL.  */
