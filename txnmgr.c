@@ -1461,8 +1461,8 @@ void jnode_set_clean( jnode *node )
 	
 	spin_unlock_atom (atom);
 
-	current_tree->ops->clean_node (current_tree, node);
 	spin_unlock_jnode (node);
+	WITH_DATA (node, current_tree->ops->clean_node (current_tree, node));
 }
 
 /* This function assigns a block to an atom, but first it must obtain the atom lock.  If
