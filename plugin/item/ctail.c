@@ -764,13 +764,13 @@ int
 utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 {	
 	reiser4_key key;
-	
+
 	assert("edward-257", coord != NULL);
 	assert("edward-258", child != NULL);
 	assert("edward-259", side == LEFT_SIDE);
 	assert("edward-260", item_plugin_by_coord(coord) == item_plugin_by_id(CTAIL_ID));
 	
-	if (get_key_offset(item_key_by_coord(coord, &key)) % cluster_size_by_coord(coord))
+	if (get_key_offset(&key) != cluster_size_by_coord(coord) * (get_key_offset(&key) / cluster_size_by_coord(coord)))
 		*child = NULL;
 	else
 		*child = jlook_lock(current_tree, get_key_objectid(item_key_by_coord(coord, &key)), cluster_index_by_coord(coord));
