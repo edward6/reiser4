@@ -1336,7 +1336,6 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
 
 		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
-		assert("nikita-2872", list_empty(&info->moved_pages));
 		if (inode_get_flag(inode, REISER4_GENERIC_VP_USED)) {
 			assert("vs-839", S_ISLNK(inode->i_mode));
 			reiser4_kfree_in_sb(inode->u.generic_ip, (size_t) inode->i_size + 1, inode->i_sb);
@@ -1358,7 +1357,11 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 			inode_clr_flag(inode, REISER4_KEYID_LOADED);
 		}
 	}
-	kmem_cache_free(inode_cache, info);
+	assert("nikita-2872", list_empty(&info->moved_pages));
+	assert("nikita-2894", list_empty(&inode->i_list));
+	assert("nikita-2895", list_empty(&inode->i_dentry));
+	assert("nikita-2896", list_empty(&inode->i_hash));
+	kmem_cache_free(inode_cache, container_of(info, reiser4_inode_object, p));
 }
 
 extern void generic_drop_inode(struct inode *object);
