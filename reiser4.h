@@ -253,6 +253,8 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #include <linux/init.h>
 /* For BIO stuff */
 #include <linux/bio.h>
+/* for blk_getqueue */
+#include <linux/blkdev.h>
 
 #define no_context      ( in_interrupt() || in_irq() )
 #define current_pname   ( current -> comm )
