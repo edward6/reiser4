@@ -261,7 +261,10 @@ sd_load(struct inode *inode /* object being processed */ ,
 	}
 	/* common initialisations */
 	inode->i_blksize = get_super_private(inode->i_sb)->optimal_io_size;
-	inode->i_version = ++event;
+	/*
+	 * FIXME-NIKITA event global died 2002.11.06.
+	 */
+	/* inode->i_version = ++event; */
 	if (len > 0)
 		warning("nikita-631", "unused space in inode %llu", get_inode_oid(inode));
 	return result;
