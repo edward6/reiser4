@@ -552,6 +552,28 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 				      "Failure to reload jnode: %i", result);
 		pg = jnode_page(first);
 
+#if REISER4_DEBUG
+		if(++ first->written > 1) {
+			__u32 count = 0;
+			__u32 id    = 0;
+			txn_atom * atom;
+
+			spin_lock_jnode (first);
+			atom = atom_get_locked_by_jnode(first);
+
+			if (atom) {
+				count = atom->capture_count;
+				id    = atom->atom_id;
+				spin_unlock_atom(atom);
+			}
+
+			spin_unlock_jnode (first);
+			
+			trace_on(TRACE_LOG, "jnode [block = %llu] written %d times, atom (id = %u, count=%u)\n", 
+				 (unsigned long long)first->blocknr, first->written, id, count);
+		}
+#endif
+
 		/* This page is protected from washing from the page cache by
 		   pages' jnode state bits: JNODE_OVERWRITE if jnode is in
 		   overwrite set or JNODE_WRITEBACK if jnode is in relocate

@@ -985,6 +985,8 @@ reiser4_write_logs(void)
 		goto up_and_ret;
 	}
 
+	trace_on(TRACE_LOG, "commit atom (id = %u, count = %u)\n", atom->atom_id, atom->capture_count);
+
 	/* Grab space for modified bitmaps from 100% of disk space. */
 	if (reiser4_grab_space_force(ch.nr_bitmap, BA_RESERVED))
 		reiser4_panic("vpf-341", "No space left from reserved area.");
@@ -1026,7 +1028,7 @@ reiser4_write_logs(void)
 	if (ret)
 		goto up_and_ret;
 
-	trace_on(TRACE_LOG, "overwrite set written to wandered locations\n");
+	trace_on(TRACE_LOG, "overwrite set (%u blocks) written to wandered locations\n", ch.overwrite_set_size);
 
 	if ((ret = update_journal_header(&ch)))
 		goto up_and_ret;

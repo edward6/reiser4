@@ -2710,6 +2710,9 @@ uncapture_block(txn_atom * atom, jnode * node)
 	JF_CLR(node, JNODE_RELOC);
 	JF_CLR(node, JNODE_OVRWR);
 	JF_CLR(node, JNODE_CREATED);
+#if REISER4_DEBUG
+	node->written = 0;
+#endif
 
 	if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 		/* do not remove jnode from capture list if it is on flush queue */

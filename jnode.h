@@ -86,6 +86,8 @@ struct jnode {
 #if REISER4_DEBUG
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
+	/* how many times this jnode was written in one transaction */
+	int      written;
 #endif
 };
 
