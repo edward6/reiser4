@@ -165,6 +165,7 @@ static const char*   flush_flags_tostring         (int flags);
 /* FIXME: */
 #define FLUSH_SERIALIZE 1
 struct semaphore flush_semaphore;
+atomic_t flush_cnt;
 
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (to
@@ -192,6 +193,10 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan left_scan;
 
 	if (FLUSH_SERIALIZE) {
+		atomic_inc (& flush_cnt);
+		if (atomic_read (& flush_cnt) == 1) {
+			trace_on (TRACE_FLUSH, "flush concurrency\n");
+		}
 		/*down (& flush_semaphore);*/
 	}
 
@@ -351,6 +356,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
  clean_out:
 	if (FLUSH_SERIALIZE) {
+		atomic_dec (& flush_cnt);
 		/*up (& flush_semaphore);*/
 	}
 
