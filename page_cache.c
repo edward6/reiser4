@@ -443,6 +443,17 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 		REISER4_EXIT (0);
 	}
 
+	if( 0 ) {
+		/*
+		 * this is cof case when all flushing is done outside of
+		 * kswapd context (in "ent" thread).
+		 */
+		ktxnmgrd_kick();
+		spin_unlock_txnh (txnh);
+		jput (node);
+		REISER4_EXIT (0);
+	}
+
 	/* Attach the txn handle to this node, preventing the atom from committing while
 	 * this flush occurs.
 	 *
