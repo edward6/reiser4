@@ -35,6 +35,7 @@ int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
 int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
 reiser4_key * append_cluster_key_ctail(const coord_t *, reiser4_key *);
 int setattr_reserve(reiser4_tree *);
+int reserve_cut_iteration(reiser4_tree *, const char *);
 
 /* get cryptcompress specific portion of inode */
 inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode)
@@ -920,10 +921,10 @@ update_cluster(struct inode * inode, reiser4_cluster_t * clust, loff_t file_off,
 			clust->delta = 0;
 			break;
 		default:
-			assert ("edward-282", 0);
+			impossible ("edward-282", "wrong next cluster status");
 		}
 	default:
-		assert ("edward-283", 0);
+		impossible ("edward-283", "wrong current cluster status");
 	}
 }
 		
@@ -1147,8 +1148,7 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 		}
 	}
 	if (!cluster_is_uptodate(clust))
-		/* we don't need cluster's data,
-		   just make its leaf znodes dirty */
+		/* disk cluster is unclaimed, make its znodes dirty */
 		find_cluster(clust, inode, 0 /* do not read */, 1 /*write */);
  out:
 	release_cluster_buf(clust, inode);
@@ -1468,7 +1468,40 @@ find_file_idx(struct inode *inode, unsigned long * idx)
 static int
 cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
 {
-	return 0;
+	reiser4_key from_key, to_key;
+	reiser4_key smallest_removed;
+	int result;
+	
+	assert("edward-xxx", inode_file_plugin(inode)->key_by_inode == key_by_inode_cryptcompress);
+	key_by_inode_cryptcompress(inode, off_to_clust(new_size, inode) + 1, &from_key);
+	to_key = from_key;
+	set_key_offset(&to_key, get_key_offset(max_key()));
+	
+	while (1) {
+		result = reserve_cut_iteration(tree_by_inode(inode), __FUNCTION__);
+		if (result)
+			break;
+		
+		result = cut_tree_object(current_tree, &from_key, &to_key, 
+					 &smallest_removed, inode);
+		if (result == -E_REPEAT) {
+			/* -E_REPEAT is a signal to interrupt a long file truncation process */
+			/* FIXME(Zam) cut_tree does not support that signaling.*/
+			result = update_inode_and_sd_if_necessary
+				(inode, get_key_offset(&smallest_removed), 1, 1, update_sd);
+			if (result)
+				break;
+
+			all_grabbed2free(__FUNCTION__);
+			reiser4_release_reserved(inode->i_sb);
+
+			continue;
+		}
+		break;
+	}
+	all_grabbed2free(__FUNCTION__);
+	reiser4_release_reserved(inode->i_sb);
+	return result;
 }
 
 
@@ -1500,7 +1533,7 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 	result = cut_items_cryptcompress(inode, new_size, update_sd);
 	if(result)
 		return result;
-	if (off_to_cloff(old_size, inode))
+	if (!off_to_cloff(old_size, inode))
 		return 0;
 	/* FIXME-EDWARD: reserve partial page */
 	page = read_cache_page(inode->i_mapping, off_to_pg(old_size), readpage_cryptcompress, 0);
@@ -1511,8 +1544,6 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 		page_cache_release(page);
 		return RETERR(-EIO);
 	}
-	set_page_dirty_internal(page);
-	result = writepage_cryptcompress(page);
 
 	assert("edward-291", PageLocked(page));
 	
@@ -1522,7 +1553,12 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 	kunmap_atomic(kaddr, KM_USER0);
 	reiser4_unlock_page(page);
 	page_cache_release(page);
-
+	
+	result = writepage_cryptcompress(page);
+	
+/* Final sd update after the file gets its correct size */
+//		result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, update_sd);
+	
 	return 0;
 }
 
@@ -1560,7 +1596,6 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 		}
 		return result;
 	}
-	INODE_SET_FIELD(inode, i_size, new_size);
 	result = (old_size < new_size ? cryptcompress_append_hole(inode, new_size) :
 		  shorten_cryptcompress(inode, new_size, update_sd));
 	return result;
