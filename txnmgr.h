@@ -440,12 +440,6 @@ extern txn_capture build_capture_mode(jnode           * node,
 				      txn_capture       flags);
 
 extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags, int can_coc);
-extern int try_capture_args(jnode * node,
-			    txn_handle * txnh,
-			    znode_lock_mode lock_mode,
-			    txn_capture flags,
-			    int non_blocking, txn_capture cap_mode, int can_coc);
-
 extern int try_capture_page_to_invalidate(struct page *pg);
 
 extern void uncapture_page(struct page *pg);

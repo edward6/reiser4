@@ -1776,9 +1776,6 @@ commit_txnh(txn_handle * txnh)
    condition indicates that the request should be retried, and it may block if the
    txn_capture mode does not include the TXN_CAPTURE_NONBLOCKING request flag.
 
-   The try_capture() function (below) is the external interface, which calls this
-   function repeatedly as long as -E_REPEAT is returned.
-
    This routine encodes the basic logic of block capturing described by:
 
      http://namesys.com/txn-doc.html
@@ -2041,23 +2038,34 @@ build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
 	assert("nikita-3186", cap_mode != 0);
 	return cap_mode;
 }
-/* ZAM-FIXME-HANS: comment this function */
-int
-try_capture_args(jnode * node, txn_handle * txnh, znode_lock_mode lock_mode,
-		 txn_capture flags, int non_blocking, txn_capture cap_mode, int can_coc)
+
+/* This is an external interface to try_capture_block(), it calls
+   try_capture_block() repeatedly as long as -E_REPEAT is returned. 
+
+   @node:         node to capture,
+   @lock_mode:    read or write lock is used in capture mode calculation,
+   @flags:        see txn_capture flags enumeration,
+   @can_coc     : can copy-on-capture
+
+   @return: 0 - node was successfully captured, -E_REPEAT - capture request
+            cannot be processed immediately as it was requested in flags,
+	    < 0 - other errors.
+*/
+int 
+try_capture(jnode * node,  znode_lock_mode lock_mode,
+	    txn_capture flags, int can_coc)
 {
 	txn_atom    *atom_alloc = NULL;
+	txn_capture cap_mode;
+	txn_handle * txnh = get_current_context()->trans;
 	int ret;
 
-	assert("jmacd-604/a", spin_jnode_is_locked(node));
+	assert("jmacd-604", spin_jnode_is_locked(node));
 
 repeat:
-
-	if (cap_mode == 0) {
-		cap_mode = build_capture_mode(node, lock_mode, flags);
-		if (cap_mode == 0)
-			return 0;
-	}
+	cap_mode = build_capture_mode(node, lock_mode, flags);
+	if (cap_mode == 0)
+		return 0;
 
 	/* Repeat try_capture as long as -E_REPEAT is returned. */
 	ret = try_capture_block(txnh, node, cap_mode, &atom_alloc, can_coc);
@@ -2072,7 +2080,7 @@ repeat:
 
 	assert("nikita-2974", spin_txnh_is_not_locked(txnh));
 
-	if (ret == -E_REPEAT && !non_blocking) {
+	if (ret == -E_REPEAT && !(cap_mode & TXN_CAPTURE_NONBLOCKING)) {
 		/* E_REPEAT implies all locks were released, therefore we need to take the
 		   jnode's lock again. */
 		LOCK_JNODE(node);
@@ -2130,16 +2138,6 @@ repeat:
    held.
 */
 
-/* ZAM-FIXME-HANS: eliminate this almost pointless wrapper. */
-int
-try_capture(jnode * node, znode_lock_mode lock_mode, txn_capture flags, int can_coc
-	    /* ...NONBLOCKING and ...DONT_FUSE are allowed here */ )
-{
-	assert("jmacd-604", spin_jnode_is_locked(node));
-
-	return try_capture_args(node, get_current_context()->trans, lock_mode,
-				flags, flags & TXN_CAPTURE_NONBLOCKING, 0/*cap mode*/, can_coc);
-}
 /* fuse all 'active' atoms of lock owners of given node. */
 static int
 fuse_not_fused_lock_owners(txn_handle * txnh, znode * node)

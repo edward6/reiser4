@@ -793,7 +793,7 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 }
 
 static int
-longterm_lock_tryfast(lock_stack * owner, txn_handle * txnh)
+longterm_lock_tryfast(lock_stack * owner)
 {
 	int          result;
 	int          wake_up_next      = 0;
@@ -812,10 +812,8 @@ longterm_lock_tryfast(lock_stack * owner, txn_handle * txnh)
 
 	if (likely(result != -EINVAL)) {
 		spin_lock_znode(node);
-		result = try_capture_args(ZJNODE(node),
-					  txnh,
-					  ZNODE_READ_LOCK,
-					  0, 0, 0, 1/* can copy on capture */);
+		result = try_capture(
+			ZJNODE(node), ZNODE_READ_LOCK, 0, 1/* can copy on capture */);
 		spin_unlock_znode(node);
 		WLOCK_ZLOCK(lock);
 		if (unlikely(result != 0)) {
@@ -894,7 +892,7 @@ longterm_lock_znode(
 	lock = &node->lock;
 
 	if (mode == ZNODE_READ_LOCK && request == 0) {
-		ret = longterm_lock_tryfast(owner, txnh);
+		ret = longterm_lock_tryfast(owner);
 		if (ret <= 0)
 			return ret;
 	}
@@ -954,7 +952,7 @@ longterm_lock_znode(
 		 * 1. read of aligned word is atomic with respect to writes to
 		 * this word
 		 *
-		 * 2. false negatives are handled in try_capture_args().
+		 * 2. false negatives are handled in try_capture().
 		 *
 		 * 3. false positives are impossible.
 		 *
@@ -1012,8 +1010,8 @@ longterm_lock_znode(
 			 */
 			WUNLOCK_ZLOCK(lock);
 			spin_lock_znode(node);
-			ret = try_capture_args(ZJNODE(node), txnh, mode,
-					       cap_flags, non_blocking, 0/* cap_mode */, 1/* can copy on capture*/);
+			ret = try_capture(
+				ZJNODE(node), mode, cap_flags, 1/* can copy on capture*/);
 			spin_unlock_znode(node);
 			WLOCK_ZLOCK(lock);
 			if (unlikely(ret != 0)) {
