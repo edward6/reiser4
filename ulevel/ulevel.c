@@ -420,6 +420,18 @@ struct inode *iget( struct super_block *super, unsigned long ino )
 void iput( struct inode *inode )
 {
 	if( atomic_dec_and_test( & inode -> i_count) ) {
+		/* i_count drops to 0, call release
+		 * FIXME-VS: */
+		struct file file;
+		struct dentry dentry;
+
+		xmemset (&dentry, 0, sizeof dentry);
+		xmemset (&file, 0, sizeof file);
+		file.f_dentry = &dentry;
+		dentry.d_inode = inode;
+		if (inode->i_fop->release (inode, &file))
+			info ("release failed");
+
 		spin_lock( &inode_hash_guard );
 		/*list_del_init( &inode -> i_hash );*/
 		spin_unlock( &inode_hash_guard );
