@@ -1152,7 +1152,7 @@ int find_cluster(reiser4_cluster_t * clust,
 			if (unlikely(result))
 				goto out2;
 			if (read) {
-				result = iplug->s.file.read(NULL, &f, &hint.coord);
+				result = iplug->s.file.read(NULL, &f, &hint);
 				if(result)
 					goto out;
 			}
