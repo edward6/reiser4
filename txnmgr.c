@@ -810,6 +810,10 @@ commit_txnh (txn_handle *txnh)
 }
 
 #if REISER4_USER_LEVEL_SIMULATION
+/* This function is provided for user-level testing only.  It scans a list of open
+ * transactions, finds the first dirty node it can, and then calls jnode_flush() on that
+ * node.
+ */
 int memory_pressure (struct super_block *super)
 {
 	txn_mgr *mgr = & get_super_private (super)->tmgr;
