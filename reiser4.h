@@ -168,6 +168,9 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define NONNULL
 #endif
 
+/* master super block offset in bytes.*/
+#define REISER4_MASTER_OFFSET 65536
+
 /* size of VFS block */
 #define VFS_BLKSIZE 512
 /* number of bits in size of VFS block (512==2^9) */

@@ -465,9 +465,11 @@ page_io(struct page *page /* page to perform io for */ ,
 	assert("nikita-2634", node != NULL);
 	assert("nikita-2893", rw == READ || rw == WRITE);
 
-	if (unlikely(page->mapping->host->i_sb->s_flags & MS_RDONLY)) {
-		reiser4_unlock_page(page);
-		return 0;
+	if (rw) {
+		if (unlikely(page->mapping->host->i_sb->s_flags & MS_RDONLY)) {
+			reiser4_unlock_page(page);
+			return 0;
+		}
 	}
 
 	bio = page_bio(page, node, rw, gfp);
