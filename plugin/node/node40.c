@@ -184,7 +184,7 @@ node_search_result node40_lookup( znode *node, const reiser4_key *key,
 
 	/* binary search for item that can contain given key */
 	left = 0;
-	right = num_items( node ) - 1;
+	right = node_num_items( node ) - 1;
 	coord -> node = node;
 	found = 0;
 
@@ -245,7 +245,7 @@ node_search_result node40_lookup( znode *node, const reiser4_key *key,
 		median = ( left + right ) / 2;
 
 		assert( "nikita-1084", median >= 0 );
-		assert( "nikita-1085", median < ( int ) num_items( node ) );
+		assert( "nikita-1085", median < ( int ) node_num_items( node ) );
 		switch( keycmp( key, __get_key( median ) ) ) {
 		case EQUAL_TO:
 			if( ! REISER4_NON_UNIQUE_KEYS ) {
@@ -279,7 +279,7 @@ node_search_result node40_lookup( znode *node, const reiser4_key *key,
 	coord -> unit_pos = 0;
 	coord -> between  = AT_UNIT;
 
-	if( left >= ( int ) num_items( node ) )
+	if( left >= ( int ) node_num_items( node ) )
 		return NS_NOT_FOUND;
 
 	/* key < leftmost key in a mode or node is corrupted and keys
@@ -390,7 +390,7 @@ int node40_length_by_coord (const tree_coord * coord)
 	assert( "vs-257", coord_of_item( coord ) );
 
 	ih = node40_ih_at_coord( coord );
-	if( coord -> item_pos == num_items( coord -> node ) - 1 )
+	if( coord -> item_pos == node_num_items( coord -> node ) - 1 )
 		return nh_40_get_free_space_start( node40_node_header (coord -> node) ) -
 			ih_40_get_offset( ih );
 	else
@@ -517,7 +517,7 @@ int node40_check( const znode *node, __u32 flags, const char **error )
 			return -1;
 		}
 		prev = ih -> key;
-		for( j = 0 ; j < num_units( &coord ) ; ++ j ) {
+		for( j = 0 ; j < coord_num_units( &coord ) ; ++ j ) {
 			coord.unit_pos = j;
 			unit_key_by_coord( &coord, &unit_key );
 			if( keycmp ( &prev, &unit_key ) == GREATER_THAN ) {
@@ -846,7 +846,7 @@ static unsigned cut_units (tree_coord * coord, unsigned *from, unsigned *to,
 		 * the single unit of item
 		 */
 		assert ("vs-302", *from == 0 && *to == 0 &&
-			coord->unit_pos == 0 && num_units (coord) == 1);
+			coord->unit_pos == 0 && coord_num_units (coord) == 1);
 		/* that item will be removed entirely */
 		cut_size = item_length_by_coord (coord);
 		if (smallest_removed)
@@ -972,7 +972,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 
 				iplug = item_plugin_by_coord (&tmp);
 				if (iplug->b.kill_hook) {
-					iplug->b.kill_hook (&tmp, 0, num_units (&tmp));
+					iplug->b.kill_hook (&tmp, 0, coord_num_units (&tmp));
 				}
 			}
 		}
@@ -1022,20 +1022,20 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 		 nh_40_get_free_space_start (nh) - new_to_start);
 
 	/* update item headers of moved items */
-	for (i = first_removed + removed_entirely; i < num_items (node); i ++) {
+	for (i = first_removed + removed_entirely; i < node_num_items (node); i ++) {
 		ih = node40_ih_at (node, i);
 		ih_40_set_offset (ih, (ih_40_get_offset (ih) -
 				       (new_to_start - new_from_end)));
 	}
 
 	/* cut item headers of removed items */
-	ih = node40_ih_at (node, num_items (node) - 1);
+	ih = node40_ih_at (node, node_num_items (node) - 1);
 	xmemmove (ih + removed_entirely, ih,
-		 sizeof (item_header_40) * (num_items (node) -
+		 sizeof (item_header_40) * (node_num_items (node) -
 					    removed_entirely - first_removed));
 
 	/* update node header */
-	nh_40_set_num_items (nh, num_items (node) - removed_entirely);
+	nh_40_set_num_items (nh, node_num_items (node) - removed_entirely);
 	nh_40_set_free_space_start (nh, nh_40_get_free_space_start (nh) -
 				    (new_to_start - new_from_end));
 	nh_40_set_free_space (nh, nh_40_get_free_space (nh) +
@@ -1052,7 +1052,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 
 		assert ("vs-313", wrong_item >= removed_entirely);
 		wrong_item -= removed_entirely;
-		assert ("vs-314", wrong_item < num_items (node));
+		assert ("vs-314", wrong_item < node_num_items (node));
 		coord.node = node;
 		coord.item_pos = wrong_item;
 		coord.unit_pos = 0;
@@ -1180,9 +1180,11 @@ static void node40_estimate_shift (struct shift_params * shift)
 
 	/* shifting to left/right starts from first/last units of
 	   @shift->wish_stop.node */
-	source.node = shift->wish_stop.node;
-	(shift->pend == SHIFT_LEFT) ? coord_first_unit (&source) :
-		coord_last_unit (&source);
+	if (shift->pend == SHIFT_LEFT) {
+		coord_first_unit (&source, shift->wish_stop.node);
+	} else {
+		coord_last_unit (&source, shift->wish_stop.node);
+	}
 	shift->real_stop = source;
 
 	/* free space in target node and number of items in source */
@@ -1196,9 +1198,11 @@ static void node40_estimate_shift (struct shift_params * shift)
 		tree_coord to;
 
 		/* item we try to merge @source with */
-		to.node = shift->target;
-		(shift->pend == SHIFT_LEFT) ? coord_last_unit (&to) :
-			coord_first_unit (&to);
+		if (shift->pend == SHIFT_LEFT) {
+			coord_last_unit (&to, shift->target);
+		} else {
+			coord_first_unit (&to, shift->target);
+		}
 
 		if ((shift->pend == SHIFT_LEFT) ?
 		    are_items_mergeable (&to, &source) :
@@ -1323,7 +1327,7 @@ static void copy_units (tree_coord * target, tree_coord * source,
 
 	assert ("nikita-1463", target != NULL);
 	assert ("nikita-1464", source != NULL);
-	assert ("nikita-1465", from + count <= num_units (source));
+	assert ("nikita-1465", from + count <= coord_num_units (source));
 	assert ("vs-393", item_plugin_id (item_plugin_by_coord (target)) ==
 		item_plugin_id (item_plugin_by_coord (source)));
 
@@ -1379,7 +1383,7 @@ void node40_copy (struct shift_params * shift)
 		from.item_pos = 0;
 		from_ih = node40_ih_at (from.node, 0);
 
-		to.item_pos = num_items (to.node) - 1;
+		to.item_pos = node_num_items (to.node) - 1;
 		if (shift->merging_units) {
 			/* expand last item, so that plugin methods will see
 			 * correct data */
@@ -1434,7 +1438,7 @@ void node40_copy (struct shift_params * shift)
 			   a new item into @target->node */
 
 			/* copy item header of partially copied item */
-			to.item_pos = num_items (to.node) - 1;
+			to.item_pos = node_num_items (to.node) - 1;
 			xmemcpy (to_ih, from_ih, sizeof (item_header_40));
 			ih_40_set_offset (to_ih, nh_40_get_free_space_start (nh) - shift->part_bytes);
 			if (item_plugin_by_coord (&to)->b.init)
@@ -1446,7 +1450,7 @@ void node40_copy (struct shift_params * shift)
 	} else {
 		/* copying to right */
 
-		from.item_pos = num_items (from.node) - 1;
+		from.item_pos = node_num_items (from.node) - 1;
 		from_ih = node40_ih_at_coord (&from);
 
 		to.item_pos = 0;
@@ -1557,7 +1561,7 @@ static int node40_delete_copied (struct shift_params * shift)
 		   @shift->stop_coord->node */
 		from = shift->real_stop;
 		to.node = from.node;
-		to.item_pos = num_items (to.node) - 1;
+		to.item_pos = node_num_items (to.node) - 1;
 		to.unit_pos = last_unit_pos (&to);
 		to.between = AT_UNIT;
 	}
@@ -1678,13 +1682,12 @@ static void adjust_coord (tree_coord * insert_coord,
 			if (shift->pend == SHIFT_RIGHT) {
 				/* set @insert_coord before first unit of
 				   @shift->target node */
-				insert_coord->node = shift->target;
-				coord_first_unit (insert_coord);
+				coord_first_unit (insert_coord, shift->target);
 				insert_coord->between = BEFORE_UNIT;
 			} else {
 				/* set @insert_coord after last in target node */
 				insert_coord->node = shift->target;
-				insert_coord->item_pos = num_items (insert_coord->node) - 1;
+				insert_coord->item_pos = node_num_items (insert_coord->node) - 1;
 				insert_coord->unit_pos = last_unit_pos (insert_coord);
 				insert_coord->between = AFTER_UNIT;
 			}
@@ -1705,13 +1708,13 @@ static void adjust_coord (tree_coord * insert_coord,
 			if (including_insert_coord) {
 				/* @insert_coord is set before first unit of
 				   @to node */
-				insert_coord->node = shift->target;
-				coord_first_unit (insert_coord);
+				coord_first_unit (insert_coord, shift->target);
 				insert_coord->between = BEFORE_UNIT;
 			} else {
 				/* @insert_coord is set after last unit of
 				   @insert->node */
-				coord_last_unit (insert_coord);
+				/* FIXME: Is this NULL right? */
+				coord_last_unit (insert_coord, NULL);
 				insert_coord->between = AFTER_UNIT;
 			}
 		}
@@ -1723,13 +1726,13 @@ static void adjust_coord (tree_coord * insert_coord,
 		/* everything wanted was shifted */
 		if (including_insert_coord) {
 			/* @insert_coord is set after last unit in @to node */
-			insert_coord->node = shift->target;
-			coord_last_unit (insert_coord);
+			coord_last_unit (insert_coord, shift->target);
 			insert_coord->between = AFTER_UNIT;
 		} else {
 			/* @insert_coord is set before first unit in the same
 			   node */
-			coord_first_unit (insert_coord);
+			/* FIXME: This NULL looks right. */
+			coord_first_unit (insert_coord, NULL);
 			insert_coord->between = BEFORE_UNIT;
 		}
 		return;
@@ -1773,8 +1776,7 @@ static int call_shift_hooks (struct shift_params * shift)
 
 	if (shift->pend == SHIFT_LEFT) {
 		/* moved items are at the end */
-		coord.node = shift->target;
-		coord_last_unit (&coord);
+		coord_last_unit (&coord, shift->target);
 		coord.unit_pos = 0;
 		
 		assert ("vs-279", shift->pend == 1);
@@ -1803,8 +1805,7 @@ static int call_shift_hooks (struct shift_params * shift)
 		}
 	} else {
 		/* moved items are at the beginning */
-		coord.node = shift->target;
-		coord_first_unit (&coord);
+		coord_first_unit (&coord, shift->target);
 
 		assert ("vs-278", shift->pend == -1);
 		for (i = 0; i < shifted; i ++) {
@@ -1881,12 +1882,11 @@ int node40_shift (tree_coord * from, znode * to,
 		 * move insertion coord even if there is nothing to move
 		 */
 		if (including_stop_coord) {
-			from->node = to;
 			if (pend == SHIFT_LEFT) {
-				coord_last_unit (from);
+				coord_last_unit (from, to);
 				from->between = AFTER_UNIT;
 			} else {
-				coord_first_unit (from);
+				coord_first_unit (from, to);
 				from->between = BEFORE_UNIT;
 			}
 		}
