@@ -502,6 +502,10 @@ typedef struct reiser4_stat {
 		stat_cnt fsdata_alloc;
 		stat_cnt private_data_alloc;
 		/*
+		 * reads performed
+		 */
+		stat_cnt reads;
+		/*
 		 * writes performed
 		 */
 		stat_cnt writes;
