@@ -504,8 +504,7 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	size_t pgcnt;
 	
 	assert("edward-212", PageLocked(page));
-	assert("edward-483", ergo(clust->pages, *clust->pages == page));
-	
+
 	inode = page->mapping->host;
 
 	if (!cluster_is_uptodate(clust)) {
@@ -611,7 +610,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 		if (!cluster_is_uptodate(&clust) || !page_of_cluster(page, &clust, inode)) {
 			put_cluster_data(&clust, inode);
 			clust.index = pg_to_clust(page->index, inode);
-			if (inode_cluster_size(inode) == PAGE_CACHE_SIZE) {
+			if (fsize_to_count(&clust, inode) <= PAGE_CACHE_SIZE) {
 				clust.pages = &page;
 				clust.nr_pages = 1;
 			}
@@ -677,7 +676,11 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 
 	assert("edward-466", coord->between == AFTER_ITEM || coord->between == AFTER_UNIT ||
 	       coord->between == BEFORE_ITEM);
-	
+
+	if (coord->between == AFTER_UNIT) {
+		coord->unit_pos = 0;
+		coord->between = AFTER_ITEM;
+	}
 	op = post_carry(&lowest_level, COP_INSERT_FLOW, coord->node, 0 /* operate directly on coord -> node */ );
 	if (IS_ERR(op) || (op == NULL))
 		return RETERR(op ? PTR_ERR(op) : -EIO);
@@ -812,6 +815,12 @@ item_plugin_by_jnode(jnode * node)
 	return (item_plugin_by_id(CTAIL_ID));
 }
 
+static jnode *
+next_jnode_cluster(jnode * node, struct inode *inode, reiser4_cluster_t * clust)
+{
+	return jlookup(tree_by_inode(inode), get_inode_oid(inode), clust_to_pg(clust->index + 1, inode));
+}
+
 /* plugin->u.item.f.scan */
 /* Check if the cluster node we started from is not presented by any items
    in the tree. If so, create the link by inserting prosessed cluster into
@@ -825,67 +834,79 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 	struct inode * inode;
 	reiser4_cluster_t clust;
 	flow_t f;
+	jnode * node = scan->node;
 	file_plugin * fplug;
+	
+	reiser4_cluster_init(&clust);
 	
 	assert("edward-227", scan->node != NULL);
 	assert("edward-228", jnode_is_cluster_page(scan->node));
-	
-	page = jnode_page(scan->node);
-	
-	assert("edward-229", page->mapping != NULL);
-	assert("edward-230", page->mapping != NULL);
-	assert("edward-231", page->mapping->host != NULL);
+	assert("edward-639", znode_is_write_locked(scan->parent_lock.node));
 
-	inode = page->mapping->host;
-	fplug = inode_file_plugin(inode);
-
-	assert("edward-244", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
-	assert("edward-232", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-	
-	reiser4_cluster_init(&clust);
+	jref(node);
 
 	if (get_flush_scan_nstat(scan) == LINKED) {
 		/* nothing to do */
 		return 0;
 	}
-	assert("edward-233", scan->direction == LEFT_SIDE);
-	/* We start at an unformatted node, which doesn't have any items
-	   in the tree (new cluster). So find leftmost and rightmost neighbor
-	   clusters (leftmost neighbor is to start flush pages from, and
-	   rightmost is to calculate how much blocks we should convert from
-	   cluster_reserved to grabbed)
+	do {
+		LOCK_JNODE(node);
+		if (!(jnode_is_dirty(node) &&
+		      (node->atom == ZJNODE(scan->parent_lock.node)->atom) &&
+		      JF_ISSET(node, JNODE_NEW))) {
+                        /* don't touch! */
+			UNLOCK_JNODE(node);
+			jput(node);
+			break;
+		}
+		UNLOCK_JNODE(node);
+		
+		reiser4_cluster_init(&clust);
+		
+		page = jnode_page(node);
 
-	   nd
-	   continue scan from rightmost dirty node */
+		assert("edward-229", page->mapping != NULL);
+		assert("edward-230", page->mapping != NULL);
+		assert("edward-231", page->mapping->host != NULL);
+		
+		inode = page->mapping->host;
+		fplug = inode_file_plugin(inode);
 	
-	clust.index = pg_to_clust(page->index, inode);
-
-	/* remove appropriate jnodes from dirty list */
-	result = flush_cluster_pages(&clust, inode);
-	if (result)
-		return result;
-	result = deflate_cluster(&clust, inode);
-	if (result)
-		goto exit;
-
-	assert("edward-633", clust.len != 0);
+		assert("edward-244", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+		assert("edward-232", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
+		assert("edward-233", scan->direction == LEFT_SIDE);
+		
+		clust.index = pg_to_clust(page->index, inode);
+		
+		/* remove jnode cluster from dirty list */
+		result = flush_cluster_pages(&clust, inode);
+		if (result)
+			return result;
+		result = deflate_cluster(&clust, inode);
+		if (result)
+			goto error;
+		
+		assert("edward-633", clust.len != 0);
+		
+		fplug->flow_by_inode(inode, clust.buf, 0, clust.len, clust_to_off(clust.index, inode), WRITE, &f);
+		/* insert processed data */
+		result = insert_crc_flow(&scan->parent_coord, /* insert point */
+					 &scan->parent_lock, &f, inode);
+		if (result)
+			goto error;
+		assert("edward-234", f.length == 0);
+		JF_CLR(node, JNODE_NEW);
+		release_cluster_buf(&clust, inode);
+		jput(node);
+	}
+	while ((node = next_jnode_cluster(node, inode, &clust)));
 	
-	fplug->flow_by_inode(inode, clust.buf, 0, clust.len, clust_to_off(clust.index, inode), WRITE, &f);
-	/* insert processed data */
-	result = insert_crc_flow(&scan->parent_coord, /* insert point */
-				 &scan->parent_lock, &f, inode);
-	if (result)
-		goto exit;
-	
-	assert("edward-234", f.length == 0);
-	
-	/* now the child is linked with its parent,
+	/* now the child is linked to its parent,
 	   set appropriate status */
 	set_flush_scan_nstat(scan, LINKED);
-
- exit:	
+	return 0;
+ error:	
 	release_cluster_buf(&clust, inode);
-	
 	return result;
 }
 
