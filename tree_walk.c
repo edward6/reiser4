@@ -199,9 +199,6 @@ int lock_side_neighbor( lock_handle * result,
 /* Audited by: umka (2002.06.14) */
 /*static*/ /*inline*/ void link_left_and_right (znode * left, znode * right)
 {
-	assert("umka-239", left != NULL);
-	assert("umka-240", right != NULL);
-	
 	if (left != NULL) {
 		left->right = right;
 		ZF_SET (left, ZNODE_RIGHT_CONNECTED);
@@ -216,9 +213,6 @@ int lock_side_neighbor( lock_handle * result,
 /* Audited by: umka (2002.06.14) */
 static void link_znodes (znode * first, znode * second, int to_left)
 {
-	assert("umka-241", first != NULL);
-	assert("umka-242", second != NULL);
-	
 	if (to_left) link_left_and_right(second, first);
 	else         link_left_and_right(first, second);
 }
@@ -566,7 +560,7 @@ int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 	
 	base_level = znode_get_level( node );
 
-	assert("umka-310", base_level < tree->height);
+	assert("umka-310", base_level <= tree->height);
 	
 	ncoord_init_zero(&coord);
 
@@ -705,7 +699,6 @@ void sibling_list_remove (znode * node)
 void sibling_list_insert_nolock (znode *new, znode *before)
 {
 	assert("zam-334", new != NULL);
-	assert("umka-312", spin_znode_is_locked(new));
 	
 	if (before != NULL) {
 		assert("zam-333", znode_is_connected(before));
@@ -733,7 +726,7 @@ void sibling_list_insert (znode *new, znode *before)
 {
 	assert("umka-256", new != NULL);
 	assert("umka-257", current_tree != NULL);
-	assert("umka-313", spin_is_locked(&current_tree->tree_lock));
+	assert("umka-313", !spin_tree_is_locked(current_tree));
 	
 	spin_lock_tree(current_tree);
 	sibling_list_insert_nolock(new, before);
