@@ -500,6 +500,7 @@ page_io(struct page *page /* page to perform io for */ ,
 	assert("nikita-2094", page != NULL);
 	assert("nikita-2226", PageLocked(page));
 	assert("nikita-2634", node != NULL);
+	assert("nikita-2893", rw == READ || rw == WRITE);
 
 	jnode_io_hook(node, page, rw);
 
@@ -709,6 +710,9 @@ void
 drop_page(struct page *page, jnode * node)
 {
 	assert("nikita-2181", PageLocked(page));
+	/* FIXME-NIKITA hmm, waiting for writeback completion with page lock
+	 * held... */
+	wait_on_page_writeback(page);
 	clear_page_dirty(page);
 	ClearPageUptodate(page);
 	remove_from_page_cache(page);
