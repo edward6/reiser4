@@ -20,7 +20,6 @@
 #include "super.h"
 #include "prof.h"
 #include "inode.h"
-#include "crab_lock.h"
 
 #include <linux/slab.h>
 
