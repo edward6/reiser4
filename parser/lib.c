@@ -340,11 +340,11 @@ static lnode * get_lnode(struct reiser4_syscall_w_space * ws /* work space ptr *
 }
 
 /*  allocate work space, initialize work space, tables, take root inode and PWD inode */
-static struct reiser4_syscall_w_space * reiser4_pars_init()
+static struct reiser4_syscall_w_space * reiser4_pars_init(void)
 {
 	struct reiser4_syscall_w_space * ws;
-                                                            /* allocate work space for parser
-							       working variables, attached to this call */
+
+	/* allocate work space for parser working variables, attached to this call */
 	ws = kmalloc( sizeof( struct reiser4_syscall_w_space ), GFP_KERNEL );
 	assert("VD_allock work space", ws != NULL);
 	memset( ws, 0, sizeof( struct reiser4_syscall_w_space ));
