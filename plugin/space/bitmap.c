@@ -267,8 +267,8 @@ reiser4_clear_bits(char *addr, bmap_off_t start, bmap_off_t end)
 	if (last_byte > first_byte + 1)
 		xmemset(addr + first_byte + 1, 0, (size_t) (last_byte - first_byte - 1));
 
-	first_byte_mask >>= 7 - (start & 0x7);
-	last_byte_mask <<= (end - 1) & 0x7;
+	first_byte_mask >>= 8 - (start & 0x7);
+	last_byte_mask <<= ((end - 1) & 0x7) + 1;
 
 	if (first_byte == last_byte) {
 		addr[first_byte] &= (first_byte_mask | last_byte_mask);
