@@ -20,7 +20,7 @@
  * called during lookup, readdir, and may be creation.
  *
  */
-void reiser4_directory_readahead( struct inode *dir, tree_coord *coord )
+void directory_readahead( struct inode *dir, tree_coord *coord )
 {
 	assert( "nikita-1682", dir != NULL );
 	assert( "nikita-1683", coord != NULL );

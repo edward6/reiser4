@@ -200,8 +200,8 @@ typedef struct reiser4_plugin_type_data {
 
 /** initialise plugin sub-system. Just call this once on reiser4 startup. */
 int init_plugins( void );
-int reiser4_handle_default_plugin_option( char *option, reiser4_plugin **area );
-int reiser4_setup_plugins( struct super_block *super, reiser4_plugin **area );
+int handle_default_plugin_option( char *option, reiser4_plugin **area );
+int setup_plugins( struct super_block *super, reiser4_plugin **area );
 reiser4_plugin *lookup_plugin( char *type_label, char *plug_label );
 reiser4_plugin *lookup_plugin_name( char *plug_label );
 int locate_plugin( struct inode *inode, plugin_locator *loc );
@@ -255,7 +255,7 @@ int init_plugins( void )
 
 /** parse mount time option and update root-directory plugin
     appropriately. */
-int reiser4_handle_default_plugin_option( char *option, /* Option should
+int handle_default_plugin_option( char *option, /* Option should
 							   has form
 							   "type:label",
 							   where "type"

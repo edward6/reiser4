@@ -652,7 +652,7 @@ plus a request for how much to read_ahead past the end of the file into the rest
 
 }
 
-reiser4_read_range()
+read_range()
 {
 synchronous read the flow range;
   async read_ahead within file;

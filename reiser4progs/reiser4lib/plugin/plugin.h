@@ -352,10 +352,10 @@ struct reiser4_plugin_ops {
 /* functions implemented in fs/reiser4/plugin/base.c */
 
 /** stores plugin reference in reiser4-specific part of inode */
-extern int reiser4_set_object_plugin( struct inode *inode, reiser4_plugin_id id );
-extern int reiser4_handle_default_plugin_option( char *option, 
+extern int set_object_plugin( struct inode *inode, reiser4_plugin_id id );
+extern int handle_default_plugin_option( char *option, 
 						 reiser4_plugin **area );
-extern int reiser4_setup_plugins( struct super_block *super, 
+extern int setup_plugins( struct super_block *super, 
 				  reiser4_plugin **area );
 extern reiser4_plugin *lookup_plugin( char *type_label, char *plug_label );
 extern int inherit_if_nil( reiser4_plugin **to, reiser4_plugin **from );

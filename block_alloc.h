@@ -24,7 +24,7 @@ struct reiser4_bnode {
 	znode * commit;		/* commit bitmap block */
 };
 
-extern int reiser4_bitmap_alloc (block_nr *, block_nr, int, int);
+extern int bitmap_alloc (block_nr *, block_nr, int, int);
 
 extern int block_alloc_pre_commit_hook (txn_atom*);
 extern int block_alloc_post_commit_hook (txn_atom*);

@@ -451,18 +451,18 @@ struct inv_entry * open_invert (struct file * invert_file )
 }
 	
 
-ssize_t reiser4_subfile_read (struct * invert_entry, flow * f) {
+ssize_t subfile_read (struct * invert_entry, flow * f) {
 	
 }
 
-ssize_t reiser4_subfile_write (struct * invert_entry, flow * f) {
+ssize_t subfile_write (struct * invert_entry, flow * f) {
 
 }
 
-ssize_t reiser4_invert_read (struct * file, flow * f) {
+ssize_t invert_read (struct * file, flow * f) {
 	
 }
 
-ssize_t reiser4_invert_write (struct * file, flow * f) {
+ssize_t invert_write (struct * file, flow * f) {
 	
 }
