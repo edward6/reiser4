@@ -1402,7 +1402,8 @@ void jnode_set_dirty( jnode *node )
 			spin_unlock_atom (atom);
 		}
 
-		info ("dirty %s node %p\n", jnode_is_formatted (node) ? "formatted" : "unformatted", node);
+		trace_on (TRACE_FLUSH, "dirty %sformatted node %p\n", 
+			  jnode_is_formatted (node) ? "" : "un", node);
 	}
 
 	if (jnode_is_formatted (node)) {
@@ -1446,7 +1447,8 @@ void jnode_set_clean( jnode *node )
 			JZNODE (node)->cksum = znode_checksum (JZNODE (node));
 #endif
 
-		info ("clean %s node %p\n", jnode_is_formatted (node) ? "formatted" : "unformatted", node);
+		trace_on (TRACE_FLUSH, "clean %sformatted node %p\n", 
+			  jnode_is_formatted (node) ? "" : "un", node);
 	}
 	/*
 	 * FIXME-VS: remove jnode from capture list even when jnode is not
