@@ -602,6 +602,13 @@ atom_try_commit_locked (txn_atom *atom)
 	atom->flags |= ATOM_FORCE_COMMIT;
 	atom->stage = ASTAGE_CAPTURE_WAIT;
 
+	/*
+	 * FIXME:NIKITA->JMACD I am seeing atom with ->capture_count
+	 * inconsistent with amount of nodes on capture + clean lists here
+	 * (capture_count remains 2 at the end of this procedure and triggers
+	 * assertion below.
+	 */
+
 	/* From the leaf level up, find dirty nodes in this transaction that need balancing/flushing. */
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 
@@ -1980,6 +1987,11 @@ atom_print (txn_atom *atom)
 	
 	assert("umka-229", atom != NULL);
 
+	info ("%s: refcount: %i id: %i flags: %x txnh_count: %i"
+	      " capture_count: %i stage: %x start: %lu\n", prefix,
+	      atom->refcount, atom->atom_id, atom->flags, atom->txnh_count,
+	      atom->capture_count, atom->stage, atom->start_time);
+
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 
 		sprintf (prefix, "capture level %d", level);
@@ -1989,6 +2001,7 @@ atom_print (txn_atom *atom)
 		     scan = capture_list_next  (scan)) {
 
 			info_jnode (prefix, scan);
+			info ("\n");
 		}
 	}
 
@@ -1996,7 +2009,8 @@ atom_print (txn_atom *atom)
 	     /**/ ! capture_list_end   (& atom->clean_nodes, scan);
 	     scan = capture_list_next  (scan)) {
 		
-		info_jnode (prefix, scan);
+		info_jnode ("clean", scan);
+		info ("\n");
 	}
 }
 
