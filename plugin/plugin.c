@@ -180,6 +180,7 @@
 #include "disk_format/disk_format.h"
 #include "plugin.h"
 #include "../reiser4.h"
+#include "../jnode.h"
 
 #include <linux/fs.h>		/* for struct super_block  */
 
