@@ -436,9 +436,11 @@ ON_DEBUG(atomic_t flush_cnt;)
 /* check fs backing device for write congestion */
 static int check_write_congestion (void)
 {
+	struct super_block *sb;
 	struct backing_dev_info * bdi;
 
-	bdi = get_current_super_private()->fake->i_mapping->backing_dev_info;
+	sb = reiser4_get_current_sb();
+	bdi = get_super_fake(sb)->i_mapping->backing_dev_info;
 	return  bdi_write_congested(bdi);
 }
 #endif /* FLUSH_CHECKS_CONGESTION */
