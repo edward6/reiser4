@@ -495,7 +495,8 @@ static int free_blocks (reiser4_block_nr start, reiser4_block_nr length)
 	space_allocator_plugin * splug;
 
 	splug = get_current_super_private ()->space_plug;
-	splug->dealloc_blocks (start, length);
+	splug->dealloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
+			       start, length);
 	return 0;
 }
 
