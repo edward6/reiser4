@@ -2534,12 +2534,18 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 		return ret;
 
 	pos->preceder.block_stage = BLOCK_GRABBED;
-	if (ZF_ISSET(node, JNODE_CREATED)) {    
-	    pos->preceder.block_stage = BLOCK_UNALLOCATED;
+	if (ZF_ISSET(node, JNODE_CREATED)) {
+		pos->preceder.block_stage = BLOCK_UNALLOCATED;
 	}
+
+	/* discard e-flush allocation */
+	ret = jload(node);
+	if (ret)
+		return ret;
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
-        if ((ret = reiser4_alloc_blocks(
-		&pos->preceder, &blk, &len, BA_FORMATTED | BA_PERMANENT)))
+        ret = reiser4_alloc_blocks(&pos->preceder, &blk, &len, BA_FORMATTED | BA_PERMANENT);
+	jrelse(node);
+	if(ret)
                 return ret;
                             
         trace_on(TRACE_RESERVE, "flush allocates %llu blocks.\n", len);
