@@ -256,7 +256,7 @@ build_sd_key(const struct inode * target /* inode of an object */ ,
 	assert("nikita-261", result != NULL);
 
 	key_init(result);
-	set_key_locality(result, reiser4_inode_data(target)->locality_id);
+	set_key_locality(result, reiser4_inode_by_inode(target)->locality_id);
 	set_key_objectid(result, get_inode_oid(target));
 	set_key_type(result, KEY_SD_MINOR);
 	set_key_offset(result, (__u64) 0);

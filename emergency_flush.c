@@ -510,7 +510,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		spin_lock_eflush(tree->super);
 
 		inode = jnode_mapping(node)->host;
-		info = reiser4_inode_data(inode);
+		info = reiser4_inode_by_inode(inode);
 		++ info->eflushed;
 
 		/* this is to make inode not freeable */
@@ -616,7 +616,7 @@ eflush_del(jnode *node, int page_locked)
 			spin_lock_eflush(tree->super);
 
 			inode = jnode_mapping(node)->host;
-			info = reiser4_inode_data(inode);
+			info = reiser4_inode_by_inode(inode);
 			assert("vs-1194", info->eflushed > 0);
 			-- info->eflushed;
 			/* remove eflush node from inode's list of eflush nodes */
