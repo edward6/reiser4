@@ -1742,6 +1742,22 @@ static int handle_pos_on_internal (flush_pos_t * pos)
 	return 0;
 }
 
+/* check whether squalloc should stop before processing given extent */
+static int squalloc_extent_should_stop (flush_pos_t * pos)
+{
+	assert ("zam-869", item_is_extent(&pos->coord));
+
+	/* pos->child is a jnode handle_pos_on_extent() should start with in
+	 * stead of the first child of the first extent unit. */
+	if (pos->child)
+		return jnode_check_flushprepped(pos->child);
+
+	if (extent_is_unallocated(&pos->coord))
+		return 0;
+
+	return leftmost_child_of_unit_check_flushprepped(&pos->coord);
+}
+
 /* Handle the case when regular reiser4 tree (znodes connected one to its
  * neighbors by sibling pointers) is interrupted on leaf level by one or more
  * unformatted nodes.  By having a lock on twig level and use extent code
@@ -1762,20 +1778,13 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 	   not flushprepped nodes. */
 	/* FIXME: Here we implement simple check, we are only looking on the
 	   leftmost child. */
-	if (!extent_is_unallocated(&pos->coord)) {
-		ret = leftmost_child_of_unit_check_flushprepped(&pos->coord);
-
-		if (unlikely(ret < 0))
-			return ret;
-
-		if (ret) {
-			pos->state = POS_INVALID;
-			return 0;
-		}
+	ret = squalloc_extent_should_stop(pos);
+	if (ret != 0) {
+		pos_stop(pos);
+		return ret;
 	}
 
 	ret = allocate_extent_item_in_place(&pos->coord, &pos->lock, pos);
-
 	if (ret)
 		return ret;
 
