@@ -485,6 +485,8 @@ static int load_and_lock_bnode (struct bnode * bnode)
 	ret = jload (cj);
 	if (ret < 0) goto up_and_ret; 
 
+	assert ("zam-635", equi(bnode->loaded, ret > 0)); 
+
 	if (!bnode->loaded) {
 		{ /* allocate memory for working bitmap block */
 			reiser4_tree * tree = current_tree;
