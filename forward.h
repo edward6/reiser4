@@ -236,6 +236,16 @@ typedef enum {
 	SAFE_T2E       /* safe-link for tail->extent conversion */
 } reiser4_safe_link_t;
 
+/* this is to show on which list of atom jnode is */
+typedef enum {
+	NOT_CAPTURED,
+	DIRTY_LIST,
+	CLEAN_LIST,
+	FQ_LIST,
+	WB_LIST,
+	OVRWR_LIST
+} atom_list;
+
 /* __REISER4_FORWARD_H__ */
 #endif
 
