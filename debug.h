@@ -223,6 +223,10 @@ typedef enum {
 	 */
 	TRACE_EXTENTS     =    (1 << 14),     /* 0x00004000 */
 	/*
+	 * trace locks
+	 */
+	TRACE_LOCKS       =    (1 << 15),     /* 0x00008000 */
+	/*
 	 * vague section: used to trace bugs. Use it to issue optional prints
 	 * at arbitrary points of code.
 	 */
