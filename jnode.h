@@ -206,7 +206,6 @@ jnode_is_in_deleteset(const jnode * node)
 	return JF_ISSET(node, JNODE_RELOC);
 }
 
-extern jnode_plugin *jnode_ops(const jnode * node);
 
 extern int jnode_init_static(void);
 extern int jnode_done_static(void);
@@ -228,15 +227,34 @@ extern void jnode_init(jnode * node, reiser4_tree * tree);
 extern void jnode_set_dirty(jnode * node);
 extern void jnode_set_clean_nolock(jnode * node);
 extern void jnode_set_clean(jnode * node);
-extern const reiser4_block_nr *jnode_get_block(const jnode * node);
 extern void jnode_set_block(jnode * node, const reiser4_block_nr * blocknr);
+extern int jnode_io_hook(jnode *node, struct page *page, int rw);
 
 extern struct page *jnode_lock_page(jnode *);
+
+/** block number of node */
+static inline const reiser4_block_nr *
+jnode_get_block(const jnode * node	/* jnode to
+					 * query */ )
+{
+	assert("nikita-528", node != NULL);
+
+/* As soon as we implement accessing nodes not stored on block devices
+   (e.g. distributed reiserfs), then we need to replace this line with
+   a call to a node plugin.
+
+   Josh replies: why not extent the block number to be
+   node_id/device/block_nr.  I don't think the concept of a block number
+   changes in a distributed setting, but you will need a node method to get
+   the block: likely we already have that.
+*/
+	return &node->blocknr;
+}
 
 /**
  * Jnode flush interface.
  */
-extern int jnode_flush(jnode * node, long *nr_to_flush, int flags);
+extern long jnode_flush(jnode * node, long *nr_to_flush, int flags);
 extern int flush_enqueue_unformatted(jnode * node, flush_position * pos);
 extern reiser4_blocknr_hint *flush_pos_hint(flush_position * pos);
 extern int flush_pos_leaf_relocate(flush_position * pos);
@@ -244,7 +262,6 @@ extern int flush_pos_leaf_relocate(flush_position * pos);
 extern int jnode_check_flushprepped(jnode * node);
 extern int znode_check_flushprepped(znode * node);
 
-extern jnode_type jnode_get_type(const jnode * node);
 extern void jnode_set_type(jnode * node, jnode_type type);
 
 /*
@@ -291,10 +308,30 @@ extern void print_jnodes(const char *prefix, reiser4_tree * tree);
 
 extern int znode_is_root(const znode * node);
 
-/* Similar to zref() and zput() for jnodes, calls those routines if the node is formatted. */
-extern jnode *jref(jnode * node);
-extern void jput(jnode * node);
+/** bump reference counter on @node */
+static inline void
+add_x_ref(jnode * node /* node to increase x_count of */ )
+{
+	assert("nikita-1911", node != NULL);
+
+	atomic_inc(&node->x_count);
+	ON_DEBUG_CONTEXT(++lock_counters()->x_refs);
+}
+
+/**
+ * jref() - increase counter of references to jnode/znode (x_count)
+ */
+static inline jnode *
+jref(jnode * node)
+{
+	assert("jmacd-508", (node != NULL) && !IS_ERR(node));
+	add_x_ref(node);
+	return node;
+}
+
 extern int jdelete(jnode * node);
+
+static inline void jput(jnode * node);
 
 /** get the page of jnode */
 static inline char *
@@ -318,21 +355,6 @@ jnode_get_index(jnode * node)
 	return jnode_page(node)->index;
 }
 
-/* returns true if node is formatted, i.e, it's not a znode */
-static inline int
-jnode_is_unformatted(const jnode * node)
-{
-	assert("jmacd-0123", node != NULL);
-	return jnode_get_type(node) == JNODE_UNFORMATTED_BLOCK;
-}
-
-/* returns true if node is a znode */
-static inline int
-jnode_is_znode(const jnode * node)
-{
-	return jnode_get_type(node) == JNODE_FORMATTED_BLOCK;
-}
-
 static inline int
 jnode_is_loaded(const jnode * node)
 {
@@ -340,30 +362,10 @@ jnode_is_loaded(const jnode * node)
 	return JF_ISSET(node, JNODE_LOADED);
 }
 
-/** return true if "node" is dirty */
-static inline int
-jnode_is_dirty(const jnode * node)
-{
-	assert("nikita-782", node != NULL);
-	assert("jmacd-1800", spin_jnode_is_locked(node) ||
-	       (jnode_is_znode(node) && znode_is_any_locked(JZNODE(node))));
-	return JF_ISSET(node, JNODE_DIRTY);
-}
-
 extern void jnode_attach_page(jnode * node, struct page *pg);
-extern void page_detach_jnode(struct page *page,
-			      struct address_space *mapping,
-			      unsigned long index);
+extern void page_detach_jnode(struct page *page, struct address_space *mapping, unsigned long index);
 extern void page_clear_jnode(struct page *page, jnode * node);
-
-/** return true if "node" is dirty, node is unlocked */
-static inline int
-jnode_check_dirty(jnode * node)
-{
-	assert("jmacd-7798", node != NULL);
-	assert("jmacd-7799", spin_jnode_is_not_locked(node));
-	return UNDER_SPIN(jnode, node, jnode_is_dirty(node));
-}
+static inline int jnode_is_dirty(const jnode * node);
 
 static inline int
 jnode_is_flushprepped(const jnode * node)
@@ -388,13 +390,6 @@ jnode_set_wander(jnode * node)
 	assert("nikita-2431", node != NULL);
 	assert("nikita-2432", !JF_ISSET(node, JNODE_RELOC));
 	JF_SET(node, JNODE_OVRWR);
-}
-
-/** return true if "node" is the root */
-static inline int
-jnode_is_root(const jnode * node)
-{
-	return jnode_is_znode(node) && znode_is_root(JZNODE(node));
 }
 
 extern void add_d_ref(jnode * node);
@@ -439,7 +434,83 @@ jnode_get_tree(const jnode * node)
 extern void pin_jnode_data(jnode *);
 extern void unpin_jnode_data(jnode *);
 
-#endif				/* __JNODE_H__ */
+static inline jnode_type
+jnode_get_type(const jnode * node)
+{
+	static const unsigned long state_mask =
+	    (1 << JNODE_TYPE_1) | (1 << JNODE_TYPE_2) | (1 << JNODE_TYPE_3);
+
+	static jnode_type mask_to_type[] = {
+		/*  JNODE_TYPE_3 : JNODE_TYPE_2 : JNODE_TYPE_1 */
+
+		/* 000 */
+		[0] = JNODE_FORMATTED_BLOCK,
+		/* 001 */
+		[1] = JNODE_UNFORMATTED_BLOCK,
+		/* 010 */
+		[2] = JNODE_BITMAP,
+		/* 011 */
+		[3] = LAST_JNODE_TYPE,	/* invalid */
+		/* 100 */
+		[4] = LAST_JNODE_TYPE,	/* invalid */
+		/* 101 */
+		[5] = LAST_JNODE_TYPE,	/* invalid */
+		/* 110 */
+		[6] = JNODE_IO_HEAD,
+		/* 111 */
+		[7] = LAST_JNODE_TYPE,	/* invalid */
+	};
+
+	/*
+	 * FIXME-NIKITA atomicity?
+	 */
+	return mask_to_type[(node->state & state_mask) >> JNODE_TYPE_1];
+}
+
+/* returns true if node is a znode */
+static inline int
+jnode_is_znode(const jnode * node)
+{
+	return jnode_get_type(node) == JNODE_FORMATTED_BLOCK;
+}
+
+/** return true if "node" is dirty */
+static inline int
+jnode_is_dirty(const jnode * node)
+{
+	assert("nikita-782", node != NULL);
+	assert("jmacd-1800", spin_jnode_is_locked(node) || (jnode_is_znode(node) && znode_is_any_locked(JZNODE(node))));
+	return JF_ISSET(node, JNODE_DIRTY);
+}
+
+/** return true if "node" is dirty, node is unlocked */
+static inline int
+jnode_check_dirty(jnode * node)
+{
+	assert("jmacd-7798", node != NULL);
+	assert("jmacd-7799", spin_jnode_is_not_locked(node));
+	return UNDER_SPIN(jnode, node, jnode_is_dirty(node));
+}
+
+/* returns true if node is formatted, i.e, it's not a znode */
+static inline int
+jnode_is_unformatted(const jnode * node)
+{
+	assert("jmacd-0123", node != NULL);
+	return jnode_get_type(node) == JNODE_UNFORMATTED_BLOCK;
+}
+
+/** return true if "node" is the root */
+static inline int
+jnode_is_root(const jnode * node)
+{
+	return jnode_is_znode(node) && znode_is_root(JZNODE(node));
+}
+
+extern int jnode_try_drop(jnode * node);
+
+/* __JNODE_H__ */
+#endif
 
 /*
  * Make Linus happy.
