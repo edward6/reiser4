@@ -162,7 +162,7 @@ goto_right_neighbor(coord_t * coord, lock_handle * lh)
 
 	init_lh(&lh_right);
 	result = reiser4_get_right_neighbor(&lh_right, coord->node,
-					    znode_is_wlocked(coord->node) ? ZNODE_WRITE_LOCK : ZNODE_WRITE_LOCK,
+					    znode_is_wlocked(coord->node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK,
 					    GN_DO_READ);
 	if (result) {
 		done_lh(&lh_right);
