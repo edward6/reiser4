@@ -125,7 +125,7 @@ check_stack(void)
 		if (gap > REISER4_STACK_GAP) {
 			warning("nikita-1079", "Stack overflow is close: %i", gap);
 		}
-#if REISER4_STATS
+#if 0 && REISER4_STATS
 		if (gap > 5000 && STS.stack_size_max < gap) {
 			warning("nikita-2731", "New stack max: %i", gap);
 			dump_stack();
