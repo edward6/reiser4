@@ -1207,7 +1207,11 @@ static int jnode_allocate_flush (flush_position *pos)
 
 	/* And for RELOC blocks, allocate a block number now. */
 	if (JF_ISSET (pos->point, ZNODE_RELOC)) {
-
+		/*
+		 * FIXME-VS: len is supposed to contain number of blocks to be
+		 * allocated. Is 1 a right number here?
+		 */
+		len = 1;
 		if ((ret = reiser4_alloc_blocks (& pos->preceder, & blk, & len))) {
 			goto exit;
 		}
