@@ -347,7 +347,7 @@ typedef struct crypto_plugin {
 	   this with decompression */
 	loff_t (*scale)(struct inode * inode, size_t blocksize, loff_t src);	
 	/* align manager */
-	int (*align) (__u8 *tail, int clust_size, int blocksize);
+	int (*align_cluster)(__u8 *tail, int clust_size, int blocksize);
 	/* low-level key manager (check, install, etc..) */
 	int (*set_key) (__u32 *expkey, const __u8 *key);
 	/* main text processing procedures */
