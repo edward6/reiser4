@@ -1041,11 +1041,11 @@ void done_dh( data_handle *dh )
 	}
 }
 
-int load_dh_node( data_handle *dh, znode *node )
+int load_dh_znode( data_handle *dh, znode *node )
 {
 	assert( "nikita-2107", dh != NULL );
 	assert( "nikita-2158", node != NULL );
-	assert( "nikita-2109", ergo( dh -> node != NULL, dh -> node == node ) );
+	assert( "nikita-2109", ergo( dh -> node != NULL, ( dh -> node == node ) || ( dh -> d_ref == 0 ) ) );
 
 	dh -> node = node;
 	return load_dh( dh );
@@ -1064,6 +1064,34 @@ int load_dh( data_handle *dh )
 	return result;
 }
 
+int load_dh_jnode( data_handle *dh, jnode *node )
+{
+	if( jnode_is_formatted( node ) ) {
+		return load_dh_znode( dh, JZNODE( node ) );
+	}
+	return 0;
+}
+
+void copy_dh( data_handle *new, data_handle *old )
+{
+	int ret = 0;
+	done_dh( new );
+	new -> node  = old -> node;
+	new -> d_ref = 0;
+
+	while( (new -> d_ref < old -> d_ref) && ( ret = load_dh( new ) ) == 0 ) { }
+
+	assert( "jmacd-87589", ret == 0 );
+}
+
+void move_dh( data_handle *new, data_handle *old )
+{
+	done_dh( new );
+	new -> node  = old -> node;
+	new -> d_ref = old -> d_ref;
+	old -> node  = NULL;
+	old -> d_ref = 0;
+}
 
 /** debugging aid: znode invariant */
 /* Audited by: umka (2002.06.11) */
