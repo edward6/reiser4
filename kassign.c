@@ -167,7 +167,10 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 	*/
 	if (REISER4_LARGE_KEY) {
 		ordering = pack_string(name, 1);
-		objectid = pack_string(name + ORDERING_CHARS, 0);
+		if (len > ORDERING_CHARS)
+			objectid = pack_string(name + ORDERING_CHARS, 0);
+		else
+			objectid = 0ull;
 	} else
 		objectid = pack_string(name, 1);
 	if (!is_longname(name, len)) {
