@@ -213,27 +213,27 @@ extern const reiser4_key *min_key(void);
 extern const reiser4_key *max_key(void);
 
 /* helper macro for keycmp() */
-#define DIFF( field )								\
+#define KEY_DIFF(k1, k2, field)							\
 ({										\
-	typeof ( get_key_ ## field ( k1 ) ) f1;                              	\
-	typeof ( get_key_ ## field ( k2 ) ) f2;					\
+	typeof (get_key_ ## field (k1)) f1;                              	\
+	typeof (get_key_ ## field (k2)) f2;					\
 										\
-	f1 = get_key_ ## field ( k1 );						\
-	f2 = get_key_ ## field ( k2 );						\
+	f1 = get_key_ ## field (k1);						\
+	f2 = get_key_ ## field (k2);						\
 										\
-	( f1 < f2 ) ? LESS_THAN : ( ( f1 == f2 ) ? EQUAL_TO : GREATER_THAN );	\
+	(f1 < f2) ? LESS_THAN : ((f1 == f2) ? EQUAL_TO : GREATER_THAN);		\
 })
 
 /* helper macro for keycmp() */
-#define DIFF_EL( off )								\
+#define KEY_DIFF_EL(k1, k2, off)						\
 ({										\
 	__u64 e1;								\
 	__u64 e2;								\
 										\
-	e1 = get_key_el ( k1, off );						\
-	e2 = get_key_el ( k2, off );						\
+	e1 = get_key_el(k1, off);						\
+	e2 = get_key_el(k2, off);						\
 										\
-	( e1 < e2 ) ? LESS_THAN : ( ( e1 == e2 ) ? EQUAL_TO : GREATER_THAN );	\
+	(e1 < e2) ? LESS_THAN : ((e1 == e2) ? EQUAL_TO : GREATER_THAN);		\
 })
 
 /* compare `k1' and `k2'.  This function is a heart of "key allocation
@@ -255,23 +255,23 @@ keycmp(const reiser4_key * k1 /* first key to compare */ ,
 		/* logical order of fields in plan-a:
 		   locality->type->objectid->offset. */
 		/* compare locality and type at once */
-		result = DIFF_EL(0);
+		result = KEY_DIFF_EL(k1, k2, 0);
 		if (result == EQUAL_TO) {
 			/* compare objectid (and band if it's there) */
-			result = DIFF_EL(1);
+			result = KEY_DIFF_EL(k1, k2, 1);
 			/* compare offset */
 			if (result == EQUAL_TO) {
-				result = DIFF_EL(2);
+				result = KEY_DIFF_EL(k1, k2, 2);
 			}
 		}
 	} else if (REISER4_3_5_KEY_ALLOCATION) {
-		result = DIFF(locality);
+		result = KEY_DIFF(k1, k2, locality);
 		if (result == EQUAL_TO) {
-			result = DIFF(objectid);
+			result = KEY_DIFF(k1, k2, objectid);
 			if (result == EQUAL_TO) {
-				result = DIFF(type);
+				result = KEY_DIFF(k1, k2, type);
 				if (result == EQUAL_TO)
-					result = DIFF(offset);
+					result = KEY_DIFF(k1, k2, offset);
 			}
 		}
 	} else

@@ -257,9 +257,9 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 }
 
 /* implementation of ->lookup() method for hashed directories. */
-file_lookup_result lookup_hashed(struct inode * parent	/* inode of directory to
-							 * lookup into */ ,
-				 struct dentry * dentry /* name to look for */ )
+int lookup_hashed(struct inode * parent	/* inode of directory to
+					 * lookup into */ ,
+		  struct dentry * dentry /* name to look for */ )
 {
 	int result;
 	coord_t *coord;
