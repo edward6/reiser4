@@ -592,12 +592,12 @@ static void done_repacker_sysfs_interface (struct super_block * s)
 	kobject_unregister(&sinfo->repacker->kobj);
 }
 
-#else
+#else  /* REISER4_USE_SYSFS */
 
 #define init_repacker_sysfs_iface(s) (0)
 #define done_repacker_sysfs_iface(s) do{}while(0)
 
-#endif
+#endif /* REISER4_USE_SYSFS */
 
 int init_reiser4_repacker (struct super_block *super)
 {
