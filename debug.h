@@ -344,7 +344,7 @@ extern __u32 reiser4_current_trace_flags;
 /* include from asm-i386 directly to work under UML/i386 */
 #include <asm-i386/msr.h>
 
-#define REISER4_PROF_TRACE_NUM (16)
+#define REISER4_PROF_TRACE_NUM (40)
 #define REISER4_PROF_TRACE_DEPTH (6)
 
 typedef struct reiser4_trace {
@@ -372,6 +372,7 @@ typedef struct reiser4_prof {
 	reiser4_prof_cnt atom_wait_event;
 	reiser4_prof_cnt set_child_delimiting_keys;
 	reiser4_prof_cnt zget;
+	reiser4_prof_cnt length_by_coord;
 } reiser4_prof;
 
 extern unsigned long nr_context_switches(void);
