@@ -262,7 +262,7 @@ void print_tap(const char * prefix, const tap_t * tap)
 	print_coord("\tcoord", tap->coord, 0);
 }
 #else
-#define print_tap noop
+#define print_tap(prefix, tap) noop
 #endif
 
 #if REISER4_DEBUG
