@@ -43,7 +43,7 @@ ctail_formatted_at(const coord_t * coord)
 	return item_body_by_coord(coord);
 }
 
-static __u8
+reiser4_internal __u8
 cluster_shift_by_coord(const coord_t * coord)
 {
 	return d8tocpu(&ctail_formatted_at(coord)->cluster_shift);

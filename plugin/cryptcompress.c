@@ -47,6 +47,7 @@ int writepage_ctail(struct page *);
 int truncate_inode_jnodes_range(struct inode *inode, unsigned long from, int count);
 int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size, int mode);
 int delete_object(struct inode *inode, int mode);
+__u8 cluster_shift_by_coord(const coord_t * coord);
 
 /* get cryptcompress specific portion of inode */
 reiser4_internal cryptcompress_info_t *
