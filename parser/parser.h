@@ -170,25 +170,35 @@ struct path_walk {
 
 /* types for vtype of struct pars_var */
 typedef enum {
+	VAR_EMPTY,
 	VAR_LNODE,
-	VAR_PSEUDO
+	VAR_TMP
 };
 
+typedef struct pars_var_value pars_var_value_t;
 
 struct pars_var {
 	pars_var_t * next ;         /* next                                */
 	pars_var_t * parent;        /* parent                              */
 	wrd_t * w ;                 /* name: pair (parent,w) is unique     */
+	pars_var_value_t * val;
+};
+
+struct pars_var_value {
+	pars_var_value_t * prev;
+	pars_var_value_t * next_level;
+	pars_var_t * host;
+	pars_var_t * associated;
+	int vtype;                  /* Type of value                       */
 	union {
-		lnode * ln;         /* file/dir name lnode                 */
-		char *data;         /*  ptr to data in mem (for result of assign) */
+	lnode * ln;         /* file/dir name lnode                 */
+	char *data;         /*  ptr to data in mem (for result of assign) */
 	} u;
 	int count;                  /* ref counter                         */
-	int vtype;                  /* Type of name                        */
 	size_t off;	            /* current offset read/write of object */
 	size_t len;		    /* length of sequence of bytes for read/write (-1 no limit) */
 	int vSpace  ;               /* v4  space name or not ???           */
-	int vlevel  ;               /* level              ???              */
+	int vlevel  ;               /* level :     lives of the name       */
 } ;
 
 typedef struct expr_common {
@@ -264,7 +274,7 @@ typedef enum {
 union expr_v4 {
 	expr_common_t   h;
 	expr_wrd_t      wd;
-	expr_pars_var_t    pars_var;
+	expr_pars_var_t pars_var;
 	expr_list_t     list;
         expr_assign_t   assgn;
 	expr_lnode_t    lnode;
@@ -299,12 +309,13 @@ struct sourece_stack {
 typedef struct streg  streg_t;
 
 struct streg {
-	int stype;                  /* cur type of level        */
-	int level;                  /* cur level                */
         streg_t * next;
         streg_t * prev;
 	expr_v4_t * cur_exp;          /* current (pwd)  expression for this level */
 	expr_v4_t * wrk_exp;          /* current (work) expression for this level */
+	pars_var_value_t * val_level;
+	int stype;                  /* cur type of level        */
+	int level;                  /* cur level                */
 };
 
 
