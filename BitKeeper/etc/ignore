@@ -1286,3 +1286,10 @@ gmon.0
 ulevel/c.ps
 ulevel/reads
 ulevel/writes
+.crypt.o.cmd
+.kattr.o.cmd
+ulevel/kbio-out.sh
+ulevel/kseeks.sh
+ulevel/reiser4-seeks.sh
+ulevel/tmp.1001
+ulevel/tmp.998
