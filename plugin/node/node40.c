@@ -2165,9 +2165,11 @@ static coord_t * adjust_coord2 (const struct shift_params * shift,
 			}
 		} else {
 			/*
-			 * unit @old did not move to left neighbor
+			 * unit @old did not move to left neighbor.
+			 *
+			 * Use _nocheck, because @old is outside of its node.
 			 */
-			coord_dup (new, old);
+			coord_dup_nocheck (new, old);
 			new->item_pos -= shift->u.future_first.item_pos;
 			new->unit_pos -= shift->u.future_first.unit_pos;
 		}
