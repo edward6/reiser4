@@ -78,7 +78,7 @@ struct inode *lookup_pseudo(struct inode *parent, const char *name)
 		assert("nikita-3001", pplug->try != NULL);
 
 		if (pplug->try(parent, name)) {
-			struct inode *inode;
+			/*struct inode *inode;*/
 
 			/*
 			 * construct object id and create inode.
