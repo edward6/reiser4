@@ -15,7 +15,7 @@
 
 %type <charType> L_BRACKET R_BRACKET level_up reiser4
 
-%type <wrd> WORD
+%type <wrd> WORD named_expr
 %type <wrd> P_RUNNER 
 %type <wrd> STRING_CONSTANT
 
@@ -44,7 +44,7 @@
 %token IF
 %token THEN ELSE
 %token EXIST
-%token NAME UNNAME
+%token NAME UNNAME NAMED
 %token WORD STRING_CONSTANT
 %token ROOT
 
@@ -148,13 +148,19 @@ begin_from
 ;
 
 name
-    : WORD                                             { $$ = lookup_word( ws, $1 ); }
-    | level_up  Expression R_BRACKET                   { $$ = $2; level_down( ws, $1, $3 );} /*not yet */
+    : WORD                                             { $$ = lookup_word( ws, $1, 0 ); }
+    | level_up  Expression R_BRACKET                   { $$ = $2; level_down( ws, $1, $3 );}
 ;
 
 level_up
-    : L_BRACKET                                        { $$ = $1; level_up( ws, $1 ); /*set_curr_path( ws ); */}
+/*    : L_BRACKET                                        { $$ = $1; level_up( ws, $1 ); } */
+    : named_expr L_BRACKET                             { $$ = $2; level_up( ws, $2 ); /*set_curr_path( ws ); */}
 ;
+
+named_expr
+    : WORD  NAMED                                     { $$ = lookup_word( ws, $1, NAMED ); }
+    | 
+
 
 %%
 
