@@ -118,6 +118,7 @@ PREFIX##_hash_done (PREFIX##_hash_table *hash)						\
   hash->_table = NULL;									\
 }											\
 											\
+											\
 static __inline__ ITEM_TYPE*								\
 PREFIX##_hash_find_index (PREFIX##_hash_table *hash,					\
 			  __u32                hash_index,				\
@@ -139,6 +140,32 @@ PREFIX##_hash_find_index (PREFIX##_hash_table *hash,					\
         }										\
     }											\
 											\
+  return NULL;										\
+}											\
+											\
+static __inline__ ITEM_TYPE*								\
+PREFIX##_hash_find_index_lru (PREFIX##_hash_table *hash,				\
+			      __u32                hash_index,				\
+			      KEY_TYPE const      *find_key)				\
+{											\
+  ITEM_TYPE ** item = &hash->_table[hash_index];                                        \
+											\
+  PREFIX##_check_hash(hash, hash_index);						\
+  TSHASH_LOOKUP(hash->_stats);								\
+                                                                                        \
+  while (*item != NULL) {                                                               \
+    TSHASH_SCANNED(hash->_stats);							\
+    if (EQ_FUNC (&(*item)->KEY_NAME, find_key)) {                                       \
+      ITEM_TYPE *found; 								\
+											\
+      found = *item;    								\
+      *item = found->LINK_NAME._next;                                                   \
+      found->LINK_NAME._next = hash->_table[hash_index];				\
+      hash->_table[hash_index] = found;							\
+      return found;                                                                     \
+    }                                                                                   \
+    item = &(*item)->LINK_NAME._next;                                                   \
+  }											\
   return NULL;										\
 }											\
 											\
@@ -180,6 +207,13 @@ PREFIX##_hash_find (PREFIX##_hash_table *hash,						\
 	            KEY_TYPE const      *find_key)					\
 {											\
   return PREFIX##_hash_find_index (hash, HASH_FUNC(find_key), find_key);		\
+}											\
+											\
+static __inline__ ITEM_TYPE*								\
+PREFIX##_hash_find_lru (PREFIX##_hash_table *hash,					\
+	                KEY_TYPE const      *find_key)					\
+{											\
+  return PREFIX##_hash_find_index_lru (hash, HASH_FUNC(find_key), find_key);		\
 }											\
 											\
 static __inline__ int									\
