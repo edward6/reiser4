@@ -251,7 +251,7 @@ int register_filesystem (struct file_system_type * fs)
 struct super_block super_blocks[1];
 struct block_device block_devices[1];
 
-struct super_block * get_sb_bdev (struct file_system_type *fs_type UNUSED_ARG,
+struct super_block * get_sb_bdev (struct file_system_type *fs_type,
 				  int flags, char *dev_name, 
 				  void * data,
 				  int (*fill_super)(struct super_block *, void *, int))
@@ -262,6 +262,7 @@ struct super_block * get_sb_bdev (struct file_system_type *fs_type UNUSED_ARG,
 	s = &super_blocks[0];
 	s->s_flags = flags;
 	s->s_blocksize = PAGE_CACHE_SIZE;
+	s->s_type = fs_type;
 	s->s_blocksize_bits = PAGE_CACHE_SHIFT;
 	s->s_bdev = &block_devices[0];
 	s->s_bdev->bd_dev = open (dev_name, O_RDWR);
@@ -2947,6 +2948,7 @@ static int bash_mkfs (const char * file_name)
 	super.s_blocksize = blocksize;
 	for (super.s_blocksize_bits = 0; blocksize >>= 1; super.s_blocksize_bits ++);
 	super.s_bdev = &bd;
+	super.s_type = find_filesystem ("reiser4");
 	super.s_bdev->bd_dev = open (file_name, O_RDWR);
 	if (super.s_bdev->bd_dev == -1) {
 		info ("Could not open device: %s\n", strerror (errno));
