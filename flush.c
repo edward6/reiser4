@@ -2355,16 +2355,33 @@ static int squalloc (flush_pos_t * pos)
 	return ret;
 }
 
-static void update_ldkey(znode * left)
+static void update_ldkey(znode *node)
 {
 	reiser4_key ldkey;
 
-	if (node_is_empty(left))
+	assert("vs-1630", rw_dk_is_write_locked(znode_get_tree(node)));
+	if (node_is_empty(node))
 		return;
 
-	UNDER_RW_VOID(dk, znode_get_tree(left), write,
-		      znode_set_ld_key(left,
-				       leftmost_key_in_node(left, &ldkey)));
+	znode_set_ld_key(node, leftmost_key_in_node(node, &ldkey));
+}
+
+/* this is to be called after calling of shift node's method to shift data from @right to
+   @left. It sets left delimiting keys of @left and @right to keys of first items of @left
+   and @right correspondingly and sets right delimiting key of @left to first key of @right */
+static void
+update_znode_dkeys(znode *left, znode *right)
+{
+	assert("nikita-1470", rw_dk_is_write_locked(znode_get_tree(right)));
+	assert("vs-1629", znode_is_write_locked(left) && znode_is_write_locked(right));
+
+	/* we need to update left delimiting of left if it was empty before shift */
+	update_ldkey(left);
+	update_ldkey(right);
+	if (node_is_empty(right))
+		znode_set_rd_key(left, znode_get_rd_key(right));
+	else
+		znode_set_rd_key(left, znode_get_ld_key(right));
 }
 
 /* try to shift everything from @right to @left. If everything was shifted -
@@ -2372,7 +2389,6 @@ static void update_ldkey(znode * left)
 static int
 shift_everything_left(znode * right, znode * left, carry_level * todo)
 {
-	int result;
 	coord_t from;
 	node_plugin *nplug;
 	carry_plugin_info info;
@@ -2384,13 +2400,10 @@ shift_everything_left(znode * right, znode * left, carry_level * todo)
 	nplug = node_plugin_by_node(right);
 	info.doing = NULL;
 	info.todo = todo;
-	result = nplug->shift(&from, left, SHIFT_LEFT, 1
-			      /* delete node @right if all its contents was moved to @left */
-			      , 1 /* @from will be set to @left node */ ,
-			      &info);
-	znode_make_dirty(right);
-	znode_make_dirty(left);
-	return result;
+	return nplug->shift(&from, left, SHIFT_LEFT,
+			    1 /* delete @right if it becomes empty */,
+			    1 /* move coord @from to node @left if everything will be shifted */,
+			    &info);
 }
 
 /* Shift as much as possible from @right to @left using the memcpy-optimized
@@ -2402,8 +2415,7 @@ squeeze_right_non_twig(znode * left, znode * right)
 	int ret;
 	carry_pool pool;
 	carry_level todo;
-	int old_items;
-	reiser4_tree * tree;
+	ON_STATS(int old_items; int old_free_space);
 
 	assert("nikita-2246", znode_get_level(left) == znode_get_level(right));
 
@@ -2413,40 +2425,27 @@ squeeze_right_non_twig(znode * left, znode * right)
 	init_carry_pool(&pool);
 	init_carry_level(&todo, &pool);
 
-	old_items = node_num_items(left);
+	ON_STATS(old_items = node_num_items(left); old_free_space = znode_free_space(left));
+
 	ret = shift_everything_left(right, left, &todo);
-
-#if REISER4_STATS
-	if (znode_get_level(left) == LEAF_LEVEL) {
-		int old_free_space = znode_free_space(left);
-
-		reiser4_stat_inc(flush.squeezed_leaves);
-		reiser4_stat_add(flush.squeezed_leaf_items, node_num_items(left) - old_items);
-		reiser4_stat_add(flush.squeezed_leaf_bytes, old_free_space - znode_free_space(left));
-	}
-#endif
-
-	tree = znode_get_tree(left);
-	update_ldkey(left);
-	UNDER_RW_VOID(dk, tree, write, update_znode_dkeys(left, right));
-
 	if (ret > 0) {
-		reiser4_block_nr amount;
-		int grabbed;
+		/* something was shifted */
+		reiser4_tree *tree;
+		__u64 grabbed;
 
-		/* Carry is called to update delimiting key or to remove empty
+		/* update delimiting keys of nodes which participated in shift. FIXME: it
+		   would be better to have this in shift node's operation. But it can not
+		   be done there. Nobody remembers why, though */
+		tree = znode_get_tree(left);
+		UNDER_RW_VOID(dk, tree, write, update_znode_dkeys(left, right));
+		
+		/* Carry is called to update delimiting key and, maybe, to remove empty
 		   node. */
-		ON_STATS(todo.level_no = znode_get_level(left) + 1);
-
-		amount = tree->height;
 		grabbed = get_current_context()->grabbed_blocks;
-		ret = reiser4_grab_space_force(amount, BA_RESERVED);
-		if (ret != 0) {
-			reiser4_panic("nikita-3003",
-				      "Reserved space is exhausted. Ask Hans.");
-			done_carry_pool(&pool);
-			return ret;
-		}
+		ret = reiser4_grab_space_force(tree->height, BA_RESERVED);
+		assert("nikita-3003", ret == 0); /* reserved space is exhausted. Ask Hans. */
+
+		ON_STATS(todo.level_no = znode_get_level(left) + 1);
 
 		ret = carry(&todo, NULL /* previous level */ );
 		grabbed2free_mark(grabbed);
@@ -2456,6 +2455,15 @@ squeeze_right_non_twig(znode * left, znode * right)
 	}
 
 	done_carry_pool(&pool);
+
+#if REISER4_STATS
+	if (znode_get_level(left) == LEAF_LEVEL) {
+		reiser4_stat_inc(flush.squeezed_leaves);
+		reiser4_stat_add(flush.squeezed_leaf_items, node_num_items(left) - old_items);
+		reiser4_stat_add(flush.squeezed_leaf_bytes, old_free_space - znode_free_space(left));
+	}
+#endif
+
 	return ret;
 }
 
@@ -2501,9 +2509,9 @@ shift_one_internal_unit(znode * left, znode * right)
 	info.todo = &todo;
 	info.doing = NULL;
 
-	ret = node_plugin_by_node(left)->shift(&coord, left, SHIFT_LEFT, 1
-					       /* delete @right if it becomes empty */
-					       , 0 /* move coord */ ,
+	ret = node_plugin_by_node(left)->shift(&coord, left, SHIFT_LEFT,
+					       1 /* delete @right if it becomes empty */,
+					       0 /* do not move coord @coord to node @left */,
 					       &info);
 
 	/* If shift returns positive, then we shifted the item. */
@@ -2511,25 +2519,22 @@ shift_one_internal_unit(znode * left, znode * right)
 	moved = (ret > 0);
 
 	if (moved) {
+		/* something was moved */
+		reiser4_tree *tree;
 		int grabbed;
-
-		/* Grabbing two blocks for left and right neighbours */
-		/*
-		 * FIXME-VS: left and right are involved into flush that means that they were modifed already and
-		 * therefore space for their change was reserved already. What we have to reserve here is space for
-		 * updating delimiting keys after shifting
-		 */
-		grabbed = get_current_context()->grabbed_blocks;
-		ret = reiser4_grab_space_force((__u64)(left->zjnode.tree->height), BA_RESERVED);
-		if (ret != 0)
-			return ret;
 
 		znode_make_dirty(left);
 		znode_make_dirty(right);
-		update_ldkey(left);
-		UNDER_RW_VOID(dk, znode_get_tree(left), write, update_znode_dkeys(left, right));
+		tree = znode_get_tree(left);
+		UNDER_RW_VOID(dk, tree, write, update_znode_dkeys(left, right));
+
+		/* reserve space for delimiting keys after shifting */
+		grabbed = get_current_context()->grabbed_blocks;
+		ret = reiser4_grab_space_force(tree->height, BA_RESERVED);
+		assert("nikita-3003", ret == 0); /* reserved space is exhausted. Ask Hans. */
 
 		ON_STATS(todo.level_no = znode_get_level(left) + 1);
+
 		ret = carry(&todo, NULL /* previous level */ );
 		grabbed2free_mark(grabbed);
 	}
