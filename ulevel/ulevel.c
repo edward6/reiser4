@@ -272,7 +272,7 @@ void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag )
 {
 	void *addr;
 
-	// assert( "nikita-2267", lock_counters() -> spin_locked == 0 );
+	assert( "nikita-2267", lock_counters() -> spin_locked == 0 );
 
 	addr = kmalloc( slab -> size, gfp_flag );
 
@@ -5137,6 +5137,45 @@ int block_sync_page(struct page *page UNUSED_ARG)
 }
 
 void blk_run_queues (void) { }
+
+int inode_setattr( struct inode * inode, struct iattr * attr )
+{
+	unsigned int ia_valid = attr->ia_valid;
+	int error = 0;
+	
+	lock_kernel();
+	if (ia_valid & ATTR_SIZE) {
+		/* 
+		error = vmtruncate(inode, attr->ia_size);
+		if (error)
+			goto out;
+		*/
+	}
+
+	if (ia_valid & ATTR_UID)
+		inode->i_uid = attr->ia_uid;
+	if (ia_valid & ATTR_GID)
+		inode->i_gid = attr->ia_gid;
+	if (ia_valid & ATTR_ATIME)
+		inode->i_atime = attr->ia_atime;
+	if (ia_valid & ATTR_MTIME)
+		inode->i_mtime = attr->ia_mtime;
+	if (ia_valid & ATTR_CTIME)
+		inode->i_ctime = attr->ia_ctime;
+	if (ia_valid & ATTR_MODE) {
+		inode->i_mode = attr->ia_mode;
+	}
+	mark_inode_dirty(inode);
+out:
+	unlock_kernel();
+	return error;
+}
+
+int inode_change_ok( struct inode *inode UNUSED_ARG, 
+		     struct iattr *attr UNUSED_ARG )
+{
+	return 0;
+}
 
 /*
  * Make Linus happy.
