@@ -101,7 +101,7 @@ reiser4_internal int reiser4_status_query(u64 *status, u64 *extended)
 		return REISER4_STATUS_MOUNT_UNKNOWN;
 	}
 	statuspage = (struct reiser4_status *)
-		kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
+			kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
 	switch ( (long)d64tocpu(&statuspage->status) ) { // FIXME: this cast is a hack for 32 bit arches to work.
 	case REISER4_STATUS_OK:
 		retval = REISER4_STATUS_MOUNT_OK;
@@ -141,7 +141,7 @@ reiser4_status_write(u64 status, u64 extended_status, char *message)
 		return -1;
 	}
 	statuspage = (struct reiser4_status *)
-		kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
+			kmap_atomic(get_super_private(sb)->status_page, KM_USER0);
 
 	cputod64(status, &statuspage->status);
 	cputod64(extended_status, &statuspage->extended_status);
