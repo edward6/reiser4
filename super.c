@@ -1,5 +1,5 @@
 /*
- * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
 /*
@@ -185,7 +185,7 @@ reiser4_oid_allocator *get_oid_allocator( const struct super_block *super /* sup
 /**
  * space allocator used by this file system
  */
-reiser4_space_allocator *reiser4_get_space_allocator( const struct super_block *super )
+reiser4_space_allocator *get_space_allocator( const struct super_block *super )
 {
 	assert( "nikita-458", super != NULL );
 	assert( "nikita-459", is_reiser4_super( super ) );
