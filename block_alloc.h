@@ -82,7 +82,7 @@ extern void update_blocknr_hint_default(const struct super_block *, const reiser
 extern reiser4_block_nr reiser4_fs_reserved_space(struct super_block * super);
 
 int assign_fake_blocknr_formatted(reiser4_block_nr *);
-int assign_fake_blocknr_unformatted(reiser4_block_nr *);
+reiser4_block_nr fake_blocknr_unformatted(void);
 
 
 /* free -> grabbed -> fake_allocated -> used */
