@@ -339,6 +339,20 @@ typedef struct hash_plugin {
 	 __u64(*hash) (const unsigned char *name, int len);
 } hash_plugin;
 
+typedef struct crypto_plugin {
+	/* generic fields */
+	plugin_header h;
+	/* encryption atom size */
+	int (*blocksize)(struct inode *inode);
+	/* align manager */
+	int (*align) (__u8 *tail, int clust_size, int blocksize);
+	/* low-level key manager (check, install, etc..) */
+	int (*set_key) (__u32 *expkey, const __u8 *key);
+	/* main text processing procedures */
+	void (*encrypt) (__u32 *expkey, __u8 *dst, const __u8 *src);
+	void (*decrypt) (__u32 *expkey, __u8 *dst, const __u8 *src);
+} crypto_plugin;
+
 typedef struct sd_ext_plugin {
 	/* generic fields */
 	plugin_header h;
@@ -458,6 +472,8 @@ union reiser4_plugin {
 	dir_plugin dir;
 	/* hash plugin, used by directory plugin */
 	hash_plugin hash;
+	/* crypto plugin, used by file plugin */
+	crypto_plugin crypto;
 	/* tail plugin, used by file plugin */
 	tail_plugin tail;
 	/* permission plugin */
@@ -569,6 +585,13 @@ typedef enum {
 	LAST_HASH_ID
 } reiser4_hash_id;
 
+/* builtin crypto-plugins */
+
+typedef enum {
+	NONE_CRYPTO_ID,
+	LAST_CRYPTO_ID
+} reiser4_crypto_id;
+
 /* builtin tail-plugins */
 
 typedef enum {
@@ -636,6 +659,7 @@ PLUGIN_BY_ID(node_plugin, REISER4_NODE_PLUGIN_TYPE, node);
 PLUGIN_BY_ID(sd_ext_plugin, REISER4_SD_EXT_PLUGIN_TYPE, sd_ext);
 PLUGIN_BY_ID(perm_plugin, REISER4_PERM_PLUGIN_TYPE, perm);
 PLUGIN_BY_ID(hash_plugin, REISER4_HASH_PLUGIN_TYPE, hash);
+PLUGIN_BY_ID(crypto_plugin, REISER4_CRYPTO_PLUGIN_TYPE, crypto);
 PLUGIN_BY_ID(tail_plugin, REISER4_TAIL_PLUGIN_TYPE, tail);
 PLUGIN_BY_ID(disk_format_plugin, REISER4_FORMAT_PLUGIN_TYPE, format);
 PLUGIN_BY_ID(oid_allocator_plugin, REISER4_OID_ALLOCATOR_PLUGIN_TYPE, oid_allocator);
