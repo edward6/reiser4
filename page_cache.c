@@ -527,15 +527,6 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 	  
 	   We only have to submit one block, but submit_bh() will allocate bio
 	   anyway, so lets use all the bells-and-whistles of bio code.
-	  
-	   This is roughly equivalent to mpage_readpage() for one
-	   page. mpage_readpage() is not used, because it depends on
-	   get_block() to obtain block number and get_block() gets everything,
-	   but page---and we need page to obtain block number from jnode. One
-	   line change to mpage_readpage() (bh.b_page = page;) and it can be
-	   used. Other problem is the do_mpage_readpage() checks
-	   page_has_buffers().
-	  
 	*/
 
 	bio = bio_alloc(gfp, 1);
@@ -571,22 +562,7 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		return ERR_PTR(-ENOMEM);
 }
 
-/* Common memory pressure notification.
-  
-   This is called from our ->vm_writeback() methods: formatted_vm_writeback()
-   and reiser4_vm_writeback().
-  
-   Initial design was that this function would perform all flush and IO
-   submitting directly (that is, in the context of kswapd, or caller of
-   balance_classzone()). It was found, though, that problems with deadlocks
-   and flush running of memory are very hard if at all possible to overcome.
-  
-   It was then decided, that this function should in stead just wake up some
-   worker thread (disguised under fancy name of `ent') to perform actual flush
-   and submit IO requests. Currently very simple scheme is implemented. There
-   is not much sense in elaborating it now when VM is in such a flux.
-  
-*/
+/* Common memory pressure notification. */
 int
 page_common_writeback(struct page *page /* page to start writeback from */ ,
 		      struct writeback_control *wbc,
@@ -616,7 +592,8 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 			 * put it back to place from where reiser4_writepages will be able to capture it from (moved_pages list, namely)
 			 */
 			page->mapping->a_ops->set_page_dirty(page);
-			REISER4_EXIT(WRITEPAGE_ACTIVATE);
+			reiser4_unlock_page(page);
+			REISER4_EXIT(0);
 		}
 	} else {
 		/* formatted pages always have znode attached to them */
