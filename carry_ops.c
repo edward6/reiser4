@@ -1250,6 +1250,7 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 		WLOCK_DK(tree);
 		znode_set_ld_key(child, znode_set_ld_key(parent, min_key()));
 		znode_set_rd_key(child, znode_set_rd_key(parent, max_key()));
+		ZF_SET(child, JNODE_DKSET);
 		WUNLOCK_DK(tree);
 
 		/* @child escaped imminent death! */
