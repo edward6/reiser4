@@ -18,6 +18,16 @@ typedef struct extent_stat {
 	int hole_blocks;
 } extent_stat;
 
+
+typedef struct {	
+	pos_in_unit_t pos_in_unit;
+	pos_in_unit_t width; /* width of current unit */
+	pos_in_item_t nr_units; /* number of units */
+	reiser4_extent *ext;
+	unsigned long expected_page;
+} extent_coord_extension_t;
+
+
 /* macros to set/get fields of on-disk extent */
 static inline reiser4_block_nr
 extent_get_start(const reiser4_extent * ext)
@@ -42,7 +52,7 @@ extent_set_start(reiser4_extent * ext, reiser4_block_nr start)
 }
 
 static inline void
-extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
+extent_set_width(reiser4_extent *ext, pos_in_unit_t width)
 {
 	cassert(sizeof (ext->width) == 8);
 	cpu_to_dblock(width, &ext->width);
@@ -70,10 +80,10 @@ extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
 })
 
 /* plugin->u.item.b.* */
-reiser4_key *max_key_inside_extent(const coord_t *, reiser4_key *, void *);
+reiser4_key *max_key_inside_extent(const coord_t *, reiser4_key *);
 int can_contain_key_extent(const coord_t * coord, const reiser4_key * key, const reiser4_item_data *);
 int mergeable_extent(const coord_t * p1, const coord_t * p2);
-unsigned nr_units_extent(const coord_t *);
+pos_in_item_t nr_units_extent(const coord_t *);
 lookup_result lookup_extent(const reiser4_key *, lookup_bias, coord_t *);
 void init_coord_extent(coord_t *);
 int init_extent(coord_t *, reiser4_item_data *);
@@ -99,15 +109,18 @@ void item_stat_extent(const coord_t * coord, void *vp);
 int check_extent(const coord_t * coord, const char **error);
 
 /* plugin->u.item.s.file.* */
-#include "../file/file.h"
-int write_extent(struct inode *, coord_t *, lock_handle *, flow_t *, hint_t *, int grabbed);
-int read_extent(struct file *, coord_t *, flow_t *);
-int readpage_extent(void *, struct page *page);
-void readpages_extent(coord_t *, struct address_space *, struct list_head *pages);
-int writepage_extent(coord_t *, lock_handle *, struct page *);
-reiser4_key *append_key_extent(const coord_t * coord, reiser4_key * key, void *);
-int key_in_item_extent(coord_t * coord, const reiser4_key * key, void *);
-int get_block_address_extent(const coord_t *, sector_t block, struct buffer_head *);
+int write_extent(struct inode *, flow_t *, hint_t *, int grabbed, write_mode_t);
+int read_extent(struct file *, flow_t *, uf_coord_t *);
+int readpage_extent(void *, struct page *);
+void readpages_extent(void *, struct address_space *, struct list_head *pages);
+int writepage_extent(uf_coord_t *, struct page *, write_mode_t);
+reiser4_key *append_key_extent(const coord_t *, reiser4_key *);
+void init_coord_extension_extent(uf_coord_t *, loff_t offset);
+int get_block_address_extent(const uf_coord_t *, sector_t block, struct buffer_head *);
+#if REISER4_DEBUG
+int key_in_item_extent(const uf_coord_t *, const reiser4_key *);
+#endif
+
 
 /* these are used in flush.c
    FIXME-VS: should they be somewhere in item_plugin? */

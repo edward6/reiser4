@@ -3,12 +3,16 @@
 #if !defined( __REISER4_TAIL_H__ )
 #define __REISER4_TAIL_H__
 
+typedef struct {
+	int not_used;
+} tail_coord_extension_t;
+
 
 /* plugin->u.item.b.* */
-reiser4_key *max_key_inside_tail(const coord_t *, reiser4_key *, void *);
+reiser4_key *max_key_inside_tail(const coord_t *, reiser4_key *);
 int can_contain_key_tail(const coord_t * coord, const reiser4_key * key, const reiser4_item_data *);
 int mergeable_tail(const coord_t * p1, const coord_t * p2);
-unsigned nr_units_tail(const coord_t *);
+pos_in_item_t nr_units_tail(const coord_t *);
 lookup_result lookup_tail(const reiser4_key *, lookup_bias, coord_t *);
 int paste_tail(coord_t *, reiser4_item_data *, carry_plugin_info *);
 int can_shift_tail(unsigned free_space, coord_t * source,
@@ -21,11 +25,14 @@ int cut_units_tail(coord_t * item, unsigned *from,
 reiser4_key *unit_key_tail(const coord_t * coord, reiser4_key * key);
 
 /* plugin->u.item.s.* */
-#include "../file/file.h"
-int write_tail(struct inode *, coord_t *, lock_handle *, flow_t *, hint_t *, int grabbed);
-int read_tail(struct file *, coord_t *, flow_t *);
-reiser4_key *append_key_tail(const coord_t * coord, reiser4_key * key, void *);
-int key_in_item_tail(coord_t * coord, const reiser4_key * key, void *);
+int write_tail(struct inode *, flow_t *, hint_t *, int grabbed, write_mode_t);
+int read_tail(struct file *, flow_t *, uf_coord_t *);
+reiser4_key *append_key_tail(const coord_t *, reiser4_key *);
+void init_coord_extension_tail(uf_coord_t *, loff_t offset);
+
+#if REISER4_DEBUG
+int key_in_item_tail(const uf_coord_t *, const reiser4_key *);
+#endif
 
 /* __REISER4_TAIL_H__ */
 #endif
