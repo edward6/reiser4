@@ -70,8 +70,6 @@ struct reiserfs_fs {
 
 typedef struct reiserfs_fs reiserfs_fs_t;
 
-typedef void reiserfs_params_opaque_t;
-
 /* Public functions */
 extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device, 
 	aal_device_t *journal_device, int replay);

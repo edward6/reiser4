@@ -8,6 +8,8 @@
 
 #include <aal/aal.h>
 
+typedef void reiserfs_params_opaque_t;
+
 enum reiserfs_plugin_type {
 	REISERFS_FILE_PLUGIN,
 	REISERFS_DIR_PLUGIN,
@@ -23,8 +25,6 @@ enum reiserfs_plugin_type {
 	REISERFS_ALLOC_PLUGIN,
 	REISERFS_JOURNAL_PLUGIN
 };
-
-#define REISERFS_UNSUPPORTED_PLUGIN 255
 
 typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
 typedef int reiserfs_plugin_id_t;
@@ -149,7 +149,7 @@ typedef void reiserfs_journal_opaque_t;
 struct reiserfs_journal_plugin {
 	reiserfs_plugin_header_t h;
 	reiserfs_journal_opaque_t *(*init) (aal_device_t *);
-	reiserfs_journal_opaque_t *(*create) (aal_device_t *);
+	reiserfs_journal_opaque_t *(*create) (aal_device_t *, reiserfs_params_opaque_t *params);
 	void (*done) (reiserfs_journal_opaque_t *, int);
 	int (*replay) (reiserfs_journal_opaque_t *);
 };

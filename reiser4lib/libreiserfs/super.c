@@ -110,15 +110,6 @@ error:
 	return 0;
 }
 
-void reiserfs_super_close(reiserfs_fs_t *fs, int sync) {
-	ASSERT(fs != NULL, return);
-	ASSERT(fs->super != NULL, return);
-	
-	fs->super->plugin->format.done(fs->super->entity, sync);
-	aal_free(fs->super);
-	fs->super = NULL;
-}
-
 int reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format, 
 	unsigned int blocksize, const char *uuid, const char *label, count_t len) 
 {
@@ -169,7 +160,16 @@ error_free_super:
 error:
 	return 0;
 }
+
+void reiserfs_super_close(reiserfs_fs_t *fs, int sync) {
+	ASSERT(fs != NULL, return);
+	ASSERT(fs->super != NULL, return);
 	
+	fs->super->plugin->format.done(fs->super->entity, sync);
+	aal_free(fs->super);
+	fs->super = NULL;
+}
+
 const char *reiserfs_super_format(reiserfs_fs_t *fs) {
 	ASSERT(fs != NULL, return NULL);
 	ASSERT(fs->super != NULL, return NULL);
@@ -187,21 +187,23 @@ unsigned int reiserfs_super_blocksize(reiserfs_fs_t *fs) {
 
 reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs) {
 
-	ASSERT(fs != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
-	ASSERT(fs->super != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
+	ASSERT(fs != NULL, return -1);
+	ASSERT(fs->super != NULL, return -1);
 	
 	reiserfs_plugin_check_routine(fs->super->plugin->format, journal_plugin_id, 
-		return REISERFS_UNSUPPORTED_PLUGIN);
+		return -1);
+		
 	return fs->super->plugin->format.journal_plugin_id();
 }
 
 reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs) {
 
-	ASSERT(fs != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
-	ASSERT(fs->super != NULL, return REISERFS_UNSUPPORTED_PLUGIN);
+	ASSERT(fs != NULL, return -1);
+	ASSERT(fs->super != NULL, return -1);
 	
 	reiserfs_plugin_check_routine(fs->super->plugin->format, alloc_plugin_id, 
-		return REISERFS_UNSUPPORTED_PLUGIN);
+		return -1);
+		
 	return fs->super->plugin->format.alloc_plugin_id();
 }
 

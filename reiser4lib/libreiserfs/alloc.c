@@ -47,6 +47,39 @@ error:
 	return 0;
 }
 
+int reiserfs_alloc_create(reiserfs_fs_t *fs) {
+	reiserfs_plugin_t *plugin;
+	reiserfs_plugin_id_t id;
+	
+	ASSERT(fs != NULL, return 0);
+	
+	if (!(fs->alloc = aal_calloc(sizeof(*fs->alloc), 0)))
+		return 0;
+	
+	id = reiserfs_super_alloc_plugin(fs);
+	if (!(plugin = reiserfs_plugin_find(REISERFS_ALLOC_PLUGIN, id))) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-030",
+			"Can't find block allocator plugin by its identifier %x.", id);
+		goto error_free_alloc;
+	}
+	fs->alloc->plugin = plugin;
+
+	reiserfs_plugin_check_routine(plugin->alloc, create, goto error_free_alloc);
+	if (!(fs->alloc->entity = plugin->alloc.create(fs->device))) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-031",
+			"Can't allocator.");
+		goto error_free_alloc;
+	}
+	
+	return 1;
+	
+error_free_alloc:
+	aal_free(fs->alloc);
+	fs->alloc = NULL;
+error:
+	return 0;
+}
+
 void reiserfs_alloc_close(reiserfs_fs_t *fs, int sync) {
 	ASSERT(fs != NULL, return);
 	ASSERT(fs->alloc != NULL, return);
