@@ -273,14 +273,14 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 		if (parent_node != insert_coord->node) {
 			zrelse(parent_node);
 			result = zload(insert_coord->node);
-			if (result == 0) {
-				write_lock_tree(tree);
-				assert("nikita-2983", znode_is_right_connected(node));
-				assert("nikita-2984", node->right == NULL);
-				ZF_CLR(node, JNODE_RIGHT_CONNECTED);
-				write_unlock_tree(tree);
-				result = connect_znode(insert_coord, node);
-			}
+		}
+		if (result == 0) {
+			write_lock_tree(tree);
+			assert("nikita-2983", znode_is_right_connected(node));
+			assert("nikita-2984", node->right == NULL);
+			ZF_CLR(node, JNODE_RIGHT_CONNECTED);
+			write_unlock_tree(tree);
+			result = connect_znode(insert_coord, node);
 		}
 	}
 	return result;
