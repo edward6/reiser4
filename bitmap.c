@@ -274,7 +274,7 @@ static void release_bnode(struct reiser4_bnode * bnode)
 	zrelse(bnode->working, 1);
 	zrelse(bnode->commit, 1);
 
-	zput(bnode-wb);
+	zput(bnode->working);
 	zput(bnode->commit);
 }
 
