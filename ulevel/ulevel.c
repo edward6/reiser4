@@ -888,26 +888,36 @@ static __u64 lc_rand_max( __u64 max )
 	return result;
 }
 
-static int echo_filldir(void *eof, const char *name, int namelen, 
+typedef struct echo_filldir_info {
+	int eof;
+	const char *prefix;
+} echo_filldir_info;
+
+static int echo_filldir(void *arg, const char *name, int namelen, 
 			loff_t offset, ino_t inode, unsigned ftype)
 {
-	* ( int * ) eof = 0;
+	echo_filldir_info *info;
+
+	info = arg;
+	info -> eof = 0;
 	if( lc_rand_max( 10ull ) < 2 )
 		return -EINVAL;
-	info( "filldir[%i]: %s (%i), %Lx, %Lx, %i\n",
+	info( "%s[%i]: %s (%i), %Lx, %Lx, %i\n", info -> prefix,
 	      current_pid, name, namelen, offset, inode, ftype );
 	return 0;
 }
 
-static int readdir( struct file *dir )
+static int readdir( const char *prefix, struct file *dir )
 {
-	int eof;
+	echo_filldir_info info;
 	int result;
+
+	info.prefix = prefix;
 	do {
-		eof = 1;
+		info.eof = 1;
 		result = dir -> f_dentry -> d_inode -> i_fop -> 
-			readdir( dir, &eof, echo_filldir );
-	} while( !eof && ( result == 0 ) );
+			readdir( dir, &info, echo_filldir );
+	} while( !info.eof && ( result == 0 ) );
 	return result;
 }
 
@@ -916,23 +926,61 @@ typedef struct mkdir_thread_info {
 	int           num;
 	struct inode *dir;
 	int           mkdir;
+	int           unlink;
 	int           sleep;
 } mkdir_thread_info;
 
-void *mkdir_thread( void *arg )
+static int call_create (struct inode * dir, const char * name);
+static ssize_t call_write (struct inode *, const char * buf,
+			   loff_t offset, unsigned count);
+static ssize_t call_read (struct inode *, char * buf, 
+			  loff_t offset, unsigned count);
+void call_truncate (struct inode * inode, loff_t size);
+static struct inode * call_lookup (struct inode * dir, const char * name);
+static int call_mkdir (struct inode * dir, const char * name);
+static int call_readdir (struct inode * dir, const char *prefix);
+static struct inode * create_root_dir (znode * root);
+
+static int call_unlink( struct inode * dir, struct inode *victim, 
+			const char *name )
+{
+	reiser4_context *old_context;
+	struct dentry guillotine;
+	int result;
+
+	old_context = reiser4_get_current_context();
+	SUSPEND_CONTEXT( old_context );
+
+	guillotine.d_inode = victim;
+	guillotine.d_name.name = name;
+	guillotine.d_name.len = strlen( name );
+	result = dir -> i_op -> unlink( dir, &guillotine );
+	reiser4_init_context( old_context, dir -> i_sb );
+	return result;
+}
+
+static int call_rm( struct inode * dir, const char *name )
+{
+	struct inode *victim;
+
+	victim = call_lookup( dir, name );
+	if( !IS_ERR( victim ) ) {
+		return call_unlink( dir, victim, name );
+	} else
+		return PTR_ERR( victim );
+}
+
+void *mkdir_thread( mkdir_thread_info *info )
 {
 	int                i;
 	char               dir_name[ 30 ];
 	char               name[ 30 ];
-	mkdir_thread_info *info;
 	struct dentry      dentry;
 	struct inode      *f;
 	reiser4_context   *old_context;
 	int                ret;
 	struct file        df;
-	REISER4_ENTRY_PTR( ( ( mkdir_thread_info * ) arg ) -> dir -> i_sb );
 
-	info = arg;
 	old_context = reiser4_get_current_context();
 
 	sprintf( dir_name, "Dir-%i", current_pid );
@@ -952,22 +1000,30 @@ void *mkdir_thread( void *arg )
 	for( i = 0 ; i < info -> num ; ++ i ) {
 		__u64 fno;
 		struct timespec delay;
-
+		const char *op;
+		
 		fno = lc_rand_max( ( __u64 ) info -> max );
 		
-		sprintf( name, "%i", i );
-//		sprintf( name, "%lli-хлоп-Zzzz.", fno );
-		dentry.d_name.name = name;
-		dentry.d_name.len = strlen( name );
-		SUSPEND_CONTEXT( old_context );
-		if( info -> mkdir )
-			ret = f -> i_op -> mkdir( f, &dentry, S_IFDIR | 0777 );
-		else
-			ret = f -> i_op -> create( f, &dentry, S_IFREG | 0777 );
-		reiser4_init_context( old_context, f -> i_sb );
-		info( "(%i) %i: %s/%s: %i\n", current_pid, i, 
+//		sprintf( name, "%i", i );
+		sprintf( name, "%lli-хлоп-Zzzz.", fno );
+		if( info -> unlink ) {
+			if( lc_rand_max( 10ull ) < 5 ) {
+				op = "unlink";
+				ret = call_rm( f, name );
+			} else {
+				op = "create";
+				ret = call_create( f, name );
+			}
+		} else if( info -> mkdir ) {
+			op = "mkdir";
+			ret = call_mkdir( f, name );
+		} else {
+			op = "create";
+			ret = call_create( f, name );
+		}
+		info( "(%i) %i:%s %s/%s: %i\n", current_pid, i, op,
 		      dir_name, name, ret );
-		if( ( ret != 0 ) && ( ret != -EEXIST ) )
+		if( ( ret != 0 ) && ( ret != -EEXIST ) && ( ret != -ENOENT ) )
 			rpanic( "nikita-1493", "!!!" );
 		/* print_tree_rec( "tree", tree, 
 		   REISER4_NODE_PRINT_ZNODE ); */
@@ -981,13 +1037,15 @@ void *mkdir_thread( void *arg )
 	xmemset( &df, 0, sizeof df );
 	xmemset( &dentry, 0, sizeof dentry );
 
-	dentry.d_inode = f;
-	df.f_dentry = &dentry;
-	df.f_op = &reiser4_file_operations;
-	SUSPEND_CONTEXT( old_context );
-	readdir( &df );
-	reiser4_init_context( old_context, f -> i_sb );
+	call_readdir( f, dir_name );
 	info( "(%i): done.\n", current_pid );
+	return NULL;
+}
+
+void *mkdir_thread_start( void *arg )
+{
+	REISER4_ENTRY_PTR( ( ( mkdir_thread_info * ) arg ) -> dir -> i_sb );
+	mkdir_thread( arg );
 	REISER4_EXIT_PTR( NULL );
 }
 
@@ -1003,8 +1061,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	reiser4_key key;
 	tree_coord coord;
 	carry_insert_data cdata;
-	struct file df;
-	struct dentry dd;
 	int i;
 
 	assert( "nikita-1096", tree != NULL );
@@ -1026,140 +1082,59 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	} else if( !strcmp( argv[ 2 ], "print" ) ) {
 		print_tree_rec( "tree", tree, (unsigned) atoi( argv[ 3 ] ) );
 	} else if( !strcmp( argv[ 2 ], "load" ) ) {
+	} else if( !strcmp( argv[ 2 ], "unlink" ) ) {
+		struct inode *f;
+		char name[ 30 ];
+
+		f = create_root_dir( root );
+		call_readdir( f, "unlink-start" );
+		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
+			sprintf( name, "%x-%x", i, i*10 );
+			ret = call_create( f, name );
+			assert( "nikita-1720", ret == 0 );
+		}
+		call_readdir( f, "unlink-filled" );
+		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
+			sprintf( name, "%x-%x", i, i*10 );
+			ret = call_rm( f, name );
+			assert( "nikita-1720", ret == 0 );
+		}
+		call_readdir( f, "unlink-end" );
 	} else if( !strcmp( argv[ 2 ], "dir" ) || 
+		   !strcmp( argv[ 2 ], "rm" ) ||
 		   !strcmp( argv[ 2 ], "mongo" ) ) {
-		reiser4_context *old_context;
 		int threads;
 		pthread_t *tid;
 		mkdir_thread_info info;
-
-		reiser4_inode_info rf;
 		struct inode *f;
-		struct dentry dentry;
-		reiser4_item_data data;
-		struct {
-			reiser4_stat_data_base base;
-		} sd;
 
-		f = &rf.vfs_inode;
+		f = create_root_dir( root );
 		threads = atoi( argv[ 3 ] );
 		assert( "nikita-1494", threads > 0 );
 		tid = malloc( threads * sizeof tid[ 0 ] );
 		assert( "nikita-1495", tid != NULL );
 
-		reiser4_init_carry_pool( &pool );
-		reiser4_init_carry_level( &lowest_level, &pool );
-		
-		op = reiser4_post_carry( &lowest_level, 
-					 COP_INSERT, root, 0 );
-		assert( "nikita-1074", !IS_ERR( op ) && ( op != NULL ) );
-		// fill in remaining fields in @op, according to
-		// carry.h:carry_op
-		cdata.data  = &data;
-		cdata.key   = &key;
-		cdata.coord = &coord;
-		op -> u.insert.type = COPT_ITEM_DATA;
-		op -> u.insert.d = &cdata;
-
-		xmemset( &sd, 0, sizeof sd );
-		cputod16( S_IFDIR | 0111, &sd.base.mode );
-		cputod16( 0x0 , &sd.base.extmask );
-		cputod32( 1, &sd.base.nlink );
-		cputod64( 0x283746ull, &sd.base.size );
-
-		/* this inserts stat data */
-		data.data = ( char * ) &sd;
-		data.length = sizeof sd.base;
-		data.iplug = item_plugin_by_id( SD_ITEM_ID );
-		coord_first_unit( &coord );
-
-		key_init( &key );
-		set_key_type( &key, KEY_SD_MINOR );
-		set_key_locality( &key, 2ull );
-		set_key_objectid( &key, 42ull );
-
-		coord.between = AT_UNIT;
-		ret = carry( &lowest_level, NULL );
-		printf( "result: %i\n", ret );
-		info( "_____________sd inserted_____________\n" );
-		reiser4_done_carry_pool( &pool );
-
-		xmemset( &rf, 0, sizeof rf );
-		INIT_LIST_HEAD( &f -> i_hash );
-		INIT_LIST_HEAD( &f -> i_list );
-		INIT_LIST_HEAD( &f -> i_dentry );
-	
-		INIT_LIST_HEAD( &f -> i_dirty_buffers );
-		INIT_LIST_HEAD( &f -> i_dirty_data_buffers );
-
-		f -> i_ino = 42;
-		atomic_set( &f -> i_count, 0 );
-		f -> i_mode = 0;
-		f -> i_nlink = 1;
-		f -> i_uid = 201;
-		f -> i_gid = 201;
-		f -> i_size = 1000;
-		f -> i_atime = 0;
-		f -> i_mtime = 0;
-		f -> i_ctime = 0;
-		f -> i_blkbits = 12;
-		f -> i_blksize = 4096;
-		f -> i_blocks = 1;
-		f -> i_mapping = &f -> i_data;
-		f -> i_sb = reiser4_get_current_sb();
-		sema_init( &f -> i_sem, 1 );
-		init_inode( f, &coord );
-		reiser4_get_object_state( f ) -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
-		reiser4_get_object_state( f ) -> tail = tail_plugin_by_id ( NEVER_TAIL_ID );
-		reiser4_get_object_state( f ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
-		reiser4_get_object_state( f ) -> locality_id = get_key_locality( &key );
-
 		print_inode( "inode", f );
 
-		old_context = reiser4_get_current_context();
-		SUSPEND_CONTEXT (old_context);
-
-		dentry.d_name.name = ".";
-		dentry.d_name.len = strlen( dentry.d_name.name );
-		ret = f -> i_op -> create( f, &dentry, 0777 );
-		reiser4_init_context( old_context, f -> i_sb );
-
-		// print_tree_rec( "tree", tree, ~0u );
-
-		dentry.d_name.name = "foo";
-		dentry.d_name.len = strlen( dentry.d_name.name );
-		SUSPEND_CONTEXT (old_context);
-		ret = f -> i_op -> create( f, &dentry, 0777 );
-
-		reiser4_init_context( old_context, f -> i_sb );
 		info( "ret: %i\n", ret );
-		SUSPEND_CONTEXT (old_context);
-
-		dentry.d_name.name = "bar";
-		dentry.d_name.len = strlen( dentry.d_name.name );
-		ret = f -> i_op -> mkdir( f, &dentry, S_IFDIR | 0777 );
-
-		reiser4_init_context( old_context, f -> i_sb );
+		ret = call_create( f, "foo" );
 		info( "ret: %i\n", ret );
-		SUSPEND_CONTEXT (old_context);
-
-		f -> i_op -> lookup( f, &dentry );
-
-		reiser4_init_context( old_context, f -> i_sb );
-		
+		ret = call_create( f, "bar" );
+		info( "ret: %i\n", ret );
 		spin_lock_init( &lc_rand_guard );
+		memset( &info, 0, sizeof info );
 		info.dir = f;
 		info.num = atoi( argv[ 4 ] );
 		info.max = info.num;
 		info.sleep = 0;
 		if( !strcmp( argv[ 2 ], "dir" ) )
 			info.mkdir = 1;
-		else
-			info.mkdir = 0;
+		else if( !strcmp( argv[ 2 ], "rm" ) )
+			info.unlink = 1;
 		if( threads > 1 ) {
 			for( i = 0 ; i < threads ; ++ i )
-				pthread_create( &tid[ i ], 
-						NULL, mkdir_thread, &info );
+				pthread_create( &tid[ i ], NULL, 
+						mkdir_thread_start, &info );
 
 			/*
 			 * actually, there is no need to join them. Can either
@@ -1170,18 +1145,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		} else
 			mkdir_thread( &info );
 
-		print_tree_rec( "tree:dir", tree, REISER4_NODE_CHECK );
-
-		xmemset( &df, 0, sizeof df );
-		xmemset( &dd, 0, sizeof dd );
-
-		dd.d_inode = f;
-		df.f_dentry = &dd;
-		df.f_op = &reiser4_file_operations;
-		SUSPEND_CONTEXT (old_context);
-		readdir( &df );
-		reiser4_init_context( old_context, f -> i_sb );
-
+		call_readdir( f, argv[ 2 ] );
+		print_tree_rec( "tree-dir", tree, REISER4_NODE_CHECK );
 	} else if( !strcmp( argv[ 2 ], "ibk" ) ) {
 		reiser4_item_data data;
 		struct {
@@ -1238,8 +1203,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		} sd;
 
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
-			carry_insert_data cdata;
-
 			reiser4_init_carry_pool( &pool );
 			reiser4_init_carry_level( &lowest_level, &pool );
 		
@@ -1498,6 +1461,8 @@ static struct inode * create_root_dir (znode * root)
 	reiser4_get_object_state( inode ) -> perm = perm_plugin_by_id ( RWX_PERM_ID );
 	reiser4_get_object_state( inode ) -> locality_id = get_key_locality( &key );
 
+	call_create (inode, ".");
+
 	return inode;
 }
 
@@ -1528,17 +1493,6 @@ int insert_item (struct inode *inode,
 	reiser4_done_coord (&coord);
 	return result;
 }
-
-static int call_create (struct inode * dir, const char * name);
-static ssize_t call_write (struct inode *, const char * buf,
-			   loff_t offset, unsigned count);
-static ssize_t call_read (struct inode *, char * buf, 
-			  loff_t offset, unsigned count);
-void call_truncate (struct inode * inode, loff_t size);
-static struct inode * call_lookup (struct inode * dir, const char * name);
-static int call_mkdir (struct inode * dir, const char * name);
-
-
 
 static int call_create (struct inode * dir, const char * name)
 {
@@ -1662,7 +1616,7 @@ static int call_mkdir (struct inode * dir, const char * name)
 }
 
 
-static int call_readdir (struct inode * dir)
+static int call_readdir (struct inode * dir, const char *prefix)
 {
 	reiser4_context *old_context;
 	struct dentry dentry;
@@ -1675,7 +1629,7 @@ static int call_readdir (struct inode * dir)
 	xmemset (&file, 0, sizeof (struct file));
 	dentry.d_inode = dir;
 	file.f_dentry = &dentry;
-	readdir (&file);
+	readdir (prefix, &file);
 
 	reiser4_init_context (old_context, dir->i_sb);
 	return 0;
@@ -2039,7 +1993,6 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 	/* root directory is the only thing in the tree */
 
-	call_create (root_dir, ".");
 	/* make tree high enough */
 #define NAME_LENGTH 10
 	for (i = 0; tree->height < TWIG_LEVEL ; i ++) {
@@ -2165,7 +2118,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 		print_tree_rec ("AFTER COPY_DIR", tree, REISER4_NODE_PRINT_HEADER |
 				REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
-		call_readdir (dir);
+		call_readdir (dir, "copydir");
 
 		allocate_unallocated (tree);
 
@@ -2214,6 +2167,17 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		size_t n = 0;
 		struct inode * cwd;
 
+#define BASH_CMD( name, function )						\
+		if (!strncmp (command, (name), strlen (name))) {		\
+			int code;						\
+			code = (function) (cwd, command + strlen (name));	\
+			if (code) {						\
+				info ("%s failed: %i\n", command, code);	\
+			}							\
+			continue;						\
+		}
+		
+
 		if (call_mkdir (root_dir, "testdir")) {
 			info ("mkdir failed");
 			return 1;
@@ -2224,13 +2188,10 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			return 1;
 		}
 
-		while (printf (">"), getline (&command, &n, stdin) != -1) {
-			/* remove ending '\n' */
-			command [strlen (command) - 1] = 0;
+		for ( ; (command = readline ("> ")) != NULL ; free (command)) {
+			add_history (command);
 			if (!strncmp (command, "pwd", 2)) {
 				info ("Not ready\n");
-			} else if (!strncmp (command, "ls", 2)) {
-				call_readdir (cwd);
 			} else if (!strncmp (command, "cd ", 3)) {
 				/*
 				 * cd
@@ -2238,20 +2199,17 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				struct inode * tmp;
 
 				tmp = call_cd (cwd, command + 3);
-				if (!tmp) {
+				if (IS_ERR(tmp)) {
 					info ("%s failed\n", command);
-					continue;
 				}
 				cwd = tmp;
-			} else if (!strncmp (command, "mkdir ", 6)) {
-				/*
-				 * mkdir
-				 */
-				if (call_mkdir (cwd, command + 6)) {
-					info ("%s failed\n", command);
-					continue;
-				}
-			} else if (!strncmp (command, "cp ", 3)) {
+				continue;
+			}
+			BASH_CMD ("mkdir ", call_mkdir);
+			BASH_CMD ("touch ", call_create);
+			BASH_CMD ("rm ", call_rm);
+			BASH_CMD ("ls", call_readdir);
+			if (!strncmp (command, "cp ", 3)) {
 				/*
 				 * cp
 				 */
@@ -2292,8 +2250,8 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				 * get tail plugin or set
 				 */
 				if (!strcmp (command, "tail")) {
-					info (((reiser4_get_object_state (cwd)->tail ==
-					      tail_plugin_by_id (NEVER_TAIL_ID)) ? "NEVER\n" : "ALWAYS\n"));
+					print_plugin("", 
+						     tail_plugin_to_plugin(reiser4_get_object_state (cwd)->tail));
 				} else if (!strcmp (command + 5, "off")) {
 					reiser4_get_object_state (cwd)->tail =
 						tail_plugin_by_id (NEVER_TAIL_ID);
@@ -2323,6 +2281,8 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				      "\tdiff filename  - compare files\n"
 				      "\ttrunc filename - truncate file\n"
 				      "\ttail [on|off]  - set or get state of tail plugin of current directory\n"
+				      "\ttouch          - create empty file\n"
+				      "\trm             - remove file\n"
 				      "\tp              - print tree\n"
 				      "\texit\n");
 		}
