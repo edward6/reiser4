@@ -63,7 +63,7 @@ char *de_extract_name( const tree_coord *coord )
 /**
  * ->extract_file_type() method of simple directory item plugin.
  */
-unsigned de_extract_file_type( const tree_coord *coord )
+unsigned de_extract_file_type( const tree_coord *coord UNUSED_ARG )
 {
 	assert( "nikita-1722", coord != NULL );
 	/*
