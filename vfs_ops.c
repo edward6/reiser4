@@ -1525,7 +1525,7 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 
 	opt_desc_t opts[] = {
 		/*
-		 * trace=N
+		 * trace_flags=N
 		 *
 		 * set trace flags to be N for this mount. N can be C numeric
 		 * literal recognized by %i scanf specifier.  It is treated as
@@ -1534,7 +1534,7 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 		 */
 		SB_FIELD_OPT( trace_flags, "%i" ),
 		/*
-		 * debug=N
+		 * debug_flags=N
 		 *
 		 * set debug flags to be N for this mount. N can be C numeric
 		 * literal recognized by %i scanf specifier.  It is treated as
@@ -1543,21 +1543,28 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 		 */
 		SB_FIELD_OPT( debug_flags, "%i" ),
 		/*
-		 * atom_max_size=N
+		 * txnmgr.atom_max_size=N
 		 *
 		 * Atoms containing more than N blocks will be forced to
 		 * commit. N is decimal.
 		 */
 		SB_FIELD_OPT( txnmgr.atom_max_size, "%u" ),
 		/*
-		 * atom_max_age=N
+		 * txnmgr.atom_max_age=N
 		 *
 		 * Atoms older than N seconds will be forced to commit. N is
 		 * decimal.
 		 */
 		SB_FIELD_OPT( txnmgr.atom_max_age, "%u" ),
 		/*
-		 * cbk_cache_slots=N
+		 * txnmgr.low_memory=N
+		 *
+		 * After percentage of free memory falls below this,
+		 * preventive flushing is started.
+		 */
+		SB_FIELD_OPT( txnmgr.low_memory, "%u" ),
+		/*
+		 * tree.cbk_cache_slots=N
 		 *
 		 * Number of slots in the cbk cache.
 		 */
@@ -1620,6 +1627,7 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 
 	info -> txnmgr.atom_max_size = REISER4_ATOM_MAX_SIZE;
 	info -> txnmgr.atom_max_age  = REISER4_ATOM_MAX_AGE / HZ;
+	info -> txnmgr.low_memory    = REISER4_LOW_MEMORY;
 
 	info -> tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
 
@@ -1659,6 +1667,9 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 	if( info -> txnmgr.atom_max_age <= 0 )
 		/* overflow */
 		info -> txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE;
+
+	if( info -> txnmgr.low_memory > 100 )
+		info -> txnmgr.low_memory = 100;
 
 	/* round optimal io size up to 512 bytes */
 	info -> optimal_io_size >>= VFS_BLKSIZE_BITS;
