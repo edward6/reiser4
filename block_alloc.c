@@ -65,8 +65,9 @@
       wandered one, it depends what will be a result (what set, relocate or
       overwrite the node gets assigned to) of the node processing by the flush
       algorithm.
-  
-   2) one block for allocating a new node.
+ 
+   2) one block for either allocating a new node, or dirtying of right or left
+      clean neighbor, only one case may happen.
 
    This grabbed blocks are counted in both reiser4 context "grabbed blocks"
    counter and in the fs-wide one (both ctx->grabbed_blocks and
