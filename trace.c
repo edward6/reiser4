@@ -119,7 +119,10 @@ write_trace_raw(reiser4_trace_file * file, const void *data, size_t len)
 void
 close_trace_file(reiser4_trace_file * trace)
 {
-	trace_flush(trace);
+	if (trace->type == log_to_file && lock_trace(trace) == 0) {
+		trace_flush(trace);
+		unlock_trace(trace);
+	}
 	if (trace->fd != NULL)
 		filp_close(trace->fd, NULL);
 	if (trace->buf != NULL) {
