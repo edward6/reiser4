@@ -1014,7 +1014,14 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 * extent fits between items.
 	 */
 
-
+	/*
+	 * there is another complication due to placement of extents on the
+	 * twig level: extents are "rigid" in the sense that key-range
+	 * occupied by extent cannot grow indefinitely to the right as it is
+	 * for the formatted leaf nodes. Because of this when search finds two
+	 * adjacent extents on the twig level, it has to "drill" to the leaf
+	 * level, creating new node. Here we are removing this node.
+	 */
 	if( is_empty_node( node ) ) {
 		delete_dummy = reiser4_post_carry( todo, COP_DELETE, node, 1 );
 		delete_dummy -> u.delete.child = NULL;
