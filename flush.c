@@ -1202,6 +1202,7 @@ static int squalloc_right_twig (znode    *left,
 		int cut_ret;
 
 		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:cut1:", & coord, 0));
+#if 0
 
 		/* @coord is set to the first unit that does not have to be
 		 * cut or after last item in the node.  If we are positioned
@@ -1211,7 +1212,7 @@ static int squalloc_right_twig (znode    *left,
 		if (coord_is_existing_unit (& coord)) {
 			coord_prev_unit (& coord);
 		}
-
+#endif
 		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:cut2:", & coord, 0));
 
 		/* Helper function to do the cutting. */
