@@ -140,7 +140,7 @@ static void yyerror( struct reiser4_syscall_w_space *ws  /* work space ptr */,
 			strcat(errstr,"x format has odd number of symbols");
 			break;
 		case LEXERR2:
-			/*			int state = va_arg(args, int);*/
+/*			int state = va_arg(args, int);*/
 			strcat(errstr,"internal lex table error");
 			break;
 		case LEX_Ste:
@@ -149,7 +149,7 @@ static void yyerror( struct reiser4_syscall_w_space *ws  /* work space ptr */,
 		case 11111:
 			{
 				int state = va_arg(args, int);
-				/*				int s = va_arg(args, int);*/
+/*				int s = va_arg(args, int);*/
 				strcat(errstr," syntax error:");
 				switch(state)
 					{
@@ -174,6 +174,8 @@ static void yyerror( struct reiser4_syscall_w_space *ws  /* work space ptr */,
 						strcat(errstr,"wrong separatop");
 						break;
 					default:
+						strcat(errstr,"syntax error");
+						break;
 					}
 			}
 			break;
@@ -302,9 +304,11 @@ static pars_var_t * alloc_pars_var(struct reiser4_syscall_w_space * ws /* work s
 	return pars_var;
 }
 
+/* free lnodes used in expression */
 static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr)
 {
 	expr_list_t * tmp;
+	int ret = 0;
 	assert("VD-free_expr", expr!=NULL);
 	switch (expr->h.type)
 		{
@@ -324,7 +328,7 @@ static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr
 			while (tmp)
 				{
 					assert("VD-free_expr.EXPR_LIST", tmp->h.type==EXPR_LIST);
-					free_expr(tmp->source);
+					ret |= free_expr(tmp->source);
 					tmp = tmp->next;
 				}
 			break;
@@ -336,7 +340,7 @@ static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr
 				{
 					lput(expr->assgn.target->ln);
 				}
-			free_expr(expr->assgn.source);
+			ret |= free_expr(expr->assgn.source);
 			break;
 		case EXPR_LNODE:
 			assert("VD-free_expr.lnode.lnode", expr->lnode.lnode!=Null);
@@ -344,25 +348,22 @@ static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr
 			break;
 		case EXPR_FLOW:
 			break;
+/*
 		case EXPR_OP3:
-			/*
-			  assert("VD-free_expr.EXPR_OP3.op_r", expr->op3.op_r!=Null);
-			  assert("VD-free_expr.EXPR_OP3.op_l", expr->op3.op_l!=Null);
-			  assert("VD-free_expr.EXPR_OP3.op", expr->op3.op!=Null);
-			*/
 			free_expr(expr->op3.op_r);
 			free_expr(expr->op3.op_l);
 			free_expr(expr->op3.op);
 			break;
+*/
 		case EXPR_OP2:
-			free_expr(expr->op2.op_r);
-			free_expr(expr->op2.op_l);
+			ret  = free_expr(expr->op2.op_r);
+			ret |= free_expr(expr->op2.op_l);
 			break;
 		case EXPR_OP:
-			free_expr(expr->op.op);
+			ret = free_expr(expr->op.op);
 			break;
-		default:
 		}
+	return ret;
 }
 
 
@@ -387,23 +388,21 @@ static lnode * get_lnode(struct reiser4_syscall_w_space * ws /* work space ptr *
 	reiser4_key key, * k_rez,* l_rez;
 	PTRACE( ws, " inode=%p", inode );
 	
-	k_rez      = build_sd_key( inode, &key);
 #if 0                      /*def NOT_YET*/
 	if ( is_reiser4_inode( inode ) )
 		{
 
-			//			ln                = lget(  LNODE_LW, get_key_objectid(&key ) );
+			k_rez             = build_sd_key( inode, &key);
+			ln                = lget(  LNODE_REISER4_INODE, get_inode_oid( inode) );
 			//			ln->lw.lw_sb = inode->isb;
-			//			PTRACE( ws, "r4: lnode=%p", ln );
-
-			ln                = lget(  LNODE_REISER4_INODE, get_key_objectid(&key ) );
+			ln->reiser4_inode.inode = /*????*/  inode->isb;
 			ln->reiser4_inode.inode = /*????*/  inode->isb;
 			PTRACE( ws, "r4: lnode=%p", ln );
 		}
 	else
 #endif
 		{
-			ln                = lget( LNODE_DENTRY, get_key_objectid(&key ) );
+			ln                = lget( LNODE_DENTRY, get_inode_oid( inode) );
 			ln->dentry.dentry = d_alloc_anon(inode);
 			PTRACE( ws, "no r4 lnode=%p,dentry=%p", ln, ln->dentry.dentry);
 		}
@@ -462,7 +461,6 @@ static  void  level_down(struct reiser4_syscall_w_space * ws /* work space ptr *
 			 long type1 /* type of level that was up( for checking) */,
 			 long type2 /* type of level that is down(for checking)*/)
 {
-	PTRACE(ws, "%s", "begin");
 	assert("VD-level_down: type mithmatch", type1==type2);
 	assert("VD-level_down: type mithmatch with level", type1==ws->cur_level->stype);
 //	path_release(ws->cur_level->path_walk->nd); ??????
@@ -476,10 +474,9 @@ static  void  level_down(struct reiser4_syscall_w_space * ws /* work space ptr *
  *  freeSpace is a kernel space no need make getnam().
  * exclude is for special for string: store without ''
  */
-
 static void move_selected_word(struct reiser4_syscall_w_space * ws /* work space ptr */,
-			       int exclude/* TRUE - for storing string without first and last simbols
-					     FALS - for storing names */ )
+			       int exclude  /* TRUE - for storing string without first and last symbols
+					       FALS - for storing names */ )
 {
 	int i;
 	/*	char * s= ws->ws_pline;*/
@@ -644,19 +641,19 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws /* work space ptr */
 	char term,n,i;
 	int ret;
 	char lcls;
-	char * s ;
+//	char * s ;
 
 //	s = curr_symbol(ws);              /* first symbol or Last readed symbol of the previous token parsing */
 	if ( *curr_symbol(ws) == 0 ) return  0;        /* end of string is EOF */
 
-	while(ncl[*curr_symbol(ws)]==Blk)
+	while(ncl[(int)*curr_symbol(ws)]==Blk)
 		{
 			next_symbol(ws);
 			if ( *curr_symbol(ws) == 0 ) return  0;  /* end of string is EOF */
 		}
 
 
-	lcls    =       ncl[*curr_symbol(ws)];
+	lcls    =       ncl[(int)*curr_symbol(ws)];
 	ws->yytext  = curr_symbol(ws);
 	term = 1;
 	while( term )
@@ -666,7 +663,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws /* work space ptr */
 				{
 					next_symbol(ws);
 					lcls=n;
-					n = lexcls[ lcls ].c[ i=ncl[ *curr_symbol(ws) ] ];
+					n = lexcls[ (int)lcls ].c[ (int)i=ncl[ (int)*curr_symbol(ws) ] ];
 				}
 			if ( n == OK )
 				{
@@ -674,7 +671,6 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws /* work space ptr */
 				}
 			else
 				{
-					PTRACE(ws, "error: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*curr_symbol(ws));
 					yyerror ( ws, LEXERR2, (lcls-1)* 20+i );
 					return(0);
 				}
@@ -686,11 +682,10 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws /* work space ptr */
 			yyerror(ws,LEX_Ste);
 			break;
 		case Wrd:
-			move_selected_word( ws, lexcls[ lcls ].c[0] );
+			move_selected_word( ws, lexcls[(int) lcls ].c[0] );
 			if ( !(ret = b_check_word(ws)) )   /* if ret>0 this is keyword */
 				{                          /*  this is not keyword. tray check in worgs. ret = Wrd */
-//					PTRACE(ws, "%s ", "no keyword");
-					ret=lexcls[ lcls ].term;
+					ret=lexcls[(int) lcls ].term;
 					ws->ws_yylval.wrd = _wrd_inittab(ws);
 				}
 			break;
@@ -698,8 +693,8 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws /* work space ptr */
 		case Ptr:
 		case Pru:
 		case Str: /*`......"*/
-			move_selected_word( ws, lexcls[ lcls ].c[0] );
-			ret=lexcls[ lcls ].term;
+			move_selected_word( ws, lexcls[(int) lcls ].c[0] );
+			ret=lexcls[(int) lcls ].term;
 			ws->ws_yylval.wrd = _wrd_inittab(ws);
 			break;
 			/*
@@ -723,12 +718,12 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws /* work space ptr */
 		case ASG:/*<-*/
 		case App:/*<<-*/
 		case Lnk:/*->*/
-			ret=lexcls[ lcls ].term;
+			ret=lexcls[(int) lcls ].term;
 			break;
 		case Lpr:
 		case Rpr:
 			ws->ws_yylval.charType = *ws->yytext ;
-			ret=lexcls[ lcls ].term;
+			ret=lexcls[(int) lcls ].term;
 			break;
 		default :                                /*  others  */
 			ret=*ws->yytext;
@@ -747,7 +742,6 @@ static expr_v4_t * alloc_new_expr(struct reiser4_syscall_w_space * ws /* work sp
 				  int type /* type of new expression */)
 {
 	expr_v4_t * e;
-//	assert("alloc_new_expr: bad ws",ws!=NULL);
 	e         = ( expr_v4_t *)  list_alloc( ws, sizeof(expr_v4_t));
 	e->h.type = type;
 	return e;
@@ -781,9 +775,7 @@ static expr_v4_t *  init_pwd(struct reiser4_syscall_w_space * ws /* work space p
 	e                  = alloc_new_expr(ws,EXPR_PARS_VAR);
 	e->pars_var.v         = alloc_pars_var(ws,ws->root_e->pars_var.v);
 
-
 	e->pars_var.v->w      = nullname(ws) ;  /* better if it will point to full pathname for pwd */
-
 
 	e->pars_var.v->ln     = get_lnode(ws,current->fs->pwd->d_inode) ;
 	e->pars_var.v->parent = ws->root_e->pars_var.v;
@@ -810,12 +802,29 @@ static expr_v4_t *  pars_lookup(struct reiser4_syscall_w_space * ws, expr_v4_t *
 }
 #endif
 
+/*    Object_Name : begin_from name                 %prec ROOT       { $$ = pars_expr( ws, $1, $2 ) ; }
+                  | Object_Name SLASH name                           { $$ = pars_expr( ws, $1, $3 ) ; }  */
 static expr_v4_t *  pars_expr(struct reiser4_syscall_w_space * ws /* work space ptr */,
 			      expr_v4_t * e1 /* first expression ( not yet used)*/,
 			      expr_v4_t * e2 /* second expression*/)
 {
 	ws->cur_level->wrk_exp=e2;
 	return e2;
+}
+
+static pars_var_t * getFirstPars_VarFromExpr(struct reiser4_syscall_w_space * ws )
+{
+	pars_var_t * ret;
+	expr_v4_t * e = ws->cur_level->wrk_exp;
+	switch (e->h.type)
+		{
+		case EXPR_PARS_VAR:
+			ret = e->pars_var.v;
+			break;
+		default:
+
+		}
+	return ret;
 }
 
 /* search pars_var for @w */
@@ -831,7 +840,7 @@ static expr_v4_t *  lookup_word(struct reiser4_syscall_w_space * ws /* work spac
 
 
 #else
-	cur_pars_var       = getFirsPars_VarFromExpr(ws->level->wrk_exp);
+	cur_pars_var       = getFirstPars_VarFromExpr(ws);
 	while(pars_var!=NULL)
 		{
 #endif
@@ -844,7 +853,7 @@ static expr_v4_t *  lookup_word(struct reiser4_syscall_w_space * ws /* work spac
 
 
 #if 0
-			pars_var=getNextPars_VarFromExpr(ws->level->wrk_exp);
+			pars_var=getNextPars_VarFromExpr(ws);
 		}
  all rezult mast be connected to expression.
 #endif
@@ -854,21 +863,21 @@ static expr_v4_t *  lookup_word(struct reiser4_syscall_w_space * ws /* work spac
 	return e;
 }
 
-
+/* set work path in level to current in level */
 static inline expr_v4_t * pars_lookup_curr(struct reiser4_syscall_w_space * ws /* work space ptr */)
 {
 	ws->cur_level->wrk_exp  = ws->cur_level->cur_exp;                        /* current wrk for pwd of level */
 	return ws->cur_level->wrk_exp;
 }
 
-
+/* set work path in level to root */
 static inline expr_v4_t * pars_lookup_root(struct reiser4_syscall_w_space * ws)
 {
 	ws->cur_level->wrk_exp  = ws->root_e;                                    /* set current to root */
 	return ws->cur_level->wrk_exp;
 }
 
-
+/* seach @parent/w in internal table. if found return it, else @parent->lookup(@w) */
 static pars_var_t *  lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* work space ptr */,
 				    pars_var_t * parent /* parent for w       */,
 				    wrd_t * w        /* to lookup for word */)
@@ -888,7 +897,6 @@ static pars_var_t *  lookup_pars_var_word(struct reiser4_syscall_w_space * ws /*
 	rez_pars_var   = ws->Head_pars_var;
 	while (rez_pars_var!=NULL)
 		{
-			PTRACE(ws, "while rez=%p,rez_pars_var->parent=%p, last=%p",rez_pars_var,rez_pars_var->parent,last_pars_var);
 			if( rez_pars_var->parent == parent && rez_pars_var->w == w)
 				{
 					rez_pars_var->count++;
@@ -908,27 +916,25 @@ static pars_var_t *  lookup_pars_var_word(struct reiser4_syscall_w_space * ws /*
 		case LNODE_INODE:
 			if (parent->ln->h.type==LNODE_DENTRY)
 				{
-					PTRACE(ws, "parent dentry=%p",parent->ln->dentry.dentry);
 					de     =  parent->ln->dentry.dentry;
 				}
 			else
 				{
-					PTRACE(ws, "parent inode=%p",parent->ln->inode.inode);
 					de = d_alloc_anon(parent->ln->inode.inode);
 				}
 			de_rez = lookup_one_len( w->u.name, de, w->u.len); /* namei.c */
-			k_rez  = build_sd_key( de_rez->d_inode, &key);
-			rez_pars_var->ln  = lget( LNODE_DENTRY, get_key_objectid(&key ) );
+			rez_pars_var->ln  = lget( LNODE_DENTRY, get_inode_oid( de_rez->d_inode) );
 			PTRACE(ws, "rez de=%p",rez_pars_var->ln->dentry.dentry);
 			break;
 		case LNODE_PSEUDO:
 			PTRACE(ws, "parent pseudo=%p",parent->ln->pseudo.host);
 			break;
-		case LNODE_LW:
-			PTRACE(ws, "parent lw=%p",parent->ln->lw.key);
-#if 0                   /*1   NOT_YET */
+/*		case LNODE_LW: */
+		case LNODE_REISER4_INODE:
+			rez_pars_var->ln->h.type        = LNODE_REISER4_INODE /* LNODE_LW */;
 
-			rez_pars_var->ln->h.type        = LNODE_LW;
+#if 0                   /*   NOT_YET  ???? */
+
 
 			result = coord_by_key(get_super_private(parent->ln->lw.lw_sb)->tree,
 					      parent->ln->lw.key,
@@ -1010,6 +1016,7 @@ static expr_v4_t * if_then_else(struct reiser4_syscall_w_space * ws /* work spac
 	return e1;
 }
 
+/* not yet */
 static expr_v4_t * if_then(struct reiser4_syscall_w_space * ws /* work space ptr */,
 			   expr_v4_t * e1 /**/,
 			   expr_v4_t * e2 /**/ )
@@ -1018,6 +1025,7 @@ static expr_v4_t * if_then(struct reiser4_syscall_w_space * ws /* work space ptr
 	return e1;
 }
 
+/* not yet */
 static void goto_end(struct reiser4_syscall_w_space * ws /* work space ptr */)
 {
 }
@@ -1027,84 +1035,189 @@ static void goto_end(struct reiser4_syscall_w_space * ws /* work space ptr */)
 static expr_v4_t * constToExpr(struct reiser4_syscall_w_space * ws /* work space ptr */,
 			       wrd_t * e1 /* constant for convert to expression */)
 {
-	PTRACE(ws, "%s", "begin");
+	expr_v4_t * new_expr = alloc_new_expr(ws, EXPR_WRD );
+	new_expr->wd.s = e1;
 	return NULL;
 }
+
+/* allocate EXPR_OP2  */
+static expr_v4_t * allocate_expr_op2(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr */,
+				      expr_v4_t * e2 /* second expr */,
+				      int  op        /* expression code */)
+{
+	expr_v4_t * ret;
+	ret = alloc_new_expr( ws, EXPR_OP2 );
+	assert("VD alloc op2", ret!=NULL);
+	ret->h.exp_code = op;
+	ret->op2.op_l = e1;
+	ret->op2.op_r = e2;
+	return ret;
+}
+
+/* allocate EXPR_OP  */
+static expr_v4_t * allocate_expr_op(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr */,
+ 				      int  op        /* expression code */)
+{
+	expr_v4_t * ret;
+	ret = alloc_new_expr(ws, EXPR_OP2 );
+	assert("VD alloc op2", ret!=NULL);
+	ret->h.exp_code = op;
+	ret->op.op = e1;
+	return ret;
+}
+
 
 /* concatenate expressions */
 static expr_v4_t * connect_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
 				      expr_v4_t * e1 /* first expr of connecting */,
 				      expr_v4_t * e2 /* second expr of connecting */)
 {
-	return e1;
+	return allocate_expr_op2( ws, e1, e2, CONNECT );
 }
 
 
 /* compare expressions */
-static expr_v4_t * compare_EQ_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2)
+static expr_v4_t * compare_EQ_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of comparing */,
+				      expr_v4_t * e2 /* second expr of comparing */)
 {
-	return e1;
+	return allocate_expr_op2( ws, e1, e2, COMPARE_EQ );
 }
 
 
-static expr_v4_t * compare_NE_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2)
+static expr_v4_t * compare_NE_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of comparing */,
+				      expr_v4_t * e2 /* second expr of comparing */)
 {
-	return e1;
+	return allocate_expr_op2( ws, e1, e2, COMPARE_NE );
 }
 
 
-static expr_v4_t * compare_LE_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2)
+static expr_v4_t * compare_LE_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of comparing */,
+				      expr_v4_t * e2 /* second expr of comparing */)
 {
-	return e1;
+	return allocate_expr_op2( ws, e1, e2, COMPARE_LE );
 }
 
 
-static expr_v4_t * compare_GE_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2)
+static expr_v4_t * compare_GE_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of comparing */,
+				      expr_v4_t * e2 /* second expr of comparing */)
 {
-	return e1;
+	return allocate_expr_op2( ws, e1, e2, COMPARE_GE );
 }
 
 
-static expr_v4_t * compare_LT_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2)
+static expr_v4_t * compare_LT_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of comparing */,
+				      expr_v4_t * e2 /* second expr of comparing */)
 {
-	return e1;
+	return allocate_expr_op2( ws, e1, e2, COMPARE_LT );
 }
 
 
-static expr_v4_t * compare_GT_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2)
+static expr_v4_t * compare_GT_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of comparing */,
+				      expr_v4_t * e2 /* second expr of comparing */)
 {
-	return e1;
+	return allocate_expr_op2( ws, e1, e2, COMPARE_GT );
 }
 
 
-static expr_v4_t * compare_OR_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2)
+static expr_v4_t * compare_OR_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of comparing */,
+				      expr_v4_t * e2 /* second expr of comparing */)
 {
-	return e1;
+	return allocate_expr_op2( ws, e1, e2, COMPARE_OR );
 }
 
 
-static expr_v4_t * compare_AND_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2)
+static expr_v4_t * compare_AND_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of comparing */,
+				      expr_v4_t * e2 /* second expr of comparing */)
 {
-	return e1;
+	return allocate_expr_op2( ws, e1, e2, COMPARE_AND );
 }
 
 
-static expr_v4_t * not_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1)
+static expr_v4_t * not_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of comparing */)
 {
-	return e1;
+	return allocate_expr_op( ws, e1, COMPARE_NOT );
 }
 
 
 /**/
-static expr_v4_t * check_exist(struct reiser4_syscall_w_space * ws, expr_v4_t * e1)
+static expr_v4_t * check_exist(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of comparing */)
 {
 	return e1;
 }
 
-
-static expr_v4_t * list_expression(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2 )
+/* union lists */
+static expr_v4_t * union_lists(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of connecting */,
+				      expr_v4_t * e2 /* second expr of connecting */)
 {
-	return e2; /* for tmp */
+	expr_list_t *next, *last;
+	assert("VD-connect_list", e1->h.type == EXPR_LIST);
+
+	last = (expr_list_t *)e1;
+	next = e1->list.next;
+	while ( next )                   /* find last in list */
+		{
+			last = next;
+			next = next->next;
+		}
+	if ( e2->h.type == EXPR_LIST )
+		{                       /* connect 2 lists */
+			last->next = (expr_list_t *) e2;
+		}
+	else
+		{                      /* add 2 EXPR to 1 list */
+			next = (expr_list_t *) alloc_new_expr(ws, EXPR_LIST );
+			assert("VD alloct list", next!=NULL);
+			next->next = NULL;
+			next->source = e2;
+			last->next = next;
+		}
+	return e1;
+}
+
+
+/*  make list from expressions */
+static expr_v4_t * list_expression(struct reiser4_syscall_w_space * ws /* work space ptr */,
+				      expr_v4_t * e1 /* first expr of list */,
+				      expr_v4_t * e2 /* second expr of list */)
+{
+	expr_v4_t * ret;
+
+	if ( e1->h.type == EXPR_LIST )  
+		{
+			ret = union_lists( ws, e1, e2);
+		}
+	else
+		{
+			
+			if ( e2->h.type == EXPR_LIST )  
+				{
+					ret = union_lists( ws, e2, e1);
+				}
+			else
+				{				
+					ret = alloc_new_expr(ws, EXPR_LIST );
+					assert("VD alloct list 1", ret!=NULL);
+					ret->list.source = e1;
+					ret->list.next = (expr_list_t *)alloc_new_expr(ws, EXPR_LIST );
+					assert("VD alloct list 2",ret->list.next!=NULL);
+					ret->list.next->next = NULL;
+					ret->list.next->source = e2;
+				}
+		}
+	return ret;
 }
 
 
