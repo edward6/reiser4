@@ -6,10 +6,23 @@
 
 #include "reiser4.h"
 
-/* JOSH-FIXME: Comments are out of date and missing in this file. */
+/* JMACD-FIXME: Comments are out of date and missing in this file. */
 
 /* JMACD-FIXME-HANS: Please describe how you plan to implement a repacker and resizer using this flush code (1-2
- * paragraphs) */
+ * paragraphs)
+ *
+ * Is the purpose of a resizer to move blocks from their current positions in areas of the
+ * disk that are being reclaimed?  I don't think flush will participate in that process.
+ * Somehow the tree should be scanned to locate the parent of all those blocks.  Those
+ * blocks can be simply marked dirty, and the block allocator can be informed of a pending
+ * resize, causing it to allocate blocks outside the area being reclaimed.
+ *
+ * A repacker will be based on this code in the following way.  A traversal of the tree is
+ * made in parent-first order.  When the repacker finds an area of the tree that is
+ * significantly fragmented (using some criterion) it will dirty those nodes and depend on
+ * flush to relocate them to a contiguous location on disk.  Most of the details are in
+ * defining the criteria used to select blocks for repacking.
+ */
 
 /* The flush_scan data structure maintains the state of an in-progress flush
  * scan on a single level of the tree. */
@@ -23,8 +36,7 @@ struct flush_scan {
 	 * required to reach FLUSH_RELOCATE_THRESHOLD. */
 	unsigned max_size;
 
-	/* Direction: LEFT_SIDE or RIGHT_SIDE. */
-/* JOSH-FIXME-HANS: why LEFT_SIDE and not simply LEFT? */
+	/* Direction: Set to one of the sideof enumeration: { LEFT_SIDE, RIGHT_SIDE }. */
 	sideof direction;
 
 	/* True if some condition stops the search (e.g., we found a clean
@@ -174,8 +186,6 @@ static const char*   flush_znode_tostring         (znode *node);
 static const char*   flush_flags_tostring         (int flags);
 
 /* FIXME: */
-#define FLUSH_SERIALIZE 1
-struct semaphore flush_semaphore;
 atomic_t flush_cnt;
 
 /* This is the main entry point for flushing a jnode, called by the transaction manager
@@ -214,17 +224,18 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	/* temporary debugging code */
 	atomic_inc (& flush_cnt);
 	trace_on (TRACE_FLUSH, "flush enter: pid %ul %u concurrent procs\n", current_pid, atomic_read (& flush_cnt));
-	if (FLUSH_SERIALIZE) {
-		if (atomic_read (& flush_cnt) > 1) {
-			/*trace_on (TRACE_FLUSH, "flush concurrency\n");*/
-		}
-		/*down (& flush_semaphore);*/
+	if (atomic_read (& flush_cnt) > 1) {
+		/*trace_on (TRACE_FLUSH, "flush concurrency\n");*/
 	}
 
 	spin_lock_jnode (node);
 
-	/* a special case for znode-above-root */
-	/* JMACD-FIXME-HANS: comment? */
+	/* A special case for znode-above-root.  The above-root (fake) znode is captured
+	 * and dirtied when the tree height changes, when the superblock is modified with
+	 * a new root block address.  This causes atoms to fuse.  However, this node is
+	 * never flushed.  This special case used to be in lock.c to prevent the
+	 * above-root node from ever being captured, but now that it is captured we simply
+	 * prevent it from flushing. */
 	if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
 		/* just pass dirty znode-above-root to overwrite set */
 		JF_SET(node, ZNODE_WANDER);
@@ -234,8 +245,13 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		goto clean_out;
 	}
 
-	/* A race is possible where node is not dirty or worse, not connected, by this point. */
-	/* JMACD-FIXME-HANS: comment? */
+	/* A race is possible where node is not dirty or worse, not connected, by this
+	 * point.  It is possible since more than one process may call jnode_flush
+	 * concurrently and the node may already be clean by the time we obtain the
+	 * spinlock above.  Likewise, a node may be deleted at this point.  It is possible
+	 * for a znode to be unconnected as well, since these nodes are taken off the
+	 * dirty list (a search-by-key never will encounter an unconnected node, but we
+	 * are bypassing that mechanism here). */
 	if (! jnode_is_dirty (node) ||
 	    (jnode_is_znode (node) && !znode_is_connected (JZNODE (node))) ||
 	    JF_ISSET (node, ZNODE_HEARD_BANSHEE) ||
@@ -248,9 +264,16 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		goto clean_out;
 	}
 
-	/* JMACD-FIXME-HANS: comment? */
+	/* FIXME: JMACD->HANS: Is this what you would have us do?
+	 *
+	 * Flush may be called on a jnode that has already been flushed once in this
+	 * transaction.  In this case, the flush algorithm has already run and made a
+	 * decision to relocate/overwrite this node and given it a new/temporary location.
+	 * The node was then flushed and subsequently dirtied again.  Now flush is called
+	 * again and jnode_is_allocated returns true.  At this point we simply re-submit
+	 * the block to disk using the previously decided location. */
 	if (jnode_is_allocated (node)) {
-		/* Already has been assigned a block number, just write it again? */
+
 		trace_on (TRACE_FLUSH, "flush rewrite %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 		ret = flush_rewrite_jnode (node);
 
@@ -267,7 +290,9 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	trace_on (TRACE_FLUSH, "flush squalloc %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 
-	/* JMACD-FIXME-HANS: comment? */
+	/* Initialize a flush position.  Currently this cannot fail but if any memory
+	 * allocation, locks, etc. were needed then this would be the place to fail before
+	 * flush really gets going. */
 	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
 		goto clean_out;
 	}
@@ -278,35 +303,38 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF));*/
 	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
 
-	/* First scan left and remember the leftmost position (and, if
-	 * unformatted, its parent_coord). */
+	/* First scan left and remember the leftmost scan position.  If the leftmost
+	 * position is unformatted we remember its parent_coord. */
 	if ((ret = flush_scan_left (& left_scan, & right_scan, node, REISER4_FLUSH_SCAN_MAXNODES))) {
 		goto failed;
 	}
 
-	/* Then possibly go right to decide if we will relocate everything possible. */
+	/* Then possibly go right to decide if we will relocate everything possible.  This
+	 * is only done if we did not scan past enough nodes in the leftward scan.  If we
+	 * do scan right, only go far enough to establish that at least
+	 * FLUSH_RELOCATE_THRESHOLD number of nodes are being flushed. */
 	if ((left_scan.size < FLUSH_RELOCATE_THRESHOLD) &&
 	    (ret = flush_scan_right (& right_scan, node, FLUSH_RELOCATE_THRESHOLD - left_scan.size))) {
 		goto failed;
 	}
 
-	/* Only the count is needed, release right away. */
+	/* Only the right-scan count is needed, release any rightward locks right away. */
 	flush_scan_done (& right_scan);
 
-	/* ... and the answer is: */
+	/* ... and the answer is: we should relocate leaf nodes if at least
+	 * FLUSH_RELOCATE_THRESHOLD nodes were found. */
 	flush_pos.leaf_relocate = (left_scan.size + right_scan.size >= FLUSH_RELOCATE_THRESHOLD);
 
 	/*assert ("jmacd-6218", jnode_check_dirty (left_scan.node));*/
 
-	/* FIXME: Funny business here.  We set an unformatted point at the left-end of the
-	 * scan, but after that an unformatted flush position sets pos->point to NULL.
-	 * This seems lazy, but it makes the initial calls to flush_query_relocate much
-	 * easier because we know the first unformatted child.  I think it should be
-	 * fixed, but nothing is really broken by this, but the reason is subtle.  Holding
-	 * an extra reference on a jnode during flush can cause us to see nodes with
-	 * HEARD_BANSHEE during squalloc, which is not good, but this only happens on the
-	 * left-edge of flush, where nodes cannot be deleted.  So if nothing is broken,
-	 * why fix it? */
+	/* Funny business here.  We set an unformatted point at the left-end of the scan,
+	 * but after that an unformatted flush position sets pos->point to NULL.  This
+	 * seems lazy, but it makes the initial calls to flush_query_relocate much easier
+	 * because we know the first unformatted child.  Nothing is broken by this, but
+	 * the reason is subtle.  Holding an extra reference on a jnode during flush can
+	 * cause us to see nodes with HEARD_BANSHEE during squalloc, which is not good,
+	 * but this only happens on the left-edge of flush, where nodes cannot be deleted.
+	 * So if nothing is broken, why fix it? */
 	if ((ret = flush_pos_set_point (& flush_pos, left_scan.node))) {
 		goto failed;
 	}
@@ -348,6 +376,8 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	ret = flush_empty_queue (& flush_pos, 1);
 
 	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
+
+	/* Any failure reaches this point. */
    failed:
 
 	//print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF);
@@ -379,7 +409,9 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	flush_scan_done (& left_scan);
 	flush_scan_done (& right_scan);
 
-/* JMACD-FIXME-HANS: comment? */
+	/* The clean_out label is reached by calls to jnode_flush that return before
+	 * initializing the flush_position and the two flush_scan objects.  After those
+	 * objects are initialized any abnormal return goes to the 'failed' label. */
  clean_out:
 
 	/* wait for io completion */
@@ -389,9 +421,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	}
 
 	atomic_dec (& flush_cnt);
-	if (FLUSH_SERIALIZE) {
-		/*up (& flush_semaphore);*/
-	}
 
 	return ret;
 }
@@ -853,8 +882,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] ready to enqueue node %s\n", call_depth, flush_znode_tostring (node));
 
 	/* Now finished with node. */
-	if (/*znode_check_dirty (node) && znode_check_allocated (node) &&*/
-	    (ret = flush_release_znode (node))) {
+	if ((ret = flush_release_znode (node))) {
 		warning ("jmacd-61440", "flush_release_znode failed: %d", ret);
 		goto exit;
 	}
@@ -1535,17 +1563,6 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
 
-#ifdef NORELOC
-	/*
-	 * FIXME-VS: remove this after debugging 
-	 */
-	if (znode_created (node)) {
-		goto best_reloc;
-	} else {
-		ZF_SET (node, ZNODE_WANDER);
-		goto cont;
-	}
-#endif
 	if (znode_created (node) || znode_is_root (node)) {
 		/* No need to decide with new nodes, they are treated the same as
 		 * relocate. If the root node is dirty, relocate. */
@@ -1600,9 +1617,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 			}
 		}
 	}
-#ifdef NORELOC
- cont:
-#endif
+
 	/* This is the new preceder. */
 	pos->preceder.blk = *znode_get_block (node);
 	pos->alloc_cnt += 1;
@@ -1712,17 +1727,20 @@ static int flush_release_znode (znode *node)
 	return 0;
 }
 
-/* FIXME: comment */
+/* This is called by the extent code for each jnode after allocation has been performed.
+ * Contrast with thef flush_allocate_znode() routine, which does znode allocation and then
+ * calls flush_queue_jnode, the unformatted allocation is handled by the extent plugin and
+ * simply queued by this function. */
 int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 {
+	/* flush_queue_jnode expects the jnode to be locked. */
 	spin_lock_jnode (node);
 	return flush_queue_jnode (node, pos);
 }
 
-/* FIXME: comment */
-/* This is called from withing interrupt context, so we need to  
-   make a reiser4 context in order for all other stuff (and assertions)
-   to work correctly */
+/* This is an I/O completion callback which is called after the result of a submit_bio has
+ * completed.  Its task is to notify any waiters that are waiting, either for an
+ * individual page or an atom (via the io_handle) which may be waiting to commit. */
 static void flush_bio_write (struct bio *bio)
 {
 	int i;
@@ -1860,7 +1878,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 		
 			/* Find consecutive nodes. */
 			struct bio *bio;
-			jnode *prev = check;
+			/*jnode *prev = check;*/
 			int nr, i;
 			struct super_block *super;
 			int blksz;
@@ -1975,6 +1993,8 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			trace_on (TRACE_FLUSH, "flush_empty_queue %u consecutive blocks: BIO %p\n", nr, bio);
 
 			io_handle_add_bio (pos->hio, bio);
+
+			/* FIXME: JMACD->ZAM: 'check' is not the last written location, bio->bi_vec[i] is? */
 			reiser4_update_last_written_location (super, jnode_get_block (check));
 
 			submit_bio (WRITE, bio);
@@ -2751,7 +2771,17 @@ static int flush_pos_init (flush_position *pos, int *nr_to_flush)
 	return 0;
 }
 
-/* FIXME: comment */
+/* The flush loop inside flush_squalloc_right periodically checks flush_pos_valid to
+ * determine when "enough flushing" has been performed.  This will return true until one
+ * of the following conditions is met:
+ *
+ * 1. the number of flush-queued nodes has reached the kernel-supplied "int *nr_to_flush"
+ * parameter, meaning we have flushed as many blocks as the kernel requested.  When
+ * flushing to commit, this parameter is NULL.
+ *
+ * 2. flush_pos_stop() is called because squalloc discovers that the "next" node in the
+ * flush order is either non-existant, not dirty, or not in the same atom.
+ */
 static int flush_pos_valid (flush_position *pos)
 {
 	if (pos->nr_to_flush != NULL && pos->enqueue_cnt >= *pos->nr_to_flush) {
