@@ -419,34 +419,34 @@ node_search_result lookup_node40(znode * node /* node to query */ ,
 	   access memory from left to right, and hence, scan in _descending_
 	   order of item numbers.
 	*/
-	for (left = right, ih = righth; !found && left >= 0; ++ ih, -- left) {
-		cmp_t comparison;
+	if (!found) {
+		for (left = right, ih = righth; left >= 0; ++ ih, -- left) {
+			cmp_t comparison;
 
-		INCSTAT(node, seq);
-		prefetch(ih + 1);
-		comparison = keycmp(&ih->key, key);
-		if (comparison == GREATER_THAN)
-			continue;
-		if (comparison == EQUAL_TO) {
-			found = 1;
-			do {
-				-- left;
-				++ ih;
-			} while (left >= 0 && keyeq(&ih->key, key));
-			++ left;
-			-- ih;
-		} else {
-			assert("nikita-1256", comparison == LESS_THAN);
+			INCSTAT(node, seq);
+			prefetchkey(&(ih + 1)->key);
+			comparison = keycmp(&ih->key, key);
+			if (comparison == GREATER_THAN)
+				continue;
+			if (comparison == EQUAL_TO) {
+				found = 1;
+				do {
+					-- left;
+					++ ih;
+				} while (left >= 0 && keyeq(&ih->key, key));
+				++ left;
+				-- ih;
+			} else {
+				assert("nikita-1256", comparison == LESS_THAN);
+			}
+			break;
 		}
-		break;
+		if (unlikely(left < 0))
+			left = 0;
 	}
 
 	assert("nikita-3212", right >= left);
-
-	if (left < 0)
-		left = 0;
-
-	assert("nikita-3214", 
+	assert("nikita-3214",
 	       equi(found, keyeq(&node40_ih_at(node, left)->key, key)));
 
 	if (REISER4_STATS) {
@@ -736,7 +736,8 @@ parse_node40(znode * node /* node to parse */ )
 			znode_get_level(node), nh40_get_level(header));
 	else if (nh40_get_magic(header) != REISER4_NODE_MAGIC)
 		warning("nikita-495",
-			"Wrong magic in tree node: want %x, got %x", REISER4_NODE_MAGIC, nh40_get_magic(header));
+			"Wrong magic in tree node: want %x, got %x", 
+			REISER4_NODE_MAGIC, nh40_get_magic(header));
 	else {
 		node->nr_items = node40_num_of_items_internal(node);
 		result = 0;
