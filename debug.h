@@ -694,6 +694,14 @@ typedef struct reiser4_statistics {
 		 * how many times nodes with unallocated children are written
 		 */
 		stat_cnt flushed_with_unallocated;
+		/*
+		 * how many times a znode is squeezed, counted only for the left node.
+		 */
+		stat_cnt flush_squeeze;
+		/*
+		 * how many times a znode is allocated.
+		 */
+		stat_cnt flush_zalloc;
 	} flush;
 	struct {
 		/*

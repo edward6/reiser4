@@ -131,10 +131,7 @@
  * may remain unallocated (dirty) children to the right of the clean child.  If we were to
  * stop flushing at this moment and write everything to disk, the parent might still
  * contain unallocated children.
-
-FIXME: rewrite next paragraph, in particular, draw a distinction between allocation and flushing
-REWRITTEN:
-
+ *
  * We could try to allocate all the descendents of every node that we allocate, but this
  * is not necessary.  Doing so could result in allocating the entire tree: if the root
  * node is allocated then every unallocated node would have to be allocated before
@@ -247,7 +244,7 @@ REWRITTEN:
  * flush to relocate them to a contiguous location on disk.  Most of the details are in
  * defining the criteria used to select blocks for repacking.
 
-Restate this.
+FIXME: Restate the above.
 
  */
 
@@ -649,7 +646,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	/* At this point, try squeezing at the "left edge", meaning to possibly
 	 * change the parent of the left end of the scan.  NOT IMPLEMENTED FUTURE
-	 * OPTIMIZATION. */
+	 * OPTIMIZATION -- see the comment in flush_squeeze_left_edge. */
 	if ((ret = flush_squeeze_left_edge (& flush_pos))) {
 		goto failed;
 	}
@@ -751,8 +748,8 @@ static int flush_relocate_unless_close_enough (const reiser4_block_nr *pblk,
 	/* Distance is the absolute value. */
 	dist = (*pblk > *nblk) ? (*pblk - *nblk) : (*nblk - *pblk);
 
-	/* First rule: If the block is less than 64 blocks away from its preceder block,
-	 * do not relocate. */
+	/* First rule: If the block is less than FLUSH_RELOCATE_DISTANCE blocks away from
+	 * its preceder block, do not relocate. */
 	if (dist <= FLUSH_RELOCATE_DISTANCE) {
 		return 0;
 	}
@@ -761,11 +758,18 @@ static int flush_relocate_unless_close_enough (const reiser4_block_nr *pblk,
 }
 
 /* This function is a predicate that tests for relocation.  Always called in the
- * reverse-parent-first context, when we are asking whether the current node should be
- * relocated in order to expand the flush by dirtying the parent level (and thus
- * proceeding to flush that level).  When traversing in the forward-parent-first
- * direction, relocation decisions are handled in two places: flush_allocate_znode() and
- * extent_needs_allocation(). */
+ * reverse-parent-first context, when we are asking either:
+ *
+ * 1. Whether the leftmost child of a node should be relocated, using its parent as the
+ * preceder.  If we decide yes (returning 1), we will dirty the parent level and
+ * proceeding to flush that level.
+ *
+ * 2. Whether a non-leftmost child of a node should be relocated, using its preceder on
+ * the leaf-level of the subtree-to-the-right.  I
+ *
+ * When traversing in the
+ * forward-parent-first direction, relocation decisions are handled in two places, but not
+ * here: flush_allocate_znode() and extent_needs_allocation(). */
 static int flush_query_relocate_check (jnode *node, const coord_t *parent_coord, flush_position *pos)
 {
 	reiser4_block_nr pblk = 0;
@@ -1058,6 +1062,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	data_handle parent_load;
 	data_handle node_load;
 	coord_t at_right, right_parent_coord;
+	ON_STATS (int squeeze_counted = 1;);
 
 	init_lh (& right_lock);
 	init_lh (& parent_lock);
@@ -1109,6 +1114,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	/* We found the right znode (and locked it), now squeeze from right into
 	 * current node position. */
+	ON_STATS (if (squeeze_counted) { squeeze_counted = 0; reiser4_stat_flush_add (flush_squeeze); );
 	if ((ret = squalloc_right_neighbor (node, right_lock.node, pos)) < 0) {
 		warning ("jmacd-61427", "squalloc_right_neighbor failed: %d", ret);
 		goto exit;
@@ -1889,6 +1895,8 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	assert ("jmacd-7987", ! jnode_check_allocated (ZJNODE (node)));
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
+
+	reiser4_stat_flush_add (flush_zalloc);
 
 	if (znode_created (node) || znode_is_root (node)) {
 		/* No need to decide with new nodes, they are treated the same as
