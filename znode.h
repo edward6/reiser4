@@ -305,6 +305,15 @@ jnode_get_level(const jnode * node)
 		return LEAF_LEVEL;
 }
 
+static inline int jnode_is_leaf(const jnode * node)
+{
+	if (jnode_is_znode(node))
+		return (znode_get_level(JZNODE(node)) == LEAF_LEVEL);
+	if (jnode_get_type(node) == JNODE_UNFORMATTED_BLOCK)
+		return 1;
+	return 0;
+}
+
 static inline reiser4_tree *
 znode_get_tree(const znode * node)
 {

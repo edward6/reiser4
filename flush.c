@@ -2589,21 +2589,33 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 	reiser4_block_nr blk;
 	reiser4_block_nr len = 1;
 	lock_handle fake_lock;
+	int flush_reserved_used = 0;
 	int grabbed;
 
 	init_lh(&fake_lock);
 
 	grabbed = get_current_context()->grabbed_blocks;
-	/* for a node and its parent */
-	ret = reiser4_grab_space_force((__u64)2, BA_RESERVED, "allocate_znode_update");
-	
-	if (ret != 0)
-		goto exit;
 
-	pos->preceder.block_stage = BLOCK_GRABBED;
+
 	if (ZF_ISSET(node, JNODE_CREATED)) {
 		assert ("zam-816", blocknr_is_fake(znode_get_block(node)));
 		pos->preceder.block_stage = BLOCK_UNALLOCATED;
+	} else {
+		pos->preceder.block_stage = BLOCK_GRABBED;
+
+		/* The disk space for relocating the @node is already reserved in "flush reserved"
+		 * counter if @node is leaf, otherwise we grab space using BA_RESERVED (means grab
+		 * space from whole disk not from only 95%). */
+		if (znode_get_level(node) == LEAF_LEVEL) {
+			txn_atom * atom = get_current_atom_locked();
+			flush_reserved2grabbed(atom, (__u64)1);
+			spin_unlock_atom(atom);
+			flush_reserved_used = 1;
+		} else {
+			ret = reiser4_grab_space_force((__u64)1, BA_RESERVED, "allocate_znode_update");
+			if (ret != 0)
+				goto exit;
+		}
 	}
 
 	/* discard e-flush allocation */
@@ -2613,13 +2625,17 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
         ret = reiser4_alloc_blocks(&pos->preceder, &blk, &len, BA_FORMATTED | BA_PERMANENT, "allocate_znode_update");
 	zrelse(node);
-	if(ret)
+	if(ret) {
+		/* Get flush reserved block back if allocation fails. */
+		if (flush_reserved_used)
+			grabbed2flush_reserved((__u64)1, "allocate_znode_update: "
+					       "get flush reserved block back if allocation fails");
 		goto exit;
+	}
 
 
 	if (!ZF_ISSET(node, JNODE_CREATED) && 
-	    (ret = reiser4_dealloc_block(znode_get_block(node),
-					 0 /* target stage, it only matters when BA_DEFER is not present */, BA_DEFER/* defer */, "allocate_znode_update")))
+	    (ret = reiser4_dealloc_block(znode_get_block(node), 0, BA_DEFER, "allocate_znode_update")))
 		goto exit;
 
 	if (likely(!znode_is_root(node))) {

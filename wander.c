@@ -514,7 +514,7 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	/* FIXME-ZAM: A special policy needed for allocation of wandered
 	   blocks */
 	blocknr_hint_init(&hint);
-	hint.block_stage = BLOCK_FLUSH_RESERVED;
+	hint.block_stage = BLOCK_GRABBED;
 	
 	ret = reiser4_alloc_blocks (&hint, start, &wide_len, 
 		BA_FORMATTED/* formatted, not from reserved area */, "get_more_wandered_blocks");
@@ -529,23 +529,26 @@ static void put_overwrite_set(struct commit_handle * ch)
 {
 	jnode * cur;
 
-	for_all_tslist(capture, ch->overwrite_set, cur) {
+	for_all_tslist(capture, ch->overwrite_set, cur)
 		jrelse(cur);
-	}
-
-	// capture_list_splice(&ch->atom->clean_nodes, ch->overwrite_set);
-
 }
 
-/* count overwrite set size and place overwrite set on a separate list  
-
-ZAM-FIXME-HANS: please comment better, and indicate whether it would be better
-to do this work with each modification to the overwrite set instead. */
+/* Count overwrite set size, grab disk space for wandered blocks allocation.
+   Since we have a separate list for atom's overwrite set we just scan the list,
+   count bitmap and other not leaf nodes which wandered blocks allocation we
+   have to grab space for. */
 static int
 get_overwrite_set(struct commit_handle *ch)
 {
+	int ret;
 	jnode *cur;
-
+	__u64 nr_not_leaves = 0;
+#if REISER4_DEBUG
+	__u64 nr_formatted_leaves = 0;
+	__u64 nr_unformatted_leaves = 0;
+#endif
+	
+	
 	assert("zam-697", ch->overwrite_set_size == 0);
 
 	ch->overwrite_set = &ch->atom->ovrwr_nodes;
@@ -558,56 +561,85 @@ get_overwrite_set(struct commit_handle *ch)
 			ON_TRACE(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
 		}
 
-		if (JF_ISSET(cur, JNODE_OVRWR)) {
-			if (jnode_get_type(cur) == JNODE_BITMAP)
-				ch->nr_bitmap++;
+		/* Count not leaves here because we have to grab disk space for
+		 * wandered blocks. They were not counted as "flush
+		 * reserved". */
+		if (!jnode_is_leaf(cur))
+			nr_not_leaves ++;
+#if REISER4_DEBUG
+		else {
+			if (jnode_is_znode(cur))
+				nr_formatted_leaves ++;
+			else
+				nr_unformatted_leaves ++;
+		}
+#endif		
+
+		/* Count bitmap locks for getting correct statistics what number
+		 * of blocks were cleared by the transaction commit. */
+		if (jnode_get_type(cur) == JNODE_BITMAP)
+			ch->nr_bitmap ++;
+
+		assert("zam-939", JF_ISSET(cur, JNODE_OVRWR) || jnode_get_type(cur) == JNODE_BITMAP);
 			    
-			if (jnode_is_znode(cur)
-			    && znode_above_root(JZNODE(cur))) {
-				/* we replace fake znode by another (real)
-				   znode which is suggested by disk_layout
-				   plugin */
+		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
+			/* we replace fake znode by another (real)
+			   znode which is suggested by disk_layout
+			   plugin */
 
-				/* FIXME: it looks like fake znode should be
-				   replaced by jnode supplied by
-				   disk_layout. */
+			/* FIXME: it looks like fake znode should be
+			   replaced by jnode supplied by
+			   disk_layout. */
 
-				struct super_block *s = reiser4_get_current_sb();
-				reiser4_super_info_data *sbinfo = get_current_super_private();
+			struct super_block *s = reiser4_get_current_sb();
+			reiser4_super_info_data *sbinfo = get_current_super_private();
 
-				if (sbinfo->df_plug->log_super) {
-					jnode *sj = sbinfo->df_plug->log_super(s);
+			if (sbinfo->df_plug->log_super) {
+				jnode *sj = sbinfo->df_plug->log_super(s);
 
-					assert("zam-593", sj != NULL);
+				assert("zam-593", sj != NULL);
 
-					if (IS_ERR(sj))
-						return PTR_ERR(sj);
+				if (IS_ERR(sj))
+					return PTR_ERR(sj);
 
-					LOCK_JNODE(sj);
-					JF_SET(sj, JNODE_OVRWR);
-					insert_into_atom_ovrwr_list(ch->atom, sj);
-					UNLOCK_JNODE(sj);
+				LOCK_JNODE(sj);
+				JF_SET(sj, JNODE_OVRWR);
+				insert_into_atom_ovrwr_list(ch->atom, sj);
+				UNLOCK_JNODE(sj);
 
-					/* jload it as the rest of overwrite set */
-					jload (sj);
+				/* jload it as the rest of overwrite set */
+				jload (sj);
 
-					ch->overwrite_set_size++;
-				}
-				LOCK_JNODE(cur);
-				uncapture_block(cur);
-				jput(cur);
-				
-			} else {
-				int ret;
 				ch->overwrite_set_size++;
-				ret = jload(cur);
-				if (ret) 
-					reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
 			}
+			LOCK_JNODE(cur);
+			uncapture_block(cur);
+			jput(cur);
+				
+		} else {
+			int ret;
+			ch->overwrite_set_size++;
+			ret = jload(cur);
+			if (ret) 
+				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
 		}
 
 		cur = next;
 	}
+
+	/* Grab space for writing (wandered blocks) of not leaves found in
+	 * overwrite set. */
+	ret = reiser4_grab_space_force(nr_not_leaves, BA_RESERVED, 
+				       "get_overwrite_set: grab space for not leaves.");
+	if (ret)
+		return ret;
+
+	/* Disk space for allocation of wandered blocks of leaf nodes already
+	 * reserved as "flush reserved", move it to grabbed space counter. */
+	spin_lock_atom(ch->atom);
+	assert("zam-940", nr_formatted_leaves + nr_unformatted_leaves <= ch->atom->flush_reserved);
+	flush_reserved2grabbed(ch->atom, ch->atom->flush_reserved);
+	spin_unlock_atom(ch->atom);
 
 	return ch->overwrite_set_size;
 }
@@ -1023,17 +1055,9 @@ int reiser4_write_logs(long * nr_submitted)
 
 	ON_TRACE(TRACE_LOG, "commit atom (id = %u, count = %u)\n", atom->atom_id, atom->capture_count);
 
-	/* Grab space for modified bitmaps from 100% of disk space. */
-	if (reiser4_grab_space_force(ch.nr_bitmap, BA_RESERVED, "reiser4_write_logs: for modified bitmaps"))
-		reiser4_panic("vpf-341", "No space left from reserved area.");
-
-	grabbed2flush_reserved(ch.nr_bitmap, "reiser4_write_logs");
 	/* count all records needed for storing of the wandered set */
 	get_tx_size(&ch);
 	
-	/* Check that flush_reserve is enough. */	
-	assert("vpf-279", check_atom_reserved_blocks(atom, (__u64)ch.overwrite_set_size));
-
 	/* Grab more space for wandered records. */
 	ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED, "reiser4_write_logs: for wandered records");
 	if (ret)
@@ -1062,10 +1086,6 @@ int reiser4_write_logs(long * nr_submitted)
 		} while (0);
 
 
-		/* All wandered blocks are allocated, we free all what was
-		 * reserved for flush or grabbed for allocation of wander
-		 * records.*/
-		flush_reserved2free_all("reiser4_write_logs");
 		/* Release all grabbed space if it was not fully used for
 		 * wandered blocks/records allocation. */
 		all_grabbed2free("reiser4_write_logs: release grabbed blocks");
