@@ -2057,6 +2057,7 @@ int extent_readpage (void * vp, struct page * page)
 	block = extent_get_start (ext) + pos_in_extent;
 	jnode_set_block (j, &block);
 	page_io (page, READ, GFP_NOIO);
+	jput (j);
 	return 0;
 }
 
@@ -2439,6 +2440,9 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 		assert ("vs-350", page->private != 0);
 
 		j = jnode_of_page (page);
+		if (! j) {
+			return -ENOMEM;
+		}
 		jnode_set_block (j, &first);
 
 		/* FIXME: JMACD, VS?  We need to figure out relocation. */
@@ -2448,6 +2452,7 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 		ret = flush_enqueue_jnode_page_locked (j, flush_pos, page);
 		/* page_detach_jnode (page); */
 		page_cache_release (page);
+		jput (j);
 		if (ret) {
 			return ret;
 		}
