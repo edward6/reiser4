@@ -347,6 +347,19 @@ extern __u32 reiser4_current_trace_flags;
 	}									\
 })
 
+#define	reiser4_stat_add_at_level_value(lev, stat, value)				\
+({									\
+	int level;							\
+									\
+	level = (lev) - LEAF_LEVEL;					\
+	if (level >= 0) {						\
+		if(level < REAL_MAX_ZTREE_HEIGHT) {			\
+			reiser4_stat_inc(level[level]. stat , value );	\
+			reiser4_stat_inc(level[level]. total_hits_at_level);	\
+		}							\
+	}								\
+})
+
 #define	reiser4_stat_level_inc(l, stat)			\
 	reiser4_stat_inc_at_level((l)->level_no, stat)
 
@@ -491,6 +504,7 @@ typedef struct reiser4_level_statistics {
 		stat_cnt lock_neighbor_iteration;
 	} znode;
 	stat_cnt total_hits_at_level;
+	stat_cnt time_slept;
 } reiser4_level_stat;
 
 /* set of statistics counter. This is embedded into super-block when
@@ -611,6 +625,10 @@ typedef struct reiser4_statistics {
 		*/
 		stat_cnt bdp_caused_repeats;
 	} tail;
+	struct {
+		stat_cnt slept_in_wait_event;
+		stat_cnt long slept_in_wait_atom;
+	} txnmgr;
 	struct {
 		/* how many nodes were squeezed to left neighbor completely */
 		stat_cnt squeezed_completely;

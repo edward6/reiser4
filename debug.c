@@ -298,6 +298,9 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 
 	DEFINE_STAT_CNT(tail.bdp_caused_repeats),
 
+	DEFINE_STAT_CNT(txnmgr.slept_in_wait_atom),
+	DEFINE_STAT_CNT(txnmgr.slept_in_wait_event),
+
 	DEFINE_STAT_CNT(flush.squeezed_completely),
 	DEFINE_STAT_CNT(flush.flushed_with_unallocated),
 	DEFINE_STAT_CNT(flush.squeezed_leaves),
@@ -371,7 +374,7 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(znode.lock_znode_iteration),
 	DEFINE_STAT_LEVEL_CNT(znode.lock_neighbor),
 	DEFINE_STAT_LEVEL_CNT(znode.lock_neighbor_iteration),
-
+	DEFINE_STAT_LEVEL_CNT(time_slept),
 	DEFINE_STAT_LEVEL_CNT(total_hits_at_level)
 };
 
