@@ -248,7 +248,7 @@ reiser4_grab_space(__u64 * grabbed, __u64 min_block_count,
 	/*trace_if (TRACE_ALLOC, info ("reiser4_grab_space: grabbed %llu, free blocks left %llu\n",
 	 *grabbed, reiser4_free_blocks (super)));*/
 
-      unlock_and_ret:
+unlock_and_ret:
 	reiser4_spin_unlock_sb(super);
 
 	return ret;
