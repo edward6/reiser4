@@ -1327,7 +1327,7 @@ try_capture_block (txn_handle  *txnh,
 		 * check_not_fused_lock_owners() function.
 		 */
 
-		if (txnh_atom->stage >= ASTAGE_CAPTURE_WAIT &&
+		if (// txnh_atom->stage >= ASTAGE_CAPTURE_WAIT &&
 		    jnode_is_znode (node) &&
 		    znode_is_locked (JZNODE(node)) && JF_ISSET (node, JNODE_MISSED_IN_CAPTURE))
 		{
