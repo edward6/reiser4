@@ -110,8 +110,19 @@ int  reiser4_alloc_blocks         (reiser4_blocknr_hint * hint,
 int reiser4_dealloc_blocks        (const reiser4_block_nr *,
 				   const reiser4_block_nr *,
 				   block_stage_t, reiser4_ba_flags_t flags);
-int reiser4_dealloc_block         (const reiser4_block_nr *,
-				   block_stage_t, reiser4_ba_flags_t flags);
+
+static inline int reiser4_alloc_block (reiser4_blocknr_hint * hint, reiser4_block_nr * start, 
+				       reiser4_ba_flags_t flags) 
+{
+	reiser4_block_nr one = 1;
+	return reiser4_alloc_blocks(hint, start, &one, flags);
+}
+
+static inline int reiser4_dealloc_block (const reiser4_block_nr * block, block_stage_t stage, reiser4_ba_flags_t flags)
+{
+	const reiser4_block_nr one = 1;
+	return reiser4_dealloc_blocks(block, &one, stage, flags);
+}
 
 #define reiser4_grab_space_force(count, flags)		\
 	reiser4_grab_space(count, flags | BA_FORCE)

@@ -2882,7 +2882,6 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 {
 	int ret;
 	reiser4_block_nr blk;
-	reiser4_block_nr len = 1;
 	lock_handle uber_lock;
 	int flush_reserved_used = 0;
 	int grabbed;
@@ -2931,14 +2930,13 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 	}
 
         /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
-        ret = reiser4_alloc_blocks(&pos->preceder, &blk, &len,
-				   BA_FORMATTED | BA_PERMANENT);
+        ret = reiser4_alloc_block(&pos->preceder, &blk, BA_FORMATTED | BA_PERMANENT);
 	if(ret)
 		goto exit;
 
 
 	if (!ZF_ISSET(node, JNODE_CREATED) &&
-	    (ret = reiser4_dealloc_block(znode_get_block(node), 0, BA_DEFER)))
+	    (ret = reiser4_dealloc_block(znode_get_block(node), 0, BA_DEFER | BA_FORMATTED)))
 		goto exit;
 
 	if (likely(!znode_is_root(node))) {

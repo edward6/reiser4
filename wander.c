@@ -478,7 +478,7 @@ dealloc_tx_list(struct commit_handle *ch)
 		jnode *cur = capture_list_pop_front(&ch->tx_list);
 
 		ON_DEBUG(capture_list_clean(cur));
-		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED, 0);
+		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED, BA_FORMATTED);
 
 		unpin_jnode_data(cur);
 		drop_io_head(cur);

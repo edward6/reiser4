@@ -1122,14 +1122,6 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 	return 0;
 }
 
-reiser4_internal int
-reiser4_dealloc_block(const reiser4_block_nr * block,
-		      block_stage_t stage, reiser4_ba_flags_t flags)
-{
-	const reiser4_block_nr one = 1;
-	return reiser4_dealloc_blocks(block, &one, stage, flags | BA_FORMATTED);
-}
-
 /* wrappers for block allocator plugin methods */
 reiser4_internal int
 pre_commit_hook(void)

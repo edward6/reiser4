@@ -831,12 +831,10 @@ static int ef_free_block(jnode *node,
 			 block_stage_t stage, eflush_node_t *ef)
 {
 	int result = 0;
-	reiser4_block_nr one;
 
-	one = 1ull;
 	/* We cannot just ask block allocator to return block into flush
 	 * reserved space, because there is no current atom at this point. */
-	result = reiser4_dealloc_blocks(blk, &one, stage, ef_block_flags(node));
+	result = reiser4_dealloc_blocks(blk, stage, ef_block_flags(node));
 	if (result == 0 && stage == BLOCK_GRABBED) {
 		txn_atom *atom;
 
@@ -863,7 +861,6 @@ static int
 ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_blocknr_hint * hint)
 {
 	int result;
-	reiser4_block_nr one;
 	int usedreserve;
 
 	assert("nikita-2760", node != NULL);
@@ -928,8 +925,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 #endif
 	(*efnode)->reserve = usedreserve;
 
-	one = 1ull;
-	result = reiser4_alloc_blocks(hint, blk, &one, ef_block_flags(node));
+	result = reiser4_alloc_block(hint, blk, ef_block_flags(node));
 	if (result == 0 ) {
 		/* prepare for jnode insertion to radix tree of eflushed jnodes */
 		if (jnode_is_unformatted(node))
@@ -950,7 +946,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 120
+   fill-column: 80
    LocalWords: " unflush eflushed LocalWords eflush writepage VM releasepage unflushing io "
    End:
 */
