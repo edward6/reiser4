@@ -478,9 +478,8 @@ void print_fs_info (const char *prefix, const struct super_block * s)
 	      private->tree.root_block, private->tree.height);
 	if (private->space_plug->print_info)
 		private->space_plug->print_info ("", get_space_allocator (s));
-	if (private->oid_plug->print_info)
-		private->oid_plug->print_info (private->oid_plug->h.label,
-					       get_oid_allocator (s));
+
+	oid_print_allocator (private->oid_plug->h.label, s);
 	info ("Block counters:\n\tblock count\t%llu\n\tfree blocks\t%llu\n"
 	      "\tused blocks\t%llu\n\tgrabbed\t%llu\n\tunallocated\t%llu\n",
 	      reiser4_block_count (s), reiser4_free_blocks (s), reiser4_data_blocks (s),

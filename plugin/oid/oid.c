@@ -97,6 +97,15 @@ int oid_init_allocator(const struct super_block *s,  __u64 nr_files, __u64 oids)
 	return private->oid_plug->init_oid_allocator(&private->oid_allocator, nr_files, oids);
 }
 
+void oid_print_allocator(const char * prefix, const struct super_block *s)
+{
+	reiser4_super_info_data * private = get_super_private(s);
+
+	if(private->oid_plug && private->oid_plug->print_info)
+		private->oid_plug->print_info(prefix, &private->oid_allocator);
+	return;
+}
+
 /* initialization of objectid management plugins */
 reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ] = {
 	[ OID_40_ALLOCATOR_ID ] = {
