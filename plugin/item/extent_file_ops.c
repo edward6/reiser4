@@ -484,8 +484,8 @@ write_move_coord(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int fu
 			/* move to the next unit */
 			coord->unit_pos ++;
 			ext_coord->ext_offset += sizeof(reiser4_extent);
-			ON_DEBUG(ext_coord->extent = *ext_by_ext_coord(uf_coord));
-			ext_coord->width = extent_get_width(ext_by_ext_coord(uf_coord));
+			ON_DEBUG(ext_coord->extent = *ext_by_offset(coord->node, ext_coord->ext_offset));
+			ext_coord->width = extent_get_width(ext_by_offset(coord->node, ext_coord->ext_offset));
 			ext_coord->pos_in_unit = 0;
 		}
 	} else
