@@ -2314,9 +2314,8 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	   relocate set nor overwrite one. If node is in overwrite or
 	   relocate set we assume that atom's flush reserved counter was
 	   already adjusted. */
-	if (!JF_ISSET(node, JNODE_CREATED)
-	    && !JF_ISSET(node, JNODE_RELOC) 
-	    && !JF_ISSET(node, JNODE_OVRWR))
+	if (!JF_ISSET(node, JNODE_CREATED) && !JF_ISSET(node, JNODE_RELOC) 
+	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node))
 	{
 		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
 		grabbed2flush_reserved_nolock(atom, (__u64)1, "jnode_set_dirty: for clean, !created, !reloc and !ovrwr");
