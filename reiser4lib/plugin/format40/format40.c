@@ -293,7 +293,11 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
     }
 
     /* Marking journal blocks as used */
-
+    alloc_plugin->alloc.use(format->alloc, (REISERFS_JOURNAL40_HEADER / 
+	aal_device_get_blocksize(host_device)));
+    
+    alloc_plugin->alloc.use(format->alloc, (REISERFS_JOURNAL40_FOOTER / 
+	aal_device_get_blocksize(host_device)));
     
 /*    if (!(oid_plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
 	REISERFS_FORMAT40_OID))) 
@@ -304,17 +308,23 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
     }
     
     reiserfs_check_method(oid_plugin->oid, create, goto error_free_journal);
-    if (!(format->oid = oid_plugin->oid.create())) {
+    if (!(format->oid = oid_plugin->oid.create(host_device))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create oid allocator \"%s\".", oid_plugin->h.label);
 	goto error_free_journal;
-    }*/
+    }
+    
+    reiserfs_check_method(oid_plugin->oid, find, goto error_free_oid);
+    set_sb_oid(super, oid_plugin->oid.find(format->oid));*/
     
     /* Here must inode number from oid allocator plugin */
     set_sb_oid(super, 41);
 
     return format;
 
+error_free_oid:
+    reiserfs_check_method(oid_plugin->oid, close, goto error_free_journal);
+    oid_plugin->oid.close(format->oid);
 error_free_journal:
     reiserfs_check_method(journal_plugin->journal, close, goto error_free_super);
     journal_plugin->journal.close(format->journal);

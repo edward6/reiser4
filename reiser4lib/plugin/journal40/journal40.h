@@ -9,7 +9,8 @@
 
 #include <aal/aal.h>
 
-#define REISERFS_JOURNAL40_OFFSET 69632
+#define REISERFS_JOURNAL40_HEADER   (4096 * 19)
+#define REISERFS_JOURNAL40_FOOTER   (4096 * 20)
 
 struct reiserfs_journal40 {
     aal_device_t *device;
