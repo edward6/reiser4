@@ -670,7 +670,8 @@ void unlock_page (struct page * p)
 
 void remove_inode_page (struct page * page)
 {
-	//assert ("vs-618", atomic_read (&page->count) == 2);
+	/* assert ("vs-618", atomic_read (&page->count) == 2); */
+
 	page->mapping = 0;
 
 	txn_delete_page (page);
