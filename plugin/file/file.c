@@ -537,8 +537,6 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 					 &smallest_removed, inode);
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
-			/* FIXME(Zam) cut_tree does not support that signaling.*/
-			/* VS-FIXME-HANS: comment this out until it does */
 			result = update_inode_and_sd_if_necessary
 				(inode, get_key_offset(&smallest_removed), 1, 1, update_sd);
 			if (result)
@@ -547,6 +545,21 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 			all_grabbed2free();
 			reiser4_release_reserved(inode->i_sb);
 
+			/* cut_tree_object() was interrupted probably because
+			 * current atom requires commit, we have to release
+			 * transaction handle to allow atom commit. */
+			{
+				reiser4_context * ctx;
+				long long_ret;
+
+				ctx = get_current_context();
+				long_ret = txn_end(ctx);
+				if (long_ret < 0) {
+					result = (int)long_ret;
+					break;
+				}
+				txn_begin(ctx);
+			}				
 			continue;
 		}
 		if (result)

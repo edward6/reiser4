@@ -424,6 +424,7 @@ extern long txn_end(reiser4_context * context);
 
 extern int txnmgr_force_commit_current_atom(void);
 extern int txnmgr_force_commit_all(struct super_block *, int);
+extern int current_atom_should_commit(void);
 
 extern jnode * find_first_dirty_jnode (txn_atom *, int);
 

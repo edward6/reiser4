@@ -891,6 +891,20 @@ atom_should_commit(const txn_atom * atom)
 		atom_is_dotard(atom);
 }
 
+/* return 1 if current atom exists and requires commit. */
+int current_atom_should_commit(void)
+{
+	txn_atom * atom;
+	int result = 0;
+
+	atom = get_current_atom_locked_nocheck();
+	if (atom) {
+		result = atom_should_commit(atom);
+		UNLOCK_ATOM(atom);
+	}
+	return result;
+}
+
 static int
 atom_should_commit_asap(const txn_atom * atom)
 {

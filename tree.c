@@ -203,6 +203,8 @@
 */
 const reiser4_block_nr UBER_TREE_ADDR = 0ull;
 
+#define CUT_TREE_MIN_ITERATIONS 64
+
 /* return node plugin of coord->node */
 node_plugin *
 node_plugin_by_coord(const coord_t * coord)
@@ -1532,6 +1534,16 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 		if (result)
 			break;
 
+		/* Break long cut_tree operation (deletion of a large file) if
+		 * atom requires commit. */
+		if (iterations > CUT_TREE_MIN_ITERATIONS 
+		    && current_atom_should_commit()) 
+		{
+			result = -E_REPEAT;
+			break;
+		}
+			
+
 		++ iterations;
 	}
 	done_lh(&next_node_lock);
@@ -1608,38 +1620,55 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 
 	do {
 		/* Find rightmost item to cut away from the tree. */
-		result = object_lookup(object,
-				       to_key,
-				       &right_coord,
-				       &lock,
-				       ZNODE_WRITE_LOCK,
-				       FIND_MAX_NOT_MORE_THAN,
-				       TWIG_LEVEL,
-				       LEAF_LEVEL,
-				       CBK_UNIQUE,
-				       0/*ra_info*/);
+		result = object_lookup(
+			object, to_key, &right_coord, &lock, 
+			ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, 
+			LEAF_LEVEL, CBK_UNIQUE, 0/*ra_info*/);
 		if (result != CBK_COORD_FOUND)
 			break;
 
 		tap_init(&tap, &right_coord, &lock, ZNODE_WRITE_LOCK);
-		result = cut_tree_worker
-			(&tap, from_key, to_key, smallest_removed_p, object);
+		result = cut_tree_worker(
+			&tap, from_key, to_key, smallest_removed_p, object);
 		tap_done(&tap);
 
 		preempt_point();
 
-	} while (result == -E_DEADLOCK || result == -E_REPEAT);
+	} while (0);
 
 	done_lh(&lock);
 
-	if (result == -E_NO_NEIGHBOR)
-		result = 0;
-	else if (result != 0)
-		warning("nikita-2861", "failure: %i", result);
+	if (result) {
+		switch (result) {
+		    case -E_NO_NEIGHBOR:
+			    result = 0;
+			    break;
+		    case -E_DEADLOCK:
+			    result = -E_REPEAT;
+			    break;
+		    default:
+			    warning("nikita-2861", "failure: %i", result);
+		}
+	}
 
 	CHECK_COUNTERS;
 	return result;
 }
+
+/* repeat cut_tree_object until everything is deleted. unlike cut_file_items, it
+ * does not end current transaction if -E_REPEAT is returned by
+ * cut_tree_object. */
+int cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to)
+{
+	int result;
+
+	do {
+		result = cut_tree_object(tree, from, to, NULL, NULL);
+	} while (result == -E_REPEAT);
+
+	return result;
+}
+
 
 /* return number of unallocated children for  @node, or an error code, if result < 0 */
 int
