@@ -1530,7 +1530,7 @@ put_unit_to_end(znode * node, reiser4_key * key, reiser4_item_data * data)
 /* before allocating unallocated extent we have to protect from eflushing those jnodes which are not eflushed yet and
    "unflush" jnodes which are already eflushed. However there can be too many eflushed
    jnodes so, we limit number of them with this macro */
-#define JNODES_TO_UNFLUSH 16
+#define JNODES_TO_UNFLUSH (16)
 
 static int
 unprotect_extent_nodes(oid_t oid, unsigned long ind, __u64 count)
@@ -1569,9 +1569,11 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 {
 #if REISER4_USE_EFLUSH
 	__u64           i;
+	__u64           j;
 	int             result;
 	reiser4_tree   *tree;
 	int             eflushed;
+	jnode          *buf[JNODES_TO_UNFLUSH];
 
 	tree = current_tree;
 
@@ -1587,26 +1589,44 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 		 */
 		assert("nikita-3087", node != NULL);
 
+		LOCK_JNODE(node);
+
+		assert("zam-836", !JF_ISSET(node, JNODE_EPROTECTED));
+		assert("vs-1216", jnode_is_unformatted(node));
+	
+		JF_SET(node, JNODE_EPROTECTED);
+
+		UNLOCK_JNODE(node);
+
 		if (JF_ISSET(node, JNODE_EFLUSH)) {
 			if (eflushed == JNODES_TO_UNFLUSH) {
 				jput(node);
 				break;
 			}
+			buf[eflushed] = node;
 			eflushed ++;
-		}
+			jstartio(node);
+		} else
+			jput(node);
 
-		result = jprotect(node);
-		jput(node);
-		if (result < 0) {
-			warning("vs-1221", "jprotect failed: %d\n", result);
-			goto error;
-		}
 		(*protected) ++;
 	}
-	return 0;
- error:
-	/* unprotect all the jnodes we have protected so far */
-	unprotect_extent_nodes(oid, ind, i);
+	result = 0;
+	for (j = 0 ; j < eflushed ; ++ j) {
+		if (result == 0) {
+			result = emergency_unflush(buf[j]);
+			if (result != 0) {
+				warning("nikita-3179",
+					"unflush failed: %i", result);
+				print_jnode("node", buf[j]);
+			}
+		}
+		jput(buf[j]);
+	}
+	if (result != 0) {
+		/* unprotect all the jnodes we have protected so far */
+		unprotect_extent_nodes(oid, ind, i);
+	}
 	return result;
 #else
 /* !REISER4_USE_EFLUSH */
