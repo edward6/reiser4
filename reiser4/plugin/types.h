@@ -292,6 +292,9 @@ typedef struct reiser4_perm_plugin {
 	/** check permissions from deletion of @object whose last
 	    reference is in in @parent */
 	int ( *delete_ok )( struct inode *parent, struct dentry *victim );
+	/** check UNIX access bits. This is ->permission() check called by
+	 * VFS */
+	int ( *mask_ok )( struct inode *inode, int mask );
 } reiser4_perm_plugin;
 
 /** call ->check_ok method of perm plugin for inode */
