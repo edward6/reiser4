@@ -701,9 +701,7 @@ node40_init(znode * node /* node to initialise */ )
 	node40_header *header;
 
 	assert("nikita-570", node != NULL);
-	assert("nikita-571", znode_is_loaded(node));
 	assert("nikita-572", zdata(node) != NULL);
-	assert("nikita-573", node_plugin_by_node(node) != NULL);
 
 	header = node40_node_header(node);
 	if (REISER4_ZERO_NEW_NODE)
