@@ -61,8 +61,7 @@ typedef struct {
 	 *  return max_key().
 	 *  
 	 */
-	reiser4_key *(*max_key_inside) (const coord_t * coord,
-					reiser4_key * area);
+	reiser4_key *(*max_key_inside) (const coord_t * coord, reiser4_key * area);
 /* NIKITA-FIXME-HANS: comment this */
 	/**
 	 * Maximal key that is _really_ occupied by this item currently. This
@@ -79,15 +78,12 @@ typedef struct {
 	 * (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size - 1)
 	 *
 	 */
-	reiser4_key *(*real_max_key_inside) (const coord_t * coord,
-					     reiser4_key *);
+	reiser4_key *(*real_max_key_inside) (const coord_t * coord, reiser4_key *);
 
 	/**
 	 * true if item @coord can merge data at @key.
 	 */
-	int (*can_contain_key) (const coord_t * coord,
-				const reiser4_key * key,
-				const reiser4_item_data * data);
+	int (*can_contain_key) (const coord_t * coord, const reiser4_key * key, const reiser4_item_data * data);
 	/**
 	 * mergeable() - check items for mergeability
 	 *
@@ -116,15 +112,13 @@ typedef struct {
 	   are continuous in the node, if the item's data are not
 	   continuous in the node, all sorts of other things are maybe
 	   going to break as well. */
-	 lookup_result(*lookup) (const reiser4_key * key,
-				 lookup_bias bias, coord_t * coord);
+	 lookup_result(*lookup) (const reiser4_key * key, lookup_bias bias, coord_t * coord);
 	/** method called by ode_plugin->create_item() to initialise new
 	 * item */
 	int (*init) (coord_t * coord, reiser4_item_data * data);
 	/** method called (e.g., by resize_item()) to place new data into
 	    item when it grows*/
-	int (*paste) (coord_t * coord, reiser4_item_data * data,
-		      carry_plugin_info * info);
+	int (*paste) (coord_t * coord, reiser4_item_data * data, carry_plugin_info * info);
 	/**
 	 * return true if paste into @coord is allowed to skip
 	 * carry. That is, if such paste would require any changes
@@ -144,8 +138,7 @@ typedef struct {
 	 * NULL is new item will be created during shifting.
 	 */
 	int (*can_shift) (unsigned free_space, coord_t * source,
-			  znode * target, shift_direction pend,
-			  unsigned *size, unsigned want);
+			  znode * target, shift_direction pend, unsigned *size, unsigned want);
 
 	/* starting off @from-th unit of item @source append or
 	   prepend @count units to @target. @target has been already
@@ -154,9 +147,7 @@ typedef struct {
 	   == append - free space is at the end of @target item,
 	   othersize - it is in the beginning of it. */
 	void (*copy_units) (coord_t * target, coord_t * source,
-			    unsigned from, unsigned count,
-			    shift_direction where_is_free_space,
-			    unsigned free_space);
+			    unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
 
 	int (*create_hook) (const coord_t * item, void *arg);
 	/* do whatever is necessary to do when @count units starting
@@ -174,10 +165,8 @@ typedef struct {
 	 * balancing to perform dealloc_block - this will probably
 	 * break balancing due to deadlock issues
 	 */
-	int (*kill_hook) (const coord_t * item,
-			  unsigned from, unsigned count, void *kill_params);
-	int (*shift_hook) (const coord_t * item,
-			   unsigned from, unsigned count, znode * old_node);
+	int (*kill_hook) (const coord_t * item, unsigned from, unsigned count, void *kill_params);
+	int (*shift_hook) (const coord_t * item, unsigned from, unsigned count, znode * old_node);
 
 	/*
 	 * unit @*from contains @from_key. unit @*to contains
@@ -191,18 +180,14 @@ typedef struct {
 	 * removed key is @smallest_removed is not 0
 	 */
 	int (*cut_units) (coord_t *, unsigned *from, unsigned *to,
-			  const reiser4_key * from_key,
-			  const reiser4_key * to_key,
-			  reiser4_key * smallest_removed);
+			  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed);
 
 	/*
 	 * like cut_units, except that these units are removed from the
 	 * tree, not only from a node
 	 */
 	int (*kill_units) (coord_t *, unsigned *from, unsigned *to,
-			   const reiser4_key * from_key,
-			   const reiser4_key * to_key,
-			   reiser4_key * smallest_removed);
+			   const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed);
 
 	/* if @key_of_coord == 1 - returned key of coord, otherwise -
 	   key of unit is returned. If @coord is not set to certain
@@ -216,8 +201,7 @@ typedef struct {
 	int (*estimate) (const coord_t * coord, const reiser4_item_data * data);
 
 	/* converts flow @f to item data. @coord == 0 on insert */
-	int (*item_data_by_flow) (const coord_t * coord,
-				  const flow_t * f, reiser4_item_data * data);
+	int (*item_data_by_flow) (const coord_t * coord, const flow_t * f, reiser4_item_data * data);
 
 	/* return true if item contains key in it, coord is adjusted
 	 * correspondingly */
@@ -231,13 +215,11 @@ typedef struct {
 
 typedef struct {
 	/* return the right or left child of @coord, only if it is in memory */
-	int (*utmost_child) (const coord_t * coord, sideof side,
-			     jnode ** child);
+	int (*utmost_child) (const coord_t * coord, sideof side, jnode ** child);
 
 	/* return whether the right or left child of @coord has a non-fake
 	 * block number. */
-	int (*utmost_child_real_block) (const coord_t * coord, sideof side,
-					reiser4_block_nr * block);
+	int (*utmost_child_real_block) (const coord_t * coord, sideof side, reiser4_block_nr * block);
 
 } flush_ops;
 
@@ -251,8 +233,7 @@ typedef struct {
 	/**
 	 * update object key in item.
 	 */
-	int (*update_key) (const coord_t * coord,
-			   const reiser4_key * key, lock_handle * lh);
+	int (*update_key) (const coord_t * coord, const reiser4_key * key, lock_handle * lh);
 	/**
 	 * extract name from directory entry at @coord and return it
 	 */
@@ -264,11 +245,8 @@ typedef struct {
 	unsigned (*extract_file_type) (const coord_t * coord);
 	int (*add_entry) (struct inode * dir,
 			  coord_t * coord, lock_handle * lh,
-			  const struct dentry * name,
-			  reiser4_dir_entry_desc * entry);
-	int (*rem_entry) (struct inode * dir,
-			  coord_t * coord, lock_handle * lh,
-			  reiser4_dir_entry_desc * entry);
+			  const struct dentry * name, reiser4_dir_entry_desc * entry);
+	int (*rem_entry) (struct inode * dir, coord_t * coord, lock_handle * lh, reiser4_dir_entry_desc * entry);
 	int (*max_name_len) (const struct inode * dir);
 } dir_entry_ops;
 
@@ -277,12 +255,11 @@ typedef struct {
 	/* @page is used in extent's write. If it is set (when tail2extent
 	 * conversion is in progress) - do not grab a page and do not copy data
 	 * from flow into it because all the data are already */
-	int (*write) (struct inode *, struct sealed_coord *, flow_t *);
-	int (*read) (struct inode *, struct sealed_coord *, flow_t *);
+	int (*write) (struct inode *, coord_t *, lock_handle *, flow_t *);
+	int (*read) (struct inode *, coord_t *, flow_t *);
 	int (*readpage) (coord_t *, lock_handle *, struct page *);
 	int (*writepage) (coord_t *, lock_handle *, struct page *);
-	int (*page_cache_readahead) (struct file *, coord_t *, lock_handle *,
-				     unsigned long start, unsigned long count);
+	int (*page_cache_readahead) (struct file *, coord_t *, lock_handle *, unsigned long start, unsigned long count);
 } file_ops;
 
 /* operations specific to items of stat data type */
@@ -296,11 +273,9 @@ typedef struct {
 typedef struct {
 	/** all tree traversal want to know from internal item is where
 	    to go next. */
-	void (*down_link) (const coord_t * coord,
-			   const reiser4_key * key, reiser4_block_nr * block);
+	void (*down_link) (const coord_t * coord, const reiser4_key * key, reiser4_block_nr * block);
 	/** check that given internal item contains given pointer. */
-	int (*has_pointer_to) (const coord_t * coord,
-			       const reiser4_block_nr * block);
+	int (*has_pointer_to) (const coord_t * coord, const reiser4_block_nr * block);
 } internal_item_ops;
 
 struct item_plugin {
@@ -328,8 +303,7 @@ item_id_by_plugin(item_plugin * plugin)
 	return plugin->h.id;
 }
 
-extern int item_can_contain_key(const coord_t * item, const reiser4_key * key,
-				const reiser4_item_data *);
+extern int item_can_contain_key(const coord_t * item, const reiser4_key * key, const reiser4_item_data *);
 extern int are_items_mergeable(const coord_t * i1, const coord_t * i2);
 extern int item_is_internal(const coord_t *);
 extern int item_is_extent(const coord_t *);
