@@ -140,7 +140,6 @@ static int common_link( struct inode *parent /* parent directory */,
  *     . if nlink drops to 0, delete object
  *     . close transaction
  */
-/* Audited by: green(2002.06.15) */
 static int common_unlink( struct inode *parent /* parent object */, 
 			  struct dentry *victim /* name being removed from
 						 * @parent */ )
@@ -182,36 +181,42 @@ static int common_unlink( struct inode *parent /* parent object */,
 	result = parent_dplug -> rem_entry( parent, victim, &entry );
 	if( result != 0 )
 		return result;
+
 	/*
 	 * now that directory entry is removed, update stat-data, but first
 	 * check for special case:
-	 *
+	 */
+	if( fplug -> rem_link != 0 )
+		result = reiser4_del_nlink( object, 1 );
+	else
+		result = -EPERM;
+	if( result != 0 )
+		return result;
+
+	/* 
 	 * removing last reference. Check that this is allowed. This is
 	 * optimization for common case when file having only one name is
 	 * unlinked and is not opened by any process.
+	 *
+	 * Directories always go through this path (until hard-links on
+	 * directories are allowed).
 	 */
 	inode_set_flag( object, REISER4_IMMUTABLE );
-	if( fplug -> single_link( object ) && 
+	if( fplug -> not_linked( object ) && 
 	    atomic_read( &object -> i_count ) == 1 &&
 	    !perm_chk( object, delete, parent, victim ) ) {
 		/* remove file body. This is probably done in a whole
 		 * lot of transactions and takes a lot of time. We
 		 * keep @object locked. So, nlink shouldn't change. */
-		if( fplug -> truncate != NULL ) {
+		if( fplug -> truncate != NULL )
 			result = truncate_object( object, ( loff_t ) 0 );
-			if( result != 0 )
-				return result;
-		}
-		assert( "nikita-871", fplug -> single_link( object ) );
+
+		assert( "nikita-871", fplug -> not_linked( object ) );
 		assert( "nikita-873", atomic_read( &object -> i_count ) == 1 );
 
-		result = reiser4_del_nlink( object, 0 );
 		if( result == 0 )
-			result = fplug -> destroy_stat_data( object, parent );
-	} else if( fplug -> rem_link != 0 )
-		result = reiser4_del_nlink( object, 1 );
-	else
-		result = -EPERM;
+			result = fplug -> delete( object, parent );
+	}
 	inode_clr_flag( object, REISER4_IMMUTABLE );
 	/*
 	 * Upon successful completion, unlink() shall mark for update the
@@ -353,11 +358,11 @@ static int common_create_child( struct inode *parent /* parent object */,
 			 */
 			result = update_dir( parent );
 			reiser4_write_sd( object );
-		} else if( fplug -> destroy_stat_data != NULL )
+		} else if( fplug -> delete != NULL )
 			/*
 			 * failure to create entry, remove object
 			 */
-			fplug -> destroy_stat_data( object, parent );
+			fplug -> delete( object, parent );
 		else
 			warning( "nikita-1164", 
 				 "Cannot cleanup failed create: %i"

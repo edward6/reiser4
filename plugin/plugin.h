@@ -194,7 +194,7 @@ typedef struct file_plugin {
 	 * at least includes removal of stat-data if any. For directories this
 	 * also includes removal of dot and dot-dot.
 	 */
-	int ( *destroy_stat_data )( struct inode *object, struct inode *parent );
+	int ( *delete )( struct inode *object, struct inode *parent );
 	/** bump reference counter on "object" */
 	int ( *add_link )( struct inode *object );
 
@@ -221,7 +221,7 @@ typedef struct file_plugin {
 	/**
 	 * true if there is only one link (aka name) for this file
 	 */
-	int ( *single_link )( const struct inode *inode );
+	int ( *not_linked )( const struct inode *inode );
 
 	/**
 	 * change inode attributes.

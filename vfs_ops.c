@@ -370,14 +370,16 @@ static ssize_t reiser4_write( struct file *file /* file to write on */,
 	trace_on( TRACE_VFS_OPS, "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n",
 		  inode -> i_ino, inode -> i_size, size, *off );
 
-	if( size == 0 )
-		return 0;
-	fplug = inode_file_plugin( inode );
-	if( fplug -> write != NULL ) {
-		result = fplug -> write( file, buf, size, off );
-	} else {
-		result = -EPERM;
-	}
+	if( size != 0 ) {
+		down( &inode -> i_sem );
+		fplug = inode_file_plugin( inode );
+		if( fplug -> write != NULL )
+			result = fplug -> write( file, buf, size, off );
+		else
+			result = -EPERM;
+		up( &inode -> i_sem );
+	} else
+		result = 0;
 	REISER4_EXIT( result );
 }
 
@@ -1277,7 +1279,7 @@ static void reiser4_destroy_inode( struct inode *inode /* inode being
 	kmem_cache_free( inode_cache, reiser4_inode_data( inode ) );
 }
 
-/** -> dirty_inode() super operation */
+/** ->dirty_inode() super operation */
 static void reiser4_dirty_inode( struct inode *inode )
 {
 	int result;
@@ -1290,6 +1292,25 @@ static void reiser4_dirty_inode( struct inode *inode )
 		warning( "nikita-2524", "Failed to write sd of %llu: %i",
 			 get_inode_oid( inode ), result );
 
+	__REISER4_EXIT( &__context );
+}
+
+/** ->delete_inode() super operation */
+static void reiser4_delete_inode( struct inode *object )
+{
+	file_plugin *fplug;
+	__REISER4_ENTRY( object -> i_sb, );
+
+	assert( "nikita-2611", object != NULL );
+
+	truncate_object( object, ( loff_t ) 0 );
+
+	fplug = inode_file_plugin( object );
+	assert( "nikita-2613", fplug != NULL );
+	if( fplug -> delete != NULL )
+		fplug -> delete( object, NULL );
+	object -> i_blocks = 0;
+	clear_inode( object );
 	__REISER4_EXIT( &__context );
 }
 
@@ -2347,7 +2368,7 @@ struct super_operations reiser4_super_operations = {
  	.dirty_inode        = reiser4_dirty_inode, /* d */
 /* 	.write_inode        = reiser4_write_inode, */
 /* 	.put_inode          = reiser4_put_inode, */
-/* 	.delete_inode       = reiser4_delete_inode, */
+ 	.delete_inode       = reiser4_delete_inode, /* d */
 	.put_super          = NULL,
  	.write_super        = reiser4_write_super,
 /* 	.write_super_lockfs = reiser4_write_super_lockfs, */

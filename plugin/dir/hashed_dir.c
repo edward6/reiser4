@@ -65,6 +65,8 @@ int hashed_delete( struct inode *object /* object being deleted */,
 		struct dentry          goodby_dots;
 		reiser4_dir_entry_desc entry;
 
+		assert( "nikita-2614", parent != NULL );
+
 		xmemset( &entry, 0, sizeof entry );
 
 		entry.obj = goodby_dots.d_inode = object;

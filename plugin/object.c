@@ -457,7 +457,7 @@ int common_file_can_add_link( const struct inode *object /* object to check */ )
 
 	/*
 	 * Problem is that nlink_t is usually short, which doesn't left room
-	 * for many links, and, in particular to many sub-directoires (each
+	 * for many links, and, in particular for many sub-directories (each
 	 * sub-directory has dotdot counting as link in a parent).
 	 *
 	 * Possible work-around (read: kludge) is to implement special object
@@ -653,19 +653,19 @@ static int common_rem_link( struct inode *object )
 	return 0;
 }
 
-/** ->single_link() method for file plugins */
-static int common_single_link( const struct inode *inode )
+/** ->not_linked() method for file plugins */
+static int common_not_linked( const struct inode *inode )
 {
 	assert( "nikita-2007", inode != NULL );
-	return ( inode -> i_nlink == 1 );
+	return ( inode -> i_nlink == 0 );
 }
 
-/** ->single_link() method for directory file plugin */
-static int dir_single_link( const struct inode *inode )
+/** ->not_linked() method the for directory file plugin */
+static int dir_not_linked( const struct inode *inode )
 {
 	assert( "nikita-2008", inode != NULL );
 	/* one link from dot */
-	return ( inode -> i_nlink == 2 );
+	return ( inode -> i_nlink == 1 );
 }
 
 #define grab_plugin( self, ancestor, plugin )			\
@@ -811,13 +811,13 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.set_plug_in_inode   = common_set_plug,
 			.adjust_to_parent    = common_adjust_to_parent,
 			.create              = unix_file_create,
-			.destroy_stat_data   = common_file_delete,
+			.delete              = common_file_delete,
 			.add_link            = common_add_link,
 			.rem_link            = common_rem_link,
 			.owns_item           = unix_file_owns_item,
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = NULL,
-			.single_link         = common_single_link,
+			.not_linked          = common_not_linked,
 			.setattr             = inode_setattr,
 			.getattr             = common_getattr,
 			.seek                = NULL
@@ -849,13 +849,13 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.set_plug_in_inode   = common_set_plug,
 			.adjust_to_parent    = dir_adjust_to_parent,
 			.create              = hashed_create,
-			.destroy_stat_data   = hashed_delete,
+			.delete              = hashed_delete,
 			.add_link            = common_add_link,
 			.rem_link            = common_rem_link,
 			.owns_item           = hashed_owns_item,
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = is_dir_empty,
-			.single_link         = dir_single_link,
+			.not_linked          = dir_not_linked,
 			.setattr             = inode_setattr,
 			.getattr             = common_getattr,
 			.seek                = dir_seek
@@ -890,13 +890,13 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			/*
 			 * FIXME-VS: symlink should probably have its own destroy method
 			 */
-			.destroy_stat_data   = common_file_delete,
+			.delete              = common_file_delete,
 			.add_link            = common_add_link,
 			.rem_link            = common_rem_link,
 			.owns_item           = NULL,
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = NULL,
-			.single_link         = common_single_link,
+			.not_linked          = common_not_linked,
 			.setattr             = inode_setattr,
 			.getattr             = common_getattr,
 			.seek                = NULL
@@ -928,13 +928,13 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.key_by_inode        = NULL,
 			.set_plug_in_inode   = common_set_plug,
 			.adjust_to_parent    = common_adjust_to_parent,
-			.destroy_stat_data   = common_file_delete,
+			.delete              = common_file_delete,
 			.add_link            = common_add_link,
 			.rem_link            = common_rem_link,
 			.owns_item           = common_file_owns_item,
 			.can_add_link        = common_file_can_add_link,
 			.can_rem_link        = NULL,
-			.single_link         = common_single_link,
+			.not_linked          = common_not_linked,
 			.setattr             = inode_setattr,
 			.getattr             = common_getattr,
 			.seek                = NULL

@@ -1138,7 +1138,7 @@ int unix_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 }
 
 
-/* plugin->u.file.destroy_stat_data = NULL
+/* plugin->u.file.delete = NULL
  * plugin->u.file.add_link = NULL
  * plugin->u.file.rem_link = NULL
  */
