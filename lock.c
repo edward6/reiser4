@@ -429,6 +429,7 @@ static void lock_object (lock_stack *owner, znode *node)
 		/* We allow recursive locking; a node can be locked several
 		 * times for write by same process */
 		node->lock.nr_readers--;
+		ON_DEBUG_MODIFY(znode_pre_write(node));
 	}
 
 	link_object(owner->request.handle, owner, node);
