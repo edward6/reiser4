@@ -211,6 +211,10 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 								       page );
 			if( result == 0 ) {
 				wait_on_page_locked( page );
+				trace_on( TRACE_IO, "[%i]: end io: %lu %llu\n",
+					  current_pid,
+					  page -> mapping -> host -> i_ino, 
+					  page -> index );
 				if( PageUptodate( page ) )
 					mark_page_accessed( page );
 				else
@@ -502,6 +506,9 @@ int page_io( struct page *page, int rw, int gfp )
 
 	bio = page_bio( page, gfp );
 	if( !IS_ERR( bio ) ) {
+		trace_on( TRACE_IO, "[%i]: submit %c: %lu %llu\n",
+			  current_pid, ( rw == WRITE ) ? 'w' : 'r',
+			  page -> mapping -> host -> i_ino, page -> index );
 		submit_bio( rw, bio );
 		result = 0;
 	} else
