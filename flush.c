@@ -1977,8 +1977,7 @@ RIGHT_AGAIN:
 	   to stop the recursion and the right node was completely emptied, then we should
 	   squeeze the next right node (after the empty right node is removed from the
 	   tree, i.e., after we release right_lock). */
-	if ((shifted_nodes_below == 0 || call_depth == 0)
-	    && node_is_empty(right_lock.node)) {
+	if (!shifted_nodes_below && node_is_empty(right_lock.node)) {
 		trace_on(TRACE_FLUSH_VERB, "sq1_ca[%u] right again: %s\n", call_depth, pos_tostring(pos));
 		done_load_count(&right_load);
 		done_lh(&right_lock);
@@ -1992,7 +1991,7 @@ RIGHT_AGAIN:
 	/* If anything was shifted and we are not at zero call depth, it indicates that
 	   the current node is now the common parent of the level below.  If that is true,
 	   we should continue allocating below us, stop the recursion and return here. */
-	if (shifted_nodes_below && call_depth > 0) {
+	if (shifted_nodes_below) {
 		ret = 0;
 		trace_on(TRACE_FLUSH_VERB, "sq1_ca[%u] shifted & not leaf: %s\n", call_depth, pos_tostring(pos));
 		goto exit;
