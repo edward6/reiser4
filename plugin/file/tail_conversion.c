@@ -197,7 +197,7 @@ static void drop_pages (struct page ** pages, unsigned nr_pages)
 	for (i = 0; i < nr_pages; i ++) {
 		if (!pages [i])
 			continue;
-		unlock_page (pages [i]);
+		reiser4_unlock_page (pages [i]);
 		page_cache_release (pages [i]);
 		pages [i] = NULL;
 	}
@@ -674,7 +674,7 @@ int extent2tail (struct file * file)
 			break;
 		}
 		
-		lock_page (page);
+		reiser4_lock_page (page);
 
 		assert ("nikita-2689", page->mapping == inode->i_mapping);
 
@@ -683,7 +683,7 @@ int extent2tail (struct file * file)
 		set_key_offset (&to, (__u64)((i << PAGE_CACHE_SHIFT) + PAGE_CACHE_SIZE - 1));
 		result = cut_tree (tree_by_inode (inode), &from, &to);
 		if (result) {
-			unlock_page (page);
+			reiser4_unlock_page (page);
 			page_cache_release (page);
 			break;
 		}
@@ -693,14 +693,14 @@ int extent2tail (struct file * file)
 			count = (inode->i_size & ~PAGE_CACHE_MASK) ? : PAGE_CACHE_SIZE;
 		result = write_page_by_tail (inode, page, count);
 		if (result) {
-			unlock_page (page);
+			reiser4_unlock_page (page);
 			page_cache_release (page);
 			break;
 		}
 		/* release page, detach jnode if any */
 		result = page -> mapping -> a_ops -> invalidatepage( page, 0 );
 		if (result) {
-			unlock_page (page);
+			reiser4_unlock_page (page);
 			page_cache_release (page);
 			break;
 		}

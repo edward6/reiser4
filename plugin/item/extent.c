@@ -1527,7 +1527,7 @@ int extent_readpage (void * vp, struct page * page)
 	/* there should be no jnode yet */
 	assert ("vs-757", !page->private && !PagePrivate (page));
 
-	unlock_page (page);
+	reiser4_unlock_page (page);
 
 	init_lh (&lh);
 	result = hint_validate (hint, &hint->key, &coord, &lh);
@@ -1556,7 +1556,7 @@ int extent_readpage (void * vp, struct page * page)
 							    (reiser4_block_nr)page->index << PAGE_CACHE_SHIFT);
 	}
 
-	lock_page (page);
+	reiser4_lock_page (page);
 
 	zrelse (coord.node);
 	done_lh (&lh);
@@ -1572,7 +1572,7 @@ int extent_readpage (void * vp, struct page * page)
 			kunmap_atomic (kaddr, KM_USER0);
 			SetPageUptodate (page);
 		}
-		unlock_page (page);
+		reiser4_unlock_page (page);
 		
 		trace_on (TRACE_EXTENTS, " - hole, OK\n");
 		
@@ -1582,7 +1582,7 @@ int extent_readpage (void * vp, struct page * page)
 	case ALLOCATED_EXTENT:
 		j = jnode_of_page (page);
 		if (IS_ERR (j)) {
-			unlock_page (page);
+			reiser4_unlock_page (page);
 			return PTR_ERR (j);
 		}
 		jnode_set_mapped (j);
@@ -1647,26 +1647,26 @@ int extent_writepage (void * vp, struct page * page)
 		return result;
 	j = jnode_by_page (page);
 
-	unlock_page (page);
+	reiser4_unlock_page (page);
 
 	init_lh (&lh);
 	result = hint_validate (hint, &hint->key, &coord, &lh);
 	if (result) {
-		lock_page (page);
+		reiser4_lock_page (page);
 		return -EAGAIN;
 	}
 
 	if ( jnode_mapped (j)) {
 		done_lh(&lh);
 		/* Should we do jnode_set_dirty here? */
-		lock_page (page);
+		reiser4_lock_page (page);
 		return 0;
 	}
 	assert ("vs-864", znode_is_wlocked (coord.node));
 
 	result = extent_get_block (page->mapping->host, &coord, &lh, j);
 	done_lh (&lh);
-	lock_page (page);
+	reiser4_lock_page (page);
 	if (result) {
 		txn_delete_page (page);
 
@@ -1814,7 +1814,7 @@ static int extent_end_io_read(struct bio *bio,
                         ClearPageUptodate (page);
                         SetPageError (page);
                 }
-                unlock_page (page);		
+                reiser4_unlock_page (page);
 	}
         bio_put (bio);
 	return 0;
@@ -2049,7 +2049,7 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 					flush_dcache_page (page);
 					kunmap_atomic (kaddr, KM_USER0);
 					SetPageUptodate (page);
-					unlock_page (page);
+					reiser4_unlock_page (page);
 					page_cache_release (page);
 					continue;
 				} else {
@@ -2280,7 +2280,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 			}
 
 			j = jnode_of_page (pg);
-			unlock_page (pg);
+			reiser4_unlock_page (pg);
 			page_cache_release (pg);
 			
 			if (IS_ERR(j)) {
@@ -3408,7 +3408,7 @@ static int prepare_page (struct inode * inode, struct page * page,
 
 	page_io (page, j, READ, GFP_NOIO);
 	wait_on_page_locked (page);
-	lock_page (page);
+	reiser4_lock_page (page);
 	if (!PageUptodate (page)) {
 		warning ("jmacd-61238", "prepare_page: page not up to date");
 		return -EIO;				
@@ -3475,11 +3475,11 @@ static int extent_write_flow (struct inode * inode, struct sealed_coord * hint,
 		user_buf = f->data;
 
 		/* unlock page before doing anything with filesystem tree */
-		unlock_page (page);
+		reiser4_unlock_page (page);
 
 		/* make sure that page has non-hole extent pointing to it */
 		result = make_node_extent (inode, j, hint, f, to_page);
-		lock_page (page);
+		reiser4_lock_page (page);
 		if (result)
 			goto exit3;
 
@@ -3504,7 +3504,7 @@ static int extent_write_flow (struct inode * inode, struct sealed_coord * hint,
 		}
 
 		SetPageUptodate (page);
-		unlock_page (page);
+		reiser4_unlock_page (page);
 		page_cache_release (page);
 
 		jnode_set_dirty (j);
@@ -3525,7 +3525,7 @@ static int extent_write_flow (struct inode * inode, struct sealed_coord * hint,
 		 */
 		txn_delete_page (page);
 	exit2:
-		unlock_page (page);
+		reiser4_unlock_page (page);
 		page_cache_release (page);
 	exit1:
 		break;

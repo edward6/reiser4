@@ -19,12 +19,8 @@ extern int init_formatted_fake( struct super_block *super );
 extern int done_formatted_fake( struct super_block *super );
 
 extern reiser4_tree *tree_by_page( const struct page *page );
-/*
-extern struct page *reiser4_lock_page( struct address_space *mapping, 
-				       unsigned long index );
-*/
-extern void reiser4_check_mem( reiser4_context *ctx );
-
+extern void reiser4_lock_page( struct page *page );
+extern void reiser4_unlock_page( struct page *page );
 
 #define jprivate( page ) ( ( jnode * ) ( page ) -> private )
 

@@ -420,7 +420,7 @@ void page_detach_jnode( struct page *page,
 {
 	assert( "nikita-2395", page != NULL );
 
-	lock_page( page );
+	reiser4_lock_page( page );
 	if( ( page -> mapping == mapping ) && ( page -> index == index ) &&
 	    PagePrivate( page ) ) {
 		jnode *node;
@@ -429,7 +429,7 @@ void page_detach_jnode( struct page *page,
 		assert( "nikita-2399", spin_jnode_is_not_locked( node ) );
 		UNDER_SPIN_VOID( jnode, node, page_clear_jnode( page, node ) );
 	}
-	unlock_page( page );
+	reiser4_unlock_page( page );
 }
 
 /**
@@ -628,7 +628,7 @@ int jload( jnode *node )
 				 * cache and up-to-date, but jnode was already
 				 * detached from it.
 				 */
-				lock_page( page );
+				reiser4_lock_page( page );
 				spin_lock_jnode( node );
 				if( jnode_page( node ) == NULL )
 					jnode_attach_page( node, page );
@@ -638,7 +638,7 @@ int jload( jnode *node )
 				else
 					result = -EIO;
 				spin_unlock_jnode( node );
-				unlock_page( page );
+				reiser4_unlock_page( page );
 			} else
 				result = PTR_ERR( page );
 
@@ -674,7 +674,7 @@ int jinit_new( jnode *node /* jnode to initialise */ )
 	if( page != NULL ) {
 		SetPageUptodate( page );
 		UNDER_SPIN_VOID( jnode, node, jnode_attach_page( node, page ) );
-		unlock_page( page );
+		reiser4_unlock_page( page );
 		kmap( page );
 		node -> data = page_address( page );
 		result = 0;
@@ -849,7 +849,7 @@ int jdelete( jnode *node /* jnode to finish with */ )
 		JF_CLR( node, JNODE_RIP );
 		spin_unlock_jnode( node );
 		if( page != NULL )
-			unlock_page( page );
+			reiser4_unlock_page( page );
 	}
 	spin_unlock_tree( tree );
 	return result;
@@ -895,7 +895,7 @@ int jdrop_in_tree( jnode *node, reiser4_tree *tree )
 			assert( "nikita-2181", PageLocked( page ) );
 			remove_from_page_cache( page );
 			page_clear_jnode( page, node );
-			unlock_page( page );
+			reiser4_unlock_page( page );
 			page_cache_release( page );
 		}
 		spin_unlock_jnode( node );
@@ -904,7 +904,7 @@ int jdrop_in_tree( jnode *node, reiser4_tree *tree )
 		JF_CLR( node, JNODE_RIP );
 		spin_unlock_jnode( node );
 		if( page != NULL )
-			unlock_page( page );
+			reiser4_unlock_page( page );
 	}
 	spin_unlock_tree( tree );
 	return result;

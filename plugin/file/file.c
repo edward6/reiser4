@@ -8,11 +8,6 @@
 #include "../../kassign.h"
 #include "../../coord.h"
 #include "../../seal.h"
-#include "../plugin_header.h"
-#include "../item/item.h"
-#include "file.h"
-#include "../plugin.h"
-#include "../object.h"
 #include "../../txnmgr.h"
 #include "../../jnode.h"
 #include "../../znode.h"
@@ -21,6 +16,14 @@
 #include "../../vfs_ops.h"
 #include "../../inode.h"
 #include "../../super.h"
+#include "../../page_cache.h"
+
+#include "../plugin_header.h"
+#include "../item/item.h"
+#include "../plugin.h"
+#include "../object.h"
+
+#include "file.h"
 
 #include <linux/pagemap.h>
 #include <linux/types.h>
@@ -440,11 +443,11 @@ static int shorten (struct inode * inode)
 		page_cache_release (page);
 		return -EIO;
 	}
-	lock_page (page);
+	reiser4_lock_page (page);
 
 	j = jnode_of_page (page);
 	if (IS_ERR (j)) {
-		unlock_page (page);
+		reiser4_unlock_page (page);
 		page_cache_release (page);
 		return PTR_ERR (j);
 	}
@@ -453,7 +456,7 @@ static int shorten (struct inode * inode)
 		 * mmaping */
 		assert ("vs-955", !jnode_created (j));
 		assert ("vs-955", !jnode_mapped (j));
-		unlock_page (page);
+		reiser4_unlock_page (page);
 		page_cache_release (page);
 		jput (j);
 		return 0;
@@ -463,7 +466,7 @@ static int shorten (struct inode * inode)
 	if (!jnode_mapped (j)) {
 		result = unix_file_writepage_nolock (0, page);
 		if (result) {
-			unlock_page (page);
+			reiser4_unlock_page (page);
 			page_cache_release (page);
 			jput (j);
 			return result;
@@ -476,7 +479,7 @@ static int shorten (struct inode * inode)
 	kunmap_atomic (kaddr, KM_USER0);
 
 	result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
-	unlock_page (page);
+	reiser4_unlock_page (page);
 	page_cache_release (page);
 	if (result) {
 		return result;
@@ -683,7 +686,7 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 	coord_init_zero (&coord);
 	init_lh (&lh);
 
-	unlock_page (page);
+	reiser4_unlock_page (page);
 	while (1) {
 		result = find_next_item (&hint, &key, &coord, &lh,
 					 op == READ_OP ? ZNODE_READ_LOCK : ZNODE_WRITE_LOCK,
@@ -719,7 +722,7 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 			break;
 		}
 
-		lock_page (page);
+		reiser4_lock_page (page);
 
 		/* get plugin of found item or use plugin if extent if there
 		 * are no one */

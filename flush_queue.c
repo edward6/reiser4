@@ -8,6 +8,7 @@
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
+#include "page_cache.h"
 
 #include <linux/bio.h>
 #include <linux/mm.h>
@@ -535,13 +536,13 @@ static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
 		assert ("zam-727", pg != NULL);
 
 		page_cache_get (pg);
-		lock_page (pg);
+		reiser4_lock_page (pg);
 
 		assert ("zam-728", !PageWriteback (pg));
 		SetPageWriteback (pg);
 		ClearPageDirty (pg);
 
-		unlock_page (pg);
+		reiser4_unlock_page (pg);
 
 		jnode_ops (first)->io_hook (first, pg, WRITE);
 

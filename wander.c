@@ -660,13 +660,13 @@ static int submit_write (jnode * first, int nr,
 			assert ("zam-573", pg != NULL);
 
 			page_cache_get (pg);
-			lock_page (pg);
+			reiser4_lock_page (pg);
 
 			assert ("zam-605", !PageWriteback(pg));
 			SetPageWriteback (pg);
 			set_page_clean_nolock(pg);
 
-			unlock_page (pg);
+			reiser4_unlock_page (pg);
 
 			/*
 			 * prepare node to being written

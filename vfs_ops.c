@@ -544,29 +544,27 @@ static int reiser4_writepage( struct page *page )
 	if( !PagePrivate( page ) ) {
 		/* there is no jnode */
 		result = fplug -> writepage( page );
-		if( result )
-			REISER4_EXIT( result );
 		j = NULL;
 	} else {
 		/* there is jnode. Call writepage if it has no disk mapping */
 		j = jnode_of_page( page );
-		if( !jnode_mapped( j ) ) {
+		if( !jnode_mapped( j ) )
 			result = fplug -> writepage( page );
-			if( result )
-				REISER4_EXIT( result );
-		}
 	}
-	xmemset( &wbc, 0, sizeof wbc );
-	wbc.nr_to_write = 1;
 
-	/* The mpage_writepages() calls reiser4_writepage with a locked, but
-	 * clean page.  An extra reference should protect this page from
-	 * removing from memory */
-	page_cache_get (page);
-	result = page_common_writeback( page, &wbc, 
-					JNODE_FLUSH_MEMORY_UNFORMATTED );
-	page_cache_release (page);
+	if( result == 0 ) {
+		xmemset( &wbc, 0, sizeof wbc );
+		wbc.nr_to_write = 1;
 
+		/* The mpage_writepages() calls reiser4_writepage with a
+		 * locked, but clean page.  An extra reference should protect
+		 * this page from removing from memory */
+		page_cache_get( page );
+		result = page_common_writeback( page, &wbc,
+						JNODE_FLUSH_MEMORY_UNFORMATTED );
+		page_cache_release( page );
+	} else
+		reiser4_unlock_page( page );
 	if( j != NULL )
 		jput( j );
 	REISER4_EXIT( result );
@@ -606,7 +604,7 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 		result = -EINVAL;
 	if( result != 0 ) {
 		SetPageError( page );
-		unlock_page( page );
+		reiser4_unlock_page( page );
 	}
 	REISER4_EXIT( 0 );
 }
@@ -2229,14 +2227,14 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 			jref( node );
 try_to_lock:
 			spin_lock_jnode( node );
-			unlock_page( page );
+			reiser4_unlock_page( page );
 			ret = txn_try_capture( node, ZNODE_WRITE_LOCK, 0 );
 			spin_unlock_jnode( node );
 			/*
 			 * return with page still
 			 * locked. truncate_list_pages() expects this.
 			 */
-			lock_page( page );
+			reiser4_lock_page( page );
 			assert( "nikita-2676", jprivate( page ) == node );
 			if ( ret ) {
 				warning( "green-20", 
