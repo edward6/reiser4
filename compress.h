@@ -3,6 +3,12 @@
 
 #include <linux/types.h>
 #include <linux/string.h>
+
+typedef enum {
+	TFM_READ,
+	TFM_WRITE
+} tfm_action;
+
 /******************************************************************************/
 /*                                                                            */
 /*                                    PORT.H                                  */
