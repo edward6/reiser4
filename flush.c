@@ -1911,7 +1911,6 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		ret = check_parents_and_squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
 		if (ret)
 			break;
-
 		/* (re)allocate _after_ going upward */
 		ret = lock_parent_and_allocate_znode(right_lock.node, pos);
 		if (ret)
@@ -2804,6 +2803,8 @@ znode_same_parents(znode * a, znode * b)
 	assert("jmacd-7011", znode_is_write_locked(a));
 	assert("jmacd-7012", znode_is_write_locked(b));
 
+	/* We lock the whole tree for this check.... I really don't like whole tree
+	 * locks... -Hans */
 	return UNDER_RW(tree, znode_get_tree(a), read,
 			(znode_parent_nolock(a) == znode_parent_nolock(b)));
 }
