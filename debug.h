@@ -779,6 +779,7 @@ typedef struct reiser4_statistics {
 		stat_cnt time_spent_in_commits;
 		stat_cnt raced_with_truncate;
 		stat_cnt empty_bio;
+		stat_cnt commit_from_writepage;
 	} txnmgr;
 	struct {
 		/* how many nodes were squeezed to left neighbor completely */

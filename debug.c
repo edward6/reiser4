@@ -505,6 +505,7 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(txnmgr.time_spent_in_commits),
 	DEFINE_STAT_CNT(txnmgr.raced_with_truncate),
 	DEFINE_STAT_CNT(txnmgr.empty_bio),
+	DEFINE_STAT_CNT(txnmgr.commit_from_writepage),
 
 	DEFINE_STAT_CNT(flush.squeezed_completely),
 	DEFINE_STAT_CNT(flush.flushed_with_unallocated),
