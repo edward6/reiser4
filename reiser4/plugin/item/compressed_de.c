@@ -435,11 +435,11 @@ int cde_paste( tree_coord *coord, reiser4_item_data *data,
 			phantom_size -= sizeof( cde_item_format );
 
 		result = expand( coord, e -> entry + i, phantom_size, &pos, 
-				 data -> cookie );
+				 data -> arg );
 		if( result != 0 )
 			break;
 		result = paste_entry( coord, e -> entry + i, pos, 
-				      data -> cookie );
+				      data -> arg );
 		if( result != 0 )
 			break;
 	}
@@ -757,7 +757,7 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 
 	data.data   = ( char * ) &edata;
 	data.plugin = plugin_by_id( REISER4_ITEM_PLUGIN_ID, COMPR_DIR_ITEM_ID );
-	data.cookie = dir_entry;
+	data.arg = dir_entry;
 	assert( "nikita-1302", data.plugin != NULL );
 
 	if( ! try_to_glue_to( coord, dir, data.plugin ) ) {
