@@ -2360,35 +2360,58 @@ static int extent_allocate_blocks (reiser4_block_nr desired_first,
 
 
 /*
- * unallocated extent of file with @objectid correspondign to @offset was
+ * unallocated extent of file with @objectid corresponding to @offset was
  * replaced allocated extent [first, count]. Look for corresponding buffers in
  * the page cache and map them properly
+ * FIXME-VS: this needs changes if blocksize != pagesize is needed
  */
 /* Audited by: green(2002.06.13) */
 static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first, 
+				   /* FIXME-VS: get better type for number of
+				    * blocks */
 				   reiser4_block_nr count)
 {
-	reiser4_block_nr objectid;
-	reiser4_block_nr offset;
+	loff_t offset;
 	struct inode * inode;
 	struct page * page;
-	struct buffer_head * bh;
-	int blocksize, page_off;
+	int blocksize;
 	unsigned long ind;
 	reiser4_key sd_key;
 	jnode * j;
+	int i;
 
 
-	objectid = get_key_objectid (key);
-	offset = get_key_offset (key);
-	blocksize = reiser4_get_current_sb ()->s_blocksize;
+	blocksize = current_blocksize;
+	assert ("vs-749", blocksize == PAGE_CACHE_SIZE);
 
+
+	/* find inode of file for which extents were allocated */
 	sd_key = *key;
 	set_key_type (&sd_key, KEY_SD_MINOR);
 	set_key_offset (&sd_key, 0ull);
 	inode = reiser4_iget (reiser4_get_current_sb (), &sd_key);
 	assert ("vs-348", inode);
 
+	/* offset of first byte addressed by block for which blocknr @first is
+	 * allocated */
+	offset = get_key_offset (key);
+	assert ("vs-750", ((offset & (blocksize - 1)) == 0));
+
+	for (i = 0; i < (int)count; i ++, first ++) {
+		ind = offset >> PAGE_CACHE_SHIFT;
+		page = find_lock_page (inode->i_mapping, ind);
+		assert ("vs-349", page && page->private);
+
+		j = jnode_of_page (page);
+		jnode_set_block (j, &first);
+
+		unlock_page (page);
+		page_cache_release (page);
+	}
+ 	iput (inode);
+		
+	
+#if 0
 	while (1) {
 		ind = offset >> PAGE_CACHE_SHIFT;
 		page = find_lock_page (inode->i_mapping, ind);
@@ -2396,14 +2419,11 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 		
 		j = jnode_of_page (page);
 		/* AUDIT: bh is not checked for NULL */
-#if 0
 		for (page_off = 0; offset != (ind << PAGE_CACHE_SHIFT) + page_off;
 		     page_off += blocksize, bh = bh->b_this_page);
-#endif
 		/* set blocknumber for jnode */
 		assert ("vs-351", !jnode_has_block (j));
 		jnode_set_block (j, &first);
-#if 0
 		do {
 			assert ("vs-350", buffer_mapped (bh));
 			bh->b_blocknr = first;
@@ -2417,13 +2437,13 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 			count --;
 			bh = bh->b_this_page;
 		} while (count && bh != page_buffers (page));
-#endif
 		unlock_page (page);
 		page_cache_release (page);
 		if (!count)
 			break; 
 	}
-	iput (inode);
+ 	iput (inode);
+#endif
 }
 
 
@@ -2563,7 +2583,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 	reiser4_extent * ext, new_ext;
 
 
-	blocksize = reiser4_get_current_sb ()->s_blocksize;
+	blocksize = current_blocksize;
 
 	assert ("vs-419", item_id_by_coord (right) == EXTENT_POINTER_ID);
 	assert ("vs-418", right->unit_pos == 0);
@@ -2805,10 +2825,10 @@ int allocate_extent_item_in_place (coord_t * item, reiser4_blocknr_hint * preced
 	 */
 	optimize_extent (item);
 
-	/* set coord to last unit in the item */
+	/* set coord after last unit in the item */
 	assert ("vs-679", item_is_extent (item));
 	item->unit_pos = coord_last_unit_pos (item);
-	item->between = AT_UNIT;
+	item->between = AFTER_UNIT;
 
 	return 0;
 }
