@@ -200,7 +200,9 @@ typedef enum {
 	/* print gathered statistics on umount */
 	REISER4_STATS_ON_UMOUNT = 0x00000004,
 	/* check node consistency */
-	REISER4_CHECK_NODE = 0x00000008
+	REISER4_CHECK_NODE = 0x00000008,
+        /* print gathered statistics on statfs() call */
+	REISER4_STATS_ON_STATFS = 0x10
 } reiser4_debug_flags;
 
 extern int reiser4_are_all_debugged(struct super_block *super, __u32 flags);
