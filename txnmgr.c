@@ -1493,7 +1493,7 @@ void jnode_set_clean( jnode *node )
 	}
 
 	/* do not steal nodes from flush queue */
-	if (JF_ISSET(node, ZNODE_FLUSH_QUEUED)) {
+	if (!JF_ISSET(node, ZNODE_FLUSH_QUEUED)) {
 		/* FIXME-VS: remove jnode from capture list even when jnode is not
 		 * dirty.  JMACD says: Is it wrong? */
 		atom = atom_get_locked_by_jnode (node);
