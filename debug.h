@@ -227,8 +227,17 @@ typedef struct lock_counters_info {
 
 #if REISER4_DEBUG
 extern lock_counters_info *lock_counters(void);
+#define IN_CONTEXT(a, b) (is_in_reiser4_context() ? (a) : (b))
+#define LOCK_CNT_INC(counter) IN_CONTEXT(++(lock_counters()->counter), 0)
+#define LOCK_CNT_DEC(counter) IN_CONTEXT(--(lock_counters()->counter), 0)
+#define LOCK_CNT_NIL(counter) IN_CONTEXT(lock_counters()->counter == 0, 1)
+#define LOCK_CNT_GTZ(counter) IN_CONTEXT(lock_counters()->counter > 0, 1)
 #else
 #define lock_counters() ((lock_counters_info *)NULL)
+#define LOCK_CNT_INC(counter) noop
+#define LOCK_CNT_DEC(counter) noop
+#define LOCK_CNT_NIL(counter) (1)
+#define LOCK_CNT_GTZ(counter) (1)
 #endif
 
 #ifdef CONFIG_FRAME_POINTER
@@ -264,7 +273,9 @@ extern int reiser4_is_debugged(struct super_block *super, __u32 flag);
 
 extern int is_in_reiser4_context(void);
 
-/* NIKITA-FIXME-HANS: comment this */
+/*
+ * evaluate expression E only if with reiser4 context
+ */
 #define ON_CONTEXT(e)	do {			\
 	if(is_in_reiser4_context()) {		\
 		e;				\

@@ -2374,7 +2374,7 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 	atom->capture_count += 1;
 	/* reference to jnode is acquired by atom. */
 	jref(node);
-	ON_DEBUG_CONTEXT(++lock_counters()->t_refs);
+	LOCK_CNT_INC(t_refs);
 
 	ON_TRACE(TRACE_TXN, "capture %p for atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
 }
@@ -3572,7 +3572,7 @@ void uncapture_block(jnode * node)
 	atom->capture_count -= 1;
 	node->atom = NULL;
 	UNLOCK_JNODE(node);
-	ON_DEBUG_CONTEXT(--lock_counters()->t_refs);
+	LOCK_CNT_DEC(t_refs);
 }
 
 /* Unconditional insert of jnode into atom's clean list. Currently used in

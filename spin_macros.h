@@ -310,8 +310,8 @@ static inline void spin_ ## NAME ## _init(TYPE *x)				\
 /* acquiring functions below                                              */	\
 static inline void spin_ ## NAME ## _inc(void)					\
 {										\
-	__ODC(++ lock_counters()->spin_locked_ ## NAME);			\
-	__ODC(++ lock_counters()->spin_locked);					\
+	LOCK_CNT_INC(spin_locked_ ## NAME);					\
+	LOCK_CNT_INC(spin_locked);						\
 }										\
 										\
 /* Decrement per-thread lock counter and total counter of acquired spin   */	\
@@ -319,8 +319,8 @@ static inline void spin_ ## NAME ## _inc(void)					\
 /* below.                                                                 */	\
 static inline void spin_ ## NAME ## _dec(void)					\
 {										\
-	__ODC(--lock_counters()->spin_locked_ ## NAME);				\
-	__ODC(--lock_counters()->spin_locked);					\
+	LOCK_CNT_DEC(spin_locked_ ## NAME);					\
+	LOCK_CNT_DEC(spin_locked);						\
 }										\
 										\
 /* Return true of spin lock embedded in @x is acquired by -current-       */	\
@@ -404,8 +404,8 @@ static inline int  spin_trylock_ ## NAME (TYPE *x)				\
 /* Unlock @x.                                                             */	\
 static inline void spin_unlock_ ## NAME (TYPE *x)				\
 {										\
-	__ODCA("nikita-1375", lock_counters()->spin_locked_ ## NAME > 0);	\
-	__ODCA("nikita-1376", lock_counters()->spin_locked > 0);		\
+	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_ ## NAME));		\
+	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked > 0));			\
 	spin_ ## NAME ## _dec();						\
 	assert("nikita-2703", spin_ ## NAME ## _is_locked(x));			\
 	spin_unlock (& x->FIELD.lock);						\
@@ -518,33 +518,33 @@ static inline int  rw_ ## NAME ## _is_not_locked (const TYPE *x)		\
 /* This is helper function used by lock acquiring functions below         */	\
 static inline void read_ ## NAME ## _inc(void)					\
 {										\
-	__ODC(++ lock_counters()->read_locked_ ## NAME);			\
-	__ODC(++ lock_counters()->rw_locked_ ## NAME);				\
-	__ODC(++ lock_counters()->spin_locked);					\
+	LOCK_CNT_INC(read_locked_ ## NAME);					\
+	LOCK_CNT_INC(rw_locked_ ## NAME);					\
+	LOCK_CNT_INC(spin_locked);						\
 }										\
 										\
 /* This is helper function used by lock acquiring functions below         */	\
 static inline void read_ ## NAME ## _dec(void)					\
 {										\
-	__ODC(-- lock_counters()->read_locked_ ## NAME);			\
-	__ODC(-- lock_counters()->rw_locked_ ## NAME);				\
-	__ODC(-- lock_counters()->spin_locked);					\
+	LOCK_CNT_DEC(read_locked_ ## NAME);					\
+	LOCK_CNT_DEC(rw_locked_ ## NAME);					\
+	LOCK_CNT_DEC(spin_locked);						\
 }										\
 										\
 /* This is helper function used by lock acquiring functions below         */	\
 static inline void write_ ## NAME ## _inc(void)					\
 {										\
-	__ODC(++ lock_counters()->write_locked_ ## NAME);			\
-	__ODC(++ lock_counters()->rw_locked_ ## NAME);				\
-	__ODC(++ lock_counters()->spin_locked);					\
+	LOCK_CNT_INC(write_locked_ ## NAME);					\
+	LOCK_CNT_INC(rw_locked_ ## NAME);					\
+	LOCK_CNT_INC(spin_locked);						\
 }										\
 										\
 /* This is helper function used by lock acquiring functions below         */	\
 static inline void write_ ## NAME ## _dec(void)					\
 {										\
-	__ODC(-- lock_counters()->write_locked_ ## NAME);			\
-	__ODC(-- lock_counters()->rw_locked_ ## NAME);				\
-	__ODC(-- lock_counters()->spin_locked);					\
+	LOCK_CNT_DEC(write_locked_ ## NAME);					\
+	LOCK_CNT_DEC(rw_locked_ ## NAME);					\
+	LOCK_CNT_DEC(spin_locked);						\
 }										\
 										\
 /* Acquire read lock on @x without checking lock ordering predicates.     */	\
@@ -612,9 +612,9 @@ static inline void write_lock_ ## NAME (TYPE *x)				\
 /* Release read lock on @x.                                               */	\
 static inline void read_unlock_ ## NAME (TYPE *x)				\
 {										\
-	__ODCA("nikita-2979", lock_counters()->read_locked_ ## NAME > 0);	\
-	__ODCA("nikita-2980", lock_counters()->rw_locked_ ## NAME > 0);		\
-	__ODCA("nikita-2980", lock_counters()->spin_locked > 0);		\
+	assert("nikita-2979", LOCK_CNT_GTZ(read_locked_ ## NAME));		\
+	assert("nikita-2980", LOCK_CNT_GTZ(rw_locked_ ## NAME));		\
+	assert("nikita-2980", LOCK_CNT_GTZ(spin_locked));			\
 	read_ ## NAME ## _dec();						\
 	assert("nikita-2703", rw_ ## NAME ## _is_read_locked(x));		\
 	read_unlock (& x->FIELD.lock);						\
@@ -624,9 +624,9 @@ static inline void read_unlock_ ## NAME (TYPE *x)				\
 /* Release write lock on @x.                                              */	\
 static inline void write_unlock_ ## NAME (TYPE *x)				\
 {										\
-	__ODCA("nikita-2979", lock_counters()->write_locked_ ## NAME > 0);	\
-	__ODCA("nikita-2980", lock_counters()->rw_locked_ ## NAME > 0);		\
-	__ODCA("nikita-2980", lock_counters()->spin_locked > 0);		\
+	assert("nikita-2979", LOCK_CNT_GTZ(write_locked_ ## NAME));		\
+	assert("nikita-2980", LOCK_CNT_GTZ(rw_locked_ ## NAME));		\
+	assert("nikita-2980", LOCK_CNT_GTZ(spin_locked));			\
 	write_ ## NAME ## _dec();						\
 	assert("nikita-2703", rw_ ## NAME ## _is_write_locked(x));		\
 	write_unlock (& x->FIELD.lock);						\

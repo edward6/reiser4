@@ -1100,11 +1100,11 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 		 * fsync() case, which are not yet handled.
 		 */
 		if (rw_latch_try_read(&uf_info->latch) == 0) {
-			ON_DEBUG(lock_counters()->inode_sem_r ++);
+			LOCK_CNT_INC(inode_sem_r);
 
 			result = capture_anonymous_pages(inode->i_mapping);
 			rw_latch_up_read(&uf_info->latch);
-			ON_DEBUG(lock_counters()->inode_sem_r --);
+			LOCK_CNT_DEC(inode_sem_r);
 			if (result != 0 || wbc->sync_mode != WB_SYNC_ALL)
 				break;
 			result = txnmgr_force_commit_all(inode->i_sb, 0);

@@ -39,11 +39,9 @@ void
 get_exclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3028", schedulable());
-	if (REISER4_DEBUG && is_in_reiser4_context()) {
-		assert("nikita-3047", lock_counters()->inode_sem_w == 0);
-		assert("nikita-3048", lock_counters()->inode_sem_r == 0);
-		lock_counters()->inode_sem_w ++;
-	}
+	assert("nikita-3047", LOCK_CNT_NIL(inode_sem_w));
+	assert("nikita-3048", LOCK_CNT_NIL(inode_sem_r));
+	LOCK_CNT_INC(inode_sem_w);
 	rw_latch_down_write(&uf_info->latch);
 	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
 	assert("vs-1157", !ea_obtained(uf_info));
@@ -59,11 +57,9 @@ drop_exclusive_access(unix_file_info_t *uf_info)
 	ea_set(uf_info, 0);
 	uf_info->exclusive_use = 0;
 	rw_latch_up_write(&uf_info->latch);
-	if (REISER4_DEBUG && is_in_reiser4_context()) {
-		assert("nikita-3049", lock_counters()->inode_sem_r == 0);
-		assert("nikita-3049", lock_counters()->inode_sem_w > 0);
-		lock_counters()->inode_sem_w --;
-	}
+	assert("nikita-3049", LOCK_CNT_NIL(inode_sem_r));
+	assert("nikita-3049", LOCK_CNT_GTZ(inode_sem_w));
+	LOCK_CNT_DEC(inode_sem_w);
 }
 
 /* nonexclusive access to a file is acquired for read, write, readpage */
@@ -72,11 +68,7 @@ get_nonexclusive_access(unix_file_info_t *uf_info)
 {
 	assert("nikita-3029", schedulable());
 	rw_latch_down_read(&uf_info->latch);
-	if (REISER4_DEBUG && is_in_reiser4_context()) {
-		//assert("nikita-3050", lock_counters()->inode_sem_w == 0);
-		//assert("nikita-3051", lock_counters()->inode_sem_r == 0);
-		lock_counters()->inode_sem_r ++;
-	}
+	LOCK_CNT_INC(inode_sem_r);
 	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
 	assert("vs-1159", !ea_obtained(uf_info));
 }
@@ -87,11 +79,7 @@ drop_nonexclusive_access(unix_file_info_t *uf_info)
 	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
 	assert("vs-1160", !ea_obtained(uf_info));
 	rw_latch_up_read(&uf_info->latch);
-	if (REISER4_DEBUG && is_in_reiser4_context()) {
-		//assert("nikita-3049", lock_counters()->inode_sem_w == 0);
-		//assert("nikita-3049", lock_counters()->inode_sem_r > 0);
-		lock_counters()->inode_sem_r --;
-	}
+	LOCK_CNT_DEC(inode_sem_r);
 }
 
 static void
@@ -109,8 +97,8 @@ ea2nea(unix_file_info_t *uf_info)
 	ea_set(uf_info, 0);
 	uf_info->exclusive_use = 0;
 	rw_latch_downgrade(&uf_info->latch);
-	ON_DEBUG(lock_counters()->inode_sem_w --);
-	ON_DEBUG(lock_counters()->inode_sem_r ++);
+	LOCK_CNT_DEC(inode_sem_w);
+	LOCK_CNT_INC(inode_sem_r);
 }
 
 static int

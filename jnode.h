@@ -426,7 +426,7 @@ add_x_ref(jnode * node /* node to increase x_count of */ )
 	assert("nikita-1911", node != NULL);
 
 	atomic_inc(&node->x_count);
-	ON_DEBUG_CONTEXT(++lock_counters()->x_refs);
+	LOCK_CNT_INC(x_refs);
 }
 
 static inline void
@@ -436,8 +436,8 @@ dec_x_ref(jnode * node)
 	assert("nikita-3216", atomic_read(&node->x_count) > 0);
 
 	atomic_dec(&node->x_count);
-	ON_CONTEXT(assert("nikita-3217", lock_counters()->x_refs > 0));
-	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
+	assert("nikita-3217", LOCK_CNT_GTZ(x_refs));
+	LOCK_CNT_DEC(x_refs);
 }
 
 /* jref() - increase counter of references to jnode/znode (x_count) */
@@ -493,7 +493,7 @@ static inline void add_d_ref(jnode * node /* node to increase d_count of */ )
 	assert("nikita-1962", node != NULL);
 
 	atomic_inc(&node->d_count);
-	ON_DEBUG_CONTEXT(++lock_counters()->d_refs);
+	LOCK_CNT_INC(d_refs);
 }
 
 
@@ -694,7 +694,7 @@ jput(jnode * node)
 	assert("jmacd-510", atomic_read(&node->x_count) > 0);
 	assert("nikita-3065", spin_jnode_is_not_locked(node));
 	assert("zam-926", schedulable());
-	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
+	LOCK_CNT_DEC(x_refs);
 
 	reiser4_stat_inc_at_level_jput(node);
 	rcu_read_lock();

@@ -200,8 +200,7 @@ int check_sibling_list(znode * node)
 	znode *scan;
 	znode *next;
 
-	ON_DEBUG_CONTEXT(assert("nikita-3283",
-				lock_counters()->write_locked_tree > 0));
+	assert("nikita-3283", LOCK_CNT_GTZ(write_locked_tree));
 
 	if (node == NULL)
 		return 1;

@@ -628,7 +628,7 @@ find_begetting_brother(carry_node * node	/* node to start search
 
 	assert("nikita-1614", node != NULL);
 	assert("nikita-1615", kin != NULL);
-	assert("nikita-1616", lock_counters()->rw_locked_tree > 0);
+	assert("nikita-1616", LOCK_CNT_GTZ(rw_locked_tree));
 	assert("nikita-1619", ergo(carry_real(node) != NULL,
 				   ZF_ISSET(carry_real(node), JNODE_ORPHAN)));
 
@@ -799,7 +799,7 @@ sync_dkeys(znode *spot /* node to update */)
 	reiser4_tree *tree;
 
 	assert("nikita-1610", spot != NULL);
-	assert("nikita-1612", lock_counters()->rw_locked_dk == 0);
+	assert("nikita-1612", LOCK_CNT_NIL(rw_locked_dk));
 
 	tree = znode_get_tree(spot);
 	WLOCK_DK(tree);

@@ -797,7 +797,7 @@ jrelse(jnode * node /* jnode to release references to */)
 	assert("nikita-487", node != NULL);
 	assert("nikita-1906", spin_jnode_is_not_locked(node));
 
-	ON_DEBUG_CONTEXT(--lock_counters()->d_refs);
+	LOCK_CNT_DEC(d_refs);
 
 	ON_TRACE(TRACE_PCACHE, "release node: %p\n", node);
 
