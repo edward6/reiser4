@@ -207,7 +207,7 @@ int main(int argc, char *argv[]) {
 
     if (!(device = aal_file_open(host_dev, blocksize, O_RDWR))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't open device %s.", argv[1]);
+	    "Can't open device %s.", host_dev);
 	goto error_free_libreiser4;
     }
     
@@ -238,7 +238,7 @@ int main(int argc, char *argv[]) {
 	(const char *)uuid, (const char *)label, fs_len, device, NULL))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't create filesystem on %s.", argv[1]);
+	    "Can't create filesystem on %s.", aal_device_name(device));
 	goto error_free_device;
     }
     fprintf(stderr, "done\n");
@@ -253,7 +253,7 @@ int main(int argc, char *argv[]) {
 
     if (aal_device_sync(device)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize device %s.", argv[1]);
+	    "Can't synchronize device %s.", aal_device_name(device));
 	goto error_free_fs;
     }
 
