@@ -21,12 +21,16 @@
  * bits of the first byte are used to store "tag". One of 4 possible tag
  * values is chosen depending on the number being encoded:
  *
- *           0 ... 0x3f               => 0
+ *           0 ... 0x3f               => 0           [table 1]
  *        0x40 ... 0x3fff             => 1
  *      0x4000 ... 0x3fffffff         => 2
  *  0x40000000 ... 0xffffffffffffffff => 3
  *
  * (see dscale_range() function)
+ *
+ * Values in the range 0x40000000 ... 0xffffffffffffffff require 8 full bytes
+ * to be stored, so in this case there is no place in the first byte to store
+ * tag. For such values tag is stored in an extra 9th byte.
  *
  * As _highest_ bits are used for the test (which is natural) scaled integers
  * are stored in BIG-ENDIAN format in contrast with the rest of reiser4 which
@@ -40,17 +44,43 @@
 /* return tag of scaled integer stored at @address */
 static int gettag(const unsigned char *address)
 {
+	/* tag is stored in two highest bits */
 	return (*address) >> 6;
 }
 
-/* clear tag from value */
+/* clear tag from value. Clear tag embedded into @value. */
 static void cleartag(__u64 *value, int tag)
 {
-	/* W-w-what ?! */
+	/*
+	 * W-w-what ?!
+	 *
+	 * Actually, this is rather simple: @value passed here was read by
+	 * dscale_read(), converted from BIG-ENDIAN, and padded to __u64 by
+	 * zeroes. Tag is still stored in the highest (arithmetically)
+	 * non-zero bits of @value, but relative position of tag within __u64
+	 * depends on @tag.
+	 *
+	 * For example if @tag is 0, it's stored 2 highest bits of lowest
+	 * byte, and its offset (counting from lowest bit) is 8 - 2 == 6 bits.
+	 *
+	 * If tag is 1, it's stored in two highest bits of 2nd lowest byte,
+	 * and it's offset if (2 * 8) - 2 == 14 bits.
+	 *
+	 * See table 1 above for details.
+	 *
+	 * All these cases are captured by the formula:
+	 */
 	*value &= ~(3 << (((1 << tag) << 3) - 2));
+	/*
+	 * That is, clear two (3 == 0t11) bits at the offset
+	 *
+	 *                  8 * (2 ^ tag) - 2,
+	 *
+	 * that is, two highest bits of (2 ^ tag)-th byte of @value.
+	 */
 }
 
-/* return tag for @value */
+/* return tag for @value. See table 1 above for details. */
 static int dscale_range(__u64 value)
 {
 	if (value > 0x3fffffff)
@@ -68,12 +98,15 @@ reiser4_internal int dscale_read(unsigned char *address, __u64 *value)
 {
 	int tag;
 
+	/* read tag */
 	tag = gettag(address);
 	switch (tag) {
 	case 3:
+		/* In this case tag is stored in an extra byte, skip this byte
+		 * and decode value stored in the next 8 bytes.*/
 		*value = __be64_to_cpu(get_unaligned((__u64 *)(address + 1)));
 		/* worst case: 8 bytes for value itself plus one byte for
-		 * tag */
+		 * tag. */
 		return 9;
 	case 0:
 		*value = get_unaligned(address);
@@ -87,7 +120,9 @@ reiser4_internal int dscale_read(unsigned char *address, __u64 *value)
 	default:
 		return RETERR(-EIO);
 	}
+	/* clear tag embedded into @value */
 	cleartag(value, tag);
+	/* number of bytes consumed is (2 ^ tag)---see table 1.*/
 	return 1 << tag;
 }
 
