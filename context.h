@@ -144,7 +144,9 @@ struct reiser4_context {
 	/* information about delayed stat data updates. See above. */
 	dirty_inode_info dirty;
 
+#ifdef CONFIG_FRAME_POINTER
 	void *grabbed_at[4];
+#endif
 #endif
 };
 
