@@ -1168,10 +1168,11 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 
 	to_write = f->length;
 	while (f->length) {
+		assert("vs-1123", get_current_context()->grabbed_blocks == 0);
 		if (to_write == f->length) {
 			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
 			 * node between two extent items) */
-			result = reiser4_grab_space_exact(1 + estimate_one_insert_item(tree_by_inode(inode)->height), 0);
+			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(inode)->height), 0);
 			if (result)
 				return result;
 		}
