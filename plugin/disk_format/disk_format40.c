@@ -60,12 +60,6 @@ get_format40_oid(const format40_disk_super_block * sb)
 	return d64tocpu(&sb->oid);
 }
 
-static __u16
-get_format40_formatting_policy(const format40_disk_super_block * sb)
-{
-	return d16tocpu(&sb->formatting_policy);
-}
-
 static __u32
 get_format40_mkfs_id(const format40_disk_super_block * sb)
 {
