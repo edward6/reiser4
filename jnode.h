@@ -1,10 +1,6 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Declaration of jnode.
- */
+/* Declaration of jnode. */
 
 #ifndef __JNODE_H__
 #define __JNODE_H__
@@ -26,10 +22,8 @@
 #include <asm/bitops.h>
 #include <linux/list.h>
 
-/** 
- * declare hash table of jnodes (jnodes proper, that is, unformatted
- * nodes) 
- */
+/* declare hash table of jnodes (jnodes proper, that is, unformatted
+   nodes)  */
 TS_HASH_DECLARE(j, jnode);
 
 /** declare hash table of znodes */
@@ -182,10 +176,8 @@ JF_TEST_AND_SET(jnode * j, int f)
 	return test_and_set_bit(f, &j->state);
 }
 
-/*
- * ordering constraint for znode spin lock: znode lock is weaker than 
- * tree lock and dk lock
- */
+/* ordering constraint for znode spin lock: znode lock is weaker than 
+   tree lock and dk lock */
 #define spin_ordering_pred_jnode( node )					\
 	( ( lock_counters() -> spin_locked_tree == 0 ) &&			\
 	  ( lock_counters() -> spin_locked_txnh == 0 ) &&                       \
@@ -196,10 +188,9 @@ JF_TEST_AND_SET(jnode * j, int f)
 	   */                                                                   \
 	  ( lock_counters() -> spin_locked_jnode == 0 ) )
 
-/** 
- * Define spin_lock_jnode, spin_unlock_jnode, and spin_jnode_is_locked.
- * Take and release short-term spinlocks.  Don't hold these across
- * io. 
+/* Define spin_lock_jnode, spin_unlock_jnode, and spin_jnode_is_locked.
+   Take and release short-term spinlocks.  Don't hold these across
+   io. 
  */
 SPIN_LOCK_FUNCTIONS(jnode, jnode, guard);
 
@@ -213,9 +204,7 @@ jnode_is_in_deleteset(const jnode * node)
 extern int jnode_init_static(void);
 extern int jnode_done_static(void);
 
-/**
- * Jnode routines
- */
+/* Jnode routines */
 extern jnode *jalloc(void);
 extern void jfree(jnode * node);
 extern jnode *jnew(void);
@@ -263,9 +252,7 @@ jnode_get_io_block(const jnode * node)
 		return eflush_get(node);
 }
 
-/**
- * Jnode flush interface.
- */
+/* Jnode flush interface. */
 extern long jnode_flush(jnode * node, long *nr_to_flush, int flags);
 extern int flush_enqueue_unformatted(jnode * node, flush_position * pos);
 extern reiser4_blocknr_hint *flush_pos_hint(flush_position * pos);
@@ -276,15 +263,13 @@ extern int znode_check_flushprepped(znode * node);
 
 extern void jnode_set_type(jnode * node, jnode_type type);
 
-/*
- * FIXME-VS: these are used in plugin/item/extent.c
- */
+/* FIXME-VS: these are used in plugin/item/extent.c */
 
 /* does extent_get_block have to be called */
 #define jnode_mapped(node)     JF_ISSET (node, JNODE_MAPPED)
 #define jnode_set_mapped(node) JF_SET (node, JNODE_MAPPED)
 /* pointer to this block was just created (either by appending or by plugging a
- * hole), or zinit_new was called */
+   hole), or zinit_new was called */
 #define jnode_created(node)        JF_ISSET (node, JNODE_CREATED)
 #define jnode_set_created(node)    JF_SET (node, JNODE_CREATED)
 /* similar to buffer_uptodate */
@@ -292,7 +277,7 @@ extern void jnode_set_type(jnode * node, jnode_type type);
 #define jnode_set_loaded(node) JF_SET (node, JNODE_LOADED)
 
 /* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
- * doesn't allow overloading of const prototypes. */
+   doesn't allow overloading of const prototypes. */
 #define ZJNODE(x) (& (x) -> zjnode)
 #define JZNODE(x)						\
 ({								\
@@ -330,9 +315,7 @@ add_x_ref(jnode * node /* node to increase x_count of */ )
 	ON_DEBUG_CONTEXT(++lock_counters()->x_refs);
 }
 
-/**
- * jref() - increase counter of references to jnode/znode (x_count)
- */
+/* jref() - increase counter of references to jnode/znode (x_count) */
 static inline jnode *
 jref(jnode * node)
 {
@@ -422,10 +405,8 @@ extern void drop_io_head(jnode * node);
 
 extern int prune_jcache(int goal, int to_scan);
 
-/**
- * drop reference to node data. When last reference is dropped, data are
- * unloaded.
- */
+/* drop reference to node data. When last reference is dropped, data are
+   unloaded. */
 static inline void
 jrelse(jnode * node)
 {
@@ -524,13 +505,12 @@ extern int jnode_try_drop(jnode * node);
 /* __JNODE_H__ */
 #endif
 
-/*
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */
