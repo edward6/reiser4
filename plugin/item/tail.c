@@ -479,36 +479,40 @@ static int overwrite_tail (coord_t * coord, flow_t * f)
  * plugin->u.item.s.file.write
  * access to data stored in tails goes directly through formatted nodes
  */
-int tail_write (struct inode * inode, lw_coord_t * lw_coord,
+int tail_write (struct inode * inode, struct sealed_coord * hint,
 		flow_t * f, struct page * page UNUSED_ARG)
 {
 	int result;
 	znode * loaded;
 	tail_write_todo what;
+	coord_t coord;
 	lock_handle lh;
 
 
 	init_lh (&lh);
-	result = seal_validate (lw_coord->seal, lw_coord->coord, &f->key,
-				znode_get_level (lw_coord->coord->node),
+
+	assert ("vs-967", hint);
+	result = seal_validate (&hint->seal, &hint->coord, &f->key,
+				hint->level,
 				&lh, FIND_MAX_NOT_MORE_THAN,
 				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
 	if (result) {
-		reiser4_stat_extent_add (broken_seals);
-		lw_coord->coord->node = 0;
+		/*reiser4_stat_tail_add (broken_seals);*/
 		return -EAGAIN;
 	}
+	
+	coord_dup_nocheck (&coord, &hint->coord);
 
 	while (f->length && !result) {
 		/*
 		 * coord->node may change as we loop here. So, we have to
 		 * remember node we zload and zrelse it
 		 */
-		loaded = lw_coord->coord->node;
-		result = zload (lw_coord->coord->node);
+		loaded = coord.node;
+		result = zload (loaded);
 		if (result)
 			return result;
-		what = tail_what_todo (inode, lw_coord->coord, &f->key);
+		what = tail_what_todo (inode, &coord, &f->key);
 
 		switch (what) {
 		case TAIL_WRITE_FLOW:
@@ -519,13 +523,13 @@ int tail_write (struct inode * inode, lw_coord_t * lw_coord,
 				result = -EDQUOT;
 				break;
 			}
-			result = insert_flow (lw_coord->coord, &lh, f);
+			result = insert_flow (&coord, &lh, f);
 			if (f->length)
 				DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
 			break;
 
 		case TAIL_OVERWRITE:
-			result = overwrite_tail (lw_coord->coord, f);
+			result = overwrite_tail (&coord, f);
 			break;
 
 		case TAIL_RESEARCH:
@@ -542,6 +546,7 @@ int tail_write (struct inode * inode, lw_coord_t * lw_coord,
 		zrelse (loaded);
 	}
 
+	set_hint (hint, &f->key, &coord);
 	done_lh (&lh);
 	return result;
 }
