@@ -31,6 +31,11 @@ struct tree_coord {
 	 * Values are taken from &between_enum above.
 	 */
 	between_enum  between;
+	/*
+	 * FIXME-NIKITA possible future optimization: store plugin id of item
+	 * here. Profiling shows that node40_plugin_by_coord() is top CPU
+	 * user.
+	 */
 };
 
 /*
