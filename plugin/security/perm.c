@@ -45,7 +45,8 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
 			       .linkage = TS_LIST_LINK_ZERO,
 			       }
 			 ,
-			 .rw_ok = NULL,
+			 .read_ok = NULL,
+			 .write_ok = NULL,
 			 .lookup_ok = NULL,
 			 .create_ok = NULL,
 			 .link_ok = NULL,
