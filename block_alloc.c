@@ -52,7 +52,7 @@ int reiser4_alloc_new_unf_blocks (int count)
 
 	spin_lock (&info_data->guard);
 
-	if (count > info_data->blocks_free) 
+	if ((unsigned)count > info_data->blocks_free) 
 		ret = -ENOSPC; 
 
 	info_data->blocks_free -= count;
