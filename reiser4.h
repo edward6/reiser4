@@ -305,8 +305,6 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 
 #include "forward.h"
 
-#include "reiser4_sb.h"
-
 #ifndef __KERNEL__
 #include "build.h"
 #endif
