@@ -2518,13 +2518,15 @@ int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 /* This is an I/O completion callback which is called after the result of a submit_bio has
  * completed.  Its task is to notify any waiters that are waiting, either for an
  * individual page or an atom (via the io_handle) which may be waiting to commit. */
-static void flush_bio_write (struct bio *bio)
+static int flush_bio_write (struct bio *bio, unsigned int bytes_done, int err)
 {
 	int i;
 
+	if (bio->bi_size != 0)
+		return 1;
 	if (bio->bi_vcnt == 0) {
 		warning ("nikita-2243", "Empty write bio completed.");
-		return;
+		return 0;
 	}
 	/* Note, we may put assertion here that this is in fact our sb and so
 	   on */
@@ -2550,6 +2552,7 @@ static void flush_bio_write (struct bio *bio)
 	io_handle_end_io (bio);
 
 	bio_put (bio);
+	return 0;
 }
 
 /* Write some of the the flush_position->queue contents to disk.

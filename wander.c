@@ -594,9 +594,12 @@ static int get_overwrite_set (struct commit_handle * ch)
 }
 
 /* overwrite set nodes IO completion handler */
-static void wander_end_io (struct bio * bio)
+static int wander_end_io (struct bio * bio, unsigned int bytes_done, int err)
 {
 	int i;
+
+	if (bio->bi_size != 0)
+		return 1;
 
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
@@ -611,6 +614,7 @@ static void wander_end_io (struct bio * bio)
 	io_handle_end_io(bio);
 
 	bio_put(bio);
+	return 0;
 }
 
 /** Submit a write request for @nr jnodes beginning from the @first, other

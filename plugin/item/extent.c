@@ -2064,13 +2064,15 @@ static void print_range_list (struct list_head * list)
 }
 
 
-static void extent_end_io_read(struct bio *bio)
+static int extent_end_io_read(struct bio *bio, unsigned int bytes_done, int err)
 {
 	int uptodate;
         struct bio_vec * bvec;
 	struct page * page;
 	int i;
 
+	if (bio->bi_size != 0)
+		return 1;
 
 	uptodate = test_bit (BIO_UPTODATE, &bio->bi_flags);
 	bvec = &bio->bi_io_vec [0];
@@ -2085,6 +2087,7 @@ static void extent_end_io_read(struct bio *bio)
                 unlock_page (page);		
 	}
         bio_put (bio);
+	return 0;
 }
 
 
