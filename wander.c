@@ -873,7 +873,8 @@ static int check_log_record (const jnode * node)
 /** replay one transaction: restore and write overwrite set in place */
 static int replay_transaction (const struct super_block * s,
 			       const reiser4_block_nr * log_rec_block_p, 
-			       const reiser4_block_nr * end_block)
+			       const reiser4_block_nr * end_block,
+			       unsigned int nr_log_records)
 {
 	capture_list_head overwrite;
 	reiser4_block_nr log_rec_block = *log_rec_block_p;
@@ -890,6 +891,13 @@ static int replay_transaction (const struct super_block * s,
 		struct log_entry * LE;
 
 		int i;
+
+		if (nr_log_records == 0) { 
+			warning ("zam-631", "number of log records in the linked list"
+				 " greater than number stored in tx head.\n");
+			ret =  -EIO;
+			goto free_ow_set;
+		}
 
 		jnode_set_block(log, &log_rec_block);
 
@@ -933,7 +941,17 @@ static int replay_transaction (const struct super_block * s,
 
 		jrelse(log);
 		jdrop(log);
+
+		-- nr_log_records;
 	}
+
+	if (nr_log_records != 0) {
+		warning ("zam-632", "number of log records in the linked list"
+			 " less than number stored in tx head.\n");
+		ret = -EIO;
+		goto free_ow_set;
+	} 
+
 
 	{       /* write wandered set in place */
 		struct io_handle io;
@@ -963,10 +981,10 @@ static int replay_transaction (const struct super_block * s,
 static int replay_oldest_transaction(struct super_block * s)
 {
 	reiser4_super_info_data * private = get_super_private(s);
-
 	jnode *jf = private->journal_footer;
-
+	unsigned int total;
 	struct journal_footer * F;
+	struct tx_header * T;
 
 	reiser4_block_nr prev_tx;
 	reiser4_block_nr last_flushed_tx;
@@ -999,8 +1017,6 @@ static int replay_oldest_transaction(struct super_block * s)
 
 	/* searching for oldest not flushed transaction */
 	while (1) {
-		struct tx_header * T;
-
 		jnode_set_block(tx_head, &prev_tx);
 
 		ret = jload(tx_head);
@@ -1012,7 +1028,6 @@ static int replay_oldest_transaction(struct super_block * s)
 		T = (struct tx_header*)jdata(tx_head);
 
 		prev_tx = d64tocpu(&T->prev_tx);
-		log_rec_block = d64tocpu(&T->next_block);
 
 		if (prev_tx == last_flushed_tx) {
 			/* get free block count from committed transaction
@@ -1026,13 +1041,16 @@ static int replay_oldest_transaction(struct super_block * s)
 		jdrop(tx_head);
 	}
 
-	trace_on(TRACE_REPLAY, "not flushed transaction found at block %llX", 
-		 (unsigned long long)(*jnode_get_block(tx_head)));
+	total = d32tocpu(&T->total);
+	log_rec_block = d64tocpu(&T->next_block);
+
+	trace_on(TRACE_REPLAY, "not flushed transaction found (head block %llX, %u log records)\n",
+		 (unsigned long long)(*jnode_get_block(tx_head)), total);
 
 	jref(tx_head);
 	jrelse(tx_head);
 
-	ret = replay_transaction(s, &log_rec_block, jnode_get_block(tx_head));
+	ret = replay_transaction(s, &log_rec_block, jnode_get_block(tx_head), total - 1);
 	if (ret) goto out;
 
 	ret = update_journal_footer(tx_head);
