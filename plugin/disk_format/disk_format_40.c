@@ -290,7 +290,8 @@ int format_40_release (struct super_block * s)
 			 "txn_force failed in umount: %d", ret);
 	}
 
-	print_fs_info ("umount ok", s);
+	if (reiser4_is_debugged (s, REISER4_STATS_ON_UMOUNT))
+		print_fs_info ("umount ok", s);
 
 	done_tree (&get_super_private (s)->tree);
 
