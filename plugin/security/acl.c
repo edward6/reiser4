@@ -38,7 +38,11 @@ check_capabilities(umode_t mode, int mask)
 	 * Read/write DACs are always overridable.
 	 * Executable DACs are overridable if at least one exec bit is set.
 	 */
-	if ((mask & (MAY_READ|MAY_WRITE)) || (mode & S_IXUGO))
+	/*
+	 * Adjusted to match POSIX 1003.1e draft 17 more thoroughly. See
+	 * http://marc.theaimsgroup.com/?l=linux-kernel&m=107253552623787&w=2
+	 */
+	if (!(mask & MAY_EXEC) || (mode & S_IXUGO) || S_ISDIR(mode))
 		if (capable(CAP_DAC_OVERRIDE))
 			return 0;
 	/*
