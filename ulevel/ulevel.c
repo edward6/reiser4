@@ -2978,16 +2978,18 @@ static void bash_umount (reiser4_context * context)
 }
 
 
-static int mkfs_bread (const reiser4_block_nr *addr, char **data, size_t blksz)
+
+
+static int mkfs_bread (reiser4_tree *tree, jnode *node, char **data)
 {
 	struct buffer_head bh, *pbh;
 
 	memset (&bh, 0, sizeof (bh));
 
-	bh.b_blocknr = *addr;
-	bh.b_size = blksz;
-	bh.b_bdev = reiser4_get_current_sb ()->s_bdev;
-	bh.b_data = malloc (blksz);
+	bh.b_blocknr = node->blocknr;
+	bh.b_size = tree->super->s_blocksize;
+	bh.b_bdev = tree->super->s_bdev;
+	bh.b_data = malloc (bh.b_size);
 	assert ("vs-669", bh.b_data);
 	memset (bh.b_data, 0, bh.b_size);
 	pbh = &bh;
@@ -2997,36 +2999,48 @@ static int mkfs_bread (const reiser4_block_nr *addr, char **data, size_t blksz)
 }
 
 
-static int mkfs_getblk (znode *node)
+static int mkfs_getblk (reiser4_tree *tree, jnode *node UNUSED_ARG, char **data)
 {
-	assert ("vs-671", zdata (node) == 0);
-	node->size = reiser4_get_current_sb ()->s_blocksize;
-	ZJNODE (node)->data = xmalloc (node->size);
-	assert ("vs-668", zdata (node));
+	*data = xmalloc (tree->super->s_blocksize);
+	if (!*data)
+		return -ENOMEM;
 	return 0;
 }
 
 
-static void mkfs_brelse (znode *node)
+static int mkfs_brelse (reiser4_tree *tree, jnode *node)
 {
 	struct buffer_head bh, *pbh;
 
 	memset (&bh, 0, sizeof (bh));
 
-	ZF_SET (node, ZNODE_DIRTY);
-	if (ZF_ISSET (node, ZNODE_DIRTY)) {
-		assert ("vs-670", *znode_get_block (node));
-		bh.b_blocknr = *znode_get_block (node);
-		bh.b_size = node->size;
-		bh.b_bdev = reiser4_get_current_sb ()->s_bdev;
-		bh.b_data = zdata (node);
-		pbh = &bh;
-		ll_rw_block (WRITE, 1, &pbh);
-		ZF_CLR (node, ZNODE_DIRTY);
-	}
-	free (ZJNODE (node)->data);
+	JF_SET (node, ZNODE_DIRTY);
+	assert ("vs-670", !blocknr_is_fake (&node->blocknr) && node->blocknr);
+	bh.b_blocknr = node->blocknr;
+	bh.b_size = tree->super->s_blocksize;
+	bh.b_bdev = tree->super->s_bdev;
+	bh.b_data = node->data;
+	pbh = &bh;
+	ll_rw_block (WRITE, 1, &pbh);
+	JF_CLR (node, ZNODE_DIRTY);
+	free (node->data);
+	return 0;
 }
 
+int mkfs_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
+{
+	assert ("vs-692", JF_ISSET (node, ZNODE_LOADED));
+	SetPageDirty (jnode_page (node));
+	return 0;
+}
+
+static tree_operations mkfs_tops = {
+	.read_node     = mkfs_bread,
+	.allocate_node = mkfs_getblk,
+	.delete_node   = NULL,
+	.release_node  = mkfs_brelse,
+	.dirty_node    = mkfs_dirty_node
+};
 
 /* this creates reiser4 filesystem of TEST_LAYOUT_ID */
 static int bash_mkfs (const char * file_name)
@@ -3122,11 +3136,13 @@ static int bash_mkfs (const char * file_name)
 			brelse (bh);
 		}
 
+		init_formatted_fake( &super );
+
 		/* initialize empty tree */
 		tree = &get_super_private( &super ) -> tree;
 		result = init_tree( tree, &super, &root_block,
 				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ),
-				    &page_cache_tops );
+				    &mkfs_tops );
 		fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR, 1 );
 		root = allocate_znode( tree, fake, tree->height, &tree->root_block, 1);
 		root -> rd_key = *max_key();
