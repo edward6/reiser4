@@ -1437,24 +1437,31 @@ reiser4_delete_inode(struct inode *object)
 
 	if (inode_get_flag(object, REISER4_LOADED)) {
 		file_plugin *fplug;
-		reiser4_block_nr reserve;
 		dir_plugin *dplug;
+		reiser4_block_nr reserved = 0;
 
-		if (reiser4_grab_space_exact(reserve = 
-			(inode_file_plugin(object)->estimate.truncate(object, 0) +
-			inode_file_plugin(object)->estimate.delete(object)), 0))
+		fplug = inode_file_plugin(object);
+		dplug = inode_dir_plugin(object);
+		
+		if (dplug != NULL)
+			reserved += dplug->estimate.done(reiser4_inode_data(object)->parent, object);
+
+		if (fplug != NULL)
+			reserved += 
+				fplug->estimate.truncate ? fplug->estimate.truncate(object, 0) : 0 + 
+				fplug->estimate.delete(object); 
+		
+		if (reiser4_grab_space_exact(reserved, 0))
 			goto no_space;
 		
-		warning("vpf-333", "SPACE: delete inode grabs %llu blocks.", reserve);
+		warning("vpf-333", "SPACE: delete inode grabs %llu blocks.", reserved);
 		get_exclusive_access(object);
 		truncate_object(object, (loff_t) 0);
 		drop_exclusive_access(object);
 
-		dplug = inode_dir_plugin(object);
 		if (dplug != NULL)
 			dplug->done(object);
 
-		fplug = inode_file_plugin(object);
 		if ((fplug != NULL) && (fplug->delete != NULL))
 			fplug->delete(object);
 	}
