@@ -2083,8 +2083,22 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 {
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 	if( offset == 0 ) {
+		jnode *node;
+
+		/*
+		 * ->private pointer is protected by page lock that we are
+		 * holding right now.
+		 */
+		node = jnode_by_page( page );
+		if( node != NULL ) {
+			jref( node );
+			JF_SET( node, JNODE_HEARD_BANSHEE );
+		}
+
 		txn_delete_page( page );
 		page_clear_jnode( page );
+		if( node != NULL )
+			jput( node );
 	}
 	/*
 	 * return with page still locked. truncate_list_pages() expects this.
