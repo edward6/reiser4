@@ -258,10 +258,16 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 	if (width == 1) {
 		set_extent(ext, UNALLOCATED_EXTENT_START, 1);
 		znode_make_dirty(coord->node);
+		/* update uf_coord */
+		ON_DEBUG(ext_coord->extent = *ext);
 		return 0;
 	} else if (pos_in_unit == 0) {
+		/* we deal with first element of extent */
 		if (coord->unit_pos) {
+			/* there is an extent to the left */
 			if (state_of_extent(ext - 1) == UNALLOCATED_EXTENT) {
+				/* unit to the left is an unallocated extent. Increase its width and decrease width of
+				 * hole */
 				extent_set_width(ext - 1, extent_get_width(ext - 1) + 1);
 				extent_set_width(ext, width - 1);
 				znode_make_dirty(coord->node);
@@ -284,8 +290,12 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 		return_inserted_position = 0;
 		count = 1;
 	} else if (pos_in_unit == width - 1) {
+		/* we deal with last element of extent */
 		if (coord->unit_pos < nr_units_extent(coord) - 1) {
+			/* there is an extent unit to the right */
 			if (state_of_extent(ext + 1) == UNALLOCATED_EXTENT) {
+				/* unit to the right is an unallocated extent. Increase its width and decrease width of
+				 * hole */
 				extent_set_width(ext + 1, extent_get_width(ext + 1) + 1);
 				extent_set_width(ext, width - 1);
 				znode_make_dirty(coord->node);
