@@ -1561,6 +1561,9 @@ ALLOC_EXTENTS:
 				ret = 0;
 				goto exit;
 			}
+		} else {
+			/* write flush queue at the and of twig */
+			write_fq(pos->fq, 0);
 		}
 
 		/* We are about to try to allocate the right twig by calling
