@@ -1180,7 +1180,8 @@ void show_lock_stack (reiser4_context *context)
 	            ! locks_list_end   (& owner->locks, handle);
 	     handle = locks_list_next  (handle)) {
 
-		print_address( znode_is_rlocked (handle->node) ? "......  read" : "...... write", znode_get_block (handle->node));
+		if (handle->node != NULL)
+			print_address( znode_is_rlocked (handle->node) ? "......  read" : "...... write", znode_get_block (handle->node));
 	}
 
 	spin_unlock_stack (owner);
