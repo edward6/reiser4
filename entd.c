@@ -69,6 +69,8 @@ entd(void *arg)
 	struct task_struct *me;
 	entd_context       *ctx;
 
+	assert("vs-1655", list_empty(&current_thread_info()->generic.private_pages));
+
 	super = arg;
 	/* standard kernel thread prologue */
 	me = current;
@@ -532,7 +534,7 @@ static void entd_flush(struct super_block *super)
 		.bdi		= NULL,
 		.sync_mode	= WB_SYNC_NONE,
 		.older_than_this = NULL,
-		.nr_to_write	= 0,
+		.nr_to_write	= 32,
 		.nonblocking	= 0,
 	};
 
