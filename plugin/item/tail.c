@@ -289,13 +289,13 @@ overwrite_tail(coord_t *coord, flow_t *f)
 	return 0;
 }
 
-/* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
-   therefore we have to update stat data if necessary */
-static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
-				    hint_t *hint)
+int item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
+			     hint_t *hint, int back_to_dirty)
 {
 	int result;
 	loff_t new_size;
+	struct inode *object;
+	int size_changed;
 	
 	if (hint->coord.valid)
 		set_hint(hint, &f->key);
@@ -304,19 +304,35 @@ static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t 
 	longterm_unlock_znode(hint->coord.lh);
 
 	new_size = get_key_offset(&f->key);
-	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0, 1/* update stat data */);
+	object = mapping->host;
+	size_changed = (new_size > object->i_size) ? 1 : 0;
+	result = update_inode_and_sd_if_necessary(object,
+						  new_size, 
+						  size_changed, 
+						  size_changed || f->user);
 	if (result)
 		return result;
 
-	/* FIXME-VS: this is temporary: the problem is that bdp takes inodes from sb's dirty list and it looks like
-	   nobody puts there inodes of files which are built of tails */
-	mapping->dirtied_when = jiffies|1;
-	spin_lock(&inode_lock);
-	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
-	spin_unlock(&inode_lock);
+	/* FIXME-VS: this is temporary: the problem is that bdp takes inodes
+	   from sb's dirty list and it looks like nobody puts there inodes of
+	   files which are built of tails */
+	if (back_to_dirty) {
+		mapping->dirtied_when = jiffies|1;
+		spin_lock(&inode_lock);
+		list_move(&object->i_list, &object->i_sb->s_dirty);
+		spin_unlock(&inode_lock);
+	}
 
-	balance_dirty_page_unix_file(mapping->host);
+	balance_dirty_page_unix_file(object);
 	return hint_validate(hint, &f->key, 0/* do not check key */, ZNODE_WRITE_LOCK);
+}
+
+/* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
+   therefore we have to update stat data if necessary */
+static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
+				    hint_t *hint)
+{
+	return item_balance_dirty_pages(mapping, f, hint, 1);
 }
 
 /* calculate number of blocks which can be dirtied/added when flow is inserted and stat data gets updated and grab them.

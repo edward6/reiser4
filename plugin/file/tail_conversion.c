@@ -186,11 +186,18 @@ mark_frozen(const struct inode *inode, reiser4_block_nr spanned_blocks UNUSED_AR
 
 	result = 0;
 	while (1) {
-		result = WITH_DATA(twin.node, twin.node->nplug->set_item_plugin(&twin, id));
+		result = zload(twin.node);
 		if (result)
 			break;
 
+		result = twin.node->nplug->set_item_plugin(&twin, id);
+		if (result) {
+			zrelse(twin.node);
+			break;
+		}
+
 		znode_make_dirty(twin.node);
+		zrelse(twin.node);
 		assert("vs-1124", blocks <= spanned_blocks);
 		if (!file_continues_in_right_neighbor(inode, twin.node))
 			break;
@@ -667,29 +674,14 @@ extent2tail(unix_file_info_t *uf_info)
 			break;
 		}
 
-		/* detach jnode if any */
-		reiser4_lock_page(page);
-		assert("nikita-2689", page->mapping == inode->i_mapping);
-		if (PagePrivate(page)) {
-			/*
-			 * it is possible that io is underway for this
-			 * page. Wait for io completion. We don't want to
-			 * detach jnode from in-flight page.
-			 */
-			wait_on_page_writeback(page);
-			result = page->mapping->a_ops->invalidatepage(page, 0);
-			if (result) {
-				reiser4_unlock_page(page);
-				page_cache_release(page);
-				break;
-			}
-		}
-		reiser4_unlock_page(page);
-
 		/* cut part of file we have read */
 		set_key_offset(&from, (__u64) (i << PAGE_CACHE_SHIFT));
 		set_key_offset(&to, (__u64) ((i << PAGE_CACHE_SHIFT) + PAGE_CACHE_SIZE - 1));
-		result = cut_tree(tree_by_inode(inode), &from, &to);
+		result = cut_tree_object(tree_by_inode(inode), 
+					 &from, 
+					 &to, 
+					 NULL, 
+					 inode);
 		if (result) {
 			page_cache_release(page);
 			break;
@@ -707,7 +699,8 @@ extent2tail(unix_file_info_t *uf_info)
 
 		/* release page */
 		reiser4_lock_page(page);
-		assert("vs-1086", page->mapping == inode->i_mapping);
+		/* page is already detached from jnode and mapping. */
+		assert("vs-1086", page->mapping == NULL);
 		assert("nikita-2690", (!PagePrivate(page) && page->private == 0));
 		/* waiting for writeback completion with page lock held is
 		 * perfectly valid. */
