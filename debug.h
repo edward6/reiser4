@@ -35,9 +35,9 @@
 	DCALL("", reiser4_do_panic, mid, format , ## __VA_ARGS__)
 
 /* print message with indication of current process, file, line and
-    function */
-#define reiser4_log( label, format, ... ) 				\
-	DCALL( KERN_DEBUG, printk, label, format , ## __VA_ARGS__)
+   function */
+#define reiser4_log(label, format, ...) 				\
+	DCALL(KERN_DEBUG, printk, label, format , ## __VA_ARGS__)
 /* use info() for output without any kind of prefix like
     when doing output in several chunks. */
 #define info(format, ...) printk(format , ## __VA_ARGS__)
@@ -360,6 +360,8 @@ extern void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now,
 			__swtch_mark__ ## aname);				\
 })
 
+extern void calibrate_prof(void);
+
 #else
 
 typedef struct reiser4_prof_cnt {} reiser4_prof_cnt;
@@ -367,6 +369,7 @@ typedef struct reiser4_prof {} reiser4_prof;
 
 #define PROF_BEGIN(aname) noop
 #define PROF_END(aname, acnt) noop
+#define calibrate_prof() noop
 
 #endif
 
@@ -780,6 +783,7 @@ extern int reiser4_populate_kattr_level_dir(struct kobject * kobj, int level);
 #define	reiser4_stat_inc(counter)  noop
 #define reiser4_stat_add(counter, delta) noop
 
+#define	reiser4_stat_inc_at(sb, counter) noop
 #define	reiser4_stat_inc_at_level(lev, stat) noop
 #define reiser4_stat_add_at_level_value(lev, stat, cnt) noop
 #define	reiser4_stat_level_inc(l, stat) noop

@@ -255,6 +255,19 @@ reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(jload),
 	DEFINE_PROF_CNT(carry)
 };
+
+void calibrate_prof(void)
+{
+	__u64 start;
+	__u64 end;
+
+	rdtscll(start);
+	schedule_timeout(HZ/100);
+	rdtscll(end);
+	warning("nikita-2923", "1 sec. == %llu rdtsc.", (end - start) * 100);
+}
+
+/* REISER4_PROF */
 #endif
 
 #if REISER4_STATS
