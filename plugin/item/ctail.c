@@ -136,34 +136,9 @@ print_ctail(const char *prefix /* prefix to print */ ,
 }
 #endif
 
-/* plugin->u.item.b.lookup
-   don't go through all the units, just check first one */
+/* plugin->u.item.b.lookup:
+   NULL. (we are looking only for exact keys from item headers) */
 
-lookup_result
-lookup_ctail(const reiser4_key *key, lookup_bias bias, coord_t *coord)
-{
-	reiser4_key item_key;
-	unsigned nr_units;
-	
-	item_key_by_coord(coord, &item_key);
-	
-	/* key we are looking for must be greater than key of item @coord */
-	assert("edward-205", keygt(key, &item_key));
-	
-	if (keygt(key, max_key_inside_tail(coord, &item_key)))
-		/* @key is key of another file */
-		goto not_found;
-	if (get_key_offset(key) == get_key_offset(item_key_by_coord(coord, &item_key))){
-		coord->unit_pos = 0;
-		coord->between = AT_UNIT;
-		return CBK_COORD_FOUND;
-	}
- not_found:
-	nr_units = nr_units_ctail(coord);
-	coord->unit_pos = nr_units - 1;
-	coord->between = AFTER_UNIT;
-	return CBK_COORD_NOTFOUND;
-}
 
 /* plugin->u.item.b.check */
 
