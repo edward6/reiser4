@@ -254,10 +254,11 @@ extern __u32 reiser4_current_trace_flags;
 #define	reiser4_stat_level_add( l, stat )			\
 	reiser4_stat_add_at_level( ( l ) -> level_no, stat )
 
-#define MAX_CNT( field, value )			\
-({						\
-	if( ( value ) > STS.field )		\
-		STS.field = ( value );		\
+#define MAX_CNT( field, value )						\
+({									\
+	if( get_super_private_nocheck( reiser4_get_current_sb() ) &&	\
+	    ( value ) > STS.field )					\
+		STS.field = ( value );					\
 })
 
 #define reiser4_stat_nuniq_max( gen )			\
