@@ -557,6 +557,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 		warning("jmacd-504",
 			"Wrong level for cached block %llu: %i expecting %i",
 			*blocknr, znode_get_level(result), level);
+		zput(result);
 		return ERR_PTR(RETERR(-EIO));
 	}
 
