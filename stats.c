@@ -254,6 +254,7 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(hashes.eflush.remove),
 	DEFINE_STATCNT(hashes.eflush.scanned),
 
+	/* wff - wait for flush */
 	DEFINE_STATCNT(wff.asked),
 	DEFINE_STATCNT(wff.iteration),
 	DEFINE_STATCNT(wff.wait_flush),
@@ -270,13 +271,24 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 
 	DEFINE_STATCNT(non_uniq),
 
-	DEFINE_STATCNT(pcwb_calls),
-	DEFINE_STATCNT(pcwb_formatted),
-	DEFINE_STATCNT(pcwb_unformatted),
-	DEFINE_STATCNT(pcwb_no_jnode),
-	DEFINE_STATCNT(pcwb_ented),
-	DEFINE_STATCNT(pcwb_not_written),
-	DEFINE_STATCNT(pcwb_written)
+	/* pcwb - page common write back */
+	DEFINE_STATCNT(pcwb.calls),
+	DEFINE_STATCNT(pcwb.formatted),
+	DEFINE_STATCNT(pcwb.unformatted),
+	DEFINE_STATCNT(pcwb.no_jnode),
+	DEFINE_STATCNT(pcwb.ented),
+	DEFINE_STATCNT(pcwb.not_written),
+	DEFINE_STATCNT(pcwb.written),
+
+	/* coc - copy on capture */
+	DEFINE_STATCNT(coc.calls),
+	DEFINE_STATCNT(coc.ovrwr),
+	DEFINE_STATCNT(coc.reloc),
+	DEFINE_STATCNT(coc.zload_race),
+	DEFINE_STATCNT(coc.scan_race),
+	DEFINE_STATCNT(coc.atom_changed),
+	DEFINE_STATCNT(coc.flush_queued),
+	DEFINE_STATCNT(coc.nopage)
 };
 
 #define DEFINE_STAT_LEVEL_CNT(field)					\

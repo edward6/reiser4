@@ -458,17 +458,34 @@ typedef struct reiser4_statistics {
 	statcnt_t non_uniq;
 
 	/* page_common_writeback stats */
-	statcnt_t pcwb_calls;
-	statcnt_t pcwb_formatted;
-	statcnt_t pcwb_unformatted;
-	statcnt_t pcwb_no_jnode;
-	statcnt_t pcwb_ented;
-	statcnt_t pcwb_written;
-	statcnt_t pcwb_not_written;
+	struct {
+		statcnt_t calls;
+		statcnt_t formatted;
+		statcnt_t unformatted;
+		statcnt_t no_jnode;
+		statcnt_t ented;
+		statcnt_t written;
+		statcnt_t not_written;
+	} pcwb;
+
+	/* stat of copy on capture requests */
+	struct {
+		statcnt_t calls;
+		/* satisfied requests */
+		statcnt_t reloc;
+		statcnt_t ovrwr;
+		/* failures */
+		statcnt_t zload_race;
+		statcnt_t scan_race;
+		statcnt_t atom_changed;
+		statcnt_t flush_queued;
+		statcnt_t nopage;
+	} coc;
 
 	statcnt_t pages_dirty;
 	statcnt_t pages_clean;
 } reiser4_stat;
+
 
 #define get_current_stat() 					\
 	(get_super_private_nocheck(reiser4_get_current_sb())->stats)
