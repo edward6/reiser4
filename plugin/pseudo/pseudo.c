@@ -20,22 +20,22 @@
  * objects involved. On the other hand, we need to provide traditional
  * interface to VFS based on inode/dentry/file.
  *
-
-When assigning inode numbers to pseudo files, we use the last 2^62 oids of the 64 oid space.
-
-     We implement each type of PF ("..key", "..foo") as
- *   new object plugin in addition to the standard object plugins (regular
- *   file, directory, pipe, and so on). 
-
- *   PF inodes require a pointer to the
- *   "host" object inode. 
-
-     Adding yet another field to the generic
- *   reiser4_inode_info_data that will only be used for the PF seems to be an
- *   excess. Moreover, each PF type can require its own additional state,
- *   which is hard to predict in advance, and ability to freely add new PF
- *   types with rich and widely different semantics seems to be important for
- *   the reiser4.
+ * IMPLEMENTATION
+ *
+ *   When assigning inode numbers to pseudo files, we use the last 2^62 oids
+ *   of the 64 oid space.
+ *
+ *   We implement each type of PF ("..key", "..foo") as new object plugin in
+ *   addition to the standard object plugins (regular file, directory, pipe,
+ *   and so on).
+ *
+ *   PF inodes require a pointer to the "host" object inode.
+ *
+ *   Adding yet another field to the generic reiser4_inode_info that will
+ *   only be used for the PF seems to be an excess. Moreover, each PF type can
+ *   require its own additional state, which is hard to predict in advance,
+ *   and ability to freely add new PF types with rich and widely different
+ *   semantics seems to be important for the reiser4.
  *
  *   This difficulty can be solved by observing that some fields in reiser4
  *   private part of inode are meaningless for PFs. Examples are: tail, hash,
@@ -46,12 +46,12 @@ When assigning inode numbers to pseudo files, we use the last 2^62 oids of the 6
  *   So, for now, we can reuse locality_id in reiser4 private part of inode to
  *   store number of host inode of PF, and create special object plugin for
  *   each PF type. 
-
+ *
  *   That plugin will use some other field in reiser4 private
  *   inode part that is meaning less for pseudo files (->extmask?) to
  *   determine type of PF and use appopriate low level PF operations
  *   (pseudo_ops) to implement VFS operations.
-
+ *
 Use the pluginid field?
 
  *
