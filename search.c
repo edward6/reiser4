@@ -135,13 +135,26 @@ int cbk_cache_init( cbk_cache *cache /* cache to init */ )
 
 	assert( "nikita-346", cache != NULL );
 
+	cache -> slot = kmalloc( sizeof( cbk_cache_slot ) * cache -> nr_slots, 
+				 GFP_KERNEL );
+	if( cache -> slot == NULL )
+		return -ENOMEM;
+
 	cbk_cache_list_init( &cache -> lru );
-	for( i = 0 ; i < CBK_CACHE_SLOTS ; ++ i ) {
-		cbk_cache_init_slot( &cache -> slot[ i ] );
+	for( i = 0 ; i < cache -> nr_slots ; ++ i ) {
+		cbk_cache_init_slot( cache -> slot + i );
 		cbk_cache_list_push_back( &cache -> lru, cache -> slot + i );
 	}
 	spin_lock_init( &cache -> guard );
 	return 0;
+}
+
+/* free cbk cache data */
+void cbk_cache_done( cbk_cache *cache /* cache to release */ )
+{
+	assert( "nikita-2493", cache != NULL );
+	if( cache -> slot != NULL )
+		kfree( cache -> slot );
 }
 
 /* Audited by: green(2002.06.15) */
@@ -248,7 +261,7 @@ void cbk_cache_invalidate( const znode *node /* node to remove from cache */,
 	ON_DEBUG_CONTEXT( assert( "nikita-1479", 
 				  lock_counters() -> spin_locked_tree > 0 ) );
 
-	cache = tree -> cbk_cache;
+	cache = &tree -> cbk_cache;
 	assert( "nikita-2470", cbk_cache_invariant( cache ) );
 
 	cbk_cache_lock( cache );
@@ -276,7 +289,7 @@ void cbk_cache_add( const znode *node /* node to add to the cache */ )
 
 	assert( "nikita-352", node != NULL );
 
-	cache = current_tree -> cbk_cache;
+	cache = &current_tree -> cbk_cache;
 	assert( "nikita-2472", cbk_cache_invariant( cache ) );
 	cbk_cache_lock( cache );
 	/* find slot to update/add */
@@ -1124,7 +1137,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 	assert( "nikita-1315", h -> tree != NULL );
 	assert( "nikita-1316", h -> key != NULL );
 
-	cache = h -> tree -> cbk_cache;
+	cache = &h -> tree -> cbk_cache;
 	assert( "nikita-2474", cbk_cache_invariant( cache ) );
 	node  = NULL; /* to keep gcc happy */
 	level = LEAF_LEVEL; /* to keep gcc happy */
