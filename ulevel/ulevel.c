@@ -89,6 +89,10 @@ void show_stack( unsigned long * esp UNUSE )
 {
 }
 
+void dump_stack( void )
+{
+}
+
 void lock_kernel()
 {
 }
