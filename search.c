@@ -990,9 +990,9 @@ znode_contains_key_strict(znode * node	/* node to check key
 {
 	assert("nikita-1760", node != NULL);
 	assert("nikita-1722", key != NULL);
-
-	return UNDER_SPIN(dk, znode_get_tree(node),
-			  keylt(znode_get_ld_key(node), key) && keylt(key, znode_get_rd_key(node)));
+	assert("zam-839", spin_dk_is_locked(znode_get_tree(node)));
+	
+	return keylt(znode_get_ld_key(node), key) && keylt(key, znode_get_rd_key(node));
 }
 
 static int
@@ -1023,39 +1023,31 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	key = h->key;
 
 	cbk_cache_lock(cache);
+	spin_lock_dk(tree);
+	spin_lock_tree(tree);
 	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
-	cbk_cache_unlock(cache);
 	while (1) {
-		/* keep cache spin locked during this test, to avoid race with
-		   cbk_cache_invalidate() */
-		spin_lock_tree(tree);
-		cbk_cache_lock(cache);
 		slot = cbk_cache_list_next(slot);
 
 		if (!cbk_cache_list_end(&cache->lru, slot)) {
 			node = slot->node;
-			if (node != NULL)
-				zref(node);
 		} else
 			node = NULL;
-		/* we can safely release cbk cache lock here, because cbk
-		   cache is organized as LRU list of persistent entries and
-		   all list modifications are protected by cbk cache
-		   spin-lock, but entries themselves never disappear.
-		*/
-		cbk_cache_unlock(cache);
-		spin_unlock_tree(tree);
 
 		if (node == NULL)
 			break;
 
 		if ((znode_get_level(node) == level) &&
 		    /* min_key < key < max_key */
-		    znode_contains_key_strict(node, key))
+		    znode_contains_key_strict(node, key)) {
+			zref(node);
 			break;
-
-		zput(node);
+		}
 	}
+
+	spin_unlock_tree(tree);
+	spin_unlock_dk(tree);
+	cbk_cache_unlock(cache);
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
 
@@ -1073,7 +1065,8 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		return result;
 
 	/* recheck keys */
-	result = znode_contains_key_strict(node, key) && !ZF_ISSET(node, JNODE_HEARD_BANSHEE);
+	result = UNDER_SPIN(dk, tree, znode_contains_key_strict(node, key))
+		&& !ZF_ISSET(node, JNODE_HEARD_BANSHEE);
 
 	if (result) {
 		/* do lookup inside node */
