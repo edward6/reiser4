@@ -174,16 +174,17 @@ typedef enum {
 	SQUEEZE_CONTINUE = 3
 } squeeze_result;
 
+/* Do not change items ids. If you do - there will be format change */
 typedef enum {
-	STATIC_STAT_DATA_ID,
-	SIMPLE_DIR_ENTRY_ID,
-	COMPOUND_DIR_ID,
-	NODE_POINTER_ID,
-	EXTENT_POINTER_ID,
-	FORMATTING_ID,
-	CTAIL_ID,
-	BLACK_BOX_ID,
-	LAST_ITEM_ID
+	STATIC_STAT_DATA_ID = 0x0,
+	SIMPLE_DIR_ENTRY_ID = 0x1,
+	COMPOUND_DIR_ID     = 0x2,
+	NODE_POINTER_ID     = 0x3,
+	EXTENT_POINTER_ID   = 0x5,
+	FORMATTING_ID       = 0x6,
+	CTAIL_ID            = 0x7,
+	BLACK_BOX_ID        = 0x8,
+	LAST_ITEM_ID        = 0x9
 } item_id;
 
 /* Flags passed to jnode_flush() to allow it to distinguish default settings based on
