@@ -1402,7 +1402,7 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 		if (update_sd) {
 			result = setattr_reserve(tree_by_inode(inode));
 			if (!result)
-				result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1);
+				result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, 1);
 			all_grabbed2free(__FUNCTION__);	
 		}
 		return result;
