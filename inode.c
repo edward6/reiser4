@@ -357,6 +357,36 @@ struct inode * reiser4_iget( struct super_block *super,
 			print_key( "found", &found_key );
 			failed = 1;
 		}
+		if( !failed ) {
+			/* install remaining plugins */
+			reiser4_plugin_ref *self;
+
+			self = reiser4_get_object_state( inode );
+			if( ! is_root_dir_key( inode -> i_sb, key ) ) {
+				reiser4_plugin_ref *root;
+
+				/* take missing plugins from file-system
+				 * defaults */
+				root = reiser4_get_object_state
+					( inode -> i_sb -> s_root -> d_inode );
+				if( self -> dir == NULL )
+					self -> dir = root -> dir;
+				if( self -> sd == NULL )
+					self -> sd = root -> sd;
+				if( self -> hash == NULL )
+					self -> hash = root -> hash;
+				if( self -> tail == NULL )
+					self -> tail = root -> tail;
+				if( self -> perm == NULL )
+					self -> perm = root -> perm;
+			} else {
+				assert( "nikita-1814", self -> dir  != NULL );
+				assert( "nikita-1815", self -> sd   != NULL );
+				assert( "nikita-1816", self -> hash != NULL );
+				assert( "nikita-1817", self -> tail != NULL );
+				assert( "nikita-1818", self -> perm != NULL );
+			}
+		}
 	}
 	if( failed ) {
 		iput( inode );
