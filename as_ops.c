@@ -466,11 +466,6 @@ reiser4_writepages(struct address_space *mapping,
 					lock_counters()->inode_sem_r --;
 			}
 		}
-
-		if (ret) {
-			reiser4_exit_context(&ctx);
-			return ret;
-		}
 	}
 
 	inode = mapping->host;
