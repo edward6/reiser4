@@ -226,14 +226,14 @@ int
 item_is_extent(const coord_t * item)
 {
 	assert("vs-482", coord_is_existing_item(item));
-	return item_id_by_coord(item) == EXTENT_POINTER_ID;
+	return item_id_by_coord(item) == EXTENT_POINTER_ID || item_id_by_coord(item) == FROZEN_EXTENT_POINTER_ID;
 }
 
 int
 item_is_tail(const coord_t * item)
 {
 	assert("vs-482", coord_is_existing_item(item));
-	return item_id_by_coord(item) == TAIL_ID;
+	return item_id_by_coord(item) == TAIL_ID || item_id_by_coord(item) == FROZEN_TAIL_ID;
 }
 
 /* this returns true if item is of internal type */
@@ -251,6 +251,35 @@ item_is_statdata(const coord_t * item)
 	return item_type_by_coord(item) == STAT_DATA_ITEM_TYPE;
 }
 
+/*
+  FIXME-VS: a description of what frozen items are, where are they used and what are 3 functions below goes here
+*/
+
+static int
+frozen_mergeable(const coord_t * p1 UNUSED_ARG, const coord_t * p2 UNUSED_ARG)
+{
+	return 0;
+}
+
+/* plugin->u.item.b.paste
+   this should not be called */
+static int
+frozen_paste(coord_t * coord UNUSED_ARG, reiser4_item_data * data UNUSED_ARG, carry_plugin_info * info UNUSED_ARG)
+{
+	impossible("vs-1122", "pasting into partially converted file\n");
+	return 0;
+}
+
+/* plugin->u.item.b.can_shift */
+static int
+frozen_can_shift(unsigned free_space UNUSED_ARG, coord_t * source UNUSED_ARG,
+		 znode * target UNUSED_ARG, shift_direction direction UNUSED_ARG,
+		 unsigned *size, unsigned want UNUSED_ARG)
+{
+	*size = 0;
+	return 0;
+}
+
 item_plugin item_plugins[LAST_ITEM_ID] = {
 	[STATIC_STAT_DATA_ID] = {
 				 .h = {
@@ -259,8 +288,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				       .pops = NULL,
 				       .label = "sd",
 				       .desc = "stat-data",
-				       .linkage = TS_LIST_LINK_ZERO}
-				 ,
+				       .linkage = TS_LIST_LINK_ZERO
+				 },
 				 .b = {
 				       .item_type = STAT_DATA_ITEM_TYPE,
 				       .max_key_inside = single_key,
@@ -289,21 +318,20 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				       .item_data_by_flow = NULL,
 				       .key_in_item = NULL,
 				       .key_in_unit = NULL,
-				       .item_stat = sd_item_stat}
-				 ,
+				       .item_stat = sd_item_stat
+				 },
 				 .f = {
 				       .utmost_child = NULL,
-				       .utmost_child_real_block = NULL,
-				       }
-				 ,
+				       .utmost_child_real_block = NULL
+				 },
 				 .s = {
 				       .sd = {
 					      .init_inode = sd_load,
 					      .save_len = sd_len,
-					      .save = sd_save}
+					      .save = sd_save
 				       }
 				 }
-	,
+	},
 	[SIMPLE_DIR_ENTRY_ID] = {
 				 .h = {
 				       .type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -311,8 +339,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				       .pops = NULL,
 				       .label = "de",
 				       .desc = "directory entry",
-				       .linkage = TS_LIST_LINK_ZERO}
-				 ,
+				       .linkage = TS_LIST_LINK_ZERO
+				 },
 				 .b = {
 				       .item_type = DIR_ENTRY_ITEM_TYPE,
 				       .max_key_inside = single_key,
@@ -341,13 +369,12 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				       .item_data_by_flow = NULL,
 				       .key_in_item = NULL,
 				       .key_in_unit = NULL,
-				       .item_stat = NULL}
-				 ,
+				       .item_stat = NULL
+				 },
 				 .f = {
 				       .utmost_child = NULL,
-				       .utmost_child_real_block = NULL,
-				       }
-				 ,
+				       .utmost_child_real_block = NULL
+				 },
 				 .s = {
 				       .dir = {
 					       .extract_key = de_extract_key,
@@ -356,10 +383,10 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 					       .extract_file_type = de_extract_file_type,
 					       .add_entry = de_add_entry,
 					       .rem_entry = de_rem_entry,
-					       .max_name_len = de_max_name_len}
+					       .max_name_len = de_max_name_len
 				       }
 				 }
-	,
+	},
 	[COMPOUND_DIR_ID] = {
 			     .h = {
 				   .type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -367,8 +394,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				   .pops = NULL,
 				   .label = "cde",
 				   .desc = "compressed directory entry",
-				   .linkage = TS_LIST_LINK_ZERO}
-			     ,
+				   .linkage = TS_LIST_LINK_ZERO
+			     },
 			     .b = {
 				   .item_type = DIR_ENTRY_ITEM_TYPE,
 				   .max_key_inside = cde_max_key_inside,
@@ -396,13 +423,12 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				   .item_data_by_flow = NULL,
 				   .key_in_item = NULL,
 				   .key_in_unit = NULL,
-				   .item_stat = NULL}
-			     ,
+				   .item_stat = NULL
+			     },
 			     .f = {
 				   .utmost_child = NULL,
-				   .utmost_child_real_block = NULL,
-				   }
-			     ,
+				   .utmost_child_real_block = NULL
+			     },
 			     .s = {
 				   .dir = {
 					   .extract_key = cde_extract_key,
@@ -411,10 +437,10 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 					   .extract_file_type = de_extract_file_type,
 					   .add_entry = cde_add_entry,
 					   .rem_entry = cde_rem_entry,
-					   .max_name_len = cde_max_name_len}
+					   .max_name_len = cde_max_name_len
 				   }
 			     }
-	,
+	},
 	[NODE_POINTER_ID] = {
 			     .h = {
 				   .type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -422,8 +448,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				   .pops = NULL,
 				   .label = "internal",
 				   .desc = "internal item",
-				   .linkage = TS_LIST_LINK_ZERO}
-			     ,
+				   .linkage = TS_LIST_LINK_ZERO
+			     },
 			     .b = {
 				   .item_type = INTERNAL_ITEM_TYPE,
 				   .max_key_inside = NULL,
@@ -451,20 +477,19 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				   .item_data_by_flow = NULL,
 				   .key_in_item = NULL,
 				   .key_in_unit = NULL,
-				   .item_stat = NULL}
-			     ,
+				   .item_stat = NULL
+			     },
 			     .f = {
 				   .utmost_child = internal_utmost_child,
 				   .utmost_child_real_block = internal_utmost_child_real_block,
-				   }
-			     ,
+			     },
 			     .s = {
 				   .internal = {
 						.down_link = internal_down_link,
-						.has_pointer_to = internal_has_pointer_to}
+						.has_pointer_to = internal_has_pointer_to
 				   }
 			     }
-	,
+	},
 	[EXTENT_POINTER_ID] = {
 			       .h = {
 				     .type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -472,8 +497,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				     .pops = NULL,
 				     .label = "extent",
 				     .desc = "extent item",
-				     .linkage = TS_LIST_LINK_ZERO}
-			       ,
+				     .linkage = TS_LIST_LINK_ZERO
+			       },
 			       .b = {
 				     .item_type = ORDINARY_FILE_METADATA_TYPE,
 				     .max_key_inside = extent_max_key_inside,
@@ -501,13 +526,12 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				     .item_data_by_flow = NULL,
 				     .key_in_item = extent_key_in_item,
 				     .key_in_unit = extent_key_in_unit,
-				     .item_stat = extent_item_stat}
-			       ,
+				     .item_stat = extent_item_stat
+			       },
 			       .f = {
 				     .utmost_child = extent_utmost_child,
-				     .utmost_child_real_block = extent_utmost_child_real_block,
-				     }
-			       ,
+				     .utmost_child_real_block = extent_utmost_child_real_block
+			       },
 			       .s = {
 				     .file = {
 					      .write = extent_write,
@@ -517,10 +541,9 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 					      .page_cache_readahead = NULL,
 					      .get_block = extent_get_block_address
 					      /*extent_page_cache_readahead */
-					      }
 				     }
 			       }
-	,
+	},
 	[TAIL_ID] = {
 		     .h = {
 			   .type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -528,8 +551,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			   .pops = NULL,
 			   .label = "body",
 			   .desc = "body (or tail?) item",
-			   .linkage = TS_LIST_LINK_ZERO}
-		     ,
+			   .linkage = TS_LIST_LINK_ZERO
+		     },
 		     .b = {
 			   .item_type = ORDINARY_FILE_METADATA_TYPE,
 			   .max_key_inside = tail_max_key_inside,
@@ -557,13 +580,12 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			   .item_data_by_flow = NULL,
 			   .key_in_item = tail_key_in_item,
 			   .key_in_unit = NULL,
-			   .item_stat = NULL}
-		     ,
+			   .item_stat = NULL
+		     },
 		     .f = {
 			   .utmost_child = NULL,
-			   .utmost_child_real_block = NULL,
-			   }
-		     ,
+			   .utmost_child_real_block = NULL
+		     },
 		     .s = {
 			   .file = {
 				    .write = tail_write,
@@ -571,9 +593,119 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				    .readpage = NULL,
 				    .writepage = NULL,
 				    .page_cache_readahead = NULL,
-				    .get_block = NULL}
+				    .get_block = NULL
 			   }
 		     }
+	},
+	/* the below two items are used in tail conversion. Before tail conversion starts all items of file becomes
+	   frozen. That is nothing of them can be shifted to another node. This guarantees that estimation/reservation
+	   remains valid during tail conversion operation */
+	[FROZEN_TAIL_ID] = {
+		     .h = {
+			   .type_id = REISER4_ITEM_PLUGIN_TYPE,
+			   .id = FROZEN_TAIL_ID,
+			   .pops = NULL,
+			   .label = "frozen tail",
+			   .desc = "non split-able tail item",
+			   .linkage = TS_LIST_LINK_ZERO
+		     },
+		     .b = {
+			   .item_type = ORDINARY_FILE_METADATA_TYPE,
+			   .max_key_inside = tail_max_key_inside,
+			   .real_max_key_inside = tail_max_key,
+			   .can_contain_key = tail_can_contain_key,
+			   .mergeable = frozen_mergeable,
+#if REISER4_DEBUG_OUTPUT
+			   .print = NULL,
+#endif
+			   .check = NULL,
+			   .nr_units = tail_nr_units,
+			   .lookup = tail_lookup,
+			   .init = NULL,
+			   .paste = frozen_paste,
+			   .fast_paste = agree_to_fast_op,
+			   .can_shift = frozen_can_shift,
+			   .create_hook = NULL,
+			   .copy_units = tail_copy_units,
+			   .kill_hook = NULL,
+			   .shift_hook = NULL,
+			   .cut_units = tail_cut_units,
+			   .kill_units = tail_cut_units,
+			   .unit_key = tail_unit_key,
+			   .estimate = NULL,
+			   .item_data_by_flow = NULL,
+			   .key_in_item = tail_key_in_item,
+			   .key_in_unit = NULL,
+			   .item_stat = NULL
+		     },
+		     .f = {
+			   .utmost_child = NULL,
+			   .utmost_child_real_block = NULL
+		     },
+		     .s = {
+			   .file = {
+				    .write = NULL,
+				    .read = NULL,
+				    .readpage = NULL,
+				    .writepage = NULL,
+				    .page_cache_readahead = NULL,
+				    .get_block = NULL
+			   }
+		     }
+	},
+	[FROZEN_EXTENT_POINTER_ID] = {
+			       .h = {
+				     .type_id = REISER4_ITEM_PLUGIN_TYPE,
+				     .id = FROZEN_EXTENT_POINTER_ID,
+				     .pops = NULL,
+				     .label = "frozen extent",
+				     .desc = "non split-able extent item",
+				     .linkage = TS_LIST_LINK_ZERO
+			       },
+			       .b = {
+				     .item_type = ORDINARY_FILE_METADATA_TYPE,
+				     .max_key_inside = extent_max_key_inside,
+				     .real_max_key_inside = extent_max_key,
+				     .can_contain_key = extent_can_contain_key,
+				     .mergeable = frozen_mergeable,
+#if REISER4_DEBUG_OUTPUT
+				     .print = extent_print,
+#endif
+				     .check = extent_check,
+				     .nr_units = extent_nr_units,
+				     .lookup = extent_lookup,
+				     .init = NULL,
+				     .paste = frozen_paste,
+				     .fast_paste = agree_to_fast_op,
+				     .can_shift = frozen_can_shift,
+				     .create_hook = extent_create_hook,
+				     .copy_units = extent_copy_units,
+				     .kill_hook = extent_kill_item_hook,
+				     .shift_hook = NULL,
+				     .cut_units = extent_cut_units,
+				     .kill_units = extent_kill_units,
+				     .unit_key = extent_unit_key,
+				     .estimate = NULL,
+				     .item_data_by_flow = NULL,
+				     .key_in_item = extent_key_in_item,
+				     .key_in_unit = extent_key_in_unit,
+				     .item_stat = extent_item_stat
+			       },
+			       .f = {
+				     .utmost_child = extent_utmost_child,
+				     .utmost_child_real_block = extent_utmost_child_real_block
+			       },
+			       .s = {
+				     .file = {
+					      .write = NULL,
+					      .read = NULL,
+					      .readpage = extent_readpage,
+					      .writepage = NULL,
+					      .page_cache_readahead = NULL,
+					      .get_block = NULL
+				     }
+			       }
+	}
 };
 
 /* Make Linus happy.
