@@ -92,31 +92,18 @@ struct inode *  v_inode;    /*  */
 
 
 #define Stype(x)    Str[(x)].stype
-#define Sdef(x)     Str[(x)].sdef
-#define Svar(x)     Str[(x)].svar
-#define Svar1(x)    Str[(x)].svar1
-#define Svar2(x)    Str[(x)].svar2
-#define Sloop(x)    Str[(x)].sloop
 #define Slab(x)     Str[(x)].slab
-#define Spatco(x)   Str[(x)].spatco
-#define Sapco(x)    Str[(x)].sapco
-#define Sflag(x)    Str[(x)].sflag
 #define Slsco(x)    Str[(x)].slsco
 #define Slist(x)    Str[(x)].slist
-#define Slopt(x)    Str[(x)].slopt
 
 struct streg            /* for information compile time level */
 {
   int
     stype,              /* cur type of level        */
-    svar,               /*                          */
     slab,               /* label 1                  */
     sflag,              /*                  flag    */
     slsco,              /* cur count of lists       */
     slist;              /* cur type  of lists       */
-  char *
-    slopt;              /* to ftell on lists        */
-
 };
 
 
