@@ -9,6 +9,7 @@ int unix_file_readpage(void *, struct page *);
 void unix_file_readpages(struct file *, struct address_space *,
 			 struct list_head *pages);
 void unix_file_init_inode(struct inode *inode, int create);
+int unix_file_pre_delete(struct inode *inode);
 
 int unix_file_writepage(struct page *);
 ssize_t unix_file_read(struct file *, char *buf, size_t size, loff_t * off);

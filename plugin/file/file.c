@@ -683,7 +683,7 @@ truncate_file(struct inode *inode, loff_t new_size)
 			/* when file is built of extens - find_file_size can only calculate old file size up to page
 			 * size. Case of not changing file size is detected in unix_file_setattr, therefore here we have
 			 * expanding file within its last page up to the end of that page */
-			assert("vs-1115", file_is_built_of_extents(inode));
+			assert("vs-1115", file_is_built_of_extents(inode) || (file_is_empty(inode) && cur_size == 0));
 			assert("vs-1116", (new_size & ~PAGE_CACHE_MASK) == 0);
 		}
 	}
@@ -1723,7 +1723,12 @@ unix_file_init_inode(struct inode *inode, int create)
 #endif
 }
 
-
+/* plugin->u.file.init_inode_data */
+int
+unix_file_pre_delete(struct inode *inode)
+{
+	return truncate_file(inode, 0);
+}
 
 
 #ifdef NEW_READ_IS_READY

@@ -982,7 +982,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .unlink = common_estimate_unlink
 				    },
 				    .readpages = unix_file_readpages,
-				    .init_inode_data = unix_file_init_inode
+				    .init_inode_data = unix_file_init_inode,
+				    .pre_delete = unix_file_pre_delete
 	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
 				      .h = {
@@ -1025,7 +1026,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .unlink = dir_estimate_unlink
 				      },
 				      .readpages = NULL,
-				      .init_inode_data = NULL
+				      .init_inode_data = NULL,
+				      .pre_delete = NULL
 	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
 				    .h = {
@@ -1070,7 +1072,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .unlink = common_estimate_unlink
 				    },
 				    .readpages = NULL,
-				    .init_inode_data = NULL
+				    .init_inode_data = NULL,
+				    .pre_delete = NULL
 	},
 	[SPECIAL_FILE_PLUGIN_ID] = {
 				    .h = {
@@ -1114,7 +1117,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .unlink = common_estimate_unlink
 				    },
 				    .readpages = NULL,
-				    .init_inode_data = NULL
+				    .init_inode_data = NULL,
+				    .pre_delete = NULL
 	},
 	[PSEUDO_FILE_PLUGIN_ID] = {
 				    .h = {
@@ -1159,7 +1163,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .unlink = 
 				    },
 				    .readpages = ,
-				    .init_inode_data
+				    .init_inode_data,
+				    .pre_delete = NULL
 #endif
 	}
 };

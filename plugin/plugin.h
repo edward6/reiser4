@@ -248,6 +248,9 @@ typedef struct file_plugin {
 	   called when inode is read (read_inode) and when file is created (common_create_child) so that file plugin
 	   could initialize its inode data */
 	void (*init_inode_data)(struct inode *, int create);
+
+	/* truncate file to zero size. called by reiser4_drop_inode before truncate_inode_pages */
+	int (*pre_delete)(struct inode *);
 } file_plugin;
 
 typedef struct dir_plugin {
