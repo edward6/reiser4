@@ -2569,7 +2569,7 @@ try_capture_dirty_page(jnode *node, struct page *page)
 	   list */
 	result = try_capture(node, ZNODE_WRITE_LOCK, 0);
 	if (!result)
-		unformatted_jnode_make_dirty(node);
+		jnode_make_dirty_locked(node);
 	UNLOCK_JNODE(node);
 	return result;
 }
@@ -3354,7 +3354,7 @@ repeat:
 		ON_TRACE(TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, jnode_tostring(neighbor));
 
 		assert("jmacd-3551", !jnode_check_flushprepped(neighbor)
-		       && same_atom_dirty(neighbor, scan->node, 0, 0));
+		       && same_slum_check(neighbor, scan->node, 0, 0));
 
 		ret = scan_set_current(scan, neighbor, scan_dist, &coord);
 		if (ret != 0) {
@@ -3538,7 +3538,7 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 				if (ret)
 					break;
 
-				unformatted_jnode_make_dirty(node);
+				jnode_make_dirty_locked(node);
 				JF_SET(node, JNODE_REPACK);
 
 				nr_marked ++;
