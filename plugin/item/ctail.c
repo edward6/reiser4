@@ -208,7 +208,7 @@ print_ctail(const char *prefix /* prefix to print */ ,
 	if (item_length_by_coord(coord) < (int) sizeof (ctail_item_format))
 		printk("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof (ctail_item_format));
 	else
-		printk("%s: disk cluster size: %lu\n", prefix, disk_cluster_size(coord));
+		printk("%s: disk cluster shift: %d\n", prefix, cluster_shift_by_coord(coord));
 }
 #endif
 
@@ -581,8 +581,6 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	reiser4_inode * info;
 	info = reiser4_inode_data(inode);
 #endif
-	reset_cluster_params(clust);
-	
 	assert("edward-671", clust->hint != NULL);
 	assert("edward-140", clust->dstat == INVAL_DISK_CLUSTER);
 	assert("edward-672", crc_inode_ok(inode));
@@ -829,6 +827,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 			continue;
 		}
 		unlock_page(page);
+		reset_cluster_params(&clust);
 		clust.index = pg_to_clust(page->index, inode);
 		ret = ctail_read_page_cluster(&clust, inode);
 		if (ret)
@@ -1466,7 +1465,7 @@ next_item_dc_stat(flush_pos_t * pos)
 	assert("edward-1014", pos->coord.item_pos < coord_num_items(&pos->coord));
 	assert("edward-1015", chaining_data_present(pos));
 	assert("edward-1017", item_convert_data(pos)->d_next == DC_INVALID_STATE);
-
+	
 	item_convert_data(pos)->d_next = DC_AFTER_CLUSTER;
 
 	if (item_convert_data(pos)->d_cur == DC_AFTER_CLUSTER)
@@ -1503,10 +1502,16 @@ next_item_dc_stat(flush_pos_t * pos)
 			
 			if (!znode_is_dirty(lh.node)) {
 				warning("edward-1024",
-					"first item mergeable, " 
+					"next slum item mergeable, " 
 					"but znode %p isn't dirty\n",
 					lh.node);
 				znode_make_dirty(lh.node);
+			}
+			if (!znode_convertible(lh.node)) {
+				warning("edward-1272",
+					"next slum item mergeable, " 
+					"but znode %p isn't convertible\n",
+					lh.node);
 				znode_set_convertible(lh.node);
 			}
 			stop = 1;
