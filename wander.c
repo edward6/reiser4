@@ -394,6 +394,7 @@ static int alloc_tx (capture_list_head * head, int nr)
 		jnode * node = capture_list_pop_back(head);
 
 		jrelse (node);
+		junload (node);
 		jfree (node);
 	}
 
