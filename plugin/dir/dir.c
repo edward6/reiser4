@@ -1046,6 +1046,44 @@ move_entry(readdir_pos * pos, coord_t * coord)
 	++pos->fpos;
 }
 
+/*
+ *     STATELESS READDIR
+ *
+ * readdir support in reiser4 relies on ability to update readdir_pos embedded
+ * into reiser4_file_fsdata on each directory modification (name insertion and
+ * removal), see readdir_common() function below. This obviously doesn't work
+ * when reiser4 is accessed over NFS, because NFS doesn't keep any state
+ * across client READDIR requests for the same directory.
+ *
+ * To address this we maintain a "pool" of detached reiser4_file_fsdata
+ * (d_cursor). Whenever NFS readdir request comes, we detect this, and try to
+ * find detached reiser4_file_fsdata corresponding to previous readdir
+ * request. In other words, additional state is maintained on the
+ * server. (This is somewhat contrary to the design goals of NFS protocol.)
+ *
+ * To efficiently detect when our ->readdir() method is called by NFS server,
+ * dentry is marked as "stateless" in reiser4_decode_fh() (this is checked by
+ * file_is_stateless() function).
+ *
+ * To find out d_cursor in the pool, we encode client id (cid) in the highest
+ * bits of NFS readdir cookie: when first readdir request comes to the given
+ * directory from the given client, cookie is set to 0. This situation is
+ * detected, global cid_counter is incremented, and stored in highest bits of
+ * all direntry offsets returned to the client, including last one. As the
+ * only valid readdir cookie is one obtained as direntry->offset, we are
+ * guaranteed that next readdir request (continuing current one) will have
+ * current cid in the highest bits of starting readdir cookie. All d_cursors
+ * are hashed into per-super-block hash table by (oid, cid) key.
+ *
+ * In addition d_cursors are placed into per-super-block radix tree where they
+ * are keyed by oid alone. This is necessary to efficiently remove them during
+ * rmdir.
+ *
+ * At last, currently unused d_cursors are linked into special list. This list
+ * is used d_cursor_shrink to reclaim d_cursors on memory pressure.
+ *
+ */
+
 TYPE_SAFE_LIST_DECLARE(d_cursor);
 TYPE_SAFE_LIST_DECLARE(a_cursor);
 
@@ -1104,7 +1142,6 @@ static void kill_cursor(dir_cursor *cursor);
 
 int d_cursor_shrink(int nr, unsigned int gfp_mask)
 {
-	return d_cursor_unused;
 	if (nr != 0) {
 		dir_cursor *scan;
 		int killed;
@@ -1121,7 +1158,6 @@ int d_cursor_shrink(int nr, unsigned int gfp_mask)
 				break;
 		}
 		spin_unlock(&d_lock);
-		printk("%s: %i %lu\n", __FUNCTION__, killed, d_cursor_unused);
 	}
 	return d_cursor_unused;
 }
@@ -1134,7 +1170,14 @@ d_cursor_init(void)
 	if (d_cursor_slab == NULL)
 		return RETERR(-ENOMEM);
 	else {
-		d_cursor_shrinker = set_shrinker(DEFAULT_SEEKS, d_cursor_shrink);
+		/* actually, d_cursors are "priceless", because there is no
+		 * way to recover information stored in them. On the other
+		 * hand, we don't want to consume all kernel memory by
+		 * them. As a compromise, just assign higher "seeks" value to
+		 * d_cursor cache, so that it will be shrunk only if system is
+		 * really tight on memory. */
+		d_cursor_shrinker = set_shrinker(DEFAULT_SEEKS << 3,
+						 d_cursor_shrink);
 		if (d_cursor_shrinker == NULL)
 			return RETERR(-ENOMEM);
 		else
@@ -1192,7 +1235,7 @@ static void bind_cursor(dir_cursor *cursor, unsigned long index)
 		d_cursor_list_clean(cursor);
 		radix_tree_insert(&cursor->info->tree, index, cursor);
 	} else {
-		/* some cursor already exist. Chain ours */
+		/* some cursor already exists. Chain ours */
 		d_cursor_list_insert_after(head, cursor);
 	}
 }
@@ -1200,15 +1243,28 @@ static void bind_cursor(dir_cursor *cursor, unsigned long index)
 static void
 kill_cursor(dir_cursor *cursor)
 {
-	assert("nikita-3566", cursor->ref == 0);
+	unsigned long index;
 
+	assert("nikita-3566", cursor->ref == 0);
+	assert("nikita-3572", cursor->fsdata == NULL);
+
+	index = (unsigned long)cursor->key.oid;
 	readdir_list_remove_clean(cursor->fsdata);
 	reiser4_free_fsdata(cursor->fsdata);
+	cursor->fsdata = NULL;
+
 	if (d_cursor_list_is_clean(cursor))
-		radix_tree_delete(&cursor->info->tree,
-				  (unsigned long)cursor->key.oid);
-	else
+		/* this is last cursor for a file. Kill radix-tree entry */
+		radix_tree_delete(&cursor->info->tree, index);
+	else {
+		void **slot;
+
+		slot = radix_tree_lookup_slot(&cursor->info->tree, index);
+		assert("nikita-3571", *slot != NULL);
+		if (*slot == cursor)
+			*slot = d_cursor_list_next(cursor);
 		d_cursor_list_remove_clean(cursor);
+	}
 	a_cursor_list_remove_clean(cursor);
 	d_cursor_hash_remove(&cursor->info->table, cursor);
 	kmem_cache_free(d_cursor_slab, cursor);
