@@ -822,7 +822,7 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG,
 	assert( "nikita-1368", coord != NULL );
 	assert( "nikita-1369", arg != NULL );
 	
-	if( item_type_by_coord( coord ) != DIR_ENTRY_ITEM_TYPE ) {
+	if( item_plugin_id_by_coord( coord ) != SIMPLE_DIR_ENTRY_IT ) {
 		return 0;
 	}
 
@@ -1017,7 +1017,7 @@ static int __init init_reiser4()
 {
 	int result;
 
-	info( KERN_INFO "Loading Reiser4.\n" );
+	info( KERN_INFO "Loading Reiser4. See www.namesys.com for a description of Reiser4.\n" );
 	result = init_inodecache();
 	if( result == 0 ) {
 		reiser4_init_context_mgr();
