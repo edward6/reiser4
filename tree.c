@@ -1586,6 +1586,8 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 		if (result)
 			break;
 
+		++ (*progress);
+
 		/* Check whether all items with keys >= from_key were removed
 		 * from the tree. */
 		if (keyle(smallest_removed, from_key))
@@ -1608,9 +1610,6 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 			result = -E_REPEAT;
 			break;
 		}
-
-
-		++ (*progress);
 	}
 	done_lh(&next_node_lock);
 	// assert("vs-301", !keyeq(&smallest_removed, min_key()));
