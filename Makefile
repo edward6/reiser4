@@ -3,7 +3,7 @@
 #
 
 obj-$(CONFIG_REISER4_FS) += reiser4.o
-
+CFLAGS += -g
 reiser4-objs := \
 	   debug.o \
 	   jnode.o \
