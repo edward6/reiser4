@@ -626,7 +626,7 @@ forget_znode(lock_handle * handle)
 					(unsigned long long)(*znode_get_block(node)));
 
 		spin_lock_znode(node);
-		if (znode_is_dirty(node)) {
+		if (znode_is_dirty(node) && !znode_created(node)) {
 			txn_atom * atom ;
 
 			atom = atom_locked_by_jnode(ZJNODE(node));
