@@ -1091,6 +1091,28 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 	return ret;
 }
 
+const block_nr UNALLOCATED_BIT_MASK = ( 1ull << 63 );
+
+/**
+ * true, if @addr is "unallocated block number", which is just address, with
+ * highest bit set.
+ */
+int is_disk_addr_unallocated( const reiser4_disk_addr *addr )
+{
+	assert( "nikita-1685", addr != NULL );
+	cassert( sizeof( block_nr ) == 8 );
+	return addr -> blk & UNALLOCATED_BIT_MASK;
+}
+
+/**
+ * convert unallocated disk address to the memory address
+ */
+void *unallocated_disk_addr_to_ptr( const reiser4_disk_addr *addr )
+{
+	assert( "nikita-1688", addr != NULL );
+	assert( "nikita-1689", is_disk_addr_unallocated( addr ) );
+	return addr -> blk & ~UNALLOCATED_BIT_MASK;
+}
 
 /* grab right neighbor of @insert_coord->node and shift as much as possible of
    @insert_coord->node but not more than @insert_coord to that

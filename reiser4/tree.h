@@ -321,6 +321,9 @@ extern void print_cbk_cache( const char *prefix, cbk_cache  *cache );
 extern void forget_znode (reiser4_lock_handle *handle);
 extern int deallocate_znode( znode *node );
 
+extern int is_disk_addr_unallocated( const reiser4_disk_addr *addr );
+extern void *unallocated_disk_addr_to_ptr( const reiser4_disk_addr *addr );
+
 /* list of active lock stacks */
 TS_LIST_DECLARE(context);
 
