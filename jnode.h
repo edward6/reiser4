@@ -10,7 +10,6 @@
 #include "tslist.h"
 #include "txnmgr.h"
 #include "plugin/plugin.h"
-#include "plugin/crypto_compressed.h"
 #include "debug.h"
 #include "dformat.h"
 #include "spin_macros.h"
@@ -138,8 +137,7 @@ struct jnode {
 	/* capture list */
 	/*  48 */ capture_list_link capture_link;
 	/*  52 */ reiser4_tree *tree;
-	/*  56 */ cluster_head *c_cache;
-	/*  60 */
+	/*  56 */
 #if REISER4_DEBUG
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
@@ -497,7 +495,7 @@ jnode_get_type(const jnode * node)
 		/* 010 */
 		[2] = JNODE_BITMAP,
 		/* 011 */
-		[3] = LAST_JNODE_TYPE,	/* invalid */
+		[3] = JNODE_CLUSTER_PAGE,
 		/* 100 */
 		[4] = LAST_JNODE_TYPE,	/* invalid */
 		/* 101 */
@@ -538,7 +536,7 @@ jnode_check_dirty(jnode * node)
 	return UNDER_SPIN(jnode, node, jnode_is_dirty(node));
 }
 
-/* returns true if node is formatted, i.e, it's not a znode */
+/* returns true if node is unformatted */
 static inline int
 jnode_is_unformatted(const jnode * node)
 {
@@ -546,11 +544,29 @@ jnode_is_unformatted(const jnode * node)
 	return jnode_get_type(node) == JNODE_UNFORMATTED_BLOCK;
 }
 
+/* returns true if node represents a cluster cache page */
+static inline int
+jnode_is_cluster_page(const jnode * node)
+{
+	assert("edward-50", node != NULL);
+	return jnode_get_type(node) == JNODE_CLUSTER_PAGE;
+}
+
+/* returns true if node is not a znode, but can have a "parent"
+   coord in the tree */
+static inline int
+jnode_has_parent(const jnode * node)
+{
+	assert("edward-51", node != NULL);
+	return jnode_is_unformatted(node) || jnode_is_cluster_page(node);
+}
+
+
 /* Get the index of a block. */
 static inline unsigned long
 jnode_get_index(jnode * node)
 {
-	assert("vs-1191", jnode_is_unformatted(node));
+	assert("edward-52", jnode_has_parent(node));
 	/*return jnode_page(node)->index;*/
 	return node->key.j.index;
 }
