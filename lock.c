@@ -702,23 +702,12 @@ longterm_unlock_znode(lock_handle * handle)
 		 "%spri unlock: %p node: %p: hipri_owners: %u nr_readers %d\n",
 		 oldowner->curpri ? "hi" : "lo", handle, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 
-	/* Last write-lock release. */
-	if (znode_is_wlocked_once(node)) {
-
-		/* Handle znode deallocation */
-		if (ZF_ISSET(node, JNODE_HEARD_BANSHEE)) {
-			/* invalidate lock. FIXME-NIKITA locking.  This doesn't
-			   actually deletes node, only removes it from
-			   sibling list and invalidates lock. Lock
-			   invalidation includes waking up all threads
-			   still waiting on this node and notifying them
-			   that node is dying.
-			*/
-			forget_znode(handle);
-			assert("nikita-2191", znode_invariant(node));
-			zput(node);
-			return;
-		}
+	/* Handle znode deallocation on last write-lock release. */
+	if (ZF_ISSET(node, JNODE_HEARD_BANSHEE) && znode_is_wlocked_once(node)) {
+		forget_znode(handle);
+		assert("nikita-2191", znode_invariant(node));
+		zput(node);
+		return;
 	}
 
 	if (handle->signaled)
@@ -859,7 +848,6 @@ longterm_lock_znode(
 	zlock       *lock;
 	txn_handle  *txnh;
 	tree_level   level;
-	txn_capture  cap_mode;
 
 	/* Get current process context */
 	lock_stack *owner = get_current_lock_stack();
@@ -916,8 +904,6 @@ longterm_lock_znode(
 		else
 			ADDSTAT(node, lock_lopri);
 	}
-
-	cap_mode = build_capture_mode(ZJNODE(node), mode, cap_flags);
 
 	/* Synchronize on node's zlock guard lock. */
 	WLOCK_ZLOCK(lock);
@@ -1019,8 +1005,7 @@ longterm_lock_znode(
 			WUNLOCK_ZLOCK(lock);
 			spin_lock_znode(node);
 			ret = try_capture_args(ZJNODE(node), txnh, mode,
-					       cap_flags, non_blocking,
-					       cap_mode);
+					       cap_flags, non_blocking, 0);
 			spin_unlock_znode(node);
 			WLOCK_ZLOCK(lock);
 			if (unlikely(ret != 0)) {
