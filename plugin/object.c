@@ -278,38 +278,6 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 }
 
 
-#define UPDATE_SD_1 \
-{\
-	PROF_BEGIN(update_sd_load);\
-	coord_clear_iplug(coord);\
-	result = zload(coord->node);\
-	if (result != 0)\
-		return result;\
-	loaded = coord->node;\
-	PROF_END(update_sd_load);\
-}
-
-#define UPDATE_SD_2 \
-{\
-	PROF_BEGIN(update_sd_save);\
-	area = item_body_by_coord(coord);\
-	spin_lock_inode(inode);\
-	result = data.iplug->s.sd.save(inode, &area);\
-	znode_make_dirty(coord->node);\
-	PROF_END(update_sd_save);\
-}
-
-#define UPDATE_SD_3 \
-{\
-	PROF_BEGIN(update_sd_seal);\
-	seal_init(&state->sd_seal, coord, key);\
-	state->sd_coord = *coord;\
-	spin_unlock_inode(inode);\
-	check_inode_seal(inode, coord, key);\
-	zrelse(loaded);\
-	PROF_END(update_sd_seal);\
-}
-
 static int
 update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	     lock_handle * lh)
