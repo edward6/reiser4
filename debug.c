@@ -55,9 +55,10 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
  * Preemption point: this should be called periodically during long running
  * operations (carry, allocate, and squeeze are best examples)
  */
-void preempt_point( void )
+int preempt_point( void )
 {
 	cond_resched();
+	return signal_pending( current );
 }
 
 /**

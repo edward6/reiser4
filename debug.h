@@ -785,7 +785,7 @@ extern void reiser4_panic( const char *format, ... )
 __attribute__( ( noreturn, format( printf, 1, 2 ) ) );
 
 extern void check_preempt( void );
-extern void preempt_point( void );
+extern int  preempt_point( void );
 extern void reiser4_print_stats( void );
 
 extern void *reiser4_kmalloc( size_t size, int gfp_flag );
