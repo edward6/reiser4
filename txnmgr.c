@@ -295,7 +295,7 @@ init_static(void)
 
 	return 0;
 
-      error:
+error:
 
 	if (_atom_slab != NULL) {
 		kmem_cache_destroy(_atom_slab);
@@ -510,7 +510,7 @@ atom_get_locked_with_txnh_locked_nocheck(txn_handle * txnh)
 	assert("umka-180", txnh != NULL);
 	assert("jmacd-5108", spin_txnh_is_not_locked(txnh));
 
-      try_again:
+try_again:
 
 	spin_lock_txnh(txnh);
 	atom = txnh->atom;
@@ -559,7 +559,7 @@ atom_get_locked_by_jnode(jnode * node)
 	assert("umka-181", node != NULL);
 	assert("jmacd-5108", spin_jnode_is_locked(node));
 
-      try_again:
+try_again:
 
 	atom = node->atom;
 
@@ -1007,7 +1007,7 @@ mgr_force_commit_all(struct super_block *super)
 
 	txnh = get_current_context()->trans;
 
-      again:
+again:
 
 	spin_lock_txnmgr(mgr);
 
@@ -1203,7 +1203,7 @@ flush_one(txn_mgr * tmgr, long *nr_submitted, int flags)
 	spin_unlock_txnmgr(tmgr);
 
 	return 0;
-      found:
+found:
 	atom_list_remove(atom);
 	atom_list_push_back(&tmgr->atoms_list, atom);
 
@@ -1367,7 +1367,7 @@ commit_txnh(txn_handle * txnh)
 
 	assert("umka-192", txnh != NULL);
 
-      again:
+again:
 	/* Get the atom and txnh locked. */
 	atom = atom_get_locked_with_txnh_locked(txnh);
 
@@ -1375,7 +1375,7 @@ commit_txnh(txn_handle * txnh)
 	 * we don't need the txnh lock while trying to commit. */
 	spin_unlock_txnh(txnh);
 
-      again_locked:
+again_locked:
 
 	trace_on(TRACE_TXN,
 		 "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n",
@@ -1439,7 +1439,7 @@ commit_txnh(txn_handle * txnh)
 	}
 
 	assert("jmacd-1027", spin_atom_is_locked(atom));
-      done:
+done:
 	spin_lock_txnh(txnh);
 
 	atom->txnh_count -= 1;
@@ -1729,7 +1729,7 @@ try_capture(jnode * node,
 
 	assert("jmacd-604", spin_jnode_is_locked(node));
 
-      repeat:
+repeat:
 	/* Repeat try_capture as long as -EAGAIN is returned. */
 	ret = try_capture_block(txnh, node, cap_mode, &atom_alloc);
 
@@ -1876,7 +1876,7 @@ check_not_fused_lock_owners(txn_handle * txnh, znode * node)
 	spin_unlock_atom(atomh);
 
 	if (repeat) {
-	      fail:
+fail:
 		spin_unlock_txnh(txnh);
 		spin_unlock_znode(node);
 		return -EAGAIN;
@@ -1945,7 +1945,7 @@ attach_txnh_to_node(txn_handle * txnh, jnode * node, txn_flags flags)
 	capture_assign_txnh_nolock(atom, txnh);
 
 	spin_unlock_atom(atom);
-      fail_unlock:
+fail_unlock:
 	spin_unlock_txnh(txnh);
 	spin_unlock_jnode(node);
 	return ret;
@@ -1985,7 +1985,7 @@ delete_page(struct page *pg)
 
 	spin_lock_jnode(node);
 
-      repeat:
+repeat:
 	atom = atom_get_locked_by_jnode(node);
 
 	if (atom == NULL) {
@@ -2552,7 +2552,7 @@ capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode)
 	if (!spin_trylock_atom(atomh)) {
 		/* Release locks and try again. */
 		spin_unlock_atom(atomf);
-	      noatomf_out:
+noatomf_out:
 		spin_unlock_jnode(node);
 		spin_unlock_txnh(txnh);
 		return -EAGAIN;
