@@ -22,15 +22,17 @@ typedef enum {
 
 typedef struct reiser4_cluster{
 	__u8 * buf;      /* pointer to the contiguous region where crypto/compression algorithms live */
-	int bufsize;     /* size of this region */
-	int nr_pages;   /* number of attached pages */
+	size_t len;      /* size of the region above */  
+	int nr_pages;    /* number of attached pages */
 	struct page ** pages; /* attached pages */
 	struct file * file;
-	size_t len;
-	unsigned long index; /* cluster index */
 	reiser4_cluster_status stat;
-	unsigned off;    /* number of the firt byte we want to write/eraze from */
-	unsigned count;  /* bytes to write/eraze */
+	/* sliding frame of cluster size in loff_t-space to translate main file 'offsets'
+	   like read/write position, size, new size (for truncate), etc.. into number
+	   of pages, cluster status, etc..*/
+	unsigned long index; /* cluster index, coord of the frame */
+	unsigned off;    /* offset we want to read/write/eraze from */
+	unsigned count;  /* bytes to read/write/eraze */
 	unsigned delta;  /* bytes of user's data to append to the hole */
 } reiser4_cluster_t;
 
