@@ -333,19 +333,19 @@ extern __u64 reiser4_current_block_count(void);
 
 extern const __u32 REISER4_SUPER_MAGIC;
 
-#define spin_ordering_pred_reiser4_super_info_data(private) (1)
-SPIN_LOCK_FUNCTIONS(reiser4_super_info_data, reiser4_super_info_data, guard);
+#define spin_ordering_pred_super(private) (1)
+SPIN_LOCK_FUNCTIONS(super, reiser4_super_info_data, guard);
 
 static inline void reiser4_spin_lock_sb(const struct super_block * s)
 {
 	reiser4_super_info_data * private = get_super_private (s);
-	spin_lock_reiser4_super_info_data(private);
+	spin_lock_super(private);
 }
 
 static inline void reiser4_spin_unlock_sb(const struct super_block * s)
 {
 	reiser4_super_info_data * private = get_super_private (s);
-	spin_unlock_reiser4_super_info_data(private);
+	spin_unlock_super(private);
 }
 
 extern __u64 flush_reserved        ( const struct super_block*);
