@@ -64,7 +64,7 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %type <wrd> P_RUNNER 
 %type <wrd> STRING_CONSTANT
 
-%type <expr> Object_Name name  
+%type <expr> Object_Name name  target
 //%type <vnode> Object_Name name  
 %type <expr> Expression 
 
@@ -153,8 +153,8 @@ Expression
 | Expression PLUS       Expression                { $$ = connect_expression( ws, $1, $3 ); }
 | Expression SEMICOLON  Expression                { $$ = list_expression( ws, $1, $3 ); }
 | Expression COMMA      Expression                { $$ = list_async_expression( ws, $1, $3 ); }
+| level_up  Expression R_BRAKET                   { $$ =  $2 ; run_it( ws, $2 ); level_down( ws, $1, $3 );}
 //| Expression            Expression                { $$ = list_unordered_expression( ws, $1, $2 ); }
-
 | if_statement                                    { $$ = $1; level_down( ws, IF_STATEMENT ); }
                                                                             /* the ASSIGNMENT operator return a value: bytes written */
 |  target  L_ASSIGN        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
@@ -202,15 +202,14 @@ target
 
 
 Object_Name 
-: name                                            { $$ = pars_lookup_curr( ws, $1 ) ; }
-| SLASH name                     %prec ROOT       { $$ = pars_lookup_root( ws, $2 ) ; }
-| Object_Name SLASH name                          { $$ = pars_lookup( ws, $1, $3 ) ; }
+: WORD                                            { $$ = pars_lookup_curr( ws, $1 ) ; }
+| SLASH WORD                     %prec ROOT       { $$ = pars_lookup_root( ws, $2 ) ; }
+| Object_Name SLASH WORD                          { $$ = pars_lookup( ws, $1, $3 ) ; }
 ;
 
-name
-: WORD                                            { $$ = lookup_word( ws, $1 ); }
-| level_up  Expression R_BRAKET                   { $$ =  $2 ; run_it( ws, $2 ); level_down( ws, $1, $3 );}
-;
+//name
+//: WORD                                            { $$ = lookup_word( ws, $1 ); }
+//;
 
 level_up
 : L_BRAKET                                        { $$=level_up( ws, $1 ); set_curr_path( ws ) }
@@ -218,6 +217,15 @@ level_up
 
 //Object_Name 
 //: begin_from name                                 { $$ = $2 ; }  /*$$=?????*/
+//Object_Name 
+//: name                                            { $$ = pars_lookup_curr( ws, $1 ) ; }
+//| SLASH name                     %prec ROOT       { $$ = pars_lookup_root( ws, $2 ) ; }
+//| Object_Name SLASH name                          { $$ = pars_lookup( ws, $1, $3 ) ; }
+//;
+
+//name
+//: WORD                                            { $$ = lookup_word( ws, $1 ); }
+//;
 //| Object_Name SLASH name                          { $$ = $3 ; }  /*$$=?????*/
 //;
 
