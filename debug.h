@@ -64,7 +64,7 @@
 
 #endif /* REISER4_DEBUG */
 
-#define REISER4_DEBUG_MODIFY (1) /* this significantly slows down testing, but we should run
+#define REISER4_DEBUG_MODIFY (0) /* this significantly slows down testing, but we should run
 				* our testsuite through with this every once in a
 				* while. */
 
@@ -79,7 +79,7 @@
 /** if this is non-zero, clear content of new node, otherwise leave
     whatever may happen to be here */
 #ifndef REISER4_ZERO_NEW_NODE
-#define REISER4_ZERO_NEW_NODE (1)
+#define REISER4_ZERO_NEW_NODE (0)
 #endif
 
 #define noop   do {;} while( 0 )
