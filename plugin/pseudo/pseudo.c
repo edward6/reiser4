@@ -64,7 +64,7 @@ Use the pluginid field?
 #include "../../debug.h"
 #include "../plugin.h"
 
-struct inode *pseudo_lookup(struct inode *parent, const char *name)
+struct inode *lookup_pseudo(struct inode *parent, const char *name)
 {
 	reiser4_plugin *plugin;
 
@@ -88,12 +88,12 @@ struct inode *pseudo_lookup(struct inode *parent, const char *name)
 	return NULL;
 }
 
-static int test_try(const struct inode *parent, const char *name)
+static int try_test(const struct inode *parent, const char *name)
 {
 	return !strcmp(name, "..test");
 }
 
-static int test_lookup(const char *name)
+static int lookup_test(const char *name)
 {
 	return 0;
 }
@@ -106,10 +106,10 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			       .pops = NULL,
 			       .label = "test",
 			       .desc = "test",
-			       .linkage = TS_LIST_LINK_ZERO,
+			       .linkage = TS_LIST_LINK_ZERO
 			       },
-			 .try = test_try,
-			 .lookup = test_lookup
+			 .try = try_test,
+			 .lookup = lookup_test
 	}
 };
 
