@@ -1497,3 +1497,14 @@ reiser4.ko
 reiser4.mod.c
 plugin/.plugin_set.c.swp
 plugin/item/item.c.orig
+applied-patches
+flush.c.rej
+flush.h.orig
+pc/profile-stat-trace-repacker.pc
+plugin/cryptcompress.c.orig
+plugin/cryptcompress.h.orig
+plugin/item/ctail.c.orig
+plugin/item/ctail.c.rej
+plugin/item/ctail.h.orig
+series
+txt/profile-stat-trace-repacker.txt
