@@ -147,6 +147,22 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 
 /* ->readpages() VFS method in reiser4 address_space_operations
    method serving page cache readahead
+
+   reiser4_readpages works in the following way: on input it has coord which is set on extent that addresses first of
+   pages for which read requests are to be issued. So, reiser4_readpages just walks forward through extent unit, finds
+   which blocks are to be read and start read for them.
+
+reiser4_readpages can be called from two places: from 
+sys_read->reiser4_read->read_unix_file->read_extent->page_cache_readahead and
+from
+handling page fault: 
+handle_mm_fault->do_no_page->filemap_nopage->page_cache_readaround
+
+In first case coord is set by reiser4 read code. This case is detected by  if 
+(is_in_reiser4_context()).
+
+In second case, coord is not set and currently, reiser4_readpages does not do 
+anything. 
 */
 static int
 reiser4_readpages(struct file *file, struct address_space *mapping,
@@ -269,13 +285,17 @@ reiser4_invalidatepage(struct page *page /* page to invalidate */,
 		if (node != NULL) {
 			assert("vs-1435", !JF_ISSET(node, JNODE_CC));
 			jref(node);
-			JF_SET(node, JNODE_HEARD_BANSHEE);
+ 			JF_SET(node, JNODE_HEARD_BANSHEE);
 			/* page cannot be detached from jnode concurrently,
 			 * because it is locked */
 			uncapture_page(page);
+
+			/* this detaches page from jnode, so that jdelete will not try to lock page which is already locked */
 			UNDER_SPIN_VOID(jnode,
-					node, page_clear_jnode(page, node));
+					node,
+					page_clear_jnode(page, node));
 			unhash_unformatted_jnode(node);
+
 			jput(node);
 		}
 	}
