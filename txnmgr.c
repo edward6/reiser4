@@ -2563,6 +2563,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node)
 	    && !jnode_is_cluster_page(node)) {
 		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
+		assert("vs-1506", *jnode_get_block(node) != 0);
 		grabbed2flush_reserved_nolock(atom, (__u64)1);
 		JF_SET(node, JNODE_FLUSH_RESERVED);
 	}
