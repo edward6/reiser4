@@ -119,8 +119,8 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 				result = 0;
 			} else if( znode_contains_key_lock( node, key ) )
 				/* 
-				 * seal is broken, but there still is a hope
-				 * that key is still in @node
+				 * seal is broken, but there is a hope that
+				 * key is still in @node
 				 */
 				result = seal_search_node( seal, 
 							   coord, 
