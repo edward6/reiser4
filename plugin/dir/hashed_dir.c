@@ -31,6 +31,16 @@ static int find_entry(const struct inode *dir, struct dentry *name,
 		      lock_handle * lh, znode_lock_mode mode, 
 		      reiser4_dir_entry_desc * entry);
 static int check_item(const struct inode *dir, const coord_t * coord, const char *name);
+
+#define WITH_COORD(coord, exp)			\
+({						\
+	coord_t *__coord;			\
+						\
+	__coord = (coord);			\
+	coord_clear_iplug(__coord);		\
+	WITH_DATA(__coord->node, exp);		\
+})
+
 reiser4_block_nr hashed_estimate_init(struct inode *parent, struct inode *object)
 {
 	reiser4_block_nr res = 0;
@@ -295,9 +305,10 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 
 	/* find entry in a directory. This is plugin method. */
 	result = find_entry(parent, dentry, &lh, ZNODE_READ_LOCK, &entry);
-	if (result == 0)
+	if (result == 0) {
 		/* entry was found, extract object key from it. */
-		result = WITH_DATA(coord->node, item_plugin_by_coord(coord)->s.dir.extract_key(coord, &entry.key));
+		result = WITH_COORD(coord, item_plugin_by_coord(coord)->s.dir.extract_key(coord, &entry.key));
+	}
 	done_lh(&lh);
 
 	if (result == 0) {
@@ -347,6 +358,7 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 	int result;
 	znode *node;
 
+	coord_clear_iplug(from_coord);
 	node = from_coord->node;
 	result = zload(node);
 	if (result != 0)
@@ -447,7 +459,7 @@ add_name(struct inode *inode	/* inode where @coord is to be
 		reiser4_add_nlink(inode, dir, 0);
 		/* create @new_name in @new_dir pointing to
 		   @old_inode */
-		result = WITH_DATA(coord->node,
+		result = WITH_COORD(coord,
 				   inode_dir_item_plugin(dir)->s.dir.add_entry(dir, coord, lh, name, &entry));
 		if (result != 0) {
 			result = reiser4_del_nlink(inode, dir, 0);
@@ -914,8 +926,8 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 		assert("vs-542", inode_dir_item_plugin(object));
 		seal_done(&fsdata->dec.entry_seal);
 		adjust_dir_file(object, where, fsdata->dec.pos, -1);
-		result = WITH_DATA(coord->node,
-				   inode_dir_item_plugin(object)->s.dir.rem_entry(object, &where->d_name, coord, &lh, entry));
+		result = WITH_COORD(coord,
+				    inode_dir_item_plugin(object)->s.dir.rem_entry(object, &where->d_name, coord, &lh, entry));
 		if (result == 0) {
 			if (object->i_size >= 1)
 				INODE_DEC_FIELD(object, i_size);
@@ -953,7 +965,7 @@ typedef struct entry_actor_args {
 static int
 check_entry(const struct inode *dir, coord_t *coord, const struct qstr *name)
 {
-	return WITH_DATA(coord->node, check_item(dir, coord, name->name));
+	return WITH_COORD(coord, check_item(dir, coord, name->name));
 }
 
 /* Look for given @name within directory @dir.
@@ -1051,6 +1063,7 @@ find_entry(const struct inode *dir /* directory to scan */,
 
 				result = zload(arg.last_coord.node);
 				if (result == 0) {
+					coord_clear_iplug(&arg.last_coord);
 					coord_dup(coord, &arg.last_coord);
 					move_lh(lh, &arg.last_lh);
 					result = RETERR(-ENOENT);
