@@ -816,7 +816,9 @@ static void truncate_inode_pages (struct address_space * mapping,
 					spin_lock( &page_list_guard );
 					pc_hash_remove( &page_htable, page );
 					spin_unlock( &page_list_guard );
+					spin_unlock (&page->lock2);
 					free (page);
+					continue;
 				}
 				spin_unlock (&page->lock2);
 			}
@@ -3709,12 +3711,6 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			} else {
 				info ("\ttail [on|off]\n");
 			}
-#if 0
-		} else if (!strcmp (command, "alloc")) {
-			allocate_unallocated (tree_by_inode (cwd));
-		} else if (!strcmp (command, "squeeze")) {
-			squeeze_twig_level (tree_by_inode (cwd));
-#endif
 		} else if (!strcmp (command, "df")) {
 			bash_df (cwd);
 		} else if (!strncmp (command, "p", 1)) {
@@ -3722,8 +3718,13 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			/*
 			 * print tree
 			 */
-			print_tree_rec ("DONE", tree_by_inode (cwd),
-					REISER4_NODE_PRINT_ALL & ~REISER4_NODE_PRINT_PLUGINS & ~REISER4_NODE_PRINT_ZNODE & ~REISER4_NODE_PRINT_ZADDR);
+			if (!strncmp (command, "pp", 2)) {
+				print_tree_rec ("DONE", tree_by_inode (cwd),
+						REISER4_NODE_PRINT_ALL & ~REISER4_NODE_PRINT_ZADDR & ~REISER4_NODE_SILENT & ~REISER4_NODE_ONLY_INCORE);
+			} else {
+				print_tree_rec ("DONE", tree_by_inode (cwd),
+						REISER4_NODE_PRINT_ALL & ~REISER4_NODE_PRINT_PLUGINS & ~REISER4_NODE_PRINT_ZNODE & ~REISER4_NODE_PRINT_ZADDR);
+			}
 			__REISER4_EXIT (&__context);
 		} else if (!strncmp (command, "info", 1)) {
 			REISER4_ENTRY (sb);
