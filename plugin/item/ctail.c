@@ -529,7 +529,6 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 			__pagevec_lru_add(&lru_pvec);
 		if (ret) {
 			impossible("edward-215", "do_readpage_ctail returned crap");
-			SetPageError(page);
 			reiser4_unlock_page(page);
 		exit:
 			while (!list_empty(pages)) {
