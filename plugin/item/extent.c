@@ -3439,6 +3439,7 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 		 */
 		extent_set_start (ext, first_allocated);
 		extent_set_width (ext, allocated);
+		znode_set_dirty (item->node);
 		flush_pos_hint (flush_pos)->blk = first_allocated + allocated - 1;
 
 		unit_key_by_coord (item, &key);
