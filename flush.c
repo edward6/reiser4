@@ -1469,7 +1469,6 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	load_count left_parent_load;
 	load_count right_parent_load;
 
-	coord_t between;
 
 	init_lh(&left_parent_lock);
 	init_lh(&right_parent_lock);
@@ -1500,18 +1499,13 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	if (ret)
 		goto out;
 
-	coord_init_after_last_item(&between, left_parent_lock.node);
-
 	ret = squeeze_right_non_twig(left_parent_lock.node, right_parent_lock.node);
-	if (ret < 0)
-		goto out;
-	ret = 0; /* screening of positive result codes */
-
-	/* If we have shifted one or more internal items, @right was reparented
-	   therefore @left and @right nodes do not share same parent anymore.
-	   We have not process right_parent node prior to processing of
-	   @right. */
-	if (!coord_is_after_rightmost(&between))
+	/* We stop if error. We stop if some items/units were shifted (ret == 0)
+	 * and thus @right changed its parent. It means we have not process
+	 * right_parent node prior to processing of @right. Positive return
+	 * values say that shifting items was not happen because of "empty
+	 * source" or "target full" conditions. */
+	if (ret <= 0)
 		goto out;
 
 	/* parent(@left) and parent(@right) may have different parents also. We
@@ -1593,9 +1587,8 @@ static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
 	return ret;
 }
 
-/* Process nodes on leaf level until unformatted node or rightmost node in the
- * slum reached.  */
-static int handle_pos_on_leaf (flush_pos_t * pos)
+/* common code for handle_pos_on_leaf and handle_pos_on_internal functions */
+static int handle_pos_on_formatted (flush_pos_t * pos)
 {
 	int ret;
 	lock_handle right_lock;
@@ -1605,24 +1598,17 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 	init_load_count(&right_load);
 
 	while (1) {
-		assert ("zam-845", pos->state == POS_ON_LEAF);
-
-		ret = track_twig(pos, 0);
-		if (ret)
-			return ret;
-
-		ret = znode_get_utmost_if_dirty(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
-		if (ret) {
-			if (ret == -ENAVAIL) {
-				/* cannot get right neighbor, go process extents. */
-				pos->state = POS_TO_TWIG;
-				return 0;
-			}
-			return ret;
-		}
-
-		if (znode_check_flushprepped(right_lock.node))
+		if (pos->state == POS_ON_LEAF && (ret = track_twig(pos, 0)))
 			break;
+		
+		ret = znode_get_utmost_if_dirty(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
+		if (ret)
+			break;
+
+		if (znode_check_flushprepped(right_lock.node)) {
+			pos_stop(pos);
+			break;
+		}
 
 		ret = incr_load_count_znode(&right_load, right_lock.node);
 		if (ret)
@@ -1655,12 +1641,31 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 		move_flush_pos(pos, &right_lock, &right_load, NULL);
 	}
 
-	pos_stop(pos);
 	done_load_count(&right_load);
 	done_lh(&right_lock);
 
 	/* This function indicates via pos whether to stop or go to twig or continue on current
 	 * level. */
+	return ret;
+
+}
+
+/* Process nodes on leaf level until unformatted node or rightmost node in the
+ * slum reached.  */
+static int handle_pos_on_leaf (flush_pos_t * pos)
+{
+	int ret;
+
+	assert ("zam-845", pos->state == POS_ON_LEAF);
+
+	ret = handle_pos_on_formatted(pos);
+
+	if (ret == -EINVAL) {
+		/* cannot get right neighbor, go process extents. */
+		pos->state = POS_TO_TWIG;
+		return 0;
+	}
+
 	return ret;
 }
 
@@ -1668,11 +1673,7 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 static int handle_pos_on_internal (flush_pos_t * pos)
 {
 	assert ("zam-850", pos->state == POS_ON_INTERNAL);
-
-	/* consider it as a rare case, let alloc_pos_and_ancestors() process all
-	   dirty nodes */
-	pos->state = POS_INVALID;
-	return 0;
+	return handle_pos_on_formatted(pos);
 }
 
 /* check whether squalloc should stop before processing given extent */
