@@ -73,6 +73,7 @@ struct unix_file_info *unix_file_inode_data(const struct inode * inode);
 
 #include "../item/extent.h"
 #include "../item/tail.h"
+#include "../item/ctail.h"
 
 struct uf_coord {
 	coord_t base_coord;
@@ -81,6 +82,7 @@ struct uf_coord {
 	union {
 		extent_coord_extension_t extent;
 		tail_coord_extension_t tail;
+		ctail_coord_extension_t ctail;
 	} extension;
 };
 
