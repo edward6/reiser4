@@ -2076,6 +2076,8 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 			if (ret)
 				return ret;
 			coord_next_unit(&pos->coord);
+			if (coord_is_after_rightmost(&pos->coord))
+				break;
 			pos->pos_in_unit = 0;
 		}
 	} else {
@@ -2093,6 +2095,8 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 				return ret;
 			
 			coord_next_unit(&pos->coord);
+			if (coord_is_after_rightmost(&pos->coord))
+				break;
 			pos->pos_in_unit = 0;			
 		}
 		ret = rapid_flush(pos);
