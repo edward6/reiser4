@@ -11,7 +11,7 @@
 
 struct reiserfs_journal36 {
     aal_device_t *device;
-    aal_block_t *header;
+    aal_device_block_t *header;
 };
 
 typedef struct reiserfs_journal36 reiserfs_journal36_t;

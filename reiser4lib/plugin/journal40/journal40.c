@@ -21,8 +21,8 @@ static reiserfs_journal40_t *reiserfs_journal40_open(aal_device_t *device) {
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
 	
-    if (!(journal->header = aal_block_read(device, 
-	(blk_t)(REISERFS_JOURNAL40_OFFSET / aal_device_blocksize(device)))))
+    if (!(journal->header = aal_device_read_block(device, 
+	(blk_t)(REISERFS_JOURNAL40_OFFSET / aal_device_get_blocksize(device)))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-026", 
 	    "Can't read journal header.");
@@ -37,18 +37,26 @@ static reiserfs_journal40_t *reiserfs_journal40_open(aal_device_t *device) {
     return journal;
 	
 error_free_header:
-    aal_block_free(journal->header);
+    aal_device_free_block(journal->header);
 error_free_journal:
     aal_free(journal);
 error:
     return NULL;
 }
 
-static void reiserfs_journal40_close(reiserfs_journal40_t *journal, int sync) {
-    if (sync && !aal_block_write(journal->device, journal->header))	{
+static int reiserfs_journal40_sync(reiserfs_journal40_t *journal) {
+    if (!aal_device_write_block(journal->device, journal->header)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-027", 
 	    "Can't synchronize journal header.");
-    }	
+	return 0;
+    }
+    return 1;
+}
+
+static void reiserfs_journal40_close(reiserfs_journal40_t *journal, int sync) {
+    if (sync)
+	reiserfs_journal40_sync(journal);
+    
     aal_free(journal);
 }
 
@@ -70,6 +78,7 @@ reiserfs_plugin_t plugin_info = {
 	.open = (reiserfs_journal_opaque_t *(*)(aal_device_t *))reiserfs_journal40_open,
 	.create = NULL,
 	.close = (void (*)(reiserfs_journal_opaque_t *, int))reiserfs_journal40_close,
+	.sync = (int (*)(reiserfs_journal_opaque_t *))reiserfs_journal40_sync,
 	.replay = (int (*)(reiserfs_journal_opaque_t *))reiserfs_journal40_replay
     }
 };

@@ -8,7 +8,7 @@
 #include <reiserfs/reiserfs.h>
 #include <reiserfs/debug.h>
 
-reiserfs_node_t *reiserfs_node_open(aal_block_t *block) {
+reiserfs_node_t *reiserfs_node_open(aal_device_block_t *block) {
     reiserfs_node_t *node;
     
     ASSERT (block != NULL, return NULL);
@@ -31,7 +31,7 @@ reiserfs_node_t *reiserfs_node_open(aal_block_t *block) {
     if (!(node->entity = node->plugin->node.open(block))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "vpf-002", 
 	    "Node plugin hasn't been able to open a node %d.", 
-	    aal_block_location(block));
+	    aal_device_get_block_location(block));
 	goto error_free_node;
     }
 
@@ -43,7 +43,7 @@ error:
     return NULL;
 }
 
-reiserfs_node_t *reiserfs_node_create(aal_block_t *block,
+reiserfs_node_t *reiserfs_node_create(aal_device_block_t *block,
     reiserfs_plugin_id_t plugin_id, uint8_t level)
 {
     reiserfs_node_t *node;
@@ -62,7 +62,7 @@ reiserfs_node_t *reiserfs_node_create(aal_block_t *block,
     if (!(node->entity = node->plugin->node.create(block, level))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "vpf-002", 
 	    "Node plugin hasn't been able to create a node on block %d.", 
-	    aal_block_location(block));
+	    aal_device_get_block_location(block));
 	goto error_free_node;
     }
 
@@ -77,7 +77,7 @@ error:
 void reiserfs_node_close(reiserfs_node_t *node, int sync) {
     ASSERT(node != NULL, return);
     
-    reiserfs_plugin_check_routine (node->plugin->node, close, goto error_free_node); 
+    reiserfs_plugin_check_routine(node->plugin->node, close, goto error_free_node); 
     node->plugin->node.close(node->entity, sync);
    
 error_free_node:
@@ -127,7 +127,7 @@ uint32_t reiserfs_node_free_space(reiserfs_node_t *node) {
 void reiserfs_node_set_free_space(reiserfs_node_t *node) {
 }
 
-aal_block_t *reiserfs_node_block(reiserfs_node_t *node) {
+aal_device_block_t *reiserfs_node_block(reiserfs_node_t *node) {
     ASSERT(node != NULL, return NULL);
 
     reiserfs_plugin_check_routine(node->plugin->node, block, return NULL);

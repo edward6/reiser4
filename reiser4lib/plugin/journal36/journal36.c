@@ -28,11 +28,19 @@ static reiserfs_journal36_t *reiserfs_journal36_open(aal_device_t *device) {
     return journal;
 }
 
-static void reiserfs_journal36_close(reiserfs_journal36_t *journal, int sync) {
-    if (sync && !aal_block_write(journal->device, journal->header))	{
+static int reiserfs_journal36_sync(reiserfs_journal36_t *journal) {
+    if (!aal_device_write_block(journal->device, journal->header)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-025", 
 	    "Can't synchronize journal header.");
-    }	
+	return 0;
+    }
+    return 1;
+}
+
+static void reiserfs_journal36_close(reiserfs_journal36_t *journal, int sync) {
+    if (sync)
+	reiserfs_journal36_sync(journal);
+    
     aal_free(journal);
 }
 
@@ -54,6 +62,7 @@ reiserfs_plugin_t plugin_info = {
 	.open = (reiserfs_journal_opaque_t *(*)(aal_device_t *))reiserfs_journal36_open,
 	.create = NULL, 
 	.close = (void (*)(reiserfs_journal_opaque_t *, int))reiserfs_journal36_close,
+	.sync = (int (*)(reiserfs_journal_opaque_t *))reiserfs_journal36_sync,
 	.replay = (int (*)(reiserfs_journal_opaque_t *))reiserfs_journal36_replay
     }
 };

@@ -82,15 +82,16 @@ static int file_equals(aal_device_t *device1, aal_device_t *device2) {
     return !strcmp((char *)device1->data, (char *)device2->data);
 }
 
-static int file_stat(aal_device_t *device, struct stat *st) {
+static uint32_t file_stat(aal_device_t *device) {
+    struct stat st;
 	
-    if (!device || !st)
+    if (!device)
 	return 0;
 	
-    if (stat((char *)device->data, st))
+    if (stat((char *)device->data, &st))
 	return 0;
 
-    return 1;
+    return (uint32_t)st.st_dev;
 }
 
 static count_t file_len(aal_device_t *device) {
@@ -115,7 +116,7 @@ static struct aal_device_ops ops = {
     file_len
 };
 
-aal_device_t *aal_file_open(const char *file, size_t blocksize, int flags) {
+aal_device_t *aal_file_open(const char *file, uint32_t blocksize, int flags) {
     int fd;
     aal_device_t *device;
 	
@@ -126,6 +127,7 @@ aal_device_t *aal_file_open(const char *file, size_t blocksize, int flags) {
 	return NULL;
 	
     device = aal_device_open(&ops, blocksize, flags, (void *)file);
+    aal_strncpy(device->name, file, strlen(file));
 
     if (!(device->entity = aal_calloc(sizeof(int), 0)))
 	goto error_free_device;
@@ -163,6 +165,7 @@ void aal_file_close(aal_device_t *device) {
 	return;
 
     close(*((int *)device->entity));
+    aal_free(device->entity);
     aal_device_close(device);
 }
 

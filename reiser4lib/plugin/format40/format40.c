@@ -26,24 +26,24 @@ static int reiserfs_format40_signature(reiserfs_format40_super_t *super) {
     return aal_strncmp(super->sb_magic, REISERFS_FORMAT40_MAGIC, 16) == 0;
 }
 
-static aal_block_t *reiserfs_format40_super_open(aal_device_t *device) {
-    aal_block_t *block;
+static aal_device_block_t *reiserfs_format40_super_open(aal_device_t *device) {
+    aal_device_block_t *block;
     reiserfs_format40_super_t *super;
     int i, super_offset[] = {17, -1};
 	
     for (i = 0; super_offset[i] != -1; i++) {
-	if ((block = aal_block_read(device, super_offset[i]))) {
+	if ((block = aal_device_read_block(device, super_offset[i]))) {
 	    super = (reiserfs_format40_super_t *)block->data;
 		
 	    if (reiserfs_format40_signature(super)) {
 		if (!reiserfs_format40_super_check(super, device)) {
-		    aal_block_free(block);
+		    aal_device_free_block(block);
 		    continue;
 		}	
 		return block;
 	    }
 			
-	    aal_block_free(block);
+	    aal_device_free_block(block);
 	}
     }
     return NULL;
@@ -74,9 +74,9 @@ static int reiserfs_format40_sync(reiserfs_format40_t *format) {
     if (!format || !format->super)
 	return 0;
     
-    if (!aal_block_write(format->device, format->super)) {
+    if (!aal_device_write_block(format->device, format->super)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-044", 
-	    "Can't write superblock to %d.", aal_block_location(format->super));
+	    "Can't write superblock to %d.", aal_device_get_block_location(format->super));
 	return 0;
     }
     return 1;
@@ -94,7 +94,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device) {
     
     format->device = device;
     
-    if (!(format->super = aal_block_alloc(device, REISERFS_FORMAT40_OFFSET, 0))) {
+    if (!(format->super = aal_device_alloc_block(device, REISERFS_FORMAT40_OFFSET, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-043", 
 	    "Can't allocate superblock.");
 	goto error_free_format;
@@ -110,7 +110,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device) {
     return format;
     
 error_free_super:
-    aal_block_free(format->super);
+    aal_device_free_block(format->super);
 error_free_format:
     aal_free(format);
 error:
@@ -126,17 +126,17 @@ static void reiserfs_format40_close(reiserfs_format40_t *format, int sync) {
     if (sync) 
 	reiserfs_format40_sync(format);
     
-    aal_block_free(format->super);
+    aal_device_free_block(format->super);
     aal_free(format);
 }
 
 static int reiserfs_format40_probe(aal_device_t *device) {
-    aal_block_t *block;
+    aal_device_block_t *block;
 
     if (!(block = reiserfs_format40_super_open(device)))
 	return 0;
 	
-    aal_block_free(block);
+    aal_device_free_block(block);
     return 1;
 }
 

@@ -28,8 +28,7 @@ static reiserfs_master_super_t *reiserfs_super_fill_master(reiserfs_master_super
 }
 
 int reiserfs_super_open(reiserfs_fs_t *fs) {
-    aal_block_t *block;
-    int reiser3_emulation = 0;
+    aal_device_block_t *block;
     reiserfs_plugin_t *plugin;
     reiserfs_master_super_t *master;
 	
@@ -47,7 +46,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	
     aal_device_set_blocksize(fs->device, REISERFS_DEFAULT_BLOCKSIZE);
 	
-    if (!(block = aal_block_read(fs->device, 
+    if (!(block = aal_device_read_block(fs->device, 
 	(blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE))))
     {
 	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-006", 
@@ -69,7 +68,7 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	    goto error_free_block;
 		
 	/* Forming in memory master super block for reiser3 */
-	reiserfs_super_fill_master(master, 0x2, aal_device_blocksize(fs->device), "", "");
+	reiserfs_super_fill_master(master, 0x2, aal_device_get_blocksize(fs->device), "", "");
     }
 	
     aal_memcpy(&fs->super->master, master, sizeof(*master));
@@ -97,12 +96,12 @@ int reiserfs_super_open(reiserfs_fs_t *fs) {
 	    "Can't initialize disk-format plugin.");
 	goto error_free_block;
     }	
-    aal_block_free(block);
+    aal_device_free_block(block);
 
     return 1;
 	
 error_free_block:
-    aal_block_free(block);
+    aal_device_free_block(block);
 error_free_super:
     aal_free(fs->super);
     fs->super = NULL;
@@ -113,7 +112,7 @@ error:
 int reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format, 
     unsigned int blocksize, const char *uuid, const char *label, count_t len) 
 {
-    aal_block_t *block;
+    aal_device_block_t *block;
     reiserfs_plugin_t *plugin;
 		
     ASSERT(fs != NULL, return 0);
@@ -129,19 +128,20 @@ int reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t format,
 	
     reiserfs_super_fill_master(&fs->super->master, format, blocksize, uuid, label);
 	
-    if (!(block = aal_block_alloc_with(fs->device, 
-	    (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE), 
-	    &fs->super->master)))
+    if (!(block = aal_device_alloc_block(fs->device, 
+	    (blk_t)(REISERFS_MASTER_OFFSET / REISERFS_DEFAULT_BLOCKSIZE), 0)))
 	goto error_free_super;
-	
-    if (!aal_block_write(fs->device, block)) {
+
+    aal_memcpy(block->data, &fs->super->master, sizeof(fs->super->master));
+    
+    if (!aal_device_write_block(fs->device, block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-011", 
 	    "Can't create master super block on the device.");
-	aal_block_free(block);
+	aal_device_free_block(block);
 	goto error_free_super;
     }
 	
-    aal_block_free(block);
+    aal_device_free_block(block);
 	
     /* Creating specified disk-format and format-specific superblock */
     reiserfs_plugin_check_routine(plugin->format, create, goto error_free_super);

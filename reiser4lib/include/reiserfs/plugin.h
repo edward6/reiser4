@@ -72,8 +72,8 @@ typedef void reiserfs_node_opaque_t;
 struct reiserfs_node_plugin {
     reiserfs_plugin_header_t h;
 
-    reiserfs_node_opaque_t *(*open) (aal_block_t *);
-    reiserfs_node_opaque_t *(*create) (aal_block_t *, uint8_t);
+    reiserfs_node_opaque_t *(*open) (aal_device_block_t *);
+    reiserfs_node_opaque_t *(*create) (aal_device_block_t *, uint8_t);
     void (*close) (reiserfs_node_opaque_t *, int);
     int (*check) (reiserfs_node_opaque_t *, int);
     int (*sync) (reiserfs_node_opaque_t *);
@@ -83,7 +83,7 @@ struct reiserfs_node_plugin {
 
     uint32_t (*count) (reiserfs_node_opaque_t *);
     uint8_t (*level) (reiserfs_node_opaque_t *);
-    aal_block_t *(*block) (reiserfs_node_opaque_t *);
+    aal_device_block_t *(*block) (reiserfs_node_opaque_t *);
     
     uint32_t (*get_free_space) (reiserfs_node_opaque_t *);
     void (*set_free_space) (reiserfs_node_opaque_t *);
@@ -174,6 +174,7 @@ struct reiserfs_journal_plugin {
     reiserfs_journal_opaque_t *(*open) (aal_device_t *);
     reiserfs_journal_opaque_t *(*create) (aal_device_t *, reiserfs_params_opaque_t *params);
     void (*close) (reiserfs_journal_opaque_t *, int);
+    int (*sync) (reiserfs_journal_opaque_t *);
     int (*replay) (reiserfs_journal_opaque_t *);
 };
 

@@ -9,7 +9,7 @@
 
 int reiserfs_tree_open(reiserfs_fs_t *fs) {
     blk_t root_block;
-    aal_block_t *block;
+    aal_device_block_t *block;
     reiserfs_plugin_t *plugin;
 
     ASSERT(fs != NULL, return 0);
@@ -26,7 +26,7 @@ int reiserfs_tree_open(reiserfs_fs_t *fs) {
 	goto error_free_tree;
     }
 
-    if (!(block = aal_block_read(fs->device, root_block))) {
+    if (!(block = aal_device_read_block(fs->device, root_block))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-033", 
 	    "Can't read root block %d.", block);
 	goto error_free_tree;
@@ -40,7 +40,7 @@ int reiserfs_tree_open(reiserfs_fs_t *fs) {
 error_free_root:
     reiserfs_node_close(fs->tree->root, 0);
 error_free_block:
-    aal_block_free(block);
+    aal_device_free_block(block);
 error_free_tree:
     aal_free(fs->tree);
     fs->tree = NULL;
@@ -50,7 +50,7 @@ error:
 
 int reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     blk_t root_block;
-    aal_block_t *block;
+    aal_device_block_t *block;
     reiserfs_plugin_t *plugin;
     
     ASSERT(fs != NULL, return 0);
@@ -73,7 +73,7 @@ int reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id)
 	goto error_free_tree;
     }
     
-    if (!(block = aal_block_alloc(fs->device, root_block, 0))) {
+    if (!(block = aal_device_alloc_block(fs->device, root_block, 0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-046", 
 	    "Can't allocate root block.");
 	goto error_free_tree;
@@ -91,7 +91,7 @@ int reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id)
 error_free_root:
     reiserfs_node_close(fs->tree->root, 0);
 error_free_block:
-    aal_block_free(block);
+    aal_device_free_block(block);
 error_free_tree:
     aal_free(fs->tree);
     fs->tree = NULL;
@@ -104,8 +104,6 @@ void reiserfs_tree_close(reiserfs_fs_t *fs, int sync) {
     ASSERT(fs->tree != NULL, return);
     
     reiserfs_node_close(fs->tree->root, 1);    
-
-error_free_tree:
     aal_free(fs->tree);
     fs->tree = NULL;
 }

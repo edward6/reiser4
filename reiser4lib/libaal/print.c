@@ -25,7 +25,7 @@ void aal_printf_set_handler(aal_printf_handler_t handler) {
     printf_handler = handler;
 }
 
-aal_printf_handler_t aal_printf_handler(void) {
+aal_printf_handler_t aal_printf_get_handler(void) {
     return printf_handler;
 }
 

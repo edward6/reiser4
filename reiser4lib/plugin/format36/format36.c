@@ -61,28 +61,28 @@ static int reiserfs_format36_super_check(reiserfs_format36_super_t *super,
     return 1;
 }
 
-static aal_block_t *reiserfs_format36_super_open(aal_device_t *device) {
-    aal_block_t *block;
+static aal_device_block_t *reiserfs_format36_super_open(aal_device_t *device) {
+    aal_device_block_t *block;
     reiserfs_format36_super_t *super;
     int i, super_offset[] = {16, 2, -1};
 
     for (i = 0; super_offset[i] != -1; i++) {
-	if ((block = aal_block_read(device, super_offset[i]))) {
+	if ((block = aal_device_read_block(device, super_offset[i]))) {
 	    super = (reiserfs_format36_super_t *)block->data;
 			
 	    if (reiserfs_format36_signature(super)) {
 		if (!aal_device_set_blocksize(device, get_sb_block_size(super))) {
-		    aal_block_free(block);
+		    aal_device_free_block(block);
 		    continue;
 		}
 				
 		if (!reiserfs_format36_super_check(super, device)) {
-		    aal_block_free(block);
+		    aal_device_free_block(block);
 		    continue;
 		}
 		return block;
 	    }
-	    aal_block_free(block);
+	    aal_device_free_block(block);
 	}
     }
     return NULL;
@@ -113,9 +113,9 @@ static int reiserfs_format36_sync(reiserfs_format36_t *format) {
     if (!format || !format->super)
 	return 0;
 
-    if (!aal_block_write(format->device, format->super)) {
+    if (!aal_device_write_block(format->device, format->super)) {
     	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-022", 
-	    "Can't write superblock to %d.", aal_block_location(format->super));
+	    "Can't write superblock to %d.", aal_device_get_block_location(format->super));
 	return 0;
     }
     return 1;
@@ -134,17 +134,17 @@ static void reiserfs_format36_close(reiserfs_format36_t *format, int sync) {
     if (sync)
 	reiserfs_format36_sync(format);
     
-    aal_block_free(format->super);
+    aal_device_free_block(format->super);
     aal_free(format);
 }
 
 static int reiserfs_format36_probe(aal_device_t *device) {
-    aal_block_t *block;
+    aal_device_block_t *block;
 	
     if (!(block = reiserfs_format36_super_open(device)))
 	return 0;
 	
-    aal_block_free(block);
+    aal_device_free_block(block);
     return 1;
 }
 

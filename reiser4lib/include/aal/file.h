@@ -15,7 +15,7 @@
 
 #include <aal/device.h>
 
-extern aal_device_t *aal_file_open(const char *file, size_t blocksize, int flags);
+extern aal_device_t *aal_file_open(const char *file, uint32_t blocksize, int flags);
 extern int aal_file_reopen(aal_device_t *device, int flags);
 extern void aal_file_close(aal_device_t *device);
 

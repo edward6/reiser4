@@ -29,9 +29,9 @@ typedef struct reiserfs_node reiserfs_node_t;
 #define reiserfs_node_set_plugin_id(block, id) \
     set_le16((reiserfs_node_common_header_t *)block->data, plugin_id, id)
 
-extern reiserfs_node_t *reiserfs_node_open(aal_block_t *block);
+extern reiserfs_node_t *reiserfs_node_open(aal_device_block_t *block);
 
-extern reiserfs_node_t *reiserfs_node_create(aal_block_t *block, 
+extern reiserfs_node_t *reiserfs_node_create(aal_device_block_t *block, 
     reiserfs_plugin_id_t plugin_id, uint8_t level);
 
 extern int reiserfs_node_check(reiserfs_node_t *node, int flags);
@@ -45,7 +45,7 @@ extern uint8_t reiserfs_node_level(reiserfs_node_t *node);
 
 extern uint32_t reiserfs_node_free_space(reiserfs_node_t *node);
 extern void reiserfs_node_set_free_space(reiserfs_node_t *node);
-extern aal_block_t *reiserfs_node_block(reiserfs_node_t *node);
+extern aal_device_block_t *reiserfs_node_block(reiserfs_node_t *node);
 
 #endif
 

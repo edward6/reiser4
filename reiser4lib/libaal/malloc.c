@@ -27,7 +27,7 @@ void aal_malloc_set_handler(aal_malloc_handler_t handler) {
     malloc_handler = handler;
 }
 
-aal_malloc_handler_t aal_malloc_handler(void) {
+aal_malloc_handler_t aal_malloc_get_handler(void) {
     return malloc_handler;
 }
 
@@ -60,7 +60,7 @@ void aal_realloc_set_handler(aal_realloc_handler_t handler) {
     realloc_handler = handler;
 }
 
-aal_realloc_handler_t aal_realloc_handler(void) {
+aal_realloc_handler_t aal_realloc_get_handler(void) {
     return realloc_handler;
 }
 
@@ -84,7 +84,7 @@ void aal_free_set_handler(aal_free_handler_t handler) {
     free_handler = handler;
 }
 
-aal_free_handler_t aal_free_handler(void) {
+aal_free_handler_t aal_free_get_handler(void) {
     return free_handler;
 }
 
