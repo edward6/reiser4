@@ -634,7 +634,7 @@ static int reiser4_set_page_dirty (struct page * page)
 					inc_page_state(nr_dirty);
 				list_del(&page->list);
 				list_add(&page->list, get_moved_pages(mapping));
-			}
+			}			
 			spin_unlock(&mapping->page_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
@@ -2672,7 +2672,7 @@ static int capture_anonymous_pages (struct address_space * mapping)
 		spin_unlock (&mapping->page_lock);
 
 		lock_page (pg);
-
+		assert("vs-1244", PageDirty(pg));
 		capture_page_and_create_extent (pg);
 		
 		unlock_page (pg);
