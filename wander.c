@@ -991,8 +991,8 @@ int reiser4_write_logs (void)
 		goto up_and_ret;
 
 	trace_on (TRACE_LOG,
-		  "journal header updated (tx head at block %llX)\n",
-		  (unsigned long long int)(*jnode_get_block(capture_list_front(&ch.tx_list))));
+		  "journal header updated (tx head at block %s)\n",
+		  sprint_address(jnode_get_block(capture_list_front(&ch.tx_list))));
 
 	post_commit_hook();
 
@@ -1011,8 +1011,8 @@ int reiser4_write_logs (void)
 		goto up_and_ret;
 
 	trace_on (TRACE_LOG,
-		  "journal footer updated (tx head at block %llX)\n",
-		  (unsigned long long int)(*jnode_get_block(capture_list_front(&ch.tx_list))));
+		  "journal footer updated (tx head at block %s)\n",
+		  sprint_address(jnode_get_block(capture_list_front(&ch.tx_list))));
 
 	post_write_back_hook();
 
@@ -1078,8 +1078,8 @@ static int check_tx_head (const jnode * node)
 	struct tx_header * TH = (struct tx_header*) jdata(node);
 
 	if (memcmp(&TH->magic, TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE) != 0) {
-		warning ("zam-627", "tx head at block %llX corrupted\n",
-			 (unsigned long long int)(*jnode_get_block(node)));
+		warning ("zam-627", "tx head at block %s corrupted\n",
+			 sprint_address(jnode_get_block(node)));
 		return -EIO;
 	}
 
@@ -1091,8 +1091,8 @@ static int check_log_record (const jnode * node)
 	struct log_record_header *RH = (struct log_record_header *)jdata(node);
 
 	if (memcmp(&RH->magic, LOG_RECORD_MAGIC, LOG_RECORD_MAGIC_SIZE) != 0) {
-		warning ("zam-628", "log record at block %llX corrupted\n",
-			 (unsigned long long int)(*jnode_get_block(node)));
+		warning ("zam-628", "log record at block %s corrupted\n",
+			 sprint_address(jnode_get_block(node)));
 		return -EIO;
 	}
 
@@ -1290,8 +1290,8 @@ static int replay_oldest_transaction(struct super_block * s)
 	total = d32tocpu(&T->total);
 	log_rec_block = d64tocpu(&T->next_block);
 
-	trace_on(TRACE_REPLAY, "not flushed transaction found (head block %llX, %u log records)\n",
-		 (unsigned long long)(*jnode_get_block(tx_head)), total);
+	trace_on(TRACE_REPLAY, "not flushed transaction found (head block %s, %u log records)\n",
+		 sprint_address(jnode_get_block(tx_head)), total);
 
 	pin_jnode_data(tx_head);
 	jrelse(tx_head);

@@ -87,9 +87,7 @@ void internal_down_link( const coord_t *coord /* coord of item */,
 							    * pointer for */, 
 			 reiser4_block_nr *block /* resulting block number */ )
 {
-#if REISER4_DEBUG
-	reiser4_key item_key;
-#endif
+	ON_DEBUG( reiser4_key item_key );
 
 	assert( "nikita-609", coord != NULL );
 	assert( "nikita-611", block != NULL );
@@ -149,11 +147,13 @@ int internal_utmost_child ( const coord_t  *coord,
  * debugging aid: print human readable information about internal item at
  * @coord 
  */
-/* Audited by: green(2002.06.14) */
 void internal_print( const char *prefix /* prefix to print */, 
 		     coord_t *coord /* coord of item to print  */ )
 {
-	info( "%s: internal: %llx\n", prefix, pointer_at( coord ) );
+	reiser4_block_nr blk;
+
+	blk = pointer_at( coord );
+	info( "%s: internal: %s\n", prefix, sprint_address( &blk ) );
 }
 
 /** return true only if this item really points to "block" */

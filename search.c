@@ -1395,17 +1395,24 @@ void print_coord_content( const char *prefix /* prefix to print */,
 	}
 }
 
+char *sprint_address( const reiser4_block_nr *block /* block number to print */ )
+{
+	static char address[ 30 ];
+
+	if( block == NULL )
+		sprintf( address, "null" );
+	else if( blocknr_is_fake( block ) )
+		sprintf( address, "%llx (fake)", *block );
+	else
+		sprintf( address, "%llu", *block );
+	return address;
+}
+
 /** debugging aid: print human readable information about @block */
 void print_address( const char *prefix /* prefix to print */, 
 		    const reiser4_block_nr *block /* block number to print */ )
 {
-	if( block == NULL ) {
-		info( "%s: null\n", prefix );
-	} else if( blocknr_is_fake( block ) ) {
-		info( "%s: %llx (fake)\n", prefix, *block );
-	} else {
-		info( "%s: %llu\n", prefix, *block );
-	}
+	info( "%s: %s\n", prefix, sprint_address( block ) );
 }
 
 /** release parent node during traversal */

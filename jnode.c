@@ -734,9 +734,9 @@ int jnode_try_drop( jnode *node )
 	/*
 	 * FIXME-NIKITA znode releasing is not yet fully supported
 	 */
-	result = jnode_is_znode( node ) || jplug -> is_busy( node );
+	result = page || jnode_is_znode( node ) || jplug -> is_busy( node );
 	spin_unlock_jnode( node );
-	if( !result && ( page == NULL ) )
+	if( result == 0 )
 		/*
 		 * no page and no references---despatch him.
 		 */
@@ -1281,7 +1281,8 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, type: %s, ",
+	info( "%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
+	      " block: %s, d_count: %d, x_count: %d, pg: %p, type: %s, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, JNODE_LOADED ),
@@ -1298,7 +1299,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 	      jnode_state_name( node, JNODE_FLUSH_QUEUED ),
 	      jnode_state_name( node, JNODE_RIP ),
 
-	      jnode_get_level( node ), *jnode_get_block( node ),
+	      jnode_get_level( node ), sprint_address( jnode_get_block( node ) ),
 	      atomic_read( &node -> d_count ), atomic_read( &node -> x_count ),
 	      jnode_page( node ), jnode_type_name( jnode_get_type( node ) ) );
 	if( jnode_is_unformatted( node ) ) {

@@ -3971,7 +3971,7 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 	fmttd = jnode_is_znode (node);
 	dirty = JF_ISSET (node, JNODE_DIRTY);
 
-	sprintf (block, " block=%llu", *jnode_get_block (node));
+	sprintf (block, " block=%s", sprint_address (jnode_get_block (node)));
 
 	if (JF_ISSET (node, JNODE_WANDER)) {
 		state = dirty ? "wandr,dirty" : "wandr";

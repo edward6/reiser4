@@ -375,6 +375,7 @@ extern znode *child_znode( const coord_t *in_parent, znode *parent, int incore_p
 			   int setup_dkeys_p );
 
 extern void print_coord_content( const char *prefix, coord_t *p );
+extern char *sprint_address( const reiser4_block_nr *block );
 extern void print_address( const char *prefix, const reiser4_block_nr *block );
 extern const char *bias_name( lookup_bias bias );
 extern int  cbk_cache_init( cbk_cache *cache );
