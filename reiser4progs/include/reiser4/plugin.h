@@ -736,7 +736,8 @@ struct reiserfs_oid_ops {
     uint64_t (*used) (reiserfs_entity_t *);
 
     uint64_t (*root_parent_locality) (void);
-    uint64_t (*root_parent_objectid) (void);
+    
+    uint64_t (*root_locality) (void);
     uint64_t (*root_objectid) (void);
 };
 
