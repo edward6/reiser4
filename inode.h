@@ -32,14 +32,14 @@ typedef enum {
 	REISER4_IMMUTABLE = 2,
 	/* inode was read from storage */
 	REISER4_LOADED = 3,
-	/* this is set when we know for sure state of file tail: for default
+	/* this is set when we know for sure state of file: for default
 	   reiser4 ordinary files it means that we know whether file is built
 	   of extents or of tail items only */
-	REISER4_TAIL_STATE_KNOWN = 4,
+	REISER4_FILE_STATE_KNOWN = 4,
 	/* this is set to 1 when not all file data are stored as unformatted
 	   node, 0 - otherwise. Note, that this bit can be only checked if
-	   REISER4_TAIL_STATE_KNOWN is set */
-	REISER4_HAS_TAIL = 5,
+	   REISER4_FILE_STATE_KNOWN is set */
+	REISER4_BUILT_OF_TAILS = 5,
 	/* this bit is set for symlinks. inode->u.generic_ip points to target
 	   name of symlink */
 	REISER4_GENERIC_VP_USED = 6
