@@ -1509,25 +1509,27 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 
 		/* Write throttling is case of no one atom can be
 		 * flushed/committed.  */
-		for_all_type_safe_list(atom, &tmgr->atoms_list, atom) {
-			LOCK_ATOM(atom);
-			/* Repeat the check from the above. */
-			if (atom->stage < ASTAGE_PRE_COMMIT && atom->nr_flushers == 0) {
-				LOCK_TXNH(txnh);
-				capture_assign_txnh_nolock(atom, txnh);
-				UNLOCK_TXNH(txnh);
+		if (!current_is_pdflush()) {
+			for_all_type_safe_list(atom, &tmgr->atoms_list, atom) {
+				LOCK_ATOM(atom);
+				/* Repeat the check from the above. */
+				if (atom->stage < ASTAGE_PRE_COMMIT && atom->nr_flushers == 0) {
+					LOCK_TXNH(txnh);
+					capture_assign_txnh_nolock(atom, txnh);
+					UNLOCK_TXNH(txnh);
 
-				goto found;
+					goto found;
+				}
+				if (atom->stage <= ASTAGE_POST_COMMIT) {
+					spin_unlock_txnmgr(tmgr);
+					/* we just wait until atom's flusher
+					   makes a progress in flushing or
+					   committing the atom */
+					atom_wait_event(atom);
+					return 0;
+				}
+				UNLOCK_ATOM(atom);
 			}
-			if (atom->stage <= ASTAGE_POST_COMMIT) {
-				spin_unlock_txnmgr(tmgr);
-				/* we just wait until atom's flusher
-				   makes a progress in flushing or
-				   committing the atom */
-				atom_wait_event(atom);
-				return 0;
-			}
-			UNLOCK_ATOM(atom);
 		}
 		spin_unlock_txnmgr(tmgr);
 		return 0;
