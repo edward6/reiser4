@@ -2348,6 +2348,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	} else {
 		info( "Huh?\n" );
 	}
+	zput( root );
 	return 0;
 }
 
@@ -3117,7 +3118,7 @@ int mkfs_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node UNUSED_ARG )
 static tree_operations mkfs_tops = {
 	.read_node     = mkfs_bread,
 	.allocate_node = mkfs_getblk,
-	.delete_node   = NULL,
+	.delete_node   = mkfs_brelse,
 	.release_node  = mkfs_brelse,
 	.drop_node     = mkfs_bdrop,
 	.dirty_node    = mkfs_dirty_node
@@ -4748,6 +4749,7 @@ static void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 			}
 		}
 	}
+	zrelse( node );
 	/*
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL )
 		print_address( "end children of node", znode_get_block( node ) );
@@ -4775,6 +4777,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( node_is_empty( node ) ) {
 		indent_znode( node );
 		info( "empty\n" );
+		zrelse( node );
 		return;
 	}
 
@@ -4805,6 +4808,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
 		print_address( "end children of node", znode_get_block( node ) );
 	}
+	zrelse( node );
 }
 
 /**
