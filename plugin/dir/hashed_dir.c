@@ -286,8 +286,9 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 	assert("nikita-1248", dentry != NULL);
 	assert("nikita-1123", dentry->d_name.name != NULL);
 
-	if (perm_chk(parent, lookup, parent, dentry))
-		return RETERR(-EPERM);
+	result = perm_chk(parent, lookup, parent, dentry);
+	if (result != 0)
+		return 0;
 
 	name = dentry->d_name.name;
 	len = dentry->d_name.len;
