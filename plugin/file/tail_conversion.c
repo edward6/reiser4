@@ -395,7 +395,7 @@ tail2extent(unix_file_info_t *uf_info)
 			if (result)
 				goto error;
 			/* throttle the conversion */
-			balance_dirty_page_unix_file(inode);
+			balance_dirty_pages_ratelimited(inode->i_mapping);
 		}
 	}
 

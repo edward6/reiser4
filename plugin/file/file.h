@@ -31,7 +31,6 @@ extern int prepare_write_unix_file (struct file *, struct page *, unsigned, unsi
 
 int sync_unix_file(struct file *file, struct dentry *dentry, int datasync);
 
-void balance_dirty_page_unix_file(struct inode *object);
 
 /* all the write into unix file is performed by item write method. Write method of unix file plugin only decides which
    item plugin (extent or tail) and in which mode (one from the enum below) to call */

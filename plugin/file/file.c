@@ -1892,12 +1892,6 @@ drop_access(unix_file_info_t *uf_info)
 		drop_nonexclusive_access(uf_info);
 }
 
-reiser4_internal void balance_dirty_page_unix_file(struct inode *object)
-{
-	/* balance dirty pages periodically */
-	balance_dirty_pages_ratelimited(object->i_mapping);
-}
-
 reiser4_internal struct page *
 unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int * unused)
 {

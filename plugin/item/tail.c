@@ -482,7 +482,7 @@ item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 	if (back_to_dirty)
 		move_inode_out_from_sync_inodes_loop(mapping);
 
-	balance_dirty_page_unix_file(inode);
+	balance_dirty_pages_ratelimited(inode->i_mapping);
 	return hint_validate(hint, &f->key, 0/* do not check key */, ZNODE_WRITE_LOCK);
 }
 

@@ -167,14 +167,6 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 				assert("vs-1663", WITH_DATA(un_extent->node, !memcmp(exts_to_add->data, extent_by_coord(un_extent), sizeof(reiser4_extent))));
 				assert("vs-1664", lh->node == un_extent->node);
 			}
-
-#if 0
-			if (flags == COPI_DONT_SHIFT_LEFT) {
-				/* set coord back to initial extent unit */
-				*un_extent = coord_after;
-				assert("vs-1375", znode_is_write_locked(un_extent->node));
-			}
-#endif
 		}
 	}
 	tap_done(&watch);

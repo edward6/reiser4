@@ -517,19 +517,6 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	assert("vs-1428", info->anonymous_eflushed == 0);
 	assert("zam-1050", info->nr_jnodes == 0);
 
-#if 0
-	{
-		/* finish with inode's jnode */
-		jnode *j;
-
-		j = &info->inode_jnode;
-		assert("vs-1243", atomic_read(&j->x_count) == 1);
-		atomic_set(&j->x_count, 0);
-		JF_SET(j, JNODE_RIP);
-		check_me("vs-1242", jnode_try_drop(j) == 0);
-	}
-#endif
-
 	if (!is_bad_inode(inode) && is_inode_loaded(inode)) {
 
 		if (inode_get_flag(inode, REISER4_GENERIC_PTR_USED)) {

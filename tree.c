@@ -1307,23 +1307,6 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 	assert("umka-328", from != NULL);
 	assert("vs-316", !node_is_empty(from->node));
 	assert("nikita-1812", coord_is_existing_unit(from) && coord_is_existing_unit(to));
-#if 0
-	if (coord_eq(from, to) && !coord_is_existing_unit(from)) {
-		assert("nikita-1812", !coord_is_existing_unit(to));	/* Napoleon defeated */
-		return 0;
-	}
-	/* set @from and @to to first and last units which are to be removed
-	   (getting rid of betweenness) */
-	if (coord_set_to_right(from) || coord_set_to_left(to)) {
-		warning("jmacd-18128", "coord_set failed");
-		return RETERR(-EIO);
-	}
-
-	/* make sure that @from and @to are set to existing units in the
-	   node */
-	assert("vs-161", coord_is_existing_unit(from));
-	assert("vs-162", coord_is_existing_unit(to));
-#endif
 
 	init_lh(&left_child);
 	init_lh(&right_child);
