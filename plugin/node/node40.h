@@ -84,8 +84,8 @@ int guess_node40(const znode * node);
 void change_item_size_node40(coord_t * coord, int by);
 int create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data * data, carry_plugin_info * info);
 void update_item_key_node40(coord_t * target, const reiser4_key * key, carry_plugin_info * info);
-int cut_and_kill_node40(struct cut_list *);
-int cut_node40(struct cut_list *);
+int kill_node40(struct carry_kill_data *, carry_plugin_info *);
+int cut_node40(struct carry_cut_data *, carry_plugin_info *);
 int shift_node40(coord_t * from, znode * to, shift_direction pend,
 		 /* if @from->node becomes
 		    empty - it will be deleted from
