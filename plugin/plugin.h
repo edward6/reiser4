@@ -441,6 +441,8 @@ typedef struct compression_plugin {
 	int (*overrun) (unsigned src_len);
 	coa_t (*alloc) (tfm_action act);
 	void (*free) (coa_t coa, tfm_action act);
+	/* minimal size of the flow we still try to compress */ 
+	int (*min_tfm_size) (void);
 	/* main transform procedures */
 	void (*compress)   (coa_t coa, __u8 *src_first, unsigned src_len,
 			    __u8 *dst_first, unsigned *dst_len);
