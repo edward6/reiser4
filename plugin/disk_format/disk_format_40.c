@@ -85,20 +85,16 @@ static void done_journal_info (struct super_block *s)
 	assert ("zam-476", private != NULL);
 
 	if (private->journal_header != NULL) {
-		if (JF_ISSET(private->journal_header, ZNODE_KMAPPED)) 
-			jrelse (private->journal_header);
-		if (jnode_page(private->journal_footer))
-			jnode_detach_page (private->journal_header);
+		jput (private->journal_header);
+		jdrop (private->journal_header);
 		jfree (private->journal_header);
 
 		private->journal_header = NULL;
 	}
 
 	if (private->journal_footer != NULL) {
-		if (JF_ISSET(private->journal_footer, ZNODE_KMAPPED))
-			jrelse (private->journal_footer);
-		if (jnode_page(private->journal_footer))
-			jnode_detach_page (private->journal_footer);
+		jput (private->journal_footer);
+		jdrop (private->journal_footer);
 		jfree (private->journal_footer);
 
 		private->journal_footer = NULL;
@@ -120,8 +116,19 @@ static int init_journal_info (struct super_block * s)
 	private->journal_header->blocknr = FORMAT_40_JOURNAL_HEADER_BLOCKNR;
 	private->journal_footer->blocknr = FORMAT_40_JOURNAL_FOOTER_BLOCKNR;
 
-	if ((ret = jload (private->journal_header)) < 0) goto fail;
-	if ((ret = jload (private->journal_footer)) < 0) goto fail;
+	if ((ret = jload (private->journal_header)) < 0) {
+		goto fail;
+	}
+	if ((ret = jload (private->journal_footer)) < 0) {
+		jrelse (private->journal_header);
+		goto fail;
+	}
+
+	jref(private->journal_header);
+	jref(private->journal_footer);
+
+	jrelse(private->journal_header);
+	jrelse(private->journal_footer);
 
 	return 0;
  fail:
@@ -166,7 +173,7 @@ static void done_super_jnode (struct super_block * s)
 
 	if (sb_jnode) {
 		jput (sb_jnode);
-		jnode_detach_page(sb_jnode);
+		jdrop(sb_jnode);
 		jfree (sb_jnode);
 	}
 }

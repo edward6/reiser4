@@ -647,6 +647,16 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct io_handle * io_
 		spin_unlock_atom (atom);
 	}
 
+	{ /* relse all jnodes from tx_list*/
+		jnode * cur = capture_list_front (tx_list);
+		while (!capture_list_end (tx_list, cur)) {
+			jrelse (cur);
+			cur = capture_list_next (cur);
+		}
+
+
+	}
+
 	ret = submit_batched_write(tx_list, io_hdl);
 	if (ret) goto fail;
 
@@ -883,6 +893,9 @@ int reiser4_replay_journal (struct super_block * s)
 	{
 		warning ("zam-584", "not flushed transactions found \n");
 	}
+
+	jrelse(jf);
+	jrelse(jh);
 
 	return 0;
 }
