@@ -614,12 +614,10 @@ get_overwrite_set(struct commit_handle *ch)
 				jput(cur);
 
 			} else {
+				int ret;
+
 				capture_list_push_back(&ch->overwrite_set, cur);
 				ch->overwrite_set_size++;
-			}
-
-			{       /* un-e-flush it */
-				int ret;
 
 				ret = jload(cur);
 				if (ret) 
