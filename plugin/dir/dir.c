@@ -861,8 +861,8 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 	return result;
 }
 
-/* Function that is called by common_readdir() on each directory item
-   while doing readdir. */
+/* Function that is called by common_readdir() on each directory item while doing readdir. If it returns 0 - tap is
+   loaded and node it is set to is longterm lock locked, otherwise tap is relsed and node is longterm lock unlocked */
 static int
 feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 {
@@ -885,16 +885,22 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 	assert("nikita-1371", name != NULL);
 
 	/* key of object the entry points to */
-	if (iplug->s.dir.extract_key(coord, &sd_key) != 0)
+	if (iplug->s.dir.extract_key(coord, &sd_key) != 0) {
+		tap_relse(tap);
+		longterm_unlock_znode(tap->lh);
 		return RETERR(-EIO);
+	}
 
 
 	/* we must release longterm znode lock before calling filldir to avoid deadlock which may happen if filldir
 	   causes page fault. So, copy name to intermediate buffer */
 	if (strlen(name) + 1 > sizeof(name_buf)) {
 		tmp_name = kmalloc(strlen(name) + 1, GFP_KERNEL);
-		if (!tmp_name)
+		if (!tmp_name) {
+			tap_relse(tap);
+			longterm_unlock_znode(tap->lh);
 			return RETERR(-ENOMEM);
+		}
 	} else
 		tmp_name = name_buf;
 
@@ -903,6 +909,8 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 
 	unit_key_by_coord(coord, &entry_key);
 	seal_init(&seal, coord, &entry_key);
+	
+	tap_relse(tap);
 	longterm_unlock_znode(tap->lh);
 
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
@@ -921,6 +929,11 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 	} else {
 		result = seal_validate(&seal, coord, &entry_key, LEAF_LEVEL, tap->lh, FIND_EXACT,
 				       tap->mode, ZNODE_LOCK_HIPRI);
+		if (result == 0) {
+			result = tap_load(tap);
+			if (unlikely(result))
+				longterm_unlock_znode(tap->lh);
+		}
 	}
 	return result;
 }
@@ -1079,11 +1092,11 @@ readdir_common(struct file *f /* directory file being read */ ,
 						break;
 				}
 			} else if (result == -EAGAIN) {
-				tap_relse(&tap);
 				goto repeat;
 			}
 		}
-		tap_relse(&tap);
+		if (result == 0)
+			tap_relse(&tap);
 
 		if (result >= 0)
 			f->f_version = inode->i_version;
