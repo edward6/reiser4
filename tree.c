@@ -587,7 +587,8 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	   insert */
 	data.length = 0;
 	data.data = 0;
-
+	
+	op->u.insert_flow.flags = 0;
 	op->u.insert_flow.insert_point = coord;
 	op->u.insert_flow.flow = f;
 	op->u.insert_flow.data = &data;
@@ -1558,7 +1559,8 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
  */
 static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 			    const reiser4_key * to_key, reiser4_key * smallest_removed,
-			    struct inode * object)
+			    struct inode * object,
+			    int lazy)
 {
 	lock_handle next_node_lock;
 	coord_t left_coord;
@@ -1584,14 +1586,15 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 		/* Check can we delete the node as a whole. */
 		if (iterations && znode_get_level(node) == LEAF_LEVEL &&
 		    UNDER_RW(dk, current_tree, read,
-			     keyle(from_key, znode_get_ld_key(node)))) {
+			     (lazy ? keyle(from_key, znode_get_ld_key(node)) : 
+			      keylt(from_key, znode_get_ld_key(node)) ))) {
 			result = delete_node(
 				next_node_lock.node, node, smallest_removed, object);
 		} else {
 			result = tap_load(tap);
 			if (result)
 				return result;
-
+			
 			/* Prepare the second (right) point for cut_node() */
 			if (iterations)
 				coord_init_last_unit(tap->coord, node);
@@ -1717,7 +1720,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 reiser4_internal int
 cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 		const reiser4_key * to_key, reiser4_key * smallest_removed_p,
-		struct inode * object)
+		struct inode * object, int lazy)
 {
 	lock_handle lock;
 	int result;
@@ -1748,7 +1751,7 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 
 		tap_init(&tap, &right_coord, &lock, ZNODE_WRITE_LOCK);
 		result = cut_tree_worker(
-			&tap, from_key, to_key, smallest_removed_p, object);
+			&tap, from_key, to_key, smallest_removed_p, object, lazy);
 		tap_done(&tap);
 
 		preempt_point();
@@ -1787,7 +1790,7 @@ cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to,
 	int result;
 
 	do {
-		result = cut_tree_object(tree, from, to, NULL, inode);
+		result = cut_tree_object(tree, from, to, NULL, inode, 1);
 	} while (result == -E_REPEAT);
 
 	return result;
