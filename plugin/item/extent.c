@@ -3754,7 +3754,7 @@ int process_extent_backward_for_repacking (tap_t * tap, int max_nr_processed, re
 			break;
 
 		hint->blk = start;
-		while (len != 0) {
+		while (!done && len != 0) {
 			ret = relocate_one_part_of_extent_unit(inode, tap, &start, &len, &done, &nr_reserved);
 			if (ret)
 				break;
