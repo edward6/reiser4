@@ -3003,9 +3003,17 @@ int zam_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tree * tree 
 {
 	struct super_block * super = reiser4_get_current_sb();
 
-	reiser4_init_bitmap(super);
+	assert ("vs-510", get_super_private (super));
+	assert ("vs-511", get_super_private (super)->space_plug);
 
-	reiser4_done_bitmap(super);
+	if (get_super_private (super)->space_plug->init_allocator)
+		get_super_private (super)->space_plug->init_allocator (
+			reiser4_get_space_allocator (super), super);
+
+	if (get_super_private (super)->space_plug->destroy_allocator)
+		get_super_private (super)->space_plug->destroy_allocator (
+			reiser4_get_space_allocator (super), super);
+
 	return 0;
 }
 
@@ -3109,8 +3117,8 @@ int real_main( int argc, char **argv )
 		
 		root_dentry.d_inode = NULL;
 		/* initialize reiser4_super_info_data's oid plugin */
-		get_super_private( &super ) -> oplug = &oid_plugins[OID_40_ALLOCATOR_ID].u.oid_mgr;
-		get_super_private( &super ) -> oplug -> init_oid_allocator( get_oid_allocator( &super ) );
+		get_super_private( &super ) -> oid_plug = &oid_plugins[OID_40_ALLOCATOR_ID].u.oid_allocator;
+		get_super_private( &super ) -> oid_plug -> init_oid_allocator( get_oid_allocator( &super ) );
 
 		s = &super;
 	}
