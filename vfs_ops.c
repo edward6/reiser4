@@ -2528,6 +2528,9 @@ releasable(const jnode *node)
 		return 0;
 	if (JF_ISSET(node, JNODE_WRITEBACK))
 		return 0;
+	/* don't flush bitmaps or journal records */
+	if (!jnode_is_znode(node) && !jnode_is_unformatted(node))
+		return 0;
 	return 1;
 }
 
