@@ -14,16 +14,16 @@
     whatever standard prefixes/postfixes we want. "Fun" is a function
     that will be actually called, can be printk, panic etc.
     This is for use by other debugging macros, not by users. */
-#define DCALL( lev, fun, label, format, args... )			\
-         do { ( fun )( lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]: " format "\n",\
-		       no_context ? "interrupt" : current_pname,	\
-		       no_context ? -1 : current_pid,			\
-		       __func__, __FILE__, __LINE__, label ,  ##args );	\
+#define DCALL( lev, fun, label, format, args... )				\
+         do { fun( lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]: " format "\n",	\
+		       no_context ? "interrupt" : current_pname,		\
+		       no_context ? -1 : current_pid,				\
+		       __func__, __FILE__, __LINE__, label ,  ##args );		\
 		      } while( 0 )
 
 /** panic. Print backtrace and die */
 #define rpanic( label, format, args... )		\
-	DCALL( KERN_EMERG, reiser4_panic, label, format , ##args );
+	DCALL( KERN_EMERG, reiser4_panic, label, format , ##args )
 /** print message with indication of current process, file, line and
     function */
 #define rlog( label, format, args... ) 				\
@@ -120,7 +120,13 @@ typedef struct lock_counters_info {
 
 extern lock_counters_info *lock_counters(void);
 
+/**
+ * flags controlling debugging behavior. Are set through debug=N mount option.
+ */
 typedef enum {
+	/**
+	 * print a lot of information during panic.
+	 */
 	REISER4_VERBOSE_PANIC     = 0x00000001
 } reiser4_debug_flags;
 
@@ -148,10 +154,12 @@ extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
 #define ON_DEBUG_MODIFY( exp )
 #endif
 
+#define wprint( args... ) ( fprintf( stderr , ##args ) )
+
 #define wrong_return_value( label, function )				\
 	impossible( label, "wrong return value from " function )
 #define warning( label, format, args... )					\
-	DCALL( KERN_WARNING, printk, label, "WARNING: " format , ##args )
+	DCALL( KERN_WARNING, wprint, label, "WARNING: " format , ##args )
 #define not_yet( label, format, args... )				\
 	rpanic( label, "NOT YET IMPLEMENTED: " format , ##args )
 

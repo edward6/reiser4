@@ -947,7 +947,7 @@ static int invoke_create_method( struct inode *parent /* parent directory */,
 
 		result = dplug -> create_child( parent, dentry, data );
 		child = dentry -> d_inode;
-		if( unlikely( result != NULL ) ) {
+		if( unlikely( result != 0 ) ) {
 			if( child != NULL ) {
 				dentry -> d_inode = NULL;
 				reiser4_make_bad_inode( child );

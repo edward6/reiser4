@@ -461,6 +461,7 @@ void iput( struct inode *inode )
 		xmemset (&file, 0, sizeof file);
 		file.f_dentry = &dentry;
 		dentry.d_inode = inode;
+		truncate_inode_pages (inode->i_mapping, 0);
 		if (inode->i_fop && inode->i_fop->release (inode, &file))
 			info ("release failed");
 
@@ -1650,7 +1651,6 @@ static int call_unlink( struct inode * dir, struct inode *victim,
 	if( dir_p ) {
 		result = dir -> i_op -> rmdir( dir, &guillotine );
 	} else {
-		truncate_inode_pages (victim->i_mapping, 0ull);
 		result = dir -> i_op -> unlink( dir, &guillotine );
 	}
 	return result;
