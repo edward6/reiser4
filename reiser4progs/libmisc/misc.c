@@ -17,10 +17,10 @@ int reiserfs_misc_bin_search(
     void *array,		    /* array search will be performed on */ 
     uint32_t count,		    /* array size */
     void *needle,		    /* element to be found */
-    reiserfs_elem_func_t elem_func, /* function for getting next element from given array */
-    reiserfs_comp_func_t comp_func, /* function for comparing needle and a lement from array */
-    void *data,			    /* user-specified data that will be passed to both callbacks */
-    uint64_t *pos)		    /* pointer on found pos a result will be stored in */
+    reiserfs_elem_func_t elem_func, /* getting next element function */
+    reiserfs_comp_func_t comp_func, /* comparing function */
+    void *data,			    /* user-specified data will be passed to both callbacks */
+    uint64_t *pos)		    /* result position will be stored here */
 {
     void *elem;
     int ret = 0;
@@ -55,24 +55,10 @@ int reiserfs_misc_bin_search(
     }
 
     /* 
-	lbound == j, set *pos on the position which element less than "needle" 
+	set *pos on the position where elem less than "needle" 
 	on the base of the last search.
     */
-    *pos = lbound - (ret >= 0);
+    *pos = j + (ret > 0);
 
     return 0;
 }
-
-uint64_t reiserfs_misc_pack_string(const char *name, int start) {
-    unsigned i;
-    uint64_t str;
-
-    str = 0;
-    for (i = 0 ; (i < sizeof str - start) && name[i] ; ++ i) {
-        str <<= 8;
-        str |= (unsigned char)name[i];
-    }
-    str <<= (sizeof str - i - start) << 3;
-    return str;
-}
-

@@ -27,11 +27,11 @@ extern error_t reiserfs_node_sync(reiserfs_node_t *node);
 extern error_t reiserfs_node_flush(reiserfs_node_t *node);
 
 /*
-    I suggest the following results of lookup (item_pos/unit_pos):
-    0/-1 - before the 0 item.
-    0/0  - before the first unit in the item.
-    0/units_count - after the last unit in the item.
-    item_count/ANY - after the last item.
+    I suggest the following results of lookup (item_pos, unit_pos):
+    (i+1, -1) - between i, i+1 items.
+    (i, 0) - before the first unit in the item.
+    (0, units_count) - after the last unit in the item.
+    (item_count, -1) - after the last item.
     
     FIXME-VITALY: it works in another way for now.
 */

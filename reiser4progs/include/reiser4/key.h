@@ -9,6 +9,14 @@
 
 #include <aal/aal.h>
 
+/* maximal possible key size */
+#define MAX_KEY_SIZE 24
+
+/*
+    FIXME-VITALY: We should change these names to plugin independent
+    style. Pass these names to key plugin where they will be converted
+    to plugin-specific names.
+*/
 typedef enum {
     /* File name key type */
     KEY40_FILE_NAME_MINOR = 0,
@@ -21,19 +29,19 @@ typedef enum {
     /* File body (tail or extent) */
     KEY40_BODY_MINOR	  = 4
 } reiserfs_key40_minor;
-
+/*
 typedef enum {
-    /* Major "locale", aka dirid. Sits in 1st element */
+    // Major "locale", aka dirid. Sits in 1st element 
     KEY40_LOCALITY_INDEX  = 0,
-    /* Minor "locale", aka item type. Sits in 1st element */
+    // Minor "locale", aka item type. Sits in 1st element 
     KEY40_TYPE_INDEX	  = 0,
-    /* Object band. Sits in 2nd element */
+    // Object band. Sits in 2nd element 
     KEY40_BAND_INDEX	  = 1,
-    /* Object id. Sits in 2nd element */
+    // Object id. Sits in 2nd element 
     KEY40_OBJECTID_INDEX  = 1,
-    /* Offset. Sits in 3rd element */
+    // Offset. Sits in 3rd element 
     KEY40_OFFSET_INDEX	  = 2,
-    /* Name hash. Sits in 3rd element */
+    // Name hash. Sits in 3rd element 
     KEY40_HASH_INDEX	  = 2,
     KEY40_LAST_INDEX	  = 3
 } reiserfs_key40_field_index;
@@ -52,38 +60,29 @@ struct reiserfs_entryid {
 
 typedef struct reiserfs_entryid reiserfs_entryid_t;
 
+
 typedef enum {
-    /* 
-	Major locality occupies higher 60 bits of 
-	the first element.
-    */
+    // Major locality occupies higher 60 bits of the first element.    
     KEY40_LOCALITY_MASK    = 0xfffffffffffffff0ull,
-    /* 
-	Minor locality occupies lower 4 bits of 
-	the first element.
-    */
+    
+    // Minor locality occupies lower 4 bits of the first element.    
     KEY40_TYPE_MASK        = 0xfull,
-    /* 
-	Controversial band occupies higher 4 bits 
-	of the 2nd element.
-    */
+    
+    //Controversial band occupies higher 4 bits of the 2nd element.
+    
     KEY40_BAND_MASK        = 0xf000000000000000ull,
-    /* 
-	Objectid occupies lower 60 bits of the 2nd 
-	element.
-    */
+    
+    // Objectid occupies lower 60 bits of the 2nd element.
     KEY40_OBJECTID_MASK    = 0x0fffffffffffffffull,
     
-    /* Offset is just 3rd L.M.Nt itself */
+    // Offset is just 3rd L.M.Nt itself 
     KEY40_OFFSET_MASK      = 0xffffffffffffffffull,
     
-    /* Hash occupies 56 higher bits of 3rd element */
+    // Hash occupies 56 higher bits of 3rd element 
     KEY40_HASH_MASK        = 0xffffffffffffff00ull,
     
-    /* 
-	Generation counter occupies lower 8 bits of 
-	3rd element.
-    */
+    //Generation counter occupies lower 8 bits of 3rd element.
+    
     KEY40_GEN_MASK         = 0xffull,
 } reiserfs_key40_field_mask;
 
@@ -126,7 +125,7 @@ static inline void set_key40_el(reiserfs_key40_t *key,
     key->el[off] = CPU_TO_LE64(value);
 }
 
-/* Macro to define getter and setter functions for field F with type T */
+// Macro to define getter and setter functions for field F with type T 
 #define DEFINE_KEY40_FIELD(L, U, T)				    \
 static inline T get_key40_##L (const reiserfs_key40_t *key) {	    \
     aal_assert("vpf-036", key != NULL, return 0);		    \
@@ -150,22 +149,22 @@ static inline void set_key40_##L(reiserfs_key40_t *key, T loc) {    \
     set_key40_el(key, KEY40_##U##_INDEX, el);			    \
 }
 
-/* Define get_key_locality(), set_key_locality() */
+// Define get_key_locality(), set_key_locality() 
 DEFINE_KEY40_FIELD(locality, LOCALITY, uint64_t);
 
-/* Define get_key_type(), set_key_type() */
+// Define get_key_type(), set_key_type() 
 DEFINE_KEY40_FIELD(type, TYPE, reiserfs_key40_minor);
 
-/* Define get_key_band(), set_key_band() */
+// Define get_key_band(), set_key_band() 
 DEFINE_KEY40_FIELD(band, BAND, uint64_t);
 
-/* Define get_key_objectid(), set_key_objectid() */
+// Define get_key_objectid(), set_key_objectid() 
 DEFINE_KEY40_FIELD(objectid, OBJECTID, uint64_t);
 
-/* Define get_key_offset(), set_key_offset() */
+// Define get_key_offset(), set_key_offset() 
 DEFINE_KEY40_FIELD(offset, OFFSET, uint64_t);
 
-/* Define get_key_hash(), set_key_hash() */
+// Define get_key_hash(), set_key_hash() 
 DEFINE_KEY40_FIELD(hash, HASH, uint64_t);
 
 extern const reiserfs_key40_t *reiserfs_key40_min(void);
@@ -178,6 +177,8 @@ extern inline int reiserfs_key40_cmp(reiserfs_key40_t *key1,
 
 extern error_t build_entryid_by_info(reiserfs_entryid_t *entryid, 
     reiserfs_entry_info_t *info);
+
+*/
 
 #endif
 
