@@ -600,7 +600,7 @@ static int get_rwx(struct file *file, const char *buf)
 			struct iattr newattrs;
 
 			down(&host->i_sem);
-			if (rwx == (umode_t) -1)
+			if (rwx == (umode_t)~0)
 				rwx = host->i_mode;
 			newattrs.ia_mode =
 				(rwx & S_IALLUGO) | (host->i_mode & ~S_IALLUGO);
