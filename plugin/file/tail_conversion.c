@@ -172,32 +172,6 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 }
 
 
-#if 0
-/* part of tail2extent. @page contains data read from tail items. Those tail
- * items are removed from tree already. extent slot pointing to this page will
- * be created by using extent_write */
-/* Audited by: green(2002.06.15) */
-static int write_pages_by_extent (struct inode * inode, struct page ** pages,
-				  unsigned nr_pages, int count)
-{
-	int result;
-	int i;
-	item_plugin * iplug;
-
-
-	result = -EIO;
-	iplug = item_plugin_by_id (EXTENT_POINTER_ID);
-
-	for (i = 0; i < nr_pages; i ++) {
-		result = iplug->s.file.writepage (0, pages [i]);
-		if (result)
-			break;
-	}
-	return result;
-}
-
-#endif
-
 /* Audited by: green(2002.06.15) */
 static void drop_pages (struct page ** pages, unsigned nr_pages)
 {
@@ -241,7 +215,7 @@ static int replace (struct inode * inode, struct page ** pages, unsigned nr_page
 	iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 
 	for (i = 0; i < nr_pages; i ++) {
-		result = iplug->s.file.writepage (0, pages [i]);
+		result = unix_file_writepage_nolock (0, pages [i]);
 		if (result)
 			break;
 		SetPageUptodate (pages [i]);
@@ -517,7 +491,8 @@ int tail2extent (struct inode * inode)
 				}
 				if (coord.between == AFTER_UNIT) {
 					/*
-					 * this is used to detect end of file when inode->i_size can not be used 
+					 * this is used to detect end of file
+					 * when inode->i_size can not be used
 					 */
 					done_lh (&lh);
 					done = 1;
@@ -566,7 +541,7 @@ int tail2extent (struct inode * inode)
 				/* copy item (as much as will fit starting from
 				 * the beginning of the item) into the page */
 				memcpy (p_data + page_off, item, (unsigned)count);
-				kunmap_atomic (p_data , KM_USER0);
+				kunmap_atomic (p_data, KM_USER0);
 				
 				page_off += count;
 				set_key_offset (&key, get_key_offset (&key) + count);
@@ -586,7 +561,7 @@ int tail2extent (struct inode * inode)
 				}
 			} /* while */
 		} /* for */
-
+		
 		result = replace (inode, pages, i, 
 				  (int)((i - 1) * PAGE_CACHE_SIZE +
 					page_off));
