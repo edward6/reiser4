@@ -904,14 +904,17 @@ find_or_create_extent(struct page *page)
 	return result;
 }
 
-/* Check mapping for existence of not captured dirty pages. This returns !0 if either reiser4 inode's page tree is not
- * empty or number of eflushed anonymous jnodes is not 0 */
-static int inode_has_anonymous_pages(struct inode *inode)
+/* Check mapping for existence of not captured dirty pages. This returns !0 if either page tree contains pages tagged
+   PAGECACHE_TAG_REISER4_MOVED or if eflushed jnode tree is not empty */
+static int
+inode_has_anonymous_pages(struct inode *inode)
 {
-	return mapping_tagged(inode->i_mapping, PAGECACHE_TAG_REISER4_MOVED) | (reiser4_inode_data(inode)->eflushed_anon > 0);
+	return (mapping_tagged(inode->i_mapping, PAGECACHE_TAG_REISER4_MOVED) ||
+		(ef_jnode_tree_by_inode(inode)->rnode != NULL));
 }
 
-static int capture_page_and_create_extent(struct page *page)
+static int
+capture_page_and_create_extent(struct page *page)
 {
 	int result;
 	struct inode *inode;
@@ -981,7 +984,6 @@ redirty_inode(struct inode *inode)
  *
  */
 
-#if 0
 /* this returns 1 if it captured page */
 static int
 capture_anonymous_page(struct page *pg, int keepme)
@@ -1028,7 +1030,9 @@ capture_anonymous_page(struct page *pg, int keepme)
 
 	return result;
 }
-#else
+
+#if 0
+
 /* this returns 1 if it captured page */
 static int
 capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
@@ -1053,8 +1057,6 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 	nr_pages = pagevec_lookup(&pvec, mapping, page->index, PAGEVEC_SIZE);
 	assert("vs-1665", nr_pages >= 1);
 	nr_pages = 0;
-	done = 0;
-	result = 0;
 	for (i = 0; i < pagevec_count(&pvec); i ++) {
 		page = pvec.pages[i];
 		if ((i && page->index != pvec.pages[i - 1]->index + 1) || !PageUptodate(page))
@@ -1079,9 +1081,6 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 		break;
 	}
 
-	done = 0;
-	result = 0;
-
 	/* jnodes of all nr_pages pages are jloaded, we can call capture_page_and_create_extent */
 	for (i = 0; i < nr_pages; i ++) {
 		result = capture_page_and_create_extent(pvec.pages[i]);
@@ -1104,173 +1103,162 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 			break;
 		}
 	}
-
-	for (i = 0; i < nr_pages; i ++) {
-		/* page's page->count is incremented, jnode of page exists, jref-ed and jloaded, so, it is safe to get
-		   jnode without taking page's lock */
-		node = jprivate(pvec.pages[i]);
-		jrelse(node);
-		jput(node);		
-	}
-	pagevec_release(&pvec);
-
-	if (done == 1)
-		/* page for which this was called were captured */
-		return 1;
-	return result;
 }
 #endif
 
-#define CAPTURE_AJNODE_BURST     (128)
 #define CAPTURE_APAGE_BURST      (1024)
-
-#if REISER4_USE_EFLUSH
-
-static int
-capture_anonymous_jnodes(struct inode *inode)
-{
-	reiser4_inode *info;
-	reiser4_tree *tree;
-	int nr;
-	int result;
-	int too_many;
-	int scan_over;
-	int keepme;
-
-	tree = tree_by_inode(inode);
-
-	info = reiser4_inode_data(inode);
-	result = 0;
-	nr = 0;
-	too_many = 0;
-	do {
-		spin_lock_eflush(tree->super);
-
-		scan_over = 1;
-
-		while(!list_empty(&info->anon_jnodes)) {
-			eflush_node_t *ef;
-			jnode *node;
-
-			ef = list_entry(info->anon_jnodes.prev, eflush_node_t, inode_anon_link);
-			node = ef->node;
-
-			jref(node);
-			keepme = JF_ISSET(node, JNODE_KEEPME);
-
-			spin_unlock_eflush(tree->super);
-			/* jload removes ef from info->anon_jnodes list*/
-			result = jload(node);
-			jput(node);
-			if (result != 0)
-				return result;
-
-			result = capture_anonymous_page(jnode_page(node), keepme);
-
-			jrelse(node);
-
-			if (result == 1) {
-				/* jnode is captured */
-				nr ++;
-				result = 0;
-				if (nr >= CAPTURE_AJNODE_BURST) {
-					too_many = 1;
-					redirty_inode(inode);
-				}
-				
-				scan_over = 0;
-				spin_lock_eflush(tree->super);
-				break;
-			}
-			spin_lock_eflush(tree->super);
-		}
-		spin_unlock_eflush(tree->super);
-		if (too_many)
-			break;
-		if (scan_over)
-			break;
-	} while (result == 0);
-
-	return result;
-}
-
-#endif /* REISER4_USE_EFLUSH */
 
 static int
 capture_anonymous_pages(struct address_space *mapping, pgoff_t *index)
 {
 	int result;
-	int nr;
-	unsigned int found; /* return value for radix_tree_gang_lookup */
+	unsigned to_capture;
+	struct pagevec pvec;
+	unsigned found_pages;
+	jnode *jvec[PAGEVEC_SIZE];
+	unsigned found_jnodes;
+	pgoff_t cur, end;
+	unsigned count;
+	unsigned i;
 
 	result = 0;
-	nr = 0;	
 
-	spin_lock_irq(&mapping->tree_lock);
+	ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
+		 "capture anonymous: oid %llu: start index %lu\n",
+		 get_inode_oid(mapping->host), *index);
 
-	while (nr < CAPTURE_APAGE_BURST) {
-		struct page *pg;
+	to_capture = CAPTURE_APAGE_BURST;
+	found_jnodes = 0;
 
-		/* look for page with index >= *index tagged as REISER4_MOVED */
-		found = radix_tree_gang_lookup_tag(&mapping->page_tree, (void **)&pg, *index, 1,
-						   PAGECACHE_TAG_REISER4_MOVED);
-		assert("vs-1652", found < 2);
-		if (found == 0) {
-			/* there are no */
-			result = 0;
+	do {
+		pagevec_init(&pvec, 0);
+
+		cur = *index;
+		count = min(pagevec_space(&pvec), to_capture);
+
+		/* find and capture "anonymous" pages */
+		found_pages = pagevec_lookup_tag(&pvec, mapping, index, PAGECACHE_TAG_REISER4_MOVED, count);
+		if (found_pages != 0) {
+			ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
+				 "oid %llu: found %u moved pages in range starting from (%lu)\n",
+				 get_inode_oid(mapping->host), found_pages, cur);
+
+			for (i = 0; i < pagevec_count(&pvec); i ++) {
+				/* tag PAGECACHE_TAG_REISER4_MOVED will be cleared by set_page_dirty_internal which is
+				   called when jnode is captured */
+				result = capture_anonymous_page(pvec.pages[i], 0);
+				if (result == 1) {
+					result = 0;
+					to_capture --;
+				} else if (result < 0) {
+					warning("vs-1454", "failed for moved page: result=%i (captured=%u)\n",
+						result, CAPTURE_APAGE_BURST - to_capture);
+					break;
+				} else {
+					/* result == 0. capture_anonymous_page returns 0 for Writeback-ed page */
+					;
+				}
+			}
+			pagevec_release(&pvec);
+			if (result)
+				return result;
+
+			end = *index;
+		} else
+			/* there are no more anonymous pages, continue with anonymous jnodes only */
+			end = (pgoff_t)-1;
+
+#if REISER4_USE_EFLUSH
+
+		/* capture anonymous jnodes between cur and end */
+		while (cur < end && to_capture > 0) {
+			pgoff_t nr_jnodes;
+
+			nr_jnodes = min(to_capture, (unsigned)PAGEVEC_SIZE);
+
+			spin_lock_eflush(mapping->host->i_sb);
+		
+			found_jnodes = radix_tree_gang_lookup_tag(ef_jnode_tree_by_inode(mapping->host),
+								  (void **)&jvec, cur, nr_jnodes,
+								  EFLUSH_TAG_ANONYMOUS);
+			if (found_jnodes != 0) {				
+				for (i = 0; i < found_jnodes; i ++) {
+					if (index_jnode(jvec[i]) < end) {
+						jref(jvec[i]);
+						cur = index_jnode(jvec[i]) + 1;
+					} else {
+						found_jnodes = i;
+						break;
+					}
+				}
+
+				if (found_jnodes != 0) {
+					/* there are anonymous jnodes from given range */
+					spin_unlock_eflush(mapping->host->i_sb);
+
+					ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
+						 "oid %llu: found %u anonymous jnodes in range (%lu %lu)\n",
+						 get_inode_oid(mapping->host), found_jnodes, cur, end - 1);
+			
+					/* start i/o for eflushed nodes */
+					for (i = 0; i < found_jnodes; i ++)
+						jstartio(jvec[i]);
+					
+					for (i = 0; i < found_jnodes; i ++) {
+						result = jload(jvec[i]);
+						if (result == 0) {
+							result = capture_anonymous_page(jnode_page(jvec[i]), 0);
+							if (result == 1) {
+								result = 0;
+								to_capture --;
+							} else if (result < 0) {
+								jrelse(jvec[i]);
+								warning("nikita-3328",
+									"failed for anonymous jnode: result=%i (captured=%u)\n",
+									result, CAPTURE_APAGE_BURST - to_capture);
+								break;
+							} else {
+								/* result == 0. capture_anonymous_page returns 0 for Writeback-ed page */
+								;
+							}
+							jrelse(jvec[i]);
+						} else {
+							warning("vs-1454", "jload for anonymous jnode failed: captured %u, result=%i\n",
+								result, CAPTURE_APAGE_BURST - to_capture);
+							break;
+						}
+					}
+					for (i = 0; i < found_jnodes; i ++)
+						jput(jvec[i]);
+					if (result)
+						return result;
+					continue;
+				}
+			}
+			spin_unlock_eflush(mapping->host->i_sb);
+			ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
+				 "oid %llu: no anonymous jnodes are found\n", get_inode_oid(mapping->host));
 			break;
 		}
-
-		/* clear PAGECACHE_TAG_REISER4_MOVED tag so that other capture_anonymous_pages callers will not get this
-		   page */
-		radix_tree_tag_clear(&mapping->page_tree, pg->index, PAGECACHE_TAG_REISER4_MOVED);		
-
-		/* note that page can be not dirty if shrink_list sent it down to reiser4_writepage */
-
-		/* page may not leave radix tree because it is protected from truncating by unix file rw latch */
-		page_cache_get(pg);
-		spin_unlock_irq(&mapping->tree_lock);
-
-		*index = pg->index + 1;
-
-		result = capture_anonymous_page(pg, 0);
-		if (result == 1) {
-			result = 0;
-			++ nr;
-		} else if (result < 0) {
-			/* error happened, set PAGECACHE_TAG_REISER4_MOVED tag back */
-			page_cache_release(pg);
-			spin_lock_irq(&mapping->tree_lock);
-			radix_tree_tag_set(&mapping->page_tree,
-					   pg->index, PAGECACHE_TAG_REISER4_MOVED);
-			break;
-		} else {
-			/* result == 0. capture_anonymous_page returns 0 for Writeback-ed page */
-			;
-		}
-
-		page_cache_release(pg);
-		spin_lock_irq(&mapping->tree_lock);
-	}
-	spin_unlock_irq(&mapping->tree_lock);
+#endif /* REISER4_USE_EFLUSH */
+	} while (to_capture && (found_pages || found_jnodes) && result == 0);
 
 	if (result) {
-		warning("vs-1454", "Cannot capture anon pages: result=%i (captured=%d)\n", result, nr);
+		warning("vs-1454", "Cannot capture anon pages: result=%i (captured=%d)\n",
+			result, CAPTURE_APAGE_BURST - to_capture);
 		return result;
 	}
 
-	if (nr == CAPTURE_APAGE_BURST)
+	assert("vs-1678", to_capture <= CAPTURE_APAGE_BURST);
+	if (to_capture == 0)
 		/* there may be left more pages */
 		redirty_inode(mapping->host);
 
-#if REISER4_USE_EFLUSH
-	if (result == 0)
-		result = capture_anonymous_jnodes(mapping->host);
-#endif /* REISER4_USE_EFLUSH */
+	ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
+		 "capture anonymous: oid %llu: end index %lu, captured %u\n",
+		 get_inode_oid(mapping->host), *index, CAPTURE_APAGE_BURST - to_capture);
 
-	if (result != 0)
-		warning("nikita-3328", "Cannot capture anon pages: %i\n", result);
-	return result;
+	return 0;
 }
 
 /*
