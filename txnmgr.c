@@ -1308,11 +1308,11 @@ reiser4_internal int txnmgr_force_commit_current_atom (void)
 	return force_commit_atom_nolock(txnh);
 }
 
-/* Called to force commit of any outstanding atoms.  @commit_new_atoms controls
- * should we commit new atoms which are created after this functions is
- * called. */
+/* Called to force commit of any outstanding atoms.  @commit_all_atoms controls
+ * should we commit all atoms including new ones which are created after this
+ * functions is called. */
 reiser4_internal int
-txnmgr_force_commit_all (struct super_block *super, int commit_new_atoms)
+txnmgr_force_commit_all (struct super_block *super, int commit_all_atoms)
 {
 	int ret;
 	txn_atom *atom;
@@ -1345,7 +1345,7 @@ again:
 		 * is not set we commit only atoms which were created before
 		 * this call is started. */
 		if (atom->stage < ASTAGE_PRE_COMMIT &&
-		    (!commit_new_atoms || (atom->start_time <= start_time))) {
+		    (commit_all_atoms || (atom->start_time <= start_time))) {
 			spin_unlock_txnmgr(mgr);
 			LOCK_TXNH(txnh);
 
@@ -1363,7 +1363,7 @@ again:
 	}
 
 #if REISER4_DEBUG
-	if (commit_new_atoms) {
+	if (commit_all_atoms) {
 		reiser4_super_info_data * sbinfo = get_super_private(super);
 		reiser4_spin_lock_sb(sbinfo);
 		assert("zam-813", sbinfo->blocks_fake_allocated_unformatted == 0);
