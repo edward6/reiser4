@@ -430,6 +430,7 @@ static int pos_stop(flush_pos_t * pos);
 #define checkchild(scan)						\
 assert("nikita-3435",							\
        ergo(scan->direction == LEFT_SIDE &&				\
+            (scan->parent_coord.node->level == TWIG_LEVEL) &&           \
 	    jnode_is_unformatted(scan->node) &&				\
 	    extent_is_unallocated(&scan->parent_coord),			\
 	    extent_unit_index(&scan->parent_coord) == index_jnode(scan->node)))
@@ -3090,11 +3091,11 @@ jnode_lock_parent_coord(jnode         * node,
 			ret = incr_load_count_znode(parent_zh, parent_lh->node);
 			if (ret != 0)
 				return ret;
-			if (jnode_is_cluster_page(node)) {
-				assert("edward-670", znode_squeezable(parent_lh->node));
-				/* races with write() */
-				//znode_make_dirty(parent_lh->node);
-			}
+			/* if (jnode_is_cluster_page(node)) {
+			   races with write() are possible
+			   check_child_cluster (parent_lh->node);
+			   }
+			*/
 			break;
 		default:
 			return ret;
