@@ -55,10 +55,16 @@ typedef enum {
 
 #include "../../latch.h"
 
+struct tail_plugin;
+struct inode;
+
 typedef struct unix_file_info {
 	/* truncate, tail2extent and extent2tail use down_write, read, write, readpage - down_read */
 	rw_latch_t latch;
-	int state;
+	file_state state;
+	struct tail_plugin *tplug;
+	struct inode *inode;
+	int exclusive_use;
 #if REISER4_DEBUG
 	/* pointer to task struct of thread owning exclusive access to file */
 	void *ea_owner;
