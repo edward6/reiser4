@@ -34,6 +34,21 @@
 
 static kmem_cache_t *_jnode_slab = NULL;
 
+static inline jnode_plugin *
+jnode_ops_of(const jnode_type type)
+{
+	assert("nikita-2367", type < LAST_JNODE_TYPE);
+	return jnode_plugin_by_id((reiser4_plugin_id) type);
+}
+
+static inline jnode_plugin *
+jnode_ops(const jnode * node)
+{
+	assert("nikita-2366", node != NULL);
+
+	return jnode_ops_of(jnode_get_type(node));
+}
+
 /* hash table support */
 
 /** compare two jnode keys for equality. Used by hash-table macros */
@@ -55,8 +70,7 @@ jnode_key_hashfn(const jnode_key_t * key)
 
 	assert("nikita-2352", key != NULL);
 
-	shift = (((__u32) (key->objectid & 0xffffffff)) |
-		 ((__u32) (key->objectid >> 32)));
+	shift = (((__u32) (key->objectid & 0xffffffff)) | ((__u32) (key->objectid >> 32)));
 	/*shift /= ( sizeof( struct inode ) & ~ ( sizeof ( struct inode ) - 1 ) ); */
 	shift += (__u32) key->index;
 
@@ -67,8 +81,7 @@ jnode_key_hashfn(const jnode_key_t * key)
 /** The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
-TS_HASH_DEFINE(j, jnode, jnode_key_t, key.j,
-	       link.j, jnode_key_hashfn, jnode_key_eq);
+TS_HASH_DEFINE(j, jnode, jnode_key_t, key.j, link.j, jnode_key_hashfn, jnode_key_eq);
 #undef KFREE
 #undef KMALLOC
 
@@ -92,8 +105,7 @@ jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 
 	assert("nikita-2360", tree != NULL);
 
-	trace_if(TRACE_ZWEB,
-		 UNDER_SPIN_VOID(tree, tree, print_jnodes("umount", tree)));
+	trace_if(TRACE_ZWEB, UNDER_SPIN_VOID(tree, tree, print_jnodes("umount", tree)));
 
 	jtable = &tree->jhash_table;
 	do {
@@ -116,8 +128,7 @@ jnode_init_static(void)
 {
 	assert("umka-168", _jnode_slab == NULL);
 
-	_jnode_slab = kmem_cache_create("jnode", sizeof (jnode),
-					0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+	_jnode_slab = kmem_cache_create("jnode", sizeof (jnode), 0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 
 	if (_jnode_slab == NULL) {
 		goto error;
@@ -162,9 +173,7 @@ jnode_init(jnode * node, reiser4_tree * tree)
 	capture_list_clean(node);
 
 #if REISER4_DEBUG
-	UNDER_SPIN_VOID
-	    (tree, tree,
-	     list_add(&node->jnodes, &get_current_super_private()->all_jnodes));
+	UNDER_SPIN_VOID(tree, tree, list_add(&node->jnodes, &get_current_super_private()->all_jnodes));
 #endif
 }
 
@@ -260,8 +269,7 @@ jget(reiser4_tree * tree, struct page * pg)
 
 	assert("umka-176", pg != NULL);
 	/* check that page is unformatted */
-	assert("nikita-2065", pg->mapping->host !=
-	       get_super_private(pg->mapping->host->i_sb)->fake);
+	assert("nikita-2065", pg->mapping->host != get_super_private(pg->mapping->host->i_sb)->fake);
 	assert("nikita-2394", PageLocked(pg));
 again:
 	if (jprivate(pg) == NULL) {
@@ -273,8 +281,7 @@ again:
 		if (in_hash != NULL) {
 			assert("nikita-2358", jnode_page(in_hash) == NULL);
 			spin_unlock_tree(tree);
-			UNDER_SPIN_VOID(jnode, in_hash,
-					jnode_attach_page(in_hash, pg));
+			UNDER_SPIN_VOID(jnode, in_hash, jnode_attach_page(in_hash, pg));
 			in_hash->key.j.mapping = pg->mapping;
 		} else {
 			j_hash_table *jtable;
@@ -297,8 +304,7 @@ again:
 			jal->key.j.index = pg->index;
 
 			jtable = &tree->jhash_table;
-			assert("nikita-2357",
-			       j_hash_find(jtable, &jal->key.j) == NULL);
+			assert("nikita-2357", j_hash_find(jtable, &jal->key.j) == NULL);
 
 			j_hash_insert(jtable, jal);
 			spin_unlock_tree(tree);
@@ -313,8 +319,7 @@ again:
 	assert("nikita-2364", jprivate(pg)->key.j.index == pg->index);
 	assert("nikita-2367", jprivate(pg)->key.j.mapping == pg->mapping);
 	assert("nikita-2365", jprivate(pg)->key.j.objectid == oid);
-	assert("nikita-2356",
-	       jnode_get_type(jnode_by_page(pg)) == JNODE_UNFORMATTED_BLOCK);
+	assert("nikita-2356", jnode_get_type(jnode_by_page(pg)) == JNODE_UNFORMATTED_BLOCK);
 
 	if (jal != NULL) {
 		jfree(jal);
@@ -369,37 +374,6 @@ next_jnode(jnode * node UNUSED_ARG)
 	return 0;
 }
 
-/**
- * jref() - increase counter of references to jnode/znode (x_count)
- */
-/* Audited by: umka (2002.06.11) */
-jnode *
-jref(jnode * node)
-{
-	assert("jmacd-508", (node != NULL) && !IS_ERR(node));
-	add_x_ref(node);
-	return node;
-}
-
-/** block number of node */
-/* Audited by: umka (2002.06.11) */
-const reiser4_block_nr *
-jnode_get_block(const jnode * node	/* jnode to
-					 * query */ )
-{
-	assert("nikita-528", node != NULL);
-
-/* As soon as we implement accessing nodes not stored on block devices
-   (e.g. distributed reiserfs), then we need to replace this line with
-   a call to a node plugin.
-
-   Josh replies: why not extent the block number to be
-   node_id/device/block_nr.  I don't think the concept of a block number
-   changes in a distributed setting, but you will need a node method to get
-   the block: likely we already have that.
-*/
-	return &node->blocknr;
-}
 
 void
 jnode_attach_page(jnode * node, struct page *pg)
@@ -435,14 +409,12 @@ page_clear_jnode(struct page *page, jnode * node)
 }
 
 void
-page_detach_jnode(struct page *page,
-		  struct address_space *mapping, unsigned long index)
+page_detach_jnode(struct page *page, struct address_space *mapping, unsigned long index)
 {
 	assert("nikita-2395", page != NULL);
 
 	reiser4_lock_page(page);
-	if ((page->mapping == mapping) && (page->index == index) &&
-	    PagePrivate(page)) {
+	if ((page->mapping == mapping) && (page->index == index) && PagePrivate(page)) {
 		jnode *node;
 
 		node = jprivate(page);
@@ -635,9 +607,7 @@ jload(jnode * node)
 			load_page(page);
 			node->data = page_address(page);
 		} else {
-			page = read_cache_page(jplug->mapping(node),
-					       jplug->index(node),
-					       page_filler, node);
+			page = read_cache_page(jplug->mapping(node), jplug->index(node), page_filler, node);
 			/*
 			 * after (successful) return from read_cache_page()
 			 * @page is pinned into memory.
@@ -792,52 +762,6 @@ jnode_try_drop(jnode * node)
 	return result;
 }
 
-/**
- * jput() - decrement x_count reference counter on znode.
- *
- * Count may drop to 0, jnode stays in cache until memory pressure causes the
- * eviction of its page. The c_count variable also ensures that children are
- * pressured out of memory before the parent. The jnode remains hashed as
- * long as the VM allows its page to stay in memory, and then we force its
- * children out first? There is no jcache_shrink() yet.
- */
-void
-jput(jnode * node)
-{
-	reiser4_tree *tree;
-	trace_stamp(TRACE_ZNODES);
-
-	assert("jmacd-509", node != NULL);
-	assert("jmacd-510", atomic_read(&node->x_count) > 0);
-	assert("jmacd-511", atomic_read(&node->d_count) >= 0);
-	assert("jmacd-572", ergo(jnode_is_znode(node),
-				 atomic_read(&JZNODE(node)->c_count) >= 0));
-	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
-
-	tree = jnode_get_tree(node);
-
-	if (atomic_dec_and_lock(&node->x_count, &tree->tree_lock)) {
-		int r_i_p;
-
-		ON_DEBUG_CONTEXT(++lock_counters()->spin_locked_tree);
-		ON_DEBUG_CONTEXT(++lock_counters()->spin_locked);
-		r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
-		spin_unlock_tree(tree);
-		if (r_i_p) {
-			if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
-				/*
-				 * node is removed from the tree.
-				 */
-				jdelete(node);
-			else
-				jnode_try_drop(node);
-		}
-		/*
-		 * if !r_i_p some other thread is already killing it
-		 */
-	}
-}
-
 /** 
  * jdelete() -- Remove jnode from the tree
  */
@@ -971,41 +895,6 @@ jwait_io(jnode * node, int rw)
 		result = -EIO;
 
 	return result;
-}
-
-#define DEATH_QUEUE_SIZE (32)
-
-jnode_type
-jnode_get_type(const jnode * node)
-{
-	static const unsigned long state_mask =
-	    (1 << JNODE_TYPE_1) | (1 << JNODE_TYPE_2) | (1 << JNODE_TYPE_3);
-
-	static jnode_type mask_to_type[] = {
-		/*  JNODE_TYPE_3 : JNODE_TYPE_2 : JNODE_TYPE_1 */
-
-		/* 000 */
-		[0] = JNODE_FORMATTED_BLOCK,
-		/* 001 */
-		[1] = JNODE_UNFORMATTED_BLOCK,
-		/* 010 */
-		[2] = JNODE_BITMAP,
-		/* 011 */
-		[3] = LAST_JNODE_TYPE,	/* invalid */
-		/* 100 */
-		[4] = LAST_JNODE_TYPE,	/* invalid */
-		/* 101 */
-		[5] = LAST_JNODE_TYPE,	/* invalid */
-		/* 110 */
-		[6] = JNODE_IO_HEAD,
-		/* 111 */
-		[7] = LAST_JNODE_TYPE,	/* invalid */
-	};
-
-	/*
-	 * FIXME-NIKITA atomicity?
-	 */
-	return mask_to_type[(node->state & state_mask) >> JNODE_TYPE_1];
 }
 
 void
@@ -1146,8 +1035,7 @@ znode_init(jnode * node)
 }
 
 static int
-no_hook(jnode * node UNUSED_ARG,
-	struct page *page UNUSED_ARG, int rw UNUSED_ARG)
+no_hook(jnode * node UNUSED_ARG, struct page *page UNUSED_ARG, int rw UNUSED_ARG)
 {
 	return 1;
 }
@@ -1228,21 +1116,6 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			   .io_hook = no_hook}
 };
 
-jnode_plugin *
-jnode_ops_of(const jnode_type type)
-{
-	assert("nikita-2367", type < LAST_JNODE_TYPE);
-	return jnode_plugin_by_id((reiser4_plugin_id) type);
-}
-
-jnode_plugin *
-jnode_ops(const jnode * node)
-{
-	assert("nikita-2366", node != NULL);
-
-	return jnode_ops_of(jnode_get_type(node));
-}
-
 /*
  * IO head jnode implementation; The io heads are simple j-nodes with limited
  * functionality (these j-nodes are not in any hash table) just for reading
@@ -1288,6 +1161,15 @@ unpin_jnode_data(jnode * node)
 {
 	assert("zam-672", jnode_page(node) != NULL);
 	page_cache_release(jnode_page(node));
+}
+
+
+int jnode_io_hook(jnode *node, struct page *page, int rw)
+{
+	/*
+	 * prepare node to being written
+	 */
+	return jnode_ops(node)->io_hook(node, page, rw);
 }
 
 #if REISER4_DEBUG_OUTPUT
@@ -1350,8 +1232,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	     atomic_read(&node->d_count), atomic_read(&node->x_count),
 	     jnode_page(node), jnode_type_name(jnode_get_type(node)));
 	if (jnode_is_unformatted(node)) {
-		info("inode: %llu, index: %lu, ",
-		     node->key.j.objectid, node->key.j.index);
+		info("inode: %llu, index: %lu, ", node->key.j.objectid, node->key.j.index);
 	}
 }
 
