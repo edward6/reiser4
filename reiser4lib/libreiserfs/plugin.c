@@ -20,7 +20,6 @@ struct walk_desc {
 };
 
 static int callback_match_cashe_plugin(reiserfs_plugin_t *plugin, struct walk_desc *desc) {
-	
     if (plugin->h.type == desc->type && plugin->h.id == desc->id)
 	return 1;
 	
@@ -49,7 +48,7 @@ reiserfs_plugin_t *reiserfs_plugin_find(reiserfs_plugin_type_t type,
 reiserfs_plugin_t *reiserfs_plugin_load(const char *filename) {
 #ifndef ENABLE_ALONE
     char *error;
-    void *handle;
+    void *handle, *entry;
     reiserfs_plugin_t *plugin;
 	
     ASSERT(filename != NULL, return NULL);
@@ -63,13 +62,14 @@ reiserfs_plugin_t *reiserfs_plugin_load(const char *filename) {
 	return NULL;
     }
     
-    plugin = (reiserfs_plugin_t *)dlsym(handle, PLUGIN_ENTRY);
-    if ((error = dlerror()) != NULL || plugin == NULL) {
+    entry = dlsym(handle, PLUGIN_ENTRY);
+    if ((error = dlerror()) != NULL || entry == NULL) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-002", 
 	    "Can't find symbol \"%s\" in plugin %s.", PLUGIN_ENTRY, filename);
 	goto error_free_handle;
     }
-	
+    
+    plugin = *((reiserfs_plugin_t **)entry);
     plugin->h.handle = handle;
     aal_list_add(plugins, (void *)plugin);
 	
