@@ -137,7 +137,7 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 
 	/* put into tree replacement for just removed items: extent item, namely */
 	for (i = 0; i < nr_pages; i++) {
-		result = unix_file_writepage_nolock(pages[i]);
+		result = find_or_create_extent(pages[i]);
 		if (result)
 			break;
 		SetPageUptodate(pages[i]);
@@ -384,7 +384,6 @@ tail2extent(unix_file_info_t *uf_info)
 		/* to keep right lock order unlock pages before calling replace which will have to obtain longterm
 		   znode lock */
 		for_all_pages(pages, sizeof_array(pages), UNLOCK);
-
 		result = replace(inode, pages, i, (int) ((i - 1) * PAGE_CACHE_SIZE + page_off));
 		for_all_pages(pages, sizeof_array(pages), RELEASE);
 		if (result)

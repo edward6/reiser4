@@ -13,5 +13,5 @@ int find_file_item(hint_t *, const reiser4_key *, znode_lock_mode, __u32 cbk_fla
 		   ra_info_t *, unix_file_info_t *);
 
 int goto_right_neighbor(coord_t *, lock_handle *);
-int unix_file_writepage_nolock(struct page *page);
+int find_or_create_extent(struct page *page);
 write_mode_t how_to_write(uf_coord_t *, const reiser4_key *);
