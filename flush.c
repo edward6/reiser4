@@ -364,6 +364,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 			} else {
 				ret = 0;
 			}
+			trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (end of twig, EINVAL right): %s\n", flush_pos_tostring (pos));
 			flush_pos_stop (pos);
 		}
 		goto exit;
@@ -548,7 +549,7 @@ static int flush_enqueue_ancestors (znode *node, flush_position *pos)
 
 	assert ("jmacd-7444", znode_is_any_locked (node));
 
-	if (! znode_is_dirty (node)) {
+	if (! znode_is_dirty (node) || ! znode_is_allocated (node)) {
 		return 0;
 	}
 
@@ -655,7 +656,9 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	/* any_shifted may be true but we still may have allocated to the end of a twig
 	 * (via extent_copy_and_allocate), in which case we should unset it. */
-	if (any_shifted && flush_pos_unformatted (pos)) {
+	if (any_shifted && znode_get_level (node) == TWIG_LEVEL && flush_pos_unformatted (pos)) {
+
+		assert ("jmacd-1732", ! coord_is_after_rightmost (& pos->parent_coord));
 
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] before (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
 
@@ -696,6 +699,12 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 		/* Recurse upwards on parent of node. */
 		if ((ret = reiser4_get_parent (& parent_lock, node, ZNODE_WRITE_LOCK, 1 /*only_connected*/))) {
+			goto exit;
+		}
+
+		/* As long as parent is allocated, that is... */
+		if (! znode_is_allocated (parent_lock.node)) {
+			ret = 0;
 			goto exit;
 		}
 
@@ -776,13 +785,15 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		goto exit;
 	}
 
+	if (! flush_pos_valid (pos)) {
+		goto exit;
+	}
+
 	/* In the unformatted case, we may have shifted new contents into the current
 	 * twig. */
 	if (is_unformatted && ! coord_is_after_rightmost (& pos->parent_coord)) {
 
 		trace_on (TRACE_FLUSH, "squalloc_right changed ancestors unformatted after: %s\n", flush_pos_tostring (pos));
-
-		assert ("jmacd-8188", ! coord_is_after_rightmost (& pos->parent_coord));
 
 		/* Then, if we are positioned at a formatted item, allocate & descend. */
 		if (item_is_internal (& pos->parent_coord)) {
@@ -801,6 +812,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		if (ret != -ENAVAIL || znode_get_level (node) != LEAF_LEVEL) {
 			if (ret == -ENAVAIL) {
 				ret = flush_enqueue_ancestors (node, pos);
+				trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (EINVAL, ancestors allocated): %s\n", flush_pos_tostring (pos));
 				flush_pos_stop (pos);
 			}
 			goto exit;
@@ -835,11 +847,13 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 				 * right, reaching this point, it is possible that the
 				 * parent needs to be allocated.  But then, why do it? */
 				if (! znode_is_allocated (node)) {
+					trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (right twig dirty not allocated): %s\n", flush_pos_tostring (pos));
 					ret = flush_pos_stop (pos);
 					goto exit;
 				}
 				goto repeat;
 			} else {
+				trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (right twig clean): %s\n", flush_pos_tostring (pos));
 				ret = flush_pos_stop (pos);
 				goto exit;
 			}
@@ -856,6 +870,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 				goto exit;
 			}
 			
+			trace_on (TRACE_FLUSH, "sq_changed_ancestors: STOP (at twig): %s\n", flush_pos_tostring (pos));
 			ret = flush_pos_stop (pos);
 			goto exit;
 		}
@@ -2141,12 +2156,21 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 	}
 
 	if (child == NULL) {
-		flush_pos_stop (pos);
-		return 0;
+		trace_on (TRACE_FLUSH, "fpos_to_child_alloc: STOP (no child): %s\n", flush_pos_tostring (pos));
+		return flush_pos_stop (pos);
+	}
+
+	if (! jnode_check_dirty (child)) {
+		trace_on (TRACE_FLUSH, "fpos_to_child_alloc: STOP (not dirty): %s\n", flush_pos_tostring (pos));
+		return flush_pos_stop (pos);
 	}
 
 	assert ("jmacd-8861", jnode_is_formatted (child));
-	assert ("jmacd-8862", pos->point == NULL);
+
+	if (pos->point != NULL) {
+		jput (pos->point);
+		pos->point = NULL;
+	}	
 
 	pos->point = child;
 
@@ -2159,7 +2183,9 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 	}
 
 	/* And keep going... */
+	done_zh (& pos->parent_load);
 	done_lh (& pos->parent_lock);
+	coord_init_invalid (& pos->parent_coord, NULL);
 	return 0;
 }
 
