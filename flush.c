@@ -291,7 +291,6 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord, u
 	int is_leftmost;
 	common_item_plugin *iplug;
 	int is_dirty;
-	jnode *left_child;
 	znode *parent = parent_coord->node;
 	tree_coord coord;
 
@@ -820,7 +819,7 @@ static int squalloc_twig (znode    *left,
 		}
 	}
 
-	if (keycmp (&stop_key, min_key ()) != EQUAL_TO) {
+	if (!keyeq (&stop_key, min_key ())) {
 		int cut_ret;
 
 		/* @coord is set to the first unit that does not have to be
@@ -993,7 +992,7 @@ jnode_lock_parent_coord (jnode *node,
 		 * locking for us. */
 		struct inode *ino = node->pg->mapping->host;
 		reiser4_key   key;
-		file_plugin  *fplug = get_file_plugin (ino);
+		file_plugin  *fplug = inode_file_plugin (ino);
 		loff_t        loff = node->pg->index << PAGE_CACHE_SHIFT;
 
 		if ((ret = fplug->key_by_inode (ino, & loff, & key))) {
