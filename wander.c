@@ -487,6 +487,7 @@ static int submit_write (jnode * first, int nr,
 		struct bio * bio;
 		int nr_blocks = min (nr, max_blocks);
 		int i;
+		int ret;
 
 		bio = bio_alloc(GFP_NOIO, nr_blocks);
 		if (!bio) return -ENOMEM;
@@ -526,7 +527,13 @@ static int submit_write (jnode * first, int nr,
 			cur = capture_list_next (cur);
 		}
 
-		io_handle_add_bio(io_hdl, bio);
+		ret = current_atom_add_bio(bio);
+
+		if (ret) {
+			bio_put(bio);
+			return ret;
+		}
+
 		submit_bio(WRITE, bio);
 
 		nr -= nr_blocks;
@@ -812,15 +819,13 @@ int reiser4_write_logs (void)
 	if ((ret = reiser4_grab_space1((__u64)(overwrite_set_size + tx_size))))
 		goto up_and_ret;
 
-	init_io_handle (&io_hdl);
-
 	if ((ret = alloc_wandered_blocks (overwrite_set_size, &overwrite_set, &io_hdl)))
 		goto up_and_ret;
 
 	if ((ret = alloc_tx (tx_size, &tx_list, &io_hdl)))
 		goto up_and_ret;
 
-	ret = done_io_handle(&io_hdl);
+	ret = current_atom_wait_on_io();
 	if (ret) goto up_and_ret;
 
 	trace_on (TRACE_LOG, "overwrite set written to wandered locations\n");
@@ -834,13 +839,11 @@ int reiser4_write_logs (void)
 
 	post_commit_hook();
 
-	init_io_handle (&io_hdl);
-
 	/* force j-nodes write back */
 	if ((ret = submit_batched_write(&overwrite_set, &io_hdl)))
 		goto up_and_ret;
 
-	ret = done_io_handle(&io_hdl);
+	ret = current_atom_wait_on_io();
 	if (ret) goto up_and_ret;
 
 
@@ -998,9 +1001,8 @@ static int replay_transaction (const struct super_block * s,
 	{       /* write wandered set in place */
 		struct reiser4_io_handle io;
 
-		init_io_handle(&io);
 		submit_batched_write(&overwrite, &io);
-		ret = done_io_handle(&io);
+		ret = current_atom_wait_on_io();
 
 		if (ret) goto free_ow_set;
 	}
