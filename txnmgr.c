@@ -1435,7 +1435,8 @@ try_commit_txnh(commit_data *cd)
 	assert("nikita-2968", lock_stack_isclean(get_current_lock_stack()));
 
 	/* Get the atom and txnh locked. */
-	cd->atom = get_current_atom_locked();
+	cd->atom = atom_get_locked_with_txnh_locked(cd->txnh);
+	UNLOCK_TXNH(cd->txnh);
 
 	if (cd->wait) {
 		cd->atom->nr_waiters --;
@@ -1453,15 +1454,17 @@ try_commit_txnh(commit_data *cd)
 		return 0;
 
 	if (atom_should_commit(cd->atom)) {
-		result = -EAGAIN;
 		if (!atom_can_be_committed(cd->atom)) {
 			if (should_wait_commit(cd->txnh)) {
 				cd->atom->nr_waiters++;
 				cd->wait = 1;
 				atom_wait_event(cd->atom);
+				result = -EAGAIN;
 			} else
 				result = 0;
-		} else if (cd->preflush > 0) {
+		} else if (cd->txnh->flags & TXNH_DONT_COMMIT)
+			result = 0;
+		else if (cd->preflush > 0) {
 			/*
 			 * optimization: flush atom without switching it into
 			 * ASTAGE_CAPTURE_WAIT.
@@ -2141,9 +2144,9 @@ repeat:
 		 * page may has been detached by ->writepage()->releasepage().
 		 */
 		wait_on_page_writeback(pg);
+		LOCK_JNODE(node);
 		eflush_del(node, 1);
 		page_cache_release(pg);
-		LOCK_JNODE(node);
 		atom = atom_locked_by_jnode(node);
 		if (atom == NULL) {
 			UNLOCK_JNODE(node);
