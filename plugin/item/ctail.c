@@ -553,6 +553,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 		/* FIXME-EDWARD: isn't support yet */
 		assert("edward-865", 0);
 		/* nothing to inflate */
+		tfm_cluster_set_uptodate(&clust->tc);
 		return 0;
 	}
  	cplug = inode_compression_plugin(inode);
@@ -735,7 +736,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 	
 	init_lh(&lh);
 
-	ret = alloc_page_cluster(&clust, inode_cluster_pages(inode));
+	ret = alloc_cluster_pgset(&clust, inode_cluster_pages(inode));
 	if (ret)
 		goto out;
 	ret = load_file_hint(clust.file, &hint);
@@ -968,7 +969,6 @@ int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode
 		result = get_disk_cluster_locked(clust, ZNODE_WRITE_LOCK);
 		if (cbk_errored(result))
 			return result;
-		assert("edward-957", result == CBK_COORD_NOTFOUND);
 	}
 	xmemset(buf, 0, UNPREPPED_DCLUSTER_LEN);
 	
@@ -1005,6 +1005,10 @@ int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode
 		znode_make_dirty(clust->hint->coord.base_coord.node);
 		zrelse(clust->hint->coord.base_coord.node);
 	}
+	assert("edward-743", crc_inode_ok(inode));
+	assert("edward-744", znode_is_write_locked(clust->hint->coord.lh->node));
+	assert("edward-745", znode_is_dirty(clust->hint->coord.lh->node));
+	
 	return 0;
 }
 
@@ -1235,7 +1239,7 @@ alloc_item_convert_data(convert_info_t * sq)
 
 	sq->itm = reiser4_kmalloc(sizeof(*sq->itm), GFP_KERNEL);
 	if (sq->itm == NULL)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 	return 0;
 }
 
@@ -1259,7 +1263,7 @@ alloc_convert_data(flush_pos_t * pos)
 
 	pos->sq = reiser4_kmalloc(sizeof(*pos->sq), GFP_KERNEL);
 	if (!pos->sq)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 	xmemset(pos->sq, 0, sizeof(*pos->sq));
 	return 0;
 }
@@ -1328,6 +1332,14 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 		if (ret)
 			goto err1;
 	}
+	
+	if (convert_data(pos)->clust.pages == NULL) {
+		ret = alloc_cluster_pgset(&convert_data(pos)->clust,
+					  MAX_CLUSTER_NRPAGES);
+		if (ret)
+			goto err1;
+	}
+	
 	assert("edward-829", pos->sq != NULL);
 	assert("edward-250", item_convert_data(pos) == NULL);
 
@@ -1396,7 +1408,10 @@ detach_convert_idata(convert_info_t * sq)
 	assert("edward-255", info->inode != NULL);
 
 	inode = info->inode;
-
+	
+	/* the final release of pages */
+	forget_cluster_pages(&sq->clust);
+	
 	assert("edward-841", atomic_read(&inode->i_count));
 	
 	atomic_dec(&inode->i_count);
