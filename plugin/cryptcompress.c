@@ -513,36 +513,92 @@ cryptcompress_readpages(struct file *file UNUSED_ARG, struct address_space *mapp
 	return;
 }
 
-void
-release_cluster_pages(reiser4_cluster_t * clust)
+static void
+set_cluster_pages_dirty(reiser4_cluster_t * clust)
 {
 	int i;
+	struct page * pg;
+
 	for (i=0; i < clust->nr_pages; i++) {
-		assert("edward-208", clust->pages[i] != NULL);
-		page_cache_release(clust->pages[i]);
+
+		pg = clust->pages[i];
+
+		reiser4_lock_page(pg);
+
+		set_page_dirty_internal(pg);
+		SetPageUptodate(pg);
+		if (!PageReferenced(pg))
+			SetPageReferenced(pg);	
+
+		reiser4_unlock_page(pg);
+
+		page_cache_release(pg);
 	}
 }
 
 /* This is the interface to capture cluster nodes via their struct page reference.
    Any two blocks of the same cluster contain dependent modification and should
    commit at the same time */
-int
-try_capture_cluster(reiser4_cluster_t * clust, znode_lock_mode lock_mode, int non_blocking)
-{
-	return 0;
-}
-
-static void
-cluster_jnodes_make_dirty(reiser4_cluster_t * clust)
-{
-}
-
-/* collect some unlocked pages of the cluster */
 static int
-grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
+try_capture_cluster(reiser4_cluster_t * clust)
 {
 	int i;
 	int result = 0;
+	
+	for (i=0; i < clust->nr_pages; i++) {
+		jnode * node;
+		struct page *pg;
+		
+		pg = clust->pages[i];
+		node = jprivate(pg);
+		
+		assert("edward-220", node != NULL);
+		
+		LOCK_JNODE(node);
+		
+		result = try_capture(node, ZNODE_WRITE_LOCK, 0/* not non-blocking */);
+		if (result) {
+			UNLOCK_JNODE(node);
+			jput(node);
+			break;
+		}
+		UNLOCK_JNODE(node);
+	}
+	if(result)
+		/* drop nodes */
+		while(i) {
+			i--;
+			uncapture_jnode(jprivate(clust->pages[i]));
+		}
+	return result;
+}
+
+static void
+make_cluster_jnodes_dirty(reiser4_cluster_t * clust)
+{
+	int i;
+	jnode * node;
+	
+	for (i=0; i < clust->nr_pages; i++) {
+		node = jprivate(clust->pages[i]);
+		
+		assert("edward-221", node != NULL);
+		
+		LOCK_JNODE(node);
+		unformatted_jnode_make_dirty(node);
+		UNLOCK_JNODE(node);
+		
+		jput(node);
+	}
+}
+
+/* collect some unlocked cluster pages and jnodes */
+static int
+grab_cache_cluster(struct inode * inode, reiser4_cluster_t * clust)
+{
+	int i;
+	int result = 0;
+	jnode * node;
 	
 	assert("edward-182", clust != NULL);
 	assert("edward-183", clust->pages != NULL);
@@ -555,16 +611,42 @@ grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 			result = RETERR(-ENOMEM);
 			break;
 		}
+		node = jnode_of_page(clust->pages[i]);
 		reiser4_unlock_page(clust->pages[i]);
+		if (IS_ERR(node)) {
+			page_cache_release(clust->pages[i]);
+			result = PTR_ERR(node);
+			break;
+		}
 	}
 	if (result) {
 		while(i) {
 			i--;
 			page_cache_release(clust->pages[i]);
+			assert("edward-222", jprivate(clust->pages[i]) != NULL);
+			jput(jprivate(clust->pages[i]));
 		}
 	}
 	return result;
 }
+
+static void
+release_cache_cluster(reiser4_cluster_t * clust)
+{
+	int i;
+
+	assert("edward-223", clust != NULL);
+	
+	for (i=0; i < clust->nr_pages; i++) {
+		
+		assert("edward-208", clust->pages[i] != NULL);
+		assert("edward-224", jprivate(clust->pages[i]) != NULL);
+		
+		jput(jprivate(clust->pages[i]));
+		page_cache_release(clust->pages[i]);
+	}
+}
+
 
 /* guess next cluster params */
 static void
@@ -625,7 +707,6 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 		data = kmap_atomic(page, KM_USER0);
 		memset(data + page_off, 0, to_page);
 		kunmap_atomic(data, KM_USER0);
-		SetPageUptodate(page);
 		reiser4_unlock_page(page);
 		
 		clust->off += to_page;
@@ -633,11 +714,15 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 		page_off = 0;
 	}
 	if (clust->index != cluster_index_by_offset(inode, file_off)) {
-		/* cluster is over */
+		/* cluster is over, try to flush it */
 		assert ("edward-189", clust->stat == HOLE_CLUSTER);
-		result = try_capture_cluster(clust, ZNODE_WRITE_LOCK, 0/* not non-blocking ? */);
-		if (result) 
+
+		set_cluster_pages_dirty(clust);
+		result = try_capture_cluster(clust);
+		if (result) {
 			return result;
+		}
+		make_cluster_jnodes_dirty(clust);
 	}
  update:
 	update_cluster(inode, clust, file_off, to_file);
@@ -704,12 +789,12 @@ prepare_cluster(struct inode *inode,
 	assert ("edward-194", to_write <= inode_cluster_size(inode));
 	
 	set_cluster_nr_pages(inode, clust);
-	/* collect unlocked pages */
-	result = grab_cluster_pages(inode, clust);
+	/* collect unlocked pages and jnodes */
+	result = grab_cache_cluster(inode, clust);
 	if (result)
-		goto exit;
+		return result;
 	if (clust->off == 0 && (clust->index << PAGE_CACHE_SHIFT) + to_write >= inode->i_size) {
-		/* we don't need to read the cluster, just
+		/* we don't need to read cluster from disk, just
 		   align last page starting from this offset: */
 		unsigned off = to_write & (PAGE_CACHE_SIZE - 1);
 		if (off) {
@@ -721,15 +806,17 @@ prepare_cluster(struct inode *inode,
 			kunmap_atomic(data, KM_USER0);
 			reiser4_unlock_page(clust->pages[clust->nr_pages - 1]);
 		}
-		goto exit;
+		return 0;
 	}
 	result = read_some_cluster_pages(inode, clust);
-	if (result)
-		goto exit;
+	if (result) {
+		release_cache_cluster(clust);
+		return result;
+	}
 	if (clust->stat == HOLE_CLUSTER)
-		result = write_hole(inode, clust, file_off, to_file);
- exit:
-	return result;
+		return (write_hole(inode, clust, file_off, to_file));
+	
+ 	return 0;
 }
 
 static void
@@ -819,23 +906,26 @@ write_flow(struct file * file , struct inode * inode, const char *buf, size_t co
 				result = -EFAULT;
 				goto exit2;
 			}
-			SetPageUptodate(pages[i]);
 			reiser4_unlock_page(pages[i]);
 			page_off = 0;
 		}
-		result = try_capture_cluster(&clust, ZNODE_WRITE_LOCK, 0);
+		
+		set_cluster_pages_dirty(&clust);
+		
+		result = try_capture_cluster(&clust);
 		if (result)
 			goto exit2;
-
-		cluster_jnodes_make_dirty(&clust);
+		
+		make_cluster_jnodes_dirty(&clust);
 		
 		clust.off = 0;
 		clust.stat = DATA_CLUSTER;
 		file_off += clust.count;
 		move_flow_forward(&f, clust.count);
 		clust.count = min_count(inode_cluster_size(inode) - clust.off, f.length);
+		continue;
 	exit2:
-		release_cluster_pages(&clust);
+		release_cache_cluster(&clust);
 	exit1:
 		break;
 	} while (f.length);
