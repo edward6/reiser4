@@ -348,6 +348,8 @@ extern int cbk_cache_init( cbk_cache *cache );
 extern void cbk_cache_invalidate( const znode *node );
 extern void cbk_cache_add( znode *node );
 
+extern int check_jnode_for_unallocated (jnode * node);
+
 #if REISER4_DEBUG
 extern void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags);
 extern void print_cbk_slot( const char *prefix, cbk_cache_slot *slot );

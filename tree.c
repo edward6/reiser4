@@ -1508,6 +1508,46 @@ int cut_tree (reiser4_tree * tree,
 	return result;
 }
 
+/* return number of unallocated children for  @node, or an error code, if result < 0 */
+int check_jnode_for_unallocated (jnode * node)
+{
+	int nr = 0; /* number of unallocated children found */
+	
+	if (jnode_is_znode (node) && jnode_get_level (node) >= TWIG_LEVEL) {
+		znode * z = JZNODE (node);
+		coord_t coord;
+
+		int ret = zload (z);
+		if (ret) return ret;
+
+		spin_lock_znode (z);
+		for_all_units (&coord, z) {
+			if(item_is_internal (&coord)) {
+				reiser4_block_nr block;
+
+				item_plugin_by_coord( &coord ) -> 
+					s.internal.down_link(&coord, NULL, &block );
+				if (blocknr_is_fake(&block ))
+					nr ++;
+				continue;
+			}
+
+			if (item_is_extent (&coord)) {
+				assert ("zam-675", jnode_get_level (node) == TWIG_LEVEL);
+				if (extent_is_unallocated(&coord)) {
+					reiser4_extent * extent = extent_by_coord (&coord);
+					nr += extent_get_width(extent);
+				}
+			}
+		}
+		spin_unlock_znode (z);
+
+		zrelse (z);
+	}
+
+	return nr;
+}
+
 /* finishing reiser4 initialization */
 int init_tree( reiser4_tree *tree /* pointer to structure being
 				   * initialized */, 
