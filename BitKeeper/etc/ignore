@@ -1338,3 +1338,4 @@ znode.bbg
 debug.E
 .stats.o.cmd
 stats
+plugin/.cryptcompress.o.d
