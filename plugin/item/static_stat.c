@@ -912,6 +912,95 @@ plugin_sd_save(struct inode *inode /* object being processed */ ,
 	return result;
 }
 
+/* helper function for keyid_sd_present(). Allocates memory for secret key
+   identifier and attaches it to inode */
+
+static int keyid_to_inode (struct inode *inode, const __u8 * word)
+{
+	reiser4_inode *info = reiser4_inode_data(inode);
+
+	assert ("edward-11", info->keyid == NULL);
+
+	info->keyid = reiser4_kmalloc(sizeof(reiser4_keyid_stat), GFP_KERNEL);
+	if (!info->keyid)
+		return -ENOMEM;
+
+	xmemcpy(info->keyid, word, sizeof(reiser4_keyid_stat));
+	inode_set_flag(inode, REISER4_KEYID_LOADED);
+	return 0;
+}
+
+/* key id stat-data extension */
+
+static int keyid_sd_present(struct inode *inode, char **area, int *len)
+{
+	int result;
+	reiser4_keyid_stat *sd;
+
+	assert("edward-06", inode != NULL);
+	assert("edward-07", area != NULL);
+	assert("edward-08", *area != NULL);
+	assert("edward-09", len != NULL);
+	assert("edward-10", *len > 0);
+
+	if (*len < (int) sizeof (reiser4_keyid_stat)) {
+		return not_enough_space(inode, "keyid-sd");
+	}	
+
+	sd = (reiser4_keyid_stat *) * area;
+	result = keyid_to_inode(inode, (const __u8 *)(sd->keyid));
+	next_stat(len, area, sizeof *sd);
+	return result;
+}
+
+static int keyid_sd_save_len(struct inode *inode UNUSED_ARG)
+{
+	return sizeof (reiser4_keyid_stat);
+}
+
+static int keyid_sd_save(struct inode *inode, char **area) 
+{
+	int result = 0;
+	reiser4_keyid_stat *sd;
+	reiser4_inode * info = reiser4_inode_data(inode);
+	
+	assert("edward-12", inode != NULL);
+	assert("edward-13", area != NULL);
+	assert("edward-14", *area != NULL);
+
+	if (!inode_get_flag(inode, REISER4_KEYID_LOADED)) {
+		/* file is just created, so update info->keyid which contains
+		 a pointer to the temporary data */ 
+		const __u8 * word = info->keyid;
+
+		assert("edward-15", word != NULL);
+		
+		sd = (reiser4_keyid_stat *) *area;
+		info->keyid = NULL;
+		result = keyid_to_inode(inode, word);
+		/* copy the word to stat-data */
+		xmemcpy(sd->keyid, word, sizeof *sd);
+	} else {
+		/* do nothing */
+		assert("edward-16", !memcmp(info->keyid, sd->keyid, sizeof *sd));
+	}
+	*area += sizeof *sd;
+	return result;
+}
+
+#if REISER4_DEBUG_OUTPUT
+static void
+keyid_sd_print(const char *prefix, char **area /* position in stat-data */ ,
+		 int *len /* remaining length */ )
+{
+	reiser4_keyid_stat *sd = (reiser4_keyid_stat *) * area;
+
+	/* FIXME-EDWARD: printed simbols can be not readable */
+ 	info("%s: \"%s\"\n", prefix, sd->keyid);
+	next_stat(len, area, sizeof *sd);
+}
+#endif
+
 sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 	[LIGHT_WEIGHT_STAT] = {
 			       .h = {
@@ -1017,6 +1106,24 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				.absent = NULL,
 				.save_len = gaf_sd_save_len,
 				.save = gaf_sd_save,
+#if REISER4_DEBUG_OUTPUT
+				.print = NULL,
+#endif
+				.alignment = 8
+	},
+	[KEY_ID_STAT] = {
+				.h = {
+				      .type_id = REISER4_SD_EXT_PLUGIN_TYPE,
+				      .id = KEY_ID_STAT,
+				      .pops = NULL,
+				      .label = "keyid-sd",
+				      .desc = "secret key identifier",
+				      .linkage = TS_LIST_LINK_ZERO}
+				,
+				.present = keyid_sd_present,
+				.absent = NULL,
+				.save_len = keyid_sd_save_len,
+				.save = keyid_sd_save,
 #if REISER4_DEBUG_OUTPUT
 				.print = NULL,
 #endif
