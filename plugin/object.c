@@ -183,6 +183,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 
 	ref -> sd_len = data.length;
 	data.data = NULL;
+	data.user = 0;
 
 	assert( "vs-479", get_super_private( inode -> i_sb ) );
 	oplug = get_super_private( inode -> i_sb ) -> oid_plug;
@@ -325,6 +326,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		   for this inode, resize it */
 		if( 0 != data.length ) {
 			data.data = NULL;
+			data.user = 0;
 			/*
 			 * FIXME-NIKITA resize can create new item.
 			 */
@@ -487,23 +489,23 @@ int common_file_owns_item( const struct inode *inode /* object to check
  * Default method to construct flow into @f according to user-supplied
  * data.
  */
-int common_build_flow( struct file *file /* file to build flow for */, 
-		       char *buf /* user level buffer */, 
+int common_build_flow( struct inode *inode /* file to build flow for */, 
+		       char *buf /* user level buffer */,
+		       int user /* 1 if @buf is of user space, 0 - if it is
+				 * kernel space */,
 		       size_t size /* buffer size */, 
-		       const loff_t *off /* offset to start io from */, 
+		       loff_t off /* offset to start io from */, 
 		       rw_op op UNUSED_ARG /* io operation */, 
 		       flow_t *f /* resulting flow */ )
 {
-	assert( "nikita-1100", f != NULL );
-	assert( "nikita-1101", file != NULL );
-	assert( "nikita-1102", file -> f_dentry != NULL );
-	assert( "nikita-1103", file -> f_dentry -> d_inode != NULL );
+	assert( "nikita-1100", inode != NULL );
 
 	f -> length = size;
 	f -> data   = buf;
-	build_sd_key( file -> f_dentry -> d_inode, &f -> key );
+	f -> user   = user;
+	build_sd_key( inode, &f -> key );
 	set_key_type( &f -> key, KEY_BODY_MINOR );
-	set_key_offset( &f -> key, ( __u64 ) *off );
+	set_key_offset( &f -> key, ( __u64 ) off );
 	return 0;
 }
 
