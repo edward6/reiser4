@@ -429,48 +429,19 @@ formatted_readpage(struct file *f UNUSED_ARG, struct page *page /* page to read 
 	return page_io(page, jprivate(page), READ, GFP_KERNEL);
 }
 
-/* ->vm_writeback() callback for formatted page. Called from shrink_cache()
-   (or however it will be called by the time you read this). */
-static int
-formatted_vm_writeback(struct page *page	/* page to start
-						 * writeback from */ ,
-		       struct writeback_control *wbc	/* writeback
-							 * control
-							 * information
-							 * passed by
-							 * VM */ )
-{
-	int result;
-
-	page_cache_get(page);
-	result = page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_FORMATTED);
-	page_cache_release(page);
-	return result;
-}
-
 /* ->writepage() method for formatted nodes */
 static int
 formatted_writepage(struct page *page /* page to write */ )
 {
-	struct writeback_control wbc;
 	int result;
 
-	xmemset(&wbc, 0, sizeof wbc);
-	wbc.nr_to_write = 1;
-
-	if (current->flags & PF_MEMALLOC) {
-		wbc.nr_to_write = 1;
-		return formatted_vm_writeback(page, &wbc);
-	}
-
-	impossible("vs-1100", "this is not to be called");
 	assert("nikita-2632", PagePrivate(page) && jprivate(page));
 
 	/* The mpage_writepages() calls reiser4_writepage with a locked, but
 	   clean page. An extra reference should protect this page from
 	   removing from memory */
 	page_cache_get(page);
-	result = page_common_writeback(page, &wbc, JNODE_FLUSH_MEMORY_FORMATTED);
+	result = page_common_writeback(page, JNODE_FLUSH_MEMORY_FORMATTED);
 	page_cache_release(page);
 	return result;
 }
@@ -577,9 +548,6 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 */
 int
 page_common_writeback(struct page *page /* page to start writeback from */ ,
-		      struct writeback_control *wbc	/* writeback control
-							 * information passed
-							 * by VM */ ,
 		      int flush_flags	/* Additional hint. Seems to be
 					 * unused currently. */ )
 {
@@ -612,7 +580,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 
 	result = 0;
 	if (node) {
-		result = writeback_queued_jnodes(s, node, wbc);
+		result = writeback_queued_jnodes(s, node);
 		jput(node);
 	}
 
@@ -620,7 +588,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 		REISER4_EXIT(0);
 
 	reiser4_lock_page(page);
-	result = emergency_flush(page, wbc);
+	result = emergency_flush(page);
 	if (result <= 0)
 		reiser4_unlock_page(page);
 

@@ -22,7 +22,7 @@ extern void eflush_done_at(struct super_block *super);
 extern reiser4_block_nr *eflush_get(const jnode *node);
 extern void eflush_del(jnode *node, int page_locked);
 
-int emergency_flush(struct page *page, struct writeback_control *wbc);
+int emergency_flush(struct page *page);
 int emergency_unflush(jnode *node);
 
 #else
@@ -38,7 +38,7 @@ typedef struct {
 
 #define eflush_get(node)           (NULL)
 #define eflush_del(node, pl)       noop
-#define emergency_flush(page, wbc) (0)
+#define emergency_flush(page) (0)
 #define emergency_unflush(node)    (0)
 
 #endif

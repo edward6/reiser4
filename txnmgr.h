@@ -467,7 +467,7 @@ extern int scan_and_write_fq(flush_queue_t *, int);
 extern int finish_all_fq(txn_atom *, int *);
 extern int current_atom_finish_all_fq(void);
 extern void init_atom_fq_parts(txn_atom *);
-extern int writeback_queued_jnodes(struct super_block *, jnode *, struct writeback_control *);
+extern int writeback_queued_jnodes(struct super_block *, jnode *);
 
 extern void add_fq_to_bio(flush_queue_t *, struct bio *);
 extern flush_queue_t *get_fq_for_current_atom(void);
