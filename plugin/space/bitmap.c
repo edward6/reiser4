@@ -344,12 +344,12 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 /* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
 void get_working_bitmap_blocknr (bmap_nr_t bmap, reiser4_block_nr *bnr)
 {
-	*bnr = (reiser4_block_nr) bmap 
-		& ~REISER4_BLOCKNR_STATUS_BIT_MASK | REISER4_BITMAP_BLOCKS_STATUS_VALUE;
+	*bnr = (reiser4_block_nr) ((bmap 
+		& ~REISER4_BLOCKNR_STATUS_BIT_MASK) | REISER4_BITMAP_BLOCKS_STATUS_VALUE);
 }
 
 /** Load node at given blocknr, update given pointer. This function should be
- * called under tree lock held */
+ * called under bnode spin lock held */
 static int load_bnode_half (struct bnode * bnode, char ** data, reiser4_block_nr *block)
 {
 	struct super_block * super = get_current_context() -> super;
@@ -368,7 +368,7 @@ static int load_bnode_half (struct bnode * bnode, char ** data, reiser4_block_nr
 
 	spin_lock_bnode(bnode);
 
-	if (ret) spin_lock_bnode(bnode);
+	if (ret) return ret;
 
 	if (*data == NULL) {
 		*data = tmp;
@@ -387,7 +387,7 @@ static int load_bnode_half (struct bnode * bnode, char ** data, reiser4_block_nr
 }
 
 /* load bitmap blocks "on-demand" */
-static int load_bnode (struct bnode * bnode)
+static int load_and_lock_bnode (struct bnode * bnode)
 {
 	struct super_block * super = get_current_context()->super;
 	int ret = 0;
@@ -400,14 +400,14 @@ static int load_bnode (struct bnode * bnode)
 		get_bitmap_blocknr(super, bmap_nr, & bnr);
 		ret = load_bnode_half(bnode, & bnode -> cpage, & bnr);
 
-		if (ret < 0) goto out;
+		if (ret < 0) return ret;
 	}
 
 	if (bnode->wpage == NULL) {
 		get_working_bitmap_blocknr(bmap_nr, &bnr);
 		ret = load_bnode_half(bnode, & bnode -> wpage, & bnr);
 
-		if (ret < 0) goto out;
+		if (ret < 0) return ret;
 
 		if (ret == 0) {
 			/* commit bitmap is initialized by on-disk bitmap
@@ -418,9 +418,6 @@ static int load_bnode (struct bnode * bnode)
 		ret = 0;
 	}
 	
- out:
-	spin_unlock_bnode(bnode);
-
 	return ret;
 }
 
@@ -484,11 +481,9 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 	assert("zam-365", max_len >= min_len);
 	assert("zam-366", *offset < max_offset);
 
-	ret = load_bnode (bnode);
-	if (ret) return ret;
+	ret = load_and_lock_bnode (bnode);
+	if (ret) goto out;
 	/* ret = 0; */
-
-	spin_lock_bnode(bnode);
 
 	start = *offset;
 
@@ -512,9 +507,9 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 		start = end + 1;
 	}
 
+ out:
 	spin_unlock_bnode(bnode);
 	/*release_bnode(bnode);*/
-
 	return ret;
 }
 
