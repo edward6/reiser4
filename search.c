@@ -916,8 +916,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 	 * "key" 
 	 */
 	node_bias = h -> bias;
-	result = nplug -> lookup( active, h -> key,
-				  node_bias, h -> coord );
+	result = nplug -> lookup( active, h -> key, node_bias, h -> coord );
 	if( result != NS_FOUND && result != NS_NOT_FOUND ) {
 		/* error occured */
 		h -> result = result;
