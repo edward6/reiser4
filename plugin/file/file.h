@@ -24,8 +24,8 @@ void get_nonexclusive_access   (struct inode * inode);
 void drop_nonexclusive_access  (struct inode * inode);
 int  tail2extent               (struct inode * inode);
 int  extent2tail               (struct file * file);
-int  unix_file_readpage_nolock (void * file, struct page * page);
-int  unix_file_writepage_nolock (void * file, struct page * page);
+int  unix_file_readpage_nolock_locked_page (void * file, struct page * page);
+int  unix_file_writepage_nolock (struct page * page);
 int  find_next_item            (struct sealed_coord *, const reiser4_key *, coord_t *,
 				lock_handle *, znode_lock_mode,
 				__u32 cbk_flags);
@@ -36,6 +36,26 @@ int  hint_is_set               (const struct sealed_coord * hint);
 int  hint_validate             (struct sealed_coord *,
 				const reiser4_key *, coord_t *, lock_handle *);
 int  coord_set_properly        (const reiser4_key * key, coord_t * coord);
+reiser4_key *
+     get_next_item_key         (const coord_t *, reiser4_key *);
+void check_coord               (const coord_t *, const reiser4_key *);
+int  no_left_neighbor          (const 
+znode * node);
+int znode_contains_key_lock_unique( znode *node /* znode to look in */, 
+				    const reiser4_key *key /* key to look for */ );
+int less_than_ldk              (znode * node, const reiser4_key * key);
+int equal_to_rdk               (znode * node, const reiser4_key * key);
+int less_than_rdk              (znode * node, const reiser4_key * key);
+
+
+typedef enum {
+	FIRST_ITEM = 1,
+	APPEND_ITEM = 2,
+	OVERWRITE_ITEM = 3,
+	RESEARCH = 4
+} write_mode;
+
+write_mode how_to_write        (coord_t *, lock_handle *, const reiser4_key *);
 
 
 
