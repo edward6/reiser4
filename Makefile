@@ -68,6 +68,7 @@ reiser4-objs := \
 		   plugin/item/cde.o \
 		   plugin/item/internal.o \
 		   plugin/item/tail.o \
+		   plugin/item/ctail.o \
            \
 		   plugin/hash.o \
 		   plugin/tail_policy.o \
