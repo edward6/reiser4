@@ -750,18 +750,10 @@ invalidate_unformatted(jnode *node)
 	LOCK_JNODE(node);
 	page = node->pg;
 	if (page) {
-		assert("zam-1053", 0);
-#if 0
 		page_cache_get(page);
 		UNLOCK_JNODE(node);
-
-		lock_page(page);
-		wait_on_page_writeback(page);
-		truncate_complete_page(mapping_jnode, page);
-		unlock_page(page);
-
+		truncate_mapping_pages_range(page->mapping, page->index, 1);
 		page_cache_release(page);
-#endif
 	} else {
 		JF_SET(node, JNODE_HEARD_BANSHEE);		
 		uncapture_jnode(node);
