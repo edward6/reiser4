@@ -958,7 +958,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.key_by_inode        = NULL,
 			.set_plug_in_inode   = common_set_plug,
 			.adjust_to_parent    = common_adjust_to_parent,
-			.create              = NULL,
+			.create              = symlink_create,
 			/*
 			 * FIXME-VS: symlink should probably have its own destroy method
 			 */
