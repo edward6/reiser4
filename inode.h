@@ -48,6 +48,8 @@ typedef __u32  oid_hi_t;
 
 #define OID_HI_SHIFT ( sizeof( ino_t ) * 8 )
 
+TS_LIST_DECLARE( readdir );
+
 /* state associated with each inode.
  * reiser4 inode.
  *
@@ -97,6 +99,7 @@ typedef struct reiser4_inode_info {
 	struct rw_semaphore        sem;
 	/** high 32 bits of object id */
 	oid_hi_t                   oid_hi;
+	readdir_list_head          readdir_list;
 	/** generic fields not specific to reiser4, but used by VFS */
 	struct inode       vfs_inode;
 } reiser4_inode_info;
@@ -198,42 +201,20 @@ typedef struct reiser4_dentry_fsdata {
 	coord_t entry_coord;
 } reiser4_dentry_fsdata;
 
-TS_LIST_DECLARE( readdir );
-
 /**
  * &reiser4_dentry_fsdata - reiser4-specific data attached to files.
  *
  * This is allocated dynamically and released in reiser4_release()
  */
 typedef struct reiser4_file_fsdata {
+	struct file *back;
 	/*
 	 * We need both directory and regular file parts here, because there
 	 * are file system objects that are files and directories.
 	 */
 	struct {
-		/**
-		 * last 64 bits of key, used by ->readdir()
-		 */
-		__u64 readdir_offset;
-		/**
-		 * how many entries with identical keys to skip on the next
-		 * readdir()
-		 */
-		__u64 skip;
-		struct {
-			/** logical position within directory */
-			dir_pos position;
-			/** 
-			 * logical number of directory entry within
-			 * directory 
-			 */
-			__u64   entry_no;
-			/**
-			 * cyclic list of all file descriptors for this
-			 * directory that are involved into readdir
-			 */
-			readdir_list_link linkage;
-		} readdir;
+		readdir_pos readdir;
+		readdir_list_link linkage;
 	} dir;
 	struct {
 		/*
@@ -251,7 +232,7 @@ typedef struct reiser4_file_fsdata {
 	} reg;
 } reiser4_file_fsdata;
 
-TS_LIST_DEFINE( readdir, reiser4_file_fsdata, dir.readdir.linkage );
+TS_LIST_DEFINE( readdir, reiser4_file_fsdata, dir.linkage );
 
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry );
 extern reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f );

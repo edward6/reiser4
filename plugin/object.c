@@ -722,24 +722,6 @@ static int dir_adjust_to_parent( struct inode *object /* new object */,
 	return 0;
 }
 
-static loff_t dir_seek( struct file *file UNUSED_ARG, 
-			loff_t offset UNUSED_ARG, int origin UNUSED_ARG )
-{
-	loff_t result;
-
-	result = default_llseek( file, offset, origin );
-	if( result >= 0 ) {
-		reiser4_file_fsdata *fsdata;
-
-		fsdata = reiser4_get_file_fsdata( file );
-		fsdata -> dir.readdir_offset = ( __u64 ) 0;
-		fsdata -> dir.skip = ( __u64 ) 0;
-	}
-	return result;
-}
-
-#define REISER4_PREFE
-
 /** simplest implementation of ->getattr() method. Completely static. */
 static int common_getattr( struct vfsmount *mnt UNUSED_ARG,
 			   struct dentry *dentry, struct kstat *stat )
@@ -770,6 +752,37 @@ static int common_getattr( struct vfsmount *mnt UNUSED_ARG,
 	stat -> blksize = get_super_private( obj -> i_sb ) -> optimal_io_size;
 
 	return 0;
+}
+
+/* plugin->u.file.release */
+static int dir_release( struct file *file )
+{
+	if( file -> private_data != NULL )
+		readdir_list_remove( reiser4_get_file_fsdata( file ) );
+	return 0;
+}
+
+static loff_t dir_seek( struct file *file, loff_t off, int origin )
+{
+	loff_t result;
+
+	result = default_llseek( file, off, origin );
+	if( result >= 0 ) {
+		int          ff;
+		coord_t      coord;
+		lock_handle  lh;
+		tap_t        tap;
+		readdir_pos *pos;
+
+		coord_init_zero( &coord );
+		init_lh( &lh );
+		tap_init( &tap, &coord, &lh, ZNODE_READ_LOCK );
+
+		ff = dir_readdir_init( file, &tap, &pos );
+		if( ff != 0 )
+			result = ( loff_t ) ff;
+	}
+	return result;
 }
 
 reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
@@ -829,7 +842,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.writepage           = NULL,
 			.read                = NULL, /* EISDIR */
 			.write               = NULL, /* EISDIR */
-			.release             = NULL,
+			.release             = dir_release,
 			.mmap                = NULL,
 			.get_block           = NULL,
 			.flow_by_inode       = NULL,

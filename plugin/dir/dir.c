@@ -154,7 +154,7 @@ static int common_unlink( struct inode *parent /* parent object */,
 	struct inode              *object;
 	file_plugin               *fplug;
 	dir_plugin                *parent_dplug;
-	reiser4_dir_entry_desc              entry;
+	reiser4_dir_entry_desc     entry;
 	unlink_f_type              uf_type;
 
 	assert( "nikita-864", parent != NULL );
@@ -534,58 +534,355 @@ cmp_t dir_pos_cmp( const dir_pos *p1, const dir_pos *p2 )
 	return result;
 }
 
-#if 0
+void adjust_dir_pos( struct file *dir, readdir_pos *readdir_spot, 
+		     const dir_pos *mod_point, int adj )
+{
+	dir_pos *pos;
+
+	reiser4_stat_dir_add( readdir.adjust_pos );
+	pos = &readdir_spot -> position;
+	switch( dir_pos_cmp( mod_point, pos ) ) {
+	case LESS_THAN:
+		readdir_spot -> entry_no += adj;
+		lock_kernel();
+		assert( "nikita-2577", dir -> f_pos + adj >= 0 );
+		dir -> f_pos += adj;
+		unlock_kernel();
+		if( de_id_cmp( &pos -> dir_entry_key, 
+			       &mod_point -> dir_entry_key ) == EQUAL_TO ) {
+			assert( "nikita-2575", mod_point -> pos < pos -> pos );
+			pos -> pos += adj;
+		}
+		reiser4_stat_dir_add( readdir.adjust_lt );
+		break;
+	case GREATER_THAN:
+		/*
+		 * directory is modified after @pos: nothing to do.
+		 */
+		reiser4_stat_dir_add( readdir.adjust_gt );
+		break;
+	case EQUAL_TO:
+		/*
+		 * cannot insert an entry readdir is looking at, because it
+		 * already exists.
+		 */
+		assert( "nikita-2576", adj < 0 );
+		/*
+		 * directory entry to which @pos points to is being
+		 * removed. 
+		 *
+		 * FIXME-NIKITA: Right thing to do is to update @pos to point
+		 * to the next entry. This is complex (we are under spin-lock
+		 * for one thing). Just rewind it to the beginning. Next
+		 * readdir will have to scan the beginning of
+		 * directory. Proper solution is to use semaphore in
+		 * spin lock's stead and use rewind_right() here.
+		 */
+		xmemset( readdir_spot, 0, sizeof *readdir_spot );
+		reiser4_stat_dir_add( readdir.adjust_eq );
+	}
+}
+
 /**
  * scan all file-descriptors for this directory and adjust their positions
  * respectively.
  */
-void adjust_dir_pos( struct file *dir, const dir_pos *mod_point, int adj )
+void adjust_dir_file( struct inode *dir, const coord_t *coord,
+		      int offset, int adj )
 {
 	reiser4_file_fsdata *scan;
-	struct inode *inode;
+	reiser4_inode_info  *info;
+	reiser4_key          de_key;
+	dir_pos              mod_point;
 
 	assert( "nikita-2536", dir != NULL );
-	assert( "nikita-2538", mod_point != NULL );
+	assert( "nikita-2538", coord != NULL );
 	assert( "nikita-2539", adj != 0 );
 
-	inode = dir -> f_dentry -> d_inode;
-	spin_lock( &inode -> readdir_lock );
-	for( scan = readdir_list_front( &inode -> readdir_list ) ;
-	     !readdir_list_end( &inode -> readdir_list, scan ) ;
+	WITH_DATA( coord -> node, unit_key_by_coord( coord, &de_key ) );
+	build_de_id_by_key( &de_key, &mod_point.dir_entry_key );
+	mod_point.pos = offset;
+
+	info  = reiser4_inode_data( dir );
+	spin_lock( &info -> guard );
+	for( scan = readdir_list_front( &info -> readdir_list ) ;
+	     !readdir_list_end( &info -> readdir_list, scan ) ;
 	     scan = readdir_list_next( scan ) ) {
-		switch( dir_pos_cmp( mod_point, scan -> dir.readdir.position ) ){
-		case LESS_THAN:
+		adjust_dir_pos( scan -> back, 
+				&scan -> dir.readdir, &mod_point, adj );
+	}
+	spin_unlock( &info -> guard );
+}
+
+static int dir_go_to( struct file *dir, readdir_pos *pos, tap_t *tap )
+{
+	reiser4_key   key;
+	int           result;
+	struct inode *inode;
+
+	assert( "nikita-2554", pos != NULL );
+
+	inode = dir -> f_dentry -> d_inode;
+	result = inode_dir_plugin( inode ) -> readdir_key( dir, &key );
+	if( result != 0 )
+		return result;
+	result = coord_by_key( tree_by_inode( inode ), &key, 
+			       tap -> coord, tap -> lh, tap -> mode, 
+			       FIND_MAX_NOT_MORE_THAN,
+			       LEAF_LEVEL, LEAF_LEVEL, 0 );
+	if( result == CBK_COORD_FOUND )
+		result = rewind_right( tap, pos -> position.pos );
+	return result;
+}
+
+static int rewind( struct file *dir, readdir_pos *pos,
+		   loff_t offset, tap_t *tap )
+{
+	__u64 destination;
+	int   shift;
+	int   result;
+
+	assert( "nikita-2553", dir != NULL );
+	assert( "nikita-2548", pos != NULL );
+	assert( "nikita-2551", tap -> coord != NULL );
+	assert( "nikita-2552", tap -> lh != NULL );
+
+	if( offset < 0 )
+		return -EINVAL;
+	else if( offset == 0ll ) {
+		/*
+		 * rewind to the beginning of directory
+		 */
+		xmemset( pos, 0, sizeof *pos );
+		reiser4_stat_dir_add( readdir.reset );
+		return dir_go_to( dir, pos, tap );
+	}
+
+	destination = ( __u64 ) offset;
+
+	shift = pos -> entry_no - destination;
+	if( unlikely( abs( shift ) > 100000 ) )
+		/*
+		 * something strange: huge seek
+		 */
+		warning( "nikita-2549", "Strange seekdir: %llu->%llu",
+			 pos -> entry_no, destination );
+	if( shift >= 0 ) {
+		/*
+		 * rewinding to the left
+		 */
+		reiser4_stat_dir_add( readdir.rewind_left );
+		if( shift <= pos -> position.pos ) {
+			/*
+			 * destination is within sequence of entries with
+			 * duplicate keys.
+			 */
+			pos -> position.pos -= shift;
+			reiser4_stat_dir_add( readdir.left_non_uniq );
+			result = dir_go_to( dir, pos, tap );
+		} else {
+			shift -= pos -> position.pos;
+			pos -> position.pos = 0;
+			while( 1 ) {
+				/*
+				 * repetitions: deadlock is possible when
+				 * going to the left.
+				 */
+				result = dir_go_to( dir, pos, tap );
+				if( result == 0 ) {
+					result = rewind_left( tap, shift );
+					if( result == -EDEADLK ) {
+						tap_done( tap );
+						reiser4_stat_dir_add( readdir.left_restart );
+						continue;
+					}
+				}
+			}
+		}
+	} else {
+		/*
+		 * rewinding to the right
+		 */
+		reiser4_stat_dir_add( readdir.rewind_right );
+		result = dir_go_to( dir, pos, tap );
+		if( result == 0 )
+			result = rewind_right( tap, -shift );
+	}
+	return result;
+}
+
+/**
+ * Function that is called by common_readdir() on each directory item
+ * while doing readdir.
+ */
+static int feed_entry( readdir_pos *pos, 
+		       coord_t *coord, filldir_t filldir, void *dirent )
+{
+	item_plugin *iplug;
+	char        *name;
+	reiser4_key  sd_key;
+	reiser4_key  de_key;
+	int          result;
+	de_id       *did;
+
+	iplug = item_plugin_by_coord( coord );
+
+	name = iplug -> s.dir.extract_name( coord );
+	assert( "nikita-1371", name != NULL );
+	if( iplug -> s.dir.extract_key( coord, &sd_key ) != 0 )
+		return -EIO;
+
+	/* get key of directory entry */
+	unit_key_by_coord( coord, &de_key );
+	trace_on( TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
+		  name, pos -> entry_no + 1, get_key_objectid( &sd_key ) );
+
+	/*
+	 * update @pos
+	 */
+	++ pos -> entry_no;
+	did = &pos -> position.dir_entry_key;
+	if( de_id_key_cmp( did, &de_key ) == EQUAL_TO )
+		/*
+		 * we are within sequence of directory entries
+		 * with duplicate keys.
+		 */
+		++ pos -> position.pos;
+	else {
+		pos -> position.pos = 0;
+		result = build_de_id_by_key( &de_key, did );
+	}
+
+	/*
+	 * send information about directory entry to the ->filldir() filler
+	 * supplied to us by caller (VFS).
+	 */
+	if( filldir( dirent, name, ( int ) strlen( name ),
+		     /*
+		      * offset of the next entry
+		      */
+		     pos -> entry_no + 1,
+		     /*
+		      * inode number of object bounden by this entry
+		      */
+		     oid_to_uino( get_key_objectid( &sd_key ) ),
+		     iplug -> s.dir.extract_file_type( coord ) ) < 0 ) {
+		/*
+		 * ->filldir() is satisfied.
+		 */
+		result = 1;
+	} else
+		result = 0;
+	return result;
+}
+
+int dir_readdir_init( struct file *f, tap_t *tap, readdir_pos **pos )
+{
+	struct inode        *inode;
+	reiser4_file_fsdata *fsdata;
+	reiser4_inode_info  *info;
+
+	assert( "nikita-1359", f != NULL );
+	inode = f -> f_dentry -> d_inode;
+	assert( "nikita-1360", inode != NULL );
+
+	if( ! S_ISDIR( inode -> i_mode ) )
+		return -ENOTDIR;
+
+	fsdata = reiser4_get_file_fsdata( f );
+	assert( "nikita-2571", fsdata != NULL );
+	if( IS_ERR( fsdata ) )
+		return PTR_ERR( fsdata );
+
+	info = reiser4_inode_data( inode );
+
+	spin_lock( &info -> guard );
+	if( readdir_list_is_clean( fsdata ) )
+		readdir_list_push_front( &info -> readdir_list, fsdata );
+	*pos = &fsdata -> dir.readdir;
+	spin_unlock( &info -> guard );
+
+	/*
+	 * move @tap to the current position
+	 */
+	return rewind( f, *pos, f -> f_pos, tap );
+}
+
+/** ->readdir method of directory plugin */
+static int common_readdir( struct file *f /* directory file being read */, 
+			   void *dirent /* opaque data passed to us by VFS */, 
+			   filldir_t filld /* filler function passed to us
+					      * by VFS */ )
+{
+	int           result;
+	struct inode *inode;
+	coord_t       coord;
+	lock_handle   lh;
+	tap_t         tap;
+	file_plugin  *fplug;
+	readdir_pos  *pos;
+
+	assert( "nikita-1359", f != NULL );
+	inode = f -> f_dentry -> d_inode;
+	assert( "nikita-1360", inode != NULL );
+
+	reiser4_stat_dir_add( readdir.calls );
+
+	if( ! S_ISDIR( inode -> i_mode ) )
+		return -ENOTDIR;
+
+	coord_init_zero( &coord );
+	init_lh( &lh );
+	tap_init( &tap, &coord, &lh, ZNODE_READ_LOCK );
+
+	trace_on( TRACE_DIR | TRACE_VFS_OPS, 
+		  "readdir: inode: %llu offset: %lli\n", 
+		  get_inode_oid( inode ), f -> f_pos );
+
+	fplug = inode_file_plugin( inode );
+	result = dir_readdir_init( f, &tap, &pos );
+	if( result == 0 ) {
+		result = tap_load( &tap );
+		if( result == 0 )
+			pos -> entry_no = f -> f_pos - 1;
+		/*
+		 * scan entries one by one feeding them to @filld
+		 */
+		while( result == 0 ) {
+			coord_t *coord;
+
+			coord = tap.coord;
+			assert( "nikita-2572", coord_is_existing_unit( coord ) );
+
+			if( item_type_by_coord( coord ) != DIR_ENTRY_ITEM_TYPE )
+				break;
+			else if( !fplug -> owns_item( inode, coord ) )
+				break;
+			result = feed_entry( pos, coord, filld, dirent );
+			if( result > 0 ) {
+				result = 0;
+				break;
+			} else if( result == 0 ) {
+				result = go_next_unit( &tap );
+				if( result == -ENAVAIL || result == -ENOENT ) {
+					result = 0;
+					break;
+				}
+			}
+		}
+		tap_relse( &tap );
+
+		if( result == 0 ) {
+			f -> f_pos = pos -> entry_no + 1;
+			f -> f_version = inode -> i_version;
 		}
 	}
-	spin_unlock( &inode -> readdir_lock );
+	tap_done( &tap );
+	return result;
 }
-#endif
 
 reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
 	[ HASHED_DIR_PLUGIN_ID ] = {
-		.dir = {
-			.h = {
-				.type_id = REISER4_DIR_PLUGIN_TYPE,
-				.id      = HASHED_DIR_PLUGIN_ID,
-				.pops    = NULL,
-				.label   = "dir",
-				.desc    = "hashed directory",
-				.linkage = TS_LIST_LINK_ZERO
-			},
-			.resolve             = NULL,
-			.resolve_into_inode  = hashed_lookup,
-			.unlink              = common_unlink,
-			.link                = common_link,
-			.is_name_acceptable  = is_name_acceptable,
-			.entry_key           = build_readdir_stable_entry_key,
-			.readdir_key         = build_readdir_key,
-			.add_entry           = hashed_add_entry,
-			.rem_entry           = hashed_rem_entry,
-			.create_child        = common_create_child,
-			.rename              = hashed_rename
-		}
-	},
-	[ LARGE_DIR_PLUGIN_ID ] = {
 		.dir = {
 			.h = {
 				.type_id = REISER4_DIR_PLUGIN_TYPE,
@@ -605,9 +902,34 @@ reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
 			.add_entry           = hashed_add_entry,
 			.rem_entry           = hashed_rem_entry,
 			.create_child        = common_create_child,
-			.rename              = hashed_rename
+			.rename              = hashed_rename,
+			.readdir             = common_readdir
 		}
-	}
+	},
+	[ SEEKABLE_HASHED_DIR_PLUGIN_ID ] = {
+		.dir = {
+			.h = {
+				.type_id = REISER4_DIR_PLUGIN_TYPE,
+				.id      = HASHED_DIR_PLUGIN_ID,
+				.pops    = NULL,
+				.label   = "dir",
+				.desc    = "hashed directory",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.resolve             = NULL,
+			.resolve_into_inode  = hashed_lookup,
+			.unlink              = common_unlink,
+			.link                = common_link,
+			.is_name_acceptable  = is_name_acceptable,
+			.entry_key           = build_readdir_stable_entry_key,
+			.readdir_key         = build_readdir_key,
+			.add_entry           = hashed_add_entry,
+			.rem_entry           = hashed_rem_entry,
+			.create_child        = common_create_child,
+			.rename              = hashed_rename,
+			.readdir             = common_readdir
+		}
+	},
 };
 
 /* 
