@@ -55,9 +55,18 @@
 
        In fact we are forcing all projects to use our DAL  inter­
        face.  Every  project implements our interface in order to 
-
-       <b>FIXME-NIKITA phase is not finished properly</b>
-
+	   be compatible with us.
+	   
+	   So, as every software package from listed above has unique 
+	   (in theory) device nature, it must have also own device-nature-specific 
+	   I/O working functions implemented in it. This I/O working 
+	   functions will be very vary from one project to another. For 
+	   example, reiserfsprogs will be using just "read", "write", 
+	   "stat" for file descriptor, GNU Parted will be using "ped_geometry_read", 
+	   "ped_geometry_write" functions for PedGeometry object and 
+	   GNU GRUB will be using "biosdisk" function that is call to 
+	   int 0x13 interrupt in fact.
+	   
        The  reiserfsprogs DAL object will be the simplest of them
        all, since reiserfsprogs operates directly on a UNIX block
        device (e.g., /dev/hda1), the reiserfsprogs implementation
@@ -95,15 +104,18 @@
        That is, all real I/O work is delegated to the appropriate
        callback function. For example,  reiserfsck_read
        is be called for reiserfsck. reiserfsck_read 
-       calls  standard read(2) function to read from supplied file descriptor.
+	   calls  standard read(2) function to read from supplied file 
+	   descriptor.
 
-       For GNU Parted, ped_geometry_read callback function
-       calls standard read(2) function,
+	   For GNU Parted, ped_geometry_read callback function calls 
+	   standard read(2) function, and for GNU GRUB, read callback 
+	   calls "biosdisk" function.
 
-       <b>FIXME-NIKITA is it so? What if ped_geometry_read is called on slice?
-       </b>
-
-       and for GNU GRUB, read callback calls "biosdisk" function.
+	   Actually "ped_geometry_read" calls "ped_device_read" function.
+	   "ped_device_read" function calls "read" operation from current
+	   architecture's device operation descriptor. This "read" operation
+	   is callback function in fact and may operate on file descriptor
+	   of device at all (/dev/hda, /dev/hdb, etc).
 
        For example, "dal_ops" for GNU GRUB looks roughly like this:
 
@@ -137,7 +149,8 @@
             ...
        }
 
-       And after bios_dal_ops is ready, we will create dal_t that will contain bios_dal_ops in it.
+	   And after bios_dal_ops is ready, we will create dal_t that will contain 
+	   bios_dal_ops in it.
 
        dal_t *bios_dal_open(some_parameters) {
 
@@ -443,17 +456,12 @@
 
        Opening of a filesystem consists of the following steps:
  
-       initialize  all  internal
-       structures; read superblock, and journal header; replay
-       journal; check superblock and journal header for 
-       validness   (sb_block_count  &lt;=  dev_length,  etc);  re-read
-       superblock from the journal (if it was overwritten by 
-       journal  replay);  initialize bitmap; optionally check it
-       for validness; initialize tree; read the root  block,
-       and   check  it  for  validness; return initialized
-       filesystem instance.
-
-
+	   initialize all internal structures; read superblock, and journal header; 
+	   replay journal; check superblock and journal header for validness 
+	   (sb_block_count  &lt;=  dev_length, etc);  re-read superblock from the 
+	   journal (if it was overwritten by journal  replay);  initialize bitmap; 
+	   optionally check it for validness; initialize tree; read the root block,
+       and check it for validness; return initialized filesystem instance.
 
 </PRE>
 <H2>libreiserfs</H2><PRE>
