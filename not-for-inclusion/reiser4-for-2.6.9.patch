@@ -1,0 +1,167 @@
+
+diff -rup linux-2.6.9/fs/reiser4/as_ops.c linux-2.6.9-a/fs/reiser4/as_ops.c
+
+
+ fs/reiser4/as_ops.c               |   14 +++++++-------
+ fs/reiser4/page_cache.c           |    8 ++++----
+ fs/reiser4/plugin/file/file.c     |    8 ++++----
+ fs/reiser4/plugin/object.c        |    1 -
+ fs/reiser4/plugin/security/perm.c |    2 +-
+ 5 files changed, 16 insertions(+), 17 deletions(-)
+
+diff -puN fs/reiser4/as_ops.c~reiser4-for-2.6.9 fs/reiser4/as_ops.c
+--- linux-2.6.9/fs/reiser4/as_ops.c~reiser4-for-2.6.9	2004-11-03 18:32:27.155728976 +0300
++++ linux-2.6.9-vs/fs/reiser4/as_ops.c	2004-11-03 18:32:27.215719606 +0300
+@@ -75,7 +75,7 @@ reiser4_clear_page_dirty(struct page *pa
+ 	mapping = page->mapping;
+ 	BUG_ON(mapping == NULL);
+ 
+-	read_lock_irqsave(&mapping->tree_lock, flags);
++	spin_lock_irqsave(&mapping->tree_lock, flags);
+ 	if (TestClearPageDirty(page)) {
+ 		/* clear dirty tag of page in address space radix tree */
+ 		radix_tree_tag_clear(&mapping->page_tree, page->index,
+@@ -84,12 +84,12 @@ reiser4_clear_page_dirty(struct page *pa
+ 		radix_tree_tag_clear(&mapping->page_tree, page->index,
+ 				     PAGECACHE_TAG_REISER4_MOVED);
+ 
+-		read_unlock_irqrestore(&mapping->tree_lock, flags);
++		spin_unlock_irqrestore(&mapping->tree_lock, flags);
+ 		if (!mapping->backing_dev_info->memory_backed)
+ 			dec_page_state(nr_dirty);
+ 		return;
+ 	}
+-	read_unlock_irqrestore(&mapping->tree_lock, flags);
++	spin_unlock_irqrestore(&mapping->tree_lock, flags);
+ }
+ 
+ /* as_ops->set_page_dirty() VFS method in reiser4_address_space_operations.
+@@ -108,7 +108,7 @@ static int reiser4_set_page_dirty(struct
+ 		struct address_space *mapping = page->mapping;
+ 
+ 		if (mapping) {
+-			read_lock_irq(&mapping->tree_lock);
++			spin_lock_irq(&mapping->tree_lock);
+ 			/* check for race with truncate */
+ 			if (page->mapping) {
+ 				assert("vs-1652", page->mapping == mapping);
+@@ -120,7 +120,7 @@ static int reiser4_set_page_dirty(struct
+ 				radix_tree_tag_set(&mapping->page_tree,
+ 						   page->index, PAGECACHE_TAG_REISER4_MOVED);
+ 			}
+-			read_unlock_irq(&mapping->tree_lock);
++			spin_unlock_irq(&mapping->tree_lock);
+ 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
+ 		}
+ 	}
+@@ -568,13 +568,13 @@ reiser4_releasepage(struct page *page, i
+ 		/* we are under memory pressure so release jnode also. */
+ 		jput(node);
+ 
+-		write_lock_irq(&mapping->tree_lock);
++		spin_lock_irq(&mapping->tree_lock);
+ 		/* shrink_list() + radix-tree */
+ 		if (page_count(page) == 2) {
+ 			__remove_from_page_cache(page);
+ 			__put_page(page);
+ 		}
+-		write_unlock_irq(&mapping->tree_lock);
++		spin_unlock_irq(&mapping->tree_lock);
+ 
+ 		return 1;
+ 	} else {
+diff -puN fs/reiser4/page_cache.c~reiser4-for-2.6.9 fs/reiser4/page_cache.c
+--- linux-2.6.9/fs/reiser4/page_cache.c~reiser4-for-2.6.9	2004-11-03 18:32:27.160728195 +0300
++++ linux-2.6.9-vs/fs/reiser4/page_cache.c	2004-11-03 18:32:27.217719293 +0300
+@@ -533,7 +533,7 @@ int set_page_dirty_internal (struct page
+ 		struct address_space *mapping = page->mapping;
+ 
+ 		if (mapping) {
+-			read_lock_irq(&mapping->tree_lock);
++			spin_lock_irq(&mapping->tree_lock);
+ 			if (page->mapping) {	/* Race with truncate? */
+ 				BUG_ON(page->mapping != mapping);
+ 				if (!mapping->backing_dev_info->memory_backed)
+@@ -549,7 +549,7 @@ int set_page_dirty_internal (struct page
+ 						&mapping->page_tree, page->index,
+ 						PAGECACHE_TAG_REISER4_MOVED);
+ 			}
+-			read_unlock_irq(&mapping->tree_lock);
++			spin_unlock_irq(&mapping->tree_lock);
+ 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
+ 		}
+ 	}
+@@ -594,13 +594,13 @@ reiser4_internal void capture_reiser4_in
+ 			struct address_space * mapping = inode->i_mapping;
+ 			unsigned long flags;
+ 
+-			read_lock_irqsave(&mapping->tree_lock, flags);
++			spin_lock_irqsave(&mapping->tree_lock, flags);
+ 			if (!radix_tree_tagged(&mapping->page_tree, PAGECACHE_TAG_DIRTY) &&
+ 			    !radix_tree_tagged(&mapping->page_tree, PAGECACHE_TAG_REISER4_MOVED))
+ 			{
+ 				inode->i_state &= ~(I_DIRTY);
+ 			}
+-			read_unlock_irqrestore(&mapping->tree_lock, flags);
++			spin_unlock_irqrestore(&mapping->tree_lock, flags);
+ 		}
+ 		spin_unlock(&inode_lock);
+ 
+diff -puN fs/reiser4/plugin/file/file.c~reiser4-for-2.6.9 fs/reiser4/plugin/file/file.c
+--- linux-2.6.9/fs/reiser4/plugin/file/file.c~reiser4-for-2.6.9	2004-11-03 18:32:27.165727414 +0300
++++ linux-2.6.9-vs/fs/reiser4/plugin/file/file.c	2004-11-03 18:32:27.220718825 +0300
+@@ -1216,7 +1216,7 @@ sync_page_list(struct inode *inode)
+ 	mapping = inode->i_mapping;
+ 	from = 0;
+ 	result = 0;
+-	read_lock_irq(&mapping->tree_lock);
++	spin_lock_irq(&mapping->tree_lock);
+ 	while (result == 0) {
+ 		struct page *page;
+ 
+@@ -1228,17 +1228,17 @@ sync_page_list(struct inode *inode)
+ 		/* page may not leave radix tree because it is protected from truncating by inode->i_sem downed by
+ 		   sys_fsync */
+ 		page_cache_get(page);
+-		read_unlock_irq(&mapping->tree_lock);
++		spin_unlock_irq(&mapping->tree_lock);
+ 
+ 		from = page->index + 1;
+ 
+ 		result = sync_page(page);
+ 
+ 		page_cache_release(page);
+-		read_lock_irq(&mapping->tree_lock);
++		spin_lock_irq(&mapping->tree_lock);
+ 	}
+ 
+-	read_unlock_irq(&mapping->tree_lock);
++	spin_unlock_irq(&mapping->tree_lock);
+ 	return result;
+ }
+ 
+diff -puN fs/reiser4/plugin/object.c~reiser4-for-2.6.9 fs/reiser4/plugin/object.c
+--- linux-2.6.9/fs/reiser4/plugin/object.c~reiser4-for-2.6.9	2004-11-03 18:32:27.170726633 +0300
++++ linux-2.6.9-vs/fs/reiser4/plugin/object.c	2004-11-03 18:32:27.222718512 +0300
+@@ -989,7 +989,6 @@ static void delete_inode_common(struct i
+ 	 * FIXME: this resembles generic_delete_inode
+ 	 */
+ 	list_del_init(&object->i_list);
+-	list_del_init(&object->i_sb_list);
+ 	object->i_state |= I_FREEING;
+ 	inodes_stat.nr_inodes--;
+ 	spin_unlock(&inode_lock);
+diff -puN fs/reiser4/plugin/security/perm.c~reiser4-for-2.6.9 fs/reiser4/plugin/security/perm.c
+--- linux-2.6.9/fs/reiser4/plugin/security/perm.c~reiser4-for-2.6.9	2004-11-03 18:32:27.175725852 +0300
++++ linux-2.6.9-vs/fs/reiser4/plugin/security/perm.c	2004-11-03 18:32:27.223718356 +0300
+@@ -13,7 +13,7 @@
+ static int
+ mask_ok_common(struct inode *inode, int mask)
+ {
+-	return generic_permission(inode, mask, NULL);
++	return vfs_permission(inode, mask);
+ }
+ 
+ static int
+
+_
