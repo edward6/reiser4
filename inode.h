@@ -32,7 +32,10 @@ typedef enum {
 	 * node, 0 - otherwise. Note, that this bit can be only checked if
 	 * REISER4_TAIL_STATE_KNOWN is set
 	 */
-	REISER4_HAS_TAIL           = 5
+	REISER4_HAS_TAIL           = 5,
+	/* this bit is set for symlinks. inode->u.generic_ip points to target
+	 * name of symlink */
+	REISER4_GENERIC_VP_USED    = 6
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.
@@ -146,6 +149,7 @@ extern item_plugin *inode_dir_item_plugin( const struct inode *inode );
 
 extern struct file_operations reiser4_file_operations;
 extern struct inode_operations reiser4_inode_operations;
+extern struct inode_operations reiser4_symlink_inode_operations;
 extern struct super_operations reiser4_super_operations;
 extern struct address_space_operations reiser4_as_operations;
 
