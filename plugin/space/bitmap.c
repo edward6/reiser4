@@ -57,8 +57,6 @@
 
 #define CHECKSUM_SIZE    4
 
-#define BYTES_PER_LONG (sizeof(long))
-
 #if BITS_PER_LONG == 64
 #  define LONG_INT_SHIFT (6)
 #else
