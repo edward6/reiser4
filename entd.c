@@ -284,7 +284,7 @@ void write_page_by_ent (struct page * page, struct writeback_control * wbc)
 	spin_lock(&ent->guard);
 	sema_init(&rq.sem, 0);
 
-	wbq_list_push_front(&ent->wbq_list, &rq);
+	wbq_list_push_back(&ent->wbq_list, &rq);
 	ent->wbq_nr ++;
 
 	if (ent->flushers == 0)
