@@ -1,0 +1,4 @@
+BEGIN { filename=/dev/null; system("mkdir ./zzz") }
+/[0-9]+ [0-9]+ [0-9]+$/ { filename="./zzz/" sprintf("%0.15d", $2) }
+{ print $0 >filename }
+END { system("cat ./zzz/*; rm -fr zzz 0") }
