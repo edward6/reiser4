@@ -99,7 +99,7 @@ entd(void *arg)
 		int result = 0;
 
 		if (me->flags & PF_FREEZE)
-			refrigerator(PF_IOTHREAD);
+			refrigerator(PF_FREEZE/*PF_IOTHREAD*/);
 
 		entd_set_comm(".");
 		spin_lock(&ctx->guard);
