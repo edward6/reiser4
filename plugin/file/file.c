@@ -1000,7 +1000,8 @@ capture_anonymous_page(struct page *pg, int keepme)
 	return result;
 }
 
-#define CAPTURE_APAGE_BURST      (1024)
+
+#define CAPTURE_APAGE_BURST      (1024l)
 
 /* look for pages tagged REISER4_MOVED starting from the index-th page, return
    number of captured pages, update index to next page after the last found
@@ -1290,88 +1291,13 @@ commit_file_atoms(struct inode *inode)
 	return result;
 }
 
-#if 0
-/*
- * this file plugin method is called to capture into current atom all
- * "anonymous pages", that is, pages modified through mmap(2). For each such
- * page this function creates jnode, captures this jnode, and creates (or
- * modifies) extent. Anonymous pages are kept on the special inode list. Some
- * of them can be emergency flushed. To cope with this list of eflushed jnodes
- * from this inode is scanned.
- */
 reiser4_internal int
-capture_unix_file(struct inode *inode, const struct writeback_control *wbc, long *captured)
-{
-	int               result;
-	unix_file_info_t *uf_info;
-	pgoff_t index, nr_pages;
-
-	if (!inode_has_anonymous_pages(inode))
-		return 0;
-
-	result = 0;
-	index = 0;
-	nr_pages = (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-	do {
-		reiser4_context ctx;
-
-		uf_info = unix_file_inode_data(inode);
-		/*
-		 * locking: creation of extent requires read-semaphore on
-		 * file. _But_, this function can also be called in the
-		 * context of write system call from
-		 * balance_dirty_pages(). So, write keeps semaphore (possible
-		 * in write mode) on file A, and this function tries to
-		 * acquire semaphore on (possibly) different file B. A/B
-		 * deadlock is on a way. To avoid this try-lock is used
-		 * here. When invoked from sys_fsync() and sys_fdatasync(),
-		 * this function is out of reiser4 context and may safely
-		 * sleep on semaphore.
-		 */
-		if (is_in_reiser4_context()) {
-			if (down_read_trylock(&uf_info->latch) == 0) {
-/* ZAM-FIXME-HANS: please explain this error handling here, grep for
- * all instances of returning EBUSY, and tell me whether any of them
- * represent busy loops that we should recode.  Also tell me whether
- * any of them fail to return EBUSY to user space, and if yes, then
- * recode them to not use the EBUSY macro.*/
-				result = RETERR(-EBUSY);
-				break;
-			}
-		} else
-			down_read(&uf_info->latch);
-
-		init_context(&ctx, inode->i_sb);
-		/* avoid recursive calls to ->sync_inodes */
-		ctx.nobalance = 1;
-		assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
-
-		LOCK_CNT_INC(inode_sem_r);
-
-		result = capture_anonymous_pages(inode->i_mapping, &index, captured);
-		up_read(&uf_info->latch);
-		LOCK_CNT_DEC(inode_sem_r);
-		if (result != 0 || wbc->sync_mode != WB_SYNC_ALL) {
-			reiser4_exit_context(&ctx);
-			break;
-		}
-		result = commit_file_atoms(inode);
-		reiser4_exit_context(&ctx);
-	} while (result == 0 && inode_has_anonymous_pages(inode) /* FIXME: it should be: there are anonymous pages with
-								    page->index >= index */);
-
-	return result;
-}
-#endif
-
-reiser4_internal int
-capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
+capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 {
 	int               result;
 	unix_file_info_t *uf_info;
 	pgoff_t pindex, jindex, nr_pages;
-	int to_capture;
-	int phantoms;
+	long to_capture;
 
 	if (!inode_has_anonymous_pages(inode))
 		return 0;
@@ -1381,17 +1307,19 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
 	result = 0;
 	pindex = 0;
 	jindex = 0;
-	phantoms = 0;
 	nr_pages = (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 	do {
 		reiser4_context ctx;
+
+		if (wbc->sync_mode != WB_SYNC_ALL)
+			to_capture = min(wbc->nr_to_write, CAPTURE_APAGE_BURST);
+		else
+			to_capture = CAPTURE_APAGE_BURST;
 
 		init_context(&ctx, inode->i_sb);
 		/* avoid recursive calls to ->sync_inodes */
 		ctx.nobalance = 1;
 		assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
-
-		to_capture = CAPTURE_APAGE_BURST;
 		/*
 		 * locking: creation of extent requires read-semaphore on
 		 * file. _But_, this function can also be called in the
@@ -1419,7 +1347,7 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
 			down_read(&uf_info->latch);
 		LOCK_CNT_INC(inode_sem_r);
 
-		while (to_capture) {
+		while (to_capture > 0) {
 			pgoff_t start;
 			
 			assert("vs-1727", jindex <= pindex);
@@ -1429,24 +1357,27 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
 				if (result < 0)
 					break;
 				to_capture -= result;				
+				wbc->nr_to_write -= result;
 				if (start + result == pindex) {
 					jindex = pindex;
 					continue;
 				}
+ 				if (to_capture <= 0)
+					break;
 			}
 			/* deal with anonymous jnodes between jindex and pindex */
 			result = capture_anonymous_jnodes(inode->i_mapping, &jindex, pindex, to_capture);
 			if (result < 0)
 				break;
 			to_capture -= result;
-			phantoms += result;
+			wbc->nr_to_write -= result;
 
 			if (jindex == (pgoff_t)-1) {
 				assert("vs-1728", pindex == (pgoff_t)-1);
 				break;
 			}
 		}
-		if (to_capture == 0)
+		if (to_capture <= 0)
 			/* there may be left more pages */
 			redirty_inode(inode);
 
@@ -1457,10 +1388,9 @@ capture_unix_file(struct inode *inode, const struct writeback_control *wbc)
 			reiser4_exit_context(&ctx);
 			return result;
 		}
-		result = 0;
 		if (wbc->sync_mode != WB_SYNC_ALL) {
 			reiser4_exit_context(&ctx);
-			break;
+			return 0;
 		}
 		result = commit_file_atoms(inode);
 		reiser4_exit_context(&ctx);
@@ -2064,7 +1994,7 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 	drop_nonexclusive_access(unix_file_inode_data(inode));
 	up_read(&reiser4_inode_data(inode)->coc_sem);
 
-	txn_restart_current();
+	/*txn_restart_current();*/
 
 	reiser4_exit_context(&ctx);
 	return page;
@@ -2612,19 +2542,6 @@ readpages_unix_file(struct file *file, struct address_space *mapping,
 		    struct list_head *pages)
 {
 	assert("vs-1740", 0);
-#if 0
-	reiser4_file_fsdata *fsdata;
-	item_plugin *iplug;
-
-	/* FIXME: readpages_unix_file() only supports files built of extents. */
-	if (unix_file_inode_data(mapping->host)->container != UF_CONTAINER_EXTENTS)
-		return;
-
-	fsdata = reiser4_get_file_fsdata(file);
-	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
-	iplug->s.file.readpages(fsdata->reg.coord, mapping, pages);
-	return;
-#endif
 }
 
 /* plugin->u.file.init_inode_data */

@@ -262,12 +262,6 @@ typedef enum {
 
 	/* delimiting keys are already set for this znode. */
 	JNODE_DKSET = 20,
-	/* if page was dirtied through mmap, we don't want to lose data, even
-	 * though page and jnode may be clean. Mark jnode with JNODE_KEEPME so
-	 * that ->releasepage() can tell. As this is used only for
-	 * unformatted, we can share bit with DKSET which is only meaningful
-	 * for formatted. */
-/*	JNODE_KEEPME = 20,*/
 
 	/* cheap and effective protection of jnode from emergency flush. This
 	 * bit can only be set by thread that holds long term lock on jnode
@@ -303,7 +297,15 @@ typedef enum {
 	 *
 	 */
 	JNODE_FLUSH_RESERVED = 29,
-	JNODE_KEEPME = 30
+	/* if page was dirtied through mmap, we don't want to lose data, even
+	 * though page and jnode may be clean. Mark jnode with JNODE_KEEPME so
+	 * that ->releasepage() can tell. This is used only for
+	 * unformatted */
+	JNODE_KEEPME = 30,
+#if REISER4_DEBUG
+	/* uneflushed */
+	JNODE_UNEFLUSHED = 31
+#endif
 } reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */
@@ -394,6 +396,7 @@ extern void unformatted_make_reloc(jnode*, flush_queue_t*) NONNULL;
 
 extern void jnode_set_block(jnode * node,
 			    const reiser4_block_nr * blocknr) NONNULL;
+/*extern struct page *jnode_lock_page(jnode *) NONNULL;*/
 extern struct address_space *jnode_get_mapping(const jnode * node) NONNULL;
 
 /* block number of node */

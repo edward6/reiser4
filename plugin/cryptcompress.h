@@ -435,7 +435,7 @@ int create_cryptcompress(struct inode *, struct inode *, reiser4_object_create_d
 int open_cryptcompress(struct inode * inode, struct file * file);
 int truncate_cryptcompress(struct inode *, loff_t size);
 int readpage_cryptcompress(void *, struct page *);
-int capture_cryptcompress(struct inode *inode, const struct writeback_control *wbc);
+int capture_cryptcompress(struct inode *inode, struct writeback_control *wbc);
 ssize_t read_cryptcompress(struct file * file, char *buf, size_t size, loff_t * off);
 ssize_t write_cryptcompress(struct file *, const char *buf, size_t size, loff_t *off);
 int release_cryptcompress(struct inode *inode, struct file *);

@@ -75,13 +75,6 @@ reiser4_clear_page_dirty(struct page *page)
 
 	read_lock_irqsave(&mapping->tree_lock, flags);
 	if (TestClearPageDirty(page)) {
-		/* clear dirty tag of page in address space radix tree */
-		radix_tree_tag_clear(&mapping->page_tree, page->index,
-				     PAGECACHE_TAG_DIRTY);
-		/* FIXME: remove this when reiser4_set_page_dirty will skip setting this tag for captured pages */
-		radix_tree_tag_clear(&mapping->page_tree, page->index,
-				     PAGECACHE_TAG_REISER4_MOVED);
-
 		read_unlock_irqrestore(&mapping->tree_lock, flags);
 		if (!mapping->backing_dev_info->memory_backed)
 			dec_page_state(nr_dirty);
@@ -103,10 +96,11 @@ reiser4_clear_page_dirty(struct page *page)
 static int reiser4_set_page_dirty(struct page *page /* page to mark dirty */)
 {
 	/* this page can be unformatted only */
-	assert("vs-1734", ergo(page->mapping && page->mapping->host,
-			       get_super_fake(page->mapping->host->i_sb) != page->mapping->host &&
-			       get_cc_fake(page->mapping->host->i_sb) != page->mapping->host &&
-			       get_super_private(page->mapping->host->i_sb)->bitmap != page->mapping->host));
+	assert("vs-1734", (page->mapping &&
+			   page->mapping->host &&
+			   get_super_fake(page->mapping->host->i_sb) != page->mapping->host &&
+			   get_cc_fake(page->mapping->host->i_sb) != page->mapping->host &&
+			   get_super_private(page->mapping->host->i_sb)->bitmap != page->mapping->host));
 
 	if (!TestSetPageDirty(page)) {
 		struct address_space *mapping = page->mapping;
@@ -118,37 +112,8 @@ static int reiser4_set_page_dirty(struct page *page /* page to mark dirty */)
 				assert("vs-1652", page->mapping == mapping);
 				if (!mapping->backing_dev_info->memory_backed)
 					inc_page_state(nr_dirty);
-				radix_tree_tag_clear(&mapping->page_tree,
-						   page->index, PAGECACHE_TAG_DIRTY);
-				/* FIXME: if would be nice to not set this tag on pages which are captured already */
 				radix_tree_tag_set(&mapping->page_tree,
 						   page->index, PAGECACHE_TAG_REISER4_MOVED);
-			}
-			read_unlock_irq(&mapping->tree_lock);
-			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
-		}
-	}
-	return 0;
-}
-
-int reiser4_set_page_dirty2(struct page *page /* page to mark dirty */)
-{
-	/* this page can be unformatted only */
-	assert("vs-1734", ergo(page->mapping && page->mapping->host,
-			       get_super_fake(page->mapping->host->i_sb) != page->mapping->host &&
-			       get_cc_fake(page->mapping->host->i_sb) != page->mapping->host &&
-			       get_super_private(page->mapping->host->i_sb)->bitmap != page->mapping->host));
-
-	if (!TestSetPageDirty(page)) {
-		struct address_space *mapping = page->mapping;
-
-		if (mapping) {
-			read_lock_irq(&mapping->tree_lock);
-			/* check for race with truncate */
-			if (page->mapping) {
-				assert("vs-1652", page->mapping == mapping);
-				if (!mapping->backing_dev_info->memory_backed)
-					inc_page_state(nr_dirty);
 			}
 			read_unlock_irq(&mapping->tree_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
@@ -210,21 +175,8 @@ static int filler(void *vp, struct page *page)
 /* ->readpages() VFS method in reiser4 address_space_operations
    method serving page cache readahead
 
-   reiser4_readpages works in the following way: on input it has coord which is set on extent that addresses first of
-   pages for which read requests are to be issued. So, reiser4_readpages just walks forward through extent unit, finds
-   which blocks are to be read and start read for them.
-
-reiser4_readpages can be called from two places: from
-sys_read->reiser4_read->read_unix_file->read_extent->page_cache_readahead and
-from
-handling page fault:
-handle_mm_fault->do_no_page->filemap_nopage->page_cache_readaround
-
-In first case coord is set by reiser4 read code. This case is detected by  if
-(is_in_reiser4_context()).
-
-In second case, coord is not set and currently, reiser4_readpages does
-nothing.
+   if readpages hook is set in file data - it is called
+   otherwise read_cache_pages is used
 */
 static int
 reiser4_readpages(struct file *file, struct address_space *mapping,
@@ -509,11 +461,14 @@ releasable(const jnode *node /* node to check */)
 	if (JF_ISSET(node, JNODE_WRITEBACK)) {
 		return 0;
 	}
+#if 0
 	/* page was modified through mmap, but its jnode is not yet
 	 * captured. Don't discard modified data. */
 	if (jnode_is_unformatted(node) && JF_ISSET(node, JNODE_KEEPME)) {
 		return 0;
 	}
+#endif
+	BUG_ON(JF_ISSET(node, JNODE_KEEPME));
 	/* don't flush bitmaps or journal records */
 	if (!jnode_is_znode(node) && !jnode_is_unformatted(node)) {
 		return 0;

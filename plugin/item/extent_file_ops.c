@@ -526,7 +526,7 @@ static int
 extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 			   hint_t *hint)
 {
-	return item_balance_dirty_pages(mapping, f, hint, 0, 0/* do not set hint */);
+	return item_balance_dirty_pages(mapping, f, hint, 0, 1/* do not set hint */);
 }
 
 /* estimate and reserve space which may be required for writing one page of file */
@@ -773,18 +773,11 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			UNLOCK_JNODE(j);
 		}
 
-		/*UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));*/
-
-		move_flow_forward(flow, count);
-		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
-		set_hint_unlock_node(hint, flow, ZNODE_WRITE_LOCK);
-
 		assert("vs-1503", UNDER_SPIN(jnode, j, (!JF_ISSET(j, JNODE_EFLUSH) && jnode_page(j) == page)));
 		assert("nikita-3033", schedulable());
-		assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
 
 		/* copy user data into page */
-		result = __copy_from_user((char *)kmap(page) + page_off, flow->data - count, count);
+		result = __copy_from_user((char *)kmap(page) + page_off, flow->data/* - count*/, count);
 		kunmap(page);
 		if (unlikely(result)) {
 			/* FIXME: write(fd, 0, 10); to empty file will write no data but file will get increased
@@ -813,7 +806,10 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		jput(j);
 
-		/* throttle the writer */
+		move_flow_forward(flow, count);
+		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
+
+		/* set seal, drop long term lock, throttle the writer, try to validate seal */
 		result = extent_balance_dirty_pages(inode->i_mapping, flow, hint);
 		if (!grabbed)
 			all_grabbed2free();
@@ -1304,10 +1300,12 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 		done_lh(uf_coord->lh);
 		return PTR_ERR(j);
 	}
+	UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 	set_page_dirty_internal(page, 0);
 	unlock_page(page);
 
 	LOCK_JNODE(j);
+	BUG_ON(JF_ISSET(j, JNODE_EFLUSH));
 	if (created) {
 		/* extent corresponding to this jnode was just created */
 		assert("vs-1504", *jnode_get_block(j) == 0);

@@ -2827,7 +2827,7 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 					   next_node_lock.node,
 					   object);
 #if REISER4_DEBUG
-		node_check(node, ~0U);
+		/*node_check(node, ~0U);*/
 #endif
 		tap_relse(tap);
 		
@@ -3252,7 +3252,7 @@ crc_inode_has_anon_pages(struct inode *inode)
 
 /* plugin->u.file.capture */
 reiser4_internal int
-capture_cryptcompress(struct inode *inode, const struct writeback_control *wbc)
+capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
 {
 	int result;
 	pgoff_t index = 0;

@@ -2362,7 +2362,12 @@ uncapture_jnode(jnode *node)
 	assert("vs-1462", spin_jnode_is_locked(node));
 	assert("", node->pg == 0);
 
-	eflush_del(node, 0);
+	if (JF_ISSET(node, JNODE_EFLUSH)) {
+		eflush_free(node);
+		JF_CLR(node, JNODE_EFLUSH);
+	}
+	/*eflush_del(node, 0);*/
+
 	/*jnode_make_clean(node);*/
 	atom = jnode_get_atom(node);
 	if (atom == NULL) {

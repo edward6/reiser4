@@ -163,7 +163,7 @@ typedef struct file_plugin {
 	/*
 	 * add pages created through mmap into object.
 	 */
-	int (*capture) (struct inode *inode, const struct writeback_control *wbc);
+	int (*capture) (struct inode *inode, struct writeback_control *wbc);
 	/* these should be implemented using body_read_flow and body_write_flow
 	   builtins */
 	 ssize_t(*read) (struct file * file, char *buf, size_t size, loff_t * off);
@@ -265,11 +265,14 @@ Elena doing this for you if that helps.  Email me the list of the top 10, with t
 		reiser4_block_nr (*update) (const struct inode *);
 		reiser4_block_nr (*unlink) (struct inode *, struct inode *);
 	} estimate;
+/*
 	void (*readpages)(struct file *file, struct address_space *mapping,
 			  struct list_head *pages);
-	/* reiser4 specific part of inode has a union of structures which are specific to a plugin. This method is
-	   called when inode is read (read_inode) and when file is created (common_create_child) so that file plugin
-	   could initialize its inode data */
+*/
+	/* reiser4 specific part of inode has a union of structures which are
+	   specific to a plugin. This method is called when inode is read
+	   (read_inode) and when file is created (common_create_child) so that
+	   file plugin could initialize its inode data */
 	void (*init_inode_data)(struct inode *, reiser4_object_create_data *, int);
 	
 	/**

@@ -459,91 +459,33 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 /* this function is internally called by jnode_make_dirty() */
 int set_page_dirty_internal (struct page * page, int tag_as_moved)
 {
-	/* the below resembles __set_page_dirty_nobuffers except that it also clears REISER4_MOVED page tag */
-	if (!TestSetPageDirty(page)) {
-		struct address_space *mapping = page->mapping;
+	struct address_space *mapping;
 
-		if (mapping) {
-			read_lock_irq(&mapping->tree_lock);
-			if (page->mapping) {	/* Race with truncate? */
-				BUG_ON(page->mapping != mapping);
-				if (!mapping->backing_dev_info->memory_backed)
-					inc_page_state(nr_dirty);
-				radix_tree_tag_set(&mapping->page_tree,
-					page->index, PAGECACHE_TAG_DIRTY);
-				if (tag_as_moved) {
-					assert("vs-1731", REISER4_USE_ENTD);
-					radix_tree_tag_set(
-						&mapping->page_tree, page->index,
-						PAGECACHE_TAG_REISER4_MOVED);
-				} else {
-					radix_tree_tag_clear(
-						&mapping->page_tree, page->index,
-						PAGECACHE_TAG_REISER4_MOVED);
-				}
-			}
-			read_unlock_irq(&mapping->tree_lock);
-			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
+	mapping = page->mapping;
+	BUG_ON(mapping == NULL);
+
+	if (!TestSetPageDirty(page)) {
+		if (!mapping->backing_dev_info->memory_backed)
+			inc_page_state(nr_dirty);
+
+		write_lock_irq(&mapping->tree_lock);
+		BUG_ON(page->mapping != mapping);
+		if (tag_as_moved) {
+			/* write_page_by_ent wants to set this bit on. FIXME:
+			 * MOVED bit must be set already */
+			assert("vs-1731", REISER4_USE_ENTD);
+			radix_tree_tag_set(
+				&mapping->page_tree, page->index,
+				PAGECACHE_TAG_REISER4_MOVED);
+		} else {
+			radix_tree_tag_clear(
+				&mapping->page_tree, page->index,
+				PAGECACHE_TAG_REISER4_MOVED);
 		}
+		write_unlock_irq(&mapping->tree_lock);
+		__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
 	return 0;
-}
-
-reiser4_internal void capture_reiser4_inodes (
-	struct super_block * sb, struct writeback_control * wbc)
-{
-	const unsigned long start = jiffies;
-
-	if (list_empty(&sb->s_io))
-		list_splice_init(&sb->s_dirty, &sb->s_io);
-
-	while (!list_empty(&sb->s_io)) {
-		struct inode *inode = list_entry(
-			sb->s_io.prev, struct inode, i_list);
-
-		list_move(&inode->i_list, &sb->s_dirty);
-
-		if (time_after(inode->dirtied_when, start))
-			continue;
-
-		__iget(inode);
-		spin_unlock(&inode_lock);
-
-		{
-			file_plugin *fplug;
-
-			fplug = inode_file_plugin(inode);
-			if (fplug != NULL && fplug->capture != NULL) {
-				/* call file plugin method to capture anonymous pages and
-				 * anonymous jnodes */
-				fplug->capture(inode, wbc);
-			}
-		}
-
-		spin_lock(&inode_lock);
-		/* set inode state according what pages it has. */
-		if (!(inode->i_state & I_FREEING)) {
-			struct address_space * mapping = inode->i_mapping;
-			unsigned long flags;
-
-			read_lock_irqsave(&mapping->tree_lock, flags);
-			if (!radix_tree_tagged(&mapping->page_tree, PAGECACHE_TAG_DIRTY) &&
-			    !radix_tree_tagged(&mapping->page_tree, PAGECACHE_TAG_REISER4_MOVED))
-			{
-				inode->i_state &= ~(I_DIRTY);
-			}
-			read_unlock_irqrestore(&mapping->tree_lock, flags);
-		}
-		spin_unlock(&inode_lock);
-
-		iput(inode);
-
-		spin_lock(&inode_lock);
-		if (wbc->nr_to_write <= 0) {
-			warning("vs-1689", "does this ever happen? nr_to_write = %ld", wbc->nr_to_write);
-			break;
-		}
-	}
 }
 
 

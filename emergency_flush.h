@@ -36,6 +36,7 @@ extern void eflush_done_at(struct super_block *super);
 
 extern reiser4_block_nr *eflush_get(const jnode *node);
 extern void eflush_del(jnode *node, int page_locked);
+extern void eflush_free(jnode *);
 
 extern int emergency_flush(struct page *page);
 extern int emergency_unflush(jnode *node);
@@ -53,6 +54,7 @@ extern int emergency_unflush(jnode *node);
 
 #define eflush_get(node)  NULL
 #define eflush_del(node, flag) do{}while(0)
+#define eflush_free(node) do{}while(0)
 
 #define emergency_unflush(node) (0)
 #define emergency_flush(page) (1)

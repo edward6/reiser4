@@ -1314,7 +1314,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			 .size  = wire_size_common,
 			 .done  = wire_done_common
 		 },
-		.readpages = readpages_unix_file,
 		.init_inode_data = init_inode_data_unix_file,
 		.pre_delete = pre_delete_unix_file,
 		.cut_tree_worker = cut_tree_worker_common,
@@ -1376,7 +1375,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			 .size  = wire_size_common,
 			 .done  = wire_done_common
 		 },
-		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.cut_tree_worker = cut_tree_worker_common,
@@ -1439,7 +1437,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			 .size  = wire_size_common,
 			 .done  = wire_done_common
 		 },
-		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.cut_tree_worker = cut_tree_worker_common,
@@ -1500,7 +1497,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			 .size  = wire_size_common,
 			 .done  = wire_done_common
 		 },
-		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.cut_tree_worker = cut_tree_worker_common,
@@ -1561,7 +1557,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			 .size  = wire_size_pseudo,
 			 .done  = wire_done_pseudo
 		 },
-		.readpages = NULL,
 		.init_inode_data = NULL,
 		.pre_delete = NULL,
 		.cut_tree_worker = cut_tree_worker_common,
@@ -1623,7 +1618,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			 .size  = wire_size_common,
 			 .done  = wire_done_common
 		 },
-		.readpages = readpages_cryptcompress,
+		/*.readpages = readpages_cryptcompress,*/
 		.init_inode_data = init_inode_data_cryptcompress,
 		.pre_delete = pre_delete_cryptcompress,
 		.cut_tree_worker = cut_tree_worker_cryptcompress,

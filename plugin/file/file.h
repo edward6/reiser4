@@ -8,7 +8,7 @@
 int truncate_unix_file(struct inode *, loff_t size);
 int readpage_unix_file(void *, struct page *);
 int capturepage_unix_file(struct page *);
-int capture_unix_file(struct inode *, const struct writeback_control *);
+int capture_unix_file(struct inode *, struct writeback_control *);
 ssize_t read_unix_file(struct file *, char *buf, size_t size, loff_t *off);
 ssize_t write_unix_file(struct file *, const char *buf, size_t size, loff_t *off);
 int release_unix_file(struct inode *inode, struct file *);
@@ -19,7 +19,6 @@ int flow_by_inode_unix_file(struct inode *, char *buf, int user, loff_t, loff_t,
 int key_by_inode_unix_file(struct inode *, loff_t off, reiser4_key *);
 int owns_item_unix_file(const struct inode *, const coord_t *);
 int setattr_unix_file(struct inode *, struct iattr *);
-void readpages_unix_file(struct file *, struct address_space *, struct list_head *pages);
 void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_unix_file(struct inode *);
 

@@ -676,6 +676,7 @@ jnode_attach_page(jnode * node, struct page *pg)
 
 	assert("nikita-2050", pg->private == 0ul);
 	assert("nikita-2393", !PagePrivate(pg));
+	assert("vs-1741", node->pg == NULL);
 
 	assert("nikita-2396", PageLocked(pg));
 	assert("nikita-2397", spin_jnode_is_locked(node));

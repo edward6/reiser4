@@ -222,9 +222,6 @@ static int request_is_deadlock_safe(znode *, znode_lock_mode,
 				    znode_lock_request);
 #endif
 
-#define ADDSTAT(node, counter) 						\
-	reiser4_stat_inc_at_level(znode_get_level(node), znode.counter)
-
 /* Returns a lock owner associated with current thread */
 reiser4_internal lock_stack *
 get_current_lock_stack(void)
@@ -573,15 +570,12 @@ wake_up_requestor(znode *node)
 	assert("nikita-3180", node != NULL);
 	assert("nikita-3181", rw_zlock_is_locked(&node->lock));
 
-	ADDSTAT(node, wakeup);
-
 	convoyused = 0;
 	convoylimit = min(num_online_cpus() - 1, MAX_CONVOY_SIZE);
 	creditors = &node->lock.requestors;
 	if (!requestors_list_empty(creditors)) {
 		convoy[0] = requestors_list_front(creditors);
 		convoyused = 1;
-		ADDSTAT(node, wakeup_found);
 		/*
 		 * it has been verified experimentally, that there are no
 		 * convoys on the leaf level.
@@ -591,13 +585,10 @@ wake_up_requestor(znode *node)
 		    convoylimit > 1) {
 			lock_stack *item;
 
-			ADDSTAT(node, wakeup_found_read);
 			for (item = requestors_list_next(convoy[0]);
 			          ! requestors_list_end(creditors, item);
 			     item = requestors_list_next(item)) {
-				ADDSTAT(node, wakeup_scan);
 				if (item->request.mode == ZNODE_READ_LOCK) {
-					ADDSTAT(node, wakeup_convoy);
 					convoy[convoyused] = item;
 					++ convoyused;
 					/*
@@ -698,7 +689,6 @@ longterm_unlock_znode(lock_handle * handle)
 			zput(node);
 			return;
 		}
-		/*znode_post_write(node);*/
 	}
 
 	if (handle->signaled)

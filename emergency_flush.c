@@ -608,7 +608,8 @@ eflush_get(const jnode *node)
 }
 
 /* free resources taken for emergency flushing of the node */
-static void eflush_free (jnode * node)
+reiser4_internal void
+eflush_free (jnode * node)
 {
 	eflush_node_t *ef;
 	ef_hash_table *table;
@@ -685,9 +686,8 @@ static void eflush_free (jnode * node)
 	LOCK_JNODE(node);
 }
 
-int reiser4_set_page_dirty2(struct page *page /* page to mark dirty */);
-
-reiser4_internal void eflush_del (jnode * node, int page_locked)
+reiser4_internal void
+eflush_del (jnode * node, int page_locked)
 {
         struct page * page;
 
@@ -725,10 +725,20 @@ reiser4_internal void eflush_del (jnode * node, int page_locked)
                         goto out;
         }
 
+	/* we have to make page dirty again. Note that we do not have to do here
+	   anything specific to reiser4 but usual dirty page accounting. If */
+	if (!TestSetPageDirty(page)) {
+		BUG_ON(jnode_get_mapping(node) != page->mapping);
+		if (!page->mapping->backing_dev_info->memory_backed)
+			inc_page_state(nr_dirty);
+	}
+
+#if 0
 	if (JF_ISSET(node, JNODE_KEEPME))
 		/* jnode is already tagged in reiser4_inode's tree of jnodes */
 		reiser4_set_page_dirty2(page);
 	else
+		/* jnode had atom when */
 		/*
 		 * either jnode was dirty or page was dirtied through mmap. Page's dirty
 		 * bit was cleared before io was submitted. If page is left clean, we
@@ -737,12 +747,14 @@ reiser4_internal void eflush_del (jnode * node, int page_locked)
 		 * called again if necessary.
 		 */
 		set_page_dirty_internal(page, 0);
+#endif
 
         assert("nikita-2766", atomic_read(&node->x_count) > 1);
         /* release allocated disk block and in-memory structures  */
         eflush_free(node);
 	assert("vs-1736", PageLocked(page));
         JF_CLR(node, JNODE_EFLUSH);
+        ON_DEBUG(JF_SET(node, JNODE_UNEFLUSHED));
  out:
         if (!page_locked)
                 unlock_page(page);

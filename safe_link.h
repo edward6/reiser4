@@ -7,7 +7,6 @@
 #define __FS_SAFE_LINK_H__
 
 #include "tree.h"
-/*#include "tap.h"*/
 
 int safe_link_grab(reiser4_tree *tree, reiser4_ba_flags_t flags);
 void safe_link_release(reiser4_tree *tree);
