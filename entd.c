@@ -294,6 +294,10 @@ void write_page_by_ent (struct page * page, struct writeback_control * wbc)
 
 	down(&rq.sem);
 
+	/* don't release rq until wakeup_wbq stops using it. */
+	spin_lock(&ent->guard);
+	spin_unlock(&ent->guard);
+
 	/* wbq dequeued by the ent thread. */
 }
 
