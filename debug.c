@@ -219,7 +219,9 @@ typedef struct reiser4_stats_cnt {
 
 #if REISER4_PROF
 
-void update_prof_trace(reiser4_prof_cnt *cnt)
+#ifdef CONFIG_FRAME_POINTER
+static void 
+update_prof_trace(reiser4_prof_cnt *cnt)
 {
 	int i;
 	int minind;
@@ -254,6 +256,9 @@ void update_prof_trace(reiser4_prof_cnt *cnt)
 	cnt->bt[minind].hash = hash;
 	cnt->bt[minind].hits = 1;
 }
+#else
+#define update_prof_trace(cnt) noop
+#endif
 
 void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
 		     unsigned long swtch_mark)
@@ -289,10 +294,11 @@ show_prof_attr(struct super_block * s, reiser4_kattr * kattr,
 	PRINT("%llu %llu %llu %llu %llu %llu\n",
 	      val->nr, val->total, val->max,
 	      val->noswtch_nr, val->noswtch_total, val->noswtch_max);
+#ifdef CONFIG_FRAME_POINTER
 	for (i = 0 ; i < REISER4_PROF_TRACE_NUM ; ++ i) {
 		int j;
 
-		p += snprintf(p, LEFT(p, buf), "%llu: ", val->bt[i].hits);
+		p += snprintf(p, LEFT(p, buf), "\t%llu: ", val->bt[i].hits);
 		for (j = 0 ; j < REISER4_PROF_TRACE_DEPTH ; ++ j) {
 			char         *module;
 			const char   *name;
@@ -311,6 +317,7 @@ show_prof_attr(struct super_block * s, reiser4_kattr * kattr,
 		}
 		PRINT("\n");
 	}
+#endif
 	return (p - buf);
 }
 
