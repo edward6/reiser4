@@ -978,6 +978,13 @@ jput_final(jnode * node)
 	assert("nikita-3066", spin_jnode_is_locked(node));
 	assert("jmacd-511", node->d_count == 0);
 
+	/* A fast check for keeping node in cache. We always keep node in cache
+	 * if its page is present and node was not marked for deletion */
+	if (jnode_page(node) != NULL && !JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+		spin_unlock_jnode(node);
+		return;
+	}
+
 	r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
 	spin_unlock_jnode(node);
 	/*

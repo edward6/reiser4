@@ -615,16 +615,6 @@ jput(jnode * node)
 
 	if (atomic_dec_and_lock(&node->x_count, &node->guard.lock)) {
 		spin_lock_jnode_acc(node, 0);
-
-		/* A fast check for keeping node in cache. We always keep node
-		 * in cache if its page is present and node was not marked for
-		 * deletion */
-		if (jnode_page(node) != NULL && !JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
-			spin_unlock_jnode(node);
-			return;
-		}
-
-		/* More complicated cases are handled in jput_final() */
 		jput_final(node);
 	}
 }
