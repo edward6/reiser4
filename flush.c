@@ -329,8 +329,8 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		}
 	}
 
-	if (ret == -EINVAL || ret == -EDEADLK || ret == -ENAVAIL /*|| ret == -ENOENT
-								  * commented out because
+	if (ret == -EINVAL || ret == -EDEADLK || ret == -ENAVAIL || ret == -ENOENT
+								 /* ENOENT maybe commented out because
 								  * find_child_ptr returns
 								  * -ENOENT when there is
 								  * no matching child ptr,
