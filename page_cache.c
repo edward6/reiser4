@@ -514,8 +514,7 @@ int page_io( struct page *page, int rw, int gfp )
 {
 	struct bio *bio;
 	int         result;
-	REISER4_ENTRY( page -> mapping -> host -> i_sb );
-	
+
 	assert( "nikita-2094", page != NULL );
 	assert( "nikita-2226", PageLocked( page ) );
 
@@ -529,7 +528,7 @@ int page_io( struct page *page, int rw, int gfp )
 		result = 0;
 	} else
 		result = PTR_ERR( bio );
-	REISER4_EXIT( result );
+	return result;
 }
 
 
