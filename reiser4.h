@@ -132,14 +132,14 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    This either means incredibly heavy contention for this part of a tree, or
    some corruption or bug.
 */
-#define REISER4_CBK_ITERATIONS_LIMIT  (16)
+#define REISER4_CBK_ITERATIONS_LIMIT  (100)
 
 /* return -EIO after that many iterations in coord_by_key().
   
    I have witnessed more than 800 iterations (in 30 thread test) before cbk
    finished. --nikita
 */
-#define REISER4_MAX_CBK_ITERATIONS    (1000)
+#define REISER4_MAX_CBK_ITERATIONS    (10000)
 
 /* read all blocks when one block on the page is read */
 #define REISER4_FORMATTED_CLUSTER_READ (0)
