@@ -577,7 +577,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 	return result;
 }
 
-int unix_file_writepage_nolock(struct page *page);
+int find_or_create_extent(struct page *page);
 
 /* part of unix_file_truncate: it is called when truncate is used to make file shorter */
 static int
@@ -637,7 +637,8 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_siz
 		reiser4_release_reserved(inode->i_sb);
 		return RETERR(-EIO);
 	}
-	result = unix_file_writepage_nolock(page);
+
+	result = find_or_create_extent(page);
 
 	/* FIXME: cut_file_items has already updated inode. Probably it would be better to update it here when file is
 	   really truncated */
@@ -851,11 +852,10 @@ hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_lock_mo
 			     hint->level, hint->coord.lh, FIND_MAX_NOT_MORE_THAN, lock_mode, ZNODE_LOCK_LOPRI);
 }
 
-/* nolock means: do not get EA or NEA on a file the page belongs to (it is obtained already either in
-   unix_file_writepage or in tail2extent). Lock page after long term znode lock is obtained. Return with page locked.
-   Used in shorten_file, replace, writepage_unix_file */
+/* look for place at twig level for extent corresponding to page, call extent's writepage method to create
+   unallocated extent if it does not exist yet, initialize jnode, capture page */
 reiser4_internal int
-unix_file_writepage_nolock(struct page *page)
+find_or_create_extent(struct page *page)
 {
 	int result;
 	lock_handle lh;
@@ -881,9 +881,10 @@ unix_file_writepage_nolock(struct page *page)
 
 	result = zload(lh.node);
 	if (result) {
-		longterm_unlock_znode(&lh);
+		done_lh(&lh);
 		return result;
 	}
+
 	loaded = lh.node;
 	/* get plugin of extent item */
 	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
@@ -893,32 +894,6 @@ unix_file_writepage_nolock(struct page *page)
 	assert("vs-429378", result != -E_REPEAT);
 	zrelse(loaded);
 	done_lh(&lh);
-	return result;
-}
-
-/* plugin->u.file.capture this does not start i/o against this page. It just must garantee that tree has a pointer to
-   this page. This is called for pages which were dirtied via mmap-ing by reiser4_writepages */
-static int
-capture_unix_file_page(struct page *page)
-{
-	int result;
-	struct inode *inode;
-	unix_file_info_t *uf_info;
-
-	assert("vs-1084", page->mapping && page->mapping->host);
-	inode = page->mapping->host;
-	assert("vs-1139", file_is_built_of_extents(inode));
-	/* page belongs to file */
-	assert("vs-1393", inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT));
-
-	uf_info = unix_file_inode_data(inode);
-
-	/* writepage may involve insertion of one unit into tree */
-	result = reiser4_grab_space(estimate_one_insert_into_item(tree_by_inode(inode)), BA_CAN_COMMIT);
-	if (likely(!result)) {
-		result = unix_file_writepage_nolock(page);
-	}
-	all_grabbed2free();
 	return result;
 }
 
@@ -937,14 +912,24 @@ static int inode_has_anonymous_pages(struct inode *inode)
 	return ret;
 }
 
-static int capture_page_and_create_extent(struct page * page)
+static int capture_page_and_create_extent(struct page *page)
 {
 	int result;
+	struct inode *inode;
 
+	assert("vs-1084", page->mapping && page->mapping->host);
+	inode = page->mapping->host;
+	assert("vs-1139", file_is_built_of_extents(inode));
+	/* page belongs to file */
+	assert("vs-1393", inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT));
+
+	/* page capture may require extent creation (if it does not exist yet) */
 	grab_space_enable ();
+	result = reiser4_grab_space(estimate_one_insert_into_item(tree_by_inode(inode)), BA_CAN_COMMIT);
+	if (likely(!result))
+		result = find_or_create_extent(page);
 
-	result = capture_unix_file_page(page);
-
+	all_grabbed2free();
 	if (result != 0)
 		SetPageError(page);
 	return result;
@@ -1294,9 +1279,6 @@ readpage_unix_file(void *vp, struct page *page)
 	save_file_hint(file, &hint);
 
 	assert("vs-979", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
-	/* if page has jnode - that jnode is mapped */
-	assert("vs-1098", ergo(result == 0 && PagePrivate(page),
-			       jnode_mapped(jprivate(page))));
 	return result;
 }
 
@@ -1644,7 +1626,7 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 
 	inode = area->vm_file->f_dentry->d_inode;
 	get_nonexclusive_access(unix_file_inode_data(inode));
-	page = filemap_nopage(area, address, unused);
+	page = filemap_nopage(area, address, 0);
 	drop_nonexclusive_access(unix_file_inode_data(inode));
 	return page;
 }
