@@ -96,6 +96,10 @@ typedef struct {
       [jnode-queued]
 */
 struct jnode {
+#if REISER4_DEBUG
+#define JMAGIC 0x52654973
+	int magic;
+#endif
 	union {
 		/* pointers to maintain hash-table */
 		z_hash_link z;
@@ -150,6 +154,15 @@ struct jnode {
 	int      written;
 #endif
 };
+
+typedef enum {
+	JNODE_UNFORMATTED_BLOCK,
+	JNODE_FORMATTED_BLOCK,
+	JNODE_BITMAP,
+	JNODE_IO_HEAD,
+	JNODE_INODE,
+	LAST_JNODE_TYPE
+} jnode_type;
 
 TS_LIST_DEFINE(capture, jnode, capture_link);
 
@@ -220,29 +233,39 @@ typedef enum {
 	JNODE_CLUSTER_PAGE = 22,
 	/* Jnode is marked for repacking, that means the reiser4 flush and the
 	 * block allocator should process this node special way  */
-	JNODE_REPACK = 23
+	JNODE_REPACK = 23,
+	JNODE_SCANNED = 24,
+	JNODE_JLOADED_BY_GET_OVERWRITE_SET = 25
+#if REISER4_DEBUG
+	,
+	JNODE_CC = 31
+#endif
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
 static inline void
 JF_CLR(jnode * j, int f)
 {
+	assert("", j->magic == JMAGIC);
 	clear_bit(f, &j->state);
 }
 static inline int
 JF_ISSET(const jnode * j, int f)
 {
+	assert("", j->magic == JMAGIC);
 	return test_bit(f, &((jnode *) j)->state);
 }
 static inline void
 JF_SET(jnode * j, int f)
 {
+	assert("", j->magic == JMAGIC);
 	set_bit(f, &j->state);
 }
 
 static inline int
 JF_TEST_AND_SET(jnode * j, int f)
 {
+	assert("", j->magic == JMAGIC);
 	return test_and_set_bit(f, &j->state);
 }
 
@@ -278,14 +301,18 @@ extern int jnode_done_static(void);
 /* Jnode routines */
 extern jnode *jalloc(void);
 extern void jfree(jnode * node) NONNULL;
-extern jnode *jnew(void);
+extern jnode *jnew_unformatted(void);
+extern jnode *jclone(jnode *);
 extern jnode *jlook_lock(reiser4_tree * tree, 
 			 oid_t objectid, unsigned long ind) NONNULL;
 extern jnode *jnode_by_page(struct page *pg) NONNULL;
 extern jnode *jnode_of_page(struct page *pg) NONNULL;
-void bind_jnode_and_page(jnode *node, oid_t oid, struct page *pg) NONNULL;
+void jnode_attach_page(jnode * node, struct page *pg);
+void hash_unformatted_jnode(jnode *, struct address_space *, unsigned long index);
+void unhash_unformatted_jnode(jnode *);
+struct page *jnode_get_page_locked(jnode *, int gfp_flags);
 extern jnode *page_next_jnode(jnode * node) NONNULL;
-extern void jnode_init(jnode * node, reiser4_tree * tree) NONNULL;
+extern void jnode_init(jnode * node, reiser4_tree * tree, jnode_type) NONNULL;
 extern void jnode_make_dirty(jnode * node) NONNULL;
 extern void jnode_make_clean(jnode * node) NONNULL;
 extern void jnode_make_wander_nolock(jnode * node) NONNULL;
@@ -481,15 +508,6 @@ jnode_get_tree(const jnode * node)
 extern void pin_jnode_data(jnode *);
 extern void unpin_jnode_data(jnode *);
 
-typedef enum {
-	JNODE_UNFORMATTED_BLOCK,
-	JNODE_FORMATTED_BLOCK,
-	JNODE_BITMAP,
-	JNODE_IO_HEAD,
-	JNODE_INODE,
-	LAST_JNODE_TYPE
-} jnode_type;
-
 static inline jnode_type
 jnode_get_type(const jnode * node)
 {
@@ -510,7 +528,7 @@ jnode_get_type(const jnode * node)
 		/* 100 */
 		[4] = JNODE_INODE,
 		/* 101 */
-		[5] = LAST_JNODE_TYPE,	/* invalid */
+		[5] = LAST_JNODE_TYPE,
 		/* 110 */
 		[6] = JNODE_IO_HEAD,
 		/* 111 */
