@@ -36,6 +36,7 @@ static void unlock_trace(reiser4_trace_file * trace);
 int
 open_trace_file(struct super_block *super, const char *file_name, size_t size, reiser4_trace_file * trace)
 {
+	int mapping_mask;
 	assert("nikita-2498", file_name != NULL);
 	assert("nikita-2499", trace != NULL);
 	assert("nikita-2500", size > 0);
@@ -69,8 +70,10 @@ open_trace_file(struct super_block *super, const char *file_name, size_t size, r
 	}
 	trace->fd->f_dentry->d_inode->i_flags |= S_NOATIME;
 	trace->fd->f_flags |= O_APPEND;
-	trace->fd->f_dentry->d_inode->i_mapping->gfp_mask &= ~__GFP_FS;
-	trace->fd->f_dentry->d_inode->i_mapping->gfp_mask |= GFP_NOFS;
+	mapping_mask = mapping_gfp_mask(trace->fd->f_dentry->d_inode->i_mapping);
+	mapping_mask &= ~__GFP_FS;
+	mapping_mask |= GFP_NOFS;
+	mapping_set_gfp_mask( trace->fd->f_dentry->d_inode->i_mapping, mapping_mask);
 	trace->type = log_to_file;
 	return 0;
 }
