@@ -370,6 +370,8 @@ static ssize_t reiser4_write( struct file *file /* file to write on */,
 	trace_on( TRACE_VFS_OPS, "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n",
 		  inode -> i_ino, inode -> i_size, size, *off );
 
+	if( size == 0 )
+		return 0;
 	fplug = inode_file_plugin( inode );
 	if( fplug -> write != NULL ) {
 		result = fplug -> write( file, buf, size, off );
