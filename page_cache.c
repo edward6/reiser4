@@ -525,7 +525,6 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	} else {
 		/* formatted pages always have znode attached to them */
 		assert("vs-1101", PagePrivate(page) && jnode_by_page(page));
-		node = jref(jnode_by_page(page));
 	}
 
 	/*assert("nikita-2419", node != NULL);*/
@@ -533,22 +532,13 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	reiser4_unlock_page(page);
 
 	result = wait_for_flush(page, wbc);
-	if (result != 0) {
-		jput(node);
+	if (result != 0)
 		REISER4_EXIT(0);
-	}
-
-	if (node) {
-		result = writeback_queued_jnodes(s, node);
-		jput(node);
-	}
 
 	assert("nikita-3044", schedulable());
 
-	if (result > 0)
-		REISER4_EXIT(0);
-
 	reiser4_lock_page(page);
+
 	if (page->mapping)
 		result = emergency_flush(page);
 	else {

@@ -560,7 +560,7 @@ static int write_prepped_nodes (flush_pos_t * pos, int scan)
 
 	if (!(pos->flags & JNODE_FLUSH_WRITE_BLOCKS))
 		return 0;
-	ret = scan ? scan_and_write_fq(pos->fq, 0) : write_fq(pos->fq, 0);
+	ret = write_fq(pos->fq);
 	if (ret > 0) {
 		*pos->nr_written += ret;
 		ret = 0;
@@ -1089,7 +1089,7 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		int ret1;
 
 		flush_started_io();
-		ret1 = scan_and_write_fq(fq, 0);
+		ret1 = write_fq(fq);
 		if (ret1 > 0)
 			*nr_submitted += ret1;
 	}
