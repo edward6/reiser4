@@ -58,6 +58,7 @@ void tap_done( tap_t *tap )
 		zrelse( tap -> lh -> node );
 	tap -> loaded = 0;
 	tap_list_remove_clean( tap );
+	tap -> coord -> node = NULL;
 }
 
 int tap_move( tap_t *tap, lock_handle *target )
