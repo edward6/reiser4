@@ -303,6 +303,7 @@ reiser4_internal void reiser4_wait_page_writeback (struct page * page)
 
 	do {
 		unlock_page(page);
+		blk_run_queues();
 		wait_on_page_writeback(page);
 		lock_page(page);
 	} while (PageWriteback(page));
@@ -522,6 +523,53 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		return ERR_PTR(RETERR(-ENOMEM));
 }
 
+#if REISER4_USE_ENTD
+
+static void move_to_anon_page_list(struct page * page)
+{
+	struct address_space * mapping;
+
+	assert ("zam-1037", page->mapping != NULL);
+	assert ("zam-1038", page->mapping->host != NULL);
+
+	mapping = page->mapping;
+	if (!TestSetPageDirty(page))
+		inc_page_state(nr_dirty);
+	spin_lock(&mapping->page_lock);
+	list_del(&page->list);
+	list_add(&page->list, get_moved_pages(mapping));
+	spin_unlock(&mapping->page_lock);
+	__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
+}
+
+static int write_page_by_ent (struct page *page)
+{
+	struct inode * inode;
+	struct super_block * super;
+
+	check_me("zam-1036", (inode = page->mapping->host) != NULL);
+	check_me("zam-1035", (super = inode->i_sb) != NULL);
+
+	if (current->flags & PF_KSWAPD)
+		/* fall to emergency_flush() */
+		return -E_REPEAT;
+
+	while (1) {
+		if (page->mapping == NULL || page->mapping->host->i_sb != super)
+			break;
+		move_to_anon_page_list(page);
+		unlock_page(page);
+		wait_for_flush(super);
+		lock_page(page);
+		if (!PageDirty(page))
+			break;
+	}
+	unlock_page(page);
+	return 0;
+}
+
+#endif /* REISER4_USE_ENTD */
+
 /* Common memory pressure notification. */
 reiser4_internal int
 reiser4_writepage(struct page *page /* page to start writeback from */,
@@ -542,6 +590,18 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 	assert("vs-828", PageLocked(page));
 
 	set_rapid_flush_mode(1);
+
+
+#if REISER4_USE_ENTD
+	
+	/* Throttle memory allocations if we were not in reiser4 */
+	if (ctx.parent == &ctx) {
+		result = write_page_by_ent(page);
+		if (result != -E_REPEAT)
+			goto out;
+		result = 0;
+	}
+#endif /* REISER4_USE_ENTD */
 
 	tree = &get_super_private(s)->tree;
 	node = jnode_of_page(page);
@@ -593,10 +653,10 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 		 * list when clearing dirty flag. So it is enough to
 		 * just set dirty bit.
 		 */
-		SetPageDirty(page);
-		inc_page_state(nr_dirty);
+		set_page_dirty_internal(page);
 		unlock_page(page);
 	}
+ out:
 	reiser4_exit_context(&ctx);
 	return result;
 }

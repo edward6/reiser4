@@ -10,6 +10,8 @@
 #include "super.h"
 #include "context.h"
 #include "reiser4.h"
+#include "vfs_ops.h"
+#include "page_cache.h"
 
 #include <linux/sched.h>	/* struct task_struct */
 #include <linux/suspend.h>
@@ -17,12 +19,6 @@
 #include <linux/writeback.h>
 #include <linux/time.h>         /* INITIAL_JIFFIES */
 #include <linux/backing-dev.h>  /* bdi_write_congested */
-
-/*
- * set this to 0 if you don't want to use wait-for-flush in ->writepage(). This
- * is useful for debugging emergency flush, for example.
- */
-#define USE_ENTD (1)
 
 #define DEF_PRIORITY 12
 
@@ -98,15 +94,15 @@ entd(void *arg)
 	kcond_broadcast(&ctx->startup);
 	spin_unlock(&ctx->guard);
 	while (1) {
-		int result;
+		int result = 0;
 
 		if (me->flags & PF_FREEZE)
 			refrigerator(PF_IOTHREAD);
 
 		entd_set_comm(".");
 		spin_lock(&ctx->guard);
+
 		kcond_broadcast(&ctx->flush_wait);
-		ctx->kicks_pending = 0;
 		result = kcond_wait(&ctx->wait, &ctx->guard, 1);
 
 		/* we are asked to exit */
@@ -191,11 +187,10 @@ static void kick_entd(entd_context * ent)
 	kcond_signal(&ent->wait);
 }
 
-static void __wait_for_flush (struct super_block * super)
+void wait_for_flush (struct super_block * super)
 {
 	entd_context * ent;
 
-	assert ("zam-1031", super != NULL);
 	ent = get_entd_context(super);
 
 	assert ("zam-1032", ent != NULL);
@@ -205,16 +200,6 @@ static void __wait_for_flush (struct super_block * super)
 		kick_entd(ent);
 	kcond_wait(&ent->flush_wait, &ent->guard, 1);
 	spin_unlock(&ent->guard);
-}
-
-reiser4_internal int
-wait_for_flush(struct page *page)
-{
-	struct super_block * super = page->mapping->host->i_sb;
-
-	if (super != NULL)
-		__wait_for_flush(super);
-	return 0;
 }
 
 #if 0 /* old code */
@@ -540,7 +525,7 @@ static void entd_capture_anonymous_pages(
 
 static void entd_flush(struct super_block *super)
 {
-	long            nr_submitted;
+	long            nr_submitted = 0;
 	int             result;
 	reiser4_context txn;
 	struct writeback_control wbc = {
