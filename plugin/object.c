@@ -973,7 +973,6 @@ static void delete_inode_common(struct inode *object)
 	/*
 	 * FIXME: this resembles generic_delete_inode
 	 */
-	hlist_del_init(&object->i_hash);
 	list_del_init(&object->i_list);
 	object->i_state|=I_FREEING;
 	inodes_stat.nr_inodes--;
@@ -1004,6 +1003,11 @@ static void delete_inode_common(struct inode *object)
 		DQUOT_INIT(object);
 
 	object->i_sb->s_op->delete_inode(object);
+
+	spin_lock(&inode_lock);
+	hlist_del_init(&inode->i_hash);
+	spin_unlock(&inode_lock);
+	wake_up_inode(inode);
 	if (object->i_state != I_CLEAR)
 		BUG();
 	destroy_inode(object);
