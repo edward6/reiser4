@@ -769,7 +769,7 @@ jnode_flush(jnode * node, long *nr_to_flush, int flags)
 			  info("flush concurrency\n");}
 		 );) ;
 
-	/* The following code gets an fq attached to the atom and takes spin
+	/* The following code gets a fq attached to the atom and takes spin
 	 * locks on both atom and jnode */
 	while (1) {
 		spin_lock_jnode(node);
