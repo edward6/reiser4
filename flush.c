@@ -263,8 +263,8 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
 {
 	int ret;
 	int is_leftmost;
+	common_item_plugin *iplug;
 	int is_dirty;
-	item_plugin *iplug;
 	jnode *left_child;
 	znode *parent = parent_coord->node;
 	tree_coord coord;
@@ -339,7 +339,7 @@ static int flush_preceder_hint (jnode *gda,
 	int is_leaf;
 	znode *parent;
 	tree_coord coord;
-	item_plugin *iplug;
+	common_item_plugin *iplug;
 	reiser4_lock_handle parent_lock;
 
 	/* If the preceder is already initialized, return. */
@@ -408,7 +408,7 @@ static int flush_preceder_rightmost (const tree_coord *parent_coord, reiser4_blo
 {
 	int ret;
 	znode *parent = parent_coord->node;
-	item_plugin *iplug;
+	common_item_plugin *iplug;
 	jnode *child;
 	tree_coord child_coord;
 
@@ -566,7 +566,7 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 		init_coord (& crd);
 		coord_last_unit (& crd, JZNODE (node));
 
-		assert ("vs-442", item_is_internal (& crd));
+		assert ("vs-442", item_plugin_by_coord (&crd)->down_link);
 
 		child = child_znode (& crd, 1/*set delim key*/);
 		if (IS_ERR (child)) { return PTR_ERR (child); }
@@ -624,18 +624,11 @@ static int squalloc_children (znode *node, reiser4_blocknr_hint *preceder)
 
 	/* Do ... while not the last unit. */
 	do {
-		item_plugin *item = item_plugin_by_coord (& crd);
-
-		switch (item->item_plugin_id) {
-		case EXTENT_POINTER_IT:
-
+		if (item_plugin_by_coord (&crd)->item_plugin_id == EXTENT_POINTER_ID) {
 			if ((ret = allocate_extent_item_in_place (&crd, preceder))) {
 				return ret;
 			}
-			break;
-
-		case NODE_POINTER_IT: {
-
+		} else if (item_plugin_by_coord (&crd)->down_link) {
 			/* Get the child of this node pointer, check for
 			 * error, skip if it is not dirty. */
 			znode *child = child_znode (& crd, 1);
@@ -648,9 +641,7 @@ static int squalloc_children (znode *node, reiser4_blocknr_hint *preceder)
 			if ((ret = squalloc_parent_first (ZJNODE (child), preceder))) {
 				return ret;
 			}
-			break;
-		}
-		default:
+		} else {
 			warning ("jmacd-2001", "Unexpected item type above leaf level");
 			print_znode ("node", node);
 			return -EIO;
@@ -774,7 +765,7 @@ static int squalloc_twig (znode    *left,
 	 * was copied (and there is nothing to cut). */
 	stop_key = *min_key ();
 
-	while (item_is_extent (&coord)) {
+	while (item_plugin_by_coord (&coord)->item_plugin_id == EXTENT_POINTER_ID) {
 
 		if ((ret = allocate_and_copy_extent (left, &coord, preceder, &stop_key)) < 0) {
 			return ret;
@@ -819,9 +810,11 @@ static int squalloc_twig (znode    *left,
 
 	coord_first_unit (&coord, right);
 
-	if (! item_is_internal (&coord)) {
+	if (! item_plugin_by_coord (&coord)->down_link) {
 		/* There is no space in @left anymore. */
-		assert ("vs-433", item_is_extent (&coord));
+		assert ("vs-433",
+			item_plugin_by_coord (&coord)->item_plugin_id ==
+			EXTENT_POINTER_ID);
 		assert ("vs-465", ret == SQUEEZE_TARGET_FULL);
 		return ret;
 	}
@@ -857,7 +850,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
 
 	coord_first_unit (&coord, right);
 
-	assert ("jmacd-2007", item_is_internal (& coord));
+	assert ("jmacd-2007", item_plugin_by_coord (&coord)->down_link);
 
 	init_carry_pool (&pool);
 	init_carry_level (&todo, &pool);
@@ -1043,7 +1036,7 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 	int ret;
 	reiser4_lock_handle node_lh, parent_lh, left_parent_lh;
 	tree_coord coord;
-	item_plugin *iplug;
+	common_item_plugin *iplug;
 	jnode *child_left;
 
 	assert ("jmacd-1403", ! flush_scan_left_finished (scan));
