@@ -1061,7 +1061,6 @@ void move_lh (reiser4_lock_handle * new, reiser4_lock_handle * old)
 	spin_lock_znode( node );
 
 	new -> node  = node;
-	new -> free_space = old -> free_space;
 
 	signaled = old->signaled;
 	unlink_object( old );

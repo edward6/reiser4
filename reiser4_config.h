@@ -69,18 +69,6 @@
 #define REISER4_PANIC_MSG_BUFFER_SIZE (1024)
 
 /**
- * maximal number of operations that squeeze to left
- * (fs/reiser4/balance.c:squeeze_slum()) will defer.  Deferred
- * operations will be batched together.
- */
-#define REISER4_SQUEEZE_OP_MAX        CARRIES_POOL_SIZE
-/**
- * maximal number of nodes that slum squeezing will keep locked at a
- * time.
- */
-#define REISER4_SQUEEZE_NODE_MAX      NODES_LOCKED_POOL_SIZE
-
-/**
  * If array contains less than REISER4_SEQ_SEARCH_BREAK elements then,
  * sequential search is on average faster than binary. This is because
  * of better optimization and because sequential search is more CPU

@@ -439,7 +439,8 @@ atom_get_locked_by_jnode (jnode *node)
 	return atom;
 }
 
-/* Returns true if @node should be considered part of a slum in @atom. */
+/* Returns true if @node is dirty and part of the same atom as one of its
+ * neighbors. */
 int
 txn_same_atom_dirty (jnode *node, jnode *check)
 {
@@ -577,13 +578,14 @@ atom_should_commit (txn_atom *atom)
 	return (atom_pointer_count (atom) > 20) || (atom->flags & ATOM_FORCE_COMMIT);
 }
 
-/* Called with the atom locked and no open txnhs, this function determines whether the
- * atom can commit and if so, initiates commit processing.  However, the atom may not be
- * able to commit due to un-allocated nodes or un-balanced slums.  As it finds such
- * nodes/slums, it calls the appropriate allocate/balancing routines.
+/* Called with the atom locked and no open txnhs, this function determines
+ * whether the atom can commit and if so, initiates commit processing.
+ * However, the atom may not be able to commit due to un-allocated nodes.  As
+ * it finds such nodes, it calls the appropriate allocate/balancing routines.
  *
- * Called by the single remaining open txnh, which is closing.  Therefore as long as we
- * hold the atom lock none of the jnodes can be captured and/or locked.
+ * Called by the single remaining open txnh, which is closing.  Therefore as
+ * long as we hold the atom lock none of the jnodes can be captured and/or
+ * locked.
  */
 static int
 atom_try_commit_locked (txn_atom *atom)
@@ -609,13 +611,13 @@ atom_try_commit_locked (txn_atom *atom)
 
 		scan = capture_list_front (& atom->dirty_nodes[level]);
 
-		/* Balancing a slum requires node locks, which require the
-		 * atom lock and so on.  We begin this processing with the
-		 * atom in the CAPTURE_WAIT state, unlocked. */
+		/* jnode_flush requires node locks, which require the atom
+		 * lock and so on.  We begin this processing with the atom in
+		 * the CAPTURE_WAIT state, unlocked. */
 		spin_unlock_atom (atom);
 
-		/* Call flush_slum() with tree_lock held. */
-		if ((ret = flush_jnode_slum (scan)) != 0) {
+		/* Call jnode_flush() without tree_lock held. */
+		if ((ret = jnode_flush (scan)) != 0) {
 			return ret;
 		}
 
@@ -1564,8 +1566,8 @@ capture_copy (jnode        *node,
 	return -EAGAIN;
 }
 
-/* Release a block from the atom, reversing the effects of being captured.  Delete it from
- * any slum.  Currently this is only called when the atom commits. */
+/* Release a block from the atom, reversing the effects of being captured.
+ * Currently this is only called when the atom commits. */
 static void
 uncapture_block (txn_atom *atom,
 		 jnode    *node)

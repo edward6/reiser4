@@ -364,9 +364,6 @@ struct __reiser4_lock_handle {
 	/**
 	 * A list of all owners for a znode */
 	owners_list_link owners_link;
-	/**
-	 * Saved free space, used for tracking slum free space. */
-	unsigned free_space;
 };
 
 /**
@@ -591,6 +588,8 @@ extern jnode* jnode_of_page   (struct page* pg);
 extern void   jnode_init      (jnode *node);
 extern void   jnode_set_dirty (jnode *node);
 extern void   jnode_set_clean (jnode *node);
+
+extern int    jnode_flush     (jnode *node);
 
 #if REISER4_DEBUG
 void info_jnode( const char *prefix, const jnode *node );

@@ -45,7 +45,7 @@ void reiser4_panic( const char *format, ... )
 
 /**
  * Preemption point: this should be called periodically during long running
- * operations (carry and slum squeezing, are best examples)
+ * operations (carry, allocate, and squeeze are best examples)
  */
 void preempt_point( void )
 {
@@ -134,9 +134,10 @@ void reiser4_print_stats()
 	      "\t writes:\t %lli\n"
 	      "\t write repeats:\t %lli\n"
 
-	      "slum:\n"
+	      "flush:\n"
 	      "\t squeeze:\t %lli\n"
 	      "\t flush_carry:\t %lli\n"
+	      "\t squeezed_completely:\t %lli\n"
 
 	      "pool:\n"
 	      "\t alloc:\t %lli\n"
@@ -181,8 +182,9 @@ void reiser4_print_stats()
 	      s -> file.writes,
 	      s -> file.write_repeats,
 
-	      s -> slum.squeeze,
-	      s -> slum.flush_carry,
+	      s -> flush.squeeze,
+	      s -> flush.flush_carry,
+	      s -> flush.squeezed_completely,
 
 	      s -> pool.pool_alloc,
 	      s -> pool.pool_kmalloc,

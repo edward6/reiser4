@@ -111,7 +111,6 @@ struct reiser4_tree {
 	/** lock protecting:
 	 *  - parent pointers,
 	 *  - sibling pointers,
-	 *  - slums (pointers, lists, etc.)
 	 *  - znode hash table
 	 *  - coord cache
 	 */
@@ -486,8 +485,7 @@ static inline reiser4_context *reiser4_get_current_context()
 #define spin_ordering_pred_tree( tree ) ( 1 )
 
 /* Define spin_lock_tree, spin_unlock_tree, and spin_tree_is_locked:
- * spin lock protecting znode hash, parent and sibling pointers, and
- * slums. */   
+ * spin lock protecting znode hash, and parent and sibling pointers. */   
 SPIN_LOCK_FUNCTIONS( tree, reiser4_tree, tree_lock );
 
 
