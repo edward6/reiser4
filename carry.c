@@ -156,7 +156,9 @@ static void fatal_carry_error( carry_level *doing, int ecode );
 static int add_new_root( carry_level *level, carry_node *node, znode *fake );
 
 static __u64 carry_estimate_space( carry_level *level );
+#if REISER4_DEBUG
 static int carry_level_invariant( carry_level *level );
+#endif
 
 /**
  * main entry point for tree balancing.
