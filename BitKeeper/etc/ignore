@@ -171,6 +171,7 @@ plugin/dir/hashed_dir.bb
 plugin/dir/hashed_dir.bbg
 plugin/disk_format/.built-in.o.cmd
 plugin/disk_format/.disk_format.o.cmd
+plugin/disk_format/.disk_format40.o.cmd
 plugin/disk_format/.disk_format_40.o.cmd
 plugin/disk_format/.layout.o.cmd
 plugin/disk_format/.layout_40.o.cmd
@@ -217,6 +218,7 @@ plugin/item/tail_item.c.to-be-removed
 plugin/node/.built-in.o.cmd
 plugin/node/.node.o.cmd
 plugin/node/.node40.o.cmd
+plugin/node/.node40.o.d
 plugin/node/node.bb
 plugin/node/node.bbg
 plugin/node/node40.bb
@@ -225,6 +227,7 @@ plugin/object.bb
 plugin/object.bbg
 plugin/oid/.built-in.o.cmd
 plugin/oid/.oid.o.cmd
+plugin/oid/.oid40.o.cmd
 plugin/oid/.oid_40.o.cmd
 plugin/oid/oid.bb
 plugin/oid/oid.bbg
@@ -1085,5 +1088,3 @@ write-test.1
 write-test.2
 znode.bb
 znode.bbg
-plugin/disk_format/.disk_format40.o.cmd
-plugin/oid/.oid40.o.cmd
