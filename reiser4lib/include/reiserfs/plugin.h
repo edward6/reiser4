@@ -82,7 +82,7 @@ struct reiserfs_common_item_plugin {
     int (*remove_units) (reiserfs_opaque_t *, int32_t, int32_t);
     
     uint32_t (*estimate) (reiserfs_opaque_t *, int32_t,
-	reiserfs_item_info_t *);
+	reiserfs_item_t *);
     int (*is_internal) (reiserfs_opaque_t *, reiserfs_plugin_id_t);
 };
 
