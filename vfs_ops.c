@@ -1906,6 +1906,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		unlock_new_inode (inode);
 	}
 
+	check_block_counters (s);
 	print_fs_info ("mount ok", s);
 	REISER4_EXIT (0);
 
@@ -1955,6 +1956,7 @@ static void reiser4_kill_super (struct super_block *s)
 	/* shutdown daemon if last mount is removed */
 	ktxnmgrd_detach (&info->tmgr);
 
+	check_block_counters (s);
 	done_formatted_fake (s);
 
 	close_trace_file (&info->trace_file);
