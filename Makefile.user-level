@@ -164,7 +164,8 @@ SRC		:= \
 		   ulevel/uabend.c \
 		   ulevel/ulevel.c \
 		   memory.c \
-		   lnode.c
+		   lnode.c \
+		   kcond.c
 
 OBJ		:= $(SRC:.c=.o)
 
