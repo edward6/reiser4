@@ -1367,40 +1367,6 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	kmem_cache_free(inode_cache, reiser4_inode_data(inode));
 }
 
-#if 0
-
-/* ->dirty_inode() super operation */
-static void
-reiser4_dirty_inode(struct inode *inode)
-{
-	int result;
-	__REISER4_ENTRY(inode->i_sb,);
-
-	/* NOTE-NIKITA: VFS expects ->dirty_inode() to be relatively
-	   cheap. For example, each quota call invokes it. Our dirty inode
-	   updates stat-data in the tree. Per-inode seals probably alleviate
-	   this significantly, but still.
-	  
-	   One possible solution is to attach inodes to the transaction atoms
-	   and only update them just before transaction commit. This, as a
-	   byproduct will amortize multiple inode updates per transaction.
-	*/
-
-	assert("nikita-2523", inode != NULL);
-	if (reiser4_grab_space_exact(1, BA_RESERVED | BA_CAN_COMMIT))
-		goto no_space;
-	
-	trace_on(TRACE_RESERVE, "ditry inode grabs 1 block.\n");
-
-	result = reiser4_write_sd(inode);
-	if (result != 0)
-		warning("nikita-2524", "Failed to write sd of %llu: %i", get_inode_oid(inode), result);
-no_space:
-	__REISER4_EXIT(&__context);
-}
-#endif
-
-
 extern void generic_drop_inode(struct inode *object);
 
 static void
