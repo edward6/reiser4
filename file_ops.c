@@ -372,6 +372,7 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 	unsigned long eindex;
 	unsigned long offset;
 	read_descriptor_t desc;
+	struct page *page = NULL;
 
 	assert("umka-3108", file != NULL);
 	
@@ -390,7 +391,6 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 	fplug = inode_file_plugin(inode);
 
 	while (1) {
-		struct page *page;
 		unsigned long nr, ret;
 		loff_t isize = i_size_read(inode);
 
@@ -456,8 +456,8 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 		unlock_page(page);
 	fail_page:
 		page_cache_release(page);
-	fail_no_page:
 	}
+	fail_no_page:
 
 	*ppos = ((loff_t)index << PAGE_CACHE_SHIFT) + offset;
 	update_atime(inode);
