@@ -838,6 +838,8 @@ int memory_pressure (struct super_block *super)
 
 				/* Add force-context txnh */
 				capture_assign_txnh_nolock (atom, txnh);
+
+				break;
 			}				
 		}
 
