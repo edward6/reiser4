@@ -1069,7 +1069,7 @@ longterm_lock_znode(
 		 *
 		 */
 
-		if (has_atom && ZJNODE(node)->atom == txnh->atom) {
+		if (likely(has_atom && ZJNODE(node)->atom == txnh->atom)) {
 			reiser4_stat_inc(txnmgr.capture_equal);
 		} else {
 			/*
