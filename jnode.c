@@ -762,6 +762,7 @@ jrelse(jnode * node /* jnode to release references to */)
 		   optimization barrier, of course).
 		*/
 		JF_CLR(node, JNODE_LOADED);
+	UNLOCK_JNODE(node);
 }
 
 /* start async io for @node */
