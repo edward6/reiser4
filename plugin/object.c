@@ -1301,6 +1301,56 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.drop = drop_pseudo,
 		.delete_inode = NULL,
 		.forget_inode = NULL
+	},
+	[CRC_FILE_PLUGIN_ID] = {
+		.h = {
+			.type_id = REISER4_FILE_PLUGIN_TYPE,
+			.id = CRC_FILE_PLUGIN_ID,
+			.pops = NULL,
+			.label = "cryptcompress",
+			.desc = "cryptcompress file",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		/* FIXME: check which of these are relly needed */
+		.open = NULL,
+		.truncate = truncate_cryptcompress,
+		.write_sd_by_inode = write_sd_by_inode_common,
+		.readpage = readpage_cryptcompress,
+		.capture = capture_cryptcompress,
+		.read = generic_file_read,
+		.write = write_cryptcompress,
+		.release = release_cryptcompress,
+		.ioctl = NULL,
+		.mmap = mmap_cryptcompress,
+		.get_block = get_block_cryptcompress,
+		.flow_by_inode = flow_by_inode_cryptcompress,
+		.key_by_inode = cluster_key_by_inode,
+		.set_plug_in_inode = set_plug_in_inode_common,
+		.adjust_to_parent = adjust_to_parent_common,
+		.create = create_cryptcompress,
+		.delete = delete_cryptcompress,
+		.add_link = add_link_common,
+		.rem_link = rem_link_common,
+		.owns_item = owns_item_cryptcompress,
+		.can_add_link = can_add_link_common,
+		.can_rem_link = NULL,
+		.not_linked = not_linked_common,
+		.setattr = setattr_cryptcompress,
+		.getattr = getattr_common,
+		.seek = NULL,
+		.detach = detach_common,
+		.bind = bind_common,
+		.estimate = {
+			.create = estimate_create_file_common,
+			.update = estimate_update_common,
+			.unlink = estimate_unlink_common
+		},
+		.readpages = readpages_cryptcompress,
+		.init_inode_data = init_inode_data_cryptcompress,
+		.pre_delete = pre_delete_cryptcompress,
+		.drop = drop_common,
+		.delete_inode = delete_inode_common,
+		.forget_inode = forget_inode_common
 	}
 };
 
