@@ -64,6 +64,7 @@ static void reiser4_destroy_inode( struct inode *inode );
 static void reiser4_dirty_inode (struct inode *);
 static void reiser4_write_inode (struct inode *, int);
 static void reiser4_put_inode (struct inode *);
+static void reiser4_drop_inode (struct inode *);
 static void reiser4_delete_inode (struct inode *);
 static void reiser4_write_super (struct super_block *);
 static void reiser4_write_super_lockfs (struct super_block *);
@@ -139,17 +140,23 @@ static struct dentry *reiser4_lookup( struct inode *parent, /* directory within 
 
 	/* call its lookup method */
 	retval = dplug -> resolve_into_inode( parent, dentry );
-	result = NULL;
 	if( retval == 0 ) {
-		assert( "nikita-1943", dentry -> d_inode != NULL );
-		if( dentry -> d_inode -> i_state & I_NEW )
-			unlock_new_inode( dentry -> d_inode );
-	} else if( retval == -ENOENT ) {
+		struct inode *obj;
+		file_plugin  *fplug;
+
+		obj = dentry -> d_inode;
+		assert( "nikita-2645", obj != NULL );
+		fplug = inode_file_plugin( obj );
+		retval = fplug -> bind( obj, parent );
+	} else if( retval == -ENOENT )
 		/* object not found */
 		d_add( dentry, NULL );
-	} else
+
+	if( ( retval == 0 ) || ( retval == -ENOENT ) )
+		/* success */
+		result = NULL;
+	else
 		result = ERR_PTR( retval );
-	/* success */
 	REISER4_EXIT_PTR( result );
 }
 
@@ -903,6 +910,9 @@ int reiser4_write_sd( struct inode *object )
 
 	assert( "nikita-2338", object != NULL );
 
+	if( IS_RDONLY( object ) )
+		return 0;
+
 	fplug = inode_file_plugin( object );
 	assert( "nikita-2339", fplug != NULL );
 	return fplug -> write_sd_by_inode( object );
@@ -915,6 +925,7 @@ int reiser4_write_sd( struct inode *object )
  * Used by link/create and during creation of dot and dotdot in mkdir
  */
 int reiser4_add_nlink( struct inode *object /* object to which link is added */,
+		       struct inode *parent /* parent where new entry will be */,
 		       int write_sd_p /* true is stat-data has to be
 				       * updated */ )
 {
@@ -934,7 +945,7 @@ int reiser4_add_nlink( struct inode *object /* object to which link is added */,
 
 	assert( "nikita-2211", fplug -> add_link != NULL );
 	/* call plugin to do actual addition of link */
-	result = fplug -> add_link( object );
+	result = fplug -> add_link( object, parent );
 	if( ( result == 0 ) && write_sd_p )
 		result = fplug -> write_sd_by_inode( object );
 	return result;
@@ -949,6 +960,7 @@ int reiser4_add_nlink( struct inode *object /* object to which link is added */,
 /* Audited by: umka (2002.06.12) */
 int reiser4_del_nlink( struct inode *object /* object from which link is
 					     * removed */,
+		       struct inode *parent /* parent where entry was */,
 		       int write_sd_p /* true is stat-data has to be
 				       * updated */ )
 {
@@ -963,7 +975,7 @@ int reiser4_del_nlink( struct inode *object /* object from which link is
 	assert( "nikita-2210", fplug -> rem_link != NULL );
 
 	/* call plugin to do actual deletion of link */
-	result = fplug -> rem_link( object );
+	result = fplug -> rem_link( object, parent );
 	if( ( result == 0 ) && write_sd_p )
 		result = fplug -> write_sd_by_inode( object );
 	return result;
@@ -1236,6 +1248,7 @@ reiser4_alloc_inode( struct super_block *super UNUSED_ARG /* super block new
 		info -> extmask = 0ull;
 		info -> sd_len = 0;
 		info -> locality_id = 0ull;
+		info -> parent = NULL;
 		seal_init( &info -> sd_seal, NULL, NULL );
 		coord_init_invalid( &info -> sd_coord, NULL );
 		xmemset( &info -> ra, 0, sizeof info -> ra );
@@ -1279,6 +1292,25 @@ static void reiser4_dirty_inode( struct inode *inode )
 	__REISER4_EXIT( &__context );
 }
 
+extern void generic_drop_inode( struct inode *object );
+
+static void reiser4_drop_inode( struct inode *object )
+{
+	file_plugin *fplug;
+
+	assert( "nikita-2643", object != NULL );
+
+	/*
+	 * -not- creating context in this method, because it is frequently
+	 * called and all existing ->not_linked() methods are one liners.
+	 */
+
+	fplug = inode_file_plugin( object );
+	if( ( fplug != NULL ) && fplug -> not_linked( object ) )
+		object -> i_nlink = 0;
+	generic_drop_inode( object );
+}
+
 /** ->delete_inode() super operation */
 static void reiser4_delete_inode( struct inode *object )
 {
@@ -1286,13 +1318,17 @@ static void reiser4_delete_inode( struct inode *object )
 
 	if( inode_get_flag( object, REISER4_LOADED ) ) {
 		file_plugin *fplug;
+		dir_plugin  *dplug;
 
 		truncate_object( object, ( loff_t ) 0 );
 
+		dplug = inode_dir_plugin( object );
+		if( dplug != NULL )
+			dplug -> done( object );
+
 		fplug = inode_file_plugin( object );
-		assert( "nikita-2613", fplug != NULL );
-		if( fplug -> delete != NULL )
-			fplug -> delete( object, NULL );
+		if( ( fplug != NULL ) && ( fplug -> delete != NULL ) )
+			fplug -> delete( object );
 	} else
 		info( "reiser4_delete_inode: inode %lu not loaded\n",
 		      object -> i_ino );
@@ -2378,6 +2414,7 @@ struct super_operations reiser4_super_operations = {
  	.dirty_inode        = reiser4_dirty_inode, /* d */
 /* 	.write_inode        = reiser4_write_inode, */
 /* 	.put_inode          = reiser4_put_inode, */
+	.drop_inode         = reiser4_drop_inode, /* d */
  	.delete_inode       = reiser4_delete_inode, /* d */
 	.put_super          = NULL,
  	.write_super        = reiser4_write_super,
