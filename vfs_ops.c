@@ -2452,7 +2452,7 @@ int reiser4_writepages(struct address_space *mapping, struct writeback_control *
 			break;
 		}
 
-		ret = txn_flush_some_atom (&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
+		ret = flush_some_atom (&nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
 
 		if (!nr_submitted)
 			break;
