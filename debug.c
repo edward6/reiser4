@@ -710,8 +710,10 @@ report_err(void)
 			int i;
 			printk("code: %i at %s:%i ", 
 			       ctx->err.code, ctx->err.file, ctx->err.line);
+#ifdef CONFIG_FRAME_POINTER
 			for (i = 0; i < REISER4_BACKTRACE_DEPTH ; ++ i)
 				printk("0x%p ", ctx->err.path[i]);
+#endif
 			printk("\n");
 		}
 	}
