@@ -16,7 +16,8 @@
 %type <charType> L_BRACKET R_BRACKET level_up reiser4
 
 %type <wrd> WORD
-%type <wrd> P_RUNNER 
+%type <wrd> P_RUNNER
+//%type <wrd> named_level_up
 %type <wrd> STRING_CONSTANT
 
 %type <expr> Object_Name name  target
@@ -29,9 +30,9 @@
 %type <expr> then_operation 
 
 %token TRANSCRASH
-%token L_ASSIGN L_APPEND  L_SYMLINK
 %token SEMICOLON          /* ; */
 %token COMMA              /* , */
+%token L_ASSIGN L_APPEND  L_SYMLINK
 %token PLUS               /* + */
 %token L_BRACKET R_BRACKET
 %token SLASH
@@ -50,25 +51,17 @@
 %token ROOT
 
 
-%left UNNAME
-%left NAME
-%left NOT
-%left AND
-%left OR
-%left EQ NE  LE GE   LT  GT   
-
-%right L_SYMLINK         /* ->  */
-%right L_APPEND          /* <<- */
-%right L_ASSIGN          /* <-  */
+%left SEMICOLON COMMA
+%right L_SYMLINK L_APPEND L_ASSIGN
 
 %left PLUS               /* + */
+%left UNNAME NAME
+%left EQ NE  LE GE   LT  GT   
+%left NOT AND OR
 
 %right ELSE
-%left COMMA              /* , */
 
-%left SEMICOLON          /* ; */
 %left SLASH              /* / */
-%left USLASH              /* / */
 
 /*
 For bison:
@@ -83,12 +76,13 @@ For bison:
 %%
 
 reiser4
-    : Expression                                      { $$ = free_expr( $1 ); }
+    : Expression                                      { $$ = free_expr( ws, $1 ); }
 ;
 
 Expression
     : Object_Name                                     { $$ = $1;}
     | STRING_CONSTANT                                 { $$ = const_to_expr( ws, $1 ); }
+    | UNNAME Expression                               { $$ = unname( ws, $2 ); }
     | Expression PLUS       Expression                { $$ = concat_expression( ws, $1, $3 ); }
     | Expression SEMICOLON  Expression                { $$ = list_expression( ws, $1, $3 ); }
     | Expression COMMA      Expression                { $$ = list_async_expression( ws, $1, $3 ); }
@@ -98,12 +92,12 @@ Expression
     |  target  L_APPEND        Expression             { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
     |  target  L_ASSIGN  INV_L Expression INV_R       { $$ = assign_invert( ws, $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
     |  target  L_SYMLINK       Expression             { $$ = symlink( ws, $1, $3 ); }           /*   ->  symlink  the SYMLINK operator return a value: bytes ???? */
-//    | WORD NAMED level_up Expression R_BRACKET        { $$ = named_level_down( ws, $1, $3, $4,$5); }
 
+//    | named_level_up Expression R_BRACKET             { $$ = named_level_down( ws, $1, $2, $3 ); }
+;
 //| level_up  Expression R_BRACKET                   { $$ = $2  level_down( ws, $1, $3 );}
 //| Expression            Expression                { $$ = list_unordered_expression( ws, $1, $2 ); }
 
-;
 
 if_statement        
     : if_Begin then_operation ELSE Expression %prec PLUS   { $$ = if_then_else( ws, $1, $2, $4 ); }
@@ -136,6 +130,7 @@ then_operation
 
 target
     : Object_Name                                     { $$ = $1;}
+    | Object_Name NAMED Object_Name                   { $$ = target_name( $1, $3 );}
 ;
 
 Object_Name 
@@ -155,13 +150,11 @@ name
 
 level_up
     : L_BRACKET                                        { $$ = $1; level_up( ws, $1 ); } 
-//    : named_expr L_BRACKET                             { $$ = $2; level_up_named( ws, $1, $2 ); }
 ;
 
-//named_expr
-//    : WORD  NAMED                                     { $$ = lookup_word( ws, $1 ); }
-//    |                                                 { $$ = NULL; }
-
+//named_level_up
+//    : Object_Name NAMED level_up                   { $$ = $1; level_up_named( ws, $1, $3 );} 
+//;
 
 %%
 
