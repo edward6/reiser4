@@ -227,6 +227,8 @@ struct reiser4_super_info_data {
 	struct inode *fake;
 	/* inode used to bind bitmaps (and journal heads) */
 	struct inode *bitmap;
+	/* inode used to bind copied on capture nodes */
+	struct inode *cc;
 
 	/* disk layout plugin */
 	disk_format_plugin *df_plug;
@@ -441,6 +443,7 @@ extern reiser4_space_allocator *get_space_allocator(const struct super_block
 extern reiser4_oid_allocator *get_oid_allocator(const struct super_block
 						*super);
 extern struct inode *get_super_fake(const struct super_block *super);
+extern struct inode *get_cc_fake(const struct super_block *super);
 extern reiser4_tree *get_tree(const struct super_block *super);
 extern int is_reiser4_super(const struct super_block *super);
 
