@@ -30,6 +30,10 @@
 #include <linux/spinlock.h>
 #include "kcond.h"
 
+/* The reiser4 repacker process nodes by chunks of REPACKER_CHUNK_SIZE
+ * size. */
+#define REPACKER_DEFAULT_CHUNK_SIZE 512
+
 enum repacker_state_bits {
 	REPACKER_RUNNING       = 0x1,
 	REPACKER_STOP          = 0x2,
@@ -51,7 +55,9 @@ struct repacker {
 	/* An object (kobject), externally visible through SysFS. */
 	struct kobject kobj;
 #endif
-	
+	struct {
+		reiser4_block_nr chunk_size; 
+	} params;
 };
 
 /* A thread-safe repacker check state bit routine.  */
@@ -156,9 +162,6 @@ static int process_extent_forward (tap_t *tap, void * arg)
 	return ret;
 }
 
-/* The reiser4 repacker process nodes by chunks of REPACKER_CHUNK_SIZE
- * size. */
-#define REPACKER_CHUNK_SIZE 100
 
 /* It is for calling by tree walker before taking any locks. */
 static int prepare_repacking_session (void * arg)
@@ -173,8 +176,9 @@ static int prepare_repacking_session (void * arg)
 	if (ret)
 		return ret;
 
-	cursor->count = REPACKER_CHUNK_SIZE;
-	return  reiser4_grab_space((__u64)REPACKER_CHUNK_SIZE, BA_CAN_COMMIT | BA_FORCE, __FUNCTION__);
+	cursor->count = get_current_super_private()->repacker->params.chunk_size;
+
+	return  reiser4_grab_space((__u64)cursor->count, BA_CAN_COMMIT | BA_FORCE, __FUNCTION__);
 }
 
 /* When the repacker goes backward (from the rightmost key to the leftmost
@@ -540,6 +544,9 @@ int init_reiser4_repacker (struct super_block *super)
 		return -ENOMEM;
 	xmemset(sinfo->repacker, 0, sizeof(struct repacker));
 	sinfo->repacker->super = super;
+
+	/* set repacker parameters by default values */
+	sinfo->repacker->params.chunk_size = REPACKER_DEFAULT_CHUNK_SIZE;
 
 	spin_lock_init(&sinfo->repacker->guard);
 	kcond_init(&sinfo->repacker->cond);
