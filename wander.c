@@ -641,7 +641,6 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int max_blocks;
-	int ret;
 	jnode *cur = first;
 	reiser4_block_nr block;
 
@@ -687,8 +686,6 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 
 			lock_and_wait_page_writeback(pg);
 			SetPageWriteback(pg);
-
-			jrelse(cur);
 
 			write_lock(&pg->mapping->page_lock);
 
