@@ -1022,9 +1022,9 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	level = h->level;
 	key = h->key;
 
-	cbk_cache_lock(cache);
 	spin_lock_dk(tree);
 	spin_lock_tree(tree);
+	cbk_cache_lock(cache);
 	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
 	while (1) {
 		slot = cbk_cache_list_next(slot);
@@ -1045,9 +1045,9 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		}
 	}
 
+	cbk_cache_unlock(cache);
 	spin_unlock_tree(tree);
 	spin_unlock_dk(tree);
-	cbk_cache_unlock(cache);
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
 
