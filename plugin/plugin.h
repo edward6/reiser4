@@ -349,8 +349,10 @@ extern int init_plugins( void );
 /* builtin file-plugins */
 typedef enum { REGULAR_FILE_PLUGIN_ID, DIRECTORY_FILE_PLUGIN_ID,
 	       SYMLINK_FILE_PLUGIN_ID,
-	       /* special_fobj_id is for objects completely handled
-		  by VFS: fifos, devices, sockets */
+	       /* 
+		* SPECIAL_FILE_PLUGIN_ID is for objects completely handled by
+		* VFS: fifos, devices, sockets 
+		*/
 	       SPECIAL_FILE_PLUGIN_ID,
 	       LAST_FILE_PLUGIN_ID
 } reiser4_file_id;
