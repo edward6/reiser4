@@ -1211,7 +1211,7 @@ static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 	check_me ("nikita-2113", TestClearPageDirty (pg));
 	assert ("nikita-2114", !PageWriteback (pg));
 
-	write_one_page (pg, 0);
+	ret = write_one_page (pg, 0);
 
 	ON_DEBUG (pos->enqueue_cnt += 1);
 	jnode_set_clean (node);
