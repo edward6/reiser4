@@ -593,7 +593,7 @@ set_low_priority(lock_stack * owner)
 static void
 wake_up_requestor(znode *node)
 {
-#ifdef CONFIG_SMP
+#if NR_CPUS > 2
 	requestors_list_head *creditors;
 	lock_stack           *convoy[MAX_CONVOY_SIZE];
 	int                   convoyused;
@@ -616,7 +616,8 @@ wake_up_requestor(znode *node)
 		 * convoys on the leaf level.
 		 */
 		if (znode_get_level(node) != LEAF_LEVEL &&
-		    convoy[0]->request.mode == ZNODE_READ_LOCK) {
+		    convoy[0]->request.mode == ZNODE_READ_LOCK &&
+		    convoylimit > 1) {
 			lock_stack *item;
 
 			ADDSTAT(node, wakeup_found_read);
