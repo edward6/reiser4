@@ -1536,7 +1536,6 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 				UNLOCK_ATOM(atom);
 			}
 		}
-		ON_TRACE(TRACE_WRITEOUT, "FSA wrote nothing\n");
 		spin_unlock_txnmgr(tmgr);
 		return 0;
 	found:
@@ -1544,8 +1543,6 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 	} else
 		atom = get_current_atom_locked();
 
-	ON_TRACE(TRACE_WRITEOUT, "FCA is called: atom capture count %d, stage %d, waiters %d, commiter %p\n",
-		 atom->capture_count,  atom->stage, atom->nr_waiters, atom->committer);
 	ret = flush_current_atom(flags, nr_submitted, &atom);
 
 	if (ret == 0) {
