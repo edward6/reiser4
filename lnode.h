@@ -20,9 +20,9 @@
 typedef enum {
 	LNODE_DENTRY,
 	LNODE_INODE,
-//	LNODE_PSEUDO,
 	LNODE_REISER4_INODE,
 	LNODE_LW,
+	LNODE_PSEUDO,
 	LNODE_NR_TYPES
 } lnode_type;
 
@@ -71,13 +71,18 @@ typedef struct lnode_lw {
 	reiser4_key key;
 } lnode_lw;
 
-#if 0
+struct assign_result {
+	loff_t len ;
+	int return_code ;
+};
+
 typedef struct lnode_pseudo {
 	lnode_header h;
-	lnode *host;
+	struct assign_result rez;
+
+	//	lnode *host;
 	/* something to identify pseudo file type, like name or plugin */
 } lnode_pseudo;
-#endif
 
 union lnode {
 	lnode_header h;
@@ -85,7 +90,7 @@ union lnode {
 	lnode_inode inode;
 	lnode_reiser4_inode reiser4_inode;
 	lnode_lw lw;
-//	lnode_pseudo pseudo;
+	lnode_pseudo pseudo;
 };
 
 extern int lnodes_init(void);
