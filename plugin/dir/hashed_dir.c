@@ -270,14 +270,14 @@ file_lookup_result hashed_lookup(struct inode * parent	/* inode of directory to
 	assert("nikita-1123", dentry->d_name.name != NULL);
 
 	if (perm_chk(parent, lookup, parent, dentry))
-		return -EPERM;
+		return RETERR(-EPERM);
 
 	name = dentry->d_name.name;
 	len = dentry->d_name.len;
 
 	if (!is_name_acceptable(parent, name, len))
 		/* some arbitrary error code to return */
-		return -ENAMETOOLONG;
+		return RETERR(-ENAMETOOLONG);
 
 	/* set up operations on dentry. */
 	dentry->d_op = &reiser4_dentry_operation;

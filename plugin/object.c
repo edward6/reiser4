@@ -208,7 +208,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	if (data.length > tree_by_inode(inode)->nplug->max_item_size()) {
 		/* This is silly check, but we don't know actual node where
 		   insertion will go into. */
-		return -ENAMETOOLONG;
+		return RETERR(-ENAMETOOLONG);
 	}
 	result = oid_allocate(&oid);
 
@@ -927,7 +927,7 @@ common_setattr(struct inode *inode /* Object to change attributes */,
 static ssize_t
 isdir(void)
 {
-	return -EISDIR;
+	return RETERR(-EISDIR);
 }
 
 #define eisdir ((void *)isdir)
@@ -935,7 +935,7 @@ isdir(void)
 static ssize_t
 perm(void)
 {
-	return -EPERM;
+	return RETERR(-EPERM);
 }
 
 #define eperm ((void *)perm)

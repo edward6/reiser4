@@ -122,16 +122,16 @@ common_link(struct inode *parent /* parent directory */ ,
 
 	/* check for race with create_object() */
 	if (inode_get_flag(object, REISER4_IMMUTABLE))
-		return -EAGAIN;
+		return RETERR(-EAGAIN);
 
 	/* links to directories are not allowed if file-system
 	   logical name-space should be ADG */
 	if (reiser4_is_set(parent->i_sb, REISER4_ADG) && S_ISDIR(object->i_mode))
-		return -EISDIR;
+		return RETERR(-EISDIR);
 
 	/* check permissions */
 	if (perm_chk(parent, link, existing, parent, where))
-		return -EPERM;
+		return RETERR(-EPERM);
 
 	parent_dplug = inode_dir_plugin(parent);
 
@@ -217,14 +217,14 @@ unlink_check_and_grab(struct inode *parent, struct dentry *victim)
 
 	/* check for race with create_object() */
 	if (inode_get_flag(child, REISER4_IMMUTABLE))
-		return -EAGAIN;
+		return RETERR(-EAGAIN);
 
 	/* victim should have stat data */
 	assert("vs-949", !inode_get_flag(child, REISER4_NO_SD));
 
 	/* check permissions */
 	if (perm_chk(parent, unlink, parent, victim))
-		return -EPERM;
+		return RETERR(-EPERM);
 
 	/* ask object plugin */
 	if (fplug->can_rem_link != NULL) {
@@ -349,19 +349,19 @@ common_create_child(struct inode *parent /* parent object */ ,
 	par_dir = inode_dir_plugin(parent);
 	/* check permissions */
 	if (perm_chk(parent, create, parent, dentry, data))
-		return -EPERM;
+		return RETERR(-EPERM);
 
 	/* check, that name is acceptable for parent */
 	if (par_dir->is_name_acceptable &&
 	    !par_dir->is_name_acceptable(parent, dentry->d_name.name, (int) dentry->d_name.len)) {
-		return -ENAMETOOLONG;
+		return RETERR(-ENAMETOOLONG);
 	}
 
 	result = 0;
 	obj_plug = file_plugin_by_id((int) data->id);
 	if (obj_plug == NULL) {
 		warning("nikita-430", "Cannot find plugin %i", data->id);
-		return -ENOENT;
+		return RETERR(-ENOENT);
 	}
 	object = new_inode(parent->i_sb);
 	if (object == NULL)
@@ -380,7 +380,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	if (DQUOT_ALLOC_INODE(object)) {
 		DQUOT_DROP(object);
 		object->i_flags |= S_NOQUOTA;
-		return -EDQUOT;
+		return RETERR(-EDQUOT);
 	}
 
 	xmemset(&entry, 0, sizeof entry);
@@ -401,7 +401,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 		obj_plug->init_inode_data(object, 1/*create*/);
 
 	if (obj_plug->create == NULL)
-		return -EPERM;
+		return RETERR(-EPERM);
 
 	/* if any of hash, tail, sd or permission plugins for newly created
 	   object are not set yet set them here inheriting them from parent
@@ -417,7 +417,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	/* obtain directory plugin (if any) for new object. */
 	obj_dir = inode_dir_plugin(object);
 	if ((obj_dir != NULL) && (obj_dir->init == NULL))
-		return -EPERM;
+		return RETERR(-EPERM);
 
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
 
