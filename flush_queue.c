@@ -280,7 +280,7 @@ static void fq_scan_io_list (flush_queue_t * fq)
 	jnode * cur;
 	txn_atom * atom;
 
-	assert ("zam-740", spin_fq_is_locked (fq));
+	assert ("zam-740", fq_in_use (fq));
 	atom = fq->atom;
 	assert ("zam-741", atom != NULL);
 	assert ("zam-742", spin_atom_is_locked (atom));
