@@ -1071,25 +1071,46 @@ static int capture_anonymous_pages(struct address_space * mapping)
 	return result;
 }
 
+/*
+ * this file plugin method is called to capture into current atom all
+ * "anonymous pages", that is, pages modified through mmap(2). For each such
+ * page this function creates jnode, captures this jnode, and creates (or
+ * modifies) extent. Anonymous pages are kept on the special inode list. Some
+ * of them can be emergency flushed. To cope with this list of eflushed jnodes
+ * from this inode is scanned.
+ */
 int
 capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 {
 	int               result;
 	unix_file_info_t *uf_info;
 
-	if (inode_has_anonymous_pages(inode)) {
+	result = 0;
+	while (result == 0 && inode_has_anonymous_pages(inode)) {
 		uf_info = unix_file_inode_data(inode);
+		/*
+		 * locking: creation of extent requires read-semaphore on
+		 * file. _But_, this function can also be called in the
+		 * context of write system call from
+		 * balance_dirty_pages(). So, write keeps semaphore (possible
+		 * in write mode) on file A, and this function tries to
+		 * acquire semaphore on (possibly) different file B. A/B
+		 * deadlock is on a way. To avoid this try-lock is used
+		 * here. This however leads to the complications in the
+		 * fsync() case, which are not yet handled.
+		 */
 		if (rw_latch_try_read(&uf_info->latch) == 0) {
 			ON_DEBUG(lock_counters()->inode_sem_r ++);
 
 			result = capture_anonymous_pages(inode->i_mapping);
-
 			rw_latch_up_read(&uf_info->latch);
 			ON_DEBUG(lock_counters()->inode_sem_r --);
+			if (result != 0 || wbc->sync_mode != WB_SYNC_ALL)
+				break;
+			result = txnmgr_force_commit_all(inode->i_sb, 0);
 		} else
 			result = RETERR(-EBUSY);
-	} else
-		result = 0;
+	}
 	return result;
 }
 
