@@ -864,20 +864,41 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 /* Function that is called by common_readdir() on each directory item
    while doing readdir. */
 static int
-feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
+feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 {
 	item_plugin *iplug;
 	char *name;
 	reiser4_key sd_key;
 	int result;
 	char buf[DE_NAME_BUF_LEN];
+	char name_buf[32], *tmp_name;
+	unsigned file_type;
+	seal_t seal;
+	coord_t * coord;
 
+	coord = tap->coord;
 	iplug = item_plugin_by_coord(coord);
 
 	name = iplug->s.dir.extract_name(coord, buf);
 	assert("nikita-1371", name != NULL);
 	if (iplug->s.dir.extract_key(coord, &sd_key) != 0)
 		return RETERR(-EIO);
+
+	/* we must release longterm znode lock before calling filldir to avoid deadlock which may happen if filldir
+	   causes page fault. So, copy name to intermediate buffer */
+	if (strlen(name) + 1 > sizeof(name_buf)) {
+		tmp_name = kmalloc(strlen(name) + 1, GFP_KERNEL);
+		if (!tmp_name)
+			return RETERR(-ENOMEM);
+	} else
+		tmp_name = name_buf;
+
+	strcpy(tmp_name, name, strlen(name));
+	file_type = iplug->s.dir.extract_file_type(coord);
+
+	seal_init(&seal, coord, 0);
+	tap_relse(tap);
+	longterm_unlock_znode(tap->lh);
 
 	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
 		 name, pos->entry_no, get_key_objectid(&sd_key));
@@ -889,11 +910,16 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 		    (loff_t) pos->entry_no,
 		    /* inode number of object bounden by this entry */
 		    oid_to_uino(get_key_objectid(&sd_key)),
-		    iplug->s.dir.extract_file_type(coord)) < 0) {
+		    file_type) < 0) {
 		/* ->filldir() is satisfied. */
 		result = 1;
-	} else
-		result = 0;
+	} else {
+		result = seal_validate(&seal, coord, 0, LEAF_LEVEL, tap->lh, FIND_EXACT,
+				       tap->mode, ZNODE_LOCK_HIPRI);
+		if (result == 0) {
+			check_me("vs-1485", tap_load(tap));
+		}
+	}
 	return result;
 }
 
@@ -1021,6 +1047,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 		 "readdir: inode: %llu offset: %lli\n",
 		 get_inode_oid(inode), f->f_pos);
 
+ repeat:
 	result = dir_readdir_init(f, &tap, &pos);
 	if (result == 0) {
 		result = tap_load(&tap);
@@ -1032,7 +1059,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 			assert("nikita-2572", coord_is_existing_unit(coord));
 			assert("nikita-3227", is_valid_dir_coord(inode, coord));
 
-			result = feed_entry(pos, coord, filld, dirent);
+			result = feed_entry(pos, &tap, filld, dirent);
 			ON_TRACE(TRACE_DIR | TRACE_VFS_OPS,
 				 "readdir: entry: offset: %lli\n", f->f_pos);
 			if (result > 0) {
@@ -1049,12 +1076,15 @@ readdir_common(struct file *f /* directory file being read */ ,
 					else
 						break;
 				}
+			} else if (result == -EAGAIN) {
+				goto repeat;
 			}
 		}
-		tap_relse(&tap);
 
-		if (result >= 0)
+		if (result >= 0) {
+			tap_relse(&tap);
 			f->f_version = inode->i_version;
+		}
 	} else if (result == -E_NO_NEIGHBOR || result == -ENOENT)
 		result = 0;
 	tap_done(&tap);
