@@ -928,6 +928,7 @@ longterm_lock_znode(
 	int          wake_up_next      = 0;
 	txn_capture  cap_flags         = 0;
 	int          non_blocking      = 0;
+	int          has_atom;
 	zlock       *lock;
 	txn_handle  *txnh;
 	tree_level   level;
@@ -967,6 +968,8 @@ longterm_lock_znode(
 	txnh = get_current_context()->trans;
 	lock = &node->lock;
 
+	has_atom = (txnh->atom != NULL);
+
 	if (REISER4_STATS) {
 		if (mode == ZNODE_READ_LOCK)
 			ADDSTAT(node, lock_read);
@@ -989,7 +992,6 @@ longterm_lock_znode(
 		return lock_tail(owner, wake_up_next, 0, mode);
 
 	for (;;) {
-
 		ADDSTAT(node, lock_iteration);
 
 		/* Check the lock's availability: if it is unavaiable we get EAGAIN, 0
@@ -1013,30 +1015,97 @@ longterm_lock_znode(
 		assert("nikita-1844", (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
 		/* If we can get the lock... Try to capture first before
 		   taking the lock.*/
-		UNLOCK_ZLOCK(lock);
-		spin_lock_znode(node);
-		ret = try_capture_args(ZJNODE(node), txnh, mode,
-				       cap_flags, non_blocking, cap_mode);
-		spin_unlock_znode(node);
-		LOCK_ZLOCK(lock);
-		if (unlikely(ret != 0)) {
-			/* In the failure case, the txnmgr releases the znode's lock (or
-			   in some cases, it was released a while ago).  There's no need
-			   to reacquire it so we should return here, avoid releasing the
-			   lock. */
-			owner->request.mode = 0;
-			/* next requestor may not fail */
-			wake_up_next = 1;
-			break;
+
+		/* first handle commonest case where node and txnh are already
+		 * in the same atom. */
+		/* safe to do without taking locks, because:
+		 *
+		 * 1. read of aligned word is atomic with respect to writes to
+		 * this word 
+		 *
+		 * 2. false negatives are handled in try_capture_args().
+		 *
+		 * 3. false positives are impossible.
+		 *
+		 * PROOF: left as an exercise to the curious reader.
+		 *
+		 * Just kidding. Here is one:
+		 *
+		 * At the time T0 txnh->atom is stored in txnh_atom.
+		 *
+		 * At the time T1 node->atom is stored in node_atom.
+		 *
+		 * At the time T2 we observe that 
+		 *
+		 *     txnh_atom != NULL && node_atom == txnh_atom.
+		 *
+		 * Imagine that at this moment we acquire node and txnh spin
+		 * lock in this order. Suppose that under spin lock we have
+		 *
+		 *     node->atom != txnh->atom,                       (S1)
+		 *
+		 * at the time T3.
+		 *
+		 * txnh->atom != NULL still, because txnh is open by the
+		 * current thread.
+		 *
+		 * Suppose node->atom == NULL, that is, node was un-captured
+		 * between T1, and T3. But un-capturing of formatted node is
+		 * always preceded by the call to invalidate_lock(), which
+		 * marks znode as JNODE_IS_DYING under zlock spin
+		 * lock. Contradiction, because can_lock_object() above checks
+		 * for JNODE_IS_DYING. Hence, node->atom != NULL at T3.
+		 *
+		 * Suppose that node->atom != node_atom, that is, atom, node
+		 * belongs to was fused into another atom: node_atom was fused
+		 * into node->atom. Atom of txnh was equal to node_atom at T2,
+		 * which means that under spin lock, txnh->atom == node->atom,
+		 * because txnh->atom can only follow fusion
+		 * chain. Contradicts S1.
+		 *
+		 * The same for hypothesis txnh->atom != txnh_atom. Hence,
+		 * node->atom == node_atom == txnh_atom == txnh->atom. Again
+		 * contradicts S1. Hence S1 is false. QED.
+		 *
+		 */
+
+		if (has_atom && ZJNODE(node)->atom == txnh->atom) {
+			reiser4_stat_inc(txnmgr.capture_equal);
+		} else {
+			/*
+			 * unlock zlock spin lock here. It is possible for
+			 * longterm_unlock_znode() to sneak in here, but there
+			 * is no harm: invalidate_lock() will mark znode as
+			 * JNODE_IS_DYING and this will be noted by
+			 * can_lock_object() below.
+			 */
+			UNLOCK_ZLOCK(lock);
+			spin_lock_znode(node);
+			ret = try_capture_args(ZJNODE(node), txnh, mode,
+					       cap_flags, non_blocking, 
+					       cap_mode);
+			spin_unlock_znode(node);
+			LOCK_ZLOCK(lock);
+			if (unlikely(ret != 0)) {
+				/* In the failure case, the txnmgr releases
+				   the znode's lock (or in some cases, it was
+				   released a while ago).  There's no need to
+				   reacquire it so we should return here,
+				   avoid releasing the lock. */
+				owner->request.mode = 0;
+				/* next requestor may not fail */
+				wake_up_next = 1;
+				break;
+			}
+
+			/* Check the lock's availability again -- this is
+			   because under some circumstances the capture code
+			   has to release and reacquire the znode spinlock. */
+			ret = can_lock_object(owner);
 		}
 
-		/* Check the lock's availability again -- this is because under some
-		   circumstances the capture code has to release and reacquire the znode
-		   spinlock. */
-		ret = can_lock_object(owner);
-
-		/* This time, a return of (ret == 0) means we can lock, so we should break
-		   out of the loop. */
+		/* This time, a return of (ret == 0) means we can lock, so we
+		   should break out of the loop. */
 		if (likely(ret != -EAGAIN || non_blocking)) {
 			break;
 		}
