@@ -13,6 +13,7 @@
 #include "dir.h"
 #include "../item/item.h"
 #include "../security/perm.h"
+#include "../pseudo/pseudo.h"
 #include "../plugin.h"
 #include "../object.h"
 #include "../../jnode.h"
@@ -266,6 +267,7 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 	lock_handle lh;
 	const char *name;
 	int len;
+	struct inode *inode;
 	reiser4_dir_entry_desc entry;
 
 	assert("nikita-1247", parent != NULL);
@@ -298,8 +300,6 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 	done_lh(&lh);
 
 	if (result == 0) {
-		struct inode *inode;
-
 		inode = reiser4_iget(parent->i_sb, &entry.key);
 		if (!IS_ERR(inode)) {
 			if (inode_get_flag(inode, REISER4_LIGHT_WEIGHT)) {
@@ -316,6 +316,12 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 				unlock_new_inode(inode);
 		} else
 			result = PTR_ERR(inode);
+	} else if (result == -ENOENT) {
+		inode = lookup_pseudo(parent, dentry->d_name.name);
+		if (inode != NULL) {
+			d_add(dentry, inode);
+			result = 0;
+		}
 	}
 	return result;
 }
