@@ -583,10 +583,12 @@ static void          flush_pos_release_point      (flush_position *pos);
 static int           flush_pos_lock_parent        (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, load_count *parent_load, znode_lock_mode mode);
 
 /* Flush debug functions */
+#if REISER4_TRACE
 static const char*   flush_pos_tostring           (flush_position *pos);
 static const char*   flush_jnode_tostring         (jnode *node);
 static const char*   flush_znode_tostring         (znode *node);
 static const char*   flush_flags_tostring         (int flags);
+#endif
 
 static flush_params *flush_get_params( void );
 
@@ -2193,8 +2195,8 @@ static int shift_one_internal_unit (znode * left, znode * right)
 
 	if (REISER4_DEBUG && !node_is_empty (left)) {
 		coord_t last;
-		reiser4_key right_key;
-		reiser4_key left_key;
+		ON_DEBUG (reiser4_key right_key);
+		ON_DEBUG (reiser4_key left_key);
 
 		coord_init_last_unit (&last, left);
 
@@ -3445,9 +3447,9 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		return 0;
 	}
 
-	trace_on (TRACE_FLUSH_VERB, "%s scan index %lu: parent %p inode %lu\n",
+	trace_on (TRACE_FLUSH_VERB, "%s scan index %lu: parent %p inode %llu\n",
 		  (flush_scanning_left (scan) ? "left" : "right"),
-		  scan_index, coord.node, ino->i_ino);
+		  scan_index, coord.node, get_inode_oid (ino));
 
 	/* Get the values of this extent unit: */
 	allocated  = ! extent_is_unallocated (& coord);
@@ -3480,7 +3482,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		do {
 			/* Note: On the very first pass through this block we test the
 			 * current position (pg of the starting scan_index, which we know
-			 * is dirty/same atom by pre-condition).  Its redundent but it
+			 * is dirty/same atom by pre-condition).  Its redundant but it
 			 * makes this code simpler. */
 			pg = reiser4_lock_page (ino->i_mapping, scan_index);
 
@@ -3555,10 +3557,19 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 		/* If we are scanning left and we stop in the middle of an allocated
 		 * extent, we know the preceder immediately.. */
-		if (flush_scanning_left (scan) && unit_start != 0) {
+		/*
+		 * FIXME:NIKITA->* middle of extent is (scan_index - unit_index) != 0.
+		 */
+		if (flush_scanning_left (scan) && (scan_index - unit_index) != 0) {
 			/* FIXME(B): Someone should step-through and verify that this preceder
 			 * calculation is indeed correct. */
-			scan->preceder_blk = unit_start + scan_index;
+			/*
+			 * @unit_start is starting block (number) of extent
+			 * unit. Flush stopped at the @scan_index block from
+			 * the beginning of the file, which is (scan_index -
+			 * unit_index) block within extent.
+			 */
+			scan->preceder_blk = unit_start + scan_index - unit_index;
 			check_preceder (scan->preceder_blk);
 		}
 
@@ -3881,6 +3892,7 @@ static flush_params *flush_get_params( void )
 
 //#if REISER4_DEBUG
 #if 1
+#if REISER4_TRACE
 static void flush_jnode_tostring_internal (jnode *node, char *buf)
 {
 	const char* state;
@@ -3950,6 +3962,7 @@ static const char* flush_jnode_tostring (jnode *node)
 	return fmtbuf;
 }
 
+
 static const char* flush_pos_tostring (flush_position *pos)
 {
 	static char fmtbuf[256];
@@ -4012,6 +4025,7 @@ static const char*   flush_flags_tostring         (int flags)
 		return "(unknown)";
 	}
 }
+#endif
 #endif
 
 /*
