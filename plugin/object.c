@@ -921,9 +921,11 @@ common_bind(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 static reiser4_block_nr 
 common_estimate_update(struct inode *node)
 {
+	reiser4_block_nr amount;
 	assert("vpf-315", node != NULL);
 	
-	return estimate_internal_amount(1, tree_by_inode(node)->height) + 1;
+	estimate_internal_amount(1, tree_by_inode(node)->height, &amount);
+	return amount + 1;
 }
 
 

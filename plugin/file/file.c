@@ -761,6 +761,7 @@ reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, size_t count) 
 int
 unix_file_truncate(struct inode *inode, loff_t size)
 {
+	int result;
 	reiser4_block_nr reserve;
 	loff_t file_size;
 	reiser4_block_nr needed;
@@ -1953,6 +1954,7 @@ unix_file_filemap_nopage(struct vm_area_struct * area, unsigned long address,
 static struct vm_operations_struct unix_file_vm_ops = {
 	.nopage	= unix_file_filemap_nopage,
 };
+
 reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, size_t count) 
 {
 	assert("umka-1246", inode != NULL);
@@ -1973,7 +1975,7 @@ unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 	inode = file->f_dentry->d_inode;
 
 	/* FIXME-VITALY: Should get_nonexclusive_access be first? */
-	needed = unix_file_estimate_mmap(inode, find_file_size(inode));
+	needed = unix_file_estimate_mmap(inode, inode->i_size);
 	result = reiser4_grab_space_exact(needed, 0);
 	
 	if (result != 0) return -ENOSPC;
