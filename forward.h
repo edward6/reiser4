@@ -177,8 +177,8 @@ typedef enum { READ_OP = 0, WRITE_OP = 1 } rw_op;
 
 /* used to specify direction of shift. These must be -1 and 1 */
 typedef enum {
-	SHIFT_APPEND = 1,
-	SHIFT_PREPEND = -1
+	SHIFT_LEFT = 1,
+	SHIFT_RIGHT = -1
 } shift_direction;
 
 typedef enum {
