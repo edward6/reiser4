@@ -2100,7 +2100,9 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	kfree (info);
 	s->s_fs_info = NULL;
 
-	REISER4_EXIT (result);
+	__context.trans = NULL;
+	done_context (&__context);
+	return result;
 }
 
 static void reiser4_put_super (struct super_block *s)
