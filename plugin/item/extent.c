@@ -9,7 +9,7 @@
  * prepare structure reiser4_item_data to put one extent unit into tree
  */
 static reiser4_item_data * init_new_extent (reiser4_item_data * data,
-					    void * ext_unit)
+					    void * ext_unit, int nr_extents)
 {
 	if (REISER4_DEBUG)
 		memset (data, 0, sizeof (reiser4_item_data));
@@ -17,7 +17,7 @@ static reiser4_item_data * init_new_extent (reiser4_item_data * data,
 	data->data = ext_unit;
 	/* data->data is kernel space */
 	data->user = 0;
-	data->length = sizeof (reiser4_extent);
+	data->length = sizeof (reiser4_extent) * nr_extents;
 	data->arg = 0;
 	data->iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 	return data;
@@ -63,7 +63,7 @@ reiser4_key * extent_max_key_inside (const tree_coord * coord,
 
 /*
  * plugin->u.item.b.can_contain_key
- * FIXME-VS: comment this
+ * this checks whether @key of @data is matching to position set by @coord
  */
 int extent_can_contain_key (const tree_coord * coord, const reiser4_key * key,
 			    const reiser4_item_data * data)
@@ -79,34 +79,13 @@ int extent_can_contain_key (const tree_coord * coord, const reiser4_key * key,
 	    get_key_objectid (key) != get_key_objectid (&item_key))
 		return 0;
 
-	assert ("vs-458",
-		(coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
-		(coord->unit_pos == last_unit_pos (coord) &&
-		 coord->between == AFTER_UNIT));
-
-	if (coord->between == BEFORE_UNIT) {
-		reiser4_extent * ext;
-
-		ext = (reiser4_extent *)data->data; 
-		if (get_key_offset (key) + (extent_get_width (ext) *
-					    reiser4_get_current_sb ()->s_blocksize) !=
-		    get_key_offset (&item_key)) {
-			info ("could not merge extent items of one file\n");
-			return 0;
-		} else {
-			return 1;
-		}
-
-	} else {
-		if (get_key_offset (key) != (get_key_offset (&item_key) +
-					     extent_size (coord, (unsigned)-1))) {
-			info ("could not append extent with "
-			      "an extent of the same file\n");
-			return 0;
-		} else {
-			return 1;
-		}
+	assert ("vs-458", coord->between == AFTER_UNIT);
+	set_key_offset (&item_key, extent_size (coord, coord->unit_pos + 1));
+	if (keycmp (&item_key, key) != EQUAL_TO) {
+		info ("could not merge extent items of one file\n");
+		return 0;
 	}
+	return 1;
 }
 
 
@@ -226,7 +205,8 @@ unsigned extent_nr_units (const tree_coord * coord)
 /*
  * plugin->u.item.b.lookup
  */
-lookup_result extent_lookup (const reiser4_key * key, lookup_bias bias,
+lookup_result extent_lookup (const reiser4_key * key,
+			     lookup_bias bias UNUSED_ARG,
 			     tree_coord * coord) /* znode and item_pos are
 						    set to an extent item to
 						    look through */
@@ -521,7 +501,8 @@ static int free_blocks (reiser4_block_nr start, reiser4_block_nr length)
 
 /* plugin->u.item.b.kill_item_hook
  */
-int extent_kill_item_hook (const tree_coord * coord, unsigned from, unsigned count, void *kill_params)
+int extent_kill_item_hook (const tree_coord * coord, unsigned from,
+			   unsigned count, void *kill_params UNUSED_ARG)
 {
  	reiser4_extent * ext;
 	unsigned i;
@@ -555,7 +536,7 @@ static reiser4_key *last_key_in_extent (const tree_coord * coord,
 static int cut_or_kill_units (tree_coord * coord,
 			      unsigned * from, unsigned * to,
 			      int cut, const reiser4_key * from_key,
-			      const reiser4_key * to_key UNUSED_ARG,
+			      const reiser4_key * to_key,
 			      reiser4_key * smallest_removed)
 {
  	reiser4_extent * ext;
@@ -563,6 +544,7 @@ static int cut_or_kill_units (tree_coord * coord,
 	unsigned blocksize;
 	reiser4_block_nr offset;
 	unsigned count;
+	__u64 cut_from_to;
 
 
 	count = *to - *from + 1;
@@ -590,47 +572,36 @@ static int cut_or_kill_units (tree_coord * coord,
 						   extent_size (coord, *from)));
 	}
 
+	cut_from_to = 0;
+
 	/* it may happen that extent @from will not be removed */
 	if (from_key) {
-		/*
-		 * @to_key must be not 0 if @from_key is not
-		 */
-		assert ("vs-311", to_key);
-		if (!cut) {
-			/*
-			 * we are removing item from the tree (not shift to
-			 * neighbor), therefore, item is supposed to be cut
-			 * down to the end
-			 */
-			assert ("vs-402", *to == last_unit_pos (coord));
-			assert ("vs-404",
-				({ reiser4_key last_key;
-				
-				last_key_in_extent (coord, &last_key);
-				set_key_offset (&last_key, get_key_offset (&last_key) - 1);
-				keycmp (to_key, &last_key) != LESS_THAN;
-				}));
-			/*
-			 * @from_key must be less than key of @from + 1 unit
-			 */
-			assert ("vs-308",
-				({
-					set_key_offset (&key, (offset +
-							       extent_size (coord, *from + 1)));
-					keycmp (from_key, &key) == LESS_THAN;
-				}));
-		}
+		reiser4_key key_inside;
 
-		
-		set_key_offset (&key, (offset +
-				       extent_size (coord, *from)));
-		if (keycmp (from_key, &key) == GREATER_THAN) {
+		/* when @from_key (and @to_key) are specified things become
+		 * more complex. It may happen that @from-th or @to-th extent
+		 * will only decrease their width */
+
+		assert ("vs-311", to_key);
+
+		key_inside = key;
+		set_key_offset (&key_inside, (offset +
+					      extent_size (coord, *from)));
+		if (keycmp (from_key, &key_inside) == GREATER_THAN) {
 			/*
-			 * @from-th extent can not be removed. Its width may
-			 * have to be decreased in accordance with @from_key
+			 * @from-th extent can not be removed. Its width has to
+			 * be decreased in accordance with @from_key
 			 */
 			reiser4_block_nr new_width;
 			reiser4_block_nr first;
+
+			/* cut from the middle of extent item is not allowed,
+			 * make sure that the rest of item gets cut
+			 * completely */
+			assert ("vs-612", *to == last_unit_pos (coord));
+			assert ("vs-613",
+				keycmp (to_key, extent_max_key (coord, &key_inside)) !=
+				LESS_THAN);
 
 			ext = extent_item (coord) + *from;
 			first = offset + extent_size (coord, *from);
@@ -650,6 +621,43 @@ static int cut_or_kill_units (tree_coord * coord,
 			if (smallest_removed) {
 				set_key_offset (smallest_removed, get_key_offset (from_key));
 			}
+		}
+
+		set_key_offset (&key_inside, (offset +
+					      extent_size (coord, *to + 1)));
+		set_key_offset (&key_inside, get_key_offset (&key_inside) - 1);
+		if (keycmp (to_key, &key_inside) == LESS_THAN) {
+			/* @to-th unit can not be removed completely */
+			
+			reiser4_block_nr new_width;
+
+			/* cut from the middle of extent item is not allowed,
+			 * make sure that head of item gets cut and cut is
+			 * aligned to block boundary */
+			assert ("vs-614", *from == 0);
+			assert ("vs-615", keycmp (from_key, &key) != GREATER_THAN);
+			assert ("vs-616", ((get_key_offset (to_key) + 1) & 
+					   (blocksize - 1)) == 0);
+
+			ext = extent_item (coord) + *to;
+
+			new_width = (get_key_offset (&key_inside) -
+				     get_key_offset (to_key)) / blocksize;
+
+			cut_from_to = (extent_get_width (ext) - new_width) * blocksize;
+
+			assert ("vs-617", new_width > 0 && new_width < extent_get_width (ext));
+			if (state_of_extent (ext) == ALLOCATED_EXTENT) {
+				/*
+				 * free blocks that are not addressed by this
+				 * extent anymore
+				 */
+				free_blocks (extent_get_start (ext),
+					     extent_get_width (ext) - new_width);
+			}
+			extent_set_width (ext, new_width);
+			(*to) --;
+			count --;
 		}
 	}
 
@@ -672,7 +680,8 @@ static int cut_or_kill_units (tree_coord * coord,
 		 */
 		item_key_by_coord (coord, &key);
 		set_key_offset (&key, (get_key_offset (&key) +
-				       extent_size (coord, count)));
+				       extent_size (coord, count) +
+				       cut_from_to));
 		node_plugin_by_node (coord->node)->update_item_key (coord, &key, 0);
 	}
 
@@ -905,6 +914,17 @@ static int add_extents (tree_coord * coord,
 					reiser4_get_current_sb ()->s_blocksize *
 					extent_get_width ((reiser4_extent *)data->data + i));
 		data->data += delta * sizeof (reiser4_extent);
+
+		{
+			reiser4_key tmp_key;
+
+			item_key_by_coord (coord, &tmp_key);
+			set_key_offset (&tmp_key, get_key_offset (&tmp_key) +
+					extent_size (coord,
+						     coord->unit_pos + 1));
+			assert ("vs-619", keycmp (key, &tmp_key) == EQUAL_TO);
+		}
+
 		return resize_item (coord, data, key, lh, 0/*flags*/);
 	}
 
@@ -980,7 +1000,7 @@ static int insert_first_block (tree_coord * coord, lock_handle * lh,
 	set_key_offset (&first_key, 0ull);
 
 	set_extent (&ext, UNALLOCATED_EXTENT, 1ull);
-	result = insert_extent_by_coord (coord, init_new_extent (&unit, &ext),
+	result = insert_extent_by_coord (coord, init_new_extent (&unit, &ext, 1),
 					 &first_key, lh);
 	if (result) {
 		return result;
@@ -1024,7 +1044,7 @@ static int append_one_block (tree_coord * coord,
 		   unallocated extent or is full */
 		set_extent (&new_ext, UNALLOCATED_EXTENT, 1ull);
 		result = add_extents (coord, lh, last_key_in_extent (coord, &key),
-				      init_new_extent (&unit, &new_ext));
+				      init_new_extent (&unit, &new_ext, 1));
 		if (result)
 			return result;
 		break;
@@ -1080,10 +1100,11 @@ static int plug_hole (tree_coord * coord, lock_handle * lh,
 
 	item_key_by_coord (coord, &key);
 	set_key_offset (&key, (get_key_offset (&key) + 
-			       extent_size (coord, (unsigned) coord->unit_pos)));
+			       extent_size (coord,
+					    (unsigned) coord->unit_pos + 1)));
 
 	coord->between = AFTER_UNIT;
-	return add_extents (coord, lh, &key, init_new_extent (&item, new_exts));
+	return add_extents (coord, lh, &key, init_new_extent (&item, new_exts, count));
 }
 
 
@@ -1236,6 +1257,19 @@ int extent_utmost_child_real_block ( const tree_coord *coord, sideof side, reise
 }
 
 
+/* plugin->u.item.b.real_max_key_inside */
+reiser4_key * extent_max_key (const tree_coord * coord, 
+			      reiser4_key * key)
+{
+	last_key_in_extent (coord, key);
+	assert ("vs-610", get_key_offset (key) &&
+		(get_key_offset (key) & 
+		 (reiser4_get_current_sb ()->s_blocksize - 1)) == 0);
+	set_key_offset (key, get_key_offset (key) - 1);
+	return key;
+}
+
+
 /* pointer to block for @bh exists in extent item and it is addressed by
    @coord. If it is hole - make unallocated extent for it. */
 static int overwrite_one_block (tree_coord * coord, lock_handle * lh,
@@ -1321,7 +1355,7 @@ static int add_hole (tree_coord * coord, lock_handle * lh,
 	/* compose body of hole extent */
 	set_extent (&new_ext, HOLE_EXTENT, hole_width);
 	/* prepare item data for insertion */
-	init_new_extent (&item, &new_ext);
+	init_new_extent (&item, &new_ext, 1);
 
 	result = 0;
 	if (todo == EXTENT_CREATE_HOLE) {
@@ -1398,7 +1432,8 @@ static int key_in_item (tree_coord * coord, reiser4_key * key)
 /* this is todo for regular reiser4 files which are made of extents
    only. Extents represent every byte of file body. One node may not have more
    than one extent item of one file */
-static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key)
+static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key,
+					   int to_block)
 {
 	reiser4_key coord_key;
 	tree_coord left, right;
@@ -1409,13 +1444,14 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 	fbb_offset = get_key_offset (key) & ~(reiser4_get_current_sb ()->s_blocksize - 1);
 
 	if (!znode_contains_key_lock (coord->node, key)) {
+		assert ("vs-602", !node_is_empty (coord->node));
 		coord_first_unit (&left, coord->node);
 		item_key_by_coord (&left, &coord_key);
 
 		if (keycmp (key, &coord_key) == LESS_THAN) {
 			/* if left neighbor of coord->node is unformatted node
 			 * of another file we can get here even if coord->node
-			 * does not key we are looking for */
+			 * does not contain key we are looking for */
 			if (znode_get_level (coord->node) == LEAF_LEVEL &&
 			    coord_is_before_item (coord, 0)) {
 				if (fbb_offset == 0)
@@ -1442,14 +1478,34 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 				return EXTENT_CREATE_HOLE;
 		}
 
+		item_key_by_coord (coord, &coord_key);
+
+		/* look at the item to the right of @coord*/
 		right = *coord;
 		if (coord_set_to_right (&right) == 0) {
+			reiser4_key right_key;
+
 			/* there is an item to the right of @coord */
-			item_key_by_coord (&right, &coord_key);
-			if (get_key_objectid (key) == get_key_objectid (&coord_key)) {
-				print_key ("RIGHT", &coord_key);
+			item_key_by_coord (&right, &right_key);
+			if (get_key_objectid (key) == get_key_objectid (&right_key)) {
+				/* this looks like a tail2extent in
+				 * progress. Make sure that writing @to_block
+				 * bytes we do not overlap with tail item of
+				 * this file which is in tree yet */
+				if (get_key_offset (key) + to_block <= get_key_offset (&right_key)) {
+					assert ("",
+						get_key_objectid (&coord_key) == get_key_objectid (key) &&
+						get_key_locality (&coord_key) == get_key_locality (key));
+					if (znode_get_level (coord->node) == TWIG_LEVEL)
+						return EXTENT_APPEND_BLOCK;
+					else {
+						assert ("", get_key_offset (key) == 0);
+						return EXTENT_FIRST_BLOCK;
+					}
+				}
+				print_key ("RIGHT", &right_key);
 				print_key ("FLOW KEY", key);
-				info ("extent_todo: "
+				info ("extent_what_todo: "
 				      "there is item of this file to the right "
 				      "of insertion coord\n");
 				return EXTENT_CANT_CONTINUE;
@@ -1458,7 +1514,23 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 			spin_lock_dk (current_tree);
 			if (get_key_objectid (znode_get_rd_key (coord->node)) ==
 			    get_key_objectid (&coord_key)) {
-				info ("extent_todo: there is item of this file "
+				/* this looks like a tail2extent in
+				 * progress. Make sure that writing @to_block
+				 * bytes we do not overlap with tail item of
+				 * this file which is in tree yet */
+				if (get_key_offset (key) + to_block <= get_key_offset (znode_get_rd_key (coord->node))) {
+					assert ("",
+						get_key_objectid (&coord_key) == get_key_objectid (key) &&
+						get_key_locality (&coord_key) == get_key_locality (key));
+					spin_unlock_dk (current_tree);
+					if (znode_get_level (coord->node) == TWIG_LEVEL)
+						return EXTENT_APPEND_BLOCK;
+					else {
+						assert ("", get_key_offset (key) == 0);
+						return EXTENT_FIRST_BLOCK;
+					}
+				}
+				info ("extent_what_todo: there is item of this file "
 				      "in right neighbor\n");
 				spin_unlock_dk (current_tree);
 				return EXTENT_CANT_CONTINUE;
@@ -1466,9 +1538,11 @@ static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key
 			spin_unlock_dk (current_tree);
 		}
 
+
+		/* look at the item to the left of @coord*/
 		left = *coord;
 		if (coord_set_to_left (&left)) {
-			info ("extent_todo: "
+			info ("extent_what_todo: "
 			      "no item to the left of insertion coord\n");
 			return EXTENT_RESEARCH;
 		}
@@ -1555,8 +1629,13 @@ static int prepare_write (tree_coord * coord, lock_handle * lh,
 			   page */
 			continue;
 
+		block_off = page_off & (blocksize - 1);
+		to_block = blocksize - block_off;
+		if (to_block > to_page)
+			to_block = to_page;
+
 		if (!buffer_mapped (bh)) {
-			todo = extent_what_todo (coord, &tmp_key);
+			todo = extent_what_todo (coord, &tmp_key, to_block);
 			switch (todo) {
 			case EXTENT_CREATE_HOLE:
 			case EXTENT_APPEND_HOLE:
@@ -1615,10 +1694,11 @@ static int prepare_write (tree_coord * coord, lock_handle * lh,
 		/* we can write to current buffer */
 		assert ("vs-340", buffer_mapped (bh));
 
-		block_off = page_off & (blocksize - 1);
+/*		block_off = page_off & (blocksize - 1);
 		to_block = blocksize - block_off;
 		if (to_block > to_page)
 			to_block = to_page;
+*/
 		if (buffer_allocated (bh) &&
 		    !buffer_uptodate (bh) &&
 		    !overwritten_entirely (page->mapping->host->i_size,
@@ -1703,70 +1783,75 @@ static int commit_write (struct page * page, reiser4_block_nr file_off,
  * is done in one modification of extent?
  */
 int extent_write (struct inode * inode, tree_coord * coord,
-		  lock_handle * lh, flow_t * f)
+		  lock_handle * lh, flow_t * f, struct page * page)
 {
 	int result;
-	struct page * page;
 	reiser4_block_nr file_off; /* offset within a file we write to */
 	reiser4_block_nr blocksize;
 	int research = 0;
 	char * p_data;
 	unsigned count;
+	int written;
 
 
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
 	file_off = get_key_offset (&f->key);
-
+	written = 0;
 	while (f->length) {
-		if (f->what == USER_BUF) {
+		if (f->user == 1) {
+			assert ("vs-586", !page);
 			page = grab_cache_page (inode->i_mapping,
 						(unsigned long)(file_off >> PAGE_SHIFT));
 			if (!page) {
 				return -ENOMEM;
 			}
 			/* Capture the page. */
+/*
 			result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 			if (result != 0) {
 				goto capture_failed;
 			}
+*/
 			p_data = kmap (page);
 		} else {
 			/* tail2extent is in progress */
-			page = f->data.page;
 		}
 
 		count = f->length;
 		result = prepare_write (coord, lh, page, &f->key, &count);
 		if (result && result != -EAGAIN) {
 			/* error occurred */
-			if (f->what == USER_BUF) {
+			if (f->user == 1) {
 				kunmap (page);
 			capture_failed:
-				UnlockPage (page);
+				unlock_page (page);
 				page_cache_release (page);
-				return result;
 			}
+			return result;
 		}
 
 		if (result == -EAGAIN)
 			/* not entire page is prepared for writing into it */
 			research = 1;
 
-		if (f->what == USER_BUF) {
+		if (f->user == 1) {
 			result = __copy_from_user (p_data + (file_off & ~PAGE_MASK),
-						   f->data.user_buf, count);
+						   f->data, count);
 			flush_dcache_page (page);
 			
 			commit_write (page, file_off, count);
 
 			kunmap (page);
-			UnlockPage (page);
+			unlock_page (page);
 			page_cache_release (page);
 			if (result)
 				return result;
+			/* this is to grab next page */
+			page = 0;
 		}
 
 		file_off += count;
+		written += count;
 		move_flow_forward (f, count);
 		if (research)
 			return -EAGAIN;
@@ -2012,7 +2097,7 @@ int extent_readpage (void * p, struct page * page)
 		 * there is nothing to read
 		 */
 		SetPageUptodate (page);
-		UnlockPage (page);
+		unlock_page (page);
 	} else {
 		/*
 		 * start read for not uptodate buffers of the page
@@ -2162,10 +2247,12 @@ int extent_read (struct inode * inode, tree_coord * coord,
 	}
 
 	/* Capture the page. */
+/*
 	result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
 	if (result != 0) {
 		goto capture_failed;
 	}
+*/
 	
 	/* position within the page to read from */
 	page_off = (get_key_offset (&f->key) & ~PAGE_MASK);
@@ -2183,8 +2270,8 @@ int extent_read (struct inode * inode, tree_coord * coord,
 		count = f->length;
 
 	kaddr = kmap (page);
-	assert ("vs-572", f->what == USER_BUF);
-	result = __copy_to_user (f->data.user_buf, kaddr + page_off, count);
+	assert ("vs-572", f->user == 1);
+	result = __copy_to_user (f->data, kaddr + page_off, count);
 	kunmap (page);
 
  capture_failed:
@@ -2276,7 +2363,7 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 			bh = bh->b_this_page;
 		} while (count && bh != page->buffers);
 
-		UnlockPage (page);
+		unlock_page (page);
 		page_cache_release (page);
 		if (!count)
 			break;
@@ -2565,7 +2652,7 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 			 * it is
 			 */
 			result = put_unit_to_end (left, &key,
-						  init_new_extent (&data, ext));
+						  init_new_extent (&data, ext, 1));
 			if (result == -ENOSPC) {
 				/*
 				 * left->node does not have enough free space
@@ -2626,7 +2713,7 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 
 			result = put_unit_to_end (left, &key,
 						  init_new_extent (&data,
-								   &new_ext));
+								   &new_ext, 1));
 			if (result == -ENOSPC) {
 				/*
 				 * left->node is full, free blocks we grabbed
@@ -2684,7 +2771,7 @@ static int paste_unallocated_extent (tree_coord * item, reiser4_key * key,
 	/*
 	 * have paste_into_item to not shift anything to left
 	 */
-	result = resize_item (&coord, init_new_extent (&data, &new_ext), key,
+	result = resize_item (&coord, init_new_extent (&data, &new_ext, 1), key,
 			      0/*lh*/, COPI_DONT_SHIFT_LEFT);
 	done_coord (&coord);
 	return result;
