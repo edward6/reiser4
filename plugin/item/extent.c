@@ -1567,7 +1567,7 @@ static int key_in_item (coord_t * coord, reiser4_key * key)
    only. Extents represent every byte of file body. One node may not have more
    than one extent item of one file */
 /* Audited by: green(2002.06.13) */
-static extent_write_todo extent_what_todo (const coord_t * coord,
+static extent_write_todo extent_what_todo (coord_t * coord,
 					   const reiser4_key * key,
 					   int to_block)
 {
@@ -1579,6 +1579,10 @@ static extent_write_todo extent_what_todo (const coord_t * coord,
 	if (ZF_ISSET (coord->node, ZNODE_HEARD_BANSHEE))
 		/* znode is not in tree already */
 		return EXTENT_RESEARCH;
+
+	/* FIXME-VS: do not check value returned by coord_set_properly, because
+	 * it is possible that znode does not contain key but still */
+	coord_set_properly (key, coord);
 
 	/* offset of First Byte of Block key->offset falls to */
 	fbb_offset = get_key_offset (key) & ~(current_blocksize - 1);
@@ -1869,8 +1873,7 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 			to_block = left;
 		assert ("vs-698", j);
 		if (!jnode_mapped (j)) {
-			/* make sure that this block has a pointer from extent
-			 * item */
+			assert ("vs-734", znode_is_loaded (coord->node));
 			result = extent_get_create_block (coord, lh, &f->key,
 							  j, to_block);
 			if (result) {
