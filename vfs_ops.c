@@ -1843,44 +1843,39 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 /** ->releasepage method for reiser4 */
 int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 {
-	jnode *node;
-	int    result;
-
-	REISER4_ENTRY( page -> mapping -> host -> i_sb );
+	jnode        *node;
+	int           result;
+	reiser4_tree *tree;
 
 	assert( "nikita-2257", PagePrivate( page ) );
 	assert( "nikita-2259", PageLocked( page ) );
 	node = jnode_by_page( page );
 	assert( "nikita-2258", node != NULL );
 
-	result = 0;
-	if( !PageDirty( page ) && page_count( page ) <= 3) {
+	tree = get_tree( page -> mapping -> host -> i_sb );
 
-		spin_lock_jnode( node );
+	write_lock( &page -> mapping -> page_lock );
+	spin_lock_tree( tree );
 
-		assert( "nikita-2264", !jnode_is_dirty( node ) );
+	if( ( atomic_read( &node -> x_count ) == 0 ) && !PageDirty( page ) ) {
 		if( node -> atom == NULL ) {
 			/*
 			 * page is free-able: one reference from page cache
-			 * itself and another from ->private field(Third
+			 * itself and another from ->private field. Third
 			 * reference is temporary acquired by
 			 * shrink_cache(). Jnode could be detached already, so
 			 * there could be only 2 references to this page.
 			 */
-			assert( "nikita-2262", page_count( page ) >= 2 );
-
 			page_detach_jnode( page );
-			assert( "nikita-2261", page_count( page ) == 2 );
-
-			/*
-			 * this page is just about to be recycled by
-			 * shrink_cache()
-			 */
-			/* result = 1; */
-		}
-		spin_unlock_jnode( node );
+			result = 1;
+		} else
+			result = 0;
 	}
-	REISER4_EXIT( result );
+
+	spin_unlock_tree( tree );
+	write_unlock( &page -> mapping -> page_lock );
+
+	return result;
 }
 
 int reiser4_writepages( struct address_space *mapping UNUSED_ARG, 
