@@ -4371,6 +4371,22 @@ txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 
 
 #if REISER4_DEBUG_OUTPUT
+
+reiser4_internal void
+info_atom(const char *prefix, const txn_atom * atom)
+{
+	if (atom == NULL) {
+		printk("%s: no atom\n", prefix);
+		return;
+	}
+
+	printk("%s: refcount: %i id: %i flags: %x txnh_count: %i"
+	       " capture_count: %i stage: %x start: %lu, flushed: %i\n", prefix,
+	       atomic_read(&atom->refcount), atom->atom_id, atom->flags, atom->txnh_count,
+	       atom->capture_count, atom->stage, atom->start_time, atom->flushed);
+}
+
+
 reiser4_internal void
 print_atom(const char *prefix, txn_atom * atom)
 {

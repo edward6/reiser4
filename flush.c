@@ -474,7 +474,7 @@ static int write_prepped_nodes (flush_pos_t * pos, int check_congestion)
 	/* trace_mark(flush); */
 	write_current_logf(WRITE_IO_LOG, "mark=flush\n");
 
-	ret = write_fq(pos->fq, pos->nr_written, 
+	ret = write_fq(pos->fq, pos->nr_written,
 		       WRITEOUT_SINGLE_STREAM | WRITEOUT_FOR_PAGE_RECLAIM);
 	flush_started_io();
 	return ret;
@@ -3646,6 +3646,94 @@ reiser4_internal flush_queue_t * pos_fq(flush_pos_t * pos)
 
 const char *coord_tween_tostring(between_enum n);
 
+reiser4_internal void
+jnode_tostring_internal(jnode * node, char *buf)
+{
+	const char *state;
+	char atom[32];
+	char block[48];
+	char items[32];
+	int fmttd;
+	int dirty;
+	int lockit;
+
+	lockit = spin_trylock_jnode(node);
+
+	fmttd = jnode_is_znode(node);
+	dirty = JF_ISSET(node, JNODE_DIRTY);
+
+	sprintf(block, " block=%s page=%p state=%lx", sprint_address(jnode_get_block(node)), node->pg, node->state);
+
+	if (JF_ISSET(node, JNODE_OVRWR)) {
+		state = dirty ? "wandr,dirty" : "wandr";
+	} else if (JF_ISSET(node, JNODE_RELOC) && JF_ISSET(node, JNODE_CREATED)) {
+		state = dirty ? "creat,dirty" : "creat";
+	} else if (JF_ISSET(node, JNODE_RELOC)) {
+		state = dirty ? "reloc,dirty" : "reloc";
+	} else if (JF_ISSET(node, JNODE_CREATED)) {
+		assert("jmacd-61554", dirty);
+		state = "fresh";
+		block[0] = 0;
+	} else {
+		state = dirty ? "dirty" : "clean";
+	}
+
+	if (node->atom == NULL) {
+		atom[0] = 0;
+	} else {
+		sprintf(atom, " atom=%u", node->atom->atom_id);
+	}
+
+	items[0] = 0;
+	if (!fmttd) {
+		sprintf(items, " index=%lu", index_jnode(node));
+	}
+
+	sprintf(buf + strlen(buf),
+		"%s=%p [%s%s%s level=%u%s%s]",
+		fmttd ? "z" : "j",
+		node,
+		state, atom, block, jnode_get_level(node), items, JF_ISSET(node, JNODE_FLUSH_QUEUED) ? " fq" : "");
+
+	if (lockit == 1) {
+		UNLOCK_JNODE(node);
+	}
+}
+
+#if REISER4_TRACE
+reiser4_internal const char *
+jnode_tostring(jnode * node)
+{
+	static char fmtbuf[256];
+	fmtbuf[0] = 0;
+	jnode_tostring_internal(node, fmtbuf);
+	return fmtbuf;
+}
+#endif
+
+reiser4_internal const char *
+znode_tostring(znode * node)
+{
+	return jnode_tostring(ZJNODE(node));
+}
+
+reiser4_internal const char *
+flags_tostring(int flags)
+{
+	switch (flags) {
+	case JNODE_FLUSH_WRITE_BLOCKS:
+		return "(write blocks)";
+	case JNODE_FLUSH_COMMIT:
+		return "(commit)";
+	case JNODE_FLUSH_MEMORY_FORMATTED:
+		return "(memory-z)";
+	case JNODE_FLUSH_MEMORY_UNFORMATTED:
+		return "(memory-j)";
+	default:
+		return "(unknown)";
+	}
+}
+
 reiser4_internal const char *
 pos_tostring(flush_pos_t * pos)
 {
@@ -3694,6 +3782,7 @@ pos_tostring(flush_pos_t * pos)
 	done_load_count(&load);
 	return fmtbuf;
 }
+
 
 /* Make Linus happy.
    Local variables:

@@ -101,6 +101,10 @@ print_key(const char *prefix /* prefix to print */ ,
 			       get_key_band(key),
 			       get_key_objectid(key),
 			       get_key_offset(key));
+		/*
+		 * if this is a key of directory entry, try to decode part of
+		 * a name stored in the key, and output it.
+		 */
 		if (get_key_type(key) == KEY_FILE_NAME_MINOR) {
 			char buf[DE_NAME_BUF_LEN];
 			char *c;
@@ -110,8 +114,14 @@ print_key(const char *prefix /* prefix to print */ ,
 			unpack_string(get_key_fulloid(key), c);
 			printk("[%s", buf);
 			if (is_longname_key(key))
+				/*
+				 * only part of the name is stored in the key.
+				 */
 				printk("...]\n");
 			else {
+				/*
+				 * whole name is stored in the key.
+				 */
 				unpack_string(get_key_offset(key), buf);
 				printk("%s]\n", buf);
 			}
@@ -125,6 +135,7 @@ print_key(const char *prefix /* prefix to print */ ,
 
 #endif
 
+/* like print_key() but outputs key representation into @buffer. */
 reiser4_internal int
 sprintf_key(char *buffer /* buffer to print key into */ ,
 	    const reiser4_key * key /* key to print */ )

@@ -3,6 +3,31 @@
 
 /* Debugging facilities. */
 
+/*
+ * This file contains generic debugging functions used by reiser4. Roughly
+ * following:
+ *
+ *     panicking: reiser4_do_panic(), reiser4_print_prefix().
+ *
+ *     locking: schedulable(), lock_counters(), print_lock_counters(),
+ *     no_counters_are_held(), commit_check_locks()
+ *
+ *     {debug,trace,log}_flags: reiser4_are_all_debugged(),
+ *     reiser4_is_debugged(), get_current_trace_flags(),
+ *     get_current_log_flags().
+ *
+ *     kmalloc/kfree leak detection: reiser4_kmalloc(), reiser4_kfree(),
+ *     reiser4_kfree_in_sb().
+ *
+ *     error code monitoring (see comment before RETERR macro): return_err(),
+ *     report_err().
+ *
+ *     stack back-tracing: fill_backtrace()
+ *
+ *     miscellaneous: preempt_point(), call_on_each_assert(), debugtrap().
+ *
+ */
+
 #include "kattr.h"
 #include "reiser4.h"
 #include "context.h"
@@ -19,11 +44,16 @@
 #include <linux/ctype.h>
 #include <linux/sysctl.h>
 
-__u32 reiser4_current_trace_flags = 0;
-
 extern void cond_resched(void);
 
+/*
+ * global buffer where message given to reiser4_panic is formatted.
+ */
 static char panic_buf[REISER4_PANIC_MSG_BUFFER_SIZE];
+
+/*
+ * lock protecting consistency of panic_buf under concurrent panics
+ */
 static spinlock_t panic_guard = SPIN_LOCK_UNLOCKED;
 
 /* Your best friend. Call it on each occasion.  This is called by
@@ -34,6 +64,9 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 	static int in_panic = 0;
 	va_list args;
 
+	/*
+	 * check for recursive panic.
+	 */
 	if (in_panic == 0) {
 		in_panic = 1;
 
@@ -44,25 +77,50 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 		printk(KERN_EMERG "reiser4 panicked cowardly: %s", panic_buf);
 		spin_unlock(&panic_guard);
 
+		/*
+		 * if kernel debugger is configured---drop in. Early dropping
+		 * into kgdb is not always convenient, because panic message
+		 * is not yet printed most of the times. But:
+		 *
+		 *     (1) message can be extracted from printk_buf[]
+		 *     (declared static inside of printk()), and
+		 *
+		 *     (2) sometimes serial/kgdb combo dies while printing
+		 *     long panic message, so it's more prudent to break into
+		 *     debugger earlier.
+		 *
+		 */
 		DEBUGON(1);
 
-		/* do something more impressive here, print content of
-		   get_current_context() */
 		if (get_current_context_check() != NULL) {
 			struct super_block *super;
 			reiser4_context *ctx;
 
+			/*
+			 * if we are within reiser4 context, print it contents:
+			 */
+
+			/* lock counters... */
 			print_lock_counters("pins held", lock_counters());
+			/* other active contexts... */
 			print_contexts();
 			ctx = get_current_context();
 			super = ctx->super;
 			if (get_super_private(super) != NULL &&
 			    reiser4_is_debugged(super, REISER4_VERBOSE_PANIC))
+				/* znodes... */
 				print_znodes("znodes", current_tree);
 #if REISER4_DEBUG_CONTEXTS
 			{
 				extern spinlock_t active_contexts_lock;
 
+				/*
+				 * remove context from the list of active
+				 * contexts. This is precaution measure:
+				 * current is going to die, and leaving
+				 * context on the list would render latter
+				 * corrupted.
+				 */
 				spin_lock(&active_contexts_lock);
 				context_list_remove(ctx->parent);
 				spin_unlock(&active_contexts_lock);
@@ -136,6 +194,9 @@ lock_counters(void)
 }
 
 #if REISER4_DEBUG_OUTPUT
+/*
+ * print human readable information about locks held by the reiser4 context.
+ */
 void
 print_lock_counters(const char *prefix, const lock_counters_info * info)
 {
@@ -179,6 +240,9 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	       info->d_refs, info->x_refs, info->t_refs);
 }
 
+/*
+ * return true, iff no locks are held.
+ */
 int
 no_counters_are_held(void)
 {
@@ -207,6 +271,10 @@ no_counters_are_held(void)
 		(counters->inode_sem_w == 0);
 }
 
+/*
+ * return true, iff transaction commit can be done under locks held by the
+ * current thread.
+ */
 int
 commit_check_locks(void)
 {
@@ -214,6 +282,11 @@ commit_check_locks(void)
 	int inode_sem_r;
 	int inode_sem_w;
 	int result;
+
+	/*
+	 * inode's read/write semaphore is the only reiser4 lock that can be
+	 * held during commit.
+	 */
 
 	counters = lock_counters();
 	inode_sem_r = counters->inode_sem_r;
@@ -232,12 +305,20 @@ commit_check_locks(void)
 /* REISER4_DEBUG_SPIN_LOCKS */
 #endif
 
+/*
+ * check that all bits specified by @flags are set in ->debug_flags of the
+ * super block.
+ */
 reiser4_internal int
 reiser4_are_all_debugged(struct super_block *super, __u32 flags)
 {
 	return (get_super_private(super)->debug_flags & flags) == flags;
 }
 
+/*
+ * check that some bits specified by @flags are set in ->debug_flags of the
+ * super block.
+ */
 reiser4_internal int
 reiser4_is_debugged(struct super_block *super, __u32 flag)
 {
@@ -317,6 +398,9 @@ reiser4_kfree(void *area /* memory to from */)
 	return reiser4_kfree_in_sb(area, reiser4_get_current_sb());
 }
 
+/* release memory allocated by reiser4_kmalloc() for the specified
+ * super-block. This is useful when memory is released outside of reiser4
+ * context */
 reiser4_internal void
 reiser4_kfree_in_sb(void *area /* memory to from */, struct super_block *sb)
 {
@@ -347,6 +431,10 @@ void __you_cannot_kmalloc_that_much(void)
 
 #if REISER4_DEBUG
 
+/*
+ * fill "error site" in the current reiser4 context. See comment before RETERR
+ * macro for more details.
+ */
 void
 return_err(int code, const char *file, int line)
 {
@@ -363,6 +451,9 @@ return_err(int code, const char *file, int line)
 	}
 }
 
+/*
+ * report error information recorder by return_err().
+ */
 void
 report_err(void)
 {
@@ -383,20 +474,36 @@ report_err(void)
 }
 
 #ifdef CONFIG_FRAME_POINTER
+
 extern int kswapd(void *);
 
 #include <linux/personality.h>
 #include "ktxnmgrd.h"
 
-struct repacker;
-extern int reiser4_repacker(struct repacker *);
-extern int repacker_d(void*);
-
+/*
+ * true iff @addr is between @start and @end
+ */
 static int is_addr_in(void *addr, void *start, void *end)
 {
 	return start < addr && addr < end;
 }
 
+/*
+ * stack back-tracing. Also see comments before REISER4_BACKTRACE_DEPTH in
+ * debug.h.
+ *
+ * Stack beck-trace is collected through __builtin_return_address() gcc
+ * builtin, which requires kernel to be compiled with frame pointers
+ * (CONFIG_FRAME_POINTER). Unfortunately, __builtin_return_address() doesn't
+ * provide means to detect when bottom of the stack is reached, and just
+ * crashed when trying to access non-existent frame.
+ *
+ * is_last_frame() function works around this (also see more advanced version
+ * in the proc-sleep patch that requires modification of core kernel code).
+ *
+ * This functions checks for common cases trying to detect that last stack
+ * frame was reached.
+ */
 static int is_last_frame(void *addr)
 {
 	if (addr == NULL)
@@ -413,6 +520,9 @@ static int is_last_frame(void *addr)
 		return 0;
 }
 
+/*
+ * fill stack back-trace.
+ */
 reiser4_internal void
 fill_backtrace(backtrace_path *path, int depth, int shift)
 {
@@ -431,6 +541,12 @@ fill_backtrace(backtrace_path *path, int depth, int shift)
 
 	xmemset(path, 0, sizeof *path);
 	addr = NULL;
+	/*
+	 * we need this silly loop, because __builtin_return_address() only
+	 * accepts _constant_ arguments. It reminds of the duff device
+	 * (http://www.faqs.org/docs/jargon/D/Duff's-device.html) which
+	 * explains the reference above.
+	 */
 	for (i = 0; i < depth; ++ i) {
 		switch(i + shift) {
 			FRAME(0);
@@ -454,6 +570,11 @@ fill_backtrace(backtrace_path *path, int depth, int shift)
 }
 #endif
 
+/*
+ * assert() macro calls this function on each invocation. This is convenient
+ * place to put some debugging code that has to be executed very
+ * frequently. _Very_.
+ */
 void call_on_each_assert(void)
 {
 	return;
@@ -474,6 +595,10 @@ void call_on_each_assert(void)
 #endif
 
 #if KERNEL_DEBUGGER
+/*
+ * this functions just drops into kernel debugger. It is a convenient place to
+ * put breakpoint in.
+ */
 void debugtrap(void)
 {
 	/* do nothing. Put break point here. */
@@ -483,111 +608,6 @@ void debugtrap(void)
 #endif
 }
 #endif
-
-#if REISER4_DEBUG_OUTPUT
-reiser4_internal void
-info_atom(const char *prefix, const txn_atom * atom)
-{
-	if (atom == NULL) {
-		printk("%s: no atom\n", prefix);
-		return;
-	}
-
-	printk("%s: refcount: %i id: %i flags: %x txnh_count: %i"
-	       " capture_count: %i stage: %x start: %lu, flushed: %i\n", prefix,
-	       atomic_read(&atom->refcount), atom->atom_id, atom->flags, atom->txnh_count,
-	       atom->capture_count, atom->stage, atom->start_time, atom->flushed);
-}
-
-#endif
-
-const char *coord_tween_tostring(between_enum n);
-
-reiser4_internal void
-jnode_tostring_internal(jnode * node, char *buf)
-{
-	const char *state;
-	char atom[32];
-	char block[48];
-	char items[32];
-	int fmttd;
-	int dirty;
-	int lockit;
-
-	lockit = spin_trylock_jnode(node);
-
-	fmttd = jnode_is_znode(node);
-	dirty = JF_ISSET(node, JNODE_DIRTY);
-
-	sprintf(block, " block=%s page=%p state=%lx", sprint_address(jnode_get_block(node)), node->pg, node->state);
-
-	if (JF_ISSET(node, JNODE_OVRWR)) {
-		state = dirty ? "wandr,dirty" : "wandr";
-	} else if (JF_ISSET(node, JNODE_RELOC) && JF_ISSET(node, JNODE_CREATED)) {
-		state = dirty ? "creat,dirty" : "creat";
-	} else if (JF_ISSET(node, JNODE_RELOC)) {
-		state = dirty ? "reloc,dirty" : "reloc";
-	} else if (JF_ISSET(node, JNODE_CREATED)) {
-		assert("jmacd-61554", dirty);
-		state = "fresh";
-		block[0] = 0;
-	} else {
-		state = dirty ? "dirty" : "clean";
-	}
-
-	if (node->atom == NULL) {
-		atom[0] = 0;
-	} else {
-		sprintf(atom, " atom=%u", node->atom->atom_id);
-	}
-
-	items[0] = 0;
-	if (!fmttd) {
-		sprintf(items, " index=%lu", index_jnode(node));
-	}
-
-	sprintf(buf + strlen(buf),
-		"%s=%p [%s%s%s level=%u%s%s]",
-		fmttd ? "z" : "j",
-		node,
-		state, atom, block, jnode_get_level(node), items, JF_ISSET(node, JNODE_FLUSH_QUEUED) ? " fq" : "");
-
-	if (lockit == 1) {
-		UNLOCK_JNODE(node);
-	}
-}
-
-reiser4_internal const char *
-jnode_tostring(jnode * node)
-{
-	static char fmtbuf[256];
-	fmtbuf[0] = 0;
-	jnode_tostring_internal(node, fmtbuf);
-	return fmtbuf;
-}
-
-reiser4_internal const char *
-znode_tostring(znode * node)
-{
-	return jnode_tostring(ZJNODE(node));
-}
-
-reiser4_internal const char *
-flags_tostring(int flags)
-{
-	switch (flags) {
-	case JNODE_FLUSH_WRITE_BLOCKS:
-		return "(write blocks)";
-	case JNODE_FLUSH_COMMIT:
-		return "(commit)";
-	case JNODE_FLUSH_MEMORY_FORMATTED:
-		return "(memory-z)";
-	case JNODE_FLUSH_MEMORY_UNFORMATTED:
-		return "(memory-j)";
-	default:
-		return "(unknown)";
-	}
-}
 
 /* Make Linus happy.
    Local variables:

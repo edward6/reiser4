@@ -30,6 +30,12 @@
  * (For some reasons we also add /sys/fs and /sys/fs/reiser4 manually, but
  * this is supposed to be done by core.)
  *
+ * Our kattr.[ch] code depends on some additional functionality missing in the
+ * core kernel. This functionality is added in kobject-umount-race.patch from
+ * our core-patches repository. As it's obvious from its name this patch adds
+ * protection against /sys/fs/reiser4/<dev>/ * accesses and concurrent umount
+ * of <dev>. See commentary in this patch for more details.
+ *
  * Shouldn't struct kobject be renamed to struct knobject?
  *
  */
@@ -44,19 +50,67 @@
 
 #if REISER4_USE_SYSFS
 
+/*
+ * Super-block fields exporting.
+ *
+ * Many fields of reiser4-private part of super-block
+ * (fs/reiser4/super.h:reiser4_super_info_data) are exported through
+ * sysfs. Code below tries to minimize code duplication for this common case.
+ *
+ * Specifically, all fields that are "scalars" (i.e., basically integers) of
+ * 32 or 64 bits are handled by the same ->show() and ->store()
+ * functions. Each such field is represented by two pieces of data:
+ *
+ *     1. super_field_cookie, and
+ *
+ *     2. reiser4_kattr.
+ *
+ * super_field_cookie contains "field description":
+ *
+ *     1. field offset in bytes from the beginning of reiser4-specific portion
+ *     of super block, and
+ *
+ *     2. printf(3) format to show field content in ->show() function.
+ *
+ * reiser4_kattr is standard object we are using to embed struct fs_attribute
+ * in. It stores pointer to the corresponding super_field_cookie. Also
+ * reiser4_kattr contains ->store and ->show function pointers that are set
+ * according to field width and desired access rights to
+ * {show,store}_{ro,rw}_{32,64}().
+ *
+ * These functions use super_field_cookie (stored in ->cookie field of
+ * reiser4_kattr) to obtain/store value of field involved and format it
+ * properly.
+ *
+ */
+
 /* convert @attr to reiser4_kattr object it is embedded in */
 typedef struct {
+	/* offset in bytes to the super-block field from the beginning of
+	 * reiser4_super_info_data */
 	ptrdiff_t   offset;
+	/* desired printf(3) format for ->show() method. */
 	const char *format;
 } super_field_cookie;
 
-#define DEFINE_SUPER_F(aname, afield, aformat, asize, ashow, astore, amode) \
+/*
+ * This macro defines super_field_cookie and reiser4_kattr for given
+ * super-block field.
+ */
+#define DEFINE_SUPER_F(aname /* unique identifier used to generate variable \
+			      * names */,				\
+	  afield /* name of super-block field */,			\
+	  aformat /* desired ->show() format */,			\
+	  asize /* field size (as returned by sizeof()) */,		\
+	  ashow /* show method */,					\
+	  astore /* store method */,					\
+	  amode /* access method */)					\
 static super_field_cookie __cookie_ ## aname = {			\
 	.offset = offsetof(reiser4_super_info_data, afield),		\
 	.format = aformat "\n"						\
 };									\
 									\
-static reiser4_kattr kattr_super_ ## aname = {			\
+static reiser4_kattr kattr_super_ ## aname = {				\
 	.attr = {							\
 		.kattr = {						\
 			.name = (char *) #afield,			\
@@ -68,56 +122,93 @@ static reiser4_kattr kattr_super_ ## aname = {			\
 	.cookie = &__cookie_ ## aname					\
 }
 
+/*
+ * Specialized version of DEFINE_SUPER_F() used to generate description of
+ * read-only fields
+ */
 #define DEFINE_SUPER_RO(aname, afield, aformat, asize)			\
 	DEFINE_SUPER_F(aname,						\
 		       afield, aformat, asize, show_ro_ ## asize, NULL, 0440)
 
+/*
+ * Specialized version of DEFINE_SUPER_F() used to generate description of
+ * read-write fields
+ */
 #define DEFINE_SUPER_RW(aname, afield, aformat, asize)			\
 	DEFINE_SUPER_F(aname,						\
 		       afield, aformat, asize, show_ro_ ## asize,	\
 		       store_rw_ ## asize, 0660)
 
+/* helper macro: return field of type @type stored at the offset of @offset
+ * bytes from the @ptr. */
 #define getat(ptr, offset, type) *(type *)(((char *)(ptr)) + (offset))
+
+/* helper macro: modify value of field to @value. See getat() above for the
+ * meaning of other arguments */
 #define setat(ptr, offset, type, val)			\
 	({ *(type *)(((char *)(ptr)) + (offset)) = (val); })
 
+/* return cookie contained in reiser4_kattr that @attr is embedded into */
 static inline void *
 getcookie(struct fs_kattr *attr)
 {
 	return container_of(attr, reiser4_kattr, attr)->cookie;
 }
 
+/*
+ * ->show method for read-only 32bit scalar super block fields.
+ */
 static ssize_t
-show_ro_32(struct super_block * s,
-	   struct fs_kobject *o, struct fs_kattr * kattr, char * buf)
+show_ro_32(struct super_block * s /* super-block field belongs to */,
+	   struct fs_kobject *o /* object attribute of which @kattr is. */,
+	   struct fs_kattr * kattr /* file-system attribute that is
+				    * exported */,
+	   char * buf /* buffer to store field representation into */)
 {
 	char *p;
 	super_field_cookie *cookie;
 	__u32 val;
 
 	cookie = getcookie(kattr);
+	/* obtain field value from super-block, ... */
 	val = getat(get_super_private(s), cookie->offset, __u32);
 	p = buf;
+	/* and print it according to the format string specified in the
+	 * cookie */
 	KATTR_PRINT(p, buf, cookie->format, (unsigned long long)val);
 	return (p - buf);
 }
 
+/*
+ * ->store method for read-write 32bit scalar super-block fields.
+ */
 static ssize_t
-store_rw_32(struct super_block * s,
-	    struct fs_kobject *o, struct fs_kattr * kattr,
-	    const char * buf, size_t size)
+store_rw_32(struct super_block * s /* super-block field belongs to */,
+	    struct fs_kobject *o /* object attribute of which @kattr is. */,
+	    struct fs_kattr * kattr /* file-system attribute that is
+				    * exported */,
+	    const char * buf /* buffer to read field value from */,
+	    size_t size /* buffer size */)
 {
 	super_field_cookie *cookie;
 	__u32 val;
 
 	cookie = getcookie(kattr);
+	/* read value from the buffer */
 	if (sscanf(buf, "%i", &val) == 1)
+		/* if buffer contains well-formed value, update super-block
+		 * field. */
 		setat(get_super_private(s), cookie->offset, __u32, val);
 	else
 		size = RETERR(-EINVAL);
 	return size;
 }
 
+/*
+ * ->show method for read-only 64bit scalar super block fields.
+ *
+ * It's exactly like show_ro_32, mutatis mutandis.
+ */
 static ssize_t show_ro_64(struct super_block * s, struct fs_kobject *o,
 			  struct fs_kattr * kattr, char * buf)
 {
@@ -133,7 +224,7 @@ static ssize_t show_ro_64(struct super_block * s, struct fs_kobject *o,
 }
 
 #if 0
-/* not yet */
+/* We don't have writable 64bit attributes yet. */
 static ssize_t
 store_rw_64(struct super_block * s,
 	    struct fs_kobject *o, struct fs_kattr * kattr,
@@ -154,6 +245,14 @@ store_rw_64(struct super_block * s,
 #undef getat
 #undef setat
 
+/*
+ * Exporting reiser4 compilation options.
+ *
+ * reiser4 compilation options are exported through
+ * /sys/fs/<dev>/options. Read-only for now. :)
+ *
+ */
+
 #define SHOW_OPTION(p, buf, option)			\
 	if (option)					\
 		KATTR_PRINT((p), (buf), #option "\n")
@@ -165,6 +264,10 @@ show_options(struct super_block * s,
 	char *p;
 
 	p = buf;
+
+	/*
+	 * PLEASE update this when adding new compilation option
+	 */
 
 	SHOW_OPTION(p, buf, REISER4_DEBUG);
 	SHOW_OPTION(p, buf, REISER4_DEBUG_MODIFY);
@@ -179,6 +282,12 @@ show_options(struct super_block * s,
 	SHOW_OPTION(p, buf, REISER4_LARGE_KEY);
 	SHOW_OPTION(p, buf, REISER4_PROF);
 	SHOW_OPTION(p, buf, REISER4_COPY_ON_CAPTURE);
+	SHOW_OPTION(p, buf, REISER4_ALL_IN_ONE);
+	SHOW_OPTION(p, buf, REISER4_DEBUG_NODE_INVARIANT);
+	SHOW_OPTION(p, buf, REISER4_DEBUG_SPIN_LOCKS);
+	SHOW_OPTION(p, buf, REISER4_DEBUG_CONTEXTS);
+	SHOW_OPTION(p, buf, REISER4_DEBUG_SIBLING_LIST);
+
 	return (p - buf);
 }
 
@@ -192,6 +301,11 @@ static reiser4_kattr compile_options = {
 	},
 	.cookie = NULL
 };
+
+/*
+ * show a name of device on top of which reiser4 file system exists in
+ * /sys/fs/reiser4/<dev>/device.
+ */
 
 static ssize_t
 show_device(struct super_block * s,
@@ -216,6 +330,13 @@ static reiser4_kattr device = {
 };
 
 #if REISER4_DEBUG
+
+/*
+ * debugging code: break into debugger on each write into this file. Useful
+ * when event of importance can be detected in the user space, but not in the
+ * kernel.
+ */
+
 ssize_t store_bugme(struct super_block * s, struct fs_kobject *o,
 		    struct fs_kattr *ka, const char *buf, size_t size)
 {
@@ -236,6 +357,10 @@ static reiser4_kattr bugme = {
 
 /* REISER4_DEBUG */
 #endif
+
+/*
+ * Declare all super-block fields we want to export
+ */
 
 DEFINE_SUPER_RO(01, mkfs_id, "%#llx", 32);
 DEFINE_SUPER_RO(02, block_count, "%llu", 64);
@@ -325,18 +450,36 @@ struct kobj_type ktype_reiser4 = {
 
 #if REISER4_STATS
 
+/*
+ * Statistical counters exporting.
+ *
+ * When REISER4_STATS mode is on, reiser4 collects a lot of statistics. See
+ * stat.[ch] for more details. All these stat-counters are exported through
+ * sysfs in /sys/fs/reiser4/<dev>/stats/ directory. This directory contains
+ * "global" stat-counters and also level-* sub-directories for per-level
+ * counters (that is counters collected for specific levels of reiser4
+ * internal tree).
+ *
+ */
+
 static struct kobj_type ktype_noattr = {
 	.sysfs_ops	= &fs_attr_ops,
 	.default_attrs	= NULL,
 	.release        = NULL
 };
 
+/*
+ * register stat-counters for the level @i with sysfs. This is called during
+ * mount.
+ */
 static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 {
-	struct fs_kobject *parent;
-	struct fs_kobject *level;
+	struct fs_kobject *level   /* file system kobject representing @i-th
+				    * level*/;
+	struct fs_kobject *parent; /* it's parent in sysfs tree */
 	int result;
 
+	/* first, setup @level */
 	parent = &sbinfo->stats_kobj;
 	sbinfo->level[i].level = i;
 	level = &sbinfo->level[i].kobj;
@@ -344,8 +487,11 @@ static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 	if (level->kobj.parent != NULL) {
 		snprintf(level->kobj.name, KOBJ_NAME_LEN, "level-%2.2i", i);
 		level->kobj.ktype = &ktype_noattr;
+		/* register @level with sysfs */
 		result = fs_kobject_register(sbinfo->tree.super, level);
 		if (result == 0)
+			/* and ultimately populate it with attributes, that
+			 * is, stat-counters */
 			result = reiser4_populate_kattr_level_dir(&level->kobj);
 	} else
 		result = RETERR(-EBUSY);
@@ -356,14 +502,20 @@ static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 static decl_subsys(fs, NULL, NULL);
 decl_subsys(reiser4, &ktype_reiser4, NULL);
 
+/*
+ * initialization function called once during kernel boot-up, or reiser4
+ * module loading.
+ */
 reiser4_internal int
 reiser4_sysfs_init_once(void)
 {
 	int result;
 
+	/* add /sys/fs */
 	result = subsystem_register(&fs_subsys);
 	if (result == 0) {
 		kset_set_kset_s(&reiser4_subsys, fs_subsys);
+		/* add /sys/fs/reiser4 */
 		result = subsystem_register(&reiser4_subsys);
 		if (result == 0)
 			result = init_prof_kobject();
@@ -371,6 +523,10 @@ reiser4_sysfs_init_once(void)
 	return result;
 }
 
+/*
+ * shutdown function dual to reiser4_sysfs_init_once(). Called during module
+ * unload
+ */
 reiser4_internal void
 reiser4_sysfs_done_once(void)
 {
@@ -379,6 +535,9 @@ reiser4_sysfs_done_once(void)
 	done_prof_kobject();
 }
 
+/*
+ * initialization function called during mount of @super
+ */
 reiser4_internal int
 reiser4_sysfs_init(struct super_block *super)
 {
@@ -391,6 +550,9 @@ reiser4_sysfs_init(struct super_block *super)
 
 	kobj = &sbinfo->kobj;
 
+	/*
+	 * setup and register /sys/fs/reiser4/<dev> object
+	 */
 	snprintf(kobj->kobj.name, KOBJ_NAME_LEN, "%s", super->s_id);
 	kobj_set_kset_s(&sbinfo->kobj, reiser4_subsys);
 	result = fs_kobject_register(super, kobj);
@@ -439,6 +601,10 @@ reiser4_sysfs_done(struct super_block *super)
 
 /* REISER4_USE_SYSFS */
 #else
+
+/*
+ * Below are stubs for !REISER4_USE_SYSFS case. Do nothing.
+ */
 
 reiser4_internal int
 reiser4_sysfs_init(struct super_block *super)

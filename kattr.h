@@ -25,9 +25,14 @@ struct super_block;
 struct reiser4_kattr;
 typedef struct reiser4_kattr reiser4_kattr;
 
+/*
+ * reiser4_kattr represents a sysfs-exported attribute of reiser4 file system.
+ */
 struct reiser4_kattr {
-	struct fs_kattr attr;
-	void  *cookie;
+	struct fs_kattr attr; /* file-system attribute used to interact with
+			       * sysfs */
+	void  *cookie;        /* parameter used to avoid code duplication. See
+			       * kattr.c for explanation. */
 };
 
 extern int reiser4_sysfs_init_once(void);

@@ -1,6 +1,6 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* implementation of carry operations */
+/* implementation of carry operations. See carry_ops.c for details. */
 
 #if !defined( __CARRY_OPS_H__ )
 #define __CARRY_OPS_H__

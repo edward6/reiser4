@@ -11,7 +11,7 @@
 
 #include <linux/types.h>	/* for __u??  */
 
-/* Operations on keys in reiserfs tree */
+/* Operations on keys in reiser4 tree */
 
 /* No access to any of these fields shall be done except via a
    wrapping macro/function, and that wrapping macro/function shall
@@ -41,7 +41,7 @@ typedef enum {
    Physical order is determined by dynamic heuristics that attempt to reflect key order when allocating available space,
    and by the repacker.  It is stylistically better to put aggregation information into the key.  Thus, if you want to
    segregate extents from tails, it is better to give them distinct minor packing localities rather than changing
-   block_alloc.c to check the node type when deciding where to allocate the node.  
+   block_alloc.c to check the node type when deciding where to allocate the node.
 
    The need to randomly displace new directories and large files disturbs this symmetry unfortunately.  However, it
    should be noted that this is a need that is not clearly established given the existence of a repacker.  Also, in our
@@ -259,8 +259,17 @@ keycmp(const reiser4_key * k1 /* first key to compare */ ,
 {
 	cmp_t result;
 
+	/*
+	 * This function is the heart of reiser4 tree-routines. Key comparison
+	 * is among most heavily used operations in the file system.
+	 */
+
 	assert("nikita-439", k1 != NULL);
 	assert("nikita-440", k2 != NULL);
+
+	/* there is no actual branch here: condition is compile time constant
+	 * and constant folding and propagation ensures that only one branch
+	 * is actually compiled in. */
 
 	if (REISER4_PLANA_KEY_ALLOCATION) {
 		/* if physical order of fields in a key is identical

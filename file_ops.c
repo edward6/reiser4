@@ -311,9 +311,37 @@ reiser4_release(struct inode *i /* inode released */ ,
 	ON_TRACE(TRACE_VFS_OPS,
 		 "RELEASE: (i_ino %li, size %lld)\n", i->i_ino, i->i_size);
 
-	if (fplug->release)
+	if (fplug->release != NULL && get_current_context() == &ctx)
 		result = fplug->release(i, f);
 	else
+		/*
+		  no ->release method defined, or we are within reiser4
+		  context already. How latter is possible? Simple:
+		
+		  (gdb) bt
+		  #0  get_exclusive_access ()
+		  #2  0xc01e56d3 in release_unix_file ()
+		  #3  0xc01c3643 in reiser4_release ()
+		  #4  0xc014cae0 in __fput ()
+		  #5  0xc013ffc3 in remove_vm_struct ()
+		  #6  0xc0141786 in exit_mmap ()
+		  #7  0xc0118480 in mmput ()
+		  #8  0xc0133205 in oom_kill ()
+		  #9  0xc01332d1 in out_of_memory ()
+		  #10 0xc013bc1d in try_to_free_pages ()
+		  #11 0xc013427b in __alloc_pages ()
+		  #12 0xc013f058 in do_anonymous_page ()
+		  #13 0xc013f19d in do_no_page ()
+		  #14 0xc013f60e in handle_mm_fault ()
+		  #15 0xc01131e5 in do_page_fault ()
+		  #16 0xc0104935 in error_code ()
+		  #17 0xc025c0c6 in __copy_to_user_ll ()
+		  #18 0xc01d496f in read_tail ()
+		  #19 0xc01e4def in read_unix_file ()
+		  #20 0xc01c3504 in reiser4_read ()
+		  #21 0xc014bd4f in vfs_read ()
+		  #22 0xc014bf66 in sys_read ()
+		*/
 		result = 0;
 
 	reiser4_free_file_fsdata(f);

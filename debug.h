@@ -28,6 +28,9 @@
 	fun(lev format "\n" , ## __VA_ARGS__);			\
 })
 
+/*
+ * cause kernel to crash
+ */
 #define reiser4_panic(mid, format, ...)				\
 	DCALL("", reiser4_do_panic, 1, mid, format , ## __VA_ARGS__)
 
@@ -44,126 +47,6 @@
     so no "maintainer-id".
 */
 #define cassert(cond) ({ switch(-1) { case (cond): case 0: break; } })
-
-#if defined(CONFIG_REISER4_DEBUG)
-/* turn on assertions */
-#define REISER4_DEBUG (1)
-#else
-#define REISER4_DEBUG (0)
-#endif
-
-#if defined(CONFIG_REISER4_DEBUG_MODIFY)
-/* this significantly slows down testing, but we should run our testsuite
-   through with this every once in a while.  */
-#define REISER4_DEBUG_MODIFY (1)
-#else
-#define REISER4_DEBUG_MODIFY (0)
-#endif
-
-#if defined(CONFIG_REISER4_DEBUG_MEMCPY)
-/* provide our own memcpy/memmove to profile shifts */
-#define REISER4_DEBUG_MEMCPY (1)
-#else
-#define REISER4_DEBUG_MEMCPY (0)
-#endif
-
-#if defined(CONFIG_REISER4_DEBUG_NODE)
-/* check consistency of internal node structures */
-#define REISER4_DEBUG_NODE (1)
-#else
-#define REISER4_DEBUG_NODE (0)
-#endif
-
-#if defined(CONFIG_REISER4_ZERO_NEW_NODE)
-/* if this is non-zero, clear content of new node, otherwise leave whatever
-   may happen to be here */
-#define REISER4_ZERO_NEW_NODE (1)
-#else
-#define REISER4_ZERO_NEW_NODE (0)
-#endif
-
-#if defined(CONFIG_REISER4_TRACE)
-/* tracing facility.
-
-    REISER4_DEBUG doesn't necessary implies tracing, because tracing is only
-    meaningful during debugging and can produce big amonts of output useless
-    for average user.
-*/
-#define REISER4_TRACE (1)
-#else
-#define REISER4_TRACE (0)
-#endif
-
-#if defined(CONFIG_REISER4_EVENT_LOG)
-/* collect tree traces */
-#define REISER4_LOG (1)
-#else
-#define REISER4_LOG (0)
-#endif
-
-#if defined(CONFIG_REISER4_STATS)
-/* collect internal stats. Should be switched to use kernel logging facility
-   once latter merged.  */
-#define REISER4_STATS (1)
-#else
-#define REISER4_STATS (0)
-#endif
-
-#if defined(CONFIG_REISER4_DEBUG_OUTPUT)
-/* debugging print functions. */
-#define REISER4_DEBUG_OUTPUT (1)
-#else
-#define REISER4_DEBUG_OUTPUT (0)
-#endif
-
-#if defined(CONFIG_REISER4_COPY_ON_CAPTURE)
-/* enable copy on capture */
-#define REISER4_COPY_ON_CAPTURE (1)
-#else
-#define REISER4_COPY_ON_CAPTURE (0)
-#endif
-
-#if defined(CONFIG_REISER4_LOCKPROF)
-#define REISER4_LOCKPROF (1)
-#else
-#define REISER4_LOCKPROF (0)
-#endif
-
-#if defined(CONFIG_REISER4_LARGE_KEY)
-#define REISER4_LARGE_KEY (1)
-#else
-#define REISER4_LARGE_KEY (0)
-#endif
-
-#if defined(CONFIG_REISER4_ALL_IN_ONE)
-#define REISER4_ALL_IN_ONE (1)
-#else
-#define REISER4_ALL_IN_ONE (0)
-#endif
-
-#if defined (CONFIG_REISER4_DEBUG_NODE_INVARIANT)
-#define REISER4_DEBUG_NODE_INVARIANT (1)
-#else
-#define REISER4_DEBUG_NODE_INVARIANT (0)
-#endif
-
-#if defined(CONFIG_REISER4_DEBUG_SPIN_LOCKS)
-#define REISER4_DEBUG_SPIN_LOCKS (1)
-#else
-#define REISER4_DEBUG_SPIN_LOCKS (0)
-#endif
-
-#if defined(CONFIG_REISER4_DEBUG_CONTEXTS)
-#define REISER4_DEBUG_CONTEXTS (1)
-#else
-#define REISER4_DEBUG_CONTEXTS (0)
-#endif
-
-#if defined(CONFIG_REISER4_DEBUG_SIBLING_LIST)
-#define REISER4_DEBUG_SIBLING_LIST (1)
-#else
-#define REISER4_DEBUG_SIBLING_LIST (0)
-#endif
 
 #define noop   do {;} while(0)
 
@@ -256,12 +139,25 @@ typedef struct lock_counters_info {
 
 extern lock_counters_info *lock_counters(void);
 #define IN_CONTEXT(a, b) (is_in_reiser4_context() ? (a) : (b))
+
+/* increment lock-counter @counter, if present */
 #define LOCK_CNT_INC(counter) IN_CONTEXT(++(lock_counters()->counter), 0)
+
+/* decrement lock-counter @counter, if present */
 #define LOCK_CNT_DEC(counter) IN_CONTEXT(--(lock_counters()->counter), 0)
+
+/* check that lock-counter is zero. This is for use in assertions */
 #define LOCK_CNT_NIL(counter) IN_CONTEXT(lock_counters()->counter == 0, 1)
+
+/* check that lock-counter is greater than zero. This is for use in
+ * assertions */
 #define LOCK_CNT_GTZ(counter) IN_CONTEXT(lock_counters()->counter > 0, 1)
+
 /* REISER4_DEBUG_SPIN_LOCKS */
 #else
+
+/* no-op versions on the above */
+
 typedef struct lock_counters_info {
 } lock_counters_info;
 #define lock_counters() ((lock_counters_info *)NULL)
@@ -272,16 +168,36 @@ typedef struct lock_counters_info {
 /* REISER4_DEBUG_SPIN_LOCKS */
 #endif
 
+/*
+ * back-trace recording. In several places in reiser4 we want to record stack
+ * back-trace for debugging purposes. This functionality is only supported
+ * when kernel was configured with CONFIG_FRAME_POINTER option.
+ */
+
 #ifdef CONFIG_FRAME_POINTER
-/* update debug.c:fill_backtrace() if you change this */
+
+/*
+ * how many stack frames to record in back-trace.
+ *
+ * update debug.c:fill_backtrace() if you change this
+ */
 #define REISER4_BACKTRACE_DEPTH (4)
+
+/*
+ * data type to store stack back-trace
+ */
 typedef struct {
 	void *trace[REISER4_BACKTRACE_DEPTH];
 } backtrace_path;
+
 extern void fill_backtrace(backtrace_path *path, int depth, int shift);
 #else
+
+/* no-op versions on the above */
+
 typedef struct {} backtrace_path;
 #define fill_backtrace(path, depth, shift) noop
+
 #endif
 
 
@@ -306,27 +222,42 @@ extern int reiser4_is_debugged(struct super_block *super, __u32 flag);
 extern int is_in_reiser4_context(void);
 
 /*
- * evaluate expression E only if with reiser4 context
+ * evaluate expression @e only if with reiser4 context
  */
 #define ON_CONTEXT(e)	do {			\
 	if(is_in_reiser4_context()) {		\
 		e;				\
 	} } while(0)
 
+/*
+ * evaluate expression @e only when within reiser4_context and debugging is
+ * on.
+ */
 #define ON_DEBUG_CONTEXT( e ) ON_DEBUG( ON_CONTEXT( e ) )
 
 #if REISER4_DEBUG_MODIFY
+/*
+ * evaluate expression @exp only if REISER4_DEBUG_MODIFY mode is on.
+ */
 #define ON_DEBUG_MODIFY( exp ) exp
 #else
 #define ON_DEBUG_MODIFY( exp )
 #endif
 
+/*
+ * complain about unexpected function result and crash. Used in "default"
+ * branches of switch statements and alike to assert that invalid results are
+ * not silently ignored.
+ */
 #define wrong_return_value( label, function )				\
 	impossible( label, "wrong return value from " function )
+
 /* Issue warning message to the console */
 #define warning( label, format, ... )					\
 	DCALL( KERN_WARNING, 						\
 	       printk, 1, label, "WARNING: " format , ## __VA_ARGS__ )
+
+/* mark not yet implemented functionality */
 #define not_yet( label, format, ... )				\
 	reiser4_panic( label, "NOT YET IMPLEMENTED: " format , ## __VA_ARGS__ )
 
@@ -434,13 +365,13 @@ typedef enum {
 #define ON_LOG( f, ... )   IF_LOG(f, printk(__VA_ARGS__))
 
 typedef enum {
-	WRITE_NODE_LOG = (1 << 0),
+	WRITE_NODE_LOG = (1 << 0),      /* log [zj]node operations */
 	WRITE_PAGE_LOG = (1 << 1),	/* log make_extent calls */
 	WRITE_IO_LOG = (1 << 2), 	/* log i/o requests */
-	WRITE_TREE_LOG = (1 << 3), 	/* */
-	WRITE_SYSCALL_LOG = (1 << 4),
-	READAHEAD_LOG = (1 << 5),
-	ALLOC_EXTENT_LOG = (1 << 6)
+	WRITE_TREE_LOG = (1 << 3), 	/* log internal tree operations */
+	WRITE_SYSCALL_LOG = (1 << 4),   /* log system calls */
+	READAHEAD_LOG = (1 << 5),       /* log read-ahead activity */
+	ALLOC_EXTENT_LOG = (1 << 6)     /* log extent allocation */
 } reiser4_log_flags;
 
 
@@ -497,6 +428,10 @@ extern void *xmemset(void *s, int c, size_t n);
 #define KERNEL_DEBUGGER (1)
 
 #if KERNEL_DEBUGGER
+/*
+ * Check condition @cond and drop into kernel debugger (kgdb) if it's true. If
+ * kgdb is not compiled in, do nothing.
+ */
 #define DEBUGON(cond)				\
 ({						\
 	extern void debugtrap(void);		\
@@ -508,16 +443,53 @@ extern void *xmemset(void *s, int c, size_t n);
 #define DEBUGON(cond) noop
 #endif
 
+/*
+ * Error code tracing facility. (Idea is borrowed from XFS code.)
+ *
+ * Suppose some strange and/or unexpected code is returned from some function
+ * (for example, write(2) returns -EEXIST). It is possible to place a
+ * breakpoint in the reiser4_write(), but it is too late here. How to find out
+ * in what particular place -EEXIST was generated first?
+ *
+ * In reiser4 all places where actual error codes are produced (that is,
+ * statements of the form
+ *
+ *     return -EFOO;        // (1), or
+ *
+ *     result = -EFOO;      // (2)
+ *
+ * are replaced with
+ *
+ *     return RETERR(-EFOO);        // (1a), and
+ *
+ *     result = RETERR(-EFOO);      // (2a) respectively
+ *
+ * RETERR() macro fills a backtrace in reiser4_context. This back-trace is
+ * printed in error and warning messages. Moreover, it's possible to put a
+ * conditional breakpoint in return_err (low-level function called by RETERR()
+ * to do the actual work) to break into debugger immediately when particular
+ * error happens.
+ *
+ */
+
 #if REISER4_DEBUG
+
+/*
+ * data-type to store information about where error happened ("error site").
+ */
 typedef struct err_site {
-	backtrace_path path;
-	int            code;
-	const char    *file;
-	int            line;
+	backtrace_path path; /* stack back trace of error */
+	int            code; /* error code */
+	const char    *file; /* source file, filled by __FILE__ */
+	int            line; /* source file line, filled by __LINE__ */
 } err_site;
+
 extern void return_err(int code, const char *file, int line);
 extern void report_err(void);
 
+/*
+ * fill &get_current_context()->err_site with error information.
+ */
 #define RETERR(code) 				\
 ({						\
 	typeof(code) __code;			\
@@ -528,23 +500,32 @@ extern void report_err(void);
 })
 
 #else
+
+/*
+ * no-op versions of the above
+ */
+
 typedef struct err_site {} err_site;
 #define RETERR(code) code
 #define report_err() noop
 #endif
 
 #if REISER4_LARGE_KEY
+/*
+ * conditionally compile arguments only if REISER4_LARGE_KEY is on.
+ */
 #define ON_LARGE_KEY(...) __VA_ARGS__
 #else
 #define ON_LARGE_KEY(...)
 #endif
 
-const char *jnode_tostring(jnode *);
-void jnode_tostring_internal(jnode * node, char *buf);
-const char *znode_tostring(znode *);
-const char *flags_tostring(int flags);
-
 #if REISER4_ALL_IN_ONE
+/*
+ * declarator used by REISER4_ALL_IN_ONE mode. Every reiser4 function that is
+ * not used externally (that is, not used by non-reiser4 code) should be
+ * tagged with this. Normally it expands to nothing. In REISER4_ALL_IN_ONE
+ * expands to statics allowing compiler to perform better optimization.
+ */
 #define reiser4_internal static
 #else
 #define reiser4_internal
