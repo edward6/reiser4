@@ -645,6 +645,8 @@ void longterm_unlock_znode (lock_handle *handle)
 
 	assert("zam-130", oldowner == get_current_lock_stack());
 
+	ON_DEBUG(-- lock_counters()->long_term_locked_znode);
+
 	spin_lock_znode(node);
 
 	assert("zam-101", znode_is_locked (node));
@@ -714,8 +716,6 @@ void longterm_unlock_znode (lock_handle *handle)
 
 	/* minus one reference from lh->node */
 	zput(node);
-
-	ON_DEBUG(-- lock_counters()->long_term_locked_znode);
 }
 
 /**
