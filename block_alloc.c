@@ -28,11 +28,10 @@
 
 
 /* Initialize a blocknr hint. */
-/* Audited by: green(2002.06.11) */
+
 void blocknr_hint_init (reiser4_blocknr_hint *hint)
 {
-	hint->blk = 0;
-	hint->max_dist = 0;
+	xmemset (hint, 0, sizeof (reiser4_blocknr_hint));
 }
 
 /* Release any resources of a blocknr hint. */
