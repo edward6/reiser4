@@ -225,12 +225,12 @@ ok:
 	return result;
 }
 
+#if 0
 /* update inode's timestamps and size. If any of these change - update sd as well */
 reiser4_internal int
 update_inode_and_sd_if_necessary(struct inode *inode,
 				 loff_t new_size,
-				 int update_i_size, int update_times,
-				 int do_update)
+				 int update_i_size, int update_times)
 {
 	int result;
 	int inode_changed;
@@ -252,16 +252,18 @@ update_inode_and_sd_if_necessary(struct inode *inode,
 		inode_changed = 1;
 	}
 	
-	if (do_update && inode_changed) {
+	if (inode_changed) {
 		assert("vs-946", !inode_get_flag(inode, REISER4_NO_SD));
-		/* "capture" inode */
-		result = reiser4_mark_inode_dirty(inode);
+		/* update sd inode */
+		result = reiser4_update_sd(inode);
 		if (result)
 			warning("vs-636", "updating stat data failed: %i", result);
 	}
 
 	return result;
 }
+
+#endif
 
 /* look for item of file @inode corresponding to @key */
 
@@ -538,10 +540,13 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 					 &smallest_removed, inode);
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
-			result = update_inode_and_sd_if_necessary
-				(inode, get_key_offset(&smallest_removed), 1, 1, update_sd);
-			if (result)
-				break;
+			if (update_sd) {
+				INODE_SET_FIELD(inode, i_size, get_key_offset(&smallest_removed));
+				inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+				result = reiser4_update_sd(inode);
+				if (result)
+					break;
+			}
 
 			all_grabbed2free();
 			reiser4_release_reserved(inode->i_sb);
@@ -567,7 +572,9 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 			break;
 
 		/* Final sd update after the file gets its correct size */
-		result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, update_sd);
+		INODE_SET_FIELD(inode, i_size, new_size);
+		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		result = reiser4_update_sd(inode);
 		break;
 	}
 
@@ -638,6 +645,7 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_siz
 		return RETERR(-EIO);
 	}
 
+	/* if page correspons to hole extent unit - unallocated one will be created here. This is not necessary */
 	result = find_or_create_extent(page);
 
 	/* FIXME: cut_file_items has already updated inode. Probably it would be better to update it here when file is
@@ -711,8 +719,6 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 	int result;
 	loff_t cur_size;
 
-	/*INODE_SET_FIELD(inode, i_size, new_size);*/
-
 	result = find_file_size(inode, &cur_size);
 	if (result != 0)
 		return result;
@@ -739,8 +745,11 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 		/* update stat data */
 		if (update_sd) {
 			result = setattr_reserve(tree_by_inode(inode));
-			if (!result)
-				result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, 1);
+			if (!result && update_sd) {
+				INODE_SET_FIELD(inode, i_size, cur_size);
+				inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+				result = reiser4_update_sd(inode);
+			}
 			all_grabbed2free();
 		}
 	}
@@ -926,9 +935,10 @@ static int capture_page_and_create_extent(struct page *page)
 	/* page belongs to file */
 	assert("vs-1393", inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT));
 
-	/* page capture may require extent creation (if it does not exist yet) */
+	/* page capture may require extent creation (if it does not exist yet) and stat data's update (number of blocks
+	   changes on extent creation) */
 	grab_space_enable ();
-	result = reiser4_grab_space(estimate_one_insert_into_item(tree_by_inode(inode)), BA_CAN_COMMIT);
+	result = reiser4_grab_space(2 * estimate_one_insert_into_item(tree_by_inode(inode)), BA_CAN_COMMIT);
 	if (likely(!result))
 		result = find_or_create_extent(page);
 
@@ -2065,7 +2075,10 @@ setattr_truncate(struct inode *inode, struct iattr *attr)
 		   necessary? */
 		INODE_SET_FIELD(inode, i_size, old_size);
 		result = inode_setattr(inode, attr);
-	}
+	} else
+		warning("vs-1588", "truncate_file failed: oid %lli, old size %lld, new size %lld, retval %d", 
+			get_inode_oid(inode), old_size, attr->ia_size, result);
+
 	s_result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
 	if (s_result == 0)
 		s_result = safe_link_del(inode, SAFE_TRUNCATE);
