@@ -48,6 +48,11 @@ jnode_ops(const jnode * node)
 	return jnode_ops_of(jnode_get_type(node));
 }
 
+static inline int jnode_is_parsed (jnode * node)
+{
+	return JF_ISSET(node, JNODE_PARSED);
+}
+
 /* hash table support */
 
 /* compare two jnode keys for equality. Used by hash-table macros */
@@ -423,6 +428,7 @@ page_clear_jnode(struct page *page, jnode * node)
 	assert("nikita-2427", spin_jnode_is_locked(node));
 	assert("nikita-2428", PagePrivate(page));
 
+	JF_CLR(node, JNODE_PARSED);
 	page->private = 0ul;
 	ClearPagePrivate(page);
 	node->pg = NULL;
@@ -492,23 +498,6 @@ jnode_lock_page(jnode * node)
 	}
 	return page;
 }
-
-struct page_filler_arg {
-	jnode * node;
-	int gfp;
-};
-
-static int
-page_filler(void *arg, struct page *page)
-{
-	struct page_filler_arg * f_arg = arg;
-
-	assert("nikita-2369", page->mapping == jnode_ops(f_arg->node)->mapping(f_arg->node));
-
-	reiser4_stat_inc_at_level(jnode_get_level(f_arg->node), jnode.jload_read);
-	return page_io(page, f_arg->node, READ, f_arg->gfp);
-}
-
 static inline int
 jparse(jnode * node, struct page *page)
 {
@@ -517,7 +506,6 @@ jparse(jnode * node, struct page *page)
 	assert("nikita-2466", node != NULL);
 	assert("nikita-2630", page != NULL);
 	assert("nikita-2637", spin_jnode_is_locked(node));
-	assert("nikita-2638", PageLocked(page));
 
 	result = 0;
 	if (!jnode_is_loaded(node)) {
@@ -533,10 +521,115 @@ jparse(jnode * node, struct page *page)
 	return result;
 }
 
-/* helper function used by jload() */
-static inline void
-load_page(struct page *page, jnode *node)
+/* Lock a page attached to jnode, create and attach page to jnode if it had no one. */
+static struct page * jnode_get_page_locked(jnode * node, int gfp_flags)
 {
+	struct page * page;
+	jnode_plugin * jplug;
+
+	LOCK_JNODE(node);
+	page = jnode_page(node);
+
+	if (page == NULL) {
+		UNLOCK_JNODE(node);
+		jplug = jnode_ops(node);
+		page = grab_cache_page(jplug->mapping(node), jplug->index(node));
+		if (page == NULL)
+			return ERR_PTR(-ENOMEM);
+	} else {
+		if (!TestSetPageLocked(page)) {
+			UNLOCK_JNODE(node);
+			return page;
+		}
+		page_cache_get(page);
+		UNLOCK_JNODE(node);
+		lock_page(page);
+	}
+
+	LOCK_JNODE(node);
+	if (!jnode_page(node))
+		jnode_attach_page(node, page);
+	UNLOCK_JNODE(node);
+
+	page_cache_release(page);
+	assert ("zam-894", jnode_page(node) == page);
+	return page;
+}
+
+/* Start read operation for jnode's page if page is not up-to-date. */
+static int jnode_start_read (jnode * node, struct page * page)
+{
+	assert ("zam-893", PageLocked(page));
+
+	if (PageUptodate(page)) {
+		unlock_page(page);
+		return 0;
+	}
+	return page_io(page, node, READ, GFP_KERNEL);
+}
+
+/* load jnode's data into memory */
+int jload_gfp (jnode * node, int gfp_flags)
+{
+	struct page * page;
+	int result = 0;
+	int parsed;
+
+	PROF_BEGIN(jload);
+
+	assert("nikita-3010", schedulable());
+	write_node_trace(node);
+
+	/*
+	 * acquiring d-reference to @jnode and check for JNODE_LOADED bit
+	 * should be atomic, otherwise there is a race against jrelse().
+	 */
+	spin_lock_jnode(node);
+	add_d_ref(node);
+	parsed = jnode_is_parsed(node);
+	spin_unlock_jnode(node);
+
+	if (!parsed) {
+		trace_on(TRACE_PCACHE, "read node: %p\n", node);
+
+		page = jnode_get_page_locked(node, gfp_flags);
+		if (IS_ERR(page)) {
+			result = PTR_ERR(page);
+			goto failed;
+		}
+		
+		result = jnode_start_read(node, page);
+		if (result)
+			goto failed;
+
+		wait_on_page_locked(page);
+		if (!PageUptodate(page)) {
+			result = -EIO;
+			goto failed;
+		}
+
+		node->data = kmap(page);
+			
+		if (!jnode_is_parsed(node)) {
+			result = UNDER_SPIN(jnode, node, jparse(node, page));
+			if (result) {
+				kunmap(page);
+				goto failed;
+			}
+			JF_SET(node, JNODE_PARSED);
+			reiser4_stat_inc_at_level(jnode_get_level(node), 
+						  jnode.jload_page);
+		}
+	} else {
+		page = jnode_page(node);
+		node->data = kmap(page);
+		reiser4_stat_inc_at_level(jnode_get_level(node), 
+					  jnode.jload_already);
+	}
+
+	if (REISER4_USE_EFLUSH && JF_ISSET(node, JNODE_EFLUSH))
+		UNDER_SPIN_VOID(jnode, node, eflush_del(node, 0));
+
 	if (!is_writeout_mode()) 
 		/* We do not mark pages active if jload is called as a part of
 		 * jnode_flush() or reiser4_write_logs().  Both jnode_flush()
@@ -546,171 +639,64 @@ load_page(struct page *page, jnode *node)
 		 * moved out from inactive list as a result of this
 		 * mark_page_accessed() call. */
 		mark_page_accessed(page);
-	kmap(page);
-	if (REISER4_USE_EFLUSH && JF_ISSET(node, JNODE_EFLUSH))
-		UNDER_SPIN_VOID(jnode, node, eflush_del(node, 0));
-}
 
-/* load jnode's data into memory using read_cache_page() */
-int
-jload_gfp (jnode * node, int gfp_flags)
-{
-	int result;
-	struct page *page;
-	int loaded;
-	PROF_BEGIN(jload);
+	JF_SET(node, JNODE_LOADED);
+	return 0;
 
-	assert("nikita-3010", schedulable());
-
-	write_node_trace(node);
-
-	result = 0;
-	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jload);
-
-	/*
-	 * acquiring d-reference to @jnode and check for JNODE_LOADED bit
-	 * should be atomic, otherwise there is a race against jrelse().
-	 */
-	spin_lock_jnode(node);
-	add_d_ref(node);
-	loaded = jnode_is_loaded(node);
-	spin_unlock_jnode(node);
-
-	if (!loaded) {
-		/* If node is not loaded we need a spin lock to get reliable not
-		 * null jnode_page() result */
-		/* subtle locking point: ->pg pointer is protected by jnode
-		   spin lock, but it is safe to release spin lock here,
-		   because page can be detached from jnode only when ->d_count
-		   is 0, and JNODE_LOADED is not set.
-		*/
-		page = jnode_page(node);
-		/* read data from page cache. Page reference counter is
-		   incremented and page is kmapped, it will kunmapped in
-		   zrelse
-		*/
-		trace_on(TRACE_PCACHE, "read node: %p\n", node);
-
-		/* Our initial design was to index pages with formatted data
-		   by their block numbers. One disadvantage of this is that
-		   such setup makes relocation harder to implement: when tree
-		   node is relocated we need to re-index its data in a page
-		   cache. To avoid data copying during this re-indexing it was
-		   decided that first version of reiser4 will only support
-		   block size equal to PAGE_CACHE_SIZE.
-
-		   But another problem came up: our block numbers are 64bit
-		   and pages are indexed by 32bit ->index. Moreover:
-
-		    - there is strong opposition for enlarging ->index field
-		    (and for good reason: size of struct page is critical,
-		    because there are so many of them).
-
-		    - our "unallocated" block numbers have highest bit set,
-		    which makes 64bit block number support essential
-		    independently of device size.
-
-		   Code below uses jnode _address_ as page index. This has
-		   following advantages:
-
-		    - relocation is simplified
-
-		    - if ->index is jnode address, than ->private is free for
-		    use. It can be used to store some jnode data making it
-		    smaller (not yet implemented). Pointer to atom?
-
-		*/
-		if (likely(page != NULL && !JF_ISSET(node, JNODE_ASYNC))) {
-			load_page(page, node);
-			node->data = page_address(page);
-			reiser4_stat_inc_at_level(jnode_get_level(node), 
-						  jnode.jload_page);
-			JF_SET(node, JNODE_LOADED);
-		} else {
-			jnode_plugin *jplug = jnode_ops(node);
-			struct page_filler_arg f_arg = {.node = node, .gfp = gfp_flags };
- 
-			page = read_cache_page(jplug->mapping(node), 
-					       jplug->index(node), 
-					       page_filler, &f_arg);
-			/* after (successful) return from read_cache_page()
-			   @page is pinned into memory. */
-			if (!IS_ERR(page)) {
-				kmap(page);
-				reiser4_lock_page(page);
-				LOCK_JNODE(node);
-				node->data = page_address(page);
-				if (jnode_page(node) == NULL)
-					/* this line and jget() are the only
-					 * places, where page is attached to
-					 * jnode */
-					jnode_attach_page(node, page);
-				assert("nikita-2636", jnode_page(node) == page);
-				if (PageUptodate(page))
-					result = jparse(node, page);
-				else
-					result = -EIO;
-				if (REISER4_USE_EFLUSH)
-					eflush_del(node, 1);
-				if (REISER4_STATS && JF_ISSET(node, JNODE_ASYNC))
-					reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jload_async);
-				JF_CLR(node, JNODE_ASYNC);
-				UNLOCK_JNODE(node);
-				reiser4_unlock_page(page);
-				page_cache_release(page);
-			} else
-				result = PTR_ERR(page);
-
-			if (unlikely(result != 0))
-				jrelse(node);
-		}
-	} else {
-		page = jnode_page(node);
-		assert("nikita-2348", page != NULL);
-		load_page(page, node);
-		reiser4_stat_inc_at_level(jnode_get_level(node), 
-					  jnode.jload_already);
-	}
-	assert("nikita-2814", ergo(result == 0, jnode_is_loaded(node)));
-	assert("nikita-2816", ergo(result == 0 && jnode_is_znode(node),
-				   JZNODE(node)->nplug != NULL));
-	PROF_END(jload, jload);
+ failed:
+	jrelse(node);
 	return result;
+	
 }
 
-/* call node plugin to initialise newly allocated node. */
-int
-jinit_new(jnode * node /* jnode to initialise */)
+/* start asynchronous reading for given jnode's page. */
+int jstartio (jnode * node)
 {
-	int result;
-	struct page *page;
-	jnode_plugin *jplug;
+	struct page * page;
 
-	assert("nikita-1234", node != NULL);
+	page = jnode_get_page_locked(node, GFP_KERNEL);
+	if (IS_ERR(page))
+		return PTR_ERR(page);
+
+	return jnode_start_read(node, page);
+}
+
+
+/* Initialize a node by calling appropriate plugin instead of reading
+ * node from disk as in jload(). */
+int jinit_new (jnode * node)
+{
+	struct page * page;
+	int result;
 
 	add_d_ref(node);
-	jplug = jnode_ops(node);
-	page = grab_cache_page(jplug->mapping(node), jplug->index(node));
-	if (page != NULL) {
-		SetPageUptodate(page);
-		UNDER_SPIN_VOID(jnode, node, jnode_attach_page(node, page));
-		reiser4_unlock_page(page);
-		kmap(page);
-		node->data = page_address(page);
-		result = 0;
-		LOCK_JNODE(node);
-		if (likely(!jnode_is_loaded(node))) {
-			result = jplug->init(node);
-			if (likely(result == 0))
-				JF_SET(node, JNODE_LOADED);
-		}
-		UNLOCK_JNODE(node);
-		page_cache_release(page);
-	} else
-		result = -ENOMEM;
 
-	if (unlikely(result != 0))
-		jrelse(node);
+	page = jnode_get_page_locked(node, GFP_KERNEL);
+	if (IS_ERR(page)) {
+		result = PTR_ERR(page);
+		goto failed;
+	}
+
+	SetPageUptodate(page);
+	unlock_page(page);
+
+	node->data = kmap(page);
+
+	if (!jnode_is_parsed(node)) {
+		jnode_plugin * jplug = jnode_ops(node);
+		result = UNDER_SPIN(jnode, node, jplug->init(node));
+		if (result) {
+			kunmap(page);
+			goto failed;
+		}
+		JF_SET(node, JNODE_PARSED);
+	}
+
+	JF_SET(node, JNODE_LOADED);
+	return 0;
+
+ failed:
+	jrelse(node);
 	return result;
 }
 
@@ -755,48 +741,6 @@ jrelse(jnode * node /* jnode to release references to */)
 	}
 	UNLOCK_JNODE(node);
 	PROF_END(jrelse, jrelse);
-}
-
-/* start async io for @node */
-int
-jstartio(jnode * node)
-{
-	jnode_plugin *jplug;
-	struct page *page;
-	int result;
-
-	assert("nikita-2857", node != NULL);
-
-	result = 0;
-	jplug = jnode_ops(node);
-	page = find_or_create_page(jplug->mapping(node), jplug->index(node),
-				   GFP_KERNEL);
-	if (page == NULL)
-		return -ENOMEM;
-
-	assert("nikita-2858", PageLocked(page));
-
-	LOCK_JNODE(node);
-	if (jnode_page(node) == NULL) {
-		/* NOTE: JNODE_ASYNC has to be set *before* page is attached
-		 * to jnode, because jload() will assume that attached page is
-		 * ok, if JNODE_ASYNC is not set, and jload() doesn't hold
-		 * jnode spin-lock in this case. */
-		JF_SET(node, JNODE_ASYNC);
-		jnode_attach_page(node, page);
-		UNLOCK_JNODE(node);
-		if (!PageUptodate(page))
-			result = page_io(page, node, READ, GFP_KERNEL);
-		else
-			unlock_page(page);
-	} else {
-		assert("nikita-2636", jnode_page(node) == page);
-		UNLOCK_JNODE(node);
-		unlock_page(page);
-	}
-
-	page_cache_release(page);
-	return result;
 }
 
 int
@@ -1441,7 +1385,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	       jnode_state_name(node, JNODE_MISSED_IN_CAPTURE),
 	       jnode_state_name(node, JNODE_WRITEBACK),
 	       jnode_state_name(node, JNODE_NEW),
-	       jnode_state_name(node, JNODE_ASYNC),
+	       jnode_state_name(node, JNODE_PARSED),
 	       jnode_state_name(node, JNODE_DKSET),
 	       jnode_state_name(node, JNODE_EPROTECTED),
 	       jnode_get_level(node), sprint_address(jnode_get_block(node)),
