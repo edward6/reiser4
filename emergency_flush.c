@@ -438,8 +438,11 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 			/* pin inode containing eflushed pages. Otherwise it
 			 * may get evicted */
 			spin_lock_inode(inode);
-			if (info->eflushed == 0)
+			if (info->eflushed == 0) {
+				spin_lock(&inode_lock);
 				__iget(inode);
+				spin_unlock(&inode_lock);
+			}
 			++ info->eflushed;
 			spin_unlock_inode(inode);
 		}
