@@ -3344,13 +3344,12 @@ extent_write_flow(struct inode *inode, struct sealed_coord *hint, flow_t * f)
 			goto exit1;
 		}
 
-		result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
-		if (result) {
+		j = jnode_of_page(page);
+		if (IS_ERR(j)) {
+			result = PTR_ERR(j);
 			goto exit2;
 		}
 
-		/* reference_count is increated already by capturing */
-		j = jnode_by_page(page);
 		/*
 		 * make_node_extent will move flow forward to to seal point
 		 * when leaving
@@ -3386,10 +3385,16 @@ extent_write_flow(struct inode *inode, struct sealed_coord *hint, flow_t * f)
 		}
 
 		SetPageUptodate(page);
+
+		result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
+		if (result)
+			goto exit3;
+
 		reiser4_unlock_page(page);
 		page_cache_release(page);
 
 		jnode_set_dirty(j);
+		jput(j);
 		assert("vs-1072", PageDirty(page));
 		balance_dirty_pages(page->mapping);
 
@@ -3399,13 +3404,7 @@ extent_write_flow(struct inode *inode, struct sealed_coord *hint, flow_t * f)
 		continue;
 
 	      exit3:
-		/*
-		 * page is locked, but this is ok, because
-		 * txn_delete_page->uncapture_block->jput will not try to drop
-		 * jnode (in that case page must be unlocked) because we got
-		 * reference to it in extent_capture_page
-		 */
-		delete_page(page);
+		jput(j);
 	      exit2:
 		reiser4_unlock_page(page);
 		page_cache_release(page);
