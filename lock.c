@@ -270,7 +270,7 @@ link_object(lock_handle * handle, lock_stack * owner, znode * node)
 	handle->owner = owner;
 	handle->node = node;
 
-	assert("reiser4-4", ergo(lock_stack_isclean(owner), owner->nr_locks == 0));
+	assert("reiser4-4", ergo(locks_list_empty(&owner->locks), owner->nr_locks == 0));
 	locks_list_push_back(&owner->locks, handle);
 	owner->nr_locks ++;
 	clog_link_object(LINK_OBJECT, node, (void *)owner->nr_locks);
@@ -291,7 +291,7 @@ unlink_object(lock_handle * handle)
 	assert("reiser4-5", handle->owner->nr_locks > 0);
 	locks_list_remove_clean(handle);
 	handle->owner->nr_locks --;
-	assert("reiser4-6", ergo(lock_stack_isclean(handle->owner), handle->owner->nr_locks == 0));
+	assert("reiser4-6", ergo(locks_list_empty(&handle->owner->locks), handle->owner->nr_locks == 0));
 	clog_link_object(UNLINK_OBJECT, handle->node, (void *)handle->owner->nr_locks);
 
 	owners_list_remove_clean(handle);
