@@ -1587,6 +1587,11 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	for (i = 0; i < REISER4_JNODE_TO_PAGE_HASH_SIZE; ++i)
 		spin_lock_init (&info->j_to_p[i]);
 
+#ifdef CONFIG_DEBUG_SPINLOCK
+	info( "j_to_p spinlocks initialised, %u %u\n",
+	      j_to_p[ 8 ] -> magic, SPINLOCK_MAGIC );
+#endif
+
 	/* init layout plugin */
 	info->lplug = lplug;
 
