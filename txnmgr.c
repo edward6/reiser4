@@ -678,6 +678,7 @@ atom_try_commit_locked (txn_atom *atom)
 
 		/* Call jnode_flush() without tree_lock held. */
 		if ((ret = jnode_flush (scan, NULL, JNODE_FLUSH_COMMIT)) != 0) {
+			warning ("nikita-2420", "jnode flush failed: %i", i);
 			return ret;
 		}
 
