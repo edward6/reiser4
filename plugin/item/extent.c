@@ -921,6 +921,7 @@ offset_is_in_unit(const coord_t * coord, reiser4_extent *ext, loff_t off, reiser
 	return 1;
 }
 
+#if REISER4_DEBUG
 static int
 offset_is_in_item(coord_t * coord, loff_t off, reiser4_block_nr * pos_in_unit)
 {
@@ -950,6 +951,8 @@ offset_is_in_item(coord_t * coord, loff_t off, reiser4_block_nr * pos_in_unit)
 	}
 	return 0;
 }
+/* REISER4_DEBUG */
+#endif
 
 /* @coord is set to allocated extent. offset @off is inside that extent. return number of block corresponding to offset
    @off */
@@ -1597,7 +1600,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 
 	ext = extent_item(right);
 	for (; right->unit_pos < coord_num_units(right); right->unit_pos++, ext++) {
-		trace_on(TRACE_EXTENTS, "alloc_and_copy_extent: unit %u/%u\n", right->unit_pos, coord_num_units(right));
+		ON_TRACE(TRACE_EXTENTS, "alloc_and_copy_extent: unit %u/%u\n", right->unit_pos, coord_num_units(right));
 
 		width = extent_get_width(ext);
 		if ((result = extent_needs_allocation(ext, oid, index, flush_pos)) < 0) {
@@ -1611,7 +1614,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 				/* left->node does not have enough free space
 				   for this unit */
 				result = SQUEEZE_TARGET_FULL;
-				trace_on(TRACE_EXTENTS, "alloc_and_copy_extent: target full, !needs_allocation\n");
+				ON_TRACE(TRACE_EXTENTS, "alloc_and_copy_extent: target full, !needs_allocation\n");
 				/* set coord @right such that this unit does not get cut because it was not moved */
 				right->between = BEFORE_UNIT;
 				goto done;
@@ -1646,7 +1649,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 			result = put_unit_to_end(left, &key, init_new_extent(&data, &new_ext, 1));
 			if (result == -E_NODE_FULL) {
 				result = SQUEEZE_TARGET_FULL;
-				trace_on(TRACE_EXTENTS,
+				ON_TRACE(TRACE_EXTENTS,
 					 "alloc_and_copy_extent: target full, to_allocate = %llu\n",
 					 to_allocate);
 				if (to_allocate == width) {
@@ -1669,7 +1672,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 				   be allocated in this iteration */
 				protected -= unprotect_extent_nodes(oid, index + allocated, protected - allocated);
 
-			trace_on(TRACE_EXTENTS,
+			ON_TRACE(TRACE_EXTENTS,
 				 "alloc_and_copy_extent: to_allocate = %llu got %llu\n", to_allocate, allocated);
 
 			/* update last extent of node @left */
@@ -2451,7 +2454,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		}
 
 		if (!jnode_mapped(j)) {
-			trace_on(TRACE_EXTENTS, "MAKE: page %p, index %lu, count %d..", page, page->index, page_count(page));
+			ON_TRACE(TRACE_EXTENTS, "MAKE: page %p, index %lu, count %d..", page, page->index, page_count(page));
 
 			/* unlock page before doing anything with filesystem tree */
 			reiser4_unlock_page(page);
@@ -2459,10 +2462,10 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 			result = make_extent(inode, coord, lh, j, &f->key, to_page, &coord_state);
 			reiser4_lock_page(page);
 			if (result) {
-				trace_on(TRACE_EXTENTS, "FAILED: %d\n", result);
+				ON_TRACE(TRACE_EXTENTS, "FAILED: %d\n", result);
 				goto exit3;
 			}
-			trace_on(TRACE_EXTENTS, "OK\n");
+			ON_TRACE(TRACE_EXTENTS, "OK\n");
 		} else {
 			coord_state = COORD_UNKNOWN_STATE;
 		}
@@ -2645,8 +2648,8 @@ read_extent(struct file *file, coord_t *coord, flow_t * f)
 	struct inode *inode;
 	__u64 offset;
 
-	trace_if(TRACE_EXTENTS, print_coord("read_extent start", coord, 0));
-	trace_if(TRACE_EXTENTS, print_key("read_extent start", &f->key));
+	IF_TRACE(TRACE_EXTENTS, print_coord("read_extent start", coord, 0));
+	IF_TRACE(TRACE_EXTENTS, print_key("read_extent start", &f->key));
 
 	assert("vs-572", f->user == 1);
 	assert("vs-1119", znode_is_rlocked(coord->node));
@@ -2737,8 +2740,8 @@ read_extent(struct file *file, coord_t *coord, flow_t * f)
 		move_coord_page(coord);
 	assert("vs-1214", ergo(coord->between == AT_UNIT, check_key_in_unit(coord, &f->key)));
 
-	trace_if(TRACE_EXTENTS, print_coord("read_extent end", coord, 0));
-	trace_if(TRACE_EXTENTS, print_key("read_extent end", &f->key));
+	IF_TRACE(TRACE_EXTENTS, print_coord("read_extent end", coord, 0));
+	IF_TRACE(TRACE_EXTENTS, print_key("read_extent end", &f->key));
 
 	return 0;
 }
@@ -2784,12 +2787,12 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 		{
 			char *kaddr = kmap_atomic(page, KM_USER0);
 
-			memset(kaddr, 0, PAGE_CACHE_SIZE);
+			xmemset(kaddr, 0, PAGE_CACHE_SIZE);
 			flush_dcache_page(page);
 			kunmap_atomic(kaddr, KM_USER0);
 			SetPageUptodate(page);
 			reiser4_unlock_page(page);
-			trace_on(TRACE_EXTENTS, " - hole, OK\n");
+			ON_TRACE(TRACE_EXTENTS, " - hole, OK\n");
 
 			return 0;
 		}
@@ -2805,7 +2808,7 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 			init_allocated_jnode(j, extent_get_start(ext) + pos);
 		reiser4_stat_inc(extent.unfm_block_reads);
 
-		trace_on(TRACE_EXTENTS, " - allocated, read issued\n");
+		ON_TRACE(TRACE_EXTENTS, " - allocated, read issued\n");
 
 		break;
 
@@ -2841,7 +2844,7 @@ readpage_extent(void * vp, struct page *page)
 	coord_t * coord = vp;
 	ON_DEBUG(reiser4_key key;)
 
-	trace_on(TRACE_EXTENTS, "RP: index %lu, count %d..", page->index, page_count(page));
+	ON_TRACE(TRACE_EXTENTS, "RP: index %lu, count %d..", page->index, page_count(page));
 
 	assert("vs-1040", PageLocked(page));
 	assert("vs-1050", !PageUptodate(page));
@@ -2903,7 +2906,7 @@ writepage_extent(coord_t * coord, lock_handle * lh, struct page *page)
 	jnode *j;
 	coord_state_t coord_state;
 
-	trace_on(TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count(page));
+	ON_TRACE(TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count(page));
 
 	assert("vs-1052", PageLocked(page));
 	assert("vs-1051", page->mapping && page->mapping->host);
@@ -2919,7 +2922,7 @@ writepage_extent(coord_t * coord, lock_handle * lh, struct page *page)
 	JF_CLR(j, JNODE_NEW);
 	reiser4_lock_page(page);
 	if (result) {
-		trace_on(TRACE_EXTENTS, "extent_writepage failed: %d\n", result);
+		ON_TRACE(TRACE_EXTENTS, "extent_writepage failed: %d\n", result);
 		return result;
 	}
 
@@ -2931,7 +2934,7 @@ writepage_extent(coord_t * coord, lock_handle * lh, struct page *page)
 
 	assert("vs-1073", PageDirty(page));
 
-	trace_on(TRACE_EXTENTS, "OK\n");
+	ON_TRACE(TRACE_EXTENTS, "OK\n");
 
 	return 0;
 }
