@@ -574,6 +574,11 @@ static int search_one_bitmap (bmap_nr_t bmap, bmap_off_t *offset, bmap_off_t max
 		end = reiser4_find_next_set_bit((long*) data, search_end, start);
 
 		if (end >= start + min_len) {
+			/* we can't trust find_next_set_bit result if set bit
+			 * was not fount, result may be bigger than
+			 * max_offset */
+			if (end > search_end) end = search_end;
+
 			ret = end - start;
 			*offset = start;
 
