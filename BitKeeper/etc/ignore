@@ -4,6 +4,7 @@
 *.flc
 *.out*
 *.so
+*~
 .*.flags
 .build
 .config
@@ -24,8 +25,8 @@ TAGS
 build.h
 dead.code
 gmon.out
+inode.h~
 reiser4/AFTER 2 WRITES
 reiser4/AFTER ALLOCATION
 reiser4/BEFORE WRITE 1
 reiser4/tree:dir
-*~
