@@ -967,8 +967,7 @@ static int bitmap_alloc_backward(reiser4_block_nr * start, const reiser4_block_n
 int alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed, 
 			 reiser4_block_nr * start, reiser4_block_nr * len)
 {
-	ON_DEBUG(struct super_block *super = get_current_context()->super;)
-
+	struct super_block *super = get_current_context()->super;
 	int actual_len;
 
 	reiser4_block_nr search_start;
