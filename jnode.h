@@ -127,7 +127,11 @@ typedef enum {
        JNODE_TYPE_3            = 15,
 
        /** jnode is being destroyed */
-       JNODE_RIP               = 16
+       JNODE_RIP               = 16,
+
+       /** znode was not captured during locking (it might so be because
+	* ->level != LEAF_LEVEL and lock_mode == READ_LOCK) */
+       JNODE_MISSED_IN_CAPTURE = 17
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
