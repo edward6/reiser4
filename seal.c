@@ -33,7 +33,7 @@
 static znode *seal_node( const seal_t *seal );
 static int seal_matches( const seal_t *seal, znode *node );
 static int seal_search_node( seal_t *seal, coord_t *coord, 
-			     znode *node, reiser4_key *key, lookup_bias bias,
+			     znode *node, const reiser4_key *key, lookup_bias bias,
 			     tree_level level );
 
 /** 
@@ -94,7 +94,7 @@ int seal_is_set( const seal_t *seal /* seal to query */ )
 /* Audited by: green(2002.06.17) */
 int seal_validate( seal_t            *seal  /* seal to validate */, 
 		   coord_t        *coord /* coord to validate against */, 
-		   reiser4_key       *key   /* key to validate against */, 
+		   const reiser4_key       *key   /* key to validate against */, 
 		   tree_level         level /* level of node */,
 		   lock_handle       *lh    /* resulting lock handle */, 
 		   lookup_bias        bias  /* search bias */,
@@ -193,7 +193,7 @@ static int seal_matches( const seal_t *seal /* seal to check */,
 static int seal_search_node( seal_t      *seal  /* seal to repair */, 
 			     coord_t  *coord /* coord attached to @seal */, 
 			     znode       *node  /* node to search in */, 
-			     reiser4_key *key   /* key attached to @seal */, 
+			     const reiser4_key *key   /* key attached to @seal */, 
 			     lookup_bias  bias  /* search bias */,
 			     tree_level   level /* node level */ )
 {
