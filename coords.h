@@ -59,6 +59,7 @@ int coord_is_in_node (const tree_coord * coord);
 int coord_next_unit (tree_coord * coord);
 int coord_prev_unit (tree_coord * coord);
 void coord_first_item_unit (tree_coord * coord);
+void coord_last_item_unit (tree_coord * coord);
 void coord_first_unit (tree_coord * coord, znode *node);
 void coord_last_unit (tree_coord * coord, znode *node);
 int coord_next_item (tree_coord * coord);

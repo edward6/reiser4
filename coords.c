@@ -166,6 +166,16 @@ void coord_first_item_unit (tree_coord * coord)
 
 
 /*
+ * set coord to last unit of an item
+ */
+void coord_last_item_unit (tree_coord * coord)
+{
+	coord->unit_pos = last_unit_pos (coord);
+	coord->between = AT_UNIT;
+}
+
+
+/*
  * set coord to first unit within a node
  */
 void coord_first_unit (tree_coord * coord, znode *node)
