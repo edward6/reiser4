@@ -22,7 +22,8 @@ void readpages_unix_file(struct file *, struct address_space *, struct list_head
 void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_unix_file(struct inode *);
 
-/* these are used by item methods */
+/* all the write into unix file is performed by item write method. Write method of unix file plugin only decides which
+   item plugin (extent or tail) and in which mode (one from the enum below) to call */
 typedef enum {
 	FIRST_ITEM = 1,
 	APPEND_ITEM = 2,
@@ -30,29 +31,32 @@ typedef enum {
 } write_mode_t;
 
 
-
+/* unix file may be in one the following states */
 typedef enum {
-	UNIX_FILE_STATE_UNKNOWN = 0,
-	UNIX_FILE_BUILT_OF_TAILS = 1,
-	UNIX_FILE_BUILT_OF_EXTENTS = 2,
-	UNIX_FILE_EMPTY = 3
-} file_state_t;
+	UF_CONTAINER_UNKNOWN = 0,
+	UF_CONTAINER_TAILS = 1,
+	UF_CONTAINER_EXTENTS = 2,
+	UF_CONTAINER_EMPTY = 3
+} file_container_t;
 
 #include "../../latch.h"
 
 struct tail_plugin;
 struct inode;
 
+/* unix file plugin specific part of reiser4 inode */
 typedef struct unix_file_info {
-	/* truncate, tail2extent and extent2tail use down_write, read, write, readpage - down_read */
-	rw_latch_t latch;
-	file_state_t state;
-	struct tail_plugin *tplug;
+	rw_latch_t latch; /* this read-write lock protects file containerization change. Accesses which do not change file containerization (see file_container_t)
+			     (read, readpage, writepage, write (until tail conversion is involved)) take
+			     read-lock. Accesses which modify file containerization (truncate, conversion from tail to extent and
+			     back) take write-lock. */
+	file_container_t container; /* this shows which items are used to build the file */
+	struct tail_plugin *tplug; /* tail policy plugin which controls when file is to be converted to extents and back
+				      to tail */
 	struct inode *inode;
 	int exclusive_use;
 #if REISER4_DEBUG
-	/* pointer to task struct of thread owning exclusive access to file */
-	void *ea_owner;
+	void *ea_owner; /* pointer to task struct of thread owning exclusive access to file */
 #endif
 #if REISER4_LARGE_KEY
 	__u64 ordering;
