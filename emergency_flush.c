@@ -271,6 +271,10 @@ flushable(const jnode * node, struct page *page)
 	assert("nikita-2725", node != NULL);
 	assert("nikita-2726", spin_jnode_is_locked(node));
 
+	if (inode_get_flag(page->mapping->host, REISER4_DONT_EFLUSH)) /* file is being either truncated or deleted, it
+								       * is likely the page will be freed soon, so do
+								       * not eflush it */
+		return 0;
 	if (!jnode_is_dirty(node))
 		return 0;
 	if (atomic_read(&node->d_count) != 0)   /* used */
@@ -321,6 +325,7 @@ struct eflush_node {
 	jnode           *node;
 	reiser4_block_nr blocknr;
 	ef_hash_link     linkage;
+	struct list_head list; /* for per inode list of eflush nodes */
 #if REISER4_DEBUG
 	block_stage_t    initial_stage;
 #endif
@@ -421,6 +426,7 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 			__iget(inode);
 			spin_unlock(&inode_lock);
 		}
+		list_add(&ef->list, &info->eflushed_nodes);			
 		++ info->eflushed;
 		spin_unlock_inode(inode);
 	}
@@ -460,6 +466,7 @@ eflush_del(jnode *node, int page_locked)
 		reiser4_block_nr blk;
 		struct page *page;
 		struct inode  *inode = NULL;
+		int putit = 0;
 
 		table = get_jnode_enhash(node);
 
@@ -473,10 +480,22 @@ eflush_del(jnode *node, int page_locked)
 		-- get_super_private(tree->super)->eflushed;
 		write_unlock_tree(tree);
 
-		if (jnode_is_unformatted(node))
+		if (jnode_is_unformatted(node)) {
+			reiser4_inode *info;
+
 			inode = jnode_mapping(node)->host;
-		else
-			inode = NULL;
+			info = reiser4_inode_data(inode);
+			/* unpin inode after unflushing last eflushed page
+			 * from it. Dual to __iget() in eflush_add(). */
+			spin_lock_inode(inode);
+			assert("vs-1194", info->eflushed > 0);
+			-- info->eflushed;
+			putit = (info->eflushed == 0);
+			/* remove eflush node from inode's list of eflush nodes */
+			list_del(&ef->list);
+			spin_unlock_inode(inode);
+		}
+
 		JF_CLR(node, JNODE_EFLUSH);
 
 		page = jnode_page(node);
@@ -499,8 +518,8 @@ eflush_del(jnode *node, int page_locked)
 		spin_unlock_jnode(node);
 
 		if (inode != NULL) {
+#if 0
 			reiser4_inode *info;
-			int putit;
 
 			info = reiser4_inode_data(inode);
 			/* unpin inode after unflushing last eflushed apge
@@ -509,6 +528,7 @@ eflush_del(jnode *node, int page_locked)
 			-- info->eflushed;
 			putit = (info->eflushed == 0);
 			spin_unlock_inode(inode);
+#endif
 			if (putit)
 				iput(inode);
 		}
@@ -550,6 +570,7 @@ emergency_unflush(jnode *node)
 			page = jnode_page(node);
 			assert("nikita-2779", page != NULL);
 			wait_on_page_writeback(page);
+			
 			jrelse(node);
 		}
 	} else
@@ -644,6 +665,78 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	}
 	spin_lock_jnode(node);
 	return result;
+}
+
+/* find all eflushed jnodes of this inode and drop them */
+void
+drop_enodes(struct inode *inode, unsigned long index)
+{
+	LIST_HEAD(enodes_to_drop);
+	struct list_head *cur, *next;
+	reiser4_tree *tree;
+	ef_hash_table *table;
+	reiser4_inode *info;
+	struct jnode *j;
+	eflush_node_t *ef_node;
+	int eflushed_orig, dropped;
+
+	info = reiser4_inode_data(inode);
+
+	assert("vs-1177", !inode_get_flag(inode, REISER4_DONT_EFLUSH));
+	inode_set_flag(inode, REISER4_DONT_EFLUSH);
+
+	/* move eflush nodes to separate list */
+	spin_lock_inode(inode);
+	eflushed_orig = info->eflushed;
+	dropped = 0;
+	list_for_each_safe(cur, next, &info->eflushed_nodes) {
+		ef_node = list_entry(cur, eflush_node_t, list);
+		j = ef_node->node;
+		assert("vs-1179", j->key.j.objectid == get_inode_oid(inode));
+		assert("vs-1189", JF_ISSET(j, JNODE_EFLUSH));
+		if (j->key.j.index < index)
+			continue;
+		list_move(cur, &enodes_to_drop);
+		-- info->eflushed;
+		dropped ++;
+	}
+	assert("vs-1180", eflushed_orig == info->eflushed + dropped);
+
+	if (dropped)
+		trace_on(TRACE_EFLUSH, "drop_enodes: ino %llu: %d (of %d) eflush nodes are to be dropped\n",
+			 get_inode_oid(inode), dropped, eflushed_orig);
+	spin_unlock_inode(inode);
+
+	tree = &get_super_private(inode->i_sb)->tree;
+	table = &get_super_private(inode->i_sb)->efhash_table;
+	while (!list_empty(&enodes_to_drop)) {
+		ef_node = list_entry(enodes_to_drop.next, eflush_node_t, list);
+		j = ef_node->node;
+
+		trace_on(TRACE_EFLUSH, "drop_enodes: ino %llu, page %lu...\n", 
+			 get_inode_oid(inode), j->key.j.index);
+
+		list_del(&ef_node->list);
+
+		/* remove eflush node from hash table */
+		write_lock_tree(tree);
+		assert("vs-1178", ef_hash_find(table, C(ef_node->node)) == ef_node);
+		ef_hash_remove(table, ef_node);
+		-- get_super_private(tree->super)->eflushed;
+		write_unlock_tree(tree);
+
+		/* free block which was allocated for emergency flushing */
+		ef_free_block(j, &ef_node->blocknr);
+		kmem_cache_free(eflush_slab, ef_node);
+
+		spin_lock_jnode(j);
+		JF_CLR(j, JNODE_EFLUSH);
+		spin_unlock_jnode(j);
+		
+		uncapture_jnode(j);
+		/* jget is in emergency_flush */
+		jput(j);
+	}
 }
 
 #endif
