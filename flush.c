@@ -224,9 +224,9 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 		if ((ret = flush_squalloc_right (& flush_pos))) {
 			goto failed;
 		}
-	}
 
-	assert ("jmacd-8966", flush_pos.alloc_cnt == flush_pos.enqueue_cnt);			  
+		assert ("jmacd-8966", flush_pos.alloc_cnt == flush_pos.enqueue_cnt);			  
+	}
 
 	/* Perform batch write. FIXME: Not here, somewhere in the caller... */
 	ret = flush_finish (& flush_pos);
