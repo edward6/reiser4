@@ -242,28 +242,6 @@ typedef struct reiser4_file_plugin {
 				 const reiser4_key *key );
 
 	int ( *truncate )( struct inode *inode, loff_t size );
-	union {
-		struct {
-			int ( *find_entry )( const struct inode *dir, 
-					     const struct qstr *name, 
-					     tree_coord *coord, 
-					     reiser4_lock_handle *lh,
-					     znode_lock_mode mode,
-					     reiser4_entry *entry );
-			int ( *add_entry )( struct inode *dir, 
-					    const struct dentry *where,
-					    tree_coord *coord, 
-					    reiser4_lock_handle *lh,
-					    reiser4_object_create_data *data,
-					    reiser4_entry *entry );
-			int ( *rem_entry )( struct inode *dir,
-					    tree_coord *coord,
-					    reiser4_lock_handle *lh,
-					    reiser4_entry *entry );
-		} dir;
-		struct {
-		} file;
-	} u;
 	int ( *find_item )( reiser4_tree *tree, reiser4_key *key,
 			    tree_coord *coord, reiser4_lock_handle *lh );
 	int ( *readpage )( struct file *file, struct page * );
