@@ -12,13 +12,11 @@
 #include <aal/aal.h>
 
 #ifndef ENABLE_COMPACT
-#  include <stdio.h>
-#endif
-
-#ifndef ENABLE_COMPACT
 static aal_printf_handler_t printf_handler = (aal_printf_handler_t)printf;
+static aal_fprintf_handler_t fprintf_handler = (aal_fprintf_handler_t)fprintf;
 #else
 static aal_printf_handler_t printf_handler = NULL;
+static aal_fprintf_handler_t fprintf_handler = NULL;
 #endif
 
 void aal_printf_set_handler(aal_printf_handler_t handler) {
@@ -27,6 +25,14 @@ void aal_printf_set_handler(aal_printf_handler_t handler) {
 
 aal_printf_handler_t aal_printf_get_handler(void) {
     return printf_handler;
+}
+
+void aal_fprintf_set_handler(aal_fprintf_handler_t handler) {
+    fprintf_handler = handler;
+}
+
+aal_fprintf_handler_t aal_fprintf_get_handler(void) {
+    return fprintf_handler;
 }
 
 /* 
@@ -49,6 +55,22 @@ void aal_printf(const char *format, ...) {
     printf_handler(buff);
 }
 
+void aal_fprintf(void *stream, const char *format, ...) {
+    va_list arg_list;
+    char buff[4096];
+	
+    if (!fprintf_handler)
+	return;
+	
+    aal_memset(buff, 0, sizeof(buff));
+	
+    va_start(arg_list, format);
+    aal_vsnprintf(buff, sizeof(buff), format, arg_list);
+    va_end(arg_list);
+	
+    fprintf_handler(stream, buff);
+    fflush(stream);
+}
 enum format_modifier {
     mod_empty,
     mod_long,

@@ -162,11 +162,12 @@ AC_OUTPUT([
     include/Makefile
     include/aal/Makefile
     include/misc/Makefile
-    include/reiser4/Makefile
     include/progs/Makefile
+    include/reiser4/Makefile
     libaal/Makefile
     libmisc/Makefile
     libreiser4/Makefile
+    progsmisc/Makefile
     plugin/Makefile
     plugin/format40/Makefile
     plugin/journal40/Makefile
@@ -187,7 +188,6 @@ AC_OUTPUT([
     plugin/fnv1_hash/Makefile
     demos/Makefile
     mkfs/Makefile
-    fsck/Makefile
     debug/Makefile
     doc/Makefile
     reiser4progs.spec

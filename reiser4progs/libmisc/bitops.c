@@ -14,7 +14,7 @@
 #  include <stdint.h>
 #endif
 
-#include <aal/endian.h>
+//#include <aal/endian.h>
 #include <misc/bitops.h>
 
 #ifndef WORDS_BIGENDIAN

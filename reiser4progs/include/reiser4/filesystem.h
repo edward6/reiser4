@@ -42,25 +42,33 @@ typedef struct reiserfs_fs reiserfs_fs_t;
     Profile structure. It describes what plugins will be used
     for every corresponding filesystem part.
 */
+
 struct reiserfs_profile {
     char label[255];
     char desc[255];
-    
+
     reiserfs_id_t node;
+    
+    struct {
+	reiserfs_id_t file;
+	reiserfs_id_t dir;
+	reiserfs_id_t symlink;
+	reiserfs_id_t special;	    
+    } object;
     
     struct {
 	reiserfs_id_t internal;
 	reiserfs_id_t statdata;
 	reiserfs_id_t direntry;
-	reiserfs_id_t tail;
-	reiserfs_id_t extent;
+	struct {
+	    reiserfs_id_t tail;
+	    reiserfs_id_t extent;
+	} file_body;
+	reiserfs_id_t acl;
     } item;
     
-    reiserfs_id_t file;
-    reiserfs_id_t dir;
     reiserfs_id_t hash;
-    reiserfs_id_t tail;
-    reiserfs_id_t hook;
+    reiserfs_id_t tail_policy;
     reiserfs_id_t perm;
     reiserfs_id_t format;
     reiserfs_id_t oid;

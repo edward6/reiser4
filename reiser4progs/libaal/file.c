@@ -13,6 +13,11 @@
 #ifndef ENABLE_COMPACT
 
 /* This is needed for enabling such functions as lseek64, etc. */
+/* 
+    FIXME-VITALY: it was enabled in config.h by __USE_FILE_OFFSET64,
+    plus _GNU_SOURCE is not a standard so it would be better to avoid 
+    using it.
+*/
 #ifndef _GNU_SOURCE
 #  define _GNU_SOURCE
 #endif

@@ -21,7 +21,6 @@
 
     ./configure --reiser3-node-pid=0x1
 */
-#define REISERFS_NODE36_PID (0x1)
 
 extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, 
     blk_t blk, reiserfs_id_t key_pid);

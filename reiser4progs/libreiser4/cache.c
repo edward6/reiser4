@@ -129,8 +129,7 @@ errno_t reiserfs_cache_pos(reiserfs_cache_t *cache,
     reiserfs_node_ldkey(cache->node, &ldkey);
     
     if (reiserfs_node_lookup(cache->parent->node, &ldkey, pos) != 1) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find left delimiting key of node %llu.", 
+	aal_throw_error(EO_OK, "Can't find left delimiting key of node %llu.", 
 	    aal_block_get_nr(cache->node->block));
 	return -1;
     }
@@ -166,8 +165,7 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
     if (!cache->left) {
 	if (!reiserfs_cache_lnkey(cache, &key)) {
 	    if (reiserfs_tree_lookup(cache->tree, level, &key, &coord) != 1) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't find left neighbour key when raising left neigbour.");
+		aal_throw_error(EO_OK, "Can't find left neighbour key when raising left neigbour.");
 		return -1;
 	    }
 	}
@@ -177,8 +175,7 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
     if (!cache->right) {
 	if (!reiserfs_cache_rnkey(cache, &key)) {
 	    if (reiserfs_tree_lookup(cache->tree, level, &key, &coord) != 1) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		    "Can't find right neighbour key when raising right neigbour.");
+		aal_throw_error(EO_OK, "Can't find right neighbour key when raising right neigbour.");
 		return -1;
 	    }
 	}
@@ -217,8 +214,7 @@ errno_t reiserfs_cache_register(reiserfs_cache_t *cache,
     
     if (limit->enabled) {
 	if ((uint32_t)(limit->cur + 1) > limit->max) {
-	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
-		"Cache limit has been exceeded (current: %d, allowed: %u). "
+	    aal_throw_warning(EO_OK, "Cache limit has been exceeded (current: %d, allowed: %u). "
 		"Flushing should be run.", limit->cur, limit->max);
 	}
 	limit->cur++;
@@ -317,8 +313,7 @@ errno_t reiserfs_cache_sync(reiserfs_cache_t *cache) {
     }
     
     if (reiserfs_node_sync(cache->node)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize node %llu to device. %s.", 
+	aal_throw_error(EO_OK, "Can't synchronize node %llu to device. %s.", 
 	    aal_block_get_nr(cache->node->block), 
 	    aal_device_error(cache->node->block->device));
 	return -1;

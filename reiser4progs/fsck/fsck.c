@@ -15,8 +15,7 @@
 #include <errno.h>
 #include <string.h>
 
-#include <reiser4/reiser4.h>
-#include <misc/misc.h>
+#include <progs/progsmisc.h>
 
 static void fsck_print_usage(void) {
     fprintf(stderr, "Usage: fsck.reiser4 [ options ] FILE\n");
@@ -82,7 +81,7 @@ int main(int argc, char *argv[]) {
 		break;
 	    }
 	    case 'k': {
-		reiser4progs_list_profile();
+		progs_list_profile();
 		return 0;
 	    }
 	    case 'w': {
@@ -109,9 +108,8 @@ int main(int argc, char *argv[]) {
 	return 0xfe;
     }
     
-    if (!(profile = reiser4progs_find_profile(profile_label))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find profile by its label \"%s\".", profile_label);
+    if (!(profile = progs_find_profile(profile_label))) {
+	aal_throw_error(EO_OK, "Can't find profile by its label \"%s\".", profile_label);
 	return 0xff;
     }
     
@@ -121,40 +119,35 @@ int main(int argc, char *argv[]) {
     host_dev = argv[optind++];
     
     /* Checking given device for validness */
-    if (!reiser4progs_misc_dev_check(host_dev)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Device %s doesn't exists or invalid.", host_dev);
+    if (!progs_misc_dev_check(host_dev)) {
+	aal_throw_error(EO_OK, "Device %s doesn't exists or invalid.", host_dev);
 	return 0xfe;
     }
 
     if (!(device = aal_file_open(host_dev, REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) {
 	char *error = strerror(errno);
 	
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't open device %s. %s.", host_dev, error);
+	aal_throw_error(EO_OK, "Can't open device %s. %s.", host_dev, error);
 	goto error;
     }
     
     if (libreiser4_init()) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't initialize libreiser4.");
+	aal_throw_error(EO_OK, "Can't initialize libreiser4.");
 	goto error_free_device;
     }
     
     if (check && rebuild) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Invalid mode. Please select one of --check or --rebuild.");
+	aal_throw_error(EO_OK, "Invalid mode. Please select one of --check or --rebuild.");
 	goto error_free_libreiser4;
     }
     
     if (rebuild) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Sorry, filesystem rebuilding not supported yet!");
+	aal_throw_error(EO_OK, "Sorry, filesystem rebuilding not supported yet!");
 	goto error_free_libreiser4;
     }
     
     if (!force) {
-	if (!(c = reiser4progs_misc_choose_propose("ynYN", "Please select (y/n) ", 
+	if (!(c = progs_misc_choose_propose("ynYN", "Please select (y/n) ", 
 		"Do you realy want to run filesystem check on %s? (y/n) ", host_dev)))
 	    goto error_free_libreiser4;
 	
@@ -169,8 +162,7 @@ int main(int argc, char *argv[]) {
 	on control structures.
     */
     if (!(fs = reiserfs_fs_open(device, device, replay))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open filesystem on %s.", host_dev);
+	aal_throw_error(EO_OK, "Can't open filesystem on %s.", host_dev);
 	goto error_free_libreiser4;
     }
     
@@ -184,8 +176,7 @@ int main(int argc, char *argv[]) {
     
     if (check) {
 	if (reiserfs_fs_check(fs)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't check filesystem on %s.", host_dev);
+	    aal_throw_error(EO_OK, "Can't check filesystem on %s.", host_dev);
 	    goto error_free_fs;
 	}
     } else {
@@ -197,14 +188,12 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Synchronizing...");
     
     if (reiserfs_fs_sync(fs)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize created filesystem.");
+	aal_throw_error(EO_OK, "Can't synchronize created filesystem.");
 	goto error_free_fs;
     }
 
     if (aal_device_sync(device)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't synchronize device %s.", aal_device_name(device));
+	aal_throw_error(EO_OK, "Can't synchronize device %s.", aal_device_name(device));
 	goto error_free_fs;
     }
 
