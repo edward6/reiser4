@@ -10,7 +10,7 @@
 #if !defined( __REISER4_FILE_H__ )
 #define __REISER4_FILE_H__
 
-				/* a flow is a datum being added to or
+				/* a flow is a sequence of bytes being written to or
                                    read from the tree.  The tree will
                                    slice the flow into items
                                    while storing it into nodes, but
@@ -19,9 +19,9 @@
 
 
 struct flow {
-	reiser4_key  key;    /* key of start of flow's data */
-	size_t       length; /* length of flow's data */
-	char        *data;   /* start of flow's data */
+	reiser4_key  key;    /* key of start of flow's sequence of bytes */
+	size_t       length; /* length of flow's sequence of bytes */
+	char        *data;   /* start of flow's sequence of bytes */
 };
 
 
