@@ -195,7 +195,7 @@ lock_side_neighbor(lock_handle * result,
 	return ret;
 }
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_SIBLING_LIST
 int check_sibling_list(znode * node)
 {
 	znode *scan;

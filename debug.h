@@ -159,6 +159,12 @@
 #define REISER4_DEBUG_CONTEXTS (0)
 #endif
 
+#if defined(CONFIG_REISER4_DEBUG_SIBLING_LIST)
+#define REISER4_DEBUG_SIBLING_LIST (1)
+#else
+#define REISER4_DEBUG_SIBLING_LIST (0)
+#endif
+
 #define noop   do {;} while(0)
 
 #if REISER4_DEBUG
