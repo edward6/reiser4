@@ -2501,13 +2501,14 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 		JF_SET (j, ZNODE_RELOC);
 
 		/* Submit I/O and set the jnode clean. */
-		if ((ret = flush_enqueue_jnode_page_locked (j, flush_pos, page))) {
+		ret = flush_enqueue_jnode_page_locked (j, flush_pos, page);
+		page_detach_jnode (page);
+		page_cache_release (page);
+		if (ret) {
 			return ret;
 		}
 
 		offset += blocksize;
-		/*unlock_page (page);*/
-		/*page_cache_release (page);*/
 	}
  	iput (inode);
 		
