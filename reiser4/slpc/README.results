@@ -1,0 +1,112 @@
+The results directory contains the results of three different tests of
+the skip list.  All of the code for reproducing these results is
+contained in the SLPC distribution.
+
+The first test, testslpc1, measures the performance of different node
+sizes and locking strategies.  This test measures the average number
+of cycles for insertion, search, and deletion of a random set of 1
+million keys.  You can view these results in these plots:
+
+  slpc_delete.gif
+  slpc_insert.gif
+  slpc_search.gif
+
+You will notice that performance peaks at a node size of 128 or 256
+bytes.  Usually search is fastest with 256 byte nodes while insert and
+delete are fastest with 128 byte nodes--this is because insert and
+delete have to modify a larger node.  You can also see the relative
+performance of Linux 2.4 read-write spinlocks and exclusive spinlocks
+compared with no locking overhead.  With locking overhead, the 256
+byte node size generally performs better.
+
+This data was collected on the OSDL machine named DEV8-002, an 8-way
+SMP that I used for testing, and you can find the raw results in
+DEV8-test1.
+
+The second test, testslpc2, measures multi-processor performance.  All
+tests use a node size of 256 bytes, and two variations are considered:
+read-write locks and exclusive locks.  For these tests, a variety of
+different workload mixes were used, which consist of a percentage of
+insert, search, and delete operations.  All tests have a balanced
+number of insertions and deletions.  The different workload mixes are:
+10/80/10 (i.e., 10% insert, 80% search, 10% delete), 25/50/25,
+33/34/33, and 40/20/40.  The tests were performed using an a variety
+of tree sizes, with initial key values of 400, 40000, 4000000, and
+40000000.  The test measures the overall time to perform a constant
+number of operations (20 million) with each workload mix.  You can
+view the results in these plots:
+
+  10-80-10-0-ex.gif
+  25-50-25-0-ex.gif
+  33-34-33-0-ex.gif
+  40-20-40-0-ex.gif
+
+  10-80-10-0-rw.gif
+  25-50-25-0-rw.gif
+  33-34-33-0-rw.gif
+  40-20-40-0-rw.gif
+
+You will notice that larger trees have better concurrency, and
+read-write locking improves multi-processor performance.  The
+two-processor case is usually the worst case--it has the penalty of
+cacheline sharing with the least benefit of concurrency.
+Multi-processor performance is best at around 4 or 5 CPUs and degrades
+above that.
+
+(Some tests were performed that included append operations, but append
+performance does not scale with the number of processors, since append
+operations create contention for the right-most skip list nodes.  Thus
+append performance is best in a single-processor case and these
+results are not reported.)
+
+This data was also collected on the OSDL machine named DEV8-002, an
+8-way SMP that I used for testing, and you can find the raw results in
+DEV8-test2.
+
+The third test, testslpc3, compares single-processor performance of
+the skip list (256-byte node) and a red-black tree taken from Linux
+2.4.10.  I chose my experiment based on the usage of vm_area_struct in
+mm/mmap.c.  vm_area_struct is currently a 68-byte structure, with 20
+bytes devoted to the red-black tree and the singly-linked list of VMA
+entries: three pointers per red-block node, one integer to store the
+color, and one right-link pointer in the sorted list of VMAs.
+
+The experiment is parametrized by the maximum number of keys in the
+key-space to determine the average insertion, search, and deletion
+times associated with accessing the data structures.  This test does
+not measure concurrency, since the red-black tree does not support
+concurrent access.  For each run of the experiment, space was
+pre-allocated for max-keys vm_area_structs and then half of the
+key-space was populated in each tree.  A mixture of insert, search,
+and delete operations followed that probabilistically maintains a 50%
+occupancy.  I measure space overhead, which is fixed for the
+vm_area_struct usage at 41.7% overhead.  The skip list separates its
+pointers into nodes and except for very small trees, its worst-case
+overhead is slightly smaller at 38.1%.  That is if every node is
+exactly half-full, whereas the expected occupancy is 66%.
+
+The results for average-key-counts ranging from 8 to 512000 (max-keys
+from 16 to 1024000) are plotted in the following (log-scale) graphs.
+The first three plot the average number of cycles per operation:
+
+  slrb_delete.gif
+  slrb_insert.gif
+  slrb_search.gif
+
+And the final plots space overhead (%):
+
+  slrb_space.gif
+
+The results show the effect of the cache-optimization but it takes a
+reasonably large tree before it kicks in.  The RB-tree performs better
+at insert and delete up to an average of around 10000 keys, at which
+point the slopes change and the red-black tree performs exponentially
+worse.  The same effect happens for search but the crossing-point is
+much sooner at around 1000 keys.  (The reason why insert and delete
+perform relatively worse is that they have to re-organize up to
+256-bytes of data each time a rebalancing occurs).
+
+The insert/delete results are somewhat generous in favor of the
+red-black tree since I did not measure the cost of maintaining the
+additional linked list of vm_area_structs.  That is maintained
+already as part of the skip list.
