@@ -1149,6 +1149,10 @@ static void unregister_profregions(void)
 /* read super block from device and fill remaining fields in @s.
   
    This is read_super() of the past.   */
+
+extern int first_read_started;
+extern int second_read_started;
+
 static int
 reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 {
@@ -1162,6 +1166,8 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 	unsigned long blocksize;
 	reiser4_context ctx;
 
+
+	first_read_started = second_read_started = 0;
 	assert("umka-085", s != NULL);
 
 	if ((REISER4_DEBUG || 
