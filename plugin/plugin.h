@@ -176,7 +176,11 @@ typedef struct file_plugin {
 	/* VFS required/defined operations */
 	int ( *truncate )( struct inode *inode, loff_t size );
 	/* create new object described by @data and add it to the @parent directory under the name described by
-	   @dentry */
+	   @dentry 
+	   
+	   FIXME-HANS how comes that creation of sub-object is part of file
+	   plugin rather than directory plugin?
+	*/
 	int ( *create )( struct inode *parent, struct dentry *dentry, 
 			       reiser4_object_create_data *data );
 	/** save inode cached stat-data onto disk. It was called
@@ -237,7 +241,7 @@ typedef struct dir_plugin {
 
 	/* returns whether it is a builtin. 
 	 *
-	 * FIXME-NIKITA What does this mean? If builtin means pseudo-file,
+	 * FIXME-HANS What does this mean? If builtin means pseudo-file,
 	 * does it mean that pseudo files are necessary directories and why it
 	 * is so?*/
 	int (*is_built_in)(char * name, int length);
