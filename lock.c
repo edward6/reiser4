@@ -685,6 +685,8 @@ void longterm_unlock_znode (lock_handle *handle)
 			 */
 			spin_unlock_znode(node);
 			forget_znode(handle);
+			zput(node);
+
 			return;
 		}
 	}
