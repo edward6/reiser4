@@ -1269,3 +1269,4 @@ reiser4progs/plugin/reg40/reg40.lo
 ulevel/make-teeny-files
 vfs_ops.
 .emergency_flush.o.cmd
+plugin/file/.file.o.d
