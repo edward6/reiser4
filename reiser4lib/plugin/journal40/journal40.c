@@ -67,6 +67,7 @@ reiserfs_plugin_t plugin_info = {
 				"Copyright (C) 1996-2002 Hans Reiser",
 		},
 		.init = (reiserfs_journal_opaque_t *(*)(aal_device_t *))reiserfs_journal40_init,
+		.create = NULL,
 		.done = (void (*)(reiserfs_journal_opaque_t *, int))reiserfs_journal40_done,
 		.replay = (int (*)(reiserfs_journal_opaque_t *))reiserfs_journal40_replay
 	}

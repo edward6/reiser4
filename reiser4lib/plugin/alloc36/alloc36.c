@@ -46,6 +46,7 @@ reiserfs_plugin_t plugin_info = {
 				"Copyright (C) 1996-2002 Hans Reiser",
 		},
 		.init = (reiserfs_alloc_opaque_t *(*)(aal_device_t *))reiserfs_alloc36_init,
+		.create = NULL,
 		.done = (void (*)(reiserfs_alloc_opaque_t *, int))reiserfs_alloc36_done
 	}
 };

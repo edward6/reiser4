@@ -138,6 +138,7 @@ typedef void reiserfs_alloc_opaque_t;
 struct reiserfs_alloc_plugin {
 	reiserfs_plugin_header_t h;
 	reiserfs_alloc_opaque_t *(*init) (aal_device_t *);
+	reiserfs_alloc_opaque_t *(*create) (aal_device_t *);
 	void (*done) (reiserfs_alloc_opaque_t *, int);
 };
 
@@ -148,6 +149,7 @@ typedef void reiserfs_journal_opaque_t;
 struct reiserfs_journal_plugin {
 	reiserfs_plugin_header_t h;
 	reiserfs_journal_opaque_t *(*init) (aal_device_t *);
+	reiserfs_journal_opaque_t *(*create) (aal_device_t *);
 	void (*done) (reiserfs_journal_opaque_t *, int);
 	int (*replay) (reiserfs_journal_opaque_t *);
 };

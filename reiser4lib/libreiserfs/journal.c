@@ -35,13 +35,6 @@ int reiserfs_journal_open(reiserfs_fs_t *fs, aal_device_t *device, int replay) {
 	
 	fs->journal->plugin = plugin;
 	
-	if (!plugin->journal.init) {
-		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-013", 
-			"Not implemented routin \"init\" has detected in \"%s\" plugin.", 
-			plugin->h.label);
-		goto error_free_journal;
-	}
-	
 	if (!(fs->journal->entity = plugin->journal.init(device))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-013", 
 			"Can't initialize the journal plugin.");
