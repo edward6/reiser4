@@ -15,6 +15,7 @@
 #include <linux/fs.h>		/* for struct super_block  */
 #include <linux/slab.h>
 #include <linux/bio.h>
+#include <linux/vmalloc.h>
 
 #if REISER4_TRACE_TREE
 
@@ -41,12 +42,14 @@ open_trace_file(struct super_block *super, const char *file_name, size_t size, r
 
 	xmemset(trace, 0, sizeof *trace);
 
-	init_MUTEX(&trace->held);
+	spin_lock_init(&trace->lock);
+	INIT_LIST_HEAD(&trace->wait);
+
 	if (!strcmp(file_name, "/dev/null")) {
 		trace->type = log_to_bucket;
 		return 0;
 	}
-	trace->buf = kmalloc(size, GFP_KERNEL);
+	trace->buf = vmalloc(size);
 	if (trace->buf == NULL)
 		return -ENOMEM;
 	trace->size = size;
@@ -120,7 +123,7 @@ close_trace_file(reiser4_trace_file * trace)
 	if (trace->fd != NULL)
 		filp_close(trace->fd, NULL);
 	if (trace->buf != NULL) {
-		kfree(trace->buf);
+		vfree(trace->buf);
 		trace->buf = NULL;
 	}
 }
@@ -156,16 +159,59 @@ disable_trace(reiser4_trace_file * file, int flag)
 		set_fs( __ski_old_fs );		\
 	}
 
+struct __wlink {
+	struct list_head link;
+	struct semaphore sema;
+};
+
 static int
 lock_trace(reiser4_trace_file * trace)
 {
-	return down_interruptible(&trace->held);
+	int ret = 0;
+
+	spin_lock(&trace->lock);
+
+	while (trace->long_term) {
+		/* sleep on a semaphore */
+		struct __wlink link;
+		sema_init(&link.sema, 0);
+		list_add(&link.link, &trace->wait);
+		spin_unlock(&trace->lock);
+
+		ret = down_interruptible(&link.sema);
+
+		spin_lock(&trace->lock);
+		list_del(&link.link);
+	}
+
+	return ret;
 }
 
 static void
 unlock_trace(reiser4_trace_file * trace)
 {
-	up(&trace->held);
+	spin_unlock(&trace->lock);
+}
+
+static void convert_to_longterm (reiser4_trace_file * trace)
+{
+	assert ("zam-833", trace->long_term == 0);
+	trace->long_term = 1;
+	spin_unlock(&trace->lock);
+}
+
+static void convert_to_shortterm (reiser4_trace_file * trace)
+{
+	struct list_head * pos;
+
+	spin_lock(&trace->lock);
+	assert ("zam-834", trace->long_term);
+	trace->long_term = 0;
+	list_for_each(pos, &trace->wait) {
+		struct __wlink * link;
+		link = list_entry(pos, struct __wlink, link);
+		up(&link->sema);
+	}
 }
 
 static int
@@ -177,6 +223,8 @@ flush_trace(reiser4_trace_file * file)
 	switch (file->type) {
 	case log_to_file:{
 		struct file *fd;
+
+		convert_to_longterm(file);
 
 		fd = file->fd;
 		if (fd && fd->f_op != NULL && fd->f_op->write != NULL) {
@@ -203,6 +251,9 @@ flush_trace(reiser4_trace_file * file)
 			warning("nikita-2504", "no ->write() in trace-file");
 			result = -EINVAL;
 		}
+
+		convert_to_shortterm(file);
+
 		break;
 	}
 	default:
@@ -214,6 +265,7 @@ flush_trace(reiser4_trace_file * file)
 		file->used = 0;
 		break;
 	}
+
 	return result;
 }
 
