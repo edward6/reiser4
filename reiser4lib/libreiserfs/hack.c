@@ -1,5 +1,5 @@
 /*
-    hack.c -- temporary hack for creating fresh tree. Will be removed later.
+    hack.c -- temporary code for creating empty b*tree. Will be rewrote later.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -151,24 +151,51 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     set_ih40_plugin_id(item, 0x2);
     set_ih40_length(item, sizeof(reiserfs_direntry40_t) + 
 	2*sizeof(reiserfs_direntry40_unit_t) + 2*sizeof(reiserfs_objid_t) + 
-	aal_strlen(".") + 1 + aal_strlen("..") + 1);
+	2 + 3);
     
     set_ih40_offset(item, sizeof(reiserfs_node40_header_t) + sizeof(reiserfs_stat40_t));
     
     direntry_body = (reiserfs_direntry40_t *)(block->data + get_ih40_offset(item));
     direntry_body->num_entries = 2;
    
-//    direntry_body->entry[0].hash.objectid[0] = 42;
-
-    /* Offset of the first name in directory */
-    direntry_body->entry[0].offset = sizeof(reiserfs_direntry40_t) + 
-	2*sizeof(reiserfs_direntry40_unit_t);
-    
-//    direntry_body->entry[1].hash.objectid[0] = 42;
     {
-	uint64_t packed = pack_string(".." + OID_CHARS, 0);
-	aal_memcpy(direntry_body->entry[1].hash.offset, &packed, sizeof(packed));
-    }	
+	reiserfs_key_t key;
+	uint64_t objectid;
+	uint64_t offset;
+	
+	aal_memset(&key, 0, sizeof(key));
+	set_key_locality(&key, 42);
+	set_key_type(&key, KEY_FILE_NAME_MINOR);
+	
+	objectid = get_key_objectid(&key);
+	offset = get_key_offset(&key);
+	
+	aal_memcpy(direntry_body->entry[0].hash.objectid, &objectid, 8);
+	aal_memcpy(direntry_body->entry[0].hash.offset, &offset, 8);
+    }
+    
+    /* Offset of the first name in directory */
+    direntry_body->entry[0].offset = 2*sizeof(reiserfs_direntry40_unit_t) + 
+	sizeof(reiserfs_direntry40_t);
+    
+    {
+	reiserfs_key_t key;
+	uint64_t objectid;
+	uint64_t offset;
+
+	aal_memset(&key, 0, sizeof(key));
+	set_key_locality(&key, 42);
+	set_key_type(&key, KEY_FILE_NAME_MINOR);
+	
+	objectid = pack_string("..", 1);
+	set_key_objectid(&key, objectid);
+	set_key_offset(&key, 0ull);
+	
+	offset = get_key_offset(&key);
+	
+	aal_memcpy(direntry_body->entry[1].hash.objectid, &objectid, 8);
+	aal_memcpy(direntry_body->entry[1].hash.offset, &offset, 8);
+    }
 
     /* 
 	Offset of the second name in directory.
@@ -177,23 +204,61 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 	size of dir units array + key for first name + size of first 
 	name (".") + zero for terminating first name.
     */
-    direntry_body->entry[1].offset = sizeof(reiserfs_direntry40_t) + 
-	2*sizeof(reiserfs_direntry40_unit_t) + sizeof(reiserfs_objid_t) + 2;
+    direntry_body->entry[1].offset = 2*sizeof(reiserfs_direntry40_unit_t) + 
+	2 + sizeof(reiserfs_objid_t) + sizeof(reiserfs_direntry40_t);
 
-    aal_memcpy((char *)(((void *)direntry_body) + direntry_body->entry[0].offset), ".\0", 2);
-    dot_key = (reiserfs_objid_t *)(((void *)direntry_body) + direntry_body->entry[0].offset + 2);
+    {
+	char *dirname = ((void *)direntry_body) + direntry_body->entry[0].offset + 
+	    sizeof(reiserfs_objid_t);
+	aal_memcpy(dirname, ".\0", 2);
+    }
 
-    aal_memset(dot_key, 0, sizeof(*dot_key));
-    dot_key->locality[0] = 41;
-    dot_key->objectid[0] = 42;
+    dot_key = (reiserfs_objid_t *)(((void *)direntry_body) + 
+	direntry_body->entry[0].offset);
+
+    {
+	reiserfs_key_t key;
+	uint64_t locality;
+	uint64_t objectid;
+
+	aal_memset(&key, 0, sizeof(key));
+	set_key_type(&key, KEY_SD_MINOR);
+	set_key_locality(&key, 41 << 4);
+	set_key_objectid(&key, 42);
+	
+	locality = get_key_locality(&key);
+	objectid = get_key_objectid(&key);
+	
+	aal_memcpy(dot_key->locality, &locality, 8);
+	aal_memcpy(dot_key->objectid, &objectid, 8);
+    }
     
-    aal_memcpy((char *)(((void *)direntry_body) + direntry_body->entry[1].offset), "..\0", 3);
-    dot_dot_key = (reiserfs_objid_t *)(((void *)direntry_body) + direntry_body->entry[1].offset + 3);
+    {
+	char *dirname = ((void *)direntry_body) + direntry_body->entry[1].offset + 
+	    sizeof(reiserfs_objid_t);
+	aal_memcpy(dirname, "..\0", 3);
+    }
     
-    aal_memset(dot_dot_key, 0, sizeof(*dot_dot_key));
-    dot_dot_key->locality[0] = 41 - 3;
-    dot_dot_key->objectid[0] = 41;
+    dot_dot_key = (reiserfs_objid_t *)(((void *)direntry_body) + 
+	direntry_body->entry[1].offset);
+    
+    {
+	reiserfs_key_t key;
+	uint64_t locality;
+	uint64_t objectid;
 
+	aal_memset(&key, 0, sizeof(key));
+	set_key_type(&key, KEY_SD_MINOR);
+	set_key_locality(&key, (41 - 3) << 4);
+	set_key_objectid(&key, 41);
+	
+	locality = get_key_locality(&key);
+	objectid = get_key_objectid(&key);
+	
+	aal_memcpy(dot_dot_key->locality, &locality, 8);
+	aal_memcpy(dot_dot_key->objectid, &objectid, 8);
+    }
+    
     if (aal_device_write_block(fs->device, block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't write block %llu on device.", 
