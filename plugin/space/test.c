@@ -36,7 +36,7 @@ int test_init_allocator (reiser4_space_allocator * allocator,
 /*
  * probability of getting blocks perfectly allocated (eek, floating point in kernel?)
  */
-#define P 2
+#define P 10
 
 /* plugin->u.space_allocator.alloc_blocks */
 int test_alloc_blocks (reiser4_space_allocator * allocator,

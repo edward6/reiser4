@@ -1259,7 +1259,7 @@ void print_znodes( const char *prefix, reiser4_tree *tree )
 	for_all_ht_buckets( htable, bucket ) {
 		for_all_in_bucket( bucket, item, link ) {
 			info_znode( prefix, item );
-			info( "\n" );
+			/*info( "\n" );*/
 		}
 	}
 	spin_unlock_tree( tree );
