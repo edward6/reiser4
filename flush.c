@@ -1969,7 +1969,13 @@ static int flush_empty_queue (flush_position *pos, int finish)
 				assert ("jmacd-74234", PageDirty (pg));
 				ClearPageDirty (pg);
 				SetPageWriteback (pg);
+
 				unlock_page (pg);
+
+				/*
+				 * prepare node to being written
+				 */
+				jnode_ops (node)->io_hook (node, pg, WRITE);
 
 				bio->bi_io_vec[i].bv_page   = pg;
 				bio->bi_io_vec[i].bv_len    = blksz;
