@@ -7,4 +7,4 @@ mkfs_reiser4_LDADD 	= $(top_builddir)/libreiser4/libreiser4.la \
 			  
 mkfs_reiser4_LDFLAGS 	= $(PROGS_LDFLAGS)
 
-INCLUDES		= -I$(top_srcdir)/include
+INCLUDES		= -I$(top_srcdir)/include -I$(top_srcdir)/progs/include

@@ -23,9 +23,10 @@
 
 #include <reiser4/reiser4.h>
 
-#include <progs/include/misc/misc.h>
-#include <progs/include/misc/exception.h>
-#include <progs/include/misc/profile.h>
+#include <comm/misc.h>
+#include <misc/misc.h>
+#include <misc/exception.h>
+#include <misc/profile.h>
 
 static void mkfs_print_usage(void) {
     fprintf(stderr, "Usage: mkfs.reiser4 [ options ] FILE1 FILE2 ... [ size[K|M|G] ]\n");
@@ -151,7 +152,7 @@ int main(int argc, char *argv[]) {
 	    case 'b': {
 		
 		/* Parsing blocksize */
-	        if (!(blocksize = (uint16_t)reiser4_misc_strtol(optarg, &error)) && error) {
+	        if (!(blocksize = (uint16_t)reiser4_comm_strtol(optarg, &error)) && error) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		        "Invalid blocksize (%s).", optarg);
 		    return USER_ERROR;

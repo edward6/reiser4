@@ -8,7 +8,7 @@
 #define ALLOC40_H
 
 #include <aal/aal.h>
-#include <misc/bitmap.h>
+#include <comm/bitmap.h>
 
 struct alloc40 {
     aal_device_t *device;

@@ -9,7 +9,7 @@
 #endif
 
 #include <reiser4/reiser4.h>
-#include <misc/misc.h>
+#include <comm/misc.h>
 
 #include "direntry40.h"
 
@@ -320,7 +320,7 @@ static int direntry40_lookup(reiser4_body_t *body,
     aal_assert("umka-609", body != NULL, return -1);
     aal_assert("umka-629", pos != NULL, return -1);
     
-    if ((lookup = reiser4_misc_bin_search((void *)body, direntry40_count(body), 
+    if ((lookup = reiser4_comm_bin_search((void *)body, direntry40_count(body), 
 	    key->body, callback_elem_for_lookup, callback_comp_for_lookup, 
 	    key->plugin, &unit)) != -1)
 	*pos = (uint32_t)unit;

@@ -1,1 +1,1 @@
-SUBDIRS = aal misc reiser4 repair
+SUBDIRS = aal comm reiser4 repair

@@ -1,4 +1,4 @@
-SUBDIRS		= libaal libmisc plugin libreiser4 librepair progs demos include doc debug
+SUBDIRS		= libaal libcomm plugin libreiser4 librepair progs demos include doc debug
 
 EXTRA_DIST	= ABOUT-NLS AUTHORS BUGS COPYING TODO NEWS THANKS README \
 		  reiser4progs.spec.in libreiser4.m4

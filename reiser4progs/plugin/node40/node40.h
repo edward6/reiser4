@@ -8,8 +8,6 @@
 #define NODE40_H
 
 #include <aal/aal.h>
-#include <misc/misc.h>
-#include <reiser4/reiser4.h>
 
 /* (*(__u32 *)"R4FS") */
 #define NODE40_MAGIC 0x52344653

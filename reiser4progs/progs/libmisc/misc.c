@@ -20,7 +20,7 @@
 #include <sys/mount.h>
 
 #include <reiser4/reiser4.h>
-#include <progs/include/misc/misc.h>
+#include <comm/misc.h>
 
 #define KB 1024
 #define MB (KB * KB)
@@ -52,7 +52,7 @@ unsigned long long progs_misc_size_parse(
     else
 	label = 0;	
 	
-    if ((size = reiser4_misc_strtol(number, error)) == 0 && *error)
+    if ((size = reiser4_comm_strtol(number, error)) == 0 && *error)
 	return 0;
 	
     if (label == 0 || toupper(label) == toupper('m'))

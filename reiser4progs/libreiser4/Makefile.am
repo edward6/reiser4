@@ -13,7 +13,7 @@ libreiser4_la_LDFLAGS	     = -version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE
 if ENABLE_MONOLITHIC
 
 libreiser4_la_LIBADD	     = $(top_builddir)/libaal/libaal.la \
-			       $(top_builddir)/libmisc/libmisc-static.la \
+			       $(top_builddir)/libcomm/libcomm-static.la \
 			       $(top_builddir)/plugin/libreiser4-plugin.la
 else
 
@@ -24,7 +24,7 @@ endif
 libreiser4_la_SOURCES	     = $(libreiser4_sources)
 
 libreiser4_static_la_LIBADD  = $(top_builddir)/libaal/libaal-static.la \
-			       $(top_builddir)/libmisc/libmisc-static.la \
+			       $(top_builddir)/libcomm/libcomm-static.la \
 			       $(top_builddir)/plugin/libreiser4-plugin.la
 
 libreiser4_static_la_SOURCES = $(libreiser4_sources)

@@ -4,7 +4,7 @@
     Author Vitaly Fertman.
 */
 
-#include <profile.h>
+#include <misc/profile.h>
 
 static reiser4_profile_t reiser4profiles[] = {
     [0] = {

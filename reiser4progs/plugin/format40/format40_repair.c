@@ -13,7 +13,7 @@
 
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
-#include <misc/misc.h>
+#include <comm/misc.h>
 
 #include "format40.h"
 
@@ -39,7 +39,7 @@ static long int __get_number(int *error, char *ask, ...) {
 	if (!aal_strncmp(answer, "\n", 1)) {
 	    *error = 1;
 	    break;
-	} else if (!(result = reiser4_misc_strtol(answer, error)) && *error) {
+	} else if (!(result = reiser4_comm_strtol(answer, error)) && *error) {
 	    aal_exception_error("Invalid answer (%ld).", result);
 	    free(answer);
 	}
@@ -129,15 +129,15 @@ void format40_print(char *buf, size_t n, reiser4_entity_t *entity, uint16_t opti
 
     super = format40_super(((format40_t *)entity)->block);
     
-    reiser4_misc_strcat(buf, n, "Format40 on-disk format\n");
-    reiser4_misc_strcat(buf, n, "Count of blocks free/all: (%llu)/(%llu)\n", 
+    reiser4_comm_strcat(buf, n, "Format40 on-disk format\n");
+    reiser4_comm_strcat(buf, n, "Count of blocks free/all: (%llu)/(%llu)\n", 
 	get_sb_free_blocks(super), get_sb_block_count(super));
-    reiser4_misc_strcat(buf, n, "Root block (%llu)\n", get_sb_root_block(super));
-    reiser4_misc_strcat(buf, n, "Drop policy (%u)\n", get_sb_drop_policy(super));
-    reiser4_misc_strcat(buf, n, "Oid (%llu)\n", get_sb_oid(super));
-    reiser4_misc_strcat(buf, n, "File count (%llu)\n", get_sb_file_count(super));
-    reiser4_misc_strcat(buf, n, "Flushes (%llu)\n", get_sb_flushes(super));
-    reiser4_misc_strcat(buf, n, "Magic (%s)\n", super->sb_magic);
-    reiser4_misc_strcat(buf, n, "Tree height (%u)\n", get_sb_tree_height(super));
+    reiser4_comm_strcat(buf, n, "Root block (%llu)\n", get_sb_root_block(super));
+    reiser4_comm_strcat(buf, n, "Drop policy (%u)\n", get_sb_drop_policy(super));
+    reiser4_comm_strcat(buf, n, "Oid (%llu)\n", get_sb_oid(super));
+    reiser4_comm_strcat(buf, n, "File count (%llu)\n", get_sb_file_count(super));
+    reiser4_comm_strcat(buf, n, "Flushes (%llu)\n", get_sb_flushes(super));
+    reiser4_comm_strcat(buf, n, "Magic (%s)\n", super->sb_magic);
+    reiser4_comm_strcat(buf, n, "Tree height (%u)\n", get_sb_tree_height(super));
 }
 

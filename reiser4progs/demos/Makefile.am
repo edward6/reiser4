@@ -23,4 +23,3 @@ ls_LDADD 	= $(top_builddir)/libreiser4/libreiser4.la \
 	          $(top_builddir)/progs/libmisc/libmisc.la
 
 INCLUDES	= -I$(top_srcdir)/include -I$(top_srcdir)/progs/include
-

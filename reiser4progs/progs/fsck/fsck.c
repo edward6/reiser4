@@ -4,7 +4,10 @@
     Author Vitaly Fertman.
 */
 
-#define _GNU_SOURCE
+#ifndef _GNU_SOURCE
+#  define _GNU_SOURCE
+#endif
+
 #include <fsck.h>
 
 static void fsck_print_usage() {
@@ -109,7 +112,7 @@ uint16_t fsck_callback_blocksize_from_user(reiser4_fs_t *fs, int *error) {
 
     getline(&answer, &n, stdin);
     if (aal_strncmp(answer, "\n", 1)) {
-        if ((!(blocksize = (uint16_t)reiser4_misc_strtol(answer, error)) && *error) || 
+        if ((!(blocksize = (uint16_t)reiser4_comm_strtol(answer, error)) && *error) || 
 	    !aal_pow_of_two(blocksize)) 
 	{
             aal_exception_fatal("Invalid blocksize was specified (%d).", blocksize);

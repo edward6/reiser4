@@ -16,8 +16,8 @@
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
-#include <progs/include/misc/misc.h>
-#include <progs/include/misc/exception.h>
+#include <misc/misc.h>
+#include <misc/exception.h>
 
 static void ls_print_usage(void) {
     fprintf(stderr, "Usage: ls FILE DIR\n");

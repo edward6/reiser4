@@ -8,6 +8,7 @@
 #  include <config.h>
 #endif
 
+#include <comm/misc.h>
 #include <reiser4/reiser4.h>
 #include "node40.h"
 
@@ -546,7 +547,7 @@ static int node40_lookup(reiser4_entity_t *entity,
     aal_assert("umka-478", pos != NULL, return -1);
     aal_assert("umka-470", node != NULL, return -1);
 
-    if ((lookup = reiser4_misc_bin_search(node, node40_count(node), 
+    if ((lookup = reiser4_comm_bin_search(node, node40_count(node), 
 	    key->body, callback_elem_for_lookup, callback_comp_for_lookup, 
 	    key->plugin, &item)) != -1)
 	pos->item = item;
