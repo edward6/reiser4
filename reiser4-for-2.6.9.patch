@@ -3,15 +3,15 @@ diff -rup linux-2.6.9/fs/reiser4/as_ops.c linux-2.6.9-a/fs/reiser4/as_ops.c
 
 
  fs/reiser4/as_ops.c               |   14 +++++++-------
- fs/reiser4/page_cache.c           |   18 +++++++++++-------
+ fs/reiser4/page_cache.c           |    8 ++++----
  fs/reiser4/plugin/file/file.c     |    8 ++++----
  fs/reiser4/plugin/object.c        |    1 -
  fs/reiser4/plugin/security/perm.c |    2 +-
- 5 files changed, 23 insertions(+), 20 deletions(-)
+ 5 files changed, 16 insertions(+), 17 deletions(-)
 
 diff -puN fs/reiser4/as_ops.c~reiser4-for-2.6.9 fs/reiser4/as_ops.c
---- linux-2.6.9/fs/reiser4/as_ops.c~reiser4-for-2.6.9	2004-11-02 17:59:25.969267894 +0300
-+++ linux-2.6.9-vs/fs/reiser4/as_ops.c	2004-11-02 17:59:25.995264689 +0300
+--- linux-2.6.9/fs/reiser4/as_ops.c~reiser4-for-2.6.9	2004-11-03 18:32:27.155728976 +0300
++++ linux-2.6.9-vs/fs/reiser4/as_ops.c	2004-11-03 18:32:27.215719606 +0300
 @@ -75,7 +75,7 @@ reiser4_clear_page_dirty(struct page *pa
  	mapping = page->mapping;
  	BUG_ON(mapping == NULL);
@@ -71,8 +71,8 @@ diff -puN fs/reiser4/as_ops.c~reiser4-for-2.6.9 fs/reiser4/as_ops.c
  		return 1;
  	} else {
 diff -puN fs/reiser4/page_cache.c~reiser4-for-2.6.9 fs/reiser4/page_cache.c
---- linux-2.6.9/fs/reiser4/page_cache.c~reiser4-for-2.6.9	2004-11-02 17:59:25.974267277 +0300
-+++ linux-2.6.9-vs/fs/reiser4/page_cache.c	2004-11-02 17:59:25.996264566 +0300
+--- linux-2.6.9/fs/reiser4/page_cache.c~reiser4-for-2.6.9	2004-11-03 18:32:27.160728195 +0300
++++ linux-2.6.9-vs/fs/reiser4/page_cache.c	2004-11-03 18:32:27.217719293 +0300
 @@ -533,7 +533,7 @@ int set_page_dirty_internal (struct page
  		struct address_space *mapping = page->mapping;
  
@@ -107,26 +107,9 @@ diff -puN fs/reiser4/page_cache.c~reiser4-for-2.6.9 fs/reiser4/page_cache.c
  		}
  		spin_unlock(&inode_lock);
  
-@@ -759,9 +759,13 @@ drop_page(struct page *page)
- #if defined(PG_skipped)
- 	ClearPageSkipped(page);
- #endif
--	if (page->mapping != NULL)
--		delete_from_page_cache(page);
--	unlock_page(page);
-+	if (page->mapping != NULL) {
-+		remove_from_page_cache(page);
-+		unlock_page(page);
-+		/* page removed from the mapping---decrement page counter */
-+		page_cache_release(page);
-+	} else
-+		unlock_page(page);
- }
- 
- 
 diff -puN fs/reiser4/plugin/file/file.c~reiser4-for-2.6.9 fs/reiser4/plugin/file/file.c
---- linux-2.6.9/fs/reiser4/plugin/file/file.c~reiser4-for-2.6.9	2004-11-02 17:59:25.980266538 +0300
-+++ linux-2.6.9-vs/fs/reiser4/plugin/file/file.c	2004-11-02 17:59:25.999264196 +0300
+--- linux-2.6.9/fs/reiser4/plugin/file/file.c~reiser4-for-2.6.9	2004-11-03 18:32:27.165727414 +0300
++++ linux-2.6.9-vs/fs/reiser4/plugin/file/file.c	2004-11-03 18:32:27.220718825 +0300
 @@ -1216,7 +1216,7 @@ sync_page_list(struct inode *inode)
  	mapping = inode->i_mapping;
  	from = 0;
@@ -158,8 +141,8 @@ diff -puN fs/reiser4/plugin/file/file.c~reiser4-for-2.6.9 fs/reiser4/plugin/file
  }
  
 diff -puN fs/reiser4/plugin/object.c~reiser4-for-2.6.9 fs/reiser4/plugin/object.c
---- linux-2.6.9/fs/reiser4/plugin/object.c~reiser4-for-2.6.9	2004-11-02 17:59:25.985265922 +0300
-+++ linux-2.6.9-vs/fs/reiser4/plugin/object.c	2004-11-02 17:59:26.001263950 +0300
+--- linux-2.6.9/fs/reiser4/plugin/object.c~reiser4-for-2.6.9	2004-11-03 18:32:27.170726633 +0300
++++ linux-2.6.9-vs/fs/reiser4/plugin/object.c	2004-11-03 18:32:27.222718512 +0300
 @@ -989,7 +989,6 @@ static void delete_inode_common(struct i
  	 * FIXME: this resembles generic_delete_inode
  	 */
@@ -169,8 +152,8 @@ diff -puN fs/reiser4/plugin/object.c~reiser4-for-2.6.9 fs/reiser4/plugin/object.
  	inodes_stat.nr_inodes--;
  	spin_unlock(&inode_lock);
 diff -puN fs/reiser4/plugin/security/perm.c~reiser4-for-2.6.9 fs/reiser4/plugin/security/perm.c
---- linux-2.6.9/fs/reiser4/plugin/security/perm.c~reiser4-for-2.6.9	2004-11-02 17:59:25.990265305 +0300
-+++ linux-2.6.9-vs/fs/reiser4/plugin/security/perm.c	2004-11-02 17:59:26.002263826 +0300
+--- linux-2.6.9/fs/reiser4/plugin/security/perm.c~reiser4-for-2.6.9	2004-11-03 18:32:27.175725852 +0300
++++ linux-2.6.9-vs/fs/reiser4/plugin/security/perm.c	2004-11-03 18:32:27.223718356 +0300
 @@ -13,7 +13,7 @@
  static int
  mask_ok_common(struct inode *inode, int mask)
