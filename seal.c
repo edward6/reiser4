@@ -51,10 +51,10 @@ void seal_init( seal_t      *seal /* seal to initialise */,
 		znode *node;
 
 		node = coord -> node;
-		assert( "nikita-1879", node != NULL );
+		assert( "nikita-1987", node != NULL );
 		spin_lock_znode( node );
 		seal -> version = node -> version;
-		assert( "nikita-1880", seal -> version != 0 );
+		assert( "nikita-1988", seal -> version != 0 );
 		seal -> block   = *znode_get_block( node );
 #if REISER4_DEBUG
 		seal -> coord = *coord;
@@ -106,7 +106,7 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 	assert( "nikita-1883", coord != NULL );
 	assert( "nikita-1884", lh != NULL );
 	assert( "nikita-1885", keyeq( &seal -> key, key ) );
-	assert( "nikita-1886", !memcmp( &seal -> coord, coord, sizeof *coord ) );
+	assert( "nikita-1989", !memcmp( &seal -> coord, coord, sizeof *coord ) );
 
 	/* obtain znode by block number */
 	node = seal_node( seal );
@@ -118,7 +118,7 @@ int seal_validate( seal_t            *seal  /* seal to validate */,
 			if( seal_matches( seal, node ) ) {
 				/* if seal version and znode version
 				 * coincide */
-				assert( "nikita-1887", 
+				assert( "nikita-1990", 
 					node == seal -> coord.node );
 				assert( "nikita-1898", 
 					({ 
@@ -170,8 +170,8 @@ static int seal_matches( const seal_t *seal /* seal to check */,
 {
 	int result;
 
-	assert( "nikita-1890", seal != NULL );
-	assert( "nikita-1891", node != NULL );
+	assert( "nikita-1991", seal != NULL );
+	assert( "nikita-1993", node != NULL );
 
 	spin_lock_znode( node );
 	result = ( seal -> version == node -> version );
@@ -191,7 +191,7 @@ static int seal_search_node( seal_t      *seal  /* seal to repair */,
 	reiser4_key unit_key;
 
 	assert( "nikita-1888", seal != NULL );
-	assert( "nikita-1889", coord != NULL );
+	assert( "nikita-1994", coord != NULL );
 	assert( "nikita-1892", node != NULL );
 	assert( "nikita-1893", znode_is_any_locked( node ) );
 

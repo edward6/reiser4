@@ -29,7 +29,7 @@ static const oid_t ABSOLUTE_MIN_OID = ( oid_t )  0;
  */
 int oid_40_read_allocator( reiser4_oid_allocator *map, __u64 nr_files, __u64 oids )
 {
-	assert( "nikita-1168", map != NULL );
+	assert( "nikita-1977", map != NULL );
 
 	spin_lock_init( &map -> u.oid_40.oguard );
 	map -> u.oid_40.next_to_use = oids;
@@ -40,14 +40,14 @@ int oid_40_read_allocator( reiser4_oid_allocator *map, __u64 nr_files, __u64 oid
 /** helper function: spin lock allocator */
 static void lock( reiser4_oid_allocator *map )
 {
-	assert( "nikita-1648", map != NULL );
+	assert( "nikita-1978", map != NULL );
 	spin_lock( &map -> u.oid_40.oguard );
 }
 
 /** helper function: spin unlock allocator */
 static void unlock( reiser4_oid_allocator *map )
 {
-	assert( "nikita-1660", map != NULL );
+	assert( "nikita-1979", map != NULL );
 	spin_unlock( &map -> u.oid_40.oguard );
 }
 
@@ -59,7 +59,7 @@ __u64 oid_40_free( reiser4_oid_allocator *map )
 {
 	__u64 result;
 
-	assert( "nikita-1797", map != NULL );
+	assert( "nikita-1980", map != NULL );
 
 	lock( map );
 	result = ABSOLUTE_MAX_OID - OIDS_RESERVED - map -> u.oid_40.next_to_use;
@@ -76,7 +76,7 @@ __u64 oid_40_used( reiser4_oid_allocator *map )
 {
 	__u64 result;
 
-	assert( "nikita-444", map != NULL );
+	assert( "nikita-1981", map != NULL );
 
 	lock( map );
 	result = map -> u.oid_40.oids_in_use;
@@ -91,14 +91,14 @@ __u64 oid_40_used( reiser4_oid_allocator *map )
  */
 int oid_40_allocate( reiser4_oid_allocator *map, oid_t *result UNUSED_ARG )
 {
-	assert( "nikita-445", map != NULL );
+	assert( "nikita-1982", map != NULL );
 
 	lock( map );
 	*result = map -> u.oid_40.next_to_use;
 	++ map -> u.oid_40.next_to_use;
 	++ map -> u.oid_40.oids_in_use;
 	trace_on( TRACE_OIDS, "[%i]: allocated: %llx\n", current_pid, *result );
-	assert( "nikita-1794", map -> u.oid_40.next_to_use >= map -> u.oid_40.oids_in_use );
+	assert( "nikita-1983", map -> u.oid_40.next_to_use >= map -> u.oid_40.oids_in_use );
 	unlock( map );
 	return 0;
 }
@@ -109,13 +109,13 @@ int oid_40_allocate( reiser4_oid_allocator *map, oid_t *result UNUSED_ARG )
  */
 int oid_40_release( reiser4_oid_allocator *map, oid_t oid UNUSED_ARG )
 {
-	assert( "nikita-446", map != NULL );
+	assert( "nikita-1984", map != NULL );
 
 	trace_on( TRACE_OIDS, "[%i]: released: %llx\n", current_pid, oid );
 	lock( map );
-	assert( "nikita-1796", map -> u.oid_40.oids_in_use > 0 );
+	assert( "nikita-1985", map -> u.oid_40.oids_in_use > 0 );
 	-- map -> u.oid_40.oids_in_use;
-	assert( "nikita-1795", map -> u.oid_40.next_to_use >= map -> u.oid_40.oids_in_use );
+	assert( "nikita-1986", map -> u.oid_40.next_to_use >= map -> u.oid_40.oids_in_use );
 	unlock( map );
 	return 0;
 }

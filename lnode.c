@@ -258,8 +258,9 @@ void lput( lnode *node /* lnode to release */ )
 	reiser4_super_info_data *sinfo;
 
 	assert( "nikita-1864", node != NULL );
-	assert( "nikita-1866", lnode_valid_type( node -> h.type ) );
-
+	assert( "nikita-1961", lnode_valid_type( node -> h.type ) ); /* man in
+								      * a
+								      * space */
 	sinfo = get_current_super_private();
 	spin_lock( &sinfo -> lnode_htable_guard );
 	assert( "nikita-1878", ln_hash_find( &sinfo -> lnode_htable,

@@ -292,8 +292,8 @@ static int init_locked_inode( struct inode *inode /* new inode */,
 {
 	reiser4_key *key;
 
-	assert( "nikita-1947", inode != NULL );
-	assert( "nikita-1948", opaque != NULL );
+	assert( "nikita-1995", inode != NULL );
+	assert( "nikita-1996", opaque != NULL );
 	key = opaque;
 	inode -> i_ino = get_key_objectid( key );
 	reiser4_inode_data( inode ) -> locality_id = get_key_locality( key );
@@ -391,31 +391,31 @@ void reiser4_make_bad_inode( struct inode *inode )
 
 file_plugin *inode_file_plugin( const struct inode *inode )
 {
-	assert( "nikita-1881", inode != NULL );
+	assert( "nikita-1997", inode != NULL );
 	return reiser4_inode_data( inode ) -> file;
 }
 
 dir_plugin  *inode_dir_plugin ( const struct inode *inode )
 {
-	assert( "nikita-1882", inode != NULL );
+	assert( "nikita-1998", inode != NULL );
 	return reiser4_inode_data( inode ) -> dir;
 }
 
 perm_plugin *inode_perm_plugin( const struct inode *inode )
 {
-	assert( "nikita-1883", inode != NULL );
+	assert( "nikita-1999", inode != NULL );
 	return reiser4_inode_data( inode ) -> perm;
 }
 
 tail_plugin *inode_tail_plugin( const struct inode *inode )
 {
-	assert( "nikita-1884", inode != NULL );
+	assert( "nikita-2000", inode != NULL );
 	return reiser4_inode_data( inode ) -> tail;
 }
 
 hash_plugin *inode_hash_plugin( const struct inode *inode )
 {
-	assert( "nikita-1885", inode != NULL );
+	assert( "nikita-2001", inode != NULL );
 	return reiser4_inode_data( inode ) -> hash;
 }
 

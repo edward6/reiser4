@@ -187,8 +187,8 @@ reiser4_oid_allocator *get_oid_allocator( const struct super_block *super /* sup
  */
 reiser4_space_allocator *get_space_allocator( const struct super_block *super )
 {
-	assert( "nikita-458", super != NULL );
-	assert( "nikita-459", is_reiser4_super( super ) );
+	assert( "nikita-1965", super != NULL );
+	assert( "nikita-1966", is_reiser4_super( super ) );
 	return &get_super_private( super ) -> space_allocator;
 }
 
@@ -322,7 +322,7 @@ dir_plugin *default_dir_plugin( const struct super_block *super UNUSE /*  super
 								 *  block to
 								 *  query */ )
 {
-	assert( "nikita-1950", super != NULL );
+	assert( "nikita-1967", super != NULL );
 	return dir_plugin_by_id( REISER4_DIR_PLUGIN );
 }
 
@@ -334,7 +334,7 @@ hash_plugin *default_hash_plugin( const struct super_block *super UNUSE /*  supe
 								 *  block to
 								 *  query */ )
 {
-	assert( "nikita-1950", super != NULL );
+	assert( "nikita-1968", super != NULL );
 	return hash_plugin_by_id( REISER4_HASH_PLUGIN );
 }
 
@@ -346,7 +346,7 @@ perm_plugin *default_perm_plugin( const struct super_block *super UNUSE /*  supe
 								 *  block to
 								 *  query */ )
 {
-	assert( "nikita-1950", super != NULL );
+	assert( "nikita-1969", super != NULL );
 	return perm_plugin_by_id( REISER4_PERM_PLUGIN );
 }
 
@@ -358,7 +358,7 @@ tail_plugin *default_tail_plugin( const struct super_block *super UNUSE /*  supe
 								 *  block to
 								 *  query */ )
 {
-	assert( "nikita-1950", super != NULL );
+	assert( "nikita-1971", super != NULL );
 	return tail_plugin_by_id( REISER4_TAIL_PLUGIN );
 }
 
@@ -370,7 +370,7 @@ item_plugin *default_sd_plugin( const struct super_block *super UNUSE /*  super
 								 *  block to
 								 *  query */ )
 {
-	assert( "nikita-1950", super != NULL );
+	assert( "nikita-1972", super != NULL );
 	return item_plugin_by_id( REISER4_SD_PLUGIN );
 }
 
@@ -382,7 +382,7 @@ item_plugin *default_dir_item_plugin( const struct super_block *super UNUSE /*  
 									     *  block to
 									     *  query */ )
 {
-	assert( "nikita-1950", super != NULL );
+	assert( "nikita-1973", super != NULL );
 	return item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN );
 }
 

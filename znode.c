@@ -366,7 +366,7 @@ void add_x_ref( znode *node /* node to increase x_count of */ )
 /** bump data counter on @node */
 void add_d_ref( znode *node /* node to increase d_count of */ )
 {
-	assert( "nikita-1911", node != NULL );
+	assert( "nikita-1962", node != NULL );
 
 	atomic_inc( &node -> d_count );
 	ON_DEBUG( ++ lock_counters() -> d_refs );
@@ -734,8 +734,8 @@ int zrelse( znode *node /* znode to release references to */ )
 {
 	int ret = 0;
 	
-	assert( "nikita-487", node != NULL );
-	assert( "nikita-489", atomic_read( &node -> d_count ) > 0 );
+	assert( "nikita-1963", node != NULL );
+	assert( "nikita-1964", atomic_read( &node -> d_count ) > 0 );
 //	assert( "nikita-1907", !spin_znode_is_locked( node ) );
 
 	assert( "nikita-1381", znode_invariant( node ) );

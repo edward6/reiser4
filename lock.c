@@ -969,7 +969,7 @@ int reiser4_lock_znode (lock_handle *handle,
 	 * assert ("jmacd-1044", atomic_read (& node->x_count) > 0); */
 	zref (node);
 
-	assert("nikita-1391", lock_counters()->spin_locked == 0);
+	assert("nikita-1974", lock_counters()->spin_locked == 0);
 	if ((ret = internal_lock_znode(handle, node, mode, request)) != 0) {
 		zput(node);
 	} else
@@ -988,7 +988,7 @@ void reiser4_unlock_znode (lock_handle *handle)
 
 	assert ("jmacd-1021", handle != NULL);
 	assert ("jmacd-1022", handle->owner != NULL);
-	assert ("nikita-1392", lock_counters()->long_term_locked_znode > 0);
+	assert ("nikita-1975", lock_counters()->long_term_locked_znode > 0);
 
 	node = handle->node;
 	internal_unlock_znode(handle);

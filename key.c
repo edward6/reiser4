@@ -148,8 +148,8 @@ int keyle( const reiser4_key *k1 /* first key to compare */,
 int keygt( const reiser4_key *k1 /* first key to compare */, 
 	   const reiser4_key *k2 /* second key to compare */ )
 {
-	assert( "nikita-1954", k1 != NULL );
-	assert( "nikita-1955", k2 != NULL );
+	assert( "nikita-1959", k1 != NULL );
+	assert( "nikita-1960", k2 != NULL );
 	return keycmp( k1, k2 ) == GREATER_THAN;
 }
 
