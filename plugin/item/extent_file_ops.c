@@ -319,6 +319,7 @@ overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *bl
 		break;
 
 	case UNALLOCATED_EXTENT:
+		*block = 0;
 		break;
 
 	default:
@@ -569,10 +570,13 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		}
 		LOCK_JNODE(j);
 		/* extent corresponding to this jnode was just created */
-		assert("vs-1504",
-		       *jnode_get_block(j) == 0 ||
-		       *jnode_get_block(j) == blocknr);
-		jnode_set_block(j, &blocknr);		
+		if (*jnode_get_block(j) == 0) {
+			/* jnode is not initialized */
+			jnode_set_block(j, &blocknr);
+		} else {
+			assert("vs-1508", !blocknr_is_fake(&blocknr));
+			assert("vs-1507", ergo(blocknr, *jnode_get_block(j) == blocknr));
+		}
 		if (created)
 			JF_SET(j, JNODE_CREATED);
 		UNLOCK_JNODE(j);
