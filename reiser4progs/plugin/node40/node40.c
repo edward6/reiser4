@@ -11,8 +11,6 @@
 #include <reiser4/reiser4.h>
 #include "node40.h"
 
-#define REISERFS_NODE40_PID (0x0)
-
 static reiserfs_core_t *core = NULL;
 
 #ifndef ENABLE_COMPACT
@@ -30,7 +28,7 @@ static reiserfs_node40_t *node40_create(aal_block_t *block,
     node->block = block;
     
     /* Plugin setup was moved here because we should support reiser3 */
-    nh40_set_pid(reiserfs_nh40(node->block), REISERFS_NODE40_PID);
+    nh40_set_pid(reiserfs_nh40(node->block), REISERFS_NODE40_ID);
 
     nh40_set_free_space(reiserfs_nh40(node->block), 
 	node->block->size - sizeof(reiserfs_nh40_t));
@@ -62,10 +60,9 @@ static reiserfs_node40_t *node40_open(aal_block_t *block) {
     
     node->block = block;
     
-    if (node40_get_pid(node) != REISERFS_NODE40_PID) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Plugin id (%u) does not match current plugin id (%u).", 
-	    node40_get_pid(node), REISERFS_NODE40_PID);
+    if (node40_get_pid(node) != REISERFS_NODE40_ID) {
+	aal_throw_error(EO_OK, "Plugin id (%u) does not match current plugin id (%u).", 
+	    node40_get_pid(node), REISERFS_NODE40_ID);
 	goto error_free_node;
     }
     
@@ -487,7 +484,7 @@ static reiserfs_plugin_t node40_plugin = {
     .node_ops = {
 	.h = {
 	    .handle = NULL,
-	    .id = REISERFS_NODE40_PID,
+	    .id = REISERFS_NODE40_ID,
 	    .type = REISERFS_NODE_PLUGIN,
 	    .label = "node40",
 	    .desc = "Node for reiserfs 4.0, ver. 0.1, "
