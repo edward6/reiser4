@@ -15,6 +15,7 @@ REGISTER_NONE_ALG(compress, COMPRESS)
      
 int alloc_gzip_compress(struct inode * inode)
 {
+#ifdef CONFIG_CRYPTO
 	cryptcompress_info_t * info;
         assert("edward-664", inode != NULL);
 	
@@ -26,11 +27,13 @@ int alloc_gzip_compress(struct inode * inode)
 		warning("edward-666", "failed to load transform for deflate\n");
 		return -ENOMEM;
 	}
+#endif
   	return 0;
 }     
 
 void free_gzip_compress(struct inode * inode)
 {
+#ifdef CONFIG_CRYPTO	
 	cryptcompress_info_t * info;
         assert("edward-667", inode != NULL);
 	
@@ -39,6 +42,7 @@ void free_gzip_compress(struct inode * inode)
 	
 	crypto_free_tfm(info->tfm[COMPRESS_TFM]);
 	info->tfm[COMPRESS_TFM] = NULL;
+#endif	
   	return;
 }
 
