@@ -2421,6 +2421,8 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 			return ret;
 	}
 
+	if (called_for_sync()) 
+		return txnmgr_force_commit_all(s);
 
 	while (wbc->nr_to_write > 0) {
 		long nr_submitted = 0;
