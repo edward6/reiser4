@@ -230,6 +230,8 @@ static int process_znode_backward (tap_t * tap, void * arg)
 					   BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
 		if (ret)
 			goto out;
+
+		cursor->hint.blk = new_blocknr;
 	}
 
 	/* Flush doesn't process nodes twice, it will not discard this block
