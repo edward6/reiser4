@@ -1741,10 +1741,12 @@ int txn_attach_txnh_to_node (txn_handle *txnh, jnode *node, txn_flags flags)
 	txn_atom *atom;
 	int ret = 0;
 
-	assert ("jmacd-77917", spin_txnh_is_locked (txnh));
+	assert ("jmacd-77917", spin_txnh_is_not_locked (txnh));
+	assert ("jmacd-7791724897", spin_jnode_is_not_locked (node));
 	assert ("jmacd-77918", txnh->atom == NULL);
 
 	spin_lock_jnode (node);
+	spin_lock_txnh (txnh);
 
 	atom = atom_get_locked_by_jnode (node);
 
@@ -1760,6 +1762,7 @@ int txn_attach_txnh_to_node (txn_handle *txnh, jnode *node, txn_flags flags)
 
 	spin_unlock_atom (atom);
  fail_unlock:
+	spin_unlock_txnh (txnh);
 	spin_unlock_jnode (node);
 	return ret;
 }
