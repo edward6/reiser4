@@ -432,6 +432,14 @@ txn_same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value
 	assert("umka-182", node != NULL);
 	assert("umka-183", check != NULL);
 	
+	/*
+	 * FIXME:NIKITA->JMACD Not sure what this function is supposed to do
+	 * if supplied with @check that is neither formatted nor unformatted
+	 * (bitmap or so). Hence adding assertion.
+	 */
+	assert ("nikita-2373", 
+		jnode_is_znode (check) || jnode_is_unformatted (check));
+
 	/* Need a lock on CHECK to get its atom and to check various state
 	 * bits.  Don't need a lock on NODE once we get the atom lock. */
 	spin_lock_jnode (check);
@@ -443,7 +451,7 @@ txn_same_atom_dirty (jnode *node, jnode *check, int alloc_check, int alloc_value
 	} else {
 		compat = (node->atom == atom && jnode_is_dirty (check));
 
-		if (compat && jnode_is_formatted (check)) {
+		if (compat && jnode_is_znode (check)) {
 			compat &= znode_is_connected (JZNODE (check));
 		}
 
@@ -949,7 +957,7 @@ int memory_pressure (struct super_block *super, int *nr_to_flush)
 
 		trace_on (TRACE_TXN, "memory pressure atom %u node %p\n", atom->atom_id, node);
 
-		ret = jnode_flush (node, nr_to_flush, jnode_is_formatted (node) ? JNODE_FLUSH_MEMORY_FORMATTED : JNODE_FLUSH_MEMORY_UNFORMATTED);
+		ret = jnode_flush (node, nr_to_flush, jnode_is_znode (node) ? JNODE_FLUSH_MEMORY_FORMATTED : JNODE_FLUSH_MEMORY_UNFORMATTED);
 
 		jput (node);
 
@@ -1441,10 +1449,10 @@ void jnode_set_dirty( jnode *node )
 		}
 
 		/*trace_on (TRACE_FLUSH, "dirty %sformatted node %p\n", 
-		  jnode_is_formatted (node) ? "" : "un", node);*/
+		  jnode_is_unformatted (node) ? "un" : "", node);*/
 	}
 
-	if (jnode_is_formatted (node)) {
+	if (jnode_is_znode (node)) {
 		/* bump version counter in znode */
 		spin_lock_tree (current_tree);
 		JZNODE (node)->version = ++ current_tree->znode_epoch;
@@ -1484,12 +1492,12 @@ void jnode_set_clean( jnode *node )
 		assert ("jmacd-9366", ! jnode_is_dirty (node));
 		
 #if REISER4_DEBUG_MODIFY
-		if ( ! JF_ISSET (node, ZNODE_UNFORMATTED))
+		if (jnode_is_znode (node))
 			JZNODE (node)->cksum = znode_checksum (JZNODE (node));
 #endif
 
 		/*trace_on (TRACE_FLUSH, "clean %sformatted node %p\n", 
-		            jnode_is_formatted (node) ? "" : "un", node);*/
+		            jnode_is_unformatted (node) ? "un" : "", node);*/
 	}
 
 	/* do not steal nodes from flush queue */

@@ -220,7 +220,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	/* a special case for znode-above-root */
 	/* JMACD-FIXME-HANS: comment? */
-	if (jnode_is_formatted(node) && znode_above_root(JZNODE(node))) {
+	if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
 		/* just pass dirty znode-above-root to overwrite set */
 		JF_SET(node, ZNODE_WANDER);
 		spin_unlock_jnode(node);
@@ -232,7 +232,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	/* A race is possible where node is not dirty or worse, not connected, by this point. */
 	/* JMACD-FIXME-HANS: comment? */
 	if (! jnode_is_dirty (node) ||
-	    (jnode_is_formatted (node) && !znode_is_connected (JZNODE (node))) ||
+	    (jnode_is_znode (node) && !znode_is_connected (JZNODE (node))) ||
 	    JF_ISSET (node, ZNODE_HEARD_BANSHEE) ||
 	    JF_ISSET (node, ZNODE_FLUSH_QUEUED)) {
 		if (nr_to_flush != NULL) {
@@ -1466,15 +1466,6 @@ void jnode_set_block( jnode *node /* jnode to update */,
 	node -> blocknr = *blocknr;
 }
 
-/* return true if jnode has real blocknr */
-/* FIXME: JMACD->??? Who wrote this, who uses it?  Looks funny to me. */
-int jnode_has_block (jnode * node)
-{
-	assert ("vs-673", node);
-	assert ("vs-674", jnode_is_unformatted (node));
-	return node->blocknr;
-}
-
 /* FIXME: comment */
 static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flush_position *pos)
 {
@@ -2056,6 +2047,8 @@ static int jnode_lock_parent_coord (jnode *node,
 {
 	int ret;
 
+	assert ("nikita-2375", 
+		jnode_is_unformatted (node) || jnode_is_znode (node));
 	assert ("jmacd-2060", jnode_is_unformatted (node) || znode_is_any_locked (JZNODE (node)));
 
 	if (jnode_is_unformatted (node)) {
@@ -2489,6 +2482,9 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			break;
 		}
 
+		assert ("nikita-2374", 
+			jnode_is_unformatted (child) || jnode_is_znode (child));
+
 		/* See if it is dirty, part of the same atom. */
 		if (! flush_scan_goto (scan, child)) {
 			break;
@@ -2501,7 +2497,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 
 		/* Now continue.  If formatted we release the parent lock and return, then
 		 * proceed. */
-		if (jnode_is_formatted (child)) {
+		if (jnode_is_znode (child)) {
 			break;
 		}
 
@@ -2521,9 +2517,9 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 		assert ("jmacd-1239", item_is_extent (& scan->parent_coord));
 	}
 
-	assert ("jmacd-6233", flush_scan_finished (scan) || jnode_is_formatted (scan->node));
+	assert ("jmacd-6233", flush_scan_finished (scan) || jnode_is_znode (scan->node));
  exit:
-	if (jnode_is_formatted (scan->node)) {
+	if (jnode_is_znode (scan->node)) {
 		done_lh (& scan->parent_lock);
 		done_dh (& scan->parent_load);
 	}
@@ -2660,6 +2656,10 @@ static int flush_scan_right (flush_scan *scan, jnode *node, __u32 limit)
 static int flush_scan_common (flush_scan *scan, flush_scan *other)
 {
 	int ret;
+
+	assert ("nikita-2376", scan->node != NULL);
+	assert ("nikita-2377", 
+		jnode_is_unformatted (scan->node) || jnode_is_znode (scan->node));
 
 	/* Special case for starting at an unformatted node.  Optimization: we only want
 	 * to search for the parent (which requires a tree traversal) once.  Obviously, we
@@ -2806,7 +2806,7 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 		goto stop;
 	}
 
-	assert ("jmacd-8861", jnode_is_formatted (child));
+	assert ("jmacd-8861", jnode_is_znode (child));
 
 	if (pos->point != NULL) {
 		jput (pos->point);
@@ -2933,7 +2933,7 @@ static void flush_jnode_tostring_internal (jnode *node, char *buf)
 
 	lockit = spin_trylock_jnode (node);
 
-	fmttd = !JF_ISSET (node, ZNODE_UNFORMATTED);
+	fmttd = jnode_is_znode (node);
 	dirty = JF_ISSET (node, ZNODE_DIRTY);
 
 	sprintf (block, " block=%llu", *jnode_get_block (node));
