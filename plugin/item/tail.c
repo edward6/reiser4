@@ -432,12 +432,14 @@ coord_matches_key(const coord_t *coord, const reiser4_key *key)
 
 /* plugin->u.item.s.file.read */
 int
-read_tail(struct file *file UNUSED_ARG, flow_t *f, uf_coord_t *uf_coord)
+read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 {
 	unsigned count;
 	int item_length;
 	coord_t *coord;
+	uf_coord_t *uf_coord;
 
+	uf_coord = &hint->coord;
 	coord = &uf_coord->base_coord;
 
 	assert("vs-571", f->user == 1);
@@ -454,6 +456,9 @@ read_tail(struct file *file UNUSED_ARG, flow_t *f, uf_coord_t *uf_coord)
 	count = item_length_by_coord(coord) - coord->unit_pos;
 	if (count > f->length)
 		count = f->length;
+
+
+	/* FIXME: unlock ! */
 
 	if (__copy_to_user(f->data, ((char *) item_body_by_coord(coord) + coord->unit_pos), count))
 		return RETERR(-EFAULT);
