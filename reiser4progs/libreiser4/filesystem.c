@@ -76,6 +76,14 @@ reiserfs_fs_t *reiserfs_fs_open(
     if (!(fs->master = reiserfs_master_open(host_device)))
 	goto error_free_fs;
     
+    /* Setting actual used block size from master super block */
+    if (aal_device_set_bs(host_device, get_mr_block_size(fs->master))) {
+        aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
+	   "Invalid block size detected %u. It must be power of two.", 
+	    get_mr_block_size(fs->master));
+	goto error_free_master;
+    }
+    
     /* Initializes used disk format. See format.c for details */
     format_pid = get_mr_format_id(fs->master);
     if (!(fs->format = reiserfs_format_open(host_device, format_pid)))

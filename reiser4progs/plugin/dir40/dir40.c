@@ -454,7 +454,7 @@ static errno_t dir40_add(reiserfs_dir40_t *dir,
     /* Inserting the entry to the tree */
     if (core->tree_ops.item_insert(dir->tree, &item)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't entry \"%s\" to the thee.", entry->name);
+	    "Can't add entry \"%s\" to the thee.", entry->name);
 	goto error_free_entry;
     }
     

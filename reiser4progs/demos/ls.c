@@ -22,6 +22,12 @@ static void ls_print_usage(void) {
     fprintf(stderr, "Usage: ls FILE DIR\n");
 }
 
+static void ls_setup_streams(void) {
+    int i;
+    for (i = 0; i < 5; i++)
+	progs_exception_set_stream(i, stderr);
+}
+
 int main(int argc, char *argv[]) {
     reiserfs_fs_t *fs;
     aal_device_t *device;
@@ -35,6 +41,7 @@ int main(int argc, char *argv[]) {
 	return 0xfe;
     }
 	
+    ls_setup_streams();
     aal_exception_set_handler(progs_exception_handler);
 
     if (libreiser4_init(0)) {

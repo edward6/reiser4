@@ -569,8 +569,8 @@ struct reiserfs_node_ops {
     uint32_t (*count) (reiserfs_entity_t *);
     
     /* Gets/sets node's free space */
-    uint32_t (*get_free_space) (reiserfs_entity_t *);
-    errno_t (*set_free_space) (reiserfs_entity_t *, uint32_t);
+    uint32_t (*get_space) (reiserfs_entity_t *);
+    errno_t (*set_space) (reiserfs_entity_t *, uint32_t);
    
     /* Gets/sets node's plugin id */
     uint32_t (*get_pid) (reiserfs_entity_t *);

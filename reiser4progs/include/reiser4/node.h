@@ -88,7 +88,7 @@ extern errno_t reiserfs_node_get_key(reiserfs_node_t *node,
 extern uint32_t reiserfs_node_get_pid(reiserfs_node_t *node);
 
 extern uint8_t reiserfs_node_get_level(reiserfs_node_t *node);
-extern uint32_t reiserfs_node_get_free_space(reiserfs_node_t *node);
+extern uint32_t reiserfs_node_get_space(reiserfs_node_t *node);
 
 #ifndef ENABLE_COMPACT
 
@@ -98,7 +98,7 @@ extern errno_t reiserfs_node_set_pid(reiserfs_node_t *node,
 extern errno_t reiserfs_node_set_level(reiserfs_node_t *node, 
     uint8_t level);
 
-extern errno_t reiserfs_node_set_free_space(reiserfs_node_t *node, 
+extern errno_t reiserfs_node_set_space(reiserfs_node_t *node, 
     uint32_t value);
 
 extern errno_t reiserfs_node_item_set_pid(reiserfs_node_t *node, 

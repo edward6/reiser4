@@ -180,16 +180,6 @@ reiserfs_master_t *reiserfs_master_open(aal_device_t *device) {
 	
 	/* Updating master super block in filesystem instance */
 	aal_memcpy(master, block->data, sizeof(*master));
-	
-	/* Setting actual used block size from master super block */
-	if (aal_device_set_bs(device, get_mr_block_size(master))) {
-	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
-		"Invalid block size detected %u. It must be power of two.", 
-		get_mr_block_size(master));
-	    
-	    aal_free(master);
-	    goto error_free_block;
-	}
     }
     
     return master;

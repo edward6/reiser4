@@ -457,7 +457,7 @@ errno_t reiserfs_node_insert(
     
     /* Checking if item length is gretter then free space in node */
     if (item->len + reiserfs_node_item_overhead(node) >
-        reiserfs_node_get_free_space(node))
+        reiserfs_node_get_space(node))
     {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
             "There is no space to insert the %s of (%u) size in the node (%llu).",
@@ -508,14 +508,14 @@ errno_t reiserfs_node_set_level(
 }
 
 /* Sets node free space */
-errno_t reiserfs_node_set_free_space(
+errno_t reiserfs_node_set_space(
     reiserfs_node_t *node,	/* node to be updated */
     uint32_t value		/* free space to be set */
 ) {
     aal_assert("umka-456", node != NULL, return -1);
     
     return libreiser4_plugin_call(return -1, node->plugin->node_ops, 
-	set_free_space, node->entity, value);
+	set_space, node->entity, value);
 }
 
 #endif
@@ -541,11 +541,11 @@ uint8_t reiserfs_node_get_level(reiserfs_node_t *node) {
 }
 
 /* Returns free space of specified node */
-uint32_t reiserfs_node_get_free_space(reiserfs_node_t *node) {
+uint32_t reiserfs_node_get_space(reiserfs_node_t *node) {
     aal_assert("umka-455", node != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, node->plugin->node_ops, 
-	get_free_space, node->entity);
+	get_space, node->entity);
 }
 
 /* Returns overhead of specified node */

@@ -377,7 +377,7 @@ static uint8_t node40_get_level(reiserfs_node40_t *node) {
     return nh40_get_level(reiserfs_nh40(node->block));
 }
 
-static uint32_t node40_get_free_space(reiserfs_node40_t *node) {
+static uint32_t node40_get_space(reiserfs_node40_t *node) {
     aal_assert("vpf-020", node != NULL, return 0);
     return nh40_get_free_space(reiserfs_nh40(node->block));
 }
@@ -413,7 +413,7 @@ static errno_t node40_set_key(reiserfs_node40_t *node, uint32_t pos,
     return 0;
 }
 
-static void node40_set_free_space(reiserfs_node40_t *node, 
+static void node40_set_space(reiserfs_node40_t *node, 
     uint32_t value)
 {
     aal_assert("vpf-022", node != NULL, return);
@@ -502,7 +502,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.get_key = (errno_t (*)(reiserfs_entity_t *, uint32_t, reiserfs_key_t *))
 	    node40_get_key,
 	
-	.get_free_space = (uint32_t (*)(reiserfs_entity_t *))node40_get_free_space,
+	.get_space = (uint32_t (*)(reiserfs_entity_t *))node40_get_space,
 	
 #ifndef ENABLE_COMPACT
 	.create = (reiserfs_entity_t *(*)(aal_block_t *, uint8_t))node40_create,
@@ -523,8 +523,8 @@ static reiserfs_plugin_t node40_plugin = {
 	.set_key = (errno_t (*)(reiserfs_entity_t *, uint32_t, reiserfs_key_t *))
 	    node40_set_key,
 	
-	.set_free_space = (errno_t (*)(reiserfs_entity_t *, uint32_t))
-	    node40_set_free_space,
+	.set_space = (errno_t (*)(reiserfs_entity_t *, uint32_t))
+	    node40_set_space,
 
 	.item_set_pid = (errno_t (*)(reiserfs_entity_t *, uint32_t, uint32_t))
 	    node40_item_set_pid,
@@ -536,7 +536,7 @@ static reiserfs_plugin_t node40_plugin = {
 	.set_pid = NULL,
 	.set_level = NULL,
 	.set_key = NULL,
-	.set_free_space = NULL,
+	.set_space = NULL,
 	.item_set_pid = NULL,
 #endif
 	.item_overhead = (uint32_t (*)(void))node40_item_overhead,
