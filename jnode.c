@@ -13,6 +13,7 @@
 #include "dformat.h"
 #include "plugin/plugin_header.h"
 #include "plugin/plugin.h"
+#include "plugin/plugin_hash.h"
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
@@ -201,6 +202,7 @@ jfree(jnode * node)
 	assert("nikita-2663", capture_list_is_clean(node));
 	assert("nikita-2774", !JF_ISSET(node, JNODE_EFLUSH));
 
+	phash_jnode_destroy(node);
 	ON_DEBUG(list_del_init(&node->jnodes));
 	/* poison memory. */
 	ON_DEBUG(xmemset(node, 0xad, sizeof *node));

@@ -52,6 +52,7 @@ reiser4-objs := \
            \
 		   plugin/plugin.o \
 		   plugin/plugin_set.o \
+		   plugin/plugin_hash.o \
 		   plugin/node/node.o \
 		   plugin/node/node40.o \
 		   plugin/object.o \

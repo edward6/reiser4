@@ -14,6 +14,7 @@
 #include "plugin/disk_format/disk_format.h"
 #include "plugin/plugin.h"
 #include "plugin/plugin_set.h"
+#include "plugin/plugin_hash.h"
 #include "plugin/object.h"
 #include "txnmgr.h"
 #include "jnode.h"
@@ -1450,6 +1451,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 			inode_clr_flag(inode, REISER4_KEYID_LOADED);
 		}
 	}
+	phash_inode_destroy(inode);
 	if (info->pset)
 		plugin_set_put(info->pset);
 
@@ -2254,6 +2256,8 @@ out:
 	/* no assertions below this line */
 	(void)reiser4_exit_context(&context);
 
+	phash_super_destroy(s);
+
 	kfree(info);
 	s->s_fs_info = NULL;
 }
@@ -2643,6 +2647,7 @@ typedef enum {
 	INIT_CONTEXT_MGR,
 	INIT_ZNODES,
 	INIT_PLUGINS,
+	INIT_PHASH,
 	INIT_PLUGIN_SET,
 	INIT_TXN,
 	INIT_FAKES,
@@ -2671,6 +2676,7 @@ shutdown_reiser4(void)
 	DONE_IF(INIT_FAKES,;);
 	DONE_IF(INIT_TXN, txnmgr_done_static());
 	DONE_IF(INIT_PLUGIN_SET,plugin_set_done());
+	DONE_IF(INIT_PHASH,phash_done());
 	DONE_IF(INIT_PLUGINS,;);
 	DONE_IF(INIT_ZNODES, znodes_done());
 	DONE_IF(INIT_CONTEXT_MGR,;);
@@ -2704,6 +2710,7 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(init_context_mgr());
 	CHECK_INIT_RESULT(znodes_init());
 	CHECK_INIT_RESULT(init_plugins());
+	CHECK_INIT_RESULT(phash_init());
 	CHECK_INIT_RESULT(plugin_set_init());
 	CHECK_INIT_RESULT(txnmgr_init_static());
 	CHECK_INIT_RESULT(init_fakes());

@@ -157,6 +157,7 @@
 #include "plugin/plugin_header.h"
 #include "plugin/node/node.h"
 #include "plugin/plugin.h"
+#include "plugin/plugin_hash.h"
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
@@ -250,6 +251,7 @@ zfree(znode * node /* znode to free */ )
 	assert("nikita-2663", capture_list_is_clean(ZJNODE(node)));
 	assert("nikita-2773", !JF_ISSET(ZJNODE(node), JNODE_EFLUSH));
 
+	phash_jnode_destroy(ZJNODE(node));
 	ON_DEBUG(list_del(&ZJNODE(node)->jnodes));
 
 	/* poison memory. */
