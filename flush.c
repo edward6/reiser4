@@ -645,6 +645,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		done_zh (& right_load);
 		done_lh (& right_lock);
 		any_shifted = 1;
+		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] right again: %s\n", call_depth, flush_pos_tostring (pos));
 		goto RIGHT_AGAIN;
 
 	case SQUEEZE_TARGET_FULL:
@@ -1183,7 +1184,10 @@ static int squalloc_right_twig (znode    *left,
 	ret = shift_one_internal_unit (left, right);
 
 out:
-	assert ("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL || ret == SUBTREE_MOVED);
+	if (left == pos->parent_coord.node) {
+		coord_set_to_right (& pos->parent_coord);
+	}
+	assert ("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL || ret == SUBTREE_MOVED || ret == SQUEEZE_SOURCE_EMPTY);
 	return ret;
 }
 
@@ -2104,6 +2108,8 @@ static int flush_pos_init (flush_position *pos)
 	ON_DEBUG (pos->alloc_cnt = 0);
 	ON_DEBUG (pos->enqueue_cnt = 0);
 
+	coord_init_invalid (& pos->parent_coord, NULL);
+
 	blocknr_hint_init (& pos->preceder);
 	init_lh (& pos->point_lock);
 	init_lh (& pos->parent_lock);
@@ -2137,6 +2143,7 @@ static int flush_pos_stop (flush_position *pos)
 	done_lh (& pos->parent_lock);
 	done_zh (& pos->parent_load);
 	done_zh (& pos->point_load);
+	coord_init_invalid (& pos->parent_coord, NULL);
 	return 0;
 }
 
