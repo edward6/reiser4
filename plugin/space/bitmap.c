@@ -501,6 +501,7 @@ release(jnode *node)
 {
 	jrelse(node);
 	jput(node);
+	jfree(node);
 }
 
 /* This function is for internal bitmap.c use because it assumes that jnode is
