@@ -334,31 +334,21 @@ int reiser4_setup_plugins( struct super_block *super, reiser4_plugin **area )
 
 
 /** lookup plugin name by scanning tables */
-reiser4_plugin *lookup_plugin_name(char *plug_label )
+reiser4_plugin *lookup_plugin_name( char *plug_label )
 {
 	reiser4_plugin_type type_id;
-	reiser4_plugin *plugin;
+	reiser4_plugin     *plugin;
+
+	assert( "vova-001", plug_label != NULL );
 
 	plugin = NULL;
-	assert("vova-001", plug_label != NULL);
-	dinfo("lookup_plugin_name:%s", plug_label);
+
+	dinfo( "lookup_plugin_name: %s\n", plug_label );
+
 	for( type_id = 0 ; type_id < REISER4_PLUGIN_TYPES ; ++ type_id ) {
-		reiser4_plugin_type_data *ptype;
-		int i;
-		
-		ptype = &plugins[ type_id ];
-		
-		dinfo( "Of type %s (%s):\n", ptype -> label, ptype -> desc );
-		for( i = 0 ; i < ptype -> builtin_num ; ++ i ) 	{
-			plugin = &ptype -> builtin[ i ];
-			if( plugin -> h.rec_len == 0 )	{
-				continue;
-			}
-			assert( "nikita-537", plugin -> h.type_id == type_id );
-			if( ! strcmp( plugin -> h.label, plug_label ) )	{
-				return plugin;
-			}
-		}
+		plugin = find_plugin( &plugins[ type_id ], plug_label );
+		if( plugin != NULL )
+			break;
 	}
 	return plugin;
 }
