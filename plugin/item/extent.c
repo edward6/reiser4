@@ -1605,6 +1605,7 @@ unsigned find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 				for (i = 0; i < extent_get_width(ext); i ++) {
 					node = jlook_lock(tree, oid, index + i);
 					assert("vs-1389", node);
+					assert("vs-1363", !jnode_check_flushprepped(node));
 					jput(node);
 				}
 			});
@@ -1645,7 +1646,6 @@ convert_allocated_extent2unallocated(oid_t oid, coord_t *coord, unsigned slum_st
 	unsigned i;
 	jnode *j;
 	txn_atom *atom;
-	reiser4_block_nr blocknr;
 	reiser4_tree *tree;
 	unsigned long index;
 	reiser4_block_nr ae_start;
@@ -1668,8 +1668,8 @@ convert_allocated_extent2unallocated(oid_t oid, coord_t *coord, unsigned slum_st
 		j = jlook_lock(tree, oid, index);
 		assert("vs-1367", j);
 		assert("vs-1363", !jnode_check_flushprepped(j));
-		blocknr = fake_blocknr_unformatted();
-		jnode_set_block(j, &blocknr);
+		/* not using jnode_set_block because jnode may be eflushed */
+		j->blocknr = fake_blocknr_unformatted();
 		jput(j);
 	}
 
