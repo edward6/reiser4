@@ -212,8 +212,7 @@ static int add_child_ptr( znode *parent, znode *child )
 	assert( "nikita-1113", node_is_empty( parent ) );
 	assert( "nikita-1115", znode_get_level( parent ) == znode_get_level( child ) + 1 );
 
-	coord.node = parent;
-	coord_first_unit( &coord );
+	coord_first_unit( &coord, parent );
 
 	build_child_ptr_data( child, &data );
 	data.arg = NULL;
@@ -324,12 +323,11 @@ int kill_tree_root( znode *old_root /* tree root that we are removing */ )
 
 	assert( "nikita-1194", old_root != NULL );
 	assert( "nikita-1196", znode_is_root( old_root ) );
-	assert( "nikita-1200", num_items( old_root ) == 1 );
+	assert( "nikita-1200", node_num_items( old_root ) == 1 );
 	assert( "nikita-1401", znode_is_write_locked( old_root ) );
 
 	reiser4_init_coord( &down_link );
-	down_link.node = old_root;
-	coord_first_unit( &down_link );
+	coord_first_unit( &down_link, old_root );
 
 	spin_lock_dk( current_tree );
 	new_root = child_znode( &down_link, 1 );

@@ -60,8 +60,7 @@ reiser4_key *leftmost_key_in_node( const znode *node, reiser4_key *key )
 	if( !node_is_empty( node ) ) {
 		tree_coord first_item;
 
-		first_item.node = ( znode * ) node;
-		coord_first_unit( &first_item );
+		coord_first_unit( &first_item, ( znode * ) node );
 		item_key_by_coord( &first_item, key );
 	} else
 		*key = *max_key();
@@ -127,7 +126,7 @@ void print_znode_content( const znode *node, __u32 flags )
 	coord.unit_pos = 0;
 	coord.between = AT_UNIT;
 	/*indent_znode (node);*/
-	for( i = 0; i < num_items( node ); i ++ ) {
+	for( i = 0; i < node_num_items( node ); i ++ ) {
 		indent_znode (node);info( "%d: ", i );
 
 		coord.item_pos = i;
