@@ -69,12 +69,26 @@ static int mark_jnode_for_repacking (jnode * node)
 
 	LOCK_JNODE(node);
 	ret = try_capture(node, ZNODE_WRITE_LOCK, 0, 0/* no can_coc */);
-	if (ret)
-		goto out;
+	if (ret) {
+		UNLOCK_JNODE(node);
+		return ret;
+	}
+
 	jnode_make_dirty_locked(node);
- out:
 	UNLOCK_JNODE(node);
 	JF_SET(node, JNODE_REPACK);
+
+	ret = jload(node);
+	if (ret == 0) {
+		struct page * page;
+
+		page = jnode_page(node);
+		lock_page(page);
+		set_page_dirty_internal(page);
+		unlock_page(page);
+		jrelse(node);
+	}
+
 	return ret;
 }
 
