@@ -345,14 +345,20 @@ reiser4_open(struct inode * inode, struct file * file)
 /* FIXME: This way to support fsync is too expensive. Proper solution support is
    to commit only atoms which contain dirty pages from given address space. */
 static int
-reiser4_fsync(struct file *file UNUSED_ARG,
-	      struct dentry *dentry, int datasync UNUSED_ARG)
+reiser4_fsync(struct file *file, struct dentry *dentry, int datasync)
 {
 	int result;
 	reiser4_context ctx;
+	file_plugin *fplug;
+	struct inode *inode;
 
-	init_context(&ctx, dentry->d_inode->i_sb);
-	result = txnmgr_force_commit_all(dentry->d_inode->i_sb, 0);
+	inode = dentry->d_inode;
+	init_context(&ctx, inode->i_sb);
+	fplug = inode_file_plugin(inode);
+	if (fplug->sync != NULL)
+		result = fplug->sync(file, dentry, datasync);
+	else
+		result = 0;
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;

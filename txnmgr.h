@@ -622,6 +622,8 @@ extern reiser4_block_nr txnmgr_count_deleted_blocks (void);
 extern void znode_make_dirty(znode * node);
 extern void jnode_make_dirty_locked(jnode * node);
 
+extern int sync_atom(txn_atom *atom);
+
 #if REISER4_DEBUG
 extern int atom_fq_parts_are_clean (txn_atom *);
 #endif

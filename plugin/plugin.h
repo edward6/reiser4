@@ -210,6 +210,9 @@ typedef struct file_plugin {
 	*/
 	int (*delete) (struct inode * object);
 
+	/* method implementing f_op->fsync() */
+	int (*sync)(struct file *file, struct dentry *dentry, int datasync);
+
 	/* add link from @parent to @object */
 	int (*add_link) (struct inode * object, struct inode * parent);
 

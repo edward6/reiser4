@@ -2703,6 +2703,30 @@ znode_make_dirty(znode * z)
 	assert("jmacd-9777", node->atom != NULL);
 }
 
+reiser4_internal int
+sync_atom(txn_atom *atom)
+{
+	int result;
+	txn_handle *txnh;
+
+	txnh = get_current_context()->trans;
+
+	result = 0;
+	if (atom != NULL) {
+		if (atom->stage < ASTAGE_PRE_COMMIT) {
+			LOCK_TXNH(txnh);
+			capture_assign_txnh_nolock(atom, txnh);
+			result = force_commit_atom_nolock(txnh);
+		} else if (atom->stage < ASTAGE_POST_COMMIT) {
+			/* wait atom commit */
+			atom_wait_event(atom);
+			/* try once more */
+			result = RETERR(-E_REPEAT);
+		}
+	}
+	return result;
+}
+
 #if REISER4_DEBUG
 
 void check_fq(const txn_atom *atom);
