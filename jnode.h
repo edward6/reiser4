@@ -447,7 +447,7 @@ extern void jnode_list_remove(jnode * node);
 #if REISER4_DEBUG_NODE_INVARIANT
 extern int jnode_invariant(const jnode * node, int tlocked, int jlocked);
 #else
-#define jnode_invariant(n, t, j) (0)
+#define jnode_invariant(n, t, j) (1)
 #endif
 
 #if REISER4_DEBUG_OUTPUT

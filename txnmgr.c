@@ -4178,7 +4178,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		result = real_copy_on_capture(node, atom);
 	if (result != 0)
 		clear_cced_bits(node);
-	assert("vs-1626", !spin_atom_is_locked(atom));
+	assert("vs-1626", spin_atom_is_not_locked(atom));
 
 	if (inode != NULL)
 		rw_latch_up_write(&reiser4_inode_data(inode)->coc_sem);
