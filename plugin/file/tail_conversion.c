@@ -383,6 +383,8 @@ tail2extent(struct inode *inode)
 	assert("vs-830", file_is_built_of_extents(inode));
 	assert("vs-1083", result == 0);
 	all_grabbed2free();
+	ZF_CLR(first, JNODE_IMMOVABLE);
+	ZF_CLR(last, JNODE_IMMOVABLE);
 	zput(first);
 	zput(last);
 	return 0;
@@ -393,6 +395,8 @@ exit:
 	if (access_switched)
 		ea2nea(inode);
 	all_grabbed2free();
+	ZF_CLR(first, JNODE_IMMOVABLE);
+	ZF_CLR(last, JNODE_IMMOVABLE);
 	zput(first);
 	zput(last);
 	return result;
@@ -614,6 +618,8 @@ extent2tail(struct file *file)
 	}
 	drop_exclusive_access(inode);
 	all_grabbed2free();
+	ZF_CLR(first, JNODE_IMMOVABLE);
+	ZF_CLR(last, JNODE_IMMOVABLE);
 	zput(first);
 	zput(last);
 	return result;
