@@ -101,21 +101,20 @@
   
      JNODE_FLUSH_QUEUED: This bit is set when a call to flush enters the jnode into its
      flush queue.  This means the jnode is not on any clean or dirty list, instead it is
-     on a flush_position->capture_list indicating that it is in a queue that will be
-     submitted for writing when the flush finishes.  This prevents multiple concurrent
-     flushes from attempting to flush the same node.
+     moved to one of the flush queue (see flush_queue.h) object private list. This
+     prevents multiple concurrent flushes from attempting to start flushing from the
+     same node.
   
      (DEAD STATE BIT) JNODE_FLUSH_BUSY: This bit was set during the bottom-up
      squeeze-and-allocate on a node while its children are actively being squeezed and
      allocated.  This flag was created to avoid submitting a write request for a node
-     while its children are still being allocated and squeezed.  However, this flag is no
-     longer needed because flush_empty_queue is only called in one place after flush
-     finishes.  It used to be that flush_empty_queue was called periodically during flush
-     when there was a fixed queue, but that is no longer done.  See the changes on August
-     6, 2002 when this support was removed.
+     while its children are still being allocated and squeezed. Then flush queue was
+     re-implemented to allow unlimited number of node be queued. This flag support was
+     commented out in source code because we decided that there was no reason to submit
+     queued nodes before jnode_flush() finishes.  However, current code calls fq_write()
+     during a slum traversal and may submit "busy nodes" to disk. Probably we can
+     re-enable the JNODE_FLUSH_BUSY bit support in future.
 
-ZAM-FIXME-HANS: update the comment above
-  
    With these state bits, we describe a test used frequently in the code below,
    jnode_is_flushprepped() (and the spin-lock-taking jnode_check_flushprepped()).  The
    test for "flushprepped" returns true if any of the following are true:
