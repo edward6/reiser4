@@ -329,7 +329,7 @@ static void set_file_state(unix_file_info_t *uf_info, int cbk_result, tree_level
 }
 
 int
-find_file_item(struct sealed_coord *hint,
+find_file_item(hint_t *hint,
 	       const reiser4_key *key, /* key of position in a file of next read/write */
 	       coord_t *coord,	/* on entry - initilized by 0s or coordinate (locked node and position in it) on which
 				   previous read/write operated, on exit - coordinate of position specified by @key */
@@ -378,6 +378,7 @@ find_file_item(struct sealed_coord *hint,
 	/* collect statistics on the number of calls to this function which did not get optimized */
 	reiser4_stat_inc(file.find_file_item_via_cbk);
 	
+	coord_init_zero(coord);
 	result = coord_by_key(current_tree, key, coord, lh, lock_mode, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, LEAF_LEVEL, cbk_flags, ra_info);
 	if (result == CBK_COORD_FOUND || result == CBK_COORD_NOTFOUND)
 		set_file_state(uf_info, result, znode_get_level(coord->node), state);
@@ -405,7 +406,6 @@ find_file_size(struct inode *inode, loff_t *file_size)
 	assert("vs-1247", inode_file_plugin(inode)->key_by_inode == key_by_inode_unix_file);
 	key_by_inode_unix_file(inode, get_key_offset(max_key()), &key);
 
-	coord_init_zero(&coord);
 	result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, unix_file_inode_data(inode), 0);
 	if (result == CBK_COORD_NOTFOUND) {
 		/* there are no items of this file */
@@ -487,8 +487,6 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 		/* FIXME-VS: find_next_item is highly optimized for sequential writes/reads (which go in direction of
 		   key increasing). For case of cut_tree (which goes in key decreasing direction) it currently can not
 		   help */
-		coord_init_zero(&intranode_to);
-		coord_init_zero(&intranode_from);
 
 		/* estimate and reserve space for removal of one item. This
 		 * has to be done before find_file_item(), because long term
@@ -516,6 +514,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 		/* lookup for @from_key in current node */
 		assert("vs-686", intranode_to.node->nplug);
 		assert("vs-687", intranode_to.node->nplug->lookup);
+		coord_init_zero(&intranode_from);
 		result = intranode_to.node->nplug->lookup(intranode_to.node,
 							  &from_key, FIND_MAX_NOT_MORE_THAN, &intranode_from);
 
@@ -744,7 +743,7 @@ truncate_unix_file(struct inode *inode, loff_t new_size)
 /* get access hint (seal, coord, key, level) stored in reiser4 private part of
    struct file if it was stored in a previous access to the file */
 static int
-load_file_hint(struct file *file, struct sealed_coord *hint)
+load_file_hint(struct file *file, hint_t *hint)
 {
 	reiser4_file_fsdata *fsdata;
 
@@ -763,7 +762,7 @@ load_file_hint(struct file *file, struct sealed_coord *hint)
 /* this copies hint for future tree accesses back to reiser4 private part of
    struct file */
 static void
-save_file_hint(struct file *file, const struct sealed_coord *hint)
+save_file_hint(struct file *file, const hint_t *hint)
 {
 	reiser4_file_fsdata *fsdata;
 
@@ -777,7 +776,7 @@ save_file_hint(struct file *file, const struct sealed_coord *hint)
 }
 
 void
-unset_hint(struct sealed_coord *hint)
+unset_hint(hint_t *hint)
 {
 	if (hint)
 		memset(hint, 0, sizeof (*hint));
@@ -785,7 +784,7 @@ unset_hint(struct sealed_coord *hint)
 
 /* coord must be set properly. So, that set_hint has nothing to do */
 void
-set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord, coord_state_t coord_state)
+set_hint(hint_t *hint, const reiser4_key * key, coord_t * coord, coord_state_t coord_state)
 {
 	assert("vs-1208", coord->node);
 	assert("vs-1213", coord_state == COORD_RIGHT_STATE);
@@ -801,13 +800,13 @@ set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord, co
 }
 
 int
-hint_is_set(const struct sealed_coord *hint)
+hint_is_set(const hint_t *hint)
 {
 	return seal_is_set(&hint->seal);
 }
 
 int
-hint_validate(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord, lock_handle * lh)
+hint_validate(hint_t *hint, const reiser4_key * key, coord_t * coord, lock_handle * lh)
 {
 	int result;
 
@@ -819,7 +818,8 @@ hint_validate(struct sealed_coord *hint, const reiser4_key * key, coord_t * coor
 			       hint->level, lh, FIND_MAX_NOT_MORE_THAN, hint->lock, ZNODE_LOCK_LOPRI);
 	if (result)
 		return result;
-	coord_dup_nocheck(coord, &hint->coord);
+	*coord = hint->coord;
+	/*coord_dup_nocheck(coord, &hint->coord);*/
 	return 0;
 }
 
@@ -842,7 +842,6 @@ unix_file_writepage_nolock(struct page *page)
 	/* get key of first byte of the page */
 	key_by_inode_unix_file(page->mapping->host, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
 
-	coord_init_zero(&coord);
 	result = find_file_item(0, &key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/*ra_info*/, 0/* inode */, 0);
 
 	reiser4_lock_page(page);
@@ -941,7 +940,7 @@ readpage_unix_file(void *vp, struct page *page)
 	lock_handle lh;
 	reiser4_key key;
 	item_plugin *iplug;
-	struct sealed_coord hint;
+	hint_t hint;
 	struct file *file;
 
 	reiser4_stat_inc(file.page_ops.readpage_calls);
@@ -960,7 +959,6 @@ readpage_unix_file(void *vp, struct page *page)
 	if (result)
 		return result;
 
-	coord_init_zero(&coord);
 	reiser4_unlock_page(page);
 	result = find_file_item(&hint, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, unix_file_inode_data(page->mapping->host), 0);
 	reiser4_lock_page(page);
@@ -1055,7 +1053,7 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 	coord_t coord;
 	lock_handle lh;
 	flow_t f;
-	struct sealed_coord hint;
+	hint_t hint;
 	size_t read;
 	reiser4_block_nr needed;
 	ra_info_t ra_info;
@@ -1066,61 +1064,40 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 	if (unlikely(!read_amount))
 		return 0;
 
-	{
-		PROF_BEGIN(prep);
-
-		{
-			/*PROF_BEGIN(read_grab);*/
-			inode = file->f_dentry->d_inode;
+	inode = file->f_dentry->d_inode;
+	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
+	uf_info = unix_file_inode_data(inode);
+	
+	/* opt read is here */
+		
+	get_nonexclusive_access(uf_info);
 			
-			assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
-			uf_info = unix_file_inode_data(inode);
-			
-			get_nonexclusive_access(uf_info);
-			
-			needed = unix_file_estimate_read(inode, read_amount);
-			result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
-			if (result != 0) {
-				drop_nonexclusive_access(uf_info);
-				return RETERR(-ENOSPC);
-			}
-			/*PROF_END(read_grab, read_grab);*/
-		}
-		{
-			/*PROF_BEGIN(build_flow);*/
-
-			/* build flow */
-			assert("vs-1250", inode_file_plugin(inode)->flow_by_inode == flow_by_inode_unix_file);
-			result = flow_by_inode_unix_file(inode, buf, 1 /* user space */ , read_amount, *off, READ_OP, &f);
-			if (unlikely(result)) {
-				drop_nonexclusive_access(uf_info);
-				return result;
-			}
-			/*PROF_END(build_flow, build_flow);*/
-		}
-
-		/* get seal and coord sealed with it from reiser4 private data of
-		   struct file.  The coord will tell us where our last read of this
-		   file finished, and the seal will help us determine if that location
-		   is still valid.
-		*/
-		{
-			/*PROF_BEGIN(load_hint);*/
-			result = load_file_hint(file, &hint);
-			if (unlikely(result)) {
-				drop_nonexclusive_access(uf_info);
-				return result;
-			}
-			/* initialize readahead info */
-			ra_info.key_to_stop = f.key;
-			set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
-
-			/*PROF_END(load_hint, load_hint);*/
-		}
-
-
-		PROF_END(prep, prep);
+	needed = unix_file_estimate_read(inode, read_amount);
+	result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
+	if (result != 0) {
+		drop_nonexclusive_access(uf_info);
+		return RETERR(-ENOSPC);
 	}
+
+	/* build flow */
+	assert("vs-1250", inode_file_plugin(inode)->flow_by_inode == flow_by_inode_unix_file);
+	result = flow_by_inode_unix_file(inode, buf, 1 /* user space */ , read_amount, *off, READ_OP, &f);
+	if (unlikely(result)) {
+		drop_nonexclusive_access(uf_info);
+		return result;
+	}
+
+	/* get seal and coord sealed with it from reiser4 private data of struct file.  The coord will tell us where our
+	   last read of this file finished, and the seal will help us determine if that location is still valid.
+	*/
+	result = load_file_hint(file, &hint);
+	if (unlikely(result)) {
+		drop_nonexclusive_access(uf_info);
+		return result;
+	}
+	/* initialize readahead info */
+	ra_info.key_to_stop = f.key;
+	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
 	
 	while (f.length) {
 		loff_t cur_offset;
@@ -1201,8 +1178,8 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t * f
 	coord_t coord;
 	lock_handle lh;
 	size_t to_write;
-	struct sealed_coord hint;
-	int (*write_f) (struct inode *, coord_t *, lock_handle *, flow_t *, struct sealed_coord *, int grabbed);
+	hint_t hint;
+	int (*write_f) (struct inode *, coord_t *, lock_handle *, flow_t *, hint_t *, int grabbed);
 	file_state old_state, new_state;
 
 	assert("nikita-3031", schedulable());
@@ -1630,8 +1607,6 @@ get_block_unix_file(struct inode *inode,
 	assert("vs-1091", create == 0);
 	key_by_inode_unix_file(inode, (loff_t) block * current_blocksize, &key);
 
-	coord_init_zero(&coord);
-
 	result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, unix_file_inode_data(inode), 0);
 	if (result != CBK_COORD_FOUND || coord.between != AT_UNIT) {
 		done_lh(&lh);
@@ -1796,17 +1771,12 @@ readpages_unix_file(struct file *file, struct address_space *mapping,
 {
 	reiser4_file_fsdata *fsdata;
 	item_plugin *iplug;
-	coord_t twin;
+
+	assert("vs-1282", unix_file_inode_data(mapping->host)->state == UNIX_FILE_BUILT_OF_EXTENTS);
 
 	fsdata = reiser4_get_file_fsdata(file);
-	assert("vs-1147", fsdata->reg.coord);
-	assert("vs-1148", znode_is_rlocked(fsdata->reg.coord->node));
-	assert("vs-1149", znode_is_loaded(fsdata->reg.coord->node));
-	assert("vs-1150", coord_is_existing_unit(fsdata->reg.coord));
-
-	coord_dup(&twin, fsdata->reg.coord);
-	iplug = item_plugin_by_coord(&twin);
-	iplug->s.file.readpages(&twin, mapping, pages);
+	iplug = item_plugin_by_id(EXTENT_POINTER_ID);
+	iplug->s.file.readpages(fsdata->reg.coord, mapping, pages);
 	return;
 }
 
