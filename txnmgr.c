@@ -1321,7 +1321,7 @@ atom_send_event(txn_atom * atom)
 }
 
 /* Disable commits during memory pressure.  A call to sync() does not set PF_MEMALLOC.
-   Kswapd sets the PF_MEMALLOC flag on itself before calling our vm_writeback. */
+   Kswapd sets the PF_KSWAPD flag on itself before calling our vm_writeback. */
 static inline int
 should_delegate_commit(void)
 {
