@@ -25,7 +25,10 @@ int test_init_allocator (reiser4_space_allocator * allocator,
 	allocator->u.test.new_block_nr = *next;
 	spin_unlock (&allocator->u.test.guard);
 
+#if 0
+	/* FIXME-GREEN This should be done by disk-layout */
 	get_super_private( super ) -> blocks_free = ~(__u64)0;
+#endif
 
 	return 0;
 }
