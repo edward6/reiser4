@@ -303,11 +303,12 @@ zalloc(int gfp_flag /* allocation flag */ )
 	return node;
 }
 
-/* initialise fields of znode */
+/* Initialize fields of znode
+   @node:    znode to initialize;
+   @parent:  parent znode;
+   @tree:    tree we are in. */
 static void
-zinit(znode * node /* znode to initialise */ ,
-      const znode * parent /* parent znode */ ,
-      reiser4_tree * tree /* tree we are in */ )
+zinit(znode * node, const znode * parent, reiser4_tree * tree)
 {
 	assert("nikita-466", node != NULL);
 	assert("umka-268", current_tree != NULL);
