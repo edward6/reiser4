@@ -25,6 +25,18 @@
  * course: we waste CPU and bus bandwidth in stead, by copying data back
  * and forth.
  *
+ * Next optimization: &obj_key_id is mainly used to address stat data from
+ * directory entries. Under the assumption that majority of files only have
+ * only name (one hard link) from *the* parent directory it seems reasonable
+ * to only store objectid of stat data and take its locality from key of
+ * directory item.
+ *
+ * This requires some flag to be added to the &obj_key_id to distinguish
+ * between these two cases. Remaining bits in flag byte are then asking to be
+ * used to store file type.
+ *
+ * This optimization requires changes in directory item handling code.
+ *
  */
 typedef struct obj_key_id {
 	d8 locality[ sizeof( __u64 ) ];
@@ -42,7 +54,6 @@ typedef struct de_id {
 	d8 offset  [ sizeof( __u64 ) ];
 } de_id;
 
-extern int build_obj_key_id( const reiser4_key *key, obj_key_id *id );
 extern int build_inode_key_id( const struct inode *obj, obj_key_id *id );
 extern int extract_key_from_id( const obj_key_id *id, reiser4_key *key );
 extern oid_t extract_dir_id_from_key( const reiser4_key *de_key );
