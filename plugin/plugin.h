@@ -330,11 +330,6 @@ typedef struct tail_plugin {
 	/* returns non-zero iff file's tail has to be stored
 	    in a direct item. */
 	int (*have_tail) (const struct inode * inode, loff_t size);
-
-	/* Returns the number of blocks needed for @size */
-	reiser4_block_nr ( *estimate )( const struct inode *, loff_t ,
-	    int );
-
 } tail_plugin;
 
 typedef struct hash_plugin {
