@@ -266,8 +266,10 @@ void print_seal( const char *prefix, const seal_t *seal )
 	} else {
 		info( "%s: version: %llu, block: %llu\n",
 		      prefix, seal -> version, seal -> block );
+#if REISER4_DEBUG
 		print_key( "seal key", &seal -> key );
 		print_coord( "seal coord", &seal -> coord, 0 );
+#endif
 	}
 }
 #endif

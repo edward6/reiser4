@@ -791,6 +791,7 @@ void print_context( const char *prefix, reiser4_context *context )
 	info_atom( "\tatom", context -> trans_in_ctx.atom );
 }
 
+#if REISER4_DEBUG
 void print_contexts (void)
 {
 	reiser4_context *context;
@@ -806,6 +807,7 @@ void print_contexts (void)
 	
 	spin_unlock (& active_contexts_lock);
 }
+#endif
 #endif
 
 /**
@@ -1937,7 +1939,9 @@ void print_tree_rec (const char * prefix /* prefix to print */,
 				 "digraph L0 {\n"
 				 "ordering=out;\n"
 				 "node [shape = box];\n" );
+#if REISER4_DEBUG
 			tree_rec_dot( tree, root, flags, dot );
+#endif
 			fprintf( dot, "}\n" );
 			fclose( dot );
 		}

@@ -532,11 +532,16 @@ extern reiser4_context * get_context_by_lock_stack (lock_stack*);
 extern int  init_context_mgr (void);
 #if REISER4_DEBUG_OUTPUT
 extern void print_context    (const char *prefix, reiser4_context *ctx);
-extern void print_contexts   (void);
 #else
 #define print_context(p,c) noop
+#endif
+
+#if REISER4_DEBUG_OUTPUT && REISER4_DEBUG
+extern void print_contexts   (void);
+#else
 #define print_contexts() noop
 #endif
+
 
 /* Hans, is this too expensive? */
 #define current_tree (&(get_super_private (reiser4_get_current_sb ())->tree))
