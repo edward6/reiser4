@@ -499,6 +499,7 @@ static int reiser4_writepage( struct page *page )
 	int result;
 	file_plugin * fplug;
 	jnode * j;
+	int nr_to_write;
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 
 
@@ -511,6 +512,7 @@ static int reiser4_writepage( struct page *page )
 		result = fplug -> writepage( page );
 		if( result )
 			REISER4_EXIT( result );
+		j = NULL;
 	} else {
 		/* there is jnode. Call writepage if it has no disk mapping */
 		j = jnode_of_page( page );
@@ -519,11 +521,13 @@ static int reiser4_writepage( struct page *page )
 			if( result )
 				REISER4_EXIT( result );
 		}
-		jput( j );
 	}
-	result = 1;
-	REISER4_EXIT( page_common_writeback( page, &result, 
-					     JNODE_FLUSH_MEMORY_UNFORMATTED ) );
+	nr_to_write = 1;
+	result = page_common_writeback( page, &result, 
+					JNODE_FLUSH_MEMORY_UNFORMATTED );
+	if( j != NULL )
+		jput( j );
+	REISER4_EXIT( result );
 }
 
 /** ->readpage() VFS method in reiser4 address_space_operations */
