@@ -209,7 +209,6 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	znode *node;
 	reiser4_item_data item;
 	carry_insert_data cdata;
-	__u64 grabbed;
 	init_carry_pool(&pool);
 	init_carry_level(&todo, &pool);
 	ON_STATS(todo.level_no = TWIG_LEVEL);
