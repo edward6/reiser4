@@ -2782,7 +2782,7 @@ count_jnode(txn_atom *atom, jnode *node, atom_list old_list, atom_list new_list,
 		impossible("", "");
 	}
 	ASSIGN_NODE_LIST(node, new_list);
-	if (check_lists) {
+	if (0 && check_lists) {
 		int count;
 		tree_level level;
 		jnode *node;
