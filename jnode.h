@@ -297,6 +297,11 @@ typedef struct node_operations {
 	int ( *clean_node )( reiser4_tree *tree, jnode *node );
 } node_operations;
 
+/* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
+extern int jload    (jnode *);
+extern int jwrite   (jnode *);
+extern int jwait_io (jnode *);
+extern int junload  (jnode *);
 
 /* __JNODE_H__ */
 #endif

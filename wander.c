@@ -103,95 +103,12 @@ struct log_entry {
 	d64      wandered;	/* block wandered location */
 };
 
-/* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
-/* jnode ref. counter is missing, it doesn't matter for us because this
- * journal writer uses those jnodes exclusively by only one thread */
-/* FIXME: it should go to other place */
-int jload (jnode * node)
-{
-	reiser4_tree * tree = current_tree;
-	int (*read_node) ( reiser4_tree *, jnode *);
-
-	assert ("zam-441", tree->ops);
-	assert ("zam-442", tree->ops->read_node != NULL);
-
-	read_node = tree->ops->read_node;
-
-	return read_node (tree, node);
-}
-
-int jwrite (jnode * node)
-{
-	struct page * page;
-
-	assert ("zam-445", node != NULL);
-	assert ("zam-446", jnode_page (node) != NULL);
-
-	page = jnode_page (node);
-
-	assert ("zam-450", blocknr_is_fake (jnode_get_block (node)));
-
-	return page_io (page, WRITE, GFP_NOIO);
-}
-
-int jwait_io (jnode * node)
-{
-	struct page * page;
-
-	assert ("zam-447", node != NULL);
-	assert ("zam-448", jnode_page (node) != NULL);
-
-	page = jnode_page (node);
-
-	if (!PageUptodate (page)) {
-		wait_on_page_locked (page);
-
-		if (!PageUptodate (page)) return -EIO;
-	} else {
-		unlock_page (page);
-	}
-
-	return 0;
-}
-
-int junload (jnode * node)
-{
-	reiser4_tree * tree = current_tree;
-	int (*release_node) ( reiser4_tree *, jnode *);
-
-	assert ("zam-443", tree->ops);
-	assert ("zam-444", tree->ops->release_node != NULL);
-
-	release_node = tree->ops->release_node;
-
-	return release_node (tree, node);
-}
-
 
 /* log record capacity depends on current block size */
 static int log_record_capacity (struct super_block * super)
 {
 	return (super->s_blocksize - sizeof (struct log_record_header)) /
 		sizeof (struct log_entry);
-}
-
-/* FIXME: It should go to txnmgr.c */
-static txn_atom * get_current_atom_locked (void)
-{
-	reiser4_context * cx;
-	txn_atom * atom;
-	txn_handle * txnh; 
-
-	cx = get_current_context();
-	assert ("zam-437", cx != NULL);
-
-	txnh = cx -> trans;
-	assert ("zam-435", txnh != NULL);
-	
-	atom = atom_get_locked_by_txnh (txnh);
-	assert ("zam-436", atom != NULL);
-
-	return atom;
 }
 
 static void format_tx_head (
@@ -493,7 +410,7 @@ static int write_tx (capture_list_head * tx_list)
 	return 0;
 }
 
-/* I assume that at this moment that all captured blocks from RELOCATE SET are
+/* we assume that at this moment that all captured blocks from RELOCATE SET are
  * written to disk to new locations, all blocks from OVERWRITE SET are written
  * to wandered location, WANDERED MAP is created, DELETED SET exists. */
 

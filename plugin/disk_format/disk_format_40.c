@@ -83,6 +83,41 @@ static struct buffer_head *read_super_block (struct super_block * s
     return find_a_disk_format_40_super_block(s);
 }
 
+static int set_journal_info (struct super_block * s)
+{
+	reiser4_super_info_data * private = get_super_private(s);
+
+	int ret;
+
+	ret = -ENOMEM;
+
+	if ((private->journal_header = jnew())) return ret;
+
+	if ((private->journal_footer = jnew())) goto fail;
+
+	private->journal_header->blocknr = FORMAT_40_JOURNAL_HEADER_BLOCKNR;
+	private->journal_footer->blocknr = FORMAT_40_JOURNAL_FOOTER_BLOCKNR;
+
+	if ((ret = jload (private->journal_header))) goto fail;
+	
+	if ((ret = jload (private->journal_footer))) goto fail;
+
+	return 0;
+
+fail:
+	if (private->journal_header != NULL) {
+		junload (private->journal_header);
+		jfree (private->journal_header);
+	}
+
+	if (private->journal_footer != NULL) {
+		junload (private->journal_footer);
+		jfree (private->journal_footer);
+	}
+
+	return ret;
+}
+
 /* plugin->u.layout.get_ready */
 int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 {
@@ -121,9 +156,6 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	memcpy (sb_copy, ((format_40_disk_super_block *)super_bh->b_data),
 		sizeof (*sb_copy));
 	brelse (super_bh);
-
-	/* FIXME-VS: shouldn't this be in reiser4_fill_super */
-	spin_lock_init (&private->guard);
 
 	/* layout 40 uses oid_40 oid allocator - the one implemented in
 	 * plugin/oid/oid_40.[ch] */
@@ -177,6 +209,13 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	private->one_node_plugin = 1; /* all nodes in layout 40 are of one
 				       * plugin */
 
+	result = set_journal_info (s); /* map jnodes for journal control
+					    * blocks (header, footer) to
+					    * disk  */
+
+	if (result)
+		return result;
+	
 	/* FIXME-VS: maybe this should be dealt with in common code */
 	xmemset(&private->stats, 0, sizeof (reiser4_stat));
 	/* private->tmgr is initialized already */

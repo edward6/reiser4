@@ -338,6 +338,70 @@ void jnode_detach_page( jnode *node )
 	page_cache_release( page );
 }
 
+/* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
+/* jnode ref. counter is missing, it doesn't matter for us because this
+ * journal writer uses those jnodes exclusively by only one thread */
+/* FIXME: it should go to other place */
+int jload (jnode * node)
+{
+	reiser4_tree * tree = current_tree;
+	int (*read_node) ( reiser4_tree *, jnode *);
+
+	assert ("zam-441", tree->ops);
+	assert ("zam-442", tree->ops->read_node != NULL);
+
+	read_node = tree->ops->read_node;
+
+	return read_node (tree, node);
+}
+
+int jwrite (jnode * node)
+{
+	struct page * page;
+
+	assert ("zam-445", node != NULL);
+	assert ("zam-446", jnode_page (node) != NULL);
+
+	page = jnode_page (node);
+
+	assert ("zam-450", blocknr_is_fake (jnode_get_block (node)));
+
+	return page_io (page, WRITE, GFP_NOIO);
+}
+
+int jwait_io (jnode * node)
+{
+	struct page * page;
+
+	assert ("zam-447", node != NULL);
+	assert ("zam-448", jnode_page (node) != NULL);
+
+	page = jnode_page (node);
+
+	if (!PageUptodate (page)) {
+		wait_on_page_locked (page);
+
+		if (!PageUptodate (page)) return -EIO;
+	} else {
+		unlock_page (page);
+	}
+
+	return 0;
+}
+
+int junload (jnode * node)
+{
+	reiser4_tree * tree = current_tree;
+	int (*release_node) ( reiser4_tree *, jnode *);
+
+	assert ("zam-443", tree->ops);
+	assert ("zam-444", tree->ops->release_node != NULL);
+
+	release_node = tree->ops->release_node;
+
+	return release_node (tree, node);
+}
+
 #if REISER4_DEBUG
 
 #define jnode_state_name( node, flag )			\

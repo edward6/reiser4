@@ -142,6 +142,10 @@ struct reiser4_super_info_data {
 	 * will return it */
 	tail_plugin * tplug;
 
+
+	/* pointers to jnodes for journal header and footer */
+	jnode                 *journal_header;
+	jnode                 *journal_footer;
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck( const struct super_block *super );

@@ -1564,7 +1564,10 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	if (!s->u.generic_sbp) {
 		REISER4_EXIT (-ENOMEM);
 	}
+
 	memset (s->u.generic_sbp, 0, sizeof (reiser4_super_info_data));
+
+	spin_lock_init (&get_super_private(s)->guard);
 
 	/* init layout plugin */
 	get_super_private (s)->lplug = lplug;

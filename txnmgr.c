@@ -358,6 +358,25 @@ atom_get_locked_by_txnh (txn_handle *txnh)
 	return atom;
 }
 
+txn_atom * get_current_atom_locked (void)
+{
+	reiser4_context * cx;
+	txn_atom * atom;
+	txn_handle * txnh; 
+
+	cx = get_current_context();
+	assert ("zam-437", cx != NULL);
+
+	txnh = cx -> trans;
+	assert ("zam-435", txnh != NULL);
+	
+	atom = atom_get_locked_by_txnh (txnh);
+	assert ("zam-436", atom != NULL);
+
+	return atom;
+}
+
+
 /* Get the atom belonging to a jnode, which is initially locked.  Return with
  * both jnode and atom locked.  This performs the necessary spin_trylock to
  * break the lock-ordering cycle.  Assumes the jnode is already locked, and
