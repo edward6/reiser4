@@ -506,6 +506,7 @@ atom_begin_andlock (txn_atom **atom_alloc, jnode *node, txn_handle *txnh)
 
 		/* Check if both atom pointers are still NULL... */
 		if (node->atom != NULL || txnh->atom != NULL) {
+			trace_on (TRACE_TXN, "alloc atom race\n");
 			return ERR_PTR (-EAGAIN);
 		}
 	}
