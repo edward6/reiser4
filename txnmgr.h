@@ -322,8 +322,12 @@ extern long txn_end(reiser4_context * context);
 extern int txnmgr_force_commit_current_atom(void);
 extern int txnmgr_force_commit_all(struct super_block *super);
 
+extern jnode * find_first_dirty_jnode (txn_atom *);
+
 extern int commit_some_atoms(txn_mgr *);
-extern int flush_one_atom(txn_mgr *, long *, int);
+extern int flush_current_atom (int, long *, txn_atom **);
+extern int flush_current_atom_not_commit(int flags, long * nr_submitted);
+
 extern int flush_some_atom(long *, int);
 
 extern int same_atom_dirty(jnode * base, jnode * check, int alloc_check, int alloc_value);
@@ -466,6 +470,7 @@ struct flush_queue {
 
 extern int fq_by_atom(txn_atom *, flush_queue_t **);
 extern int fq_by_jnode(jnode *, flush_queue_t **);
+extern void fq_put_nolock(flush_queue_t *);
 extern void fq_put(flush_queue_t *);
 extern void fuse_fq(txn_atom * to, txn_atom * from);
 extern void queue_jnode(flush_queue_t *, jnode *);
