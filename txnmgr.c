@@ -1375,7 +1375,7 @@ void atom_wait_event(txn_atom * atom)
 	LOCK_ATOM (atom);
 	fwaitfor_list_remove(&_wlinks);
 	atom_dec_and_unlock (atom);
-	PROF_END(atom_wait_event, atom_wait_event);
+	PROF_END(atom_wait_event, 0);
 }
 
 /* wake all threads which wait for an event */
@@ -2830,39 +2830,17 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 	return ret;
 }
 
-/* Perform the necessary work to prepare for fusing two atoms, which involves acquiring two
-   atom locks in the proper order.  If one of the node's atom is blocking fusion (i.e., it
-   is in the CAPTURE_WAIT stage) and the handle's atom is not then the handle's request is
-   put to sleep.  If the node's atom is committing, then the node can be copy-on-captured.
-   Otherwise, pick the atom with fewer pointers to be fused into the atom with more
-   pointer and call capture_fuse_into.
-*/
-/* Audited by: umka (2002.06.13) */
-static int
-capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode)
+static inline int
+capture_init_fusion_locked(jnode * node, txn_handle * txnh, txn_capture mode)
 {
 	txn_atom *atomf;
 	txn_atom *atomh;
-	int       result;
 
 	assert("umka-216", txnh != NULL);
 	assert("umka-217", node != NULL);
 
 	atomh = txnh->atom;
 	atomf = node->atom;
-
-	/* Have to perform two trylocks here. */
-	result = trylock_throttle(atomf, txnh, node);
-	if (result != 0) {
-		reiser4_stat_inc(txnmgr.restart.init_fusion_atomf);
-		return result;
-	}
-	result = trylock_throttle(atomh, txnh, node);
-	if (result != 0) {
-		UNLOCK_ATOM(atomf);
-		reiser4_stat_inc(txnmgr.restart.init_fusion_atomh);
-		return result;
-	}
 
 	/* The txnh atom must still be open (since the txnh is active)...  the node atom may
 	   be in some later stage (checked next). */
@@ -2912,6 +2890,34 @@ capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode)
 
 	/* Atoms are unlocked in capture_fuse_into.  No locks held. */
 	reiser4_stat_inc(txnmgr.restart.init_fusion_fused);
+	return RETERR(-EAGAIN);
+}
+
+/* Perform the necessary work to prepare for fusing two atoms, which involves
+ * acquiring two atom locks in the proper order.  If one of the node's atom is
+ * blocking fusion (i.e., it is in the CAPTURE_WAIT stage) and the handle's
+ * atom is not then the handle's request is put to sleep.  If the node's atom
+ * is committing, then the node can be copy-on-captured.  Otherwise, pick the
+ * atom with fewer pointers to be fused into the atom with more pointer and
+ * call capture_fuse_into.
+ */
+static int
+capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode)
+{
+	/* Have to perform two trylocks here. */
+	if (likely(spin_trylock_atom(node->atom)))
+		if (likely(spin_trylock_atom(txnh->atom)))
+			return capture_init_fusion_locked(node, txnh, mode);
+		else {
+			UNLOCK_ATOM(node->atom);
+			reiser4_stat_inc(txnmgr.restart.init_fusion_atomh);
+		}
+	else {
+		reiser4_stat_inc(txnmgr.restart.init_fusion_atomf);
+	}
+
+	UNLOCK_JNODE(node);
+	UNLOCK_TXNH(txnh);
 	return RETERR(-EAGAIN);
 }
 
