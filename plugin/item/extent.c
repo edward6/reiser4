@@ -2182,7 +2182,7 @@ allocated2unallocated(uf_coord_t *uf_coord, reiser4_key *key)
 	if (width == 1) {
 		set_extent(ext, UNALLOCATED_EXTENT_START, 1);
 		znode_make_dirty(coord->node);
-		return 0;
+		goto ok;
 	} else if (pos_in_unit == 0) {
 		/* first block of unit */
 		if (coord->unit_pos) {
@@ -2478,9 +2478,12 @@ write_move_coord(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int fu
 		ext_coord->pos_in_unit ++;
 }
 
+
 /* write flow's data into file by pages */
 static int
-extent_write_flow(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, write_mode_t mode)
+extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint, 
+		  int grabbed, /* 0 if space for operation is not reserved yet, 0 - otherwise */
+		  write_mode_t mode)
 {
 	int result;
 	loff_t file_off;
@@ -2494,17 +2497,18 @@ extent_write_flow(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, wri
 
 
 	assert("vs-885", current_blocksize == PAGE_CACHE_SIZE);
-	assert("vs-700", f->user == 1);
-	assert("vs-1352", f->length > 0);
+	assert("vs-700", flow->user == 1);
+	assert("vs-1352", flow->length > 0);
 
-	if (DQUOT_ALLOC_SPACE_NODIRTY(inode, f->length))
+	/* FIXME-VS: fix this */
+	if (DQUOT_ALLOC_SPACE_NODIRTY(inode, flow->length))
 		return RETERR(-EDQUOT);
 
 	uf_coord = &hint->coord;
 	coord = &uf_coord->base_coord;
 
 	/* position in a file to start write from */
-	file_off = get_key_offset(&f->key);
+	file_off = get_key_offset(&flow->key);
 	/* index of page containing that offset */
 	page_nr = (unsigned long)(file_off >> PAGE_CACHE_SHIFT);
 	/* offset within the page */
@@ -2518,12 +2522,12 @@ extent_write_flow(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, wri
 		}
 		/* number of bytes to be written to page */
 		count = PAGE_CACHE_SIZE - page_off;
-		if (count > f->length)
-			count = f->length;
+		if (count > flow->length)
+			count = flow->length;
 
 		write_page_trace(inode->i_mapping, page_nr);
 
-		fault_in_pages_readable(f->data, count);
+		fault_in_pages_readable(flow->data, count);
 		page = grab_cache_page(inode->i_mapping, page_nr);
 		if (!page) {
 			result = RETERR(-ENOMEM);
@@ -2536,13 +2540,14 @@ extent_write_flow(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, wri
 			goto exit2;
 		}
 
-		if (!jnode_mapped(j) || !jnode_check_flushprepped(j) || !jnode_check_dirty(j)) {
+		/*if (!jnode_mapped(j) || !jnode_check_flushprepped(j) || !jnode_check_dirty(j)) {*/
+		if (!JF_ISSET(j, JNODE_RELOC)) {
 			ON_TRACE(TRACE_EXTENTS, "MAKE: page %p, index %lu, count %d..", page, page->index, page_count(page));
 
 			/* unlock page before doing anything with filesystem tree */
 			reiser4_unlock_page(page);
 			/* make sure that page has non-hole extent pointing to it */
-			result = make_extent(inode, uf_coord, j, &f->key, mode);
+			result = make_extent(inode, uf_coord, j, &flow->key, mode);
 			reiser4_lock_page(page);
 			if (result) {
 				ON_TRACE(TRACE_EXTENTS, "FAILED: %d\n", result);
@@ -2561,7 +2566,7 @@ extent_write_flow(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, wri
 		assert("nikita-3033", schedulable());
 
 		/* copy user data into page */
-		result = __copy_from_user((char *)kmap(page) + page_off, f->data, count);
+		result = __copy_from_user((char *)kmap(page) + page_off, flow->data, count);
 		kunmap(page);
 		if (unlikely(result)) {
 			result = RETERR(-EFAULT);
@@ -2587,11 +2592,11 @@ extent_write_flow(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, wri
 		UNLOCK_JNODE(j);
 		jput(j);
 
-		move_flow_forward(f, count);
+		move_flow_forward(flow, count);
 		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
 			
 		/* throttle the writer */
-		result = extent_balance_dirty_pages(inode->i_mapping, f, hint);
+		result = extent_balance_dirty_pages(inode->i_mapping, flow, hint);
 		if (!grabbed)
 			all_grabbed2free("extent_write_flow");
 		if (result) {
@@ -2619,10 +2624,10 @@ exit1:
 		   because we are to continue on twig level but are still at
 		   leaf level
 		*/
-	} while (f->length && uf_coord->valid == 1);
+	} while (flow->length && uf_coord->valid == 1);
 
-	if (f->length)
-		DQUOT_FREE_SPACE_NODIRTY(inode, f->length);
+	if (flow->length)
+		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
 
 	PROF_END(extent_write, extent_write);
 	return result;
@@ -2638,7 +2643,7 @@ extent_hole_reserve(reiser4_tree *tree)
 }
 
 static int
-extent_write_hole(struct inode *inode, flow_t *f, hint_t *hint, int grabbed)
+extent_write_hole(struct inode *inode, flow_t *flow, hint_t *hint, int grabbed)
 {
 	int result;
 	loff_t new_size;
@@ -2651,10 +2656,10 @@ extent_write_hole(struct inode *inode, flow_t *f, hint_t *hint, int grabbed)
 			return result;
 	}
 
-	new_size = get_key_offset(&f->key) + f->length;
-	set_key_offset(&f->key, new_size);
-	f->length = 0;
-	result = add_hole(coord, hint->coord.lh, &f->key);
+	new_size = get_key_offset(&flow->key) + flow->length;
+	set_key_offset(&flow->key, new_size);
+	flow->length = 0;
+	result = add_hole(coord, hint->coord.lh, &flow->key);
 	hint->coord.valid = 0;
 	if (!result) {
 		done_lh(hint->coord.lh);
@@ -2668,18 +2673,23 @@ extent_write_hole(struct inode *inode, flow_t *f, hint_t *hint, int grabbed)
 /*
   plugin->s.file.write
   It can be called in two modes:
-  1. real write - to write data from flow to a file (@f->data != 0)
+  1. real write - to write data from flow to a file (@flow->data != 0)
   2. expanding truncate (@f->data == 0)
+
+  grabbed: extent's write may be called from plain unix file write and from tail conversion. In first case (grabbed ==
+  0) space is not reserved forehand, so, it must be done here. When it is being called from tail conversion - space is
+  reserved already for whole operation which may involve several calls to item write. In this case space reservation
+  will not be done here
 */
 int
-write_extent(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, write_mode_t mode)
+write_extent(struct inode *inode, flow_t *flow, hint_t *hint, int grabbed, write_mode_t mode)
 {
-	if (f->data)
+	if (flow->data)
 		/* real write */
-		return extent_write_flow(inode, f, hint, grabbed, mode);
+		return extent_write_flow(inode, flow, hint, grabbed, mode);
 
 	/* expanding truncate. add_hole requires f->key to be set to new end of file */
-	return extent_write_hole(inode, f, hint, grabbed);
+	return extent_write_hole(inode, flow, hint, grabbed);
 }
 
 #if REISER4_DEBUG
