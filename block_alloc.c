@@ -35,7 +35,7 @@ int blocknr_is_fake(const reiser4_block_nr * da)
 }
 
 /** a generator for tree nodes fake block numbers */
-static void get_next_fake_blocknr (reiser4_block_nr *bnr)
+void get_next_fake_blocknr (reiser4_block_nr *bnr)
 {
 	/* FIXME: This isn't thread-safe. */
 	static reiser4_block_nr gen = 0;
@@ -57,6 +57,29 @@ static void get_next_fake_blocknr (reiser4_block_nr *bnr)
 	*bnr = gen;
 }
 
+
+int reiser4_alloc_blocks (reiser4_blocknr_hint *preceder, reiser4_block_nr *blk,
+			  int *len)
+{
+	space_allocator_plugin * splug;
+	int needed;
+
+	assert ("vs-514", (get_current_super_private () &&
+			   get_current_super_private ()->space_plug &&
+			   get_current_super_private ()->space_plug->alloc_blocks));
+
+	splug = get_current_super_private ()->space_plug;	
+	needed = *len;
+	return splug->alloc_blocks (preceder, needed, blk, len);
+}
+
+
+
+
+
+#if 0 /* the code inside of these #if is in plugin/space/bitmap.c now */
+
+
 static int find_next_zero_bit_in_byte (unsigned int byte, int start)
 {
 	unsigned int mask = 1 << start;
@@ -69,6 +92,8 @@ static int find_next_zero_bit_in_byte (unsigned int byte, int start)
 
 	return i;
 }
+
+
 
 #if defined (__KERNEL__)
 
@@ -215,6 +240,7 @@ static void parse_blocknr (const reiser4_block_nr *block, int *bmap, int *offset
 	*offset = *block % super->s_blocksize;
 } 
 
+
 /* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
 void get_working_bitmap_blocknr (int bmap, reiser4_block_nr *bnr)
 {
@@ -222,6 +248,7 @@ void get_working_bitmap_blocknr (int bmap, reiser4_block_nr *bnr)
 /* yes, name it -Hans */
 	*bnr = (reiser4_block_nr) bmap | 0xF0000000LL;
 }
+
 
 /** Load node at given blocknr, update given pointer. This function should be
  * called under tree lock held */
@@ -274,7 +301,7 @@ static int load_bnode (struct reiser4_bnode * bnode)
 	reiser4_super_info_data * info_data = get_current_super_private(); 
 	struct super_block * super = get_current_context()->super;
 	int ret = 0;
-	int bmap_nr = info_data->bitmap - bnode;
+	int bmap_nr = info_data.space_allocator.u.bitmap->bitmap - bnode;
 	reiser4_block_nr bnr;
 
 	spin_lock_tree(current_tree);
@@ -309,7 +336,6 @@ static int load_bnode (struct reiser4_bnode * bnode)
 	return ret;
 }
 
-#if 0
 
 static void release_bnode(struct reiser4_bnode * bnode)
 {
@@ -323,8 +349,6 @@ static void release_bnode(struct reiser4_bnode * bnode)
 	zput(bnode->commit);
 }
 
-#endif
-
 
 /** This function does all block allocation work but only for one bitmap
  * block.*/
@@ -336,7 +360,7 @@ static int search_one_bitmap (int bmap, int *offset, int max_offset,
 			      int min_len, int max_len)
 {
 	reiser4_super_info_data * info_data = get_current_super_private(); 
-	struct reiser4_bnode * bnode = &info_data->bitmap[bmap];
+	struct reiser4_bnode * bnode = &info_data->u.bitmap->bitmap[bmap];
 
 	int search_end;
 	int start;
@@ -420,6 +444,8 @@ int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_
         for (node = capture_list_front(&atom->dirty_nodes[h]); \
              capture_list_end(&atom->dirty_nodes[h], node);          \
              node = capture_list_next(node))
+
+
 
 /** constructor and destructor called on fs mount/unmount */
 /** bitmap structure initialization */
@@ -627,6 +653,7 @@ void reiser4_dealloc_block (jnode *node)
 	spin_unlock_jnode(node);
 }
 
+
 /*
  * These functions are hooks from the journal code to manipulate COMMIT BITMAP
  * and WORKING BITMAP objects.
@@ -795,50 +822,6 @@ int block_alloc_post_writeback_hook (txn_atom * atom)
 
 	return ret;
 }
-
-/*
- * FIXME_ZAM: old block allocator function. they are here until new code is
- * completed.
- */
-/*
- * probability of getting blocks perfectly allocated (eek, floating point in kernel?)
- */
-#define P 0.2
-int allocate_new_blocks (reiser4_block_nr * hint,
-			 reiser4_block_nr * count)
-{
-	double p;
-	static reiser4_block_nr min_free = 10000;
-
-
-	assert ("vs-460", *count > 0);
-	p = drand48 ();
-	if (p < P) {
-		if (*hint >= min_free) {
-			/* return what we were asked for */
-			min_free += *count;
-			return 0;
-		}
-	}
-	*hint = min_free + 3;
-	/*
-	 * choose amount of free blocks randomly
-	 */
-	*count = 1 + (int) ((double)(*count) * rand () / (RAND_MAX + 1.0));
-	min_free += 3 + *count;
-	return 0;
-}
-
-void reiser4_free_block (reiser4_block_nr block UNUSED_ARG)
-{
-	return;
-}
-
-int free_blocks (reiser4_block_nr hint UNUSED_ARG, reiser4_block_nr count UNUSED_ARG)
-{
-	return 0;
-}
-
 
 /* 
  * Local variables:
