@@ -440,18 +440,6 @@ find_file_size(struct inode *inode, loff_t *file_size)
 	return 0;
 }
 
-/* estimate and reserve space needed to cut one item and update one stat data */
-static int reserve_cut_iteration(reiser4_tree *tree)
-{
-	assert("nikita-3172", lock_stack_isclean(get_current_lock_stack()));
-
-	grab_space_enable();
-	return reiser4_grab_reserved(reiser4_get_current_sb(),
-				     estimate_one_item_removal(tree) + 
-				     estimate_one_insert_into_item(tree),
-				     BA_CAN_COMMIT, __FUNCTION__);
-}
-
 /* estimate and reserve space needed to truncate page which gets partially truncated: one block for page itself, stat
    data update (estimate_one_insert_into_item) and one item insertion (estimate_one_insert_into_item) which may happen
    if page corresponds to hole extent and unallocated one will have to be created */
@@ -464,6 +452,28 @@ static int reserve_partial_page(reiser4_tree *tree)
 				     BA_CAN_COMMIT, __FUNCTION__);
 }
 
+/* estimate and reserve space needed to cut one item and update one stat data */
+#if REISER4_TRACE
+static int __reserve_cut_iteration(reiser4_tree *tree, const char * message)
+#else
+int __reserve_cut_iteration(reiser4_tree *tree)
+#endif
+{
+	__u64 estimate = estimate_one_item_removal(tree) 
+		+ estimate_one_insert_into_item(tree);
+
+	assert("nikita-3172", lock_stack_isclean(get_current_lock_stack()));
+
+	grab_space_enable();
+	return reiser4_grab_reserved(reiser4_get_current_sb(), estimate, BA_CAN_COMMIT, message);
+}
+
+#if REISER4_TRACE
+#define reserve_cut_iteration(tree)  __reserve_cut_iteration(tree, __FUNCTION__)
+#else
+#define reserve_cut_iteration(tree)  __reserve_cut_iteration(tree)
+#endif
+
 /* cut file items one by one starting from the last one until new file size (inode->i_size) is reached. Reserve space
    and update file stat data on every single cut from the tree */
 static int
@@ -471,7 +481,6 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 {
 	reiser4_key from_key, to_key;
 	reiser4_key smallest_removed;
-	lock_handle lh;
 	int result;
 
 	assert("vs-1248", inode_file_plugin(inode)->key_by_inode == key_by_inode_unix_file);
@@ -479,105 +488,33 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 	to_key = from_key;
 	set_key_offset(&to_key, get_key_offset(max_key()));
 
-#if 1
-	write_tree_trace(tree_by_inode(inode), tree_cut, &from_key, &to_key);
-
-	do {
-		coord_t intranode_to, intranode_from;
-		znode *loaded;
-		/* FIXME-VS: find_next_item is highly optimized for sequential writes/reads (which go in direction of
-		   key increasing). For case of cut_tree (which goes in key decreasing direction) it currently can not
-		   help */
-
-		/* estimate and reserve space for removal of one item. This
-		 * has to be done before find_file_item(), because long term
-		 * lock nests within delete_sema. */
+	while (1) {
 		result = reserve_cut_iteration(tree_by_inode(inode));
 		if (result)
 			break;
 
-		/* look for @to_key in the tree or use @to_coord if it is set
-		   properly */
-		result = find_file_item(0, &to_key, &intranode_to,	/* was set as hint in
-									 * previous loop
-									 * iteration (if there
-									 * was one) */
-					&lh, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */, unix_file_inode_data(inode), 0);
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
-			/* -EIO, or something like that */
-			break;
+		result = cut_tree(current_tree, &from_key, &to_key, &smallest_removed);
+		if (result == -EAGAIN) {
+			/* -EAGAIN is a signal to interrupt a long file truncation process */
+			/* FIXME(Zam) cut_tree does not support that signaling.*/
+			result = update_inode_and_sd_if_necessary
+				(inode, get_key_offset(&smallest_removed), 1, update_sd);
+			if (result)
+				break;
 
-		loaded = intranode_to.node;
-		result = zload(loaded);
-		if (result)
-			break;
-
-		/* lookup for @from_key in current node */
-		assert("vs-686", intranode_to.node->nplug);
-		assert("vs-687", intranode_to.node->nplug->lookup);
-		coord_init_zero(&intranode_from);
-		result = intranode_to.node->nplug->lookup(intranode_to.node,
-							  &from_key, FIND_MAX_NOT_MORE_THAN, &intranode_from);
-
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-			/* -EIO, or something like that */
-			zrelse(loaded);
-			break;
-		}
-
-		if (coord_eq(&intranode_from, &intranode_to) && !coord_is_existing_unit(&intranode_from)) {
-			/* nothing to cut */
-			result = 0;
-			zrelse(loaded);
-			break;
-		}
-		/* cut data from one node */
-		smallest_removed = *max_key();
-		result = cut_node(&intranode_from, &intranode_to,	/* is used as an input and
-									   an output, with output
-									   being a hint used by next
-									   loop iteration */
-				  &from_key, &to_key, &smallest_removed, DELETE_KILL,	/*flags */
-				  0/* left neighbor is not known */,
-				  inode);
-		zrelse(loaded);
-		done_lh(&lh);
-
-		if (result) {
-			/* cut_node may return -EDEADLK when we cut from the beginning of twig node and it had to lock
-			   neighbor to get "left child" to update its right delimiting key and it failed because left
-			   neighbor was locked. So, release lock held and try again */
-			all_grabbed2free("cut_file_items on error");
+			all_grabbed2free(__FUNCTION__);
 			reiser4_release_reserved(inode->i_sb);
-			if (result == -EDEADLK)
-				continue;
-			break;
+
+			continue;
 		}
-
-		assert("vs-301", !keyeq(&smallest_removed, min_key()));
-
-		result = update_inode_and_sd_if_necessary(inode, get_key_offset(&smallest_removed), 1/*update inode->i_size*/, update_sd);
-		all_grabbed2free("cut_file_items after update_inode..");
 		if (result)
 			break;
-		reiser4_release_reserved(inode->i_sb);
-		balance_dirty_pages(inode->i_mapping);
 
-	} while (keygt(&smallest_removed, &from_key));
-	done_lh(&lh);
-#else
-	result = reserve_cut_iteration(tree_by_inode(inode));
-	if (result)
-		return result;
+		/* Final sd update after the file gets its correct size */
+		result = update_inode_and_sd_if_necessary(inode, new_size, 1, update_sd);
+		break;
+	}
 
-	do {
-		result = cut_tree(current_tree, &from_key, &to_key);
-		if (result)
-			break;
-		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update inode->i_size*/, update_sd);
-	} while (0);
-
-#endif
 	all_grabbed2free(__FUNCTION__);
 	reiser4_release_reserved(inode->i_sb);
 

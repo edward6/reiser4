@@ -1181,130 +1181,6 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 	return result;
 }
 
-/* there is a fundamental problem with optimizing deletes: VFS does it
-   one file at a time.  Another problem is that if an item can be
-   anything, then deleting items must be done one at a time.  It just
-   seems clean to writes this to specify a from and a to key, and cut
-   everything between them though.  */
-
-/* use this function with care if deleting more than what is part of a single file. */
-/* do not use this when cutting a single item, it is suboptimal for that */
-
-/* You are encouraged to write plugin specific versions of this.  It
-   cannot be optimal for all plugins because it works item at a time,
-   and some plugins could sometimes work node at a time. Regular files
-   however are not optimizable to work node at a time because of
-   extents needing to free the blocks they point to.
-
-   Optimizations compared to v3 code:
-
-   It does not balance (that task is left to memory pressure code).
-
-   Nodes are deleted only if empty.
-
-   Uses extents.
-
-   Performs read-ahead of formatted nodes whose contents are part of
-   the deletion.
-*/
-
-/* Audited by: umka (2002.06.16) */
-#if 0
-int
-cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const reiser4_key * to_key)
-{
-	coord_t intranode_to, intranode_from;
-	reiser4_key smallest_removed;
-	lock_handle lock_handle;
-	int result;
-	znode *loaded;
-	STORE_COUNTERS;
-
-	assert("umka-329", tree != NULL);
-	assert("umka-330", from_key != NULL);
-	assert("umka-331", to_key != NULL);
-
-	write_tree_trace(tree, tree_cut, from_key, to_key);
-
-	do {
-		/* FIXME-VS: find_next_item is highly optimized for sequential
-		   writes/reads. For case of cut_tree it can not help */
-		coord_init_zero(&intranode_to);
-		coord_init_zero(&intranode_from);
-		init_lh(&lock_handle);
-		/* look for @to_key in the tree or use @to_coord if it is set
-		   properly */
-		result = coord_by_key(current_tree, to_key, &intranode_to, &lock_handle, ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
-				      TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE, 0/*ra_info*/);
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-			/* -EIO, or something like that */
-			done_lh(&lock_handle);
-			break;
-		}
-
-		loaded = intranode_to.node;
-		result = zload(loaded);
-		if (result) {
-			done_lh(&lock_handle);
-			break;
-		}
-
-		/* lookup for @from_key in current node */
-		assert("vs-686", intranode_to.node->nplug);
-		assert("vs-687", intranode_to.node->nplug->lookup);
-		result = intranode_to.node->nplug->lookup(intranode_to.node,
-							  from_key, FIND_MAX_NOT_MORE_THAN, &intranode_from);
-
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
-			/* -EIO, or something like that */
-			zrelse(loaded);
-			done_lh(&lock_handle);
-			break;
-		}
-
-		if (coord_eq(&intranode_from, &intranode_to) && !coord_is_existing_unit(&intranode_from)) {
-			/* nothing to cut */
-			result = 0;
-			zrelse(loaded);
-			done_lh(&lock_handle);
-			break;
-		}
-		/* cut data from one node */
-		smallest_removed = *min_key();
-		result = cut_node(&intranode_from, &intranode_to,  /* is used as an input and an output, with output
-								      being a hint used by next loop iteration */
-				  from_key, to_key, &smallest_removed, DELETE_KILL, /*flags */
-				  0, 0/*inode*/);
-		zrelse(loaded);
-		done_lh(&lock_handle);
-
-		if (result) {
-			/* cut_node may return -EDEADLK when we cut from the beginning of twig node and it had to lock
-			   neighbor to get "left child" to update its right delimiting key and it failed because left
-			   neighbor was locked. So, release lock held and try again */
-			if (result == -EDEADLK) {
-				if (!keygt(&smallest_removed, from_key)) {
-					print_key("smallest_removed", 
-						  &smallest_removed);
-					print_key("from_key", from_key);
-				}
-				continue;
-			}
-			break;
-		}
-		assert("vs-301", !keyeq(&smallest_removed, min_key()));
-	} while (keygt(&smallest_removed, from_key));
-
-	if (result != 0)
-		warning("nikita-2861", "failure: %i", result);
-	CHECK_COUNTERS;
-	return result;
-}
-
-#else
-
-/* cut_tree, the new version. */
-
 static int delete_node (znode * left, znode * node, reiser4_key * smallest_removed)
 {
 	lock_handle parent_lock;
@@ -1362,11 +1238,11 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 	return ret;
 }
 
-static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const reiser4_key * to_key)
+static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, 
+			    const reiser4_key * to_key, reiser4_key * smallest_removed)
 {
 	lock_handle next_node_lock;
 	coord_t left_coord;
-	reiser4_key smallest_removed;
 	int result;
 	long iterations = 0;
 
@@ -1385,7 +1261,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 			break;
 
 		if (iterations && UNDER_RW(dk, current_tree, read, keyle(from_key, &tap->coord->node->ld_key))) {
-			result = delete_node(next_node_lock.node, tap->coord->node, &smallest_removed);
+			result = delete_node(next_node_lock.node, tap->coord->node, smallest_removed);
 			if (result)
 				break;
 		} else {
@@ -1409,9 +1285,9 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 				break;
 
 			/* cut data from one node */
-			smallest_removed = *min_key();
+			*smallest_removed = *min_key();
 			result = cut_node(&left_coord, tap->coord, from_key, to_key, 
-					  &smallest_removed, DELETE_KILL, next_node_lock.node, NULL);
+					  smallest_removed, DELETE_KILL, next_node_lock.node, NULL);
 			tap_relse(tap);
 			if (result)
 				break;
@@ -1419,7 +1295,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 
 		/* Check whether all items with keys >= from_key were removed
 		 * from the tree. */
-		if (keyle(&smallest_removed, from_key))
+		if (keyle(smallest_removed, from_key))
 			/* result = 0;*/
 				break;
 
@@ -1438,19 +1314,52 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 	return result;
 }
 
+
+/* there is a fundamental problem with optimizing deletes: VFS does it
+   one file at a time.  Another problem is that if an item can be
+   anything, then deleting items must be done one at a time.  It just
+   seems clean to writes this to specify a from and a to key, and cut
+   everything between them though.  */
+
+/* use this function with care if deleting more than what is part of a single file. */
+/* do not use this when cutting a single item, it is suboptimal for that */
+
+/* You are encouraged to write plugin specific versions of this.  It
+   cannot be optimal for all plugins because it works item at a time,
+   and some plugins could sometimes work node at a time. Regular files
+   however are not optimizable to work node at a time because of
+   extents needing to free the blocks they point to.
+
+   Optimizations compared to v3 code:
+
+   It does not balance (that task is left to memory pressure code).
+
+   Nodes are deleted only if empty.
+
+   Uses extents.
+
+   Performs read-ahead of formatted nodes whose contents are part of
+   the deletion.
+*/
+
 int
-cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const reiser4_key * to_key)
+cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, 
+	 const reiser4_key * to_key, reiser4_key * smallest_removed_p)
 {
 	lock_handle lock;
 	int result;
 	tap_t tap;
 	coord_t right_coord;
+	reiser4_key smallest_removed;
 	STORE_COUNTERS;
 
 	assert("umka-329", tree != NULL);
 	assert("umka-330", from_key != NULL);
 	assert("umka-331", to_key != NULL);
 	assert("zam-936", keyle(from_key, to_key));
+
+	if (smallest_removed_p == NULL)
+		smallest_removed_p = &smallest_removed;
 
 	write_tree_trace(tree, tree_cut, from_key, to_key);
 	init_lh(&lock);
@@ -1464,7 +1373,7 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 			break;
 
 		tap_init(&tap, &right_coord, &lock, ZNODE_WRITE_LOCK);
-		result = cut_tree_worker(&tap, from_key, to_key);
+		result = cut_tree_worker(&tap, from_key, to_key, smallest_removed_p);
 		tap_done(&tap);
 
 		preempt_point();
@@ -1479,8 +1388,6 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 	CHECK_COUNTERS;
 	return result;
 }
-
-#endif
 
 /* return number of unallocated children for  @node, or an error code, if result < 0 */
 int
