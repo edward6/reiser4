@@ -78,10 +78,12 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	       struct kstatfs *statfs	/* buffer to fill with
 					 * statistics */ )
 {
-	sector_t bfree;
-	sector_t avail;
+	sector_t total;
+	sector_t reserved;
+	sector_t free;
+	sector_t forroot;
 	reiser4_context ctx;
-	
+
 	assert("nikita-408", super != NULL);
 	assert("nikita-409", statfs != NULL);
 
@@ -91,7 +93,6 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	statfs->f_type = statfs_type(super);
 	statfs->f_bsize = super->s_blocksize;
 
-	avail = reiser4_block_count(super);
 	/*
 	 * 5% of total block space is reserved. This is needed for flush and
 	 * for truncates (so that we are able to perform truncate/unlink even
@@ -105,19 +106,25 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	 * letting user to see 5% of disk space to be used directly after
 	 * mkfs.
 	 */
-	avail -= get_super_private(super)->blocks_reserved;
-	statfs->f_blocks = avail;
-	bfree = reiser4_free_blocks(super);
-	/* make sure statfs->f_bfree is never larger than statfs->f_blocks */
-	if (bfree > avail)
-		bfree = avail;
-	statfs->f_bfree = bfree;
+	total    = reiser4_block_count(super);
+	reserved = get_super_private(super)->blocks_reserved;
+	free     = reiser4_free_blocks(super);
+	forroot  = reiser4_reserved_blocks(super, 0, 0);
 
-	if (bfree > reiser4_reserved_blocks(super, 0, 0))
-		bfree -= reiser4_reserved_blocks(super, 0, 0);
+	statfs->f_blocks = total - reserved;
+	/* make sure statfs->f_bfree is never larger than statfs->f_blocks */
+	if (free > reserved)
+		free -= reserved;
 	else
-		bfree = 0;
-	statfs->f_bavail = bfree;
+		free = 0;
+	statfs->f_bfree = free;
+
+	if (free > forroot)
+		free -= forroot;
+	else
+		free = 0;
+	statfs->f_bavail = free;
+
 /* FIXME: Seems that various df implementations are way unhappy by such big numbers.
    So we will leave those as zeroes.
 	statfs->f_files = oids_used(super) + oids_free(super);
@@ -125,8 +132,8 @@ reiser4_statfs(struct super_block *super	/* super block of file
 */
 
 	/* maximal acceptable name length depends on directory plugin. */
-	statfs->f_namelen = -1;
-
+	assert("nikita-3351", super->s_root->d_inode != NULL);
+	statfs->f_namelen = reiser4_max_filename_len(super->s_root->d_inode);
 	reiser4_exit_context(&ctx);
 	return 0;
 }
