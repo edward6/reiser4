@@ -125,7 +125,8 @@ error:
 }
 
 extern errno_t format40_check(reiser4_entity_t *entity, uint16_t options);
-extern void format40_print(char *buf, size_t n, reiser4_entity_t *entity, uint16_t options);
+extern void format40_print(reiser4_entity_t *entity, char *buf, uint32_t size, 
+    uint16_t options);
 
 /* This function should update all copies of the super block */
 static errno_t format40_sync(reiser4_entity_t *entity) {
@@ -318,6 +319,28 @@ static void format40_set_height(reiser4_entity_t *entity,
 
 #endif
 
+static int format40_alloc_block(reiser4_entity_t *entity, blk_t blk) {
+    uint64_t blocksize = aal_device_get_bs(((format40_t *)entity)->device);
+	    
+    if (!(blk % (blocksize * 8)))
+        return 1;
+    
+    return (blk == (FORMAT40_OFFSET / blocksize + 1));
+}
+
+static int format40_data_block(reiser4_entity_t *entity, blk_t blk) 
+{
+    uint64_t blocksize = aal_device_get_bs(((format40_t *)entity)->device);
+    
+    if (format40_alloc_block(entity, blk))
+	return 0;
+		
+    if (blk <= (uint64_t)FORMAT40_JFOOTER / blocksize)
+	return 0;
+
+    return 1;
+}
+
 static reiser4_plugin_t format40_plugin = {
     .format_ops = {
 	.h = {
@@ -365,7 +388,9 @@ static reiser4_plugin_t format40_plugin = {
 #endif
 	.journal_pid	= format40_journal_pid,
 	.alloc_pid	= format40_alloc_pid,
-	.oid_pid	= format40_oid_pid
+	.oid_pid	= format40_oid_pid,
+	.data_block	= format40_data_block,
+	.alloc_block	= format40_alloc_block
     }
 };
 
