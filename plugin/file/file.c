@@ -325,20 +325,15 @@ find_item()
 #endif
 
 int
-find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of position in a file of
-									 * next read/write */
-	       coord_t * coord,	/* on entry - initilized by 0s or
-				   coordinate (locked node and position in
-				   it) on which previous read/write
-				   operated, on exit - coordinate of
-				   position specified by @key */
-	       lock_handle * lh,	/* initialized by 0s if @coord is zeroed
-					 * or othewise lock handle of locked node
-					 * in @coord, on exit - lock handle of
-					 * locked node in @coord */
-	       znode_lock_mode lock_mode	/* which lock (read/write) to put
-						 * on returned node */ ,
-	       __u32 cbk_flags /* coord_by_key flags: CBK_UNIQUE [| CBK_FOR_INSERT] */ )
+find_file_item(struct sealed_coord *hint,
+	       const reiser4_key *key, /* key of position in a file of next read/write */
+	       coord_t *coord,	/* on entry - initilized by 0s or coordinate (locked node and position in it) on which
+				   previous read/write operated, on exit - coordinate of position specified by @key */
+	       lock_handle *lh, /* initialized by 0s if @coord is zeroed or othewise lock handle of locked node in
+				   @coord, on exit - lock handle of locked node in @coord */
+	       znode_lock_mode lock_mode, /* which lock (read/write) to put on returned node */
+	       __u32 cbk_flags, /* coord_by_key flags: CBK_UNIQUE [| CBK_FOR_INSERT] */
+	       ra_info_t *ra_info)
 {
 	int result;
 
@@ -352,13 +347,13 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 		result = hint_validate(hint, key, coord, lh);
 		if (!result) {
 			if (equal_to_rdk(coord->node, key)) {
-				assert("", coord->between == AFTER_UNIT);
+				assert("vs-1151", coord->between == AFTER_UNIT);
 				result = goto_right_neighbor(coord, lh);
 				if (result == -ENAVAIL)
 					return -EIO;
 				if (result)
 					return result;
-				assert("", equal_to_ldk(coord->node, key));
+				assert("vs-1152", equal_to_ldk(coord->node, key));
 
 				reiser4_stat_file_add(find_next_item_via_right_neighbor);
 				return CBK_COORD_FOUND;
@@ -371,7 +366,8 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 
 	/* collect statistics on the number of calls to this function which did not get optimized */
 	reiser4_stat_file_add(find_next_item_via_cbk);
-	return coord_by_key(current_tree, key, coord, lh, lock_mode, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, LEAF_LEVEL, cbk_flags, 0/*ra_info*/);
+
+	return coord_by_key(current_tree, key, coord, lh, lock_mode, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL, LEAF_LEVEL, cbk_flags, ra_info);
 }
 
 /* plugin->u.file.write_flowom = NULL
@@ -379,7 +375,7 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 
 /* find position of last byte of last item of the file plus 1 */
 static int
-find_file_size(struct inode *inode, loff_t * file_size)
+find_file_size(struct inode *inode, loff_t *file_size)
 {
 	int result;
 	reiser4_key key;
@@ -391,7 +387,7 @@ find_file_size(struct inode *inode, loff_t * file_size)
 
 	coord_init_zero(&coord);
 	init_lh(&lh);
-	result = find_next_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
+	result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */);
 	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 		/* error occured */
 		done_lh(&lh);
@@ -463,18 +459,19 @@ cut_file_items(struct inode *inode, loff_t new_size)
 	write_tree_trace(tree_by_inode(inode), tree_cut, &from_key, &to_key);
 
 	do {
-		/* FIXME-VS: find_next_item is highly optimized for sequential
-		   writes/reads. For case of cut_tree it can not help */
+		/* FIXME-VS: find_next_item is highly optimized for sequential writes/reads (which go in direction of
+		   key increasing). For case of cut_tree (which goes in key decreasing direction) it currently can not
+		   help */
 		coord_init_zero(&intranode_to);
 		coord_init_zero(&intranode_from);
 		init_lh(&lh);
 		/* look for @to_key in the tree or use @to_coord if it is set
 		   properly */
-		result = find_next_item(0, &to_key, &intranode_to,	/* was set as hint in
+		result = find_file_item(0, &to_key, &intranode_to,	/* was set as hint in
 									 * previous loop
 									 * iteration (if there
 									 * was one) */
-					&lh, ZNODE_WRITE_LOCK, CBK_UNIQUE);
+					&lh, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */);
 		err = 1;
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
 			/* -EIO, or something like that */
@@ -816,7 +813,7 @@ unix_file_writepage_nolock(struct page *page)
 
 	coord_init_zero(&coord);
 	init_lh(&lh);
-	result = find_next_item(0, &key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT);
+	result = find_file_item(0, &key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/*ra_info*/);
 	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 		done_lh(&lh);
 		return result;
@@ -917,7 +914,7 @@ unix_file_readpage(struct file *file, struct page *page)
 	coord_init_zero(&coord);
 	init_lh(&lh);
 	reiser4_unlock_page(page);
-	result = find_next_item(&hint, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
+	result = find_file_item(&hint, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */);
 	reiser4_lock_page(page);
 	if (result != CBK_COORD_FOUND) {
 		/* this indicates file corruption */
@@ -1038,7 +1035,11 @@ reiser4_block_nr unix_file_estimate_read(struct inode *inode,
 	return inode_file_plugin(inode)->estimate.update(inode);
 }
 
-/* plugin->u.file.read */
+/* plugin->u.file.read 
+
+   the read method for the unix_file plugin 
+
+*/
 ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
 {
 	int result;
@@ -1051,6 +1052,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	struct sealed_coord hint;
 	size_t read;
 	reiser4_block_nr needed;
+	ra_info_t ra_info;
 
 	if (unlikely(!read_amount))
 		return 0;
@@ -1089,6 +1091,10 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		return result;
 	}
 
+	/* initialize readahead info */
+	ra_info.key_to_stop = f.key;
+	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
+
 	read_amount = f.length;
 	while (f.length) {
 		loff_t cur_offset;
@@ -1098,9 +1104,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 			/* do not read out of file */
 			break;
 
-		page_cache_readahead(inode->i_mapping, &file->f_ra, file, cur_offset >> PAGE_CACHE_SHIFT);
-
-		result = find_next_item(&hint, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
+		result = find_file_item(&hint, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, &ra_info);
 		if (result != CBK_COORD_FOUND) {
 			/* item had to be found, as it was not - we have
 			   -EIO */
@@ -1117,7 +1121,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 			break;
 		}
 
-		result = zload(coord.node);
+		result = zload_ra(coord.node, &ra_info);
 		if (result) {
 			done_lh(&lh);
 			return result;
@@ -1129,7 +1133,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		iplug = item_plugin_by_id(id);
 
 		/* call read method of found item */
-		result = iplug->s.file.read(inode, &coord, &f);
+		result = iplug->s.file.read(file, &coord, &f);
 		zrelse(coord.node);
 		if (result == -EAGAIN) {
 			info("zam-830: unix_file_read: key was not found in item, repeat search\n");
@@ -1200,7 +1204,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 		/* look for file's metadata (extent or tail item) corresponding
 		   to position we write to */
 		init_lh(&lh);
-		result = find_next_item(&hint, &f->key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT);
+		result = find_file_item(&hint, &f->key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */);
 		all_grabbed2free("append_and_or_overwrite after cbk");
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occurred */
@@ -1469,7 +1473,8 @@ unix_file_get_block(struct inode *inode,
 
 	coord_init_zero(&coord);
 	init_lh(&lh);
-	result = find_next_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
+
+	result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */);
 	if (result != CBK_COORD_FOUND || coord.between != AT_UNIT) {
 		done_lh(&lh);
 		return result;
@@ -1737,6 +1742,23 @@ unix_file_interfile_readahead_amount(struct file *file, off, read_amount)
 
 #endif				/* NEW_READ_IS_READY */
 
+void
+unix_file_readpages(struct file *file, struct address_space *mapping,
+		    struct list_head *pages)
+{
+	reiser4_file_fsdata *fsdata;
+	item_plugin *iplug;
+
+	fsdata = reiser4_get_file_fsdata(file);
+	assert("vs-1147", fsdata->coord);
+	assert("vs-1148", znode_is_rlocked(fsdata->reg.coord->node));
+	assert("vs-1149", znode_is_loaded(fsdata->reg.coord->node));
+	assert("vs-1150", coord_is_existing_unit(fsdata->reg.coord));
+
+	iplug = item_plugin_by_coord(fsdata->reg.coord);
+	iplug->s.file.readpages(fsdata->reg.coord, mapping, pages);
+	return;
+}
 
 /*
    Local variables:
