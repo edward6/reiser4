@@ -460,7 +460,7 @@ dealloc_tx_list(struct commit_handle *ch)
 		jnode *cur = capture_list_pop_front(&ch->tx_list);
 
 		ON_DEBUG(capture_list_clean(cur));
-		reiser4_dealloc_block(jnode_get_block(cur), 0, BLOCK_NOT_COUNTED);
+		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED, 0);
 
 		unpin_jnode_data(cur);
 		drop_io_head(cur);
@@ -479,7 +479,7 @@ dealloc_wmap_actor(txn_atom * atom,
 	assert("zam-501", !blocknr_is_fake(b));
 
 	spin_unlock_atom(atom);
-	reiser4_dealloc_block(b, 0, BLOCK_NOT_COUNTED);
+	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, 0);
 	spin_lock_atom(atom);
 
 	return 0;
@@ -854,8 +854,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 free_not_assigned:
 	/* We deallocate blocks not yet assigned to jnodes on tx_list. The
 	   caller takes care about invalidating of tx list  */
-	reiser4_dealloc_blocks(&first, &len, BLOCK_NOT_COUNTED, 
-		BA_FORMATTED/* formatted without defer */);
+	reiser4_dealloc_blocks(&first, &len, BLOCK_NOT_COUNTED, BA_FORMATTED);
 
 	return ret;
 }
@@ -886,7 +885,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			   map */
 			reiser4_block_nr wide_len = len;
 
-			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED, 
+			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
 				BA_FORMATTED/* formatted, without defer */);
 			
 			return ret;

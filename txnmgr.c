@@ -1008,6 +1008,16 @@ again:
 
 	spin_unlock_txnmgr(mgr);
 
+#if REISER4_DEBUG
+	{
+		reiser4_super_info_data * p = get_super_private(super);
+		reiser4_spin_lock_sb(super);
+		assert("zam-812", p->blocks_fake_allocated == 0);
+		assert("zam-813", p->blocks_fake_allocated_unformatted == 0);
+		reiser4_spin_unlock_sb(super);
+	}
+#endif
+
 	return 0;
 }
 
@@ -1894,6 +1904,9 @@ uncapture_page(struct page *pg)
 
 repeat:
 	spin_lock_jnode(node);
+
+	assert ("zam-815", !JF_ISSET(node, JNODE_EFLUSH));
+
 	atom = atom_get_locked_by_jnode(node);
 	spin_unlock_jnode (node);
 
