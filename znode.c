@@ -623,6 +623,9 @@ void zput (znode *node)
 			 * jnodes don't have an x_count... what to do? */
 			return;
 		}
+		/* last reference on fake znode is released: nothing to do. */
+		if (znode_above_root (node))
+			return;
 		tree = current_tree;
 		spin_lock_tree (tree);
 		if (atomic_read (& node->x_count) > 0) {
