@@ -89,7 +89,7 @@ typedef struct {
 	lookup_result(*lookup) (const reiser4_key *, lookup_bias, coord_t *);
 	/* method called by ode_plugin->create_item() to initialise new
 	   item */
-	int (*init) (coord_t *, reiser4_item_data *);
+	int (*init) (coord_t * target, coord_t * from, reiser4_item_data * data);
 	/* method called (e.g., by resize_item()) to place new data into
 	    item when it grows*/
 	int (*paste) (coord_t *, reiser4_item_data *, carry_plugin_info *);
@@ -199,7 +199,7 @@ typedef struct {
 	/* relocate child at @coord to the @block */
 	void (*update) (const coord_t *, const reiser4_block_nr *);
 	/* count unformatted nodes per item for leave relocation policy, etc.. */
-	int (*scan) (flush_scan * scan, const coord_t * in_coord);
+	int (*scan) (flush_scan * scan);
 	/* squeeze by unformatted child */
 	int (*squeeze) (flush_pos_t * pos);
 } flush_ops;
