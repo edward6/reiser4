@@ -29,10 +29,16 @@ static inline __u8 inode_cluster_shift (struct inode * inode)
 	return reiser4_inode_data(inode)->cluster_shift;
 }
 
-/* returns number of pages in the cluster */
-static inline int inode_cluster_pages (struct inode * inode)
+static inline unsigned
+page_cluster_shift(struct inode * inode)
 {
-	return (1 << inode_cluster_shift(inode));
+	return 1U << inode_cluster_shift(inode) << PAGE_CACHE_SHIFT;
+}
+
+/* cluster size in page units */
+static inline unsigned cluster_nrpages (struct inode * inode)
+{
+	return (1U << inode_cluster_shift(inode));
 }
 
 static inline size_t inode_cluster_size (struct inode * inode)
@@ -84,18 +90,31 @@ clust_to_off(unsigned long idx, struct inode * inode)
 	return pg_to_off(clust_to_pg(idx, inode));
 }
 
+static inline unsigned long
+count_to_nr(loff_t count, unsigned shift)
+{
+	return (count + (1UL << shift) - 1) >> shift;
+}
+
 /* number of pages occupied by @count bytes */
 static inline unsigned long 
 count_to_nrpages(loff_t count)
 {
-	return (!count ? 0 : off_to_pg(count - 1) + 1);
+	return count_to_nr(count, PAGE_CACHE_SHIFT);
 }
 
 /* number of clusters occupied by @count bytes */
 static inline unsigned long
 count_to_nrclust(loff_t count, struct inode * inode)
 {
-	return (count ? off_to_clust(count - 1, inode) + 1 : 0);
+	return count_to_nr(count, page_cluster_shift(inode));
+}
+
+/* number of clusters occupied by @count pages */
+static inline cloff_t
+pgcount_to_nrclust(pgoff_t count, struct inode * inode)
+{
+	return count_to_nr(count, inode_cluster_shift(inode));
 }
 
 static inline loff_t
@@ -210,7 +229,7 @@ int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 void forget_cluster_pages(reiser4_cluster_t *);
 int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
-void truncate_page_clusters(struct inode * inode, cloff_t start, unsigned long count);
+void truncate_pg_clusters(struct inode * inode, pgoff_t start);
 void set_hint_cluster(struct inode * inode, hint_t * hint, unsigned long index, znode_lock_mode mode);
 int get_disk_cluster_locked(reiser4_cluster_t * clust, znode_lock_mode lock_mode);
 int hint_prev_cluster(reiser4_cluster_t * clust, struct inode * inode);
