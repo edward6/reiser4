@@ -2,6 +2,9 @@
  * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
  */
 
+
+// VOVA TEST
+
 /*
  * Basic plugin infrastructure, lookup etc.
  */
