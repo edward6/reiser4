@@ -882,6 +882,8 @@ atom_try_commit_locked(txn_atom * atom)
 			return ret;
 		}
 
+		preempt_point();
+
 		/* FIXME-ZAM: We may loose information about number of written
 		   blocks here. It would not be a problem because in the
 		   situation when this counting is really needed
