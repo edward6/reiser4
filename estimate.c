@@ -82,7 +82,7 @@ estimate_insert_flow(tree_level height)
 reiser4_internal reiser4_block_nr
 estimate_disk_cluster(struct inode * inode)
 {
-	return 2 + inode_cluster_pages(inode);
+	return 2 + cluster_nrpages(inode);
 }
 
 /* how many nodes might get dirty and added nodes during insertion of a disk cluster */
@@ -90,7 +90,7 @@ reiser4_internal reiser4_block_nr
 estimate_insert_cluster(struct inode * inode, int unprepped)
 {
 	int per_cluster;
-	per_cluster = (unprepped ? 1 : inode_cluster_pages(inode));
+	per_cluster = (unprepped ? 1 : cluster_nrpages(inode));
 
 	return 3 + per_cluster + max_balance_overhead(3 + per_cluster, REISER4_MAX_ZTREE_HEIGHT);
 }
