@@ -1160,6 +1160,71 @@ int reiser4_replay_journal (struct super_block * s)
 	return ret;
 }
 
+/* load journal header or footer */
+static int load_journal_control_block (jnode ** node,  const reiser4_block_nr * block)
+{
+	int ret;
+
+	*node = alloc_io_head (block);
+	if (!(*node)) return -ENOMEM;
+
+	ret = jload(*node);
+
+	if (ret) { drop_io_head(*node); *node = NULL; return ret;}
+
+	jref(*node);
+	jrelse(*node);
+
+	return 0;
+}
+
+/* unload journal header or footer and free jnode */
+static void unload_journal_control_block (jnode ** node)
+{
+	if (*node) {
+		jput(*node);
+		drop_io_head(*node);
+		*node = NULL;
+	}
+}
+
+/* release journal control blocks */
+void done_journal_info (struct super_block *s)
+{
+	reiser4_super_info_data * private = get_super_private (s);
+
+	assert ("zam-476", private != NULL);
+
+	unload_journal_control_block(&private->journal_header);
+	unload_journal_control_block(&private->journal_footer);
+}
+
+/* load journal control blocks */
+int init_journal_info (struct super_block * s, 
+		       const reiser4_block_nr * header_block,
+		       const reiser4_block_nr * footer_block)
+{
+	reiser4_super_info_data * private = get_super_private(s);
+	int ret;
+
+	assert ("zam-650", header_block != NULL);
+	assert ("zam-651", footer_block != NULL);
+	assert ("zam-652", *header_block != 0);
+	assert ("zam-653", *footer_block != 0);
+
+	ret = load_journal_control_block (&private->journal_header, header_block);
+
+	if (ret) return ret;
+
+	ret = load_journal_control_block (&private->journal_footer, footer_block);
+
+	if (ret) {
+		unload_journal_control_block(&private->journal_header);
+	}
+
+	return ret;
+}
+
 /*
  * Make Linus happy.
  * Local variables:
