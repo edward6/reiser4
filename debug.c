@@ -456,7 +456,7 @@ reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
 			schedulable();
 
 		reiser4_spin_lock_sb(super);
-		get_super_private(super)->kmalloc_allocated += size;
+		ON_DEBUG(get_super_private(super)->kmalloc_allocated += size);
 		reiser4_spin_unlock_sb(super);
 	}
 	return kmalloc(size, gfp_flag);
@@ -480,7 +480,7 @@ reiser4_kfree(void *area /* memory to from */,
 		reiser4_spin_lock_sb(super);
 		assert("nikita-1411", info != NULL);
 		assert("nikita-1412", info->kmalloc_allocated >= (int) size);
-		info->kmalloc_allocated -= size;
+		ON_DEBUG(info->kmalloc_allocated -= size);
 		reiser4_spin_unlock_sb(super);
 	}
 }
@@ -499,7 +499,7 @@ reiser4_kfree_in_sb(void *area /* memory to from */,
 
 		reiser4_spin_lock_sb(sb);
 		assert("nikita-2730", info->kmalloc_allocated >= (int) size);
-		info->kmalloc_allocated -= size;
+		ON_DEBUG(info->kmalloc_allocated -= size);
 		reiser4_spin_unlock_sb(sb);
 	}
 }
