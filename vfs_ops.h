@@ -16,7 +16,8 @@
 #include <linux/dcache.h>	/* for struct dentry */
 #include <linux/mm.h>
 
-extern int reiser4_write_sd(struct inode *object);
+extern int reiser4_mark_inode_dirty(struct inode *object);
+extern int reiser4_update_sd(struct inode *object);
 extern int reiser4_add_nlink(struct inode *, struct inode *, int);
 extern int reiser4_del_nlink(struct inode *, struct inode *, int);
 
