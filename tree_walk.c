@@ -378,7 +378,8 @@ int reiser4_connect_znode (tree_coord * coord, znode * node)
 	if (znode_above_root(coord->node)) {
 		node->left = NULL;
 		node->right = NULL;
-		ZF_SET (node, ZNODE_BOTH_CONNECTED);
+		ZF_SET (node, ZNODE_LEFT_CONNECTED);
+		ZF_SET (node, ZNODE_RIGHT_CONNECTED);
 		return 0;
 	}
 
@@ -607,7 +608,11 @@ void reiser4_sibling_list_remove (znode * node)
 		assert("zam-323", znode_is_right_connected(node->left));
 		node->left->right = node->right;
 	}
-	ZF_CLR (node, ZNODE_BOTH_CONNECTED);
+	/*
+	 * FIXME-NIKITA ordering?
+	 */
+	ZF_CLR (node, ZNODE_LEFT_CONNECTED);
+	ZF_CLR (node, ZNODE_RIGHT_CONNECTED);
 }
 
 void reiser4_sibling_list_insert_nolock (znode *new, znode *before)
@@ -625,7 +630,11 @@ void reiser4_sibling_list_insert_nolock (znode *new, znode *before)
 		new->right = NULL;
 		new->left = NULL;
 	}
-	ZF_SET (new, ZNODE_BOTH_CONNECTED);
+	/*
+	 * FIXME-NIKITA ordering?
+	 */
+	ZF_SET (new, ZNODE_LEFT_CONNECTED);
+	ZF_SET (new, ZNODE_RIGHT_CONNECTED);
 }
 
 /** Insert new node into sibling list. Regular balancing inserts new node

@@ -58,7 +58,7 @@
  * case of the latter. In either case it's inserted into sibling
  * list. This will typically require some ancillary tree traversing,
  * but ultimately both sibling pointers will exist and
- * ZNODE_BOTH_CONNECTED will be true in zstate.
+ * ZNODE_LEFT_CONNECTED and ZNODE_RIGHT_CONNECTED will be true in zstate.
  *
  * 3. His youth.
  *
@@ -843,31 +843,6 @@ int znode_is_root( const znode *node )
 		( ( node -> left == NULL ) && ( node -> right == NULL ) ) );
 	spin_unlock_tree( current_tree );
 	return result;
-}
-
-
-void rlock_bit_tear()
-{
-	/*read_lock*/
-	spin_lock( &reiser4_get_current_super_private() -> bit_tear_guard );
-}
-
-void wlock_bit_tear()
-{
-	/*write_lock*/
-	spin_lock( &reiser4_get_current_super_private() -> bit_tear_guard );
-}
-
-void runlock_bit_tear()
-{
-	/*read_unlock*/
-	spin_unlock( &reiser4_get_current_super_private() -> bit_tear_guard );
-}
-
-void wunlock_bit_tear()
-{
-	/*write_unlock*/
-	spin_unlock( &reiser4_get_current_super_private() -> bit_tear_guard );
 }
 
 /** debugging aid: znode invariant */

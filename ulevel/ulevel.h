@@ -42,6 +42,7 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
+#include "bitops.h"
 #include "atomic.h"
 
 /* This let's us test with posix locks, thereby allowing use of typedef'd spinlock_t as

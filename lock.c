@@ -858,7 +858,8 @@ void reiser4_invalidate_lock (reiser4_lock_handle *handle /* path to lock
 	spin_lock_znode(node);
 
 	assert("zam-103", znode_is_write_locked(node));
-	assert("nikita-1393", ! ZF_ISSET(node, ZNODE_BOTH_CONNECTED));
+	assert("nikita-1393", ! ZF_ISSET(node, ZNODE_LEFT_CONNECTED));
+	assert("nikita-1793", ! ZF_ISSET(node, ZNODE_RIGHT_CONNECTED));
 	assert("nikita-1394", ZF_ISSET(node, ZNODE_HEARD_BANSHEE));
 
 	if (handle->signaled) atomic_dec(&handle->owner->nr_signaled);

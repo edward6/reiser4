@@ -2793,7 +2793,6 @@ int real_main( int argc, char **argv )
 	txn_init_static();
 	sys_rand_init();
 	xmemset( &super, 0, sizeof super );
-	spin_lock_init( &reiser4_get_super_private( &super ) -> bit_tear_guard );
 	super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
 		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
 	assert( "vs-417", super.s_blocksize == 512 ||

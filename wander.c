@@ -323,10 +323,10 @@ int format_commit_record (txn_atom *atom UNUSED_ARG)
 
 				/* Newly allocated blocks are not recorded in the commit
 				 * record. */
-				assert ("jmacd-1101", ! ZF_ISSET (scan, ZNODE_WANDER | ZNODE_DELETESET));
+				assert ("jmacd-1101", ! ZF_ISSET (scan, ZNODE_WANDER) && ! znode_is_in_deleteset (scan));
 				assert ("jmacd-1102", block_is_allocated (& scan->blocknr));
 
-			} else if (ZF_ISSET (scan, ZNODE_DELETESET)) {
+			} else if (znode_is_in_deleteset (scan)) {
 
 				/* Add it to the delete set */
 				assert ("jmacd-1103", ! ZF_ISSET (scan, ZNODE_WANDER));

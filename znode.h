@@ -109,10 +109,10 @@ struct __reiser4_zlock {
 struct jnode
 {
 	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */
-	__u32        state : 27;
+	__u32        state;
 
 	/* znode's tree level */
-	__u32        level : 5;
+	__u16        level;
 
 	/* lock, protecting jnode's fields. */
 	/* 
@@ -281,102 +281,57 @@ struct znode {
 };
 
 typedef enum {
-       /** just created */
-       ZNODE_CLEAN             = 0,
        /** data are loaded from node */
-       ZNODE_LOADED            = (1 << 0),
+       ZNODE_LOADED            = 0,
        /** node header was successfully parsed and node plugin
            found and installed. Equivalent to ( ->node_plugin != 0 )*/
-       ZNODE_PLUGIN            = (1 << 1),
+       ZNODE_PLUGIN            = 1,
        /** node was deleted, not all locks on it were released. This
 	   node is empty and is going to be removed from the tree
 	   shortly. */
        /** Josh respectfully disagrees with obfuscated, metaphoric names
 	   such as this.  He thinks it should be named ZNODE_BEING_REMOVED. */
-       ZNODE_HEARD_BANSHEE     = (1 << 2),
+       ZNODE_HEARD_BANSHEE     = 2,
        /** left sibling pointer is valid */
-       ZNODE_LEFT_CONNECTED    = (1 << 3),
+       ZNODE_LEFT_CONNECTED    = 3,
        /** right sibling pointer is valid */
-       ZNODE_RIGHT_CONNECTED   = (1 << 4),
-       /** mask: both sibling pointers are valid */
-       ZNODE_BOTH_CONNECTED    = (ZNODE_LEFT_CONNECTED | ZNODE_RIGHT_CONNECTED),
-
+       ZNODE_RIGHT_CONNECTED   = 4,
        /** znode was just created and doesn't yet have a pointer from
 	   its parent */
-       ZNODE_NEW               = (1 << 6),
+       ZNODE_NEW               = 5,
 
        /* The jnode is a unformatted node.  False for all znodes.  */
-       ZNODE_UNFORMATTED       = (1 << 7),
+       ZNODE_UNFORMATTED       = 6,
 
        /** this node was allocated by its txn */
-       ZNODE_ALLOC             = (1 << 10),
+       ZNODE_ALLOC             = 7,
        /** this node is currently relocated */
-       ZNODE_RELOC             = (1 << 11),
+       ZNODE_RELOC             = 8,
        /** this node is currently wandered */
-       ZNODE_WANDER            = (1 << 12),
+       ZNODE_WANDER            = 9,
        /** this node was deleted by its txn */
-       ZNODE_DELETED           = (1 << 13),
+       ZNODE_DELETED           = 10,
 
        /** this znode has been modified */
-       ZNODE_DIRTY             = (1 << 14),
+       ZNODE_DIRTY             = 11,
        /** this znode has been modified */
-       ZNODE_WRITEOUT          = (1 << 15),
-
-       /* this node was relocated or deleted, therefore part of the delete set */
-       ZNODE_DELETESET         = (ZNODE_RELOC | ZNODE_DELETED),
-
-       /* this node is either dirty or currently being flushed */
-       ZNODE_WSTATE            = (ZNODE_DIRTY | ZNODE_WRITEOUT),
+       ZNODE_WRITEOUT          = 12,
 
        /* znode lock is being invalidated */
-       ZNODE_IS_DYING          = (1 << 16)
+       ZNODE_IS_DYING          = 13
 } reiser4_znode_state;
 
 /* Macros for accessing the znode state. */
 #define	ZF_CLR(p,f)		JF_CLR(ZJNODE(p), (f))
 #define	ZF_ISSET(p,f)	        JF_ISSET(ZJNODE(p), (f))
 #define	ZF_ISSET_NOLOCK(p,f)    JF_ISSET_NOLOCK(ZJNODE(p), (f))
-#define	ZF_MASK(p,f)		JF_MASK(ZJNODE(p), (f))
 #define	ZF_SET(p,f)		JF_SET(ZJNODE(p), (f))
 #define	ZF_SET_NOLOCK(p,f)	JF_SET_NOLOCK(ZJNODE(p), (f))
 
-extern void rlock_bit_tear();
-extern void wlock_bit_tear();
-extern void runlock_bit_tear();
-extern void wunlock_bit_tear();
-
 /* Macros for accessing the jnode state. */
-#define	JF_CLR(j,f)				\
-({						\
-	wlock_bit_tear();			\
-	(j)->state &= ~(f);			\
-	wunlock_bit_tear();			\
-})
-#define	JF_ISSET(j,f)				\
-({						\
-	int __result;				\
-						\
-	rlock_bit_tear();			\
-	__result = (((j)->state & (f)) != 0);	\
-	runlock_bit_tear();			\
-	__result;				\
-})
-#define	JF_MASK(j,f)				\
-({						\
-	int __result;				\
-						\
-	rlock_bit_tear();			\
-	__result = ((j)->state & (f));		\
-	runlock_bit_tear();			\
-	__result;				\
-})
-#define	JF_SET(j,f)				\
-({						\
-	wlock_bit_tear();			\
-	((j)->state |= (f));			\
-	wunlock_bit_tear();			\
-})
-
+#define	JF_CLR(j,f)   clear_bit((f), &((jnode *)j)->state)
+#define	JF_ISSET(j,f) test_bit ((f), &((jnode *)j)->state)
+#define	JF_SET(j,f)   set_bit  ((f), &((jnode *)j)->state)
 /**
  * Since we have R/W znode locks we need addititional `link' objects to
  * implement n<->m relationship between lock owners and lock objects. We call
@@ -569,6 +524,11 @@ static inline int znode_is_connected (const znode * node)
 	return znode_is_right_connected (node) && znode_is_left_connected (node);
 }
 
+static inline int znode_is_in_deleteset( const znode *node )
+{
+	return ZF_ISSET( node, ZNODE_RELOC ) || ZF_ISSET( node, ZNODE_DELETED );
+}
+
 extern znode *znode_parent( const znode *node );
 extern znode *znode_parent_nolock( const znode *node );
 extern int znode_above_root (const znode *node);
@@ -634,12 +594,7 @@ extern void   jput( jnode *node );
 /** get the level field for a jnode */
 static inline tree_level jnode_get_level (const jnode *node)
 {
-	tree_level result;
-
-	rlock_bit_tear();
-	result = node->level;
-	runlock_bit_tear();
-	return result;
+	return node->level;
 }
 
 /** set the level field for a jnode */
@@ -647,9 +602,7 @@ static inline void jnode_set_level (jnode      *node,
 				    tree_level  level)
 {
 	assert ("jmacd-1161", level < 32);
-	wlock_bit_tear();
 	node->level = level;
-	wunlock_bit_tear();
 }
 
 /* returns true if node is formatted, i.e, it's not a znode */
