@@ -113,11 +113,13 @@ static int           slum_scan_left_extent        (slum_scan *scan, jnode *node)
 static int           slum_scan_left_formatted     (slum_scan *scan, znode *node);
 static void          slum_scan_set_current        (slum_scan *scan, jnode *node);
 static int           slum_scan_left               (slum_scan *scan, jnode *node);
-static int           slum_allocate                (slum_scan *scan);
+static int           slum_allocate                (jnode *node);
 static int           jnode_lock_parent_coord      (jnode *node, reiser4_lock_handle *node_lh, reiser4_lock_handle *parent_lh, tree_coord *coord, znode_lock_mode mode);
 static int           jnode_is_allocated           (jnode *node);
 static jnode*        jnode_get_neighbor_in_memory (jnode *node UNUSED_ARG, unsigned long node_index UNUSED_ARG);
 static unsigned long jnode_get_index              (jnode *node);
+static int           jnode_parent_equals          (jnode *node, znode *parent);
+static int           jnode_allocate               (jnode *node);
 
 /* Perform encryption, allocate-on-flush, and squeezing-left of slums. */
 int flush_jnode_slum (jnode *node)
@@ -136,7 +138,7 @@ int flush_jnode_slum (jnode *node)
 	}
 
 	/* Allocate upward, rightward, squeeze. */
-	if (0 && (ret = slum_allocate (& scan))) {
+	if ((ret = slum_allocate (scan.node))) {
 		goto failed;
 	}
 
@@ -158,47 +160,33 @@ int flush_jnode_slum (jnode *node)
  ********************************************************************************/
 
 /* NO COMMENTS YET BECAUSE I DON'T KNOW WHAT I'M DOING */
-static int slum_allocate_parent (slum_scan *scan, znode *parent)
-{
-	/* FIXME: This will share code with slum_allocate: we have the parent
-	 * locked already when slum_allocate calls this function. */
-
-	/* Now (recursing upward) lock the grandparent, scan_left, squeeze,
-	 * check parent change, check if it is the leftmost.  I guess it is
-	 * okay to call slum_allocate recursively since the depth is limited
-	 * to tree height. */
-
-	/* Then allocate this node. */
-	
-	return 0;
-}
-
-/* NO COMMENTS YET BECAUSE I DON'T KNOW WHAT I'M DOING */
-static int slum_allocate (slum_scan *scan)
+static int slum_allocate (jnode *node)
 {
 	int ret;
 	reiser4_lock_handle parent_lock;
-	reiser4_lock_handle child_lock;
 	tree_coord coord;
 	slum_scan parent_scan;
 	int relocate_child;
 	znode_lock_mode parent_mode;
 
-	reiser4_init_lh (& parent_lock);
-	reiser4_init_lh (& child_lock);
-	slum_scan_init (& parent_scan);
+	/* If its formatted, we hold a lock. */
+	assert ("jmacd-1900", jnode_is_unformatted (node) || znode_is_any_locked (JZNODE (node)));
 
+	reiser4_init_lh (& parent_lock);
+	slum_scan_init  (& parent_scan);
+
+	/* FIXME: Substitute an actual relocation policy. */
 #define flush_should_relocate(x) 1
 
 	/* If we will relocate node or node is unallocated, then parent will
 	 * become dirty, which means we will squeeze it, thus write lock it
 	 * now. If the node is dirty we will squeeze, so get a write lock in
 	 * that case. */
-	relocate_child = flush_should_relocate (child_lock.node);
+	relocate_child = flush_should_relocate (node);
 	parent_mode    = (relocate_child ? ZNODE_WRITE_LOCK : ZNODE_WRITE_IF_DIRTY);
 
 	/* We're at the end of a level slum, lock node & parent. */
-	if ((ret = jnode_lock_parent_coord (scan->node, & child_lock, & parent_lock, & coord, parent_mode))) {
+	if ((ret = jnode_lock_parent_coord (node, NULL, & parent_lock, & coord, parent_mode))) {
 		goto failure;
 	}
 	
@@ -225,7 +213,7 @@ static int slum_allocate (slum_scan *scan)
 
 		/* Check if parent changed (requires tree lock). */
 		spin_lock_tree (current_tree);
-		parent_changed = (child_lock.node->ptr_in_parent_hint.node == parent_lock.node);
+		parent_changed = jnode_parent_equals (node, parent_lock.node);
 		spin_unlock_tree (current_tree);
 
 		/* If parent changed, re-aquire parent lock */
@@ -233,15 +221,27 @@ static int slum_allocate (slum_scan *scan)
 			reiser4_done_lh (& parent_lock);
 
 			/* Pass NULL for child lock handle since it is already locked. */
-			if ((ret = jnode_lock_parent_coord (scan->node, NULL, & parent_lock, & coord, parent_mode))) {
+			if ((ret = jnode_lock_parent_coord (node, NULL, & parent_lock, & coord, parent_mode))) {
 				goto failure;
 			}
 		}
-	}
 
-	/* Travelling upwards as long as child is leftmost of parent, allocate parent. */
-	if (coord_is_leftmost (& coord) && (ret = slum_allocate_parent (scan, parent_lock.node))) {
-		goto failure;
+		/* If child is leftmost of a dirty parent, make recursive
+		 * calls up the tree as long as this is so. */
+		if (coord_is_leftmost (& coord)) {
+			jnode *parent = ZJNODE (parent_lock.node);
+			
+			if ((ret = slum_allocate (parent))) {
+				goto failure;
+			}
+
+			/* Allocate the parent following the recursive call.
+			 * This recursive call is limited to the
+			 * MAX_TREE_HEIGHT, which should be acceptable. */
+			if ((ret = jnode_allocate (parent))) {
+				goto failure;
+			}
+		}
 	}
 
 	/* FIXME: Now the rightward phase: the slum_scan stopped at the
@@ -262,7 +262,6 @@ static int slum_allocate (slum_scan *scan)
  failure:
 	slum_scan_cleanup (& parent_scan);
 	reiser4_done_lh (& parent_lock);
-	reiser4_done_lh (& child_lock);
 	
 	return 0;
 }
@@ -292,6 +291,22 @@ static int jnode_is_allocated (jnode *node UNUSED_ARG)
 {
 	/* FIXME_JMACD: */
 	return 1;
+}
+
+static int jnode_allocate (jnode *node UNUSED_ARG)
+{
+	/* FIXME_JMACD: */
+	return 0;
+}
+
+static int jnode_parent_equals (jnode *node, znode *parent)
+{
+	if (jnode_is_formatted (node)) {
+		return (JZNODE (node)->ptr_in_parent_hint.node == parent);
+	} else {
+		/* FIXME: */
+		return 0;
+	}
 }
 
 /* Lock a node (if formatted) and then get its parent of a jnode locked, get
