@@ -1,4 +1,9 @@
 /* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
+
+#if !defined( __FS_REISER4_CRYPTCOMPRESS_H__ )
+#define __FS_REISER4_CRYPTCOMPRESS_H__
+
+
 #include <linux/pagemap.h>
 
 #define MIN_CLUSTER_SIZE PAGE_CACHE_SIZE
@@ -72,6 +77,8 @@ typedef struct cryptcompress_info {
 	/* cpu-key words */
 	__u32 * expkey;
 } cryptcompress_info_t;
+
+#endif /* __FS_REISER4_CRYPTCOMPRESS_H__ */
 
 /* Make Linus happy.
    Local variables:
