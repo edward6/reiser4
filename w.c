@@ -259,6 +259,10 @@ static int alloc_tx (capture_list_head * head, int nr)
 				goto fail;
 			}
 
+			/*
+			 * FIXME-VS: on success jload->read_node returns spin
+			 * locked jnode, please take care to spin_unlock
+			 */
 			format_log_record (jal, nr, serial, &prev);
 
 			capture_list_push_front (head, jal);
