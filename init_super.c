@@ -281,6 +281,7 @@ _INIT_(fs_root)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	struct inode * inode;
+	int result;
 
 	inode = reiser4_iget(s, sbinfo->df_plug->root_dir_key(s));
 	if (IS_ERR(inode))
@@ -299,26 +300,29 @@ _INIT_(fs_root)
 
 		info = reiser4_inode_data(inode);
 
-		grab_plugin_from(info, file, default_file_plugin(s));
-		grab_plugin_from(info, dir, default_dir_plugin(s));
-		grab_plugin_from(info, sd, default_sd_plugin(s));
-		grab_plugin_from(info, hash, default_hash_plugin(s));
-		grab_plugin_from(info, formatting, default_formatting_plugin(s));
-		grab_plugin_from(info, perm, default_perm_plugin(s));
-		grab_plugin_from(info, dir_item, default_dir_item_plugin(s));
+		result =
+			grab_plugin_from(info, file, default_file_plugin(s)) ||
+			grab_plugin_from(info, dir, default_dir_plugin(s)) ||
+			grab_plugin_from(info, sd, default_sd_plugin(s)) ||
+			grab_plugin_from(info, hash, default_hash_plugin(s)) ||
+			grab_plugin_from(info, formatting, default_formatting_plugin(s)) ||
+			grab_plugin_from(info, perm, default_perm_plugin(s)) ||
+			grab_plugin_from(info, dir_item, default_dir_item_plugin(s));
 
-		assert("nikita-1951", info->pset->file != NULL);
-		assert("nikita-1814", info->pset->dir != NULL);
-		assert("nikita-1815", info->pset->sd != NULL);
-		assert("nikita-1816", info->pset->hash != NULL);
-		assert("nikita-1817", info->pset->formatting != NULL);
-		assert("nikita-1818", info->pset->perm != NULL);
-		assert("vs-545", info->pset->dir_item != NULL);
-
+		if (result == 0) {
+			assert("nikita-1951", info->pset->file != NULL);
+			assert("nikita-1814", info->pset->dir != NULL);
+			assert("nikita-1815", info->pset->sd != NULL);
+			assert("nikita-1816", info->pset->hash != NULL);
+			assert("nikita-1817", info->pset->formatting != NULL);
+			assert("nikita-1818", info->pset->perm != NULL);
+			assert("vs-545", info->pset->dir_item != NULL);
+		}
 		reiser4_iget_complete(inode);
-	}
+	} else
+		result = 0;
 	s->s_maxbytes = MAX_LFS_FILESIZE;
-	return 0;
+	return result;
 }
 
 _DONE_(fs_root)
