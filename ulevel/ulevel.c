@@ -306,7 +306,6 @@ static struct super_block * call_mount (const char * dev_name)
 static spinlock_t inode_hash_guard;
 struct list_head inode_hash_list;
 
-#if 0
 static tree_operations ul_tops = {
 	.read_node     = ulevel_read_node,
 	.allocate_node = ulevel_read_node,
@@ -314,7 +313,6 @@ static tree_operations ul_tops = {
 	.release_node  = ulevel_release_node,
 	.dirty_node    = ulevel_dirty_node
 };
-#endif
 
 static struct inode * alloc_inode (struct super_block * sb)
 {
@@ -330,9 +328,6 @@ static struct inode * alloc_inode (struct super_block * sb)
 	atomic_set(&inode->i_count, 1);
 	inode->i_data.host = inode;
 	inode->i_mapping = &inode->i_data;
-	spin_lock( &inode_hash_guard );
-	list_add (&inode->i_hash, &inode_hash_list);
-	spin_unlock( &inode_hash_guard );
 	return inode;
 }
 
@@ -342,6 +337,9 @@ struct inode * new_inode (struct super_block * sb)
 
 	inode = alloc_inode (sb);
 	inode->i_nlink = 1;
+	spin_lock( &inode_hash_guard );
+	list_add (&inode->i_hash, &inode_hash_list);
+	spin_unlock( &inode_hash_guard );
 	return inode;
 }
 
@@ -617,15 +615,9 @@ void lru_cache_del (struct page * page UNUSED_ARG)
 struct list_head page_list;
 static spinlock_t page_list_guard;
 
-static struct page * new_page (struct address_space * mapping,
-			       unsigned long ind)
+static void init_page (struct page * page, struct address_space * mapping,
+		       unsigned long ind)
 {
-	struct page * page;
-
-	page = kmalloc (sizeof (struct page) + PAGE_CACHE_SIZE, 0);
-	assert ("vs-288", page);
-	xmemset (page, 0, sizeof (struct page) + PAGE_CACHE_SIZE);
-
 	page->index = ind;
 	page->mapping = mapping;
 	page->private = 0;
@@ -638,6 +630,18 @@ static struct page * new_page (struct address_space * mapping,
 	spin_lock( &page_list_guard );
 	list_add (&page->list, &page_list);
 	spin_unlock( &page_list_guard );
+}
+
+static struct page * new_page (struct address_space * mapping,
+			       unsigned long ind)
+{
+	struct page * page;
+
+	page = kmalloc (sizeof (struct page) + PAGE_CACHE_SIZE, 0);
+	assert ("vs-288", page);
+	xmemset (page, 0, sizeof (struct page) + PAGE_CACHE_SIZE);
+
+	init_page (page, mapping, ind);
 	return page;
 }
 
@@ -659,7 +663,7 @@ void unlock_page (struct page * p)
 
 void remove_inode_page (struct page * page)
 {
-	assert ("vs-618", (page->count == 1 && PageLocked (page)));
+	assert ("vs-618", page->count == 2);
 	page->mapping = 0;
 
 	txn_delete_page (page);
@@ -1085,17 +1089,21 @@ int submit_bio( int rw, struct bio *bio )
 	return 0;
 }
 
-int ulevel_read_node( reiser4_tree *tree, jnode *node, char **data )
+int ulevel_read_node( reiser4_tree *tree, jnode *node )
 {
 	const reiser4_block_nr *addr;
 	unsigned int blksz;
+	struct page *pg;
 
 	addr = jnode_get_block( node );
 	blksz = tree -> super -> s_blocksize;
 	if( ( mmap_back_end_fd > 0 ) && !blocknr_is_fake( addr ) ) {
 		off_t start;
 
-		start = *addr * blksz;
+		pg = *addr * ( blksz + sizeof *pg );
+		start = pg + 1;
+		init_page (pg, get_super_private( tree -> super ) -> fake -> i_mapping,
+			   node);
 		if( start + blksz > mmap_back_end_size ) {
 			warning( "nikita-1372", "Trying to access beyond the device: %li > %u",
 				 start, mmap_back_end_size );
@@ -1106,14 +1114,16 @@ int ulevel_read_node( reiser4_tree *tree, jnode *node, char **data )
 			if (total_allocations > MEMORY_PRESSURE_THRESHOLD)
 				declare_memory_pressure();
 
-			*data = mmap_back_end_start + start;
+			node -> pg = pg;
 			return 0;
 		}
 	} else {
-		*data = xxmalloc( blksz );
-		if( *data != NULL )
+		node -> pg = xxmalloc( blksz + sizeof *pg );
+		if( node -> pg != NULL ) {
+			init_page (pg, 
+				   get_super_private( tree -> super ) -> fake -> i_mapping, node);
 			return 0;
-		else
+		} else
 			return -ENOMEM;
 	}
 }
@@ -3066,8 +3076,9 @@ static int bash_mkfs (const char * file_name)
 	reiser4_tree * tree;
 	int result;
 	unsigned long blocksize;
+	struct buffer_head * bh;
+	test_disk_super_block * test_sb;
 
-	
 	super.u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
 				       GFP_KERNEL);
 	if( super.u.generic_sbp == NULL )
@@ -3100,9 +3111,7 @@ static int bash_mkfs (const char * file_name)
 
 		/*  make super block */
 		{
-			struct buffer_head * bh;
 			reiser4_master_sb * master_sb;
-			test_disk_super_block * test_sb;
 			size_t blocksize;
 
 			blocksize = super.s_blocksize;
@@ -3145,7 +3154,6 @@ static int bash_mkfs (const char * file_name)
 			mark_buffer_dirty (bh);
 			ll_rw_block (WRITE, 1, &bh);
 			wait_on_buffer (bh);
-			brelse (bh);
 		}
 
 		init_formatted_fake( &super );
@@ -3260,6 +3268,15 @@ static int bash_mkfs (const char * file_name)
 			inode->i_state &= ~I_DIRTY;
 			iput (fake_parent);
 			super.s_root->d_inode = inode;
+
+			cputod64 (reiser4_inode_data( inode ) -> locality_id, 
+				  &test_sb->root_locality);
+			cputod64 (inode -> i_ino, &test_sb->root_objectid);
+			mark_buffer_dirty (bh);
+			ll_rw_block (WRITE, 1, &bh);
+			wait_on_buffer (bh);
+			brelse (bh);
+
 			call_umount (&super);
 			invalidate_inodes ();
 			invalidate_pages ();
@@ -4617,11 +4634,12 @@ int real_main( int argc, char **argv )
 	info( "tree height: %i\n", tree -> height );
 
 	deregister_thread();
-	eresult = __REISER4_EXIT( &__context );
 
 	fresult = txn_mgr_force_commit (s);
 
-	return result ? : (eresult ? : (fresult ? : 0));
+	eresult = __REISER4_EXIT( &__context );
+
+	return result ? : (fresult ? : (eresult ? : 0));
 }
 
 int main (int argc, char **argv)

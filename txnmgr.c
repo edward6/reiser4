@@ -852,8 +852,19 @@ txn_mgr_force_commit (struct super_block *super)
 	txn_atom *atom;
 	txn_mgr *mgr;
 	txn_handle  *txnh;
+	reiser4_context *host_context;
+	reiser4_context local_context;
 
-	REISER4_ENTRY (super);
+	host_context = get_current_context();
+	/*
+	 * FIXME:NIKITA->NIKITA this only works for top-level contexts.
+	 */
+	check_me ("nikita-2094", __REISER4_EXIT (host_context) == 0);
+	assert ("nikita-2095", get_current_context() == NULL);
+
+	ret = init_context (& local_context, super);
+	if (ret != 0)
+		return ret;
 
 	assert("umka-191", super != NULL);
 	
@@ -887,11 +898,13 @@ txn_mgr_force_commit (struct super_block *super)
 			spin_unlock_txnh (txnh);
 			spin_unlock_atom (atom);
 
- 			if ((ret = txn_end (& __context)) != 0) {
-				REISER4_EXIT (ret);
+ 			if ((ret = txn_end (& local_context)) != 0) {
+				__REISER4_EXIT (& local_context);
+				init_context (host_context, super);
+				return ret;
 			}
 
-			txn_begin (& __context);
+			txn_begin (& local_context);
 
 			goto again;
 		}
@@ -901,7 +914,9 @@ txn_mgr_force_commit (struct super_block *super)
 
 	spin_unlock_txnmgr (mgr);
 
-	REISER4_EXIT (0);
+	__REISER4_EXIT (& local_context);
+	init_context (host_context, super);
+	return 0;
 }
 
 /* Called to commit a transaction handle.  This decrements the atom's number of open

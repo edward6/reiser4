@@ -1100,10 +1100,13 @@ void jnode_detach_page( jnode *node )
 	struct page *page;
 
 	assert( "nikita-2052", node != NULL );
-	assert( "nikita-2053", jnode_page( node ) != NULL );
 
 	spin_lock( &_jnode_ptr_lock );
 	page = jnode_page( node );
+	if( page == NULL ) {
+		spin_unlock( &_jnode_ptr_lock );
+		return;
+	}
 	break_page_jnode_linkage( page, node );
 	spin_unlock( &_jnode_ptr_lock );
 	page_cache_release( page );

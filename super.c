@@ -471,7 +471,7 @@ void print_fs_info (const struct super_block * s)
 		private->oid_plug->print_info (get_oid_allocator (s));
 }
 
-#if 1 || REISER4_DEBUG
+#if REISER4_DEBUG
 void register_thread( void )
 {
 	reiser4_super_info_data *sdata;

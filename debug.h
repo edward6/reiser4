@@ -114,7 +114,7 @@ extern lock_counters_info *lock_counters(void);
 #define impossible( label, format, args... ) noop
 #define not_implemented( label, format, args... ) noop
 #define assert( label, cond ) noop
-#define check_me( label, expr )	( expr )
+#define check_me( label, expr )	( ( void ) ( expr ) )
 #define ON_DEBUG( exp ) noop
 
 /* REISER4_DEBUG */

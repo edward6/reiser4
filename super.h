@@ -117,7 +117,7 @@ struct reiser4_super_info_data {
 
 	ln_hash_table          lnode_htable;
 	spinlock_t             lnode_htable_guard;
-#if 1 || REISER4_DEBUG
+#if REISER4_DEBUG
 	/**
 	 * amount of space allocated by kmalloc. For debugging.
 	 */
@@ -199,7 +199,7 @@ extern int init_tree( reiser4_tree *tree, struct super_block *super,
 		      tree_operations *tops20 );
 extern void done_tree( reiser4_tree *tree );
 
-#if 1 || REISER4_DEBUG
+#if REISER4_DEBUG
 extern void register_thread( void );
 extern void deregister_thread( void );
 extern void activate_thread( void );
