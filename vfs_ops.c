@@ -1787,9 +1787,7 @@ reiser4_get_dentry_parent(struct dentry *child)
 			iput(parent);
 			parent_dentry = ERR_PTR(-ENOMEM);
 		}
-		if (!is_inode_loaded(parent))
-			reiser4_iget_complete(parent);
-		
+		reiser4_iget_complete(parent);
 		return parent_dentry;
 	} else if (PTR_ERR(parent) == -ENOENT)
 		parent = ERR_PTR(RETERR(-ESTALE));
