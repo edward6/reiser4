@@ -2179,9 +2179,13 @@ reiser4_kill_super(struct super_block *s)
 	reiser4_sysfs_done(s);
 
 	/* FIXME-VS: the problem is that there still might be dirty pages which
-	   became dirty via mapping. Have them to go through writepage */
+	   became dirty via mapping. Have them to go through reiser4_writepages */
 	fsync_super(s);
 
+	/* FIXME: complete removal of directories which were not deleted when they were supposed to be because their
+	   dentries had negative child dentries */
+	shrink_dcache_parent(s->s_root);
+	
 	if (reiser4_is_debugged(s, REISER4_VERBOSE_UMOUNT))
 		get_current_context()->trace_flags |= (TRACE_PCACHE |
 						       TRACE_TXN    |
