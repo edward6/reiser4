@@ -16,7 +16,7 @@
 /* this file contains file plugin methods of regular reiser4 files. Those files are either built of tail items only (FORMATTING_ID) or
    of extent items only (EXTENT_POINTER_ID) or empty (have no items but stat data) */
 
-static int unpack(struct inode *inode, int forever, int locked);
+static int unpack(struct inode *inode, int forever);
 
 /* get unix file plugin specific portion of inode */
 reiser4_internal inline unix_file_info_t *
@@ -1839,7 +1839,7 @@ check_pages_unix_file(struct inode *inode)
 {
 	reiser4_invalidate_pages(inode->i_mapping, 0,
 				 (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
-	return unpack(inode, 0, 1);
+	return unpack(inode, 0 /* not forever */);
 }
 
 /* plugin->u.file.mmap
@@ -2063,15 +2063,14 @@ set_file_notail(struct inode *inode)
 
 /* if file is built of tails - convert it to extents */
 static int
-unpack(struct inode *inode, int forever, int locked)
+unpack(struct inode *inode, int forever)
 {
 	int            result = 0;
 	unix_file_info_t *uf_info;
 
+	assert("vs-1628", ea_obtained(uf_info));
+
 	uf_info = unix_file_inode_data(inode);
-	
-	if (!locked)
-		get_exclusive_access(uf_info);
 
 	result = find_file_state(uf_info);
 	assert("vs-1074", ergo(result == 0, uf_info->container != UF_CONTAINER_UNKNOWN));
@@ -2080,19 +2079,15 @@ unpack(struct inode *inode, int forever, int locked)
 			result = tail2extent(uf_info);
 		if (result == 0 && forever)
 			set_file_notail(inode);
-	}
-
-	if (!locked)
-		drop_exclusive_access(uf_info);
-
-	if (result == 0) {
-		__u64 tograb;
-
-		grab_space_enable();
-		tograb = inode_file_plugin(inode)->estimate.update(inode);
-		result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
-		if (result == 0)
-			update_atime(inode);
+		if (result == 0) {
+			__u64 tograb;
+			
+			grab_space_enable();
+			tograb = inode_file_plugin(inode)->estimate.update(inode);
+			result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
+			if (result == 0)
+				update_atime(inode);
+		}
 	}
 
 	return result;
@@ -2106,7 +2101,9 @@ ioctl_unix_file(struct inode *inode, struct file *filp UNUSED_ARG, unsigned int 
 
 	switch (cmd) {
 	case REISER4_IOC_UNPACK:
-		result = unpack(inode, 1, 0);
+		get_exclusive_access(unix_file_inode_data(inode));
+		result = unpack(inode, 1 /* forever */);
+		drop_exclusive_access(unix_file_inode_data(inode));
 		break;
 
 	default:
