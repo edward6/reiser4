@@ -1246,7 +1246,7 @@ int txn_attach_txnh_to_node (jnode *node)
 	ctx  = get_current_context ();
 	txnh = ctx->trans;
 
-	/* Expecting the call under these circumstances: root context, txnh has no atom, captured node. */
+	/* Expecting the call under these circumstances: root context, txnh has no atom. */
 	assert ("jmacd-77917", ctx->parent == NULL);
 	assert ("jmacd-77918", txnh->atom == NULL);
 
@@ -1261,6 +1261,8 @@ int txn_attach_txnh_to_node (jnode *node)
 
 	capture_assign_txnh_nolock (atom, txnh);
 
+	spin_unlock_atom (atom);
+	
 	return 0;
 }
 
