@@ -448,7 +448,7 @@ find_file_size(struct inode *inode, loff_t *file_size)
 	}
 
 	/* there are items of this file (at least one) */
-	coord_clear_iplug(&coord);
+	/*coord_clear_iplug(&coord);*/
 	result = zload(coord.node);
 	if (unlikely(result)) {
 		done_lh(&lh);
@@ -878,7 +878,7 @@ find_or_create_extent(struct page *page)
 		return result;
 	}
 
-	coord_clear_iplug(coord);
+	/*coord_clear_iplug(coord);*/
 	result = zload(coord->node);
 	if (result) {
 		done_lh(&lh);
@@ -1445,7 +1445,7 @@ readpage_unix_file(void *vp, struct page *page)
 	}
 	
 	coord = &hint.coord.base_coord;
-	coord_clear_iplug(coord);
+	/*coord_clear_iplug(coord);*/
 	result = zload(coord->node);
 	if (result) {
 		done_lh(&lh);
@@ -1610,7 +1610,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 			/* there were no items corresponding to given offset */
 			break;
 
-		coord_clear_iplug(coord);
+		/*coord_clear_iplug(coord);*/
 		hint.coord.valid = 0;
 		result = zload(coord->node);
 		if (unlikely(result))
@@ -1735,7 +1735,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 			return result;
 		}
 		loaded = lh.node;
-		coord_clear_iplug(&hint.coord.base_coord);
+		/*coord_clear_iplug(&hint.coord.base_coord);*/
 
 		result = write_f(inode,
 				 flow,
@@ -2138,7 +2138,7 @@ get_block_unix_file(struct inode *inode,
 		return result;
 	}
 
-	coord_clear_iplug(&coord);
+	/*coord_clear_iplug(&coord);*/
 	result = zload(coord.node);
 	if (result) {
 		done_lh(&lh);
