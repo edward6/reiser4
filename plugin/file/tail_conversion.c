@@ -489,7 +489,7 @@ tail2extent(struct inode *inode)
 	if (access_switched)
 		ea2nea(inode);
 
-	/* It is advisabel to check here that all grabbed pages were freed */
+	/* It is advisable to check here that all grabbed pages were freed */
 
 	/* file could not be converted back to tails while we did not
 	   have neither NEA nor EA to the file */
