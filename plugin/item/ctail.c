@@ -365,8 +365,8 @@ kill_hook_ctail(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, c
 		item_key_by_coord(coord, &key);
 		
 		if (from == 0 && disk_cluster_key(&key, coord)) {
-			pgoff_t start = off_to_clust(get_key_offset(&key), inode);
-			truncate_pg_clusters(inode, start);
+			pgoff_t start = off_to_pg(get_key_offset(&key));
+			truncate_pages_cryptcompress(inode, start);
 		}
 	}
 	return 0;
