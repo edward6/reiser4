@@ -347,7 +347,7 @@ static int connect_one_side (new_coord * coord, znode * node, int flags)
 	int nr_locked;
 	int ret;
 
-	ncoord_dup(&local, coord);
+	ncoord_dup_nocheck(&local, coord);
 	init_lh(&handle);
 
 	ret = renew_sibling_link(&local, &handle, node, znode_get_level( node ),
