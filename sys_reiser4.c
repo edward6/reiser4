@@ -19,7 +19,7 @@
 #include <linux/module.h>
 #include <linux/writeback.h>
 #include <linux/backing-dev.h>
-#include <asm-generic/errno.h>
+#include <linux/errno.h>
 
 #if defined(CONFIG_REISER4_FS_SYSCALL)
 
