@@ -1807,6 +1807,8 @@ reiser4_internal void
 done_tree(reiser4_tree * tree /* tree to release */ )
 {
 	assert("nikita-311", tree != NULL);
+	if (tree == NULL)
+		return;
 
 	if (tree->uber != NULL) {
 		zput(tree->uber);
