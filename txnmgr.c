@@ -3716,6 +3716,11 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	assert("vs-1410", (jnode_get_type(node) == JNODE_FORMATTED_BLOCK ||
 			   jnode_get_type(node) == JNODE_UNFORMATTED_BLOCK));	
 
+	if (JF_ISSET(node, JNODE_WRITEBACK)) {
+		UNLOCK_JNODE(node);
+		return RETERR(-E_REPEAT);	
+	}
+
 	ON_TRACE(TRACE_CAPTURE_COPY, "copy_on_capture: node %p, atom %p..", node, atom);
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
 		UNLOCK_JNODE(node);
