@@ -1915,8 +1915,6 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	jnode        *node;
 	int           result;
 
-	REISER4_ENTRY( page -> mapping -> host -> i_sb );
-
 	assert( "nikita-2257", PagePrivate( page ) );
 	assert( "nikita-2259", PageLocked( page ) );
 	node = jnode_by_page( page );
@@ -1937,7 +1935,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	}
 	write_unlock( &page -> mapping -> page_lock );
 
-	REISER4_EXIT( result );
+	return result;
 }
 
 int reiser4_writepages( struct address_space *mapping UNUSED_ARG, 

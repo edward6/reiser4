@@ -443,7 +443,9 @@ void page_detach_jnode_nolock( jnode *node, struct page *page, spinlock_t *lock 
 
 	spin_lock( lock );
 	if( likely( ( node != NULL ) && ( page != NULL ) ) ) {
-		assert( "nikita-2184", lock == jnode_to_page_lock( node ) );
+		assert( "nikita-2184", 
+			ergo( get_current_context() != NULL,
+			      lock == jnode_to_page_lock( node ) ) );
 		assert( "nikita-2185", lock == page_to_jnode_lock( page ) );
 		break_page_jnode_linkage( page, node );
 		spin_unlock( lock );
