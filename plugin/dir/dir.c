@@ -548,7 +548,7 @@ is_empty_actor(reiser4_tree * tree UNUSED_ARG /* tree scanned */ ,
 	assert("nikita-2162", name != NULL);
 
 	if ((name[0] != '.') || ((name[1] != '.') && (name[1] != '\0')))
-		return -ENOTEMPTY;
+		return RETERR(-ENOTEMPTY);
 	else
 		return 1;
 }
@@ -567,7 +567,7 @@ is_dir_empty(const struct inode *dir)
 
 	/* rely on our method to maintain directory i_size being equal to the
 	   number of entries. */
-	return dir->i_size <= 2 ? 0 : -ENOTEMPTY;
+	return dir->i_size <= 2 ? 0 : RETERR(-ENOTEMPTY);
 
 	/* NOTE-NIKITA this is not correct if hard links on directories are
 	   supported in this fs (if REISER4_ADG is not set in dir ->
@@ -904,7 +904,7 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	assert("nikita-1360", inode != NULL);
 
 	if (!S_ISDIR(inode->i_mode))
-		return -ENOTDIR;
+		return RETERR(-ENOTDIR);
 
 	fsdata = reiser4_get_file_fsdata(f);
 	assert("nikita-2571", fsdata != NULL);
@@ -946,7 +946,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 	reiser4_stat_inc(dir.readdir.calls);
 
 	if (!S_ISDIR(inode->i_mode))
-		return -ENOTDIR;
+		return RETERR(-ENOTDIR);
 
 	coord_init_zero(&coord);
 	init_lh(&lh);
