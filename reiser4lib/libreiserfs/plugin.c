@@ -8,14 +8,26 @@
 #include <string.h>
 #include <limits.h>
 
-#include <reiserfs/plugin.h>
+#include <reiserfs/reiserfs.h>
 #include <reiserfs/debug.h>
+
+#if ENABLE_NLS
+#  include <libintl.h>
+#  define _(String) dgettext (PACKAGE, String)
+#else
+#  define _(String) (String)
+#endif
+
+#define REISERFS_PLUGIN_CASHE_SIZE 255
+
+list_t *plugin_cashe = NULL;
+list_t *plugin_map = NULL;
 
 reiserfs_plugin_t *reiserfs_plugin_load_by_name(const char *name, const char *point) {
 	char *error;
 	void *handle, *entry;
 	reiserfs_plugin_t *plugin;
-	reiserfs_plugin_t *(get_plugin) (void);
+	reiserfs_plugin_t *(*get_plugin) (void);
 
 	ASSERT(name != NULL, return NULL);
 	ASSERT(point != NULL, return NULL);
@@ -47,24 +59,40 @@ error:
 	return NULL;
 }
 
+struct run_desc {
+	reiserfs_plugin_type_t type;
+	reiserfs_plugin_id_t id;
+};
+
+static int callback_check_plugin(reiserfs_plugin_t *plugin, struct run_desc *desc) {
+	if (plugin->h.type == desc->type && plugin->h.id == desc->id)
+		return 1;
+	
+	return 0;
+}
+
 static reiserfs_plugin_t *reiserfs_plugin_from_cashe(reiserfs_plugin_type_t type, 
-	reiserfs_plugin_id_t id) 
+	reiserfs_plugin_id_t id)
 {
+	struct run_desc desc;
 	reiserfs_plugin_t *plugin;
 	
-	/* Getting plugin from plugin cashe */
+	desc.type = type;
+	desc.id = id;
+	
+	if (!(plugin = (reiserfs_plugin_t *)list_run(plugin_cashe, 
+			(int (*)(void *, void *))callback_check_plugin, (void *)&desc)))
+		return NULL;
 	
 	plugin->h.nlink++;
-	return NULL;
+	return plugin;
 }
 
-static void reiserfs_plugin_to_cashe(reiserfs_plugin_t plugin) {
+static void reiserfs_plugin_to_cashe(reiserfs_plugin_t *plugin) {
 	plugin->h.nlink--;
-	if (!plugin->h.nlink) {
-		/* Delete specified plugin from plugin cashe */
-	}
 }
 
+/* Looks for plugin by its coords in the plugin map. */
 int reiserfs_plugin_find_by_cords(reiserfs_plugin_type_t type, 
 	reiserfs_plugin_id_t id, char *name) 
 {
@@ -88,19 +116,25 @@ reiserfs_plugin_t *reiserfs_plugin_load(reiserfs_plugin_type_t type, reiserfs_pl
 		return NULL;
 	}
 
-	if (!(plugin = reiserfs_plugin_load_by_name(name))) {
+	if (!(plugin = reiserfs_plugin_load_by_name(name, "reiserfs_plugin_info"))) {
 		reiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-0004", 
 			_("Can't load plugin by name %s."), name);
 		return NULL;
 	}
+	
+	list_add(plugin_cashe, (void *)plugin);
 	
 	return plugin;
 }
 
 void reiserfs_plugin_unload(reiserfs_plugin_t *plugin) {
 	ASSERT(plugin != NULL, return);
+	
 	reiserfs_plugin_to_cashe(plugin);
-	if (!plugin->h.nlink)
-		dlclose(plugin);
+
+	if (!plugin->h.nlink) {
+		dlclose(plugin->h.handle);
+		list_remove(plugin_cashe, (void *)plugin);
+	}	
 }
 
