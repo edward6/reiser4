@@ -24,11 +24,10 @@
 /* return pointer to reiser4-specific part of inode */
 /* Audited by: green(2002.06.17) */
 reiser4_inode *
-reiser4_inode_data(const struct inode * inode	/* inode
-						 * queried */ )
+reiser4_inode_data(const struct inode * inode /* inode queried */)
 {
 	assert("nikita-254", inode != NULL);
-	return &list_entry(inode, reiser4_inode_object, vfs_inode)->p;
+	return &container_of(inode, reiser4_inode_object, vfs_inode)->p;
 }
 
 /* return reiser4 internal tree which inode belongs to */
