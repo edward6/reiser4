@@ -873,7 +873,7 @@ static void check_jload(jnode * node, struct page * page)
 /* prefetch jnode to speed up next call to jload. Call this when you are going
  * to call jload() shortly. This will bring appropriate portion of jnode into
  * CPU cache. */
-reiser4_internal void jload_prefetch(const jnode * node)
+reiser4_internal void jload_prefetch(jnode * node)
 {
 	prefetchw(&node->x_count);
 }

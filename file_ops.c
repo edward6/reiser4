@@ -234,7 +234,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 
 	ON_TRACE(TRACE_VFS_OPS,
 		 "READ: (i_ino %li, size %lld): %u bytes from pos %lli\n",
-		 inode->i_ino, inode->i_size, count, *off);
+		 inode->i_ino, inode->i_size, (unsigned int)count, *off);
 
 	result = perm_chk(inode, read, file, buf, count, off);
 	if (likely(result == 0)) {
@@ -276,7 +276,8 @@ reiser4_write(struct file *file /* file to write on */ ,
 	reiser4_stat_inc(vfs_calls.write);
 
 	ON_TRACE(TRACE_VFS_OPS,
-		 "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n", inode->i_ino, inode->i_size, size, *off);
+		 "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n", 
+		 inode->i_ino, inode->i_size, (unsigned int)size, *off);
 
 	result = perm_chk(inode, write, file, buf, size, off);
 	if (likely(result == 0)) {

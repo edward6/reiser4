@@ -569,7 +569,7 @@ extern int jstartio(jnode * node) NONNULL;
 extern void jdrop(jnode * node) NONNULL;
 extern int jwait_io(jnode * node, int rw) NONNULL;
 
-extern void jload_prefetch(const jnode * node);
+extern void jload_prefetch(jnode * node);
 
 extern jnode *alloc_io_head(const reiser4_block_nr * block) NONNULL;
 extern void drop_io_head(jnode * node) NONNULL;
