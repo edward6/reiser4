@@ -67,3 +67,10 @@ static int source_to_tube_general(tube_t * tube);
 static int tube_to_sink_general(tube_t * tube);
 static void put_tube(tube_t * tube);
 static int pump( vnode_t *sink, expr_v4_t *source );
+
+
+#define curr_symbol(ws) ((ws)->ws_pline)
+#define next_symbol(ws)  (++curr_symbol(ws))
+#define tolower(a) a
+#define isdigit(a) ((a)>=0 && (a)<=9)
+

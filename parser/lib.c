@@ -120,12 +120,67 @@ OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,
 
 
 
+#define LEX_XFORM  1001
+#define LEXERR2    1002
+#define LEX_Ste    1003
 
-
-
+/* printing errors for parsing */
 static void yyerror( struct reiser4_syscall_w_space *ws, int msgnum , ...)
 {
-	printk("\nreiser4 parser: error # %d\n", msgnum);
+	char errstr[120]={"\nreiser4 parser:"};
+	va_list args;
+	va_start(args, msgnum);
+	switch (msgnum)
+		{
+		case   101:
+			strcat(errstr,"yacc stack overflow");
+			break;
+		case LEX_XFORM:
+			strcat(errstr,"x format has odd number of symbols");
+			break;
+		case LEXERR2:
+			/*			int state = va_arg(args, int);*/
+			strcat(errstr,"internal lex table error");
+			break;
+		case LEX_Ste:
+			strcat(errstr,"wrong lexem");
+			break;
+		case 11111:
+			{
+				int state = va_arg(args, int);
+				/*				int s = va_arg(args, int);*/
+				strcat(errstr," syntax error:");
+				switch(state)
+					{
+					case 4:
+						strcat(errstr,"wrong operation");
+						break;
+					case 6:
+						strcat(errstr,"wrong assign operation");
+						break;
+					case 7:
+					case 14:
+						strcat(errstr,"wrong name");
+						break;
+					case 26:
+						strcat(errstr,"wrong logical operation");
+						break;
+					case 9:
+						strcat(errstr,"wrong THEN keyword");
+						break;
+					case 36:
+					case 49:
+						strcat(errstr,"wrong separatop");
+						break;
+					default:
+					}
+			}
+			break;
+		}
+	va_end(args);
+	printk(errstr);
+	//	printk("\n%s",ws_pline);
+	printk("\n%s",curr_symbol(ws));
 }
 
 static int yywrap()
@@ -133,7 +188,7 @@ static int yywrap()
     return 1;
 }
 
-
+/* free lists of work space*/
 static void freeList(freeSpace_t * list)
 {
 	freeSpace_t * curr,* next;
@@ -146,7 +201,7 @@ static void freeList(freeSpace_t * list)
 		}
 }
 
-
+/* free work space*/
 static int reiser4_pars_free(struct reiser4_syscall_w_space * ws)
 {
 	if (ws->freeSpHead)
@@ -163,11 +218,13 @@ static int reiser4_pars_free(struct reiser4_syscall_w_space * ws)
                                 (fs)->freeSpaceMax   = (fs)->freeSpaceBase+FREESPACESIZE;         \
 			        (fs)->freeSpace      = (fs)->freeSpaceBase
 
+
+/* allocate work space */
 static freeSpace_t * freeSpaceAlloc()
 {
 	freeSpace_t * fs;
 	fs = ( freeSpace_t * ) kmalloc( sizeof( freeSpace_t ),GFP_KERNEL ) ;
-	assert("VD",fs!=NULL);
+	assert("VD kmalloc work space",fs!=NULL);
 	memset( fs , 0, sizeof( freeSpace_t ));
 	initNextFreeSpace(fs);
 
@@ -179,6 +236,8 @@ static freeSpace_t * freeSpaceAlloc()
 #define get_first_freeSpHead(ws) (ws)->freeSpHead
 #define get_next_freeSpHead(curr) (curr)->freeSpace_next
 
+
+/* allocate next work space */
 static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws)
 {
 	freeSpace_t * curr,* next;
@@ -202,6 +261,7 @@ static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws)
 	return next;
 }
 
+/* allocate field lenth=len in work space */
 static char* list_alloc(struct reiser4_syscall_w_space * ws, int len)
 {
 	char * rez;
@@ -214,12 +274,13 @@ static char* list_alloc(struct reiser4_syscall_w_space * ws, int len)
 	return rez;
 }
 
-
+/* allocate new level of parsing in work space */
 static streg_t *alloc_new_level(struct reiser4_syscall_w_space * ws)
 {
 	return ( streg_t *)  list_alloc(ws,sizeof(streg_t));
 }
 
+/* allocate structure of new variable of input expression */
 static vnode_t * alloc_vnode(struct reiser4_syscall_w_space * ws, vnode_t * last_vnode)
 {
 	vnode_t * vnode;
@@ -242,7 +303,7 @@ static vnode_t * alloc_vnode(struct reiser4_syscall_w_space * ws, vnode_t * last
 //ln->inode.inode->i_op->lookup(struct inode *,struct dentry *);
 //current->fs->pwd->d_inode->i_op->lookup(struct inode *,struct dentry *);
 
-
+/* alloca te space for lnode */
 static lnode * alloc_lnode(struct reiser4_syscall_w_space * ws)
 {
 	lnode * ln;
@@ -252,6 +313,7 @@ static lnode * alloc_lnode(struct reiser4_syscall_w_space * ws)
 	return ln;
 }
 
+/* make lnode_dentry from inode, except reiser4 inode */
 static lnode * get_lnode(struct reiser4_syscall_w_space * ws, struct inode * inode)
 {
 	lnode * ln;
@@ -279,6 +341,7 @@ static lnode * get_lnode(struct reiser4_syscall_w_space * ws, struct inode * ino
 	return ln;
 }
 
+/*  allocate work space, initialize work space, tables, take root inode and PWD inode */
 static struct reiser4_syscall_w_space * reiser4_pars_init()
 {
 	struct reiser4_syscall_w_space * ws;
@@ -306,7 +369,7 @@ static struct reiser4_syscall_w_space * reiser4_pars_init()
 }
 
 
-
+/* level up of parsing level */
 static void level_up(struct reiser4_syscall_w_space *ws, long type)
 {
 	PTRACE(ws, "%s", "begin");
@@ -323,7 +386,7 @@ static void level_up(struct reiser4_syscall_w_space *ws, long type)
 	ws->cur_level->wrk_exp  = ws->cur_level->cur_exp;                        /* current wrk for new level */
 }
 
-
+/* level down of parsing level */
 static  void  level_down(struct reiser4_syscall_w_space * ws, long type1, long type2)
 {
 	PTRACE(ws, "%s", "begin");
@@ -337,11 +400,6 @@ static  void  level_down(struct reiser4_syscall_w_space * ws, long type1, long t
 // this is wrong ????	ws->cur_level->prev->wrk_exp = ws->cur_level->wrk_exp ;           /* current wrk for new level */
 	ws->cur_level                = ws->cur_level->prev;
 }
-
-#define curr_symbol(ws) ((ws)->ws_pline)
-#define next_symbol(ws)  (++curr_symbol(ws))
-#define tolower(a) a
-#define isdigit(a) ((a)>=0 && (a)<=9)
 
 /* move_selected_word - copy term from input bufer to free space.
  * if it need more, move freeSpace to the end.
@@ -396,7 +454,7 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 										{
 											if ( tmpI & 1 )
 												{
-													yyerror( ws, 00 ); /* x format has odd number of symbols */
+													yyerror( ws, LEX_XFORM ); /* x format has odd number of symbols */
 												}
 											tmpI = 0;
 										}
@@ -441,7 +499,7 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 }
 
 
-
+/* compare parsed word with keywords*/
 static int b_check_word(struct reiser4_syscall_w_space * ws )
 {
 	int i, j, l;
@@ -464,7 +522,7 @@ static int b_check_word(struct reiser4_syscall_w_space * ws )
 }
 
 
-
+/* comparing parsed word with already stored words, if not compared, storing it */
 static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 {
 	wrd_t * cur_wrd;
@@ -509,6 +567,7 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 	return new_wrd;
 }
 
+/* lexical analisator for yacc automat */
 static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 {
 	char term,n,i;
@@ -547,7 +606,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 			else
 				{
 					PTRACE(ws, "error: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*curr_symbol(ws));
-					yyerror ( ws, 2222, (lcls-1)* 20+i, curr_symbol(ws) );
+					yyerror ( ws, LEXERR2, (lcls-1)* 20+i );
 					return(0);
 				}
 		}
@@ -556,7 +615,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 		{
 		case Blk:
 		case Ste:
-			yyerror(ws,0);
+			yyerror(ws,LEX_Ste);
 			break;
 		case Wrd:
 			move_selected_word( ws, lexcls[ lcls ].c[0] );
@@ -615,7 +674,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 
 /*==========================================================*/
 
-
+/* allocate new expression @type */
 static expr_v4_t * alloc_new_expr(struct reiser4_syscall_w_space * ws, int type)
 {
 	expr_v4_t * e;
@@ -625,6 +684,7 @@ static expr_v4_t * alloc_new_expr(struct reiser4_syscall_w_space * ws, int type)
 	return e;
 }
 
+/* store NULL name in word table */
 wrd_t * nullname(struct reiser4_syscall_w_space * ws)
 {
 	PTRACE(ws, "%s", "begin");
@@ -633,6 +693,7 @@ wrd_t * nullname(struct reiser4_syscall_w_space * ws)
 	return _wrd_inittab(ws);
 }
 
+/* initialize node  for root lnode */
 static expr_v4_t *  init_root(struct reiser4_syscall_w_space * ws)
 {
 	expr_v4_t * e;
