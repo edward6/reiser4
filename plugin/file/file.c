@@ -331,6 +331,7 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 	__u32 cbk_flags;
 
 	assert("nikita-3030", schedulable());
+	assert("vs-1707", hint != NULL);
 
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_inc(file.find_file_item);
@@ -338,27 +339,26 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 	coord = &hint->coord.base_coord;
 	lh = hint->coord.lh;
 	init_lh(lh);
-	if (hint) {
-		result = hint_validate(hint, key, 1/*check key*/, lock_mode);
-		if (!result) {
-			if (coord->between == AFTER_UNIT && equal_to_rdk(coord->node, key)) {
-				result = goto_right_neighbor(coord, lh);
-				if (result == -E_NO_NEIGHBOR)
-					return RETERR(-EIO);
-				if (result)
-					return result;
-				assert("vs-1152", equal_to_ldk(coord->node, key));
-				/* we moved to different node. Invalidate coord extension, zload is necessary to init it
-				   again */
-				hint->coord.valid = 0;
-				reiser4_stat_inc(file.find_file_item_via_right_neighbor);
-			} else {
-				reiser4_stat_inc(file.find_file_item_via_seal);
-			}
 
-			set_file_state(inode, CBK_COORD_FOUND, znode_get_level(coord->node));
-			return CBK_COORD_FOUND;
+	result = hint_validate(hint, key, 1/*check key*/, lock_mode);
+	if (!result) {
+		if (coord->between == AFTER_UNIT && equal_to_rdk(coord->node, key)) {
+			result = goto_right_neighbor(coord, lh);
+			if (result == -E_NO_NEIGHBOR)
+				return RETERR(-EIO);
+			if (result)
+				return result;
+			assert("vs-1152", equal_to_ldk(coord->node, key));
+			/* we moved to different node. Invalidate coord extension, zload is necessary to init it
+			   again */
+			hint->coord.valid = 0;
+			reiser4_stat_inc(file.find_file_item_via_right_neighbor);
+		} else {
+			reiser4_stat_inc(file.find_file_item_via_seal);
 		}
+		
+		set_file_state(inode, CBK_COORD_FOUND, znode_get_level(coord->node));
+		return CBK_COORD_FOUND;
 	}
 
 	/* collect statistics on the number of calls to this function which did not get optimized */
@@ -873,8 +873,7 @@ static int inode_has_eflushed_jnodes(struct inode * inode)
 	int ret;
 
 	RLOCK_TREE(tree);
-	ret = (radix_tree_tagged(jnode_tree_by_inode(inode), EFLUSH_TAG_ANONYMOUS) ||
-	       radix_tree_tagged(jnode_tree_by_inode(inode), EFLUSH_TAG_CAPTURED));
+	ret = radix_tree_tagged(jnode_tree_by_inode(inode), EFLUSH_TAG_ANONYMOUS);
 	RUNLOCK_TREE(tree);
 	return ret;
 }
