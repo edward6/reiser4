@@ -1485,7 +1485,7 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 	if (txnh->atom == NULL) {
 		/* current atom is available, take first from txnmgr */
 		txn_mgr *tmgr = &get_super_private(ctx->super)->tmgr;
-
+	repeat:
 		spin_lock_txnmgr(tmgr);
 
 		/* traverse the list of all atoms */
@@ -1526,7 +1526,7 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 					   makes a progress in flushing or
 					   committing the atom */
 					atom_wait_event(atom);
-					return 0;
+					goto repeat;
 				}
 				UNLOCK_ATOM(atom);
 			}
