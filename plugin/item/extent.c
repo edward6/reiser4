@@ -1306,7 +1306,7 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 
 		assert ("vs-544", offset >> PAGE_CACHE_SHIFT < ~0ul);
 
-		pg = find_get_page (inode->i_mapping, (unsigned long)(offset >> PAGE_CACHE_SHIFT));
+		pg = reiser4_lock_page (inode->i_mapping, (unsigned long)(offset >> PAGE_CACHE_SHIFT));
 
 		if (pg == NULL) {
 			*childp = NULL;
@@ -1318,6 +1318,7 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 		if (IS_ERR(*childp))
 			*childp = NULL;
 
+		unlock_page (pg);
 		page_cache_release (pg);
 		iput (inode);
 	}
@@ -2203,7 +2204,7 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 
 	/* jnode exists and it is not mapped */
 	assert ("vs-862", (PagePrivate (page) &&
-			   !jnode_mapped (jnode_of_page (page))));
+			   !jnode_mapped (jnode_by_page (page))));
 	assert ("vs-863", znode_is_loaded (coord->node));
 	assert ("vs-864", znode_is_wlocked (coord->node));
 	assert ("vs-865", item_is_extent (coord));
@@ -2289,8 +2290,7 @@ int extent_read (struct inode * inode, coord_t * coord,
 
 	wait_on_page_locked (page);
 	if (!PageUptodate (page)) {
-		if (PagePrivate (page))
-			page_detach_jnode (page);
+		page_detach_jnode_lock (page, inode->i_mapping, page_nr);
 		page_cache_release (page);
 		warning ("jmacd-97178", "extent_read: page is not up to date");
 		return -EIO;
@@ -2299,7 +2299,7 @@ int extent_read (struct inode * inode, coord_t * coord,
 	/* Capture the page. */
 	result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
 	if (result != 0) {
-		page_detach_jnode (page);
+		page_detach_jnode_lock (page, inode->i_mapping, page_nr);
 		page_cache_release (page);
 		return result;
 	}
@@ -2738,7 +2738,7 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 	for (i = 0; i < (int)count; i ++, first ++) {
 		ind = offset >> PAGE_CACHE_SHIFT;
 
-		page = find_lock_page (inode->i_mapping, ind);
+		page = reiser4_lock_page (inode->i_mapping, ind);
 		/*
 		 * FIXME:NIKITA->VS saw this failing with pg == NULL, after
 		 * mkfs, mount, cp /etc/passwd, umount.
@@ -2847,7 +2847,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 		for (i = 0; i < count; i += 1, offset += blocksize) {
 
 			ind = offset >> PAGE_CACHE_SHIFT;
-			pg  = find_get_page (inode->i_mapping, ind);
+			pg  = reiser4_lock_page (inode->i_mapping, ind);
 
 			if (pg == NULL) {
 				all_dirty = 0;
@@ -2855,6 +2855,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 			}
 
 			j = jnode_of_page (pg);
+			unlock_page (pg);
 			page_cache_release (pg);
 			
 			if (IS_ERR(j)) {
@@ -2885,7 +2886,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 		for (i = 0; i < count; i += 1, offset += blocksize) {
 
 			ind = offset >> PAGE_CACHE_SHIFT;
-			pg  = find_get_page (inode->i_mapping, ind);
+			pg  = reiser4_lock_page (inode->i_mapping, ind);
 
 			if (pg == NULL) {
 				assert ("jmacd-71889", relocate == 0);
@@ -2893,6 +2894,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 			}
 
 			j = jnode_of_page (pg);
+			unlock_page (pg);
 			page_cache_release (pg);
 
 			if (IS_ERR(j)) {
