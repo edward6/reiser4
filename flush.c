@@ -1259,7 +1259,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] before (not same parents): %s\n", call_depth, flush_pos_tostring (pos));
 
 		/* Recurse upwards on parent of node. */
-		if ((ret = reiser4_get_parent (& parent_lock, node, ZNODE_WRITE_LOCK, 1 /*only_connected*/))) {
+		if ((ret = reiser4_get_parent (& parent_lock, node, ZNODE_WRITE_LOCK, 0))) {
 			/* FIXME(C): check ENAVAIL, EINVAL, EDEADLK */
 			warning ("jmacd-61428", "reiser4_get_parent failed: %d", ret);
 			goto exit;
@@ -2518,7 +2518,7 @@ static int jnode_lock_parent_coord (jnode *node,
 		/* Formatted node case: */
 		assert ("jmacd-2061", ! znode_is_root (JZNODE (node)));
 
-		if ((ret = reiser4_get_parent (parent_lh, JZNODE (node), parent_mode, 1))) {
+		if ((ret = reiser4_get_parent (parent_lh, JZNODE (node), parent_mode, 0))) {
 			return ret;
 		}
 
