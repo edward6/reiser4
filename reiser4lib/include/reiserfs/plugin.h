@@ -86,7 +86,7 @@ struct reiserfs_common_item_plugin {
 	(what needs to be inserted). If coords is NULL, then this is 
 	insertion, othewise it is pasting. The amount of needed space
 	should be set into item_info->lenght. */
-    void (*estimate) (reiserfs_opaque_t *, reiserfs_opaque_t *);
+    error_t (*estimate) (reiserfs_opaque_t *, reiserfs_opaque_t *);
     
     int (*is_internal) ();
 };
@@ -155,6 +155,7 @@ struct reiserfs_node_plugin {
     error_t (*insert) (reiserfs_opaque_t *, reiserfs_opaque_t *, 
 	    reiserfs_opaque_t *);
  
+    uint16_t (*item_overhead) (reiserfs_opaque_t *);
     uint16_t (*item_max_size) (reiserfs_opaque_t *);
     uint16_t (*item_max_num) (reiserfs_opaque_t *);
     uint16_t (*item_count) (reiserfs_opaque_t *);

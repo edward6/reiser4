@@ -10,11 +10,13 @@
 #include <aal/aal.h>
 #include <reiserfs/filesystem.h>
 
+extern reiserfs_item_t *reiserfs_item_alloc();
+extern error_t reiserfs_item_free(reiserfs_item_t *item);
+extern error_t reiserfs_item_create(reiserfs_item_t *item, reiserfs_item_info_t *info);
+extern error_t reiserfs_item_open(reiserfs_item_t *item);
+extern error_t reiserfs_item_close(reiserfs_item_t *item);
 extern blk_t reiserfs_item_down_link(reiserfs_item_t *item);
 extern int reiserfs_item_is_internal (reiserfs_item_t * item);
-extern reiserfs_item_t *reiserfs_item_open(reiserfs_coord_t *coord);
-extern error_t reiserfs_item_init(reiserfs_item_t *item, reiserfs_coord_t *coord);
-extern error_t reiserfs_item_fini(reiserfs_item_t *item);
 
 /* 
     If item_info->plugin != NULL

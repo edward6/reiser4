@@ -10,6 +10,36 @@
 
 static reiserfs_plugins_factory_t *factory = NULL;
 
+static error_t reiserfs_internal40_create(reiserfs_coord_t *coord, 
+    reiserfs_item_info_t *item_info) 
+{
+    reiserfs_internal40_t *inter;
+    
+    aal_assert("vpf-063", coord != NULL, return -1); 
+    aal_assert("vpf-064", item_info != NULL, return -1);
+    aal_assert("vpf-065", coord->node != NULL, return -1);
+    aal_assert("vpf-065", item_info->info != NULL, return -1);
+
+    inter = coord->node->plugin->node.item(coord->node, coord->item_pos);
+    int40_set_blk(inter, *((reiserfs_internal_info_t *)item_info->info)->block);
+    return 0;
+}
+
+static error_t reiserfs_internal40_estimate (reiserfs_coord_t *coord, 
+    reiserfs_item_info_t *item_info) 
+{
+    aal_assert("vpf-068", item_info != NULL, return -1);
+
+    item_info->length = sizeof(reiserfs_internal40_t);
+    return 0;
+}
+
+static int reiserfs_internal40_is_internal () {
+    return 1;
+}
+
+
+
 static reiserfs_plugin_t internal40_plugin = {
     .item = {
 	.h = {
@@ -22,7 +52,8 @@ static reiserfs_plugin_t internal40_plugin = {
 	},
 	.common = {
 	    .item_type = INTERNAL40_ID,
-	    .create = NULL,
+	    .create = (error_t (*)(reiserfs_opaque_t *, reiserfs_opaque_t *))
+		reiserfs_internal40_create,
 	    .open = NULL,
 	    .close = NULL,
 	    .lookup = NULL,

@@ -166,20 +166,45 @@ For such purposes we have:
 4. Create/Paste item methods if data description has not beed specified on 3. 
 */
 
-struct reiserfs_item_info {
-    /* Create items on the base of this info, 
-       casted to the proper item info type. */    
+/* 
+Create item or paste into item on the base of this structure. 
+"data" is a pointer to data to be copied. 
+If "data" == NULL, item/units should be created on the base of "info". 
+Otherwise, "info" == NULL. */ 
+struct reiserfs_item_info {    
+    void *data;
     void *info;
     uint16_t length;
     reiserfs_plugin_t *plugin;
 };
 typedef struct reiserfs_item_info reiserfs_item_info_t;
 
-struct reiserfs_internal_item_info {    
+struct reiserfs_internal_info {    
     blk_t *block;
 };
 
-typedef struct reiserfs_internal_item_info reiserfs_internal_item_info_t;
+typedef struct reiserfs_internal_info reiserfs_internal_info_t;
+
+struct reiserfs_stat_info {
+    int be_compilable;
+};
+
+typedef struct reiserfs_stat_info reiserfs_stat_info_t;
+
+struct reiserfs_entry_info {
+    uint64_t parent_id;
+    uint64_t object_id;
+    char *name;
+};
+
+typedef struct reiserfs_entry_info reiserfs_entry_info_t;
+
+struct reiserfs_dir_entry_info {
+    uint16_t count;
+    reiserfs_entry_info_t *entry;
+};
+
+typedef struct reiserfs_dir_entry_info reiserfs_dir_entry_info_t;
 
 /* Filesystem compound structure */
 struct reiserfs_fs {

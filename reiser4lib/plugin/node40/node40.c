@@ -54,12 +54,12 @@ static error_t reiserfs_node40_create(reiserfs_node_t *node, uint8_t level)
     
     aal_memset(reiserfs_nh40(node), 0, sizeof(reiserfs_nh40_t));
 
-    set_nh40_free_space(reiserfs_nh40(node), 
+    nh40_set_free_space(reiserfs_nh40(node), 
 	reiserfs_node_block(node)->size - sizeof(reiserfs_nh40_t));
     
-    set_nh40_free_space_start(reiserfs_nh40(node), sizeof(reiserfs_nh40_t));
-    set_nh40_level(reiserfs_nh40(node), level);
-    set_nh40_magic(reiserfs_nh40(node), REISERFS_NODE40_MAGIC);
+    nh40_set_free_space_start(reiserfs_nh40(node), sizeof(reiserfs_nh40_t));
+    nh40_set_level(reiserfs_nh40(node), level);
+    nh40_set_magic(reiserfs_nh40(node), REISERFS_NODE40_MAGIC);
 
     return 0;
 }
@@ -68,13 +68,13 @@ static error_t reiserfs_node40_create(reiserfs_node_t *node, uint8_t level)
 static error_t reiserfs_node40_confirm(reiserfs_node_t *node) {
     aal_assert("vpf-014", node != NULL, return -1);
     
-    return -(get_nh40_magic(reiserfs_nh40(node)) != REISERFS_NODE40_MAGIC);
+    return -(nh40_get_magic(reiserfs_nh40(node)) != REISERFS_NODE40_MAGIC);
 }
 
 static error_t reiserfs_node40_check(reiserfs_node_t *node, int flags) {
     aal_assert("vpf-015", node != NULL, return -1);
  
-    if (get_nh40_magic(reiserfs_nh40(node)) != REISERFS_NODE40_MAGIC) 
+    if (nh40_get_magic(reiserfs_nh40(node)) != REISERFS_NODE40_MAGIC) 
 	return -1;
 
     /* 
@@ -83,6 +83,10 @@ static error_t reiserfs_node40_check(reiserfs_node_t *node, int flags) {
     */
     
     return 0;
+}
+
+static uint16_t reiserfs_node40_item_overhead(reiserfs_node_t *node) {
+    return sizeof(reiserfs_ih40_t);
 }
 
 static uint16_t reiserfs_node40_item_max_size(reiserfs_node_t *node) {
@@ -104,39 +108,39 @@ static uint16_t reiserfs_node40_item_max_num(reiserfs_node_t *node) {
 
 static uint16_t reiserfs_node40_item_count(reiserfs_node_t *node) {
     aal_assert("vpf-018", node != NULL, return 0);
-    return get_nh40_num_items(reiserfs_nh40(node));
+    return nh40_get_num_items(reiserfs_nh40(node));
 }
 
 static uint8_t reiserfs_node40_get_level(reiserfs_node_t *node) {
     aal_assert("vpf-019", node != NULL, return 0);
-    return get_nh40_level(reiserfs_nh40(node));
+    return nh40_get_level(reiserfs_nh40(node));
 }
 
 static void reiserfs_node40_set_level(reiserfs_node_t *node, uint8_t level) {
    aal_assert("vpf-043", node != NULL, return); 
-   set_nh40_level(reiserfs_nh40(node), level);
+   nh40_set_level(reiserfs_nh40(node), level);
 }
 
 static uint16_t reiserfs_node40_get_free_space(reiserfs_node_t *node) {
     aal_assert("vpf-020", node != NULL, return 0);
-    return get_nh40_free_space(reiserfs_nh40(node));
+    return nh40_get_free_space(reiserfs_nh40(node));
 }
 
 static void reiserfs_node40_set_free_space(reiserfs_node_t *node, 
     uint32_t free_space) 
 {
     aal_assert("vpf-022", node != NULL, return);
-    set_nh40_free_space(reiserfs_nh40(node), free_space);
+    nh40_set_free_space(reiserfs_nh40(node), free_space);
 }
 
 static uint16_t reiserfs_node40_item_length(reiserfs_node_t *node, uint16_t pos) {
     aal_assert("vpf-037", node != NULL, return 0);
-    return get_ih40_length(reiserfs_node40_ih_at(node, pos));    
+    return ih40_get_length(reiserfs_node40_ih_at(node, pos));    
 }
 
 static uint16_t reiserfs_node40_item_plugin_id(reiserfs_node_t *node, uint16_t pos) {
     aal_assert("vpf-039", node != NULL, return 0);
-    return get_ih40_plugin_id(reiserfs_node40_ih_at(node, pos));    
+    return ih40_get_plugin_id(reiserfs_node40_ih_at(node, pos));    
 }
 
 static void *reiserfs_node40_item(reiserfs_node_t *node, uint16_t pos) {
@@ -193,7 +197,7 @@ static int reiserfs_node40_lookup(reiserfs_coord_t *coord, reiserfs_key_t *key)
    
     if (!found) {
 	// We need to search whithin the found item 
-	plugin_id = get_ih40_plugin_id(reiserfs_node40_ih_at(node, pos));
+	plugin_id = ih40_get_plugin_id(reiserfs_node40_ih_at(node, pos));
 	if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, plugin_id))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Item plugin cannot be find by its identifier %x.", plugin_id);
@@ -215,73 +219,72 @@ static int reiserfs_node40_lookup(reiserfs_coord_t *coord, reiserfs_key_t *key)
 static error_t reiserfs_node40_insert(reiserfs_coord_t *where, reiserfs_key_t *key,
     reiserfs_item_info_t *item_info) 
 {
-    int num, i;
-    uint32_t size, offset;
-    void *position, *end_position;
+    int i;
+    uint32_t offset;
+//    void *position, *end_position;
     reiserfs_ih40_t *ih;
-    reiserfs_plugin_id_t plugin_id;
-    reiserfs_plugin_t *plugin;
+    reiserfs_nh40_t *nh;
 	
     aal_assert("vpf-006", where != NULL, return -1);
     aal_assert("vpf-007", item_info != NULL, return -1);
 
-    aal_assert("vpf-026", get_nh40_free_space(reiserfs_nh40(where->node)) >= 
+    aal_assert("vpf-026", nh40_get_free_space(reiserfs_nh40(where->node)) >= 
 	item_info->length + sizeof(reiserfs_nh40_t), return -1);
     
-    aal_assert("vpf-027", where->item_pos <= (int)reiserfs_node40_item_count(where->node), 
+    aal_assert("vpf-027", where->item_pos <= reiserfs_node40_item_count(where->node), 
 	return -1);
-    aal_assert("vpf-021", where->unit_pos >= 0, return -1);
+    aal_assert("vpf-061", where->item_pos >= 0, return -1);
+    aal_assert("vpf-062", where->unit_pos == -1, return -1);
 
-    /* Insert free space for item */
+    nh = reiserfs_nh40(where->node);
 
-    position = reiserfs_node40_item_at(where->node, 
-	reiserfs_node40_item_count(where->node) - 1) + 
-	get_ih40_length(reiserfs_node40_ih_at(where->node, 
-	    reiserfs_node40_item_count(where->node) - 1));
-    
-    size = where->item_pos == (int)reiserfs_node40_item_count(where->node) ?
-	0 : position - reiserfs_node40_item_at(where->node, where->item_pos); 
-    
-    position -= size;
+    /* Insert free space for item and ih, change item heads */
+    if (where->item_pos < nh40_get_num_items(nh)) {
+	ih = reiserfs_node40_ih_at(where->node, where->item_pos);
+	offset = ih40_get_offset(ih);
+	
+	aal_memcpy(reiserfs_node_data(where->node) + offset + item_info->length, 
+	    reiserfs_node_data(where->node) + offset, 
+	    nh40_get_free_space_start(nh) - offset);
+	
+	for (i = where->item_pos; i < nh40_get_num_items(nh); i++, ih--) 
+	    ih40_set_offset (ih, ih40_get_offset(ih) + item_info->length);
 
-    aal_memcpy(position + item_info->length, position, size);
-
-    /* Insert item or create it if needed */
-
-//    plugin_id = item_info->plugin_id;
-    
-    if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, plugin_id))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Item plugin cannot be find by its identifier %x.", plugin_id);
+	/* ih is set at the last item head - 1 in the last _for_ clause */
+	aal_memcpy(ih, ih + 1, sizeof(reiserfs_ih40_t) * 
+	    (reiserfs_node40_item_count(where->node) - where->item_pos));
     } else {
-	/* Uncomment this when item methods will be implemented
-	    item.create (position, data_info);
-	*/
+	offset = nh40_get_free_space_start(nh);
     }
 
+    /* Create a new item header */
+    ih = reiserfs_node40_ih_at(where->node, where->item_pos);
+    aal_memcpy(&ih->key, key, sizeof(reiserfs_key_t));
+    ih40_set_offset(ih, offset);
+    ih40_set_plugin_id(ih, item_info->plugin->h.id);
+    ih40_set_length(ih, item_info->length);
     
-    /* Insert item header */
+    /* Update node header */
+    nh40_set_free_space(nh, nh40_get_free_space(nh) - item_info->length - 
+	sizeof(reiserfs_ih40_t));
+    nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + item_info->length);
+    nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
+    
+    /* Insert item or create it if needed */
+    if (item_info->plugin == NULL)
+	aal_memcpy(reiserfs_node_data(where->node) + ih40_get_offset(ih), 
+	    item_info->data, item_info->length);
+    else {
+	reiserfs_check_method (item_info->plugin->item.common, create, return -1);
+	if (item_info->plugin->item.common.create (where, item_info)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+		"Item plugin could not create an item (%d) in the node (%llu).", 
+		where->item_pos,
+		aal_device_get_block_nr(where->node->device, where->node->block));
+	    return -1;
+	}
+    }
 
-    position = reiserfs_node40_ih_at(where->node, where->item_pos);
-
-    size = (reiserfs_node40_item_count(where->node) - where->item_pos) 
-	* sizeof (reiserfs_ih40_t);
-	
-    aal_memcpy(position - size, position - size + sizeof (reiserfs_ih40_t), size);
-
-    /* update ih's->offset */
-    /* Initialize item header */
-    
-    ih = (reiserfs_ih40_t *)position;
-    
-    /* this should be probably changed to smth like 
-       item.common.get_min_key or item_plugin.get_min_key */
-    ih->key = *key;
-    
-//    ih->plugin_id = item_info->plugin_id;
-    ih->length = item_info->length;
-    ih->offset = position - reiserfs_node_data(where->node);
-        
     return 0;
 }
 
@@ -302,21 +305,25 @@ static reiserfs_plugin_t node40_plugin = {
 	.check = (error_t (*)(reiserfs_opaque_t *, int))reiserfs_node40_check,
 	.lookup = (int (*)(reiserfs_opaque_t *, reiserfs_key_t *))
 	    reiserfs_node40_lookup,
-	.insert = (error_t (*)(reiserfs_opaque_t *, reiserfs_opaque_t *, reiserfs_opaque_t *))
-	    reiserfs_node40_insert,
+	.insert = (error_t (*)(reiserfs_opaque_t *, reiserfs_opaque_t *, 
+	    reiserfs_opaque_t *))reiserfs_node40_insert,
 
+	.item_overhead = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_overhead,
 	.item_max_size = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_max_size,
 	.item_max_num =  (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_max_num,
 	.item_count = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_count,
-	.item_length = (uint16_t (*)(reiserfs_opaque_t *, int32_t))reiserfs_node40_item_length,
-	.key_at = (reiserfs_key_t *(*)(reiserfs_opaque_t *, int32_t))reiserfs_node40_key_at,
+	.item_length = (uint16_t (*)(reiserfs_opaque_t *, int32_t))
+	    reiserfs_node40_item_length,
+	.key_at = (reiserfs_key_t *(*)(reiserfs_opaque_t *, int32_t))
+	    reiserfs_node40_key_at,
 	.item_plugin_id = (uint16_t (*)(reiserfs_opaque_t *, int32_t))
 	    reiserfs_node40_item_plugin_id,
 	.item = (void *(*)(reiserfs_opaque_t *, int32_t))reiserfs_node40_item,
 	
 	.get_level = (uint8_t (*)(reiserfs_opaque_t *))reiserfs_node40_get_level,
 	.set_level = (void (*)(reiserfs_opaque_t *, uint8_t))reiserfs_node40_set_level,
-	.get_free_space = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_node40_get_free_space,
+	.get_free_space = (uint16_t (*)(reiserfs_opaque_t *))
+	    reiserfs_node40_get_free_space,
 	.set_free_space = (void (*)(reiserfs_opaque_t *, uint32_t))
 	    reiserfs_node40_set_free_space,
 	.print = (void (*)(reiserfs_opaque_t *, char *))reiserfs_node40_print

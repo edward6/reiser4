@@ -34,20 +34,20 @@ typedef struct reiserfs_nh40 reiserfs_nh40_t;
 
 #define reiserfs_nh40(node)			((reiserfs_nh40_t *)reiserfs_node_data(node))
 
-#define get_nh40_free_space(header)		get_le16(header, free_space)
-#define set_nh40_free_space(header, val)	set_le16(header, free_space, val)
+#define nh40_get_free_space(header)		get_le16(header, free_space)
+#define nh40_set_free_space(header, val)	set_le16(header, free_space, val)
 
-#define get_nh40_free_space_start(header)	get_le16(header, free_space_start)
-#define set_nh40_free_space_start(header, val)	set_le16(header, free_space_start, val)
+#define nh40_get_free_space_start(header)	get_le16(header, free_space_start)
+#define nh40_set_free_space_start(header, val)	set_le16(header, free_space_start, val)
 
-#define get_nh40_level(header)			(header->level)
-#define set_nh40_level(header, val)		(header->level = val)
+#define nh40_get_level(header)			(header->level)
+#define nh40_set_level(header, val)		(header->level = val)
 
-#define get_nh40_magic(header)			get_le32(header, magic)
-#define set_nh40_magic(header, val)		set_le32(header, magic, val)
+#define nh40_get_magic(header)			get_le32(header, magic)
+#define nh40_set_magic(header, val)		set_le32(header, magic, val)
 
-#define get_nh40_num_items(header)		get_le16(header, num_items)
-#define set_nh40_num_items(header, val)		set_le16(header, num_items, val)
+#define nh40_get_num_items(header)		get_le16(header, num_items)
+#define nh40_set_num_items(header, val)		set_le16(header, num_items, val)
 
 /* 
     Item headers are not standard across all node layouts, pass
@@ -67,16 +67,16 @@ typedef struct reiserfs_ih40 reiserfs_ih40_t;
      - pos - 1)
 
 #define reiserfs_node40_item_at(node, pos) \
-    reiserfs_node_data(node) + get_ih40_offset(reiserfs_node40_ih_at(node, pos))
+    reiserfs_node_data(node) + ih40_get_offset(reiserfs_node40_ih_at(node, pos))
     
-#define get_ih40_offset(ih)        get_le16(ih, offset)
-#define set_ih40_offset(ih,val)    set_le16(ih, offset, val)
+#define ih40_get_offset(ih)        get_le16(ih, offset)
+#define ih40_set_offset(ih,val)    set_le16(ih, offset, val)
 
-#define get_ih40_length(ih)        get_le16(ih, length)
-#define set_ih40_length(ih,val)    set_le16(ih, length, val)
+#define ih40_get_length(ih)        get_le16(ih, length)
+#define ih40_set_length(ih,val)    set_le16(ih, length, val)
 
-#define get_ih40_plugin_id(ih)     get_le16(ih, plugin_id)
-#define set_ih40_plugin_id(ih,val) set_le16(ih, plugin_id, val)
+#define ih40_get_plugin_id(ih)     get_le16(ih, plugin_id)
+#define ih40_set_plugin_id(ih,val) set_le16(ih, plugin_id, val)
 
 #endif
 

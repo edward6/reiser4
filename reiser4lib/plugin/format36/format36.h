@@ -32,8 +32,8 @@ struct reiserfs_super_v1 {
     uint32_t sb_root_block;
     reiserfs_journal_params_t sb_journal;
     uint16_t sb_block_size;
-    uint16_t sb_oid_maxsize;
-    uint16_t sb_oid_cursize;
+    uint16_t sb_oid_max_size;
+    uint16_t sb_oid_cur_size;
     uint16_t sb_umount_state;
     char sb_magic[10];
     uint16_t sb_fs_state;
@@ -86,11 +86,11 @@ typedef struct reiserfs_format36 reiserfs_format36_t;
 #define get_sb_block_size(sb)			get_le16(sb, s_v1.sb_block_size)
 #define set_sb_block_size(sb, val)		set_le16(sb, s_v1.sb_block_size, val)
 
-#define get_sb_oid_maxsize(sb)			get_le16(sb, s_v1.sb_oid_maxsize)
-#define set_sb_oid_maxsize(sb, val)		set_le16(sb, s_v1.sb_oid_maxsize, val)
+#define get_sb_oid_max_size(sb)			get_le16(sb, s_v1.sb_oid_max_size)
+#define set_sb_oid_max_size(sb, val)		set_le16(sb, s_v1.sb_oid_max_size, val)
 
-#define get_sb_oid_cursize(sb)			get_le16(sb, s_v1.sb_oid_cursize)
-#define set_sb_oid_cursize(sb, val)		set_le16(sb, s_v1.sb_oid_cursize, val)
+#define get_sb_oid_cur_size(sb)			get_le16(sb, s_v1.sb_oid_cur_size)
+#define set_sb_oid_cur_size(sb, val)		set_le16(sb, s_v1.sb_oid_cur_size, val)
 
 #define get_sb_umount_state(sb)			get_le16(sb, s_v1.sb_umount_state)
 #define set_sb_umount_state(sb, val)		set_le16(sb, s_v1.sb_umount_state, val)

@@ -60,14 +60,14 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     node = (reiserfs_nh40_t *)block->data;
     node->header.plugin_id = node_plugin_id;
 
-    set_nh40_level(node, 2);
-    set_nh40_magic(node, REISERFS_NODE40_MAGIC);
-    set_nh40_num_items(node, 1);
+    nh40_set_level(node, 2);
+    nh40_set_magic(node, REISERFS_NODE40_MAGIC);
+    nh40_set_num_items(node, 1);
     
-    set_nh40_free_space_start(node, sizeof(reiserfs_nh40_t) + 
+    nh40_set_free_space_start(node, sizeof(reiserfs_nh40_t) + 
 	sizeof(reiserfs_internal40_t));
     
-    set_nh40_free_space(node, block->size - sizeof(reiserfs_nh40_t) - 
+    nh40_set_free_space(node, block->size - sizeof(reiserfs_nh40_t) - 
 	sizeof(reiserfs_ih40_t) - sizeof(reiserfs_internal40_t));
 
     /* Forming internal item and body */
@@ -79,11 +79,11 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     set_key_locality(&item->key, 41);
     set_key_objectid(&item->key, 42);
     
-    set_ih40_plugin_id(item, 0x3);
-    set_ih40_length(item, sizeof(reiserfs_internal40_t));
-    set_ih40_offset(item, sizeof(reiserfs_nh40_t));
+    ih40_set_plugin_id(item, 0x3);
+    ih40_set_length(item, sizeof(reiserfs_internal40_t));
+    ih40_set_offset(item, sizeof(reiserfs_nh40_t));
     
-    internal_body = (reiserfs_internal40_t *)(block->data + get_ih40_offset(item));
+    internal_body = (reiserfs_internal40_t *)(block->data + ih40_get_offset(item));
     
     if (!(blk = reiserfs_alloc_find(fs))) {
 	aal_device_free_block(block);
@@ -110,15 +110,15 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     node = (reiserfs_nh40_t *)block->data;
     node->header.plugin_id = node_plugin_id;
 
-    set_nh40_level(node, 1);
-    set_nh40_magic(node, REISERFS_NODE40_MAGIC);
-    set_nh40_num_items(node, 2);
+    nh40_set_level(node, 1);
+    nh40_set_magic(node, REISERFS_NODE40_MAGIC);
+    nh40_set_num_items(node, 2);
     
-    set_nh40_free_space_start(node, sizeof(reiserfs_nh40_t) + 
+    nh40_set_free_space_start(node, sizeof(reiserfs_nh40_t) + 
 	sizeof(reiserfs_stat40_t) + sizeof(reiserfs_direntry40_t) + 
 	2*sizeof(reiserfs_direntry40_unit_t) + 2*sizeof(reiserfs_objid_t) + 2 + 3);
     
-    set_nh40_free_space(node, block->size - (sizeof(reiserfs_nh40_t) + 
+    nh40_set_free_space(node, block->size - (sizeof(reiserfs_nh40_t) + 
 	(2*sizeof(reiserfs_ih40_t)) + sizeof(reiserfs_stat40_t) + 
 	sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_direntry40_unit_t) + 2 + 3 + 
 	2*sizeof(reiserfs_objid_t)));
@@ -131,11 +131,11 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     set_key_locality(&item->key, 41);
     set_key_objectid(&item->key, 42);
     
-    set_ih40_plugin_id(item, 0x0);
-    set_ih40_length(item, sizeof(reiserfs_stat40_t));
-    set_ih40_offset(item, sizeof(reiserfs_nh40_t));
+    ih40_set_plugin_id(item, 0x0);
+    ih40_set_length(item, sizeof(reiserfs_stat40_t));
+    ih40_set_offset(item, sizeof(reiserfs_nh40_t));
     
-    stat_body = (reiserfs_stat40_t *)(block->data + get_ih40_offset(item));
+    stat_body = (reiserfs_stat40_t *)(block->data + ih40_get_offset(item));
     stat_body->mode = S_IFDIR | 0111;
     stat_body->extmask = 0;
     stat_body->nlink = 2;
@@ -148,14 +148,14 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     set_key_type(&item->key, KEY_FILE_NAME_MINOR);
     set_key_locality(&item->key, 42);
     
-    set_ih40_plugin_id(item, 0x2);
-    set_ih40_length(item, sizeof(reiserfs_direntry40_t) + 
+    ih40_set_plugin_id(item, 0x2);
+    ih40_set_length(item, sizeof(reiserfs_direntry40_t) + 
 	2*sizeof(reiserfs_direntry40_unit_t) + 2*sizeof(reiserfs_objid_t) + 
 	2 + 3);
     
-    set_ih40_offset(item, sizeof(reiserfs_nh40_t) + sizeof(reiserfs_stat40_t));
+    ih40_set_offset(item, sizeof(reiserfs_nh40_t) + sizeof(reiserfs_stat40_t));
     
-    direntry_body = (reiserfs_direntry40_t *)(block->data + get_ih40_offset(item));
+    direntry_body = (reiserfs_direntry40_t *)(block->data + ih40_get_offset(item));
     direntry_body->num_entries = 2;
    
     {
