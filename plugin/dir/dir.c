@@ -264,7 +264,8 @@ unlink_common(struct inode *parent /* parent object */ ,
 	if (result != 0)
 		return result;
 
-	if ((result = fplug->detach(object, parent)) == 0) {
+	result = fplug->detach(object, parent);
+	if (result == 0) {
 		dir_plugin            *parent_dplug;
 		reiser4_dir_entry_desc entry;
 
@@ -274,27 +275,30 @@ unlink_common(struct inode *parent /* parent object */ ,
 		/* first, delete directory entry */
 		result = parent_dplug->rem_entry(parent, victim, &entry);
 		if (result == 0) {
+			/*
+			 * if name was removed successfully, we _have_ to
+			 * return 0 from this function, because upper level
+			 * caller (vfs_{rmdir,unlink}) expect this.
+			 */
 			/* now that directory entry is removed, update
 			 * stat-data */
-			result = reiser4_del_nlink(object, parent, 1);
-			if (result == 0)
-				/* Upon successful completion, unlink() shall
-				   mark for update the st_ctime and st_mtime
-				   fields of the parent directory. Also, if
-				   the file's link count is not 0, the
-				   st_ctime field of the file shall be marked
-				   for update. --SUS */
-				result = reiser4_update_dir(parent);
+		        reiser4_del_nlink(object, parent, 1);
+			/* Upon successful completion, unlink() shall mark for
+			   update the st_ctime and st_mtime fields of the
+			   parent directory. Also, if the file's link count is
+			   not 0, the st_ctime field of the file shall be
+			   marked for update. --SUS */
+			reiser4_update_dir(parent);
 			/* add safe-link for this file */
-			if (result == 0 && fplug->not_linked(object))
-				result = safe_link_add(object, SAFE_UNLINK);
+			if (fplug->not_linked(object))
+				safe_link_add(object, SAFE_UNLINK);
 		}
-		if (unlikely(result != 0 && result != -ENOMEM))
-			warning("nikita-3398", "Cannot unlink %llu (%i)",
-				get_inode_oid(object), result);
 	}
 
 	if (unlikely(result != 0)) {
+		if (result != -ENOMEM)
+			warning("nikita-3398", "Cannot unlink %llu (%i)",
+				get_inode_oid(object), result);
 		/* if operation failed commit pending inode modifications to
 		 * the stat-data */
 		reiser4_update_sd(object);
