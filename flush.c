@@ -1807,7 +1807,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 				JF_CLR (node, ZNODE_FLUSH_QUEUED);
 
-				/*trace_on (TRACE_FLUSH_VERB, "flush_empty_queue writes %s\n", flush_jnode_tostring (node));*/
+				trace_on (TRACE_FLUSH_VERB, "flush_empty_queue writes %s\n", flush_jnode_tostring (node));
 
 				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
 
