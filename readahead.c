@@ -120,7 +120,9 @@ formatted_readahead(znode *node, ra_info_t *info)
 
 static inline loff_t get_max_readahead(struct reiser4_file_ra_state *ra)
 {
-	return VM_MAX_READAHEAD * 1024;
+	/* NOTE: ra->max_window_size is initialized in
+	 * reiser4_get_file_fsdata(). */
+	return ra->max_window_size;
 }
 
 static inline loff_t get_min_readahead(struct reiser4_file_ra_state *ra)
@@ -196,10 +198,16 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 			break;
 		}
 
-		result = jstartio(ZJNODE(child));
+		/* If znode's page is present that usually means that i/o was
+		 * already started for the page. */
+		if (znode_page(child) == NULL) {
+			result = jstartio(ZJNODE(child));
+			if (result) {
+				zput(child);
+				break;
+			}
+		}
 		zput(child);
-		if (result)
-			break;
 
 		/* Advance coord by one unit ... */
 		result = coord_next_unit(&coord);
@@ -209,31 +217,35 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 		/* ... and continue on the right neighbor if needed. */
 		result = reiser4_get_right_neighbor (
 			&next_lock, lock.node, ZNODE_READ_LOCK,
-			GN_CAN_USE_UPPER_LEVELS | GN_ASYNC);
+			GN_CAN_USE_UPPER_LEVELS);
 		if (result)
 			break;
+
+		if (znode_page(next_lock.node) == NULL) {
+			loff_t end_offset;
+
+			result = jstartio(ZJNODE(next_lock.node));
+			if (result)
+				break; 
+
+			read_lock_dk(tree);
+			end_offset = get_key_offset(znode_get_ld_key(next_lock.node));
+			read_unlock_dk(tree);
+
+			result = end_offset - offset;
+			break;
+		}					  
 
 		result = tap_move(&tap, &next_lock);
 		if (result)
 			break;
+
 		done_lh(&next_lock);
 		coord_init_first_unit(&coord, lock.node);
 	}
 
-	if (result) {
-		if (result == -E_REPEAT || result == -E_NO_NEIGHBOR) {
-			loff_t end_offset;
-
-			assert("zam-994", lock.node != NULL);
-
-			read_lock_dk(tree);
-			end_offset = get_key_offset(znode_get_ld_key(lock.node));
-			read_unlock_dk(tree);
-			result = end_offset - offset;
-		}
-	} else {
+	if (! result || result == -E_NO_NEIGHBOR)
 		result = size;
-	}
  error0:
 	tap_done(&tap);
  error:
@@ -242,6 +254,8 @@ static loff_t do_reiser4_file_readahead (struct inode * inode, loff_t offset, lo
 	return result;
 }
 
+typedef unsigned long long int ull_t;
+#define PRINTK(...) noop 
 /* This is derived from the linux original read-ahead code (mm/readahead.c), and
  * cannot be licensed from Namesys in its current state.  */
 int reiser4_file_readahead (struct file * file, loff_t offset, size_t size)
@@ -255,12 +269,8 @@ int reiser4_file_readahead (struct file * file, loff_t offset, size_t size)
 
 	assert ("zam-995", inode != NULL);
 
+	PRINTK ("R/A REQ: off=%llu, size=%llu\n", (ull_t)offset, (ull_t)size);
 	ra = &reiser4_get_file_fsdata(file)->ra;
-
-	if (ra->next_size == -1UL) {
-		/* disabled r/a case. */
-		goto out;
-	}
 
 	max = get_max_readahead(ra);
 	if (max == 0)
@@ -269,7 +279,8 @@ int reiser4_file_readahead (struct file * file, loff_t offset, size_t size)
 	min = get_min_readahead(ra);
 	orig_next_size = ra->next_size;
 
-	if (ra->next_size == 0 /* && offset == 0 */) {
+	if (!ra->slow_start) {
+		ra->slow_start = 1;
 		/*
 		 * Special case - first read from first page.
 		 * We'll assume it's a whole-file read, and
@@ -280,86 +291,69 @@ int reiser4_file_readahead (struct file * file, loff_t offset, size_t size)
 
 	}
 
-	if (offset >= ra->start && offset <= (ra->start + ra->size)) {
-		/*
-		 * A readahead hit.  Either inside the window, or one
-		 * page beyond the end.  Expand the next readahead size.
-		 */
-		ra->next_size += 2 * size;
-	} else {
-		/*
-		 * A miss - lseek, pagefault, pread, etc.  Shrink the readahead
-		 * window.
-		 */
-		ra->next_size -= 2 * size;
-	}
-
-	if (ra->next_size > max)
-		ra->next_size = max;
-	if (ra->next_size <= 0L) {
-		ra->next_size = -1UL;
-		ra->size = 0;
-		goto out;		/* Readahead is off */
-	}
-
 	/*
 	 * Is this request outside the current window?
 	 */
-	if (offset < ra->start || offset >= (ra->start + ra->size)) {
+	if (offset < ra->start || offset > (ra->start + ra->size)) {
+		/* R/A miss. */
+
+		/* next r/a window size is shrunk by fixed offset and enlarged
+		 * by 2 * size of read request.  This makes r/a window smaller
+		 * for small unordered requests and larger for big read
+		 * requests.  */
+		ra->next_size += -2 * PAGE_CACHE_SIZE + 2 * size ; 
+		if (ra->next_size < 0)
+			ra->next_size = 0;
 do_io:
-		/*
-		 * This is the "unusual" path.  We come here during
-		 * startup or after an lseek.  We invalidate the
-		 * ahead window and get some I/O underway for the new
-		 * current window.
-		 */
 		ra->start = offset;
-		ra->size = ra->next_size;
-		ra->ahead_start = 0;		/* Invalidate these */
-		ra->ahead_size = 0;
+		ra->size = size + orig_next_size;
 		actual = do_reiser4_file_readahead(inode, offset, ra->size);
-		if (actual > 0) {
+		if (actual > 0)
 			ra->size = actual;
-		}
+
+		ra->ahead_start = ra->start + ra->size;
+		ra->ahead_size = ra->next_size;
+
+		actual =  do_reiser4_file_readahead(inode, ra->ahead_start, ra->ahead_size);
+		if (actual > 0)
+			ra->ahead_size = actual;
+
+		PRINTK ("R/A MISS: cur = [%llu, +%llu[, ahead = [%llu, +%llu[\n",
+			(ull_t)ra->start, (ull_t)ra->size,
+			(ull_t)ra->ahead_start, (ull_t)ra->ahead_size);
 	} else {
-		/*
-		 * This read request is within the current window.  It is time
-		 * to submit I/O for the ahead window while the application is
-		 * crunching through the current window.
-		 */
-		if (ra->ahead_start == 0) {
+		/* R/A hit. */
+
+		/* Enlarge r/a window size. */
+		ra->next_size += 2 * size;
+		if (ra->next_size > max)
+			ra->next_size = max;
+
+		PRINTK("R/A HIT\n");
+		while (offset + size >= ra->ahead_start) {
+			ra->start = ra->ahead_start;
+			ra->size = ra->ahead_size;
+
 			ra->ahead_start = ra->start + ra->size;
 			ra->ahead_size = ra->next_size;
+
 			actual = do_reiser4_file_readahead(
 				inode, ra->ahead_start, ra->ahead_size);
 			if (actual > 0) {
 				ra->ahead_size = actual;
 			}
-		}
 
-		/* Have we merely advanced into the ahead window? */
-		if (offset + size >= ra->ahead_start) {
-			/*
-			 * Yes, we have.  The ahead window now becomes
-			 * the current window.
-			 */
-			ra->start = offset + size;
-			ra->size = ra->ahead_size;
-			ra->ahead_start = 0;
-			ra->ahead_size = 0;
+			PRINTK ("R/A ADVANCE: cur = [%llu, +%llu[, ahead = [%llu, +%llu[\n",
+				(ull_t)ra->start, (ull_t)ra->size,
+				(ull_t)ra->ahead_start, (ull_t)ra->ahead_size);
 
-			/*
-			 * Control now returns, probably to sleep until I/O
-			 * completes against the first ahead page.
-			 * When the second page in the old ahead window is
-			 * requested, control will return here and more I/O
-			 * will be submitted to build the new ahead window.
-			 */
 		}
 	}
+
 out:
 	return 0;
 }
+
 
 
 /*
