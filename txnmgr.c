@@ -2722,7 +2722,8 @@ sync_atom(txn_atom *atom)
 			atom_wait_event(atom);
 			/* try once more */
 			result = RETERR(-E_REPEAT);
-		}
+		} else
+			UNLOCK_ATOM(atom);
 	}
 	return result;
 }

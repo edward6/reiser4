@@ -385,6 +385,48 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	return result;
 }
 
+reiser4_internal int
+locate_inode_sd(struct inode *inode,
+		reiser4_key *key,
+		coord_t *coord,
+		lock_handle *lh)
+{
+	reiser4_inode *state;
+	seal_t seal;
+	int result;
+
+	assert("nikita-3483", inode != NULL);
+
+	state = reiser4_inode_data(inode);
+	spin_lock_inode(inode);
+	*coord = state->sd_coord;
+	coord_clear_iplug(coord);
+	seal = state->sd_seal;
+	spin_unlock_inode(inode);
+
+	build_sd_key(inode, key);
+	if (seal_is_set(&seal)) {
+		/* first, try to use seal */
+		result = seal_validate(&seal,
+				       coord,
+				       key,
+				       LEAF_LEVEL,
+				       lh,
+				       FIND_EXACT,
+				       ZNODE_WRITE_LOCK,
+				       ZNODE_LOCK_LOPRI);
+		if (result == 0)
+			check_sd_coord(coord, key);
+	} else
+		result = -E_REPEAT;
+
+	if (result != 0) {
+		coord_init_zero(coord);
+		result = lookup_sd(inode, ZNODE_WRITE_LOCK, coord, lh, key, 0);
+	}
+	return result;
+}
+
 /* Update existing stat-data in a tree. Called with inode state locked. Return
    inode state locked. */
 static int
@@ -393,49 +435,16 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 	int result;
 	reiser4_key key;
 	coord_t coord;
-	seal_t seal;
-	reiser4_inode *state;
 	lock_handle lh;
 
 	assert("nikita-726", inode != NULL);
 
 	/* no stat-data, nothing to update?! */
-	assert("nikita-726000", !inode_get_flag(inode, REISER4_NO_SD));
+	assert("nikita-3482", !inode_get_flag(inode, REISER4_NO_SD));
 
 	init_lh(&lh);
 
-	state = reiser4_inode_data(inode);
-	spin_lock_inode(inode);
-	coord = state->sd_coord;
-	coord_clear_iplug(&coord);
-	seal = state->sd_seal;
-	spin_unlock_inode(inode);
-
-	build_sd_key(inode, &key);
-	if (seal_is_set(&seal)) {
-		/* first, try to use seal */
-		result = seal_validate(&seal,
-				       &coord,
-				       &key,
-				       LEAF_LEVEL,
-				       &lh,
-				       FIND_EXACT,
-				       ZNODE_WRITE_LOCK,
-				       ZNODE_LOCK_LOPRI);
-		if (result == 0)
-			check_sd_coord(&coord, &key);
-	} else
-		result = -E_REPEAT;
-
-	if (result != 0) {
-		coord_init_zero(&coord);
-		result = lookup_sd(inode,
-				   ZNODE_WRITE_LOCK, &coord, &lh, &key, 0);
-	}
-	
-	/* we don't want to re-check that somebody didn't remove stat-data
-	   while we were doing io, because if it did, lookup_sd returned
-	   error. */
+	result = locate_inode_sd(inode, &key, &coord, &lh);
 	if (result == 0)
 		result = update_sd_at(inode, &coord, &key, &lh);
 	done_lh(&lh);

@@ -11,6 +11,8 @@
 #include <linux/fs.h>		/* for struct inode */
 #include <linux/types.h>
 
+extern int locate_inode_sd(struct inode *inode,
+			   reiser4_key *key, coord_t *coord, lock_handle *lh);
 extern int lookup_sd(struct inode *inode, znode_lock_mode lock_mode,
 		     coord_t * coord, lock_handle * lh, const reiser4_key * key,
 		     int silent);

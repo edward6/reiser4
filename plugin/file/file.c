@@ -1112,6 +1112,8 @@ sync_page(struct page *page)
 		unlock_page(page);
 		result = sync_atom(atom);
 	} while (result == -E_REPEAT);
+	assert("nikita-3485", ergo(result == 0,
+				   get_current_context()->trans->atom == NULL));
 	return result;
 }
 
@@ -1147,20 +1149,21 @@ commit_file_atoms(struct inode *inode)
 {
 	int               result;
 	unix_file_info_t *uf_info;
+	reiser4_context  *ctx;
 
 	uf_info = unix_file_inode_data(inode);
 
+	get_exclusive_access(uf_info);
 	if (inode_get_flag(inode, REISER4_PART_CONV)) {
-		get_exclusive_access(uf_info);
 		result = finish_conversion(inode);
-		drop_exclusive_access(uf_info);
-		if (result != 0)
+		if (result != 0) {
+			drop_exclusive_access(uf_info);
 			return result;
+		}
 	}
 
-	get_nonexclusive_access(uf_info);
 	result = find_file_state(uf_info);
-	drop_nonexclusive_access(uf_info);
+	drop_exclusive_access(uf_info);
 	if (result != 0)
 		return result;
 
@@ -1182,6 +1185,15 @@ commit_file_atoms(struct inode *inode)
 		result = -EIO;
 		break;
 	}
+
+	ctx = get_current_context();
+	/*
+	 * commit current transaction: there can be captured nodes from
+	 * find_file_state() and finish_conversion().
+	 */
+	result = txn_end(ctx);
+	if (result == 0)
+		txn_begin(ctx);
 	return result;
 }
 
@@ -1252,30 +1264,43 @@ sync_unix_file(struct file *file, struct dentry *dentry, int datasync)
 {
 	int result;
 	struct inode *inode;
+	reiser4_context *ctx;
 
+	ctx = get_current_context();
+	assert("nikita-3486", ctx->trans->atom == NULL);
 	inode = dentry->d_inode;
 	result = commit_file_atoms(inode);
+	assert("nikita-3484", ergo(result == 0, ctx->trans->atom == NULL));
 	if (result == 0 && !datasync) {
-		/* commit "meta-data"---stat data in our case */
-		lock_handle lh;
-		coord_t coord;
-		reiser4_key key;
+		do {
+			/* commit "meta-data"---stat data in our case */
+			lock_handle lh;
+			coord_t coord;
+			reiser4_key key;
 
-		coord_init_zero(&coord);
-		init_lh(&lh);
-		/* locate stat-data in a tree and return with znode locked */
-		result = lookup_sd(inode,
-				   ZNODE_READ_LOCK, &coord, &lh, &key, 0);
-		if (result == 0) {
-			jnode    *node;
-			txn_atom *atom;
+			coord_init_zero(&coord);
+			init_lh(&lh);
+			/* locate stat-data in a tree and return with znode
+			 * locked */
+			result = locate_inode_sd(inode, &key, &coord, &lh);
+			if (result == 0) {
+				jnode    *node;
+				txn_atom *atom;
 
-			node = ZJNODE(coord.node);
-			atom = UNDER_SPIN(jnode, node, jnode_get_atom(node));
-			done_lh(&lh);
-			result = sync_atom(atom);
-		} else
-			done_lh(&lh);
+				node = jref(ZJNODE(coord.node));
+				done_lh(&lh);
+				result = txn_end(ctx);
+				if (result >= 0) {
+					txn_begin(ctx);
+					LOCK_JNODE(node);
+					atom = jnode_get_atom(node);
+					UNLOCK_JNODE(node);
+					result = sync_atom(atom);
+					jput(node);
+				}
+			} else
+				done_lh(&lh);
+		} while (result == -E_REPEAT);
 	}
 	return result;
 }
@@ -2368,7 +2393,7 @@ reiser4_internal int prepare_write_unix_file(struct file *file, struct page *pag
 	int ret;
 
 	uf_info = unix_file_inode_data(file->f_dentry->d_inode);
-	get_nonexclusive_access(uf_info);
+	get_exclusive_access(uf_info);
 	ret = find_file_state(uf_info);
 	if (ret == 0) {
 		if (uf_info->container == UF_CONTAINER_TAILS)
@@ -2376,7 +2401,7 @@ reiser4_internal int prepare_write_unix_file(struct file *file, struct page *pag
 		else
 			ret = prepare_write_common(file, page, from, to);
 	}
-	drop_nonexclusive_access(uf_info);
+	drop_exclusive_access(uf_info);
 	return ret;
 }
 
