@@ -2574,8 +2574,8 @@ enqueue_unformatted(jnode * node, flush_pos_t * pos)
 	if (atom) {
 		if (JF_ISSET(node, JNODE_DIRTY))
 			queue_jnode(pos->fq, node);
-
 		spin_unlock_atom(atom);
+		++ pos->alloc_cnt;
 	}
 
 	UNLOCK_JNODE(node);
