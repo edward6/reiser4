@@ -193,11 +193,11 @@ int flush_jnode_slum (jnode *node)
  * locked (and referenced), unless the node is unformatted, in which case only
  * a reference is returned.
  */
-static int slum_lock_greatest_dirty_ancestor (jnode *start_node, reiser4_lock_handle *start_lock UNUSED_ARG, jnode **gda, reiser4_lock_handle *gda_lock)
+static int slum_lock_greatest_dirty_ancestor (jnode *start_node, reiser4_lock_handle *start_lock, jnode **gda, reiser4_lock_handle *gda_lock)
 {
 	int ret;
-	int relocate_child;
 	jnode *end_node;
+	znode *parent_node;
 	reiser4_lock_handle end_lock;
 	reiser4_lock_handle parent_lock;
 	slum_scan           level_scan;
@@ -211,26 +211,22 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node, reiser4_lock_ha
 		goto failure;
 	}
 
-	/* FIXME FIXME FIXME: locking needs work here. */
 	end_node = level_scan.node;
 
-	/* Need to lock the child before we can lock the parent.  (FIXME:)
-	 * This is seen as not-quite-necessary, but we do it anyway since
-	 * there are assertions to that effect in reiser4_get_parent. */
-	if (end_node != start_node &&
-	    jnode_is_formatted (end_node) && 
-	    (ret = reiser4_lock_znode (& end_lock, JZNODE (end_node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
-		goto failure;
+	/* If end_node is not the same as start node, we can release
+	 * start_lock and try to get end_lock.  Need to lock the child before
+	 * we can lock the parent.  (FIXME:) This is seen as
+	 * not-quite-necessary, but we do it anyway since there are assertions
+	 * to that effect in reiser4_get_parent. */
+	if (end_node != start_node) {
+
+		reiser4_done_lh (start_lock);
+		
+		if (jnode_is_formatted (end_node) &&
+		    (ret = reiser4_lock_znode (& end_lock, JZNODE (end_node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+			goto failure;
+		}
 	}
-
-	/* Actual relocation policy will be:
-	 *
-	 *   (leftmost_of_parent && (is_leaf || leftmost_child_is_relocated))
-	 *
-	 * or so I think, at least. */
-#define flush_should_relocate(x) 1
-
-	relocate_child = flush_should_relocate (end_node);
 
 	/* We're at the end of a level slum, read lock the parent.  Don't need
 	 * a write-lock yet because we do not start squeezing until the
@@ -244,16 +240,32 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node, reiser4_lock_ha
 		goto failure;
 	}
 
-	/* If relocating, artificially dirty the parent right now. */
-	if (relocate_child) {
-		znode_set_dirty (parent_lock.node);
+	parent_node = parent_lock.node;
+
+	/* Actual relocation policy will be:
+	 *
+	 *   (leftmost_of_parent && (is_leaf || leftmost_child_is_relocated))
+	 *
+	 * or so I think, at least. */
+#define flush_should_relocate(x) 1
+
+	/* If relocating the child, artificially dirty the parent right now. */
+	if (flush_should_relocate (end_node)) {
+		znode_set_dirty (parent_node);
 	}
 
 	/* If the parent is dirty, it needs to be squeezed also, recurse upwards */
-	if (znode_is_dirty (parent_lock.node)) {
+	if (znode_is_dirty (parent_node)) {
 
+		/* Release lock at this level before going upward. Only one of
+		 * these two is actually locked, since if the two nodes are
+		 * different start_lock was released before end_lock was
+		 * aquired. */
+		reiser4_done_lh (start_lock);
+		reiser4_done_lh (& end_lock);
+ 
 		/* Recurse upwards. */
-		if ((ret = slum_lock_greatest_dirty_ancestor (ZJNODE (parent_lock.node), & parent_lock, gda, gda_lock))) {
+		if ((ret = slum_lock_greatest_dirty_ancestor (ZJNODE (parent_node), & parent_lock, gda, gda_lock))) {
 			goto failure;
 		}
 
@@ -261,17 +273,16 @@ static int slum_lock_greatest_dirty_ancestor (jnode *start_node, reiser4_lock_ha
 		/* End the recursion, get a write lock at the highest level. */
 		(*gda) = jref (end_node);
 
-		/* FIXME: This doesn't work because we're holding a read lock,
-		 * can't write lock I think. */
+		/* Release any locks we might hold first, they are all read
+		 * locks on this level, and parent lock is not needed.  */
+		reiser4_done_lh (start_lock);
+		reiser4_done_lh (& end_lock);
+		reiser4_done_lh (& parent_lock);
 
-		if (jnode_is_formatted (end_node)) {
-
-			jref (end_node);
+		if (jnode_is_formatted (end_node) &&
+		    (ret = reiser4_lock_znode (gda_lock, JZNODE (end_node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
 			jput (end_node);
-			
-			if ((ret = reiser4_lock_znode (gda_lock, JZNODE (end_node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
-				goto failure;
-			}
+			goto failure;
 		}
 	}
 
@@ -446,8 +457,9 @@ static int cut_copied (tree_coord * to, reiser4_key * to_key)
 }
 
 /*
- * FIXME-VS: this assumes that twig level may contain only items of internal or
- * extent type
+ * copy as much of the leading extents from the right to left, returning
+ * SQUEEZE_DONE when no more can be shifted.  If the next item is an internal
+ * item it calls shift_one_internal_unit and may then return SUBTREE_MOVED.
  */
 static int squalloc_twig (znode    *left,
 			  znode    *right,
@@ -456,10 +468,14 @@ static int squalloc_twig (znode    *left,
 	int ret;
 	tree_coord coord;
 	reiser4_key stop_key;
+	int shift_done = 0;
+	int shift_some = 0;
+
+	assert ("jmacd-2008", ! node_is_empty (right));
 
 	coord_first_unit (&coord, right);
 
-	while (coord_next_item (&coord) && item_is_extent (&coord)) {
+	while (item_is_extent (&coord)) {
 
 		if ((ret = allocate_and_copy_extent (left, &coord, preceder, &stop_key)) < 0) {
 			return ret;
@@ -469,24 +485,41 @@ static int squalloc_twig (znode    *left,
 			/*
 			 * could not complete with current extent item
 			 */
+			shift_done = 1;
+			break;
+		}
+
+		shift_some = 1;
+
+		assert ("jmacd-2009", ret == SQUEEZE_CONTINUE);
+
+		if (! coord_next_item (&coord)) {
 			break;
 		}
 	}
 
-	/*
-	 * @coord is set to first unit which does not have to be cut or after
-	 * last item in the node.  If we are positioned at the coord of a
-	 * unit, it means the allocate_and_copy_extent processing stops in the
-	 * middle of an extent item, the last unit of which was not copied.
-	 * Cut everything before that point.
-	 */
-	if (coord_of_unit (& coord)) {
-		coord_prev_unit (& coord);
+	if (shift_some) {
+		/*
+		 * @coord is set to first unit which does not have to be cut or after
+		 * last item in the node.  If we are positioned at the coord of a
+		 * unit, it means the allocate_and_copy_extent processing stops in the
+		 * middle of an extent item, the last unit of which was not copied.
+		 * Cut everything before that point.
+		 */
+		if (coord_of_unit (& coord)) {
+			coord_prev_unit (& coord);
+		}
+		
+		if ((ret = cut_copied (&coord, &stop_key))) {
+			return ret;
+		}
 	}
 
-	if ((ret = cut_copied (&coord, &stop_key))) {
-		return ret;
+	if (shift_done) {
+		return SQUEEZE_DONE;
 	}
+
+	assert ("jmacd-2007", (coord_first_unit (& coord, right), item_is_internal (& coord)));
 	
 	return shift_one_internal_unit (left, right);
 }

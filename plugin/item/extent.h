@@ -21,10 +21,7 @@ typedef struct {
 #define extent_by_coord(coord) (extent_item (coord) + (coord)->unit_pos)
 #define width_by_coord(coord) extent_width (extent_by_coord(coord))
 
-
-#define item_is_extent(item) \
-(item_plugin_id (item_plugin_by_coord (item)) == EXTENT_ITEM_ID)
-
+/* FIXME: hmm */
 #define extent_item_is_dirty(item) 1
 
 

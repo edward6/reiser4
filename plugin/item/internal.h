@@ -47,9 +47,6 @@ extern int internal_shift_hook    ( const tree_coord *item,
 				    znode *old_node );
 extern void internal_print        ( const char *prefix, tree_coord *coord );
 
-#define item_is_internal(coord) \
-(item_plugin_id (item_plugin_by_coord (coord)) == INTERNAL_ITEM_ID)
-
 /* __FS_REISER4_PLUGIN_ITEM_INTERNAL_H__ */
 #endif
 
