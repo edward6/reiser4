@@ -164,6 +164,7 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 
     data->profile = progs_profile_default();
     fsck_init_streams(data);
+    aal_exception_set_handler(progs_exception_handler);
 
     if (argc < 2) {
 	fsck_print_usage();
@@ -268,7 +269,7 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
     {
 	aal_exception_fatal("Cannot open the partition (%s): %s.\n", argv[optind], 
 	    strerror(errno));
-	return OPERATION_ERROR;
+	return OPER_ERROR;
     }
      
     return fsck_ask_confirmation(data, argv[optind]);
@@ -284,7 +285,7 @@ int fsck_check_fs(reiser4_fs_t *fs) {
     
     if (repair_fs_check(fs)) {
 	aal_exception_fatal("Filesystem check failed. File system needs to be rebuild.\n");
-	return OPERATION_ERROR;
+	return OPER_ERROR;
     }
 
     fprintf(stderr, "###########\nreiserfsck --check finished at %s###########\n", 
@@ -296,7 +297,7 @@ int fsck_rebuild_fs(reiser4_fs_t *fs) {
 
     if (repair_fs_sync(fs)) {
 	aal_exception_fatal("Cannot synchronize the filesystem.\n");
-	return OPERATION_ERROR;
+	return OPER_ERROR;
     }
 
     return NO_ERROR;
@@ -315,7 +316,7 @@ int main(int argc, char *argv[]) {
 
     if (libreiser4_init(0)) {
 	aal_exception_fatal("Cannot initialize the libreiser4.\n");
-	exit(OPERATION_ERROR);
+	exit(OPER_ERROR);
     }
    
     if (((exit_code = fsck_init(&data, argc, argv)) != NO_ERROR)) 

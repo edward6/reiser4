@@ -18,11 +18,7 @@
 #include <time.h>
 
 #include <comm/misc.h>
-
-#include <misc/version.h>
 #include <misc/misc.h>
-#include <misc/exception.h>
-#include <misc/profile.h>
 
 #include <repair/librepair.h>
 #include <reiser4/reiser4.h>

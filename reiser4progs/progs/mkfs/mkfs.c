@@ -25,8 +25,6 @@
 
 #include <comm/misc.h>
 #include <misc/misc.h>
-#include <misc/exception.h>
-#include <misc/profile.h>
 
 static void mkfs_print_usage(void) {
     fprintf(stderr, "Usage: mkfs.reiser4 [ options ] FILE1 FILE2 ... [ size[K|M|G] ]\n");
@@ -54,6 +52,8 @@ static void mkfs_init(void) {
     /* Setting up exception streams*/
     for (i = 0; i < 5; i++)
 	progs_exception_set_stream(i, stderr);
+	
+    aal_exception_set_handler(progs_exception_handler);
 }
 
 /* Crates lost+found directory */
@@ -380,6 +380,6 @@ error_free_device:
 error_free_libreiser4:
     libreiser4_done();
 error:
-    return OPERATION_ERROR;
+    return OPER_ERROR;
 }
 

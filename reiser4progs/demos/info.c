@@ -17,7 +17,6 @@
 #include <reiser4/reiser4.h>
 
 #include <misc/misc.h>
-#include <misc/exception.h>
 
 static void info_print_usage(void) {
     fprintf(stderr, "Usage: info FILE\n");
@@ -71,6 +70,8 @@ int main(int argc, char *argv[]) {
 	info_print_usage();
 	return 0xfe;
     }
+    
+    aal_exception_set_handler(progs_exception_handler);
     
     if (libreiser4_init(0)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,

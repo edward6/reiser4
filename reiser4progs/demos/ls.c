@@ -17,7 +17,6 @@
 #include <reiser4/reiser4.h>
 
 #include <misc/misc.h>
-#include <misc/exception.h>
 
 static void ls_print_usage(void) {
     fprintf(stderr, "Usage: ls FILE DIR\n");
@@ -27,6 +26,8 @@ static void ls_init(void) {
     int i;
     for (i = 0; i < 5; i++)
 	progs_exception_set_stream(i, stderr);
+
+    aal_exception_set_handler(progs_exception_handler);
 }
 
 static reiser4_node_t *__node_open(aal_block_t *block, void *data) {
