@@ -131,15 +131,31 @@ typedef struct reiser4_dentry_fsdata {
  *
  * This is allocated dynamically and released in reiser4_release()
  */
-typedef struct reiser4_file_fsdata {
-	/**
-	 * last 64 bits of key, used by ->readdir()
+typedef union reiser4_file_fsdata {
+	/*
+	 * not clear what to do with objects that have both body and index. I
+	 * am hesitating to add so much to each struct file as duplicating of
+	 * all that stuff would require.
 	 */
-	__u64 readdir_offset;
-	/**
-	 * how many entries with identical keys to skip on the next readdir()
-	 */
-	__u64 skip;
+	struct {
+		/**
+		 * last 64 bits of key, used by ->readdir()
+		 */
+		__u64 readdir_offset;
+		/**
+		 * how many entries with identical keys to skip on the next
+		 * readdir()
+		 */
+		__u64 skip;
+	} dir;
+	struct {
+		/*
+		 * store a seal for last accessed piece of meta-data: either
+		 * tail or extent item. This can be used to avoid tree
+		 * traversals.
+		 */
+		seal_t last_access;
+	} reg;
 } reiser4_file_fsdata;
 
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry );

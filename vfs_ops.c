@@ -517,7 +517,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 			arg.dirent   = dirent;
 			arg.filldir  = filldir;
 			arg.dir      = f;
-			arg.skip     = reiser4_get_file_fsdata( f ) -> skip;
+			arg.skip     = reiser4_get_file_fsdata( f ) -> dir.skip;
 			arg.skipped  = 0;
 
 			result = iterate_tree
@@ -533,8 +533,8 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 			f -> f_version = inode -> i_version;
 			f -> f_pos = get_key_objectid( &arg.key );
 			fsdata = reiser4_get_file_fsdata( f );
-			fsdata -> readdir_offset = get_key_offset( &arg.key );
-			fsdata -> skip = arg.skip;
+			fsdata -> dir.readdir_offset = get_key_offset( &arg.key );
+			fsdata -> dir.skip = arg.skip;
 		}
 	}
 

@@ -58,7 +58,7 @@ int build_readdir_key( struct file *dir /* directory being read */,
 	if( IS_ERR( fdata ) )
 		return PTR_ERR( fdata );
 	assert( "nikita-1364", fdata != NULL );
-	set_key_offset( result, fdata -> readdir_offset );
+	set_key_offset( result, fdata -> dir.readdir_offset );
 	return 0;
 }
 
