@@ -355,20 +355,21 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 {
 	int result;
 	coord_t *coord;
+	lock_handle *lh;
 
 	assert("nikita-3030", schedulable());
 
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_inc(file.find_file_item);
-
-	init_lh(hint->coord.lh);
+       
 	coord = &hint->coord.base_coord;
+	lh = hint->coord.lh;
+	init_lh(lh);
 	if (hint) {
 		result = hint_validate(hint, key, 1/*check key*/, lock_mode);
 		if (!result) {
-			/*coord_clear_iplug(coord);*/
 			if (coord->between == AFTER_UNIT && equal_to_rdk(coord->node, key)) {
-				result = goto_right_neighbor(coord, hint->coord.lh);
+				result = goto_right_neighbor(coord, lh);
 				if (result == -E_NO_NEIGHBOR)
 					return RETERR(-EIO);
 				if (result)
@@ -391,7 +392,7 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 	reiser4_stat_inc(file.find_file_item_via_cbk);
 	
 	coord_init_zero(coord);
-	result = coord_by_key(current_tree, key, coord, hint->coord.lh, lock_mode, FIND_MAX_NOT_MORE_THAN,
+	result = coord_by_key(current_tree, key, coord, lh, lock_mode, FIND_MAX_NOT_MORE_THAN,
 			      TWIG_LEVEL, LEAF_LEVEL, cbk_flags, ra_info);
 	if (result == CBK_COORD_FOUND || result == CBK_COORD_NOTFOUND)
 		set_file_state(uf_info, result, znode_get_level(coord->node));
@@ -492,7 +493,7 @@ int reserve_cut_iteration(reiser4_tree *tree, const char * message)
 /* cut file items one by one starting from the last one until new file size (inode->i_size) is reached. Reserve space
    and update file stat data on every single cut from the tree */
 static int
-cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
+cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size)
 {
 	reiser4_key from_key, to_key;
 	reiser4_key smallest_removed;
@@ -501,7 +502,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 	assert("vs-1248", inode_file_plugin(inode)->key_by_inode == key_by_inode_unix_file);
 	key_by_inode_unix_file(inode, new_size, &from_key);
 	to_key = from_key;
-	set_key_offset(&to_key, get_key_offset(max_key()));
+	set_key_offset(&to_key, cur_size - 1/*get_key_offset(max_key())*/);
 
 	while (1) {
 		result = reserve_cut_iteration(tree_by_inode(inode), __FUNCTION__);
@@ -541,7 +542,7 @@ int unix_file_writepage_nolock(struct page *page);
 
 /* part of unix_file_truncate: it is called when truncate is used to make file shorter */
 static int
-shorten_file(struct inode *inode, loff_t new_size, int update_sd)
+shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size)
 {
 	int result;
 	struct page *page;
@@ -553,7 +554,7 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd)
 
 	/* all items of ordinary reiser4 file are grouped together. That is why we can use cut_tree. Plan B files (for
 	   instance) can not be truncated that simply */
-	result = cut_file_items(inode, new_size, update_sd);
+	result = cut_file_items(inode, new_size, update_sd, cur_size);
 	if (result)
 		return result;
 
@@ -672,7 +673,10 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 	if (!result) {
 		if (new_size != cur_size) {
 			INODE_SET_FIELD(inode, i_size, cur_size);
-			result = (cur_size < new_size) ? append_hole(unix_file_inode_data(inode), new_size) : shorten_file(inode, new_size, update_sd);
+			if (cur_size < new_size)
+				result = append_hole(unix_file_inode_data(inode), new_size);
+			else
+				result = shorten_file(inode, new_size, update_sd, cur_size);
 		} else {
 			/* when file is built of extens - find_file_size can only calculate old file size up to page
 			 * size. Case of not changing file size is detected in unix_file_setattr, therefore here we have
@@ -752,7 +756,7 @@ unset_hint(hint_t *hint)
 
 /* coord must be set properly. So, that set_hint has nothing to do */
 void
-set_hint(hint_t *hint, const reiser4_key *key)
+set_hint(hint_t *hint, const reiser4_key *key, znode_lock_mode mode)
 {
 	ON_DEBUG(coord_t *coord = &hint->coord.base_coord);
 	assert("vs-1207", WITH_DATA(coord->node, check_coord(coord, key)));
@@ -760,6 +764,7 @@ set_hint(hint_t *hint, const reiser4_key *key)
 	seal_init(&hint->seal, &hint->coord.base_coord, key);
 	hint->offset = get_key_offset(key);
 	hint->level = znode_get_level(hint->coord.base_coord.node);
+	hint->mode = mode;
 }
 
 int
@@ -782,27 +787,18 @@ static int all_but_offset_key_eq(const reiser4_key *k1, const reiser4_key *k2)
 int
 hint_validate(hint_t *hint, const reiser4_key *key, int check_key, znode_lock_mode lock_mode)
 {
-	int result;
-	coord_t *coord;
-	
-	if (!hint || !hint_is_set(hint))
-		/* hint either not set or set for different key */
+	if (!hint || !hint_is_set(hint) || hint->mode != lock_mode)
+		/* hint either not set or set by different operation */
 		return RETERR(-E_REPEAT);
 
 	assert("vs-1277", all_but_offset_key_eq(key, &hint->seal.key));
 	
 	if (check_key && get_key_offset(key) != hint->offset)
+		/* hint is set for different key */
 		return RETERR(-E_REPEAT);
 
-	coord = &hint->coord.base_coord;
-
-	/* FIXME: measure effect of this */
-	/*invalidate_extended_coord(&hint->coord);*/
-
-	result = seal_validate(&hint->seal, coord, key,
-			       hint->level, hint->coord.lh, FIND_MAX_NOT_MORE_THAN, lock_mode, ZNODE_LOCK_LOPRI);
-	/* FIXME: validate is possible only on zloaded node */
-	return result;
+	return seal_validate(&hint->seal, &hint->coord.base_coord, key,
+			     hint->level, hint->coord.lh, FIND_MAX_NOT_MORE_THAN, lock_mode, ZNODE_LOCK_LOPRI);
 }
 
 /* nolock means: do not get EA or NEA on a file the page belongs to (it is obtained already either in
@@ -1118,7 +1114,6 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 	int result;
 	struct inode *inode;
 	flow_t f;
-
 	lock_handle lh;
 	hint_t hint;
 	coord_t *coord;
@@ -1219,6 +1214,7 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 		}
 
 		coord_clear_iplug(coord);
+		hint.coord.valid = 0;
 		result = zload_ra(coord->node, &ra_info);
 		if (unlikely(result)) {
 			longterm_unlock_znode(&lh);
@@ -1231,11 +1227,7 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 			read_f = item_plugin_by_coord(coord)->s.file.read;
 		result = read_f(file, &f, &hint);
 		zrelse(coord->node);
-		if (result == 0 && hint.coord.valid)
-			set_hint(&hint, &f.key);
-		else
-			unset_hint(&hint);
-		longterm_unlock_znode(&lh);
+		done_lh(&lh);
 		if (result == -E_REPEAT) {
 			printk("zam-830: unix_file_read: key was not found in item, repeat search\n");
 			unset_hint(&hint);
