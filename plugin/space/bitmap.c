@@ -459,17 +459,8 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 	if (ret == 0) {		
 		/* node has been loaded by this jload call  */
-
-		/* commit bitmap is initialized by on-disk bitmap content
-		 * (working bitmap in this context) */
-
-		/*
-		 * FIXME:NIKITA->ZAM this copies commit bitmap into working
-		 * bitmap, but comment says visa versa.
-		 */
-		xmemcpy(bnode_working_data(bnode), 
-			bnode_commit_data(bnode), 
-			super->s_blocksize);
+		/* working bitmap is initialized by on-disk commit bitmap */
+		xmemcpy(bnode_working_data(bnode), bnode_commit_data(bnode), super->s_blocksize);
 	}
 
 	return 0;
