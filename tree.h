@@ -531,7 +531,7 @@ reiser4_block_nr estimate_insert_flow(tree_level);
 reiser4_block_nr estimate_one_item_removal(reiser4_tree *);
 reiser4_block_nr calc_estimate_one_insert(tree_level);
 reiser4_block_nr estimate_disk_cluster(struct inode *);
-reiser4_block_nr estimate_insert_cluster(struct inode *);
+reiser4_block_nr estimate_insert_cluster(struct inode *, int);
 
 /* take read or write tree lock, depending on @takeread argument */
 #define XLOCK_TREE(tree, takeread)				\
