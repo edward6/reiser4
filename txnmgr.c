@@ -995,7 +995,7 @@ static int current_atom_complete_writes (void)
 	return current_atom_finish_all_fq();
 }
 
-#define TOOMANYFLUSHES (1)
+#define TOOMANYFLUSHES (1000)
 
 /* Called with the atom locked and no open "active" transaction handlers except
    ours, this function calls flush_current_atom() until all dirty nodes are
