@@ -566,7 +566,7 @@ int extent_kill_item_hook (const coord_t * coord, unsigned from,
  * possible check of the consistency of the item that the inventor can
  * construct 
  */
-int extent_check (coord_t *coord /* coord of item to check */, 
+int extent_check (const coord_t *coord /* coord of item to check */, 
 		  const char **error /* where to store error message */)
 {
  	reiser4_extent * ext, * first;
@@ -871,7 +871,7 @@ reiser4_key * extent_unit_key (const coord_t * coord, reiser4_key * key)
  * union union-able extents and cut an item correspondingly
  */
 /* Audited by: green(2002.06.13) */
-static void optimize_extent (coord_t * item)
+static void optimize_extent (const coord_t * item)
 {
 	unsigned i, old_num, new_num;
 	reiser4_extent * cur, * new_cur, * start;
@@ -922,7 +922,7 @@ static void optimize_extent (coord_t * item)
 		}
 
 		/*
-		 * FIXME-VS: this is not necessary if 
+		 * FIXME-VS: this is not necessary if new_cur == cur
 		 */
 		*new_cur = *cur;
 		new_cur_width = cur_width;
@@ -962,7 +962,7 @@ static void optimize_extent (coord_t * item)
 	}
 }
 
-
+#if 0
 /* @coord is set to extent after which new extent(s) (@data) have to be
    inserted. Attempt to union adjacent extents is made. So, resulting item may
    be longer, shorter or of the same length as initial item */
@@ -1122,7 +1122,7 @@ static int add_extents (coord_t * coord,
 		return cut_node (&from, &to, 0, 0, 0, 0/*flags*/, 0);
 	}
 }
-
+#endif
 
 /*
  * position within extent pointed to by @coord to block containing given offset
@@ -1249,12 +1249,14 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 		/* we have to append one extent because last extent either not
 		   unallocated extent or is full */
 		set_extent (&new_ext, UNALLOCATED_EXTENT, 1ull);
-		result = add_extents (coord, lh, key,
-				      init_new_extent (&unit, &new_ext, 1));
+		result = insert_into_item (coord, lh, key,
+					   init_new_extent (&unit, &new_ext, 1),
+					   0/* flags */);
 		if (result) {
 			reiser4_release_grabbed_space((__u64)1);
 			return result;
 		}
+#if 0
 		/* it is possible that coord is moved to newly allocated
 		 * node. If so - coord->node can be not loaded now */
 		result = zload (coord->node);
@@ -1268,6 +1270,7 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 		coord->unit_pos = coord_last_unit_pos (coord);
 		zrelse (coord->node);
 		coord->between = AFTER_UNIT;
+#endif
 		break;
 	}
 
@@ -1343,10 +1346,17 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 	tap_init (&watch, &coord_after, &lh_after, ZNODE_WRITE_LOCK);
 	tap_monitor (&watch);
 
-	ret = add_extents (coord, lh, &key, init_new_extent (&item, new_exts, count));
-	if (!ret)
+	/* put new extent or extent into item */
+	ret = insert_into_item (coord, lh, &key,
+				init_new_extent (&item, new_exts, count),
+				0/*flags*/);
+	/*ret = add_extents (coord, lh, &key, init_new_extent (&item, new_exts, count));*/
+	if (!ret) {
+		/* FIXME-VS: we might also try to optimize @coord */
 		set_extent (extent_by_coord (&coord_after), 
 			    state_after, width_after);
+		optimize_extent (&coord_after);
+	}
 	tap_done (&watch);
 	return ret;
 }
@@ -1701,21 +1711,14 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 	reiser4_block_nr hole_width;
 	int result;
 	reiser4_item_data item;
-	reiser4_key last_key;
-	znode * loaded;
+	reiser4_key hole_key;
 
 
-	loaded = coord->node;
-	result = zload (loaded);
-	if (result) {
-		return result;
-	}
+	assert ("vs-953", znode_is_loaded (coord->node));
 
 	if (todo == EXTENT_CREATE_HOLE) {
 		/* there are no items of this file yet. First item will be
 		   hole extent inserted here */
-		reiser4_key hole_key;
-
 		assert ("vs-707", znode_get_level (coord->node) == LEAF_LEVEL);
 
 		/* @coord must be set for inserting of new item */
@@ -1732,47 +1735,45 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 		/* compose body of hole extent */
 		set_extent (&new_ext, HOLE_EXTENT, hole_width);
 
-		/* prepare item data for insertion */
-		init_new_extent (&item, &new_ext, 1);
-		result = insert_extent_by_coord (coord, &item, &hole_key, lh);
-		zrelse (loaded);
-		return result;
+		return insert_extent_by_coord (coord,
+					       init_new_extent (&item,
+								&new_ext, 1),
+					       &hole_key, lh);
 	}
 
-	/* last item of file must be appended with hole */
+	/* last item of file may have to be appended with hole */
 	assert ("vs-708", znode_get_level (coord->node) == TWIG_LEVEL);
 	assert ("vs-714", item_id_by_coord (coord) == EXTENT_POINTER_ID);
 
 	/* make sure we are at proper item */
-	assert ("vs-918", keylt (key, extent_max_key_inside (coord, &last_key)));
-
-	/* it is possible that no changes are required to do hole append */
-	assert ("vs-29",
-		(last_key_in_extent (coord, &last_key),
-		 set_key_offset (&last_key, get_key_offset (&last_key) - current_blocksize),
-		 keygt (key, &last_key)));
-
-
-	/* coord may be set to existing unit. Set coord after last unit */
-	coord_init_after_item_end (coord);
-
-	hole_off = get_key_offset (last_key_in_extent(coord, &last_key));
-	hole_width = ((get_key_offset (key) - hole_off + current_blocksize - 1) >>
-		      current_blocksize_bits);
-	if (hole_width == 0) {
-		zrelse (loaded);
+	assert ("vs-918", keylt (key, extent_max_key_inside (coord, &hole_key)));
+	
+	/* key of first byte which is not addressed by this extent */
+	last_key_in_extent (coord, &hole_key);
+	hole_off = get_key_offset (&hole_key);
+	if (hole_off + current_blocksize > get_key_offset (key)) {
+		/* hole size is not big enough to require adding of hole extent
+		 * explicitly */
+		info ("No hole creation is required\n");
 		return 0;
 	}
-	assert ("vs-709", hole_width > 0);
+
+	/* set coord after last unit */
+	coord_init_after_item_end (coord);
+
+	hole_width = ((get_key_offset (key) - hole_off + current_blocksize - 1) >>
+		      current_blocksize_bits);
+	assert ("vs-954", hole_width > 0);
 
 	/* get last extent in the item */
 	ext = extent_by_coord (coord);
 	if (state_of_extent (ext) == HOLE_EXTENT) {
 		/* last extent of a file is hole extent. Widen that extent by
-		 * @hole_width blocks */
+		 * @hole_width blocks. Note that we do not worry about
+		 * overflowing - extent width is 64 bits */
 		set_extent (ext, HOLE_EXTENT,
 			    extent_get_width (ext) + hole_width);
-		zrelse (loaded);
+		znode_set_dirty (coord->node);
 		return 0;
 	}
 
@@ -1783,13 +1784,9 @@ static int add_hole (coord_t * coord, lock_handle * lh,
 	/* compose body of hole extent */
 	set_extent (&new_ext, HOLE_EXTENT, hole_width);
 
-	/* prepare item data for insertion */
-	init_new_extent (&item, &new_ext, 1);
-	result = add_extents (coord, lh,
-			      last_key_in_extent (coord, &last_key),
-			      &item);
-	zrelse (loaded);
-	return result;
+	return insert_into_item (coord, lh, &hole_key,
+				 init_new_extent (&item, &new_ext, 1),
+				 0/*flags*/);
 }
 
 
