@@ -90,6 +90,7 @@ static struct subsystem subsys = {
 
 int reiser4_sysfs_init(struct super_block *super)
 {
+#if 0
 	reiser4_super_info_data *info;
 	struct kobject *kobj;
 
@@ -101,21 +102,34 @@ int reiser4_sysfs_init(struct super_block *super)
 	snprintf(kobj->name, KOBJ_NAME_LEN, "%s", 
 		 kdevname(to_kdev_t(super->s_dev)));
 	return kobject_register(kobj);
+#else
+	return 0;
+#endif
 }
 
 void reiser4_sysfs_done(struct super_block *super)
 {
+#if 0
 	kobject_unregister(&get_super_private(super)->kobj);
+#endif
 }
 
 int reiser4_sysfs_init_all(void)
 {
+#if 0
 	return fs_subsys_register(&subsys);
+#else
+	return 0;
+#endif
 }
 
 void reiser4_sysfs_done_all(void)
 {
+#if 0
 	return fs_subsys_unregister(&subsys);
+#else
+	return 0;
+#endif
 }
 
 /* Make Linus happy.
