@@ -2668,9 +2668,6 @@ jnode_lock_parent_coord(jnode         * node,
 		   Generate a key for the appropriate entry,
 		   search in the tree using coord_by_key, which handles
 		   locking for us. */
-		/* It may happen that inode doesn't exist at this point,
-		   because all pages for jnodes from unallocated extent were
-		   eflushed and inode was evicted. */
 		struct inode *ino = jnode_mapping(node)->host;
 		reiser4_key key;
 		file_plugin *fplug = inode_file_plugin(ino);
