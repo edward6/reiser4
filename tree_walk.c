@@ -494,7 +494,12 @@ static int renew_neighbor (coord_t * coord, znode * node, tree_level level, int 
 		longterm_unlock_znode(&empty[nr_locked]);
 	}
 
-	if (neighbor != NULL) zput(neighbor);
+	if (neighbor != NULL) 
+		/*
+		 * decrement znode reference counter without actually
+		 * releasing it.
+		 */
+		atomic_dec(&ZJNODE(neighbor)->x_count);
 
 	return ret;
 }

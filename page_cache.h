@@ -29,6 +29,8 @@ extern void *xmemset( void *s, int c, size_t n );
 #define xmemset( s, c, n ) memset( ( s ), ( c ), ( n ) )
 #endif
 
+#define jprivate( page ) ( ( jnode * ) ( page ) -> private )
+
 extern int page_io( struct page *page, jnode *node, int rw, int gfp );
 extern int page_common_writeback( struct page *page, 
 				  struct writeback_control *wbc, 
@@ -42,7 +44,8 @@ static int never_ever_ ## op ( void )						\
 	return -EIO;								\
 }
 
-extern void set_page_clean_nolock (struct page *);
+extern void set_page_clean_nolock( struct page * );
+extern void drop_page( struct page *page, jnode *node );
 
 #if REISER4_DEBUG_OUTPUT
 extern void print_page( const char *prefix, struct page *page );

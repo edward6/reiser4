@@ -695,6 +695,27 @@ void set_page_clean_nolock (struct page * pg)
 } 
 
 
+/**
+ * called just before page is released (no longer used by reiser4). Callers:
+ * jdelete() and extent2tail().
+ */
+void drop_page( struct page *page, jnode *node )
+{
+	assert( "nikita-2181", PageLocked( page ) );
+	clear_page_dirty( page );
+	ClearPageUptodate( page );
+	remove_from_page_cache( page );
+
+	if( node != NULL )
+		page_clear_jnode( page, node );
+	unlock_page( page );
+	/*
+	 * page removed from the mapping---decrement page counter
+	 */
+	page_cache_release( page );
+}
+
+
 #if REISER4_DEBUG_OUTPUT
 
 #define page_flag_name( page, flag )			\

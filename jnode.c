@@ -147,8 +147,6 @@ jnode_init (jnode *node)
 #endif
 }
 
-#define jprivate( page ) ( ( jnode * ) ( page ) -> private )
-
 /* return already existing jnode of page */
 jnode* 
 jnode_by_page (struct page* pg)
@@ -736,7 +734,7 @@ int jnode_try_drop( jnode *node )
 	/*
 	 * FIXME-NIKITA znode releasing is not yet fully supported
 	 */
-	result = jnode_is_znode( node ) || jplug -> is_busy( node );
+	result = jplug -> is_busy( node );
 	spin_unlock_jnode( node );
 	if( result == 0 )
 		/*
@@ -824,16 +822,8 @@ int jdelete( jnode *node /* jnode to finish with */ )
 		/*
 		 * detach page
 		 */
-		if( page != NULL ) {
-			assert( "nikita-2181", PageLocked( page ) );
-			ClearPageDirty( page );
-			ClearPageUptodate( page );
-			remove_from_page_cache( page );
-
-			page_clear_jnode( page, node );
-			unlock_page( page );
-			page_cache_release( page );
-		}
+		if( page != NULL )
+			drop_page( page, node );
 		spin_unlock_jnode( node );
 		result = jplug -> delete( node, tree );
 	} else {
