@@ -1104,10 +1104,10 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	reiser4_stat_file_add (write_repeats);
 
 	/*
-	 * coord and lock handle are set to leaf node whereas insertion is done
-	 * to twig level
+	 * this is to indicate that research must be performed to continue
+	 * write. This is because coord->node is leaf node whereas write
+	 * continues in twig level
 	 */
-	done_lh (lh);
 	coord->node = 0;
 	return 0;
 }
@@ -1240,7 +1240,7 @@ static int plug_hole (coord_t * coord, lock_handle * lh,
 		/* FIXME-VS: we might also try to optimize @coord */
 		set_extent (extent_by_coord (&coord_after), 
 			    state_after, width_after);
-		optimize_extent (&coord_after);
+		/*optimize_extent (&coord_after);*/
 	}
 	tap_done (&watch);
 	return ret;
@@ -1549,13 +1549,16 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 {
 	reiser4_extent * ext;
 	int result;
+	reiser4_block_nr block;
+
 
 	ext = extent_by_coord (coord);
 
 	switch (state_of_extent(ext)) {
 	case ALLOCATED_EXTENT:
-		j->blocknr = blocknr_by_coord_in_extent (coord, off);
+		block = blocknr_by_coord_in_extent (coord, off);
 		jnode_set_mapped (j);
+		jnode_set_block (j, &block);
 		break;
 
 	case UNALLOCATED_EXTENT:
@@ -1707,7 +1710,7 @@ static int key_in_extent (const coord_t * coord, const reiser4_key * key)
 		extent_get_width (ext) * current_blocksize;
 }
 
-
+#if 0
 /* return true if writing at offset @file_off @count bytes to file should block
  * be read before writing into it */
 static int have_to_read_block (struct inode * inode, jnode * j,
@@ -1739,13 +1742,14 @@ static int have_to_read_block (struct inode * inode, jnode * j,
 	}
 	return 1;
 }
-
+#endif
 
 /*
  * FIXME-VS: comment, cleanups are needed here
  */
 int extent_readpage (void * vp, struct page * page)
 {
+	int result;
 	struct inode * inode;
 	coord_t * coord;
 	reiser4_extent * ext;
@@ -1793,13 +1797,11 @@ int extent_readpage (void * vp, struct page * page)
 		j = jnode_of_page (page);
 		if (IS_ERR (j))
 			return PTR_ERR (j);
-		block = extent_get_start (ext) +
-			in_extent (coord, (loff_t)page->index << PAGE_CACHE_SHIFT);
+		block = blocknr_by_coord_in_extent (coord,
+						    (reiser4_block_nr)page->index << PAGE_CACHE_SHIFT);
 		jnode_set_mapped (j);
 		jnode_set_block (j, &block);
 		reiser4_stat_extent_add (unfm_block_reads);
-		page_io (page, j, READ, GFP_NOIO);
-		jput (j);
 
 		trace_on (TRACE_EXTENTS, " - allocated, read issued\n");
 
@@ -1808,6 +1810,7 @@ int extent_readpage (void * vp, struct page * page)
 	case UNALLOCATED_EXTENT:
 		info ("extent_readpage: "
 		      "reading node corresponding to unallocated extent\n");
+		spin_lock_tree (tree_by_inode (inode));
 		j = jlook (tree_by_inode (inode), page->mapping,
 			   page->index);
 		assert ("vs-915", j != 0);
@@ -1815,16 +1818,23 @@ int extent_readpage (void * vp, struct page * page)
 		assert ("vs-917", (*jnode_get_block (j) &&
 				   *jnode_get_block (j) < reiser4_block_count (inode->i_sb)));
 		spin_unlock_tree (tree_by_inode (inode));
-		page_io (page, j, READ, GFP_NOIO);
-		jput (j);
+		break;
+	default:
+		impossible ("vs-957", "extent_readpage: wrong extent");
+		j = 0;
 		break;
 	}
 
-	return txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
+	result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
+	if (!result)
+		page_io (page, j, READ, GFP_NOIO);
+	jput (j);
+	return result;
 }
 
-static int make_page_extent (coord_t * coord, lock_handle * lh,
-			     struct page * page);
+static int extent_get_block (struct inode * inode, coord_t * coord,
+			     lock_handle * lh, jnode * j);
+static jnode * extent_capture_page (struct page * page);
 
 int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 {
@@ -1836,23 +1846,16 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 
 	assert ("vs-870", PAGE_CACHE_SIZE == current_blocksize);
 
-	result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
-	if (result) {
 
-		trace_on (TRACE_EXTENTS, "txn_try_capture_page failed: %d\n",
-			  result);
-
-		return result;
-	}
-
-	j = jnode_of_page (page);
+	j = extent_capture_page (page);
 	if (IS_ERR (j))
 		return PTR_ERR (j);
+
 	assert ("vs-862", !jnode_mapped (j));
 	assert ("vs-863", znode_is_loaded (coord->node));
 	assert ("vs-864", znode_is_wlocked (coord->node));
 
-	result = make_page_extent (coord, lh, page);
+	result = extent_get_block (page->mapping->host, coord, lh, j);
 	if (result) {
 		txn_delete_page (page);
 		jput (j);
@@ -1864,7 +1867,6 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 	}
 
 	jnode_set_dirty (j);
-
 	jput (j);
 
 	trace_on (TRACE_EXTENTS, "OK\n");
@@ -1976,6 +1978,29 @@ static void print_range_list (struct list_head * list)
 }
 
 
+/* FIXME-VS: temporary to old end io handler */
+static void extent_end_io_read(struct bio *bio)
+{
+	int uptodate;
+        struct bio_vec * bvec;
+	struct page * page;
+	int i;
+
+	uptodate = test_bit (BIO_UPTODATE, &bio->bi_flags);
+	bvec = &bio->bi_io_vec [0];
+	for (i = 0; i < bio->bi_vcnt; i ++, bvec ++) {
+		page = bvec->bv_page;
+                if (uptodate) {
+                        SetPageUptodate (page);
+                } else {
+                        ClearPageUptodate (page);
+                        SetPageError (page);
+                }
+                unlock_page (page);		
+	}
+        bio_put (bio);
+}
+#if 0
 static int extent_end_io_read(struct bio *bio, unsigned int bytes_done, int err)
 {
 	int uptodate;
@@ -2001,7 +2026,7 @@ static int extent_end_io_read(struct bio *bio, unsigned int bytes_done, int err)
         bio_put (bio);
 	return 0;
 }
-
+#endif
 
 /* Implements plugin->u.item.s.file.readahead operation for extent items.
  *
@@ -2966,8 +2991,7 @@ static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
  * to right
  */
 /* Audited by: green(2002.06.13) */
-int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos,
-				   jnode *node)
+int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 {
 	int result;
 	unsigned i;
@@ -2980,7 +3004,8 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos,
 
 	blocksize = current_blocksize;
 
-	if (REISER4_DEBUG) {
+#if 0
+	if (0) {
 		reiser4_key unit_key;
 
 		assert ("vs-773", item_is_extent (item));
@@ -3029,6 +3054,7 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos,
 			      state_of_extent (ext) == UNALLOCATED_EXTENT));
 #endif
 	}
+#endif
 
 
 	ext = extent_by_coord (item);
@@ -3250,38 +3276,27 @@ static extent_write_todo extent_what_todo2 (coord_t * coord,
 }
 
 
-/* make sure that page is represented by extent item */
-static int make_page_extent (coord_t * coord, lock_handle * lh,
-			     struct page * page)
+static int extent_get_block (struct inode * inode, coord_t * coord,
+			     lock_handle * lh, jnode * j)
 {
 	int result;
-	jnode * j;
-	extent_write_todo todo;
-	reiser4_key key;
 	znode * loaded;
+	reiser4_key key;
+	extent_write_todo todo;
 
 
-	j = jnode_of_page (page);
-	if (IS_ERR (j))
-		return PTR_ERR (j);
-
-	if (jnode_mapped (j)) {
-		/* there is extent item corresponding to this page */
-		jput (j);
-		return 0;
-	}
+	assert ("vs-960", znode_is_write_locked (coord->node));
 
 	loaded = coord->node;
 	result = zload (loaded);
 	if (result) {
-		jput (j);
 		return result;
 	}
 
 	/* key of first byte of the page */
-	inode_file_plugin (page->mapping->host)->
-		key_by_inode (page->mapping->host,
-			      (loff_t)page->index << PAGE_CACHE_SHIFT,
+	inode_file_plugin (inode)->
+		key_by_inode (inode,
+			      (loff_t)j->pg->index << PAGE_CACHE_SHIFT,
 			      &key);
 
 	todo = extent_what_todo2 (coord, &key);
@@ -3321,8 +3336,45 @@ static int make_page_extent (coord_t * coord, lock_handle * lh,
 	}
 
 	zrelse (loaded);
-	jput (j);
 	return result;
+}
+
+
+/* make sure that page is represented by extent item */
+static int make_page_extent (struct inode * inode, jnode * j, seal_t * seal,
+			     coord_t * coord, lock_handle * lh, flow_t * f,
+			     unsigned to_page)
+{
+	int result;
+
+
+	
+	/*
+	 * re-obtain coord
+	 */
+	result = seal_validate (seal, coord, &f->key,
+				znode_get_level (coord->node), lh,
+				FIND_MAX_NOT_MORE_THAN,
+				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+	if (result) {
+		reiser4_stat_extent_add (broken_seals);
+		coord->node = 0;
+		return -EAGAIN;
+	}
+
+	if (!jnode_mapped (j)) {
+		result = extent_get_block (inode, coord, lh, j);
+		if (result) {
+			done_lh (lh);
+			return result;
+		}
+	}
+	move_flow_forward (f, to_page);
+	if (coord->node)
+		seal_init (seal, coord, &f->key);
+	done_lh (lh);
+
+	return 0;
 }
 
 
@@ -3332,19 +3384,81 @@ static jnode * extent_capture_page (struct page * page)
 	jnode * j;
 
 
+	assert ("vs-701", PageLocked (page));
+
 	j = jnode_of_page (page);
 	if (IS_ERR (j))
 		return j;
 
 	result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
-	if (result)
+	if (result) {
+		jput (j);
 		return ERR_PTR (result);
+	}
 
 	return j;
 }
 
 
 /*
+ * if page is not completely overwritten - read it if it is not
+ * new or fill by zeros otherwise
+ */
+static int prepare_page (struct inode * inode, struct page * page,
+			 jnode * j, loff_t file_off, unsigned from,
+			 unsigned count)
+{
+	void * data;
+
+
+	if (PageUptodate (page))
+		return 0;
+
+	if (count == current_blocksize)
+		return 0;
+
+	if (jnode_created (j)) {
+		/* new page does not get zeroed. Fill areas around write one by
+		 * 0s */
+		assert ("vs-957", blocknr_is_fake (jnode_get_block (j)));
+		
+		data = kmap_atomic (page, KM_USER0);
+		memset (data, 0, from);
+		memset (data + from + count, 0,
+			PAGE_CACHE_SIZE - from - count);
+		flush_dcache_page (page);
+		kunmap_atomic (data, KM_USER0);
+		return 0;
+	}
+
+	/* page contains some data of this file */
+	assert ("vs-699", inode->i_size > page->index << PAGE_CACHE_SHIFT);
+
+	if (from == 0 && file_off + count >= inode->i_size) {
+		/* current end of file is in this page. write areas covers it
+		 * all. No need to read block. Zero page past new end of file,
+		 * though */
+		data = kmap_atomic (page, KM_USER0);
+		memset (data + from + count, 0, PAGE_CACHE_SIZE - from - count);
+		kunmap_atomic (data, KM_USER0);
+		return 0;
+	}
+
+	/* read block because its content is not completely overwritten */
+	reiser4_stat_extent_add (unfm_block_reads);
+
+	page_io (page, j, READ, GFP_NOIO);
+	wait_on_page_locked (page);
+	if (!PageUptodate (page)) {
+		warning ("jmacd-61238", "extent_write_flow: page not up to date");
+		return -EIO;				
+	}
+	lock_page (page);
+	return 0;
+}
+
+
+/*
  * write flow's data into file by pages
  */
 static int extent_write_flow (struct inode * inode, coord_t * coord,
@@ -3352,10 +3466,12 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 {
 	int result;
 	loff_t file_off;
-	int page_off, to_page;
-	char * page_data;
+	unsigned page_off, to_page;
+	char * data;
+	char * user_buf;
 	struct page * page;
 	jnode * j;
+	seal_t seal;
 
 
 	assert ("vs-885", current_blocksize == PAGE_CACHE_SIZE);
@@ -3371,174 +3487,83 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 
 	/* this can be != 0 only for the first of pages which will be
 	 * modified */
-	page_off = (int)(file_off & (PAGE_CACHE_SIZE - 1));
+	page_off = (unsigned)(file_off & (PAGE_CACHE_SIZE - 1));
 
 
 	/*
-	 * rigth lock order is: lock_page -> longterm_lock_znode, create a seal
-	 * and unlock znode before grabbing
+	 * right lock order is: lock_page -> longterm_lock_znode, create a seal
+	 * and unlock znode before grabbing page
 	 */
 	seal_init (&seal, coord, &f->key);
 	done_lh (lh);
 
 	do {
-		page = grab_cache_page (inode->i_mapping,
-					(unsigned long)(file_off >> PAGE_CACHE_SHIFT));
-		if (!page) {
-			result = -ENOMEM;
-			goto exit1;
-		}
+		assert ("vs-959", coord->node && !znode_is_locked (coord->node));
 
-		assert ("vs-701", PageLocked (page));
-		
-		j = jnode_of_page (page);
-		if (IS_ERR (j)) {
-			result = PTR_ERR (j);
-			j = 0;
-			goto exit2;
-		}
-
-		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
-		if (result) {
-			goto exit2;
-		}
-		
-	} while (f->length);
-
-	/*
-	 * coord->node is set to 0 when first extent item is created. To
-	 * complete the write extent write method will be called again after
-	 * researching
-	 */
-	while (f->length && coord->node) {
-		seal_t seal;
-
-		assert ("vs-956", znode_is_write_locked (coord->node));
-
-		j = 0;
-		/*
-		 * create seal and unlock znode before locking page
-		 */
-		seal_init (&seal, coord, &f->key);
-		done_lh (lh);
-
-		page = grab_cache_page (inode->i_mapping,
-					(unsigned long)(file_off >> PAGE_CACHE_SHIFT));
-		if (!page) {
-			result = -ENOMEM;
-			goto exit1;
-		}
-
-		assert ("vs-701", PageLocked (page));
-		
-		j = jnode_of_page (page);
-		if (IS_ERR (j)) {
-			result = PTR_ERR (j);
-			j = 0;
-			goto exit2;
-		}
-
-		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
-		if (result) {
-			goto exit2;
-		}
-
-		/*
-		 * re-obtain coord
-		 */
-		result = seal_validate (&seal, coord, &f->key,
-					znode_get_level (coord->node), lh,
-					FIND_MAX_NOT_MORE_THAN,
-					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
-		if (result) {
-			reiser4_stat_extent_add (broken_seals);
-			coord->node = 0;
-			goto exit3;
-		}
-
-		result = make_page_extent (coord, lh, page);
-		if (coord->node) {
-			seal_init (&seal, coord, &f->key);
-			done_lh (lh);
-			coord->node = 0;
-		}
-		if (result) {
-			goto exit3;
-		}
-		
-
+		/* number of bytes to be written to page */
 		to_page = PAGE_CACHE_SIZE - page_off;
-		if (to_page > (int)f->length)
-			to_page = (int)f->length;
+		if (to_page > f->length)
+			to_page = f->length;
 
-		if (have_to_read_block (page->mapping->host, j,
-					file_off, to_page)) {
-
-			reiser4_stat_extent_add (unfm_block_reads);
-
-			page_io (page, j, READ, GFP_NOIO);
-			wait_on_page_locked (page);
-			if (!PageUptodate (page)) {
-				warning ("jmacd-61238", "extent_write_flow: page not up to date");
-				result = -EIO;				
-				goto exit3;
-			}
-
-			lock_page (page);
+		page = grab_cache_page (inode->i_mapping,
+					(unsigned long)(file_off >> PAGE_CACHE_SHIFT));
+		if (!page) {
+			result = -ENOMEM;
+			goto exit1;
 		}
 
-		page_data = kmap (page);
-		if (jnode_created (j) && !PageUptodate (page)) {
-			int padd;
-
-			/* new block added. Zero block content which is not
-			 * covered by write. Head.. */
-			memset (page_data, 0, (unsigned)page_off);
-
-			/* and end */
-			padd = current_blocksize - page_off - to_page;
-			assert ("vs-721", padd >= 0);
-			memset (page_data + page_off + to_page, 0, (unsigned)padd);
+		j = extent_capture_page (page);
+		if (IS_ERR (j)) {
+			result = PTR_ERR (j);
+			j = 0;
+			goto exit2;
 		}
+		
+		/*
+		 * make_page_extent will move flow forward to be able to seal
+		 * point when leaving
+		 */
+		user_buf = f->data;
+		/*
+		 * make sure that page has non-zero extent pointing to it
+		 */
+		result = make_page_extent (inode, j, &seal, coord, lh, f,
+					   to_page);
+		if (result)
+			goto exit3;
+
+		/*
+		 * if page is not completely overwritten - read it if it is not
+		 * new or fill by zeros otherwise
+		 */
+		result = prepare_page (inode, page, j, file_off, page_off,
+				       to_page);
+		if (result)
+			goto exit3;
 
 		assert ("green-13", lock_counters ()->spin_locked == 0);
 
-		/* copy data into page */
-		if (unlikely (__copy_from_user (page_data + page_off,
-						f->data, (unsigned)to_page))) {
-			/* FIXME-VS: undo might be necessary */
-			kunmap (page);
+		/* copy user data into page */
+		data = kmap_atomic(page, KM_USER0);
+		result = __copy_from_user (data + page_off, user_buf, to_page);
+		kunmap_atomic (page, KM_USER0);
+		if (unlikely (result)) {
 			result = -EFAULT;
 			goto exit3;
 		}
-		kunmap (page);
 
 		SetPageUptodate (page);
-		jnode_set_dirty (j);
-
-		jput (j);
-
 		unlock_page (page);
 		page_cache_release (page);
 
-		move_flow_forward (f, to_page);
-#if 0
-		/*
-		 * FIXME-VS: temporary fix: (it would be interesting to
-		 * benchmark) balance_dirty_pages is going to call eventually
-		 * reiser4_writepage synchrounously. This is not alowed with
-		 * locks held in a context
-		 */
-		if (coord->node) {
-			done_lh (lh);
-			coord->node = 0;
-		}
-#endif
+		jnode_set_dirty (j);
+		jput (j);
+		
 		balance_dirty_pages (page->mapping);
 
 		page_off = 0;
 		file_off += to_page;
-		seal_done (&seal);
+
 		continue;
 
 	exit3:
@@ -3546,7 +3571,7 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 		 * page is locked, but this is ok, because
 		 * txn_delete_page->uncapture_block->jput will not try to drop
 		 * jnode (in that case page must be unlocked) because we got
-		 * reference to it in above
+		 * reference to it in extent_capture_page
 		 */
 		txn_delete_page (page);
 	exit2:
@@ -3555,16 +3580,19 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 		if (j)
 			jput (j);
 	exit1:
-		seal_done (&seal);
 		break;
-	}
+	
+	} while (f->length && coord->node);
+
+	seal_done (&seal);
 
 	if (f->length)
 		DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
+
 	return result;
 }
 
-
+#if 0
 /*
  * write flow's data into file by pages
  */
@@ -3711,7 +3739,7 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 		page_cache_release (page);
 
 		move_flow_forward (f, to_page);
-#if 0
+
 		/*
 		 * FIXME-VS: temporary fix: (it would be interesting to
 		 * benchmark) balance_dirty_pages is going to call eventually
@@ -3722,7 +3750,6 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 			done_lh (lh);
 			coord->node = 0;
 		}
-#endif
 		balance_dirty_pages (page->mapping);
 
 		page_off = 0;
@@ -3752,7 +3779,7 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 		DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
 	return result;
 }
-
+#endif
 
 /* extent's write method. It can be called in tree modes:
  *
