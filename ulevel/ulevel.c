@@ -2753,6 +2753,143 @@ static int bash_cpr (struct inode * dir, const char * source)
 	DIR * d;
 	struct dirent * dirent;
 	struct stat st;
+	struct inode * subdir, * tmp;
+	char * cwd;
+	char * name;
+ 
+
+	d = opendir (source);
+	if (d == 0) {
+		info ("opendir failed: %s\n", strerror (errno));
+		return errno;
+	}
+
+	result = 0;
+	while ((dirent = readdir (d)) != 0) {
+		if (!strcmp (dirent->d_name, ".") ||
+		    !strcmp (dirent->d_name, ".."))
+			continue;
+		asprintf (&name, "%s/%s", source, dirent->d_name);
+		if (stat (name, &st) == -1) {
+			result = errno;
+			break;
+		}
+		{
+			char * tmp;
+			tmp = getcwd (0, 0);
+			info ("%s/%s\n", tmp, dirent->d_name);
+			free (tmp);
+		}
+		if (S_ISDIR (st.st_mode)) {
+			result = call_mkdir (dir, dirent->d_name);
+			if (result)
+				break;
+			subdir = call_lookup (dir, dirent->d_name);
+			if (IS_ERR (subdir)) {
+				result = PTR_ERR (subdir);
+				break;
+			}
+			result = bash_cpr (subdir, name);
+			if (result) {
+				closedir (d);
+				return result;
+			}
+			iput (subdir);
+			continue;
+		}
+		if (S_ISREG (st.st_mode)) {
+			bash_cp (name, dir, dirent->d_name);
+			continue;
+		}
+	}
+	closedir (d);
+
+	return result;
+}
+
+
+/*
+ * @file_name is name of "normal" file. @name is name of file in reiser4 tree
+ * in directory @cwd. Compare contents of file "name" and normal file. If
+ * contents differ - warning is printed
+ */
+static int bash_diff (char * real_file, struct inode * cwd, const char * name)
+{
+	int fd;
+	char * buf1, * buf2;
+	unsigned count;
+	loff_t off;
+	struct inode * inode;
+	struct stat st;
+
+
+	if (stat (real_file, &st)) {
+		perror ("diff: stat failed");
+		return 0;
+	}
+
+	/*
+	 * open file in "normal" filesystem
+	 */
+	fd = open (real_file, O_RDONLY);
+	if (fd == -1) {
+		perror ("diff: open failed");
+		return 0;
+	}
+
+	/*
+	 * lookup for the file in current directory in reiser4 tree
+	 */
+	inode = call_lookup (cwd, name);
+	if (IS_ERR (inode)) {
+		info ("diff: lookup failed\n");
+		return 0;
+	}
+	
+	buf1 = xxmalloc (BUFSIZE);
+	buf2 = xxmalloc (BUFSIZE);
+	if (!buf1 || !buf2) {
+		perror ("diff: xxmalloc failed");
+		iput (inode);
+		return 0;
+	}
+
+	count = BUFSIZE;
+	off = 0;
+	while (st.st_size) {
+		if ((loff_t)count > st.st_size)
+			count = st.st_size;
+		if (read (fd, buf1, count) != (ssize_t)count) {
+			perror ("diff: read failed");
+			break;
+		}
+		if (call_read (inode, buf2, off, count) != (ssize_t)count) {
+			info ("diff: read failed\n");
+			break;
+		}
+		if (memcmp (buf1, buf2, count)) {
+			info ("diff: files differ\n");
+			break;
+		}
+
+		st.st_size -= count;
+		off += count;
+	}
+
+	close (fd);
+	free (buf1);
+	free (buf2);
+	iput (inode);
+	return 0;
+}
+
+
+static int bash_diff_r (struct inode * dir, const char * source)
+{
+	int result;
+	DIR * d;
+	struct dirent * dirent;
+	struct stat st;
 	struct inode * subdir;
 	char * cwd;
 
@@ -2784,15 +2921,12 @@ static int bash_cpr (struct inode * dir, const char * source)
 			free (tmp);
 		}
 		if (S_ISDIR (st.st_mode)) {
-			result = call_mkdir (dir, dirent->d_name);
-			if (result)
-				break;
 			subdir = call_lookup (dir, dirent->d_name);
 			if (IS_ERR (subdir)) {
 				result = PTR_ERR (subdir);
 				break;
 			}
-			result = bash_cpr (subdir, dirent->d_name);
+			result = bash_diff_r (subdir, dirent->d_name);
 			if (result) {
 				closedir (d);
 				return result;
@@ -2800,7 +2934,7 @@ static int bash_cpr (struct inode * dir, const char * source)
 			continue;
 		}
 		if (S_ISREG (st.st_mode)) {
-			bash_cp (dirent->d_name, dir, dirent->d_name);
+			bash_diff (dirent->d_name, dir, dirent->d_name);
 			continue;
 		}
 	}
@@ -2809,7 +2943,6 @@ static int bash_cpr (struct inode * dir, const char * source)
 	free (cwd);
 	return result;
 }
-
 
 
 static int bash_mount (/*reiser4_context * context,*/ char * cmd, struct super_block **sb)
@@ -3129,82 +3262,6 @@ static int bash_mkfs (const char * file_name)
 
 
 
-/*
- * @file_name is name of "normal" file. @name is name of file in reiser4 tree
- * in directory @cwd. Compare contents of file "name" and normal file. If
- * contents differ - warning is printed
- */
-static int bash_diff (char * real_file, struct inode * cwd, const char * name)
-{
-	int fd;
-	char * buf1, * buf2;
-	unsigned count;
-	loff_t off;
-	struct inode * inode;
-	struct stat st;
-
-
-	if (stat (real_file, &st)) {
-		perror ("diff: stat failed");
-		return 0;
-	}
-
-	/*
-	 * open file in "normal" filesystem
-	 */
-	fd = open (real_file, O_RDONLY);
-	if (fd == -1) {
-		perror ("diff: open failed");
-		return 0;
-	}
-
-	/*
-	 * lookup for the file in current directory in reiser4 tree
-	 */
-	inode = call_lookup (cwd, name);
-	if (IS_ERR (inode)) {
-		info ("diff: lookup failed\n");
-		return 0;
-	}
-	
-	buf1 = xxmalloc (BUFSIZE);
-	buf2 = xxmalloc (BUFSIZE);
-	if (!buf1 || !buf2) {
-		perror ("diff: xxmalloc failed");
-		iput (inode);
-		return 0;
-	}
-
-	count = BUFSIZE;
-	off = 0;
-	while (st.st_size) {
-		if ((loff_t)count > st.st_size)
-			count = st.st_size;
-		if (read (fd, buf1, count) != (ssize_t)count) {
-			perror ("diff: read failed");
-			break;
-		}
-		if (call_read (inode, buf2, off, count) != (ssize_t)count) {
-			info ("diff: read failed\n");
-			break;
-		}
-		if (memcmp (buf1, buf2, count)) {
-			info ("diff: files differ\n");
-			break;
-		}
-
-		st.st_size -= count;
-		off += count;
-	}
-
-	close (fd);
-	free (buf1);
-	free (buf2);
-	iput (inode);
-	return 0;
-}
-
-
 /* copy file into current directory */
 static int bash_cp (char * real_file, struct inode * cwd, const char * name)
 {
@@ -3395,137 +3452,51 @@ static int bash_trunc (struct inode * cwd, const char * name)
 	return 0;
 }
 
-#if 0
-/*
- * go through all "twig" nodes and call alloc_extent for every item
- */
-static void allocate_unallocated (reiser4_tree * tree)
+
+struct cpr_thread_info {
+	struct inode * dir; /* inode of current directory where cp-r is
+			     * started */
+	char * source; /* name of directory to copy */
+	int num;
+};
+
+
+void * cpr_thread (struct cpr_thread_info * info)
 {
-/* comment this code -Hans */
-	coord_t coord;
-	lock_handle lh;
-	reiser4_key key;
-	int result;
+	char name [10];
+	struct inode * dir;
+	char * source_path;
 
 
-	coord_init_zero (&coord);
-	init_lh (&lh);
+	register_thread();
 
-	key_init (&key);
-	set_key_locality (&key, 2ull);
-	set_key_objectid (&key, 0x2aull);
-	set_key_type (&key, KEY_SD_MINOR);
-	set_key_offset (&key, 0ull);
-	result = coord_by_key (tree, &key, &coord, &lh,
-			       ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
-			       TWIG_LEVEL, TWIG_LEVEL, 
-			       CBK_FOR_INSERT | CBK_UNIQUE);
-	coord_init_first_unit (&coord, NULL);
-	result = iterate_tree (tree, &coord, &lh, 
-				       alloc_extent, 0, ZNODE_WRITE_LOCK, 0);
-
-	done_lh (&lh);
-
-	print_tree_rec ("AFTER ALLOCATION", tree, REISER4_NODE_PRINT_HEADER |
-			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
-}
-
-static int do_twig_squeeze (reiser4_tree * tree, coord_t * coord,
-			    lock_handle * lh, void * arg UNUSED_ARG)
-{
-	lock_handle right_lock;
-	int result;
-	reiser4_block_nr da;
-	reiser4_blocknr_hint preceder;
-
-
-	assert ("vs-461", coord->item_pos == 0 && coord->unit_pos == 0 &&
-		coord->between == AT_UNIT);
-	/*
-	 * allocate extents
-	 */
-	do {
-		alloc_extent (tree, coord, lh, 0);
-	} while (coord_next_item (coord));
-
-
-	/*
-	 * get preceder
-	 */
-	coord_init_last_unit (coord, 0);
-	if (item_is_internal (coord)) {
-		item_plugin_by_coord (coord)->s.internal.down_link (coord, 0,
-								    &da);
-		preceder.blk = da;
-	} else if (item_id_by_coord (coord) == EXTENT_POINTER_ID) {
-		reiser4_extent * ext;
-		ext = extent_by_coord (coord);
-		preceder.blk = extent_get_start (ext) + extent_get_width (ext);
-	} else
-		impossible ("vs-462", "unknown item type");
-
-
- get_right_neighbor:
-	/*
-	 * squeeze right neighbor
-	 */
-	init_lh (&right_lock);
-	result = reiser4_get_right_neighbor (&right_lock, coord->node,
-					     ZNODE_WRITE_LOCK, GN_DO_READ);
-	if (result) {
-		return result;
+	/* create a directory where thread wll work */
+	sprintf (name, "%d", info->num);
+	if (call_mkdir (info->dir, name)) {
+		info ("Could not create directory \"%s\"\n", name);
+		return 0;
 	}
-
-	while ((result = squalloc_right_neighbor (coord->node, right_lock.node,
-						  &preceder)) == SUBTREE_MOVED);
-	done_lh (&right_lock);
-	if (result == SQUEEZE_SOURCE_EMPTY) {
-		/*
-		 * get next right neighbor
-		 */
-		goto get_right_neighbor;
+	dir = call_lookup (info->dir, name);
+	if (IS_ERR (dir)) {
+		info ("lookup failed");
+		return 0;
 	}
+	info ("cpr [%i]\n", current_pid);
 
-	/*
-	 * we have done with this node
-	 */
-	coord_init_last_unit (coord, coord->node);
-	return 1;
+	asprintf (&source_path, "%s", info->source);
+	bash_cpr (dir, source_path);
+	iput (dir);
+	return 0;
 }
 
-/*
- * go through all "twig" nodes and call squeeze_right_neighbor
- */
-static void squeeze_twig_level (reiser4_tree * tree)
+void * cpr_thread_start (void *arg)
 {
-	coord_t coord;
-	lock_handle lh;
-	reiser4_key key;
-	int result;
-
-
-	coord_init_zero (&coord);
-	init_lh (&lh);
-
-	key_init (&key);
-	set_key_locality (&key, 2ull);
-	set_key_objectid (&key, 0x2aull);
-	set_key_type (&key, KEY_SD_MINOR);
-	set_key_offset (&key, 0ull);
-	result = coord_by_key (tree, &key, &coord, &lh,
-			       ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
-			       TWIG_LEVEL, TWIG_LEVEL, 
-			       CBK_FOR_INSERT | CBK_UNIQUE);
-	coord_init_first_unit (&coord, NULL);
-	result = iterate_tree (tree, &coord, &lh, 
-				       do_twig_squeeze, 0, ZNODE_WRITE_LOCK, 0/* through items */);
-
-	done_lh (&lh);
-
-	print_tree_rec ("AFTER SQUEEZING TWIG", tree, REISER4_NODE_PRINT_HEADER |
-			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
+	REISER4_ENTRY_PTR (((struct cpr_thread_info *)arg)->dir->i_sb);
+	cpr_thread (arg);
+	REISER4_EXIT_PTR (NULL);
 }
-#endif
+
+
 
 #define print_help() \
 	info ("Commands:\n"\
@@ -3539,6 +3510,7 @@ static void squeeze_twig_level (reiser4_tree * tree)
 	      "\tcp filename    - copy file to current directory\n"\
               "\tcp-r dir       - copy directory recursively"\
 	      "\tdiff filename  - compare files\n"\
+              "\tdiff-r dir     - compare directories recursively"\
 	      "\ttrunc filename size - truncate file\n"\
 	      "\ttouch          - create empty file\n"\
 	      "\tread filename from count\n"\
@@ -3698,12 +3670,28 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		BASH_CMD ("write ", bash_write);
 		BASH_CMD ("trunc ", bash_trunc);
 		BASH_CMD ("cp-r ", bash_cpr);
+		BASH_CMD ("diff-r ", bash_diff_r);
 		BASH_CMD ("trace ", bash_trace);
 
 		BASH_CMD3 ("cp ", bash_cp);
 		BASH_CMD3 ("diff ", bash_diff);
+#define CPR_THREADS 3
+		if (!strncmp (command, "mcpr", 4)) {
+			pthread_t tid [CPR_THREADS];
+			int i;
+			struct cpr_thread_info info [CPR_THREADS];
 
-		if (!strncmp (command, "tail", 4)) {
+			for (i = 0; i < CPR_THREADS; ++ i) {
+				info[i].source = command + 5;
+				info[i].dir = cwd;
+				info[i].num = i;
+				pthread_create (&tid [i], NULL, 
+						cpr_thread_start, &info [i]);
+			}
+			for (i = 0 ; i < CPR_THREADS; ++ i)
+				pthread_join (tid [i], NULL);
+
+		} else if (!strncmp (command, "tail", 4)) {
 			/*
 			 * get tail plugin or set
 			 */
