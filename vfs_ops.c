@@ -505,7 +505,7 @@ static int reiser4_writepage( struct page *page )
 
 
 	trace_on( TRACE_VFS_OPS, "WRITEPAGE: (i_ino %li, page index %lu)\n",
-		  page -> mapping -> host -> i_ino, page ->index );
+		  page -> mapping -> host -> i_ino, page -> index );
 
 	fplug = inode_file_plugin( page -> mapping -> host );
 	if( !PagePrivate( page ) ) {
