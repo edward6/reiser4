@@ -380,20 +380,9 @@ static write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coor
 }
 
 
-typedef struct {
-	struct inode * inode; /* inode of file being tail2extent converted */
-	struct page * page;   /* page being filled currently */
-	/* FIXME-VS: tail2extent creates pages which do not have extent item
-	 * pointing to them. Do those page need to be collected somehow while
-	 * coping data into them? */
-	int offset;           /* offset within that page */
-	reiser4_key next;     /* key of next byte to be copied to page cache */
-} copy2page_arg;
-
-
 /* @count bytes were copied into page starting from the beginning. mark all
  * modifed buffers dirty and uptodate, mark others uptodate */
-static void mark_buffers_dirty (struct page * page, int count)
+static void mark_buffers_dirty (struct page * page, unsigned count)
 {
 	struct buffer_head * bh;
 
@@ -401,14 +390,30 @@ static void mark_buffers_dirty (struct page * page, int count)
 	
 	bh = page->buffers;
 	do {
-		if (count > 0) {
+		if (count) {
 			mark_buffer_dirty (bh);
-			count -= bh->b_size;
+			if (count < bh->b_size)
+				count = 0;
+			else
+				count -= bh->b_size;
 		}
 		make_buffer_uptodate (bh, 1);
 		bh = bh->b_this_page;
 	} while (bh != page->buffers);
 }
+
+
+#ifdef TAIL2EXTENT_ALL_AT_ONCE
+
+typedef struct {
+	struct inode * inode; /* inode of file being tail2extent converted */
+	struct page * page;   /* page being filled currently */
+	/* FIXME-VS: tail2extent creates pages which do not have extent item
+	 * pointing to them. Do those page need to be collected somehow while
+	 * coping data into them? */
+	unsigned offset;           /* offset within that page */
+	reiser4_key next;     /* key of next byte to be copied to page cache */
+} copy2page_arg;
 
 
 /* iterate_tree actor */
@@ -566,27 +571,95 @@ static int tail2extent (struct inode * inode, tree_coord * coord,
 	return insert_extent_by_coord (coord, &extent_data, &key, lh);
 }
 
+#else /* TAIL2EXTENT_ITEM_BY_ITEM */
 
-/* this returns true if tail2extent has to move to next page */
-static int next_page (reiser4_key * key)
+/* this returns true if coord is set to not last item of file and tail2extent
+ * must continue */
+static int must_continue (struct inode * inode, reiser4_key * key,
+			  const tree_coord * coord UNUSED_ARG)
 {
-	return (get_key_offset (&key) & PAGE_MASK) == 0;
+	assert ("vs-566", inode->i_size >= (loff_t)get_key_offset (key));
+	/*
+	 * FIXME-VS: do we need to try harder?
+	 */
+
+	return inode->i_size == (loff_t)get_key_offset (key);
+		
+}
+
+
+/* cut all items of which given page consists */
+static int cut_tail_page (struct page * page)
+{
+	struct inode * inode;
+	reiser4_key from, to;
+
+	inode = page->mapping->host;
+
+	inode_file_plugin (inode)->key_by_inode (inode,
+						 (loff_t)page->index << PAGE_SHIFT,
+						 &from);
+	to = from;
+	set_key_offset (&to, get_key_offset (&to) + PAGE_SIZE - 1);
+	return cut_tree (tree_by_inode (inode), &from, &to);
+}
+
+
+/* part of tail2extent. Page contains data read from tail items. Those tail
+ * items are removed from tree already. extent slot pointing to this page will
+ * be created by using extent_write. The difference between usual usage of
+ * extent_write and how it is used here is that extent_write does not have to
+ * deal with page at all. This is done by setting flow->data to 0 */
+static int write_page_by_extent (struct inode * inode, struct page * page,
+				 unsigned count)
+{
+	flow_t f;
+	tree_coord coord;
+	lock_handle lh;
+	item_plugin * iplug;
+	int result;
+
+
+	inode_file_plugin (inode)->
+		flow_by_inode (inode, 0/* data */, 0/* kernel space */,
+			       count, (loff_t)(page->index << PAGE_SHIFT),
+			       WRITE_OP, &f);
+
+	result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
+	if (result != CBK_COORD_NOTFOUND) {
+		assert ("vs-563", result != CBK_COORD_FOUND);
+		page_cache_release (page);
+		return result;
+	}
+
+	iplug = item_plugin_by_id (EXTENT_POINTER_ID);
+	assert ("vs-564", iplug && iplug->s.file.write);
+	result = iplug->s.file.write (inode, &coord, &lh, &f);
+	done_lh (&lh);
+	done_coord (&coord);
+	if (result != (int)count) {
+		/*
+		 * FIXME-VS: how do we handle this case? Abort
+		 * transaction?
+		 */
+		warning ("vs-565", "tail2extent conversion has eaten data");
+		return (result < 0) ? result : -ENOSPC;
+	}
+	return 0;
 }
 
 
 /* this does conversion item by item */
-static int tail2extent2 (struct inode * inode, tree_coord * coord, 
-			 lock_handle * lh)
+static int tail2extent (struct inode * inode, tree_coord * coord, 
+			lock_handle * lh)
 {
 	int result;
 	file_plugin * fplug;
 	reiser4_key key;
-	copy2page_arg arg;
-	reiser4_item_data extent_data;
 	struct page * page;
 	char * p_data;
 	int i;
-	unsigned page_off, count;
+	unsigned page_off, count, copied;
 	char * item;
 
 
@@ -608,9 +681,8 @@ static int tail2extent2 (struct inode * inode, tree_coord * coord,
 	done_coord (coord);
 
 	page = 0;
-	i = 0;
 	item = 0;
-	while () {
+	while (1) {
 		if (!item) {
 			result = find_item (&key, coord, lh, ZNODE_READ_LOCK);
 			if (result != CBK_COORD_FOUND) {
@@ -625,11 +697,10 @@ static int tail2extent2 (struct inode * inode, tree_coord * coord,
 		if (page_off == 0) {
 			assert ("vs-561",
 				(__u64)i << PAGE_SHIFT == get_key_offset (&key));
-			page = grab_cache_page (inode->i_mapping, i);
+			page = grab_cache_page (inode->i_mapping,
+						(unsigned long)(get_key_offset (&key) >> PAGE_SHIFT));
 			if (!page)
 				return -ENOMEM;
-			i ++;
-			/* call extent_write here */
 		}
 		count = item_length_by_coord (coord) - copied;
 		if (count > PAGE_SIZE - page_off) {
@@ -640,39 +711,41 @@ static int tail2extent2 (struct inode * inode, tree_coord * coord,
 		kunmap (page);
 		item += count;
 		copied += count;
-		page_off + count;
+		page_off += count;
 		set_key_offset (&key, get_key_offset (&key) + count);
 
-		if (page_off == PAGE_SIZE) {
-			/* page is filled completely */
+		if (page_off == PAGE_SIZE ||
+		    !must_continue (inode, &key, coord)) {
+			/* page is filled completely or last item of item is
+			 * read, cut corresponding tail items and call
+			 * extent_write to write a page */
 			done_lh (lh);
 			done_coord (coord);
-			cut_node ();
-			write_extent ();
-			UnlockPage (page);
-			page_cache_release (page);
-			page = 0;
-			item = 0;
-			continue;
-		}
-		if (copied == item_length_by_coord (coord)) {
-			/* item is copied completely, cut it and write cut data
-			 * to extent */
-			result = cut_node ();
-			item = 0;
-			done_lh (lh);
-			done_coord (coord);
-			if (!should_continue ()) {
-				/* conversion done */
-				if (page) {
-					UnlockPage (page);
-					page_cache_release (page);
-				}
+
+			count = page_off;
+			if ((result = cut_tail_page (page)) ||
+			    (result = write_page_by_extent (inode, page, count))) {
+				UnlockPage (page);
+				page_cache_release (page);
 				break;
 			}
+
+			mark_buffers_dirty (page, count);
+			SetPageUptodate (page);
+			UnlockPage (page);
+			page_cache_release (page);
+
+			if (!must_continue (inode, &key, coord))
+			    break;
+
+			page = 0;
+			item = 0;
 		}
 	}
+	return result;
 }
+
+#endif /* TAIL2EXTENT_ITEM_BY_ITEM */
 
 
 /* plugin->u.file.release
@@ -691,6 +764,10 @@ int ordinary_file_release (struct file * file)
 }
 
 
+/* part of extent2tail. Page contains data which are to be put into tree by
+ * tail items. Use tail_write for this. flow is composed like in
+ * ordinary_file_write. The only difference is that data for writing are in
+ * kernel space */
 static int write_page_by_tail (struct inode * inode, struct page * page,
 			       unsigned count)
 {
