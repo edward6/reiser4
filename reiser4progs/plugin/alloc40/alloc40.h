@@ -8,11 +8,16 @@
 #define ALLOC40_H
 
 #include <aal/aal.h>
+#include <reiser4/plugin.h>
 #include <comm/bitmap.h>
 
 struct alloc40 {
-    aal_device_t *device;
+    reiser4_plugin_t *plugin;
+	
     reiser4_bitmap_t *bitmap;
+    reiser4_entity_t *format;
+
+    char *map;
 };
 
 typedef struct alloc40 alloc40_t;

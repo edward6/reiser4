@@ -4,8 +4,8 @@
     Author Yury Umanets.
 */
 
-#ifndef PROGS_UI
-#define PROGS_UI
+#ifndef PROGS_UI_H
+#define PROGS_UI_H
 
 #ifdef HAVE_CONFIG_H
 #  include <config.h>

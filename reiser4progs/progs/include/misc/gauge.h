@@ -4,8 +4,8 @@
     Author Yury Umanets.
 */
 
-#ifndef PROGS_GAUGE
-#define PROGS_GAUGE
+#ifndef PROGS_GAUGE_H
+#define PROGS_GAUGE_H
 
 #include <aal/gauge.h>
 

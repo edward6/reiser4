@@ -9,6 +9,9 @@
 #ifndef SDEXT_UNIX_H
 #define SDEXT_UNIX_H
 
+#include <aal/aal.h>
+#include <reiser4/plugin.h>
+
 struct sdext_unix {
     uint32_t uid;
     uint32_t gid;

@@ -8,44 +8,73 @@
 #  include <config.h>
 #endif
 
-#include <aal/aal.h>
-#include <reiser4/reiser4.h>
-
 #include "alloc40.h"
+
+extern reiser4_plugin_t alloc40_plugin;
 
 static reiser4_core_t *core = NULL;
 
-/* 
-    Performs actual opening of the alloc40 allocator. As alloc40 is the bitmap-based
-    block allocator, this function calles reiser4_bitmap_open function in order to 
-    load it from device.
-*/
-static reiser4_entity_t *alloc40_open(aal_device_t *device, 
-    count_t len) 
+static errno_t callback_fetch_bitmap(aal_device_t *device, 
+    blk_t blk, void *data) 
 {
-    blk_t offset;
-    alloc40_t *alloc;
+    aal_block_t *block;
+    alloc40_t *alloc = (alloc40_t *)data;
     
-    aal_assert("umka-364", device != NULL, return NULL);
+    aal_assert("umka-1052", device != NULL, return -1);
+    aal_assert("umka-1053", alloc != NULL, return -1);
+    
+    if (!(block = aal_block_read(device, blk))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't read bitmap block %llu. %s.", blk, device->error);
+	return -1;
+    }
+
+    if (reiser4_bitmap_attach(alloc->bitmap, block))
+	goto error_free_block;
+    
+    aal_block_free(block);
+    return 0;
+    
+error_free_block:
+    aal_block_free(block);
+    return -1;
+}
+
+static reiser4_entity_t *alloc40_open(reiser4_entity_t *format) {
+    alloc40_t *alloc;
+    reiser4_layout_func_t layout;
+    
+    aal_assert("umka-364", format != NULL, return NULL);
 
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
     
-    /* Addres of first bitmap block */
-    offset = (REISER4_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
-	aal_device_get_bs(device);
-
-    /* Opening bitmap */
-    if (!(alloc->bitmap = reiser4_bitmap_open(device, offset, len))) {
+    if (!(alloc->bitmap = reiser4_bitmap_create())) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't open bitmap.");
+	    "Can't create bitmap.");
 	goto error_free_alloc;
     }
   
-    alloc->device = device;
+    alloc->format = format;
+
+    if (!(layout = format->plugin->format_ops.alloc_layout)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Method \"alloc_layout\" doesn't implemented in format plugin.");
+	goto error_free_bitmap;
+    }
+    
+    if (layout(format, callback_fetch_bitmap, alloc)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't load ondisk bitmap.");
+	goto error_free_bitmap;
+    }
+
+    alloc->plugin = &alloc40_plugin;
     
     return (reiser4_entity_t *)alloc;
 
+error_free_bitmap:
+    reiser4_bitmap_close(alloc->bitmap);
 error_free_alloc:
     aal_free(alloc);
 error:
@@ -54,49 +83,119 @@ error:
 
 #ifndef ENABLE_COMPACT
 
+static errno_t callback_alloc_bitmap(aal_device_t *device, 
+    blk_t blk, void *data)
+{
+    aal_block_t *block;
+    alloc40_t *alloc = (alloc40_t *)data;
+
+    if (!(block = aal_block_alloc(device, blk, 0))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't allocate bitmap block %llu.", blk);
+	return -1;
+    }
+    
+    if (reiser4_bitmap_attach(alloc->bitmap, block))
+	goto error_free_block;
+    
+    aal_block_free(block);
+    return 0;
+    
+error_free_block:
+    aal_block_free(block);
+    return -1;
+}
+
 /* 
     Initializes new alloc40 instance, creates bitmap and return new instance to 
     caller (block allocator in libreiser4).
 */
-static reiser4_entity_t *alloc40_create(aal_device_t *device, 
-    count_t len)
-{
-    blk_t offset;
+static reiser4_entity_t *alloc40_create(reiser4_entity_t *format) {
     alloc40_t *alloc;
+    reiser4_layout_func_t layout;
 
-    aal_assert("umka-365", device != NULL, return NULL);
+    aal_assert("umka-365", format != NULL, return NULL);
 	
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
 
-    offset = (REISER4_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
-	aal_device_get_bs(device);
-    
-    if (!(alloc->bitmap = reiser4_bitmap_create(device, offset, len))) {
+    if (!(alloc->bitmap = reiser4_bitmap_create())) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create bitmap.");
 	goto error_free_alloc;
     }
+  
+    alloc->format = format;
 
-    alloc->device = device;
+    if (!(layout = format->plugin->format_ops.alloc_layout)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Method \"alloc_layout\" doesn't implemented in format plugin.");
+	goto error_free_bitmap;
+    }
+    
+    if (layout(format, callback_alloc_bitmap, alloc)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't load ondisk bitmap.");
+	goto error_free_bitmap;
+    }
+    
+    alloc->plugin = &alloc40_plugin;
     
     return (reiser4_entity_t *)alloc;
 
+error_free_bitmap:
+    reiser4_bitmap_close(alloc->bitmap);
 error_free_alloc:
     aal_free(alloc);
 error:
     return NULL;
 }
 
+static errno_t callback_flush_bitmap(aal_device_t *device, 
+    blk_t blk, void *data)
+{
+    aal_block_t *block;
+    alloc40_t *alloc = (alloc40_t *)data;
+    
+    aal_assert("umka-1054", device != NULL, return -1);
+    aal_assert("umka-1055", alloc != NULL, return -1);
+    
+    if (!(block = aal_block_alloc(device, blk, 0xff))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't read bitmap block %llu. %s.", blk, device->error);
+	return -1;
+    }
+
+    aal_memcpy(block->data, alloc->map, aal_block_size(block));
+
+    aal_block_free(block);
+    alloc->map += aal_block_size(block);
+    
+    return 0;
+    
+error_free_block:
+    aal_block_free(block);
+    return -1;
+}
+
 /* Saves alloc40 data (bitmap in fact) to device */
 static errno_t alloc40_sync(reiser4_entity_t *entity) {
+    reiser4_layout_func_t layout;
     
     alloc40_t *alloc = (alloc40_t *)entity;
-	
+
     aal_assert("umka-366", alloc != NULL, return -1);
     aal_assert("umka-367", alloc->bitmap != NULL, return -1);
     
-    return reiser4_bitmap_sync(alloc->bitmap);
+    if (!(layout = alloc->format->plugin->format_ops.alloc_layout)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Method \"alloc_layout\" doesn't implemented in format plugin.");
+	return -1;
+    }
+    
+    alloc->map = alloc->bitmap->map;
+
+    return layout(alloc->format, callback_flush_bitmap, alloc);
 }
 
 #endif
@@ -188,13 +287,13 @@ int alloc40_test(reiser4_entity_t *entity, blk_t blk) {
 }
 
 /* Checks allocator on validness */
-errno_t alloc40_valid(reiser4_entity_t *entity, int flags) {
+errno_t alloc40_valid(reiser4_entity_t *entity) {
     alloc40_t *alloc = (alloc40_t *)entity;
     
     aal_assert("umka-963", alloc != NULL, return -1);
     aal_assert("umka-964", alloc->bitmap != NULL, return -1);
 
-    return reiser4_bitmap_check(alloc->bitmap);
+    return 0;
 }
 
 /* Filling the alloc40 structure by methods */

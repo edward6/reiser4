@@ -15,12 +15,6 @@
 #include <reiser4/plugin.h>
 #include <reiser4/key.h>
 
-#define REISER4_DEFAULT_BLOCKSIZE	(4096)
-#define REISER4_MASTER_OFFSET		(65536)
-#define REISER4_MASTER_MAGIC		("R4Sb")
-
-#define REISER4_LEGACY_FORMAT		(0x0)
-
 /* Master super block structure and macros */
 struct reiser4_master_super {
 
@@ -49,9 +43,9 @@ typedef struct reiser4_master_super reiser4_master_super_t;
 #define set_mr_blocksize(mr, val)	aal_set_le16(mr, mr_blocksize, val)
 
 struct reiser4_master {
-    aal_block_t *block;
-    aal_device_t *device;
+    int native;
 
+    aal_block_t *block;
     reiser4_master_super_t *super;
 };
 
@@ -109,6 +103,7 @@ typedef struct reiser4_node reiser4_node_t;
 
 /* Coord inside reiser4 tree */
 struct reiser4_coord {
+
     /* Pointer to the cached node */
     reiser4_cache_t *cache;
 
@@ -118,36 +113,47 @@ struct reiser4_coord {
 
 typedef struct reiser4_coord reiser4_coord_t;
 
+/* Internal struct of libreiser4 for keeping item components */
+struct reiser4_item {
+    
+    /* Item data length */
+    uint32_t len;
+	
+    /* The pointer to the item body */
+    reiser4_body_t *body;
+
+    /* The pointer to the item plugin */
+    reiser4_plugin_t *plugin;
+    
+    reiser4_node_t *node;
+    reiser4_pos_t *pos;
+};
+
+typedef struct reiser4_item reiser4_item_t;
+
 /* Reiser4 in-memory node structure */
 struct reiser4_node {
-
     /* Block node lies in */
     aal_block_t *block;
 
     /* Node entity. This field is uinitializied by node plugin */
     reiser4_entity_t *entity;
-    
-    /* Node plugin is use */
-    reiser4_plugin_t *plugin;
 };
 
 /* Reiserfs object structure (file, dir) */
 struct reiser4_object {
 
-    /* Referrence to the filesystem object opened on */
-    reiser4_fs_t *fs;
-    
     /* Object entity. It is initialized by object plugin */
     reiser4_entity_t *entity;
-
-    /* Object plugin in use */
-    reiser4_plugin_t *plugin;
     
-    /* Object key of first item (most probably stat data item) */
-    reiser4_key_t key;
-
     /* Current coord */
     reiser4_coord_t coord;
+
+    /* Object key of first item (most probably stat data item) */
+    reiser4_key_t key;
+    
+    /* Referrence to the filesystem object opened on */
+    reiser4_fs_t *fs;
 };
 
 typedef struct reiser4_object reiser4_object_t;
@@ -163,9 +169,6 @@ struct reiser4_format {
 	initialization.
     */
     reiser4_entity_t *entity;
-
-    /* Disk-format plugin in use */
-    reiser4_plugin_t *plugin;
 };
 
 typedef struct reiser4_format reiser4_format_t;
@@ -174,18 +177,15 @@ typedef struct reiser4_format reiser4_format_t;
 struct reiser4_journal {
     
     /* 
-	Device journal opened on. In the case of standard journal this field will
-	be pointing to the same device as in disk-format struct. If the journal 
-	is t relocated one then device will be contain pointer to opened device 
-	journal is opened on.
+	Device journal opened on. In the case of standard journal this field 
+	will be pointing to the same device as in disk-format struct. If the 
+	journal is t relocated one then device will be contain pointer to opened
+	device journal is opened on.
     */
     aal_device_t *device;
 
     /* Journal entity. Initializied by plugin */
     reiser4_entity_t *entity;
-
-    /* Plugin for working with journal by */
-    reiser4_plugin_t *plugin;
 };
 
 typedef struct reiser4_journal reiser4_journal_t;
@@ -193,26 +193,21 @@ typedef struct reiser4_journal reiser4_journal_t;
 /* Block allocator structure */
 struct reiser4_alloc {
     reiser4_entity_t *entity;
-    reiser4_plugin_t *plugin;
 };
 
 typedef struct reiser4_alloc reiser4_alloc_t;
 
 /* Oid allocator structure */
 struct reiser4_oid {
-    
-    /* Oid allocator entity */
     reiser4_entity_t *entity;
-
-    /* Oid allocator plugin in use */
-    reiser4_plugin_t *plugin;
 };
 
 typedef struct reiser4_oid reiser4_oid_t;
 
 /* Structure of one cached node in the internal libreiser4 tree */
 struct reiser4_cache {
-    
+    uint8_t level;
+	
     /* Reference to tree instance cache lies in */
     reiser4_tree_t *tree;
        	
@@ -255,16 +250,16 @@ struct reiser4_tree {
     reiser4_fs_t *fs;
 
     /* 
-	Reference to root cached node. It is created by tree initialization routines 
-	and always exists. All other cached nodes are loaded on demand and flushed at
-	memory presure event.
+	Reference to root cached node. It is created by tree initialization 
+	routines and always exists. All other cached nodes are loaded on demand 
+	and flushed at memory presure event.
     */
     reiser4_cache_t *cache;
 
     /* 
-	Limit for number of blocks allowed to be cached. If this value will be exceeded, 
-	tree will perform flush operation until this value reach allowed value minus some
-	customizable and reasonable number of blocks.
+	Limit for number of blocks allowed to be cached. If this value will be 
+	exceeded, tree will perform flush operation until this value reach 
+	allowed value minus some customizable and reasonable number of blocks.
     */
     reiser4_cache_limit_t limit;
 };

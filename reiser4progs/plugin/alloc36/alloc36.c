@@ -8,25 +8,21 @@
 #  include <config.h>
 #endif
 
-#include <aal/aal.h>
-#include <reiser4/reiser4.h>
-
 #include "alloc36.h"
+
+extern reiser4_plugin_t alloc36_plugin;
 
 static reiser4_core_t *core = NULL;
 
-static reiser4_entity_t *alloc36_open(aal_device_t *device, count_t len) {
+static reiser4_entity_t *alloc36_open(reiser4_entity_t *format) {
     reiser4_alloc36_t *alloc;
-
-    aal_assert("umka-413", device != NULL, return NULL);
 
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
 	
-    /* Allocator initialization must be here */
-	
-    alloc->device = device;
-    
+    alloc->format = format;
+    alloc->plugin = &alloc36_plugin;
+
     return (reiser4_entity_t *)alloc;
 
 error_free_alloc:
@@ -37,17 +33,14 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-static reiser4_entity_t *alloc36_create(aal_device_t *device, count_t len) {
+static reiser4_entity_t *alloc36_create(reiser4_entity_t *format) {
     reiser4_alloc36_t *alloc;
 
-    aal_assert("umka-414", device != NULL, return NULL);
-	
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
-	
-    /* Creating of the disk structures must be here. */
-	
-    alloc->device = device;
+
+    alloc->format = format;
+    alloc->plugin = &alloc36_plugin;
     
     return (reiser4_entity_t *)alloc;
 

@@ -39,6 +39,7 @@ extern "C" {
 #include "cache.h"
 #include "dir.h"
 #include "master.h"
+#include "item.h"
 
 extern int libreiser4_get_max_interface_version(void);
 extern int libreiser4_get_min_interface_version(void);

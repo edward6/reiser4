@@ -8,11 +8,14 @@
 #define NODE40_H
 
 #include <aal/aal.h>
+#include <reiser4/plugin.h>
+#include <comm/misc.h>
 
 /* (*(__u32 *)"R4FS") */
 #define NODE40_MAGIC 0x52344653
 
 struct node40 {
+    reiser4_plugin_t *plugin;
     aal_block_t *block;
 };
 

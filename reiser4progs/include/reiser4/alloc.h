@@ -28,7 +28,7 @@ extern blk_t reiser4_alloc_alloc(reiser4_alloc_t *alloc);
 
 #endif
 
-extern errno_t reiser4_alloc_valid(reiser4_alloc_t *alloc, int flags);
+extern errno_t reiser4_alloc_valid(reiser4_alloc_t *alloc);
 extern void reiser4_alloc_close(reiser4_alloc_t *alloc);
 
 extern count_t reiser4_alloc_free(reiser4_alloc_t *alloc);

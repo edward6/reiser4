@@ -8,9 +8,10 @@
 #define JOURNAL36_h
 
 #include <aal/aal.h>
+#include <reiser4/plugin.h>
 
 struct journal36 {
-    aal_device_t *device;
+    reiser4_plugin_t *plugin;
     aal_block_t *header;
 };
 

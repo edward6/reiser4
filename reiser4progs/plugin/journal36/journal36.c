@@ -4,49 +4,32 @@
     Author Yury Umanets.
 */
 
-#include <aal/aal.h>
-#include <reiser4/reiser4.h>
-
 #include "journal36.h"
+
+extern reiser4_plugin_t journal36_plugin;
 
 static reiser4_core_t *core = NULL;
 
-static errno_t journal36_header_check(journal36_header_t *header, 
-    aal_device_t *device) 
-{
+static errno_t journal36_header_check(journal36_header_t *header) {
     return 0;
 }
 
-static reiser4_entity_t *journal36_open(aal_device_t *device) {
+static reiser4_entity_t *journal36_open(reiser4_entity_t *format) {
     journal36_t *journal;
 
-    aal_assert("umka-406", device != NULL, return NULL);
+    aal_assert("umka-406", format != NULL, return NULL);
     
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
-	
-    /* Reading and checking the journal header must be here */
     
-    journal->device = device;
-	
+    journal->plugin = &journal36_plugin;
+    
     return (reiser4_entity_t *)journal;
 }
 
 static errno_t journal36_sync(reiser4_entity_t *entity) {
-    journal36_t *journal;
-    
     aal_assert("umka-407", entity != NULL, return -1);
-    
-    journal = (journal36_t *)entity;
-    
-    if (aal_block_write(journal->header)) {
-	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
-	    "Can't synchronize journal header. %s.", 
-	    aal_device_error(journal->device));
-	return -1;
-    }
-    
-    return 0;
+    return -1;
 }
 
 static void journal36_close(reiser4_entity_t *entity) {

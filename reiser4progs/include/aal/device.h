@@ -120,6 +120,7 @@ extern errno_t aal_block_write(aal_block_t *block);
 extern void aal_block_free(aal_block_t *block);
 extern blk_t aal_block_get_nr(aal_block_t *block);
 extern void aal_block_set_nr(aal_block_t *block, blk_t blk);
+extern uint32_t aal_block_size(aal_block_t *block);
 
 #define B_DIRTY 0 
 

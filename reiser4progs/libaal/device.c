@@ -382,6 +382,11 @@ void aal_block_set_nr(
 	aal_log2(aal_device_get_bs(block->device)));
 }
 
+uint32_t aal_block_size(aal_block_t *block) {
+    aal_assert("umka-1049", block != NULL, return 0);
+    return block->device->blocksize;
+}
+
 /* Frees block instance and all assosiated memory */
 void aal_block_free(
     aal_block_t *block		/* block to be released */

@@ -28,7 +28,7 @@ extern errno_t reiser4_tree_sync(reiser4_tree_t *tree);
 extern errno_t reiser4_tree_flush(reiser4_tree_t *tree);
 
 extern errno_t reiser4_tree_insert(reiser4_tree_t *tree, 
-    reiser4_item_hint_t *item, reiser4_coord_t *coord);
+    reiser4_item_hint_t *hint, reiser4_coord_t *coord);
 
 extern errno_t reiser4_tree_remove(reiser4_tree_t *tree, 
     reiser4_key_t *key);
@@ -59,7 +59,8 @@ extern errno_t reiser4_tree_traverse(aal_device_t *device,
     reiser4_update_func_t update_func, reiser4_edge_func_t after_func,
     void *data);
 
-extern reiser4_cache_t *reiser4_tree_root(reiser4_tree_t *tree);
+extern blk_t reiser4_tree_root(reiser4_tree_t *tree);
+extern uint8_t reiser4_tree_height(reiser4_tree_t *tree);
 
 #endif
 

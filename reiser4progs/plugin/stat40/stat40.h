@@ -7,6 +7,9 @@
 #ifndef STAT40_H
 #define STAT40_H
 
+#include <aal/aal.h>
+#include <reiser4/plugin.h>
+
 /* 
     This is even not minimal stat data. Object can live without stat data at all, 
     just do not allow to link to it. Or size could be stored in the container if 

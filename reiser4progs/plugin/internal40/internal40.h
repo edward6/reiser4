@@ -8,6 +8,7 @@
 #define INTERNAL40_H
 
 #include <aal/aal.h>
+#include <reiser4/plugin.h>
 
 struct internal40 {
     blk_t pointer;

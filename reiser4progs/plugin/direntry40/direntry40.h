@@ -7,6 +7,10 @@
 #ifndef DIRENTRY40_H
 #define DIRENTRY40_H
 
+#include <aal/aal.h>
+#include <reiser4/plugin.h>
+#include <comm/misc.h>
+
 struct reiser4_objid {
     uint8_t locality[sizeof(uint64_t)];
     uint8_t objectid[sizeof(uint64_t)];

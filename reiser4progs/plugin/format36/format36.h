@@ -8,6 +8,7 @@
 #define FORMAT36_H
 
 #include <aal/aal.h>
+#include <reiser4/plugin.h>
 
 #define FORMAT36_35_MAGIC  "ReIsErFs"
 #define FORMAT36_36_MAGIC  "ReIsEr2Fs"
@@ -60,8 +61,10 @@ struct format36_super {
 typedef struct format36_super format36_super_t;
 
 struct format36 {
-    aal_device_t *device;
+    reiser4_plugin_t *plugin;
+    
     aal_block_t *block;
+    aal_device_t *device;
 };
 
 typedef struct format36 format36_t;

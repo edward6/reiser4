@@ -37,27 +37,27 @@ static void info_print_fs(reiser4_fs_t *fs) {
     fprintf(stderr, "Used plugins:\n-------------\n");
 
     fprintf(stderr, "(1) ");
-    info_print_plugin(fs->format->plugin);
+    info_print_plugin(fs->format->entity->plugin);
     
     if (fs->journal) {
 	fprintf(stderr, "(2) ");
-	info_print_plugin(fs->journal->plugin);
+	info_print_plugin(fs->journal->entity->plugin);
     }
 
     fprintf(stderr, "(3) ");
-    info_print_plugin(fs->alloc->plugin);
+    info_print_plugin(fs->alloc->entity->plugin);
     
     fprintf(stderr, "(4) ");
-    info_print_plugin(fs->oid->plugin);
+    info_print_plugin(fs->oid->entity->plugin);
     
     fprintf(stderr, "(5) ");
     info_print_plugin(fs->key.plugin);
     
     fprintf(stderr, "(6) ");
-    info_print_plugin(fs->tree->cache->node->plugin);
+    info_print_plugin(fs->tree->cache->node->entity->plugin);
     
     fprintf(stderr, "(7) ");
-    info_print_plugin(fs->dir->plugin);
+    info_print_plugin(fs->dir->entity->plugin);
 }
 
 int main(int argc, char *argv[]) {

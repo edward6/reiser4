@@ -33,7 +33,7 @@ extern void reiser4_cache_unregister(reiser4_cache_t *cache,
 extern errno_t reiser4_cache_sync(reiser4_cache_t *cache);
 
 extern errno_t reiser4_cache_insert(reiser4_cache_t *cache,
-    reiser4_pos_t *pos, reiser4_item_hint_t *item);
+    reiser4_pos_t *pos, reiser4_item_hint_t *hint);
 
 extern errno_t reiser4_cache_remove(reiser4_cache_t *cache,
     reiser4_pos_t *pos);

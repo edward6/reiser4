@@ -16,29 +16,51 @@
     possible that passed item body is stat data body.
 */
 reiser4_plugin_t *reiser4_object_guess(reiser4_object_t *object) {
-    void *item_body;
-    reiser4_plugin_t *item_plugin;
+    reiser4_item_t item;
     
-    /* Getting plugin for the first object item (most probably stat data item) */
-    if (!(item_plugin = reiser4_node_item_plugin(object->coord.cache->node, 
-	&object->coord.pos)))
+    if (reiser4_item_open(&item, object->coord.cache->node, 
+	&object->coord.pos)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find first item plugin.");
+	    "Can't open item by coord. Node %llu, item %u.",
+	    aal_block_get_nr(object->coord.cache->node->block),
+	    object->coord.pos.item);
+
 	return NULL;
     }
     
-    /* Getting first item body */
-    if (!(item_body = reiser4_node_item_body(object->coord.cache->node, 
-	&object->coord.pos)))
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find first item plugin.");
-	return NULL;
-    }
+    /* 
+	FIXME-UMKA: Here should be used more carefull way to understand if we are
+	able to call item_ops.specific.statdata method in order to get mode field
+	from stat data item.
+    */
+    if (item.plugin->item_ops.specific.statdata.get_mode) {
+	reiser4_id_t id;
+	reiser4_id_t type;
+
+	/* 
+	    Guessing plugin type and plugin id by mode field from the stat data
+	    item. This guessing should be performed only if stat data has not an
+	    plugin extention plugin type and id might be got from.
+	*/
+	
+	uint16_t mode = item.plugin->item_ops.specific.statdata.get_mode(item.body);
     
-    /* FIXME-UMKA: Here should be real detecting instead of hardcoded plugin */
-    return libreiser4_factory_find_by_id(DIR_PLUGIN_TYPE, DIR_DIR40_ID);
+	if (S_ISDIR(mode)) {
+	    type = DIR_PLUGIN_TYPE;
+	    id = DIR_DIR40_ID;
+	} else if (S_ISLNK(mode)) {
+	    type = FILE_PLUGIN_TYPE;
+	    id = FILE_SYMLINK40_ID;
+	} else {
+	    type = FILE_PLUGIN_TYPE;
+	    id = FILE_REG40_ID;
+	}
+	
+	return libreiser4_factory_find_by_id(type, id);
+    }
+
+    return NULL;
 }
 
 /* 
@@ -52,9 +74,9 @@ static errno_t reiser4_object_lookup(
     const char *name,		    /* name to be parsed */
     reiser4_key_t *parent	    /* key of parent stat data */
 ) {
-    void *object_entity;
-    reiser4_plugin_t *object_plugin;
-    
+    reiser4_entity_t *entity;
+    reiser4_plugin_t *plugin;
+
     char track[4096], path[4096];
     char *pointer = NULL, *dirname = NULL;
 
@@ -77,9 +99,7 @@ static errno_t reiser4_object_lookup(
 
     /* Main big loop all work is performed inside wich */
     while (1) {
-	uint16_t mode;
-	void *item_body;
-	reiser4_plugin_t *item_plugin;
+	reiser4_item_t item;
 
 	/* FIXME-UMKA: Hardcoded key40 key type */
 	reiser4_key_set_type(&object->key, KEY40_STATDATA_MINOR);
@@ -93,43 +113,41 @@ static errno_t reiser4_object_lookup(
 	    return -1;
 	}
 	
-	if (!(item_body = reiser4_node_item_body(object->coord.cache->node, 
-	    &object->coord.pos))) 
+	if (reiser4_item_open(&item, object->coord.cache->node,
+	    &object->coord.pos)) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't get item body. Node %llu, item %u.", 
-		aal_block_get_nr(object->coord.cache->node->block), 
+		"Can't open item by coord. Node %llu, item %u.",
+		aal_block_get_nr(object->coord.cache->node->block),
 		object->coord.pos.item);
+
 	    return -1;
 	}
 	
-	if (!(item_plugin = reiser4_node_item_plugin(object->coord.cache->node, 
-	    &object->coord.pos)))
-	{
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't get item plugin. Node %llu, item %u.", 
-		aal_block_get_nr(object->coord.cache->node->block),
-		object->coord.pos.item);
-	    return -1;
-	}
-
 	/* 
-	    Checking for mode. It is used in order to know is current entry link or 
-	    not and is this mode valid one at all.
+	    FIXME-UMKA: Here should be used more carefull way to understand the
+	    real item type (statdata, direntry, etc).
 	*/
-	mode = libreiser4_plugin_call(return -1, 
-	    item_plugin->item_ops.specific.statdata, get_mode, item_body);
+	if (item.plugin->item_ops.specific.statdata.get_mode) {
+	    uint16_t mode;
 
-	if (!S_ISLNK(mode) && !S_ISDIR(mode) && !S_ISREG(mode)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"%s has invalid object type.", track);
-	    return -1;
-	}
+	    /* 
+		Checking for mode. It is used in order to know is current entry link or 
+		not and is the mode valid one.
+	    */
+	    mode = item.plugin->item_ops.specific.statdata.get_mode(item.body);
+
+	    if (!S_ISLNK(mode) && !S_ISDIR(mode) && !S_ISREG(mode)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "%s has invalid mode %x.", track, mode);
+		return -1;
+	    }
 		
-	if (S_ISLNK(mode)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Sorry, opening objects by link is not supported yet!");
-	    return -1;
+	    if (S_ISLNK(mode)) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Sorry, opening objects by link is not supported yet!");
+		return -1;
+	    }
 	}
 
 	/* It will be useful when symlinks ready */
@@ -148,28 +166,17 @@ static errno_t reiser4_object_lookup(
 	    Here we should get dir plugin id from the statdata and using it try find 
 	    needed entry inside it.
 	*/
-	if (!(object_plugin = reiser4_object_guess(object))) {
+	if (!(plugin = reiser4_object_guess(object))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't guess object plugin for parent of %s.", track);
 	    return -1;
 	}
 
-	if (!object_plugin->dir_ops.lookup) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Method \"lookup\" is not implemented in %s plugin.", 
-		object_plugin->h.label);
-	    return -1;
-	}
-	
-	/* 
-	    FIXME-UMKA: Here should be used alternative scheme of distinguish 
-	    what object type realy is.
-	*/
-	if (object_plugin->h.type == DIR_PLUGIN_TYPE) {
+	if (plugin->h.type == DIR_PLUGIN_TYPE) {
 	    reiser4_entry_hint_t entry;
 	    
-	    if (!(object_entity = libreiser4_plugin_call(return -1, 
-		object_plugin->dir_ops, open, object->fs->tree, &object->key)))
+	    if (!(entity = libreiser4_plugin_call(return -1, 
+		plugin->dir_ops, open, object->fs->tree, &object->key)))
 	    {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't open parent of directory \"%s\".", track);
@@ -177,17 +184,30 @@ static errno_t reiser4_object_lookup(
 	    }
 	    
 	    entry.name = dirname;
-	    if (object_plugin->dir_ops.lookup(object_entity, &entry)) {
+	    
+	    if (!plugin->dir_ops.lookup) {
+		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		    "Method \"lookup\" is not implemented in %s plugin.", 
+		    plugin->h.label);
+		
+		libreiser4_plugin_call(return -1, plugin->dir_ops, 
+		    close, entity);
+		
+		return -1;
+	    }
+	
+	    if (plugin->dir_ops.lookup(entity, &entry)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't find entry \"%s\".", entry.name);
 		
-		libreiser4_plugin_call(return -1, object_plugin->dir_ops, 
-		    close, object_entity);
+		libreiser4_plugin_call(return -1, plugin->dir_ops, 
+		    close, entity);
+		
 		return -1;
 	    }
 	    
-	    libreiser4_plugin_call(return -1, object_plugin->dir_ops, 
-		close, object_entity);
+	    libreiser4_plugin_call(return -1, plugin->dir_ops, 
+		close, entity);
 
 	    /* Updating object key by found objectid and locality */
 	    reiser4_key_set_objectid(&object->key, entry.objid.objectid);
@@ -239,13 +259,6 @@ reiser4_object_t *reiser4_object_open(
 	goto error_free_object;
     }
     
-    /* Guessing object plugin from its first item */
-    if (!(object->plugin = reiser4_object_guess(object))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't guess object plugin.");
-	goto error_free_object;
-    }
-    
     return object;
     
 error_free_object:
@@ -271,7 +284,6 @@ reiser4_object_t *reiser4_object_create(
 
     /* Initializing fileds */
     object->fs = fs;
-    object->plugin = plugin;
 
     return object;
 

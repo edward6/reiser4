@@ -28,9 +28,7 @@ extern errno_t reiser4_journal_replay(reiser4_journal_t *journal);
 
 #endif
 
-extern errno_t reiser4_journal_valid(reiser4_journal_t *journal, 
-    int flags);
-
+extern errno_t reiser4_journal_valid(reiser4_journal_t *journal);
 extern void reiser4_journal_close(reiser4_journal_t *journal);
 
 #endif

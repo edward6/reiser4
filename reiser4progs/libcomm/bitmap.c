@@ -32,7 +32,6 @@ void reiser4_bitmap_use(
 ) {
     aal_assert("umka-336", bitmap != NULL, return);
 
-    reiser4_bitmap_range_check(bitmap, blk, return);
     if (aal_test_bit(blk, bitmap->map))
 	return;
 	
@@ -121,15 +120,11 @@ static blk_t reiser4_bitmap_calc(
 	    blocks += bits;
 	    i += bits;
 	} else {
-	    if ((flag == 0 ? reiser4_bitmap_test(bitmap, i) : 
-		    !reiser4_bitmap_test(bitmap, i)))
-		blocks++;
+	    blocks += reiser4_bitmap_test(bitmap, i) ? flag : !flag;
 	    i++;
 	}
 #else
-	if ((flag == 0 ? reiser4_bitmap_test(bitmap, i) : 
-		!reiser4_bitmap_test(bitmap, i)))
-	    blocks++;
+	blocks += reiser4_bitmap_test(bitmap, i) ? flag : !flag;
 	i++;	
 #endif
     }
@@ -140,41 +135,58 @@ static blk_t reiser4_bitmap_calc(
 blk_t reiser4_bitmap_calc_used(
     reiser4_bitmap_t *bitmap	/* bitmap, calculating will be performed in */
 ) {
-    return reiser4_bitmap_calc(bitmap, 0, bitmap->total_blocks, 0);
+    return reiser4_bitmap_calc(bitmap, 0, bitmap->total_blocks, 1);
 }
 
 /* The same as previous one */
 blk_t reiser4_bitmap_calc_unused(
     reiser4_bitmap_t *bitmap	/* bitmap, calculating will be performed in */
 ) {
-    return reiser4_bitmap_calc(bitmap, 0, bitmap->total_blocks, 1);
+    return reiser4_bitmap_calc(bitmap, 0, bitmap->total_blocks, 0);
+}
+
+static count_t reiser4_bitmap_calc_in_block(aal_block_t *block, int flag) {
+    uint32_t i, count = 0;
+    
+    aal_assert("umka-1050", block != NULL, return 0);
+    
+    for (i = 0; i < aal_block_size(block); i++)
+	count += aal_test_bit(i, (char *)block->data) ? flag : !flag;
+
+    return count;
+}
+
+count_t reiser4_bitmap_calc_used_in_block(aal_block_t *block) {
+    return reiser4_bitmap_calc_in_block(block, 1);
+}
+
+count_t reiser4_bitmap_calc_unused_in_block(aal_block_t *block) {
+    return reiser4_bitmap_calc_in_block(block, 0);
 }
 
 /* 
-    Yet another wraper. It counts the number of used/unused blocks in specified 
+    Yet another wrapper. It counts the number of used/unused blocks in specified 
     region.
 */
-blk_t reiser4_bitmap_calc_used_in_area(
+count_t reiser4_bitmap_calc_used_in_area(
     reiser4_bitmap_t *bitmap,	/* bitmap calculation will be performed in */
     blk_t start,		/* start bit (block) */
     blk_t end			/* end bit (block) */
 ) {
-    aal_assert("umka-341", bitmap != NULL, return 0);
     return reiser4_bitmap_calc(bitmap, start, end, 0);
 }
 
 /* The same as previous one */
-blk_t reiser4_bitmap_calc_unused_in_area(
+count_t reiser4_bitmap_calc_unused_in_area(
     reiser4_bitmap_t *bitmap,	/* bitmap calculation will be performed in */
     blk_t start,		/* start bit */
     blk_t end			/* end bit */
 ) {
-    aal_assert("umka-342", bitmap != NULL, return 0);
     return reiser4_bitmap_calc(bitmap, start, end, 1);
 }
 
 /* Retuns stored value of used blocks from specified bitmap */
-blk_t reiser4_bitmap_used(
+count_t reiser4_bitmap_used(
     reiser4_bitmap_t *bitmap	/* bitmap used blocks number will be obtained from */
 ) {
     aal_assert("umka-343", bitmap != NULL, return 0);
@@ -182,342 +194,46 @@ blk_t reiser4_bitmap_used(
 }
 
 /* Retuns stored value of free blocks from specified bitmap */
-blk_t reiser4_bitmap_unused(
+count_t reiser4_bitmap_unused(
     reiser4_bitmap_t *bitmap	/* bitmap unsuded blocks will be obtained from */
 ) {
     aal_assert("umka-344", bitmap != NULL, return 0);
-
-    aal_assert("umka-345", bitmap->total_blocks - 
-	bitmap->used_blocks > 0, return 0);
-	
     return bitmap->total_blocks - bitmap->used_blocks;
 }
 
-/* 
-    Performs basic check of bitmap consistency, based on comparing of number
-    of used blocks from stored field with calculated one.
-*/
-errno_t reiser4_bitmap_check(
-    reiser4_bitmap_t *bitmap	/* bitmap which will be checked */
+/* Attach one more bitmap block to passed bitmap */
+errno_t reiser4_bitmap_attach(
+    reiser4_bitmap_t *bitmap,	    /* bitmap we are working with */
+    aal_block_t *block		    /* block to be atached */
 ) {
-    aal_assert("umka-346", bitmap != NULL, return 0);
-	
-    if (reiser4_bitmap_calc_used(bitmap) != bitmap->used_blocks)
+    aal_assert("umka-1047", bitmap != NULL, return -1);
+    aal_assert("umka-1048", block != NULL, return -1);
+
+    if (!aal_realloc((void **)&bitmap->map, bitmap->size + aal_block_size(block)))
 	return -1;
-	
-    return 0;
-}
-
-/* Allocates bitmap for "len" blocks length */
-reiser4_bitmap_t *reiser4_bitmap_alloc(
-    blk_t len			/* length, bitmap of will be allocated */
-) {
-    reiser4_bitmap_t *bitmap;
-	
-    aal_assert("umka-357", len > 0, goto error);
-	
-    if (!(bitmap = (reiser4_bitmap_t *)aal_calloc(sizeof(*bitmap), 0)))
-	goto error;
-	
-    bitmap->used_blocks = 0;
-    bitmap->total_blocks = len;
-    bitmap->size = (len + 7) / 8;
     
-    if (!(bitmap->map = (char *)aal_calloc(bitmap->size, 0)))
-	goto error_free_bitmap;
-	
-    return bitmap;
-	
-error_free_bitmap:
-    reiser4_bitmap_close(bitmap);
-error:
-    return NULL;
-}
-
-/* 
-    Callback function for saving one block of bitmap to device. Called from
-    reiser4_bitmap_flush function on every bitmap block.
-*/
-static errno_t callback_bitmap_flush(
-    aal_device_t *device,	/* device bitmap lies on */
-    blk_t blk,			/* start block of bitmap */
-    char *map,			/* pointer onto bit array */
-    uint32_t chunk,		/* size of bitmap porstion will be saved */
-    void *data			/* some user-specified data */
-) {
-    aal_block_t *block;
-
-    if (!(block = aal_block_alloc(device, blk, 0xff)))
-	goto error;
-		
-    aal_memcpy(block->data, map, chunk); 
+    aal_memcpy(bitmap->map + bitmap->size, block->data, 
+	aal_block_size(block));
     
-    /* Writing block with bitmap onto device */
-    if (aal_block_write(block)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't write bitmap block to %llu. %s.", blk, 
-	    aal_device_error(device));
-	goto error_free_block;
-    }
-    aal_block_free(block);
-	
-    return 0;
-	
-error_free_block:
-    aal_block_free(block);
-error:
-    return -1;
-}
+    bitmap->size += aal_block_size(block);
+    bitmap->total_blocks += (aal_block_size(block) * 8);
+    bitmap->used_blocks += reiser4_bitmap_calc_used_in_block(block);
 
-/* 
-    Callback function for reading one block of bitmap. It is called from function
-    reiser4_bitmap_fetch.
-*/
-static errno_t callback_bitmap_fetch(
-    aal_device_t *device,	/* device bitmap lies on */
-    blk_t blk,			/* start block of bitmap */
-    char *map,			/* pointer onto bit array */
-    uint32_t chunk,		/* size of bitmap porstion will be loaded */
-    void *data			/* some user-specified data */
-) {
-    aal_block_t *block;
-
-    /* Readign one block of bitmap from specified device */    
-    if (!(block = aal_block_read(device, blk))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't read bitmap block %llu. %s.", 
-	    blk, aal_device_error(device));
-	return -1;
-    }
-    
-    aal_memcpy(map, block->data, chunk);
-    aal_block_free(block);
-	
     return 0;
 }
 
-/*
-    The central function for bitmap fetching and flushing. It implements bitmap 
-    traverse algorithm and calles for every block passed callback function. This
-    functions may perform any actions on specified block. For now tehre are two
-    callback functions which are used with this it: callback_bitmap_flush and
-    callback_bitmap_fetch. See above for details.
-*/
-errno_t reiser4_bitmap_pipe(
-    reiser4_bitmap_t *bitmap,	/* bitmap we are working with */
-    reiser4_bitmap_pipe_func_t *pipe_func, 
-    void *data			/* some user-specified data */
-) {
-    char *map;
-    blk_t blk;
-    uint16_t left, chunk;
-	
-    aal_assert("umka-347", bitmap != NULL, return -1);
-    aal_assert("umka-348", bitmap->device != NULL, return -1);
-
-    /* Going through spreaded bitmap */
-    for (left = bitmap->size, blk = bitmap->start, map = bitmap->map; left > 0; ) {	
-	chunk = (left < aal_device_get_bs(bitmap->device) ? left : 
-	    aal_device_get_bs(bitmap->device));
-	
-	if (pipe_func && pipe_func(bitmap->device, blk, map, chunk, NULL))
-	    return -1;
-	
-	blk = (blk / (aal_device_get_bs(bitmap->device) * 8) + 1) * 
-	    (aal_device_get_bs(bitmap->device) * 8);
-
-	map += chunk;
-	left -= chunk;
-    }
-	
-    return 0;
-}
-
-/* Allocates bitmap of specified length and fetch it from the device */
-reiser4_bitmap_t *reiser4_bitmap_open(
-    aal_device_t *device,	/* device the bitmap will be opened on */
-    blk_t start,		/* start block of bitmap on device */
-    count_t len			/* length of the bitmap in blocks */
-) {
+/* Creates instance of bitmap */
+reiser4_bitmap_t *reiser4_bitmap_create(void) {
     reiser4_bitmap_t *bitmap;
 	    
-    aal_assert("umka-349", device != NULL, return NULL);
-	
-    if (!(bitmap = reiser4_bitmap_alloc(len)))
-	goto error;
-	
-    bitmap->start = start;
-    bitmap->device = device;
-    
-    /* Fetching bitmap from device */
-    if (reiser4_bitmap_pipe(bitmap, callback_bitmap_fetch, NULL))
-	goto error_free_bitmap;
-
-    /* Setting up of number of used blocks */
-    if (!(bitmap->used_blocks = reiser4_bitmap_calc_used(bitmap)))
-	goto error_free_bitmap;
-	
-    return bitmap;
-	
-error_free_bitmap:
-    reiser4_bitmap_close(bitmap);
-error:
-    return NULL;
-}
-
-/* Creates empty bitmap of specified length */
-reiser4_bitmap_t *reiser4_bitmap_create(
-    aal_device_t *device,	/* device bitmap is craeting on */
-    blk_t start,		/* start block of bitmap */
-    count_t len			/* length of the bitmap */
-) {
-    blk_t i, bmap_blknr;
-    reiser4_bitmap_t *bitmap;
-    
-    aal_assert("umka-363", device != NULL, return NULL);
-
-    if (!(bitmap = reiser4_bitmap_alloc(len)))
+    if (!(bitmap = (reiser4_bitmap_t *)aal_calloc(sizeof(*bitmap), 0)))
 	return NULL;
 	
-    bitmap->start = start;
-    bitmap->device = device;
+    bitmap->size = 0;
+    bitmap->used_blocks = 0;
+    bitmap->total_blocks = 0;
     
-    /* Marking first bitmap block as used */
-    reiser4_bitmap_use(bitmap, start);
-  
-    /* Setting up other bitmap blocks */
-    bmap_blknr = (len - 1) / (aal_device_get_bs(device) * 8) + 1;
-    for (i = 1; i < bmap_blknr; i++)
-	reiser4_bitmap_use(bitmap, i * aal_device_get_bs(device) * 8);
-
     return bitmap;
-}
-
-/* 
-    Resizes bitmap's map to specified start and end. It is useful for filesystem
-    resizing, when it it used bitmap based block allocator.
-*/
-static uint32_t reiser4_bitmap_resize_map(
-    reiser4_bitmap_t *bitmap,	/* bitmap taht will be resized */
-    long start,			/* new start of bitmap */
-    long end			/* new end of bitmap */
-) {
-    char *map;
-    long i, right;
-    long size = ((end - start) + 7) / 8;
-    
-    /* 
-	Checking for the case when bitmap should be resized from the end. It is
-	more simple case, because it requires just to realloc the piece of memory
-	bitmap lies in.
-    */
-    if (start == 0) {
-	int chunk;
-		
-	if (size == (long)bitmap->size)
-	    return bitmap->size;
-		
-  	if (!aal_realloc((void **)&bitmap->map, size))
-	    return 0;
-
-  	if ((chunk = size - bitmap->size) > 0)
-	    aal_memset(bitmap->map + bitmap->size, 0, chunk);
-
-	return size;
-    }
-
-    /* 
-	Here is the case when we should resize bitmap by using and start and end 
-	passed params.
-    */
-    if (!(map = aal_calloc(size, 0)))
-	return 0;
-
-    right = end > (long)bitmap->total_blocks ? (long)bitmap->total_blocks : end;
-    
-    if (start < 0) {
-	/* The case when start is less than zero */
-	for (i = right - 1; i >= 0; i--) {
-	    if (aal_test_bit(i, bitmap->map)) {
-		if (i + start >= 0)
-		    aal_set_bit(i + start, map);
-	    }
-	}
-    } else {
-	/* Another one case */
-	for (i = start; i < right; i++) {
-	    if (aal_test_bit(i, bitmap->map))
-		aal_set_bit(i, map);
-	}
-    }
-	
-    aal_free(bitmap->map);
-    bitmap->map = map;
-	
-    return size;
-}
-
-/* Resizes bitmap to specified boundaries */
-errno_t reiser4_bitmap_resize(
-    reiser4_bitmap_t *bitmap,	/* bitmap that will be resized */
-    long start,			/* new start of bitmap in blocks */
-    long end			/* new end of bitmap in blocks */
-) {
-    int size;
-    blk_t i, bmap_old_blknr, bmap_new_blknr;
-	
-    aal_assert("umka-350", bitmap != NULL, return -1);
-    aal_assert("umka-351", end - start > 0, return -1);
-	
-    /* Resizing bit array */
-    if ((size = reiser4_bitmap_resize_map(bitmap, start, end)) - 
-	    bitmap->size == 0)
-	return 0;
-
-    bmap_old_blknr = bitmap->size / aal_device_get_bs(bitmap->device);
-    
-    bmap_new_blknr = (end - start - 1) / 
-	(aal_device_get_bs(bitmap->device) * 8) + 1;
-
-    bitmap->size = size;
-    bitmap->total_blocks = end - start;
-	
-    /* Marking new bitmap blocks as used */
-    if (bmap_new_blknr - bmap_old_blknr > 0) {
-	for (i = bmap_old_blknr; i < bmap_new_blknr; i++)
-	    reiser4_bitmap_use(bitmap, i * aal_device_get_bs(bitmap->device) * 8);
-    }
-
-    return 0;
-}
-
-/* 
-    Copies "src_bitmap" to "dst_bitmap". They may have different size. In this 
-    case, destination bitmap will be previously resized to be equal with source 
-    one.
-*/
-blk_t reiser4_bitmap_copy(
-    reiser4_bitmap_t *dest_bitmap, /* destination bitmap */
-    reiser4_bitmap_t *src_bitmap,  /* source bitmap */
-    blk_t len) 
-{
-	
-    aal_assert("umka-352", dest_bitmap != NULL, return 0);
-    aal_assert("umka-353", src_bitmap != NULL, return 0);
-
-    if (!len) 
-	return 0;
-
-    /* Resising destination bitmap */    
-    if (reiser4_bitmap_resize(dest_bitmap, 0, (len > src_bitmap->total_blocks ? 
-	    src_bitmap->total_blocks : len)))
-        return 0;
-    
-    /* Updating map and used blocks field in destination bitmap */
-    aal_memcpy(dest_bitmap->map, src_bitmap->map, dest_bitmap->size);
-    dest_bitmap->used_blocks = reiser4_bitmap_used(dest_bitmap);
-
-    return dest_bitmap->total_blocks;
 }
 
 /* Makes clone of specified bitmap. Returns it to caller */
@@ -528,27 +244,16 @@ reiser4_bitmap_t *reiser4_bitmap_clone(
 
     aal_assert("umka-358", bitmap != NULL, return 0);	
 
-    if (!(clone = reiser4_bitmap_alloc(bitmap->total_blocks)))
+    if (!(clone = reiser4_bitmap_create()))
 	return NULL;
 	
+    clone->size = bitmap->size;
+    clone->used_blocks = bitmap->used_blocks;
+    clone->total_blocks = bitmap->total_blocks;
+    
     aal_memcpy(clone->map, bitmap->map, clone->size);
-    clone->used_blocks = reiser4_bitmap_used(clone);
-	
+    
     return clone;
-}
-
-/* 
-    Synchronizes bitmap to device. It uses pipe function and flush callback function 
-    to perform this.
-*/
-errno_t reiser4_bitmap_sync(
-    reiser4_bitmap_t *bitmap	    /* bitmap sync of which will be performed */
-) {
-
-    if (reiser4_bitmap_pipe(bitmap, callback_bitmap_flush, NULL))
-	return -1;
-
-    return 0;
 }
 
 /* Frees all assosiated with bitmap memory */
@@ -561,24 +266,6 @@ void reiser4_bitmap_close(
 	aal_free(bitmap->map);
 
     aal_free(bitmap);
-}
-
-/* Reopens bitmap from specified device */
-reiser4_bitmap_t *reiser4_bitmap_reopen(
-    reiser4_bitmap_t *bitmap,	    /* bitmap to be reopened */
-    aal_device_t *device	    /* new device bitmap will be reopened on */
-) {
-    blk_t start;
-    count_t len;
-	
-    aal_assert("umka-355", bitmap != NULL, return NULL);
-
-    start = bitmap->start;
-    len = bitmap->total_blocks;
-		
-    reiser4_bitmap_close(bitmap);
-
-    return reiser4_bitmap_open(device, start, len);
 }
 
 /* Returns bitmap's map (memory chunk, bits array placed in) for direct access */

@@ -8,6 +8,7 @@
 #define OID40_H
 
 #include <aal/aal.h>
+#include <reiser4/plugin.h>
 
 #define OID40_ROOT_PARENT_LOCALITY	0x26
 #define OID40_ROOT_LOCALITY		0x29
@@ -16,6 +17,8 @@
 #define OID40_RESERVED			(1 << 16)
 
 struct oid40 {
+    reiser4_plugin_t *plugin;
+
     const void *start;
     uint32_t len;
 

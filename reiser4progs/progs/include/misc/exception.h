@@ -4,8 +4,8 @@
     Author Yury Umanets.
 */
 
-#ifndef PROGS_EXCEPTION
-#define PROGS_EXCEPTION
+#ifndef PROGS_EXCEPTION_H
+#define PROGS_EXCEPTION_H
 
 #include <aal/exception.h>
 

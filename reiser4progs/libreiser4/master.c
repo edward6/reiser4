@@ -29,8 +29,6 @@ reiser4_master_t *reiser4_master_create(
     if (!(master = aal_calloc(sizeof(*master), 0)))
 	return NULL;
     
-    master->device = device;
-    
     if (!(master->block = aal_block_alloc(device, 
 	    REISER4_MASTER_OFFSET / blocksize, 0)))
 	goto error_free_master;
@@ -57,6 +55,8 @@ reiser4_master_t *reiser4_master_create(
 
     /* Setting up block filesystem used */
     set_mr_blocksize(master->super, blocksize);
+
+    master->native = 1;
 	
     return master;
     
@@ -160,7 +160,6 @@ reiser4_master_t *reiser4_master_open(aal_device_t *device) {
 	goto error_free_master;
     }
     
-    master->device = device;
     master->super = (reiser4_master_super_t *)master->block->data;
 
     /* Checking for reiser3 disk-format */
@@ -184,6 +183,8 @@ reiser4_master_t *reiser4_master_open(aal_device_t *device) {
 		    "Can't find reiser4 nor reiser3 filesystem.");
 		goto error_free_block;
 	    }
+	    
+	    master->native = 0;
 	    
 	    return master;
 	}
@@ -209,16 +210,17 @@ errno_t reiser4_master_sync(
     reiser4_master_t *master	    /* master to be saved */
 ) {
     aal_assert("umka-145", master != NULL, return -1);
-    aal_assert("umka-900", master->device != NULL, return -1);
-
-    /* 
-	Writing master super block to host device. Host device is device where
-	filesystem lies. There is also journal device.
-    */
+    
+    /* The check if opened filesystem is native reiser4 one */
+    if (!master->native)
+	return 0;
+    
+    /* Writing master super block to its device */
     if (aal_block_write(master->block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't synchronize master super block at %llu. %s.", 
-	    aal_block_get_nr(master->block), aal_device_error(master->device));
+	    aal_block_get_nr(master->block), 
+	    aal_device_error(master->block->device));
 	return -1;
     }
 

@@ -16,7 +16,7 @@
 
 extern reiser4_oid_t *reiser4_oid_open(reiser4_format_t *format);
 extern void reiser4_oid_close(reiser4_oid_t *oid);
-extern errno_t reiser4_oid_valid(reiser4_oid_t *oid, int flags);
+extern errno_t reiser4_oid_valid(reiser4_oid_t *oid);
 
 #ifndef ENABLE_COMPACT
 

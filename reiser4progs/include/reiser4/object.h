@@ -15,7 +15,6 @@ extern reiser4_object_t *reiser4_object_open(reiser4_fs_t *fs,
     const char *name);
 
 extern void reiser4_object_close(reiser4_object_t *object);
-
 extern reiser4_plugin_t *reiser4_object_guess(reiser4_object_t *object);
 
 #ifndef ENABLE_COMPACT

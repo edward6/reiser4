@@ -38,7 +38,6 @@ reiser4_journal_t *reiser4_journal_open(
     if (!(plugin = libreiser4_factory_find_by_id(JOURNAL_PLUGIN_TYPE, pid)))
 	libreiser4_factory_failed(goto error_free_journal, find, journal, pid);
 	
-    journal->plugin = plugin;
     journal->device = device;
 
     /* 
@@ -46,7 +45,7 @@ reiser4_journal_t *reiser4_journal_open(
 	journal plugin.
     */
     if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 
-	plugin->journal_ops, open, device))) 
+	plugin->journal_ops, open, format->entity))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open journal %s on %s.", plugin->h.label, 
@@ -88,12 +87,11 @@ reiser4_journal_t *reiser4_journal_create(
     if (!(plugin = libreiser4_factory_find_by_id(JOURNAL_PLUGIN_TYPE, pid))) 
 	libreiser4_factory_failed(goto error_free_journal, find, journal, pid);
 
-    journal->plugin = plugin;
     journal->device = device;
 	
     /* Initializing journal entity */
     if (!(journal->entity = libreiser4_plugin_call(goto error_free_journal, 
-	plugin->journal_ops, create, device, params))) 
+	plugin->journal_ops, create, format->entity, params))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create journal %s on %s.", plugin->h.label, 
@@ -115,7 +113,7 @@ errno_t reiser4_journal_replay(
     aal_assert("umka-727", journal != NULL, return -1);
     
     /* Calling plugin for actual replaying */
-    if (libreiser4_plugin_call(return -1, journal->plugin->journal_ops, 
+    if (libreiser4_plugin_call(return -1, journal->entity->plugin->journal_ops, 
 	replay, journal->entity)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -131,19 +129,18 @@ errno_t reiser4_journal_sync(
 ) {
     aal_assert("umka-100", journal != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, journal->plugin->journal_ops, 
+    return libreiser4_plugin_call(return -1, journal->entity->plugin->journal_ops, 
 	sync, journal->entity);
 }
 
 /* Checks jouranl structure for validness */
 errno_t reiser4_journal_valid(
-    reiser4_journal_t *journal, /* jouranl to eb checked */
-    int flags			 /* some flags to be used */
+    reiser4_journal_t *journal  /* jouranl to eb checked */
 ) {
     aal_assert("umka-830", journal != NULL, return -1);
 
-    return libreiser4_plugin_call(return -1, journal->plugin->journal_ops, 
-	valid, journal->entity, flags);
+    return libreiser4_plugin_call(return -1, journal->entity->plugin->journal_ops, 
+	valid, journal->entity);
 }
 
 #endif
@@ -154,7 +151,7 @@ void reiser4_journal_close(
 ) {
     aal_assert("umka-102", journal != NULL, return);
     
-    libreiser4_plugin_call(return, journal->plugin->journal_ops, 
+    libreiser4_plugin_call(return, journal->entity->plugin->journal_ops, 
 	close, journal->entity);
     
     aal_free(journal);

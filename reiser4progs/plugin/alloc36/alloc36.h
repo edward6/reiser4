@@ -8,9 +8,13 @@
 #define ALLOC36_H
 
 #include <aal/aal.h>
+#include <reiser4/plugin.h>
 
 struct reiser4_alloc36 {
-    aal_device_t *device;
+    reiser4_plugin_t *plugin;
+
+    reiser4_entity_t *format;
+    reiser4_plugin_t *format_plugin;
 };
 
 typedef struct reiser4_alloc36 reiser4_alloc36_t;

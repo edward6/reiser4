@@ -8,12 +8,10 @@
 #define FORMAT40_H
 
 #include <aal/aal.h>
+#include <reiser4/plugin.h>
 
 #define FORMAT40_MAGIC	    "R4Sb-Default"
 #define FORMAT40_OFFSET	    (65536 + 4096)
-#define FORMAT40_JHEADER    (4096 * 19)
-#define FORMAT40_JFOOTER    (4096 * 20)
-
 
 struct format40_super {
     uint64_t sb_block_count;
@@ -59,8 +57,10 @@ typedef struct format40_super format40_super_t;
 #define set_sb_tree_height(sb, val)		aal_set_le16(sb, sb_tree_height, val)
 
 struct format40 {
-    aal_device_t *device;
+    reiser4_plugin_t *plugin;
+
     aal_block_t *block;
+    aal_device_t *device;
 };
 
 typedef struct format40 format40_t;

@@ -6,9 +6,6 @@
     Author Yury Umanets.
 */
 
-#include <aal/aal.h>
-#include <reiser4/plugin.h>
-
 #include "sdext_unix.h"
 
 static reiser4_core_t *core = NULL;

@@ -15,8 +15,9 @@
 #  include <time.h>
 #endif
 
-#include <reiser4/reiser4.h>
 #include "dir40.h"
+
+extern reiser4_plugin_t dir40_plugin;
 
 static reiser4_core_t *core = NULL;
 
@@ -43,7 +44,8 @@ static errno_t dir40_rewind(reiser4_entity_t *entity) {
     /* Preparing key of the first entry in directory */
     key.plugin = dir->key.plugin;
     libreiser4_plugin_call(return -1, key.plugin->key_ops, build_direntry, 
-	key.body, dir->hash_plugin, dir40_locality(dir), dir40_objectid(dir), ".");
+	key.body, dir->hash_plugin, dir40_locality(dir), dir40_objectid(dir), 
+	".");
 	    
     if (core->tree_ops.lookup(dir->tree, &key, &dir->place) != 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -135,7 +137,8 @@ static errno_t dir40_read(reiser4_entity_t *entity,
 	    return -1;
 	
 	/* Items are mergeable, updating pointer to current directory item */
-	if (core->tree_ops.item_body(dir->tree, &dir->place, &dir->direntry, NULL))
+	if (core->tree_ops.item_body(dir->tree, &dir->place, 
+		&dir->direntry, NULL))
 	    return -1;
     }
     
@@ -167,6 +170,7 @@ static reiser4_entity_t *dir40_open(const void *tree,
 	return NULL;
     
     dir->tree = tree;
+    dir->plugin = &dir40_plugin;
     
     key_size = libreiser4_plugin_call(goto error_free_dir, 
 	object->plugin->key_ops, size,);
@@ -183,8 +187,8 @@ static reiser4_entity_t *dir40_open(const void *tree,
     }
     
     /* 
-	Initializing stat data plugin after dir40_realize function find and grab 
-	pointer to the statdata item.
+	Initializing stat data plugin after dir40_realize function find and 
+	grab pointer to the statdata item.
     */
     if ((statdata_pid = core->tree_ops.item_pid(dir->tree, &dir->place, 
 	ITEM_PLUGIN_TYPE)) == INVALID_PLUGIN_ID)
@@ -194,18 +198,18 @@ static reiser4_entity_t *dir40_open(const void *tree,
 	goto error_free_dir;
     }
     
-    if (!(dir->statdata_plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, 
-	statdata_pid)))
+    if (!(dir->statdata_plugin = 
+	core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, statdata_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
 	    statdata, statdata_pid);
     }
     
     /*
-	Since hash plugin id will be stored as statdata extenstion, we should initialize
-	hash plugin of the directory after stat data oplugin initialization. But for awhile
-	it is a hardcoded value. We will need to fix it after stat data extentions will be 
-	supported.
+	Since hash plugin id will be stored as statdata extenstion, we should 
+	initialize hash plugin of the directory after stat data oplugin init. 
+	But for awhile it is a hardcoded value. We will need to fix it after 
+	stat data extentions will be supported.
     */
     if (!(dir->hash_plugin = core->factory_ops.plugin_find(HASH_PLUGIN_TYPE, 
 	HASH_R5_ID)))
@@ -215,7 +219,7 @@ static reiser4_entity_t *dir40_open(const void *tree,
     }
     
     /* Positioning to the first directory unit */
-    if (dir40_rewind(dir)) {
+    if (dir40_rewind((reiser4_entity_t *)dir)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't rewind directory with oid %llx.", 
 	    dir40_objectid(dir));
@@ -223,8 +227,8 @@ static reiser4_entity_t *dir40_open(const void *tree,
     }
     
     /* 
-	Initializing direntry plugin after dir40_rewind function find and grab pointer
-	to the first direntry item.
+	Initializing direntry plugin after dir40_rewind function find and grab 
+	pointer	to the first direntry item.
     */
     if ((direntry_pid = core->tree_ops.item_pid(dir->tree, &dir->place, 
 	ITEM_PLUGIN_TYPE)) == INVALID_PLUGIN_ID)
@@ -234,8 +238,8 @@ static reiser4_entity_t *dir40_open(const void *tree,
 	goto error_free_dir;
     }
     
-    if (!(dir->direntry_plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, 
-	direntry_pid)))
+    if (!(dir->direntry_plugin = 
+	core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, direntry_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
 	    direntry, direntry_pid);
@@ -257,8 +261,8 @@ static reiser4_entity_t *dir40_create(const void *tree,
     uint32_t key_size;
     dir40_t *dir;
     reiser4_stat_hint_t stat;
-    reiser4_item_hint_t stat_item;
-    reiser4_item_hint_t direntry_item;
+    reiser4_item_hint_t stat_hint;
+    reiser4_item_hint_t direntry_hint;
     reiser4_direntry_hint_t direntry;
    
     reiser4_sdext_unix_hint_t unix_ext;
@@ -276,9 +280,14 @@ static reiser4_entity_t *dir40_create(const void *tree,
 	return NULL;
     
     dir->tree = tree;
+    dir->plugin = &dir40_plugin;
     
-    if (!(dir->hash_plugin = core->factory_ops.plugin_find(HASH_PLUGIN_TYPE, hint->hash_pid)))
-	libreiser4_factory_failed(goto error_free_dir, find, hash, hint->hash_pid);
+    if (!(dir->hash_plugin = 
+	core->factory_ops.plugin_find(HASH_PLUGIN_TYPE, hint->hash_pid)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    hash, hint->hash_pid);
+    }
     
     locality = libreiser4_plugin_call(return NULL, 
 	object->plugin->key_ops, get_objectid, parent->body);
@@ -289,15 +298,15 @@ static reiser4_entity_t *dir40_create(const void *tree,
     parent_locality = libreiser4_plugin_call(return NULL, 
 	object->plugin->key_ops, get_locality, parent->body);
     
-    if (!(dir->statdata_plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, 
-	hint->statdata_pid)))
+    if (!(dir->statdata_plugin = 
+	core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, hint->statdata_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
 	    statdata, hint->statdata_pid);
     }
     
-    if (!(dir->direntry_plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, 
-	hint->direntry_pid)))
+    if (!(dir->direntry_plugin = 
+	core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, hint->direntry_pid)))
     {
 	libreiser4_factory_failed(goto error_free_dir, find, 
 	    direntry, hint->direntry_pid);
@@ -307,22 +316,23 @@ static reiser4_entity_t *dir40_create(const void *tree,
 	object->plugin->key_ops, size,);
     
     /* 
-	Initializing direntry item hint. This should be done earlier than initializing 
-	of the stat data item hint, because we will need size of direntry item durring
-	stat data initialization.
+	Initializing direntry item hint. This should be done earlier than 
+	initializing of the stat data item hint, because we will need size 
+	of direntry item durring stat data initialization.
     */
-    aal_memset(&direntry_item, 0, sizeof(direntry_item));
+    aal_memset(&direntry_hint, 0, sizeof(direntry_hint));
 
     direntry.count = 2;
-    direntry_item.plugin = dir->direntry_plugin;
+    direntry_hint.plugin = dir->direntry_plugin;
     
-    direntry_item.key.plugin = object->plugin; 
+    direntry_hint.key.plugin = object->plugin; 
    
     libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
-	build_direntry, direntry_item.key.body, dir->hash_plugin, 
+	build_direntry, direntry_hint.key.body, dir->hash_plugin, 
 	locality, objectid, ".");
 
-    if (!(direntry.entry = aal_calloc(direntry.count*sizeof(*direntry.entry), 0)))
+    if (!(direntry.entry = 
+	    aal_calloc(direntry.count*sizeof(*direntry.entry), 0)))
 	goto error_free_dir;
     
     /* Preparing dot entry */
@@ -347,15 +357,15 @@ static reiser4_entity_t *dir40_create(const void *tree,
 	build_entryid, &direntry.entry[1].entryid, dir->hash_plugin, 
 	direntry.entry[1].name);
     
-    direntry_item.hint = &direntry;
+    direntry_hint.hint = &direntry;
 
     /* Initializing stat data hint */
-    aal_memset(&stat_item, 0, sizeof(stat_item));
+    aal_memset(&stat_hint, 0, sizeof(stat_hint));
     
-    stat_item.plugin = dir->statdata_plugin;
+    stat_hint.plugin = dir->statdata_plugin;
 
-    stat_item.key.plugin = object->plugin;
-    aal_memcpy(stat_item.key.body, object->body, key_size);
+    stat_hint.key.plugin = object->plugin;
+    aal_memcpy(stat_hint.key.body, object->body, key_size);
     
     /* Initializing stat data item hint. */
     stat.mode = S_IFDIR | 0755;
@@ -372,15 +382,15 @@ static reiser4_entity_t *dir40_create(const void *tree,
 
     unix_ext.bytes = libreiser4_plugin_call(goto error_free_dir, 
 	dir->direntry_plugin->item_ops.common, estimate, ~0ul, 
-	&direntry_item);
+	&direntry_hint);
 
     stat.ext.count = 1;
     stat.ext.hint[0] = &unix_ext;
 
-    stat_item.hint = &stat;
+    stat_hint.hint = &stat;
     
     /* Calling balancing code in order to insert statdata item into the tree */
-    if (core->tree_ops.item_insert(tree, &stat_item)) {
+    if (core->tree_ops.item_insert(tree, &stat_hint)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't insert stat data item of object %llx into "
 	    "the thee.", objectid);
@@ -388,7 +398,7 @@ static reiser4_entity_t *dir40_create(const void *tree,
     }
     
     /* Inserting the direntry item into the tree */
-    if (core->tree_ops.item_insert(tree, &direntry_item)) {
+    if (core->tree_ops.item_insert(tree, &direntry_hint)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't insert direntry item of object %llx into "
 	    "the thee.", objectid);
@@ -409,7 +419,7 @@ static reiser4_entity_t *dir40_create(const void *tree,
     }
 
     /* Positioning onto first directory unit */
-    if (dir40_rewind(dir)) {
+    if (dir40_rewind((reiser4_entity_t *)dir)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't rewind directory with oid %llx.", 
 	    dir40_objectid(dir));
@@ -427,14 +437,14 @@ error:
 static errno_t dir40_add(reiser4_entity_t *entity, 
     reiser4_entry_hint_t *entry) 
 {
-    reiser4_item_hint_t item;
+    reiser4_item_hint_t hint;
     reiser4_direntry_hint_t direntry_hint;
     dir40_t *dir = (dir40_t *)entity;
     
     aal_assert("umka-844", dir != NULL, return -1);
     aal_assert("umka-845", entry != NULL, return -1);
    
-    aal_memset(&item, 0, sizeof(item));
+    aal_memset(&hint, 0, sizeof(hint));
     aal_memset(&direntry_hint, 0, sizeof(direntry_hint));
 
     direntry_hint.count = 1;
@@ -442,7 +452,7 @@ static errno_t dir40_add(reiser4_entity_t *entity,
     if (!(direntry_hint.entry = aal_calloc(sizeof(*entry), 0)))
 	return -1;
     
-    item.hint = &direntry_hint;
+    hint.hint = &direntry_hint;
    
     /* FIXME-UMKA: Hardcoded key type should be removed */
     libreiser4_plugin_call(goto error_free_entry, dir->key.plugin->key_ops, 
@@ -454,17 +464,17 @@ static errno_t dir40_add(reiser4_entity_t *entity,
     
     aal_memcpy(&direntry_hint.entry[0], entry, sizeof(*entry));
     
-    item.key.plugin = dir->key.plugin;
+    hint.key.plugin = dir->key.plugin;
     
-    libreiser4_plugin_call(goto error_free_entry, item.key.plugin->key_ops, 
-	build_direntry, item.key.body, dir->hash_plugin, dir40_locality(dir), 
+    libreiser4_plugin_call(goto error_free_entry, hint.key.plugin->key_ops, 
+	build_direntry, hint.key.body, dir->hash_plugin, dir40_locality(dir), 
 	dir40_objectid(dir), entry->name);
     
-    item.len = 0;
-    item.plugin = dir->direntry_plugin;
+    hint.len = 0;
+    hint.plugin = dir->direntry_plugin;
     
     /* Inserting the entry to the tree */
-    if (core->tree_ops.item_insert(dir->tree, &item)) {
+    if (core->tree_ops.item_insert(dir->tree, &hint)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't add entry \"%s\" to the thee.", entry->name);
 	goto error_free_entry;
@@ -508,15 +518,14 @@ static reiser4_plugin_t dir40_plugin = {
 	.add	    = NULL,
 	.remove	    = NULL,
 #endif
-	.open	    = dir40_open,
 	.valid	    = NULL,
+	.lookup	    = NULL,
 
+	.open	    = dir40_open,
 	.close	    = dir40_close,
 	.rewind	    = dir40_rewind,
 	.tell	    = dir40_tell,
-	.read	    = dir40_read,
-	.confirm    = NULL,
-	.lookup	    = NULL
+	.read	    = dir40_read
     }
 };
 
