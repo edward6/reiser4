@@ -1215,37 +1215,23 @@ assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 	return 0;
 }
 
-/* return 1 if @extent unit needs allocation, 0 - otherwise. Try to update preceder in
-   parent-first order for next block which will be allocated.
-  
-   Modified by Josh: Handles writing and relocating previously allocated extents.  The
-   extent can be relocated by setting all of its blocks to dirty (assuming they are
-   in-memory--more complex approaches are possible such as splitting the allocated extent
-   and relocating part of it), then deallocating the old extent blocks (deferred) and
-   setting the state to UNALLOCATED.  The calling code will then re-allocate them.
-  
-   If the ALLOCATED extent is not relocated, then its dirty blocks should be written via a
-   call to enqueue_unformatted.
-  
-   FIXME: JMACD->VS: Have I done it right? Can we remove the old FIXME below?
-  
-   FIXME-VS: this only returns 1 for unallocated extents. It may be modified to return 1
-   for allocated extents all unformatted nodes of which are in memory. But that would
-   require changes to allocate_extent_item as well.
+/* Return 1 if @extent unit needs allocation, 0 - otherwise. An allocated extent
+   status may be changed to unallocated if relocation of already allocated
+   blocks look more optimal. Try to update preceder in parent-first order for
+   next block which will be allocated.
 */
 static int
 extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __u64 count, flush_pos_t * pos)
 {
 	reiser4_blocknr_hint *preceder;
-	int relocate = 0;
+	int relocate;
 	int ret;
 	reiser4_tree *tree = current_tree;
 	unsigned long i;
-	int all_need_alloc = 1;
-
+	jnode *j;
 	ON_DEBUG(jnode *check = NULL;) /* this is used to check that all dirty jnodes are of the same atom */
 
-	/* Handle the non-allocated cases. */
+	/* Handle the non-allocated (simple) cases. */
 	switch (state_of_extent(extent)) {
 	    case UNALLOCATED_EXTENT:
 		    return 1;
@@ -1258,26 +1244,23 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __
 	assert("jmacd-83112", state_of_extent(extent) == ALLOCATED_EXTENT);
 	assert("jmacd-748", count > 0);
 
+	relocate = 1;
 	preceder = pos_hint(pos);
 
 	/* See if the extent is entirely dirty. */
 	for (i = 0; i < count; i ++) {
-		jnode * j;
-
 		j = jlook_lock(tree, oid, ind + i);
 		if (!j) {
-			all_need_alloc = 0;
+			relocate = 0;
 			break;
 		}
 		if (jnode_check_flushprepped(j)) {
 			jput(j);
-			all_need_alloc = 0;
+			relocate = 0;
 			break;
 		}
 		jput(j);
 	}
-
-	/* If all blocks are dirty we may justify relocating this extent. */
 
 	/* FIXME: JMACD->HANS: It is very complicated to use the
 	   formula you give in the document for extent-relocation
@@ -1295,7 +1278,8 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __
 	   What does this mean?  Did you do it as requested or
 	   differently?
 	*/
-	relocate = all_need_alloc && pos_leaf_relocate(pos);
+
+	relocate = relocate && pos_leaf_relocate(pos);
 
 	/* Now if relocating, free old blocks & change extent state */
 	if (relocate) {
@@ -1303,32 +1287,30 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __
 		txn_atom * atom;
 
 		atom = get_current_atom_locked();
+		/* All additional blocks needed for safe writing of modified
+		 * extent are counted in atom's flush reserved counted.  Here we
+		 * move that amount to "grabbed" counter for further spending it
+		 * in assign_fake_blocknr(). Thus we convert "flush reserved"
+		 * space to "unallocated" one reflecting that extent allocation
+		 * status change. */
 		flush_reserved2grabbed(atom, count);
 		UNLOCK_ATOM(atom);
 
 		start = extent_get_start(extent);
 
-		/* FIXME-VS: grab space first */
-		/* FIXME: JMACD->ZAM: Is this right? */
-		if ((ret = reiser4_dealloc_blocks(&start, &count, BLOCK_ALLOCATED, BA_DEFER, ""))) 
-		{
-			assert("jmacd-71892", ret < 0);
-			goto fail;
-		}
+		ret = reiser4_dealloc_blocks(&start, &count, BLOCK_ALLOCATED, BA_DEFER, "");
+		if (ret)
+			return ret;
 
 		extent_set_start(extent, 1ull /* UNALLOCATED_EXTENT */ );
 	} else 
-		/* Recalculate preceder */
 		preceder->blk = extent_get_start(extent) + extent_get_width(extent) - 1;
 
 	/* Now scan through again. */
 	for (i = 0; i < count; i ++) {
-		jnode *j;
-
 		j = jlook_lock(tree, oid, ind + i);
 		if (!j)
 			continue;
-
 		if (!jnode_check_dirty(j)) {
 			jput(j);
 			continue;
@@ -1363,11 +1345,7 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __
 	if (check) 
 		jput(check);
 #endif
-
 	return relocate;
-
-      fail:
-	return ret;
 }
 
 /* if @key is glueable to the item @coord is set to */
