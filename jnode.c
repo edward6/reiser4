@@ -551,9 +551,7 @@ find_get_jnode(reiser4_tree * tree, struct address_space *mapping, oid_t oid,
 		jref(result);
 		hash_unformatted_jnode(result, mapping, index);
 	} else {
-		jref(result);
-		JF_SET(result, JNODE_HEARD_BANSHEE);
-		jput(result);
+		jnode_free(result);
 		shadow->key.j.mapping = mapping;
 		result = shadow;
 	}
