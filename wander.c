@@ -217,9 +217,14 @@ static void get_tx_size (struct commit_handle * ch)
 	assert ("zam-440", ch->overwrite_set_size != 0);
 	assert ("zam-695", ch->tx_size == 0);
 
+	/* count all ordinary log records 
+	 * (<overwrite_set_size> - 1) / <log_record_capacity> + 1 and add one
+	 * for tx head block */
 	ch->tx_size = (ch->overwrite_set_size - 1) / log_record_capacity (ch->super) + 2;
 }
 
+/* A special structure for using in store_wmap_actor() for saving its state
+ * between calls */
 struct store_wmap_params {
 	jnode * cur;		/* jnode of current log record to fill */
 	int     idx;		/* free element index in log record  */
@@ -321,6 +326,8 @@ static void dealloc_tx_list (struct commit_handle * ch)
 	}
 }
 
+/* An actor for use in block_nr_iterator() routine which frees wandered blocks
+ * from atom's overwrite set. */
 static int dealloc_wmap_actor (
 	txn_atom               * atom,
 	const reiser4_block_nr * a UNUSED_ARG, 
@@ -339,7 +346,7 @@ static int dealloc_wmap_actor (
 	return 0;
 }
 
-/* free wandered block locations of  already written in place transaction */
+/* free wandered block locations of already written in place transaction */
 static void dealloc_wmap (struct commit_handle * ch)
 {
 	assert ("zam-696", ch->atom != NULL);
@@ -359,6 +366,8 @@ static int get_more_wandered_blocks (int count, reiser4_block_nr * start, int *l
 
 	reiser4_block_nr wide_len = count;
 
+	/* FIXME-ZAM: A special policy needed for allocation of wandered
+	 * blocks */
 	blocknr_hint_init (&hint);
 	hint.block_stage = BLOCK_GRABBED;
 	
