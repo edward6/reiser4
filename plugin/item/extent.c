@@ -1092,9 +1092,9 @@ static void extent_get_inode_and_key_by_coord (const coord_t *item, struct inode
 
 	/* Note: This cannot call the usualy reiser4_iget() interface because that _may_
 	 * cause a call to read_inode(), which will likely deadlock at this point.  The
-	 * call to find_get_inode only gets the inode if it is found in cache. */
+	 * call to ilookup5 only gets the inode if it is found in cache. */
 	/* Bad: (*inode) = reiser4_iget (reiser4_get_current_sb (), key); */
-	(*inode) = find_get_inode (reiser4_get_current_sb (), ino, reiser4_inode_find_actor, key);
+	(*inode) = ilookup5 (reiser4_get_current_sb (), ino, reiser4_inode_find_actor, key);
 }
 
 /**
@@ -2151,9 +2151,9 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 	set_key_type (&sd_key, KEY_SD_MINOR);
 	set_key_offset (&sd_key, 0ull);
 
-	inode = find_get_inode (reiser4_get_current_sb (), 
-				oid_to_ino (get_key_objectid (key)), 
-				reiser4_inode_find_actor, key);
+	inode = ilookup5 (reiser4_get_current_sb (), 
+			  oid_to_ino (get_key_objectid (key)), 
+			  reiser4_inode_find_actor, key);
 	if (!inode)
 		/*
 		 * inode is being removed right now by concurrent iput().

@@ -808,7 +808,7 @@ iget5_locked(struct super_block *sb,
 	     int (*test)(struct inode *, void *), 
 	     int (*set)(struct inode *, void *), void *data);
 extern struct inode *iget_locked(struct super_block *sb, unsigned long ino);
-extern struct inode * find_get_inode(struct super_block * sb, unsigned long ino, int (*test)(struct inode *, void *), void *data);
+extern struct inode * ilookup5(struct super_block * sb, unsigned long ino, int (*test)(struct inode *, void *), void *data);
 
 #define I_DIRTY    0x1
 #define I_NEW      0x2

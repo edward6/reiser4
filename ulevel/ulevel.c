@@ -533,7 +533,7 @@ static struct inode * find_inode (struct super_block *super UNUSED_ARG,
 /*
  * Unlike the various iget() interfaces, find_get_inode only returns an inode if it is found in the inode cache.
  */
-struct inode * find_get_inode(struct super_block * sb, unsigned long ino, int (*test)(struct inode *, void *), void *data)
+struct inode * ilookup5(struct super_block * sb, unsigned long ino, int (*test)(struct inode *, void *), void *data)
 {
 	struct inode *result;
 	spin_lock(&inode_hash_guard);
