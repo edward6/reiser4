@@ -42,7 +42,7 @@ typedef enum {
 struct tree_coord {
 	/* node in a tree */
 	znode *node;
-
+#ifdef DONTUSE_COORD_FIELDS
 	/* position of item within node */
 	pos_in_node  item_pos;
 	/* position of unit within item */
@@ -57,6 +57,7 @@ struct tree_coord {
 	 * here. Profiling shows that node40_plugin_by_coord() is top CPU
 	 * user.
 	 */
+#endif
 };
 
 /*
