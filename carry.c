@@ -405,7 +405,7 @@ static int carry_on_level( carry_level *doing /* queue of carry operations to
 		assert( "nikita-1041", op != NULL );
 		opcode = op -> op;
 		assert( "nikita-1042", op -> op < COP_LAST_OP );
-		f = op_dispatch_table[ op -> op ];
+		f = op_dispatch_table[ op -> op ].handler;
 		/*
 		 * As we are going to generalize single predefined set of
 		 * carry operations stored in @op_dispatch_table into
@@ -1302,15 +1302,12 @@ carry_node *add_new_znode( znode *brother    /* existing left neighbor of new
  * estimate how much disk space is necessary to perform @op
  */
 static __u64 carry_estimate_op( carry_level *level UNUSED_ARG /* level to
-							     * estimate space
-							     * for */,
-			      carry_op *op UNUSED_ARG /* operation to
-						       * estimate */ )
+							       * estimate
+							       * space for */,
+				carry_op *op UNUSED_ARG /* operation to
+							 * estimate */ )
 {
-	/*
-	 * FIXME-NIKITA dumb estimation
-	 */
-	return 2 * ( current_tree -> height + 1 );
+	return op_dispatch_table[ op -> op ].estimate( op, level );
 }
 
 /**

@@ -891,7 +891,8 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 		op -> op = COP_INSERT;
 		op -> u.insert.type = COPT_PASTE_RESTARTED;
 		reiser4_stat_level_add( doing, paste_restarted );
-		result = op_dispatch_table[ COP_INSERT ]( op, doing, todo );
+		result = op_dispatch_table[ COP_INSERT ].handler( op, 
+								  doing, todo );
 
 		return result;
 	}
@@ -1333,18 +1334,81 @@ static carry_node *find_dir_carry( carry_node *node /* node to start scanning
 }
 
 /**
+ * ->estimate method of tree operations
+ */
+static __u64 common_estimate( carry_op *op, carry_level *doing )
+{
+	__u64 result;
+	reiser4_tree *tree;
+
+	assert( "nikita-2310", op != NULL );
+	assert( "nikita-2311", doing != NULL );
+
+	tree = current_tree;
+
+	switch( op -> op ) {
+	case COP_INSERT:
+	case COP_PASTE:
+	case COP_EXTENT:
+		/*
+		 * reserve for insertion of two block at each level, plus new
+		 * tree root.
+		 */
+		result = ( __u64 ) 2 * ( tree -> height + 1 );
+		break;
+	case COP_DELETE:
+	case COP_CUT:
+		/*
+		 * FIXME-NIKITA when key compression will be implemented,
+		 * COP_UPDATE should be moved to COP_INSERT and friends,
+		 * because them, update can possibly enlarge a key and result
+		 * in insertion.
+		 */
+	case COP_UPDATE:
+		result = ( __u64 ) 0;
+		break;
+	default:
+		not_implemented( "nikita-2313", 
+				 "Carry operation %i is not supported", 
+				 op -> op );
+	}
+	return result;
+}
+
+/**
  * This is dispatch table for carry operations. It can be trivially
  * abstracted into useful plugin: tunable balancing policy is a good
  * thing.
  **/
 carry_op_handler op_dispatch_table[ COP_LAST_OP ] = {
-	[ COP_INSERT ] = carry_insert,
-	[ COP_DELETE ] = carry_delete,
-	[ COP_CUT    ] = carry_cut,
-	[ COP_PASTE  ] = carry_paste,
-	[ COP_EXTENT ] = carry_extent,
-	[ COP_UPDATE ] = carry_update,
-	[ COP_MODIFY ] = carry_modify,
+	[ COP_INSERT ] = {
+		.handler  = carry_insert,
+		.estimate = common_estimate
+	},
+	[ COP_DELETE ] = {
+		.handler  = carry_delete,
+		.estimate = common_estimate
+	},
+	[ COP_CUT    ] = {
+		.handler  = carry_cut,
+		.estimate = common_estimate
+	},
+	[ COP_PASTE  ] = {
+		.handler  = carry_paste,
+		.estimate = common_estimate
+	},
+	[ COP_EXTENT ] = {
+		.handler  = carry_extent,
+		.estimate = common_estimate
+	},
+	[ COP_UPDATE ] = {
+		.handler  = carry_update,
+		.estimate = common_estimate
+	},
+	[ COP_MODIFY ] = {
+		.handler  = carry_modify,
+		.estimate = common_estimate
+	}
 };
 
 

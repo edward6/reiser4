@@ -12,9 +12,12 @@
 /*
  * carry operation handlers
  */
-
-typedef int ( *carry_op_handler )( carry_op *op,
-				   carry_level *doing, carry_level *todo );
+typedef struct carry_op_handler {
+	/** perform operation */
+	int ( *handler )( carry_op *op, carry_level *doing, carry_level *todo );
+	/** estimate disk space to reserve in blocks */
+	__u64 ( *estimate )( carry_op *op, carry_level *doing );
+} carry_op_handler;
 
 /**
  * This is dispatch table for carry operations. It can be trivially
