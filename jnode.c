@@ -840,7 +840,7 @@ int jdelete( jnode *node /* jnode to finish with */ )
 
 	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-467", node != NULL );
-	assert( "nikita-2123", JF_ISSET( node, JNODE_HEARD_BANSHEE ) );
+	assert( "nikita-2123", JF_ISSET( node, JNODE_HEARD_BANSHEE ) || !jnode_page(node));
 
 	trace_on( TRACE_PCACHE, "delete node: %p\n", node );
 
