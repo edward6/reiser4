@@ -39,7 +39,7 @@ static void _init(void) {
 	plugins = aal_list_create(10);
 	if (!libreiserfs_init_plugins()) {
 		aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, "umka-008", 
-		"Can't initialize plugins.");
+			"Can't initialize plugins.");
 	}
 }
 
