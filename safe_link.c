@@ -154,15 +154,8 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 
 	inode = reiser4_iget(super, sdkey, 1);
 	if (!IS_ERR(inode)) {
-		reiser4_context ctx;
 		file_plugin *fplug;
 
-		init_context(&ctx, super);
-		result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
-		if (result == 0)
-			result = safe_link_del(inode, link);
-		safe_link_release(tree_by_inode(inode));
-		reiser4_exit_context(&ctx);
 		fplug = inode_file_plugin(inode);
 		assert("nikita-3428", fplug != NULL);
 		if (fplug->safelink != NULL)
@@ -172,6 +165,7 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 				"Cannot handle safelink for %lli", oid);
 			print_key("key", sdkey);
 			print_inode("inode", inode);
+			result = 0;
 		}
 		if (result != 0) {
 			warning("nikita-3431",
@@ -180,6 +174,13 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 		}
 		reiser4_iget_complete(inode);
 		iput(inode);
+		if (result == 0) {
+			result = safe_link_grab(tree_by_inode(inode),
+						BA_CAN_COMMIT);
+			if (result == 0)
+				result = safe_link_del(inode, link);
+			safe_link_release(tree_by_inode(inode));
+		}
 	} else
 		result = PTR_ERR(inode);
 	return result;
