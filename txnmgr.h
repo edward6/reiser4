@@ -254,8 +254,8 @@ struct txn_atom
 	/* active i/o requests accounting */
 	io_handles_list_head        io_handles;
 
-	/* number of threads who does jnode_flush() over this atom */
-	int nr_flushers;
+	/* number of threads who waits this atom commit completion */
+	int nr_waiters;
 };
 
 /* A transaction handle: the client obtains and commits this handle which is assigned by

@@ -421,7 +421,6 @@ void fq_fuse (txn_atom * to, txn_atom * from)
 	fq_list_splice (&to->flush_queues, &from->flush_queues);
 
 	to->num_queued += from->num_queued;
-	to->nr_flushers += from->nr_flushers;
 }
 
 /* bio i/o completion routine */

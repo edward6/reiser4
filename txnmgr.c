@@ -873,7 +873,7 @@ atom_try_commit_locked (txn_atom *atom)
 	jnode *first_dirty;		/* a variable for atom's dirty lists scanning */
 
 	assert ("umka-190", atom != NULL);	
-	// assert ("jmacd-150", atom->txnh_count == 1);
+	assert ("jmacd-150", atom->txnh_count == atom->nr_waiters + 1);
 	assert ("jmacd-151", atom_isopen (atom));
 
 	trace_on (TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, current_pid);
@@ -1158,8 +1158,9 @@ static void init_wlinks (txn_wait_links * wlinks)
 	fwaiting_list_clean (wlinks);
 }
 
-/* Add and atom to the atom's waitfor list and wait somebody who is pleased to wake us up.*/
-static void atom_unlock_and_wait_event (txn_handle * h)
+/* Add and atom to the atom's waitfor list and wait somebody who is pleased to wake us up;
+ * reacquire atom lock after sleep using given txn_handle object, return spin locked atom. */
+static txn_atom * atom_wait_event (txn_handle * h)
 {
 	txn_atom * atom = h->atom;
 	txn_wait_links _wlinks;
@@ -1167,7 +1168,6 @@ static void atom_unlock_and_wait_event (txn_handle * h)
 	assert ("zam-744", spin_atom_is_locked (atom));
 
 	init_wlinks (&_wlinks);
-	atom->refcount ++;
 	fwaitfor_list_push_back (&atom->fwaitfor_list, &_wlinks);
 
 	spin_unlock_atom (atom);
@@ -1177,11 +1177,8 @@ static void atom_unlock_and_wait_event (txn_handle * h)
 	
 	atom = atom_get_locked_with_txnh_locked (h);
 
-	atom->refcount ++;
 	fwaitfor_list_remove (&_wlinks);
-
 	spin_unlock_txnh (h);
-	spin_unlock_atom (atom);
 }
 
 /* wake all threads which wait for an event */
@@ -1200,6 +1197,13 @@ static inline int should_delegate_commit( void )
 	return current -> flags & PF_MEMALLOC;
 }
 
+/* Informs txn manager code that owner of this txn_handle should wait atom commit completion (for
+ * example, because it does fsync(2)) */
+static int should_wait_commit (txn_handle *h)
+{
+	return 0; /* FIXME: nobody needs this wait for commit yet. */
+}
+
 /* Called to commit a transaction handle.  This decrements the atom's number of open
  * handles and if it is the last handle to commit and the atom should commit, initiates
  * atom commit. */
@@ -1209,12 +1213,10 @@ commit_txnh (txn_handle *txnh)
 	int ret = 0;
 	txn_atom *atom;
 	int failed = 0;
-	int do_flushing = 0;
 
 	assert("umka-192", txnh != NULL);
 	
  again:
-
 	/* Get the atom and txnh locked. */
 	atom = atom_get_locked_with_txnh_locked (txnh);
 
@@ -1222,17 +1224,12 @@ commit_txnh (txn_handle *txnh)
 	 * we don't need the txnh lock while trying to commit. */
 	spin_unlock_txnh (txnh);
 
-	/* If we were counted as active flusher in previous iteration of this "again" loop we need
-	 * to decrement nr_flushers before recalculating the situation because we have not yet began
-	 * the flushing again. */
-	if (do_flushing) {
-		do_flushing = 0;
-		atom->nr_flushers --;
-	}
+ again_locked:
+
+	trace_on (TRACE_TXN, "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n", 
+		  atom->atom_id, failed, atom->txnh_count, atom_should_commit (atom));
 
 	if (!failed && atom_should_commit (atom)) {
-		trace_on (TRACE_TXN, "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n", atom->atom_id, failed, atom->txnh_count, atom_should_commit (atom));
-
 		if (atom->stage == ASTAGE_DONE)
 			goto done;
 
@@ -1243,20 +1240,22 @@ commit_txnh (txn_handle *txnh)
 			goto done;
 		}
 
-		/* Check if our atom is being committed or it is being flushed by another thread */
-		if (atom->stage + atom->nr_flushers >= ASTAGE_PRE_COMMIT) { 
-			/* we wait atom to be fully committed or flusher to exit */
-			atom_unlock_and_wait_event(txnh);
-			goto again;
+		if (atom->txnh_count > atom->nr_waiters + 1) {
+			if (should_wait_commit (txnh)) {
+				atom->nr_waiters ++;
+				atom = atom_wait_event (txnh);
+				atom->nr_waiters --;
+
+				goto again_locked;
+			}
+
+			goto done;
 		}
 
 		/* We change atom state to ASTAGE_CAPTURE_WAIT to prevent atom fusion and count
 		 * ourself as an active flusher */
 		atom->stage = ASTAGE_CAPTURE_WAIT;
 		atom->flags |= ATOM_FORCE_COMMIT;
-
-		atom->nr_flushers ++;
-		do_flushing = 1;
 
 		ret = atom_try_commit_locked (atom);
 		
@@ -1268,9 +1267,9 @@ commit_txnh (txn_handle *txnh)
 				/* -EBUSY means that another thread took fq object in exclusive use
 				 * for submitting an I/O or so and we cannot find any fq object
 				 * which is ready to write to disk; we just wait that thread. */
-				atom_unlock_and_wait_event (txnh);
+				atom = atom_wait_event (txnh);
 
-				goto again;
+				goto again_locked;
 			}
 
 			/* This place have a potential to become CPU-eating dead-loop, so I've
@@ -1285,7 +1284,6 @@ commit_txnh (txn_handle *txnh)
 			goto again;
 		}
 	}
-
 
 	assert ("jmacd-1027", spin_atom_is_locked (atom));
  done:
@@ -2528,6 +2526,9 @@ capture_fuse_into (txn_atom  *small,
 	/* Check our accounting. */
 	assert ("jmacd-1063", zcount + small->num_queued == small->capture_count );
 	assert ("jmacd-1065", tcount == small->txnh_count);
+
+	/* sum numbers of waiters threads */
+	large->nr_waiters += small->nr_waiters;
 
 	/* splice flush queues */
 	fq_fuse (large, small);
