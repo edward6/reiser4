@@ -518,8 +518,10 @@ resize_result resize_item( coord_t *coord /* coord of item being resized */,
 		 * COP_CUT operation.
 		 */
 		op = post_carry( &lowest_level, COP_CUT, coord->node, 0 );
-		if( IS_ERR( op ) || ( op == NULL ) )
+		if( IS_ERR( op ) || ( op == NULL ) ) {
+			zrelse( node );
 			return op ? PTR_ERR (op) : -EIO;
+		}
 		not_yet( "nikita-1263", "resize_item() can not cut data yet" );
 	} else
 		result = insert_into_item( coord, lh, key, data, flags );
