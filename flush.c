@@ -3226,6 +3226,7 @@ scan_done(flush_scan * scan)
 	done_load_count(&scan->parent_load);
 	done_lh(&scan->parent_lock);
 	done_lh(&scan->node_lock);
+	put_cluster_handle(&scan->clust, TFM_WRITE);
 }
 
 /* Returns true if flush scanning is finished. */

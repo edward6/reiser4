@@ -18,7 +18,6 @@ typedef struct ctail_item_format {
 /* for flush squeeze */
 typedef struct ctail_squeeze_info {
 	struct inode * inode;
-	reiser4_cluster_t * clust;
 	flow_t flow;
 } ctail_squeeze_info_t;
 
@@ -48,13 +47,14 @@ int cut_units_ctail(coord_t *coord, pos_in_node_t from, pos_in_node_t to,
 int kill_units_ctail(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
 		     carry_kill_data *, reiser4_key * smallest_removed, reiser4_key *new_first);
 
-/*int check_check(const coord_t * coord, const char **error);*/
+int check_ctail(const coord_t * coord, const char **error);
 
 /* plugin->u.item.s.* */
 int read_ctail(struct file *, flow_t *, hint_t *);
 int readpage_ctail(void *, struct page *);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
+int create_hook_ctail (const coord_t * coord, void * arg);
 int kill_hook_ctail(const coord_t *, pos_in_node_t, pos_in_node_t, carry_kill_data *);
 int shift_hook_ctail(const coord_t *, unsigned, unsigned, znode *);
 
@@ -67,9 +67,6 @@ item_plugin * item_plugin_by_jnode(jnode *);
 crypto_stat_t * inode_crypto_stat(struct inode *);
 
 void reiser4_cluster_init(reiser4_cluster_t *);
-void put_cluster_data(reiser4_cluster_t *);
-int cluster_is_uptodate (reiser4_cluster_t *);
-void release_cluster_buf(reiser4_cluster_t *);
 size_t inode_scaled_cluster_size(struct inode *);
 loff_t inode_scaled_offset (struct inode *, const loff_t);
 unsigned max_crypto_overhead(struct inode *);
@@ -81,12 +78,17 @@ int find_cluster_item(hint_t * hint, const reiser4_key *key,
 int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
 int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 int flush_cluster_pages(reiser4_cluster_t *, struct inode *);
-int deflate_cluster(tfm_info_t, reiser4_cluster_t *, struct inode *);
+int deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_cluster(struct inode * inode, pgoff_t start, long count);
 int hint_prev_cluster(reiser4_cluster_t * clust);
 void set_nrpages_by_inode(reiser4_cluster_t * clust, struct inode * inode);
 int grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust);
 void release_cluster_pages(reiser4_cluster_t * clust, int from);
+void put_cluster_handle(reiser4_cluster_t * clust, tfm_action act);
+int grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc, tfm_stream_id id);
+int tfm_cluster_is_uptodate (tfm_cluster_t * tc);
+void tfm_cluster_set_uptodate (tfm_cluster_t * tc);
+void tfm_cluster_clr_uptodate (tfm_cluster_t * tc);
 
 #endif /* __FS_REISER4_CTAIL_H__ */
 

@@ -4,16 +4,20 @@
 #if !defined( __FS_REISER4_CRYPTCOMPRESS_H__ )
 #define __FS_REISER4_CRYPTCOMPRESS_H__
 
+#include "compress/compress.h"
 
 #include <linux/pagemap.h>
 #include <linux/crypto.h>
 
 #define MIN_CLUSTER_SIZE PAGE_CACHE_SIZE
 #define MAX_CLUSTER_SHIFT 4
+#define MAX_CLUSTER_NRPAGES (1 << MAX_CLUSTER_SHIFT)
 #define DEFAULT_CLUSTER_SHIFT 0
 #define MIN_SIZE_FOR_COMPRESSION 64
 #define MIN_CRYPTO_BLOCKSIZE 8
 #define CLUSTER_MAGIC_SIZE (MIN_CRYPTO_BLOCKSIZE >> 1)
+
+//#define HANDLE_VIA_FLUSH_SCAN
 
 /* cluster status */
 typedef enum {
@@ -30,6 +34,87 @@ typedef enum {
 	LAST_TFM
 } reiser4_tfm;
 
+typedef struct tfm_stream {
+	__u8 * data;
+	size_t size;
+} tfm_stream_t;
+
+typedef enum {
+	INPUT_STREAM,
+	OUTPUT_STREAM,
+	LAST_STREAM
+} tfm_stream_id;
+
+typedef tfm_stream_t * tfm_unit[LAST_STREAM];
+
+static inline __u8 *
+ts_data(tfm_stream_t * stm)
+{
+	assert("edward-928", stm != NULL);
+	return stm->data;
+}
+
+static inline size_t
+ts_size(tfm_stream_t * stm)
+{
+	assert("edward-929", stm != NULL);
+	return stm->size;
+}
+
+static inline void
+set_ts_size(tfm_stream_t * stm, size_t size)
+{
+	assert("edward-930", stm != NULL);
+	
+	stm->size = size;
+}
+
+static inline int
+alloc_ts(tfm_stream_t ** stm)
+{
+	assert("edward-931", stm);
+	assert("edward-932", *stm == NULL);
+	
+	*stm = reiser4_kmalloc(sizeof ** stm, GFP_KERNEL);
+	if (*stm == NULL)
+		return -ENOMEM;
+	xmemset(*stm, 0, sizeof ** stm);
+	return 0;
+}
+
+static inline void
+free_ts(tfm_stream_t * stm)
+{
+	assert("edward-933", !ts_data(stm));
+	assert("edward-934", !ts_size(stm));
+
+	reiser4_kfree(stm);
+}
+
+static inline int
+alloc_ts_data(tfm_stream_t * stm, size_t size)
+{
+	assert("edward-935", !ts_data(stm));
+	assert("edward-936", !ts_size(stm));
+	assert("edward-937", size != 0);
+
+	stm->data = reiser4_kmalloc(size, GFP_KERNEL);
+	if (!stm->data)
+		return -ENOMEM;
+	set_ts_size(stm, size);
+	return 0;
+}
+
+static inline void
+free_ts_data(tfm_stream_t * stm)
+{
+	assert("edward-938", equi(ts_data(stm), ts_size(stm)));
+	
+	if (ts_data(stm))
+		reiser4_kfree(ts_data(stm));
+	memset(stm, 0, sizeof *stm);
+}
+
 /* Write modes for item conversion in flush squeeze phase */
 typedef enum {
 	CRC_FIRST_ITEM = 1,
@@ -37,6 +122,193 @@ typedef enum {
 	CRC_OVERWRITE_ITEM = 3,
 	CRC_CUT_ITEM = 4
 } crc_write_mode_t;
+
+typedef struct tfm_cluster{
+	coa_set coa;
+	tfm_unit tun;
+	int uptodate;
+	int len;
+} tfm_cluster_t; 
+
+static inline coa_t 
+get_coa(tfm_cluster_t * tc, reiser4_compression_id id)
+{
+	return tc->coa[id];
+}
+
+static inline void
+set_coa(tfm_cluster_t * tc, reiser4_compression_id id, coa_t coa)
+{
+	tc->coa[id] = coa;
+}
+
+static inline int
+alloc_coa(tfm_cluster_t * tc, compression_plugin * cplug, tfm_action act)
+{
+	coa_t coa;
+
+	coa = cplug->alloc(act);
+	if (IS_ERR(coa))
+		return PTR_ERR(coa);
+	set_coa(tc, cplug->h.id, coa);
+	return 0;
+}
+
+static inline void
+free_coa_set(tfm_cluster_t * tc, tfm_action act)
+{
+	reiser4_compression_id i;
+	compression_plugin * cplug;
+	
+	assert("edward-810", tc != NULL);
+	
+	for(i = 0; i < LAST_COMPRESSION_ID; i++) {
+		if (!get_coa(tc, i))
+			continue;
+		cplug = compression_plugin_by_id(i);
+		assert("edward-812", cplug->free != NULL);
+		cplug->free(get_coa(tc, i), act);
+		set_coa(tc, i, 0);
+	}
+	return;
+}
+
+static inline tfm_stream_t *
+tfm_stream (tfm_cluster_t * tc, tfm_stream_id id)
+{
+	return tc->tun[id];
+}
+
+static inline void
+set_tfm_stream (tfm_cluster_t * tc, tfm_stream_id id, tfm_stream_t * ts)
+{
+	tc->tun[id] = ts;
+}
+
+static inline __u8 *
+tfm_stream_data (tfm_cluster_t * tc, tfm_stream_id id)
+{
+	return ts_data(tfm_stream(tc, id));
+}
+
+static inline void
+set_tfm_stream_data(tfm_cluster_t * tc, tfm_stream_id id, __u8 * data)
+{
+	tfm_stream(tc, id)->data = data;
+}
+
+static inline size_t
+tfm_stream_size (tfm_cluster_t * tc, tfm_stream_id id)
+{
+	return ts_size(tfm_stream(tc, id));
+}
+
+static inline void
+set_tfm_stream_size(tfm_cluster_t * tc, tfm_stream_id id, size_t size)
+{
+	tfm_stream(tc, id)->size = size;
+}
+
+static inline int
+alloc_tfm_stream(tfm_cluster_t * tc, size_t size, tfm_stream_id id)
+{
+	assert("edward-939", tc != NULL);
+	assert("edward-940", !tfm_stream(tc, id));
+	
+	tc->tun[id] = reiser4_kmalloc(sizeof(tfm_stream_t), GFP_KERNEL);
+	if (!tc->tun[id])
+		return -ENOMEM;
+	xmemset(tfm_stream(tc, id), 0, sizeof(tfm_stream_t));
+	return alloc_ts_data(tfm_stream(tc, id), size);
+}
+
+static inline int
+realloc_tfm_stream(tfm_cluster_t * tc, size_t size, tfm_stream_id id)
+{
+	assert("edward-941", tfm_stream_size(tc, id) < size);
+	free_ts_data(tfm_stream(tc, id));
+	return alloc_ts_data(tfm_stream(tc, id), size);
+}
+
+static inline void
+free_tfm_stream(tfm_cluster_t * tc, tfm_stream_id id)
+{
+	free_ts_data(tfm_stream(tc, id));
+	free_ts(tfm_stream(tc, id));
+	set_tfm_stream(tc, id, 0);
+}
+
+static inline void
+free_tfm_unit(tfm_cluster_t * tc)
+{
+	tfm_stream_id id;
+	for (id = 0; id < LAST_STREAM; id++) {
+		if (!tfm_stream(tc, id))
+			continue;
+		free_tfm_stream(tc, id);
+	}
+}
+
+static inline void
+put_tfm_cluster(tfm_cluster_t * tc, tfm_action act)
+{
+	assert("edward-942", tc != NULL);
+	free_coa_set(tc, act);
+	free_tfm_unit(tc);
+}
+
+static inline int
+tfm_cluster_is_uptodate (tfm_cluster_t * tc)
+{
+	assert("edward-943", tc != NULL);
+	assert("edward-944", tc->uptodate == 0 || tc->uptodate == 1);
+	return (tc->uptodate == 1);
+}
+
+static inline void
+tfm_cluster_set_uptodate (tfm_cluster_t * tc)
+{
+	assert("edward-945", tc != NULL);
+	assert("edward-946", tc->uptodate == 0 || tc->uptodate == 1);
+	tc->uptodate = 1;
+	return;
+}
+
+static inline void
+tfm_cluster_clr_uptodate (tfm_cluster_t * tc)
+{
+	assert("edward-947", tc != NULL);
+	assert("edward-948", tc->uptodate == 0 || tc->uptodate == 1);
+	tc->uptodate = 0;
+	return;
+}
+
+static inline int
+tfm_stream_is_set(tfm_cluster_t * tc, tfm_stream_id id)
+{
+	return (tfm_stream(tc, id) && 
+		tfm_stream_data(tc, id) &&
+		tfm_stream_size(tc, id));
+}
+
+static inline int
+tfm_cluster_is_set(tfm_cluster_t * tc)
+{
+	int i;
+	for (i = 0; i < LAST_STREAM; i++)
+		if (!tfm_stream_is_set(tc, i))
+			return 0;
+	return 1;
+}
+
+static inline void
+alternate_streams(tfm_cluster_t * tc)
+{
+	tfm_stream_t * tmp = tfm_stream(tc, INPUT_STREAM);
+	
+	set_tfm_stream(tc, INPUT_STREAM, tfm_stream(tc, OUTPUT_STREAM));
+	set_tfm_stream(tc, OUTPUT_STREAM, tmp);
+}
 
 /* reiser4 cluster manager transforms page cluster into disk cluster (and back) via
    input/output stream of crypto/compression algorithms using copy on clustering.
@@ -46,13 +318,11 @@ typedef enum {
    one cluster:
 */
 typedef struct reiser4_cluster{
-	__u8 * buf;      /* pointer to input/output stream of crypto/compression algorithm */
-	size_t bsize;    /* size of the buffer allocated for the stream */
-	size_t len;      /* actual length of the stream above */
+	tfm_cluster_t tc; /* transform cluster */
 	int nr_pages;    /* number of attached pages */
-	struct page ** pages; /* attached pages */
+	struct page ** pages; /* page cluster */
 	struct file * file;
-	hint_t * hint;
+	hint_t * hint;        /* disk cluster */
 	reiser4_cluster_status stat;
 	/* sliding frame of cluster size in loff_t-space to translate main file 'offsets'
 	   like read/write position, size, new size (for truncate), etc.. into number
@@ -62,6 +332,37 @@ typedef struct reiser4_cluster{
 	unsigned count;  /* bytes to read/write/truncate */
 	unsigned delta;  /* bytes of user's data to append to the hole */
 } reiser4_cluster_t;
+
+static inline int
+alloc_page_cluster(reiser4_cluster_t * clust, int nrpages)
+{
+	assert("edward-949", clust != NULL);
+	assert("edward-950", nrpages != 0 && nrpages <= MAX_CLUSTER_NRPAGES);
+	
+	clust->pages = reiser4_kmalloc(sizeof(*clust->pages) * nrpages, GFP_KERNEL);
+	if (!clust->pages)
+		return -ENOMEM;
+	xmemset(clust->pages, 0, sizeof(*clust->pages) * nrpages);
+	return 0;
+}
+
+static inline void
+free_page_cluster(reiser4_cluster_t * clust)
+{
+	assert("edward-951", clust->pages != NULL);
+	reiser4_kfree(clust->pages);
+}
+
+static inline void
+put_cluster_handle(reiser4_cluster_t * clust, tfm_action act)
+{
+	assert("edward-435", clust != NULL);
+	
+	put_tfm_cluster(&clust->tc, act);
+	if (clust->pages)
+		free_page_cluster(clust);
+	xmemset(clust, 0, sizeof *clust);
+}
 
 /* security attributes supposed to be stored on disk
    are loaded by stat-data methods (see plugin/item/static_stat.c */

@@ -66,6 +66,7 @@ struct flush_scan {
 	   preceder is and if so it sets it here, after which it is copied into the
 	   flush_position.  Otherwise, the preceder is computed later. */
 	reiser4_block_nr preceder_blk;
+	reiser4_cluster_t clust;
 };
 
 static inline flush_scan_node_stat_t
@@ -89,10 +90,11 @@ typedef struct squeeze_item_info {
 } squeeze_item_info_t;
 
 typedef struct squeeze_info {
-	int count;                    /* for squalloc terminating */
-	tfm_info_t  * tfm;           /* transform info */
-	item_plugin * iplug;         /* current item plugin */
-	squeeze_item_info_t * itm;   /* current item info */
+	int                    count; /* for squalloc terminating */
+	coa_set                coa;   /* specific info of compression algorithms */
+	reiser4_cluster_t      clust;   /* transform cluster */
+	item_plugin *          iplug; /* current item plugin */
+	squeeze_item_info_t *  itm;   /* current item info */
 } squeeze_info_t;
 
 typedef enum flush_position_state {
@@ -172,22 +174,17 @@ item_squeeze_data (flush_pos_t * pos)
 	return pos->sq->itm;
 }
 
-static inline tfm_info_t *
-tfm_squeeze_data (flush_pos_t * pos)
+static inline tfm_cluster_t *
+tfm_cluster_sq (flush_pos_t * pos)
 {
-	return pos->sq->tfm;
+	return &pos->sq->clust.tc;
 }
 
-static inline tfm_info_t *
-tfm_squeeze_idx (flush_pos_t * pos, reiser4_compression_id idx)
+static inline tfm_stream_t *
+tfm_stream_sq (flush_pos_t * pos, tfm_stream_id id)
 {
-	return &pos->sq->tfm[idx];
-}
-
-static inline tfm_info_t
-tfm_squeeze_pos (flush_pos_t * pos, reiser4_compression_id idx)
-{
-	return (tfm_squeeze_data(pos) ? *tfm_squeeze_idx(pos, idx) : 0);
+	assert("edward-854", pos->sq != NULL);
+	return tfm_stream(tfm_cluster_sq(pos), id);
 }
 
 #define SQUALLOC_THRESHOLD 256  /* meaningful for ctails */
