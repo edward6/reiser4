@@ -300,6 +300,7 @@ if(!enough_space()){
     insert_node_after_insert_point();
     if(!insert_point_at_node_end())
 	shift_after_insert_point_to_right();
+	if ( optimizing_for_repeat_insertions_at_point)
         insert_node_after_insert_point();// avoids pushing detritus around when repeated insertions occur
 }
 
@@ -749,8 +750,361 @@ static int carry_insert( carry_op *op /* operation to perform */,
 	return result;
 }
 
+#if 0
+
+/* make_space_for_flow_insertion is the below pseudocode detailed to state from
+ * which it can be coded:
+ * if(!enough_space())
+ *      shift_insert_point_to_left;
+ * if(!enough_space())
+ *      shift_after_insert_point_to_right();
+ * if(!enough_space()){
+ *      insert_node_after_insert_point();
+ * if(!insert_point_at_node_end()) {
+ *	shift_after_insert_point_to_right();
+ *	if ( optimizing_for_repeat_insertions_at_point)
+ *            insert_node_after_insert_point();// avoids pushing detritus around when repeated insertions occur
+ *
+ * 
+ */
+
+make_space_for_flow_insertion ()
+{
+	if (there is enough space for whole flow)
+		return;
+
+	shift to left neighbor including insertion point;
+	if (insertion point is moved to left neighbor) {
+		if (there is some space)
+			return;
+		move insertion point to right neighbor;
+	}
+
+	if (there is enough space for whole flow)
+		return;
+
+	shift to right neighbor excluding insertion point;
+	if (insertion point is at the end of node) {
+		if (there is some space)
+			return;
+		add new node;
+		move insertion point to newly added node;
+		return;
+	}
+
+	if (there is enough space for whole flow)
+		return;
+	
+	add new node;
+	shift to right to new node excluding insertion point;
+	assert (current node must contain some space);
+
+	if (there is some space)
+		return;
+
+	add new node;
+	move insertion point to newly added node;
+	
+	return;	
+}
+#endif
+
+#define flow_insert_point(op) ( ( op ) -> u.insert_flow.insert_point )
+
+/*
+ * FIXME-VS: this is called several times during one make_flow_for_insertion
+ * and it will always return the same result. Some optimization could be made
+ * by calculating this value once at the beginning and passing it around. That
+ * would reduce some flexibility in future changes
+ */
+static int can_paste( carry_op *op /* carry operation to check */ );
+static size_t flow_insertion_overhead( carry_op *op )
+{
+	znode *node;
+	size_t insertion_overhead;
+
+	node = flow_insert_point( op ) -> node;
+	insertion_overhead = 0;
+	if( node -> nplug -> item_overhead && !can_paste( op ) )
+		insertion_overhead = node -> nplug -> item_overhead( node, 0 );
+	return insertion_overhead;
+}
+
+/* how many bytes of flow can be written to node */
+static int what_can_be_written( carry_op *op )
+{
+	size_t free;
+
+	free = znode_free_space( flow_insert_point( op ) -> node ) -
+		flow_insertion_overhead( op );
+	return min( free, op -> u.insert_flow.flow -> length );
+}
+
+/*
+ * in make_space_for_flow_insertion we need to check either whether whole flow
+ * fits into a node or whether minimal fraction of flow fits into a node
+ */
+static int enough_space_for_whole_flow( carry_op *op )
+{
+	return what_can_be_written( op ) == op -> u.insert_flow.flow -> length;
+}
+
+#define MIN_FLOW_FRACTION 1
+static int enough_space_for_min_flow_fraction( carry_op *op )
+{
+	assert( "vs-902", coord_is_after_rightmost( flow_insert_point( op ) ) );
+	
+	return what_can_be_written( op ) >= MIN_FLOW_FRACTION;
+}
+
+/* this returns 0 if left neighbor was obtained successfully and everything
+ * upto insertion point including it were shifted and left neighbor still has
+ * some free space to put minimal fraction of flow into it */
+static int make_space_by_shift_left( carry_op *op, carry_level *doing,
+				     carry_level *todo )
+{
+	carry_node *left;
+	znode *orig;
+
+
+	left = find_left_neighbor( op -> node, doing );
+	if( unlikely( IS_ERR( left ) ) ) {
+		warning( "vs-899", "make_space_by_shift_left: "
+			 "error accessing left neighbor: %li",
+			 PTR_ERR( left ) );
+		return 1;
+	}
+	if( left == NULL )
+		/* left neighbor either does not exist or is unformatted
+		 * node */
+		return 1;
+
+	orig = flow_insert_point( op ) -> node;
+	/*
+	 * try to shift content of node @orig from its head upto insert point
+	 * including insertion point into the left neighbor
+	 */
+	carry_shift_data( LEFT_SIDE, flow_insert_point( op ),
+			  left -> real_node, doing, todo,
+			  1 /* including insert point */);
+	if( left -> real_node != flow_insert_point( op ) -> node ) {
+		/* insertion point did not move */
+		return 1;
+	}
+
+	/* insertion point is set after last item in the node */
+	assert( "vs-900", coord_is_after_rightmost( flow_insert_point( op ) ) );
+
+	if( !enough_space_for_min_flow_fraction( op ) ) {
+		/* insertion point node does not have enough free space to put
+		 * even minimal portion of flow into it, therefore, move
+		 * insertion point back to orig node (before first item) */
+		coord_init_before_first_item( flow_insert_point( op ), orig );
+		/*sync_op(); ? */
+		return 1;
+	}
+
+	/* part of flow is to be written to the end of node */
+	return 0;
+}
+
+
+/* this returns 0 if right neighbor was obtained successfully and everything to
+ * the right of insertion point was shifted to it and node got enough free
+ * space to put minimal fraction of flow into it */
+static int make_space_by_shift_right( carry_op *op, carry_level *doing,
+				      carry_level *todo )
+{
+	carry_node *right;
+
+
+	right = find_right_neighbor( op -> node, doing );
+	if( unlikely( IS_ERR( right ) ) ) {
+		warning( "nikita-1065", "shift_right_excluding_insert_point: "
+			 "error accessing right neighbor: %li",
+			 PTR_ERR( right ) );
+		return 1;
+	}
+	if( right == NULL ) {
+		/* right neighbor either does not exist or is unformatted
+		 * node */
+		return 1;
+	}
+
+	/*
+	 * shift everything possible on the right of but excluding insertion
+	 * coord into the right neighbor
+	 */
+	carry_shift_data( RIGHT_SIDE, flow_insert_point( op ),
+			  right -> real_node, doing, todo,
+			  0 /* not including insert point */);
+
+	if( coord_is_after_rightmost( flow_insert_point( op ) ) ) {
+		if( enough_space_for_min_flow_fraction( op ) ) {
+			/* part of flow is to be written to the end of node */
+			return 0;
+		}
+	}
+
+	/* new node is to be added if insert point node did not get enough
+	 * space for whole flow */
+	return 1;
+}
+
+
+/* this returns 0 when insert coord is set at the node end and fraction of flow
+ * fits into that node */
+static int make_space_by_new_nodes( carry_op *op, carry_level *doing,
+				    carry_level *todo )
+{
+	int result;
+	znode *node;
+	carry_node *new;
+
+
+	node = flow_insert_point( op ) -> node;
+	
+	if( op -> u.insert_flow.new_nodes == CARRY_FLOW_NEW_NODES_LIMIT )
+		return -ENOSPC;
+	/* add new node after insert point node */
+	new = add_new_znode( node, op -> node, doing, todo );
+	if( unlikely( IS_ERR( new ) ) ) {
+		return PTR_ERR( new );
+	}
+	result = lock_carry_node( doing, new );
+	zput( new -> real_node );
+	if( unlikely( result ) ) {
+		return result;
+	}
+
+	if( !coord_is_after_rightmost( flow_insert_point( op ) ) ) {
+		carry_shift_data( RIGHT_SIDE, flow_insert_point( op ),
+				  new -> real_node, doing, todo,
+				  0 /* not including insert point */);
+
+		assert( "vs-901", coord_is_after_rightmost( flow_insert_point( op ) ) );
+
+		if( enough_space_for_min_flow_fraction( op ) ) {
+			return 0;
+		}
+		if( op -> u.insert_flow.new_nodes == CARRY_FLOW_NEW_NODES_LIMIT )
+			return -ENOSPC;
+
+		/* add one more new node */
+		new = add_new_znode( node, op -> node, doing, todo );
+		if( unlikely( IS_ERR( new ) ) ) {
+			return PTR_ERR( new );
+		}
+		result = lock_carry_node( doing, new );
+		zput( new -> real_node );
+		if( unlikely( result ) ) {
+			return result;
+		}		
+	}
+
+	/* move insertion point to new node */
+	coord_init_before_first_item( flow_insert_point( op ), new -> real_node );
+	return 0;
+}
+
+
+static int make_space_for_flow_insertion( carry_op *op, carry_level *doing,
+					  carry_level *todo )
+{
+	if( enough_space_for_whole_flow( op ) ) {
+		/* whole flow fits into insert point node */
+		return 0;
+	}
+
+	if( make_space_by_shift_left( op, doing, todo ) == 0 ) {
+		/* insert point is set at node end and fraction of flow fits
+		 * into that node */
+		return 0;
+	}
+
+	if( enough_space_for_whole_flow( op ) ) {
+		/* whole flow fits into insert point node */
+		return 0;
+	}
+
+	if( make_space_by_shift_right( op, doing, todo ) == 0 ) {
+		/* insert point is set at node end and fraction of flow fits
+		 * into that node */
+		return 0;
+	}
+
+	if( enough_space_for_whole_flow( op ) ) {
+		/* whole flow fits into insert point node */
+		return 0;
+	}
+
+	return make_space_by_new_nodes( op, doing, todo );
+}
+
+
 /**
- * implements COP_DELETE opration
+ * implements COP_INSERT_FLOW operation
+ */
+static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *todo )
+{
+	int result;
+	flow_t *f;
+	coord_t *insert_point;
+	node_plugin *nplug;
+	reiser4_item_data data;
+	int something_written;
+	carry_plugin_info info;
+
+
+	op -> u.insert_flow.new_nodes = 0;
+	f = op -> u.insert_flow.flow;
+	result = 0;
+	something_written = 0;
+	info.doing  = doing;
+	info.todo   = todo;
+	while( f -> length )
+	{
+		result = make_space_for_flow_insertion( op, doing, todo );
+		if( result ) {
+			if( something_written ) {
+				/* make_space failed, but part of flow was
+				 * written already, so return 0 here to have
+				 * carry to perform necessary modification in
+				 * the tree */
+				result = 0;
+			}
+			break;
+		}
+
+		insert_point = flow_insert_point( op );
+		nplug = node_plugin_by_node( insert_point -> node );
+
+		/* compose item data for insertion/pasting */
+		data.data = f -> data;
+		data.user = 1;
+		data.length = what_can_be_written( op );
+		data.iplug = item_plugin_by_id( TAIL_ID );
+		data.arg = 0;
+
+		if( can_paste( op ) ) {
+			nplug -> change_item_size( insert_point, data.length );
+			data.iplug -> common.paste( insert_point, &data, &info );
+		} else {
+			nplug -> create_item( insert_point, &f -> key,
+					      &data, &info );
+		}
+		doing -> restartable = 0;
+		znode_set_dirty( insert_point -> node );
+
+		move_flow_forward( f, data.length );
+		something_written = 1;
+	}
+	return result;
+}
+
+
+/**
+ * implements COP_DELETE operation
  *
  * Remove pointer to @op -> u.delete.child from it's parent.
  *
@@ -1502,6 +1856,14 @@ static __u64 common_estimate( carry_op *op, carry_level *doing )
 	case COP_UPDATE:
 		result = ( __u64 ) 0;
 		break;
+	case COP_INSERT_FLOW:
+		/*
+		 * flow insertion may cause adding of up to
+		 * CARRY_FLOW_NEW_NODES_LIMIT + 1 new nodes to leaf level
+		 */
+#define MAX_TREE_HEIGHT 10
+		result = (CARRY_FLOW_NEW_NODES_LIMIT + 1) * MAX_TREE_HEIGHT;
+		break;
 	default:
 		not_implemented( "nikita-2313", 
 				 "Carry operation %i is not supported", 
@@ -1542,6 +1904,10 @@ carry_op_handler op_dispatch_table[ COP_LAST_OP ] = {
 	},
 	[ COP_MODIFY ] = {
 		.handler  = carry_modify,
+		.estimate = common_estimate
+	},
+	[ COP_INSERT_FLOW ] = {
+		.handler  = carry_insert_flow,
 		.estimate = common_estimate
 	}
 };
