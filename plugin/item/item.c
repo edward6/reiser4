@@ -284,431 +284,439 @@ frozen_can_shift(unsigned free_space UNUSED_ARG, coord_t * source UNUSED_ARG,
 
 item_plugin item_plugins[LAST_ITEM_ID] = {
 	[STATIC_STAT_DATA_ID] = {
-				 .h = {
-				       .type_id = REISER4_ITEM_PLUGIN_TYPE,
-				       .id = STATIC_STAT_DATA_ID,
-				       .pops = NULL,
-				       .label = "sd",
-				       .desc = "stat-data",
-				       .linkage = TS_LIST_LINK_ZERO
-				 },
-				 .b = {
-				       .item_type = STAT_DATA_ITEM_TYPE,
-				       .max_key_inside = single_key,
-				       .real_max_key_inside = NULL,
-				       .can_contain_key = NULL,
-				       .mergeable = NULL,
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id = STATIC_STAT_DATA_ID,
+			.pops = NULL,
+			.label = "sd",
+			.desc = "stat-data",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.b = {
+			.item_type = STAT_DATA_ITEM_TYPE,
+			.max_key_inside = single_key,
+			.real_max_key_inside = NULL,
+			.can_contain_key = NULL,
+			.mergeable = NULL,
 #if REISER4_DEBUG_OUTPUT
-				       .print = sd_print,
+			.print = sd_print,
 #endif
-				       .check = NULL,
-				       .nr_units = single_unit,
-				       /* to need for ->lookup method */
-				       .lookup = NULL,
-				       .init = NULL,
-				       .paste = no_paste,
-				       .fast_paste = NULL,
-				       .can_shift = NULL,
-				       .copy_units = NULL,
-				       .create_hook = NULL,
-				       .kill_hook = NULL,
-				       .shift_hook = NULL,
-				       .cut_units = NULL,
-				       .kill_units = NULL,
-				       .unit_key = NULL,
-				       .estimate = NULL,
-				       .item_data_by_flow = NULL,
-				       .key_in_item = NULL,
-				       .key_in_unit = NULL,
-				       .item_stat = sd_item_stat
-				 },
-				 .f = {
-				       .utmost_child = NULL,
-				       .utmost_child_real_block = NULL
-				 },
-				 .s = {
-				       .sd = {
-					      .init_inode = sd_load,
-					      .save_len = sd_len,
-					      .save = sd_save
-				       }
-				 }
+			.check = NULL,
+			.nr_units = single_unit,
+			/* to need for ->lookup method */
+			.lookup = NULL,
+			.init = NULL,
+			.paste = no_paste,
+			.fast_paste = NULL,
+			.can_shift = NULL,
+			.copy_units = NULL,
+			.create_hook = NULL,
+			.kill_hook = NULL,
+			.shift_hook = NULL,
+			.cut_units = NULL,
+			.kill_units = NULL,
+			.unit_key = NULL,
+			.estimate = NULL,
+			.item_data_by_flow = NULL,
+			.key_in_item = NULL,
+			.key_in_unit = NULL,
+			.item_stat = sd_item_stat
+		},
+		.f = {
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
+			.update                  = NULL
+		},
+		.s = {
+			.sd = {
+				.init_inode = sd_load,
+				.save_len = sd_len,
+				.save = sd_save
+			}
+		}
 	},
 	[SIMPLE_DIR_ENTRY_ID] = {
-				 .h = {
-				       .type_id = REISER4_ITEM_PLUGIN_TYPE,
-				       .id = SIMPLE_DIR_ENTRY_ID,
-				       .pops = NULL,
-				       .label = "de",
-				       .desc = "directory entry",
-				       .linkage = TS_LIST_LINK_ZERO
-				 },
-				 .b = {
-				       .item_type = DIR_ENTRY_ITEM_TYPE,
-				       .max_key_inside = single_key,
-				       .real_max_key_inside = NULL,
-				       .can_contain_key = NULL,
-				       .mergeable = NULL,
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id = SIMPLE_DIR_ENTRY_ID,
+			.pops = NULL,
+			.label = "de",
+			.desc = "directory entry",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.b = {
+			.item_type = DIR_ENTRY_ITEM_TYPE,
+			.max_key_inside = single_key,
+			.real_max_key_inside = NULL,
+			.can_contain_key = NULL,
+			.mergeable = NULL,
 #if REISER4_DEBUG_OUTPUT
-				       .print = de_print,
+			.print = de_print,
 #endif
-				       .check = NULL,
-				       .nr_units = single_unit,
-				       /* to need for ->lookup method */
-				       .lookup = NULL,
-				       .init = NULL,
-				       .paste = NULL,
-				       .fast_paste = NULL,
-				       .can_shift = NULL,
-				       .copy_units = NULL,
-				       .create_hook = NULL,
-				       .kill_hook = NULL,
-				       .shift_hook = NULL,
-				       .cut_units = NULL,
-				       .kill_units = NULL,
-				       .unit_key = NULL,
-				       .estimate = NULL,
-				       .item_data_by_flow = NULL,
-				       .key_in_item = NULL,
-				       .key_in_unit = NULL,
-				       .item_stat = NULL
-				 },
-				 .f = {
-				       .utmost_child = NULL,
-				       .utmost_child_real_block = NULL
-				 },
-				 .s = {
-				       .dir = {
-					       .extract_key = de_extract_key,
-					       .update_key = de_update_key,
-					       .extract_name = de_extract_name,
-					       .extract_file_type = de_extract_file_type,
-					       .add_entry = de_add_entry,
-					       .rem_entry = de_rem_entry,
-					       .max_name_len = de_max_name_len
-				       }
-				 }
+			.check = NULL,
+			.nr_units = single_unit,
+			/* to need for ->lookup method */
+			.lookup = NULL,
+			.init = NULL,
+			.paste = NULL,
+			.fast_paste = NULL,
+			.can_shift = NULL,
+			.copy_units = NULL,
+			.create_hook = NULL,
+			.kill_hook = NULL,
+			.shift_hook = NULL,
+			.cut_units = NULL,
+			.kill_units = NULL,
+			.unit_key = NULL,
+			.estimate = NULL,
+			.item_data_by_flow = NULL,
+			.key_in_item = NULL,
+			.key_in_unit = NULL,
+			.item_stat = NULL
+		},
+		.f = {
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
+			.update                  = NULL
+		},
+		.s = {
+			.dir = {
+				.extract_key = de_extract_key,
+				.update_key = de_update_key,
+				.extract_name = de_extract_name,
+				.extract_file_type = de_extract_file_type,
+				.add_entry = de_add_entry,
+				.rem_entry = de_rem_entry,
+				.max_name_len = de_max_name_len
+			}
+		}
 	},
 	[COMPOUND_DIR_ID] = {
-			     .h = {
-				   .type_id = REISER4_ITEM_PLUGIN_TYPE,
-				   .id = COMPOUND_DIR_ID,
-				   .pops = NULL,
-				   .label = "cde",
-				   .desc = "compressed directory entry",
-				   .linkage = TS_LIST_LINK_ZERO
-			     },
-			     .b = {
-				   .item_type = DIR_ENTRY_ITEM_TYPE,
-				   .max_key_inside = cde_max_key_inside,
-				   .real_max_key_inside = NULL,
-				   .can_contain_key = cde_can_contain_key,
-				   .mergeable = cde_mergeable,
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id = COMPOUND_DIR_ID,
+			.pops = NULL,
+			.label = "cde",
+			.desc = "compressed directory entry",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.b = {
+			.item_type = DIR_ENTRY_ITEM_TYPE,
+			.max_key_inside = cde_max_key_inside,
+			.real_max_key_inside = NULL,
+			.can_contain_key = cde_can_contain_key,
+			.mergeable = cde_mergeable,
 #if REISER4_DEBUG_OUTPUT
-				   .print = cde_print,
+			.print = cde_print,
 #endif
-				   .check = cde_check,
-				   .nr_units = cde_nr_units,
-				   .lookup = cde_lookup,
-				   .init = cde_init,
-				   .paste = cde_paste,
-				   .fast_paste = agree_to_fast_op,
-				   .can_shift = cde_can_shift,
-				   .copy_units = cde_copy_units,
-				   .create_hook = NULL,
-				   .kill_hook = NULL,
-				   .shift_hook = NULL,
-				   .cut_units = cde_cut_units,
-				   .kill_units = cde_cut_units,
-				   .unit_key = cde_unit_key,
-				   .estimate = cde_estimate,
-				   .item_data_by_flow = NULL,
-				   .key_in_item = NULL,
-				   .key_in_unit = NULL,
-				   .item_stat = NULL
-			     },
-			     .f = {
-				   .utmost_child = NULL,
-				   .utmost_child_real_block = NULL
-			     },
-			     .s = {
-				   .dir = {
-					   .extract_key = cde_extract_key,
-					   .update_key = cde_update_key,
-					   .extract_name = cde_extract_name,
-					   .extract_file_type = de_extract_file_type,
-					   .add_entry = cde_add_entry,
-					   .rem_entry = cde_rem_entry,
-					   .max_name_len = cde_max_name_len
-				   }
-			     }
+			.check = cde_check,
+			.nr_units = cde_nr_units,
+			.lookup = cde_lookup,
+			.init = cde_init,
+			.paste = cde_paste,
+			.fast_paste = agree_to_fast_op,
+			.can_shift = cde_can_shift,
+			.copy_units = cde_copy_units,
+			.create_hook = NULL,
+			.kill_hook = NULL,
+			.shift_hook = NULL,
+			.cut_units = cde_cut_units,
+			.kill_units = cde_cut_units,
+			.unit_key = cde_unit_key,
+			.estimate = cde_estimate,
+			.item_data_by_flow = NULL,
+			.key_in_item = NULL,
+			.key_in_unit = NULL,
+			.item_stat = NULL
+		},
+		.f = {
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
+			.update                  = NULL
+		},
+		.s = {
+			.dir = {
+				.extract_key = cde_extract_key,
+				.update_key = cde_update_key,
+				.extract_name = cde_extract_name,
+				.extract_file_type = de_extract_file_type,
+				.add_entry = cde_add_entry,
+				.rem_entry = cde_rem_entry,
+				.max_name_len = cde_max_name_len
+			}
+		}
 	},
 	[NODE_POINTER_ID] = {
-			     .h = {
-				   .type_id = REISER4_ITEM_PLUGIN_TYPE,
-				   .id = NODE_POINTER_ID,
-				   .pops = NULL,
-				   .label = "internal",
-				   .desc = "internal item",
-				   .linkage = TS_LIST_LINK_ZERO
-			     },
-			     .b = {
-				   .item_type = INTERNAL_ITEM_TYPE,
-				   .max_key_inside = NULL,
-				   .real_max_key_inside = NULL,
-				   .can_contain_key = NULL,
-				   .mergeable = internal_mergeable,
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id = NODE_POINTER_ID,
+			.pops = NULL,
+			.label = "internal",
+			.desc = "internal item",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.b = {
+			.item_type = INTERNAL_ITEM_TYPE,
+			.max_key_inside = NULL,
+			.real_max_key_inside = NULL,
+			.can_contain_key = NULL,
+			.mergeable = internal_mergeable,
 #if REISER4_DEBUG_OUTPUT
-				   .print = internal_print,
+			.print = internal_print,
 #endif
-				   .check = NULL,
-				   .nr_units = single_unit,
-				   .lookup = internal_lookup,
-				   .init = NULL,
-				   .paste = NULL,
-				   .fast_paste = NULL,
-				   .can_shift = NULL,
-				   .copy_units = NULL,
-				   .create_hook = internal_create_hook,
-				   .kill_hook = internal_kill_hook,
-				   .shift_hook = internal_shift_hook,
-				   .cut_units = NULL,
-				   .kill_units = NULL,
-				   .unit_key = NULL,
-				   .estimate = NULL,
-				   .item_data_by_flow = NULL,
-				   .key_in_item = NULL,
-				   .key_in_unit = NULL,
-				   .item_stat = NULL
-			     },
-			     .f = {
-				   .utmost_child = internal_utmost_child,
-				   .utmost_child_real_block = internal_utmost_child_real_block,
-			     },
-			     .s = {
-				   .internal = {
-						.down_link = internal_down_link,
-						.has_pointer_to = internal_has_pointer_to
-				   }
-			     }
+			.check = internal_check,
+			.nr_units = single_unit,
+			.lookup = internal_lookup,
+			.init = NULL,
+			.paste = NULL,
+			.fast_paste = NULL,
+			.can_shift = NULL,
+			.copy_units = NULL,
+			.create_hook = internal_create_hook,
+			.kill_hook = internal_kill_hook,
+			.shift_hook = internal_shift_hook,
+			.cut_units = NULL,
+			.kill_units = NULL,
+			.unit_key = NULL,
+			.estimate = NULL,
+			.item_data_by_flow = NULL,
+			.key_in_item = NULL,
+			.key_in_unit = NULL,
+			.item_stat = NULL
+		},
+		.f = {
+			.utmost_child            = internal_utmost_child,
+			.utmost_child_real_block = internal_utmost_child_real_block,
+			.update                  = internal_update
+		},
+		.s = {
+			.internal = {
+				.down_link = internal_down_link,
+				.has_pointer_to = internal_has_pointer_to
+			}
+		}
 	},
 	[EXTENT_POINTER_ID] = {
-			       .h = {
-				     .type_id = REISER4_ITEM_PLUGIN_TYPE,
-				     .id = EXTENT_POINTER_ID,
-				     .pops = NULL,
-				     .label = "extent",
-				     .desc = "extent item",
-				     .linkage = TS_LIST_LINK_ZERO
-			       },
-			       .b = {
-				     .item_type = ORDINARY_FILE_METADATA_TYPE,
-				     .max_key_inside = extent_max_key_inside,
-				     .real_max_key_inside = extent_max_key,
-				     .can_contain_key = extent_can_contain_key,
-				     .mergeable = extent_mergeable,
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id = EXTENT_POINTER_ID,
+			.pops = NULL,
+			.label = "extent",
+			.desc = "extent item",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.b = {
+			.item_type = ORDINARY_FILE_METADATA_TYPE,
+			.max_key_inside = extent_max_key_inside,
+			.real_max_key_inside = extent_max_key,
+			.can_contain_key = extent_can_contain_key,
+			.mergeable = extent_mergeable,
 #if REISER4_DEBUG_OUTPUT
-				     .print = extent_print,
+			.print = extent_print,
 #endif
-				     .check = extent_check,
-				     .nr_units = extent_nr_units,
-				     .lookup = extent_lookup,
-				     .init = NULL,
-				     .paste = extent_paste,
-				     .fast_paste = agree_to_fast_op,
-				     .can_shift = extent_can_shift,
-				     .create_hook = extent_create_hook,
-				     .copy_units = extent_copy_units,
-				     .kill_hook = extent_kill_item_hook,
-				     .shift_hook = NULL,
-				     .cut_units = extent_cut_units,
-				     .kill_units = extent_kill_units,
-				     .unit_key = extent_unit_key,
-				     .estimate = NULL,
-				     .item_data_by_flow = NULL,
-				     .key_in_item = extent_key_in_item,
-				     .key_in_unit = extent_key_in_unit,
-				     .item_stat = extent_item_stat
-			       },
-			       .f = {
-				     .utmost_child = extent_utmost_child,
-				     .utmost_child_real_block = extent_utmost_child_real_block
-			       },
-			       .s = {
-				     .file = {
-					      .write = extent_write,
-					      .read = extent_read,
-					      .readpage = extent_readpage,
-					      .writepage = extent_writepage,
-					      .page_cache_readahead = NULL,
-					      .get_block = extent_get_block_address,
-					      /*extent_page_cache_readahead */
-					      .readpages = extent_readpages
-				     }
-			       }
+			.check = extent_check,
+			.nr_units = extent_nr_units,
+			.lookup = extent_lookup,
+			.init = NULL,
+			.paste = extent_paste,
+			.fast_paste = agree_to_fast_op,
+			.can_shift = extent_can_shift,
+			.create_hook = extent_create_hook,
+			.copy_units = extent_copy_units,
+			.kill_hook = extent_kill_item_hook,
+			.shift_hook = NULL,
+			.cut_units = extent_cut_units,
+			.kill_units = extent_kill_units,
+			.unit_key = extent_unit_key,
+			.estimate = NULL,
+			.item_data_by_flow = NULL,
+			.key_in_item = extent_key_in_item,
+			.key_in_unit = extent_key_in_unit,
+			.item_stat = extent_item_stat
+		},
+		.f = {
+			.utmost_child            = extent_utmost_child,
+			.utmost_child_real_block = extent_utmost_child_real_block,
+			.update                  = NULL
+		},
+		.s = {
+			.file = {
+				.write = extent_write,
+				.read = extent_read,
+				.readpage = extent_readpage,
+				.writepage = extent_writepage,
+				.page_cache_readahead = NULL,
+				.get_block = extent_get_block_address,
+				/*extent_page_cache_readahead */
+				.readpages = extent_readpages
+			}
+		}
 	},
 	[TAIL_ID] = {
-		     .h = {
-			   .type_id = REISER4_ITEM_PLUGIN_TYPE,
-			   .id = TAIL_ID,
-			   .pops = NULL,
-			   .label = "body",
-			   .desc = "body (or tail?) item",
-			   .linkage = TS_LIST_LINK_ZERO
-		     },
-		     .b = {
-			   .item_type = ORDINARY_FILE_METADATA_TYPE,
-			   .max_key_inside = tail_max_key_inside,
-			   .real_max_key_inside = tail_max_key,
-			   .can_contain_key = tail_can_contain_key,
-			   .mergeable = tail_mergeable,
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id = TAIL_ID,
+			.pops = NULL,
+			.label = "body",
+			.desc = "body (or tail?) item",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.b = {
+			.item_type = ORDINARY_FILE_METADATA_TYPE,
+			.max_key_inside = tail_max_key_inside,
+			.real_max_key_inside = tail_max_key,
+			.can_contain_key = tail_can_contain_key,
+			.mergeable = tail_mergeable,
 #if REISER4_DEBUG_OUTPUT
-			   .print = NULL,
+			.print = NULL,
 #endif
-			   .check = NULL,
-			   .nr_units = tail_nr_units,
-			   .lookup = tail_lookup,
-			   .init = NULL,
-			   .paste = tail_paste,
-			   .fast_paste = agree_to_fast_op,
-			   .can_shift = tail_can_shift,
-			   .create_hook = NULL,
-			   .copy_units = tail_copy_units,
-			   .kill_hook = NULL,
-			   .shift_hook = NULL,
-			   .cut_units = tail_cut_units,
-			   .kill_units = tail_cut_units,
-			   .unit_key = tail_unit_key,
-			   .estimate = NULL,
-			   .item_data_by_flow = NULL,
-			   .key_in_item = tail_key_in_item,
-			   .key_in_unit = NULL,
-			   .item_stat = NULL
-		     },
-		     .f = {
-			   .utmost_child = NULL,
-			   .utmost_child_real_block = NULL
-		     },
-		     .s = {
-			   .file = {
-				    .write = tail_write,
-				    .read = tail_read,
-				    .readpage = NULL,
-				    .writepage = NULL,
-				    .page_cache_readahead = NULL,
-				    .get_block = NULL,
-				    .readpages = NULL
-			   }
-		     }
+			.check = NULL,
+			.nr_units = tail_nr_units,
+			.lookup = tail_lookup,
+			.init = NULL,
+			.paste = tail_paste,
+			.fast_paste = agree_to_fast_op,
+			.can_shift = tail_can_shift,
+			.create_hook = NULL,
+			.copy_units = tail_copy_units,
+			.kill_hook = NULL,
+			.shift_hook = NULL,
+			.cut_units = tail_cut_units,
+			.kill_units = tail_cut_units,
+			.unit_key = tail_unit_key,
+			.estimate = NULL,
+			.item_data_by_flow = NULL,
+			.key_in_item = tail_key_in_item,
+			.key_in_unit = NULL,
+			.item_stat = NULL
+		},
+		.f = {
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
+			.update                  = NULL
+		},
+		.s = {
+			.file = {
+				.write = tail_write,
+				.read = tail_read,
+				.readpage = NULL,
+				.writepage = NULL,
+				.page_cache_readahead = NULL,
+				.get_block = NULL,
+				.readpages = NULL
+			}
+		}
 	},
 	/* the below two items are used in tail conversion. Before tail conversion starts all items of file becomes
 	   frozen. That is nothing of them can be shifted to another node. This guarantees that estimation/reservation
 	   remains valid during tail conversion operation */
 	[FROZEN_TAIL_ID] = {
-		     .h = {
-			   .type_id = REISER4_ITEM_PLUGIN_TYPE,
-			   .id = FROZEN_TAIL_ID,
-			   .pops = NULL,
-			   .label = "frozen tail",
-			   .desc = "non split-able tail item",
-			   .linkage = TS_LIST_LINK_ZERO
-		     },
-		     .b = {
-			   .item_type = ORDINARY_FILE_METADATA_TYPE,
-			   .max_key_inside = tail_max_key_inside,
-			   .real_max_key_inside = tail_max_key,
-			   .can_contain_key = tail_can_contain_key,
-			   .mergeable = frozen_mergeable,
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id = FROZEN_TAIL_ID,
+			.pops = NULL,
+			.label = "frozen tail",
+			.desc = "non split-able tail item",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.b = {
+			.item_type = ORDINARY_FILE_METADATA_TYPE,
+			.max_key_inside = tail_max_key_inside,
+			.real_max_key_inside = tail_max_key,
+			.can_contain_key = tail_can_contain_key,
+			.mergeable = frozen_mergeable,
 #if REISER4_DEBUG_OUTPUT
-			   .print = NULL,
+			.print = NULL,
 #endif
-			   .check = NULL,
-			   .nr_units = tail_nr_units,
-			   .lookup = tail_lookup,
-			   .init = NULL,
-			   .paste = frozen_paste,
-			   .fast_paste = agree_to_fast_op,
-			   .can_shift = frozen_can_shift,
-			   .create_hook = NULL,
-			   .copy_units = tail_copy_units,
-			   .kill_hook = NULL,
-			   .shift_hook = NULL,
-			   .cut_units = tail_cut_units,
-			   .kill_units = tail_cut_units,
-			   .unit_key = tail_unit_key,
-			   .estimate = NULL,
-			   .item_data_by_flow = NULL,
-			   .key_in_item = tail_key_in_item,
-			   .key_in_unit = NULL,
-			   .item_stat = NULL
-		     },
-		     .f = {
-			   .utmost_child = NULL,
-			   .utmost_child_real_block = NULL
-		     },
-		     .s = {
-			   .file = {
-				    .write = NULL,
-				    .read = NULL,
-				    .readpage = NULL,
-				    .writepage = NULL,
-				    .page_cache_readahead = NULL,
-				    .get_block = NULL
-			   }
-		     }
+			.check = NULL,
+			.nr_units = tail_nr_units,
+			.lookup = tail_lookup,
+			.init = NULL,
+			.paste = frozen_paste,
+			.fast_paste = agree_to_fast_op,
+			.can_shift = frozen_can_shift,
+			.create_hook = NULL,
+			.copy_units = tail_copy_units,
+			.kill_hook = NULL,
+			.shift_hook = NULL,
+			.cut_units = tail_cut_units,
+			.kill_units = tail_cut_units,
+			.unit_key = tail_unit_key,
+			.estimate = NULL,
+			.item_data_by_flow = NULL,
+			.key_in_item = tail_key_in_item,
+			.key_in_unit = NULL,
+			.item_stat = NULL
+		},
+		.f = {
+			.utmost_child            = NULL,
+			.utmost_child_real_block = NULL,
+			.update                  = NULL
+		},
+		.s = {
+			.file = {
+				.write = NULL,
+				.read = NULL,
+				.readpage = NULL,
+				.writepage = NULL,
+				.page_cache_readahead = NULL,
+				.get_block = NULL
+			}
+		}
 	},
 	[FROZEN_EXTENT_POINTER_ID] = {
-			       .h = {
-				     .type_id = REISER4_ITEM_PLUGIN_TYPE,
-				     .id = FROZEN_EXTENT_POINTER_ID,
-				     .pops = NULL,
-				     .label = "frozen extent",
-				     .desc = "non split-able extent item",
-				     .linkage = TS_LIST_LINK_ZERO
-			       },
-			       .b = {
-				     .item_type = ORDINARY_FILE_METADATA_TYPE,
-				     .max_key_inside = extent_max_key_inside,
-				     .real_max_key_inside = extent_max_key,
-				     .can_contain_key = extent_can_contain_key,
-				     .mergeable = frozen_mergeable,
+		.h = {
+			.type_id = REISER4_ITEM_PLUGIN_TYPE,
+			.id = FROZEN_EXTENT_POINTER_ID,
+			.pops = NULL,
+			.label = "frozen extent",
+			.desc = "non split-able extent item",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.b = {
+			.item_type = ORDINARY_FILE_METADATA_TYPE,
+			.max_key_inside = extent_max_key_inside,
+			.real_max_key_inside = extent_max_key,
+			.can_contain_key = extent_can_contain_key,
+			.mergeable = frozen_mergeable,
 #if REISER4_DEBUG_OUTPUT
-				     .print = extent_print,
+			.print = extent_print,
 #endif
-				     .check = extent_check,
-				     .nr_units = extent_nr_units,
-				     .lookup = extent_lookup,
-				     .init = NULL,
-				     .paste = frozen_paste,
-				     .fast_paste = agree_to_fast_op,
-				     .can_shift = frozen_can_shift,
-				     .create_hook = extent_create_hook,
-				     .copy_units = extent_copy_units,
-				     .kill_hook = extent_kill_item_hook,
-				     .shift_hook = NULL,
-				     .cut_units = extent_cut_units,
-				     .kill_units = extent_kill_units,
-				     .unit_key = extent_unit_key,
-				     .estimate = NULL,
-				     .item_data_by_flow = NULL,
-				     .key_in_item = extent_key_in_item,
-				     .key_in_unit = extent_key_in_unit,
-				     .item_stat = extent_item_stat
-			       },
-			       .f = {
-				     .utmost_child = extent_utmost_child,
-				     .utmost_child_real_block = extent_utmost_child_real_block
-			       },
-			       .s = {
-				     .file = {
-					      .write = NULL,
-					      .read = NULL,
-					      .readpage = extent_readpage,
-					      .writepage = NULL,
-					      .page_cache_readahead = NULL,
-					      .get_block = NULL
-				     }
-			       }
+			.check = extent_check,
+			.nr_units = extent_nr_units,
+			.lookup = extent_lookup,
+			.init = NULL,
+			.paste = frozen_paste,
+			.fast_paste = agree_to_fast_op,
+			.can_shift = frozen_can_shift,
+			.create_hook = extent_create_hook,
+			.copy_units = extent_copy_units,
+			.kill_hook = extent_kill_item_hook,
+			.shift_hook = NULL,
+			.cut_units = extent_cut_units,
+			.kill_units = extent_kill_units,
+			.unit_key = extent_unit_key,
+			.estimate = NULL,
+			.item_data_by_flow = NULL,
+			.key_in_item = extent_key_in_item,
+			.key_in_unit = extent_key_in_unit,
+			.item_stat = extent_item_stat
+		},
+		.f = {
+			.utmost_child = extent_utmost_child,
+			.utmost_child_real_block = extent_utmost_child_real_block,
+			.update                  = NULL
+		},
+		.s = {
+			.file = {
+				.write = NULL,
+				.read = NULL,
+				.readpage = extent_readpage,
+				.writepage = NULL,
+				.page_cache_readahead = NULL,
+				.get_block = NULL
+			}
+		}
 	}
 };
 

@@ -206,7 +206,8 @@ typedef struct {
 	/* return whether the right or left child of @coord has a non-fake
 	   block number. */
 	int (*utmost_child_real_block) (const coord_t * coord, sideof side, reiser4_block_nr * block);
-
+	/* relocate child at @coord to the @block */
+	void (*update) (const coord_t * coord, const reiser4_block_nr * block);
 } flush_ops;
 
 /* operations specific to the directory item */
@@ -255,9 +256,11 @@ typedef struct {
 typedef struct {
 	/* all tree traversal want to know from internal item is where
 	    to go next. */
-	void (*down_link) (const coord_t * coord, const reiser4_key * key, reiser4_block_nr * block);
+	void (*down_link) (const coord_t * coord, 
+			   const reiser4_key * key, reiser4_block_nr * block);
 	/* check that given internal item contains given pointer. */
-	int (*has_pointer_to) (const coord_t * coord, const reiser4_block_nr * block);
+	int (*has_pointer_to) (const coord_t * coord, 
+			       const reiser4_block_nr * block);
 } internal_item_ops;
 
 struct item_plugin {

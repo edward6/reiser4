@@ -62,12 +62,13 @@ internal_at(const coord_t * coord	/* coord of
 	return (internal_item_layout *) item_body_by_coord(coord);
 }
 
-/* FIXME: ugly hack */
 void
-internal_update(const coord_t * coord, reiser4_block_nr blocknr)
+internal_update(const coord_t * coord, reiser4_block_nr * blocknr)
 {
 	internal_item_layout *item = internal_at(coord);
-	cpu_to_dblock(blocknr, &item->pointer);
+	assert("nikita-2959", reiser4_blocknr_is_sane(blocknr));
+
+	cpu_to_dblock(*blocknr, &item->pointer);
 }
 
 /* return child block number stored in the internal item at @coord */
@@ -104,6 +105,7 @@ internal_down_link(const coord_t * coord /* coord of item */ ,
 	       (znode_get_level(coord->node) == TWIG_LEVEL) || keyle(item_key_by_coord(coord, &item_key), key));
 
 	*block = pointer_at(coord);
+	assert("nikita-2960", reiser4_blocknr_is_sane(block));
 }
 
 /* Get the child's block number, or 0 if the block is unallocated. */
@@ -113,6 +115,7 @@ internal_utmost_child_real_block(const coord_t * coord, sideof side UNUSED_ARG, 
 	assert("jmacd-2059", coord != NULL);
 
 	*block = pointer_at(coord);
+	assert("nikita-2961", reiser4_blocknr_is_sane(block));
 
 	if (blocknr_is_fake(block)) {
 		*block = 0;
@@ -129,6 +132,7 @@ internal_utmost_child(const coord_t * coord, sideof side UNUSED_ARG, jnode ** ch
 	znode *child;
 
 	assert("jmacd-2059", childp != NULL);
+	assert("nikita-2962", reiser4_blocknr_is_sane(&block));
 
 	child = zlook(znode_get_tree(coord->node), &block);
 
@@ -138,6 +142,18 @@ internal_utmost_child(const coord_t * coord, sideof side UNUSED_ARG, jnode ** ch
 
 	*childp = ZJNODE(child);
 
+	return 0;
+}
+
+int internal_check(const coord_t * coord, const char **error)
+{
+	reiser4_block_nr blk;
+
+	blk = pointer_at(coord);
+	if (!reiser4_blocknr_is_sane(&blk)) {
+		*error = "Invalid pointer";
+		return -1;
+	}
 	return 0;
 }
 
@@ -151,6 +167,7 @@ internal_print(const char *prefix /* prefix to print */ ,
 	reiser4_block_nr blk;
 
 	blk = pointer_at(coord);
+	assert("nikita-2963", reiser4_blocknr_is_sane(&blk));
 	info("%s: internal: %s\n", prefix, sprint_address(&blk));
 }
 #endif
