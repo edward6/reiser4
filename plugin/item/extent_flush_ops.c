@@ -93,7 +93,7 @@ utmost_child_real_block_extent(const coord_t *coord, sideof side, reiser4_block_
 	switch (state_of_extent(ext)) {
 	case ALLOCATED_EXTENT:
 		*block = extent_get_start(ext);
-		if (side == RIGHT_SIDE) 
+		if (side == RIGHT_SIDE)
 			*block += extent_get_width(ext) - 1;
 		break;
 	case HOLE_EXTENT:
@@ -406,7 +406,7 @@ split_allocated_extent(coord_t *coord, reiser4_block_nr pos_in_unit)
 	set_key_offset(&key, (get_key_offset(&key) + pos_in_unit * current_blocksize));
 
 	ON_TRACE(TRACE_EXTENT_ALLOC,
-		 "split [%llu %llu] -> [%llu %llu][%llu %llu]\n", 
+		 "split [%llu %llu] -> [%llu %llu][%llu %llu]\n",
 		 extent_get_start(ext), extent_get_width(ext),
 		 extent_get_start(&replace_ext), extent_get_width(&replace_ext),
 		 extent_get_start(&append_ext), extent_get_width(&append_ext));
@@ -474,7 +474,7 @@ protect_reloc_node(capture_list_head *jnodes, jnode *node)
    un-eflushed nodes. If a node is not found or flushprepped - stop protecting */
 /* FIXME: it is likely that not flushprepped jnodes are on dirty capture list in sequential order.. */
 static int
-protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index, reiser4_block_nr count, 
+protect_extent_nodes(flush_pos_t *flush_pos, oid_t oid, unsigned long index, reiser4_block_nr count,
 		     reiser4_block_nr *protected, reiser4_extent *ext,
 		     capture_list_head *protected_nodes)
 {
@@ -705,7 +705,6 @@ make_node_ovrwr(capture_list_head *jnodes, jnode *node)
 {
 	assert ("zam-917", !JF_ISSET(node, JNODE_RELOC));
 	assert ("zam-918", !JF_ISSET(node, JNODE_OVRWR));
-	assert("vs-1460", !JF_ISSET(node, JNODE_EFLUSH));
 
 	JF_SET(node, JNODE_OVRWR);
 	capture_list_remove_clean(node);
