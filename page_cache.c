@@ -192,7 +192,6 @@ struct page *reiser4_lock_page( struct address_space *mapping,
 	page = find_lock_page( mapping, index );
 	if( page ) {
 		ON_DEBUG_CONTEXT( ++ lock_counters() -> page_locked );
-		lock_counters() -> page_locker = __builtin_return_address( 0 );
 	}
 	return page;
 }
