@@ -184,6 +184,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 					.dir = {
 						.extract_key  = de_extract_key,
 						.extract_name = de_extract_name,
+						.extract_file_type = de_extract_file_type,
 						.add_entry    = de_add_entry,
 						.rem_entry    = de_rem_entry,
 						.max_name_len = de_max_name_len
@@ -230,6 +231,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 					.dir = {
 						.extract_key  = cde_extract_key,
 						.extract_name = cde_extract_name,
+						.extract_file_type = de_extract_file_type,
 						.add_entry    = cde_add_entry,
 						/* the same as uncompressed */
 						.rem_entry    = de_rem_entry,
