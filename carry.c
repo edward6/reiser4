@@ -467,7 +467,7 @@ post_carry(carry_level * level	/* queue where new operation is to
 		return result;
 	child = add_carry(level, POOLO_LAST, NULL);
 	if (IS_ERR(child)) {
-		reiser4_pool_free(&level->pool->node_pool, &result->header);
+		reiser4_pool_free(&level->pool->op_pool, &result->header);
 		return (carry_op *) child;
 	}
 	result->node = child;
