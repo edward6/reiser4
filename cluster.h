@@ -6,6 +6,11 @@
 #if !defined( __FS_REISER4_CLUSTER_H__ )
 #define __FS_REISER4_CLUSTER_H__
 
+static inline loff_t min_count(loff_t a, loff_t b)
+{
+	return (a < b ? a : b);
+}
+
 static inline __u8 inode_cluster_shift (struct inode * inode)
 {
 	assert("edward-92", inode != NULL);
