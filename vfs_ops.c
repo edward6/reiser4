@@ -502,7 +502,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	       struct statfs *buf	/* buffer to fill with
 					 * statistics */ )
 {
-	reiser4_block_nr bfree;
+	long bfree;
 	
 	REISER4_ENTRY(super);
 
@@ -517,8 +517,8 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	buf->f_blocks = reiser4_block_count(super) - reiser4_fs_reserved_space(super);
 
 	/* UMKA: We should do not show the reserved space */
-        bfree = reiser4_free_blocks(super) > reiser4_fs_reserved_space(super) ?
-		reiser4_free_blocks(super) - reiser4_fs_reserved_space(super) : 0;
+        bfree = (long)(reiser4_free_blocks(super) > reiser4_fs_reserved_space(super) ?
+		reiser4_free_blocks(super) - reiser4_fs_reserved_space(super) : 0);
 	    
 	buf->f_bfree = bfree;
 	

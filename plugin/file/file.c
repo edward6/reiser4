@@ -706,6 +706,10 @@ unix_file_writepage(struct page *page)
 
 	if (PagePrivate(page))
 		return 0;
+
+	if ((result = reiser4_grab_space_exact(1, 0)) != 0)
+		return result;
+	
 	inode = page->mapping->host;
 
 	/* to keep order of locks right we have to unlock page before
