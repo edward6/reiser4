@@ -73,7 +73,7 @@ static void reiser4_unlockfs (struct super_block *);
 static int reiser4_statfs (struct super_block *, struct statfs *);
 static int reiser4_remount_fs (struct super_block *, int *, char *);
 static void reiser4_clear_inode (struct inode *);
-static int reiser4_umount_begin (struct super_block *);
+static void reiser4_kill_super (struct super_block *);
 static struct dentry * reiser4_fh_to_dentry(struct super_block *sb, __u32 *fh, 
 					    int len, int fhtype, int parent);
 static int reiser4_dentry_to_fh(struct dentry *, __u32 *fh, 
@@ -1513,16 +1513,18 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	REISER4_EXIT (0);
 }
 
-static int reiser4_umount_begin (struct super_block *s)
+static void reiser4_kill_super (struct super_block *s)
 {
 	int ret;
-	REISER4_ENTRY (s);
+	__REISER4_ENTRY (s,);
 
+printk("umount_begin\n");
 	if ((ret = txn_mgr_force_commit (s))) {
 		warning ("jmacd-7711", "txn_force failed in umount_begin: %u", ret);
 	}
 
-	REISER4_EXIT (ret);
+	__REISER4_EXIT (&__context);
+	kill_block_super(s);
 }
 
 /* Audited by: umka (2002.06.12) */
@@ -1576,7 +1578,7 @@ static struct file_system_type reiser4_fs_type = {
 	.owner     = THIS_MODULE,
 	.name      = "reiser4",
 	.get_sb    = reiser4_get_sb,
-	.kill_sb   = kill_block_super,
+	.kill_sb   = reiser4_kill_super,
 
 	/*
 	 * FIXME-NIKITA something more?
@@ -1740,7 +1742,7 @@ struct super_operations reiser4_super_operations = {
  	.statfs             = reiser4_statfs, /* d */
 /* 	.remount_fs         = reiser4_remount_fs, */
 /* 	.clear_inode        = reiser4_clear_inode, */
- 	.umount_begin       = (void (*) (struct super_block *)) reiser4_umount_begin,
+/* 	.umount_begin       = reiser4_umount_begin,*/
 /* 	.fh_to_dentry       = reiser4_fh_to_dentry, */
 /* 	.dentry_to_fh       = reiser4_dentry_to_fh */
 	.show_options       = reiser4_show_options /* d */
