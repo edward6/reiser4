@@ -125,7 +125,6 @@ static struct dentry *reiser4_lookup( struct inode *parent, /* directory within 
 	struct dentry *result;
 	REISER4_ENTRY_PTR( parent -> i_sb );
 
-
 	assert( "nikita-403", parent != NULL );
 	assert( "nikita-404", dentry != NULL );
 
@@ -138,10 +137,17 @@ static struct dentry *reiser4_lookup( struct inode *parent, /* directory within 
 
 	/* call its lookup method */
 	retval = dplug -> resolve_into_inode( parent, dentry );
-	if( retval )
-		result = ERR_PTR( retval );
-	else
+	if( retval == 0 ) {
+		assert( "nikita-1943", dentry -> d_inode != NULL );
+		if( dentry -> d_inode -> i_state & I_NEW )
+			unlock_new_inode( dentry -> d_inode );
 		result = NULL;
+	} else if( retval == -ENOENT ) {
+		/* object not found */
+		d_add( dentry, NULL );
+		result = NULL;
+	} else
+		result = ERR_PTR( retval );
 	/* success */
 	REISER4_EXIT_PTR( result );
 }
@@ -1049,11 +1055,47 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		REISER4_EXIT (result);
 
 	inode = reiser4_iget (s, lplug->root_dir_key ());
-	/* allocate dentry for root inode, It works with inode == 0 */
-	s->s_root = d_alloc_root (inode);
-	if (!s->s_root) {
-		REISER4_EXIT (-EINVAL);
-	}
+	if (inode) {
+		/* allocate dentry for root inode, It works with inode == 0 */
+		s->s_root = d_alloc_root (inode);
+		if (!s->s_root) {
+			/*
+			 * FIXME-NIKITA shouldn't this be -ENOMEM?
+			 */
+			REISER4_EXIT (-EINVAL);
+		}
+		s->s_root->d_op = &reiser4_dentry_operation;
+
+		if( inode -> i_state & I_NEW ) {
+			reiser4_inode_info *info;
+
+			info = reiser4_inode_data (inode);
+
+			if( info -> file == NULL )
+				info -> file = default_file_plugin(s);
+			if( info -> dir == NULL )
+				info -> dir = default_dir_plugin(s);
+			if( info -> sd == NULL )
+				info -> sd = default_sd_plugin(s);
+			if( info -> hash == NULL )
+				info -> hash = default_hash_plugin(s);
+			if( info -> tail == NULL )
+				info -> tail = default_tail_plugin(s);
+			if( info -> perm == NULL )
+				info -> perm = default_perm_plugin(s);
+			if( info -> dir_item == NULL )
+				info -> dir_item = default_dir_item_plugin(s);
+			assert( "nikita-1951", info -> file != NULL );
+			assert( "nikita-1814", info -> dir  != NULL );
+			assert( "nikita-1815", info -> sd   != NULL );
+			assert( "nikita-1816", info -> hash != NULL );
+			assert( "nikita-1817", info -> tail != NULL );
+			assert( "nikita-1818", info -> perm != NULL );
+			assert( "vs-545",      info -> dir_item != NULL );
+			unlock_new_inode (inode);
+		}
+	} else
+		REISER4_EXIT (-ENOMEM);
 
 	REISER4_EXIT (0);
 }

@@ -622,8 +622,14 @@ extern int init_special_inode( struct inode *inode, __u32 mode, __u32 rdev );
 extern void make_bad_inode( struct inode *inode );
 extern int is_bad_inode( struct inode *inode );
 
-struct inode *iget( struct super_block *super, unsigned long ino );
-#define I_DIRTY 1
+extern struct inode *
+iget5_locked(struct super_block *sb, 
+	     unsigned long hashval, 
+	     int (*test)(struct inode *, void *), 
+	     int (*set)(struct inode *, void *), void *data);
+#define I_DIRTY    0x1
+#define I_NEW      0x2
+#define I_LOCK     0x4
 void mark_inode_dirty (struct inode * inode);
 
 /* [cut from include/linux/fs.h]
@@ -964,6 +970,19 @@ static inline int block_read_full_page(struct page *page UNUSED_ARG,
 
 static inline void mark_page_accessed( struct page *page UNUSED_ARG )
 {
+}
+
+static inline void unlock_new_inode(struct inode *inode)
+{
+	/*
+	 * This is special!  We do not need the spinlock
+	 * when clearing I_LOCK, because we're guaranteed
+	 * that nobody else tries to do anything about the
+	 * state of the inode when it is locked, as we
+	 * just created it (so there can be no old holders
+	 * that haven't tested I_LOCK).
+	 */
+	inode->i_state &= ~(I_LOCK|I_NEW);
 }
 
 extern void declare_memory_pressure( void );

@@ -1178,7 +1178,7 @@ int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp )
 		offset   = get_key_offset (&key) +
 			pos_in_unit * reiser4_get_current_sb ()->s_blocksize;
 
-		inode = iget (reiser4_get_current_sb (), (unsigned long)objectid);
+		inode = reiser4_iget (reiser4_get_current_sb (), &key);
 		if (!inode) {
 			/* inode must be in memory */
 			return -EIO;
@@ -1823,7 +1823,6 @@ int extent_write (struct inode * inode, tree_coord * coord,
 			/* error occurred */
 			if (f->user == 1) {
 				kunmap (page);
-			capture_failed:
 				unlock_page (page);
 				page_cache_release (page);
 			}
@@ -2274,7 +2273,6 @@ int extent_read (struct inode * inode, tree_coord * coord,
 	result = __copy_to_user (f->data, kaddr + page_off, count);
 	kunmap (page);
 
- capture_failed:
 	page_cache_release (page);
 	if (result) {
 		return result;
@@ -2341,7 +2339,7 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 	offset = get_key_offset (key);
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
 
-	inode = iget (reiser4_get_current_sb (), (unsigned long)objectid);
+	inode = reiser4_iget (reiser4_get_current_sb (), key);
 	assert ("vs-348", inode);
 
 	while (1) {

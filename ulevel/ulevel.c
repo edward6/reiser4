@@ -321,17 +321,6 @@ static struct inode * alloc_inode (struct super_block * sb)
 	return inode;
 }
 
-
-struct inode * get_new_inode (struct super_block * sb, unsigned long ino)
-{
-	struct inode * inode;
-	
-	inode = alloc_inode (sb);
-	inode->i_ino = ino;
-	return inode;
-}
-
-
 struct inode * new_inode (struct super_block * sb)
 {
 	struct inode * inode;
@@ -360,40 +349,25 @@ int is_bad_inode( struct inode *inode UNUSED_ARG )
 
 
 static struct inode * find_inode (struct super_block *super UNUSED_ARG,
-				  unsigned long ino)
+				  unsigned long ino, 
+				  int (*test)(struct inode *, void *), 
+				  void *data)
 {
 	struct list_head * cur;
 	struct inode * inode;
 
-
-	spin_lock( &inode_hash_guard );
 	list_for_each (cur, &inode_hash_list) {
 		inode = list_entry (cur, struct inode, i_hash);
 		trace_on( TRACE_VFS_OPS, 
 			  "inode: %li, %li\n", inode->i_ino, ino );
-		if (inode->i_ino == ino) {
-			spin_unlock( &inode_hash_guard );
-			return inode;
-		}
-	}
-	spin_unlock( &inode_hash_guard );
-	return 0;
-}
-
-
-struct inode *iget( struct super_block *super, unsigned long ino )
-{
-	struct inode * inode;
-
-	inode = find_inode (super, ino);
-	if (inode) {
-		atomic_inc(&inode->i_count);
+		if (inode->i_ino != ino)
+			continue;
+		if (!test(inode, data))
+			continue;
 		return inode;
 	}
-
-	return get_new_inode (super, ino);
+	return 0;
 }
-
 
 void iput( struct inode *inode )
 {
@@ -414,6 +388,71 @@ void iput( struct inode *inode )
 		/*list_del_init( &inode -> i_hash );*/
 		spin_unlock( &inode_hash_guard );
 	}
+}
+
+struct inode *
+get_new_inode(struct super_block *sb, 
+	      unsigned long hashval, 
+	      int (*test)(struct inode *, void *), 
+	      int (*set)(struct inode *, void *), void *data)
+{
+	struct inode * inode;
+
+	inode = alloc_inode(sb);
+	if (inode) {
+		struct inode * old;
+
+		spin_lock(&inode_hash_guard);
+		/* We released the lock, so.. */
+		old = find_inode(sb, hashval, test, data);
+		if (!old) {
+			if (set(inode, data))
+				goto set_failed;
+
+			inode->i_state = I_LOCK|I_NEW;
+			spin_unlock(&inode_hash_guard);
+
+			return inode;
+		}
+
+		/*
+		 * Uhhuh, somebody else created the same inode under
+		 * us. Use the old inode instead of the one we just
+		 * allocated.
+		 */
+		atomic_inc(&old->i_count);
+		spin_unlock(&inode_hash_guard);
+		inode = old;
+	}
+	return inode;
+
+set_failed:
+	spin_unlock(&inode_hash_guard);
+	return NULL;
+}
+
+struct inode *
+iget5_locked(struct super_block *sb, 
+	     unsigned long hashval, 
+	     int (*test)(struct inode *, void *), 
+	     int (*set)(struct inode *, void *), void *data)
+{
+	struct inode * inode;
+
+	spin_lock( &inode_hash_guard );
+	inode = find_inode (sb, hashval, test, data);
+	if (inode) {
+		atomic_inc(&inode->i_count);
+		spin_unlock( &inode_hash_guard );
+		return inode;
+	}
+	spin_unlock( &inode_hash_guard );
+
+	/*
+	 * get_new_inode() will do the right thing, re-trying the search
+	 * in case it had to block at any point.
+	 */
+	return get_new_inode(sb, hashval, test, set, data);
 }
 
 void mark_inode_dirty (struct inode * inode)
@@ -1928,7 +1967,7 @@ static struct inode * create_root_dir (znode * root)
 	carry_pool  pool;
 	carry_level lowest_level;
 	carry_op   *op;
-	reiser4_inode_info *rii;
+	reiser4_inode_info *info;
 	struct inode * inode;
 	reiser4_item_data data;
 	reiser4_key key;
@@ -1939,7 +1978,7 @@ static struct inode * create_root_dir (znode * root)
 	int ret;
 	carry_insert_data cdata;
 	lock_handle lh;
-
+	struct super_block *s;
 
 	key_init( &key );
 	set_key_type( &key, KEY_SD_MINOR );
@@ -1991,42 +2030,29 @@ static struct inode * create_root_dir (znode * root)
 		assert( "nikita-1933", ret == 0 );
 	}
 
-	rii = xmalloc (sizeof *rii);
-	if (!rii)
-		return ERR_PTR (errno);
-	xmemset (rii, 0, sizeof *rii);
-	inode = &rii -> vfs_inode;
-	inode->i_ino = 42;
-	atomic_set( &inode->i_count, 0 );
-	inode->i_mode = 0;
-	inode->i_nlink = 1;
-	inode->i_uid = 201;
-	inode->i_gid = 201;
-	inode->i_size = 1000;
-	inode->i_atime = 0;
-	inode->i_mtime = 0;
-	inode->i_ctime = 0;
-	inode->i_blkbits = 12;
-	inode->i_blksize = 4096;
-	inode->i_blocks = 1;
-	inode->i_mapping = &inode->i_data;
-	spin_lock( &inode_hash_guard );
-	list_add (&inode->i_hash, &inode_hash_list);
-	spin_unlock( &inode_hash_guard );
-	inode->i_sb = reiser4_get_current_sb();
-	sema_init( &inode->i_sem, 1 );
-	init_inode( inode, &coord );
-	rii -> hash = hash_plugin_by_id ( DEGENERATE_HASH_ID );
-	rii -> tail = tail_plugin_by_id ( TEST_TAIL_ID );
-	rii -> perm = perm_plugin_by_id ( RWX_PERM_ID );
-	rii -> dir_item = item_plugin_by_id ( REISER4_DIR_ITEM_PLUGIN );
-	rii -> locality_id = get_key_locality( &key );
-	rii -> sd = item_plugin_by_id( STATIC_STAT_DATA_ID );
-
 	done_lh( &lh );
 
+	s = reiser4_get_current_sb();
+	inode = reiser4_iget( s, &key );
+	info = reiser4_inode_data (inode);
+
+	if( info -> file == NULL )
+		info -> file = default_file_plugin(s);
+	if( info -> dir == NULL )
+		info -> dir = default_dir_plugin(s);
+	if( info -> sd == NULL )
+		info -> sd = default_sd_plugin(s);
+	if( info -> hash == NULL )
+		info -> hash = default_hash_plugin(s);
+	if( info -> tail == NULL )
+		info -> tail = default_tail_plugin(s);
+	if( info -> perm == NULL )
+		info -> perm = default_perm_plugin(s);
+	if( info -> dir_item == NULL )
+		info -> dir_item = default_dir_item_plugin(s);
+	
 	call_create (inode, ".");
-	inode -> i_sb -> s_root -> d_inode = inode;
+	s -> s_root -> d_inode = inode;
 
 	return inode;
 }
@@ -2157,8 +2183,10 @@ static struct inode * call_lookup (struct inode * dir, const char * name)
 	result = dir->i_op->lookup (dir, &dentry);
 	init_context (old_context, dir->i_sb);
 
-	assert ("vs-415", ergo (result == NULL, dentry.d_inode != NULL));
-	return (result == NULL) ? dentry.d_inode : ERR_PTR (PTR_ERR (result));	
+	if (result == NULL)
+		return dentry.d_inode ? : ERR_PTR (-ENOENT);
+	else
+		return ERR_PTR (PTR_ERR (result));	
 }
 
 

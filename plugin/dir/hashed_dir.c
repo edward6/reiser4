@@ -192,19 +192,13 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 		return -ENAMETOOLONG;
 	}
 
-	/*
-	 * set up operations on dentry. 
-	 *
-	 * FIXME-NIKITA this also has to be done for root dentry somewhere?
-	 */
+	/* set up operations on dentry. */
 	dentry -> d_op = &reiser4_dentry_operation;
 
 	coord = &reiser4_get_dentry_fsdata( dentry ) -> entry_coord;
 	init_lh( &lh );
 
-	/*
-	 * find entry in a directory. This is plugin method.
-	 */
+	/* find entry in a directory. This is plugin method. */
 	result = find_entry( parent, dentry, &lh, ZNODE_READ_LOCK, &entry );
 	if( result == 0 ) {
 		/* entry was found, extract object key from it. */
@@ -232,7 +226,8 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 			}
 			/* success */
 			d_add( dentry, inode );
-			reiser4_unlock_inode( inode );
+			if( inode -> i_state & I_NEW )
+				unlock_new_inode( inode );
 			result = 0;
 		} else
 			result = -EACCES;

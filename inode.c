@@ -189,6 +189,7 @@ int init_inode( struct inode *inode /* inode to intialise */,
 
 	assert( "nikita-292", coord != NULL );
 	assert( "nikita-293", inode != NULL );
+	assert( "nikita-1946", inode -> i_state & I_NEW );
 
 	iplug  = item_plugin_by_coord( coord );
 	body   = item_body_by_coord  ( coord );
@@ -204,8 +205,32 @@ int init_inode( struct inode *inode /* inode to intialise */,
 	result = iplug -> s.sd.init_inode( inode, body, length );
 	state -> sd = iplug;
 	spin_unlock_inode( state );
-	if( result == 0 )
+	if( result == 0 ) {
 		result = setup_inode_ops( inode );
+		if( ( result == 0 ) && ( inode -> i_sb -> s_root -> d_inode ) ) {
+			reiser4_inode_info *self;
+			reiser4_inode_info *root;
+
+			/* take missing plugins from file-system defaults */
+			self = reiser4_inode_data( inode );
+			root = reiser4_inode_data
+				( inode -> i_sb -> s_root -> d_inode );
+			if( self -> file == NULL )
+				self -> file = root -> file;
+			if( self -> dir == NULL )
+				self -> dir = root -> dir;
+			if( self -> sd == NULL )
+				self -> sd = root -> sd;
+			if( self -> hash == NULL )
+				self -> hash = root -> hash;
+			if( self -> tail == NULL )
+				self -> tail = root -> tail;
+			if( self -> perm == NULL )
+				self -> perm = root -> perm;
+			if( self -> dir_item == NULL )
+				self -> dir_item = root -> dir_item;
+		}
+	}
 	return result;
 }
 
@@ -214,44 +239,34 @@ int init_inode( struct inode *inode /* inode to intialise */,
 
    Must be called with inode locked. Return inode still locked.
 */
-static int read_inode( struct inode * inode /* inode to read from disk */ )
+static void read_inode( struct inode * inode /* inode to read from disk */,
+			const reiser4_key *key /* key of stat data */ )
 {
 	int                 result;
-	reiser4_key         key;
 	lock_handle         lh;
 	reiser4_inode_info *info;
 	tree_coord          coord;
 
 	assert( "nikita-298", inode != NULL );
-	
-	if( is_inode_loaded( inode ) )
-		return 0;
+	assert( "nikita-1945", !is_inode_loaded( inode ) );
 
 	info = reiser4_inode_data( inode );
-	if( info -> locality_id == 0 ) {
-		warning( "nikita-300", "no locality in inode %lx",
-			 ( long ) inode -> i_ino );
-		reiser4_make_bad_inode( inode );
-		return -EINVAL;
-	}
+	assert( "nikita-300", info -> locality_id != 0 );
 
 	init_coord( &coord );
 	init_lh( &lh );
 	/* locate stat-data in a tree and return znode locked */
-	result = lookup_sd( inode, ZNODE_READ_LOCK, &coord, &lh, &key );
-	if( ( result == 0 ) && ! is_inode_loaded( inode ) ) {
+	result = lookup_sd_by_key( tree_by_inode( inode ), 
+				   ZNODE_READ_LOCK, &coord, &lh, key );
+	assert( "nikita-301", !is_inode_loaded( inode ) );
+	if( result == 0 ) {
 		*reiser4_inode_flags( inode ) |= REISER4_LOADED;
-		assert( "nikita-301", is_inode_loaded( inode ) );
 		/* use stat-data plugin to load sd into inode. */
 		result = init_inode( inode, &coord );
 		if( result == 0 ) {
-			/* setup inode number and locality id from key. */
-			inode -> i_ino = get_key_objectid( &key );
-			assert( "nikita-1271", 
-				info -> locality_id == get_key_locality( &key ) );
 			/* initialise stat-data seal */
 			spin_lock_inode( info );
-			seal_init( &info -> sd_seal, &coord, &key );
+			seal_init( &info -> sd_seal, &coord, key );
 			info -> sd_coord = coord;
 			spin_unlock_inode( info );
 		}
@@ -262,10 +277,49 @@ static int read_inode( struct inode * inode /* inode to read from disk */ )
 	done_lh( &lh );
 	done_coord( &coord );
 	if( result != 0 ) {
-		if( inode != NULL )
-			reiser4_make_bad_inode( inode );
+		reiser4_make_bad_inode( inode );
+		unlock_new_inode( inode );
 	}
-	return result;
+}
+
+/**
+ * initialise new reiser4 inode being inserted into hash table.
+ */
+static int init_locked_inode( struct inode *inode /* new inode */, 
+			      void *opaque /* key of stat data passed to the
+					    * iget5_locked as cookie */ )
+{
+	reiser4_key *key;
+
+	assert( "nikita-1947", inode != NULL );
+	assert( "nikita-1948", opaque != NULL );
+	key = opaque;
+	inode -> i_ino = get_key_objectid( key );
+	reiser4_inode_data( inode ) -> locality_id = get_key_locality( key );
+	return 0;
+}
+
+
+/**
+ * reiser4_find_actor() - "find actor" supplied by reiser4 to iget5_locked().
+ *
+ * This function is called by iget5_locked() to distinguish reiserfs inodes
+ * having the same inode numbers. Such inodes can only exist due to some
+ * error condition. One of them should be bad. Inodes with identical
+ * inode numbers (objectids) are distinguished by their packing locality.
+ *
+ */
+static int find_actor( struct inode *inode /* inode from hash table to
+					    * check */,
+		       void *opaque /* "cookie" passed to iget5_locked(). This
+				     * is stat data key */ )
+{
+    reiser4_key *key;
+
+    key = opaque;
+    return 
+	    ( inode -> i_ino == get_key_objectid( key ) ) &&
+	    ( reiser4_inode_data( inode ) -> locality_id == get_key_locality( key ) );
 }
 
 /** this is our helper function a la iget().
@@ -278,7 +332,6 @@ struct inode *reiser4_iget( struct super_block *super /* super block  */,
 						    * stat-data */ )
 {
 	struct inode *inode;
-	int failed;
 
 	assert( "nikita-302", super != NULL );
 	assert( "nikita-303", key != NULL );
@@ -291,84 +344,38 @@ struct inode *reiser4_iget( struct super_block *super /* super block  */,
 	 * find_actor has to be used to distinguish inodes by (lowest?) 32
 	 * bits of objectid.
 	 */
-	inode = iget( super, get_key_objectid( key ) );
-	failed = 0;
+	inode = iget5_locked( super, ( unsigned long ) get_key_objectid( key ), 
+			      find_actor, init_locked_inode, 
+			      ( reiser4_key * ) key );
 	if( inode == NULL ) 
 		return NULL;
 	else if( is_bad_inode( inode ) ) {
 		warning( "nikita-304", "Stat data not found" );
 		print_key( "key", key );
-		failed = 1;
-	} else {
+	} else if( inode -> i_state & I_NEW ) {
+		/* locking: iget5_locked returns locked inode */
+		assert( "nikita-1941", ! is_inode_loaded( inode ) );
+		assert( "nikita-1949", find_actor( inode, 
+						   ( reiser4_key * ) key ) );
+		/* now, inode has objectid as -> i_ino and locality in
+		   reiser4-specific part. This data is enough for read_inode()
+		   to read stat data from the disk */
+		read_inode( inode, key );
+	}
+	if( is_bad_inode( inode ) ) {
+		iput( inode );
+		inode = NULL;
+	} else if( REISER4_DEBUG ) {
 		reiser4_key found_key;
-		/* locking: the only way for the process to obtain a reiser4
-		   inode is through reiserfs_iget().  Knfsd used to call
-		   iget() directly but newer versions rely on ->fh_to_dentry()
-		   method.
-
-		   If process B calls this function while process A is
-		   sleeping in read_inode() for the same inode, B will find
-		   inode in the cache and go into read_inode() also.
-
-		   read_inode() takes care not to initialise the same inode
-		   twice.
-		*/
-		failed = reiser4_lock_inode_interruptible( inode );
-		if( !failed && ! is_inode_loaded( inode ) ) {
-			reiser4_inode_data( inode ) -> locality_id = 
-				get_key_locality( key );
-			/* now, inode has objectid as -> i_ino and locality in
-			   reiser4-specific part. This data is enough for
-			   read_inode() to read stat data from the disk */
-			if( read_inode( inode ) != 0 )
-				failed = 1;
-		}
+				
 		build_sd_key( inode, &found_key );
-		if( !failed && !keyeq( &found_key, key ) ) {
+		if( !keyeq( &found_key, key ) ) {
 			warning( "nikita-305", "Wrong key in sd" );
 			print_key( "sought for", key );
 			print_key( "found", &found_key );
-			failed = 1;
-		}
-		if( !failed ) {
-			/* install remaining plugins */
-			reiser4_inode_info *self;
-
-			self = reiser4_inode_data( inode );
-			if( ! is_root_dir_key( inode -> i_sb, key ) ) {
-				reiser4_inode_info *root;
-
-				/* take missing plugins from file-system
-				 * defaults */
-				root = reiser4_inode_data
-					( inode -> i_sb -> s_root -> d_inode );
-				if( self -> dir == NULL )
-					self -> dir = root -> dir;
-				if( self -> sd == NULL )
-					self -> sd = root -> sd;
-				if( self -> hash == NULL )
-					self -> hash = root -> hash;
-				if( self -> tail == NULL )
-					self -> tail = root -> tail;
-				if( self -> perm == NULL )
-					self -> perm = root -> perm;
-				if( self -> dir_item == NULL )
-					self -> dir_item = root -> dir_item;
-			} else {
-				assert( "nikita-1814", self -> dir  != NULL );
-				assert( "nikita-1815", self -> sd   != NULL );
-				assert( "nikita-1816", self -> hash != NULL );
-				assert( "nikita-1817", self -> tail != NULL );
-				assert( "nikita-1818", self -> perm != NULL );
-				assert( "vs-545", self -> dir_item != NULL );
-			}
 		}
 	}
-	if( failed ) {
-		iput( inode );
-		return NULL;
-	} else
-		return inode;
+	return inode;
 }
 
 void reiser4_make_bad_inode( struct inode *inode )

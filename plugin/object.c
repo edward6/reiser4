@@ -59,7 +59,7 @@
 
 /** helper function to print errors */
 static void key_warning( const char *error_message /* message to print */, 
-			 reiser4_key *key /* key to print */, 
+			 const reiser4_key *key /* key to print */, 
 			 int code /* error code to print */)
 {
 	assert( "nikita-716", key != NULL );
@@ -90,7 +90,7 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 		      znode_lock_mode lock_mode /* lock mode */, 
 		      tree_coord *coord /* resulting coord */, 
 		      lock_handle *lh /* resulting lock handle */, 
-		      reiser4_key *key /* resulting key */ )
+		      const reiser4_key *key /* resulting key */ )
 
 {
 	int   result;
