@@ -649,6 +649,8 @@ static inline void junprotect (jnode * node)
 	JF_CLR(node, JNODE_EPROTECTED);
 }
 
+extern reiser4_key * jnode_build_key(const jnode * node, reiser4_key * key);
+
 /* __JNODE_H__ */
 #endif
 

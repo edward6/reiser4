@@ -1038,6 +1038,26 @@ znode_index(const jnode * node)
 	return ind - PAGE_OFFSET;
 }
 
+reiser4_key *
+jnode_build_key(const jnode * node, reiser4_key * key)
+{
+	struct inode *inode;
+	file_plugin  *fplug;
+	loff_t        off;
+
+	assert("nikita-3092", node != NULL);
+	assert("nikita-3093", key != NULL);
+	assert("nikita-3094", jnode_is_unformatted(node));
+
+	inode = jnode_mapping(node)->host;
+	fplug = inode_file_plugin(inode);
+	off   = jnode_index(node) << PAGE_CACHE_SHIFT;
+
+	assert("nikita-3095", fplug != NULL);
+	fplug->key_by_inode(inode, off, key);
+	return key;
+}
+
 extern int zparse(znode * node);
 
 static int

@@ -2661,6 +2661,7 @@ jnode_lock_parent_coord(jnode         * node,
 	assert("edward-54", jnode_has_parent(node)|| znode_is_any_locked(JZNODE(node)));
 	
 	if (jnode_has_parent(node)) {
+		reiser4_key key;
 		tree_level stop_level = TWIG_LEVEL ;
 		lookup_bias bias = FIND_EXACT;
 		/* The case when node is not znode, but can have parent coord
@@ -2668,20 +2669,13 @@ jnode_lock_parent_coord(jnode         * node,
 		   Generate a key for the appropriate entry,
 		   search in the tree using coord_by_key, which handles
 		   locking for us. */
-		struct inode *ino = jnode_mapping(node)->host;
-		reiser4_key key;
-		file_plugin *fplug = inode_file_plugin(ino);
-		loff_t loff = jnode_index(node) << PAGE_CACHE_SHIFT;
+		jnode_build_key(node, &key);
 
 		if (jnode_is_cluster_page(node)) {
 			stop_level = LEAF_LEVEL;
 			bias = FIND_MAX_NOT_MORE_THAN;
 		}
 		assert("jmacd-1812", coord != NULL);
-
-		if ((ret = fplug->key_by_inode(ino, loff, &key))) {
-			return ret;
-		}
 
 		ret = coord_by_key(jnode_get_tree(node), &key, coord, parent_lh,
 				   parent_mode, bias, stop_level, stop_level, CBK_UNIQUE, 0/*ra_info*/);
