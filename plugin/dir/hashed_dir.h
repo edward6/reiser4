@@ -35,6 +35,13 @@ extern int hashed_add_entry(struct inode *object,
 extern int hashed_rem_entry(struct inode *object,
 			    struct dentry *where,
 			    reiser4_dir_entry_desc * entry);
+extern reiser4_block_nr	  hashed_estimate_rename(
+					     struct inode  *old_dir,
+					     struct dentry *old_name,
+					     struct inode  *new_dir,
+					     struct dentry *new_name);
+extern reiser4_block_nr	  hashed_estimate_init(struct inode *, struct inode *);
+extern reiser4_block_nr	  hashed_estimate_done(struct inode *, struct inode *);
 
 /* __HASHED_DIR_H__ */
 #endif
