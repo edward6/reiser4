@@ -18,7 +18,9 @@
 #include "plugin/security/perm.h"
 #include "plugin/security/acl.h"
 #include "plugin/pseudo/pseudo.h"
+#if defined(XATTR)
 #include "plugin/xattr.h"
+#endif
 #include "vfs_ops.h"
 #include "jnode.h"
 
@@ -147,8 +149,10 @@ struct reiser4_inode {
 		acl_perm_info_t acl_perm_info;
 	} perm_plugin_data;
 
+#if defined(XATTR)
 	/* list of object specific xattr namespaces */
 	xattr_list_head xattr_namespaces;
+#endif
 
 	/* list of unformatted jnodes eflushed from this object */
 	struct list_head eflushed_jnodes;

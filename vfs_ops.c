@@ -16,7 +16,9 @@
 #include "plugin/plugin_set.h"
 #include "plugin/plugin_hash.h"
 #include "plugin/object.h"
+#if defined(XATTR)
 #include "plugin/xattr.h"
+#endif
 #include "txnmgr.h"
 #include "jnode.h"
 #include "znode.h"
@@ -400,7 +402,9 @@ init_once(void *obj /* pointer to new inode */ ,
 		/* inode's builtin jnode is initialized in reiser4_alloc_inode */
 		xmemset(&info->p.perm_plugin_data, 0,
 			sizeof info->p.perm_plugin_data);
+#if defined(XATTR)
 		xattr_list_init(&info->p.xattr_namespaces);
+#endif
 	}
 }
 
@@ -513,8 +517,10 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 		if (inode_get_flag(inode, REISER4_CLUSTER_KNOWN))
 			inode_clr_flag(inode, REISER4_CLUSTER_KNOWN);		
 
+#if defined(XATTR)
 		if (reiser4_is_set(inode->i_sb, REISER4_USE_XATTR))
 			xattr_clean(inode);
+#endif
 	}
 	phash_inode_destroy(inode);
 	if (info->pset)

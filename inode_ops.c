@@ -598,6 +598,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 	return result;
 }
 
+#if defined(XATTR)
 #define FP_OP(_inode, _method, _errcode, ...)			\
 ({								\
 	reiser4_context ctx;					\
@@ -647,6 +648,7 @@ reiser4_removexattr(struct dentry *dentry, const char *name)
 }
 
 #undef FP_OP
+#endif
 
 struct inode_operations reiser4_inode_operations = {
 	.create = reiser4_create,	/* d */
@@ -664,10 +666,12 @@ struct inode_operations reiser4_inode_operations = {
 	.permission = reiser4_permission,	/* d */
 	.setattr = reiser4_setattr,	/* d */
 	.getattr = reiser4_getattr,	/* d */
+#if defined(XATTR)
 	.setxattr    = reiser4_setxattr, /* d */
  	.getxattr    = reiser4_getxattr, /* d */
  	.listxattr   = reiser4_listxattr, /* d */
  	.removexattr = reiser4_removexattr /* d */
+#endif
 };
 
 struct inode_operations reiser4_symlink_inode_operations = {

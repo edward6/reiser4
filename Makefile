@@ -94,7 +94,6 @@ reiser4-objs := \
 		   plugin/plugin_hash.o \
 		   plugin/node/node.o \
 		   plugin/object.o \
-		   plugin/xattr.o \
 		   plugin/symlink.o \
 		   plugin/cryptcompress.o \
 		   plugin/digest.o \
@@ -122,7 +121,6 @@ reiser4-objs := \
 		   plugin/dir/dir.o \
            \
 		   plugin/security/perm.o \
-		   plugin/security/acl.o \
            \
 		   plugin/pseudo/pseudo.o \
            \
@@ -134,7 +132,8 @@ reiser4-objs := \
 		   plugin/file/pseudo.o \
 		   plugin/file/file.o \
 		   plugin/file/tail_conversion.o
-
+#		   plugin/xattr.o \
+#		   plugin/security/acl.o \
 
 reiser4-objs += sys_reiser4.o 
 

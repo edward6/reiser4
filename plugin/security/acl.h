@@ -8,7 +8,10 @@
 #include "../../forward.h"
 
 #include "../plugin.h"
+
+#if defined (XATTR)
 #include "../xattr.h"
+#endif
 
 typedef struct acl_perm_info {
 	struct posix_acl *access;

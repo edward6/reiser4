@@ -65,6 +65,7 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
 			 .rename_ok = NULL,
 			 .clear = NULL
 	},
+#if defined(XATTR)
 	[ACL_PERM_ID] = {
 			 .h = {
 			       .type_id = REISER4_PERM_PLUGIN_TYPE,
@@ -87,6 +88,7 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
 			 .rename_ok = NULL,
 			 .clear = clear_acl
 	}
+#endif
 };
 
 /* Make Linus happy.

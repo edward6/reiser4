@@ -160,6 +160,9 @@ rd_key(coord_t * coord, reiser4_key * key)
 	return key;
 }
 
+
+ON_DEBUG(void check_dkeys(const znode *);)
+
 /* this is used to insert empty node into leaf level if tree lookup can not go
    further down because it stopped between items of not internal type */
 static int

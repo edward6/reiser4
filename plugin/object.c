@@ -61,7 +61,9 @@
 #include "item/item.h"
 #include "plugin.h"
 #include "object.h"
+#if defined(XATTR)
 #include "xattr.h"
+#endif
 #include "../znode.h"
 #include "../tap.h"
 #include "../tree.h"
@@ -1217,8 +1219,10 @@ key_by_inode_and_offset_common(struct inode *inode, loff_t off, reiser4_key *key
 	return 0;
 }
 
+#if defined(XATTR)
 /* from xattr.c */
 extern xattr_list_head xattr_common_namespaces;
+#endif
 
 /*
  * Definitions of object plugins.
@@ -1269,6 +1273,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = estimate_update_common,
 			.unlink = estimate_unlink_common
 		},
+#if defined(XATTR)
 		.xattr = {
 			.set    = xattr_set_common,
 			.get    = xattr_get_common,
@@ -1276,6 +1281,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.remove = xattr_remove_common,
 			.ns     = &xattr_common_namespaces
 		},
+#endif
 		.readpages = readpages_unix_file,
 		.init_inode_data = init_inode_data_unix_file,
 		.pre_delete = pre_delete_unix_file,
@@ -1329,6 +1335,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = estimate_update_common,
 			.unlink = estimate_unlink_dir_common
 		},
+#if defined(XATTR)
 		.xattr = {
 			.set    = xattr_set_common,
 			.get    = xattr_get_common,
@@ -1336,6 +1343,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.remove = xattr_remove_common,
 			.ns     = &xattr_common_namespaces
 		},
+#endif
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
@@ -1390,6 +1398,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = estimate_update_common,
 			.unlink = estimate_unlink_common
 		},
+#if defined(XATTR)
 		.xattr = {
 			.set    = xattr_set_common,
 			.get    = xattr_get_common,
@@ -1397,6 +1406,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.remove = xattr_remove_common,
 			.ns     = &xattr_common_namespaces
 		},
+#endif
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
@@ -1449,6 +1459,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = estimate_update_common,
 			.unlink = estimate_unlink_common
 		},
+#if defined(XATTR)
 		.xattr = {
 			.set    = xattr_set_common,
 			.get    = xattr_get_common,
@@ -1456,6 +1467,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.remove = xattr_remove_common,
 			.ns     = &xattr_common_namespaces
 		},
+#endif
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
@@ -1508,6 +1520,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = NULL,
 			.unlink = NULL
 		},
+#if defined(XATTR)
 		.xattr = {
 			.set    = NULL,
 			.get    = NULL,
@@ -1515,6 +1528,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.remove = NULL,
 			.ns     = NULL
 		},
+#endif
 		.readpages = NULL,
 		.init_inode_data = NULL,
 		.pre_delete = NULL,
@@ -1568,6 +1582,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.update = estimate_update_common,
 			.unlink = estimate_unlink_common
 		},
+#if defined(XATTR)
 		.xattr = {
 			.set    = xattr_set_common,
 			.get    = xattr_get_common,
@@ -1575,6 +1590,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.remove = xattr_remove_common,
 			.ns     = &xattr_common_namespaces
 		},
+#endif
 		.readpages = readpages_cryptcompress,
 		.init_inode_data = NULL,
 		.pre_delete = pre_delete_cryptcompress,

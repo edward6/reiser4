@@ -33,7 +33,9 @@
 #include "disk_format/disk_format40.h"
 #include "disk_format/disk_format.h"
 
+#if defined(XATTR)
 #include "xattr.h"
+#endif
 
 #include <linux/fs.h>		/* for struct super_block, address_space  */
 #include <linux/mm.h>		/* for struct page */
@@ -272,7 +274,7 @@ typedef struct file_plugin {
 	void (*forget_inode)(struct inode *);
 	void (*clear_inode)(struct inode *);
 	ssize_t (*sendfile)(struct file *, loff_t *, size_t, read_actor_t, void __user *);
-
+#if defined(XATTR)
 	struct {
 		int (*set) (struct dentry*, const char*,const void *,size_t,int);
 		ssize_t (*get) (struct dentry *, const char *, void *, size_t);
@@ -280,6 +282,7 @@ typedef struct file_plugin {
 		int (*remove) (struct dentry *, const char *);
 		xattr_list_head *ns;
 	} xattr;
+#endif
 } file_plugin;
 
 typedef struct dir_plugin {
