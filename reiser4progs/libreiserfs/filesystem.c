@@ -193,6 +193,8 @@ error:
 
 #ifndef ENABLE_COMPACT
 
+#define REISERFS_MIN_SIZE (23 + 100)
+
 reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
     reiserfs_profile_t *profile, size_t blocksize, const char *uuid, 
     const char *label, count_t len, aal_device_t *journal_device, 
@@ -211,6 +213,13 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
 	return NULL;
     }
 
+    if (aal_device_len(host_device) < REISERFS_MIN_SIZE) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Device %s is too small (%llu). ReiserFS required device %u blocks long.", 
+	    aal_device_name(host_device), aal_device_len(host_device), REISERFS_MIN_SIZE);
+	return NULL;
+    }
+	    
     if (!(fs = aal_calloc(sizeof(*fs), 0)))
 	return NULL;
 	
