@@ -45,7 +45,7 @@ static uint16_t node40_item_maxsize(aal_block_t *block) {
 }
 
 /* Returns length of pos-th item */
-static uint16_t node40_item_length(aal_block_t *block, uint32_t pos) {
+static uint16_t node40_item_len(aal_block_t *block, uint32_t pos) {
     aal_assert("vpf-037", block != NULL, return 0);
     return ih40_get_length(node40_ih_at(block, pos));    
 }
@@ -93,7 +93,7 @@ static errno_t node40_prepare(aal_block_t *block, reiserfs_pos_t *pos,
     aal_assert("umka-713", key->plugin != NULL, return -1);
 
     is_enought_space = (nh40_get_free_space(reiserfs_nh40(block)) >= 
-	item->length + sizeof(reiserfs_ih40_t));
+	item->len + sizeof(reiserfs_ih40_t));
 
     is_inside_range = pos->item <= node40_count(block);
     
@@ -110,15 +110,15 @@ static errno_t node40_prepare(aal_block_t *block, reiserfs_pos_t *pos,
     if (item_pos < nh40_get_num_items(nh)) {
 	offset = ih40_get_offset(ih);
 
-	aal_memcpy(block->data + offset + item->length, 
+	aal_memcpy(block->data + offset + item->len, 
 	    block->data + offset, nh40_get_free_space_start(nh) - offset);
 	
 	for (i = item_pos; i < nh40_get_num_items(nh); i++, ih--) 
-	    ih40_set_offset(ih, ih40_get_offset(ih) + item->length);
+	    ih40_set_offset(ih, ih40_get_offset(ih) + item->len);
 
 	if (!is_new_item) {	    
 	    ih = node40_ih_at(block, pos->item);
-	    ih40_set_length(ih, ih40_get_length(ih) + item->length);
+	    ih40_set_length(ih, ih40_get_length(ih) + item->len);
 	} else {
 	    /* 
 		ih is set at the last item head - 1 in the last 
@@ -136,10 +136,10 @@ static errno_t node40_prepare(aal_block_t *block, reiserfs_pos_t *pos,
     
     /* Update node header */
     nh40_set_free_space(nh, nh40_get_free_space(nh) - 
-	item->length - (is_new_item ? sizeof(reiserfs_ih40_t) : 0));
+	item->len - (is_new_item ? sizeof(reiserfs_ih40_t) : 0));
     
     nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) + 
-	item->length);
+	item->len);
     
     if (!is_new_item)	
 	return 0;
@@ -150,7 +150,7 @@ static errno_t node40_prepare(aal_block_t *block, reiserfs_pos_t *pos,
     
     ih40_set_offset(ih, offset);
     ih40_set_plugin_id(ih, item->plugin->h.id);
-    ih40_set_length(ih, item->length);
+    ih40_set_length(ih, item->len);
     
     return 0;
 }
@@ -172,7 +172,7 @@ static errno_t node40_insert(aal_block_t *block, reiserfs_pos_t *pos,
     
     if (item->data) {
 	aal_memcpy(node40_ib_at(block, pos->item), item->data, 
-	    item->length);
+	    item->len);
 
 	return 0;
     } else {
@@ -472,8 +472,8 @@ static reiserfs_plugin_t node40_plugin = {
 	.item_overhead = (uint16_t (*)(aal_block_t *))node40_item_overhead,
 	.item_maxsize = (uint16_t (*)(aal_block_t *))node40_item_maxsize,
 	
-	.item_length = (uint16_t (*)(aal_block_t *, int32_t))
-	    node40_item_length,
+	.item_len = (uint16_t (*)(aal_block_t *, int32_t))
+	    node40_item_len,
 	
 	.item_body = (void *(*)(aal_block_t *, int32_t))
 	    node40_item_body,

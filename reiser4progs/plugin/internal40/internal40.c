@@ -11,8 +11,6 @@
 #include <reiser4/reiser4.h>
 #include "internal40.h"
 
-#define INTERNAL40_ID 0x3
-
 static reiserfs_plugin_factory_t *factory = NULL;
 
 #ifndef ENABLE_COMPACT
@@ -32,7 +30,7 @@ static errno_t internal40_create(reiserfs_internal40_t *internal,
 static errno_t internal40_estimate(uint16_t pos, reiserfs_item_hint_t *hint) {
     aal_assert("vpf-068", hint != NULL, return -1);
 
-    hint->length = sizeof(reiserfs_internal40_t);
+    hint->len = sizeof(reiserfs_internal40_t);
     return 0;
 }
 
@@ -40,10 +38,6 @@ static errno_t internal40_estimate(uint16_t pos, reiserfs_item_hint_t *hint) {
 
 static uint32_t internal40_minsize(void) {
     return sizeof(reiserfs_internal40_t);
-}
-
-static int internal40_internal(void) {
-    return 1;
 }
 
 static void internal40_print(reiserfs_internal40_t *internal, 
@@ -55,11 +49,13 @@ static void internal40_print(reiserfs_internal40_t *internal,
 
 #ifndef ENABLE_COMPACT
 
-static void internal40_set_pointer(reiserfs_internal40_t *internal, 
+static errno_t internal40_set_pointer(reiserfs_internal40_t *internal, 
     blk_t blk) 
 {
-    aal_assert("umka-605", internal != NULL, return);
+    aal_assert("umka-605", internal != NULL, return -1);
     int40_set_pointer(internal, blk);
+
+    return 0;
 }
 
 #endif
@@ -80,15 +76,13 @@ static reiserfs_plugin_t internal40_plugin = {
     .item = {
 	.h = {
     	    .handle = NULL,
-	    .id = INTERNAL40_ID,
+	    .id = REISERFS_INTERNAL_ITEM,
 	    .type = REISERFS_ITEM_PLUGIN,
 	    .label = "internal40",
 	    .desc = "Internal item for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .type = REISERFS_INTERNAL_ITEM,
-
 #ifndef ENABLE_COMPACT	    
 	    .create = (errno_t (*)(void *, void *))internal40_create,
 	    .estimate = (errno_t (*)(uint16_t, void *))internal40_estimate,
@@ -98,7 +92,6 @@ static reiserfs_plugin_t internal40_plugin = {
 #endif
 	    .minsize = (uint16_t (*)(void))internal40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))internal40_print,
-	    .internal = (int (*)(void))internal40_internal,
 
 	    .lookup = NULL,
 	    .maxkey = NULL,
@@ -112,7 +105,7 @@ static reiserfs_plugin_t internal40_plugin = {
 	.specific = {
 	    .internal = {
 #ifndef ENABLE_COMPACT
-		.set_pointer = (void (*)(void *, blk_t))internal40_set_pointer,
+		.set_pointer = (errno_t (*)(void *, blk_t))internal40_set_pointer,
 #else
 		.set_pointer = NULL,
 #endif

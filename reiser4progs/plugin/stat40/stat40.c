@@ -11,8 +11,6 @@
 #include <reiser4/reiser4.h>
 #include "stat40.h"
 
-#define STAT40_ID 0x0
-
 static reiserfs_plugin_factory_t *factory = NULL;
 
 static errno_t stat40_confirm(reiserfs_stat40_base_t *stat) {
@@ -46,7 +44,7 @@ static errno_t stat40_estimate(uint16_t pos, reiserfs_item_hint_t *hint) {
 
     /* Should calculate extentions size also */
     
-    hint->length = sizeof(reiserfs_stat40_base_t);
+    hint->len = sizeof(reiserfs_stat40_base_t);
     return 0;
 }
 
@@ -65,10 +63,6 @@ static uint32_t stat40_minsize(void) {
     return sizeof(reiserfs_stat40_base_t);
 }
 
-static int stat40_internal(void) {
-    return 0;
-}
-
 static uint16_t stat40_get_mode(reiserfs_stat40_base_t *stat) {
     aal_assert("umka-710", stat != NULL, return 0);
     return sd40_get_mode(stat);
@@ -83,15 +77,13 @@ static reiserfs_plugin_t stat40_plugin = {
     .item = {
 	.h = {
 	    .handle = NULL,
-	    .id = STAT40_ID,
+	    .id = REISERFS_STATDATA_ITEM,
 	    .type = REISERFS_ITEM_PLUGIN,
 	    .label = "stat40",
 	    .desc = "Stat data for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .type = REISERFS_STATDATA_ITEM,
-
 #ifndef ENABLE_COMPACT
 	    .create = (errno_t (*)(void *, void *))stat40_create,
 	    .estimate = (errno_t (*)(uint16_t, void *))stat40_estimate,
@@ -103,7 +95,6 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .check = (errno_t (*)(void *))stat40_check,
 	    .print = (void (*)(void *, char *, uint16_t))stat40_print,
 	    .minsize = (uint16_t (*)(void))stat40_minsize,
-	    .internal = (int (*)(void))stat40_internal,
 
 	    .maxkey = NULL,
 	    .lookup = NULL,

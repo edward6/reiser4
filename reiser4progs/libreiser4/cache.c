@@ -100,7 +100,9 @@ static errno_t reiserfs_cache_nkey(reiserfs_cache_t *cache,
 	return -1;
     }
     
-    if (!(res = reiserfs_node_lookup(cache->parent->node, &ldkey, &coord.pos)) == -1) {
+    if (!(res = reiserfs_node_lookup(cache->parent->node, 
+	&ldkey, &coord.pos)) == -1) 
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Lookup of registering node %llu failed.", 
 	    aal_block_get_nr(cache->node->block));
@@ -138,6 +140,78 @@ errno_t reiserfs_cache_lnkey(reiserfs_cache_t *cache, reiserfs_key_t *key) {
 
 errno_t reiserfs_cache_rnkey(reiserfs_cache_t *cache, reiserfs_key_t *key) {
     return reiserfs_cache_nkey(cache, RIGHT, key);
+}
+
+/* 
+    This function raises up both neighbours of the passed cache. This is used
+    by shifting code in tree.c
+*/
+errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
+    blk_t block_nr;
+    reiserfs_pos_t pos;
+    reiserfs_key_t ldkey;
+
+    reiserfs_node_t *node;
+    reiserfs_node_t *parent;
+    
+    aal_assert("umka-776", cache != NULL, return -1);
+
+    if (cache->left && cache->right)
+	return 0;
+    
+    if (!(parent = cache->parent->node))
+	return 0;
+    
+    reiserfs_node_ldkey(cache->node, &ldkey);
+    
+    if (reiserfs_node_lookup(parent, &ldkey, &pos) != 1) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find left delimiting key of node %llu.", 
+	    aal_block_get_nr(cache->node->block));
+	return -1;
+    }
+
+    /* Rasing the right neighbour */
+    if (pos.item > 0) {
+	if (!(block_nr = reiserfs_node_get_pointer(parent, pos.item - 1))) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't get pointer to left neighbour.");
+	    return -1;
+	}
+
+	if (!(node = reiserfs_node_open(cache->node->block->device, block_nr, 
+	    REISERFS_GUESS_PLUGIN_ID, cache->node->key_plugin->h.id)))
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't open node %llu.", block_nr);
+	    return -1;
+	}
+    
+	cache->left = reiserfs_cache_create(node);
+	cache->left->right = cache;
+    }
+
+    /* Raising the right neighbour */
+    if (pos.item < reiserfs_node_count(parent)) {
+	if (!(block_nr = reiserfs_node_get_pointer(parent, pos.item + 1))) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't get pointer to right neighbour.");
+	    return -1;
+	}
+
+	if (!(node = reiserfs_node_open(cache->node->block->device, block_nr, 
+	    REISERFS_GUESS_PLUGIN_ID, cache->node->key_plugin->h.id)))
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Can't open node %llu.", block_nr);
+	    return -1;
+	}
+    
+	cache->right = reiserfs_cache_create(node);
+	cache->right->left = cache;
+    }
+    
+    return 0;
 }
 
 /*

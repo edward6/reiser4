@@ -33,9 +33,12 @@ typedef enum reiserfs_plugin_type reiserfs_plugin_type_t;
 
 enum reiserfs_item_type {
     REISERFS_STATDATA_ITEM,
-    REISERFS_DIRENTRY_ITEM,
+    REISERFS_SDE_ITEM,
+    REISERFS_CDE_ITEM,
     REISERFS_INTERNAL_ITEM,
-    REISERFS_FILENTRY_ITEM
+    REISERFS_ACL_ITEM,
+    REISERFS_EXTENT_ITEM,
+    REISERFS_TAIL_ITEM
 };
 
 typedef enum reiserfs_item_type reiserfs_item_type_t;
@@ -145,8 +148,7 @@ struct reiserfs_dir_ops {
 typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;
 
 struct reiserfs_item_common_ops {
-    reiserfs_item_type_t type;
-
+    
     /* Forms item structures based on passed hint in passed memory area */
     errno_t (*create) (void *, void *);
 
@@ -179,9 +181,6 @@ struct reiserfs_item_common_ops {
     
     /* Retunrs min size the item may occupy */
     uint16_t (*minsize) (void);
-    
-    /* Returns TRUE if item is internal one */
-    int (*internal) (void);
 };
 
 typedef struct reiserfs_item_common_ops reiserfs_item_common_ops_t;
@@ -199,7 +198,7 @@ struct reiserfs_stat_ops {
 typedef struct reiserfs_stat_ops reiserfs_stat_ops_t;
 
 struct reiserfs_internal_ops {
-    void (*set_pointer) (void *, blk_t);
+    errno_t (*set_pointer) (void *, blk_t);
     blk_t (*get_pointer) (void *);
     int (*has_pointer) (void *, blk_t);
 };
@@ -289,7 +288,7 @@ struct reiserfs_node_ops {
     uint16_t (*item_overhead) (aal_block_t *);
 
     /* Returns item's length by pos */
-    uint16_t (*item_length) (aal_block_t *, int32_t);
+    uint16_t (*item_len) (aal_block_t *, int32_t);
     
     /* Returns item's max size */
     uint16_t (*item_maxsize) (aal_block_t *);
@@ -581,7 +580,7 @@ struct reiserfs_item_hint {
 	uint8_t body[24];
     } key;
     
-    uint16_t length;
+    uint16_t len;
     reiserfs_plugin_t *plugin;
 };
 

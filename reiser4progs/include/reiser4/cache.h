@@ -28,5 +28,7 @@ extern errno_t reiserfs_cache_lnkey(reiserfs_cache_t *cache,
 extern errno_t reiserfs_cache_rnkey(reiserfs_cache_t *cache, 
     reiserfs_key_t *key);
 
+extern errno_t reiserfs_cache_raise(reiserfs_cache_t *cache);
+
 #endif
 

@@ -7,17 +7,15 @@
 #include <aal/aal.h>
 
 /* 
-    This macros is used for checking whether specified routine from 
-    device operations is implemented or not. If not, throws exception
-    and performs specified action.
+    This macros is used for checking whether specified routine from device operations 
+    is implemented or not. If not, throws exception and performs specified action.
 
     It is used in maner like this:
 
-    aal_device_check_routine(some_devive_instance, read_operation, 
-	goto error_processing);
+    aal_device_check_routine(some_devive_instance, read_operation, goto error_processing);
     
-    This macro was introdused to decrease source code by removing
-    a lot of common pieces and replacethem by just one line of macro.
+    This macro was introdused to decrease source code by removing a lot of common pieces 
+    and replacethem by just one line of macro.
 */
 #define aal_device_check_routine(device, routine, action)		    \
     do {								    \
@@ -29,8 +27,8 @@
     } while (0)
 
 /*
-    Initializes device instance, checks and sets all device attributes 
-    (blocksize, flags, etc) and returns initialized instance to caller. 
+    Initializes device instance, checks and sets all device attributes (blocksize, 
+    flags, etc) and returns initialized instance to caller. 
 */
 aal_device_t *aal_device_open(struct aal_device_ops *ops, uint16_t blocksize, 
     int flags, void *data) 
@@ -45,7 +43,7 @@ aal_device_t *aal_device_open(struct aal_device_ops *ops, uint16_t blocksize,
 	return NULL;
     }	
 	
-    if (!(device = (aal_device_t *)aal_malloc(sizeof(*device))))
+    if (!(device = (aal_device_t *)aal_calloc(sizeof(*device), 0)))
 	return NULL;
 
     device->ops = ops;
@@ -63,8 +61,8 @@ void aal_device_close(aal_device_t *device) {
 }
 
 /* 
-    Checks and sets new block size for specified device. Returns error code,
-    see aal.h for more detailed description of errno_t.
+    Checks and sets new block size for specified device. Returns error code, see 
+    aal.h for more detailed description of errno_t.
 */
 errno_t aal_device_set_bs(aal_device_t *device, uint16_t blocksize) {
 
@@ -138,8 +136,8 @@ int aal_device_flags(aal_device_t *device) {
 }
 
 /* 
-    Compares two devices. Returns TRUE for equal devices and FALSE for 
-    different ones.
+    Compares two devices. Returns TRUE for equal devices and FALSE for different 
+    ones.
 */
 int aal_device_equals(aal_device_t *device1, aal_device_t *device2) {
     aal_assert("umka-438", device1 != NULL, return 0);

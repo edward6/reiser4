@@ -84,7 +84,7 @@ static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent,
     stat_hint->size = 0;
     
     /* Initializing direntry hint */
-    hint->item[1].type = REISERFS_DIRENTRY_ITEM; 
+    hint->item[1].type = REISERFS_CDE_ITEM; 
     
     if (!(hint->item[1].plugin = factory->find(REISERFS_ITEM_PLUGIN,
 	direntry_plugin_id)))
@@ -141,9 +141,10 @@ static void dir40_close(reiserfs_object_hint_t *hint) {
     aal_assert("umka-750", hint != NULL, return);
 
     for (i = 0; i < hint->count; i++) {
-	if (hint->item[i].type == REISERFS_DIRENTRY_ITEM) {
+	if (hint->item[i].type == REISERFS_CDE_ITEM) {
 	    reiserfs_direntry_hint_t *direntry_hint = 
 		(reiserfs_direntry_hint_t *)hint->item[i].hint;
+
 	    aal_free(direntry_hint->entry);
 	    aal_free(direntry_hint);
 	}

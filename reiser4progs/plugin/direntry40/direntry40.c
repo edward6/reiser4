@@ -13,8 +13,6 @@
 
 #include "direntry40.h"
 
-#define	DIRENTRY40_ID 0x2
-
 static reiserfs_plugin_factory_t *factory = NULL;
 
 #ifndef ENABLE_COMPACT
@@ -81,15 +79,15 @@ static errno_t direntry40_estimate(uint16_t pos, reiserfs_item_hint_t *hint) {
     aal_assert("vpf-095", hint != NULL, return -1);
     
     direntry_hint = (reiserfs_direntry_hint_t *)hint->hint;
-    hint->length = direntry_hint->count * sizeof(reiserfs_entry40_t);
+    hint->len = direntry_hint->count * sizeof(reiserfs_entry40_t);
     
     for (i = 0; i < direntry_hint->count; i++) {
-	hint->length += aal_strlen(direntry_hint->entry[i].name) + 
+	hint->len += aal_strlen(direntry_hint->entry[i].name) + 
 	    sizeof(reiserfs_objid_t) + 1;
     }
 
     if (pos == 0xffff)
-	hint->length += sizeof(reiserfs_direntry40_t);
+	hint->len += sizeof(reiserfs_direntry40_t);
     
     return 0;
 }
@@ -169,10 +167,6 @@ static int direntry40_lookup(reiserfs_direntry40_t *direntry,
     return lookup;
 }
 
-static int direntry40_internal(void) {
-    return 0;
-}
-
 static errno_t direntry40_maxkey(reiserfs_key_t *key) {
     aal_assert("umka-716", key->plugin != NULL, return -1);
     aal_assert("vpf-121", key->plugin->key.set_objectid != NULL, return -1);
@@ -192,15 +186,13 @@ static reiserfs_plugin_t direntry40_plugin = {
     .item = {
 	.h = {
 	    .handle = NULL,
-	    .id = DIRENTRY40_ID,
+	    .id = REISERFS_CDE_ITEM,
 	    .type = REISERFS_ITEM_PLUGIN,
 	    .label = "direntry40",
 	    .desc = "Directory plugin for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 	.common = {
-	    .type = REISERFS_DIRENTRY_ITEM,
-
 #ifndef ENABLE_COMPACT	    
 	    .create = (errno_t (*)(void *, void *))direntry40_create,
 	    .estimate = (errno_t (*)(uint16_t, void *))direntry40_estimate,
@@ -211,7 +203,6 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .minsize = (uint16_t (*)(void))direntry40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))direntry40_print,
 	    .lookup = (int (*) (void *, void *, void *))direntry40_lookup,
-	    .internal = (int (*)(void))direntry40_internal,
 	    .maxkey = (errno_t (*)(void *))direntry40_maxkey,
 	    
 	    .insert = (errno_t (*)(void *, uint16_t, void *))direntry40_insert,

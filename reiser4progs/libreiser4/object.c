@@ -13,10 +13,13 @@
 
 /* Translation table for item types. It is used for nice exceptions */
 char *reiserfs_item_name[] = {
-    [REISERFS_STATDATA_ITEM] = "STATDATA",
-    [REISERFS_DIRENTRY_ITEM] = "DIRENTRY",
-    [REISERFS_INTERNAL_ITEM] = "INTERNAL",
-    [REISERFS_FILENTRY_ITEM] = "FILEENTRY"
+    [REISERFS_STATDATA_ITEM] = "stat data",
+    [REISERFS_SDE_ITEM] = "sde",
+    [REISERFS_CDE_ITEM] = "cde",
+    [REISERFS_INTERNAL_ITEM] = "internal",
+    [REISERFS_ACL_ITEM] = "acl",
+    [REISERFS_EXTENT_ITEM] = "extent",
+    [REISERFS_TAIL_ITEM] = "tail"
 };
 
 static int reiserfs_object_find_entry(reiserfs_coord_t *coord, reiserfs_key_t *key) {

@@ -159,7 +159,7 @@ static errno_t reiserfs_node_relocate(reiserfs_node_t *dst_node,
     aal_assert("umka-800", dst_node != NULL, return -1);
 
     item.data = reiserfs_node_item_body(src_node, src_pos->item);
-    item.length = reiserfs_node_item_length(src_node, src_pos->item);
+    item.len = reiserfs_node_item_len(src_node, src_pos->item);
     
     /* Getting the key of item that is going to be copied */
     reiserfs_key_init((reiserfs_key_t *)&item.key, 
@@ -377,16 +377,16 @@ errno_t reiserfs_node_insert(reiserfs_node_t *node,
 	    return -1;
 	}
     } else {
-	aal_assert("umka-761", item->length > 0 && 
-	    item->length < node->block->size - sizeof(reiserfs_node_header_t), return -1);
+	aal_assert("umka-761", item->len > 0 && 
+	    item->len < node->block->size - sizeof(reiserfs_node_header_t), return -1);
     }
     
-    if (item->length + reiserfs_node_item_overhead(node) >
+    if (item->len + reiserfs_node_item_overhead(node) >
         reiserfs_node_get_free_space(node))
     {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
             "There is no space to insert the item of (%u) size in the node (%llu).",
-            item->length, aal_block_get_nr(node->block));
+            item->len, aal_block_get_nr(node->block));
         return -1;
     }
 
@@ -468,11 +468,11 @@ uint16_t reiserfs_node_item_maxsize(reiserfs_node_t *node) {
 	item_maxsize, node->block);
 }
 
-uint16_t reiserfs_node_item_length(reiserfs_node_t *node, uint32_t pos) {
+uint16_t reiserfs_node_item_len(reiserfs_node_t *node, uint32_t pos) {
     aal_assert("umka-760", node != NULL, return 0);
 
     return libreiser4_plugin_call(return 0, node->node_plugin->node, 
-	item_length, node->block, pos);
+	item_len, node->block, pos);
 }
 
 void *reiserfs_node_item_body(reiserfs_node_t *node, uint32_t pos) {
@@ -515,6 +515,9 @@ blk_t reiserfs_node_get_pointer(reiserfs_node_t *node, uint32_t pos) {
     aal_assert("vpf-041", node != NULL, return 0);
     aal_assert("umka-778", pos < reiserfs_node_count(node), return 0);
 
+    if (!reiserfs_node_item_internal(node, pos))
+	return 0;
+    
     if (!(plugin = reiserfs_node_get_item_plugin(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin.");
@@ -540,6 +543,9 @@ int reiserfs_node_has_pointer(reiserfs_node_t *node,
     
     aal_assert("umka-607", node != NULL, return 0);
 
+    if (!reiserfs_node_item_internal(node, pos))
+	return 0;
+
     if (!(plugin = reiserfs_node_get_item_plugin(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin.");
@@ -558,42 +564,39 @@ int reiserfs_node_has_pointer(reiserfs_node_t *node,
 }
 
 int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos) {
-    reiserfs_plugin_t *plugin;
-    
     aal_assert("vpf-042", node != NULL, return 0);
 
-    if (!(plugin = reiserfs_node_get_item_plugin(node, pos))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find item plugin.");
-	return 0;
-    }
-    return libreiser4_plugin_call(return 0, plugin->item.common, internal,);
+    return reiserfs_node_get_item_plugin_id(node, pos) == 
+	REISERFS_INTERNAL_ITEM;
 }
 
 #ifndef ENABLE_COMPACT
 
-void reiserfs_node_set_pointer(reiserfs_node_t *node, 
+errno_t reiserfs_node_set_pointer(reiserfs_node_t *node, 
     uint32_t pos, blk_t blk) 
 {
     void *body;
     reiserfs_plugin_t *plugin;
     
-    aal_assert("umka-607", node != NULL, return);
+    aal_assert("umka-607", node != NULL, return -1);
+
+    if (!reiserfs_node_item_internal(node, pos))
+	return -1;
 
     if (!(plugin = reiserfs_node_get_item_plugin(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find item plugin.");
-	return;
+	return -1;
     }
     
     if (!(body = reiserfs_node_item_body(node, pos))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't find item at node %llu and pos %u",
 	    aal_block_get_nr(node->block), pos);
-	return;
+	return -1;
     }
     
-    libreiser4_plugin_call(return, plugin->item.specific.internal, 
+    return libreiser4_plugin_call(return -1, plugin->item.specific.internal, 
 	set_pointer, body, blk);
 }
 
