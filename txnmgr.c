@@ -2108,8 +2108,8 @@ void jnode_set_dirty( jnode *node )
 		}
 
 		/*
-		 * FIXME-NIKITA probably balance_dirty_pages() should be
-		 * called here.
+		 * FIXME-NIKITA probably balance_dirty_pages_ratelimited()
+		 * should be called here.
 		 */
 
 		/*trace_on (TRACE_FLUSH, "dirty %sformatted node %p\n", 
