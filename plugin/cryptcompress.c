@@ -464,7 +464,7 @@ write_cryptcompress(struct file * file, /* file to write to */
 	down(&inode->i_sem);
 
 	cryptcompress_build_flow(inode, (char *)buf, 1, count, *off, WRITE_OP, &f);
-	result = iplug->s.file.write(inode, NULL, NULL, &f, NULL, 0);
+	result = iplug->s.file.write(inode, &f, NULL/*hint*/, 0/*grabbed*/, 0/* write_mode_t */);
 
 	up(&inode->i_sem);
 	return result;
