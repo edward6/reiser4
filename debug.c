@@ -337,6 +337,7 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(flush.flush),
 	DEFINE_STAT_CNT(flush.left),
 	DEFINE_STAT_CNT(flush.right),
+	DEFINE_STAT_CNT(flush.slept_in_mtflush_sem),
 
 	DEFINE_STAT_CNT(pool.alloc),
 	DEFINE_STAT_CNT(pool.kmalloc),

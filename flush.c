@@ -770,8 +770,15 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 	sb = reiser4_get_current_sb();
 	info = get_super_private(sb);
-	if (!reiser4_is_set(sb, REISER4_MTFLUSH))
+	if (!reiser4_is_set(sb, REISER4_MTFLUSH)) {
+#if REISER4_STATS		
+		unsigned long sleep_start = jiffies;
+#endif
 		down(&info->flush_sema);
+#if REISER4_STATS
+		reiser4_stat_add(flush.slept_in_mtflush_sem , jiffies - sleep_start);
+#endif
+	}
 
 	flush_mode();
 	write_syscall_trace("in");
