@@ -8,6 +8,7 @@
 #include "../../ioctl.h"
 #include "../object.h"
 #include "../../prof.h"
+#include "../../safe_link.h"
 #include "funcs.h"
 
 #include <linux/writeback.h>
@@ -526,7 +527,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 	key_by_inode_unix_file(inode, new_size, &from_key);
 	to_key = from_key;
 	set_key_offset(&to_key, cur_size - 1/*get_key_offset(max_key())*/);
-	/* VS-FIXME-HANS: does this loop normally run just once? */
+	/* this loop normally runs just once */
 	while (1) {
 		result = reserve_cut_iteration(tree_by_inode(inode));
 		if (result)
@@ -711,27 +712,34 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 	/*INODE_SET_FIELD(inode, i_size, new_size);*/
 
 	result = find_file_size(inode, &cur_size);
-	if (!result) {
-		if (new_size != cur_size) {
-			INODE_SET_FIELD(inode, i_size, cur_size);
-			if (cur_size < new_size)
-				result = append_hole(unix_file_inode_data(inode), new_size);
-			else
-				result = shorten_file(inode, new_size, update_sd, cur_size);
-		} else {
-			/* when file is built of extens - find_file_size can only calculate old file size up to page
-			 * size. Case of not changing file size is detected in unix_file_setattr, therefore here we have
-			 * expanding file within its last page up to the end of that page */
-			assert("vs-1115", file_is_built_of_extents(inode) || (file_is_empty(inode) && cur_size == 0));
-			assert("vs-1116", (new_size & ~PAGE_CACHE_MASK) == 0);
+	if (result != 0)
+		return result;
 
-			/* update stat data */
-			if (update_sd) {
-				result = setattr_reserve(tree_by_inode(inode));
-				if (!result)
-					result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, 1);
-				all_grabbed2free();
-			}
+	if (new_size != cur_size) {
+		INODE_SET_FIELD(inode, i_size, cur_size);
+		if (cur_size < new_size)
+			result = append_hole(unix_file_inode_data(inode),
+					     new_size);
+		else
+			result = shorten_file(inode,
+					      new_size, update_sd, cur_size);
+	} else {
+		/* when file is built of extens - find_file_size can only
+		 * calculate old file size up to page size. Case of not
+		 * changing file size is detected in unix_file_setattr,
+		 * therefore here we have expanding file within its last page
+		 * up to the end of that page */
+		assert("vs-1115",
+		       file_is_built_of_extents(inode) ||
+		       (file_is_empty(inode) && cur_size == 0));
+		assert("vs-1116", (new_size & ~PAGE_CACHE_MASK) == 0);
+
+		/* update stat data */
+		if (update_sd) {
+			result = setattr_reserve(tree_by_inode(inode));
+			if (!result)
+				result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, 1);
+			all_grabbed2free();
 		}
 	}
 	return result;
@@ -1317,10 +1325,19 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 	uf_info = unix_file_inode_data(inode);
 
-	get_nonexclusive_access(uf_info);
+	if (inode_get_flag(inode, REISER4_PART_CONV)) {
+		get_exclusive_access(uf_info);
+		result = finish_conversion(inode);
+		if (result != 0) {
+			drop_access(uf_info);
+			return result;
+		}
+	} else
+		get_nonexclusive_access(uf_info);
+
 	if (*off >= inode->i_size) {
 		/* position to read from is past the end of file */
-		drop_nonexclusive_access(uf_info);
+		drop_access(uf_info);
 		return 0;
 	}
 	if (*off + read_amount > inode->i_size)
@@ -1329,15 +1346,15 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 	needed = unix_file_estimate_read(inode, read_amount); /* FIXME: tree_by_inode(inode)->estimate_one_insert */
 	result = reiser4_grab_space(needed, BA_CAN_COMMIT);
 	if (result != 0) {
-		drop_nonexclusive_access(uf_info);
-		return RETERR(-ENOSPC);
+		drop_access(uf_info);
+		return result;
 	}
 
 	/* build flow */
 	assert("vs-1250", inode_file_plugin(inode)->flow_by_inode == flow_by_inode_unix_file);
 	result = flow_by_inode_unix_file(inode, buf, 1 /* user space */ , read_amount, *off, READ_OP, &f);
 	if (unlikely(result)) {
-		drop_nonexclusive_access(uf_info);
+		drop_access(uf_info);
 		return result;
 	}
 
@@ -1346,7 +1363,7 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 	*/
 	result = load_file_hint(file, &hint, &lh);
 	if (unlikely(result)) {
-		drop_nonexclusive_access(uf_info);
+		drop_access(uf_info);
 		return result;
 	}
 
@@ -1424,7 +1441,7 @@ ssize_t read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t 
 		update_atime(inode);
 	}
 
-	drop_nonexclusive_access(uf_info);
+	drop_access(uf_info);
 
 	/* update position in a file */
 	*off += read;
@@ -1526,9 +1543,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 			return result;
 		}
 		loaded = lh.node;
-		/*
-		 * XXX NIKITA coord has to be re-validated after zload()
-		 */
+		coord_clear_iplug(&hint.coord.base_coord);
 
 		result = write_f(unix_file_info_to_inode(uf_info),
 				 flow,
@@ -1581,7 +1596,7 @@ write_flow(struct file *file, unix_file_info_t *uf_info, const char *buf, loff_t
 	return append_and_or_overwrite(file, uf_info, &flow);
 }
 
-static void
+void
 drop_access(unix_file_info_t *uf_info)
 {
 	if (uf_info->exclusive_use)
@@ -1747,7 +1762,6 @@ write_unix_file(struct file *file, /* file to write to */
 
 	down(&inode->i_sem);
 	written = generic_write_checks(inode, file, off, &count, 0);
-
 	if (written == 0) {
 		int gotaccess;
 
@@ -1762,9 +1776,19 @@ write_unix_file(struct file *file, /* file to write to */
 
 			for (rep = 0;; ++ rep) {
 				if (!gotaccess) {
-					/* check_pages_unix_file returned without taking any access. We need to take access. We
-					   take excluse if inode size is 0 */
-					if (inode->i_size == 0 || rep)
+					if (inode_get_flag(inode,
+							   REISER4_PART_CONV)) {
+						get_exclusive_access(uf_info);
+						written = finish_conversion(inode);
+						if (written != 0) {
+							drop_access(uf_info);
+							break;
+						}
+					/* check_pages_unix_file returned
+					   without taking any access. We need
+					   to take access. We take excluse if
+					   inode size is 0 */
+					} else if (inode->i_size == 0 || rep)
 						get_exclusive_access(uf_info);
 					else
 						get_nonexclusive_access(uf_info);
@@ -1978,27 +2002,7 @@ key_by_inode_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
 /* plugin->u.file.set_plug_in_sd = NULL
    plugin->u.file.set_plug_in_inode = NULL
    plugin->u.file.create_blank_sd = NULL */
-
 /* plugin->u.file.delete */
-int
-delete_unix_file(struct inode *inode)
-{
-	int result;
-
-	/* FIXME: file is truncated to 0 already */
-	assert("vs-1099", inode->i_nlink == 0);
-	if (inode->i_size) {
-		result = truncate_file(inode, 0, 0/* no stat data update */);
-		if (result) {
-			warning("nikita-2848",
-				"Cannot truncate unnamed file %lli: %i",
-				get_inode_oid(inode), result);
-			return result;
-		}
-	}
-	return delete_file_common(inode);
-}
-
 /*
    plugin->u.file.add_link = add_link_common
    plugin->u.file.rem_link = NULL */
@@ -2017,9 +2021,46 @@ owns_item_unix_file(const struct inode *inode	/* object to check against */ ,
 		return 0;
 	if (item_type_by_coord(coord) != ORDINARY_FILE_METADATA_TYPE)
 		return 0;
-	assert("vs-547", (item_id_by_coord(coord) == EXTENT_POINTER_ID || item_id_by_coord(coord) == FORMATTING_ID ||
-			  item_id_by_coord(coord) == FROZEN_EXTENT_POINTER_ID || item_id_by_coord(coord) == FROZEN_FORMATTING_ID));
+	assert("vs-547",
+	       item_id_by_coord(coord) == EXTENT_POINTER_ID ||
+	       item_id_by_coord(coord) == FORMATTING_ID);
 	return 1;
+}
+
+static int
+setattr_truncate(struct inode *inode, struct iattr *attr)
+{
+	int result;
+	int s_result;
+	loff_t old_size;
+
+	inode_check_scale(inode, inode->i_size, attr->ia_size);
+
+	old_size = inode->i_size;
+
+	result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
+	if (result == 0)
+		result = safe_link_add(inode, SAFE_TRUNCATE);
+	all_grabbed2free();
+	if (result == 0)
+		result = truncate_file(inode, attr->ia_size, 1);
+	if (result == 0) {
+		/* items are removed already. inode_setattr will call
+		   vmtruncate to invalidate truncated pages and
+		   unix_file_truncate which will do nothing. FIXME: is this
+		   necessary? */
+		INODE_SET_FIELD(inode, i_size, old_size);
+		result = inode_setattr(inode, attr);
+	}
+	s_result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
+	if (s_result == 0)
+		s_result = safe_link_del(inode, SAFE_TRUNCATE);
+	if (s_result != 0) {
+		warning("nikita-3417", "Cannot kill safelink %lli: %i",
+			get_inode_oid(inode), s_result);
+	}
+	all_grabbed2free();
+	return result;
 }
 
 /* plugin->u.file.setattr method */
@@ -2032,25 +2073,15 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 	int result;
 
 	if (attr->ia_valid & ATTR_SIZE) {
-		/* truncate does reservation itself and requires exclusive access obtained */
+		/* truncate does reservation itself and requires exclusive
+		 * access obtained */
 		if (inode->i_size != attr->ia_size) {
-			loff_t old_size;
+			unix_file_info_t *ufo;
 
-			inode_check_scale(inode, inode->i_size, attr->ia_size);
-
-			old_size = inode->i_size;
-
-			get_exclusive_access(unix_file_inode_data(inode));
-			/* VS-FIXME-HANS: explain why setattr calls truncate file */
-			/*  */
-			result = truncate_file(inode, attr->ia_size, 1/* update stat data */);
-			if (!result) {
-				/* items are removed already. inode_setattr will call vmtruncate to invalidate truncated
-				   pages and unix_file_truncate which will do nothing. FIXME: is this necessary? */
-				INODE_SET_FIELD(inode, i_size, old_size);
-				result = inode_setattr(inode, attr);
-			}
-			drop_exclusive_access(unix_file_inode_data(inode));
+			ufo = unix_file_inode_data(inode);
+			get_exclusive_access(ufo);
+			result = setattr_truncate(inode, attr);
+			drop_exclusive_access(ufo);
 		} else
 			result = 0;
 	} else {
@@ -2108,6 +2139,58 @@ int
 pre_delete_unix_file(struct inode *inode)
 {
 	return truncate_file(inode, 0/* size */, 0/* no stat data update */);
+}
+
+static int process_truncate(struct inode *inode, __u64 size)
+{
+	int result;
+	struct iattr attr;
+	file_plugin *fplug;
+	reiser4_context ctx;
+
+	init_context(&ctx, inode->i_sb);
+
+	attr.ia_size = size;
+	attr.ia_valid = ATTR_SIZE | ATTR_CTIME;
+	fplug = inode_file_plugin(inode);
+
+	down(&inode->i_sem);
+	result = fplug->setattr(inode, &attr);
+	up(&inode->i_sem);
+
+	context_set_commit_async(&ctx);
+	reiser4_exit_context(&ctx);
+
+	return result;
+}
+
+int safelink_unix_file(struct inode *object, reiser4_safe_link_t link,
+		       __u64 value)
+{
+	int result;
+
+	if (link == SAFE_UNLINK)
+		/* nothing to do. iput() in the caller (process_safelink) will
+		 * finish with file */
+		result = 0;
+	else if (link == SAFE_TRUNCATE)
+		result = process_truncate(object, value);
+	else if (link == SAFE_E2T || link == SAFE_T2E) {
+		unix_file_info_t *ufo;
+
+		ufo = unix_file_inode_data(object);
+		inode_set_flag(object, REISER4_PART_CONV);
+		get_exclusive_access(ufo);
+		if (link == SAFE_E2T)
+			result = extent2tail(ufo);
+		else
+			result = tail2extent(ufo);
+		drop_access(ufo);
+	} else {
+		warning("nikita-3432", "Unrecognized safe-link type: %i", link);
+		result = RETERR(-EIO);
+	}
+	return result;
 }
 
 /*
