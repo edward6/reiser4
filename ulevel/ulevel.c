@@ -1060,7 +1060,7 @@ int submit_bio( int rw, struct bio *bio )
 	success = lseek64( fd, ( off64_t )( bio -> bi_sector * 512 ), SEEK_SET );
 	if( success == ( off64_t )-1 ) {
 		perror( "lseek64" );
-		return 0;
+		return success;
 	}
 	success = 1;
 	for( i = 0; ( i < bio -> bi_vcnt ) && success ; ++ i ) {
@@ -1093,7 +1093,7 @@ int submit_bio( int rw, struct bio *bio )
 	else
 		clear_bit( BIO_UPTODATE, &bio -> bi_flags );
 	bio -> bi_end_io( bio );
-	return 0;
+	return success ? 0 : -1;
 }
 
 #if 0

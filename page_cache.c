@@ -75,7 +75,6 @@
 static struct page *add_page( struct super_block *super, jnode *node );
 static void kmap_once( jnode *node, struct page *page );
 static struct bio *page_bio( struct page *page, int gfp );
-static int page_io( struct page *page, int rw, int gfp );
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -359,7 +358,7 @@ static int formatted_writepage( struct page *page /* page to write */ )
 	return page_io( page, WRITE, GFP_NOIO );
 }
 
-static int page_io( struct page *page, int rw, int gfp )
+int page_io( struct page *page, int rw, int gfp )
 {
 	struct bio *bio;
 	int         result;

@@ -52,10 +52,6 @@ struct flush_position {
 	int                   leaf_relocate;
 	ON_DEBUG (int alloc_cnt;)
 	ON_DEBUG (int enqueue_cnt;)
-
-	/* FIXME: This should be moved to a structure in the caller's scope so that
-	 * repeated calls to flush will fill the same struct bio. */
-	struct bio           *bio;
 };
 
 typedef enum {
@@ -74,14 +70,12 @@ static int           flush_scan_formatted         (flush_scan *scan);
 static int           flush_scan_left              (flush_scan *scan, flush_scan *right, jnode *node, __u32 limit);
 static int           flush_scan_right             (flush_scan *scan, jnode *node, __u32 limit);
 
-static int           flush_left_relocate          (jnode *node, const coord_t *parent_coord, flush_position *pos);
+static int           flush_left_relocate_dirty    (jnode *node, const coord_t *parent_coord, flush_position *pos);
 
 static int           flush_enqueue_jnode          (jnode *node, flush_position *pos);
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
 
 static int           flush_finish                 (flush_position *pos);
-static int           flush_find_rightmost           (const coord_t *parent_coord, reiser4_block_nr *pblk);
-static int           flush_find_preceder            (jnode *node, coord_t *parent_coord, reiser4_block_nr *pblk);
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, flush_position *pos);
 static int           squalloc_right_twig          (znode *left, znode *right, flush_position *pos);
 static int           squalloc_right_twig_cut      (coord_t * to, reiser4_key * to_key, znode *left);
@@ -116,8 +110,6 @@ static void          flush_pos_set_point          (flush_position *pos, jnode *n
 static void          flush_pos_release_point      (flush_position *pos);
 static int           flush_pos_lock_parent        (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, znode_lock_mode mode);
 
-#define FLUSH_IS_BROKEN 0
-
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (to
  * early-flush dirty blocks).
@@ -143,15 +135,10 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 	flush_scan right_scan;
 	flush_scan left_scan;
 
-	if (FLUSH_IS_BROKEN) {
-		jnode_set_clean (node);
-		return 0;
-	}
-
 	flush_scan_init (& right_scan);
 	flush_scan_init (& left_scan);
 
-	print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR);
+	//print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR);
 	trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK));
 
 	assert ("jmacd-5012", jnode_check_dirty (node));
@@ -256,10 +243,8 @@ static int flush_relocate_unless_close_enough (const reiser4_block_nr *pblk,
 }
 
 /* FIXME: comment */
-static int flush_left_relocate (jnode *node, const coord_t *parent_coord, flush_position *pos)
+static int flush_left_relocate_check (jnode *node, const coord_t *parent_coord, flush_position *pos)
 {
-	int ret;
-	coord_t coord;
 	reiser4_block_nr pblk = 0;
 	reiser4_block_nr nblk = 0;
 
@@ -271,13 +256,13 @@ static int flush_left_relocate (jnode *node, const coord_t *parent_coord, flush_
 	}
 
 	/* Find the preceder. */
-	coord_dup (& coord, parent_coord);
-
-	if ((ret = flush_find_preceder (node, & coord, & pblk))) {
-		return ret;
+	if (coord_is_leftmost_unit (parent_coord)) {
+		pblk = *znode_get_block (parent_coord->node);
+	} else {
+		pblk = pos->preceder.blk;
 	}
 
-	/* If (pblk == 0) then the preceder isn't allocated either: relocate. */
+	/* If (pblk == 0) then the preceder isn't allocated or isn't known: relocate. */
 	if (pblk == 0) {
 		return 1;
 	}
@@ -288,13 +273,13 @@ static int flush_left_relocate (jnode *node, const coord_t *parent_coord, flush_
 }
 
 /* FIXME: comment */
-static int flush_left_relocate_dirty (jnode *node, coord_t *parent_coord, flush_position *pos)
+static int flush_left_relocate_dirty (jnode *node, const coord_t *parent_coord, flush_position *pos)
 {
 	int ret;
 
 	if (! znode_is_dirty (parent_coord->node)) {
 
-		if ((ret = flush_left_relocate (node, parent_coord, pos)) < 0) {
+		if ((ret = flush_left_relocate_check (node, parent_coord, pos)) < 0) {
 			return ret;
 		}
 
@@ -353,84 +338,6 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	return ret;
 }
 
-/* Find the block number of the parent-first preceder of a node.  If the node is a
- * leftmost child, then return its parent's block.  If the node is a leaf, return its left
- * neighbor's block.  Otherwise, call flush_find_rightmost to find the rightmost
- * descendent.
- *
- * FIXME: the HUGE problem with this procedure is that it violates all of our
- * lock-ordering strategies.  The best way to solve it is not to use this kind of
- * traversal at all, but instead to check for the block location of the left neighbor as
- * we ascend during flush_alloc_one_ancestor.  After that we allocate in
- * parent-first-order so we always know the preceder.
- */
-static int flush_find_preceder (jnode *node, coord_t *parent_coord, reiser4_block_nr *pblk)
-{
-	/* If coord_prev_unit returns 1, its the leftmost coord of its parent. */
-	if (coord_prev_unit (parent_coord) == 1) {
-		/* Not leftmost of parent, don't relocate */
-		*pblk = *znode_get_block (parent_coord->node);
-		return 0;
-	}
-
-	/* If at the leaf level, its the rightmost child of the parent_coord... */
-	if (jnode_get_level (node) == LEAF_LEVEL) {
-		/* Get the neighbors block number, if its real. */
-		return item_utmost_child_real_block (parent_coord, RIGHT_SIDE, pblk);
-	}
-
-	/* Non-leftmost internal node case. */
-	return flush_find_rightmost (parent_coord, pblk);
-}
-
-/* Find the rightmost descendant block number of @node.  Set preceder->blk to
- * that value.  This can never be called on a leaf node, the leaf case is
- * handled by flush_preceder_hint. */
-static int flush_find_rightmost (const coord_t *parent_coord, reiser4_block_nr *pblk)
-{
-	int ret;
-	znode *parent = parent_coord->node;
-	jnode *child;
-	coord_t child_coord;
-
-	assert ("jmacd-2043", znode_get_level (parent) >= TWIG_LEVEL);
-
-	if (znode_get_level (parent) == TWIG_LEVEL) {
-		/* End recursion, we made it all the way. */
-
-		/* Get the rightmost block number of this coord, which is the
-		 * child to the left of the starting node.  If the block is a
-		 * unallocated or a hole, the preceder is set to 0. */
-		return item_utmost_child_real_block (parent_coord, RIGHT_SIDE, pblk);
-	}
-
-	/* Get the child if it is in memory. */
-	if ((ret = item_utmost_child (parent_coord, RIGHT_SIDE, & child))) {
-		return ret;
-	}
-
-	/* If the child is not in memory, set preceder remains set to zero. */
-	if (child == NULL) {
-		return 0;
-	}
-
-	/* If the child is unallocated, there's no reason to continue, all its
-	 * children must be unallocated. */
-	if (! blocknr_is_fake (jnode_get_block (child))) {
-
-		assert ("jmacd-2061", jnode_is_formatted (child));
-
-		/* The child is in memory, recurse. */
-		coord_init_last_unit (& child_coord, JZNODE (child));
-
-		ret = flush_find_rightmost (& child_coord, pblk);
-	}
-
-	jput (child);
-	return ret;
-}
-
-
 /********************************************************************************
  * FIXME:
  ********************************************************************************/
@@ -445,6 +352,8 @@ static int flush_squeeze_left_edge (flush_position *pos UNUSED_ARG)
 {
 	return 0;
 }
+
+/* FIXME: Not setting preceder now. */
 
 /* Recurse up the tree as long as ancestors are same_atom_dirty and not allocated,
  * allocate on the way back down. */
@@ -1181,17 +1090,6 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
 
-	/* Update the preceder if necessary.  FIXME: See the note on flush_find_preceder(). */
-	if (pos->preceder.blk == 0 && ! znode_is_root (node)) {
-		reiser4_block_nr pblk;
-
-		if ((ret = flush_find_preceder (ZJNODE (node), parent_coord, & pblk))) {
-			return ret;
-		}
-
-		pos->preceder.blk = pblk;
-	}
-
 	if (ZF_ISSET (node, ZNODE_ALLOC) || znode_is_root (node)) {
 		/* No need to decide with new nodes, they are treated the same as
 		 * relocate. If the root node is dirty, relocate. */
@@ -1201,6 +1099,10 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 
 		/* We have enough nodes to relocate no matter what. */
 		goto best_reloc;
+	} else if (pos->preceder.blk == 0) {
+
+		/* If we don't know the preceder, leave it where it is. */
+		ZF_SET (node, ZNODE_WANDER);
 	} else {
 		/* Make a decision based on block distance. */
 		reiser4_block_nr dist;
@@ -1245,6 +1147,9 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	/* This is the new preceder. */
 	pos->preceder.blk = *znode_get_block (node);
 	pos->alloc_cnt += 1;
+
+	assert ("jmacd-4277", ! blocknr_is_fake (& pos->preceder.blk));
+
 	info ("allocte node: %p block %llu level %u\n", node, *znode_get_block (node), znode_get_level (node));
 	return 0;
 }
@@ -1253,44 +1158,29 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 {
 	int ret;
-	struct bio_vec *bvec;
+	struct page *pg;
 
 	assert ("jmacd-1771", jnode_is_allocated (node));
 	assert ("jmacd-1772", jnode_check_dirty (node));
 
-	/* If we reach the threshold, flush a batch immediately. */
-	if (pos->bio->bi_vcnt == FLUSH_RELOCATE_THRESHOLD) {
-
-		if ((ret = flush_finish (pos))) {
-			return ret;
-		}
-
-		assert ("jmacd-6611", pos->bio == NULL);
-
-		if ((pos->bio = bio_alloc (GFP_NOFS, FLUSH_RELOCATE_THRESHOLD)) == NULL) {
-			return -ENOMEM;
-		}
+	if ((pg = jnode_page (node)) == NULL) {
+		return -ENOMEM;
 	}
 
-	bvec = & pos->bio->bi_io_vec[pos->bio->bi_vcnt++];
-
-	assert ("jmacd-9921", jnode_page (node) != NULL);
-	bvec->bv_page = jnode_page (node);
+	lock_page (pg);
+	ret = page_io (pg, WRITE, GFP_NOIO);
 
 	pos->enqueue_cnt += 1;
 	jnode_set_clean (node);
+
 	//info ("enqueue node: %p block %llu level %u\n", node, *jnode_get_block (node), jnode_get_level (node));
-	return 0;
+
+	return ret;
 }
 
 /* FIXME: comment */
-static int flush_finish (flush_position *pos)
+static int flush_finish (flush_position *pos UNUSED_ARG)
 {
-	//assert ("jmacd-7711", pos->bio != NULL && pos->bio->bi_vcnt != 0);
-
-	/* FIXME: finish this struct bio. */
-	bio_put (pos->bio);
-	pos->bio = NULL;
 	return 0;
 }
 
@@ -1874,10 +1764,6 @@ static int flush_pos_init (flush_position *pos)
 	init_lh (& pos->point_lock);
 	init_lh (& pos->parent_lock);
 
-	if ((pos->bio = bio_alloc (GFP_NOFS, FLUSH_RELOCATE_THRESHOLD)) == NULL) {
-		return -ENOMEM;
-	}
-
 	return 0;
 }
 
@@ -1892,11 +1778,6 @@ static void flush_pos_done (flush_position *pos)
 {
 	flush_pos_stop (pos);
 	blocknr_hint_done (& pos->preceder);
-
-	if (pos->bio != NULL) {
-		bio_put (pos->bio);
-		pos->bio = NULL;
-	}
 }
 
 /* Reset the point and parent. */
