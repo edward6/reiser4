@@ -899,7 +899,7 @@ extern void print_lock_counters(const char *prefix, const lock_counters_info * i
 #define print_lock_counters( p, i ) noop
 #endif
 
-#define REISER4_STACK_ABORT          (8192 - sizeof(struct task_struct) - 30)
+#define REISER4_STACK_ABORT          (8192 - sizeof(struct thread_info) - 30)
 #define REISER4_STACK_GAP            (REISER4_STACK_ABORT - 100)
 
 #if REISER4_DEBUG_MEMCPY
