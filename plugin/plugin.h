@@ -147,6 +147,7 @@ typedef ssize_t(*rw_f_type) (struct file * file, flow_t * a_flow, loff_t * off);
 
  */
 
+
 typedef struct file_plugin {
 
 	/** generic fields */
@@ -272,6 +273,18 @@ typedef struct file_plugin {
 
 	/** called when @child was just looked up in the @parent */
 	int (*bind) (struct inode * child, struct inode * parent);
+
+	/* The couple of estimate methods for all file operations */
+	struct {
+		reiser4_block_nr (*create) (__u32, struct inode *);
+		reiser4_block_nr (*update) (struct inode *);
+		reiser4_block_nr (*write) (struct inode *, size_t, loff_t *);
+		reiser4_block_nr (*read) (struct inode *, size_t);
+		reiser4_block_nr (*truncate) (struct inode *, size_t);
+		reiser4_block_nr (*mmap) (struct inode *, size_t);
+		reiser4_block_nr (*release) (struct inode *);
+		reiser4_block_nr (*delete) (struct inode *);
+	} estimate;
 } file_plugin;
 
 typedef struct dir_plugin {
@@ -348,6 +361,18 @@ typedef struct dir_plugin {
 
 	/** called when @subdir was just looked up in the @dir */
 	int (*attach) (struct inode * subdir, struct inode * dir);
+
+	struct {
+		reiser4_block_nr (*create) (struct inode *parent, struct inode *object);
+		reiser4_block_nr (*rename) (struct inode *old_dir, struct dentry *old,
+					    struct inode *new_dir, struct dentry *new);
+		reiser4_block_nr (*add_entry) (struct inode *node);
+		reiser4_block_nr (*rem_entry) (struct inode *node);
+		reiser4_block_nr (*link) (struct inode *, struct inode *);
+		reiser4_block_nr (*unlink) (struct inode *,struct inode *);
+		reiser4_block_nr (*init) (struct inode *, struct inode *);
+		reiser4_block_nr (*done) (struct inode *, struct inode *);
+	} estimate;
 } dir_plugin;
 
 typedef struct tail_plugin {
@@ -356,6 +381,10 @@ typedef struct tail_plugin {
 	/** returns non-zero iff file's tail has to be stored
 	    in a direct item. */
 	int (*have_tail) (const struct inode * inode, loff_t size);
+
+	/* Returns the number of blocks needed for @size */
+	reiser4_block_nr ( *estimate )( const struct inode *, loff_t ,
+	    int );
 
 } tail_plugin;
 
