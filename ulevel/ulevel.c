@@ -4379,11 +4379,6 @@ int real_main( int argc, char **argv )
 
 	init_context( &__context, s );
 
-#if REISER4_DEBUG
-	atomic_set( &get_current_super_private() -> total_threads, 0 );
-	atomic_set( &get_current_super_private() -> active_threads, 0 );
-#endif
-
 	assert ("jmacd-998", s -> s_blocksize == (unsigned)PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
 	
 	spin_lock_init( &mp_guard );
