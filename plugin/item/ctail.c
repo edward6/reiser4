@@ -97,7 +97,7 @@ mergeable_ctail(const coord_t * p1, const coord_t * p2)
 }
 
 /* plugin->u.item.b.nr_units */
-unsigned
+pos_in_item_t
 nr_units_ctail(const coord_t * coord)
 {
 	return (item_length_by_coord(coord) - sizeof(formatted_at(coord)->disk_cluster_size));
@@ -351,8 +351,11 @@ page_of_cluster(struct page * page, reiser4_cluster_t * clust, struct inode * in
 
 /* plugin->u.item.s.file.read */
 int
-read_ctail(struct file *file UNUSED_ARG, coord_t *coord, flow_t * f)
+read_ctail(struct file *file UNUSED_ARG, flow_t *f, uf_coord_t *uf_coord)
 {
+	coord_t *coord;
+
+	coord = &uf_coord->base_coord;
 	assert("edward-127", f->user == 1);
 	assert("edward-128", f->data);
 	assert("edward-129", coord && coord->node);
@@ -382,7 +385,7 @@ static int
 ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct inode * inode)
 {
 	flow_t f; /* for items collection */
-	coord_t coord;
+	uf_coord_t uf_coord;
 	lock_handle lh;
 	int res;
 	unsigned long index;
@@ -425,7 +428,7 @@ ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct ino
 	
 	while (f.length) {
 		init_lh(&lh);
-		res = find_cluster_item(&f.key, &coord, &lh, &ra_info);
+		res = find_cluster_item(&f.key, &uf_coord.base_coord, &lh, &ra_info);
 		switch (res) {
 		case CBK_COORD_NOTFOUND:
 			if (inode_scaled_offset(inode, index << PAGE_CACHE_SHIFT) == get_key_offset(&f.key)) {
@@ -440,13 +443,13 @@ ctail_cluster_by_page (reiser4_cluster_t * clust, struct page * page, struct ino
 			done_lh(&lh);
 			goto ok;
 		case CBK_COORD_FOUND:
-			assert("edward-147", item_plugin_by_coord(&coord) == iplug);
-			assert("edward-148", coord.between != AT_UNIT);
-			res = zload_ra(coord.node, &ra_info);
+			assert("edward-147", item_plugin_by_coord(&uf_coord.base_coord) == iplug);
+			assert("edward-148", uf_coord.base_coord.between != AT_UNIT);
+			res = zload_ra(uf_coord.base_coord.node, &ra_info);
 			if (unlikely(res))
 				goto out;
-			res = iplug->s.file.read(NULL, &coord, &f);
-			zrelse(coord.node);
+			res = iplug->s.file.read(NULL, &f, &uf_coord);
+			zrelse(uf_coord.base_coord.node);
 			if (res) 
 				goto out;
 			done_lh(&lh);
@@ -536,7 +539,7 @@ int readpage_ctail(void * vp, struct page *page)
 
 /* plugin->s.file.writepage */
 int
-writepage_ctail(coord_t * coord, lock_handle * lh, struct page *page)
+writepage_ctail(uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
 {
 	return 0;
 }
@@ -544,7 +547,7 @@ writepage_ctail(coord_t * coord, lock_handle * lh, struct page *page)
 /* plugin->u.item.s.file.readpages
    populate an address space with some pages, and start reads against them. */
 void
-readpages_ctail(coord_t *coord UNUSED_ARG, struct address_space *mapping, struct list_head *pages)
+readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct list_head *pages)
 {
 #if 0 
 	reiser4_cluster_t clust;
@@ -608,7 +611,7 @@ append_hole(struct inode * inode,
 	assert("edward-175", *from < to);
 	
 	printk("edward-176, Warning: Hole of size %llu in cryptcompressed file "
-	       "(inode %llu, offset %llu) \n", to - *from, inode->i_ino, *from);
+	       "(inode %llu, offset %llu) \n", to - *from, get_inode_oid(inode), *from);
 
 	to_clust = (unsigned)(*from & (inode_cluster_size(inode) - 1));
 	
@@ -715,9 +718,8 @@ try_capture_cluster(struct page **pg, znode_lock_mode lock_mode, int non_blockin
 
 /* plugin->u.item.s.file.write */
 int
-write_ctail(struct inode *inode, coord_t *coord UNUSED_ARG,
-	    lock_handle *lh UNUSED_ARG, flow_t * f,
-	    hint_t *hint UNUSED_ARG, int grabbed)
+write_ctail(struct inode *inode, flow_t * f,
+	    hint_t *hint UNUSED_ARG, int grabbed, write_mode_t mode)
 {
 	int result = 0;
 #if 0
@@ -818,20 +820,22 @@ write_ctail(struct inode *inode, coord_t *coord UNUSED_ARG,
    key of first byte which is the next to last byte by addressed by this item
 */
 reiser4_key *
-append_key_ctail(const coord_t * coord, reiser4_key * key, void *p)
+append_key_ctail(const coord_t *coord, reiser4_key *key)
 {
 	return NULL;
 }
 
+#if REISER4_DEBUG
 /*
   plugin->u.item.s.file.key_in_item
   return true @coord is set inside of item to key @key
 */
 int
-key_in_item_ctail(coord_t * coord, const reiser4_key * key, void *p)
+key_in_item_ctail(const uf_coord_t *coord, const reiser4_key *key)
 {
 	return 0;
 }
+#endif
 
 /* Make Linus happy.
    Local variables:
