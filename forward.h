@@ -191,6 +191,24 @@ typedef enum {
 	( ( typeof( value ) )( ( ( long ) ( value ) + ( order ) - 1U ) &	\
 			     ~( ( order ) - 1 ) ) )
 
+/*
+ * values returned by allocate_and_squeeze_right_neighbor
+ */
+typedef enum {
+	/*
+	 * unit of internal item is moved
+	 */
+	SUBTREE_MOVED = -1,
+	/*
+	 * nothing else can be squeezed into left neighbor
+	 */
+	SQUEEZE_DONE = 2,
+	/*
+	 * all content of node is squeezed into its left neighbor
+	 */
+	SQUEEZE_CONTINUE = 3
+} squeeze_result;
+
 /* __REISER4_FORWARD_H__ */
 #endif
 
