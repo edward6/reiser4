@@ -232,7 +232,13 @@ load_cryptcompress_plugin(struct inode * inode, reiser4_plugin * plugin, char **
 	return 0;
 }
 
-struct reiser4_plugin_ops cryptcompress_plugin_ops = {load_cryptcompress_plugin, save_len_cryptcompress_plugin, NULL, 8, NULL};
+struct reiser4_plugin_ops cryptcompress_plugin_ops = {
+	.load      = load_cryptcompress_plugin,
+	.save_len  = save_len_cryptcompress_plugin,
+	.save      = NULL,
+	.alignment = 8,
+	.change    = NULL
+};
 
 reiser4_internal crypto_stat_t * inode_crypto_stat (struct inode * inode)
 {
@@ -725,8 +731,8 @@ reiser4_internal void set_compression_magic(__u8 * magic)
   . encryption is plugin->encrypt(),
   . alternation is alternate_buffers() (if the final result is contained in temporary buffer @bf,
     we should move it to the cluster handle @clust)
-  . copy is memcpy() 
-  
+  . copy is memcpy()
+
 
   FIXME-EDWARD: Currently the only symmetric crypto algorithms with ecb are
   supported
@@ -736,12 +742,12 @@ reiser4_internal int
 deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		struct inode *inode)
 {
-	int result = 0; 
+	int result = 0;
 	__u8 * bf = NULL;
 	__u8 * src = NULL;
 	__u8 * dst = NULL;
 	size_t bfsize = clust->count;
-	struct page * pg = NULL; 
+	struct page * pg = NULL;
 	
 	assert("edward-401", inode != NULL);
 	assert("edward-495", clust != NULL);
@@ -765,14 +771,14 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 				return -ENOMEM;
 			dst = bf;
 		}
-		else 
+		else
 			/* [5] */
 			dst = clust->buf;
 		if (clust->pages) {
 			/* [42], [5] */
 			assert("edward-619", clust->nr_pages == 1);
 			assert("edward-620", PageDirty(*clust->pages));
-			assert("edward-499", inode_cluster_size(inode) == PAGE_CACHE_SIZE); 
+			assert("edward-499", inode_cluster_size(inode) == PAGE_CACHE_SIZE);
 
 			pg = *clust->pages;
 			lock_page(pg);
@@ -935,7 +941,7 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 			}
 			xmemcpy(clust->buf, src, clust->count);
 		}
-		if (!clust->len) 
+		if (!clust->len)
 			/* not specified, [] */
 			clust->len = clust->count;
 	}
@@ -984,11 +990,11 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 
 
   " --n-> " means one of the following functions on a pair of pointers (src, dst):
-		       
+		
   1, 5 - decryption or decompression
   2, 4 - decompression
   3    - alternation
-  
+
   Where:
 
   decryption is plugin->decrypt(),
@@ -1111,13 +1117,13 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 		}
 			
 		/* Check compression magic for possible IO errors.
-		   
+		
 		   End-of-cluster format created before encryption:
-		   
+		
 		   data
 		   compression_magic  (4)   Indicates presence of compression
 		                            infrastructure, should be private.
-		                            Can be absent.  
+		                            Can be absent.
 		   crypto_overhead          Created by ->align() method of crypto-plugin,
 		                            Can be absent.
 		
@@ -1607,7 +1613,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 	}
 
 	/* flush more then one page after its assembling into united flow */
-	for (i=0; i < clust->nr_pages; i++){       
+	for (i=0; i < clust->nr_pages; i++){
 		struct page * page;
 		char * data;
 		

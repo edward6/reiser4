@@ -198,7 +198,6 @@ int locate_plugin(struct inode *inode, plugin_locator * loc);
 
 static reiser4_plugin_type find_type(const char *label);
 static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype, const char *label);
-static reiser4_plugin_id max_id = 0;
 
 /* initialise plugin sub-system. Just call this once on reiser4 startup. */
 reiser4_internal int
@@ -213,7 +212,8 @@ init_plugins(void)
 
 		ptype = &plugins[type_id];
 		plugin_list_init(&ptype->plugins_list);
-		ON_TRACE(TRACE_PLUGINS, "Of type %s (%s):\n", ptype->label, ptype->desc);
+		ON_TRACE(TRACE_PLUGINS,
+			 "Of type %s (%s):\n", ptype->label, ptype->desc);
 		for (i = 0; i < ptype->builtin_num; ++i) {
 			reiser4_plugin *plugin;
 
@@ -222,12 +222,16 @@ init_plugins(void)
 			if (plugin->h.label == NULL)
 				/* uninitialized slot encountered */
 				continue;
-			if (plugin->h.type_id != type_id)
-				BUG();
+			assert("nikita-3445", plugin->h.type_id == type_id);
 			plugin->h.id = i;
 			IF_TRACE(TRACE_PLUGINS, print_plugin("\t", plugin));
-			if (plugin->h.id > max_id) {
-				max_id = plugin->h.id;
+			if (plugin->h.pops != NULL &&
+			    plugin->h.pops->init != NULL) {
+				int result;
+
+				result = plugin->h.pops->init(plugin);
+				if (result != 0)
+					return result;
 			}
 			plugin_list_clean(plugin);
 			plugin_list_push_back(&ptype->plugins_list, plugin);

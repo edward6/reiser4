@@ -272,7 +272,7 @@ typedef struct file_plugin {
 		ssize_t (*get) (struct dentry *, const char *, void *, size_t);
 		ssize_t (*list) (struct dentry *, char *, size_t);
 		int (*remove) (struct dentry *, const char *);
-		reiser4_xattr_plugin *handlers;
+		xattr_list_head *ns;
 	} xattr;
 } file_plugin;
 
@@ -539,8 +539,13 @@ union reiser4_plugin {
 };
 
 struct reiser4_plugin_ops {
+	/* called when plugin is initialized */
+	int (*init) (reiser4_plugin * plugin);
+	/* called when plugin is unloaded */
+	int (*done) (reiser4_plugin * plugin);
 	/* load given plugin from disk */
-	int (*load) (struct inode * inode, reiser4_plugin * plugin, char **area, int *len);
+	int (*load) (struct inode * inode,
+		     reiser4_plugin * plugin, char **area, int *len);
 	/* how many space is required to store this plugin's state
 	    in stat-data */
 	int (*save_len) (struct inode * inode, reiser4_plugin * plugin);
