@@ -2770,7 +2770,7 @@ insert_into_atom_clean_list(txn_atom * atom, jnode * node)
 int
 jnodes_of_one_atom(jnode * j1, jnode * j2)
 {
-	int ret;
+	int ret = 0;
 	int finish = 0;
 
 	assert("zam-9003", j1 != j2);
