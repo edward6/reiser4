@@ -36,6 +36,7 @@
 #include "init_super.h"
 #include "status_flags.h"
 #include "flush.h"
+#include "dscale.h"
 
 #include <linux/profile.h>
 #include <linux/types.h>
@@ -1553,19 +1554,192 @@ struct super_operations reiser4_super_operations = {
 	.delete_inode = reiser4_delete_inode,	/* d */
 	.put_super = NULL /* d */ ,
 	.write_super = reiser4_write_super,
+/*      .sync_fs = NULL, */
 /* 	.write_super_lockfs = reiser4_write_super_lockfs, */
 /* 	.unlockfs           = reiser4_unlockfs, */
 	.statfs = reiser4_statfs,	/* d */
 /* 	.remount_fs         = reiser4_remount_fs, */
 /* 	.clear_inode        = reiser4_clear_inode, */
 /* 	.umount_begin       = reiser4_umount_begin,*/
-/* 	.fh_to_dentry       = reiser4_fh_to_dentry, */
-/* 	.dentry_to_fh       = reiser4_dentry_to_fh */
-	.show_options = reiser4_show_options,	/* d */
-	.sync_inodes = reiser4_sync_inodes
+	.sync_inodes = reiser4_sync_inodes,
+	.show_options = reiser4_show_options	/* d */
 };
 
-struct dentry_operations reiser4_dentry_operation = {
+#define TRACE_EXPORT_OPS(...) \
+	{\
+		ON_TRACE(TRACE_DIR, "%s: (%p %p %p %p)", \
+			 __FUNCTION__, __builtin_return_address(0), __builtin_return_address(1), __builtin_return_address(2), __builtin_return_address(3));\
+		ON_TRACE(TRACE_DIR, __VA_ARGS__);\
+	}
+
+static int
+reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent)
+{
+	struct inode *inode;
+	struct inode *parent;
+	int maxlen;
+	char *addr;
+	int need;
+	int result;
+	reiser4_context context;
+
+	TRACE_EXPORT_OPS("started\n");
+
+	init_context(&context, dentry->d_inode->i_sb);
+	inode = dentry->d_inode;
+
+	addr = (char *)data;
+	maxlen = sizeof(__u32) * (*lenp);
+
+	/* calculate size of buffer needed to store locality, objectid and, possibly, ordering of inode and, possibly
+	   the same information about its parent */
+	need = dscale_bytes(get_inode_oid(inode)) + dscale_bytes(get_inode_locality(inode));
+	ON_LARGE_KEY(need += dscale_write(addr, get_inode_ordering(inode)));
+	if (need_parent) {
+		parent = dentry->d_parent->d_inode;
+		need += dscale_bytes(get_inode_oid(parent)) + dscale_bytes(get_inode_locality(parent));
+		ON_LARGE_KEY(need += dscale_bytes(get_inode_ordering(parent)));
+	}
+
+	TRACE_EXPORT_OPS("need space %d\n", need);
+	if (need > maxlen) {
+		/* no enough space in file handle */
+		reiser4_exit_context(&context);
+		return 255;
+	}
+
+	/* encode data necessary to restore stat data key */
+	addr += dscale_write(addr, get_inode_oid(inode));
+	addr += dscale_write(addr, get_inode_locality(inode));
+	TRACE_EXPORT_OPS(" oid %llu, locality %llu", 
+			 get_inode_oid(inode), get_inode_locality(inode));
+	result = 2;
+	ON_LARGE_KEY(addr += dscale_write(addr, get_inode_ordering(inode));
+		     result = 3;
+		     TRACE_EXPORT_OPS(", ordering %llu", get_inode_ordering(inode))
+		     );
+
+	if (need_parent) {
+		/* FIXME: spin_lock(&dentry->d_lock)? */
+		parent = dentry->d_parent->d_inode;
+		addr += dscale_write(addr, get_inode_oid(parent));
+		addr += dscale_write(addr, get_inode_locality(parent));
+		result += 2;
+		TRACE_EXPORT_OPS(" parent oid %llu, parent locality %llu", 
+			 get_inode_oid(inode), get_inode_locality(inode));
+		ON_LARGE_KEY(addr += dscale_write(addr, get_inode_ordering(parent));
+			     result ++;
+			     TRACE_EXPORT_OPS(" parent ordering %llu", get_inode_ordering(parent)));
+		ON_LARGE_KEY(result ++);
+	}
+
+	TRACE_EXPORT_OPS("return %d\n", result);
+	reiser4_exit_context(&context);
+	return result;
+}
+
+static struct dentry *
+reiser4_decode_fh(struct super_block *s, __u32 *data,
+		  int len, int fhtype,
+		  int (*acceptable)(void *contect, struct dentry *de),
+		  void *context)
+{
+	oid_t obj[3], parent[3];
+	char *addr;
+	reiser4_context ctx;
+	struct dentry *dentry;
+
+	TRACE_EXPORT_OPS("started\n");
+
+	init_context(&ctx, s);
+
+#if REISER4_LARGE_KEY
+	assert("vs-1482", fhtype == 3 || fhtype == 6);
+#else
+	assert("vs-1483", fhtype == 2 || fhtype == 4);
+#endif
+
+	addr = (char *)data;
+	addr += dscale_read(addr, &obj[0]);
+	addr += dscale_read(addr, &obj[1]);
+	TRACE_EXPORT_OPS(" obj[0] %llu, obj[1] %llu", obj[0], obj[1]);
+	ON_LARGE_KEY(addr += dscale_read(addr, &obj[2]);
+		     TRACE_EXPORT_OPS(" obj[2] %llu", obj[2]);
+		     );
+
+	if (fhtype < 4) {
+		addr += dscale_read(addr, &parent[0]);
+		addr += dscale_read(addr, &parent[1]);
+		TRACE_EXPORT_OPS(" parent[0] %llu, parent[1] %llu", parent[0], parent[1]);
+		ON_LARGE_KEY(addr += dscale_read(addr, &parent[2]);
+			     TRACE_EXPORT_OPS(" parent[2] %llu", parent[2]);
+			     );
+	}
+
+	dentry = s->s_export_op->find_exported_dentry(s, obj, fhtype < 4 ? NULL : parent,
+						      acceptable, context);
+	TRACE_EXPORT_OPS("end\n");
+	reiser4_exit_context(&ctx);
+	return dentry;
+}
+
+static struct dentry *
+reiser4_get_dentry(struct super_block *sb, void *data)
+{
+	struct inode *inode;
+	struct dentry *dentry;
+	reiser4_key key;
+	oid_t *oid;
+
+	oid = (oid_t *)data;
+	key_init(&key);
+	set_key_locality(&key, oid[0]);
+	set_key_type(&key, KEY_SD_MINOR);
+	ON_LARGE_KEY(set_key_ordering(&key, oid[2]));
+	set_key_objectid(&key, oid[1]);
+
+	inode = reiser4_iget(sb, &key);
+	if (!IS_ERR(inode)) {
+		dentry = d_alloc_anon(inode);
+		if (!dentry) {
+			iput(inode);
+			dentry = ERR_PTR(-ENOMEM);
+		}
+		return dentry;
+	}
+	return ERR_PTR(PTR_ERR(inode));
+}
+
+static struct dentry *
+reiser4_get_parent(struct dentry *child)
+{
+	struct inode *dir;
+	struct dentry dentry, *parent;
+	int result;
+	
+	dir = child->d_inode;
+	assert("vs-1484", inode_dir_plugin(dir) && inode_dir_plugin(dir)->lookup);
+	dentry.d_name.name = "..";
+	dentry.d_name.len = 2;
+	result = inode_dir_plugin(dir)->lookup(dir, &dentry);
+	if (result)
+		return ERR_PTR(result);
+	parent = d_alloc_anon(dentry.d_inode);
+	if (!parent) {
+		iput(dentry.d_inode);
+		parent = ERR_PTR(-ENOMEM);
+	}
+	return parent;
+}
+
+struct export_operations reiser4_export_operations = {
+	.encode_fh = reiser4_encode_fh,
+	.decode_fh = reiser4_decode_fh,
+	.get_parent = reiser4_get_parent,
+	.get_dentry = reiser4_get_dentry
+} ;
+
+struct dentry_operations reiser4_dentry_operations = {
 	.d_revalidate = NULL,
 	.d_hash = NULL,
 	.d_compare = NULL,
