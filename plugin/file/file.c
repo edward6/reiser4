@@ -936,7 +936,7 @@ unix_file_readpage(struct file *file, struct page *page)
 	   one */
 	iplug = item_plugin_by_coord(&coord);
 	if (iplug->s.file.readpage)
-		result = iplug->s.file.readpage(&coord, &lh, page);
+		result = iplug->s.file.readpage(&coord, page);
 	else
 		result = -EINVAL;
 

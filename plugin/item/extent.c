@@ -2916,7 +2916,7 @@ extent_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 static int
 filler(void *vp, struct page *page)
 {
-	return extent_readpage(vp, NULL, page);
+	return extent_readpage(vp, page);
 }
 
 /* Implements plugin->u.item.s.file.read operation for extent items. */
@@ -3011,7 +3011,7 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
    locked, coord is set to existing unit inside of extent item
 */
 int
-extent_readpage(const coord_t * coord, lock_handle * lh, struct page *page)
+extent_readpage(const coord_t * coord, struct page *page)
 {
 	ON_DEBUG(reiser4_key key;)
 	reiser4_block_nr pos;
