@@ -1,6 +1,10 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
+#if !defined( __FS_REISER4_CTAIL_H__ )
+#define __FS_REISER4_CTAIL_H__
+
 /* cryptcompress object item. See ctail.c for description. */
+#include "../cryptcompress.h"
 
 typedef struct ctail_item_format {
 	/* cluster shift */
@@ -40,7 +44,7 @@ int cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 
 /* plugin->u.item.s.* */
 int write_ctail(flow_t *, coord_t *, lock_handle *, int, crc_write_mode_t, struct inode *);
-int read_ctail(struct file *, flow_t *, uf_coord_t *);
+int read_ctail(struct file *, flow_t *, hint_t *);
 int readpage_ctail(void *, struct page *);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
@@ -74,6 +78,8 @@ int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
 int flush_cluster_pages(reiser4_cluster_t *, struct inode *);
 int deflate_cluster(reiser4_cluster_t *, struct inode *);
 void truncate_pages_cryptcompress(struct address_space *, loff_t);
+
+#endif /* __FS_REISER4_CTAIL_H__ */
 
 /* Make Linus happy.
    Local variables:
