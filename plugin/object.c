@@ -422,7 +422,7 @@ int common_file_save( struct inode *inode /* object to save */ )
 	if( inode_get_flag( inode, REISER4_NO_STAT_DATA ) )
 		/* object doesn't have stat-data yet */
 		result = insert_new_sd( inode );
-	else
+	else 
 		result = update_sd( inode );
 	if( result != 0 )
 		warning( "nikita-2221", "Failed to save sd for %lu: %i (%lx)",
@@ -497,7 +497,7 @@ static int common_set_plug( struct inode *object /* inode to set plugin on */,
 	inode_set_flag( object, REISER4_NO_STAT_DATA );
 	/* setup inode and file-operations for this inode */
 	setup_inode_ops( object );
-	/* i_nlink is left 0 here. It'll be increased by ->add_link() */
+	/* i_nlink is left 1 here as set by new_inode() */
 	seal_init( &reiser4_inode_data( object ) -> sd_seal, NULL, NULL );
 	reiser4_inode_data( object ) -> extmask = ( 1 << UNIX_STAT );
 	return 0;
