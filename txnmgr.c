@@ -4070,6 +4070,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 
 	if (JF_ISSET(node, JNODE_CCED)) {
 		UNLOCK_JNODE(node);
+		UNLOCK_ATOM(atom);
 		return RETERR(-E_REPEAT);
 	}
 
@@ -4086,6 +4087,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		result = real_copy_on_capture(node, atom);
 	if (result != 0)
 		clear_cced_bits(node);
+	assert("vs-1626", !spin_atom_is_locked(atom));
 	return result;
 }
 #endif /* REISER4_COPY_ON_CAPTURE */
