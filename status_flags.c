@@ -7,6 +7,7 @@
 #include <linux/bio.h>
 #include <linux/highmem.h>
 #include <linux/fs.h>
+#include <linux/blkdev.h>
 #include "debug.h"
 #include "dformat.h"
 #include "status_flags.h"
@@ -63,6 +64,7 @@ reiser4_internal int reiser4_status_init(reiser4_block_nr block)
 	}
 	lock_page(page);
 	submit_bio(READ, bio);
+	blk_run_backing_dev(get_super_fake(sb)->i_mapping->backing_dev_info);
 	/*blk_run_queues();*/
 	wait_on_page_locked(page);
 	if ( !PageUptodate(page) ) {
@@ -171,6 +173,7 @@ reiser4_status_write(u64 status, u64 extended_status, char *message)
 	lock_page(get_super_private(sb)->status_page); // Safe as nobody should touch our page.
 	/* We can block now, but we have no other choice anyway */
 	submit_bio(WRITE, bio);
+	blk_run_backing_dev(get_super_fake(sb)->i_mapping->backing_dev_info);
 	/*blk_run_queues();*/ // Now start the i/o.
 	return 0; // We do not wait for io to finish.
 }

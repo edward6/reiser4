@@ -54,7 +54,7 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/writeback.h>
-#include <linux/backing-dev.h>
+#include <linux/blkdev.h>
 #include <linux/quotaops.h>
 #include <linux/security.h>
 #include <linux/reboot.h>
@@ -594,6 +594,8 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 			/* do not put more requests to overload write queue */
 			if (wbc->nonblocking &&
 			    bdi_write_congested(mapping->backing_dev_info)) {
+
+				blk_run_backing_dev(mapping->backing_dev_info);
 				/*blk_run_queues();*/
 				wbc->encountered_congestion = 1;
 				break;

@@ -190,7 +190,7 @@
 #include <linux/pagemap.h>
 #include <linux/bio.h>
 #include <linux/writeback.h>
-#include <linux/backing-dev.h>
+#include <linux/blkdev.h>
 
 static struct bio *page_bio(struct page *page, jnode * node, int rw, int gfp);
 
@@ -607,6 +607,7 @@ static int write_page_by_ent (struct page *page)
 			return -E_REPEAT;
 		}
 		/* FIXME: no need for blk_run_queue */
+		blk_run_backing_dev(page->mapping->backing_dev_info);
 		/*blk_run_queue();*/
 	}
 	unlock_page(page);

@@ -232,13 +232,18 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 	assert("zam-911", capture_list_empty(ATOM_FQ_LIST(fq)));
 
 	if (atomic_read(&fq->nr_submitted) != 0) {
+		struct super_block *super;
+
 		UNLOCK_ATOM(fq->atom);
 
 		assert("nikita-3013", schedulable());
 
-		/* FIXME: blk_run_queue is not needed */
-		/*blk_run_queues();*/
-		if ( !(reiser4_get_current_sb()->s_flags & MS_RDONLY) )
+		super = reiser4_get_current_sb();
+
+		/* FIXME: this is instead of blk_run_queues() */
+		blk_run_backing_dev(get_super_fake(super)->i_mapping->backing_dev_info);
+
+		if ( !(super->s_flags & MS_RDONLY) )
 			down(&fq->io_sem);
 
 		/* Ask the caller to re-acquire the locks and call this
