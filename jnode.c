@@ -703,6 +703,7 @@ jinit_new(jnode * node /* jnode to initialise */)
 				JF_SET(node, JNODE_LOADED);
 		}
 		UNLOCK_JNODE(node);
+		page_cache_release(page);
 	} else
 		result = -ENOMEM;
 
