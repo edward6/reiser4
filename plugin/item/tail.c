@@ -509,11 +509,15 @@ static int overwrite_tail (coord_t * coord, flow_t * f)
 	assert ("vs-570", f->user == 1);
 	ON_DEBUG_CONTEXT( assert( "green-7", 
 				  lock_counters() -> spin_locked == 0 ) );
+	/*
+	 * FIXME:NIKITA->VS this is called with f -> data == NULL during
+	 * unix_file_write->expand_file->write_flow->tail_write.
+	 */
+	
 	result = __copy_from_user ((char *)item_body_by_coord (coord) +
 				   coord->unit_pos, f->data, count);
 	if (result)
-		/* AUDIT: this should return -EFAULT */
-		return result;
+		return -EFAULT;
 		
 	move_flow_forward (f, count);
 	return 0;
