@@ -1117,6 +1117,33 @@ static void unregister_profregions(void)
 extern int first_read_started;
 extern int second_read_started;
 
+#if REISER4_DEBUG
+static void finish_rcu(reiser4_super_info_data *sbinfo)
+{
+	spin_lock_irq(&sbinfo->all_guard);
+	while (atomic_read(&sbinfo->jnodes_in_flight) > 0)
+		kcond_wait(&sbinfo->rcu_done, &sbinfo->all_guard, 0);
+	spin_unlock_irq(&sbinfo->all_guard);
+
+	{
+		struct list_head *scan;
+
+		/* print jnodes that survived umount. */
+		list_for_each(scan, &sbinfo->all_jnodes) {
+			jnode *busy;
+
+			busy = list_entry(scan, jnode, jnodes);
+			info_jnode("\nafter umount", busy);
+		}
+	}
+	if (sbinfo->kmalloc_allocated > 0)
+		warning("nikita-2622", 
+			"%i bytes still allocated", sbinfo->kmalloc_allocated);
+}
+#else finish_rcu(sbinfo) noop
+#define 
+#endif
+
 static int
 reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 {
@@ -1328,6 +1355,7 @@ read_super_block:
 error4:
 	get_super_private(s)->df_plug->release(s);
 error3:
+	done_tree(&sbinfo->tree);
 	done_formatted_fake(s);
 	/* shutdown daemon */
 	ktxnmgrd_detach(&sbinfo->tmgr);
@@ -1340,6 +1368,7 @@ error1:
 error_one_half:
 	reiser4_stat_done(&sbinfo->stats);
 error0:
+	finish_rcu(sbinfo);
 	kfree(sbinfo);
 	s->s_fs_info = NULL;
 	return result;
@@ -1390,10 +1419,10 @@ reiser4_kill_super(struct super_block *s)
 	ktxnmgrd_detach(&sbinfo->tmgr);
 
 	check_block_counters(s);
-	done_formatted_fake(s);
 
 	/* FIXME: done_formatted_fake just has finished with last jnodes (bitmap ones) */
 	done_tree(&sbinfo->tree);
+	done_formatted_fake(s);
 
 	close_trace_file(&sbinfo->trace_file);
 
@@ -1401,27 +1430,7 @@ reiser4_kill_super(struct super_block *s)
 	s->s_op->write_super = NULL;
 	kill_block_super(s);
 
-#if REISER4_DEBUG
-	spin_lock_irq(&sbinfo->all_guard);
-	while (atomic_read(&sbinfo->jnodes_in_flight) > 0)
-		kcond_wait(&sbinfo->rcu_done, &sbinfo->all_guard, 0);
-	spin_unlock_irq(&sbinfo->all_guard);
-
-	{
-		struct list_head *scan;
-
-		/* print jnodes that survived umount. */
-		list_for_each(scan, &sbinfo->all_jnodes) {
-			jnode *busy;
-
-			busy = list_entry(scan, jnode, jnodes);
-			info_jnode("\nafter umount", busy);
-		}
-	}
-	if (sbinfo->kmalloc_allocated > 0)
-		warning("nikita-2622", "%i bytes still allocated", sbinfo->kmalloc_allocated);
-
-#endif
+	finish_rcu(sbinfo);
 
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		reiser4_print_stats();
