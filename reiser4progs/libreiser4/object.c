@@ -179,7 +179,7 @@ static errno_t reiser4_object_lookup(
 		return -1;
 	    }
 	
-	    if (plugin->dir_ops.lookup(entity, &entry)) {
+	    if (plugin->dir_ops.lookup(entity, &entry) != 1) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't find entry \"%s\".", entry.name);
 		
@@ -189,12 +189,17 @@ static errno_t reiser4_object_lookup(
 		return -1;
 	    }
 	    
-	    plugin_call(return -1, plugin->dir_ops, 
-		close, entity);
+	    plugin_call(return -1, plugin->dir_ops, close, entity);
 
 	    /* Updating object key by found objectid and locality */
-	    reiser4_key_set_objectid(&object->key, entry.objid.objectid);
-	    reiser4_key_set_locality(&object->key, entry.objid.locality);
+	    plugin_call(return -1, object->key.plugin->key_ops,
+		set_locality, object->key.body, entry.objid.locality);
+	    
+	    plugin_call(return -1, object->key.plugin->key_ops,
+		set_type, object->key.body, KEY_STATDATA_TYPE);
+	    
+	    plugin_call(return -1, object->key.plugin->key_ops,
+		set_objectid, object->key.body, entry.objid.objectid);
 	} else {
 
 	    /* 

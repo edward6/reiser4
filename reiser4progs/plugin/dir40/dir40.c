@@ -84,6 +84,49 @@ static errno_t dir40_realize(dir40_t *dir) {
 	&dir->statdata.data, &dir->statdata.len);
 }
 
+static int dir40_mergeable(reiser4_entity_t *entity, 
+    reiser4_place_t *next_place) 
+{
+    rpid_t next_pid;
+    reiser4_key_t next_key;
+
+    roid_t dir_locality;
+    roid_t next_locality;
+	
+    dir40_t *dir = (dir40_t *)entity;
+
+    /* Switching to the rest of directory, which lies in other node */
+    if (core->tree_ops.item_right(dir->tree, next_place))
+        return 0;
+    
+    next_pid = core->tree_ops.item_pid(dir->tree, 
+	next_place, ITEM_PLUGIN_TYPE);
+    
+    /* Here we check is next item belongs to this directory */
+    if (next_pid != dir->direntry_plugin->h.id)
+	return 0;
+	
+    /* Getting key of the first item in the right neightbour */
+    if (core->tree_ops.item_key(dir->tree, next_place, &next_key)) {
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	   "Can't get item key by coord.");
+	return 0;
+    }
+	
+    /* 
+        Getting locality of both keys in order to determine is they are 
+        mergeable.
+    */
+    dir_locality = plugin_call(return -1, dir->key.plugin->key_ops,
+        get_locality, dir->key.body);
+	
+    next_locality = plugin_call(return -1, dir->key.plugin->key_ops,
+        get_locality, next_key.body);
+	
+    /* Determining is items are mergeable */
+    return (dir_locality == next_locality);
+}
+
 static errno_t dir40_read(reiser4_entity_t *entity, 
     reiser4_entry_hint_t *entry) 
 {
@@ -102,38 +145,12 @@ static errno_t dir40_read(reiser4_entity_t *entity,
 	return -1;
 
     if (dir->place.pos.unit >= count) {
-	reiser4_key_t key;
-	roid_t locality1, locality2;
+	reiser4_place_t place = dir->place;
 	
-	/* Switching to the rest of directory, which lies in other node */
-	if (core->tree_ops.item_right(dir->tree, &dir->place))
-	    return -1;
-	
-	/* Here we check is next item belongs to this directory */
-	if (core->tree_ops.item_pid(dir->tree, &dir->place, ITEM_PLUGIN_TYPE) != 
-		dir->direntry_plugin->h.id)
-	    return -1;
-	
-	/* Getting key of the first item in the right neightbour */
-	if (core->tree_ops.item_key(dir->tree, &dir->place, &key)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't get item key by coord.");
+	if (!dir40_mergeable(entity, &place)) {
+	    dir->place = place;
 	    return -1;
 	}
-	
-	/* 
-	    Getting locality of both keys in order to determine is they are 
-	    mergeable.
-	*/
-	locality1 = plugin_call(return -1, dir->key.plugin->key_ops,
-	    get_locality, dir->key.body);
-	
-	locality2 = plugin_call(return -1, dir->key.plugin->key_ops,
-	    get_locality, key.body);
-	
-	/* Determining is items are mergeable */
-	if (locality1 != locality2)
-	    return -1;
 	
 	/* Items are mergeable, updating pointer to current directory item */
 	if (core->tree_ops.item_body(dir->tree, &dir->place, 
@@ -146,18 +163,69 @@ static errno_t dir40_read(reiser4_entity_t *entity,
 	    entry, dir->direntry, dir->place.pos.unit, entry)))
 	return -1;
 
-    /* Updating positions */    
     dir->pos++; 
     dir->place.pos.unit++; 
     
     return 0;
 }
 
+static int dir40_lookup(reiser4_entity_t *entity, 
+    reiser4_entry_hint_t *entry) 
+{
+    reiser4_key_t key;
+    reiser4_item_ops_t *item_ops;
+    dir40_t *dir = (dir40_t *)entity;
+    
+    aal_assert("umka-1117", entity != NULL, return -1);
+    aal_assert("umka-1118", entry != NULL, return -1);
+    aal_assert("umka-1119", entry->name != NULL, return -1);
+
+    /* Forming the directory key */
+    key.plugin = dir->key.plugin;
+
+    plugin_call(return -1, key.plugin->key_ops, 
+	build_direntry, key.body, dir->hash_plugin, 
+	dir40_locality(dir), dir40_objectid(dir), entry->name);
+    
+    item_ops = &dir->direntry_plugin->item_ops;
+
+    while (1) {
+
+	reiser4_place_t place;
+	
+	if (plugin_call(return -1, item_ops->common, lookup, 
+	    dir->direntry, &key, &dir->place.pos.unit) == 1) 
+	{
+	    if ((plugin_call(return -1, item_ops->specific.direntry, 
+		    entry, dir->direntry, dir->place.pos.unit, entry)))
+		return -1;
+
+	    return 1;
+	}
+	
+	place = dir->place;
+    	
+	if (!dir40_mergeable(entity, &place)) {
+	    dir->place = place;
+	    return 0;
+	}
+	
+	if (core->tree_ops.item_body(dir->tree, &dir->place, 
+		&dir->direntry, NULL))
+	    return -1;
+    }
+    
+    return 0;
+}
+
 /* Trying to guess hash in use by stat  dfata extention */
 static reiser4_plugin_t *dir40_guess_hash(dir40_t *dir) {
-    reiser4_plugin_t *plugin = NULL;
-
-    return plugin;
+    /* 
+	FIXME-UMKA: This functions should inspect stat data extention first. And
+	only in the case there are not convenient plugin extention (hash plugin),
+	it should use some default hash plugin id.
+    */
+    return core->factory_ops.plugin_ifind(HASH_PLUGIN_TYPE, HASH_R5_ID);
 }
 
 static reiser4_entity_t *dir40_open(const void *tree, 
@@ -209,19 +277,10 @@ static reiser4_entity_t *dir40_open(const void *tree,
 	goto error_free_dir;
     }
     
-    
-    
-    /*
-	FIXME-UMKA: Since hash plugin id will be stored as statdata extenstion, 
-	we should initialize hash plugin of the directory after stat data plugin 
-	init. But for awhile it is a hardcoded value. We will need to fix it after 
-	stat data extentions will be supported.
-    */
-    if (!(dir->hash_plugin = core->factory_ops.plugin_ifind(HASH_PLUGIN_TYPE, 
-	HASH_R5_ID)))
-    {
+    if (!(dir->hash_plugin = dir40_guess_hash(dir))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find hash plugin by its id 0x%x.", HASH_R5_ID);
+	    "Can't guess hash plugin for directory %llx.", 
+	    dir40_objectid(dir));
 	goto error_free_dir;
     }
     
@@ -529,8 +588,7 @@ static reiser4_plugin_t dir40_plugin = {
 	.remove	    = NULL,
 #endif
 	.valid	    = NULL,
-	.lookup	    = NULL,
-
+	.lookup	    = dir40_lookup,
 	.open	    = dir40_open,
 	.close	    = dir40_close,
 	.rewind	    = dir40_rewind,

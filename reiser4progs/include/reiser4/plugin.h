@@ -429,7 +429,7 @@ struct reiser4_dir_ops {
     uint32_t (*tell) (reiser4_entity_t *);
 
     /* Makes lookup inside dir */
-    errno_t (*lookup) (reiser4_entity_t *, reiser4_entry_hint_t *);
+    int (*lookup) (reiser4_entity_t *, reiser4_entry_hint_t *);
 };
 
 typedef struct reiser4_dir_ops reiser4_dir_ops_t;
@@ -882,7 +882,6 @@ typedef struct reiser4_place reiser4_place_t;
 /* The common node header */
 struct reiser4_node_header {
     uint16_t pid;
-    uint16_t num_items;
 };
 
 typedef struct reiser4_node_header reiser4_node_header_t;

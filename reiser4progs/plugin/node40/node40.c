@@ -10,6 +10,16 @@ extern reiser4_plugin_t node40_plugin;
 
 static reiser4_core_t *core = NULL;
 
+/* Returns item header by pos */
+inline item40_header_t *node40_ih_at(aal_block_t *block, int pos) {
+    return ((item40_header_t *)(block->data + block->size)) - pos - 1;
+}
+
+/* Retutrns item body by pos */
+inline void *node40_ib_at(aal_block_t *block, int pos) {
+    return block->data + ih40_get_offset(node40_ih_at(block, pos));
+}
+
 #ifndef ENABLE_COMPACT
 
 static reiser4_entity_t *node40_create(aal_block_t *block, 
@@ -498,6 +508,7 @@ static inline int callback_comp_for_lookup(void *key1,
 static int node40_lookup(reiser4_entity_t *entity, 
     reiser4_key_t *key, reiser4_pos_t *pos)
 {
+    uint32_t count;
     int lookup; int64_t item;
     node40_t *node = (node40_t *)entity;
     
@@ -507,8 +518,10 @@ static int node40_lookup(reiser4_entity_t *entity,
     aal_assert("umka-478", pos != NULL, return -1);
     aal_assert("umka-470", node != NULL, return -1);
 
-    if ((lookup = reiser4_comm_bin_search(node, nh40_get_num_items(nh40(node->block)), 
-	    key->body, callback_elem_for_lookup, callback_comp_for_lookup, 
+    count = nh40_get_num_items(nh40(node->block));
+    
+    if ((lookup = reiser4_comm_bin_search(node, count, key->body, 
+	    callback_elem_for_lookup, callback_comp_for_lookup, 
 	    key->plugin, &item)) != -1)
 	pos->item = item;
 

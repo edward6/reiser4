@@ -88,12 +88,13 @@ int main(int argc, char *argv[]) {
 	{
 	    int i;
 	    char name[256];
+	    reiser4_object_t *dir;
 
 	    for (i = 0; i < 89; i++) {
 		aal_memset(name, 0, sizeof(name));
 		aal_snprintf(name, 256, "testdir%d", i);
-		reiser4_dir_close(reiser4_dir_create(fs, 
-		    &dir_hint, dir_plugin, object, name));
+		if ((dir = reiser4_dir_create(fs, &dir_hint, dir_plugin, object, name)))
+		    reiser4_dir_close(dir);
 	    }
 	}
     }
