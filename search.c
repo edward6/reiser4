@@ -1075,7 +1075,8 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 	assert( "nikita-1316", h -> key != NULL );
 
 	cache = h -> tree -> cbk_cache;
-
+	node  = NULL; /* to keep gcc happy */
+	level = LEAF_LEVEL; /* to keep gcc happy */
 	/*
 	 * keep cache spin locked during this test, to avoid race with
 	 * cbk_cache_invalidate()
