@@ -687,16 +687,11 @@ assign_real_blocknrs(flush_pos_t *flush_pos, reiser4_block_nr first, reiser4_blo
 		assert("vs-1132", ergo(state == UNALLOCATED_EXTENT, blocknr_is_fake(jnode_get_block(node))));
 		assert("vs-1475", node->atom == atom);
 		assert("vs-1476", atomic_read(&node->x_count) > 0);
-		assert ("zam-917", !JF_ISSET(node, JNODE_RELOC));
-		assert ("zam-918", !JF_ISSET(node, JNODE_OVRWR));
-		assert ("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
 		assert("vs-1412", JF_ISSET(node, JNODE_EPROTECTED));
  		assert("vs-1460", !JF_ISSET(node, JNODE_EFLUSH));
 		jnode_set_block(node, &first);
-		jnode_set_reloc(node);
+		unformatted_make_reloc(node, fq);
 		junprotect(node);
-		ON_DEBUG(node->list = FQ_LIST);
-		ON_DEBUG(atom->num_queued ++);
 		UNLOCK_JNODE(node);
 		first ++;
 	}
