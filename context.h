@@ -205,6 +205,7 @@ extern int write_in_trace(const char *func, const char *mes);
                 if (__ret != 0) {				\
 			return errret;				\
 		}						\
+		schedulable();					\
         } while (0)
 
 #define REISER4_ENTRY_PTR(super)  __REISER4_ENTRY(super, ERR_PTR(__ret))
@@ -213,6 +214,8 @@ extern int write_in_trace(const char *func, const char *mes);
 #define __REISER4_EXIT(context)			\
 ({						\
         int __ret1;				\
+						\
+	schedulable();				\
 						\
 	log_entry((context)->super, ":ex");	\
 	__ret1 = txn_end(context);		\
