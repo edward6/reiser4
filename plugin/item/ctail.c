@@ -408,7 +408,7 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	char * data;
 	int release = 0;
 
-	assert("edward-xxx", PageLocked(page));
+	assert("edward-212", PageLocked(page));
 	
 	inode = page->mapping->host;
 
@@ -473,7 +473,7 @@ int readpage_ctail(void * vp, struct page * page)
 	assert("edward-118", page->mapping && page->mapping->host);
 	
 	result = do_readpage_ctail(clust, page);
-	assert("edward-xxx", PageLocked(page));
+	assert("edward-213", PageLocked(page));
 	if (!result)
 		reiser4_unlock_page(page);
 	return result;
@@ -488,70 +488,20 @@ writepage_ctail(uf_coord_t *uf_coord, struct page *page, write_mode_t mode)
 
 /* plugin->u.item.s.file.readpages
    populate an address space with some pages, and start reads against them.
+   FIXME_EDWARD: this function should return errors
 */
 void
 readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct list_head *pages)
 {
-#if 0 
 	reiser4_cluster_t clust;
 	struct page *page;
 	struct pagevec lru_pvec;
 	int ret = 0;
 	struct inode * inode;
-	
-	pagevec_init(&lru_pvec, 0);
-	reiser4_cluster_init(&clust);
-	inode = mapping->host;
-	
-	while (!list_empty(pages)) {
-		page = list_to_page(pages);
-		list_del(&page->list);
-		if (add_to_page_cache(page, mapping, page->index, GFP_KERNEL)) {
-			page_cache_release(page);
-			continue;
-		}
-		/* update cluster if it is necessary */
-		
-		if (!page_of_cluster(page, &clust, inode)) {
-			put_cluster_data(&clust, inode);
-			ret = ctail_cluster_by_page(&clust, page, inode);
-			if (ret)
-				goto exit;
-		}
-		ret = ctail_readpage(&clust, page);
-		if (!pagevec_add(&lru_pvec, page))
-			__pagevec_lru_add(&lru_pvec);
-		if (ret) {
-			SetPageError(page);
-			reiser4_unlock_page(page);
-		exit:
-			while (!list_empty(pages)) {
-				struct page *victim;
-				
-				victim = list_to_page(pages);
-				list_del(&victim->list);
-				page_cache_release(victim);
-			}
-			break;
-		}
-	}
-	put_cluster_data(&clust, inode);
-	pagevec_lru_add(&lru_pvec);
-	return ret;
-}
-void
-readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct list_head *pages)
-{
-	reiser4_cluster_t clust;
-	struct page *page;
-	struct pagevec lru_pvec;
-	int ret = 0;
-	struct inode * inode = mapping->host;
-	struct page * pages[1 << inode_cluster_shift(inode)];
 
 	if (!list_empty(pages) && pages->next != pages->prev)
-		/* make sure order is write */
-		assert("edward-xxx", list_to_page(pages)->index < prev_list_to_page(pages)->index);
+		/* more then one pages in the list - make sure its order is right */
+		assert("edward-214", list_to_page(pages)->index < prev_list_to_page(pages)->index);
 	
 	pagevec_init(&lru_pvec, 0);
 	reiser4_cluster_init(&clust);
@@ -565,17 +515,20 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 			continue;
 		}
 		/* update cluster if it is necessary */
-		
-		if (!page_of_cluster(page, &clust, inode)) {
+		if (!cluster_is_uptodate(&clust) || !page_of_cluster(page, &clust, inode)) {
 			put_cluster_data(&clust, inode);
-			ret = ctail_cluster_by_page(&clust, page, inode);
+			clust.index = cluster_index_by_page(page, inode);
+			reiser4_unlock_page(page);
+			ret = ctail_read_cluster(&clust, inode);
 			if (ret)
 				goto exit;
+			reiser4_lock_page(page);
 		}
-		ret = ctail_readpage(&clust, page);
+		ret = do_readpage_ctail(&clust, page);
 		if (!pagevec_add(&lru_pvec, page))
 			__pagevec_lru_add(&lru_pvec);
 		if (ret) {
+			impossible("edward-215", "do_readpage_ctail returned crap");
 			SetPageError(page);
 			reiser4_unlock_page(page);
 		exit:
@@ -591,9 +544,8 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 	}
 	put_cluster_data(&clust, inode);
 	pagevec_lru_add(&lru_pvec);
-	return ret;
-#endif
-} 
+	return;
+}
 
 /* plugin->u.item.s.file.write */
 int
