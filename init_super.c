@@ -195,7 +195,7 @@ _INIT_(read_super)
 		brelse(super_bh);
 	} else {
 		if (!silent) {
-			warning("nikita-2608", "Wrong master super block magic.");
+			warning("nikita-2608", "%s: wrong master super block magic.", s->s_id);
 		}
 
 		/* no standard reiser4 super block found */
