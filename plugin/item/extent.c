@@ -2213,25 +2213,30 @@ overwrite_one_block(coord_t * coord, lock_handle * lh, jnode * j, reiser4_key * 
 }
 
 static int
-make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j)
+make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j,
+	    const reiser4_key *key, unsigned to_page)
 {
 	int result;
 	znode *loaded;
-	reiser4_key key;
+	reiser4_key tmp_key;
 	write_mode todo;
-	PROF_BEGIN(make_extent);
+	/*PROF_BEGIN(make_extent);*/
 
 	assert("vs-960", znode_is_write_locked(coord->node));
 
 	/* key of first byte of the page */
-	inode_file_plugin(inode)->key_by_inode(inode, (loff_t) jnode_page(j)->index << PAGE_CACHE_SHIFT, &key);
+	if (key) {
+		tmp_key = *key;
+		set_key_offset(&tmp_key, (loff_t) jnode_page(j)->index << PAGE_CACHE_SHIFT);
+	} else
+		inode_file_plugin(inode)->key_by_inode(inode, (loff_t) jnode_page(j)->index << PAGE_CACHE_SHIFT, &tmp_key);
 
 	result = zload(coord->node);
 	if (result)
 		return result;
 	loaded = coord->node;
 	
-	todo = how_to_write(coord, lh, &key);
+	todo = how_to_write(coord, lh, &tmp_key);
 	/*
 	 * FIXME: comparing unsigned and 0
 	 */
@@ -2243,15 +2248,15 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j)
 	switch (todo) {
 	case FIRST_ITEM:
 		/* create first item of the file */
-		result = insert_first_block(coord, lh, j, &key);
+		result = insert_first_block(coord, lh, j, &tmp_key);
 		break;
 
 	case APPEND_ITEM:
-		result = append_one_block(coord, lh, j, &key);
+		result = append_one_block(coord, lh, j, &tmp_key);
 		break;
 
 	case OVERWRITE_ITEM:
-		result = overwrite_one_block(coord, lh, j, &key);
+		result = overwrite_one_block(coord, lh, j, &tmp_key);
 		break;
 	case RESEARCH:
 		/* @coord is not set to a place in a file we have to write to,
@@ -2261,8 +2266,24 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j)
 		break;
 	}
 
+	/* check whether coord is set properly. If coord is set such that it can not be later sealed - set coord->node
+	   to 0	*/
+	if (key && coord->node == loaded && coord_is_existing_item(coord)) {
+		tmp_key = *key;
+		set_key_offset(&tmp_key, get_key_offset(&tmp_key) + to_page);
+		
+		if (extent_key_in_item(coord, &tmp_key, 0)) {
+			/* coord is set properly, it will be sealed before calling balance_dirty_pages */;
+		} else {
+			coord->node = 0;
+		}
+	} else {
+		/* FIXME: zload before key_in_item is needed */
+		coord->node = 0;
+	}
+
 	zrelse(loaded);
-	PROF_END(make_extent, make_extent);
+	/*PROF_END(make_extent, make_extent);*/
 	return result;
 }
 
@@ -2273,7 +2294,6 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 	char *data;
 	int result;
 	jnode *j;
-	PROF_BEGIN(prepare);
 
 	result = 0;
 	if (PageUptodate(page))
@@ -2322,8 +2342,15 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 	}
 	
  done:
-	PROF_END(prepare, prepare);
 	return result;
+}
+
+
+void extent_bdp(struct address_space *mapping)
+{
+	PROF_BEGIN(bdp);
+	balance_dirty_pages_ratelimited(mapping);
+	PROF_END(bdp, bdp);
 }
 
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
@@ -2333,10 +2360,14 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 {
 	int result;
 	loff_t new_size;
-	PROF_BEGIN(bdp);
+	PROF_BEGIN(extent_bdp);
 
-	set_hint(hint, &f->key, coord);
-	done_lh(lh);
+	if (hint && coord->node)
+		set_hint(hint, &f->key, coord);
+	else
+		unset_hint(hint);
+	longterm_unlock_znode(lh);
+
 	coord->node = 0;
 	new_size = get_key_offset(&f->key);
 	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0);
@@ -2344,9 +2375,9 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 		return result;
 
 	/* balance dirty pages periodically */
-	balance_dirty_pages_ratelimited(mapping);
+	extent_bdp(mapping);
 	result = hint_validate(hint, &f->key, coord, lh);
-	PROF_END(bdp, bdp);
+	PROF_END(extent_bdp, extent_bdp);
 	return result;
 }
 
@@ -2355,13 +2386,11 @@ static int
 reserve_extent_write_iteration(tree_level height)
 {
 	int result;
-	PROF_BEGIN(reserve);
 
 	grab_space_enable();
 	/* one unformatted node and two insertion into tree (adding a unit into extent item and stat data update) may be
 	   involved */
 	result = reiser4_grab_space(1 + estimate_one_insert_into_item(height) * 2, 0/* flags */, "extent_write");
-	PROF_END(reserve, reserve);
 	return result;
 }
 
@@ -2370,21 +2399,17 @@ static int prof_copy_from_user(struct page *page, unsigned page_off, unsigned to
 				flow_t *f)
 {
 	int result;
-	PROF_BEGIN(copy);
 
 	result = __copy_from_user(kmap(page) + page_off, f->data, to_page);
 	kunmap(page);
-	PROF_END(copy, copy);
 	return result;
 }
 
 static struct page *prof_grab_cache_page(struct address_space *mapping, unsigned long index)
 {
 	struct page *page;
-	PROF_BEGIN(grab_cache_page);
 
 	page = grab_cache_page(mapping, index);
-	PROF_END(grab_cache_page, grab_cache_page);
 	return page;
 }
 
@@ -2450,7 +2475,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 			/* unlock page before doing anything with filesystem tree */
 			reiser4_unlock_page(page);
 			/* make sure that page has non-hole extent pointing to it */
-			result = make_extent(inode, coord, lh, j);
+			result = make_extent(inode, coord, lh, j, &f->key, to_page);
 			reiser4_lock_page(page);
 			if (result) {
 				trace_on(TRACE_EXTENTS, "FAILED: %d\n", result);
@@ -2789,7 +2814,7 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 		return PTR_ERR(j);
 
 	reiser4_unlock_page(page);
-	result = make_extent(page->mapping->host, coord, lh, j);
+	result = make_extent(page->mapping->host, coord, lh, j, 0, 0);
 	JF_CLR(j, JNODE_NEW);
 	reiser4_lock_page(page);
 	if (result) {
