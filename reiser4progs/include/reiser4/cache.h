@@ -7,6 +7,8 @@
 #ifndef CACHE_H
 #define CACHE_H
 
+#include <reiser4/filesystem.h>
+
 extern reiserfs_cache_t *reiserfs_cache_create(reiserfs_node_t *node);
 
 extern void reiserfs_cache_close(reiserfs_cache_t *cache);

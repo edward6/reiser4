@@ -47,8 +47,7 @@ reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs) {
     tree->fs = fs;
     
     if (!(node = reiserfs_node_open(fs->host_device, 
-	    reiserfs_format_get_root(fs->format), 
-	    REISERFS_GUESS_PLUGIN_ID, fs->key.plugin->h.id)))
+	    reiserfs_format_get_root(fs->format), fs->key.plugin->h.id)))
 	goto error_free_tree;
     
     if (!(tree->cache = reiserfs_cache_create(node)))
@@ -214,7 +213,7 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
 	    Check whether specified node already in cache. If so, we use node
 	    from the cache.
 	*/
-	reiserfs_node_item_key(coord->cache->node, coord->pos.item, &ikey);
+	reiserfs_node_get_key(coord->cache->node, coord->pos.item, &ikey);
 
 	if (!(coord->cache = reiserfs_cache_find(parent, &ikey))) {
 	    reiserfs_node_t *node;
@@ -223,7 +222,7 @@ int reiserfs_tree_lookup(reiserfs_tree_t *tree, uint8_t stop,
 		cache.
 	    */
 	    if (!(node = reiserfs_node_open(parent->node->block->device, 
-		    block_nr, REISERFS_GUESS_PLUGIN_ID, parent->node->key_plugin->h.id))) 
+		    block_nr, parent->node->key_plugin->h.id))) 
 		return -1;
 	    
 	    if (!(coord->cache = reiserfs_cache_create(node))) {
@@ -261,7 +260,7 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
     uint32_t needed)
 {
     int point = 0;
-    int count, moved = 0;
+    uint32_t count, moved = 0;
     
     reiserfs_pos_t pos;
     reiserfs_key_t key;
@@ -386,7 +385,7 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
     /* Updating internal key for shifted node */
     if (left && old->pos.item != new->pos.item) {
 	reiserfs_node_ldkey(old->cache->node, &key);
-	if (reiserfs_node_embed_key(old->cache->parent->node, pos.item, &key)) {
+	if (reiserfs_node_set_key(old->cache->parent->node, pos.item, &key)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't update left delimiting key for shifted node %llu.",
 		aal_block_get_nr(old->cache->node->block));
@@ -397,7 +396,7 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
     /* Updating ldkey for left neighbour */
     if (right && count != reiserfs_node_count(old->cache->node)) {
 	reiserfs_node_ldkey(right->node, &key);
-	if (reiserfs_node_embed_key(right->node, pos.item + 1, &key)) {
+	if (reiserfs_node_set_key(right->node, pos.item + 1, &key)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't update left delimiting key for right neighbour block %llu.",
 		aal_block_get_nr(right->node->block));
@@ -455,6 +454,9 @@ static errno_t reiserfs_tree_node_insert(reiserfs_tree_t *tree,
     aal_memset(&item, 0, sizeof(item));
     internal.pointer = aal_block_get_nr(cache->node->block);
 
+    item.key.plugin = ldkey.plugin;
+    reiserfs_key_init(&item.key, ldkey.body);
+    
     item.hint = &internal;
     item.type = REISERFS_INTERNAL_ITEM;
     
@@ -463,7 +465,7 @@ static errno_t reiserfs_tree_node_insert(reiserfs_tree_t *tree,
     	libreiser4_factory_failed(return -1, find, item, REISERFS_INTERNAL_ITEM);
    
     /* Estimating found internal node */
-    if (reiserfs_node_item_estimate(parent->node, &item, &coord.pos))
+    if (reiserfs_node_item_estimate(parent->node, &coord.pos, &item))
 	return -1;
  
     needed = item.len + reiserfs_node_item_overhead(parent->node);
@@ -543,7 +545,7 @@ static errno_t reiserfs_tree_node_insert(reiserfs_tree_t *tree,
 		return -1;
 	    }
 	} else {
-	    if (reiserfs_node_insert(parent->node, &coord.pos, &ldkey, &item)) {
+	    if (reiserfs_node_insert(parent->node, &coord.pos, &item)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		    "Can't insert an internal item into the node %llu.", 
 		    aal_block_get_nr(parent->node->block));
@@ -555,7 +557,7 @@ static errno_t reiserfs_tree_node_insert(reiserfs_tree_t *tree,
 	coord.pos.unit = 0xffff;
 
 	/* Inserting item */
-	if (reiserfs_node_insert(parent->node, &coord.pos, &ldkey, &item)) {
+	if (reiserfs_node_insert(parent->node, &coord.pos, &item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an internal item into the node %llu.", 
 		aal_block_get_nr(parent->node->block));
@@ -601,7 +603,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 	return -1;
  
     /* Estimating item in order to insert it into found node */
-    if (reiserfs_node_item_estimate(coord.cache->node, item, &coord.pos))
+    if (reiserfs_node_item_estimate(coord.cache->node, &coord.pos, item))
         return -1;
  
     needed = item->len + reiserfs_node_item_overhead(coord.cache->node);
@@ -633,7 +635,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 	    coord.pos.unit = 0xffff;
     
 	    /* Inserting item into new leaf */
-	    if (reiserfs_node_insert(leaf, &coord.pos, key, item)) {
+	    if (reiserfs_node_insert(leaf, &coord.pos, item)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		    "Can't insert item into the node %llu.", 
 		    aal_block_get_nr(coord.cache->node->block));
@@ -683,7 +685,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 		coord.pos.unit = 0xffff;
     
 		/* Inserting item into new leaf */
-		if (reiserfs_node_insert(leaf, &coord.pos, key, item)) {
+		if (reiserfs_node_insert(leaf, &coord.pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert item into the node %llu.", 
 			aal_block_get_nr(coord.cache->node->block));
@@ -706,7 +708,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 	    } else {
 		    
 		/* Inserting item into found after shifting point */
-		if (reiserfs_node_insert(insert.cache->node, &insert.pos, key, item)) {
+		if (reiserfs_node_insert(insert.cache->node, &insert.pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert an internal item into the node %llu.", 
 			aal_block_get_nr(coord.cache->node->block));
@@ -717,7 +719,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
     } else {
 	    
 	/* Inserting item into existent one leaf */
-	if (reiserfs_node_insert(coord.cache->node, &coord.pos, key, item)) {
+	if (reiserfs_node_insert(coord.cache->node, &coord.pos, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an internal item into the node %llu.", 
 		aal_block_get_nr(coord.cache->node->block));

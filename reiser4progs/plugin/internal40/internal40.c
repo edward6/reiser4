@@ -40,11 +40,13 @@ static uint32_t internal40_minsize(void) {
     return sizeof(reiserfs_internal40_t);
 }
 
-static void internal40_print(reiserfs_internal40_t *internal, 
+static errno_t internal40_print(reiserfs_internal40_t *internal, 
     char *buff, uint16_t n) 
 {
-    aal_assert("umka-544", internal != NULL, return);
-    aal_assert("umka-545", buff != NULL, return);
+    aal_assert("umka-544", internal != NULL, return -1);
+    aal_assert("umka-545", buff != NULL, return -1);
+
+    return -1;
 }
 
 #ifndef ENABLE_COMPACT
@@ -85,13 +87,15 @@ static reiserfs_plugin_t internal40_plugin = {
 	.common = {
 #ifndef ENABLE_COMPACT	    
 	    .create = (errno_t (*)(void *, void *))internal40_create,
-	    .estimate = (errno_t (*)(uint16_t, void *))internal40_estimate,
+	    
+	    .estimate = (errno_t (*)(uint16_t, reiserfs_item_hint_t *))
+		internal40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,
 #endif
 	    .minsize = (uint16_t (*)(void))internal40_minsize,
-	    .print = (void (*)(void *, char *, uint16_t))internal40_print,
+	    .print = (errno_t (*)(void *, char *, uint16_t))internal40_print,
 
 	    .lookup = NULL,
 	    .maxkey = NULL,

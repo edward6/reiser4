@@ -54,9 +54,13 @@ static errno_t stat40_check(reiserfs_stat40_base_t *stat) {
     return 0;
 }
 
-static void stat40_print(reiserfs_stat40_base_t *stat, char *buff, uint16_t n) {
-    aal_assert("umka-546", stat != NULL, return);
-    aal_assert("umka-547", buff != NULL, return);
+static errno_t stat40_print(reiserfs_stat40_base_t *stat, 
+    char *buff, uint16_t n) 
+{
+    aal_assert("umka-546", stat != NULL, return -1);
+    aal_assert("umka-547", buff != NULL, return -1);
+
+    return -1;
 }
 
 static uint32_t stat40_minsize(void) {
@@ -86,14 +90,14 @@ static reiserfs_plugin_t stat40_plugin = {
 	.common = {
 #ifndef ENABLE_COMPACT
 	    .create = (errno_t (*)(void *, void *))stat40_create,
-	    .estimate = (errno_t (*)(uint16_t, void *))stat40_estimate,
+	    .estimate = (errno_t (*)(uint16_t, reiserfs_item_hint_t *))stat40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,
 #endif
 	    .confirm = (errno_t (*)(void *))stat40_confirm,
 	    .check = (errno_t (*)(void *))stat40_check,
-	    .print = (void (*)(void *, char *, uint16_t))stat40_print,
+	    .print = (errno_t (*)(void *, char *, uint16_t))stat40_print,
 	    .minsize = (uint16_t (*)(void))stat40_minsize,
 
 	    .maxkey = NULL,

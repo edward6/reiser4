@@ -83,16 +83,11 @@ typedef struct reiserfs_coord reiserfs_coord_t;
 
 struct reiserfs_node {
     aal_block_t *block;
+    reiserfs_opaque_t *entity;
     
     reiserfs_plugin_t *key_plugin;
     reiserfs_plugin_t *node_plugin;
 };
-
-struct reiserfs_node_header {
-    uint16_t pid; 
-};
-
-typedef struct reiserfs_node_header reiserfs_node_header_t;
 
 struct reiserfs_object {
     reiserfs_fs_t *fs;

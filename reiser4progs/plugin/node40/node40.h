@@ -14,6 +14,13 @@
 /* (*(__u32 *)"R4FS"); */
 #define REISERFS_NODE40_MAGIC 0x52344653
 
+struct reiserfs_node40 {
+    /* There will bne other fields in the future */
+    aal_block_t *block;
+};
+
+typedef struct reiserfs_node40 reiserfs_node40_t;
+
 typedef struct reiserfs_flush_stamp {
     uint32_t mkfs_id;
     uint64_t flush_time;
@@ -21,8 +28,7 @@ typedef struct reiserfs_flush_stamp {
 
 /* Format of node header for node40 */
 struct reiserfs_nh40 {
-    reiserfs_node_header_t header;
-    
+    uint16_t pid; 
     uint16_t free_space;
     uint16_t free_space_start;
     uint8_t level;
@@ -35,6 +41,9 @@ struct reiserfs_nh40 {
 typedef struct reiserfs_nh40 reiserfs_nh40_t;  
 
 #define reiserfs_nh40(block)			((reiserfs_nh40_t *)block->data)
+
+#define nh40_get_pid(header)			aal_get_le16(header, pid)
+#define nh40_set_pid(header, val)		aal_set_le16(header, pid, val)
 
 #define nh40_get_free_space(header)		aal_get_le16(header, free_space)
 #define nh40_set_free_space(header, val)	aal_set_le16(header, free_space, val)
@@ -56,11 +65,16 @@ typedef struct reiserfs_nh40 reiserfs_nh40_t;
     pos_in_node to functions instead.
 */
 
+union reiserfs_key40 {
+    uint64_t el[3];
+    int pad;
+};
+
+typedef union reiserfs_key40 reiserfs_key40_t;
+
 struct reiserfs_ih40 {
-    union {
-	uint64_t el[3];
-	int pad;
-    } key;
+    reiserfs_key40_t key;
+    
     uint16_t offset;
     uint16_t length;
     uint16_t pid;

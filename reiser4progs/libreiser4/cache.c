@@ -6,6 +6,9 @@
 
 #include <reiser4/reiser4.h>
 
+#define LEFT (1)
+#define RIGHT (0)
+
 reiserfs_cache_t *reiserfs_cache_create(reiserfs_node_t *node) {
     reiserfs_cache_t *cache;
 
@@ -128,7 +131,7 @@ static errno_t reiserfs_cache_nkey(reiserfs_cache_t *cache,
 	coord.pos.item++;
     }
     
-    reiserfs_node_item_key(cache->parent->node, coord.pos.item, key);
+    reiserfs_node_get_key(cache->parent->node, coord.pos.item, key);
     
     return 0;
 }
@@ -178,8 +181,8 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
 	    return -1;
 	}
 
-	if (!(node = reiserfs_node_open(cache->node->block->device, block_nr, 
-	    REISERFS_GUESS_PLUGIN_ID, cache->node->key_plugin->h.id)))
+	if (!(node = reiserfs_node_open(cache->node->block->device, 
+	    block_nr, cache->node->key_plugin->h.id)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't open node %llu.", block_nr);
@@ -198,8 +201,8 @@ errno_t reiserfs_cache_raise(reiserfs_cache_t *cache) {
 	    return -1;
 	}
 
-	if (!(node = reiserfs_node_open(cache->node->block->device, block_nr, 
-	    REISERFS_GUESS_PLUGIN_ID, cache->node->key_plugin->h.id)))
+	if (!(node = reiserfs_node_open(cache->node->block->device, 
+	    block_nr, cache->node->key_plugin->h.id)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't open node %llu.", block_nr);

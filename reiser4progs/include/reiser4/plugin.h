@@ -9,8 +9,11 @@
 
 #include <aal/aal.h>
 
+typedef uint64_t oid_t;
+
+typedef uint32_t reiserfs_id_t;
 typedef void reiserfs_opaque_t;
-typedef int reiserfs_id_t;
+typedef union reiserfs_plugin reiserfs_plugin_t;
 
 enum reiserfs_plugin_type {
     REISERFS_FILE_PLUGIN,
@@ -54,6 +57,142 @@ enum reiserfs_tail_policy {
 };
 
 typedef enum reiserfs_tail_policy reiserfs_tail_policy_t;
+
+/* 
+    Maximal possible key size. It is used for creating temporary keys by declaring 
+    array of uint8_t elements REISERFS_KEY_SIZE long.
+*/
+#define REISERFS_KEY_SIZE 24
+
+struct reiserfs_key {
+    reiserfs_plugin_t *plugin;
+    uint8_t body[REISERFS_KEY_SIZE];
+};
+
+typedef struct reiserfs_key reiserfs_key_t;
+
+/*
+    FIXME-VITALY: We should change these names to plugin independent style. Pass 
+    these names to key plugin where they will be converted to plugin-specific names.
+*/
+typedef enum {
+    /* File name key type */
+    KEY40_FILENAME_MINOR = 0,
+    /* Stat-data key type */
+    KEY40_STATDATA_MINOR = 1,
+    /* File attribute name */
+    KEY40_ATTRNAME_MINOR = 2,
+    /* File attribute value */
+    KEY40_ATTRBODY_MINOR = 3,
+    /* File body (tail or extent) */
+    KEY40_BODY_MINOR	 = 4
+} reiserfs_key40_minor_t;
+
+/* 
+    To create a new item or to insert into the item we need to 
+    perform the following operations:
+    
+    (1) Create the description of the data being inserted.
+    (2) Ask item plugin how much space is needed for the 
+	data, described in 1.
+    
+    (3) Free needed space for data being inserted.
+    (4) Ask item plugin to create an item (to paste into 
+	the item) on the base of description from 1.
+
+    For such purposes we have:
+    
+    (1) Fixed description structures for all item types (stat, 
+	diritem, internal, etc).
+    
+    (2) Estimate common item method which gets coord of where 
+	to insert into (NULL or unit == -1 for insertion, 
+	otherwise it is pasting) and data description from 1.
+    
+    (3) Insert node methods prepare needed space and call 
+	Create/Paste item methods if data description is specified.
+    
+    (4) Create/Paste item methods if data description has not 
+	beed specified on 3. 
+*/
+
+struct reiserfs_internal_hint {    
+    blk_t pointer;
+};
+
+typedef struct reiserfs_internal_hint reiserfs_internal_hint_t;
+
+/*  
+    These fields should be changed to what proper description 
+    of needed extentions. 
+*/
+struct reiserfs_stat_hint {
+    uint16_t mode;
+    uint16_t extmask;
+    uint32_t nlink;
+    uint64_t size;
+};
+
+typedef struct reiserfs_stat_hint reiserfs_stat_hint_t;
+
+struct reiserfs_entry_hint {
+    uint64_t locality;
+    uint64_t objectid;
+    char *name;
+};
+
+typedef struct reiserfs_entry_hint reiserfs_entry_hint_t;
+
+struct reiserfs_direntry_hint {
+    uint16_t count;
+    reiserfs_entry_hint_t *entry;
+    
+    reiserfs_plugin_t *key_plugin;
+    reiserfs_plugin_t *hash_plugin;    
+};
+
+typedef struct reiserfs_direntry_hint reiserfs_direntry_hint_t;
+
+/* 
+    Create item or paste into item on the base of this structure. Here "data" is 
+    a pointer to data to be copied. 
+*/ 
+struct reiserfs_item_hint {
+    reiserfs_item_type_t type;
+    /*
+	This is pointer to already formated item body. It is useful for item copying, 
+	replacing, etc. This will be used by fsck probably.
+    */
+    void *data;
+
+    /*
+	This is pointer to hint which describes item. It is widely used for creating 
+	an item.
+    */
+    void *hint;
+
+    /* The key of item */
+    reiserfs_key_t key;
+    
+    uint16_t len;
+    reiserfs_plugin_t *plugin;
+};
+
+typedef struct reiserfs_item_hint reiserfs_item_hint_t;
+
+struct reiserfs_object_hint {
+    uint16_t count;
+    reiserfs_item_hint_t *item;
+};
+
+typedef struct reiserfs_object_hint reiserfs_object_hint_t;
+
+struct reiserfs_pos {
+    uint16_t item;
+    uint16_t unit;
+};
+
+typedef struct reiserfs_pos reiserfs_pos_t;
 
 #define REISERFS_PLUGIN_MAX_LABEL	16
 #define REISERFS_PLUGIN_MAX_DESC	256
@@ -150,7 +289,7 @@ struct reiserfs_item_common_ops {
     errno_t (*create) (void *, void *);
 
     /* Makes lookup for passed key */
-    int (*lookup) (void *, void *, void *);
+    int (*lookup) (void *, reiserfs_key_t *, uint16_t *);
 
     /* Confirms item type */
     errno_t (*confirm) (void *);
@@ -159,7 +298,7 @@ struct reiserfs_item_common_ops {
     errno_t (*check) (void *);
 
     /* Prints item into specified buffer */
-    void (*print) (void *, char *, uint16_t);
+    errno_t (*print) (void *, char *, uint16_t);
 
     /* Get the max key which could be stored in the item of this type */
     errno_t (*maxkey) (void *);
@@ -171,10 +310,10 @@ struct reiserfs_item_common_ops {
     errno_t (*remove) (void *, uint16_t);
 
     /* Inserts unit described by passed hint into the item */
-    errno_t (*insert) (void *, uint16_t, void *);
+    errno_t (*insert) (void *, uint16_t, reiserfs_item_hint_t *);
     
     /* Estimatess item */
-    errno_t (*estimate) (uint16_t, void *);
+    errno_t (*estimate) (uint16_t, reiserfs_item_hint_t *);
     
     /* Retunrs min size the item may occupy */
     uint16_t (*minsize) (void);
@@ -228,77 +367,93 @@ struct reiserfs_node_ops {
     reiserfs_plugin_header_t h;
 
     /* 
-	Forms empty node incorresponding to given level in 
-	specified block.
+	Forms empty node incorresponding to given level in specified block.
+	Initializes instance of node and returns it to caller.
     */
-    errno_t (*create) (aal_block_t *, uint8_t);
+    reiserfs_opaque_t *(*create) (aal_block_t *, uint8_t);
 
     /* 
-	Perform some needed operations to the futher fast work 
-	with the node. Useful for compressed nodes, etc.
+	Opens node (parses data in orser to check whether it is valid for this
+	node type), initializes instance and returns it to caller.
      */
-    errno_t (*open) (reiserfs_opaque_t *);
+    reiserfs_opaque_t *(*open) (aal_block_t *);
+
+    /* 
+	Finalizes work with node (compresses data back) and frees all memory.
+	Returns the error code to caller.
+    */
     errno_t (*close) (reiserfs_opaque_t *);
     
-    /*
-	Confirms that given block contains valid node of
-	requested format.
+    /* Confirms that given block contains valid node of requested format */
+    int (*confirm) (reiserfs_opaque_t *);
+
+    /* 
+	Make more smart node check and return result to caller. Thsi method is 
+	used for fsck purposes.
     */
-    errno_t (*confirm) (aal_block_t *);
-
-    /* Make more smart node's check and return result */
-    errno_t (*check) (aal_block_t *, int);
-    
-    /* Makes lookup inside node by specified key */
-    int (*lookup) (aal_block_t *, void *, void *);
-    
-    /* Inserts item at specified pos */
-    errno_t (*insert) (aal_block_t *, void *, void *, void *);
-    
-    /* Removes item at specified pos */
-    errno_t (*remove) (aal_block_t *, void *);
-    
-    /* Pastes units at specified pos */
-    errno_t (*paste) (aal_block_t *, void *, void *, void *);
-    
-    /* Returns max item count */
-    uint16_t (*maxnum) (aal_block_t *);
-
-    /* Returns item count */
-    uint16_t (*count) (aal_block_t *);
+    errno_t (*check) (reiserfs_opaque_t *, int);
     
     /* Prints node into given buffer */
-    void (*print) (aal_block_t *, char *, uint16_t);
+    errno_t (*print) (reiserfs_opaque_t *, char *, uint32_t);
+    
+    /* 
+	Makes lookup inside node by specified key. Returns TRUE in the case exact
+	match was found and FALSE otherwise.
+    */
+    int (*lookup) (reiserfs_opaque_t *, reiserfs_key_t *, 
+	reiserfs_pos_t *);
+    
+    /* Inserts item at specified pos */
+    errno_t (*insert) (reiserfs_opaque_t *, reiserfs_pos_t *, 
+	reiserfs_item_hint_t *);
+    
+    /* Pastes units at specified pos */
+    errno_t (*paste) (reiserfs_opaque_t *, reiserfs_pos_t *, 
+	reiserfs_item_hint_t *);
+    
+    /* Removes item at specified pos */
+    errno_t (*remove) (reiserfs_opaque_t *, reiserfs_pos_t *);
+    
+    /* Returns max item count */
+    uint32_t (*maxnum) (reiserfs_opaque_t *);
+
+    /* Returns item count */
+    uint32_t (*count) (reiserfs_opaque_t *);
     
     /* Gets/sets node's free space */
-    uint16_t (*get_free_space) (aal_block_t *);
-    void (*set_free_space) (aal_block_t *, uint32_t);
+    uint32_t (*get_free_space) (reiserfs_opaque_t *);
+    errno_t (*set_free_space) (reiserfs_opaque_t *, uint32_t);
+   
+    /* Gets/sets node's plugin id */
+    uint32_t (*get_pid) (reiserfs_opaque_t *);
+    errno_t (*set_pid) (reiserfs_opaque_t *, uint32_t);
     
     /*
-	This is optional method. That means that there could be 
-	node formats which do not keep level.
+	This is optional method. That means that there could be node formats which 
+	do not keep level.
     */
-    uint8_t (*get_level) (aal_block_t *);
-    void (*set_level) (aal_block_t *, uint8_t);
+    uint8_t (*get_level) (reiserfs_opaque_t *);
+    errno_t (*set_level) (reiserfs_opaque_t *, uint8_t);
+    
+    /* Gets/sets key at pos */
+    errno_t (*get_key) (reiserfs_opaque_t *, uint32_t, reiserfs_key_t *);
+    errno_t (*set_key) (reiserfs_opaque_t *, uint32_t, reiserfs_key_t *);
 
     /* Returns item's overhead */
-    uint16_t (*item_overhead) (aal_block_t *);
+    uint32_t (*item_overhead) (void);
 
     /* Returns item's length by pos */
-    uint16_t (*item_len) (aal_block_t *, uint32_t);
+    uint32_t (*item_len) (reiserfs_opaque_t *, uint32_t);
     
     /* Returns item's max size */
-    uint16_t (*item_maxsize) (aal_block_t *);
+    uint32_t (*item_maxsize) (reiserfs_opaque_t *);
     
     /* Gets item at passed pos */
-    void *(*item_body) (aal_block_t *, uint32_t);
+    void *(*item_body) (reiserfs_opaque_t *, uint32_t);
 
-    /* Gets key by pos */
-    void *(*item_key) (aal_block_t *, uint32_t);
-    
     /* Gets/sets node's plugin ID */
-    uint16_t (*item_get_pid) (aal_block_t *, uint32_t);
-    void (*item_set_pid) (aal_block_t *, uint32_t, uint16_t);
+    uint32_t (*item_get_pid) (reiserfs_opaque_t *, uint32_t);
+    errno_t (*item_set_pid) (reiserfs_opaque_t *, uint32_t, uint32_t);
 };
 
 typedef struct reiserfs_node_ops reiserfs_node_ops_t;
@@ -354,8 +509,8 @@ struct reiserfs_format_ops {
     /*
 	Checks format-specific super block for validness. Also checks
 	whether filesystem objects lie in valid places. For example,
-	format-specific supetr block for format40 must lie in 17-th
-	4096 byte block.
+	format-specific super block for format40 must lie in 17-th
+	block for 4096 byte long blocks.
     */
     errno_t (*check) (reiserfs_opaque_t *);
 
@@ -487,116 +642,6 @@ union reiserfs_plugin {
     reiserfs_key_ops_t key_ops;
 };
 
-typedef union reiserfs_plugin reiserfs_plugin_t;
-
-/* 
-    To create a new item or to insert into the item we need to 
-    perform the following operations:
-    
-    (1) Create the description of the data being inserted.
-    (2) Ask item plugin how much space is needed for the 
-	data, described in 1.
-    
-    (3) Free needed space for data being inserted.
-    (4) Ask item plugin to create an item (to paste into 
-	the item) on the base of description from 1.
-
-    For such purposes we have:
-    
-    (1) Fixed description structures for all item types (stat, 
-	diritem, internal, etc).
-    
-    (2) Estimate common item method which gets coord of where 
-	to insert into (NULL or unit == -1 for insertion, 
-	otherwise it is pasting) and data description from 1.
-    
-    (3) Insert node methods prepare needed space and call 
-	Create/Paste item methods if data description is specified.
-    
-    (4) Create/Paste item methods if data description has not 
-	beed specified on 3. 
-*/
-
-struct reiserfs_internal_hint {    
-    blk_t pointer;
-};
-
-typedef struct reiserfs_internal_hint reiserfs_internal_hint_t;
-
-/*  
-    These fields should be changed to what proper description 
-    of needed extentions. 
-*/
-struct reiserfs_stat_hint {
-    uint16_t mode;
-    uint16_t extmask;
-    uint32_t nlink;
-    uint64_t size;
-};
-
-typedef struct reiserfs_stat_hint reiserfs_stat_hint_t;
-
-struct reiserfs_entry_hint {
-    uint64_t locality;
-    uint64_t objectid;
-    char *name;
-};
-
-typedef struct reiserfs_entry_hint reiserfs_entry_hint_t;
-
-struct reiserfs_direntry_hint {
-    uint16_t count;
-    reiserfs_entry_hint_t *entry;
-    
-    reiserfs_plugin_t *key_plugin;
-    reiserfs_plugin_t *hash_plugin;    
-};
-
-typedef struct reiserfs_direntry_hint reiserfs_direntry_hint_t;
-
-/* 
-    Create item or paste into item on the base of this structure. Here "data" is 
-    a pointer to data to be copied. 
-*/ 
-struct reiserfs_item_hint {
-    reiserfs_item_type_t type;
-    /*
-	This is pointer to already formated item body. It is useful for item copying, 
-	replacing, etc. This will be used by fsck probably.
-    */
-    void *data;
-
-    /*
-	This is pointer to hint which describes item. It is widely used for creating 
-	an item.
-    */
-    void *hint;
-
-    struct {
-	reiserfs_plugin_t *plugin;
-	uint8_t body[24];
-    } key;
-    
-    uint16_t len;
-    reiserfs_plugin_t *plugin;
-};
-
-typedef struct reiserfs_item_hint reiserfs_item_hint_t;
-
-struct reiserfs_object_hint {
-    uint16_t count;
-    reiserfs_item_hint_t *item;
-};
-
-typedef struct reiserfs_object_hint reiserfs_object_hint_t;
-
-struct reiserfs_pos {
-    uint16_t item;
-    uint16_t unit;
-};
-
-typedef struct reiserfs_pos reiserfs_pos_t;
-
 struct reiserfs_plugin_factory {
     reiserfs_plugin_t *(*find)(reiserfs_plugin_type_t, reiserfs_id_t);
 };
@@ -627,7 +672,7 @@ typedef errno_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
     
 #endif
 
-#define REISERFS_GUESS_PLUGIN_ID 0xff
+#define REISERFS_GUESS_PLUGIN 0xff
 
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
 
