@@ -20,7 +20,8 @@
 typedef enum {
 	LNODE_DENTRY,
 	LNODE_INODE,
-	LNODE_PSEUDO,
+//	LNODE_PSEUDO,
+	LNODE_REISER4_INODE,
 	LNODE_LW,
 	LNODE_NR_TYPES
 } lnode_type;
@@ -51,6 +52,7 @@ typedef struct lnode_header {
 typedef struct lnode_dentry {
 	lnode_header h;
 	struct dentry *dentry;
+	struct vfsmount *mnt;
 } lnode_dentry;
 
 typedef struct lnode_inode {
@@ -58,29 +60,38 @@ typedef struct lnode_inode {
 	struct inode *inode;
 } lnode_inode;
 
+typedef struct lnode_reiser4_inode {
+	lnode_header h;
+	struct reiser4_inode *inode;
+} lnode_reiser4_inode;
+
 typedef struct lnode_lw {
 	lnode_header h;
+	struct super_block * lw_sb;
 	reiser4_key key;
 } lnode_lw;
 
+#if 0
 typedef struct lnode_pseudo {
 	lnode_header h;
 	lnode *host;
 	/* something to identify pseudo file type, like name or plugin */
 } lnode_pseudo;
+#endif
 
 union lnode {
 	lnode_header h;
 	lnode_dentry dentry;
 	lnode_inode inode;
+	lnode_reiser4_inode reiser4_inode;
 	lnode_lw lw;
-	lnode_pseudo pseudo;
+//	lnode_pseudo pseudo;
 };
 
 extern int lnodes_init(void);
 extern int lnodes_done(void);
 
-extern lnode *lget(lnode * node, lnode_type type, oid_t oid);
+extern lnode *lget( lnode_type type, oid_t oid);
 extern void lput(lnode * node);
 extern int lnode_eq(const lnode * node1, const lnode * node2);
 extern lnode *lref(lnode * node);

@@ -29,16 +29,9 @@
 #include "../plugin/node/node.h"
 #include "../plugin/node/node40.h"
 #include "../plugin/security/perm.h"
-
-//#include "../plugin/oid/oid40.h"
-//#include "../plugin/oid/oid.h"
-
 #include "../plugin/space/bitmap.h"
-//#include "../plugin/space/test.h"
 #include "../plugin/space/space_allocator.h"
-
 #include "../plugin/disk_format/disk_format40.h"
-//#include "../plugin/disk_format/test.h"
 #include "../plugin/disk_format/disk_format.h"
 
 #include <linux/fs.h>		/* for struct super_block, address_space  */
@@ -68,13 +61,13 @@ typedef enum
 
 #define PTRACE(ws, format, ... )						\
 ({										\
-	ON_TRACE(TRACE_PARSE, "parser:%s %p %s: " format "\n",	\
-		 __FUNCTION__, ws, (ws)->ws_pline, __VA_ARGS__);					\
+	ON_TRACE(TRACE_PARSE, "parser:%s %p %s: " format "\n",	                \
+		 __FUNCTION__, ws, (ws)->ws_pline, __VA_ARGS__);		\
 })
 
-#define PTRACE1( format, ... )						\
+#define PTRACE1( format, ... )				        		\
 ({										\
-	ON_TRACE(TRACE_PARSE, "parser:%s  " format "\n",	\
+	ON_TRACE(TRACE_PARSE, "parser:%s  " format "\n",	                \
 		 __FUNCTION__,  __VA_ARGS__);					\
 })
 
@@ -97,82 +90,64 @@ typedef struct wrd wrd_t;
 
 #define ROUND_UP(x) _ROUND_UP((x),3)
 
-//struct flow {
-//	reiser4_key key;	/* key of start of flow's sequence of bytes */
-//	size_t length;		/* length of flow's sequence of bytes */
-//	char *data;		/* start of flow's sequence of bytes */
-//	int user;		/* if 1 data is user space, 0 - kernel space */
-//	rw_op op;               /* */
-//};
-
-struct path_walk {
-	struct vfsmount *mnt;
-	struct dentry *dentry;
-};
-
-
-typedef struct path_walk_name
-{
-	struct qstr  rest_path;     /**/
-	struct qstr  sub_name;
-} path_walk_name;
 
 typedef struct tube tube_t;
 
 struct tube
 {
 	int type_offset;
-	char * offset;
-	long len;
+	char * offset;       /* pointer to reading position */
+	long len;            /* lenth of current operation
+                               (min of (max_of_read_lenth and max_of_write_lenth) )*/
 	long used;
-	char * buf;
-	loff_t readoff;
-	loff_t writeoff;
+	char * buf;          /* pointer to bufer */
+	loff_t readoff;      /* reading offset   */
+	loff_t writeoff;     /* writing offset   */
 
-	//	expr_v4_t * source;
+//	expr_v4_t * source;
 	struct file *src;
 
-	/* offset might actually point to sink */
-	//	pars_var_t * sink;
+/* offset might actually point to sink */
+//	pars_var_t * sink;
 	struct file *dst;
 
 /* 	pos_t pos; */
 };
 
-
-
-struct wrd
-{
+struct wrd {
 	wrd_t * next ;                /* next word                   */
-	struct qstr u ;             /* u.name  is ptr to space     */
+	struct qstr u ;               /* u.name  is ptr to space     */
 };
 
-typedef enum
-{
+typedef enum {
 	noV4Space,
 	V4Space,
 	V4Plugin
 } SpaceType;
 
-struct pars_var
-{
-	pars_var_t * next ;            /* next                          */
-	pars_var_t * parent;           /* parent                        */
-	wrd_t * w ;                 /* pair (parent,w) is unique     */
-	lnode * ln;                 /* file/dir name lnode           */
-	int count;                  /* ref counter                   */
-	int vtype;                  /* Type of name                  */
+struct path_walk {
+	struct dentry *dentry;
+	struct vfsmount *mnt;
+};
+
+struct pars_var {
+	pars_var_t * next ;         /* next                                */
+	pars_var_t * parent;        /* parent                              */
+	wrd_t * w ;                 /* pair (parent,w) is unique           */
+	lnode * ln;                 /* file/dir name lnode                 */
+	struct path_walk path;      /* for mount point                     */
+	int count;                  /* ref counter                         */
+	int vtype;                  /* Type of name                        */
 	size_t off;	            /* current offset read/write of object */
 	size_t len;		    /* length of sequence of bytes for read/write (-1 no limit) */
-	int vSpace  ;               /* v4  space name or not ???        */
-	int vlevel  ;               /* level              ???           */
+	int vSpace  ;               /* v4  space name or not ???           */
+	int vlevel  ;               /* level              ???              */
 //	int  (*fplug)(lnode * node, const reiser4_plugin_ref * area);
 } ;
 
 typedef union expr_v4  expr_v4_t;
 
-typedef enum
-{
+typedef enum {
 	CONNECT,
 	COMPARE_EQ,
 	COMPARE_NE,
@@ -187,60 +162,51 @@ typedef enum
 
 //#typedef __u8 op2_t;
 
-typedef struct expr_common
-{
+typedef struct expr_common {
 	__u8          type;
 	__u8          exp_code;
 } expr_common_t;
 
-typedef struct expr_lnode
-{
+typedef struct expr_lnode {
 	expr_common_t   h;
 	lnode  *lnode;
 } expr_lnode_t;
 
-typedef struct expr_flow
-{
+typedef struct expr_flow {
 	expr_common_t    h;
 	flow_t     *   flw;
 } expr_flow_t;
 
-typedef struct expr_pars_var
-{
+typedef struct expr_pars_var {
 	expr_common_t   h;
 	pars_var_t  *  v;
 } expr_pars_var_t;
 
 
-typedef struct expr_wrd
-{
+typedef struct expr_wrd {
 	expr_common_t   h;
 	wrd_t  *  s;
 } expr_wrd_t;
 
-typedef struct expr_op3
-{
+typedef struct expr_op3 {
 	expr_common_t   h;
 	expr_v4_t  *  op;
 	expr_v4_t  *  op_l;
 	expr_v4_t  *  op_r;
 } expr_op3_t;
 
-typedef struct expr_op2
-{
+typedef struct expr_op2 {
 	expr_common_t   h;
 	expr_v4_t  *  op_l;
 	expr_v4_t  *  op_r;
 } expr_op2_t;
 
-typedef struct expr_op
-{
+typedef struct expr_op {
 	expr_common_t   h;
 	expr_v4_t  *  op;
 } expr_op_t;
 
-typedef struct expr_assign
-{
+typedef struct expr_assign {
 	expr_common_t   h;
 	pars_var_t       *  target;
 	expr_v4_t       *  source;
@@ -248,15 +214,13 @@ typedef struct expr_assign
 } expr_assign_t;
 
 typedef struct expr_list expr_list_t;
-struct expr_list
-{
+struct expr_list {
 	expr_common_t   h;
 	expr_list_t     *  next;
 	expr_v4_t       *  source;
 } ;
 
-typedef enum
-{
+typedef enum {
 	EXPR_WRD,
 	EXPR_PARS_VAR,
 	EXPR_LIST,
@@ -268,8 +232,7 @@ typedef enum
 	EXPR_OP
 } expr_v4_type;
 
-union expr_v4
-{
+union expr_v4 {
 	expr_common_t   h;
 	expr_wrd_t      wd;
 	expr_pars_var_t    pars_var;
@@ -287,32 +250,17 @@ union expr_v4
 /* ok this is space for names, constants and tmp*/
 typedef struct freeSpace freeSpace_t;
 
-struct freeSpace
-{
+struct freeSpace {
 	freeSpace_t  * freeSpace_next;                 /* next buffer   */
 	char         * freeSpace;                      /* pointer to free space */
 	char         * freeSpaceMax;                   /* for overflow control */
 	char           freeSpaceBase[FREESPACESIZE];   /* current buffer */
 };
 
-/*
-struct nameidata
-{
-	struct dentry	*dentry;
-	struct vfsmount *mnt;
-	struct qstr	last;
-	unsigned int	flags;
-	int		last_type;
-	struct dentry	*old_dentry;
-	struct vfsmount	*old_mnt;
-};
-*/
-
 
 typedef struct streg  streg_t;
 
-struct streg
-{
+struct streg {
 	int stype;                  /* cur type of level        */
 	int level;                  /* cur level                */
         streg_t * next;
@@ -321,79 +269,24 @@ struct streg
 	expr_v4_t * wrk_exp;          /* current (work) expression for this level */
 
 //	struct path_walk path_walk;
-//	struct dentry * de;          /* current   for this level */
-//	struct vfsmount *mnt;
 //	struct nameidata_reiser4 nd;        /* current   for this level */
-//	lnode * cur_lnode;          /* cur lnode for this level */
-//	pars_var_t * cur_pars_var;          /* cur lnode for this level */
 
 };
 
 
-
-struct msglist
-{
-	int  msgnum;
-	long fileoff;
-	struct msglist * nextmsg;
-} ;
-
-
-
-
-static struct
-{
+static struct {
 	unsigned char numOfParam;
 	unsigned char typesOfParam[4]       ;
-}
-	typesOfCommand[]=
-		{
-			{0,{0,0,0,0}}
-		};
+} typesOfCommand[]= {
+	{0,{0,0,0,0}}
+};
 
-
-
-static struct
-{
+static struct {
 	void (*	call_function)(void) ;
 	unsigned char type;            /* describe parameters, and its types */
-}
-	Code[] =
-{
+} 	Code[] = {
 };
 
-
-#if 0                           /*   */
-struct dentry {
-	atomic_t d_count;
-	unsigned int d_flags;
-	struct inode  * d_inode;	/* Where the name belongs to - NULL is negative */
-	struct dentry * d_parent;	/* parent directory */
-	struct list_head d_hash;	/* lookup hash list */
-	struct list_head d_lru;		/* d_count = 0 LRU list */
-	struct list_head d_child;	/* child of parent list */
-	struct list_head d_subdirs;	/* our children */
-	struct list_head d_alias;	/* inode alias list */
-	int d_mounted;
-	struct qstr d_name;
-	unsigned long d_time;		/* used by d_revalidate */
-	struct dentry_operations  *d_op;
-	struct super_block * d_sb;	/* The root of the dentry tree */
-	unsigned long d_vfs_flags;
-	void * d_fsdata;		/* fs-specific data */
-	struct dcookie_struct * d_cookie; /* cookie, if any */
-	unsigned char d_iname[DNAME_INLINE_LEN_MIN]; /* small names */
-} ____cacheline_aligned;
-
-struct dentry_operations {
-	int (*d_revalidate)(struct dentry *, int);
-	int (*d_hash) (struct dentry *, struct qstr *);
-	int (*d_compare) (struct dentry *, struct qstr *, struct qstr *);
-	int (*d_delete)(struct dentry *);
-	void (*d_release)(struct dentry *);
-	void (*d_iput)(struct dentry *, struct inode *);
-};
-#endif
 
 
 

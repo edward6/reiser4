@@ -7,15 +7,11 @@
  * parser.y
  */
 
-
 #define MAXLEVELCO 500
 #define BEGIN_FROM_ROOT 222
 #define BEGIN_FROM_CURRENT 333
 
-
-
-struct reiser4_syscall_w_space
-{
+struct reiser4_syscall_w_space {
 	/*	char * ws_inline;     this two field used for parsing string, one (inline) stay on begin */
 	char * ws_pline;     /*   of token, second (pline) walk to end to token                   */
 #ifdef yyacc
@@ -31,7 +27,7 @@ struct reiser4_syscall_w_space
 	YYSTYPE * ws_yyvsp;
 	YYSTYPE ws_yyval;
 	YYSTYPE ws_yylval;
-	short   ws_yyss[YYSTACKSIZE];
+	int     ws_yyss[YYSTACKSIZE];
 	YYSTYPE ws_yyvs[YYSTACKSIZE];
 #else
 	/* declare for bison */
@@ -40,26 +36,21 @@ struct reiser4_syscall_w_space
 	int	ws_level;              /* current level            */
 	int	ws_errco;              /* number of errors         */
 	                               /* working fields  */
-	char        * tmpWrdEnd;
-	char        * yytext;
+	char        * tmpWrdEnd;       /* pointer for parsing input string */
+	char        * yytext;          /* pointer for parsing input string */
 	                               /* space for   */
-	freeSpace_t * freeSpHead;
-	freeSpace_t * freeSpCur;
-	wrd_t       * wrdHead;
-	pars_var_t     * Head_pars_var;
-	streg_t     * Head_level;	
-	streg_t     * cur_level;	
+	freeSpace_t * freeSpHead;      /* work spaces list Header */
+	freeSpace_t * freeSpCur;       /* current work space */
+	wrd_t       * wrdHead;         /* names list Header */
+	pars_var_t  * Head_pars_var;   /* parsed variables Header */
+	streg_t     * Head_level;      /* parsers level list Header */
+	streg_t     * cur_level;       /* current level */
+
 	expr_v4_t   * root_e;          /* root expression  for this task */
+	struct nameidata nd;           /* work field for pass to VFS mount points */
 
-	pars_var_t     * wvn;              /* work    for this task */
-
-	struct dentry * de;            /* work dentry for this task */
-	struct nameidata nd;
-
-//	lnode     * wln;              /* work lnode   for this task */
-//	lnode     * root_ln;          /* root lnode   for this task */
-//	lnode     * pwd_ln;           /* pwd  lnode   for this task */
-//	struct path_walk path_walk;
+//	pars_var_t  * wvn;             /* work    for this task */
+//	struct dentry * de;            /* work dentry for this task */
 };
 
 

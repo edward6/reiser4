@@ -20,7 +20,7 @@ static freeSpace_t * freeSpaceNextAlloc(struct reiser4_syscall_w_space * ws);
 static char* list_alloc(struct reiser4_syscall_w_space * ws, int size);
 static streg_t *alloc_new_level(struct reiser4_syscall_w_space * ws);
 static pars_var_t * alloc_pars_var(struct reiser4_syscall_w_space * ws, pars_var_t * last_pars_var);
-static lnode * get_lnode(struct reiser4_syscall_w_space * ws, struct inode * inode);
+static lnode * get_lnode(struct reiser4_syscall_w_space * ws);
 static struct reiser4_syscall_w_space * reiser4_pars_init(void);
 static void level_up(struct reiser4_syscall_w_space *ws, long type);
 static  void  level_down(struct reiser4_syscall_w_space * ws, long type1, long type2);

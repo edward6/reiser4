@@ -9,114 +9,12 @@
 
 #include "lib.h"
 
+#include <linux/mount.h>
 
 /* FIXME:NIKITA->VOVA this file uses indentation completely different than the
  * rest of reiser4 and kernel. This complicates reading of the code by other
  * people. I think this should be changed.
  * OK. But after it's works*/
-
-static struct
-{
-	char    *       wrd;
-	int             class;
-}
-pars_key [] =
-	{
-		{ "and"         ,    AND            },
-		{ "else"        ,    ELSE           },
-		{ "eq"          ,    EQ             },
-		{ "ge"          ,    GE             },
-		{ "gt"          ,    GT             },
-		{ "if"          ,    IF             },
-		{ "le"          ,    LE             },
-		{ "lt"          ,    LT             },
-		{ "ne"          ,    NE             },
-		{ "not"         ,    NOT            },
-		{ "or"          ,    OR             },
-		{ "then"        ,    THEN           },
-		{ "tw/"         ,    TRANSCRASH     }
-	};
-
-
-struct lexcls lexcls[64]={
-/*
-..   a   1       _   `   '     (   )   ,   -   <   /   [   ]     \   {   }   |   ;   :   .   =     >   ?   +
-Blk Wrd Int Ptr Pru Stb Ste   Lpr Rpr Com Mns Les Slh Lsq Rsq   Bsl Lfl Rfl Pip Sp1 Sp2 Dot Sp4   Sp5 Sp6 Pls ...  */
-[Blk]={ 0, {0,
-Blk,Wrd,Int,Ptr,Pru,Str,ERR,  Lpr,Rpr,Com,Mns,Les,Slh,Lsq,Rsq,  Bsl,Lfl,Rfl,Pip,Sp1,Sp2,Dot,Sp4,  Sp5,Sp6,ERR,ERR,ERR,ERR,ERR,ERR}},
-[Wrd]={  WORD, {0,
-OK ,Wrd,Wrd,Wrd,Wrd,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  Bsl,OK ,OK ,OK ,OK ,OK ,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-
-[Int]={  WORD, {0,
-OK ,Wrd,Int,Wrd,Wrd,OK ,OK ,  OK ,OK ,OK ,Wrd,OK ,OK ,OK ,OK ,  Wrd,OK ,OK ,OK ,OK ,OK ,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-
-[Ptr]={  WORD,{0,
-OK ,Wrd,Wrd,Wrd,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  Wrd,OK ,OK ,OK ,OK ,OK ,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Pru]={  P_RUNNER,{0,
-OK ,Pru,Pru,Pru,Pru,OK ,OK ,  OK ,OK ,OK ,Pru,OK ,OK ,OK ,OK ,  Pru,OK ,OK ,OK ,OK ,OK ,Pru,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-
-[Stb]={  STRING_CONSTANT_EMPTY, {1,
-Str,Str,Str,Str,Str,Str,OK ,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str}},
-[Ste]={  0, {0,
-ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR}},
-[Lpr]={  L_BRACKET /*L_PARENT*/,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Rpr]={  R_BRACKET,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Com]={  COMMA,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Mns]={  0,{0,
-ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  Lnk,ERR,ERR,ERR,ERR,ERR,ERR,ERR}},
-[Les]{  LT,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,ASG,App,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-
-[Slh]={  SLASH,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,Slh,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-
-[Lsq]={  0/*L_SKW_PARENT*/,{0,           /*mast removed*/
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Rsq]={  0/*R_SKW_PARENT*/,{0,            /*mast removed*/
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Bsl]={  0,{0,
-Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd}},
-[Lfl]={  0 /*L_FLX_PARENT*/,{0,            /*mast removed*/
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Rfl]={  0 /*R_FLX_PARENT*/,{0,            /*mast removed*/
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Pip]={  0,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Sp1]={  0,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Sp2]={  SEMICOLON,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Dot]={  0,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Sp4]={  0,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Sp5]={  0,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-
-[Sp6]={  0,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Pls]={  PLUS,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Res]={  0,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-
-[Str]={  STRING_CONSTANT,{1,
-OK ,Str,Str,Str,Str,Str,OK ,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str}},
-[ASG]={  L_ASSIGN,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[App]={  L_ASSIGN,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,Ap2,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-[Lnk]={ L_SYMLINK,{0,
-ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  OK ,ERR,ERR,ERR,ERR,ERR,ERR,ERR}},
-
-[Ap2]={  L_APPEND,{0,
-OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }}
-
-};
-
 
 
 
@@ -207,6 +105,14 @@ static void freeList(freeSpace_t * list /* head of list to be fee */)
 /* free work space*/
 static int reiser4_pars_free(struct reiser4_syscall_w_space * ws /* work space ptr */)
 {
+
+	dput( ws->root_e->lnode.lnode->dentry.dentry );
+	mntput( ws->root_e->lnode.lnode->dentry.mnt );
+
+	dput( ws->cur_level->cur_exp->lnode.lnode->dentry.dentry );
+	mntput( ws->cur_level->cur_exp->lnode.lnode->dentry.mnt );
+
+
 	if (ws->freeSpHead)
 		{
 			freeList(ws->freeSpHead);
@@ -344,6 +250,8 @@ static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr
 			break;
 		case EXPR_LNODE:
 			assert("VD-free_expr.lnode.lnode", expr->lnode.lnode!=Null);
+			dput( expr->lnode.lnode->dentry.dentry );
+			mntput( expr->lnode.lnode->dentry.mnt );
 			lput(expr->lnode.lnode);
 			break;
 		case EXPR_FLOW:
@@ -381,29 +289,28 @@ static lnode * alloc_lnode(struct reiser4_syscall_w_space * ws /* work space ptr
 }
 
 /* make lnode_dentry from inode, except reiser4 inode */
-static lnode * get_lnode(struct reiser4_syscall_w_space * ws /* work space ptr */ ,
-			 struct inode * inode /* inode for make lnode */)
+static lnode * get_lnode(struct reiser4_syscall_w_space * ws /* work space ptr */ )
 {
 	lnode * ln;
 	reiser4_key key, * k_rez,* l_rez;
-	PTRACE( ws, " inode=%p", inode );
 	
 #if 0                      /*def NOT_YET*/
-	if ( is_reiser4_inode( inode ) )
+	if ( is_reiser4_inode( ws->nd.dentry->inode ) )
 		{
 
-			k_rez             = build_sd_key( inode, &key);
-			ln                = lget(  LNODE_REISER4_INODE, get_inode_oid( inode) );
-			//			ln->lw.lw_sb = inode->isb;
-			ln->reiser4_inode.inode = /*????*/  inode->isb;
-			ln->reiser4_inode.inode = /*????*/  inode->isb;
+			k_rez             = build_sd_key( ws->nd.dentry->inode, &key);
+			ln                = lget(  LNODE_REISER4_INODE, get_inode_oid( ws->nd.dentry->inode) );
+//			ln->lw.lw_sb = ws->nd.dentry->inode->isb;
+			ln->reiser4_inode.inode = /*????*/  ws->nd.dentry->inode->isb;
+			ln->reiser4_inode.inode = /*????*/  ws->nd.dentry->inode->isb;
 			PTRACE( ws, "r4: lnode=%p", ln );
 		}
 	else
 #endif
 		{
-			ln                = lget( LNODE_DENTRY, get_inode_oid( inode) );
-			ln->dentry.dentry = d_alloc_anon(inode);
+			ln                = lget( LNODE_DENTRY, get_inode_oid( ws->nd.dentry->d_inode) );
+			ln->dentry.dentry = ws->nd.dentry;
+			ln->dentry.mnt    = ws->nd.mnt;
 			PTRACE( ws, "no r4 lnode=%p,dentry=%p", ln, ln->dentry.dentry);
 		}
 	PTRACE( ws, " lnode=%p", ln );
@@ -760,25 +667,43 @@ wrd_t * nullname(struct reiser4_syscall_w_space * ws /* work space ptr */)
 static expr_v4_t *  init_root(struct reiser4_syscall_w_space * ws /* work space ptr */)
 {
 	expr_v4_t * e;
-	e                  = alloc_new_expr(ws,EXPR_PARS_VAR);
-	e->pars_var.v         = alloc_pars_var(ws,NULL);
+	e                     = alloc_new_expr( ws, EXPR_PARS_VAR );
+	e->pars_var.v         = alloc_pars_var( ws, NULL );
 	e->pars_var.v->w      = nullname(ws) ; /* or '/' ????? */
-	e->pars_var.v->ln     = get_lnode(ws,current->fs->root->d_inode) ;
+	ws->nd.flags          = LOOKUP_NOALT;
+
+//	walk_init_root( "/", (&ws->nd));   /* from namei.c walk_init_root */
+	read_lock(&current->fs->lock);
+	ws->nd.mnt = mntget(current->fs->rootmnt);  /*????*/
+	ws->nd.dentry = dget(current->fs->root);
+	read_unlock(&current->fs->lock);
+
+	e->pars_var.v->ln     = get_lnode( ws ) ;
+
 	e->pars_var.v->parent = NULL;
 	return e;
 }
+
 
 /* initialize node  for PWD lnode */
 static expr_v4_t *  init_pwd(struct reiser4_syscall_w_space * ws /* work space ptr */)
 {
 	expr_v4_t * e;
-	e                  = alloc_new_expr(ws,EXPR_PARS_VAR);
+	e                     = alloc_new_expr(ws,EXPR_PARS_VAR);
 	e->pars_var.v         = alloc_pars_var(ws,ws->root_e->pars_var.v);
 
 	e->pars_var.v->w      = nullname(ws) ;  /* better if it will point to full pathname for pwd */
 
-	e->pars_var.v->ln     = get_lnode(ws,current->fs->pwd->d_inode) ;
+//	path_lookup(".",,&(ws->nd));   /* from namei.c path_lookup */
+	read_lock(&current->fs->lock);
+	ws->nd.mnt = mntget(current->fs->pwdmnt);
+	ws->nd.dentry = dget(current->fs->pwd);
+	read_unlock(&current->fs->lock);
+	current->total_link_count = 0;
+
+	e->pars_var.v->ln     = get_lnode( ws ) ;
 	e->pars_var.v->parent = ws->root_e->pars_var.v;
+
 	return e;
 }
 
@@ -812,6 +737,7 @@ static expr_v4_t *  pars_expr(struct reiser4_syscall_w_space * ws /* work space 
 	return e2;
 }
 
+/* not yet */
 static pars_var_t * getFirstPars_VarFromExpr(struct reiser4_syscall_w_space * ws )
 {
 	pars_var_t * ret;
@@ -877,6 +803,122 @@ static inline expr_v4_t * pars_lookup_root(struct reiser4_syscall_w_space * ws)
 	return ws->cur_level->wrk_exp;
 }
 
+
+
+#if 0
+/*?????*/
+
+/* implementation of lookup_name() method for hashed directories
+
+   it looks for name specified in @w in reiser4_inode @parent and if name is found - key of object found entry points
+   to is stored in @key */
+reiser4_internal int
+lookup_name_hashed_reiser4(reiser4_inode *parent /* reiser4 inode of directory to lookup for name in */,
+			    wrd_t *w             /* name to look for */,
+			    reiser4_key *key     /* place to store key */)
+{
+	int result;
+	coord_t *coord;
+	lock_handle lh;
+	const char *name;
+	int len;
+	reiser4_dir_entry_desc entry;
+
+	assert("nikita-1247", parent != NULL);
+	assert("nikita-1248", w != NULL);
+
+??	assert("vs-1486", dentry->d_op == &reiser4_dentry_operations);
+
+	result = reiser4_perm_chk(parent, lookup, parent, &w->u);
+
+
+	if (result != 0)
+		return 0;
+
+	name = w->u.name;
+	len = w->u.len;
+
+	if ( len > parent->pset->dir_item)
+		/* some arbitrary error code to return */
+		return RETERR(-ENAMETOOLONG);
+
+	coord = &reiser4_get_dentry_fsdata(dentry)->dec.entry_coord; ???????
+	coord_clear_iplug(coord);
+
+
+
+
+	init_lh(&lh);
+
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "lookup inode: %lli \"%s\"\n", get_inode_oid(parent), dentry->d_name.name);
+
+	/* find entry in a directory. This is plugin method. */
+
+
+	//	result = find_entry(parent, dentry, &lh, ZNODE_READ_LOCK, &entry);
+
+
+	if (result == 0) {
+		/* entry was found, extract object key from it. */
+		result = WITH_COORD(coord, item_plugin_by_coord(coord)->s.dir.extract_key(coord, key));
+	}
+	done_lh(&lh);
+	return result;
+
+}
+
+node_plugin_by_node(coord->node)->lookup(coord->node, key, FIND_MAX_NOT_MORE_THAN, &twin);
+item_type_by_coord(coord)
+
+/*
+ * try to look up built-in pseudo file by its name.
+ */
+reiser4_internal int
+lookup_pseudo_file(reiser4_inode *parent /* reiser4 inode of directory to lookup for name in */,
+			    wrd_t *w             /* name to look for */,
+			    reiser4_key *key     /* place to store key */)
+     //		   struct dentry * dentry)
+{
+	reiser4_plugin *plugin;
+	const char     *name;
+	struct inode   *pseudo;
+	int             result;
+
+
+
+
+
+
+	assert("nikita-2999", parent != NULL);
+	assert("nikita-3000", dentry != NULL);
+
+	/* if pseudo files are disabled for this file system bail out */
+	if (reiser4_is_set(parent->i_sb, REISER4_NO_PSEUDO))
+		return RETERR(-ENOENT);
+
+	name = dentry->d_name.name;
+	pseudo = ERR_PTR(-ENOENT);
+	/* scan all pseudo file plugins and check each */
+	for_all_plugins(REISER4_PSEUDO_PLUGIN_TYPE, plugin) {
+		pseudo_plugin *pplug;
+
+		pplug = &plugin->pseudo;
+		if (pplug->try != NULL && pplug->try(pplug, parent, name)) {
+			pseudo = add_pseudo(parent, pplug, dentry);
+			break;
+		}
+	}
+	if (!IS_ERR(pseudo))
+		result = 0;
+	else
+		result = PTR_ERR(pseudo);
+	return result;
+}
+
+#endif
+
+
+
 /* seach @parent/w in internal table. if found return it, else @parent->lookup(@w) */
 static pars_var_t *  lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* work space ptr */,
 				    pars_var_t * parent /* parent for w       */,
@@ -910,31 +952,49 @@ static pars_var_t *  lookup_pars_var_word(struct reiser4_syscall_w_space * ws /*
 	rez_pars_var->w      = w;
 	rez_pars_var->parent = parent;
 
+//		case EXPR_PARS_VAR:
+//			/* not yet */
+//			ws->nd.dentry=parent->ln->dentry.dentry;
+//			de_rez = link_path_walk( w->u.name, &(ws->nd) ); /* namei.c */
+//			break;
 	switch (parent->ln->h.type)
 		{
+
+		case LNODE_INODE:  /* not use it ! */
+					de = d_alloc_anon(parent->ln->inode.inode);
+			break;
 		case LNODE_DENTRY:
-		case LNODE_INODE:
-			if (parent->ln->h.type==LNODE_DENTRY)
+//			de     =  parent->ln->dentry.dentry;
+//			de_rez = lookup_one_len( w->u.name, de, w->u.len); /* namei.c */
+
+			ws->nd.dentry = parent->ln->dentry.dentry;
+			ws->nd.mnt    = parent->ln->dentry.mnt;
+			ws->nd.flags  = LOOKUP_NOALT ;
+			if ( link_path_walk( w->u.name, &(ws->nd) ) ) /* namei.c */
 				{
-					de     =  parent->ln->dentry.dentry;
+					/*????????????*/
 				}
 			else
 				{
-					de = d_alloc_anon(parent->ln->inode.inode);
+					rez_pars_var->ln  = lget( LNODE_DENTRY, get_inode_oid( ws->nd.dentry->d_inode) );
+					rez_pars_var->ln->dentry.dentry = ws->nd.dentry;
+					rez_pars_var->ln->dentry.mnt    = ws->nd.mnt;
 				}
-			de_rez = lookup_one_len( w->u.name, de, w->u.len); /* namei.c */
-			rez_pars_var->ln  = lget( LNODE_DENTRY, get_inode_oid( de_rez->d_inode) );
 			PTRACE(ws, "rez de=%p",rez_pars_var->ln->dentry.dentry);
 			break;
+			/*
 		case LNODE_PSEUDO:
 			PTRACE(ws, "parent pseudo=%p",parent->ln->pseudo.host);
 			break;
-/*		case LNODE_LW: */
+			*/
+		case LNODE_LW:
+			break;
 		case LNODE_REISER4_INODE:
 			rez_pars_var->ln->h.type        = LNODE_REISER4_INODE /* LNODE_LW */;
 
 #if 0                   /*   NOT_YET  ???? */
 
+//			ln                = lget( LNODE_DENTRY, get_key_objectid(&key ) );
 
 			result = coord_by_key(get_super_private(parent->ln->lw.lw_sb)->tree,
 					      parent->ln->lw.key,
@@ -1231,8 +1291,8 @@ static inline expr_v4_t * list_async_expression(struct reiser4_syscall_w_space *
 
 static expr_v4_t * assign(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2)
 {
-	/* while for each pars_var in e1*/
-	pump(e1->pars_var.v,e2);
+	/* while for each pars_var in e1 */
+	pump( e1->pars_var.v, e2 );
 	return e2;   /* tmp.  */
 }
 
@@ -1243,7 +1303,7 @@ static expr_v4_t * assign_invert(struct reiser4_syscall_w_space * ws, expr_v4_t 
 	return e2;
 }
 
-
+/* not yet */
 static expr_v4_t * symlink(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2)
 {
 	return e2;
@@ -1408,8 +1468,8 @@ static int  pump( pars_var_t *sink, expr_v4_t *source )
       int (*source_to_tube)(tube_t *);
       int (*tube_to_sink)(tube_t *);
 
-      //      pos_t source_pos;
-      //      pos_t sink_pos;
+//      pos_t source_pos;
+//      pos_t sink_pos;
 
 	PTRACE1( "%s", "begin");
 
