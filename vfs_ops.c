@@ -1177,9 +1177,11 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 	else if (dplug->create_child != NULL) {
 		struct inode *child;
 
+		child = NULL;
 		result = dplug->create_child(parent, dentry, data, &child);
 		if (unlikely(result != 0)) {
 			if (child != NULL) {
+				assert("nikita-3140", child->i_size == 0);
 				reiser4_make_bad_inode(child);
 				iput(child);
 			}
@@ -1497,7 +1499,8 @@ reiser4_drop_inode(struct inode *object)
 		inodes_stat.nr_inodes--;
 		spin_unlock(&inode_lock);
 
-		drop_object_body(object);
+		if (!is_bad_inode(object))
+			drop_object_body(object);
 
 		if (object->i_data.nrpages)
 			truncate_inode_pages(&object->i_data, 0);
@@ -1509,10 +1512,6 @@ reiser4_drop_inode(struct inode *object)
 		if (object->i_state != I_CLEAR)
 			BUG();
 		destroy_inode(object);
-
-/*
-		generic_delete_inode(object);
-*/
 		(void)reiser4_exit_context(&__context);
 	} else
 		generic_forget_inode(object);
@@ -2414,14 +2413,30 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	int ret = 0;
 	REISER4_ENTRY(page->mapping->host->i_sb);
 
+	/*
+	 * this is called for each truncated page from
+	 * truncate_inode_pages()->truncate_{complete,partial}_page().
+	 *
+	 * At the moment of, call page is under lock, and outstanding io (if
+	 * any) has completed.
+	 */
+
+	assert("nikita-3137", PageLocked(page));
+	assert("nikita-3138", !PageWriteback(page));
+
 	if (offset == 0) {
 		jnode *node;
 
+		/* remove jnode from transaction and detach it from page. */
 		node = jnode_by_page(page);
-		if (node != NULL)
-			UNDER_SPIN_VOID(jnode, node, eflush_del(node, 1));
-		uncapture_page(page);
-		UNDER_SPIN_VOID(jnode, node, page_clear_jnode(page, node));
+		if (node != NULL) {
+			jref(node);
+			JF_SET(node, JNODE_HEARD_BANSHEE);
+			uncapture_page(page);
+			UNDER_SPIN_VOID(jnode, 
+					node, page_clear_jnode(page, node));
+			jput(node);
+		}
 	}
 	REISER4_EXIT(ret);
 }

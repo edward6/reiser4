@@ -2315,6 +2315,7 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j,
 	/*PROF_BEGIN(make_extent);*/
 
 	assert("vs-960", znode_is_write_locked(coord->node));
+	assert("nikita-3139", !inode_get_flag(inode, REISER4_NO_SD));
 
 	/* key of first byte of the page */
 	if (key) {
