@@ -234,6 +234,8 @@
 #include <linux/writeback.h>
 #include <linux/slab.h>
 
+spinlock_t eflushed_guard = SPIN_LOCK_UNLOCKED;
+
 #if REISER4_USE_EFLUSH
 
 static int flushable(const jnode * node, struct page *page);
@@ -250,7 +252,6 @@ static kmem_cache_t *eflush_slab;
 
 #define EFLUSH_START_BLOCK ((reiser4_block_nr)0)
 
-spinlock_t eflushed_guard = SPIN_LOCK_UNLOCKED;
 
 /* try to flush @page to the disk */
 int
