@@ -142,9 +142,11 @@ typedef enum {
 	COPI_DONT_ALLOCATE       = ( 1 << 2 )
 } cop_insert_flag;
 
+/* flags to cut and delete */
 typedef enum {
 	DELETE_RETAIN_EMPTY = ( 1 << 0 ),
-	DELETE_DONT_COMPACT = ( 1 << 1 )
+	DELETE_DONT_COMPACT = ( 1 << 1 ),
+	DELETE_KILL         = ( 1 << 2 )
 } cop_delete_flag;
 
 /**
