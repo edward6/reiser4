@@ -180,14 +180,14 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 		}
 		switch (what_todo (inode, &f, &coord)) {
 		case WRITE_EXTENT:
-			iplug = item_plugin_by_id (EXTENT_ITEM_ID);
+			iplug = item_plugin_by_id (EXTENT_POINTER_IT);
 			/* resolves to extent_write function */
 
 			result = iplug->s.file.write (inode, &coord, &lh, &f);
 			break;
 
 		case WRITE_TAIL:
-			iplug = item_plugin_by_id (BODY_ITEM_ID);
+			iplug = item_plugin_by_id (TAIL_IT);
 			/* resolves to tail_write function */
 
 			result = iplug->s.file.write (inode, &coord, &lh, &f);

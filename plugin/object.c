@@ -203,7 +203,7 @@ int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode,
 			keycmp( unit_key_by_coord( coord, &key_found ), 
 				key ) == EQUAL_TO );
 		/* check that what we really found is stat data */
-		if( item_type_by_coord( coord ) != STAT_DATA_ITEM_TYPE ) {
+		if( item_plugin_id_by_coord( coord ) != STATIC_STAT_DATA_IT ) {
 			error_message = "sd found, but it doesn't look like sd ";
 			print_plugin( "found", 
 				      item_plugin_to_plugin( 
@@ -297,7 +297,7 @@ static int insert_new_sd( struct inode *inode )
 		break;
 	case IBK_INSERT_OK:
 		assert( "nikita-725", /* have we really inserted stat data? */
-			item_type_by_coord( &coord ) == STAT_DATA_ITEM_TYPE );
+			item_plugin_id_by_coord( &coord ) == STATIC_STAT_DATA_IT );
 		area = item_body_by_coord( &coord );
 		result = data.iplug -> s.sd.save( inode, &area );
 		if( result == 0 )

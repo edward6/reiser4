@@ -84,7 +84,7 @@ int de_add_entry( const struct inode *dir, tree_coord *coord,
 
 	data.length = sizeof *dent + name -> d_name.len + 1;
 	data.data   = NULL;
-	data.iplug  = item_plugin_by_id( SIMPLE_DIR_ITEM_ID );
+	data.iplug  = item_plugin_by_id( SIMPLE_DIR_ENTRY_IT );
 	
 	result = insert_by_coord( coord, &data, &entry -> key, lh,
 				  inter_syscall_ra( dir ), NO_RA, 0/*flags*/ );

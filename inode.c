@@ -127,8 +127,8 @@ int reiser4_max_filename_len( const struct inode *inode )
 {
 	assert( "nikita-287", is_reiser4_inode( inode ) );
 	assert( "nikita-1710", 
-		item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> item_type == 
-		DIR_ENTRY_ITEM_TYPE );
+		item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> item_plugin_id == 
+		SIMPLE_DIR_ENTRY_IT );
 	return item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> 
 		s.dir.max_name_len( reiser4_blksize( inode -> i_sb ) );
 }
@@ -151,7 +151,7 @@ int max_hash_collisions( const struct inode *dir )
 item_plugin *get_sd_plugin( const struct inode *inode UNUSED_ARG )
 {
 	assert( "nikita-288", is_reiser4_inode( inode ) );
-	return item_plugin_by_id( SD_ITEM_ID );
+	return item_plugin_by_id( STATIC_STAT_DATA_IT );
 }
 
 /** return information about "repetitive access" (ra) patterns,

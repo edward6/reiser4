@@ -894,7 +894,7 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 	entry.name = &name -> d_name;
 
 	data.data   = ( char * ) &edata;
-	data.iplug  = item_plugin_by_id( CMPND_DIR_ITEM_ID );
+	data.iplug  = item_plugin_by_id( COMPOUND_DIR_IT );
 	data.arg = dir_entry;
 	assert( "nikita-1302", data.iplug != NULL );
 

@@ -359,7 +359,7 @@ static int allocate_incore_sd_base (struct inv_entry * inv_entry)
 }
 
 /* this can be installed as ->init_inv_entry () method of
-   item_plugins[ SD_ITEM_ID ] (fs/reiser4/plugin/item/item.c). 
+   item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). 
    Copies data from on-disk stat-data format into light-weight analog of inode .
    Doesn't hanlde stat-data extensions. */
 

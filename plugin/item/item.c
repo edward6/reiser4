@@ -108,20 +108,20 @@ int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 )
 
 int item_is_extent   (const tree_coord *item)
 {
-	return item_type_by_coord (item) == EXTENT_ITEM_ID;
+	return item_plugin_id_by_coord (item) == EXTENT_POINTER_IT;
 }
 
 int item_is_internal (const tree_coord *item)
 {
 	/* FIXME_JMACD: I wonder if these should assert coord_of_item() */
-	return item_type_by_coord (item) == INTERNAL_ITEM_ID;
+	return item_plugin_id_by_coord (item) == NODE_POINTER_IT;
 }
 
-reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
-	[ SD_ITEM_ID ] = {
+reiser4_plugin item_plugins[ LAST_ITEM_IT ] = {
+	[ STATIC_STAT_DATA_IT ] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
-			.id      = SD_ITEM_ID,
+			.id      = STATIC_STAT_DATA_IT,
 			.pops    = NULL,
 			.label   = "sd",
 			.desc    = "stat-data",
@@ -129,7 +129,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 		},
 		.u = {
 			.item = {
-				.item_type = STAT_DATA_ITEM_TYPE,
+				.item_plugin_id = STATIC_STAT_DATA_IT,
 				.b = {
 					.max_key_inside = single_key,
 					.can_contain_key = NULL,
@@ -164,10 +164,10 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ SIMPLE_DIR_ITEM_ID ] = {
+	[ SIMPLE_DIR_ENTRY_IT ] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
-			.id      = SIMPLE_DIR_ITEM_ID,
+			.id      = SIMPLE_DIR_ENTRY_IT,
 			.pops    = NULL,
 			.label   = "de",
 			.desc    = "directory entry",
@@ -175,7 +175,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 		},
 		.u = {
 			.item = {
-				.item_type = DIR_ENTRY_ITEM_TYPE,
+				.item_plugin_id = SIMPLE_DIR_ENTRY_IT,
 				.b = {
 					.max_key_inside = single_key,
 					.can_contain_key = NULL,
@@ -213,10 +213,10 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ CMPND_DIR_ITEM_ID ] = {
+	[ COMPOUND_DIR_IT ] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
-			.id      = CMPND_DIR_ITEM_ID,
+			.id      = COMPOUND_DIR_IT,
 			.pops    = NULL,
 			.label   = "cde",
 			.desc    = "compressed directory entry",
@@ -224,7 +224,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 		},
 		.u = {
 			.item = {
-				.item_type = DIR_ENTRY_ITEM_TYPE,
+				.item_plugin_id = SIMPLE_DIR_ENTRY_IT,
 				.b = {
 					.max_key_inside = cde_max_key_inside,
 					.can_contain_key = cde_can_contain_key,
@@ -262,10 +262,10 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ INTERNAL_ITEM_ID ] = {
+	[ NODE_POINTER_IT ] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
-			.id      = INTERNAL_ITEM_ID,
+			.id      = NODE_POINTER_IT,
 			.pops    = NULL,
 			.label   = "internal",
 			.desc    = "internal item",
@@ -273,7 +273,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 		},
 		.u = {
 			.item = {
-				.item_type = INTERNAL_ITEM_TYPE,
+				.item_plugin_id = NODE_POINTER_IT,
 				.b = {
 					.max_key_inside = NULL,
 					.can_contain_key = NULL,
@@ -307,10 +307,10 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ EXTENT_ITEM_ID ] = {
+	[ EXTENT_POINTER_IT ] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
-			.id      = EXTENT_ITEM_ID,
+			.id      = EXTENT_POINTER_IT,
 			.pops    = NULL,
 			.label   = "extent",
 			.desc    = "extent item",
@@ -318,7 +318,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 		},
 		.u = {
 			.item = {
-				.item_type = EXTENT_ITEM_TYPE,
+				.item_plugin_id = EXTENT_POINTER_IT,
 				.b = {
 					.max_key_inside = extent_max_key_inside,
 					.can_contain_key = extent_can_contain_key,
@@ -352,10 +352,10 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ BODY_ITEM_ID ] = {
+	[ TAIL_IT ] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
-			.id      = BODY_ITEM_ID,
+			.id      = TAIL_IT,
 			.pops    = NULL,
 			.label   = "body",
 			.desc    = "body (or tail?) item",
@@ -363,7 +363,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 		},
 		.u = {
 			.item = {
-				.item_type = BODY_ITEM_TYPE,
+				.item_plugin_id = TAIL_IT,
 				.b = {
 					.max_key_inside = tail_max_key_inside,
 					.can_contain_key = tail_can_contain_key,

@@ -397,15 +397,15 @@ static int squalloc_children (znode *node, reiser4_blocknr_hint *preceder)
 	do {
 		item_plugin *item = item_plugin_by_coord (& crd);
 
-		switch (item->item_type) {
-		case EXTENT_ITEM_TYPE:
+		switch (item->item_plugin_id) {
+		case EXTENT_POINTER_IT:
 
 			if ((ret = allocate_extent_item_in_place (&crd, preceder))) {
 				return ret;
 			}
 			break;
 
-		case INTERNAL_ITEM_TYPE: {
+		case NODE_POINTER_IT: {
 
 			znode *child = child_znode (& crd, 1);
 
