@@ -386,6 +386,21 @@ static tail_write_todo tail_what_todo (struct inode * inode, new_coord * coord,
 
 
 	if (!znode_contains_key_lock (coord->node, key)) {
+		if (ncoord_is_before_leftmost (coord)) {
+			assert ("vs-684",
+				({
+					int result;
+					spin_lock_tree (current_tree);
+					result = (znode_is_left_connected (coord->node) &&
+						  coord->node->left == 0);
+					spin_unlock_tree (current_tree);
+					result;
+				}));
+			if (get_key_offset (key) == 0)
+				return TAIL_FIRST_ITEM;
+			else
+				return TAIL_CREATE_HOLE;
+		}
 		return TAIL_RESEARCH;
 	}
 
