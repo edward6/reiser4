@@ -356,7 +356,7 @@ __reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 
 		    ret = txnmgr_force_commit_all(get_current_context()->super);
 		    if (ret != 0)
-			    reiser4_panic("umka-1272", "Can't commit transactions durring block allocation\n");
+			    reiser4_panic("umka-1272", "Can't commit transactions during block allocation\n");
 
 		    grab_space_enable();
 		    ret = reiser4_grab(count, flags);
