@@ -313,8 +313,6 @@ typedef struct node_operations {
 	/** called when node is deleted from the tree. This is called from
 	 * zdestroy(). */
 	int ( *delete_node )( reiser4_tree *tree, jnode *node );
-	/** called when node is removed from the memory */
-	int ( *drop_node )( reiser4_tree *tree, jnode *node );
 	/** mark node dirty. This is called from jnode_set_dirty(). */
 	int ( *dirty_node )( reiser4_tree *tree, jnode *node );
 	/** mark node clean. This is called from jnode_set_clean(). */

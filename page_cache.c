@@ -210,34 +210,6 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 	return 0;
 }
 
-/** ->drop_node method of page-cache based tree operations */
-static int page_cache_drop_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
-{
-	struct page *page;
-	spinlock_t  *lock;
-
-	trace_on( TRACE_PCACHE, "drop node: %p\n", node );
-
-	lock = jnode_to_page_lock( node );
-	spin_lock( lock );
-	page = jnode_page( node );
-	trace_if( TRACE_PCACHE, print_page( "drop node", page ) );
-	if( page != NULL ) {
-		assert( "nikita-2182", lock == page_to_jnode_lock( page ) );
-		lock_page( page );
-		assert( "nikita-2126", !PageDirty( page ) );
-		assert( "nikita-2127", PageUptodate( page ) );
-		remove_inode_page( page );
-		unlock_page( page );
-		break_page_jnode_linkage( page, node );
-		spin_unlock( lock );
-		page_cache_release( page );
-		return 0;
-	}
-	spin_unlock( lock );
-	return 0;
-}
-
 /** ->dirty_node method of page-cache based tree operations */
 static int page_cache_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
@@ -528,7 +500,6 @@ static struct address_space_operations formatted_fake_as_ops = {
 
 node_operations page_cache_tops = {
 	.delete_node   = page_cache_delete_node,
-	.drop_node     = page_cache_drop_node,
 	.dirty_node    = page_cache_dirty_node,
 	.clean_node    = page_cache_clean_node
 };

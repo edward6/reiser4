@@ -667,18 +667,15 @@ void jrelse_nolock( jnode *node /* jnode to release references to */ )
 }
 
 
-/* A wrapper around tree->ops->drop_node method */
+/* drop jnode on the floor */
 void jdrop (jnode * node)
 {
-	reiser4_tree * tree = current_tree;
 	int result;
 	struct page *page;
 	spinlock_t  *lock;
 
 	assert( "zam-602", node != NULL );
-	assert( "zam-603", tree->ops != NULL );
-	assert( "zam-604", tree->ops->drop_node != NULL );
-	ON_SMP( assert( "nikita-2362", spin_tree_is_locked( tree ) ) );
+	ON_SMP( assert( "nikita-2362", spin_tree_is_locked( current_tree ) ) );
 
 	/* reference was acquired by other thread. */
 	if( atomic_read( &node -> x_count ) > 0 )
