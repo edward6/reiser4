@@ -176,6 +176,7 @@ struct name {
 };
 typedef struct name name_t;
 
+typedef union lnode lnode;
 
 /* __REISER4_FORWARD_H__ */
 #endif
