@@ -1756,6 +1756,10 @@ static int flush_empty_queue (flush_position *pos, int finish)
 		return 0;
 	}
 
+	/* we can safely traverse this flush queue without locking of atom and
+	 * nodes because only this thread can add nodes to it and all already
+	 * queued nodes are protected from moving out by ZNODE_FLUSH_QUEUED
+	 * bit */
 	node = capture_list_front (&pos->queue);
 	while (!capture_list_end (&pos->queue, node)) {
 		jnode * check = node;
@@ -1779,16 +1783,10 @@ static int flush_empty_queue (flush_position *pos, int finish)
 		if (JF_ISSET (check, ZNODE_FLUSH_BUSY)) {
 
 			if (finish == 0) {
-				txn_atom * atom;
-
-				spin_lock_jnode (check);
-				atom = atom_get_locked_by_jnode (node);
-
 				capture_list_remove (node);
 				capture_list_push_front (&pos->queue, node);
 
-				spin_unlock_atom(atom);
-				spin_unlock_jnode (check);
+				++ refill;
 
 				trace_on (TRACE_FLUSH, "flush_empty_queue refills busy %s\n", flush_jnode_tostring (check));
 				continue;
@@ -1806,11 +1804,6 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			 * leave memory and will remain captured. */
 			flush_dequeue_jnode (pos, check);
 
-			// jnode_set_clean (check);
-			// JF_CLR (check, ZNODE_FLUSH_QUEUED);
-			// jput (check);
-			// pos->num_queue --;
-
 			trace_on (TRACE_FLUSH, "flush_empty_queue skips wandered %s\n", flush_jnode_tostring (check));
 			continue;
 
@@ -1824,12 +1817,9 @@ static int flush_empty_queue (flush_position *pos, int finish)
 		if (PageWriteback (cpage)) {
 			/* FIXME: It is being written, presumably it is clean already?  In
 			 * any case, deal with it later. */
-			/* FIXME-ZAM: This situation seems impossible with new
-			 * flush queue implementation */
+			/* FIXME-ZAM: This situation should be impossible with
+			 * new flush queue implementation */
 			unlock_page (cpage);
-			// JF_CLR (check, ZNODE_FLUSH_QUEUED);
-			// jput (check);
-			// pos->queue[i++] = NULL;
 
 			flush_dequeue_jnode (pos, check);
 			warning ("jmacd-74232", "flush_empty_queue: page in writeback already: %s", flush_jnode_tostring (check));
