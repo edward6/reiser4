@@ -1,6 +1,7 @@
 /* Copyright 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* this file exists only until VM gets fixed to reserve pages properly, which might or might not be very political. */
+/* This file exists only until VM gets fixed to reserve pages properly, which
+ * might or might not be very political. */
 
 /* Implementation of emergency flush. */
 
@@ -36,11 +37,11 @@
      and page replacement finds dirty page on the inactive list, we resort to
      "emergency flush" in our ->vm_writeback().
 
-     Emergency flush is relatively
-     dumb algorithm, implemented in this file, that tries to write tree nodes
-     to the disk without taking locks and without thoroughly optimizing tree
-     layout. We only want to call emergency flush in desperate situations,
-     because it is going to produce sub-optimal disk layouts.
+     Emergency flush is relatively dumb algorithm, implemented in this file,
+     that tries to write tree nodes to the disk without taking locks and without
+     thoroughly optimizing tree layout. We only want to call emergency flush in
+     desperate situations, because it is going to produce sub-optimal disk
+     layouts.
 
   DETAILED DESCRIPTION
 
@@ -102,6 +103,13 @@
       table rather than from jnode itself. This is done in
       jnode_get_io_block() function. After io completes, hash table element
       for this node is removed and JNODE_EFLUSH bit is cleared.
+
+  LOCKING
+
+      The page lock is used to avoid eflush/e-unflush/jnode_get_io_block races.
+      emergency_flush() and jnode_get_io_block are called under the page lock.
+      The eflush_del() function (emergency unflush) may be called for a node w/o
+      page attached.  In that case eflush_del() allocates a page and locks it.
 
   PROBLEMS
 
