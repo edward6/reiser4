@@ -7,11 +7,11 @@
 
 #include "debug.h"
 #include "spin_macros.h"
+#include "statcnt.h"
 
 #include <linux/config.h>
 #include <linux/profile.h>
 #include <linux/kobject.h>
-#include <linux/percpu_counter.h>
 
 #if REISER4_LOCKPROF
 
@@ -20,7 +20,7 @@
 typedef struct percpu_counter scnt_t;
 
 typedef struct locksite {
-	scnt_t      hits;
+	statcnt_t   hits;
 	const char *func;
 	const char *file;
 	int         line;
@@ -28,15 +28,15 @@ typedef struct locksite {
 
 #define LOCKSITE_INIT(name)			\
 	static locksite name = {		\
-		.hits = PERCPU_COUNTER_INIT,	\
+		.hits = STATCNT_INIT,		\
 		.func = __FUNCTION__,		\
 		.file = __FILE__,		\
 		.line = __LINE__		\
 	}
 
 struct profregion {
-	scnt_t         hits;
-	scnt_t         busy;
+	statcnt_t      hits;
+	statcnt_t      busy;
 	struct kobject kobj;
 	void          *obj;
 	int            objhit;
