@@ -360,7 +360,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 	ssize_t result;
 
 	REISER4_ENTRY(file->f_dentry->d_inode->i_sb);
-	write_in_trace("read", file->f_dentry->d_name.name);
+	WRITE_IN_TRACE("read", file->f_dentry->d_name.name);
 
 	assert("umka-072", file != NULL);
 	assert("umka-073", buf != NULL);
@@ -382,7 +382,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 		result = fplug->read(file, buf, size, off);
 	}
 
-	write_in_trace("read", "ex");
+	WRITE_IN_TRACE("read", "ex");
 	REISER4_EXIT(result);
 }
 
@@ -401,7 +401,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 	ssize_t result;
 
 	REISER4_ENTRY((inode = file->f_dentry->d_inode)->i_sb);
-	write_in_trace("write", file->f_dentry->d_name.name);
+	WRITE_IN_TRACE("write", file->f_dentry->d_name.name);
 
 	assert("nikita-1421", file != NULL);
 	assert("nikita-1422", buf != NULL);
@@ -422,7 +422,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 		up(&inode->i_sem);
 	} else
 		result = 0;
-	write_in_trace("write", "ex");
+	WRITE_IN_TRACE("write", "ex");
 	REISER4_EXIT(result);
 }
 
@@ -431,7 +431,7 @@ static void
 reiser4_truncate(struct inode *inode /* inode to truncate */ )
 {
 	__REISER4_ENTRY(inode->i_sb,);
-	write_in_trace("truncate", "in");
+	WRITE_IN_TRACE("truncate", "in");
 
 	assert("umka-075", inode != NULL);
 
@@ -441,7 +441,7 @@ reiser4_truncate(struct inode *inode /* inode to truncate */ )
 	/* for mysterious reasons ->truncate() VFS call doesn't return
 	   value  */
 
-	write_in_trace("truncate", "ex");
+	WRITE_IN_TRACE("truncate", "ex");
 	__REISER4_EXIT(&__context);
 }
 
@@ -840,7 +840,7 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 	struct inode *inode = f->f_dentry->d_inode;
 
 	REISER4_ENTRY(inode->i_sb);
-	write_in_trace("readdir", f->f_dentry->d_name.name);
+	WRITE_IN_TRACE("readdir", f->f_dentry->d_name.name);
 
 	dplug = inode_dir_plugin(inode);
 	if ((dplug != NULL) && (dplug->readdir != NULL))
@@ -849,7 +849,7 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 		result = -ENOTDIR;
 
 	UPDATE_ATIME(inode);
-	write_in_trace("readdir", "ex");
+	WRITE_IN_TRACE("readdir", "ex");
 	REISER4_EXIT(result);
 
 }
@@ -1055,7 +1055,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 	int result;
 	dir_plugin *dplug;
 	REISER4_ENTRY(parent->i_sb);
-	write_in_trace("create", dentry->d_name.name);
+	WRITE_IN_TRACE("create", dentry->d_name.name);
 
 	assert("nikita-426", parent != NULL);
 	assert("nikita-427", dentry != NULL);
@@ -1084,7 +1084,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 	} else
 		result = -EPERM;
 
-	write_in_trace("create", "ex");
+	WRITE_IN_TRACE("create", "ex");
 	REISER4_EXIT(result);
 }
 
@@ -2318,7 +2318,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	assert("nikita-2257", PagePrivate(page));
 	assert("nikita-2259", PageLocked(page));
-	ON_DEBUG_CONTEXT(assert("nikita-2586", lock_counters()->spin_locked == 0));
+	schedulable();
 
 	/* NOTE-NIKITA: this can be called in the context of reiser4 call. It
 	   is not clear what to do in this case. A lot of deadlocks seems be
@@ -2362,6 +2362,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		REISER4_EXIT(1);
 	} else {
 		spin_unlock_jnode(node);
+		schedulable();
 		return 0;
 	}
 }
