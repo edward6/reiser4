@@ -61,7 +61,7 @@ static unsigned long reiser4_get_unmapped_area(struct file *, unsigned long,
 /* super operations */
 
 static struct inode *reiser4_alloc_inode( struct super_block *super );
-static void reiserfs_destroy_inode( struct inode *inode );
+static void reiser4_destroy_inode( struct inode *inode );
 static void reiser4_dirty_inode (struct inode *);
 static void reiser4_write_inode (struct inode *, int);
 static void reiser4_put_inode (struct inode *);
@@ -444,8 +444,9 @@ typedef struct readdir_actor_args {
 	void        *dirent;
 	filldir_t    filldir;
 	struct file *dir;
-	__u64        offset_hi;
-	__u64        offset_lo;
+	__u64        skip;
+	__u64        skipped;
+	reiser4_key  key;
 } readdir_actor_args;
 
 /**
@@ -482,10 +483,10 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 			    filldir_t filldir /* filler function passed to us
 					       * by VFS */ )
 {
-	int           result;
-	struct inode *inode;
-	reiser4_key   key;
-	tree_coord   coord;
+	int                 result;
+	struct inode       *inode;
+	tree_coord          coord;
+	readdir_actor_args  arg;
 	reiser4_lock_handle lh;
 
 	REISER4_ENTRY( f -> f_dentry -> d_inode -> i_sb );
@@ -500,18 +501,20 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	reiser4_init_coord( &coord );
 	reiser4_init_lh( &lh );
 
-	result = build_readdir_key( f, &key );
+	result = build_readdir_key( f, &arg.key );
 	if( result == 0 ) {
-		result = coord_by_key( tree_by_inode( inode ), &key, &coord, &lh,
+		result = coord_by_key( tree_by_inode( inode ), &arg.key, 
+				       &coord, &lh, 
 				       ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN,
 				       LEAF_LEVEL, LEAF_LEVEL, 0 );
 		if( result == CBK_COORD_FOUND ) {
-			readdir_actor_args arg;
 			reiser4_file_fsdata *fsdata;
 
 			arg.dirent   = dirent;
 			arg.filldir  = filldir;
 			arg.dir      = f;
+			arg.skip     = reiser4_get_file_fsdata( f ) -> skip;
+			arg.skipped  = 0;
 
 			result = reiser4_iterate_tree
 				( tree_by_inode( inode ), &coord, &lh, 
@@ -524,12 +527,10 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 				result = 0;
 
 			f -> f_version = inode -> i_version;
-			f -> f_pos = arg.offset_hi;
+			f -> f_pos = get_key_objectid( &arg.key );
 			fsdata = reiser4_get_file_fsdata( f );
-			if( ! IS_ERR( fsdata ) )
-				fsdata -> readdir_offset = arg.offset_lo + 1;
-			else
-				result = PTR_ERR( fsdata );
+			fsdata -> readdir_offset = get_key_offset( &arg.key );
+			fsdata -> skip = arg.skip;
 		}
 	}
 
@@ -799,17 +800,56 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG,
 	if( iplug -> s.dir.extract_key( coord, &sd_key ) != 0 ) {
 		return -EIO;
 	}
+	/*
+	 * get key of directory entry
+	 */
 	unit_key_by_coord( coord, &de_key );
+	/*
+	 * skip some entries that we already processed during previous
+	 * readdir()
+	 */
+	if( keycmp( &de_key, &args -> key ) == EQUAL_TO ) {
+		++ args -> skipped;
+		if( args -> skipped <= args -> skip ) {
+			return 1;
+		}
+		++ args -> skip;
+		assert( "nikita-1719", args -> skip == args -> skipped );
+	} else {
+		assert( "nikita-1720", 
+			keycmp( &de_key, &args -> key ) == GREATER_THAN );
+		args -> skipped = args -> skip = 1;
+		args -> key = de_key;
+	}
+	/*
+	 * send information about directory entry to the ->filldir() filler
+	 * supplied to us by caller (VFS).
+	 */
 	if( args -> filldir( args -> dirent, name, ( int ) strlen( name ),
 			     /* FIXME-NIKITA into kassign.c */
+			     /*
+			      * offset of the next entry
+			      */
 			     ( loff_t ) get_key_objectid( &de_key ), 
 			     /* FIXME-NIKITA into kassign.c */
+			     /*
+			      * inode number of object bounden by this entry
+			      */
 			     ( ino_t ) get_key_objectid( &sd_key ), 
-			     DT_UNKNOWN ) < 0 ) {
+			     iplug -> s.dir.extract_file_type( coord ) ) < 0 ) {
+		/*
+		 * ->filldir() is satisfied.
+		 *
+		 * Last item wasn't passed to the user, so it shouldn't be
+		 * skipped on the next readdir.
+		 */
+		assert( "nikita-1721", args -> skip > 0 );
+		-- args -> skip;
 		return 0;
 	}
-	args -> offset_hi = get_key_objectid( &de_key );
-	args -> offset_lo = get_key_offset( &de_key );
+	/*
+	 * continue with the next entry
+	 */
 	return 1;
 }
 
