@@ -138,9 +138,15 @@ struct jnode
 	reiser4_block_nr blocknr;
 
 	/* 
-	 * pointer to jnode data.
+	 * pointer to jnode page. 
+	 *
+	 * FIXME-NIKITA: Page itself is not enough in a case where block size
+	 * is smaller than page size. For initial version we are going to
+	 * force blocksize == PAGE_CACHE_SIZE. Later, when and if support for
+	 * different block sizes will be added, some bits can be stealed from
+	 * ->level to store number of block within page.
 	 */
-	void        *data;
+	struct page *pg;
 
 	/* atom the block is in, if any */
 	txn_atom    *atom;
@@ -238,7 +244,9 @@ struct znode {
 	 * size of node referenced by this znode. This is not necessary
 	 * block size, because there znodes for extents.
 	 */
+	/* removed for now. We only support blocksize == PAGE_CACHE_SIZE
 	unsigned      size;
+	*/
 
 	/* Let's review why we need delimiting keys other than in the
 	   least common parent node.  It is so as to not have to get a
@@ -622,14 +630,14 @@ extern void   jput( jnode *node );
 /** get the page of jnode */
 static inline char *jdata (const jnode *node)
 {
-	assert( "nikita-1415", node != NULL );
-	return node -> data;
+	assert ("nikita-1415", node != NULL);
+	return node->pg ? page_address (node->pg) : NULL;
 }
 
 /** get the page of jnode */
 static inline struct page *jnode_page (const jnode *node)
 {
-	return virt_to_page (jdata (node));
+	return node->pg;
 }
 
 /** get the level field for a jnode */
@@ -673,6 +681,7 @@ static inline int jnode_is_dirty( const jnode *node )
 }
 
 extern void jnode_attach_to_page( jnode *node, struct page *pg );
+extern void jnode_detach_page( jnode *node );
 
 /** return true if "node" is dirty, node is unlocked */
 static inline int jnode_check_dirty( jnode *node )

@@ -292,19 +292,20 @@ jnode_of_page (struct page* pg)
 			goto again;
 		}
 		pg->private = (unsigned long) jal;
+		SetPagePrivate (pg);
 
 		/* FIXME: jnode_init doesn't take struct page argument, so
 		 * znodes aren't having theirs set. */
 		jnode_init (jal);
 
 		jal->level = LEAF_LEVEL;
-		jal->data  = page_address (pg);
+		jal->pg    = pg;
 
 		JF_SET (jal, ZNODE_UNFORMATTED);
 
 		jal = NULL;
 	}
-	assert ("nikita-2046", ((jnode*) pg->private)->data == page_address (pg));
+	assert ("nikita-2046", ((jnode*) pg->private)->pg == pg);
 
 
 	/* FIXME: This may be called from page_cache.c, read_in_formatted, which

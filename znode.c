@@ -685,7 +685,6 @@ int zload( znode *node /* znode to load */ )
 	reiser4_stat_znode_add( zload );
 	if( ! ZF_ISSET( node, ZNODE_LOADED ) ) {
 		reiser4_tree *tree;
-		char         *data;
 
 		spin_unlock_znode( node );
 		
@@ -701,13 +700,11 @@ int zload( znode *node /* znode to load */ )
 		 * transport. Page reference counter is incremented and page is
 		 * kmapped, it will be decremented and kunmaped in zunload
 		 */
-		result = tree -> ops -> read_node( tree, ZJNODE( node ), &data );
+		result = tree -> ops -> read_node( tree, ZJNODE( node ) );
 		reiser4_stat_znode_add( zload_read );
 		spin_lock_znode( node );
 
 		if( result == 0 ) {
-			ZJNODE( node ) -> data = data;
-			node -> size = reiser4_get_current_sb() -> s_blocksize;
 			ZF_SET( node, ZNODE_LOADED );
 			add_d_ref( node );
 			result = zparse( node );
@@ -726,17 +723,14 @@ int zload( znode *node /* znode to load */ )
 /* Audited by: umka (2002.06.11) */
 int zinit_new( znode *node /* znode to initialise */ )
 {
-	char *data;
 	int   result;
 
 	assert( "nikita-1234", node != NULL );
 	assert( "nikita-1908", current_tree -> ops -> allocate_node != NULL );
 
 	result = current_tree -> ops -> 
-		allocate_node( current_tree, ZJNODE( node ), &data );
+		allocate_node( current_tree, ZJNODE( node ) );
 	if( result == 0 ) {
-		ZJNODE( node ) -> data = data;
-		node -> size = reiser4_get_current_sb() -> s_blocksize;
 		ZF_SET( node, ZNODE_LOADED );
 		ZF_SET( node, ZNODE_ALLOC );
 		add_d_ref( node );
@@ -756,18 +750,11 @@ int zunload( znode *node /* znode to unload */ )
 {
 	assert( "nikita-485", node != NULL );
 	assert( "nikita-486", atomic_read( &node -> d_count ) == 0 );
-
-	/* ZF_CLR( node, ZNODE_LOADED ); ? */
-	/*
-	 * FIXME-NIKITA not very impressive...
-	 */
-	/* node -> data = NULL; ? */
-	/* unload data... */
-	/* kupmap() */
 	assert( "vs-660", current_tree -> ops -> release_node != NULL );
+
 	current_tree -> ops -> release_node( current_tree, ZJNODE( node ) );
 	ZF_CLR( node, ZNODE_LOADED );
-	ZJNODE( node ) -> data = NULL;
+	ZJNODE( node ) -> pg = NULL;
 	return 0;
 }
 
@@ -819,7 +806,7 @@ int zrelse( znode *node /* znode to release references to */ )
 unsigned znode_size( const znode *node /* znode to query */ )
 {
 	assert( "nikita-1416", node != NULL );
-	return node -> size;
+	return PAGE_CACHE_SIZE;
 }
 
 /** returns free space in node */
@@ -1005,10 +992,24 @@ void jnode_attach_to_page( jnode *node, struct page *pg )
 	assert( "nikita-2048", pg != NULL );
 
 	spin_lock( &_jnode_ptr_lock );
-	if( pg -> private == 0ul ) {
-		pg -> private = ( unsigned long ) node;
-		node -> data  = page_address( pg );
-	}
+	assert( "nikita-2050", 
+		( pg -> private == 0ul ) || 
+		( pg -> private == ( unsigned long ) node ) );
+	pg -> private = ( unsigned long ) node;
+	node -> pg  = pg;
+	SetPagePrivate( pg );
+	spin_unlock( &_jnode_ptr_lock );
+}
+
+void jnode_detach_page( jnode *node )
+{
+	assert( "nikita-2052", node != NULL );
+	assert( "nikita-2053", jnode_page( node ) != NULL );
+
+	spin_lock( &_jnode_ptr_lock );
+	jnode_page( node ) -> private = 0ul;
+	ClearPagePrivate( jnode_page( node ) );
+	node -> pg  = NULL;
 	spin_unlock( &_jnode_ptr_lock );
 }
 

@@ -37,7 +37,7 @@
 
 #include "reiser4.h"
 
-static struct page *add_page( struct super_block *super, const jnode *node );
+static struct page *add_page( struct super_block *super, jnode *node );
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -91,111 +91,83 @@ int done_formatted_fake( struct super_block *super )
 	return 0;
 }
 
-/**
- * grab page to back up new jnode.
- */
-void *alloc_jnode_data( struct super_block *super, const jnode *node )
-{
-	struct page *page;
-
-	page = add_page( super, node );
-	if( page != NULL ) {
-		kmap( page );
-		jnode_attach_to_page( node, page );
-		unlock_page( page );
-		return page_address( page );
-	} else
-		return ERR_PTR( -ENOMEM );
-}
-
-/**
+/** 
+ * ->read_node method of page-cache based tree operations 
+ *
  * read @block into page cache and bind it to the formatted fake inode of
  * @super. Kmap the page. Return pointer to the data in @data.
  */
-void *read_in_jnode_data( struct super_block *super, const jnode *node )
+int page_cache_read_node( reiser4_tree *tree, jnode *node )
 {
 	struct page *page;
+
+	assert( "nikita-2037", node != NULL );
+	assert( "nikita-2038", tree != NULL );
 
 	/*
 	 * FIXME-NIKITA: consider using read_cache_page() here.
 	 */
-	page = add_page( super, node );
+	page = add_page( tree -> super, node );
 	if( page != NULL ) {
-		int result;
-
 		if( !PageUptodate( page ) ) {
-			result = page -> mapping -> a_ops -> readpage( NULL, 
+			int result;
+
+			result = page -> mapping -> a_ops -> readpage( NULL,
 								       page );
 			if( result == 0 ) {
 				wait_on_page_locked( page );
 				if( PageUptodate( page ) )
 					mark_page_accessed( page );
 				else
-					result = -EIO;
-			}
-		} else {
-			result = 0;
-			unlock_page( page );
-		}
-		if( result == 0 ) {
-			kmap( page );
-			jnode_attach_to_page( node, page );
-			return page_address( page );
+					return -EIO;
+			} else
+				return result;
 		} else
-			return ERR_PTR( result );
-	} else
-		return ERR_PTR( -ENOMEM );
-}
-
-/** ->read_node method of page-cache based tree operations */
-int page_cache_read_node( reiser4_tree *tree, jnode *node, char **data )
-{
-	void *area;
-
-	assert( "nikita-2037", node != NULL );
-	assert( "nikita-2038", tree != NULL );
-	assert( "nikita-2039", data != NULL );
-
-	area = read_in_jnode_data( tree -> super, node );
-	if( !IS_ERR( area ) ) {
-		*data = area;
+			unlock_page( page );
+		kmap( page );
 		return 0;
 	} else
-		return PTR_ERR( area );
+		return -ENOMEM;
 }
 
-/** ->allocate_node method of page-cache based tree operations */
-int page_cache_allocate_node( reiser4_tree *tree, jnode *node, char **data )
+/** 
+ * ->allocate_node method of page-cache based tree operations 
+ *
+ * grab page to back up new jnode.
+ */
+int page_cache_allocate_node( reiser4_tree *tree, jnode *node )
 {
-	void *area;
+	struct page *page;
 
 	assert( "nikita-2040", tree != NULL );
 	assert( "nikita-2041", node != NULL );
-	assert( "nikita-2042", data != NULL );
 
-	area = alloc_jnode_data( tree -> super, node );
-	if( !IS_ERR( area ) ) {
-		*data = area;
+	page = add_page( tree -> super, node );
+	if( page != NULL ) {
+		unlock_page( page );
+		kmap( page );
 		return 0;
 	} else
-		return PTR_ERR( area );
+		return -ENOMEM;
 }
 
 /** ->delete_node method of page-cache based tree operations */
 int page_cache_delete_node( reiser4_tree *tree, jnode *node )
 {
+	return 0;
 }
 
 /** ->release_node method of page-cache based tree operations */
 int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
+	jnode_detach_page( node );
 	kunmap( jnode_page( node ) );
 	page_cache_release( jnode_page( node ) );
 	return 0;
 }
 
 /** ->dirty_node method of page-cache based tree operations */
-int page_cache_dirty_node( reiser4_tree *tree, jnode *node )
+int page_cache_dirty_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
 	assert( "nikita-2045", JF_ISSET( node, ZNODE_LOADED ) );
 	SetPageDirty( jnode_page( node ) );
@@ -206,7 +178,7 @@ int page_cache_dirty_node( reiser4_tree *tree, jnode *node )
  * add or fetch page corresponding to jnode to/from the page cache.  Return
  * page locked.
  */
-static struct page *add_page( struct super_block *super, const jnode *node )
+static struct page *add_page( struct super_block *super, jnode *node )
 {
 	unsigned long page_idx;
 	struct page  *page;
@@ -236,6 +208,7 @@ static struct page *add_page( struct super_block *super, const jnode *node )
 	 * We are under page lock now, so it can be used as synchronization.
 	 *
 	 */
+	jnode_attach_to_page( node, page );
 	return page;
 }
 

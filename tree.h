@@ -75,9 +75,9 @@ typedef enum {
 
 typedef struct tree_operations {
 	/** read given tree node from persistent storage */
-	int ( *read_node )( reiser4_tree *tree, jnode *node, char **data );
+	int ( *read_node )( reiser4_tree *tree, jnode *node );
 	/** allocate memory for newly created znode */
-	int ( *allocate_node )( reiser4_tree *tree, jnode *node, char **data );
+	int ( *allocate_node )( reiser4_tree *tree, jnode *node );
 	/** called when node is deleted from the tree. */
 	int ( *delete_node )( reiser4_tree *tree, jnode *node );
 	/** called when node is removed from the memory */

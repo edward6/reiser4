@@ -304,6 +304,7 @@ static struct super_block * call_mount (const char * dev_name)
 static spinlock_t inode_hash_guard;
 struct list_head inode_hash_list;
 
+#if 0
 static tree_operations ul_tops = {
 	.read_node     = ulevel_read_node,
 	.allocate_node = ulevel_read_node,
@@ -311,6 +312,7 @@ static tree_operations ul_tops = {
 	.release_node  = ulevel_release_node,
 	.dirty_node    = ulevel_dirty_node
 };
+#endif
 
 static struct inode * alloc_inode (struct super_block * sb)
 {
@@ -681,13 +683,14 @@ struct page * find_get_page (struct address_space * mapping,
 static void truncate_inode_pages (struct address_space * mapping,
 				  loff_t from)
 {
+	struct list_head * tmp;
 	struct list_head * cur;
 	struct page * page;
 	unsigned ind;
 
 
 	ind = (from + PAGE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-	list_for_each (cur, &page_list) {
+	list_for_each_safe (cur, tmp, &page_list) {
 		page = list_entry (cur, struct page, list);
 		if (page->mapping == mapping) {
 			if (page->index >= ind) {
@@ -696,6 +699,12 @@ static void truncate_inode_pages (struct address_space * mapping,
 				remove_inode_page (page);
 				unlock_page (page);
 				page->count --;
+				if (!page->count) {
+					spin_lock( &page_list_guard );
+					list_del_init (&page->list);
+					spin_unlock( &page_list_guard );
+					free (page);
+				}
 			}
 		}
 	}
@@ -751,6 +760,47 @@ struct page *read_cache_page (struct address_space * mapping,
 	return page;
 }
 
+#define page_flag_name( page, flag )			\
+	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag ## "|")+3) : "" )
+
+void print_page( struct page *page )
+{
+	if( page == NULL ) {
+		info( "null page\n" );
+		return;
+	}
+	info( "page index: %lu virtual: %p mapping: %p count: %i private: %lx\n",
+	      page -> index, page -> virtual, page -> mapping, page -> count,
+	      page -> private );
+	info( "flags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s%s\n",
+	      page_flag_name( page,  PG_locked ),
+	      page_flag_name( page,  PG_error ),
+	      page_flag_name( page,  PG_referenced ),
+	      page_flag_name( page,  PG_uptodate ),
+
+	      page_flag_name( page,  PG_dirty_dontuse ),
+	      page_flag_name( page,  PG_lru ),
+	      page_flag_name( page,  PG_active ),
+	      page_flag_name( page,  PG_slab ),
+
+	      page_flag_name( page,  PG_highmem ),
+	      page_flag_name( page,  PG_checked ),
+	      page_flag_name( page,  PG_arch_1 ),
+	      page_flag_name( page,  PG_reserved ),
+
+	      page_flag_name( page,  PG_private ),
+	      page_flag_name( page,  PG_writeback ),
+	      page_flag_name( page,  PG_nosave ),
+	      page_flag_name( page,  PG_kmapped ) );
+}
+
+void page_cache_print()
+{
+	struct list_head * cur;
+
+	list_for_each (cur, &page_list)
+		print_page( list_entry ( cur, struct page, list ) );
+}
 
 int generic_file_mmap(struct file * file UNUSED_ARG,
 		      struct vm_area_struct * vma UNUSED_ARG)
@@ -767,36 +817,6 @@ void wait_on_page_locked(struct page * page)
 		reiser4_stat_file_add (wait_on_page);
 		unlock_page (page);
 	}
-}
-
-
-static void print_page (struct page * page)
-{
-	struct buffer_head * bh;
-
-	if (!page->mapping)
-		return;
-	info ("PAGE: index %lu, count %d, ino %lx%s%s\nbuffers:\n",
-	      page->index, page->count, page->mapping->host->i_ino,
-	      PageLocked (page) ? ", Locked" : "",
-	      PageUptodate (page) ? ", Uptodate" : "");
-
-
-	bh = page_buffers (page);
-	if (!bh) {
-		info ("NULL\n;");
-		return;
-	}
-	do {
-		info ("%Lu%s%s%s%s%s%s\n",
-		      bh->b_blocknr,
-		      buffer_mapped (bh) ? ", Mapped" : "",
-		      buffer_uptodate (bh) ? ", Uptodate" : "",
-		      buffer_locked (bh) ? ", Locked" : "",
-		      buffer_new (bh) ? ", New" : "",
-		      buffer_unallocated (bh) ? ", Unallocated" : "",
-		      buffer_allocated (bh) ? ", Allocated" : "");
-	} while (bh = bh->b_this_page, bh != page_buffers (page));
 }
 
 /* mm/readahead.c */
@@ -1222,18 +1242,13 @@ znode *allocate_znode( reiser4_tree *tree, znode *parent,
 	root = zget( tree, addr, parent, level, GFP_KERNEL );
 
 	if( znode_above_root( root ) ) {
-		ZF_SET( root, ZNODE_LOADED );
-		add_d_ref( root );
 		root -> ld_key = *min_key();
 		root -> rd_key = *max_key();
-		ZJNODE( root ) -> data = xmalloc( 1 );
 		return root;
 	}
-	if( ( mmap_back_end_fd == -1 ) || init_node_p ) {
+	if( init_node_p ) {
 		root -> nplug = node_plugin_by_id( NODE40_ID );
 		result = zinit_new( root );
-	} else {
-		result = zload( root );
 	}
 	assert( "nikita-1171", result == 0 );
 	zrelse( root );
@@ -1528,8 +1543,8 @@ static void call_umount (struct super_block * sb)
 
 	iput (sb->s_root->d_inode);
 
-	fsync_bdev (sb->s_bdev);
 	init_context( old_context, sb );
+	fsync_bdev (sb->s_bdev);
 }
 
 
@@ -2981,7 +2996,7 @@ static void bash_umount (reiser4_context * context)
 
 
 
-static int mkfs_bread (reiser4_tree *tree, jnode *node, char **data)
+static int mkfs_bread (reiser4_tree *tree, jnode *node)
 {
 	struct buffer_head bh, *pbh;
 	struct page *pg;
@@ -2997,25 +3012,22 @@ static int mkfs_bread (reiser4_tree *tree, jnode *node, char **data)
 	bh.b_data = (void *) (pg + 1);
 	pbh = &bh;
 	ll_rw_block (READ, 1, &pbh);
-	*data = bh.b_data;
-	kmap(pg);
 	jnode_attach_to_page (node, pg);
-	kunmap (pg);
+	unlock_page (pg);
+	kmap (pg);
 	return 0;
 }
 
 
-static int mkfs_getblk (reiser4_tree *tree, jnode *node UNUSED_ARG, char **data)
+static int mkfs_getblk (reiser4_tree *tree, jnode *node UNUSED_ARG)
 {
 	struct page *pg;
 
 	pg = new_page (get_super_private (tree->super)->fake->i_mapping,
 		       (unsigned long)*jnode_get_block (node));
 	assert ("nikita-2049", pg);
-	*data = (void *) (pg + 1);
-	kmap(pg);
 	jnode_attach_to_page (node, pg);
-	kunmap (pg);
+	kmap (pg);
 	return 0;
 }
 
@@ -3031,14 +3043,16 @@ static int mkfs_brelse (reiser4_tree *tree, jnode *node)
 	bh.b_blocknr = node->blocknr;
 	bh.b_size = tree->super->s_blocksize;
 	bh.b_bdev = tree->super->s_bdev;
-	bh.b_data = node->data;
+	bh.b_data = jdata (node);
 	pbh = &bh;
 	ll_rw_block (WRITE, 1, &pbh);
+	kunmap (jnode_page (node));
 	JF_CLR (node, ZNODE_DIRTY);
 	spin_lock (&page_list_guard);
 	list_del_init (&jnode_page (node)->list);
 	spin_unlock (&page_list_guard);
-	free ((char *)node->data - sizeof(struct page));
+	jnode_detach_page (node);
+	free (jnode_page (node));
 	return 0;
 }
 
@@ -3166,7 +3180,6 @@ static int bash_mkfs (const char * file_name)
 		sibling_list_insert( root, NULL );
 
 		zput (root);
-		/* zrelse (root); */
 		/*zput (fake);*/
 
 		{
