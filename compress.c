@@ -8,6 +8,9 @@
 
 #include <linux/types.h>
 
+LOCAL void lzrw1_compress(UBYTE *, ULONG, UBYTE *, ULONG *);
+LOCAL void lzrw1_decompress(UBYTE *, ULONG, UBYTE *, ULONG *);
+
 /******************************************************************************/
 /*                         Start of LZRW1.C                                   */
 /******************************************************************************/
@@ -45,12 +48,9 @@
 #define FLAG_BYTES    4     /* Number of bytes used by copy flag. */
 #define FLAG_COMPRESS 0     /* Signals that compression occurred. */
 #define FLAG_COPY     1     /* Signals that a copyover occurred.  */
-void fast_copy(p_src,p_dst,len) /* Fast copy routine.             */
-     UBYTE *p_src,*p_dst; {while (len--) *p_dst++=*p_src++;}
-
 /******************************************************************************/
 
-void lzrw1_compress(p_src_first,src_len,p_dst_first,p_dst_len)
+LOCAL void lzrw1_compress(p_src_first,src_len,p_dst_first,p_dst_len)
      /* Input  : Specify input block using p_src_first and src_len.          */
      /* Input  : Point p_dst_first to the start of the output zone (OZ).     */
      /* Input  : Point p_dst_len to a ULONG to receive the output length.    */
@@ -84,7 +84,11 @@ void lzrw1_compress(p_src_first,src_len,p_dst_first,p_dst_len)
 	PS || PS || PS || PS || PS || PS || s++; len=s-p_src-1;
      *p_dst++=((offset&0xF00)>>4)+(len-1); *p_dst++=offset&0xFF;
      p_src+=len; control=(control>>1)|0x8000; control_bits++;}
+#ifndef linux
    end_unrolled_loop: if (--unroll) goto begin_unrolled_loop;
+#else 
+   /* end_unrolled_loop: */ if (--unroll) goto begin_unrolled_loop;
+#endif
    if (control_bits==16)
      {*p_control=control&0xFF; *(p_control+1)=control>>8;
      p_control=p_dst; p_dst+=2; control=control_bits=0;}
