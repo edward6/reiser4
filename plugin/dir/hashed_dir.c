@@ -748,6 +748,7 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 		seal_done( &fsdata -> entry_seal );
 		result = inode_dir_item_plugin( object ) ->
 			s.dir.add_entry( object, coord, &lh, where, entry );
+
 	} else if( result == 0 ) {
 		assert( "nikita-2232", coord -> node == lh.node );
 		result = -EEXIST;

@@ -31,6 +31,18 @@ void directory_readahead( struct inode *dir /* directory being accessed */,
 	trace_stamp( TRACE_DIR );
 }
 
+/** 
+ * helper function. Standards require than for many file-system operations
+ * on success ctime and mtime of parent directory is to be updated.
+ */
+static int update_dir( struct inode *parent )
+{
+	assert( "nikita-2525", parent != NULL );
+
+	parent -> i_ctime = parent -> i_mtime = CURRENT_TIME;
+	return reiser4_write_sd( parent );
+}
+
 typedef enum { 
 	UNLINK_BY_DELETE, 
 	UNLINK_BY_PLUGIN
@@ -49,7 +61,6 @@ typedef enum {
  *     . close transaction
  *
  */
-/* Audited by: green(2002.06.15) */
 static int common_link( struct inode *parent /* parent directory */, 
 			struct dentry *existing /* dentry of object to which
 						 * new link is being
@@ -96,7 +107,7 @@ static int common_link( struct inode *parent /* parent directory */,
 	result = reiser4_add_nlink( object, 1 );
 	if( result == 0 ) {
 		/* add entry to the parent */
-		result = parent_dplug -> add_entry( parent, 
+		result = parent_dplug -> add_entry( parent,
 						    where, &data, &entry );
 		if( result != 0 ) {
 			/* failure to add entry to the parent, remove
@@ -111,8 +122,16 @@ static int common_link( struct inode *parent /* parent directory */,
 			   that something is going really wrong */
 		}
 	}
-	if( result == 0 )
+	if( result == 0 ) {
 		atomic_inc( &object -> i_count );
+		/*
+		 * Upon successful completion, link() shall mark for update
+		 * the st_ctime field of the file. Also, the st_ctime and
+		 * st_mtime fields of the directory that contains the new
+		 * entry shall be marked for update. --SUS
+		 */
+		result = update_dir( parent );
+	}
 	return result;
 }
 
@@ -205,6 +224,17 @@ static int common_unlink( struct inode *parent /* parent object */,
 			wrong_return_value( "nikita-1478", "uf_type" );
 		}
 	}
+	/*
+	 * Upon successful completion, unlink() shall mark for update the
+	 * st_ctime and st_mtime fields of the parent directory. Also, if the
+	 * file's link count is not 0, the st_ctime field of the file shall be
+	 * marked for update. --SUS
+	 */
+	if( result == 0 )
+		result = update_dir( parent );
+		/*
+		 * @object's i_ctime was updated by ->rem_link() method().
+		 */
 	return result;
 }
 
@@ -321,7 +351,19 @@ static int common_create_child( struct inode *parent /* parent object */,
 		insert_inode_hash( object );
 		/* create entry */
 		result = dplug -> add_entry( parent, dentry, data, &entry );
-		if( result != 0 ) {
+		if( result == 0 ) {
+			/*
+			 * If O_CREAT is set and the file did not previously
+			 * exist, upon successful completion, open() shall
+			 * mark for update the st_atime, st_ctime, and
+			 * st_mtime fields of the file and the st_ctime and
+			 * st_mtime fields of the parent directory. --SUS
+			 */
+			/*
+			 * @object times are already updated by ->set_plug()
+			 */
+			result = update_dir( parent );
+		} else {
 			if( fplug -> destroy_stat_data != NULL ) {
 				/*
 				 * failure to create entry,

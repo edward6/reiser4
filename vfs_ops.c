@@ -841,9 +841,9 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 		}
 	}
 
-	UPDATE_ATIME( inode );
 	done_lh( &lh );
 
+	UPDATE_ATIME( inode );
 	REISER4_EXIT( result );
 }
 
@@ -1423,6 +1423,19 @@ static void reiser4_destroy_inode( struct inode *inode /* inode being
 		inode_clr_flag( inode, REISER4_GENERIC_VP_USED );
 	}
 	kmem_cache_free( inode_cache, reiser4_inode_data( inode ) );
+}
+
+/** -> dirty_inode() super operation */
+static void reiser4_dirty_inode( struct inode *inode )
+{
+	int result;
+
+	assert( "nikita-2523", inode != NULL );
+
+	result = reiser4_write_sd( inode );
+	if( result != 0 )
+		warning( "nikita-2524", "Failed to write sd of %llu: %i",
+			 get_inode_oid( inode ), result );
 }
 
 
@@ -2364,7 +2377,7 @@ struct super_operations reiser4_super_operations = {
    	.alloc_inode        = reiser4_alloc_inode, /* d */
 	.destroy_inode      = reiser4_destroy_inode, /* d */
 	.read_inode         = noop_read_inode, /* d */
-/* 	.dirty_inode        = reiser4_dirty_inode, */
+ 	.dirty_inode        = reiser4_dirty_inode, /* d */
 /* 	.write_inode        = reiser4_write_inode, */
 /* 	.put_inode          = reiser4_put_inode, */
 /* 	.delete_inode       = reiser4_delete_inode, */
