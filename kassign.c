@@ -355,6 +355,19 @@ cmp_t de_id_key_cmp( const de_id *id, const reiser4_key *key )
 	return keycmp( &k1, key );
 }
 
+extern const reiser4_key ROOT_DIR_KEY;
+
+/** true if key of root directory sd */
+int is_root_dir_key( const struct super_block *super, const reiser4_key *key )
+{
+	assert( "nikita-1819", super != NULL );
+	assert( "nikita-1820", key != NULL );
+	/*
+	 * FIXME-NIKITA this should call disk plugin.
+	 */
+	return keycmp( key, &ROOT_DIR_KEY ) == EQUAL_TO;
+}
+
 /* 
  * Make Linus happy.
  * Local variables:
