@@ -257,15 +257,14 @@ loff_t inode_scaled_offset (struct inode * inode,
 	
 	assert("edward-97", inode != NULL);
 	
-	stat = inode_crypto_stat(inode);
-	
-	assert("edward-98", stat != NULL);
-	
 	cplug = inode_crypto_plugin(inode);
 	
-	if (!cplug && src_off == get_key_offset(max_key()))
+	if (!cplug || src_off == get_key_offset(max_key()))
 		return src_off;
 
+	stat = inode_crypto_stat(inode);
+	
+	assert("edward-98", stat != NULL);	
 	assert("edward-99", stat->keysize != 0);
 	
 	size = cplug->blocksize(stat->keysize);
@@ -446,7 +445,7 @@ key_by_inode_cryptcompress(struct inode *inode, loff_t off, reiser4_key * key)
 	
 	build_sd_key(inode, key);
 	set_key_type(key, KEY_BODY_MINOR);
-	set_key_offset(key, (__u64) inode_scaled_offset(inode, off));
+	set_key_offset(key, (__u64) (!inode_crypto_stat(inode) ? off : inode_scaled_offset(inode, off)));
 	return 0;
 }
 
@@ -674,7 +673,6 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	size_t buff_size = 0;
 	
 	assert("edward-401", clust->buf != NULL);
-	assert("edward-409", clust->len != 0);
 	
 	if (try_compress(clust, inode)) {
 		/* try to compress, discard bad results */
@@ -1063,7 +1061,7 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 		UNLOCK_JNODE(j);
 		return 0;
 	}
-	result = reiser4_grab_space_force(inode_cluster_pages(inode), 0, msg);
+	result = reiser4_grab_space_force(estimate_insert_flow(current_tree->height) + estimate_one_insert_into_item(current_tree), 0, msg);
 	if (result)
 		return result;
 	JF_SET(j, JNODE_MAPPED);
