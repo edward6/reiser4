@@ -61,7 +61,9 @@ typedef enum {
 	 * directories. */
 	REISER4_NO_PSEUDO = 5,
 	/* load all bitmap blocks at mount time */
-	REISER4_DONT_LOAD_BITMAP = 6
+	REISER4_DONT_LOAD_BITMAP = 6,
+	REISER4_USE_XATTR = 7,
+	REISER4_USE_ACL = 8
 } reiser4_fs_flag;
 
 #if REISER4_STATS
@@ -74,6 +76,7 @@ typedef struct reiser4_level_stats_kobj {
 #endif
 
 typedef struct object_ops {
+	struct super_operations         super;
 	struct file_operations          file;
 	struct dentry_operations        dentry;
 	struct address_space_operations as;
@@ -82,6 +85,8 @@ typedef struct object_ops {
 	struct inode_operations         dir;
 	struct inode_operations         symlink;
 	struct inode_operations		special;
+
+	struct export_operations        export;
 } object_ops;
 
 /* reiser4-specific part of super block
@@ -379,9 +384,6 @@ static inline reiser4_super_info_data *
 get_super_private(const struct super_block * super)
 {
 	assert("nikita-447", super != NULL);
-	assert("nikita-2245",
-	       (super->s_op == NULL) ||
-	       (super->s_op == &reiser4_super_operations));
 
 	return (reiser4_super_info_data *) super->s_fs_info;
 }

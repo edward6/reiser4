@@ -195,8 +195,10 @@ void
 xattr_clean(struct inode *inode)
 {
 	reiser4_inode *info;
+	reiser4_context ctx;
 
 	info = reiser4_inode_data(inode);
+	init_context(&ctx, inode->i_sb);
 	while (!xattr_list_empty(&info->xattr_namespaces)) {
 		xattr_namespace *ns;
 
@@ -204,6 +206,8 @@ xattr_clean(struct inode *inode)
 		xattr_list_remove(ns);
 		reiser4_kfree(ns, sizeof *ns);
 	}
+	context_set_commit_async(&ctx);
+	reiser4_exit_context(&ctx);
 }
 
 /* Make Linus happy.

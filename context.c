@@ -94,8 +94,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	assert("nikita-2662", !in_interrupt() && !in_irq());
 	assert("nikita-3356", context != NULL);
 	assert("nikita-3357", super != NULL);
-	assert("nikita-3358",
-	       super->s_op == NULL || super->s_op == &reiser4_super_operations);
+	assert("nikita-3358", super->s_op == NULL || is_reiser4_super(super));
 
 	xmemset(context, 0, sizeof *context);
 

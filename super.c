@@ -213,7 +213,7 @@ reiser4_internal __u64 flush_reserved (const struct super_block *super)
 	assert ("vpf-285", super != NULL);
 	assert ("vpf-286", is_reiser4_super (super));
 
-	return get_super_private (super) -> blocks_flush_reserved;
+	return get_super_private(super)->blocks_flush_reserved;
 }
 
 reiser4_internal void
@@ -222,7 +222,7 @@ set_flush_reserved (const struct super_block *super, __u64 nr)
 	assert ("vpf-282", super != NULL);
 	assert ("vpf-283", is_reiser4_super (super));
 
-	get_super_private (super) -> blocks_flush_reserved = nr;
+	get_super_private(super)->blocks_flush_reserved = nr;
 }
 
 /* get/set value of/to counter of fake allocated formatted blocks */
@@ -324,7 +324,10 @@ reiser4_internal int
 is_reiser4_super(const struct super_block *super	/* super block
 							 * queried */ )
 {
-	return (super != NULL) && (super->s_op == &reiser4_super_operations);
+	return
+		super != NULL &&
+		get_super_private(super) != NULL &&
+		super->s_op == &get_super_private(super)->ops.super;
 }
 
 reiser4_internal int
@@ -468,12 +471,34 @@ reiser4_blocknr_is_sane(const reiser4_block_nr *blk)
 reiser4_internal void
 build_object_ops(struct super_block *super, object_ops *ops)
 {
+	struct inode_operations iops;
+
 	assert("nikita-3248", super != NULL);
 	assert("nikita-3249", ops   != NULL);
 
+	iops = reiser4_inode_operations;
+
+	ops->super  = reiser4_super_operations;
+	ops->export = reiser4_export_operations;
+
+	super->s_op        = &ops->super;
+	super->s_export_op = &ops->export;
+
+	if (!reiser4_is_set(super, REISER4_USE_XATTR)) {
+		iops.setxattr = NULL;
+		iops.getxattr = NULL;
+		iops.listxattr = NULL;
+		iops.removexattr = NULL;
+	}
+
+	if (!reiser4_is_set(super, REISER4_USE_ACL)) {
+		ops->super.clear_inode = NULL;
+	}
+
+	ops->regular = iops;
+	ops->dir     = iops;
+
 	ops->file    = reiser4_file_operations;
-	ops->regular = reiser4_inode_operations;
-	ops->dir     = reiser4_inode_operations;
 	ops->symlink = reiser4_symlink_inode_operations;
 	ops->special = reiser4_special_inode_operations;
 	ops->dentry  = reiser4_dentry_operations;
@@ -483,6 +508,7 @@ build_object_ops(struct super_block *super, object_ops *ops)
 		ops->regular.lookup = NULL;
 		ops->file.open = NULL;
 	}
+
 }
 
 #if REISER4_DEBUG_OUTPUT

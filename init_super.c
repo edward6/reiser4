@@ -55,6 +55,7 @@ _INIT_(sinfo)
 		return RETERR(-ENOMEM);
 
 	s->s_fs_info = sbinfo;
+	s->s_op = NULL;
 	xmemset(sbinfo, 0, sizeof (*sbinfo));
 
 	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
@@ -64,8 +65,6 @@ _INIT_(sinfo)
 
 	sema_init(&sbinfo->delete_sema, 1);
 	sema_init(&sbinfo->flush_sema, 1);
-	s->s_op = &reiser4_super_operations;
-	s->s_export_op = &reiser4_export_operations;
 	spin_super_init(sbinfo);
 	spin_super_eflush_init(sbinfo);
 
@@ -107,6 +106,14 @@ _INIT_(parse_options)
 }
 
 _DONE_EMPTY(parse_options)
+
+_INIT_(object_ops)
+{
+	build_object_ops(s, &get_super_private(s)->ops);
+	return 0;
+}
+
+_DONE_EMPTY(object_ops)
 
 _INIT_(read_super)
 {
@@ -243,14 +250,6 @@ _DONE_(disk_format)
 {
 	get_super_private(s)->df_plug->release(s);
 }
-
-_INIT_(object_ops)
-{
-	build_object_ops(s, &get_super_private(s)->ops);
-	return 0;
-}
-
-_DONE_EMPTY(object_ops)
 
 _INIT_(sb_counters)
 {	
@@ -401,6 +400,7 @@ static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(stat),
 	_SUBSYS(context),
 	_SUBSYS(parse_options),
+	_SUBSYS(object_ops),
 	_SUBSYS(read_super),
 	_SUBSYS(tree0),
 	_SUBSYS(txnmgr),
@@ -408,7 +408,6 @@ static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(entd),
 	_SUBSYS(formatted_fake),
 	_SUBSYS(disk_format),
-	_SUBSYS(object_ops),
 	_SUBSYS(sb_counters),
 	_SUBSYS(cbk_cache),
 	_SUBSYS(fs_root),
