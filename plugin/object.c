@@ -2,47 +2,47 @@
 
 /* Examples of object plugins: file, directory, symlink, special file */
 /* Plugins associated with inode:
-  
+
    Plugin of inode is plugin referenced by plugin-id field of on-disk
    stat-data. How we store this plugin in in-core inode is not
    important. Currently pointers are used, another variant is to store
    offsets and do array lookup on each access.
-  
+
    Now, each inode has one selected plugin: object plugin that
    determines what type of file this object is: directory, regular etc.
-  
+
    This main plugin can use other plugins that are thus subordinated to
    it. Directory instance of object plugin uses hash; regular file
    instance uses tail policy plugin.
-  
+
    Object plugin is either taken from id in stat-data or guessed from
    i_mode bits. Once it is established we ask it to install its
    subordinate plugins, by looking again in stat-data or inheriting them
    from parent.
 */
 /* How new inode is initialized during ->read_inode():
-    1 read stat-data and initialize inode fields: i_size, i_mode, 
+    1 read stat-data and initialize inode fields: i_size, i_mode,
       i_generation, capabilities etc.
-    2 read plugin id from stat data or try to guess plugin id 
+    2 read plugin id from stat data or try to guess plugin id
       from inode->i_mode bits if plugin id is missing.
     3 Call ->init_inode() method of stat-data plugin to initialise inode fields.
     4 Call ->activate() method of object's plugin. Plugin is either read from
       from stat-data or guessed from mode bits
     5 Call ->inherit() method of object plugin to inherit as yet initialized
       plugins from parent.
-  
+
    Easy induction proves that on last step all plugins of inode would be
    initialized.
-  
+
    When creating new object:
     1 obtain object plugin id (see next period)
     2 ->install() this plugin
     3 ->inherit() the rest from the parent
-  
+
 */
 /* We need some examples of creating an object with default and
   non-default plugin ids.  Nikita, please create them.
- 
+
 */
 
 #include "../forward.h"
@@ -82,7 +82,7 @@ key_warning(const reiser4_key * key /* key to print */,
 {
 	assert("nikita-716", key != NULL);
 
-	warning("nikita-717", "Error for inode %llu (%i)", 
+	warning("nikita-717", "Error for inode %llu (%i)",
 		get_key_objectid(key), code);
 	print_key("for key", key);
 }
@@ -95,7 +95,7 @@ check_inode_seal(const struct inode *inode,
 	reiser4_key unit_key;
 
 	unit_key_by_coord(coord, &unit_key);
-	assert("nikita-2752", 
+	assert("nikita-2752",
 	       WITH_DATA_RET(coord->node, 1, keyeq(key, &unit_key)));
 	assert("nikita-2753", get_inode_oid(inode) == get_key_objectid(key));
 }
@@ -112,7 +112,7 @@ check_sd_coord(coord_t *coord, const reiser4_key *key)
 	if (!coord_is_existing_unit(coord) ||
 	    !item_plugin_by_coord(coord) ||
 	    !keyeq(unit_key_by_coord(coord, &ukey), key) ||
-	    (znode_get_level(coord->node) != LEAF_LEVEL) || 
+	    (znode_get_level(coord->node) != LEAF_LEVEL) ||
 	    !item_is_statdata(coord)) {
 		warning("nikita-1901", "Conspicuous seal");
 		print_key("key", key);
@@ -161,13 +161,13 @@ lookup_sd_by_key(reiser4_tree * tree /* tree to look in */ ,
 	assert("nikita-720", key != NULL);
 
 	result = 0;
-	/* look for the object's stat data in a tree. 
+	/* look for the object's stat data in a tree.
 	   This returns in "node" pointer to a locked znode and in "pos"
 	   position of an item found in node. Both are only valid if
 	   coord_found is returned. */
 	flags = (lock_mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
 	flags |= CBK_UNIQUE;
-	result = coord_by_key(tree, key, coord, lh, lock_mode, 
+	result = coord_by_key(tree, key, coord, lh, lock_mode,
 			      FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags, 0/*ra_info*/);
 	if (REISER4_DEBUG && result == 0)
 		check_sd_coord(coord, key);
@@ -222,15 +222,15 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	coord_init_zero(&coord);
 	init_lh(&lh);
 
-	result = insert_by_key(tree_by_inode(inode), 
-			       build_sd_key(inode, &key), 
-			       &data, 
-			       &coord, 
+	result = insert_by_key(tree_by_inode(inode),
+			       build_sd_key(inode, &key),
+			       &data,
+			       &coord,
 			       &lh,
 			       /* stat data lives on a leaf level */
-			       LEAF_LEVEL, 
-			       inter_syscall_ra(inode), 
-			       NO_RAP, 
+			       LEAF_LEVEL,
+			       inter_syscall_ra(inode),
+			       NO_RAP,
 			       CBK_UNIQUE);
 
 	/* we don't want to re-check that somebody didn't insert
@@ -320,7 +320,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 }
 
 static int
-update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key, 
+update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	     lock_handle * lh)
 {
 	int                result;
@@ -345,8 +345,8 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	   from if negative) sd */
 	if (!inode_get_flag(inode, REISER4_SDLEN_KNOWN)) {
 		/* recalculate stat-data length */
-		data.length = 
-			data.iplug->s.sd.save_len(inode) - 
+		data.length =
+			data.iplug->s.sd.save_len(inode) -
 			item_length_by_coord(coord);
 		inode_set_flag(inode, REISER4_SDLEN_KNOWN);
 	} else
@@ -545,8 +545,8 @@ delete_file_common(struct inode *inode /* object to remove */ )
 		reserve = estimate_one_item_removal(tree_by_inode(inode));
 		if (reiser4_grab_space_force(reserve,
 					     BA_RESERVED | BA_CAN_COMMIT, "common_file_delete")) {
-			warning("nikita-2847", 
-				"Cannot delete unnamed sd of %lli. Run fsck", 
+			warning("nikita-2847",
+				"Cannot delete unnamed sd of %lli. Run fsck",
 				get_inode_oid(inode));
 			return RETERR(-ENOSPC);
 		}
@@ -617,10 +617,10 @@ set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
 }
 
 /* Determine object plugin for @inode based on i_mode.
-  
+
    Most objects in reiser4 file system are controlled by standard object
    plugins: regular file, directory, symlink, fifo, and so on.
-  
+
    For such files we don't explicitly store plugin id in object stat
    data. Rather required plugin is guessed from mode bits, where file "type"
    is encoded (see stat(2)).
@@ -659,9 +659,9 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 		break;
 	}
 	info = reiser4_inode_data(inode);
-	plugin_set_file(&info->pset, 
+	plugin_set_file(&info->pset,
 			(fplug_id >= 0) ? file_plugin_by_id(fplug_id) : NULL);
-	plugin_set_dir(&info->pset, 
+	plugin_set_dir(&info->pset,
 		       (dplug_id >= 0) ? dir_plugin_by_id(dplug_id) : NULL);
 	return 0;
 }
@@ -691,7 +691,7 @@ create_common(struct inode *object, struct inode *parent UNUSED_ARG,
 	assert("nikita-747", data != NULL);
 	assert("nikita-748", inode_get_flag(object, REISER4_NO_SD));
 
-	if (reiser4_grab_space(reserve = 
+	if (reiser4_grab_space(reserve =
 			       estimate_create_file_common(object), BA_CAN_COMMIT, "common_file_create")) {
 		return RETERR(-ENOSPC);
 	}
@@ -914,20 +914,20 @@ detach_dir(struct inode *child, struct inode *parent)
 
 /* this common implementation of update estimation function may be used when stat data update does not do more than
    inserting a unit into a stat data item which is probably true for most cases */
-reiser4_block_nr 
+reiser4_block_nr
 estimate_update_common(const struct inode *inode)
 {
 	return estimate_one_insert_into_item(tree_by_inode(inode));
 }
 
-static reiser4_block_nr 
-estimate_unlink_common(struct inode *object UNUSED_ARG, 
+static reiser4_block_nr
+estimate_unlink_common(struct inode *object UNUSED_ARG,
 		       struct inode *parent UNUSED_ARG)
 {
 	return 0;
 }
 
-static reiser4_block_nr 
+static reiser4_block_nr
 estimate_unlink_dir_common(struct inode *object, struct inode *parent)
 {
 	dir_plugin *dplug;

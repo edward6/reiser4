@@ -79,7 +79,7 @@ print_sd(const char *prefix /* prefix to print */ ,
 			if ((mask & 1) && (sdplug->print != NULL)) {
 				/* alignment is not supported in node layout
 				   plugin yet.
-				 result = align( inode, &len, &sd, 
+				 result = align( inode, &len, &sd,
 				 sdplug -> alignment );
 				 if( result != 0 )
 				 return result; */
@@ -177,7 +177,7 @@ align(struct inode *inode /* object being processed */ ,
 	return 0;
 }
 
-/* this is installed as ->init_inode() method of 
+/* this is installed as ->init_inode() method of
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c).
     Copies data from on-disk stat-data format into inode.
     Handles stat-data extensions. */
@@ -221,7 +221,7 @@ init_inode_static_sd(struct inode *inode /* object being processed */ ,
 				assert("nikita-628", sdplug->present);
 				/* alignment is not supported in node layout
 				   plugin yet.
-				 result = align( inode, &len, &sd, 
+				 result = align( inode, &len, &sd,
 				 sdplug -> alignment );
 				 if( result != 0 )
 				 return result; */
@@ -288,8 +288,8 @@ save_len_static_sd(struct inode *inode /* object being processed */ )
 
 			sdplug = sd_ext_plugin_by_id(bit);
 			assert("nikita-633", sdplug != NULL);
-			/* no aligment support 
-			   result += 
+			/* no aligment support
+			   result +=
 			   round_up( result, sdplug -> alignment ) - result; */
 			result += sdplug->save_len(inode);
 		}
@@ -329,7 +329,7 @@ save_static_sd(struct inode *inode /* object being processed */ ,
 				sdplug = sd_ext_plugin_by_id(bit);
 				assert("nikita-636", sdplug != NULL);
 				/* no alignment support yet
-				   align( inode, &len, area, 
+				   align( inode, &len, area,
 				   sdplug -> alignment ); */
 				result = sdplug->save(inode, area);
 				if (result)
@@ -794,7 +794,7 @@ absent_plugin_sd(struct inode *inode /* object being processed */ )
 	result = guess_plugin_by_mode(inode);
 	/* if mode was wrong, guess_plugin_by_mode() returns "regular file",
 	   but setup_inode_ops() will call make_bad_inode().
-	   Another, more logical but bit more complex solution is to add 
+	   Another, more logical but bit more complex solution is to add
 	   "bad-file plugin". */
 	/* FIXME-VS: activate was called here */
 	return result;
@@ -929,7 +929,7 @@ save_plugin_sd(struct inode *inode /* object being processed */ ,
 
 /* helper function for crypto_sd_present(), crypto_sd_save.
    Allocates memory for crypto stat, keyid and attaches it to the inode */
- 
+
 static int crypto_stat_to_inode (struct inode *inode,
 				 crypto_stat_t * tmp,
 				 unsigned int size /* fingerprint size */)
@@ -1000,7 +1000,7 @@ static int save_len_crypto_sd(struct inode *inode)
 	return (sizeof(reiser4_crypto_stat) + inode_digest_plugin(inode)->digestsize);
 }
 
-static int save_crypto_sd(struct inode *inode, char **area) 
+static int save_crypto_sd(struct inode *inode, char **area)
 {
 	int result = 0;
 	reiser4_crypto_stat *sd;
@@ -1013,7 +1013,7 @@ static int save_crypto_sd(struct inode *inode, char **area)
 	
 	sd = (reiser4_crypto_stat *) *area;
 	if (!inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED)) {
-		/* file is just created */ 
+		/* file is just created */
 		crypto_stat_t * stat = reiser4_inode_data(inode)->crypt;
 		
 		assert("edward-15", stat != NULL);

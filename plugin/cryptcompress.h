@@ -30,7 +30,7 @@ typedef enum {
    This manager contains mostly operations with the following object: */   
 typedef struct reiser4_cluster{
 	__u8 * buf;      /* pointer to the contiguous region where crypto/compression algorithms live */
-	size_t len;      /* size of the region above */  
+	size_t len;      /* size of the region above */
 	int nr_pages;    /* number of attached pages */
 	struct page ** pages; /* attached pages */
 	struct file * file;
@@ -48,7 +48,7 @@ typedef struct reiser4_cluster{
 typedef struct crypto_stat {
 	__u8 * keyid;  /* key public id */
 	__u16 keysize; /* key size, bits */
-} crypto_stat_t; 
+} crypto_stat_t;
 
 typedef struct cryptcompress_info {
 	/* cpu-key words */
