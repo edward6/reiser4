@@ -431,15 +431,14 @@ init_once(void *obj /* pointer to new inode */ ,
 		/* NOTE-NIKITA add here initializations for locks, list heads,
 		   etc. that will be added to our private inode part. */
 		inode_init_once(&info->vfs_inode);
-		info->p.eflushed_anon = 0;
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		init_rwsem(&info->p.coc_sem);
 		sema_init(&info->p.loading, 1);
 		/*INIT_LIST_HEAD(&info->p.eflushed_jnodes);
 		  INIT_LIST_HEAD(&info->p.anon_jnodes);*/
-		INIT_RADIX_TREE(&info->p.ef_jnodes, GFP_ATOMIC);
-		ON_DEBUG(info->p.eflushed = 0);
-		ON_DEBUG(info->p.anon_eflushed = 0);
+		INIT_RADIX_TREE(ef_jnode_tree_by_reiser4_inode(&info->p), GFP_ATOMIC);
+		ON_DEBUG(info->p.captured_eflushed = 0);
+		ON_DEBUG(info->p.anonymous_eflushed = 0);
 	}
 }
 
@@ -513,9 +512,9 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 
 	info = reiser4_inode_data(inode);
 
-	assert("vs-1220", info->ef_jnodes.rnode == NULL);
-	assert("vs-1222", info->eflushed == 0);
-	assert("vs-1428", info->anon_eflushed == 0);
+	assert("vs-1220", ef_jnode_tree_by_reiser4_inode(info)->rnode == NULL);
+	assert("vs-1222", info->captured_eflushed == 0);
+	assert("vs-1428", info->anonymous_eflushed == 0);
 
 #if 0
 	{
@@ -532,7 +531,6 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 
 	if (!is_bad_inode(inode) && is_inode_loaded(inode)) {
 
-		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
 		if (inode_get_flag(inode, REISER4_GENERIC_PTR_USED)) {
 			assert("vs-839", S_ISLNK(inode->i_mode));
 			reiser4_kfree_in_sb(inode->u.generic_ip, inode->i_sb);
