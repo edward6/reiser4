@@ -16,7 +16,7 @@ static const char *const minor_names[] = {
 const char *key40_m2n(key40_minor_t type) {
     if (type > KEY40_LAST_MINOR)
 	type = KEY40_LAST_MINOR;
-	    
+    
     return minor_names[type];
 }
 
@@ -32,13 +32,15 @@ static key40_minor_t key40_t2m(reiser4_key_type_t type) {
 	case KEY_ATTRBODY_TYPE:
 	    return KEY40_ATTRBODY_MINOR;
 	default:
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Invalid key type has been detected 0x%x.", type);
 	    return 0xff;
     }
 }
 
 /* Translates key type from key40 to libreiser4 one */
-static reiser4_key_type_t key40_m2t(key40_minor_t type) {
-    switch (type) {
+static reiser4_key_type_t key40_m2t(key40_minor_t minor) {
+    switch (minor) {
 	case KEY40_FILENAME_MINOR:
 	    return KEY_FILENAME_TYPE;
 	case KEY40_STATDATA_MINOR:
@@ -48,6 +50,8 @@ static reiser4_key_type_t key40_m2t(key40_minor_t type) {
 	case KEY40_ATTRBODY_MINOR:
 	    return KEY_ATTRBODY_TYPE;
 	default:
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Invalid key minor has been detected 0x%x.", minor);
 	    return 0xff;
     }
 }

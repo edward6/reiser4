@@ -67,7 +67,7 @@ error_free_object:
 */
 reiser4_object_t *reiser4_dir_create(
     reiser4_fs_t *fs,		    /* filesystem dir will be created on */
-    reiser4_object_hint_t *hint,   /* directory hint */
+    reiser4_object_hint_t *hint,    /* directory hint */
     reiser4_plugin_t *plugin,	    /* plugin to be used */
     reiser4_object_t *parent,	    /* parent object */
     const char *name		    /* name of entry */

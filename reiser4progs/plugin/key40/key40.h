@@ -58,25 +58,16 @@ union key40 {
 typedef union key40 key40_t;
 
 typedef enum {
-    /* 
-	Major locality occupies higher 60 bits of 
-	the first element.
-    */
+    /* Major locality occupies higher 60 bits of the first element */
     KEY40_LOCALITY_MASK    = 0xfffffffffffffff0ull,
-    /* 
-	Minor locality occupies lower 4 bits of 
-	the first element.
-    */
+    
+    /* Minor locality occupies lower 4 bits of the first element */
     KEY40_TYPE_MASK        = 0xfull,
-    /* 
-	Controversial band occupies higher 4 bits 
-	of the 2nd element.
-    */
+    
+    /* Controversial band occupies higher 4 bits of the 2nd element */
     KEY40_BAND_MASK        = 0xf000000000000000ull,
-    /* 
-	Objectid occupies lower 60 bits of the 2nd 
-	element.
-    */
+    
+    /* Objectid occupies lower 60 bits of the 2nd element */
     KEY40_OBJECTID_MASK    = 0x0fffffffffffffffull,
     
     /* Offset is just 3rd L.M.Nt itself */
@@ -85,11 +76,9 @@ typedef enum {
     /* Hash occupies 56 higher bits of 3rd element */
     KEY40_HASH_MASK        = 0xffffffffffffff00ull,
     
-    /* 
-	Generation counter occupies lower 8 bits of 
-	3rd element.
-    */
+    /* Generation counter occupies lower 8 bits of 3rd element */
     KEY40_GEN_MASK         = 0xffull,
+
 } key40_mask_t;
 
 #define OID_CHARS (sizeof(uint64_t) - 1)
