@@ -1198,8 +1198,6 @@ move_lh_internal(lock_handle * new, lock_handle * old, int unlink_old)
 
 	WLOCK_ZLOCK(&node->lock);
 
-	new->node = node;
-
 	signaled = old->signaled;
 	if (unlink_old) {
 		unlink_object(old);
