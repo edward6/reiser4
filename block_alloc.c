@@ -709,12 +709,12 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 {
 	space_allocator_plugin *splug;
 	__u64 needed = *len;
-	block_stage_t stage = BLOCK_NOT_COUNTED;
-	int ret;
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
+	int ret;
 
-	/* yes */
+	assert ("zam-986", hint != NULL);
+
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
 	
@@ -726,19 +726,16 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	ON_TRACE(TRACE_ALLOC,
 		 "alloc_blocks: requested %llu, search from %llu\n",
 		 (unsigned long long) *len, (unsigned long long) (hint ? hint->blk : ~0ull));
-	if (hint != NULL) {
-		stage = hint->block_stage;
 
-		/* If blocknr hint isn't set we use per fs "blocknr_hint default" */
-		/* FIXME-ZAM: should a mount option control this? */
-		if (hint->blk == 0) {
-			reiser4_spin_lock_sb(sbinfo);
-			hint->blk = sbinfo->blocknr_hint_default;
-			reiser4_stat_inc(block_alloc.nohint);
-			assert("zam-677",
-			       hint->blk < sbinfo->block_count);
-			reiser4_spin_unlock_sb(sbinfo);
-		}
+	/* If blocknr hint isn't set we use per fs "blocknr_hint default" */
+	/* FIXME-ZAM: should a mount option control this? */
+	if (hint->blk == 0) {
+		reiser4_spin_lock_sb(sbinfo);
+		hint->blk = sbinfo->blocknr_hint_default;
+		reiser4_stat_inc(block_alloc.nohint);
+		assert("zam-677",
+		       hint->blk < sbinfo->block_count);
+		reiser4_spin_unlock_sb(sbinfo);
 	}
 	
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
@@ -753,7 +750,6 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	ret = splug->alloc_blocks(get_space_allocator(ctx->super), hint, (int) needed, blk, len);
 
 	if (!ret) {
-
 		assert("zam-680", *blk < reiser4_block_count(ctx->super));
 		assert("zam-681", *blk + *len <= reiser4_block_count(ctx->super));
 
