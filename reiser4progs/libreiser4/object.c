@@ -124,7 +124,7 @@ static error_t reiserfs_object_lookup(reiserfs_object_t *object, const char *nam
 	    return -1;
 	}
 
-	track[strlen(track)] = '/';
+	track[aal_strlen(track)] = '/';
     }
     
     return 0;

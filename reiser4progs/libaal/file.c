@@ -74,7 +74,8 @@ static int file_equals(aal_device_t *device1, aal_device_t *device2) {
     if (!device1 || !device2)
 	return 0;
 	  
-    return !strcmp((char *)device1->data, (char *)device2->data);
+    return !aal_strncmp((char *)device1->data, 
+	(char *)device2->data, aal_strlen((char *)device1->data));
 }
 
 static uint32_t file_stat(aal_device_t *device) {

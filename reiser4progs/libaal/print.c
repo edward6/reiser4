@@ -96,7 +96,7 @@ repeat:
 			break;
 		    }
 		    case 'c' : {
-			char c = va_arg(arg_list, char);
+			char c = va_arg(arg_list, int);
 			*buff = c; fmt++;
 			break;
 		    }

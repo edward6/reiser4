@@ -38,8 +38,6 @@ AC_ARG_ENABLE(debug,
 )
 AC_SUBST(PROGS_LDFLAGS)
 
-AM_CONDITIONAL(STATIC, test x$enable_static = xyes)
-
 AM_ENABLE_SHARED
 
 AC_ARG_ENABLE(compact,
@@ -96,6 +94,10 @@ AC_SYS_LARGEFILE
 CFLAGS="$CFLAGS -D_FILE_OFFSET_BITS=${ac_cv_sys_file_offset_bits}"
 
 AM_PROG_LIBTOOL
+
+dnl LIBTOOL="sh libtool --debug"
+dnl AC_SUBST(LIBTOOL)
+
 
 # Checks for header files.
 AC_HEADER_STDC

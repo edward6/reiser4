@@ -8,7 +8,7 @@
 
 #define aal_device_check_routine(device, routine, action)		    \
     do {								    \
-	if (!device->ops->##routine##) {				    \
+	if (!device->ops->routine) {					    \
 	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,		    \
 		"Device operation \"" #routine "\" isn't implemented.");    \
 	    action;							    \

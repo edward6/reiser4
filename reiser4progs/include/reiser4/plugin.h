@@ -585,19 +585,19 @@ typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 
 #define libreiser4_plugin_call(action, ops, method, args...)	    \
     ({								    \
-	if (!ops.##method##) {					    \
+	if (!ops.method) {					    \
 	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,	    \
 		"Method \"" #method "\" isn't implemented in %s.",  \
 		#ops);						    \
 	    action;						    \
 	}							    \
-	ops.##method##(##args);					    \
+	ops.method(args);					    \
     })
 
 #else
 
 #define libreiser4_plugin_call(action, ops, method, args...)	    \
-    ({ops.##method##(##args);})					    \
+    ({ops.method(args);})					    \
     
 #endif
 
@@ -633,7 +633,7 @@ extern void libreiser4_factory_done(void);
     do {							    \
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,	    \
 	    "Can't " #oper " " #type " plugin by its id %x.",	    \
-	    ##id##);						    \
+	    id);						    \
 	action;							    \
     } while (0)
 

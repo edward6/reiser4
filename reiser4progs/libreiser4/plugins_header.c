@@ -1,6 +1,6 @@
 /*
-    plugins_header.c -- this just defines __plugin_start symbol at the start of .plugins
-    ELF-section. It is needed for monolithic building.
+    plugins_header.c -- this just defines __plugin_start symbol at the 
+    start of .plugins ELF-section. It is needed for monolithic building.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
