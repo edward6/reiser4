@@ -15,7 +15,9 @@ extern int bitmap_destroy_allocator (reiser4_space_allocator *, struct super_blo
 extern int bitmap_alloc_blocks      (reiser4_space_allocator *,
 			       reiser4_blocknr_hint *, int needed,
 			       reiser4_block_nr *start, reiser4_block_nr *len);
-
+extern void bitmap_dealloc_blocks (reiser4_space_allocator *,
+				const reiser4_block_nr *,
+				const reiser4_block_nr *);
 extern void bitmap_pre_commit_hook (void);
 extern void bitmap_post_commit_hook (void);
 
