@@ -697,7 +697,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	   tree traversal and have to be done before an locks are taken.
 	*/
 	if (is_dir && (new_inode != NULL) && (is_dir_empty(new_inode) != 0))
-		return -ENOTEMPTY;
+		return RETERR(-ENOTEMPTY);
 
 	res = hashed_rename_estimate_and_grab(old_dir, old_name, new_dir, new_name);
 	if (res)
@@ -726,7 +726,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 			/* VFS told us that @new_name is bound to existing
 			   inode, but we failed to find directory entry. */
 			warning("nikita-2324", "Target not found");
-			result = -ENOENT;
+			result = RETERR(-ENOENT);
 		}
 	} else {
 		/* target (@new_name) doesn't exists. */
@@ -855,7 +855,7 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 		}
 	} else if (result == 0) {
 		assert("nikita-2232", coord->node == lh.node);
-		result = -EEXIST;
+		result = RETERR(-EEXIST);
 	}
 	done_lh(&lh);
 
@@ -1072,7 +1072,7 @@ entry_actor(reiser4_tree * tree UNUSED_ARG /* tree being scanned */ ,
 	if (args->non_uniq > args->max_non_uniq) {
 		args->not_found = 1;
 		/* hash collision overflow. */
-		return -EBUSY;
+		return RETERR(-EBUSY);
 	}
 #endif
 
