@@ -270,7 +270,8 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to
 			}
 		} else if (retval == -ENOENT) {
 			/* object not found */
-			d_add(dentry, NULL);
+			if (!IS_DEADDIR(parent))
+				d_add(dentry, NULL);
 			retval = 0;
 			name = NULL;
 		}
