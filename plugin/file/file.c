@@ -10,6 +10,7 @@
 #include "../../prof.h"
 
 #include <linux/writeback.h>
+#include <linux/swap.h>
 
 /* this file contains file plugin of regular reiser4 files. Those files are either built of tail items only (TAIL_ID) or
    of extent items only (EXTENT_POINTER_ID) or empty (have no items but stat data) */
@@ -1056,6 +1057,9 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
    the read method for the unix_file plugin 
 
 */
+int first_read_started = 0;
+int second_read_started = 0;
+
 ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t * off)
 {
 	int result;
@@ -1065,7 +1069,7 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 	flow_t f;
 	hint_t hint;
 	size_t read;
-	reiser4_block_nr needed;
+	static reiser4_block_nr needed = 0;
 	ra_info_t ra_info;
 	int (*read_f) (struct file *, coord_t *, flow_t *);
 	unix_file_info_t *uf_info;
@@ -1077,12 +1081,109 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 	inode = file->f_dentry->d_inode;
 	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 	uf_info = unix_file_inode_data(inode);
-	
-	/* opt read is here */
+
+#if 0
+	/* FIXME: remove me */
+
+	if (*off == 0) {
+		if (first_read_started == 1) {
+			/* second read started */
+			second_read_started = 1;
+		} else {
+			first_read_started = 1;
+			needed = unix_file_estimate_read(inode, read_amount);
+		}
+	}
+
+	if (second_read_started == 1) {
+		/* short read */
+		struct page *page;
+
+		get_nonexclusive_access(uf_info);
 		
-	get_nonexclusive_access(uf_info);
+		/*needed = unix_file_estimate_read(inode, read_amount);*/
+		needed = tree_by_inode(inode)->estimate_one_insert;
+
+		result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
+		if (result != 0) {
+			drop_nonexclusive_access(uf_info);
+			return RETERR(-ENOSPC);
+		}
+		result = unix_file_build_flow(inode, buf, 1 /* user space */ , read_amount, *off, READ_OP, &f);
+		if (unlikely(result)) {
+			drop_nonexclusive_access(uf_info);
+			return result;
+		}
+		result = load_file_hint(file, &hint);
+		if (unlikely(result)) {
+			drop_nonexclusive_access(uf_info);
+			return result;
+		}
+#if 1
+		/* initialize readahead info */
+		ra_info.key_to_stop = f.key;
+		set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
+#endif
+
+		read = 0;
+		while (read_amount) {
+			if (*off == 0) {
+				result = find_file_item(&hint, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, &ra_info, uf_info, 0);
+				BUG_ON(result != CBK_COORD_FOUND);
+			} else {
+				result = seal_validate(&hint.seal, &hint.coord, &f.key,
+						       hint.level, &lh, FIND_MAX_NOT_MORE_THAN, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI);
+				BUG_ON(result != 0);
+			}
+
+			page = find_get_page(inode->i_mapping, *off >> PAGE_CACHE_SHIFT);
+			BUG_ON(page == NULL);
+			BUG_ON(!PageUptodate(page));
+			mark_page_accessed(page);
+/*
+			reiser4_lock_page(page);
+			if (PagePrivate(page)) {
+				jnode *j;
+				j = jnode_by_page(page);
+				if (REISER4_USE_EFLUSH && j)
+					UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
+			}
+			reiser4_unlock_page(page);
+*/
+			__copy_to_user(buf, kmap(page), PAGE_CACHE_SIZE);
+			kunmap(page);
+			page_cache_release(page);
 			
-	needed = unix_file_estimate_read(inode, read_amount);
+			*off += PAGE_CACHE_SIZE;
+			buf += PAGE_CACHE_SIZE;
+			read_amount -= PAGE_CACHE_SIZE;
+			read += PAGE_CACHE_SIZE;
+
+			if (*off == PAGE_CACHE_SIZE) {
+				set_hint(&hint, &f.key, &coord, COORD_RIGHT_STATE);
+			}
+/*
+			move_coord_pages(&coord, 1);
+			set_key_offset(&f.key, get_key_offset(&f.key) + PAGE_CACHE_SIZE);
+			set_hint(&hint, &f.key, &coord, COORD_RIGHT_STATE);
+*/
+			done_lh(&lh);
+
+		}
+		if (*off == PAGE_CACHE_SIZE)
+			save_file_hint(file, &hint);
+
+		drop_nonexclusive_access(uf_info);
+		return read;
+		
+	}
+	/* FIXME: remove the above */
+#endif
+
+	
+	get_nonexclusive_access(uf_info);
+	
+	needed = tree_by_inode(inode)->estimate_one_insert;/*unix_file_estimate_read(inode, read_amount);*/
 	result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
 	if (result != 0) {
 		drop_nonexclusive_access(uf_info);
@@ -1107,7 +1208,7 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 	}
 	/* initialize readahead info */
 	ra_info.key_to_stop = f.key;
-	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
+	set_key_offset(&ra_info.key_to_stop, ~0ull/*get_key_offset(max_key())*/);
 	
 	while (f.length) {
 		loff_t cur_offset;
@@ -1135,7 +1236,7 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 			break;
 		}
 
-		result = zload_ra(coord.node, &ra_info);
+		result = zload_ra(coord.node, 0/*&ra_info*/);
 		if (unlikely(result)) {
 			longterm_unlock_znode(&lh);
 			return result;
@@ -1665,7 +1766,7 @@ key_by_inode_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
 {
 	key_init(key);
 	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
-	set_key_objectid(key, get_inode_oid(inode));
+	set_key_objectid(key, /*get_inode_oid(inode)*/inode->i_ino);
 	set_key_type(key, KEY_BODY_MINOR);
 	set_key_offset(key, (__u64) off);
 	return 0;
