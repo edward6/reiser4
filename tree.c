@@ -1323,13 +1323,14 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 
 /* cut_tree, the new version. */
 
-static int delete_node (znode * node)
+static int delete_node (znode * left, znode * node)
 {
 	lock_handle parent_lock;
 	coord_t cut_from;
 	coord_t cut_to;
 	int ret;
 
+	assert ("zam-937", node != NULL);
 	assert ("zam-933", znode_is_write_locked(node));
 
 	init_lh(&parent_lock);
@@ -1354,25 +1355,20 @@ static int delete_node (znode * node)
 	if (ret)
 		goto failed;
 
+	atomic_dec(&parent_lock.node->c_count);
+	node->in_parent.node = NULL;
+
 	/* @node should be deleted after unlocking. */
 	ZF_SET(node, JNODE_HEARD_BANSHEE);
 
+	if (left) 
+		UNDER_RW(dk, current_tree, write, left->rd_key = node->rd_key);
+
  failed:
-	zrelse(node);
+	zrelse(parent_lock.node);
  failed_nozrelse:
 	done_lh(&parent_lock);
 
-	return ret;
-}
-
-static int node_can_be_cut_completely (znode * node, const reiser4_key * from_key, const reiser4_key * to_key)
-{
-	int ret;
-	reiser4_tree * tree = current_tree;
-	assert ("zam-935", znode_is_write_locked(node));
-	RLOCK_DK(tree);
-	ret = keyle(from_key, &node->ld_key) && keylt(&node->rd_key, to_key);
-	RUNLOCK_DK(tree);
 	return ret;
 }
 
@@ -1382,6 +1378,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 	coord_t left_coord;
 	reiser4_key smallest_removed;
 	int result;
+	long iterations = 0;
 
 	assert("zam-931", tap->coord->node != NULL);
 	assert("zam-932", znode_is_write_locked(tap->coord->node));
@@ -1391,12 +1388,21 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 	while (1) {
 		node_plugin *nplug;
 
-		if (node_can_be_cut_completely(tap->coord->node, from_key, to_key))
-			result = delete_node(tap->coord->node);
-		else {
+		/* Advance the intranode_from position to the next node. */
+		result = reiser4_get_left_neighbor(&next_node_lock, tap->coord->node, 
+						   ZNODE_WRITE_LOCK, GN_DO_READ);
+		if ((result != 0) && (result != -E_NO_NEIGHBOR))
+			break;
+
+		if (iterations && UNDER_RW(dk, current_tree, read, keyle(from_key, &tap->coord->node->ld_key))) {
+			result = delete_node(next_node_lock.node, tap->coord->node);
+		} else {
 			result = tap_load(tap);
 			if (result)
 				return result;
+
+			if (iterations)
+				coord_init_last_unit(tap->coord, tap->coord->node);
 
 			/* Prepare the second (right) point for cut_node() */
 			nplug = tap->coord->node->nplug;
@@ -1404,7 +1410,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 			assert("vs-686", nplug);
 			assert("vs-687", nplug->lookup);
 
-			result = nplug->lookup(tap->coord->node, to_key, FIND_EXACT, &left_coord);
+			result = nplug->lookup(tap->coord->node, from_key, FIND_EXACT, &left_coord);
 
 			if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
 				break;
@@ -1412,7 +1418,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 			/* cut data from one node */
 			smallest_removed = *min_key();
 			result = cut_node(&left_coord, tap->coord, from_key, to_key, 
-					  &smallest_removed, DELETE_KILL, /*flags */ 0, 0/*inode*/);
+					  &smallest_removed, DELETE_KILL, next_node_lock.node, NULL);
 			tap_relse(tap);
 			if (result)
 				break;
@@ -1424,16 +1430,17 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key, const rei
 				break;
 		}
 
-		/* Advance the intranode_from position to the next node. */
-		result = reiser4_get_left_neighbor(&next_node_lock, tap->coord->node, ZNODE_WRITE_LOCK, 0);
-		if (result)
+		if (next_node_lock.node == NULL)
 			break;
 
 		result = tap_move(tap, &next_node_lock);
+		done_lh(&next_node_lock);
 		if (result)
 			break;
-	}
 
+		++ iterations;
+	}
+	done_lh(&next_node_lock);
 	// assert("vs-301", !keyeq(&smallest_removed, min_key()));
 	return result;
 }
@@ -1450,6 +1457,7 @@ cut_tree(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key, const rei
 	assert("umka-329", tree != NULL);
 	assert("umka-330", from_key != NULL);
 	assert("umka-331", to_key != NULL);
+	assert("zam-936", keyle(from_key, to_key));
 
 	write_tree_trace(tree, tree_cut, from_key, to_key);
 	init_lh(&lock);
