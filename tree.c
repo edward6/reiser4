@@ -1280,8 +1280,9 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 							 * removed */ ,
 		  znode * locked_left_neighbor,	/* this is set when kill_node_content is called with left neighbor
 						 * locked (in squalloc_right_twig_cut, namely) */
-		  struct inode *inode /* inode of file whose item (or its part) is to be killed. This is necessary to
-					 invalidate pages together with item pointing to them */)
+		  struct inode *inode, /* inode of file whose item (or its part) is to be killed. This is necessary to
+					 invalidate pages together with item pointing to them */
+		  int truncate)	/* this call is made for file truncate)  */
 {
 	int result;
 	carry_pool *pool;
@@ -1303,6 +1304,7 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 	kdata.params.from_key = from_key;
 	kdata.params.to_key = to_key;
 	kdata.params.smallest_removed = smallest_removed;
+	kdata.params.truncate = truncate;
 	kdata.flags = 0;
 	kdata.inode = inode;
 	kdata.left = &left_child;
@@ -1342,7 +1344,7 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 }
 
 void
-fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end)
+fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end, int truncate)
 {
 	if (inode_get_flag(inode, REISER4_HAS_MMAP)) {
 		pgoff_t start_pg, end_pg;
@@ -1355,13 +1357,13 @@ fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end)
 			 * kill up to the page boundary.
 			 */
 			assert("vs-123456", start_pg == end_pg);
-			reiser4_invalidate_pages(inode->i_mapping, start_pg, 1);
+			reiser4_invalidate_pages(inode->i_mapping, start_pg, 1, truncate);
 		} else if (start_pg != end_pg) {
 			/*
 			 * page boundary is within killed portion of node.
 			 */
 			assert("vs-654321", end_pg - start_pg == 1);
-			reiser4_invalidate_pages(inode->i_mapping, end_pg, end_pg - start_pg);
+			reiser4_invalidate_pages(inode->i_mapping, end_pg, end_pg - start_pg, 1);
 		}
 	}
 	inode_sub_bytes(inode, end - start);
@@ -1383,7 +1385,7 @@ fake_kill_hook_tail(struct inode *inode, loff_t start, loff_t end)
  * "i_blocks" and "i_bytes" fields of the @object.
  */
 reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
-			struct inode * object)
+			struct inode * object, int truncate)
 {
 	lock_handle parent_lock;
 	coord_t cut_from;
@@ -1468,7 +1470,7 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
 			   containing item we remove and can not call item's kill hook. Instead we call function which
 			   does exactly the same things as tail kill hook in assumption that node we avoid reading
 			   contains only one item and that item is a tail one. */
-			fake_kill_hook_tail(object, start_offset, end_offset);
+			fake_kill_hook_tail(object, start_offset, end_offset, truncate);
 		}
 	}
  failed:
@@ -1494,7 +1496,7 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
 reiser4_internal int
 cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 				    const reiser4_key * to_key, reiser4_key * smallest_removed,
-				    struct inode * object)
+				    struct inode * object, int truncate)
 {
 	lock_handle next_node_lock;
 	coord_t left_coord;
@@ -1521,7 +1523,7 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 		if (iterations && znode_get_level(node) == LEAF_LEVEL &&
 		    UNDER_RW(dk, current_tree, read, keyle(from_key, znode_get_ld_key(node))))
 		{
-			result = delete_node(node, smallest_removed, object);
+			result = delete_node(node, smallest_removed, object, truncate);
 		} else {
 			result = tap_load(tap);
 			if (result)
@@ -1572,13 +1574,9 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 
 			/* cut data from one node */
 			*smallest_removed = *min_key();
-			result = kill_node_content(&left_coord,
-						   tap->coord,
-						   from_key,
-						   to_key,
-						   smallest_removed,
-						   next_node_lock.node,
-						   object);
+			result = kill_node_content(&left_coord, tap->coord, from_key, to_key,
+						   smallest_removed, next_node_lock.node,
+						   object, truncate);
 			tap_relse(tap);
 		}
 		if (result)
@@ -1662,7 +1660,7 @@ cut_tree_worker_common (tap_t * tap, const reiser4_key * from_key,
 reiser4_internal int
 cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 		const reiser4_key * to_key, reiser4_key * smallest_removed_p,
-		struct inode * object)
+		struct inode * object, int truncate)
 {
 	lock_handle lock;
 	int result;
@@ -1670,7 +1668,7 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 	coord_t right_coord;
 	reiser4_key smallest_removed;
 	int (*cut_tree_worker)(tap_t *, const reiser4_key *, const reiser4_key *,
-			       reiser4_key *, struct inode *);
+			       reiser4_key *, struct inode *, int);
 	STORE_COUNTERS;
 
 	assert("umka-329", tree != NULL);
@@ -1697,7 +1695,7 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 			cut_tree_worker = inode_file_plugin(object)->cut_tree_worker;
 		tap_init(&tap, &right_coord, &lock, ZNODE_WRITE_LOCK);
 		result = cut_tree_worker(
-			&tap, from_key, to_key, smallest_removed_p, object);
+			&tap, from_key, to_key, smallest_removed_p, object, truncate);
 		tap_done(&tap);
 
 		preempt_point();
@@ -1731,12 +1729,12 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
  * cut_tree_object. */
 reiser4_internal int
 cut_tree(reiser4_tree *tree, const reiser4_key *from, const reiser4_key *to,
-	 struct inode *inode)
+	 struct inode *inode, int truncate)
 {
 	int result;
 
 	do {
-		result = cut_tree_object(tree, from, to, NULL, inode);
+		result = cut_tree_object(tree, from, to, NULL, inode, truncate);
 	} while (result == -E_REPEAT);
 
 	return result;
