@@ -92,12 +92,12 @@ union reiser4_dblock_nr {
 	d64      blk;
 };
 
-static inline __u64 dblock_to_cpu (const reiser4_dblock_nr *dblock)
+static inline reiser4_block_nr dblock_to_cpu (const reiser4_dblock_nr *dblock)
 {
 	return d64tocpu (& dblock->blk);
 }
 
-static inline void cpu_to_dblock (__u64 block, reiser4_dblock_nr *dblock)
+static inline void cpu_to_dblock (reiser4_block_nr block, reiser4_dblock_nr *dblock)
 {
 	cputod64 (block, & dblock->blk);
 }

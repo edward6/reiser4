@@ -1064,11 +1064,10 @@ static reiser4_block_nr blocknr_by_coord_in_extent (tree_coord * coord,
 }
 
 
-/*
- * FIXME-VS: add code to get jnode by blocknumber
+/**
+ * Return the child or child's block number according to the utmost_child interface.
  */
-/* FIXME_JMACD: See flush.c:jnode_lock_parent_coord(), it can almost do that. */
-int extent_utmost_child ( const tree_coord *coord, sideof side, int flags, jnode **child, reiser4_block_nr *blocknr )
+int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp, reiser4_block_nr *blockp )
 {
 	reiser4_extent * ext;
 	reiser4_block_nr pos_in_unit;
@@ -1097,8 +1096,19 @@ int extent_utmost_child ( const tree_coord *coord, sideof side, int flags, jnode
 		block = 0;
 		break;
 	case UNALLOCATED_EXTENT:
+		/* FIXME_JMACD: add code to get jnode by blocknumber */
 		impossible ("vs-364", "what here?");
 	}
+
+	if (blockp != NULL) {
+		*blockp = block;
+	}
+
+	if (block == 0 || childp == NULL) {
+		return 0;
+	}
+
+	/* FIXME_JMACD: Working on this. */
 
 	return 0;
 }
