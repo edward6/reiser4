@@ -476,7 +476,7 @@ struct task_struct {
 };
 
 struct block_device {
-	int fd;
+	int bd_dev;
 	void * vp;
 };
 
