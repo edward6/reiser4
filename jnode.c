@@ -580,6 +580,9 @@ int jload_gfp (jnode * node, int gfp_flags)
 	assert("nikita-3010", schedulable());
 	write_node_trace(node);
 
+	/* taking d-reference implies taking x-reference. */
+	jref(node);
+
 	/*
 	 * acquiring d-reference to @jnode and check for JNODE_LOADED bit
 	 * should be atomic, otherwise there is a race against jrelse().
@@ -641,10 +644,12 @@ int jload_gfp (jnode * node, int gfp_flags)
 		mark_page_accessed(page);
 
 	JF_SET(node, JNODE_LOADED);
+	PROF_END(jload, jload);
 	return 0;
 
  failed:
 	jrelse(node);
+	PROF_END(jload, jload);
 	return result;
 	
 }
@@ -669,6 +674,7 @@ int jinit_new (jnode * node)
 	struct page * page;
 	int result;
 
+	jref(node);
 	add_d_ref(node);
 
 	page = jnode_get_page_locked(node, GFP_KERNEL);
@@ -740,6 +746,8 @@ jrelse(jnode * node /* jnode to release references to */)
 		JF_CLR(node, JNODE_LOADED);
 	}
 	UNLOCK_JNODE(node);
+	/* release reference acquired in jload_gfp() or jinit_new() */
+	jput(node);
 	PROF_END(jrelse, jrelse);
 }
 
@@ -1308,7 +1316,7 @@ jnode_invariant_f(const jnode * node,
 		/* [jnode-refs] invariant */
 
 		/* only referenced jnode can be loaded */
-		_check(ergo(node->d_count > 0, atomic_read(&node->x_count) > 0));
+		_check(atomic_read(&node->x_count) >= node->d_count);
 
 }
 
