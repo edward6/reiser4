@@ -1741,7 +1741,11 @@ try_commit_txnh(commit_data *cd)
 			 * atom right now to avoid stalling other threads
 			 * working in the same directory.
 			 */
-			cd->wake_ktxnmgrd_up = 1;
+
+			/* Wake the ktxnmgrd up if the ktxnmgrd is needed to
+			 * commit this atom: no atom waiters and only one (our)
+			 * open transaction handle. */
+			cd->wake_ktxnmgrd_up = atom->txnh_count == 1 && atom->nr_waiters == 0;
 			atom_send_event(cd->atom);
 			result = 0;
 		} else if (!atom_can_be_committed(cd->atom)) {
