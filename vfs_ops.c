@@ -617,7 +617,17 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 {
 	file_plugin *fplug;
 
-	assert("vs-1146", is_in_reiser4_context());
+	if (!is_in_reiser4_context()) {
+		/* no readahead in the path: handle_mm_fault->do_no_page->filemap_nopage->page_cache_readaround */
+		unsigned i;
+
+		for (i = 0; i < nr_pages; i++) {
+			struct page *page = list_entry(pages->prev, struct page, list);
+			list_del(&page->list);
+			page_cache_release(page);
+		}
+		return 0;
+	}
 
 	fplug = inode_file_plugin(mapping->host);
 	if (fplug->readpages)
