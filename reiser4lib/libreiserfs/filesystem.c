@@ -63,7 +63,7 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 	if (!(format36 = reiserfs_plugins_find_by_coords(REISERFS_FORMAT_PLUGIN, 0x2)))
 	    goto error_free_block;
 		
-	reiserfs_plugin_check_routine(format36->format, probe, goto error_free_block);
+	reiserfs_check_method(format36->format, probe, goto error_free_block);
 	if (!format36->format.probe(fs->device))
 	    goto error_free_block;
 		

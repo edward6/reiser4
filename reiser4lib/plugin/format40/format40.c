@@ -141,7 +141,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device,
 	goto error_free_format;
     }
 
-    reiserfs_plugin_check_routine(plugin->alloc, use, goto error_free_format);
+    reiserfs_check_method(plugin->alloc, use, goto error_free_format);
     
     /* Marking the skiped area (0-16 blocks) as used */
     for (blk = 0; blk < (blk_t)(REISERFS_MASTER_OFFSET / aal_device_get_blocksize(device)); blk++)
@@ -253,7 +253,7 @@ static reiserfs_plugin_t format40_plugin = {
 	
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, reiserfs_opaque_t *))
 	    reiserfs_format40_create,
-	
+
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format40_close,
 	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_sync,
 	.check = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_check,

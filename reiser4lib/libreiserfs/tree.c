@@ -151,11 +151,11 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from,
 	    return 0;
 	}
 	
-//	reiserfs_plugin_check_routine(plugin->item.common, is_internal, return 0);
+	reiserfs_check_method(plugin->item.common, is_internal, return 0);
 	if (!plugin->item.common.is_internal(item_info->data, item_info->plugin_id))
 	    return 1;
 	
-//	reiserfs_plugin_check_routine(plugin->item.specific.internal, down_link, return 0);
+	reiserfs_check_method(plugin->item.specific.internal, down_link, return 0);
 	from = plugin->item.specific.internal.down_link(item_info->data, coord->unit_pos);
     }
     return 0;

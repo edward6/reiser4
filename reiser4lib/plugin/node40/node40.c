@@ -186,7 +186,7 @@ static int reiserfs_node40_lookup(reiserfs_node40_t *node, reiserfs_key_t *key,
 	if there is no item lookup method implemented, return coord with 
 	unit_pos == -1.
 	
-	reiserfs_plugin_check_routine(plugin->item, lookup, return coord);
+	reiserfs_check_method(plugin->item, lookup, return coord);
 	plugin->item->common.lookup(key, coord);*/
     }
     

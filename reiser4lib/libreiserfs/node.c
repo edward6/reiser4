@@ -37,7 +37,7 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
 	goto error_free_block;
     }
     
-    reiserfs_plugin_check_routine(node->plugin->node, open, return NULL);
+    reiserfs_check_method(node->plugin->node, open, return NULL);
     
     if (!(node->entity = node->plugin->node.open (node->device, node->block))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,		
@@ -86,7 +86,7 @@ reiserfs_node_t *reiserfs_node_create(
 	goto error_free_node;
     }
     
-    reiserfs_plugin_check_routine(node->plugin->node, create, goto error_free_node);
+    reiserfs_check_method(node->plugin->node, create, goto error_free_node);
     if (!(node->entity = node->plugin->node.create(node->device, node->block, level))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Node plugin hasn't been able to create a node on block %d.", blk);
@@ -113,7 +113,7 @@ void reiserfs_node_close(reiserfs_node_t *node) {
 error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     aal_assert("umka-123", node != NULL, return -1);
 
-    reiserfs_plugin_check_routine(node->plugin->node, check, return -1);
+    reiserfs_check_method(node->plugin->node, check, return -1);
     return node->plugin->node.check(node->entity, flags);
 }
 
@@ -126,7 +126,7 @@ reiserfs_coord_t *reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *ke
     if (!(coord = aal_calloc(sizeof(*coord), 0)))
 	return NULL;
 
-    reiserfs_plugin_check_routine(node->plugin->node, lookup, return NULL);
+    reiserfs_check_method(node->plugin->node, lookup, return NULL);
     node->plugin->node.lookup(node->entity, key, coord);
 
     return coord;
@@ -156,42 +156,42 @@ reiserfs_plugin_id_t reiserfs_node_plugin_id(reiserfs_node_t *node) {
 uint32_t reiserfs_node_item_maxsize(reiserfs_node_t *node) {
     aal_assert("umka-125", node != NULL, return 0);
     
-    reiserfs_plugin_check_routine(node->plugin->node, item_maxsize, return 0); 
+    reiserfs_check_method(node->plugin->node, item_maxsize, return 0); 
     return node->plugin->node.item_maxsize(node->entity);
 }
     
 uint32_t reiserfs_node_item_maxnum(reiserfs_node_t *node) {
     aal_assert("umka-452", node != NULL, return 0);
     
-    reiserfs_plugin_check_routine(node->plugin->node, item_maxnum, return 0); 
+    reiserfs_check_method(node->plugin->node, item_maxnum, return 0); 
     return node->plugin->node.item_maxnum(node->entity);
 }
 
 uint32_t reiserfs_node_item_count(reiserfs_node_t *node) {
     aal_assert("umka-453", node != NULL, return 0);
     
-    reiserfs_plugin_check_routine(node->plugin->node, item_count, return 0); 
+    reiserfs_check_method(node->plugin->node, item_count, return 0); 
     return node->plugin->node.item_count(node->entity);
 }
 
 uint8_t reiserfs_node_level(reiserfs_node_t *node) {
     aal_assert("umka-454", node != NULL, return 0);
     
-    reiserfs_plugin_check_routine(node->plugin->node, level, return 0); 
+    reiserfs_check_method(node->plugin->node, level, return 0); 
     return node->plugin->node.level(node->entity);
 }
 
 uint32_t reiserfs_node_get_free_space(reiserfs_node_t *node) {
     aal_assert("umka-455", node != NULL, return 0);
     
-    reiserfs_plugin_check_routine(node->plugin->node, get_free_space, return 0); 
+    reiserfs_check_method(node->plugin->node, get_free_space, return 0); 
     return node->plugin->node.get_free_space(node->entity);
 }
 
 void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value) {
     aal_assert("umka-456", node != NULL, return);
     
-    reiserfs_plugin_check_routine(node->plugin->node, set_free_space, return); 
+    reiserfs_check_method(node->plugin->node, set_free_space, return); 
     return node->plugin->node.set_free_space(node->entity, value);
 }
 

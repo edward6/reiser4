@@ -280,17 +280,17 @@ typedef struct reiserfs_plugins_factory reiserfs_plugins_factory_t;
 typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugins_factory_t *);
 
 #ifndef ENABLE_COMPACT
-#   define reiserfs_plugin_check_routine(plugin, routine, action) \
+#   define reiserfs_check_method(ops, method, action) \
     do { \
-	if (!plugin.##routine##) { \
-	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, \
-		"Routine \"" #routine "\" isn't implemented in plugin %s.", \
-		plugin.h.label); \
+	if (!ops.##method##) { \
+	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK, \
+		"Method \"" #method "\" isn't implemented in %s.", \
+		#ops); \
 	    action; \
 	} \
     } while(0)
 #else
-#   define reiserfs_plugin_check_routine(plugin, routine, action) \
+#   define reiserfs_check_method(plugin, routine, action) \
 	while(0) {}
 #endif
 
@@ -319,7 +319,6 @@ extern reiserfs_plugin_t *reiserfs_plugins_find_by_coords(reiserfs_plugin_id_t t
     reiserfs_plugin_id_t id);
 
 extern reiserfs_plugin_t *reiserfs_plugins_find_by_label(const char *label);
-
 
 #endif
 
