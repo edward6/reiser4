@@ -134,22 +134,7 @@ I feel uneasy about this pool.  It adds to code complexity, I understand why it 
  *  and almost everything else. This is mainly due to the (1.c) above. I shall
  *  write about this later.
  *
- * FUNCTION PLACEMENT:
- *
- * There are some functions in this file that doesn't logically belong to
- * carry implementation. Data shifting, root creation and killing, new node
- * allocation. Problem is that since carry is our only balancing mechanism,
- * such functionality belongs to nowhere else also.
- *
- * It can be argued that special file should be created and said functions
- * moved there.
- *
  */
-
-/* AUDIT: Above long comment (20% of a file) is outdated, pools are now living
-   in separate file, some functions it refers to (eg make_space) do not
-   live in this file, too. 
-   In short: Somebody knowledgeable should revise that comment */
 
 #include "reiser4.h"
 
