@@ -1359,6 +1359,7 @@ init_tree_0(reiser4_tree * tree)
 {
 	assert("zam-683", tree != NULL);
 	rw_tree_init(tree);
+	spin_epoch_init(tree);
 }
 
 /* finishing reiser4 initialization */

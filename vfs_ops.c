@@ -1982,6 +1982,7 @@ init_committed_sb_counters(const struct super_block *s)
 	sbinfo->nr_files_committed = oid_used();
 }
 
+DEFINE_SPIN_PROFREGIONS(epoch);
 DEFINE_SPIN_PROFREGIONS(jnode);
 DEFINE_SPIN_PROFREGIONS(stack);
 DEFINE_SPIN_PROFREGIONS(super);
@@ -2014,6 +2015,7 @@ static int register_profregions(void)
 	pregion_spin_jnode_held.champion = jnode_most_held;
 	pregion_spin_jnode_trying.champion = jnode_most_wanted;
 #endif
+	register_epoch_profregion();
 	register_jnode_profregion();
 	register_stack_profregion();
 	register_super_profregion();
@@ -2033,6 +2035,7 @@ static int register_profregions(void)
 
 static void unregister_profregions(void)
 {
+	unregister_epoch_profregion();
 	unregister_jnode_profregion();
 	unregister_stack_profregion();
 	unregister_super_profregion();

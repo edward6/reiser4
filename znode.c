@@ -528,7 +528,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 			zfree(result);
 			result = shadow;
 		} else {
-			result->version = ++ tree->znode_epoch;
+			result->version = znode_build_version(tree);
 			z_hash_insert_index(zth, hashi, result);
 
 			if (parent != NULL)
@@ -862,6 +862,12 @@ znode_io_hook(jnode * node, struct page *page UNUSED_ARG, int rw)
 	}
 
 	return 0;
+}
+
+__u64
+znode_build_version(reiser4_tree * tree)
+{
+	return UNDER_SPIN(epoch, tree, ++tree->znode_epoch);
 }
 
 void

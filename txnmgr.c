@@ -2073,7 +2073,7 @@ jnode_set_dirty(jnode * node)
 		tree = jnode_get_tree(node);
 		z = JZNODE(node);
 		/* bump version counter in znode */
-		z->version = UNDER_RW(tree, tree, write, ++tree->znode_epoch);
+		z->version = znode_build_version(tree);
 		/* FIXME: This makes no sense, delete it, reenable nikita-1900:
 
 		   the flush code sets a node dirty even though it is read

@@ -124,7 +124,6 @@ struct reiser4_tree {
 	z_hash_table zfake_table;
 	/* hash table to look up jnodes by inode and offset. */
 	j_hash_table jhash_table;
-	__u64 znode_epoch;
 
 	/* lock protecting:
 	    - parent pointers,
@@ -134,9 +133,14 @@ struct reiser4_tree {
 	*/
 	reiser4_rw_data tree_lock;
 
-	/* lock protecting delimiting keys
-	   */
+	/* lock protecting delimiting keys */
 	reiser4_rw_data dk_lock;
+
+	/* spin lock protecting znode_epoch */
+	reiser4_spin_data epoch_lock;
+	/* version stamp used to mark znode updates. See seal.[ch] for more
+	 * information. */
+	__u64 znode_epoch;
 
 	/* default plugin used to create new nodes in a tree. */
 	node_plugin *nplug;
@@ -152,6 +156,10 @@ struct reiser4_tree {
 		__u32 insert_flags;
 	} carry;
 };
+
+#define spin_ordering_pred_epoch(cache) (1)
+
+SPIN_LOCK_FUNCTIONS(epoch, reiser4_tree, epoch_lock);
 
 extern void init_tree_0(reiser4_tree *);
 

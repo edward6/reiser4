@@ -88,6 +88,10 @@ Reiser4 introduces following locks:
 
 33. Per-bitmap-block semaphore used to serialize bitmap loading (bnode_sema+)
 
+34. Per-super-block epoch lock, protecting updates to           (epoch_lock*)
+    znode_epoch field, used to implement seals (seal.[ch]) 
+    efficiently.
+
 99. Various locks used by the user level simulator
 
 Locks marked by (*) after label, are accessed through spin lock macros,
@@ -272,6 +276,7 @@ i_sem
 ..................dk_lock
 ..............................tree_lock
 ................................cbk_guard
+................................epoch_lock
 ....................mm->page_table_lock
 ......................mapping->private_lock
 ........................swaplock
@@ -431,6 +436,10 @@ jnode_lock->(zone->lru_lock)
 I_LOCK->longterm_lock
 
     reiser4_iget()
+
+tree_lock->epoch_lock
+
+    zget() calls znode_build_version()
 
 ----------------------------------DEADLOCKS-------------------------------------
 

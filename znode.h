@@ -304,6 +304,8 @@ extern z_hash_table *get_htable(reiser4_tree * tree,
 				const reiser4_block_nr * const blocknr);
 extern z_hash_table *znode_get_htable(const znode *node);
 
+extern __u64 znode_build_version(reiser4_tree * tree);
+
 /* Data-handles.  A data handle object manages pairing calls to zload() and zrelse().  We
    must load the data for a node in many places.  We could do this by simply calling
    zload() everywhere, the difficulty arises when we must release the loaded data by
