@@ -15,6 +15,7 @@
 #include <linux/pagemap.h>
 #include <linux/blkdev.h>
 #include <linux/writeback.h>
+#include <linux/pagevec.h>
 
 /* A flush queue object is an accumulator for keeping jnodes prepared
  * by the jnode_flush() function for writing to disk. Those "queued" jnodes are
@@ -517,11 +518,15 @@ static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
 	struct super_block * s = reiser4_get_current_sb();
 	int nr_processed;
 
+	struct pagevec pvec;
+
 	assert ("zam-724", lock_counters()->spin_locked == 0);
 	assert ("zam-725", nr != 0);
 
 	if (! (bio = bio_alloc (GFP_KERNEL, nr)) ) 
 		return -ENOMEM;
+
+	pagevec_init (&pvec);
 
 	bio->bi_sector  = *jnode_get_block (first) * (s->s_blocksize >>9);
 	bio->bi_bdev    = s->s_bdev;
@@ -559,12 +564,22 @@ static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
 
 		reiser4_unlock_page (pg);
 
+		/* Put pages to inactive list where they have chance to be
+		 * freed. (as in mpage_writepages()) */
+		if ((current->flags & PF_MEMALLOC) &&
+		    !PageActive(pg) && PageLRU(pg)) {
+			if (!pagevec_add(&pvec, pg))
+				pagevec_deactivate_inactive(&pvec);
+		}
+
 		jnode_ops (first)->io_hook (first, pg, WRITE);
 
 		bio->bi_io_vec[nr_processed].bv_page   = pg;
 		bio->bi_io_vec[nr_processed].bv_len    = s->s_blocksize;
 		bio->bi_io_vec[nr_processed].bv_offset = 0;
 	}
+
+	pagevec_deactivate_inactive(&pvec);
 
 	fq_add_bio (fq, bio);
 	submit_bio (WRITE, bio);
