@@ -441,7 +441,7 @@ static void * bmap_start(struct seq_file *m, loff_t *pos)
 	if (*pos << host->i_blkbits >= host->i_size)
 		return NULL;
 	else
-		return (void *)((int)*pos + 1);
+		return (void *)((unsigned long)*pos + 1);
 }
 
 static void bmap_stop(struct seq_file *m, void *v)
@@ -461,7 +461,7 @@ static int bmap_show(struct seq_file *m, void *v)
 	sector_t lblock;
 	reiser4_block_nr sector;
 
-	lblock = ((sector_t)(int)v) - 1;
+	lblock = ((sector_t)(unsigned long)v) - 1;
 	sector = reiser4_bmap(get_seq_pseudo_host(m)->i_mapping, lblock);
 	if (sector >= 0) {
 		if (blocknr_is_fake(&sector))
