@@ -96,6 +96,38 @@ _INIT_(context)
 
 _DONE_(context)
 {
+	reiser4_super_info_data * sbinfo;
+
+	sbinfo = get_super_private(s);
+
+	close_trace_file(&sbinfo->trace_file);
+
+	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
+		reiser4_print_stats();
+
+	/* we don't want ->write_super to be called any more. */
+	s->s_op->write_super = NULL;
+	kill_block_super(s);
+	/* err, don't show this to Viro */
+	down_write(&s->s_umount);
+
+#if REISER4_DEBUG
+	{
+		struct list_head *scan;
+
+		/* print jnodes that survived umount. */
+		list_for_each(scan, &sbinfo->all_jnodes) {
+			jnode *busy;
+
+			busy = list_entry(scan, jnode, jnodes);
+			info_jnode("\nafter umount", busy);
+		}
+	}
+	if (sbinfo->kmalloc_allocated > 0)
+		warning("nikita-2622",
+			"%i bytes still allocated", sbinfo->kmalloc_allocated);
+#endif
+
 	get_current_context()->trans = NULL;
 	done_context(get_current_context());
 }
@@ -105,7 +137,10 @@ _INIT_(parse_options)
 	return reiser4_parse_options(s, data);
 }
 
-_DONE_EMPTY(parse_options)
+_DONE_(parse_options)
+{
+	close_trace_file(&get_super_private(s)->trace_file);
+}
 
 _INIT_(object_ops)
 {
@@ -220,6 +255,18 @@ _INIT_(formatted_fake)
 
 _DONE_(formatted_fake)
 {
+	reiser4_super_info_data * sbinfo;
+
+	sbinfo = get_super_private(s);
+
+	finish_rcu(sbinfo);
+
+	/* done_formatted_fake just has finished with last jnodes (bitmap
+	 * ones) */
+	done_tree(&sbinfo->tree);
+	/* call finish_rcu(), because some znode were "released" in
+	 * done_tree(). */
+	finish_rcu(sbinfo);
 	done_formatted_fake(s);
 }
 
@@ -240,7 +287,8 @@ _INIT_(disk_format)
 {
 	int res;
 
-	if ((res = get_super_private(s)->df_plug->get_ready(s, data)))
+	res = get_super_private(s)->df_plug->get_ready(s, data);
+	if (res != 0)
 		return res;
 
 	return get_super_private(s)->df_plug->check_mount(s);
@@ -248,7 +296,9 @@ _INIT_(disk_format)
 
 _DONE_(disk_format)
 {
-	get_super_private(s)->df_plug->release(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
+
+	sbinfo->df_plug->release(s);
 }
 
 _INIT_(sb_counters)
@@ -265,17 +315,6 @@ _INIT_(sb_counters)
 }
 
 _DONE_EMPTY(sb_counters)
-
-_INIT_(cbk_cache)
-{
-	cbk_cache_init(&get_super_private(s)->tree.cbk_cache);
-	return 0;
-}
-
-_DONE_(cbk_cache)
-{
-	cbk_cache_done(&get_super_private(s)->tree.cbk_cache);
-}
 
 _INIT_(fs_root)
 {
@@ -374,7 +413,10 @@ _DONE_(repacker)
 
 _INIT_(safelink)
 {
-	return process_safelinks(s);
+	process_safelinks(s);
+	/* failure to process safe-links is not critical. Continue with
+	 * mount. */
+	return 0;
 }
 
 _DONE_(safelink)
@@ -409,7 +451,6 @@ static struct reiser4_subsys subsys_array[] = {
 	_SUBSYS(formatted_fake),
 	_SUBSYS(disk_format),
 	_SUBSYS(sb_counters),
-	_SUBSYS(cbk_cache),
 	_SUBSYS(fs_root),
 	_SUBSYS(sysfs),
 	_SUBSYS(sysctl),
