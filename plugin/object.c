@@ -886,8 +886,7 @@ detach_dir(struct inode *child, struct inode *parent)
 reiser4_internal reiser4_block_nr
 estimate_update_common(const struct inode *inode)
 {
-	return IS_RDONLY(inode) ? 0 :
-		estimate_one_insert_into_item(tree_by_inode(inode));
+	return estimate_one_insert_into_item(tree_by_inode(inode));
 }
 
 static reiser4_block_nr

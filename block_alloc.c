@@ -300,6 +300,12 @@ reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 
 	assert("vs-1276", ctx == get_current_context());
 
+	/* Do not grab anything on ro-mounted fs. */
+	if (rofs_super(ctx->super)) {
+		ctx->grab_enabled = 0;
+		return 0;
+	}
+	
 	sbinfo = get_super_private(ctx->super);
 
 	reiser4_spin_lock_sb(sbinfo);
@@ -308,21 +314,19 @@ reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 
 	ON_TRACE(TRACE_ALLOC, "reiser4_grab: free_blocks %llu\n", free_blocks);
 
-	if (count) {
-		if ((use_reserved && free_blocks < count) ||
-		    (!use_reserved && free_blocks < count + sbinfo->blocks_reserved)) {
-			ret = RETERR(-ENOSPC);
+	if ((use_reserved && free_blocks < count) ||
+	    (!use_reserved && free_blocks < count + sbinfo->blocks_reserved)) {
+		ret = RETERR(-ENOSPC);
 
-			ON_TRACE(TRACE_ALLOC, "reiser4_grab: ENOSPC: count %llu\n", count);
+		ON_TRACE(TRACE_ALLOC, "reiser4_grab: ENOSPC: count %llu\n", count);
 
-			goto unlock_and_ret;
-		}
-
-		ctx->grabbed_blocks += count;
-
-		sbinfo->blocks_grabbed += count;
-		sbinfo->blocks_free -= count;
+		goto unlock_and_ret;
 	}
+
+	ctx->grabbed_blocks += count;
+
+	sbinfo->blocks_grabbed += count;
+	sbinfo->blocks_free -= count;
 
 #if REISER4_DEBUG
 	ctx->grabbed_initially = count;
