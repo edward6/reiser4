@@ -1006,7 +1006,6 @@ capture_anonymous_page(struct page *pg, int keepme)
 static int
 capture_anonymous_jnodes(struct inode *inode)
 {
-	struct list_head *tmp, *next;
 	reiser4_inode *info;
 	reiser4_tree *tree;
 	int nr;
@@ -1026,27 +1025,18 @@ capture_anonymous_jnodes(struct inode *inode)
 
 		scan_over = 1;
 
-		list_for_each_safe(tmp, next, &info->eflushed_jnodes) {
+		while(!list_empty(&info->anon_jnodes)) {
 			eflush_node_t *ef;
 			jnode *node;
 
-			ef = list_entry(tmp, eflush_node_t, inode_link);
-			if (!ef->hadatom)
-				-- info->eflushed_anon;
+			ef = list_entry(info->anon_jnodes.prev, eflush_node_t, inode_anon_link);
 			node = ef->node;
-			/*
-			 * anonymous jnode doesn't have an atom.
-			 *
-			 * jnode spin-lock is not needed, because we don't have
-			 * requirement to capture _all_ anonymous jnodes anyway.
-			 */
-			if (node->atom != NULL)
-				continue;
 
 			jref(node);
 			keepme = JF_ISSET(node, JNODE_KEEPME);
 
 			spin_unlock_eflush(tree->super);
+			/* jload removes ef from info->anon_jnodes list*/
 			result = jload(node);
 			jput(node);
 			if (result != 0)
