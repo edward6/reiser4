@@ -2585,7 +2585,7 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 
 	init_lh(&fake_lock);
 
-	if (!znode_is_root(node)) {
+	if (likely(!znode_is_root(node))) {
 		item_plugin *iplug;
 
 		iplug = item_plugin_by_coord(parent_coord);
@@ -2617,6 +2617,7 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 		znode_set_dirty(fake);
 	}
 
+	/* FIXME-ZAM: Is zload needed here? */
 	ret = zload(node);
 	if (ret)
 		goto exit;

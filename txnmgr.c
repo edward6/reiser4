@@ -1187,34 +1187,50 @@ int flush_one_atom(txn_mgr * tmgr, long *nr_submitted, int flags)
 	txn_handle *txnh;
 	spin_lock_txnmgr(tmgr);
 
+	/* traverse the list of all atoms */
 	for (atom = atom_list_front(&tmgr->atoms_list);
-	     !atom_list_end(&tmgr->atoms_list, atom); atom = atom_list_next(atom)) {
+	     !atom_list_end(&tmgr->atoms_list, atom); 
+	     atom = atom_list_next(atom)) 
+	{
+		/* lock atom before checking its state */
 		spin_lock_atom(atom);
 
+		/* we need an atom which is not being committed and which has no
+		 * flushers (jnode_flush() add one flusher at the beginning and
+		 * subtract one at the end). */
 		if (atom->stage < ASTAGE_PRE_COMMIT && atom->nr_flushers == 0)
 			goto found;
 
 		spin_unlock_atom(atom);
 	}
 
+	/* no one atom can be flushed */
 	spin_unlock_txnmgr(tmgr);
 
 	return 0;
 found:
 
 /* 	
+        Balance flushing between atoms:
+
         atom_list_remove(atom);
  	atom_list_push_back(&tmgr->atoms_list, atom); 
 */
+	/* we do not need txnmgr lock */
 	spin_unlock_txnmgr(tmgr);
 
+	/* We are going to assign our transaction handle to the atom we have
+	   chosen */
 	txnh = ctx->trans;
 
 	spin_lock_txnh(txnh);
 
 	if (txnh->atom) {
-		/* It could happen if deadlock avoidance forced atom fusion (see
-		   check_not_fused_lock_owners()) */
+		/* There is a minor probability that atom was assigned to our
+		   transaction handle while we did atoms list traversal due to
+		   <znode lock> / <atom pseudo lock> deadlock avoidance
+		   algorithm, we have to continue we which was already assigned
+		   to us. */
 		if (txnh->atom != atom) {
 			spin_unlock_atom(atom);
 			spin_unlock_txnh(txnh);
@@ -1223,6 +1239,7 @@ found:
 			atom = atom_get_locked_with_txnh_locked(txnh);
 		}
 	} else {
+		/* just assign chosen atom to our empty transaction handle */
 		capture_assign_txnh_nolock(atom, txnh);
 	}
 
@@ -1232,7 +1249,8 @@ found:
 
 	spin_unlock_txnh(txnh);
 
-	{
+	/* Here we get atom which we can flush by calling flush_this_atom() */
+	{			
 		int ret;
 
 		ret = flush_this_atom(atom, nr_submitted, flags);

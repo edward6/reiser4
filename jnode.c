@@ -512,7 +512,14 @@ load_page(struct page *page, jnode *node)
 {
 	PROF_BEGIN(load_page);
 	page_cache_get(page);
-	if (!is_writeout_mode())
+	if (!is_writeout_mode()) 
+		/* We do not mark pages active if jload is called as a part of
+		 * jnode_flush() or reiser4_write_logs().  Both jnode_flush()
+		 * and write_logs() add no value to cached data, there is no
+		 * sense to mark pages as active when they go to disk, it just
+		 * confuses vm scanning routines because clean page could be
+		 * moved out from inactive list as a result of this
+		 * mark_page_accessed() call. */
 		mark_page_accessed(page);
 	kmap(page);
 	if (REISER4_USE_EFLUSH && JF_ISSET(node, JNODE_EFLUSH))

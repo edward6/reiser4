@@ -900,10 +900,14 @@ int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 	*fq = NULL;
 
 	while (1) {
+		/* begin with taking lock on atom */
 		atom = atom_get_locked_by_jnode(node);
 		spin_unlock_jnode(node);
 
 		if (atom == NULL) {
+			/* jnode does not point to the atom anymore, it is
+			 * possible because jnode lock could be removed for a
+			 * time in atom_get_locked_by_jnode() */
 			if (*fq) {
 				done_fq(*fq);
 				*fq = NULL;
@@ -911,19 +915,28 @@ int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 			return 0;
 		}
 
+		/* atom lock is required for taking flush queue */
 		ret = fq_by_atom(atom, fq);
 
 		if (ret) {
 			if (ret == -EAGAIN)
+				/* atom lock was released for doing memory
+				 * allocation, start with locked jnode one more
+				 * time */
 				goto lock_again;
 			return ret;
-		}
+ 		}
 
+		/* It is correct to lock atom first, then lock a jnode */
 		spin_lock_jnode(node);
 
 		if (node->atom == atom)
-			break;	/* we got it all */
+			break;	/* Yes! it is our jnode. We got all of them:
+				 * flush queue, and both locked atom and
+				 * jnode */
 
+		/* release all locks and allocated objects and restart from
+		 * locked jnode. */
 		spin_unlock_jnode(node);
 
 		fq_put(*fq);
