@@ -1310,3 +1310,4 @@ znode.bb
 znode.bbg
 .entd.o.cmd
 remove
+.diskmap.o.cmd
