@@ -22,7 +22,8 @@ reiser4_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ] = {
 			.dealloc_blocks       = bitmap_dealloc_blocks,
 			.pre_commit_hook      = NULL,
 			.post_commit_hook     = NULL,
-			.post_write_back_hook = NULL
+			.post_write_back_hook = NULL,
+			.print_info           = NULL
 		}
 	},
 	[ TEST_SPACE_ALLOCATOR_ID ] = {
@@ -41,7 +42,8 @@ reiser4_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ] = {
 			.dealloc_blocks    = test_dealloc_blocks,
 			.pre_commit_hook      = NULL,
 			.post_commit_hook     = NULL,
-			.post_write_back_hook = NULL
+			.post_write_back_hook = NULL,
+			.print_info           = test_print_info
 		}
 	}
 };
