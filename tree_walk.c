@@ -235,7 +235,6 @@ link_znodes(znode * first, znode * second, int to_left)
    boundary. Should be called under tree lock, it protects nonexistence of
    sibling link on parent level, if lock_side_neighbor() fails with
    -ENOENT. */
-/* Audited by: umka (2002.06.14) */
 static int
 far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 {
@@ -303,16 +302,13 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 	assert("umka-247", child != NULL);
 	assert("umka-303", tree != NULL);
 
-	write_lock_tree(tree);
-
-	ret = far_next_coord(coord, handle, flags);
+	ret = UNDER_RW(tree, tree, write, far_next_coord(coord, handle, flags));
 
 	if (ret) {
 		if (ret != -ENOENT)
 			return ret;
 	} else {
 		item_plugin *iplug;
-		write_unlock_tree(tree);
 
 		if (handle->owner != NULL) {
 			(*nr_locked)++;
