@@ -144,12 +144,10 @@
    parent.  If they do not share the same parent, the parent is allocated before the right
    neighbor.  
 
-ZAM-FIXME-HANS: Do we attempt to squeeze left the new parent first?
-
-This process goes recursively up the tree as long as the right neighbor and
-   the current position have different parents, then it allocates the
-   right-neighbors-with-different-parents on the way back down.  This process is described
-   in more detail in flush_squalloc_changed_ancestor and the recursive function
+   This process goes recursively up the tree and squeeze nodes level by level as long as
+   the right neighbor and the current position have different parents, then it allocates
+   the right-neighbors-with-different-parents on the way back down.  This process is
+   described in more detail in flush_squalloc_changed_ancestor and the recursive function
    flush_squalloc_one_changed_ancestor.  But the purpose here is not to discuss the
    specifics of the bottom-up approach as it is to contrast the bottom-up and top-down
    approaches.
