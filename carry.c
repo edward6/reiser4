@@ -885,7 +885,7 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 		assert("nikita-1631", ergo(!failure, !ZF_ISSET(carry_real(node),
 							       JNODE_ORPHAN)));
 		if (!failure)
-			node_check(node->real_node, REISER4_NODE_DKEYS);
+			node_check(carry_real(node), REISER4_NODE_DKEYS);
 		/* FIXME: remove after debugging */
 		check_dkeys(carry_real(node));
 		unlock_carry_node(level, node, failure);
