@@ -76,7 +76,7 @@ reiser4_clear_page_dirty(struct page *page)
 	read_lock_irqsave(&mapping->tree_lock, flags);
 	if (TestClearPageDirty(page)) {
 		read_unlock_irqrestore(&mapping->tree_lock, flags);
-		if (!mapping->backing_dev_info->memory_backed)
+		if (mapping_cap_account_dirty(mapping))
 			dec_page_state(nr_dirty);
 		return;
 	}
@@ -110,7 +110,7 @@ static int reiser4_set_page_dirty(struct page *page /* page to mark dirty */)
 			/* check for race with truncate */
 			if (page->mapping) {
 				assert("vs-1652", page->mapping == mapping);
-				if (!mapping->backing_dev_info->memory_backed)
+				if (mapping_cap_account_dirty(mapping))
 					inc_page_state(nr_dirty);
 				radix_tree_tag_set(&mapping->page_tree,
 						   page->index, PAGECACHE_TAG_REISER4_MOVED);

@@ -729,7 +729,7 @@ eflush_del (jnode * node, int page_locked)
 	   anything specific to reiser4 but usual dirty page accounting. If */
 	if (!TestSetPageDirty(page)) {
 		BUG_ON(jnode_get_mapping(node) != page->mapping);
-		if (!page->mapping->backing_dev_info->memory_backed)
+		if (mapping_cap_account_dirty(page->mapping))
 			inc_page_state(nr_dirty);
 	}
 

@@ -465,7 +465,7 @@ int set_page_dirty_internal (struct page * page, int tag_as_moved)
 	BUG_ON(mapping == NULL);
 
 	if (!TestSetPageDirty(page)) {
-		if (!mapping->backing_dev_info->memory_backed)
+		if (mapping_cap_account_dirty(mapping))
 			inc_page_state(nr_dirty);
 
 		write_lock_irq(&mapping->tree_lock);
