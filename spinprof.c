@@ -172,7 +172,7 @@ int profregion_find(struct profregionstack *stack, struct profregion *pregion)
 {
 	int i;
 
-	for (i = atomic_read(&stack->top) - 2 ; i >= 0 ; -- i) {
+	for (i = stack->top - 2 ; i >= 0 ; -- i) {
 		if (stack->stack[i].preg == pregion) {
 			return i;
 		}
