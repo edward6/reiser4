@@ -526,16 +526,16 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 		return ERR_PTR(RETERR(-ENOMEM));
 	}
 
-	result = coord_by_key(tree_by_inode(host),
-			      &dotkey,
-			      &c->coord,
-			      &c->lh,
-			      ZNODE_READ_LOCK,
-			      FIND_EXACT,
-			      LEAF_LEVEL,
-			      LEAF_LEVEL,
-			      CBK_READDIR_RA,
-			      NULL);
+	result = object_lookup(host,
+			       &dotkey,
+			       &c->coord,
+			       &c->lh,
+			       ZNODE_READ_LOCK,
+			       FIND_EXACT,
+			       LEAF_LEVEL,
+			       LEAF_LEVEL,
+			       CBK_READDIR_RA,
+			       NULL);
 
 	tap_init(&c->tap, &c->coord, &c->lh, ZNODE_READ_LOCK);
 	if (result == 0)
@@ -940,16 +940,16 @@ static void * items_start(struct seq_file *m, loff_t *pos)
 		return ERR_PTR(RETERR(-ENOMEM));
 	}
 
-	result = coord_by_key(tree_by_inode(host),
-			      &headkey,
-			      &c->coord,
-			      &c->lh,
-			      ZNODE_READ_LOCK,
-			      FIND_MAX_NOT_MORE_THAN,
-			      TWIG_LEVEL,
-			      LEAF_LEVEL,
-			      0,
-			      NULL);
+	result = object_lookup(host,
+			       &headkey,
+			       &c->coord,
+			       &c->lh,
+			       ZNODE_READ_LOCK,
+			       FIND_MAX_NOT_MORE_THAN,
+			       TWIG_LEVEL,
+			       LEAF_LEVEL,
+			       0,
+			       NULL);
 
 	tap_init(&c->tap, &c->coord, &c->lh, ZNODE_READ_LOCK);
 	if (result == 0)

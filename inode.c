@@ -287,7 +287,7 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 	coord_init_zero(&coord);
 	init_lh(&lh);
 	/* locate stat-data in a tree and return znode locked */
-	result = lookup_sd_by_key(tree_by_inode(inode), ZNODE_READ_LOCK, &coord, &lh, key);
+	result = lookup_sd(inode, ZNODE_READ_LOCK, &coord, &lh, key);
 	assert("nikita-301", !is_inode_loaded(inode));
 	if (result == 0) {
 		inode_set_flag(inode, REISER4_LOADED);
@@ -562,6 +562,46 @@ init_inode_ordering(struct inode *inode,
 	}
 
 	set_inode_ordering(inode, get_key_ordering(&key));
+}
+
+znode *
+inode_get_vroot(struct inode *inode)
+{
+	reiser4_block_nr blk;
+	znode *result;
+	reiser4_inode *info;
+
+	info = reiser4_inode_data(inode);
+	LOCK_INODE(info);
+	blk = info->vroot;
+	UNLOCK_INODE(info);
+	if (!disk_addr_eq(&UBER_TREE_ADDR, &blk))
+		result = zlook(tree_by_inode(inode), &blk);
+	else
+		result = NULL;
+	return result;
+}
+
+void
+inode_set_vroot(struct inode *inode, znode *vroot)
+{
+	reiser4_inode *info;
+
+	info = reiser4_inode_data(inode);
+	LOCK_INODE(info);
+	info->vroot = *znode_get_block(vroot);
+	UNLOCK_INODE(info);
+}
+
+void
+inode_clean_vroot(struct inode *inode)
+{
+	reiser4_inode *info;
+
+	info = reiser4_inode_data(inode);
+	LOCK_INODE(info);
+	info->vroot = UBER_TREE_ADDR;
+	UNLOCK_INODE(info);
 }
 
 #if REISER4_DEBUG_OUTPUT

@@ -114,7 +114,6 @@ struct reiser4_inode {
 	/*  28 */ coord_t sd_coord;
 	/* truncate, tail2extent and extent2tail use down_write, read, write,
 	 * readpage - down_read */
-	/* 68 */ /*rw_latch_t latch;*/
 	/* 88 */ scint_t extmask;
 	/* 92 */ int eflushed;
 	/* bitmask of non-default plugins for this inode */
@@ -144,6 +143,7 @@ struct reiser4_inode {
 
 	/* currently operations on this tree are protected by tree's spin lock */
 	struct radix_tree_root jnode_tree;	
+	reiser4_block_nr vroot;
 #if REISER4_DEBUG
 	/* number of jnodes in jnode tree */
 	int jnodes;
@@ -209,6 +209,10 @@ extern void inode_invariant(const struct inode *inode);
 	inode_invariant(inode);				\
 	UNLOCK_INODE(reiser4_inode_data(inode));	\
 })
+
+extern znode *inode_get_vroot(struct inode *inode);
+extern void   inode_set_vroot(struct inode *inode, znode *vroot);
+extern void   inode_clean_vroot(struct inode *inode);
 
 extern int reiser4_max_filename_len(const struct inode *inode);
 extern int max_hash_collisions(const struct inode *dir);

@@ -273,6 +273,8 @@ typedef enum { RESIZE_OK = 0,
 	RESIZE_OOM = -ENOMEM
 } resize_result;
 
+#define IS_CBKERR(err) ((err) != CBK_COORD_FOUND && (err) != CBK_COORD_NOTFOUND)
+
 typedef int (*tree_iterate_actor_t) (reiser4_tree * tree, coord_t * coord, lock_handle * lh, void *arg);
 extern int iterate_tree(reiser4_tree * tree, coord_t * coord, lock_handle * lh,
 			tree_iterate_actor_t actor, void *arg, znode_lock_mode mode, int through_units_p);
@@ -359,10 +361,18 @@ lookup_result coord_by_key(reiser4_tree * tree, const reiser4_key * key,
 			   znode_lock_mode lock, lookup_bias bias,
 			   tree_level lock_level, tree_level stop_level, __u32 flags,
 			   ra_info_t *);
-lookup_result coord_by_hint_and_key(reiser4_tree * tree,
-				    const reiser4_key * key,
-				    coord_t * coord, lock_handle * handle,
-				    lookup_bias bias, tree_level lock_level, tree_level stop_level);
+
+lookup_result object_lookup(struct inode *object,
+			    const reiser4_key * key,
+			    coord_t * coord,
+			    lock_handle * lh,
+			    znode_lock_mode lock_mode,
+			    lookup_bias bias,
+			    tree_level lock_level,
+			    tree_level stop_level,
+			    __u32 flags,
+			    ra_info_t *info);
+
 insert_result insert_by_key(reiser4_tree * tree, const reiser4_key * key,
 			    reiser4_item_data * data, coord_t * coord,
 			    lock_handle * lh,
@@ -472,6 +482,7 @@ typedef struct cbk_handle {
 	   in tree.h:cbk_flags enum. */
 	__u32 flags;
 	ra_info_t *ra_info;
+	struct inode *object;
 } cbk_handle;
 
 extern znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h);

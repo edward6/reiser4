@@ -385,7 +385,7 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		/* initizalize inode's jnode */
 		jnode_init(&info->inode_jnode, current_tree, JNODE_INODE);
 		atomic_set(&info->inode_jnode.x_count, 1);
-
+		info->vroot = UBER_TREE_ADDR;
 		return &obj->vfs_inode;
 	} else
 		return NULL;

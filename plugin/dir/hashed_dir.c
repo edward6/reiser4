@@ -27,7 +27,7 @@
 #include <linux/dcache.h>	/* for struct dentry */
 
 static int create_dot_dotdot(struct inode *object, struct inode *parent);
-static int find_entry(const struct inode *dir, struct dentry *name,
+static int find_entry(struct inode *dir, struct dentry *name,
 		      lock_handle * lh, znode_lock_mode mode,
 		      reiser4_dir_entry_desc * entry);
 static int check_item(const struct inode *dir,
@@ -731,7 +731,7 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 	/* find entry for @new_name */
 	result = find_entry(new_dir, new_name, &new_lh, ZNODE_WRITE_LOCK, &new_entry);
 
-	if ((result != CBK_COORD_FOUND) && (result != CBK_COORD_NOTFOUND)) {
+	if (IS_CBKERR(result)) {
 		done_lh(&new_lh);
 		return result;
 	}
@@ -976,7 +976,7 @@ check_entry(const struct inode *dir, coord_t *coord, const struct qstr *name)
    the same key, checking name in each directory entry along the way.
 */
 static int
-find_entry(const struct inode *dir /* directory to scan */,
+find_entry(struct inode *dir /* directory to scan */,
 	   struct dentry *de /* name to search for */,
 	   lock_handle * lh /* resulting lock handle */,
 	   znode_lock_mode mode /* required lock mode */,
@@ -1024,8 +1024,16 @@ find_entry(const struct inode *dir /* directory to scan */,
 		}
 	}
 	flags = (mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
-	result = coord_by_key(tree_by_inode(dir), &entry->key, coord, lh,
-			      mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags, 0/*ra_info*/);
+	result = object_lookup(dir,
+			       &entry->key,
+			       coord,
+			       lh,
+			       mode,
+			       FIND_EXACT,
+			       LEAF_LEVEL,
+			       LEAF_LEVEL,
+			       flags,
+			       0/*ra_info*/);
 
 	if (result == CBK_COORD_FOUND) {
 		entry_actor_args arg;

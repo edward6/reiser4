@@ -18,6 +18,7 @@
 #include "reiser4.h"
 #include "super.h"
 #include "prof.h"
+#include "inode.h"
 #include "crab_lock.h"
 
 #include <linux/slab.h>
@@ -228,6 +229,37 @@ static void hput(cbk_handle * h);
 
 static level_lookup_result search_to_left(cbk_handle * h);
 
+cbk_handle *cbk_pack(cbk_handle *handle,
+		     reiser4_tree * tree,
+		     const reiser4_key * key,
+		     coord_t * coord,
+		     lock_handle * active_lh,
+		     lock_handle * parent_lh,
+		     znode_lock_mode lock_mode,
+		     lookup_bias bias,
+		     tree_level lock_level,
+		     tree_level stop_level,
+		     __u32 flags,
+		     ra_info_t *info)
+{
+	xmemset(handle, 0, sizeof *handle);
+
+	handle->tree = tree;
+	handle->key = key;
+	handle->lock_mode = lock_mode;
+	handle->bias = bias;
+	handle->lock_level = lock_level;
+	handle->stop_level = stop_level;
+	handle->coord = coord;
+	/* set flags. See comment in tree.h:cbk_flags */
+	handle->flags = flags | CBK_TRUST_DK | CBK_USE_CRABLOCK;
+
+	handle->active_lh = active_lh;
+	handle->parent_lh = parent_lh;
+	handle->ra_info = info;
+	return handle;
+}
+
 /* main tree lookup procedure
 
    Check coord cache. If key we are looking for is not found there, call cbk()
@@ -291,27 +323,70 @@ lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 	assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
 	trace_stamp(TRACE_TREE);
 
-	xmemset(&handle, 0, sizeof handle);
-
-	handle.tree = tree;
-	handle.key = key;
-	handle.lock_mode = lock_mode;
-	handle.bias = bias;
-	handle.lock_level = lock_level;
-	handle.stop_level = stop_level;
-	handle.coord = coord;
-	/* set flags. See comment in tree.h:cbk_flags */
-	handle.flags = flags | CBK_TRUST_DK | CBK_USE_CRABLOCK;
-
-	handle.active_lh = lh;
-	handle.parent_lh = &parent_lh;
-	
-	handle.ra_info = info;
+	cbk_pack(&handle,
+		 tree,
+		 key,
+		 coord,
+		 lh,
+		 &parent_lh,
+		 lock_mode,
+		 bias,
+		 lock_level,
+		 stop_level,
+		 flags,
+		 info);
 
 	result = coord_by_handle(&handle);
-	assert("nikita-3247",
-	       ergo(result == CBK_COORD_FOUND || result == CBK_COORD_NOTFOUND,
-		    coord->node == lh->node));
+	assert("nikita-3247", ergo(!IS_CBKERR(result), coord->node == lh->node));
+	return result;
+}
+
+lookup_result
+object_lookup(struct inode *object,
+	      const reiser4_key * key,
+	      coord_t * coord,
+	      lock_handle * lh,
+	      znode_lock_mode lock_mode,
+	      lookup_bias bias,
+	      tree_level lock_level,
+	      tree_level stop_level,
+	      __u32 flags,
+	      ra_info_t *info)
+{
+	cbk_handle handle;
+	lock_handle parent_lh;
+	lookup_result result;
+
+	init_lh(lh);
+	init_lh(&parent_lh);
+
+	assert("nikita-3023", schedulable());
+
+	assert("nikita-353", object != NULL);
+	assert("nikita-354", key != NULL);
+	assert("nikita-355", coord != NULL);
+	assert("nikita-356", (bias == FIND_EXACT) || (bias == FIND_MAX_NOT_MORE_THAN));
+	assert("nikita-357", stop_level >= LEAF_LEVEL);
+	/* no locks can be held during tree traversal */
+	assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
+	trace_stamp(TRACE_TREE);
+
+	cbk_pack(&handle,
+		 tree_by_inode(object),
+		 key,
+		 coord,
+		 lh,
+		 &parent_lh,
+		 lock_mode,
+		 bias,
+		 lock_level,
+		 stop_level,
+		 flags,
+		 info);
+	handle.object = object;
+
+	result = coord_by_handle(&handle);
+	assert("nikita-3247", ergo(!IS_CBKERR(result), coord->node == lh->node));
 	return result;
 }
 
@@ -406,6 +481,172 @@ int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
 	return result;
 }
 
+/* true if @key is strictly within @node
+
+   we are looking for possibly non-unique key and it is item is at the edge of
+   @node. May be it is in the neighbor.
+*/
+static int
+znode_contains_key_strict(znode * node	/* node to check key
+					 * against */ ,
+			  const reiser4_key * key /* key to check */,
+			  int isunique)
+{
+	int answer;
+
+	assert("nikita-1760", node != NULL);
+	assert("nikita-1722", key != NULL);
+	
+	if (keyge(key, &node->rd_key))
+		return 0;
+
+	answer = keycmp(&node->ld_key, key);
+
+	if (isunique)
+		return answer != GREATER_THAN;
+	else
+		return answer == LESS_THAN;
+}
+
+/*
+ * Virtual Root (vroot) code.
+ *
+ *     For given file system object (e.g., regular file or directory) let's
+ *     define its "virtual root" as lowest in the tree (that is, furtherest
+ *     from the tree root) node such that all body items of said object are
+ *     located in a tree rooted at this node.
+ *
+ *     Once vroot of object is found all tree lookups for items within body of
+ *     this object ("object lookups") can be started from its vroot rather
+ *     than from real root. This has following advantages:
+ *
+ *         1. amount of nodes traversed during lookup (and, hence, amount of
+ *         key comparisons made) decreases, and
+ *
+ *         2. contention on tree root is decreased. This latter was actually
+ *         motivating reason behind vroot, because spin lock of root node,
+ *         which is taken when acquiring long-term lock on root node is the
+ *         hottest lock in the reiser4.
+ *
+ * How to find vroot.
+ *
+ *     When vroot of object F is not yet determined, all object lookups start
+ *     from the root of the tree. At each tree level during traversal we have
+ *     a node N such that a key we are looking for (which is the key inside
+ *     object's body) is located within N. In function handle_vroot() called
+ *     from cbk_level_lookup() we check whether N is possible vroot for
+ *     F. Check is trivial---if neither leftmost nor rightmost items of N
+ *     belong to F (and we already have helpful ->owns_item() method of object
+ *     plugin for this), then N is possible vroot of F. This, of course,
+ *     relies on the assumption that each object occupies contiguous range of
+ *     keys in the tree.
+ *
+ *     Thus, traversing tree downward and checking each node as we go, we can
+ *     find lowest such node, which, by definition, is vroot.
+ *
+ * How to track vroot.
+ *
+ *     Nohow. If actual vroot changes, next object lookup will just restart
+ *     from the actual tree root, refreshing object's vroot along the way.
+ *
+ */
+
+/*
+ * Check whether @node is possible vroot of @object.
+ */
+static void
+handle_vroot(struct inode *object, znode *node)
+{
+	file_plugin *fplug;
+	coord_t coord;
+
+	if (unlikely(node_is_empty(node)))
+		return;
+
+	fplug = inode_file_plugin(object);
+	coord_init_first_unit(&coord, node);
+	/*
+	 * if leftmost item of @node belongs to @object, we cannot be sure
+	 * that @node is vroot of @object, because, some items of @object are
+	 * probably in the sub-tree rooted at the left neighbor of @node.
+	 */
+	if (fplug->owns_item(object, &coord))
+		return;
+	coord_init_last_unit(&coord, node);
+	/* mutatis mutandis for the rightmost item */
+	if (fplug->owns_item(object, &coord))
+		return;
+	/* otherwise, @node is possible vroot of @object */
+	inode_set_vroot(object, node);
+}
+
+/*
+ * helper function used by traverse tree to start tree traversal not from the
+ * tree root, but from @h->object's vroot, if possible.
+ */
+static int
+prepare_object_lookup(cbk_handle * h)
+{
+	znode         *vroot;
+	int            result;
+
+	vroot = inode_get_vroot(h->object);
+	if (vroot == NULL) {
+		/*
+		 * object doesn't have known vroot, start from real tree root.
+		 */
+		reiser4_stat_inc(tree.object_lookup_novroot);
+		return LOOKUP_CONT;
+	}
+
+	h->level = znode_get_level(vroot);
+	/* take a long-term lock on vroot */
+	h->result = longterm_lock_znode(h->active_lh, vroot,
+					cbk_lock_mode(h->level, h),
+					ZNODE_LOCK_LOPRI);
+	result = LOOKUP_REST;
+	if (h->result == 0) {
+		int isunique;
+		int inside;
+
+		isunique = h->flags & CBK_UNIQUE;
+		/* check that key is inside vroot */
+		inside =
+			UNDER_RW(dk, h->tree, read,
+				 znode_contains_key_strict(vroot,
+							   h->key,
+							   isunique)) &&
+			!ZF_ISSET(vroot, JNODE_HEARD_BANSHEE);
+		if (inside) {
+			h->result = zload(vroot);
+			if (h->result == 0) {
+				/* search for key in vroot. */
+				result = cbk_node_lookup(h);
+				zrelse(h->active_lh->node);
+				if (h->active_lh->node != vroot) {
+					result = LOOKUP_REST;
+					reiser4_stat_inc(tree.object_lookup_moved);
+				} else if (result == LOOKUP_CONT) {
+					move_lh(h->parent_lh, h->active_lh);
+					h->flags &= ~CBK_DKSET;
+				}
+			}
+		} else
+			/* vroot is not up-to-date. Restart. */
+			reiser4_stat_inc(tree.object_lookup_outside);
+	} else
+		/* long-term locking failed. Restart. */
+		reiser4_stat_inc(tree.object_lookup_cannotlock);
+
+	zput(vroot);
+
+	if (IS_CBKERR(h->result) || result == LOOKUP_REST)
+		hput(h);
+	if (result != LOOKUP_REST)
+		reiser4_stat_inc_at_level(h->level, object_lookup_start);
+	return result;
+}
+
 /* main function that handles common parts of tree traversal: starting
     (fake znode handling), restarts, error handling, completion */
 static lookup_result
@@ -413,6 +654,7 @@ traverse_tree(cbk_handle * h /* search handle */ )
 {
 	int done;
 	int iterations;
+	int vroot_used;
 
 	assert("nikita-365", h != NULL);
 	assert("nikita-366", h->tree != NULL);
@@ -426,7 +668,9 @@ traverse_tree(cbk_handle * h /* search handle */ )
 	trace_stamp(TRACE_TREE);
 	reiser4_stat_inc(tree.cbk);
 
+	done = 0;
 	iterations = 0;
+	vroot_used = 0;
 
 	/* loop for restarts */
 restart:
@@ -440,18 +684,28 @@ restart:
 	h->flags |= CBK_DKSET;
 	h->error = NULL;
 
-	done = get_uber_znode(h->tree, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI,
-			      h->parent_lh);
+	if (!vroot_used && h->object != NULL) {
+		vroot_used = 1;
+		done = prepare_object_lookup(h);
+		if (done == LOOKUP_REST) {
+			reiser4_stat_inc(tree.object_lookup_restart);
+			goto restart;
+		} else if (done == LOOKUP_DONE)
+			return h->result;
+	}
+	if (h->parent_lh->node == NULL) {
+		done = get_uber_znode(h->tree, ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI,
+				      h->parent_lh);
 
-	assert("nikita-1637", done != -E_DEADLOCK);
+		assert("nikita-1637", done != -E_DEADLOCK);
 
-	if (done != 0)
-		return done;
+		h->block = h->tree->root_block;
+		h->level = h->tree->height;
+		h->coord->node = h->parent_lh->node;
 
-
-	h->block = h->tree->root_block;
-	h->level = h->tree->height;
-	h->coord->node = h->parent_lh->node;
+		if (done != 0)
+			return done;
+	}
 
 	/* loop descending a tree */
 	while (!done) {
@@ -500,7 +754,7 @@ restart:
 		print_znode("parent", h->parent_lh->node);
 	}
 	/* `unlikely' error case */
-	if (unlikely((h->result != CBK_COORD_FOUND) && (h->result != CBK_COORD_NOTFOUND))) {
+	if (unlikely(IS_CBKERR(h->result))) {
 		/* failure. do cleanup */
 		hput(h);
 	} else {
@@ -638,6 +892,9 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		zrelse(active);
 		return LOOKUP_DONE;
 	}
+
+	if (h->object != NULL)
+		handle_vroot(h->object, active);
 
 	ret = cbk_node_lookup(h);
 
@@ -782,250 +1039,6 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 	return LOOKUP_CONT;	/* continue */
 }
 
-/* multi-key search: comment it out and leave rotting until really needed. */
-#if 0
-
-/* look for several keys at once.
-
-   Outline:
-
-   One cannot just issue several tree traversals in sequence without releasing
-   locks on lookup results, because keeping a lock at the bottom of the tree
-   while doing new top-to-bottom traversal can easily lead to the
-   deadlock. (Actually, there is assertion at the very beginning of
-   coord_by_key(), checking that no locks are held.)
-
-   Still, node-level locking for rename requires locking of several nodes at
-   once, before starting balancings.
-
-   lookup_multikey() uses seals (see seal.[ch]) to work around deadlocks:
-
-   tree lookups are issued starting from the largest key in decsending key
-   order. For each, but the smallest key, after lookup finishes, its result is
-   sealed and corresponding node is unlocked.
-
-   After all lookups were performed, we have result of lookup of smallest key
-   locked and results of the rest of lookups sealed.
-
-   All seals are re-validated in ascending key order. If seal is found broken,
-   all locks and seals are released and process repeated.
-
-   See comments in the body.
-*/
-int
-lookup_multikey(cbk_handle * handle /* handles to search */ ,
-		int nr_keys /* number of handles */ )
-{
-	seal_t seal[REISER4_MAX_MULTI_SEARCH - 1];
-	int i;
-	int result;
-	int once_again;
-
-	/* helper routine to clean up seals and locks */
-	static void done_handles(void) {
-		for (i = 0; i < nr_keys - 1; ++i)
-			seal_done(&seal[i]);
-		if (result != 0) {
-			for (i = 0; i < nr_keys - 1; ++i)
-				done_lh(handle[i].active_lh);
-		}
-	}
-	assert("nikita-2147", handle != NULL);
-	assert("nikita-2148", (0 <= nr_keys) && (nr_keys <= REISER4_MAX_MULTI_SEARCH));
-
-	if (REISER4_DEBUG) {
-		/* check that @handle is sorted */
-
-		for (i = 1; i < nr_keys; ++i) {
-			assert("nikita-2149", keyle(handle[i - 1].key, handle[i].key));
-		}
-	}
-
-	for (i = 0; i < nr_keys; ++i)
-		init_lh(handle[i].parent_lh);
-
-	for (i = 0; i < nr_keys - 1; ++i)
-		seal_init(&seal[i], NULL, NULL);
-
-	/* main loop */
-	do {
-		once_again = 0;
-		/* issue lookups from right to left */
-		for (i = nr_keys - 1; i >= 0; --i) {
-			cbk_handle *h;
-
-			h = &handle[i];
-			result = coord_by_handle(h);
-			/* some error, abort */
-			if ((result != CBK_COORD_FOUND) && (result != CBK_COORD_NOTFOUND))
-				break;
-			else
-				result = 0;
-			if (i == 0)
-				break;
-			/* seal lookup result */
-			seal_init(&seal[i - 1], h->coord, h->key);
-			/* and unlock it */
-			done_lh(h->active_lh);
-		}
-		if (result != 0)
-			break;
-		/* result of smallest key lookup is locked. Others are
-		   unlocked, but sealed, try to validate and relock them. */
-		for (i = 1; i < nr_keys; ++i) {
-			cbk_handle *h;
-
-			h = &handle[i];
-			result = seal_validate(&seal[i - 1],
-					       h->coord, h->key, h->level, h->active_lh, h->bias, h->lock_mode,
-					       /* going from left to right we
-					          can request high-priority
-					          lock. This is only valid if
-					          all handles are targeted to
-					          the same level, though.
-					       */
-					       ZNODE_LOCK_HIPRI);
-			if (result == -E_REPEAT) {
-				/* seal was broken, restart */
-				once_again = 1;
-				reiser4_stat_tree_add(multikey_restart);
-				break;
-			}
-			/* some other error */
-			if (result != 0)
-				break;
-		}
-		done_handles();
-	} while (once_again);
-
-	done_handles();
-	return result;
-}
-
-/* lookup two keys in a tree. This is required for node-level locking during
-   rename. Arguments are similar to these of coord_by_key().
-
-   Returned value: if some sort of unexpected error (-EIO, -ENOMEM) happened,
-   all locks are released, all seals are invalidated, and error code is
-   returned. *result1 and *result2 are not modified. If searches completed
-   successfully (items were either found, or not found), 0 is returned and
-    result1 and *result2 contain search results for respective keys.
-
-*/
-int
-lookup_couple(reiser4_tree * tree /* tree to perform search in */ ,
-	      const reiser4_key * key1 /* first key to look for */ ,
-	      const reiser4_key * key2 /* second key to look for */ ,
-	      coord_t * coord1 /* where to store result for the @key1 */ ,
-	      coord_t * coord2 /* where to store result for the @key2 */ ,
-	      lock_handle * lh1 /* where to keep lock for @coord1 */ ,
-	      lock_handle * lh2 /* where to keep lock for @coord2 */ ,
-	      znode_lock_mode lock_mode	/* type of lookup we want on
-					 * node. */ ,
-	      lookup_bias bias	/* what to return if coord with exactly
-				 * the @key is not in the tree */ ,
-	      tree_level lock_level	/* tree level where to start taking
-					 * @lock type of locks */ ,
-	      tree_level stop_level	/* tree level to stop. Pass
-					 * LEAF_LEVEL or TWIG_LEVEL here Item
-					 * being looked for has to be between
-					 * @lock_level and @stop_level,
-					 * inclusive */ ,
-	      __u32 flags /* search flags */ ,
-	      lookup_result * result1	/* where to put result of search for
-					 * @key1 */ ,
-	      lookup_result * result2	/* where to put result of search for
-					 * @key2 */ )
-{
-	cbk_handle handle[2];
-	lock_handle parent_lh[2];
-	int first_pos;
-	int secnd_pos;
-	int result;
-
-	cassert(REISER4_MAX_MULTI_SEARCH >= 2);
-	assert("nikita-2139", tree != NULL);
-	assert("nikita-2140", key1 != NULL);
-	assert("nikita-2141", key2 != NULL);
-	assert("nikita-2142", coord1 != NULL);
-	assert("nikita-2143", coord2 != NULL);
-	assert("nikita-2150", lh1 != NULL);
-	assert("nikita-2151", lh2 != NULL);
-	assert("nikita-2144", (bias == FIND_EXACT) || (bias == FIND_MAX_NOT_MORE_THAN));
-	assert("nikita-2145", stop_level >= LEAF_LEVEL);
-	assert("nikita-2146", lock_stack_isclean(get_current_lock_stack()));
-	trace_stamp(TRACE_TREE);
-
-	if (keylt(key1, key2)) {
-		first_pos = 0;
-		secnd_pos = 1;
-	} else {
-		first_pos = 1;
-		secnd_pos = 0;
-	}
-
-	xmemset(&handle, 0, sizeof handle);
-
-	handle[first_pos].tree = tree;
-	handle[first_pos].key = key1;
-	handle[first_pos].lock_mode = lock_mode;
-	handle[first_pos].bias = bias;
-	handle[first_pos].lock_level = lock_level;
-	handle[first_pos].stop_level = stop_level;
-	handle[first_pos].coord = coord1;
-	handle[first_pos].flags = flags | CBK_TRUST_DK;
-
-	handle[first_pos].active_lh = lh1;
-	handle[first_pos].parent_lh = &parent_lh[first_pos];
-
-	handle[secnd_pos].tree = tree;
-	handle[secnd_pos].key = key2;
-	handle[secnd_pos].lock_mode = lock_mode;
-	handle[secnd_pos].bias = bias;
-	handle[secnd_pos].lock_level = lock_level;
-	handle[secnd_pos].stop_level = stop_level;
-	handle[secnd_pos].coord = coord2;
-	handle[secnd_pos].flags = flags | CBK_TRUST_DK;
-
-	handle[secnd_pos].active_lh = lh2;
-	handle[secnd_pos].parent_lh = &parent_lh[secnd_pos];
-
-	result = lookup_multikey(handle, 2);
-	if (result == 0) {
-		*result1 = handle[first_pos].result;
-		*result2 = handle[secnd_pos].result;
-	}
-	return result;
-}
-#endif
-
-/* true if @key is strictly within @node
-
-   we are looking for possibly non-unique key and it is item is at the edge of
-   @node. May be it is in the neighbor.
-*/
-static int
-znode_contains_key_strict(znode * node	/* node to check key
-					 * against */ ,
-			  const reiser4_key * key /* key to check */,
-			  int isunique)
-{
-	int answer;
-
-	assert("nikita-1760", node != NULL);
-	assert("nikita-1722", key != NULL);
-	
-	if (keyge(key, &node->rd_key))
-		return 0;
-
-	answer = keycmp(&node->ld_key, key);
-
-	if (isunique)
-		return answer != GREATER_THAN;
-	else
-		return answer == LESS_THAN;
-}
-
 static int
 cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 {
@@ -1146,7 +1159,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 			/* restart of continue on the next level */
 			reiser4_stat_inc(tree.cbk_cache_wrong_node);
 			result = RETERR(-ENOENT);
-		} else if ((h->result != CBK_COORD_NOTFOUND) && (h->result != CBK_COORD_FOUND))
+		} else if (IS_CBKERR(h->result))
 			/* io or oom */
 			result = RETERR(-ENOENT);
 		else {
@@ -1210,7 +1223,7 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 			done_lh(h->parent_lh);
 			reiser4_stat_inc(tree.cbk_cache_miss);
 		} else {
-			assert("nikita-1319", (h->result == CBK_COORD_NOTFOUND) || (h->result == CBK_COORD_FOUND));
+			assert("nikita-1319", !IS_CBKERR(h->result));
 			reiser4_stat_inc(tree.cbk_cache_hit);
 			write_tree_trace(h->tree, tree_cached);
 			break;

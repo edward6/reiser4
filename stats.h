@@ -122,6 +122,7 @@ typedef struct reiser4_level_statistics {
 	statcnt_t page_released;
 	/* how many times emergency flush was invoked on this level */
 	statcnt_t emergency_flush;
+	statcnt_t object_lookup_start;
 	struct {
 		/* calls to jload() */
 		statcnt_t jload;
@@ -223,6 +224,11 @@ typedef struct reiser4_statistics {
 		   therewithin.
 		*/
 		statcnt_t cbk_cache_race;
+		statcnt_t object_lookup_novroot;
+		statcnt_t object_lookup_moved;
+		statcnt_t object_lookup_outside;
+		statcnt_t object_lookup_cannotlock;
+		statcnt_t object_lookup_restart;
 		/* number of times coord of child in its parent, cached
 		   in a former, was reused. */
 		statcnt_t pos_in_parent_hit;

@@ -382,7 +382,7 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 			} else {
 				reiser4_stat_inc(file.find_file_item_via_seal);
 			}
-			
+
 			set_file_state(uf_info, CBK_COORD_FOUND, znode_get_level(coord->node));
 			return CBK_COORD_FOUND;
 		}
@@ -392,9 +392,30 @@ find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 	reiser4_stat_inc(file.find_file_item_via_cbk);
 	
 	coord_init_zero(coord);
-	result = coord_by_key(current_tree, key, coord, lh, lock_mode, FIND_MAX_NOT_MORE_THAN,
-			      TWIG_LEVEL, LEAF_LEVEL, cbk_flags, ra_info);
-	if (result == CBK_COORD_FOUND || result == CBK_COORD_NOTFOUND)
+	if (uf_info != NULL) {
+		result = object_lookup(uf_info->inode,
+				       key,
+				       coord,
+				       lh,
+				       lock_mode,
+				       FIND_MAX_NOT_MORE_THAN,
+				       TWIG_LEVEL,
+				       LEAF_LEVEL,
+				       cbk_flags,
+				       ra_info);
+	} else {
+		result = coord_by_key(current_tree,
+				      key,
+				      coord,
+				      lh,
+				      lock_mode,
+				      FIND_MAX_NOT_MORE_THAN,
+				      TWIG_LEVEL,
+				      LEAF_LEVEL,
+				      cbk_flags,
+				      ra_info);
+	}
+	if (!IS_CBKERR(result))
 		set_file_state(uf_info, result, znode_get_level(coord->node));
 
 	/* FIXME: we might already have coord extension initialized */
@@ -822,7 +843,7 @@ unix_file_writepage_nolock(struct page *page)
 	hint_init_zero(&hint, &lh);
 	result = find_file_item(&hint, &key, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/*ra_info*/, 0/* inode */);
 
-	if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+	if (IS_CBKERR(result)) {
 		done_lh(&lh);
 		return result;
 	}
@@ -1275,7 +1296,7 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 		/* look for file's metadata (extent or tail item) corresponding to position we write to */
 		result = find_file_item(&hint, &flow->key, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, uf_info);
 		all_grabbed2free("append_and_or_overwrite after cbk");
-		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+		if (IS_CBKERR(result)) {
 			/* error occurred */
 			done_lh(&lh);
 			return result;
@@ -1323,6 +1344,9 @@ append_and_or_overwrite(struct file *file, unix_file_info_t *uf_info, flow_t *fl
 			return result;
 		}
 		loaded = lh.node;
+		/*
+		 * XXX NIKITA coord has to be re-validated after zload()
+		 */
 
 		result = write_f(uf_info->inode, flow, &hint, 0/* not grabbed */, how_to_write(&hint.coord, &flow->key));
 
