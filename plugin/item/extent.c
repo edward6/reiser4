@@ -1792,6 +1792,7 @@ assign_jnode_blocknrs(reiser4_key * key, reiser4_block_nr first,
 
 		j = UNDER_SPIN(tree, tree, jlook(tree, get_key_objectid(key), ind));
 		if (!j) {
+			/* this is possible through concurrent truncate */
 			info("jnode not found. oid %llu, index %lu\n", get_key_objectid(key), ind);
 			continue;
 		}
