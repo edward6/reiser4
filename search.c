@@ -1075,16 +1075,37 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	isunique = h->flags & CBK_UNIQUE;
 	result = RETERR(-ENOENT);
 
-	RLOCK_TREE(tree);
+	/*
+	 * this is time-critical function and dragons had, hence, been settled
+	 * here.
+	 *
+	 * Loop below scans cbk cache slots trying to find matching node with
+	 * suitable range of delimiting keys and located at the h->level.
+	 *
+	 * Scan is done under cbk cache spin lock that protects slot->node
+	 * pointers. If suitable node is found we want to pin it in
+	 * memory. But slot->node can point to the node with x_count 0
+	 * (unreferenced). Such node can be recycled at any moment, or can
+	 * already be in the process of being recycled (within jput()).
+	 *
+	 * As we found node in the cbk cache, it means that jput() hasn't yet
+	 * called cbk_cache_invalidate().
+	 *
+	 * We acquire reference to the node without holding tree lock, and
+	 * later, check node's RIP bit. This avoids races with jput().
+	 *
+	 */
+
+	rcu_read_lock();
 	cbk_cache_lock(cache);
 	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
 	while (1) {
 
 		slot = cbk_cache_list_next(slot);
 
-		if (!cbk_cache_list_end(&cache->lru, slot)) {
+		if (!cbk_cache_list_end(&cache->lru, slot))
 			node = slot->node;
-		} else
+		else
 			node = NULL;
 
 		if (node == NULL)
@@ -1101,15 +1122,18 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		    znode_contains_key_strict(node, key, isunique)) {
 			zref(node);
 			result = 0;
+			spin_lock_prefetch(&tree->tree_lock.lock);
 			break;
 		}
-
 	}
 	cbk_cache_unlock(cache);
-	RUNLOCK_TREE(tree);
-
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
+
+	if (result == 0 && ZF_ISSET(node, JNODE_RIP))
+		result = -ENOENT;
+
+	rcu_read_unlock();
 
 	if (result != 0) {
 		h->result = CBK_COORD_NOTFOUND;
