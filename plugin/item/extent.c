@@ -2260,7 +2260,7 @@ make_extent(struct inode *inode, coord_t * coord, lock_handle * lh, jnode * j,
 		/* @coord is not set to a place in a file we have to write to,
 		   so, coord_by_key must be called to find that place */
 		reiser4_stat_inc (extent.repeats);
-		result = -EAGAIN;
+		result = RETERR(-EAGAIN);
 		break;
 	}
 
@@ -2389,7 +2389,7 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 	BALANCE_DIRTY_PAGES;
 
 	if (coord_state == COORD_WRONG_STATE)
-		return -EAGAIN;
+		return RETERR(-EAGAIN);
 
 	result = hint_validate(hint, &f->key, lh, 0/* do not check key */);
 	assert("vs-1283", ergo(result == 0, memcmp(&hint->coord, coord, sizeof(coord_t))));
@@ -2445,7 +2445,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	result = 0;
 
 	if (DQUOT_ALLOC_SPACE_NODIRTY(inode, f->length))
-		return -EDQUOT;
+		return RETERR(-EDQUOT);
 
 	/* write position */
 	file_off = get_key_offset(&f->key);
@@ -2518,7 +2518,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		 * mark_page_accessed() here */
 
 		if (unlikely(result)) {
-			result = -EFAULT;
+			result = RETERR(-EFAULT);
 			goto exit3;
 		}
 		SetPageUptodate(page);
@@ -2754,7 +2754,7 @@ read_extent(struct file *file, coord_t *coord, flow_t * f)
 
 	page_cache_release(page);
 	if (result)
-		return -EFAULT;
+		return RETERR(-EFAULT);
 
 	/* coord should still be set properly */
 	assert("vs-1263", check_key_in_unit(coord, &f->key));
@@ -2889,15 +2889,19 @@ readahead_readpage_extent(void * vp, struct page *page)
 
 	ext_coord = vp;
 	coord = &ext_coord->coord;
-	if (coord->between != AT_UNIT)
+	if (coord->between != AT_UNIT) {
+		reiser4_unlock_page(page);
 		return RETERR(-EINVAL);
+	}
 			      
 	if (ext_coord->expected_page != page->index) {
 		/* read_cache_pages skipped few pages. Try to adjust coord to page */
 		assert("vs-1269", page->index > ext_coord->expected_page);
-		if (move_coord_pages(ext_coord,  page->index - ext_coord->expected_page))
+		if (move_coord_pages(ext_coord,  page->index - ext_coord->expected_page)) {
 			/* extent pointing to this page is not here */
+			reiser4_unlock_page(page);
 			return RETERR(-EINVAL);
+		}
 
 		assert("vs-1274", offset_is_in_unit(coord, ext_coord->ext + coord->unit_pos, 
 						    (loff_t)page->index << PAGE_CACHE_SHIFT, 0));
