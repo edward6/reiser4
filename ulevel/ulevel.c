@@ -3359,6 +3359,11 @@ static int bash_mkfs (char * file_name)
 		REISER4_ENTRY( &super );
 		txn_mgr_init( &get_super_private (&super) -> tmgr );
 
+		/* FIXME-ZAM: bash mkfs does not work if WRITE_LOG is ON, because
+		 * it supplies empty overwrite set (this is unusual) to
+		 * transaction manager, which triggers an error check code in
+		 * the log writer. */
+		WRITE_LOG = 0;
 
 		get_super_private (&super)->lplug = layout_plugin_by_id (TEST_LAYOUT_ID);
 

@@ -667,22 +667,22 @@ atom_try_commit_locked (txn_atom *atom)
 
 	trace_on (TRACE_FLUSH, "everything written back atom %u\n", atom->atom_id);
 
-#if WRITE_LOG
-	/* We unlock atom to allow journal writer and others (block allocator
-	 * hooks) to do things which may schedule, like memory allocation or
-	 * disk i/o.  ASTAGE_PRE_COMMIT should guarantee that current atom
-	 * can't be fused */
-	spin_unlock_atom (atom);
+	if (WRITE_LOG) {
+		/* We unlock atom to allow journal writer and others (block allocator
+		 * hooks) to do things which may schedule, like memory allocation or
+		 * disk i/o.  ASTAGE_PRE_COMMIT should guarantee that current atom
+		 * can't be fused */
+		spin_unlock_atom (atom);
 
-	ret = reiser4_write_logs();
-	if (ret) {
-		warning ("zam-597", "write log failed"); 
-		return ret;
+		ret = reiser4_write_logs();
+		if (ret) {
+			warning ("zam-597", "write log failed"); 
+			return ret;
+		}
+
+		/* Now close this txnh's reference to the atom. */
+		spin_lock_atom (atom);
 	}
-
-	/* Now close this txnh's reference to the atom. */
-	spin_lock_atom (atom);
-#endif
 
 	invalidate_clean_list (atom);
 
