@@ -250,6 +250,7 @@ void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag UNUSE )
 unsigned long event = 0;
 
 
+static spinlock_t inode_hash_guard;
 struct list_head inode_hash_list;
 
 static struct inode * alloc_inode (struct super_block * sb)
@@ -266,7 +267,9 @@ static struct inode * alloc_inode (struct super_block * sb)
 	atomic_set(&inode->i_count, 1);
 	inode->i_data.host = inode;
 	inode->i_mapping = &inode->i_data;
+	spin_lock( &inode_hash_guard );
 	list_add (&inode->i_hash, &inode_hash_list);
+	spin_unlock( &inode_hash_guard );
 	return inode;
 }
 
@@ -315,11 +318,16 @@ static struct inode * find_inode (struct super_block *super UNUSED_ARG,
 	struct inode * inode;
 
 
+	spin_lock( &inode_hash_guard );
 	list_for_each (cur, &inode_hash_list) {
 		inode = list_entry (cur, struct inode, i_hash);
-		if (inode->i_ino == ino)
+		info( "inode: %lli, %lli\n", inode->i_ino, ino );
+		if (inode->i_ino == ino) {
+			spin_unlock( &inode_hash_guard );
 			return inode;
+		}
 	}
+	spin_unlock( &inode_hash_guard );
 	return 0;
 }
 
@@ -338,9 +346,13 @@ struct inode *iget( struct super_block *super, unsigned long ino )
 }
 
 
-void iput( struct inode *inode UNUSED_ARG )
+void iput( struct inode *inode )
 {
-	atomic_dec(&inode->i_count);
+	if( atomic_dec_and_test( & inode -> i_count) ) {
+		spin_lock( &inode_hash_guard );
+		list_del_init( &inode -> i_hash );
+		spin_unlock( &inode_hash_guard );
+	}
 }
 
 void mark_inode_dirty (struct inode * inode)
@@ -354,13 +366,16 @@ void d_instantiate(struct dentry *entry, struct inode * inode)
 	entry -> d_inode = inode;
 }
 
+static spinlock_t alloc_guard;
 int  reiser4_alloc_block( znode *neighbor UNUSED_ARG,
 			  reiser4_disk_addr *blocknr UNUSED_ARG )
 {
 	static reiser4_disk_addr new_block_nr = ( reiser4_disk_addr ){ .blk = 10 };
-
+	
+	spin_lock( &alloc_guard );
 	*blocknr = new_block_nr;
 	++ new_block_nr.blk;
+	spin_unlock( &alloc_guard );
 	return 0;
 }
 
@@ -958,6 +973,7 @@ static int readdir( const char *prefix, struct file *dir, __u32 flags )
 			else
 				print_inode( info.name, i );
 			free( info.name );
+			iput( i );
 		}
 	} while( !info.eof && ( result == 0 ) );
 
@@ -1006,7 +1022,11 @@ static int call_rm( struct inode * dir, const char *name )
 
 	victim = call_lookup( dir, name );
 	if( !IS_ERR( victim ) ) {
-		return call_unlink( dir, victim, name );
+		int result;
+		
+		result = call_unlink( dir, victim, name );
+		iput( victim );
+		return result;
 	} else
 		return PTR_ERR( victim );
 }
@@ -1031,6 +1051,7 @@ static int call_link( struct inode *dir, const char *old, const char *new )
 		SUSPEND_CONTEXT( old_context );
 		r = dir -> i_op -> link( &old_dentry, dir, &new_dentry );
 		reiser4_init_context( old_context, dir -> i_sb );
+		iput( old_dentry.d_inode );
 		return r;
 	} else
 		return PTR_ERR( old_dentry.d_inode );
@@ -1116,6 +1137,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 
 	call_readdir( f, dir_name );
 	info( "(%i): done.\n", current_pid );
+	iput( f );
 	return NULL;
 }
 
@@ -1617,7 +1639,8 @@ static int call_create (struct inode * dir, const char * name)
 	ret = dir->i_op -> create( dir, &dentry, S_IFREG | 0777 );
 
 	reiser4_init_context( old_context, dir->i_sb );
-	
+	if( ret == 0 )
+		iput( dentry.d_inode );
 	return ret;
 }
 
@@ -1720,6 +1743,8 @@ static int call_mkdir (struct inode * dir, const char * name)
 	result = dir->i_op->mkdir (dir, &dentry, S_IFDIR | 0777);
 
 	reiser4_init_context (old_context, dir->i_sb);
+	if( result == 0 )
+		iput( dentry.d_inode );
 	return result;
 }
 
@@ -1979,6 +2004,9 @@ static int copy_dir (struct inode * dir)
 
 	free (name);
 
+	for (i = 0 ; i < depth ; ++ i)
+		iput (inodes [i]);
+
 	if (chdir (cwd)) {
 		perror ("copy_dir: chdir failed");
 		return 0;
@@ -2033,6 +2061,7 @@ static void diff (const char * full_name,
 	buf2 = malloc (BUFSIZE);
 	if (!buf1 || !buf2) {
 		perror ("diff: malloc failed");
+		iput (inode);
 		return;
 	}
 
@@ -2061,6 +2090,7 @@ static void diff (const char * full_name,
 	close (fd);
 	free (buf1);
 	free (buf2);
+	iput (inode);
 	return;
 }
 
@@ -2266,7 +2296,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			buf = malloc (blocksize * 10);
 			assert ("vs-345", buf);
 			call_write (inode, buf, (loff_t)1 * blocksize, blocksize * 3);
-
+			iput (inode);
 		
 			/*
 			 * "open" file "11111111111111111111111"
@@ -2288,6 +2318,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			print_tree_rec ("AFTER 2 WRITES", tree, REISER4_NODE_PRINT_HEADER |
 					REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
 			print_pages ();
+			iput (inode);
 		}
 #endif
 
@@ -2360,6 +2391,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		/*allocate_unallocated (tree);*/
 
 		/*print_pages ();*/
+		iput (dir);
 	} else if (!strcmp (argv[2], "twig")) {
 		/*
 		 * test modification of search to insert empty node when no
@@ -2375,11 +2407,15 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 		call_mkdir (root_dir, "dir2");
 
-
+		iput (inode);
+		iput (dir);
 		dir = call_lookup (root_dir, "dir2");
 		call_create (dir, "file2");
 		inode = call_lookup (dir, "file2");
 		call_write (inode, "Hello, world2", 0ull, strlen ("Hello, world2"));
+		iput (inode);
+		iput (dir);
+
 #if 0
 		set_key_locality (&key, 35ull);
 		set_key_objectid (&key, 40ull);
@@ -2484,6 +2520,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				      inode->i_size);
 				getline (&command, &n, stdin);				
 				call_truncate (inode, atoll (command));
+				iput (inode);
 			} else if (!strncmp (command, "tail", 4)) {
 				/*
 				 * get tail plugin or set
@@ -2924,6 +2961,9 @@ int real_main( int argc, char **argv )
 		rlog( "nikita-1496", "reiser4_current_trace_flags: %x", 
 		      reiser4_get_current_trace_flags() );
 	}
+
+	spin_lock_init( &inode_hash_guard );
+	spin_lock_init( &alloc_guard );
 
 	init_inodecache();
 	znodes_init();
