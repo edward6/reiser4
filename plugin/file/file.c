@@ -953,7 +953,14 @@ static int capture_page_and_create_extent(struct page * page)
 /* plugin->u.file.capturepage handler */
 reiser4_internal int
 capturepage_unix_file(struct page * page) {
-	return capture_page_and_create_extent(page);
+	int result;
+
+	page_cache_get(page);
+	unlock_page(page);
+	result = capture_page_and_create_extent(page);
+	lock_page(page);
+	page_cache_release(page);
+	return result;
 }
 
 static void redirty_inode(struct inode *inode)
@@ -1629,6 +1636,7 @@ reiser4_internal void balance_dirty_page_unix_file(struct inode *object)
 	balance_dirty_pages_ratelimited(object->i_mapping);
 }
 
+reiser4_internal struct page *
 unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int * unused)
 {
 	struct page *page;
