@@ -1671,7 +1671,7 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
 			0, blocksize * nr);
 		flush_dcache_page (page);
 		kunmap (page);
-		for (i = 0; i < nr; i ++, bh = bh->b_this_page)
+		for (i = 0; i < nr; i ++, desc->done_nr ++, bh = bh->b_this_page)
 			make_buffer_uptodate (bh, 1);
 	}
 
