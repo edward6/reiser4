@@ -539,6 +539,7 @@ reiser4_internal int
 extent2tail(unix_file_info_t *uf_info)
 {
 	int result;
+	int s_result;
 	struct inode *inode;
 	struct page *page;
 	unsigned long num_pages, i;
@@ -674,8 +675,6 @@ extent2tail(unix_file_info_t *uf_info)
 		print_inode("inode", inode);
 	}
 	if (space_reserved) {
-		int s_result;
-
 		s_result = safe_link_del(inode, SAFE_E2T);
 		if (s_result != 0) {
 			warning("nikita-3422", "Cannot kill safe-link %lli: %i",
