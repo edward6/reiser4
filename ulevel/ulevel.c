@@ -1305,10 +1305,7 @@ int reiser4_do_page_cache_readahead (struct file * file,
 void page_cache_readahead (struct file * file, unsigned long offset)
 {
 	/* do readahead only if reading from the beginning of file */
-	if (offset == 0) {
 		reiser4_do_page_cache_readahead (file, 0, READAHEAD_SIZE);
-	}
-	return;
 }
 
 
