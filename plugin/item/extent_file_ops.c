@@ -1110,25 +1110,6 @@ call_page_cache_readahead(struct address_space *mapping, struct file *file, unsi
 	fsdata->ra2.readpages = NULL;
 }
 
-#if REISER4_TRACE
-static void
-print_ext_coord(const char *s, uf_coord_t *uf_coord)
-{
-	reiser4_key key;
-	extent_coord_extension_t *ext_coord;
-	reiser4_extent *ext;
-
-	item_key_by_coord(&uf_coord->base_coord, &key);
-	ext_coord = &uf_coord->extension.extent;
-	ext = ext_by_ext_coord(uf_coord);
-	printk("%s: item key [%llu, %llu], nr_units %d, cur extent [%llu, %llu], unit_pos %d, pos_in_unit %Lu\n",
-	       s, get_key_objectid(&key), get_key_offset(&key),
-	       ext_coord->nr_units,
-	       extent_get_start(ext), extent_get_width(ext),
-	       uf_coord->base_coord.unit_pos, ext_coord->pos_in_unit);
-}
-#endif
-
 /* Implements plugin->u.item.s.file.read operation for extent items. */
 reiser4_internal int
 read_extent(struct file *file, flow_t *flow,  hint_t *hint)
