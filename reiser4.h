@@ -91,7 +91,7 @@
 /**
  * item plugin used by directories by default to store directory entries.
  */
-#define REISER4_DIR_ITEM_PLUGIN       (COMPOUND_DIR_IT)
+#define REISER4_DIR_ITEM_PLUGIN       (COMPOUND_DIR_ID)
 
 /**
  * start complaining after that many restarts in coord_by_key().

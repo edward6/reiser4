@@ -89,7 +89,7 @@ int hashed_owns_item( const struct inode *inode /* object to check against */,
 	assert( "nikita-1335", inode != NULL );
 	assert( "nikita-1334", coord != NULL );
 
-	if( item_id_by_coord( coord ) == SIMPLE_DIR_ENTRY_ID )
+	if( item_type_by_coord( coord ) == DIR_ENTRY_ITEM_TYPE )
 		/*
 		 * FIXME-NIKITA move this into kassign.c
 		 */
