@@ -49,18 +49,17 @@ struct reiser4_syscall_w_space
 	vnode_t   * Head_vnode;
 	streg     * Head_level;	
 	streg     * cur_level;	 
+	expr_v4_t * root_e;          /* root expression  for this task */
 
 	vnode_t   * wvn;              /* work    for this task */
 
-	lnode     * wln;              /* work lnode   for this task */
-	lnode     * root_ln;          /* root lnode   for this task */
-	lnode     * pwd_ln;           /* pwd  lnode   for this task */
-
 	struct dentry * de;            /* work dentry for this task */
+	struct nameidata nd;
 
+//	lnode     * wln;              /* work lnode   for this task */
+//	lnode     * root_ln;          /* root lnode   for this task */
+//	lnode     * pwd_ln;           /* pwd  lnode   for this task */
 //	struct path_walk path_walk;
-//	struct nameidata nd;
-
 };
 
 static struct
