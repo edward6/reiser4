@@ -118,6 +118,8 @@ struct reiser4_inode {
 	union {
 		unix_file_info_t unix_file_info;
 	} file_plugin_data;
+
+	struct list_head eflushed_jnodes;
 };
 
 typedef struct reiser4_inode_object {
