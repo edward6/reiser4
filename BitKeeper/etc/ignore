@@ -1,29 +1,29 @@
-BitKeeper/*/*
-PENDING/*
+*.[ao]
 *.[oas]
+*.bak
+*.flc
+*.out*
+*.so
 .*.flags
+.build
 .config
 .config.old
+.ctypes
 .depend
+.dependencies
+.gdbinit
 .hdepend
 .version
-.build
-build.h
-*.out*
-gmon.out
-dead.code
-GRTAGS
+BitKeeper/*/*
 GPATH
-GTAGS
+GRTAGS
 GSYMS
-.depend
-.gdbinit
-.ctypes
-*.flc
-.dependencies
-*.bak
-*.so
+GTAGS
+PENDING/*
 TAGS
+build.h
+dead.code
+gmon.out
 reiser4/AFTER 2 WRITES
 reiser4/AFTER ALLOCATION
 reiser4/BEFORE WRITE 1
