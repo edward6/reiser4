@@ -59,7 +59,6 @@ static reiser4_key * get_next_item_key (const coord_t * coord,
 int coord_set_properly (const reiser4_key * key, coord_t * coord)
 {
 	int result;
-	coord_t item;         /* item @coord is set to or after */
 	reiser4_key item_key; /* key of that item */
 	item_plugin * iplug;  /* plugin of item coord is set to or after */
 	reiser4_key max_key,  /* max key currently contained in that item */
