@@ -339,6 +339,8 @@ static level_lookup_result search_to_left( cbk_handle *h );
  * As we have extents on the twig level, @lock_level and @stop_level can
  * be different from LEAF_LEVEL and each other.
  *
+ * Thread cannot keep any reiser4 locks (tree, znode, dk spin-locks, or znode
+ * long term locks) while calling this. 
  */
 lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 						* in. Usually this tree is
