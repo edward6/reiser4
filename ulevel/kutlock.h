@@ -119,10 +119,11 @@ typedef struct
 	__u32            _calls;
 	__u32            _free;
 	__u64            _sleep;
+	__u64            _max_sleep;
 } spinlock_t;
 
 #undef SPIN_LOCK_UNLOCKED
-#define SPIN_LOCK_UNLOCKED (spinlock_t) { ._real = PTHREAD_MUTEX_INITIALIZER, ._guard = PTHREAD_MUTEX_INITIALIZER, ._locked = 0, ._tid = 0, ._busy = 0, ._calls = 0, ._free = 0, ._sleep = 0 }
+#define SPIN_LOCK_UNLOCKED (spinlock_t) { ._real = PTHREAD_MUTEX_INITIALIZER, ._guard = PTHREAD_MUTEX_INITIALIZER, ._locked = 0, ._tid = 0, ._busy = 0, ._calls = 0, ._free = 0, ._sleep = 0ull, ._max_sleep = 0ull }
 
 static __inline__ void
 spin_lock_init (spinlock_t *s)
@@ -135,6 +136,7 @@ spin_lock_init (spinlock_t *s)
 	s->_calls  = 0ull;
 	s->_free   = 0ull;
 	s->_sleep  = 0ull;
+	s->_max_sleep = 0ull;
 }
 
 static __inline__ void
@@ -142,6 +144,7 @@ spin_lock (spinlock_t *s)
 {
 	__u64 sleep_start;
 	__u64 sleep_end;
+	__u64 sleep;
 
 	pthread_t me = pthread_self ();
 
@@ -161,7 +164,10 @@ spin_lock (spinlock_t *s)
 	rdtscll (sleep_end);
 
 	pthread_mutex_lock (& s->_guard);
-	s->_sleep += sleep_end - sleep_start;
+	sleep = sleep_end - sleep_start;
+	s->_sleep += sleep;
+	if (sleep > s->_max_sleep)
+		s->_max_sleep = sleep;
 	if (s->_locked) {
 		SPINLOCK_BUG ("spinlock was locked by someone else");
 	}
@@ -254,8 +260,8 @@ spin_is_not_locked (spinlock_t *s)
 
 static __inline__ void print_spin_lock (const char *prefix, const spinlock_t *s)
 {
-	info ("%s: calls: %u, not-contended: %u, slept: %llu", prefix,
-	      s->_calls, s->_free, s->_sleep);
+	info ("%s: calls: %u, free: %u, slept: %llu, max sleep: %llu", prefix,
+	      s->_calls, s->_free, s->_sleep, s->_max_sleep);
 }
 
 #else

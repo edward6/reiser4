@@ -322,8 +322,10 @@ void reiser4_print_stats()
 	      s -> key.eq3 );
 
 	t = &get_current_super_private() -> tree;
-	print_spin_lock( "tree lock", &t -> tree_lock ); info( "\n" );
-	print_spin_lock( "dk lock", &t -> dk_lock ); info( "\n" );
+	info( "spin locks:\n" );
+	print_spin_lock( "\t tree     ", &t -> tree_lock ); info( "\n" );
+	print_spin_lock( "\t dk       ", &t -> dk_lock ); info( "\n" );
+	print_spin_lock( "\t cbk cache", &t -> cbk_cache.guard ); info( "\n" );
 
 	for( i = 0 ; i < REAL_MAX_ZTREE_HEIGHT ; ++ i ) {
 		if( s -> level[ i ].total_hits_at_level <= 0 )

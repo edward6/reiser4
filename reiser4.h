@@ -50,10 +50,6 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
     to allocate stattistics gathering array for per-level stats. */
 #define REISER4_MAX_ZTREE_HEIGHT     (10)
 
-/** if this is non-zero, clear content of new node, otherwise leave
-    whatever may happen to be here */
-#define REISER4_ZERO_NEW_NODE   (1)
-
 /* classical balancing algorithms require to update delimiting key in a
    parent every time one deletes leftmost item in its child so that
    delimiting key is actually exactly minimal key in a tree rooted at

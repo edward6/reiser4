@@ -29,13 +29,6 @@ void panic( const char *format, ... )
 	}
 }
 
-#if defined( REISER4_SILENT ) && REISER4_SILENT
-int printf( const char *format UNUSED_ARG, ... )
-{
-	return 0;
-}
-#endif
-
 int sema_init( semaphore *sem, int value )
 {
 	pthread_mutex_init( &sem -> mutex, NULL );
@@ -1894,9 +1887,9 @@ static int one_shot_filldir(void *arg, const char *name, int namelen,
 		info -> fired = 1;
 		info -> name = strdup( name );
 		info -> inum = ( int ) inum;
-		info( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
-		      current_pid, name, namelen, offset, 
-		      ( long unsigned ) inum, ftype );
+		dinfo( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
+		       current_pid, name, namelen, offset, 
+		       ( long unsigned ) inum, ftype );
 		return 0;
 	} else {
 		info -> fired = 0;
@@ -1913,9 +1906,9 @@ static int echo_filldir(void *arg, const char *name, int namelen,
 	info -> eof = 0;
 	if( lc_rand_max( 10ull ) < 2 )
 		return -EINVAL;
-	info( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
-	      current_pid, name, namelen, offset, 
-	      ( long unsigned ) inum, ftype );
+	dinfo( "%s[%i]: %s (%i), %Lx, %lx, %i\n", info -> prefix,
+	       current_pid, name, namelen, offset, 
+	       ( long unsigned ) inum, ftype );
 	return 0;
 }
 
@@ -2107,7 +2100,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	dentry.d_name.len = strlen( dir_name );
 	ret = info -> dir -> i_op -> mkdir( info -> dir, 
 					    &dentry, S_IFDIR | 0777 );
-	rlog( "nikita-1638", "In directory: %s", dir_name );
+	dinfo( "nikita-1638", "In directory: %s", dir_name );
 
 	if( ( ret != 0 ) && ( ret != -ENOMEM ) ) {
 		rpanic( "nikita-1636", "Cannot create dir: %i", ret );
@@ -2141,8 +2134,8 @@ void *mkdir_thread( mkdir_thread_info *info )
 			op = "create";
 			ret = call_create( f, name );
 		}
-		info( "(%i) %i:%s %s/%s: %i\n", current_pid, i, op,
-		      dir_name, name, ret );
+		dinfo( "(%i) %i:%s %s/%s: %i\n", current_pid, i, op,
+		       dir_name, name, ret );
 		if( ( ret != 0 ) && ( ret != -EEXIST ) && ( ret != -ENOENT ) &&
 		    ( ret != -EINTR ) && ( ret != -ENOMEM ) )
 			rpanic( "nikita-1493", "!!!" );
@@ -2157,7 +2150,7 @@ void *mkdir_thread( mkdir_thread_info *info )
 	xmemset( &dentry, 0, sizeof dentry );
 
 	call_readdir( f, dir_name );
-	info( "(%i): done.\n", current_pid );
+	dinfo( "(%i): done.\n", current_pid );
 	iput( f );
 	return NULL;
 }
@@ -2418,9 +2411,9 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		print_inode( "inode", f );
 
 		ret = call_create( f, "foo" );
-		info( "ret: %i\n", ret );
+		dinfo( "ret: %i\n", ret );
 		ret = call_create( f, "bar" );
-		info( "ret: %i\n", ret );
+		dinfo( "ret: %i\n", ret );
 		spin_lock_init( &lc_rand_guard );
 		memset( &info, 0, sizeof info );
 		info.dir = f;
@@ -4790,7 +4783,8 @@ void declare_memory_pressure( void )
 	is_mp = 1;
 	spin_unlock( &mp_guard );
 	kcond_broadcast( &memory_pressed );
-	rlog( "nikita-1940", "Memory pressure declared: %lli", total_allocations );
+	dinfo( "nikita-1940", "Memory pressure declared: %lli", 
+	       total_allocations );
 	/*total_allocations = 0;*/
 }
 
@@ -4847,7 +4841,7 @@ int real_main( int argc, char **argv )
 	int blocksize;
 	char *e;
 
-	printf("node size: %d\n", sizeof(node_header_40));
+	dinfo("node size: %d\n", sizeof(node_header_40));
 	__prog_name = strrchr( argv[ 0 ], '/' );
 	if( __prog_name == NULL )
 		__prog_name = argv[ 0 ];
@@ -4865,7 +4859,7 @@ int real_main( int argc, char **argv )
 	
 	PAGE_CACHE_SIZE	= (1UL << PAGE_CACHE_SHIFT);
 	PAGE_CACHE_MASK	= (~(PAGE_CACHE_SIZE-1));
-	info ("PAGE_CACHE_SHIFT=%d, PAGE_CACHE_SIZE=%lu, PAGE_CACHE_MASK=0x%lx\n",
+	dinfo ("PAGE_CACHE_SHIFT=%d, PAGE_CACHE_SIZE=%lu, PAGE_CACHE_MASK=0x%lx\n",
 	      PAGE_CACHE_SHIFT, PAGE_CACHE_SIZE, PAGE_CACHE_MASK);
 
 	if( getenv( "REISER4_TRAP" ) ) {

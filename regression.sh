@@ -13,12 +13,12 @@ function run()
 {
 #   do_mkfs
 	echo -n $* "..."
-	/usr/bin/time -f " T: %e/%S/%U F: %F/%R" $*
+	/usr/bin/time -f " T: %e/%S/%U F: %F/%R" $* >/dev/null
 }
 
 function do_mkfs()
 {
-	echo "mkfs $REISER4_MOUNT tail" | ${PROGRAM} sh
+	echo "mkfs $REISER4_MOUNT tail" | ${PROGRAM} sh >/dev/null
 }
 
 export REISER4_PRINT_STATS=1

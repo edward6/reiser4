@@ -1755,11 +1755,14 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 		result = -EINVAL;
 	}
 
-	if( REISER4_TRACE_TREE && ( trace_file_name != NULL ) ) {
+#if REISER4_TRACE_TREE
+	if( trace_file_name != NULL )
 		result = open_trace_file( s, trace_file_name, 
 					  REISER4_TRACE_BUF_SIZE, 
 					  &info -> trace_file );
-	}
+	else
+		info -> trace_file.buf = NULL;
+#endif
 	return result;
 }
 

@@ -71,6 +71,12 @@
 /** provide our own memcpy/memmove to profile shifts */
 #define REISER4_DEBUG_MEMCPY (0)
 
+/** if this is non-zero, clear content of new node, otherwise leave
+    whatever may happen to be here */
+#ifndef REISER4_ZERO_NEW_NODE
+#define REISER4_ZERO_NEW_NODE (1)
+#endif
+
 #define noop   do {;} while( 0 )
 
 #if REISER4_DEBUG
@@ -193,8 +199,10 @@ extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
 #define REISER4_TRACE (1)
 #endif
 
+#ifndef REISER4_TRACE_TREE
 /** collect tree traces */
 #define REISER4_TRACE_TREE (1)
+#endif
 
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */

@@ -521,7 +521,7 @@ int node40_check( const znode *node /* node to check */,
 	else
 		prev = *min_key();
 
-	if( zload( node ) != 0 )
+	if( zload( ( znode *) node ) != 0 )
 		return 0;
 
 	old_offset = 0;
@@ -655,7 +655,7 @@ int node40_check( const znode *node /* node to check */,
 		spin_unlock_dk( current_tree );
 	}
 
-	zrelse( node );
+	zrelse( ( znode *) node );
 	return 0;
 }
 
