@@ -206,8 +206,8 @@ typedef enum {
 
 	/* used in plugin/item/extent.c */
 	JNODE_NEW = 19,
-	/* async io request was issued */
-	JNODE_ASYNC = 20,
+	/* jnode's data parsed */
+	JNODE_PARSED = 20,
 	JNODE_DKSET = 21,
 
 	/* cheap and effective protection of jnode from emergency flush */
