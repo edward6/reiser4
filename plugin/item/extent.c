@@ -178,7 +178,7 @@ static extent_state state_of_extent (reiser4_extent * ext)
 	default:
 		break;
 	}
-	if (REISER4_DEBUG) {
+	if (0 && REISER4_DEBUG) {
 		/* make sure that all blocks are marked used */
 		reiser4_block_nr start, width;
 
