@@ -102,6 +102,9 @@ sub_from_sb_grabbed(const struct super_block *super, __u64 count)
 	reiser4_set_grabbed_blocks(super, grabbed_blocks);
 }
 
+/*
+ * Decrease the counter of block reserved for flush in super block.
+ */
 static void sub_from_sb_flush_reserved (const struct super_block * super, __u64 count)
 {
 	__u64 reserved = reiser4_flush_reserved (super);
@@ -127,12 +130,18 @@ sub_from_ctx_grabbed(__u64 count)
 	ctx->grabbed_blocks -= count;
 }
 
+/*
+ * Increase the counter of block reserved for flush in context.
+ */
 static void add_to_ctx_flush_reserved (__u64 count)
 {
 	reiser4_context * ctx = get_current_context();
 	ctx->flush_reserved += count;
 }
 
+/*
+ * Decrease the counter of block reserved for flush in context.
+ */
 static void sub_from_ctx_flush_reserved (__u64 count)
 {
 	reiser4_context * ctx = get_current_context();
@@ -193,6 +202,9 @@ sub_from_sb_used(const struct super_block *super, __u64 count)
 	reiser4_set_data_blocks(super, used_blocks);
 }
 
+/*
+ * Increase the counter of block reserved for flush in atom.
+ */
 static int add_to_atom_flush_reserved(__u32 count)
 {
 	txn_atom * atom = get_current_atom_locked_nocheck ();
@@ -207,6 +219,9 @@ static int add_to_atom_flush_reserved(__u32 count)
 	return 0;
 }
 
+/*
+ * Decrease the counter of block reserved for flush in atom.
+ */
 int sub_from_atom_flush_reserved(__u32 count)
 {
 	txn_atom * atom = get_current_atom_locked_nocheck ();

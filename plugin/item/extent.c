@@ -12,6 +12,7 @@
 #include "item.h"
 #include "extent.h"
 #include "../plugin.h"
+#include "../object.h"
 #include "../../txnmgr.h"
 #include "../../jnode.h"
 #include "../../block_alloc.h"
@@ -2731,7 +2732,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	tap_t watch;
 	reiser4_extent orig_ext;	/* this is for debugging */
 	znode *orig_znode;
-	reiser4_block_nr grabbed;
+	reiser4_block_nr grabbed, needed;
 
 	assert("vs-990", coord_is_existing_unit(un_extent));
 
@@ -2759,11 +2760,11 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 
 	/* Grab from 100% of disk space, not 95% as usual. */
 	reiser4_grab_space_enable();
-	if (reiser4_grab_space_exact(1, 1))
+	grabbed = get_current_context()->grabbed_blocks;
+	estimate_internal_amount(1, znode_get_tree(orig_znode)->height, &needed);
+	if (reiser4_grab_space_exact(needed, 1))
 		return -ENOSPC;	    
 	
-	grabbed = get_current_context()->grabbed_blocks;
-
 	/* set insert point after unit to be replaced */
 	un_extent->between = AFTER_UNIT;
 	result = insert_into_item(un_extent,
@@ -2773,8 +2774,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	/** While assigning unallocated block to block numbers we need to insert 
 	  * new extent units - this may lead to new block allocation on twig and 
 	  * upper levels. Take these blocks from 5% of disk space. */
-	if (grabbed == get_current_context()->grabbed_blocks)
-		grabbed2free(1);
+	grabbed2free(grabbed - get_current_context()->grabbed_blocks);
 	    
 	if (!result) {
 		reiser4_extent *ext;
