@@ -563,7 +563,7 @@ int extent2tail (struct file * file)
 		}
 		/* release page, detach jnode if any */
 		page -> mapping -> a_ops -> invalidatepage( page, 0 );
-		remove_inode_page (page);
+		remove_from_page_cache (page);
 		unlock_page (page);
 		page_cache_release (page);		
 	}
