@@ -41,9 +41,11 @@
 .jnode.o.cmd
 .kassign.o.cmd
 .kattr.o.cmd
+.kattr.o.d
 .kcond.o.cmd
 .key.o.cmd
 .ktxnmgrd.o.cmd
+.latch.o.cmd
 .lnode.o.cmd
 .lock.o.cmd
 .memory.o.cmd
@@ -55,6 +57,7 @@
 .scint.o.cmd
 .seal.o.cmd
 .search.o.cmd
+.spinprof.o.cmd
 .super.o.cmd
 .tap.o.cmd
 .trace.o.cmd
@@ -173,10 +176,14 @@ oid.h.old
 page_cache.bb
 page_cache.bbg
 plugin/.built-in.o.cmd
+plugin/.crypo_compressed.o.cmd
+plugin/.cryptcompress.o.cmd
 plugin/.hash.o.cmd
 plugin/.object.o.cmd
 plugin/.object.o.d
 plugin/.plugin.o.cmd
+plugin/.plugin_hash.o.cmd
+plugin/.plugin_set.o.cmd
 plugin/.symlink.o.cmd
 plugin/.tail_policy.o.cmd
 plugin/dir/.built-in.o.cmd
@@ -258,6 +265,7 @@ plugin/oid/oid_40.bb
 plugin/oid/oid_40.bbg
 plugin/plugin.bb
 plugin/plugin.bbg
+plugin/pseudo/.pseudo.o.cmd
 plugin/security/.acl.o.cmd
 plugin/security/.built-in.o.cmd
 plugin/security/.perm.o.cmd
@@ -1257,6 +1265,7 @@ seal.bbg
 search.bb
 search.bbg
 sfsfdf
+spin_macros_template.h
 super.bb
 super.bbg
 test1
@@ -1276,6 +1285,7 @@ ulevel/#ulevel.h#
 ulevel/c.ps
 ulevel/kbio-out.sh
 ulevel/kseeks.sh
+ulevel/loid
 ulevel/make-teeny-files
 ulevel/nfs
 ulevel/reads
@@ -1288,6 +1298,8 @@ ulevel/writes
 vfs_ops.
 vfs_ops.bb
 vfs_ops.bbg
+vfs_ops.c.diff
+vfs_ops.c.orig
 vs-pub-key
 wander.bb
 wander.bbg
@@ -1296,15 +1308,3 @@ write-test.1
 write-test.2
 znode.bb
 znode.bbg
-plugin/.crypo_compressed.o.cmd
-ulevel/loid
-plugin/.plugin_set.o.cmd
-.kattr.o.d
-plugin/.plugin_hash.o.cmd
-vfs_ops.c.diff
-vfs_ops.c.orig
-.spinprof.o.cmd
-plugin/.cryptcompress.o.cmd
-spin_macros_template.h
-plugin/pseudo/.pseudo.o.cmd
-.latch.o.cmd
