@@ -1355,9 +1355,11 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 	}
 
 	reiser4_lock_page(page);
-	j = jnode_by_page(page);
-	if (j)
-		UNDER_SPIN_VOID(jnode, j, eflush_del(j));
+	if (PagePrivate(page)) {
+		j = jnode_by_page(page);
+		if (j)
+			UNDER_SPIN_VOID(jnode, j, eflush_del(j));
+	}
 	reiser4_unlock_page(page);
 
 	if (!PageUptodate(page)) {
