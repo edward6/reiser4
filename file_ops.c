@@ -61,6 +61,8 @@ static int reiser4_mmap(struct file *, struct vm_area_struct *);
 static int reiser4_release(struct inode *, struct file *);
 static int reiser4_fsync(struct file *, struct dentry *, int datasync);
 static int reiser4_open(struct inode *, struct file *);
+static ssize_t reiser4_sendfile(struct file *, loff_t *, size_t, read_actor_t, void __user *);
+
 #if 0
 static unsigned int reiser4_poll(struct file *, struct poll_table_struct *);
 static int reiser4_flush(struct file *);
@@ -356,6 +358,116 @@ reiser4_fsync(struct file *file UNUSED_ARG,
 	return result;
 }
 
+/* Reads @count bytes from @file and calls @actor for every read page. This is
+   needed for loop back devices support. */
+static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
+				size_t count, read_actor_t actor,
+				void __user *target)
+{
+	int result = 0;
+	file_plugin *fplug;
+	reiser4_context ctx;
+	struct inode *inode;
+	unsigned long index;
+	unsigned long eindex;
+	unsigned long offset;
+	read_descriptor_t desc;
+
+	assert("umka-3108", file != NULL);
+	
+	inode = file->f_dentry->d_inode;
+	init_context(&ctx, inode->i_sb);
+
+	/* FIXME-UMKA: apparently here readahead should be called first.*/
+
+	desc.error = 0;
+	desc.written = 0;
+	desc.buf = target;
+	desc.count = count;
+
+	index = *ppos >> PAGE_CACHE_SHIFT;
+	offset = *ppos & ~PAGE_CACHE_MASK;
+	fplug = inode_file_plugin(inode);
+
+	while (1) {
+		struct page *page;
+		unsigned long nr, ret;
+		loff_t isize = i_size_read(inode);
+
+		eindex = (isize >> PAGE_CACHE_SHIFT);
+		
+		if (index > eindex)
+			break;
+
+		nr = PAGE_CACHE_SIZE;
+
+		if (index == eindex) {
+			nr = isize & ~PAGE_CACHE_MASK;
+			if (nr < offset)
+				break;
+		}
+
+		nr = nr - offset;
+
+		page = grab_cache_page(inode->i_mapping, index);
+		
+		if (unlikely(page == NULL)) {
+			result = RETERR(-ENOMEM);
+			goto fail;
+		}
+
+		/* FIXME-UMKA: here I count, that page is still locked after
+		   grab_cache_page(). Is it correct? */
+		if (PageUptodate(page)) {
+			unlock_page(page);
+			goto actor;
+		}
+		
+		if (fplug->readpage != NULL)
+			result = fplug->readpage(file, page);
+		else
+			result = RETERR(-EINVAL);
+
+		if (result != 0) {
+			SetPageError(page);
+			ClearPageUptodate(page);
+			unlock_page(page);
+			page_cache_release(page);
+			break;
+		} else {
+			lock_page(page);
+			
+			if (!PageUptodate(page)) {
+				result = RETERR(-EIO);
+				unlock_page(page);
+				page_cache_release(page);
+				break;
+			}
+
+			unlock_page(page);
+		}
+
+	actor:
+		/* FIXME-UMKA: here page is unlocked. Is it correct to pass unlocked
+		   page to actor()? */
+		ret = actor(&desc, page, offset, nr);
+		
+		offset += ret;
+		index += offset >> PAGE_CACHE_SHIFT;
+		offset &= ~PAGE_CACHE_MASK;
+		page_cache_release(page);
+	}
+
+	*ppos = ((loff_t)index << PAGE_CACHE_SHIFT) + offset;
+	update_atime(inode);
+
+fail:
+	desc.error = result;
+	reiser4_exit_context(&ctx);
+	return result;
+}
+
+
 struct file_operations reiser4_file_operations = {
 	.llseek   = reiser4_llseek,	/* d */
 	.read     = reiser4_read,	/* d */
@@ -368,7 +480,7 @@ struct file_operations reiser4_file_operations = {
 /* 	.flush             = reiser4_flush, */
 	.release  = reiser4_release,	/* d */
  	.fsync    = reiser4_fsync        /* d */,
-	.sendfile = generic_file_sendfile,
+	.sendfile = reiser4_sendfile,
 /* 	.fasync            = reiser4_fasync, */
 /* 	.lock              = reiser4_lock, */
 /* 	.readv             = reiser4_readv, */
