@@ -88,6 +88,8 @@ struct reiserfs_key_plugin {
     /* Gets/sets key offset */
     void (*set_offset) (void *, uint64_t);
     uint64_t (*get_offset) (void *);
+
+    uint16_t (*size) (void);
 };
 
 typedef struct reiserfs_key_plugin reiserfs_key_plugin_t;
@@ -394,6 +396,7 @@ struct reiserfs_alloc_plugin {
     error_t (*sync) (reiserfs_opaque_t *);
 
     void (*mark) (reiserfs_opaque_t *, blk_t);
+    int (*test) (reiserfs_opaque_t *, blk_t);
     
     blk_t (*alloc) (reiserfs_opaque_t *);
     void (*dealloc) (reiserfs_opaque_t *, blk_t);
