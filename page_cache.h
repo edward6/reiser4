@@ -12,6 +12,9 @@ extern int init_fakes( void );
 extern int init_formatted_fake( struct super_block *super );
 extern int done_formatted_fake( struct super_block *super );
 
+extern struct page *reiser4_lock_page( struct address_space *mapping, 
+				       unsigned long index );
+
 #if REISER4_DEBUG_MEMCPY
 extern void *xmemcpy( void *dest, const void *src, size_t n );
 extern void *xmemmove( void *dest, const void *src, size_t n );

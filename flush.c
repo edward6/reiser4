@@ -2318,7 +2318,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		do {
 			/* Note: On the very first pass through this block we test
 			 * the current position. */
-			pg = find_get_page (ino->i_mapping, scan_index);
+			pg = reiser4_lock_page (ino->i_mapping, scan_index);
 
 			if (pg == NULL) {
 				goto stop_same_parent;
@@ -2326,6 +2326,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 			neighbor = jnode_of_page (pg);
 
+			unlock_page (pg);
 			page_cache_release (pg);
 
 			if (IS_ERR(neighbor)) {
@@ -2349,7 +2350,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 	} else {
 		/* Optimized case for unallocated extents, skip to the end. */
-		pg = find_get_page (ino->i_mapping, scan_max);
+		pg = reiser4_lock_page (ino->i_mapping, scan_max);
 
 		if (pg == NULL) {
 			impossible ("jmacd-8337", "unallocated node index %lu ino %lu not in memory", scan_max, ino->i_ino);
@@ -2359,6 +2360,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 		neighbor = jnode_of_page (pg);
 
+		unlock_page (pg);
 		page_cache_release (pg);
 
 		if (IS_ERR(neighbor)) {
