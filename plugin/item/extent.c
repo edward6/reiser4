@@ -669,12 +669,6 @@ static int cut_or_kill_units (tree_coord * coord,
 		 */
 		extent_kill_item_hook (coord, *from, count, NULL/*FIXME!!!*/);
 
-
-	if (REISER4_DEBUG) {
-		ext = extent_item (coord);
-		xmemset (ext + *from, 0, count * sizeof (reiser4_extent));
-	}
-
 	if (*from == 0 && count != last_unit_pos (coord) + 1) {
 		/*
 		 * part of item is removed from item beginning, update item key
@@ -685,6 +679,12 @@ static int cut_or_kill_units (tree_coord * coord,
 				       extent_size (coord, count) +
 				       cut_from_to));
 		node_plugin_by_node (coord->node)->update_item_key (coord, &key, 0);
+	}
+
+	if (REISER4_DEBUG) {
+		/* zero space which is freed as result of cut between keys */
+		ext = extent_item (coord);
+		xmemset (ext + *from, 0, count * sizeof (reiser4_extent));
 	}
 
 	return count * sizeof (reiser4_extent);
