@@ -250,3 +250,4 @@ static reiserfs_plugin_t *dir40_entry(reiserfs_plugin_factory_t *f) {
 }
 
 libreiser4_factory_register(dir40_entry);
+

@@ -101,19 +101,23 @@ error_free_node:
 error_t reiserfs_node_reopen(reiserfs_node_t *node, aal_device_t *device, 
     blk_t blk, reiserfs_plugin_id_t plugin_id) 
 {
-    return 0;
+    aal_assert("umka-724", node != NULL, return -1);
+    aal_assert("umka-725", device != NULL, return -1);
+    
+    return -1;
 }
 
 error_t reiserfs_node_close(reiserfs_node_t *node) {
     aal_assert("umka-122", node != NULL, return -1);
+    
+    if (node->parent)
+	reiserfs_node_remove_children(node->parent, node);
+    
     if (node->children) {
 	aal_list_t *walk;
 	
 	aal_list_foreach_forward(walk, node->children)
 	    reiserfs_node_close((reiserfs_node_t *)walk->item);
-	
-	aal_list_free(node->children);
-	node->children = NULL;
     }
 
     if (node->plugin->node.close != NULL) {
@@ -123,7 +127,7 @@ error_t reiserfs_node_close(reiserfs_node_t *node) {
             return -1;
         }
     }
-
+    
     aal_block_free(node->block);
     aal_free(node);
 
@@ -183,8 +187,8 @@ int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key,
     }
     
     /* 
-	We are on the position where key is less then wanted. Key could lies within
-	the item or after the item.
+	We are on the position where key is less then wanted. 
+	Key could lies within the item or after the item.
     */
     reiserfs_key_init(&max_key, key->plugin);
     aal_memcpy(&max_key.body, reiserfs_node_item_key_at(node, coord->item_pos), 
@@ -301,7 +305,7 @@ void reiserfs_node_remove_children(reiserfs_node_t *node,
 
     if (node->children) {
 	length = aal_list_length(aal_list_first(node->children));
-	aal_list_remove(node->children, node);
+	aal_list_remove(node->children, children);
 
 	if (length == 1)
 	    node->children = NULL;
