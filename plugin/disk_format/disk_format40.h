@@ -25,15 +25,15 @@
 
 /* ondisk super block for format 40. It is 512 bytes long */
 typedef struct format40_disk_super_block {
-	/*   0 */ d32 mkfs_id;     /* unique identifier of fs */
-	/*   4 */ d64 block_count; /* number of block in a filesystem */
-	/*  12 */ d64 free_blocks; /* number of free blocks */
-	/*  20 */ d64 root_block;  /* filesystem tree root block */
-	/*  28 */ d64 oid;	   /* smallest free objectid */
-	/*  36 */ d64 file_count;  /* number of files in a filesystem */
-	/*  44 */ d64 flushes;	   /* number of times super block was
+	/*   0 */ d64 block_count; /* number of block in a filesystem */
+	/*   8 */ d64 free_blocks; /* number of free blocks */
+	/*  16 */ d64 root_block;  /* filesystem tree root block */
+	/*  24 */ d64 oid;	   /* smallest free objectid */
+	/*  32 */ d64 file_count;  /* number of files in a filesystem */
+	/*  40 */ d64 flushes;	   /* number of times super block was
 				    * flushed. Needed if format 40
 				    * will have few super blocks */
+	/*  48 */ d32 mkfs_id;     /* unique identifier of fs */
 	/*  52 */ char magic[16];  /* magic string R4Sb-Default */
 	/*  68 */ d16 tree_height; /* height of filesystem tree */
 	/*  70 */ d16 tail_policy;
