@@ -120,6 +120,7 @@ FIND_NON_SCCS	  := find . \( -regex '.*\(\(SCCS\)\|\(Attic\)\|\(reiser4progs\)\)
 INCS		:= -I.
 SRC		:= \
 		   debug.c \
+		   jnode.c \
 		   znode.c \
 		   key.c \
 		   pool.c \
