@@ -5222,6 +5222,10 @@ int vfs_follow_link(struct nameidata *nd UNUSED_ARG,
 	return 0;
 }
 
+void balance_dirty_pages(struct address_space *mapping)
+{
+}
+
 /*
  * Make Linus happy.
  * Local variables:

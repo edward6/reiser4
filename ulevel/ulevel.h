@@ -1511,6 +1511,8 @@ extern int vfs_readlink(struct dentry *dentry, char *buffer,
 
 extern int vfs_follow_link(struct nameidata *nd, const char *link);
 
+extern void balance_dirty_pages(struct address_space *mapping);
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 
