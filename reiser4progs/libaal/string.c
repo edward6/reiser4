@@ -4,10 +4,10 @@
     Author Yury Umanets.
 */
 
-#include <sys/types.h>
+#include <aal/aal.h>
 
 /* Memory-working functions */
-void *aal_memset(void *dest, char c, size_t n) {
+void *aal_memset(void *dest, char c, uint32_t n) {
     char *dest_p = (char *)dest;
 
     for (; (int)dest_p - (int)dest < (int)n; dest_p++)
@@ -16,7 +16,7 @@ void *aal_memset(void *dest, char c, size_t n) {
     return dest;
 }
 
-void *aal_memcpy(void *dest, const void *src, size_t n) {
+void *aal_memcpy(void *dest, const void *src, uint32_t n) {
     char *dest_p; 
     char *src_p;
 
@@ -37,9 +37,9 @@ void *aal_memcpy(void *dest, const void *src, size_t n) {
     return dest;
 }
 
-int aal_memcmp(const void *s1, const void *s2, size_t n) {
+int aal_memcmp(const void *s1, const void *s2, uint32_t n) {
     const char *p_s1 = (const char *)s1, *p_s2 = (const char *)s2;
-    for (; (size_t)(p_s1 - (int)s1) < n; p_s1++, p_s2++) {
+    for (; (uint32_t)(p_s1 - (int)s1) < n; p_s1++, p_s2++) {
 	if (*p_s1 < *p_s2) 
 	    return -1;
 	
@@ -50,23 +50,23 @@ int aal_memcmp(const void *s1, const void *s2, size_t n) {
 }
 
 /* String-working functions */
-size_t aal_strlen(const char *s) {
-    size_t len = 0;
+uint32_t aal_strlen(const char *s) {
+    uint32_t len = 0;
 
     while (*s++) len++;
     
     return len;
 }
 
-int aal_strncmp(const char *s1, const char *s2, size_t n) {
-    size_t len = aal_strlen(s1) < n ? aal_strlen(s1) : n;
+int aal_strncmp(const char *s1, const char *s2, uint32_t n) {
+    uint32_t len = aal_strlen(s1) < n ? aal_strlen(s1) : n;
     len = aal_strlen(s2) < len ? aal_strlen(s2) : len;
 
     return aal_memcmp((const void *)s1, (const void *)s2, len);
 }
 
-char *aal_strncpy(char *dest, const char *src, size_t n) {
-    size_t len = aal_strlen(src) < n ? aal_strlen(src) : n;
+char *aal_strncpy(char *dest, const char *src, uint32_t n) {
+    uint32_t len = aal_strlen(src) < n ? aal_strlen(src) : n;
 	
     aal_memcpy((void *)dest, (const void *)src, len);
 	
@@ -76,8 +76,8 @@ char *aal_strncpy(char *dest, const char *src, size_t n) {
     return dest;
 }
 
-char *aal_strncat(char *dest, const char *src, size_t n) {
-    size_t len = aal_strlen(src) < n ? aal_strlen(src) : n;
+char *aal_strncat(char *dest, const char *src, uint32_t n) {
+    uint32_t len = aal_strlen(src) < n ? aal_strlen(src) : n;
 	
     aal_memcpy(dest + aal_strlen(dest), src, len);
 	
@@ -87,14 +87,70 @@ char *aal_strncat(char *dest, const char *src, size_t n) {
     return dest;
 }
 
+char *aal_strpbrk(const char *s, const char *accept) {
+    char *p_s = (char *)s;
+    char *p_a = (char *)accept;
+    
+    while (*p_s) {
+	while (*p_a) {
+	    if (*p_a == *p_s)
+		return p_s;
+	    p_a++;
+	}
+	p_s++;
+    }
+    return NULL;
+}
+
+char *aal_strchr(const char *s, int c) {
+    char *p_s = (char *)s;
+    while (*p_s) {
+	if (*p_s == c)
+	    return p_s;
+	p_s++;
+    }
+    return NULL;
+}
+
+char *aal_strsep(char **stringp, const char *delim) {
+    char *begin, *end;
+
+    begin = *stringp;
+    
+    if (begin == NULL)
+        return NULL;
+    
+    if (delim[0] == '\0' || delim[1] == '\0') {
+	char ch = delim[0];
+	
+        if (ch == '\0')
+	    end = NULL;
+	else {
+	    if (*begin == ch)
+		end = begin;
+            else if (*begin == '\0')
+		end = NULL;
+            else
+                end = aal_strchr(begin + 1, ch);
+        }
+    } else
+	end = aal_strpbrk(begin, delim);
+    
+    if (end) {
+	*end++ = '\0';
+	*stringp = end;
+    } else
+	*stringp = NULL;
+    
+    return begin;
+}
+
 #define CONV_DEC_RANGE 1000000000
 #define CONV_HEX_RANGE 0x10000000
 #define CONV_OCT_RANGE 01000000000
 
-#undef DEF_CONVERTOR
-
-#define DEF_CONVERTOR(name, type)				\
-int name(type d, size_t n, char *a, int base, int flags) {	\
+#define aal_define_convertor(name, type)			\
+int name(type d, uint32_t n, char *a, int base, int flags) {	\
     char *p = a;						\
     type s;							\
     type range;							\
@@ -123,7 +179,7 @@ int name(type d, size_t n, char *a, int base, int flags) {	\
     for (s = range; s > 0; s /= base) {				\
 	type v = d / s;						\
 								\
-	if ((size_t)(p - a) >= n)				\
+	if ((uint32_t)(p - a) >= n)				\
 	    break;						\
 								\
 	if (v > 0) {						\
@@ -144,10 +200,10 @@ int name(type d, size_t n, char *a, int base, int flags) {	\
     return p - a;						\
 }								\
 
-DEF_CONVERTOR(aal_utoa, unsigned int);
-DEF_CONVERTOR(aal_lutoa, unsigned long int);
-DEF_CONVERTOR(aal_llutoa, unsigned long long);
-DEF_CONVERTOR(aal_stoa, int);
-DEF_CONVERTOR(aal_lstoa, long int);
-DEF_CONVERTOR(aal_llstoa, long long);
+aal_define_convertor(aal_utoa, unsigned int);
+aal_define_convertor(aal_lutoa, unsigned long int);
+aal_define_convertor(aal_llutoa, unsigned long long);
+aal_define_convertor(aal_stoa, int);
+aal_define_convertor(aal_lstoa, long int);
+aal_define_convertor(aal_llstoa, long long);
 
