@@ -1,54 +1,47 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Examples of object plugins: file, directory, symlink, special file
+/* Examples of object plugins: file, directory, symlink, special file */
+/* Plugins associated with inode:
+  
+   Plugin of inode is plugin referenced by plugin-id field of on-disk
+   stat-data. How we store this plugin in in-core inode is not
+   important. Currently pointers are used, another variant is to store
+   offsets and do array lookup on each access.
+  
+   Now, each inode has one selected plugin: object plugin that
+   determines what type of file this object is: directory, regular etc.
+  
+   This main plugin can use other plugins that are thus subordinated to
+   it. Directory instance of object plugin uses hash; regular file
+   instance uses tail policy plugin.
+  
+   Object plugin is either taken from id in stat-data or guessed from
+   i_mode bits. Once it is established we ask it to install its
+   subordinate plugins, by looking again in stat-data or inheriting them
+   from parent.
+  
  */
-/*
- * Plugins associated with inode:
- *
- * Plugin of inode is plugin referenced by plugin-id field of on-disk
- * stat-data. How we store this plugin in in-core inode is not
- * important. Currently pointers are used, another variant is to store
- * offsets and do array lookup on each access.
- *
- * Now, each inode has one selected plugin: object plugin that
- * determines what type of file this object is: directory, regular etc.
- *
- * This main plugin can use other plugins that are thus subordinated to
- * it. Directory instance of object plugin uses hash; regular file
- * instance uses tail policy plugin.
- *
- * Object plugin is either taken from id in stat-data or guessed from
- * i_mode bits. Once it is established we ask it to install its
- * subordinate plugins, by looking again in stat-data or inheriting them
- * from parent.
- *
+/* How new inode is initialized during ->read_inode():
+    1 read stat-data and initialize inode fields: i_size, i_mode, 
+      i_generation, capabilities etc.
+    2 read plugin id from stat data or try to guess plugin id 
+      from inode->i_mode bits if plugin id is missing.
+    3 Call ->init_inode() method of stat-data plugin to initialise inode fields.
+    4 Call ->activate() method of object's plugin. Plugin is either read from
+      from stat-data or guessed from mode bits
+    5 Call ->inherit() method of object plugin to inherit as yet initialized
+      plugins from parent.
+  
+   Easy induction proves that on last step all plugins of inode would be
+   initialized.
+  
+   When creating new object:
+    1 obtain object plugin id (see next period)
+    2 ->install() this plugin
+    3 ->inherit() the rest from the parent
+  
  */
-/*
- * How new inode is initialized during ->read_inode():
- *  1 read stat-data and initialize inode fields: i_size, i_mode, 
- *    i_generation, capabilities etc.
- *  2 read plugin id from stat data or try to guess plugin id 
- *    from inode->i_mode bits if plugin id is missing.
- *  3 Call ->init_inode() method of stat-data plugin to initialise inode fields.
- *  4 Call ->activate() method of object's plugin. Plugin is either read from
- *    from stat-data or guessed from mode bits
- *  5 Call ->inherit() method of object plugin to inherit as yet initialized
- *    plugins from parent.
- *
- * Easy induction proves that on last step all plugins of inode would be
- * initialized.
- *
- * When creating new object:
- *  1 obtain object plugin id (see next period)
- *  2 ->install() this plugin
- *  3 ->inherit() the rest from the parent
- *
- */
-/*
-
+/* 
   We need some examples of creating an object with default and
   non-default plugin ids.  Nikita, please create them.
  
@@ -81,15 +74,15 @@
 #include <linux/fs.h>
 #include <linux/dcache.h>
 #include <linux/quotaops.h>
-/** Amount of internals which will get dirty of get allocated we estimate as 
-  * 5% of the childs + 1 balancing. 1 balancing is 2 neighbours, 2 new blocks
-  * and the current block on the leaf level, 2 neighbour nodes + the current 
-  * (or 1 neighbour and 1 new and the current) on twig level, 2 neighbour nodes
-  * on upper levels and 1 for a new root. So 5 for leaf level, 3 for twig level, 
-  * 2 on upper + 1 for root. 
-  *
-  * Do not calculate the current node of the lowest level here - this is overhead 
-  * only. */
+/* Amount of internals which will get dirty of get allocated we estimate as 
+    5% of the childs + 1 balancing. 1 balancing is 2 neighbours, 2 new blocks
+    and the current block on the leaf level, 2 neighbour nodes + the current 
+    (or 1 neighbour and 1 new and the current) on twig level, 2 neighbour nodes
+    on upper levels and 1 for a new root. So 5 for leaf level, 3 for twig level, 
+    2 on upper + 1 for root. 
+   
+    Do not calculate the current node of the lowest level here - this is overhead 
+    only. */
 void estimate_internal_amount(__u32 childen, __u32 tree_height, __u64 *amount)
 {
 	__u32 ten_percent;
@@ -210,7 +203,7 @@ lookup_sd_by_key(reiser4_tree * tree /* tree to look in */ ,
 	return result;
 }
 
-/** insert new stat-data into tree. Called with inode state
+/* insert new stat-data into tree. Called with inode state
     locked. Return inode state locked. */
 static int
 insert_new_sd(struct inode *inode /* inode to create sd for */ )
@@ -341,7 +334,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	return result;
 }
 
-/** Update existing stat-data in a tree. Called with inode state
+/* Update existing stat-data in a tree. Called with inode state
     locked. Return inode state locked. */
 static int
 update_sd(struct inode *inode /* inode to update sd for */ )
@@ -596,16 +589,15 @@ common_set_plug(struct inode *object /* inode to set plugin on */ ,
 	return 0;
 }
 
-/**
- * Determine object plugin for @inode based on i_mode.
- *
- * Most objects in reiser4 file system are controlled by standard object
- * plugins: regular file, directory, symlink, fifo, and so on.
- *
- * For such files we don't explicitly store plugin id in object stat
- * data. Rather required plugin is guessed from mode bits, where file "type"
- * is encoded (see stat(2)).
- *
+/* Determine object plugin for @inode based on i_mode.
+  
+   Most objects in reiser4 file system are controlled by standard object
+   plugins: regular file, directory, symlink, fifo, and so on.
+  
+   For such files we don't explicitly store plugin id in object stat
+   data. Rather required plugin is guessed from mode bits, where file "type"
+   is encoded (see stat(2)).
+  
  */
 int
 guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
@@ -653,9 +645,7 @@ static reiser4_block_nr common_estimate_create(__u32 tree_height, struct inode *
 	return amount + 1;
 }
 
-/* 
- * ->create method of object plugin
- */
+/* ->create method of object plugin */
 static int
 common_file_create(struct inode *object, struct inode *parent UNUSED_ARG, reiser4_object_create_data * data UNUSED_ARG)
 {
@@ -673,7 +663,7 @@ common_file_create(struct inode *object, struct inode *parent UNUSED_ARG, reiser
 	return reiser4_write_sd(object);
 }
 
-/** standard implementation of ->owns_item() plugin method: compare objectids
+/* standard implementation of ->owns_item() plugin method: compare objectids
     of keys in inode and coord */
 int
 common_file_owns_item(const struct inode *inode	/* object to check
@@ -691,10 +681,8 @@ common_file_owns_item(const struct inode *inode	/* object to check
 	    (get_key_objectid(build_sd_key(inode, &file_key)) == get_key_objectid(item_key_by_coord(coord, &item_key)));
 }
 
-/*
- * @count bytes of flow @f got written, update correspondingly f->length,
- * f->data and f->key
- */
+/* @count bytes of flow @f got written, update correspondingly f->length,
+   f->data and f->key */
 void
 move_flow_forward(flow_t * f, unsigned count)
 {
@@ -704,10 +692,8 @@ move_flow_forward(flow_t * f, unsigned count)
 	set_key_offset(&f->key, get_key_offset(&f->key) + count);
 }
 
-/**
- * Default method to construct flow into @f according to user-supplied
- * data.
- */
+/* Default method to construct flow into @f according to user-supplied
+   data. */
 int
 common_build_flow(struct inode *inode /* file to build flow for */ ,
 		  char *buf /* user level buffer */ ,
@@ -899,9 +885,7 @@ dir_seek(struct file *file, loff_t off, int origin)
 	return result;
 }
 
-/**
- * default implementation of ->bind() method of file plugin
- */
+/* default implementation of ->bind() method of file plugin */
 static int
 common_bind(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 {
@@ -920,9 +904,7 @@ common_estimate_update(const struct inode *node)
 }
 
 
-/**
- * implementation of ->bind() method for file plugin of directory file
- */
+/* implementation of ->bind() method for file plugin of directory file */
 static int
 dir_bind(struct inode *child, struct inode *parent)
 {
@@ -1107,13 +1089,12 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					.delete	= common_estimate_file_delete}}
 };
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */
