@@ -2134,9 +2134,11 @@ repeat:
 		return 0;
 
 	/* Repeat try_capture as long as -E_REPEAT is returned. */
-	ret = try_capture_block(txnh, node, cap_mode, &atom_alloc, can_coc && coc_enabled);
 #if REISER4_COPY_ON_CAPTURE
+	ret = try_capture_block(txnh, node, cap_mode, &atom_alloc, can_coc && coc_enabled);
 	coc_enabled = 1;
+#else
+	ret = try_capture_block(txnh, node, cap_mode, &atom_alloc, can_coc);
 #endif
 	/* Regardless of non_blocking:
 
