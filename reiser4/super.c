@@ -148,7 +148,7 @@ int is_reiser4_super( const struct super_block *super )
  * during current system call. Reference to this super block is stored in
  * reiser4_context.
  */
-reiser4_super_info_data *reiser4_get_current_super_data( void )
+reiser4_super_info_data *reiser4_get_current_super_private( void )
 {
 	return reiser4_get_super_private( reiser4_get_current_sb() );
 }

@@ -100,7 +100,7 @@ extern reiser4_super_info_data *reiser4_get_super_private_nocheck( const struct 
 
 extern reiser4_super_info_data *reiser4_get_super_private( const struct super_block *super );
 
-extern reiser4_super_info_data *reiser4_get_current_super_data( void );
+extern reiser4_super_info_data *reiser4_get_current_super_private( void );
 
 extern const __u32 REISER4_SUPER_MAGIC;
 
@@ -109,7 +109,7 @@ extern int  reiser4_blksize( const struct super_block *super );
 extern long reiser4_data_blocks( const struct super_block *super );
 extern long reiser4_free_blocks( const struct super_block *super );
 extern long reiser4_reserved_blocks( const struct super_block *super, 
-			      uid_t uid, gid_t gid );
+				     uid_t uid, gid_t gid );
 extern reiser4_oid_allocator *reiser4_get_oid_allocator( const struct super_block *super );
 extern reiser4_tree *reiser4_get_tree( const struct super_block *super );
 extern __u32 reiser4_new_inode_generation( const struct super_block *super );
