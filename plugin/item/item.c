@@ -31,7 +31,8 @@ int agree_to_fast_op( const tree_coord *coord UNUSED_ARG )
 	return 1;
 }
 
-int item_can_contain_key( const tree_coord *item, const reiser4_key *key )
+int item_can_contain_key( const tree_coord *item, const reiser4_key *key,
+			  const reiser4_item_data *data )
 {
 	item_plugin *iplug;
 	reiser4_key min_key_in_item;
@@ -41,18 +42,22 @@ int item_can_contain_key( const tree_coord *item, const reiser4_key *key )
 	assert( "nikita-1659", key != NULL );
 
 	iplug = item_plugin_by_coord( item );
-	assert( "nikita-1681", iplug -> b.max_key_inside != NULL );
-	item_key_by_coord( item, &min_key_in_item );
-	iplug -> b.max_key_inside( item, &max_key_in_item );
+	if( iplug -> b.can_contain_key != NULL )
+		return iplug -> b.can_contain_key( item, key, data );
+	else {
+		assert( "nikita-1681", iplug -> b.max_key_inside != NULL );
+		item_key_by_coord( item, &min_key_in_item );
+		iplug -> b.max_key_inside( item, &max_key_in_item );
 	
-	/*
-	 * can contain key if 
-	 *    min_key_in_item <= key &&
-	 *    key <= max_key_in_item
-	 */
-	return 
-		( keycmp( &min_key_in_item, key ) != GREATER_THAN ) &&
-		( keycmp( key, &max_key_in_item ) != GREATER_THAN );
+		/*
+		 * can contain key if 
+		 *    min_key_in_item <= key &&
+		 *    key <= max_key_in_item
+		 */
+		return 
+			( keycmp( &min_key_in_item, key ) != GREATER_THAN ) &&
+			( keycmp( key, &max_key_in_item ) != GREATER_THAN );
+	}
 }
 
 /* return 0 if @item1 and @item2 are not mergeable, !0 - otherwise */
@@ -95,6 +100,7 @@ int are_items_mergeable( const tree_coord *i1, const tree_coord *i2 )
 		item_key_by_coord( i2, &k2 );
 
 		return 
+			( get_key_locality( &k1 ) == get_key_locality( &k2 ) ) &&
 			( get_key_objectid( &k1 ) == get_key_objectid( &k2 ) ) &&
 			( iplug == item_plugin_by_coord( i2 ) );
 	}
@@ -115,6 +121,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_type = STAT_DATA_ITEM_TYPE,
 				.b = {
 					.max_key_inside = single_key,
+					.can_contain_key = NULL,
 					.mergeable      = NULL,
 					.print          = sd_print,
 					.check          = NULL,
@@ -160,6 +167,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_type = DIR_ENTRY_ITEM_TYPE,
 				.b = {
 					.max_key_inside = single_key,
+					.can_contain_key = NULL,
 					.mergeable      = NULL,
 					.print          = de_print,
 					.check          = NULL,
@@ -208,6 +216,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_type = DIR_ENTRY_ITEM_TYPE,
 				.b = {
 					.max_key_inside = cde_max_key_inside,
+					.can_contain_key = cde_can_contain_key,
 					.mergeable      = cde_mergeable,
 					.print          = cde_print,
 					.check          = cde_check,
@@ -256,7 +265,8 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_type = INTERNAL_ITEM_TYPE,
 				.b = {
 					.max_key_inside = NULL,
-					.mergeable      = NULL,
+					.can_contain_key = NULL,
+					.mergeable      = internal_mergeable,
 					.print          = internal_print,
 					.check          = NULL,
 					.nr_units       = single_unit,
@@ -300,6 +310,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_type = EXTENT_ITEM_TYPE,
 				.b = {
 					.max_key_inside = extent_max_key_inside,
+					.can_contain_key = extent_can_contain_key,
 					.mergeable      = extent_mergeable,
 					.print          = extent_print,
 					.check          = NULL,
@@ -344,6 +355,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.item_type = BODY_ITEM_TYPE,
 				.b = {
 					.max_key_inside = tail_max_key_inside,
+					.can_contain_key = tail_can_contain_key,
 					.mergeable      = tail_mergeable,
 					.print          = NULL,
 					.check          = NULL,
