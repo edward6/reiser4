@@ -4,24 +4,21 @@
 
 /* OVERVIEW:
   
-     Reiser4 maintains all meta data in a single balanced tree. This tree is
-     maintained in memory in a form different from what will ultimately be
-     written to the disk. Roughly speaking, before writing a tree
-     node to the disk, some complex process (flush.[ch]) is to be
-     performed. Flush is main necessary preliminary step before writing pages
-     back to the disk, but it has some characteristics that make it completely
+     Before writing a node to the disk, some complex process (flush.[ch]) is to be performed. Flushprep is the main necessary
+     preliminary step before writing pages back to the disk, but it has some characteristics that make it completely
      different from traditional ->writepage():
      
-        1 it is not local, that is it operates on a big number of nodes,
-        possibly far away from the starting node, both in tree and disk order.
+        1 It operates on a large number of nodes, possibly far away from the starting node, both in tree and disk order.
   
         2 it can involve reading of nodes from the disk
         (for example, bitmap nodes are read during extent allocation that is
         deferred until flush).
+
+Eliminate dynamic loading of bitmap nodes.  It is an optimization not worth its weight in complexity.
   
-        3 it can allocate unbounded amount of memory (during insertion of
+        3 it can allocate memory (during insertion of
         allocated extents).
-  
+
         4 it participates in the locking protocol which reiser4 uses to
         implement concurrent tree modifications.
   
@@ -37,7 +34,29 @@
      So, flush is performed from within balance_dirty_page() path when dirty
      pages are generated. If balance_dirty_page() fails to throttle writers
      and page replacement finds dirty page on the inactive list, we resort to
-     "emergency flush" in our ->vm_writeback(). Emergency flush is relatively
+     "emergency flush" in our ->vm_writeback(). 
+
+This approach is wrong in its principles of design.
+
+You should perform emergency_flush only if all of the following are true:
+
+1) ent was awakened at least 3 milliseconds previously
+
+2) device is not congested for 3 milliseconds
+
+3) writepage was called
+
+if 3) is true but 1) or 2) are not true and priority is highest and ent is awake then you should probably wait in writepage.
+
+if 3) is true but ent is not awake then you should awaken it
+
+Please test to see whether if you are using such logic the result is that emergency_flush never gets called at all.  If
+it is called I want to understand why.
+
+I don't want to pay for time spent writing code without me that I said not to write until I had time to directly
+supervise it....
+
+     Emergency flush is relatively
      dumb algorithm, implemented in this file, that tries to write tree nodes
      to the disk without taking locks and without thoroughly optimizing tree
      layout. We only want to call emergency flush in desperate situations,
