@@ -320,8 +320,7 @@ static int common_create_child( struct inode *parent /* parent object */,
 		/* insert inode into VFS hash table */
 		insert_inode_hash( object );
 		/* create entry */
-		result = dplug -> add_entry( parent, dentry,
-					     data, &entry );
+		result = dplug -> add_entry( parent, dentry, data, &entry );
 		if( result != 0 ) {
 			if( fplug -> destroy_stat_data != NULL ) {
 				/*
