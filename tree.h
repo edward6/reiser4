@@ -160,8 +160,7 @@ struct reiser4_tree {
 extern void init_tree_0(reiser4_tree *);
 
 extern int init_tree(reiser4_tree * tree,
-		     const reiser4_block_nr * root_block,
-		     tree_level height, node_plugin * default_plugin);
+		     const reiser4_block_nr * root_block, tree_level height, node_plugin * default_plugin);
 extern void done_tree(reiser4_tree * tree);
 
 /**
@@ -259,12 +258,9 @@ typedef enum { RESIZE_OK = 0,
 	RESIZE_OOM = -ENOMEM
 } resize_result;
 
-typedef int (*tree_iterate_actor_t) (reiser4_tree * tree,
-				     coord_t * coord,
-				     lock_handle * lh, void *arg);
+typedef int (*tree_iterate_actor_t) (reiser4_tree * tree, coord_t * coord, lock_handle * lh, void *arg);
 extern int iterate_tree(reiser4_tree * tree, coord_t * coord, lock_handle * lh,
-			tree_iterate_actor_t actor, void *arg,
-			znode_lock_mode mode, int through_units_p);
+			tree_iterate_actor_t actor, void *arg, znode_lock_mode mode, int through_units_p);
 
 /** return node plugin of @node */
 static inline node_plugin *
@@ -279,8 +275,7 @@ node_plugin_by_node(const znode * node /* node to query */ )
 static inline unsigned
 node_num_items(const znode * node)
 {
-	assert("nikita-2468",
-	       node_plugin_by_node(node)->num_of_items(node) == node->nr_items);
+	assert("nikita-2468", node_plugin_by_node(node)->num_of_items(node) == node->nr_items);
 	return node->nr_items;
 }
 
@@ -294,10 +289,10 @@ coord_num_items(const coord_t * coord)
 	return node_num_items(coord->node);
 }
 
-
-static inline int node_is_empty (const znode * node)
+static inline int
+node_is_empty(const znode * node)
 {
-	return node_num_items (node) == 0;
+	return node_num_items(node) == 0;
 }
 
 typedef enum { SHIFTED_SOMETHING = 0,
@@ -342,58 +337,43 @@ extern void coord_unit_move_to(coord_t * coord, int units);
 lookup_result coord_by_key(reiser4_tree * tree, const reiser4_key * key,
 			   coord_t * coord, lock_handle * handle,
 			   znode_lock_mode lock, lookup_bias bias,
-			   tree_level lock_level, tree_level stop_level,
-			   __u32 flags);
+			   tree_level lock_level, tree_level stop_level, __u32 flags);
 lookup_result coord_by_hint_and_key(reiser4_tree * tree,
 				    const reiser4_key * key,
 				    coord_t * coord, lock_handle * handle,
-				    lookup_bias bias, tree_level lock_level,
-				    tree_level stop_level);
+				    lookup_bias bias, tree_level lock_level, tree_level stop_level);
 insert_result insert_by_key(reiser4_tree * tree, const reiser4_key * key,
 			    reiser4_item_data * data, coord_t * coord,
 			    lock_handle * lh,
-			    tree_level stop_level,
-			    inter_syscall_rap * ra,
-			    intra_syscall_rap ira, __u32 flags);
+			    tree_level stop_level, inter_syscall_rap * ra, intra_syscall_rap ira, __u32 flags);
 insert_result insert_by_coord(coord_t * coord,
 			      reiser4_item_data * data, const reiser4_key * key,
 			      lock_handle * lh,
-			      inter_syscall_rap * ra UNUSED_ARG,
-			      intra_syscall_rap ira UNUSED_ARG,
-			      cop_insert_flag);
+			      inter_syscall_rap * ra UNUSED_ARG, intra_syscall_rap ira UNUSED_ARG, cop_insert_flag);
 insert_result insert_extent_by_coord(coord_t * coord,
-				     reiser4_item_data * data,
-				     const reiser4_key * key, lock_handle * lh);
+				     reiser4_item_data * data, const reiser4_key * key, lock_handle * lh);
 int cut_node(coord_t * from, coord_t * to,
 	     const reiser4_key * from_key,
-	     const reiser4_key * to_key,
-	     reiser4_key * smallest_removed, unsigned flags, znode * left);
+	     const reiser4_key * to_key, reiser4_key * smallest_removed, unsigned flags, znode * left);
 
 resize_result resize_item(coord_t * coord, reiser4_item_data * data,
 			  reiser4_key * key, lock_handle * lh, cop_insert_flag);
-int insert_into_item(coord_t * coord, lock_handle * lh, reiser4_key * key,
-		     reiser4_item_data * data, cop_insert_flag);
+int insert_into_item(coord_t * coord, lock_handle * lh, reiser4_key * key, reiser4_item_data * data, cop_insert_flag);
 int insert_flow(coord_t * coord, lock_handle * lh, flow_t * f);
-int find_new_child_ptr(znode * parent, znode * child, znode * left,
-		       coord_t * result);
+int find_new_child_ptr(znode * parent, znode * child, znode * left, coord_t * result);
 
 int shift_right_of_but_excluding_insert_coord(coord_t * insert_coord);
 int shift_left_of_and_including_insert_coord(coord_t * insert_coord);
 int shift_everything_left(znode * right, znode * left, carry_level * todo);
 znode *insert_new_node(coord_t * insert_coord, lock_handle * lh);
-int cut_tree(reiser4_tree * tree,
-	     const reiser4_key * from_key, const reiser4_key * to_key);
+int cut_tree(reiser4_tree * tree, const reiser4_key * from_key, const reiser4_key * to_key);
 
 extern int check_tree_pointer(const coord_t * pointer, const znode * child);
-extern int find_new_child_ptr(znode * parent, znode * child UNUSED_ARG,
-			      znode * left, coord_t * result);
+extern int find_new_child_ptr(znode * parent, znode * child UNUSED_ARG, znode * left, coord_t * result);
 extern int find_child_ptr(znode * parent, znode * child, coord_t * result);
 extern int find_child_by_addr(znode * parent, znode * child, coord_t * result);
-extern int find_child_delimiting_keys(znode * parent,
-				      const coord_t * in_parent,
-				      reiser4_key * ld, reiser4_key * rd);
-extern znode *child_znode(const coord_t * in_parent, znode * parent,
-			  int incore_p, int setup_dkeys_p);
+extern int find_child_delimiting_keys(znode * parent, const coord_t * in_parent, reiser4_key * ld, reiser4_key * rd);
+extern znode *child_znode(const coord_t * in_parent, znode * parent, int incore_p, int setup_dkeys_p);
 
 extern int cbk_cache_init(cbk_cache * cache);
 extern void cbk_cache_done(cbk_cache * cache);
@@ -409,8 +389,7 @@ extern char *sprint_address(const reiser4_block_nr * block);
 #if REISER4_DEBUG_OUTPUT
 extern void print_coord_content(const char *prefix, coord_t * p);
 extern void print_address(const char *prefix, const reiser4_block_nr * block);
-extern void print_tree_rec(const char *prefix, reiser4_tree * tree,
-			   __u32 flags);
+extern void print_tree_rec(const char *prefix, reiser4_tree * tree, __u32 flags);
 extern void print_cbk_slot(const char *prefix, const cbk_cache_slot * slot);
 extern void print_cbk_cache(const char *prefix, const cbk_cache * cache);
 #else
@@ -482,8 +461,7 @@ int lookup_couple(reiser4_tree * tree,
 		  coord_t * coord1, coord_t * coord2,
 		  lock_handle * lh1, lock_handle * lh2,
 		  znode_lock_mode lock_mode, lookup_bias bias,
-		  tree_level lock_level, tree_level stop_level,
-		  __u32 flags, int *result1, int *result2);
+		  tree_level lock_level, tree_level stop_level, __u32 flags, int *result1, int *result2);
 
 /* list of active lock stacks */
 TS_LIST_DECLARE(context);
@@ -600,9 +578,7 @@ extern void done_context(reiser4_context * context);
 static inline int
 is_in_reiser4_context(void)
 {
-	return
-	    current->fs_context != NULL &&
-	    ((__u32) current->fs_context->owner) == context_magic;
+	return current->fs_context != NULL && ((__u32) current->fs_context->owner) == context_magic;
 }
 
 /** return context associated with given thread */
@@ -649,6 +625,7 @@ get_current_context(void)
 ({						\
         int __ret1 = txn_end( context );	\
 	done_context( context );		\
+        if (__ret1 > 0) __ret1 = 0;             \
         __ret1;					\
 })
 
@@ -693,6 +670,50 @@ TS_LIST_DEFINE(context, reiser4_context, contexts_link);
 #else
 #define check_tree() noop
 #endif
+
+/**
+ * jput() - decrement x_count reference counter on znode.
+ *
+ * Count may drop to 0, jnode stays in cache until memory pressure causes the
+ * eviction of its page. The c_count variable also ensures that children are
+ * pressured out of memory before the parent. The jnode remains hashed as
+ * long as the VM allows its page to stay in memory.
+ */
+static inline void
+jput(jnode * node)
+{
+	reiser4_tree *tree;
+	trace_stamp(TRACE_ZNODES);
+
+	assert("jmacd-509", node != NULL);
+	assert("jmacd-510", atomic_read(&node->x_count) > 0);
+	assert("jmacd-511", atomic_read(&node->d_count) >= 0);
+	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
+
+	tree = jnode_get_tree(node);
+
+	if (atomic_dec_and_lock(&node->x_count, &tree->tree_lock)) {
+		int r_i_p;
+
+		ON_DEBUG_CONTEXT(++lock_counters()->spin_locked_tree);
+		ON_DEBUG_CONTEXT(++lock_counters()->spin_locked);
+		r_i_p = !JF_TEST_AND_SET(node, JNODE_RIP);
+		spin_unlock_tree(tree);
+		if (r_i_p) {
+			if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
+				/*
+				 * node is removed from the tree.
+				 */
+				jdelete(node);
+			else
+				jnode_try_drop(node);
+		}
+		/*
+		 * if !r_i_p some other thread is already killing it
+		 */
+	}
+}
+
 
 /* __REISER4_TREE_H__ */
 #endif
