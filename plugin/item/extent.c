@@ -266,7 +266,6 @@ lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coor
 	reiser4_block_nr lookuped, offset;
 	unsigned i, nr_units;
 	reiser4_extent *ext;
-	unsigned blocksize;
 	unsigned char blocksize_bits;
 
 	item_key_by_coord(coord, &item_key);
@@ -285,7 +284,6 @@ lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coor
 	ext = extent_item(coord);
 	assert("vs-1350", ext == coord->body);
 
-	blocksize = current_blocksize;
 	blocksize_bits = current_blocksize_bits;
 
 	/* offset we are looking for */
@@ -1681,7 +1679,7 @@ extent_handle_relocate_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 	__u64 protected, allocated;
 	coord_t *coord;
 	unsigned extent_slum_size;
-	reiser4_block_nr start, width;
+	reiser4_block_nr width;
 	extent_state state;
 
 	coord = &flush_pos->coord;
@@ -1690,7 +1688,6 @@ extent_handle_relocate_in_place(flush_pos_t *flush_pos, unsigned *slum_size)
 	assert("zam-807", znode_is_write_locked(coord->node));
 
 	ext = extent_by_coord(coord);
-	start = extent_get_start(ext);
 	width = extent_get_width(ext);
 	oid = get_key_objectid(item_key_by_coord(coord, &key));
 	
