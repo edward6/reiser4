@@ -77,7 +77,8 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	       struct kstatfs *statfs	/* buffer to fill with
 					 * statistics */ )
 {
-	long bfree;
+	sector_t bfree;
+	sector_t reserved;
 	reiser4_context ctx;
 	
 	assert("nikita-408", super != NULL);
@@ -90,7 +91,19 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	statfs->f_bsize = super->s_blocksize;
 
 	statfs->f_blocks = reiser4_block_count(super);
-        bfree = reiser4_free_blocks(super);
+	bfree = reiser4_free_blocks(super);
+	/*
+	 * 5% of total block space are reserved. This is needed for flush and
+	 * for truncates (so that we are able to perform truncate/unlink even
+	 * on the otherwise completely full file system). If this reservation
+	 * is hidden from statfs(2), users will mistakenly guess that they
+	 * have enough free space to complete some operation, which is
+	 * frustrating.
+	 */
+	reserved = get_super_private(super)->blocks_reserved;
+	/* make sure statfs->f_bfree never goes negative */
+	if (bfree > reserved)
+		bfree -= reserved;
 	statfs->f_bfree = bfree;
 	
 	statfs->f_bavail = statfs->f_bfree - reiser4_reserved_blocks(super, 0, 0);
