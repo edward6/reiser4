@@ -17,8 +17,6 @@
 
 #include "forward.h"
 #include "debug.h"
-#include "plugin/plugin.h"
-#include "plugin/security/perm.h"
 #include "scint.h"
 
 #include <linux/types.h>	/* for __u?? , ino_t */
