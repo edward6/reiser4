@@ -808,7 +808,7 @@ sync_dkeys(carry_node * node /* node to update */ ,
 	tree = znode_get_tree(carry_real(node));
 	spin_lock_dk(tree);
 	spot = carry_real(node);
-	read_lock_tree(tree);
+	RLOCK_TREE(tree);
 
 	assert("nikita-2192", znode_is_loaded(spot));
 
@@ -850,7 +850,7 @@ sync_dkeys(carry_node * node /* node to update */ ,
 			break;
 	}
 
-	read_unlock_tree(tree);
+	RUNLOCK_TREE(tree);
 	spin_unlock_dk(tree);
 }
 
