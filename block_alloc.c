@@ -289,7 +289,42 @@ void release_blocknr (reiser4_block_nr * block)
 		reiser4_dealloc_blocks (block, &one, 1);
 	}
 }
+/** wrappers for block allocator plugin methods */
+extern void pre_commit_hook (void)
+{
+	space_allocator_plugin * splug;
 
+	assert ("zam-502", get_current_super_private () != NULL);
+	splug = get_current_super_private() -> space_plug;
+	assert ("zam-503", splug != NULL);
+
+	if (splug->pre_commit_hook != NULL) 
+		splug->pre_commit_hook();
+}
+
+extern void post_commit_hook (void)
+{
+	space_allocator_plugin * splug;
+
+	assert ("zam-504", get_current_super_private () != NULL);
+	splug = get_current_super_private() -> space_plug;
+	assert ("zam-505", splug != NULL);
+
+	if (splug->post_commit_hook != NULL)
+		splug->post_commit_hook();
+}
+
+extern void post_write_back_hook (void)
+{
+	space_allocator_plugin * splug;
+
+	assert ("zam-504", get_current_super_private () != NULL);
+	splug = get_current_super_private() -> space_plug;
+	assert ("zam-505", splug != NULL);
+
+	if (splug->post_commit_hook != NULL)
+		splug->post_commit_hook();
+}
 
 /* 
  * Local variables:
