@@ -225,15 +225,8 @@ static errno_t reiserfs_tree_insert_node(reiserfs_tree_t *tree,
     
     aal_assert("umka-646", tree != NULL, return -1);
     aal_assert("umka-647", node != NULL, return -1);
+    aal_assert("umka-796", parent != NULL, return -1);
 
-    if (!parent) {
-	reiserfs_node_t *root_node;
-	
-	/* There is the case when the tree growing is needed */
-	
-	return -1;
-    }
-    
     if (reiserfs_node_ldkey(node, &ldkey))
 	return -1;
     
@@ -297,9 +290,39 @@ static errno_t reiserfs_tree_insert_node(reiserfs_tree_t *tree,
 		return -1;
 	    }
 
+	    /* Checking for the root node. Here we increase the height of the tree */
+	    if (!insert.node->parent) {
+
+		/* Allocating new root node */
+		if (!(tree->root = reiserfs_tree_alloc_node(tree, 
+		    reiserfs_format_get_height(tree->fs->format)))) 
+		{
+		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+			"Can't allocate root node.");
+		    return -1;
+		}
+		
+		/* Registering insert point node in the new root node  */
+		if (reiserfs_tree_insert_node(tree, tree->root, insert.node)) {
+		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+			"Can't insert node %llu into the tree.", 
+			aal_block_get_nr(right->block));
+		    return -1;
+		}
+		
+		/* Updating the tree height and tree root values in disk format */
+		reiserfs_format_set_height(tree->fs->format, 
+		    reiserfs_node_get_level(tree->root));
+		
+		reiserfs_format_set_root(tree->fs->format, 
+		    aal_block_get_nr(tree->root->block));
+	    }
+	   
+	    /* Inserting right node into parent of insert point node */ 
 	    if (reiserfs_tree_insert_node(tree, insert.node->parent, right)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		    "Can't insert node %llu into the tree.", aal_block_get_nr(right->block));
+		    "Can't insert node %llu into the tree.", 
+		    aal_block_get_nr(right->block));
 		return -1;
 	    }
 	} else {
@@ -378,7 +401,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 	    /* 
 		Found node is the an internal node. This may happen when tree is 
 		empty, that is consists of root node only. In this case we allocate 
-		new leaf and insert it into tree immediate.
+		new leaf and insert it into tree.
 	    */
 	    if (!(leaf = reiserfs_tree_alloc_node(tree, REISERFS_LEAF_LEVEL))) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -468,6 +491,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 	    }
 	}
     } else {
+	    
 	/* Inserting item into existent one leaf */
 	if (reiserfs_node_insert(coord.node, &coord.pos, key, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
