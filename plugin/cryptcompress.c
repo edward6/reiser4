@@ -623,6 +623,20 @@ eq_to_ldk(znode *node, const reiser4_key *key)
 {
 	return UNDER_RW(dk, current_tree, read, keyeq(key, znode_get_ld_key(node)));
 }
+
+static lookup_result
+check_found(const coord_t *coord, const reiser4_key *key)
+{
+	coord_t twin;
+	lookup_result result;
+	
+	result = node_plugin_by_node(coord->node)->lookup(coord->node, key, FIND_EXACT, &twin);
+	if (result != CBK_COORD_FOUND)
+		return result;
+	assert("edward-1299", coords_equal(coord, &twin));
+	return result;
+}
+
 #endif
 
 /* The core search procedure.
@@ -690,7 +704,8 @@ find_cluster_item(hint_t * hint,
 	
  not_found:
 	assert("edward-1220", coord->item_pos > 0);
-	//coord->item_pos--;
+	assert("edward-1300", 
+	       WITH_DATA_RET(coord->node, CBK_COORD_NOTFOUND, check_found(coord, key)));
 	/* roll back */
 	*coord = orig;
 	ON_DEBUG(coord_update_v(coord));
@@ -1686,7 +1701,7 @@ invalidate_hint_cluster(reiser4_cluster_t * clust)
 	assert("edward-1291", clust != NULL);
 	assert("edward-1292", clust->hint != NULL);
 	
-	longterm_unlock_znode(clust->hint->ext_coord.lh);
+	done_lh(clust->hint->ext_coord.lh);
 	clust->hint->ext_coord.valid = 0;
 }
 
@@ -3115,13 +3130,15 @@ capture_anonymous_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-1074", inode != NULL);
 	assert("edward-1075", clust->dstat == INVAL_DISK_CLUSTER);
 
+	/* we might want to create unprepped cluster,
+	   so this will acquire a write longterm lock */
 	result = prepare_cluster(inode, 0, 0, clust, PCL_APPEND);
 	if (result)
 		return result;
 	set_cluster_pages_dirty(clust);
 	
 	result = try_capture_cluster(clust, inode);
-	set_hint_cluster(inode, clust->hint, clust->index + 1, ZNODE_WRITE_LOCK);
+	put_hint_cluster(clust, inode, ZNODE_WRITE_LOCK);
 	if (result)
 		release_cluster_pages_and_jnode(clust);
 	return result;
@@ -3169,9 +3186,7 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index)
 		if (!found)
 			break;
 		assert("edward-1109", page != NULL);
-		assert("edward-1296", 
-		       ergo(progress, clust.index != pg_to_clust(page->index, mapping->host)));
-		
+
 		move_cluster_forward(&clust, mapping->host, page->index, &progress);
 		result = capture_anonymous_cluster(&clust, mapping->host);
 		page_cache_release(page);
