@@ -417,6 +417,15 @@ static int pos_valid(flush_pos_t * pos);
 static void pos_done(flush_pos_t * pos);
 static int pos_stop(flush_pos_t * pos);
 
+/* check that @org is first jnode extent unit, if extent is unallocated,
+ * because all jnodes of unallocated extent are dirty and of the same atom. */
+#define checkchild(scan)						\
+assert("nikita-3435",							\
+       ergo(scan->direction == LEFT_SIDE &&				\
+	    jnode_is_unformatted(scan->node) &&				\
+	    extent_is_unallocated(&scan->parent_coord),			\
+	    extent_unit_index(&scan->parent_coord) == index_jnode(scan->node)))
+
 /* Flush debug functions */
 #if REISER4_DEBUG_OUTPUT
 #else
@@ -523,6 +532,9 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 		pos->state = POS_ON_EPOINT;
 		move_flush_pos(pos, &lock, &load, &parent_coord);
 		pos->child = jref(org);
+		assert("nikita-3435",					
+		       ergo(extent_is_unallocated(&parent_coord),
+			    extent_unit_index(&parent_coord) == index_jnode(org)));
 	}
 
  done:
@@ -1398,8 +1410,8 @@ set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 			/* If we fail for any reason it doesn't matter because the
 			   preceder is only a hint.  We are low-priority at this point, so
 			   this must be the case. */
-			if (ret == -E_REPEAT || ret == -E_NO_NEIGHBOR || 
-			    ret == -ENOENT || ret == -EINVAL || ret == -E_DEADLOCK) 
+			if (ret == -E_REPEAT || ret == -E_NO_NEIGHBOR ||
+			    ret == -ENOENT || ret == -EINVAL || ret == -E_DEADLOCK)
 			{
 				ret = 0;
 			}
@@ -1811,7 +1823,7 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 		/* Keep parent-first order.  In the order, the right parent node stands
 		   before the @right node.  If it is already allocated, we set the
 		   preceder (next block search start point) to its block number, @right
-		   node should be allocated after it.  
+		   node should be allocated after it.
 
 		   However, preceder is set only if the right parent is on twig level.
 		   The explanation is the following: new branch nodes are allocated over
@@ -2049,6 +2061,8 @@ static int squalloc_extent_should_stop (flush_pos_t * pos)
 		prepped = jnode_check_flushprepped(pos->child);
 		pos->pos_in_unit = jnode_get_index(pos->child) - extent_unit_index(&pos->coord);
 		assert("vs-1470", pos->pos_in_unit < extent_unit_width(&pos->coord));
+		assert("nikita-3434", ergo(extent_is_unallocated(&pos->coord),
+					   pos->pos_in_unit == 0));
 		jput(pos->child);
 		pos->child = NULL;
 
@@ -2497,6 +2511,7 @@ shift_one_internal_unit(znode * left, znode * right)
 	size = item_length_by_coord(&coord);
 	info.todo = &todo;
 	info.doing = NULL;
+
 	ret = node_plugin_by_node(left)->shift(&coord, left, SHIFT_LEFT, 1
 					       /* delete @right if it becomes empty */
 					       , 0 /* move coord */ ,
@@ -2575,7 +2590,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 
 	if (ZF_ISSET(node, JNODE_REPACK) || znode_created(node) || znode_is_root(node) ||
 	    /* We have enough nodes to relocate no matter what. */
-	    (pos->leaf_relocate != 0 && znode_get_level(node) == LEAF_LEVEL)) 
+	    (pos->leaf_relocate != 0 && znode_get_level(node) == LEAF_LEVEL))
 	{
 		/* No need to decide with new nodes, they are treated the same as
 		   relocate. If the root node is dirty, relocate. */
@@ -2780,17 +2795,35 @@ jnode_lock_parent_coord(jnode         * node,
 		reiser4_key key;
 		tree_level stop_level = TWIG_LEVEL ;
 		lookup_bias bias = FIND_EXACT;
-		/* The case when node is not znode, but can have parent coord
-		   (unformatted node, node which represents cluster page, etc..).
-		   Generate a key for the appropriate entry,
-		   search in the tree using coord_by_key, which handles
-		   locking for us. */
 
 		assert("edward-168", !(jnode_get_type(node) == JNODE_BITMAP));
 
-		jnode_build_key(node, &key);
+		/* The case when node is not znode, but can have parent coord
+		   (unformatted node, node which represents cluster page,
+		   etc..).  Generate a key for the appropriate entry, search
+		   in the tree using coord_by_key, which handles locking for
+		   us. */
 
-		if (jnode_is_cluster_page(node)) 
+		/*
+		 * nothing is locked at this moment, so, nothing prevents
+		 * concurrent truncate from removing jnode from inode. To
+		 * prevent this spin-lock jnode. jnode can be truncated just
+		 * after call to the jnode_build_key(), but this is ok,
+		 * because coord_by_key() will just fail to find appropriate
+		 * extent.
+		 */
+		LOCK_JNODE(node);
+		if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
+			jnode_build_key(node, &key);
+			ret = 0;
+		} else
+			ret = RETERR(-ENOENT);
+		UNLOCK_JNODE(node);
+
+		if (ret != 0)
+			return ret;
+
+		if (jnode_is_cluster_page(node))
 			stop_level = LEAF_LEVEL;
 		
 		assert("jmacd-1812", coord != NULL);
@@ -2825,7 +2858,7 @@ jnode_lock_parent_coord(jnode         * node,
 						coord->between);
 					print_jnode("node", node);
 				}
-				return -ENOENT;
+				return RETERR(-ENOENT);
 			}
 			ret = incr_load_count_znode(parent_zh, parent_lh->node);
 			if (ret != 0)
@@ -2848,10 +2881,9 @@ jnode_lock_parent_coord(jnode         * node,
 			flags |= GN_TRY_LOCK;
 
 		ret = reiser4_get_parent_flags(parent_lh, z, parent_mode, flags);
-		if (ret != 0) {
-			warning("nikita-2757", "get_parent failed: %i", ret);
+		if (ret != 0)
+			/* -E_REPEAT is ok here, it is handled by the caller. */
 			return ret;
-		}
 
 		/* Make the child's position "hint" up-to-date.  (Unless above
 		   root, which caller must check.) */
@@ -2960,7 +2992,8 @@ scan_done(flush_scan * scan)
 int
 scan_finished(flush_scan * scan)
 {
-	return scan->stop || scan->count >= scan->max_count;
+	return scan->stop || (scan->direction == RIGHT_SIDE &&
+			      scan->count >= scan->max_count);
 }
 
 /* Return true if the scan should continue to the @tonode.  True if the node meets the
@@ -3170,6 +3203,17 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 		lock_handle lock;
 		assert("edward-301", jnode_is_znode(scan->node));
 		init_lh(&lock);
+
+		/*
+		 * when flush starts from unformatted node, first thing it
+		 * does is tree traversal to find formatted parent of starting
+		 * node. This parent is then kept lock across scans to the
+		 * left and to the right. This means that during scan to the
+		 * left we cannot take left-ward lock, because this is
+		 * dead-lock prone. So, if we are scanning to the left and
+		 * there is already lock held by this thread,
+		 * jnode_lock_parent_coord() should use try-lock.
+		 */
 		try = scanning_left(scan) && !lock_stack_isclean(get_current_lock_stack());
 		/* Need the node locked to get the parent lock, We have to
 		   take write lock since there is at least one call path
@@ -3181,8 +3225,11 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 			   scanned too far and can't back out, just start over. */
 			return ret;
 
-		ret = jnode_lock_parent_coord(scan->node, &scan->parent_coord, &scan->parent_lock,
-					      &scan->parent_load, ZNODE_WRITE_LOCK, try);
+		ret = jnode_lock_parent_coord(scan->node,
+					      &scan->parent_coord,
+					      &scan->parent_lock,
+					      &scan->parent_load,
+					      ZNODE_WRITE_LOCK, try);
 
 		/* FIXME(C): check EINVAL, E_DEADLOCK */
 		done_lh(&lock);
@@ -3345,8 +3392,10 @@ scan_by_coord(flush_scan * scan)
 			if (ret != 0)
 				goto exit;
 
-			if (scan_finished(scan))
+			if (scan_finished(scan)) {
+				checkchild(scan);
 				break;
+			}
 		} else {
 			/* the same race against truncate as above is possible
 			 * here, it seems */
@@ -3404,14 +3453,17 @@ scan_by_coord(flush_scan * scan)
 		   here. */
 		if (child == NULL || IS_ERR(child)) {
 			scan->stop = 1;
+			checkchild(scan);
 			break;
 		}
 
 		assert("nikita-2374", jnode_is_unformatted(child) || jnode_is_znode(child));
 
 		/* See if it is dirty, part of the same atom. */
-		if (!scan_goto(scan, child))
+		if (!scan_goto(scan, child)) {
+			checkchild(scan);
 			break;
+		}
 
 		/* If so, make this child current. */
 		ret = scan_set_current(scan, child, 1, &next_coord);
@@ -3433,6 +3485,8 @@ scan_by_coord(flush_scan * scan)
 
 	assert("jmacd-6233", scan_finished(scan) || jnode_is_znode(scan->node));
  exit:
+	checkchild(scan);
+
 	if (jnode_is_znode(scan->node)) {
 		done_lh(&scan->parent_lock);
 		done_load_count(&scan->parent_load);
