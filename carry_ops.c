@@ -1305,8 +1305,9 @@ carry_cut(carry_op * op /* operation to be performed */ ,
 		/* data get cut,  */
 		result = node_plugin_by_node(op->node->real_node)->cut(&params);
 
+	assert("vs-1192", op->u.cut->from->node == op->u.cut->to->node);
 	znode_set_dirty(op->u.cut->from->node);
-	znode_set_dirty(op->u.cut->to->node);
+	/*znode_set_dirty(op->u.cut->to->node);*/
 	doing->restartable = 0;
 	return result < 0 ? : 0;
 }
