@@ -2763,7 +2763,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	grabbed = get_current_context()->grabbed_blocks;
 	estimate_internal_amount(1, znode_get_tree(orig_znode)->height, &needed);
 	if (reiser4_grab_space_exact(needed, 1))
-		return -ENOSPC;	    
+		panic ("vpf-340", "No space left in reserved area.");
 	
 	/* set insert point after unit to be replaced */
 	un_extent->between = AFTER_UNIT;
@@ -2774,7 +2774,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	/** While assigning unallocated block to block numbers we need to insert 
 	  * new extent units - this may lead to new block allocation on twig and 
 	  * upper levels. Take these blocks from 5% of disk space. */
-	grabbed2free(grabbed - get_current_context()->grabbed_blocks);
+	grabbed2free(get_current_context()->grabbed_blocks - grabbed);
 	    
 	if (!result) {
 		reiser4_extent *ext;
