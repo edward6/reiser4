@@ -351,6 +351,7 @@ static int common_create_child( struct inode *parent /* parent object */,
 	if( result == 0 ) {
 		assert( "nikita-434", !inode_get_flag( object,
 						       REISER4_NO_STAT_DATA ) );
+		inode_set_flag( object, REISER4_LOADED );
 		/* insert inode into VFS hash table */
 		insert_inode_hash( object );
 		/* create entry */
