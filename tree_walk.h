@@ -53,7 +53,7 @@ typedef enum {
 	GN_DO_READ       = 0x1,	/* allows to read block from disk */
 	GN_GO_LEFT       = 0x2,	/* locking left neighbor in stead of right
 				 * one */
-	GN_LOAD_NEIGHBOR = 0x4,	/* automatically load neighbor node content */
+	GN_LOAD_NEIGHBOR = 0x4,	/* automatically load neighbor node content */ /* FIXME_ZAM: used (search.c) but unimplemented? */
 	GN_TRY_LOCK      = 0x8,	/* return -EAGAIN if can't lock  */
 	GN_NO_ALLOC      = 0x10 /* used internally in tree_walk.c, causes
 				 * renew_sibling do not allocate neighbor
