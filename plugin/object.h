@@ -24,6 +24,7 @@ extern int common_file_owns_item(const struct inode *inode,
 				 const coord_t * coord);
 
 extern int common_file_owns_item(const struct inode *inode, const coord_t * coord);
+extern reiser4_block_nr common_estimate_update(const struct inode *inode);
 
 /* __FS_REISER4_PLUGIN_OBJECT_H__ */
 #endif
