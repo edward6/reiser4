@@ -80,6 +80,9 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* default hash plugin */
 #define REISER4_HASH_PLUGIN       (R5_HASH_ID)
 
+/* default fibration plugin */
+#define REISER4_FIBRATION_PLUGIN       (FIBRATION_DOT_O)
+
 /* default perm(ission) plugin */
 #define REISER4_PERM_PLUGIN       (RWX_PERM_ID)
 

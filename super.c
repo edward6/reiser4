@@ -400,6 +400,17 @@ default_hash_plugin(const struct super_block * super UNUSED_ARG	/*  super
 	return get_super_private(super)->plug.h;
 }
 
+/* default hash plugin used by this file system.
+   This should actually look at the mount options or something */
+reiser4_internal fibration_plugin *
+default_fibration_plugin(const struct super_block * super UNUSED_ARG	/*  super
+								 *  block to
+								 *  query */ )
+{
+	assert("nikita-1968", super != NULL);
+	return get_super_private(super)->plug.fib;
+}
+
 /* default perm plugin used by this file system.
    This should actually look at the mount options or something */
 reiser4_internal perm_plugin *

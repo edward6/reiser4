@@ -24,9 +24,11 @@ struct plugin_set {
 	/* perm plugin for this file */
 	perm_plugin        *perm;
 	/* tail policy plugin. Only meaningful for regular files */
-	formatting_plugin        *formatting;
+	formatting_plugin  *formatting;
 	/* hash plugin. Only meaningful for directories. */
 	hash_plugin        *hash;
+	/* fibration plugin. Only meaningful for directories. */
+	fibration_plugin   *fibration;
 	/* plugin of stat-data */
 	item_plugin        *sd;
 	/* plugin of items a directory is built of */
@@ -49,6 +51,7 @@ extern int plugin_set_dir        (plugin_set **set, dir_plugin *file);
 extern int plugin_set_perm       (plugin_set **set, perm_plugin *file);
 extern int plugin_set_formatting (plugin_set **set, formatting_plugin *file);
 extern int plugin_set_hash       (plugin_set **set, hash_plugin *file);
+extern int plugin_set_fibration  (plugin_set **set, fibration_plugin *file);
 extern int plugin_set_sd         (plugin_set **set, item_plugin *file);
 extern int plugin_set_dir_item   (plugin_set **set, item_plugin *file);
 extern int plugin_set_crypto     (plugin_set **set, crypto_plugin *file);

@@ -25,7 +25,7 @@
 #include "node/node.h"
 #include "node/node40.h"
 #include "security/perm.h"
-
+#include "fibration.h"
 
 #include "space/bitmap.h"
 #include "space/space_allocator.h"
@@ -518,6 +518,8 @@ union reiser4_plugin {
 	dir_plugin dir;
 	/* hash plugin, used by directory plugin */
 	hash_plugin hash;
+	/* fibration plugin used by directory plugin */
+	fibration_plugin fibration;
 	/* crypto plugin, used by file plugin */
 	crypto_plugin crypto;
 	/* digest plugin, used by file plugin */
@@ -745,6 +747,7 @@ PLUGIN_BY_ID(node_plugin, REISER4_NODE_PLUGIN_TYPE, node);
 PLUGIN_BY_ID(sd_ext_plugin, REISER4_SD_EXT_PLUGIN_TYPE, sd_ext);
 PLUGIN_BY_ID(perm_plugin, REISER4_PERM_PLUGIN_TYPE, perm);
 PLUGIN_BY_ID(hash_plugin, REISER4_HASH_PLUGIN_TYPE, hash);
+PLUGIN_BY_ID(fibration_plugin, REISER4_FIBRATION_PLUGIN_TYPE, fibration);
 PLUGIN_BY_ID(crypto_plugin, REISER4_CRYPTO_PLUGIN_TYPE, crypto);
 PLUGIN_BY_ID(digest_plugin, REISER4_DIGEST_PLUGIN_TYPE, digest);
 PLUGIN_BY_ID(compression_plugin, REISER4_COMPRESSION_PLUGIN_TYPE, compression);

@@ -1009,6 +1009,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		PLUG_OPT("plugin.file", file, &sbinfo->plug.f),
 		PLUG_OPT("plugin.dir", dir, &sbinfo->plug.d),
 		PLUG_OPT("plugin.hash", hash, &sbinfo->plug.h),
+		PLUG_OPT("plugin.fibration", hash, &sbinfo->plug.fib),
 
 		/* turn on BSD-style gid assignment */
 		BIT_OPT("bsdgroups", REISER4_BSD_GID),
@@ -1092,6 +1093,8 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		sbinfo->plug.d = dir_plugin_by_id(REISER4_DIR_PLUGIN);
 	if (sbinfo->plug.h == NULL)
 		sbinfo->plug.h = hash_plugin_by_id(REISER4_HASH_PLUGIN);
+	if (sbinfo->plug.fib == NULL)
+		sbinfo->plug.fib = fibration_plugin_by_id(REISER4_FIBRATION_PLUGIN);
 
 	sbinfo->optimal_io_size = REISER4_OPTIMAL_IO_SIZE;
 

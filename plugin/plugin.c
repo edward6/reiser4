@@ -407,6 +407,8 @@ extern dir_plugin dir_plugins[LAST_DIR_ID];
 extern sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION];
 /* defined in fs/reiser4/plugin/hash.c */
 extern hash_plugin hash_plugins[LAST_HASH_ID];
+/* defined in fs/reiser4/plugin/fibration.c */
+extern fibration_plugin fibration_plugins[LAST_FIBRATION_ID];
 /* defined in fs/reiser4/plugin/crypt.c */
 extern crypto_plugin crypto_plugins[LAST_CRYPTO_ID];
 /* defined in fs/reiser4/plugin/digest.c */
@@ -456,6 +458,15 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin = hash_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (hash_plugin)
+	},
+	[REISER4_FIBRATION_PLUGIN_TYPE] = {
+		.type_id = REISER4_FIBRATION_PLUGIN_TYPE,
+		.label = "fibration",
+		.desc = "Directory fibrations",
+		.builtin_num = sizeof_array(fibration_plugins),
+		.builtin = fibration_plugins,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
+		.size = sizeof (fibration_plugin)
 	},
 	[REISER4_CRYPTO_PLUGIN_TYPE] = {
 		.type_id = REISER4_CRYPTO_PLUGIN_TYPE,

@@ -234,6 +234,8 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 			if (result == 0)
 				result = grab_plugin(self, root, hash);
 			if (result == 0)
+				result = grab_plugin(self, root, fibration);
+			if (result == 0)
 				result = grab_plugin(self, root, formatting);
 			if (result == 0)
 				result = grab_plugin(self, root, perm);
@@ -491,6 +493,13 @@ inode_hash_plugin(const struct inode * inode)
 {
 	assert("nikita-2001", inode != NULL);
 	return reiser4_inode_data(inode)->pset->hash;
+}
+
+reiser4_internal fibration_plugin *
+inode_fibration_plugin(const struct inode * inode)
+{
+	assert("nikita-2001", inode != NULL);
+	return reiser4_inode_data(inode)->pset->fibration;
 }
 
 reiser4_internal crypto_plugin *

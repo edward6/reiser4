@@ -62,6 +62,7 @@ pseq(const unsigned long * a1, const unsigned long * a2)
 		sizeof set1->perm +
 		sizeof set1->formatting +
 		sizeof set1->hash +
+		sizeof set1->fibration +
 		sizeof set1->sd +
 		sizeof set1->dir_item +
 		sizeof set1->crypto +
@@ -78,6 +79,7 @@ pseq(const unsigned long * a1, const unsigned long * a2)
 		set1->perm == set2->perm &&
 		set1->formatting == set2->formatting &&
 		set1->hash == set2->hash &&
+		set1->fibration == set2->fibration &&
 		set1->sd == set2->sd &&
 		set1->dir_item == set2->dir_item &&
 		set1->crypto == set2->crypto &&
@@ -100,6 +102,7 @@ static inline unsigned long calculate_hash(const plugin_set *set)
 	HASH_FIELD(result, set, perm);
 	HASH_FIELD(result, set, formatting);
 	HASH_FIELD(result, set, hash);
+	HASH_FIELD(result, set, fibration);
 	HASH_FIELD(result, set, sd);
 	HASH_FIELD(result, set, dir_item);
 	HASH_FIELD(result, set, crypto);
@@ -129,6 +132,7 @@ static plugin_set empty_set = {
 	.perm               = NULL,
 	.formatting         = NULL,
 	.hash               = NULL,
+	.fibration          = NULL,
 	.sd                 = NULL,
 	.dir_item           = NULL,
 	.crypto             = NULL,
@@ -215,6 +219,7 @@ DEFINE_PLUGIN_SET(dir_plugin, dir)
 DEFINE_PLUGIN_SET(perm_plugin, perm)
 DEFINE_PLUGIN_SET(formatting_plugin, formatting)
 DEFINE_PLUGIN_SET(hash_plugin, hash)
+DEFINE_PLUGIN_SET(fibration_plugin, fibration)
 DEFINE_PLUGIN_SET(item_plugin, sd)
 DEFINE_PLUGIN_SET(item_plugin, dir_item)
 DEFINE_PLUGIN_SET(crypto_plugin, crypto)

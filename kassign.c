@@ -25,6 +25,7 @@
 #define INLINE_CHARS (ORDERING_CHARS + OID_CHARS)
 
 static const __u64 longname_mark = 0x0100000000000000ull;
+static const __u64 fibration_mask = 0xff00000000000000ull;
 
 reiser4_internal int
 is_longname_key(const reiser4_key *key)
@@ -100,10 +101,10 @@ extract_name_from_key(const reiser4_key *key, char *buf)
 
 	c = buf;
 	if (REISER4_LARGE_KEY) {
-		c = unpack_string(get_key_ordering(key) & ~longname_mark, c);
+		c = unpack_string(get_key_ordering(key) & ~fibration_mask, c);
 		c = unpack_string(get_key_fulloid(key), c);
 	} else
-		c = unpack_string(get_key_fulloid(key) & ~longname_mark, c);
+		c = unpack_string(get_key_fulloid(key) & ~fibration_mask, c);
 	unpack_string(get_key_offset(key), c);
 	return buf;
 }
@@ -123,6 +124,12 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 	__u64 offset;
 	const char *name;
 	int len;
+
+#if REISER4_LARGE_KEY
+#define second_el ordering
+#else
+#define second_el objectid
+#endif
 
 	assert("nikita-1139", dir != NULL);
 	assert("nikita-1140", qname != NULL);
@@ -171,14 +178,14 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 	   file's name. This imposes global ordering on directory
 	   entries.
 	*/
+	second_el = pack_string(name, 1);
 	if (REISER4_LARGE_KEY) {
-		ordering = pack_string(name, 1);
 		if (len > ORDERING_CHARS)
 			objectid = pack_string(name + ORDERING_CHARS, 0);
 		else
 			objectid = 0ull;
-	} else
-		objectid = pack_string(name, 1);
+	}
+
 	if (!is_longname(name, len)) {
 		if (len > INLINE_CHARS)
 			offset = pack_string(name + INLINE_CHARS, 0);
@@ -186,15 +193,15 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 			offset = 0ull;
 	} else {
 		/* note in a key the fact that offset contains hash. */
-		if (REISER4_LARGE_KEY)
-			ordering |= longname_mark;
-		else
-			objectid |= longname_mark;
+		second_el |= longname_mark;
 
 		/* offset is the hash of the file name. */
 		offset = inode_hash_plugin(dir)->hash(name + INLINE_CHARS,
 						      len - INLINE_CHARS);
 	}
+
+	assert("nikita-3480", inode_fibration_plugin(dir) != NULL);
+	second_el |= inode_fibration_plugin(dir)->fibre(dir, name, len);
 
 	if (REISER4_LARGE_KEY) {
 		set_key_ordering(result, ordering);

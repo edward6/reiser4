@@ -650,6 +650,7 @@ static plugin_entry pentry[] = {
 	PLUGIN_ENTRY(perm),
 	PLUGIN_ENTRY(formatting),
 	PLUGIN_ENTRY(hash),
+	PLUGIN_ENTRY(fibration),
 	PLUGIN_ENTRY(sd),
 	PLUGIN_ENTRY(dir_item),
 	PLUGIN_ENTRY(crypto),
