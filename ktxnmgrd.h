@@ -34,12 +34,6 @@ struct ktxnmgrd_context {
 
 SPIN_LOCK_FUNCTIONS(ktxnmgrd, ktxnmgrd_context, guard);
 
-typedef enum {
-	CANNOT_COMMIT,
-	MEMORY_PRESSURE,
-	LOW_MEMORY
-} ktxnmgrd_wake;
-
 extern void init_ktxnmgrd_context(ktxnmgrd_context * context);
 
 extern int ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr);
