@@ -282,9 +282,9 @@ tail2extent(unix_file_info_t *uf_info)
 	if (result == 0) {
 		result = safe_link_add(inode, SAFE_T2E);
 		if (result != 0)
-			return result;
+			goto out;
 	} else if (result != -EEXIST)
-		return result;
+		goto out;
 
 	/* get key of first byte of a file */
 	key_by_inode_unix_file(inode, offset, &key);
@@ -428,6 +428,8 @@ exit:
 		warning("nikita-3425", "Cannot kill safe-link %lli: %i",
 			get_inode_oid(inode), s_result);
 
+ out:
+	safe_link_release(tree_by_inode(inode));
 	all_grabbed2free();
 	return result;
 }
