@@ -268,6 +268,8 @@ static int common_create_child( struct inode *parent /* parent object */,
 	xmemset( &entry, 0, sizeof entry );
 	entry.obj = object;
 
+	spin_lock_init( &reiser4_inode_data( object ) -> guard );
+
 #ifndef INSTALL_EXISTS
 	/*
 	 * this does what did removed install method do: namelly, inialization
