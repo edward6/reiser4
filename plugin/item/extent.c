@@ -7,6 +7,11 @@
 static const reiser4_block_nr null_block_nr = (__u64)0;
 
 /*
+ * FIXME-VS: this is to debug zam-528 only
+ */
+unsigned long unallocated_blocks;
+
+/*
  * prepare structure reiser4_item_data to put one extent unit into tree
  */
 /* Audited by: green(2002.06.13) */
@@ -543,10 +548,26 @@ int extent_kill_item_hook (const coord_t * coord, unsigned from,
 
 	ext = extent_item (coord) + from;
 	for (i = 0; i < count; i ++, ext ++) {
+		/*
+		 * FIXME-VS: this is to debug zam-528
+		 */
+		if (state_of_extent (ext) == UNALLOCATED_EXTENT) {
+			assert ("", unallocated_blocks >= extent_get_width (ext));
+			unallocated_blocks -= extent_get_width (ext);
+			/*
+			 * FIXME-VS: this is necessary???
+			 */
+			fake_allocated2free (extent_get_width (ext), 0/* unformatted */);
+			if (reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()) != unallocated_blocks)
+				info ("kill_item_hook: sb: %llu, global: %lu\n",
+				      reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()),
+				      unallocated_blocks);
+		}
 
 		if (state_of_extent (ext) != ALLOCATED_EXTENT) {
 			continue;
 		}
+		
 		/*
 		 * FIXME-VS: do I need to do anything for unallocated extents
 		 */
@@ -554,7 +575,7 @@ int extent_kill_item_hook (const coord_t * coord, unsigned from,
 		length = extent_get_width (ext);
 		/* "defer" parameter is set to 1 because blocks which get freed
 		 * are not safe to be freed immediately */
-		reiser4_dealloc_blocks (&start, &length, 1 /* defer */, BLOCK_NOT_COUNTED);
+		reiser4_dealloc_blocks (&start, &length, 1 /* defer */, 0 /* not used */);
 	}
 	return 0;
 }
@@ -712,19 +733,35 @@ static int cut_or_kill_units (coord_t * coord,
 			new_width = (get_key_offset (from_key) + (blocksize - 1) - first) >> blocksize_bits;
 			assert ("vs-307", new_width > 0 && new_width <= old_width);
 			if (new_width < old_width) {
+				/*
+				 * FIXME-VS: debugging zam-528
+				 */
+				if (state_of_extent (ext) == UNALLOCATED_EXTENT && !cut) {
+					assert ("", unallocated_blocks >= old_width - new_width);
+					unallocated_blocks -= (old_width - new_width);
+					/*
+					 * FIXME-VS: this is necessary???
+					 */
+					fake_allocated2free (old_width - new_width, 0/*unformatted*/);
+					if (reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()) != unallocated_blocks)
+						info ("cut_or_kill_units: sb: %llu, global: %lu\n",
+						      reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()),
+						      unallocated_blocks);
+				}
+
 				if (state_of_extent (ext) == ALLOCATED_EXTENT && !cut) {
 					reiser4_block_nr start, length;
 					/*
 					 * truncate is in progress. Some blocks
-					 * can be * freed. As they do not get
-					 * immediately * available, set defer
-					 * parameter of *
-					 * reiser4_dealloc_blocks to 1
+					 * can be freed. As they do not get
+					 * immediately available, set defer
+					 * parameter of reiser4_dealloc_blocks
+					 * to 1
 					 */
 					start = extent_get_start (ext) + new_width;
 					length = old_width - new_width;
 					reiser4_dealloc_blocks (&start, &length,
-								1 /* defer */, BLOCK_NOT_COUNTED);
+								1 /* defer */, 0 /* not used */);
 				}
 				extent_set_width (ext, new_width);
 			}
@@ -765,6 +802,22 @@ static int cut_or_kill_units (coord_t * coord,
 			 */
 			assert ("vs-617", new_width > 0 && new_width <= old_width);
 
+			/*
+			 * FIXME-VS: debugging zam-528
+			 */
+			if (state_of_extent (ext) == UNALLOCATED_EXTENT && !cut) {
+				assert ("", unallocated_blocks >= old_width - new_width);
+				unallocated_blocks -= (old_width - new_width);
+				/*
+				 * FIXME-VS: this is necessary???
+				 */
+				fake_allocated2free (old_width - new_width, 0/*unformatted*/);
+				if (reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()) != unallocated_blocks)
+					info ("cut_or_kill_units2: sb: %llu, global: %lu\n",
+					      reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()),
+					      unallocated_blocks);
+			}
+
 			if (state_of_extent (ext) == ALLOCATED_EXTENT && !cut) {
 				reiser4_block_nr start, length;
 				/*
@@ -776,7 +829,7 @@ static int cut_or_kill_units (coord_t * coord,
 				start = extent_get_start (ext);
 				length = old_width - new_width;
 				reiser4_dealloc_blocks (&start, &length,
-							1 /* defer */, BLOCK_NOT_COUNTED);
+							1 /* defer */, 0 /* not used */);
 			}
 
 			/* (old_width - new_width) blocks of this extent were
@@ -962,167 +1015,6 @@ static void optimize_extent (const coord_t * item)
 	}
 }
 
-#if 0
-/* @coord is set to extent after which new extent(s) (@data) have to be
-   inserted. Attempt to union adjacent extents is made. So, resulting item may
-   be longer, shorter or of the same length as initial item */
-/* Audited by: green(2002.06.13) */
-static int add_extents (coord_t * coord,
-			lock_handle * lh,
-			reiser4_key * key,
-			reiser4_item_data * data)
-{
-	unsigned old_num;
- 	unsigned i;
-	reiser4_extent * prev, * ext, * start;
-	unsigned width;
-	unsigned new_num;
-	unsigned before;
-	unsigned delta;
-	unsigned count;
-
-
-	assert ("vs-337", coord->between == AFTER_UNIT);
-
-	prev = 0;
-	ext = start = extent_item (coord);
-	old_num = extent_nr_units (coord);
-	new_num = 0;
-
-	/* try to combine extents before insertion coord */
-	before = coord->unit_pos + 1;
-	for (i = 0; i < before; i ++, ext ++) {
-		width = extent_get_width (ext);
-		if (!width)
-			continue;
-		if (prev && state_of_extent (prev) == state_of_extent (ext)) {
-			/* current extent (@ext) and previous one (@prev) can
-			   be unioned when they are hole or unallocated
-			   extents or when they are adjacent allocated
-			   extents */
-			if (state_of_extent (prev) != ALLOCATED_EXTENT) {
-				set_extent (prev, state_of_extent (ext),
-					    extent_get_width (prev) + width);
-				continue;
-			} else if (extent_get_start (prev) + extent_get_width (prev) ==
-				   extent_get_start (ext)) {
-				extent_set_width (prev, extent_get_width (prev) + width);
-				continue;
-			}
-		}
-
-		/* @ext can not be joined with @prev, move @prev forward */
-		if (prev)
-			prev ++;
-		else
-			prev = start;
-		*prev = *ext;
-		new_num ++;
-	}
-
-	/* position of insertion might change */
-	coord->unit_pos -= (before - new_num);
-
-	/* try to combine extents after insertion coord */
-	if (prev)
-		start = prev + 1;
-	prev = 0;
-	for ( ; i < old_num; i ++, ext ++) {
-		width = extent_get_width (ext);
-		if (!width)
-			continue;
-		if (prev && state_of_extent (prev) == state_of_extent (ext)) {
-			/* current extent (@ext) and previous one (@prev) can
-			   be unioned when they are hole or unallocated
-			   extents or when they are adjacent allocated
-			   extents */
-			if (state_of_extent (prev) != ALLOCATED_EXTENT) {
-				set_extent (prev, state_of_extent (ext),
-					    extent_get_width (prev) + width);
-				continue;
-			} else if (extent_get_start (prev) + extent_get_width (prev) ==
-				   extent_get_start (ext)) {
-				extent_set_width (prev, extent_get_width (prev) + width);
-				continue;
-			}
-		}
-
-		/* @ext can not be joined with @prev, move @prev forward */
-		if (prev)
-			prev ++;
-		else
-			prev = start;
-		*prev = *ext;
-		new_num ++;
-	}
-
-	delta = old_num - new_num;
-	/* item length decreased by delta * sizeof (reiser4_extent) */
-
-	/* number of extents to be added */
-	count = data->length / sizeof (reiser4_extent);
-
-	/* new data has to be added after position coord->unit_pos */
-	xmemmove (extent_item (coord) + coord->unit_pos + 1 + min (count, delta),
-		 extent_item (coord) + coord->unit_pos + 1,
-		 (new_num - coord->unit_pos - 1) *
-		 sizeof (reiser4_extent));
-	/* copy part of new data into space freed by "optimizing" */
-	assert ("vs-557", data->user == 0);
-	xmemcpy (extent_item (coord) + coord->unit_pos + 1, data->data,
-		min (count, delta) * sizeof (reiser4_extent));
-
-	if (delta < count) {
-		/* item length has to be increased */
-		coord->unit_pos += delta;
-		for (i = 0; i < delta; i ++)
-			set_key_offset (key, get_key_offset (key) +
-					current_blocksize *
-					extent_get_width ((reiser4_extent *)data->data + i));
-		data->data += delta * sizeof (reiser4_extent);
-		data->length -= delta * sizeof (reiser4_extent);
-
-		if (0) {
-			reiser4_key tmp_key;
-
-			item_key_by_coord (coord, &tmp_key);
-			set_key_offset (&tmp_key, get_key_offset (&tmp_key) +
-					extent_size (coord,
-						     coord->unit_pos + 1));
-			assert ("vs-619", keyeq (key, &tmp_key));
-		}
-
-		return resize_item (coord, data, key, lh, 0/*flags*/);
-	}
-
-	if (delta == count) {
-		/* item remains of the same size, new data is in already */
-		coord->unit_pos ++;
-		coord->between = AT_UNIT;
-		return 0;
-	}
-
-	/* item length has to be decreased, new data is in already */
-	{
-		coord_t from, to;
-
-		from = *coord;
-		from.unit_pos = new_num + count;
-		from.between = AT_UNIT;
-		to = *coord;
-		to.unit_pos = old_num - 1;
-		to.between = AT_UNIT;
-
-		/*
-		 * wipe part of item which is going to be cut, so that
-		 * node_check will not be confused by extent overlapping
-		 */
-		memset (extent_by_coord (&from), 0,
-			sizeof (reiser4_extent) * (old_num - new_num - count));
-		return cut_node (&from, &to, 0, 0, 0, 0/*flags*/, 0);
-	}
-}
-#endif
 
 /*
  * position within extent pointed to by @coord to block containing given offset
@@ -1153,13 +1045,21 @@ static reiser4_block_nr in_extent (const coord_t * coord,
 }
 
 
+
 static void extent_assign_fake_blocknr (jnode * j)
 {
 	reiser4_block_nr fake_blocknr;
 
 
-	assign_fake_blocknr (&fake_blocknr);
+	assign_fake_blocknr (&fake_blocknr, 0/*unformatted*/);
 	jnode_set_block (j, &fake_blocknr);
+
+	unallocated_blocks ++;
+	/*
+	 * FIXME-VS: for debugging zam-528
+	 */
+	assert ("", unallocated_blocks ==
+		reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()));
 }
 
 
@@ -1181,7 +1081,7 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	/* extent insertion starts at leaf level */
 	assert ("vs-719", znode_get_level (coord->node) == LEAF_LEVEL);
 
-	result = reiser4_grab_space1 ((__u64)1);
+	result = reiser4_grab_space_exact (1);
 	if (result)
 		return result;
 
@@ -1192,7 +1092,7 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	result = insert_extent_by_coord (coord, init_new_extent (&unit, &ext, 1),
 					 &first_key, lh);
 	if (result) {
-		reiser4_release_grabbed_space((__u64)1);
+		grabbed2free (1);
 		return result;
 	}
 
@@ -1233,7 +1133,7 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 			keyeq (key, last_key_in_extent (coord, &next));
 		}));
 
-	result = reiser4_grab_space1 ((__u64)1);
+	result = reiser4_grab_space_exact (1);
 	if (result)
 		return result;
 
@@ -1253,24 +1153,9 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 					   init_new_extent (&unit, &new_ext, 1),
 					   0/* flags */);
 		if (result) {
-			reiser4_release_grabbed_space((__u64)1);
+			grabbed2free (1);
 			return result;
 		}
-#if 0
-		/* it is possible that coord is moved to newly allocated
-		 * node. If so - coord->node can be not loaded now */
-		result = zload (coord->node);
-		if (result) {
-			/*
-			 * FIXME-VS: no undo here
-			 */
-			reiser4_release_grabbed_space((__u64)1);
-			return result;
-		}
-		coord->unit_pos = coord_last_unit_pos (coord);
-		zrelse (coord->node);
-		coord->between = AFTER_UNIT;
-#endif
 		break;
 	}
 
@@ -1457,8 +1342,9 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 	{
 		reiser4_key key;
 		struct inode * inode;
+		reiser4_tree * tree;
 		unsigned long index;
-		struct page * pg;
+		/*struct page * pg;*/
 
 		extent_get_inode_and_key_by_coord (coord, & inode, & key);
 
@@ -1478,6 +1364,7 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 				*childp = NULL;
 			return 0;
 		}
+		tree = tree_by_inode (inode);
 
 		if (side == LEFT_SIDE) {
 			/* get key of first byte addressed by the extent */
@@ -1492,6 +1379,7 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 		/* index of first or last (depending on @side) page addressed
 		 * by the extent */
 		index = (unsigned long)(get_key_offset (&key) >> PAGE_CACHE_SHIFT);
+#if 0
 		pg = reiser4_lock_page (inode->i_mapping, index);
 
 		if (pg == NULL) {
@@ -1506,6 +1394,9 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 
 		unlock_page (pg);
 		page_cache_release (pg);
+#endif
+		*childp = UNDER_SPIN (tree, tree, 
+				      jlook (tree, inode->i_mapping, index));
 		iput (inode);
 	}
 
@@ -1672,13 +1563,13 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 		break;
 
 	case HOLE_EXTENT:
-		result = reiser4_grab_space1((__u64)1);
+		result = reiser4_grab_space_exact (1);
 		if (result)
 			return result;
 
 		result = plug_hole (coord, lh, off);
 		if (result) {
-			reiser4_release_grabbed_space((__u64)1);
+			grabbed2free (1);
 			return result;
 		}
 
@@ -1863,6 +1754,8 @@ int extent_readpage (void * vp, struct page * page)
 	jnode * j;
 
 	
+	trace_on (TRACE_EXTENTS, "RP: index %lu, count %d..", page->index, page_count (page));
+
 	assert ("vs-858", PAGE_CACHE_SIZE == current_blocksize);
 	assert ("vs-761", page && page->mapping && page->mapping->host);
 	inode = page->mapping->host;
@@ -1890,6 +1783,9 @@ int extent_readpage (void * vp, struct page * page)
 		kunmap (page);
 		SetPageUptodate (page);
 		unlock_page (page);
+
+		trace_on (TRACE_EXTENTS, " - hole, OK\n");
+
 		return 0;
 
 	case ALLOCATED_EXTENT:
@@ -1904,6 +1800,9 @@ int extent_readpage (void * vp, struct page * page)
 		reiser4_stat_extent_add (unfm_block_reads);
 		page_io (page, j, READ, GFP_NOIO);
 		jput (j);
+
+		trace_on (TRACE_EXTENTS, " - allocated, read issued\n");
+
 		break;
 		
 	case UNALLOCATED_EXTENT:
@@ -1933,10 +1832,16 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 	jnode * j;
 
 
+	trace_on (TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count (page));
+
 	assert ("vs-870", PAGE_CACHE_SIZE == current_blocksize);
 
 	result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 	if (result) {
+
+		trace_on (TRACE_EXTENTS, "txn_try_capture_page failed: %d\n",
+			  result);
+
 		return result;
 	}
 
@@ -1951,12 +1856,19 @@ int extent_writepage (coord_t * coord, lock_handle * lh, struct page * page)
 	if (result) {
 		txn_delete_page (page);
 		jput (j);
+
+		trace_on (TRACE_EXTENTS, "make_page_extent failed: %d\n",
+			  result);
+
 		return result;
 	}
 
 	jnode_set_dirty (j);
 
 	jput (j);
+
+	trace_on (TRACE_EXTENTS, "OK\n");
+
 	return 0;
 }
 
@@ -2371,7 +2283,7 @@ static int extent_allocate_blocks (reiser4_blocknr_hint *preceder,
 	 * FIXME-VS: ask Zam how to use this block_stage
 	 */
 	preceder->block_stage = BLOCK_UNALLOCATED;
-	result = reiser4_alloc_blocks (preceder, first_allocated, allocated);
+	result = reiser4_alloc_blocks (preceder, first_allocated, allocated, 0/*unformatted*/);
 	if (result) {
 		/*
 		 * no free space
@@ -2380,6 +2292,14 @@ static int extent_allocate_blocks (reiser4_blocknr_hint *preceder,
 		 */
 		impossible ("vs-420", "could not allocate unallocated: %d", result);
 	}
+
+	assert ("vs-956", unallocated_blocks >= *allocated);
+	unallocated_blocks -= *allocated;
+
+	if (reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()) != unallocated_blocks)
+		info ("extent_allocate_blocks: sb: %llu, global: %lu\n",
+		      reiser4_fake_allocated_unformatted (reiser4_get_current_sb ()),
+		      unallocated_blocks);
 
 	return result;
 }
@@ -2402,7 +2322,7 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 {
 	loff_t offset;
 	struct inode * inode;
-	struct page * page;
+	/*struct page * page;*/
 	unsigned long blocksize;
 	unsigned long ind;
 	reiser4_key sd_key;
@@ -2440,6 +2360,14 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 	for (i = 0; i < (int)count; i ++, first ++) {
 		ind = offset >> PAGE_CACHE_SHIFT;
 
+		j = UNDER_SPIN (tree, current_tree,
+				jlook (current_tree, inode->i_mapping, ind));
+		if (!j) {
+			info ("jnode not found. ino %lu, index %lu, nlink %u, size %lli\n",
+			      inode->i_ino, ind, inode->i_nlink, inode->i_size);
+			continue;
+		}
+#if 0
 		page = reiser4_lock_page (inode->i_mapping, ind);
 
 		if (page == NULL)
@@ -2462,6 +2390,8 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 			ret = PTR_ERR(j);
 			break;
 		}
+#endif
+
 		jnode_set_block (j, &first);
 
 		/* If we allocated it cannot have been wandered -- in that case
@@ -2471,13 +2401,17 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 
 		/* Submit I/O and set the jnode clean. */
 		
+#if 0
 		/* FIXME: JMACD->VS: flush_enqueue_unformatted no longer needs the page
 		 * locked, it will lock it later.  Can we remove unlock_page and use
 		 * find_get_page instead? */
 		unlock_page (page);
+#endif
 		ret = flush_enqueue_unformatted (j, flush_pos);
+#if 0
 		/* page_detach_jnode (page); */
 		page_cache_release (page);
+#endif
 		jput (j);
 		if (ret) {
 			break;
@@ -2541,7 +2475,8 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 		reiser4_key item_key;
 		reiser4_block_nr start, count;
 		loff_t offset;
-		struct page * pg;
+		/*struct page * pg;*/
+		reiser4_tree * tree;
 		unsigned long i, blocksize;
 		unsigned long ind;
 		int all_need_alloc = 1;
@@ -2611,16 +2546,23 @@ What does this mean?  Did you do it as requested or differently?
 */
 		relocate = (all_need_alloc == 1) && flush_pos_leaf_relocate (pos);
 		/*
-		 * FIXME-VS: no relocation of allocated extents
+		 * FIXME-VS: no relocation of allocated extents yet
 		 */
 		relocate = 0;
 		check = 0;
 
+		tree = tree_by_inode (inode);
+
 		/* Now scan through again. */
 		offset = get_key_offset (& item_key);
 		for (i = 0; i < count; i += 1, offset += blocksize) {
-
 			ind = offset >> PAGE_CACHE_SHIFT;
+			
+			j = UNDER_SPIN (tree, tree, jlook (tree, inode->i_mapping, ind));
+			if (!j) {
+				continue;
+			}
+#if 0
 			pg  = reiser4_lock_page (inode->i_mapping, ind);
 
 			if (pg == NULL) {
@@ -2631,11 +2573,11 @@ What does this mean?  Did you do it as requested or differently?
 			j = jnode_of_page (pg);
 			unlock_page (pg);
 			page_cache_release (pg);
-
 			if (IS_ERR(j)) {
 				assert ("jmacd-71890", relocate == 0);
 				continue;
 			}
+#endif
 
 			if (!jnode_check_dirty (j)) {
 				jput (j);
@@ -2930,7 +2872,6 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 					 * reiser4_dealloc_block to 0 because
 					 * these blocks can be made allocable
 					 * again immediately.
-					 * FIXME-VS: set target state to grabbed?
 					 */
 					reiser4_dealloc_blocks (&first_allocated, &allocated,
 								0 /* defer */, BLOCK_UNALLOCATED);
@@ -3385,6 +3326,243 @@ static int make_page_extent (coord_t * coord, lock_handle * lh,
 }
 
 
+static jnode * extent_capture_page (struct page * page)
+{
+	int result;
+	jnode * j;
+
+
+	j = jnode_of_page (page);
+	if (IS_ERR (j))
+		return j;
+
+	result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
+	if (result)
+		return ERR_PTR (result);
+
+	return j;
+}
+
+
+/*
+ * write flow's data into file by pages
+ */
+static int extent_write_flow (struct inode * inode, coord_t * coord,
+			      lock_handle * lh, flow_t * f)
+{
+	int result;
+	loff_t file_off;
+	int page_off, to_page;
+	char * page_data;
+	struct page * page;
+	jnode * j;
+
+
+	assert ("vs-885", current_blocksize == PAGE_CACHE_SIZE);
+	assert ("vs-700", f->user == 1);
+
+	result = 0;
+
+	if (DQUOT_ALLOC_SPACE_NODIRTY (inode, f->length))
+		return -EDQUOT;
+
+	/* write position */
+	file_off = get_key_offset (&f->key);
+
+	/* this can be != 0 only for the first of pages which will be
+	 * modified */
+	page_off = (int)(file_off & (PAGE_CACHE_SIZE - 1));
+
+
+	/*
+	 * rigth lock order is: lock_page -> longterm_lock_znode, create a seal
+	 * and unlock znode before grabbing
+	 */
+	seal_init (&seal, coord, &f->key);
+	done_lh (lh);
+
+	do {
+		page = grab_cache_page (inode->i_mapping,
+					(unsigned long)(file_off >> PAGE_CACHE_SHIFT));
+		if (!page) {
+			result = -ENOMEM;
+			goto exit1;
+		}
+
+		assert ("vs-701", PageLocked (page));
+		
+		j = jnode_of_page (page);
+		if (IS_ERR (j)) {
+			result = PTR_ERR (j);
+			j = 0;
+			goto exit2;
+		}
+
+		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
+		if (result) {
+			goto exit2;
+		}
+		
+	} while (f->length);
+
+	/*
+	 * coord->node is set to 0 when first extent item is created. To
+	 * complete the write extent write method will be called again after
+	 * researching
+	 */
+	while (f->length && coord->node) {
+		seal_t seal;
+
+		assert ("vs-956", znode_is_write_locked (coord->node));
+
+		j = 0;
+		/*
+		 * create seal and unlock znode before locking page
+		 */
+		seal_init (&seal, coord, &f->key);
+		done_lh (lh);
+
+		page = grab_cache_page (inode->i_mapping,
+					(unsigned long)(file_off >> PAGE_CACHE_SHIFT));
+		if (!page) {
+			result = -ENOMEM;
+			goto exit1;
+		}
+
+		assert ("vs-701", PageLocked (page));
+		
+		j = jnode_of_page (page);
+		if (IS_ERR (j)) {
+			result = PTR_ERR (j);
+			j = 0;
+			goto exit2;
+		}
+
+		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
+		if (result) {
+			goto exit2;
+		}
+
+		/*
+		 * re-obtain coord
+		 */
+		result = seal_validate (&seal, coord, &f->key,
+					znode_get_level (coord->node), lh,
+					FIND_MAX_NOT_MORE_THAN,
+					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+		if (result) {
+			reiser4_stat_extent_add (broken_seals);
+			coord->node = 0;
+			goto exit3;
+		}
+
+		result = make_page_extent (coord, lh, page);
+		if (coord->node) {
+			seal_init (&seal, coord, &f->key);
+			done_lh (lh);
+			coord->node = 0;
+		}
+		if (result) {
+			goto exit3;
+		}
+		
+
+		to_page = PAGE_CACHE_SIZE - page_off;
+		if (to_page > (int)f->length)
+			to_page = (int)f->length;
+
+		if (have_to_read_block (page->mapping->host, j,
+					file_off, to_page)) {
+
+			reiser4_stat_extent_add (unfm_block_reads);
+
+			page_io (page, j, READ, GFP_NOIO);
+			wait_on_page_locked (page);
+			if (!PageUptodate (page)) {
+				warning ("jmacd-61238", "extent_write_flow: page not up to date");
+				result = -EIO;				
+				goto exit3;
+			}
+
+			lock_page (page);
+		}
+
+		page_data = kmap (page);
+		if (jnode_created (j) && !PageUptodate (page)) {
+			int padd;
+
+			/* new block added. Zero block content which is not
+			 * covered by write. Head.. */
+			memset (page_data, 0, (unsigned)page_off);
+
+			/* and end */
+			padd = current_blocksize - page_off - to_page;
+			assert ("vs-721", padd >= 0);
+			memset (page_data + page_off + to_page, 0, (unsigned)padd);
+		}
+
+		assert ("green-13", lock_counters ()->spin_locked == 0);
+
+		/* copy data into page */
+		if (unlikely (__copy_from_user (page_data + page_off,
+						f->data, (unsigned)to_page))) {
+			/* FIXME-VS: undo might be necessary */
+			kunmap (page);
+			result = -EFAULT;
+			goto exit3;
+		}
+		kunmap (page);
+
+		SetPageUptodate (page);
+		jnode_set_dirty (j);
+
+		jput (j);
+
+		unlock_page (page);
+		page_cache_release (page);
+
+		move_flow_forward (f, to_page);
+#if 0
+		/*
+		 * FIXME-VS: temporary fix: (it would be interesting to
+		 * benchmark) balance_dirty_pages is going to call eventually
+		 * reiser4_writepage synchrounously. This is not alowed with
+		 * locks held in a context
+		 */
+		if (coord->node) {
+			done_lh (lh);
+			coord->node = 0;
+		}
+#endif
+		balance_dirty_pages (page->mapping);
+
+		page_off = 0;
+		file_off += to_page;
+		seal_done (&seal);
+		continue;
+
+	exit3:
+		/*
+		 * page is locked, but this is ok, because
+		 * txn_delete_page->uncapture_block->jput will not try to drop
+		 * jnode (in that case page must be unlocked) because we got
+		 * reference to it in above
+		 */
+		txn_delete_page (page);
+	exit2:
+		unlock_page (page);
+		page_cache_release (page);
+		if (j)
+			jput (j);
+	exit1:
+		seal_done (&seal);
+		break;
+	}
+
+	if (f->length)
+		DQUOT_FREE_SPACE_NODIRTY (inode, f->length);
+	return result;
+}
 
 
 /*
@@ -3417,44 +3595,71 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 	page_off = (int)(file_off & (PAGE_CACHE_SIZE - 1));
 
 	/*
-	 * FIXME-VS: coord->node is set to 0 when first extent item is
-	 * created. To complete the write extent write method will be called
-	 * again after researching
+	 * coord->node is set to 0 when first extent item is created. To
+	 * complete the write extent write method will be called again after
+	 * researching
 	 */
 	while (f->length && coord->node) {
+		seal_t seal;
+
+		assert ("vs-956", znode_is_write_locked (coord->node));
+
+		j = 0;
+		/*
+		 * create seal and unlock znode before locking page
+		 */
+		seal_init (&seal, coord, &f->key);
+		done_lh (lh);
+
 		page = grab_cache_page (inode->i_mapping,
 					(unsigned long)(file_off >> PAGE_CACHE_SHIFT));
 		if (!page) {
 			result = -ENOMEM;
-			break;
+			goto exit1;
 		}
 
 		assert ("vs-701", PageLocked (page));
 		
-		/* FIXME-VS: this should go  */
+		j = jnode_of_page (page);
+		if (IS_ERR (j)) {
+			result = PTR_ERR (j);
+			j = 0;
+			goto exit2;
+		}
+
 		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 		if (result) {
-			unlock_page (page);
-			page_cache_release (page);
-			break;
+			goto exit2;
+		}
+
+		/*
+		 * re-obtain coord
+		 */
+		result = seal_validate (&seal, coord, &f->key,
+					znode_get_level (coord->node), lh,
+					FIND_MAX_NOT_MORE_THAN,
+					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+		if (result) {
+			reiser4_stat_extent_add (broken_seals);
+			coord->node = 0;
+			goto exit3;
 		}
 
 		result = make_page_extent (coord, lh, page);
-		if (result) {
-			/*
-			 * FIXME-VS: this needs to be carefully reviewed
-			 */
-			unlock_page (page);
-			txn_delete_page (page);
-			page_cache_release (page);
-			break;
+		if (coord->node) {
+			seal_init (&seal, coord, &f->key);
+			done_lh (lh);
+			coord->node = 0;
 		}
+		if (result) {
+			goto exit3;
+		}
+		
 
 		to_page = PAGE_CACHE_SIZE - page_off;
 		if (to_page > (int)f->length)
 			to_page = (int)f->length;
 
-		j = jnode_of_page (page);
 		if (have_to_read_block (page->mapping->host, j,
 					file_off, to_page)) {
 
@@ -3463,13 +3668,9 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 			page_io (page, j, READ, GFP_NOIO);
 			wait_on_page_locked (page);
 			if (!PageUptodate (page)) {
-				jput (j);
-				txn_delete_page (page);
-				unlock_page (page);
-				page_cache_release (page);
 				warning ("jmacd-61238", "extent_write_flow: page not up to date");
 				result = -EIO;				
-				break;
+				goto exit3;
 			}
 
 			lock_page (page);
@@ -3480,44 +3681,37 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 			int padd;
 
 			/* new block added. Zero block content which is not
-			 * covered by write */
-			if (page_off) {
-				/* zero beginning of block */
-				memset (page_data, 0, (unsigned)page_off);
-			}
-			/* zero end of block */
+			 * covered by write. Head.. */
+			memset (page_data, 0, (unsigned)page_off);
+
+			/* and end */
 			padd = current_blocksize - page_off - to_page;
 			assert ("vs-721", padd >= 0);
 			memset (page_data + page_off + to_page, 0, (unsigned)padd);
-			/* FIXME: JMACD->VS: Are you sure this doesn't cause excess zero-ing? */
-			/*jnode_clear_new (j);*/
 		}
 
-		assert( "green-13", lock_counters() -> spin_locked == 0 );
+		assert ("green-13", lock_counters ()->spin_locked == 0);
 
 		/* copy data into page */
 		if (unlikely (__copy_from_user (page_data + page_off,
 						f->data, (unsigned)to_page))) {
 			/* FIXME-VS: undo might be necessary */
-			jput (j);
 			kunmap (page);
-			txn_delete_page (page);
-			unlock_page (page);
-			page_cache_release (page);			
 			result = -EFAULT;
-			break;
+			goto exit3;
 		}
+		kunmap (page);
+
 		SetPageUptodate (page);
 		jnode_set_dirty (j);
 
 		jput (j);
 
-		kunmap (page);
 		unlock_page (page);
 		page_cache_release (page);
 
 		move_flow_forward (f, to_page);
-
+#if 0
 		/*
 		 * FIXME-VS: temporary fix: (it would be interesting to
 		 * benchmark) balance_dirty_pages is going to call eventually
@@ -3528,11 +3722,30 @@ static int extent_write_flow (struct inode * inode, coord_t * coord,
 			done_lh (lh);
 			coord->node = 0;
 		}
+#endif
 		balance_dirty_pages (page->mapping);
-
 
 		page_off = 0;
 		file_off += to_page;
+		seal_done (&seal);
+		continue;
+
+	exit3:
+		/*
+		 * page is locked, but this is ok, because
+		 * txn_delete_page->uncapture_block->jput will not try to drop
+		 * jnode (in that case page must be unlocked) because we got
+		 * reference to it in above
+		 */
+		txn_delete_page (page);
+	exit2:
+		unlock_page (page);
+		page_cache_release (page);
+		if (j)
+			jput (j);
+	exit1:
+		seal_done (&seal);
+		break;
 	}
 
 	if (f->length)
