@@ -18,7 +18,7 @@ readdir_readahead(znode *node, ra_info_t *info)
 	znode *next;
 	int i;
 
-	assert("vs-1143", !blocknr_is_fake(node));
+	assert("vs-1143", !blocknr_is_fake(znode_get_block(node)));
 
 	ra_params = get_current_super_ra_params();
 
