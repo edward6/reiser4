@@ -840,7 +840,7 @@ int memory_pressure (struct super_block *super)
 				/* Found a dirty node to flush. */
 				node = jref (capture_list_front (& atom->dirty_nodes [level]));
 
-				/* Add force-context txnh */
+				/* Add this context to the same atom */
 				capture_assign_txnh_nolock (atom, txnh);
 
 				break;
