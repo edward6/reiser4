@@ -51,8 +51,6 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 		return -EINVAL;
 	}
 
-	WRITE_LOG = 0;		/* disable log writer for test disk format */
-
 	/* FIXME-VS: remove this debugging info */
 	print_test_disk_sb("get_ready:\n", disk_sb);
 

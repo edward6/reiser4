@@ -163,8 +163,6 @@ ZAM-FIXME-HANS: use term "play" and define it too;-)
 #include <linux/bio.h>		/* for struct bio */
 #include <linux/blkdev.h>
 
-int WRITE_LOG = 1;		/* journal is written by default  */
-
 static int submit_write(jnode *, int, const reiser4_block_nr *, flush_queue_t * fq);
 
 /* The commit_handle is a container for objects needed at atom commit time  */
