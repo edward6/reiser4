@@ -114,6 +114,7 @@ typedef enum {
 	REISER4_NODE_PRINT_BRIEF   = ( 1u << 11 ),
 	REISER4_NODE_ONLY_INCORE   = ( 1u << 12 ),
 	REISER4_NODE_SILENT        = ( 1u << 13 ),
+	REISER4_COLLECT_STAT       = ( 1u << 14 ),
 	REISER4_NODE_PRINT_ALL     = ~0u
 } reiser4_node_print_flag;
 
