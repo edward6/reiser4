@@ -516,25 +516,26 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		return ERR_PTR(RETERR(-ENOMEM));
 }
 
-static void writepage_tail(struct page *page)
+/* Common memory pressure notification. */
+reiser4_internal int
+reiser4_writepage(struct page *page /* page to start writeback from */,
+		  struct writeback_control *wbc)
 {
-	/*
-	 * shrink list doesn't move page to another mapping
-	 * list when clearing dirty flag. So it is enough to
-	 * just set dirty bit.
-	 */
-	SetPageDirty(page);
-	inc_page_state(nr_dirty);
-	unlock_page(page);
-}
-
-static int
-writepage(struct page *page, struct super_block *s)
-{
+	struct super_block *s;
+	reiser4_context ctx;
 	reiser4_tree *tree;
 	txn_atom * atom;
-	int result;
 	jnode *node;
+	int result;
+
+	s = page->mapping->host->i_sb;
+	init_context(&ctx, s);
+
+	reiser4_stat_inc(pcwb.calls);
+
+	assert("vs-828", PageLocked(page));
+
+	set_rapid_flush_mode(1);
 
 	tree = &get_super_private(s)->tree;
 	node = jnode_of_page(page);
@@ -580,36 +581,15 @@ writepage(struct page *page, struct super_block *s)
 		reiser4_stat_inc(pcwb.no_jnode);
 		result = PTR_ERR(node);
 	}
-	return result;
-}
-
-/* Common memory pressure notification. */
-reiser4_internal int
-reiser4_writepage(struct page *page /* page to start writeback from */,
-		  struct writeback_control *wbc)
-{
-	struct super_block *s;
-	int result;
-	reiser4_context ctx;
-
-	s = page->mapping->host->i_sb;
-	init_context(&ctx, s);
-
-	reiser4_stat_inc(pcwb.calls);
-
-	assert("vs-828", PageLocked(page));
-
-	set_rapid_flush_mode(1);
-
-	if (wbc->nonblocking &&
-	    bdi_write_congested(page->mapping->backing_dev_info)) {
-		wbc->encountered_congestion = 1;
-		writepage_tail(page);
-		result = 0;
-	} else {
-		result = writepage(page, s);
-		if (result != 0)
-			writepage_tail(page);
+	if (result != 0) {
+		/*
+		 * shrink list doesn't move page to another mapping
+		 * list when clearing dirty flag. So it is enough to
+		 * just set dirty bit.
+		 */
+		SetPageDirty(page);
+		inc_page_state(nr_dirty);
+		unlock_page(page);
 	}
 	reiser4_exit_context(&ctx);
 	return result;
