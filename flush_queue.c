@@ -383,10 +383,8 @@ int current_atom_finish_all_fq (void)
 	int ret;
 
 	do {
-		txn_atom * cur_atom;
-
-		cur_atom = get_current_atom_locked ();
-		ret = finish_all_fq (cur_atom, &nr_io_errors);
+		atom = get_current_atom_locked ();
+		ret = finish_all_fq (atom, &nr_io_errors);
 
 	} while (ret == -EAGAIN);
 
@@ -395,6 +393,8 @@ int current_atom_finish_all_fq (void)
 	 * finish_all_fq */
 	if (!ret || ret == -EBUSY)
 		spin_unlock_atom (atom);
+
+	assert ("nikita-2696", spin_atom_is_not_locked (atom));
 
 	if (ret)
 		return ret;
