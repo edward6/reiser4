@@ -16,6 +16,7 @@
 
 
 /* plugin->u.file.truncate */
+/* Audited by: green(2002.06.15) */
 int unix_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
 {
 	int result;
@@ -59,6 +60,7 @@ int unix_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
  * readpage method. It is used when exclusive or sharing access to inode is
  * grabbed
  */
+/* Audited by: green(2002.06.15) */
 int unix_file_readpage_nolock (struct file * file UNUSED_ARG, struct page * page)
 {
 	int result;
@@ -102,6 +104,7 @@ int unix_file_readpage_nolock (struct file * file UNUSED_ARG, struct page * page
 
 
 /* plugin->u.file.read */
+/* Audited by: green(2002.06.15) */
 int unix_file_readpage (struct file * file, struct page * page)
 {
 	int result;
@@ -114,6 +117,7 @@ int unix_file_readpage (struct file * file, struct page * page)
 
 
 /* plugin->u.file.read */
+/* Audited by: green(2002.06.15) */
 ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 			loff_t * off)
 {
@@ -151,6 +155,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 		
 		/* look for file metadata corresponding to position we read
 		 * from */
+		/* AUDIT: lock handle not initialized prior to usage */
 		result = find_item (&f.key, &coord, &lh,
 				    ZNODE_READ_LOCK);
 		switch (result) {
@@ -215,6 +220,7 @@ typedef enum {
 static write_todo unix_file_how_to_write (struct inode *, flow_t *, new_coord *);
 
 /* plugin->u.file.write */
+/* Audited by: green(2002.06.15) */
 ssize_t unix_file_write (struct file * file, /* file to write to */
 			 const char * buf, /* comments are needed */
 			 size_t size, /* number of bytes ot write */
@@ -251,6 +257,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 
 		/* look for file metadata corresponding to position we write
 		 * to */
+		/* AUDIT: lock handle used uninitialised here */
 		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occured */
@@ -325,6 +332,8 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
  * consists of extents only, if at leaf level - file is built of extents only
  * FIXME-VS: it is possible to imagine different ways for finding that
  */
+/* AUDIT: Comment above is incorrect, both cases it looks at is dealing with extents, how about file tails? */
+/* Audited by: green(2002.06.15) */
 static int built_of_extents (struct inode * inode UNUSED_ARG,
 			     new_coord * coord)
 {
@@ -334,6 +343,7 @@ static int built_of_extents (struct inode * inode UNUSED_ARG,
 
 /* returns 1 if file of that size (@new_size) has to be stored in unformatted
  * nodes */
+/* Audited by: green(2002.06.15) */
 static int should_have_notail (struct inode * inode, loff_t new_size)
 {
 	if (!inode_tail_plugin (inode))
@@ -344,6 +354,7 @@ static int should_have_notail (struct inode * inode, loff_t new_size)
 
 
 /* decide how to write flow @f into file @inode */
+/* Audited by: green(2002.06.15) */
 static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
 					  new_coord * coord)
 {
@@ -356,6 +367,8 @@ static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
 	if (new_size <= inode->i_size) {
 		/* if file does not get longer - no conversion will be
 		 * performed */
+		/* AUDIT: Will this also work correctly if we start overwritting
+		   extend but then contine to overwrite over the tail? */
 		if (built_of_extents (inode, coord))
 			return WRITE_EXTENT;
 		else
@@ -397,6 +410,7 @@ static write_todo unix_file_how_to_write (struct inode * inode, flow_t * f,
 
 /* plugin->u.file.release
  * convert all extent items into tail items if necessary */
+/* Audited by: green(2002.06.15) */
 int unix_file_release (struct file * file)
 {
 	struct inode * inode;
@@ -413,6 +427,7 @@ int unix_file_release (struct file * file)
 /* plugin->u.file.mmap
  * make sure that file is built of extent blocks
  */
+/* Audited by: green(2002.06.15) */
 int unix_file_mmap (struct file * file, struct vm_area_struct * vma)
 {
 	struct inode * inode;
@@ -434,6 +449,7 @@ int unix_file_mmap (struct file * file, struct vm_area_struct * vma)
 
 
 /* plugin->u.file.key_by_inode */
+/* Audited by: green(2002.06.15) */
 int unix_file_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key )
 {
 	build_sd_key (inode, key);
@@ -454,6 +470,7 @@ int unix_file_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key )
  * create sd for unix file. Just pass control to
  * fs/reiser4/plugin/object.c:common_file_save()
  */
+/* Audited by: green(2002.06.15) */
 int unix_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 		      reiser4_object_create_data *data UNUSED_ARG )
 {
@@ -476,6 +493,7 @@ int unix_file_create( struct inode *object, struct inode *parent UNUSED_ARG,
 
 /* plugin->u.file.owns_item 
  * this is common_file_owns_item with assertion */
+/* Audited by: green(2002.06.15) */
 int unix_file_owns_item( const struct inode *inode /* object to check
 						    * against */, 
 			 const new_coord *coord /* coord to check */ )
