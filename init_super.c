@@ -26,6 +26,7 @@
 #include <linux/vfs.h>
 #include <linux/mm.h>
 #include <linux/buffer_head.h>
+#include <linux/rcupdate.h>
 
 #define _INIT_PARAM_LIST (struct super_block * s, reiser4_context * ctx, void * data, int silent)
 #define _DONE_PARAM_LIST (struct super_block * s)
@@ -59,8 +60,6 @@ _INIT_(sinfo)
 	xmemset(sbinfo, 0, sizeof (*sbinfo));
 
 	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
-	ON_DEBUG(kcond_init(&sbinfo->rcu_done));
-	ON_DEBUG(atomic_set(&sbinfo->jnodes_in_flight, 0));
 	ON_DEBUG(spin_lock_init(&sbinfo->all_guard));
 
 	sema_init(&sbinfo->delete_sema, 1);
@@ -74,7 +73,7 @@ _INIT_(sinfo)
 _DONE_(sinfo)
 {
 	assert("zam-990", s->s_fs_info != NULL);
-	finish_rcu(get_super_private(s));
+	rcu_barrier();
 	kfree(s->s_fs_info);
 	s->s_fs_info = NULL;
 }
@@ -259,14 +258,14 @@ _DONE_(formatted_fake)
 
 	sbinfo = get_super_private(s);
 
-	finish_rcu(sbinfo);
+	rcu_barrier();
 
 	/* done_formatted_fake just has finished with last jnodes (bitmap
 	 * ones) */
 	done_tree(&sbinfo->tree);
 	/* call finish_rcu(), because some znode were "released" in
 	 * done_tree(). */
-	finish_rcu(sbinfo);
+	rcu_barrier();
 	done_formatted_fake(s);
 }
 
