@@ -874,7 +874,7 @@ seek_dir(struct file *file, loff_t off, int origin)
 	struct inode *inode;
 
 	inode = file->f_dentry->d_inode;
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "dir_seek: %s: %lli -> %lli/%i\n",
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "seek_dir: %s: %lli -> %lli/%i\n",
 		 file->f_dentry->d_name.name, file->f_pos, off, origin);
 	down(&inode->i_sem);
 
