@@ -745,7 +745,8 @@ int longterm_lock_znode(
 	/* Check that the lock handle is initialized and isn't already being used. */
 	assert("jmacd-808", handle->owner == NULL);
 
-	ON_DEBUG_CONTEXT(assert("nikita-1391", lock_counters()->spin_locked == 0));
+	schedulable();
+
 	if (request & ZNODE_LOCK_NONBLOCK) {
 		try_capture_flags |= TXN_CAPTURE_NONBLOCKING;
 		non_blocking = 1;
