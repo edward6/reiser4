@@ -496,17 +496,40 @@ extent_create_hook(const coord_t * coord, void *arg)
 	return 0;
 }
 
-/* plugin->u.item.b.kill_item_hook */
+/* plugin->u.item.b.kill_item_hook
+   this is called when @count units starting from @from-th one are going to be removed */
 int
 extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count, void *kill_params UNUSED_ARG)
 {
 	reiser4_extent *ext;
 	unsigned i;
-	reiser4_block_nr start, length;
+	reiser4_block_nr start, length, j;
+	oid_t oid;
+	reiser4_key key;
+	
+	
+	item_key_by_coord(coord, &key);
+	oid = get_key_objectid(&key);
 
 	ext = extent_item(coord) + from;
 	for (i = 0; i < count; i++, ext++) {
-		/* FIXME-VS: this is to debug zam-528 */
+		start = extent_get_start(ext);
+		length = extent_get_width(ext);
+		if (state_of_extent(ext) == HOLE_EXTENT)
+			continue;
+		if (REISER4_DEBUG) {
+			/* at this time there should not be already jnodes corresponding any block from this extent. Check that */
+			reiser4_tree *tree;
+			coord_t twin;
+
+			coord_dup(&twin, coord);
+			twin.unit_pos = from + i;
+			twin.between = AT_UNIT;
+			tree = current_tree;
+			for (j = 0; j < length; j ++)
+				assert("vs-1095",
+				       UNDER_SPIN(tree, tree, jlook(tree, oid, extent_unit_index(&twin) + i)) == 0);
+		}
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
 			/* FIXME-VITALY: this is necessary??? */
 			fake_allocated2free(extent_get_width(ext), 0 /* unformatted */ );
@@ -517,8 +540,6 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count, void
 		}
 
 		/* FIXME-VS: do I need to do anything for unallocated extents */
-		start = extent_get_start(ext);
-		length = extent_get_width(ext);
 		/* "defer" parameter is set to 1 because blocks which get freed
 		   are not safe to be freed immediately */
 		reiser4_dealloc_blocks(&start, &length, 1 /* defer */ ,
