@@ -296,9 +296,7 @@ int blocknr_set_iterator (txn_atom * atom,
 		int ret;
 
 		for (i = 0; i < entry->nr_singles; i++) {
-			const reiser4_block_nr one = 1;
-
-			ret = actor (atom, &entry->ents[i], &one, data);
+			ret = actor (atom, &entry->ents[i], NULL, data);
 
 			/* FIXME: we can't break a loop if delete flag is
 			 * set. It is just an implementation issue and could

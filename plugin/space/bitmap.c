@@ -502,8 +502,8 @@ static int search_one_bitmap (int bmap, int *offset, int max_offset,
 		if (end >= start + min_len) {
 			ret = end - start;
 			*offset = start;
-			reiser4_set_bits(bnode->wpage, start, end);
 
+			reiser4_set_bits(bnode->wpage, start, end);
 			break;
 		}
 
@@ -615,11 +615,14 @@ static void check_block_range (const reiser4_block_nr * start, const reiser4_blo
 
 	assert ("zam-436", sb != NULL);
 
+	assert ("zam-455", start != NULL);
 	assert ("zam-437", *start != 0);
-	assert ("zam-438", *len != 0);
-
 	assert ("zam-441", *start < reiser4_block_count(sb));
-	assert ("zam-442", *start + *len <= reiser4_block_count(sb));
+
+	if (len != NULL) {
+		assert ("zam-438", *len != 0);
+		assert ("zam-442", *start + *len <= reiser4_block_count(sb));
+	}
 }
 
 #else
@@ -628,10 +631,12 @@ static void check_block_range (const reiser4_block_nr * start, const reiser4_blo
 
 #endif
 
-static int pre_commit_actor (txn_atom               * atom UNUSED_ARG,
-			     const reiser4_block_nr * start,
-			     const reiser4_block_nr * len,
-			     void                   * data)
+/** an actor which applies delete set to COMMIT bitmap pages and link modified
+ * pages in a single-linked list */
+static int apply_dset_to_commit_bmap (txn_atom               * atom UNUSED_ARG,
+				      const reiser4_block_nr * start,
+				      const reiser4_block_nr * len,
+				      void                   * data)
 {
 	
 	int bmap, offset;
@@ -649,8 +654,6 @@ static int pre_commit_actor (txn_atom               * atom UNUSED_ARG,
 	 * bitmap-based allocator and each block range can't go over a zone of
 	 * responsibility of one bitmap block; same assumption is used in
 	 * other journal hooks in bitmap code. */
-	assert ("zam-443", offset + *len <= sb->s_blocksize);
-
 	bnode = get_bnode(sb, bmap);
 	assert ("zam-448", bnode != NULL);
 
@@ -664,7 +667,15 @@ static int pre_commit_actor (txn_atom               * atom UNUSED_ARG,
 	assert ("zam-444", bnode->cpage != NULL);
 
 	spin_lock_bnode (bnode);
-	reiser4_clear_bits (bnode->cpage, offset, (int)(offset + *len));
+
+	if (len != NULL) {
+		/* FIXME-ZAM: a check that all bits are set should be there */
+		assert ("zam-443", offset + *len <= sb->s_blocksize);
+		reiser4_clear_bits (bnode->cpage, offset, (int)(offset + *len));
+	} else {
+		reiser4_set_bit (offset, bnode->cpage);
+	}
+
 	spin_unlock_bnode (bnode);
 
 	return 0;
@@ -690,7 +701,7 @@ void bitmap_pre_commit_hook (void)
 	atom = atom_get_locked_by_txnh(tx);
 	assert ("zam-435", atom != 0);
 
-	blocknr_set_iterator (atom, &atom->delete_set, pre_commit_actor, &commit_list, 0);
+	blocknr_set_iterator (atom, &atom->delete_set, apply_dset_to_commit_bmap, &commit_list, 0);
 
 	spin_unlock_atom (atom);
 
@@ -715,10 +726,14 @@ void bitmap_pre_commit_hook (void)
 	}
 }
 
-static int post_commit_actor (txn_atom               * atom UNUSED_ARG,
-			      const reiser4_block_nr * start,
-			      const reiser4_block_nr * len,
-			      void                   * data UNUSED_ARG)
+/* FIXME: it probably needs to be changed when I get understanding what
+ * wandered map format Josh proposed. I assume for now that wandered set
+ * contains pairs (original location, target location). */
+/** an actor which applies delete set to WORKING BITMAP pages */
+static int apply_dset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
+				       const reiser4_block_nr * start,
+				       const reiser4_block_nr * len,
+				       void                   * data UNUSED_ARG)
 {
 	struct super_block * sb = reiser4_get_current_sb ();
 
@@ -728,7 +743,6 @@ static int post_commit_actor (txn_atom               * atom UNUSED_ARG,
 	check_block_range (start, len);
 
 	parse_blocknr (start, &bmap, &offset);
-	assert ("zam-449", offset + *len <= sb->s_blocksize);
 
 	bnode = get_bnode (sb, bmap);
 	assert ("zam-447", bnode != NULL);
@@ -736,7 +750,14 @@ static int post_commit_actor (txn_atom               * atom UNUSED_ARG,
 	assert ("zam-450", bnode->wpage != NULL);
 
 	spin_lock_bnode (bnode);
-	reiser4_clear_bits(bnode->wpage, offset, (int)(offset + *len));
+
+	if (len != NULL) {
+		assert ("zam-449", offset + *len <= sb->s_blocksize);
+		reiser4_clear_bits(bnode->wpage, offset, (int)(offset + *len));
+	} else {
+		reiser4_set_bit (offset, bnode->wpage);
+	}
+
 	spin_unlock_bnode(bnode);
 
 	return 0;
@@ -755,39 +776,33 @@ void bitmap_post_commit_hook (void) {
 	atom = atom_get_locked_by_txnh (tx);
 	assert ("zam-452", atom != NULL);
 
-	blocknr_set_iterator (atom, &atom->delete_set, post_commit_actor, NULL, 1);
+	blocknr_set_iterator (atom, &atom->delete_set, apply_dset_to_working_bmap, NULL, 1);
 
 	spin_unlock_atom (atom);
 }
 
-/* FIXME: needs to be changed when I get understanding what wandered map
- * format Josh proposed */
-static int post_write_back_actor (txn_atom               * atom UNUSED_ARG,
-				  const reiser4_block_nr * start,
-				  const reiser4_block_nr * len,
-				  void                   * data UNUSED_ARG)
+/** an actor which marks all original block locations from a wandered set as
+ * free in commit bitmap, and mark target locations as used. */
+static int apply_wset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
+				       const reiser4_block_nr * a,
+				       const reiser4_block_nr * b UNUSED_ARG,
+				       void                   * data)
 {
+	struct bnode * commit_list = data;
+	struct bnode * bnode;
 	struct super_block * sb = reiser4_get_current_sb ();
 
-	struct bnode * bnode;
 	int bmap, offset;
 
-	check_block_range (start, len);
-
-	parse_blocknr (start, &bmap, &offset);
-	assert ("zam-449", offset + *len <= sb->s_blocksize);
+	parse_blocknr (a, &bmap, &offset);
 
 	bnode = get_bnode (sb, bmap);
-	assert ("zam-447", bnode != NULL);
+	assert ("zam-456", bnode != NULL);
+	assert ("zam-457", bnode->wpage != NULL);
 
-	assert ("zam-450", bnode->wpage != NULL);
-
-	spin_lock_bnode (bnode);
-	reiser4_clear_bits(bnode->wpage, offset, (int)(offset + *len));
+	spin_lock_bnode(bnode);
+	reiser4_clear_bit(offset, bnode->wpage); 
 	spin_unlock_bnode(bnode);
-
-	return 0;
-
 }
 
 /** This function is called after write-back (writing blocks from OVERWRITE
@@ -806,7 +821,7 @@ void bitmap_post_write_back_hook (void)
 	atom = atom_get_locked_by_txnh (tx);
 	assert ("zam-454", atom != NULL);
 
-	blocknr_set_iterator (atom, &atom->wandered_map, post_write_back_actor, NULL, 1);
+	blocknr_set_iterator (atom, &atom->wandered_map, apply_wset_to_working_bmap, NULL, 1);
 
 	spin_unlock_atom (atom);
 }
