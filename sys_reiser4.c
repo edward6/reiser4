@@ -75,12 +75,13 @@ asmlinkage long  sys_reiser4(char * str)
 
 	                                                    /* allocate first part of working tables and assign to headers */
 	work_space->freeSpHead = freeSpaceAlloc();
+	work_space->WrdHead    = NULL;
 
-	work_space->VarTabHead = StrTabAlloc();
+	/*	work_space->VarTabHead = StrTabAlloc();*/
 
 
 
-	if (work_space->freeSpHead && work_space->StrTabHead)
+	if (work_space->freeSpHead /*&& work_space->StrTabHead*/)
 		{
 			ret = yyparse(work_space);                 /* parse command */
 			Gencode = getGeneratedCode(work_space);
@@ -93,10 +94,15 @@ asmlinkage long  sys_reiser4(char * str)
 		{
 			freeList(work_space, freeSp);
 		}
+
+	/*
 	if (work_space->StrTabHead)
 		{
 			freeList(work_space, StrTab);
 		}
+	*/
+
+
 	free(work_space);
 
 	                      			                                     /* execute list of commands 
