@@ -197,8 +197,6 @@ static struct bio *page_bio( struct page *page, jnode *node, int rw, int gfp );
 
 static struct address_space_operations formatted_fake_as_ops;
 
-#define jprivate( page ) ( ( jnode * ) ( page ) -> private )
-
 static const oid_t fake_ino = 0x1;
 
 /**
@@ -294,27 +292,25 @@ void reiser4_check_mem( reiser4_context *ctx )
 	}
 }
 
+#endif
+
 /** 
  * helper function to find-and-lock page in a page cache and do additional
  * checks 
  */
-struct page *reiser4_lock_page( struct address_space *mapping, 
-				unsigned long index )
+void reiser4_lock_page( struct page *page )
 {
-	struct page *page;
-
-	assert( "nikita-2408", mapping != NULL );
+	assert( "nikita-2408", page != NULL );
 	ON_DEBUG_CONTEXT( assert( "nikita-2409", 
 				  lock_counters() -> spin_locked == 0 ) );
-	ON_DEBUG_CONTEXT( assert( "nikita-2655", 
-				  lock_counters() -> long_term_locked_znode == 0 ) );
-	page = find_lock_page( mapping, index );
-	if( page ) {
-		ON_DEBUG_CONTEXT( ++ lock_counters() -> page_locked );
-	}
-	return page;
+	lock_page( page );
 }
-#endif
+
+void reiser4_unlock_page( struct page *page )
+{
+	assert( "nikita-2700", page -> owner != NULL );
+	unlock_page( page );
+}
 
 /** return tree @page is in */
 reiser4_tree *tree_by_page( const struct page *page /* page to query */ )
@@ -400,7 +396,7 @@ static int end_bio_single_page_read( struct bio *bio,
 		ClearPageUptodate( page );
 		SetPageError( page );
 	}
-	unlock_page( page );
+	reiser4_unlock_page( page );
 	bio_put( bio );
 	return 0;
 }
@@ -440,8 +436,22 @@ static int formatted_readpage( struct file *f UNUSED_ARG,
 /** ->writepage() method for formatted nodes */
 static int formatted_writepage( struct page *page /* page to write */ )
 {
+	struct writeback_control wbc;
+	int                      result;
+
 	assert( "nikita-2632", PagePrivate( page ) && jprivate( page ) );
-	return page_io( page, jprivate( page ), WRITE, GFP_NOFS | __GFP_HIGH );
+
+	xmemset( &wbc, 0, sizeof wbc );
+	wbc.nr_to_write = 1;
+
+	/* The mpage_writepages() calls reiser4_writepage with a locked, but
+	 * clean page. An extra reference should protect this page from
+	 * removing from memory */
+	page_cache_get( page );
+	result = page_common_writeback( page, &wbc, 
+					JNODE_FLUSH_MEMORY_FORMATTED );
+	page_cache_release (page);
+	return result;
 }
 
 /** submit single-page bio request */
@@ -462,7 +472,7 @@ int page_io( struct page *page /* page to perform io for */,
 	if( !IS_ERR( bio ) ) {
 		if( rw == WRITE ) {
 			SetPageWriteback( page );
-			unlock_page(page);
+			reiser4_unlock_page(page);
 		}
 		submit_bio( rw, bio );
 		result = 0;
@@ -540,7 +550,13 @@ static int formatted_vm_writeback( struct page *page /* page to start
 								  * passed by
 								  * VM */ )
 {
-	return page_common_writeback( page, wbc, JNODE_FLUSH_MEMORY_FORMATTED);
+	int result;
+
+	page_cache_get( page );
+	result = page_common_writeback( page, wbc, 
+					JNODE_FLUSH_MEMORY_FORMATTED );
+	page_cache_release (page);
+	return result;
 }
 
 /**
@@ -567,7 +583,6 @@ int page_common_writeback( struct page *page /* page to start writeback from */,
 			   int flush_flags /* Additional hint. Seems to be
 					    * unused currently. */ )
 {
-	int result;
 	jnode *node;
 	txn_atom * atom;
 	struct super_block *s = page -> mapping -> host -> i_sb;
@@ -579,7 +594,7 @@ int page_common_writeback( struct page *page /* page to start writeback from */,
 	node = jfind( page );
 	assert( "nikita-2419", node != NULL );
 
-	unlock_page( page );
+	reiser4_unlock_page( page );
 
 	spin_lock_jnode (node);
 	atom = atom_get_locked_by_jnode (node);
@@ -637,7 +652,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.sync_page      = block_sync_page,
 	/* Write back some dirty pages from this mapping. Called from sync.
 	   called during sync (pdflush) */
-	.writepages     = reiser4_writepages,
+	.writepages     = NULL,
 	/* Perform a writeback as a memory-freeing operation. */
 	.vm_writeback   = formatted_vm_writeback,
 	/* Set a page dirty */
@@ -690,7 +705,7 @@ void drop_page( struct page *page, jnode *node )
 
 	if( node != NULL )
 		page_clear_jnode( page, node );
-	unlock_page( page );
+	reiser4_unlock_page( page );
 	/*
 	 * page removed from the mapping---decrement page counter
 	 */
