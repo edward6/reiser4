@@ -21,7 +21,7 @@ typedef struct flush_stamp {
 
 /* Format of node header for node40. */
 struct reiserfs_nh40 {
-    reiserfs_node_common_header_t header;
+    reiserfs_node_header_t header;
     uint16_t free_space;
     uint16_t free_space_start;
     uint8_t level;

@@ -58,6 +58,7 @@ struct reiserfs_profile {
     reiserfs_plugin_id_t oid;
     reiserfs_plugin_id_t alloc;
     reiserfs_plugin_id_t journal;
+    reiserfs_plugin_id_t key;
 };
 
 typedef struct reiserfs_profile reiserfs_profile_t;
@@ -74,35 +75,32 @@ struct reiserfs_node {
     aal_list_t *children;
 };
 
-struct reiserfs_node_common_header {
+struct reiserfs_node_header {
     uint16_t plugin_id; 
 };
 
-typedef struct reiserfs_node_common_header reiserfs_node_common_header_t;
-
-/*
-    This structure differs from others and I think we should move others to 
-    the same form. 
-    1. It is useless complicity to have opaque structures which encapsulate 
-       information available on the api level like blocks, devices, etc.
-    2. Opaque structures are useful when we work with e.g. compressed nodes
-       which data shuold be uncompressed first. 
-    3. For e.g. not-compressed nodes node plugin open method does just nothing
-       but creates useless structure, which contails the same data as in 
-       the reiserfs_node_t structure. 
-    4. Plugins should work with the same structures as api does. E.g. node40 
-       plugin should work with reiserfs_node_t method. If plugin needs it can 
-       create some entity for itself.
-    5. As many plugins does not need methods like open/create etc, we get rid 
-       of their implementation. Good.
-*/
+typedef struct reiserfs_node_header reiserfs_node_header_t;
 
 /* 
     Tree representation object. It consists of root node
     chich contains childrens and so on.
 */
 struct reiserfs_tree {
-    reiserfs_node_t *root;
+    reiserfs_node_t *root_node;
+
+    /*
+	Temporary directory plugin pointer. It is used
+	for destroying root directory. It will be removed
+	when dir API will be complete.
+    */
+    reiserfs_plugin_t *dir_plugin;
+
+    /* 
+	FIXME-UMKA: Here will be reiserfs_dir_t when ready.
+	But for awhile it is just opaque wchich points to 
+	entiry initialized by dir plugin.
+    */
+    reiserfs_opaque_t *root_dir;
 };
 
 typedef struct reiserfs_tree reiserfs_tree_t;

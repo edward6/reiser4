@@ -34,7 +34,8 @@ static reiserfs_profile_t profiles[] = {
 	.format = 0x0,
 	.oid = 0x0,
 	.alloc = 0x0,
-	.journal = 0x0
+	.journal = 0x0,
+	.key = 0x0
     }
 };
 

@@ -31,7 +31,7 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
 	goto error_free_node;
     }
     
-    set_le16((reiserfs_node_common_header_t *)node->block->data, plugin_id, plugin_id);
+    set_le16((reiserfs_node_header_t *)node->block->data, plugin_id, plugin_id);
     if (!(node->plugin = libreiser4_plugins_find_by_coords(REISERFS_NODE_PLUGIN, 
 	plugin_id))) 
     {
@@ -440,12 +440,12 @@ void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value) {
 
 reiserfs_plugin_id_t reiserfs_node_get_plugin_id(reiserfs_node_t *node) {
     aal_assert("umka-161", node != NULL, return -1);
-    return get_le16((reiserfs_node_common_header_t *)node->block->data, plugin_id);
+    return get_le16((reiserfs_node_header_t *)node->block->data, plugin_id);
 }
 
 void reiserfs_node_set_plugin_id(reiserfs_node_t *node, reiserfs_plugin_id_t plugin_id) {
     aal_assert("umka-603", node != NULL, return);
-    set_le16((reiserfs_node_common_header_t *)node->block->data, plugin_id, plugin_id);
+    set_le16((reiserfs_node_header_t *)node->block->data, plugin_id, plugin_id);
 }
 
 /* Item functions */
@@ -623,10 +623,8 @@ error_t reiserfs_node_item_estimate(reiserfs_node_t *node,
 	return 0;
     
     /* Estimate for the 2nd and for the 4th cases */
-    libreiser4_plugins_call(return -1, item_info->plugin->item.common, estimate, 
+    return libreiser4_plugins_call(return -1, item_info->plugin->item.common, estimate, 
 	item_info, coord);
-    
-    return 0;
 }
 
 error_t reiserfs_node_item_insert(reiserfs_node_t *node, reiserfs_coord_t *coord, 
@@ -639,17 +637,14 @@ error_t reiserfs_node_item_insert(reiserfs_node_t *node, reiserfs_coord_t *coord
     aal_assert("vpf-110", item_info != NULL, return -1);
     aal_assert("vpf-108", coord != NULL, return -1);
 
-    if (node->plugin->node.item_insert == NULL)
-	return -1;
-	
     /* Estimate the size and check the free space */
-    if (reiserfs_node_item_estimate (node, item_info, coord)) {
+    if (reiserfs_node_item_estimate(node, item_info, coord)) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
             "Can't estimate space that item being inserted will consume.");
         return -1;
     }
 
-    if (item_info->length + reiserfs_node_item_overhead (node) >
+    if (item_info->length + reiserfs_node_item_overhead(node) >
         reiserfs_node_get_free_space(node))
     {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -660,12 +655,12 @@ error_t reiserfs_node_item_insert(reiserfs_node_t *node, reiserfs_coord_t *coord
 
     if (coord->unit_pos == -1) {
 	if ((ret = libreiser4_plugins_call(return -1, node->plugin->node, item_insert, 
-	    node->block, coord, key, item_info)) != 0)
-	return ret;
+		node->block, coord, key, item_info)) != 0)
+	    return ret;
     } else {
 	if ((ret = libreiser4_plugins_call(return -1, node->plugin->node, item_paste, 
-	    node->block, coord, key, item_info)) != 0)
-	return ret;
+		node->block, coord, key, item_info)) != 0)
+	    return ret;
     }
     
     /* Item must be inserted/unit pasted in item_insert/item_paste node methods. */

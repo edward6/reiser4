@@ -105,15 +105,15 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
     return 0;
 }
 
-static void direntry40_estimate(reiserfs_item_info_t *info, 
+static error_t direntry40_estimate(reiserfs_item_info_t *info, 
     reiserfs_coord_t *coord) 
 {
     int i;
     reiserfs_direntry_info_t *direntry_info;
 	    
-    aal_assert("vpf-095", info != NULL, return);
-    aal_assert("vpf-096", info->info != NULL, return);
-    aal_assert("umka-608", coord != NULL, return);
+    aal_assert("vpf-095", info != NULL, return -1);
+    aal_assert("vpf-096", info->info != NULL, return -1);
+    aal_assert("umka-608", coord != NULL, return -1);
     
     direntry_info = info->info;
     info->length = direntry_info->count * sizeof(reiserfs_entry40_t);
@@ -125,6 +125,8 @@ static void direntry40_estimate(reiserfs_item_info_t *info,
 
     if (coord == NULL || coord->unit_pos == -1)
 	info->length += sizeof(reiserfs_direntry40_t);
+    
+    return 0;
 }
 
 #endif
@@ -240,7 +242,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 
 #ifndef ENABLE_COMPACT	    
 	    .create = (error_t (*)(void *, void *))direntry40_create,
-	    .estimate = (void (*)(void *, void *))direntry40_estimate,
+	    .estimate = (error_t (*)(void *, void *))direntry40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,

@@ -33,11 +33,13 @@ static error_t internal40_create(reiserfs_internal40_t *internal,
     return 0;
 }
 
-static void internal40_estimate(reiserfs_item_info_t *info, 
+static error_t internal40_estimate(reiserfs_item_info_t *info, 
     reiserfs_coord_t *coord) 
 {
-    aal_assert("vpf-068", info != NULL, return);
+    aal_assert("vpf-068", info != NULL, return -1);
+
     info->length = sizeof(reiserfs_internal40_t);
+    return 0;
 }
 
 #endif
@@ -91,7 +93,7 @@ static reiserfs_plugin_t internal40_plugin = {
 
 #ifndef ENABLE_COMPACT	    
 	    .create = (error_t (*)(void *, void *))internal40_create,
-	    .estimate = (void (*)(void *, void *))internal40_estimate,
+	    .estimate = (error_t (*)(void *, void *))internal40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,

@@ -83,7 +83,7 @@ uint64_t reiserfs_oid_root_parent_locality(reiserfs_fs_t *fs) {
     aal_assert("umka-532", fs->oid != NULL, return 0);
     
     return libreiser4_plugins_call(return 0, fs->oid->plugin->oid, 
-	root_parent_locality, fs->oid->entity);
+	root_parent_locality,);
 }
 
 uint64_t reiserfs_oid_root_parent_objectid(reiserfs_fs_t *fs) {
@@ -91,7 +91,7 @@ uint64_t reiserfs_oid_root_parent_objectid(reiserfs_fs_t *fs) {
     aal_assert("umka-534", fs->oid != NULL, return 0);
     
     return libreiser4_plugins_call(return 0, fs->oid->plugin->oid, 
-	root_parent_objectid, fs->oid->entity);
+	root_parent_objectid,);
 }
 
 uint64_t reiserfs_oid_root_objectid(reiserfs_fs_t *fs) {
@@ -99,6 +99,6 @@ uint64_t reiserfs_oid_root_objectid(reiserfs_fs_t *fs) {
     aal_assert("umka-536", fs->oid != NULL, return 0);
     
     return libreiser4_plugins_call(return 0, fs->oid->plugin->oid, 
-	root_objectid, fs->oid->entity);
+	root_objectid,);
 }
 

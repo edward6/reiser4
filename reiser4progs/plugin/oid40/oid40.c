@@ -58,15 +58,15 @@ static oid_t oid40_used(reiserfs_oid40_t *oid) {
     return oid40_get_used(oid->area);
 }
 
-static oid_t oid40_root_parent_locality(reiserfs_oid40_t *oid) {
+static oid_t oid40_root_parent_locality(void) {
     return REISERFS_OID40_ROOT_PARENT_LOCALITY;
 }
 
-static oid_t oid40_root_parent_objectid(reiserfs_oid40_t *oid) {
+static oid_t oid40_root_parent_objectid(void) {
     return REISERFS_OID40_ROOT_PARENT_OBJECTID;
 }
 
-static oid_t oid40_root_objectid(reiserfs_oid40_t *oid) {
+static oid_t oid40_root_objectid(void) {
     return REISERFS_OID40_ROOT_OBJECTID;
 }
 
@@ -89,10 +89,9 @@ static reiserfs_plugin_t oid40_plugin = {
 	.next = (oid_t (*)(reiserfs_opaque_t *))oid40_next,
 	.used = (oid_t (*)(reiserfs_opaque_t *))oid40_used,
 	
-	.root_parent_locality = (oid_t (*)(reiserfs_opaque_t *))oid40_root_parent_locality,
-	.root_parent_objectid = (oid_t (*)(reiserfs_opaque_t *))oid40_root_parent_objectid,
-	
-	.root_objectid = (oid_t (*)(reiserfs_opaque_t *))oid40_root_objectid,
+	.root_parent_locality = (oid_t (*)(void))oid40_root_parent_locality,
+	.root_parent_objectid = (oid_t (*)(void))oid40_root_parent_objectid,
+	.root_objectid = (oid_t (*)(void))oid40_root_objectid,
     }
 };
 

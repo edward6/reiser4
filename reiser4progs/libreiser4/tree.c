@@ -30,7 +30,7 @@ error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
 	goto error_free_tree;
     }
 
-    if (!(fs->tree->root = reiserfs_node_open(fs->host_device, 
+    if (!(fs->tree->root_node = reiserfs_node_open(fs->host_device, 
 	    root_blk, REISERFS_GUESS_PLUGIN_ID)))
 	goto error_free_tree;
     
@@ -46,14 +46,20 @@ error:
 #ifndef ENABLE_COMPACT
 
 /*
-    Tree in its creation time should create root node (squeeze) and leaf.
-    Then dir object plugin should create directory, what leads to item 
-    insertion.
+    Tree in its creation time should create root node (squeeze) 
+    and leaf. Then dir object plugin should create directory, 
+    what leads to item insertion.
     
-    FIXME-VITALY: as dir object plugin does not exist for know this contains
-    all item creation. To be changed when ready.
+    FIXME-UMKA: I think this should work in other maner. As dir
+    may be as big as possible (it cat take more than one block),
+    we should in dir creating time just insert items in balancing
+    maner. Something, probably tree should be concerning about 
+    correct place (node and coords inside it).
+    
+    FIXME-VITALY: As dir object plugin does not exist for know 
+    this contains all item creation. To be changed when ready.
 */
-error_t reiserfs_tree_create(reiserfs_fs_t *fs, 
+/*error_t reiserfs_tree_create(reiserfs_fs_t *fs, 
     reiserfs_profile_t *profile) 
 {
     blk_t block_nr;
@@ -66,22 +72,22 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     reiserfs_item_info_t item_info;
     reiserfs_internal_info_t internal_info;
     reiserfs_stat_info_t stat_info;
-    reiserfs_direntry_info_t direntry_info;
+    reiserfs_direntry_info_t direntry_info;*/
 
     /* 
 	FIXME-VITALY: Directory object plugin should define what will be 
 	created in the empty directory. Move it there when ready. 
     */
-    reiserfs_entry_info_t entry[2] = {
+/*    reiserfs_entry_info_t entry[2] = {
 	[0] = {
 	    .locality = reiserfs_oid_root_parent_objectid(fs),
 	    .objectid = reiserfs_oid_root_objectid(fs),
-	    "."
+	    .name = "."
 	}, 
 	[1] = {
 	    .locality = reiserfs_oid_root_parent_locality(fs),
 	    .objectid = reiserfs_oid_root_parent_objectid(fs),
-	    ".." 
+	    .name = ".." 
 	}
     };
 
@@ -89,7 +95,187 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     aal_assert("vpf-115", profile != NULL, return -1);
     aal_assert("umka-130", fs->format != NULL, return -1);
 
-    if (!(key_plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
+    if (!(key_plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 
+	profile->key))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find key plugin by its id %x.", 0x0);
+	return -1;
+    }
+    
+    if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
+	return -1;*/
+    
+    /* Create a root node */
+/*    if (!(block_nr = reiserfs_alloc_alloc(fs))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't allocate block for root node.");
+	goto error_free_tree;
+    }
+    reiserfs_format_set_root(fs, block_nr);
+  
+    if (!(squeeze = reiserfs_node_create(fs->host_device, block_nr,
+	profile->node, REISERFS_LEAF_LEVEL + 1)))
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't create a root node at block %llu.", block_nr);
+	goto error_free_tree;
+    }
+    fs->tree->root_node = squeeze;
+
+    if (!(block_nr = reiserfs_alloc_alloc(fs))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't allocate block for leaf node.");
+	goto error_free_squeeze;
+    }*/
+
+    /* Initialize internal item. */
+/*    internal_info.blk = block_nr;
+  
+    libreiser4_plugins_call(goto error_free_squeeze, key_plugin->key, clean, &key);
+    libreiser4_plugins_call(goto error_free_squeeze, key_plugin->key, 
+	build_file_key, &key, KEY40_STATDATA_MINOR, reiserfs_oid_root_parent_objectid(fs),
+	reiserfs_oid_root_objectid(fs), 0);
+    
+    aal_memset(&item_info, 0, sizeof(item_info));
+    item_info.info = &internal_info;
+    
+    if (!(item_info.plugin = libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, 
+	profile->item.internal))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find internal item plugin by its id %x.", 
+	    profile->item.internal);
+	goto error_free_squeeze;
+    }
+    
+    coord.item_pos = 0;
+    coord.unit_pos = -1;*/
+
+    /* 
+	Insert an internal item. Item will be created automatically from 
+	the node insert API method. 
+    */
+/*    if (reiserfs_node_item_insert(squeeze, &coord, &key, &item_info)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't insert an internal item into the node %llu.", 
+	    aal_block_get_nr(squeeze->block));
+	goto error_free_squeeze;
+    }*/
+
+    /* Create the leaf */
+/*    if (!(leaf = reiserfs_node_create(fs->host_device, block_nr,
+	profile->node, REISERFS_LEAF_LEVEL)))
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't create a leaf node at %llu.", block_nr);
+	goto error_free_leaf;
+    }*/
+
+    /* Initialize stat_info */
+/*    stat_info.mode = S_IFDIR | 0755;
+    stat_info.extmask = 0;
+    stat_info.nlink = 2;
+    stat_info.size = 0;
+    
+    aal_memset(&item_info, 0, sizeof(item_info));
+    item_info.info = &stat_info;
+    
+    if (!(item_info.plugin = libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN,
+	profile->item.statdata)))
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't find stat data item plugin by its id %x.",
+	    profile->item.statdata);
+	goto error_free_leaf;
+    }*/
+    
+    /* Insert the stat data. */
+/*    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't insert an stat data item into the node %llu.", 
+	    aal_block_get_nr(leaf->block));
+	goto error_free_leaf;
+    }
+   
+    direntry_info.parent_id = reiserfs_oid_root_parent_objectid(fs);
+    direntry_info.object_id = reiserfs_oid_root_objectid(fs);
+    direntry_info.count = 2;
+    direntry_info.entry = entry;
+    direntry_info.key_plugin = key_plugin;
+    direntry_info.hash_plugin = NULL;
+    
+    libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, clean, &key);
+    
+    if (libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, build_dir_key, 
+	&key, direntry_info.hash_plugin, direntry_info.parent_id, direntry_info.object_id, "."))
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't build dir key.");
+	goto error_free_leaf;
+    }
+     
+    aal_memset(&item_info, 0, sizeof(item_info));
+    item_info.info = &direntry_info;
+
+    coord.item_pos = 1;
+    coord.unit_pos = -1;
+
+    if (!(item_info.plugin = libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, 
+	profile->item.direntry))) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find direntry item plugin by its id %x.", 
+	    profile->item.direntry);
+	goto error_free_leaf;
+    }*/
+
+    /* 
+	Insert a directory item. Item will be created automatically from 
+	the node insert API method.
+    */
+/*    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't insert direntry item into the node %llu.", 
+	    aal_block_get_nr(leaf->block));
+	goto error_free_leaf;
+    }
+
+    reiserfs_node_add_children(fs->tree->root_node, leaf);
+    return 0;
+
+error_free_leaf:
+    reiserfs_node_close(leaf);
+error_free_squeeze:
+    reiserfs_node_close(squeeze);
+error_free_tree:
+    aal_free(fs->tree);
+    fs->tree = NULL;
+error:
+    return -1;
+}*/
+
+error_t reiserfs_tree_create(reiserfs_fs_t *fs, 
+    reiserfs_profile_t *profile) 
+{
+    blk_t block_nr;
+    reiserfs_key_t key;
+    reiserfs_coord_t coord;
+    reiserfs_node_t *squeeze, *leaf;
+    reiserfs_plugin_t *key_plugin, *dir_plugin;
+    
+    reiserfs_item_info_t item_info;
+    reiserfs_internal_info_t internal_info;
+
+    reiserfs_opaque_t *root_dir;
+
+    aal_assert("umka-129", fs != NULL, return -1);
+    aal_assert("vpf-115", profile != NULL, return -1);
+    aal_assert("umka-130", fs->format != NULL, return -1);
+
+    if (!(key_plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 
+	profile->key))) 
+    {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find key plugin by its id %x.", 0x0);
 	return -1;
@@ -97,7 +283,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
-    
+
     /* Create a root node */
     if (!(block_nr = reiserfs_alloc_alloc(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -113,7 +299,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	    "Can't create a root node at block %llu.", block_nr);
 	goto error_free_tree;
     }
-    fs->tree->root = squeeze;
+    fs->tree->root_node = squeeze;
 
     if (!(block_nr = reiserfs_alloc_alloc(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -156,85 +342,43 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	goto error_free_squeeze;
     }
 
-    /* Create the leaf */
+    /* 
+	Create the leaf. For awhile dir plugin will take block
+	where it should place directory. But later it should be
+	fixed for more smart behavior.
+    */
     if (!(leaf = reiserfs_node_create(fs->host_device, block_nr,
 	profile->node, REISERFS_LEAF_LEVEL)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create a leaf node at %llu.", block_nr);
 	goto error_free_leaf;
-    } 
+    }
 
-    /* Initialize stat_info */
-    stat_info.mode = S_IFDIR | 0755;
-    stat_info.extmask = 0;
-    stat_info.nlink = 2;
-    stat_info.size = 0;
-    
-    aal_memset(&item_info, 0, sizeof(item_info));
-    item_info.info = &stat_info;
-    
-    if (!(item_info.plugin = libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN,
-	profile->item.statdata)))
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't find stat data item plugin by its id %x.",
-	    profile->item.statdata);
-	goto error_free_leaf;
-    }
-    
-    /* Insert the stat data. */
-    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't insert an internal item into the node %llu.", 
-	    aal_block_get_nr(leaf->block));
-	goto error_free_leaf;
-    }
-   
-    direntry_info.parent_id = reiserfs_oid_root_parent_objectid(fs);
-    direntry_info.object_id = reiserfs_oid_root_objectid(fs);
-    direntry_info.count = 2;
-    direntry_info.entry = entry;
-    direntry_info.key_plugin = key_plugin;
-    direntry_info.hash_plugin = NULL;
-    
-    libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, clean, &key);
-    
-    if (libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, build_dir_key, 
-	&key, direntry_info.hash_plugin, direntry_info.parent_id, direntry_info.object_id, "."))
+    if (!(dir_plugin = libreiser4_plugins_find_by_coords(REISERFS_DIR_PLUGIN, 
+	profile->dir)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't build dir key.");
+	    "Can't find dir plugin by its id %x.", profile->dir);
 	goto error_free_leaf;
     }
-     
-    aal_memset(&item_info, 0, sizeof(item_info));
-    item_info.info = &direntry_info;
 
-    coord.item_pos = 1;
+    coord.item_pos = 0;
     coord.unit_pos = -1;
+    coord.block = leaf->block;
 
-    if (!(item_info.plugin = libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, 
-	profile->item.direntry))) 
+    /* Creating root directory */    
+    if (!(fs->tree->root_dir = libreiser4_plugins_call(goto error_free_leaf, 
+	dir_plugin->dir, create, &coord, profile->key, profile->item.statdata, 
+	profile->item.direntry, profile->oid, profile->node)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find direntry item plugin by its id %x.", 
-	    profile->item.direntry);
+	    "Can't create root directory.");
 	goto error_free_leaf;
     }
-
-    /* 
-	Insert a directory item. Item will be created automatically from 
-	the node insert API method.
-    */
-    if (reiserfs_node_item_insert(leaf, &coord, &key, &item_info)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't insert direntry item into the node %llu.", 
-	    aal_block_get_nr(leaf->block));
-	goto error_free_leaf;
-    }
-
-    reiserfs_node_add_children(fs->tree->root, leaf);
+    fs->tree->dir_plugin = dir_plugin;
+    
+    reiserfs_node_add_children(fs->tree->root_node, leaf);
     return 0;
 
 error_free_leaf:
@@ -253,22 +397,18 @@ error:
     root node from the cache.
 */
 error_t reiserfs_tree_flush(reiserfs_fs_t *fs) {
-    reiserfs_node_t *root;
-    
     aal_assert("umka-572", fs != NULL, return -1);
     aal_assert("umka-573", fs->tree != NULL, return -1);
-    aal_assert("umka-574", fs->tree->root != NULL, return -1);
     
-    root = fs->tree->root;
-    if (root->children) {
+    if (fs->tree->root_node->children) {
 	aal_list_t *walk;
 	
-	aal_list_foreach_forward(walk, root->children) {
+	aal_list_foreach_forward(walk, fs->tree->root_node->children) {
 	    if (reiserfs_node_flush((reiserfs_node_t *)walk->data))
 		return -1;
 	}
-	aal_list_free(root->children);
-	root->children = NULL;
+	aal_list_free(fs->tree->root_node->children);
+	fs->tree->root_node->children = NULL;
     }
 
     return 0;
@@ -278,9 +418,8 @@ error_t reiserfs_tree_flush(reiserfs_fs_t *fs) {
 error_t reiserfs_tree_sync(reiserfs_fs_t *fs) {
     aal_assert("umka-131", fs != NULL, return -1);
     aal_assert("umka-560", fs->tree != NULL, return -1);
-    aal_assert("umka-576", fs->tree->root != NULL, return -1);
 
-    return reiserfs_node_sync(fs->tree->root);
+    return reiserfs_node_sync(fs->tree->root_node);
 }
 
 #endif
@@ -288,8 +427,15 @@ error_t reiserfs_tree_sync(reiserfs_fs_t *fs) {
 void reiserfs_tree_close(reiserfs_fs_t *fs) {
     aal_assert("umka-133", fs != NULL, return);
     aal_assert("umka-134", fs->tree != NULL, return);
-    
-    reiserfs_node_close(fs->tree->root);
+
+    if (fs->tree->root_dir && fs->tree->dir_plugin) {
+	/* Here will be calling dir API method */    
+	libreiser4_plugins_call(goto error_free_root_node, fs->tree->dir_plugin->dir, 
+	    close, fs->tree->root_dir);
+    }
+
+error_free_root_node:    
+    reiserfs_node_close(fs->tree->root_node);
     aal_free(fs->tree);
 }
 
@@ -319,7 +465,7 @@ static int reiserfs_tree_node_lookup(reiserfs_fs_t *fs, reiserfs_node_t *node,
 	if ((found = reiserfs_node_lookup(node, key, coord)) == -1)
 	    return -1;
 	
-	coord->node = node->block;
+	coord->block = node->block;
 	
 	if (level == REISERFS_LEAF_LEVEL)
 	    return found;
@@ -350,7 +496,7 @@ int reiserfs_tree_lookup(reiserfs_fs_t *fs, void *key,
     if (reiserfs_format_get_height(fs) < 2)
 	return 0;
 
-    return reiserfs_tree_node_lookup(fs, fs->tree->root, 
+    return reiserfs_tree_node_lookup(fs, fs->tree->root_node, 
 	key, coord);
 }
 

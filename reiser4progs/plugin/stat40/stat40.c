@@ -41,12 +41,14 @@ static error_t stat40_create(reiserfs_stat40_base_t *stat,
     return 0;
 }
 
-static void stat40_estimate(reiserfs_item_info_t *info, reiserfs_coord_t *coord) 
+static error_t stat40_estimate(reiserfs_item_info_t *info, 
+    reiserfs_coord_t *coord) 
 {
-    aal_assert("vpf-074", info != NULL, return);
+    aal_assert("vpf-074", info != NULL, return -1);
 
     /* Should calculate extentions size also */
     info->length = sizeof(reiserfs_stat40_base_t);
+    return 0;
 }
 
 #endif
@@ -83,7 +85,7 @@ static reiserfs_plugin_t stat40_plugin = {
 
 #ifndef ENABLE_COMPACT
 	    .create = (error_t (*)(void *, void *))stat40_create,
-	    .estimate = (void (*)(void *, void *))stat40_estimate,
+	    .estimate = (error_t (*)(void *, void *))stat40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,

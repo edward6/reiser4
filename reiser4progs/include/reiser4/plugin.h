@@ -123,8 +123,12 @@ typedef struct reiserfs_file_plugin reiserfs_file_plugin_t;
 struct reiserfs_dir_plugin {
     reiserfs_plugin_header_t h;
 
-    reiserfs_opaque_t *(*create) (void);
-    reiserfs_opaque_t *(*open) (void);
+    /* Creates directory at given coord */
+    reiserfs_opaque_t *(*create) (void *, uint16_t, uint16_t, 
+	uint16_t, uint16_t, uint16_t);
+
+    /* Opens directory by passed coord */
+    reiserfs_opaque_t *(*open) (void *);
     void (*close) (reiserfs_opaque_t *);
 };
 
@@ -154,7 +158,7 @@ struct reiserfs_item_ops {
     uint16_t (*unit_count) (void *);
     int (*unit_remove) (void *, int32_t, int32_t);
     
-    void (*estimate) (void *, void *);
+    error_t (*estimate) (void *, void *);
     uint32_t (*minsize) (void);
     
     int (*internal) (void);
@@ -401,10 +405,9 @@ struct reiserfs_oid_plugin {
     oid_t (*next) (reiserfs_opaque_t *);
     oid_t (*used) (reiserfs_opaque_t *);
 
-    oid_t (*root_parent_locality) (reiserfs_opaque_t *);
-    oid_t (*root_parent_objectid) (reiserfs_opaque_t *);
-    
-    oid_t (*root_objectid) (reiserfs_opaque_t *);
+    oid_t (*root_parent_locality) (void);
+    oid_t (*root_parent_objectid) (void);
+    oid_t (*root_objectid) (void);
 };
 
 typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;
@@ -551,7 +554,7 @@ struct reiserfs_dir_info {
 typedef struct reiserfs_dir_info reiserfs_dir_info_t;
 
 struct reiserfs_coord {
-    aal_block_t *node;
+    aal_block_t *block;
     int16_t item_pos;
     int16_t unit_pos;
 };

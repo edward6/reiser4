@@ -52,7 +52,7 @@ reiserfs_probe() {
 }
 
 [ -z $1 ] && {
-    echo "Usage: $0 DEVICE"
+    echo "Usage: $0 FILE"
     exit 1
 }
 
