@@ -992,9 +992,9 @@ attach_squeeze_idata(flush_pos_t * pos, struct inode * inode)
  	return 0;
 
  exit1:
-	reiser4_kfree(info->clust, sizeof(reiser4_cluster_t));
+	reiser4_kfree(info->clust);
  exit2:
-	reiser4_kfree(pos->idata, sizeof(flush_squeeze_item_data_t));
+	reiser4_kfree(pos->idata);
 	jput(pos->child);
         /* invalidate squeeze item info */
 	pos->idata = NULL;
@@ -1015,8 +1015,8 @@ detach_squeeze_idata(flush_squeeze_item_data_t ** idata)
 	assert("edward-256", info->clust->buf != NULL);
 
 	release_cluster_buf(info->clust, info->inode);
-	reiser4_kfree(info->clust, sizeof(reiser4_cluster_t));
-	reiser4_kfree(info, sizeof(flush_squeeze_item_data_t));
+	reiser4_kfree(info->clust);
+	reiser4_kfree(info);
 	
 	*idata = NULL;
 }

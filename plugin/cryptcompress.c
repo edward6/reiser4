@@ -47,7 +47,7 @@ destroy_key(__u32 * expkey, crypto_plugin * cplug)
 	assert("edward-411", expkey != NULL);
 	
 	xmemset(expkey, 0, (cplug->nr_keywords)*sizeof(__u32));
-	reiser4_kfree(expkey, (cplug->nr_keywords)*sizeof(__u32));
+	reiser4_kfree(expkey);
 }
 
 static void
@@ -56,8 +56,8 @@ detach_crypto_stat(crypto_stat_t * stat, digest_plugin * dplug)
 	assert("edward-412", stat != NULL);
 	assert("edward-413",  dplug != NULL);
 	
-	reiser4_kfree(stat->keyid, (size_t)(dplug->digestsize));
-	reiser4_kfree(stat, sizeof(*stat));
+	reiser4_kfree(stat->keyid);
+	reiser4_kfree(stat);
 }
 
 /*  1) fill cryptcompress specific part of inode
@@ -98,7 +98,7 @@ inode_set_crypto(struct inode * object, crypto_data_t * data)
 	}
 	stat->keyid = reiser4_kmalloc((size_t)(dplug->digestsize), GFP_KERNEL);
 	if (!stat->keyid) {
-		reiser4_kfree(stat, sizeof(*stat));
+		reiser4_kfree(stat);
 		result = -ENOMEM;
 		goto destroy_key;
 	}
@@ -330,7 +330,7 @@ release_cluster_buf(reiser4_cluster_t * clust, struct inode * inode)
 
 	if (clust->buf) {
 		assert("edward-615", clust->bsize != 0);
-		reiser4_kfree(clust->buf, clust->bsize);
+		reiser4_kfree(clust->buf);
 	}
 }
 
@@ -820,7 +820,7 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		discard:
 			clust->len = clust->count;
 		}
-		reiser4_kfree(wbuf, cplug->mem_req);
+		reiser4_kfree(wbuf);
 	}
 	
 	if (inode_crypto_plugin(inode)) {
@@ -861,7 +861,7 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 				uncapture_page(pg);
 				unlock_page(pg);
 				page_cache_release(pg);
-				reiser4_kfree(clust->pages, sizeof(*clust->pages));
+				reiser4_kfree(clust->pages);
 				pg = NULL;
 			}
 		}
@@ -952,7 +952,7 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	}
  exit:
 	if (bf)
-		reiser4_kfree(bf, bfsize);
+		reiser4_kfree(bf);
 	if (pg) {
 		assert("edward-621", PageLocked(pg));
 		
@@ -960,7 +960,7 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		uncapture_page(pg);
 		unlock_page(pg);
 		page_cache_release(pg);
-		reiser4_kfree(clust->pages, sizeof(*clust->pages));
+		reiser4_kfree(clust->pages);
 	}
 	return result;
 }
@@ -1160,11 +1160,11 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 
 		clust->len = dst_len;
 		
-		reiser4_kfree(wbuf, cplug->mem_req);
+		reiser4_kfree(wbuf);
 	}
  exit:
 	if (bf)
-		reiser4_kfree(bf, bfsize);
+		reiser4_kfree(bf);
 	if (clust->nr_pages == 1) {
 		
 		assert("edward-618", clust->len <= PAGE_CACHE_SIZE);
@@ -1623,7 +1623,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 
 		clust->pages = reiser4_kmalloc(sizeof(*clust->pages), GFP_KERNEL);
 		if (!clust->pages) {
-			reiser4_kfree(clust->buf, clust->bsize);
+			reiser4_kfree(clust->buf);
 			return -ENOMEM;
 		}
 		*clust->pages = find_get_page(inode->i_mapping, clust_to_pg(clust->index, inode));
@@ -2107,7 +2107,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	if (result == -EEXIST)
 		printk("write returns EEXIST!\n");
 
-	reiser4_kfree(pages, sizeof(*pages) << inode_cluster_shift(inode));
+	reiser4_kfree(pages);
 
 	if (buf) {
 		/* if nothing were written - there must be an error */
@@ -2367,7 +2367,7 @@ shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
 	free_reserved4cluster(inode, &clust);
  exit2:	
 	put_cluster_jnodes(&clust);
-	reiser4_kfree(pages, sizeof(*pages) << inode_cluster_shift(inode));
+	reiser4_kfree(pages);
 	return result;
 }
 
@@ -2454,7 +2454,7 @@ cryptcompress_writepage(struct page * page, reiser4_cluster_t * clust)
 	make_cluster_jnodes_dirty(&clust, NULL);
 	put_cluster_jnodes(&clust);                                             /* j- */
  exit:
-	reiser4_kfree(clust.pages, sizeof(*clust.pages) << inode_cluster_shift(inode));
+	reiser4_kfree(clust.pages);
 	return result;	
 }
 
