@@ -82,8 +82,13 @@ reiser4_key * extent_unit_key          (const tree_coord * coord,
 int           extent_item_data_by_flow (const tree_coord *, const flow_t *,
 					reiser4_item_data *);
 void          extent_print             (const char *, tree_coord *);
-
-int           extent_utmost_child      (const tree_coord *coord, sideof side, jnode **child, reiser4_block_nr *blocknr);
+int           extent_utmost_child      (const tree_coord *coord, sideof side,
+					jnode **child );
+int           extent_utmost_child_dirty ( const tree_coord  *coord,
+					  sideof side, int *is_dirty );
+int           extent_utmost_child_real_block ( const tree_coord  *coord,
+					       sideof side,
+					       reiser4_block_nr  *block );
 
 /*
  * plugin->u.item.s.file.*
