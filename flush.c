@@ -1815,6 +1815,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			if ((bio = bio_alloc (GFP_NOIO, nr)) == NULL) {
 				/* FIXME: EEEEK, Pages are all locked right now. */
 				ret = -ENOMEM;
+				warning ("jmacd-987123", "Self destruct");
 				break;
 			}
 
@@ -1867,12 +1868,10 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			trace_on (TRACE_FLUSH, "flush_empty_queue %u consecutive blocks: BIO %p\n", nr, bio);
 
 			submit_bio (WRITE, bio);
-
-			/* FIXME: temporary solution? */
-			blk_run_queues ();
 		}
 	}
 
+	blk_run_queues ();
 	trace_if (TRACE_FLUSH, if (ret == 0) { info ("flush_empty_queue wrote %u leaving %u queued\n", pos->queue_num - refill, refill); });
 	pos->queue_num = refill;
 
