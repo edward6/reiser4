@@ -528,7 +528,7 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count)
 			tree = current_tree;
 			for (j = 0; j < length; j ++)
 				assert("vs-1095",
-				       UNDER_SPIN(tree, tree, jlook(tree, oid, extent_unit_index(&twin) + i)) == 0);
+				       UNDER_SPIN(tree, tree, jlook(tree, oid, extent_unit_index(&twin) + j)) == 0);
 		}
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
 			/* FIXME-VITALY: this is necessary??? */
@@ -2454,6 +2454,43 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		/* inform block allocator that those blocks were in
 		   UNALLOCATED stage */
 		flush_pos_hint(flush_pos)->block_stage = BLOCK_UNALLOCATED;
+
+		/*
+		 * eflush<->extentallocation interactions.
+		 *
+		 * If node from unallocated extent was eflushed following bad
+		 * things can happen:
+		 *
+		 *   . block reserved for this node in fake block space is
+		 *   already used, and extent_allocate_blocks() will underflow
+		 *   fake_allocated counter.
+		 *
+		 *   . emergency block is marked as used in bitmap, so it is
+		 *   possible for extent_allocate_blocks() to just be unable
+		 *   to find enough free space on the disk.
+		 *
+		 * Current solution is to unflush all eflushed jnodes. This
+		 * solves both problems, but this is suboptimal, because:
+		 *
+		 *   . as a result extents jnodes are scanned trice.
+		 *
+		 *   . this can exhaust memory (nodes were eflushed, because
+		 *   we were short on memory in the first place).
+		 *
+		 * Possible proper solutions:
+		 *
+		 *   . scan extent. If eflushed jnode is found, split extent
+		 *   into three: extent before, single-block-extent, extent
+		 *   after. This requires mechanism to block eflush for jnodes
+		 *   of this extent during this extent allocation (easy to
+		 *   implement through inode flag).
+		 *
+		 *   . allocate chunk of extent. Scan this chunk, for each
+		 *   eflushed jnode, load it, clear JNODE_EFLUSH bit and
+		 *   release. This requires handling of temporary underflow of
+		 *   fake space.
+		 *
+		 */
 
 		result = unflush(coord);
 		if (result)
