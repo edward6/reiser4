@@ -1281,7 +1281,7 @@ capture_anonymous_jnodes(struct address_space *mapping,
 	/* there are anonymous jnodes from given range */
 	ON_TRACE(TRACE_CAPTURE_ANONYMOUS,
 		 "oid %llu: found %u anonymous jnodes in range (%lu %lu)\n",
-		 get_inode_oid(mapping->host), found_jnodes, from, to - 1);
+		 get_inode_oid(mapping->host), found_jnodes, *from, to - 1);
 	
 	/* start i/o for eflushed nodes */
 	for (i = 0; i < found_jnodes; i ++)
