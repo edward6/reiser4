@@ -292,7 +292,7 @@ static int scan_mgr( txn_mgr *mgr )
 	}
 }
 
-/* */
+/* prepare a request for flushing for ktxnmgrd */
 int ktxnmgr_writeback (struct super_block * s, struct writeback_control *wbc)
 {
 	txn_mgr *tmgr = &get_super_private (s)->tmgr;
