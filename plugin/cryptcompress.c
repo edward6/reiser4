@@ -883,7 +883,7 @@ make_cluster_jnodes_dirty(reiser4_cluster_t * clust, int *num)
 		jnode_make_dirty_locked(node);
 		UNLOCK_JNODE(node);
 		
-		jput(node);
+//		jput(node);
 	}
 }
 
@@ -1529,7 +1529,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		
 		make_cluster_jnodes_dirty(&clust, NULL);
 		
-		put_cluster_jnodes(&clust);                                         /* j- */
+		//put_cluster_jnodes(&clust);                                         /* j- */
 		
 		result = update_inode_and_sd_if_necessary(inode,
 							  clust_to_off(clust.index, inode) + clust.off + clust.count /* new_size */,
@@ -1546,7 +1546,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		update_cluster(inode, &clust, 0, f.length);
 		continue;
 	exit2:
-		put_cluster_jnodes(&clust);                                         /* j- */
+		//put_cluster_jnodes(&clust);                                         /* j- */
 		
 		break;
 	} while (f.length);
