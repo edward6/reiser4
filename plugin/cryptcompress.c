@@ -2163,10 +2163,27 @@ cut_items_cryptcompress(struct inode *inode, loff_t new_size, int update_sd)
 			all_grabbed2free();
 			reiser4_release_reserved(inode->i_sb);
 
+			{
+				reiser4_context * ctx;
+				long long_ret;
+
+				ctx = get_current_context();
+				long_ret = txn_end(ctx);
+				txn_begin(ctx);
+				if (long_ret < 0) {
+					result = (int)long_ret;
+					break;
+				}
+			}		
 			continue;
 		}
+		if (result)
+			break;
+		result = update_inode_cryptcompress
+			(inode, get_key_offset(&smallest_removed), 1, 1, update_sd);
 		break;
 	}
+
 	all_grabbed2free();
 	reiser4_release_reserved(inode->i_sb);
 	return result;
