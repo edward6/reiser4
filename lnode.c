@@ -167,7 +167,7 @@ lnodes_init(struct super_block *super	/* super block to initialise lnodes
 {
 	assert("nikita-1861", super != NULL);	/* slavery forbidden in Russia */
 	ln_hash_init(&get_super_private(super)->lnode_htable, LNODE_HTABLE_BUCKETS);
-	spin_lock_init(&get_super_private(super)->lnode_htable_guard);
+	spin_lock_init(&get_super_private(super)->lnode_guard);
 	return 0;
 }
 
@@ -207,7 +207,7 @@ lget(lnode * node /* lnode to add to the hash table */ ,
 	assert("nikita-1866", lnode_valid_type(type));
 
 	htable = &get_current_super_private()->lnode_htable;
-	guard = &get_current_super_private()->lnode_htable_guard;
+	guard = &get_current_super_private()->lnode_guard;
 	spin_lock(guard);
 	/* check hash table */
 	while ((result = ln_hash_find(htable, &oid)) != 0) {
@@ -259,13 +259,13 @@ lput(lnode * node /* lnode to release */ )
 								 * a
 								 * space */
 	sinfo = get_current_super_private();
-	spin_lock(&sinfo->lnode_htable_guard);
+	spin_lock(&sinfo->lnode_guard);
 	assert("nikita-1878", ln_hash_find(&sinfo->lnode_htable, &node->h.oid) == node);
 	if (--node->h.ref == 0) {
 		ln_hash_remove(&sinfo->lnode_htable, node);
 		kcond_broadcast(&node->h.cvar);
 	}
-	spin_unlock(&sinfo->lnode_htable_guard);
+	spin_unlock(&sinfo->lnode_guard);
 }
 
 /* true if @node1 and @node2 refer to the same object */
