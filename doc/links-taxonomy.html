@@ -1,0 +1,116 @@
+<!doctype html public "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+  <head>
+	<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+	<meta name="Author" content="Anonymous">
+	<meta name="GENERATOR" content="Hand">
+	<meta name="Description" content="Links in Reiser6">
+	<meta name="Keywords" content="links, hard links, symlinks, identify, reference, indexing, directories">
+	<title>Link Taxonomy in Reiser6</title>
+  </head>
+  <body>
+    <table border="1" cellspacing="0" cellpadding="10">
+	  <colgroup>
+		<col span="1" width="20%">
+		<col span="2" width="40%">
+		<col span="3" width="40%">
+	  </colgroup>
+	  <tbody>
+		<tr>
+		  <td colspan="3" bgcolor="yellow">
+            <center>Non-identity linking</center>
+		  </td>
+		</tr>
+		<tr>
+		  <td bgcolor="#b0b0b0">
+			&nbsp;
+		  </td>
+		  <td bgcolor="#b0b0b0">
+            Unidirectional
+		  </td>
+		  <td bgcolor="#b0b0b0">
+            Bidirectional
+		  </td>
+		</tr>
+		<tr>
+		  <td bgcolor="#b0b0b0">
+            Stops GC
+		  </td>
+		  <td>
+			&nbsp;
+		  </td>
+		  <td>
+			&nbsp;
+		  </td>
+		</tr>
+		<tr>
+		  <td bgcolor="#b0b0b0">
+            Doesn't stop GC
+		  </td>
+		  <td>
+			symlink
+		  </td>
+		  <td>
+			&nbsp;
+		  </td>
+		</tr>
+
+		<tr>
+		  <td colspan="3">
+			&nbsp;
+		  </td>
+		</tr>
+
+		<tr>
+		  <td colspan="3" bgcolor="yellow">
+            <center>Identity linking</center>
+		  </td>
+		</tr>
+		<tr>
+		  <td bgcolor="#b0b0b0">
+			&nbsp;
+		  </td>
+		  <td bgcolor="#b0b0b0">
+            Unidirectional
+		  </td>
+		  <td bgcolor="#b0b0b0">
+            Bidirectional
+		  </td>
+		</tr>
+		<tr>
+		  <td bgcolor="#b0b0b0">
+            Stops GC
+		  </td>
+		  <td>
+            hard link
+		  </td>
+		  <td>
+            Bidirectional hard link (for secondary indices)
+		  </td>
+		</tr>
+		<tr>
+		  <td bgcolor="#b0b0b0">
+            Doesn't stop GC
+		  </td>
+		  <td>
+			&nbsp;
+		  </td>
+		  <td>
+            Invert file entry
+		  </td>
+		</tr>
+
+	  </tbody>
+    </table>
+  </body>
+</html>
+
+<!--
+^ Local variables:
+^ mode: html
+^ mode-name: "Design Document"
+^ indent-tabs-mode: nil
+^ tab-width: 4
+^ eval: (progn (flyspell-mode) (flyspell-buffer))
+^ End:
+-->
