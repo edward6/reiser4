@@ -138,6 +138,10 @@ struct reiser4_super_info_data {
 	 * amount of space allocated by kmalloc. For debugging.
 	 */
 	int                  kmalloc_allocated;
+	/**
+	 * list of all jnodes
+	 */
+	list_t               all_jnodes;
 #endif
 
 	/* disk layout plugin */

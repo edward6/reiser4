@@ -1665,16 +1665,18 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	
 	if (REISER4_DEBUG || REISER4_DEBUG_MODIFY || REISER4_TRACE ||
 	    REISER4_STATS || REISER4_DEBUG_MEMCPY)
-		warning ("nikita-2372", "Debugging is on. Happy benchmarking");
+		warning ("nikita-2372", "Debugging is on. Happy benchmarking.");
 
 	/* this is common for every disk layout. It has a pointer where layout
 	 * specific part of info can be attached to, though */
-	s->u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
-				    GFP_KERNEL);
-	if (!s->u.generic_sbp)
+	info = kmalloc (sizeof (reiser4_super_info_data), GFP_KERNEL);
+
+	if (!info)
 		return -ENOMEM;
 
-	memset (s->u.generic_sbp, 0, sizeof (reiser4_super_info_data));
+	s->u.generic_sbp = info;
+	memset (info, 0, sizeof (*info));
+	INIT_LIST_HEAD (&info->all_jnodes);
 
 	result = init_context (&__context, s);
 	if (result) {
@@ -1732,7 +1734,6 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 	s->s_op = &reiser4_super_operations;
 
-	info = get_super_private (s);
 	spin_lock_init (&info->guard);
 
 	/* init layout plugin */
@@ -1822,9 +1823,11 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 static void reiser4_kill_super (struct super_block *s)
 {
+	reiser4_super_info_data *info;
 	__REISER4_ENTRY (s,);
 
-	if (!s->u.generic_sbp) {
+	info = (reiser4_super_info_data *) s->u.generic_sbp;
+	if (!info) {
 		/* mount failed */
 		s->s_op = 0;
 		kill_block_super(s);
@@ -1854,10 +1857,26 @@ static void reiser4_kill_super (struct super_block *s)
 	s->s_op->write_super = NULL;
 	kill_block_super(s);
 
+#if REISER4_DEBUG
+	{
+		list_t *scan;
+
+		/*
+		 * print jnode that survived umount.
+		 */
+		list_for_each(scan, &info->all_jnodes) {
+			jnode *busy;
+
+			busy = list_entry(scan, jnode, jnodes);
+			info_jnode ("\nafter umount", busy);
+		}
+	}
+#endif
+
 	/* no assertions below this line */
 	__REISER4_EXIT (&__context);
 
-	kfree(s->u.generic_sbp);
+	kfree(info);
 	s->u.generic_sbp = NULL;
 }
 
@@ -1920,7 +1939,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 		return 0;
 	if( atomic_read( &node -> d_count ) > 0 )
 		return 0;
-	if( znode_is_loaded( node ) )
+	if( jnode_is_loaded( node ) )
 		return 0;
 	/*
 	 * can only release page if it is not in a atom and real block number
