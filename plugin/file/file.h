@@ -17,7 +17,7 @@ void get_nonexclusive_access   (struct inode * inode);
 void drop_nonexclusive_access  (struct inode * inode);
 int  tail2extent               (struct inode * inode);
 int  extent2tail               (struct file * file);
-int  unix_file_readpage_nolock (struct file * file, struct page * page);
+int  unix_file_readpage_nolock (void * file, struct page * page);
 int  find_next_item            (struct file *, const reiser4_key *, coord_t *,
 				lock_handle *, znode_lock_mode);
 int  coord_set_properly        (const reiser4_key * key, coord_t * coord);
