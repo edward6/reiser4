@@ -172,7 +172,7 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 
 	trace_if (TRACE_FLUSH, info ("flush jnode %p\n", node));
 	
-	/*print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR);*/
+	print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR);
 	/*trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK));*/
 
 	assert ("jmacd-5012", jnode_check_dirty (node));
@@ -816,10 +816,10 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	if (is_unformatted) {
 		done_lh (& pos->parent_lock);
 		move_lh (& pos->parent_lock, & right_lock);
-		coord_init_first_unit (& pos->parent_coord, pos->parent_lock.node);
 		if ((ret = load_zh (& pos->parent_load, pos->parent_lock.node))) {
 			goto exit;
 		}
+		coord_init_first_unit (& pos->parent_coord, pos->parent_lock.node);
 	} else {
 		done_lh (& pos->point_lock);
 		move_lh (& pos->point_lock, & right_lock);
@@ -857,6 +857,8 @@ static int flush_squalloc_right (flush_position *pos)
 			goto exit;
 		}
 
+		coord_next_unit (& pos->parent_coord);
+
 		/* If we have not allocated this node completely... */
 		if (! coord_is_after_rightmost (& pos->parent_coord)) {
 
@@ -875,7 +877,7 @@ static int flush_squalloc_right (flush_position *pos)
 				goto STEP_2;
 			} else {
 				/* We are finished at this level. */
-				ret = 0;
+				ret = flush_enqueue_ancestors (pos->parent_coord.node, pos);
 				goto exit;
 			}
 		}
