@@ -1349,7 +1349,7 @@ int
 prepare_to_sleep(lock_stack * owner)
 {
 	assert("nikita-1847", owner == get_current_lock_stack());
-
+/* NIKITA-FIXME-HANS: ZAM-FIXME-HANS: resolve this experiment */
 	if (0) {
 		/* NOTE-NIKITA: I commented call to sema_init() out hoping
 		   that it is the reason or thread sleeping in
@@ -1364,7 +1364,7 @@ prepare_to_sleep(lock_stack * owner)
 		sema_init(&owner->sema, 0);
 		spin_unlock_stack(owner);
 	}
-
+/* ZAM-FIXME-HANS: comment this */
 	if (unlikely(atomic_read(&owner->nr_signaled) != 0 && !owner->curpri)) {
 		return RETERR(-EDEADLK);
 	}

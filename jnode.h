@@ -657,9 +657,17 @@ jput(jnode * node)
 	reiser4_stat_inc_at_level_jput(node);
 	rcu_read_lock();
 	/*
-	 * we don't need and kind of lock here--jput_final() uses RCU.
+	 * we don't need any kind of lock here--jput_final() uses RCU.  NIKITA-FIXME: look into the use of a tree or a
+	 * skip list instead of rcu.  trees and skip lists scale just fine (we should know;-) ), and can be used as
+	 * lists.  Actually, it is slightly interesting to consider the problem.;-) What happens when you take a tree,
+	 * remove the keys from it, remove the internal nodes, and just leave the sibling pointers between nodes, the
+	 * node layout, the balancing condition, and the lock for the node? Oh dear, that leaves you with the tree giant
+	 * lock, but I think we can get rid of that, and if I am wrong you still are better off than before, provided
+	 * that the balancing condition is made lax, or even converted to a garbage collection system.
 	 */
 	if (unlikely(atomic_dec_and_test(&node->x_count))) {
+/* NIKITA-FIXME-HANS: email me an explanation of how our code compiles when REISER4_STATS is not defined and the line
+ * below is called. Then remove this comment. */
 		reiser4_stat_inc_at_level_jputlast(node);
 		jput_final(node);
 	} else

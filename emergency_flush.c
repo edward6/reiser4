@@ -573,7 +573,7 @@ eflush_get(const jnode *node)
 	assert("nikita-2742", ef != NULL);
 	return &ef->blocknr;
 }
-
+/* NIKITA-FIXME-HANS: review usage of unlikely's in this function */
 void
 eflush_del(jnode *node, int page_locked)
 {
@@ -805,6 +805,30 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 }
 
 #endif
+
+/* this is similar to the above uncapture_page, except that it is always called for unformatted jnode which was just emergency
+   flushed and therefore may have no page */
+void
+uncapture_jnode(jnode *node)
+{
+	txn_atom *atom;
+
+	jnode_make_clean(node);
+
+	LOCK_JNODE(node);
+	eflush_del(node, 0/* page is not locked */);
+
+	atom = atom_locked_by_jnode(node);
+	if (atom == NULL) {
+		assert("jmacd-7111", !jnode_check_dirty(node));
+		UNLOCK_JNODE (node);
+		return;
+	}
+
+	uncapture_block(node);
+	UNLOCK_ATOM(atom);
+	jput(node);
+}
 
 /* Make Linus happy.
    Local variables:

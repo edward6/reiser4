@@ -325,9 +325,9 @@ struct txn_atom {
 	/* number of flush queues for this atom. */
 	int nr_flush_queues; 
 #endif
-	/* number of threads who waits this atom commit completion */
+	/* number of threads who wait for this atom to complete commit */
 	int nr_waiters;
-	/* number of treads which do jnode_flush() over this atom */
+	/* number of threads which do jnode_flush() over this atom */
 	int nr_flushers;
 	/* number of flush queues which are IN_USE and jnodes from fq->prepped
 	   are submitted to disk by the write_fq() routine. */

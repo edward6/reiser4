@@ -1,10 +1,14 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* The locking in this file is badly designed, and a filesystem scales only as well as its worst locking
- * design. -Hans */
-
-
 /* Joshua MacDonald wrote the first draft of this code. */
+
+/* ZAM-LONGTERM-FIXME-HANS: The locking in this file is badly designed, and a
+filesystem scales only as well as its worst locking design.  You need to
+substantially restructure this code. Josh was not as experienced a programmer as
+you.  Particularly review how the locking style differs from what you did for
+znodes usingt hi-lo priority locking, and present to me an opinion on whether
+the differences are well founded.  */
+
 
 /* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The
    txnmgr processes capture_block requests and manages the relationship between jnodes and
@@ -931,6 +935,10 @@ static void atom_update_stat_data(txn_atom **atom)
 		inode = inode_by_reiser4_inode(container_of(j, reiser4_inode, inode_jnode));
 
 		/* move blocks grabbed for stat data update back from atom's flush_reserved to grabbed */
+/* NIKITA-FIXME-HANS: this function dereference for the inode's plugin is too
+ * expensive, create a default and optimize for it, or send me the promised
+ * metrics of howq the function dereferences we have are not significant to
+ * performance.. */
 		flush_reserved2grabbed(*atom, reserved_for_sd_update(inode));
 
 		capture_list_remove_clean(j);			
@@ -1147,7 +1155,9 @@ int txnmgr_force_commit_current_atom (void)
 	return force_commit_atom_nolock(txnh);
 } 
 
-/* Called to force commit of any outstanding atoms.  Later this should be
+/* Called to force commit of any outstanding atoms.  
+ZAM-FIXME-HANS: comment in more detail on the comment below.
+Later this should be
    improved to not to wait indefinitely if new atoms are created. */
 int txnmgr_force_commit_all (struct super_block *super)
 {
@@ -1178,7 +1188,7 @@ again:
 		LOCK_ATOM(atom);
 
 		if (atom->stage < ASTAGE_PRE_COMMIT) {
-			spin_unlock_txnmgr(mgr);
+			spin_unlockunlock_txnmgr(mgr);
 			LOCK_TXNH(txnh);
 
 			/* Add force-context txnh */
@@ -1364,7 +1374,7 @@ init_wlinks(txn_wait_links * wlinks)
 	fwaiting_list_clean(wlinks);
 }
 
-/* Add and atom to the atom's waitfor list and wait somebody who is pleased to wake us up; */
+/* Add atom to the atom's waitfor list and wait for somebody to wake us up; */
 void atom_wait_event(txn_atom * atom)
 {
 	txn_wait_links _wlinks;
@@ -1380,7 +1390,7 @@ void atom_wait_event(txn_atom * atom)
 	atomic_inc(&atom->refcount);
 	UNLOCK_ATOM(atom);
 
-	/*assert("nikita-3056", commit_check_locks());*/
+	/* assert("nikita-3056", commit_check_locks()); */
 	prepare_to_sleep(_wlinks._lock_stack);
 	go_to_sleep(_wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_EVENT);
 
@@ -1410,12 +1420,16 @@ typedef struct commit_data {
 	txn_atom    *atom;
 	txn_handle  *txnh;
 	long         nr_written;
+/* NIKITA-FIXME-HANS: comment this */
 	int          preflush;
+/* NIKITA-FIXME-HANS: comment this */
 	int          wait;
 	int          failed;
 } commit_data;
 
-/* NIKITA-FIXME-HANS: comment this, including explaining why we only "try".  Advise on whether more "unlikely"'s should be included here. */
+/* NIKITA-FIXME-HANS: comment this, including explaining why we only "try", and
+ * whether we should call this "close_txnh" instead.  Advise on whether more
+ * "unlikely"'s should be included here. */
 
 static int
 try_commit_txnh(commit_data *cd)
@@ -1457,7 +1471,10 @@ try_commit_txnh(commit_data *cd)
 		} else if (cd->txnh->flags & TXNH_DONT_COMMIT) {
 			/*
 			 * this thread (transaction handle that is) doesn't
-			 * want to commit atom. Notify waiters that handle is
+			 * want to commit atom. 
+
+/* NIKITA-FIXME-HANS: explain when that is, and whether it can happen when this is the only open transaction handle */
+			 Notify waiters that handle is
 			 * closed.
 			 */
 			atom_send_event(cd->atom);
@@ -1474,7 +1491,7 @@ try_commit_txnh(commit_data *cd)
 				cd->preflush = 0;
 				reiser4_stat_inc(txnmgr.restart.flush);
 				result = RETERR(-EAGAIN);
-			} else
+			} else	/* NIKITA-FIXME-HANS: comments needed here. */
 				-- cd->preflush;
 		} else {
 			/* We change atom state to ASTAGE_CAPTURE_WAIT to
@@ -1507,7 +1524,7 @@ commit_txnh(txn_handle * txnh)
 	xmemset(&cd, 0, sizeof cd);
 	cd.txnh = txnh;
 	cd.preflush = 10;
-
+/* NIKITA-FIXME-HANS: comment on what we are looping on. */
 	while (try_commit_txnh(&cd) != 0)
 		preempt_point();
 
@@ -1524,7 +1541,7 @@ commit_txnh(txn_handle * txnh)
 
 	UNLOCK_TXNH(txnh);
 	atom_dec_and_unlock(cd.atom);
-
+/* ZAM-FIXME-HANS: comment on why are we doing this, what is the logic here? */
 	if (txnh->flags & TXNH_DONT_COMMIT)
 		ktxnmgrd_kick(&get_current_super_private()->tmgr);
 
@@ -1552,6 +1569,8 @@ commit_txnh(txn_handle * txnh)
    This routine encodes the basic logic of block capturing described by:
   
      http://namesys.com/txn-doc.html
+
+ZAM-FIXME-HANS: update reference
   
    Our goal here is to ensure that any two blocks that contain dependent modifications
    should commit at the same time.  This function enforces this discipline by initiating
@@ -1582,6 +1601,8 @@ commit_txnh(txn_handle * txnh)
    released.  The external interface (try_capture) manages re-aquiring the jnode lock
    in the failure case.
 */
+
+/* ZAM-FIXME-HANS: this and its wrappers could be completely restructured to some advantage in clarity, yes? */
 static int
 try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom ** atom_alloc)
 {
@@ -1592,7 +1613,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 	/* Should not call capture for READ_NONCOM requests, handled in try_capture. */
 	assert("jmacd-567", CAPTURE_TYPE(mode) != TXN_CAPTURE_READ_NONCOM);
 
-	/* FIXME_LATER_JMACD Should assert that atom->tree == node->tree somewhere. */
+	/* FIXME-ZAM-HANS: FIXME_LATER_JMACD Should assert that atom->tree == node->tree somewhere. */
 
 	assert("umka-194", txnh != NULL);
 	assert("umka-195", node != NULL);
@@ -1626,16 +1647,16 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 		UNLOCK_TXNH(txnh);
 		return 0;
 	}
-
+/* NIKITA-FIXME-HANS: what have we done to measure how often this code below runs under the worst case tests? */
 	if (txnh_atom != NULL) {
 		/* It is time to perform deadlock prevention check over the node we want to capture.
 		   It is possible this node was locked for read without capturing it. The
 		   optimization which allows to do it helps us in keeping atoms independent as long
 		   as possible but it may cause lock/fuse deadlock problems. 
 
-		   The number of similar deadlock situations with locked but not captured were
-		   found.  In each situation there are two or more threads one of them does flushing
-		   another one does routine balancing or tree lookup.  The flushing thread (F)
+		   A number of similar deadlock situations with locked but not captured nodes were
+		   found.  In each situation there are two or more threads: one of them does flushing
+		   while another one does routine balancing or tree lookup.  The flushing thread (F)
 		   sleeps in long term locking request for node (N), another thread (A) sleeps in
 		   trying to capture some node already belonging the atom F, F has a state which
 		   prevents immediately fusion .
@@ -1695,9 +1716,9 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 			if (mode & TXN_CAPTURE_DONT_FUSE) {
 				UNLOCK_TXNH(txnh);
 				UNLOCK_JNODE(node);
+/* NIKITA-FIXME-HANS: comment this */
 				return RETERR(-E_NO_NEIGHBOR);
 			}
-
 			/* In this case, both txnh and node belong to different atoms.  This function
 			   returns -EAGAIN on successful fusion, 0 on the fall-through case. */
 			ret = capture_init_fusion(node, txnh, mode);
@@ -1802,7 +1823,7 @@ build_capture_mode(jnode * node, znode_lock_mode lock_mode, txn_capture flags)
 	assert("nikita-3186", cap_mode != 0);
 	return cap_mode;
 }
-
+/* ZAM-FIXME-HANS: comment this function */
 int
 try_capture_args(jnode * node, txn_handle * txnh, znode_lock_mode lock_mode,
 		 txn_capture flags, int non_blocking, txn_capture cap_mode)
@@ -1890,6 +1911,8 @@ repeat:
    the lock manager with the jnode lock held and it always returns with the jnode lock
    held.
 */
+
+/* ZAM-FIXME-HANS: eliminate this almost pointless wrapper. */
 int
 try_capture(jnode * node, znode_lock_mode lock_mode, txn_capture flags
 	    /* ...NONBLOCKING and ...DONT_FUSE are allowed here */ )
@@ -1899,7 +1922,7 @@ try_capture(jnode * node, znode_lock_mode lock_mode, txn_capture flags
 	return try_capture_args(node, get_current_context()->trans, lock_mode, 
 				flags, flags & TXN_CAPTURE_NONBLOCKING, 0);
 }
-
+/* ZAM-FIXME-HANS: function name and function header say different things about what it does, which is correct, or are both, explain. */
 /* fuse all 'active' atoms of lock owners of given node. */
 static int
 check_not_fused_lock_owners(txn_handle * txnh, znode * node)
@@ -1957,7 +1980,7 @@ check_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		}
 
 		UNLOCK_TXNH(ctx->trans);
-
+y
 		if (atomf == atomh || atomf->stage > ASTAGE_CAPTURE_WAIT) {
 			UNLOCK_ATOM(atomf);
 			continue;
@@ -2023,6 +2046,11 @@ try_capture_page(struct page *pg, znode_lock_mode lock_mode, int non_blocking)
 /* this is to prevent captured inodes from being pruned. FIXME: maybe we could use I_DIRTY*/
 #define I_CAPTURED 512
 
+/* VS-FIXME-HANS: explain the concept behind capturing an inode, and all of
+ * its principles of operation / guarantees provided. No adding design features
+ * without explanations of them!;-), especially when the last thing I vaguely
+ * remember you were saying something about how it isn't used to any
+ * effect.... */
 /* this is called by reiser4_mark_inode_dirty */
 int capture_inode(struct inode *inode)
 {
@@ -2062,7 +2090,7 @@ int uncapture_inode(struct inode *inode)
 	jput(j);
 	return 0;
 }
-
+/* ZAM-FIXME-HANS: grep doesn't find where this is used.  email me where. */
 /* This interface is used by flush routines when they need to prevent an atom from
    committing while they perform early flushing.  The node is already captured but the
    txnh is not. */
@@ -2099,7 +2127,16 @@ fail_unlock:
 }
 
 /* This informs the transaction manager when a node is deleted.  Add the block to the
-   atom's delete set and uncapture the block.  Handles the EAGAIN result from
+   atom's delete set and uncapture the block.  
+
+VS-FIXME-HANS: this EAGAIN paradigm clutters the code and creates a need for
+explanations.  find all the functions that use it, and unless there is some very
+good reason to use it (I have not noticed one so far and I doubt it exists, but maybe somewhere somehow....),
+move the loop to inside the function.
+
+VS-FIXME-HANS: can this code be at all streamlined?  In particular, can you lock and unlock the jnode fewer times?
+
+Handles the EAGAIN result from
    blocknr_set_add_block, which is returned by blocknr_set_add when it releases the atom
    lock to perform an allocation.  The atom could fuse while this lock is held, which is
    why the EAGAIN must be handled by repeating the call to atom_locked_by_jnode.  The
@@ -2149,6 +2186,9 @@ uncapture_page(struct page *pg)
 	 * not protected by spin lock.  Here we check this counter if we want to
 	 * remove jnode from flush queue and, if the counter is not zero, wait
 	 * all write_fq() for this atom to complete. */
+/* NIKITA-FIXME-HANS: benchmark multiple deletes and multiple writes running
+ * simultaneously and tell me if we spend measurable time here waiting, if yes,
+ * find a more adroit way of coding this. */
 	while (JF_ISSET(node, JNODE_FLUSH_QUEUED) && atom->nr_running_queues) {
 		UNLOCK_JNODE(node);
 		/*
@@ -2171,6 +2211,7 @@ uncapture_page(struct page *pg)
 		eflush_del(node, 1);
 		page_cache_release(pg);
 		atom = atom_locked_by_jnode(node);
+/* VS-FIXME-HANS: improve the commenting in this function */
 		if (atom == NULL) {
 			UNLOCK_JNODE(node);
 			return;
@@ -2181,32 +2222,8 @@ uncapture_page(struct page *pg)
 	jput(node);
 }
 
-/* this is similar to the above uncapture_page, except that it is always called for unformatted jnode which was just emergency
-   flushed and therefore may have no page */
-void
-uncapture_jnode(jnode *node)
-{
-	txn_atom *atom;
-
-	jnode_make_clean(node);
-
-	LOCK_JNODE(node);
-	eflush_del(node, 0/* page is not locked */);
-
-	atom = atom_locked_by_jnode(node);
-	if (atom == NULL) {
-		assert("jmacd-7111", !jnode_check_dirty(node));
-		UNLOCK_JNODE (node);
-		return;
-	}
-
-	uncapture_block(node);
-	UNLOCK_ATOM(atom);
-	jput(node);
-}
-
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
-   increases atom refcount, adds to txnh_list. */
+   increases atom refcount and txnh_count, adds to txnh_list. */
 static void
 capture_assign_txnh_nolock(txn_atom * atom, txn_handle * txnh)
 {
@@ -2262,6 +2279,7 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 	ON_TRACE(TRACE_TXN, "capture %p for atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
 }
 
+/* common code for dirtying both unformatted jnodes and formatted znodes. */
 static void
 do_jnode_make_dirty(jnode * node, txn_atom * atom)
 {
@@ -2272,7 +2290,6 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	JF_SET(node, JNODE_DIRTY);
 
 	get_current_context()->nr_marked_dirty ++;
-
 	/* We grab2flush_reserve one additional block only if node was
 	   not CREATED and jnode_flush did not sort it into neither
 	   relocate set nor overwrite one. If node is in overwrite or
@@ -2307,7 +2324,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 }
 
 /* Set the dirty status for this znode.  If the znode is not already dirty, this involves locking the atom (for its
-   capture lists), removing from the clean list and pushing in to the dirty list of the appropriate level. */
+   capture lists), removing it from the clean list and pushing in to the dirty list of the appropriate level. */
 void
 znode_make_dirty(znode * z)
 {
@@ -2327,7 +2344,7 @@ znode_make_dirty(znode * z)
 
 	assert("vs-1094", atom);
 
-
+/* ZAM-FIXME-HANS: jnode_is_dirty case could be optimized to skip atom locking, yes?  */
 	if (!jnode_is_dirty(node))
 		do_jnode_make_dirty(node, atom);
 	UNLOCK_ATOM (atom);
@@ -2351,7 +2368,7 @@ znode_make_dirty(znode * z)
 
 	/* bump version counter in znode */
 	z->version = znode_build_version(jnode_get_tree(node));
-	/* FIXME: This makes no sense, delete it, reenable nikita-1900:
+	/* NIKITA-FIXME-ANONYMOUS-BUT-ASSIGNED-TO-NIKITA-BY-HANS: This makes no sense, delete it, reenable nikita-1900:
 
 	the flush code sets a node dirty even though it is read
 	locked... but it captures it first.  However, the new
@@ -2363,6 +2380,7 @@ znode_make_dirty(znode * z)
 	ON_DEBUG_MODIFY(znode_set_checksum(z));
 }
 
+/* ZAM-FIXME-HANS: I suggest you drop either unformatted or jnode from the function name below. */
 /* this differs from the above that it starts with spin locked jnode and that it
    does not do anything with a page */
 void
@@ -2417,7 +2435,7 @@ jnode_make_clean_nolock(jnode * node)
 		}
 	}
 }
-
+/* NIKITA-FIXME-HANS: merge this wrapper, and all other wrappers like this that call inner functions and are the only callers of those inner functions, into the inner function */
 /* Unset the dirty status for this jnode.  If the jnode is dirty, this involves locking the atom (for its capture
    lists), removing from the dirty_nodes list and pushing in to the clean list. */
 void
@@ -2531,6 +2549,14 @@ trylock_wait(txn_atom *atom, txn_handle * txnh, jnode * node)
  * if atom was busy returned -EAGAIN to the top level. This can lead to the
  * busy loop if atom is locked for long enough time. Function below tries to
  * throttle this loop.
+
+NIKITA-FIXME-HANS: how is looping while holding a lock different from spinning
+on the lock as far as deadlock avoidance is concerned?  are we releasing all of
+our locks anywhere in the loop? email me our comprehensive locking/(deadlock
+avoiding) documentation.
+
+ZAM-FIXME-HANS: how feasible would it be to use our hi-lo priority locking mechanisms/code for this as well? Does that make any sense?
+
  *
  */
 static int
@@ -2574,7 +2600,6 @@ capture_assign_block(txn_handle * txnh, jnode * node)
 		reiser4_stat_inc(txnmgr.restart.assign_block);
 		return result;
 	} else {
-
 		assert("jmacd-19", atom_isopen(atom));
 
 		/* Add page to capture list. */

@@ -196,6 +196,7 @@ extern int prepare_to_sleep(lock_stack * owner);
 #define ADD_TO_SLEPT_IN_WAIT_ATOM  (-2)
 
 void __go_to_sleep(lock_stack*, int);
+/* NIKITA-FIXME-HANS: comment on why this wrapper exists. */
 #define go_to_sleep(owner, level) __go_to_sleep(owner, level);
 
 #else

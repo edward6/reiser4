@@ -147,9 +147,15 @@ struct reiser4_tree {
 NIKITA: tree is not most highly contended. It doesn't worth complexity of
 optimization.
 
+NIKITA-FIXME-HANS: Ok, I'll byte;-), what is complex?  Go left and lock the left neighbor going low priority, then go
+right and lock the right neighbor going high priority.  Note that this is the same problem that using RCU on linked
+lists solves, but this is simpler unless I am missing something obvious.
+
 ZAM-FIXME-HANS: for sibling pointers, am I right that the only operations that change them are insert node and delete
 node from tree (jload and jput)?  remind me why we can't write lock the left neighbor pointer, then the right neighbor
-pointer, and then alter the pointers?  there was some reason it was not simple, but I forget it.  */
+pointer, and then alter the pointers?  there was some reason it was not simple, but I forget it.  
+
+*/
 	reiser4_rw_data tree_lock;
 
 	/* lock protecting delimiting keys */
