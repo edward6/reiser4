@@ -190,6 +190,8 @@ void reiser4_count_fake_deallocation (__u64 count)
 
 	reiser4_spin_lock_sb(super);
 
+	check_block_counters (super);
+
 	add_to_sb_grabbed(super, count);
 	sub_from_sb_unallocated(super, count); 
 
