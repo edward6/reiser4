@@ -148,13 +148,9 @@ typedef enum {
 
 	/* write is in progress */
 	JNODE_WRITEBACK = 18,
-	/* shifting of data to/from this jnode is disabled. This is needed to
-	 * guarantee that node content is not scattered across several nodes
-	 * after it has been taken into account by estimation mechanics. */
-	JNODE_IMMOVABLE = 19,
 
 	/* used in plugin/item/extent.c */
-	JNODE_NEW = 20
+	JNODE_NEW = 19
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
