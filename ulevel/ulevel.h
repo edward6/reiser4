@@ -94,13 +94,17 @@ extern void spinlock_bug (const char *msg);
 #define __init
 #define __exit
 
-#define module_init(a) \
-void run_##a ()\
-{\
-  a();\
-}\
+#define module_init(a)				\
+void run_##a ()					\
+{						\
+  a();						\
+}
 
-#define module_exit(b)
+#define module_exit(b)				\
+void run_##b ()					\
+{						\
+  b();						\
+}
 
 #define MODULE_DESCRIPTION(a)
 #define MODULE_AUTHOR(a)
@@ -1132,11 +1136,7 @@ static inline void kill_block_super(struct super_block *sb UNUSED_ARG)
 }
 
 extern int register_filesystem(struct file_system_type *);
-
-static inline int unregister_filesystem(struct file_system_type * fs UNUSED_ARG)
-{
-	return 0;
-}
+extern int unregister_filesystem(struct file_system_type * fs);
 
 int block_read_full_page(struct page *page, get_block_t *get_block);
 

@@ -2,20 +2,20 @@
 
 printf "REISER4_TRACE_FLAGS:     %x\n" $REISER4_TRACE_FLAGS
 printf "REISER4_BLOCK_SIZE:      %i\n" ${REISER4_BLOCK_SIZE:-256}
-printf "REISER4_MOUNT:         " $REISER4_MOUNT
-printf "REISER4_MOUNT_OPTS:    " $REISER4_MOUNT_OPTS
+echo "REISER4_MOUNT:         " $REISER4_MOUNT
+echo "REISER4_MOUNT_OPTS:    " $REISER4_MOUNT_OPTS
 
 ROUNDS=${1:-1}
 
 function run()
 {
+	do_mkfs
 	echo -n $* "..."
 	/usr/bin/time -f " T: %e/%S/%U F: %F/%R" $*
 }
 
 function do_mkfs()
 {
-	echo 'mkfs'
 	echo "mkfs $REISER4_MOUNT" | a.out sh
 }
 

@@ -1597,7 +1597,6 @@ void print_inode( const char *prefix /* prefix to print */,
 	/*
 	 * FIXME-VS: this segfaults trying to print seal's coord
 	 */
-	return;
 	print_seal( "\tsd_seal", &ref -> sd_seal );
 	coord_print( "\tsd_coord", &ref -> sd_coord, 1 );
 	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",

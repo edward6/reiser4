@@ -41,7 +41,8 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
 	if( get_current_context() != NULL ) {
 		print_lock_counters( "pins held", lock_counters() );
 		show_context( 0 );
-		print_znodes( "znodes", current_tree );
+		if( get_super_private( get_current_context() -> super ) != NULL )
+			print_znodes( "znodes", current_tree );
 	}
 	panic( "reiser4 panicked cowardly: %s", panic_buf );
 }
