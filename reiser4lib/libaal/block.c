@@ -6,6 +6,12 @@
 
 #include <aal/aal.h>
 
+#if defined(__sparc__) || defined(__sparcv9)
+#  include <sys/int_types.h>
+#else
+#  include <stdint.h>
+#endif
+
 aal_block_t *aal_block_alloc(aal_device_t *device, blk_t blk, char c) {
     aal_block_t *block;
 

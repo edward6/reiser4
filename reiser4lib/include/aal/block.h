@@ -7,8 +7,13 @@
 #ifndef BLOCK_H
 #define BLOCK_H
 
-#include <stdint.h>
 #include <aal/aal.h>
+
+#if defined(__sparc__) || defined(__sparcv9)
+#  include <sys/int_types.h>
+#else
+#  include <stdint.h>
+#endif
 
 struct aal_block {
     int dirty;

@@ -59,7 +59,6 @@ typedef struct reiserfs_alloc reiserfs_alloc_t;
 
 struct reiserfs_tree {
     reiserfs_node_t *root;
-    reiserfs_plugin_t *plugin;
 };
 
 typedef struct reiserfs_tree reiserfs_tree_t;
@@ -82,12 +81,12 @@ extern reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 extern void reiserfs_fs_close(reiserfs_fs_t *fs, int sync);
 
 extern reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
-    reiserfs_plugin_id_t format, unsigned int blocksize, const char *uuid, 
-    const char *label, count_t len, aal_device_t *journal_device, 
-    reiserfs_params_opaque_t *journal_params);
+    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t node_plugin_id,
+    size_t blocksize, const char *uuid, const char *label, count_t len, 
+    aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params);
 
 extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);
-extern unsigned int reiserfs_fs_blocksize(reiserfs_fs_t *fs);
+extern size_t reiserfs_fs_blocksize(reiserfs_fs_t *fs);
 
 #endif
 

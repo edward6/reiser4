@@ -51,8 +51,9 @@ error:
     return NULL;
 }
 
-reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, reiserfs_plugin_id_t format, 
-    unsigned int blocksize, const char *uuid, const char *label, count_t len, 
+reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
+    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t node_plugin_id,
+    size_t blocksize, const char *uuid, const char *label, count_t len, 
     aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
 {
     reiserfs_fs_t *fs;
@@ -71,7 +72,7 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, reiserfs_plugin_id_
 	
     fs->device = host_device;
 	
-    if (!reiserfs_super_create(fs, format, blocksize, uuid, label, len))
+    if (!reiserfs_super_create(fs, format_plugin_id, blocksize, uuid, label, len))
 	goto error_free_fs;
 	
     if (!reiserfs_journal_create(fs, journal_device, journal_params))
@@ -80,7 +81,7 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, reiserfs_plugin_id_
     if (!reiserfs_alloc_create(fs))
 	goto error_free_journal;
 	
-    if (!reiserfs_tree_create(fs))
+    if (!reiserfs_tree_create(fs, node_plugin_id))
 	goto error_free_alloc;
 	
     return fs;
@@ -116,7 +117,7 @@ const char *reiserfs_fs_format(reiserfs_fs_t *fs) {
     return reiserfs_super_format(fs);
 }
 
-unsigned int reiserfs_fs_blocksize(reiserfs_fs_t *fs) {
+size_t reiserfs_fs_blocksize(reiserfs_fs_t *fs) {
     return reiserfs_super_blocksize(fs);
 }
 

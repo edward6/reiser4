@@ -14,6 +14,12 @@
 #  define NULL ((void *)0)
 #endif
 
+#if defined(__sparc__) || defined(__sparcv9)
+#  include <sys/int_types.h>
+#else
+#  include <stdint.h>
+#endif
+
 #include "device.h"
 #include "file.h"
 #include "exception.h"
