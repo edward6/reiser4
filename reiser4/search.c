@@ -981,7 +981,7 @@ static znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h )
 /**
  * find delimiting keys of child
  *
- * Determine left and right delimiting keys for child pointed to be
+ * Determine left and right delimiting keys for child pointed to by
  * @parent_coord.
  *
  */
