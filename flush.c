@@ -1273,11 +1273,8 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 		if (ret)
 			goto exit;
 
-		if (child == NULL) {
-			/* the node we should start squalloc from suddenly disappeared */
-			pos_stop(pos);
+		if (child == NULL)
 			goto exit;
-		}
 
 		coord_dup(&pcoord, &pos->coord);
 
