@@ -479,7 +479,8 @@ can_add_link_common(const struct inode *object /* object to check */ )
 
 /* space for stat data removal is reserved */
 reiser4_internal int
-common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
+common_file_delete_no_reserve(struct inode *inode /* object to remove */,
+			      int mode /* cut_mode */)
 {
 	int result;
 
@@ -493,7 +494,7 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
 
 		build_sd_key(inode, &sd_key);
 		write_current_tracef("..sd k %#llx", get_inode_oid(inode));
-		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key, NULL);
+		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key, NULL, mode);
 		if (result == 0) {
 			inode_set_flag(inode, REISER4_NO_SD);
 			result = oid_release(inode->i_sb, get_inode_oid(inode));
@@ -510,7 +511,7 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
 
 /* delete_file_common() - delete object stat-data. This is to be used when file deletion turns into stat data removal */
 reiser4_internal int
-delete_file_common(struct inode *inode /* object to remove */ )
+delete_object(struct inode *inode /* object to remove */, int mode /* cut mode */)
 {
 	int result;
 
@@ -531,10 +532,16 @@ delete_file_common(struct inode *inode /* object to remove */ )
 				get_inode_oid(inode));
 			return RETERR(-ENOSPC);
 		}
-		result = common_file_delete_no_reserve(inode);
+		result = common_file_delete_no_reserve(inode, mode);
 	} else
 		result = 0;
 	return result;
+}
+
+static int
+delete_file_common(struct inode * inode)
+{
+	return delete_object(inode, 1);
 }
 
 /* common directory consists of two items: stat data and one item containing "." and ".." */
@@ -552,7 +559,7 @@ static int delete_directory_common(struct inode *inode)
 
 	result = dplug->done(inode);
 	if (!result)
-		result = common_file_delete_no_reserve(inode);
+		result = common_file_delete_no_reserve(inode, 1);
 	all_grabbed2free();
 	return result;
 }
