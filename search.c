@@ -1024,7 +1024,6 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	if (ldkeyset && !node_is_empty(active) &&
 	    !keyeq(leftmost_key_in_node(active, &key), &ldkey)) {
 		warning("vs-3533", "Keys are inconsistent. Fsck?");
-		print_node_content("parent", parent, ~0);
 		print_node_content("child", active, ~0);
 		print_key("inparent", &ldkey);
 		print_key("inchild", &key);

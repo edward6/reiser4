@@ -970,7 +970,7 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 	reiser4_block_nr block;
 
 	int rest;
-	int len, prev_len, i;
+	int len, prev_len = 0, i;
 	int ret;
 	jnode *cur, *beg, *end;
 
