@@ -891,7 +891,7 @@ common_bind(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 }
 
 static reiser4_block_nr 
-common_estimate_update(struct inode *node)
+common_estimate_update(const struct inode *node)
 {
 	reiser4_block_nr amount;
 	assert("vpf-315", node != NULL);

@@ -269,7 +269,7 @@ typedef struct file_plugin {
 	/* The couple of estimate methods for all file operations */
 	struct {
 		reiser4_block_nr (*create) (__u32, struct inode *);
-		reiser4_block_nr (*update) (struct inode *);
+		reiser4_block_nr (*update) (const struct inode *);
 		reiser4_block_nr (*write) (struct inode *, size_t, loff_t *);
 		reiser4_block_nr (*read) (struct inode *, size_t);
 		reiser4_block_nr (*truncate) (struct inode *, size_t);
