@@ -302,6 +302,9 @@ int main(int argc, char *argv[]) {
 
     fprintf(stderr, "done\n");
     
+    /* Zeroing uuid in order to force mkfs to generate it on its own */
+    aal_memset(uuid, 0, sizeof(uuid));
+	
     reiserfs_fs_close(fs);
     aal_file_close(device);
 
