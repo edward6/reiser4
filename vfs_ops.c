@@ -975,7 +975,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 			}
 		}
 #if REISER4_TRACE_TREE
-		{
+		,{
 			.name = "trace_file",
 			.type = OPT_STRING,
 			.u = {
