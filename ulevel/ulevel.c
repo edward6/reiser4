@@ -2350,9 +2350,9 @@ static struct inode * create_root_dir (znode * root)
 		data.user = 0;
 		data.length = sizeof sd.base;
 		data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
-		zload( coord.node );
+		zload( root );
 		ncoord_init_first_unit( &coord, root );
-		zrelse( coord.node );
+		zrelse( root );
 	
 		ret = carry( &lowest_level, NULL );
 		printf( "result: %i\n", ret );
@@ -2984,27 +2984,38 @@ static void bash_umount (reiser4_context * context)
 static int mkfs_bread (reiser4_tree *tree, jnode *node, char **data)
 {
 	struct buffer_head bh, *pbh;
+	struct page *pg;
 
 	memset (&bh, 0, sizeof (bh));
 
 	bh.b_blocknr = node->blocknr;
 	bh.b_size = tree->super->s_blocksize;
 	bh.b_bdev = tree->super->s_bdev;
-	bh.b_data = malloc (bh.b_size);
-	assert ("vs-669", bh.b_data);
-	memset (bh.b_data, 0, bh.b_size);
+	pg = grab_cache_page (get_super_private (tree->super)->fake->i_mapping, 
+		       (unsigned long)*jnode_get_block (node));
+	assert ("vs-669", pg);
+	bh.b_data = (void *) (pg + 1);
 	pbh = &bh;
 	ll_rw_block (READ, 1, &pbh);
 	*data = bh.b_data;
+	kmap(pg);
+	jnode_attach_to_page (node, pg);
+	kunmap (pg);
 	return 0;
 }
 
 
 static int mkfs_getblk (reiser4_tree *tree, jnode *node UNUSED_ARG, char **data)
 {
-	*data = xmalloc (tree->super->s_blocksize);
-	if (!*data)
-		return -ENOMEM;
+	struct page *pg;
+
+	pg = new_page (get_super_private (tree->super)->fake->i_mapping,
+		       (unsigned long)*jnode_get_block (node));
+	assert ("nikita-2049", pg);
+	*data = (void *) (pg + 1);
+	kmap(pg);
+	jnode_attach_to_page (node, pg);
+	kunmap (pg);
 	return 0;
 }
 
@@ -3024,7 +3035,10 @@ static int mkfs_brelse (reiser4_tree *tree, jnode *node)
 	pbh = &bh;
 	ll_rw_block (WRITE, 1, &pbh);
 	JF_CLR (node, ZNODE_DIRTY);
-	free (node->data);
+	spin_lock (&page_list_guard);
+	list_del_init (&jnode_page (node)->list);
+	spin_unlock (&page_list_guard);
+	free ((char *)node->data - sizeof(struct page));
 	return 0;
 }
 
@@ -3151,7 +3165,8 @@ static int bash_mkfs (const char * file_name)
 		root -> rd_key = *max_key();
 		sibling_list_insert( root, NULL );
 
-		zrelse (root);
+		zput (root);
+		/* zrelse (root); */
 		/*zput (fake);*/
 
 		{
