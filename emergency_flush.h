@@ -7,9 +7,6 @@
 
 #define REISER4_USE_EFLUSH (1)
 
-/* if reiser4_destroy_inode is called for inode which has eflushed jnodes - it sets this flag and
-   exits. reiser4_destroy_inode is delayed until last of its eflushed jnodes is eunflushed (eflush_del()) */
-#define I_GHOST (128)
 
 /* this bit is set when inode gets first eflushed jnode (eflush_add()). It is cleared when last eflushed jnode is
    eunflushed (eflush_del()). It solely exists to prevent inodes having eflushed jnodes from being pruned
@@ -18,9 +15,22 @@
 
 #if REISER4_USE_EFLUSH
 
+#include "block_alloc.h"
+
 struct eflush_node;
 typedef struct eflush_node eflush_node_t;
+
 TS_HASH_DECLARE(ef, eflush_node_t);
+
+struct eflush_node {
+	jnode           *node;
+	reiser4_block_nr blocknr;
+	ef_hash_link     linkage;
+	struct list_head inode_link; /* for per inode list of eflush nodes */
+#if REISER4_DEBUG
+	block_stage_t    initial_stage;
+#endif
+};
 
 int eflush_init(void);
 int eflush_done(void);
