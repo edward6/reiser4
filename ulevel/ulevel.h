@@ -51,10 +51,10 @@ extern void spinlock_bug (const char *msg);
 
 #include "kutlock.h"
 
-#include "reiser4.h"
-#include "forward.h"
-#include "debug.h"
-#include "reiser4_sb.h"
+#include "../reiser4.h"
+#include "../forward.h"
+#include "../debug.h"
+#include "../reiser4_sb.h"
 
 #define HAS_BFD                         (1)
 #define USE_DLADDR_DLSYM_FOR_BACKTRACE  (1)

@@ -6,7 +6,7 @@
  * User-level abnormal termination handling.
  */
 
-#include "reiser4.h"
+#include "../reiser4.h"
 
 #if HAS_BFD
 #include <bfd.h>
