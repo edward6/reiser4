@@ -145,7 +145,7 @@ void *read_in_jnode_data( struct super_block *super, const jnode *node )
 }
 
 /** ->read_node method of page-cache based tree operations */
-int page_cache_read_node( reiser4_tree *tree, jnode *node, void **data )
+int page_cache_read_node( reiser4_tree *tree, jnode *node, char **data )
 {
 	void *area;
 
