@@ -1,26 +1,10 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-#include "../../forward.h"
-#include "../../debug.h"
-#include "../../key.h"
-#include "../../coord.h"
-#include "file.h"
-#include "../item/item.h"
-#include "../plugin.h"
-#include "../../txnmgr.h"
-#include "../../jnode.h"
-#include "../../znode.h"
-#include "../../tree.h"
-#include "../../vfs_ops.h"
-#include "../../carry.h"
 #include "../../inode.h"
 #include "../../super.h"
 #include "../../page_cache.h"
+#include "../../carry.h"
 #include "../../lib.h"
-
-#include <linux/types.h>	/* for __u??  */
-#include <linux/fs.h>		/* for struct file  */
-#include <linux/pagemap.h>
 
 /* this file contains:
    tail2extent and extent2tail */
@@ -28,7 +12,7 @@
 static int ea_obtained(const struct inode *inode)
 {
 	
-	assert("", ergo (reiser4_inode_data(inode)->ea_owner,
+	assert("vs-1167", ergo (reiser4_inode_data(inode)->ea_owner,
 			 reiser4_inode_data(inode)->ea_owner == current));
 	return inode_get_flag(inode, REISER4_EXCLUSIVE_USE);
 }
@@ -42,12 +26,12 @@ static void ea_set(const struct inode *inode, void *value)
 #define ea_set(inode, value) noop
 #endif
 
-/* exclusive access to a file is acquired for tail conversion */
+/* exclusive access to a file is acquired when file state changes: tail2extent, empty2tail, extetn2tail, etc */
 void
 get_exclusive_access(struct inode *inode)
 {
 	down_write(&reiser4_inode_data(inode)->sem);
-	assert("", !ea_obtained(inode));
+	assert("vs-1157", !ea_obtained(inode));
 	ea_set(inode, current);
 	inode_set_flag(inode, REISER4_EXCLUSIVE_USE);
 }
@@ -55,7 +39,7 @@ get_exclusive_access(struct inode *inode)
 void
 drop_exclusive_access(struct inode *inode)
 {
-	assert("", ea_obtained(inode));
+	assert("vs-1158", ea_obtained(inode));
 	ea_set(inode, 0);
 	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
 	up_write(&reiser4_inode_data(inode)->sem);
@@ -67,14 +51,14 @@ void
 get_nonexclusive_access(struct inode *inode)
 {
 	down_read(&reiser4_inode_data(inode)->sem);
-	assert("", !ea_obtained(inode));
+	assert("vs-1159", !ea_obtained(inode));
 }
 
 /* Audited by: green(2002.06.15) */
 void
 drop_nonexclusive_access(struct inode *inode)
 {
-	assert("", !ea_obtained(inode));
+	assert("vs-1160", !ea_obtained(inode));
 	up_read(&reiser4_inode_data(inode)->sem);
 }
 
@@ -88,8 +72,10 @@ nea2ea(struct inode *inode)
 static void
 ea2nea(struct inode *inode)
 {
-	drop_exclusive_access(inode);
-	get_nonexclusive_access(inode);
+	assert("vs-1168", ea_obtained(inode));
+	ea_set(inode, 0);
+	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
+	downgrade_write(&reiser4_inode_data(inode)->sem);
 }
 
 static int
@@ -119,7 +105,7 @@ nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, coord_t *first_coor
 	coord_init_zero(first_coord);
 	init_lh(first_lh);
 	
-	result = find_file_item(0, &key, first_coord, first_lh, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */);
+	result = find_file_item(0, &key, first_coord, first_lh, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */, inode);
 	if (result != CBK_COORD_FOUND) {
 		/* error occured */
 		done_lh(first_lh);
@@ -335,10 +321,11 @@ tail2extent(struct inode *inode)
 	}
 
 	result = prepare_tail2extent(inode);
-	if (result)
+	if (result) {
+		if (access_switched)
+			ea2nea(inode);
 		return result;
-
-	xmemset(pages, 0, sizeof (pages));
+	}
 
 	/* collect statistics on the number of tail2extent conversions */
 	reiser4_stat_file_add(tail2extent);
@@ -349,7 +336,6 @@ tail2extent(struct inode *inode)
 	done = 0;
 	result = 0;
 	while (!done) {
-		/*for_all_pages(pages, sizeof_array(pages), DROP);*/
 		xmemset(pages, 0, sizeof (pages));
 		for (i = 0; i < sizeof_array(pages) && !done; i++) {
 			assert("vs-598", (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
@@ -377,18 +363,15 @@ tail2extent(struct inode *inode)
 				/* get next item */
 				coord_init_zero(&coord);
 				init_lh(&lh);
-				result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */);
+				result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, inode);
 				if (result != CBK_COORD_FOUND) {
-					if (result == CBK_COORD_NOTFOUND && get_key_offset(&key) == 0)
-						/* conversion can be called for
-						   empty file */
-						result = 0;
+					/* tail conversion can not be called for empty file */
+					assert("vs-1169", result != CBK_COORD_NOTFOUND);
 					done_lh(&lh);
 					goto error;
 				}
 				if (coord.between == AFTER_UNIT) {
-					/* this is used to detect end of file
-					   when inode->i_size can not be used */
+					/* this is used to detect end of file when inode->i_size can not be used */
 					done_lh(&lh);
 					done = 1;
 					p_data = kmap_atomic(pages[i], KM_USER0);
@@ -404,11 +387,11 @@ tail2extent(struct inode *inode)
 				assert("vs-562", unix_file_owns_item(inode, &coord));
 				assert("vs-856", coord.between == AT_UNIT);
 				assert("green-11", keyeq(&key, unit_key_by_coord(&coord, &tmp)));
+				assert("vs-1170", item_id_by_coord(&coord) == FROZEN_TAIL_ID);
+#if 0
 				if (item_id_by_coord(&coord) != TAIL_ID && item_id_by_coord(&coord) != FROZEN_TAIL_ID) {
-					/* something other than tail
-					   found. This is only possible when
-					   first item of a file found during
-					   call to reiser4_mmap.
+					/* something other than tail found. This is only possible when first item of a
+					   file found during call to reiser4_mmap.
 					*/
 					result = -EIO;
 					if (get_key_offset(&key) == 0 && item_id_by_coord(&coord) == EXTENT_POINTER_ID)
@@ -418,6 +401,7 @@ tail2extent(struct inode *inode)
 					done_lh(&lh);
 					goto error;
 				}
+#endif
 				item = ((char *)item_body_by_coord(&coord)) + 
 					coord.unit_pos;
 
@@ -463,7 +447,7 @@ tail2extent(struct inode *inode)
 			goto exit;
 	}
 	/* tail converted */
-	set_file_state(inode, EXTENT_POINTER_ID);
+	set_file_state_extents(inode);
 
 	for_all_pages(pages, sizeof_array(pages), RELEASE);
 	if (access_switched)
@@ -514,7 +498,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 						count, (loff_t) (page->index << PAGE_CACHE_SHIFT), WRITE_OP, &f);
 	iplug = item_plugin_by_id(TAIL_ID);
 	while (f.length) {
-		result = find_file_item(0, &f.key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */);
+		result = find_file_item(0, &f.key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, 0/* inode */);
 		if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
 			break;
 		}
@@ -582,19 +566,12 @@ static int prepare_extent2tail(struct inode *inode)
 	return mark_frozen(inode, twig_nodes, &coord, &first_lh);
 }
 
-static int
-filler(void *vp, struct page *page)
-{
-	return unix_file_readpage(vp, page);
-}
-
 /* for every page of file: read page, cut part of extent pointing to this page,
    put data of page tree by tail item */
 int
-extent2tail(struct file *file)
+extent2tail(struct inode *inode)
 {
 	int result;
-	struct inode *inode;
 	struct page *page;
 	unsigned long num_pages, i;
 	reiser4_key from;
@@ -605,21 +582,10 @@ extent2tail(struct file *file)
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_file_add(extent2tail);
 
-	inode = file->f_dentry->d_inode;
-
-	get_exclusive_access(inode);
-
-	if (file_is_built_of_tail_items(inode)) {
-		drop_exclusive_access(inode);
-		return 0;
-	}
-
 	result = prepare_extent2tail(inode);
-	if (result) {
+	if (result)
 		/* no space? Leave file stored in extent state */
-		drop_exclusive_access(inode);
 		return 0;
-	}
 
 	/* number of pages in the file */
 	num_pages = (inode->i_size + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE;
@@ -630,7 +596,7 @@ extent2tail(struct file *file)
 	result = 0;
 
 	for (i = 0; i < num_pages; i++) {
-		page = read_cache_page(inode->i_mapping, (unsigned) i, filler, file);
+		page = read_cache_page(inode->i_mapping, (unsigned) i, unix_file_readpage/*filler*/, 0);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
 			err = 1;
@@ -696,14 +662,13 @@ extent2tail(struct file *file)
 	if (i == num_pages)
 		/* FIXME-VS: not sure what to do when conversion did
 		   not complete */
-		set_file_state(inode, TAIL_ID);
+		set_file_state_tails(inode);
 	else {
 		warning("nikita-2282",
 			"Partial conversion of %llu: %lu of %lu: %i/%i",
 			get_inode_oid(inode), i, num_pages, result, err);
 		print_inode("inode", inode);
 	}
-	drop_exclusive_access(inode);
 	all_grabbed2free("extent2tail");
 	return result;
 }

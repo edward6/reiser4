@@ -1,71 +1,18 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* this file contains:
-   declarations of functions implementing file plugin for ordinary file */
-
 #if !defined( __REISER4_FILE_H__ )
 #define __REISER4_FILE_H__
 
-#include "../../forward.h"
-#include "../../seal.h"
-#include "../../readahead.h"
-
-#if 0
-/*#include <linux/types.h>*/
-#include <linux/fs.h>		/* for struct file  */
-#include <linux/mm.h>		/* for struct page */
-#include <linux/buffer_head.h>	/* for struct buffer_head */
-#endif
-
-void get_exclusive_access(struct inode *inode);
-void drop_exclusive_access(struct inode *inode);
-void get_nonexclusive_access(struct inode *inode);
-void drop_nonexclusive_access(struct inode *inode);
-int tail2extent(struct inode *inode);
-int extent2tail(struct file *file);
-int unix_file_writepage_nolock(struct page *page);
-int find_file_item(struct sealed_coord *, const reiser4_key *, coord_t *,
-		   lock_handle *, znode_lock_mode, __u32 cbk_flags, ra_info_t *);
-int goto_right_neighbor(coord_t *, lock_handle *);
-void set_hint(struct sealed_coord *, const reiser4_key *, coord_t *);
-void unset_hint(struct sealed_coord *hint);
-int hint_is_set(const struct sealed_coord *hint);
-int hint_validate(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *);
-int file_is_built_of_tail_items(const struct inode *inode);
-int file_is_built_of_extents(const struct inode *inode);
-void set_file_state(struct inode *inode, item_id id);
-
-
-typedef enum {
-	FIRST_ITEM = 1,
-	APPEND_ITEM = 2,
-	OVERWRITE_ITEM = 3,
-	RESEARCH = 4
-} write_mode;
-
-write_mode how_to_write(coord_t *, lock_handle *, const reiser4_key *);
-/* plugin->file.estimate.*
-   methods */
-reiser4_block_nr unix_file_estimate_write(struct inode *inode, loff_t count, 
-    loff_t *off);
-
-reiser4_block_nr unix_file_estimate_read(struct inode *inode, loff_t count);
-reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, loff_t old_size);
-reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, loff_t count);
-reiser4_block_nr unix_file_estimate_release(struct inode *inode);
-  
-
-/* plugin->file.*
-   required by VFS */
+/* declarations of functions implementing file plugin for unix file plugin */
 int unix_file_truncate(struct inode *, loff_t size);
-int unix_file_readpage(struct file *, struct page *);
+int unix_file_readpage(void *, struct page *);
 void unix_file_readpages(struct file *, struct address_space *,
 			 struct list_head *pages);
 int unix_file_writepage(struct page *);
 ssize_t unix_file_read(struct file *, char *buf, size_t size, loff_t * off);
-int update_inode_and_sd_if_necessary(struct inode *inode, loff_t, int);
 ssize_t unix_file_write(struct file *, const char *buf, size_t size, loff_t * off);
 int unix_file_release(struct file *);
+int unix_file_ioctl(struct inode *, struct file *, unsigned int cmd, unsigned long arg);
 int unix_file_mmap(struct file *, struct vm_area_struct *vma);
 int unix_file_get_block(struct inode *, sector_t block, struct buffer_head *bh_result, int create);
 
@@ -74,6 +21,20 @@ int unix_file_delete(struct inode *);
 int unix_file_create(struct inode *object, struct inode *parent, reiser4_object_create_data * data);
 int unix_file_owns_item(const struct inode *, const coord_t *);
 int unix_file_setattr(struct inode *inode, struct iattr *attr);
+
+/* these are used by item methods */
+typedef enum {
+	FIRST_ITEM = 1,
+	APPEND_ITEM = 2,
+	OVERWRITE_ITEM = 3,
+	RESEARCH = 4
+} write_mode;
+
+write_mode how_to_write(coord_t *, lock_handle *, const reiser4_key *);
+void set_hint(struct sealed_coord *, const reiser4_key *, coord_t *);
+int hint_validate(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *);
+int update_inode_and_sd_if_necessary(struct inode *, loff_t new_size, int update_i_size);
+
 
 /* __REISER4_FILE_H__ */
 #endif
@@ -88,3 +49,44 @@ int unix_file_setattr(struct inode *inode, struct iattr *attr);
    scroll-step: 1
    End:
 */
+
+#if 0
+int update_inode_and_sd_if_necessary(struct inode *inode, loff_t, int);
+#include "../../readahead.h"
+
+
+void get_exclusive_access(struct inode *inode);
+void drop_exclusive_access(struct inode *inode);
+void get_nonexclusive_access(struct inode *inode);
+void drop_nonexclusive_access(struct inode *inode);
+int tail2extent(struct inode *inode);
+int extent2tail(struct file *file);
+int unix_file_writepage_nolock(struct page *page);
+int find_file_item(struct sealed_coord *, const reiser4_key *, coord_t *,
+		   lock_handle *, znode_lock_mode, __u32 cbk_flags, ra_info_t *, struct inode *);
+int goto_right_neighbor(coord_t *, lock_handle *);
+void set_hint(struct sealed_coord *, const reiser4_key *, coord_t *);
+void unset_hint(struct sealed_coord *hint);
+int hint_is_set(const struct sealed_coord *hint);
+int hint_validate(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *);
+
+int file_is_built_of_tails(const struct inode *);
+int file_is_built_of_extents(const struct inode *);
+
+void set_file_state_extents(struct inode *);
+void set_file_state_tails(struct inode *);
+
+/* plugin->file.estimate.*
+   methods */
+reiser4_block_nr unix_file_estimate_write(struct inode *inode, loff_t count, 
+    loff_t *off);
+
+reiser4_block_nr unix_file_estimate_read(struct inode *inode, loff_t count);
+reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, loff_t old_size);
+reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, loff_t count);
+reiser4_block_nr unix_file_estimate_release(struct inode *inode);
+
+#endif
+
+
+
