@@ -538,14 +538,20 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	INC_STAT(page, node, vm.release.try);
 
+	clog_op(RELEASEPAGE_IN, (void *)(unsigned long)get_inode_oid(page->mapping->host), (void *)page->index);
+
+
 	/* is_page_cache_freeable() check
-
 	   (mapping + private + page_cache_get() by shrink_cache()) */
-	if (page_count(page) > 3)
+	if (page_count(page) > 3) {
+		clog_op(RELEASEPAGE_0, (void *)(unsigned long)get_inode_oid(page->mapping->host), (void *)page->index);
 		return 0;
+	}
 
-	if (PageDirty(page))
+	if (PageDirty(page)) {
+		clog_op(RELEASEPAGE_0, (void *)(unsigned long)get_inode_oid(page->mapping->host), (void *)page->index);
 		return 0;
+	}
 
 /*	init_context(&ctx, page->mapping->host->i_sb);*/
 
@@ -579,11 +585,13 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		}
 		write_unlock_irq(&mapping->tree_lock);
 		
+		clog_op(RELEASEPAGE_1, (void *)(unsigned long)get_inode_oid(page->mapping->host), (void *)page->index);
 		return 1;
 	} else {
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
 		assert("nikita-3020", schedulable());
+		clog_op(RELEASEPAGE_0, (void *)(unsigned long)get_inode_oid(page->mapping->host), (void *)page->index);
 		return 0;
 	}
 }

@@ -336,6 +336,10 @@ coord_by_key(reiser4_tree * tree	/* tree to perform search
 	assert("nikita-355", coord != NULL);
 	assert("nikita-356", (bias == FIND_EXACT) || (bias == FIND_MAX_NOT_MORE_THAN));
 	assert("nikita-357", stop_level >= LEAF_LEVEL);
+
+	if (!lock_stack_isclean(get_current_lock_stack()))
+		print_clog();
+
 	/* no locks can be held during tree traversal */
 	assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
 	trace_stamp(TRACE_TREE);
@@ -385,6 +389,10 @@ object_lookup(struct inode *object,
 	assert("nikita-355", coord != NULL);
 	assert("nikita-356", (bias == FIND_EXACT) || (bias == FIND_MAX_NOT_MORE_THAN));
 	assert("nikita-357", stop_level >= LEAF_LEVEL);
+
+	if (!lock_stack_isclean(get_current_lock_stack()))
+		print_clog();
+
 	/* no locks can be held during tree search by key */
 	assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
 	trace_stamp(TRACE_TREE);

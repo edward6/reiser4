@@ -527,16 +527,24 @@ typedef struct err_site {} err_site;
 #endif
 
 /* operations to clog */
-/* debugging lack of reserved space in tail conversion */
-/*
-#define T2E_RESERVE 0
-#define E2T_RESERVE 1
-#define ALL_GRABBED2FREE 2
-#define ALL_GRABBED2FREE_IN_COMMIT 3
-*/
-#define OP_NUM 4
+/* debugging re-enterance */
 
-void clog_op(int op, void *);
+#define GET_USER_PAGES 0
+#define PUT_USER_PAGES 1
+#define EXTENT_WRITE_IN 2
+#define EXTENT_WRITE_OUT 3
+#define TAIL_WRITE_IN 4
+#define TAIL_WRITE_OUT 5
+#define READPAGE_IN 6
+#define READPAGE_OUT 7
+#define READPAGE_ERROR 8
+#define RELEASEPAGE_IN 9
+#define RELEASEPAGE_0 10
+#define RELEASEPAGE_1 11
+
+#define OP_NUM 12
+
+void clog_op(int op, void *, void *);
 void print_clog(void);
 
 /* __FS_REISER4_DEBUG_H__ */

@@ -591,6 +591,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	reiser4_block_nr blocknr;
 	int created;
 
+
 	assert("nikita-3139", !inode_get_flag(inode, REISER4_NO_SD));
 	assert("vs-885", current_blocksize == PAGE_CACHE_SIZE);
 	assert("vs-700", flow->user == 1);
@@ -607,6 +608,8 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	page_nr = (unsigned long)(file_off >> PAGE_CACHE_SHIFT);
 	/* offset within the page */
 	page_off = (unsigned long)(file_off & (PAGE_CACHE_SIZE - 1));
+
+	clog_op(EXTENT_WRITE_IN, (void *)(unsigned long)oid, (void *)(unsigned long)file_off);
 
 	/* key of first byte of page */
 	page_key = flow->key;
@@ -772,6 +775,8 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	if (flow->length)
 		DQUOT_FREE_SPACE_NODIRTY(inode, flow->length);
 */
+
+	clog_op(EXTENT_WRITE_OUT, (void *)(unsigned long)oid, (void *)result);
 	return result;
 }
 
