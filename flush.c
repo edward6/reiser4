@@ -2653,13 +2653,19 @@ jnode_lock_parent_coord(jnode         * node,
 {
 	int ret;
 
-	assert("nikita-2375", jnode_is_unformatted(node) || jnode_is_znode(node));
-	assert("jmacd-2060", jnode_is_unformatted(node)
-	       || znode_is_any_locked(JZNODE(node)));
-
-	if (jnode_is_unformatted(node)) {
-
-		/* Unformatted node case: Generate a key for the extent entry,
+	assert("edward-53", jnode_has_parent(node) || jnode_is_znode(node));
+	assert("edward-54", jnode_has_parent(node)|| znode_is_any_locked(JZNODE(node)));
+	
+	if (jnode_has_parent(node)) {
+		tree_level stop_level = TWIG_LEVEL ;
+		lookup_bias bias = FIND_EXACT;
+		if (jnode_is_cluster_page(node)) {
+			stop_level = LEAF_LEVEL;
+			bias = FIND_MAX_NOT_MORE_THAN;
+		}
+		/* The case when node is not znode, but can have parent coord
+		   (unformatted node, node which represents cluster page, etc..).
+		   Generate a key for the appropriate entry,
 		   search in the tree using coord_by_key, which handles
 		   locking for us. */
 		/* It may happen that inode doesn't exist at this point,
@@ -2676,17 +2682,26 @@ jnode_lock_parent_coord(jnode         * node,
 			return ret;
 		}
 
-		if (
-		    (ret =
-		     coord_by_key(jnode_get_tree(node), &key, coord, parent_lh,
-				  parent_mode, FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL, CBK_UNIQUE, 0/*ra_info*/)) != CBK_COORD_FOUND) {
+		ret = coord_by_key(jnode_get_tree(node), &key, coord, parent_lh,
+				   parent_mode, bias, stop_level, stop_level, CBK_UNIQUE, 0/*ra_info*/);
+		switch (ret) {
+		case CBK_COORD_NOTFOUND:
+			if (jnode_is_cluster_page(node)) {
+				/* file was just created 
+				 * FIXME-EDWARD Process one cluster and insert appropriate items 
+ 				 * by (ino, coord, parent_lh, get_key_offset(&key)))
+				 */
+			}
+			else
+				return ret;
+		case CBK_COORD_FOUND:
+			if ((ret = incr_load_count_znode(parent_zh, parent_lh->node))) 
+				return ret;
+			break;
+		default:
 			return ret;
 		}
-
-		if ((ret = incr_load_count_znode(parent_zh, parent_lh->node))) {
-			return ret;
-		}
-
+		
 	} else {
 		int flags;
 
@@ -2951,14 +2966,14 @@ scan_common(flush_scan * scan, flush_scan * other)
 	int ret;
 
 	assert("nikita-2376", scan->node != NULL);
-	assert("nikita-2377", jnode_is_unformatted(scan->node) || jnode_is_znode(scan->node));
+	assert("edward-54", jnode_has_parent(scan->node) || jnode_is_znode(scan->node));
 
-	/* Special case for starting at an unformatted node.  Optimization: we only want
+	/* Special case for starting at a non-formatted node.  Optimization: we only want
 	   to search for the parent (which requires a tree traversal) once.  Obviously, we
 	   shouldn't have to call it once for the left scan and once for the right scan.
 	   For this reason, if we search for the parent during scan-left we then duplicate
 	   the coord/lock/load into the scan-right object. */
-	if (jnode_is_unformatted(scan->node)) {
+	if (jnode_has_parent(scan->node)) {
 
 		if (coord_is_invalid(&scan->parent_coord)) {
 
@@ -2995,7 +3010,7 @@ scan_common(flush_scan * scan, flush_scan * other)
 		*/
 		/* skip_first = false (i.e., starting position is
 		 * unformatted) */
-		if ((ret = scan_extent(scan, 0)))
+		if (jnode_is_unformatted(scan->node) && (ret = scan_extent(scan, 0)))
 			return ret;
 	}
 
