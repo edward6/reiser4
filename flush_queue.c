@@ -553,7 +553,8 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	bio->bi_vcnt = nr;
 	bio->bi_size = s->s_blocksize * nr;
 
-	for (nr_processed = 0; nr_processed < nr; nr_processed++, first = capture_list_next(first)) {
+	nr_processed = 0;
+	while (1) {
 		struct page *pg;
 
 		pg = jnode_page(first);
@@ -594,6 +595,11 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		bio->bi_io_vec[nr_processed].bv_page = pg;
 		bio->bi_io_vec[nr_processed].bv_len = s->s_blocksize;
 		bio->bi_io_vec[nr_processed].bv_offset = 0;
+
+		if ( ++ nr_processed >= nr)
+			break;
+
+		first = capture_list_next(first);
 	}
 
 	pagevec_deactivate_inactive(&pvec);
@@ -601,6 +607,8 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	add_fq_to_bio(fq, bio);
 	submit_bio(WRITE, bio);
 
+	update_blocknr_hint_default (s, jnode_get_block (first));
+ 
 	return nr;
 }
 

@@ -278,21 +278,6 @@ reiser4_set_fake_allocated_unformatted(const struct super_block *super, __u64 nr
 	get_super_private(super)->blocks_fake_allocated_unformatted = nr;
 }
 
-void
-reiser4_update_last_written_location(const struct super_block *s, const reiser4_block_nr * block)
-{
-	reiser4_super_info_data *private = get_super_private(s);
-
-	reiser4_spin_lock_sb(s);
-	if (*block < private->block_count) {
-		private->last_written_location = *block;
-	} else {
-		warning("zam-676",
-			"block number %llu is too large to be used in a blocknr hint\n", (unsigned long long) *block);
-	}
-	reiser4_spin_unlock_sb(s);
-}
-
 /* objectid allocator used by this file system */
 reiser4_oid_allocator *
 get_oid_allocator(const struct super_block *super	/* super

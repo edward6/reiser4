@@ -699,7 +699,7 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 		nr -= nr_blocks;
 
 		block += nr_blocks - 1;
-		reiser4_update_last_written_location(super, &block);
+		update_blocknr_hint_default (super, &block);
 		block += 1;
 	}
 

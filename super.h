@@ -200,7 +200,7 @@ struct reiser4_super_info_data {
 
 	/* we remember last written location for using as a hint for
 	   new block allocation */
-	__u64 last_written_location;
+	__u64 blocknr_hint_default;
 
 	/* committed number of files (oid allocator state variable ) */
 	__u64 nr_files_committed;
@@ -244,8 +244,6 @@ extern __u64 reiser4_fake_allocated_unformatted(const struct super_block *);
 extern void reiser4_set_fake_allocated_unformatted(const struct super_block *, __u64 nr);
 
 extern long reiser4_reserved_blocks(const struct super_block *super, uid_t uid, gid_t gid);
-
-extern void reiser4_update_last_written_location(const struct super_block *, const reiser4_block_nr *);
 
 extern reiser4_space_allocator *get_space_allocator(const struct super_block
 						    *super);

@@ -452,6 +452,23 @@ fake_allocated2used(__u64 count, reiser4_ba_flags_t flags)
 	reiser4_spin_unlock_sb(super);
 }
 
+
+/* update the per fs  blocknr hint default value. */
+void
+update_blocknr_hint_default (const struct super_block *s, const reiser4_block_nr * block)
+{
+	reiser4_super_info_data *private = get_super_private(s);
+
+	reiser4_spin_lock_sb(s);
+	if (*block < private->block_count) {
+		private->blocknr_hint_default = *block;
+	} else {
+		warning("zam-676",
+			"block number %llu is too large to be used in a blocknr hint\n", (unsigned long long) *block);
+	}
+	reiser4_spin_unlock_sb(s);
+}
+
 /* wrapper to call space allocation plugin */
 int
 reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk, 
@@ -476,10 +493,11 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	if (hint != NULL) {
 		stage = hint->block_stage;
 
+		/* If blocknr hint isn't set we use per fs "blockr_hint default" */
 		/* FIXME-ZAM: should a mount option control this? */
 		if (hint->blk == 0) {
 			reiser4_spin_lock_sb(s);
-			hint->blk = get_super_private(s)->last_written_location;
+			hint->blk = get_super_private(s)->blocknr_hint_default;
 			assert("zam-677",
 			       hint->blk < get_super_private(s)->block_count);
 			reiser4_spin_unlock_sb(s);
