@@ -24,6 +24,7 @@ typedef struct entd_context {
 	unsigned long       last_flush;
 	int                 flushers;
 	unsigned long       timeout;
+	kcond_t             flush_wait;
 #if REISER4_DEBUG
 	flushers_list_head  flushers_list;
 #endif
@@ -36,8 +37,7 @@ extern void enter_flush(struct super_block *super);
 extern void leave_flush(struct super_block *super);
 extern void flush_started_io(void);
 
-extern int wait_for_flush(struct page *page,
-			  jnode *node, struct writeback_control *wbc);
+extern int wait_for_flush(struct page *page);
 
 /* __ENTD_H__ */
 #endif
