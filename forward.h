@@ -117,9 +117,9 @@ typedef enum {
 
 /** type of lock to acquire on znode before returning it to caller */
 typedef enum {
+	ZNODE_NO_LOCK        = 0,
 	ZNODE_READ_LOCK      = 1,
 	ZNODE_WRITE_LOCK     = 2,
-	ZNODE_WRITE_IF_DIRTY = 3,
 } znode_lock_mode;
 
 /** type of lock request */
