@@ -538,7 +538,7 @@ void print_inode( const char *prefix /* prefix to print */,
 	      i -> i_dev, kdev_t_to_nr( i -> i_rdev ) );
 	info( "\tatime: %li, mtime: %li, ctime: %li\n",
 	      i -> i_atime, i -> i_mtime, i -> i_ctime );
-	info( "\tblkbits: %i, blksize: %lu, blocks: %lu, bytes: %lu\n",
+	info( "\tblkbits: %i, blksize: %lu, blocks: %lu, bytes: %u\n",
 	      i -> i_blkbits, i -> i_blksize, i -> i_blocks, i -> i_bytes );
 	info( "\tversion: %lu, generation: %i, state: %lu, flags: %u\n",
 	      i -> i_version, i -> i_generation, i -> i_state,
