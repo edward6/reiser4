@@ -1968,10 +1968,6 @@ int extent_write (struct inode * inode, coord_t * coord,
 			
 			commit_write (page, file_off, count);
 			/* FIXME: Is there a better place to dirty the page? */
-			/*
-			 * FIXME:NIKITA->VS ->dirty_node() tree op should be
-			 * called
-			 */
 			jnode_set_dirty (jnode_of_page (page));
 
 			kunmap (page);
