@@ -268,24 +268,6 @@ jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	return node;
 }
 
-#if REISER4_LOCKPROF
-
-static int maxheld = 0;
-static int maxtrying = 0;
-
-void jnode_lockprof_hook(const jnode *node)
-{
-	if (node->guard.held > maxheld) {
-		print_jnode("maxheld", node);
-		maxheld = node->guard.held;
-	}
-	if (node->guard.trying > maxtrying) {
-		print_jnode("maxtrying", node);
-		maxtrying = node->guard.trying;
-	}
-}
-#endif
-
 static int
 inode_has_no_jnodes(reiser4_inode *r4_inode)
 {
