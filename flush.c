@@ -1257,7 +1257,7 @@ static int jnode_lock_parent_coord (jnode *node,
 		file_plugin  *fplug = inode_file_plugin (ino);
 		loff_t        loff = node->pg->index << PAGE_CACHE_SHIFT;
 
-		if ((ret = fplug->key_by_inode (ino, & loff, & key))) {
+		if ((ret = fplug->key_by_inode (ino, loff, & key))) {
 			return ret;
 		}
 

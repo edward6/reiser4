@@ -147,7 +147,7 @@ typedef struct file_plugin {
 	/**
 	 * Return the key used to retrieve an offset of a file.
 	 */
-	int ( *key_by_inode )( struct inode *inode, const loff_t *off, reiser4_key *key );
+	int ( *key_by_inode )( struct inode *inode, loff_t off, reiser4_key *key );
 
 	/*
 	 * set the plugin for a file.  Called during file creation in reiser4()

@@ -509,11 +509,11 @@ int common_build_flow( struct inode *inode /* file to build flow for */,
 	return 0;
 }
 
-static int ordinary_key_by_inode ( struct inode *inode, const loff_t *off, reiser4_key *key )
+static int ordinary_key_by_inode ( struct inode *inode, loff_t off, reiser4_key *key )
 {
 	build_sd_key (inode, key);
 	set_key_type (key, KEY_BODY_MINOR );
-	set_key_offset (key, ( __u64 ) *off);
+	set_key_offset (key, ( __u64 ) off);
 	return 0;
 }
 
