@@ -618,7 +618,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 			 */
 			page->mapping->a_ops->set_page_dirty(page);
 			reiser4_unlock_page(page);
-			REISER4_EXIT(-EAGAIN);
+			REISER4_EXIT(WRITEPAGE_ACTIVATE);
 		}
 	} else {
 		/* formatted pages always have znode attached to them */
