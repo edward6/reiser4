@@ -10,11 +10,11 @@
 
 #include "alloc40.h"
 
+#define CRC_SIZE (4)
+
 extern reiser4_plugin_t alloc40_plugin;
 
 static reiser4_core_t *core = NULL;
-
-#define CRC_SIZE (4)
 
 static errno_t callback_fetch_bitmap(reiser4_entity_t *format, 
     blk_t blk, void *data)
@@ -32,7 +32,8 @@ static errno_t callback_fetch_bitmap(reiser4_entity_t *format,
 	device, format);
     
     if (!device) {
-	aal_exception_error("Invalid device has been detected.");
+	aal_exception_error("Can't get device from format instance "
+	    "durring bitmap loading.");
 	return -1;
     }
     
@@ -50,7 +51,12 @@ static errno_t callback_fetch_bitmap(reiser4_entity_t *format,
     chunk = (start + alloc->bitmap->size - current < (int)aal_block_size(block) ? 
 	(int)(start + alloc->bitmap->size - current) : (int)aal_block_size(block));
     
-    aal_memcpy(current, block->data + CRC_SIZE, chunk - CRC_SIZE);
+    chunk -= CRC_SIZE;
+    
+    aal_memcpy(current, block->data + CRC_SIZE, chunk);
+
+    aal_memcpy((void *)(alloc->crc + (blk / size / 8) * CRC_SIZE), 
+	block->data, CRC_SIZE);
     
     aal_block_free(block);
     return 0;
@@ -64,10 +70,22 @@ static reiser4_entity_t *alloc40_open(reiser4_entity_t *format,
     count_t len)
 {
     alloc40_t *alloc;
+    aal_device_t *device;
     reiser4_layout_func_t layout;
+    
+    uint32_t crcsize;
     
     aal_assert("umka-364", format != NULL, return NULL);
 
+    device = plugin_call(return NULL, format->plugin->format_ops,
+	device, format);
+    
+    if (!device) {
+	aal_exception_error("Can't get device from format instance "
+	    "durring bitmap loading.");
+	return NULL;
+    }
+    
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
     
@@ -76,6 +94,12 @@ static reiser4_entity_t *alloc40_open(reiser4_entity_t *format,
 	goto error_free_alloc;
     }
   
+    crcsize = (alloc->bitmap->size / 
+	(aal_device_get_bs(device) - CRC_SIZE)) * CRC_SIZE;
+
+    if (!(alloc->crc = aal_calloc(crcsize, 0)))
+	goto error_free_bitmap;
+    
     alloc->format = format;
     alloc->plugin = &alloc40_plugin;
 
@@ -112,9 +136,21 @@ static reiser4_entity_t *alloc40_create(reiser4_entity_t *format,
     count_t len) 
 {
     alloc40_t *alloc;
+    aal_device_t *device;
+    
+    uint32_t crcsize;
 
     aal_assert("umka-365", format != NULL, return NULL);
 	
+    device = plugin_call(return NULL, format->plugin->format_ops, 
+	device, format);
+
+    if (!device) {
+	aal_exception_error("Can't get device from format instance "
+	    "durring bitmap creating.");
+	return NULL;
+    }
+    
     if (!(alloc = aal_calloc(sizeof(*alloc), 0)))
 	return NULL;
 
@@ -123,6 +159,12 @@ static reiser4_entity_t *alloc40_create(reiser4_entity_t *format,
 	goto error_free_alloc;
     }
   
+    crcsize = (alloc->bitmap->size / 
+	(aal_device_get_bs(device) - CRC_SIZE)) * CRC_SIZE;
+
+    if (!(alloc->crc = aal_calloc(crcsize, 0)))
+	goto error_free_bitmap;
+    
     alloc->format = format;
     alloc->plugin = &alloc40_plugin;
     
@@ -140,10 +182,12 @@ static errno_t callback_flush_bitmap(reiser4_entity_t *format,
     blk_t blk, void *data)
 {
     uint32_t size;
+    uint32_t adler;
     uint32_t chunk;
     aal_block_t *block;
     aal_device_t *device;
     char *current, *start; 
+   
     alloc40_t *alloc = (alloc40_t *)data;
     
     aal_assert("umka-1055", alloc != NULL, return -1);
@@ -152,7 +196,8 @@ static errno_t callback_flush_bitmap(reiser4_entity_t *format,
 	device, format);
     
     if (!device) {
-	aal_exception_error("Invalid device has been detected.");
+	aal_exception_error("Can't get device from format instance "
+	    "durring bitmap flushing.");
 	return -1;
     }
     
@@ -167,14 +212,19 @@ static errno_t callback_flush_bitmap(reiser4_entity_t *format,
     size = aal_block_size(block) - CRC_SIZE;
     current = start + (size * (blk / size / 8));
     
-    chunk = (start + alloc->bitmap->size - current < (int)aal_block_size(block) ? 
-	(int)(start + alloc->bitmap->size - current) : (int)aal_block_size(block));
-	    
-    aal_memcpy(block->data + CRC_SIZE, current, chunk - CRC_SIZE);
+    chunk = (start + alloc->bitmap->size - current < (int)size ? 
+	(int)(start + alloc->bitmap->size - current) : (int)size);
+
+    /* Updating block which is going to be saved */
+    aal_memcpy(block->data + CRC_SIZE, current, chunk);
+    
+    adler = aal_adler32(current, chunk);
+    aal_memcpy(block->data, &adler, sizeof(adler));
     
     if (aal_block_sync(block)) {
 	aal_exception_error("Can't write bitmap block %llu. %s.", 
 	    blk, device->error);
+	
 	goto error_free_block;
     }
 
@@ -223,6 +273,8 @@ static void alloc40_close(reiser4_entity_t *entity) {
     aal_assert("umka-369", alloc->bitmap != NULL, return);
 
     reiser4_bitmap_close(alloc->bitmap);
+
+    aal_free(alloc->crc);
     aal_free(alloc);
 }
 
@@ -300,12 +352,76 @@ int alloc40_test(reiser4_entity_t *entity, blk_t blk) {
     return reiser4_bitmap_test(alloc->bitmap, blk);
 }
 
-/* Checks allocator on validness */
+static errno_t callback_check_bitmap(reiser4_entity_t *format, 
+    blk_t blk, void *data)
+{
+    char *current;
+    aal_device_t *device;
+    
+    uint32_t size, i, n;
+    uint32_t ladler, cadler;
+    
+    alloc40_t *alloc = (alloc40_t *)data;
+    
+    device = plugin_call(return -1, format->plugin->format_ops, 
+	device, format);
+    
+    if (!device) {
+	aal_exception_error("Can't get device from format instance "
+	    "durring bitmap checking.");
+	return -1;
+    }
+        
+    size = aal_device_get_bs(device) - CRC_SIZE;
+    i = (blk / size / 8);
+    
+    /* Getting pointer to next bitmap portion */
+    current = alloc->bitmap->map + (i * size);
+	    
+    /* Getting the checksum from loaded crc map */
+    ladler = *((uint32_t *)(alloc->crc + (i * CRC_SIZE)));
+    
+    n = alloc->bitmap->map + alloc->bitmap->size - current < (int)size ? 
+	(int)((alloc->bitmap->map + alloc->bitmap->size) - current) : (int)size;
+
+    /* Calculating adler checksumm for piece of bitmap */
+    cadler = aal_adler32(current, n);
+
+    /* 
+        If loaded checksum and calculated are not equal, then we have corrupted 
+        bitmap.
+    */
+    if (ladler != cadler) {
+        aal_exception_error("Checksum of bitmap block %llu is missmatch. "
+	    "Block checksum is 0x%x, calculated one is 0x%x.", blk, ladler, cadler);
+	
+	return -1;
+    }
+
+    return 0;
+}
+
+/* Checks allocator on validness using loaded checksums */
 errno_t alloc40_valid(reiser4_entity_t *entity) {
+    reiser4_layout_func_t layout;
+    
     alloc40_t *alloc = (alloc40_t *)entity;
     
     aal_assert("umka-963", alloc != NULL, return -1);
     aal_assert("umka-964", alloc->bitmap != NULL, return -1);
+    
+    if (!(layout = alloc->format->plugin->format_ops.alloc_layout)) {
+	aal_exception_error("Method \"alloc_layout\" doesn't implemented "
+	    "in format plugin.");
+	return -1;
+    }
+    
+    if (layout(alloc->format, (reiser4_entity_t *)alloc, 
+	callback_check_bitmap, alloc))
+    {
+	aal_exception_error("Can't check bitmap on validness.");
+	return -1;
+    }
 
     return 0;
 }

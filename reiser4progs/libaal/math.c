@@ -25,23 +25,8 @@ long long int aal_fact(long long int n) {
     return n ? n * aal_fact(n - 1) : 1;
 }
 
-#define ADLER_BASE	    (65521l)
-#define ADLER_NMAX	    (5552)
-
-#define ADLER_DO1(buff, s1, s2) \
-    { s1 += *buff++; s2 += s1; }
-    
-#define ADLER_DO2(buff, s1, s2) \
-    ADLER_DO1(buff, s1, s2); ADLER_DO1(buff, s1, s2);
-
-#define ADLER_DO4(buff, s1, s2) \
-    ADLER_DO2(buff, s1, s2); ADLER_DO2(buff, s1, s2);
-
-#define ADLER_DO8(buff, s1, s2) \
-    ADLER_DO4(buff, s1, s2); ADLER_DO4(buff, s1, s2);
-
-#define ADLER_DO16(buff, s1, s2) \
-    ADLER_DO8(buff, s1, s2); ADLER_DO8(buff, s1, s2);
+#define ADLER_BASE (65521l)
+#define ADLER_NMAX (5552)
 
 unsigned int aal_adler32(char *buff, unsigned int n) {
     int k;
@@ -52,13 +37,10 @@ unsigned int aal_adler32(char *buff, unsigned int n) {
 	k = n < ADLER_NMAX ? n : ADLER_NMAX;
     	n -= k;
 	
-	while (k >= 16) {
-	    ADLER_DO16(t, s1, s2);
-	    k -= 16;
+	while (k--) {
+	    s1 += *buff++; 
+	    s2 += s1;
 	}
-	
-	while (k--)
-	    ADLER_DO1(t, s1, s2);
 	
 	s1 %= ADLER_BASE;
 	s2 %= ADLER_BASE;
