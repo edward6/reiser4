@@ -1091,9 +1091,10 @@ commit_some_atoms(txn_mgr * mgr)
 		spin_unlock_atom(atom);
 	}
 
+	ret = atom_list_end(&mgr->atoms_list, atom);
 	spin_unlock_txnmgr(mgr);
 
-	if (atom_list_end(&mgr->atoms_list, atom)) {
+	if (ret) {
 		/* nothing found */
 		spin_unlock_ktxnmgrd(mgr->daemon);
 		return 0;
