@@ -750,7 +750,7 @@ jrelse(jnode * node /* jnode to release references to */)
 		page_cache_release(page);
 	}
 	if (atomic_dec_and_lock(&node->d_count, &node->loadguard.lock)) {
-		spin_lock_jnode_acc(node, 0);
+		spin_lock_jload_acc(node, 0);
 		/* FIXME it is crucial that we first decrement ->d_count and
 		   only later clear JNODE_LOADED bit. I hope that
 		   atomic_dec_and_test() implies memory barrier (and
