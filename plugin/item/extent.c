@@ -465,7 +465,7 @@ static int skip_not_relocatable_extent(struct inode * inode, coord_t * coord, in
 		if (relocatable(check)) {
 			jput(check);
 			if (reloc_start < ext_width - 1)
-				ret = make_new_extent_at_end(coord, ext_width - reloc_start, done);
+				ret = make_new_extent_at_end(coord, ext_width - reloc_start - 1, done);
 			return ret;
 		}
 		jput(check);
