@@ -73,4 +73,4 @@ int cde_max_name_len(const struct inode *dir);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -30,7 +30,7 @@
 
 /* tree lookup cache */
 
-/** Initialise coord cache slot */
+/* Initialise coord cache slot */
 /* Audited by: green(2002.06.15) */
 static void
 cbk_cache_init_slot(cbk_cache_slot * slot)
@@ -41,7 +41,7 @@ cbk_cache_init_slot(cbk_cache_slot * slot)
 	slot->node = NULL;
 }
 
-/** Initialise coord cache */
+/* Initialise coord cache */
 int
 cbk_cache_init(cbk_cache * cache /* cache to init */ )
 {
@@ -93,7 +93,7 @@ cbk_cache_unlock(cbk_cache * cache /* cache to unlock */ )
 	     ( slot ) = cbk_cache_list_next( slot ) )
 
 #if REISER4_DEBUG_OUTPUT
-/** Debugging aid: print human readable information about @slot */
+/* Debugging aid: print human readable information about @slot */
 void
 print_cbk_slot(const char *prefix /* prefix to print */ ,
 	       const cbk_cache_slot * slot /* slot to print */ )
@@ -104,7 +104,7 @@ print_cbk_slot(const char *prefix /* prefix to print */ ,
 		print_znode("node", slot->node);
 }
 
-/** Debugging aid: print human readable information about @cache */
+/* Debugging aid: print human readable information about @cache */
 void
 print_cbk_cache(const char *prefix /* prefix to print */ ,
 		const cbk_cache * cache /* cache to print */ )
@@ -134,9 +134,7 @@ cbk_cache_invariant(const cbk_cache * cache)
 	result = 1;
 	cbk_cache_lock((cbk_cache *) cache);
 	for_all_slots(cache, slot) {
-		/*
-		 * in LRU first go all `used' slots followed by `unused'
-		 */
+		/* in LRU first go all `used' slots followed by `unused' */
 		if (unused && (slot->node != NULL))
 			result = 0;
 		if (slot->node == NULL)
@@ -144,9 +142,7 @@ cbk_cache_invariant(const cbk_cache * cache)
 		else {
 			cbk_cache_slot *scan;
 
-			/*
-			 * all cached nodes are different
-			 */
+			/* all cached nodes are different */
 			scan = slot;
 			while (result) {
 				scan = cbk_cache_list_next(scan);
@@ -236,11 +232,11 @@ static level_lookup_result cbk_node_lookup(cbk_handle * h);
 
 /* helper functions */
 
-/** release parent node during traversal */
+/* release parent node during traversal */
 static void put_parent(cbk_handle * h);
-/** check consistency of fields */
+/* check consistency of fields */
 static int sanity_check(cbk_handle * h);
-/** release resources in handle */
+/* release resources in handle */
 static void hput(cbk_handle * h);
 
 static void setup_delimiting_keys(cbk_handle * h);
@@ -257,7 +253,7 @@ static level_lookup_result search_to_left(cbk_handle * h);
   
    Thread cannot keep any reiser4 locks (tree, znode, dk spin-locks, or znode
    long term locks) while calling this. 
- */
+*/
 lookup_result coord_by_key(reiser4_tree * tree	/* tree to perform search
 						 * in. Usually this tree is
 						 * part of file-system
@@ -346,7 +342,7 @@ coord_by_handle(cbk_handle * handle)
    Error code, or last actor return value is returned.
   
    This is used by readdir() and alikes.
- */
+*/
 int
 iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 	     coord_t * coord /* coord to start from */ ,
@@ -374,16 +370,12 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 		return -ENOENT;
 	}
 	while ((result = actor(tree, coord, lh, arg)) > 0) {
-		/*
-		 * move further 
-		 */
+		/* move further  */
 		if ((through_units_p && coord_next_unit(coord)) || (!through_units_p && coord_next_item(coord))) {
 			do {
 				lock_handle couple;
 
-				/* 
-				 * move to the next node 
-				 */
+				/* move to the next node  */
 				init_lh(&couple);
 				result = reiser4_get_right_neighbor(&couple, coord->node, (int) mode, GN_DO_READ);
 				zrelse(coord->node);
@@ -509,9 +501,7 @@ restart:
 		print_znode("active", h->active_lh->node);
 		print_znode("parent", h->parent_lh->node);
 	}
-	/*
-	 * `unlikely' error case
-	 */
+	/* `unlikely' error case */
 	if (unlikely((h->result != CBK_COORD_FOUND) && (h->result != CBK_COORD_NOTFOUND))) {
 		/* failure. do cleanup */
 		hput(h);
@@ -530,7 +520,7 @@ restart:
    perform lookup within one node.
   
    See comments in a code.
- */
+*/
 static level_lookup_result
 cbk_level_lookup(cbk_handle * h /* search handle */ )
 {
@@ -547,57 +537,50 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 
 	/* lock @active */
 	h->result = longterm_lock_znode(h->active_lh, active, cbk_lock_mode(h->level, h), ZNODE_LOCK_LOPRI);
-	/*
-	 * longterm_lock_znode() acquires additional reference to znode (which
-	 * will be later released by longterm_unlock_znode()). Release
-	 * reference acquired by zget().
-	 */
+	/* longterm_lock_znode() acquires additional reference to znode (which
+	   will be later released by longterm_unlock_znode()). Release
+	   reference acquired by zget().
+	*/
 	zput(active);
 	if (h->result)
 		goto fail_or_restart;
 
-	/* 
-	 * if @active is accessed for the first time, setup delimiting keys on
-	 * it. Delimiting keys are taken from the parent node. See
-	 * setup_delimiting_keys() for details. 
-	 */
+	/* if @active is accessed for the first time, setup delimiting keys on
+	   it. Delimiting keys are taken from the parent node. See
+	   setup_delimiting_keys() for details. 
+	*/
 	if (znode_just_created(active))
 		setup_delimiting_keys(h);
 
-	/*
-	 * FIXME-NIKITA this is ugly kludge. Reminder: this is necessary,
-	 * because ->lookup() method returns coord with ->between field
-	 * probably set to something different from AT_UNIT.
-	 */
+	/* FIXME-NIKITA this is ugly kludge. Reminder: this is necessary,
+	   because ->lookup() method returns coord with ->between field
+	   probably set to something different from AT_UNIT.
+	*/
 	h->coord->between = AT_UNIT;
 
-	/*
-	 * if we are going to load znode right now, setup
-	 * ->in_parent: coord where pointer to this node is stored in
-	 * parent.
-	 */
+	/* if we are going to load znode right now, setup
+	   ->in_parent: coord where pointer to this node is stored in
+	   parent.
+	*/
 	spin_lock_tree(h->tree);
 
 	if (znode_just_created(active) && (h->coord->node != NULL))
 		active->in_parent = *h->coord;
 
 	/* protect sibling pointers and `connected' state bits, check
-	 * znode state */
+	   znode state */
 	ret = znode_is_connected(active);
 
-	/*
-	 * above two operations (setting ->in_parent up and checking
-	 * connectedness) are logically separate and one can release and
-	 * re-acquire tree lock between them. On the other hand,
-	 * releasing-acquiring spinlock requires d-cache flushing on some
-	 * architectures and can thus be expensive.
-	 */
+	/* above two operations (setting ->in_parent up and checking
+	   connectedness) are logically separate and one can release and
+	   re-acquire tree lock between them. On the other hand,
+	   releasing-acquiring spinlock requires d-cache flushing on some
+	   architectures and can thus be expensive.
+	*/
 	spin_unlock_tree(h->tree);
 
 	if (!ret) {
-		/*
-		 * FIXME: h->coord->node and active are of different levels?
-		 */
+		/* FIXME: h->coord->node and active are of different levels? */
 		h->result = connect_znode(h->coord, active);
 		if (h->result) {
 			put_parent(h);
@@ -605,23 +588,20 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		}
 	}
 
-	/*
-	 * put_parent() cannot be called earlier, because connect_znode()
-	 * assumes parent node is referenced;
-	 */
+	/* put_parent() cannot be called earlier, because connect_znode()
+	   assumes parent node is referenced; */
 	put_parent(h);
 
 	if ((!znode_contains_key_lock(active, h->key) &&
 	     (h->flags & CBK_TRUST_DK)) || ZF_ISSET(active, JNODE_HEARD_BANSHEE)) {
-		/*
-		 * 1. key was moved out of this node while this thread was
-		 * waiting for the lock. Restart. More elaborate solution is
-		 * to determine where key moved (to the left, or to the right)
-		 * and try to follow it through sibling pointers.
-		 *
-		 * 2. or, node itself is going to be removed from the
-		 * tree. Release lock and restart.
-		 */
+		/* 1. key was moved out of this node while this thread was
+		   waiting for the lock. Restart. More elaborate solution is
+		   to determine where key moved (to the left, or to the right)
+		   and try to follow it through sibling pointers.
+		  
+		   2. or, node itself is going to be removed from the
+		   tree. Release lock and restart.
+		*/
 		if (REISER4_STATS) {
 			if (znode_contains_key_lock(active, h->key))
 				reiser4_stat_add_at_level(h->level, cbk_met_ghost);
@@ -646,10 +626,8 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 
 	ret = cbk_node_lookup(h);
 
-	/* 
-	 * reget @active from handle, because it can change in
-	 * cbk_node_lookup() 
-	 */
+	/* reget @active from handle, because it can change in
+	   cbk_node_lookup()  */
 	active = h->active_lh->node;
 	zrelse(active);
 
@@ -663,8 +641,7 @@ fail_or_restart:
 
 /* Process one node during tree traversal.
   
-   This is called by cbk_level_lookup().
- */
+   This is called by cbk_level_lookup(). */
 static level_lookup_result
 cbk_node_lookup(cbk_handle * h /* search handle */ )
 {
@@ -681,9 +658,7 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 	/* result */
 	int result;
 
-	/**
-	 * true if @key is left delimiting key of @node
-	 */
+	/* true if @key is left delimiting key of @node */
 	static int key_is_ld(znode * node, const reiser4_key * key) {
 		int ld;
 
@@ -704,10 +679,8 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 	nplug = active->nplug;
 	assert("nikita-380", nplug != NULL);
 
-	/* 
-	 * return item from "active" node with maximal key not greater than
-	 * "key" 
-	 */
+	/* return item from "active" node with maximal key not greater than
+	   "key"  */
 	node_bias = h->bias;
 	result = nplug->lookup(active, h->key, node_bias, h->coord);
 	if (unlikely(result != NS_FOUND && result != NS_NOT_FOUND)) {
@@ -720,12 +693,11 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 		assert("nikita-381", h->coord->node == active);
 		if (result == NS_FOUND) {
 			/* success of tree lookup */
-			/*
-			 * FIXME-NIKITA following assertion doesn't work
-			 * currently, because ->lookup method of internal item
-			 * sets ->between == AFTER_UNIT and bias is
-			 * unconditionally set to FIND_EXACT above (why?)
-			 */
+			/* FIXME-NIKITA following assertion doesn't work
+			   currently, because ->lookup method of internal item
+			   sets ->between == AFTER_UNIT and bias is
+			   unconditionally set to FIND_EXACT above (why?)
+			*/
 			assert("nikita-1604", 1 || ergo(h->bias == FIND_EXACT, coord_is_existing_unit(h->coord)));
 			if (!(h->flags & CBK_UNIQUE) && key_is_ld(active, h->key)) {
 				return search_to_left(h);
@@ -797,7 +769,7 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
    all locks and seals are released and process repeated.
   
    See comments in the body.
- */
+*/
 int
 lookup_multikey(cbk_handle * handle /* handles to search */ ,
 		int nr_keys /* number of handles */ )
@@ -833,9 +805,7 @@ lookup_multikey(cbk_handle * handle /* handles to search */ ,
 	for (i = 0; i < nr_keys - 1; ++i)
 		seal_init(&seal[i], NULL, NULL);
 
-	/*
-	 * main loop
-	 */
+	/* main loop */
 	do {
 		once_again = 0;
 		/* issue lookups from right to left */
@@ -858,23 +828,20 @@ lookup_multikey(cbk_handle * handle /* handles to search */ ,
 		}
 		if (result != 0)
 			break;
-		/*
-		 * result of smallest key lookup is locked. Others are
-		 * unlocked, but sealed, try to validate and relock them.
-		 */
+		/* result of smallest key lookup is locked. Others are
+		   unlocked, but sealed, try to validate and relock them. */
 		for (i = 1; i < nr_keys; ++i) {
 			cbk_handle *h;
 
 			h = &handle[i];
 			result = seal_validate(&seal[i - 1],
 					       h->coord, h->key, h->level, h->active_lh, h->bias, h->lock_mode,
-					       /*
-					        * going from left to right we
-					        * can request high-priority
-					        * lock. This is only valid if
-					        * all handles are targeted to
-					        * the same level, though.
-					        */
+					       /* going from left to right we
+					          can request high-priority
+					          lock. This is only valid if
+					          all handles are targeted to
+					          the same level, though.
+					       */
 					       ZNODE_LOCK_HIPRI);
 			if (result == -EAGAIN) {
 				/* seal was broken, restart */
@@ -900,9 +867,9 @@ lookup_multikey(cbk_handle * handle /* handles to search */ ,
    all locks are released, all seals are invalidated, and error code is
    returned. *result1 and *result2 are not modified. If searches completed
    successfully (items were either found, or not found), 0 is returned and
-   *result1 and *result2 contain search results for respective keys.
+    result1 and *result2 contain search results for respective keys.
   
- */
+*/
 int
 lookup_couple(reiser4_tree * tree /* tree to perform search in */ ,
 	      const reiser4_key * key1 /* first key to look for */ ,
@@ -994,7 +961,7 @@ lookup_couple(reiser4_tree * tree /* tree to perform search in */ ,
   
    we are looking for possibly non-unique key and it is item is at the edge of
    @node. May be it is in the neighbor.
- */
+*/
 static int
 znode_contains_key_strict(znode * node	/* node to check key
 					 * against */ ,
@@ -1026,9 +993,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	tree = h->tree;
 	cache = &tree->cbk_cache;
 	if (cache->nr_slots == 0)
-		/*
-		 * size of cbk cache was set to 0 by mount time option.
-		 */
+		/* size of cbk cache was set to 0 by mount time option. */
 		return -ENOENT;
 
 	assert("nikita-2474", cbk_cache_invariant(cache));
@@ -1040,10 +1005,8 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
 	cbk_cache_unlock(cache);
 	while (1) {
-		/*
-		 * keep cache spin locked during this test, to avoid race with
-		 * cbk_cache_invalidate()
-		 */
+		/* keep cache spin locked during this test, to avoid race with
+		   cbk_cache_invalidate() */
 		spin_lock_tree(tree);
 		cbk_cache_lock(cache);
 		slot = cbk_cache_list_next(slot);
@@ -1054,12 +1017,11 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 				zref(node);
 		} else
 			node = NULL;
-		/*
-		 * we can safely release cbk cache lock here, because cbk
-		 * cache is organized as LRU list of persistent entries and
-		 * all list modifications are protected by cbk cache
-		 * spin-lock, but entries themselves never disappear.
-		 */
+		/* we can safely release cbk cache lock here, because cbk
+		   cache is organized as LRU list of persistent entries and
+		   all list modifications are protected by cbk cache
+		   spin-lock, but entries themselves never disappear.
+		*/
 		cbk_cache_unlock(cache);
 		spin_unlock_tree(tree);
 
@@ -1095,10 +1057,8 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	if (result) {
 		/* do lookup inside node */
 		llr = cbk_node_lookup(h);
-		/*
-		 * if cbk_node_lookup() wandered to another node (due to eottl
-		 * or non-unique keys), adjust @node
-		 */
+		/* if cbk_node_lookup() wandered to another node (due to eottl
+		   or non-unique keys), adjust @node */
 		node = h->active_lh->node;
 
 		if (llr != LOOKUP_DONE) {
@@ -1114,28 +1074,25 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 
 			cbk_cache_lock(cache);
 			if (slot->node == node) {
-				/*
-				 * if this node is still in cbk cache---move
-				 * its slot to the head of the LRU list.
-				 */
+				/* if this node is still in cbk cache---move
+				   its slot to the head of the LRU list. */
 				cbk_cache_list_remove(slot);
 				cbk_cache_list_push_front(&cache->lru, slot);
 			}
 			cbk_cache_unlock(cache);
 		}
 	} else {
-		/*
-		 * race. While this thread was waiting for the lock, node was
-		 * rebalanced and item we are looking for, shifted out of it
-		 * (if it ever was here).
-		 *
-		 * Continuing scanning is almost hopeless: node key range was
-		 * moved to, is almost certainly at the beginning of the LRU
-		 * list at this time, because it's hot, but restarting
-		 * scanning from the very beginning is complex. Just return,
-		 * so that cbk() will be performed. This is not that
-		 * important, because such races should be rare. Are they?
-		 */
+		/* race. While this thread was waiting for the lock, node was
+		   rebalanced and item we are looking for, shifted out of it
+		   (if it ever was here).
+		  
+		   Continuing scanning is almost hopeless: node key range was
+		   moved to, is almost certainly at the beginning of the LRU
+		   list at this time, because it's hot, but restarting
+		   scanning from the very beginning is complex. Just return,
+		   so that cbk() will be performed. This is not that
+		   important, because such races should be rare. Are they?
+		*/
 		reiser4_stat_tree_add(cbk_cache_race);
 		result = -ENOENT;	/* -ERAUGHT */
 	}
@@ -1156,7 +1113,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
    we need a measurement of the cost of this cache search compared to the cost
    of coord_by_key.
   
- */
+*/
 static int
 cbk_cache_search(cbk_handle * h /* cbk handle */ )
 {
@@ -1193,7 +1150,7 @@ znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h)
    Determine left and right delimiting keys for child pointed to by
    @parent_coord.
   
- */
+*/
 int
 find_child_delimiting_keys(znode * parent	/* parent znode, passed
 						 * locked */ ,
@@ -1235,8 +1192,7 @@ find_child_delimiting_keys(znode * parent	/* parent znode, passed
 
 /* helper function used by coord_by_key(): remember in @h delimiting keys of
    child that will be processed on the next level.
-  
- */
+   */
 static int
 prepare_delimiting_keys(cbk_handle * h /* search handle */ )
 {
@@ -1305,13 +1261,12 @@ search_to_left(cbk_handle * h /* search handle */ )
 				leftmost_key_in_node(neighbor, &h->ld_key);
 				spin_unlock_dk(znode_get_tree(neighbor));
 				h->block = *znode_get_block(neighbor);
-				/* 
-				 * clear coord -> node so that cbk_level_lookup()
-				 * wouldn't overwrite parent hint in neighbor.
-				 *
-				 * Parent hint was set up by
-				 * reiser4_get_left_neighbor()
-				 */
+				/* clear coord -> node so that cbk_level_lookup()
+				   wouldn't overwrite parent hint in neighbor.
+				  
+				   Parent hint was set up by
+				   reiser4_get_left_neighbor()
+				*/
 				UNDER_SPIN_VOID(tree, znode_get_tree(neighbor), h->coord->node = NULL);
 				result = LOOKUP_CONT;
 			} else {
@@ -1325,7 +1280,7 @@ search_to_left(cbk_handle * h /* search handle */ )
 	return result;
 }
 
-/** debugging aid: return symbolic name of search bias */
+/* debugging aid: return symbolic name of search bias */
 const char *
 bias_name(lookup_bias bias /* bias to get name of */ )
 {
@@ -1344,7 +1299,7 @@ bias_name(lookup_bias bias /* bias to get name of */ )
 }
 
 #if REISER4_DEBUG_OUTPUT
-/** debugging aid: print human readable information about @p */
+/* debugging aid: print human readable information about @p */
 void
 print_coord_content(const char *prefix /* prefix to print */ ,
 		    coord_t * p /* coord to print */ )
@@ -1365,7 +1320,7 @@ print_coord_content(const char *prefix /* prefix to print */ ,
 	}
 }
 
-/** debugging aid: print human readable information about @block */
+/* debugging aid: print human readable information about @block */
 void
 print_address(const char *prefix /* prefix to print */ ,
 	      const reiser4_block_nr * block /* block number to print */ )
@@ -1388,7 +1343,7 @@ sprint_address(const reiser4_block_nr * block /* block number to print */ )
 	return address;
 }
 
-/** release parent node during traversal */
+/* release parent node during traversal */
 /* Audited by: green(2002.06.15) */
 static void
 put_parent(cbk_handle * h /* search handle */ )
@@ -1438,7 +1393,7 @@ block_nr_is_correct(reiser4_block_nr * block UNUSED_ARG	/* block
 	return 1;
 }
 
-/** check consistency of fields */
+/* check consistency of fields */
 static int
 sanity_check(cbk_handle * h /* search handle */ )
 {
@@ -1465,4 +1420,4 @@ sanity_check(cbk_handle * h /* search handle */ )
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

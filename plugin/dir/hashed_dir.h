@@ -11,7 +11,7 @@
 #include <linux/fs.h>		/* for struct inode */
 #include <linux/dcache.h>	/* for struct dentry */
 
-/** create sd for directory file. Create stat-data, dot, and dotdot. */
+/* create sd for directory file. Create stat-data, dot, and dotdot. */
 extern int hashed_init(struct inode *object, struct inode *parent, reiser4_object_create_data *);
 extern int hashed_done(struct inode *object);
 extern int hashed_owns_item(const struct inode *inode, const coord_t * coord);
@@ -43,4 +43,4 @@ extern reiser4_block_nr	  hashed_estimate_done(struct inode *, struct inode *);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

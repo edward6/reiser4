@@ -101,7 +101,7 @@ static struct buffer_head *
 read_super_block(struct super_block *s UNUSED_ARG)
 {
 	/* FIXME-UMKA: Here must be reading of the most recent superblock copy. However, as
-	 * journal isn't complete, we are using find_any_superblock function. */
+	   journal isn't complete, we are using find_any_superblock function. */
 	return find_a_disk_format40_super_block(s);
 }
 
@@ -207,7 +207,7 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	assert("umka-751", private->plug.t);
 
 	/* layout 40 uses bitmap based space allocator - the one implemented in
-	 * plugin/space/bitmap.[ch] */
+	   plugin/space/bitmap.[ch] */
 	private->space_plug = space_allocator_plugin_by_id(BITMAP_SPACE_ALLOCATOR_ID);
 	assert("vs-493", (private->space_plug && private->space_plug->init_allocator));
 	/* init disk space allocator */
@@ -256,9 +256,7 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	reiser4_journal_recover_sb_data(s);
 
 #if REISER4_DEBUG
-	/*
-	 * FIXME-VS: init_tree worked already
-	 */
+	/* FIXME-VS: init_tree worked already */
 	/*private->kmalloc_allocated = 0; */
 #endif
 

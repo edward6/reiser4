@@ -24,4 +24,4 @@ void build_child_ptr_data(znode * child, reiser4_item_data * data);
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

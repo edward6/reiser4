@@ -64,7 +64,7 @@
    WHERE TO WRITE PAGE INTO?
   
     
-  ******HISTORICAL SECTION****************************************************
+   *****HISTORICAL SECTION****************************************************
   
      So, it was decided that flush has to be performed from a separate
      thread. Reiser4 has a thread used to periodically commit old transactions,
@@ -116,9 +116,9 @@
      2 Start emergency flush from shrinker after reaching some priority.
      This delays emergency flush as far as possible.
   
-  ******END OF HISTORICAL SECTION**********************************************
+   *****END OF HISTORICAL SECTION**********************************************
   
- */
+*/
 
 #include "forward.h"
 #include "debug.h"
@@ -165,11 +165,10 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 		sendit = 0;
 		if (JF_ISSET(node, JNODE_RELOC)) {
 			if (!blocknr_is_fake(jnode_get_block(node))) {
-				/*
-				 * not very likely case: @node is in relocate
-				 * set, block number is already assigned, but
-				 * @node wasn't yet submitted for io.
-				 */
+				/* not very likely case: @node is in relocate
+				   set, block number is already assigned, but
+				   @node wasn't yet submitted for io.
+				*/
 				sendit = 1;
 			} else {
 			}
@@ -227,14 +226,14 @@ struct eflush_node {
 	ef_hash_link     linkage;
 };
 
-/** The hash table definition */
+/* The hash table definition */
 #define KMALLOC(size) reiser4_kmalloc((size), GFP_KERNEL)
 #define KFREE(ptr, size) reiser4_kfree(ptr, size)
 TS_HASH_DEFINE(ef, eflush_node_t, jnode *, node, linkage, jnode_hfn, jnode_eq);
 #undef KFREE
 #undef KMALLOC
 
-/** slab for eflush_node_t's */
+/* slab for eflush_node_t's */
 static kmem_cache_t *eflush_slab;
 
 int 
@@ -336,4 +335,4 @@ eflush_del(jnode *node)
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

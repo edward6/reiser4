@@ -21,7 +21,7 @@
    key is ok, doing intra-node lookup.
   
   
- */
+*/
 
 #include "forward.h"
 #include "debug.h"
@@ -69,7 +69,7 @@ seal_init(seal_t * seal /* seal to initialise */ ,
 	}
 }
 
-/** finish with seal */
+/* finish with seal */
 /* Audited by: green(2002.06.17) */
 void
 seal_done(seal_t * seal)
@@ -78,7 +78,7 @@ seal_done(seal_t * seal)
 	seal->version = 0;
 }
 
-/** true if seal was initialised */
+/* true if seal was initialised */
 /* Audited by: green(2002.06.17) */
 int
 seal_is_set(const seal_t * seal /* seal to query */ )
@@ -88,17 +88,15 @@ seal_is_set(const seal_t * seal /* seal to query */ )
 }
 
 #if REISER4_DEBUG
-/** helper function for seal_validate() */
+/* helper function for seal_validate() */
 static inline int
 check_seal_match(const coord_t * coord, const reiser4_key * k)
 {
 	reiser4_key ukey;
 
 	return (coord->between != AT_UNIT) ||
-	    /*
-	     * FIXME-VS: we only can compare keys for items whose units
-	     * represent exactly one key
-	     */
+	    /* FIXME-VS: we only can compare keys for items whose units
+	       represent exactly one key */
 	    (coord_is_existing_unit(coord) && (item_is_extent(coord) || keyeq(k, unit_key_by_coord(coord, &ukey))));
 }
 #endif
@@ -114,7 +112,7 @@ check_seal_match(const coord_t * coord, const reiser4_key * k)
    found by node ->lookup() method. Alternative is to return -ENOENT in this
    case, but this would complicate callers logic.
   
- */
+*/
 /* Audited by: green(2002.06.17) */
 int
 seal_validate(seal_t * seal /* seal to validate */ ,
@@ -146,27 +144,24 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 		if (result == 0) {
 			if (seal_matches(seal, node)) {
 				/* if seal version and znode version
-				 * coincide */
+				   coincide */
 				assert("nikita-1990", node == seal->coord.node);
 				assert("nikita-1898", WITH_DATA_RET(coord->node, 1, check_seal_match(coord, key)));
 				reiser4_stat_seal_add(perfect_match);
 			} else if (coord->between != AT_UNIT)
-				/*
-				 * if seal was placed on position with node
-				 * (rather than on the existing unit within
-				 * node), we don't know what to lookup for.
-				 *
-				 * Seals were designed to "point" to existing
-				 * units in the tree, rather than positions
-				 * within a node. This is not a problem
-				 * usually, though.
-				 */
+				/* if seal was placed on position with node
+				   (rather than on the existing unit within
+				   node), we don't know what to lookup for.
+				  
+				   Seals were designed to "point" to existing
+				   units in the tree, rather than positions
+				   within a node. This is not a problem
+				   usually, though.
+				*/
 				result = -EAGAIN;
 			else if (znode_contains_key_lock(node, key))
-				/* 
-				 * seal is broken, but there is a hope that
-				 * key is still in @node
-				 */
+				/* seal is broken, but there is a hope that
+				   key is still in @node */
 				result = seal_search_node(seal, coord, node, key, bias, level);
 			else {
 				/* key is not in @node */
@@ -187,7 +182,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 
 /* helpers functions */
 
-/** obtain reference to znode seal points to, if in cache */
+/* obtain reference to znode seal points to, if in cache */
 /* Audited by: green(2002.06.17) */
 static znode *
 seal_node(const seal_t * seal /* seal to query */ )
@@ -196,7 +191,7 @@ seal_node(const seal_t * seal /* seal to query */ )
 	return zlook(current_tree, &seal->block);
 }
 
-/** true if @seal version and @node version coincide */
+/* true if @seal version and @node version coincide */
 /* Audited by: green(2002.06.17) */
 static int
 seal_matches(const seal_t * seal /* seal to check */ ,
@@ -208,7 +203,7 @@ seal_matches(const seal_t * seal /* seal to check */ ,
 	return UNDER_SPIN(znode, node, (seal->version == node->version));
 }
 
-/** intranode search */
+/* intranode search */
 /* Audited by: green(2002.06.17) */
 static int
 seal_search_node(seal_t * seal /* seal to repair */ ,
@@ -281,4 +276,4 @@ print_seal(const char *prefix, const seal_t * seal)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

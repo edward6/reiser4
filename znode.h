@@ -38,23 +38,18 @@ TS_LIST_DECLARE(locks);
 
 /* Per-znode lock object */
 struct zlock {
-	/**
-	 * The number of readers if positive; the number of recursively taken
-	 * write locks if negative */
+	/* The number of readers if positive; the number of recursively taken
+	   write locks if negative */
 	/*  0 */ int nr_readers;
-	/**
-	 * A number of processes (lock_stacks) that have this object
-	 * locked with high priority */
+	/* A number of processes (lock_stacks) that have this object
+	   locked with high priority */
 	/*  4 */ unsigned nr_hipri_owners;
-	/**
-	 * A number of attempts to lock znode in high priority direction */
+	/* A number of attempts to lock znode in high priority direction */
 	/*  8 */ unsigned nr_hipri_requests;
-	/**
-	 * A linked list of lock_handle objects that contains pointers
-	 * for all lock_stacks which have this lock object locked */
+	/* A linked list of lock_handle objects that contains pointers
+	   for all lock_stacks which have this lock object locked */
 	/* 12 */ owners_list_head owners;
-	/**
-	 * A linked list of lock_stacks that wait for this lock */
+	/* A linked list of lock_stacks that wait for this lock */
 	/* 20 */ requestors_list_head requestors;
 	/* 28 */
 };
@@ -114,67 +109,58 @@ struct zlock {
    ->node_plugin is never changed once set. This means that after code made
    itself sure that field is valid it can be accessed without any additional
    locking.
- */
+*/
 struct znode {
 	/* Embedded jnode. */
 	/*   0 */ jnode zjnode;
 
-	/**
-	 * position of this node in a parent node. This is cached to
-	 * speed up lookups during balancing. Not required to be up to
-	 * date. Synched in find_child_ptr().
-	 *
-	 * This value allows us to avoid expensive binary searches.
-	 *
-	 * Also, parent pointer is stored here.  The parent pointer
-	 * stored here is NOT a hint, only the position is.
-	 */
+	/* position of this node in a parent node. This is cached to
+	   speed up lookups during balancing. Not required to be up to
+	   date. Synched in find_child_ptr().
+	  
+	   This value allows us to avoid expensive binary searches.
+	  
+	   Also, parent pointer is stored here.  The parent pointer
+	   stored here is NOT a hint, only the position is.
+	*/
 	/*  56 */ coord_t in_parent;
 
 	/*  76 */ znode *left;
 	/*  80 */ znode *right;
-	/**
-	 * long term lock on node content. This lock supports deadlock
-	 * detection. See lock.c
-	 */
+	/* long term lock on node content. This lock supports deadlock
+	   detection. See lock.c
+	*/
 	/*  84 */ zlock lock;
 
-	/**
-	 * You cannot remove from memory a node that has children in
-	 * memory. This is because we rely on the fact that parent of given
-	 * node can always be reached without blocking for io. When reading a
-	 * node into memory you must increase the c_count of its parent, when
-	 * removing it from memory you must decrease the c_count.  This makes
-	 * the code simpler, and the cases where it is suboptimal are truly
-	 * obscure.
-	 *
-	 * All three znode reference counters ([cdx]_count) are atomic_t
-	 * because we don't want to take and release spinlock for each
-	 * reference addition/drop.
-	 */
+	/* You cannot remove from memory a node that has children in
+	   memory. This is because we rely on the fact that parent of given
+	   node can always be reached without blocking for io. When reading a
+	   node into memory you must increase the c_count of its parent, when
+	   removing it from memory you must decrease the c_count.  This makes
+	   the code simpler, and the cases where it is suboptimal are truly
+	   obscure.
+	  
+	   All three znode reference counters ([cdx]_count) are atomic_t
+	   because we don't want to take and release spinlock for each
+	   reference addition/drop.
+	*/
 	/* 112 */ atomic_t c_count;
 
-	/** 
-	 * plugin of node attached to this znode. NULL if znode is not
-	 * loaded. 
-	 */
+	/* plugin of node attached to this znode. NULL if znode is not
+	   loaded. 
+	*/
 	/* 116 */ node_plugin *nplug;
 
 	/** version of znode data. This is increased on each modification. */
 	/* 120 */ __u64 version;
 
-	/** 
-	 * size of node referenced by this znode. This is not necessary
-	 * block size, because there znodes for extents.
-	 */
-	/**
-	 * left delimiting key. Necessary to efficiently perform
-	 * balancing with node-level locking. Kept in memory only.
-	 */
+	/* size of node referenced by this znode. This is not necessary
+	   block size, because there znodes for extents.
+	*/
+	/* left delimiting key. Necessary to efficiently perform
+	   balancing with node-level locking. Kept in memory only. */
 	/* 128 */ reiser4_key ld_key;
-	/**
-	 * right delimiting key.
-	 */
+	/* right delimiting key. */
 	/* 152 */ reiser4_key rd_key;
 
 	/* znode's tree level */
@@ -183,13 +169,10 @@ struct znode {
 /* 180 *//* gap --- 4 bytes */
 	/* 184 */
 	/* removed for now. We only support blocksize == PAGE_CACHE_SIZE
-	   unsigned      size;
-	 */
+	   unsigned      size; */
 #if REISER4_DEBUG_MODIFY
-	/**
-	 * In debugging mode, used to detect loss of znode_set_dirty()
-	 * notification.
-	 */
+	/* In debugging mode, used to detect loss of znode_set_dirty()
+	   notification. */
 	__u32 cksum;
 	spinlock_t cksum_guard;
 #endif
@@ -212,96 +195,80 @@ struct znode {
 
 /* Since we have R/W znode locks we need additional bidirectional `link'
    objects to implement n<->m relationship between lock owners and lock
-   objects. We call them `lock handles'.
- */
+   objects. We call them `lock handles'. */
 struct lock_handle {
-	/**
-	 * This flag indicates that a signal to yield a lock was passed to
-	 * lock owner and counted in owner->nr_signalled 
-	 *
-	 * Locking: this is accessed under spin lock on ->node.
-	 */
+	/* This flag indicates that a signal to yield a lock was passed to
+	   lock owner and counted in owner->nr_signalled 
+	  
+	   Locking: this is accessed under spin lock on ->node.
+	*/
 	int signaled;
-	/**
-	 * A link to owner of a lock */
+	/* A link to owner of a lock */
 	lock_stack *owner;
-	/**
-	 * A link to znode locked */
+	/* A link to znode locked */
 	znode *node;
-	/**
-	 * A list of all locks for a process */
+	/* A list of all locks for a process */
 	locks_list_link locks_link;
-	/**
-	 * A list of all owners for a znode */
+	/* A list of all owners for a znode */
 	owners_list_link owners_link;
 };
 
 /* A lock stack structure for accumulating locks owned by a process */
 struct lock_stack {
-	/**
-	 * A guard lock protecting a lock stack */
+	/* A guard lock protecting a lock stack */
 	spinlock_t sguard;
-	/**
-	 * number of znodes which were requested by high priority processes */
+	/* number of znodes which were requested by high priority processes */
 	atomic_t nr_signaled;
-	/**
-	 * Current priority of a process 
-	 *
-	 * This is only accessed by the current thread and thus requires no
-	 * locking.
-	 */
+	/* Current priority of a process 
+	  
+	   This is only accessed by the current thread and thus requires no
+	   locking.
+	*/
 	int curpri;
-	/**
-	 * A list of all locks owned by this process */
+	/* A list of all locks owned by this process */
 	locks_list_head locks;
-	/**
-	 * When lock_stack waits for the lock, it puts itself on double-linked
-	 * requestors list of that lock */
+	/* When lock_stack waits for the lock, it puts itself on double-linked
+	   requestors list of that lock */
 	requestors_list_link requestors_link;
-	/**
-	 * Current lock request info.
-	 *
-	 * This is only accessed by the current thread and thus requires no
-	 * locking.
-	 */
+	/* Current lock request info.
+	  
+	   This is only accessed by the current thread and thus requires no
+	   locking.
+	*/
 	struct {
-		/**
-		 * A pointer to uninitialized link object */
+		/* A pointer to uninitialized link object */
 		lock_handle *handle;
-		/*
-		 * A pointer to the object we want to lock */
+		/* A pointer to the object we want to lock */
 		znode *node;
-		/**
-		 * Lock mode (ZNODE_READ_LOCK or ZNODE_WRITE_LOCK) */
+		/* Lock mode (ZNODE_READ_LOCK or ZNODE_WRITE_LOCK) */
 		znode_lock_mode mode;
 	} request;
-	/**
-	 * It is a lock_stack's synchronization object for when process sleeps
-	 * when requested lock not on this lock_stack but which it wishes to
-	 * add to this lock_stack is not immediately available. It is used
-	 * instead of wait_queue_t object due to locking problems (lost wake
-	 * up). "lost wakeup" occurs when process is waken up before he actually
-	 * becomes 'sleepy' (through sleep_on()). Using of semaphore object is
-	 * simplest way to avoid that problem.
-	 *
-	 * A semaphore is used in the following way: only the process that is
-	 * the owner of the lock_stack initializes it (to zero) and calls
-	 * down(sema) on it. Usually this causes the process to sleep on the
-	 * semaphore. Other processes may wake him up by calling up(sema). The
-	 * advantage to a semaphore is that up() and down() calls are not
-	 * required to preserve order. Unlike wait_queue it works when process
-	 * is woken up before getting to sleep. 
-	 *
-	 * FIXME-NIKITA: Transaction manager is going to have condition variables
-	 * (&kcondvar_t) anyway, so this probably will be replaced with
-	 * one in the future.
-	 *
-	 * After further discussion, Nikita has shown me that Zam's implementation is
-	 * exactly a condition variable.  The znode's {zguard,requestors_list} represents
-	 * condition variable and the lock_stack's {sguard,semaphore} guards entry and
-	 * exit from the condition variable's wait queue.  But the existing code can't
-	 * just be replaced with a more general abstraction, and I think its fine the way
-	 * it is. */
+	/* It is a lock_stack's synchronization object for when process sleeps
+	   when requested lock not on this lock_stack but which it wishes to
+	   add to this lock_stack is not immediately available. It is used
+	   instead of wait_queue_t object due to locking problems (lost wake
+	   up). "lost wakeup" occurs when process is waken up before he actually
+	   becomes 'sleepy' (through sleep_on()). Using of semaphore object is
+	   simplest way to avoid that problem.
+	  
+	   A semaphore is used in the following way: only the process that is
+	   the owner of the lock_stack initializes it (to zero) and calls
+	   down(sema) on it. Usually this causes the process to sleep on the
+	   semaphore. Other processes may wake him up by calling up(sema). The
+	   advantage to a semaphore is that up() and down() calls are not
+	   required to preserve order. Unlike wait_queue it works when process
+	   is woken up before getting to sleep. 
+	  
+	   FIXME-NIKITA: Transaction manager is going to have condition variables
+	   (&kcondvar_t) anyway, so this probably will be replaced with
+	   one in the future.
+	  
+	   After further discussion, Nikita has shown me that Zam's implementation is
+	   exactly a condition variable.  The znode's {zguard,requestors_list} represents
+	   condition variable and the lock_stack's {sguard,semaphore} guards entry and
+	   exit from the condition variable's wait queue.  But the existing code can't
+	   just be replaced with a more general abstraction, and I think its fine the way
+	   it is. */
 	struct semaphore sema;
 };
 
@@ -343,7 +310,7 @@ extern int znode_is_write_locked(const znode * node);
 
 /* lock ordering is: first take znode spin lock, then lock stack spin lock */
 #define spin_ordering_pred_stack(stack) (1)
-/** Same for lock_stack */
+/* Same for lock_stack */
 SPIN_LOCK_FUNCTIONS(stack, lock_stack, sguard);
 
 static inline void
@@ -363,7 +330,7 @@ extern int zinit_new(znode * node);
 extern void zrelse(znode * node);
 extern void znode_change_parent(znode * new_parent, reiser4_block_nr * block);
 
-/** size of data in znode */
+/* size of data in znode */
 static inline unsigned
 znode_size(const znode * node UNUSED_ARG /* znode to query */ )
 {
@@ -378,7 +345,7 @@ extern int znode_is_loaded_nolock(const znode * node);
 extern reiser4_key *znode_get_rd_key(znode * node);
 extern reiser4_key *znode_get_ld_key(znode * node);
 
-/** `connected' state checks */
+/* `connected' state checks */
 static inline int
 znode_is_right_connected(const znode * node)
 {
@@ -464,9 +431,7 @@ extern int znode_x_count_is_protected(const znode * node);
 static inline znode *
 zref(znode * node)
 {
-	/*
-	 * change of x_count from 0 to 1 is protected by tree spin-lock
-	 */
+	/* change of x_count from 0 to 1 is protected by tree spin-lock */
 	assert("nikita-2517", znode_x_count_is_protected(node));
 	return JZNODE(jref(ZJNODE(node)));
 }
@@ -477,14 +442,14 @@ zput(znode * node)
 	jput(ZJNODE(node));
 }
 
-/** get the level field for a znode */
+/* get the level field for a znode */
 static inline tree_level
 znode_get_level(const znode * node)
 {
 	return node->level;
 }
 
-/** set the level field for a znode */
+/* set the level field for a znode */
 static inline void
 znode_set_level(znode * node, tree_level level)
 {
@@ -492,17 +457,15 @@ znode_set_level(znode * node, tree_level level)
 	node->level = level;
 }
 
-/** get the level field for a jnode */
+/* get the level field for a jnode */
 static inline tree_level
 jnode_get_level(const jnode * node)
 {
 	if (jnode_is_znode(node))
 		return znode_get_level(JZNODE(node));
 	else
-		/*
-		 * unformatted nodes are all at the LEAF_LEVEL and for
-		 * "semi-formatted" nodes like bitmaps, level doesn't matter.
-		 */
+		/* unformatted nodes are all at the LEAF_LEVEL and for
+		   "semi-formatted" nodes like bitmaps, level doesn't matter. */
 		return LEAF_LEVEL;
 }
 
@@ -520,7 +483,7 @@ znode_get_tree(const znode * node)
    work to figure out which exit paths must call zrelse and those which do not.  The data
    handle automatically calls zrelse for every zload that it is responsible for.  In that
    sense, it acts much like a lock_handle.
- */
+*/
 typedef struct load_count {
 	znode *node;
 	int d_ref;
@@ -610,4 +573,4 @@ extern void check_lock_node_data(znode * node);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -14,16 +14,16 @@
 /* for __u?? types */
 #include <linux/types.h>
 
-/** seal. See comment at the top of seal.c */
+/* seal. See comment at the top of seal.c */
 typedef struct seal_s {
-	/** version of znode recorder at the time of seal creation */
+	/* version of znode recorder at the time of seal creation */
 	__u64 version;
-	/** block number of znode attached to this seal */
+	/* block number of znode attached to this seal */
 	reiser4_block_nr block;
 #if REISER4_DEBUG
-	/** coord this seal is attached to. For debugging. */
+	/* coord this seal is attached to. For debugging. */
 	coord_t coord;
-	/** key this seal is attached to. For debugging. */
+	/* key this seal is attached to. For debugging. */
 	reiser4_key key;
 #endif
 } seal_t;
@@ -64,4 +64,4 @@ extern void print_seal(const char *prefix, const seal_t * seal);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -7,7 +7,7 @@
   
    Jnode stands for either Josh or Journal node.
   
- */
+*/
 
 #include "debug.h"
 #include "dformat.h"
@@ -46,7 +46,7 @@ jnode_ops(const jnode * node)
 
 /* hash table support */
 
-/** compare two jnode keys for equality. Used by hash-table macros */
+/* compare two jnode keys for equality. Used by hash-table macros */
 static inline int
 jnode_key_eq(const jnode_key_t * k1, const jnode_key_t * k2)
 {
@@ -56,7 +56,7 @@ jnode_key_eq(const jnode_key_t * k1, const jnode_key_t * k2)
 	return (k1->index == k2->index && k1->objectid == k2->objectid);
 }
 
-/** Hash jnode by its key (inode plus offset). Used by hash-table macros */
+/* Hash jnode by its key (inode plus offset). Used by hash-table macros */
 static inline __u32
 jnode_key_hashfn(const jnode_key_t * key)
 {
@@ -73,14 +73,14 @@ jnode_key_hashfn(const jnode_key_t * key)
 	return hash & (REISER4_JNODE_HASH_TABLE_SIZE - 1);
 }
 
-/** The hash table definition */
+/* The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
 TS_HASH_DEFINE(j, jnode, jnode_key_t, key.j, link.j, jnode_key_hashfn, jnode_key_eq);
 #undef KFREE
 #undef KMALLOC
 
-/** call this to initialise jnode hash table */
+/* call this to initialise jnode hash table */
 int
 jnodes_tree_init(reiser4_tree * tree /* tree to initialise jnodes for */ )
 {
@@ -89,7 +89,7 @@ jnodes_tree_init(reiser4_tree * tree /* tree to initialise jnodes for */ )
 	return j_hash_init(&tree->jhash_table, REISER4_JNODE_HASH_TABLE_SIZE);
 }
 
-/** call this to destroy jnode hash table */
+/* call this to destroy jnode hash table */
 int
 jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 {
@@ -200,9 +200,7 @@ jfree(jnode * node)
 	assert("nikita-2663", capture_list_is_clean(node));
 
 	ON_DEBUG(list_del_init(&node->jnodes));
-	/*
-	 * poison memory.
-	 */
+	/* poison memory. */
 	ON_DEBUG(xmemset(node, 0xad, sizeof *node));
 	kmem_cache_free(_jnode_slab, node);
 }
@@ -220,13 +218,13 @@ jnew(void)
 	jnode_init(jal, current_tree);
 
 	/* FIXME: not a strictly correct, but should help in avoiding of
-	 * looking to missing znode-only fields */
+	   looking to missing znode-only fields */
 	jnode_set_type(jal, JNODE_UNFORMATTED_BLOCK);
 
 	return jal;
 }
 
-/** look for jnode with given mapping and offset within hash table */
+/* look for jnode with given mapping and offset within hash table */
 jnode *
 jlook(reiser4_tree * tree, oid_t objectid, unsigned long index)
 {
@@ -240,24 +238,21 @@ jlook(reiser4_tree * tree, oid_t objectid, unsigned long index)
 	jkey.index = index;
 	node = j_hash_find(&tree->jhash_table, &jkey);
 	if (node != NULL)
-		/*
-		 * protect @node from recycling
-		 */
+		/* protect @node from recycling */
 		jref(node);
 	return node;
 }
 
 /* jget() (a la zget() but for unformatted nodes). Returns (and possibly
    creates) jnode corresponding to page @pg. jnode is attached to page and
-   inserted into jnode hash-table.
- */
+   inserted into jnode hash-table. */
 jnode *
 jget(reiser4_tree * tree, struct page * pg)
 {
 	/* FIXME: Note: The following code assumes page_size == block_size.
-	 * When support for page_size > block_size is added, we will need to
-	 * add a small per-page array to handle more than one jnode per
-	 * page. */
+	   When support for page_size > block_size is added, we will need to
+	   add a small per-page array to handle more than one jnode per
+	   page. */
 	jnode *jal = NULL;
 	oid_t oid = get_inode_oid(pg->mapping->host);
 
@@ -268,7 +263,7 @@ jget(reiser4_tree * tree, struct page * pg)
 again:
 	if (jprivate(pg) == NULL) {
 		jnode *in_hash;
-		/** check hash-table first */
+		/* check hash-table first */
 		tree = tree_by_page(pg);
 		spin_lock_tree(tree);
 		in_hash = jlook(tree, oid, pg->index);
@@ -327,7 +322,7 @@ jnode_of_page(struct page * pg)
 	return jget(tree_by_page(pg), pg);
 }
 
-/** return jnode associated with page, possibly creating it. */
+/* return jnode associated with page, possibly creating it. */
 jnode *
 jfind(struct page * page)
 {
@@ -339,10 +334,8 @@ jfind(struct page * page)
 	if (PagePrivate(page))
 		node = jref(jprivate(page));
 	else {
-		/*
-		 * otherwise it can only be unformatted---znode is never
-		 * detached from the page.
-		 */
+		/* otherwise it can only be unformatted---znode is never
+		   detached from the page. */
 		node = jnode_of_page(page);
 	}
 	return node;
@@ -424,7 +417,7 @@ page_detach_jnode(struct page *page, struct address_space *mapping, unsigned lon
    spin lock on node attached to this page. Sometimes it is necessary to go in
    the opposite direction. This is done through standard trylock-and-release
    loop.
- */
+*/
 struct page *
 jnode_lock_page(jnode * node)
 {
@@ -441,40 +434,32 @@ jnode_lock_page(jnode * node)
 			break;
 		}
 
-		/*
-		 * no need to page_cache_get( page ) here, because page cannot
-		 * be evicted from memory without detaching it from jnode and
-		 * this requires spin lock on jnode that we already hold.
-		 */
+		/* no need to page_cache_get( page ) here, because page cannot
+		   be evicted from memory without detaching it from jnode and
+		   this requires spin lock on jnode that we already hold.
+		*/
 		if (!TestSetPageLocked(page)) {
-			/*
-			 * We won a lock on jnode page, proceed.
-			 */
+			/* We won a lock on jnode page, proceed. */
 			break;
 		}
 
-		/*
-		 * Page is locked by someone else.
-		 */
+		/* Page is locked by someone else. */
 		page_cache_get(page);
 		spin_unlock_jnode(node);
 		wait_on_page_locked(page);
-		/*
-		 * it is possible that page was detached from jnode and
-		 * returned to the free pool, or re-assigned while we were
-		 * waiting on locked bit. This will be rechecked on the next
-		 * loop iteration.
-		 */
+		/* it is possible that page was detached from jnode and
+		   returned to the free pool, or re-assigned while we were
+		   waiting on locked bit. This will be rechecked on the next
+		   loop iteration.
+		*/
 		page_cache_release(page);
 
-		/*
-		 * try again
-		 */
+		/* try again */
 	}
 	return page;
 }
 
-/** bump data counter on @node */
+/* bump data counter on @node */
 void
 add_d_ref(jnode * node /* node to increase d_count of */ )
 {
@@ -516,9 +501,7 @@ jparse(jnode * node, struct page *page)
 		if (likely(result == 0)) {
 			JF_SET(node, JNODE_LOADED);
 		} else {
-			/*
-			 * if parsing failed, detach jnode from page.
-			 */
+			/* if parsing failed, detach jnode from page. */
 			assert("nikita-2467", page == jnode_page(node));
 			page_clear_jnode(page, node);
 		}
@@ -526,7 +509,7 @@ jparse(jnode * node, struct page *page)
 	return result;
 }
 
-/** helper function used by jload() */
+/* helper function used by jload() */
 static inline void
 load_page(struct page *page)
 {
@@ -549,72 +532,66 @@ jload(jnode * node)
 	if (!jnode_is_loaded(node)) {
 		jnode_plugin *jplug;
 
-		/*
-		 * read data from page cache. Page reference counter is
-		 * incremented and page is kmapped, it will kunmapped in
-		 * zrelse
-		 */
+		/* read data from page cache. Page reference counter is
+		   incremented and page is kmapped, it will kunmapped in
+		   zrelse
+		*/
 		trace_on(TRACE_PCACHE, "read node: %p\n", node);
 
 		jplug = jnode_ops(node);
 
-		/*
-		 * Our initial design was to index pages with formatted data
-		 * by their block numbers. One disadvantage of this is that
-		 * such setup makes relocation harder to implement: when tree
-		 * node is relocated we need to re-index its data in a page
-		 * cache. To avoid data copying during this re-indexing it was
-		 * decided that first version of reiser4 will only support
-		 * block size equal to PAGE_CACHE_SIZE.
-		 *
-		 * But another problem came up: our block numbers are 64bit
-		 * and pages are indexed by 32bit ->index. Moreover:
-		 *
-		 *  - there is strong opposition for enlarging ->index field
-		 *  (and for good reason: size of struct page is critical,
-		 *  because there are so many of them).
-		 *
-		 *  - our "unallocated" block numbers have highest bit set,
-		 *  which makes 64bit block number support essential
-		 *  independently of device size.
-		 *
-		 * Code below uses jnode _address_ as page index. This has
-		 * following advantages:
-		 *
-		 *  - relocation is simplified
-		 *
-		 *  - if ->index is jnode address, than ->private is free for
-		 *  use. It can be used to store some jnode data making it
-		 *  smaller (not yet implemented). Pointer to atom?
-		 *
-		 */
+		/* Our initial design was to index pages with formatted data
+		   by their block numbers. One disadvantage of this is that
+		   such setup makes relocation harder to implement: when tree
+		   node is relocated we need to re-index its data in a page
+		   cache. To avoid data copying during this re-indexing it was
+		   decided that first version of reiser4 will only support
+		   block size equal to PAGE_CACHE_SIZE.
+		  
+		   But another problem came up: our block numbers are 64bit
+		   and pages are indexed by 32bit ->index. Moreover:
+		  
+		    - there is strong opposition for enlarging ->index field
+		    (and for good reason: size of struct page is critical,
+		    because there are so many of them).
+		  
+		    - our "unallocated" block numbers have highest bit set,
+		    which makes 64bit block number support essential
+		    independently of device size.
+		  
+		   Code below uses jnode _address_ as page index. This has
+		   following advantages:
+		  
+		    - relocation is simplified
+		  
+		    - if ->index is jnode address, than ->private is free for
+		    use. It can be used to store some jnode data making it
+		    smaller (not yet implemented). Pointer to atom?
+		  
+		*/
 		page = UNDER_SPIN(jnode, node, jnode_page(node));
-		/*
-		 * subtle locking point: ->pg pointer is protected by jnode
-		 * spin lock, but it is safe to release spin lock here,
-		 * because page can be detached from jnode only when ->d_count
-		 * is 0, and JNODE_LOADED is not set.
-		 */
+		/* subtle locking point: ->pg pointer is protected by jnode
+		   spin lock, but it is safe to release spin lock here,
+		   because page can be detached from jnode only when ->d_count
+		   is 0, and JNODE_LOADED is not set.
+		*/
 		if (page != NULL) {
 			JF_SET(node, JNODE_LOADED);
 			load_page(page);
 			node->data = page_address(page);
 		} else {
 			page = read_cache_page(jplug->mapping(node), jplug->index(node), page_filler, node);
-			/*
-			 * after (successful) return from read_cache_page()
-			 * @page is pinned into memory.
-			 */
+			/* after (successful) return from read_cache_page()
+			   @page is pinned into memory. */
 			if (!IS_ERR(page)) {
 				kmap(page);
 				node->data = page_address(page);
-				/*
-				 * It is possible (however unlikely) that page
-				 * was concurrently released (by flush or
-				 * shrink_cache()), page is still in a page
-				 * cache and up-to-date, but jnode was already
-				 * detached from it.
-				 */
+				/* It is possible (however unlikely) that page
+				   was concurrently released (by flush or
+				   shrink_cache()), page is still in a page
+				   cache and up-to-date, but jnode was already
+				   detached from it.
+				*/
 				reiser4_lock_page(page);
 				spin_lock_jnode(node);
 				if (jnode_page(node) == NULL)
@@ -644,7 +621,7 @@ jload(jnode * node)
 	return result;
 }
 
-/** call node plugin to initialise newly allocated node. */
+/* call node plugin to initialise newly allocated node. */
 int
 jinit_new(jnode * node /* jnode to initialise */ )
 {
@@ -683,7 +660,7 @@ jinit_new(jnode * node /* jnode to initialise */ )
 	return result;
 }
 
-/** just like jrelse, but assume jnode is already spin-locked */
+/* just like jrelse, but assume jnode is already spin-locked */
 void
 jrelse_nolock(jnode * node /* jnode to release references to */ )
 {
@@ -704,12 +681,11 @@ jrelse_nolock(jnode * node /* jnode to release references to */ )
 	}
 
 	if (atomic_dec_and_test(&node->d_count))
-		/*
-		 * FIXME it is crucial that we first decrement ->d_count and
-		 * only later clear JNODE_LOADED bit. I hope that
-		 * atomic_dec_and_test() implies memory barrier (and
-		 * optimization barrier, of course).
-		 */
+		/* FIXME it is crucial that we first decrement ->d_count and
+		   only later clear JNODE_LOADED bit. I hope that
+		   atomic_dec_and_test() implies memory barrier (and
+		   optimization barrier, of course).
+		*/
 		JF_CLR(node, JNODE_LOADED);
 }
 
@@ -739,15 +715,11 @@ jnode_try_drop(jnode * node)
 		return -EBUSY;
 	}
 
-	/*
-	 * FIXME-NIKITA znode releasing is not yet fully supported
-	 */
+	/* FIXME-NIKITA znode releasing is not yet fully supported */
 	result = jplug->is_busy(node);
 	spin_unlock_jnode(node);
 	if (result == 0)
-		/*
-		 * no page and no references---despatch him.
-		 */
+		/* no page and no references---despatch him. */
 		result = jplug->remove(node, tree);
 	else
 		JF_CLR(node, JNODE_RIP);
@@ -781,9 +753,7 @@ jdelete(jnode * node /* jnode to finish with */ )
 	spin_lock_tree(tree);
 	result = jplug->is_busy(node);
 	if (!result) {
-		/*
-		 * detach page
-		 */
+		/* detach page */
 		if (page != NULL)
 			drop_page(page, node);
 		spin_unlock_jnode(node);
@@ -806,7 +776,7 @@ jdelete(jnode * node /* jnode to finish with */ )
   
     0:       successfully dropped jnode
   
- */
+*/
 int
 jdrop_in_tree(jnode * node, reiser4_tree * tree)
 {
@@ -974,9 +944,7 @@ znode_delete_op(jnode * node, reiser4_tree * tree)
 	z = JZNODE(node);
 	assert("vs-899", atomic_read(&z->c_count) == 0);
 
-	/*
-	 * delete znode from sibling list.
-	 */
+	/* delete znode from sibling list. */
 	sibling_list_remove(z);
 
 	znode_remove(z, tree);
@@ -993,14 +961,10 @@ znode_remove_op(jnode * node, reiser4_tree * tree)
 	z = JZNODE(node);
 
 	if (atomic_read(&z->c_count) == 0) {
-		/*
-		 * detach znode from sibling list.
-		 */
+		/* detach znode from sibling list. */
 		sibling_list_drop(z);
-		/*
-		 * this is called with tree spin-lock held, so call
-		 * znode_remove() directly (rather than znode_lock_remove()).
-		 */
+		/* this is called with tree spin-lock held, so call
+		   znode_remove() directly (rather than znode_lock_remove()). */
 		znode_remove(z, tree);
 		zfree(z);
 		return 0;
@@ -1107,8 +1071,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 
 /* IO head jnode implementation; The io heads are simple j-nodes with limited
    functionality (these j-nodes are not in any hash table) just for reading
-   from and writing to disk.
- */
+   from and writing to disk. */
 
 jnode *
 alloc_io_head(const reiser4_block_nr * block)
@@ -1154,9 +1117,7 @@ unpin_jnode_data(jnode * node)
 
 int jnode_io_hook(jnode *node, struct page *page, int rw)
 {
-	/*
-	 * prepare node to being written
-	 */
+	/* prepare node to being written */
 	return jnode_ops(node)->io_hook(node, page, rw);
 }
 
@@ -1188,7 +1149,7 @@ jnode_type_name(jnode_type type)
 #define jnode_state_name( node, flag )			\
 	( JF_ISSET( ( node ), ( flag ) ) ? ((#flag "|")+6) : "" )
 
-/** debugging aid: output human readable information about @node */
+/* debugging aid: output human readable information about @node */
 void
 info_jnode(const char *prefix /* prefix to print */ ,
 	   const jnode * node /* node to print */ )
@@ -1227,7 +1188,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	}
 }
 
-/** this is cut-n-paste replica of print_znodes() */
+/* this is cut-n-paste replica of print_znodes() */
 void
 print_jnodes(const char *prefix, reiser4_tree * tree)
 {
@@ -1239,11 +1200,10 @@ print_jnodes(const char *prefix, reiser4_tree * tree)
 	if (tree == NULL)
 		tree = current_tree;
 
-	/*
-	 * this is debugging function. It can be called by reiser4_panic()
-	 * with tree spin-lock already held. Trylock is not exactly what we
-	 * want here, but it is passable.
-	 */
+	/* this is debugging function. It can be called by reiser4_panic()
+	   with tree spin-lock already held. Trylock is not exactly what we
+	   want here, but it is passable.
+	*/
 	tree_lock_taken = spin_trylock_tree(tree);
 	htable = &tree->jhash_table;
 
@@ -1265,4 +1225,4 @@ print_jnodes(const char *prefix, reiser4_tree * tree)
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

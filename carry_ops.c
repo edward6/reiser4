@@ -34,7 +34,7 @@ extern int lock_carry_node_tail(carry_node * node);
    Look for left neighbor of @node and add it to the @doing queue. See
    comments in the body.
   
- */
+*/
 static carry_node *
 find_left_neighbor(carry_op * op	/* node to find left
 					 * neighbor of */ ,
@@ -49,10 +49,8 @@ find_left_neighbor(carry_op * op	/* node to find left
 
 	/* first, check whether left neighbor is already in a @doing queue */
 	left = find_left_carry(node, doing);
-	/*
-	 * if we are not at the left end of level, check whether left neighbor
-	 * was found.
-	 */
+	/* if we are not at the left end of level, check whether left neighbor
+	   was found. */
 	if (left != NULL) {
 		reiser4_tree *tree;
 
@@ -88,10 +86,8 @@ find_left_neighbor(carry_op * op	/* node to find left
 			left = ERR_PTR(result);
 		reiser4_stat_level_add(doing, carry_left_in_cache);
 	} else if ((result == -ENAVAIL) || (result == -ENOENT)) {
-		/*
-		 * node is leftmost node in a tree, or neighbor wasn't in
-		 * cache, or there is an extent on the left.
-		 */
+		/* node is leftmost node in a tree, or neighbor wasn't in
+		   cache, or there is an extent on the left. */
 		if (REISER4_STATS && (result == -ENOENT))
 			reiser4_stat_level_add(doing, carry_left_missed);
 		if (REISER4_STATS && (result == -ENAVAIL))
@@ -99,20 +95,16 @@ find_left_neighbor(carry_op * op	/* node to find left
 		reiser4_pool_free(&left->header);
 		left = NULL;
 	} else if (doing->restartable) {
-		/*
-		 * if left neighbor is locked, and level is restartable, add
-		 * new node to @doing and restart.
-		 */
+		/* if left neighbor is locked, and level is restartable, add
+		   new node to @doing and restart. */
 		assert("nikita-913", node->parent != 0);
 		assert("nikita-914", node->node != NULL);
 		left->left = 1;
 		left->free = 0;
 		left = ERR_PTR(-EAGAIN);
 	} else {
-		/*
-		 * left neighbor is locked, level cannot be restarted. Just
-		 * ignore left neighbor.
-		 */
+		/* left neighbor is locked, level cannot be restarted. Just
+		   ignore left neighbor. */
 		reiser4_pool_free(&left->header);
 		left = NULL;
 		reiser4_stat_level_add(doing, carry_left_refuse);
@@ -125,7 +117,7 @@ find_left_neighbor(carry_op * op	/* node to find left
    Look for right neighbor of @node and add it to the @doing queue. See
    comments in the body.
   
- */
+*/
 static carry_node *
 find_right_neighbor(carry_op * op	/* node to find right
 					 * neighbor of */ ,
@@ -143,10 +135,8 @@ find_right_neighbor(carry_op * op	/* node to find right
 
 	/* first, check whether right neighbor is already in a @doing queue */
 	right = find_right_carry(node, doing);
-	/*
-	 * if we are not at the right end of level, check whether right
-	 * neighbor was found.
-	 */
+	/* if we are not at the right end of level, check whether right
+	   neighbor was found. */
 	if (right != NULL) {
 		reiser4_tree *tree;
 
@@ -182,10 +172,8 @@ find_right_neighbor(carry_op * op	/* node to find right
 				right = ERR_PTR(result);
 		}
 	} else if ((result == -ENAVAIL) || (result == -ENOENT)) {
-		/*
-		 * node is rightmost node in a tree, or neighbor wasn't in
-		 * cache, or there is an extent on the right.
-		 */
+		/* node is rightmost node in a tree, or neighbor wasn't in
+		   cache, or there is an extent on the right. */
 		right = NULL;
 		if (REISER4_STATS && (result == -ENOENT))
 			reiser4_stat_level_add(doing, carry_right_missed);
@@ -201,7 +189,7 @@ find_right_neighbor(carry_op * op	/* node to find right
   
    How much space in @node is required for completion of @op, where @op is
    insert or paste operation.
- */
+*/
 static unsigned int
 space_needed_for_op(znode * node	/* znode data are
 					 * inserted or
@@ -243,10 +231,8 @@ space_needed(const znode * node	/* node data are inserted or
 	result = 0;
 	iplug = data->iplug;
 	if (iplug->b.estimate != NULL) {
-		/*
-		 * ask item plugin how much space is needed to insert this
-		 * item
-		 */
+		/* ask item plugin how much space is needed to insert this
+		   item */
 		result += iplug->b.estimate(insertion ? NULL : coord, data);
 	} else {
 		/* reasonable default */
@@ -305,10 +291,8 @@ free_space_shortage(znode * node /* node to check */ ,
 	case COP_PASTE:
 		return space_needed_for_op(node, op) - znode_free_space(node);
 	case COP_EXTENT:
-		/*
-		 * when inserting extent shift data around until insertion
-		 * point is utmost in the node.
-		 */
+		/* when inserting extent shift data around until insertion
+		   point is utmost in the node. */
 		if (coord_wrt(op->u.insert.d->coord) == COORD_INSIDE)
 			return +1;
 		else
@@ -323,15 +307,11 @@ sync_op(carry_op * op, carry_node * target)
 {
 	znode *insertion_node;
 
-	/*
-	 * reget node from coord: shift might move insertion coord to
-	 * the neighbor
-	 */
+	/* reget node from coord: shift might move insertion coord to
+	   the neighbor */
 	insertion_node = op->u.insert.d->coord->node;
-	/*
-	 * if insertion point was actually moved into new node,
-	 * update carry node pointer in operation.
-	 */
+	/* if insertion point was actually moved into new node,
+	   update carry node pointer in operation. */
 	if (insertion_node != op->node->real_node) {
 		op->node = target;
 		assert("nikita-2540", target->real_node == insertion_node);
@@ -353,10 +333,8 @@ get_split_point(carry_op * op, sideof dir)
 		return 0;
 	if ((op->u.insert.flags & COPI_GLUE_LEFT) && dir == LEFT_SIDE && coord->unit_pos > 0) {
 		--coord->unit_pos;
-		/*
-		 * split point is different from the insertion point, confine
-		 * shift to the source node.
-		 */
+		/* split point is different from the insertion point, confine
+		   shift to the source node. */
 		op->u.insert.flags &= ~COPI_GO_LEFT;
 		return -1;
 	}
@@ -388,7 +366,7 @@ put_split_point(carry_op * op, int adj, __u32 flags)
    as node40 does.
   
    See carry_flow() on detail about flow insertion
- */
+*/
 static int
 make_space(carry_op * op /* carry operation, insert or paste */ ,
 	   carry_level * doing /* current carry queue */ ,
@@ -422,63 +400,53 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 	assert("nikita-909", node_plugin_by_node(node) != NULL);
 
 	result = 0;
-	/*
-	 * If there is not enough space in a node, try to shift something to
-	 * the left neighbor. This is a bit tricky, as locking to the left is
-	 * low priority. This is handled by restart logic in carry().
-	 */
+	/* If there is not enough space in a node, try to shift something to
+	   the left neighbor. This is a bit tricky, as locking to the left is
+	   low priority. This is handled by restart logic in carry().
+	*/
 	not_enough_space = free_space_shortage(node, op);
 	if (not_enough_space <= 0)
-		/*
-		 * it is possible that carry was called when there actually
-		 * was enough space in the node. For example, when inserting
-		 * leftmost item so that delimiting keys have to be updated.
-		 */
+		/* it is possible that carry was called when there actually
+		   was enough space in the node. For example, when inserting
+		   leftmost item so that delimiting keys have to be updated.
+		*/
 		return 0;
 	if (!(flags & COPI_DONT_SHIFT_LEFT)) {
 		carry_node *left;
-		/* 
-		 * make note in statistics of an attempt to move
-		 * something into the left neighbor
-		 */
+		/* make note in statistics of an attempt to move
+		   something into the left neighbor */
 		reiser4_stat_level_add(doing, insert_looking_left);
 		left = find_left_neighbor(op, doing);
 		if (unlikely(IS_ERR(left))) {
 			if (PTR_ERR(left) == -EAGAIN)
 				return -EAGAIN;
 			else {
-				/*
-				 * some error other than restart request
-				 * occurred. This shouldn't happen. Issue a
-				 * warning and continue as if left neighbor
-				 * weren't existing.
-				 */
+				/* some error other than restart request
+				   occurred. This shouldn't happen. Issue a
+				   warning and continue as if left neighbor
+				   weren't existing.
+				*/
 				warning("nikita-924", "Error accessing left neighbor: %li", PTR_ERR(left));
 				print_znode("node", node);
 			}
 		} else if (left != NULL) {
 
 			adj = get_split_point(op, LEFT_SIDE);
-			/*
-			 * shift everything possible on the left of and
-			 * including insertion coord into the left neighbor
-			 */
+			/* shift everything possible on the left of and
+			   including insertion coord into the left neighbor */
 			result = carry_shift_data(LEFT_SIDE, coord, left->real_node, doing, todo, flags & COPI_GO_LEFT);
 			put_split_point(op, adj, flags);
 
-			/*
-			 * reget node from coord: shift_left() might move
-			 * insertion coord to the left neighbor
-			 */
+			/* reget node from coord: shift_left() might move
+			   insertion coord to the left neighbor */
 			node = sync_op(op, left);
 
 			not_enough_space = free_space_shortage(node, op);
-			/*
-			 * There is not enough free space in @node, but
-			 * may be, there is enough free space in
-			 * @left. Various balancing decisions are valid here.
-			 * The same for the shifiting to the right.
-			 */
+			/* There is not enough free space in @node, but
+			   may be, there is enough free space in
+			   @left. Various balancing decisions are valid here.
+			   The same for the shifiting to the right.
+			*/
 		}
 	}
 	/* If there still is not enough space, shift to the right */
@@ -492,31 +460,27 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 			print_znode("node", node);
 		} else if (right != NULL) {
 			adj = get_split_point(op, RIGHT_SIDE);
-			/*
-			 * node containing insertion point, and its right
-			 * neighbor node are write locked by now.
-			 *
-			 * shift everything possible on the right of but
-			 * excluding insertion coord into the right neighbor
-			 */
+			/* node containing insertion point, and its right
+			   neighbor node are write locked by now.
+			  
+			   shift everything possible on the right of but
+			   excluding insertion coord into the right neighbor
+			*/
 			result = carry_shift_data(RIGHT_SIDE, coord,
 						  right->real_node, doing, todo, flags & COPI_GO_RIGHT);
 			put_split_point(op, adj, flags);
-			/*
-			 * reget node from coord: shift_right() might move
-			 * insertion coord to the right neighbor
-			 */
+			/* reget node from coord: shift_right() might move
+			   insertion coord to the right neighbor */
 			node = sync_op(op, right);
 			not_enough_space = free_space_shortage(node, op);
 		}
 	}
-	/* 
-	 * If there is still not enough space, allocate new node(s). 
-	 *
-	 * We try to allocate new blocks if COPI_DONT_ALLOCATE is not set in
-	 * the carry operation flags (currently this is needed during flush
-	 * only).
-	 */
+	/* If there is still not enough space, allocate new node(s). 
+	  
+	   We try to allocate new blocks if COPI_DONT_ALLOCATE is not set in
+	   the carry operation flags (currently this is needed during flush
+	   only).
+	*/
 	for (blk_alloc = 0;
 	     (not_enough_space > 0) && (result == 0) && (blk_alloc < 2) && !(flags & COPI_DONT_ALLOCATE); ++blk_alloc) {
 		carry_node *fresh;	/* new node we are allocating */
@@ -531,20 +495,19 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 		if (blk_alloc > 0)
 			reiser4_stat_level_add(doing, insert_alloc_many);
 
-		/*
-		 * allocate new node on the right of @node. Znode and disk
-		 * fake block number for new node are allocated.
-		 *
-		 * add_new_znode() posts carry operation COP_INSERT with
-		 * COPT_CHILD option to the parent level to add
-		 * pointer to newly created node to its parent.
-		 *
-		 * Subtle point: if several new nodes are required to complete
-		 * insertion operation at this level, they will be inserted
-		 * into their parents in the order of creation, which means
-		 * that @node will be valid "cookie" at the time of insertion.
-		 *
-		 */
+		/* allocate new node on the right of @node. Znode and disk
+		   fake block number for new node are allocated.
+		  
+		   add_new_znode() posts carry operation COP_INSERT with
+		   COPT_CHILD option to the parent level to add
+		   pointer to newly created node to its parent.
+		  
+		   Subtle point: if several new nodes are required to complete
+		   insertion operation at this level, they will be inserted
+		   into their parents in the order of creation, which means
+		   that @node will be valid "cookie" at the time of insertion.
+		  
+		*/
 		fresh = add_new_znode(node, op->node, doing, todo);
 		if (IS_ERR(fresh))
 			return PTR_ERR(fresh);
@@ -559,48 +522,42 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 			return result;
 		}
 
-		/*
-		 * both nodes are write locked by now.
-		 *
-		 * shift everything possible on the right of and
-		 * including insertion coord into the right neighbor.
-		 */
+		/* both nodes are write locked by now.
+		  
+		   shift everything possible on the right of and
+		   including insertion coord into the right neighbor.
+		*/
 		coord_dup(&coord_shadow, op->u.insert.d->coord);
 		node_shadow = op->node;
 		adj = get_split_point(op, RIGHT_SIDE);
-		/*
-		 * move insertion point into newly created node if:
-		 *
-		 *  . insertion point is rightmost in the source node, or
-		 *  . this is not the first node we are allocating in a row.
-		 */
+		/* move insertion point into newly created node if:
+		  
+		    . insertion point is rightmost in the source node, or
+		    . this is not the first node we are allocating in a row.
+		*/
 		gointo = (blk_alloc > 0) || coord_is_after_rightmost(op->u.insert.d->coord);
 
 		result = carry_shift_data(RIGHT_SIDE, coord, fresh->real_node, doing, todo, gointo);
 		put_split_point(op, adj, flags);
-		/*
-		 * if insertion point was actually moved into new node,
-		 * update carry node pointer in operation.
-		 */
+		/* if insertion point was actually moved into new node,
+		   update carry node pointer in operation. */
 		node = sync_op(op, fresh);
 		not_enough_space = free_space_shortage(node, op);
 		if ((not_enough_space > 0) && (node != coord_shadow.node)) {
-			/*
-			 * there is not enough free in new node. Shift
-			 * insertion point back to the @shadow_node so that
-			 * next new node would be inserted between
-			 * @shadow_node and @fresh.
-			 */
+			/* there is not enough free in new node. Shift
+			   insertion point back to the @shadow_node so that
+			   next new node would be inserted between
+			   @shadow_node and @fresh.
+			*/
 			coord_normalize(&coord_shadow);
 			coord_dup(coord, &coord_shadow);
 			node = coord->node;
 			op->node = node_shadow;
 			if (1 || (flags & COPI_STEP_BACK)) {
-				/* 
-				 * still not enough space?! Maybe there is
-				 * enough space in the source node (i.e., node
-				 * data are moved from) now.
-				 */
+				/* still not enough space?! Maybe there is
+				   enough space in the source node (i.e., node
+				   data are moved from) now.
+				*/
 				not_enough_space = free_space_shortage(node, op);
 			}
 		}
@@ -611,10 +568,8 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 		result = -ENOSPC;
 	}
 	if ((result == 0) && (node != orig_node) && tracking->track) {
-		/*
-		 * inserting or pasting into node different from
-		 * original. Update lock handle supplied by caller.
-		 */
+		/* inserting or pasting into node different from
+		   original. Update lock handle supplied by caller. */
 		assert("nikita-1417", tracking->tracked != NULL);
 		done_lh(tracking->tracked);
 		init_lh(tracking->tracked);
@@ -666,7 +621,7 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
    this function (carry_{insert,paste,etc.}) performs actual insertion/paste
    by calling item plugin method.
   
- */
+*/
 static int
 insert_paste_common(carry_op * op	/* carry operation being
 					 * performed */ ,
@@ -690,26 +645,23 @@ insert_paste_common(carry_op * op	/* carry operation being
 	} else if (op->u.insert.type == COPT_KEY) {
 		node_search_result intra_node;
 		znode *node;
-		/*
-		 * Problem with doing batching at the lowest level, is that
-		 * operations here are given by coords where modification is
-		 * to be performed, and one modification can invalidate coords
-		 * of all following operations.
-		 *
-		 * So, we are implementing yet another type for operation that
-		 * will use (the only) "locator" stable across shifting of
-		 * data between nodes, etc.: key (COPT_KEY).
-		 *
-		 * This clause resolves key to the coord in the node.
-		 *
-		 * But node can change also. Probably some pieces have to be
-		 * added to the lock_carry_node(), to lock node by its key.
-		 *
-		 */
-		/*
-		 * FIXME-NIKITA Lookup bias is fixed to FIND_EXACT. Complain
-		 * if you need something else.
-		 */
+		/* Problem with doing batching at the lowest level, is that
+		   operations here are given by coords where modification is
+		   to be performed, and one modification can invalidate coords
+		   of all following operations.
+		  
+		   So, we are implementing yet another type for operation that
+		   will use (the only) "locator" stable across shifting of
+		   data between nodes, etc.: key (COPT_KEY).
+		  
+		   This clause resolves key to the coord in the node.
+		  
+		   But node can change also. Probably some pieces have to be
+		   added to the lock_carry_node(), to lock node by its key.
+		  
+		*/
+		/* FIXME-NIKITA Lookup bias is fixed to FIND_EXACT. Complain
+		   if you need something else. */
 		op->u.insert.d->coord = coord;
 		node = op->node->real_node;
 		intra_node = node_plugin_by_node(node)->lookup
@@ -720,11 +672,10 @@ insert_paste_common(carry_op * op	/* carry operation being
 			return intra_node;
 		}
 	} else if (op->u.insert.type == COPT_CHILD) {
-		/*
-		 * if we are asked to insert pointer to the child into
-		 * internal node, first convert pointer to the child into
-		 * coord within parent node.
-		 */
+		/* if we are asked to insert pointer to the child into
+		   internal node, first convert pointer to the child into
+		   coord within parent node.
+		*/
 		znode *child;
 		int result;
 
@@ -740,18 +691,17 @@ insert_paste_common(carry_op * op	/* carry operation being
 			print_znode("parent", op->node->real_node);
 			return result;
 		}
-		/*
-		 * This only happens when we did multiple insertions at
-		 * the previous level, trying to insert single item and
-		 * it so happened, that insertion of pointers to all new
-		 * nodes before this one already caused parent node to
-		 * split (may be several times).
-		 *
-		 * I am going to come up with better solution.
-		 *
-		 * You are not expected to understand this.
-		 *        -- v6root/usr/sys/ken/slp.c
-		 */
+		/* This only happens when we did multiple insertions at
+		   the previous level, trying to insert single item and
+		   it so happened, that insertion of pointers to all new
+		   nodes before this one already caused parent node to
+		   split (may be several times).
+		  
+		   I am going to come up with better solution.
+		  
+		   You are not expected to understand this.
+		          -- v6root/usr/sys/ken/slp.c
+		*/
 		if (op->node->real_node != op->u.insert.d->coord->node) {
 			op->node = add_carry_skip(doing, POOLO_AFTER, op->node);
 			if (IS_ERR(op->node))
@@ -786,7 +736,7 @@ insert_paste_common(carry_op * op	/* carry operation being
    - by passing a child node pointer to which is to be inserted by this
    operation.
   
- */
+*/
 static int
 carry_insert(carry_op * op /* operation to perform */ ,
 	     carry_level * doing	/* queue of operations @op
@@ -808,10 +758,8 @@ carry_insert(carry_op * op /* operation to perform */ ,
 	trace_stamp(TRACE_CARRY);
 	reiser4_stat_level_add(doing, insert);
 
-	/*
-	 * FIXME-VS: init_coord used to be here. insert_paste_common seems to
-	 * use that zeroed coord
-	 */
+	/* FIXME-VS: init_coord used to be here. insert_paste_common seems to
+	   use that zeroed coord */
 	coord_init_zero(&coord);
 
 	/* perform common functionality of insert and paste. */
@@ -852,7 +800,7 @@ carry_insert(carry_op * op /* operation to perform */ ,
               insert_node_after_insert_point();// avoids pushing detritus around when repeated insertions occur
   
    
- */
+*/
 
 make_space_for_flow_insertion()
 {
@@ -903,7 +851,7 @@ make_space_for_flow_insertion()
    and it will always return the same result. Some optimization could be made
    by calculating this value once at the beginning and passing it around. That
    would reduce some flexibility in future changes
- */
+*/
 static int can_paste(coord_t *, const reiser4_key *, const reiser4_item_data *);
 static size_t
 flow_insertion_overhead(carry_op * op)
@@ -966,14 +914,12 @@ make_space_by_shift_left(carry_op * op, carry_level * doing, carry_level * todo)
 	}
 	if (left == NULL)
 		/* left neighbor either does not exist or is unformatted
-		 * node */
+		   node */
 		return 1;
 
 	orig = flow_insert_point(op)->node;
-	/*
-	 * try to shift content of node @orig from its head upto insert point
-	 * including insertion point into the left neighbor
-	 */
+	/* try to shift content of node @orig from its head upto insert point
+	   including insertion point into the left neighbor */
 	carry_shift_data(LEFT_SIDE, flow_insert_point(op),
 			 left->real_node, doing, todo, 1 /* including insert point */ );
 	if (left->real_node != flow_insert_point(op)->node) {
@@ -986,8 +932,8 @@ make_space_by_shift_left(carry_op * op, carry_level * doing, carry_level * todo)
 
 	if (!enough_space_for_min_flow_fraction(op)) {
 		/* insertion point node does not have enough free space to put
-		 * even minimal portion of flow into it, therefore, move
-		 * insertion point back to orig node (before first item) */
+		   even minimal portion of flow into it, therefore, move
+		   insertion point back to orig node (before first item) */
 		coord_init_before_first_item(flow_insert_point(op), orig);
 		return 1;
 	}
@@ -1012,15 +958,13 @@ make_space_by_shift_right(carry_op * op, carry_level * doing, carry_level * todo
 		return 1;
 	}
 	if (right) {
-		/*
-		 * shift everything possible on the right of but excluding
-		 * insertion coord into the right neighbor
-		 */
+		/* shift everything possible on the right of but excluding
+		   insertion coord into the right neighbor */
 		carry_shift_data(RIGHT_SIDE, flow_insert_point(op),
 				 right->real_node, doing, todo, 0 /* not including insert point */ );
 	} else {
 		/* right neighbor either does not exist or is unformatted
-		 * node */
+		   node */
 		;
 	}
 	if (coord_is_after_rightmost(flow_insert_point(op))) {
@@ -1031,7 +975,7 @@ make_space_by_shift_right(carry_op * op, carry_level * doing, carry_level * todo
 	}
 
 	/* new node is to be added if insert point node did not get enough
-	 * space for whole flow */
+	   space for whole flow */
 	return 1;
 }
 
@@ -1047,10 +991,8 @@ make_space_by_new_nodes(carry_op * op, carry_level * doing, carry_level * todo)
 	node = flow_insert_point(op)->node;
 
 	if (op->u.insert_flow.new_nodes == CARRY_FLOW_NEW_NODES_LIMIT)
-		/*
-		 * FIXME-VS: this is confusing because it is limit reaches, not
-		 * that we are running out of disk space
-		 */
+		/* FIXME-VS: this is confusing because it is limit reaches, not
+		   that we are running out of disk space */
 		return -ENOSPC;
 	/* add new node after insert point node */
 	new = add_new_znode(node, op->node, doing, todo);
@@ -1104,8 +1046,8 @@ make_space_for_flow_insertion(carry_op * op, carry_level * doing, carry_level * 
 
 	if (make_space_by_shift_left(op, doing, todo) == 0) {
 		/* insert point is shifted to left neighbor of original insert
-		 * point node and is set after last unit in that node. It has
-		 * enough space to fit at least minimal fraction of flow. */
+		   point node and is set after last unit in that node. It has
+		   enough space to fit at least minimal fraction of flow. */
 		return 0;
 	}
 
@@ -1116,7 +1058,7 @@ make_space_for_flow_insertion(carry_op * op, carry_level * doing, carry_level * 
 
 	if (make_space_by_shift_right(op, doing, todo) == 0) {
 		/* insert point is still set to the same node, but there is
-		 * nothing to the right of insert point. */
+		   nothing to the right of insert point. */
 		return 0;
 	}
 
@@ -1145,8 +1087,8 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 	result = 0;
 
 	/* this flag is used to distinguish a need to have carry to propagate
-	 * leaf level modifications up in the tree when make_space fails not in
-	 * first iteration of the loop below */
+	   leaf level modifications up in the tree when make_space fails not in
+	   first iteration of the loop below */
 	something_written = 0;
 
 	/* carry system needs this to work */
@@ -1161,9 +1103,9 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 		if (result) {
 			if (something_written) {
 				/* make_space failed, but part of flow was
-				 * written already, so return 0 here to have
-				 * carry to perform necessary modification in
-				 * the tree */
+				   written already, so return 0 here to have
+				   carry to perform necessary modification in
+				   the tree */
 				result = 0;
 			}
 			break;
@@ -1187,7 +1129,7 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
 			pos_in_node new_pos;
 
 			/* FIXME-VS: this is because node40_create_item changes
-			 * insert_point for obscure reasons */
+			   insert_point for obscure reasons */
 			switch (insert_point->between) {
 			case AFTER_ITEM:
 				new_pos = insert_point->item_pos + 1;
@@ -1234,7 +1176,7 @@ carry_insert_flow(carry_op * op, carry_level * doing, carry_level * todo)
    was removed. This is complicated by our handling of "twig" level: root on
    twig level is never killed.
   
- */
+*/
 static int
 carry_delete(carry_op * op /* operation to be performed */ ,
 	     carry_level * doing UNUSED_ARG	/* current carry
@@ -1263,9 +1205,7 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	tree = znode_get_tree(child);
 	spin_lock_tree(tree);
 	if (znode_parent(child) != parent) {
-		/*
-		 * FIXME-NIKITA add stat counter for this.
-		 */
+		/* FIXME-NIKITA add stat counter for this. */
 		parent = znode_parent(child);
 		assert("nikita-2581", find_carry_node(doing, parent));
 	}
@@ -1273,11 +1213,10 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 
 	assert("nikita-1213", znode_get_level(parent) > LEAF_LEVEL);
 
-	/*
-	 * Twig level horrors: tree should be of height at least 2. So, last
-	 * pointer from the root at twig level is preserved even if child is
-	 * empty. This is ugly, but so it was architectured.
-	 */
+	/* Twig level horrors: tree should be of height at least 2. So, last
+	   pointer from the root at twig level is preserved even if child is
+	   empty. This is ugly, but so it was architectured.
+	*/
 
 	if (znode_is_root(parent) &&
 	    (znode_get_level(parent) <= REISER4_MIN_TREE_HEIGHT) && (node_num_items(parent) == 1)) {
@@ -1324,7 +1263,7 @@ carry_delete(carry_op * op /* operation to be performed */ ,
   
    Cuts part or whole content of node.
   
- */
+*/
 static int
 carry_cut(carry_op * op /* operation to be performed */ ,
 	  carry_level * doing UNUSED_ARG	/* current carry
@@ -1375,15 +1314,11 @@ can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * d
 
 	if (icoord->between == AT_UNIT)
 		return 1;
-	/*
-	 * obviously, one cannot paste when node is empty---there is nothing
-	 * to paste into.
-	 */
+	/* obviously, one cannot paste when node is empty---there is nothing
+	   to paste into. */
 	if (node_is_empty(icoord->node))
 		return 0;
-	/*
-	 * if insertion point is at the middle of the item, then paste
-	 */
+	/* if insertion point is at the middle of the item, then paste */
 	if (!coord_is_between_items(icoord))
 		return 1;
 	coord_dup(&circa, icoord);
@@ -1392,16 +1327,12 @@ can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * d
 	old_iplug = item_plugin_by_coord(&circa);
 	new_iplug = data->iplug;
 
-	/*
-	 * check whether we can paste to the item @icoord is "at" when we
-	 * ignore ->between field
-	 */
+	/* check whether we can paste to the item @icoord is "at" when we
+	   ignore ->between field */
 	if ((old_iplug == new_iplug) && item_can_contain_key(&circa, key, data)) {
 		result = 1;
 	} else if ((icoord->between == BEFORE_UNIT) || (icoord->between == BEFORE_ITEM)) {
-		/*
-		 * otherwise, try to glue to the item at the left, if any
-		 */
+		/* otherwise, try to glue to the item at the left, if any */
 		coord_dup(&circa, icoord);
 		if (coord_set_to_left(&circa)) {
 			result = 0;
@@ -1417,9 +1348,7 @@ can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * d
 		}
 	} else if ((icoord->between == AFTER_UNIT) || (icoord->between == AFTER_ITEM)) {
 		coord_dup(&circa, icoord);
-		/*
-		 * otherwise, try to glue to the item at the right, if any
-		 */
+		/* otherwise, try to glue to the item at the right, if any */
 		if (coord_set_to_right(&circa)) {
 			result = 0;
 			icoord->unit_pos = 0;
@@ -1431,10 +1360,8 @@ can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * d
 
 			cck = old_iplug->b.can_contain_key;
 			if (cck == NULL)
-				/*
-				 * item doesn't define ->can_contain_key
-				 * method? So it is not expandable.
-				 */
+				/* item doesn't define ->can_contain_key
+				   method? So it is not expandable. */
 				result = 0;
 			else {
 				result = (old_iplug == new_iplug) && cck(&circa /*icoord */ , key, data);
@@ -1465,7 +1392,7 @@ can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * d
    insertion coord. If so, we are no longer doing paste, but insert. See
    comments in insert_paste_common().
   
- */
+*/
 static int
 carry_paste(carry_op * op /* operation to be performed */ ,
 	    carry_level * doing UNUSED_ARG	/* current carry
@@ -1497,10 +1424,8 @@ carry_paste(carry_op * op /* operation to be performed */ ,
 
 	coord = op->u.insert.d->coord;
 
-	/*
-	 * handle case when op -> u.insert.coord doesn't point to the item
-	 * of required type. restart as insert.
-	 */
+	/* handle case when op -> u.insert.coord doesn't point to the item
+	   of required type. restart as insert. */
 	if (!can_paste(coord, op->u.insert.d->key, op->u.insert.d->data)) {
 		op->op = COP_INSERT;
 		op->u.insert.type = COPT_PASTE_RESTARTED;
@@ -1565,35 +1490,34 @@ carry_extent(carry_op * op /* operation to perform */ ,
 	trace_stamp(TRACE_CARRY);
 	reiser4_stat_level_add(doing, extent);
 
-	/*
-	 * extent insertion overview:
-	 *
-	 * extents live on the TWIG LEVEL, which is level one above the leaf
-	 * one. This complicates extent insertion logic somewhat: it may
-	 * happen (and going to happen all the time) that in logical key
-	 * ordering extent has to be placed between items I1 and I2, located
-	 * at the leaf level, but I1 and I2 are in the same formatted leaf
-	 * node N1. To insert extent one has to 
-	 *
-	 *  (1) reach node N1 and shift data between N1, its neighbors and
-	 *  possibly newly allocated nodes until I1 and I2 fall into different
-	 *  nodes. Since I1 and I2 are still neighboring items in logical key
-	 *  order, they will be necessary utmost items in their respective
-	 *  nodes.
-	 *
-	 *  (2) After this new extent item is inserted into node on the twig
-	 *  level.
-	 *
-	 * Fortunately this process can reuse almost all code from standard
-	 * insertion procedure (viz. make_space() and insert_paste_common()),
-	 * due to the following observation: make_space() only shifts data up
-	 * to and excluding or including insertion point. It never
-	 * "over-moves" through insertion point. Thus, one can use
-	 * make_space() to perform step (1). All required for this is just to
-	 * instruct free_space_shortage() to keep make_space() shifting data
-	 * until insertion point is at the node border.
-	 *
-	 */
+	/* extent insertion overview:
+	  
+	   extents live on the TWIG LEVEL, which is level one above the leaf
+	   one. This complicates extent insertion logic somewhat: it may
+	   happen (and going to happen all the time) that in logical key
+	   ordering extent has to be placed between items I1 and I2, located
+	   at the leaf level, but I1 and I2 are in the same formatted leaf
+	   node N1. To insert extent one has to 
+	  
+	    (1) reach node N1 and shift data between N1, its neighbors and
+	    possibly newly allocated nodes until I1 and I2 fall into different
+	    nodes. Since I1 and I2 are still neighboring items in logical key
+	    order, they will be necessary utmost items in their respective
+	    nodes.
+	  
+	    (2) After this new extent item is inserted into node on the twig
+	    level.
+	  
+	   Fortunately this process can reuse almost all code from standard
+	   insertion procedure (viz. make_space() and insert_paste_common()),
+	   due to the following observation: make_space() only shifts data up
+	   to and excluding or including insertion point. It never
+	   "over-moves" through insertion point. Thus, one can use
+	   make_space() to perform step (1). All required for this is just to
+	   instruct free_space_shortage() to keep make_space() shifting data
+	   until insertion point is at the node border.
+	  
+	*/
 
 	/* perform common functionality of insert and paste. */
 	result = insert_paste_common(op, doing, todo, &cdata, &coord, &data);
@@ -1604,22 +1528,19 @@ carry_extent(carry_op * op /* operation to perform */ ,
 	assert("nikita-1754", node != NULL);
 	assert("nikita-1755", node_plugin_by_node(node) != NULL);
 	assert("nikita-1700", coord_wrt(op->u.extent.d->coord) != COORD_INSIDE);
-	/*
-	 * FIXME-NIKITA add some checks here. Not assertions, -EIO. Check that
-	 * extent fits between items.
-	 */
+	/* FIXME-NIKITA add some checks here. Not assertions, -EIO. Check that
+	   extent fits between items. */
 
 	info.doing = doing;
 	info.todo = todo;
 
-	/*
-	 * there is another complication due to placement of extents on the
-	 * twig level: extents are "rigid" in the sense that key-range
-	 * occupied by extent cannot grow indefinitely to the right as it is
-	 * for the formatted leaf nodes. Because of this when search finds two
-	 * adjacent extents on the twig level, it has to "drill" to the leaf
-	 * level, creating new node. Here we are removing this node.
-	 */
+	/* there is another complication due to placement of extents on the
+	   twig level: extents are "rigid" in the sense that key-range
+	   occupied by extent cannot grow indefinitely to the right as it is
+	   for the formatted leaf nodes. Because of this when search finds two
+	   adjacent extents on the twig level, it has to "drill" to the leaf
+	   level, creating new node. Here we are removing this node.
+	*/
 	if (node_is_empty(node)) {
 		delete_dummy = node_post_carry(&info, COP_DELETE, node, 1);
 		if (IS_ERR(delete_dummy))
@@ -1629,22 +1550,17 @@ carry_extent(carry_op * op /* operation to perform */ ,
 		ZF_SET(node, JNODE_HEARD_BANSHEE);
 	}
 
-	/*
-	 * proceed with inserting extent item into parent. We are definitely
-	 * inserting rather than pasting if we get that far.
-	 */
+	/* proceed with inserting extent item into parent. We are definitely
+	   inserting rather than pasting if we get that far. */
 	insert_extent = node_post_carry(&info, COP_INSERT, node, 1);
 	if (IS_ERR(insert_extent))
-		/* 
-		 * @delete_dummy will be automatically destroyed on the level
-		 * exiting 
-		 */
+		/* @delete_dummy will be automatically destroyed on the level
+		   exiting  */
 		return PTR_ERR(insert_extent);
-	/*
-	 * FIXME-NIKITA insertion by key is simplest option here. Another
-	 * possibility is to insert on the left or right of already existing
-	 * item.
-	 */
+	/* FIXME-NIKITA insertion by key is simplest option here. Another
+	   possibility is to insert on the left or right of already existing
+	   item.
+	*/
 	insert_extent->u.insert.type = COPT_KEY;
 	insert_extent->u.insert.d = op->u.extent.d;
 	assert("nikita-1719", op->u.extent.d->key != NULL);
@@ -1657,7 +1573,7 @@ carry_extent(carry_op * op /* operation to perform */ ,
   
    Find coords of @left and @right and update delimiting key between them.
    
- */
+*/
 static int
 update_delimiting_key(znode * parent	/* node key is updated
 					 * in */ ,
@@ -1696,10 +1612,8 @@ update_delimiting_key(znode * parent	/* node key is updated
 	} else
 		left_pos.node = NULL;
 
-	/*
-	 * check that they are separated by exactly one key and are basically
-	 * sane
-	 */
+	/* check that they are separated by exactly one key and are basically
+	   sane */
 	if (REISER4_DEBUG) {
 		if ((left_pos.node != NULL)
 		    && !coord_is_existing_unit(&left_pos)) {
@@ -1733,7 +1647,7 @@ update_delimiting_key(znode * parent	/* node key is updated
   
    Update delimiting keys.
   
- */
+*/
 static int
 carry_update(carry_op * op /* operation to be performed */ ,
 	     carry_level * doing /* current carry level */ ,
@@ -1776,11 +1690,10 @@ carry_update(carry_op * op /* operation to be performed */ ,
 		} else
 			old_right = NULL;
 		if (znode_parent(rchild->node) != old_right)
-			/*
-			 * parent node was split, and pointer to @rchild was
-			 * inserted/moved into new node. Wonders of balkancing
-			 * (sic.).
-			 */
+			/* parent node was split, and pointer to @rchild was
+			   inserted/moved into new node. Wonders of balkancing
+			   (sic.).
+			*/
 			reiser4_stat_level_add(doing, half_split_race);
 	}
 	spin_unlock_tree(tree);
@@ -1792,10 +1705,8 @@ carry_update(carry_op * op /* operation to be performed */ ,
 		error_msg = "Cannot find node to update key in";
 		result = -EIO;
 	}
-	/*
-	 * operation will be reposted to the next level by the
-	 * ->update_item_key() method of node plugin, if necessary.
-	 */
+	/* operation will be reposted to the next level by the
+	   ->update_item_key() method of node plugin, if necessary. */
 
 	if (result != 0) {
 		warning("nikita-999", "Error updating delimiting key: %s (%i)", error_msg ? : "", result);
@@ -1811,7 +1722,7 @@ carry_update(carry_op * op /* operation to be performed */ ,
   
    Notify parent about changes in its child
   
- */
+*/
 static int
 carry_modify(carry_op * op /* operation to be performed */ ,
 	     carry_level * doing UNUSED_ARG	/* current carry
@@ -1863,10 +1774,8 @@ carry_shift_data(sideof side /* in what direction to move data */ ,
 	nplug = node_plugin_by_node(node);
 	result = nplug->shift(insert_coord, node,
 			      (side == LEFT_SIDE) ? SHIFT_LEFT : SHIFT_RIGHT, 0, (int) including_insert_coord_p, &info);
-	/*
-	 * the only error ->shift() method of node plugin can return is
-	 * -ENOMEM due to carry node/operation allocation.
-	 */
+	/* the only error ->shift() method of node plugin can return is
+	   -ENOMEM due to carry node/operation allocation. */
 	assert("nikita-915", (result >= 0) || (result == -ENOMEM));
 	if (result > 0) {
 		doing->restartable = 0;
@@ -1885,7 +1794,7 @@ static carry_node *find_dir_carry(carry_node * node, carry_level * level, carry_
    This is used by find_left_neighbor(), but I am not sure that this
    really gives any advantage. More statistics required.
   
- */
+*/
 carry_node *
 find_left_carry(carry_node * node	/* node to fine left neighbor
 					 * of */ ,
@@ -1900,7 +1809,7 @@ find_left_carry(carry_node * node	/* node to fine left neighbor
    This is used by find_right_neighbor(), but I am not sure that this
    really gives any advantage. More statistics required.
   
- */
+*/
 carry_node *
 find_right_carry(carry_node * node	/* node to fine right neighbor
 					   * of */ ,
@@ -1913,7 +1822,7 @@ find_right_carry(carry_node * node	/* node to fine right neighbor
    queue.
   
    Helper function used by find_{left|right}_carry().
- */
+*/
 static carry_node *
 find_dir_carry(carry_node * node	/* node to start scanning
 					 * from */ ,
@@ -1927,10 +1836,8 @@ find_dir_carry(carry_node * node	/* node to start scanning
 	assert("nikita-1059", node != NULL);
 	assert("nikita-1060", level != NULL);
 
-	/*
-	 * scan list of carry nodes on this list dir-ward, skipping all
-	 * carry nodes referencing the same znode.
-	 */
+	/* scan list of carry nodes on this list dir-ward, skipping all
+	   carry nodes referencing the same znode. */
 	neighbor = node;
 	while (1) {
 		neighbor = iterator(neighbor);
@@ -1957,28 +1864,23 @@ common_estimate(carry_op * op, carry_level * doing UNUSED_ARG)
 	case COP_INSERT:
 	case COP_PASTE:
 	case COP_EXTENT:
-		/*
-		 * reserve for insertion of two block at each level, plus new
-		 * tree root.
-		 */
+		/* reserve for insertion of two block at each level, plus new
+		   tree root. */
 		result = (__u64) 2 *(tree->height + 1);
 		break;
 	case COP_DELETE:
 	case COP_CUT:
-		/*
-		 * FIXME-NIKITA when key compression will be implemented,
-		 * COP_UPDATE should be moved to COP_INSERT and friends,
-		 * because them, update can possibly enlarge a key and result
-		 * in insertion.
-		 */
+		/* FIXME-NIKITA when key compression will be implemented,
+		   COP_UPDATE should be moved to COP_INSERT and friends,
+		   because them, update can possibly enlarge a key and result
+		   in insertion.
+		*/
 	case COP_UPDATE:
 		result = (__u64) 0;
 		break;
 	case COP_INSERT_FLOW:
-		/*
-		 * flow insertion may cause adding of up to
-		 * CARRY_FLOW_NEW_NODES_LIMIT + 1 new nodes to leaf level
-		 */
+		/* flow insertion may cause adding of up to
+		   CARRY_FLOW_NEW_NODES_LIMIT + 1 new nodes to leaf level */
 #define MAX_TREE_HEIGHT 10
 		result = (CARRY_FLOW_NEW_NODES_LIMIT + 1) * MAX_TREE_HEIGHT;
 		break;
@@ -1990,8 +1892,7 @@ common_estimate(carry_op * op, carry_level * doing UNUSED_ARG)
 
 /* This is dispatch table for carry operations. It can be trivially
    abstracted into useful plugin: tunable balancing policy is a good
-   thing.
- **/
+   thing. */
 carry_op_handler op_dispatch_table[COP_LAST_OP] = {
 	[COP_INSERT] = {
 			.handler = carry_insert,
@@ -2035,4 +1936,4 @@ carry_op_handler op_dispatch_table[COP_LAST_OP] = {
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

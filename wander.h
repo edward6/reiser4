@@ -30,19 +30,19 @@ struct journal_header {
 struct journal_footer {
 	/* last flushed transaction location. */
 	/* This block number is no more valid after the transaction it points
-	 * to gets flushed, this number is used only at journal replaying time
-	 * for detection of the end of on-disk list of committed transactions
-	 * which were not flushed completely */
+	   to gets flushed, this number is used only at journal replaying time
+	   for detection of the end of on-disk list of committed transactions
+	   which were not flushed completely */
 	d64 last_flushed_tx;
 
 	/* free block counter is written in journal footer at transaction
-	 * flushing , not in super block because free blocks counter is logged
-	 * by another way than super block fields (root pointer, for
-	 * example). */
+	   flushing , not in super block because free blocks counter is logged
+	   by another way than super block fields (root pointer, for
+	   example). */
 	d64 free_blocks;
 
 	/* number of used OIDs and maximal used OID are logged separately from
-	 * super block */
+	   super block */
 	d64 nr_files;
 	d64 next_oid;
 };
@@ -51,7 +51,7 @@ struct journal_footer {
    header followed by an array of log entries */
 struct log_record_header {
 	/* when there is no predefined location for log records, this magic
-	 * string should help reiser4fsck. */
+	   string should help reiser4fsck. */
 	char magic[LOG_RECORD_MAGIC_SIZE];
 
 	/* transaction id */
@@ -71,14 +71,14 @@ struct log_record_header {
    special format */
 struct tx_header {
 	/* magic string makes first block in transaction different from other
-	 * logged blocks, it should help fsck. */
+	   logged blocks, it should help fsck. */
 	char magic[TX_HEADER_MAGIC_SIZE];
 
 	/* transaction id */
 	d64 id;
 
 	/* total number of records (including this first tx head) in the
-	 * transaction */
+	   transaction */
 	d32 total;
 
 	/* align next field to 8-byte boundary; this field always is zero */
@@ -94,7 +94,7 @@ struct tx_header {
 	d64 free_blocks;
 
 	/* number of used OIDs (nr_files) and maximal used OID are logged separately from
-	 * super block */
+	   super block */
 	d64 nr_files;
 	d64 next_oid;
 };

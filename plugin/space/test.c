@@ -58,7 +58,7 @@ test_alloc_blocks(reiser4_space_allocator * allocator, reiser4_blocknr_hint * hi
 
 	if (hint->blk < min_free) {
 		/* hint is set such that we can not return
-		 * desired, return at least desired amount */
+		   desired, return at least desired amount */
 		hint->blk = min_free;
 	}
 #ifndef __KERNEL__
@@ -67,9 +67,7 @@ test_alloc_blocks(reiser4_space_allocator * allocator, reiser4_blocknr_hint * hi
 	p = jiffies % 10;
 #endif
 	if (1 /*p <= P */ ) {
-		/*
-		 * return what we were asked for
-		 */
+		/* return what we were asked for */
 		*start = hint->blk;
 		*num = needed;
 	} else {
@@ -77,10 +75,8 @@ test_alloc_blocks(reiser4_space_allocator * allocator, reiser4_blocknr_hint * hi
 
 		/* return blocks not contiguous with hint->blk */
 		*start = hint->blk + 3;
-		/*
-		 * choose amount of free blocks randomly in the range
-		 * from 1 to needed
-		 */
+		/* choose amount of free blocks randomly in the range
+		   from 1 to needed */
 		rand = jiffies;
 		*num = 1 + (int) ((double) (needed) * rand / (~0ul + 1.0));
 	}

@@ -9,7 +9,7 @@
 
 #include <linux/types.h>
 
-/** old rupasov (yura) hash */
+/* old rupasov (yura) hash */
 static __u64
 rupasov_hash(const unsigned char *name /* name to hash */ ,
 	     int len /* @name's length */ )
@@ -55,7 +55,7 @@ rupasov_hash(const unsigned char *name /* name to hash */ ,
 	return a;
 }
 
-/** r5 hash */
+/* r5 hash */
 static __u64
 r5_hash(const unsigned char *name /* name to hash */ ,
 	int len UNUSED_ARG /* @name's length */ )
@@ -85,7 +85,7 @@ r5_hash(const unsigned char *name /* name to hash */ ,
    Jeremy has agreed to the contents of reiserfs/README. -Hans
   
    This code was blindly upgraded to __u64 by s/__u32/__u64/g.
- */
+*/
 static __u64
 tea_hash(const unsigned char *name /* name to hash */ ,
 	 int len /* @name's length */ )
@@ -209,7 +209,7 @@ tea_hash(const unsigned char *name /* name to hash */ ,
      FNV hash algorithms and source code have been released into the public
      domain.
    
- */
+*/
 static __u64
 fnv1_hash(const unsigned char *name /* name to hash */ ,
 	  int len UNUSED_ARG /* @name's length */ )
@@ -307,4 +307,4 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

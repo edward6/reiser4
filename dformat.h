@@ -8,8 +8,7 @@
    into the file defining that plugin), you put into one file. */
 /* Data on disk are stored in little-endian format.
    To declare fields of on-disk structures, use d8, d16, d32 and d64.
-   d??tocpu() and cputod??() to convert.
- */
+   d??tocpu() and cputod??() to convert. */
 
 #if !defined( __FS_REISER4_DFORMAT_H__ )
 #define __FS_REISER4_DFORMAT_H__
@@ -108,7 +107,7 @@ cputod64(__u64 oncpu /* CPU value to convert */ ,
    to the dblock_nr type in size so that CPU arithmetic operations work. */
 typedef __u64 reiser4_block_nr;
 
-/** data-type for block number on disk, disk format */
+/* data-type for block number on disk, disk format */
 union reiser4_dblock_nr {
 	d64 blk;
 };
@@ -125,7 +124,7 @@ cpu_to_dblock(reiser4_block_nr block, reiser4_dblock_nr * dblock)
 	cputod64(block, &dblock->blk);
 }
 
-/** true if disk addresses are the same */
+/* true if disk addresses are the same */
 static inline int
 disk_addr_eq(const reiser4_block_nr * b1	/* first block
 						 * number to
@@ -160,4 +159,4 @@ typedef struct reiser4_master_sb {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -35,7 +35,7 @@
    flush_time (32)
 */
 
-/** magic number that is stored in ->magic field of node header */
+/* magic number that is stored in ->magic field of node header */
 const __u32 REISER4_NODE_MAGIC = 0x52344653;	/* (*(__u32 *)"R4FS"); */
 
 static int prepare_for_update(znode * left, znode * right, carry_plugin_info * info);
@@ -148,9 +148,7 @@ node40_ih_at(const znode * node, unsigned pos)
 	return (item_header40 *) (zdata(node) + znode_size(node)) - pos - 1;
 }
 
-/* 
-( page_address( node -> pg ) + PAGE_CACHE_SIZE ) - pos - 1
-
+/* ( page_address( node -> pg ) + PAGE_CACHE_SIZE ) - pos - 1
  */
 static inline item_header40 *
 node40_ih_at_coord(const coord_t * coord)
@@ -202,8 +200,7 @@ size_t node40_free_space(znode * node)
 
 /* private inline version of node40_num_of_items() for use in this file. This
    is necessary, because address of node40_num_of_items() is taken and it is
-   never inlined as a result.
- */
+   never inlined as a result. */
 static inline int
 node40_num_of_items_internal(const znode * node)
 {
@@ -288,9 +285,7 @@ node40_plugin_by_coord(const coord_t * coord)
 	assert("vs-259", coord_is_existing_item(coord));
 
 	ih = node40_ih_at_coord(coord);
-	/*
-	 * pass NULL in stead of current tree. This is time critical call.
-	 */
+	/* pass NULL in stead of current tree. This is time critical call. */
 	return item_plugin_by_disk_id(NULL, &ih->plugin_id);
 }
 
@@ -337,34 +332,32 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 	coord->node = node;
 	found = 0;
 
-	/*
-	 * It is known that for small arrays sequential search is on average
-	 * more efficient than binary. This is because sequential search is
-	 * coded as tight loop that can be better optimized by compilers and
-	 * for small array size gain from this optimization makes sequential
-	 * search the winner. Another, maybe more important, reason for this,
-	 * is that sequential array is more CPU cache friendly, whereas binary
-	 * search effectively destroys CPU caching.
-	 *
-	 * Critical here is the notion of "smallness". Reasonable value of
-	 * REISER4_SEQ_SEARCH_BREAK can be found by playing with code in
-	 * fs/reiser4/ulevel/ulevel.c:test_search().
-	 *
-	 * Don't try to further optimize sequential search by scanning from
-	 * right to left in attempt to use more efficient loop termination
-	 * condition (comparison with 0). This doesn't work.
-	 *
-	 */
+	/* It is known that for small arrays sequential search is on average
+	   more efficient than binary. This is because sequential search is
+	   coded as tight loop that can be better optimized by compilers and
+	   for small array size gain from this optimization makes sequential
+	   search the winner. Another, maybe more important, reason for this,
+	   is that sequential array is more CPU cache friendly, whereas binary
+	   search effectively destroys CPU caching.
+	  
+	   Critical here is the notion of "smallness". Reasonable value of
+	   REISER4_SEQ_SEARCH_BREAK can be found by playing with code in
+	   fs/reiser4/ulevel/ulevel.c:test_search().
+	  
+	   Don't try to further optimize sequential search by scanning from
+	   right to left in attempt to use more efficient loop termination
+	   condition (comparison with 0). This doesn't work.
+	  
+	*/
 
 	if (right < REISER4_SEQ_SEARCH_BREAK) {
 #define __get_key( pos ) ( &node40_ih_at( node, ( unsigned ) ( pos ) ) -> key )
 		item_header40 *ih;
-		/*
-		 * sequential scan. Item headers, and, therefore, keys are
-		 * stored at the rightmost part of a node from right to
-		 * left. We are trying to access memory from left to right,
-		 * and hence, scan in _descending_ order of item numbers.
-		 */
+		/* sequential scan. Item headers, and, therefore, keys are
+		   stored at the rightmost part of a node from right to
+		   left. We are trying to access memory from left to right,
+		   and hence, scan in _descending_ order of item numbers.
+		*/
 		for (left = right, ih = node40_ih_at(node, (unsigned) left); left >= 0; ++ih, prefetch(ih), --left) {
 			cmp_t comparison;
 
@@ -427,9 +420,7 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 	coord->unit_pos = 0;
 	coord->between = AT_UNIT;
 
-	/*
-	 * FIXME-VS: handling of empty node case
-	 */
+	/* FIXME-VS: handling of empty node case */
 	if (node_is_empty(node))
 		/* this will set coord in empty node properly */
 		coord_init_first_unit(coord, node);
@@ -469,10 +460,8 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 
 	coord->iplug = iplug;
 
-	/*
-	 * if exact key from item header was found by binary search, no
-	 * further checks are necessary.
-	 */
+	/* if exact key from item header was found by binary search, no
+	   further checks are necessary. */
 	if (found) {
 		assert("nikita-1259", order == EQUAL_TO);
 		return NS_FOUND;
@@ -484,15 +473,14 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 		if (keygt(key, iplug->b.max_key_inside(coord, &max_item_key))) {
 			coord->unit_pos = 0;
 			coord->between = AFTER_ITEM;
-			/*
-			 * FIXME-VS: key we are looking for does not fit into
-			 * found item. Return NS_NOT_FOUND then. Without that
-			 * the following case does not work: there is extent of
-			 * file 10000, 10001. File 10000, 10002 has been just
-			 * created. When writing to position 0 in that file -
-			 * traverse_tree will stop here on twig level. When we
-			 * want it to go down to leaf level
-			 */
+			/* FIXME-VS: key we are looking for does not fit into
+			   found item. Return NS_NOT_FOUND then. Without that
+			   the following case does not work: there is extent of
+			   file 10000, 10001. File 10000, 10002 has been just
+			   created. When writing to position 0 in that file -
+			   traverse_tree will stop here on twig level. When we
+			   want it to go down to leaf level
+			*/
 			return NS_NOT_FOUND;
 			return (bias == FIND_EXACT) ? NS_NOT_FOUND : NS_FOUND;
 		}
@@ -610,9 +598,7 @@ node40_check(const znode * node /* node to check */ ,
 			return -1;
 		if (i) {
 			coord_t prev_coord;
-			/*
-			 * two neighboring items can not be mergeable
-			 */
+			/* two neighboring items can not be mergeable */
 			coord_dup(&prev_coord, &coord);
 			coord_prev_item(&prev_coord);
 			if (are_items_mergeable(&prev_coord, &coord)) {
@@ -887,9 +873,9 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 	} else if (data->data != NULL) {
 		if (data->user) {
 			/* AUDIT: Are we really should not check that pointer
-			 * from userspace was valid and data bytes were
-			 * available? How will we return -EFAULT of some kind
-			 * without this check? */
+			   from userspace was valid and data bytes were
+			   available? How will we return -EFAULT of some kind
+			   without this check? */
 			ON_DEBUG_CONTEXT(assert("green-2", lock_counters()->spin_locked == 0));
 			/* copy data from user space */
 			__copy_from_user(zdata(target->node) + offset, data->data, (unsigned) data->length);
@@ -909,9 +895,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 
 	node_check(target->node, REISER4_NODE_PANIC);
 
-	/*
-	 * FIXME-VS: remove after debugging
-	 */
+	/* FIXME-VS: remove after debugging */
 	if (0) {
 		reiser4_key key_1;
 		reiser4_key key;
@@ -924,9 +908,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 			key_1 = key;
 		}
 	}
-	/*
-	 * FIXME-VS: remove after debugging
-	 */
+	/* FIXME-VS: remove after debugging */
 
 	return 0;
 }
@@ -964,16 +946,14 @@ cut_units(coord_t * coord, unsigned *from, unsigned *to,
 
 	if (cut_f) {
 		/* FIXME-VS:
-		 * kill_item_hook for units being cut will be called by
-		 * kill_units method, because it is not clear here which units
-		 * will be actually cut. To have kill_item_hook here we would
-		 * have to pass keys to kill_item_hook */
+		   kill_item_hook for units being cut will be called by
+		   kill_units method, because it is not clear here which units
+		   will be actually cut. To have kill_item_hook here we would
+		   have to pass keys to kill_item_hook */
 		cut_size = cut_f(coord, from, to, from_key, to_key, smallest_removed);
 	} else {
-		/*
-		 * cut method is not defined, so there should be request to cut
-		 * the single unit of item
-		 */
+		/* cut method is not defined, so there should be request to cut
+		   the single unit of item */
 		assert("vs-302", *from == 0 && *to == 0 && coord->unit_pos == 0 && coord_num_units(coord) == 1);
 		/* that item will be removed entirely */
 		cut_size = item_length_by_coord(coord);
@@ -1024,39 +1004,29 @@ cut_or_kill(coord_t * from, coord_t * to,
 
 	wrong_item = ~0u;
 	if (from->item_pos == to->item_pos) {
-		/*
-		 * cut one item (partially or as whole)
-		 */
+		/* cut one item (partially or as whole) */
 		first_removed = from->item_pos;
 		removed_entirely = 0;
 		from_unit = from->unit_pos;
 		to_unit = to->unit_pos;
 		cut_size = cut_units(from, &from_unit, &to_unit, cut, from_key, to_key, smallest_removed, cut_params);
 		if (cut_size == (unsigned) item_length_by_coord(from))
-			/*
-			 * item will be removed entirely
-			 */
+			/* item will be removed entirely */
 			removed_entirely = 1;
 		else
 			/* this item may have wrong key after cut_units */
 			wrong_item = from->item_pos;
 
 		ih = node40_ih_at(node, (unsigned) from->item_pos);
-		/*
-		 * there are 4 possible cases: cut from the beginning, cut from
-		 * the end, cut from the middle and cut whole item
-		 */
+		/* there are 4 possible cases: cut from the beginning, cut from
+		   the end, cut from the middle and cut whole item */
 		if (removed_entirely) {
-			/*
-			 * whole item is cut
-			 */
+			/* whole item is cut */
 			freed_space_start = ih40_get_offset(ih);
 			freed_space_end = freed_space_start + cut_size;
 			rightmost_not_moved = from->item_pos - 1;
 		} else if (from_unit == 0) {
-			/*
-			 * head is cut, freed space is in the beginning
-			 */
+			/* head is cut, freed space is in the beginning */
 			freed_space_start = ih40_get_offset(ih);
 			freed_space_end = freed_space_start + cut_size;
 			rightmost_not_moved = from->item_pos - 1;
@@ -1064,42 +1034,33 @@ cut_or_kill(coord_t * from, coord_t * to,
 			ih40_set_offset(ih, freed_space_end);
 
 		} else if (to_unit == coord_last_unit_pos(to)) {
-			/*
-			 * tail is cut, freed space is in the end
-			 */
+			/* tail is cut, freed space is in the end */
 			freed_space_start = ih40_get_offset(ih) + item_length_by_coord(from) - cut_size;
 			freed_space_end = freed_space_start + cut_size;
 			rightmost_not_moved = from->item_pos;
 		} else {
-			/*
-			 * cut from the middle
-			 * NOTE: cut method of item must leave freed space at
-			 * the end of item
-			 */
+			/* cut from the middle
+			   NOTE: cut method of item must leave freed space at
+			   the end of item
+			*/
 			freed_space_start = ih40_get_offset(ih) + item_length_by_coord(from) - cut_size;
 			freed_space_end = freed_space_start + cut_size;
 			rightmost_not_moved = from->item_pos;
 		}
 	} else {
-		/*
-		 * @from and @to are different items
-		 */
+		/* @from and @to are different items */
 		first_removed = from->item_pos + 1;
 		removed_entirely = to->item_pos - from->item_pos - 1;
 		rightmost_not_moved = from->item_pos;
 
 		if (!cut) {
-			/*
-			 * for every item being removed entirely between @from
-			 * and @to call special kill method
-			 */
+			/* for every item being removed entirely between @from
+			   and @to call special kill method */
 			coord_t tmp;
 			item_plugin *iplug;
 
-			/*
-			 * FIXME-VS: this iterates items starting not from
-			 * 0-th, so it does not use new coord interface
-			 */
+			/* FIXME-VS: this iterates items starting not from
+			   0-th, so it does not use new coord interface */
 			tmp.node = node;
 			tmp.unit_pos = 0;
 			tmp.between = AT_UNIT;
@@ -1114,16 +1075,12 @@ cut_or_kill(coord_t * from, coord_t * to,
 			}
 		}
 
-		/*
-		 * cut @from item first
-		 */
+		/* cut @from item first */
 		from_unit = from->unit_pos;
 		to_unit = coord_last_unit_pos(from);
 		cut_size = cut_units(from, &from_unit, &to_unit, cut, from_key, to_key, smallest_removed, cut_params);
 		if (cut_size == (unsigned) item_length_by_coord(from)) {
-			/*
-			 * whole @from is cut
-			 */
+			/* whole @from is cut */
 			first_removed--;
 			removed_entirely++;
 			rightmost_not_moved--;
@@ -1131,16 +1088,12 @@ cut_or_kill(coord_t * from, coord_t * to,
 		ih = node40_ih_at(node, (unsigned) from->item_pos);
 		freed_space_start = ih40_get_offset(ih) + node40_length_by_coord(from) - cut_size;
 
-		/*
-		 * cut @to item
-		 */
+		/* cut @to item */
 		from_unit = 0;
 		to_unit = to->unit_pos;
 		cut_size = cut_units(to, &from_unit, &to_unit, cut, from_key, to_key, 0, cut_params);
 		if (cut_size == (unsigned) item_length_by_coord(to))
-			/*
-			 * whole @to is cut
-			 */
+			/* whole @to is cut */
 			removed_entirely++;
 		else
 			/* this item may have wrong key after cut_units */
@@ -1201,9 +1154,7 @@ cut_or_kill(coord_t * from, coord_t * to,
 		}
 	}
 
-	/*
-	 * FIXME-NIKITA overkill
-	 */
+	/* FIXME-NIKITA overkill */
 	from->iplug = to->iplug = NULL;
 
 	/*print_znode_content (node, ~0u); */
@@ -1241,16 +1192,14 @@ struct shift_params {
 	int everything;		/* it is set to 1 if everything we have to shift is
 				   shifted, 0 - otherwise */
 
-	/*
-	 * FIXME-VS: get rid of read_stop
-	 */
+	/* FIXME-VS: get rid of read_stop */
 
 	/* these are set by estimate_shift */
 	coord_t real_stop;	/* this will be set to last unit which will be
 				   really shifted */
 
 	/* coordinate in source node before operation of unit which becomes
-	 * first after shift to left of last after shift to right */
+	   first after shift to left of last after shift to right */
 	union {
 		coord_t future_first;
 		coord_t future_last;
@@ -1472,10 +1421,8 @@ copy_units(coord_t * target, coord_t * source, unsigned from, unsigned count, sh
 	iplug->b.copy_units(target, source, from, count, dir, free_space);
 
 	if (dir == SHIFT_RIGHT) {
-		/*
-		 * FIXME-VS: this looks not necessary. update_item_key was
-		 * called already by copy_units method
-		 */
+		/* FIXME-VS: this looks not necessary. update_item_key was
+		   called already by copy_units method */
 		reiser4_key split_key;
 
 		assert("nikita-1469", target->unit_pos == 0);
@@ -1513,14 +1460,13 @@ node40_copy(struct shift_params *shift)
 
 	coord_init_first_unit(&to, shift->target);
 
-	/*
-	 * FIXME:NIKITA->VS not sure what I am doing: shift->target is empty,
-	 * hence to.between is set to EMPTY_NODE above. Looks like we want it
-	 * to be AT_UNIT.
-	 *
-	 * Oh, wonders of ->betweeness...
-	 *
-	 */
+	/* FIXME:NIKITA->VS not sure what I am doing: shift->target is empty,
+	   hence to.between is set to EMPTY_NODE above. Looks like we want it
+	   to be AT_UNIT.
+	  
+	   Oh, wonders of ->betweeness...
+	  
+	*/
 	to.between = AT_UNIT;
 
 	if (shift->pend == SHIFT_LEFT) {
@@ -1532,7 +1478,7 @@ node40_copy(struct shift_params *shift)
 		coord_set_item_pos(&to, (unsigned) node40_num_of_items_internal(to.node) - 1);
 		if (shift->merging_units) {
 			/* expand last item, so that plugin methods will see
-			 * correct data */
+			   correct data */
 			free_space_start += shift->merging_bytes;
 			nh40_set_free_space_start(nh, (unsigned) free_space_start);
 			nh40_set_free_space(nh, nh40_get_free_space(nh) - shift->merging_bytes);
@@ -1694,7 +1640,7 @@ node40_delete_copied(struct shift_params *shift)
 		to = shift->real_stop;
 
 		/* store old coordinate of unit which will be first after
-		 * shift to left */
+		   shift to left */
 		shift->u.future_first = to;
 		coord_next_unit(&shift->u.future_first);
 	} else {
@@ -1705,7 +1651,7 @@ node40_delete_copied(struct shift_params *shift)
 		coord_init_last_unit(&to, from.node);
 
 		/* store old coordinate of unit which will be last after
-		 * shift to right */
+		   shift to right */
 		shift->u.future_last = from;
 		coord_prev_unit(&shift->u.future_last);
 	}
@@ -1771,9 +1717,7 @@ prepare_for_update(znode * left, znode * right, carry_plugin_info * info)
 	carry_node *cn;
 
 	if (info == NULL)
-		/*
-		 * nowhere to send operation to.
-		 */
+		/* nowhere to send operation to. */
 		return 0;
 
 	if (!should_notify_parent(right))
@@ -1824,9 +1768,7 @@ node40_prepare_for_removal(znode * empty, carry_plugin_info * info)
 static void
 adjust_coord(coord_t * insert_coord, struct shift_params *shift, int removed, int including_insert_coord)
 {
-	/*
-	 * item plugin was invalidated by shifting
-	 */
+	/* item plugin was invalidated by shifting */
 	insert_coord->iplug = NULL;
 
 	if (node_is_empty(shift->wish_stop.node)) {
@@ -1842,8 +1784,8 @@ adjust_coord(coord_t * insert_coord, struct shift_params *shift, int removed, in
 			}
 		} else {
 			/* set @insert_coord inside of empty node. There is
-			 * only one possible coord within an empty
-			 * node. init_first_unit will set that coord */
+			   only one possible coord within an empty
+			   node. init_first_unit will set that coord */
 			coord_init_first_unit(insert_coord, shift->wish_stop.node);
 		}
 		return;
@@ -1882,10 +1824,8 @@ adjust_coord(coord_t * insert_coord, struct shift_params *shift, int removed, in
 		return;
 	}
 
-	/*
-	 * FIXME-VS: the code below is complicated because with between ==
-	 * AFTER_ITEM unit_pos is set to 0
-	 */
+	/* FIXME-VS: the code below is complicated because with between ==
+	   AFTER_ITEM unit_pos is set to 0 */
 
 	if (!removed) {
 		/* no items were shifted entirely */
@@ -2044,7 +1984,7 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 	if (old->node == shift->target) {
 		if (shift->pend == SHIFT_LEFT) {
 			/* coord which is set inside of left neighbor does not
-			 * change during shift to left */
+			   change during shift to left */
 			coord_dup(new, old);
 			return new;
 		}
@@ -2059,10 +1999,8 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 	assert("vs-977", old->node == shift->wish_stop.node);
 	if (shift->pend == SHIFT_LEFT) {
 		if (unit_moved_left(shift, old)) {
-			/*
-			 * unit @old moved to left neighbor. Calculate its
-			 * coordinate there
-			 */
+			/* unit @old moved to left neighbor. Calculate its
+			   coordinate there */
 			new->node = shift->target;
 			new->item_pos = node_num_items(shift->target) -
 			    shift->entire - (shift->part_units ? 1 : 0) + old->item_pos;
@@ -2070,19 +2008,16 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 			if (shift->merging_units) {
 				new->item_pos--;
 				if (old->item_pos == 0) {
-					/*
-					 * unit_pos only changes if item got
-					 * merged
-					 */
+					/* unit_pos only changes if item got
+					   merged */
 					new->unit_pos = coord_num_units(new) - (shift->merging_units - old->unit_pos);
 				}
 			}
 		} else {
-			/*
-			 * unit @old did not move to left neighbor.
-			 *
-			 * Use _nocheck, because @old is outside of its node.
-			 */
+			/* unit @old did not move to left neighbor.
+			  
+			   Use _nocheck, because @old is outside of its node.
+			*/
 			coord_dup_nocheck(new, old);
 			new->item_pos -= shift->u.future_first.item_pos;
 			if (new->item_pos == 0)
@@ -2090,22 +2025,16 @@ adjust_coord2(const struct shift_params *shift, const coord_t * old, coord_t * n
 		}
 	} else {
 		if (unit_moved_right(shift, old)) {
-			/*
-			 * unit @old moved to right neighbor
-			 */
+			/* unit @old moved to right neighbor */
 			new->node = shift->target;
 			new->item_pos = old->item_pos - shift->real_stop.item_pos;
 			if (new->item_pos == 0) {
-				/*
-				 * unit @old might change unit pos
-				 */
+				/* unit @old might change unit pos */
 				new->item_pos = old->unit_pos - shift->real_stop.unit_pos;
 			}
 		} else {
-			/*
-			 * unit @old did not move to right neighbor, therefore
-			 * it did not change
-			 */
+			/* unit @old did not move to right neighbor, therefore
+			   it did not change */
 			coord_dup(new, old);
 		}
 	}
@@ -2170,9 +2099,7 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 		right = to;
 	}
 	if (result) {
-		/*
-		 * move insertion coord even if there is nothing to move
-		 */
+		/* move insertion coord even if there is nothing to move */
 		if (including_stop_coord) {
 			/* move insertion coord (@from) */
 			if (pend == SHIFT_LEFT) {
@@ -2286,4 +2213,4 @@ node40_max_item_size(void)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

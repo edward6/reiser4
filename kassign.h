@@ -39,7 +39,7 @@
   
    This optimization requires changes in directory item handling code.
   
- */
+*/
 typedef struct obj_key_id {
 	d8 locality[sizeof (__u64)];
 	d8 objectid[sizeof (__u64)];
@@ -49,7 +49,7 @@ typedef struct obj_key_id {
    compressed directory item.
   
    For alignment issues see &obj_key_id above.
- */
+*/
 typedef struct de_id {
 	d8 objectid[sizeof (__u64)];
 	d8 offset[sizeof (__u64)];
@@ -85,4 +85,4 @@ extern int is_root_dir_key(const struct super_block *super, const reiser4_key * 
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

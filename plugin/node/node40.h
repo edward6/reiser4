@@ -13,42 +13,39 @@
     randomly at mkreiserfs time. So we can just skip all nodes with different 
     mk_id. write_counter is d64 incrementing counter of writes on disk. It is 
     used for choosing the newest data at fsck time.
- */
+*/
 
 typedef struct flush_stamp {
 	d32 mkfs_id;
 	d64 flush_id;
 } flush_stamp_t;
 
-/** format of node header for 40 node layouts. Keep bloat out of this struct.  */
+/* format of node header for 40 node layouts. Keep bloat out of this struct.  */
 typedef struct node40_header {
-	/** 
-	 * identifier of node plugin. Must be located at the very beginning
-	 * of a node.
-	 */
+	/* identifier of node plugin. Must be located at the very beginning
+	   of a node. */
 	common_node_header common_header;	/* this is 16 bits */
-	/** 
-	 * number of items. Should be first element in the node header,
-	 * because we haven't yet finally decided whether it shouldn't go into
-	 * common_header.
-	 */
+	/* number of items. Should be first element in the node header,
+	   because we haven't yet finally decided whether it shouldn't go into
+	   common_header.
+	*/
 	d16 nr_items;
-	/** free space in node measured in bytes */
+	/* free space in node measured in bytes */
 	/* it might make some of the code simpler to store this just
 	   before the last item header, but then free_space finding
 	   code would be more complex.... A thought.... */
 	d16 free_space;
 	 /**/
-	/** offset to start of free space in node */
+	/* offset to start of free space in node */
 	 d16 free_space_start;
-	/** magic field we need to tell formatted nodes */
+	/* magic field we need to tell formatted nodes */
 	d32 magic;
-	/** 1 is leaf level, 2 is twig level, root is the numerically largest
-	 * level */
+	/* 1 is leaf level, 2 is twig level, root is the numerically largest
+	   level */
 	d8 level;
-	/** node flags to be used by fsck (reiser4ck or reiser4fsck?)
+	/* node flags to be used by fsck (reiser4ck or reiser4fsck?)
 	    and repacker */
-	/** for reiser4_fsck.  When information about what is a free
+	/* for reiser4_fsck.  When information about what is a free
 	    block is corrupted, and we try to recover everything even
 	    if marked as freed, then old versions of data may
 	    duplicate newer versions, and this field allows us to
@@ -56,16 +53,14 @@ typedef struct node40_header {
 	    who don't have the new trashcan installed on their linux distro
 	    delete the wrong files and send us desperate emails
 	    offering $25 for them back.  */
-	/*
-	 * FIXME-VS: there is 24 bytes hole added by compiler
-	 */
+	/* FIXME-VS: there is 24 bytes hole added by compiler */
 	flush_stamp_t flush;
 } node40_header;
 
 /* item headers are not standard across all node layouts, pass
    pos_in_node to functions instead */
 typedef struct item_header40 {
-	/** key of item */
+	/* key of item */
 /* this will get compressed to a few bytes on average in 4.1, so don't get too excited about how it doesn't hurt much to
    add more bytes to item headers.  Probably you'll want your code to work for the 4.1 format also.... -Hans */
 	/*  0 */ reiser4_key key;
@@ -104,11 +99,10 @@ int node40_cut(coord_t * from,
 	       const reiser4_key * from_key,
 	       const reiser4_key * to_key, reiser4_key * smallest_removed, carry_plugin_info * info, __u32 flags);
 int node40_shift(coord_t * from, znode * to, shift_direction pend,
-		 /* 
-		  * if @from->node becomes
-		  * empty - it will be deleted from
-		  * the tree if this is set to 1 
-		  */
+		 /* if @from->node becomes
+		    empty - it will be deleted from
+		    the tree if this is set to 1 
+		 */
 		 int delete_child, int including_stop_coord, carry_plugin_info * info);
 
 int node40_fast_insert(const coord_t * coord);
@@ -129,4 +123,4 @@ void update_znode_dkeys(znode * left, znode * right);
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

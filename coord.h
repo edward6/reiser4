@@ -40,18 +40,16 @@ struct coord {
 	/*  4 */ pos_in_node item_pos;
 	/* position of unit within item */
 	/*  8 */ pos_in_item unit_pos;
-	/** 
-	 * position of coord w.r.t. to neighboring items and/or units. 
-	 * Values are taken from &between_enum above.
-	 */
+	/* position of coord w.r.t. to neighboring items and/or units. 
+	   Values are taken from &between_enum above.
+	*/
 	/* 12 */ between_enum between;
-	/*
-	 * optimization: plugin of item is stored in coord_t. Until this was
-	 * implemented, item_plugin_by_coord() was major CPU consumer. ->iplug
-	 * is invalidated (set to NULL) on each modification of ->item_pos,
-	 * and all such modifications are funneled through coord_*_item_pos()
-	 * functions below.
-	 */
+	/* optimization: plugin of item is stored in coord_t. Until this was
+	   implemented, item_plugin_by_coord() was major CPU consumer. ->iplug
+	   is invalidated (set to NULL) on each modification of ->item_pos,
+	   and all such modifications are funneled through coord_*_item_pos()
+	   functions below.
+	*/
 	/* 16 */ item_plugin *iplug;
 	/* 20 */
 };
@@ -105,7 +103,7 @@ sideof_reverse(sideof side)
    "leftmost" and "rightmost"
   
    But I think the chosen names are decent the way they are.
- */
+*/
 
 /* COORD INITIALIZERS */
 
@@ -324,4 +322,4 @@ extern int item_utmost_child(const coord_t * coord, sideof side, jnode ** child)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

@@ -25,8 +25,7 @@ static int add_child_ptr(znode * parent, znode * child);
 	if( ( error ) != -EAGAIN )		\
 		warning( __VA_ARGS__ )
 
-/* allocate new node on the @level and immediately on the right of @brother.
-   */
+/* allocate new node on the @level and immediately on the right of @brother. */
 /* Audited by: umka (2002.06.15) */
 znode *
 new_node(znode * brother /* existing left neighbor of new node */ ,
@@ -55,15 +54,14 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 			return ERR_PTR(-EIO);
 		}
 
-		/*
-		 * @result is created and inserted into hash-table. There is
-		 * no need to lock it: nobody can access it yet anyway.
-		 *
-		 * FIXME_JMACD zget() should add additional checks to panic if attempt to
-		 * access orphaned znode is made. -- is this comment still
-		 * accurate? nikita: yes, it is, I think.  want to add those
-		 * checks? -josh
-		 */
+		/* @result is created and inserted into hash-table. There is
+		   no need to lock it: nobody can access it yet anyway.
+		  
+		   FIXME_JMACD zget() should add additional checks to panic if attempt to
+		   access orphaned znode is made. -- is this comment still
+		   accurate? nikita: yes, it is, I think.  want to add those
+		   checks? -josh
+		*/
 		assert("nikita-931", result != NULL);
 
 		result->nplug = znode_get_tree(brother)->nplug;
@@ -78,12 +76,11 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 			result = ERR_PTR(retcode);
 		}
 	} else {
-		/*
-		 * failure to allocate new node during balancing.
-		 * This should never happen. Ever. Returning -EAGAIN
-		 * is not viable solution, because "out of disk space"
-		 * is not transient error that will go away by itself.
-		 */
+		/* failure to allocate new node during balancing.
+		   This should never happen. Ever. Returning -EAGAIN
+		   is not viable solution, because "out of disk space"
+		   is not transient error that will go away by itself.
+		*/
 		ewarning(retcode, "nikita-928", "Cannot allocate block for carry: %i", retcode);
 		zput(result);
 		result = ERR_PTR(retcode);
@@ -96,7 +93,7 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
   
    This helper function is called by add_new_root().
   
- */
+*/
 /* Audited by: umka (2002.06.15) */
 znode *
 add_tree_root(znode * old_root /* existing tree root */ ,
@@ -110,45 +107,40 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 	assert("umka-262", fake != NULL);
 	assert("umka-263", tree != NULL);
 
-	/*
-	 * "fake" znode---one always hanging just above current root. This
-	 * node is locked when new root is created or existing root is
-	 * deleted. Downward tree traversal takes lock on it before taking
-	 * lock on a root node. This avoids race conditions with root
-	 * manipulations.
-	 *
-	 */
+	/* "fake" znode---one always hanging just above current root. This
+	   node is locked when new root is created or existing root is
+	   deleted. Downward tree traversal takes lock on it before taking
+	   lock on a root node. This avoids race conditions with root
+	   manipulations.
+	  
+	*/
 	assert("nikita-1348", znode_above_root(fake));
 	assert("nikita-1211", znode_is_root(old_root));
 
 	result = 0;
 	if (tree->height >= REAL_MAX_ZTREE_HEIGHT) {
 		warning("nikita-1344", "Tree is too tall: %i", tree->height);
-		/*
-		 * ext2 returns -ENOSPC when it runs out of free inodes with a
-		 * following comment (fs/ext2/ialloc.c:441): Is it really
-		 * ENOSPC?
-		 *
-		 * -EXFULL? -EINVAL?
-		 */
+		/* ext2 returns -ENOSPC when it runs out of free inodes with a
+		   following comment (fs/ext2/ialloc.c:441): Is it really
+		   ENOSPC?
+		  
+		   -EXFULL? -EINVAL?
+		*/
 		result = -ENOSPC;
 	} else {
-		/*
-		 * Allocate block for new root. It's not that
-		 * important where it will be allocated, as root is
-		 * almost always in memory. Moreover, allocate on
-		 * flush can be going here.
-		 */
+		/* Allocate block for new root. It's not that
+		   important where it will be allocated, as root is
+		   almost always in memory. Moreover, allocate on
+		   flush can be going here.
+		*/
 		assert("nikita-1448", znode_is_root(old_root));
 		new_root = new_node(fake, tree->height + 1);
 		if (!IS_ERR(new_root)) {
 			lock_handle rlh;
 
 			init_lh(&rlh);
-			/*
-			 * FIXME-NIKITA pass lock handle from add_new_root()
-			 * in stead
-			 */
+			/* FIXME-NIKITA pass lock handle from add_new_root()
+			   in stead */
 			result = longterm_lock_znode(&rlh, new_root, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
 			if (result == 0) {
 				coord_t *in_parent;
@@ -163,10 +155,8 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				in_parent->between = AT_UNIT;
 				spin_unlock_tree(tree);
 
-				/*
-				 * insert into new root pointer to the
-				 * @old_root.
-				 */
+				/* insert into new root pointer to the
+				   @old_root. */
 				assert("nikita-1110", WITH_DATA(new_root, node_is_empty(new_root)));
 				spin_lock_dk(tree);
 				*znode_get_ld_key(new_root) = *min_key();
@@ -188,7 +178,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
    Build &reiser4_item_data that can be later used to insert pointer to @child
    in its parent.
   
- */
+*/
 /* Audited by: umka (2002.06.15) */
 void
 build_child_ptr_data(znode * child	/* node pointer to which will be
@@ -213,7 +203,7 @@ build_child_ptr_data(znode * child	/* node pointer to which will be
   
    This is used when pointer to old root is inserted into new root which is
    empty.
- */
+*/
 /* Audited by: umka (2002.06.15) */
 static int
 add_child_ptr(znode * parent, znode * child)
@@ -281,10 +271,8 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 
 			znode_set_dirty(fake);
 
-			/*
-			 * don't take long term lock a @new_root. Take
-			 * spinlock.
-			 */
+			/* don't take long term lock a @new_root. Take
+			   spinlock. */
 
 			spin_lock_tree(tree);
 
@@ -326,7 +314,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
    kill_tree_root() collects all necessary arguments and calls kill_root()
    to do the actual job.
   
- */
+*/
 /* Audited by: umka (2002.06.15) */
 int
 kill_tree_root(znode * old_root /* tree root that we are removing */ )
@@ -364,4 +352,4 @@ kill_tree_root(znode * old_root /* tree root that we are removing */ )
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

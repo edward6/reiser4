@@ -20,7 +20,7 @@
    from @start_idx-th highest (arithmetically) byte. This produces
    endian-safe encoding. memcpy(2) will not do.
    
- */
+*/
 static __u64
 pack_string(const char *name /* string to encode */ ,
 	    int start_idx	/* highest byte in result from
@@ -40,8 +40,7 @@ pack_string(const char *name /* string to encode */ ,
 
 /* build key to be used by ->readdir() method.
   
-   See reiser4_readdir() for more detailed comment.
- */
+   See reiser4_readdir() for more detailed comment. */
 int
 build_readdir_key(struct file *dir /* directory being read */ ,
 		  reiser4_key * result /* where to store key */ )
@@ -63,8 +62,7 @@ build_readdir_key(struct file *dir /* directory being read */ ,
 
 }
 
-/* build key for directory entry.
-   */
+/* build key for directory entry. */
 int
 build_entry_key(const struct inode *dir	/* directory where entry is
 					 * (or will be) in.*/ ,
@@ -82,46 +80,39 @@ build_entry_key(const struct inode *dir	/* directory where entry is
 	assert("nikita-1142", result != NULL);
 
 	key_init(result);
-	/*
-	 * locality of directory entry's key is objectid of parent
-	 * directory
-	 */
+	/* locality of directory entry's key is objectid of parent
+	   directory */
 	set_key_locality(result, get_inode_oid(dir));
-	/*
-	 * minor packing locality is constant
-	 */
+	/* minor packing locality is constant */
 	set_key_type(result, KEY_FILE_NAME_MINOR);
-	/*
-	 * dot is special case---we always want it to be first entry in
-	 * a directory. Actually, we just want to have smallest
-	 * directory entry.
-	 */
+	/* dot is special case---we always want it to be first entry in
+	   a directory. Actually, we just want to have smallest
+	   directory entry.
+	*/
 	if ((name->len == 1) && (name->name[0] == '.'))
 		return 0;
 
-	/*
-	 * This is our brand new proposed key allocation algorithm for
-	 * directory entries:
-	 *
-	 * If name is shorter than 7 + 8 = 15 characters, put first 7
-	 * characters into objectid field and remaining characters (if
-	 * any) into offset field. Dream long dreamt came true: file
-	 * name as a key!
-	 *
-	 * If file name is longer than 15 characters, put first 7
-	 * characters into objectid and hash of remaining characters
-	 * into offset field.
-	 *
-	 * To distinguish above cases, in latter set up unused high bit
-	 * in objectid field.
-	 *
-	 */
+	/* This is our brand new proposed key allocation algorithm for
+	   directory entries:
+	  
+	   If name is shorter than 7 + 8 = 15 characters, put first 7
+	   characters into objectid field and remaining characters (if
+	   any) into offset field. Dream long dreamt came true: file
+	   name as a key!
+	  
+	   If file name is longer than 15 characters, put first 7
+	   characters into objectid and hash of remaining characters
+	   into offset field.
+	  
+	   To distinguish above cases, in latter set up unused high bit
+	   in objectid field.
+	  
+	*/
 
-	/*
-	 * objectid of key is composed of seven first characters of
-	 * file's name. This imposes global ordering on directory
-	 * entries.
-	 */
+	/* objectid of key is composed of seven first characters of
+	   file's name. This imposes global ordering on directory
+	   entries.
+	*/
 	objectid = pack_string(name->name, 1);
 	if (name->len <= OID_CHARS + sizeof (__u64)) {
 		if (name->len > OID_CHARS)
@@ -129,19 +120,13 @@ build_entry_key(const struct inode *dir	/* directory where entry is
 		else
 			offset = 0ull;
 	} else {
-		/*
-		 * note in a key fact that offset contains hash.
-		 */
+		/* note in a key fact that offset contains hash. */
 		objectid |= 0x0100000000000000ull;
-		/*
-		 * offset is the hash of the file name.
-		 */
+		/* offset is the hash of the file name. */
 		offset = inode_hash_plugin(dir)->hash(name->name + OID_CHARS, (int) (name->len - OID_CHARS));
 	}
 
-	/*
-	 * objectid is 60 bits
-	 */
+	/* objectid is 60 bits */
 	assert("nikita-1405", !(objectid & ~KEY_OBJECTID_MASK));
 	set_key_objectid(result, objectid);
 	set_key_offset(result, offset);
@@ -152,7 +137,7 @@ build_entry_key(const struct inode *dir	/* directory where entry is
   
    This is for directories where we want repeatable and restartable readdir()
    even in case 32bit user level struct dirent (readdir(3)).
- */
+*/
 int
 build_readdir_stable_entry_key(const struct inode *dir	/* directory where
 							 * entry is (or
@@ -171,34 +156,25 @@ build_readdir_stable_entry_key(const struct inode *dir	/* directory where
 	assert("nikita-2286", result != NULL);
 
 	key_init(result);
-	/*
-	 * locality of directory entry's key is objectid of parent
-	 * directory
-	 */
+	/* locality of directory entry's key is objectid of parent
+	   directory */
 	set_key_locality(result, get_inode_oid(dir));
-	/*
-	 * minor packing locality is constant
-	 */
+	/* minor packing locality is constant */
 	set_key_type(result, KEY_FILE_NAME_MINOR);
-	/*
-	 * dot is special case---we always want it to be first entry in
-	 * a directory. Actually, we just want to have smallest
-	 * directory entry.
-	 */
+	/* dot is special case---we always want it to be first entry in
+	   a directory. Actually, we just want to have smallest
+	   directory entry.
+	*/
 	if ((name->len == 1) && (name->name[0] == '.'))
 		return 0;
 
-	/*
-	 * objectid of key is 31 lowest bits of hash.
-	 */
+	/* objectid of key is 31 lowest bits of hash. */
 	objectid = inode_hash_plugin(dir)->hash(name->name, (int) name->len) & 0x7fffffff;
 
 	assert("nikita-2303", !(objectid & ~KEY_OBJECTID_MASK));
 	set_key_objectid(result, objectid);
 
-	/*
-	 * offset is always 0.
-	 */
+	/* offset is always 0. */
 	set_key_offset(result, (__u64) 0);
 	return 0;
 }
@@ -217,7 +193,7 @@ is_dot_key(const reiser4_key * key /* key to check */ )
    return key of stat-data of this object. This should became sd plugin
    method in the future. For now, let it be here.
   
- */
+*/
 reiser4_key *
 build_sd_key(const struct inode * target /* inode of an object */ ,
 	     reiser4_key * result	/* resulting key of @target
@@ -239,7 +215,7 @@ build_sd_key(const struct inode * target /* inode of an object */ ,
    given that latter is key of object (key of stat-data).
   
    See &obj_key_id
- */
+*/
 int
 build_obj_key_id(const reiser4_key * key /* key to encode */ ,
 		 obj_key_id * id /* id where key is encoded in */ )
@@ -253,8 +229,7 @@ build_obj_key_id(const reiser4_key * key /* key to encode */ ,
 
 /* encode reference to @obj in @id.
   
-   This is like build_obj_key_id() above, but takes inode as parameter.
- */
+   This is like build_obj_key_id() above, but takes inode as parameter. */
 int
 build_inode_key_id(const struct inode *obj /* object to build key of */ ,
 		   obj_key_id * id /* result */ )
@@ -273,7 +248,7 @@ build_inode_key_id(const struct inode *obj /* object to build key of */ ,
   
    Restore key of object stat-data from @id. This is dual to
    build_obj_key_id() above.
- */
+*/
 int
 extract_key_from_id(const obj_key_id * id	/* object key id to extract key
 						 * from */ ,
@@ -289,8 +264,7 @@ extract_key_from_id(const obj_key_id * id	/* object key id to extract key
 
 /* extract objectid of directory from key of directory entry within said
    directory.
-  
- */
+   */
 oid_t extract_dir_id_from_key(const reiser4_key * de_key	/* key of
 								 * directory
 								 * entry */ )
@@ -306,7 +280,7 @@ oid_t extract_dir_id_from_key(const reiser4_key * de_key	/* key of
    directory entries within directory item share locality which is equal
    to objectid of their directory.
   
- */
+*/
 int
 build_de_id(const struct inode *dir /* inode of directory */ ,
 	    const struct inode *obj UNUSED_ARG	/* inode of object
@@ -325,9 +299,7 @@ build_de_id(const struct inode *dir /* inode of directory */ ,
 	assert("nikita-1291", obj != NULL);
 	assert("nikita-1292", id != NULL);
 
-	/*
-	 * FIXME-NIKITA this is suboptimal.
-	 */
+	/* FIXME-NIKITA this is suboptimal. */
 	inode_dir_plugin(dir)->entry_key(dir, name, &key);
 	return build_de_id_by_key(&key, id);
 }
@@ -339,7 +311,7 @@ build_de_id(const struct inode *dir /* inode of directory */ ,
    directory entries within directory item share locality which is equal
    to objectid of their directory.
   
- */
+*/
 int
 build_de_id_by_key(const reiser4_key * entry_key	/* full key of directory
 							 * entry */ ,
@@ -354,23 +326,21 @@ build_de_id_by_key(const reiser4_key * entry_key	/* full key of directory
    Function dual to build_de_id(): given @id and locality, build full
    key of directory entry within directory item.
   
- */
+*/
 int
 extract_key_from_de_id(const oid_t locality	/* locality of directory
 						 * entry */ ,
 		       const de_id * id /* directory entry id */ ,
 		       reiser4_key * key /* result */ )
 {
-	/*
-	 * no need to initialise key here: all fields are overwritten
-	 */
+	/* no need to initialise key here: all fields are overwritten */
 	xmemcpy(((__u64 *) key) + 1, id, sizeof *id);
 	set_key_locality(key, locality);
 	set_key_type(key, KEY_FILE_NAME_MINOR);
 	return 0;
 }
 
-/** compare two &obj_key_id */
+/* compare two &obj_key_id */
 cmp_t key_id_cmp(const obj_key_id * i1 /* first object key id to compare */ ,
 		 const obj_key_id * i2 /* second object key id to compare */ )
 {
@@ -382,7 +352,7 @@ cmp_t key_id_cmp(const obj_key_id * i1 /* first object key id to compare */ ,
 	return keycmp(&k1, &k2);
 }
 
-/** compare &obj_key_id with full key */
+/* compare &obj_key_id with full key */
 cmp_t key_id_key_cmp(const obj_key_id * id /* object key id to compare */ ,
 		     const reiser4_key * key /* key to compare */ )
 {
@@ -392,7 +362,7 @@ cmp_t key_id_key_cmp(const obj_key_id * id /* object key id to compare */ ,
 	return keycmp(&k1, key);
 }
 
-/** compare two &de_id's */
+/* compare two &de_id's */
 cmp_t de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
 		const de_id * id2 /* second &de_id to compare */ )
 {
@@ -405,7 +375,7 @@ cmp_t de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
 	return keycmp(&k1, &k2);
 }
 
-/** compare &de_id with key */
+/* compare &de_id with key */
 cmp_t de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
 		    const reiser4_key * key /* key to compare */ )
 {
@@ -415,16 +385,14 @@ cmp_t de_id_key_cmp(const de_id * id /* directory entry id to compare */ ,
 	return keycmp(&k1, key);
 }
 
-/** true if key of root directory sd */
+/* true if key of root directory sd */
 int
 is_root_dir_key(const struct super_block *super /* super block to check */ ,
 		const reiser4_key * key /* key to check */ )
 {
 	assert("nikita-1819", super != NULL);
 	assert("nikita-1820", key != NULL);
-	/*
-	 * call disk plugin's root_dir_key method if it exists
-	 */
+	/* call disk plugin's root_dir_key method if it exists */
 	if (get_super_private(super)->df_plug && get_super_private(super)->df_plug->root_dir_key)
 		return keyeq(key, get_super_private(super)->df_plug->root_dir_key(super));
 	return 0;
@@ -438,4 +406,4 @@ is_root_dir_key(const struct super_block *super /* super block to check */ ,
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -37,4 +37,4 @@ extern int common_file_owns_item(const struct inode *inode, const coord_t * coor
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

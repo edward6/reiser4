@@ -93,11 +93,10 @@ de_extract_file_type(const coord_t * coord UNUSED_ARG	/* coord of
 							   * item */ )
 {
 	assert("nikita-1764", coord != NULL);
-	/*
-	 * we don't store file type in the directory entry yet.
-	 *
-	 * But see comments at kassign.h:obj_key_id
-	 */
+	/* we don't store file type in the directory entry yet.
+	  
+	   But see comments at kassign.h:obj_key_id
+	*/
 	return DT_UNKNOWN;
 }
 
@@ -118,9 +117,7 @@ de_add_entry(struct inode *dir /* directory of item */ ,
 	data.user = 0;
 	data.iplug = item_plugin_by_id(SIMPLE_DIR_ENTRY_ID);
 
-	/*
-	 * FIXME-NIKITA quota plugin
-	 */
+	/* FIXME-NIKITA quota plugin */
 	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, data.length))
 		return -EDQUOT;
 
@@ -155,18 +152,15 @@ de_rem_entry(struct inode *dir /* directory of item */ ,
 		return -EIO;
 	}
 
-	/*
-	 * cut_node() is supposed to take pointers to _different_
-	 * coords, because it will modify them without respect to
-	 * possible aliasing. To work around this, create temporary copy
-	 * of @coord.
-	 */
+	/* cut_node() is supposed to take pointers to _different_
+	   coords, because it will modify them without respect to
+	   possible aliasing. To work around this, create temporary copy
+	   of @coord.
+	*/
 	coord_dup(&shadow, coord);
 	result = cut_node(coord, &shadow, NULL, NULL, NULL, DELETE_KILL, 0);
 	if (result == 0) {
-		/*
-		 * FIXME-NIKITA quota plugin
-		 */
+		/* FIXME-NIKITA quota plugin */
 		DQUOT_FREE_SPACE_NODIRTY(dir, length);
 	}
 	return result;
@@ -186,4 +180,4 @@ de_max_name_len(const struct inode *dir)
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

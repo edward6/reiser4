@@ -66,4 +66,4 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

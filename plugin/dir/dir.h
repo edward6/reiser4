@@ -13,27 +13,21 @@
 
 extern void directory_readahead(struct inode *dir, coord_t * coord);
 
-/** logical position within directory */
+/* logical position within directory */
 typedef struct {
-	/** 
-	 * key of directory entry (actually, part of a key sufficient to
-	 * identify directory entry) 
-	 */
+	/* key of directory entry (actually, part of a key sufficient to
+	   identify directory entry)  */
 	de_id dir_entry_key;
-	/**
-	 * ordinal number of directory entry among all entries with the same
-	 * key. (Starting from 0.)
-	 */
+	/* ordinal number of directory entry among all entries with the same
+	   key. (Starting from 0.) */
 	unsigned pos;
 } dir_pos;
 
 typedef struct {
-	/** logical position within directory */
+	/* logical position within directory */
 	dir_pos position;
-	/** 
-	 * logical number of directory entry within
-	 * directory 
-	 */
+	/* logical number of directory entry within
+	   directory  */
 	__u64 entry_no;
 } readdir_pos;
 
@@ -51,15 +45,11 @@ extern int dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos);
    be bound by the new directory entry. Probably some more fields will
    be added there.
   
- */
+*/
 struct reiser4_dir_entry_desc {
-	/*
-	 * key of directory entry
-	 */
+	/* key of directory entry */
 	reiser4_key key;
-	/*
-	 * object bound by this entry.
-	 */
+	/* object bound by this entry. */
 	struct inode *obj;
 };
 
@@ -76,4 +66,4 @@ int is_dir_empty(const struct inode *dir);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

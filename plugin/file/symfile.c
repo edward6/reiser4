@@ -1,5 +1,4 @@
-/* 
-Symfiles are a generalization of Unix symlinks.
+/* Symfiles are a generalization of Unix symlinks.
 
 A symfile when read behaves as though you took its contents and
 substituted them into the reiser4 naming system as the right hand side
@@ -84,4 +83,4 @@ name an added line, or one must use an invert, or one must use a more
 sophisticated symfile syntax that we are not planning to write for
 version 4.0.
 
- */
+*/

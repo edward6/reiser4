@@ -74,7 +74,7 @@
   
   
   
- */
+*/
 
 #include "debug.h"
 #include "kcond.h"
@@ -99,16 +99,15 @@ static int lnode_valid_type(lnode_type type);
 
 /* Common operations for various types of lnodes.
   
-   FIXME-NIKITA consider making this plugin.
- */
+   FIXME-NIKITA consider making this plugin. */
 static struct {
-	/** get a key of the corresponding file system object */
+	/* get a key of the corresponding file system object */
 	reiser4_key *(*key) (const lnode * node, reiser4_key * result);
-	/** get a plugin suitable for the corresponding file system object */
+	/* get a plugin suitable for the corresponding file system object */
 	int (*get_plugins) (const lnode * node, reiser4_plugin_ref * area);
-	/** set a plugin suitable for the corresponding file system object */
+	/* set a plugin suitable for the corresponding file system object */
 	int (*set_plugins) (lnode * node, const reiser4_plugin_ref * area);
-	/** true if @node1 and @node2 refer to the same object */
+	/* true if @node1 and @node2 refer to the same object */
 	int (*eq) (const lnode * node1, const lnode * node2);
 } lnode_ops[LNODE_NR_TYPES] = {
 	[LNODE_INODE] = {
@@ -118,7 +117,7 @@ static struct {
 
 /* hash table support */
 
-/** compare two block numbers for equality. Used by hash-table macros */
+/* compare two block numbers for equality. Used by hash-table macros */
 /* Audited by: green(2002.06.15) */
 static inline int
 oid_eq(const oid_t * o1 /* first oid to compare */ ,
@@ -127,7 +126,7 @@ oid_eq(const oid_t * o1 /* first oid to compare */ ,
 	return *o1 == *o2;
 }
 
-/** Hash znode by block number. Used by hash-table macros */
+/* Hash znode by block number. Used by hash-table macros */
 /* Audited by: green(2002.06.15) */
 static inline __u32
 oid_hash(const oid_t * o /* oid to hash */ )
@@ -135,7 +134,7 @@ oid_hash(const oid_t * o /* oid to hash */ )
 	return *o & (LNODE_HTABLE_BUCKETS - 1);
 }
 
-/** The hash table definition */
+/* The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
 TS_HASH_DEFINE(ln, lnode, oid_t, h.oid, h.link, oid_hash, oid_eq);
@@ -151,7 +150,7 @@ TS_HASH_DEFINE(ln, lnode, oid_t, h.oid, h.link, oid_hash, oid_eq);
    is LNODE_INODE) will wait if object is currently manipulated through
    reiser4() call (that is, there are lnodes with type LNODE_LW).
   
- */
+*/
 /* Audited by: green(2002.06.15) */
 int
 lnode_compatible_type(lnode_type required /* required lnode type */ ,
@@ -160,7 +159,7 @@ lnode_compatible_type(lnode_type required /* required lnode type */ ,
 	return !((set == LNODE_LW) && (required != LNODE_INODE));
 }
 
-/** initialise lnode module for @super. */
+/* initialise lnode module for @super. */
 /* Audited by: green(2002.06.15) */
 int
 lnodes_init(struct super_block *super	/* super block to initialise lnodes
@@ -172,7 +171,7 @@ lnodes_init(struct super_block *super	/* super block to initialise lnodes
 	return 0;
 }
 
-/** free lnode resources associated with @super. */
+/* free lnode resources associated with @super. */
 /* Audited by: green(2002.06.15) */
 int
 lnodes_done(struct super_block *super	/* super block to destroy lnodes
@@ -194,7 +193,7 @@ lnodes_done(struct super_block *super	/* super block to destroy lnodes
   
   
   
- */
+*/
 /* Audited by: green(2002.06.15) */
 lnode *
 lget(lnode * node /* lnode to add to the hash table */ ,
@@ -215,32 +214,27 @@ lget(lnode * node /* lnode to add to the hash table */ ,
 		if (!lnode_compatible_type(type, result->h.type)) {
 			int ret;
 
-			/* 
-			 * if lnode is of incompatible type, wait until all
-			 * incompatible users go away. For example, if we are
-			 * requesting lnode for VFS access (and our @type is
-			 * LNODE_INODE), wait until all reiser4() system call
-			 * manipulations with this object finish.
-			 */
+			/* if lnode is of incompatible type, wait until all
+			   incompatible users go away. For example, if we are
+			   requesting lnode for VFS access (and our @type is
+			   LNODE_INODE), wait until all reiser4() system call
+			   manipulations with this object finish.
+			*/
 			ret = kcond_wait(&result->h.cvar, guard, 1);
 			if (ret != 0) {
 				result = ERR_PTR(ret);
 				break;
 			}
 		} else {
-			/*
-			 * compatible lnode found in the hash table. Just
-			 * return it.
-			 */
+			/* compatible lnode found in the hash table. Just
+			   return it. */
 			++result->h.ref;
 			break;
 		}
 	}
 	if (result == NULL) {
-		/*
-		 * lnode wasn't found in the hash table, initialise @node and
-		 * add it into hash table.
-		 */
+		/* lnode wasn't found in the hash table, initialise @node and
+		   add it into hash table. */
 		xmemset(node, 0, sizeof *node);
 		node->h.type = type;
 		node->h.oid = oid;
@@ -253,7 +247,7 @@ lget(lnode * node /* lnode to add to the hash table */ ,
 	return result;
 }
 
-/** release reference to file system object */
+/* release reference to file system object */
 /* Audited by: green(2002.06.15) */
 void
 lput(lnode * node /* lnode to release */ )
@@ -274,7 +268,7 @@ lput(lnode * node /* lnode to release */ )
 	spin_unlock(&sinfo->lnode_htable_guard);
 }
 
-/** true if @node1 and @node2 refer to the same object */
+/* true if @node1 and @node2 refer to the same object */
 /* Audited by: green(2002.06.15) */
 int
 lnode_eq(const lnode * node1 /* first node to compare */ ,
@@ -291,7 +285,7 @@ lnode_eq(const lnode * node1 /* first node to compare */ ,
 		return lnode_ops[node1->h.type].eq(node1, node2);
 }
 
-/** return key of object behind @node */
+/* return key of object behind @node */
 /* Audited by: green(2002.06.15) */
 reiser4_key *
 lnode_key(const lnode * node /* lnode to query */ ,
@@ -302,7 +296,7 @@ lnode_key(const lnode * node /* lnode to query */ ,
 	return lnode_ops[node->h.type].key(node, result);
 }
 
-/** return plugins of object behind @node */
+/* return plugins of object behind @node */
 /* Audited by: green(2002.06.15) */
 int
 get_lnode_plugins(const lnode * node /* lnode to query */ ,
@@ -313,7 +307,7 @@ get_lnode_plugins(const lnode * node /* lnode to query */ ,
 	return lnode_ops[node->h.type].get_plugins(node, area);
 }
 
-/** set plugins of object behind @node */
+/* set plugins of object behind @node */
 /* Audited by: green(2002.06.15) */
 int
 set_lnode_plugins(lnode * node /* lnode to modify */ ,
@@ -325,7 +319,7 @@ set_lnode_plugins(lnode * node /* lnode to modify */ ,
 }
 
 #if REISER4_DEBUG
-/** true if @type is valid lnode type */
+/* true if @type is valid lnode type */
 /* Audited by: green(2002.06.15) */
 static int
 lnode_valid_type(lnode_type type /* would-be lnode type */ )
@@ -334,7 +328,7 @@ lnode_valid_type(lnode_type type /* would-be lnode type */ )
 }
 #endif
 
-/** return key of object behind inode-based @node */
+/* return key of object behind inode-based @node */
 /* Audited by: green(2002.06.15) */
 static reiser4_key *
 lnode_inode_key(const lnode * node /* lnode to query */ ,
@@ -343,7 +337,7 @@ lnode_inode_key(const lnode * node /* lnode to query */ ,
 	return build_sd_key(node->inode.inode, result);
 }
 
-/** return key of object behind lighweight @node */
+/* return key of object behind lighweight @node */
 /* Audited by: green(2002.06.15) */
 static reiser4_key *
 lnode_lw_key(const lnode * node /* lnode to query */ ,
@@ -353,7 +347,7 @@ lnode_lw_key(const lnode * node /* lnode to query */ ,
 	return result;
 }
 
-/** compare two inodes */
+/* compare two inodes */
 /* Audited by: green(2002.06.15) */
 static int
 lnode_inode_eq(const lnode * node1 /* first node to compare */ ,
@@ -369,7 +363,7 @@ lnode_inode_eq(const lnode * node1 /* first node to compare */ ,
 
 }
 
-/** compare two lw objects */
+/* compare two lw objects */
 /* Audited by: green(2002.06.15) */
 static int
 lnode_lw_eq(const lnode * node1 UNUSED_ARG	/* first node to
@@ -394,4 +388,4 @@ lnode_lw_eq(const lnode * node1 UNUSED_ARG	/* first node to
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

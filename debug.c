@@ -30,11 +30,11 @@ reiser4_panic(const char *format /* format string */ , ... /* rest */ )
 	va_list args;
 
 	/* FIXME-NIKITA bust_spinlocks() should go here. Quoting
-	 * lib/bust_spinlocks.c:
-	 *
-	 * bust_spinlocks() clears any spinlocks which would prevent oops,
-	 * die(), BUG() and panic() information from reaching the user.
-	 */
+	   lib/bust_spinlocks.c:
+	  
+	   bust_spinlocks() clears any spinlocks which would prevent oops,
+	   die(), BUG() and panic() information from reaching the user.
+	*/
 	spin_lock(&panic_guard);
 	va_start(args, format);
 	vsprintf(panic_buf, format, args);
@@ -73,7 +73,7 @@ preempt_point(void)
    thread is accumulated. This can be used to formulate lock ordering
    constraints and various assertions.
   
- */
+*/
 lock_counters_info *
 lock_counters()
 {
@@ -100,8 +100,7 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 #endif
 
 #if REISER4_DEBUG
-/* check_stack() - check for possible stack overflow
-   */
+/* check_stack() - check for possible stack overflow */
 void
 check_stack(void)
 {
@@ -273,9 +272,7 @@ reiser4_print_stats()
 	     s->flush.flush_carry, 
 	     s->flush.squeezed_completely, 
 	     s->flush.flushed_with_unallocated,
-	     /*
-	      * FIXME-VS: urgently added leaf squeeze stats
-	      */
+	     /* FIXME-VS: urgently added leaf squeeze stats */
 	     s->flush.squeezed_leaves, 
 	     s->flush.squeezed_leaf_items, 
 	     s->flush.squeezed_leaf_bytes);
@@ -393,8 +390,7 @@ reiser4_print_stats()
 
 /* tracing setup: global trace flags stored in global variable plus
    per-thread trace flags plus per-fs trace flags.
-  
- */
+   */
 __u32 get_current_trace_flags(void)
 {
 	__u32 flags;
@@ -411,8 +407,7 @@ __u32 get_current_trace_flags(void)
 
 /* allocate memory. This calls kmalloc(), performs some additional checks, and
    keeps track of how many memory was allocated on behalf of current super
-   block.
- */
+   block. */
 void *
 reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
 		int gfp_flag /* allocation flag */ )
@@ -482,4 +477,4 @@ no_counters_are_held()
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

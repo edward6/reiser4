@@ -137,7 +137,7 @@ static int invoke_create_method(struct inode *parent, struct dentry *dentry, rei
    This is a wrapper for lookup_object which is a wrapper for the directory plugin that does the lookup.
   
    This is installed in ->lookup() in reiser4_inode_operations.
- */
+*/
 /* Audited by: umka (2002.06.12) */
 static struct dentry *
 reiser4_lookup(struct inode *parent,	/* directory within which we are to look for the name
@@ -156,7 +156,7 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 	assert("nikita-404", dentry != NULL);
 
 	/* find @parent directory plugin and make sure that it has lookup
-	 * method */
+	   method */
 	dplug = inode_dir_plugin(parent);
 	if (dplug == NULL || !dplug->resolve_into_inode /*lookup */ ) {
 		REISER4_EXIT_PTR(ERR_PTR(-ENOTDIR));
@@ -184,7 +184,7 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 	REISER4_EXIT_PTR(result);
 }
 
-/** ->create() VFS method in reiser4 inode_operations */
+/* ->create() VFS method in reiser4 inode_operations */
 /* Audited by: umka (2002.06.12) */
 static int
 reiser4_create(struct inode *parent	/* inode of parent
@@ -200,7 +200,7 @@ reiser4_create(struct inode *parent	/* inode of parent
 	return invoke_create_method(parent, dentry, &data);
 }
 
-/** ->mkdir() VFS method in reiser4 inode_operations */
+/* ->mkdir() VFS method in reiser4 inode_operations */
 /* Audited by: umka (2002.06.12) */
 static int
 reiser4_mkdir(struct inode *parent	/* inode of parent
@@ -216,7 +216,7 @@ reiser4_mkdir(struct inode *parent	/* inode of parent
 	return invoke_create_method(parent, dentry, &data);
 }
 
-/** ->symlink() VFS method in reiser4 inode_operations */
+/* ->symlink() VFS method in reiser4 inode_operations */
 /* Audited by: umka (2002.06.12) */
 static int
 reiser4_symlink(struct inode *parent	/* inode of parent
@@ -234,7 +234,7 @@ reiser4_symlink(struct inode *parent	/* inode of parent
 	return invoke_create_method(parent, dentry, &data);
 }
 
-/** ->mknod() VFS method in reiser4 inode_operations */
+/* ->mknod() VFS method in reiser4 inode_operations */
 /* Audited by: umka (2002.06.12) */
 static int
 reiser4_mknod(struct inode *parent /* inode of parent directory */ ,
@@ -251,7 +251,7 @@ reiser4_mknod(struct inode *parent /* inode of parent directory */ ,
 	return invoke_create_method(parent, dentry, &data);
 }
 
-/** ->rename() inode operation */
+/* ->rename() inode operation */
 static int
 reiser4_rename(struct inode *old_dir, struct dentry *old, struct inode *new_dir, struct dentry *new)
 {
@@ -298,8 +298,7 @@ reiser4_follow_link(struct dentry *dentry, struct nameidata *data)
 
 /* ->setattr() inode operation
   
-   Called from notify_change.
- */
+   Called from notify_change. */
 static int
 reiser4_setattr(struct dentry *dentry, struct iattr *attr)
 {
@@ -341,7 +340,7 @@ reiser4_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct k
 	REISER4_EXIT(result);
 }
 
-/** ->read() VFS method in reiser4 file_operations */
+/* ->read() VFS method in reiser4 file_operations */
 static ssize_t
 reiser4_read(struct file *file /* file to read from */ ,
 	     char *buf		/* user-space buffer to put data read
@@ -378,7 +377,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 	REISER4_EXIT(result);
 }
 
-/** ->write() VFS method in reiser4 file_operations */
+/* ->write() VFS method in reiser4 file_operations */
 static ssize_t
 reiser4_write(struct file *file /* file to write on */ ,
 	      const char *buf	/* user-space buffer to get data
@@ -416,7 +415,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 	REISER4_EXIT(result);
 }
 
-/** ->truncate() VFS method in reiser4 inode_operations */
+/* ->truncate() VFS method in reiser4 inode_operations */
 static void
 reiser4_truncate(struct inode *inode /* inode to truncate */ )
 {
@@ -427,10 +426,8 @@ reiser4_truncate(struct inode *inode /* inode to truncate */ )
 	trace_on(TRACE_VFS_OPS, "TRUNCATE: i_ino %li to size %lli\n", inode->i_ino, inode->i_size);
 
 	truncate_object(inode, inode->i_size);
-	/* 
-	 * for mysterious reasons ->truncate() VFS call doesn't return
-	 * value 
-	 */
+	/* for mysterious reasons ->truncate() VFS call doesn't return
+	   value  */
 
 	__REISER4_EXIT(&__context);
 }
@@ -483,7 +480,7 @@ oids_free(struct super_block *s	/* super block of file system in
 		return (long) -1;
 }
 
-/** ->statfs() VFS method in reiser4 super_operations */
+/* ->statfs() VFS method in reiser4 super_operations */
 /* Audited by: umka (2002.06.12) */
 static int
 reiser4_statfs(struct super_block *super	/* super block of file
@@ -502,7 +499,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	buf->f_bsize = super->s_blocksize;
 
 	/* UMKA: At Green's propose we do not show the real block count on
-	 * the device. */
+	   the device. */
 	buf->f_blocks = reiser4_block_count(super) - reiser4_fs_reserved_space(super);
 
 	/* UMKA: We should do not show the reserved space */
@@ -522,7 +519,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 
 /* address space operations */
 
-/** ->writepage() VFS method in reiser4 address_space_operations */
+/* ->writepage() VFS method in reiser4 address_space_operations */
 static int
 reiser4_writepage(struct page *page)
 {
@@ -548,15 +545,15 @@ reiser4_writepage(struct page *page)
 	wbc.nr_to_write = 1;
 
 	/* The mpage_writepages() calls reiser4_writepage with a locked, but
-	 * clean page.  An extra reference should protect this page from
-	 * removing from memory */
+	   clean page.  An extra reference should protect this page from
+	   removing from memory */
 	page_cache_get(page);
 	result = page_common_writeback(page, &wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
 	page_cache_release(page);
 	REISER4_EXIT(result);
 }
 
-/** ->readpage() VFS method in reiser4 address_space_operations */
+/* ->readpage() VFS method in reiser4 address_space_operations */
 static int
 reiser4_readpage(struct file *f /* file to read from */ ,
 		 struct page *page	/* page where to read data
@@ -575,9 +572,7 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	assert("vs-318", page->mapping && page->mapping->host);
 	assert("nikita-1352", (f == NULL) || (f->f_dentry->d_inode == page->mapping->host));
 
-	/*
-	 * ->readpage can be called from page fault service routine
-	 */
+	/* ->readpage can be called from page fault service routine */
 	ON_DEBUG_CONTEXT(assert("nikita-2661", !lock_counters()->spin_locked));
 
 	inode = page->mapping->host;
@@ -641,7 +636,7 @@ reiser4_bmap(struct address_space *mapping, sector_t block)
    @start_page - number of page to start readahead from
    @intrafile_readahead_amount - number of pages to issue i/o for
    return value: number of pages for which i/o is started
- */
+*/
 int
 reiser4_do_page_cache_readahead(struct file *file, unsigned long start_page, unsigned long intrafile_readahead_amount)
 {
@@ -669,7 +664,7 @@ reiser4_do_page_cache_readahead(struct file *file, unsigned long start_page, uns
 		intrafile_readahead_amount = last_page - start_page;
 
 	/* make sure that we can calculate a key by inode and offset we want to
-	 * read from */
+	   read from */
 	fplug = inode_file_plugin(inode);
 	assert("vs-755", fplug && fplug->key_by_inode);
 
@@ -678,9 +673,7 @@ reiser4_do_page_cache_readahead(struct file *file, unsigned long start_page, uns
 		/* calc key of next page to readahead */
 		fplug->key_by_inode(inode, (loff_t) cur_page << PAGE_CACHE_SHIFT, &key);
 
-		/*
-		 * FIXME-ME: seal might be used to find_next_item
-		 */
+		/* FIXME-ME: seal might be used to find_next_item */
 		result = find_next_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND) {
 			break;
@@ -698,7 +691,7 @@ reiser4_do_page_cache_readahead(struct file *file, unsigned long start_page, uns
 			break;
 		}
 		/* item's readahead returns number of pages for which readahead
-		 * is started */
+		   is started */
 		result = iplug->s.file.page_cache_readahead(file, &coord, &lh, cur_page, intrafile_readahead_amount);
 		zrelse(coord.node);
 		if (result <= 0) {
@@ -718,7 +711,7 @@ reiser4_do_page_cache_readahead(struct file *file, unsigned long start_page, uns
   
    This is installed as ->link inode operation for reiser4
    inodes. Delegates all work to object plugin
- */
+*/
 /* Audited by: umka (2002.06.12) */
 static int
 reiser4_link(struct dentry *existing	/* dentry of existing
@@ -789,7 +782,7 @@ typedef struct readdir_actor_args {
    always known, to start readdir() from given point objectid and offset
    fields have to be filled.
   
- */
+*/
 static int
 reiser4_readdir(struct file *f /* directory file being read */ ,
 		void *dirent /* opaque data passed to us by VFS */ ,
@@ -813,7 +806,7 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 
 }
 
-/** ->mmap() VFS method in reiser4 file_operations */
+/* ->mmap() VFS method in reiser4 file_operations */
 static int
 reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 {
@@ -852,11 +845,10 @@ unlink_file(struct inode *parent /* parent directory */ ,
 		result = dplug->unlink(parent, victim);
 	else
 		result = -EPERM;
-	/* 
-	 * @victim can be already removed from the disk by this time. Inode is
-	 * then marked so that iput() wouldn't try to remove stat data. But
-	 * inode itself is still there.
-	 */
+	/* @victim can be already removed from the disk by this time. Inode is
+	   then marked so that iput() wouldn't try to remove stat data. But
+	   inode itself is still there.
+	*/
 	REISER4_EXIT(result);
 }
 
@@ -864,7 +856,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
   
    remove link from @parent directory to @victim object: delegate work
    to object plugin
- */
+*/
 /* Audited by: umka (2002.06.12) */
 static int
 reiser4_unlink(struct inode *parent /* parent directory */ ,
@@ -884,7 +876,7 @@ reiser4_unlink(struct inode *parent /* parent directory */ ,
   
    The same as unlink, but only for directories.
   
- */
+*/
 /* Audited by: umka (2002.06.12) */
 static int
 reiser4_rmdir(struct inode *parent /* parent directory */ ,
@@ -897,25 +889,24 @@ reiser4_rmdir(struct inode *parent /* parent directory */ ,
 
 	if (inode_dir_plugin(victim->d_inode) != NULL)
 		/* there is no difference between unlink and rmdir for
-		 * reiser4 */
+		   reiser4 */
 		return unlink_file(parent, victim);
 	else
 		return -ENOTDIR;
 }
 
-/** ->permission() method in reiser4_inode_operations. */
+/* ->permission() method in reiser4_inode_operations. */
 static int
 reiser4_permission(struct inode *inode /* object */ ,
 		   int mask	/* mode bits to check permissions
 				 * for */ )
 {
 	int result;
-	/*
-	 * reiser4_context creation/destruction removed from here,
-	 * because permission checks currently don't require this.
-	 *
-	 * Permission plugin have to create context itself if necessary.
-	 */
+	/* reiser4_context creation/destruction removed from here,
+	   because permission checks currently don't require this.
+	  
+	   Permission plugin have to create context itself if necessary.
+	*/
 	/* REISER4_ENTRY( inode -> i_sb ); */
 	assert("nikita-1687", inode != NULL);
 
@@ -944,7 +935,7 @@ reiser4_write_sd(struct inode *object)
    updated stat-data.
   
    Used by link/create and during creation of dot and dotdot in mkdir
- */
+*/
 int
 reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 		  struct inode *parent /* parent where new entry will be */ ,
@@ -977,7 +968,7 @@ reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
    updated stat-data.
   
    Used by unlink/create
- */
+*/
 int
 reiser4_del_nlink(struct inode *object	/* object from which link is
 					 * removed */ ,
@@ -1002,7 +993,7 @@ reiser4_del_nlink(struct inode *object	/* object from which link is
 	return result;
 }
 
-/** call ->create() directory plugin method. */
+/* call ->create() directory plugin method. */
 static int
 invoke_create_method(struct inode *parent /* parent directory */ ,
 		     struct dentry *dentry	/* dentry of new
@@ -1047,7 +1038,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 	REISER4_EXIT(result);
 }
 
-/** helper function: call object plugin to truncate file to @size */
+/* helper function: call object plugin to truncate file to @size */
 int
 truncate_object(struct inode *inode /* object to truncate */ ,
 		loff_t size /* size to truncate object to */ )
@@ -1109,7 +1100,7 @@ reiser4_free_dentry_fsdata(struct dentry *dentry /* dentry released */ )
 		reiser4_kfree(dentry->d_fsdata, sizeof (reiser4_dentry_fsdata));
 }
 
-/** Release reiser4 dentry. This is d_op->d_delease() method. */
+/* Release reiser4 dentry. This is d_op->d_delease() method. */
 /* Audited by: umka (2002.06.12) */
 static void
 reiser4_d_release(struct dentry *dentry /* dentry released */ )
@@ -1148,9 +1139,7 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		}
 		spin_unlock(&info->guard);
 		if (fsdata != NULL)
-			/*
-			 * other thread initialised ->fsdata
-			 */
+			/* other thread initialised ->fsdata */
 			reiser4_kfree(fsdata, sizeof *fsdata);
 	}
 	assert("nikita-2665", f->private_data != NULL);
@@ -1206,7 +1195,7 @@ noop_read_inode(struct inode *inode UNUSED_ARG)
 
 /* initialisation and shutdown */
 
-/** slab cache for inodes */
+/* slab cache for inodes */
 static kmem_cache_t *inode_cache;
 
 /* initalisation function passed to the kmem_cache_create() to init new pages
@@ -1221,13 +1210,9 @@ init_once(void *obj /* pointer to new inode */ ,
 	info = obj;
 
 	if ((flags & (SLAB_CTOR_VERIFY | SLAB_CTOR_CONSTRUCTOR)) == SLAB_CTOR_CONSTRUCTOR) {
-		/*
-		 * FIXME-NIKITA add here initialisations for locks, list
-		 * heads, etc. that will be added to our private inode part.
-		 */
-		/*
-		 * FIXME-NIKITA where inode is zeroed?
-		 */
+		/* FIXME-NIKITA add here initialisations for locks, list
+		   heads, etc. that will be added to our private inode part. */
+		/* FIXME-NIKITA where inode is zeroed? */
 		inode_init_once(&info->vfs_inode);
 		spin_lock_init(&info->p.guard);
 		init_rwsem(&info->p.sem);
@@ -1235,7 +1220,7 @@ init_once(void *obj /* pointer to new inode */ ,
 	}
 }
 
-/** initialise slab cache where reiser4 inodes will live */
+/* initialise slab cache where reiser4 inodes will live */
 int
 init_inodecache(void)
 {
@@ -1244,7 +1229,7 @@ init_inodecache(void)
 	return (inode_cache != NULL) ? 0 : -ENOMEM;
 }
 
-/** initialise slab cache where reiser4 inodes lived */
+/* initialise slab cache where reiser4 inodes lived */
 /* Audited by: umka (2002.06.12) */
 static void
 destroy_inodecache(void)
@@ -1253,7 +1238,7 @@ destroy_inodecache(void)
 		warning("nikita-1695", "not all inodes were freed");
 }
 
-/** ->alloc_inode() super operation: allocate new inode */
+/* ->alloc_inode() super operation: allocate new inode */
 static struct inode *
 reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 								 * inode is
@@ -1292,7 +1277,7 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		return NULL;
 }
 
-/** ->destroy_inode() super operation: recycle inode */
+/* ->destroy_inode() super operation: recycle inode */
 static void
 reiser4_destroy_inode(struct inode *inode	/* inode being
 						 * destroyed */ )
@@ -1308,23 +1293,22 @@ reiser4_destroy_inode(struct inode *inode	/* inode being
 	kmem_cache_free(inode_cache, reiser4_inode_data(inode));
 }
 
-/** ->dirty_inode() super operation */
+/* ->dirty_inode() super operation */
 static void
 reiser4_dirty_inode(struct inode *inode)
 {
 	int result;
 	__REISER4_ENTRY(inode->i_sb,);
 
-	/*
-	 * FIXME-NIKITA: VFS expects ->dirty_inode() to be relatively
-	 * cheap. For example, each quota call invokes it. Our dirty inode
-	 * updates stat-data in the tree. Per-inode seals probably alleviate
-	 * this significantly, but still.
-	 *
-	 * One possible solution is to attach inodes to the transaction atoms
-	 * and only update them just before transaction commit. This, as a
-	 * byproduct will amortize multiple inode updates per transaction.
-	 */
+	/* FIXME-NIKITA: VFS expects ->dirty_inode() to be relatively
+	   cheap. For example, each quota call invokes it. Our dirty inode
+	   updates stat-data in the tree. Per-inode seals probably alleviate
+	   this significantly, but still.
+	  
+	   One possible solution is to attach inodes to the transaction atoms
+	   and only update them just before transaction commit. This, as a
+	   byproduct will amortize multiple inode updates per transaction.
+	*/
 
 	assert("nikita-2523", inode != NULL);
 	if (reiser4_grab_space_exact(1, 1))
@@ -1348,22 +1332,19 @@ reiser4_drop_inode(struct inode *object)
 
 	assert("nikita-2643", object != NULL);
 
-	/*
-	 * -not- creating context in this method, because it is frequently
-	 * called and all existing ->not_linked() methods are one liners.
-	 */
+	/* -not- creating context in this method, because it is frequently
+	   called and all existing ->not_linked() methods are one liners. */
 
 	fplug = inode_file_plugin(object);
 	if ((fplug != NULL) && fplug->not_linked(object)) {
-		/*
-		 * create context here.
-		 *
-		 * removal of inode from the hash table (done at the very
-		 * beginning of generic_delete_inode(), truncate of pages, and
-		 * removal of file's extents has to be performed in the same
-		 * atom. Otherwise, it may so happen, that twig node with
-		 * allocated extent will be flushed to the disk.
-		 */
+		/* create context here.
+		  
+		   removal of inode from the hash table (done at the very
+		   beginning of generic_delete_inode(), truncate of pages, and
+		   removal of file's extents has to be performed in the same
+		   atom. Otherwise, it may so happen, that twig node with
+		   allocated extent will be flushed to the disk.
+		*/
 		__REISER4_ENTRY(object->i_sb,);
 
 		object->i_nlink = 0;
@@ -1373,7 +1354,7 @@ reiser4_drop_inode(struct inode *object)
 		generic_forget_inode(object);
 }
 
-/** ->delete_inode() super operation */
+/* ->delete_inode() super operation */
 static void
 reiser4_delete_inode(struct inode *object)
 {
@@ -1421,17 +1402,17 @@ const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
 const int REISER4_MAGIC_OFFSET = 16 * 4096;	/* offset to magic string from the
 						 * beginning of device */
 
-/** type of option parseable by parse_option() */
+/* type of option parseable by parse_option() */
 typedef enum {
-	/** value of option is arbitrary string */
+	/* value of option is arbitrary string */
 	OPT_STRING,
-	/** option specifies bit in a bitmask */
+	/* option specifies bit in a bitmask */
 	OPT_BIT,
-	/** value of option should conform to sprintf() format */
+	/* value of option should conform to sprintf() format */
 	OPT_FORMAT,
-	/** option can take one of predefined values */
+	/* option can take one of predefined values */
 	OPT_ONEOF,
-	/** option specifies reiser4 plugin */
+	/* option specifies reiser4 plugin */
 	OPT_PLUGIN
 } opt_type_t;
 
@@ -1440,28 +1421,25 @@ typedef struct opt_bitmask_bit {
 	int bit_nr;
 } opt_bitmask_bit;
 
-/** description of option parseable by parse_option() */
+/* description of option parseable by parse_option() */
 typedef struct opt_desc {
-	/** 
-	 * option name.
-	 * 
-	 * parsed portion of string has a form "name=value".
-	 */
+	/* option name.
+	   
+	   parsed portion of string has a form "name=value".
+	*/
 	const char *name;
-	/** type of option */
+	/* type of option */
 	opt_type_t type;
 	union {
-		/** where to store value of string option (type == OPT_STRING) */
+		/* where to store value of string option (type == OPT_STRING) */
 		char **string;
-		/** description of bits for bit option (type == OPT_BIT) */
+		/* description of bits for bit option (type == OPT_BIT) */
 		struct {
 			int nr;
 			void *addr;
 		} bit;
-		/** 
-		 * description of format and targets for format option (type
-		 * == OPT_FORMAT)
-		 */
+		/* description of format and targets for format option (type
+		   == OPT_FORMAT) */
 		struct {
 			const char *format;
 			int nr_args;
@@ -1473,7 +1451,7 @@ typedef struct opt_desc {
 		struct {
 			/* NOT YET */
 		} oneof;
-		/** description of plugin option */
+		/* description of plugin option */
 		struct {
 			reiser4_plugin **addr;
 			const char *type_label;
@@ -1491,20 +1469,17 @@ static int
 parse_option(char *opt_string /* starting point of parsing */ ,
 	     opt_desc_t * opt /* option description */ )
 {
-	/* 
-	 * foo=bar, 
-	 * ^   ^  ^
-	 * |   |  +-- replaced to '\0'
-	 * |   +-- val_start
-	 * +-- opt_string
-	 */
+	/* foo=bar, 
+	   ^   ^  ^
+	   |   |  +-- replaced to '\0'
+	   |   +-- val_start
+	   +-- opt_string
+	*/
 	char *val_start;
 	int result;
 	const char *err_msg;
 
-	/*
-	 * FIXME-NIKITA think about using lib/cmdline.c functions here.
-	 */
+	/* FIXME-NIKITA think about using lib/cmdline.c functions here. */
 
 	val_start = strchr(opt_string, '=');
 	if (val_start != NULL) {
@@ -1572,7 +1547,7 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 	return result;
 }
 
-/** parse options */
+/* parse options */
 static int
 parse_options(char *opt_string /* starting point */ ,
 	      opt_desc_t * opts /* array with option description */ ,
@@ -1598,10 +1573,8 @@ parse_options(char *opt_string /* starting point */ ,
 		}
 		if (j == nr_opts) {
 			warning("nikita-2307", "Unrecognized option: \"%s\"", opt_string);
-			/* 
-			 * traditionally, -EINVAL is returned on wrong mount
-			 * option
-			 */
+			/* traditionally, -EINVAL is returned on wrong mount
+			   option */
 			result = -EINVAL;
 		}
 		opt_string = next;
@@ -1647,77 +1620,67 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	char *trace_file_name;
 
 	opt_desc_t opts[] = {
-		/*
-		 * trace_flags=N
-		 *
-		 * set trace flags to be N for this mount. N can be C numeric
-		 * literal recognized by %i scanf specifier.  It is treated as
-		 * bitfield filled by values of debug.h:reiser4_trace_flags
-		 * enum
-		 */
+		/* trace_flags=N
+		  
+		   set trace flags to be N for this mount. N can be C numeric
+		   literal recognized by %i scanf specifier.  It is treated as
+		   bitfield filled by values of debug.h:reiser4_trace_flags
+		   enum
+		*/
 		SB_FIELD_OPT(trace_flags, "%i"),
-		/*
-		 * debug_flags=N
-		 *
-		 * set debug flags to be N for this mount. N can be C numeric
-		 * literal recognized by %i scanf specifier.  It is treated as
-		 * bitfield filled by values of debug.h:reiser4_debug_flags
-		 * enum
-		 */
+		/* debug_flags=N
+		  
+		   set debug flags to be N for this mount. N can be C numeric
+		   literal recognized by %i scanf specifier.  It is treated as
+		   bitfield filled by values of debug.h:reiser4_debug_flags
+		   enum
+		*/
 		SB_FIELD_OPT(debug_flags, "%i"),
-		/*
-		 * txnmgr.atom_max_size=N
-		 *
-		 * Atoms containing more than N blocks will be forced to
-		 * commit. N is decimal.
-		 */
+		/* txnmgr.atom_max_size=N
+		  
+		   Atoms containing more than N blocks will be forced to
+		   commit. N is decimal.
+		*/
 		SB_FIELD_OPT(txnmgr.atom_max_size, "%u"),
-		/*
-		 * txnmgr.atom_max_age=N
-		 *
-		 * Atoms older than N seconds will be forced to commit. N is
-		 * decimal.
-		 */
+		/* txnmgr.atom_max_age=N
+		  
+		   Atoms older than N seconds will be forced to commit. N is
+		   decimal.
+		*/
 		SB_FIELD_OPT(txnmgr.atom_max_age, "%u"),
-		/*
-		 * txnmgr.low_memory=N
-		 *
-		 * After percentage of free memory falls below this,
-		 * preventive flushing is started.
-		 */
+		/* txnmgr.low_memory=N
+		  
+		   After percentage of free memory falls below this,
+		   preventive flushing is started.
+		*/
 		SB_FIELD_OPT(txnmgr.low_memory, "%u"),
-		/*
-		 * tree.cbk_cache_slots=N
-		 *
-		 * Number of slots in the cbk cache.
-		 */
+		/* tree.cbk_cache_slots=N
+		  
+		   Number of slots in the cbk cache.
+		*/
 		SB_FIELD_OPT(tree.cbk_cache.nr_slots, "%u"),
 
 		/* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent
-		 * dirty leaf-level blocks it will force them to be
-		 * relocated. */
+		   dirty leaf-level blocks it will force them to be
+		   relocated. */
 		SB_FIELD_OPT(flush.relocate_threshold, "%u"),
 		/* If flush finds can find a block allocation closer than at
-		 * most FLUSH_RELOCATE_DISTANCE from the preceder it will
-		 * relocate to that position. */
+		   most FLUSH_RELOCATE_DISTANCE from the preceder it will
+		   relocate to that position. */
 		SB_FIELD_OPT(flush.relocate_distance, "%u"),
 		/* Flush defers actualy BIO submission until it gathers
-		 * FLUSH_QUEUE_SIZE blocks. */
+		   FLUSH_QUEUE_SIZE blocks. */
 		SB_FIELD_OPT(flush.queue_size, "%u"),
 		/* If we have written this much or more blocks before
 		   encountering busy jnode in flush list - abort flushing
 		   hoping that next time we get called this jnode will be
 		   clean already, and we will save some seeks. */
 		SB_FIELD_OPT(flush.written_threshold, "%u"),
-		/*
-		 * The maximum number of nodes to scan left on a level during
-		 * flush.
-		 */
+		/* The maximum number of nodes to scan left on a level during
+		   flush. */
 		SB_FIELD_OPT(flush.scan_maxnodes, "%u"),
 
-		/*
-		 * preferred IO size
-		 */
+		/* preferred IO size */
 		SB_FIELD_OPT(optimal_io_size, "%u"),
 
 		/* carry flags used for insertion of new nodes */
@@ -1739,9 +1702,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 
 #if REISER4_BSD_PORT
 		{
-		 /*
-		  * turn on BSD-style gid assignment
-		  */
+		 /* turn on BSD-style gid assignment */
 		 .name = "bsdgroups",
 		 .type = OPT_BIT,
 		 .u = {
@@ -1864,8 +1825,7 @@ init_committed_sb_counters(const struct super_block *s)
 
 /* read super block from device and fill remaining fields in @s.
   
-   This is read_super() of the past.  
- */
+   This is read_super() of the past.   */
 static int
 reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 {
@@ -1886,7 +1846,7 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 		warning("nikita-2372", "Debugging is on. Benchmarking is invalid.");
 
 	/* this is common for every disk layout. It has a pointer where layout
-	 * specific part of info can be attached to, though */
+	   specific part of info can be attached to, though */
 	info = kmalloc(sizeof (reiser4_super_info_data), GFP_KERNEL);
 
 	if (!info)
@@ -1944,11 +1904,9 @@ read_super_block:
 		/* no standard reiser4 super block found */
 		brelse(super_bh);
 		/* FIXME-VS: call guess method for all available layout
-		 * plugins */
-		/* 
-		 * umka (2002.06.12) Is it possible when format-specific super
-		 * block exists but there no master super block?
-		 */
+		   plugins */
+		/* umka (2002.06.12) Is it possible when format-specific super
+		   block exists but there no master super block? */
 		goto error1;
 	}
 
@@ -1967,15 +1925,15 @@ read_super_block:
 	}
 
 	/* initialize fake inode, formatted nodes will be read/written through
-	 * it */
+	   it */
 	result = init_formatted_fake(s);
 	if (result) {
 		goto error2;
 	}
 
 	/* call disk format plugin method to do all the preparations like
-	 * journal replay, reiser4_super_info_data initialization, read oid
-	 * allocator, etc */
+	   journal replay, reiser4_super_info_data initialization, read oid
+	   allocator, etc */
 	result = df_plug->get_ready(s, data);
 	if (result) {
 		goto error3;
@@ -1985,9 +1943,7 @@ read_super_block:
 
 	assert("nikita-2687", check_block_counters(s));
 
-	/*
-	 * FIXME-NIKITA actually, options should be parsed by plugins also.
-	 */
+	/* FIXME-NIKITA actually, options should be parsed by plugins also. */
 	result = reiser4_parse_options(s, data);
 	if (result) {
 		goto error4;
@@ -2081,10 +2037,8 @@ reiser4_kill_super(struct super_block *s)
 	}
 	trace_on(TRACE_VFS_OPS, "kill_super\n");
 
-	/*
-	 * FIXME-VS: the problem is that there still might be dirty pages which
-	 * became dirty via mapping. Have them to go through writepage
-	 */
+	/* FIXME-VS: the problem is that there still might be dirty pages which
+	   became dirty via mapping. Have them to go through writepage */
 	fsync_super(s);
 
 	if (reiser4_is_debugged(s, REISER4_VERBOSE_UMOUNT)) {
@@ -2105,9 +2059,7 @@ reiser4_kill_super(struct super_block *s)
 
 	close_trace_file(&info->trace_file);
 
-	/*
-	 * we don't want ->write_super to be called any more.
-	 */
+	/* we don't want ->write_super to be called any more. */
 	s->s_op->write_super = NULL;
 	kill_block_super(s);
 
@@ -2115,9 +2067,7 @@ reiser4_kill_super(struct super_block *s)
 	{
 		struct list_head *scan;
 
-		/*
-		 * print jnodes that survived umount.
-		 */
+		/* print jnodes that survived umount. */
 		list_for_each(scan, &info->all_jnodes) {
 			jnode *busy;
 
@@ -2147,7 +2097,7 @@ reiser4_write_super(struct super_block *s)
 	__REISER4_ENTRY(s,);
 
 	/* FIXME: JMACD->NIKITA: Are we sure this is right?  I don't remember putting this
-	 * here. */
+	   here. */
 	if ((ret = txnmgr_force_commit_all(s))) {
 		warning("jmacd-77113", "txn_force failed in write_super: %d", ret);
 	}
@@ -2158,7 +2108,7 @@ reiser4_write_super(struct super_block *s)
 	__REISER4_EXIT(&__context);
 }
 
-/** ->get_sb() method of file_system operations. */
+/* ->get_sb() method of file_system operations. */
 /* Audited by: umka (2002.06.12) */
 static struct super_block *
 reiser4_get_sb(struct file_system_type *fs_type	/* file
@@ -2171,7 +2121,7 @@ reiser4_get_sb(struct file_system_type *fs_type	/* file
 	return get_sb_bdev(fs_type, flags, dev_name, data, reiser4_fill_super);
 }
 
-/** ->invalidatepage method for reiser4 */
+/* ->invalidatepage method for reiser4 */
 int
 reiser4_invalidatepage(struct page *page, unsigned long offset)
 {
@@ -2181,10 +2131,8 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	if (offset == 0) {
 		jnode *node;
 
-		/*
-		 * ->private pointer is protected by page lock that we are
-		 * holding right now.
-		 */
+		/* ->private pointer is protected by page lock that we are
+		   holding right now. */
 again:
 		node = jnode_by_page(page);
 		if (node != NULL) {
@@ -2197,10 +2145,10 @@ try_to_lock:
 
 			if (!ret) {
 				/* If node is flush queued (i.e. prepard to
-				 * write to disk) we are trying to submit flush
-				 * queues to disk one by one and wait i/o
-				 * completion. We repeat it until our node
-				 * becomes not queued. */
+				   write to disk) we are trying to submit flush
+				   queues to disk one by one and wait i/o
+				   completion. We repeat it until our node
+				   becomes not queued. */
 				if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 					txn_atom *atom;
 					int nr_io_errors;
@@ -2210,23 +2158,22 @@ try_to_lock:
 
 					assert("zam-x1070", atom != NULL);
 
-					/*
-					 * FIXME-VS: we call finish_all_fq
-					 * because currently it is not possible
-					 * to find which flush queue the node
-					 * is on
-					 */
+					/* FIXME-VS: we call finish_all_fq
+					   because currently it is not possible
+					   to find which flush queue the node
+					   is on
+					*/
 					nr_io_errors = 0;
 					ret = finish_all_fq(atom, &nr_io_errors);
 
 					if (ret) {
 						if (ret == -EBUSY) {
 							/* All flush queues are
-							 * busy we have to wait
-							 * an atom event and
-							 * rescan atom's list
-							 * for not busy flush
-							 * queues. */
+							   busy we have to wait
+							   an atom event and
+							   rescan atom's list
+							   for not busy flush
+							   queues. */
 							atom_wait_event(atom);
 
 							jput(node);
@@ -2238,12 +2185,12 @@ try_to_lock:
 							reiser4_panic
 							    ("zam-x1071: cannot flush queued node (ret = %d)\n", ret);
 						/* -EAGAIN means we have to
-						 * repeat. Repeating of
-						 * finish_all_fq() may be not
-						 * needed because the node we
-						 * wanted to write is already
-						 * written to disk and removed
-						 * from a flush queue */
+						   repeat. Repeating of
+						   finish_all_fq() may be not
+						   needed because the node we
+						   wanted to write is already
+						   written to disk and removed
+						   from a flush queue */
 
 					} else {
 						spin_unlock_atom(atom);
@@ -2256,10 +2203,8 @@ try_to_lock:
 			}
 
 			spin_unlock_jnode(node);
-			/*
-			 * return with page still
-			 * locked. truncate_list_pages() expects this.
-			 */
+			/* return with page still
+			   locked. truncate_list_pages() expects this. */
 			reiser4_lock_page(page);
 			assert("nikita-2676", jprivate(page) == node);
 			if (ret) {
@@ -2274,17 +2219,15 @@ try_to_lock:
 				UNDER_SPIN_VOID(jnode, node, page_clear_jnode(page, node));
 				JF_SET(node, JNODE_HEARD_BANSHEE);
 			}
-			/*
-			 * can safely call jput() under page lock, because
-			 * page was just detached from jnode.
-			 */
+			/* can safely call jput() under page lock, because
+			   page was just detached from jnode. */
 			jput(node);
 		}
 	}
 	REISER4_EXIT(ret);
 }
 
-/** ->releasepage method for reiser4 */
+/* ->releasepage method for reiser4 */
 int
 reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 {
@@ -2294,11 +2237,10 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	assert("nikita-2259", PageLocked(page));
 	ON_DEBUG_CONTEXT(assert("nikita-2586", lock_counters()->spin_locked == 0));
 
-	/*
-	 * FIXME-NIKITA: this can be called in the context of reiser4 call. It
-	 * is not clear what to do in this case. A lot of deadlocks seems be
-	 * possible.
-	 */
+	/* FIXME-NIKITA: this can be called in the context of reiser4 call. It
+	   is not clear what to do in this case. A lot of deadlocks seems be
+	   possible.
+	*/
 
 	node = jnode_by_page(page);
 	assert("nikita-2258", node != NULL);
@@ -2308,23 +2250,21 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 								    LEAF_LEVEL].page_try_release;
 #endif
 
-	/*
-	 * is_page_cache_freeable() check 
-	 *
-	 * (mapping + private + page_cache_get() by shrink_cache())
-	 */
+	/* is_page_cache_freeable() check 
+	  
+	   (mapping + private + page_cache_get() by shrink_cache())
+	*/
 	if (page_count(page) > 3)
 		return 0;
 	if (PageDirty(page))
 		return 0;
 
 	spin_lock_jnode(node);
-	/*
-	 * can only release page if real block number is assigned to
-	 * it. Simple check for ->atom wouldn't do, because it is possible for
-	 * node to be clean, not it atom yet, and still having fake block
-	 * number. For example, node just created in jinit_new().
-	 */
+	/* can only release page if real block number is assigned to
+	   it. Simple check for ->atom wouldn't do, because it is possible for
+	   node to be clean, not it atom yet, and still having fake block
+	   number. For example, node just created in jinit_new().
+	*/
 	if (atomic_read(&node->d_count) || jnode_is_loaded(node) ||
 	    blocknr_is_fake(jnode_get_block(node)) || jnode_is_dirty(node) || JF_ISSET(node, JNODE_OVRWR)
 	    || JF_ISSET(node, JNODE_WRITEBACK)) {
@@ -2347,14 +2287,10 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		spin_unlock_jnode(node);
 
 		reiser4_stat_add_at_level(jnode_get_level(node), page_released);
-		/*
-		 * we are under memory pressure so release jnode also.
-		 */
+		/* we are under memory pressure so release jnode also. */
 
 		jput(node);
-		/*
-		 * return with page still locked. shrink_cache() expects this.
-		 */
+		/* return with page still locked. shrink_cache() expects this. */
 		REISER4_EXIT(1);
 	}
 }
@@ -2363,7 +2299,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 static int mapping_has_anonymous_pages (struct address_space * mapping )
 {
 	/* FIXME: The method to check has this mapping not captured dirty pages
-	 * or not is not implemented yet */
+	   or not is not implemented yet */
 	return 1;
 }
 
@@ -2391,7 +2327,7 @@ static int capture_anonymous_pages (struct address_space * mapping)
 	write_lock (&mapping->page_lock);
 
 	/* We can teach reiser4_set_page_dirty to place dirty page directly to
-	 * io_list. is it reasonable ? */
+	   io_list. is it reasonable ? */
 
 	list_splice_init (&mapping->dirty_pages, &mapping->io_pages);
 
@@ -2430,10 +2366,10 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	REISER4_ENTRY(s);
 
 	/* Here we can call synchronously. We can be called from
-	 * balance_dirty_pages() Reiser4 code is supposed to call
-	 * balance_dirty_pages at paces where no locks are hold it means we can
-	 * call begin jnode_flush right from there having no deadlocks between the
-	 * caller of balance_dirty_pages() and jnode_flush(). */
+	   balance_dirty_pages() Reiser4 code is supposed to call
+	   balance_dirty_pages at paces where no locks are hold it means we can
+	   call begin jnode_flush right from there having no deadlocks between the
+	   caller of balance_dirty_pages() and jnode_flush(). */
 
 	assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
 
@@ -2573,9 +2509,7 @@ static struct file_system_type reiser4_fs_type = {
 	.get_sb = reiser4_get_sb,
 	.kill_sb = reiser4_kill_super,
 
-	/*
-	 * FIXME-NIKITA something more?
-	 */
+	/* FIXME-NIKITA something more? */
 	.fs_flags = FS_REQUIRES_DEV,
 	.next = NULL
 };
@@ -2632,38 +2566,31 @@ define_never_ever_op(prepare_write_vfs)
     define_never_ever_op(direct_IO_vfs)
 #define V( func ) ( ( void * ) ( func ) )
 struct address_space_operations reiser4_as_operations = {
-	/** called from write_one_page(). Not sure how this is to be used. */
+	/* called from write_one_page(). Not sure how this is to be used. */
 	.writepage = reiser4_writepage,
-	/** 
-	 * called to read page from the storage when page is added into page
-	 * cache 
-	 */
+	/* called to read page from the storage when page is added into page
+	   cache  */
 	.readpage = reiser4_readpage,
-	/**
-	 * This is most annoyingly misnomered method. Actually it is called
-	 * from wait_on_page_bit() and lock_page() and its purpose is to
-	 * actually start io by jabbing device drivers.
-	 */
+	/* This is most annoyingly misnomered method. Actually it is called
+	   from wait_on_page_bit() and lock_page() and its purpose is to
+	   actually start io by jabbing device drivers.
+	*/
 	.sync_page = block_sync_page,
-	/** called during sync (pdflush) */
+	/* called during sync (pdflush) */
 	.writepages = reiser4_writepages,
-	/** called during memory pressure by kswapd */
+	/* called during memory pressure by kswapd */
 	.vm_writeback = reiser4_vm_writeback,
 	.set_page_dirty = __set_page_dirty_nobuffers,
-	/** called during read-ahead */
+	/* called during read-ahead */
 	.readpages = NULL,
 	.prepare_write = V(never_ever_prepare_write_vfs),
 	.commit_write = V(never_ever_commit_write_vfs),
 	.bmap = reiser4_bmap,
-	/**
-	 * called just before page is taken out from address space (on
-	 * truncate, umount, or similar). 
-	 */
+	/* called just before page is taken out from address space (on
+	   truncate, umount, or similar).  */
 	.invalidatepage = reiser4_invalidatepage,
-	/**
-	 * called when VM is about to take page from address space (due to
-	 * memory pressure).
-	 */
+	/* called when VM is about to take page from address space (due to
+	   memory pressure). */
 	.releasepage = reiser4_releasepage,
 	.direct_IO = V(never_ever_direct_IO_vfs)
 };
@@ -2707,4 +2634,4 @@ struct dentry_operations reiser4_dentry_operation = {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

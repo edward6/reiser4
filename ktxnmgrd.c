@@ -26,7 +26,7 @@ static int scan_mgr(txn_mgr * mgr);
    state. This serves no useful purpose whatsoever, but also costs
    nothing. May be it will make lonely system administrator feeling less alone
    at 3 A.M.
- */
+*/
 #define set_comm( state ) 						\
 	snprintf( current -> comm, sizeof( current -> comm ),	\
 		  "%s:%s", __FUNCTION__, ( state ) )
@@ -51,11 +51,10 @@ ktxnmgrd(void *arg)
 	recalc_sigpending();
 	spin_unlock_irq(&me->sig->siglock);
 
-	/*
-	 * do_fork() just copies task_struct into the new
-	 * thread. ->fs_context shouldn't be copied of course. This shouldn't
-	 * be a problem for the rest of the code though.
-	 */
+	/* do_fork() just copies task_struct into the new
+	   thread. ->fs_context shouldn't be copied of course. This shouldn't
+	   be a problem for the rest of the code though.
+	*/
 	me->fs_context = NULL;
 
 	ctx = arg;
@@ -67,35 +66,28 @@ ktxnmgrd(void *arg)
 		int result;
 		txn_mgr *mgr;
 
-		/*
-		 * software suspend support. Doesn't work currently
-		 * (kcond_timedwait).
-		 */
+		/* software suspend support. Doesn't work currently
+		   (kcond_timedwait). */
 		if (me->flags & PF_FREEZE)
 			refrigerator(PF_IOTHREAD);
 
 		set_comm("wait");
-		/*
-		 * wait for @ctx -> timeout or explicit wake up.
-		 *
-		 * kcond_wait() is called with last argument 1 enabling wakeup
-		 * by signals so that this thread is not counted in
-		 * load-average. This doesn't require any special handling,
-		 * because all signals were blocked.
-		 */
+		/* wait for @ctx -> timeout or explicit wake up.
+		  
+		   kcond_wait() is called with last argument 1 enabling wakeup
+		   by signals so that this thread is not counted in
+		   load-average. This doesn't require any special handling,
+		   because all signals were blocked.
+		*/
 		result = kcond_timedwait(&ctx->wait, &ctx->guard, ctx->timeout, 1	/* signalable */
 		    );
 		if ((result != -ETIMEDOUT) && (result != 0)) {
-			/*
-			 * some other error
-			 */
+			/* some other error */
 			warning("nikita-2443", "Error: %i", result);
 			continue;
 		}
 
-		/*
-		 * we are asked to exit
-		 */
+		/* we are asked to exit */
 		if (ctx->done)
 			break;
 
@@ -103,11 +95,10 @@ ktxnmgrd(void *arg)
 
 		set_comm(result ? "timed" : "run");
 
-		/*
-		 * wait timed out or ktxnmgrd was woken up by explicit request
-		 * to commit something. Scan list of atoms in txnmgr and look
-		 * for too old atoms.
-		 */
+		/* wait timed out or ktxnmgrd was woken up by explicit request
+		   to commit something. Scan list of atoms in txnmgr and look
+		   for too old atoms.
+		*/
 		do {
 			ctx->rescan = 0;
 			for (mgr = txn_mgrs_list_front(&ctx->queue);
@@ -123,9 +114,7 @@ ktxnmgrd(void *arg)
 
 	ktxnmgrd_trace("exiting\n");
 	complete_and_exit(&ctx->finish, 0);
-	/*
-	 * not reached.
-	 */
+	/* not reached. */
 	return 0;
 }
 
@@ -157,31 +146,21 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 
 	first_mgr = txn_mgrs_list_empty(&ctx->queue);
 
-	/*
-	 * attach @mgr to daemon. Not taking spin-locks, because this is early
-	 * during @mgr initialization.
-	 */
+	/* attach @mgr to daemon. Not taking spin-locks, because this is early
+	   during @mgr initialization. */
 	mgr->daemon = ctx;
 	txn_mgrs_list_push_back(&ctx->queue, mgr);
 
-	/*
-	 * daemon thread is not yet initialized
-	 */
+	/* daemon thread is not yet initialized */
 	if (ctx->tsk == NULL) {
-		/*
-		 * attaching first mgr, start daemon
-		 */
+		/* attaching first mgr, start daemon */
 		if (first_mgr) {
 			ctx->done = 0;
 
-			/*
-			 * kernel_thread never fails.
-			 */
+			/* kernel_thread never fails. */
 			kernel_thread(ktxnmgrd, ctx, ktxnmrgd_flags);
 		}
-		/*
-		 * wait until initialization completes
-		 */
+		/* wait until initialization completes */
 		kcond_wait(&ctx->startup, &ctx->guard, 0);
 	}
 	assert("nikita-2452", ctx->tsk != NULL);
@@ -197,10 +176,8 @@ ktxnmgrd_detach(txn_mgr * mgr)
 
 	assert("nikita-2450", mgr != NULL);
 
-	/*
-	 * this is supposed to happen when @mgr is quiesced and no locking is
-	 * necessary.
-	 */
+	/* this is supposed to happen when @mgr is quiesced and no locking is
+	   necessary. */
 	ctx = mgr->daemon;
 	if (ctx == NULL)
 		return;
@@ -209,18 +186,14 @@ ktxnmgrd_detach(txn_mgr * mgr)
 	txn_mgrs_list_remove(mgr);
 	mgr->daemon = NULL;
 
-	/*
-	 * removing last mgr, stop daemon
-	 */
+	/* removing last mgr, stop daemon */
 	if (txn_mgrs_list_empty(&ctx->queue)) {
 		ctx->tsk = NULL;
 		ctx->done = 1;
 		spin_unlock(&ctx->guard);
 		kcond_signal(&ctx->wait);
 
-		/*
-		 * wait until daemon finishes
-		 */
+		/* wait until daemon finishes */
 		wait_for_completion(&ctx->finish);
 	} else
 		spin_unlock(&ctx->guard);
@@ -255,7 +228,7 @@ need_flush(txn_mgr * tmgr)
 	return ret;
 }
 
-/** scan one transaction manager for old atoms */
+/* scan one transaction manager for old atoms */
 static int
 scan_mgr(txn_mgr * mgr)
 {
@@ -264,9 +237,7 @@ scan_mgr(txn_mgr * mgr)
 	reiser4_tree *tree;
 	assert("nikita-2454", mgr != NULL);
 
-	/*
-	 * FIXME-NIKITA this only works for atoms embedded into super blocks.
-	 */
+	/* FIXME-NIKITA this only works for atoms embedded into super blocks. */
 	tree = &container_of(mgr, reiser4_super_info_data, tmgr)->tree;
 	assert("nikita-2455", tree != NULL);
 	assert("nikita-2456", tree->super != NULL);
@@ -314,4 +285,4 @@ ktxnmgr_writeback(struct super_block *s, struct writeback_control *wbc)
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

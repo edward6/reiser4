@@ -37,43 +37,43 @@ TS_LIST_DECLARE(blocknr_set);	/* Used for the transaction's delete set
    handle. */
 typedef enum {
 	/* A READ_ATOMIC request indicates that a block will be read and that the caller's
-	 * atom should fuse in order to ensure that the block commits atomically with the
-	 * caller. */
+	   atom should fuse in order to ensure that the block commits atomically with the
+	   caller. */
 	TXN_CAPTURE_READ_ATOMIC = (1 << 0),
 
 	/* A READ_NONCOM request indicates that a block will be read and that the caller is
-	 * willing to read a non-committed block without causing atoms to fuse. */
+	   willing to read a non-committed block without causing atoms to fuse. */
 	TXN_CAPTURE_READ_NONCOM = (1 << 1),
 
 	/* A READ_MODIFY request indicates that a block will be read but that the caller
-	 * wishes for the block to be captured as will be written.  This capture request
-	 * mode is not currently used, but eventually it will be useful for preventing
-	 * deadlock in read-modify-write cycles. */
+	   wishes for the block to be captured as will be written.  This capture request
+	   mode is not currently used, but eventually it will be useful for preventing
+	   deadlock in read-modify-write cycles. */
 	TXN_CAPTURE_READ_MODIFY = (1 << 2),
 
 	/* A WRITE capture request indicates that a block will be modified and that atoms
-	 * should fuse to make the commit atomic. */
+	   should fuse to make the commit atomic. */
 	TXN_CAPTURE_WRITE = (1 << 3),
 
 	/* CAPTURE_TYPES is a mask of the four above capture types, used to separate the
-	 * exclusive type designation from extra bits that may be supplied -- see
-	 * below. */
+	   exclusive type designation from extra bits that may be supplied -- see
+	   below. */
 	TXN_CAPTURE_TYPES = (TXN_CAPTURE_READ_ATOMIC |
 			     TXN_CAPTURE_READ_NONCOM | TXN_CAPTURE_READ_MODIFY | TXN_CAPTURE_WRITE),
 
 	/* A subset of CAPTURE_TYPES, CAPTURE_WTYPES is a mask of request types that
-	 * indicate modification will occur. */
+	   indicate modification will occur. */
 	TXN_CAPTURE_WTYPES = (TXN_CAPTURE_READ_MODIFY | TXN_CAPTURE_WRITE),
 
 	/* An option to try_capture, NONBLOCKING indicates that the caller would
-	 * prefer not to sleep waiting for an aging atom to commit. */
+	   prefer not to sleep waiting for an aging atom to commit. */
 	TXN_CAPTURE_NONBLOCKING = (1 << 4),
 
 	/* An option to try_capture to prevent atom fusion, just simple capturing is allowed */
 	TXN_CAPTURE_DONT_FUSE = (1 << 5)
 
 	    /* This macro selects only the exclusive capture request types, stripping out any
-	     * options that were supplied (i.e., NONBLOCKING). */
+	       options that were supplied (i.e., NONBLOCKING). */
 #define CAPTURE_TYPE(x) ((x) & TXN_CAPTURE_TYPES)
 } txn_capture;
 
@@ -92,12 +92,12 @@ typedef enum {
 	ASTAGE_FREE = 0,
 
 	/* An atom begins by intering the CAPTURE_FUSE stage, where it proceeds to capture
-	 * blocks and fuse with other atoms. */
+	   blocks and fuse with other atoms. */
 	ASTAGE_CAPTURE_FUSE = 1,
 
 	/* When an atom reaches a certain age it must do all it can to commit.  An atom in
-	 * the CAPTURE_WAIT stage refuses new transaction handles and prevents fusion from
-	 * atoms in the CAPTURE_FUSE stage. */
+	   the CAPTURE_WAIT stage refuses new transaction handles and prevents fusion from
+	   atoms in the CAPTURE_FUSE stage. */
 	ASTAGE_CAPTURE_WAIT = 2,
 
 	/* Waiting for I/O before commit.  Copy-on-capture. */
@@ -160,7 +160,7 @@ typedef enum {
    ELSE YOU HAVE BOTH ATOM AND OBJ LOCKED
   
    See the getatom_locked() method for a common case.
- */
+*/
 
 /* A block number set consists of only the list head. */
 struct blocknr_set {
@@ -174,27 +174,27 @@ TS_LIST_DECLARE(fq_prepared);
    of a transaction, not the one seen by clients. */
 struct txn_atom {
 	/* The spinlock protecting the atom, held during fusion and various other state
-	 * changes. */
+	   changes. */
 	spinlock_t alock;
 
 	/* Refcount: Initially an atom has a single reference which is decremented when
-	 * the atom finishes.  The value is always modified under the above spinlock.
-	 * Additional references are added by each transaction handle that joins the atom
-	 * and by each waiting request in either a waitfor or waiting list. */
+	   the atom finishes.  The value is always modified under the above spinlock.
+	   Additional references are added by each transaction handle that joins the atom
+	   and by each waiting request in either a waitfor or waiting list. */
 	__u32 refcount;
 
 	/* The atom_id identifies the atom in persistent records such as the log. */
 	__u32 atom_id;
 
 	/* Flags holding any of the txn_flags enumerated values (e.g.,
-	 * ATOM_FORCE_COMMIT). */
+	   ATOM_FORCE_COMMIT). */
 	__u32 flags;
 
 	/* Number of open handles. */
 	__u32 txnh_count;
 
 	/* The number of znodes captured by this atom.  Equal to the sum of lengths of the
-	 * dirty_znodes[level] and clean_znodes lists. */
+	   dirty_znodes[level] and clean_znodes lists. */
 	__u32 capture_count;
 
 	/* Current transaction stage. */
@@ -210,7 +210,7 @@ struct txn_atom {
 	blocknr_set wandered_map;
 
 	/* The transaction's list of dirty captured nodes--per level.  Index
-	 * by (level). dirty_nodes[0] is for znode-above-root */
+	   by (level). dirty_nodes[0] is for znode-above-root */
 	capture_list_head dirty_nodes[REAL_MAX_ZTREE_HEIGHT + 1];
 
 	/* The transaction's list of clean captured nodes. */
@@ -229,9 +229,9 @@ struct txn_atom {
 	fwaiting_list_head fwaiting_list;
 
 	/* Numbers of objects which were deleted/created in this transaction
-	 * thereby numbers of objects IDs where released/deallocated. */
+	   thereby numbers of objects IDs where released/deallocated. */
 	/* FIXME-ZAM: It looks like a temporary solution until logical logging
-	 * is implemented */
+	   is implemented */
 	int nr_objects_deleted;
 	int nr_objects_created;
 
@@ -243,8 +243,7 @@ struct txn_atom {
 	/* number of threads who waits this atom commit completion */
 	int nr_waiters;
 
-	/* 
-	 * number of treads which do jnode_flush() over this atom */
+	/* number of treads which do jnode_flush() over this atom */
 	int nr_flushers;
 
 	/* A counter of grabbed unformatted nodes. */
@@ -436,45 +435,34 @@ typedef struct flush_queue flush_queue_t;
 /* This is an accumulator for jnodes prepared for writing to disk. A flush queue is filled by the jnode_flush()
    routine, and written to disk under memory pressure or at atom commit time. */
 struct flush_queue {
-	/* 
-	 * linkage element is the first in this structure to make debugging
-	 * easier.  See field in atom struct for description of list. */
+	/* linkage element is the first in this structure to make debugging
+	   easier.  See field in atom struct for description of list. */
 	fq_list_link alink;
 
 	fq_prepared_list_link mlink;
-	/*
-	 * A spinlock to protect state changes.  Acquire before modifying all fields in this struct except atomic
-	 * fields. */
+	/* A spinlock to protect state changes.  Acquire before modifying all fields in this struct except atomic
+	   fields. */
 	spinlock_t guard;
-	/*
-	 * flush_handle state: empty, active, */
+	/* flush_handle state: empty, active, */
 	flush_queue_state_t state;
-	/*
-	 * list of not yet submitted to disk nodes */
+	/* list of not yet submitted to disk nodes */
 	capture_list_head prepped;
-	/* 
-	 * list of already submitted to disk nodes (more precisely, sent or just about to be sent, see
-	 * prepare_node_for_write() details */
+	/* list of already submitted to disk nodes (more precisely, sent or just about to be sent, see
+	   prepare_node_for_write() details */
 	capture_list_head sent;
-	/*
-	 * total number of queued nodes */
+	/* total number of queued nodes */
 	int nr_queued;
-	/*
-	 * number of submitted i/o requests */
+	/* number of submitted i/o requests */
 	atomic_t nr_submitted;
-	/*
-	 * number of i/o errors */
+	/* number of i/o errors */
 	atomic_t nr_errors;
-	/*
-	 * An atom this flush handle is attached to */
+	/* An atom this flush handle is attached to */
 	txn_atom *atom;
-	/*
-	 * A semaphore for waiting on i/o completion */
+	/* A semaphore for waiting on i/o completion */
 	struct semaphore sema;
 
-	/*
-	 * A link field for single-linked list of fq which are collected for
-	 * writing to disk */
+	/* A link field for single-linked list of fq which are collected for
+	   writing to disk */
 	flush_queue_t *next_to_write;
 };
 
@@ -511,4 +499,4 @@ void info_atom(const char *prefix, txn_atom * atom);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

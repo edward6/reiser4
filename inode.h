@@ -19,32 +19,29 @@
 #include <linux/spinlock.h>
 #include <asm/types.h>
 
-/** reiser4-specific inode flags */
+/* reiser4-specific inode flags */
 typedef enum {
-	/** 
-	 * this is light-weight inode, inheriting some state from its
-	 * parent 
-	 */
+	/* this is light-weight inode, inheriting some state from its
+	   parent  */
 	REISER4_LIGHT_WEIGHT = 0,
-	/** stat data wasn't yet created */
+	/* stat data wasn't yet created */
 	REISER4_NO_SD = 1,
-	/** internal immutable flag. Currently is only used
+	/* internal immutable flag. Currently is only used
 	    to avoid race condition during file creation.
 	    See comment in create_object(). */
 	REISER4_IMMUTABLE = 2,
-	/** inode was read from storage */
+	/* inode was read from storage */
 	REISER4_LOADED = 3,
-	/** this is set when we know for sure state of file tail: for default
-	 * reiser4 ordinary files it means that we know whether file is built
-	 * of extents or of tail items only */
+	/* this is set when we know for sure state of file tail: for default
+	   reiser4 ordinary files it means that we know whether file is built
+	   of extents or of tail items only */
 	REISER4_TAIL_STATE_KNOWN = 4,
-	/** this is set to 1 when not all file data are stored as unformatted
-	 * node, 0 - otherwise. Note, that this bit can be only checked if
-	 * REISER4_TAIL_STATE_KNOWN is set
-	 */
+	/* this is set to 1 when not all file data are stored as unformatted
+	   node, 0 - otherwise. Note, that this bit can be only checked if
+	   REISER4_TAIL_STATE_KNOWN is set */
 	REISER4_HAS_TAIL = 5,
 	/* this bit is set for symlinks. inode->u.generic_ip points to target
-	 * name of symlink */
+	   name of symlink */
 	REISER4_GENERIC_VP_USED = 6
 } reiser4_file_plugin_flags;
 
@@ -67,53 +64,53 @@ typedef __u32 oid_hi_t;
    s_op->allocate_inode() method. So, it is possible to adjust size of inode
    at the time of its creation.
   
- */
+*/
 typedef struct reiser4_inode {
-	/** plugin of file */
+	/* plugin of file */
 	file_plugin *file;
-	/** plugin of dir */
+	/* plugin of dir */
 	dir_plugin *dir;
-	/** perm plugin for this file */
+	/* perm plugin for this file */
 	perm_plugin *perm;
-	/** tail policy plugin. Only meaningful for regular files */
+	/* tail policy plugin. Only meaningful for regular files */
 	tail_plugin *tail;
-	/** hash plugin. Only meaningful for directories. */
+	/* hash plugin. Only meaningful for directories. */
 	hash_plugin *hash;
-	/** plugin of stat-data */
+	/* plugin of stat-data */
 	item_plugin *sd;
-	/** plugin of items a directory is built of */
+	/* plugin of items a directory is built of */
 	item_plugin *dir_item;
 	spinlock_t guard;
-	/** seal for stat-data */
+	/* seal for stat-data */
 	seal_t sd_seal;
-	/** coord of stat-data in sealed node */
+	/* coord of stat-data in sealed node */
 	coord_t sd_coord;
-	/** reiser4-specific inode flags. They are "transient" and are not
+	/* reiser4-specific inode flags. They are "transient" and are not
 	    supposed to be stored on a disk. Used to trace "state" of
 	    inode. Bitmasks for this field are defined in
 	    reiser4_file_plugin_flags enum */
 	unsigned long flags;
 	__u64 extmask;
-	/** length of stat-data for this inode */
+	/* length of stat-data for this inode */
 	short sd_len;
-	/** bitmask of non-default plugins for this inode */
+	/* bitmask of non-default plugins for this inode */
 	__u16 plugin_mask;
 	inter_syscall_rap ra;
-	/** locality id for this file */
+	/* locality id for this file */
 	oid_t locality_id;
 	/* tail2extent and extent2tail use down_write, read, write, readpage -
-	 * down_read */
+	   down_read */
 	struct rw_semaphore sem;
-	/** high 32 bits of object id */
+	/* high 32 bits of object id */
 	oid_hi_t oid_hi;
 	readdir_list_head readdir_list;
 	struct inode *parent;
 } reiser4_inode;
 
 typedef struct reiser4_inode_object {
-	/** private part */
+	/* private part */
 	reiser4_inode p;
-	/** generic fields not specific to reiser4, but used by VFS */
+	/* generic fields not specific to reiser4, but used by VFS */
 	struct inode vfs_inode;
 } reiser4_inode_object;
 
@@ -171,4 +168,4 @@ extern void print_inode(const char *prefix, const struct inode *i);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

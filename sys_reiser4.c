@@ -47,4 +47,4 @@ sys_reiser4(char *str)
    c-basic-offset: 8
    tab-width: 8
    End:
- */
+*/

@@ -1,8 +1,7 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 /* Internal item contains down-link to the child of the internal/twig
    node in a tree. It is internal items that are actually used during
-   tree traversal.
- */
+   tree traversal. */
 
 #if !defined( __FS_REISER4_PLUGIN_ITEM_INTERNAL_H__ )
 #define __FS_REISER4_PLUGIN_ITEM_INTERNAL_H__
@@ -13,7 +12,7 @@
 #if 0
 #endif
 
-/** on-disk layout of internal item */
+/* on-disk layout of internal item */
 typedef struct internal_item_layout {
 	/*  0 */ reiser4_dblock_nr pointer;
 	/*  4 */
@@ -47,4 +46,4 @@ void internal_update(const coord_t * coord, reiser4_block_nr blocknr);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -37,14 +37,12 @@ extern int reiser4_writepages(struct address_space *, struct writeback_control *
 
 /* &reiser4_dentry_fsdata - reiser4-specific data attached to dentries.
   
-   This is allocated dynamically and released in d_op->d_release()
- */
+   This is allocated dynamically and released in d_op->d_release() */
 typedef struct reiser4_dentry_fsdata {
-	/*
-	 * here will go fields filled by ->lookup() to speedup next
-	 * create/unlink, like blocknr of znode with stat-data, or key
-	 * of stat-data.
-	 */
+	/* here will go fields filled by ->lookup() to speedup next
+	   create/unlink, like blocknr of znode with stat-data, or key
+	   of stat-data.
+	*/
 
 	/* seal covering directory entry */
 	seal_t entry_seal;
@@ -56,14 +54,11 @@ TS_LIST_DECLARE(readdir);
 
 /* &reiser4_dentry_fsdata - reiser4-specific data attached to files.
   
-   This is allocated dynamically and released in reiser4_release()
- */
+   This is allocated dynamically and released in reiser4_release() */
 typedef struct reiser4_file_fsdata {
 	struct file *back;
-	/*
-	 * We need both directory and regular file parts here, because there
-	 * are file system objects that are files and directories.
-	 */
+	/* We need both directory and regular file parts here, because there
+	   are file system objects that are files and directories. */
 	struct {
 		readdir_pos readdir;
 		readdir_list_link linkage;

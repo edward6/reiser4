@@ -21,7 +21,7 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>	/* for struct task_struct */
 
-/** fictive block number never actually used */
+/* fictive block number never actually used */
 extern const reiser4_block_nr FAKE_TREE_ADDR;
 
 /* define typed list for cbk_cache lru */
@@ -32,11 +32,11 @@ TS_LIST_DECLARE(cbk_cache);
    This is entry in a coord_by_key (cbk) cache, represented by
    &cbk_cache.
   
- */
+*/
 typedef struct cbk_cache_slot {
-	/** cached node */
+	/* cached node */
 	znode *node;
-	/** linkage to the next cbk cache slot in a LRU order */
+	/* linkage to the next cbk cache slot in a LRU order */
 	cbk_cache_list_link lru;
 } cbk_cache_slot;
 
@@ -57,14 +57,14 @@ typedef struct cbk_cache_slot {
    Tree spin lock is used to protect coord cache. If contention for this
    lock proves to be too high, more finer grained locking can be added.
   
- */
+*/
 typedef struct cbk_cache {
 	int nr_slots;
-	/** head of LRU list of cache slots */
+	/* head of LRU list of cache slots */
 	cbk_cache_list_head lru;
-	/** actual array of slots */
+	/* actual array of slots */
 	cbk_cache_slot *slot;
-	/** serializator */
+	/* serializator */
 	spinlock_t guard;
 } cbk_cache;
 
@@ -73,12 +73,12 @@ TS_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
 /* level_lookup_result - possible outcome of looking up key at some level.
    This is used by coord_by_key when traversing tree downward. */
 typedef enum {
-	/** continue to the next level */
+	/* continue to the next level */
 	LOOKUP_CONT,
-	/** done. Either required item was found, or we can prove it
-	 * doesn't exist, or some error occurred. */
+	/* done. Either required item was found, or we can prove it
+	   doesn't exist, or some error occurred. */
 	LOOKUP_DONE,
-	/** restart traversal from the root. Infamous "repetition". */
+	/* restart traversal from the root. Infamous "repetition". */
 	LOOKUP_REST
 } level_lookup_result;
 
@@ -98,51 +98,49 @@ typedef enum {
    per filesystem, and this struct is part of the super block.  We only
    call the super block the super block for historical reasons (most
    other filesystems call the per filesystem metadata the super block).
- */
+*/
 struct reiser4_tree {
 	/* block_nr == 0 is fake znode. Write lock it, while changing
 	   tree height. */
-	/** disk address of root node of a tree */
+	/* disk address of root node of a tree */
 	reiser4_block_nr root_block;
 
-	/** level of the root node. If this is 1, tree consists of root
+	/* level of the root node. If this is 1, tree consists of root
 	    node only */
 	tree_level height;
 
-	/** cache of recent tree lookup results */
+	/* cache of recent tree lookup results */
 	cbk_cache cbk_cache;
 
-	/** hash table to look up znodes by block number. */
+	/* hash table to look up znodes by block number. */
 	z_hash_table zhash_table;
-	/** hash table to look up jnodes by inode and offset. */
+	/* hash table to look up jnodes by inode and offset. */
 	j_hash_table jhash_table;
 	__u64 znode_epoch;
 
-	/** lock protecting:
-	 *  - parent pointers,
-	 *  - sibling pointers,
-	 *  - znode hash table
-	 *  - coord cache
-	 */
+	/* lock protecting:
+	    - parent pointers,
+	    - sibling pointers,
+	    - znode hash table
+	    - coord cache
+	*/
 	spinlock_t tree_lock;
 
-	/**
-	 * lock protecting delimiting keys
-	 *
-	 */
+	/* lock protecting delimiting keys
+	   */
 	spinlock_t dk_lock;
 
-	/** default plugin used to create new nodes in a tree. */
+	/* default plugin used to create new nodes in a tree. */
 	node_plugin *nplug;
 	struct super_block *super;
 	struct {
-		/** carry flags used for insertion of new nodes */
+		/* carry flags used for insertion of new nodes */
 		__u32 new_node_flags;
-		/** carry flags used for insertion of new extents */
+		/* carry flags used for insertion of new extents */
 		__u32 new_extent_flags;
-		/** carry flags used for paste operations */
+		/* carry flags used for paste operations */
 		__u32 paste_flags;
-		/** carry flags used for insert operations */
+		/* carry flags used for insert operations */
 		__u32 insert_flags;
 	} carry;
 };
@@ -161,79 +159,71 @@ extern void done_tree(reiser4_tree * tree);
    entry, etc.  To insert them into tree one has to provide this structure. If
    one is going to insert flow - he can use insert_flow, where this structure
    does not have to be created
- */
+*/
 struct reiser4_item_data {
-	/**
-	 * actual data to be inserted. If NULL, ->create_item() will not
-	 * do xmemcpy itself, leaving this up to the caller. This can
-	 * save some amount of unnecessary memory copying, for example,
-	 * during insertion of stat data.
-	 *
-	 */
+	/* actual data to be inserted. If NULL, ->create_item() will not
+	   do xmemcpy itself, leaving this up to the caller. This can
+	   save some amount of unnecessary memory copying, for example,
+	   during insertion of stat data.
+	  
+	*/
 	char *data;
 	/* 1 if 'char * data' contains pointer to user space and 0 if it is
-	 * kernel space 
+	   kernel space 
 
 	 could be a char not an int?
-	 */
+	*/
 	int user;
-	/**
-	 * amount of data we are going to insert or paste
-	 */
+	/* amount of data we are going to insert or paste */
 	int length;
-	/**
-	 *  "Arg" is opaque data that is passed down to the
-	 *  ->create_item() method of node layout, which in turn
-	 *  hands it to the ->create_hook() of item being created. This
-	 *  arg is currently used by:
-	 *
-	 *  .  ->create_hook() of internal item
-	 *  (fs/reiser4/plugin/item/internal.c:internal_create_hook()),
-	 *  . ->paste() method of directory item.
-	 *  . ->create_hook() of extent item
-	 *
-	 * For internal item, this is left "brother" of new node being
-	 * inserted and it is used to add new node into sibling list
-	 * after parent to it was just inserted into parent.
-	 *
-	 * While ->arg does look somewhat of unnecessary compication,
-	 * it actually saves a lot of headache in many places, because
-	 * all data necessary to insert or paste new data into tree are
-	 * collected in one place, and this eliminates a lot of extra
-	 * argument passing and storing everywhere.
-	 *
-	 */
+	/* "Arg" is opaque data that is passed down to the
+	    ->create_item() method of node layout, which in turn
+	    hands it to the ->create_hook() of item being created. This
+	    arg is currently used by:
+	  
+	    .  ->create_hook() of internal item
+	    (fs/reiser4/plugin/item/internal.c:internal_create_hook()),
+	    . ->paste() method of directory item.
+	    . ->create_hook() of extent item
+	  
+	   For internal item, this is left "brother" of new node being
+	   inserted and it is used to add new node into sibling list
+	   after parent to it was just inserted into parent.
+	  
+	   While ->arg does look somewhat of unnecessary compication,
+	   it actually saves a lot of headache in many places, because
+	   all data necessary to insert or paste new data into tree are
+	   collected in one place, and this eliminates a lot of extra
+	   argument passing and storing everywhere.
+	  
+	*/
 /* arg is a bad name. */
 	void *arg;
-	/**
-	 * plugin of item we are inserting
-	 */
+	/* plugin of item we are inserting */
 	item_plugin *iplug;
 };
 
-/** cbk flags: options for coord_by_key() */
+/* cbk flags: options for coord_by_key() */
 typedef enum {
-	/** 
-	 * coord_by_key() is called for insertion. This is necessary because
-	 * of extents being located at the twig level. For explanation, see
-	 * comment just above is_next_item_internal(). 
-	 */
+	/* coord_by_key() is called for insertion. This is necessary because
+	   of extents being located at the twig level. For explanation, see
+	   comment just above is_next_item_internal(). 
+	*/
 	CBK_FOR_INSERT = (1 << 0),
-	/** coord_by_key() is called with key that is known to be unique */
+	/* coord_by_key() is called with key that is known to be unique */
 	CBK_UNIQUE = (1 << 1),
-	/** 
-	 * coord_by_key() can trust delimiting keys. This options is not user
-	 * accessible. coord_by_key() will set it automatically. It will be
-	 * only cleared by special-case in extents-on-the-twig-level handling
-	 * where it is necessary to insert item with a key smaller than
-	 * leftmost key in a node. This is necessary because of extents being
-	 * located at the twig level. For explanation, see comment just above
-	 * is_next_item_internal().
-	 */
+	/* coord_by_key() can trust delimiting keys. This options is not user
+	   accessible. coord_by_key() will set it automatically. It will be
+	   only cleared by special-case in extents-on-the-twig-level handling
+	   where it is necessary to insert item with a key smaller than
+	   leftmost key in a node. This is necessary because of extents being
+	   located at the twig level. For explanation, see comment just above
+	   is_next_item_internal().
+	*/
 	CBK_TRUST_DK = (1 << 2)
 } cbk_flags;
 
-/** insertion outcome. IBK = insert by key */
+/* insertion outcome. IBK = insert by key */
 typedef enum { IBK_INSERT_OK = 0,
 	IBK_ALREADY_EXISTS = -EEXIST,
 	IBK_IO_ERROR = -EIO,
@@ -251,7 +241,7 @@ typedef int (*tree_iterate_actor_t) (reiser4_tree * tree, coord_t * coord, lock_
 extern int iterate_tree(reiser4_tree * tree, coord_t * coord, lock_handle * lh,
 			tree_iterate_actor_t actor, void *arg, znode_lock_mode mode, int through_units_p);
 
-/** return node plugin of @node */
+/* return node plugin of @node */
 static inline node_plugin *
 node_plugin_by_node(const znode * node /* node to query */ )
 {
@@ -325,7 +315,7 @@ extern void coord_unit_move_to(coord_t * coord, int units);
    list of block numbers of formatted nodes sorted by starting key in
    this node. Balancings should invalidate appropriate parts of this
    cache.
- */
+*/
 
 lookup_result coord_by_key(reiser4_tree * tree, const reiser4_key * key,
 			   coord_t * coord, lock_handle * handle,
@@ -402,44 +392,39 @@ extern void *unallocated_disk_addr_to_ptr(const reiser4_block_nr * addr);
 /* struct used internally to pack all numerous arguments of tree lookup.
     Used to avoid passing a lot of arguments to helper functions. */
 typedef struct cbk_handle {
-	/** tree we are in */
+	/* tree we are in */
 	reiser4_tree *tree;
-	/** key we are going after */
+	/* key we are going after */
 	const reiser4_key *key;
-	/** coord we will store result in */
+	/* coord we will store result in */
 	coord_t *coord;
-	/** type of lock to take on target node */
+	/* type of lock to take on target node */
 	znode_lock_mode lock_mode;
-	/** lookup bias. See comments at the declaration of lookup_bias */
+	/* lookup bias. See comments at the declaration of lookup_bias */
 	lookup_bias bias;
-	/** lock level */
+	/* lock level */
 	tree_level lock_level;
-	/** 
-	 * level where search will stop. Either item will be found between
-	 * lock_level and stop_level, or CBK_COORD_NOTFOUND will be
-	 * returned. 
-	 */
+	/* level where search will stop. Either item will be found between
+	   lock_level and stop_level, or CBK_COORD_NOTFOUND will be
+	   returned. 
+	*/
 	tree_level stop_level;
-	/** level we are currently at */
+	/* level we are currently at */
 	tree_level level;
-	/** 
-	 * block number of @active node. Tree traversal operates on two
-	 * nodes: active and parent. 
-	 */
+	/* block number of @active node. Tree traversal operates on two
+	   nodes: active and parent.  */
 	reiser4_block_nr block;
-	/** put here error message to be printed by caller */
+	/* put here error message to be printed by caller */
 	const char *error;
-	/** result passed back to caller */
+	/* result passed back to caller */
 	lookup_result result;
-	/** lock handles for active and parent */
+	/* lock handles for active and parent */
 	lock_handle *parent_lh;
 	lock_handle *active_lh;
 	reiser4_key ld_key;
 	reiser4_key rd_key;
-	/**
-	 * flags, passed to the cbk routine. Bits of this bitmask are defined
-	 * in tree.h:cbk_flags enum.
-	 */
+	/* flags, passed to the cbk routine. Bits of this bitmask are defined
+	   in tree.h:cbk_flags enum. */
 	__u32 flags;
 } cbk_handle;
 
@@ -474,50 +459,41 @@ typedef enum {
    It's kind of like those global variables the prof used to tell you
    not to use in CS1, except thread specific.;-) Nikita, this was a
    good idea.
- */
+*/
 struct reiser4_context {
-	/** magic constant. For debugging */
+	/* magic constant. For debugging */
 	__u32 magic;
 
-	/** current lock stack. See lock.[ch]. This is where list of all
-	 * locks taken by current thread is kept. This is also used in
-	 * deadlock detection.
-	 */
+	/* current lock stack. See lock.[ch]. This is where list of all
+	   locks taken by current thread is kept. This is also used in
+	   deadlock detection. */
 	lock_stack stack;
 
-	/** current transcrash. */
+	/* current transcrash. */
 	txn_handle *trans;
 	txn_handle trans_in_ctx;
 
-	/** super block we are working with.  To get the current tree
-	 * use &get_super_private (reiser4_get_current_sb ())->tree.
-	 */
+	/* super block we are working with.  To get the current tree
+	   use &get_super_private (reiser4_get_current_sb ())->tree. */
 	struct super_block *super;
 
-	/**
-	 * parent fs activation
-	 */
+	/* parent fs activation */
 	struct fs_activation *outer;
 
-	/**
-	 * per-thread grabbed (for further allocation) blocks counter
-	 */
+	/* per-thread grabbed (for further allocation) blocks counter */
 	reiser4_block_nr grabbed_blocks;
 
 	reiser4_block_nr      flush_reserved;
-	/**
-	 * per-thread tracing flags. Use reiser4_trace_flags enum to set
-	 * bits in it.
-	 */
+	/* per-thread tracing flags. Use reiser4_trace_flags enum to set
+	   bits in it. */
 	__u32 trace_flags;
 
-	/** thread ID */
+	/* thread ID */
 	__u32 tid;
 
-	/**
-	 * A link of all active contexts. */
+	/* A link of all active contexts. */
 	context_list_link contexts_link;
-	/** parent context */
+	/* parent context */
 	reiser4_context *parent;
 	tap_list_head taps;
 	long                  flags;
@@ -571,7 +547,7 @@ is_in_reiser4_context(void)
 	return current->fs_context != NULL && ((__u32) current->fs_context->owner) == context_magic;
 }
 
-/** return context associated with given thread */
+/* return context associated with given thread */
 static inline reiser4_context *
 get_context(const struct task_struct *tsk)
 {
@@ -582,7 +558,7 @@ get_context(const struct task_struct *tsk)
 	return (reiser4_context *) tsk->fs_context;
 }
 
-/** return context associated with current thread */
+/* return context associated with current thread */
 static inline reiser4_context *
 get_current_context(void)
 {
@@ -661,7 +637,7 @@ TS_LIST_DEFINE(context, reiser4_context, contexts_link);
    eviction of its page. The c_count variable also ensures that children are
    pressured out of memory before the parent. The jnode remains hashed as
    long as the VM allows its page to stay in memory.
- */
+*/
 static inline void
 jput(jnode * node)
 {
@@ -684,16 +660,12 @@ jput(jnode * node)
 		spin_unlock_tree(tree);
 		if (r_i_p) {
 			if (JF_ISSET(node, JNODE_HEARD_BANSHEE))
-				/*
-				 * node is removed from the tree.
-				 */
+				/* node is removed from the tree. */
 				jdelete(node);
 			else
 				jnode_try_drop(node);
 		}
-		/*
-		 * if !r_i_p some other thread is already killing it
-		 */
+		/* if !r_i_p some other thread is already killing it */
 	}
 }
 
@@ -710,4 +682,4 @@ jput(jnode * node)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

@@ -57,7 +57,7 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	print_test_disk_sb("get_ready:\n", disk_sb);
 
 	/* store key of root directory in format specific part of
-	 * reiser4 private super data */
+	   reiser4 private super data */
 	root_key = &private->u.test_format.root_dir_key;
 	key_init(root_key);
 	set_key_locality(root_key, d64tocpu(&disk_sb->root_locality));
@@ -66,8 +66,8 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	set_key_offset(root_key, (__u64) 0);
 
 	/* initialize fields of reiser4 private part of super block which
-	 * are common for all disk formats
-	 * FIXME-VS: shouldn't that initizlization be in common code? */
+	   are common for all disk formats
+	   FIXME-VS: shouldn't that initizlization be in common code? */
 	reiser4_set_mkfs_id(s, 0);
 	reiser4_set_block_count(s, d64tocpu(&disk_sb->block_count));
 	/* number of used blocks */
@@ -128,18 +128,14 @@ test_format_release(struct super_block *s)
 		warning("jmacd-7711", "txn_force failed in umount: %d", ret);
 	}
 
-	/*
-	 * FIXME-VS: txnmgr_force_commit_all and done_tree cound be
-	 * called by reiser4_kill_super
-	 */
+	/* FIXME-VS: txnmgr_force_commit_all and done_tree cound be
+	   called by reiser4_kill_super */
 	print_fs_info("umount ok", s);
 
 	done_tree(&get_super_private(s)->tree);
 
-	/* 
-	 * temporary fix, until transaction manager/log writer deals with
-	 * super-block correctly 
-	 */
+	/* temporary fix, until transaction manager/log writer deals with
+	   super-block correctly  */
 
 	super_bh = sb_bread(s, (int) (REISER4_MAGIC_OFFSET / s->s_blocksize));
 	if (!super_bh) {
@@ -153,9 +149,7 @@ test_format_release(struct super_block *s)
 		return -EIO;
 	}
 
-	/*
-	 * update test disk format super block
-	 */
+	/* update test disk format super block */
 	/* root block */
 	cputod64(get_super_private(s)->tree.root_block, &disk_sb->root_block);
 

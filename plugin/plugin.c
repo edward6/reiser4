@@ -167,7 +167,7 @@
     . always store them with directories also
     . use inheritance hierarchy, independent of file-system namespace
   
- */
+*/
 
 #include "../debug.h"
 #include "../dformat.h"
@@ -185,7 +185,7 @@
 
 /* public interface */
 
-/** initialise plugin sub-system. Just call this once on reiser4 startup. */
+/* initialise plugin sub-system. Just call this once on reiser4 startup. */
 int init_plugins(void);
 int handle_default_plugin_option(char *option, reiser4_plugin ** area);
 int setup_plugins(struct super_block *super, reiser4_plugin ** area);
@@ -199,7 +199,7 @@ static reiser4_plugin_type find_type(const char *label);
 static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype, const char *label);
 static reiser4_plugin_id max_id = 0;
 
-/** initialise plugin sub-system. Just call this once on reiser4 startup. */
+/* initialise plugin sub-system. Just call this once on reiser4 startup. */
 int
 init_plugins(void)
 {
@@ -279,7 +279,7 @@ handle_default_plugin_option(char *option,	/* Option should has form
 	return 0;
 }
 
-/** lookup plugin name by scanning tables */
+/* lookup plugin name by scanning tables */
 reiser4_plugin *
 lookup_plugin_name(char *plug_label /* label to search for */ )
 {
@@ -300,7 +300,7 @@ lookup_plugin_name(char *plug_label /* label to search for */ )
 	return plugin;
 }
 
-/** true if plugin type id is valid */
+/* true if plugin type id is valid */
 int
 is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */)
 {
@@ -309,7 +309,7 @@ is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */)
 	return (type_id < REISER4_PLUGIN_TYPES);
 }
 
-/** true if plugin id is valid */
+/* true if plugin id is valid */
 int
 is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
 		   reiser4_plugin_id id /* plugin id */)
@@ -318,7 +318,7 @@ is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
 	return ((id < plugins[type_id].builtin_num) && (id >= 0));
 }
 
-/** lookup plugin by scanning tables */
+/* lookup plugin by scanning tables */
 reiser4_plugin *
 lookup_plugin(const char *type_label /* plugin type label */ ,
 	      const char *plug_label /* plugin label */ )
@@ -385,7 +385,7 @@ locate_plugin(struct inode *inode, plugin_locator * loc)
   
    Both arguments are checked for validness: this is supposed to be called
    from user-level.
- */
+*/
 reiser4_plugin *
 plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
 						 * type id,
@@ -405,7 +405,7 @@ plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
 	return NULL;
 }
 
-/** convert plugin id to the disk format */
+/* convert plugin id to the disk format */
 int
 save_plugin_id(reiser4_plugin * plugin /* plugin to convert */ ,
 	       d16 * area /* where to store result */ )
@@ -417,7 +417,7 @@ save_plugin_id(reiser4_plugin * plugin /* plugin to convert */ ,
 	return 0;
 }
 
-/** list of all plugins of given type */
+/* list of all plugins of given type */
 plugin_list_head *
 get_plugin_list(reiser4_plugin_type type_id	/* plugin type
 						 * id */ )
@@ -427,7 +427,7 @@ get_plugin_list(reiser4_plugin_type type_id	/* plugin type
 }
 
 #if REISER4_DEBUG_OUTPUT
-/** print human readable plugin information */
+/* print human readable plugin information */
 void
 print_plugin(const char *prefix /* prefix to print */ ,
 	     reiser4_plugin * plugin /* plugin to print */ )
@@ -440,7 +440,7 @@ print_plugin(const char *prefix /* prefix to print */ ,
 
 #endif
 
-/** find plugin type by label */
+/* find plugin type by label */
 static reiser4_plugin_type
 find_type(const char *label	/* plugin type
 				 * label */ )
@@ -633,4 +633,4 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

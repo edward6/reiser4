@@ -75,7 +75,7 @@ leftmost_key_in_node(const znode * node /* node to query */ ,
 }
 
 #if REISER4_DEBUG_OUTPUT
-/** helper function: convert 4 bit integer to its hex representation */
+/* helper function: convert 4 bit integer to its hex representation */
 /* Audited by: green(2002.06.12) */
 static char
 hex_to_ascii(const int hex /* hex digit */ )
@@ -88,7 +88,7 @@ hex_to_ascii(const int hex /* hex digit */ )
 		return 'a' + hex - 10;
 }
 
-/** helper function used to indent output during recursive tree printing */
+/* helper function used to indent output during recursive tree printing */
 /* Audited by: green(2002.06.12) */
 void
 indent(unsigned indentation)
@@ -177,9 +177,7 @@ print_node_content(const char *prefix /* output prefix */ ,
 				char datum;
 
 				if ((j % 16) == 0) {
-					/*
-					 * next 16 bytes
-					 */
+					/* next 16 bytes */
 					if (j == 0) {
 						indent_znode(node);
 						info("\tdata % .2i: ", j);
@@ -276,9 +274,7 @@ print_node_items(const char *prefix /* output prefix */ ,
 				char datum;
 
 				if ((j % 16) == 0) {
-					/*
-					 * next 16 bytes
-					 */
+					/* next 16 bytes */
 					if (j == 0) {
 						indent_znode(node);
 						info("\tdata % .2i: ", j);
@@ -302,7 +298,7 @@ print_node_items(const char *prefix /* output prefix */ ,
 #endif
 
 #if REISER4_DEBUG_NODE
-/** debugging aid: check consistency of @node content */
+/* debugging aid: check consistency of @node content */
 void
 node_check(znode * node /* node to check */ ,
 	   __u32 flags /* check flags */ )
@@ -393,4 +389,4 @@ node_plugin node_plugins[LAST_NODE_ID] = {
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

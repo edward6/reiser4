@@ -280,8 +280,8 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 		down(&fq->sema);
 
 		/* Ask the caller to re-aquire the locks and call this
-		 * function again. Note: this technique is commonly used in
-		 * the txnmgr code. */
+		   function again. Note: this technique is commonly used in
+		   the txnmgr code. */
 		return -EAGAIN;
 	}
 
@@ -413,8 +413,8 @@ current_atom_finish_all_fq(void)
 	} while (ret == -EAGAIN);
 
 	/* we do not need locked atom after this function finishes, SUCCESS or
-	 * -EBUSY are two return codes when atom remains locked after
-	 * finish_all_fq */
+	   -EBUSY are two return codes when atom remains locked after
+	   finish_all_fq */
 	if (!ret || ret == -EBUSY)
 		spin_unlock_atom(atom);
 
@@ -559,9 +559,9 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		pg = jnode_page(first);
 
 		/* This page is protected from washing from the page cache by
-		 * pages' jnode state bits: JNODE_OVERWRITE if jnode is in
-		 * overwrite set or JNODE_WRITEBACK if jnode is in relocate
-		 * set. */
+		   pages' jnode state bits: JNODE_OVERWRITE if jnode is in
+		   overwrite set or JNODE_WRITEBACK if jnode is in relocate
+		   set. */
 		assert("zam-727", pg != NULL);
 
 		page_cache_get(pg);
@@ -571,9 +571,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		SetPageWriteback(pg);
 
 		write_lock(&pg->mapping->page_lock);
-		/*
-		 * clear dirty bit and update page cache statistics.
-		 */
+		/* clear dirty bit and update page cache statistics. */
 		test_clear_page_dirty(pg);
 
 		list_del(&pg->list);
@@ -584,7 +582,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		reiser4_unlock_page(pg);
 
 		/* Put pages to inactive list where they have chance to be
-		 * freed. (as in mpage_writepages()) */
+		   freed. (as in mpage_writepages()) */
 		if ((current->flags & PF_MEMALLOC) && !PageActive(pg) && PageLRU(pg)) {
 			page_cache_get(pg);
 			if (!pagevec_add(&pvec, pg))
@@ -683,9 +681,9 @@ write_fq(flush_queue_t * fq, int how_many)
 		int nr_contiguous = 0;
 		int ret;
 		/* take those nodes from the front of the prepped queue that are a contiguous
-		 * sequence of block numbers, not greater than max_blocks (i/o subsystem
-		 * limitation), and form a set from them defined by the range from the front of
-		 * the queue to cur.  Pass that set to prepare_node_for_write(). */
+		   sequence of block numbers, not greater than max_blocks (i/o subsystem
+		   limitation), and form a set from them defined by the range from the front of
+		   the queue to cur.  Pass that set to prepare_node_for_write(). */
 		for (;;) {
 			jnode *cur = last;
 
@@ -932,7 +930,7 @@ writeback_queued_jnodes(struct super_block *s, jnode * node, struct writeback_co
 	assert("zam-747", wbc->nr_to_write > 0);
 
 	/* First, we try to get atom we have jnode from, and write dirty
-	 * jnodes from atom's flush queues */
+	   jnodes from atom's flush queues */
 	spin_lock_jnode(node);
 	atom = atom_get_locked_by_jnode(node);
 
@@ -946,7 +944,7 @@ writeback_queued_jnodes(struct super_block *s, jnode * node, struct writeback_co
 	spin_unlock_jnode(node);
 
 	/* If scanning of one atom was not enough we scan all atoms for flush
-	 * queues in proper state */
+	   queues in proper state */
 	if (wbc->nr_to_write > total_est) {
 		txn_mgr *mgr = &get_super_private(s)->tmgr;
 

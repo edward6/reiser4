@@ -7,7 +7,7 @@
   
    Currently only trivial policies are implemented.
   
- */
+*/
 
 #include "../tree.h"
 #include "../inode.h"
@@ -20,7 +20,7 @@
 #include <linux/pagemap.h>
 #include <linux/fs.h>		/* For struct inode */
 
-/** Never store file's tail as direct item */
+/* Never store file's tail as direct item */
 /* Audited by: green(2002.06.12) */
 static int
 never_tail(const struct inode *inode UNUSED_ARG	/* inode to
@@ -34,28 +34,28 @@ static reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t 
 	int is_hole) 
 {
 	/* Estimating the number of blocks for extents. Here is handled the both
-	 * cases: request for allocating fake allocated extents and real allocated 
-	 * ones */
+	   cases: request for allocating fake allocated extents and real allocated 
+	   ones */
 	
 	assert("umka-1245", inode != NULL);
 	if (is_hole) {
 	    reiser4_block_nr amount;
 	    
 	    /* In the case of unallocated extent (truncate does) we are counting 
-	     * the overhead for one balancing, stat data update and three blocks
-	     * may become dirty in the worse case on the twig level */
+	       the overhead for one balancing, stat data update and three blocks
+	       may become dirty in the worse case on the twig level */
 	    estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
 	    return inode_file_plugin(inode)->estimate.update(inode) + amount + 3;
 	} else {
 	    /* Here we are counting the number of blocks needed for creating of the
-	     * allocated extent(s). The digit 3 is the number of dirty nodes on 
-	     * the twing level. */
+	       allocated extent(s). The digit 3 is the number of dirty nodes on 
+	       the twing level. */
 	    return div64_32(size + (current_blocksize - 1), current_blocksize, NULL) + 
 		inode_file_plugin(inode)->estimate.update(inode) + 3;
 	}
 }
 
-/** Always store file's tail as direct item */
+/* Always store file's tail as direct item */
 /* Audited by: green(2002.06.12) */
 static int
 always_tail(const struct inode *inode UNUSED_ARG	/* inode to
@@ -158,4 +158,4 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -31,8 +31,8 @@ int connect_znode(coord_t * coord, znode * node);
 	               received), other error codes are conformed to
 		       /usr/include/asm/errno.h .
 
-   ** pointer to lock stack is not passed because we have magic
-   ** get_current_stack() function.
+    * pointer to lock stack is not passed because we have magic
+    * get_current_stack() function.
 
 */
 
@@ -40,27 +40,20 @@ int reiser4_get_parent(lock_handle * result, znode * node, znode_lock_mode mode,
 
 /* bits definition for reiser4_get_neighbor function `flags' arg. */
 typedef enum {
-	/* 
-	 * allows to read block from disk */
+	/* allows to read block from disk */
 	GN_DO_READ = 0x1,
-	/* 
-	 * locking left neighbor in stead of right one */
+	/* locking left neighbor in stead of right one */
 	GN_GO_LEFT = 0x2,
-	/* 
-	 * automatically load neighbor node content */
+	/* automatically load neighbor node content */
 	GN_LOAD_NEIGHBOR = 0x4,
-	/* 
-	 * return -EAGAIN if can't lock  */
+	/* return -EAGAIN if can't lock  */
 	GN_TRY_LOCK = 0x8,
-	/* 
-	 * used internally in tree_walk.c, causes renew_sibling do not
-	 * allocate neighbor znode, but only search for him in znode cache */
+	/* used internally in tree_walk.c, causes renew_sibling do not
+	   allocate neighbor znode, but only search for him in znode cache */
 	GN_NO_ALLOC = 0x10,
-	/*
-	 * do not go across atom boundaries */
+	/* do not go across atom boundaries */
 	GN_SAME_ATOM = 0x20,
-	/*
-	 * allow to lock not connected nodes */
+	/* allow to lock not connected nodes */
 	GN_ALLOW_NOT_CONNECTED = 0x40
 } znode_get_neigbor_flags;
 
@@ -98,4 +91,4 @@ extern void link_left_and_right(znode * left, znode * right);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

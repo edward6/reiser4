@@ -1,7 +1,6 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 /* Memory pressure hooks. Fake inodes handling. */
-/* 
-   We store all file system meta data (and data, of course) in the page cache.
+/* We store all file system meta data (and data, of course) in the page cache.
   
    What does this mean? In stead of using bread/brelse we create special
    "fake" inode (one per super block) and store content of formatted nodes
@@ -109,7 +108,7 @@
    significant problem though, because we need to add some data structures to
    the page anyway (jnode) and all necessary book keeping can be put there.
   
- */
+*/
 
 /* Life cycle of pages/nodes.
   
@@ -164,7 +163,7 @@
       removed by the call to zdrop(). At this moment, page is detached from
       znode and removed from the inode address space.
   
- */
+*/
 
 #include "debug.h"
 #include "dformat.h"
@@ -218,16 +217,14 @@ init_formatted_fake(struct super_block *super)
 		fake->i_rdev = to_kdev_t(super->s_bdev->bd_dev);
 		fake->i_bdev = super->s_bdev;
 		get_super_private(super)->fake = fake;
-		/*
-		 * FIXME-NIKITA something else?
-		 */
+		/* FIXME-NIKITA something else? */
 		unlock_new_inode(fake);
 		return 0;
 	} else
 		return -ENOMEM;
 }
 
-/** release fake inode for @super */
+/* release fake inode for @super */
 int
 done_formatted_fake(struct super_block *super)
 {
@@ -260,10 +257,8 @@ reiser4_check_mem(reiser4_context * ctx)
 	total = nr_free_pagecache_pages();
 	free = nr_free_pages();
 
-	/*
-	 * we don't care about overflows here, because this is only hint
-	 * anyway.
-	 */
+	/* we don't care about overflows here, because this is only hint
+	   anyway. */
 	ratio = free * 100 / total;
 	if (ratio <= info->txnmgr.low_memory) {
 		ktxnmgrd_context *daemon;
@@ -272,10 +267,8 @@ reiser4_check_mem(reiser4_context * ctx)
 		if (daemon != NULL) {
 			int kick_it;
 
-			/* 
-			 * we are first to note low free memory. Wake up
-			 * ktxnmgrd 
-			 */
+			/* we are first to note low free memory. Wake up
+			   ktxnmgrd  */
 			kick_it = !atomic_read(&daemon->pressure);
 			atomic_inc(&daemon->pressure);
 			if (kick_it)
@@ -303,7 +296,7 @@ reiser4_unlock_page(struct page *page)
 	unlock_page(page);
 }
 
-/** return tree @page is in */
+/* return tree @page is in */
 reiser4_tree *
 tree_by_page(const struct page *page /* page to query */ )
 {
@@ -372,7 +365,7 @@ xmemset(void *s, int c, size_t n)
   
    mpage_end_io_read() would also do. But it's static.
   
- */
+*/
 static int
 end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
 {
@@ -398,7 +391,7 @@ end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, in
   
    mpage_end_io_write() would also do. But it's static.
   
- */
+*/
 static int
 end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
 {
@@ -416,7 +409,7 @@ end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG, i
 	return 0;
 }
 
-/** ->readpage() method for formatted nodes */
+/* ->readpage() method for formatted nodes */
 static int
 formatted_readpage(struct file *f UNUSED_ARG, struct page *page /* page to read */ )
 {
@@ -424,7 +417,7 @@ formatted_readpage(struct file *f UNUSED_ARG, struct page *page /* page to read 
 	return page_io(page, jprivate(page), READ, GFP_KERNEL);
 }
 
-/** ->writepage() method for formatted nodes */
+/* ->writepage() method for formatted nodes */
 static int
 formatted_writepage(struct page *page /* page to write */ )
 {
@@ -437,15 +430,15 @@ formatted_writepage(struct page *page /* page to write */ )
 	wbc.nr_to_write = 1;
 
 	/* The mpage_writepages() calls reiser4_writepage with a locked, but
-	 * clean page. An extra reference should protect this page from
-	 * removing from memory */
+	   clean page. An extra reference should protect this page from
+	   removing from memory */
 	page_cache_get(page);
 	result = page_common_writeback(page, &wbc, JNODE_FLUSH_MEMORY_FORMATTED);
 	page_cache_release(page);
 	return result;
 }
 
-/** submit single-page bio request */
+/* submit single-page bio request */
 int
 page_io(struct page *page /* page to perform io for */ ,
 	jnode * node /* jnode of page */ ,
@@ -473,7 +466,7 @@ page_io(struct page *page /* page to perform io for */ ,
 	return result;
 }
 
-/** helper function to construct bio for page */
+/* helper function to construct bio for page */
 static struct bio *
 page_bio(struct page *page, jnode * node, int rw, int gfp)
 {
@@ -481,21 +474,20 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 	assert("nikita-2092", page != NULL);
 	assert("nikita-2633", node != NULL);
 
-	/*
-	 * Simple implemenation in the assumption that blocksize == pagesize.
-	 *
-	 * We only have to submit one block, but submit_bh() will allocate bio
-	 * anyway, so lets use all the bells-and-whistles of bio code.
-	 *
-	 * This is roughly equivalent to mpage_readpage() for one
-	 * page. mpage_readpage() is not used, because it depends on
-	 * get_block() to obtain block number and get_block() gets everything,
-	 * but page---and we need page to obtain block number from jnode. One
-	 * line change to mpage_readpage() (bh.b_page = page;) and it can be
-	 * used. Other problem is the do_mpage_readpage() checks
-	 * page_has_buffers().
-	 *
-	 */
+	/* Simple implemenation in the assumption that blocksize == pagesize.
+	  
+	   We only have to submit one block, but submit_bh() will allocate bio
+	   anyway, so lets use all the bells-and-whistles of bio code.
+	  
+	   This is roughly equivalent to mpage_readpage() for one
+	   page. mpage_readpage() is not used, because it depends on
+	   get_block() to obtain block number and get_block() gets everything,
+	   but page---and we need page to obtain block number from jnode. One
+	   line change to mpage_readpage() (bh.b_page = page;) and it can be
+	   used. Other problem is the do_mpage_readpage() checks
+	   page_has_buffers().
+	  
+	*/
 
 	bio = bio_alloc(gfp, 1);
 	if (bio != NULL) {
@@ -567,7 +559,7 @@ formatted_vm_writeback(struct page *page	/* page to start
    and submit IO requests. Currently very simple scheme is implemented. There
    is not much sense in elaborating it now when VM is in such a flux.
   
- */
+*/
 int
 page_common_writeback(struct page *page /* page to start writeback from */ ,
 		      struct writeback_control *wbc	/* writeback control
@@ -590,10 +582,10 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	reiser4_unlock_page(page);
 
 	/* An attempt to balance queued and dirty nodes on a reiser4 fs is done by the following: vm writeback points us
-	 * to some arbitrary dirty node.  We analyze "queued" status of the node to determine should we ask ktxnmgrd to
-	 * prepare some nodes by calling jnode_flush().  If the node is not "queued" we do that. This job is done
-	 * asynchronously by ktxnmgrd. Our current thread just write required number of nodes from flush queues. If
-	 * there are no prepared nodes, we say VM that we can write nothing to disk.*/
+	   to some arbitrary dirty node.  We analyze "queued" status of the node to determine should we ask ktxnmgrd to
+	   prepare some nodes by calling jnode_flush().  If the node is not "queued" we do that. This job is done
+	   asynchronously by ktxnmgrd. Our current thread just write required number of nodes from flush queues. If
+	   there are no prepared nodes, we say VM that we can write nothing to disk.*/
 	flush_some = !JF_ISSET(node, JNODE_FLUSH_QUEUED);
 
 	writeback_queued_jnodes(s, node, wbc);
@@ -606,7 +598,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 	REISER4_EXIT(0);
 }
 
-/** ->set_page_dirty() method of formatted address_space */
+/* ->set_page_dirty() method of formatted address_space */
 static int
 formatted_set_page_dirty(struct page *page	/* page to mark
 						 * dirty */ )
@@ -615,7 +607,7 @@ formatted_set_page_dirty(struct page *page	/* page to mark
 	return __set_page_dirty_nobuffers(page);
 }
 
-/** place holders for methods that don't make sense for the fake inode */
+/* place holders for methods that don't make sense for the fake inode */
 
 define_never_ever_op(readpages)
     define_never_ever_op(prepare_write)
@@ -628,14 +620,13 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.writepage = formatted_writepage,
 	/* this is called to read formatted node */
 	.readpage = formatted_readpage,
-	/**
-	 * ->sync_page() method of fake inode address space operations. Called
-	 * from wait_on_page() and lock_page().
-	 *
-	 * This is most annoyingly misnomered method. Actually it is called
-	 * from wait_on_page_bit() and lock_page() and its purpose is to
-	 * actually start io by jabbing device drivers.
-	 */
+	/* ->sync_page() method of fake inode address space operations. Called
+	   from wait_on_page() and lock_page().
+	  
+	   This is most annoyingly misnomered method. Actually it is called
+	   from wait_on_page_bit() and lock_page() and its purpose is to
+	   actually start io by jabbing device drivers.
+	*/
 	.sync_page = block_sync_page,
 	/* Write back some dirty pages from this mapping. Called from sync.
 	   called during sync (pdflush) */
@@ -650,14 +641,13 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.commit_write = V(never_ever_commit_write),
 	.bmap = V(never_ever_bmap),
 	/* called just before page is being detached from inode mapping and
-	 * removed from memory. Called on truncate, cut/squeeze, and
-	 * umount. */
+	   removed from memory. Called on truncate, cut/squeeze, and
+	   umount. */
 	.invalidatepage = reiser4_invalidatepage,
-	/**
-	 * this is called by shrink_cache() so that file system can try to
-	 * release objects (jnodes, buffers, journal heads) attached to page
-	 * and, may be made page itself free-able.
-	 */
+	/* this is called by shrink_cache() so that file system can try to
+	   release objects (jnodes, buffers, journal heads) attached to page
+	   and, may be made page itself free-able.
+	*/
 	.releasepage = reiser4_releasepage,
 	.direct_IO = V(never_ever_direct_IO)
 };
@@ -675,9 +665,7 @@ drop_page(struct page *page, jnode * node)
 	if (node != NULL)
 		page_clear_jnode(page, node);
 	reiser4_unlock_page(page);
-	/*
-	 * page removed from the mapping---decrement page counter
-	 */
+	/* page removed from the mapping---decrement page counter */
 	page_cache_release(page);
 }
 
@@ -726,4 +714,4 @@ print_page(const char *prefix, struct page *page)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

@@ -177,21 +177,18 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * k
 		assert("vs-1014", get_key_offset(key) == 0);
 
 		coord_init_before_first_item(coord, coord->node);
-		/*
-		 * FIXME-VS: BEFORE_ITEM should be fine, but node's
-		 * lookup returns BEFORE_UNIT
-		 */
+		/* FIXME-VS: BEFORE_ITEM should be fine, but node's
+		   lookup returns BEFORE_UNIT */
 		coord->between = BEFORE_UNIT;
 		result = FIRST_ITEM;
 		goto ok;
 	}
 
 	if (equal_to_rdk(coord->node, key)) {
-		/*
-		 * FIXME-VS: switch to right neighbor. The problem is
-		 * that callers of this currently do not expect
-		 * coord->node to change
-		 */
+		/* FIXME-VS: switch to right neighbor. The problem is
+		   that callers of this currently do not expect
+		   coord->node to change
+		*/
 		result = goto_right_neighbor(coord, lh);
 		if (result) {
 			zrelse(coord->node);
@@ -224,9 +221,7 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * k
 		return RESEARCH;
 	}
 
-	/*
-	 * make sure that coord is set properly. Should it be?
-	 */
+	/* make sure that coord is set properly. Should it be? */
 	coord->between = AT_UNIT;
 	assert("vs-1007", keyle(item_key_by_coord(coord, &check), key));
 	assert("vs-1008", keylt(key, get_next_item_key(coord, &check)));
@@ -243,7 +238,7 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * k
 
 		if (coord->iplug->b.key_in_item(coord, key)) {
 			/* @key is in item. coord->unit_pos is set
-			 * properly */
+			   properly */
 			coord->between = AT_UNIT;
 			result = OVERWRITE_ITEM;
 			goto ok;
@@ -292,7 +287,7 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 	}
 
 	/* collect statistics on the number of calls to this function which did
-	 * not get optimized */
+	   not get optimized */
 	reiser4_stat_file_add(find_next_item_via_cbk);
 	result = coord_by_key(current_tree, key, coord, lh, lock_mode, SEARCH_BIAS, TWIG_LEVEL, LEAF_LEVEL, cbk_flags);
 	return result;
@@ -390,7 +385,7 @@ shorten_file(struct inode *inode)
 
 	if (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) && inode_get_flag(inode, REISER4_HAS_TAIL))
 		/* file is built of tail items. No need to worry about zeroing
-		 * last page after new file end */
+		   last page after new file end */
 		return 0;
 
 	padd_from = inode->i_size & (PAGE_CACHE_SIZE - 1);
@@ -481,7 +476,7 @@ reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, loff_t old_siz
     assert("umka-1233", inode != NULL);
    
     /* Here should be called tail policy plugin in order to handle correctly
-     * the situation of converting extent to tail */
+       the situation of converting extent to tail */
     tail_plugin = inode_tail_plugin(inode);
     
     assert("umka-1234", tail_plugin != NULL);
@@ -577,11 +572,10 @@ set_hint(struct sealed_coord *hint, const reiser4_key * key, const coord_t * coo
 	seal_init(&hint->seal, coord, key);
 	hint->coord = *coord;
 	if ((!less_than_rdk(coord->node, key) || less_than_ldk(coord->node, key)) &&
-	    /*
-	     * FIXME-NIKITA: temporary fix. Due to extents on the twig level,
-	     * it is possible that key we are trying to write at is less than
-	     * left delimiting key of the node we came into.
-	     */
+	    /* FIXME-NIKITA: temporary fix. Due to extents on the twig level,
+	       it is possible that key we are trying to write at is less than
+	       left delimiting key of the node we came into.
+	    */
 	    !coord_is_before_leftmost(coord)) {
 		unset_hint(hint);
 		return;
@@ -609,9 +603,7 @@ hint_validate(struct sealed_coord *hint, const reiser4_key * key, coord_t * coor
 	int result;
 
 	if (!hint || !hint_is_set(hint) || !keyeq(key, &hint->key))
-		/*
-		 * hint either not set or set for different key
-		 */
+		/* hint either not set or set for different key */
 		return -EAGAIN;
 
 	result = seal_validate(&hint->seal, &hint->coord, key,
@@ -710,7 +702,7 @@ unix_file_writepage(struct page *page)
 		needed);
 	
 	/* to keep order of locks right we have to unlock page before
-	 * call to get_nonexclusive_access */
+	   call to get_nonexclusive_access */
 	page_cache_get(page);
 	reiser4_unlock_page(page);
 
@@ -757,8 +749,7 @@ unix_file_readpage(struct file *file, struct page *page)
 	unix_file_key_by_inode(page->mapping->host, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
 
 	/* look for file metadata corresponding to first byte of page
-	 * FIXME-VS: seal might be used here
-	 */
+	   FIXME-VS: seal might be used here */
 	result = load_file_hint(file, &hint);
 	if (result)
 		return result;
@@ -802,7 +793,7 @@ unix_file_readpage(struct file *file, struct page *page)
 	}
 
 	/* get plugin of found item or use plugin if extent if there are no
-	 * one */
+	   one */
 	iplug = item_plugin_by_coord(&coord);
 	if (iplug->s.file.readpage)
 		result = iplug->s.file.readpage(&coord, &lh, page);
@@ -890,7 +881,7 @@ item_to_operate_on(struct inode *inode, flow_t * f, const coord_t * coord)
 
 reiser4_block_nr unix_file_estimate_read(struct inode *inode, loff_t count) {
     	/* We should reserve the one block, because of updating of the stat data
-	 * item */
+	   item */
 	return inode_file_plugin(inode)->estimate.update(inode);
 }
 /* plugin->u.file.read */
@@ -935,12 +926,11 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 
 	init_lh(&lh);
 
-	/*
-	 * get seal and coord sealed with it from reiser4 private data of
-	 * struct file.  The coord will tell us where our last read of this
-	 * file finished, and the seal will help us determine if that location
-	 * is still valid.
-	 */
+	/* get seal and coord sealed with it from reiser4 private data of
+	   struct file.  The coord will tell us where our last read of this
+	   file finished, and the seal will help us determine if that location
+	   is still valid.
+	*/
 	result = load_file_hint(file, &hint);
 	if (unlikely(result)) {
 		drop_nonexclusive_access(inode);
@@ -961,7 +951,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		result = find_next_item(&hint, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND) {
 			/* item had to be found, as it was not - we have
-			 * -EIO */
+			   -EIO */
 			done_lh(&lh);
 			break;
 		}
@@ -1027,8 +1017,8 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	result = 0;
 
 	/* this should now be called userspace_sink_build, now that we have
-	 * both sinks and flows.  See discussion of sinks and flows in
-	 * www.namesys.com/v4/v4.html */
+	   both sinks and flows.  See discussion of sinks and flows in
+	   www.namesys.com/v4/v4.html */
 	result = userspace_sink_build(inode, buf, 1 /* user space */ , read_amount,
 				      *off, READ_OP, &f);
 
@@ -1037,8 +1027,8 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	get_nonexclusive_access(inode);
 
 	/* have generic_readahead to return number of pages to
-	 * readahead. generic_readahead must not do readahead, but return
-	 * number of pages to readahead */
+	   readahead. generic_readahead must not do readahead, but return
+	   number of pages to readahead */
 	logical_intrafile_readahead_amount = logical_generic_readahead(struct file * file, off, read_amount);
 
 	while (intrafile_readahead_amount) {
@@ -1048,7 +1038,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		readahead_result = find_next_item(file, &f.key, &coord, &lh, ZNODE_READ_LOCK);
 		if (readahead_result != CBK_COORD_FOUND)
 			/* item had to be found, as it was not - we have
-			 * -EIO */
+			   -EIO */
 			break;
 
 		/* call readahead method of found item */
@@ -1077,13 +1067,11 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		coord_init_zero(&coord);
 		init_lh(&lh);
 
-		/*
-		 * FIXEM-VS: seal might be used here
-		 */
+		/* FIXEM-VS: seal might be used here */
 		result = find_next_item(0, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND) {
 			/* item had to be found, as it was not - we have
-			 * -EIO */
+			   -EIO */
 			done_lh(&lh);
 			break;
 		}
@@ -1104,7 +1092,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		}
 
 		/* for debugging sake make sure that tail status is set
-		 * correctly if it claimes to be known */
+		   correctly if it claimes to be known */
 		if (REISER4_DEBUG && inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN)) {
 			assert("vs-829", (id == TAIL_ID && inode_get_flag(inode, REISER4_HAS_TAIL))
 			       || (id == EXTENT_POINTER_ID && !inode_get_flag(inode, REISER4_HAS_TAIL)));
@@ -1173,8 +1161,7 @@ unix_file_interfile_readahead_amount(struct file *file, off, read_amount)
 
 /* This searches for write position in the tree and calls write method of
    appropriate item to actually copy user data into filesystem. This loops
-   until all the data from flow @f are written to a file.
- */
+   until all the data from flow @f are written to a file. */
 static loff_t
 append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 {
@@ -1188,10 +1175,8 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 
 	init_lh(&lh);
 
-	/*
-	 * get seal and coord sealed with it from reiser4 private data of
-	 * struct file
-	 */
+	/* get seal and coord sealed with it from reiser4 private data of
+	   struct file */
 	result = load_file_hint(file, &hint);
 	if (result)
 		return result;
@@ -1199,7 +1184,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 	to_write = f->length;
 	while (1) {
 		/* look for file's metadata (extent or tail item) corresponding
-		 * to position we write to */
+		   to position we write to */
 		result = find_next_item(&hint, &f->key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occurred */
@@ -1325,10 +1310,8 @@ ssize_t unix_file_write(struct file * file,	/* file to write to */
 	get_nonexclusive_access(inode);
 	needed = unix_file_estimate_write(inode, count, off);
 	
-	/* 
-	    FIXME-VITALY: grab needed blocks. They will go either 
-	    to fake allocated or to overwrite set.
-	*/
+	/* FIXME-VITALY: grab needed blocks. They will go either 
+	    to fake allocated or to overwrite set. */
 	result = reiser4_grab_space_exact(needed, 0);
 
 	if (result != 0) {
@@ -1345,13 +1328,11 @@ ssize_t unix_file_write(struct file * file,	/* file to write to */
 
 	if (inode->i_size < *off) {
 		/* append file with a hole. This allows extent_write and
-		 * tail_write to not decide when hole appending is
-		 * necessary. When it is required f->length == 0 */
+		   tail_write to not decide when hole appending is
+		   necessary. When it is required f->length == 0 */
 		result = expand_file(inode, inode->i_size, *off);
 		if (result) {
-			/*
-			 * FIXME-VS: i_size may now be set incorrectly
-			 */
+			/* FIXME-VS: i_size may now be set incorrectly */
 			drop_nonexclusive_access(inode);
 			return result;
 		}
@@ -1371,7 +1352,7 @@ ssize_t unix_file_write(struct file * file,	/* file to write to */
 
 	if (written) {
 		/* if we were not able to update stat data warning will be issued, but write will not return failure
-		 * notification */
+		   notification */
 		update_sd_if_necessary(inode, &f);
 	}
 
@@ -1396,12 +1377,12 @@ reiser4_block_nr unix_file_estimate_release(struct inode *inode) {
 
     if (file_size == 0) {
 	/* If new file size is zero, we are reserving only some amount of blocks 
-	 * for the stat data updating */
+	   for the stat data updating */
 	return inode_file_plugin(inode)->estimate.update(inode);
     }
     
     /* Here should be called tail policy plugin in order to handle correctly
-     * the situation of converting extent to tail */
+       the situation of converting extent to tail */
     tail_plugin = inode_tail_plugin(inode);
     assert("umka-1238", tail_plugin != NULL);
     
@@ -1436,9 +1417,7 @@ unix_file_release(struct file *file)
 	
 	trace_on(TRACE_RESERVE, "file release grabs %llu blocks.\n", needed);
 
-	/*
-	 * FIXME-VS: it is not clear where to do extent2tail conversion yet
-	 */
+	/* FIXME-VS: it is not clear where to do extent2tail conversion yet */
 	if (!inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN))
 		/* there were no accesses to file body. Leave it as it is */
 		return 0;
@@ -1583,8 +1562,7 @@ unix_file_key_by_inode(struct inode *inode, loff_t off, reiser4_key *key)
 
 /* plugin->u.file.set_plug_in_sd = NULL
    plugin->u.file.set_plug_in_inode = NULL
-   plugin->u.file.create_blank_sd = NULL
- */
+   plugin->u.file.create_blank_sd = NULL */
 
 /* plugin->u.file.delete = NULL
    plugin->u.file.add_link = NULL
@@ -1640,4 +1618,4 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

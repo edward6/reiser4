@@ -4,7 +4,7 @@ DO NOT COMPILE THIS
 #include "debug.h"
 #include <linux/fs.h>
 #define REISER4_FIRST_BITMAP_BLOCK 100
-/** return a physical disk address for logical bitmap number @bmap */
+/* return a physical disk address for logical bitmap number @bmap */
     void
 get_bitmap_blocknr(struct super_block *super, int bmap, reiser4_block_nr * bnr)
 {
@@ -13,8 +13,8 @@ get_bitmap_blocknr(struct super_block *super, int bmap, reiser4_block_nr * bnr)
 	assert("zam-390", bmap < get_nr_bmap(super));
 
 	/* FIXME_ZAM: before discussing of disk layouts and disk format
-	 * plugins I implement bitmap location scheme which is close to scheme
-	 * used in reiser 3.6 */
+	   plugins I implement bitmap location scheme which is close to scheme
+	   used in reiser 3.6 */
 	if (bmap == 0) {
 		*bnr = REISER4_FIRST_BITMAP_BLOCK;
 	} else {
@@ -30,4 +30,4 @@ get_bitmap_blocknr(struct super_block *super, int bmap, reiser4_block_nr * bnr)
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

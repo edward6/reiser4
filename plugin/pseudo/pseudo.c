@@ -57,7 +57,7 @@ Use the pluginid field?
 (The plugin id?)
     Mark pseudo file inode as loaded: ->flags | REISER4_LOADED
   
- */
+*/
 
 #if YOU_CAN_COMPILE_PSEUDO_CODE
 #endif
@@ -71,4 +71,4 @@ Use the pluginid field?
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

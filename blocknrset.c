@@ -33,17 +33,17 @@
 
 typedef struct blocknr_pair blocknr_pair;
 
-/** The total size of a blocknr_set_entry. */
+/* The total size of a blocknr_set_entry. */
 #define BLOCKNR_SET_ENTRY_SIZE 128
 
-/** The number of blocks that can fit the blocknr data area. */
+/* The number of blocks that can fit the blocknr data area. */
 #define BLOCKNR_SET_ENTS_SIZE               \
        ((BLOCKNR_SET_ENTRY_SIZE -           \
          2 * sizeof (unsigned) -            \
          sizeof (blocknr_set_list_link)) /  \
         sizeof (reiser4_block_nr))
 
-/** An entry of the blocknr_set */
+/* An entry of the blocknr_set */
 struct blocknr_set_entry {
 	unsigned nr_singles;
 	unsigned nr_pairs;
@@ -73,7 +73,7 @@ bse_avail(blocknr_set_entry * bse)
 	return BLOCKNR_SET_ENTS_SIZE - used;
 }
 
-/** Initialize a blocknr_set_entry. */
+/* Initialize a blocknr_set_entry. */
 /* Audited by: green(2002.06.11) */
 static void
 bse_init(blocknr_set_entry * bse)
@@ -83,7 +83,7 @@ bse_init(blocknr_set_entry * bse)
 	blocknr_set_list_clean(bse);
 }
 
-/** Allocate and initialize a blocknr_set_entry. */
+/* Allocate and initialize a blocknr_set_entry. */
 /* Audited by: green(2002.06.11) */
 static blocknr_set_entry *
 bse_alloc(void)
@@ -99,7 +99,7 @@ bse_alloc(void)
 	return e;
 }
 
-/** Free a blocknr_set_entry. */
+/* Free a blocknr_set_entry. */
 /* Audited by: green(2002.06.11) */
 static void
 bse_free(blocknr_set_entry * bse)
@@ -107,7 +107,7 @@ bse_free(blocknr_set_entry * bse)
 	kfree(bse);
 }
 
-/** Add a block number to a blocknr_set_entry */
+/* Add a block number to a blocknr_set_entry */
 /* Audited by: green(2002.06.11) */
 static void
 bse_put_single(blocknr_set_entry * bse, const reiser4_block_nr * block)
@@ -117,7 +117,7 @@ bse_put_single(blocknr_set_entry * bse, const reiser4_block_nr * block)
 	bse->ents[bse->nr_singles++] = *block;
 }
 
-/** Get a pair of block numbers */
+/* Get a pair of block numbers */
 /* Audited by: green(2002.06.11) */
 static inline blocknr_pair *
 bse_get_pair(blocknr_set_entry * bse, unsigned pno)
@@ -127,7 +127,7 @@ bse_get_pair(blocknr_set_entry * bse, unsigned pno)
 	return (blocknr_pair *) (bse->ents + BLOCKNR_SET_ENTS_SIZE - 2 * (pno + 1));
 }
 
-/** Add a pair of block numbers to a blocknr_set_entry */
+/* Add a pair of block numbers to a blocknr_set_entry */
 /* Audited by: green(2002.06.11) */
 static void
 bse_put_pair(blocknr_set_entry * bse, const reiser4_block_nr * a, const reiser4_block_nr * b)
@@ -304,9 +304,9 @@ blocknr_set_merge(blocknr_set * from, blocknr_set * into)
 			bse_free(bse_from);
 		} else {
 			/* Otherwise, bse_into is full or nearly full (e.g.,
-			 * it could have one slot avail and bse_from has one
-			 * pair left).  Push it back onto the list.  bse_from
-			 * becomes bse_into, which will be the new partial. */
+			   it could have one slot avail and bse_from has one
+			   pair left).  Push it back onto the list.  bse_from
+			   becomes bse_into, which will be the new partial. */
 			blocknr_set_list_push_front(&into->entries, bse_into);
 			bse_into = bse_from;
 		}
@@ -343,21 +343,19 @@ blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f ac
 		/*assert ("zam-565", bse_avail(entry) >= 0); */
 
 		for (i = 0; i < entry->nr_singles; i++) {
-			/*
-			 * FIXME:NIKITA->ZAM I see this calling
-			 * actor==apply_dset_to_commit_bmap with
-			 * entry->ents[0]==NULL.
-			 */
-			/*
-			 * FIXED: maybe this is becasue removed unallocated
-			 * jnodes got into delete set? Now, there do not, so
-			 * hopefully, you will not see that anymore
-			 */
+			/* FIXME:NIKITA->ZAM I see this calling
+			   actor==apply_dset_to_commit_bmap with
+			   entry->ents[0]==NULL.
+			*/
+			/* FIXED: maybe this is becasue removed unallocated
+			   jnodes got into delete set? Now, there do not, so
+			   hopefully, you will not see that anymore
+			*/
 			ret = actor(atom, &entry->ents[i], NULL, data);
 
 			/* FIXME: we can't break a loop if delete flag is
-			 * set. It is just an implementation issue and could
-			 * changed if one needs it. */
+			   set. It is just an implementation issue and could
+			   changed if one needs it. */
 			if (ret != 0 && !delete)
 				return ret;
 		}
@@ -392,4 +390,4 @@ blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f ac
    fill-column: 78
    scroll-step: 1
    End:
- */
+*/

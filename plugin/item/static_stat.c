@@ -79,7 +79,7 @@ sd_print(const char *prefix /* prefix to print */ ,
 			}
 			if ((mask & 1) && (sdplug->print != NULL)) {
 				/* alignment is not supported in node layout
-				 * plugin yet.
+				   plugin yet.
 				 result = align( inode, &len, &sd, 
 				 sdplug -> alignment );
 				 if( result != 0 )
@@ -121,9 +121,7 @@ sd_item_stat(const coord_t * coord, void *vp)
 
 	stat = (sd_stat *) vp;
 	sd = (reiser4_stat_data_base *) item_body_by_coord(coord);
-	/*
-	 * FIXME-NIKITA will fix later.
-	 */
+	/* FIXME-NIKITA will fix later. */
 	mode = 0;		// d16tocpu( &sd -> mode );
 
 	if (S_ISREG(mode))
@@ -222,7 +220,7 @@ sd_load(struct inode *inode /* object being processed */ ,
 			if (mask & 1) {
 				assert("nikita-628", sdplug->present);
 				/* alignment is not supported in node layout
-				 * plugin yet.
+				   plugin yet.
 				 result = align( inode, &len, &sd, 
 				 sdplug -> alignment );
 				 if( result != 0 )
@@ -291,8 +289,7 @@ sd_len(struct inode *inode /* object being processed */ )
 			assert("nikita-633", sdplug != NULL);
 			/* no aligment support 
 			   result += 
-			   round_up( result, sdplug -> alignment ) - result;
-			 */
+			   round_up( result, sdplug -> alignment ) - result; */
 			result += sdplug->save_len(inode);
 		}
 	}
@@ -441,10 +438,8 @@ unix_sd_absent(struct inode *inode /* object being processed */ )
 	inode->i_gid = get_super_private(inode->i_sb)->default_gid;
 	inode->i_atime = inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 	inode_set_bytes(inode, inode->i_size);
-	/* 
-	 * mark inode as lightweight, so that caller (reiser4_lookup) will
-	 * complete initialisation by copying [ug]id from a parent.
-	 */
+	/* mark inode as lightweight, so that caller (reiser4_lookup) will
+	   complete initialisation by copying [ug]id from a parent. */
 	inode_set_flag(inode, REISER4_LIGHT_WEIGHT);
 	return 0;
 }
@@ -506,10 +501,8 @@ symlink_target_to_inode(struct inode *inode, const char *target, int len)
 	assert("vs-845", inode->u.generic_ip == 0);
 	assert("vs-846", !inode_get_flag(inode, REISER4_GENERIC_VP_USED));
 
-	/*
-	 * FIXME-VS: this is prone to deadlock. Not more than other similar
-	 * places, though
-	 */
+	/* FIXME-VS: this is prone to deadlock. Not more than other similar
+	   places, though */
 	inode->u.generic_ip = reiser4_kmalloc((size_t) len + 1, GFP_KERNEL);
 	if (!inode->u.generic_ip)
 		return -ENOMEM;
@@ -531,7 +524,7 @@ symlink_sd_present(struct inode *inode, char **area, int *len)
 
 	length = (int) inode->i_size;
 	/* *len is number of bytes in stat data item from *area to the end of
-	 * item. It must be not less than size of symlink + 1 for ending 0 */
+	   item. It must be not less than size of symlink + 1 for ending 0 */
 	assert("vs-839", length <= *len);
 	assert("vs-840", *(*area + length) == 0);
 
@@ -547,9 +540,7 @@ symlink_sd_present(struct inode *inode, char **area, int *len)
 static int
 symlink_sd_save_len(struct inode *inode)
 {
-	/*
-	 * FIXME-VS: no alignment
-	 */
+	/* FIXME-VS: no alignment */
 	return inode->i_size + 1;
 }
 
@@ -737,9 +728,7 @@ plugin_sd_absent(struct inode *inode /* object being processed */ )
 	   but setup_inode_ops() will call make_bad_inode().
 	   Another, more logical but bit more complex solution is to add 
 	   "bad-file plugin". */
-	/*
-	 * FIXME-VS: activate was called here
-	 */
+	/* FIXME-VS: activate was called here */
 	return result;
 }
 
@@ -827,7 +816,7 @@ save_plug(reiser4_plugin * plugin /* plugin to save */ ,
 	return result;
 }
 
-/** save state of all non-standard plugins associated with inode */
+/* save state of all non-standard plugins associated with inode */
 static int
 plugin_sd_save(struct inode *inode /* object being processed */ ,
 	       char **area /* position in stat-data */ )
@@ -963,4 +952,4 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -37,7 +37,7 @@
    FIXME-NIKITA this is just stub. This function is supposed to be
    called during lookup, readdir, and may be creation.
   
- */
+*/
 void
 directory_readahead(struct inode *dir /* directory being accessed */ ,
 		    coord_t * coord /* coord of access */ )
@@ -97,7 +97,7 @@ static reiser4_block_nr common_estimate_link(
        . add entry to "parent"
        . if last step fails, remove link from "existing"
   
- */
+*/
 static int
 common_link(struct inode *parent /* parent directory */ ,
 	    struct dentry *existing	/* dentry of object to which
@@ -169,12 +169,11 @@ common_link(struct inode *parent /* parent directory */ ,
 	}
 	if (result == 0) {
 		atomic_inc(&object->i_count);
-		/*
-		 * Upon successful completion, link() shall mark for update
-		 * the st_ctime field of the file. Also, the st_ctime and
-		 * st_mtime fields of the directory that contains the new
-		 * entry shall be marked for update. --SUS
-		 */
+		/* Upon successful completion, link() shall mark for update
+		   the st_ctime field of the file. Also, the st_ctime and
+		   st_mtime fields of the directory that contains the new
+		   entry shall be marked for update. --SUS
+		*/
 		result = update_dir(parent);
 	}
 	return result;
@@ -211,7 +210,7 @@ static reiser4_block_nr common_estimate_unlink (
        . check permissions
        . decrement nlink on @victim
        . if nlink drops to 0, delete object
- */
+*/
 static int
 common_unlink(struct inode *parent /* parent object */ ,
 	      struct dentry *victim	/* name being removed from
@@ -266,10 +265,8 @@ common_unlink(struct inode *parent /* parent object */ ,
 	if (result != 0)
 		return result;
 
-	/*
-	 * now that directory entry is removed, update stat-data, but first
-	 * check for special case:
-	 */
+	/* now that directory entry is removed, update stat-data, but first
+	   check for special case: */
 	if (fplug->rem_link != 0)
 		result = reiser4_del_nlink(object, parent, 1);
 	else
@@ -278,31 +275,28 @@ common_unlink(struct inode *parent /* parent object */ ,
 		return result;
 
 #if 0
-	/* 
-	 * removing last reference. Check that this is allowed. This is
-	 * optimization for common case when file having only one name is
-	 * unlinked and is not opened by any process.
-	 *
-	 * Directories always go through this path (until hard-links on
-	 * directories are allowed).
-	 */
-	/*
-	 * FIXME-NIKITA this is commented out, because ->i_count check is not
-	 * valid---actually we also should check victim->d_count, but this
-	 * requires spin_lock(&dcache_lock), so we need cut-n-paste something
-	 * from d_delete().
-	 */
+	/* removing last reference. Check that this is allowed. This is
+	   optimization for common case when file having only one name is
+	   unlinked and is not opened by any process.
+	  
+	   Directories always go through this path (until hard-links on
+	   directories are allowed).
+	*/
+	/* FIXME-NIKITA this is commented out, because ->i_count check is not
+	   valid---actually we also should check victim->d_count, but this
+	   requires spin_lock(&dcache_lock), so we need cut-n-paste something
+	   from d_delete().
+	*/
 	inode_set_flag(object, REISER4_IMMUTABLE);
 	if (fplug->not_linked(object) &&
 	    atomic_read(&object->i_count) == 1 && !perm_chk(object, delete, parent, victim)) {
-		/* 
-		 * remove file body. This is probably done in a whole lot of
-		 * transactions and takes a lot of time. We keep @object
-		 * locked. i_nlink shouldn't change, because object is
-		 * inaccessible through file-system (last directory entry was
-		 * removed), and direct accessors (like NFS) are blocked by
-		 * REISER4_IMMUTABLE bit. 
-		 */
+		/* remove file body. This is probably done in a whole lot of
+		   transactions and takes a lot of time. We keep @object
+		   locked. i_nlink shouldn't change, because object is
+		   inaccessible through file-system (last directory entry was
+		   removed), and direct accessors (like NFS) are blocked by
+		   REISER4_IMMUTABLE bit. 
+		*/
 		if (fplug->truncate != NULL)
 			result = truncate_object(object, (loff_t) 0);
 
@@ -314,17 +308,14 @@ common_unlink(struct inode *parent /* parent object */ ,
 	}
 	inode_clr_flag(object, REISER4_IMMUTABLE);
 #endif
-	/*
-	 * Upon successful completion, unlink() shall mark for update the
-	 * st_ctime and st_mtime fields of the parent directory. Also, if the
-	 * file's link count is not 0, the st_ctime field of the file shall be
-	 * marked for update. --SUS
-	 */
+	/* Upon successful completion, unlink() shall mark for update the
+	   st_ctime and st_mtime fields of the parent directory. Also, if the
+	   file's link count is not 0, the st_ctime field of the file shall be
+	   marked for update. --SUS
+	*/
 	if (result == 0)
 		result = update_dir(parent);
-	/*
-	 * @object's i_ctime was updated by ->rem_link() method().
-	 */
+	/* @object's i_ctime was updated by ->rem_link() method(). */
 	return result;
 }
 
@@ -332,7 +323,7 @@ common_unlink(struct inode *parent /* parent object */ ,
    - insert an in the parent entry
    - update the SD of parent
    - estimate child creation
- */
+*/
 static reiser4_block_nr common_estimate_create_dir( 
 	struct inode *parent, /* parent object */
 	struct inode *object /* object */)
@@ -359,7 +350,7 @@ static reiser4_block_nr common_estimate_create_dir(
    . add entry to the parent
    . instantiate dentry
   
- */
+*/
 static int
 common_create_child(struct inode *parent /* parent object */ ,
 		    struct dentry *dentry /* new name */ ,
@@ -401,9 +392,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	object = new_inode(parent->i_sb);
 	if (object == NULL)
 		return -ENOMEM;
-	/*
-	 * we'll update i_nlink below
-	 */
+	/* we'll update i_nlink below */
 	object->i_nlink = 0;
 
 	dentry->d_inode = object;	/* So that on error iput will be called. */
@@ -430,11 +419,10 @@ common_create_child(struct inode *parent /* parent object */ ,
 	if (obj_plug->create == NULL)
 		return -EPERM;
 
-	/*
-	 * if any of hash, tail, sd or permission plugins for newly created
-	 * object are not set yet set them here inheriting them from parent
-	 * directory
-	 */
+	/* if any of hash, tail, sd or permission plugins for newly created
+	   object are not set yet set them here inheriting them from parent
+	   directory
+	*/
 	assert("nikita-2070", obj_plug->adjust_to_parent != NULL);
 	result = obj_plug->adjust_to_parent(object, parent, object->i_sb->s_root->d_inode);
 	if (result != 0) {
@@ -456,28 +444,23 @@ common_create_child(struct inode *parent /* parent object */ ,
 	if (reiser4_grab_space_exact(reserve, 0))
 	    return -ENOSPC;
 	
-	/*
-	 * mark inode `immutable'. We disable changes to the file being
-	 * created until valid directory entry for it is inserted. Otherwise,
-	 * if file were expanded and insertion of directory entry fails, we
-	 * have to remove file, but we only alloted enough space in
-	 * transaction to remove _empty_ file. 3.x code used to remove stat
-	 * data in different transaction thus possibly leaking disk space on
-	 * crash. This all only matters if it's possible to access file
-	 * without name, for example, by inode number
-	 */
+	/* mark inode `immutable'. We disable changes to the file being
+	   created until valid directory entry for it is inserted. Otherwise,
+	   if file were expanded and insertion of directory entry fails, we
+	   have to remove file, but we only alloted enough space in
+	   transaction to remove _empty_ file. 3.x code used to remove stat
+	   data in different transaction thus possibly leaking disk space on
+	   crash. This all only matters if it's possible to access file
+	   without name, for example, by inode number
+	*/
 	inode_set_flag(object, REISER4_IMMUTABLE);
 
-	/* 
-	 * create empty object, this includes allocation of new objectid. For
-	 * directories this implies creation of dot and dotdot 
-	 */
+	/* create empty object, this includes allocation of new objectid. For
+	   directories this implies creation of dot and dotdot  */
 	assert("nikita-2265", inode_get_flag(object, REISER4_NO_SD));
 
-	/*
-	 * mark inode as `loaded'. From this point onward
-	 * reiser4_delete_inode() will try to remove its stat-data.
-	 */
+	/* mark inode as `loaded'. From this point onward
+	   reiser4_delete_inode() will try to remove its stat-data. */
 	inode_set_flag(object, REISER4_LOADED);
 
 	result = obj_plug->create(object, parent, data);
@@ -500,17 +483,14 @@ common_create_child(struct inode *parent /* parent object */ ,
 		result = par_dir->add_entry(parent, dentry, data, &entry);
 		if (result == 0) {
 			result = reiser4_add_nlink(object, parent, 1);
-			/*
-			 * If O_CREAT is set and the file did not previously
-			 * exist, upon successful completion, open() shall
-			 * mark for update the st_atime, st_ctime, and
-			 * st_mtime fields of the file and the st_ctime and
-			 * st_mtime fields of the parent directory. --SUS
-			 */
-			/*
-			 * @object times are already updated by
-			 * reiser4_add_nlink()
-			 */
+			/* If O_CREAT is set and the file did not previously
+			   exist, upon successful completion, open() shall
+			   mark for update the st_atime, st_ctime, and
+			   st_mtime fields of the file and the st_ctime and
+			   st_mtime fields of the parent directory. --SUS
+			*/
+			/* @object times are already updated by
+			   reiser4_add_nlink() */
 			if (result == 0)
 				result = update_dir(parent);
 			if (result != 0) {
@@ -528,20 +508,17 @@ common_create_child(struct inode *parent /* parent object */ ,
 		warning("nikita-2219", "Failed to initialize dir for %llu: %i", get_inode_oid(object), result);
 
 	if (result != 0)
-		/*
-		 * failure to create entry, remove object
-		 */
+		/* failure to create entry, remove object */
 		obj_plug->delete(object);
 
 	/* file has name now, clear immutable flag */
 	inode_clr_flag(object, REISER4_IMMUTABLE);
 
-	/* 
-	 * on error, iput() will call ->delete_inode(). We should keep track
-	 * of the existence of stat-data for this inode and avoid attempt to
-	 * remove it in reiser4_delete_inode(). This is accomplished through
-	 * REISER4_NO_SD bit in inode.u.reiser4_i.plugin.flags
-	 */
+	/* on error, iput() will call ->delete_inode(). We should keep track
+	   of the existence of stat-data for this inode and avoid attempt to
+	   remove it in reiser4_delete_inode(). This is accomplished through
+	   REISER4_NO_SD bit in inode.u.reiser4_i.plugin.flags
+	*/
 	return result;
 }
 
@@ -557,7 +534,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	assert( "vpf-309", data   != NULL );
 }
 */
-/** ->is_name_acceptable() method of directory plugin */
+/* ->is_name_acceptable() method of directory plugin */
 /* Audited by: green(2002.06.15) */
 int
 is_name_acceptable(const struct inode *inode /* directory to check */ ,
@@ -571,7 +548,7 @@ is_name_acceptable(const struct inode *inode /* directory to check */ ,
 	return len <= reiser4_max_filename_len(inode);
 }
 
-/** actor function looking for any entry different from dot or dotdot. */
+/* actor function looking for any entry different from dot or dotdot. */
 static int
 is_empty_actor(reiser4_tree * tree UNUSED_ARG /* tree scanned */ ,
 	       coord_t * coord /* current coord */ ,
@@ -608,7 +585,7 @@ is_empty_actor(reiser4_tree * tree UNUSED_ARG /* tree scanned */ ,
 		return 1;
 }
 
-/** true if directory is empty (only contains dot and dotdot) */
+/* true if directory is empty (only contains dot and dotdot) */
 int
 is_dir_empty(const struct inode *dir)
 {
@@ -620,18 +597,15 @@ is_dir_empty(const struct inode *dir)
 
 	assert("nikita-1976", dir != NULL);
 
-	/*
-	 * rely on our method to maintain directory i_size being equal to the
-	 * number of entries.
-	 */
+	/* rely on our method to maintain directory i_size being equal to the
+	   number of entries. */
 	return dir->i_size <= 2 ? 0 : -ENOTEMPTY;
 
-	/*
-	 * FIXME-NIKITA this is not correct if hard links on directories are
-	 * supported in this fs (if REISER4_ADG is not set in dir ->
-	 * i_sb). But then, how to determine that last "outer" link is
-	 * removed?
-	 */
+	/* FIXME-NIKITA this is not correct if hard links on directories are
+	   supported in this fs (if REISER4_ADG is not set in dir ->
+	   i_sb). But then, how to determine that last "outer" link is
+	   removed?
+	*/
 
 	dot.name = ".";
 	dot.len = 1;
@@ -673,7 +647,7 @@ is_dir_empty(const struct inode *dir)
 	return result;
 }
 
-/** compare two logical positions within the same directory */
+/* compare two logical positions within the same directory */
 cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 {
 	cmp_t result;
@@ -712,28 +686,23 @@ adjust_dir_pos(struct file *dir, readdir_pos * readdir_spot, const dir_pos * mod
 		reiser4_stat_dir_add(readdir.adjust_lt);
 		break;
 	case GREATER_THAN:
-		/*
-		 * directory is modified after @pos: nothing to do.
-		 */
+		/* directory is modified after @pos: nothing to do. */
 		reiser4_stat_dir_add(readdir.adjust_gt);
 		break;
 	case EQUAL_TO:
-		/*
-		 * cannot insert an entry readdir is looking at, because it
-		 * already exists.
-		 */
+		/* cannot insert an entry readdir is looking at, because it
+		   already exists. */
 		assert("nikita-2576", adj < 0);
-		/*
-		 * directory entry to which @pos points to is being
-		 * removed. 
-		 *
-		 * FIXME-NIKITA: Right thing to do is to update @pos to point
-		 * to the next entry. This is complex (we are under spin-lock
-		 * for one thing). Just rewind it to the beginning. Next
-		 * readdir will have to scan the beginning of
-		 * directory. Proper solution is to use semaphore in
-		 * spin lock's stead and use rewind_right() here.
-		 */
+		/* directory entry to which @pos points to is being
+		   removed. 
+		  
+		   FIXME-NIKITA: Right thing to do is to update @pos to point
+		   to the next entry. This is complex (we are under spin-lock
+		   for one thing). Just rewind it to the beginning. Next
+		   readdir will have to scan the beginning of
+		   directory. Proper solution is to use semaphore in
+		   spin lock's stead and use rewind_right() here.
+		*/
 		xmemset(readdir_spot, 0, sizeof *readdir_spot);
 		reiser4_stat_dir_add(readdir.adjust_eq);
 	}
@@ -803,9 +772,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 	if (offset < 0)
 		return -EINVAL;
 	else if (offset == 0ll) {
-		/*
-		 * rewind to the beginning of directory
-		 */
+		/* rewind to the beginning of directory */
 		xmemset(pos, 0, sizeof *pos);
 		reiser4_stat_dir_add(readdir.reset);
 		return dir_go_to(dir, pos, tap);
@@ -815,20 +782,14 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 
 	shift = pos->entry_no - destination;
 	if (unlikely(abs(shift) > 100000))
-		/*
-		 * something strange: huge seek
-		 */
+		/* something strange: huge seek */
 		warning("nikita-2549", "Strange seekdir: %llu->%llu", pos->entry_no, destination);
 	if (shift >= 0) {
-		/*
-		 * rewinding to the left
-		 */
+		/* rewinding to the left */
 		reiser4_stat_dir_add(readdir.rewind_left);
 		if (shift <= (int) pos->position.pos) {
-			/*
-			 * destination is within sequence of entries with
-			 * duplicate keys.
-			 */
+			/* destination is within sequence of entries with
+			   duplicate keys. */
 			pos->position.pos -= shift;
 			reiser4_stat_dir_add(readdir.left_non_uniq);
 			result = dir_go_to(dir, pos, tap);
@@ -836,10 +797,8 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 			shift -= pos->position.pos;
 			pos->position.pos = 0;
 			while (1) {
-				/*
-				 * repetitions: deadlock is possible when
-				 * going to the left.
-				 */
+				/* repetitions: deadlock is possible when
+				   going to the left. */
 				result = dir_go_to(dir, pos, tap);
 				if (result == 0) {
 					result = rewind_left(tap, shift);
@@ -852,9 +811,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 			}
 		}
 	} else {
-		/*
-		 * rewinding to the right
-		 */
+		/* rewinding to the right */
 		reiser4_stat_dir_add(readdir.rewind_right);
 		result = dir_go_to(dir, pos, tap);
 		if (result == 0)
@@ -887,38 +844,26 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 	trace_on(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
 		 name, pos->entry_no + 1, get_key_objectid(&sd_key));
 
-	/*
-	 * update @pos
-	 */
+	/* update @pos */
 	++pos->entry_no;
 	did = &pos->position.dir_entry_key;
 	if (de_id_key_cmp(did, &de_key) == EQUAL_TO)
-		/*
-		 * we are within sequence of directory entries
-		 * with duplicate keys.
-		 */
+		/* we are within sequence of directory entries
+		   with duplicate keys. */
 		++pos->position.pos;
 	else {
 		pos->position.pos = 0;
 		result = build_de_id_by_key(&de_key, did);
 	}
 
-	/*
-	 * send information about directory entry to the ->filldir() filler
-	 * supplied to us by caller (VFS).
-	 */
+	/* send information about directory entry to the ->filldir() filler
+	   supplied to us by caller (VFS). */
 	if (filldir(dirent, name, (int) strlen(name),
-		    /*
-		     * offset of the next entry
-		     */
+		    /* offset of the next entry */
 		    (loff_t) pos->entry_no + 1,
-		    /*
-		     * inode number of object bounden by this entry
-		     */
+		    /* inode number of object bounden by this entry */
 		    oid_to_uino(get_key_objectid(&sd_key)), iplug->s.dir.extract_file_type(coord)) < 0) {
-		/*
-		 * ->filldir() is satisfied.
-		 */
+		/* ->filldir() is satisfied. */
 		result = 1;
 	} else
 		result = 0;
@@ -952,13 +897,11 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	*pos = &fsdata->dir.readdir;
 	spin_unlock(&info->guard);
 
-	/*
-	 * move @tap to the current position
-	 */
+	/* move @tap to the current position */
 	return dir_rewind(f, *pos, f->f_pos, tap);
 }
 
-/** ->readdir method of directory plugin */
+/* ->readdir method of directory plugin */
 static int
 common_readdir(struct file *f /* directory file being read */ ,
 	       void *dirent /* opaque data passed to us by VFS */ ,
@@ -994,9 +937,7 @@ common_readdir(struct file *f /* directory file being read */ ,
 		result = tap_load(&tap);
 		if (result == 0)
 			pos->entry_no = f->f_pos - 1;
-		/*
-		 * scan entries one by one feeding them to @filld
-		 */
+		/* scan entries one by one feeding them to @filld */
 		while (result == 0) {
 			coord_t *coord;
 
@@ -1138,4 +1079,4 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

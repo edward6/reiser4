@@ -90,7 +90,7 @@ ZAM-FIXME-HANS: use term "play" and define it too;-)
    oldest transaction it compares the journal footer pointer value with the
    "prev_tx" pointer value in tx head, if values are equal the oldest not
    flushed transaction is found.
- */
+*/
 
 /* Special logging of reiser4 super block fields. */
 
@@ -142,7 +142,7 @@ ZAM-FIXME-HANS: use term "play" and define it too;-)
    which we wanted to avoid. So, the simplest solution seems to be the
    implemented one, in which the data logged in different ways are written in
    different blocks.
- */
+*/
 
 #include "debug.h"
 #include "dformat.h"
@@ -178,7 +178,7 @@ struct commit_handle {
 	/* number of log records */
 	int tx_size;
 	/* 'committed' sb counters are saved here until atom is completely
-	 * flushed  */
+	   flushed  */
 	__u64 free_blocks;
 	__u64 nr_files;
 	__u64 next_oid;
@@ -354,8 +354,8 @@ get_tx_size(struct commit_handle *ch)
 	assert("zam-695", ch->tx_size == 0);
 
 	/* count all ordinary log records 
-	 * (<overwrite_set_size> - 1) / <log_record_capacity> + 1 and add one
-	 * for tx head block */
+	   (<overwrite_set_size> - 1) / <log_record_capacity> + 1 and add one
+	   for tx head block */
 	ch->tx_size = (ch->overwrite_set_size - 1) / log_record_capacity(ch->super) + 2;
 }
 
@@ -507,7 +507,7 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	reiser4_block_nr wide_len = count;
 
 	/* FIXME-ZAM: A special policy needed for allocation of wandered
-	 * blocks */
+	   blocks */
 	blocknr_hint_init(&hint);
 	hint.block_stage = BLOCK_FLUSH_RESERVED;
 	trace_on(TRACE_RESERVE, "flush allocates %llu blocks for wandering logs.\n", wide_len);
@@ -549,12 +549,12 @@ get_overwrite_set(struct commit_handle *ch)
 			if (jnode_is_znode(cur)
 			    && znode_above_root(JZNODE(cur))) {
 				/* we replace fake znode by another (real)
-				 * znode which is suggested by disk_layout
-				 * plugin */
+				   znode which is suggested by disk_layout
+				   plugin */
 
 				/* FIXME: it looks like fake znode should be
-				 * replaced by jnode supplied by
-				 * disk_layout. */
+				   replaced by jnode supplied by
+				   disk_layout. */
 
 				struct super_block *s = reiser4_get_current_sb();
 				reiser4_super_info_data *private = get_current_super_private();
@@ -579,10 +579,10 @@ get_overwrite_set(struct commit_handle *ch)
 					ch->overwrite_set_size++;
 				} else {
 					/* the fake znode was removed from
-					 * overwrite set and from capture
-					 * list, no jnode was added to
-					 * transaction -- we decrement atom's
-					 * capture count */
+					   overwrite set and from capture
+					   list, no jnode was added to
+					   transaction -- we decrement atom's
+					   capture count */
 					ch->atom->capture_count--;
 				}
 
@@ -645,10 +645,8 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 
 		assert("zam-574", jnode_page(first) != NULL);
 
-		/*
-		 * FIXME:NIKITA->ZAM this is very similar to the
-		 * submit_write().
-		 */
+		/* FIXME:NIKITA->ZAM this is very similar to the
+		   submit_write(). */
 
 		bio->bi_sector = block * (super->s_blocksize >> 9);
 		bio->bi_bdev = super->s_bdev;
@@ -669,10 +667,8 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 
 			write_lock(&pg->mapping->page_lock);
 
-			/*
-			 * don't check return value: submit page even if it
-			 * wasn't dirty.
-			 */
+			/* don't check return value: submit page even if it
+			   wasn't dirty. */
 			test_clear_page_dirty(pg);
 
 			list_del(&pg->list);
@@ -682,9 +678,7 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 
 			reiser4_unlock_page(pg);
 
-			/*
-			 * prepare node to being written
-			 */
+			/* prepare node to being written */
 			jnode_io_hook(cur, pg, WRITE);
 
 			bio->bi_io_vec[i].bv_page = pg;
@@ -763,7 +757,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		hint.block_stage = BLOCK_NOT_COUNTED;
 
 		/* FIXME: there should be some block allocation policy for
-		 * nodes which contain log records */
+		   nodes which contain log records */
 		/* FIXME-VITALY: Who grabbed this? */
 		trace_on(TRACE_RESERVE, "flush allocates %llu blocks for tx lists.\n", len);
 		ret = reiser4_alloc_blocks (&hint, &first, &len, 1/*not unformatted*/, 1);
@@ -841,7 +835,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 free_not_assigned:
 	/* We deallocate blocks not yet assigned to jnodes on tx_list. The
-	 * caller takes care about invalidating of tx list  */
+	   caller takes care about invalidating of tx list  */
 	reiser4_dealloc_blocks(&first, &len, 0, BLOCK_GRABBED, 1 /* not unformatted */ );
 
 	return ret;
@@ -870,7 +864,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 
 		if (ret) {
 			/* deallocate blocks which were not added to wandered
-			 * map */
+			   map */
 			reiser4_block_nr wide_len = len;
 
 			reiser4_dealloc_blocks(&block, &wide_len, 0, BLOCK_NOT_COUNTED, 1 /* not unformatted */ );
@@ -948,7 +942,7 @@ reiser4_write_logs(void)
 	int ret;
 
 	/* isolate critical code path which should be executed by only one
-	 * thread using tmgr semaphore */
+	   thread using tmgr semaphore */
 	down(&private->tmgr.commit_semaphore);
 
 	/* block allocator may add j-nodes to the clean_list */
@@ -972,7 +966,7 @@ reiser4_write_logs(void)
 
 	if (ret <= 0) {
 		/* It is possible that overwrite set is empty here, it means
-		 * all captured nodes are clean */
+		   all captured nodes are clean */
 		/* FIXME: an extra check for empty RELOC set should be here */
 		goto up_and_ret;
 	}
@@ -1072,7 +1066,7 @@ reiser4_write_logs(void)
 up_and_ret:
 	if (ret) {
 		/* there could be fq attached to current atom; the only way to
-		 * remove them is: */
+		   remove them is: */
 		current_atom_finish_all_fq();
 	}
 
@@ -1184,7 +1178,7 @@ restore_commit_handle(struct commit_handle *ch, jnode * tx_head)
 	return 0;
 }
 
-/** replay one transaction: restore and write overwrite set in place */
+/* replay one transaction: restore and write overwrite set in place */
 static int
 replay_transaction(const struct super_block *s,
 		   jnode * tx_head,
@@ -1404,7 +1398,7 @@ replay_oldest_transaction(struct super_block *s)
    in-memory super block there is a special function
    reiser4_journal_recover_sb_data() which should be called after disk format
    plugin re-reads super block after journal replaying.
- */
+*/
 
 /* get the information from journal footer in-memory super block */
 int
@@ -1443,9 +1437,9 @@ int
 reiser4_journal_replay(struct super_block *s)
 {
 	/* FIXME: it is a limited version of journal replaying which just
-	 * takes saved free block counter from journal footer, searches for
-	 * not flushed transaction and prints a warning, if those transactions
-	 * found.*/
+	   takes saved free block counter from journal footer, searches for
+	   not flushed transaction and prints a warning, if those transactions
+	   found.*/
 
 	reiser4_super_info_data *private = get_super_private(s);
 	jnode *jh, *jf;
@@ -1462,7 +1456,7 @@ reiser4_journal_replay(struct super_block *s)
 
 	if (!jh || !jf) {
 		/* it is possible that disk layout does not support journal
-		 * structures, we just warn about this */
+		   structures, we just warn about this */
 		warning("zam-583",
 			"journal control blocks were not loaded by disk layout plugin.  "
 			"journal replaying is not possible.\n");
@@ -1470,7 +1464,7 @@ reiser4_journal_replay(struct super_block *s)
 	}
 
 	/* Take free block count from journal footer block. The free block
-	 * counter value corresponds the last flushed transaction state */
+	   counter value corresponds the last flushed transaction state */
 	ret = jload(jf);
 	if (ret < 0)
 		return ret;
@@ -1484,7 +1478,7 @@ reiser4_journal_replay(struct super_block *s)
 	jrelse(jf);
 
 	/* store last committed transaction info in reiser4 in-memory super
-	 * block */
+	   block */
 	ret = jload(jh);
 	if (ret < 0)
 		return ret;
@@ -1590,4 +1584,4 @@ init_journal_info(struct super_block *s, const reiser4_block_nr * header_block, 
    tab-width: 8
    fill-column: 78
    End:
- */
+*/

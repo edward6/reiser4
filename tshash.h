@@ -85,7 +85,7 @@ we do as much deletion as insertion....
    The circularly-linked approach has the shortest code but requires
    two pointers per bucket, doubling the size of the bucket array (in
    addition to two pointers per item).
- */
+*/
 #define TS_HASH_DEFINE(PREFIX,ITEM_TYPE,KEY_TYPE,KEY_NAME,LINK_NAME,HASH_FUNC,EQ_FUNC)	\
 											\
 static __inline__ int									\
@@ -239,4 +239,4 @@ for ((item) = prefix ## _hash_first ((table), 0), (next) = prefix ## _hash_next 
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -272,7 +272,7 @@
    owners.  The operations of sleep (with check for `nr_hipri_requests' flag) and
    waking process up must serialized, which is currently done by taking
    owner->guard spinlock.
- */
+*/
 
 /* Josh's explanation to Zam on why the locking and capturing code are intertwined.
   
@@ -345,14 +345,12 @@ wake_up_all_lopri_owners(znode * node)
 		spin_lock_stack(handle->owner);
 
 		assert("nikita-1832", handle->node == node);
-		/*
-		 * count this signal in owner->nr_signaled */
+		/* count this signal in owner->nr_signaled */
 		if (!handle->signaled) {
 			handle->signaled = 1;
 			atomic_inc(&handle->owner->nr_signaled);
 		}
-		/*
-		 * Wake up a single process */
+		/* Wake up a single process */
 		__reiser4_wake_up(handle->owner);
 
 		spin_unlock_stack(handle->owner);
@@ -364,7 +362,7 @@ wake_up_all_lopri_owners(znode * node)
    putting the link into the two lists all links are on (the doubly linked list
    that forms the lock_stack, and the doubly linked list of links attached
    to a lock.
- */
+*/
 static inline void
 link_object(lock_handle * handle, lock_stack * owner, znode * node)
 {
@@ -408,7 +406,7 @@ lock_object(lock_stack * owner, znode * node)
 		/* check that we don't switched from read to write lock */
 		assert("nikita-1840", node->lock.nr_readers <= 0);
 		/* We allow recursive locking; a node can be locked several
-		 * times for write by same process */
+		   times for write by same process */
 		node->lock.nr_readers--;
 	}
 
@@ -427,8 +425,7 @@ static int
 recursive(lock_stack * owner, znode * node)
 {
 	int ret;
-	/*
-	 * Owners list is not empty for a locked node */
+	/* Owners list is not empty for a locked node */
 	assert("zam-314", !owners_list_empty(&node->lock.owners));
 	assert("nikita-1841", owner == get_current_lock_stack());
 	assert("nikita-1848", spin_znode_is_locked(node));
@@ -508,7 +505,7 @@ znode_is_write_locked(const znode * node)
    The procedure results in passing an event (setting lock_handle->signaled
    flag) and count this event in nr_signaled field of owner's lock stack
    object and wakeup owner's process.
- */
+*/
 static inline int
 check_deadlock_condition(znode * node)
 {
@@ -530,8 +527,8 @@ can_lock_object(lock_stack * owner, znode * node)
 	}
 
 	/* Do not ever try to take a lock if we are going in low priority
-	 * direction and a node have a high priority request without high
-	 * priority owners. */
+	   direction and a node have a high priority request without high
+	   priority owners. */
 	if (!owner->curpri && check_deadlock_condition(node)) {
 		return -EAGAIN;
 	}
@@ -545,8 +542,7 @@ can_lock_object(lock_stack * owner, znode * node)
 
 /* Setting of a high priority to the process. It clears "signaled" flags
    because znode locked by high-priority process can't satisfy our "deadlock
-   condition".
- */
+   condition". */
 static void
 set_high_priority(lock_stack * owner)
 {
@@ -566,8 +562,8 @@ set_high_priority(lock_stack * owner)
 				 item, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 
 			/* we can safely set signaled to zero, because
-			 * previous statement (nr_hipri_owners ++) guarantees
-			 * that signaled will be never set again. */
+			   previous statement (nr_hipri_owners ++) guarantees
+			   that signaled will be never set again. */
 			item->signaled = 0;
 			spin_unlock_znode(node);
 
@@ -584,31 +580,27 @@ set_low_priority(lock_stack * owner)
 {
 	/* Do nothing if current priority is already low */
 	if (owner->curpri) {
-		/*
-		 * scan all locks (lock handles) held by @owner, which is
-		 * actually current thread, and check whether we are reaching
-		 * deadlock possibility anywhere.
-		 */
+		/* scan all locks (lock handles) held by @owner, which is
+		   actually current thread, and check whether we are reaching
+		   deadlock possibility anywhere.
+		*/
 		lock_handle *handle = locks_list_front(&owner->locks);
 		while (!locks_list_end(&owner->locks, handle)) {
 			znode *node = handle->node;
 			spin_lock_znode(node);
-			/*
-			 * this thread just was hipri owner of @node, so
-			 * nr_hipri_owners has to be greater than zero.
-			 */
+			/* this thread just was hipri owner of @node, so
+			   nr_hipri_owners has to be greater than zero. */
 			trace_on(TRACE_LOCKS,
 				 "set_lopri lock: %p node: %p: hipri_owners before: %u nr_readers: %d\n",
 				 handle, node, node->lock.nr_hipri_owners, node->lock.nr_readers);
 			assert("nikita-1835", node->lock.nr_hipri_owners > 0);
 			node->lock.nr_hipri_owners--;
-			/*
-			 * If we have deadlock condition, adjust a nr_signaled
-			 * field. It is enough to set "signaled" flag only for
-			 * current process, other low-pri owners will be
-			 * signaled and waken up after current process unlocks
-			 * this object and any high-priority requestor takes
-			 * control. */
+			/* If we have deadlock condition, adjust a nr_signaled
+			   field. It is enough to set "signaled" flag only for
+			   current process, other low-pri owners will be
+			   signaled and waken up after current process unlocks
+			   this object and any high-priority requestor takes
+			   control. */
 			if (check_deadlock_condition(node)
 			    && !handle->signaled) {
 				handle->signaled = 1;
@@ -658,14 +650,13 @@ longterm_unlock_znode(lock_handle * handle)
 		if (ZF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 			assert("nikita-1221", ergo(znode_is_loaded(node), node_is_empty(node)));
 
-			/*
-			 * invalidate lock. FIXME-NIKITA locking.  This doesn't
-			 * actually deletes node, only removes it from
-			 * sibling list and invalidates lock. Lock
-			 * invalidation includes waking up all threads
-			 * still waiting on this node and notifying them
-			 * that node is dying.
-			 */
+			/* invalidate lock. FIXME-NIKITA locking.  This doesn't
+			   actually deletes node, only removes it from
+			   sibling list and invalidates lock. Lock
+			   invalidation includes waking up all threads
+			   still waiting on this node and notifying them
+			   that node is dying.
+			*/
 			spin_unlock_znode(node);
 			ON_DEBUG(check_lock_data());
 			ON_DEBUG(check_lock_node_data(node));
@@ -684,14 +675,14 @@ longterm_unlock_znode(lock_handle * handle)
 	unlink_object(handle);
 
 	/* This is enough to be sure whether an object is completely
-	 * unlocked. */
+	   unlocked. */
 	if (znode_is_rlocked(node))
 		node->lock.nr_readers--;
 	else
 		node->lock.nr_readers++;
 
 	/* If the node is locked it must have an owners list.  Likewise, if the node is
-	 * unlocked it must have an empty owners list. */
+	   unlocked it must have an empty owners list. */
 	assert("zam-319", znode_is_locked(node)
 	       || owners_list_empty(&node->lock.owners));
 	assert("zam-320", !znode_is_locked(node)
@@ -747,7 +738,7 @@ int longterm_lock_znode(
 		try_capture_flags |= TXN_CAPTURE_DONT_FUSE;
 
 	/* If we are changing our process priority we must adjust a number
-	 * of high priority owners for each znode that we already lock */
+	   of high priority owners for each znode that we already lock */
 	if (hipri) {
 		set_high_priority(owner);
 	} else {
@@ -768,7 +759,7 @@ int longterm_lock_znode(
 		reiser4_stat_znode_add(lock_znode_iteration);
 
 		/* Check the lock's availability: if it is unavaiable we get EAGAIN, 0
-		 * indicates "can_lock", otherwise the node is invalid.  */
+		   indicates "can_lock", otherwise the node is invalid.  */
 		ret = can_lock_object(owner, node);
 
 		if (ret == -EINVAL) {
@@ -783,13 +774,13 @@ int longterm_lock_znode(
 
 		assert("nikita-1844", (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
 		/* If we can get the lock... Try to capture first before taking the
-		 * lock.*/
+		   lock.*/
 		if ((ret = try_capture(ZJNODE(node), mode, try_capture_flags))
 		    != 0) {
 			/* In the failure case, the txnmgr releases the znode's lock (or
-			 * in some cases, it was released a while ago).  There's no need
-			 * to reacquire it so we should return here, avoid releasing the
-			 * lock. */
+			   in some cases, it was released a while ago).  There's no need
+			   to reacquire it so we should return here, avoid releasing the
+			   lock. */
 			owner->request.mode = 0;
 			/* next requestor may not fail */
 			wake_up_next = 1;
@@ -801,12 +792,12 @@ int longterm_lock_znode(
 		}
 
 		/* Check the lock's availability again -- this is because under some
-		 * circumstances the capture code has to release and reacquire the znode
-		 * spinlock. */
+		   circumstances the capture code has to release and reacquire the znode
+		   spinlock. */
 		ret = can_lock_object(owner, node);
 
 		/* This time, a return of (ret == 0) means we can lock, so we should break
-		 * out of the loop. */
+		   out of the loop. */
 		if (ret != -EAGAIN || non_blocking) {
 			break;
 		}
@@ -814,44 +805,37 @@ int longterm_lock_znode(
 		/* Lock is unavailable, we have to wait. */
 
 		/* By having semaphore initialization here we cannot lose
-		 * wakeup signal even if it comes after `nr_signaled' field
-		 * check. */
+		   wakeup signal even if it comes after `nr_signaled' field
+		   check. */
 		if ((ret = prepare_to_sleep(owner))) {
 			break;
 		}
 
 		assert("nikita-1837", spin_znode_is_locked(node));
 		if (hipri) {
-			/*
-			 * If we are going in high priority direction then
-			 * increase high priority requests counter for the
-			 * node */
+			/* If we are going in high priority direction then
+			   increase high priority requests counter for the
+			   node */
 			node->lock.nr_hipri_requests++;
-			/*
-			 * If there no high priority owners for a node,
-			 * then immediately wake up low priority owners,
-			 * so they can detect possible deadlock */
+			/* If there no high priority owners for a node,
+			   then immediately wake up low priority owners,
+			   so they can detect possible deadlock */
 			if (node->lock.nr_hipri_owners == 0)
 				wake_up_all_lopri_owners(node);
-			/*
-			 * And prepare a lock request */
+			/* And prepare a lock request */
 			requestors_list_push_front(&node->lock.requestors, owner);
 		} else {
-			/*
-			 * If we are going in low priority direction then we
-			 * set low priority to our process. This is the only
-			 * case  when a process may become low priority */
-			/*
-			 * And finally prepare a lock request */
+			/* If we are going in low priority direction then we
+			   set low priority to our process. This is the only
+			   case  when a process may become low priority */
+			/* And finally prepare a lock request */
 			requestors_list_push_back(&node->lock.requestors, owner);
 		}
 
-		/*
-		 * Ok, here we have prepared a lock request, so unlock a
-		 * znode ...*/
+		/* Ok, here we have prepared a lock request, so unlock a
+		   znode ...*/
 		spin_unlock_znode(node);
-		/*
-		 * ... and sleep */
+		/* ... and sleep */
 		ret = go_to_sleep(owner);
 
 		spin_lock_znode(node);
@@ -885,13 +869,12 @@ int longterm_lock_znode(
 	spin_unlock_znode(node);
 
 	if (ret == 0) {
-		/* 
-		 * count a reference from lockhandle->node 
-		 *
-		 * znode was already referenced at the entry to this function,
-		 * hence taking spin-lock here is not necessary (see comment
-		 * in the zref()).
-		 */
+		/* count a reference from lockhandle->node 
+		  
+		   znode was already referenced at the entry to this function,
+		   hence taking spin-lock here is not necessary (see comment
+		   in the zref()).
+		*/
 		zref(node);
 
 		ON_DEBUG_CONTEXT(++lock_counters()->long_term_locked_znode);
@@ -941,7 +924,7 @@ invalidate_lock(lock_handle * handle	/* path to lock
 	}
 
 	/* We use that each unlock() will wakeup first item from requestors
-	 * list; our lock stack is the last one. */
+	   list; our lock stack is the last one. */
 	while (!requestors_list_empty(&node->lock.requestors)) {
 		requestors_list_push_back(&node->lock.requestors, owner);
 
@@ -1021,11 +1004,10 @@ move_lh_internal(lock_handle * new, lock_handle * old, int unlink_old)
 	lock_stack *owner = old->owner;
 	int signaled;
 
-	/*
-	 * locks_list, modified by link_object() is not protected by
-	 * anything. This is valid because only current thread ever modifies
-	 * locks_list of its lock_stack.
-	 */
+	/* locks_list, modified by link_object() is not protected by
+	   anything. This is valid because only current thread ever modifies
+	   locks_list of its lock_stack.
+	*/
 	assert("nikita-1827", owner == get_current_lock_stack());
 	assert("nikita-1831", new->owner == NULL);
 
@@ -1086,33 +1068,31 @@ prepare_to_sleep(lock_stack * owner)
 	assert("nikita-1847", owner == get_current_lock_stack());
 
 	if (0) {
-		/*
-		 * FIXME-NIKITA: I commented call to sema_init() out hoping
-		 * that it is the reason or thread sleeping in
-		 * down(&owner->sema) without any other thread running.
-		 *
-		 * Anyway, it is just an optimization: is semaphore is not
-		 * reinitialised at this point, in the worst case
-		 * longterm_lock_znode() would have to iterate its loop once
-		 * more.
-		 */
+		/* FIXME-NIKITA: I commented call to sema_init() out hoping
+		   that it is the reason or thread sleeping in
+		   down(&owner->sema) without any other thread running.
+		  
+		   Anyway, it is just an optimization: is semaphore is not
+		   reinitialised at this point, in the worst case
+		   longterm_lock_znode() would have to iterate its loop once
+		   more.
+		*/
 		spin_lock_stack(owner);
 		sema_init(&owner->sema, 0);
 		spin_unlock_stack(owner);
 	}
 
-	/*
-	 * FIXME-NIKITA: this check looks bogus, because it is done without
-	 * any king of lock being held. So, it looks like ->nr_signaled can
-	 * change just after this function returns. But, the only place where
-	 * ->nr_signaled can be changed concurrently, that is, where
-	 * owner->nr_signaled is changed and 
-	 *
-	 *               owner != get_current_lock_stack()
-	 * 
-	 * is wake_up_all_lopri_owners() and this function calls up() later.
-	 * 
-	 */
+	/* FIXME-NIKITA: this check looks bogus, because it is done without
+	   any king of lock being held. So, it looks like ->nr_signaled can
+	   change just after this function returns. But, the only place where
+	   ->nr_signaled can be changed concurrently, that is, where
+	   owner->nr_signaled is changed and 
+	  
+	                 owner != get_current_lock_stack()
+	   
+	   is wake_up_all_lopri_owners() and this function calls up() later.
+	   
+	*/
 	if (atomic_read(&owner->nr_signaled) != 0 && !owner->curpri) {
 		return -EDEADLK;
 	}
@@ -1228,4 +1208,4 @@ check_lock_node_data(znode * node)
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

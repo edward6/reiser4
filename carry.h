@@ -28,50 +28,49 @@
    change. So, we have to allow some indirection (or, positevly,
    flexibility) in locating carry nodes.
   
- */
+*/
 typedef struct carry_node {
-	/** pool linkage */
+	/* pool linkage */
 	reiser4_pool_header header;
 
-	/** base node from which real_node is calculated. See
+	/* base node from which real_node is calculated. See
 	    fs/reiser4/carry.c:lock_carry_node(). */
 	znode *node;
-	/** node that we actually locked */
+	/* node that we actually locked */
 	znode *real_node;
 
 	/* how to get ->real_node */
-	/** to get ->real_node obtain parent of ->node*/
+	/* to get ->real_node obtain parent of ->node*/
 	__u32 parent:1;
-	/** to get ->real_node obtain left neighbor of parent of
+	/* to get ->real_node obtain left neighbor of parent of
 	    ->node*/
 	__u32 left:1;
 	__u32 left_before:1;
 
 	/* locking */
 
-	/** this node was locked by carry process and should be
+	/* this node was locked by carry process and should be
 	    unlocked when carry leaves a level */
 	__u32 unlock:1;
 
-	/** disk block for this node was allocated by carry process and
+	/* disk block for this node was allocated by carry process and
 	    should be deallocated when carry leaves a level */
 	__u32 deallocate:1;
-	/** this carry node was allocated by carry process and should be
+	/* this carry node was allocated by carry process and should be
 	    freed when carry leaves a level */
 	__u32 free:1;
 
-	/**
-	 * This is set on nodes supplied to us by caller
-	 * (insert_by_key(), resize_item(), etc.) when they want to a lock
-	 * from this node to automagically wander to the node where
-	 * insertion point moved after insert or paste.
-	 */
+	/* This is set on nodes supplied to us by caller
+	   (insert_by_key(), resize_item(), etc.) when they want to a lock
+	   from this node to automagically wander to the node where
+	   insertion point moved after insert or paste.
+	*/
 	__u32 track:1;
 
-	/** type of lock we want to take on this node */
+	/* type of lock we want to take on this node */
 	lock_handle lock_handle;
-	/** lock handle supplied by user that we are tracking. See
-	 * above. */
+	/* lock handle supplied by user that we are tracking. See
+	   above. */
 	lock_handle *tracked;
 } carry_node;
 
@@ -86,28 +85,25 @@ typedef struct carry_node {
    call plugins of nodes affected by operation to modify nodes' content
    and to gather operations to be performed on the next level.
   
- **/
+*/
 typedef enum {
-	/** insert new item into node. */
+	/* insert new item into node. */
 	COP_INSERT,
-	/** delete pointer from parent node */
+	/* delete pointer from parent node */
 	COP_DELETE,
-	/** remove part of or whole node. */
+	/* remove part of or whole node. */
 	COP_CUT,
-	/** increase size of item. */
+	/* increase size of item. */
 	COP_PASTE,
 	/* insert extent (that is sequence of unformatted nodes). */
 	COP_EXTENT,
-	/** 
-	 * update delimiting key in least common ancestor of two
-	 * nodes. This is performed when items are moved between two
-	 * nodes. 
-	 **/
+	/* update delimiting key in least common ancestor of two
+	   nodes. This is performed when items are moved between two
+	   nodes. 
+	*/
 	COP_UPDATE,
-	/** 
-	 * update parent to reflect changes in the child. 3.x format
-	 * emulation uses this to update "child size" in parent.
-	 **/
+	/* update parent to reflect changes in the child. 3.x format
+	   emulation uses this to update "child size" in parent. */
 	COP_MODIFY,
 	COP_INSERT_FLOW,
 	COP_LAST_OP,
@@ -142,11 +138,11 @@ typedef enum {
 
 /* data supplied to COP_{INSERT|PASTE} by callers */
 typedef struct carry_insert_data {
-	/** position where new item is to be inserted */
+	/* position where new item is to be inserted */
 	coord_t *coord;
-	/** new item description */
+	/* new item description */
 	reiser4_item_data *data;
-	/** key of new item */
+	/* key of new item */
 	const reiser4_key *key;
 } carry_insert_data;
 
@@ -180,37 +176,32 @@ typedef struct carry_cut_data {
    type we store &carry_node or parents of the left and right nodes
    modified and keep track of them upward until they conicide.
   
- **/
+*/
 typedef struct carry_op {
-	/** pool linkage */
+	/* pool linkage */
 	reiser4_pool_header header;
 	carry_opcode op;
-	/**
-	 * node on which operation is to be performed:
-	 *
-	 * for insert, paste: node where new item is to be inserted
-	 *
-	 * for delete: node where pointer is to be deleted
-	 *
-	 * for cut: node to cut from
-	 *
-	 * for update: node where delimiting key is to be modified
-	 *
-	 * for modify: parent of modified node
-	 *
-	 **/
+	/* node on which operation is to be performed:
+	  
+	   for insert, paste: node where new item is to be inserted
+	  
+	   for delete: node where pointer is to be deleted
+	  
+	   for cut: node to cut from
+	  
+	   for update: node where delimiting key is to be modified
+	  
+	   for modify: parent of modified node
+	  
+	*/
 	carry_node *node;
 	union {
 		struct {
-			/**
-			 * (sub-)type of insertion/paste. Taken from
-			 * cop_insert_pos_type.
-			 */
+			/* (sub-)type of insertion/paste. Taken from
+			   cop_insert_pos_type. */
 			__u8 type;
-			/**
-			 * various operation flags. Taken from
-			 * cop_insert_flag.
-			 */
+			/* various operation flags. Taken from
+			   cop_insert_flag. */
 			__u8 flags;
 			carry_insert_data *d;
 			carry_node *child;
@@ -221,21 +212,17 @@ typedef struct carry_op {
 			carry_node *left;
 		} update;
 		struct {
-			/** changed child */
+			/* changed child */
 			carry_node *child;
-			/** bitmask of changes. See &cop_modify_flag */
+			/* bitmask of changes. See &cop_modify_flag */
 			__u32 flag;
 		} modify;
 		struct {
-			/**
-			 * flags to deletion operation. Are taken from
-			 * cop_delete_flag
-			 */
+			/* flags to deletion operation. Are taken from
+			   cop_delete_flag */
 			__u32 flags;
-			/** 
-			 * child to delete from parent. If this is
-			 * NULL, delete op->node. 
-			 */
+			/* child to delete from parent. If this is
+			   NULL, delete op->node.  */
 			carry_node *child;
 		} delete;
 		struct {
@@ -243,10 +230,10 @@ typedef struct carry_op {
 			coord_t *insert_point;
 			reiser4_item_data *data;
 			/* flow insertion is limited by number of new blocks
-			 * added in that operation which do not get any data
-			 * but part of flow. This limit is set by macro
-			 * CARRY_FLOW_NEW_NODES_LIMIT. This field stores number
-			 * of nodes added already during one carry_flow */
+			   added in that operation which do not get any data
+			   but part of flow. This limit is set by macro
+			   CARRY_FLOW_NEW_NODES_LIMIT. This field stores number
+			   of nodes added already during one carry_flow */
 			int new_nodes;
 		} insert_flow;
 	} u;
@@ -267,18 +254,18 @@ typedef struct carry_pool {
    No need for locking here, as carry_tree_level is essentially per
    thread thing (for now).
   
- */
+*/
 struct carry_level {
-	/** this level may be restarted */
+	/* this level may be restarted */
 	__u32 restartable:1;
-	/** list of carry nodes on this level, ordered by key order */
+	/* list of carry nodes on this level, ordered by key order */
 	pool_level_list_head nodes;
 	pool_level_list_head ops;
-	/** pool where new objects are allocated from */
+	/* pool where new objects are allocated from */
 	carry_pool *pool;
 	int ops_num;
 	int nodes_num;
-	/** new root created on this level, if any */
+	/* new root created on this level, if any */
 	znode *new_root;
 #if REISER4_STATS
 	tree_level level_no;
@@ -339,4 +326,4 @@ extern void print_level(const char *prefix, carry_level * level);
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

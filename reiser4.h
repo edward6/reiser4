@@ -18,11 +18,11 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* here go tunable parameters that are not worth special entry in kernel
    configuration */
 
-/** default number of slots in coord-by-key caches */
+/* default number of slots in coord-by-key caches */
 #define CBK_CACHE_SLOTS    (32)
-/** how many elementary tree operation to carry on the next level */
+/* how many elementary tree operation to carry on the next level */
 #define CARRIES_POOL_SIZE        (5)
-/** size of pool of preallocated nodes for carry process. */
+/* size of pool of preallocated nodes for carry process. */
 #define NODES_LOCKED_POOL_SIZE   (5)
 
 #define REISER4_NEW_NODE_FLAGS (COPI_LOAD_LEFT | COPI_LOAD_RIGHT | COPI_GO_LEFT)
@@ -30,28 +30,28 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define REISER4_PASTE_FLAGS (COPI_GO_LEFT)
 #define REISER4_INSERT_FLAGS (COPI_GO_LEFT)
 
-/** we are supporting reservation of disk space on uid basis */
+/* we are supporting reservation of disk space on uid basis */
 #define REISER4_SUPPORT_UID_SPACE_RESERVATION (0)
-/** we are supporting reservation of disk space for groups */
+/* we are supporting reservation of disk space for groups */
 #define REISER4_SUPPORT_GID_SPACE_RESERVATION (0)
-/** we are supporting reservation of disk space for root */
+/* we are supporting reservation of disk space for root */
 #define REISER4_SUPPORT_ROOT_SPACE_RESERVATION (0)
 
-/** key allocation is Plan-A */
+/* key allocation is Plan-A */
 #define REISER4_PLANA_KEY_ALLOCATION (1)
-/** key allocation follows good old 3.x scheme */
+/* key allocation follows good old 3.x scheme */
 #define REISER4_3_5_KEY_ALLOCATION (0)
 
-/** size of hash-table for znodes */
+/* size of hash-table for znodes */
 #define REISER4_ZNODE_HASH_TABLE_SIZE (8192)
-/** size of emergency flush hash table */
+/* size of emergency flush hash table */
 #define REISER4_EF_HASH_SIZE (256)
 
-/** size of hash-table for jnodes */
+/* size of hash-table for jnodes */
 #define REISER4_JNODE_HASH_TABLE_BITS (13)
 #define REISER4_JNODE_HASH_TABLE_SIZE (1 << REISER4_JNODE_HASH_TABLE_BITS)
 
-/** number of buckets in lnode hash-table */
+/* number of buckets in lnode hash-table */
 #define LNODE_HTABLE_BUCKETS (1024)
 
 /* some ridiculously high maximal limit on height of znode tree. This
@@ -82,7 +82,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    cache friendly. This number was found by experiments on dual AMD
    Athlon(tm), 1400MHz.
   
- */
+*/
 #define REISER4_SEQ_SEARCH_BREAK      (25)
 
 /* don't allow tree to be lower than this */
@@ -115,8 +115,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 /* Default value of maximal atom age (in jiffies). After reaching this age
    atom will be forced to commit, either synchronously or asynchronously. Can
-   be overwritten by txnmgr.atom_max_age mount option.
- */
+   be overwritten by txnmgr.atom_max_age mount option. */
 #define REISER4_ATOM_MAX_AGE          (600 * HZ)
 
 /* After percentage of free memory falls below this, preventive flushing is
@@ -130,14 +129,14 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
   
    This either means incredibly heavy contention for this part of a tree, or
    some corruption or bug.
- */
+*/
 #define REISER4_CBK_ITERATIONS_LIMIT  (100)
 
 /* return -EIO after that many iterations in coord_by_key().
   
    I have witnessed more than 4000 iterations (in 30 thread test) before cbk
    finished. --nikita
- */
+*/
 #define REISER4_MAX_CBK_ITERATIONS    (100000)
 
 /* read all blocks when one block on the page is read */
@@ -148,7 +147,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
   
    Disable this until inheritance interfaces stabilize: we need some way to
    set per directory limit.
- */
+*/
 #define REISER4_USE_COLLISION_LIMIT    (0)
 
 /* global limit on number of directory entries with identical keys in hashed
@@ -175,14 +174,14 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* The maximum number of nodes to scan left on a level during flush. */
 #define FLUSH_SCAN_MAXNODES 10000
 
-/** default tracing buffer size */
+/* default tracing buffer size */
 #define REISER4_TRACE_BUF_SIZE ( 1 << 16 )
 
 /* what size units of IO we would like cp, etc., to use, in writing to
    reiser4. In bytes.
   
    Can be overwritten by optimal_io_size mount option.
- */
+*/
 #define REISER4_OPTIMAL_IO_SIZE (64 * 1024)
 
 /* see comments in inode.c:oid_to_uino() */
@@ -194,16 +193,16 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 /* Mark function argument as unused to avoid compiler warnings. */
 #define UNUSED_ARG __attribute__( ( unused ) )
 
-/** size of VFS block */
+/* size of VFS block */
 #define VFS_BLKSIZE 512
-/** number of bits in size of VFS block (512==2^9) */
+/* number of bits in size of VFS block (512==2^9) */
 #define VFS_BLKSIZE_BITS 9
 
 #define REISER4_I reiser4_inode_data
 
-/** implication */
+/* implication */
 #define ergo( antecedent, consequent ) ( !( antecedent ) || ( consequent ) )
-/** logical equivalence */
+/* logical equivalence */
 #define equi( p1, p2 ) ( ergo( ( p1 ), ( p2 ) ) && ergo( ( p2 ), ( p1 ) ) )
 
 #define sizeof_array(x) ((int) (sizeof(x) / sizeof(x[0])))
@@ -238,4 +237,4 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

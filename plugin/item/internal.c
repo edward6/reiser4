@@ -41,10 +41,8 @@ lookup_result internal_lookup(const reiser4_key * key /* key to look up */ ,
 	default:
 		impossible("", "keycmp()?!");
 	case LESS_THAN:
-		/*
-		 * FIXME-VS: AFTER_ITEM used to be here. But with new coord
-		 * item plugin can not be taken using coord set this way
-		 */
+		/* FIXME-VS: AFTER_ITEM used to be here. But with new coord
+		   item plugin can not be taken using coord set this way */
 		assert("vs-681", coord->unit_pos == 0);
 		coord->between = AFTER_UNIT;
 	case EQUAL_TO:
@@ -54,7 +52,7 @@ lookup_result internal_lookup(const reiser4_key * key /* key to look up */ ,
 	}
 }
 
-/** return body of internal item at @coord */
+/* return body of internal item at @coord */
 static internal_item_layout *
 internal_at(const coord_t * coord	/* coord of
 					   * item */ )
@@ -72,7 +70,7 @@ internal_update(const coord_t * coord, reiser4_block_nr blocknr)
 	cpu_to_dblock(blocknr, &item->pointer);
 }
 
-/** return child block number stored in the internal item at @coord */
+/* return child block number stored in the internal item at @coord */
 static reiser4_block_nr
 pointer_at(const coord_t * coord /* coord of item */ )
 {
@@ -80,7 +78,7 @@ pointer_at(const coord_t * coord /* coord of item */ )
 	return dblock_to_cpu(&internal_at(coord)->pointer);
 }
 
-/** get znode pointed to by internal @item */
+/* get znode pointed to by internal @item */
 static znode *
 znode_at(const coord_t * item /* coord of item */ ,
 	 znode * parent /* parent node */ , int incore_p)
@@ -157,7 +155,7 @@ internal_print(const char *prefix /* prefix to print */ ,
 }
 #endif
 
-/** return true only if this item really points to "block" */
+/* return true only if this item really points to "block" */
 /* Audited by: green(2002.06.14) */
 int
 internal_has_pointer_to(const coord_t * coord /* coord of item */ ,
@@ -176,7 +174,7 @@ internal_has_pointer_to(const coord_t * coord /* coord of item */ ,
    This is point where pointer to new node is inserted into tree. Initialize
    parent pointer in child znode, insert child into sibling list and slum.
   
- */
+*/
 int
 internal_create_hook(const coord_t * item /* coord of item */ ,
 		     void *arg /* child's left neighbor, if any */ )
@@ -230,7 +228,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
     and node will be actually removed from the memory.
   
   
- */
+*/
 int
 internal_kill_hook(const coord_t * item /* coord of item */ ,
 		   unsigned from UNUSED_ARG /* start unit */ ,
@@ -271,7 +269,7 @@ internal_kill_hook(const coord_t * item /* coord of item */ ,
   
    Update parent pointer in child and c_counts in old and new parent
   
- */
+*/
 int
 internal_shift_hook(const coord_t * item /* coord of item */ ,
 		    unsigned from UNUSED_ARG /* start unit */ ,
@@ -326,4 +324,4 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

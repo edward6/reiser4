@@ -35,45 +35,39 @@ typedef struct {
 } flush_params;
 
 typedef enum {
-	/**
-	 * True if this file system doesn't support hard-links (multiple
-	 * names) for directories: this is default UNIX behavior.
-	 *
-	 * If hard-links on directoires are not allowed, file system is
-	 * Acyclic Directed Graph (modulo dot, and dotdot, of course).
-	 *
-	 * This is used by reiser4_link().
-	 */
+	/* True if this file system doesn't support hard-links (multiple
+	   names) for directories: this is default UNIX behavior.
+	  
+	   If hard-links on directoires are not allowed, file system is
+	   Acyclic Directed Graph (modulo dot, and dotdot, of course).
+	  
+	   This is used by reiser4_link().
+	*/
 	REISER4_ADG = 0,
-	/**
-	 * set if all nodes in internal tree have the same node layout plugin.
-	 * If so, znode_guess_plugin() will return tree->node_plugin in stead
-	 * of guessing plugin by plugin id stored in the node.
-	 */
+	/* set if all nodes in internal tree have the same node layout plugin.
+	   If so, znode_guess_plugin() will return tree->node_plugin in stead
+	   of guessing plugin by plugin id stored in the node.
+	*/
 	REISER4_ONE_NODE_PLUGIN = 1,
 #if REISER4_BSD_PORT
-	/**
-	 * if set, bsd gid assignment is supported.
-	 */
+	/* if set, bsd gid assignment is supported. */
 	REISER4_BSD_GID = 2,
 #endif
 } reiser4_fs_flag;
 
-/** reiser4-specific part of super block */
+/* reiser4-specific part of super block */
 struct reiser4_super_info_data {
-	/**
-	 * guard spinlock which protects reiser4 super 
-	 * block fields (currently blocks_free, 
-	 * blocks_free_committed)
-	 */
+	/* guard spinlock which protects reiser4 super 
+	   block fields (currently blocks_free, 
+	   blocks_free_committed)
+	*/
 	spinlock_t guard;
 
-	/**
-	 * allocator used to allocate new object ids for objects in the file
-	 * system. Current default implementation of object id allocator is
-	 * just counter and
-	 * used by reiser 4.0 default oid manager
-	 */
+	/* allocator used to allocate new object ids for objects in the file
+	   system. Current default implementation of object id allocator is
+	   just counter and
+	   used by reiser 4.0 default oid manager
+	*/
 	oid_allocator_plugin *oid_plug;
 	reiser4_oid_allocator oid_allocator;
 
@@ -81,125 +75,88 @@ struct reiser4_super_info_data {
 	space_allocator_plugin *space_plug;
 	reiser4_space_allocator space_allocator;
 
-	/**
-	 * reiser4 internal tree
-	 */
+	/* reiser4 internal tree */
 	reiser4_tree tree;
 
-	/**
-	 * default user id used for light-weight files without their own
-	 * stat-data.
-	 */
+	/* default user id used for light-weight files without their own
+	   stat-data. */
 	uid_t default_uid;
 
-	/**
-	 * default group id used for light-weight files without their own
-	 * stat-data.
-	 */
+	/* default group id used for light-weight files without their own
+	   stat-data. */
 	gid_t default_gid;
 
-	/** 
-	 * mkfs identifier generated at mkfs time.
-	 */
+	/* mkfs identifier generated at mkfs time. */
 	__u32 mkfs_id;
-	/**
-	 * amount of blocks in a file system
-	 */
+	/* amount of blocks in a file system */
 	__u64 block_count;
 
-	/**
-	 * amount of blocks used by file system data and meta-data.
-	 */
+	/* amount of blocks used by file system data and meta-data. */
 	__u64 blocks_used;
 
-	/**
-	 * amount of free blocks. This is "working" free blocks counter. It is
-	 * like "working" bitmap, please see block_alloc.c for description.
-	 */
+	/* amount of free blocks. This is "working" free blocks counter. It is
+	   like "working" bitmap, please see block_alloc.c for description. */
 	__u64 blocks_free;
 
-	/**
-	 * free block count for fs committed state. This is "commit" version
-	 * of free block counter.
-	 */
+	/* free block count for fs committed state. This is "commit" version
+	   of free block counter. */
 	__u64 blocks_free_committed;
 
-	/**
-	 * number of blocks reserved for further allocation, for all threads.
-	 */
+	/* number of blocks reserved for further allocation, for all threads. */
 	__u64 blocks_grabbed;
 
-	/**
-	 * number of fake allocated unformatted blocks in tree.
-	 */
+	/* number of fake allocated unformatted blocks in tree. */
 	__u64 blocks_fake_allocated_unformatted;
 
-	/**
-	 * number of fake allocated formatted blocks in tree.
-	 */
+	/* number of fake allocated formatted blocks in tree. */
 	__u64 blocks_fake_allocated;
 
-	/**
-	  * number of blocks reserved for flush operations.
-	  */
+	/* number of blocks reserved for flush operations. */
 	__u64     blocks_flush_reserved;
-	/**
-	 * current inode generation.
-	 *
-	 * FIXME-NIKITA not sure this is really needed now when we have 64-bit
-	 * inode numbers.
-	 *
-	 */
+	/* current inode generation.
+	  
+	   FIXME-NIKITA not sure this is really needed now when we have 64-bit
+	   inode numbers.
+	  
+	*/
 	__u32 inode_generation;
 
-	/** unique file-system identifier */
+	/* unique file-system identifier */
 	/* does this conform to Andreas Dilger UUID stuff? */
 	__u32 fsuid;
 
-	/**
-	 * per-fs tracing flags. Use reiser4_trace_flags enum to set
-	 * bits in it.
-	 */
+	/* per-fs tracing flags. Use reiser4_trace_flags enum to set
+	   bits in it. */
 	__u32 trace_flags;
 
-	/**
-	 * file where tracing goes (if enabled).
-	 */
+	/* file where tracing goes (if enabled). */
 	reiser4_trace_file trace_file;
 
-	/**
-	 * per-fs debugging flags. This is bitmask populated from 
-	 * reiser4_debug_flags enum.
-	 */
+	/* per-fs debugging flags. This is bitmask populated from 
+	   reiser4_debug_flags enum. */
 	__u32 debug_flags;
 
 	/* super block flags */
 
-	/** file-system wide flags. See reiser4_fs_flag enum */
+	/* file-system wide flags. See reiser4_fs_flag enum */
 	unsigned long fs_flags;
 
-	/**
-	 * Statistical counters. reiser4_stat is empty data-type unless
-	 * REISER4_STATS is set.
-	 */
+	/* Statistical counters. reiser4_stat is empty data-type unless
+	   REISER4_STATS is set. */
 	reiser4_stat stats;
 
-	/** transaction manager */
+	/* transaction manager */
 	txn_mgr tmgr;
 
-	/** fake inode used to bind formatted nodes */
+	/* fake inode used to bind formatted nodes */
 	struct inode *fake;
 
 	ln_hash_table lnode_htable;
 	spinlock_t lnode_htable_guard;
 #if REISER4_DEBUG
-	/**
-	 * amount of space allocated by kmalloc. For debugging.
-	 */
+	/* amount of space allocated by kmalloc. For debugging. */
 	int kmalloc_allocated;
-	/**
-	 * list of all jnodes
-	 */
+	/* list of all jnodes */
 	struct list_head all_jnodes;
 #endif
 
@@ -242,7 +199,7 @@ struct reiser4_super_info_data {
 	__u64 last_committed_tx;
 
 	/* we remember last written location for using as a hint for
-	 * new block allocation */
+	   new block allocation */
 	__u64 last_written_location;
 
 	/* committed number of files (oid allocator state variable ) */
@@ -327,4 +284,4 @@ void print_fs_info(const char *prefix, const struct super_block *);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

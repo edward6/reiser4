@@ -61,7 +61,7 @@ struct dentry;
 struct super_block;
 struct sealed_coord;
 
-/** return values of coord_by_key(). cbk == coord_by_key */
+/* return values of coord_by_key(). cbk == coord_by_key */
 typedef enum {
 	CBK_COORD_FOUND = 0,
 	CBK_COORD_NOTFOUND = -ENOENT,
@@ -71,7 +71,7 @@ typedef enum {
 /* should this be merged with the tween field? */
 } lookup_result;
 
-/** results of lookup with directory file */
+/* results of lookup with directory file */
 typedef enum {
 	FILE_NAME_FOUND = 0,
 	FILE_NAME_NOTFOUND = -ENOENT,
@@ -82,27 +82,24 @@ typedef enum {
 /* behaviors of lookup. If coord we are looking for is actually in a tree,
     both coincide. */
 typedef enum {
-	/** search exactly for the coord with key given */
+	/* search exactly for the coord with key given */
 	FIND_EXACT,
-	/** search for coord with the maximal key not greater than one
+	/* search for coord with the maximal key not greater than one
 	    given */
 	FIND_MAX_NOT_MORE_THAN	/*LEFT_SLANT_BIAS */
 } lookup_bias;
 
 typedef enum {
-	/**
-	 * number of leaf level of the tree
-	 * The fake root has (tree_level=0).
-	 */
+	/* number of leaf level of the tree
+	   The fake root has (tree_level=0). */
 	LEAF_LEVEL = 1,
 
-	/**
-	 * number of level one above leaf level of the tree.
-	 *
-	 * It is supposed that internal tree used by reiser4 to store file
-	 * system data and meta data will have height 2 initially (when
-	 * created by mkfs).
-	 */
+	/* number of level one above leaf level of the tree.
+	  
+	   It is supposed that internal tree used by reiser4 to store file
+	   system data and meta data will have height 2 initially (when
+	   created by mkfs).
+	*/
 	TWIG_LEVEL = 2,
 } tree_level;
 
@@ -113,36 +110,34 @@ typedef enum {
 /* enumeration of possible mutual position of item and coord.  This enum is
     return type of ->is_in_item() item plugin method which see. */
 typedef enum {
-	/** coord is on the left of an item*/
+	/* coord is on the left of an item*/
 	IP_ON_THE_LEFT,
-	/** coord is inside item */
+	/* coord is inside item */
 	IP_INSIDE,
-	/** coord is inside item, but to the right of the rightmost unit of
+	/* coord is inside item, but to the right of the rightmost unit of
 	    this item */
 	IP_RIGHT_EDGE,
-	/** coord is on the right of an item */
+	/* coord is on the right of an item */
 	IP_ON_THE_RIGHT
 } interposition;
 
-/** type of lock to acquire on znode before returning it to caller */
+/* type of lock to acquire on znode before returning it to caller */
 typedef enum {
 	ZNODE_NO_LOCK = 0,
 	ZNODE_READ_LOCK = 1,
 	ZNODE_WRITE_LOCK = 2,
 } znode_lock_mode;
 
-/** type of lock request */
+/* type of lock request */
 typedef enum {
 	ZNODE_LOCK_LOPRI = 0,
 	ZNODE_LOCK_HIPRI = (1 << 0),
 
 	/* By setting the ZNODE_LOCK_NONBLOCK flag in a lock request the call to longterm_lock_znode will not sleep
-	 * waiting for the lock to become available.  If the lock is unavailable, reiser4_znode_lock will immediately
-	 * return the value -EAGAIN.
-	 */
+	   waiting for the lock to become available.  If the lock is unavailable, reiser4_znode_lock will immediately
+	   return the value -EAGAIN. */
 	ZNODE_LOCK_NONBLOCK = (1 << 1),
-	/*
-	 * An option for longterm_lock_znode which prevents atom fusion */
+	/* An option for longterm_lock_znode which prevents atom fusion */
 	ZNODE_LOCK_DONT_FUSE = (1 << 2)
 } znode_lock_request;
 
@@ -165,22 +160,14 @@ typedef enum {
 
 /* values returned by squalloc_right_neighbor and its auxiliary functions */
 typedef enum {
-	/*
-	 * unit of internal item is moved
-	 */
+	/* unit of internal item is moved */
 	SUBTREE_MOVED = 0,
-	/*
-	 * nothing else can be squeezed into left neighbor
-	 */
+	/* nothing else can be squeezed into left neighbor */
 	SQUEEZE_TARGET_FULL = 1,
-	/*
-	 * all content of node is squeezed into its left neighbor
-	 */
+	/* all content of node is squeezed into its left neighbor */
 	SQUEEZE_SOURCE_EMPTY = 2,
-	/*
-	 * one more item is copied (this is only returned by
-	 * allocate_and_copy_extent to squalloc_twig))
-	 */
+	/* one more item is copied (this is only returned by
+	   allocate_and_copy_extent to squalloc_twig)) */
 	SQUEEZE_CONTINUE = 3
 } squeeze_result;
 
@@ -216,44 +203,27 @@ typedef enum {
 
 /* Flags to insert/paste carry operations. Currently they only used in
    flushing code, but in future, they can be used to optimize for repetitive
-   accesses. 
- */
+   accesses.  */
 typedef enum {
-	/** 
-	 * carry is not allowed to shift data to the left when trying to find
-	 * free space 
-	 */
+	/* carry is not allowed to shift data to the left when trying to find
+	   free space  */
 	COPI_DONT_SHIFT_LEFT = (1 << 0),
-	/** 
-	 * carry is not allowed to shift data to the right when trying to find
-	 * free space 
-	 */
+	/* carry is not allowed to shift data to the right when trying to find
+	   free space  */
 	COPI_DONT_SHIFT_RIGHT = (1 << 1),
-	/** 
-	 * carry is not allowed to allocate new node(s) when trying to find
-	 * free space
-	 */
+	/* carry is not allowed to allocate new node(s) when trying to find
+	   free space */
 	COPI_DONT_ALLOCATE = (1 << 2),
-	/**
-	 * try to load left neighbor if its not in a cache
-	 */
+	/* try to load left neighbor if its not in a cache */
 	COPI_LOAD_LEFT = (1 << 3),
-	/**
-	 * try to load right neighbor if its not in a cache
-	 */
+	/* try to load right neighbor if its not in a cache */
 	COPI_LOAD_RIGHT = (1 << 4),
-	/**
-	 * shift insertion point to the left neighbor
-	 */
+	/* shift insertion point to the left neighbor */
 	COPI_GO_LEFT = (1 << 5),
-	/**
-	 * shift insertion point to the right neighbor
-	 */
+	/* shift insertion point to the right neighbor */
 	COPI_GO_RIGHT = (1 << 6),
-	/**
-	 * try to step back into original node if insertion into new node
-	 * fails after shifting data there.
-	 */
+	/* try to step back into original node if insertion into new node
+	   fails after shifting data there. */
 	COPI_STEP_BACK = (1 << 7),
 	COPI_GLUE_LEFT = (1 << 8),
 	COPI_GLUE_RIGHT = (1 << 9)
@@ -270,4 +240,4 @@ typedef enum {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

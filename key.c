@@ -21,7 +21,7 @@ static const reiser4_key MAXIMAL_KEY = {
 	.el = {{~0ull}, {~0ull}, {~0ull}}
 };
 
-/** Initialise key. */
+/* Initialise key. */
 void
 key_init(reiser4_key * key /* key to init */ )
 {
@@ -29,14 +29,14 @@ key_init(reiser4_key * key /* key to init */ )
 	xmemset(key, 0, sizeof *key);
 }
 
-/** minimal possible key in the tree. Return pointer to the static storage. */
+/* minimal possible key in the tree. Return pointer to the static storage. */
 const reiser4_key *
 min_key(void)
 {
 	return &MINIMAL_KEY;
 }
 
-/** maximum possible key in the tree. Return pointer to the static storage. */
+/* maximum possible key in the tree. Return pointer to the static storage. */
 const reiser4_key *
 max_key(void)
 {
@@ -44,7 +44,7 @@ max_key(void)
 }
 
 #if REISER4_DEBUG_OUTPUT
-/** debugging aid: print symbolic name of key type */
+/* debugging aid: print symbolic name of key type */
 static const char *
 type_name(unsigned int key_type /* key type */ )
 {
@@ -64,7 +64,7 @@ type_name(unsigned int key_type /* key type */ )
 	}
 }
 
-/** debugging aid: print human readable information about key */
+/* debugging aid: print human readable information about key */
 void
 print_key(const char *prefix /* prefix to print */ ,
 	  const reiser4_key * key /* key to print */ )
@@ -101,4 +101,4 @@ sprintf_key(char *buffer /* buffer to print key into */ ,
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

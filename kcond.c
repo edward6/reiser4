@@ -36,7 +36,7 @@
     3. It is relatively easy to add support for sleeping on the several
     condition variables at once. Does anybody need this?
   
- */
+*/
 
 #include "debug.h"
 #include "kcond.h"
@@ -97,7 +97,7 @@ kcond_destroy(kcond_t * cvar /* cvar to destroy */ )
    would call up() on semaphores already in a queue and hence, down() in the
    step (5) would return immediately.
   
- */
+*/
 int
 kcond_wait(kcond_t * cvar /* cvar to wait for */ ,
 	   spinlock_t * lock /* lock to use */ ,
@@ -124,19 +124,16 @@ kcond_wait(kcond_t * cvar /* cvar to wait for */ ,
 		down(&qlink.wait);
 	spin_lock(&cvar->lock);
 	if (result != 0) {
-		/*
-		 * if thread was woken up by signal, @qlink is probably still
-		 * in the queue, remove it.
-		 */
+		/* if thread was woken up by signal, @qlink is probably still
+		   in the queue, remove it. */
 		kcond_remove(cvar, &qlink);
 	}
-	/*
-	 * if it wasn't woken up by signal, spinlock here is still useful,
-	 * because we want to wait until kcond_{broadcast|signal}
-	 * finishes. Otherwise down() could interleave with up() in such a way
-	 * that, that kcond_wait() would exit and up() would see garbage in a
-	 * semaphore.
-	 */
+	/* if it wasn't woken up by signal, spinlock here is still useful,
+	   because we want to wait until kcond_{broadcast|signal}
+	   finishes. Otherwise down() could interleave with up() in such a way
+	   that, that kcond_wait() would exit and up() would see garbage in a
+	   semaphore.
+	*/
 	spin_unlock(&cvar->lock);
 	spin_lock(lock);
 	return result;
@@ -199,10 +196,8 @@ kcond_timedwait(kcond_t * cvar /* cvar to wait for */ ,
 
 	spin_lock(&cvar->lock);
 	if (result != 0) {
-		/*
-		 * if thread was woken up by signal, or due to time-out,
-		 * @qlink is probably still in the queue, remove it.
-		 */
+		/* if thread was woken up by signal, or due to time-out,
+		   @qlink is probably still in the queue, remove it. */
 		kcond_remove(cvar, &qlink);
 	}
 	spin_unlock(&cvar->lock);
@@ -248,7 +243,7 @@ kcond_broadcast(kcond_t * cvar /* cvar to broadcast */ )
 	return 1;
 }
 
-/** true if there are threads sleeping on @cvar */
+/* true if there are threads sleeping on @cvar */
 int
 kcond_are_waiters(kcond_t * cvar /* cvar to query */ )
 {
@@ -298,4 +293,4 @@ kcond_remove(kcond_t * cvar /* cvar to operate on */ ,
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

@@ -30,9 +30,7 @@ coord_normalize(coord_t * coord)
 	node = coord->node;
 	assert("vs-683", node);
 
-	/*
-	 * FIXME-NIKITA overkill
-	 */
+	/* FIXME-NIKITA overkill */
 	coord->iplug = NULL;
 
 	if (node_is_empty(node)) {
@@ -299,10 +297,8 @@ coord_check(const coord_t * coord)
 		return 0;
 	}
 
-	/*
-	 * FIXME-VS: we are going to check unit_pos. This makes no sense when
-	 * between is set either AFTER_ITEM or BEFORE_ITEM
-	 */
+	/* FIXME-VS: we are going to check unit_pos. This makes no sense when
+	   between is set either AFTER_ITEM or BEFORE_ITEM */
 	if (coord->between == AFTER_ITEM || coord->between == BEFORE_ITEM)
 		return 1;
 
@@ -373,7 +369,7 @@ coord_next_unit(coord_t * coord)
 	case AFTER_UNIT:
 	case AT_UNIT:
 		/* If it was at or after a unit and there are more units in this item,
-		 * advance to the next one. */
+		   advance to the next one. */
 		if (coord->unit_pos < coord_last_unit_pos(coord)) {
 			coord->unit_pos += 1;
 			coord->between = AT_UNIT;
@@ -381,7 +377,7 @@ coord_next_unit(coord_t * coord)
 		}
 
 		/* Otherwise, it is crossing an item boundary and treated as if it was
-		 * after the current item. */
+		   after the current item. */
 		coord->between = AFTER_ITEM;
 		coord->unit_pos = 0;
 		/* FALLTHROUGH */
@@ -695,8 +691,7 @@ coord_is_before_leftmost(const coord_t * coord)
 {
 	/* FIXME-VS: coord_check requires node to be loaded whereas it is not
 	   necessary to check if coord is set before leftmost
-	   assert ("jmacd-7313", coord_check (coord));
-	 */
+	   assert ("jmacd-7313", coord_check (coord)); */
 	switch (coord->between) {
 	case INVALID_COORD:
 	case AT_UNIT:
@@ -1045,4 +1040,4 @@ item_utmost_child(const coord_t * coord, sideof side, jnode ** child)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

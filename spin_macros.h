@@ -24,7 +24,7 @@
 #    endif
 #endif
 
-/** Define several inline functions for each type of spinlock. */
+/* Define several inline functions for each type of spinlock. */
 #define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)					\
 										\
 static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
@@ -112,4 +112,4 @@ typedef struct { int foo; } NAME ## _spin_dummy
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

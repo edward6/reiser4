@@ -1,7 +1,6 @@
 /* We need a definition of the default node layout here. */
 
-/* 
-Generally speaking, it is best to have free space in the middle of the
+/* Generally speaking, it is best to have free space in the middle of the
 node so that two sets of things can grow towards it, and to have the
 item bodies on the left so that the last one of them grows into free
 space.  We optimize for the case where we append new items to the end
@@ -75,7 +74,7 @@ just like ldef1 except that item bodies are either blocknrs of
 children or extents, and moving them may require updating parent
 pointers in the nodes that they point to.
 
- */
+*/
 /* There is an inherent 3-way tradeoff between optimizing and
    exchanging disks between different architectures and code
    complexity.  This is optimal and simple and inexchangeable.
@@ -139,53 +138,47 @@ typedef struct node_plugin {
 	   item->estimate) */
 	 size_t(*item_overhead) (const znode * node, flow_t * f);
 
-	/**
-	 * returns free space by looking into node (i.e., without using
-	 * znode->free_space).
-	 */
+	/* returns free space by looking into node (i.e., without using
+	   znode->free_space). */
 	 size_t(*free_space) (znode * node);
-	/** search within the node for the one item which might
+	/* search within the node for the one item which might
 	    contain the key, invoking item->search_within to search within
 	    that item to see if it is in there */
 	 node_search_result(*lookup) (znode * node, const reiser4_key * key, lookup_bias bias, coord_t * coord);
-	/** number of items in node */
+	/* number of items in node */
 	int (*num_of_items) (const znode * node);
 
-	/** store information about item in @coord in @data */
+	/* store information about item in @coord in @data */
 	/* break into several node ops, don't add any more uses of this before doing so */
 	/*int ( *item_at )( const coord_t *coord, reiser4_item_data *data ); */
 	char *(*item_by_coord) (const coord_t * coord);
 	int (*length_by_coord) (const coord_t * coord);
 	item_plugin *(*plugin_by_coord) (const coord_t * coord);
 
-	/** store item key in @key */
+	/* store item key in @key */
 	reiser4_key *(*key_at) (const coord_t * coord, reiser4_key * key);
-	/** conservatively estimate whether unit of what size can fit
+	/* conservatively estimate whether unit of what size can fit
 	    into node. This estimation should be performed without
 	    actually looking into the node's content (free space is saved in
 	    znode). */
 	 size_t(*estimate) (znode * node);
 
 	/* performs every consistency check the node plugin author could
-	 * imagine. Optional. */
+	   imagine. Optional. */
 	int (*check) (const znode * node, __u32 flags, const char **error);
 
-	/*
-	 * Called when node is read into memory and node plugin is
-	 * already detected. This should read some data into znode (like free
-	 * space counter) and, optionally, check data consistency.
-	 */
+	/* Called when node is read into memory and node plugin is
+	   already detected. This should read some data into znode (like free
+	   space counter) and, optionally, check data consistency.
+	*/
 	int (*parse) (znode * node);
-	/**
-	 * This method is called on a new node to initialise plugin specific
-	 * data (header, etc.)
-	 */
+	/* This method is called on a new node to initialise plugin specific
+	   data (header, etc.) */
 	int (*init) (znode * node);
-	/**
-	 * Check whether @node content conforms to this plugin format.
-	 * Probably only useful after support for old V3.x formats is added.
-	 * Uncomment after 4.0 only.
-	 */
+	/* Check whether @node content conforms to this plugin format.
+	   Probably only useful after support for old V3.x formats is added.
+	   Uncomment after 4.0 only.
+	*/
 	/*      int ( *guess )( const znode *node ); */
 #if REISER4_DEBUG_OUTPUT
 	void (*print) (const char *prefix, const znode * node, __u32 flags);
@@ -200,9 +193,7 @@ typedef struct node_plugin {
 	int (*create_item) (coord_t * target, const reiser4_key * key,
 			    reiser4_item_data * data, carry_plugin_info * info);
 
-	/**
-	 * update key of item.
-	 */
+	/* update key of item. */
 	void (*update_item_key) (coord_t * target, const reiser4_key * key, carry_plugin_info * info);
 
 	/* remove data between @from and @to from the tree */
@@ -226,29 +217,26 @@ typedef struct node_plugin {
 	   about what to do on upper level is stored in @todo */
 	int (*shift) (coord_t * stop, znode * target, shift_direction pend,
 		      int delete_node, int including_insert_coord, carry_plugin_info * info);
-	/*
-	 * return true if this node allows skip carry() in some situations
-	 * (see fs/reiser4/tree.c:insert_by_coord()). Reiser3.x format
-	 * emulation doesn't.
-	 *
-	 * This will speedup insertions that doesn't require updates to the
-	 * parent, by bypassing initialisation of carry() structures. It's
-	 * believed that majority of insertions will fit there.
-	 *
-	 */
+	/* return true if this node allows skip carry() in some situations
+	   (see fs/reiser4/tree.c:insert_by_coord()). Reiser3.x format
+	   emulation doesn't.
+	  
+	   This will speedup insertions that doesn't require updates to the
+	   parent, by bypassing initialisation of carry() structures. It's
+	   believed that majority of insertions will fit there.
+	  
+	*/
 	int (*fast_insert) (const coord_t * coord);
 	int (*fast_paste) (const coord_t * coord);
 	int (*fast_cut) (const coord_t * coord);
-	/*
-	 * this limits max size of item which can be inserted into a node and
-	 * number of bytes item in a node may be appended with
-	 */
+	/* this limits max size of item which can be inserted into a node and
+	   number of bytes item in a node may be appended with */
 	int (*max_item_size) (void);
 	int (*prepare_removal) (znode * empty, carry_plugin_info * info);
 } node_plugin;
 
 typedef enum {
-	/** standard unified node layout used for both leaf and internal
+	/* standard unified node layout used for both leaf and internal
 	    nodes */
 	NODE40_ID,
 	LAST_NODE_ID
@@ -297,10 +285,8 @@ extern size_t get_condensation_length(item * item);
 #endif
 
 typedef struct common_node_header {
-	/** 
-	 * identifier of node plugin. Must be located at the very beginning
-	 * of a node.
-	 */
+	/* identifier of node plugin. Must be located at the very beginning
+	   of a node. */
 	d16 plugin_id;
 } common_node_header;
 /* __REISER4_NODE_H__ */
@@ -313,4 +299,4 @@ typedef struct common_node_header {
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

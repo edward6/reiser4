@@ -1,7 +1,6 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* 
-This describes the static_stat item, used to hold all information needed by the stat() syscall.
+/* This describes the static_stat item, used to hold all information needed by the stat() syscall.
 
 In the case where each file has not less than the fields needed by the
 stat() syscall, it is more compact to store those fields in this
@@ -12,7 +11,7 @@ At the moment, we either resolve all stats dynamically or all of them
 statically.  If you think this is not fully optimal, and the rest of
 reiser4 is working, then fix it...:-)
 
- */
+*/
 
 #if !defined( __FS_REISER4_PLUGIN_ITEM_STATIC_STAT_H__ )
 #define __FS_REISER4_PLUGIN_ITEM_STATIC_STAT_H__
@@ -57,26 +56,26 @@ NIKITA-FIXME-HANS: needs three more sentences to explain absent().
     Implementation is in fs/reiser4/plugin/item/static_stat.c
 */
 
-/** stat-data extension. Please order this by presumed frequency of use */
+/* stat-data extension. Please order this by presumed frequency of use */
 typedef enum {
-	/** support for light-weight files */
+	/* support for light-weight files */
 	LIGHT_WEIGHT_STAT,
-	/** data required to implement unix stat(2) call. Layout is in
+	/* data required to implement unix stat(2) call. Layout is in
 	    reiser4_unix_stat. If this is not present, file is light-weight */
 	UNIX_STAT,
 	/* stat data has link name included */
 	SYMLINK_STAT,
-	/** if this is present, file is controlled by non-standard
+	/* if this is present, file is controlled by non-standard
 	    plugin (that is, plugin that cannot be deduced from file
 	    mode bits), for example, aggregation, interpolation etc. */
 	PLUGIN_STAT,
-	/** this extension contains inode generation and persistent inode
+	/* this extension contains inode generation and persistent inode
 	    flags. Layout is in reiser4_gen_and_flags_stat */
 	GEN_AND_FLAGS_STAT,
-	/** this extension contains capabilities sets, associated with this
+	/* this extension contains capabilities sets, associated with this
 	    file. Layout is in reiser4_capabilities_stat */
 	CAPABILITIES_STAT,
-	/** this contains additional set of 32bit [anc]time fields to
+	/* this contains additional set of 32bit [anc]time fields to
 	    implement 64bit times a la BSD. Layout is in
 	    reiser4_large_times_stat */
 	LARGE_TIMES_STAT,
@@ -99,7 +98,7 @@ typedef enum {
 /* NIKITA-FIXME-HANS: read the above */
 /* HANS-FIXME-ZAM: it would be better to see light-weight files before changing
    stat_data_base. Do you have a proof that they do not need this? */
-/** minimal stat-data. This allows to support light-weight files. */
+/* minimal stat-data. This allows to support light-weight files. */
 typedef struct reiser4_stat_data_base {
 	/*  0 */ d16 extmask;
 	/*  2 */
@@ -131,7 +130,7 @@ typedef struct reiser4_unix_stat {
 	/* 32 */
 } PACKED reiser4_unix_stat;
 
-/** symlink stored as part of inode */
+/* symlink stored as part of inode */
 typedef struct reiser4_symlink_stat {
 	char body[0];
 } PACKED reiser4_symlink_stat;
@@ -143,10 +142,10 @@ typedef struct reiser4_plugin_slot {
 /* NIKITA-FIXME-HANS: what does that mean? */
 } PACKED reiser4_plugin_slot;
 
-/** stat-data extension for files with non-standard plugin. */
+/* stat-data extension for files with non-standard plugin. */
 /* NIKITA-FIXME-HANS: comment on these things as a set, what they are used for, etc. */
 typedef struct reiser4_plugin_stat {
-	/** number of additional plugins, associated with this object */
+	/* number of additional plugins, associated with this object */
 	/*  0 */ d16 plugins_no;
 	/*  2 */ reiser4_plugin_slot slot[0];
 	/*  2 */
@@ -201,4 +200,4 @@ extern int sd_save(struct inode *inode, char **area);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

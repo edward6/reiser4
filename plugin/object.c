@@ -20,7 +20,7 @@
    subordinate plugins, by looking again in stat-data or inheriting them
    from parent.
   
- */
+*/
 /* How new inode is initialized during ->read_inode():
     1 read stat-data and initialize inode fields: i_size, i_mode, 
       i_generation, capabilities etc.
@@ -40,9 +40,8 @@
     2 ->install() this plugin
     3 ->inherit() the rest from the parent
   
- */
-/* 
-  We need some examples of creating an object with default and
+*/
+/* We need some examples of creating an object with default and
   non-default plugin ids.  Nikita, please create them.
  
 */
@@ -93,7 +92,7 @@ void estimate_internal_amount(__u32 childen, __u32 tree_height, __u64 *amount)
 	*amount = (tree_height * 2 + (4 + ten_percent));
 }
 
-/** helper function to print errors */
+/* helper function to print errors */
 static void
 key_warning(const char *error_message /* message to print */ ,
 	    const reiser4_key * key /* key to print */ ,
@@ -121,7 +120,7 @@ check_inode_seal(const struct inode *inode,
 #define check_inode_seal(inode, coord, key) noop
 #endif
 
-/** find sd of inode in a tree, deal with errors */
+/* find sd of inode in a tree, deal with errors */
 int
 lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	  znode_lock_mode lock_mode /* lock mode */ ,
@@ -137,7 +136,7 @@ lookup_sd(struct inode *inode /* inode to look sd for */ ,
 	return lookup_sd_by_key(tree_by_inode(inode), lock_mode, coord, lh, key);
 }
 
-/** find sd of inode in a tree, deal with errors */
+/* find sd of inode in a tree, deal with errors */
 int
 lookup_sd_by_key(reiser4_tree * tree /* tree to look in */ ,
 		 znode_lock_mode lock_mode /* lock mode */ ,
@@ -183,7 +182,7 @@ lookup_sd_by_key(reiser4_tree * tree /* tree to look in */ ,
 			assert("nikita-1082", WITH_DATA_RET(coord->node, 1, coord_is_existing_unit(coord)));
 			assert("nikita-721", WITH_DATA_RET(coord->node, 1, item_plugin_by_coord(coord) != NULL));
 			/* next assertion checks that item we found really has the key
-			 * we've been looking for */
+			   we've been looking for */
 			assert("nikita-722", WITH_DATA_RET
 			       (coord->node, 1, keyeq(unit_key_by_coord(coord, &key_found), key)));
 			assert("nikita-1897", znode_get_level(coord->node) == LEAF_LEVEL);
@@ -242,10 +241,8 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	data.user = 0;
 
 	if (data.length > tree_by_inode(inode)->nplug->max_item_size()) {
-		/*
-		 * This is silly check, but we don't know actual node where
-		 * insertion will go into.
-		 */
+		/* This is silly check, but we don't know actual node where
+		   insertion will go into. */
 		return -ENAMETOOLONG;
 	}
 	result = oid_allocate(&oid);
@@ -297,14 +294,13 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 			assert("nikita-725",	/* have we really inserted stat
 						 * data? */
 			       item_is_statdata(&coord));
-			/*
-			 * inode was just created. It is inserted into hash table, but
-			 * no directory entry was yet inserted into parent. So, inode
-			 * is inaccessible through ->lookup(). All places that
-			 * directly grab inode from hash-table (like old knfsd),
-			 * should check IMMUTABLE flag that is set by
-			 * common_create_child.
-			 */
+			/* inode was just created. It is inserted into hash table, but
+			   no directory entry was yet inserted into parent. So, inode
+			   is inaccessible through ->lookup(). All places that
+			   directly grab inode from hash-table (like old knfsd),
+			   should check IMMUTABLE flag that is set by
+			   common_create_child.
+			*/
 
 			if (ref->sd && ref->sd->s.sd.save) {
 				area = item_body_by_coord(&coord);
@@ -456,7 +452,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 	return result;
 }
 
-/** save object's stat-data to disk */
+/* save object's stat-data to disk */
 int
 common_file_save(struct inode *inode /* object to save */ )
 {
@@ -470,9 +466,7 @@ common_file_save(struct inode *inode /* object to save */ )
 	else
 		result = update_sd(inode);
 	if ((result != 0) && (result != -ENAMETOOLONG))
-		/*
-		 * Don't issue warnings about "name is too long"
-		 */
+		/* Don't issue warnings about "name is too long" */
 		warning("nikita-2221", "Failed to save sd for %llu: %i (%lx)",
 			get_inode_oid(inode), result, reiser4_inode_data(inode)->flags);
 	return result;
@@ -484,22 +478,21 @@ common_write_inode(struct inode *inode UNUSED_ARG)
 	return -EINVAL;
 }
 
-/** checks whether yet another hard links to this object can be added */
+/* checks whether yet another hard links to this object can be added */
 int
 common_file_can_add_link(const struct inode *object /* object to check */ )
 {
 	assert("nikita-732", object != NULL);
 
-	/*
-	 * Problem is that nlink_t is usually short, which doesn't left room
-	 * for many links, and, in particular for many sub-directories (each
-	 * sub-directory has dotdot counting as link in a parent).
-	 *
-	 * Possible work-around (read: kludge) is to implement special object
-	 * plugin that will save "true nlink" in private inode
-	 * parent. Stat-data (static_stat.c) is ready for 32bit nlink
-	 * counters.
-	 */
+	/* Problem is that nlink_t is usually short, which doesn't left room
+	   for many links, and, in particular for many sub-directories (each
+	   sub-directory has dotdot counting as link in a parent).
+	  
+	   Possible work-around (read: kludge) is to implement special object
+	   plugin that will save "true nlink" in private inode
+	   parent. Stat-data (static_stat.c) is ready for 32bit nlink
+	   counters.
+	*/
 	return object->i_nlink < (((nlink_t) ~ 0) >> 1);
 }
 
@@ -513,7 +506,7 @@ static reiser4_block_nr common_estimate_file_delete(struct inode *inode)
 	return amount + 1;
 }
 
-/** common_file_delete() - delete object stat-data */
+/* common_file_delete() - delete object stat-data */
 int
 common_file_delete(struct inode *inode /* object to remove */ )
 {
@@ -545,7 +538,7 @@ common_file_delete(struct inode *inode /* object to remove */ )
 	return result;
 }
 
-/** ->set_plug_in_inode() default method. */
+/* ->set_plug_in_inode() default method. */
 static int
 common_set_plug(struct inode *object /* inode to set plugin on */ ,
 		struct inode *parent /* parent object */ ,
@@ -559,22 +552,16 @@ common_set_plug(struct inode *object /* inode to set plugin on */ ,
 	object->i_mtime = object->i_atime = object->i_ctime = CURRENT_TIME;
 
 #if REISER4_BSD_PORT
-	/*
-	 * support for BSD style group-id assignment.
-	 */
+	/* support for BSD style group-id assignment. */
 	if (reiser4_is_set(object->i_sb, REISER4_BSD_GID))
 		object->i_gid = parent->i_gid;
 	else
 #endif
-		/*
-		 * parent directory has sguid bit
-		 */
+		/* parent directory has sguid bit */
 	if (parent->i_mode & S_ISGID) {
 		object->i_gid = parent->i_gid;
 		if (S_ISDIR(object->i_mode))
-			/*
-			 * sguid is inherited by sub-directories
-			 */
+			/* sguid is inherited by sub-directories */
 			object->i_mode |= S_ISGID;
 	} else
 		object->i_gid = current->fsgid;
@@ -598,7 +585,7 @@ common_set_plug(struct inode *object /* inode to set plugin on */ ,
    data. Rather required plugin is guessed from mode bits, where file "type"
    is encoded (see stat(2)).
   
- */
+*/
 int
 guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 						 * for */ )
@@ -727,7 +714,7 @@ unix_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
 	return 0;
 }
 
-/** default ->add_link() method of file plugin */
+/* default ->add_link() method of file plugin */
 static int
 common_add_link(struct inode *object, struct inode *parent UNUSED_ARG)
 {
@@ -736,7 +723,7 @@ common_add_link(struct inode *object, struct inode *parent UNUSED_ARG)
 	return 0;
 }
 
-/** default ->rem_link() method of file plugin */
+/* default ->rem_link() method of file plugin */
 static int
 common_rem_link(struct inode *object, struct inode *parent UNUSED_ARG)
 {
@@ -748,7 +735,7 @@ common_rem_link(struct inode *object, struct inode *parent UNUSED_ARG)
 	return 0;
 }
 
-/** ->not_linked() method for file plugins */
+/* ->not_linked() method for file plugins */
 static int
 common_not_linked(const struct inode *inode)
 {
@@ -756,7 +743,7 @@ common_not_linked(const struct inode *inode)
 	return (inode->i_nlink == 0);
 }
 
-/** ->not_linked() method the for directory file plugin */
+/* ->not_linked() method the for directory file plugin */
 static int
 dir_not_linked(const struct inode *inode)
 {
@@ -769,7 +756,7 @@ dir_not_linked(const struct inode *inode)
 	if( ( self ) -> plugin == NULL )			\
 		( self ) -> plugin = ( ancestor ) -> plugin
 
-/** ->adjust_to_parent() method for regular files */
+/* ->adjust_to_parent() method for regular files */
 static int
 common_adjust_to_parent(struct inode *object /* new object */ ,
 			struct inode *parent /* parent directory */ ,
@@ -793,7 +780,7 @@ common_adjust_to_parent(struct inode *object /* new object */ ,
 	return 0;
 }
 
-/** ->adjust_to_parent() method for directory files */
+/* ->adjust_to_parent() method for directory files */
 static int
 dir_adjust_to_parent(struct inode *object /* new object */ ,
 		     struct inode *parent /* parent directory */ ,
@@ -820,7 +807,7 @@ dir_adjust_to_parent(struct inode *object /* new object */ ,
 	return 0;
 }
 
-/** simplest implementation of ->getattr() method. Completely static. */
+/* simplest implementation of ->getattr() method. Completely static. */
 static int
 common_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct kstat *stat)
 {
@@ -844,9 +831,7 @@ common_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct ks
 	stat->ctime = obj->i_ctime;
 	stat->size = obj->i_size;
 	stat->blocks = (inode_get_bytes(obj) + VFS_BLKSIZE) >> VFS_BLKSIZE_BITS;
-	/*
-	 * "preferred" blocksize for efficient file system I/O
-	 */
+	/* "preferred" blocksize for efficient file system I/O */
 	stat->blksize = get_super_private(obj->i_sb)->optimal_io_size;
 
 	return 0;
@@ -1028,9 +1013,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .set_plug_in_inode = common_set_plug,
 				    .adjust_to_parent = common_adjust_to_parent,
 				    .create = symlink_create,
-				    /*
-				     * FIXME-VS: symlink should probably have its own destroy method
-				     */
+				    /* FIXME-VS: symlink should probably have its own destroy method */
 				    .delete = common_file_delete,
 				    .add_link = common_add_link,
 				    .rem_link = common_rem_link,
@@ -1097,4 +1080,4 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

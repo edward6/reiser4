@@ -14,7 +14,7 @@
    repack it, or move it to tertiary storage.  Please make them as
    generic as is reasonable.
 
- */
+*/
 
 #include "forward.h"
 #include "debug.h"
@@ -44,24 +44,18 @@
     should be called with the tree lock held */
 static int
 lock_neighbor(
-		     /* 
-		      *resulting lock handle*/
+		     /* resulting lock handle*/
 		     lock_handle * result,
-		     /* 
-		      * node to lock */
+		     /* node to lock */
 		     znode * node,
-		     /*
-		      * pointer to neighbor (or parent) znode field offset, in bytes from
-		      * the base address of znode structure  */
+		     /* pointer to neighbor (or parent) znode field offset, in bytes from
+		        the base address of znode structure  */
 		     int ptr_offset,
-		     /*
-		      * lock mode for longterm_lock_znode call */
+		     /* lock mode for longterm_lock_znode call */
 		     znode_lock_mode mode,
-		     /*
-		      * lock request for longterm_lock_znode call */
+		     /* lock request for longterm_lock_znode call */
 		     znode_lock_request req,
-		     /* 
-		      * GN_* flags */
+		     /* GN_* flags */
 		     int flags)
 {
 	reiser4_tree *tree = znode_get_tree(node);
@@ -80,7 +74,7 @@ lock_neighbor(
 		req |= ZNODE_LOCK_DONT_FUSE;
 
 	/* get neighbor's address by using of sibling link, quit while loop
-	 * (and return) if link is not available. */
+	   (and return) if link is not available. */
 	while (1) {
 		reiser4_stat_znode_add(lock_neighbor_iteration);
 		neighbor = GET_NODE_BY_PTR_OFFSET(node, ptr_offset);
@@ -103,20 +97,20 @@ lock_neighbor(
 		spin_lock_tree(tree);
 
 		/* restart if node we got reference to is being
-		 * invalidated. we should not get reference to this node
-		 * again.*/
+		   invalidated. we should not get reference to this node
+		   again.*/
 		if (ret == -EINVAL)
 			continue;
 		if (ret)
 			return ret;
 
 		/* check is neighbor link still points to just locked znode;
-		 * the link could be changed while process slept. */
+		   the link could be changed while process slept. */
 		if (neighbor == GET_NODE_BY_PTR_OFFSET(node, ptr_offset))
 			return 0;
 
 		/* znode was locked by mistake; unlock it and restart locking
-		 * process from beginning. */
+		   process from beginning. */
 		spin_unlock_tree(tree);
 		longterm_unlock_znode(result);
 		spin_lock_tree(tree);
@@ -258,7 +252,7 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 	coord_init_zero(coord);
 
 	/* corresponded zrelse() should be called by the clients of
-	 * far_next_coords(), in place when this node gets unlocked. */
+	   far_next_coords(), in place when this node gets unlocked. */
 	ret = zload(handle->node);
 
 	if (ret) {
@@ -287,7 +281,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 	int ret;
 	reiser4_block_nr da;
 	/* parent of the neighbor node; we set it to parent until not sharing
-	 * of one parent between child and neighbor node is detected */
+	   of one parent between child and neighbor node is detected */
 	znode *side_parent = coord->node;
 	reiser4_tree *tree = znode_get_tree(child);
 	znode *neighbor = NULL;
@@ -314,8 +308,8 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 		}
 
 		/* does coord object points to internal item? We do not
-		 * support sibling pointers between znode for formatted and
-		 * unformatted nodes and return -ENAVAIL in that case. */
+		   support sibling pointers between znode for formatted and
+		   unformatted nodes and return -ENAVAIL in that case. */
 		/* FIXME-NIKITA nikita: can child_znode() be used here? */
 		iplug = item_plugin_by_coord(coord);
 		if (!item_is_internal(coord)) {
@@ -358,8 +352,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 	return ret;
 }
 
-/* 
-   This function is for establishing of one side relation. */
+/* This function is for establishing of one side relation. */
 /* Audited by: umka (2002.06.14) */
 static int
 connect_one_side(coord_t * coord, znode * node, int flags)
@@ -385,7 +378,7 @@ connect_one_side(coord_t * coord, znode * node, int flags)
 	}
 
 	/* we catch error codes which are not interesting for us because we
-	 * run renew_sibling_link() only for znode connection. */
+	   run renew_sibling_link() only for znode connection. */
 	if (ret == -ENOENT || ret == -ENAVAIL)
 		return 0;
 
@@ -407,7 +400,7 @@ connect_znode(coord_t * coord, znode * node)
 	assert("umka-305", tree != NULL);
 
 	/* it is trivial to `connect' root znode because it can't have
-	 * neighbors */
+	   neighbors */
 	if (znode_above_root(coord->node)) {
 		node->left = NULL;
 		node->right = NULL;
@@ -471,11 +464,10 @@ renew_neighbor(coord_t * coord, znode * node, tree_level level, int flags)
 	assert("umka-307", tree != NULL);
 	assert("umka-308", level <= tree->height);
 
-	/* 
-	 * umka (2002.06.14) 
-	 * Here probably should be a check for given "level" validness.
-	 * Something like assert("xxx-yyy", level < REAL_MAX_ZTREE_HEIGHT); 
-	 * */
+	/* umka (2002.06.14) 
+	   Here probably should be a check for given "level" validness.
+	   Something like assert("xxx-yyy", level < REAL_MAX_ZTREE_HEIGHT); 
+	*/
 
 	coord_dup(&local, coord);
 
@@ -484,7 +476,7 @@ renew_neighbor(coord_t * coord, znode * node, tree_level level, int flags)
 		goto out;
 
 	/* tree lock is not needed here because we keep parent node(s) locked
-	 * and reference to neighbor znode incremented */
+	   and reference to neighbor znode incremented */
 	neighbor = (flags & GN_GO_LEFT) ? node->left : node->right;
 
 	ret = UNDER_SPIN(tree, tree, znode_is_connected(neighbor));
@@ -496,7 +488,7 @@ renew_neighbor(coord_t * coord, znode * node, tree_level level, int flags)
 
 	ret = renew_sibling_link(&local, &empty[nr_locked], neighbor, level, flags | GN_NO_ALLOC, &nr_locked);
 	/* second renew_sibling_link() call is used for znode connection only,
-	 * so we can live with these errors */
+	   so we can live with these errors */
 	if (-ENOENT == ret || -ENAVAIL == ret)
 		ret = 0;
 
@@ -508,10 +500,8 @@ out:
 	}
 
 	if (neighbor != NULL)
-		/*
-		 * decrement znode reference counter without actually
-		 * releasing it.
-		 */
+		/* decrement znode reference counter without actually
+		   releasing it. */
 		atomic_dec(&ZJNODE(neighbor)->x_count);
 
 	return ret;
@@ -530,7 +520,7 @@ out:
    again until we find common parent or valid sibling link. Then go down
    allocating/connecting/locking/reading nodes until neigbor of first one is
    locked.
- */
+*/
 
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
 int
@@ -565,7 +555,7 @@ reiser4_get_neighbor(lock_handle * neighbor	/* lock handle that
 
 again:
 	/* first, we try to use simple lock_neighbor() which requires sibling
-	 * link existence */
+	   link existence */
 
 	ret = UNDER_SPIN(tree, tree, lock_side_neighbor(neighbor, node, lock_mode, flags));
 
@@ -580,12 +570,12 @@ again:
 	}
 
 	/* only -ENOENT means we may look upward and try to connect
-	 * @node with its neighbor (if @flags allow us to do it) */
+	   @node with its neighbor (if @flags allow us to do it) */
 	if (ret != -ENOENT || !(flags & GN_DO_READ))
 		return ret;
 
 	/* before establishing of sibling link we lock parent node; it is
-	 * required by renew_neighbor() to work.  */
+	   required by renew_neighbor() to work.  */
 	init_lh(&path[0]);
 	ret = reiser4_get_parent(&path[0], node, ZNODE_READ_LOCK, 1);
 	if (ret)
@@ -619,22 +609,22 @@ again:
 		switch (ret) {
 		case 0:
 			/* unlocking of parent znode prevents simple
-			 * deadlock situation */
+			   deadlock situation */
 			done_lh(&path[h]);
 
 			/* depend on tree level we stay on we repeat first
-			 * locking attempt ...  */
+			   locking attempt ...  */
 			if (h == 0)
 				goto again;
 
 			/* ... or repeat establishing of sibling link at
-			 * one level below. */
+			   one level below. */
 			--h;
 			break;
 
 		case -ENOENT:
 			/* sibling link is not available -- we go
-			 * upward. */
+			   upward. */
 			init_lh(&path[h + 1]);
 			ret = reiser4_get_parent(&path[h + 1], parent, ZNODE_READ_LOCK, 1);
 			if (ret)
@@ -676,7 +666,7 @@ fail:
 	return ret;
 }
 
-/** remove node from sibling list */
+/* remove node from sibling list */
 /* Audited by: umka (2002.06.14) */
 void
 sibling_list_remove(znode * node)
@@ -698,7 +688,7 @@ sibling_list_remove(znode * node)
 	ZF_CLR(node, JNODE_RIGHT_CONNECTED);
 }
 
-/** disconnect node from sibling list */
+/* disconnect node from sibling list */
 void
 sibling_list_drop(znode * node)
 {
@@ -755,12 +745,11 @@ sibling_list_insert(znode * new, znode * before)
 	UNDER_SPIN_VOID(tree, znode_get_tree(new), sibling_list_insert_nolock(new, before));
 }
 
-/* 
-   Local variables:
+/* Local variables:
    c-indentation-style: "K&R"
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

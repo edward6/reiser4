@@ -37,19 +37,19 @@ typedef struct reiser4_plugin_ref reiser4_plugin_ref;
 
 TS_LIST_DECLARE(plugin);
 
-/** common part of each plugin instance. */
+/* common part of each plugin instance. */
 typedef struct plugin_header {
-	/** plugin type */
+	/* plugin type */
 	reiser4_plugin_type type_id;
-	/** id of this plugin */
+	/* id of this plugin */
 	reiser4_plugin_id id;
-	/** plugin operations */
+	/* plugin operations */
 	reiser4_plugin_ops *pops;
-	/** short label of this plugin */
+	/* short label of this plugin */
 	const char *label;
-	/** descriptive string. Put your copyright message here. */
+	/* descriptive string. Put your copyright message here. */
 	const char *desc;
-	/** list linkage */
+	/* list linkage */
 	plugin_list_link linkage;
 } plugin_header;
 
@@ -64,4 +64,4 @@ typedef struct plugin_header {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

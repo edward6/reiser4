@@ -157,9 +157,7 @@ go_dir_el(tap_t * tap, sideof dir, int units_p)
 	coord_dup(&dup, coord);
 	if (coord_dir(&dup) != 0) {
 		do {
-			/*
-			 * move to the left neighboring node
-			 */
+			/* move to the left neighboring node */
 			lock_handle dup;
 
 			init_lh(&dup);
@@ -170,9 +168,7 @@ go_dir_el(tap_t * tap, sideof dir, int units_p)
 					coord_init(tap->coord, dup.node);
 				done_lh(&dup);
 			}
-			/*
-			 * skip empty nodes
-			 */
+			/* skip empty nodes */
 		} while ((result == 0) && node_is_empty(coord->node));
 	} else {
 		result = 0;
@@ -237,4 +233,4 @@ rewind_left(tap_t * tap, int shift)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

@@ -10,37 +10,37 @@
 /* what size units of IO we would like cp, etc., to use, in writing to reiser4 */
 #define OPTIMAL_REISER4_IO_SIZE 64 * 1024
 
-/** number of slots in coord-by-key caches */
+/* number of slots in coord-by-key caches */
 #define CBK_CACHE_SLOTS    (32)
-/** how many elementary tree operation to carry on the next level */
+/* how many elementary tree operation to carry on the next level */
 #define CARRIES_POOL_SIZE        (10)
-/** size of pool of preallocated nodes for carry process. */
+/* size of pool of preallocated nodes for carry process. */
 #define NODES_LOCKED_POOL_SIZE   (10)
 
-/** we are supporting reservation of disk space on uid basis */
+/* we are supporting reservation of disk space on uid basis */
 #define REISER4_SUPPORT_UID_SPACE_RESERVATION (0)
-/** we are supporting reservation of disk space for groups */
+/* we are supporting reservation of disk space for groups */
 #define REISER4_SUPPORT_GID_SPACE_RESERVATION (0)
-/** we are supporting reservation of disk space for root */
+/* we are supporting reservation of disk space for root */
 #define REISER4_SUPPORT_ROOT_SPACE_RESERVATION (0)
 
-/** enable lock passing support */
+/* enable lock passing support */
 #define REISER4_SUPPORT_PASS_LOCK (0)
 
-/** inodes are locked by single super-block lock */
+/* inodes are locked by single super-block lock */
 #define REISER4_USE_SB_ILOCK    (0)
-/** inodes are locked by ->i_data lock */
+/* inodes are locked by ->i_data lock */
 #define REISER4_USE_I_DATA_LOCK (0)
 
-/** key allocation is Plan-A */
+/* key allocation is Plan-A */
 #define REISER4_PLANA_KEY_ALLOCATION (1)
-/** key allocation follows good old 3.x scheme */
+/* key allocation follows good old 3.x scheme */
 #define REISER4_3_5_KEY_ALLOCATION (0)
 
-/** size of hash-table for znodes */
+/* size of hash-table for znodes */
 #define REISER4_ZNODE_HASH_TABLE_SIZE (8192)
 
-/** size of hash-table for jnodes */
+/* size of hash-table for jnodes */
 #define REISER4_JNODE_HASH_TABLE_BITS (13)
 #define REISER4_JNODE_HASH_TABLE_SIZE (1 << REISER4_JNODE_HASH_TABLE_BITS)
 
@@ -72,7 +72,7 @@
    cache friendly. This number was found by experiments on dual AMD
    Athlon(tm), 1400MHz.
   
- */
+*/
 #define REISER4_SEQ_SEARCH_BREAK      (25)
 
 /* don't allow tree to be lower than this */
@@ -92,4 +92,4 @@
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

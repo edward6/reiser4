@@ -42,17 +42,15 @@ struct jnode {
 	/* lock, protecting jnode's fields. */
 	/*   4 */ spinlock_t guard;
 
-	/**
-	 * counter of references to jnode's data. Pin data page(s) in
-	 * memory while this is greater than 0. Increased on jload().
-	 * Decreased on jrelse().
-	 */
+	/* counter of references to jnode's data. Pin data page(s) in
+	   memory while this is greater than 0. Increased on jload().
+	   Decreased on jrelse().
+	*/
 	/*   8 */ atomic_t d_count;
 
-	/**
-	 * counter of references to jnode itself. Increased on jref().
-	 * Decreased on jput().
-	 */
+	/* counter of references to jnode itself. Increased on jref().
+	   Decreased on jput().
+	*/
 	/*  12 */ atomic_t x_count;
 
 	/** the real blocknr (where io is going to/from) */
@@ -65,14 +63,11 @@ struct jnode {
 		jnode_key_t j;
 	} key;
 
-	/* 
-	 * pointer to jnode page. 
-	 */
+	/* pointer to jnode page.  */
 	/*  32 */ struct page *pg;
-	/*
-	 * pointer to node itself. This is page_address(node->pg) when page is
-	 * attached to the jnode
-	 */
+	/* pointer to node itself. This is page_address(node->pg) when page is
+	   attached to the jnode
+	*/
 	/*  36 */ void *data;
 
 	/*  40 */ union {
@@ -89,7 +84,7 @@ struct jnode {
 	/*  52 */ reiser4_tree *tree;
 	/*  56 */
 #if REISER4_DEBUG
-	/** list of all jnodes for debugging purposes. */
+	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
 #endif
 };
@@ -97,39 +92,39 @@ struct jnode {
 TS_LIST_DEFINE(capture, jnode, capture_link);
 
 typedef enum {
-       /** data are loaded from node */
+       /* data are loaded from node */
 	JNODE_LOADED = 0,
-       /** node was deleted, not all locks on it were released. This
+       /* node was deleted, not all locks on it were released. This
 	   node is empty and is going to be removed from the tree
 	   shortly. */
-       /** Josh respectfully disagrees with obfuscated, metaphoric names
+       /* Josh respectfully disagrees with obfuscated, metaphoric names
 	   such as this.  He thinks it should be named ZNODE_BEING_REMOVED. */
 	JNODE_HEARD_BANSHEE = 1,
-       /** left sibling pointer is valid */
+       /* left sibling pointer is valid */
 	JNODE_LEFT_CONNECTED = 2,
-       /** right sibling pointer is valid */
+       /* right sibling pointer is valid */
 	JNODE_RIGHT_CONNECTED = 3,
 
-       /** znode was just created and doesn't yet have a pointer from
+       /* znode was just created and doesn't yet have a pointer from
 	   its parent */
 	JNODE_ORPHAN = 4,
 
-       /** this node was created by its transaction and has not been assigned
-	* a block address. */
+       /* this node was created by its transaction and has not been assigned
+	  a block address. */
 	JNODE_CREATED = 5,
 
-       /** this node is currently relocated */
+       /* this node is currently relocated */
 	JNODE_RELOC = 6,
-       /** this node is currently wandered */
+       /* this node is currently wandered */
 	JNODE_OVRWR = 7,
 
-       /** this znode has been modified */
+       /* this znode has been modified */
 	JNODE_DIRTY = 8,
 
 	/* znode lock is being invalidated */
 	JNODE_IS_DYING = 9,
 	/* jnode of block which has pointer (allocated or unallocated) from
-	 * extent or something similar (indirect item, for example) */
+	   extent or something similar (indirect item, for example) */
 	JNODE_MAPPED = 10,
 
 	JNODE_EFLUSH = 11,
@@ -142,11 +137,11 @@ typedef enum {
 	JNODE_TYPE_2 = 14,
 	JNODE_TYPE_3 = 15,
 
-       /** jnode is being destroyed */
+       /* jnode is being destroyed */
 	JNODE_RIP = 16,
 
-       /** znode was not captured during locking (it might so be because
-	* ->level != LEAF_LEVEL and lock_mode == READ_LOCK) */
+       /* znode was not captured during locking (it might so be because
+	  ->level != LEAF_LEVEL and lock_mode == READ_LOCK) */
 	JNODE_MISSED_IN_CAPTURE = 17,
 
 	/* write is in progress */
@@ -183,15 +178,15 @@ JF_TEST_AND_SET(jnode * j, int f)
 	  ( lock_counters() -> spin_locked_txnh == 0 ) &&                       \
 	  ( lock_counters() -> spin_locked_dk == 0 )   &&                       \
 	  /*                                                                    \
-	   * in addition you cannot hold more than one jnode spin lock at a     \
-	   * time.                                                              \
-	   */                                                                   \
+	     in addition you cannot hold more than one jnode spin lock at a     \
+	     time.                                                              \
+	  */                                                                   \
 	  ( lock_counters() -> spin_locked_jnode == 0 ) )
 
 /* Define spin_lock_jnode, spin_unlock_jnode, and spin_jnode_is_locked.
    Take and release short-term spinlocks.  Don't hold these across
    io. 
- */
+*/
 SPIN_LOCK_FUNCTIONS(jnode, jnode, guard);
 
 static inline int
@@ -454,9 +449,7 @@ jnode_get_type(const jnode * node)
 		[7] = LAST_JNODE_TYPE,	/* invalid */
 	};
 
-	/*
-	 * FIXME-NIKITA atomicity?
-	 */
+	/* FIXME-NIKITA atomicity? */
 	return mask_to_type[(node->state & state_mask) >> JNODE_TYPE_1];
 }
 
@@ -513,4 +506,4 @@ extern int jnode_try_drop(jnode * node);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

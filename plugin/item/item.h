@@ -36,58 +36,53 @@ typedef enum {
 typedef struct {
 	item_type_id item_type;
 
-	/** operations called by balancing 
+	/* operations called by balancing 
 
 	It is interesting to consider that some of these item
 	operations could be given sources or targets that are not
 	really items in nodes.  This could be ok/useful.
 
 	*/
-	/** 
-	 * maximal key that can _possibly_ be occupied by this item
-	 *
-	 *  When inserting, and node ->lookup() method (called by
-	 *  coord_by_key()) reaches an item after binary search,
-	 *  the  ->max_key_inside() item plugin method is used to determine
-	 *  whether new item should pasted into existing item 
-	 *   (new_key<=max_key_inside()) or new item has to be created
-	 *  (new_key>max_key_inside()).
-	 *
-	 *  For items that occupy exactly one key (like stat-data)
-	 *  this method should return this key. For items that can
-	 *  grow indefinitely (extent, directory item) this should
-	 *  return max_key().
-	 *  
-	 */
+	/* maximal key that can _possibly_ be occupied by this item
+	  
+	    When inserting, and node ->lookup() method (called by
+	    coord_by_key()) reaches an item after binary search,
+	    the  ->max_key_inside() item plugin method is used to determine
+	    whether new item should pasted into existing item 
+	     (new_key<=max_key_inside()) or new item has to be created
+	    (new_key>max_key_inside()).
+	  
+	    For items that occupy exactly one key (like stat-data)
+	    this method should return this key. For items that can
+	    grow indefinitely (extent, directory item) this should
+	    return max_key().
+	    
+	*/
 	reiser4_key *(*max_key_inside) (const coord_t * coord, reiser4_key * area);
 /* NIKITA-FIXME-HANS: comment this */
-	/**
-	 * Maximal key that is _really_ occupied by this item currently. This
-	 * cannot be greater than ->max_key_inside.
-	 *
-	 * For example extent with the key 
-	 *
-	 * (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
-	 *
-	 * ->max_key_inside is (LOCALITY,4,OBJID,0xffffffffffffffff), and
-	 *
-	 * ->real_max_key_inside is 
-	 *
-	 * (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size - 1)
-	 *
-	 */
+	/* Maximal key that is _really_ occupied by this item currently. This
+	   cannot be greater than ->max_key_inside.
+	  
+	   For example extent with the key 
+	  
+	   (LOCALITY,4,OBJID,STARTING-OFFSET), and length BLK blocks,
+	  
+	   ->max_key_inside is (LOCALITY,4,OBJID,0xffffffffffffffff), and
+	  
+	   ->real_max_key_inside is 
+	  
+	   (LOCALITY,4,OBJID,STARTING-OFFSET + BLK * block_size - 1)
+	  
+	*/
 	reiser4_key *(*real_max_key_inside) (const coord_t * coord, reiser4_key *);
 
-	/**
-	 * true if item @coord can merge data at @key.
-	 */
+	/* true if item @coord can merge data at @key. */
 	int (*can_contain_key) (const coord_t * coord, const reiser4_key * key, const reiser4_item_data * data);
-	/**
-	 * mergeable() - check items for mergeability
-	 *
-	 * Optional method. Returns true if two items can be merged.
-	 *
-	 */
+	/* mergeable() - check items for mergeability
+	  
+	   Optional method. Returns true if two items can be merged.
+	  
+	*/
 	int (*mergeable) (const coord_t * p1, const coord_t * p2);
 
 #if REISER4_DEBUG_OUTPUT
@@ -111,30 +106,28 @@ typedef struct {
 	   continuous in the node, all sorts of other things are maybe
 	   going to break as well. */
 	 lookup_result(*lookup) (const reiser4_key * key, lookup_bias bias, coord_t * coord);
-	/** method called by ode_plugin->create_item() to initialise new
-	 * item */
+	/* method called by ode_plugin->create_item() to initialise new
+	   item */
 	int (*init) (coord_t * coord, reiser4_item_data * data);
-	/** method called (e.g., by resize_item()) to place new data into
+	/* method called (e.g., by resize_item()) to place new data into
 	    item when it grows*/
 	int (*paste) (coord_t * coord, reiser4_item_data * data, carry_plugin_info * info);
-	/**
-	 * return true if paste into @coord is allowed to skip
-	 * carry. That is, if such paste would require any changes
-	 * at the parent level
-	 */
+	/* return true if paste into @coord is allowed to skip
+	   carry. That is, if such paste would require any changes
+	   at the parent level
+	*/
 	int (*fast_paste) (const coord_t * coord);
-	/**
-	 * how many but not more than @want units of @source can be
-	 * shifted into @target node. If pend == append - we try to
-	 * append last item of @target by first units of @source. If
-	 * pend == prepend - we try to "prepend" first item in @target
-	 * by last units of @source. @target node has @free_space
-	 * bytes of free space. Total size of those units are returned
-	 * via @size.
-	 *
-	 * @target is not NULL if shifting to the mergeable item and
-	 * NULL is new item will be created during shifting.
-	 */
+	/* how many but not more than @want units of @source can be
+	   shifted into @target node. If pend == append - we try to
+	   append last item of @target by first units of @source. If
+	   pend == prepend - we try to "prepend" first item in @target
+	   by last units of @source. @target node has @free_space
+	   bytes of free space. Total size of those units are returned
+	   via @size.
+	  
+	   @target is not NULL if shifting to the mergeable item and
+	   NULL is new item will be created during shifting.
+	*/
 	int (*can_shift) (unsigned free_space, coord_t * source,
 			  znode * target, shift_direction pend, unsigned *size, unsigned want);
 
@@ -149,41 +142,37 @@ typedef struct {
 
 	int (*create_hook) (const coord_t * item, void *arg);
 	/* do whatever is necessary to do when @count units starting
-	 * from @from-th one are removed from the tree */
-	/*
-	 * FIXME-VS: this is used to be here for, in particular,
-	 * extents and items of internal type to free blocks they point
-	 * to at the same time with removing items from a
-	 * tree. Problems start, however, when dealloc_block fails due
-	 * to some reason. Item gets removed, but blocks it pointed to
-	 * are not freed. It is not clear how to fix this for items of
-	 * internal type because a need to remove internal item may
-	 * appear in the middle of balancing, and there is no way to
-	 * undo changes made. OTOH, if space allocator involves
-	 * balancing to perform dealloc_block - this will probably
-	 * break balancing due to deadlock issues
-	 */
+	   from @from-th one are removed from the tree */
+	/* FIXME-VS: this is used to be here for, in particular,
+	   extents and items of internal type to free blocks they point
+	   to at the same time with removing items from a
+	   tree. Problems start, however, when dealloc_block fails due
+	   to some reason. Item gets removed, but blocks it pointed to
+	   are not freed. It is not clear how to fix this for items of
+	   internal type because a need to remove internal item may
+	   appear in the middle of balancing, and there is no way to
+	   undo changes made. OTOH, if space allocator involves
+	   balancing to perform dealloc_block - this will probably
+	   break balancing due to deadlock issues
+	*/
 	int (*kill_hook) (const coord_t * item, unsigned from, unsigned count, void *kill_params);
 	int (*shift_hook) (const coord_t * item, unsigned from, unsigned count, znode * old_node);
 
-	/*
-	 * unit @*from contains @from_key. unit @*to contains
-	 * @to_key. Cut all keys between @from_key and @to_key
-	 * including boundaries. Set @from and @to to number of units
-	 * which were removed. When units are cut from item beginning -
-	 * move space which gets freed to head of item. When units are
-	 * cut from item end - move freed space to item end. When units
-	 * are cut from the middle of item - move freed space to item
-	 * head. Return amount of space which got freed. Save smallest
-	 * removed key is @smallest_removed is not 0
-	 */
+	/* unit @*from contains @from_key. unit @*to contains
+	   @to_key. Cut all keys between @from_key and @to_key
+	   including boundaries. Set @from and @to to number of units
+	   which were removed. When units are cut from item beginning -
+	   move space which gets freed to head of item. When units are
+	   cut from item end - move freed space to item end. When units
+	   are cut from the middle of item - move freed space to item
+	   head. Return amount of space which got freed. Save smallest
+	   removed key is @smallest_removed is not 0
+	*/
 	int (*cut_units) (coord_t *, unsigned *from, unsigned *to,
 			  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed);
 
-	/*
-	 * like cut_units, except that these units are removed from the
-	 * tree, not only from a node
-	 */
+	/* like cut_units, except that these units are removed from the
+	   tree, not only from a node */
 	int (*kill_units) (coord_t *, unsigned *from, unsigned *to,
 			   const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed);
 
@@ -191,18 +180,17 @@ typedef struct {
 	   key of unit is returned. If @coord is not set to certain
 	   unit - ERR_PTR(-ENOENT) is returned */
 	reiser4_key *(*unit_key) (const coord_t * coord, reiser4_key * key);
-	/**
-	 * estimate how much space is needed for paste @data into item at
-	 * @coord. if @coord==0 - estimate insertion, otherwise - estimate
-	 * pasting
-	 */
+	/* estimate how much space is needed for paste @data into item at
+	   @coord. if @coord==0 - estimate insertion, otherwise - estimate
+	   pasting
+	*/
 	int (*estimate) (const coord_t * coord, const reiser4_item_data * data);
 
 	/* converts flow @f to item data. @coord == 0 on insert */
 	int (*item_data_by_flow) (const coord_t * coord, const flow_t * f, reiser4_item_data * data);
 
 	/* return true if item contains key in it, coord is adjusted
-	 * correspondingly */
+	   correspondingly */
 	int (*key_in_item) (coord_t * coord, const reiser4_key * key);
 
 	/* return true if unit to which coord is set contains @key */
@@ -216,30 +204,22 @@ typedef struct {
 	int (*utmost_child) (const coord_t * coord, sideof side, jnode ** child);
 
 	/* return whether the right or left child of @coord has a non-fake
-	 * block number. */
+	   block number. */
 	int (*utmost_child_real_block) (const coord_t * coord, sideof side, reiser4_block_nr * block);
 
 } flush_ops;
 
 /* operations specific to the directory item */
 typedef struct {
-	/**
-	 * extract stat-data key from directory entry at @coord and place it
-	 * into @key.
-	 */
+	/* extract stat-data key from directory entry at @coord and place it
+	   into @key. */
 	int (*extract_key) (const coord_t * coord, reiser4_key * key);
-	/**
-	 * update object key in item.
-	 */
+	/* update object key in item. */
 	int (*update_key) (const coord_t * coord, const reiser4_key * key, lock_handle * lh);
-	/**
-	 * extract name from directory entry at @coord and return it
-	 */
+	/* extract name from directory entry at @coord and return it */
 	char *(*extract_name) (const coord_t * coord);
-	/**
-	 * extract file type (DT_* stuff) from directory entry at @coord and
-	 * return it
-	 */
+	/* extract file type (DT_* stuff) from directory entry at @coord and
+	   return it */
 	unsigned (*extract_file_type) (const coord_t * coord);
 	int (*add_entry) (struct inode * dir,
 			  coord_t * coord, lock_handle * lh,
@@ -251,8 +231,8 @@ typedef struct {
 /* operations specific to items regular file metadata are built of */
 typedef struct {
 	/* @page is used in extent's write. If it is set (when tail2extent
-	 * conversion is in progress) - do not grab a page and do not copy data
-	 * from flow into it because all the data are already */
+	   conversion is in progress) - do not grab a page and do not copy data
+	   from flow into it because all the data are already */
 	int (*write) (struct inode *, coord_t *, lock_handle *, flow_t *);
 	int (*read) (struct inode *, coord_t *, flow_t *);
 	int (*readpage) (coord_t *, lock_handle *, struct page *);
@@ -270,15 +250,15 @@ typedef struct {
 
 /* operations specific to internal item */
 typedef struct {
-	/** all tree traversal want to know from internal item is where
+	/* all tree traversal want to know from internal item is where
 	    to go next. */
 	void (*down_link) (const coord_t * coord, const reiser4_key * key, reiser4_block_nr * block);
-	/** check that given internal item contains given pointer. */
+	/* check that given internal item contains given pointer. */
 	int (*has_pointer_to) (const coord_t * coord, const reiser4_block_nr * block);
 } internal_item_ops;
 
 struct item_plugin {
-	/** generic fields */
+	/* generic fields */
 	plugin_header h;
 
 	/* methods common for all item types */
@@ -328,4 +308,4 @@ extern reiser4_key *unit_key_by_coord(const coord_t * coord, reiser4_key * key);
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

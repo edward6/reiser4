@@ -14,20 +14,17 @@
 #include <linux/dcache.h>	/* for struct dentry */
 
 typedef struct directory_entry_format {
-	/**
-	 * key of object stat-data. It's not necessary to store whole
-	 * key here, because it's always key of stat-data, so minor
-	 * packing locality and offset can be omitted here. But this
-	 * relies on particular key allocation scheme for stat-data, so,
-	 * for extensibility sake, whole key can be stored here.
-	 * 
-	 * We store key as array of bytes, because we don't want 8-byte
-	 * alignment of dir entries.
-	 */
+	/* key of object stat-data. It's not necessary to store whole
+	   key here, because it's always key of stat-data, so minor
+	   packing locality and offset can be omitted here. But this
+	   relies on particular key allocation scheme for stat-data, so,
+	   for extensibility sake, whole key can be stored here.
+	   
+	   We store key as array of bytes, because we don't want 8-byte
+	   alignment of dir entries.
+	*/
 	obj_key_id id;
-	/**
-	 * file name. Null terminated string.
-	 */
+	/* file name. Null terminated string. */
 	d8 name[0];
 } directory_entry_format;
 
@@ -54,4 +51,4 @@ int de_rem_and_shrink(struct inode *dir, coord_t * coord, int length);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

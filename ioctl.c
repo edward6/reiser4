@@ -10,7 +10,7 @@
    
    REISER4_IOC_UNPACK - try to unpack tail from into extent and prevent packing 
    file (argument arg has to be non-zero)
- */
+*/
 int
 reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
 {
@@ -66,4 +66,4 @@ reiser4_unpack(struct inode *inode, struct file *filp)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

@@ -66,7 +66,7 @@
    this list class would be named "rx_event_list_empty",
    "rx_event_list_init", "rx_event_list_push_front",
    "rx_event_list_push_back", and so on.
- */
+*/
 
 #define TS_LIST_LINK_INIT( name ) { &(name), &(name) }
 #define TS_LIST_HEAD_INIT( name ) { &(name), &(name) }
@@ -85,7 +85,7 @@
   
    TS_LIST_DECLARE(rx_event);
   
- */
+*/
 #define TS_LIST_DECLARE(PREFIX)                                                               \
                                                                                               \
 typedef struct _##PREFIX##_list_head        PREFIX##_list_head;                               \
@@ -120,7 +120,7 @@ struct _##PREFIX##_list_head                                                    
   
    In this case we have given the rx_event a field named "_link" of
    the appropriate type.
- */
+*/
 
 /* Step 3: The final step will define the list-functions for a
    specific list class using the macro TS_LIST_DEFINE.  There are
@@ -166,7 +166,7 @@ struct _##PREFIX##_list_head                                                    
                ! rx_event_list_end   (head, item);
           item = rx_event_list_next  (item))
        {...}
- * */
+*/
 #define TS_LIST_DEFINE(PREFIX,ITEM_TYPE,LINK_NAME)                                            \
                                                                                               \
 static __inline__ int                                                                         \
@@ -397,4 +397,4 @@ typedef struct { int foo; } PREFIX##_dummy_decl
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -30,7 +30,7 @@ item_body_by_coord(const coord_t * coord /* coord to query */ )
 	return node_plugin_by_node(coord->node)->item_by_coord(coord);
 }
 
-/** return length of item at @coord */
+/* return length of item at @coord */
 /* Audited by: green(2002.06.15) */
 int
 item_length_by_coord(const coord_t * coord /* coord to query */ )
@@ -43,7 +43,7 @@ item_length_by_coord(const coord_t * coord /* coord to query */ )
 	return node_plugin_by_node(coord->node)->length_by_coord(coord);
 }
 
-/** return plugin of item at @coord */
+/* return plugin of item at @coord */
 /* Audited by: green(2002.06.15) */
 item_plugin *
 item_plugin_by_coord(const coord_t * coord /* coord to query */ )
@@ -60,7 +60,7 @@ item_plugin_by_coord(const coord_t * coord /* coord to query */ )
 	return coord->iplug;
 }
 
-/** return type of item at @coord */
+/* return type of item at @coord */
 item_type_id item_type_by_coord(const coord_t * coord /* coord to query */ )
 {
 	assert("nikita-333", coord != NULL);
@@ -88,7 +88,7 @@ item_id item_id_by_coord(const coord_t * coord /* coord to query */ )
 	return item_id_by_plugin(item_plugin_by_coord(coord));
 }
 
-/** return key of item at @coord */
+/* return key of item at @coord */
 /* Audited by: green(2002.06.15) */
 reiser4_key *
 item_key_by_coord(const coord_t * coord /* coord to query */ ,
@@ -102,7 +102,7 @@ item_key_by_coord(const coord_t * coord /* coord to query */ ,
 	return node_plugin_by_node(coord->node)->key_at(coord, key);
 }
 
-/** return key of unit at @coord */
+/* return key of unit at @coord */
 reiser4_key *
 unit_key_by_coord(const coord_t * coord /* coord to query */ ,
 		  reiser4_key * key /* result */ )
@@ -131,7 +131,7 @@ single_key(const coord_t * coord /* coord of item */ ,
 	return unit_key_by_coord(coord, result);
 }
 
-/** ->nr_units() method for items consisting of exactly one unit always */
+/* ->nr_units() method for items consisting of exactly one unit always */
 static unsigned int
 single_unit(const coord_t * coord UNUSED_ARG	/* coord
 						   of
@@ -146,7 +146,7 @@ no_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info)
 	return 0;
 }
 
-/** default ->fast_paste() method */
+/* default ->fast_paste() method */
 int
 agree_to_fast_op(const coord_t * coord UNUSED_ARG /* coord of item */ )
 {
@@ -174,11 +174,10 @@ item_can_contain_key(const coord_t * item /* coord of item */ ,
 		item_key_by_coord(item, &min_key_in_item);
 		iplug->b.max_key_inside(item, &max_key_in_item);
 
-		/*
-		 * can contain key if 
-		 *    min_key_in_item <= key &&
-		 *    key <= max_key_in_item
-		 */
+		/* can contain key if 
+		      min_key_in_item <= key &&
+		      key <= max_key_in_item
+		*/
 		return keyle(&min_key_in_item, key) && keyle(key, &max_key_in_item);
 	}
 }
@@ -201,10 +200,8 @@ are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
 	trace_if(TRACE_NODES, print_key("k1", item_key_by_coord(i1, &k1)));
 	trace_if(TRACE_NODES, print_key("k2", item_key_by_coord(i2, &k2)));
 
-	/*
-	 * FIXME-NIKITA are_items_mergeable() is also called by assertions in
-	 * shifting code when nodes are in "suspended" state.
-	 */
+	/* FIXME-NIKITA are_items_mergeable() is also called by assertions in
+	   shifting code when nodes are in "suspended" state. */
 	assert("nikita-1663", keyle(item_key_by_coord(i1, &k1), item_key_by_coord(i2, &k2)));
 
 	if (iplug->b.mergeable != NULL) {
@@ -213,9 +210,7 @@ are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
 		iplug->b.max_key_inside(i1, &k1);
 		item_key_by_coord(i2, &k2);
 
-		/*
-		 * mergeable if ->max_key_inside() >= key of i2;
-		 */
+		/* mergeable if ->max_key_inside() >= key of i2; */
 		return keyge(iplug->b.max_key_inside(i1, &k1), item_key_by_coord(i2, &k2));
 	} else {
 		item_key_by_coord(i1, &k1);
@@ -589,4 +584,4 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

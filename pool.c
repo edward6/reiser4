@@ -12,7 +12,7 @@
    (3*tree_height+1 in extremal situation).
   
    On the one hand, we don't want to resort to dynamic allocation (slab,
-   *malloc(), etc.) to allocate data structures required to keep track of
+    malloc(), etc.) to allocate data structures required to keep track of
    nodes during balancing. On the other hand, we cannot statically allocate
    required amount of space on the stack, because first: it is useless wastage
    of precious resource, and second: this amount is unknown in advance (tree
@@ -41,7 +41,7 @@
    type-safe.
   
   
- */
+*/
 
 #include "debug.h"
 #include "pool.h"
@@ -97,7 +97,7 @@ reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
    Release all resources acquired by this pool, specifically, dynamically
    allocated objects.
   
- */
+*/
 /* Audited by: green(2002.06.15) */
 void
 reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
@@ -109,7 +109,7 @@ reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
    First, try to get preallocated object. If this fails, resort to dynamic
    allocation.
   
- */
+*/
 /* Audited by: green(2002.06.15) */
 void *
 reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
@@ -128,10 +128,8 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 		assert("nikita-965", pool_extra_list_is_clean(result));
 	} else {
 		reiser4_stat_pool_add(pool_kmalloc);
-		/*
-		 * pool is empty. Extra allocations don't deserve dedicated
-		 * slab to be served from, as they are expected to be rare.
-		 */
+		/* pool is empty. Extra allocations don't deserve dedicated
+		   slab to be served from, as they are expected to be rare. */
 		result = reiser4_kmalloc(pool->obj_size, GFP_KERNEL);
 		if (result != 0) {
 			reiser4_init_pool_obj(result);
@@ -147,8 +145,7 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 	return result;
 }
 
-/* return object back to the pool
-   */
+/* return object back to the pool */
 /* Audited by: green(2002.06.15) */
 void
 reiser4_pool_free(reiser4_pool_header * h	/* pool to return object back
@@ -186,7 +183,7 @@ reiser4_pool_free(reiser4_pool_header * h	/* pool to return object back
    supplied with at least node whose left delimiting key is to be updated
    (that is "right" node).
   
- */
+*/
 /* Audited by: green(2002.06.15) */
 reiser4_pool_header *
 add_obj(reiser4_pool * pool	/* pool from which to
@@ -239,4 +236,4 @@ add_obj(reiser4_pool * pool	/* pool from which to
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

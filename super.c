@@ -23,7 +23,7 @@ static __u64 reserved_for_gid(const struct super_block *super, gid_t gid);
 static __u64 reserved_for_uid(const struct super_block *super, uid_t uid);
 static __u64 reserved_for_root(const struct super_block *super);
 
-/** Return reiser4-specific part of super block */
+/* Return reiser4-specific part of super block */
 reiser4_super_info_data *
 get_super_private_nocheck(const struct super_block *super	/* super block
 								 * queried */ )
@@ -31,7 +31,7 @@ get_super_private_nocheck(const struct super_block *super	/* super block
 	return (reiser4_super_info_data *) super->s_fs_info;
 }
 
-/** Return reiser4-specific part of super block */
+/* Return reiser4-specific part of super block */
 reiser4_super_info_data *
 get_super_private(const struct super_block * super	/* super
 							   block queried */ )
@@ -76,7 +76,7 @@ statfs_type(const struct super_block *super UNUSED_ARG	/* super block
 	return (long) REISER4_SUPER_MAGIC;
 }
 
-/** block size used by file system corresponding to @super */
+/* block size used by file system corresponding to @super */
 int
 reiser4_blksize(const struct super_block *super /* super block queried */ )
 {
@@ -89,7 +89,7 @@ reiser4_blksize(const struct super_block *super /* super block queried */ )
 
 /* functions to read/modify fields of reiser4_super_info_data */
 
-/** get number of blocks in file system */
+/* get number of blocks in file system */
 __u64 reiser4_block_count(const struct super_block * super	/* super block
 								   queried */ )
 {
@@ -107,7 +107,7 @@ reiser4_set_block_count(const struct super_block *super, __u64 nr)
 	get_super_private(super)->block_count = nr;
 }
 
-/** amount of blocks used (allocated for data) in file system */
+/* amount of blocks used (allocated for data) in file system */
 __u64 reiser4_data_blocks(const struct super_block *super	/* super block
 								   queried */ )
 {
@@ -125,7 +125,7 @@ reiser4_set_data_blocks(const struct super_block *super, __u64 nr)
 	get_super_private(super)->blocks_used = nr;
 }
 
-/** amount of free blocks in file system */
+/* amount of free blocks in file system */
 __u64 reiser4_free_blocks(const struct super_block *super	/* super block
 								   queried */ )
 {
@@ -143,7 +143,7 @@ reiser4_set_free_blocks(const struct super_block *super, __u64 nr)
 	get_super_private(super)->blocks_free = nr;
 }
 
-/** increment reiser4_super_info_data's counter of free blocks */
+/* increment reiser4_super_info_data's counter of free blocks */
 void
 reiser4_inc_free_blocks(const struct super_block *super)
 {
@@ -203,7 +203,7 @@ reiser4_dec_free_committed_blocks(const struct super_block *super)
 	get_super_private(super)->blocks_free_committed--;
 }
 
-/** amount of blocks in the file system reserved for @uid and @gid */
+/* amount of blocks in the file system reserved for @uid and @gid */
 long
 reiser4_reserved_blocks(const struct super_block *super	/* super block
 							   queried */ ,
@@ -365,8 +365,7 @@ reiser4_is_set(const struct super_block *super, reiser4_fs_flag f)
 
 /* Reiser4-specific part of "current" super-block: main super block used
    during current system call. Reference to this super block is stored in
-   reiser4_context.
- */
+   reiser4_context. */
 reiser4_super_info_data *
 get_current_super_private(void)
 {
@@ -537,4 +536,4 @@ print_fs_info(const char *prefix, const struct super_block *s)
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -50,10 +50,9 @@ typedef enum {
    However, if tails have a different minor packing locality from
    extents, and no files have both extents and tails, maybe symmetry
    can be had.
- */
+*/
 
-/* 
-   Arbitrary major packing localities can be assigned to objects using
+/* Arbitrary major packing localities can be assigned to objects using
    the reiser4(filenameA/..packing<=some_number) system call.
 
    In reiser4, the creat() syscall creates a directory
@@ -74,7 +73,7 @@ typedef enum {
    static_stat item contains a flag for each stat it contains which
    indicates whether one should look outside the static_stat item for its
    contents.
- */
+*/
 
 /* offset of fields in reiser4_key. Value of each element of this enum
     is index within key (thought as array of __u64's) where this field
@@ -111,23 +110,23 @@ union reiser4_key {
 /* bitmasks showing where within reiser4_key particular key is
     stored. */
 typedef enum {
-	/** major locality occupies higher 60 bits of the first element */
+	/* major locality occupies higher 60 bits of the first element */
 	KEY_LOCALITY_MASK = 0xfffffffffffffff0ull,
-	/** minor locality occupies lower 4 bits of the first element */
+	/* minor locality occupies lower 4 bits of the first element */
 	KEY_TYPE_MASK = 0xfull,
-	/** controversial band occupies higher 4 bits of the 2nd element */
+	/* controversial band occupies higher 4 bits of the 2nd element */
 	KEY_BAND_MASK = 0xf000000000000000ull,
-	/** objectid occupies lower 60 bits of the 2nd element */
+	/* objectid occupies lower 60 bits of the 2nd element */
 	KEY_OBJECTID_MASK = 0x0fffffffffffffffull,
-	/** offset is just 3rd L.M.Nt itself */
+	/* offset is just 3rd L.M.Nt itself */
 	KEY_OFFSET_MASK = 0xffffffffffffffffull,
-	/** hash occupies 56 higher bits of 3rd element */
+	/* hash occupies 56 higher bits of 3rd element */
 	KEY_HASH_MASK = 0xffffffffffffff00ull,
-	/** generation counter occupies lower 8 bits of 3rd element */
+	/* generation counter occupies lower 8 bits of 3rd element */
 	KEY_GEN_MASK = 0xffull,
 } reiser4_key_field_mask;
 
-/** how many bits key element should be shifted to left to get particular field */
+/* how many bits key element should be shifted to left to get particular field */
 typedef enum {
 	KEY_LOCALITY_SHIFT = 4,
 	KEY_TYPE_SHIFT = 0,
@@ -154,7 +153,7 @@ set_key_el(reiser4_key * key, reiser4_key_field_index off, __u64 value)
 	cputod64(value, &key->el[off]);
 }
 
-/** macro to define getter and setter functions for field F with type T */
+/* macro to define getter and setter functions for field F with type T */
 #define DEFINE_KEY_FIELD( L, U, T )					\
 static inline T get_key_ ## L ( const reiser4_key *key )		\
 {									\
@@ -201,7 +200,7 @@ DEFINE_KEY_FIELD(offset, OFFSET, __u64);
 /* define get_key_hash(), set_key_hash() */
 DEFINE_KEY_FIELD(hash, HASH, __u64);
 
-/** key comparison result */
+/* key comparison result */
 typedef enum { LESS_THAN = -1,	/* if first key is less than second */
 	EQUAL_TO = 0,		/* if keys are equal */
 	GREATER_THAN = +1	/* if first key is greater than second */
@@ -209,11 +208,11 @@ typedef enum { LESS_THAN = -1,	/* if first key is less than second */
 
 void key_init(reiser4_key * key);
 
-/** minimal possible key in the tree. Return pointer to the static storage. */
+/* minimal possible key in the tree. Return pointer to the static storage. */
 extern const reiser4_key *min_key(void);
 extern const reiser4_key *max_key(void);
 
-/** helper macro for keycmp() */
+/* helper macro for keycmp() */
 #define DIFF( field )								\
 ({										\
 	typeof ( get_key_ ## field ( k1 ) ) f1;                              	\
@@ -225,7 +224,7 @@ extern const reiser4_key *max_key(void);
 	( f1 < f2 ) ? LESS_THAN : ( ( f1 == f2 ) ? EQUAL_TO : GREATER_THAN );	\
 })
 
-/** helper macro for keycmp() */
+/* helper macro for keycmp() */
 #define DIFF_EL( off )								\
 ({										\
 	__u64 e1;								\
@@ -253,10 +252,8 @@ keycmp(const reiser4_key * k1 /* first key to compare */ ,
 		/* if physical order of fields in a key is identical
 		   with logical order, we can implement key comparison
 		   as three 64bit comparisons. */
-		/* 
-		   logical order of fields in plan-a:
-		   locality->type->objectid->offset.
-		 */
+		/* logical order of fields in plan-a:
+		   locality->type->objectid->offset. */
 		/* compare locality and type at once */
 		result = DIFF_EL(0);
 		if (result == EQUAL_TO) {
@@ -282,7 +279,7 @@ keycmp(const reiser4_key * k1 /* first key to compare */ ,
 	return result;
 }
 
-/** true if @k1 equals @k2 */
+/* true if @k1 equals @k2 */
 static inline int
 keyeq(const reiser4_key * k1 /* first key to compare */ ,
       const reiser4_key * k2 /* second key to compare */ )
@@ -292,7 +289,7 @@ keyeq(const reiser4_key * k1 /* first key to compare */ ,
 	return !memcmp(k1, k2, sizeof *k1);
 }
 
-/** true if @k1 is less than @k2 */
+/* true if @k1 is less than @k2 */
 static inline int
 keylt(const reiser4_key * k1 /* first key to compare */ ,
       const reiser4_key * k2 /* second key to compare */ )
@@ -302,7 +299,7 @@ keylt(const reiser4_key * k1 /* first key to compare */ ,
 	return keycmp(k1, k2) == LESS_THAN;
 }
 
-/** true if @k1 is less than or equal to @k2 */
+/* true if @k1 is less than or equal to @k2 */
 static inline int
 keyle(const reiser4_key * k1 /* first key to compare */ ,
       const reiser4_key * k2 /* second key to compare */ )
@@ -312,7 +309,7 @@ keyle(const reiser4_key * k1 /* first key to compare */ ,
 	return keycmp(k1, k2) != GREATER_THAN;
 }
 
-/** true if @k1 is greater than @k2 */
+/* true if @k1 is greater than @k2 */
 static inline int
 keygt(const reiser4_key * k1 /* first key to compare */ ,
       const reiser4_key * k2 /* second key to compare */ )
@@ -322,7 +319,7 @@ keygt(const reiser4_key * k1 /* first key to compare */ ,
 	return keycmp(k1, k2) == GREATER_THAN;
 }
 
-/** true if @k1 is greater than or equal to @k2 */
+/* true if @k1 is greater than or equal to @k2 */
 static inline int
 keyge(const reiser4_key * k1 /* first key to compare */ ,
       const reiser4_key * k2 /* second key to compare */ )
@@ -351,4 +348,4 @@ extern void print_key(const char *prefix, const reiser4_key * key);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

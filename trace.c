@@ -291,4 +291,4 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

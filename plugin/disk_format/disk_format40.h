@@ -7,7 +7,7 @@
    - declarations of functions implementing methods of layout plugin
      for layout 40
    - declarations of functions used to get/set fields in layout 40 super block
- */
+*/
 
 #ifndef __DISK_FORMAT40_H__
 #define __DISK_FORMAT40_H__
@@ -34,8 +34,8 @@ typedef struct format40_disk_super_block {
 	/* number of files in a filesystem */
 	/*  40 */ d64 flushes;
 	/* number of times super block was
-	 * flushed. Needed if format 40
-	 * will have few super blocks */
+	   flushed. Needed if format 40
+	   will have few super blocks */
 	/*  48 */ d32 mkfs_id;
 	/* unique identifier of fs */
 	/*  52 */ char magic[16];

@@ -8,7 +8,7 @@
    reiser 4.0 oid allocator is then simple counter incremented on each
    oid allocation. Also counter of used oids is maintained, mainly for
    statfs(2) sake.
- */
+*/
 #ifndef __REISER4_OID40_H__
 #define __REISER4_OID40_H__
 
@@ -19,20 +19,15 @@
 #include <linux/spinlock.h>
 
 typedef struct {
-	/**
-	 * spinlock serializing accesses to this structure.
-	 */
+	/* spinlock serializing accesses to this structure. */
 	spinlock_t oguard;
-	/**
-	 * greatest oid ever allocated plus one. This is increased on each oid
-	 * allocation.
-	 */
+	/* greatest oid ever allocated plus one. This is increased on each oid
+	   allocation. */
 	oid_t next_to_use;
-	/**
-	 * oids actually used. This is increased on each oid allocation, and
-	 * decreased on each oid release.
-	 * number of files, in short
-	 */
+	/* oids actually used. This is increased on each oid allocation, and
+	   decreased on each oid release.
+	   number of files, in short
+	*/
 	oid_t oids_in_use;
 } oid40_allocator;
 

@@ -27,7 +27,7 @@
    reference to this child dies if we support some form of LRU cache for
    znodes.
   
- */
+*/
 /* EVERY ZNODE'S STORY
   
    1. His infancy.
@@ -148,7 +148,7 @@
    necessary and memory is freed. Znodes themselves can be recycled at
    this point too.
   
- */
+*/
 
 #include "debug.h"
 #include "dformat.h"
@@ -172,7 +172,7 @@
 
 /* hash table support */
 
-/** compare two block numbers for equality. Used by hash-table macros */
+/* compare two block numbers for equality. Used by hash-table macros */
 /* Audited by: umka (2002.06.11) */
 static inline int
 blknreq(const reiser4_block_nr * b1, const reiser4_block_nr * b2)
@@ -183,7 +183,7 @@ blknreq(const reiser4_block_nr * b1, const reiser4_block_nr * b2)
 	return *b1 == *b2;
 }
 
-/** Hash znode by block number. Used by hash-table macros */
+/* Hash znode by block number. Used by hash-table macros */
 /* Audited by: umka (2002.06.11) */
 static inline __u32
 blknrhashfn(const reiser4_block_nr * b)
@@ -193,19 +193,19 @@ blknrhashfn(const reiser4_block_nr * b)
 	return *b & (REISER4_ZNODE_HASH_TABLE_SIZE - 1);
 }
 
-/** The hash table definition */
+/* The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
 TS_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z, blknrhashfn, blknreq);
 #undef KFREE
 #undef KMALLOC
 
-/** slab for znodes */
+/* slab for znodes */
 static kmem_cache_t *znode_slab;
 
 /* ZNODE INITIALIZATION */
 
-/** call this once on reiser4 initialisation*/
+/* call this once on reiser4 initialisation*/
 /* Audited by: umka (2002.06.11) */
 int
 znodes_init()
@@ -218,7 +218,7 @@ znodes_init()
 	}
 }
 
-/** call this before unloading reiser4 */
+/* call this before unloading reiser4 */
 /* Audited by: umka (2002.06.11) */
 int
 znodes_done()
@@ -226,7 +226,7 @@ znodes_done()
 	return kmem_cache_destroy(znode_slab);
 }
 
-/** call this to initialise tree of znodes */
+/* call this to initialise tree of znodes */
 int
 znodes_tree_init(reiser4_tree * tree /* tree to initialise znodes for */ )
 {
@@ -237,7 +237,7 @@ znodes_tree_init(reiser4_tree * tree /* tree to initialise znodes for */ )
 	return z_hash_init(&tree->zhash_table, REISER4_ZNODE_HASH_TABLE_SIZE);
 }
 
-/** free this znode */
+/* free this znode */
 void
 zfree(znode * node /* znode to free */ )
 {
@@ -250,14 +250,12 @@ zfree(znode * node /* znode to free */ )
 
 	ON_DEBUG(list_del(&ZJNODE(node)->jnodes));
 
-	/*
-	 * poison memory.
-	 */
+	/* poison memory. */
 	ON_DEBUG(xmemset(node, 0xde, sizeof *node));
 	kmem_cache_free(znode_slab, node);
 }
 
-/** call this to free tree of znodes */
+/* call this to free tree of znodes */
 void
 znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 {
@@ -273,12 +271,11 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 
 	ztable = &tree->zhash_table;
 
-	/* 
-	 * Remove all znodes.
-	 *
-	 * Stupid and slow, but simple algorithm. Umount is not time-critical
-	 * anyway.
-	 */
+	/* Remove all znodes.
+	  
+	   Stupid and slow, but simple algorithm. Umount is not time-critical
+	   anyway.
+	*/
 	do {
 		parents = 0;
 		killed = 0;
@@ -300,7 +297,7 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 
 /* ZNODE STRUCTURES */
 
-/** allocate fresh znode */
+/* allocate fresh znode */
 static znode *
 zalloc(int gfp_flag /* allocation flag */ )
 {
@@ -311,7 +308,7 @@ zalloc(int gfp_flag /* allocation flag */ )
 	return node;
 }
 
-/** initialise fields of znode */
+/* initialise fields of znode */
 static void
 zinit(znode * node /* znode to initialise */ ,
       znode * parent /* parent znode */ ,
@@ -335,7 +332,7 @@ zinit(znode * node /* znode to initialise */ ,
 	ON_DEBUG_MODIFY(node->cksum = 0);
 }
 
-/** remove znode from hash table */
+/* remove znode from hash table */
 void
 znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 {
@@ -347,14 +344,13 @@ znode_remove(znode * node /* znode to remove */ , reiser4_tree * tree)
 
 	/* remove reference to this znode from cbk cache */
 	cbk_cache_invalidate(node, tree);
-	/* 
-	 * while we were taking lock on pbk cache to remove us from
-	 * there, some lucky parallel process could hit reference to
-	 * this znode from pbk cache. Check for this. 
-	 * 
-	 * Tree lock, shared by the hash table protects us from another
-	 * process taking reference to this node.
-	 */
+	/* while we were taking lock on pbk cache to remove us from
+	   there, some lucky parallel process could hit reference to
+	   this znode from pbk cache. Check for this. 
+	   
+	   Tree lock, shared by the hash table protects us from another
+	   process taking reference to this node.
+	*/
 
 	if (znode_parent(node) != NULL) {
 		assert("nikita-472", atomic_read(&znode_parent(node)->c_count) > 0);
@@ -378,7 +374,7 @@ zdrop(znode * node /* znode to finish with */ )
 	return jdrop(ZJNODE(node));
 }
 
-/** put znode into right place in the hash table */
+/* put znode into right place in the hash table */
 int
 znode_rehash(znode * node /* node to rehash */ ,
 	     const reiser4_block_nr * new_block_nr /* new block number */ )
@@ -415,7 +411,7 @@ znode_rehash(znode * node /* node to rehash */ ,
    If result is non-NULL then the znode's x_count is incremented.  Internal version
    accepts pre-computed hash index.  The hash table is accessed under caller's
    tree->hash_lock.
- */
+*/
 znode *
 zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 {
@@ -432,7 +428,7 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	result = z_hash_find_index(&tree->zhash_table, blknrhashfn(blocknr), blocknr);
 
 	/* According to the current design, the hash table lock protects new znode
-	 * references. */
+	   references. */
 	if (result != NULL) {
 		add_x_ref(ZJNODE(result));
 	}
@@ -443,7 +439,7 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	return result;
 }
 
-/** decrease c_count on @node */
+/* decrease c_count on @node */
 void
 del_c_ref(znode * node /* node to decrease c_count of */ )
 {
@@ -460,7 +456,7 @@ del_c_ref(znode * node /* node to decrease c_count of */ )
   
    LOCKS TAKEN:   TREE_LOCK, ZNODE_LOCK
    LOCK ORDERING: NONE
- */
+*/
 znode *
 zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent, tree_level level, int gfp_flag)
 {
@@ -482,32 +478,27 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	/* Take the hash table lock. */
 	spin_lock_tree(tree);
 
-	/*
-	 * FIXME-NIKITA address-as-unallocated-blocknr still is not
-	 * implemented.
-	 */
+	/* FIXME-NIKITA address-as-unallocated-blocknr still is not
+	   implemented. */
 	if (0 && is_disk_addr_unallocated(blocknr)) {
-		/*
-		 * Asked for unallocated znode.
-		 */
+		/* Asked for unallocated znode. */
 		result = unallocated_disk_addr_to_ptr(blocknr);
 	} else {
 		/* Find a matching BLOCKNR in the hash table.  If the znode is
-		 * found, we obtain an reference (x_count) but the znode
-		 * remains * unlocked.  Have to worry about race conditions
-		 * later. */
+		   found, we obtain an reference (x_count) but the znode
+		   remains * unlocked.  Have to worry about race conditions
+		   later. */
 		result = z_hash_find_index(zth, hashi, blocknr);
 	}
 
 	/* According to the current design, the hash table lock protects new znode
-	 * references. */
+	   references. */
 	if (result != NULL) {
 		add_x_ref(ZJNODE(result));
-		/*
-		 * FIXME-NIKITA it should be so, but special case during
-		 * creation of new root makes such assertion highly
-		 * complicated.
-		 */
+		/* FIXME-NIKITA it should be so, but special case during
+		   creation of new root makes such assertion highly
+		   complicated.
+		*/
 		assert("nikita-2131", 1 || znode_parent(result) == parent ||
 		       (ZF_ISSET(result, JNODE_ORPHAN) && (znode_parent(result) == NULL)));
 	}
@@ -520,7 +511,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 		/* ZGET HIT CASE: No locks are held at this point. */
 
 		/* Arrive here after a race to insert a new znode: the shadow variable
-		 * below became result. */
+		   below became result. */
 retry_miss_race:
 
 		/* Take the znode lock in order to test its blocknr and status. */
@@ -542,7 +533,7 @@ retry_miss_race:
 		}
 
 		/* Initialize znode before checking for a race and inserting.  Since this
-		 * is a freshly allocated znode there is no need to lock it here. */
+		   is a freshly allocated znode there is no need to lock it here. */
 		zinit(result, parent, tree);
 
 		ZJNODE(result)->blocknr = *blocknr;
@@ -560,7 +551,7 @@ retry_miss_race:
 		if (shadow != NULL) {
 
 			/* Another process won: release hash lock, free result, retry as
-			 * if it were an earlier hit. */
+			   if it were an earlier hit. */
 			spin_unlock_tree(tree);
 			zfree(result);
 			result = shadow;
@@ -571,7 +562,7 @@ retry_miss_race:
 		z_hash_insert_index(zth, hashi, result);
 
 		/* Has to be done under tree lock, because it protects parent
-		 * pointer. */
+		   pointer. */
 		if (parent != NULL) {
 			atomic_inc(&parent->c_count);
 		}
@@ -619,9 +610,7 @@ znode_guess_plugin(const znode * node	/* znode to guess
 #ifdef GUESS_EXISTS
 		reiser4_plugin *plugin;
 
-		/*
-		 * FIXME-NIKITA add locking here when dynamic plugins will be implemented
-		 */
+		/* FIXME-NIKITA add locking here when dynamic plugins will be implemented */
 		for_all_plugins(REISER4_NODE_PLUGIN_TYPE, plugin) {
 			if ((plugin->u.node.guess != NULL) && plugin->u.node.guess(node))
 				return plugin;
@@ -633,7 +622,7 @@ znode_guess_plugin(const znode * node	/* znode to guess
 	}
 }
 
-/** parse node header and install ->node_plugin */
+/* parse node header and install ->node_plugin */
 int
 zparse(znode * node /* znode to parse */ )
 {
@@ -659,7 +648,7 @@ zparse(znode * node /* znode to parse */ )
 	return result;
 }
 
-/** load content of node into memory */
+/* load content of node into memory */
 int
 zload(znode * node /* znode to load */ )
 {
@@ -677,7 +666,7 @@ zload(znode * node /* znode to load */ )
 	return result;
 }
 
-/** call node plugin to initialise newly allocated node. */
+/* call node plugin to initialise newly allocated node. */
 int
 zinit_new(znode * node /* znode to initialise */ )
 {
@@ -695,7 +684,7 @@ zrelse(znode * node /* znode to release references to */ )
 	jrelse(ZJNODE(node));
 }
 
-/** returns free space in node */
+/* returns free space in node */
 /* Audited by: umka (2002.06.11) */
 unsigned
 znode_free_space(znode * node /* znode to query */ )
@@ -704,7 +693,7 @@ znode_free_space(znode * node /* znode to query */ )
 	return node_plugin_by_node(node)->free_space(node);
 }
 
-/** return non-0 iff data are loaded into znode */
+/* return non-0 iff data are loaded into znode */
 int
 znode_is_loaded(const znode * node /* znode to query */ )
 {
@@ -712,7 +701,7 @@ znode_is_loaded(const znode * node /* znode to query */ )
 	return ZF_ISSET(node, JNODE_LOADED);
 }
 
-/** left delimiting key of znode */
+/* left delimiting key of znode */
 reiser4_key *
 znode_get_rd_key(znode * node /* znode to query */ )
 {
@@ -722,7 +711,7 @@ znode_get_rd_key(znode * node /* znode to query */ )
 	return &node->rd_key;
 }
 
-/** right delimiting key of znode */
+/* right delimiting key of znode */
 reiser4_key *
 znode_get_ld_key(znode * node /* znode to query */ )
 {
@@ -732,7 +721,7 @@ znode_get_ld_key(znode * node /* znode to query */ )
 	return &node->ld_key;
 }
 
-/** true if @key is inside key range for @node */
+/* true if @key is inside key range for @node */
 /* Audited by: umka (2002.06.11) */
 int
 znode_contains_key(znode * node /* znode to look in */ ,
@@ -745,7 +734,7 @@ znode_contains_key(znode * node /* znode to look in */ ,
 	return keyle(znode_get_ld_key(node), key) && keyle(key, znode_get_rd_key(node));
 }
 
-/** same as znode_contains_key(), but lock dk lock */
+/* same as znode_contains_key(), but lock dk lock */
 int
 znode_contains_key_lock(znode * node /* znode to look in */ ,
 			const reiser4_key * key /* key to look for */ )
@@ -757,7 +746,7 @@ znode_contains_key_lock(znode * node /* znode to look in */ ,
 	return UNDER_SPIN(dk, znode_get_tree(node), znode_contains_key(node, key));
 }
 
-/** get parent pointer, assuming tree is not locked */
+/* get parent pointer, assuming tree is not locked */
 znode *
 znode_parent_nolock(const znode * node /* child znode */ )
 {
@@ -765,7 +754,7 @@ znode_parent_nolock(const znode * node /* child znode */ )
 	return node->in_parent.node;
 }
 
-/** get parent pointer of znode */
+/* get parent pointer of znode */
 znode *
 znode_parent(const znode * node /* child znode */ )
 {
@@ -774,7 +763,7 @@ znode_parent(const znode * node /* child znode */ )
 	return znode_parent_nolock(node);
 }
 
-/** detect fake znode used to protect in-superblock tree root pointer */
+/* detect fake znode used to protect in-superblock tree root pointer */
 /* Audited by: umka (2002.06.11) */
 int
 znode_above_root(const znode * node /* znode to query */ )
@@ -795,7 +784,7 @@ znode_is_true_root(const znode * node /* znode to query */ )
 	return disk_addr_eq(znode_get_block(node), &znode_get_tree(node)->root_block);
 }
 
-/** check that @node is root */
+/* check that @node is root */
 int
 znode_is_root(const znode * node /* znode to query */ )
 {
@@ -832,13 +821,13 @@ znode_io_hook(jnode * node, struct page *page UNUSED_ARG, int rw)
 		txn_atom *atom;
 
 		/* current flush alg. implementation allows internal nodes
-		 * with unallocated children to be written to disk if atom is
-		 * not being committed but just flushed at out-of-memory
-		 * situation. */
+		   with unallocated children to be written to disk if atom is
+		   not being committed but just flushed at out-of-memory
+		   situation. */
 		spin_lock_jnode(node);
 		atom = atom_get_locked_by_jnode(node);
 		/* formatted nodes cannot be written without assigning an atom
-		 * to them */
+		   to them */
 		assert("zam-674", atom != NULL);
 		if (!(atom->flags & ATOM_FORCE_COMMIT))
 			result = 1;
@@ -930,7 +919,7 @@ move_load_count(load_count * new, load_count * old)
 	old->d_ref = 0;
 }
 
-/** debugging aid: znode invariant */
+/* debugging aid: znode invariant */
 static int
 znode_invariant_f(const znode * node /* znode to check */ ,
 		  char const **msg	/* where to store error
@@ -941,21 +930,15 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 #define zergo( state, p ) _ergo( ZF_ISSET( node, ( state ) ), p )
 
 	return REISER4_DEBUG &&
-	    /*
-	     * Condition 1:
-	     */
+	    /* Condition 1: */
 	    ((*msg) = "node is NULL", node != NULL) &&
-	    /*
-	     * Condition 2-3: two checks specific for fake znode 
-	     */
+	    /* Condition 2-3: two checks specific for fake znode  */
 	    _ergo(znode_get_level(node) == 0, znode_parent(node) == NULL) &&
 	    _ergo(znode_get_level(node) == 0,
 		  disk_addr_eq(znode_get_block(node),
 			       &FAKE_TREE_ADDR)) &&
 	    _ergo(znode_is_true_root(node), znode_above_root(znode_parent(node))) &&
-	    /*
-	     * Condition 4-6: parent linkage
-	     */
+	    /* Condition 4-6: parent linkage */
 	    _ergo(znode_above_root(node),
 		  znode_parent(node) == NULL) &&
 	    _ergo(znode_parent(node) && !znode_above_root(znode_parent(node)),
@@ -969,9 +952,7 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 	    ((*msg) = "jnodes.prev", node->zjnode.jnodes.prev != NULL) &&
 	    ((*msg) = "jnodes.next", node->zjnode.jnodes.next != NULL) &&
 #endif
-	    /*
-	     * Condition 7+: Flags
-	     */
+	    /* Condition 7+: Flags */
 	    _ergo(!znode_above_root(node) &&
 		  znode_is_loaded(node),
 		  !disk_addr_eq(znode_get_block(node),
@@ -984,7 +965,7 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 	    ((*msg) = "x_count >= d_count", atomic_read(&ZJNODE(node)->x_count) >= atomic_read(&ZJNODE(node)->d_count));
 }
 
-/** debugging aid: check znode invariant and panic if it doesn't hold */
+/* debugging aid: check znode invariant and panic if it doesn't hold */
 int
 znode_invariant(const znode * node /* znode to check */ )
 {
@@ -1111,7 +1092,7 @@ print_znode(const char *prefix /* prefix to print */ ,
 	info("\treaders: %i\n", node->lock.nr_readers);
 }
 
-/** debugging aid: output human readable information about @node */
+/* debugging aid: output human readable information about @node */
 void
 info_znode(const char *prefix /* prefix to print */ ,
 	   const znode * node /* node to print */ )
@@ -1137,11 +1118,10 @@ print_znodes(const char *prefix, reiser4_tree * tree)
 	if (tree == NULL)
 		tree = current_tree;
 
-	/*
-	 * this is debugging function. It can be called by reiser4_panic()
-	 * with tree spin-lock already held. Trylock is not exactly what we
-	 * want here, but it is passable.
-	 */
+	/* this is debugging function. It can be called by reiser4_panic()
+	   with tree spin-lock already held. Trylock is not exactly what we
+	   want here, but it is passable.
+	*/
 	tree_lock_taken = spin_trylock_tree(tree);
 	htable = &tree->zhash_table;
 
@@ -1173,4 +1153,4 @@ znode_x_count_is_protected(const znode * node)
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

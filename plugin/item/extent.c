@@ -203,7 +203,7 @@ extent_print(const char *prefix, coord_t * coord)
    used for debugging, every item should have here the most complete
    possible check of the consistency of the item that the inventor can
    construct 
- */
+*/
 int
 extent_check(const coord_t * coord /* coord of item to check */ ,
 	     const char **error /* where to store error message */ )
@@ -239,7 +239,7 @@ extent_check(const coord_t * coord /* coord of item to check */ ,
 			return -1;
 		}
 		/* make sure that this extent does not overlap with other
-		 * allocated extents extents */
+		   allocated extents extents */
 		for (j = 0; j < i; j++) {
 			if (state_of_extent(first + j) != ALLOCATED_EXTENT)
 				continue;
@@ -280,15 +280,11 @@ lookup_result extent_lookup(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 	offset = get_key_offset(&item_key);
 	nr_units = extent_nr_units(coord);
 
-	/*
-	 * key we are looking for must be greater than key of item @coord
-	 */
+	/* key we are looking for must be greater than key of item @coord */
 	assert("vs-414", keygt(key, &item_key));
 
 	if (keygt(key, extent_max_key_inside(coord, &item_key))) {
-		/*
-		 * @key is key of another file
-		 */
+		/* @key is key of another file */
 		coord->unit_pos = nr_units - 1;
 		coord->between = AFTER_UNIT;
 		return CBK_COORD_NOTFOUND;
@@ -300,14 +296,10 @@ lookup_result extent_lookup(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 	ext = extent_by_coord(coord);
 	blocksize = current_blocksize;
 
-	/*
-	 * offset we are looking for
-	 */
+	/* offset we are looking for */
 	lookuped = get_key_offset(key);
 
-	/*
-	 * go through all extents until the one which address given offset
-	 */
+	/* go through all extents until the one which address given offset */
 	for (i = 0; i < nr_units; i++, ext++) {
 		offset += (blocksize * extent_get_width(ext));
 		if (offset > lookuped) {
@@ -318,9 +310,7 @@ lookup_result extent_lookup(const reiser4_key * key, lookup_bias bias UNUSED_ARG
 		}
 	}
 
-	/*
-	 * set coord after last unit
-	 */
+	/* set coord after last unit */
 	coord->unit_pos = nr_units - 1;
 	coord->between = AFTER_UNIT;
 	return CBK_COORD_FOUND;	/*bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND; */
@@ -434,12 +424,11 @@ extent_copy_units(coord_t * target, coord_t * source,
 	if (where_is_free_space == SHIFT_LEFT) {
 		assert("vs-215", from == 0);
 
-		/*
-		 * At this moment, item length was already updated in the item
-		 * header by shifting code, hence extent_nr_units() will
-		 * return "new" number of units---one we obtain after copying
-		 * units.
-		 */
+		/* At this moment, item length was already updated in the item
+		   header by shifting code, hence extent_nr_units() will
+		   return "new" number of units---one we obtain after copying
+		   units.
+		*/
 		to_ext += (extent_nr_units(target) - count) * sizeof (reiser4_extent);
 	} else {
 		reiser4_key key;
@@ -475,10 +464,8 @@ extent_create_hook(const coord_t * coord, void *arg)
 	if (!arg)
 		return 0;
 
-	/*
-	 * find a node on the left level for which right delimiting key has to
-	 * be updated
-	 */
+	/* find a node on the left level for which right delimiting key has to
+	   be updated */
 	child_coord = arg;
 	if (coord_wrt(child_coord) == COORD_ON_THE_LEFT) {
 		assert("vs-411", znode_is_left_connected(child_coord->node));
@@ -519,13 +506,9 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count, void
 
 	ext = extent_item(coord) + from;
 	for (i = 0; i < count; i++, ext++) {
-		/*
-		 * FIXME-VS: this is to debug zam-528
-		 */
+		/* FIXME-VS: this is to debug zam-528 */
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
-			/*
-			 * FIXME-VITALY: this is necessary???
-			 */
+			/* FIXME-VITALY: this is necessary??? */
 			fake_allocated2free(extent_get_width(ext), 0 /* unformatted */ );
 		}
 
@@ -533,13 +516,11 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count, void
 			continue;
 		}
 
-		/*
-		 * FIXME-VS: do I need to do anything for unallocated extents
-		 */
+		/* FIXME-VS: do I need to do anything for unallocated extents */
 		start = extent_get_start(ext);
 		length = extent_get_width(ext);
 		/* "defer" parameter is set to 1 because blocks which get freed
-		 * are not safe to be freed immediately */
+		   are not safe to be freed immediately */
 		reiser4_dealloc_blocks(&start, &length, 1 /* defer */ ,
 				       0 /* not used */ , 0 /* unformatted */ );
 	}
@@ -549,10 +530,8 @@ extent_kill_item_hook(const coord_t * coord, unsigned from, unsigned count, void
 static reiser4_key *
 last_key_in_extent(const coord_t * coord, reiser4_key * key)
 {
-	/*
-	 * FIXME-VS: this actually calculates key of first byte which is the
-	 * next to last byte by addressed by this extent
-	 */
+	/* FIXME-VS: this actually calculates key of first byte which is the
+	   next to last byte by addressed by this extent */
 	item_key_by_coord(coord, key);
 	set_key_offset(key, get_key_offset(key) + extent_size(coord, extent_nr_units(coord)));
 	return key;
@@ -575,13 +554,9 @@ cut_or_kill_units(coord_t * coord,
 	blocksize = current_blocksize;
 	blocksize_bits = current_blocksize_bits;
 
-	/*
-	 * make sure that we cut something but not more than all units
-	 */
+	/* make sure that we cut something but not more than all units */
 	assert("vs-220", count > 0 && count <= extent_nr_units(coord));
-	/*
-	 * extent item can be cut either from the beginning or down to the end
-	 */
+	/* extent item can be cut either from the beginning or down to the end */
 	assert("vs-298", *from == 0 || *to == coord_last_unit_pos(coord));
 
 	item_key_by_coord(coord, &key);
@@ -602,24 +577,22 @@ cut_or_kill_units(coord_t * coord,
 		__u64 last;
 
 		/* when @from_key (and @to_key) are specified things become
-		 * more complex. It may happen that @from-th or @to-th extent
-		 * will only decrease their width */
+		   more complex. It may happen that @from-th or @to-th extent
+		   will only decrease their width */
 		assert("vs-311", to_key);
 
 		key_inside = key;
 		set_key_offset(&key_inside, (offset + extent_size(coord, *from)));
 		last = offset + extent_size(coord, *to + 1) - 1;
 		if (keygt(from_key, &key_inside)) {
-			/*
-			 * @from-th extent can not be removed. Its width has to
-			 * be decreased in accordance with @from_key
-			 */
+			/* @from-th extent can not be removed. Its width has to
+			   be decreased in accordance with @from_key */
 			reiser4_block_nr new_width, old_width;
 			reiser4_block_nr first;
 
 			/* cut from the middle of extent item is not allowed,
-			 * make sure that the rest of item gets cut
-			 * completely */
+			   make sure that the rest of item gets cut
+			   completely */
 			assert("vs-612", *to == coord_last_unit_pos(coord));
 			assert("vs-613", keyge(to_key, extent_max_key(coord, &key_inside)));
 
@@ -629,26 +602,21 @@ cut_or_kill_units(coord_t * coord,
 			new_width = (get_key_offset(from_key) + (blocksize - 1) - first) >> blocksize_bits;
 			assert("vs-307", new_width > 0 && new_width <= old_width);
 			if (new_width < old_width) {
-				/*
-				 * FIXME-VS: debugging zam-528
-				 */
+				/* FIXME-VS: debugging zam-528 */
 				if (state_of_extent(ext) == UNALLOCATED_EXTENT && !cut) {
-					/*
-					 * FIXME-VITALY: this is necessary???
-					 */
+					/* FIXME-VITALY: this is necessary??? */
 					fake_allocated2free(old_width - new_width, 0	/*unformatted */
 					    );
 				}
 
 				if (state_of_extent(ext) == ALLOCATED_EXTENT && !cut) {
 					reiser4_block_nr start, length;
-					/*
-					 * truncate is in progress. Some blocks
-					 * can be freed. As they do not get
-					 * immediately available, set defer
-					 * parameter of reiser4_dealloc_blocks
-					 * to 1
-					 */
+					/* truncate is in progress. Some blocks
+					   can be freed. As they do not get
+					   immediately available, set defer
+					   parameter of reiser4_dealloc_blocks
+					   to 1
+					*/
 					start = extent_get_start(ext) + new_width;
 					length = old_width - new_width;
 					reiser4_dealloc_blocks(&start, &length, 1	/* defer */
@@ -674,8 +642,8 @@ cut_or_kill_units(coord_t * coord,
 			reiser4_block_nr new_width, old_width;
 
 			/* cut from the middle of extent item is not allowed,
-			 * make sure that head of item gets cut and cut is
-			 * aligned to block boundary */
+			   make sure that head of item gets cut and cut is
+			   aligned to block boundary */
 			assert("vs-614", *from == 0);
 			assert("vs-615", keyle(from_key, &key));
 			assert("vs-616", ((get_key_offset(to_key) + 1) & (blocksize - 1)) == 0);
@@ -687,30 +655,23 @@ cut_or_kill_units(coord_t * coord,
 			old_width = extent_get_width(ext);
 			cut_from_to = (old_width - new_width) * blocksize;
 
-			/*
-			 * FIXME:NIKITA->VS I see this failing with new_width
-			 * == old_width (@to unit is not affected at all).
-			 */
+			/* FIXME:NIKITA->VS I see this failing with new_width
+			   == old_width (@to unit is not affected at all). */
 			assert("vs-617", new_width > 0 && new_width <= old_width);
 
-			/*
-			 * FIXME-VS: debugging zam-528
-			 */
+			/* FIXME-VS: debugging zam-528 */
 			if (state_of_extent(ext) == UNALLOCATED_EXTENT && !cut) {
-				/*
-				 * FIXME-VITALY: this is necessary???
-				 */
+				/* FIXME-VITALY: this is necessary??? */
 				fake_allocated2free(old_width - new_width, 0 /*unformatted */ );
 			}
 
 			if (state_of_extent(ext) == ALLOCATED_EXTENT && !cut) {
 				reiser4_block_nr start, length;
-				/*
-				 * extent2tail is in progress. Some blocks can
-				 * be freed. As they do not get immediately
-				 * available, set defer parameter of
-				 * reiser4_dealloc_blocks to 1
-				 */
+				/* extent2tail is in progress. Some blocks can
+				   be freed. As they do not get immediately
+				   available, set defer parameter of
+				   reiser4_dealloc_blocks to 1
+				*/
 				start = extent_get_start(ext);
 				length = old_width - new_width;
 				reiser4_dealloc_blocks(&start, &length, 1 /* defer */ ,
@@ -719,8 +680,8 @@ cut_or_kill_units(coord_t * coord,
 			}
 
 			/* (old_width - new_width) blocks of this extent were
-			 * free, update both extent's start (for allocated
-			 * extent only) and width */
+			   free, update both extent's start (for allocated
+			   extent only) and width */
 			if (state_of_extent(ext) == ALLOCATED_EXTENT) {
 				extent_set_start(ext, extent_get_start(ext) + old_width - new_width);
 			}
@@ -732,16 +693,12 @@ cut_or_kill_units(coord_t * coord,
 	}
 
 	if (!cut)
-		/*
-		 * call kill hook for all extents removed completely
-		 */
+		/* call kill hook for all extents removed completely */
 		extent_kill_item_hook(coord, *from, count, NULL /*FIXME!!! */ );
 
 	if (*from == 0 && count != coord_last_unit_pos(coord) + 1) {
-		/*
-		 * part of item is removed from item beginning, update item key
-		 * therefore
-		 */
+		/* part of item is removed from item beginning, update item key
+		   therefore */
 		item_key_by_coord(coord, &key);
 		set_key_offset(&key, (get_key_offset(&key) + extent_size(coord, count) + cut_from_to));
 		node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0);
@@ -836,9 +793,7 @@ optimize_extent(const coord_t * item)
 			new_cur = start;
 		}
 
-		/*
-		 * FIXME-VS: this is not necessary if new_cur == cur
-		 */
+		/* FIXME-VS: this is not necessary if new_cur == cur */
 		*new_cur = *cur;
 		new_cur_width = cur_width;
 		new_num++;
@@ -846,7 +801,7 @@ optimize_extent(const coord_t * item)
 
 	if (new_num != old_num) {
 		/* at least one pair of adjacent extents has merged. Shorten
-		 * item from the end correspondingly */
+		   item from the end correspondingly */
 		int result;
 		coord_t from, to;
 
@@ -861,17 +816,13 @@ optimize_extent(const coord_t * item)
 		coord_dup(&to, &from);
 		to.unit_pos = old_num - 1;
 
-		/*
-		 * wipe part of item which is going to be cut, so that
-		 * node_check will not be confused by extent overlapping
-		 */
+		/* wipe part of item which is going to be cut, so that
+		   node_check will not be confused by extent overlapping */
 		memset(extent_by_coord(&from), 0, sizeof (reiser4_extent) * (old_num - new_num));
 		result = cut_node(&from, &to, 0, 0, 0, DELETE_DONT_COMPACT, 0);
 
-		/*
-		 * nothing should happen cutting
-		 * FIXME: JMACD->VS: Just return the error!
-		 */
+		/* nothing should happen cutting
+		   FIXME: JMACD->VS: Just return the error! */
 		assert("vs-456", result == 0);
 	}
 	znode_set_dirty(item->node);
@@ -917,15 +868,11 @@ extent_utmost_ext(const coord_t * coord, sideof side, reiser4_block_nr * pos_in_
 	reiser4_extent *ext;
 
 	if (side == LEFT_SIDE) {
-		/*
-		 * get first extent of item
-		 */
+		/* get first extent of item */
 		ext = extent_item(coord);
 		*pos_in_unit = 0;
 	} else {
-		/*
-		 * get last extent of item and last position within it
-		 */
+		/* get last extent of item and last position within it */
 		assert("vs-363", side == RIGHT_SIDE);
 		ext = extent_item(coord) + coord_last_unit_pos(coord);
 		*pos_in_unit = extent_get_width(ext) - 1;
@@ -968,7 +915,7 @@ extent_utmost_child(const coord_t * coord, sideof side, jnode ** childp)
 
 		assert("vs-544", (get_key_offset(&key) >> PAGE_CACHE_SHIFT) < ~0ul);
 		/* index of first or last (depending on @side) page addressed
-		 * by the extent */
+		   by the extent */
 		index = (unsigned long) (get_key_offset(&key) >> PAGE_CACHE_SHIFT);
 		tree = current_tree;
 		*childp = UNDER_SPIN(tree, tree, jlook(tree, get_key_objectid(&key), index));
@@ -1159,13 +1106,13 @@ add_hole(coord_t * coord, lock_handle * lh, const reiser4_key * key)
 
 	if (keyle(key, &hole_key)) {
 		/* there is already extent unit which contains position
-		 * specified by @key */
+		   specified by @key */
 		zrelse(loaded);
 		return 0;
 	}
 
 	/* extent item has to be appended with hole. Calculate length of that
-	 * hole */
+	   hole */
 	hole_width = ((get_key_offset(key) - get_key_offset(&hole_key) +
 		       current_blocksize - 1) >> current_blocksize_bits);
 	assert("vs-954", hole_width > 0);
@@ -1177,8 +1124,8 @@ add_hole(coord_t * coord, lock_handle * lh, const reiser4_key * key)
 	ext = extent_by_coord(coord);
 	if (state_of_extent(ext) == HOLE_EXTENT) {
 		/* last extent of a file is hole extent. Widen that extent by
-		 * @hole_width blocks. Note that we do not worry about
-		 * overflowing - extent width is 64 bits */
+		   @hole_width blocks. Note that we do not worry about
+		   overflowing - extent width is 64 bits */
 		set_extent(ext, HOLE_EXTENT, 0, extent_get_width(ext) + hole_width);
 		znode_set_dirty(coord->node);
 		zrelse(loaded);
@@ -1202,7 +1149,7 @@ add_hole(coord_t * coord, lock_handle * lh, const reiser4_key * key)
    
    At the beginning: coord.node is read locked, zloaded, page is
    locked, coord is set to existing unit inside of extent item
- */
+*/
 int
 extent_readpage(coord_t * coord, lock_handle * lh, struct page *page)
 {
@@ -1447,7 +1394,7 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 	page_nr = (get_key_offset(&f->key) >> PAGE_CACHE_SHIFT);
 
 	/* this will return page if it exists and is uptodate, otherwise it
-	 * will allocate page and call extent_readpage to fill it */
+	   will allocate page and call extent_readpage to fill it */
 	page = read_cache_page(inode->i_mapping, page_nr, filler, coord);
 
 	if (IS_ERR(page)) {
@@ -1513,7 +1460,7 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
    are created when pages get inserted into mapping's page tree by ourself. If
    we created bio-s during extent scanning we would have to split bio-s when we
    were not able to insert page into mapping's tree of pages
- */
+*/
 struct page_range {
 	struct list_head next;
 	struct list_head pages;
@@ -1582,7 +1529,7 @@ extent_end_io_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err 
    into several bio-s as well when adding page into address space fails
    (because page is there already)
   
- */
+*/
 int
 extent_page_cache_readahead(struct file *file, coord_t * coord,
 			    lock_handle * lh UNUSED_ARG,
@@ -1658,11 +1605,9 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 			}
 			if (!range) {
 				/* create new range of contiguous pages
-				 * belonging to one extent */
-				/*
-				 * FIXME-VS: maybe this should be after
-				 * read_unlock (&mapping->page_lock)
-				 */
+				   belonging to one extent */
+				/* FIXME-VS: maybe this should be after
+				   read_unlock (&mapping->page_lock) */
 				range = kmalloc(sizeof (struct page_range), GFP_KERNEL);
 				if (!range)
 					break;
@@ -1672,7 +1617,7 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 					range->sector = 0;
 				else
 					/* convert block number to sector
-					 * number (512) */
+					   number (512) */
 					range->sector = (extent_get_start(&ext[i]) + pos_in_unit) * sectors_per_block;
 				INIT_LIST_HEAD(&range->pages);
 				list_add_tail(&range->next, &range_list);
@@ -1693,9 +1638,7 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 		left -= pages;
 		start_page += j;
 	}
-	/*
-	 * FIXME-VS: remove after debugging
-	 */
+	/* FIXME-VS: remove after debugging */
 	print_range_list(&range_list);
 
 	/* submit bio for all ranges */
@@ -1714,22 +1657,21 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 
 			bio = NULL;
 
-			/*
-			 * FIXME-VS: if some of pages from the range are added
-			 * into mapping's tree already or number of pages is
-			 * too big for one bio - we will have to spilt the
-			 * range into several bio-s
-			 */
+			/* FIXME-VS: if some of pages from the range are added
+			   into mapping's tree already or number of pages is
+			   too big for one bio - we will have to spilt the
+			   range into several bio-s
+			*/
 			prev = ~0l u;
 			while (range->nr_pages) {
 				/* list of pages should contain at least one
-				 * page in it */
+				   page in it */
 				assert("vs-798", !list_empty(&range->pages));
 
 				if (range->sector != 0 && !bio) {
 					/* create bio if it is not created yet
-					 * and if pages in this range are not
-					 * of hole */
+					   and if pages in this range are not
+					   of hole */
 					int vcnt;
 
 					vcnt = BIO_MAX_SIZE / PAGE_CACHE_SIZE;
@@ -1737,9 +1679,7 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 						vcnt = range->nr_pages;
 					bio = bio_alloc(GFP_KERNEL, vcnt);
 					if (!bio) {
-						/*
-						 * FIXME-VS: drop all allocated pages?
-						 */
+						/* FIXME-VS: drop all allocated pages? */
 						continue;
 					}
 					bio->bi_bdev = mapping->host->i_sb->s_bdev;
@@ -1767,7 +1707,7 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 						bio->bi_vcnt = bio->bi_idx;
 						if (bio->bi_idx) {
 							/* only submit not
-							 * empty bio */
+							   empty bio */
 							submit_bio(READ, bio);
 							bio = 0;
 						} else {
@@ -1782,7 +1722,7 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 				if (range->sector == 0) {
 					char *kaddr;
 					/* this range matches to hole
-					 * extent. no bio is created */
+					   extent. no bio is created */
 					assert("vs-799", bio == 0);
 					kaddr = kmap_atomic(page, KM_USER0);
 					memset(kaddr, 0, PAGE_CACHE_SIZE);
@@ -1804,7 +1744,7 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 					page_cache_release(page);
 					if (bio->bi_idx == BIO_MAX_SIZE / PAGE_CACHE_SIZE || !range->nr_pages) {
 						/* bio is full or there are no
-						 * pages anymore */
+						   pages anymore */
 						submit_bio(READ, bio);
 						bio = 0;
 					}
@@ -1818,9 +1758,9 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 		assert("vs-785", list_empty(&range_list));
 	}
 	/* return number of pages readahead was performed for. It is not
-	 * necessary pages i/o was submitted for. Pages from readahead range
-	 * which were in cache are skipped here but they are included into
-	 * returned value */
+	   necessary pages i/o was submitted for. Pages from readahead range
+	   which were in cache are skipped here but they are included into
+	   returned value */
 	return intrafile_readahead_amount - left;
 }
 #endif
@@ -1834,18 +1774,15 @@ extent_allocate_blocks(reiser4_blocknr_hint * preceder,
 
 	*allocated = wanted_count;
 	preceder->max_dist = 0;	/* scan whole disk, if needed */
-	/*
-	 * FIXME-VS: ask Zam how to use this block_stage
-	 */
+	/* FIXME-VS: ask Zam how to use this block_stage */
 	preceder->block_stage = BLOCK_UNALLOCATED;
 	result = reiser4_alloc_blocks (preceder, first_allocated, allocated, 0/*unformatted*/,
 	    0/* do not use 5% */);
 	if (result) {
-		/*
-		 * no free space
-		 * FIXME-VS: returning -ENOSPC is not enough
-		 * here. It should not happen actully
-		 */
+		/* no free space
+		   FIXME-VS: returning -ENOSPC is not enough
+		   here. It should not happen actully
+		*/
 		impossible("vs-420", "could not allocate unallocated: %d", result);
 	}
 
@@ -1856,11 +1793,11 @@ extent_allocate_blocks(reiser4_blocknr_hint * preceder,
    replaced allocated extent [first, count]. Look for corresponding buffers in
    the page cache and map them properly
    FIXME-VS: this needs changes if blocksize != pagesize is needed
- */
+*/
 static int
 assign_jnode_blocknrs(reiser4_key * key, reiser4_block_nr first,
 		      /* FIXME-VS: get better type for number of
-		       * blocks */
+		         blocks */
 		      reiser4_block_nr count, flush_position * flush_pos)
 {
 	loff_t offset;
@@ -1876,7 +1813,7 @@ assign_jnode_blocknrs(reiser4_key * key, reiser4_block_nr first,
 	tree = current_tree;
 
 	/* offset of first byte addressed by block for which blocknr @first is
-	 * allocated */
+	   allocated */
 	offset = get_key_offset(key);
 	assert("vs-750", ((offset & (blocksize - 1)) == 0));
 
@@ -1893,7 +1830,7 @@ assign_jnode_blocknrs(reiser4_key * key, reiser4_block_nr first,
 		jnode_set_block(j, &first);
 
 		/* If we allocated it cannot have been wandered -- in that case
-		 * extent_needs_allocation returns 0. */
+		   extent_needs_allocation returns 0. */
 		assert("jmacd-61442", !JF_ISSET(j, JNODE_OVRWR));
 		jnode_set_reloc(j);
 
@@ -1927,7 +1864,7 @@ assign_jnode_blocknrs(reiser4_key * key, reiser4_block_nr first,
    FIXME-VS: this only returns 1 for unallocated extents. It may be modified to return 1
    for allocated extents all unformatted nodes of which are in memory. But that would
    require changes to allocate_extent_item as well.
- */
+*/
 static int
 extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_position * pos)
 {
@@ -1998,9 +1935,9 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 			}
 
 			/* Was (! jnode_check_dirty (j)) but the node may
-			 * already have been * allocated, in which case we
-			 * take the * previous allocation for this *
-			 * extent. */
+			   already have been * allocated, in which case we
+			   take the * previous allocation for this *
+			   extent. */
 			if (jnode_check_flushprepped(j)) {
 				jput(j);
 				all_need_alloc = 0;
@@ -2011,29 +1948,27 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 		}
 #endif
 		/* If all blocks are dirty we may justify relocating this
-		 * extent. */
+		   extent. */
 
 		/* FIXME: JMACD->HANS: It is very complicated to use the
-		 * formula you give in the document for extent-relocation
-		 * because asking "is there a closer allocation" may not have
-		 * a great answer.  There may be a closer allocation but it
-		 * may be not large enough.
-		 *
-		 * JOSH-FIXME-HANS
-		 *
-		 * Keep it simple and allocate it closer anyway.  If you keep
-		 * it simple, it will be easier for other future optimizations
-		 * to arrange for the right thing to be done.  For now just
-		 * implement the leaf_relocate threshold policy.  
-		 *
-		 * What does this mean?  Did you do it as requested or
-		 * differently?
-		 */
+		   formula you give in the document for extent-relocation
+		   because asking "is there a closer allocation" may not have
+		   a great answer.  There may be a closer allocation but it
+		   may be not large enough.
+		  
+		   JOSH-FIXME-HANS
+		  
+		   Keep it simple and allocate it closer anyway.  If you keep
+		   it simple, it will be easier for other future optimizations
+		   to arrange for the right thing to be done.  For now just
+		   implement the leaf_relocate threshold policy.  
+		  
+		   What does this mean?  Did you do it as requested or
+		   differently?
+		*/
 		relocate = (all_need_alloc == 1)
 		    && flush_pos_leaf_relocate(pos);
-		/*
-		 * FIXME-VS: no relocation of allocated extents yet
-		 */
+		/* FIXME-VS: no relocation of allocated extents yet */
 		relocate = 0;
 		check = 0;
 
@@ -2055,10 +1990,8 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 			}
 
 			if (REISER4_DEBUG) {
-				/*
-				 * all jnodes of this extent unit must belong
-				 * to one atom. Check that
-				 */
+				/* all jnodes of this extent unit must belong
+				   to one atom. Check that */
 				if (check) {
 					assert("vs-936", jnodes_of_one_atom(check, j));
 				} else {
@@ -2076,9 +2009,7 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 					jnode_set_wander(j);
 					jnode_set_clean(j);
 				} else {
-					/*
-					 * this does not work now
-					 */
+					/* this does not work now */
 					/* Or else set RELOC.  It will get set again, but... */
 					jnode_set_reloc(j);
 					if ((ret = flush_enqueue_unformatted(j, pos))) {
@@ -2098,9 +2029,7 @@ extent_needs_allocation(reiser4_extent * extent, const coord_t * coord, flush_po
 		/* Now if relocating, free old blocks & change extent state */
 		if (relocate == 1) {
 
-			/*
-			 * FIXME-VS: grab space first
-			 */
+			/* FIXME-VS: grab space first */
 			/* FIXME: JMACD->ZAM: Is this right? */
 			if ((ret = reiser4_dealloc_blocks(&start, &count,
 							  /* defer */ 1,
@@ -2142,7 +2071,7 @@ must_insert(coord_t * coord, reiser4_key * key)
    put new data in available space only. This is because we are in squeezing.
   
    FIXME-VS: me might want to try to union last extent in item @left and @data
- */
+*/
 static int
 put_unit_to_end(znode * node, reiser4_key * key, reiser4_item_data * data)
 {
@@ -2171,7 +2100,7 @@ put_unit_to_end(znode * node, reiser4_key * key, reiser4_item_data * data)
    extent and if @key is adjacent to that item and if @first_allocated is
    adjacent to last block pointed by that last extent - expand that extent by
    @allocated and return 1, 0 - otherwise
- */
+*/
 static int
 try_to_glue(znode * left, reiser4_block_nr first_allocated, reiser4_block_nr allocated, const reiser4_key * key)
 {
@@ -2208,14 +2137,13 @@ try_to_glue(znode * left, reiser4_block_nr first_allocated, reiser4_block_nr all
    start block number and extent size to them. Those units may get inflated due
    to impossibility to allocate desired number of contiguous free blocks
    @flush_pos - needs comment
- */
+*/
 int
 allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_pos,
-			 /*
-			  * biggest key which was moved, it is maintained
-			  * while shifting is in progress and is used to
-			  * cut right node at the end
-			  */
+			 /* biggest key which was moved, it is maintained
+			    while shifting is in progress and is used to
+			    cut right node at the end
+			 */
 			 reiser4_key * stop_key)
 {
 	int result;
@@ -2250,26 +2178,20 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 		}
 
 		if (!result) {
-			/*
-			 * unit does not require allocation, copy this unit as
-			 * it is
-			 */
+			/* unit does not require allocation, copy this unit as
+			   it is */
 			result = put_unit_to_end(left, &key, init_new_extent(&data, ext, 1));
 			if (result == -ENOSPC) {
-				/*
-				 * left->node does not have enough free space
-				 * for this unit
-				 */
+				/* left->node does not have enough free space
+				   for this unit */
 				result = SQUEEZE_TARGET_FULL;
 				trace_on(TRACE_EXTENTS, "alloc_and_copy_extent: target full, !needs_allocation\n");
 				/* set coord @right such that this unit does
-				 * not get cut because it was not moved */
+				   not get cut because it was not moved */
 				right->between = BEFORE_UNIT;
 				goto done;
 			}
-			/*
-			 * update stop key
-			 */
+			/* update stop key */
 			set_key_offset(&key, get_key_offset(&key) + width * blocksize);
 			*stop_key = key;
 			set_key_offset(stop_key, get_key_offset(&key) - 1);
@@ -2279,14 +2201,10 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 
 		assert("vs-959", state_of_extent(ext) == UNALLOCATED_EXTENT);
 
-		/*
-		 * extent must be allocated
-		 */
+		/* extent must be allocated */
 		to_allocate = width;
-		/*
-		 * until whole extent is allocated and there is space in left
-		 * neighbor
-		 */
+		/* until whole extent is allocated and there is space in left
+		   neighbor */
 		while (to_allocate) {
 			result =
 			    extent_allocate_blocks(flush_pos_hint(flush_pos),
@@ -2304,28 +2222,26 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 			flush_pos_hint(flush_pos)->blk += allocated;
 
 			if (!try_to_glue(left, first_allocated, allocated, &key)) {
-				/*
-				 * could not copy current extent by just
-				 * increasing width of last extent in left
-				 * neighbor, add new extent to the end of
-				 * @left
-				 */
+				/* could not copy current extent by just
+				   increasing width of last extent in left
+				   neighbor, add new extent to the end of
+				   @left
+				*/
 				extent_set_start(&new_ext, first_allocated);
 				extent_set_width(&new_ext, (reiser4_block_nr) allocated);
 
 				result = put_unit_to_end(left, &key, init_new_extent(&data, &new_ext, 1));
 				if (result == -ENOSPC) {
-					/*
-					 * @left is full, free blocks we
-					 * grabbed because this extent will
-					 * stay in right->node, and, therefore,
-					 * blocks it points to have different
-					 * predecer in parent-first order. Set
-					 * "defer" parameter of
-					 * reiser4_dealloc_block to 0 because
-					 * these blocks can be made allocable
-					 * again immediately.
-					 */
+					/* @left is full, free blocks we
+					   grabbed because this extent will
+					   stay in right->node, and, therefore,
+					   blocks it points to have different
+					   predecer in parent-first order. Set
+					   "defer" parameter of
+					   reiser4_dealloc_block to 0 because
+					   these blocks can be made allocable
+					   again immediately.
+					*/
 					reiser4_dealloc_blocks(&first_allocated, &allocated, 0	/* defer */
 							       , BLOCK_UNALLOCATED, 0	/* unformatted */
 					    );
@@ -2334,34 +2250,30 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_position * flush_p
 					trace_on(TRACE_EXTENTS,
 						 "alloc_and_copy_extent: target full, to_allocate = %llu\n",
 						 to_allocate);
-					 /**/ if (to_allocate == width) {
+					/**/ if (to_allocate == width) {
 						/* nothing of this unit were
-						 * allocated and copied. Take
-						 * care that it does not get
-						 * cut */
+						   allocated and copied. Take
+						   care that it does not get
+						   cut */
 						right->between = BEFORE_UNIT;
 					} else {
 						/* part of extent was allocated
-						 * and copied to left
-						 * neighbor. Leave coord @right
-						 * at this unit so that it will
-						 * be cut properly by
-						 * squalloc_right_twig_cut */
+						   and copied to left
+						   neighbor. Leave coord @right
+						   at this unit so that it will
+						   be cut properly by
+						   squalloc_right_twig_cut */
 					}
 
 					goto done;
 				}
 			}
-			/*
-			 * find all pages for which blocks were allocated and
-			 * assign block numbers to jnodes of those pages
-			 */
+			/* find all pages for which blocks were allocated and
+			   assign block numbers to jnodes of those pages */
 			if ((result = assign_jnode_blocknrs(&key, first_allocated, allocated, flush_pos))) {
 				goto done;
 			}
-			/*
-			 * update stop key
-			 */
+			/* update stop key */
 			set_key_offset(&key, get_key_offset(&key) + allocated * blocksize);
 			*stop_key = key;
 			set_key_offset(stop_key, get_key_offset(&key) - 1);
@@ -2388,7 +2300,7 @@ done:
    (@un_extent) with allocated (@star, @alloc_width) and unallocated
    (@unalloc_width). Have insert_into_item to not try to shift anything to
    left.
- */
+*/
 static int
 replace_extent(coord_t * un_extent, lock_handle * lh,
 	       reiser4_key * key, reiser4_item_data * data, const reiser4_extent * new_ext, unsigned flags)
@@ -2412,9 +2324,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	orig_ext = *extent_by_coord(un_extent);
 	orig_znode = un_extent->node;
 
-	/*
-	 * make sure that key is set properly
-	 */
+	/* make sure that key is set properly */
 	if (REISER4_DEBUG) {
 		reiser4_key tmp;
 
@@ -2434,9 +2344,9 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	un_extent->between = AFTER_UNIT;
 	result = insert_into_item(un_extent, (flags == COPI_DONT_SHIFT_LEFT) ? 0 : lh, key, data, flags);
 	
-	/** While assigning unallocated block to block numbers we need to insert 
-	  * new extent units - this may lead to new block allocation on twig and 
-	  * upper levels. Take these blocks from 5% of disk space. */
+	/* While assigning unallocated block to block numbers we need to insert 
+	    new extent units - this may lead to new block allocation on twig and 
+	    upper levels. Take these blocks from 5% of disk space. */
 	grabbed2free(get_current_context()->grabbed_blocks - grabbed);
 	    
 	if (!result) {
@@ -2467,7 +2377,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
    "inflate", so, special precautions are taken to have it to inflate to right
    only, so items to the right of @item and part of item itself may get moved
    to right
- */
+*/
 int
 allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position * flush_pos)
 {
@@ -2510,14 +2420,12 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 
 		assert("vs-439", state_of_extent(ext) == UNALLOCATED_EXTENT);
 
-		/*
-		 * try to get extent_width () free blocks starting from
-		 * *preceder
-		 */
+		/* try to get extent_width () free blocks starting from
+		   *preceder */
 		initial_width = extent_get_width(ext);
 
 		/* inform block allocator that those blocks were in
-		 * UNALLOCATED stage */
+		   UNALLOCATED stage */
 		flush_pos_hint(flush_pos)->block_stage = BLOCK_UNALLOCATED;
 		result = extent_allocate_blocks(flush_pos_hint(flush_pos), initial_width, &first_allocated, &allocated);
 		if (result)
@@ -2528,10 +2436,8 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		flush_pos_hint(flush_pos)->blk = first_allocated + allocated - 1;
 
 		unit_key_by_coord(coord, &key);
-		/*
-		 * find all pages for which blocks were allocated and assign
-		 * block numbers to jnodes of those pages
-		 */
+		/* find all pages for which blocks were allocated and assign
+		   block numbers to jnodes of those pages */
 		if ((result = assign_jnode_blocknrs(&key, first_allocated, allocated, flush_pos))) {
 			return result;
 		}
@@ -2539,9 +2445,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		set_extent(&replace, ALLOCATED_EXTENT, first_allocated, allocated);
 		if (allocated == initial_width) {
 			int ret;
-			/*
-			 * whole extent is allocated
-			 */
+			/* whole extent is allocated */
 			*ext = replace;
 
 			/* grabbing one block for this dirty znode */
@@ -2553,7 +2457,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		}
 
 		/* set @key to key of first byte of part of extent which left
-		 * unallocated */
+		   unallocated */
 		set_key_offset(&key, get_key_offset(&key) + allocated * blocksize);
 		set_extent(&paste, UNALLOCATED_EXTENT, 0, initial_width - allocated);
 
@@ -2566,8 +2470,8 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 			return result;
 
 		/* coord->node may change in balancing. Neverthless,
-		 * lh->node must still be set to node replace started
-		 * from */
+		   lh->node must still be set to node replace started
+		   from */
 		assert("vs-1026", orig == lh->node);
 		coord->node = orig;
 		coord->item_pos = orig_item_pos;
@@ -2576,10 +2480,8 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		num_units = coord_num_units(coord);
 	}
 
-	/*
-	 * content of extent item may be optimize-able (it may have mergeable
-	 * extents))
-	 */
+	/* content of extent item may be optimize-able (it may have mergeable
+	   extents)) */
 	optimize_extent(coord);
 
 	/* set coord after last unit in the item */
@@ -2660,11 +2562,10 @@ insert_first_block(coord_t * coord, lock_handle * lh, jnode * j, const reiser4_k
 	/*reiser4_stat_file_add (pointers);
 	   reiser4_stat_file_add (write_repeats); */
 
-	/*
-	 * this is to indicate that research must be performed to continue
-	 * write. This is because coord->node is leaf node whereas write
-	 * continues in twig level
-	 */
+	/* this is to indicate that research must be performed to continue
+	   write. This is because coord->node is leaf node whereas write
+	   continues in twig level
+	*/
 	coord->node = 0;
 	return 0;
 }
@@ -2779,7 +2680,7 @@ plug_hole(coord_t * coord, lock_handle * lh, reiser4_key * key)
 	}
 
 	/* insert_into_item will insert new units after the one @coord is set
-	 * to. So, update key correspondingly */
+	   to. So, update key correspondingly */
 	unit_key_by_coord(coord, key);	/* FIXME-VS: how does it work without this? */
 	set_key_offset(key, (get_key_offset(key) + extent_get_width(&replace) * current_blocksize));
 
@@ -2927,7 +2828,7 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 
 	if (jnode_created(j)) {
 		/* new page does not get zeroed. Fill areas around write one by
-		 * 0s */
+		   0s */
 		assert("vs-957", blocknr_is_fake(jnode_get_block(j)));
 
 		data = kmap_atomic(page, KM_USER0);
@@ -2943,8 +2844,8 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 
 	if (from == 0 && file_off + count >= inode->i_size) {
 		/* current end of file is in this page. write areas covers it
-		 * all. No need to read block. Zero page past new end of file,
-		 * though */
+		   all. No need to read block. Zero page past new end of file,
+		   though */
 		data = kmap_atomic(page, KM_USER0);
 		memset(data + from + count, 0, PAGE_CACHE_SIZE - from - count);
 		kunmap_atomic(data, KM_USER0);
@@ -3004,7 +2905,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 	file_off = get_key_offset(&f->key);
 
 	/* this can be != 0 only for the first of pages which will be
-	 * modified */
+	   modified */
 	page_off = (unsigned) (file_off & (PAGE_CACHE_SIZE - 1));
 
 	do {
@@ -3025,10 +2926,8 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 			goto exit2;
 		}
 
-		/*
-		 * make_node_extent will move flow forward to to seal point
-		 * when leaving
-		 */
+		/* make_node_extent will move flow forward to to seal point
+		   when leaving */
 		user_buf = f->data;
 
 		/* unlock page before doing anything with filesystem tree */
@@ -3040,10 +2939,8 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		if (result)
 			goto exit3;
 
-		/*
-		 * if page is not completely overwritten - read it if it is not
-		 * new or fill by zeros otherwise
-		 */
+		/* if page is not completely overwritten - read it if it is not
+		   new or fill by zeros otherwise */
 		result = prepare_page(inode, page, file_off, page_off, to_page);
 		if (result)
 			goto exit3;
@@ -3091,12 +2988,11 @@ exit2:
 exit1:
 		break;
 
-		/*
-		 * hint is unset by make_page_extent when first extent of a
-		 * file was inserted: in that case we can not use coord anymore
-		 * because we are to continue on twig level but are still at
-		 * leaf level
-		 */
+		/* hint is unset by make_page_extent when first extent of a
+		   file was inserted: in that case we can not use coord anymore
+		   because we are to continue on twig level but are still at
+		   leaf level
+		*/
 	} while (f->length && coord->node);
 
 	if (f->length)
@@ -3110,7 +3006,7 @@ exit1:
    1. real write - to write data from flow to a file (@page == 0 && @f->data != 0)
   
    2. expanding truncate (@page == 0 && @f->data == 0)
- */
+*/
 int
 extent_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 {
@@ -3121,7 +3017,7 @@ extent_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 		result = extent_write_flow(inode, coord, lh, f);
 	else {
 		/* expanding truncate. add_hole requires f->key to be set to
-		 * new end of file */
+		   new end of file */
 		set_key_offset(&f->key, get_key_offset(&f->key) + f->length);
 		f->length = 0;
 		result = add_hole(coord, lh, &f->key);
@@ -3138,4 +3034,4 @@ extent_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

@@ -24,28 +24,24 @@ typedef enum {
 
 typedef union lnode lnode;
 
-/** declare hash table of lnode_lw's */
+/* declare hash table of lnode_lw's */
 TS_HASH_DECLARE(ln, lnode);
 
-/** common part of various lnode types */
+/* common part of various lnode types */
 typedef struct lnode_header {
-	/** 
-	 * lnode type. Taken from lnode_type enum. Never changed after
-	 * initialisation, so needs no locking. 
-	 */
+	/* lnode type. Taken from lnode_type enum. Never changed after
+	   initialisation, so needs no locking.  */
 	__u8 type;
-	/** unused. Alignment requires this anyway. */
+	/* unused. Alignment requires this anyway. */
 	__u8 flags;
-	/** condition variable to wake up waiters */
+	/* condition variable to wake up waiters */
 	kcond_t cvar;
-	/** hash table linkage. Updated under hash-table spinlock. */
+	/* hash table linkage. Updated under hash-table spinlock. */
 	ln_hash_link link;
-	/** 
-	 * objectid of underlying file system object. Never changed after
-	 * initialisation, so needs no locking. 
-	 */
+	/* objectid of underlying file system object. Never changed after
+	   initialisation, so needs no locking.  */
 	oid_t oid;
-	/** reference counter. Updated under hash-table spinlock. */
+	/* reference counter. Updated under hash-table spinlock. */
 	int ref;
 } lnode_header;
 
@@ -94,4 +90,4 @@ extern int set_lnode_plugins(lnode * node, const reiser4_plugin_ref * area);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

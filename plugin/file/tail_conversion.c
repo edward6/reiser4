@@ -170,7 +170,7 @@ tail2extent(struct inode *inode)
 	int i;
 
 	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
-	 * to write_down */
+	   to write_down */
 	nea2ea(inode);
 
 	if (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) && !inode_get_flag(inode, REISER4_HAS_TAIL)) {
@@ -201,15 +201,14 @@ tail2extent(struct inode *inode)
 				goto error;
 			}
 
-			/*
-			 * usually when one is going to longterm lock znode (as
-			 * find_next_item does, for instance) he must not hold
-			 * locked pages. However, there is an exception for
-			 * case tail2extent. Pages appearing here are not
-			 * reachable to everyone else, they are clean, they do
-			 * not have jnodes attached so keeping them locked do
-			 * not risk deadlock appearance
-			 */
+			/* usually when one is going to longterm lock znode (as
+			   find_next_item does, for instance) he must not hold
+			   locked pages. However, there is an exception for
+			   case tail2extent. Pages appearing here are not
+			   reachable to everyone else, they are clean, they do
+			   not have jnodes attached so keeping them locked do
+			   not risk deadlock appearance
+			*/
 			assert("vs-983", !PagePrivate(pages[i]));
 
 			for (page_off = 0; page_off < PAGE_CACHE_SIZE;) {
@@ -223,16 +222,14 @@ tail2extent(struct inode *inode)
 				if (result != CBK_COORD_FOUND) {
 					if (result == CBK_COORD_NOTFOUND && get_key_offset(&key) == 0)
 						/* conversion can be called for
-						 * empty file */
+						   empty file */
 						result = 0;
 					done_lh(&lh);
 					goto error;
 				}
 				if (coord.between == AFTER_UNIT) {
-					/*
-					 * this is used to detect end of file
-					 * when inode->i_size can not be used
-					 */
+					/* this is used to detect end of file
+					   when inode->i_size can not be used */
 					done_lh(&lh);
 					done = 1;
 					p_data = kmap_atomic(pages[i], KM_USER0);
@@ -249,12 +246,11 @@ tail2extent(struct inode *inode)
 				assert("vs-856", coord.between == AT_UNIT);
 				assert("green-11", keyeq(&key, unit_key_by_coord(&coord, &tmp)));
 				if (item_id_by_coord(&coord) != TAIL_ID) {
-					/*
-					 * something other than tail
-					 * found. This is only possible when
-					 * first item of a file found during
-					 * call to reiser4_mmap.
-					 */
+					/* something other than tail
+					   found. This is only possible when
+					   first item of a file found during
+					   call to reiser4_mmap.
+					*/
 					result = -EIO;
 					if (get_key_offset(&key) == 0 && item_id_by_coord(&coord) == EXTENT_POINTER_ID)
 						result = 0;
@@ -272,11 +268,11 @@ tail2extent(struct inode *inode)
 					count = PAGE_CACHE_SIZE - page_off;
 
 				/* kmap/kunmap are necessary for pages which
-				 * are not addressable by direct kernel virtual
-				 * addresses */
+				   are not addressable by direct kernel virtual
+				   addresses */
 				p_data = kmap_atomic(pages[i], KM_USER0);
 				/* copy item (as much as will fit starting from
-				 * the beginning of the item) into the page */
+				   the beginning of the item) into the page */
 				memcpy(p_data + page_off, item, (unsigned) count);
 				kunmap_atomic(p_data, KM_USER0);
 
@@ -287,9 +283,7 @@ tail2extent(struct inode *inode)
 				done_lh(&lh);
 
 				if (get_key_offset(&key) == inode->i_size) {
-					/*
-					 * end of file is detected here
-					 */
+					/* end of file is detected here */
 					p_data = kmap_atomic(pages[i], KM_USER0);
 					memset(p_data + page_off, 0, PAGE_CACHE_SIZE - page_off);
 					kunmap_atomic(p_data, KM_USER0);
@@ -300,7 +294,7 @@ tail2extent(struct inode *inode)
 		}		/* for */
 
 		/* to keep right lock order unlock pages before calling replace which will have to obtain longterm
-		 * znode lock */
+		   znode lock */
 		for_all_pages(pages, sizeof_array(pages), UNLOCK);
 
 		result = replace(inode, pages, i, (int) ((i - 1) * PAGE_CACHE_SIZE + page_off));
@@ -318,7 +312,7 @@ tail2extent(struct inode *inode)
 	/* It is advisabel to check here that all grabbed pages were freed */
 
 	/* file could not be converted back to tails while we did not
-	 * have neither NEA nor EA to the file */
+	   have neither NEA nor EA to the file */
 	assert("vs-830", (inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN) && !inode_get_flag(inode, REISER4_HAS_TAIL)));
 	assert("vs-1083", result == 0);
 	return 0;
@@ -470,17 +464,13 @@ extent2tail(struct file *file)
 		}
 		assert("nikita-2690", (!PagePrivate(page) && page->private == 0));
 		drop_page(page, NULL);
-		/*
-		 * release reference taken by read_cache_page() above
-		 */
+		/* release reference taken by read_cache_page() above */
 		page_cache_release(page);
 	}
 
 	if (i == num_pages)
-		/*
-		 * FIXME-VS: not sure what to do when conversion did
-		 * not complete
-		 */
+		/* FIXME-VS: not sure what to do when conversion did
+		   not complete */
 		inode_set_flag(inode, REISER4_HAS_TAIL);
 	else
 		warning("nikita-2282", "Partial conversion of %lu: %lu of %lu", inode->i_ino, i, num_pages);
@@ -496,4 +486,4 @@ extent2tail(struct file *file)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

@@ -20,7 +20,7 @@
 
 #include <linux/fs.h>		/* for struct super_block,  address_space */
 
-/** return pointer to reiser4-specific part of inode */
+/* return pointer to reiser4-specific part of inode */
 /* Audited by: green(2002.06.17) */
 reiser4_inode *
 reiser4_inode_data(const struct inode * inode	/* inode
@@ -30,7 +30,7 @@ reiser4_inode_data(const struct inode * inode	/* inode
 	return &list_entry(inode, reiser4_inode_object, vfs_inode)->p;
 }
 
-/** return reiser4 internal tree which inode belongs to */
+/* return reiser4 internal tree which inode belongs to */
 /* Audited by: green(2002.06.17) */
 reiser4_tree *
 tree_by_inode(const struct inode * inode /* inode queried */ )
@@ -61,7 +61,7 @@ inode_get_flag(const struct inode *inode, reiser4_file_plugin_flags f)
 	return test_bit((int) f, &reiser4_inode_data(inode)->flags);
 }
 
-/** get inode oid */
+/* get inode oid */
 oid_t get_inode_oid(const struct inode *inode)
 {
 	oid_t result;
@@ -78,7 +78,7 @@ oid_t get_inode_oid(const struct inode *inode)
 	return result;
 }
 
-/** set oid for inode */
+/* set oid for inode */
 void
 set_inode_oid(struct inode *inode, oid_t oid)
 {
@@ -92,37 +92,35 @@ set_inode_oid(struct inode *inode, oid_t oid)
 	assert("nikita-2521", get_inode_oid(inode) == oid);
 }
 
-/** convert oid to inode number */
+/* convert oid to inode number */
 ino_t oid_to_ino(oid_t oid)
 {
 	return (ino_t) oid;
 }
 
-/** convert oid to user visible inode number */
+/* convert oid to user visible inode number */
 ino_t oid_to_uino(oid_t oid)
 {
-	/*
-	 * reiser4 object is uniquely identified by oid which is 64 bit
-	 * quantity. Kernel in-memory inode is indexed (in the hash table) by
-	 * 32 bit i_ino field, but this is not a problem, because there is a
-	 * way to further distinguish inodes with identical inode numbers
-	 * (find_actor supplied to iget()).
-	 *
-	 * But user space expects unique 32 bit inode number. Obviously this
-	 * is impossible. Work-around is to somehow hash oid into user visible
-	 * inode number.
-	 */
+	/* reiser4 object is uniquely identified by oid which is 64 bit
+	   quantity. Kernel in-memory inode is indexed (in the hash table) by
+	   32 bit i_ino field, but this is not a problem, because there is a
+	   way to further distinguish inodes with identical inode numbers
+	   (find_actor supplied to iget()).
+	  
+	   But user space expects unique 32 bit inode number. Obviously this
+	   is impossible. Work-around is to somehow hash oid into user visible
+	   inode number.
+	*/
 	oid_t max_ino = (ino_t) ~ 0;
 
 	if (REISER4_INO_IS_OID || (oid <= max_ino))
 		return oid;
 	else
-		/*
-		 * this is remotely similar to algorithm used to find next pid
-		 * to use for process: after wrap-around start from some
-		 * offset rather than from 0. Idea is that there are some long
-		 * living objects with which we don't want to collide.
-		 */
+		/* this is remotely similar to algorithm used to find next pid
+		   to use for process: after wrap-around start from some
+		   offset rather than from 0. Idea is that there are some long
+		   living objects with which we don't want to collide.
+		*/
 		return REISER4_UINO_SHIFT + ((oid - max_ino) & (max_ino >> 1));
 }
 
@@ -144,9 +142,9 @@ ino_t oid_to_uino(oid_t oid)
   
    FIXME-NIKITA ->i_sem is not what we actually won't. May be spinlock is
    better after all.
- */
+*/
 
-/** check that "inode" is on reiser4 file-system */
+/* check that "inode" is on reiser4 file-system */
 /* Audited by: green(2002.06.17) */
 int
 is_reiser4_inode(const struct inode *inode /* inode queried */ )
@@ -157,8 +155,7 @@ is_reiser4_inode(const struct inode *inode /* inode queried */ )
 
 /* Maximal length of a name that can be stored in directory @inode.
   
-   This is used in check during file creation and lookup.
- */
+   This is used in check during file creation and lookup. */
 /* Audited by: green(2002.06.17) */
 int
 reiser4_max_filename_len(const struct inode *inode /* inode queried */ )
@@ -232,9 +229,7 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 			} else
 				rdev = data->rdev;
 			inode->i_blocks = 0;
-			/*
-			 * other fields are already initialised.
-			 */
+			/* other fields are already initialised. */
 			init_special_inode(inode, inode->i_mode, rdev);
 			break;
 		}
@@ -286,9 +281,7 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 	assert("nikita-296", body != NULL);
 	assert("nikita-297", length > 0);
 
-	/*
-	 * inode is under I_LOCK now
-	 */
+	/* inode is under I_LOCK now */
 
 	state = reiser4_inode_data(inode);
 	/* call stat-data plugin method to load sd content into inode */
@@ -303,9 +296,7 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 			/* take missing plugins from file-system defaults */
 			self = reiser4_inode_data(inode);
 			root = reiser4_inode_data(inode->i_sb->s_root->d_inode);
-			/*
-			 * file and directory plugins are already initialised.
-			 */
+			/* file and directory plugins are already initialised. */
 			if (self->sd == NULL)
 				self->sd = root->sd;
 			if (self->hash == NULL)
@@ -395,7 +386,7 @@ init_locked_inode(struct inode *inode /* new inode */ ,
    condition. One of them should be bad. Inodes with identical inode numbers
    (objectids) are distinguished by their packing locality.
   
- */
+*/
 /* Audited by: green(2002.06.17) */
 int
 reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
@@ -408,9 +399,7 @@ reiser4_inode_find_actor(struct inode *inode	/* inode from hash table to
 
 	key = opaque;
 	return
-	    /*
-	     * oid is unique, so first term is enough, actually.
-	     */
+	    /* oid is unique, so first term is enough, actually. */
 	    (get_inode_oid(inode) == get_key_objectid(key)) &&
 	    (reiser4_inode_data(inode)->locality_id == get_key_locality(key));
 }
@@ -431,7 +420,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 	assert("nikita-302", super != NULL);
 	assert("nikita-303", key != NULL);
 
-	/** call iget(). Our ->read_inode() is dummy, so this will either
+	/* call iget(). Our ->read_inode() is dummy, so this will either
 	    find inode in cache or return uninitialised inode */
 	inode = iget5_locked(super, (unsigned long) get_key_objectid(key),
 			     reiser4_inode_find_actor, init_locked_inode, (reiser4_key *) key);
@@ -545,10 +534,8 @@ inode_set_extension(struct inode *inode, sd_ext_bits ext)
 	state = reiser4_inode_data(inode);
 	spin_lock_inode(state);
 	state->extmask |= (1 << ext);
-	/*
-	 * force re-calculation of stat-data length on next call to
-	 * update_sd().
-	 */
+	/* force re-calculation of stat-data length on next call to
+	   update_sd(). */
 	state->sd_len = 0;
 	spin_unlock_inode(state);
 }
@@ -564,7 +551,7 @@ inode_set_plugin(struct inode *inode, reiser4_plugin * plug)
 }
 
 #if REISER4_DEBUG_OUTPUT
-/** Debugging aid: print information about inode. */
+/* Debugging aid: print information about inode. */
 void
 print_inode(const char *prefix /* prefix to print */ ,
 	    const struct inode *i /* inode to print */ )
@@ -595,9 +582,7 @@ print_inode(const char *prefix /* prefix to print */ ,
 	print_plugin("\tsd", item_plugin_to_plugin(ref->sd));
 	info("\treiser4 inode flags: %lx\n", ref->flags);
 
-	/*
-	 * FIXME-VS: this segfaults trying to print seal's coord
-	 */
+	/* FIXME-VS: this segfaults trying to print seal's coord */
 	print_seal("\tsd_seal", &ref->sd_seal);
 	print_coord("\tsd_coord", &ref->sd_coord, 0);
 	info
@@ -614,4 +599,4 @@ print_inode(const char *prefix /* prefix to print */ ,
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

@@ -48,7 +48,7 @@ reiser4_block_nr hashed_estimate_init(struct inode *parent, struct inode *object
 	return 0;
 }
 
-/** create sd for directory file. Create stat-data, dot, and dotdot. */
+/* create sd for directory file. Create stat-data, dot, and dotdot. */
 int
 hashed_init(struct inode *object /* new directory */ ,
 	    struct inode *parent /* parent directory */ ,
@@ -94,7 +94,7 @@ reiser4_block_nr hashed_estimate_done(struct inode *parent, struct inode *object
    Delete dot and dotdot, decrease nlink on parent and call
    common_file_delete() to delete stat data.
   
- */
+*/
 int
 hashed_done(struct inode *object /* object being deleted */ )
 {
@@ -104,10 +104,8 @@ hashed_done(struct inode *object /* object being deleted */ )
 		struct inode *parent;
 		reiser4_block_nr reserve;
 
-		/*
-		 * of course, this can be rewritten to sweep everything in one
-		 * cut_tree().
-		 */
+		/* of course, this can be rewritten to sweep everything in one
+		   cut_tree(). */
 		int result;
 		struct dentry goodby_dots;
 		reiser4_dir_entry_desc entry;
@@ -128,19 +126,17 @@ hashed_done(struct inode *object /* object being deleted */ )
 		result = hashed_rem_entry(object, &goodby_dots, &entry);
 		reiser4_free_dentry_fsdata(&goodby_dots);
 		if (result != 0)
-			/*
-			 * only worth a warning
-			 *
-			 * "values of B will give rise to dom!\n"
-			 *          -- v6src/s2/mv.c:89
-			 */
+			/* only worth a warning
+			  
+			   "values of B will give rise to dom!\n"
+			            -- v6src/s2/mv.c:89
+			*/
 			warning("nikita-2252", "Cannot remove dot of %lli: %i", get_inode_oid(object), result);
 
-		/*
-		 * FIXME-NIKITA this only works if @parent is -the- parent of
-		 * @object, viz. object whose key is stored in dotdot
-		 * entry. Wouldn't work with hard-links on directories.
-		 */
+		/* FIXME-NIKITA this only works if @parent is -the- parent of
+		   @object, viz. object whose key is stored in dotdot
+		   entry. Wouldn't work with hard-links on directories.
+		*/
 		entry.obj = goodby_dots.d_inode = parent;
 		xmemset(&goodby_dots, 0, sizeof goodby_dots);
 		goodby_dots.d_name.name = "..";
@@ -167,15 +163,13 @@ hashed_owns_item(const struct inode *inode /* object to check against */ ,
 	assert("nikita-1334", coord != NULL);
 
 	if (item_type_by_coord(coord) == DIR_ENTRY_ITEM_TYPE)
-		/*
-		 * FIXME-NIKITA move this into kassign.c
-		 */
+		/* FIXME-NIKITA move this into kassign.c */
 		return get_key_locality(item_key_by_coord(coord, &item_key)) == get_inode_oid(inode);
 	else
 		return common_file_owns_item(inode, coord);
 }
 
-/** helper function for directory_file_create(). Create "." and ".." */
+/* helper function for directory_file_create(). Create "." and ".." */
 static int
 create_dot_dotdot(struct inode *object	/* object to create dot and
 					 * dotdot for */ ,
@@ -192,21 +186,20 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 
 	reiser4_inode_data(object)->parent = parent;
 
-	/*
-	 * We store dot and dotdot as normal directory entries. This is
-	 * not necessary, because almost all information stored in them
-	 * is already in the stat-data of directory, the only thing
-	 * being missed is objectid of grand-parent directory that can
-	 * easily be added there as extension.
-	 *
-	 * But it is done the way it is done, because not storing dot
-	 * and dotdot will lead to the following complications:
-	 *
-	 * . special case handling in ->lookup().
-	 * . addition of another extension to the sd.
-	 * . dependency on key allocation policy for stat data.
-	 *
-	 */
+	/* We store dot and dotdot as normal directory entries. This is
+	   not necessary, because almost all information stored in them
+	   is already in the stat-data of directory, the only thing
+	   being missed is objectid of grand-parent directory that can
+	   easily be added there as extension.
+	  
+	   But it is done the way it is done, because not storing dot
+	   and dotdot will lead to the following complications:
+	  
+	   . special case handling in ->lookup().
+	   . addition of another extension to the sd.
+	   . dependency on key allocation policy for stat data.
+	  
+	*/
 
 	xmemset(&entry, 0, sizeof entry);
 	xmemset(&dots_entry, 0, sizeof dots_entry);
@@ -226,10 +219,8 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 		dots_entry.d_name.len = 2;
 		result = hashed_add_entry(object, &dots_entry, NULL, &entry);
 		reiser4_free_dentry_fsdata(&dots_entry);
-		/*
-		 * if creation of ".." failed, iput() will delete object
-		 * with ".".
-		 */
+		/* if creation of ".." failed, iput() will delete object
+		   with ".". */
 		if (result != 0)
 			warning("nikita-2234", "Failed to create dotdot in %llu: %i", get_inode_oid(object), result);
 	}
@@ -309,8 +300,7 @@ static const char *possible_leak = "Possible disk space leak.";
 
 /* re-bind existing name at @from_coord in @from_dir to point to @to_inode.
   
-   Helper function called from hashed_rename()
- */
+   Helper function called from hashed_rename() */
 static int
 replace_name(struct inode *to_inode	/* inode where @from_coord is
 					 * to be re-targeted at */ ,
@@ -336,19 +326,16 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 
 		build_sd_key(to_inode, &to_key);
 
-		/*
-		 * everything is found and prepared to change directory entry
-		 * at @from_coord to point to @to_inode.
-		 *
-		 * @to_inode is just about to get new name, so bump its link
-		 * counter.
-		 *
-		 */
+		/* everything is found and prepared to change directory entry
+		   at @from_coord to point to @to_inode.
+		  
+		   @to_inode is just about to get new name, so bump its link
+		   counter.
+		  
+		*/
 		result = reiser4_add_nlink(to_inode, from_dir, 0);
 		if (result != 0) {
-			/*
-			 * Don't issue warning: this may be plain -EMLINK
-			 */
+			/* Don't issue warning: this may be plain -EMLINK */
 			zrelse(node);
 			return result;
 		}
@@ -360,32 +347,27 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 			return result;
 		}
 
-		/*
-		 * @from_inode just lost its name, he-he.
-		 *
-		 * If @from_inode was directory, it contained dotdot pointing
-		 * to @from_dir. @from_dir i_nlink will be decreased when
-		 * iput() will be called on @from_inode.
-		 *
-		 * FIXME-NIKITA if file-system is not ADG (hard-links are
-		 * supported on directories), iput(from_inode) will not remove
-		 * @from_inode, and thus above is incorrect, but hard-links on
-		 * directories are problematic in many other respects.
-		 */
+		/* @from_inode just lost its name, he-he.
+		  
+		   If @from_inode was directory, it contained dotdot pointing
+		   to @from_dir. @from_dir i_nlink will be decreased when
+		   iput() will be called on @from_inode.
+		  
+		   FIXME-NIKITA if file-system is not ADG (hard-links are
+		   supported on directories), iput(from_inode) will not remove
+		   @from_inode, and thus above is incorrect, but hard-links on
+		   directories are problematic in many other respects.
+		*/
 		result = reiser4_del_nlink(from_inode, from_dir, 0);
 		if (result != 0) {
 			warning("nikita-2330", "Cannot remove link from source: %i. %s", result, possible_leak);
-			/*
-			 * Has to return success, because entry is already
-			 * modified.
-			 */
+			/* Has to return success, because entry is already
+			   modified. */
 			result = 0;
 		}
 
-		/*
-		 * FIXME-NIKITA consider calling plugin method in stead of
-		 * accessing inode fields directly.
-		 */
+		/* FIXME-NIKITA consider calling plugin method in stead of
+		   accessing inode fields directly. */
 		from_dir->i_mtime = CURRENT_TIME;
 	} else {
 		warning("nikita-2326", "Unexpected item type");
@@ -398,8 +380,7 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 
 /* add new entry pointing to @inode into @dir at @coord, locked by @lh
   
-   Helper function used by hashed_rename().
- */
+   Helper function used by hashed_rename(). */
 static int
 add_name(struct inode *inode	/* inode where @coord is to be
 				 * re-targeted at */ ,
@@ -423,23 +404,18 @@ add_name(struct inode *inode	/* inode where @coord is to be
 		return result;
 
 	if (is_dir)
-		/*
-		 * ext2 does this in different order: first inserts new entry,
-		 * then increases directory nlink. We don't want do this,
-		 * because reiser4_add_nlink() calls ->add_link() plugin
-		 * method that can fail for whatever reason, leaving as with
-		 * cleanup problems.
-		 */
+		/* ext2 does this in different order: first inserts new entry,
+		   then increases directory nlink. We don't want do this,
+		   because reiser4_add_nlink() calls ->add_link() plugin
+		   method that can fail for whatever reason, leaving as with
+		   cleanup problems.
+		*/
 		result = reiser4_add_nlink(dir, inode, 0);
 	if (result == 0) {
-		/*
-		 * @inode is getting new name
-		 */
+		/* @inode is getting new name */
 		reiser4_add_nlink(inode, dir, 0);
-		/*
-		 * create @new_name in @new_dir pointing to
-		 * @old_inode
-		 */
+		/* create @new_name in @new_dir pointing to
+		   @old_inode */
 		result = WITH_DATA(coord->node,
 				   inode_dir_item_plugin(dir)->s.dir.add_entry(dir, coord, lh, name, &entry));
 		if (result != 0) {
@@ -451,10 +427,8 @@ add_name(struct inode *inode	/* inode where @coord is to be
 			if (result != 0) {
 				warning("nikita-2328", "Cannot drop link on target dir %i. %s", result, possible_leak);
 			}
-			/*
-			 * Has to return success, because entry is already
-			 * created.
-			 */
+			/* Has to return success, because entry is already
+			   created. */
 			result = 0;
 		} else
 			dir->i_size += 1;
@@ -561,94 +535,93 @@ reiser4_block_nr hashed_estimate_rename(
    have any data-type to represent directory entry. This should be
    re-considered when more than one different directory plugin will be
    implemented.
- */
+*/
 int
 hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	      struct dentry *old_name /* old name */ ,
 	      struct inode *new_dir /* directory where @new is located */ ,
 	      struct dentry *new_name /* new name */ )
 {
-	/*
-	 * From `The Open Group Base Specifications Issue 6'
-	 *
-	 *
-	 * If either the old or new argument names a symbolic link, rename()
-	 * shall operate on the symbolic link itself, and shall not resolve
-	 * the last component of the argument. If the old argument and the new
-	 * argument resolve to the same existing file, rename() shall return
-	 * successfully and perform no other action.
-	 *
-	 * [this is done by VFS: vfs_rename()]
-	 *
-	 *
-	 * If the old argument points to the pathname of a file that is not a
-	 * directory, the new argument shall not point to the pathname of a
-	 * directory. 
-	 *
-	 * [checked by VFS: vfs_rename->may_delete()]
-	 *
-	 *            If the link named by the new argument exists, it shall
-	 * be removed and old renamed to new. In this case, a link named new
-	 * shall remain visible to other processes throughout the renaming
-	 * operation and refer either to the file referred to by new or old
-	 * before the operation began. 
-	 *
-	 * [we should assure this]
-	 *
-	 *                             Write access permission is required for
-	 * both the directory containing old and the directory containing new.
-	 *
-	 * [checked by VFS: vfs_rename->may_delete(), may_create()]
-	 *
-	 * If the old argument points to the pathname of a directory, the new
-	 * argument shall not point to the pathname of a file that is not a
-	 * directory. 
-	 *
-	 * [checked by VFS: vfs_rename->may_delete()]
-	 *
-	 *            If the directory named by the new argument exists, it
-	 * shall be removed and old renamed to new. In this case, a link named
-	 * new shall exist throughout the renaming operation and shall refer
-	 * either to the directory referred to by new or old before the
-	 * operation began. 
-	 *
-	 * [we should assure this]
-	 *
-	 *                  If new names an existing directory, it shall be
-	 * required to be an empty directory.
-	 *
-	 * [we should check this]
-	 *
-	 * If the old argument points to a pathname of a symbolic link, the
-	 * symbolic link shall be renamed. If the new argument points to a
-	 * pathname of a symbolic link, the symbolic link shall be removed.
-	 *
-	 * The new pathname shall not contain a path prefix that names
-	 * old. Write access permission is required for the directory
-	 * containing old and the directory containing new. If the old
-	 * argument points to the pathname of a directory, write access
-	 * permission may be required for the directory named by old, and, if
-	 * it exists, the directory named by new.
-	 *
-	 * [checked by VFS: vfs_rename(), vfs_rename_dir()]
-	 *
-	 * If the link named by the new argument exists and the file's link
-	 * count becomes 0 when it is removed and no process has the file
-	 * open, the space occupied by the file shall be freed and the file
-	 * shall no longer be accessible. If one or more processes have the
-	 * file open when the last link is removed, the link shall be removed
-	 * before rename() returns, but the removal of the file contents shall
-	 * be postponed until all references to the file are closed.
-	 *
-	 * [iput() handles this, but we can do this manually, a la
-	 * reiser4_unlink()]
-	 *
-	 * Upon successful completion, rename() shall mark for update the
-	 * st_ctime and st_mtime fields of the parent directory of each file.
-	 *
-	 * [N/A]
-	 *
-	 */
+	/* From `The Open Group Base Specifications Issue 6'
+	  
+	  
+	   If either the old or new argument names a symbolic link, rename()
+	   shall operate on the symbolic link itself, and shall not resolve
+	   the last component of the argument. If the old argument and the new
+	   argument resolve to the same existing file, rename() shall return
+	   successfully and perform no other action.
+	  
+	   [this is done by VFS: vfs_rename()]
+	  
+	  
+	   If the old argument points to the pathname of a file that is not a
+	   directory, the new argument shall not point to the pathname of a
+	   directory. 
+	  
+	   [checked by VFS: vfs_rename->may_delete()]
+	  
+	              If the link named by the new argument exists, it shall
+	   be removed and old renamed to new. In this case, a link named new
+	   shall remain visible to other processes throughout the renaming
+	   operation and refer either to the file referred to by new or old
+	   before the operation began. 
+	  
+	   [we should assure this]
+	  
+	                               Write access permission is required for
+	   both the directory containing old and the directory containing new.
+	  
+	   [checked by VFS: vfs_rename->may_delete(), may_create()]
+	  
+	   If the old argument points to the pathname of a directory, the new
+	   argument shall not point to the pathname of a file that is not a
+	   directory. 
+	  
+	   [checked by VFS: vfs_rename->may_delete()]
+	  
+	              If the directory named by the new argument exists, it
+	   shall be removed and old renamed to new. In this case, a link named
+	   new shall exist throughout the renaming operation and shall refer
+	   either to the directory referred to by new or old before the
+	   operation began. 
+	  
+	   [we should assure this]
+	  
+	                    If new names an existing directory, it shall be
+	   required to be an empty directory.
+	  
+	   [we should check this]
+	  
+	   If the old argument points to a pathname of a symbolic link, the
+	   symbolic link shall be renamed. If the new argument points to a
+	   pathname of a symbolic link, the symbolic link shall be removed.
+	  
+	   The new pathname shall not contain a path prefix that names
+	   old. Write access permission is required for the directory
+	   containing old and the directory containing new. If the old
+	   argument points to the pathname of a directory, write access
+	   permission may be required for the directory named by old, and, if
+	   it exists, the directory named by new.
+	  
+	   [checked by VFS: vfs_rename(), vfs_rename_dir()]
+	  
+	   If the link named by the new argument exists and the file's link
+	   count becomes 0 when it is removed and no process has the file
+	   open, the space occupied by the file shall be freed and the file
+	   shall no longer be accessible. If one or more processes have the
+	   file open when the last link is removed, the link shall be removed
+	   before rename() returns, but the removal of the file contents shall
+	   be postponed until all references to the file are closed.
+	  
+	   [iput() handles this, but we can do this manually, a la
+	   reiser4_unlink()]
+	  
+	   Upon successful completion, rename() shall mark for update the
+	   st_ctime and st_mtime fields of the parent directory of each file.
+	  
+	   [N/A]
+	  
+	*/
 
 	int result;
 	int is_dir;		/* is @old_name directory */
@@ -688,20 +661,17 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 
 	is_dir = S_ISDIR(old_inode->i_mode);
 
-	/*
-	 * if target is existing directory and it's not empty---return error.
-	 *
-	 * This check is done specifically, because is_dir_empty() requires
-	 * tree traversal and have to be done before an locks are taken.
-	 */
+	/* if target is existing directory and it's not empty---return error.
+	  
+	   This check is done specifically, because is_dir_empty() requires
+	   tree traversal and have to be done before an locks are taken.
+	*/
 	if (is_dir && (new_inode != NULL) && (is_dir_empty(new_inode) != 0))
 		return -ENOTEMPTY;
 
 	init_lh(&new_lh);
 
-	/*
-	 * find entry for @new_name
-	 */
+	/* find entry for @new_name */
 	result = find_entry(new_dir, new_name, &new_lh, ZNODE_WRITE_LOCK, &new_entry, 0);
 
 	if ((result != CBK_COORD_FOUND) && (result != CBK_COORD_NOTFOUND)) {
@@ -724,47 +694,33 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 
 	trace_on(TRACE_RESERVE, "hashed rename grabs %llu blocks.\n", reserve);
 	
-	/*
-	 * add or replace name for @old_inode as @new_name
-	 */
+	/* add or replace name for @old_inode as @new_name */
 	if (new_inode != NULL) {
-		/*
-		 * target (@new_name) exists.
-		 */
-		/*
-		 * FIXME-NIKITA not clear what to do with objects that are
-		 * both directories and files at the same time.
-		 */
+		/* target (@new_name) exists. */
+		/* FIXME-NIKITA not clear what to do with objects that are
+		   both directories and files at the same time. */
 		if (result == CBK_COORD_FOUND)
 			result = replace_name(old_inode, new_dir, new_inode, new_coord, &new_lh);
 		else if (result == CBK_COORD_NOTFOUND) {
-			/*
-			 * VFS told us that @new_name is bound to existing
-			 * inode, but we failed to find directory entry.
-			 */
+			/* VFS told us that @new_name is bound to existing
+			   inode, but we failed to find directory entry. */
 			warning("nikita-2324", "Target not found");
 			result = -ENOENT;
 		}
 	} else {
-		/*
-		 * target (@new_name) doesn't exists.
-		 */
+		/* target (@new_name) doesn't exists. */
 		if (result == CBK_COORD_NOTFOUND)
 			result = add_name(old_inode, new_dir, new_name, new_coord, &new_lh, is_dir);
 		else if (result == CBK_COORD_FOUND) {
-			/*
-			 * VFS told us that @new_name is "negative" dentry,
-			 * but we found directory entry.
-			 */
+			/* VFS told us that @new_name is "negative" dentry,
+			   but we found directory entry. */
 			warning("nikita-2331", "Target found unexpectedly");
 			result = -EIO;
 		}
 	}
 
-	/*
-	 * We are done with all modifications to the @new_dir, release lock on
-	 * node.
-	 */
+	/* We are done with all modifications to the @new_dir, release lock on
+	   node. */
 	done_lh(&new_lh);
 	reiser4_write_sd(new_dir);
 	if (new_inode != NULL)
@@ -779,13 +735,12 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	if (result != 0)
 		return result;
 
-	/*
-	 * At this stage new name was introduced for @old_inode. @old_inode,
-	 * @new_dir, and @new_inode i_nlink counters were updated.
-	 *
-	 * We want to remove @old_name now. If @old_inode wasn't directory
-	 * this is simple.
-	 */
+	/* At this stage new name was introduced for @old_inode. @old_inode,
+	   @new_dir, and @new_inode i_nlink counters were updated.
+	  
+	   We want to remove @old_name now. If @old_inode wasn't directory
+	   this is simple.
+	*/
 	result = hashed_rem_entry(old_dir, old_name, &old_entry);
 	if (result != 0) {
 		warning("nikita-2335", "Cannot remove old name: %i", result);
@@ -797,10 +752,8 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	}
 
 	if ((result == 0) && is_dir) {
-		/*
-		 * @old_inode is directory. We also have to update dotdot
-		 * entry.
-		 */
+		/* @old_inode is directory. We also have to update dotdot
+		   entry. */
 		coord_t *dotdot_coord;
 		lock_handle dotdot_lh;
 		struct dentry dotdot_name;
@@ -819,9 +772,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 		result = find_entry(old_inode, &dotdot_name, &dotdot_lh, ZNODE_WRITE_LOCK, &dotdot_entry, 0);
 		if (result == 0) {
 			result = replace_name(new_dir, old_inode, old_dir, dotdot_coord, &dotdot_lh);
-			/*
-			 * replace_name() decreases i_nlink on @old_dir
-			 */
+			/* replace_name() decreases i_nlink on @old_dir */
 		} else {
 			warning("nikita-2336", "Dotdot not found in %llu", get_inode_oid(old_inode));
 			result = -EIO;
@@ -869,15 +820,11 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 	trace_on(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current_pid, where->d_name.name, get_inode_oid(object));
 	coord = &fsdata->entry_coord;
 
-	/*
-	 * check for this entry in a directory. This is plugin method.
-	 */
+	/* check for this entry in a directory. This is plugin method. */
 	result = find_entry(object, where, &lh, ZNODE_WRITE_LOCK, entry, &off);
 	if (likely(result == -ENOENT)) {
-		/*
-		 * add new entry. Just pass control to the directory
-		 * item plugin.
-		 */
+		/* add new entry. Just pass control to the directory
+		   item plugin. */
 		assert("nikita-1709", inode_dir_item_plugin(object));
 		assert("nikita-2230", coord->node == lh.node);
 		seal_done(&fsdata->entry_seal);
@@ -916,17 +863,13 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 		return -ENOSPC;
 	init_lh(&lh);
 
-	/*
-	 * check for this entry in a directory. This is plugin method.
-	 */
+	/* check for this entry in a directory. This is plugin method. */
 	result = find_entry(object, where, &lh, ZNODE_WRITE_LOCK, entry, &off);
 	fsdata = reiser4_get_dentry_fsdata(where);
 	coord = &fsdata->entry_coord;
 	if (result == 0) {
-		/*
-		 * remove entry. Just pass control to the directory item
-		 * plugin.
-		 */
+		/* remove entry. Just pass control to the directory item
+		   plugin. */
 		assert("vs-542", inode_dir_item_plugin(object));
 		seal_done(&fsdata->entry_seal);
 		adjust_dir_file(object, coord, off, -1);
@@ -975,7 +918,7 @@ typedef struct entry_actor_args {
    for this key in the tree. If such key is found, scan all items with
    the same key, checking name in each directory entry along the way.
   
- */
+*/
 static int
 find_entry(const struct inode *dir /* directory to scan */ ,
 	   struct dentry *de /* name to search for */ ,
@@ -1001,13 +944,12 @@ find_entry(const struct inode *dir /* directory to scan */ ,
 	if (offset != NULL)
 		*offset = 0;
 
-	/* 
-	 * dentry private data don't require lock, because dentry
-	 * manipulations are protected by i_sem on parent.  
-	 *
-	 * This is not so for inodes, because there is no -the- parent in
-	 * inode case.
-	 */
+	/* dentry private data don't require lock, because dentry
+	   manipulations are protected by i_sem on parent.  
+	  
+	   This is not so for inodes, because there is no -the- parent in
+	   inode case.
+	*/
 	coord = &reiser4_get_dentry_fsdata(de)->entry_coord;
 	seal = &reiser4_get_dentry_fsdata(de)->entry_seal;
 	/* compose key of directory entry for @name */
@@ -1020,7 +962,7 @@ find_entry(const struct inode *dir /* directory to scan */ ,
 		result = seal_validate(seal, coord, &entry->key, LEAF_LEVEL, lh, FIND_EXACT, mode, ZNODE_LOCK_LOPRI);
 		if (result == 0) {
 			/* key was found. Check that it is really item we are
-			 * looking for. */
+			   looking for. */
 			result = WITH_DATA(coord->node, check_item(dir, coord, name->name));
 			if (result == 0)
 				return 0;
@@ -1047,10 +989,8 @@ find_entry(const struct inode *dir /* directory to scan */ ,
 		init_lh(&arg.last_lh);
 
 		result = iterate_tree(tree_by_inode(dir), coord, lh, entry_actor, &arg, mode, 1);
-		/*
-		 * if end of the tree or extent was reached during
-		 * scanning.
-		 */
+		/* if end of the tree or extent was reached during
+		   scanning. */
 		if (arg.not_found || (result == -ENAVAIL)) {
 			/* step back */
 			done_lh(lh);
@@ -1096,9 +1036,7 @@ entry_actor(reiser4_tree * tree UNUSED_ARG /* tree being scanned */ ,
 	reiser4_stat_nuniq_max((unsigned) args->non_uniq);
 	if (args->non_uniq > args->max_non_uniq) {
 		args->not_found = 1;
-		/*
-		 * hash collision overflow.
-		 */
+		/* hash collision overflow. */
 		return -EBUSY;
 	}
 #endif
@@ -1135,7 +1073,7 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
 		return -EIO;
 	} else if (item_id_by_coord(coord) != item_id_by_plugin(inode_dir_item_plugin(dir))) {
 		/* item id of current item does not match to id of items a
-		 * directory is built of */
+		   directory is built of */
 		warning("nikita-1136", "Wrong item plugin");
 		print_coord("coord", coord, 1);
 		print_plugin("plugin", item_plugin_to_plugin(iplug));
@@ -1145,12 +1083,11 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
 
 	trace_on(TRACE_DIR, "[%i]: check_item: \"%s\", \"%s\" in %lli\n",
 		 current_pid, name, iplug->s.dir.extract_name(coord), *znode_get_block(coord->node));
-	/*
-	 * Compare name stored in this entry with name we are looking for.
-	 * 
-	 * FIXME-NIKITA Here should go code for support of something like
-	 * unicode, code tables, etc.
-	 */
+	/* Compare name stored in this entry with name we are looking for.
+	   
+	   FIXME-NIKITA Here should go code for support of something like
+	   unicode, code tables, etc.
+	*/
 	return !!strcmp(name, iplug->s.dir.extract_name(coord));
 }
 
@@ -1162,4 +1099,4 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

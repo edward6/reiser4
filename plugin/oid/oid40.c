@@ -36,7 +36,7 @@ oid40_read_allocator(reiser4_oid_allocator * map, __u64 nr_files, __u64 oids)
 	return 0;
 }
 
-/** helper function: spin lock allocator */
+/* helper function: spin lock allocator */
 static void
 lock(reiser4_oid_allocator * map)
 {
@@ -44,7 +44,7 @@ lock(reiser4_oid_allocator * map)
 	spin_lock(&map->u.oid40.oguard);
 }
 
-/** helper function: spin unlock allocator */
+/* helper function: spin unlock allocator */
 static void
 unlock(reiser4_oid_allocator * map)
 {
@@ -96,8 +96,7 @@ __u64 oid40_used(reiser4_oid_allocator * map)
 
 /* plugin->u.oid_allocator.allocate_oid
    allocate new objectid in "map" and store it in "result". Return 0
-   on success, negative error code on failure.
- */
+   on success, negative error code on failure. */
 int
 oid40_allocate(reiser4_oid_allocator * map, oid_t * result)
 {

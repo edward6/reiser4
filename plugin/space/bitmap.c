@@ -69,7 +69,7 @@ bnode_commit_crc(struct bnode *bnode)
 }
 
 struct bitmap_allocator_data {
-	/** an array for bitmap blocks direct access */
+	/* an array for bitmap blocks direct access */
 	struct bnode *bitmap;
 };
 
@@ -92,8 +92,7 @@ bnew(void)
 
 /* this file contains:
    - bitmap based implementation of space allocation plugin
-   - all the helper functions like set bit, find_first_zero_bit, etc
- */
+   - all the helper functions like set bit, find_first_zero_bit, etc */
 
 /* Audited by: green(2002.06.12) */
 static int
@@ -377,7 +376,7 @@ checksum_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 t
    FIXME-ZAM: This schema seems to be working but that reference counting is
    not easy to debug. I think we should agree with Hans and do not implement
    it in v4.0. Current code implements "on-demand" bitmap blocks loading only.
- */
+*/
 
 #define LIMIT(val, boundary) ((val) > (boundary) ? (boundary) : (val))
 
@@ -395,7 +394,7 @@ get_nr_bmap(struct super_block *super)
 
 }
 
-/** calculate bitmap block number and offset within that bitmap block */
+/* calculate bitmap block number and offset within that bitmap block */
 static void
 parse_blocknr(const reiser4_block_nr * block, bmap_nr_t * bmap, bmap_off_t * offset)
 {
@@ -451,7 +450,7 @@ adjust_first_zero_bit(struct bnode *bnode, bmap_off_t offset)
 		bnode->first_zero_bit = offset;
 }
 
-/** return a physical disk address for logical bitmap number @bmap */
+/* return a physical disk address for logical bitmap number @bmap */
 /* FIXME-VS: this is somehow related to disk layout? */
 #define REISER4_FIRST_BITMAP_BLOCK 18
 /* Audited by: green(2002.06.12) */
@@ -462,8 +461,8 @@ get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr *
 	assert("zam-390", bmap < get_nr_bmap(super));
 
 	/* FIXME_ZAM: before discussing of disk layouts and disk format
-	 * plugins I implement bitmap location scheme which is close to scheme
-	 * used in reiser 3.6 */
+	   plugins I implement bitmap location scheme which is close to scheme
+	   used in reiser 3.6 */
 	if (bmap == 0) {
 		*bnr = REISER4_FIRST_BITMAP_BLOCK;
 	} else {
@@ -528,9 +527,9 @@ bitmap_init_allocator(reiser4_space_allocator * allocator, struct super_block *s
 	bitmap_blocks_nr = get_nr_bmap(super);
 
 	/* FIXME-ZAM: it is not clear what to do with huge number of bitmaps
-	 * which is bigger than 2^32. Kmalloc is not possible and, probably,
-	 * another dynamic data structure should replace a static array of
-	 * bnodes. */
+	   which is bigger than 2^32. Kmalloc is not possible and, probably,
+	   another dynamic data structure should replace a static array of
+	   bnodes. */
 	data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bnode) * bitmap_blocks_nr), GFP_KERNEL);
 
 	if (data->bitmap == NULL) {
@@ -775,8 +774,8 @@ search_one_bitmap(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset, in
 
 		if (end >= start + min_len) {
 			/* we can't trust find_next_set_bit result if set bit
-			 * was not fount, result may be bigger than
-			 * max_offset */
+			   was not fount, result may be bigger than
+			   max_offset */
 			if (end > search_end)
 				end = search_end;
 
@@ -786,7 +785,7 @@ search_one_bitmap(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset, in
 			reiser4_set_bits(data, start, end);
 
 			/* FIXME: we may advance first_zero_bit if [start,
-			 * end] region overlaps the first_zero_bit point */
+			   end] region overlaps the first_zero_bit point */
 
 			break;
 		}
@@ -799,7 +798,7 @@ search_one_bitmap(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset, in
 	return ret;
 }
 
-/** allocate contiguous range of blocks in bitmap */
+/* allocate contiguous range of blocks in bitmap */
 
 int
 bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end, int min_len, int max_len)
@@ -853,11 +852,11 @@ bitmap_alloc_blocks(reiser4_space_allocator * allocator UNUSED_ARG,
 	assert("zam-397", hint->blk < reiser4_block_count(super));
 
 	/* These blocks should have been allocated as "new", "not-yet-mapped"
-	 * blocks, so we should not decrease blocks_free count twice. */
+	   blocks, so we should not decrease blocks_free count twice. */
 
 	/* first, we use @hint -> blk as a search start and search from it to
-	 * the end of the disk or in given region if @hint -> max_dist is not
-	 * zero */
+	   the end of the disk or in given region if @hint -> max_dist is not
+	   zero */
 
 	search_start = hint->blk;
 
@@ -870,7 +869,7 @@ bitmap_alloc_blocks(reiser4_space_allocator * allocator UNUSED_ARG,
 	actual_len = bitmap_alloc(&search_start, &search_end, 1, needed);
 
 	/* there is only one bitmap search if max_dist was specified or first
-	 * pass was from the beginning of the bitmap */
+	   pass was from the beginning of the bitmap */
 	if (actual_len != 0 || hint->max_dist != 0 || search_start == 0)
 		goto out;
 
@@ -892,7 +891,7 @@ out:
 	return 0;
 }
 
-/** plugin->u.space_allocator.dealloc_blocks(). */
+/* plugin->u.space_allocator.dealloc_blocks(). */
 /* It just frees blocks in WORKING BITMAP. Usually formatted an unformatted
    nodes deletion is deferred until transaction commit.  However, deallocation
    of temporary objects like wandered blocks and transaction commit records
@@ -1014,9 +1013,9 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 	parse_blocknr(start, &bmap, &offset);
 
 	/* FIXME-ZAM: we assume that all block ranges are allocated by this
-	 * bitmap-based allocator and each block range can't go over a zone of
-	 * responsibility of one bitmap block; same assumption is used in
-	 * other journal hooks in bitmap code. */
+	   bitmap-based allocator and each block range can't go over a zone of
+	   responsibility of one bitmap block; same assumption is used in
+	   other journal hooks in bitmap code. */
 	bnode = get_bnode(sb, bmap);
 	assert("zam-448", bnode != NULL);
 
@@ -1129,9 +1128,9 @@ bitmap_pre_commit_hook(void)
 				blocks_freed--;
 
 				/* working of this depends on how it inserts
-				 * new j-node into clean list, because we are
-				 * scanning the same list now. It is OK, if
-				 * insertion is done to the list front */
+				   new j-node into clean list, because we are
+				   scanning the same list now. It is OK, if
+				   insertion is done to the list front */
 				cond_add_to_overwrite_set (atom, bn->cjnode);
 			}
 
@@ -1163,4 +1162,4 @@ bitmap_pre_commit_hook(void)
    fill-column: 78
    scroll-step: 1
    End:
- */
+*/

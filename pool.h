@@ -27,7 +27,7 @@ typedef struct reiser4_pool {
 } reiser4_pool;
 
 typedef struct reiser4_pool_header {
-	/** object is either on free or "used" lists */
+	/* object is either on free or "used" lists */
 	pool_usage_list_link usage_linkage;
 	pool_level_list_link level_linkage;
 	pool_extra_list_link extra_linkage;
@@ -68,4 +68,4 @@ reiser4_pool_header *add_obj(reiser4_pool * pool, pool_level_list_head * list,
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

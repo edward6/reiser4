@@ -33,21 +33,21 @@ typedef enum {
 					   number assigned */
 } block_stage_t;
 
-/** a hint for block allocator */
+/* a hint for block allocator */
 struct reiser4_blocknr_hint {
 	/* FIXME: I think we want to add a longterm lock on the bitmap block here.  This
-	 * is to prevent jnode_flush() calls from interleaving allocations on the same
-	 * bitmap, once a hint is established. */
+	   is to prevent jnode_flush() calls from interleaving allocations on the same
+	   bitmap, once a hint is established. */
 
 	/* search start hint */
 	reiser4_block_nr blk;
 	/* if not zero, it is a region size we search for free blocks in */
 	reiser4_block_nr max_dist;
 	/* level for allocation, may be useful have branch-level and higher
-	 * write-optimized. */
+	   write-optimized. */
 	tree_level level;
 	/* block allocator assumes that blocks, which will be mapped to disk,
-	 * are in this specified block_stage */
+	   are in this specified block_stage */
 	block_stage_t block_stage;
 };
 
@@ -121,4 +121,4 @@ extern void post_write_back_hook(void);
    tab-width: 8
    fill-column: 120
    End:
- */
+*/

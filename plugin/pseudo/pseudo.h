@@ -16,29 +16,24 @@
    type. Doing so would simplify some things. For example, there are already
    functions to look up plugin by name, dynamic loading is planned, etc.
   
- */
+*/
 typedef struct pseudo_ops {
 
-	/**
-	 * lookup method applicable to this pseudo file by method name.
-	 *
-	 * This is for something like "foo/..acl/dup", here "../acl" is the
-	 * name of a pseudo file, and "dup" is name of an operation (method)
-	 * applicable to "../acl". Once "..acl" is resolved to ACL object,
-	 * ->method_lookup( "dup" ) can be called to get operation.
-	 *
-	 */
+	/* lookup method applicable to this pseudo file by method name.
+	  
+	   This is for something like "foo/..acl/dup", here "../acl" is the
+	   name of a pseudo file, and "dup" is name of an operation (method)
+	   applicable to "../acl". Once "..acl" is resolved to ACL object,
+	   ->method_lookup( "dup" ) can be called to get operation.
+	  
+	*/
 	int (*method_lookup) (const char *name, int len, reiser4_syscall_method * method);
 
-	/**
-	 * generic name of this pseudo object "..acl", "..key", etc.
-	 */
+	/* generic name of this pseudo object "..acl", "..key", etc. */
 	const char *name;
 
-	/* 
-	 * FIXME-NIKITA some other operations. Reiser4 syntax people should
-	 * add something here.
-	 */
+	/* FIXME-NIKITA some other operations. Reiser4 syntax people should
+	   add something here. */
 
 } pseudo_ops;
 
@@ -56,4 +51,4 @@ typedef struct pseudo_ops {
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

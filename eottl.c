@@ -112,13 +112,13 @@
   
   
   
- */
+*/
 
 /* look to the right of @coord. If it is an item of internal type - 1 is
    returned. If that item is in right neighbor and it is internal - @coord and
    @lh are switched to that node: move lock handle, zload right neighbor and
    zrelse znode coord was set to at the beginning
- */
+*/
 /* Audited by: green(2002.06.15) */
 static int
 is_next_item_internal(coord_t * coord, lock_handle * lh)
@@ -126,9 +126,7 @@ is_next_item_internal(coord_t * coord, lock_handle * lh)
 	int result;
 
 	if (coord->item_pos != node_num_items(coord->node) - 1) {
-		/*
-		 * next item is in the same node
-		 */
+		/* next item is in the same node */
 		coord_t right;
 
 		coord_dup(&right, coord);
@@ -139,9 +137,7 @@ is_next_item_internal(coord_t * coord, lock_handle * lh)
 		}
 		return 0;
 	} else {
-		/*
-		 * look for next item in right neighboring node
-		 */
+		/* look for next item in right neighboring node */
 		lock_handle right_lh;
 		coord_t right;
 
@@ -149,19 +145,15 @@ is_next_item_internal(coord_t * coord, lock_handle * lh)
 		result = reiser4_get_right_neighbor(&right_lh, coord->node, ZNODE_READ_LOCK, GN_DO_READ);
 		if (result && result != -ENAVAIL) {
 			/* error occured */
-			/*
-			 * FIXME-VS: error code is not returned. Just that
-			 * there is no right neighbor
-			 */
+			/* FIXME-VS: error code is not returned. Just that
+			   there is no right neighbor */
 			done_lh(&right_lh);
 			return 0;
 		}
 		if (!result && (result = zload(right_lh.node)) == 0) {
 			coord_init_first_unit(&right, right_lh.node);
 			if (item_is_internal(&right)) {
-				/*
-				 * switch to right neighbor
-				 */
+				/* switch to right neighbor */
 				zrelse(coord->node);
 				done_lh(lh);
 
@@ -194,14 +186,10 @@ rd_key(coord_t * coord, reiser4_key * key)
 	spin_lock_dk(current_tree);
 
 	if (coord_set_to_right(&dup) == 0)
-		/*
-		 * get right delimiting key from an item to the right of @coord
-		 */
+		/* get right delimiting key from an item to the right of @coord */
 		unit_key_by_coord(&dup, key);
 	else
-		/*
-		 * use right delimiting key of parent znode
-		 */
+		/* use right delimiting key of parent znode */
 		*key = *znode_get_rd_key(coord->node);
 
 	spin_unlock_dk(current_tree);
@@ -246,9 +234,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 
 	if (IS_ERR(node))
 		return PTR_ERR(node);
-	/*
-	 * setup delimiting keys for node being inserted
-	 */
+	/* setup delimiting keys for node being inserted */
 	spin_lock_dk(znode_get_tree(node));
 	*znode_get_ld_key(node) = *key;
 	*znode_get_rd_key(node) = *rdkey;
@@ -264,10 +250,8 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 		op->u.insert.type = COPT_ITEM_DATA;
 		build_child_ptr_data(node, &item);
 		item.arg = NULL;
-		/*
-		 * have @insert_coord to be set at inserted item after
-		 * insertion is done
-		 */
+		/* have @insert_coord to be set at inserted item after
+		   insertion is done */
 		op->node->track = 1;
 		op->node->tracked = lh;
 
@@ -277,10 +261,8 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	zput(node);
 	done_carry_pool(&pool);
 	if (result == 0) {
-		/*
-		 * balancing probably shifted @insert_coord into different
-		 * node. Reload.
-		 */
+		/* balancing probably shifted @insert_coord into different
+		   node. Reload. */
 		if (parent_node != insert_coord->node) {
 			zrelse(parent_node);
 			result = zload(insert_coord->node);
@@ -301,9 +283,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 	coord = h->coord;
 
 	if (h->level != TWIG_LEVEL || (coord_is_existing_item(coord) && item_is_internal(coord))) {
-		/*
-		 * Continue to traverse tree downward.
-		 */
+		/* Continue to traverse tree downward. */
 		return 0;
 	}
 	/* strange item type found on non-stop level?!  Twig
@@ -317,9 +297,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 	       ));
 
 	if (*outcome == NS_FOUND) {
-		/*
-		 * we have found desired key on twig level in extent item
-		 */
+		/* we have found desired key on twig level in extent item */
 		h->result = CBK_COORD_FOUND;
 		reiser4_stat_tree_add(cbk_found);
 		*outcome = LOOKUP_DONE;
@@ -327,10 +305,8 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 	}
 
 	if (!(h->flags & CBK_FOR_INSERT)) {
-		/*
-		 * tree traversal is not for insertion. Just return
-		 * CBK_COORD_NOTFOUND.
-		 */
+		/* tree traversal is not for insertion. Just return
+		   CBK_COORD_NOTFOUND. */
 		h->result = CBK_COORD_NOTFOUND;
 		*outcome = LOOKUP_DONE;
 		return 1;
@@ -339,29 +315,24 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 	/* take a look at the item to the right of h -> coord */
 	result = is_next_item_internal(coord, h->active_lh);
 	if (result < 0) {
-		/*
-		 * error occured while we were trying to look at the item to
-		 * the right
-		 */
+		/* error occured while we were trying to look at the item to
+		   the right */
 		h->error = "could not check next item";
 		h->result = result;
 		*outcome = LOOKUP_DONE;
 		return 1;
 	} else if (result == 0) {
 
-		/*
-		 * item to the right is not internal one. Allocate a new node
-		 * and insert pointer to it after item h -> coord.
-		 *
-		 * This is a result of extents being located at the twig
-		 * level. For explanation, see comment just above
-		 * is_next_item_internal().
-		 */
+		/* item to the right is not internal one. Allocate a new node
+		   and insert pointer to it after item h -> coord.
+		  
+		   This is a result of extents being located at the twig
+		   level. For explanation, see comment just above
+		   is_next_item_internal().
+		*/
 		if (cbk_lock_mode(h->level, h) != ZNODE_WRITE_LOCK) {
-			/*
-			 * we got node read locked, restart coord_by_key to
-			 * have write lock on twig level
-			 */
+			/* we got node read locked, restart coord_by_key to
+			   have write lock on twig level */
 			h->lock_level = TWIG_LEVEL;
 			h->lock_mode = ZNODE_WRITE_LOCK;
 			*outcome = LOOKUP_REST;
@@ -377,19 +348,18 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 		}
 		assert("vs-358", keyeq(h->key, item_key_by_coord(coord, &key)));
 	} else {
-		/* 
-		 * this is special case mentioned in the comment on
-		 * tree.h:cbk_flags. We have found internal item immediately
-		 * on the right of extent, and we are going to insert new item
-		 * there. Key of item we are going to insert is smaller than
-		 * leftmost key in the node pointed to by said internal item
-		 * (otherwise search wouldn't come to the extent in the first
-		 * place).
-		 *
-		 * This is a result of extents being located at the twig
-		 * level. For explanation, see comment just above
-		 * is_next_item_internal().
-		 */
+		/* this is special case mentioned in the comment on
+		   tree.h:cbk_flags. We have found internal item immediately
+		   on the right of extent, and we are going to insert new item
+		   there. Key of item we are going to insert is smaller than
+		   leftmost key in the node pointed to by said internal item
+		   (otherwise search wouldn't come to the extent in the first
+		   place).
+		  
+		   This is a result of extents being located at the twig
+		   level. For explanation, see comment just above
+		   is_next_item_internal().
+		*/
 		h->flags &= ~CBK_TRUST_DK;
 	}
 	assert("vs-362", item_is_internal(coord));
@@ -405,4 +375,4 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

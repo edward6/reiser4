@@ -1,5 +1,4 @@
-/* 
-We will use @ as the symbol for dereferencing, we won't use * because
+/* We will use @ as the symbol for dereferencing, we won't use * because
 we want to reserve it for use as a wildcard someday.
 
 Inheriting stat data from source_filename can be done as:

@@ -1,5 +1,4 @@
-/* 
-Invterp is short for invertable interpolate, and interpolate means to
+/* Invterp is short for invertable interpolate, and interpolate means to
 substitute in.  
 
 Example:

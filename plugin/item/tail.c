@@ -70,9 +70,7 @@ tail_mergeable(const coord_t * p1, const coord_t * p2)
 	assert("vs-365", item_id_by_coord(p1) == TAIL_ID);
 
 	if (item_id_by_coord(p2) != TAIL_ID) {
-		/*
-		 * second item is of another type
-		 */
+		/* second item is of another type */
 		return 0;
 	}
 
@@ -80,15 +78,11 @@ tail_mergeable(const coord_t * p1, const coord_t * p2)
 	item_key_by_coord(p2, &key2);
 	if (get_key_locality(&key1) != get_key_locality(&key2) ||
 	    get_key_objectid(&key1) != get_key_objectid(&key2) || get_key_type(&key1) != get_key_type(&key2)) {
-		/*
-		 * items of different objects
-		 */
+		/* items of different objects */
 		return 0;
 	}
 	if (get_key_offset(&key1) + tail_nr_units(p1) != get_key_offset(&key2)) {
-		/*
-		 * not adjacent items
-		 */
+		/* not adjacent items */
 		return 0;
 	}
 	return 1;
@@ -115,37 +109,27 @@ lookup_result tail_lookup(const reiser4_key * key, lookup_bias bias, coord_t * c
 	offset = get_key_offset(item_key_by_coord(coord, &item_key));
 	nr_units = tail_nr_units(coord);
 
-	/*
-	 * key we are looking for must be greater than key of item @coord
-	 */
+	/* key we are looking for must be greater than key of item @coord */
 	assert("vs-416", keygt(key, &item_key));
 
 	if (keygt(key, tail_max_key_inside(coord, &item_key))) {
-		/*
-		 * @key is key of another file
-		 */
+		/* @key is key of another file */
 		coord->unit_pos = nr_units - 1;
 		coord->between = AFTER_UNIT;
 		return CBK_COORD_NOTFOUND;
 	}
 
-	/*
-	 * offset we are looking for
-	 */
+	/* offset we are looking for */
 	lookuped = get_key_offset(key);
 
 	if (lookuped >= offset && lookuped < offset + nr_units) {
-		/*
-		 * byte we are looking for is in this item
-		 */
+		/* byte we are looking for is in this item */
 		coord->unit_pos = lookuped - offset;
 		coord->between = AT_UNIT;
 		return CBK_COORD_FOUND;
 	}
 
-	/*
-	 * set coord after last unit
-	 */
+	/* set coord after last unit */
 	coord->unit_pos = nr_units - 1;
 	coord->between = AFTER_UNIT;
 	return bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
@@ -158,14 +142,10 @@ tail_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info U
 	unsigned old_item_length;
 	char *item;
 
-	/*
-	 * length the item had before resizing has been performed
-	 */
+	/* length the item had before resizing has been performed */
 	old_item_length = item_length_by_coord(coord) - data->length;
 
-	/*
-	 * tail items never get pasted in the middle
-	 */
+	/* tail items never get pasted in the middle */
 	assert("vs-363",
 	       (coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
 	       (coord->unit_pos == old_item_length - 1 &&
@@ -174,10 +154,8 @@ tail_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info U
 
 	item = item_body_by_coord(coord);
 	if (coord->unit_pos == 0)
-		/*
-		 * make space for pasted data when pasting at the beginning of
-		 * the item
-		 */
+		/* make space for pasted data when pasting at the beginning of
+		   the item */
 		xmemmove(item + data->length, item, old_item_length);
 
 	if (coord->between == AFTER_UNIT)
@@ -203,15 +181,12 @@ tail_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info U
 
 /* plugin->u.item.b.can_shift
    number of units is returned via return value, number of bytes via @size. For
-   tail items they coincide
- */
+   tail items they coincide */
 int
 tail_can_shift(unsigned free_space, coord_t * source UNUSED_ARG,
 	       znode * target UNUSED_ARG, shift_direction direction UNUSED_ARG, unsigned *size, unsigned want)
 {
-	/*
-	 * make sure that that we do not want to shift more than we have
-	 */
+	/* make sure that that we do not want to shift more than we have */
 	assert("vs-364", want > 0 && want <= (unsigned) item_length_by_coord(source));
 
 	*size = min(want, free_space);
@@ -223,24 +198,18 @@ void
 tail_copy_units(coord_t * target, coord_t * source,
 		unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space UNUSED_ARG)
 {
-	/*
-	 * make sure that item @target is expanded already
-	 */
+	/* make sure that item @target is expanded already */
 	assert("vs-366", (unsigned) item_length_by_coord(target) >= count);
 	assert("vs-370", free_space >= count);
 
 	if (where_is_free_space == SHIFT_LEFT) {
-		/*
-		 * append item @target with @count first bytes of @source
-		 */
+		/* append item @target with @count first bytes of @source */
 		assert("vs-365", from == 0);
 
 		xmemcpy((char *) item_body_by_coord(target) +
 			item_length_by_coord(target) - count, (char *) item_body_by_coord(source), count);
 	} else {
-		/*
-		 * target item is moved to right already
-		 */
+		/* target item is moved to right already */
 		reiser4_key key;
 
 		assert("vs-367", (unsigned) item_length_by_coord(source) == from + count);
@@ -259,8 +228,7 @@ tail_copy_units(coord_t * target, coord_t * source,
 
 /* plugin->u.item.b.create_hook
    plugin->u.item.b.kill_hook
-   plugin->u.item.b.shift_hook
- */
+   plugin->u.item.b.shift_hook */
 
 /* plugin->u.item.b.cut_units
    plugin->u.item.b.kill_units */
@@ -273,27 +241,19 @@ tail_cut_units(coord_t * coord, unsigned *from, unsigned *to,
 	unsigned count;
 
 	count = *to - *from + 1;
-	/*
-	 * regarless to whether we cut from the beginning or from the end of
-	 * item - we have nothing to do
-	 */
+	/* regarless to whether we cut from the beginning or from the end of
+	   item - we have nothing to do */
 	assert("vs-374", count > 0 && count <= (unsigned) item_length_by_coord(coord));
-	/*
-	 * tails items are never cut from the middle of an item
-	 */
+	/* tails items are never cut from the middle of an item */
 	assert("vs-396", ergo(*from != 0, *to == coord_last_unit_pos(coord)));
 
 	if (smallest_removed) {
-		/*
-		 * store smallest key removed
-		 */
+		/* store smallest key removed */
 		item_key_by_coord(coord, smallest_removed);
 		set_key_offset(smallest_removed, get_key_offset(smallest_removed) + *from);
 	}
 	if (*from == 0) {
-		/*
-		 * head of item is removed, update item key therefore
-		 */
+		/* head of item is removed, update item key therefore */
 		item_key_by_coord(coord, &key);
 		set_key_offset(&key, get_key_offset(&key) + count);
 		node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
@@ -367,11 +327,10 @@ overwrite_tail(coord_t * coord, flow_t * f)
 	if (count > f->length)
 		count = f->length;
 
-	/*
-	 * FIXME:NIKITA->VS this is called with f -> data == NULL during
-	 * unix_file_write->expand_file->write_flow->tail_write.
-	 * No, overwrite is not supposed to work for expanding. If it does - that is a bug
-	 */
+	/* FIXME:NIKITA->VS this is called with f -> data == NULL during
+	   unix_file_write->expand_file->write_flow->tail_write.
+	   No, overwrite is not supposed to work for expanding. If it does - that is a bug
+	*/
 	if (__copy_from_user((char *) item_body_by_coord(coord) + coord->unit_pos, f->data, count))
 		return -EFAULT;
 
@@ -397,7 +356,7 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 			return todo;
 
 		/* zload is necessary because balancing may return coord->node moved to another possibly not loaded
-		 * node. Store what we loaded so that we will be able to zrelse it */
+		   node. Store what we loaded so that we will be able to zrelse it */
 		result = zload(coord->node);
 		if (result)
 			return result;
@@ -405,9 +364,7 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 		switch (todo) {
 		case FIRST_ITEM:
 		case APPEND_ITEM:
-			/*
-			 * check quota before appending data
-			 */
+			/* check quota before appending data */
 			if (DQUOT_ALLOC_SPACE_NODIRTY(inode, f->length)) {
 				result = -EDQUOT;
 				break;
@@ -422,9 +379,7 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 			break;
 
 		case RESEARCH:
-			/*
-			 * FIXME-VS: 
-			 */
+			/* FIXME-VS:  */
 			result = -EAGAIN;
 			break;
 		default:
@@ -460,9 +415,7 @@ tail_read(struct inode *inode UNUSED_ARG, coord_t *coord, flow_t * f)
 		return -EAGAIN;
 	}
 
-	/*
-	 * calculate number of bytes to read off the item
-	 */
+	/* calculate number of bytes to read off the item */
 	count = item_length_by_coord(coord) - coord->unit_pos;
 	if (count > f->length)
 		count = f->length;
@@ -486,4 +439,4 @@ tail_read(struct inode *inode UNUSED_ARG, coord_t *coord, flow_t * f)
    fill-column: 120
    scroll-step: 1
    End:
- */
+*/

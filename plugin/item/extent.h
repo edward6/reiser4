@@ -130,4 +130,4 @@ void extent_get_inode(const coord_t * item, struct inode **inode);	/* Get the in
    tab-width: 8
    fill-column: 120
    End:
- */
+*/
