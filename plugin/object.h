@@ -18,7 +18,7 @@ extern int lookup_sd_by_key     ( reiser4_tree *tree, znode_lock_mode lock_mode,
 
 extern int guess_plugin_by_mode ( struct inode *inode );
 
-extern int common_file_delete   ( struct inode *inode, struct inode *parent );
+extern int common_file_delete   ( struct inode *inode );
 extern int common_file_save     ( struct inode *inode );
 extern int common_build_flow    ( struct inode *, char *buf, int user, 
 				  size_t size, loff_t off, rw_op op, flow_t *);
