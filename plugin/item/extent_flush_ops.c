@@ -499,7 +499,7 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 #endif
 }
 
-#ifdef REISER4_DEBUG
+#if REISER4_DEBUG
 
 static int
 jnode_is_of_the_same_atom(jnode *node)
@@ -594,21 +594,31 @@ find_extent_slum_size(const coord_t *start, unsigned pos_in_unit)
 			ON_DEBUG(
 				for (i = 0; i < width; i ++) {
 					node = jlook_lock(tree, oid, index + i);
-					assert("vs-1389", node);
-					if (jnode_check_flushprepped(node)) {
-						/* FIXME: when jnode capturing will be not delayed until page is
-						 * available */
-						jput(node);
-						slum_done = 1;
-						break;
-					}
-					assert("vs-1408", jnode_is_of_the_same_atom(node));
-					assert("vs-1132", blocknr_is_fake(jnode_get_block(node)));
+					assert("vs-1426", ergo(node == 0, i == width - 1));
+					assert("vs-1132", ergo(node, blocknr_is_fake(jnode_get_block(node))));
+
+					/* last jnode of extent can be flushprepped (not dirty actually): because
+					   write_extent first creates jnode and extent item and unlocks twig node to go
+					   to page allocation. Jnode is captured and marked dirty after data are copied
+					   to page. So flush may encounter jnode corresponding to unallocated extent and
+					   is neither captured nor dirty */
+					assert("vs-1426", ergo(i != width - 1, !jnode_check_flushprepped(node)));
+					assert("vs-1408", ergo(i != width - 1, jnode_is_of_the_same_atom(node)));
 					jput(node);
 				});
-			slum_size += width;
+			slum_size += width;			
 			index += width;
+
+			node = jlook_lock(tree, oid, index - 1);
+			if (jnode_check_flushprepped(node)) {
+				/* last jnode of unit is not dirty yet */
+				slum_size --;
+				index --;
+				slum_done = 1;
+			}
+			jput(node);
 			break;
+
 		case UNALLOCATED_EXTENT2:
 			assert("vs-1420", 0);
 		}
