@@ -1187,7 +1187,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 /* Audited by: green(2002.06.15) */
 static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 {
-	int result;
+	int result = 0;
 	tree_level level;
 
 	for( level = h -> stop_level ; level <= h -> lock_level ; ++ level ) {

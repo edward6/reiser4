@@ -412,9 +412,9 @@ int tail2extent (struct inode * inode)
 {
 	int result;
 	reiser4_key key;     /* key of next byte to be moved to page */
-	reiser4_key tmp;
+	ON_DEBUG (reiser4_key tmp);
 	char * p_data;       /* data of page */
-	unsigned page_off,   /* offset within the page where to copy data */
+	unsigned page_off = 0,   /* offset within the page where to copy data */
 		count;       /* number of bytes of item which can be
 			      * copied to page */
 	struct page * pages [TAIL2EXTENT_PAGE_NUM];
@@ -497,7 +497,7 @@ int tail2extent (struct inode * inode)
 					done_lh (&lh);
 					done = 1;
 					p_data = kmap_atomic (pages [i], KM_USER0);
-					memset (p_data + page_off, 0, PAGE_CACHE_SIZE - page_off);
+					xmemset (p_data + page_off, 0, PAGE_CACHE_SIZE - page_off);
 					kunmap_atomic (p_data, KM_USER0);
 					break;
 				}	
@@ -559,7 +559,7 @@ int tail2extent (struct inode * inode)
 					done = 1;
 					break;
 				}
-			} /* while */
+			} /* for */
 		} /* for */
 		
 		result = replace (inode, pages, i, 

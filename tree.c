@@ -1303,7 +1303,6 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 					zrelse (left_lh.node);
 				done_lh (&left_lh);
 				zput (left_child);
-				return result;
 				return PTR_ERR (right_child);
 			}
 
