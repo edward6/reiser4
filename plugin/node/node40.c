@@ -2130,9 +2130,6 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 	if (result < 0)
 		return result;
 
-	UNDER_SPIN_VOID(dk, znode_get_tree(left),
-			update_znode_dkeys(left, right));
-
 	/* item which has been moved from one node to another might want to do
 	   something on that event. This can be done by item's shift_hook
 	   method, which will be now called for every moved items */
