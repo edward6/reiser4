@@ -62,7 +62,7 @@ kattr_show(struct kobject *kobj, struct attribute *attr,
 	super = to_super(kobj);
 	kattr = to_kattr(attr);
 
-	if (kattr->show != NULL)
+	if (kattr->show != NULL && off == 0)
 		ret = kattr->show(super, buf, count, off);
 	else
 		ret = 0;
@@ -88,7 +88,7 @@ static struct subsystem subsys = {
 	.default_attrs	= def_attrs,
 };
 
-int reiser4_register_sysfs_hook(struct super_block *super)
+int reiser4_sysfs_init(struct super_block *super)
 {
 	reiser4_super_info_data *info;
 	struct kobject *kobj;
@@ -103,9 +103,19 @@ int reiser4_register_sysfs_hook(struct super_block *super)
 	return kobject_register(kobj);
 }
 
-int reiser4_sysfs_init(void)
+void reiser4_sysfs_done(struct super_block *super)
 {
-	return subsystem_register(&subsys);
+	kobject_unregister(&get_super_private(super)->kobj);
+}
+
+int reiser4_sysfs_init_all(void)
+{
+	return fs_subsys_register(&subsys);
+}
+
+void reiser4_sysfs_done_all(void)
+{
+	return fs_subsys_unregister(&subsys);
 }
 
 /* Make Linus happy.

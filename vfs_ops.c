@@ -27,6 +27,7 @@
 #include "super.h"
 #include "reiser4.h"
 #include "ioctl.h"
+#include "kattr.h"
 #include "emergency_flush.h"
 
 #include <linux/types.h>
@@ -2060,7 +2061,7 @@ read_super_block:
 		unlock_new_inode(inode);
 	}
 
-	reiser4_register_sysfs_hook(s);
+	reiser4_sysfs_init(s);
 
 	if (!silent)
 		print_fs_info("mount ok", s);
@@ -2102,6 +2103,8 @@ reiser4_kill_super(struct super_block *s)
 		return;
 	}
 	trace_on(TRACE_VFS_OPS, "kill_super\n");
+
+	reiser4_sysfs_done(s);
 
 	/* FIXME-VS: the problem is that there still might be dirty pages which
 	   became dirty via mapping. Have them to go through writepage */
@@ -2546,7 +2549,7 @@ shutdown_reiser4(void)
 	}
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
-	DONE_IF(INIT_SYSFS, ;);
+	DONE_IF(INIT_SYSFS, reiser4_sysfs_done_all());
 	DONE_IF(INIT_SCINT, scint_done_once());
 	DONE_IF(INIT_EFLUSH, eflush_done());
 	DONE_IF(INIT_JNODES, jnode_done_static());
@@ -2590,7 +2593,7 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(jnode_init_static());
 	CHECK_INIT_RESULT(eflush_init());
 	CHECK_INIT_RESULT(scint_init_once());
-	CHECK_INIT_RESULT(reiser4_sysfs_init());
+	CHECK_INIT_RESULT(reiser4_sysfs_init_all());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
 
 	assert("nikita-2515", init_stage == INIT_FS_REGISTERED);
