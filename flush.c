@@ -87,7 +87,7 @@ static int           flush_left_relocate_dirty    (jnode *node, const coord_t *p
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
 static int           flush_release_znode          (znode *node);
 static int           flush_rewrite_jnode          (jnode *node);
-static int           flush_release_ancestors      (znode *node);
+/*static int           flush_release_ancestors      (znode *node);*/
 static int           flush_queue_jnode            (jnode *node, flush_position *pos);
 
 static int           flush_finish                 (flush_position *pos, int nobusy);
@@ -394,8 +394,8 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 
 			/* Now finished with twig node. */
 			trace_on (TRACE_FLUSH_VERB, "end_of_twig: STOP (end of twig, ENAVAIL right): %s\n", flush_pos_tostring (pos));
-			ret = flush_release_ancestors (pos->parent_lock.node);
-			flush_pos_stop (pos);
+			/*ret = flush_release_ancestors (pos->parent_lock.node);*/
+			ret = flush_pos_stop (pos);
 		}
 		goto exit;
 	}
@@ -422,8 +422,8 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	if (child == NULL || ! jnode_check_dirty (child)) {
 		/* Finished at this twig. */
 		trace_on (TRACE_FLUSH_VERB, "end_of_twig: STOP right node & leftmost child clean\n");
-		ret = flush_release_ancestors (pos->parent_lock.node);
-		flush_pos_stop (pos);
+		/*ret = flush_release_ancestors (pos->parent_lock.node);*/
+		ret = flush_pos_stop (pos);
 		goto exit;
 	}
 
@@ -760,8 +760,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/* Allocate the right node. */
 	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] ready to allocate right %s\n", call_depth, flush_znode_tostring (right_lock.node));
 
-	/* Check flush_pos_valid in case we have allocated enough already. */
-	if (! znode_check_allocated (right_lock.node) && flush_pos_valid (pos)) {
+	if (! znode_check_allocated (right_lock.node)) {
 		if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, & parent_load, ZNODE_WRITE_LOCK))) {
 			/* FIXME: check EINVAL, EDEADLK */
 			warning ("jmacd-61430", "jnode_lock_parent_coord failed: %d", ret);
@@ -841,8 +840,8 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		if (ret != -ENAVAIL || znode_get_level (node) != LEAF_LEVEL) {
 			if (ret == -ENAVAIL) {
 				trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (ENAVAIL, ancestors allocated): %s\n", flush_pos_tostring (pos));
-				ret = flush_release_ancestors (node);
-				flush_pos_stop (pos);
+				/*ret = flush_release_ancestors (node);*/
+				ret = flush_pos_stop (pos);
 			} else {
 				warning ("jmacd-61433", "znode_get_if_dirty failed: %d", ret);
 			}
@@ -879,6 +878,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 				goto repeat;
 			} else {
 				trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (right twig clean): %s\n", flush_pos_tostring (pos));
+				/*ret = flush_release_ancestors (node);*/
 				ret = flush_pos_stop (pos);
 				goto exit;
 			}
@@ -891,8 +891,8 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		stop_at_twig:
 			/* We are leaving twig now, enqueue it if allocated. */
 			trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (at twig): %s\n", flush_pos_tostring (pos));
-			ret = flush_release_ancestors (node);
-			flush_pos_stop (pos);
+			/*ret = flush_release_ancestors (node);*/
+			ret = flush_pos_stop (pos);
 			goto exit;
 		}
 
@@ -1005,7 +1005,8 @@ static int flush_squalloc_right (flush_position *pos)
 				goto STEP_2;
 			} else {
 				/* We are finished at this level. */
-				ret = flush_release_ancestors (pos->parent_coord.node);
+				/*ret = flush_release_ancestors (pos->parent_coord.node);*/
+				ret = 0;
 				goto exit;
 			}
 		}
@@ -1581,24 +1582,18 @@ static void flush_bio_write (struct bio *bio)
 	bio_put (bio);
 }
 
-/* FIXME: comment */
-static int flush_finish (flush_position *pos, int none_busy)
+/* Write the the flush_position->queue contents to disk.  If the @finish flag is set then
+ * this is the last call and all nodes should be flushed, regardless of the
+ * ZNODE_FLUSH_BUSY state.  If @finish == 0 then ZNODE_FLUSH_BUSY nodes should be skipped
+ * as their children are still being squeezed and allocated.
+ */
+static int flush_finish (flush_position *pos, int finish)
 {
 	int i;
 	int refill = 0;
 	int ret = 0;
 
 	assert ("vs-806", pos->queue_num > 0);
-
-	if (REISER4_DEBUG && none_busy) {
-		int nbusy = 0;
-
-		for (i = 0; i < pos->queue_num; i += 1) {
-			nbusy += JF_ISSET (pos->queue[i], ZNODE_FLUSH_BUSY);
-		}
-
-		assert ("jmacd-71239", nbusy == 0);
-	}
 
 	for (i = 0; ret == 0 && i < pos->queue_num; ) {
 
@@ -1623,17 +1618,20 @@ static int flush_finish (flush_position *pos, int none_busy)
 		/* Skip if the node is still busy (i.e., its children are being squalloced). */
 		if (JF_ISSET (check, ZNODE_FLUSH_BUSY)) {
 
-			assert ("jmacd-71238", ! none_busy);
+			if (finish == 0) {
 
-			if (i != refill) {
-				assert ("jmacd-71237", pos->queue[refill] == NULL);
-				pos->queue[refill] = check;
-				pos->queue[i] = NULL;
+				if (i != refill) {
+					assert ("jmacd-71237", pos->queue[refill] == NULL);
+					pos->queue[refill] = check;
+					pos->queue[i] = NULL;
+				}
+
+				refill += 1;
+				i += 1;
+				continue;
 			}
 
-			refill += 1;
-			i += 1;
-			continue;
+			JF_CLR (check, ZNODE_FLUSH_BUSY);
 		}
 
 		/*
@@ -1770,6 +1768,7 @@ static int flush_finish (flush_position *pos, int none_busy)
 	return ret;
 }
 
+#if 0
 /* FIXME: comment */
 static int flush_release_ancestors (znode *node)
 {
@@ -1808,6 +1807,7 @@ static int flush_release_ancestors (znode *node)
 	done_lh (& parent_lock);
 	return ret;
 }
+#endif
 
 /* This writes a single page when it is flushed after an earlier allocation within the
  * same txn. */
@@ -2631,8 +2631,8 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 
 	if (0) {
 	stop:
-		ret = flush_release_ancestors (pos->parent_lock.node);
-		flush_pos_stop (pos);
+		/*ret = flush_release_ancestors (pos->parent_lock.node);*/
+		ret = flush_pos_stop (pos);
 		return ret;
 	}
 
