@@ -1580,6 +1580,8 @@ static int flush_finish (flush_position *pos, int none_busy)
 	int refill = 0;
 	int ret = 0;
 
+/*	assert ("vs-806", pos->queue_num > 0);*/
+
 	if (REISER4_DEBUG && none_busy) {
 		int nbusy = 0;
 
