@@ -11,7 +11,7 @@
 #include <linux/fs.h>		/* for struct super_block  */
 
 /* declarations of functions implementing methods of space allocator plugin for
-   bitmap based allocator. The functions theirself are in bitmap.c */
+   bitmap based allocator. The functions themselves are in bitmap.c */
 extern int init_allocator_bitmap(reiser4_space_allocator *, struct super_block *, void *);
 extern int destroy_allocator_bitmap(reiser4_space_allocator *, struct super_block *);
 extern int alloc_blocks_bitmap(reiser4_space_allocator *,

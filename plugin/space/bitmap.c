@@ -19,7 +19,13 @@
 #include <linux/fs.h>		/* for struct super_block  */
 #include <asm/semaphore.h>
 
-/* The useful optimization in reiser4 bitmap handling would be dynamic bitmap
+/* 
+
+   ZAM-FIXME-HANS: review whether there is code relating to the below not useful
+   optimization that can be removed from the code base.  Complexity is slower.;-)
+
+
+   The useful optimization in reiser4 bitmap handling would be dynamic bitmap
    blocks loading/unloading which is different from v3.x where all bitmap
    blocks are loaded at mount time.
 
@@ -47,6 +53,7 @@
 
    For simplicity bitmap node (both commit and working bitmap blocks) are
    loaded into memory on the first access and remain kmapped until umount.
+
 */
 
 #define CHECKSUM_SIZE    4
@@ -101,6 +108,7 @@ bnode_commit_crc(struct bnode *bnode)
 	return (__u32 *) data;
 }
 
+/* ZAM-FIXME-HANS: is the idea that this might be a union someday? having written the code, does this added abstraction still have */
 struct bitmap_allocator_data {
 	/* an array for bitmap blocks direct access */
 	struct bnode *bitmap;
@@ -482,6 +490,7 @@ adler32_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 ta
 
 /* A number of bitmap blocks for given fs. This number can be stored on disk
    or calculated on fly; it depends on disk format.
+VS-FIXME-HANS: explain calculation, using device with block count of 8 * 4096 blocks as an example.
    FIXME-VS: number of blocks in a filesystem is taken from reiser4
    super private data */
 /* Audited by: green(2002.06.12) */
@@ -1264,6 +1273,7 @@ pre_commit_hook_bitmap(void)
 
 	{			/* scan atom's captured list and find all freshly allocated nodes,
 				 * mark corresponded bits in COMMIT BITMAP as used */
+		/* how cpu significant is this scan, should we someday have a freshly_allocated list? -Hans */
 		capture_list_head *head = &atom->clean_nodes;
 		jnode *node;
 
@@ -1456,9 +1466,12 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 	bitmap_blocks_nr = get_nr_bmap(super);
 
 	/* FIXME-ZAM: it is not clear what to do with huge number of bitmaps
-	   which is bigger than 2^32. Kmalloc is not possible and, probably,
-	   another dynamic data structure should replace a static array of
-	   bnodes. */
+	   which is bigger than 2^32 (= 8 * 4096 * 4096 * 2^32 bytes = 5.76e+17,
+	   may I never meet someone who still uses the ia32 architecture when
+	   storage devices of that size enter the market, and wants to use ia32
+	   with that storage device, much less reiser4. ;-) -Hans). Kmalloc is not possible and,
+	   probably, another dynamic data structure should replace a static
+	   array of bnodes. */
 	data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bnode) * bitmap_blocks_nr), GFP_KERNEL);
 
 	if (data->bitmap == NULL) {
