@@ -286,8 +286,8 @@ typedef struct {
 	int (* write) (struct inode *, struct sealed_coord *, flow_t *,
 		       struct page *);
 	int (* read) (struct inode *, struct sealed_coord *, flow_t *);
-	int (* readpage) (void *, struct page *);
-	int (* writepage) (void *, struct page *);
+	int (* readpage) (coord_t *, lock_handle *, struct page *);
+	int (* writepage) (coord_t *, lock_handle *, struct page *);
 	int (* page_cache_readahead) (struct file *, coord_t *, lock_handle *,
 				      unsigned long start, unsigned long count);
 } file_ops;
@@ -343,6 +343,7 @@ extern int item_can_contain_key( const coord_t *item, const reiser4_key *key,
 extern int are_items_mergeable( const coord_t *i1, const coord_t *i2 );
 extern int item_is_internal(const coord_t * );
 extern int item_is_extent(const coord_t * );
+extern int item_is_tail(const coord_t * );
 extern int item_is_statdata (const coord_t *item);
 
 extern void *item_body_by_coord( const coord_t *coord );
