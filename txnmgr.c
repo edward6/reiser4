@@ -2501,6 +2501,7 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 	ON_TRACE(TRACE_TXN, "capture %p for atom %u (captured %u)\n", node, atom->atom_id, atom->capture_count);
 }
 
+#if REISER4_COPY_ON_CAPTURE
 static void
 set_cced_bit(jnode *node, reiser4_jnode_state bit)
 {
@@ -2510,6 +2511,7 @@ set_cced_bit(jnode *node, reiser4_jnode_state bit)
 	BUG_ON(JF_ISSET(node, JNODE_CCED_OVRWR));
 	JF_SET(node, bit);
 }
+#endif
 
 static void
 clear_cced_bits(jnode *node)
