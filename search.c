@@ -634,7 +634,8 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		}
 	}
 
-	update_stale_dk(h->tree, active);
+	if (setdk)
+		update_stale_dk(h->tree, active);
 
 	/* put_parent() cannot be called earlier, because connect_znode()
 	   assumes parent node is referenced; */
