@@ -338,7 +338,7 @@ extern int find_child_by_addr( znode *parent, znode *child,
 extern int find_child_delimiting_keys( znode *parent, 
 				       const coord_t *in_parent, 
 				       reiser4_key *ld, reiser4_key *rd );
-extern znode *child_znode( const coord_t *in_parent, znode *parent, 
+extern znode *child_znode( const coord_t *in_parent, znode *parent, int incore_p,
 			   int setup_dkeys_p );
 
 extern void print_coord_content( const char *prefix, coord_t *p );

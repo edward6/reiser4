@@ -492,6 +492,7 @@ struct task_struct {
 struct block_device {
 	int bd_dev;
 	void * vp;
+	__u64 last_sector;
 };
 
 typedef unsigned short kdev_t;

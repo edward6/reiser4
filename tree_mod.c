@@ -272,6 +272,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 		result = longterm_lock_znode( &handle_for_fake, 
 					      fake, ZNODE_WRITE_LOCK, 
 					      ZNODE_LOCK_HIPRI );
+		zput( fake );
 		if( result == 0 ) {
 			tree -> root_block = *new_root_blk;
 			-- tree -> height;
@@ -342,7 +343,7 @@ int kill_tree_root( znode *old_root /* tree root that we are removing */ )
 	coord_init_first_unit( &down_link, old_root );
 
 	spin_lock_dk( current_tree );
-	new_root = child_znode( &down_link, old_root, 1 );
+	new_root = child_znode( &down_link, old_root, 0, 1 );
 	spin_unlock_dk( current_tree );
 	if( !IS_ERR( new_root ) ) {
 		result = kill_root( current_tree, old_root, new_root, 

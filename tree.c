@@ -537,6 +537,8 @@ resize_result resize_item( coord_t *coord /* coord of item being resized */,
 znode *child_znode( const coord_t *parent_coord /* coord of pointer to
 						 * child */, 
 		    znode *parent /* parent of child */,
+		    int incore_p /* if !0 only return child if already in
+				  * memory */,
 		    int setup_dkeys_p /* if !0 update delimiting keys of
 				       * child */ )
 {
@@ -557,16 +559,22 @@ znode *child_znode( const coord_t *parent_coord /* coord of pointer to
 	if( item_is_internal( parent_coord ) ) {
 		reiser4_block_nr addr;
 		item_plugin *iplug;
+		reiser4_tree *tree;
 
 		iplug = item_plugin_by_coord( parent_coord );		
 		assert( "vs-512", iplug -> s.internal.down_link );
 		iplug -> s.internal.down_link( parent_coord, NULL, &addr );
 
-		spin_unlock_dk( current_tree );
-		child = zget( current_tree, &addr, parent, 
-			      znode_get_level( parent ) - 1, GFP_KERNEL );
-		spin_lock_dk( current_tree );
-		if( !IS_ERR( child ) && setup_dkeys_p && 
+		tree = current_tree;
+		spin_unlock_dk( tree );
+		if( incore_p )
+			child = zlook( tree, &addr );
+		else
+			child = zget( tree, &addr, parent, 
+				      znode_get_level( parent ) - 1, 
+				      GFP_KERNEL );
+		spin_lock_dk( tree );
+		if( ( child != NULL ) && !IS_ERR( child ) && setup_dkeys_p && 
 		    znode_just_created( child ) ) {
 			find_child_delimiting_keys( parent, parent_coord,
 						    znode_get_ld_key( child ),
@@ -1156,7 +1164,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 	}
 
 	spin_lock_dk (current_tree);
-	left_child = child_znode (&left_coord, left_coord.node, 
+	left_child = child_znode (&left_coord, left_coord.node, 0,
 				  1/* update delimiting keys*/);
 	spin_unlock_dk (current_tree);
 
@@ -1211,7 +1219,7 @@ static int prepare_twig_cut (coord_t * from, coord_t * to,
 		    item_is_internal (&right_coord)) { /* it is internal item */
 			spin_lock_dk (current_tree);
 			right_child = child_znode (&right_coord, 
-						   right_coord.node, 
+						   right_coord.node, 0,
 						   1/* update delimiting keys*/);
 			spin_unlock_dk (current_tree);
 
@@ -1519,7 +1527,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 	if( flags & REISER4_NODE_PRINT_ZNODE )
 		print_znode( "", node );
 
-	if( flags == REISER4_NODE_PRINT_ZADDR ) {
+	if( flags & REISER4_NODE_PRINT_ZADDR ) {
 		info( "[node %p block %llu level %u dirty %u xcnt %u]\n", node, *znode_get_block( node ), znode_get_level( node ), znode_check_dirty( node ), atomic_read( &node -> x_count ) );
 	} else {
 		print_znode_content( node, flags );
@@ -1545,9 +1553,13 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 			znode *child;
 
 			spin_lock_dk( current_tree );
-			child = child_znode( &coord, coord.node, 0 );
+			child = child_znode( &coord, coord.node, 
+					     ( int )( flags & REISER4_NODE_ONLY_INCORE ),
+					     0 );
 			spin_unlock_dk( current_tree );
-			if( !IS_ERR( child ) ) {
+			if( child == NULL )
+				;
+			else if( !IS_ERR( child ) ) {
 				tree_rec( tree, child, flags );
 				zput( child );
 			} else {
@@ -1576,7 +1588,7 @@ void print_tree_rec (const char * prefix /* prefix to print */,
 	znode *fake;
 	znode *root;
 
-	if( ( flags & ( unsigned ) ~REISER4_NODE_CHECK ) != 0 )
+	if( !( flags & REISER4_NODE_SILENT ) )
 		info( "tree: [%s]\n", prefix );
 	fake = zget( tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL );
 	if( IS_ERR( fake ) ) {
@@ -1610,7 +1622,7 @@ void print_tree_rec (const char * prefix /* prefix to print */,
 		}
 	}
 #endif
-	if( ( flags & ( unsigned ) ~REISER4_NODE_CHECK ) != 0 )
+	if( !( flags & REISER4_NODE_SILENT ) )
 		info( "end tree: [%s]\n", prefix );
 	zput( root );
 	zput( fake );

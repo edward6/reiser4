@@ -686,8 +686,10 @@ static void sync_dkeys( carry_node *node /* node to update */,
 
 		if( node_is_empty( right ) )
 			pivot = *znode_get_rd_key( right );
-		else
+		else {
+			assert( "nikita-2192", znode_is_loaded( right ) );
 			leftmost_key_in_node( right, &pivot );
+		}
 
 		*znode_get_ld_key( right ) = pivot;
 		if( left != NULL ) {

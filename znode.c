@@ -254,9 +254,12 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 
 	assert( "nikita-795", tree != NULL );
 
-	spin_lock_tree( tree );
-	print_znodes( "umount", tree );
-	spin_unlock_tree( tree );
+	trace_if( TRACE_ZWEB, 
+		  ({
+			  spin_lock_tree( tree );
+			  print_znodes( "umount", tree );
+			  spin_unlock_tree( tree );
+		  }) );
 
 	/* 
 	 * Remove all znodes.
@@ -797,6 +800,7 @@ int zload( znode *node /* znode to load */ )
 	assert( "nikita-1377", znode_invariant( node ) );
 	assert( "jmacd-7771", ! znode_above_root( node ) );
 	assert( "nikita-2125", atomic_read( &node -> x_count ) > 0 );
+	assert( "nikita-2189", lock_counters() -> spin_locked == 0 );
 
 	result = jload_and_lock (ZJNODE(node));
 
@@ -1097,6 +1101,8 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 				     &FAKE_TREE_ADDR ) ) &&
 		_ergo( znode_get_level( node ) == LEAF_LEVEL,
 		       atomic_read( &node -> c_count ) == 0 ) &&
+		_ergo( node -> lock.nr_readers != 0,
+		       atomic_read( &node -> x_count ) != 0 ) &&
 		zergo( ZNODE_ORPHAN, znode_parent( node ) == NULL );
 }
 

@@ -694,8 +694,8 @@ void longterm_unlock_znode (lock_handle *handle)
 			ON_DEBUG(check_lock_data());
 			ON_DEBUG(check_lock_node_data(node));
 			forget_znode(handle);
+			assert( "nikita-2191", znode_invariant( node ) );
 			zput(node);
-
 			return;
 		}
 	}
@@ -729,6 +729,7 @@ void longterm_unlock_znode (lock_handle *handle)
 
 	/* minus one reference from handle->node */
 	handle->node = NULL;
+	assert( "nikita-2190", znode_invariant( node ) );
 	zput(node);
 	ON_DEBUG( check_lock_data() );
 	ON_DEBUG( check_lock_node_data( node ) );

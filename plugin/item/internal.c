@@ -72,13 +72,13 @@ static reiser4_block_nr pointer_at( const coord_t *coord /* coord of item */ )
 /** get znode pointed to by internal @item */
 /* Audited by: green(2002.06.14) */
 static znode *znode_at( const coord_t *item /* coord of item */, 
-			znode *parent /* parent node */ )
+			znode *parent /* parent node */, int incore_p )
 {
 	znode *result;
 
 	/* Take DK lock, as required by child_znode. */
 	spin_lock_dk( current_tree );
-	result = child_znode( item, parent, 0 );
+	result = child_znode( item, parent, incore_p, 0 );
 	spin_unlock_dk( current_tree );
 	return result;
 }
@@ -217,7 +217,7 @@ int internal_create_hook( const coord_t *item /* coord of item */,
 	assert( "nikita-1181", znode_get_level( item -> node ) > LEAF_LEVEL );
 	assert( "nikita-1450", item -> unit_pos == 0 );
 
-	child = znode_at( item, item -> node );
+	child = znode_at( item, item -> node, 0 );
 	if( ! IS_ERR( child ) ) {
 		int result = 0;
 		spin_lock_dk( current_tree );
@@ -287,7 +287,7 @@ int internal_kill_hook( const coord_t *item /* coord of item */,
 	assert( "nikita-1224", from == 0 );
 	assert( "nikita-1225", count == 1 );
 
-	child = znode_at( item, item -> node );
+	child = znode_at( item, item -> node, 0 );
 	if( IS_ERR( child ) )
 		return PTR_ERR( child );
 	else if( node_is_empty( child ) ) {
@@ -342,8 +342,10 @@ int internal_shift_hook( const coord_t *item /* coord of item */,
 	assert( "nikita-2132", new_node != old_node );
 	tree = current_tree;
 	spin_lock_dk( tree );
-	child = child_znode( item, old_node, 1 );
+	child = child_znode( item, old_node, 1, 1 );
 	spin_unlock_dk( tree );
+	if( child == NULL )
+		return 0;
 	if( !IS_ERR( child ) ) {
 		reiser4_stat_tree_add( reparenting );
 		spin_lock_tree( tree );
