@@ -1,6 +1,7 @@
 /*
-	format40.h -- default disk-layout plugin implementation for reiserfs 4.0
-	Copyright (C) 1996 - 2002 Hans Reiser
+    format40.h -- default disk-layout plugin implementation for reiserfs 4.0.
+    Copyright (C) 1996 - 2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef FORMAT40_H

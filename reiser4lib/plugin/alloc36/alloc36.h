@@ -1,6 +1,7 @@
 /*
-	alloc36.h -- Space allocator plugin for reiserfs 3.6.x
-	Copyright (C) 1996-2002 Hans Reiser
+    alloc36.h -- Space allocator plugin for reiserfs 3.6.x.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #ifndef ALLOC36_H

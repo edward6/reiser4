@@ -1,6 +1,7 @@
 /*
-	journal40.c -- reiser4 default journal plugin.
-	Copyright (C) 1996-2002 Hans Reiser.
+    journal40.c -- reiser4 default journal plugin.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #include <reiserfs/reiserfs.h>

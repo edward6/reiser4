@@ -1,6 +1,7 @@
 /*
-	journal36.c -- journal plugin for reiserfs 3.6.x.
-	Copyright (C) 1996-2002 Hans Reiser.
+    journal36.c -- journal plugin for reiserfs 3.6.x.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #include <reiserfs/reiserfs.h>

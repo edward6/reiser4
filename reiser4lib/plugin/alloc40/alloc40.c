@@ -1,6 +1,7 @@
 /*
-	alloc40.c -- Space allocator plugin for reiserfs 4.0
-	Copyright (C) 1996-2002 Hans Reiser
+    alloc40.c -- Space allocator plugin for reiserfs 4.0.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
 #include <aal/aal.h>
