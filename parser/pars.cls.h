@@ -1,14 +1,10 @@
-// -*- C++ -*-
-// File: pars.cls.h
-//
-// Created: Thu Oct 25 15:20:32 2001
-//
-// $Id$
-//
+/*
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
+ */
 
-
-
-
+/*
+ * definitions of common constants for lex component of parser.y
+ */
 
 #define ERR  -128
 
@@ -118,54 +114,151 @@ static char   ncl     [256] =
 };
 
 
-static
-char        lexcls[64][32]=
+struct
 {
-/*               a    1         _    `    '      (    )    ,    -    <    /    [    ]      \    {    }    |    ;    :    .    =      >    ?            */
-/*          Blk  Wrd  Int  Ptr  Pru  Stb  Ste    Lpr  Rpr  Com  Mns  Les  Slh  Lsq  Rsq    Bsl  Lfl  Rfl  Pip  Sp1  Sp2  Dot  Sp4    Sp5  Sp6  Res ...  */
+  int term;
+  char c[32]
+} lexcls[64]=
 
-/*Blk*/{0,  Blk, Wrd, Int, Ptr, Pru, Str, ERR,   Lpr, Rpr, Com, Mns, OK , Slh, Lsq, Rsq,   Bsl, Lfl, Rfl, Pip, Sp1, Sp2, Dot, Sp4,   Sp5, Sp6, OK , OK , OK , OK , OK , OK },
+{
+/*               a    1         _    `    '      (    )    ,    -    <    /    [    ]      \    {    }    |    ;    :    .    =      >    ?     +       */
+/*          Blk  Wrd  Int  Ptr  Pru  Stb  Ste    Lpr  Rpr  Com  Mns  Les  Slh  Lsq  Rsq    Bsl  Lfl  Rfl  Pip  Sp1  Sp2  Dot  Sp4    Sp5  Sp6  Pls ...  */
+  0,
+/*Blk*/{0,  Blk, Wrd, Int, Ptr, Pru, Str, ERR,   Lpr, Rpr, Com, Mns, Les, Slh, Lsq, Rsq,   Bsl, Lfl, Rfl, Pip, Sp1, Sp2, Dot, Sp4,   Sp5, Sp6, ERR, ERR, ERR, ERR, ERR, ERR},
+  WORD,
 /*Wrd*/{0,  OK , Wrd, Wrd, Wrd, Wrd, OK , OK ,   OK , OK , OK , Wrd, Wrd, Wrd, OK , OK ,   Wrd, OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 
+  N_WORD,*?????*/
 /*Int*/{0,  OK , Wrd, Int, Wrd, Wrd, OK , OK ,   OK , OK , OK , Wrd, Wrd, OK , OK , OK ,   Wrd, OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+
+  P_WORD,*??????*/
 /*Ptr*/{0,  OK , Wrd, Wrd, Wrd, OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   Wrd, OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  P_RUNNER,
 /*Pru*/{0,  OK , Pru, Pru, Pru, Pru, OK , OK ,   OK , OK , OK , Pru, Pru, Pru, OK , OK ,   Pru, OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 
-/*Stb*/{0,  OK , Str, Str, Str, Str, Str, OK ,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str},
+  STRING_CONSTANT_EMPTY,
+/*Stb*/{1,  Str, Str, Str, Str, Str, Str, OK ,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str},
+  0,
 /*Ste*/{0,  ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR},
+  L_PARENT,
 /*Lpr*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
-
+  R_PARENT,
 /*Rpr*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  COMMA,
 /*Com*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
-/*Mns*/{0,  ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR},
+  0,
+/*Mns*/{0,  ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR,   Lnk, ERR, ERR, ERR, ERR, ERR, ERR, ERR},
+  LT,
 /*Les*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , ASG, App, OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 
-/*Slh*/{0,  OK , Wrd, Wrd, Wrd, Wrd, OK , OK ,   OK , OK , OK , Wrd, OK , Wrd, OK , OK ,   Wrd, OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  SLASH,
+/*Slh*/{0,  OK , Wrd, Wrd, Wrd, Wrd, OK , OK ,   SPL , OK , OK , Wrd, OK , Slh, OK , OK ,   Wrd, OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 
+  L_SKW_PARENT,
 /*Lsq*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  R_SKW_PARENT,
 /*Rsq*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+
+  1,
 /*Bsl*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 
+  L_FLX_PARENT,
 /*Lfl*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  R_FLX_PARENT,
 /*Rfl*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
 /*Pip*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
 /*Sp1*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  SEMICOLON,
 /*Sp2*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
 /*Dot*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
 /*Sp4*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
 /*Sp5*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 
+  0,
 /*Sp6*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  PLUS,
+/*Pls*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
 /*Res*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
 /*Res*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
 /*Res*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
 /*Res*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
 /*Res*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
-/*Res*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
 /*Res*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
 
-/*Str*/{0,  OK , Str, Str, Str, Str, Str, OK ,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str},
-/*ASG*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   Lnk, OK , OK , OK , OK , OK , OK , OK },
-/*App*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
-/*Lnk*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK }
+  STRING_CONSTANT,
+/*Str*/{1,  OK , Str, Str, Str, Str, Str, OK ,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str,   Str, Str, Str, Str, Str, Str, Str, Str},
+  L_ASSIGN,
+/*ASG*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+  0,
+/*App*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , Ap2, OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+L_SYMLINK,
+/*Lnk*/{0,  ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR,   ERR, ERR, ERR, ERR, ERR, ERR, ERR, ERR,   OK , ERR, ERR, ERR, ERR, ERR, ERR, ERR},
+
+  L_APPEND,
+/*Ap2*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+
+  SLASH_L_PARENT,
+/*SPL*/{0,  OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK ,   OK , OK , OK , OK , OK , OK , OK , OK },
+
+
+
+
 };
+
+
+
+BLANK
+EOF
+
+
+
+EOL
+
+
+
+
+PLUS
+
+SPACE
+
+
+ORDERED
+
+INV_L
+INV_R
+
+
+
+P_BYTES_WRITTEN
+P_BYTES_READ
+
+
+
+
+
+
+
+
+
+IS
+
+
+
+
+
+
+
+NAME
+NONAME
+UNNAME
