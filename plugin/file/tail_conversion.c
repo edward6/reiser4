@@ -350,13 +350,15 @@ int tail2extent (struct inode * inode)
 					goto error;
 				}
 				if (coord.between == AFTER_UNIT) {
+					char *kaddr;
 					/*
 					 * FIXME-VS: this is more save way to
 					 * detect end of file
 					 */
 					done_lh (&lh);
-					memset (kmap (pages [i]) + page_off, 0, PAGE_CACHE_SIZE - page_off);
-					kunmap (pages [i]);
+					kaddr = kmap_atomic(pages [i], KM_USER0);
+					memset (kaddr + page_off, 0, PAGE_CACHE_SIZE - page_off);
+					kunmap_atomic (kaddr, KM_USER0);
 					done = 1;
 					break;
 				}
