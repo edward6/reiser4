@@ -42,7 +42,8 @@ typedef enum {
 	REISER4_HAS_TAIL = 5,
 	/* this bit is set for symlinks. inode->u.generic_ip points to target
 	   name of symlink */
-	REISER4_GENERIC_VP_USED = 6
+	REISER4_GENERIC_VP_USED = 6,
+	REISER4_BEING_ALLOCATED = 7
 } reiser4_file_plugin_flags;
 
 #if BITS_PER_LONG == 64

@@ -2278,10 +2278,8 @@ releasable(const jnode *node)
 	if (jnode_is_loaded(node))
 		return 0;
 
-	if (JF_ISSET(node, JNODE_EFLUSH)) {
-		info("em. flushed node released\n");
+	if (JF_ISSET(node, JNODE_EFLUSH))
 		return 1; /* yeah! */
-	}
 
 	/* can only release page if real block number is assigned to
 	   it. Simple check for ->atom wouldn't do, because it is possible for

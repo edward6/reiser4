@@ -126,6 +126,7 @@
 #include "tree.h"
 #include "jnode.h"
 #include "znode.h"
+#include "inode.h"
 #include "super.h"
 #include "block_alloc.h"
 #include "emergency_flush.h"
@@ -229,11 +230,22 @@ flushable(const jnode * node, struct page *page)
 		return 0;
 	if (JF_ISSET(node, JNODE_EFLUSH))       /* already flushed */
 		return 0;
+	if (jnode_page(node) == NULL)           /* nothing to flush */
+		return 0;
 	/* jnode is in relocate set and already has block number
 	 * assigned. Skip it to avoid complications with flush queue code. */
 	if (JF_ISSET(node, JNODE_RELOC) &&
 	    !blocknr_is_fake(jnode_get_block(node)))
 		return 0;
+	/* extents of jnode's inode are being allocated. Don't flush */
+	if (jnode_is_unformatted(node)) {
+		struct inode *obj;
+
+		obj = node->key.j.mapping->host;
+		assert("nikita-2800", is_reiser4_inode(obj));
+		if (inode_get_flag(obj, REISER4_BEING_ALLOCATED))
+			return 0;
+	}
 	return 1;
 }
 
@@ -323,11 +335,17 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	if (ef == NULL)
 		ef = ef_alloc(GFP_NOFS);
 	if (ef != NULL) {
+		reiser4_tree *tree;
+
+		tree = jnode_get_tree(node);
+
 		ef->node = node;
 		ef->blocknr = *blocknr;
 		jref(node);
-		UNDER_SPIN_VOID(tree, jnode_get_tree(node),
-				ef_hash_insert(get_jnode_enhash(node), ef));
+		spin_lock_tree(tree);
+		ef_hash_insert(get_jnode_enhash(node), ef);
+		++ get_super_private(tree->super)->eflushed;
+		spin_unlock_tree(tree);
 		JF_SET(node, JNODE_EFLUSH);
 		return 0;
 	} else
@@ -375,6 +393,7 @@ eflush_del(jnode *node)
 		assert("nikita-2745", ef != NULL);
 		blk = ef->blocknr;
 		ef_hash_remove(table, ef);
+		-- get_super_private(tree->super)->eflushed;
 		spin_unlock_tree(tree);
 
 		JF_CLR(node, JNODE_EFLUSH);
@@ -472,6 +491,8 @@ static int ef_prepare(jnode *node, reiser4_block_nr *blk,
 		hint.block_stage = BLOCK_GRABBED;
 	}
 
+	/* XXX protect @node from being concurrently eflushed. Otherwise,
+	 * there is a danger of underflowing block space */
 	spin_unlock_jnode(node);
 
 	result = reiser4_alloc_blocks(&hint, blk, &one, ef_block_flags(node));

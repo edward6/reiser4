@@ -2395,24 +2395,67 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	return result;
 }
 
-#if 0
 static int
-unflush(coord_t *coord)
+unflush(coord_t *coord, struct inode **obj)
 {
-	jnode        *node;
-	reiser4_key   key;
-	unsigned long ind;
+	reiser4_extent *ext;
+	reiser4_key     key;
+	oid_t           oid;
+	__u64           width;
+	__u64           i;
+	unsigned long   ind;
+	int             result;
+
+	assert("nikita-2793", item_is_extent(coord));
+
+	result = 0;
+
+	ext = extent_by_coord(coord);
 
 	unit_key_by_coord(coord, &key);
-	ind = get_key_offset(key) >> PAGE_CACHE_SHIFT;
+
+
+	width = extent_get_width(ext);
+	oid   = get_key_objectid(&key);
+	ind   = get_key_offset(&key) >> PAGE_CACHE_SHIFT;
 	
-	for (i = 0; i < (int) count; i++, first++) {
+	for (i = 0 ; i < width && result == 0 ; ++ i, ++ ind) {
+		jnode  *node;
+		reiser4_tree *tree;
 
-		ind = offset >> PAGE_CACHE_SHIFT;
+		tree = current_tree;
+		node = UNDER_SPIN(tree, tree, jlook(tree, oid, ind));
+		if (node == NULL)
+			continue;
+		if (!JF_ISSET(node, JNODE_EFLUSH))
+			continue;
+		assert("nikita-2794", jnode_is_unformatted(node));
+		if (*obj == NULL) {
+			*obj = node->key.j.mapping->host;
+			assert("nikita-2801", *obj != NULL);
+			assert("nikita-2795", is_reiser4_inode(*obj));
+			assert("nikita-2799", get_inode_oid(*obj) == oid);
+			inode_set_flag(*obj, REISER4_BEING_ALLOCATED);
+			__iget(*obj);
+		}
 
-		j = UNDER_SPIN(tree, tree, jlook(tree, get_key_objectid(key), ind));
+		assert("nikita-2796", *obj == node->key.j.mapping->host);
+		result = emergency_unflush(node);
+	}
+	return result;
 }
-#endif
+
+static void
+unflush_finish(struct inode *obj)
+{
+	if (obj != NULL) {
+		assert("nikita-2797", is_reiser4_inode(obj));
+		assert("nikita-2798", inode_get_flag(obj, 
+						     REISER4_BEING_ALLOCATED));
+		inode_clr_flag(obj, REISER4_BEING_ALLOCATED);
+		iput(obj);
+	}
+}
 
 /* find all units of extent item which require allocation. Allocate free blocks
    for them and replace those extents with new ones. As result of this item may
@@ -2423,7 +2466,7 @@ unflush(coord_t *coord)
 int
 allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position * flush_pos)
 {
-	int result;
+	int result = 0;
 	unsigned i, num_units, orig_item_pos;
 	reiser4_extent *ext;
 	reiser4_block_nr first_allocated;
@@ -2433,6 +2476,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 	reiser4_item_data item;
 	reiser4_key key, orig_key;
 	znode *orig;
+	struct inode *object;
 
 	assert("vs-1019", item_is_extent(coord));
 	assert("vs-1018", coord_is_existing_unit(coord));
@@ -2444,6 +2488,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 
 	orig_item_pos = coord->item_pos;
 	item_key_by_coord(coord, &orig_key);
+	object = NULL;
 
 	for (i = coord->unit_pos; i < num_units; i++, ext++) {
 		coord->unit_pos = i;
@@ -2453,7 +2498,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		assert("vs-1020", keyeq(item_key_by_coord(coord, &key), &orig_key));
 
 		if ((result = extent_needs_allocation(ext, coord, flush_pos)) < 0) {
-			return result;
+			break;
 		}
 
 		if (!result /* extent does not need allocation */ ) {
@@ -2469,13 +2514,14 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		/* inform block allocator that those blocks were in
 		   UNALLOCATED stage */
 		flush_pos_hint(flush_pos)->block_stage = BLOCK_UNALLOCATED;
-		result = unflush(coord);
+
+		result = unflush(coord, &object);
 		if (result)
-			return result;
+			break;
 
 		result = extent_allocate_blocks(flush_pos_hint(flush_pos), initial_width, &first_allocated, &allocated);
 		if (result)
-			return result;
+			break;
 
 		assert("vs-440", allocated > 0);
 		/* update flush_pos's preceder to last allocated block number */
@@ -2485,7 +2531,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		/* find all pages for which blocks were allocated and assign
 		   block numbers to jnodes of those pages */
 		if ((result = assign_jnode_blocknrs(&key, first_allocated, allocated, flush_pos))) {
-			return result;
+			break;
 		}
 
 		set_extent(&replace, ALLOCATED_EXTENT, first_allocated, allocated);
@@ -2496,7 +2542,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 
 			/* grabbing one block for this dirty znode */
 			if ((ret = reiser4_grab_space_force(1, BA_RESERVED)) != 0)
-				return ret;
+				break;
 			
 			znode_set_dirty(coord->node);
 			continue;
@@ -2513,7 +2559,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		result = replace_extent(coord, lh, &key,
 					init_new_extent(&item, &paste, 1), &replace, COPI_DONT_SHIFT_LEFT);
 		if (result)
-			return result;
+			break;
 
 		/* coord->node may change in balancing. Neverthless,
 		   lh->node must still be set to node replace started
@@ -2526,16 +2572,19 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		num_units = coord_num_units(coord);
 	}
 
-	/* content of extent item may be optimize-able (it may have mergeable
-	   extents)) */
-	optimize_extent(coord);
+	unflush_finish(object);
+	if (result == 0) {
+		/* content of extent item may be optimize-able (it may have
+		   mergeable extents)) */
+		optimize_extent(coord);
 
-	/* set coord after last unit in the item */
-	assert("vs-679", item_is_extent(coord));
-	coord->unit_pos = coord_last_unit_pos(coord);
-	coord->between = AFTER_UNIT;
+		/* set coord after last unit in the item */
+		assert("vs-679", item_is_extent(coord));
+		coord->unit_pos = coord_last_unit_pos(coord);
+		coord->between = AFTER_UNIT;
+	}
 
-	return 0;
+	return result;
 }
 
 /* Block offset of first block addressed by unit */

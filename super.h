@@ -189,6 +189,7 @@ struct reiser4_super_info_data {
 
 	flush_params flush;
 
+	int           eflushed;
 	ef_hash_table efhash_table;
 
 	/* pointers to jnodes for journal header and footer */
