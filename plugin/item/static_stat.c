@@ -364,6 +364,10 @@ present_lw_sd(struct inode *inode /* object being processed */ ,
 		inode->i_mode = d16tocpu(&sd_lw->mode);
 		inode->i_nlink = d32tocpu(&sd_lw->nlink);
 		inode->i_size = d64tocpu(&sd_lw->size);
+		if ((inode->i_mode & S_IFMT) == (S_IFREG | S_IFIFO)) {
+			inode->i_mode &= ~S_IFIFO;
+			inode_set_flag(inode, REISER4_PART_CONV);
+		}
 		next_stat(len, area, sizeof *sd_lw);
 		return 0;
 	} else
@@ -382,6 +386,7 @@ save_lw_sd(struct inode *inode /* object being processed */ ,
 	   char **area /* position in stat-data */ )
 {
 	reiser4_light_weight_stat *sd;
+	mode_t delta;
 
 	assert("nikita-2705", inode != NULL);
 	assert("nikita-2706", area != NULL);
@@ -389,7 +394,8 @@ save_lw_sd(struct inode *inode /* object being processed */ ,
 
 	sd = (reiser4_light_weight_stat *) * area;
 
-	cputod16(inode->i_mode, &sd->mode);
+	delta = inode_get_flag(inode, REISER4_PART_CONV) ? S_IFIFO : 0;
+	cputod16(inode->i_mode | delta, &sd->mode);
 	cputod32(inode->i_nlink, &sd->nlink);
 	cputod64((__u64) inode->i_size, &sd->size);
 	*area += sizeof *sd;
@@ -770,7 +776,7 @@ present_plugin_sd(struct inode *inode /* object being processed */ ,
 			continue;
 		/*
 		  align(inode, len, area, plugin->h.pops->alignment);
-		  
+		
 		  - commented because alignment policies in len_for() and save_plug()
 		  are incompatible -edward */
 		
@@ -829,7 +835,7 @@ len_for(reiser4_plugin * plugin /* plugin to save */ ,
 			len += plugin->h.pops->save_len(inode, plugin);
 		}
 		/* commented as it is incompatible with alignment policy in
-		   save_plug() -edward */ 
+		   save_plug() -edward */
 #endif
 	}
 	return len;

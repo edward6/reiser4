@@ -1144,7 +1144,7 @@ znode_invariant(const znode * node /* znode to check */ )
  */
 
 #if REISER4_DEBUG_MODIFY
-static __u32 znode_checksum(const znode * node)
+__u32 znode_checksum(const znode * node)
 {
 	int i, size = znode_size(node);
 	__u32 l = 0;
@@ -1185,7 +1185,7 @@ znode_pre_write(znode * node)
 
 	spin_lock_znode(node);
 	if (znode_page(node) != NULL) {
-		if ((node->cksum == 0) && !znode_is_dirty(node))
+		if (node->cksum == 0 && !znode_is_dirty(node))
 			node->cksum = znode_checksum(node);
 	}
 	spin_unlock_znode(node);
@@ -1198,15 +1198,11 @@ znode_post_write(znode * node)
 
 	assert("umka-067", node != NULL);
 
-	if (!znode_is_wlocked_once(node))
-		return;
-
 	if (znode_page(node) != NULL) {
 		cksum = znode_checksum(node);
 
 		if (!znode_is_dirty(node) &&
-		    cksum != node->cksum &&
-		    node->cksum != 0)
+		    cksum != node->cksum && node->cksum != 0)
 			reiser4_panic("jmacd-1081",
 				      "changed znode is not dirty: %llu",
 				      node->zjnode.blocknr);

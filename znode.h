@@ -261,8 +261,8 @@ extern void print_lock_stack(const char *prefix, lock_stack * owner);
 #define znode_get_block(x)          jnode_get_block ( ZJNODE(x) )
 #define znode_created(x)            jnode_created ( ZJNODE(x) )
 #define znode_set_created(x)        jnode_set_created ( ZJNODE(x) )
-#define znode_squeezable(x)         jnode_squeezable (ZJNODE(x)) 
-#define znode_set_squeezable(x)     jnode_set_squeezable (ZJNODE(x)) 
+#define znode_squeezable(x)         jnode_squeezable (ZJNODE(x))
+#define znode_set_squeezable(x)     jnode_set_squeezable (ZJNODE(x))
 
 #define znode_is_dirty(x)           jnode_is_dirty    ( ZJNODE(x) )
 #define znode_check_dirty(x)        jnode_check_dirty ( ZJNODE(x) )
@@ -415,6 +415,16 @@ extern void copy_load_count(load_count * new, load_count * old);	/* Copy the con
 		__with_dh_result = ( ret );		\
 	__with_dh_result;				\
 })
+
+#define WITH_COORD(coord, exp)			\
+({						\
+	coord_t *__coord;			\
+						\
+	__coord = (coord);			\
+	coord_clear_iplug(__coord);		\
+	WITH_DATA(__coord->node, exp);		\
+})
+
 
 #if REISER4_DEBUG
 #define STORE_COUNTERS						\

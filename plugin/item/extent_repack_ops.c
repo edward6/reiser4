@@ -379,7 +379,7 @@ static int find_relocatable_extent (struct inode * inode, coord_t * coord,
 }
 
 static int find_and_relocate_end_of_extent (
-	struct inode * inode, coord_t * coord, 
+	struct inode * inode, coord_t * coord,
 	struct repacker_cursor * cursor, int * done)
 {
 	reiser4_block_nr len;

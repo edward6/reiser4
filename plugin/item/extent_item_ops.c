@@ -623,7 +623,6 @@ cut_or_kill_units(coord_t *coord,
 						BA_DEFER /* unformatted with defer */);
 				}
 				extent_set_width(ext, new_width);
-				znode_make_dirty(coord->node);
 			}
 			(*from)++;
 			count--;
@@ -682,7 +681,6 @@ cut_or_kill_units(coord_t *coord,
 				extent_set_start(ext, extent_get_start(ext) + old_width - new_width);
 			}
 			extent_set_width(ext, new_width);
-			znode_make_dirty(coord->node);
 			(*to)--;
 			count--;
 		}
@@ -709,6 +707,7 @@ cut_or_kill_units(coord_t *coord,
 		xmemset(ext + *from, 0, count * sizeof (reiser4_extent));
 	}
 
+	znode_make_dirty(coord->node);
 	return count * sizeof (reiser4_extent);
 }
 

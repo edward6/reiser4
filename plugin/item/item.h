@@ -28,7 +28,7 @@ typedef enum {
 	DIR_ENTRY_ITEM_TYPE,
 	INTERNAL_ITEM_TYPE,
 	ORDINARY_FILE_METADATA_TYPE,
-	OTHER_ITEM_TYPE		/* not used */
+	OTHER_ITEM_TYPE
 } item_type_id;
 
 /* this is the part of each item plugin that all items are expected to

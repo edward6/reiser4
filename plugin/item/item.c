@@ -238,14 +238,14 @@ int
 item_is_extent(const coord_t * item)
 {
 	assert("vs-482", coord_is_existing_item(item));
-	return item_id_by_coord(item) == EXTENT_POINTER_ID || item_id_by_coord(item) == FROZEN_EXTENT_POINTER_ID;
+	return item_id_by_coord(item) == EXTENT_POINTER_ID;
 }
 
 int
 item_is_tail(const coord_t * item)
 {
 	assert("vs-482", coord_is_existing_item(item));
-	return item_id_by_coord(item) == FORMATTING_ID || item_id_by_coord(item) == FROZEN_FORMATTING_ID;
+	return item_id_by_coord(item) == FORMATTING_ID;
 }
 
 int
@@ -253,35 +253,6 @@ item_is_statdata(const coord_t * item)
 {
 	assert("vs-516", coord_is_existing_item(item));
 	return item_type_by_coord(item) == STAT_DATA_ITEM_TYPE;
-}
-
-/*
-  FIXME-VS: a description of what frozen items are, where are they used and what are 3 functions below goes here
-*/
-
-static int
-mergeable_frozen(const coord_t * p1 UNUSED_ARG, const coord_t * p2 UNUSED_ARG)
-{
-	return 0;
-}
-
-/* plugin->u.item.b.paste
-   this should not be called */
-static int
-paste_frozen(coord_t * coord UNUSED_ARG, reiser4_item_data * data UNUSED_ARG, carry_plugin_info * info UNUSED_ARG)
-{
-	impossible("vs-1122", "pasting into partially converted file\n");
-	return 0;
-}
-
-/* plugin->u.item.b.can_shift */
-static int
-can_shift_frozen(unsigned free_space UNUSED_ARG, coord_t * source UNUSED_ARG,
-		 znode * target UNUSED_ARG, shift_direction direction UNUSED_ARG,
-		 unsigned *size, unsigned want UNUSED_ARG)
-{
-	*size = 0;
-	return 0;
 }
 
 item_plugin item_plugins[LAST_ITEM_ID] = {
@@ -367,13 +338,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.kill_units = NULL,
 			.unit_key = NULL,
 			.estimate = NULL,
-			.item_data_by_flow = NULL
+			.item_data_by_flow = NULL,
 #if REISER4_DEBUG_OUTPUT
-			, .print = print_de,
-			.item_stat = NULL
+			.print = print_de,
+			.item_stat = NULL,
 #endif
 #if REISER4_DEBUG
-			, .check = NULL
+			.check = NULL
 #endif
 		},
 		.f = {
@@ -691,133 +662,43 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			}
 		}
 	},	
-	/* the below two items are used in tail conversion. Before tail conversion starts all items of file becomes
-	   frozen. That is nothing of them can be shifted to another node. This guarantees that estimation/reservation
-	   remains valid during tail conversion operation */
-	[FROZEN_FORMATTING_ID] = {
+	[BLACK_BOX_ID] = {
 		.h = {
 			.type_id = REISER4_ITEM_PLUGIN_TYPE,
-			.id = FROZEN_FORMATTING_ID,
-			.pops = NULL,
-			.label = "frozen tail",
-			.desc = "non split-able tail item",
+			.id      = BLACK_BOX_ID,
+			.pops    = NULL,
+			.label   = "blackbox",
+			.desc    = "black box item",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.b = {
-			.item_type = ORDINARY_FILE_METADATA_TYPE,
-			.max_key_inside = max_key_inside_tail,
-			.can_contain_key = can_contain_key_tail,
-			.mergeable = mergeable_frozen,
-			.nr_units = nr_units_tail,
-			.lookup = lookup_tail,
-			.init = NULL,
-			.paste = paste_frozen,
-			.fast_paste = agree_to_fast_op,
-			.can_shift = can_shift_frozen,
-			.create_hook = NULL,
-			.copy_units = copy_units_tail,
-			.kill_hook = NULL,
-			.shift_hook = NULL,
-			.cut_units = cut_units_tail,
-			.kill_units = cut_units_tail,
-			.unit_key = unit_key_tail,
-			.estimate = NULL,
+			.item_type         = OTHER_ITEM_TYPE,
+			.max_key_inside    = NULL,
+			.can_contain_key   = NULL,
+			.mergeable         = NULL,
+			.nr_units          = nr_units_single_unit,
+			/* to need for ->lookup method */
+			.lookup            = NULL,
+			.init              = NULL,
+			.paste             = NULL,
+			.fast_paste        = NULL,
+			.can_shift         = NULL,
+			.copy_units        = NULL,
+			.create_hook       = NULL,
+			.kill_hook         = NULL,
+			.shift_hook        = NULL,
+			.cut_units         = NULL,
+			.kill_units        = NULL,
+			.unit_key          = NULL,
+			.estimate          = NULL,
 			.item_data_by_flow = NULL,
-			.show = show_tail,
 #if REISER4_DEBUG_OUTPUT
-			.print = NULL,
-			.item_stat = NULL,
+			.print             = NULL,
+			.item_stat         = NULL,
 #endif
 #if REISER4_DEBUG
-			.check = NULL
+			.check             = NULL
 #endif
-		},
-		.f = {
-			.utmost_child            = NULL,
-			.utmost_child_real_block = NULL,
-			.update                  = NULL,
-			.scan                    = NULL,
-			.squeeze                 = NULL
-		},
-		.s = {
-			.file = {
-				.write = NULL,
-				.read = NULL,
-				.readpage = NULL,
-				.writepage = NULL,
-				.readpages = NULL,
-				.get_block = NULL,
-				.append_key = append_key_tail,
-				.init_coord_extension = init_coord_extension_tail
-/*
-#if REISER4_DEBUG
-				, .key_in_item = key_in_item_tail
-#endif
-*/
-			}
-		}
-	},
-	[FROZEN_EXTENT_POINTER_ID] = {
-		.h = {
-			.type_id = REISER4_ITEM_PLUGIN_TYPE,
-			.id = FROZEN_EXTENT_POINTER_ID,
-			.pops = NULL,
-			.label = "frozen extent",
-			.desc = "non split-able extent item",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
-		},
-		.b = {
-			.item_type = ORDINARY_FILE_METADATA_TYPE,
-			.max_key_inside = max_key_inside_extent,
-			.can_contain_key = can_contain_key_extent,
-			.mergeable = mergeable_frozen,
-			.nr_units = nr_units_extent,
-			.lookup = lookup_extent,
-			.init = NULL,
-			.paste = paste_frozen,
-			.fast_paste = agree_to_fast_op,
-			.can_shift = can_shift_frozen,
-			.create_hook = create_hook_extent,
-			.copy_units = copy_units_extent,
-			.kill_hook = kill_hook_extent,
-			.shift_hook = NULL,
-			.cut_units = cut_units_extent,
-			.kill_units = kill_units_extent,
-			.unit_key = unit_key_extent,
-			.estimate = NULL,
-			.item_data_by_flow = NULL,
-			.show = show_extent,
-#if REISER4_DEBUG_OUTPUT
-			.print = print_extent,
-			.item_stat = item_stat_extent,
-#endif
-#if REISER4_DEBUG
-			.check = check_extent
-#endif
-		},
-		.f = {
-			.utmost_child = utmost_child_extent,
-			.utmost_child_real_block = utmost_child_real_block_extent,
-			.update                  = NULL,
-			.scan                    = scan_extent,
-			.squeeze                 = NULL
-		},
-		.s = {
-			.file = {
-				.write = NULL,
-				.read = NULL,
-				.readpage = readpage_extent,
-				.readpages = NULL,
-				.writepage = NULL,
-				.get_block = NULL,
-				.append_key = append_key_extent,
-				.init_coord_extension = init_coord_extension_extent
-/*
-#if REISER4_DEBUG
-				, .key_in_item = key_in_item_extent
-#endif
-*/
-			}
 		}
 	}
 };

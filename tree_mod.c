@@ -242,7 +242,6 @@ add_child_ptr(znode * parent, znode * child)
 }
 
 /* actually remove tree root */
-/* Audited by: umka (2002.06.15) */
 static int
 kill_root(reiser4_tree * tree	/* tree from which root is being
 				 * removed */ ,
@@ -293,6 +292,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 
 		/* reinitialise old root. */
 		result = node_plugin_by_node(old_root)->init(old_root);
+		znode_make_dirty(old_root);
 		if (result == 0) {
 			assert("nikita-1279", node_is_empty(old_root));
 			ZF_SET(old_root, JNODE_HEARD_BANSHEE);
