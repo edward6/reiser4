@@ -170,7 +170,6 @@ insert_first_block(uf_coord_t *uf_coord, const reiser4_key *key, reiser4_block_n
 	}
 
 	*block = fake_blocknr_unformatted();
-	/*XXXXX*/inc_unalloc_unfm_ptr();
 
 	/* invalidate coordinate, research must be performed to continue because write will continue on twig level */
 	uf_coord->valid = 0;
@@ -228,7 +227,6 @@ append_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block
 	}
 
 	*block = fake_blocknr_unformatted();
-	/*XXXXX*/inc_unalloc_unfm_ptr();
 	return 0;
 }
 
@@ -333,7 +331,8 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 
 /* make unallocated node pointer in the position @uf_coord is set to */
 static int
-overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block, int *created)
+overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block, int *created,
+		    struct inode *inode)
 {
 	int result;
 	extent_coord_extension_t *ext_coord;
@@ -357,11 +356,15 @@ overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *bl
 		break;
 
 	case HOLE_EXTENT:
+		if (inode != NULL && DQUOT_ALLOC_BLOCK(inode, 1))
+			return RETERR(-EDQUOT);
 		result = plug_hole(uf_coord, key);
 		if (!result) {
-			/*XXXXX*/inc_unalloc_unfm_ptr();
 			*block = fake_blocknr_unformatted();
 			*created = 1;
+		} else {
+			if (inode != NULL)
+				DQUOT_FREE_BLOCK(inode, 1);
 		}
 		break;
 
@@ -414,8 +417,10 @@ check_make_extent_result(int result, write_mode_t mode, const reiser4_key *key,
 
 #endif
 
+/* when @inode is not NULL, alloc quota before updating extent item */
 static int
-make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_block_nr *block, int *created)
+make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode,
+	    reiser4_block_nr *block, int *created, struct inode *inode)
 {
 	int result;
 	oid_t oid;
@@ -432,24 +437,36 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_b
 	*block = 0;
 	switch (mode) {
 	case FIRST_ITEM:
-		/* create first item of the file */		
+		/* new block will be inserted into file. Check quota */
+		if (inode != NULL && DQUOT_ALLOC_BLOCK(inode, 1))
+			return RETERR(-EDQUOT);
+
+		/* create first item of the file */
 		result = insert_first_block(uf_coord, key, block);
+		if (result && inode != NULL)
+			DQUOT_FREE_BLOCK(inode, 1);
 		*created = 1;
 		break;
 
 	case APPEND_ITEM:
-		/* FIXME: item plugin should be initialized */
-		item_plugin_by_coord(&uf_coord->base_coord);
+		/* new block will be inserted into file. Check quota */
+		if (inode != NULL && DQUOT_ALLOC_BLOCK(inode, 1))
+			return RETERR(-EDQUOT);
+
+		/* FIXME: item plugin should be initialized
+		   item_plugin_by_coord(&uf_coord->base_coord);*/
 		assert("vs-1316", coord_extension_is_ok(uf_coord));
 		result = append_one_block(uf_coord, key, block);
+		if (result && inode != NULL)
+			DQUOT_FREE_BLOCK(inode, 1);		
 		*created = 1;
 		break;
 
 	case OVERWRITE_ITEM:
-		/* FIXME: item plugin should be initialized */
-		item_plugin_by_coord(&uf_coord->base_coord);
+		/* FIXME: item plugin should be initialized
+		   item_plugin_by_coord(&uf_coord->base_coord);*/
 		assert("vs-1316", coord_extension_is_ok(uf_coord));
-		result = overwrite_one_block(uf_coord, key, block, created);
+		result = overwrite_one_block(uf_coord, key, block, created, inode);
 		break;
 
 	default:
@@ -610,7 +627,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	page_off = (unsigned long)(file_off & (PAGE_CACHE_SIZE - 1));
 
 	clog_op(EXTENT_WRITE_IN, (void *)(unsigned long)oid, (void *)(unsigned long)file_off);
-	clog_op(EXTENT_WRITE_IN2, (void *)get_current_lock_stack()->nr_locks, 0);
 
 	/* key of first byte of page */
 	page_key = flow->key;
@@ -628,10 +644,12 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		write_page_log(inode->i_mapping, page_nr);
 
-		result = make_extent(&page_key, uf_coord, mode, &blocknr, &created);
+		clog_op(EXTENT_WRITE_IN2, (void *)get_current_lock_stack()->nr_locks, 0);
+		result = make_extent(&page_key, uf_coord, mode, &blocknr, &created, inode/* check quota */);
 		if (result) {
 			goto exit1;
 		}
+
 		/* look for jnode and create it if it does not exist yet */
 		j = find_get_jnode(tree, inode->i_mapping, oid, page_nr);
 		if (IS_ERR(j)) {
@@ -702,6 +720,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		assert("nikita-2104", lock_stack_isclean(get_current_lock_stack()));
 
 		/* copy user data into page */
+		clog_op(EXTENT_WRITE_OUT2, (void *)get_current_lock_stack()->nr_locks, 0);
 		result = __copy_from_user((char *)kmap(page) + page_off, flow->data - count, count);
 		kunmap(page);
 		if (unlikely(result)) {
@@ -1245,6 +1264,7 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 	int result;
 	reiser4_block_nr blocknr;
 	int created;
+	int check_quota;
 
 	ON_TRACE(TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count(page));
 
@@ -1253,7 +1273,9 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 	assert("vs-864", znode_is_wlocked(uf_coord->base_coord.node));
 	assert("vs-1398", get_key_objectid(key) == get_inode_oid(page->mapping->host));
 
-	result = make_extent(key, uf_coord, mode, &blocknr, &created);
+	/* FIXME: assume for now that quota is only checked on write */
+	check_quota = 0;
+	result = make_extent(key, uf_coord, mode, &blocknr, &created, check_quota ? page->mapping->host : NULL);
 	if (result) {
 		done_lh(uf_coord->lh);
 		return result;
@@ -1297,11 +1319,9 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 	UNLOCK_JNODE(j);
 	jput(j);
 
-	if (created) {
+	if (created)
 		reiser4_update_sd(page->mapping->host);
-		/* warning about failure of this is issued already */
-	}
-		
+		/* warning about failure of this is issued already */		
 
 	ON_TRACE(TRACE_EXTENTS, "OK\n");
 	return 0;
