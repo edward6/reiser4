@@ -314,7 +314,7 @@ void zdestroy( znode *node )
 	/*
 	 * poison memory. Put this under REISER4_DEBUG once race is fixed.
 	 */
-	xmemset( node, 0xde, sizeof *node );
+	ON_DEBUG( xmemset( node, 0xde, sizeof *node ) );
 	zfree( node );
 }
 
