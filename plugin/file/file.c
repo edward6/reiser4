@@ -862,6 +862,8 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 
 	inode = file->f_dentry->d_inode;
 
+	get_nonexclusive_access (inode);
+
 	if (inode->i_size < *off) {
 		loff_t old_size;
 
@@ -875,6 +877,7 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 			/*
 			 * FIXME-VS: i_size may now be set incorrectly
 			 */
+			drop_nonexclusive_access (inode);
 			inode->i_size = old_size;
 			return result;
 		}
@@ -887,7 +890,6 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 	if (result)
 		return result;
 
-	get_nonexclusive_access (inode);
 	written = write_flow (file, inode, &f);
 	if (written < 0) {
 		drop_nonexclusive_access (inode);
