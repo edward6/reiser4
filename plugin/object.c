@@ -417,16 +417,9 @@ common_file_can_add_link(const struct inode *object /* object to check */ )
 {
 	assert("nikita-732", object != NULL);
 
-	/* Problem is that nlink_t is usually short, which doesn't left room
-	   for many links, and, in particular for many sub-directories (each
-	   sub-directory has dotdot counting as link in a parent).
-	  
-	   Possible work-around (read: kludge) is to implement special object
-	   plugin that will save "true nlink" in private inode
-	   parent. Stat-data (static_stat.c) is ready for 32bit nlink
-	   counters.
-	*/
-	return object->i_nlink < (((nlink_t) ~ 0) >> 1);
+	/* inode->i_nlink is unsigned int, so just check for integer
+	 * overflow */
+	return object->i_nlink + 1 != 0;
 }
 
 
