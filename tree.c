@@ -225,7 +225,7 @@ It is questionable whether (1) needs to precede (3).  If (3) was performed first
  * Invalid block addresses are 0 by tradition.
  *
  */
-const reiser4_disk_addr FAKE_TREE_ADDR = { .blk = 0 };
+const reiser4_block_nr FAKE_TREE_ADDR = 0;
 
 #if REISER4_DEBUG
 /* This list and the two fields that follow maintain the currently active
@@ -635,8 +635,8 @@ znode *child_znode( const tree_coord *parent_coord, int setup_dkeys_p )
 		return ERR_PTR( -EIO );
 	}
 	iplug = item_plugin_by_coord( parent_coord );
-	if( iplug -> item_type == INTERNAL_ITEM_TYPE ) {
-		reiser4_disk_addr addr;
+	if( iplug -> item_plugin_id == NODE_POINTER_IT ) {
+		reiser4_block_nr addr;
 
 		iplug -> s.internal.down_link( parent_coord, NULL, &addr );
 
@@ -852,10 +852,10 @@ int check_tree_pointer( const tree_coord *pointer, const znode *child )
 
 	if( coord_of_unit( pointer ) ) {
 		item_plugin    *iplug;
-		reiser4_disk_addr  addr;
+		reiser4_block_nr  addr;
 
 		iplug = item_plugin_by_coord( pointer );
-		if( ( iplug -> item_type == INTERNAL_ITEM_TYPE ) ) {
+		if( ( iplug -> item_plugin_id == NODE_POINTER_IT ) ) {
 			iplug -> s.internal.down_link( pointer, NULL, &addr );
 			/*
 			 * check that cached value is correct
@@ -1016,27 +1016,27 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 	return ret;
 }
 
-const block_nr UNALLOCATED_BIT_MASK = ( 1ull << 63 );
-
 /**
  * true, if @addr is "unallocated block number", which is just address, with
  * highest bit set.
  */
-int is_disk_addr_unallocated( const reiser4_disk_addr *addr )
+int is_disk_addr_unallocated( const reiser4_block_nr *addr )
 {
 	assert( "nikita-1766", addr != NULL );
-	cassert( sizeof( block_nr ) == 8 );
-	return addr -> blk & UNALLOCATED_BIT_MASK;
+	cassert( sizeof( reiser4_block_nr ) == 8 );
+	return *addr & REISER4_UNALLOCATED_BIT_MASK;
 }
 
 /**
  * convert unallocated disk address to the memory address
+ *
+ * FIXME: This needs a big comment.
  */
-void *unallocated_disk_addr_to_ptr( const reiser4_disk_addr *addr )
+void *unallocated_disk_addr_to_ptr( const reiser4_block_nr *addr )
 {
 	assert( "nikita-1688", addr != NULL );
 	assert( "nikita-1689", is_disk_addr_unallocated( addr ) );
-	return ( void * ) ( long ) ( addr -> blk & ~UNALLOCATED_BIT_MASK );
+	return ( void * ) ( long ) ( *addr & ~REISER4_UNALLOCATED_BIT_MASK );
 }
 
 
