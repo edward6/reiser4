@@ -74,7 +74,8 @@ static inline void profregion_in(int cpu, struct profregion *pregion,
 	preempt_disable();
 	stack = &per_cpu(inregion, cpu);
 	BUG_ON(stack->top == PROFREGION_MAX_DEPTH);
-	profregfill(&stack->stack[stack->top++], pregion, objloc, codeloc);
+	profregfill(&stack->stack[stack->top], pregion, objloc, codeloc);
+	stack->top++;
 }
 
 static inline void profregion_ex(int cpu, struct profregion *pregion)
