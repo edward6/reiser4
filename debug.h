@@ -77,7 +77,7 @@
 
 #ifndef REISER4_DEBUG_NODE
 /** check node content integrity */
-#define REISER4_DEBUG_NODE   (0)
+#define REISER4_DEBUG_NODE   (1)
 #endif
 
 /** if this is non-zero, clear content of new node, otherwise leave
