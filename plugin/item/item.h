@@ -186,8 +186,9 @@ typedef struct {
 	reiser4_key * ( *unit_key )( const coord_t *coord, 
 				     reiser4_key *key );
 	/**
-	 * estimate how much space is needed for paste @data into item
-	 * at @coord.
+	 * estimate how much space is needed for paste @data into item at
+	 * @coord. if @coord==0 - estimate insertion, otherwise - estimate
+	 * pasting
 	 */
 	int ( *estimate )( const coord_t *coord, 
 			   const reiser4_item_data *data );
@@ -209,8 +210,12 @@ typedef struct {
 
 	reiser4_key *( *real_max_key_inside )( const coord_t *coord, reiser4_key * );
 
+	/* return true if item contains key in it, coord is adjusted
+	 * correspondingly */
+	int ( *key_in_item )( coord_t *coord, const reiser4_key *key );
+
 	/* return true if unit to which coord is set contains @key */
-	int ( *key_in_coord )( const coord_t *coord, const reiser4_key *key );
+	int ( *key_in_unit )( const coord_t *coord, const reiser4_key *key );
 } common_item_plugin;
 
 
