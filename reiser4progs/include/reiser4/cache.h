@@ -10,10 +10,10 @@
 #include <reiser4/filesystem.h>
 
 extern reiserfs_cache_t *reiserfs_cache_create(reiserfs_node_t *node);
-
 extern void reiserfs_cache_close(reiserfs_cache_t *cache);
 
-extern int32_t reiserfs_cache_pos(reiserfs_cache_t *cache);
+extern errno_t reiserfs_cache_pos(reiserfs_cache_t *cache, 
+    reiserfs_pos_t *pos);
 
 extern reiserfs_cache_t *reiserfs_cache_find(reiserfs_cache_t *cache, 
     reiserfs_key_t *key);

@@ -284,10 +284,10 @@ errno_t reiserfs_tree_move(reiserfs_coord_t *dst, reiserfs_coord_t *src) {
 errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new, 
     uint32_t needed)
 {
-    int point = 0;
+    int32_t point;
+    reiserfs_pos_t pos;
     uint32_t count, moved = 0;
     
-    reiserfs_pos_t pos;
     reiserfs_key_t key;
     reiserfs_cache_t *left;
     reiserfs_cache_t *right;
@@ -315,14 +315,7 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 	Getting the target node position in its parent. This will be used bellow
 	for updating left delimiting keys after shift will be complete.
     */
-    if (reiserfs_node_ldkey(old->cache->node, &key)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't get left delimiting key of node %llu.",
-	    aal_block_get_nr(old->cache->node->block));
-	return -1;
-    }
-
-    if (reiserfs_node_lookup(old->cache->node, &key, &pos) != 1) {
+    if (reiserfs_cache_pos(old->cache, &pos)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find left delimiting key of node %llu.",
 	    aal_block_get_nr(old->cache->node->block));
@@ -330,7 +323,7 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
     }
     
     *new = *old;
-    point = old->pos.item;
+    point = pos.item;
     
     /* Trying to move items into the left neighbour */
     if (left) {
@@ -418,7 +411,7 @@ errno_t reiserfs_tree_shift(reiserfs_coord_t *old, reiserfs_coord_t *new,
 	}
     }
 
-    /* Updating ldkey for left neighbour */
+    /* Updating internal key for left neighbour */
     if (right && count != reiserfs_node_count(old->cache->node)) {
 	reiserfs_node_ldkey(right->node, &key);
 	if (reiserfs_node_set_key(right->node, pos.item + 1, &key)) {

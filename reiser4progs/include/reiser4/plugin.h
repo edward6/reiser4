@@ -242,6 +242,9 @@ struct reiserfs_key_ops {
     
     /* Returns maximal key for this key-format */
     const void *(*maximal) (void);
+    
+    /* Get size of the key */
+    uint8_t (*size) (void);
 
     /* Compares two keys by comparing its all components */
     int (*compare_full) (const void *, const void *);
@@ -253,42 +256,39 @@ struct reiserfs_key_ops {
 	Cleans key up. Actually it just memsets it by zeros, but more smart behavior may 
 	be implemented.
     */
-    void (*clean) (void *);
+    void (*clean) (const void *);
 
     /* Gets/sets key type (minor in reiser4 notation) */	
-    void (*set_type) (void *, uint32_t);
+    void (*set_type) (const void *, uint32_t);
     uint32_t (*get_type) (const void *);
 
     /* Gets/sets key locality */
-    void (*set_locality) (void *, uint64_t);
+    void (*set_locality) (const void *, uint64_t);
     uint64_t (*get_locality) (const void *);
     
     /* Gets/sets key objectid */
-    void (*set_objectid) (void *, uint64_t);
+    void (*set_objectid) (const void *, uint64_t);
     uint64_t (*get_objectid) (const void *);
 
     /* Gets/sets key offset */
-    void (*set_offset) (void *, uint64_t);
+    void (*set_offset) (const void *, uint64_t);
     uint64_t (*get_offset) (const void *);
 
     /* Gets/sets directory key hash */
-    void (*set_hash) (void *, uint64_t);
+    void (*set_hash) (const void *, uint64_t);
     uint64_t (*get_hash) (const void *);
 
     /* Gets/sets directory key generation counter */
-    void (*set_counter) (void *, uint8_t);
+    void (*set_counter) (const void *, uint8_t);
     uint8_t (*get_counter) (const void *);
     
-    /* Get size of the key */
-    uint8_t (*size) (void);
-
-    errno_t (*build_generic_full) (void *, uint32_t, uint64_t, uint64_t, uint64_t);
-    errno_t (*build_entry_full) (void *, void *, uint64_t, uint64_t, const char *);
+    errno_t (*build_generic_full) (const void *, uint32_t, uint64_t, uint64_t, uint64_t);
+    errno_t (*build_entry_full) (const void *, void *, uint64_t, uint64_t, const char *);
     
-    errno_t (*build_generic_short) (void *, uint32_t, uint64_t, uint64_t);
-    errno_t (*build_entry_short) (void *, void *, const char *);
+    errno_t (*build_generic_short) (const void *, uint32_t, uint64_t, uint64_t);
+    errno_t (*build_entry_short) (const void *, void *, const char *);
 
-    errno_t (*build_by_entry) (void *, void *);
+    errno_t (*build_by_entry) (const void *, void *);
 };
 
 typedef struct reiserfs_key_ops reiserfs_key_ops_t;

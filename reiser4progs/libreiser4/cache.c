@@ -75,19 +75,19 @@ reiserfs_cache_t *reiserfs_cache_find(reiserfs_cache_t *cache,
 static errno_t reiserfs_cache_nkey(reiserfs_cache_t *cache, 
     int direction, reiserfs_key_t *key) 
 {
-    int32_t pos;
+    reiserfs_pos_t pos;
     
     aal_assert("umka-770", cache != NULL, return -1);
     aal_assert("umka-771", key != NULL, return -1);
     
-    if ((pos = reiserfs_cache_pos(cache)) == -1)
+    if (reiserfs_cache_pos(cache, &pos))
 	return -1;
     
     if (direction == LEFT) {
-	if (pos == 0)
+	if (pos.item == 0)
 	    return -1;
     } else {
-	if ((uint32_t)pos == reiserfs_node_count(cache->parent->node) - 1) {
+	if (pos.item == reiserfs_node_count(cache->parent->node) - 1) {
 
 	    /* Here we are checking for the case called "shaft" */
     	    if (!cache->parent->parent)
@@ -97,8 +97,8 @@ static errno_t reiserfs_cache_nkey(reiserfs_cache_t *cache,
 		direction, key);
 	}
     }
-    pos += (direction == RIGHT ? 1 : -1);
-    reiserfs_node_get_key(cache->parent->node, pos, key);
+    pos.item += (direction == RIGHT ? 1 : -1);
+    reiserfs_node_get_key(cache->parent->node, pos.item, key);
     
     return 0;
 }
@@ -116,8 +116,9 @@ errno_t reiserfs_cache_rnkey(reiserfs_cache_t *cache,
 }
 
 /* Returns position of passed cache in parent node */
-int32_t reiserfs_cache_pos(reiserfs_cache_t *cache) {
-    reiserfs_pos_t pos;
+errno_t reiserfs_cache_pos(reiserfs_cache_t *cache, 
+    reiserfs_pos_t *pos) 
+{
     reiserfs_key_t ldkey;
     
     aal_assert("umka-869", cache != NULL, return -1);
@@ -127,14 +128,14 @@ int32_t reiserfs_cache_pos(reiserfs_cache_t *cache) {
     
     reiserfs_node_ldkey(cache->node, &ldkey);
     
-    if (reiserfs_node_lookup(cache->parent->node, &ldkey, &pos) != 1) {
+    if (reiserfs_node_lookup(cache->parent->node, &ldkey, pos) != 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find left delimiting key of node %llu.", 
 	    aal_block_get_nr(cache->node->block));
 	return -1;
     }
     
-    return pos.item;
+    return 0;
 }
 
 /* 

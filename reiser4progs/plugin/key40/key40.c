@@ -271,43 +271,43 @@ static reiserfs_plugin_t key40_plugin = {
 	.check = (errno_t (*)(const void *, int))key40_check,
 	.minimal = (const void *(*)(void))key40_minimal,
 	.maximal = (const void *(*)(void))key40_maximal,
-	.clean = (void (*)(void *))key40_clean,
+	.clean = (void (*)(const void *))key40_clean,
 	.size = (uint8_t (*)(void))key40_size,
 
-	.set_type = (void (*)(void *, uint32_t))key40_set_type,
+	.set_type = (void (*)(const void *, uint32_t))key40_set_type,
 	.get_type = (uint32_t (*)(const void *))key40_get_type,
 
-	.set_locality = (void (*)(void *, oid_t))key40_set_locality,
+	.set_locality = (void (*)(const void *, oid_t))key40_set_locality,
 	.get_locality = (oid_t (*)(const void *))key40_get_locality,
 
-	.set_objectid = (void (*)(void *, oid_t))key40_set_objectid,
+	.set_objectid = (void (*)(const void *, oid_t))key40_set_objectid,
 	.get_objectid = (oid_t (*)(const void *))key40_get_objectid,
 
-	.set_offset = (void (*)(void *, uint64_t))key40_set_offset,
+	.set_offset = (void (*)(const void *, uint64_t))key40_set_offset,
 	.get_offset = (uint64_t (*)(const void *))key40_get_offset,
 
-	.set_hash = (void (*)(void *, uint64_t))key40_set_hash,
+	.set_hash = (void (*)(const void *, uint64_t))key40_set_hash,
 	.get_hash = (uint64_t (*)(const void *))key40_get_hash,
 	
-	.set_counter = (void (*)(void *, uint8_t))key40_set_counter,
+	.set_counter = (void (*)(const void *, uint8_t))key40_set_counter,
 	.get_counter = (uint8_t (*)(const void *))key40_get_counter,
 	
 	.compare_full = (int (*)(const void *, const void *))key40_compare_full,
 	.compare_short = (int (*)(const void *, const void *))key40_compare_short,
 	
-	.build_generic_full = (errno_t (*)(void *, uint32_t, oid_t, oid_t, uint64_t))
+	.build_generic_full = (errno_t (*)(const void *, uint32_t, oid_t, oid_t, uint64_t))
 	    key40_build_generic_full,
 	
-	.build_entry_full = (errno_t (*)(void *, void *, oid_t, oid_t, const char *))
+	.build_entry_full = (errno_t (*)(const void *, void *, oid_t, oid_t, const char *))
 	    key40_build_entry_full,
 
-	.build_generic_short = (errno_t (*)(void *, uint32_t, oid_t, oid_t))
+	.build_generic_short = (errno_t (*)(const void *, uint32_t, oid_t, oid_t))
 	    key40_build_generic_short,
 
-	.build_entry_short = (errno_t (*)(void *, void *, const char *))
+	.build_entry_short = (errno_t (*)(const void *, void *, const char *))
 	    key40_build_entry_short,
 
-	.build_by_entry = (errno_t (*)(void *, void *))
+	.build_by_entry = (errno_t (*)(const void *, void *))
 	    key40_build_by_entry,
     }
 };
