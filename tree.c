@@ -1328,6 +1328,7 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 	lock_handle parent_lock;
 	coord_t cut_from;
 	coord_t cut_to;
+	reiser4_tree * tree;
 	int ret;
 
 	assert ("zam-937", node != NULL);
@@ -1355,9 +1356,12 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 	   internal_kill_item_hook (we can delete the last item from the parent
 	   node, the parent node is going to be deleted and its c_count should
 	   be zero). */
-	UNDER_RW_VOID(tree, znode_get_tree(node), write,
-		      init_parent_coord(&node->in_parent, NULL));
-	atomic_dec(&parent_lock.node->c_count);
+	
+	tree = znode_get_tree(node);
+	WLOCK_TREE(tree);
+	init_parent_coord(&node->in_parent, NULL);
+	-- parent_lock.node->c_count;
+	WUNLOCK_TREE(tree);
 
 	assert("zam-940", item_is_internal(&cut_from));
 

@@ -266,7 +266,7 @@ create_hook_internal(const coord_t * item /* coord of item */ ,
 		WLOCK_DK(tree);
 		WLOCK_TREE(tree);
 		assert("nikita-1400", (child->in_parent.node == NULL) || (znode_above_root(child->in_parent.node)));
-		atomic_inc(&item->node->c_count);
+		++ item->node->c_count;
 		coord_to_parent_coord(item, &child->in_parent);
 		sibling_list_insert_nolock(child, left);
 
@@ -274,7 +274,8 @@ create_hook_internal(const coord_t * item /* coord of item */ ,
 		ZF_CLR(child, JNODE_ORPHAN);
 
 		ON_TRACE(TRACE_ZWEB, "create: %llx: %i [%llx]\n",
-			 *znode_get_block(item->node), atomic_read(&item->node->c_count), *znode_get_block(child));
+			 *znode_get_block(item->node), item->node->c_count,
+			 *znode_get_block(child));
 
 		WUNLOCK_TREE(tree);
 		if ((left != NULL) && !keyeq(znode_get_rd_key(left),
@@ -320,14 +321,20 @@ kill_hook_internal(const coord_t * item /* coord of item */ ,
 	if (IS_ERR(child))
 		return PTR_ERR(child);
 	else if (node_is_empty(child)) {
+		reiser4_tree *tree;
+
 		assert("nikita-1397", znode_is_write_locked(child));
-		assert("nikita-1398", atomic_read(&child->c_count) == 0);
+		assert("nikita-1398", child->c_count == 0);
 		assert("nikita-2546", ZF_ISSET(child, JNODE_HEARD_BANSHEE));
-		UNDER_RW_VOID(tree, znode_get_tree(item->node), write,
-			      init_parent_coord(&child->in_parent, NULL));
-		del_c_ref(item->node);
+
+		tree = znode_get_tree(item->node);
+		WLOCK_TREE(tree);
+		init_parent_coord(&child->in_parent, NULL);
+		-- item->node->c_count;
+		WUNLOCK_TREE(tree);
 		ON_TRACE(TRACE_ZWEB, "kill: %llx: %i [%llx]\n",
-			 *znode_get_block(item->node), atomic_read(&item->node->c_count), *znode_get_block(child));
+			 *znode_get_block(item->node), item->node->c_count,
+			 *znode_get_block(child));
 
 		zput(child);
 		return 0;
@@ -370,19 +377,19 @@ shift_hook_internal(const coord_t * item /* coord of item */ ,
 	if (!IS_ERR(child)) {
 		reiser4_stat_inc(tree.reparenting);
 		WLOCK_TREE(tree);
-		atomic_inc(&new_node->c_count);
+		++ new_node->c_count;
 		assert("nikita-1395", znode_parent(child) == old_node);
-		assert("nikita-1396", atomic_read(&old_node->c_count) > 0);
+		assert("nikita-1396", old_node->c_count > 0);
 		coord_to_parent_coord(item, &child->in_parent);
 		assert("nikita-1781", znode_parent(child) == new_node);
 		assert("nikita-1782", check_tree_pointer(item, child) == NS_FOUND);
-		del_c_ref(old_node);
+		-- old_node->c_count;
 		WUNLOCK_TREE(tree);
 		zput(child);
 		ON_TRACE(TRACE_ZWEB, "shift: %llx: %i -> %lli: %i [%llx]\n",
 			 *znode_get_block(old_node),
-			 atomic_read(&old_node->c_count),
-			 *znode_get_block(new_node), atomic_read(&new_node->c_count), *znode_get_block(child));
+			 old_node->c_count, *znode_get_block(new_node),
+			 new_node->c_count, *znode_get_block(child));
 		return 0;
 	} else
 		return PTR_ERR(child);
