@@ -11,8 +11,8 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static reiserfs_alloc36_t *reiserfs_alloc36_init(aal_device_t *device, count_t len) {
-    reiserfs_alloc36_t *alloc;
+static alloc36_t *alloc36_open(aal_device_t *device, count_t len) {
+    alloc36_t *alloc;
 
     aal_assert("umka-413", device != NULL, return NULL);
 
@@ -30,8 +30,8 @@ error:
     return NULL;
 }
 
-static reiserfs_alloc36_t *reiserfs_alloc36_create(aal_device_t *device, count_t len) {
-    reiserfs_alloc36_t *alloc;
+static alloc36_t *alloc36_create(aal_device_t *device, count_t len) {
+    alloc36_t *alloc;
 
     aal_assert("umka-414", device != NULL, return NULL);
 	
@@ -49,13 +49,13 @@ error:
     return NULL;
 }
 
-static error_t reiserfs_alloc36_sync(reiserfs_alloc36_t *alloc) {
+static error_t alloc36_sync(alloc36_t *alloc) {
     aal_assert("umka-415", alloc != NULL, return -1);
     
     return -1;
 }
 
-static void reiserfs_alloc36_fini(reiserfs_alloc36_t *alloc) {
+static void alloc36_close(alloc36_t *alloc) {
     aal_assert("umka-416", alloc != NULL, return);
     aal_free(alloc);
 }
@@ -70,10 +70,10 @@ static reiserfs_plugin_t alloc36_plugin = {
 	    .desc = "Space allocator for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.init = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc36_init,
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc36_create,
-	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_alloc36_fini,
-	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_alloc36_sync,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc36_open,
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc36_create,
+	.close = (void (*)(reiserfs_opaque_t *))alloc36_close,
+	.sync = (error_t (*)(reiserfs_opaque_t *))alloc36_sync,
 
 	.mark = NULL,
 	
@@ -85,10 +85,10 @@ static reiserfs_plugin_t alloc36_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_alloc36_entry(reiserfs_plugin_factory_t *f) {
+reiserfs_plugin_t *alloc36_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &alloc36_plugin;
 }
 
-libreiserfs_plugins_register(reiserfs_alloc36_entry);
+libreiserfs_plugins_register(alloc36_entry);
 

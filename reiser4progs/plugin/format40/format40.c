@@ -11,7 +11,7 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static error_t reiserfs_format40_super_check(reiserfs_format40_super_t *super, 
+static error_t format40_super_check(format40_super_t *super, 
     aal_device_t *device) 
 {
     blk_t offset;
@@ -34,15 +34,15 @@ static error_t reiserfs_format40_super_check(reiserfs_format40_super_t *super,
     return 0;
 }
 
-static int reiserfs_format40_signature(reiserfs_format40_super_t *super) {
+static int format40_signature(format40_super_t *super) {
     return aal_strncmp(super->sb_magic, 
 	REISERFS_FORMAT40_MAGIC, aal_strlen(REISERFS_FORMAT40_MAGIC)) == 0;
 }
 
-static aal_block_t *reiserfs_format40_super_init(aal_device_t *device) {
+static aal_block_t *format40_super_open(aal_device_t *device) {
     blk_t offset;
     aal_block_t *block;
-    reiserfs_format40_super_t *super;
+    format40_super_t *super;
     
     offset = (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(device));
 	
@@ -51,12 +51,12 @@ static aal_block_t *reiserfs_format40_super_init(aal_device_t *device) {
 	   "Can't read block %llu.", offset);
 	return NULL;
     }
-    super = (reiserfs_format40_super_t *)block->data;
+    super = (format40_super_t *)block->data;
     
-    if (!reiserfs_format40_signature(super))
+    if (!format40_signature(super))
 	return NULL;
     
-    if (reiserfs_format40_super_check(super, device)) {
+    if (format40_super_check(super, device)) {
         aal_device_free_block(block);
         return NULL;
     }
@@ -65,10 +65,10 @@ static aal_block_t *reiserfs_format40_super_init(aal_device_t *device) {
 }
 
 /* This function should find most recent copy of the super block */
-static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device, 
+static format40_t *format40_open(aal_device_t *host_device, 
     aal_device_t *journal_device) 
 {
-    reiserfs_format40_t *format;
+    format40_t *format;
     reiserfs_plugin_t *journal_plugin;
     reiserfs_plugin_t *alloc_plugin;
     reiserfs_plugin_t *oid_plugin;
@@ -80,7 +80,7 @@ static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device,
 
     format->device = host_device;
     
-    if (!(format->super = reiserfs_format40_super_init(host_device)))
+    if (!(format->super = format40_super_open(host_device)))
 	goto error_free_format;
 		
     if (!(alloc_plugin = factory->find_by_coords(REISERFS_ALLOC_PLUGIN, 
@@ -93,11 +93,11 @@ static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device,
     }
     
     if (!(format->alloc = libreiserfs_plugins_call(goto error_free_super, 
-	alloc_plugin->alloc, init, host_device, 
-	get_sb_block_count((reiserfs_format40_super_t *)format->super->data)))) 
+	alloc_plugin->alloc, open, host_device, 
+	get_sb_block_count((format40_super_t *)format->super->data)))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't initialize allocator \"%s\".", alloc_plugin->h.label);
+	    "Can't open allocator \"%s\".", alloc_plugin->h.label);
 	goto error_free_super;
     }
 
@@ -112,10 +112,10 @@ static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device,
 	}
     
 	if (!(format->journal = libreiserfs_plugins_call(goto error_free_alloc, 
-	    journal_plugin->journal, init, journal_device))) 
+	    journal_plugin->journal, open, journal_device))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't initialize journal \"%s\".", journal_plugin->h.label);
+		"Can't open journal \"%s\".", journal_plugin->h.label);
 	    goto error_free_alloc;
 	}
     }
@@ -130,12 +130,12 @@ static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device,
     }
     
     /* Initializing oid allocator on super block */
-    if (!(format->oid = libreiserfs_plugins_call(goto error_free_journal, oid_plugin->oid, init,
-	get_sb_oid((reiserfs_format40_super_t *)format->super->data),
-	get_sb_file_count((reiserfs_format40_super_t *)format->super->data)))) 
+    if (!(format->oid = libreiserfs_plugins_call(goto error_free_journal, oid_plugin->oid, open,
+	get_sb_oid((format40_super_t *)format->super->data),
+	get_sb_file_count((format40_super_t *)format->super->data)))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't initialize oid allocator \"%s\".", oid_plugin->h.label);
+	    "Can't open oid allocator \"%s\".", oid_plugin->h.label);
 	goto error_free_journal;
     }
     
@@ -144,11 +144,11 @@ static reiserfs_format40_t *reiserfs_format40_init(aal_device_t *host_device,
 error_free_journal:
     if (format->journal) {
 	libreiserfs_plugins_call(goto error_free_alloc, 
-	    journal_plugin->journal, fini, format->journal);
+	    journal_plugin->journal, close, format->journal);
     }
 error_free_alloc:
     libreiserfs_plugins_call(goto error_free_super, 
-	alloc_plugin->alloc, fini, format->alloc);
+	alloc_plugin->alloc, close, format->alloc);
 error_free_super:
     aal_device_free_block(format->super);
 error_free_format:
@@ -158,12 +158,12 @@ error:
 }
 
 /* This function should create super block and update all copies */
-static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device, 
+static format40_t *format40_create(aal_device_t *host_device, 
     count_t blocks, aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
 {
     blk_t blk;
-    reiserfs_format40_t *format;
-    reiserfs_format40_super_t *super;
+    format40_t *format;
+    format40_super_t *super;
     
     reiserfs_plugin_t *journal_plugin;
     reiserfs_plugin_t *alloc_plugin;
@@ -185,7 +185,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 	    "Can't allocate superblock.");
 	goto error_free_format;
     }
-    super = (reiserfs_format40_super_t *)format->super->data;
+    super = (format40_super_t *)format->super->data;
     aal_memcpy(super->sb_magic, REISERFS_FORMAT40_MAGIC, aal_strlen(REISERFS_FORMAT40_MAGIC));
 
     /* Super block forming code */
@@ -266,11 +266,11 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
     }
     
     if (!(format->oid = libreiserfs_plugins_call(goto error_free_journal, 
-	oid_plugin->oid, init, get_sb_oid((reiserfs_format40_super_t *)format->super->data),
-	get_sb_file_count((reiserfs_format40_super_t *)format->super->data)))) 
+	oid_plugin->oid, open, get_sb_oid((format40_super_t *)format->super->data),
+	get_sb_file_count((format40_super_t *)format->super->data)))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't initialize oid allocator \"%s\".", oid_plugin->h.label);
+	    "Can't open oid allocator \"%s\".", oid_plugin->h.label);
 	goto error_free_journal;
     }
     
@@ -281,13 +281,13 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *host_device,
 
 error_free_oid:
     libreiserfs_plugins_call(goto error_free_journal, oid_plugin->oid, 
-	fini, format->oid);
+	close, format->oid);
 error_free_journal:
     libreiserfs_plugins_call(goto error_free_journal, journal_plugin->journal, 
-	fini, format->journal);
+	close, format->journal);
 error_free_alloc:
     libreiserfs_plugins_call(goto error_free_super, alloc_plugin->alloc, 
-	fini, format->alloc);
+	close, format->alloc);
 error_free_super:
     aal_device_free_block(format->super);
 error_free_format:
@@ -297,7 +297,7 @@ error:
 }
 
 /* This function should update all copies of the super block */
-static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
+static error_t format40_sync(format40_t *format) {
     blk_t offset;
     reiserfs_plugin_t *plugin;
    
@@ -336,10 +336,10 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
 	return -1;
     }
     
-    set_sb_oid((reiserfs_format40_super_t *)format->super->data, 
+    set_sb_oid((format40_super_t *)format->super->data, 
 	libreiserfs_plugins_call(return -1, plugin->oid, next, format->oid));
     
-    set_sb_file_count((reiserfs_format40_super_t *)format->super->data, 
+    set_sb_file_count((format40_super_t *)format->super->data, 
 	libreiserfs_plugins_call(return -1, plugin->oid, used, format->oid));
     
     if (aal_device_write_block(format->device, format->super)) {
@@ -352,14 +352,14 @@ static error_t reiserfs_format40_sync(reiserfs_format40_t *format) {
     return 0;
 }
 
-static error_t reiserfs_format40_check(reiserfs_format40_t *format) {
+static error_t format40_check(format40_t *format) {
     aal_assert("umka-397", format != NULL, return -1);
     
-    return reiserfs_format40_super_check((reiserfs_format40_super_t *)format->super->data, 
+    return format40_super_check((format40_super_t *)format->super->data, 
 	format->device);
 }
 
-static void reiserfs_format40_fini(reiserfs_format40_t *format) {
+static void format40_close(format40_t *format) {
     reiserfs_plugin_t *plugin;
     
     aal_assert("umka-398", format != NULL, return);
@@ -373,7 +373,7 @@ static void reiserfs_format40_fini(reiserfs_format40_t *format) {
     }
     
     libreiserfs_plugins_call(goto error_free_journal, plugin->alloc, 
-	fini, format->alloc);
+	close, format->alloc);
 
 error_free_journal:
     if (format->journal) {
@@ -386,7 +386,7 @@ error_free_journal:
 	}
     
 	libreiserfs_plugins_call(goto error_free_oid, plugin->journal, 
-	    fini, format->journal);
+	    close, format->journal);
     }
 
 error_free_oid:
@@ -399,17 +399,17 @@ error_free_oid:
     }
     
     libreiserfs_plugins_call(goto error_free_super, plugin->journal, 
-	fini, format->oid);
+	close, format->oid);
 
 error_free_super:
     aal_device_free_block(format->super);
     aal_free(format);
 }
 
-static int reiserfs_format40_confirm(aal_device_t *device) {
+static int format40_confirm(aal_device_t *device) {
     aal_block_t *block;
 
-    if (!(block = reiserfs_format40_super_init(device)))
+    if (!(block = format40_super_open(device)))
 	return 0;
 	
     aal_device_free_block(block);
@@ -418,80 +418,80 @@ static int reiserfs_format40_confirm(aal_device_t *device) {
 
 static const char *formats[] = {"4.0"};
 
-static const char *reiserfs_format40_format(reiserfs_format40_t *format) {
+static const char *format40_format(format40_t *format) {
     return formats[0];
 }
 
-static reiserfs_plugin_id_t reiserfs_format40_journal_plugin(reiserfs_format40_t *format) {
+static reiserfs_plugin_id_t format40_journal_plugin(format40_t *format) {
     return REISERFS_FORMAT40_JOURNAL;
 }
 
-static reiserfs_plugin_id_t reiserfs_format40_alloc_plugin(reiserfs_format40_t *format) {
+static reiserfs_plugin_id_t format40_alloc_plugin(format40_t *format) {
     return REISERFS_FORMAT40_ALLOC;
 }
 
-static reiserfs_plugin_id_t reiserfs_format40_oid_plugin(reiserfs_format40_t *format) {
+static reiserfs_plugin_id_t format40_oid_plugin(format40_t *format) {
     return REISERFS_FORMAT40_OID;
 }
 
-static blk_t reiserfs_format40_offset(reiserfs_format40_t *format) {
+static blk_t format40_offset(format40_t *format) {
     aal_assert("umka-399", format != NULL, return 0);
     return (REISERFS_FORMAT40_OFFSET / aal_device_get_bs(format->device));
 }
 
-static reiserfs_opaque_t *reiserfs_format40_journal(reiserfs_format40_t *format) {
+static reiserfs_opaque_t *format40_journal(format40_t *format) {
     aal_assert("umka-489", format != NULL, return 0);
     return format->journal;
 }
 
-static reiserfs_opaque_t *reiserfs_format40_alloc(reiserfs_format40_t *format) {
+static reiserfs_opaque_t *format40_alloc(format40_t *format) {
     aal_assert("umka-508", format != NULL, return 0);
     return format->alloc;
 }
 
-static reiserfs_opaque_t *reiserfs_format40_oid(reiserfs_format40_t *format) {
+static reiserfs_opaque_t *format40_oid(format40_t *format) {
     aal_assert("umka-509", format != NULL, return 0);
     return format->oid;
 }
 
-static blk_t reiserfs_format40_get_root(reiserfs_format40_t *format) {
+static blk_t format40_get_root(format40_t *format) {
     aal_assert("umka-400", format != NULL, return 0);
-    return get_sb_root_block((reiserfs_format40_super_t *)format->super->data);
+    return get_sb_root_block((format40_super_t *)format->super->data);
 }
 
-static count_t reiserfs_format40_get_blocks(reiserfs_format40_t *format) {
+static count_t format40_get_blocks(format40_t *format) {
     aal_assert("umka-401", format != NULL, return 0);
-    return get_sb_block_count((reiserfs_format40_super_t *)format->super->data);
+    return get_sb_block_count((format40_super_t *)format->super->data);
 }
 
-static count_t reiserfs_format40_get_free(reiserfs_format40_t *format) {
+static count_t format40_get_free(format40_t *format) {
     aal_assert("umka-402", format != NULL, return 0);
-    return get_sb_free_blocks((reiserfs_format40_super_t *)format->super->data);
+    return get_sb_free_blocks((format40_super_t *)format->super->data);
 }
 
-static uint16_t reiserfs_format40_get_height(reiserfs_format40_t *format) {
+static uint16_t format40_get_height(format40_t *format) {
     aal_assert("umka-555", format != NULL, return 0);
-    return get_sb_tree_height((reiserfs_format40_super_t *)format->super->data);
+    return get_sb_tree_height((format40_super_t *)format->super->data);
 }
 
-static void reiserfs_format40_set_root(reiserfs_format40_t *format, blk_t root) {
+static void format40_set_root(format40_t *format, blk_t root) {
     aal_assert("umka-403", format != NULL, return);
-    set_sb_root_block((reiserfs_format40_super_t *)format->super->data, root);
+    set_sb_root_block((format40_super_t *)format->super->data, root);
 }
 
-static void reiserfs_format40_set_blocks(reiserfs_format40_t *format, count_t blocks) {
+static void format40_set_blocks(format40_t *format, count_t blocks) {
     aal_assert("umka-404", format != NULL, return);
-    set_sb_block_count((reiserfs_format40_super_t *)format->super->data, blocks);
+    set_sb_block_count((format40_super_t *)format->super->data, blocks);
 }
 
-static void reiserfs_format40_set_free(reiserfs_format40_t *format, count_t blocks) {
+static void format40_set_free(format40_t *format, count_t blocks) {
     aal_assert("umka-405", format != NULL, return);
-    set_sb_free_blocks((reiserfs_format40_super_t *)format->super->data, blocks);
+    set_sb_free_blocks((format40_super_t *)format->super->data, blocks);
 }
 
-static void reiserfs_format40_set_height(reiserfs_format40_t *format, uint16_t height) {
+static void format40_set_height(format40_t *format, uint16_t height) {
     aal_assert("umka-555", format != NULL, return);
-    set_sb_tree_height((reiserfs_format40_super_t *)format->super->data, height);
+    set_sb_tree_height((format40_super_t *)format->super->data, height);
 }
 
 static reiserfs_plugin_t format40_plugin = {
@@ -504,51 +504,51 @@ static reiserfs_plugin_t format40_plugin = {
 	    .desc = "Disk-layout for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.init = (reiserfs_opaque_t *(*)(aal_device_t *, aal_device_t *))
-	    reiserfs_format40_init,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *, aal_device_t *))
+	    format40_open,
 	
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, 
-	    aal_device_t *, reiserfs_params_opaque_t *))reiserfs_format40_create,
+	    aal_device_t *, reiserfs_params_opaque_t *))format40_create,
 
-	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_format40_fini,
-	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_sync,
-	.check = (error_t (*)(reiserfs_opaque_t *))reiserfs_format40_check,
-	.confirm = (int (*)(aal_device_t *))reiserfs_format40_confirm,
-	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format40_format,
+	.close = (void (*)(reiserfs_opaque_t *))format40_close,
+	.sync = (error_t (*)(reiserfs_opaque_t *))format40_sync,
+	.check = (error_t (*)(reiserfs_opaque_t *))format40_check,
+	.confirm = (int (*)(aal_device_t *))format40_confirm,
+	.format = (const char *(*)(reiserfs_opaque_t *))format40_format,
 	
-	.offset = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format40_offset,
+	.offset = (blk_t (*)(reiserfs_opaque_t *))format40_offset,
 	
-	.get_root = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format40_get_root,
-	.set_root = (void (*)(reiserfs_opaque_t *, blk_t))reiserfs_format40_set_root,
+	.get_root = (blk_t (*)(reiserfs_opaque_t *))format40_get_root,
+	.set_root = (void (*)(reiserfs_opaque_t *, blk_t))format40_set_root,
 	
-	.get_blocks = (count_t (*)(reiserfs_opaque_t *))reiserfs_format40_get_blocks,
-	.set_blocks = (void (*)(reiserfs_opaque_t *, count_t))reiserfs_format40_set_blocks,
+	.get_blocks = (count_t (*)(reiserfs_opaque_t *))format40_get_blocks,
+	.set_blocks = (void (*)(reiserfs_opaque_t *, count_t))format40_set_blocks,
 	
-	.get_free = (count_t (*)(reiserfs_opaque_t *))reiserfs_format40_get_free,
-	.set_free = (void (*)(reiserfs_opaque_t *, count_t))reiserfs_format40_set_free,
+	.get_free = (count_t (*)(reiserfs_opaque_t *))format40_get_free,
+	.set_free = (void (*)(reiserfs_opaque_t *, count_t))format40_set_free,
 	
-	.get_height = (uint16_t (*)(reiserfs_opaque_t *))reiserfs_format40_get_height,
-	.set_height = (void (*)(reiserfs_opaque_t *, uint16_t))reiserfs_format40_set_height,
+	.get_height = (uint16_t (*)(reiserfs_opaque_t *))format40_get_height,
+	.set_height = (void (*)(reiserfs_opaque_t *, uint16_t))format40_set_height,
 	
 	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
-	    reiserfs_format40_journal_plugin,
+	    format40_journal_plugin,
 		
 	.alloc_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
-	    reiserfs_format40_alloc_plugin,
+	    format40_alloc_plugin,
 	
 	.oid_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))
-	    reiserfs_format40_oid_plugin,
+	    format40_oid_plugin,
 	
-	.journal = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))reiserfs_format40_journal,
-	.alloc = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))reiserfs_format40_alloc,
-	.oid = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))reiserfs_format40_oid,
+	.journal = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))format40_journal,
+	.alloc = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))format40_alloc,
+	.oid = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))format40_oid,
     }
 };
 
-reiserfs_plugin_t *reiserfs_format40_entry(reiserfs_plugin_factory_t *f) {
+reiserfs_plugin_t *format40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &format40_plugin;
 }
 
-libreiserfs_plugins_register(reiserfs_format40_entry);
+libreiserfs_plugins_register(format40_entry);
 

@@ -12,8 +12,8 @@
 
 #ifndef ENABLE_COMPACT
 
-reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
-    reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id, uint8_t level)
+reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk, reiserfs_node_t *parent, 
+    reiserfs_plugin_id_t plugin_id, uint8_t level)
 {
     reiserfs_node_t *node;
     
@@ -41,36 +41,36 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
 	goto error_free_block;
     }
 
-    if (libreiserfs_plugins_call(goto error_free_block, node->plugin->node, 
-	create, node->block, level)) 
-    {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Node plugin hasn't been able to form a node on block %llu.", 
-	    aal_device_get_block_nr(node->block));
-	goto error_free_block;
+    if (node->plugin->node.create != NULL ) {
+        if (node->plugin->node.create(node->block, level)) {
+            aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+                "Node plugin hasn't been able to create a node on block %llu.", blk);
+            goto error_free_block;
+        }
     }
-
+     
     return node;
-
+    
 error_free_block:
     aal_device_free_block(node->block);
-error_free_node:
+error_free_node:    
     aal_free(node);
+
     return NULL;
 }
 
 #endif
 
-reiserfs_node_t *reiserfs_node_init(aal_device_t *device, blk_t blk,
+reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk, 
     reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id) 
 {
     reiserfs_node_t *node;
-    
+
     aal_assert("umka-160", device != NULL, return NULL);
-    
+   
     if (!(node = aal_calloc(sizeof(*node), 0)))
 	return NULL;
-    
+   
     node->device = device;
     node->parent = parent;
     node->children = NULL;
@@ -91,6 +91,15 @@ reiserfs_node_t *reiserfs_node_init(aal_device_t *device, blk_t blk,
 	    "Node plugin cannot be find by its identifier %x.", plugin_id);
 	goto error_free_block;
     }
+
+    if (node->plugin->node.open != NULL) {
+        if (node->plugin->node.open (node->block)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+                "Node plugin hasn't been able to open a node %llu.",
+                aal_device_get_block_nr(node->device, node->block));
+            goto error_free_block;
+        }
+    }
     
     return node;
     
@@ -98,21 +107,38 @@ error_free_block:
     aal_device_free_block(node->block);
 error_free_node:
     aal_free(node);
+
     return NULL;
 }
 
-void reiserfs_node_fini(reiserfs_node_t *node) {
-    aal_assert("umka-122", node != NULL, return);
+error_t reiserfs_node_reopen(reiserfs_node_t *node, aal_device_t *device, 
+    blk_t blk, reiserfs_node_t *parent, reiserfs_plugin_id_t plugin_id) {    
+    return 0;
+}
+
+error_t reiserfs_node_close(reiserfs_node_t *node) {
+    aal_assert("umka-122", node != NULL, return -1);
     if (node->children) {
 	aal_list_t *walk;
 	
 	aal_list_foreach_forward(walk, node->children)
-	    reiserfs_node_fini((reiserfs_node_t *)walk->data);
+	    reiserfs_node_close((reiserfs_node_t *)walk->data);
 	aal_list_free(node->children);
 	node->children = NULL;
     }
+
+    if (node->plugin->node.close != NULL) {
+        if (node->plugin->node.close (node->block)) {
+            aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+                "Can't close node (%llu).",
+                aal_device_get_block_nr(node->device, node->block));
+            return -1;
+        }
+    }
+
     aal_device_free_block(node->block);
-    aal_free(node);
+
+    return 0;
 }
 
 error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
@@ -121,10 +147,11 @@ error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
 	check, node->block, flags);
 }
 
-int reiserfs_node_lookup(reiserfs_node_t *node, 
-    reiserfs_item_coord_t *coord, void *key) 
+int reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_item_coord_t *coord, 
+    void *key) 
 {
-    int found; void *body;
+    int found; 
+    void *body;
     reiserfs_plugin_t *item_plugin;
     
     aal_assert("umka-475", coord != NULL, return -1);
@@ -294,15 +321,19 @@ error_t reiserfs_node_sync(reiserfs_node_t *node) {
 uint8_t reiserfs_node_get_level(reiserfs_node_t *node) {
     aal_assert("umka-539", node != NULL, return 0);
     
-    return libreiserfs_plugins_call(return 0, node->plugin->node, 
-	get_level, node->block);
+    if (node->plugin->node.get_level == NULL)
+        return 0;
+
+    return node->plugin->node.get_level(node->block);
 }
 
 void reiserfs_node_set_level(reiserfs_node_t *node, uint8_t level) {
     aal_assert("umka-454", node != NULL, return);
-    
-    libreiserfs_plugins_call(return, node->plugin->node, 
-	set_level, node->block, level);
+
+    if (node->plugin->node.set_level == NULL)
+        return;
+
+    node->plugin->node.set_level(node->block, level);
 }
 
 uint16_t reiserfs_node_get_free_space(reiserfs_node_t *node) {

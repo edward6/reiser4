@@ -11,14 +11,14 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static error_t reiserfs_journal36_header_check(reiserfs_journal36_header_t *header, 
+static error_t journal36_header_check(journal36_header_t *header, 
     aal_device_t *device) 
 {
     return 0;
 }
 
-static reiserfs_journal36_t *reiserfs_journal36_init(aal_device_t *device) {
-    reiserfs_journal36_t *journal;
+static journal36_t *journal36_open(aal_device_t *device) {
+    journal36_t *journal;
 
     aal_assert("umka-406", device != NULL, return NULL);
     
@@ -32,7 +32,7 @@ static reiserfs_journal36_t *reiserfs_journal36_init(aal_device_t *device) {
     return journal;
 }
 
-static error_t reiserfs_journal36_sync(reiserfs_journal36_t *journal) {
+static error_t journal36_sync(journal36_t *journal) {
     
     aal_assert("umka-407", journal != NULL, return -1);
     
@@ -44,13 +44,13 @@ static error_t reiserfs_journal36_sync(reiserfs_journal36_t *journal) {
     return 0;
 }
 
-static void reiserfs_journal36_fini(reiserfs_journal36_t *journal) {
+static void journal36_close(journal36_t *journal) {
     aal_assert("umka-408", journal != NULL, return);
     
     aal_free(journal);
 }
 
-static error_t reiserfs_journal36_replay(reiserfs_journal36_t *journal) {
+static error_t journal36_replay(journal36_t *journal) {
     return 0;
 }
 
@@ -64,18 +64,18 @@ static reiserfs_plugin_t journal36_plugin = {
 	    .desc = "Default journal for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.init = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_journal36_init,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *))journal36_open,
 	.create = NULL, 
-	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_journal36_fini,
-	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal36_sync,
-	.replay = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal36_replay
+	.close = (void (*)(reiserfs_opaque_t *))journal36_close,
+	.sync = (error_t (*)(reiserfs_opaque_t *))journal36_sync,
+	.replay = (error_t (*)(reiserfs_opaque_t *))journal36_replay
     }
 };
 
-reiserfs_plugin_t *reiserfs_journal36_entry(reiserfs_plugin_factory_t *f) {
+reiserfs_plugin_t *journal36_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &journal36_plugin;
 }
 
-libreiserfs_plugins_register(reiserfs_journal36_entry);
+libreiserfs_plugins_register(journal36_entry);
 

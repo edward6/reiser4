@@ -11,7 +11,7 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static error_t reiserfs_journal40_check_header(reiserfs_journal40_header_t *header, 
+static error_t journal40_check_header(journal40_header_t *header, 
     aal_device_t *device) 
 {
     aal_assert("umka-515", header != NULL, return -1);
@@ -26,7 +26,7 @@ static error_t reiserfs_journal40_check_header(reiserfs_journal40_header_t *head
     return 0;
 }
 
-static error_t reiserfs_journal40_check_footer(reiserfs_journal40_footer_t *footer, 
+static error_t journal40_check_footer(journal40_footer_t *footer, 
     aal_device_t *device) 
 {
     aal_assert("umka-516", footer != NULL, return -1);
@@ -41,8 +41,8 @@ static error_t reiserfs_journal40_check_footer(reiserfs_journal40_footer_t *foot
     return 0;
 }
 
-static reiserfs_journal40_t *reiserfs_journal40_init(aal_device_t *device) {
-    reiserfs_journal40_t *journal;
+static journal40_t *journal40_open(aal_device_t *device) {
+    journal40_t *journal;
 
     aal_assert("umka-409", device != NULL, return NULL);
     
@@ -58,7 +58,7 @@ static reiserfs_journal40_t *reiserfs_journal40_init(aal_device_t *device) {
 	goto error_free_journal;
     }
 	
-    if (reiserfs_journal40_check_header(journal->header->data, device))
+    if (journal40_check_header(journal->header->data, device))
 	goto error_free_header;
 	
     /* Reading and checking journal footer */
@@ -70,7 +70,7 @@ static reiserfs_journal40_t *reiserfs_journal40_init(aal_device_t *device) {
 	goto error_free_header;
     }
 	
-    if (reiserfs_journal40_check_footer(journal->footer->data, device))
+    if (journal40_check_footer(journal->footer->data, device))
 	goto error_free_footer;
     
     journal->device = device;
@@ -86,10 +86,10 @@ error:
     return NULL;
 }
 
-static reiserfs_journal40_t *reiserfs_journal40_create(aal_device_t *device, 
+static journal40_t *journal40_create(aal_device_t *device, 
     reiserfs_params_opaque_t *params) 
 {
-    reiserfs_journal40_t *journal;
+    journal40_t *journal;
     
     aal_assert("umka-417", device != NULL, return NULL);
 //    aal_assert("umka-418", params != NULL, return NULL);
@@ -121,7 +121,7 @@ error:
     return NULL;
 }
 
-static error_t reiserfs_journal40_sync(reiserfs_journal40_t *journal) {
+static error_t journal40_sync(journal40_t *journal) {
 
     aal_assert("umka-410", journal != NULL, return -1);
     
@@ -141,7 +141,7 @@ static error_t reiserfs_journal40_sync(reiserfs_journal40_t *journal) {
     return 0;
 }
 
-static void reiserfs_journal40_fini(reiserfs_journal40_t *journal) {
+static void journal40_close(journal40_t *journal) {
     aal_assert("umka-411", journal != NULL, return);
 
     aal_device_free_block(journal->header);
@@ -149,7 +149,7 @@ static void reiserfs_journal40_fini(reiserfs_journal40_t *journal) {
     aal_free(journal);
 }
 
-static error_t reiserfs_journal40_replay(reiserfs_journal40_t *journal) {
+static error_t journal40_replay(journal40_t *journal) {
     aal_assert("umka-412", journal != NULL, return -1);
     return 0;
 }
@@ -164,22 +164,22 @@ static reiserfs_plugin_t journal40_plugin = {
 	    .desc = "Default journal for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.init = (reiserfs_opaque_t *(*)(aal_device_t *))
-	    reiserfs_journal40_init,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *))
+	    journal40_open,
 	
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *, reiserfs_params_opaque_t *))
-	    reiserfs_journal40_create,
+	    journal40_create,
 	
-	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_journal40_fini,
-	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal40_sync,
-	.replay = (error_t (*)(reiserfs_opaque_t *))reiserfs_journal40_replay
+	.close = (void (*)(reiserfs_opaque_t *))journal40_close,
+	.sync = (error_t (*)(reiserfs_opaque_t *))journal40_sync,
+	.replay = (error_t (*)(reiserfs_opaque_t *))journal40_replay
     }
 };
 
-reiserfs_plugin_t *reiserfs_journal40_entry(reiserfs_plugin_factory_t *f) {
+reiserfs_plugin_t *journal40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &journal40_plugin;
 }
 
-libreiserfs_plugins_register(reiserfs_journal40_entry);
+libreiserfs_plugins_register(journal40_entry);
 

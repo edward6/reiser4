@@ -11,9 +11,9 @@
 
 static reiserfs_plugin_factory_t *factory = NULL;
 
-static reiserfs_alloc40_t *reiserfs_alloc40_init(aal_device_t *device, count_t len) {
+static alloc40_t *alloc40_open(aal_device_t *device, count_t len) {
     blk_t offset;
-    reiserfs_alloc40_t *alloc;
+    alloc40_t *alloc;
     
     aal_assert("umka-364", device != NULL, return NULL);
 
@@ -23,9 +23,9 @@ static reiserfs_alloc40_t *reiserfs_alloc40_init(aal_device_t *device, count_t l
     offset = (REISERFS_MASTER_OFFSET + (2 * aal_device_get_bs(device))) / 
 	aal_device_get_bs(device);
     
-    if (!(alloc->bitmap = reiserfs_bitmap_init(device, offset, len))) {
+    if (!(alloc->bitmap = reiserfs_bitmap_open(device, offset, len))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't initialize bitmap.");
+	    "Can't open bitmap.");
 	goto error_free_alloc;
     }
   
@@ -38,11 +38,11 @@ error:
     return NULL;
 }
 
-static reiserfs_alloc40_t *reiserfs_alloc40_create(aal_device_t *device, 
+static alloc40_t *alloc40_create(aal_device_t *device, 
     count_t len)
 {
     blk_t offset;
-    reiserfs_alloc40_t *alloc;
+    alloc40_t *alloc;
 
     aal_assert("umka-365", device != NULL, return NULL);
 	
@@ -67,7 +67,7 @@ error:
     return NULL;
 }
 
-static error_t reiserfs_alloc40_sync(reiserfs_alloc40_t *alloc) {
+static error_t alloc40_sync(alloc40_t *alloc) {
 
     aal_assert("umka-366", alloc != NULL, return -1);
     aal_assert("umka-367", alloc->bitmap != NULL, return -1);
@@ -75,16 +75,16 @@ static error_t reiserfs_alloc40_sync(reiserfs_alloc40_t *alloc) {
     return reiserfs_bitmap_sync(alloc->bitmap);
 }
 
-static void reiserfs_alloc40_fini(reiserfs_alloc40_t *alloc) {
+static void alloc40_close(alloc40_t *alloc) {
     
     aal_assert("umka-368", alloc != NULL, return);
     aal_assert("umka-369", alloc->bitmap != NULL, return);
 
-    reiserfs_bitmap_fini(alloc->bitmap);
+    reiserfs_bitmap_close(alloc->bitmap);
     aal_free(alloc);
 }
 
-static void reiserfs_alloc40_mark(reiserfs_alloc40_t *alloc, blk_t blk) {
+static void alloc40_mark(alloc40_t *alloc, blk_t blk) {
     
     aal_assert("umka-370", alloc != NULL, return);
     aal_assert("umka-371", alloc->bitmap != NULL, return);
@@ -92,7 +92,7 @@ static void reiserfs_alloc40_mark(reiserfs_alloc40_t *alloc, blk_t blk) {
     reiserfs_bitmap_use_block(alloc->bitmap, blk);
 }
 
-static void reiserfs_alloc40_dealloc(reiserfs_alloc40_t *alloc, blk_t blk) {
+static void alloc40_dealloc(alloc40_t *alloc, blk_t blk) {
     
     aal_assert("umka-372", alloc != NULL, return);
     aal_assert("umka-373", alloc->bitmap != NULL, return);
@@ -100,7 +100,7 @@ static void reiserfs_alloc40_dealloc(reiserfs_alloc40_t *alloc, blk_t blk) {
     reiserfs_bitmap_unuse_block(alloc->bitmap, blk);
 }
 
-static blk_t reiserfs_alloc40_alloc(reiserfs_alloc40_t *alloc) {
+static blk_t alloc40_alloc(alloc40_t *alloc) {
     blk_t blk;
     
     aal_assert("umka-374", alloc != NULL, return 0);
@@ -117,7 +117,7 @@ static blk_t reiserfs_alloc40_alloc(reiserfs_alloc40_t *alloc) {
     return blk;
 }
 
-count_t reiserfs_alloc40_free(reiserfs_alloc40_t *alloc) {
+count_t alloc40_free(alloc40_t *alloc) {
 
     aal_assert("umka-376", alloc != NULL, return 0);
     aal_assert("umka-377", alloc->bitmap != NULL, return 0);
@@ -125,7 +125,7 @@ count_t reiserfs_alloc40_free(reiserfs_alloc40_t *alloc) {
     return reiserfs_bitmap_unused(alloc->bitmap);
 }
 
-count_t reiserfs_alloc40_used(reiserfs_alloc40_t *alloc) {
+count_t alloc40_used(alloc40_t *alloc) {
     
     aal_assert("umka-378", alloc != NULL, return 0);
     aal_assert("umka-379", alloc->bitmap != NULL, return 0);
@@ -143,24 +143,24 @@ static reiserfs_plugin_t alloc40_plugin = {
 	    .desc = "Space allocator for reiserfs 4.0, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
-	.init = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc40_init,
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))reiserfs_alloc40_create,
-	.fini = (void (*)(reiserfs_opaque_t *))reiserfs_alloc40_fini,
-	.sync = (error_t (*)(reiserfs_opaque_t *))reiserfs_alloc40_sync,
+	.open = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc40_open,
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))alloc40_create,
+	.close = (void (*)(reiserfs_opaque_t *))alloc40_close,
+	.sync = (error_t (*)(reiserfs_opaque_t *))alloc40_sync,
 
-	.mark = (void (*)(reiserfs_opaque_t *, blk_t))reiserfs_alloc40_mark,
-	.alloc = (blk_t (*)(reiserfs_opaque_t *))reiserfs_alloc40_alloc,
-	.dealloc = (void (*)(reiserfs_opaque_t *, blk_t))reiserfs_alloc40_dealloc,
+	.mark = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_mark,
+	.alloc = (blk_t (*)(reiserfs_opaque_t *))alloc40_alloc,
+	.dealloc = (void (*)(reiserfs_opaque_t *, blk_t))alloc40_dealloc,
 	
-	.free = (count_t (*)(reiserfs_opaque_t *))reiserfs_alloc40_free,
-	.used = (count_t (*)(reiserfs_opaque_t *))reiserfs_alloc40_used
+	.free = (count_t (*)(reiserfs_opaque_t *))alloc40_free,
+	.used = (count_t (*)(reiserfs_opaque_t *))alloc40_used
     }
 };
 
-reiserfs_plugin_t *reiserfs_alloc40_entry(reiserfs_plugin_factory_t *f) {
+reiserfs_plugin_t *alloc40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &alloc40_plugin;
 }
 
-libreiserfs_plugins_register(reiserfs_alloc40_entry);
+libreiserfs_plugins_register(alloc40_entry);
 

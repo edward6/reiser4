@@ -40,7 +40,7 @@ static void build_objid_by_ids(reiserfs_objid_t *objid,
     aal_memcpy(objid, &sd_key, sizeof(*objid));
 }
 
-static error_t reiserfs_direntry40_create(reiserfs_direntry40_t *direntry, 
+static error_t direntry40_create(direntry40_t *direntry, 
     reiserfs_item_info_t *info)
 {
     int i;
@@ -55,7 +55,7 @@ static error_t reiserfs_direntry40_create(reiserfs_direntry40_t *direntry,
     
     direntry40_set_count(direntry, direntry_info->count);
     
-    offset = sizeof(reiserfs_direntry40_t) + 
+    offset = sizeof(direntry40_t) + 
 	direntry_info->count * sizeof(reiserfs_entry40_t);
 
     for (i = 0; i < direntry_info->count; i++) {	
@@ -80,7 +80,7 @@ static error_t reiserfs_direntry40_create(reiserfs_direntry40_t *direntry,
     return 0;
 }
 
-static void reiserfs_direntry40_estimate(reiserfs_item_info_t *info, 
+static void direntry40_estimate(reiserfs_item_info_t *info, 
     reiserfs_item_coord_t *coord) 
 {
     int i;
@@ -99,25 +99,25 @@ static void reiserfs_direntry40_estimate(reiserfs_item_info_t *info,
     }
 
     if (coord == NULL || coord->unit_pos == -1)
-	info->length += sizeof(reiserfs_direntry40_t);
+	info->length += sizeof(direntry40_t);
 }
 
-static void reiserfs_direntry40_print(reiserfs_direntry40_t *direntry, 
+static void direntry40_print(direntry40_t *direntry, 
     char *buff, uint16_t n) 
 {
     aal_assert("umka-548", direntry != NULL, return);
     aal_assert("umka-549", buff != NULL, return);
 }
 
-static uint32_t reiserfs_direntry40_minsize(void) {
-    return sizeof(reiserfs_direntry40_t);
+static uint32_t direntry40_minsize(void) {
+    return sizeof(direntry40_t);
 }
 
 /* 
     Helper function that is used by lookup method 
     for getting n-th element of direntry.
 */
-static void *callback_key_at(reiserfs_direntry40_t *direntry, 
+static void *callback_key_at(direntry40_t *direntry, 
     uint32_t pos) 
 {
     return &direntry->entry[pos].entryid;
@@ -141,7 +141,7 @@ static int callback_key_cmp(reiserfs_entryid_t *dirid,
     return reiserfs_key40_cmp(&entkey, key);
 }
 
-static int reiserfs_direntry40_lookup(reiserfs_direntry40_t *direntry, 
+static int direntry40_lookup(direntry40_t *direntry, 
     reiserfs_key40_t *key, reiserfs_item_coord_t *coord)
 {
     int found;
@@ -161,7 +161,7 @@ static int reiserfs_direntry40_lookup(reiserfs_direntry40_t *direntry,
     return found;
 }
 
-static int reiserfs_direntry40_internal(void) {
+static int direntry40_internal(void) {
     return 0;
 }
 
@@ -178,18 +178,18 @@ static reiserfs_plugin_t direntry40_plugin = {
 	.common = {
 	    .type = DIRENTRY_ITEM,
 	    
-	    .create = (error_t (*)(void *, void *))reiserfs_direntry40_create,
-	    .estimate = (void (*)(void *, void *))reiserfs_direntry40_estimate,
-	    .minsize = (uint32_t (*)(void))reiserfs_direntry40_minsize,
-	    .print = (void (*)(void *, char *, uint16_t))reiserfs_direntry40_print,
-	    .lookup = (int (*) (void *, void *, void *))reiserfs_direntry40_lookup,
-	    .internal = (int (*)(void))reiserfs_direntry40_internal,
+	    .create = (error_t (*)(void *, void *))direntry40_create,
+	    .estimate = (void (*)(void *, void *))direntry40_estimate,
+	    .minsize = (uint32_t (*)(void))direntry40_minsize,
+	    .print = (void (*)(void *, char *, uint16_t))direntry40_print,
+	    .lookup = (int (*) (void *, void *, void *))direntry40_lookup,
+	    .internal = (int (*)(void))direntry40_internal,
 	    
 	    .confirm = NULL,
 	    .check = NULL,
 
 	    .unit_add = NULL,
-	    .unit_count = NULL,
+	    .units_count = NULL,
 	    .unit_remove = NULL
 	},
 	.specific = {
@@ -198,10 +198,10 @@ static reiserfs_plugin_t direntry40_plugin = {
     }
 };
 
-reiserfs_plugin_t *reiserfs_direntry40_entry(reiserfs_plugin_factory_t *f) {
+reiserfs_plugin_t *direntry40_entry(reiserfs_plugin_factory_t *f) {
     factory = f;
     return &direntry40_plugin;
 }
 
-libreiserfs_plugins_register(reiserfs_direntry40_entry);
+libreiserfs_plugins_register(direntry40_entry);
 
