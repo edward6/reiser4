@@ -4708,6 +4708,60 @@ int main (int argc, char **argv)
 void funJustAfterMain()
 {}
 
+#if REISER4_DEBUG
+
+/** helper called by print_tree_rec() */
+void tree_rec_dot( reiser4_tree *tree /* tree to print */, 
+		   znode *node /* node to print */, 
+		   __u32 flags /* print flags */, 
+		   FILE *dot /* dot-output */ )
+{
+	int ret;
+	coord_t coord;
+	char buffer_l[ 100 ];
+	char buffer_r[ 100 ];
+
+	ret = zload( node );
+	if( ret != 0 ) {
+		info( "Cannot load/parse node: %i", ret );
+		return;
+	}
+
+	fprintf( dot, "B%lli [shape=record,label=\"%lli\\n%s\\n%s\"];\n", 
+		 *znode_get_block( node ), 
+		 *znode_get_block( node ),
+		 sprintf_key( buffer_l, &node -> ld_key ),
+		 sprintf_key( buffer_r, &node -> rd_key ) );
+
+	for( ncoord_init_before_first_item( &coord, node ); ncoord_next_item( &coord ) == 0; ) {
+
+		if( item_is_internal( &coord ) ) {
+			znode *child;
+
+			spin_lock_dk( current_tree );
+			child = child_znode( &coord, 0 );
+			spin_unlock_dk( current_tree );
+			if( !IS_ERR( child ) ) {
+				tree_rec_dot( tree, child, flags, dot );
+				fprintf( dot, "B%lli -> B%lli ;\n", 
+					 *znode_get_block( node ),
+					 *znode_get_block( child ) );
+				zput( child );
+			} else {
+				info( "Cannot get child: %li\n", 
+				      PTR_ERR( child ) );
+			}
+		}
+	}
+	zrelse( node );
+	/*
+	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL )
+		print_address( "end children of node", znode_get_block( node ) );
+	*/
+}
+
+#endif
+
 /*
  * Make Linus happy.
  * Local variables:
