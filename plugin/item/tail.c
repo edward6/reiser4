@@ -97,6 +97,7 @@ lookup_tail(const reiser4_key *key, lookup_bias bias, coord_t *coord)
 
 	if (keygt(key, max_key_inside_tail(coord, &item_key))) {
 		/* @key is key of another file */
+		assert("vs-1409", nr_units != 0);
 		coord->unit_pos = nr_units - 1;
 		coord->between = AFTER_UNIT;
 		return CBK_COORD_NOTFOUND;

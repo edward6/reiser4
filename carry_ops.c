@@ -893,7 +893,9 @@ what_can_fit_into_node(carry_op * op)
 		return 0;
 	free -= overhead;
 	/* FIXME: flow->length is loff_t only to not get overflowed in case of expandign truncate */
-	return min(free, (size_t)op->u.insert_flow.flow->length);
+	if (free < op->u.insert_flow.flow->length)
+		return free;
+	return (int)op->u.insert_flow.flow->length;
 }
 
 /* in make_space_for_flow_insertion we need to check either whether whole flow
