@@ -6,8 +6,62 @@
  * Directory entry implementation
  */
 
+/*
+ * DESCRIPTION:
+ *
+ * This is "compound" directory item plugin implementation. This directory
+ * item type is compound (as opposed to the "simple directory item" in
+ * fs/reiser4/plugin/item/sde.[ch]), because it consists of several directory
+ * entries.
+ *
+ * The reason behind this decision is disk space efficiency: all directory
+ * entries inside the same directory have identical fragment in their
+ * keys. This, of course, depends on key assignment policy. In our default key
+ * assignment policy, all directory entries have the same locality which is
+ * equal to the object id of their directory.
+ *
+ * Composing directory item out of several directory entries for the same
+ * directory allows us to store said key fragment only once. That is, this is
+ * some ad hoc form of key compression (stem compression) that is implemented
+ * here, because general key compression is not supposed to be implemented in
+ * v4.0 and disk space efficiency for directory entries is deemed (who are the
+ * deemsters?) to be important.
+ *
+ * Another decision that was made regarding all directory item plugins, is
+ * that they will store entry keys unaligned. This is for that sake of disk
+ * space efficiency again.
+ *
+ * In should be noted, that storing keys unaligned increases CPU consumption,
+ * at least on some architectures. [FIXME-NIKITA currently key is copied to
+ * the properly aligned location regardless, see extract_key_from_id() and
+ * extract_key_from_de_id().]
+ *
+ * Internal on-disk structure of the compound directory item is the following:
+ *
+ *      HEADER          cde_item_format.        Here number of entries is stored.
+ *      ENTRY_HEADER_0  cde_unit_header.        Here part of entry key and 
+ *      ENTRY_HEADER_1                          offset of entry body are stored.
+ *      ENTRY_HEADER_2
+ *      ...
+ *      ENTRY_HEADER_N
+ *      ENTRY_BODY_0    directory_entry_format. Here part of stat data key and
+ *      ENTRY_BODY_1                            NUL-terminated name are stored.
+ *      ENTRY_BODY_2
+ *      ...
+ *      ENTRY_BODY_N
+ *
+ * When it comes to the balancing, each directory entry in compound directory
+ * item is unit, that is, something that can be cut from one item and pasted
+ * into another item of the same type. Handling of unit cut and paste is major
+ * reason for the complexity of cide below.
+ *
+ */
+
 #include "../../reiser4.h"
 
+/**
+ * return body of compound directory item at @coord
+ */
 static cde_item_format *formatted_at( const tree_coord *coord )
 {
 	assert( "nikita-1282", coord != NULL );
@@ -15,17 +69,26 @@ static cde_item_format *formatted_at( const tree_coord *coord )
 }
 
 
+/**
+ * return entry header at @coord
+ */
 static cde_unit_header *header_at( const tree_coord *coord, int idx )
 {
 	assert( "nikita-1283", coord != NULL );
 	return &formatted_at( coord ) -> entry[ idx ];
 }
 
+/**
+ * return number of units in compound directory item at @coord
+ */
 static int units( const tree_coord *coord )
 {
 	return d16tocpu( &formatted_at( coord ) -> num_of_entries );
 }
 
+/**
+ * return offset of the body of @idx-th entry in @coord
+ */
 static unsigned int offset_of( const tree_coord *coord, int idx )
 {
 	if( idx < units( coord ) )
@@ -35,28 +98,43 @@ static unsigned int offset_of( const tree_coord *coord, int idx )
 	else impossible( "nikita-1308", "Wrong idx" );
 }
 
+/**
+ * set offset of the body of @idx-th entry in @coord
+ */
 static void set_offset( const tree_coord *coord, int idx, unsigned int offset )
 {
 	cputod16( ( __u16 ) offset, &header_at( coord, idx ) -> offset );
 }
 
+/**
+ * return pointer to @offset-th byte from the beginning of @coord
+ */
 static char *address( const tree_coord *coord, int offset )
 {
 	return ( ( char * ) item_body_by_coord( coord ) ) + offset;
 }
 
+/**
+ * return pointer to the body of @idx-th entry in @coord
+ */
 static directory_entry_format *entry_at( const tree_coord *coord, int idx )
 {
 	return ( directory_entry_format * ) address
 		( coord, ( int ) offset_of( coord, idx ) );
 }
 
+/**
+ * return number of unit referencesd by @coord
+ */
 static int idx_of( const tree_coord *coord )
 {
 	assert( "nikita-1285", coord != NULL );
 	return coord -> unit_pos;
 }
 
+/**
+ * find position where entry with @entry_key would be inserted into @coord
+ */
 static int find( const tree_coord *coord, const reiser4_key *entry_key, 
 		 cmp_t *last )
 {
@@ -86,8 +164,14 @@ static int find( const tree_coord *coord, const reiser4_key *entry_key,
 		return -ENOENT;
 }
 
+/**
+ * expand @coord as to accomodate for insertion of @no new entries starting
+ * from @pos, with total bodies size @size.
+ */
 static int expand_item( const tree_coord *coord, int pos, int no, 
-			int size, unsigned int data_size )
+			int size, 
+			unsigned int data_size /* free space already reserved
+						* in the item for insertion */ )
 {
 	int entries;
 	cde_unit_header  *header;
@@ -157,6 +241,9 @@ static int expand_item( const tree_coord *coord, int pos, int no,
 	return 0;
 }
 
+/**
+ * insert new @entry into item
+ */
 static int expand( const tree_coord *coord, cde_entry *entry, 
 		   int len, int *pos, reiser4_entry *dir_entry )
 {
@@ -172,6 +259,9 @@ static int expand( const tree_coord *coord, cde_entry *entry,
 	return 0;
 }
 
+/**
+ * paste body of @entry into item
+ */
 static int paste_entry( const tree_coord *coord, cde_entry *entry, 
 			int pos, reiser4_entry *dir_entry )
 {
@@ -188,6 +278,10 @@ static int paste_entry( const tree_coord *coord, cde_entry *entry,
 	return 0;
 }
 
+/**
+ * estimate how much space is necessary in item to insert/paste set of entries
+ * described in @data.
+ */
 int cde_estimate( const tree_coord *coord, const reiser4_item_data *data )
 {
 	cde_entry_data *e;
@@ -218,11 +312,17 @@ int cde_estimate( const tree_coord *coord, const reiser4_item_data *data )
 	return result;
 }
 
+/**
+ * ->nr_units() method for this item plugin.
+ */
 unsigned cde_nr_units( const tree_coord *coord )
 {
 	return units( coord );
 }
 
+/**
+ * ->unit_key() method for this item plugin.
+ */
 reiser4_key *cde_unit_key( const tree_coord *coord, reiser4_key *key )
 {
 	assert( "nikita-1452", coord != NULL );
@@ -258,6 +358,9 @@ int cde_mergeable( const tree_coord *p1, const tree_coord *p2 )
 		
 }
 
+/**
+ * ->max_key_inside() method for this item plugin.
+ */
 reiser4_key *cde_max_key_inside( const tree_coord *coord, reiser4_key *result )
 {
 	assert( "nikita-1342", coord != NULL );
@@ -268,6 +371,9 @@ reiser4_key *cde_max_key_inside( const tree_coord *coord, reiser4_key *result )
 	return result;
 }
 
+/**
+ * ->print() method for this item plugin.
+ */
 void cde_print( const char *prefix, tree_coord *coord )
 {
 	assert( "nikita-1077", prefix != NULL );
@@ -378,12 +484,18 @@ int cde_check( tree_coord *coord, const char **error )
 	return result;
 }
 
+/**
+ * ->init() method for this item plugin.
+ */
 int cde_init( tree_coord *coord )
 {
 	cputod16( 0u, &formatted_at( coord ) -> num_of_entries );
 	return 0;
 }
 
+/**
+ * ->lookup() method for this item plugin.
+ */
 lookup_result cde_lookup( const reiser4_key *key, lookup_bias bias, 
 			  tree_coord *coord )
 {
@@ -416,6 +528,9 @@ lookup_result cde_lookup( const reiser4_key *key, lookup_bias bias,
 	}
 }
 
+/**
+ * ->paste() method for this item plugin.
+ */
 int cde_paste( tree_coord *coord, reiser4_item_data *data, 
 	       carry_level *todo UNUSED_ARG )
 {
@@ -446,6 +561,10 @@ int cde_paste( tree_coord *coord, reiser4_item_data *data,
 	return result;
 }
 
+/**
+ * amount of space occupied by all entries starting from @idx both headers and
+ * bodies.
+ */
 static unsigned int part_size( const tree_coord *coord, int idx )
 {
 	assert( "nikita-1299", coord != NULL );
@@ -506,6 +625,9 @@ int cde_can_shift( unsigned free_space, tree_coord *coord, znode *target,
 	return shift;
 }
 
+/**
+ * ->copy_units() method for this item plugin.
+ */
 void cde_copy_units( tree_coord *target, tree_coord *source,
 		     unsigned from, unsigned count,
 		     shift_direction where_is_free_space,
@@ -590,6 +712,9 @@ void cde_copy_units( tree_coord *target, tree_coord *source,
 	}
 }
 
+/**
+ * ->cut_units() method for this item plugin.
+ */
 int cde_cut_units( tree_coord *coord, unsigned from, unsigned count,
 		   shift_direction where_to_move_free_space,
 		   const reiser4_key *from_key UNUSED_ARG,
@@ -666,6 +791,9 @@ int cde_cut_units( tree_coord *coord, unsigned from, unsigned count,
 	return header_delta + entry_delta;
 }
 
+/**
+ * ->s.dir.extract_key() method for this item plugin.
+ */
 int cde_extract_key( const tree_coord *coord, reiser4_key *key )
 {
 	directory_entry_format *dent;
@@ -677,6 +805,9 @@ int cde_extract_key( const tree_coord *coord, reiser4_key *key )
 	return extract_key_from_id( &dent -> id, key );
 }
 
+/**
+ * ->s.dir.extract_name() method for this item plugin.
+ */
 char *cde_extract_name( const tree_coord *coord )
 {
 	directory_entry_format *dent;
@@ -687,6 +818,11 @@ char *cde_extract_name( const tree_coord *coord )
 	return ( char * ) dent -> name;
 }
 
+/**
+ * helper function for try_to_glue_to(): determine whether new directory entry
+ * of dir @dir with plugin @plugin can be glued with (pasted in) item at
+ * @coord.
+ */
 static int can_glue_to( tree_coord *coord, const struct inode *dir,
 			const reiser4_plugin *plugin )
 {
@@ -700,6 +836,10 @@ static int can_glue_to( tree_coord *coord, const struct inode *dir,
 		( reiser4_get_file_plugin( dir ) -> owns_item( dir, coord ) ) );
 }
 
+/**
+ * helper function for try_to_glue_to(): adjust @coord to paste new entry into
+ * existing directory item.
+ */
 static int move_to_neighbor( tree_coord *coord )
 {
 	assert( "nikita-1332", coord != NULL );
@@ -714,6 +854,10 @@ static int move_to_neighbor( tree_coord *coord )
 	}
 }
 
+/**
+ * Attempt to avoid creation of new item by checking its neighbors and trying
+ * to merge new entries into them.
+ */
 static int try_to_glue_to( tree_coord *coord, const struct inode *dir,
 			   const reiser4_plugin *plugin )
 {
@@ -736,6 +880,9 @@ static int try_to_glue_to( tree_coord *coord, const struct inode *dir,
 	return result;
 }
 
+/**
+ * ->s.dir.add_entry() method for this item plugin
+ */
 int cde_add_entry( const struct inode *dir, tree_coord *coord, 
 		   reiser4_lock_handle *lh, const struct dentry *name, 
 		   reiser4_entry *dir_entry )
@@ -773,6 +920,9 @@ int cde_add_entry( const struct inode *dir, tree_coord *coord,
 	return result;
 }
 
+/**
+ * ->s.dir.max_name_len() method for this item plugin
+ */
 int cde_max_name_len( int block_size )
 {
 	return block_size - REISER4_NODE_MAX_OVERHEAD - 
