@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
     }
 
     while (!reiserfs_dir_read(object, &entry)) {
-	fprintf(stderr, "[%llx:%llx] %s\n", (entry.objid.locality >> 4), 
+	fprintf(stdout, "[%llx:%llx] %s\n", (entry.objid.locality >> 4), 
 	    entry.objid.objectid, entry.name);
     }
     

@@ -455,6 +455,9 @@ struct reiserfs_item_common_ops {
 
     /* Returns TRUE if item plugin is internal item plugin */
     int (*internal) (void);
+
+    /* Returns TRUE if item may be splitted (compound item) */
+    int (*compound) (void);
 };
 
 typedef struct reiserfs_item_common_ops reiserfs_item_common_ops_t;

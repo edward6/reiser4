@@ -187,8 +187,8 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     reiserfs_nh40_t *nh;
     
     int is_insert;
-    int is_enought_space;
-    int is_inside_range;
+    int is_space;
+    int is_range;
 
     aal_assert("umka-817", node != NULL, return -1);
     aal_assert("vpf-006", pos != NULL, return -1);
@@ -196,13 +196,13 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
 
     aal_assert("umka-712", item->key.plugin != NULL, return -1);
 
-    is_enought_space = (nh40_get_free_space(reiserfs_nh40(node->block)) >= 
-	item->len + sizeof(reiserfs_ih40_t));
+    is_space = (nh40_get_free_space(reiserfs_nh40(node->block)) >= 
+	item->len + (pos->unit == 0xffff ? sizeof(reiserfs_ih40_t) : 0));
 
-    is_inside_range = (pos->item <= node40_count(node));
+    is_range = (pos->item <= node40_count(node));
     
-    aal_assert("vpf-026", is_enought_space, return -1);
-    aal_assert("vpf-027", is_inside_range, return -1);
+    aal_assert("vpf-026", is_space, return -1);
+    aal_assert("vpf-027", is_range, return -1);
 
     is_insert = (pos->unit == 0xffff);
     item_pos = pos->item + !is_insert;
@@ -311,7 +311,7 @@ static errno_t node40_remove(reiserfs_node40_t *node,
     
 	/* Updating offsets */
 	ih_at_end = node40_ih_at(node->block, nh40_get_num_items(nh) - 1);
-	for (ih = ih_at_pos + 1; ih >= ih_at_end; ih++)
+	for (ih = ih_at_pos - 1; ih >= ih_at_end; ih--)
 	    ih40_set_offset(ih, ih40_get_offset(ih) - ih40_get_length(ih_at_pos));
     }
 	
@@ -425,7 +425,7 @@ static errno_t node40_set_key(reiserfs_node40_t *node,
     
     aal_assert("umka-811", pos->item < node40_count(node), return -1);
 
-    aal_memcpy(&(node40_ih_at(node->block, pos->item)->key), key, 
+    aal_memcpy(&(node40_ih_at(node->block, pos->item)->key), key->body, 
 	key->plugin->key_ops.size());
 
     return 0;

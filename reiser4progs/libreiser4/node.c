@@ -485,7 +485,7 @@ errno_t reiserfs_node_insert(
     }
     
     /* Checking if item length is gretter then free space in node */
-    if (item->len + reiserfs_node_item_overhead(node) >
+    if (item->len + (pos->unit == 0xffff ? reiserfs_node_item_overhead(node) : 0) >
         reiserfs_node_get_space(node))
     {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,

@@ -150,6 +150,10 @@ static int stat40_internal(void) {
     return 0;
 }
 
+static int stat40_compound(void) {
+    return 0;
+}
+
 static uint16_t stat40_get_mode(reiserfs_stat40_t *stat) {
     aal_assert("umka-710", stat != NULL, return 0);
     return st40_get_mode(stat);
@@ -172,17 +176,24 @@ static reiserfs_plugin_t stat40_plugin = {
 	.common = {
 		
 #ifndef ENABLE_COMPACT
-	    .create = (errno_t (*)(const void *, reiserfs_item_hint_t *))stat40_create,
-	    .estimate = (errno_t (*)(uint32_t, reiserfs_item_hint_t *))stat40_estimate,
+	    .create = (errno_t (*)(const void *, reiserfs_item_hint_t *))
+		stat40_create,
+	    
+	    .estimate = (errno_t (*)(uint32_t, reiserfs_item_hint_t *))
+		stat40_estimate,
 #else
 	    .create = NULL,
 	    .estimate = NULL,
 #endif
 	    .confirm = (errno_t (*)(const void *))stat40_confirm,
 	    .check = (errno_t (*)(const void *, int))stat40_check,
-	    .print = (errno_t (*)(const void *, char *, uint32_t))stat40_print,
+	    
+	    .print = (errno_t (*)(const void *, char *, uint32_t))
+		stat40_print,
+	    
 	    .minsize = (uint32_t (*)(void))stat40_minsize,
 	    .internal = stat40_internal,
+	    .compound = stat40_compound,
 
 	    .maxkey = NULL,
 	    .lookup = NULL,

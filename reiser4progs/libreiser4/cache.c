@@ -319,27 +319,27 @@ void reiserfs_cache_unregister(
 
     /* Deleteing passed child from children list of specified cache */
     if (cache->list) {
-	if (aal_list_length(aal_list_first(cache->list)) == 1) {
-	    aal_list_remove(cache->list, child);
+	uint32_t count = aal_list_length(aal_list_first(cache->list));
+	
+	if (child->left)
+	    child->left->right = NULL;
+    
+	if (child->right)
+	    child->right->left = NULL;
+    
+	child->left = NULL;
+	child->right = NULL;
+	child->parent = NULL;
+	child->tree = NULL;
+	
+	aal_list_remove(cache->list, child);
+	
+	if (count == 1)
 	    cache->list = NULL;
-	} else
-	    aal_list_remove(cache->list, child);
+    
+	if (limit->enabled)
+	    limit->cur--;
     }
-    
-    /* Deinitialization of pointers to both neighbors */
-    if (limit->enabled)
-	limit->cur--;
-
-    if (child->left)
-	child->left->right = NULL;
-    
-    if (child->right)
-	child->right->left = NULL;
-    
-    child->left = NULL;
-    child->right = NULL;
-    child->parent = NULL;
-    child->tree = NULL;
 }
 
 #ifndef ENABLE_COMPACT

@@ -423,7 +423,8 @@ errno_t reiserfs_tree_shift(
 	
 	/* Moving items until insertion point reach first position in node */
 	while (reiserfs_node_count(old->cache->node) > 0 && 
-	    reiserfs_node_get_space(left->node) >= item_len)
+	    reiserfs_node_get_space(left->node) >= item_len &&
+	    reiserfs_node_get_space(new->cache->node) < needed)
 	{
 	    /* 
 		Checking if left neighbor node will have enough free space, after
@@ -469,7 +470,8 @@ errno_t reiserfs_tree_shift(
 	    item_overhead;
 	    
 	while (reiserfs_node_count(old->cache->node) > 0 && 
-	    reiserfs_node_get_space(right->node) >= item_len)
+	    reiserfs_node_get_space(right->node) >= item_len &&
+	    reiserfs_node_get_space(new->cache->node) < needed)
 	{
 	    /* 
 		Checking for the case when insertion point is almost shifted 
@@ -890,11 +892,14 @@ errno_t reiserfs_tree_insert(
 		Check if new item should be placed inside found node or in new 
 		allocated node.
 	    */
-	    if (insert.pos.item < reiserfs_node_count(insert.cache->node)) {
+	    if (insert.pos.item < reiserfs_node_count(insert.cache->node) &&
+		reiserfs_node_count(insert.cache->node) > 1)
+	    {
 		reiserfs_pos_t src_pos;
 		reiserfs_pos_t dst_pos;
 		
 		reiserfs_pos_init(&dst_pos, 0, 0xffff);
+
 		reiserfs_pos_init(&src_pos, 
 		    reiserfs_node_count(insert.cache->node) - 1, 0xffff);
 		

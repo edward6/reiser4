@@ -259,6 +259,10 @@ static int direntry40_internal(void) {
     return 0;
 }
 
+static int direntry40_compound(void) {
+    return 1;
+}
+
 /* 
     Helper function that is used by lookup method 
     for getting n-th element of direntry.
@@ -362,19 +366,18 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .insert = NULL,
 	    .remove = NULL,
 #endif
-	    .minsize = (uint32_t (*)(void))direntry40_minsize,
-	    
-	    .internal = direntry40_internal,
-	    
 	    .print = (errno_t (*)(const void *, char *, uint32_t))
 		direntry40_print,
 	    
 	    .lookup = (int (*) (const void *, reiserfs_key_t *, uint32_t *))
 		direntry40_lookup,
 	    
+	    .minsize = (uint32_t (*)(void))direntry40_minsize,
 	    .maxkey = (errno_t (*)(const void *))direntry40_maxkey,
-	    
 	    .count = (uint32_t (*)(const void *))direntry40_count,
+	   
+	    .internal = direntry40_internal,
+	    .compound = direntry40_compound,
 	    
 	    .confirm = NULL,
 	    .check = NULL
