@@ -545,8 +545,8 @@ static lookup_result cbk( cbk_handle *h )
 
 		if (IS_ERR(fake)) return PTR_ERR(fake);
 
-		done = reiser4_lock_znode(h->parent_lh, fake, 
-					  GN_DO_READ, ZNODE_LOCK_LOPRI);
+		done = longterm_lock_znode(h->parent_lh, fake, 
+					   GN_DO_READ, ZNODE_LOCK_LOPRI);
 
 		assert( "nikita-1637", done != -EDEADLK );
 
@@ -634,8 +634,8 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h)
 		return LLR_DONE;
 	}
 
-	h->result = reiser4_lock_znode(h->active_lh, active,
-				       cbk_lock_mode(h->level, h), ZNODE_LOCK_LOPRI);
+	h->result = longterm_lock_znode(h->active_lh, active,
+					cbk_lock_mode(h->level, h), ZNODE_LOCK_LOPRI);
 	zput(active);
 	if (h->result)
 		goto fail_or_restart;
@@ -1110,9 +1110,9 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 		return -ENOENT;
 	}
 
-	result = reiser4_lock_znode( h -> active_lh, node, 
-				     cbk_lock_mode( level, h ), 
-				     ZNODE_LOCK_LOPRI );
+	result = longterm_lock_znode( h -> active_lh, node, 
+				      cbk_lock_mode( level, h ), 
+				      ZNODE_LOCK_LOPRI );
 	zput( node );
 	if( result != 0 )
 		return result;
@@ -1410,7 +1410,7 @@ static void put_parent( cbk_handle *h )
 {
 	assert( "nikita-383", h != NULL );
 	if(h->parent_lh->node != NULL) {
-		reiser4_unlock_znode(h->parent_lh);
+		longterm_unlock_znode(h->parent_lh);
 	}
 }
 
