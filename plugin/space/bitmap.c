@@ -11,7 +11,8 @@ struct bnode {
 	spinlock_t guard;
 	char     * wpage; /* working bitmap block */
 	char     * cpage; /* commit bitmap block */
-
+	jnode    * wjnode;
+	jnode    * cjnode;
 	struct bnode * next_in_commit_list;
 };
 
@@ -369,8 +370,7 @@ void get_working_bitmap_blocknr (bmap_nr_t bmap, reiser4_block_nr *bnr)
    on failure without unlocking bnode first */
 static int load_bnode_half (struct bnode * bnode, char ** data, reiser4_block_nr *block)
 {
-	struct super_block * super = get_current_context() -> super;
-	int (*read_node) (const reiser4_block_nr *, char **, size_t);
+	int (*read_node) ( reiser4_tree *, jnode *, char ** );
 
 	char * tmp = NULL;
 	int    ret;
@@ -381,7 +381,11 @@ static int load_bnode_half (struct bnode * bnode, char ** data, reiser4_block_nr
 
 	assert ("zam-415", read_node != NULL);
  
-	ret = read_node(block, &tmp, super -> s_blocksize);
+	if (blocknr_is_fake(block)) {
+		ret = read_node (current_tree, bnode->wjnode, &tmp);
+	} else {
+		ret = read_node (current_tree, bnode->cjnode, &tmp);
+	}
 
 	spin_lock_bnode(bnode);
 
