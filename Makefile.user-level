@@ -31,7 +31,9 @@ LIBS         = -lpthread \
                -ldl \
                -lbfd \
                -liberty
-CFLAGS      := -g -pthread -pg \
+PROFFLAGS   := -pg
+OPTFLAGS    := 
+CFLAGS      := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
                -pipe \
                -W \
                -Wall \
@@ -63,7 +65,7 @@ CFLAGS      := -g -pthread -pg \
 
 #-Weffc++ -Waggregate-return -Wcast-qual -Wredundant-decls 
 
-LDFLAGS=-pg
+LDFLAGS=$(PROFFLAGS)
 
 DATE              := $(shell env LANG=C date -u "+%a %b %e %T %Z %Y")
 HOST              := $(shell hostname -s)
