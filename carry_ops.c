@@ -180,13 +180,16 @@ static unsigned int space_needed_for_op( znode *node /* znode data are
 {
 	assert( "nikita-919", op != NULL );
 
-	if( op -> op == COP_INSERT )
+	switch( op -> op ) {
+	default:
+		impossible( "nikita-1701", "Wrong opcode" );
+	case COP_INSERT:
 		return space_needed( node, NULL, op -> u.insert.d -> data, 1 );
-	else if( op -> op == COP_PASTE )
+	case COP_PASTE:
 		return space_needed( node, 
 				     op -> u.insert.d -> coord, 
 				     op -> u.insert.d -> data, 0 );
-	impossible( "nikita-1701", "Wrong opcode" );
+	}
 }
 
 /**
@@ -341,6 +344,8 @@ static int make_space( carry_op *op /* carry operation, insert or
 	 * low priority. This is handled by restart logic in carry().
 	 */
 	not_enough_space = free_space_shortage( node, op );
+	if( not_enough_space <= 0 )
+		return 0;
 	if( ( not_enough_space > 0 ) && 
 	    !( op -> u.insert.flags & COPI_DONT_SHIFT_LEFT ) ) {
 		carry_node *left;
@@ -964,7 +969,6 @@ static int carry_extent( carry_op *op /* operation to perform */,
 {
 	znode            *node;
 	carry_insert_data cdata;
-	carry_insert_data cdata2;
 	tree_coord        coord;
 	reiser4_item_data data;
 	carry_op         *delete_dummy;
