@@ -2105,7 +2105,11 @@ repeat:
 		reiser4_unlock_page(pg);
 		atom_wait_event(atom);
 		reiser4_lock_page(pg);
-		assert("nikita-3168", jprivate(pg) == node);
+		/*
+		 * page may has been detached by ->writepage()->releasepage().
+		 */
+		wait_on_page_writeback(pg);
+		eflush_del(node, 1);
 		page_cache_release(pg);
 		LOCK_JNODE(node);
 		atom = atom_locked_by_jnode(node);
