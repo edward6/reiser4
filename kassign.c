@@ -64,9 +64,9 @@
  *
  * File names shorter than 23 (== 7 + 8 + 8) characters are completely encoded
  * in the key. Such file names are called "short". They are distinguished by H
- * bit set in the key.
+ * bit set 0 in the key.
  *
- * Other file names are "long". For long name, H bit is 0, and first 15 (== 7
+ * Other file names are "long". For long name, H bit is 1, and first 15 (== 7
  * + 8) characters are encoded in prefix-1 and prefix-2 portions of the
  * key. Last 8 bytes of the key are occupied by hash of the remaining
  * characters of the name.
