@@ -838,7 +838,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	int                  real_size;
 	item_plugin         *iplug;
 	int                  can_paste_here;
-	tree_coord           dcoord;
+	tree_coord          *dcoord;
 
 	assert( "nikita-982", op != NULL );
 	assert( "nikita-983", todo != NULL );
