@@ -11,7 +11,13 @@
 #include <linux/quotaops.h>
 
 static int
-common_setattr_ok(struct dentry *dentry, struct iattr *attr)
+mask_ok_common(struct inode *inode, int mask)
+{
+	return vfs_permission(inode, mask);
+}
+
+static int
+setattr_ok_common(struct dentry *dentry, struct iattr *attr)
 {
 	int result;
 	struct inode *inode;
@@ -42,9 +48,8 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
 			       .pops = NULL,
 			       .label = "rwx",
 			       .desc = "standard UNIX permissions",
-			       .linkage = TS_LIST_LINK_ZERO,
-			       }
-			 ,
+			       .linkage = TS_LIST_LINK_ZERO
+			 },
 			 .read_ok = NULL,
 			 .write_ok = NULL,
 			 .lookup_ok = NULL,
@@ -53,10 +58,11 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
 			 .unlink_ok = NULL,
 			 .delete_ok = NULL,
 			 /* smart thing */
-			 .mask_ok = vfs_permission,
-			 .setattr_ok = common_setattr_ok,
+			 .mask_ok = mask_ok_common,
+			 .setattr_ok = setattr_ok_common,
 			 .getattr_ok = NULL,
-			 .rename_ok = NULL}
+			 .rename_ok = NULL
+	}
 };
 
 /* Make Linus happy.
