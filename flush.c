@@ -13,6 +13,14 @@ typedef struct flush_position flush_position;
 #define FLUSH_RELOCATE_THRESHOLD 64
 #define FLUSH_RELOCATE_DISTANCE  64
 
+typedef struct load_handle load_handle;
+struct load_handle { znode *node; };
+static inline void init_zh (load_handle *zh) { zh->node = NULL; }
+static inline void done_zh (load_handle *zh) { if (zh->node != NULL) { zrelse (zh->node); zh->node = NULL; } }
+static inline int  load_zh_common (load_handle *zh, znode *node) { int ret; if ((ret = zload (node))) { return ret; } zh->node = node; return 0; }
+static inline int  load_zh (load_handle *zh, znode *node) { done_zh (zh); return load_zh_common (zh, node); }
+static inline int  load_jh (load_handle *zh, jnode *node) { done_zh (zh); return jnode_is_formatted (node) ? load_zh_common (zh, JZNODE (node)) : 0; }
+
 /* The flush_scan data structure maintains the state of an in-progress flush
  * scan on a single level of the tree. */
 struct flush_scan {
@@ -36,9 +44,12 @@ struct flush_scan {
 	/* The current scan position, referenced. */
 	jnode    *node;
 
+	load_handle point_load;
+
 	/* When the position is unformatted, its parent and coordinate. */
 	lock_handle parent_lock;
 	coord_t     parent_coord;
+	load_handle parent_load;
 };
 
 /* An encapsulation of the current flush point and all the parameters that are passed
@@ -48,6 +59,8 @@ struct flush_position {
 	lock_handle           point_lock;
 	lock_handle           parent_lock;
 	coord_t               parent_coord;
+	load_handle           point_load;
+	load_handle           parent_load;
 	reiser4_blocknr_hint  preceder;
 	int                   leaf_relocate;
 	ON_DEBUG (int alloc_cnt;)
@@ -93,6 +106,7 @@ static void          jnode_check_parent_coord     (jnode *node, coord_t *coord);
 static int           jnode_lock_parent_coord      (jnode *node,
 						   coord_t *coord,
 						   lock_handle *parent_lh,
+						   load_handle *parent_zh,
 						   znode_lock_mode mode);
 static int           jnode_is_allocated           (jnode *node);
 static int           znode_is_allocated           (znode *node);
@@ -106,9 +120,9 @@ static int           flush_pos_stop               (flush_position *pos);
 static int           flush_pos_unformatted        (flush_position *pos);
 static int           flush_pos_to_child_and_alloc (flush_position *pos);
 static int           flush_pos_to_parent          (flush_position *pos);
-static void          flush_pos_set_point          (flush_position *pos, jnode *node);
+static int           flush_pos_set_point          (flush_position *pos, jnode *node);
 static void          flush_pos_release_point      (flush_position *pos);
-static int           flush_pos_lock_parent        (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, znode_lock_mode mode);
+static int           flush_pos_lock_parent        (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, load_handle *parent_load, znode_lock_mode mode);
 
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (to
@@ -184,7 +198,10 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 				goto failed;
 			}
 		}
-		flush_pos_set_point (& flush_pos, left_scan.node);
+
+		if ((ret = flush_pos_set_point (& flush_pos, left_scan.node))) {
+			goto failed;
+		}
 		flush_scan_done (& left_scan);
 
 		/* At this point, try squeezing at the "left edge", meaning to possibly
@@ -361,6 +378,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 {
 	int ret = 0;
 	lock_handle alock;
+	load_handle aload;
 	coord_t acoord;
 
 	/* If the ancestor is clean or already allocated, or if the child is not a
@@ -370,13 +388,14 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 	}
 
 	init_lh (& alock);
+	init_zh (& aload);
 	coord_init_invalid (& acoord, NULL);
 
 	/* Only ascend to the next level if it is a leftmost child, but write-lock the
 	 * parent in case we will relocate the child. */
 	if (! znode_is_root (coord->node)) {
 
-		if ((ret = jnode_lock_parent_coord (ZJNODE (coord->node), & acoord, & alock, ZNODE_WRITE_LOCK))) {
+		if ((ret = jnode_lock_parent_coord (ZJNODE (coord->node), & acoord, & alock, & aload, ZNODE_WRITE_LOCK))) {
 			goto exit;
 		}
 
@@ -400,6 +419,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 
  exit:
 	done_lh (& alock);
+	done_zh (& aload);
 	return ret;
 }
 
@@ -410,15 +430,17 @@ static int flush_alloc_ancestors (flush_position *pos)
 {
 	int ret;
 	lock_handle plock;
+	load_handle pload;
 	coord_t pcoord;
 
 	assert ("jmacd-9921", jnode_check_dirty (pos->point));
 	assert ("jmacd-9925", ! jnode_is_allocated (pos->point));
 
 	init_lh (& plock);
+	init_zh (& pload);
 
 	/* Lock the parent (it may already be locked, thus the special case). */
-	if ((ret = flush_pos_lock_parent (pos, & pcoord, & plock, ZNODE_WRITE_LOCK))) {
+	if ((ret = flush_pos_lock_parent (pos, & pcoord, & plock, & pload, ZNODE_WRITE_LOCK))) {
 		goto exit;
 	}
 
@@ -436,8 +458,8 @@ static int flush_alloc_ancestors (flush_position *pos)
 	}
 
  exit:
-	if (plock.node != NULL) { zrelse (plock.node); }
 	done_lh (& plock);
+	done_zh (& pload);
 	return ret;
 }
 
@@ -484,10 +506,12 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	int any_shifted = 0;
 	lock_handle right_lock;
 	lock_handle parent_lock;
+	load_handle parent_load;
 	coord_t at_right, right_parent_coord;
 
 	init_lh (& right_lock);
 	init_lh (& parent_lock);
+	init_zh (& parent_load);
 
 	assert ("jmacd-9925", znode_is_allocated (node));
 
@@ -568,7 +592,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	 * parents after shifting. */
 
 	/* Allocate the right node. */
-	if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, ZNODE_WRITE_LOCK))) {
+	if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, & parent_load, ZNODE_WRITE_LOCK))) {
 		goto exit;
 	}
 
@@ -579,6 +603,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
  exit:
 	done_lh (& right_lock);
 	done_lh (& parent_lock);
+	done_zh (& parent_load);
 	return ret;
 }
 
@@ -683,10 +708,15 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		done_lh (& pos->parent_lock);
 		move_lh (& pos->parent_lock, & right_lock);
 		coord_init_first_unit (& pos->parent_coord, pos->parent_lock.node);
+		if ((ret = load_zh (& pos->parent_load, pos->parent_lock.node))) {
+			goto exit;
+		}
 	} else {
 		done_lh (& pos->point_lock);
 		move_lh (& pos->point_lock, & right_lock);
-		flush_pos_set_point (pos, ZJNODE (right_lock.node));
+		if ((ret = flush_pos_set_point (pos, ZJNODE (right_lock.node)))) {
+			goto exit;
+		}
 	}
 
  exit:
@@ -1199,6 +1229,7 @@ static int flush_finish (flush_position *pos UNUSED_ARG)
 static int jnode_lock_parent_coord (jnode *node,
 				    coord_t *coord,
 				    lock_handle *parent_lh,
+				    load_handle *parent_zh,
 				    znode_lock_mode parent_mode)
 {
 	int ret;
@@ -1225,7 +1256,7 @@ static int jnode_lock_parent_coord (jnode *node,
 			return ret;
 		}
 
-		if ((ret = zload (parent_lh->node))) {
+		if ((ret = load_zh (parent_zh, parent_lh->node))) {
 			return ret;
 		}
 
@@ -1241,12 +1272,11 @@ static int jnode_lock_parent_coord (jnode *node,
 		 * root, which caller must check.) */
 		if (coord != NULL) {
 
-			if ((ret = zload (parent_lh->node))) {
+			if ((ret = load_zh (parent_zh, parent_lh->node))) {
 				return ret;
 			}
 
 			if ((ret = find_child_ptr (parent_lh->node, JZNODE (node), coord))) {
-				zrelse (parent_lh->node);
 				return ret;
 			}
 		}
@@ -1332,6 +1362,8 @@ static void flush_scan_init (flush_scan *scan)
 {
 	memset (scan, 0, sizeof (*scan));
 	init_lh (& scan->parent_lock);
+	init_zh (& scan->parent_load);
+	init_zh (& scan->point_load);
 	coord_init_invalid (& scan->parent_coord, NULL);
 }
 
@@ -1340,12 +1372,10 @@ static void flush_scan_done (flush_scan *scan)
 {
 	if (scan->node != NULL) {
 		jput (scan->node);
-		zrelse (JZNODE (scan->node));
 		scan->node = NULL;
 	}
-	if (scan->parent_lock.node != NULL) {
-		zrelse (scan->parent_lock.node);
-	}
+	done_zh (& scan->point_load);
+	done_zh (& scan->parent_load);
 	done_lh (& scan->parent_lock);
 }
 
@@ -1377,14 +1407,11 @@ static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_s
 {
 	int ret;
 	
-	if (jnode_is_formatted (node) && (ret = zload (JZNODE (node)))) {
+	if ((ret = load_jh (& scan->point_load, node))) {
 		return ret;
 	}
 
 	if (scan->node != NULL) {
-		if (jnode_is_formatted (scan->node)) {
-			zrelse (JZNODE (scan->node));
-		}
 		jput (scan->node);
 	}
 
@@ -1621,6 +1648,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 			done_lh (& scan->parent_lock);
 			break;
 		} else {
+			
 			done_lh (& scan->parent_lock);
 			move_lh (& scan->parent_lock, & next_lock);
 			coord_dup (& scan->parent_coord, & next_coord);
@@ -1704,7 +1732,7 @@ static int flush_scan_formatted (flush_scan *scan)
 			return ret;
 		}
 
-		ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, ZNODE_READ_LOCK);
+		ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_READ_LOCK);
 
 		done_lh (& end_lock);
 
@@ -1762,7 +1790,7 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 
 		if (coord_is_invalid (& scan->parent_coord)) {
 
-			if ((ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, ZNODE_READ_LOCK))) {
+			if ((ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_READ_LOCK))) {
 				return ret;
 			}
 
@@ -1807,6 +1835,8 @@ static int flush_pos_init (flush_position *pos)
 	blocknr_hint_init (& pos->preceder);
 	init_lh (& pos->point_lock);
 	init_lh (& pos->parent_lock);
+	init_zh (& pos->parent_load);
+	init_zh (& pos->point_load);
 
 	return 0;
 }
@@ -1833,6 +1863,8 @@ static int flush_pos_stop (flush_position *pos)
 	}
 	done_lh (& pos->point_lock);
 	done_lh (& pos->parent_lock);
+	done_zh (& pos->parent_load);
+	done_zh (& pos->point_load);
 	return 0;
 }
 
@@ -1880,7 +1912,7 @@ static int flush_pos_to_parent (flush_position *pos)
 	assert ("jmacd-6078", ! flush_pos_unformatted (pos));
 
 	/* Lock the parent, find the coordinate. */
-	if ((ret = jnode_lock_parent_coord (pos->point, & pos->parent_coord, & pos->parent_lock, ZNODE_READ_LOCK))) {
+	if ((ret = jnode_lock_parent_coord (pos->point, & pos->parent_coord, & pos->parent_lock, & pos->parent_load, ZNODE_READ_LOCK))) {
 		return ret;
 	}
 
@@ -1904,15 +1936,17 @@ static void flush_pos_release_point (flush_position *pos)
 		jput (pos->point);
 		pos->point = NULL;
 	}
+	done_zh (& pos->point_load);
 }
 
-static void flush_pos_set_point (flush_position *pos, jnode *node)
+static int flush_pos_set_point (flush_position *pos, jnode *node)
 {
 	flush_pos_release_point (pos);
 	pos->point = jref (node);
+	return load_jh (& pos->point_load, node);
 }
 
-static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, znode_lock_mode mode)
+static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, load_handle *parent_load, znode_lock_mode mode)
 {
 	if (flush_pos_unformatted (pos)) {
 		/* In this case we already have the parent locked. */
@@ -1924,12 +1958,12 @@ static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lo
 		assert ("jmacd-9923", have_mode == mode);
 		copy_lh (parent_lock, & pos->parent_lock);
 		coord_dup (parent_coord, & pos->parent_coord);
-		return zload (parent_lock->node);
+		return load_zh (parent_load, parent_lock->node);
 
 	} else {
 		assert ("jmacd-9922", ! znode_is_root (JZNODE (pos->point)));
 		assert ("jmacd-9924", lock_mode (& pos->parent_lock) == ZNODE_NO_LOCK);
-		return jnode_lock_parent_coord (pos->point, parent_coord, parent_lock, mode);
+		return jnode_lock_parent_coord (pos->point, parent_coord, parent_lock, parent_load, mode);
 	}
 }
 
