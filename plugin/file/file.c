@@ -468,20 +468,22 @@ static int reserve_partial_page(reiser4_tree *tree)
 static int
 cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 {
-	coord_t intranode_to, intranode_from;
-	reiser4_key from_key, to_key, smallest_removed;
+	reiser4_key from_key, to_key;
+	reiser4_key smallest_removed;
 	lock_handle lh;
 	int result;
-	znode *loaded;
 
 	assert("vs-1248", inode_file_plugin(inode)->key_by_inode == key_by_inode_unix_file);
 	key_by_inode_unix_file(inode, new_size, &from_key);
 	to_key = from_key;
 	set_key_offset(&to_key, get_key_offset(max_key()));
 
+#if 1
 	write_tree_trace(tree_by_inode(inode), tree_cut, &from_key, &to_key);
 
 	do {
+		coord_t intranode_to, intranode_from;
+		znode *loaded;
 		/* FIXME-VS: find_next_item is highly optimized for sequential writes/reads (which go in direction of
 		   key increasing). For case of cut_tree (which goes in key decreasing direction) it currently can not
 		   help */
@@ -562,8 +564,20 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 		balance_dirty_pages(inode->i_mapping);
 
 	} while (keygt(&smallest_removed, &from_key));
-
 	done_lh(&lh);
+#else
+	result = reserve_cut_iteration(tree_by_inode(inode));
+	if (result)
+		return result;
+
+	do {
+		result = cut_tree(current_tree, &from_key, &to_key);
+		if (result)
+			break;
+		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update inode->i_size*/, update_sd);
+	} while (0);
+
+#endif
 	all_grabbed2free(__FUNCTION__);
 	reiser4_release_reserved(inode->i_sb);
 
@@ -1164,7 +1178,7 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 	read = read_amount - f.length;
 	if (read) {
 		/* something was read. Update stat data */
-		UPDATE_ATIME(inode);
+		update_atime(inode);
 	}
 
 	drop_nonexclusive_access(uf_info);
