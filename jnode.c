@@ -471,7 +471,7 @@ static void inode_attach_jnode(jnode * node)
 
 	spin_lock(&inode_lock);
 	assert("zam-1049", equi(rtree->rnode !=NULL, info->nr_jnodes != 0));
-	check_me("zam-1045", radix_tree_insert(rtree, node->key.j.index, node));
+	check_me("zam-1045", !radix_tree_insert(rtree, node->key.j.index, node));
 	ON_DEBUG(info->nr_jnodes ++);
 	inode->i_state |= I_JNODES;
 	spin_unlock(&inode_lock);
@@ -493,7 +493,7 @@ static void inode_detach_jnode(jnode * node)
 	assert("zam-1051", info->nr_jnodes != 0);
 	assert("zam-1052", rtree->rnode != NULL);
 	ON_DEBUG(info->nr_jnodes --);
-	check_me("zam-1046", radix_tree_delete(rtree, node->key.j.index));
+	check_me("zam-1046", !radix_tree_delete(rtree, node->key.j.index));
 	if (rtree->rnode == NULL) {
 		inode->i_state &= I_JNODES;
 	}
