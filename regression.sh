@@ -9,7 +9,7 @@ ROUNDS=${1:-1}
 
 function run()
 {
-	do_mkfs
+#   do_mkfs
 	echo -n $* "..."
 	/usr/bin/time -f " T: %e/%S/%U F: %F/%R" $*
 }
@@ -75,6 +75,9 @@ mv gmon.out gmon.out.rm.30.1${ORDER}.0.$r 2>/dev/null
 
 run ./a.out nikita mongo 30 1${ORDER} 1 || exit 6
 mv gmon.out gmon.out.rm.30.1${ORDER}.1.$r 2>/dev/null
+
+run ulevel/cp-r plugin || exit 7
+mv gmon.out gmon.out.cp-r.plugin.$r 2>/dev/null
 
 #( find /tmp | ./a.out vs copydir ) || exit 8
 #mv gmon.out gmon.out.vs.copydir.tmp.$r
