@@ -92,6 +92,125 @@ ea2nea(struct inode *inode)
 	get_nonexclusive_access(inode);
 }
 
+static int
+file_continues_in_right_neighbor(const struct inode *inode, znode *node)
+{
+	return UNDER_SPIN(dk, current_tree, get_inode_oid(inode) == get_key_objectid(znode_get_rd_key(node)));
+}
+
+/* the below two functions are helpers for prepare_tail2extent and prepare_extent2tail. They are to be used like:
+   nodes = nodes_spanned();
+   calculate and reserve space necessary for whole operation;
+   mark_frozen();
+*/
+
+/* Lock the leftmost of nodes containing file items and calculate amount of nodes spanned by the file. Return keeping
+   first node locked */
+static int
+nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, coord_t *first_coord, lock_handle *first_lh)
+{
+	int result;
+	reiser4_key key;
+	coord_t coord;
+	lock_handle lh;
+
+	inode_file_plugin(inode)->key_by_inode(inode, 0, &key);
+
+	coord_init_zero(first_coord);
+	init_lh(first_lh);
+	
+	result = find_next_item(0, &key, first_coord, first_lh, ZNODE_WRITE_LOCK, CBK_UNIQUE);
+	if (result != CBK_COORD_FOUND) {
+		/* error occured */
+		done_lh(first_lh);
+		return result;
+	}
+
+	coord_dup_nocheck(&coord, first_coord);
+	init_lh(&lh);
+	result = longterm_lock_znode(&lh, coord.node, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+	if (unlikely(result)) {
+		/* error occured */
+		done_lh(first_lh);
+		return result;
+	}
+	*blocks = 1;
+	while (1) {
+		if (!file_continues_in_right_neighbor(inode, coord.node))
+			break;
+		result = goto_right_neighbor(&coord, &lh);
+		if (result) {
+			done_lh(&lh);
+			done_lh(first_lh);
+			return result;
+		}
+		(*blocks) ++;
+	}
+
+	done_lh(&lh);
+	return 0;
+}
+
+/* Scan all nodes spanned by the file and mark all items of file as frozen. */
+static int
+mark_frozen(const struct inode *inode, reiser4_block_nr spanned_blocks, coord_t *coord, lock_handle *lh)
+{
+	int result;
+	coord_t twin;
+	item_id id;
+	reiser4_block_nr blocks;
+
+	coord_dup_nocheck(&twin, coord);
+	id =  znode_get_level(twin.node) == LEAF_LEVEL ? FROZEN_TAIL_ID : FROZEN_EXTENT_POINTER_ID;
+	blocks = 1;
+
+	while (1) {
+		twin.node->nplug->set_item_plugin(&twin, id);
+		znode_set_dirty(twin.node);
+		assert("vs-1124", blocks <= spanned_blocks);
+		if (!file_continues_in_right_neighbor(inode, twin.node))
+			break;
+		result = goto_right_neighbor(&twin, lh);
+		if (result) {
+			warning("vs-1125", "tail conversion not completed. File (ino=%llu) may be unreachable\n", get_inode_oid(inode));
+			done_lh(lh);
+			return result;
+		}
+		blocks ++;
+	}
+	done_lh(lh);
+	return 0;
+}
+
+static int
+prepare_tail2extent(struct inode *inode)
+{
+	int result;
+	reiser4_block_nr formatted_nodes, unformatted_nodes;
+	lock_handle first_lh;
+	coord_t coord;
+	tree_level height;
+
+	height = tree_by_inode(inode)->height;
+
+	/* number of leaf formatted nodes file spans */
+	result = nodes_spanned(inode, &formatted_nodes, &coord, &first_lh);
+	if (result)
+		return result;
+	/* number of unformatted nodes which will be created */
+	unformatted_nodes = (inode->i_size + inode->i_sb->s_blocksize - 1) >> inode->i_sb->s_blocksize_bits;
+
+	/* space necessary for tail2extent convertion: space for @nodes removals from tree, @unformatted_nodes blocks
+	   for unformatted nodes, and space for @unformatted_nodes insertions into item (extent insertions) */
+	result = reiser4_grab_space_force(formatted_nodes * estimate_one_item_removal(height) + unformatted_nodes +
+					  unformatted_nodes * estimate_one_insert_into_item(height), BA_CAN_COMMIT);
+	if (result) {
+		done_lh(&first_lh);
+		return result;
+	}
+	return mark_frozen(inode, formatted_nodes, &coord, &first_lh);
+}
+
 /* part of tail2extent. Cut all items covering @count bytes starting from
    @offset */
 /* Audited by: green(2002.06.15) */
@@ -179,31 +298,6 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 #define TAIL2EXTENT_PAGE_NUM 3	/* number of pages to fill before cutting tail
 				 * items */
 
-static reiser4_block_nr
-nodes_spanned(struct inode *inode, reiser4_block_nr *blocks);
-
-static int
-reserve_tail2extent(struct inode *inode)
-{
-	int result;
-	reiser4_block_nr formatted_nodes, unformatted_nodes;
-	tree_level height;
-
-	height = tree_by_inode(inode)->height;
-
-	/* number of leaf formatted nodes file spans */
-	result = nodes_spanned(inode, &formatted_nodes);
-	if (result)
-		return result;
-	/* number of unformatted nodes which will be created */
-	unformatted_nodes = (inode->i_size + inode->i_sb->s_blocksize - 1) >> inode->i_sb->s_blocksize_bits;
-
-	/* space necessary for tail2extent convertion: space for @nodes removals from tree, @unformatted_nodes blocks
-	   for unformatted nodes, and space for @unformatted_nodes insertions into item (extent insertions) */
-	return reiser4_grab_space_force(formatted_nodes * estimate_one_item_removal(height) + unformatted_nodes +
-					unformatted_nodes * estimate_one_insert_into_item(height), BA_CAN_COMMIT);
-}
-
 /* this can be called with either exclusive (via truncate) or with non-exclusive (via write) access to file obtained */
 int
 tail2extent(struct inode *inode)
@@ -237,7 +331,7 @@ tail2extent(struct inode *inode)
 		return 0;
 	}
 
-	result = reserve_tail2extent(inode);
+	result = prepare_tail2extent(inode);
 	if (result)
 		return result;
 
@@ -455,16 +549,18 @@ int min_bytes_per_flow(void)
 	return CARRY_FLOW_NEW_NODES_LIMIT * current_tree->nplug->max_item_size();
 }
 
-static int reserve_extent2tail(struct inode *inode)
+static int prepare_extent2tail(struct inode *inode)
 {
 	int result;
 	reiser4_block_nr twig_nodes, flow_insertions;
+	lock_handle first_lh;
+	coord_t coord;
 	tree_level height;
 
 	height = tree_by_inode(inode)->height;
 
 	/* number of twig nodes file spans */
-	result = nodes_spanned(inode, &twig_nodes);
+	result = nodes_spanned(inode, &twig_nodes, &coord, &first_lh);
 	if (result)
 		return result;
 	/* number of "flow insertions" which will be needed */
@@ -472,9 +568,14 @@ static int reserve_extent2tail(struct inode *inode)
 
 	/* space necessary for extent2tail convertion: space for @nodes removals from tree and space for calculated
 	 * amount of flow insertions and 1 node and one insertion into tree for search_by_key(CBK_FOR_INSERT) */
-	return reiser4_grab_space_exact(twig_nodes * estimate_one_item_removal(height) +
-					flow_insertions * estimate_insert_flow(height) +
-					1 + estimate_one_insert_item(height), BA_CAN_COMMIT);
+	result = reiser4_grab_space_exact(twig_nodes * estimate_one_item_removal(height) +
+					  flow_insertions * estimate_insert_flow(height) +
+					  1 + estimate_one_insert_item(height), BA_CAN_COMMIT);
+	if (result) {
+		done_lh(&first_lh);
+		return result;
+	}
+	return mark_frozen(inode, twig_nodes, &coord, &first_lh);
 }
 
 static int
@@ -509,7 +610,7 @@ extent2tail(struct file *file)
 		return 0;
 	}
 
-	result = reserve_extent2tail(inode);
+	result = prepare_extent2tail(inode);
 	if (result) {
 		/* no space? Leave file stored in extent state */
 		drop_exclusive_access(inode);
@@ -598,51 +699,6 @@ extent2tail(struct file *file)
 	drop_exclusive_access(inode);
 	all_grabbed2free();
 	return result;
-}
-
-static int
-file_continues_in_right_neighbor(struct inode *inode, znode *node)
-{
-	return UNDER_SPIN(dk, current_tree, get_inode_oid(inode) == get_key_objectid(znode_get_rd_key(node)));
-}
-
-/* calculate number of nodes spanned by the file, chande plugins of all items to FROZEN form. That guarantees that file
-   will not span more nodes regadless to how long tail convertion will take which makes estiamtion/reservation of tail
-   conversion operation posible */
-static reiser4_block_nr
-nodes_spanned(struct inode *inode, reiser4_block_nr *blocks)
-{
-	int result;
-	reiser4_key key;
-	coord_t coord;
-	lock_handle lh;
-
-	inode_file_plugin(inode)->key_by_inode(inode, 0, &key);
-
-	coord_init_zero(&coord);
-	init_lh(&lh);
-	result = find_next_item(0, &key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE);
-	if (result != CBK_COORD_FOUND) {
-		/* error occured */
-		done_lh(&lh);
-		return result;
-	}
-	*blocks = 1;
-	while (1) {
-		coord.node->nplug->set_item_plugin(&coord, znode_get_level(coord.node) == LEAF_LEVEL ? FROZEN_TAIL_ID : FROZEN_EXTENT_POINTER_ID);
-		znode_set_dirty(coord.node);
-		if (!file_continues_in_right_neighbor(inode, coord.node))
-			break;
-		result = goto_right_neighbor(&coord, &lh);
-		if (result) {
-			done_lh(&lh);
-			return result;
-		}
-		(*blocks) ++;
-	}
-
-	done_lh(&lh);
-	return 0;
 }
 
 /*
