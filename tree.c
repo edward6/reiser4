@@ -497,13 +497,12 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 	
 	   - item plugin agrees with us
 	*/
-	if ((size_change <= (int) znode_free_space(coord->node)) &&
-	    ((coord->item_pos != 0) ||
-	     (coord->unit_pos != 0) ||
-	     (coord->between == AFTER_UNIT)) &&
-	    (coord->unit_pos != 0) &&
-	    (nplug->fast_paste != NULL) &&
-	    nplug->fast_paste(coord) && (iplug->b.fast_paste != NULL) && iplug->b.fast_paste(coord)) {
+	if (size_change <= (int) znode_free_space(coord->node) &&
+	    (coord->item_pos != 0 ||
+	     coord->unit_pos != 0 || coord->between == AFTER_UNIT) &&
+	    coord->unit_pos != 0 && nplug->fast_paste != NULL &&
+	    nplug->fast_paste(coord) &&
+	    iplug->b.fast_paste != NULL && iplug->b.fast_paste(coord)) {
 		reiser4_stat_inc(tree.fast_paste);
 		if (size_change > 0)
 			nplug->change_item_size(coord, size_change);
@@ -530,7 +529,6 @@ resize_item(coord_t * coord /* coord of item being resized */ ,
 	int result;
 	carry_pool pool;
 	carry_level lowest_level;
-	carry_op *op;
 	znode *node;
 
 	assert("nikita-362", coord != NULL);
@@ -546,16 +544,10 @@ resize_item(coord_t * coord /* coord of item being resized */ ,
 	init_carry_pool(&pool);
 	init_carry_level(&lowest_level, &pool);
 
-	if (data->length < 0) {
-		/* if we are trying to shrink item (@data->length < 0), call
-		   COP_CUT operation. */
-		op = post_carry(&lowest_level, COP_CUT, coord->node, 0);
-		if (IS_ERR(op) || (op == NULL)) {
-			zrelse(node);
-			return RETERR(op ? PTR_ERR(op) : -EIO);
-		}
-		not_yet("nikita-1263", "resize_item() can not cut data yet");
-	} else
+	if (data->length < 0)
+		result = node_plugin_by_coord(coord)->shrink_item(coord,
+								  data->length);
+	else
 		result = insert_into_item(coord, lh, key, data, flags);
 
 	zrelse(node);
@@ -1242,7 +1234,6 @@ prepare_twig_kill(carry_kill_data *kdata, znode * locked_left_neighbor)
 /* this is used to remove part of node content between coordinates @from and @to. Units to which @from and @to are set
    are to be cut completely */
 /* for try_to_merge_with_left, delete_copied, delete_node */
-/* cut_node without DELETE_KILL */
 reiser4_internal int
 cut_node_content(coord_t *from, coord_t *to,
 		 const reiser4_key * from_key /* first key to be removed */ ,
@@ -1551,7 +1542,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 		/* Check can we delete the node as a whole. */
 		if (iterations && znode_get_level(node) == LEAF_LEVEL &&
 		    UNDER_RW(dk, current_tree, read,
-			     (lazy ? keyle(from_key, znode_get_ld_key(node)) : 
+			     (lazy ? keyle(from_key, znode_get_ld_key(node)) :
 			      keylt(from_key, znode_get_ld_key(node)) ))) {
 			result = delete_node(node, smallest_removed, object);
 		} else {
