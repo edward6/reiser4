@@ -140,8 +140,8 @@ SRC             := \
                    plugin/node/node40.c \
                    plugin/object.c \
                    plugin/item/static_stat.c \
-                   plugin/item/directory_entry.c \
-                   plugin/item/compressed_de.c \
+                   plugin/item/sde.c \
+                   plugin/item/cde.c \
                    plugin/item/internal.c \
                    plugin/hash.c \
                    plugin/tail.c \
