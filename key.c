@@ -64,6 +64,8 @@ type_name(unsigned int key_type /* key type */ )
 	}
 }
 
+extern char *unpack_string(__u64 value, char *buf);
+
 /* debugging aid: print human readable information about key */
 void
 print_key(const char *prefix /* prefix to print */ ,
@@ -74,9 +76,23 @@ print_key(const char *prefix /* prefix to print */ ,
 	if (key == NULL)
 		info("%s: null key\n", prefix);
 	else {
-		info("%s: (%Lx:%x:%Lx:%Lx:%Lx)[%s]\n", prefix,
+		info("%s: (%Lx:%x:%Lx:%Lx:%Lx)", prefix,
 		     get_key_locality(key), get_key_type(key),
-		     get_key_band(key), get_key_objectid(key), get_key_offset(key), type_name(get_key_type(key)));
+		     get_key_band(key), get_key_objectid(key), get_key_offset(key));
+		if (get_key_type(key) == KEY_FILE_NAME_MINOR) {
+			char buf[DE_NAME_BUF_LEN];
+
+			unpack_string(get_key_objectid(key), buf);
+			info("[%s", buf);
+			if (is_longname_key(key))
+				info("...]\n");
+			else {
+				unpack_string(get_key_offset(key), buf);
+				info("%s]\n", buf);
+			}
+		} else {
+			info("[%s]\n", type_name(get_key_type(key)));
+		}
 	}
 	/* turn bold off */
 	/* printf ("\033[m\017"); */

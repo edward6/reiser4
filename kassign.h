@@ -74,6 +74,10 @@ extern int is_dot_key(const reiser4_key * key);
 extern reiser4_key *build_sd_key(const struct inode *target, reiser4_key * result);
 extern int is_root_dir_key(const struct super_block *super, const reiser4_key * key);
 
+extern int is_longname_key(const reiser4_key *key);
+extern int is_longname(const char *name, int len);
+extern char *extract_name_from_key(const reiser4_key *key, char *buf);
+
 /* __KASSIGN_H__ */
 #endif
 

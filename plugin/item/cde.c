@@ -72,6 +72,21 @@
 #include <linux/dcache.h>	/* for struct dentry */
 #include <linux/quotaops.h>
 
+#if 0
+#define CHECKME(coord)						\
+({								\
+	const char *message;					\
+	coord_t dup;						\
+								\
+	coord_dup_nocheck(&dup, (coord));			\
+	dup.unit_pos = 0;					\
+	assert("nikita-2871", cde_check(&dup, &message) == 0);	\
+})
+#else
+#define CHECKME(coord) noop
+#endif
+
+
 /* return body of compound directory item at @coord */
 static cde_item_format *
 formatted_at(const coord_t * coord)
@@ -211,8 +226,8 @@ expand_item(const coord_t * coord /* coord of item */ ,
 	}
 
 	/* adjust entry pointer and size */
-	dent = dent + sizeof *header;
-	size += sizeof *header;
+	dent = dent + no * sizeof *header;
+	size += no * sizeof *header;
 	/* free space for new entries */
 	xmemmove(dent + data_size, dent, (unsigned) (address(coord, size) - dent));
 
@@ -244,14 +259,17 @@ expand(const coord_t * coord /* coord of item */ ,
 						 * entry */ )
 {
 	cmp_t cmp_res;
+	int   datasize;
 
 	*pos = find(coord, &dir_entry->key, &cmp_res);
 	if (*pos < 0)
 		*pos = units(coord);
 
-	expand_item(coord, *pos, 1, item_length_by_coord(coord) - len,
-		    sizeof (directory_entry_format) + entry->name->len + 1);
+	datasize = sizeof (directory_entry_format);
+	if (is_longname(entry->name->name, entry->name->len))
+		datasize += entry->name->len + 1;
 
+	expand_item(coord, *pos, 1, item_length_by_coord(coord) - len, datasize);
 	return 0;
 }
 
@@ -265,6 +283,8 @@ paste_entry(const coord_t * coord /* coord of item */ ,
 {
 	cde_unit_header *header;
 	directory_entry_format *dent;
+	const char *name;
+	int   len;
 
 	header = header_at(coord, pos);
 	dent = entry_at(coord, pos);
@@ -278,8 +298,12 @@ paste_entry(const coord_t * coord /* coord of item */ ,
 	   Also a more major thing is that there should be a way to figure out
 	   amount of space in dent -> name and be able to check that we are
 	   not going to overwrite more than we supposed to */
-	strcpy((unsigned char *) dent->name, entry->name->name);
-	cputod8(0, &dent->name[entry->name->len]);
+	name = entry->name->name;
+	len  = entry->name->len;
+	if (is_longname(name, len)) {
+		strcpy((unsigned char *) dent->name, name);
+		cputod8(0, &dent->name[len]);
+	}
 	return 0;
 }
 
@@ -305,10 +329,17 @@ cde_estimate(const coord_t * coord /* coord of item */ ,
 		/* paste */
 		result = 0;
 
-	result += e->num_of_entries * (sizeof (cde_unit_header) + sizeof (directory_entry_format));
+	result += e->num_of_entries * 
+		(sizeof (cde_unit_header) + sizeof (directory_entry_format));
 	for (i = 0; i < e->num_of_entries; ++i) {
-		assert("nikita-2054", strlen(e->entry[i].name->name) == e->entry[i].name->len);
-		result += e->entry[i].name->len + 1;
+		const char *name;
+		int   len;
+
+		name = e->entry[i].name->name;
+		len  = e->entry[i].name->len;
+		assert("nikita-2054", strlen(name) == len);
+		if (is_longname(name, len))
+			result += len + 1;
 	}
 	((reiser4_item_data *) data)->length = result;
 	return result;
@@ -432,6 +463,7 @@ cde_print(const char *prefix /* prefix to print */ ,
 		}
 		for (i = 0; i < units(coord); ++i) {
 			directory_entry_format *entry;
+			char buf[DE_NAME_BUF_LEN];
 
 			entry = entry_at(coord, i);
 			indent_znode(coord->node);
@@ -441,7 +473,7 @@ cde_print(const char *prefix /* prefix to print */ ,
 			} else {
 				coord->unit_pos = i;
 				cde_extract_key(coord, &key);
-				name = cde_extract_name(coord);
+				name = cde_extract_name(coord, buf);
 				info("at %i, name: %s, ", (char *) entry - start, name);
 				print_key("sdkey", &key);
 			}
@@ -478,7 +510,7 @@ cde_check(const coord_t * coord /* coord of item to check */ ,
 	for (i = 0; i < units(coord); ++i) {
 		directory_entry_format *entry;
 
-		if ((char *) (header_at(coord, i) + 1) >= item_end - units(coord) * sizeof *entry) {
+		if ((char *) (header_at(coord, i) + 1) > item_end - units(coord) * sizeof *entry) {
 			*error = "CDE header is out of bounds";
 			result = -1;
 			break;
@@ -489,7 +521,7 @@ cde_check(const coord_t * coord /* coord of item to check */ ,
 			result = -1;
 			break;
 		}
-		if ((char *) (entry + 1) >= item_end) {
+		if ((char *) (entry + 1) > item_end) {
 			*error = "CDE header is too high";
 			result = -1;
 			break;
@@ -521,6 +553,8 @@ lookup_result cde_lookup(const reiser4_key * key /* key to search for */ ,
 
 	assert("nikita-1293", coord != NULL);
 	assert("nikita-1294", key != NULL);
+
+	CHECKME(coord);
 
 	if (keygt(key, cde_max_key_inside(coord, &utmost_key))) {
 		/* @key is from another directory item */
@@ -566,6 +600,7 @@ cde_paste(coord_t * coord /* coord of item */ ,
 	int result;
 	int i;
 
+	CHECKME(coord);
 	e = (cde_entry_data *) data->data;
 
 	result = 0;
@@ -584,6 +619,7 @@ cde_paste(coord_t * coord /* coord of item */ ,
 		if (result != 0)
 			break;
 	}
+	CHECKME(coord);
 	return result;
 }
 
@@ -616,6 +652,7 @@ cde_can_shift(unsigned free_space /* free space in item */ ,
 {
 	int shift;
 
+	CHECKME(coord);
 	if (want == 0) {
 		*size = 0;
 		return 0;
@@ -648,6 +685,7 @@ cde_can_shift(unsigned free_space /* free space in item */ ,
 	}
 	if (shift == 0)
 		*size = 0;
+	CHECKME(coord);
 	return shift;
 }
 
@@ -692,6 +730,9 @@ cde_copy_units(coord_t * target /* coord of target item */ ,
 			 (char *) item_body_by_coord(target) + free_space, item_length_by_coord(target) - free_space);
 	}
 
+	CHECKME(target);
+	CHECKME(source);
+
 	/* expand @target */
 	data_size = offset_of(source, (int) (from + count)) - offset_of(source, (int) from);
 
@@ -718,6 +759,8 @@ cde_copy_units(coord_t * target /* coord of target item */ ,
 	for (i = pos_in_target; i < (int) (pos_in_target + count); ++i) {
 		set_offset(target, i, offset_of(target, i) + data_delta);
 	}
+	CHECKME(target);
+	CHECKME(source);
 }
 
 /* ->cut_units() method for this item plugin. */
@@ -742,6 +785,8 @@ cde_cut_units(coord_t * coord /* coord of item */ ,
 	int i;
 
 	unsigned count;
+
+	CHECKME(coord);
 
 	count = *to - *from + 1;
 
@@ -839,14 +884,14 @@ cde_update_key(const coord_t * coord, const reiser4_key * key, lock_handle * lh 
 
 /* ->s.dir.extract_name() method for this item plugin. */
 char *
-cde_extract_name(const coord_t * coord /* coord of item */ )
+cde_extract_name(const coord_t * coord /* coord of item */, char *buf)
 {
 	directory_entry_format *dent;
 
 	assert("nikita-1157", coord != NULL);
 
 	dent = entry_at(coord, idx_of(coord));
-	return (char *) dent->name;
+	return extract_dent_name(coord, dent, buf);
 }
 
 /* ->s.dir.add_entry() method for this item plugin */
@@ -888,15 +933,16 @@ cde_add_entry(struct inode *dir /* directory object */ ,
 
 	if (result)
 		result = insert_by_coord(coord, &data, &dir_entry->key, lh,
-					 inter_syscall_ra(dir), NO_RAP, 0 /*flags */ );
+					 inter_syscall_ra(dir), NO_RAP, 0);
 	else
-		result = resize_item(coord, &data, &dir_entry->key, lh, 0 /*flags */ );
+		result = resize_item(coord, &data, &dir_entry->key, lh, 0);
 	return result;
 }
 
 /* ->s.dir.rem_entry() */
 int
 cde_rem_entry(struct inode *dir /* directory of item */ ,
+	      const struct qstr * name,
 	      coord_t * coord /* coord of item */ ,
 	      lock_handle * lh UNUSED_ARG	/* lock handle for
 						 * removal */ ,
@@ -907,8 +953,14 @@ cde_rem_entry(struct inode *dir /* directory of item */ ,
 	coord_t shadow;
 	int result;
 	int length;
+	ON_DEBUG(char buf[DE_NAME_BUF_LEN]);
 
-	length = strlen(cde_extract_name(coord)) + 1 + sizeof (directory_entry_format) + sizeof (cde_unit_header);
+	assert("nikita-2870", strlen(name->name) == name->len);
+	assert("nikita-2869", !strcmp(name->name, cde_extract_name(coord, buf)));
+
+	length = sizeof (directory_entry_format) + sizeof (cde_unit_header);
+	if (is_longname(name->name, name->len))
+		length += name->len + 1;
 
 	if (inode_get_bytes(dir) < length) {
 		warning("nikita-2628", "Dir is broke: %llu: %llu", get_inode_oid(dir), inode_get_bytes(dir));
@@ -930,7 +982,6 @@ cde_rem_entry(struct inode *dir /* directory of item */ ,
 }
 
 /* ->s.dir.max_name_len() method for this item plugin */
-/* where VFS limits us to 255 characters this can be optimized away NIKITA-FIXME-HANS */
 int
 cde_max_name_len(const struct inode *dir /* directory */ )
 {

@@ -31,9 +31,10 @@ de_print(const char *prefix /* prefix to print */ ,
 	} else {
 		reiser4_key sdkey;
 		char *name;
+		char buf[DE_NAME_BUF_LEN];
 
 		de_extract_key(coord, &sdkey);
-		name = de_extract_name(coord);
+		name = de_extract_name(coord, buf);
 		info("%s: name: %s\n", prefix, name);
 		print_key("\tsdkey", &sdkey);
 	}
@@ -74,17 +75,31 @@ de_update_key(const coord_t * coord, const reiser4_key * key, lock_handle * lh U
 	return 0;
 }
 
+char *
+extract_dent_name(const coord_t * coord, directory_entry_format *dent, char *buf)
+{
+	reiser4_key key;
+
+	unit_key_by_coord(coord, &key);
+	if (!is_longname_key(&key)) {
+		if (is_dot_key(&key))
+			return ".";
+		else
+			return extract_name_from_key(&key, buf);
+	} else
+		return (char *) dent->name;
+}
+
 /* ->extract_name() method of simple directory item plugin. */
 char *
-de_extract_name(const coord_t * coord /* coord of item */ )
+de_extract_name(const coord_t * coord /* coord of item */, char *buf)
 {
 	directory_entry_format *dent;
 
 	assert("nikita-1460", coord != NULL);
 
 	dent = (directory_entry_format *) item_body_by_coord(coord);
-	assert("nikita-1160", item_length_by_coord(coord) >= (int) sizeof *dent);
-	return (char *) dent->name;
+	return extract_dent_name(coord, dent, buf);
 }
 
 /* ->extract_file_type() method of simple directory item plugin. */
@@ -104,15 +119,26 @@ int
 de_add_entry(struct inode *dir /* directory of item */ ,
 	     coord_t * coord /* coord of item */ ,
 	     lock_handle * lh /* insertion lock handle */ ,
-	     const struct dentry *name /* name to add */ ,
+	     const struct dentry *de /* name to add */ ,
 	     reiser4_dir_entry_desc * entry	/* parameters of new directory
 						 * entry */ )
 {
 	reiser4_item_data data;
 	directory_entry_format *dent;
 	int result;
+	const char *name;
+	int len;
+	int longname;
 
-	data.length = sizeof *dent + name->d_name.len + 1;
+	name = de->d_name.name;
+	len  = de->d_name.len;
+	assert("nikita-1163", strlen(name) == len);
+
+	longname = is_longname(name, len);
+
+	data.length = sizeof *dent;
+	if (longname)
+		data.length += len + 1;
 	data.data = NULL;
 	data.user = 0;
 	data.iplug = item_plugin_by_id(SIMPLE_DIR_ENTRY_ID);
@@ -121,20 +147,23 @@ de_add_entry(struct inode *dir /* directory of item */ ,
 	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, data.length))
 		return -EDQUOT;
 
-	result = insert_by_coord(coord, &data, &entry->key, lh, inter_syscall_ra(dir), NO_RAP, 0 /*flags */ );
+	result = insert_by_coord(coord, &data, &entry->key, lh, 
+				 inter_syscall_ra(dir), NO_RAP, 0 /*flags */ );
 	if (result != 0)
 		return result;
 
 	dent = (directory_entry_format *) item_body_by_coord(coord);
 	build_inode_key_id(entry->obj, &dent->id);
-	assert("nikita-1163", strlen(name->d_name.name) == name->d_name.len);
-	xmemcpy(dent->name, name->d_name.name, name->d_name.len);
-	cputod8(0, &dent->name[name->d_name.len]);
+	if (longname) {
+		xmemcpy(dent->name, name, len);
+		cputod8(0, &dent->name[len]);
+	}
 	return 0;
 }
 
 int
 de_rem_entry(struct inode *dir /* directory of item */ ,
+	     const struct qstr * name UNUSED_ARG,
 	     coord_t * coord /* coord of item */ ,
 	     lock_handle * lh UNUSED_ARG	/* lock handle for
 						   * removal */ ,

@@ -217,14 +217,16 @@ typedef struct {
 	/* update object key in item. */
 	int (*update_key) (const coord_t * coord, const reiser4_key * key, lock_handle * lh);
 	/* extract name from directory entry at @coord and return it */
-	char *(*extract_name) (const coord_t * coord);
+	char *(*extract_name) (const coord_t * coord, char *buf);
 	/* extract file type (DT_* stuff) from directory entry at @coord and
 	   return it */
 	unsigned (*extract_file_type) (const coord_t * coord);
 	int (*add_entry) (struct inode * dir,
 			  coord_t * coord, lock_handle * lh,
 			  const struct dentry * name, reiser4_dir_entry_desc * entry);
-	int (*rem_entry) (struct inode * dir, coord_t * coord, lock_handle * lh, reiser4_dir_entry_desc * entry);
+	int (*rem_entry) (struct inode * dir, const struct qstr * name,
+			  coord_t * coord, lock_handle * lh, 
+			  reiser4_dir_entry_desc * entry);
 	int (*max_name_len) (const struct inode * dir);
 } dir_entry_ops;
 

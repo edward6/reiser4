@@ -56,10 +56,10 @@ int cde_check(const coord_t * coord, const char **error);
 /* plugin->u.item.s.dir.* */
 int cde_extract_key(const coord_t * coord, reiser4_key * key);
 int cde_update_key(const coord_t * coord, const reiser4_key * key, lock_handle * lh);
-char *cde_extract_name(const coord_t * coord);
+char *cde_extract_name(const coord_t * coord, char *buf);
 int cde_add_entry(struct inode *dir, coord_t * coord,
 		  lock_handle * lh, const struct dentry *name, reiser4_dir_entry_desc * entry);
-int cde_rem_entry(struct inode *dir, coord_t * coord, lock_handle * lh, reiser4_dir_entry_desc * entry);
+int cde_rem_entry(struct inode *dir, const struct qstr * name, coord_t * coord, lock_handle * lh, reiser4_dir_entry_desc * entry);
 int cde_max_name_len(const struct inode *dir);
 
 /* __FS_REISER4_PLUGIN_COMPRESSED_DE_H__ */

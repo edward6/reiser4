@@ -12,7 +12,25 @@
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block, etc  */
 
-#define OID_CHARS ( sizeof( __u64 ) - 1 )
+#define OID_CHARS (sizeof(__u64) - 1)
+#define OFFSET_CHARS (sizeof(__u64))
+
+static const __u64 longname_mark = 0x0100000000000000ull;
+
+int
+is_longname_key(const reiser4_key *key)
+{
+	assert("nikita-2863", key != NULL);
+	assert("nikita-2864", get_key_type(key) == KEY_FILE_NAME_MINOR);
+
+	return (get_key_objectid(key) & longname_mark) ? 1 : 0;
+}
+
+int
+is_longname(const char *name, int len)
+{
+	return len > OID_CHARS + OFFSET_CHARS;
+}
 
 /* code ascii string into __u64.
   
@@ -36,6 +54,34 @@ pack_string(const char *name /* string to encode */ ,
 	}
 	str <<= (sizeof str - i - start_idx) << 3;
 	return str;
+}
+
+#if !REISER4_DEBUG_OUTPUT
+static
+#endif
+char *
+unpack_string(__u64 value, char *buf)
+{
+	do {
+		*buf = value >> (64 - 8);
+		if (*buf)
+			++ buf;
+		value <<= 8;
+	} while(value != 0);
+	*buf = 0;
+	return buf;
+}
+
+char *
+extract_name_from_key(const reiser4_key *key, char *buf)
+{
+	char *cont;
+
+	assert("nikita-2868", !is_longname_key(key));
+
+	cont = unpack_string(get_key_objectid(key) & ~longname_mark, buf);
+	(void)unpack_string(get_key_offset(key), cont);
+	return buf;
 }
 
 /* build key to be used by ->readdir() method.
@@ -66,18 +112,25 @@ build_readdir_key(struct file *dir /* directory being read */ ,
 int
 build_entry_key(const struct inode *dir	/* directory where entry is
 					 * (or will be) in.*/ ,
-		const struct qstr *name	/* name of file referenced
+		const struct qstr *qname	/* name of file referenced
 					 * by this entry */ ,
 		reiser4_key * result	/* resulting key of directory
 					 * entry */ )
 {
 	oid_t objectid;
 	__u64 offset;
+	const char *name;
+	int len;
 
 	assert("nikita-1139", dir != NULL);
-	assert("nikita-1140", name != NULL);
-	assert("nikita-1141", name->name != NULL);
+	assert("nikita-1140", qname != NULL);
+	assert("nikita-1141", qname->name != NULL);
 	assert("nikita-1142", result != NULL);
+
+	name = qname->name;
+	len  = qname->len;
+
+	assert("nikita-2867", strlen(name) == len);
 
 	key_init(result);
 	/* locality of directory entry's key is objectid of parent
@@ -89,7 +142,7 @@ build_entry_key(const struct inode *dir	/* directory where entry is
 	   a directory. Actually, we just want to have smallest
 	   directory entry.
 	*/
-	if ((name->len == 1) && (name->name[0] == '.'))
+	if (len == 1 && name[0] == '.')
 		return 0;
 
 	/* This is our brand new proposed key allocation algorithm for
@@ -113,17 +166,18 @@ build_entry_key(const struct inode *dir	/* directory where entry is
 	   file's name. This imposes global ordering on directory
 	   entries.
 	*/
-	objectid = pack_string(name->name, 1);
-	if (name->len <= OID_CHARS + sizeof (__u64)) {
-		if (name->len > OID_CHARS)
-			offset = pack_string(name->name + OID_CHARS, 0);
+	objectid = pack_string(name, 1);
+	if (!is_longname(name, len)) {
+		if (len > OID_CHARS)
+			offset = pack_string(name + OID_CHARS, 0);
 		else
 			offset = 0ull;
 	} else {
 		/* note in a key fact that offset contains hash. */
-		objectid |= 0x0100000000000000ull;
+		objectid |= longname_mark;
 		/* offset is the hash of the file name. */
-		offset = inode_hash_plugin(dir)->hash(name->name + OID_CHARS, (int) (name->len - OID_CHARS));
+		offset = inode_hash_plugin(dir)->hash(name + OID_CHARS, 
+						      len - OID_CHARS);
 	}
 
 	/* objectid is 60 bits */
