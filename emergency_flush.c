@@ -484,8 +484,6 @@ eflush_del(jnode *node, int page_locked)
 		reiser4_block_nr blk;
 		struct page *page;
 		struct inode  *inode = NULL;
-		reiser4_inode *info;
-		int putit = 0;
 
 		table = get_jnode_enhash(node);
 
@@ -499,16 +497,10 @@ eflush_del(jnode *node, int page_locked)
 		-- get_super_private(tree->super)->eflushed;
 		spin_unlock_tree(tree);
 
-		if (jnode_is_unformatted(node)) {
+		if (jnode_is_unformatted(node))
 			inode = jnode_mapping(node)->host;
-			info = reiser4_inode_data(inode);
-			/* unpin inode after unflushing last eflushed apge
-			 * from it. Dual to __iget() in eflush_add(). */
-			spin_lock_inode(inode);
-			-- info->eflushed;
-			putit = (info->eflushed == 0);
-			spin_unlock_inode(inode);
-		}
+		else
+			inode = NULL;
 		JF_CLR(node, JNODE_EFLUSH);
 
 		page = jnode_page(node);
@@ -530,8 +522,20 @@ eflush_del(jnode *node, int page_locked)
 
 		spin_unlock_jnode(node);
 
-		if (putit)
-			iput(inode);
+		if (inode != NULL) {
+			reiser4_inode *info;
+			int putit;
+
+			info = reiser4_inode_data(inode);
+			/* unpin inode after unflushing last eflushed apge
+			 * from it. Dual to __iget() in eflush_add(). */
+			spin_lock_inode(inode);
+			-- info->eflushed;
+			putit = (info->eflushed == 0);
+			spin_unlock_inode(inode);
+			if (putit)
+				iput(inode);
+		}
 
 #if REISER4_DEBUG
 		if (blocknr_is_fake(jnode_get_block(node))) {
