@@ -141,10 +141,12 @@ typedef enum {
 typedef enum {
 	ZNODE_LOCK_LOPRI    = 0,
 	ZNODE_LOCK_HIPRI    = (1 << 0),
-	ZNODE_LOCK_NONBLOCK = (1 << 1),	/* my time is getting consumed by commenting poorly commented code.  I don't
-					   like this.  I expect you to comment all your code thoroughly.  Don't write
-					   more code, comment what you have written so that I can stop spending my time
-					   commenting it for you.  What does nonblock mean? -Hans */
+
+	/* By setting the ZNODE_LOCK_NONBLOCK flag in a lock request the call to reiser4_lock_znode will not sleep
+	 * waiting for the lock to become available.  If the lock is unavailable, reiser4_znode_lock will immediately
+	 * return the value -EAGAIN.
+	 */
+	ZNODE_LOCK_NONBLOCK = (1 << 1),
 } znode_lock_request;
 
 /* used to specify direction of shift. These must be -1 and 1 */
