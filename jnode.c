@@ -313,14 +313,14 @@ inode_attach_jnode(jnode *node)
 
 	inode = node->key.j.mapping->host;
 	r4_inode = reiser4_inode_data(inode);
+	spin_lock(&inode_lock);
 	if (inode_has_no_jnodes(r4_inode)) {
-		spin_lock(&inode_lock);
 		assert("vs-1433", (inode->i_state & I_JNODES) == 0);
 		inode->i_state |= I_JNODES;
-		spin_unlock(&inode_lock);
 	}
 	check_me("vs-1431", radix_tree_insert(&r4_inode->jnode_tree, node->key.j.index, node) == 0);
 	ON_DEBUG(r4_inode->jnodes ++);
+	spin_unlock(&inode_lock);
 }
 
 /* remove jnode into reiser4 inode's radix tree. This is performed under tree spin lock. If last jnode is removed from
@@ -337,15 +337,15 @@ inode_detach_jnode(jnode *node)
 	r4_inode = reiser4_inode_data(inode);
 	assert("vs-1431", r4_inode->jnodes > 0 && (inode->i_state & I_JNODES));
 
+	spin_lock(&inode_lock);
 	check_me("vs-1431", radix_tree_delete(&r4_inode->jnode_tree, jnode_get_index(node)));
 	ON_DEBUG(r4_inode->jnodes --);
-	if (r4_inode->jnodes == 0) {
-		spin_lock(&inode_lock);
+	if (r4_inode->jnode_tree.rnode == 0) {
 		assert("vs-1432", inode->i_state & I_JNODES);
-		assert("vs-1432", r4_inode->jnode_tree.rnode == 0);
+		assert("vs-1432", r4_inode->jnodes == 0);
 		inode->i_state &= ~I_JNODES;
-		spin_unlock(&inode_lock);
 	}
+	spin_unlock(&inode_lock);
 }
 
 /* put jnode into hash table (where they can be found by flush who does not know mapping) and to inode's tree of jnodes
@@ -1476,7 +1476,7 @@ jdelete(jnode * node /* jnode to finish with */)
     0:       successfully dropped jnode
   
 */
-int
+static int
 jdrop_in_tree(jnode * node, reiser4_tree * tree)
 {
 	struct page *page;
@@ -1813,6 +1813,8 @@ jnode *jclone(jnode *node)
 	if (IS_ERR(clone))
 		return clone;
 
+	jref(clone);
+	JF_SET(clone, JNODE_HEARD_BANSHEE);
 	ON_DEBUG(JF_SET(clone, JNODE_CC));
 	return clone;
 }
