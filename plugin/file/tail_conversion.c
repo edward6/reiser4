@@ -12,6 +12,7 @@
 #include "../../znode.h"
 #include "../../tree.h"
 #include "../../vfs_ops.h"
+#include "../../carry.h"
 #include "../../inode.h"
 #include "../../super.h"
 #include "../../page_cache.h"
@@ -177,6 +178,36 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 #define TAIL2EXTENT_PAGE_NUM 3	/* number of pages to fill before cutting tail
 				 * items */
 
+static reiser4_block_nr
+nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, znode **first, znode **last);
+
+static int
+reserve_tail2extent(struct inode *inode, znode **first, znode **last)
+{
+	int result;
+	reiser4_block_nr formatted_nodes, unformatted_nodes;
+	tree_level height;
+
+	height = tree_by_inode(inode)->height;
+
+	/* number of leaf formatted nodes file spans */
+	result = nodes_spanned(inode, &formatted_nodes, first, last);
+	if (result)
+		return result;
+	/* number of unformatted nodes which will be created */
+	unformatted_nodes = (inode->i_size + inode->i_sb->s_blocksize - 1) >> inode->i_sb->s_blocksize_bits;
+
+	/* space necessary for tail2extent convertion: space for @nodes removals from tree, @unformatted_nodes blocks
+	   for unformatted nodes, and space for @unformatted_nodes insertions into item (extent insertions) */
+	result = reiser4_grab_space_exact(formatted_nodes * estimate_one_item_removal(height) + unformatted_nodes +
+					  unformatted_nodes * estimate_one_insert_into_item(height), BA_CAN_COMMIT);
+	if (result) {
+		zput(*first);
+		zput(*last);
+	}
+	return result;
+}
+
 /* this can be called with either exclusive (via truncate) or with non-exclusive (via write) access to file obtained */
 int
 tail2extent(struct inode *inode)
@@ -193,6 +224,7 @@ tail2extent(struct inode *inode)
 	char *item;
 	int i;
 	int access_switched;
+	znode *first, *last;
 
 	/* switch inode's rw_semaphore from read_down (set by unix_file_write)
 	   to write_down */
@@ -209,6 +241,10 @@ tail2extent(struct inode *inode)
 			ea2nea(inode);
 		return 0;
 	}
+
+	result = reserve_tail2extent(inode, &first, &last);
+	if (result)
+		return result;
 
 	xmemset(pages, 0, sizeof (pages));
 
@@ -346,6 +382,9 @@ tail2extent(struct inode *inode)
 	   have neither NEA nor EA to the file */
 	assert("vs-830", file_is_built_of_extents(inode));
 	assert("vs-1083", result == 0);
+	all_grabbed2free();
+	zput(first);
+	zput(last);
 	return 0;
 
 error:
@@ -353,6 +392,9 @@ error:
 exit:
 	if (access_switched)
 		ea2nea(inode);
+	all_grabbed2free();
+	zput(first);
+	zput(last);
 	return result;
 }
 
@@ -412,6 +454,43 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 	return result;
 }
 
+/* flow insertion is limited by CARRY_FLOW_NEW_NODES_LIMIT of new nodes. Therefore, minimal number of bytes of flow
+   which can be put into tree by one insert_flow is number of bytes contained in CARRY_FLOW_NEW_NODES_LIMIT nodes if
+   they all are filled completely by one tail item. Fortunately, there is a one to one mapping between bytes of tail
+   items and bytes of flow. If there were not, we would have to have special item plugin */
+int min_bytes_per_flow(void)
+{
+	assert("vs-1103", current_tree->nplug && current_tree->nplug->max_item_size);
+	return CARRY_FLOW_NEW_NODES_LIMIT * current_tree->nplug->max_item_size();
+}
+
+static int reserve_extent2tail(struct inode *inode, znode **first, znode **last)
+{
+	int result;
+	reiser4_block_nr twig_nodes, flow_insertions;
+	tree_level height;
+
+	height = tree_by_inode(inode)->height;
+
+	/* number of twig nodes file spans */
+	result = nodes_spanned(inode, &twig_nodes, first, last);
+	if (result)
+		return result;
+	/* number of "flow insertions" which will be needed */
+	flow_insertions = (inode->i_size + min_bytes_per_flow() - 1) / min_bytes_per_flow();
+
+	/* space necessary for extent2tail convertion: space for @nodes removals from tree and space for calculated
+	 * amount of flow insertions and 1 node and one insertion into tree for search_by_key(CBK_FOR_INSERT) */
+	result = reiser4_grab_space_exact(twig_nodes * estimate_one_item_removal(height) +
+					  flow_insertions * estimate_insert_flow(height) +
+					  1 + estimate_one_insert_item(height), BA_CAN_COMMIT);
+	if (result) {
+		zput(*first);
+		zput(*last);
+	}
+	return result;
+}
+
 static int
 filler(void *vp, struct page *page)
 {
@@ -431,6 +510,7 @@ extent2tail(struct file *file)
 	reiser4_key to;
 	unsigned count;
 	int err = 0;
+	znode *first, *last;
 
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_file_add(extent2tail);
@@ -441,6 +521,15 @@ extent2tail(struct file *file)
 
 	if (file_is_built_of_tail_items(inode)) {
 		drop_exclusive_access(inode);
+		return 0;
+	}
+
+	result = reserve_extent2tail(inode, &first, &last);
+	if (result) {
+		/* no space? Leave file stored in extent state */
+		drop_exclusive_access(inode);
+		zput(first);
+		zput(last);
 		return 0;
 	}
 
@@ -524,7 +613,60 @@ extent2tail(struct file *file)
 		print_inode("inode", inode);
 	}
 	drop_exclusive_access(inode);
+	all_grabbed2free();
+	zput(first);
+	zput(last);
 	return result;
+}
+
+static int
+file_continues_in_right_neighbor(struct inode *inode, znode *node)
+{
+	return UNDER_SPIN(dk, current_tree, get_inode_oid(inode) == get_key_objectid(znode_get_rd_key(node)));
+}
+
+/* calculate number of nodes spanned by the file, set JNODE_IMMOVABLE flag to utmost nodes and return them (@first,
+   @last) zref-ed. JNODE_IMMOVABLE guarantees that file will not span more nodes regadless to how long tail convertion
+   will take */
+static reiser4_block_nr
+nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, znode **first, znode **last)
+{
+	int result;
+	reiser4_key key;
+	coord_t coord;
+	lock_handle lh;
+
+	inode_file_plugin(inode)->key_by_inode(inode, 0, &key);
+
+	coord_init_zero(&coord);
+	init_lh(&lh);
+	result = find_next_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
+	if (result != CBK_COORD_FOUND) {
+		/* error occured */
+		done_lh(&lh);
+		return result;
+	}
+	*first = coord.node;
+	zref(*first);
+	ZF_SET(*first, JNODE_IMMOVABLE);
+	*blocks = 1;
+	while (1) {
+		if (!file_continues_in_right_neighbor(inode, coord.node))
+			break;
+		result = goto_right_neighbor(&coord, &lh);
+		if (result) {
+			ZF_CLR(*first, JNODE_IMMOVABLE);
+			zput(*first);
+			done_lh(&lh);
+			return result;
+		}
+		(*blocks) ++;
+	}
+	*last = coord.node;
+	zref(*last);
+	ZF_SET(*last, JNODE_IMMOVABLE);
+	done_lh(&lh);
+	return 0;
 }
 
 /*
