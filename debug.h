@@ -734,8 +734,19 @@ typedef struct reiser4_statistics {
 
 	} file;
 	struct {
-		/* how many unformatted nodes were read */
+		/*
+		 * how many unformatted nodes were read
+		 */
 		stat_cnt unfm_block_reads;
+
+		/*
+		 * extent_write seals and unlock znode before locking/capturing
+		 * page which is to be modified. After page is locked/captured
+		 * it validates a seal. Number of found broken seals is stored
+		 * here
+		 */
+		stat_cnt broken_seals;
+
 	} extent;
 	struct {
 		/*
