@@ -120,6 +120,13 @@ typedef struct lock_counters_info {
 
 extern lock_counters_info *lock_counters(void);
 
+typedef enum {
+	REISER4_VERBOSE_PANIC     = 0x00000001
+} reiser4_debug_flags;
+
+extern int reiser4_is_debugged( struct super_block *super, __u32 flag );
+extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
+
 #else
 
 #define dinfo( format, args... ) noop
@@ -128,6 +135,9 @@ extern lock_counters_info *lock_counters(void);
 #define assert( label, cond ) noop
 #define check_me( label, expr )	( ( void ) ( expr ) )
 #define ON_DEBUG( exp )
+
+#define reiser4_is_debugged( super, flag )       (0)
+#define reiser4_are_all_debugged( super, flags ) (0)
 
 /* REISER4_DEBUG */
 #endif

@@ -987,13 +987,18 @@ const char * coord_tween_tostring (between_enum n)
 	case AFTER_ITEM: return "after item";
 	case EMPTY_NODE: return "empty node";
 	case INVALID_COORD: return "invalid";
-	default: return "unknown";
+	default: {
+		static char buf [20];
+		
+		sprintf (buf, "unknown: %i", n);
+		return buf;
+	}
 	}
 }
 
 
 /* Audited by: green(2002.06.15) */
-void coord_print (const char * mes, const coord_t * coord, int node)
+void print_coord (const char * mes, const coord_t * coord, int node)
 {
 	if( coord == NULL ) {
 		info( "%s: null\n", mes );

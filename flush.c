@@ -671,14 +671,14 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		assert ("jmacd-1732", ! coord_is_after_rightmost (& pos->parent_coord));
 
 		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] before (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
-		trace_if (TRACE_FLUSH, coord_print ("present coord", & pos->parent_coord, 0));
+		trace_if (TRACE_FLUSH, print_coord ("present coord", & pos->parent_coord, 0));
 
 		/* We reached this point because we were at the end of a twig, and now we
 		 * have shifted new contents into that twig.  Skip past any allocated
 		 * extents.  If we are still at the end of the node, unset any_shifted. */
 		coord_next_unit (& pos->parent_coord);
 
-		trace_if (TRACE_FLUSH, coord_print ("after next_unit", & pos->parent_coord, 0));
+		trace_if (TRACE_FLUSH, print_coord ("after next_unit", & pos->parent_coord, 0));
 		assert ("jmacd-1731", coord_is_existing_unit (& pos->parent_coord));
 
 		while (coord_is_existing_unit (& pos->parent_coord) &&
@@ -1176,7 +1176,7 @@ static int squalloc_right_twig (znode    *left,
 		reiser4_key last_stop_key;
 
 
-		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:item_is_extent:", & coord, 0));
+		trace_if (TRACE_FLUSH, print_coord ("sq_right_twig:item_is_extent:", & coord, 0));
 
 		last_stop_key = stop_key;
 		if ((ret = allocate_and_copy_extent (left, &coord, pos, &stop_key)) < 0) {
@@ -1192,7 +1192,7 @@ static int squalloc_right_twig (znode    *left,
 
 		if (ret == SQUEEZE_TARGET_FULL) {
 			/* Could not complete with current extent item. */
-			trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:target_full:", & coord, 0));
+			trace_if (TRACE_FLUSH, print_coord ("sq_right_twig:target_full:", & coord, 0));
 			break;
 		}
 
@@ -1201,11 +1201,11 @@ static int squalloc_right_twig (znode    *left,
 		/* coord_next_item returns 0 if there are more items. */
 		if (coord_next_item (&coord) != 0) {
 			ret = SQUEEZE_SOURCE_EMPTY;
-			trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:source_empty:", & coord, 0));
+			trace_if (TRACE_FLUSH, print_coord ("sq_right_twig:source_empty:", & coord, 0));
 			break;
 		}
 
-		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:continue:", & coord, 0));
+		trace_if (TRACE_FLUSH, print_coord ("sq_right_twig:continue:", & coord, 0));
 	}
 
 	trace_on (TRACE_FLUSH, "squalloc_right_twig:after copy extents: %p %p\n", left, right);
@@ -1215,7 +1215,7 @@ static int squalloc_right_twig (znode    *left,
 	if (!keyeq (&stop_key, min_key ())) {
 		int cut_ret;
 
-		trace_if (TRACE_FLUSH, coord_print ("sq_right_twig:cut_coord", & coord, 0));
+		trace_if (TRACE_FLUSH, print_coord ("sq_right_twig:cut_coord", & coord, 0));
 
 		/* Helper function to do the cutting. */
 		if ((cut_ret = squalloc_right_twig_cut (&stop_coord, &stop_key, left))) {
