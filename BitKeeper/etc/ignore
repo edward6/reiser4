@@ -1327,3 +1327,9 @@ yet_unneeded_abstractions/oid/.oid40.o.cmd
 znode.bb
 znode.bbg
 .debug.o.d
+.emergency_flush.o.d
+.flush_queue.o.d
+.jnode.o.d
+.tree.o.d
+.txnmgr.o.d
+plugin/space/.bitmap.o.d
