@@ -94,53 +94,53 @@ typedef struct {
       [jnode-queued]
 */
 struct jnode {
-	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */
-	/*   0 */ unsigned long state;
+	union {
+		/* pointers to maintain hash-table */
+		z_hash_link z;
+		j_hash_link j;
+	} link;
 
-	/* lock, protecting jnode's fields. */
-	/*   4 */ reiser4_spin_data guard;
-
-	/* counter of references to jnode's data. Pin data page(s) in
-	   memory while this is greater than 0. Increased on jload().
-	   Decreased on jrelse().
-	*/
-	/*   8 */ int d_count;
-
-	/* counter of references to jnode itself. Increased on jref().
-	   Decreased on jput().
-	*/
-	/*  12 */ atomic_t x_count;
-
-	/* the real blocknr (where io is going to/from) */
-	/*  16 */ reiser4_block_nr blocknr;
-
-	/*  24 */ union {
+	union {
 		/* znodes are hashed by block number */
 		reiser4_block_nr z;
 		/* unformatted nodes are hashed by mapping plus offset */
 		jnode_key_t j;
 	} key;
 
+	/* jnode's state: bitwise flags from the reiser4_znode_state enum. */
+	unsigned long state;
+
+	/* lock, protecting jnode's fields. */
+	reiser4_spin_data guard;
+
+	/* counter of references to jnode itself. Increased on jref().
+	   Decreased on jput().
+	*/
+	atomic_t x_count;
+
+	/* the real blocknr (where io is going to/from) */
+	reiser4_block_nr blocknr;
+
 	/* pointer to jnode page.  */
-	/*  32 */ struct page *pg;
+	struct page *pg;
 	/* pointer to node itself. This is page_address(node->pg) when page is
 	   attached to the jnode
 	*/
-	/*  36 */ void *data;
+	void *data;
 
-	/*  40 */ union {
-		/* pointers to maintain hash-table */
-		z_hash_link z;
-		j_hash_link j;
-	} link;
+	/* counter of references to jnode's data. Pin data page(s) in
+	   memory while this is greater than 0. Increased on jload().
+	   Decreased on jrelse().
+	*/
+	int d_count;
 
 	/* atom the block is in, if any */
-	/*  44 */ txn_atom *atom;
+	txn_atom *atom;
 
 	/* capture list */
-	/*  48 */ capture_list_link capture_link;
-	/*  52 */ reiser4_tree *tree;
-	/*  56 */ struct rcu_head rcu;
+	capture_list_link capture_link;
+	reiser4_tree *tree;
+	struct rcu_head rcu;
 #if REISER4_DEBUG
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
