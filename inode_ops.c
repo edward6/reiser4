@@ -1,4 +1,5 @@
-/* Copyright 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Interface to VFS. Reiser4 inode_operations are defined here. */
 
@@ -268,6 +269,7 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to
 	return result;
 }
 
+/* ->readlink() inode method, returns content of symbolic link */
 static int
 reiser4_readlink(struct dentry *dentry, char *buf, int buflen)
 {
@@ -278,6 +280,7 @@ reiser4_readlink(struct dentry *dentry, char *buf, int buflen)
 	return vfs_readlink(dentry, buf, buflen, dentry->d_inode->u.generic_ip);
 }
 
+/* ->follow_link() inode method. Follows a symbolic link */
 static int
 reiser4_follow_link(struct dentry *dentry, struct nameidata *data)
 {

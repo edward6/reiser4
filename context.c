@@ -2,6 +2,37 @@
 
 /* Manipulation of reiser4_context */
 
+/*
+ * global context used during system call. Variable of this type is allocated
+ * on the stack at the beginning of the reiser4 part of the system call and
+ * pointer to it is stored in the current->fs_context. This allows us to avoid
+ * passing pointer to current transaction and current lockstack (both in
+ * one-to-one mapping with threads) all over the call chain.
+ *
+ * It's kind of like those global variables the prof used to tell you not to
+ * use in CS1, except thread specific.;-) Nikita, this was a good idea.
+ *
+ * In some situations it is desirable to have ability to enter reiser4_context
+ * more than once for the same thread (nested contexts). For example, there
+ * are some functions that can be called either directly from VFS/VM or from
+ * already active reiser4 context (->writepage, for example).
+ *
+ * In such situations "child" context acts like dummy: all activity is
+ * actually performed in the top level context, and get_current_context()
+ * always returns top level context. Of course, init_context()/done_context()
+ * have to be properly nested any way.
+ *
+ * Note that there is an important difference between reiser4 uses
+ * ->fs_context and the way other file systems use it. Other file systems
+ * (ext3 and reiserfs) use ->fs_context only for the duration of _transaction_
+ * (this is why ->fs_context was initially called ->journal_info). This means,
+ * that when ext3 or reiserfs finds that ->fs_context is not NULL on the entry
+ * to the file system, they assume that some transaction is already underway,
+ * and usually bail out, because starting nested transaction would most likely
+ * lead to the deadlock. This gives false positives with reiser4, because we
+ * set ->fs_context before starting transaction.
+ */
+
 #include "debug.h"
 #include "super.h"
 #include "context.h"
@@ -134,18 +165,18 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 #endif
 	context->task = current;
 #endif
-	context->flush_started = INITIAL_JIFFIES;
-
 	grab_space_enable();
 	return 0;
 }
 
+/* cast lock stack embedded into reiser4 context up to its container */
 reiser4_internal reiser4_context *
 get_context_by_lock_stack(lock_stack * owner)
 {
 	return container_of(owner, reiser4_context, stack);
 }
 
+/* true if there is already _any_ reiser4 context for the current thread */
 reiser4_internal int
 is_in_reiser4_context(void)
 {
@@ -154,17 +185,47 @@ is_in_reiser4_context(void)
 		((unsigned long) current->fs_context->owner) == context_magic;
 }
 
+/*
+ * call balance dirty pages for the current context.
+ *
+ * File system is expected to call balance_dirty_pages_ratelimited() whenever
+ * it dirties a page. reiser4 does this for unformatted nodes (that is, during
+ * write---this covers vast majority of all dirty traffic), but we cannot do
+ * this immediately when formatted node is dirtied, because long term lock is
+ * usually held at that time. To work around this, dirtying of formatted node
+ * simply increases ->nr_marked_dirty counter in the current reiser4
+ * context. When we are about to leave this context,
+ * balance_dirty_pages_ratelimited() is called, if necessary.
+ *
+ * This introduces another problem: sometimes we do not want to run
+ * balance_dirty_pages_ratelimited() when leaving a context, for example
+ * because some important lock (like ->i_sem on the parent directory) is
+ * held. To achieve this, ->nobalance flag can be set in the current context.
+ */
 static void
 balance_dirty_pages_at(reiser4_context * context)
 {
 	reiser4_super_info_data * sbinfo = get_super_private(context->super);
 
-	if (context->nr_marked_dirty != 0 && sbinfo->fake &&
-	    !(current->flags & PF_MEMALLOC) && !current_is_pdflush()) {
+	/*
+	 * call balance_dirty_pages_ratelimited() to process formatted nodes
+	 * dirtied during this system call.
+	 */
+	if (context->nr_marked_dirty != 0 &&   /* were any nodes dirtied? */
+	    /* aren't we called early during mount? */
+	    sbinfo->fake &&
+	    /* don't call balance dirty pages from ->writepage(): it's
+	     * deadlock prone */
+	    !(current->flags & PF_MEMALLOC) &&
+	    /* and don't stall pdflush */
+	    !current_is_pdflush())
 		balance_dirty_pages_ratelimited(sbinfo->fake->i_mapping);
-	}
 }
 
+/*
+ * exit reiser4 context. Call balance_dirty_pages_at() if necessary. Close
+ * transaction. Call done_context() to do context related book-keeping.
+ */
 reiser4_internal void reiser4_exit_context(reiser4_context * context)
 {
 	assert("nikita-3021", schedulable());
@@ -198,8 +259,9 @@ done_context(reiser4_context * context /* context being released */)
 	assert("nikita-859", parent->magic == context_magic);
 	assert("vs-646", (reiser4_context *) current->fs_context == parent);
 	assert("zam-686", !in_interrupt() && !in_irq());
-	/* add more checks here */
 
+	/* only do anything when leaving top-level reiser4 context. All nested
+	 * contexts are just dummies. */
 	if (parent == context) {
 		assert("jmacd-673", parent->trans == NULL);
 		assert("jmacd-1002", lock_stack_isclean(&parent->stack));
@@ -208,6 +270,7 @@ done_context(reiser4_context * context /* context being released */)
 		assert("nikita-2626", tap_list_empty(taps_list()));
 		assert("zam-1004", get_super_private(context->super)->delete_sema_owner != current);
 
+		/* release all grabbed but as yet unused blocks */
 		if (context->grabbed_blocks != 0)
 			all_grabbed2free();
 
@@ -235,6 +298,7 @@ done_context(reiser4_context * context /* context being released */)
 		spin_unlock(&active_contexts_lock);
 #endif
 		assert("zam-684", context->nr_children == 0);
+		/* restore original ->fs_context value */
 		current->fs_context = context->outer;
 	} else {
 #if REISER4_DEBUG
@@ -244,7 +308,7 @@ done_context(reiser4_context * context /* context being released */)
 	}
 }
 
-/* Audited by: umka (2002.06.16) */
+/* Initialize list of all contexts */
 reiser4_internal int
 init_context_mgr(void)
 {
@@ -256,6 +320,8 @@ init_context_mgr(void)
 }
 
 #if REISER4_DEBUG_OUTPUT
+/* debugging function: output reiser4 context contexts in the human readable
+ * form  */
 reiser4_internal void
 print_context(const char *prefix, reiser4_context * context)
 {
@@ -275,6 +341,7 @@ print_context(const char *prefix, reiser4_context * context)
 }
 
 #if REISER4_DEBUG_CONTEXTS
+/* debugging: dump contents of all active contexts */
 void
 print_contexts(void)
 {

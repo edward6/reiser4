@@ -533,6 +533,9 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	return ret;
 }
 
+/*
+ * roll back changes made before issuing BIO in the case of IO error.
+ */
 static void
 undo_bio(struct bio *bio)
 {
@@ -733,7 +736,7 @@ FIXME: ZAM->HANS: What layer are you talking about? Can you point me to that?
 Why that layer needed? Why BIOs cannot be constructed here?
 */
 static int
-write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, 
+write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			    const reiser4_block_nr * block_p, flush_queue_t * fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();
@@ -1176,7 +1179,7 @@ get_overwrite_set(struct commit_handle *ch)
    all low-level things as bio construction and page states manipulation.
 */
 static int
-write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, 
+write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			    const reiser4_block_nr * block_p, flush_queue_t * fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();

@@ -395,10 +395,9 @@ DEFINE_SUPER_RO(24, next_to_use, "%llu", 64);
 DEFINE_SUPER_RO(25, oids_in_use, "%llu", 64);
 
 DEFINE_SUPER_RO(26, entd.flushers, "%llu", 32);
-DEFINE_SUPER_RO(27, entd.timeout, "%llu", 32);
 
-DEFINE_SUPER_RW(28, trace_flags, "%#llx", 32);
-DEFINE_SUPER_RW(29, log_flags, "%#llx", 32);
+DEFINE_SUPER_RW(27, trace_flags, "%#llx", 32);
+DEFINE_SUPER_RW(28, log_flags, "%#llx", 32);
 
 #define ATTR_NO(n) &kattr_super_ ## n .attr.kattr
 
@@ -433,7 +432,6 @@ static struct attribute * kattr_def_attrs[] = {
 	ATTR_NO(26),
 	ATTR_NO(27),
 	ATTR_NO(28),
-	ATTR_NO(29),
 	&compile_options.attr.kattr,
 	&device.attr.kattr,
 #if REISER4_DEBUG

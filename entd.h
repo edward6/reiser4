@@ -25,18 +25,34 @@ struct wbq {
 	int    nr_entd_iters;
 };
 
+/* ent-thread context. This is used to synchronize starting/stopping ent
+ * threads. */
 typedef struct entd_context {
+	/*
+	 * condition variable that is signaled by ent thread after it
+	 * successfully started up.
+	 */
 	kcond_t             startup;
+	/*
+	 * completion that is signaled by ent thread just before it
+	 * terminates.
+	 */
 	struct completion   finish;
+	/*
+	 * condition variable that ent thread waits on for more work. It's
+	 * signaled by write_page_by_ent().
+	 */
 	kcond_t             wait;
+	/* spinlock protecting other fields */
 	spinlock_t          guard;
+	/* ent thread */
 	struct task_struct *tsk;
+	/* set to indicate that ent thread should leave. */
 	int                 done;
-	unsigned long       last_flush;
+	/* counter of active flushers */
 	int                 flushers;
-	unsigned long       timeout;
-	kcond_t             flush_wait;
 #if REISER4_DEBUG
+	/* list of all active flushers */
 	flushers_list_head  flushers_list;
 #endif
 	int                 wbq_nr;
@@ -48,7 +64,6 @@ extern void done_entd_context(struct super_block *super);
 
 extern void enter_flush(struct super_block *super);
 extern void leave_flush(struct super_block *super);
-extern void flush_started_io(void);
 
 extern void write_page_by_ent(struct page *, struct writeback_control *);
 extern int  wbq_available (void);

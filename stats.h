@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
  * reiser4/README */
 
 /* Statistics gathering. See stats.c for comments. */
@@ -30,6 +30,7 @@
 
 #define REISER4_STATS_STRICT (0)
 
+/* statistical counters collected on each level of internal tree */
 typedef struct reiser4_level_statistics {
 	/* carries restarted due to deadlock avoidance algorithm */
 	statcnt_t carry_restart;
@@ -115,6 +116,8 @@ typedef struct reiser4_level_statistics {
 	statcnt_t cbk_key_moved;
 	/* node was moved out of tree while thread was waiting for the lock */
 	statcnt_t cbk_met_ghost;
+	/* how many times vroot ("virtual root") optimization was used during
+	 * tree lookup */
 	statcnt_t object_lookup_start;
 	struct {
 		/* calls to jload() */
@@ -142,9 +145,13 @@ typedef struct reiser4_level_statistics {
 		statcnt_t lock_neighbor;
 		/* number of times loop inside lock_neighbor() was executed */
 		statcnt_t lock_neighbor_iteration;
+		/* read locks taken */
 		statcnt_t lock_read;
+		/* write locks taken */
 		statcnt_t lock_write;
+		/* low priority locks taken */
 		statcnt_t lock_lopri;
+		/* high priority locks taken */
 		statcnt_t lock_hipri;
 		/* how many requests for znode long term lock couldn't succeed
 		 * immediately. */
@@ -152,74 +159,148 @@ typedef struct reiser4_level_statistics {
 		/* how many requests for znode long term lock managed to
 		 * succeed immediately. */
 		statcnt_t lock_uncontented;
+		/* attempt to acquire a lock failed, because target node was
+		 * dying */
 		statcnt_t lock_dying;
+		/* lock wasn't immediately available, due to incompatible lock
+		 * mode */
 		statcnt_t lock_cannot_lock;
+		/* lock was immediately available (i.e., without wait) */
 		statcnt_t lock_can_lock;
+		/* no node capture was necessary when acquiring a lock */
 		statcnt_t lock_no_capture;
+		/* number of unlocks */
 		statcnt_t unlock;
+		/* number of times unlock decided to wake up sleeping
+		 * requestors */
 		statcnt_t wakeup;
+		/* number of times requestors were actually found during wake
+		 * up */
 		statcnt_t wakeup_found;
+		/* number of read-mode requestors found */
 		statcnt_t wakeup_found_read;
+		/* number of requestor queue items scanned during wake-up
+		 * processing */
 		statcnt_t wakeup_scan;
+		/* number of requestors bundled into convoys */
 		statcnt_t wakeup_convoy;
 	} znode;
 	struct {
+		/* node lookup stats */
 		struct {
+			/* ->lookup() calls */
 			statcnt_t calls;
+			/* items in all nodes */
 			statcnt_t items;
+			/* "hops" of binary search */
 			statcnt_t binary;
+			/* iterations of sequential search */
 			statcnt_t seq;
+			/* how many times key sought for was found */
 			statcnt_t found;
+			/* average position where key was found */
 			statcnt_t pos;
+			/* average position where key was found relative to
+			 * total number of items */
 			statcnt_t posrelative;
+			/* number of times key was found in the same position
+			 * as in the previous lookup in this node */
 			statcnt_t samepos;
+			/* number of times key was found in the next position
+			 * relative to the previous lookup in this node */
 			statcnt_t nextpos;
 		} lookup;
 	} node;
 	struct {
+		/* reiser4_releasepage() stats */
 		struct {
 			/* for how many pages on this level ->releasepage()
 			 * was called. */
 			statcnt_t try;
 			/* how many pages were released on this level */
 			statcnt_t ok;
+			/*
+			 * how many times we failed to release a page,
+			 * because...
+			 */
+			/* jnode pinned it in memory */
 			statcnt_t loaded;
+			/* it's coced page */
 			statcnt_t copy;
-			statcnt_t eflushed;
+			/* it has fake block number */
 			statcnt_t fake;
+			/* it is dirty */
 			statcnt_t dirty;
+			/* it is in the overwrite set */
 			statcnt_t ovrwr;
+			/* it is under writeback */
 			statcnt_t writeback;
+			/* it's anonymous page, and jnode is not yet captured
+			 * into atom. */
 			statcnt_t keepme;
+			/* it's bitmap */
 			statcnt_t bitmap;
+
+			/* emergency flush was performed on this page/jnode,
+			 * so it's ok to release */
+			statcnt_t eflushed;
 		} release;
+		/* emergency flush statistics */
 		struct {
 			/* how many times emergency flush was invoked on this
 			 * level */
 			statcnt_t called;
+			/* eflush was successful */
 			statcnt_t ok;
+			/* jnode ceased to be flushable after lock release */
 			statcnt_t nolonger;
+			/* new block number was needed for eflush */
 			statcnt_t needs_block;
+			/*
+			 * eflush failed, because...
+			 */
+			/* jnode is loaded */
 			statcnt_t loaded;
+			/* jnode is in the flush queue */
 			statcnt_t queued;
+			/* jnode is protected (JNODE_PROTECTED bit is on) */
 			statcnt_t protected;
+			/* jnode heard banshee already */
 			statcnt_t heard_banshee;
+			/* jnode has no page */
 			statcnt_t nopage;
+			/* jnode is under writeback */
 			statcnt_t writeback;
+			/* jnode is bitmap */
 			statcnt_t bitmap;
+			/* jnode is crypto-compress cluster */
 			statcnt_t clustered;
+			/* jnode is already eflushed */
 			statcnt_t eflushed;
 		} eflush;
 	} vm;
+	/*
+	 * non zero, if there is some other non-zero counter at this tree
+	 * level. Used to suppress processing of higher tree levels, that
+	 * don't exist on the underlying file system.
+	 */
 	statcnt_t total_hits_at_level;
+	/* total time (in jiffies) threads sleep for the longterm locks on
+	 * this level */
 	statcnt_t time_slept;
 } reiser4_level_stat;
 
+/*
+ * hash table statistics. Such object is added to each type safe hash table
+ * instance (see fs/reiser4/type_safe_hash.h).
+ */
 typedef struct tshash_stat {
-	statcnt_t lookup;
-	statcnt_t insert;
-	statcnt_t remove;
-	statcnt_t scanned;
+	statcnt_t lookup;  /* number of lookup calls */
+	statcnt_t insert;  /* number of insert calls */
+	statcnt_t remove;  /* number of remove calls */
+	statcnt_t scanned; /* total number of items inspected during all
+			    * operations. This can be used to estimate average
+			    * hash-chain depth. */
 } tshash_stat;
 
 #define TSHASH_LOOKUP(stat) ({ if(stat) statcnt_inc(&stat->lookup); })
@@ -252,11 +333,25 @@ typedef struct reiser4_statistics {
 		   therewithin.
 		*/
 		statcnt_t cbk_cache_race;
+		/*
+		 * statistics for vroot ("virtual root") optimization of tree
+		 * lookup.
+		 */
+		/*
+		 * vroot usage failed, because...
+		 */
+		/* given object has no vroot set */
 		statcnt_t object_lookup_novroot;
+		/* vroot changed due to race with balancing */
 		statcnt_t object_lookup_moved;
+		/* object is not fitted into its vroot any longer */
 		statcnt_t object_lookup_outside;
+		/* failed to lock vroot */
 		statcnt_t object_lookup_cannotlock;
+
+		/* tree traversal had to be re-started due to vroot failure */
 		statcnt_t object_lookup_restart;
+
 		/* number of times coord of child in its parent, cached
 		   in a former, was reused. */
 		statcnt_t pos_in_parent_hit;
@@ -289,6 +384,9 @@ typedef struct reiser4_statistics {
 		statcnt_t left_nonuniq_found;
 	} tree;
 	reiser4_level_stat level[REISER4_MAX_ZTREE_HEIGHT];
+	/* system call statistics. Indicates how many times given system (or,
+	 * sometimes, internal kernel function) was
+	 * invoked. Self-explanatory. */
 	struct {
 		statcnt_t open;
 		statcnt_t lookup;
@@ -317,19 +415,39 @@ typedef struct reiser4_statistics {
 		statcnt_t destroy_inode;
 		statcnt_t delete_inode;
 		statcnt_t write_super;
-		statcnt_t private_data_alloc; /* allocations of either per struct dentry or per struct file data */
+		statcnt_t private_data_alloc; /* allocations of either per
+					       * struct dentry or per struct
+					       * file data */
 	} vfs_calls;
 	struct {
+		/* readdir stats */
 		struct {
+			/* calls to readdir */
 			statcnt_t calls;
+			/* rewinds to the beginning of directory */
 			statcnt_t reset;
+			/* partial rewinds to the left */
 			statcnt_t rewind_left;
+			/* rewind to left that was completely within sequence
+			 * of duplicate keys */
 			statcnt_t left_non_uniq;
+			/* restarts of rewinds to the left due to hi/lo
+			 * priority locking */
 			statcnt_t left_restart;
+			/* rewinds to the right */
 			statcnt_t rewind_right;
+			/* how many times readdir position has to be adjusted
+			 * due to directory modification. Large readdir
+			 * comment in plugin/dir/dir.c */
 			statcnt_t adjust_pos;
+			/* how many times adjustment was on the left of
+			 * current readdir position */
 			statcnt_t adjust_lt;
+			/* how many times adjustment was on the right of
+			 * current readdir position */
 			statcnt_t adjust_gt;
+			/* how many times adjustment was exactly on the
+			 * current readdir position */
 			statcnt_t adjust_eq;
 		} readdir;
 	} dir;
@@ -364,25 +482,32 @@ typedef struct reiser4_statistics {
 		*/
 		statcnt_t broken_seals;
 
-		/* extent_write calls balance_dirty_pages after it modifies every page. Before that it seals node it
-		   currently holds and uses seal_validate to lock it again. This field stores how many times
-		   balance_dirty_pages broke that seal and caused to repease search tree traversal
+		/* extent_write calls balance_dirty_pages after it modifies
+		   every page. Before that it seals node it currently holds
+		   and uses seal_validate to lock it again. This field stores
+		   how many times balance_dirty_pages broke that seal and
+		   caused to repease search tree traversal
 		*/
 		statcnt_t bdp_caused_repeats;
-		/* how many times extent_write could not write a coord and had to ask for research */
+		/* how many times extent_write could not write a coord and had
+		 * to ask for research */
 		statcnt_t repeats;
 	} extent;
 	struct { /* stats on tail items */		
-		/* tail_write calls balance_dirty_pages after every call to insert_flow. Before that it seals node it
-		   currently holds and uses seal_validate to lock it again. This field stores how many times
-		   balance_dirty_pages broke that seal and caused to repease search tree traversal
+		/* tail_write calls balance_dirty_pages after every call to
+		   insert_flow. Before that it seals node it currently holds
+		   and uses seal_validate to lock it again. This field stores
+		   how many times balance_dirty_pages broke that seal and
+		   caused to repease search tree traversal
 		*/
 		statcnt_t bdp_caused_repeats;
 	} tail;
+	/* transaction manager stats */
 	struct {
 		/* jiffies, spent in atom_wait_event() */
 		statcnt_t slept_in_wait_event;
-		/* jiffies, spent in capture_fuse_wait (wait for atom state change) */
+		/* jiffies, spent in capture_fuse_wait (wait for atom state
+		 * change) */
 		statcnt_t slept_in_wait_atom;
 		/* number of commits */
 		statcnt_t commits;
@@ -390,30 +515,64 @@ typedef struct reiser4_statistics {
 		statcnt_t post_commit_writes;
 		/* jiffies, spent in commits and post commit writes */
 		statcnt_t time_spent_in_commits;
-		statcnt_t raced_with_truncate;
+		/* how many times attempt to write a flush queue ended up with
+		 * an empty bio */
 		statcnt_t empty_bio;
+		/* how many times ->writepage kicked ktxnmged to start commit
+		 * of an atom */
 		statcnt_t commit_from_writepage;
 
+		/*
+		 * fs/txnmgrd.c:try_capture_block() stats
+		 */
+
+		/* atoms of node and transaction handle are the same
+		 * already */
 		statcnt_t capture_equal;
+		/* node and handle both belong to atoms */
 		statcnt_t capture_both;
+		/* only node belongs to atom */
 		statcnt_t capture_block;
+		/* only handle belongs to atom */
 		statcnt_t capture_txnh;
+		/* neither node nor handle belong to atom */
 		statcnt_t capture_none;
 
+		/*
+		 * how many times some transaction manager activity had to be
+		 * re-started, because...
+		 */
 		struct {
+			/* new atom was created */
 			statcnt_t atom_begin;
+			/* commit_current_atom() found atom in use */
 			statcnt_t cannot_commit;
+			/* committer had to wait */
 			statcnt_t should_wait;
+			/* jnode_flush was invoked several times in a row */
 			statcnt_t flush;
+			/* fuse_not_fused_lock_owners() fused atoms */
 			statcnt_t fuse_lock_owners_fused;
+			/* fuse_not_fused_lock_owners() has to restart */
 			statcnt_t fuse_lock_owners;
+			/* trylock failed on atom */
 			statcnt_t trylock_throttle;
+			/* atom trylock failed in capture_assign_block() */
 			statcnt_t assign_block;
+			/* atom trylock failed in capture_assign_txnh() */
 			statcnt_t assign_txnh;
+			/* capture_fuse_wait() was called in non-blocking
+			 * mode */
 			statcnt_t fuse_wait_nonblock;
+			/* capture_fuse_wait() had to sleep */
 			statcnt_t fuse_wait_slept;
+			/* capture_init_fusion() failed to try-lock node
+			 * atom */
 			statcnt_t init_fusion_atomf;
+			/* capture_init_fusion() failed to try-lock handle
+			 * atom */
 			statcnt_t init_fusion_atomh;
+			/* capture_init_fusion_locked() slept during fusion */
 			statcnt_t init_fusion_fused;
 		} restart;
 	} txnmgr;
@@ -450,27 +609,19 @@ typedef struct reiser4_statistics {
 		/* how many times node under seal was out of cache */
 		statcnt_t out_of_cache;
 	} seal;
+	/* hash tables stats. See tshash_stat above. */
 	struct {
+		/* for the hash table of znodes with real block numbers */
 		tshash_stat znode;
+		/* for the hash table of znodes with fake block numbers */
 		tshash_stat zfake;
+		/* for the hash table of jnodes */
 		tshash_stat jnode;
+		/* for the hash table of lnodes */
 		tshash_stat lnode;
+		/* for the hash table of eflush_node_t's */
 		tshash_stat eflush;
 	} hashes;
-	struct {
-		statcnt_t asked;
-		statcnt_t iteration;
-		statcnt_t wait_flush;
-		statcnt_t wait_congested;
-		statcnt_t kicked;
-		statcnt_t cleaned;
-		statcnt_t skipped_ent;
-		statcnt_t skipped_last;
-		statcnt_t skipped_congested;
-		statcnt_t low_priority;
-		statcnt_t removed;
-		statcnt_t toolong;
-	} wff;
 	struct {
 		/* how many times block was allocated without having valid
 		 * preceder. */
@@ -481,15 +632,14 @@ typedef struct reiser4_statistics {
 
 	/* page_common_writeback stats */
 	struct {
+		/* calls to ->writepage() */
 		statcnt_t calls;
-		statcnt_t formatted;
-		statcnt_t unformatted;
+		/* ->writepage() failed to allocate jnode for the page */
 		statcnt_t no_jnode;
-		statcnt_t ented;
+		/* emergency flush succeed */
 		statcnt_t written;
+		/* emergency flush failed */
 		statcnt_t not_written;
-		statcnt_t ent_written; /* !PageDirty */
-		statcnt_t ent_repeat;  /* E_REPEAT returned */
 	} pcwb;
 
 	/* stat of copy on capture requests */

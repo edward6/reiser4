@@ -32,6 +32,15 @@
  * Each statistical counter is exported through sysfs (see kattr.c for more
  * details).
  *
+ * If you adding new stat-counter, you should add it into appropriate struct
+ * definition in stats.h (reiser4_level_statistics or reiser4_statistics), and
+ * add initialization of counter to the reiser4_stat_defs[] or
+ * reiser4_stat_level_defs[] arrays in this file.
+ *
+ * Note: it is probably possible to avoid this duplication by placing some
+ * description of counters into third file and using preprocessor to generate
+ * definitions of structs and arrays.
+ *
  */
 
 #include "kattr.h"
@@ -44,17 +53,38 @@
 #include <linux/sysfs.h>
 #include <linux/vmalloc.h>
 
-
+/*
+ * Data-type describing how to export stat-counter through sysfs.
+ */
 typedef struct reiser4_stats_cnt {
+	/* standard object to interact with sysfs */
 	reiser4_kattr  kattr;
+	/* offset to the counter from the beginning of embedding data-type
+	 * (reiser4_level_statistics or reiser4_statistics) */
 	ptrdiff_t      offset;
+	/* counter size in bytes */
 	size_t         size;
+	/* printf(3) format to output counter value */
 	const char    *format;
 } reiser4_stats_cnt;
 
+/*
+ * helper macro: return value of counter (of type @type) located at the offset
+ * @offset (in bytes) from the data-structure located at @ptr.
+ */
 #define getptrat(type, ptr, offset) ((type *)(((char *)(ptr)) + (offset)))
 
-#define DEFINE_STATCNT_0(aname, afield, atype, afmt, ashow, astore)	\
+/*
+ * helper macro to define reiser4_stats_cnt describing particular
+ * stat-counter.
+ */
+#define DEFINE_STATCNT_0(aname,   /* name under which counter will be exported \
+				   * in sysfs */			\
+			 afield,  /* name of field in the embedding type */ \
+	  		 atype,   /* data-type of counter */		\
+		         afmt,    /* output printf(3) format */		\
+	  		 ashow,   /* show method */			\
+			 astore   /* store method */)			\
 {									\
 	.kattr = {							\
 		.attr = {						\
@@ -74,11 +104,18 @@ typedef struct reiser4_stats_cnt {
 
 #if REISER4_STATS
 
+/*
+ * return counter corresponding to the @fskattr. struct fs_kattr is embedded
+ * into reiser4_kattr, and reiser4_kattr is embedded into reiser4_stats_cnt.
+ */
 static inline reiser4_stats_cnt *getcnt(struct fs_kattr * fskattr)
 {
 	return container_of(fskattr, reiser4_stats_cnt, kattr.attr);
 }
 
+/*
+ * ->show() method for "global" --that is, not per-level-- stat-counter.
+ */
 static ssize_t
 show_stat_attr(struct super_block * s, struct fs_kobject * fskobj,
 	       struct fs_kattr * fskattr, char * buf)
@@ -87,13 +124,18 @@ show_stat_attr(struct super_block * s, struct fs_kobject * fskobj,
 	reiser4_stats_cnt *cnt;
 	statcnt_t *val;
 
+	/* obtain counter description */
 	cnt = getcnt(fskattr);
+	/* use byte offset stored in description to obtain counter value */
 	val = getptrat(statcnt_t, get_super_private(s)->stats, cnt->offset);
 	p = buf;
 	KATTR_PRINT(p, buf, cnt->format, statcnt_get(val));
 	return (p - buf);
 }
 
+/*
+ * ->store() method for "global" --that is, not per-level-- stat-counter.
+ */
 static ssize_t
 store_stat_attr(struct super_block * s, struct fs_kobject * fskobj,
 		struct fs_kattr * fskattr, const char * buf, size_t size)
@@ -101,12 +143,20 @@ store_stat_attr(struct super_block * s, struct fs_kobject * fskobj,
 	reiser4_stats_cnt *cnt;
 	statcnt_t *val;
 
+	/*
+	 * any write into file representing stat-counter in sysfs, resets
+	 * counter to zero
+	 */
+
 	cnt = getcnt(fskattr);
 	val = getptrat(statcnt_t, get_super_private(s)->stats, cnt->offset);
 	statcnt_reset(val);
 	return size;
 }
 
+/*
+ * ->show() method for per-level stat-counter
+ */
 static ssize_t
 show_stat_level_attr(struct super_block * s, struct fs_kobject * fskobj,
 		     struct fs_kattr * fskattr, char * buf)
@@ -116,8 +166,12 @@ show_stat_level_attr(struct super_block * s, struct fs_kobject * fskobj,
 	statcnt_t *val;
 	int level;
 
+	/* obtain level from reiser4_level_stats_kobj */
 	level = container_of(fskobj, reiser4_level_stats_kobj, kobj)->level;
+	/* obtain counter description */
 	cnt = getcnt(fskattr);
+	/* obtain counter value, using level and byte-offset from the
+	 * beginning of per-level counter struct */
 	val = getptrat(statcnt_t, &get_super_private(s)->stats->level[level],
 		       cnt->offset);
 	p = buf;
@@ -125,6 +179,9 @@ show_stat_level_attr(struct super_block * s, struct fs_kobject * fskobj,
 	return (p - buf);
 }
 
+/*
+ * ->store() method for per-level stat-counter
+ */
 static ssize_t
 store_stat_level_attr(struct super_block * s, struct fs_kobject * fskobj,
 		      struct fs_kattr * fskattr, const char * buf, size_t size)
@@ -132,6 +189,11 @@ store_stat_level_attr(struct super_block * s, struct fs_kobject * fskobj,
 	reiser4_stats_cnt *cnt;
 	statcnt_t *val;
 	int level;
+
+	/*
+	 * any write into file representing stat-counter in sysfs, resets
+	 * counter to zero
+	 */
 
 	level = container_of(fskobj, reiser4_level_stats_kobj, kobj)->level;
 	cnt = getcnt(fskattr);
@@ -141,6 +203,10 @@ store_stat_level_attr(struct super_block * s, struct fs_kobject * fskobj,
 	return size;
 }
 
+/*
+ * macro defining reiser4_stats_cnt instance describing particular global
+ * stat-counter
+ */
 #define DEFINE_STATCNT(field)					\
 	DEFINE_STATCNT_0(#field, field, reiser4_stat, "%lu", 	\
 			 show_stat_attr, store_stat_attr)
@@ -338,6 +404,10 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(coc.coc_wait),
 };
 
+/*
+ * macro defining reiser4_stats_cnt instance describing particular per-level
+ * stat-counter
+ */
 #define DEFINE_STAT_LEVEL_CNT(field)					\
 	DEFINE_STATCNT_0(#field, field,					\
 			 reiser4_level_stat, "%lu", 			\
@@ -443,6 +513,9 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(total_hits_at_level)
 };
 
+/*
+ * print single stat-counter.
+ */
 static void
 print_cnt(reiser4_stats_cnt * cnt, const char * prefix, void * base)
 {
@@ -451,7 +524,12 @@ print_cnt(reiser4_stats_cnt * cnt, const char * prefix, void * base)
 	       statcnt_get(getptrat(statcnt_t, base, cnt->offset)));
 }
 
-/* Print statistical data accumulated so far. */
+/*
+ * Print statistical data accumulated so far.
+ *
+ * This is done during umount if REISER4_STATS_ON_UMOUNT flag is set in
+ * ->debug_flags.
+ */
 reiser4_internal void
 reiser4_print_stats(void)
 {
@@ -473,6 +551,10 @@ reiser4_print_stats(void)
 	}
 }
 
+/*
+ * add all defined per-level stat-counters as attributes to the @kobj. This is
+ * the way stat-counters are exported through sysfs.
+ */
 int
 reiser4_populate_kattr_level_dir(struct kobject * kobj)
 {
@@ -492,14 +574,21 @@ reiser4_populate_kattr_level_dir(struct kobject * kobj)
 	return result;
 }
 
+/*
+ * initialize stat-counters for a super block. Called during mount.
+ */
 int reiser4_stat_init(reiser4_stat ** storehere)
 {
 	reiser4_stat *stats;
 	statcnt_t *cnt;
 	int num, i;
 
+	/* sanity check: @stats size is multiple of statcnt_t size */
 	cassert((sizeof *stats) / (sizeof *cnt) * (sizeof *cnt) == (sizeof *stats));
 
+	/*
+	 * allocate @stats via vmalloc_32: it's too large for kmalloc.
+	 */
 	stats = vmalloc_32(sizeof *stats);
 	if (stats == NULL)
 		return -ENOMEM;
@@ -508,11 +597,18 @@ int reiser4_stat_init(reiser4_stat ** storehere)
 
 	num = (sizeof *stats) / (sizeof *cnt);
 	cnt = (statcnt_t *)stats;
+	/*
+	 * initialize all counters
+	 */
 	for (i = 0; i < num ; ++i, ++cnt)
 		statcnt_init(cnt);
 	return 0;
 }
 
+/*
+ * release resources used by stat-counters. Called during umount. Dual to
+ * reiser4_stat_init.
+ */
 void reiser4_stat_done(reiser4_stat ** stats)
 {
 	vfree(*stats);
@@ -526,6 +622,9 @@ reiser4_print_stats()
 }
 #endif
 
+/*
+ * populate /sys/fs/reiser4/<dev>/stats with sub-objects.
+ */
 reiser4_internal int
 reiser4_populate_kattr_dir(struct kobject * kobj UNUSED_ARG)
 {

@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Super-block manipulations. */
 
@@ -64,6 +65,9 @@ reiser4_block_count(const struct super_block * super	/* super block
 	return get_super_private(super)->block_count;
 }
 
+/*
+ * number of blocks in the current file system
+ */
 reiser4_internal __u64 reiser4_current_block_count(void)
 {
 	return get_current_super_private()->block_count;
@@ -365,6 +369,9 @@ reserved_for_root(const struct super_block *super UNUSED_ARG	/* super
 	return 0;
 }
 
+/*
+ * true if block number @blk makes sense for the file system at @super.
+ */
 reiser4_internal int
 reiser4_blocknr_is_sane_for(const struct super_block *super,
 				const reiser4_block_nr *blk)
@@ -381,12 +388,19 @@ reiser4_blocknr_is_sane_for(const struct super_block *super,
 	return *blk < sbinfo->block_count;
 }
 
+/*
+ * true, if block number @blk makes sense for the current file system
+ */
 reiser4_internal int
 reiser4_blocknr_is_sane(const reiser4_block_nr *blk)
 {
 	return reiser4_blocknr_is_sane_for(reiser4_get_current_sb(), blk);
 }
 
+/*
+ * construct various VFS related operation vectors that are embedded into @ops
+ * inside of @super.
+ */
 reiser4_internal void
 build_object_ops(struct super_block *super, object_ops *ops)
 {
@@ -397,17 +411,25 @@ build_object_ops(struct super_block *super, object_ops *ops)
 
 	iops = reiser4_inode_operations;
 
+	/* setup super_operations... */
 	ops->super  = reiser4_super_operations;
+	/* ...and export operations for NFS */
 	ops->export = reiser4_export_operations;
 
+	/* install pointers to the per-super-block vectors into super-block
+	 * fields */
 	super->s_op        = &ops->super;
 	super->s_export_op = &ops->export;
 
+	/* cleanup XATTR related fields in inode operations---we don't support
+	 * Linux xattr API... */
 	iops.setxattr = NULL;
 	iops.getxattr = NULL;
 	iops.listxattr = NULL;
 	iops.removexattr = NULL;
 
+	/* ...and we don't need ->clear_inode, because its only user was
+	 * xattrs */
 	ops->super.clear_inode = NULL;
 
 	ops->regular = iops;
@@ -420,6 +442,8 @@ build_object_ops(struct super_block *super, object_ops *ops)
 	ops->as      = reiser4_as_operations;
 
 	if (reiser4_is_set(super, REISER4_NO_PSEUDO)) {
+		/* if we don't support pseudo files, we need neither ->open,
+		 * nor ->lookup on regular files */
 		ops->regular.lookup = NULL;
 		ops->file.open = NULL;
 	}
@@ -427,6 +451,10 @@ build_object_ops(struct super_block *super, object_ops *ops)
 }
 
 #if REISER4_DEBUG_OUTPUT
+/*
+ * debugging function: output human readable information about file system
+ * parameters
+ */
 reiser4_internal void
 print_fs_info(const char *prefix, const struct super_block *s)
 {

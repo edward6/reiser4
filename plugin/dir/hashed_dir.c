@@ -1,7 +1,32 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Directory plugin using hashes (see fs/reiser4/plugin/hash.c) to map
-   file names to the files. */
+/* Directory plugin using hashes (see fs/reiser4/plugin/hash.c) to map file
+   names to the files. */
+
+/* See fs/reiser4/doc/directory-service for initial design note. */
+
+/*
+ * Hashed directory logically consists of persistent directory
+ * entries. Directory entry is a pair of a file name and a key of stat-data of
+ * a file that has this name in the given directory.
+ *
+ * Directory entries are stored in the tree in the form of directory
+ * items. Directory item should implement dir_entry_ops portion of item plugin
+ * interface (see plugin/item/item.h). Hashed directory interacts with
+ * directory item plugin exclusively through dir_entry_ops operations.
+ *
+ * Currently there are two implementations of directory items: "simple
+ * directory item" (plugin/item/sde.[ch]), and "compound directory item"
+ * (plugin/item/cde.[ch]) with the latter being the default.
+ *
+ * There is, however some delicate way through which directory code interferes
+ * with item plugin: key assignment policy. A key for a directory item is
+ * chosen by directory code, and as described in kassign.c, this key contains
+ * a portion of file name. Directory item uses this knowledge to avoid storing
+ * this portion of file name twice: in the key and in the directory item body.
+ *
+ */
 
 #include "../../forward.h"
 #include "../../debug.h"
@@ -335,6 +360,11 @@ lookup_name_hashed(struct inode *parent /* inode of directory to lookup for
 
 }
 
+/*
+ * helper for ->lookup() and ->get_parent() methods: if @inode is a
+ * light-weight file, setup its credentials that are not stored in the
+ * stat-data in this case
+ */
 static void
 check_light_weight(struct inode *inode, struct inode *parent)
 {
@@ -378,6 +408,10 @@ lookup_hashed(struct inode * parent	/* inode of directory to
 	return result;
 }
 
+/*
+ * ->get_parent() method of hashed directory. This is used by NFS kernel
+ * server to "climb" up directory tree to check permissions.
+ */
 reiser4_internal struct dentry *
 get_parent_hashed(struct inode *child)
 {
@@ -387,6 +421,10 @@ get_parent_hashed(struct inode *child)
 	struct dentry *dentry;
 	reiser4_key key;
 	int         result;
+
+	/*
+	 * lookup dotdot entry.
+	 */
 
 	s = child->i_sb;
 	memset(&dotdot, 0, sizeof(dotdot));
@@ -1165,18 +1203,32 @@ static int entry_actor(reiser4_tree * tree /* tree being scanned */ ,
 		       lock_handle * lh /* current lock handle */ ,
 		       void *args /* argument to scan */ );
 
+/*
+ * argument package used by entry_actor to scan entries with identical keys.
+ */
 typedef struct entry_actor_args {
+	/* name we are looking for */
 	const char *name;
+	/* key of directory entry. entry_actor() scans through sequence of
+	 * items/units having the same key */
 	reiser4_key *key;
+	/* how many entries with duplicate key was scanned so far. */
 	int non_uniq;
 #if REISER4_USE_COLLISION_LIMIT || REISER4_STATS
+	/* scan limit */
 	int max_non_uniq;
 #endif
+	/* return parameter: set to true, if ->name wasn't found */
 	int not_found;
+	/* what type of lock to take when moving to the next node during
+	 * scan */
 	znode_lock_mode mode;
 
+	/* last coord that was visited during scan */
 	coord_t last_coord;
+	/* last node locked during scan */
 	lock_handle last_lh;
+	/* inode of directory */
 	const struct inode *inode;
 } entry_actor_args;
 
@@ -1227,7 +1279,7 @@ find_entry(struct inode *dir /* directory to scan */,
 	if (IS_ERR(fsdata))
 		return PTR_ERR(fsdata);
 	dec = &fsdata->dec;
-	
+
 	coord = &dec->entry_coord;
 	coord_clear_iplug(coord);
 	seal = &dec->entry_seal;
@@ -1247,6 +1299,9 @@ find_entry(struct inode *dir /* directory to scan */,
 		}
 	}
 	flags = (mode == ZNODE_WRITE_LOCK) ? CBK_FOR_INSERT : 0;
+	/*
+	 * find place in the tree where directory item should be located.
+	 */
 	result = object_lookup(dir,
 			       &entry->key,
 			       coord,
@@ -1338,6 +1393,10 @@ entry_actor(reiser4_tree * tree UNUSED_ARG /* tree being scanned */ ,
 	}
 #endif
 
+	/*
+	 * did we just reach the end of the sequence of items/units with
+	 * identical keys?
+	 */
 	if (!keyeq(args->key, unit_key_by_coord(coord, &unit_key))) {
 		assert("nikita-1791", keylt(args->key, unit_key_by_coord(coord, &unit_key)));
 		args->not_found = 1;
@@ -1346,18 +1405,29 @@ entry_actor(reiser4_tree * tree UNUSED_ARG /* tree being scanned */ ,
 	}
 
 	coord_dup(&args->last_coord, coord);
+	/*
+	 * did scan just moved to the next node?
+	 */
 	if (args->last_lh.node != lh->node) {
 		int lock_result;
 
+		/*
+		 * if so, lock new node with the mode requested by the caller
+		 */
 		done_lh(&args->last_lh);
 		assert("nikita-1896", znode_is_any_locked(lh->node));
-		lock_result = longterm_lock_znode(&args->last_lh, lh->node, args->mode, ZNODE_LOCK_HIPRI);
+		lock_result = longterm_lock_znode(&args->last_lh, lh->node,
+						  args->mode, ZNODE_LOCK_HIPRI);
 		if (lock_result != 0)
 			return lock_result;
 	}
 	return check_item(args->inode, coord, args->name);
 }
 
+/*
+ * return 0 iff @coord contains a directory entry for the file with the name
+ * @name.
+ */
 static int
 check_item(const struct inode *dir, const coord_t * coord, const char *name)
 {

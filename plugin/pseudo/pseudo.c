@@ -21,20 +21,23 @@
  *     file system, and are more tightly integrated with it. In particular,
  *     some pseudo files are "attached" to other files (either "real" or also
  *     pseudo), by being accessible through path names of the form
-NIKITA-FIXME-HANS: update this to a/b/c/metas/something, and a/b/c/methods/something here and in the code and in the comments and in the documentation
  *
- *         "a/b/c/..something"
+ *         "a/b/c/something"
  *
- *     Here object accessible through "a/b/c/..something" is attached to the
+ *     Here object accessible through "a/b/c/something" is attached to the
  *     object accessible through "a/b/c" , and the latter is said to be the
  *     "host" object of the former.
  *
  *     Object can have multiple pseudo files attached to it, distinguished by
- *     the last component of their names "..something", "..somethingelse",
+ *     the last component of their names "something", "somethingelse",
  *     etc.
  *
- *     (Note however, that ".." prefix is just a convention, and it is not
- *     necessary that all pseudo file names started with it.)
+ *     (Note however, that currently "real" files have only one single pseudo
+ *     file attached to them, viz. pseudo directory "metas". This directory in
+ *     turn contains all other pseudo files pertaining to the real file that
+ *     "metas" is attached to. To avoid referencing "metas" all the time
+ *     "a/b/c" is called a host of "/a/b/c/metas/something". This violates
+ *     definition above, but is convenient.)
  *
  *     Moreover, in addition to the purely pseudo files (that is, file system
  *     objects whose content (as available through read(2) system call) is not
@@ -75,7 +78,7 @@ NIKITA-FIXME-HANS: update this to a/b/c/metas/something, and a/b/c/methods/somet
  *     PSEUDO_FILE_PLUGIN_ID. In pseudo-inode specific part of reiser4_inode
  *     (pseudo_info), two things are stored:
  *
- *         1. pointer to the inode of the "host object" (for /a/b/c/..acl,
+ *         1. pointer to the inode of the "host object" (for /a/b/c/metas/acl,
  *         /a/b/c is the host object)
  *
  *         2. pointer to pseudo plugin, used by PSEUDO_FILE_PLUGIN_ID to
@@ -103,16 +106,35 @@ static int init_pseudo(struct inode *parent, struct inode *pseudo,
 static struct inode *add_pseudo(struct inode *parent,
 				pseudo_plugin *pplug, struct dentry **d);
 
+/*
+ * helper method: set ->datum field in the pseudo file specific portion of
+ * reiser4 inode.
+ */
 static void pseudo_set_datum(struct inode *pseudo, unsigned long datum)
 {
 	reiser4_inode_data(pseudo)->file_plugin_data.pseudo_info.datum = datum;
 }
 
+/*
+ * return id of pseudo file plugin for this inode @p
+ */
 static int pseudo_id(struct inode *p)
 {
 	return reiser4_inode_data(p)->file_plugin_data.pseudo_info.plugin->h.id;
 }
 
+/*
+ * helper method used to implement ->lookup() method of pseudo files.
+ *
+ * Try to find a pseudo plugin that matches given name (stored in @dentry) and
+ * has ->parent field equal to @id.
+ *
+ * Convention is that ->parent field is set to the id of the pseudo plugin of
+ * the parent pseudo file in the hierarchy (that is, plugin for
+ * "a/metas/foo/bar" has ->parent set to the plugin id of "a/metas/foo"), with
+ * the exception of "a/metas" that uses special reserved value TOP_LEVEL for
+ * ->parent.
+ */
 static int
 lookup_of_plugin(struct inode *parent, int id, struct dentry **dentry)
 {
@@ -142,6 +164,10 @@ lookup_of_plugin(struct inode *parent, int id, struct dentry **dentry)
 	return result;
 }
 
+/*
+ * implement ->lookup() method using convention described in the comment for
+ * lookup_of_plugin() function.
+ */
 static int lookup_table(struct inode *parent, struct dentry ** dentry)
 {
 	assert("nikita-3511", parent != NULL);
@@ -149,9 +175,17 @@ static int lookup_table(struct inode *parent, struct dentry ** dentry)
 	assert("nikita-3513",
 	       inode_file_plugin(parent)->h.id == PSEUDO_FILE_PLUGIN_ID);
 
+	/*
+	 * call lookup_of_plugin() passing id of pseudo plugin for @parent as
+	 * "id" parameter.
+	 */
 	return lookup_of_plugin(parent, pseudo_id(parent), dentry);
 }
 
+/*
+ * helper to implement ->readdir() method for the pseudo files. It uses the
+ * same convention as lookup_of_plugin() function.
+ */
 static int
 readdir_table(struct file *f, void *dirent, filldir_t filld)
 {
@@ -169,6 +203,9 @@ readdir_table(struct file *f, void *dirent, filldir_t filld)
 
 	inode = f->f_dentry->d_inode;
 	switch ((int)off) {
+		/*
+		 * first, return dot and dotdot
+		 */
 	case 0:
 		ino = inode->i_ino;
 		if (filld(dirent, ".", 1, off, ino, DT_DIR) < 0)
@@ -184,6 +221,8 @@ readdir_table(struct file *f, void *dirent, filldir_t filld)
 	default:
 		skip = off - 2;
 		id = pseudo_id(inode);
+		/* then, scan all pseudo plugins, looking for the ones with
+		 * matching ->parent */
 		for_all_plugins(REISER4_PSEUDO_PLUGIN_TYPE, plugin) {
 			pseudo_plugin *pplug;
 			const char *name;
@@ -192,6 +231,10 @@ readdir_table(struct file *f, void *dirent, filldir_t filld)
 			if (pplug->parent == id && pplug->readdirable) {
 				if (skip == 0) {
 					name = pplug->h.label;
+					/*
+					 * if match is found---fed @filld with
+					 * it
+					 */
 					if (filld(dirent, name, strlen(name),
 						  off,
 						  off + (long)f, DT_REG) < 0)
@@ -206,6 +249,10 @@ readdir_table(struct file *f, void *dirent, filldir_t filld)
 	return 0;
 }
 
+/*
+ * special value of ->parent field in pseudo file plugin used by "metas" top
+ * level pseudo directory.
+ */
 #define TOP_LEVEL (-1)
 
 /*
@@ -224,6 +271,8 @@ lookup_pseudo_file(struct inode *parent, struct dentry **dentry)
 		return lookup_of_plugin(parent, TOP_LEVEL, dentry);
 }
 
+/* create inode for pseudo file with plugin @pplug, and add it to the @parent
+ * under name @d */
 static struct inode *add_pseudo(struct inode *parent,
 				pseudo_plugin *pplug, struct dentry **d)
 {
@@ -275,11 +324,19 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 	static const oid_t pseudo_locality = 0x0ull;
 
 	idata = reiser4_inode_data(pseudo);
+	/* all pseudo files live in special reserved locality */
 	idata->locality_id = pseudo_locality;
+
+	/*
+	 * setup ->parent and ->host fields
+	 */
 	if (pplug->parent != TOP_LEVEL)
+		/* host of "a/metas/b/c" is "a" */
 		host = get_inode_host(parent);
 	else
+		/* host of "a/metas" is "a" */
 		host = parent;
+
 	idata->file_plugin_data.pseudo_info.host   = host;
 	idata->file_plugin_data.pseudo_info.parent = parent;
 	idata->file_plugin_data.pseudo_info.plugin = pplug;
@@ -294,6 +351,7 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 		plugin_set_dir(&idata->pset,
 			       dir_plugin_by_id(PSEUDO_DIR_PLUGIN_ID));
 
+	/* perform standard plugin initialization */
 	result = inode_file_plugin(pseudo)->set_plug_in_inode(pseudo,
 							      parent, &data);
 	if (result != 0) {
@@ -332,19 +390,25 @@ static struct inode *get_seq_pseudo_host(struct seq_file *seq)
 	return get_pseudo_host(file);
 }
 
-
+/*
+ * implementation of ->try method for pseudo files with fixed names.
+ */
 static int try_by_label(pseudo_plugin *pplug,
 			const struct inode *parent, const char *name)
 {
 	return !strcmp(name, pplug->h.label);
 }
 
+/*
+ * read method for the "metas/uid" pseudo file.
+ */
 static int show_uid(struct seq_file *seq, void *cookie)
 {
 	seq_printf(seq, "%lu", (long unsigned)get_seq_pseudo_host(seq)->i_uid);
 	return 0;
 }
 
+/* helper: check permissions required to modify metas/[ug]id */
 static int check_perm(struct inode *inode)
 {
 	if (IS_RDONLY(inode))
@@ -354,6 +418,10 @@ static int check_perm(struct inode *inode)
 	return 0;
 }
 
+/*
+ * helper function to update [ug]id of @inode. Called by "metas/[ug]id" write
+ * methods
+ */
 static int update_ugid(struct dentry *dentry, struct inode *inode,
 		       uid_t uid, gid_t gid)
 {
@@ -382,6 +450,10 @@ static int update_ugid(struct dentry *dentry, struct inode *inode,
 	return result;
 }
 
+/*
+ * write method for the "metas/uid": extract uid from user-supplied buffer,
+ * and update uid
+ */
 static int store_uid(struct file *file, const char *buf)
 {
 	uid_t uid;
@@ -398,12 +470,19 @@ static int store_uid(struct file *file, const char *buf)
 	return result;
 }
 
+/*
+ * read method for the "metas/uid" pseudo file.
+ */
 static int show_gid(struct seq_file *seq, void *cookie)
 {
 	seq_printf(seq, "%lu", (long unsigned)get_seq_pseudo_host(seq)->i_gid);
 	return 0;
 }
 
+/*
+ * write method for the "metas/gid": extract uid from user-supplied buffer,
+ * and update gid
+ */
 static int get_gid(struct file *file, const char *buf)
 {
 	gid_t gid;
@@ -420,12 +499,18 @@ static int get_gid(struct file *file, const char *buf)
 	return result;
 }
 
+/*
+ * read method for the "metas/oid" pseudo file
+ */
 static int show_oid(struct seq_file *seq, void *cookie)
 {
 	seq_printf(seq, "%llu", get_inode_oid(get_seq_pseudo_host(seq)));
 	return 0;
 }
 
+/*
+ * read method for the "metas/key" pseudo file
+ */
 static int show_key(struct seq_file *seq, void *cookie)
 {
 	char buf[KEY_BUF_LEN];
@@ -436,18 +521,27 @@ static int show_key(struct seq_file *seq, void *cookie)
 	return 0;
 }
 
+/*
+ * read method for the "metas/size" pseudo file
+ */
 static int show_size(struct seq_file *seq, void *cookie)
 {
 	seq_printf(seq, "%lli", get_seq_pseudo_host(seq)->i_size);
 	return 0;
 }
 
+/*
+ * read method for the "metas/nlink" pseudo file
+ */
 static int show_nlink(struct seq_file *seq, void *cookie)
 {
 	seq_printf(seq, "%u", get_seq_pseudo_host(seq)->i_nlink);
 	return 0;
 }
 
+/*
+ * read method for the "metas/locality" pseudo file
+ */
 static int show_locality(struct seq_file *seq, void *cookie)
 {
 	seq_printf(seq, "%llu",
@@ -455,6 +549,9 @@ static int show_locality(struct seq_file *seq, void *cookie)
 	return 0;
 }
 
+/*
+ * read method for the "metas/rwx" pseudo file
+ */
 static int show_rwx(struct seq_file *seq, void *cookie)
 {
 	umode_t      m;
@@ -485,6 +582,10 @@ static int show_rwx(struct seq_file *seq, void *cookie)
 	return 0;
 }
 
+/*
+ * write method for the "metas/rwx" file. Extract permission bits from the
+ * user supplied buffer and update ->i_mode.
+ */
 static int get_rwx(struct file *file, const char *buf)
 {
 	umode_t rwx;
@@ -513,6 +614,13 @@ static int get_rwx(struct file *file, const char *buf)
 	return result;
 }
 
+/*
+ * seq-methods for "metas/pseudo"
+ */
+
+/*
+ * start iteration over all pseudo files
+ */
 static void * pseudos_start(struct seq_file *m, loff_t *pos)
 {
 	if (*pos >= LAST_PSEUDO_ID)
@@ -520,16 +628,25 @@ static void * pseudos_start(struct seq_file *m, loff_t *pos)
 	return pseudo_plugin_by_id(*pos);
 }
 
+/*
+ * stop iteration over all pseudo files
+ */
 static void pseudos_stop(struct seq_file *m, void *v)
 {
 }
 
+/*
+ * go to next pseudo file in the sequence
+ */
 static void * pseudos_next(struct seq_file *m, void *v, loff_t *pos)
 {
 	++ (*pos);
 	return pseudos_start(m, pos);
 }
 
+/*
+ * output information about particular pseudo file.
+ */
 static int pseudos_show(struct seq_file *m, void *v)
 {
 	pseudo_plugin *pplug;
@@ -540,6 +657,13 @@ static int pseudos_show(struct seq_file *m, void *v)
 	return 0;
 }
 
+/*
+ * seq-methods for "metas/bmap"
+ */
+
+/*
+ * start iteration over all blocks allocated for the host file
+ */
 static void * bmap_start(struct seq_file *m, loff_t *pos)
 {
 	struct inode *host;
@@ -551,10 +675,17 @@ static void * bmap_start(struct seq_file *m, loff_t *pos)
 		return (void *)((unsigned long)*pos + 1);
 }
 
+/*
+ * stop iteration over all blocks allocated for the host file
+ */
 static void bmap_stop(struct seq_file *m, void *v)
 {
 }
 
+/*
+ * go to the next block in the sequence of blocks allocated for the host
+ * file.
+ */
 static void * bmap_next(struct seq_file *m, void *v, loff_t *pos)
 {
 	++ (*pos);
@@ -564,7 +695,10 @@ static void * bmap_next(struct seq_file *m, void *v, loff_t *pos)
 extern int reiser4_lblock_to_blocknr(struct address_space *mapping,
 				     sector_t lblock, reiser4_block_nr *blocknr);
 
-
+/*
+ * output information about single block number allocated for the host file
+ * into user supplied buffer
+ */
 static int bmap_show(struct seq_file *m, void *v)
 {
 	sector_t lblock;
@@ -583,12 +717,21 @@ static int bmap_show(struct seq_file *m, void *v)
 	return result;
 }
 
+/*
+ * seq-methods for the "metas/readdir"
+ */
+
+/* "cursor" used to iterate over all directory entries for the host file */
 typedef struct readdir_cookie {
+	/* position within the tree */
 	tap_t       tap;
+	/* coord used by ->tap */
 	coord_t     coord;
+	/* lock handle used by ->tap */
 	lock_handle lh;
 } readdir_cookie;
 
+/* true if @coord stores directory entries for @host */
 static int is_host_item(struct inode *host, coord_t *coord)
 {
 	if (item_type_by_coord(coord) != DIR_ENTRY_ITEM_TYPE)
@@ -598,14 +741,21 @@ static int is_host_item(struct inode *host, coord_t *coord)
 	return 1;
 }
 
+/* helper function to release resources allocated to iterate over directory
+ * entries for the host file */
 static void finish(readdir_cookie *c)
 {
 	if (c != NULL && !IS_ERR(c)) {
+		/* release c->tap->lh long term lock... */
 		tap_done(&c->tap);
+		/* ... and free cursor itself */
 		kfree(c);
 	}
 }
 
+/*
+ * start iterating over directory entries for the host file
+ */
 static void * readdir_start(struct seq_file *m, loff_t *pos)
 {
 	struct inode   *host;
@@ -615,6 +765,10 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 	struct qstr     dotname;
 	int             result;
 	loff_t          entryno;
+
+	/*
+	 * first, lookup item containing dot of the host
+	 */
 
 	host = get_seq_pseudo_host(m);
 	dplug = inode_dir_plugin(host);
@@ -628,14 +782,17 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 		return NULL;
 	}
 
+	/* build key of dot */
 	dplug->build_entry_key(host, &dotname, &dotkey);
 
+	/* allocate cursor */
 	c = kmalloc(sizeof *c, GFP_KERNEL);
 	if (c == NULL) {
 		finish(NULL);
 		return ERR_PTR(RETERR(-ENOMEM));
 	}
 
+	/* tree lookup */
 	result = object_lookup(host,
 			       &dotkey,
 			       &c->coord,
@@ -649,6 +806,12 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 
 	tap_init(&c->tap, &c->coord, &c->lh, ZNODE_READ_LOCK);
 	if (result == 0)
+		/*
+		 * ok, now c->tap is positioned at the dot. We are requested
+		 * to start readdir from the offset *pos. Skip that number of
+		 * entries. That's not very efficient for the large
+		 * directories.
+		 */
 		result = tap_load(&c->tap); {
 		if (result == 0) {
 			for (entryno = 0; entryno != *pos; ++ entryno) {
@@ -673,12 +836,18 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 		return c;
 }
 
+/*
+ * stop iterating over directory entries for the host file
+ */
 static void readdir_stop(struct seq_file *m, void *v)
 {
 	up(&get_seq_pseudo_host(m)->i_sem);
 	finish(v);
 }
 
+/*
+ * go to the next entry in the host directory
+ */
 static void * readdir_next(struct seq_file *m, void *v, loff_t *pos)
 {
 	readdir_cookie *c;
@@ -688,8 +857,10 @@ static void * readdir_next(struct seq_file *m, void *v, loff_t *pos)
 	c = v;
 	++ (*pos);
 	host = get_seq_pseudo_host(m);
+	/* next entry is in the next unit */
 	result = go_next_unit(&c->tap);
 	if (result == 0) {
+		/* check whether end of the directory was reached. */
 		if (!is_host_item(host, c->tap.coord)) {
 			finish(c);
 			return NULL;
@@ -701,6 +872,9 @@ static void * readdir_next(struct seq_file *m, void *v, loff_t *pos)
 	}
 }
 
+/*
+ * output information about single directory entry in the host directory
+ */
 static int readdir_show(struct seq_file *m, void *v)
 {
 	readdir_cookie *c;
@@ -713,15 +887,27 @@ static int readdir_show(struct seq_file *m, void *v)
 
 	name = iplug->s.dir.extract_name(&c->coord, buf);
 	assert("nikita-3221", name != NULL);
+	/* entries are separated by the "/" in the user buffer, because this
+	 * is the only symbol (besides NUL) that is not allowed in file
+	 * names. */
 	seq_printf(m, "%s/", name);
 	return 0;
 }
 
+/*
+ * methods for "metas/plugin"
+ */
+
+/*
+ * entry in the table mapping plugin pseudo file name to the corresponding
+ * pset member.
+ */
 typedef struct plugin_entry {
 	const char *name;
 	pset_member memb;
 } plugin_entry;
 
+/* initializer for plugin_entry */
 #define PLUGIN_ENTRY(field, ind)		\
 {						\
 	.name = #field,				\
@@ -733,7 +919,12 @@ typedef struct plugin_entry {
 	.name = aname				\
 }
 
+/*
+ * initialize array defining files available under "metas/plugin".
+ */
 static plugin_entry pentry[] = {
+	/* "a/metas/plugin/file" corresponds to the PSET_FILE plugin of its
+	 * host file (that is, "a"), etc. */
 	PLUGIN_ENTRY(file, PSET_FILE),
 	PLUGIN_ENTRY(dir, PSET_DIR),
 	PLUGIN_ENTRY(perm, PSET_PERM),
@@ -750,13 +941,21 @@ static plugin_entry pentry[] = {
 	}
 };
 
+/*
+ * enumeration of files available under "a/metas/plugin/foo"
+ */
 typedef enum {
-	PFIELD_TYPEID,
-	PFIELD_ID,
-	PFIELD_LABEL,
-	PFIELD_DESC
+	PFIELD_TYPEID, /* "a/metas/plugin/foo/type_id" contains type id of the
+			* plugin foo */
+	PFIELD_ID,     /* "a/metas/plugin/foo/id" contains id of the plugin
+			* foo */
+	PFIELD_LABEL,  /* "a/metas/plugin/foo/label" contains label of the
+			* plugin foo */
+	PFIELD_DESC    /* "a/metas/plugin/foo/desc" contains description of
+			* the plugin foo */
 } plugin_field;
 
+/* map pseudo files under "a/metas/plugin/foo" to their names
 static plugin_entry fentry[] = {
 	PSEUDO_ARRAY_ENTRY(PFIELD_TYPEID, "type_id"),
 	PSEUDO_ARRAY_ENTRY(PFIELD_ID, "id"),
@@ -767,6 +966,7 @@ static plugin_entry fentry[] = {
 	},
 };
 
+/* read method for "a/metas/plugin/foo" */
 static int show_plugin(struct seq_file *seq, void *cookie)
 {
 	struct inode   *host;
@@ -792,6 +992,10 @@ static int show_plugin(struct seq_file *seq, void *cookie)
 	return 0;
 }
 
+/*
+ * write method for "a/metas/plugin/foo": extract plugin label from the user
+ * supplied buffer @buf and update plugin foo, if possible.
+ */
 static int set_plugin(struct file *file, const char *buf)
 {
 	struct inode   *host;
@@ -817,6 +1021,10 @@ static int set_plugin(struct file *file, const char *buf)
 		if (result == 0) {
 			__u64 tograb;
 
+			/*
+			 * if plugin was updated successfully, save changes in
+			 * the stat-data
+			 */
 			tograb = inode_file_plugin(host)->estimate.update(host);
 			result = reiser4_grab_space(tograb, BA_CAN_COMMIT);
 			if (result == 0)
@@ -829,7 +1037,23 @@ static int set_plugin(struct file *file, const char *buf)
 	return result;
 }
 
-
+/*
+ * helper function to implement ->lookup() method of pseudo directory plugin
+ * for the file that contains multiple similar children pseudo files.
+ *
+ * For example, "a/metas/plugin/" directory contains files for each plugin
+ * associated with the host file "a". Handling of read/write for these file is
+ * exactly the same, the only difference being the pset member id for the
+ * corresponding plugin. Similarly, "a/metas/plugin/foo/" itself contains
+ * files that are used to provide user access to the corresponding fields of
+ * the "foo" plugin, and all such fields can be handled similarly (see
+ * show_plugin_field())
+ *
+ * To avoid code duplication in such situation, an array is constructed that
+ * is used as a map from the name of "child" object to the corresponding
+ * "datum". All child objects are handled by the same pseudo plugin, and are
+ * differentiated by the datum installed into pseudo file inode.
+ */
 static int array_lookup_pseudo(struct inode *parent, struct dentry ** dentry,
 			       plugin_entry *array, pseudo_plugin *pplug)
 {
@@ -838,6 +1062,7 @@ static int array_lookup_pseudo(struct inode *parent, struct dentry ** dentry,
 	struct inode *pseudo;
 
 	pseudo = ERR_PTR(-ENOENT);
+	/* search for the given name in the array */
 	for (idx = 0; array[idx].name != NULL; ++ idx) {
 		if (!strcmp((*dentry)->d_name.name, array[idx].name)) {
 			pseudo = add_pseudo(parent, pplug, dentry);
@@ -848,11 +1073,17 @@ static int array_lookup_pseudo(struct inode *parent, struct dentry ** dentry,
 		result = PTR_ERR(pseudo);
 	else {
 		result = 0;
+		/* if name was found, set datum in the inode */
 		pseudo_set_datum(pseudo, idx);
 	}
 	return result;
 }
 
+/*
+ * helper method to implement array for the situation when we have multiple
+ * child pseudo files with similar functionality. See comment for
+ * array_lookup_pseudo().
+ */
 static int array_readdir_pseudo(struct file *f, void *dirent, filldir_t filld,
 				plugin_entry *array, int size)
 {
@@ -878,6 +1109,7 @@ static int array_readdir_pseudo(struct file *f, void *dirent, filldir_t filld,
 		++ off;
 		/* fallthrough */
 	default:
+		/* scan array for the names */
 		for (; off < size + 1; ++ off) {
 			const char *name;
 
@@ -892,12 +1124,20 @@ static int array_readdir_pseudo(struct file *f, void *dirent, filldir_t filld,
 }
 
 
+/*
+ * ->lookup() method for the "a/metas/plugin/foo/" directory. It uses array
+ * representation of child objects, described in the comment for
+ * array_lookup_pseudo().
+ */
 static int lookup_plugin_field(struct inode *parent, struct dentry ** dentry)
 {
 	return array_lookup_pseudo(parent, dentry, fentry,
 				   pseudo_plugin_by_id(PSEUDO_PLUGIN_FIELD_ID));
 }
 
+/*
+ * read method for "a/metas/plugin/foo/field"
+ */
 static int show_plugin_field(struct seq_file *seq, void *cookie)
 {
 	struct inode   *parent;
@@ -941,24 +1181,45 @@ static int show_plugin_field(struct seq_file *seq, void *cookie)
 	return 0;
 }
 
+/*
+ * ->readdir() method for "a/metas/plugin/foo/". It uses array representation of
+ * child objects, described in the comment for array_lookup_pseudo().
+ */
 static int readdir_plugin_field(struct file *f, void *dirent, filldir_t filld)
 {
 	return array_readdir_pseudo(f, dirent, filld,
 				    fentry, sizeof_array(fentry));
 }
 
+/*
+ * ->lookup() method for the "a/metas/plugin/" directory. It uses array
+ * representation of child objects, described in the comment for
+ * array_lookup_pseudo().
+ */
 static int lookup_plugins(struct inode *parent, struct dentry ** dentry)
 {
 	return array_lookup_pseudo(parent, dentry, pentry,
 				   pseudo_plugin_by_id(PSEUDO_PLUGIN_ID));
 }
 
+/*
+ * ->readdir() method for "a/metas/plugin/". It uses array representation of
+ * child objects, described in the comment for array_lookup_pseudo().
+ */
 static int readdir_plugins(struct file *f, void *dirent, filldir_t filld)
 {
 	return array_readdir_pseudo(f, dirent, filld,
 				    pentry, sizeof_array(pentry));
 }
 
+/*
+ * seq-methods for the "a/metas/items"
+ */
+
+/*
+ * start iteration over a sequence of items for the host file. This iterator
+ * uses the same cursor as a readdir iterator above.
+ */
 static void * items_start(struct seq_file *m, loff_t *pos)
 {
 	struct inode   *host;
@@ -967,6 +1228,10 @@ static void * items_start(struct seq_file *m, loff_t *pos)
 	reiser4_key     headkey;
 	int             result;
 	loff_t          entryno;
+
+	/*
+	 * first, find first item in the file, then, scan to the *pos-th one.
+	 */
 
 	host = get_seq_pseudo_host(m);
 	fplug = inode_file_plugin(host);
@@ -977,6 +1242,7 @@ static void * items_start(struct seq_file *m, loff_t *pos)
 		return NULL;
 	}
 
+	/* construct a key of the first item */
 	fplug->key_by_inode(host, 0, &headkey);
 
 	c = kmalloc(sizeof *c, GFP_KERNEL);
@@ -985,6 +1251,7 @@ static void * items_start(struct seq_file *m, loff_t *pos)
 		return ERR_PTR(RETERR(-ENOMEM));
 	}
 
+	/* find first item */
 	result = object_lookup(host,
 			       &headkey,
 			       &c->coord,
@@ -1000,6 +1267,9 @@ static void * items_start(struct seq_file *m, loff_t *pos)
 	if (result == 0)
 		result = tap_load(&c->tap); {
 		if (result == 0) {
+			/*
+			 * skip @pos items
+			 */
 			for (entryno = 0; entryno != *pos; ++ entryno) {
 				result = go_next_unit(&c->tap);
 				if (result == -E_NO_NEIGHBOR) {
@@ -1022,12 +1292,16 @@ static void * items_start(struct seq_file *m, loff_t *pos)
 		return c;
 }
 
+/*
+ * stop iteration over a sequence of items for the host file
+ */
 static void items_stop(struct seq_file *m, void *v)
 {
 	up(&get_seq_pseudo_host(m)->i_sem);
 	finish(v);
 }
 
+/* go to the next item in the host file */
 static void * items_next(struct seq_file *m, void *v, loff_t *pos)
 {
 	readdir_cookie *c;
@@ -1050,6 +1324,7 @@ static void * items_next(struct seq_file *m, void *v, loff_t *pos)
 	}
 }
 
+/* output information about single item of the host file */
 static int items_show(struct seq_file *m, void *v)
 {
 	readdir_cookie *c;
@@ -1061,9 +1336,13 @@ static int items_show(struct seq_file *m, void *v)
 	c = v;
 	iplug = item_plugin_by_coord(&c->coord);
 
+	/* output key... */
 	sprintf_key(buf, unit_key_by_coord(&c->coord, &key));
+	/* ... and item plugin label... */
 	seq_printf(m, "%s %s ", buf, iplug->h.label);
 	if (iplug->b.show != NULL)
+		/* ... and call ->b.show() method of item plugin, if any, to
+		 * do the rest */
 		iplug->b.show(m, &c->coord);
 	seq_printf(m, "\n");
 	return 0;
@@ -1073,10 +1352,16 @@ extern int
 invoke_create_method(struct inode *, struct dentry *,
 		     reiser4_object_create_data *);
 
+/*
+ * write method for the "a/metas/new" file. Extract file name from the user
+ * supplied buffer @buf, and create regular file with that name within host
+ * file (that is better to be a directory).
+ */
 static int get_new(struct file *file, const char *buf)
 {
 	int result;
 
+	/* check that @buf contains no slashes */
 	if (strchr(buf, '/') == NULL) {
 		struct dentry *d;
 		struct qstr name;
@@ -1092,6 +1377,7 @@ static int get_new(struct file *file, const char *buf)
 		name.name = buf;
 		c = *(const unsigned char *)buf;
 
+		/* build hash of the name */
 		hash = init_name_hash();
 		do {
 			buf++;
@@ -1101,10 +1387,12 @@ static int get_new(struct file *file, const char *buf)
 		name.len = buf - (const char *) name.name;
 		name.hash = end_name_hash(hash);
 
+		/* allocate dentry */
 		d = d_alloc(file->f_dentry->d_parent->d_parent, &name);
 		if (d == NULL)
 			result = RETERR(-ENOMEM);
 		else {
+			/* call ->create() method of the host directory */
 			result = invoke_create_method(get_pseudo_host(file),
 						      d, &data);
 			reiser4_free_dentry_fsdata(d);
@@ -1114,6 +1402,9 @@ static int get_new(struct file *file, const char *buf)
 	return result;
 }
 
+/*
+ * initialize pseudo plugins.
+ */
 pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 	[PSEUDO_METAS_ID] = {
 		.h = {

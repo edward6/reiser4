@@ -1,6 +1,6 @@
 /* Copyright 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-/* Directory plugin for pseudo files */
+/* Directory plugin for pseudo files that operate like a directory. */
 
 #include "../../debug.h"
 #include "../../inode.h"
@@ -16,6 +16,10 @@ reiser4_internal int lookup_pseudo(struct inode * parent, struct dentry **dentry
 	pseudo_plugin *pplug;
 	int result;
 
+	/*
+	 * call ->lookup method of pseudo plugin
+	 */
+
 	pplug = reiser4_inode_data(parent)->file_plugin_data.pseudo_info.plugin;
 	assert("nikita-3222", pplug->lookup != NULL);
 	result = pplug->lookup(parent, dentry);
@@ -25,6 +29,7 @@ reiser4_internal int lookup_pseudo(struct inode * parent, struct dentry **dentry
 }
 
 
+/* ->readdir() method for pseudo file acting like a directory */
 reiser4_internal int
 readdir_pseudo(struct file *f, void *dirent, filldir_t filld)
 {
@@ -37,10 +42,20 @@ readdir_pseudo(struct file *f, void *dirent, filldir_t filld)
 	inode = dentry->d_inode;
 	pplug = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.plugin;
 	if (pplug->readdir != NULL)
+		/*
+		 * if pseudo plugin defines ->readdir() method---call it to do
+		 * actual work.
+		 */
 		result = pplug->readdir(f, dirent, filld);
 	else {
 		ino_t ino;
 		int i;
+
+		/*
+		 * if there is no ->readdir() method in the pseudo plugin,
+		 * make sure that at least dot and dotdot are returned to keep
+		 * user-level happy.
+		 */
 
 		i = f->f_pos;
 		switch (i) {
@@ -63,7 +78,7 @@ readdir_pseudo(struct file *f, void *dirent, filldir_t filld)
 	return result;
 }
 
-/* pseudo files are not serializable (current). So, this should just return an
+/* pseudo files are not serializable (currently). So, this should just return an
  * error. */
 reiser4_internal struct dentry *
 get_parent_pseudo(struct inode *child)

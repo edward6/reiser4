@@ -1,4 +1,5 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 #include "../../inode.h"
 #include "../../super.h"
@@ -14,12 +15,10 @@
 #include <linux/writeback.h>
 #include <linux/pagevec.h>
 
-/* this file contains file plugin methods of regular reiser4 files.
+/* this file contains file plugin methods of reiser4 unix files.
 
-NIKITA-FIXME-HANS: inconsistent naming.  change all references to regular files to unix files
-
- Those files are either built of tail items only (FORMATTING_ID) or
-   of extent items only (EXTENT_POINTER_ID) or empty (have no items but stat data) */
+ Those files are either built of tail items only (FORMATTING_ID) or of extent
+ items only (EXTENT_POINTER_ID) or empty (have no items but stat data) */
 
 static int unpack(struct inode *inode, int forever);
 
@@ -957,6 +956,31 @@ redirty_inode(struct inode *inode)
 	spin_unlock(&inode_lock);
 }
 
+/*
+ * Support for "anonymous" pages and jnodes.
+ *
+ * When file is write-accessed through mmap pages can be dirtied from the user
+ * level. In this case kernel is not notified until one of following happens:
+ *
+ *     (1) msync()
+ *
+ *     (2) truncate() (either explicit or through unlink)
+ *
+ *     (3) VM scanner starts reclaiming mapped pages, dirtying them before
+ *     starting write-back.
+ *
+ * As a result of (3) ->writepage may be called on a dirty page without
+ * jnode. Such page is called "anonymous" in reiser4. Certain work-loads
+ * (iozone) generate huge number of anonymous pages. Emergency flush handles
+ * this situation by creating jnode for anonymous page, starting IO on the
+ * page, and marking jnode with JNODE_KEEPME bit so that it's not throw out of
+ * memory. Such jnode is also called anonymous.
+ *
+ * reiser4_sync_sb() method tries to insert anonymous pages and jnodes into
+ * tree. This is done by capture_anonymous_*() functions below.
+ *
+ */
+
 #if 0
 /* this returns 1 if it captured page */
 static int
@@ -1270,38 +1294,6 @@ sync_page(struct page *page)
 				   get_current_context()->trans->atom == NULL));
 	return result;
 }
-
-#if 0
-/*
- * Commit atoms of pages on @pages list.
- */
-static int
-sync_page_list(struct inode *inode, struct list_head *pages)
-{
-	int result;
-	struct address_space *mapping;
-	LIST_HEAD(done);
-
-	mapping = inode->i_mapping;
-	result = 0;
-	spin_lock_irq(&mapping->tree_lock);
-	while (result == 0 && !list_empty(pages)) {
-		struct page *page;
-
-		page = container_of(pages->next, struct page, list);
-		page_cache_get(page);
-		list_move_tail(&page->list, &done);
-		spin_unlock_irq(&mapping->tree_lock);
-		result = sync_page(page);
-		page_cache_release(page);
-		spin_lock_irq(&mapping->tree_lock);
-	}
-	/* put remaining pages back */
-	list_splice(&done, pages);
-	spin_unlock_irq(&mapping->tree_lock);
-	return result;
-}
-#endif
 
 /*
  * Commit atoms of pages on @pages list.

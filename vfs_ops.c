@@ -710,8 +710,6 @@ typedef enum {
 	OPT_FORMAT,
 	/* option can take one of predefined values */
 	OPT_ONEOF,
-	/* option specifies reiser4 plugin */
-	OPT_PLUGIN
 } opt_type_t;
 
 typedef struct opt_bitmask_bit {
@@ -750,11 +748,6 @@ typedef struct opt_desc {
 			int *result;
 			const char *list[10];
 		} oneof;
-		/* description of plugin option */
-		struct {
-			reiser4_plugin **addr;
-			const char *type_label;
-		} plugin;
 		struct {
 			void *addr;
 			int nr_bits;
@@ -829,24 +822,6 @@ printk("%s choice is %d\n",opt->name, i);
 			}
 		        break;
 		       }
-	case OPT_PLUGIN:{
-			reiser4_plugin *plug;
-
-			if (*opt->u.plugin.addr != NULL) {
-				err_msg = "Plugin already set";
-				result = RETERR(-EINVAL);
-				break;
-			}
-
-			plug = lookup_plugin(opt->u.plugin.type_label, val_start);
-			if (plug != NULL)
-				*opt->u.plugin.addr = plug;
-			else {
-				err_msg = "Wrong plugin";
-				result = RETERR(-EINVAL);
-			}
-			break;
-		}
 	default:
 		wrong_return_value("nikita-2100", "opt -> type");
 		break;
@@ -910,18 +885,6 @@ parse_options(char *opt_string /* starting point */ ,
 		}
 
 #define SB_FIELD_OPT( field, fmt ) NUM_OPT( #field, fmt, &sbinfo -> field )
-
-#define PLUG_OPT( label, ptype, plug )					\
-	{								\
-		.name = ( label ),					\
-		.type = OPT_PLUGIN,					\
-		.u = {							\
-			.plugin = {					\
-				.type_label = #ptype,			\
-				.addr = ( reiser4_plugin ** )( plug )	\
-			}						\
-		}							\
-	}
 
 #define BIT_OPT(label, bitnr)					\
 	{							\
@@ -1023,23 +986,11 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		/* carry flags used for insert operations */
 		SB_FIELD_OPT(tree.carry.insert_flags, "%u"),
 
-		/* timeout (in seconds) to wait for ent thread in writepage */
-		SB_FIELD_OPT(entd.timeout, "%lu"),
-
 #ifdef CONFIG_REISER4_BADBLOCKS
 		/* Alternative master superblock location in case if it's original
 		   location is not writeable/accessable. This is offset in BYTES. */
 		SB_FIELD_OPT(altsuper, "%lu"),
 #endif
-
-		PLUG_OPT("plugin.tail", tail, &sbinfo->plug.t),
-		PLUG_OPT("plugin.sd", item, &sbinfo->plug.sd),
-		PLUG_OPT("plugin.dir_item", item, &sbinfo->plug.dir_item),
-		PLUG_OPT("plugin.perm", perm, &sbinfo->plug.p),
-		PLUG_OPT("plugin.file", file, &sbinfo->plug.f),
-		PLUG_OPT("plugin.dir", dir, &sbinfo->plug.d),
-		PLUG_OPT("plugin.hash", hash, &sbinfo->plug.h),
-		PLUG_OPT("plugin.fibration", fibration, &sbinfo->plug.fib),
 
 		/* turn on BSD-style gid assignment */
 		BIT_OPT("bsdgroups", REISER4_BSD_GID),
@@ -1114,8 +1065,6 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	sbinfo->tree.carry.paste_flags = REISER4_PASTE_FLAGS;
 	sbinfo->tree.carry.insert_flags = REISER4_INSERT_FLAGS;
 
-	sbinfo->entd.timeout = REISER4_ENTD_TIMEOUT;
-
 	log_file_name = NULL;
 
 	/*
@@ -1132,10 +1081,6 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	if (sbinfo->tmgr.atom_max_age <= 0)
 		/* overflow */
 		sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE;
-
-	/* NOTE add check for sane maximal value. After tuning. */
-	if (sbinfo->entd.timeout <= 0)
-		sbinfo->entd.timeout = REISER4_ENTD_TIMEOUT;
 
 	/* round optimal io size up to 512 bytes */
 	sbinfo->optimal_io_size >>= VFS_BLKSIZE_BITS;

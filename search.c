@@ -436,7 +436,8 @@ coord_by_handle(cbk_handle * handle)
 
    Error code, or last actor return value is returned.
 
-   This is used by readdir() and alikes.
+   This is used by plugin/dir/hashe_dir.c:find_entry() to move through
+   sequence of entries with identical keys and alikes.
 */
 reiser4_internal int
 iterate_tree(reiser4_tree * tree /* tree to scan */ ,
@@ -499,6 +500,7 @@ iterate_tree(reiser4_tree * tree /* tree to scan */ ,
 	return result;
 }
 
+/* return locked uber znode for @tree */
 reiser4_internal int get_uber_znode(reiser4_tree * tree, znode_lock_mode mode,
 		   znode_lock_request pri, lock_handle *lh)
 {
@@ -1289,7 +1291,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		node = h->active_lh->node;
 
 		if (llr != LOOKUP_DONE) {
-			/* restart of continue on the next level */
+			/* restart or continue on the next level */
 			reiser4_stat_inc(tree.cbk_cache_wrong_node);
 			result = RETERR(-ENOENT);
 		} else if (IS_CBKERR(h->result))
@@ -1572,6 +1574,7 @@ print_address(const char *prefix /* prefix to print */ ,
 }
 #endif
 
+/* return string containing human readable representation of @block */
 reiser4_internal char *
 sprint_address(const reiser4_block_nr * block /* block number to print */ )
 {
@@ -1587,7 +1590,6 @@ sprint_address(const reiser4_block_nr * block /* block number to print */ )
 }
 
 /* release parent node during traversal */
-/* Audited by: green(2002.06.15) */
 static void
 put_parent(cbk_handle * h /* search handle */ )
 {
@@ -1599,7 +1601,6 @@ put_parent(cbk_handle * h /* search handle */ )
 
 /* helper function used by coord_by_key(): release reference to parent znode
    stored in handle before processing its child. */
-/* Audited by: green(2002.06.15) */
 static void
 hput(cbk_handle * h /* search handle */ )
 {
@@ -1635,13 +1636,11 @@ setup_delimiting_keys(cbk_handle * h /* search handle */)
 	return 0;
 }
 
+/* true if @block makes sense for the @tree. Used to detect corrupted node
+ * pointers */
 static int
-block_nr_is_correct(reiser4_block_nr * block UNUSED_ARG	/* block
-							 * number
-							 * to
-							 * check */ ,
-		    reiser4_tree * tree UNUSED_ARG	/* tree to check
-							 * against */ )
+block_nr_is_correct(reiser4_block_nr * block	/* block number to check */ ,
+		    reiser4_tree * tree	/* tree to check against */ )
 {
 	assert("nikita-757", block != NULL);
 	assert("nikita-758", tree != NULL);

@@ -1,6 +1,7 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Directory plugin's methods. */
+/* Directory plugin's methods. See dir.c for more details. */
 
 #if !defined( __REISER4_DIR_H__ )
 #define __REISER4_DIR_H__
@@ -81,6 +82,11 @@ TYPE_SAFE_HASH_DECLARE(d_cursor, dir_cursor);
 int d_cursor_init_at(struct super_block *s);
 void d_cursor_done_at(struct super_block *s);
 
+/*
+ * information about d_cursors (detached readdir state) maintained in reiser4
+ * specific portion of reiser4 super-block. See dir.c for more information on
+ * d_cursors.
+ */
 typedef struct d_cursor_info {
 	d_cursor_hash_table    table;
 	struct radix_tree_root tree;

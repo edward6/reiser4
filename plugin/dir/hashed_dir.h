@@ -1,7 +1,8 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Directory plugin using hashes (see fs/reiser4/plugin/hash.c) to map
-   file names to to files. */
+   file names to to files. See hashed_dir.c */
 
 #if !defined( __HASHED_DIR_H__ )
 #define __HASHED_DIR_H__

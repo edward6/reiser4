@@ -1,4 +1,5 @@
-/* Copyright 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Ent daemon. */
 
@@ -28,16 +29,21 @@ TYPE_SAFE_LIST_DEFINE(wbq, struct wbq, link);
 static void entd_flush(struct super_block *super);
 static int entd(void *arg);
 
+/*
+ * set ->comm field of end thread to make its state visible to the user level
+ */
 #define entd_set_comm(state)					\
 	snprintf(current->comm, sizeof(current->comm),	\
 	         "ent:%s%s", super->s_id, (state))
 
+/* get ent context for the @super */
 static inline entd_context *
 get_entd_context(struct super_block *super)
 {
 	return &get_super_private(super)->entd;
 }
 
+/* initialize ent thread context */
 reiser4_internal void
 init_entd_context(struct super_block *super)
 {
@@ -53,9 +59,11 @@ init_entd_context(struct super_block *super)
 	init_completion(&ctx->finish);
 	spin_lock_init(&ctx->guard);
 
+	/* start ent thread.. */
 	kernel_thread(entd, super, CLONE_VM | CLONE_FS | CLONE_FILES);
 
 	spin_lock(&ctx->guard);
+	/* and wait for its initialization to finish */
 	while (ctx->tsk == NULL)
 		kcond_wait(&ctx->startup, &ctx->guard, 0);
 	spin_unlock(&ctx->guard);
@@ -85,6 +93,7 @@ static void wakeup_all_wbq (entd_context * ent)
 	spin_unlock(&ent->guard);
 }
 
+/* ent thread function */
 static int
 entd(void *arg)
 {
@@ -116,13 +125,14 @@ entd(void *arg)
 
 	spin_lock(&ctx->guard);
 	ctx->tsk = me;
+	/* signal waiters that initialization is completed */
 	kcond_broadcast(&ctx->startup);
 	spin_unlock(&ctx->guard);
 	while (1) {
 		int result = 0;
 
 		if (me->flags & PF_FREEZE)
-			refrigerator(PF_FREEZE/*PF_IOTHREAD*/);
+			refrigerator(PF_FREEZE);
 
 		spin_lock(&ctx->guard);
 
@@ -142,6 +152,7 @@ entd(void *arg)
 
 		entd_set_comm(".");
 
+		/* wait for work */
 		result = kcond_wait(&ctx->wait, &ctx->guard, 1);
 		if (result != -EINTR && result != 0)
 			/* some other error */
@@ -161,6 +172,7 @@ entd(void *arg)
 	return 0;
 }
 
+/* called by umount */
 reiser4_internal void
 done_entd_context(struct super_block *super)
 {
@@ -179,6 +191,8 @@ done_entd_context(struct super_block *super)
 	wait_for_completion(&ctx->finish);
 }
 
+/* called at the beginning of jnode_flush to register flusher thread with ent
+ * daemon */
 reiser4_internal void enter_flush (struct super_block * super)
 {
 	entd_context * ent;
@@ -196,6 +210,7 @@ reiser4_internal void enter_flush (struct super_block * super)
 	spin_unlock(&ent->guard);
 }
 
+/* called at the end of jnode_flush */
 reiser4_internal void leave_flush (struct super_block * super)
 {
 	entd_context * ent;
@@ -215,10 +230,7 @@ reiser4_internal void leave_flush (struct super_block * super)
 	spin_unlock(&ent->guard);
 }
 
-reiser4_internal void flush_started_io (void)
-{
-}
-
+/* signal to ent thread that it has more work to do */
 static void kick_entd(entd_context * ent)
 {
 	kcond_signal(&ent->wait);

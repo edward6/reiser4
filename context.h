@@ -1,6 +1,7 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Reiser4 context */
+/* Reiser4 context. See context.c for details. */
 
 #if !defined( __REISER4_CONTEXT_H__ )
 #define __REISER4_CONTEXT_H__
@@ -24,12 +25,38 @@ ON_DEBUG(TYPE_SAFE_LIST_DECLARE(flushers);)
 
 #if REISER4_DEBUG
 
+/*
+ * Stat-data update tracking.
+ *
+ * Some reiser4 functions (reiser4_{del,add}_nlink() take an additional
+ * parameter indicating whether stat-data update should be performed. This is
+ * because sometimes fields of the same inode are modified several times
+ * during single system and updating stat-data (which implies tree lookup and,
+ * sometimes, tree balancing) on each inode modification is too expensive. To
+ * avoid unnecessary stat-data updates, we pass flag to not update it during
+ * inode field updates, and update it manually at the end of the system call.
+ *
+ * This introduces a possibility of "missed stat data update" when final
+ * stat-data update is not performed in some code path. To detect and track
+ * down such situations following code was developed.
+ *
+ * dirty_inode_info is an array of slots. Each slot keeps information about
+ * "delayed stat data update", that is about a call to a function modifying
+ * inode field that was instructed to not update stat data. Direct call to
+ * reiser4_update_sd() clears corresponding slot. On leaving reiser4 context
+ * all slots are scanned and information about still not forced updates is
+ * printed.
+ */
+
+/* how many delayed stat data update slots to remember */
 #define TRACKED_DELAYED_UPDATE (10)
 
 typedef struct {
-	ino_t ino;
-	int   delayed;
-	void *stack[4];
+	ino_t ino;      /* inode number of object with delayed stat data
+			 * update */
+	int   delayed;  /* 1 if update is delayed, 0 if update for forced */
+	void *stack[4]; /* stack back-trace of the call chain where update was
+			 * delayed */
 } dirty_inode_info[TRACKED_DELAYED_UPDATE];
 
 extern void mark_inode_update(struct inode *object, int immediate);
@@ -44,28 +71,7 @@ typedef struct {} dirty_inode_info;
 
 #endif
 
-
-/* global context used during system call. Variable of this type is
-   allocated on the stack at the beginning of the reiser4 part of the
-   system call and pointer to it is stored in the
-   current->fs_context. This allows us to avoid passing pointer to
-   current transaction and current lockstack (both in one-to-one mapping
-   with threads) all over the call chain.
-
-   It's kind of like those global variables the prof used to tell you
-   not to use in CS1, except thread specific.;-) Nikita, this was a
-   good idea.
-
-   In some situations it is desirable to have ability to enter reiser4_context
-   twice for the same thread (nested contexts). For example, there are some
-   functions that can be called either directly from VFS/VM or from already
-   active reiser4 context (->writepage, for example).
-
-   In such situations "child" context acts like dummy: all activity is
-   actually performed in the top level context, and get_current_context()
-   always returns top level context. Of course, init_context()/done_context()
-   have to be properly nested any way.
-*/
+/* reiser4 per-thread context */
 struct reiser4_context {
 	/* magic constant. For identification of reiser4 contexts. */
 	__u32 magic;
@@ -77,6 +83,8 @@ struct reiser4_context {
 
 	/* current transcrash. */
 	txn_handle *trans;
+	/* transaction handle embedded into reiser4_context. ->trans points
+	 * here by default. */
 	txn_handle trans_in_ctx;
 
 	/* super block we are working with.  To get the current tree
@@ -91,6 +99,8 @@ struct reiser4_context {
 
 	/* parent context */
 	reiser4_context *parent;
+
+	/* list of taps currently monitored. See tap.c */
 	tap_list_head taps;
 
 	/* grabbing space is enabled */
@@ -98,25 +108,40 @@ struct reiser4_context {
     	/* should be set when we are write dirty nodes to disk in jnode_flush or
 	 * reiser4_write_logs() */
 	int writeout_mode :1;
+	/* true, if current thread is an ent thread */
 	int entd          :1;
+	/* true, if balance_dirty_pages() should not be run when leaving this
+	 * context. This is used to avoid lengthly balance_dirty_pages()
+	 * operation when holding some important resource, like directory
+	 * ->i_sem */
 	int nobalance     :1;
 
 	/* count non-trivial jnode_set_dirty() calls */
 	unsigned long nr_marked_dirty;
-	unsigned long flush_started;
-	unsigned long io_started;
-
 #if REISER4_DEBUG
 	/* A link of all active contexts. */
 	context_list_link contexts_link;
+	/* debugging information about reiser4 locks held by the current
+	 * thread */
 	lock_counters_info locks;
 	int nr_children;	/* number of child contexts */
 	struct task_struct *task; /* so we can easily find owner of the stack */
 
+	/*
+	 * disk space grabbing debugging support
+	 */
+	/* how many disk blocks were grabbed by the first call to
+	 * reiser4_grab_space() in this context */
 	reiser4_block_nr grabbed_initially;
+	/* stack back-trace of the first call to reiser4_grab_space() in this
+	 * context */
 	backtrace_path   grabbed_at;
+
+	/* list of all threads doing flush currently */
 	flushers_list_link  flushers_link;
+	/* information about last error encountered by reiser4 */
 	err_site err;
+	/* information about delayed stat data updates. See above. */
 	dirty_inode_info dirty;
 #endif
 #if REISER4_TRACE
@@ -125,6 +150,11 @@ struct reiser4_context {
 	__u32 trace_flags;
 #endif
 #if REISER4_DEBUG_NODE
+	/*
+	 * don't perform node consistency checks while this is greater than
+	 * zero. Used during operations that temporary violate node
+	 * consistency.
+	 */
 	int disable_node_check;
 #endif
 };
@@ -173,6 +203,9 @@ extern int is_in_reiser4_context(void);
 
 void get_context_ok(reiser4_context *);
 
+/*
+ * return reiser4_context for the thread @tsk
+ */
 static inline reiser4_context *
 get_context(const struct task_struct *tsk)
 {
@@ -181,7 +214,9 @@ get_context(const struct task_struct *tsk)
 	return (reiser4_context *) tsk->fs_context;
 }
 
-
+/*
+ * return reiser4 context of the current thread, or NULL if there is none.
+ */
 static inline reiser4_context *
 get_current_context_check(void)
 {
@@ -200,17 +235,27 @@ get_current_context(void)
 	return get_context(current);
 }
 
+/*
+ * true if current thread is in the write-out mode. Thread enters write-out
+ * mode during jnode_flush and reiser4_write_logs().
+ */
 static inline int is_writeout_mode(void)
 {
 	return get_current_context()->writeout_mode;
 }
 
+/*
+ * enter write-out mode
+ */
 static inline void writeout_mode_enable(void)
 {
 	assert("zam-941", !get_current_context()->writeout_mode);
 	get_current_context()->writeout_mode = 1;
 }
 
+/*
+ * leave write-out mode
+ */
 static inline void writeout_mode_disable(void)
 {
 	assert("zam-942", get_current_context()->writeout_mode);

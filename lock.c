@@ -446,6 +446,7 @@ check_lock_object(lock_stack * owner)
 	return 0;
 }
 
+/* check for lock/request compatibility and update tree statistics */
 static int
 can_lock_object(lock_stack * owner)
 {
@@ -652,6 +653,7 @@ wake_up_requestor(znode *node)
 
 #undef MAX_CONVOY_SIZE
 
+/* release long-term lock, acquired by longterm_lock_znode() */
 reiser4_internal void
 longterm_unlock_znode(lock_handle * handle)
 {
@@ -661,6 +663,10 @@ longterm_unlock_znode(lock_handle * handle)
 	int readers;
 	int rdelta;
 	int youdie;
+
+	/*
+	 * this is time-critical and highly optimized code. Modify carefully.
+	 */
 
 	assert("jmacd-1021", handle != NULL);
 	assert("jmacd-1022", handle->owner != NULL);
@@ -672,9 +678,19 @@ longterm_unlock_znode(lock_handle * handle)
 
 	ADDSTAT(node, unlock);
 
+	/*
+	 * to minimize amount of operations performed under lock, pre-compute
+	 * all variables used within critical section. This makes code
+	 * obscure.
+	 */
+
+	/* was this lock of hi or lo priority */
 	hipri   = oldowner->curpri ? -1 : 0;
+	/* number of readers */
 	readers = node->lock.nr_readers;
+	/* +1 if write lock, -1 if read lock */
 	rdelta  = (readers > 0) ? -1 : +1;
+	/* true if node is to die and write lock is released */
 	youdie  = ZF_ISSET(node, JNODE_HEARD_BANSHEE) && (readers < 0);
 
 	WLOCK_ZLOCK(&node->lock);
@@ -741,6 +757,7 @@ longterm_unlock_znode(lock_handle * handle)
 	zput(node);
 }
 
+/* final portion of longterm-unlock*/
 static int
 lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 {
@@ -788,6 +805,11 @@ lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 	return ok;
 }
 
+/*
+ * version of longterm_znode_lock() optimized for the most common case: read
+ * lock without any special flags. This is the kind of lock that any tree
+ * traversal takes on the root node of the tree, which is very frequent.
+ */
 static int
 longterm_lock_tryfast(lock_stack * owner)
 {
@@ -854,7 +876,8 @@ longterm_lock_znode(
 	/* Get current process context */
 	lock_stack *owner = get_current_lock_stack();
 
-	/* Check that the lock handle is initialized and isn't already being used. */
+	/* Check that the lock handle is initialized and isn't already being
+	 * used. */
 	assert("jmacd-808", handle->owner == NULL);
 	assert("nikita-3026", schedulable());
 	assert("nikita-3219", request_is_deadlock_safe(node, mode, request));
@@ -902,6 +925,7 @@ longterm_lock_znode(
 
 	has_atom = (txnh->atom != NULL);
 
+	/* update statistics */
 	if (REISER4_STATS) {
 		if (mode == ZNODE_READ_LOCK)
 			ADDSTAT(node, lock_read);
@@ -1383,20 +1407,28 @@ print_lock_stack(const char *prefix, lock_stack * owner)
 
 #if REISER4_DEBUG
 
+/*
+ * debugging functions
+ */
+
+/* check consistency of locking data-structures hanging of the @stack */
 void
 check_lock_stack(lock_stack * stack)
 {
 	spin_lock_stack(stack);
+	/* check that stack->locks is not corrupted */
 	locks_list_check(&stack->locks);
 	spin_unlock_stack(stack);
 }
 
+/* check consistency of locking data structures */
 void
 check_lock_data(void)
 {
 	check_lock_stack(&get_current_context()->stack);
 }
 
+/* check consistency of locking data structures for @node */
 void
 check_lock_node_data(znode * node)
 {
@@ -1406,6 +1438,8 @@ check_lock_node_data(znode * node)
 	RUNLOCK_ZLOCK(&node->lock);
 }
 
+/* check that given lock request is dead lock safe. This check is, of course,
+ * not exhaustive. */
 static int
 request_is_deadlock_safe(znode * node, znode_lock_mode mode,
 			 znode_lock_request request)
@@ -1413,6 +1447,10 @@ request_is_deadlock_safe(znode * node, znode_lock_mode mode,
 	lock_stack *owner;
 
 	owner = get_current_lock_stack();
+	/*
+	 * check that hipri lock request is not issued when there are locked
+	 * nodes at the higher levels.
+	 */
 	if (request & ZNODE_LOCK_HIPRI && !(request & ZNODE_LOCK_NONBLOCK) &&
 	    znode_get_level(node) != 0) {
 		lock_handle *item;

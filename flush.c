@@ -476,7 +476,6 @@ static int write_prepped_nodes (flush_pos_t * pos, int check_congestion)
 
 	ret = write_fq(pos->fq, pos->nr_written,
 		       WRITEOUT_SINGLE_STREAM | WRITEOUT_FOR_PAGE_RECLAIM);
-	flush_started_io();
 	return ret;
 }
 
@@ -1046,8 +1045,6 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		ret = jnode_flush(node, NULL, nr_submitted, fq, flags);
 		jput(node);
 	}
-
-	flush_started_io();
 
 	/* trace_mark(flush); */
 	write_current_logf(WRITE_IO_LOG, "mark=flush\n");

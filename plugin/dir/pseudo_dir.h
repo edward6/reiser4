@@ -1,6 +1,7 @@
-/* Copyright 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Directory plugin for pseudo files */
+/* Directory plugin for pseudo files. See pseudo_dir.c for details. */
 
 #if !defined( __PSEUDO_DIR_H__ )
 #define __PSEUDO_DIR_H__

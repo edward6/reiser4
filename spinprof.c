@@ -25,8 +25,27 @@
  * active on average. Spin-locking code in spin_macros.h uses this to measure
  * spin-lock contention. Specifically two profiling regions are defined for
  * each spin-lock type: one is activate while thread is trying to acquire
- * lock, and another when it holds the lock. Profiling regions export their
- * statistics in the sysfs.
+ * lock, and another when it holds the lock.
+ *
+ * Profiling regions export their statistics in the sysfs, under special
+ * directory /sys/profregion.
+ *
+ * Each profregion is represented as a child directory
+ * /sys/profregion/foo. Internally it's represented as a struct kobject (viz
+ * one embedded into struct profregion, see spinprof.h).
+ *
+ * Each /sys/profregion/foo directory contains files representing fields in
+ * profregion:
+ *
+ *     hits
+ *     busy
+ *     obj
+ *     objhit
+ *     code
+ *     codehit
+ *
+ * See spinprof.h for details.
+ *
  *
  */
 
@@ -43,6 +62,10 @@
 
 #if REISER4_LOCKPROF
 
+/*
+ * helper macro: how many bytes left in the PAGE_SIZE buffer, starting at @buf
+ * and used up to and including @p.
+ */
 #define LEFT(p, buf) (PAGE_SIZE - ((p) - (buf)) - 1)
 
 void profregion_functions_start_here(void);
@@ -54,11 +77,17 @@ static locksite none = {
 	.line = 0
 };
 
+/*
+ * sysfs holder.
+ */
 struct profregion_attr {
 	struct attribute attr;
 	ssize_t (*show)(struct profregion *pregion, char *buf);
 };
 
+/*
+ * macro to define profregion_attr for the given profregion
+ */
 #define PROFREGION_ATTR(aname)			\
 static struct profregion_attr aname = {		\
 	.attr = {				\
@@ -68,6 +97,9 @@ static struct profregion_attr aname = {		\
 	.show = aname ## _show			\
 }
 
+/*
+ * ->show() method for the "hits" attribute.
+ */
 static ssize_t hits_show(struct profregion *pregion, char *buf)
 {
 	char *p = buf;
@@ -75,6 +107,9 @@ static ssize_t hits_show(struct profregion *pregion, char *buf)
 	return (p - buf);
 }
 
+/*
+ * ->show() method for the "busy" attribute.
+ */
 static ssize_t busy_show(struct profregion *pregion, char *buf)
 {
 	char *p = buf;
@@ -82,6 +117,9 @@ static ssize_t busy_show(struct profregion *pregion, char *buf)
 	return (p - buf);
 }
 
+/*
+ * ->show() method for the "obj" attribute.
+ */
 static ssize_t obj_show(struct profregion *pregion, char *buf)
 {
 	char *p = buf;
@@ -89,6 +127,9 @@ static ssize_t obj_show(struct profregion *pregion, char *buf)
 	return (p - buf);
 }
 
+/*
+ * ->show() method for the "objhit" attribute.
+ */
 static ssize_t objhit_show(struct profregion *pregion, char *buf)
 {
 	char *p = buf;
@@ -96,6 +137,9 @@ static ssize_t objhit_show(struct profregion *pregion, char *buf)
 	return (p - buf);
 }
 
+/*
+ * ->show() method for the "code" attribute.
+ */
 static ssize_t code_show(struct profregion *pregion, char *buf)
 {
 	char *p = buf;
@@ -106,6 +150,9 @@ static ssize_t code_show(struct profregion *pregion, char *buf)
 	return (p - buf);
 }
 
+/*
+ * ->show() method for the "codehit" attribute.
+ */
 static ssize_t codehit_show(struct profregion *pregion, char *buf)
 {
 	char *p = buf;
@@ -120,6 +167,10 @@ PROFREGION_ATTR(objhit);
 PROFREGION_ATTR(code);
 PROFREGION_ATTR(codehit);
 
+/*
+ * wrapper to call attribute ->show() methods (defined above). This is called
+ * by sysfs.
+ */
 static ssize_t
 profregion_show(struct kobject * kobj, struct attribute *attr, char *buf)
 {
@@ -132,6 +183,10 @@ profregion_show(struct kobject * kobj, struct attribute *attr, char *buf)
 	return pattr->show(pregion, buf);
 }
 
+/*
+ * ->store() method for profregion sysfs object. Any write to this object,
+ * just resets profregion stats.
+ */
 static ssize_t profregion_store(struct kobject * kobj,
 				struct attribute * attr UNUSED_ARG,
 				const char * buf UNUSED_ARG,
@@ -149,11 +204,17 @@ static ssize_t profregion_store(struct kobject * kobj,
 	return size;
 }
 
+/*
+ * sysfs attribute operations vector...
+ */
 static struct sysfs_ops profregion_attr_ops = {
 	.show  = profregion_show,
 	.store = profregion_store
 };
 
+/*
+ * ...and attributes themselves.
+ */
 static struct attribute * def_attrs[] = {
 	&hits.attr,
 	&busy.attr,
@@ -164,14 +225,27 @@ static struct attribute * def_attrs[] = {
 	NULL
 };
 
+/*
+ * ktype for kobjects representing profregions.
+ */
 static struct kobj_type ktype_profregion = {
 	.sysfs_ops	= &profregion_attr_ops,
 	.default_attrs	= def_attrs,
 };
 
+/*
+ * sysfs object for /sys/profregion
+ */
 static decl_subsys(profregion, &ktype_profregion, NULL);
 
+/*
+ * profregionstack for each CPU
+ */
 DEFINE_PER_CPU(struct profregionstack, inregion) = {0};
+
+/*
+ * profregion meaning "no other profregion is active"
+ */
 struct profregion outside = {
 	.hits = STATCNT_INIT,
 	.kobj = {
@@ -179,6 +253,9 @@ struct profregion outside = {
 	}
 };
 
+/*
+ * profregion meaning "we are in reiser4 context, but no locks are held"
+ */
 struct profregion incontext = {
 	.hits = STATCNT_INIT,
 	.kobj = {
@@ -186,6 +263,10 @@ struct profregion incontext = {
 	}
 };
 
+/*
+ * profregion meaning "we are profregion handling code". This is to estimate
+ * profregion overhead.
+ */
 struct profregion overhead = {
 	.hits = STATCNT_INIT,
 	.kobj = {
@@ -196,6 +277,13 @@ struct profregion overhead = {
 extern struct profregion pregion_spin_jnode_held;
 extern struct profregion pregion_spin_jnode_trying;
 
+/*
+ * This is main profregion handling function. It is called from clock
+ * interrupt handler on each tick (HZ times per second).
+ *
+ * It determines what profregions are active at the moment of call, and
+ * updates their fields correspondingly.
+ */
 static int callback(struct notifier_block *self UNUSED_ARG,
 		    unsigned long val UNUSED_ARG, void *p)
 {
@@ -205,10 +293,12 @@ static int callback(struct notifier_block *self UNUSED_ARG,
 	int ntop;
 
 	regs = p;
+	/* instruction pointer at which interrupt happened */
 	pc = instruction_pointer(regs);
 
 	if (pc > (unsigned long)profregion_functions_start_here &&
 	    pc < (unsigned long)profregion_functions_end_here) {
+		/* if @pc lies in this file---count it as overhead */
 		statcnt_inc(&overhead.hits);
 		return 0;
 	}
@@ -261,6 +351,9 @@ static int callback(struct notifier_block *self UNUSED_ARG,
 	return 0;
 }
 
+/*
+ * notifier block used to register our callback for clock interrupt handler.
+ */
 static struct notifier_block profregionnotifier = {
 	.notifier_call = callback
 };
@@ -269,31 +362,42 @@ static struct notifier_block profregionnotifier = {
  * different places */
 extern int register_profile_notifier(struct notifier_block * nb);
 
+/*
+ * profregion initialization: setup sysfs things.
+ */
 int __init
 profregion_init(void)
 {
 	int result;
 
+	/* register /sys/profregion */
 	result = subsystem_register(&profregion_subsys);
 	if (result != 0)
 		return result;
 
+	/* register /sys/profregion/outside */
 	result = profregion_register(&outside);
 	if (result != 0)
 		return result;
 
+	/* register /sys/profregion/incontext */
 	result = profregion_register(&incontext);
 	if (result != 0)
 		return result;
 
+	/* register /sys/profregion/overhead */
 	result = profregion_register(&overhead);
 	if (result != 0)
 		return result;
 
+	/* register our callback function to be called on each clock tick */
 	return register_profile_notifier(&profregionnotifier);
 }
 subsys_initcall(profregion_init);
 
+/*
+ * undo profregion_init() actions.
+ */
 static void __exit
 profregion_exit(void)
 {
@@ -304,12 +408,20 @@ profregion_exit(void)
 }
 __exitcall(profregion_exit);
 
+/*
+ * register profregion
+ */
 int profregion_register(struct profregion *pregion)
 {
+	/* tell sysfs that @pregion is part of /sys/profregion "subsystem" */
 	kobj_set_kset_s(pregion, profregion_subsys);
+	/* and register /sys/profregion/<pregion> */
 	return kobject_register(&pregion->kobj);
 }
 
+/*
+ * dual to profregion_register(): unregister profregion
+ */
 void profregion_unregister(struct profregion *pregion)
 {
 	kobject_register(&pregion->kobj);
@@ -317,6 +429,10 @@ void profregion_unregister(struct profregion *pregion)
 
 void profregion_functions_start_here(void) { }
 
+/*
+ * search for @pregion in the stack of currently active profregions on this
+ * cpu. Return its index if found, 0 otherwise.
+ */
 int profregion_find(struct profregionstack *stack, struct profregion *pregion)
 {
 	int i;
@@ -330,18 +446,26 @@ int profregion_find(struct profregionstack *stack, struct profregion *pregion)
 	return 0;
 }
 
+/*
+ * Fill @act slot with information
+ */
 void profregfill(struct pregactivation *act,
 		 struct profregion *pregion,
 		 void *objloc, locksite *codeloc)
 {
 	act->objloc  = NULL;
 	act->codeloc = NULL;
+	/* barrier is needed here, because clock interrupt can come at any
+	 * point, and we want our callback to see consistent data */
 	barrier();
 	act->preg    = pregion;
 	act->objloc  = objloc;
 	act->codeloc = codeloc;
 }
 
+/*
+ * activate profregion @pregion on processor @cpu.
+ */
 void profregion_in(int cpu, struct profregion *pregion,
 		   void *objloc, locksite *codeloc)
 {
@@ -351,13 +475,21 @@ void profregion_in(int cpu, struct profregion *pregion,
 	preempt_disable();
 	stack = &per_cpu(inregion, cpu);
 	ntop = stack->top;
+	/* check for stack overflow */
 	BUG_ON(ntop == PROFREGION_MAX_DEPTH);
+	/* store information about @pregion in the next free slot on the
+	 * stack */
 	profregfill(&stack->stack[ntop], pregion, objloc, codeloc);
 	/* put optimization barrier here */
+	/* barrier is needed here, because clock interrupt can come at any
+	 * point, and we want our callback to see consistent data */
 	barrier();
 	++ stack->top;
 }
 
+/*
+ * deactivate (leave) @pregion at processor @cpu.
+ */
 void profregion_ex(int cpu, struct profregion *pregion)
 {
 	struct profregionstack *stack;
@@ -366,6 +498,10 @@ void profregion_ex(int cpu, struct profregion *pregion)
 	stack = &per_cpu(inregion, cpu);
 	ntop = stack->top;
 	BUG_ON(ntop == 0);
+	/*
+	 * in the usual case (when locks nest properly), @pregion uses top
+	 * slot of the stack. Free it.
+	 */
 	if(likely(stack->stack[ntop - 1].preg == pregion)) {
 		do {
 			-- ntop;
@@ -375,11 +511,21 @@ void profregion_ex(int cpu, struct profregion *pregion)
 		barrier();
 		stack->top = ntop;
 	} else
+		/*
+		 * Otherwise (locks are not nested), find slot used by
+		 * @prefion and free it.
+		 */
 		stack->stack[profregion_find(stack, pregion)].preg = NULL;
 	preempt_enable();
 	put_cpu();
 }
 
+/*
+ * simultaneously deactivate top-level profregion in the stack, and activate
+ * @pregion. This is optimization to serve common case, when profregion
+ * covering "trying to take lock X" is immediately followed by profregion
+ * covering "holding lock X".
+ */
 void profregion_replace(int cpu, struct profregion *pregion,
 			void *objloc, void *codeloc)
 {

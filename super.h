@@ -1,6 +1,7 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
-/* Super-block functions. */
+/* Super-block functions. See super.c for details. */
 
 #if !defined( __REISER4_SUPER_H__ )
 #define __REISER4_SUPER_H__
@@ -30,6 +31,9 @@
 #include <linux/list.h>		/* for struct list_head */
 #include <linux/kobject.h>      /* for kobject */
 
+/*
+ * Flush algorithms parameters.
+ */
 typedef struct {
 	unsigned relocate_threshold;
 	unsigned relocate_distance;
@@ -68,13 +72,28 @@ typedef enum {
 
 #if REISER4_STATS
 
+/*
+ * Object to export per-level stat-counters through sysfs. See stats.[ch] and
+ * kattr.[ch]
+ */
 typedef struct reiser4_level_stats_kobj {
-	struct fs_kobject kobj;
-	int level;
+	struct fs_kobject kobj;   /* file system kobject exported for each
+				   * level */
+	int level;                /* tree level */
 } reiser4_level_stats_kobj;
 
 #endif
 
+/*
+ * VFS related operation vectors.
+ *
+ * Usually file system has one instance of those, but in reiser4 we sometimes
+ * want to be able to modify vectors on per-mount basis. For example, reiser4
+ * needs ->open method to handle pseudo files correctly, but if file system is
+ * mounted with "nopseudo" mount option, it's better to have ->open set to
+ * NULL, as this makes sys_open() a little bit more efficient.
+ *
+ */
 typedef struct object_ops {
 	struct super_operations         super;
 	struct file_operations          file;
@@ -149,8 +168,12 @@ struct reiser4_super_info_data {
 	*/
 	reiser4_spin_data guard;
 
-	/* object id manager */
+	/*
+	 * object id manager
+	 */
+	/* next oid that will be returned by oid_allocate() */
 	oid_t next_to_use;
+	/* total number of used oids */
 	oid_t oids_in_use;
 
 	/* space manager plugin */
@@ -246,25 +269,20 @@ struct reiser4_super_info_data {
 		format40_super_info format40;
 	} u;
 
+	/*
+	 * value we return in st_blksize on stat(2).
+	 */
 	unsigned long optimal_io_size;
 
-	struct {
-		formatting_plugin *t;
-		item_plugin *sd;
-		item_plugin *dir_item;
-		perm_plugin *p;
-		file_plugin *f;
-		dir_plugin *d;
-		hash_plugin *h;
-		fibration_plugin *fib;
-	} plug;
-
+	/* parameters for the flush algorithm */
 	flush_params flush;
 
 	/* see emergency_flush.c for details */
 	reiser4_spin_data eflush_guard;
+	/* number of emergency flushed nodes */
 	int               eflushed;
 #if REISER4_USE_EFLUSH
+	/* hash table used by emergency flush. Protected by ->eflush_guard */
 	ef_hash_table     efhash_table;
 #endif
 	/* pointers to jnodes for journal header and footer */
@@ -396,21 +414,33 @@ get_current_super_ra_params(void)
 	return &(get_current_super_private()->ra_params);
 }
 
+/*
+ * true, if file system on @super is read-only
+ */
 static inline int rofs_super(struct super_block *super)
 {
 	return super->s_flags & MS_RDONLY;
 }
 
+/*
+ * true, if @tree represents read-only file system
+ */
 static inline int rofs_tree(reiser4_tree *tree)
 {
 	return rofs_super(tree->super);
 }
 
+/*
+ * true, if file system where @inode lives on, is read-only
+ */
 static inline int rofs_inode(struct inode *inode)
 {
 	return rofs_super(inode->i_sb);
 }
 
+/*
+ * true, if file system where @node lives on, is read-only
+ */
 static inline int rofs_jnode(jnode *node)
 {
 	return rofs_tree(jnode_get_tree(node));
@@ -428,22 +458,34 @@ SPIN_LOCK_FUNCTIONS(super, reiser4_super_info_data, guard);
 #define spin_ordering_pred_super_eflush(private) (1)
 SPIN_LOCK_FUNCTIONS(super_eflush, reiser4_super_info_data, eflush_guard);
 
+/*
+ * lock reiser4-specific part of super block
+ */
 static inline void reiser4_spin_lock_sb(reiser4_super_info_data *sbinfo)
 {
 	spin_lock_super(sbinfo);
 }
 
+/*
+ * unlock reiser4-specific part of super block
+ */
 static inline void reiser4_spin_unlock_sb(reiser4_super_info_data *sbinfo)
 {
 	spin_unlock_super(sbinfo);
 }
 
+/*
+ * lock emergency flush data-structures for super block @s
+ */
 static inline void spin_lock_eflush(const struct super_block * s)
 {
 	reiser4_super_info_data * sbinfo = get_super_private (s);
 	spin_lock_super_eflush(sbinfo);
 }
 
+/*
+ * unlock emergency flush data-structures for super block @s
+ */
 static inline void spin_unlock_eflush(const struct super_block * s)
 {
 	reiser4_super_info_data * sbinfo = get_super_private (s);

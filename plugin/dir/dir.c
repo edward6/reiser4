@@ -1,4 +1,4 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+/* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
  * reiser4/README */
 
 /* Methods of directory plugin. */
@@ -556,6 +556,8 @@ is_name_acceptable(const struct inode *inode /* directory to check */ ,
 	return len <= reiser4_max_filename_len(inode);
 }
 
+/* return true, iff @coord points to the valid directory item that is part of
+ * @inode directory. */
 static int
 is_valid_dir_coord(struct inode * inode, coord_t * coord)
 {
@@ -593,59 +595,9 @@ reiser4_internal cmp_t dir_pos_cmp(const dir_pos * p1, const dir_pos * p2)
 	return result;
 }
 
-#if REISER4_DEBUG_OUTPUT && REISER4_TRACE
-static char filter(const d8 *dch)
-{
-	char ch;
-
-	ch = d8tocpu(dch);
-	if (' ' <= ch && ch <= '~')
-		return ch;
-	else
-		return '?';
-}
-
-static void
-print_de_id(const char *prefix, const de_id *did)
-{
-	reiser4_key key;
-
-	extract_key_from_de_id(0, did, &key);
-	print_key(prefix, &key);
-	return;
-	printk("%s: %c%c%c%c%c%c%c%c:%c%c%c%c%c%c%c%c",
-	       prefix,
-	       filter(&did->objectid[0]),
-	       filter(&did->objectid[1]),
-	       filter(&did->objectid[2]),
-	       filter(&did->objectid[3]),
-	       filter(&did->objectid[4]),
-	       filter(&did->objectid[5]),
-	       filter(&did->objectid[6]),
-	       filter(&did->objectid[7]),
-
-	       filter(&did->offset[0]),
-	       filter(&did->offset[1]),
-	       filter(&did->offset[2]),
-	       filter(&did->offset[3]),
-	       filter(&did->offset[4]),
-	       filter(&did->offset[5]),
-	       filter(&did->offset[6]),
-	       filter(&did->offset[7]));
-}
-
-static void
-print_dir_pos(const char *prefix, const dir_pos *pos)
-{
-	print_de_id(prefix, &pos->dir_entry_key);
-	printk(" pos: %u", pos->pos);
-}
-
-#else
-#define print_de_id(p, did) noop
-#define print_dir_pos(prefix, pos) noop
-#endif
-
+/* true, if file descriptor @f is created by NFS server by "demand" to serve
+ * one file system operation. This means that there may be "detached state"
+ * for underlying inode. */
 static inline int
 file_is_stateless(struct file *f)
 {
@@ -655,6 +607,9 @@ file_is_stateless(struct file *f)
 #define CID_SHIFT (20)
 #define CID_MASK  (0xfffffull)
 
+/* calculate ->fpos from user-supplied cookie. Normally it is dir->f_pos, but
+ * in the case of stateless directory operation (readdir-over-nfs), client id
+ * was encoded in the high bits of cookie and should me masked off. */
 static loff_t
 get_dir_fpos(struct file * dir)
 {
@@ -683,8 +638,6 @@ adjust_dir_pos(struct file   * dir,
 
 	ON_TRACE(TRACE_DIR, "adjust: %s/%i",
 		 dir ? (char *)dir->f_dentry->d_name.name : "(anon)", adj);
-	IF_TRACE(TRACE_DIR, print_dir_pos("\n mod", mod_point));
-	IF_TRACE(TRACE_DIR, print_dir_pos("\nspot", &readdir_spot->position));
 	ON_TRACE(TRACE_DIR, "\nf_pos: %llu, spot.fpos: %llu entry_no: %llu\n",
 		 dir ? dir->f_pos : 0, readdir_spot->fpos,
 		 readdir_spot->entry_no);
@@ -772,6 +725,9 @@ adjust_dir_file(struct inode *dir, const struct dentry * de, int offset, int adj
 	spin_unlock_inode(dir);
 }
 
+/*
+ * traverse tree to start/continue readdir from the readdir position @pos.
+ */
 static int
 dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 {
@@ -805,6 +761,10 @@ dir_go_to(struct file *dir, readdir_pos * pos, tap_t * tap)
 	return result;
 }
 
+/*
+ * handling of non-unique keys: calculate at what ordinal position within
+ * sequence of directory items with identical keys @pos is.
+ */
 static int
 set_pos(struct inode * inode, readdir_pos * pos, tap_t * tap)
 {
@@ -1140,6 +1100,10 @@ TYPE_SAFE_LIST_DEFINE(a_cursor, dir_cursor, alist);
 
 static void kill_cursor(dir_cursor *cursor);
 
+/*
+ * shrink d_cursors cache. Scan LRU list of unused cursors, freeing requested
+ * number. Return number of still freeable cursors.
+ */
 int d_cursor_shrink(int nr, unsigned int gfp_mask)
 {
 	if (nr != 0) {
@@ -1162,6 +1126,9 @@ int d_cursor_shrink(int nr, unsigned int gfp_mask)
 	return d_cursor_unused;
 }
 
+/*
+ * perform global initializations for the d_cursor sub-system.
+ */
 reiser4_internal int
 d_cursor_init(void)
 {
@@ -1185,6 +1152,9 @@ d_cursor_init(void)
 	}
 }
 
+/*
+ * Dual to d_cursor_init(): release global d_cursor resources.
+ */
 reiser4_internal void
 d_cursor_done(void)
 {
@@ -1198,6 +1168,9 @@ d_cursor_done(void)
 	}
 }
 
+/*
+ * initialize per-super-block d_cursor resources
+ */
 reiser4_internal int
 d_cursor_init_at(struct super_block *s)
 {
@@ -1209,22 +1182,35 @@ d_cursor_init_at(struct super_block *s)
 	return d_cursor_hash_init(&p->table, D_CURSOR_TABLE_SIZE, NULL);
 }
 
+/*
+ * Dual to d_cursor_init_at: release per-super-block d_cursor resources
+ */
 reiser4_internal void
 d_cursor_done_at(struct super_block *s)
 {
 	d_cursor_hash_done(&get_super_private(s)->d_info.table);
 }
 
+/*
+ * return d_cursor data for the file system @inode is in.
+ */
 static inline d_cursor_info * d_info(struct inode *inode)
 {
 	return &get_super_private(inode->i_sb)->d_info;
 }
 
+/*
+ * lookup d_cursor in the per-super-block radix tree.
+ */
 static inline dir_cursor *lookup(d_cursor_info *info, unsigned long index)
 {
 	return (dir_cursor *)radix_tree_lookup(&info->tree, index);
 }
 
+/*
+ * attach @cursor to the radix tree. There may be multiple cursors for the
+ * same oid, they are chained into circular list.
+ */
 static void bind_cursor(dir_cursor *cursor, unsigned long index)
 {
 	dir_cursor *head;
@@ -1240,6 +1226,9 @@ static void bind_cursor(dir_cursor *cursor, unsigned long index)
 	}
 }
 
+/*
+ * remove @cursor from indices and free it
+ */
 static void
 kill_cursor(dir_cursor *cursor)
 {
@@ -1259,21 +1248,42 @@ kill_cursor(dir_cursor *cursor)
 	else {
 		void **slot;
 
+		/*
+		 * there are other cursors for the same oid.
+		 */
+
+		/*
+		 * if radix tree point to the cursor being removed, re-target
+		 * radix tree slot to the next cursor in the (non-empty as was
+		 * checked above) element of the circular list of all cursors
+		 * for this oid.
+		 */
 		slot = radix_tree_lookup_slot(&cursor->info->tree, index);
 		assert("nikita-3571", *slot != NULL);
 		if (*slot == cursor)
 			*slot = d_cursor_list_next(cursor);
+		/* remove cursor from circular list */
 		d_cursor_list_remove_clean(cursor);
 	}
+	/* remove cursor from the list of unused cursors */
 	a_cursor_list_remove_clean(cursor);
+	/* remove cursor from the hash table */
 	d_cursor_hash_remove(&cursor->info->table, cursor);
+	/* and free it */
 	kmem_cache_free(d_cursor_slab, cursor);
 	-- d_cursor_unused;
 }
 
+/* possible actions that can be performed on all cursors for the given file */
 enum cursor_action {
+	/* load all detached state: this is called when stat-data is loaded
+	 * from the disk to recover information about all pending readdirs */
 	CURSOR_LOAD,
+	/* detach all state from inode, leaving it in the cache. This is
+	 * called when inode is removed form the memory by memory pressure */
 	CURSOR_DISPOSE,
+	/* detach cursors from the inode, and free them. This is called when
+	 * inode is destroyed. */
 	CURSOR_KILL
 };
 
@@ -1301,11 +1311,14 @@ process_cursors(struct inode *inode, enum cursor_action act)
 	spin_lock_inode(inode);
 	head = get_readdir_list(inode);
 	spin_lock(&d_lock);
+	/* find any cursor for this oid: reference to it is hanging of radix
+	 * tree */
 	start = lookup(info, (unsigned long)oid);
 	if (start != NULL) {
 		dir_cursor *scan;
 		reiser4_file_fsdata *fsdata;
 
+		/* process circular list of cursors for this oid */
 		scan = start;
 		do {
 			dir_cursor *next;
@@ -1342,23 +1355,34 @@ process_cursors(struct inode *inode, enum cursor_action act)
 	reiser4_exit_context(&ctx);
 }
 
+/* detach all cursors from inode. This is called when inode is removed from
+ * the memory by memory pressure */
 reiser4_internal void dispose_cursors(struct inode *inode)
 {
 	process_cursors(inode, CURSOR_DISPOSE);
 }
 
+/* attach all detached cursors to the inode. This is done when inode is loaded
+ * into memory */
 reiser4_internal void load_cursors(struct inode *inode)
 {
 	process_cursors(inode, CURSOR_LOAD);
 }
 
+/* free all cursors for this inode. This is called when inode is destroyed. */
 reiser4_internal void kill_cursors(struct inode *inode)
 {
 	process_cursors(inode, CURSOR_KILL);
 }
 
+/* global counter used to generate "client ids". These ids are encoded into
+ * high bits of fpos. */
 static __u32 cid_counter = 0;
 
+/*
+ * detach fsdata (if detachable) from file descriptor, and put cursor on the
+ * "unused" list. Called when file descriptor is not longer in active use.
+ */
 static void
 clean_fsdata(struct file *f)
 {
@@ -1383,6 +1407,7 @@ clean_fsdata(struct file *f)
 	}
 }
 
+/* add detachable readdir state to the @f */
 static int
 insert_cursor(dir_cursor *cursor, struct file *f, struct inode *inode)
 {
@@ -1432,6 +1457,7 @@ insert_cursor(dir_cursor *cursor, struct file *f, struct inode *inode)
 	return result;
 }
 
+/* find or create cursor for readdir-over-nfs */
 static int
 try_to_attach_fsdata(struct file *f, struct inode *inode)
 {
@@ -1449,6 +1475,10 @@ try_to_attach_fsdata(struct file *f, struct inode *inode)
 	pos = f->f_pos;
 	result = 0;
 	if (pos == 0) {
+		/*
+		 * first call to readdir (or rewind to the beginning of
+		 * directory)
+		 */
 		cursor = kmem_cache_alloc(d_cursor_slab, GFP_KERNEL);
 		if (cursor != NULL)
 			result = insert_cursor(cursor, f, inode);
@@ -1463,7 +1493,9 @@ try_to_attach_fsdata(struct file *f, struct inode *inode)
 		spin_lock(&d_lock);
 		cursor = d_cursor_hash_find(&d_info(inode)->table, &key);
 		if (cursor != NULL) {
+			/* cursor was found */
 			if (cursor->ref == 0) {
+				/* move it from unused list */
 				a_cursor_list_remove_clean(cursor);
 				-- d_cursor_unused;
 			}
@@ -1482,6 +1514,7 @@ try_to_attach_fsdata(struct file *f, struct inode *inode)
 	return result;
 }
 
+/* detach fsdata, if necessary */
 static void
 detach_fsdata(struct file *f)
 {
@@ -1496,6 +1529,9 @@ detach_fsdata(struct file *f)
 	spin_unlock_inode(inode);
 }
 
+/*
+ * prepare for readdir.
+ */
 static int
 dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 {
@@ -1507,25 +1543,28 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	inode = f->f_dentry->d_inode;
 	assert("nikita-1360", inode != NULL);
 
+	if (!S_ISDIR(inode->i_mode))
+		return RETERR(-ENOTDIR);
+
+	/* try to find detached readdir state */
 	result = try_to_attach_fsdata(f, inode);
 	if (result != 0)
 		return result;
-
-	if (!S_ISDIR(inode->i_mode))
-		return RETERR(-ENOTDIR);
 
 	fsdata = reiser4_get_file_fsdata(f);
 	assert("nikita-2571", fsdata != NULL);
 	if (IS_ERR(fsdata))
 		return PTR_ERR(fsdata);
 
+	/* add file descriptor to the readdir list hanging of directory
+	 * inode. This list is used to scan "readdirs-in-progress" while
+	 * inserting or removing names in the directory. */
 	spin_lock_inode(inode);
 	if (readdir_list_is_clean(fsdata))
 		readdir_list_push_front(get_readdir_list(inode), fsdata);
 	*pos = &fsdata->dir.readdir;
 	spin_unlock_inode(inode);
 
-	IF_TRACE(TRACE_DIR, print_dir_pos("readdir", &(*pos)->position));
 	ON_TRACE(TRACE_DIR, " fpos: %llu entry_no: %llu\n",
 		 (*pos)->entry_no, (*pos)->fpos);
 
@@ -1716,6 +1755,7 @@ estimate_rem_entry_common(struct inode *inode)
 	return estimate_one_item_removal(tree_by_inode(inode));
 }
 
+/* placeholder for VFS methods not-applicable to the object */
 static ssize_t
 noperm(void)
 {
