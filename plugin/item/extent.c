@@ -1946,17 +1946,17 @@ int extent_write (struct inode * inode, coord_t * coord,
 		  lock_handle * lh, flow_t * f, struct page * page)
 {
 	int result;
-	reiser4_block_nr file_off; /* offset within a file we write to */
-
 
 	result = 0;
 	while (f->length) {
 		if (f->data) {
 			assert ("vs-586", !page);
 			assert ("vs-700", f->user == 1);
-			file_off = get_key_offset (&f->key);
-			page = grab_cache_page (inode->i_mapping,
-						(unsigned long)(file_off >> PAGE_CACHE_SHIFT));
+
+			page = grab_cache_page (
+				inode->i_mapping,
+				(unsigned long)(get_key_offset (&f->key) >>
+						PAGE_CACHE_SHIFT));
 			if (!page) {
 				return -ENOMEM;
 			}
@@ -1973,9 +1973,9 @@ int extent_write (struct inode * inode, coord_t * coord,
 			result = write_flow_to_page (coord, lh, f, page);
 		}
 		if (f->data) {
-			/* page was grabbed here */
 			unlock_page (page);
 			page_cache_release (page);
+			page = 0;
 		}
 		if (result)
 			break;
@@ -2211,7 +2211,7 @@ int extent_readpage (void * vp, struct page * page)
 	jnode * j;
 
 
-	blocksize = reiser4_get_current_sb ()->s_blocksize;
+	blocksize = current_blocksize;
 
 	arg = vp;
 	/* get or create jnode for a page */
