@@ -341,7 +341,7 @@ check_make_extent_result(int result, reiser4_key *key, lock_handle *lh, reiser4_
 	if (result != 0) {
 		return;
 	}
-	       
+	
 	assert("vs-960", znode_is_write_locked(lh->node));
 	zload(lh->node);
 	result = lh->node->nplug->lookup(lh->node, key, FIND_EXACT, &coord);
@@ -567,12 +567,15 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			result = PTR_ERR(j);
 			goto exit1;
 		}
-		if (created) {
-			/* extent corresponding to this jnode was just created */
-			assert("vs-1504", *jnode_get_block(j) == 0);
-			UNDER_SPIN_VOID(jnode, j, JF_SET(j, JNODE_CREATED));
-			jnode_set_block(j, &blocknr);		
-		}
+		LOCK_JNODE(j);
+		/* extent corresponding to this jnode was just created */
+		assert("vs-1504",
+		       *jnode_get_block(j) == 0 ||
+		       *jnode_get_block(j) == blocknr);
+		jnode_set_block(j, &blocknr);		
+		if (created)
+			JF_SET(j, JNODE_CREATED);
+		UNLOCK_JNODE(j);
 
 		move_flow_forward(flow, count);
 		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
