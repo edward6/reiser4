@@ -218,71 +218,42 @@ emergency_flush(struct page *page)
 			blocknr_hint_done(&hint);
 		} else {
 			txn_atom *atom;
-			flush_queue_t *fq = NULL;
+			flush_queue_t *fq;
 
 			/* eflush without allocation temporary location for a node */
 			trace_on(TRACE_EFLUSH, "flushing to relocate place: %llu..", *jnode_get_block(node));
 			
-			/*
-			 * FIXME-VS: this is temporary
-			 */
-
 			/* get flush queue for this node */
-			while (1) {
-				assert("vs-1140", spin_jnode_is_locked(node));
+			result = fq_by_jnode(node, &fq);
 
-				atom = atom_get_locked_by_jnode(node);
-				spin_unlock_jnode(node);
-
-				if (atom == NULL)
-					break;
-
-				result = fq_by_atom(atom, &fq);
-				if (result) {
-					assert("zam-745", !spin_atom_is_locked(atom));
-					if (result == -EAGAIN) {
-						spin_lock_jnode(node);
-						continue;
-					}
-					trace_on(TRACE_EFLUSH, "failure-4\n");
-					break;
-				}
-
-				assert("zam-745", spin_atom_is_locked(atom));
-				spin_lock_jnode(node);
-				
-				if (node->atom == atom) {
-					if (!flushable(node, page) || needs_allocation(node)) {
-						trace_on(TRACE_EFLUSH, "failure-3\n");
-						spin_unlock_jnode(node);
-						spin_unlock_atom(atom);
-						break;
-					}
-					/* ok, now we can flush it */
-					reiser4_unlock_page(page);
-
-					queue_jnode(fq, node);
-					spin_unlock_jnode(node);
-					spin_unlock_atom(atom);
-
-					result = write_fq(fq, 0);
-					trace_on(TRACE_EFLUSH, "flushed %d blocks\n", result);
-					result = 1; /* Even if we wrote nothing,
-						       We unlocked the page, so
-						       let know to the caller
-						       that page should not be
-						       unlocked again */
-
-					fq_put(fq);
-					break;
-				}
-
-				fq_put(fq);
-				fq = NULL;
-
-				spin_unlock_atom(atom);
+			if (result) {
+				return result;
 			}
-			
+
+			atom = node->atom;
+
+			if (!flushable(node, page) || needs_allocation(node) || !jnode_is_dirty(node)) {
+				trace_on(TRACE_EFLUSH, "failure-3\n");
+				spin_unlock_jnode(node);
+				spin_unlock_atom(atom);
+				fq_put(fq);
+				return 0;
+			}
+
+			/* ok, now we can flush it */
+			reiser4_unlock_page(page);
+
+			queue_jnode(fq, node);
+
+			spin_unlock_jnode(node);
+			spin_unlock_atom(atom);
+
+			result = write_fq(fq, 0);
+			trace_on(TRACE_EFLUSH, "flushed %d blocks\n", result);
+			/* Even if we wrote nothing, We unlocked the page, so let know to the caller that page should
+			   not be unlocked again */
+			result = 1; 
+			fq_put(fq);
 		}
 		
 	} else {

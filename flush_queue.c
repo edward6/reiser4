@@ -887,17 +887,19 @@ scan_and_write_fq(flush_queue_t * fq, int how_many)
 	return write_fq(fq, how_many);
 }
 
-/* get a flush queue for an atom pointed by given jnode; returns both atom and
- * jnode locked and found and took exclusive access for flush queue object.  */
+/* get a flush queue for an atom pointed by given jnode (spin-locked) ; returns
+ * both atom and jnode locked and found and took exclusive access for flush
+ * queue object.  */
 int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 {
 	txn_atom * atom;
 	int ret;
 
+	assert("zam-835", spin_jnode_is_locked(node));
+
 	*fq = NULL;
 
 	while (1) {
-		spin_lock_jnode(node);
 		atom = atom_get_locked_by_jnode(node);
 		spin_unlock_jnode(node);
 
@@ -913,7 +915,7 @@ int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 
 		if (ret) {
 			if (ret == -EAGAIN)
-				continue;
+				goto lock_again;
 			return ret;
 		}
 
@@ -922,11 +924,15 @@ int fq_by_jnode (jnode * node, flush_queue_t ** fq)
 		if (node->atom == atom)
 			break;	/* we got it all */
 
+		spin_unlock_jnode(node);
+
 		fq_put(*fq);
 		fq = NULL;
 
-		spin_unlock_jnode(node);
 		spin_unlock_atom(atom);
+
+	lock_again:
+		spin_lock_jnode(node);
 	}
 
 	return 0;
@@ -979,7 +985,8 @@ int writeback_queued_jnodes(struct super_block *s, jnode * node)
 	int ret;
 
 	assert ("zam-790", node != NULL);
-		
+
+	spin_lock_jnode(node);
 	ret = fq_by_jnode(node, &fq);
 
 	if (ret || !fq)
