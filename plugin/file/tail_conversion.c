@@ -183,6 +183,7 @@ reserve_tail2extent_iteration(struct inode *inode)
 		 BA_CAN_COMMIT);
 }
 
+/* this is used by tail2extent and extent2tail to detect where previous uncompleted conversion stopped */
 static int
 find_start(struct inode *object, reiser4_plugin_id id, __u64 *offset)
 {
@@ -205,7 +206,7 @@ find_start(struct inode *object, reiser4_plugin_id id, __u64 *offset)
 
 		if (result == CBK_COORD_FOUND) {
 			if (coord.between == AT_UNIT) {
-				coord_clear_iplug(&coord);
+				/*coord_clear_iplug(&coord);*/
 				result = zload(coord.node);
 				if (result == 0) {
 					if (item_id_by_coord(&coord) == id)
@@ -243,21 +244,13 @@ tail2extent(unix_file_info_t *uf_info)
 	int first_iteration;
 	int bytes;
 
-	assert("nikita-3362", ea_obtained(uf_info));
-
-	inode = unix_file_info_to_inode(uf_info);
-
-	assert("nikita-3412", !IS_RDONLY(inode));
-
-	if (uf_info->container == UF_CONTAINER_EXTENTS) {
-		warning("vs-1171",
-			"file %llu is built of tails already. Should not happen",
-			get_inode_oid(inode));
-		return 0;
-	}
-
 	/* collect statistics on the number of tail2extent conversions */
 	reiser4_stat_inc(file.tail2extent);
+
+	assert("nikita-3362", ea_obtained(uf_info));
+	inode = unix_file_info_to_inode(uf_info);
+	assert("nikita-3412", !IS_RDONLY(inode));
+	assert("vs-1649", uf_info->container != UF_CONTAINER_EXTENTS);
 
 	offset = 0;
 	if (inode_get_flag(inode, REISER4_PART_CONV)) {
@@ -448,7 +441,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 		assert("vs-957", ergo(result == CBK_COORD_NOTFOUND, get_key_offset(&f.key) == 0));
 		assert("vs-958", ergo(result == CBK_COORD_FOUND, get_key_offset(&f.key) != 0));
 
-		coord_clear_iplug(coord);
+		/*coord_clear_iplug(coord);*/
 		result = zload(coord->node);
 		if (result)
 			break;
@@ -528,8 +521,10 @@ extent2tail(unix_file_info_t *uf_info)
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_inc(file.extent2tail);
 
+	assert("nikita-3362", ea_obtained(uf_info));
 	inode = unix_file_info_to_inode(uf_info);
 	assert("nikita-3412", !IS_RDONLY(inode));
+	assert("vs-1649", uf_info->container != UF_CONTAINER_TAILS);
 
 	offset = 0;
 	if (inode_get_flag(inode, REISER4_PART_CONV)) {
@@ -656,7 +651,7 @@ find_first_item(struct inode *inode)
 	result = find_file_item_nohint(&coord, &lh, &key, ZNODE_READ_LOCK, inode);
 	if (result == CBK_COORD_FOUND) {
 		if (coord.between == AT_UNIT) {
-			coord_clear_iplug(&coord);
+			/*coord_clear_iplug(&coord);*/
 			result = zload(coord.node);
 			if (result == 0) {
 				result = item_id_by_coord(&coord);
