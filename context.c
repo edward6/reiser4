@@ -37,7 +37,7 @@ struct {
 void get_context_ok(reiser4_context *ctx)
 {
 	int i;
-	void *addr, *frame;
+	void *addr = NULL, *frame = NULL;
 
 #define FRAME(nr)						\
 	case (nr):						\

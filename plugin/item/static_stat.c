@@ -153,6 +153,8 @@ unknown_plugin(reiser4_plugin_id id /* invalid id */ ,
 	return RETERR(-EINVAL);
 }
 
+#if 0 /* Item alignment is not yet supported  */
+
 /* helper function used while storing/loading inode/plugin data to/from
     stat-data. Move current coord in stat-data ("area") to position
     aligned up to "alignment" bytes. */
@@ -176,6 +178,8 @@ align(struct inode *inode /* object being processed */ ,
 		next_stat(length, area, delta);
 	return 0;
 }
+
+#endif /* 0 */
 
 /* this is installed as ->init_inode() method of
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c).
