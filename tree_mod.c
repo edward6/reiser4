@@ -20,7 +20,7 @@ extern int reiser4_alloc_block( znode *neighbor, reiser4_block_nr *blocknr );
 		warning( ##args )
 
 /**
- * allocate new node on the @level and immedately on the right of @brother.
+ * allocate new node on the @level and immediately on the right of @brother.
  *
  */
 znode *new_node( znode *brother /* existing left neighbor of new node */, 
@@ -61,9 +61,9 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 		assert( "nikita-933", result -> nplug != NULL );
 			
 		retcode = zinit_new( result );
-		zrelse( result );
-
-		if( retcode != 0 ) 
+		if( retcode == 0 )
+			zrelse( result );
+		else
 			result = ERR_PTR( retcode );
 	} else {
 		/*
@@ -287,6 +287,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 					node_is_empty( old_root ) );
 				ZF_SET( old_root, ZNODE_HEARD_BANSHEE );
 				atomic_set( &old_root -> c_count, 0 );
+				zrelse( old_root );
 			}
 		}
 		done_lh( &handle_for_fake );

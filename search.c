@@ -474,6 +474,9 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 
 	if( !coord_of_unit( coord ) )
 		return -ENOENT;
+	result = zload( coord -> node );
+	if( result != 0 )
+		return result;
 	while( ( result = actor( tree, coord, lh, arg ) ) > 0 ) {
 		/*
 		 * move further 
@@ -491,10 +494,14 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 				result = reiser4_get_right_neighbor
 					( &couple, coord -> node, ( int ) mode, 
 					  GN_DO_READ );
+				zrelse( coord -> node );
 				if( result == 0 ) {
 					done_lh( lh );
 					done_coord( coord );
 
+					result = zload( couple.node );
+					if( result != 0 )
+						return result;
 					coord_first_unit( coord, couple.node );
 					move_lh( lh, &couple );
 				} else
@@ -506,6 +513,7 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 			coord_next_item( coord );
 		assert( "nikita-1149", coord_of_unit( coord ) );
 	}
+	zrelse( coord -> node );
 	return result;
 }
 
@@ -1280,7 +1288,8 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 
 	reiser4_stat_tree_add( check_left_nonuniq );
 	h -> result = reiser4_get_left_neighbor( &lh, node, 
-						 ( int ) h -> lock_mode, 0 );
+						 ( int ) h -> lock_mode, 
+						 GN_DO_READ );
 	neighbor = NULL;
 	switch( h -> result ) {
 	case -EDEADLK:
