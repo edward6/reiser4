@@ -63,6 +63,7 @@ extern int aal_llutoa(unsigned long long d, size_t n, char *a, int base, int fla
 extern int aal_stoa(int d, size_t n, char *a, int base, int flags);
 extern int aal_lstoa(long int d, size_t n, char *a, int base, int flags);
 extern int aal_llstoa(long long d, size_t n, char *a, int base, int flags);
+extern void aal_strup(char *dst, const char *src);
 
 #endif
 

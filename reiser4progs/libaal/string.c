@@ -176,6 +176,19 @@ char *aal_strndup(const char *s, size_t n) {
 
 #endif
 
+void aal_strnup(char *dst, const char *src) {
+    char *s;
+    int i = 0;
+
+    s = src;
+    while (*s) {
+	dst[i++] = toupper(*s);
+	s++;
+    }
+    
+    dst[i] = '\0';
+}
+
 /* Converts string denoted as size into digits */
 
 #define CONV_DEC_RANGE 1000000000

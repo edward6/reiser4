@@ -226,15 +226,20 @@ static aal_list_t *list = NULL;
 
 static char *progs_exception_generator(char *text, int state) {
     char *opt;
+    char s[80], s1[80];
     
     if (!state)
 	list = options;
     
     while (list) {
+	aal_memset(s, 0, sizeof(s));
+	aal_memset(s1, 0, sizeof(s1));
+	
 	opt = (char *)list->item;
 	list = list->next;
-	
-	if (!aal_strncmp(opt, text, aal_strlen(text)))
+
+	aal_strnup(s, opt); aal_strnup(s1, text);
+	if (!aal_strncmp(s, s1, aal_strlen(s1)))
 	    return aal_strndup(opt);
     }
     
