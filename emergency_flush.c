@@ -127,13 +127,24 @@
 #include "jnode.h"
 #include "znode.h"
 #include "super.h"
+#include "block_alloc.h"
 #include "emergency_flush.h"
 
 #include <linux/mm.h>
 #include <linux/writeback.h>
 #include <linux/slab.h>
 
-static int flushable(const jnode * node);
+static int flushable(const jnode * node, struct page *page);
+static eflush_node_t *ef_alloc(int flags);
+static reiser4_ba_flags_t ef_block_flags(const jnode *node);
+static int ef_free_block(jnode *node, const reiser4_block_nr *blk);
+static int ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **enode);
+static int eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef);
+
+/* slab for eflush_node_t's */
+static kmem_cache_t *eflush_slab;
+
+#define EFLUSH_START_BLOCK ((reiser4_block_nr)0)
 
 /* try to flush @page to the disk */
 int
@@ -142,11 +153,17 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 	struct super_block *sb;
 	jnode *node;
 	int result;
+	reiser4_block_nr blk;
+	eflush_node_t *efnode;
 
 	assert("nikita-2721", page != NULL);
 	assert("nikita-2722", wbc != NULL);
 	assert("nikita-2723", PageDirty(page));
 	assert("nikita-2724", PageLocked(page));
+
+	/*
+	 * Page is locked, hence page<->jnode mapping cannot change.
+	 */
 
 	sb = page->mapping->host->i_sb;
 	node = jprivate(page);
@@ -158,48 +175,64 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 	reiser4_stat_add_at_level(jnode_get_level(node), emergency_flush);
 
 	result = 0;
+	blk = 0ull;
+	efnode = NULL;
 	spin_lock_jnode(node);
-	if (flushable(node)) {
-		int sendit;
+	if (flushable(node, page)) {
+		result = ef_prepare(node, &blk, &efnode);
+		if (flushable(node, page) && result == 0 && 
+		    test_clear_page_dirty(page)) {
+			assert("nikita-2759", efnode != NULL);
+			eflush_add(node, &blk, efnode);
 
-		sendit = 0;
-		if (JF_ISSET(node, JNODE_RELOC)) {
-			if (!blocknr_is_fake(jnode_get_block(node))) {
-				/* not very likely case: @node is in relocate
-				   set, block number is already assigned, but
-				   @node wasn't yet submitted for io.
-				*/
-				sendit = 1;
-			} else {
-			}
-		} else if (JF_ISSET(node, JNODE_RELOC)) {
-		} else {
-		}
-		if (sendit) {
+			spin_unlock_jnode(node);
+
+			/* FIXME-NIKITA JNODE_WRITEBACK bit is not set here */
 			result = page_io(page, 
 					 node, WRITE, GFP_NOFS | __GFP_HIGH);
-			if (result == 0)
+			if (result == 0) {
 				--wbc->nr_to_write;
+				result = 1;
+			} else
+				/* 
+				 * XXX may be set_page_dirty() should be called
+				 */
+				__set_page_dirty_nobuffers(page);
+		} else {
+			spin_unlock_jnode(node);
+			if (blk != 0ull)
+				ef_free_block(node, &blk);
+			if (efnode != NULL)
+				kmem_cache_free(eflush_slab, efnode);
 		}
 	}
-	spin_unlock_jnode(node);
 	jput(node);
 	return result;
 }
 
 static int
-flushable(const jnode * node)
+flushable(const jnode * node, struct page *page)
 {
 	assert("nikita-2725", node != NULL);
 	assert("nikita-2726", spin_jnode_is_locked(node));
 
-	if (atomic_read(&node->d_count) != 0)
+	if (atomic_read(&node->d_count) != 0)   /* used */
 		return 0;
-	if (jnode_is_loaded(node))
+	if (jnode_is_loaded(node))              /* loaded */
 		return 0;
-	if (JF_ISSET(node, JNODE_FLUSH_QUEUED))
+	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) /* already pending io */
 		return 0;
-	if (jnode_is_znode(node) && znode_is_locked(JZNODE(node)))
+	if (PageWriteback(page))                /* already under io */
+		return 0;
+	/* don't flush bitmaps or journal records */
+	if (!jnode_is_znode(node) && !jnode_is_unformatted(node))
+		return 0;
+	if (JF_ISSET(node, JNODE_EFLUSH))       /* already flushed */
+		return 0;
+	/* jnode is in relocate set and already has block number
+	 * assigned. Skip it to avoid complications with flush queue code. */
+	if (JF_ISSET(node, JNODE_RELOC) &&
+	    !blocknr_is_fake(jnode_get_block(node)))
 		return 0;
 	return 1;
 }
@@ -217,7 +250,7 @@ static inline __u32
 jnode_hfn(jnode * const * j)
 {
 	assert("nikita-2735", j != NULL);
-	return ((unsigned long)*j) / sizeof(**j);
+	return (((unsigned long)*j) / sizeof(**j)) & (REISER4_EF_HASH_SIZE - 1);
 }
 
 struct eflush_node {
@@ -232,9 +265,6 @@ struct eflush_node {
 TS_HASH_DEFINE(ef, eflush_node_t, jnode *, node, linkage, jnode_hfn, jnode_eq);
 #undef KFREE
 #undef KMALLOC
-
-/* slab for eflush_node_t's */
-static kmem_cache_t *eflush_slab;
 
 int 
 eflush_init(void)
@@ -277,24 +307,35 @@ get_jnode_enhash(const jnode *node)
 	return &get_super_private(super)->efhash_table;
 }
 
-int
-eflush_add(jnode *node, reiser4_block_nr *blocknr)
+static eflush_node_t *
+ef_alloc(int flags)
 {
-	eflush_node_t *ef;
+	return kmem_cache_alloc(eflush_slab, flags);
+}
 
+static int
+eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
+{
 	assert("nikita-2737", node != NULL);
 	assert("nikita-2738", !JF_ISSET(node, JNODE_EFLUSH));
+	assert("nikita-2765", spin_jnode_is_locked(node));
 
-	ef = kmem_cache_alloc(eflush_slab, GFP_NOFS);
+	if (ef == NULL)
+		ef = ef_alloc(GFP_NOFS);
 	if (ef != NULL) {
 		ef->node = node;
 		ef->blocknr = *blocknr;
-		ef_hash_insert(get_jnode_enhash(node), ef);
+		jref(node);
+		UNDER_SPIN_VOID(tree, jnode_get_tree(node),
+				ef_hash_insert(get_jnode_enhash(node), ef));
 		JF_SET(node, JNODE_EFLUSH);
 		return 0;
 	} else
 		return -ENOMEM;
 }
+
+/* Arrghh... cast to keep hash table code happy. */
+#define C(node) ((jnode *const *)&(node))
 
 reiser4_block_nr *
 eflush_get(const jnode *node)
@@ -303,8 +344,11 @@ eflush_get(const jnode *node)
 
 	assert("nikita-2740", node != NULL);
 	assert("nikita-2741", JF_ISSET(node, JNODE_EFLUSH));
+	assert("nikita-2767", spin_jnode_is_locked(node));
 
-	ef = ef_hash_find(get_jnode_enhash(node), (jnode *const *)&node);
+	ef = UNDER_SPIN(tree, jnode_get_tree(node),
+			ef_hash_find(get_jnode_enhash(node), C(node)));
+
 	assert("nikita-2742", ef != NULL);
 	return &ef->blocknr;
 }
@@ -314,17 +358,130 @@ eflush_del(jnode *node)
 {
 	eflush_node_t *ef;
 	ef_hash_table *table;
+	reiser4_tree  *tree;
 
 	assert("nikita-2743", node != NULL);
+	assert("nikita-2770", spin_jnode_is_locked(node));
 
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
+		reiser4_block_nr blk;
+
 		table = get_jnode_enhash(node);
-		ef = ef_hash_find(table, (jnode *const *)&node);
+
+		tree = jnode_get_tree(node);
+
+		spin_lock_tree(tree);
+		ef = ef_hash_find(table, C(node));
 		assert("nikita-2745", ef != NULL);
+		blk = ef->blocknr;
 		ef_hash_remove(table, ef);
-		kmem_cache_free(eflush_slab, ef);
+		spin_unlock_tree(tree);
+
 		JF_CLR(node, JNODE_EFLUSH);
+		spin_unlock_jnode(node);
+		ef_free_block(node, &blk);
+		assert("nikita-2766", atomic_read(&node->x_count) > 1);
+		jput(node);
+		kmem_cache_free(eflush_slab, ef);
+		spin_lock_jnode(node);
 	}
+}
+
+int
+emergency_unflush(jnode *node)
+{
+	int result;
+
+	assert("nikita-2778", node != NULL);
+
+	if (JF_ISSET(node, JNODE_EFLUSH)) {
+		result = jload(node);
+		if (result == 0) {
+			struct page *page;
+
+			assert("nikita-2777", !JF_ISSET(node, JNODE_EFLUSH));
+			page = jnode_page(node);
+			assert("nikita-2779", page != NULL);
+			wait_on_page_writeback(page);
+			jrelse(node);
+		}
+	} else
+		result = 0;
+	return result;
+}
+
+static reiser4_ba_flags_t
+ef_block_flags(const jnode *node)
+{
+	return jnode_is_znode(node) ? BA_FORMATTED : 0;
+}
+
+static int ef_free_block(jnode *node, const reiser4_block_nr *blk)
+{
+	block_stage_t stage;
+	int result = 0;
+
+	stage = blocknr_is_fake(jnode_get_block(node)) ? 
+		BLOCK_UNALLOCATED : BLOCK_GRABBED;
+
+	/* We cannot just ask block allocator to return block into flush
+	 * reserved space, because there is no current atom at this point. */
+	result = reiser4_dealloc_block(blk, stage, ef_block_flags(node));
+	if (result == 0 && stage == BLOCK_GRABBED) {
+		txn_atom *atom;
+
+		/* further, transfer block from grabbed into flush reserved
+		 * space. */
+		atom = atom_get_locked_by_jnode(node);
+		assert("nikita-2785", atom != NULL);
+		grabbed2flush_reserved_nolock(atom, 1);
+		spin_unlock_atom(atom);
+	}
+	return result;
+}
+
+static int ef_prepare(jnode *node, reiser4_block_nr *blk, 
+		      eflush_node_t **efnode)
+{
+	int result;
+	reiser4_block_nr     one;
+	reiser4_blocknr_hint hint;
+
+	assert("nikita-2760", node != NULL);
+	assert("nikita-2761", blk != NULL);
+	assert("nikita-2762", efnode != NULL);
+	assert("nikita-2763", spin_jnode_is_locked(node));
+
+	one = 1ull;
+
+	hint.blk         = EFLUSH_START_BLOCK;
+	hint.max_dist    = 0;
+	hint.level       = jnode_get_level(node);
+	if (blocknr_is_fake(jnode_get_block(node)))
+		hint.block_stage = BLOCK_UNALLOCATED;
+	else {
+		txn_atom *atom;
+
+		/* We cannot just ask block allocator to take block from flush
+		 * reserved space, because there is no current atom at this
+		 * point. */
+		atom = atom_get_locked_by_jnode(node);
+		assert("nikita-2785", atom != NULL);
+		flush_reserved2grabbed(atom, 1);
+		spin_unlock_atom(atom);
+		hint.block_stage = BLOCK_GRABBED;
+	}
+
+	spin_unlock_jnode(node);
+
+	result = reiser4_alloc_blocks(&hint, blk, &one, ef_block_flags(node));
+	if (result == 0) {
+		*efnode = ef_alloc(GFP_NOFS | __GFP_HIGH);
+		if (*efnode == NULL)
+			result = -ENOMEM;
+	}
+	spin_lock_jnode(node);
+	return result;
 }
 
 /* Make Linus happy.

@@ -9,12 +9,17 @@ struct eflush_node;
 typedef struct eflush_node eflush_node_t;
 TS_HASH_DECLARE(ef, eflush_node_t);
 
+int eflush_init(void);
+int eflush_done(void);
+
 extern int  eflush_init_at(struct super_block *super);
 extern void eflush_done_at(struct super_block *super);
 
-extern int eflush_add(jnode *node, reiser4_block_nr *blocknr);
 extern reiser4_block_nr *eflush_get(const jnode *node);
 extern void eflush_del(jnode *node);
+
+int emergency_flush(struct page *page, struct writeback_control *wbc);
+int emergency_unflush(jnode *node);
 
 /* __EMERGENCY_FLUSH_H__ */
 #endif
