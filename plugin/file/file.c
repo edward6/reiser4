@@ -2307,6 +2307,9 @@ init_inode_data_unix_file(struct inode *inode,
 reiser4_internal int
 pre_delete_unix_file(struct inode *inode)
 {
+	/* FIXME: put comment here */
+	/*if (inode->i_size == 0)
+	  return 0;*/
 	return truncate_file(inode, 0/* size */, 0/* no stat data update */);
 }
 
