@@ -524,6 +524,7 @@ int page_io( struct page *page, int rw, int gfp )
 		if( rw == WRITE ) {
 			assert( "nikita-2225", !PageWriteback( page ) );
 			SetPageWriteback( page );
+			unlock_page(page);
 		}
 		submit_bio( rw, bio );
 		result = 0;

@@ -4545,7 +4545,6 @@ void end_page_writeback(struct page *page)
 {
 	if (!TestClearPageWriteback(page))
 		BUG();
-	unlock_page (page);
 }
 
 int block_sync_page(struct page *page)
