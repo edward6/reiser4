@@ -447,7 +447,7 @@ void *xmemset( void *s, int c, size_t n )
 
 
 /** 
- * completion handler for single page bio-based io. 
+ * completion handler for single page bio-based read. 
  *
  * mpage_end_io_read() would also do. But it's static.
  *
@@ -468,6 +468,12 @@ static void end_bio_single_page_read( struct bio *bio )
 	bio_put( bio );
 }
 
+/** 
+ * completion handler for single page bio-based write. 
+ *
+ * mpage_end_io_write() would also do. But it's static.
+ *
+ */
 static void end_bio_single_page_write( struct bio *bio )
 {
 	struct page *page;
@@ -562,7 +568,7 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 		super = page -> mapping -> host -> i_sb;
 		assert( "nikita-2029", super != NULL );
 		blksz = super -> s_blocksize;
-		assert( "nikita-2028", blksz == (int)PAGE_CACHE_SIZE );
+		assert( "nikita-2028", blksz == ( int ) PAGE_CACHE_SIZE );
 
 		bio -> bi_sector = *jnode_get_block( node ) * ( blksz >> 9 );
 		bio -> bi_bdev   = super -> s_bdev;

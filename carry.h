@@ -332,9 +332,15 @@ carry_node *add_new_znode( znode *brother, carry_node *reference,
 
 /* debugging function */
 
+#if REISER4_DEBUG
 extern void print_carry( const char *prefix, carry_node *node );
 extern void print_op( const char *prefix, carry_op *op );
 extern void print_level( const char *prefix, carry_level *level );
+#else
+#define print_carry( p, n ) noop
+#define print_op( p, o ) noop
+#define print_level( p, l ) noop
+#endif
 
 /* __FS_REISER4_CARRY_H__ */
 #endif

@@ -477,14 +477,12 @@ int jwait_io (jnode * node, int rw)
 	result = 0;
 	if (rw == READ) {
 		wait_on_page_locked (page);
-		if (PageError(page))
-			result = -EIO;
 	} else {
 		assert ("nikita-2227", rw == WRITE);
 		wait_on_page_writeback (page);
-		if (PageError(page))
-			result = -EIO;
 	}
+	if (PageError(page))
+		result = -EIO;
 
 	assert ("nikita-2228", !PageLocked (page));
 
