@@ -807,7 +807,7 @@ int jdelete( jnode *node /* jnode to finish with */ )
 		ClearPageUptodate( page );
 		remove_inode_page( page );
 		page_detach_jnode_nolock( node, page );
-		page_cache_release( node );
+		page_cache_release( page );
 	} else
 		spin_unlock_jnode( node );
 
@@ -864,7 +864,7 @@ void jdrop (jnode * node)
 		assert( "nikita-2181", PageLocked( page ) );
 		remove_inode_page( page );
 		page_detach_jnode_nolock( node, page );
-		page_cache_release( node );
+		page_cache_release( page );
 	} else
 		spin_unlock_jnode( node );
 
