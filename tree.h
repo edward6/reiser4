@@ -73,7 +73,8 @@ typedef enum {
 	LLR_REST
 } level_lookup_result;
 
-typedef int ( *node_read_actor )( const reiser4_block_nr *addr, char **data );
+typedef int ( *node_read_actor )( const reiser4_block_nr *addr, char **data,
+				  size_t blocksize );
 typedef int ( *node_allocate_actor )( znode *node );
 
 /** PUT THIS IN THE SUPER BLOCK
