@@ -80,7 +80,10 @@ struct reiser4_context {
 	context_list_link contexts_link;
 	lock_counters_info locks;
 	int nr_children;	/* number of child contexts */
-	struct task_struct *task;	/* so we can easily find owner of the stack */
+	struct task_struct *task; /* so we can easily find owner of the stack */
+	
+	reiser4_block_nr grabbed_initially;
+	void *grabbed_at;
 #endif
 #if REISER4_DEBUG_NODE
 	int disable_node_check;
