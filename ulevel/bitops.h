@@ -1,6 +1,8 @@
 #ifndef _I386_BITOPS_H
 #define _I386_BITOPS_H
 
+#define CONFIG_SMP 1
+
 /*
  * Copyright 1992, Linus Torvalds.
  */
