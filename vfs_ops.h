@@ -83,7 +83,7 @@ TYPE_SAFE_LIST_DECLARE(readdir);
 /* &reiser4_dentry_fsdata - reiser4-specific data attached to files.
 
    This is allocated dynamically and released in reiser4_release() */
-typedef struct reiser4_file_fsdata {
+struct reiser4_file_fsdata {
 	/* pointer back to the struct file which this reiser4_file_fsdata is
 	 * part of */
 	struct file *back;
@@ -100,7 +100,7 @@ typedef struct reiser4_file_fsdata {
 		void *coord;
 	} reg;
 	struct reiser4_file_ra_state ra;
-} reiser4_file_fsdata;
+};
 
 TYPE_SAFE_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);
 

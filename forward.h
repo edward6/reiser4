@@ -41,9 +41,10 @@ typedef struct blocknr_set blocknr_set;
 typedef struct blocknr_set_entry blocknr_set_entry;
 /* super_block->s_fs_info points to this */
 typedef struct reiser4_super_info_data reiser4_super_info_data;
-/*next two objects are fields of reiser4_super_info_data */
+/* next two objects are fields of reiser4_super_info_data */
 typedef struct reiser4_oid_allocator reiser4_oid_allocator;
 typedef struct reiser4_space_allocator reiser4_space_allocator;
+typedef struct reiser4_file_fsdata reiser4_file_fsdata;
 
 typedef struct flush_scan flush_scan;
 typedef struct flush_position flush_pos_t;
