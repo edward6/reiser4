@@ -433,7 +433,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 	}
 
 	if (likely(neighbor == NULL ||
-		   (znode_get_level(child) == znode_get_level(neighbor))))
+		   (znode_get_level(child) == znode_get_level(neighbor) && child != neighbor)))
 		link_znodes(child, neighbor, to_left);
 	else {
 		warning("nikita-3532",
