@@ -1316,12 +1316,15 @@ static void reiser4_destroy_inode( struct inode *inode /* inode being
 {
 	__REISER4_ENTRY( inode -> i_sb, );
 
-	if( inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
-		assert( "vs-839", S_ISLNK( inode -> i_mode ) );
-		reiser4_kfree( inode -> u.generic_ip, 
-			       ( size_t ) inode -> i_size + 1 );
-		inode -> u.generic_ip = 0;
-		inode_clr_flag( inode, REISER4_GENERIC_VP_USED );
+	if( !is_bad_inode( inode ) && 
+	    inode_get_flag( inode, REISER4_LOADED ) ) {
+		if( inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
+			assert( "vs-839", S_ISLNK( inode -> i_mode ) );
+			reiser4_kfree( inode -> u.generic_ip, 
+				       ( size_t ) inode -> i_size + 1 );
+			inode -> u.generic_ip = 0;
+			inode_clr_flag( inode, REISER4_GENERIC_VP_USED );
+		}
 	}
 	kmem_cache_free( inode_cache, reiser4_inode_data( inode ) );
 
