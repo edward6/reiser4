@@ -747,7 +747,7 @@ reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, size_t count) 
     if (count > file_size) {
 	    /* Requesting the tail_policy plugin for count the amount of
 	     * blocks needed for truncate operation */
-	    return tail_plugin->estimate(inode, count, 1/*is_fake*/) + 1;
+	    return tail_plugin->estimate(inode, count, 1) + 1;
     } else {
 	/* The file is going to decrease itself size, so, we are reserving
 	 * only one block for stat data updating */
@@ -762,9 +762,9 @@ int
 unix_file_truncate(struct inode *inode, loff_t size)
 {
 	int result;
-	reiser4_block_nr reserve;
 	loff_t file_size;
-	reiser4_block_nr needed;
+	reiser4_block_nr reserved, needed;
+
 	inode->i_size = size;
 
 	result = find_file_size(inode, &file_size);
@@ -772,9 +772,8 @@ unix_file_truncate(struct inode *inode, loff_t size)
 		return result;
 	
 	needed = unix_file_estimate_truncate(inode, size);
-	reserve = reiser4_grab_space_exact(needed, 0);
 	
-	if (reserve != 0) {
+	if (reiser4_grab_space_exact(needed, (size <= result)) != 0) {
 //		drop_nonexclusive_access (inode);
 		return -ENOSPC;
 	}
@@ -786,6 +785,7 @@ unix_file_truncate(struct inode *inode, loff_t size)
 	else {
 		result = shorten(inode);
 	}
+	
 	if (!result) {
 		result = reiser4_write_sd(inode);
 		if (result)
@@ -1919,7 +1919,7 @@ unix_file_release(struct file *file)
 		return 0;
 
 	needed = unix_file_estimate_release(inode);
-	result = reiser4_grab_space_exact(needed, 0);
+	result = reiser4_grab_space_exact(needed, 1);
 	
 	if (result != 0) return -ENOSPC;
 	
@@ -1964,8 +1964,14 @@ static struct vm_operations_struct unix_file_vm_ops = {
 
 reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, size_t count) 
 {
+	tail_plugin *tail_plugin;
 	assert("umka-1246", inode != NULL);
-	return inode_file_plugin(inode)->estimate.update(inode);
+	
+	tail_plugin = inode_tail_plugin(inode);
+	assert("umka-1238", tail_plugin != NULL);
+	
+	return tail_plugin->estimate(inode, count, 0) + 
+		inode_file_plugin(inode)->estimate.update(inode) + 1;
 }
 
 /* plugin->u.file.mmap
