@@ -391,13 +391,6 @@ jnode_page(const jnode * node)
 	return node->pg;
 }
 
-/* Get the index of a block. */
-static inline unsigned long
-jnode_get_index(jnode * node)
-{
-	return jnode_page(node)->index;
-}
-
 static inline int
 jnode_is_loaded(const jnode * node)
 {
@@ -551,6 +544,15 @@ jnode_is_unformatted(const jnode * node)
 {
 	assert("jmacd-0123", node != NULL);
 	return jnode_get_type(node) == JNODE_UNFORMATTED_BLOCK;
+}
+
+/* Get the index of a block. */
+static inline unsigned long
+jnode_get_index(jnode * node)
+{
+	assert("vs-1191", jnode_is_unformatted(node));
+	/*return jnode_page(node)->index;*/
+	return node->key.j.index;
 }
 
 /* return true if "node" is the root */
