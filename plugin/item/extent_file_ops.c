@@ -585,12 +585,13 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	oid_t oid;
 	reiser4_tree *tree;
 	reiser4_key page_key;
+	reiser4_block_nr blocknr;
+	int created;
 
 	assert("nikita-3139", !inode_get_flag(inode, REISER4_NO_SD));
 	assert("vs-885", current_blocksize == PAGE_CACHE_SIZE);
 	assert("vs-700", flow->user == 1);
 	assert("vs-1352", flow->length > 0);
-
 
 	tree = tree_by_inode(inode);
 	oid = get_inode_oid(inode);
@@ -608,9 +609,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	page_key = flow->key;
 	set_key_offset(&page_key, (loff_t)page_nr << PAGE_CACHE_SHIFT);
 	do {
-		reiser4_block_nr blocknr;
-		int created;
-
 		if (!grabbed) {
 			result = reserve_extent_write_iteration(inode, tree);
 			if (result)
@@ -634,19 +632,19 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			goto exit1;
 		}
 		LOCK_JNODE(j);
-		/* extent corresponding to this jnode was just created */
-		if (*jnode_get_block(j) == 0) {
-			/* jnode is not initialized */
-			jnode_set_block(j, &blocknr);
-		} else {
-			assert("vs-1508", !blocknr_is_fake(&blocknr));
-			assert("vs-1507", ergo(blocknr, *jnode_get_block(j) == blocknr));
-		}
 		if (created) {
+			/* extent corresponding to this jnode was just created */
+			assert("vs-1504", *jnode_get_block(j) == 0);
 			JF_SET(j, JNODE_CREATED);
 			/* new block is added to file. Update inode->i_blocks and inode->i_bytes. FIXME:
 			   inode_set/get/add/sub_bytes is used to be called by quota macros */
 			inode_add_bytes(inode, PAGE_CACHE_SIZE);
+		}
+		if (*jnode_get_block(j) == 0) {
+			jnode_set_block(j, &blocknr);
+		} else {
+			assert("vs-1508", !blocknr_is_fake(&blocknr));
+			assert("vs-1507", ergo(blocknr, *jnode_get_block(j) == blocknr));
 		}
 		UNLOCK_JNODE(j);
 
@@ -659,11 +657,8 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		page_cache_get(page);
 
-		if (created) {
-			if (!PageUptodate(page))
-				zero_around(page, page_off, count);
-		} else {
-			if (!PageUptodate(page) && write_is_partial(inode, file_off, page_off, count)) {
+		if (!PageUptodate(page) && write_is_partial(inode, file_off, page_off, count)) {
+			if (created == 0 || JF_ISSET(j, JNODE_EFLUSH)) {
 				result = page_io(page, j, READ, GFP_KERNEL);
 				if (result)
 					goto exit3;
@@ -671,9 +666,9 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 				if (!PageUptodate(page))
 					goto exit3;
 			}
-
-			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 		}
+
+		UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 
 		move_flow_forward(flow, count);
 		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
@@ -1253,15 +1248,19 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 		/* extent corresponding to this jnode was just created */
 		assert("vs-1504", *jnode_get_block(j) == 0);
 		JF_SET(j, JNODE_CREATED);
+		/* new block is added to file. Update inode->i_blocks and inode->i_bytes. FIXME:
+		   inode_set/get/add/sub_bytes is used to be called by quota macros */
 		inode_add_bytes(page->mapping->host, PAGE_CACHE_SIZE);
 	}
 
-	/* jnode_of_page() might create new jnode which requires setting its block number.  It is not related to whether
-	   the extent unit is new or not. */
 	if (*jnode_get_block(j) == 0)
 		jnode_set_block(j, &blocknr);		
-
+	else {
+		assert("vs-1508", !blocknr_is_fake(&blocknr));
+		assert("vs-1507", ergo(blocknr, *jnode_get_block(j) == blocknr));
+	}
 	UNLOCK_JNODE(j);
+
 	done_lh(uf_coord->lh);
 
 	LOCK_JNODE(j);
