@@ -130,9 +130,8 @@ static format40_t *format40_open(aal_device_t *host_device,
     }
     
     /* Initializing oid allocator on super block */
-    if (!(format->oid = libreiserfs_plugins_call(goto error_free_journal, oid_plugin->oid, open,
-	get_sb_oid((format40_super_t *)format->super->data),
-	get_sb_file_count((format40_super_t *)format->super->data)))) 
+    if (!(format->oid = libreiserfs_plugins_call(goto error_free_journal, 
+	oid_plugin->oid, open, &((format40_super_t *)format->super->data)->sb_oid, 2))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open oid allocator \"%s\".", oid_plugin->h.label);
@@ -266,8 +265,7 @@ static format40_t *format40_create(aal_device_t *host_device,
     }
     
     if (!(format->oid = libreiserfs_plugins_call(goto error_free_journal, 
-	oid_plugin->oid, open, get_sb_oid((format40_super_t *)format->super->data),
-	get_sb_file_count((format40_super_t *)format->super->data)))) 
+	oid_plugin->oid, open, &((format40_super_t *)format->super->data)->sb_oid, 2))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open oid allocator \"%s\".", oid_plugin->h.label);

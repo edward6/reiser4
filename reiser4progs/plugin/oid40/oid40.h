@@ -16,11 +16,17 @@
 #define REISERFS_OID40_RESERVED			(1 << 16)
 
 struct oid40 {
-    oid_t used;
-    oid_t next;
+    void *area;
+    uint32_t len;
 };
 
 typedef struct oid40 oid40_t;
+
+#define oid40_get_next(area)			LE64_TO_CPU(*((uint64_t *)area))
+#define oid40_set_next(area, val)		(*((uint64_t *)area) = CPU_TO_LE64(val))
+
+#define oid40_get_used(area)			LE64_TO_CPU(*(((uint64_t *)area) + 1))
+#define oid40_set_used(area, val)		(*(((uint64_t *)area) + 1) = CPU_TO_LE64(val))
 
 #endif
 

@@ -361,7 +361,7 @@ typedef struct reiserfs_format_plugin reiserfs_format_plugin_t;
 struct reiserfs_oid_plugin {
     reiserfs_plugin_header_t h;
 
-    reiserfs_opaque_t *(*open) (oid_t, oid_t);
+    reiserfs_opaque_t *(*open) (void *, uint32_t);
     void (*close) (reiserfs_opaque_t *);
     
     oid_t (*alloc) (reiserfs_opaque_t *);
