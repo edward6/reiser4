@@ -1231,6 +1231,13 @@ key_by_inode_and_offset_common(struct inode *inode, loff_t off, reiser4_key *key
 extern xattr_list_head xattr_common_namespaces;
 #endif
 
+/* default implementation of ->sync() method: commit all transactions */
+static int
+sync_common(struct file *file, struct dentry *dentry, int datasync)
+{
+	return txnmgr_force_commit_all(dentry->d_inode->i_sb, 0);
+}
+
 /*
  * Definitions of object plugins.
  */
@@ -1263,6 +1270,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.adjust_to_parent = adjust_to_parent_common,
 		.create = create_common,
 		.delete = delete_file_common,
+		.sync = sync_unix_file,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
 		.owns_item = owns_item_unix_file,
@@ -1325,6 +1333,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.adjust_to_parent = adjust_to_parent_dir,
 		.create = create_common,
 		.delete = delete_directory_common,
+		.sync = sync_common,
 		.add_link = add_link_common,
 		.rem_link = rem_link_common,
 		.owns_item = owns_item_hashed,
@@ -1379,6 +1388,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.release = NULL,
 		.ioctl = eperm,
 		.mmap = eperm,
+		.sync = sync_common,
 		.get_block = NULL,
 		.flow_by_inode = NULL,
 		.key_by_inode = NULL,
@@ -1443,6 +1453,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.release = NULL,
 		.ioctl = eperm,
 		.mmap = eperm,
+		.sync = sync_common,
 		.get_block = NULL,
 		.flow_by_inode = NULL,
 		.key_by_inode = NULL,
@@ -1503,6 +1514,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.release           = release_pseudo,
 		.ioctl             = eperm,
 		.mmap              = eperm,
+		.sync = sync_common,
 		.get_block         = eperm,
 		.flow_by_inode     = NULL,
 		.key_by_inode      = NULL,
@@ -1566,6 +1578,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.ioctl = NULL,
 		.mmap = generic_file_mmap,
 		.get_block = get_block_cryptcompress,
+		.sync = sync_common,
 		.flow_by_inode = flow_by_inode_cryptcompress,
 		.key_by_inode = key_by_inode_cryptcompress,
 		.set_plug_in_inode = set_plug_in_inode_common,

@@ -1095,6 +1095,96 @@ static int capture_anonymous_pages(struct address_space * mapping)
 	return result;
 }
 
+static int
+sync_page(struct page *page)
+{
+	int result;
+	do {
+		jnode *node;
+		txn_atom *atom;
+
+		lock_page(page);
+		node = jprivate(page);
+		if (node != NULL)
+			atom = UNDER_SPIN(jnode, node, jnode_get_atom(node));
+		else
+			atom = NULL;
+		unlock_page(page);
+		result = sync_atom(atom);
+	} while (result == -E_REPEAT);
+	return result;
+}
+
+static int
+sync_page_list(struct inode *inode, struct list_head *pages)
+{
+	int result;
+	struct address_space *mapping;
+	LIST_HEAD(done);
+
+	mapping = inode->i_mapping;
+	result = 0;
+	spin_lock(&mapping->page_lock);
+	while (result == 0 && !list_empty(pages)) {
+		struct page *page;
+
+		page = container_of(pages->next, struct page, list);
+		page_cache_get(page);
+		list_move_tail(&page->list, &done);
+		spin_unlock(&mapping->page_lock);
+		result = sync_page(page);
+		page_cache_release(page);
+		spin_lock(&mapping->page_lock);
+	}
+	/* put remaining pages back */
+	list_splice(&done, pages);
+	spin_unlock(&mapping->page_lock);
+	return result;
+}
+
+static int
+commit_file_atoms(struct inode *inode)
+{
+	int               result;
+	unix_file_info_t *uf_info;
+
+	uf_info = unix_file_inode_data(inode);
+
+	if (inode_get_flag(inode, REISER4_PART_CONV)) {
+		get_exclusive_access(uf_info);
+		result = finish_conversion(inode);
+		drop_exclusive_access(uf_info);
+		if (result != 0)
+			return result;
+	}
+
+	get_nonexclusive_access(uf_info);
+	result = find_file_state(uf_info);
+	drop_nonexclusive_access(uf_info);
+	if (result != 0)
+		return result;
+
+	/*
+	 * file state cannot change because we are under ->i_sem
+	 */
+
+	switch(uf_info->container) {
+	case UF_CONTAINER_EXTENTS:
+		result =
+			sync_page_list(inode, &inode->i_mapping->io_pages) ||
+			sync_page_list(inode, &inode->i_mapping->dirty_pages);
+		break;
+	case UF_CONTAINER_TAILS:
+		result = txnmgr_force_commit_all(inode->i_sb, 0);
+		break;
+	case UF_CONTAINER_UNKNOWN:
+	default:
+		result = -EIO;
+		break;
+	}
+	return result;
+}
+
 /*
  * this file plugin method is called to capture into current atom all
  * "anonymous pages", that is, pages modified through mmap(2). For each such
@@ -1108,18 +1198,15 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 {
 	int               result;
 	unix_file_info_t *uf_info;
-	reiser4_context ctx;
 
 	if (!inode_has_anonymous_pages(inode))
 		return 0;
 
-	init_context(&ctx, inode->i_sb);
-	/* avoid recursive calls to ->sync_inodes */
-	ctx.nobalance = 1;
-	assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
-
 	result = 0;
+
 	do {
+		reiser4_context ctx;
+
 		uf_info = unix_file_inode_data(inode);
 		/*
 		 * locking: creation of extent requires read-semaphore on
@@ -1129,23 +1216,67 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 		 * in write mode) on file A, and this function tries to
 		 * acquire semaphore on (possibly) different file B. A/B
 		 * deadlock is on a way. To avoid this try-lock is used
-		 * here. This however leads to the complications in the
-		 * fsync() case, which are not yet handled.
+		 * here. When invoked from sys_fsync() and sys_fdatasync(),
+		 * this function is out of reiser4 context and may safely
+		 * sleep on semaphore.
 		 */
-		if (rw_latch_try_read(&uf_info->latch) == 0) {
-			LOCK_CNT_INC(inode_sem_r);
-
-			result = capture_anonymous_pages(inode->i_mapping);
-			rw_latch_up_read(&uf_info->latch);
-			LOCK_CNT_DEC(inode_sem_r);
-			if (result != 0 || wbc->sync_mode != WB_SYNC_ALL)
+		if (is_in_reiser4_context()) {
+			if (rw_latch_try_read(&uf_info->latch) != 0) {
+				result = RETERR(-EBUSY);
 				break;
-			result = txnmgr_force_commit_all(inode->i_sb, 0);
+			}
 		} else
-			result = RETERR(-EBUSY);
+			rw_latch_down_read(&uf_info->latch);
+
+		init_context(&ctx, inode->i_sb);
+		/* avoid recursive calls to ->sync_inodes */
+		ctx.nobalance = 1;
+		assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
+
+		LOCK_CNT_INC(inode_sem_r);
+
+		result = capture_anonymous_pages(inode->i_mapping);
+		rw_latch_up_read(&uf_info->latch);
+		LOCK_CNT_DEC(inode_sem_r);
+		if (result != 0 || wbc->sync_mode != WB_SYNC_ALL)
+			break;
+		result = commit_file_atoms(inode);
+		reiser4_exit_context(&ctx);
 	} while (result == 0 && inode_has_anonymous_pages(inode));
 
-	reiser4_exit_context(&ctx);
+	return result;
+}
+
+reiser4_internal int
+sync_unix_file(struct file *file, struct dentry *dentry, int datasync)
+{
+	int result;
+	struct inode *inode;
+
+	inode = dentry->d_inode;
+	result = commit_file_atoms(inode);
+	if (result == 0 && !datasync) {
+		/* commit "meta-data"---stat data in our case */
+		lock_handle lh;
+		coord_t coord;
+		reiser4_key key;
+
+		coord_init_zero(&coord);
+		init_lh(&lh);
+		/* locate stat-data in a tree and return with znode locked */
+		result = lookup_sd(inode,
+				   ZNODE_READ_LOCK, &coord, &lh, &key, 0);
+		if (result == 0) {
+			jnode    *node;
+			txn_atom *atom;
+
+			node = ZJNODE(coord.node);
+			atom = UNDER_SPIN(jnode, node, jnode_get_atom(node));
+			done_lh(&lh);
+			result = sync_atom(atom);
+		} else
+			done_lh(&lh);
+	}
 	return result;
 }
 
@@ -1609,7 +1740,7 @@ static struct vm_operations_struct unix_file_vm_ops = {
 static int
 check_pages_unix_file(struct inode *inode)
 {
-	reiser4_invalidate_pages(inode->i_mapping, 0, 
+	reiser4_invalidate_pages(inode->i_mapping, 0,
 				 (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
 	return unpack(inode, 0, 1);
 }
@@ -2219,7 +2350,7 @@ reiser4_internal ssize_t sendfile_common (
 	return ret;
 }
 
-reiser4_internal ssize_t sendfile_unix_file(struct file *file, loff_t *ppos, size_t count, 
+reiser4_internal ssize_t sendfile_unix_file(struct file *file, loff_t *ppos, size_t count,
 					    read_actor_t actor, void __user *target)
 {
 	ssize_t ret;
