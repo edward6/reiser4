@@ -505,15 +505,18 @@ static int common_set_plug( struct inode *object /* inode to set plugin on */,
 	object -> i_uid = current -> fsuid;
 	object -> i_mtime = object -> i_atime = object -> i_ctime = CURRENT_TIME;
 
+#if REISER4_BSD_PORT
 	/*
 	 * support for BSD style group-id assignment.
 	 */
 	if( reiser4_is_set( object -> i_sb, REISER4_BSD_GID ) )
 		object -> i_gid = parent -> i_gid;
+	else 
+#endif
 	/*
 	 * parent directory has sguid bit
 	 */
-	else if( parent -> i_mode & S_ISGID ) {
+	if( parent -> i_mode & S_ISGID ) {
 		object -> i_gid = parent -> i_gid;
 		if( S_ISDIR( object -> i_mode ) )
 			/*
