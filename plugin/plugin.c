@@ -547,6 +547,8 @@ extern reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ];
 extern reiser4_plugin space_plugins[ LAST_SPACE_ALLOCATOR_ID ];
 /* defined in fs/reiser4/dformat.c */
 extern reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ];
+/* defined in jnode.c */
+extern reiser4_plugin jnode_plugins[ JNODE_LAST_TYPE ];
 
 #if REISER4_DEBUG
 reiser4_plugin hook_plugins[] = {
@@ -664,6 +666,14 @@ static reiser4_plugin_type_data plugins[ REISER4_PLUGIN_TYPES ] = {
 		.desc          = "defines filesystem on disk layout",
 		.builtin_num   = sizeof_array( layout_plugins ),
 		.builtin       = layout_plugins,
+		.plugins_list  = TS_LIST_HEAD_ZERO
+	},
+	[ REISER4_JNODE_PLUGIN_TYPE ] = {
+		.type_id       = REISER4_JNODE_PLUGIN_TYPE,
+		.label         = "jnode flavor",
+		.desc          = "defined kind of jnode",
+		.builtin_num   = sizeof_array( jnode_plugins ),
+		.builtin       = jnode_plugins,
 		.plugins_list  = TS_LIST_HEAD_ZERO
 	}
 };
