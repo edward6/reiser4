@@ -52,6 +52,7 @@ int done_coord( new_coord *coord UNUSED_ARG /* coord to finish with */ )
 #endif
 
 /* return pointer to item body */
+/* Audited by: green(2002.06.15) */
 void *item_body_by_coord( const new_coord *coord /* coord to query */ )
 {
 	assert( "nikita-324", coord != NULL );
@@ -63,6 +64,7 @@ void *item_body_by_coord( const new_coord *coord /* coord to query */ )
 }
 
 /** return length of item at @coord */
+/* Audited by: green(2002.06.15) */
 int item_length_by_coord( const new_coord *coord /* coord to query */ )
 {
 	assert( "nikita-327", coord != NULL );
@@ -74,6 +76,7 @@ int item_length_by_coord( const new_coord *coord /* coord to query */ )
 }
 
 /** return plugin of item at @coord */
+/* Audited by: green(2002.06.15) */
 item_plugin *item_plugin_by_coord( const new_coord *coord /* coord to query */ )
 {
 	assert( "nikita-330", coord != NULL );
@@ -85,6 +88,7 @@ item_plugin *item_plugin_by_coord( const new_coord *coord /* coord to query */ )
 }
 
 /** return node plugin of @node */
+/* Audited by: green(2002.06.15) */
 node_plugin * node_plugin_by_node( const znode *node /* node to query */ )
 {
 	assert( "vs-213", node != NULL );
@@ -94,6 +98,7 @@ node_plugin * node_plugin_by_node( const znode *node /* node to query */ )
 }
 
 /** return type of item at @coord */
+/* Audited by: green(2002.06.15) */
 item_type_id item_type_by_coord( const new_coord *coord /* coord to query */ )
 {
 	assert( "nikita-333", coord != NULL );
@@ -107,6 +112,7 @@ item_type_id item_type_by_coord( const new_coord *coord /* coord to query */ )
 }
 
 /* return id of item */
+/* Audited by: green(2002.06.15) */
 item_id item_id_by_coord( const new_coord *coord /* coord to query */ )
 {
 	assert( "vs-539", coord != NULL );
@@ -122,6 +128,7 @@ item_id item_id_by_coord( const new_coord *coord /* coord to query */ )
 }
 
 /** return key of item at @coord */
+/* Audited by: green(2002.06.15) */
 reiser4_key *item_key_by_coord( const new_coord *coord /* coord to query */, 
 				reiser4_key *key /* result */ )
 {
@@ -134,6 +141,7 @@ reiser4_key *item_key_by_coord( const new_coord *coord /* coord to query */,
 }
 
 /** return key of unit at @coord */
+/* Audited by: green(2002.06.15) */
 reiser4_key *unit_key_by_coord( const new_coord *coord /* coord to query */, 
 				reiser4_key *key /* result */ )
 {
@@ -155,6 +163,7 @@ reiser4_key *unit_key_by_coord( const new_coord *coord /* coord to query */,
 TS_LIST_DEFINE( cbk_cache, cbk_cache_slot, lru );
 
 /** Initialise coord cache slot */
+/* Audited by: green(2002.06.15) */
 static void cbk_cache_init_slot( cbk_cache_slot *slot )
 {
 	assert( "nikita-345", slot != NULL );
@@ -164,6 +173,7 @@ static void cbk_cache_init_slot( cbk_cache_slot *slot )
 }
 
 /** Initialise coord cache */
+/* Audited by: green(2002.06.15) */
 int cbk_cache_init( cbk_cache *cache /* cache to init */ )
 {
 	int i;
@@ -179,12 +189,14 @@ int cbk_cache_init( cbk_cache *cache /* cache to init */ )
 	return 0;
 }
 
+/* Audited by: green(2002.06.15) */
 static void cbk_cache_lock( cbk_cache *cache /* cache to lock */ )
 {
 	assert( "nikita-1800", cache != NULL );
 	spin_lock( &cache -> guard );
 }
 
+/* Audited by: green(2002.06.15) */
 static void cbk_cache_unlock( cbk_cache *cache /* cache to unlock */)
 {
 	assert( "nikita-1801", cache != NULL );
@@ -202,6 +214,7 @@ static void cbk_cache_unlock( cbk_cache *cache /* cache to unlock */)
 /**
  * Remove references, if any, to @node from coord cache
  */
+/* Audited by: green(2002.06.15) */
 void cbk_cache_invalidate( const znode *node /* node to remove from cache */ )
 {
 	cbk_cache_slot *slot;
@@ -227,6 +240,7 @@ void cbk_cache_invalidate( const znode *node /* node to remove from cache */ )
 
 /** add to the cbk-cache in the "tree" information about "node". This
     can actually be update of existing slot in a cache. */
+/* Audited by: green(2002.06.15) */
 void cbk_cache_add( znode *node /* node to add to the cache */ )
 {
 	cbk_cache        *cache;
@@ -349,6 +363,7 @@ static level_lookup_result search_to_left( cbk_handle *h );
  * Thread cannot keep any reiser4 locks (tree, znode, dk spin-locks, or znode
  * long term locks) while calling this. 
  */
+/* Audited by: green(2002.06.15) */
 lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 						* in. Usually this tree is
 						* part of file-system
@@ -385,6 +400,8 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 	cbk_handle          handle;
 	lock_handle parent_lh;
 
+	/* AUDIT: initialising passed in parameters is totally pointless.
+	   caller should do this! */
 	init_lh(lh);
 	init_lh(&parent_lh);
 
@@ -420,6 +437,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 
 
 /* relook for @key in the tree if @coord is not set correspondingly already */
+/* Audited by: green(2002.06.15) */
 int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
 			   new_coord * coord, lock_handle * lh,
 			   lookup_bias bias,
@@ -454,6 +472,7 @@ int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
  *
  * This is used by readdir() and alikes.
  */
+/* Audited by: green(2002.06.15) */
 int iterate_tree( reiser4_tree *tree /* tree to scan */, 
 		  new_coord *coord /* coord to start from */, 
 		  lock_handle *lh /* lock handle to start with and to
@@ -517,6 +536,7 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 
 /** main function that handles common parts of tree traversal: starting
     (fake znode handling), restarts, error handling, completion */
+/* Audited by: green(2002.06.15) */
 static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
 {
 	int done;
@@ -639,6 +659,7 @@ static lookup_result cbk_traversal( cbk_handle *h /* search handle */ )
 
 /** coord_by_key level function that maintains znode sibling/parent
     pointers (web of znodes)) */
+/* Audited by: green(2002.06.15) */
 static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 {
 	int ret;
@@ -675,6 +696,8 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 		active->ptr_in_parent_hint = *h->coord;
 	spin_unlock_tree (h->tree);
 
+	/* AUDIT: ulocking a lock right before taking it again looks silly,
+	   What is the intent for that? */
 	/* protect sibling pointers and `connected' state bits, check
 	 * znode state */
 	spin_lock_tree(h -> tree);
@@ -703,7 +726,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 		 * tree. Release lock and restart.
 		 */
 		if( REISER4_STATS ) {
-			if( znode_contains_key_lock( active, h -> key ) )
+			if( znode_contain_key_lock( active, h -> key ) )
 				reiser4_stat_tree_add( cbk_met_ghost );
 			else
 				reiser4_stat_tree_add( cbk_key_moved );
@@ -741,6 +764,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
  * returned. If that item is in another node - @coord and @lh are switched to
  * that node
  */
+/* Audited by: green(2002.06.15) */
 static int is_next_item_internal( new_coord *coord,  lock_handle *lh )
 {
 	int result;
@@ -800,6 +824,7 @@ static int is_next_item_internal( new_coord *coord,  lock_handle *lh )
  * inserting empty leaf after (or between) item of not internal type we have to
  * know which right delimiting key corresponding znode has to be inserted with
  */
+/* Audited by: green(2002.06.15) */
 static reiser4_key *rd_key( new_coord *coord, reiser4_key *key )
 {
 	if( coord -> item_pos != node_num_items( coord -> node ) - 1 ) {
@@ -827,6 +852,7 @@ static reiser4_key *rd_key( new_coord *coord, reiser4_key *key )
  * this is used to insert empty node into leaf level if tree lookup can not go
  * further down because it stopped between items of not internal type
  */
+/* Audited by: green(2002.06.15) */
 static int add_empty_leaf( new_coord *insert_coord, lock_handle *lh,
 			   const reiser4_key *key, const reiser4_key *rdkey )
 {
@@ -881,6 +907,7 @@ static int add_empty_leaf( new_coord *insert_coord, lock_handle *lh,
    Process one node during tree traversal.
    This is standard function independent of tree locking protocols.
  */
+/* Audited by: green(2002.06.15) */
 static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 {
 	node_plugin      *nplug;
@@ -893,6 +920,9 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 	/**
 	 * true if @key is left delimiting key of @node
 	 */
+	/* AUDIT What is the point for having nested functions anyway? 
+	   Actually this is first time I am ever hearing about nested
+	   functions in C language. */
 	static int key_is_ld( znode *node, const reiser4_key *key )
 	{
 		int is_ld;
@@ -1048,6 +1078,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h /* search handle */ )
 }
 
 /** true if @key is one of delimiting keys in @node */
+/* Audited by: green(2002.06.15) */
 static int key_is_delimiting( znode *node /* node to check key against */, 
 			      const reiser4_key *key /* key to check */ )
 {
@@ -1064,6 +1095,7 @@ static int key_is_delimiting( znode *node /* node to check key against */,
 	return result;
 }
 
+/* Audited by: green(2002.06.15) */
 static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 {
 	level_lookup_result llr;
@@ -1182,6 +1214,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
  * of coord_by_key.
  *
  */
+/* Audited by: green(2002.06.15) */
 static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 {
 	int result;
@@ -1202,6 +1235,7 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 
 /** type of lock we want to obtain during tree traversal. On stop level
     we want type of lock user asked for, on upper levels: read lock. */
+/* Audited by: green(2002.06.15) */
 static znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h )
 {
 	assert( "nikita-382", h != NULL );
@@ -1216,6 +1250,7 @@ static znode_lock_mode cbk_lock_mode( tree_level level, cbk_handle *h )
  * @parent_coord.
  *
  */
+/* Audited by: green(2002.06.15) */
 int find_child_delimiting_keys( znode *parent /* parent znode, passed
 					       * locked */, 
 				const new_coord *parent_coord /* coord where
@@ -1260,6 +1295,7 @@ int find_child_delimiting_keys( znode *parent /* parent znode, passed
  * child that will be processed on the next level.
  *
  */
+/* Audited by: green(2002.06.15) */
 static int prepare_delimiting_keys( cbk_handle *h /* search handle */ )
 {
 	int result;
@@ -1272,6 +1308,7 @@ static int prepare_delimiting_keys( cbk_handle *h /* search handle */ )
 	return result;
 }
 
+/* Audited by: green(2002.06.15) */
 static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 {
 	level_lookup_result result;
@@ -1396,6 +1433,7 @@ void print_address( const char *prefix /* prefix to print */,
 }
 
 /** release parent node during traversal */
+/* Audited by: green(2002.06.15) */
 static void put_parent( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-383", h != NULL );
@@ -1407,6 +1445,7 @@ static void put_parent( cbk_handle *h /* search handle */ )
 /**
  * helper function used by coord_by_key(): release reference to parent znode
  * stored in handle before processing its child. */
+/* Audited by: green(2002.06.15) */
 static void hput( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-385", h != NULL );
@@ -1418,6 +1457,7 @@ static void hput( cbk_handle *h /* search handle */ )
  * Helper function used by cbk(): update delimiting keys of child node (stored
  * in h->active_lh->node) using key taken from parent on the parent level.
  */
+/* Audited by: green(2002.06.15) */
 static void setup_delimiting_keys( cbk_handle *h /* search handle */ )
 {
 	assert( "nikita-1088", h != NULL );
