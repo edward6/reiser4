@@ -200,8 +200,59 @@ static reiser4_block_nr common_estimate_unlink (
 	res += fplug->estimate.update(object);
 	/* update_dir(parent) */
 	res += inode_file_plugin(parent)->estimate.update(parent);
+	/* fplug->unlink */
+	res += fplug->estimate.unlink(object, parent);
 
 	return res;
+}
+
+static int
+unlink_check_and_grab(struct inode *parent, struct dentry *victim, int *doup)
+{
+	file_plugin  *fplug;
+	struct inode *child;
+	int           result;
+
+	result = 0;
+	child = victim->d_inode;
+	fplug = inode_file_plugin(child);
+
+	*doup = 0;
+
+	/* check for race with create_object() */
+	if (inode_get_flag(child, REISER4_IMMUTABLE))
+		return -EAGAIN;
+
+	/* victim should have stat data */
+	assert("vs-949", !inode_get_flag(child, REISER4_NO_SD));
+
+	/* check permissions */
+	if (perm_chk(parent, unlink, parent, victim))
+		return -EPERM;
+
+	/* ask object plugin */
+	if (fplug->can_rem_link != NULL) {
+		result = fplug->can_rem_link(child);
+		if (result != 0)
+			return result;
+	}
+
+	result = (int)common_estimate_unlink(parent, child);
+	if (result < 0)
+		return result;
+
+	if (reiser4_grab_space(result, BA_CAN_COMMIT, "common_unlink")) {
+		down(&get_super_private(child->i_sb)->delete_sema);
+		*doup = 1;
+
+		if(reiser4_grab_space(result, BA_RESERVED | BA_CAN_COMMIT, 
+				      "common_unlink(from reserved)")) {
+			warning("zam-833", 
+				"reserved space is not enough to unlink");
+			return -ENOSPC;
+		}
+	}
+	return 0;
 }
 
 /* remove link from @parent directory to @victim object.
@@ -214,125 +265,47 @@ static reiser4_block_nr common_estimate_unlink (
 */
 static int
 common_unlink(struct inode *parent /* parent object */ ,
-	      struct dentry *victim	/* name being removed from
-					 * @parent */ )
+	      struct dentry *victim /* name being removed from @parent */)
 {
-	int result;
-	reiser4_super_info_data * private = get_current_super_private();
-	int delete_semaphore_taken = 0;
+	int                    result;
+	int                    delete_semaphore_taken;
 	struct inode *object;
-	file_plugin *fplug;
-	dir_plugin *parent_dplug;
-	reiser4_dir_entry_desc entry;
-	reiser4_block_nr reserve;
-
-	assert("nikita-864", parent != NULL);
-	assert("nikita-865", victim != NULL);
+	file_plugin  *fplug;
 
 	object = victim->d_inode;
-	assert("nikita-1239", object != NULL);
+	fplug  = inode_file_plugin(object);
+	assert("nikita-2882", fplug->detach != NULL);
+	
+	result = unlink_check_and_grab(parent, victim, &delete_semaphore_taken);
+	if (result == 0 && (result = fplug->detach(object, parent)) == 0) {
+		dir_plugin            *parent_dplug;
+		reiser4_dir_entry_desc entry;
 
-	fplug = inode_file_plugin(object);
-	/*
-	 * FIXME: comparing unsigned with 0
-	 */
-	if ((reserve = common_estimate_unlink(parent, victim->d_inode)) < 0)
-		return reserve;
+		parent_dplug = inode_dir_plugin(parent);
+		xmemset(&entry, 0, sizeof entry);
 
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "common_unlink")) {
-		down(&private->delete_sema);
-		delete_semaphore_taken = 1;
-
-		if(reiser4_grab_space(reserve, BA_RESERVED | BA_CAN_COMMIT, "common_unlink(from reserved)")) {
-			warning("zam-833", "reserved space is not enough to perform object unlinking\n");
-			return -ENOSPC;
+		/* first, delete directory entry */
+		result = parent_dplug->rem_entry(parent, victim, &entry);
+		if (result == 0) {
+			/* now that directory entry is removed, update
+			 * stat-data */
+			result = reiser4_del_nlink(object, parent, 1);
+			if (result == 0)
+				/* Upon successful completion, unlink() shall
+				   mark for update the st_ctime and st_mtime
+				   fields of the parent directory. Also, if
+				   the file's link count is not 0, the
+				   st_ctime field of the file shall be marked
+				   for update. --SUS */
+				result = update_dir(parent);
 		}
 	}
-	
-	/* check for race with create_object() */
-	if (inode_get_flag(object, REISER4_IMMUTABLE))
-		return -EAGAIN;
-
-	/* victim should have stat data */
-	assert("vs-949", !inode_get_flag(object, REISER4_NO_SD));
-
-	/* check permissions */
-	if (perm_chk(parent, unlink, parent, victim))
-		return -EPERM;
-
-	/* ask object plugin */
-	if (fplug->can_rem_link != NULL) {
-		result = fplug->can_rem_link(object);
-		if (result != 0)
-			return result;
-	}
-
-	parent_dplug = inode_dir_plugin(parent);
-
-	xmemset(&entry, 0, sizeof entry);
-
-	/* first, delete directory entry */
-	result = parent_dplug->rem_entry(parent, victim, &entry);
-	if (result != 0)
-		return result;
-
-	/* now that directory entry is removed, update stat-data, but first
-	   check for special case: */
-	if (fplug->rem_link != 0)
-		result = reiser4_del_nlink(object, parent, 1);
-	else
-		result = -EPERM;
-	if (result != 0)
-		return result;
-
-#if 0
-	/* removing last reference. Check that this is allowed. This is
-	   optimization for common case when file having only one name is
-	   unlinked and is not opened by any process.
-	  
-	   Directories always go through this path (until hard-links on
-	   directories are allowed).
-	*/
-	/* NOTE-NIKITA this is commented out, because ->i_count check is not
-	   valid---actually we also should check victim->d_count, but this
-	   requires spin_lock(&dcache_lock), so we need cut-n-paste something
-	   from d_delete().
-	*/
-	inode_set_flag(object, REISER4_IMMUTABLE);
-	if (fplug->not_linked(object) &&
-	    atomic_read(&object->i_count) == 1 && !perm_chk(object, delete, parent, victim)) {
-		/* remove file body. This is probably done in a whole lot of
-		   transactions and takes a lot of time. We keep @object
-		   locked. i_nlink shouldn't change, because object is
-		   inaccessible through file-system (last directory entry was
-		   removed), and direct accessors (like NFS) are blocked by
-		   REISER4_IMMUTABLE bit. 
-		*/
-		if (fplug->truncate != NULL)
-			result = truncate_object(object, (loff_t) 0);
-
-		assert("nikita-871", fplug->not_linked(object));
-		assert("nikita-873", atomic_read(&object->i_count) == 1);
-
-		if (result == 0)
-			result = fplug->delete(object, parent);
-	}
-	inode_clr_flag(object, REISER4_IMMUTABLE);
-#endif
-	/* Upon successful completion, unlink() shall mark for update the
-	   st_ctime and st_mtime fields of the parent directory. Also, if the
-	   file's link count is not 0, the st_ctime field of the file shall be
-	   marked for update. --SUS
-	*/
-	if (result == 0)
-		result = update_dir(parent);
-
 	if (delete_semaphore_taken) {
-		/* we have to commit transaction here because we need to get reserved free
-		   space back before delete semaphore is up again */
+		/* we have to commit transaction here because we need to get
+		   reserved free space back before delete semaphore is up
+		   again */
 		txnmgr_force_commit_current_atom();
-
-		up(&private->delete_sema);
+		up(&get_super_private(object->i_sb)->delete_sema);
 	}
 
 	/* @object's i_ctime was updated by ->rem_link() method(). */
@@ -1054,13 +1027,9 @@ common_readdir(struct file *f /* directory file being read */ ,
 static int
 common_attach(struct inode *child, struct inode *parent)
 {
-	reiser4_inode *info;
 	assert("nikita-2647", child != NULL);
 	assert("nikita-2648", parent != NULL);
 
-	info = reiser4_inode_data(child);
-	assert("nikita-2649", (info->parent == NULL) || (info->parent == parent));
-	info->parent = parent;
 	return 0;
 }
 
@@ -1099,13 +1068,11 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 				.init = hashed_init,
 				.done = hashed_done,
 				.attach = common_attach,
+				.detach = hashed_detach,
 				.estimate = {
 					.add_entry = common_estimate_add_entry,
-					.rem_entry = common_estimate_rem_entry/*,
-					.link = common_estimate_link,
-					.unlink = common_estimate_unlink,
-					.rename	= hashed_estimate_rename,
-					.done = hashed_estimate_done*/
+					.rem_entry = common_estimate_rem_entry,
+					.unlink    = hashed_estimate_detach
 				}
 	},
 	[SEEKABLE_HASHED_DIR_PLUGIN_ID] = {
@@ -1131,13 +1098,11 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 				.init = hashed_init,
 				.done = hashed_done,
 				.attach = common_attach,
+				.detach = hashed_detach,
 				.estimate = {
 					.add_entry = common_estimate_add_entry,
-					.rem_entry = common_estimate_rem_entry/*,
-					.link = common_estimate_link,
-					.unlink = common_estimate_unlink,
-					.rename	= hashed_estimate_rename,
-					.done = hashed_estimate_done*/
+					.rem_entry = common_estimate_rem_entry,
+					.unlink    = hashed_estimate_detach
 				}
 	}
 };
@@ -1149,6 +1114,5 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
    c-basic-offset: 8
    tab-width: 8
    fill-column: 120
-   properties-flag: t
    End:
 */

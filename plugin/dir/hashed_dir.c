@@ -77,12 +77,23 @@ hashed_init(struct inode *object /* new directory */ ,
 	return create_dot_dotdot(object, parent);
 }
 
-reiser4_block_nr hashed_estimate_done(struct inode *parent, struct inode *object) 
+static reiser4_block_nr 
+hashed_estimate_done(struct inode *object) 
 {
 	reiser4_block_nr res = 0;
 	
-	/* 2 hashed_rem_entry(object) */
-	res += 2 * inode_dir_plugin(object)->estimate.rem_entry(object);
+	/* hashed_rem_entry(object) */
+	res += inode_dir_plugin(object)->estimate.rem_entry(object);
+	return res;
+}
+
+reiser4_block_nr 
+hashed_estimate_detach(struct inode *parent, struct inode *object) 
+{
+	reiser4_block_nr res = 0;
+	
+	/* hashed_rem_entry(object) */
+	res += inode_dir_plugin(object)->estimate.rem_entry(object);
 	/* del_nlink(parent) */
 	res += 2 * inode_file_plugin(parent)->estimate.update(parent);
 
@@ -91,66 +102,80 @@ reiser4_block_nr hashed_estimate_done(struct inode *parent, struct inode *object
 
 /* ->delete() method of directory plugin
   
-   Delete dot and dotdot, decrease nlink on parent and call
-   common_file_delete() to delete stat data.
-  
+   Delete dot, and call common_file_delete() to delete stat data.
 */
 int
-hashed_done(struct inode *object /* object being deleted */ )
+hashed_done(struct inode *object /* object being deleted */)
 {
+	int result;
+	reiser4_block_nr reserve;
+	struct dentry goodby_dots;
+	reiser4_dir_entry_desc entry;
+
 	assert("nikita-1449", object != NULL);
 
-	if (!inode_get_flag(object, REISER4_NO_SD)) {
-		struct inode *parent;
-		reiser4_block_nr reserve;
+	if (inode_get_flag(object, REISER4_NO_SD))
+		return 0;
 
-		/* of course, this can be rewritten to sweep everything in one
-		   cut_tree(). */
-		int result;
-		struct dentry goodby_dots;
-		reiser4_dir_entry_desc entry;
+	/* of course, this can be rewritten to sweep everything in one
+	   cut_tree(). */
+	xmemset(&entry, 0, sizeof entry);
 
-		parent = reiser4_inode_data(object)->parent;
-
-		xmemset(&entry, 0, sizeof entry);
-
-		reserve = hashed_estimate_done(parent, object);
-		if (reiser4_grab_space(reserve, 
-				       BA_CAN_COMMIT | BA_RESERVED, "hashed_done")) 
-			return -ENOSPC;
+	reserve = hashed_estimate_done(object);
+	if (reiser4_grab_space(reserve, 
+			       BA_CAN_COMMIT | BA_RESERVED, "hashed_done")) 
+		return -ENOSPC;
 				
-		xmemset(&goodby_dots, 0, sizeof goodby_dots);
-		entry.obj = goodby_dots.d_inode = object;
-		goodby_dots.d_name.name = ".";
-		goodby_dots.d_name.len = 1;
-		result = hashed_rem_entry(object, &goodby_dots, &entry);
-		reiser4_free_dentry_fsdata(&goodby_dots);
-		if (result != 0)
-			/* only worth a warning
+	xmemset(&goodby_dots, 0, sizeof goodby_dots);
+	entry.obj = goodby_dots.d_inode = object;
+	goodby_dots.d_name.name = ".";
+	goodby_dots.d_name.len = 1;
+	result = hashed_rem_entry(object, &goodby_dots, &entry);
+	reiser4_free_dentry_fsdata(&goodby_dots);
+	if (result != 0)
+		/* only worth a warning
 			  
-			   "values of B will give rise to dom!\n"
-			            -- v6src/s2/mv.c:89
-			*/
-			warning("nikita-2252", "Cannot remove dot of %lli: %i", get_inode_oid(object), result);
-
-		/* NOTE-NIKITA this only works if @parent is -the- parent of
-		   @object, viz. object whose key is stored in dotdot
-		   entry. Wouldn't work with hard-links on directories.
+         		"values of B will give rise to dom!\n"
+		             -- v6src/s2/mv.c:89
 		*/
-		xmemset(&goodby_dots, 0, sizeof goodby_dots);
-		entry.obj = goodby_dots.d_inode = parent;
-		goodby_dots.d_name.name = "..";
-		goodby_dots.d_name.len = 2;
-		result = hashed_rem_entry(object, &goodby_dots, &entry);
-		reiser4_free_dentry_fsdata(&goodby_dots);
-		if (result != 0)
-			warning("nikita-2253", "Cannot remove .. of %lli: %i", get_inode_oid(object), result);
-
-		if (parent != NULL)
-			reiser4_del_nlink(parent, object, 1);
-	}
+		warning("nikita-2252", "Cannot remove dot of %lli: %i", 
+			get_inode_oid(object), result);
 	return 0;
 }
+
+/* ->detach() method of directory plugin
+  
+   Delete dotdot, decrease nlink on parent
+*/
+int
+hashed_detach(struct inode *object, struct inode *parent)
+{
+	int result;
+	struct dentry goodby_dots;
+	reiser4_dir_entry_desc entry;
+
+	assert("nikita-2885", object != NULL);
+	assert("nikita-2886", !inode_get_flag(object, REISER4_NO_SD));
+
+	xmemset(&entry, 0, sizeof entry);
+
+	/* NOTE-NIKITA this only works if @parent is -the- parent of
+	   @object, viz. object whose key is stored in dotdot
+	   entry. Wouldn't work with hard-links on directories. */
+	xmemset(&goodby_dots, 0, sizeof goodby_dots);
+	entry.obj = goodby_dots.d_inode = parent;
+	goodby_dots.d_name.name = "..";
+	goodby_dots.d_name.len = 2;
+	result = hashed_rem_entry(object, &goodby_dots, &entry);
+	reiser4_free_dentry_fsdata(&goodby_dots);
+	if (result != 0)
+		warning("nikita-2253", "Cannot remove .. of %lli: %i", 
+			get_inode_oid(object), result);
+
+	reiser4_del_nlink(parent, object, 0);
+	return 0;
+}
+
 
 /* ->owns_item() for hashed directory object plugin. */
 int
@@ -182,8 +207,6 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 	assert("nikita-689", S_ISDIR(object->i_mode));
 	assert("nikita-691", parent != NULL);
 	trace_stamp(TRACE_DIR);
-
-	reiser4_inode_data(object)->parent = parent;
 
 	/* We store dot and dotdot as normal directory entries. This is
 	   not necessary, because almost all information stored in them
@@ -780,8 +803,6 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 			warning("nikita-2336", "Dotdot not found in %llu", get_inode_oid(old_inode));
 			result = -EIO;
 		}
-		if (result == 0)
-			reiser4_inode_data(old_inode)->parent = new_dir;
 		done_lh(&dotdot_lh);
 		reiser4_free_dentry_fsdata(&dotdot_name);
 	}
