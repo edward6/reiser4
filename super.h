@@ -408,6 +408,26 @@ get_current_super_ra_params(void)
 	return &(get_current_super_private()->ra_params);
 }
 
+static inline int rofs_super(struct super_block *super)
+{
+	return super->s_flags & MS_RDONLY;
+}
+
+static inline int rofs_tree(reiser4_tree *tree)
+{
+	return rofs_super(tree->super);
+}
+
+static inline int rofs_inode(struct inode *inode)
+{
+	return rofs_super(inode->i_sb);
+}
+
+static inline int rofs_jnode(jnode *node)
+{
+	return rofs_tree(jnode_get_tree(node));
+}
+
 extern __u64 reiser4_current_block_count(void);
 
 extern void build_object_ops(struct super_block *super, object_ops *ops);

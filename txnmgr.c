@@ -760,6 +760,11 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	assert("jmacd-43226", node->atom == NULL);
 	assert("jmacd-43225", txnh->atom == NULL);
 
+	if (REISER4_DEBUG && rofs_jnode(node)) {
+		warning("nikita-3366", "Creating atom on rofs");
+		dump_stack();
+	}
+	
 	/* A memory allocation may schedule we have to release those spinlocks
 	 * before kmem_cache_alloc() call. */	UNLOCK_JNODE(node);
 	UNLOCK_TXNH(txnh);
@@ -2576,6 +2581,11 @@ jnode_make_dirty_locked(jnode * node)
 {
 	assert("umka-204", node != NULL);
 	assert("zam-7481", spin_jnode_is_locked(node));
+
+	if (REISER4_DEBUG && rofs_jnode(node)) {
+		warning("nikita-3365", "Dirtying jnode on rofs");
+		dump_stack();
+	}
 
 	/* Fast check for already dirty node */
 	if (!jnode_is_dirty(node)) {

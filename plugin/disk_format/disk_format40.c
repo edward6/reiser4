@@ -357,14 +357,15 @@ release_format40(struct super_block *s)
 	if (reiser4_grab_space(1, BA_RESERVED))
 		return RETERR(-ENOSPC);
 	
-	if ((ret = capture_super_block(s))) {
-		warning("vs-898", "capture_super_block failed in umount: %d", ret);
-	}
+	if (!rofs_super(s)) {
+		ret = capture_super_block(s);
+		if (ret != 0)
+			warning("vs-898", "capture_super_block failed: %d", ret);
 
-	if ((ret = txnmgr_force_commit_all(s, 1))) {
-		warning("jmacd-74438", "txn_force failed in umount: %d", ret);
+		ret = txnmgr_force_commit_all(s, 1);
+		if (ret != 0)
+			warning("jmacd-74438", "txn_force failed: %d", ret);
 	}
-
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		print_fs_info("umount ok", s);
 
@@ -434,7 +435,7 @@ check_mount_format40(const struct super_block *s) {
 
 /* plugin->u.format.check_open.
    Check the opened object for validness. For now it checks for the valid oid &
-   locality only, can be improved later and it its work may depend on the mount 
+   locality only, can be improved later and it its work may depend on the mount
    options. */
 int
 check_open_format40(const struct inode *object) {
