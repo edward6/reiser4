@@ -1785,11 +1785,11 @@ static int flush_rewrite_jnode (jnode *node)
 		return -ENOMEM;
 	}
 
-	lock_page (pg);
+	jnode_set_clean (node);
+
+	SetPageWriteback (pg);
 
 	ret = write_one_page (pg, 0 /* no wait */);
-
-	jnode_set_clean (node);
 
 	trace_on (TRACE_FLUSH, "rewrite: %s\n", flush_jnode_tostring (node));
 	return ret;
