@@ -1377,9 +1377,11 @@ void print_coord_content( const char *prefix /* prefix to print */,
 		info( "%s: data: %p, length: %i\n", prefix,
 		      item_body_by_coord( p ), item_length_by_coord( p ));
 	print_znode( prefix, p -> node );
-	item_key_by_coord( p, &key );
-	print_key( prefix, &key );
-	print_plugin( prefix, item_plugin_to_plugin (item_plugin_by_coord( p ) ) );
+	if( znode_is_loaded( p -> node ) ) {
+		item_key_by_coord( p, &key );
+		print_key( prefix, &key );
+		print_plugin( prefix, item_plugin_to_plugin (item_plugin_by_coord( p ) ) );
+	}
 }
 
 /** debugging aid: print human readable information about @block */
