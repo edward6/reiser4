@@ -326,8 +326,8 @@ int process_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	cr_plug = inode_crypto_plugin(inode);
 	co_plug = inode_compression_plugin(inode);
 	/* calculate actual cluster size before compression */
-	size = (inode->i_size - (clust->index << PAGE_CACHE_SIZE) < inode_cluster_size(inode) ?
-		inode->i_size - (clust->index << PAGE_CACHE_SIZE) : inode_cluster_size(inode));
+	size = (inode->i_size - (clust->index << PAGE_CACHE_SHIFT/*?*/) < inode_cluster_size(inode) ?
+		inode->i_size - (clust->index << PAGE_CACHE_SHIFT/*?*/) : inode_cluster_size(inode));
 	blksize = cr_plug->blocksize(inode_crypto_stat(inode)->keysize);
 	
 	assert("edward-154", clust->len <= size);
