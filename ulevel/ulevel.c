@@ -4447,9 +4447,10 @@ int real_main( int argc, char **argv )
 	assert ("jmacd-998", s -> s_blocksize == (unsigned)PAGE_CACHE_SIZE /* don't blame me, otherwise. */);
 	
 	register_thread();
+
 	spin_lock_init( &mp_guard );
 	kcond_init( &memory_pressed );
-	result = pthread_create( &uswapper, NULL, uswapd, &s );
+	result = pthread_create( &uswapper, NULL, uswapd, s );
 	assert( "nikita-1938", result == 0 );
 	
 	/* check that blocksize is a power of two */
