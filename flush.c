@@ -352,7 +352,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	 * flush is lengthy procedure. Give other threads chance to run. Also,
 	 * if signal was caught, return -EINTR.
 	 */
-	if (preempt_point ()) {
+	if (ret == 0 && (jiffies % 10) < 2 /*preempt_point ()*/) {
 		ret = -EINTR;
 	}
  clean_out:
