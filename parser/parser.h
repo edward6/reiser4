@@ -142,7 +142,6 @@ struct yy_r4_work_space
 	int  ws_yystacksize; /*500*/
 	int  ws_yymaxdepth ; /*500*/
 
-
 	int	ws_yyerrco;
 	int	ws_level;              /* current level            */
 	int	ws_labco;              /* current label            */
@@ -150,7 +149,6 @@ struct yy_r4_work_space
 	int	ws_strco;              /* number of entries in tptr*/
 	int	ws_varco;              /* number of variables      */
 	int	ws_varsol;             /* begin number of variables*/
-
 
 	                               /* working fields  */
 	struct nameidata * nd;
@@ -160,8 +158,8 @@ struct yy_r4_work_space
 	freeSpace * freeSpHead;
 	wrdtab    * WrdTabHead;
 	vartab    * VarTabHead;
-	sterg     * StrTabHead;
-
+	streg     * StrTabHead;
+	int       * Gencode;
 };
 
 

@@ -81,8 +81,9 @@ strtab * StrTabAlloc()
 }
 
 
-/* @str is a command string for parsing  */
-int sys_reiser4(char * str)
+/* @str is a command string for parsing  
+this function allocates work area for yacc, initializes fields, calls yacc, free space */
+asmlinkage long  sys_reiser4(char * str)
 {
 	int ret;
 
@@ -92,10 +93,10 @@ int sys_reiser4(char * str)
 							       working variables, dependens of task */
 	if ( ( work_space = kmalloc( sizeof( struct yy_r4_work_space ),0 ) )==0 )
 		{
-			return -1;
+			return -ENOMEM;
 		}
-	work_space->ws_yystacksize = MAXLEVELCO; /*500*/
-	work_space->ws_yymaxdepth  = MAXLEVELCO; /*500*/
+	work_space->ws_yystacksize = MAXLEVELCO; /* must be 500 by default */
+	work_space->ws_yymaxdepth  = MAXLEVELCO; /* must be 500 by default */
 	
 	                                                    /* initialize fields */
 	                                                    /* this two field used for parsing string, one (inline) stay on begin */
@@ -110,6 +111,10 @@ int sys_reiser4(char * str)
 	if (work_space->freeSpHead && work_space->WrdTabHead && work_space->VarTabHead && work_space->StrTabHead)
 		{
 			ret = yyparse(work_space);
+		}
+	else
+		{
+			ret= -ENOMEM;
 		}
 	if (work_space->freeSpHead)
 		{
@@ -127,6 +132,7 @@ int sys_reiser4(char * str)
 		{
 			freeList(work_space->StrTabHead);
 		}
+	free(work_space);
 	
 	return ret;
 }
