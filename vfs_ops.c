@@ -123,7 +123,7 @@ reiser4_update_sd(struct inode *object)
 
 	assert("nikita-2338", object != NULL);
 
-	/* NIKITA-FIXME-HANS: this if never is true, make this a comment instead please or cut it. */
+	/* check for read-only file system. */
 	if (IS_RDONLY(object))
 		return 0;
 
@@ -151,9 +151,6 @@ reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 	fplug = inode_file_plugin(object);
 	assert("nikita-1445", fplug != NULL);
 
-	/* NIKITA-FIXME-HANS: if you move this can_add_link functionality into add_link, and then test its return code,
-	 * you can save one function dereference.  Please email me your opinion. */
-
 	/* ask plugin whether it can add yet another link to this
 	   object */
 	if (!fplug->can_add_link(object)) {
@@ -164,7 +161,7 @@ reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 	/* call plugin to do actual addition of link */
 	result = fplug->add_link(object, parent);
 
-/* NIKITA-FIXME-HANS: this does what? Can it go into add_link also? */
+	/* optionally update stat data */
 	if ((result == 0) && write_sd_p)
 		result = fplug->write_sd_by_inode(object);
 	return result;
@@ -194,7 +191,7 @@ reiser4_del_nlink(struct inode *object	/* object from which link is
 
 	/* call plugin to do actual deletion of link */
 	result = fplug->rem_link(object, parent);
-/* NIKITA-FIXME-HANS: this does what? Can it go into rem_link? */
+	/* optionally update stat data */
 	if ((result == 0) && write_sd_p)
 		result = fplug->write_sd_by_inode(object);
 	return result;
