@@ -111,7 +111,7 @@ int de_rem_entry( const struct inode *dir UNUSED_ARG, tree_coord *coord,
 	 * of @coord.
 	 */
 	dup_coord( &coord_shadow, coord );
-	result = cut_node( coord, coord, NULL, NULL, NULL, 0/*flags*/ );
+	result = cut_node( coord, coord, NULL, NULL, NULL, DELETE_KILL/*flags*/ );
 	done_coord( &coord_shadow );
 	return result;
 }
