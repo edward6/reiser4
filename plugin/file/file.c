@@ -1893,8 +1893,14 @@ reiser4_block_nr unix_file_estimate_release(struct inode *inode) {
     tail_plugin = inode_tail_plugin(inode);
     assert("umka-1238", tail_plugin != NULL);
     
-    return tail_plugin->estimate(inode, file_size, 0) + 
-	    inode_file_plugin(inode)->estimate.update(inode) + 1;
+    {
+	reiser_block_nr amount;
+	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
+    
+	return (tail_plugin->have_tail(inode, file_size) ? 
+		tail_plugin->estimate(inode, file_size, 0) : amount + 1) + 
+		inode_file_plugin(inode)->estimate.update(inode) + 1;
+    }
 }
 
 /* plugin->u.file.release
