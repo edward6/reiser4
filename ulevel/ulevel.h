@@ -53,13 +53,15 @@
 
 extern void spinlock_bug (const char *msg);
 
-#include "kutlock.h"
+#define printk printf
 
 #include "../tshash.h"
 #include "../reiser4.h"
 #include "../forward.h"
 #include "../debug.h"
 #include "../reiser4_sb.h"
+
+#include "kutlock.h"
 
 #define HAS_BFD                         (1)
 #define USE_DLADDR_DLSYM_FOR_BACKTRACE  (1)
@@ -100,7 +102,6 @@ extern void spinlock_bug (const char *msg);
 #define GFP_DMA		__GFP_DMA
 
 #define	SLAB_KERNEL		GFP_KERNEL
-#define printk printf
 #define SLAB_HWCACHE_ALIGN (0)
 /* flags passed to a constructor func */
 #define	SLAB_CTOR_CONSTRUCTOR	0x001UL /* if not set, then deconstructor */

@@ -112,8 +112,8 @@ typedef struct
 	int              _locked;
 	pthread_t        _tid;
 	int              _busy;
-	__u64            _calls;
-	__u64            _free;
+	__u32            _calls;
+	__u32            _free;
 	__u64            _sleep;
 } spinlock_t;
 
@@ -246,6 +246,12 @@ spin_is_not_locked (spinlock_t *s)
 	}
 	pthread_mutex_unlock (& s->_guard);
 	return ret;
+}
+
+static __inline__ void print_spin_lock (const char *prefix, const spinlock_t *s)
+{
+	info ("%s: calls: %u, not-contended: %u, slept: %llu", prefix,
+	      s->_calls, s->_free, s->_sleep);
 }
 
 #else
