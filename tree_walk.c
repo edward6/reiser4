@@ -339,9 +339,8 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 	/* We avoid synchronous read here if it is specified by flag. */
 	if ((flags & GN_ASYNC) && znode_page(handle->node) == NULL) {
 		ret = jstartio(ZJNODE(handle->node));
-		if (ret)
-			goto error_locked;
-		ret = -E_REPEAT;
+		if (!ret)
+			ret = -E_REPEAT;
 		goto error_locked;
 	}
 
