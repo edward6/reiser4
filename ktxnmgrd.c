@@ -222,7 +222,7 @@ need_flush(txn_mgr * tmgr)
 	int ret;
 
 	spin_lock_txnmgr(tmgr);
-	ret = (tmgr->flush_control.nr_to_flush != 0);
+	ret = (tmgr->flush_control.nr_to_flush > 0);
 	spin_unlock_txnmgr(tmgr);
 
 	return ret;
@@ -243,15 +243,30 @@ scan_mgr(txn_mgr * mgr)
 	assert("nikita-2456", tree->super != NULL);
 
 	{
-		long nr_submitted;
-
 		REISER4_ENTRY(tree->super);
 
 		ret = commit_one_atom(mgr);
 
 		if (!ret && need_flush(mgr)) {
+			long nr_submitted = 0;
+
+			spin_unlock (&mgr->daemon->guard);
+
 			ret = flush_one_atom(mgr, &nr_submitted, 
 					     JNODE_FLUSH_WRITE_BLOCKS);
+
+			spin_lock (&mgr->daemon->guard);
+
+			/* FIXME-ZAM: this accounting should be re-implemented
+			 * or just thrown away. It is needed for current
+			 * reiser4_vm_writeback() implementation which does
+			 * not work as it designed (2002.10.21) */
+
+			/*
+			if ((mgr->flush_control.nr_to_flush -=  nr_submitted) < 0) 
+			*/
+			mgr->flush_control.nr_to_flush = 0;
+			mgr->daemon->rescan = 1;
 		}
 		REISER4_EXIT(ret);
 	}

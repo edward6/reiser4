@@ -1106,20 +1106,6 @@ flush_this_atom(txn_atom * atom, long *nr_submitted, int flags)
 			info("jnode_flush failed with err = %ld\n", ret);
 		} else {
 			*nr_submitted += ret;
-
-			/* please cut the dead code below, it can always be found in bk */
-
-			{	/* FIXME-ZAM: this accounting should be re-implemented or just
-				 * thrown away. It is needed for current reiser4_vm_writeback()
-				 * implementation which does not work as it designed
-				 * (2002.10.21) */
-				txn_mgr *tmgr = &get_current_super_private()->tmgr;
-
-				spin_lock_txnmgr(tmgr);
-				/* FIXME: exact counting is not implemented  */
-				tmgr->flush_control.nr_to_flush = 0;
-				spin_unlock_txnmgr(tmgr);
-			}
 		}
 	} else {
 		reiser4_context * ctx = get_current_context ();
