@@ -293,9 +293,8 @@ void tail_copy_units (coord_t * target, coord_t * source,
 
 		/* new units are inserted before first unit in an item,
 		   therefore, we have to update item key */
-		item_key_by_coord (target, &key);
-		assert ("vs-369", get_key_offset (&key) >= count);
-		set_key_offset (&key, get_key_offset (&key) - count);
+		item_key_by_coord (source, &key);
+		set_key_offset (&key, get_key_offset (&key) + from);
 
 		node_plugin_by_node (target->node)->update_item_key (target, &key, 0/*todo*/);
 	}
