@@ -24,7 +24,7 @@ extern void *xmemset( void *s, int c, size_t n );
 
 extern int page_io( struct page *page, int rw, int gfp );
 
-extern tree_operations page_cache_tops;
+extern node_operations page_cache_tops;
 
 #define define_never_ever_op( op )						\
 static int never_ever_ ## op ( void )						\
