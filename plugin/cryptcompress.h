@@ -30,6 +30,7 @@ typedef enum {
 */
 typedef struct reiser4_cluster{
 	__u8 * buf;      /* pointer to the (inflated or deflated) kmalloced cluster's data */
+	int bufsize;
 	__u8 nr_pages;            /* number of cluster pages */
 	struct page ** pages; /* cluster pages */
 	struct file * file;
