@@ -440,6 +440,9 @@ struct flush_position {
 	lock_handle lock;	/* current lock we hold */
 	load_count load;	/* load status for current locked formatted node  */
 
+	jnode * child;          /* for passing a reference to unformatted child
+				 * across pos state changes */
+
 	reiser4_blocknr_hint preceder;	/* The flush 'hint' state. */
 	int leaf_relocate;	/* True if enough leaf-level nodes were
 				 * found to suggest a relocate policy. */
@@ -469,7 +472,7 @@ static int scan_extent_coord(flush_scan * scan, const coord_t * in_coord);
 
 /* Initial flush-point ancestor allocation. */
 static int alloc_pos_and_ancestors(flush_pos_t * pos);
-static int alloc_one_ancestor(coord_t * coord, flush_pos_t * pos);
+static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos);
 static int set_preceder(const coord_t * coord_in, flush_pos_t * pos);
 
 /* Main flush algorithm.  Note on abbreviation: "squeeze and allocate" == "squalloc". */
@@ -579,6 +582,11 @@ static void move_flush_pos (flush_pos_t * pos, lock_handle * new_lock,
 		coord_init_first_unit(&pos->coord, new_lock->node);
 	}
 
+	if (pos->child) {
+		jput(pos->child);
+		pos->child = NULL;
+	}
+
 	done_load_count(&pos->load);
 	move_load_count(&pos->load, new_load);
 	done_lh(&pos->lock);
@@ -591,6 +599,7 @@ static void prepare_flush_pos(flush_pos_t *pos, flush_scan * left_scan)
 	if (jnode_is_unformatted(left_scan->node)) {
 		pos->state = POS_ON_TWIG;
 		move_flush_pos(pos, &left_scan->parent_lock, &left_scan->parent_load, &left_scan->parent_coord);
+		pos->child = jref(left_scan->node);
 	} else {
 		
 		pos->state = (jnode_get_level(left_scan->node) == LEAF_LEVEL) ? POS_ON_LEAF : POS_ON_INTERNAL;
@@ -1264,38 +1273,24 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 	init_load_count(&pload);
 
 	if (pos->state == POS_ON_TWIG) {
-		/* a spacial case for pos on twig level, where we already have a lock on
-		   parent node. */
-		jnode *child;
-
-		ret = get_leftmost_child_of_unit(pos, &child);
+		/* a special case for pos on twig level, where we already have
+		   a lock on parent node. */
+		/* The parent may not be dirty, in which case we should decide
+		   whether to relocate the child now. If decision is made to
+		   relocate the child, the parent is marked dirty. */
+		ret = reverse_relocate_check_dirty_parent(pos->child, &pos->coord, pos);
 
 		if (ret)
 			goto exit;
 
-		if (child == NULL)
-			goto exit;
+		/* FIXME_NFQUCMPD: We only need to allocate the twig (if child
+		   is leftmost) and the leaf/child, so recursion is not needed.
+		   Levels above the twig will be allocated for
+		   write-optimization before the transaction commits.  */
 
-		coord_dup(&pcoord, &pos->coord);
-
-		/* The parent may not be dirty, in which case we should decide
-		   whether to relocate the child now. If decision is made to
-		   relocate the child, the parent is marked dirty. */
-		ret = reverse_relocate_check_dirty_parent(child, &pcoord, pos);
-
-		if (!ret) {
-			/* FIXME_NFQUCMPD: We only need to allocate the twig (if
-			   child is leftmost) and the leaf/child, so recursion
-			   is not needed.  Levels above the twig will be
-			   allocated for write-optimization before the
-			   transaction commits.  */
-
-			/* Do the recursive step, allocating zero or more of our
-			 * ancestors. */
-			ret = alloc_one_ancestor(&pcoord, pos);
-		}
-
-		jput(child);
+		/* Do the recursive step, allocating zero or more of our
+		 * ancestors. */
+		ret = alloc_one_ancestor(&pos->coord, pos);
 		
 	} else {
 		if (!znode_is_root(pos->lock.node)) {
@@ -1339,7 +1334,7 @@ exit:
    child is a leftmost child and returns if it is not.  If the child is a leftmost child
    it checks for relocation, possibly dirtying the parent.  Then it performs the recursive
    step. */
-static int alloc_one_ancestor(coord_t * coord, flush_pos_t * pos)
+static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos)
 {
 	int ret = 0;
 	lock_handle alock;
@@ -1520,6 +1515,11 @@ static int squeeze_right_twig (flush_pos_t * pos, znode * left, znode * right)
 	return ret;
 }
 
+/* Check whether the parent of given @right node needs to be processes
+   ((re)allocated) prior to processing of the child.  If @left and @right do not
+   share at least the parent of the @right is after the @left but before the
+   @right in parent-first order, we have to (re)allocate it before the @right
+   gets (re)allocated. */
 static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 {
 	int ret;
@@ -1572,13 +1572,15 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	if (ret)
 		goto out;
 
-	/* If we have shifted one or more internal items "left" and "right" nodes do not
-	   share same parent anymore. We have not process right_parent node prior to
-	   processing of "right". */
+	/* If we have shifted one or more internal items, @right was reparented
+	   therefore @left and @right nodes do not share same parent anymore.
+	   We have not process right_parent node prior to processing of
+	   @right. */
 	if (!coord_is_after_rightmost(&between))
 		goto out;
 
-	/* recursion !!!*/
+	/* parent(@left) and parent(@right) may have different parents also. We
+	 * do a recursive call for checking that. */
 	ret = squalloc_upper_levels(pos, left_parent_lock.node, right_parent_lock.node);
 
 	if (ret)
@@ -1598,7 +1600,8 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	return ret;
 } 
 
-/* Check the leftmost child "flushprepped" status */
+/* Check the leftmost child "flushprepped" status, also returns true if child
+ * node was not found in cache.  */
 static int leftmost_child_of_unit_check_flushprepped (flush_pos_t * pos)
 {
 	int ret;
@@ -1659,6 +1662,8 @@ static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
 	return ret;
 }
 
+/* Process nodes on leaf level until unformatted node or rightmost node in the
+ * slum reached.  */
 static int handle_pos_on_leaf (flush_pos_t * pos)
 {
 	int ret;
@@ -1675,6 +1680,7 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 
 	if (ret) {
 		if (ret == -EINVAL) {
+			/* cannot get right neighbor, go process extents. */
 			pos->state = POS_TO_TWIG;
 			return 0;
 		}
@@ -1702,12 +1708,10 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 		goto again;
 	}
 
-	/* FIXME(Zam): This check should be protected by a longterm lock on parent
-	   level. Nobody guarantees that "same parents" condition will be still so when we
-	   allocate right neighbor. Seems we should move a lock from
-	   lock_parent_and_allocate_znode() to here. */
+	/* fast (without taking longterm locks) check for same parents */
 	if (!znode_same_parents(pos->lock.node, right_lock.node)) {
-		/* do squalloc on upper levels */
+		/* parent(right_lock.node) has to be processed before
+		 * (right_lock.node) due to "parent-first" allocation order. */
 		ret = squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
 
 		if (ret)
@@ -1734,16 +1738,22 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 	return ret;
 }
 
+/* Process slum on level > 1 */
 static int handle_pos_on_internal (flush_pos_t * pos)
 {
 	assert ("zam-850", pos->state == POS_ON_INTERNAL);
 
-	/* consider it as a rare case, let alloc_pos_and_ancestors() 
-	   do the job */
+	/* consider it as a rare case, let alloc_pos_and_ancestors() process all
+	   dirty nodes */
 	pos->state = POS_INVALID;
 	return 0;
 }
 
+/* Handle the case when regular reiser4 tree (znodes connected one to its
+ * neighbors by sibling pointers) is interrupted on leaf level by one or more
+ * unformatted nodes.  By having a lock on twig level and use extent code
+ * routines to process unformatted nodes we swim around an irregular part of
+ * reiser4 tree. */
 static int handle_pos_on_twig (flush_pos_t * pos)
 {
 	int ret;
@@ -1792,6 +1802,9 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 	return 0;
 }
 
+/* When we about to return flush position from twig to leaf level we can process
+ * the right twig node or move position to the leaf.  This processes right twig
+ * if it is possible and jump to leaf level if not. */
 static int handle_pos_end_of_twig (flush_pos_t * pos)
 {
 	int ret;
@@ -1805,7 +1818,10 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 	init_lh(&right_lock);
 	init_load_count(&right_load);
 
-	/* FIXME: twig node might be not dirty but first unformatted */
+	/* FIXME: twig node might be not dirty but first unformatted.  We should
+	 * get right neighbor regardless of its dirty state and continue with
+	 * its leftmost child.  Clean right twig could be relocated.  It is what
+	 * reverse_relocate_end_of_twig did in Josh's code. */
 	ret = znode_get_utmost_if_dirty(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
 
 	if (ret)
@@ -1873,6 +1889,8 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 	return ret;
 }
 
+/* Move the pos->lock to leaf node pointed by pos->coord, check should we
+ * continue there. */
 static int handle_pos_to_leaf (flush_pos_t * pos)
 {
 	int ret;
@@ -1925,6 +1943,7 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 	return ret;
 }
 
+/* Move pos->lock to upper (twig) level */
 static int handle_pos_to_twig (flush_pos_t * pos)
 {
 	int ret;
@@ -1971,6 +1990,8 @@ static pos_state_handle_t flush_pos_handlers[] = {
 	[POS_ON_INTERNAL] = handle_pos_on_internal
 };
 
+/* Advance flush position horizontally with given level, process ((re)allocate)
+ * nodes and its ancestors in "parent-first" order */
 static int squalloc (flush_pos_t * pos)
 {
 	int ret = 0;
@@ -3279,6 +3300,11 @@ pos_stop(flush_pos_t * pos)
 	done_lh(&pos->lock);
 	done_load_count(&pos->load);
 	coord_init_invalid(&pos->coord, NULL);
+
+	if (pos->child) {
+		jput(pos->child);
+		pos->child = NULL;
+	}
 
 	return 0;
 }
