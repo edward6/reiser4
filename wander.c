@@ -773,7 +773,6 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr, con
 			assert("nikita-3166",
 			       ergo(!JF_ISSET(cur, JNODE_CC), pg->mapping == jnode_get_mapping(cur)));
 			if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
-				assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
 				assert("nikita-3165", !jnode_is_releasable(cur));
 				UNLOCK_JNODE(cur);
 				if (!bio_add_page(bio,
