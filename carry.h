@@ -13,11 +13,6 @@
 
 #include <linux/types.h>
 
-typedef enum {
-	CARRY_TRACK_CHANGE = 1,
-	CARRY_TRACK_NODE   = 2
-} carry_track_type;
-
 /* &carry_node - "location" of carry node.
   
    "location" of node that is involved or going to be involved into
@@ -58,13 +53,6 @@ typedef struct carry_node {
 	/* this carry node was allocated by carry process and should be
 	    freed when carry leaves a level */
 	__u32 free:1;
-
-	/* This is set on nodes supplied to us by caller
-	   (insert_by_key(), resize_item(), etc.) when they want to a lock
-	   from this node to automagically wander to the node where
-	   insertion point moved after insert or paste.
-	*/
-	__u32 track:2;
 
 	/* type of lock we want to take on this node */
 	lock_handle lock_handle;
@@ -131,6 +119,11 @@ typedef enum {
 	DELETE_DONT_COMPACT = (1 << 1),
 	DELETE_KILL = (1 << 2)
 } cop_delete_flag;
+
+typedef enum {
+	CARRY_TRACK_CHANGE = 1,
+	CARRY_TRACK_NODE   = 2
+} carry_track_type;
 
 /* data supplied to COP_{INSERT|PASTE} by callers */
 typedef struct carry_insert_data {
@@ -264,6 +257,11 @@ struct carry_level {
 	int nodes_num;
 	/* new root created on this level, if any */
 	znode *new_root;
+	/* This is set by caller (insert_by_key(), resize_item(), etc.) when
+	   they want ->tracked to automagically wander to the node where
+	   insertion point moved after insert or paste.
+	*/
+	carry_track_type track_type;
 	/* lock handle supplied by user that we are tracking. See
 	   above. */
 	lock_handle *tracked;

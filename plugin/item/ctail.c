@@ -536,7 +536,7 @@ insert_cryptcompress_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	op->u.insert_flow.data = &data;
 	op->u.insert_flow.new_nodes = 0;
 
-	op->node->track = CARRY_TRACK_CHANGE;
+	lowest_level.track_type = CARRY_TRACK_CHANGE;
 	lowest_level.tracked = lh;
 	
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));

@@ -2511,9 +2511,7 @@ page_extent_jnode(reiser4_tree *tree, oid_t oid, reiser4_key *key, uf_coord_t *u
 
 			reiser4_unlock_page(page);
 			DISABLE_NODE_CHECK;
-			get_current_context()->trace_flags |= TRACE_CARRY;
 			result = make_extent(key, uf_coord, mode, &blocknr);
-			get_current_context()->trace_flags &= ~TRACE_CARRY;
 			ENABLE_NODE_CHECK;
 			if (result) {
 				jfree(j);

@@ -185,6 +185,7 @@ reiser4_is_debugged(struct super_block *super, __u32 flag)
 	return get_super_private(super)->debug_flags & flag;
 }
 
+#if REISER4_TRACE
 /* tracing setup: global trace flags stored in global variable plus
    per-thread trace flags plus per-fs trace flags.
    */
@@ -201,6 +202,7 @@ __u32 get_current_trace_flags(void)
 
 	return flags;
 }
+#endif
 
 /* allocate memory. This calls kmalloc(), performs some additional checks, and
    keeps track of how many memory was allocated on behalf of current super

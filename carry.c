@@ -1296,6 +1296,11 @@ carry_level_invariant(carry_level * level, carry_queue_state state)
 	if (level == NULL)
 		return 0;
 
+	if (level->track_type != 0 && 
+	    level->track_type != CARRY_TRACK_NODE &&
+	    level->track_type != CARRY_TRACK_CHANGE)
+		return 0;
+
 	/* check that nodes are in ascending order */
 	for_all_nodes(level, node, tmp_node) {
 		znode *left;
@@ -1303,11 +1308,6 @@ carry_level_invariant(carry_level * level, carry_queue_state state)
 
 		reiser4_key lkey;
 		reiser4_key rkey;
-
-		if (node->track != 0 && 
-		    node->track != CARRY_TRACK_NODE &&
-		    node->track != CARRY_TRACK_CHANGE)
-			return 0;
 
 		if (node != carry_node_front(level)) {
 			if (state == CARRY_TODO) {

@@ -204,14 +204,12 @@ insert_with_carry_by_coord(coord_t * coord /* coord where to insert */ ,
 	op->u.insert.child = 0;
 	if (lh != NULL) {
 		assert("nikita-3245", lh->node == coord->node);
-		op->node->track = CARRY_TRACK_CHANGE;
+		lowest_level.track_type = CARRY_TRACK_CHANGE;
 		lowest_level.tracked = lh;
 	}
 
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));
 	result = carry(&lowest_level, 0);
-	assert("nikita-3245", ergo(result == 0 && lh != NULL,
-				   lh->node == coord->node));
 	done_carry_pool(&pool);
 
 	return result;
@@ -259,7 +257,7 @@ paste_with_carry(coord_t * coord /* coord of paste */ ,
 	op->u.paste.flags = flags;
 	op->u.paste.type = COPT_ITEM_DATA;
 	if (lh != NULL) {
-		op->node->track = CARRY_TRACK_CHANGE;
+		lowest_level.track_type = CARRY_TRACK_CHANGE;
 		lowest_level.tracked = lh;
 	}
 
@@ -526,7 +524,7 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	op->u.insert_flow.data = &data;
 	op->u.insert_flow.new_nodes = 0;
 
-	op->node->track = CARRY_TRACK_CHANGE;
+	lowest_level.track_type = CARRY_TRACK_CHANGE;
 	lowest_level.tracked = lh;
 
 	ON_STATS(lowest_level.level_no = znode_get_level(coord->node));

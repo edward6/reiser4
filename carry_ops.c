@@ -352,6 +352,33 @@ put_split_point(carry_op * op, int adj, __u32 flags)
 	op->u.insert.flags = flags;
 }
 
+static int
+make_space_tail(carry_op * op, carry_level * doing, znode * orig_node)
+{
+	int result;
+	carry_track_type tracking;
+	znode *node;
+
+	tracking = doing->track_type;
+	node = op->u.insert.d->coord->node;
+
+	if (tracking == CARRY_TRACK_NODE || 
+	    (tracking == CARRY_TRACK_CHANGE && node != orig_node)) {
+		/* inserting or pasting into node different from
+		   original. Update lock handle supplied by caller. */
+		assert("nikita-1417", doing->tracked != NULL);
+		done_lh(doing->tracked);
+		init_lh(doing->tracked);
+		result = longterm_lock_znode(doing->tracked, node,
+					     ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+		reiser4_stat_level_inc(doing, track_lh);
+		ON_TRACE(TRACE_CARRY, "tracking: %i: %p -> %p\n",
+			 tracking, orig_node, node);
+	} else
+		result = 0;
+	return result;
+}
+
 /* This is insertion policy function. It shifts data to the left and right
    neighbors of insertion coord and allocates new nodes until there is enough
    free space to complete @op.
@@ -378,7 +405,6 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 	__u32 flags;
 	int adj;
 
-	int tracking;
 	coord_t *coord;
 
 	assert("nikita-890", op != NULL);
@@ -393,7 +419,6 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 
 	coord = op->u.insert.d->coord;
 	orig_node = node = coord->node;
-	tracking = op->node->track;
 
 	assert("nikita-908", node != NULL);
 	assert("nikita-909", node_plugin_by_node(node) != NULL);
@@ -409,7 +434,7 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 		   was enough space in the node. For example, when inserting
 		   leftmost item so that delimiting keys have to be updated.
 		*/
-		return 0;
+		return make_space_tail(op, doing, orig_node);
 	if (!(flags & COPI_DONT_SHIFT_LEFT)) {
 		carry_node *left;
 		/* make note in statistics of an attempt to move
@@ -567,22 +592,11 @@ make_space(carry_op * op /* carry operation, insert or paste */ ,
 			warning("nikita-948", "Cannot insert new item");
 		result = -E_NODE_FULL;
 	}
-	if (result == 0 && 
-	    (tracking == CARRY_TRACK_NODE || 
-	     (tracking == CARRY_TRACK_CHANGE && node != orig_node))) {
-		/* inserting or pasting into node different from
-		   original. Update lock handle supplied by caller. */
-		assert("nikita-1417", doing->tracked != NULL);
-		done_lh(doing->tracked);
-		init_lh(doing->tracked);
-		result = longterm_lock_znode(doing->tracked, node,
-					     ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
-		reiser4_stat_level_inc(doing, track_lh);
-		ON_TRACE(TRACE_CARRY, "tracking: %i: %p -> %p\n",
-			 tracking, orig_node, node);
-	}
-	assert("nikita-1622", ergo(result == 0, carry_real(op->node) == coord->node));
+	assert("nikita-1622", ergo(result == 0, 
+				   carry_real(op->node) == coord->node));
 	assert("nikita-2616", coord == op->u.insert.d->coord);
+	if (result == 0)
+		result = make_space_tail(op, doing, orig_node);
 	return result;
 }
 
@@ -801,65 +815,6 @@ carry_insert(carry_op * op /* operation to perform */ ,
 
 	return result;
 }
-
-#if 0
-
-/* make_space_for_flow_insertion is the below pseudocode detailed to state from
-   which it can be coded:
-   if(!enough_space())
-        shift_insert_point_to_left;
-   if(!enough_space())
-        shift_after_insert_point_to_right();
-   if(!enough_space()){
-        insert_node_after_insert_point();
-   if(!insert_point_at_node_end()) {
-  	shift_after_insert_point_to_right();
-  	if ( optimizing_for_repeat_insertions_at_point)
-              insert_node_after_insert_point();// avoids pushing detritus around when repeated insertions occur
-  
-   
-*/
-
-make_space_for_flow_insertion()
-{
-	if (there is enough space for whole flow)
-		return;
-
-	shift to left neighbor including insertion point;
-	if (insertion point is moved to left neighbor) {
-		if (there is some space)
-			return;
-		move insertion point to right neighbor;
-	}
-
-	if (there is enough space for whole flow)
-		return;
-
-	shift to right neighbor excluding insertion point;
-	if (insertion point is at the end of node) {
-		if (there is some space)
-			return;
-		add new node;
-		move insertion point to newly added node;
-		return;
-	}
-
-	if (there is enough space for whole flow)
-		return;
-
-	add new node;
-	shift to right to new node excluding insertion point;
-	assert(current node must contain some space);
-
-	if (there is some space)
-		return;
-
-	add new node;
-	move insertion point to newly added node;
-
-	return;
-}
-#endif
 
 #define flow_insert_point(op) ( ( op ) -> u.insert_flow.insert_point )
 #define flow_insert_flow(op) ( ( op ) -> u.insert_flow.flow )
@@ -1603,15 +1558,13 @@ carry_extent(carry_op * op /* operation to perform */ ,
 	 * lock handle on the twig node rather than on the leaf where
 	 * operation was started from. Transfer tracked lock handle.
 	 */
-	if (op->node->track) {
+	if (doing->track_type) {
 		assert("nikita-3242", doing->tracked != NULL);
 		assert("nikita-3244", todo->tracked == NULL);
-		ON_TRACE(TRACE_CARRY, "ext track: %i: %p\n",
-			 op->node->track, node);
 		todo->tracked = doing->tracked;
+		todo->track_type = CARRY_TRACK_NODE;
 		doing->tracked = NULL;
-		insert_extent->node->track = CARRY_TRACK_NODE;
-		op->node->track = 0;
+		doing->track_type = 0;
 	}
 
 	return 0;
