@@ -23,7 +23,7 @@ int extent2tail(struct inode *);
 /* get unix file plugin specific portion of inode */
 inline unix_file_info_t *unix_file_inode_data(const struct inode * inode)
 {
-	return &reiser4_inode_data(inode)->file_plugin_data.unix_file_info;
+	return &reiser4_inode_by_inode(inode)->file_plugin_data.unix_file_info;
 }
 
 int file_state_is_known(const struct inode *inode)
@@ -231,30 +231,34 @@ ok:
 
 /* update inode's timestamps and size. If any of these change - update sd as well */
 int
-update_inode_and_sd_if_necessary(struct inode *inode, loff_t new_size, int update_i_size)
+update_inode_and_sd_if_necessary(struct inode *inode, loff_t new_size, int update_i_size, int do_update)
 {
 	int result;
-	int update_sd;
 	PROF_BEGIN(update_sd);
+	int inode_changed;
 
-	update_sd = 0;
 	result = 0;
+
+	/* FIXME: no need to avoid mark_inode_dirty call. It does not do anything but "capturing" inode */
+	inode_changed = 0;
+
 	if (update_i_size) {
 		assert("vs-1104", inode->i_size != new_size);
 		INODE_SET_FIELD(inode, i_size, new_size);
-		update_sd = 1;
+		inode_changed = 1;
 	}
 	
 	if (inode->i_ctime.tv_sec != get_seconds() || 
 	    inode->i_mtime.tv_sec != get_seconds()) {
 		/* time stamps are to be updated */
 		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		update_sd = 1;
+		inode_changed = 1;
 	}
 	
-	if (update_sd) {
+	if (do_update && inode_changed) {
 		assert("vs-946", !inode_get_flag(inode, REISER4_NO_SD));
-		result = reiser4_write_sd(inode);
+		/* "capture" inode */
+		result = reiser4_mark_inode_dirty(inode);
 		if (result)
 			warning("vs-636", "updating stat data failed: %i", result);
 	}
@@ -445,7 +449,7 @@ static int reserve_partial_page(tree_level height)
 /* cut file items one by one starting from the last one until new file size (inode->i_size) is reached. Reserve space
    and update file stat data on every single cut from the tree */
 static int
-cut_file_items(struct inode *inode, loff_t new_size)
+cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 {
 	coord_t intranode_to, intranode_from;
 	reiser4_key from_key, to_key, smallest_removed;
@@ -537,7 +541,7 @@ cut_file_items(struct inode *inode, loff_t new_size)
 
 		assert("vs-301", !keyeq(&smallest_removed, min_key()));
 
-		result = update_inode_and_sd_if_necessary(inode, get_key_offset(&smallest_removed), 1/*update inode->i_size*/);
+		result = update_inode_and_sd_if_necessary(inode, get_key_offset(&smallest_removed), 1/*update inode->i_size*/, update_sd);
 		all_grabbed2free("cut_file_items after update_inode..");
 		if (result)
 			break;
@@ -555,7 +559,7 @@ int unix_file_writepage_nolock(struct page *page);
 
 /* part of unix_file_truncate: it is called when truncate is used to make file shorter */
 static int
-shorten_file(struct inode *inode, loff_t new_size)
+shorten_file(struct inode *inode, loff_t new_size, int update_sd)
 {
 	int result;
 	struct page *page;
@@ -567,7 +571,7 @@ shorten_file(struct inode *inode, loff_t new_size)
 
 	/* all items of ordinary reiser4 file are grouped together. That is why we can use cut_tree. Plan B files (for
 	   instance) can not be truncated that simply */
-	result = cut_file_items(inode, new_size);
+	result = cut_file_items(inode, new_size, update_sd);
 	if (result)
 		return result;
 
@@ -664,7 +668,7 @@ append_hole(struct inode *inode, loff_t new_size)
 /* this either cuts or add items of/to the file so that items match new_size. It is used in unix_file_setattr when it is
    used to truncate and in unix_file_delete */
 static int
-truncate_file(struct inode *inode, loff_t new_size)
+truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 {
 	int result;
 	loff_t cur_size;
@@ -677,8 +681,12 @@ truncate_file(struct inode *inode, loff_t new_size)
 			int (*truncate_f)(struct inode *, loff_t);
 			
 			INODE_SET_FIELD(inode, i_size, cur_size);
+/*
 			truncate_f = (cur_size < new_size) ? append_hole : shorten_file;
 			result = truncate_f(inode, new_size);
+*/
+			result = (cur_size < new_size) ? append_hole(inode, new_size) : shorten_file(inode, new_size, update_sd);
+
 		} else {
 			/* when file is built of extens - find_file_size can only calculate old file size up to page
 			 * size. Case of not changing file size is detected in unix_file_setattr, therefore here we have
@@ -704,7 +712,8 @@ unix_file_truncate(struct inode *inode, loff_t new_size)
 {
 	INODE_SET_FIELD(inode, i_size, new_size);
 	inode->i_mtime = inode->i_ctime = CURRENT_TIME;
-	return reiser4_write_sd(inode);		
+	/* "capture" inode */
+	return reiser4_mark_inode_dirty(inode);		
 }
 
 /* plugin->u.write_sd_by_inode = common_file_save */
@@ -1604,9 +1613,10 @@ unix_file_delete(struct inode *inode)
 {
 	int result;
 
+	/* FIXME: file is truncated to 0 already */
 	assert("vs-1099", inode->i_nlink == 0);
 	if (inode->i_size) {
-		result = truncate_file(inode, 0);
+		result = truncate_file(inode, 0, 0/* no stat data update */);
 		if (result) {
 			warning("nikita-2848",
 				"Cannot truncate unnamed file %lli: %i",
@@ -1670,7 +1680,7 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 				get_exclusive_access(inode);
 			else
 				/* setattr is called from delete_inode to remove file body */;
-			result = truncate_file(inode, attr->ia_size);
+			result = truncate_file(inode, attr->ia_size, 1/* update stat data */);
 			if (!result) {
 				/* items are removed already. inode_setattr will call vmtruncate to invalidate truncated
 				   pages and unix_file_truncate which will do nothing */
@@ -1686,7 +1696,8 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 		if (!result) {
 			result = inode_setattr(inode, attr);
 			if (!result)
-				result = reiser4_write_sd(inode);
+				/* "capture" inode */
+				result = reiser4_mark_inode_dirty(inode);
 			all_grabbed2free(__FUNCTION__);
 		}
 	}
@@ -1734,7 +1745,7 @@ unix_file_init_inode(struct inode *inode, int create)
 int
 unix_file_pre_delete(struct inode *inode)
 {
-	return truncate_file(inode, 0);
+	return truncate_file(inode, 0/* size */, 0/* no stat data update */);
 }
 
 
