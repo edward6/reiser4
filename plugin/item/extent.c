@@ -531,30 +531,30 @@ static int cut_or_kill_units (tree_coord * coord,
 		 * @to_key must be not 0 if @from_key is not
 		 */
 		assert ("vs-311", to_key);
-		/*
-		 * this is not part of shift
-		 */
-		assert ("vs-401", cut == 0);
-		/*
-		 * item is supposed to be cut down to the end
-		 */
-		assert ("vs-402", *to == last_unit_pos (coord));
-		assert ("vs-404",
-			({ reiser4_key last_key;
-			
-			   last_key_in_extent (coord, &last_key);
-			   set_key_offset (&last_key, get_key_offset (&last_key) - 1);
-			   keycmp (to_key, &last_key) != LESS_THAN;
-			}));
-		/*
-		 * @from_key must be less than key of @from + 1 unit
-		 */
-		assert ("vs-308",
-			({
-			   set_key_offset (&key, (offset +
-						  extent_size (coord, *from + 1)));
-			   keycmp (from_key, &key) == LESS_THAN;
-			}));
+		if (!cut) {
+			/*
+			 * we are removing item from the tree (not shift to
+			 * neighbor), therefore, item is supposed to be cut
+			 * down to the end
+			 */
+			assert ("vs-402", *to == last_unit_pos (coord));
+			assert ("vs-404",
+				({ reiser4_key last_key;
+				
+				last_key_in_extent (coord, &last_key);
+				set_key_offset (&last_key, get_key_offset (&last_key) - 1);
+				keycmp (to_key, &last_key) != LESS_THAN;
+				}));
+			/*
+			 * @from_key must be less than key of @from + 1 unit
+			 */
+			assert ("vs-308",
+				({
+					set_key_offset (&key, (offset +
+							       extent_size (coord, *from + 1)));
+					keycmp (from_key, &key) == LESS_THAN;
+				}));
+		}
 
 		
 		set_key_offset (&key, (offset +
@@ -2293,8 +2293,8 @@ static int must_insert (tree_coord * coord, reiser4_key * key)
 
 	if (item_is_extent (coord) &&
 	    keycmp (last_key_in_extent (coord, &last), key) == EQUAL_TO)
-		return 1;
-	return 0;
+		return 0;
+	return 1;
 }
 
 
@@ -2342,15 +2342,19 @@ static int try_to_glue (znode * left, tree_coord * right,
 	reiser4_key item_key, last_key;
 	reiser4_extent * ext;
 
+	assert ("vs-463", !node_is_empty (left));
 
 	if (right->unit_pos != 0)
 		return 0;
 
-	result = 0;
 	reiser4_init_coord (&last);
 	coord_last_unit (&last, left);
 	ext = extent_by_coord (&last);
 
+	if (item_plugin_by_coord (&last) != item_plugin_by_coord (right))
+		return 0;
+
+	result = 0;
 	if ((keycmp (last_key_in_extent (&last, &last_key), &item_key) ==
 	     EQUAL_TO) &&
 	    (extent_get_start (ext) + extent_get_width (ext) ==
@@ -2419,7 +2423,7 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 				 * left->node does not have enough free space
 				 * for this unit
 				 */
-				result = SQUEEZE_DONE;
+				result = SQUEEZE_TARGET_FULL;
 				goto done;
 			}
 			/*
@@ -2427,6 +2431,8 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 			 */
 			set_key_offset (&key, get_key_offset (&key) +
 					extent_get_width (ext) * blocksize);
+			*stop_key = key;
+			set_key_offset (stop_key, get_key_offset (&key) - 1);
 			result = SQUEEZE_CONTINUE;
 			continue;
 		}
@@ -2459,6 +2465,8 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 				 */
 				set_key_offset (&key, get_key_offset (&key) +
 						allocated * blocksize);
+				*stop_key = key;
+				set_key_offset (stop_key, get_key_offset (&key) - 1);
 				result = SQUEEZE_CONTINUE;
 				continue;
 			}
@@ -2480,7 +2488,7 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 				 * parent-first order
 				 */
 				free_blocks (first_allocated, allocated);
-				result = SQUEEZE_DONE;
+				result = SQUEEZE_TARGET_FULL;
 				goto done;
 			}
 			/*
@@ -2494,13 +2502,16 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 			 */
 			set_key_offset (&key, get_key_offset (&key) +
 					allocated * blocksize);
+			*stop_key = key;
+			set_key_offset (stop_key, get_key_offset (&key) - 1);
 			result = SQUEEZE_CONTINUE;
 		}
 	}
  done:
-	*stop_key = key;
-	set_key_offset (stop_key, get_key_offset (&key) - 1);
-	assert ("vs-421", result == SQUEEZE_DONE || SQUEEZE_CONTINUE);
+
+	assert ("vs-421", result == SQUEEZE_TARGET_FULL || SQUEEZE_CONTINUE);
+
+	coord_first_item_unit (right);
 	return result;
 }
 
@@ -2624,6 +2635,7 @@ int allocate_extent_item_in_place (tree_coord * item, block_nr * preceder)
 	 * extents))
 	 */
 	optimize_extent (item);
+	coord_first_item_unit (item);
 	return 0;
 }
 
