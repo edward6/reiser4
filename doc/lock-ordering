@@ -449,6 +449,10 @@ tree_lock->epoch_lock
 jnode_lock->stack_lock
 
     longterm_lock_znode(), longterm_unlock_znode(), wake_up_all_lopri_owners()
+
+tree_lock->cbk_guard
+
+    znode_remove() calls cbk_cache_invalidate()
 ----------------------------------DEADLOCKS-------------------------------------
 
 Big section describing found/possible/already-worked-around deadlocks.

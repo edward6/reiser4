@@ -151,7 +151,7 @@ ARC(jnode_lock, txnh_lock, "try_capture_block()");
 //alredy covered
 ARC(atom_lock, txnh_lock, "capture_fuse_txnh_lists()");
 ARC(jnode_lock, tree_lock, "jdrop_in_tree()");
-ARC(tree_lock, cbk_guard, "cbk_cache_scan_slots()");
+ARC(tree_lock, cbk_guard, "cbk_cache_invalidate()");
 ARC(dk_lock, tree_lock, "sync_dkeys()");
 ARC(txnmgr_lock, atom_lock, "atom_dec_and_unlock()"); //txnmgr_force_commit_all(),\ncommit_some_atoms(),\nflush_one_atom()");
 ARC(txnmgr_lock, jnode_lock, "atom_begin_andlock()");
