@@ -20,6 +20,7 @@ libreiser4_la_LIBADD  	= $(top_builddir)/libaal/libaal.la \
 			  $(top_builddir)/plugin/internal40/libinternal40-static.la \
 			  $(top_builddir)/plugin/direntry40/libdirentry40-static.la \
 			  $(top_builddir)/plugin/stat40/libstat40-static.la \
+			  $(top_builddir)/plugin/key40/libkey40-static.la \
 			  libplugins_footer.la
 else
 libreiser4_la_LIBADD  	= $(top_builddir)/libaal/libaal.la @LIBREISERFS_LIBS@

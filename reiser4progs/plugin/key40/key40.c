@@ -114,6 +114,10 @@ static uint64_t key40_get_offset(reiserfs_key40_t *key) {
     return get_key40_offset(key);
 }
 
+static uint16_t key40_size(void) {
+    return sizeof(reiserfs_key40_t);
+}
+
 static reiserfs_plugin_t key40_plugin = {
     .key = {
 	.h = {
@@ -141,7 +145,8 @@ static reiserfs_plugin_t key40_plugin = {
 	.get_objectid = (oid_t (*)(void *))key40_get_objectid,
 
 	.set_offset = (void (*)(void *, uint64_t))key40_set_offset,
-	.get_offset = (uint64_t (*)(void *))key40_get_offset
+	.get_offset = (uint64_t (*)(void *))key40_get_offset,
+	.size = (uint16_t (*)(void))key40_size
     }
 };
 

@@ -110,12 +110,12 @@ static void node40_item_set_plugin_id(aal_block_t *block,
 }
 
 static error_t node40_prepare_space(aal_block_t *block, 
-    reiserfs_coord_t *coord, reiserfs_key40_t *key, 
-    reiserfs_item_info_t *info) 
+    reiserfs_coord_t *coord, void *key, reiserfs_item_info_t *info) 
 {
-    int i, item_pos;
     void *body;
+    int i, item_pos;
     uint32_t offset;
+    reiserfs_plugin_t *plugin;
     
     reiserfs_ih40_t *ih;
     reiserfs_nh40_t *nh;
@@ -176,9 +176,16 @@ static error_t node40_prepare_space(aal_block_t *block,
     
     if (!is_new_item)	
 	return 0;
-	    
+    
+    if (!(plugin = factory->find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't find key plugin by its id %x.", 0x0);
+	return -1;
+    }
+
     /* Create a new item header */
-    aal_memcpy(&ih->key, key, sizeof(reiserfs_key40_t));
+    aal_memcpy(&ih->key, key, libreiser4_plugins_call(return -1, 
+	plugin->key, size,));
     
     ih40_set_offset(ih, offset);
     ih40_set_plugin_id(ih, info->plugin->h.id);
@@ -189,8 +196,7 @@ static error_t node40_prepare_space(aal_block_t *block,
 
 /* Inserts item described by info structure into node. */
 static error_t node40_item_insert(aal_block_t *block, 
-    reiserfs_coord_t *coord, reiserfs_key40_t *key, 
-    reiserfs_item_info_t *info) 
+    reiserfs_coord_t *coord, void *key, reiserfs_item_info_t *info) 
 { 
     reiserfs_nh40_t *nh;
     
@@ -208,8 +214,7 @@ static error_t node40_item_insert(aal_block_t *block,
 
 /* Pastes units into item described by info structure. */
 static error_t node40_item_paste(aal_block_t *block, 
-    reiserfs_coord_t *coord, reiserfs_key40_t *key, 
-    reiserfs_item_info_t *info) 
+    reiserfs_coord_t *coord, void *key, reiserfs_item_info_t *info) 
 {   
     aal_assert("vpf-120", coord != NULL && coord->unit_pos != -1, return -1);
     
@@ -344,8 +349,8 @@ static int callback_compare_for_lookup(const void *key1,
     1 - exact match has been found.
 */
 
-static int node40_lookup(aal_block_t *block, reiserfs_coord_t *coord, 
-    reiserfs_key40_t *key) 
+static int node40_lookup(aal_block_t *block, 
+    reiserfs_coord_t *coord, void *key) 
 {
     int found; int64_t pos;
     reiserfs_plugin_t *plugin;

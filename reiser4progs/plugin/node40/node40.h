@@ -54,7 +54,10 @@ typedef struct reiserfs_nh40 reiserfs_nh40_t;
     pos_in_node to functions instead.
 */
 struct reiserfs_ih40 {
-    reiserfs_key40_t key;
+    union {
+	uint64_t el[3];
+	int pad;
+    } key;
     uint16_t offset;
     uint16_t length;
     uint16_t plugin_id;
