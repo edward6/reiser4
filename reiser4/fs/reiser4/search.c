@@ -392,6 +392,10 @@ static int prepare_delimiting_keys( cbk_handle *h );
  *
  * Check coord cache. If key we are looking for is not found there, call cbk()
  * to do real tree traversal.
+ *
+ * As we have extents on the twig level, @lock_level and @stop_level can
+ * be different from LEAF_LEVEL and each other.
+ *
  */
 lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 						* in. Usually this tree is
@@ -412,13 +416,12 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 						       * ZNODE_WRITE_LOCK if
 						       * you want to modify
 						       * it */, 
-			    lookup_bias bias /* what to return if coord with
-					      * exactly the same key as was
-					      was what? -Hans */,
+			    lookup_bias bias /* what to return if coord
+					      * with exactly the @key is
+					      * not in the tree */,
 			    tree_level lock_level /* tree level where to start
 						   * taking @lock type of
 						   * locks */,
-/* cite example of where lock_level and stop_level are not leaf. -Hans */
 			    tree_level stop_level /* tree level to stop. Pass
 						   * leaf_level or twig_level
 						   * here Item being looked
