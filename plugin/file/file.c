@@ -2079,6 +2079,7 @@ setattr_truncate(struct inode *inode, struct iattr *attr)
 		warning("nikita-3417", "Cannot kill safelink %lli: %i",
 			get_inode_oid(inode), s_result);
 	}
+	safe_link_release(tree_by_inode(inode));
 	all_grabbed2free();
 	return result;
 }

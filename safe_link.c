@@ -55,9 +55,17 @@ reiser4_internal int safe_link_grab(reiser4_tree *tree, reiser4_ba_flags_t flags
 	int   result;
 
 	grab_space_enable();
-	result = reiser4_grab_space(safe_link_tograb(tree), flags);
+	/* The sbinfo->delete semaphore can be taken here.
+	 * safe_link_release() should be called before leaving reiser4
+	 * context. */
+	result = reiser4_grab_reserved(tree->super, safe_link_tograb(tree), flags);
 	grab_space_enable();
 	return result;
+}
+
+reiser4_internal void safe_link_release(reiser4_tree * tree)
+{
+	reiser4_release_reserved(tree->super);
 }
 
 reiser4_internal int safe_link_add(struct inode *inode, reiser4_safe_link_t link)
@@ -153,6 +161,7 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 		result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
 		if (result == 0)
 			result = safe_link_del(inode, link);
+		safe_link_release(tree_by_inode(inode));
 		reiser4_exit_context(&ctx);
 		fplug = inode_file_plugin(inode);
 		assert("nikita-3428", fplug != NULL);

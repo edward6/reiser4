@@ -208,6 +208,7 @@ done_context(reiser4_context * context /* context being released */)
 		assert("nikita-1936", no_counters_are_held());
 		assert("nikita-3403", !delayed_inode_updates(context->dirty));
 		assert("nikita-2626", tap_list_empty(taps_list()));
+		assert("zam-1004", get_super_private(context->super)->delete_sema_owner != current);
 
 		log_entry(context->super, ":ex");
 

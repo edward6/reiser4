@@ -13,6 +13,7 @@ struct inode;
 
 __u64 safe_link_tograb(reiser4_tree *tree);
 int safe_link_grab(reiser4_tree *tree, reiser4_ba_flags_t flags);
+void safe_link_release(reiser4_tree *tree);
 int safe_link_add(struct inode *inode, reiser4_safe_link_t link);
 int safe_link_del(struct inode *inode, reiser4_safe_link_t link);
 
