@@ -39,12 +39,9 @@
 
 /* PARENT-FIRST: Some terminology: A parent-first traversal is a way of assigning a total
    order to the nodes of the tree in which the parent is placed before its children, which
-   are ordered (recursively) in left-to-right order.  We have the notion of "forward"
-   parent-first order (the ordinary case, just described) and "reverse" parent-first
-   order, which inverts the relationship.  When we speak of a "parent-first preceder", it
-   describes the node that "came before in forward parent-first order" (alternatively the
-   node that "comes next in reverse parent-first order").  When we speak of a
-   "parent-first follower", it describes the node that "comes next in forward parent-first
+   are ordered (recursively) in left-to-right order.  When we speak of a "parent-first preceder", it
+   describes the node that "came before in forward parent-first order".  When we speak of a
+   "parent-first follower", it describes the node that "comes next in parent-first
    order" (alternatively the node that "came before in reverse parent-first order").
   
    The following pseudo-code prints the nodes of a tree in forward parent-first order:
@@ -93,7 +90,8 @@
      case, flush sets the node to be clean!  By returning the node to the clean list,
      where the log-writer expects to find it, flush simply pretends it was written even
      though it has not been.  Clean nodes with JNODE_OVRWR set cannot be released from
-     memory (checked in reiser4_releasepage()).
+     memory (checked in reiser4_releasepage()).  The reason we choose to have this limit
+     is to avoid the IO cost of reading data we could just keep in memory.
   
      JNODE_RELOC: The flush algorithm made the decision to relocate this block (if it was
      not created, see note above).  A block with JNODE_RELOC set is eligible for
@@ -115,6 +113,8 @@
      finishes.  It used to be that flush_empty_queue was called periodically during flush
      when there was a fixed queue, but that is no longer done.  See the changes on August
      6, 2002 when this support was removed.
+
+ZAM-FIXME-HANS: update the comment above
   
    With these state bits, we describe a test used frequently in the code below,
    jnode_is_flushprepped() (and the spin-lock-taking jnode_check_flushprepped()).  The
@@ -143,7 +143,11 @@
    each step of the iteration, we check for the right neighbor.  Before advancing to the
    right neighbor, we check if the current position and the right neighbor share the same
    parent.  If they do not share the same parent, the parent is allocated before the right
-   neighbor.  This process goes recursively up the tree as long as the right neighbor and
+   neighbor.  
+
+ZAM-FIXME-HANS: Do we attempt to squeeze left the new parent first?
+
+This process goes recursively up the tree as long as the right neighbor and
    the current position have different parents, then it allocates the
    right-neighbors-with-different-parents on the way back down.  This process is described
    in more detail in flush_squalloc_changed_ancestor and the recursive function
@@ -229,11 +233,13 @@
    unallocated state.
   
    We will take the following approach in v4.0: for twig nodes we will always finish
-   allocating unallocated children (A).  For nodes with (level > TWIG) with will defer
+   allocating unallocated children (A).  For nodes with (level > TWIG) we will defer
    writing and choose write-optimization (C).
   
    To summarize, there are several parts to a solution that avoids the problem with
    unallocated children:
+
+ZAM-FIXME-HANS: Please indicate what approach is used.  I think you use not quite exactly any of them.  update the fixmes.
   
    1. When flush reaches a stopping point (e.g., a clean node), it should continue calling
    squeeze-and-allocate on any remaining unallocated children.  FIXME: Difficulty to
@@ -290,7 +296,7 @@
    policy but until a problem with this approach is discovered, simplest is probably best.
   
    NOTE: In this case, the ordering produced by flush is parent-first only if you ignore
-   the leafs.  This is done as a matter of simplicity and there is only one (shaky)
+   the leaves.  This is done as a matter of simplicity and there is only one (shaky)
    justification.  When an atom commits, it flushes all leaf level nodes first, followed
    by twigs, and so on.  With flushing done in this order, if flush is eventually called
    on a non-leaf node it means that (somehow) we reached a point where all leaves are
@@ -303,14 +309,15 @@
    special checks for the non-leaf levels.  For example, instead of passing from a node to
    the left neighbor, it should pass from the node to the left neighbor's rightmost
    descendent (if dirty).
+
+ZAM-FXME-HANS: Please update the comments above.
 */
 
-/* REPACKING AND RESIZING.  We walk the tree in 4MB-16MB chunks, dirtying everything and
-   putting it into a transaction.  We tell the allocator to allocate the blocks as far as
-   possible towards one end of the logical device--the left (starting) end of the device
-   if we are walking from left to right, the right end of the device if we are walking
-   from right to left.  We then make passes in alternating directions, and as we do this
-   the device becomes sorted such that tree order and block number order fully correlate.
+/* UNIMPLEMENTED AS YET: REPACKING AND RESIZING.  We walk the tree in 4MB-16MB chunks, dirtying everything and putting
+   it into a transaction.  We tell the allocator to allocate the blocks as far as possible towards one end of the
+   logical device--the left (starting) end of the device if we are walking from left to right, the right end of the
+   device if we are walking from right to left.  We then make passes in alternating directions, and as we do this the
+   device becomes sorted such that tree order and block number order fully correlate.
    
    Resizing is done by shifting everything either all the way to the left or all the way
    to the right, and then reporting the last block.
