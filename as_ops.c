@@ -520,6 +520,7 @@ reiser4_internal int
 reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 {
 	jnode *node;
+	reiser4_context ctx;
 
 	assert("nikita-2257", PagePrivate(page));
 	assert("nikita-2259", PageLocked(page));
@@ -546,6 +547,8 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	if (PageDirty(page))
 		return 0;
 
+	init_context(&ctx, page->mapping->host->i_sb);
+
 	/* releasable() needs jnode lock, because it looks at the jnode fields
 	 * and we need jload_lock here to avoid races with jload(). */
 	LOCK_JNODE(node);
@@ -563,10 +566,10 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		 * jnode_extent_write() are !releasable(). */
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
-
+#if 1 /*XXXX*/
 		if (!JF_ISSET(node, JNODE_EFLUSH) && jnode_is_unformatted(node)) {
-			/* unformatted jnodes have pointer inode's address space. Jnodes are stored in per filesystem
-			   hash table.  */
+			/* unformatted jnodes have pointer to inode's address space. Jnodes are stored in per filesystem
+			   hash table. */
 			uncapture_page(page);
 			UNDER_SPIN_VOID(jnode,
 					node,
@@ -574,6 +577,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 			/* remove jnode from hash table */
 			unhash_unformatted_jnode(node);
 		}
+#endif
 		/* we are under memory pressure so release jnode also. */
 		jput(node);
 
@@ -584,12 +588,14 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 			__put_page(page);
 		}
 		write_unlock_irq(&mapping->tree_lock);
-
+		
+		reiser4_exit_context(&ctx);
 		return 1;
 	} else {
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
 		assert("nikita-3020", schedulable());
+		reiser4_exit_context(&ctx);
 		return 0;
 	}
 }
