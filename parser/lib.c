@@ -118,29 +118,13 @@ static int reiser4_pars_free(struct reiser4_syscall_w_space * ws /* work space p
 {
 	assert("VD-reiser4_pars_free:ws_level",        ws->ws_level >= 0);
 	assert("VD-reiser4_pars_free:cur_exp" ,        ws->cur_level->cur_exp != NULL);
-	assert("VD-reiser4_pars_free:EXPR_LNODE",      ws->cur_level->cur_exp->h.type == EXPR_LNODE);
-	assert("VD-reiser4_pars_free:lnode",           ws->cur_level->cur_exp->lnode.lnode != NULL);
-	assert("VD-reiser4_pars_free:root EXPR_LNODE", ws->root_e->h.type == EXPR_LNODE);
-	assert("VD-reiser4_pars_free:root lnode",      ws->root_e->lnode.lnode != NULL);
-
-#if 0
-//	walk_init_root( "/", (&ws->nd));   /* from namei.c walk_init_root */
-	{
-		read_lock(&current->fs->lock);
-		ws->nd.mnt = my_mntget("root", current->fs->rootmnt); 
-		ws->nd.dentry = my_dget("root", current->fs->root);
-		read_unlock(&current->fs->lock);
-	}
-#endif
-
-
-
 
 	free_expr( ws->cur_level->cur_exp );
 	free_expr( ws->root_e );
 	if ( ws->freeSpHead ) {
 		freeList(ws->freeSpHead);
 	}
+
 	kfree(ws);
 	return 0;
 }
@@ -810,6 +794,7 @@ static pars_var_t * lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* 
 					 int type)
 {
 	pars_var_t * rez_pars_var;
+	struct dentry *de;
 	int rez;
 	pars_var_t * last_pars_var;
 	last_pars_var  = NULL;
@@ -849,7 +834,6 @@ static pars_var_t * lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* 
 			else {
 				rez_pars_var->u.ln  = lget( LNODE_DENTRY, get_inode_oid( ws->nd.dentry->d_inode) );
 				rez_pars_var->vtype = VAR_LNODE;
-				rez = 0;
 				{
 					read_lock(&current->fs->lock);
 					rez_pars_var->u.ln->dentry.mnt    = my_mntget("pars_v",ws->nd.mnt);
@@ -907,6 +891,7 @@ static pars_var_t * lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* 
 		case LNODE_NR_TYPES:
 			break;
 		}
+		break;
 	case VAR_PSEUDO:
 		rez_pars_var->vtype = VAR_PSEUDO;
 		break;
@@ -924,13 +909,13 @@ static pars_var_t * lookup_pars_var_word(struct reiser4_syscall_w_space * ws /* 
 			rez_pars_var->u.data  = ;
 			break;
 		}
-#endif
 
 	if ( type == VAR_LNODE && lookup_pars_var_lnode( ws, parent, w ) == 0 )  {
 		rez_pars_var->vtype  = VAR_LNODE;
 	} else {
 		rez_pars_var->vtype  = VAR_PSEUDO;
 	}
+#endif
 	return rez_pars_var;
 }
 
@@ -1554,7 +1539,16 @@ static int get_tube_next_src(tube_t * tube)
 				ret = 0;
 				break;
 			case VAR_PSEUDO:
-				change_tube_stack( tube, ST_DATA , s->pars_var.v->u.data);
+				if ( s->pars_var.v->u.data == NULL )
+					{
+						pop_tube_stack( tube );
+						ret = 1;
+					}
+				else
+					{
+						change_tube_stack( tube, ST_DATA , s->pars_var.v->u.data);
+						ret = 0;
+					}
 				break;
 			}
 			break;
@@ -1615,8 +1609,11 @@ static tube_t *  get_tube_general(tube_t * tube, pars_var_t *sink, expr_v4_t *so
 		START_KERNEL_IO_GLOB;
 		memset( tube , 0, sizeof( struct tube ));
 		assert("VD get_tube_general: no tube",!IS_ERR(tube));
-		switch( sink->vtype) {
+		printk("get_tube_general:%d\n",sink->vtype);
+		tube->target = sink;
+		switch( sink->vtype ) {
 		case VAR_LNODE:
+			printk("VAR_LNODE\n");
 			assert("VD get_tube_general: dst no dentry",sink->u.ln->h.type== LNODE_DENTRY);
 			tube->dst         = dentry_open( sink->u.ln->dentry.dentry,
 							 sink->u.ln->dentry.mnt,
@@ -1624,15 +1621,13 @@ static tube_t *  get_tube_general(tube_t * tube, pars_var_t *sink, expr_v4_t *so
 			tube->writeoff    = 0;
 			tube->st_current  = NULL;
 			push_tube_stack( tube, ST_EXPR, (long *)source );
-			return tube;
 			break;
 		case VAR_PSEUDO:
+			printk("VAR_PSEUDO\n");
 			break;
 		}
 	}
-	else {
-		return NULL;
-	}
+	return tube;
 }
 
 static size_t reserv_space_in_sink(tube_t * tube )
