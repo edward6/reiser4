@@ -593,6 +593,8 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 		radix_tree_preload_end();
 
 		spin_unlock_eflush(tree->super);
+		/*XXXX*/
+		inc_unfm_ef();
 	}
 
 	UNLOCK_JLOAD(node);
@@ -690,13 +692,19 @@ static void eflush_free (jnode * node)
 					   (info->captured_eflushed == 0 && info->anonymous_eflushed == 0)));
 
 		spin_unlock_eflush(tree->super);
+
+		/*XXXX*/
+		dec_unfm_ef();
+
 	}
 	UNLOCK_JNODE(node);
 
+#if REISER4_DEBUG
 	if (blocknr_is_fake(jnode_get_block(node)))
 		assert ("zam-817", ef->initial_stage == BLOCK_UNALLOCATED);
 	else
 		assert ("zam-818", ef->initial_stage == BLOCK_GRABBED);
+#endif
 
 	jput(node);
 
