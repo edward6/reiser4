@@ -193,6 +193,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 			(*nr_to_flush) = 1;
 		}
 
+		trace_on (TRACE_FLUSH_VERB, "flush_jnode rewrite\n");
 		return 0;
 	}
 
@@ -598,7 +599,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 {
 	int ret;
 	int same_parents;
-	int any_shifted;
+	int unallocated_below;
 	lock_handle right_lock;
 	lock_handle parent_lock;
 	load_handle right_load;
@@ -660,14 +661,14 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		goto exit;
 	}
 
-	any_shifted = ! coord_is_after_rightmost (& at_right);
+	unallocated_below = ! coord_is_after_rightmost (& at_right);
 
-	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] after right neighbor %s: any_shifted = %u\n",
-		  call_depth, flush_znode_tostring (right_lock.node), any_shifted);
+	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] after right neighbor %s: unallocated_below = %u\n",
+		  call_depth, flush_znode_tostring (right_lock.node), unallocated_below);
 
-	/* any_shifted may be true but we still may have allocated to the end of a twig
+	/* unallocated_below may be true but we still may have allocated to the end of a twig
 	 * (via extent_copy_and_allocate), in which case we should unset it. */
-	if (any_shifted && node == pos->parent_coord.node) {
+	if (unallocated_below && node == pos->parent_coord.node) {
 
 		assert ("jmacd-1732", ! coord_is_after_rightmost (& pos->parent_coord));
 
@@ -676,7 +677,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 		/* We reached this point because we were at the end of a twig, and now we
 		 * have shifted new contents into that twig.  Skip past any allocated
-		 * extents.  If we are still at the end of the node, unset any_shifted. */
+		 * extents.  If we are still at the end of the node, unset unallocated_below. */
 		coord_next_unit (& pos->parent_coord);
 
 		/*trace_if (TRACE_FLUSH_VERB, print_coord ("after next_unit", & pos->parent_coord, 0));*/
@@ -689,16 +690,19 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		}
 
 		if (! coord_is_existing_unit (& pos->parent_coord)) {
-			any_shifted = 0;
+			unallocated_below = 0;
 		}
 
-		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] after (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
+		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] after (shifted & unformatted): unallocated_below = %u: %s\n", call_depth, unallocated_below, flush_pos_tostring (pos));
 	}
 
-	/* If we emptied and allocated the entire contents of the right twig, try again,
-	 * unless we are at an internal node, in which case the next if-statement
-	 * applies. */
-	if ((any_shifted == 0 || call_depth == 0) && node_is_empty (right_lock.node)) {
+	/* The next two if-stmts depend on call_depth, which is initially set to
+	 * is_unformatted because when allocating for unformatted nodes the first call is
+	 * effectively at level 1: */
+
+	/* If we emptied the right node and we are unconcerned with allocation at the
+	 * level below. */
+	if ((unallocated_below == 0 || call_depth == 0) && node_is_empty (right_lock.node)) {
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] right again: %s\n", call_depth, flush_pos_tostring (pos));
 		done_zh (& right_load);
 		done_lh (& right_lock);
@@ -707,7 +711,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 
 	/* If anything is shifted at an upper level, we should not allocate any further
 	 * because the child is no longer rightmost. */
-	if (any_shifted && /*call_depth > 0*/znode_get_level (node) > LEAF_LEVEL) {
+	if (unallocated_below && call_depth > 0) {
 		ret = 0;
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] shifted & not leaf: %s\n", call_depth, flush_pos_tostring (pos));
 		goto exit;
@@ -739,10 +743,11 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] after (not same parents): %s\n", call_depth, flush_pos_tostring (pos));
 	}
 
-	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] ready to enqueue node %p: %s\n", call_depth, node, flush_pos_tostring (pos));
+	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] ready to enqueue node %s\n", call_depth, flush_znode_tostring (node));
 
 	/* Now finished with node. */
-	if (znode_check_dirty (node) && znode_check_allocated (node) && (ret = flush_release_znode (node))) {
+	if (/*znode_check_dirty (node) && znode_check_allocated (node) &&*/
+	    (ret = flush_release_znode (node))) {
 		warning ("jmacd-61440", "flush_release_znode failed: %d", ret);
 		goto exit;
 	}
@@ -809,7 +814,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 	init_lh (& right_lock);
 
-	if ((ret = flush_squalloc_one_changed_ancestor (node, 0, pos))) {
+	if ((ret = flush_squalloc_one_changed_ancestor (node, /*call_depth*/is_unformatted, pos))) {
 		warning ("jmacd-61432", "sq1_ca failed: %d", ret);
 		goto exit;
 	}
@@ -1534,12 +1539,22 @@ int flush_enqueue_unformatted_page_locked (jnode *node, flush_position *pos, str
 }
 
 /* FIXME: comment */
-static int flush_finish (flush_position *pos, int nobusy)
+static int flush_finish (flush_position *pos, int none_busy)
 {
 	int i;
 	int refill = 0;
 	int ret = 0;
 	jnode *ready_to_go = NULL;
+
+	if (REISER4_DEBUG && none_busy) {
+		int nbusy = 0;
+
+		for (i = 0; i < pos->queue_num; i += 1) {
+			nbusy += JF_ISSET (pos->queue[i], ZNODE_FLUSH_BUSY);
+		}
+
+		assert ("jmacd-71239", nbusy == 0);
+	}
 
 	for (i = 0; ret == 0 && i < pos->queue_num; i += 1) {
 
@@ -1561,7 +1576,7 @@ static int flush_finish (flush_position *pos, int nobusy)
 		/* Skip if the node is still busy (i.e., its children are being squalloced). */
 		if (JF_ISSET (node, ZNODE_FLUSH_BUSY)) {
 			assert ("jmacd-71237", pos->queue[refill] == NULL);
-			assert ("jmacd-71238", nobusy == 0);
+			assert ("jmacd-71238", ! none_busy);
 			pos->queue[refill++] = node;
 			continue;
 		}
@@ -1850,10 +1865,10 @@ static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 	int go = txn_same_atom_dirty (scan->node, tonode, 1, 0);
 
 	if (! go) {
-		jput (tonode);
 		scan->stop = 1;
 		trace_on (TRACE_FLUSH_VERB, "flush scan stop: stop at node %s\n", flush_jnode_tostring (scan->node));
 		trace_on (TRACE_FLUSH_VERB, "flush scan stop: do not cont at %s\n", flush_jnode_tostring (tonode));
+		jput (tonode);
 	}
 
 	return go;
