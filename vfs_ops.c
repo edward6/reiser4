@@ -917,10 +917,13 @@ reiser4_dentry_fsdata *reiser4_get_dentry_fsdata( struct dentry *dentry /* dentr
 /* Audited by: umka (2002.06.12) */
 static void reiser4_d_release( struct dentry *dentry /* dentry released */ )
 {
+	__REISER4_ENTRY ( dentry->d_inode->i_sb, );
 	assert( "nikita-1366", dentry != NULL );
 	if( dentry -> d_fsdata != NULL )
 		reiser4_kfree( dentry -> d_fsdata, 
 			       sizeof( reiser4_dentry_fsdata ) );
+
+	__REISER4_EXIT( &__context );
 }
 
 /**
