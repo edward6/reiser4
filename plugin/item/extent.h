@@ -51,9 +51,26 @@ extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
 		    extent_get_start(ext) + width <= reiser4_current_block_count()));
 }
 
-#define extent_item(coord) ((reiser4_extent *)item_body_by_coord (coord))
-#define extent_by_coord(coord) (extent_item (coord) + (coord)->unit_pos)
-#define width_by_coord(coord) extent_get_width (extent_by_coord(coord))
+#define extent_item(coord) 					\
+({								\
+	DEBUGON(znode_get_level((coord)->node) != TWIG_LEVEL);	\
+	DEBUGON(!item_is_extent(coord));			\
+	((reiser4_extent *)item_body_by_coord (coord));		\
+})
+
+#define extent_by_coord(coord)					\
+({								\
+	DEBUGON(znode_get_level((coord)->node) != TWIG_LEVEL);	\
+	DEBUGON(!item_is_extent(coord));			\
+	(extent_item (coord) + (coord)->unit_pos);		\
+})
+
+#define width_by_coord(coord) 					\
+({								\
+	DEBUGON(znode_get_level((coord)->node) != TWIG_LEVEL);	\
+	DEBUGON(!item_is_extent(coord));			\
+	extent_get_width (extent_by_coord(coord));		\
+})
 
 /* plugin->u.item.b.* */
 reiser4_key *extent_max_key_inside(const coord_t *, reiser4_key *, void *);
