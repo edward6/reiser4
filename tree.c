@@ -605,6 +605,31 @@ forget_znode(lock_handle * handle)
 	WUNLOCK_TREE(tree);
 
 	invalidate_lock(handle);
+
+	assert ("zam-941", get_current_context()->trans->atom == ZJNODE(node)->atom);
+
+	/* Get e-flush block allocation back before deallocating node's
+	 * block number. */
+#ifdef REISER4_USE_EFLUSH
+	spin_lock_znode(node);
+		if (ZF_ISSET(node, JNODE_EFLUSH))
+			eflush_del(ZJNODE(node), 0);
+	spin_unlock_znode(node);
+#endif
+
+	if (!blocknr_is_fake(znode_get_block(node))) {
+		int ret;
+		ret = reiser4_dealloc_block
+			(znode_get_block(node), 0 /* not used */, BA_DEFER | BA_FORMATTED, __FUNCTION__);
+		if (ret)
+			warning("zam-942", "can\'t add a block (%llu) number to atom's delete set\n",
+					(unsigned long long)(*znode_get_block(node)));
+	} else {
+		/* znode has assigned block which is counted as "fake
+		   allocated". Return it back to "free blocks") */
+		fake_allocated2free((__u64) 1, BA_FORMATTED, "forget_znode: formatted fake allocated node");
+	}
+
 	/*
 	 * uncapture page from transaction. There is a possibility of a race
 	 * with ->releasepage(): reiser4_releasepage() detaches page from this
@@ -622,11 +647,24 @@ forget_znode(lock_handle * handle)
 		reiser4_unlock_page(page);
 		page_cache_release(page);
 	} else {
-#ifdef REISER4_USE_EFLUSH
-		if (ZF_ISSET(node, JNODE_EFLUSH))
-			eflush_del(ZJNODE(node), 0);
-#endif
-		spin_unlock_znode(node);
+		txn_atom * atom;
+
+		/* handle "flush queued" znodes */
+		while (1) {
+			atom = atom_locked_by_jnode(ZJNODE(node));
+			assert("zam-943", atom != NULL);
+
+			if (!ZF_ISSET(node, JNODE_FLUSH_QUEUED) || !atom->nr_running_queues)
+				break;
+
+			spin_unlock_znode(node);
+			atom_wait_event(atom);
+			spin_lock_znode(node);
+		}
+
+		uncapture_block(ZJNODE(node));
+		UNLOCK_ATOM(atom);
+		zput(node);
 	}
 }
 
