@@ -5,17 +5,10 @@
 #include "../../page_cache.h"
 #include "../../carry.h"
 #include "../../lib.h"
+#include "funcs.h"
 
 /* this file contains:
    tail2extent and extent2tail */
-
-int find_file_item(hint_t *, const reiser4_key *, coord_t *, lock_handle *,
-		   znode_lock_mode, __u32 cbk_flags, ra_info_t *, unix_file_info_t *, file_state *);
-int goto_right_neighbor(coord_t *, lock_handle *);
-void set_file_state_extents(struct inode *);
-void set_file_state_tails(struct inode *);
-int unix_file_writepage_nolock(struct page *page);
-int file_is_built_of_extents(const struct inode *inode);
 
 
 #if REISER4_DEBUG
@@ -136,29 +129,29 @@ file_continues_in_right_neighbor(const struct inode *inode, znode *node)
 /* Lock the leftmost of nodes containing file items and calculate amount of nodes spanned by the file. Return keeping
    first node locked */
 static int
-nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, coord_t *first_coord, lock_handle *first_lh)
+nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, hint_t *hint)
 {
 	int result;
 	reiser4_key key;
-	coord_t coord;
 	lock_handle lh;
+	coord_t coord;
 
 	inode_file_plugin(inode)->key_by_inode(inode, 0, &key);
 
-	result = find_file_item(0, &key, first_coord, first_lh, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */,
-				unix_file_inode_data(inode), 0);
+	result = find_file_item(hint, &key, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */,
+				unix_file_inode_data(inode));
 	if (result != CBK_COORD_FOUND) {
 		/* error occured */
-		done_lh(first_lh);
+		done_lh(hint->coord.lh);
 		return result;
 	}
 
-	coord_dup_nocheck(&coord, first_coord);
+	coord_dup_nocheck(&coord, &hint->coord.base_coord);
 	init_lh(&lh);
 	result = longterm_lock_znode(&lh, coord.node, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
 	if (unlikely(result)) {
 		/* error occured */
-		done_lh(first_lh);
+		done_lh(hint->coord.lh);
 		return result;
 	}
 	*blocks = 1;
@@ -168,7 +161,7 @@ nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, coord_t *first_coor
 		result = goto_right_neighbor(&coord, &lh);
 		if (result) {
 			done_lh(&lh);
-			done_lh(first_lh);
+			done_lh(hint->coord.lh);
 			return result;
 		}
 		(*blocks) ++;
@@ -217,14 +210,16 @@ prepare_tail2extent(struct inode *inode)
 {
 	int result;
 	reiser4_block_nr formatted_nodes, unformatted_nodes;
+	hint_t hint;
 	lock_handle first_lh;
-	coord_t coord;
+	coord_t *coord;
 	reiser4_tree *tree;
 
 	tree = tree_by_inode(inode);
 
 	/* number of leaf formatted nodes file spans */
-	result = nodes_spanned(inode, &formatted_nodes, &coord, &first_lh);
+	hint_init_zero(&hint, &first_lh);
+	result = nodes_spanned(inode, &formatted_nodes, &hint);
 	if (result)
 		return result;
 	/* number of unformatted nodes which will be created */
@@ -243,7 +238,8 @@ prepare_tail2extent(struct inode *inode)
 		done_lh(&first_lh);
 		return result;
 	}
-	return mark_frozen(inode, formatted_nodes, &coord, &first_lh);
+	coord = &hint.coord.base_coord;
+	return mark_frozen(inode, formatted_nodes, coord, &first_lh);
 }
 
 /* part of tail2extent. Cut all items covering @count bytes starting from
@@ -404,18 +400,21 @@ tail2extent(unix_file_info_t *uf_info)
 			assert("vs-983", !PagePrivate(pages[i]));
 
 			for (page_off = 0; page_off < PAGE_CACHE_SIZE;) {
-				coord_t coord;
+				hint_t hint;
+				coord_t *coord;
 				lock_handle lh;
 
 				/* get next item */
-				result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, uf_info, 0);
+				hint_init_zero(&hint, &lh);
+				result = find_file_item(&hint, &key, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, uf_info);
 				if (result != CBK_COORD_FOUND) {
 					/* tail conversion can not be called for empty file */
 					assert("vs-1169", result != CBK_COORD_NOTFOUND);
 					done_lh(&lh);
 					goto error;
 				}
-				if (coord.between == AFTER_UNIT) {
+				coord = &hint.coord.base_coord;
+				if (coord->between == AFTER_UNIT) {
 					/* this is used to detect end of file when inode->i_size can not be used */
 					done_lh(&lh);
 					done = 1;
@@ -424,34 +423,33 @@ tail2extent(unix_file_info_t *uf_info)
 					kunmap_atomic(p_data, KM_USER0);
 					break;
 				}
-				result = zload(coord.node);
+				result = zload(coord->node);
 				if (result) {
 					done_lh(&lh);
 					goto error;
 				}
-				assert("vs-562", owns_item_unix_file(uf_info->inode, &coord));
-				assert("vs-856", coord.between == AT_UNIT);
-				assert("green-11", keyeq(&key, unit_key_by_coord(&coord, &tmp)));
-				assert("vs-1170", item_id_by_coord(&coord) == FROZEN_TAIL_ID);
+				assert("vs-562", owns_item_unix_file(uf_info->inode, coord));
+				assert("vs-856", coord->between == AT_UNIT);
+				assert("green-11", keyeq(&key, unit_key_by_coord(coord, &tmp)));
+				assert("vs-1170", item_id_by_coord(coord) == FROZEN_TAIL_ID);
 #if 0
-				if (item_id_by_coord(&coord) != TAIL_ID && item_id_by_coord(&coord) != FROZEN_TAIL_ID) {
+				if (item_id_by_coord(coord) != TAIL_ID && item_id_by_coord(coord) != FROZEN_TAIL_ID) {
 					/* something other than tail found. This is only possible when first item of a
 					   file found during call to reiser4_mmap.
 					*/
 					result = RETERR(-EIO);
-					if (get_key_offset(&key) == 0 && item_id_by_coord(&coord) == EXTENT_POINTER_ID)
+					if (get_key_offset(&key) == 0 && item_id_by_coord(coord) == EXTENT_POINTER_ID)
 						result = 0;
 
-					zrelse(coord.node);
+					zrelse(coord->node);
 					done_lh(&lh);
 					goto error;
 				}
 #endif
-				item = ((char *)item_body_by_coord(&coord)) + 
-					coord.unit_pos;
+				item = ((char *)item_body_by_coord(coord)) + coord->unit_pos;
 
 				/* how many bytes to copy */
-				count = item_length_by_coord(&coord) - coord.unit_pos;
+				count = item_length_by_coord(coord) - coord->unit_pos;
 				/* limit length of copy to end of page */
 				if (count > PAGE_CACHE_SIZE - page_off)
 					count = PAGE_CACHE_SIZE - page_off;
@@ -468,7 +466,7 @@ tail2extent(unix_file_info_t *uf_info)
 				page_off += count;
 				set_key_offset(&key, get_key_offset(&key) + count);
 
-				zrelse(coord.node);
+				zrelse(coord->node);
 				done_lh(&lh);
 
 				if (get_key_offset(&key) == (__u64)uf_info->inode->i_size) {
@@ -525,7 +523,8 @@ static int
 write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 {
 	flow_t f;
-	coord_t coord;
+	hint_t hint;
+	coord_t *coord;
 	lock_handle lh;
 	znode *loaded;
 	item_plugin *iplug;
@@ -540,19 +539,21 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 						count, (loff_t) (page->index << PAGE_CACHE_SHIFT), WRITE_OP, &f);
 	iplug = item_plugin_by_id(TAIL_ID);
 	while (f.length) {
-		result = find_file_item(0, &f.key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, 0/* inode */, 0);
+		hint_init_zero(&hint, &lh);
+		result = find_file_item(&hint, &f.key, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/* ra_info */, 0/* inode */);
 		if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND)
 			break;
 
 		assert("vs-957", ergo(result == CBK_COORD_NOTFOUND, get_key_offset(&f.key) == 0));
 		assert("vs-958", ergo(result == CBK_COORD_FOUND, get_key_offset(&f.key) != 0));
 
-		result = zload(coord.node);
+		coord = &hint.coord.base_coord;
+		result = zload(coord->node);
 		if (result)
 			break;
 
-		loaded = coord.node;
-		result = iplug->s.file.write(inode, &coord, &lh, &f, 0, 1);
+		loaded = coord->node;
+		result = iplug->s.file.write(inode, &f, &hint, 1/*grabbed*/, how_to_write(&hint.coord, &f.key));
 		zrelse(loaded);
 		done_lh(&lh);
 		if (result == -EAGAIN)
@@ -585,14 +586,16 @@ static int prepare_extent2tail(struct inode *inode)
 {
 	int result;
 	reiser4_block_nr twig_nodes, flow_insertions;
+	hint_t hint;
 	lock_handle first_lh;
-	coord_t coord;
+	coord_t *coord;
 	reiser4_tree *tree;
 
 	tree = tree_by_inode(inode);
 
 	/* number of twig nodes file spans */
-	result = nodes_spanned(inode, &twig_nodes, &coord, &first_lh);
+	hint_init_zero(&hint, &first_lh);
+	result = nodes_spanned(inode, &twig_nodes, &hint);
 	if (result)
 		return result;
 	/* number of "flow insertions" which will be needed */
@@ -612,7 +615,8 @@ static int prepare_extent2tail(struct inode *inode)
 		done_lh(&first_lh);
 		return result;
 	}
-	return mark_frozen(inode, twig_nodes, &coord, &first_lh);
+	coord = &hint.coord.base_coord;
+	return mark_frozen(inode, twig_nodes, coord, &first_lh);
 }
 
 /* for every page of file: read page, cut part of extent pointing to this page,
@@ -716,7 +720,7 @@ extent2tail(unix_file_info_t *uf_info)
 	if (i == num_pages)
 		/* FIXME-VS: not sure what to do when conversion did
 		   not complete */
-		set_file_state_tails(inode);
+		uf_info->state = UNIX_FILE_BUILT_OF_TAILS;
 	else {
 		warning("nikita-2282",
 			"Partial conversion of %llu: %lu of %lu: %i",
