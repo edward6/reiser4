@@ -11,12 +11,17 @@ int reiser4_free_block (block_nr block UNUSED_ARG)
 }
 
 
-int allocate_new_blocks (block_nr * hint UNUSED_ARG,
-			 block_nr * count UNUSED_ARG)
+int allocate_new_blocks (block_nr * hint,
+			 block_nr * count)
 {
 	static block_nr block = 10000;
 	*hint = block ++;
 	*count = 1;
+	return 0;
+}
+
+int free_blocks (block_nr hint UNUSED_ARG, block_nr count UNUSED_ARG)
+{
 	return 0;
 }
 
