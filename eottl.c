@@ -253,6 +253,8 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 			ZF_CLR(node, JNODE_RIGHT_CONNECTED);
 			WUNLOCK_TREE(tree);
 			result = connect_znode(insert_coord, node);
+			if (result == 0)
+				ON_DEBUG(check_dkeys(node));
 		}
 	}
 	return result;
