@@ -2062,6 +2062,7 @@ unflush_finish_part(oid_t oid, unsigned long ind, __u64 count)
 #define unflush_finish(coord, done) noop
 #define unflush(coord) (0)
 #define unflush_finish_part(oid, ind, count) noop
+#define unflush_part(oid, ind, count) (0)
 #endif
 
 /* @right is extent item. @left is left neighbor of @right->node. Copy item
