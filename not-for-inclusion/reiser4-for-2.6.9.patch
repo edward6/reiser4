@@ -1,17 +1,19 @@
 
 This patch is to get reiser4 runable under not mm serie of kernel
 
+diff -puN fs/reiser4/as_ops.c~reiser4-for-2.6.9 fs/reiser4/as_ops.c
 
- fs/reiser4/as_ops.c               |   14 +++++++-------
+
+ fs/reiser4/as_ops.c               |   18 +++++++++---------
  fs/reiser4/page_cache.c           |    8 ++++----
  fs/reiser4/plugin/file/file.c     |    8 ++++----
  fs/reiser4/plugin/object.c        |    1 -
  fs/reiser4/plugin/security/perm.c |    2 +-
- 5 files changed, 16 insertions(+), 17 deletions(-)
+ 5 files changed, 18 insertions(+), 19 deletions(-)
 
 diff -puN fs/reiser4/as_ops.c~reiser4-for-2.6.9 fs/reiser4/as_ops.c
---- linux-2.6.9/fs/reiser4/as_ops.c~reiser4-for-2.6.9	2004-12-08 14:36:16.316237400 +0300
-+++ linux-2.6.9-vs/fs/reiser4/as_ops.c	2004-12-08 14:36:16.387242415 +0300
+--- linux-2.6.9/fs/reiser4/as_ops.c~reiser4-for-2.6.9	2004-12-08 16:27:45.008736629 +0300
++++ linux-2.6.9-vs/fs/reiser4/as_ops.c	2004-12-08 16:28:54.056614275 +0300
 @@ -75,7 +75,7 @@ reiser4_clear_page_dirty(struct page *pa
  	mapping = page->mapping;
  	BUG_ON(mapping == NULL);
@@ -54,6 +56,23 @@ diff -puN fs/reiser4/as_ops.c~reiser4-for-2.6.9 fs/reiser4/as_ops.c
  			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
  		}
  	}
+@@ -145,14 +145,14 @@ int reiser4_set_page_dirty2(struct page 
+ 		struct address_space *mapping = page->mapping;
+ 
+ 		if (mapping) {
+-			read_lock_irq(&mapping->tree_lock);
++			spin_lock_irq(&mapping->tree_lock);
+ 			/* check for race with truncate */
+ 			if (page->mapping) {
+ 				assert("vs-1652", page->mapping == mapping);
+ 				if (!mapping->backing_dev_info->memory_backed)
+ 					inc_page_state(nr_dirty);
+ 			}
+-			read_unlock_irq(&mapping->tree_lock);
++			spin_unlock_irq(&mapping->tree_lock);
+ 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
+ 		}
+ 	}
 @@ -600,13 +600,13 @@ reiser4_releasepage(struct page *page, i
  		/* we are under memory pressure so release jnode also. */
  		jput(node);
@@ -71,8 +90,8 @@ diff -puN fs/reiser4/as_ops.c~reiser4-for-2.6.9 fs/reiser4/as_ops.c
  		return 1;
  	} else {
 diff -puN fs/reiser4/page_cache.c~reiser4-for-2.6.9 fs/reiser4/page_cache.c
---- linux-2.6.9/fs/reiser4/page_cache.c~reiser4-for-2.6.9	2004-12-08 14:36:16.321237753 +0300
-+++ linux-2.6.9-vs/fs/reiser4/page_cache.c	2004-12-08 14:36:16.389242557 +0300
+--- linux-2.6.9/fs/reiser4/page_cache.c~reiser4-for-2.6.9	2004-12-08 16:27:45.014737053 +0300
++++ linux-2.6.9-vs/fs/reiser4/page_cache.c	2004-12-08 16:27:45.035738537 +0300
 @@ -533,7 +533,7 @@ int set_page_dirty_internal (struct page
  		struct address_space *mapping = page->mapping;
  
@@ -108,8 +127,8 @@ diff -puN fs/reiser4/page_cache.c~reiser4-for-2.6.9 fs/reiser4/page_cache.c
  		spin_unlock(&inode_lock);
  
 diff -puN fs/reiser4/plugin/file/file.c~reiser4-for-2.6.9 fs/reiser4/plugin/file/file.c
---- linux-2.6.9/fs/reiser4/plugin/file/file.c~reiser4-for-2.6.9	2004-12-08 14:36:16.326238106 +0300
-+++ linux-2.6.9-vs/fs/reiser4/plugin/file/file.c	2004-12-08 14:36:16.392242769 +0300
+--- linux-2.6.9/fs/reiser4/plugin/file/file.c~reiser4-for-2.6.9	2004-12-08 16:27:45.019737406 +0300
++++ linux-2.6.9-vs/fs/reiser4/plugin/file/file.c	2004-12-08 16:27:45.038738749 +0300
 @@ -1363,7 +1363,7 @@ sync_page_list(struct inode *inode)
  	mapping = inode->i_mapping;
  	from = 0;
@@ -141,8 +160,8 @@ diff -puN fs/reiser4/plugin/file/file.c~reiser4-for-2.6.9 fs/reiser4/plugin/file
  }
  
 diff -puN fs/reiser4/plugin/object.c~reiser4-for-2.6.9 fs/reiser4/plugin/object.c
---- linux-2.6.9/fs/reiser4/plugin/object.c~reiser4-for-2.6.9	2004-12-08 14:36:16.332238530 +0300
-+++ linux-2.6.9-vs/fs/reiser4/plugin/object.c	2004-12-08 14:36:16.395242981 +0300
+--- linux-2.6.9/fs/reiser4/plugin/object.c~reiser4-for-2.6.9	2004-12-08 16:27:45.024737760 +0300
++++ linux-2.6.9-vs/fs/reiser4/plugin/object.c	2004-12-08 16:27:45.040738890 +0300
 @@ -991,7 +991,6 @@ static void delete_inode_common(struct i
  	 * FIXME: this resembles generic_delete_inode
  	 */
@@ -152,8 +171,8 @@ diff -puN fs/reiser4/plugin/object.c~reiser4-for-2.6.9 fs/reiser4/plugin/object.
  	inodes_stat.nr_inodes--;
  	spin_unlock(&inode_lock);
 diff -puN fs/reiser4/plugin/security/perm.c~reiser4-for-2.6.9 fs/reiser4/plugin/security/perm.c
---- linux-2.6.9/fs/reiser4/plugin/security/perm.c~reiser4-for-2.6.9	2004-12-08 14:36:16.336238812 +0300
-+++ linux-2.6.9-vs/fs/reiser4/plugin/security/perm.c	2004-12-08 14:36:16.396243051 +0300
+--- linux-2.6.9/fs/reiser4/plugin/security/perm.c~reiser4-for-2.6.9	2004-12-08 16:27:45.028738042 +0300
++++ linux-2.6.9-vs/fs/reiser4/plugin/security/perm.c	2004-12-08 16:27:45.041738961 +0300
 @@ -14,7 +14,7 @@
  static int
  mask_ok_common(struct inode *inode, int mask)
