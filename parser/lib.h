@@ -37,7 +37,7 @@ static expr_v4_t *  pars_expr(struct reiser4_syscall_w_space * ws, expr_v4_t * e
 static expr_v4_t *  lookup_word(struct reiser4_syscall_w_space * ws, wrd_t * w);
 static inline expr_v4_t * pars_lookup_curr(struct reiser4_syscall_w_space * ws);
 static inline expr_v4_t * pars_lookup_root(struct reiser4_syscall_w_space * ws);
-static pars_var_t *  lookup_pars_var_word(struct reiser4_syscall_w_space * ws, pars_var_t * pars_var, wrd_t * w);
+static pars_var_t *  lookup_pars_var_word(struct reiser4_syscall_w_space * ws, pars_var_t * pars_var, wrd_t * w, int type);
 static expr_v4_t * make_do_it(struct reiser4_syscall_w_space * ws, expr_v4_t * e1 );
 static expr_v4_t * if_then_else(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2 , expr_v4_t * e3  );
 static expr_v4_t * if_then(struct reiser4_syscall_w_space * ws, expr_v4_t * e1, expr_v4_t * e2 );
@@ -67,7 +67,7 @@ static size_t prep_tube_general(tube_t * tube);
 static size_t source_to_tube_general(tube_t * tube);
 static size_t tube_to_sink_general(tube_t * tube);
 static void put_tube(tube_t * tube);
-static int pump( pars_var_t *sink, expr_v4_t *source );
+static expr_v4_t *  pump(struct reiser4_syscall_w_space * ws, pars_var_t *sink, expr_v4_t *source );
 
 
 #define curr_symbol(ws) ((ws)->ws_pline)

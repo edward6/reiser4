@@ -80,6 +80,16 @@ typedef enum {
 })
 
 
+#define ASSIGN_RESULT "assign_result"
+#define ASSIGN_LENGTH "assign_length"
+
+#define SIZEFOR_ASSIGN_RESULT 16
+#define SIZEFOR_ASSIGN_LENGTH 16
+
+
+
+
+
 typedef struct pars_var pars_var_t;
 typedef union expr_v4  expr_v4_t;
 typedef struct wrd wrd_t;
@@ -90,7 +100,8 @@ typedef enum {
 	ST_FILE,
 	ST_EXPR,
 	ST_DE,
-	ST_WD
+	ST_WD,
+	ST_DATA
 } stack_type;
 
 typedef enum {
@@ -141,13 +152,8 @@ struct tube {
  	sourece_stack_t * last;        /* work. for special case to push list of expressions */
 	sourece_stack_t * next;        /* work. for special case to push list of expressions */
 	sourece_stack_t * st_current;  /* stack of source expressions */
-
+	pars_var_t * target;
 	struct file *dst;    /* target file      */
-};
-
-struct assing_result {
-	loff_t len ;
-	int return_code ;
 };
 
 struct wrd {
@@ -161,24 +167,29 @@ struct path_walk {
 	struct vfsmount *mnt;
 };
 
+
+/* types for vtype of struct pars_var */
+typedef enum {
+	VAR_LNODE,
+	VAR_PSEUDO
+};
+
+
 struct pars_var {
 	pars_var_t * next ;         /* next                                */
 	pars_var_t * parent;        /* parent                              */
-	wrd_t * w ;                 /* pair (parent,w) is unique           */
-	lnode * ln;                 /* file/dir name lnode                 */
-//	struct path_walk path;      /* for mount point                     */
+	wrd_t * w ;                 /* name: pair (parent,w) is unique     */
+	union {
+		lnode * ln;         /* file/dir name lnode                 */
+		char *data;         /*  ptr to data in mem (for result of assign) */
+	} u;
 	int count;                  /* ref counter                         */
 	int vtype;                  /* Type of name                        */
 	size_t off;	            /* current offset read/write of object */
 	size_t len;		    /* length of sequence of bytes for read/write (-1 no limit) */
 	int vSpace  ;               /* v4  space name or not ???           */
 	int vlevel  ;               /* level              ???              */
-//	int  (*fplug)(lnode * node, const reiser4_plugin_ref * area);
 } ;
-
-
-
-//#typedef __u8 op2_t;
 
 typedef struct expr_common {
 	__u8          type;
@@ -255,9 +266,7 @@ union expr_v4 {
 	expr_wrd_t      wd;
 	expr_pars_var_t    pars_var;
 	expr_list_t     list;
-
         expr_assign_t   assgn;
-
 	expr_lnode_t    lnode;
 	expr_flow_t     flow;
 //	expr_op3_t      op3;
@@ -296,10 +305,6 @@ struct streg {
         streg_t * prev;
 	expr_v4_t * cur_exp;          /* current (pwd)  expression for this level */
 	expr_v4_t * wrk_exp;          /* current (work) expression for this level */
-
-//	struct path_walk path_walk;
-//	struct nameidata_reiser4 nd;        /* current   for this level */
-
 };
 
 

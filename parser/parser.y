@@ -15,11 +15,11 @@
 
 %type <charType> L_BRACKET R_BRACKET level_up reiser4
 
-%type <wrd> WORD named_expr
+%type <wrd> WORD
 %type <wrd> P_RUNNER 
 %type <wrd> STRING_CONSTANT
 
-%type <expr> Object_Name name  target
+%type <expr> Object_Name name  target named_expr
 %type <expr> begin_from
 %type <expr> Expression 
 
@@ -148,18 +148,18 @@ begin_from
 ;
 
 name
-    : WORD                                             { $$ = lookup_word( ws, $1, 0 ); }
+    : WORD                                             { $$ = lookup_word( ws, $1 ); }
     | level_up  Expression R_BRACKET                   { $$ = $2; level_down( ws, $1, $3 );}
 ;
 
 level_up
-/*    : L_BRACKET                                        { $$ = $1; level_up( ws, $1 ); } */
-    : named_expr L_BRACKET                             { $$ = $2; level_up( ws, $2 ); /*set_curr_path( ws ); */}
+//    : L_BRACKET                                        { $$ = $1; level_up( ws, $1 ); } 
+    : named_expr L_BRACKET                             { $$ = $2; level_up_named( ws, $1, $2 ); }
 ;
 
 named_expr
-    : WORD  NAMED                                     { $$ = lookup_word( ws, $1, NAMED ); }
-    | 
+    : WORD  NAMED                                     { $$ = lookup_word( ws, $1 ); }
+    |                                                 { $$ = NULL; }
 
 
 %%

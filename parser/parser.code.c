@@ -412,13 +412,17 @@ case 33:
 break;
 case 34:
 #line 157 "fs/reiser4/parser/parser.y"
-{ yyval.charType = yyvsp[0].charType; level_up( ws, yyvsp[0].charType, 0 ); /*set_curr_path( ws ); */}
+{ yyval.charType = yyvsp[0].charType; level_up_named( ws, yyvsp[-1].expr, yyvsp[0].charType ); /*set_curr_path( ws ); */}
 break;
 case 35:
 #line 161 "fs/reiser4/parser/parser.y"
-{ yyval.wrd = lookup_word( ws, yyvsp[-1].wrd, NAMED ); }
+{ yyval.expr = lookup_word( ws, yyvsp[-1].wrd ); }
 break;
-#line 422 "fs/reiser4/parser/parser.code.c"
+case 36:
+#line 162 "fs/reiser4/parser/parser.y"
+{ yyval.expr = NULL; }
+break;
+#line 426 "fs/reiser4/parser/parser.code.c"
     }
     yyssp -= yym;
     yystate = *yyssp;
