@@ -1859,6 +1859,8 @@ void jnode_set_dirty( jnode *node )
 			int level = jnode_real_level (node);
 
 			assert ("zam-654", !(JF_ISSET(node, JNODE_WANDER) && atom->stage >= ASTAGE_PRE_COMMIT));
+			assert ("nikita-2607", 0 <= level);
+			assert ("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
 
 			capture_list_remove     (node);
 			capture_list_push_front (& atom->dirty_nodes[level], node);
