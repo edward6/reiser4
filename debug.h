@@ -90,6 +90,7 @@
 ({								\
 	check_preempt();					\
 	check_stack();						\
+	check_spinlocks_array();				\
 	if( unlikely( !( cond ) ) )				\
 		rpanic( label, "assertion failed: " #cond );	\
 })
@@ -329,6 +330,7 @@ extern __u32 reiser4_current_trace_flags;
 ({									\
 	tree_level level;						\
 									\
+	assert ("green-10", lev >= LEAF_LEVEL );			\
 	level = ( lev ) - LEAF_LEVEL;					\
 	if( ( lev ) < REAL_MAX_ZTREE_HEIGHT ) {				\
 		ST_INC_CNT( level[ level ]. ## stat );			\
@@ -769,6 +771,7 @@ extern __u32 get_current_trace_flags( void );
 #if REISER4_DEBUG
 extern int no_counters_are_held(void);
 extern void check_stack( void );
+extern void check_spinlocks_array( void );
 extern void print_lock_counters( const char *prefix, lock_counters_info *info );
 #else
 #define print_lock_counters( p, i ) noop

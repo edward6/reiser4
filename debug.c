@@ -129,6 +129,29 @@ void check_stack( void )
 	}
 }
 
+void check_spinlocks_array( void )
+{
+#ifdef CONFIG_DEBUG_SPINLOCK
+		reiser4_context *context = get_current_context();
+		reiser4_super_info_data * sprivate; 
+		int i;
+
+		if( context == NULL || context->super == NULL )
+			return;
+		sprivate = context -> super -> u.generic_sbp;
+		if ( sprivate == NULL || *((unsigned long long *) (sprivate -> j_to_p)) == 0ull )
+			return;
+
+		for (i = 0; i < REISER4_JNODE_TO_PAGE_HASH_SIZE; i += 1) {
+			if ( sprivate -> j_to_p[ i ].magic != SPINLOCK_MAGIC ) {
+				printk("Whoops!!! Corrupted spinlock table %d!\n", i);
+				BUG();
+			}
+		}
+#endif
+}
+
+
 int reiser4_is_debugged( struct super_block *super, __u32 flag )
 {
 	return get_super_private( super ) -> debug_flags & flag;
