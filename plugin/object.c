@@ -203,13 +203,12 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 
 	ref = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
-	grab_plugin_from(ref, sd, inode_sd_plugin(inode));
 
 	/*
 	 * prepare specification of new item to be inserted
 	 */
 
-	data.iplug = ref->pset->sd;
+	data.iplug = inode_sd_plugin(inode);
 	data.length = data.iplug->s.sd.save_len(inode);
 	spin_unlock_inode(inode);
 
@@ -321,8 +320,13 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	loaded = coord->node;
 
 	spin_lock_inode(inode);
-	assert("nikita-728", state->pset->sd != NULL);
-	data.iplug = state->pset->sd;
+	assert("nikita-728", inode_sd_plugin(inode) != NULL);
+	data.iplug = inode_sd_plugin(inode);
+
+	/* if inode has non-standard plugins, add appropriate stat data
+	 * extension */
+	if (state->plugin_mask != 0)
+		inode_set_extension(inode, PLUGIN_STAT);
 
 	/* data.length is how much space to add to (or remove
 	   from if negative) sd */
@@ -336,11 +340,9 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 		data.length = 0;
 	spin_unlock_inode(inode);
 
-	/*zrelse(coord->node);*/
-
 	/* if on-disk stat data is of different length than required
 	   for this inode, resize it */
-	if (0 != data.length) {
+	if (data.length != 0) {
 		data.data = NULL;
 		data.user = 0;
 
@@ -774,25 +776,19 @@ adjust_to_parent_common(struct inode *object /* new object */ ,
 			struct inode *parent /* parent directory */ ,
 			struct inode *root /* root directory */ )
 {
-	reiser4_inode *self;
-	reiser4_inode *ancestor;
-
 	assert("nikita-2165", object != NULL);
 	if (parent == NULL)
 		parent = root;
 	assert("nikita-2069", parent != NULL);
 
-	self = reiser4_inode_data(object);
-	ancestor = reiser4_inode_data(parent);
-
 	/*
 	 * inherit missing plugins from parent
 	 */
 
-	grab_plugin(self, ancestor, file);
-	grab_plugin(self, ancestor, sd);
-	grab_plugin(self, ancestor, formatting);
-	grab_plugin(self, ancestor, perm);
+	grab_plugin(object, parent, PSET_FILE);
+	grab_plugin(object, parent, PSET_SD);
+	grab_plugin(object, parent, PSET_FORMATTING);
+	grab_plugin(object, parent, PSET_PERM);
 	return 0;
 }
 
@@ -802,30 +798,23 @@ adjust_to_parent_dir(struct inode *object /* new object */ ,
 		     struct inode *parent /* parent directory */ ,
 		     struct inode *root /* root directory */ )
 {
-	reiser4_inode *self;
-	reiser4_inode *ancestor;
+	int result = 0;
+	pset_member memb;
 
 	assert("nikita-2166", object != NULL);
 	if (parent == NULL)
 		parent = root;
 	assert("nikita-2167", parent != NULL);
 
-	self = reiser4_inode_data(object);
-	ancestor = reiser4_inode_data(parent);
-
 	/*
 	 * inherit missing plugins from parent
 	 */
-
-	grab_plugin(self, ancestor, file);
-	grab_plugin(self, ancestor, dir);
-	grab_plugin(self, ancestor, sd);
-	grab_plugin(self, ancestor, hash);
-	grab_plugin(self, ancestor, fibration);
-	grab_plugin(self, ancestor, formatting);
-	grab_plugin(self, ancestor, perm);
-	grab_plugin(self, ancestor, dir_item);
-	return 0;
+	for (memb = 0; memb < PSET_LAST; ++ memb) {
+		result = grab_plugin(object, parent, memb);
+		if (result != 0)
+			break;
+	}
+	return result;
 }
 
 /* simplest implementation of ->getattr() method. Completely static. */
@@ -1056,7 +1045,7 @@ static void delete_inode_common(struct inode *object)
 	if (object->i_state != I_CLEAR)
 		BUG();
 	destroy_inode(object);
-	(void)reiser4_exit_context(&ctx);
+	reiser4_exit_context(&ctx);
 }
 
 /*
@@ -1243,6 +1232,22 @@ sync_common(struct file *file, struct dentry *dentry, int datasync)
 	return txnmgr_force_commit_all(dentry->d_inode->i_sb, 0);
 }
 
+static int
+change_file(struct inode * inode, reiser4_plugin * plugin)
+{
+	/* cannot change object plugin of already existing object */
+	return RETERR(-EINVAL);
+}
+
+static reiser4_plugin_ops file_plugin_ops = {
+	.init     = NULL,
+	.load     = NULL,
+	.save_len = NULL,
+	.save     = NULL,
+	.change   = change_file
+};
+
+
 /*
  * Definitions of object plugins.
  */
@@ -1252,7 +1257,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_FILE_PLUGIN_TYPE,
 			.id = UNIX_FILE_PLUGIN_ID,
-			.pops = NULL,
+			.pops = &file_plugin_ops,
 			.label = "reg",
 			.desc = "regular file",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
@@ -1316,7 +1321,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_FILE_PLUGIN_TYPE,
 			.id = DIRECTORY_FILE_PLUGIN_ID,
-			.pops = NULL,
+			.pops = &file_plugin_ops,
 			.label = "dir",
 			.desc = "directory",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO},
@@ -1377,7 +1382,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_FILE_PLUGIN_TYPE,
 			.id = SYMLINK_FILE_PLUGIN_ID,
-			.pops = NULL,
+			.pops = &file_plugin_ops,
 			.label = "symlink",
 			.desc = "symbolic link",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
@@ -1441,7 +1446,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_FILE_PLUGIN_TYPE,
 			.id = SPECIAL_FILE_PLUGIN_ID,
-			.pops = NULL,
+			.pops = &file_plugin_ops,
 			.label = "special",
 			.desc = "special: fifo, device or socket",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
@@ -1503,7 +1508,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.h = {
 			.type_id = REISER4_FILE_PLUGIN_TYPE,
 			.id = PSEUDO_FILE_PLUGIN_ID,
-			.pops = NULL,
+			.pops = &file_plugin_ops,
 			.label = "pseudo",
 			.desc = "pseudo file",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
