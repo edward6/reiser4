@@ -1568,7 +1568,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( perm_plugin );
 		STYPE( reiser4_plugin );
 		STYPE( inter_syscall_ra_hint );
-		STYPE( reiser4_plugin_ref );
+		STYPE( inodes_plugins );
 		STYPE( reiser4_plugin_ops );
 		STYPE( file_plugins );
 		STYPE( item_header_40 );
