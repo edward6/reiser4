@@ -1593,18 +1593,21 @@ protect_extent_nodes(oid_t oid, unsigned long ind, __u64 count, __u64 *protected
 	
 		JF_SET(node, JNODE_EPROTECTED);
 
-		UNLOCK_JNODE(node);
-
 		if (JF_ISSET(node, JNODE_EFLUSH)) {
 			if (eflushed == JNODES_TO_UNFLUSH) {
+				JF_CLR(node, JNODE_EPROTECTED);
+				UNLOCK_JNODE(node);
 				jput(node);
 				break;
 			}
 			buf[eflushed] = node;
 			eflushed ++;
+			UNLOCK_JNODE(node);
 			jstartio(node);
-		} else
+		} else {
+			UNLOCK_JNODE(node);
 			jput(node);
+		}
 
 		(*protected) ++;
 	}
