@@ -14,7 +14,7 @@
 
 /* magic for default reiser4 layout */
 #define FORMAT40_MAGIC "R4Sb-Default"
-#define FORMAT40_OFFSET (65536 + PAGE_CACHE_SIZE)
+#define FORMAT40_OFFSET (REISER4_MASTER_OFFSET + PAGE_CACHE_SIZE)
 
 #include "../../dformat.h"
 
@@ -57,9 +57,15 @@ typedef struct format40_super_info {
 	jnode *sb_jnode;
 } format40_super_info;
 
-#define FORMAT40_JOURNAL_HEADER_BLOCKNR 19
-#define FORMAT40_JOURNAL_FOOTER_BLOCKNR 20
-#define FORMAT40_STATUS_BLOCK 21
+/* Defines for journal header and footer respectively. */
+#define FORMAT40_JOURNAL_HEADER_BLOCKNR \
+	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 3)
+	
+#define FORMAT40_JOURNAL_FOOTER_BLOCKNR \
+	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 4)
+
+#define FORMAT40_STATUS_BLOCK \
+	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 5)
 
 /* Diskmap declarations */
 #define FORMAT40_PLUGIN_DISKMAP_ID ((REISER4_FORMAT_PLUGIN_TYPE<<16) | (FORMAT40_ID))
