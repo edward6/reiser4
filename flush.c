@@ -77,7 +77,7 @@
  */
 
 /* THE BOTTOM-UP VS. TOP-DOWN ISSUE: This code implements a bottom-up algorithm where we
- * start at a leaf node and allocate in parent-first order by iterating to the left.  At
+ * start at a leaf node and allocate in parent-first order by iterating to the right.  At
  * each step of the iteration, we check for the right neighbor.  Before advancing to the
  * right neighbor, we check if the current position and the right neighbor share the same
  * parent.  If they do not share the same parent, the parent is allocated before the right
@@ -440,6 +440,8 @@ ON_DEBUG (atomic_t flush_cnt;)
 /* F. bio_alloc() failure is not handled gracefully. */
 
 /* G. Unallocated children. */
+
+/* H. Add a WANDERED_LIST to the atom to clarify the placement of wandered blocks. */
 
 /********************************************************************************
  * JNODE_FLUSH: MAIN ENTRY POINT
