@@ -2777,8 +2777,8 @@ int real_main( int argc, char **argv )
 		++ __prog_name;
  	abendInit( argc, argv );
 
-	/*trap_signal( SIGBUS );
-	  trap_signal( SIGSEGV );*/
+	trap_signal( SIGBUS );
+	trap_signal( SIGSEGV );
 
 	if( getenv( "REISER4_TRACE_FLAGS" ) != NULL ) {
 		reiser4_current_trace_flags = 
