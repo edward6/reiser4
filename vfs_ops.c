@@ -112,8 +112,12 @@ static int readdir_actor( reiser4_tree *tree,
  *
  * This is installed in ->lookup() in reiser4_inode_operations.
  */
-static struct dentry *reiser4_lookup( struct inode *parent, 
-				      struct dentry *dentry )
+static struct dentry *reiser4_lookup( struct inode *parent, /* directory within which we are to look for the name specified in dentry */
+				      struct dentry *dentry /* this contains the name that is to be looked for on entry,
+							       and on exit contains a filled in dentry with a pointer to
+							       the inode (unless name not found) */
+
+)
 {
 	struct dentry *result;
 	REISER4_ENTRY_PTR( parent -> i_sb );
