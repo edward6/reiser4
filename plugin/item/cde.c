@@ -604,7 +604,7 @@ lookup_result cde_lookup( const reiser4_key *key /* key to search for */,
 int cde_paste( coord_t *coord /* coord of item */, 
 	       reiser4_item_data *data /* parameters of new unit being
 					* inserted */, 
-	       carry_level *todo UNUSED_ARG /* todo carry queue */ )
+	       carry_plugin_info *info UNUSED_ARG /* todo carry queue */ )
 {
 	cde_entry_data *e;
 	int             result;

@@ -940,6 +940,7 @@ void invalidate_lock (lock_handle *handle /* path to lock
 
 	ZF_SET(node, ZNODE_IS_DYING);
 	unlink_object(handle);
+	node->lock.nr_readers = 0;
 
 	/* all requestors will be informed that lock is invalidated. */
 	for (rq = requestors_list_front(&node->lock.requestors);

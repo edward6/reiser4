@@ -26,6 +26,7 @@ typedef union  reiser4_dblock_nr reiser4_dblock_nr;
 typedef struct reiser4_tree reiser4_tree;
 typedef struct carry_tree_op carry_tree_op;
 typedef struct carry_tree_node carry_tree_node;
+typedef struct carry_plugin_info carry_plugin_info;
 typedef struct reiser4_journal reiser4_journal;
 typedef struct txn_atom txn_atom;
 typedef struct txn_handle txn_handle;

@@ -44,7 +44,8 @@ typedef struct reiser4_pool_header {
 typedef enum {
 	POOLO_BEFORE,
 	POOLO_AFTER,
-	POOLO_LAST
+	POOLO_LAST,
+	POOLO_FIRST
 } pool_ordering;
 
 /**

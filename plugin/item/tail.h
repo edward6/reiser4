@@ -15,7 +15,7 @@ unsigned      tail_nr_units        (const coord_t *);
 lookup_result tail_lookup          (const reiser4_key *, lookup_bias,
 				    coord_t *);
 int           tail_paste           (coord_t *, reiser4_item_data *,
-				    carry_level *);
+				    carry_plugin_info *);
 int           tail_can_shift       (unsigned free_space, coord_t * source,
 				    znode * target, shift_direction,
 				    unsigned * size, unsigned want);

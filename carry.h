@@ -292,10 +292,23 @@ struct carry_level {
 #endif
 };
 
+/** 
+ * information carry passes to plugin methods that may add new operations to
+ * the @todo queue 
+ */
+struct carry_plugin_info {
+	carry_level *doing;
+	carry_level *todo;
+	carry_node  *source;
+	carry_node  *target;
+};
+
 int carry( carry_level *doing, carry_level *done );
 
 carry_node *add_carry( carry_level *level, pool_ordering order,
-			       carry_node  *reference );
+		       carry_node  *reference );
+carry_node *add_carry_skip( carry_level *level, pool_ordering order,
+			    carry_node  *reference );
 carry_op *add_op( carry_level *level, pool_ordering order,
 			  carry_op *reference );
 
@@ -308,7 +321,8 @@ extern void init_carry_level( carry_level *level, carry_pool *pool );
 
 extern carry_op *post_carry( carry_level *level, carry_opcode op,
 				     znode *node, int apply_to_parent );
-extern carry_node *add_to_carry( znode *node, carry_level *queue );
+extern carry_op *node_post_carry( carry_plugin_info *info, carry_opcode op,
+				  znode *node, int apply_to_parent_p );
 
 extern int carry_op_num( const carry_level *level );
 extern int carry_node_num( const carry_level *level );

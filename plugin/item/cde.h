@@ -45,7 +45,7 @@ int           cde_init       ( coord_t *coord, reiser4_item_data *data );
 lookup_result cde_lookup     ( const reiser4_key *key, lookup_bias bias, 
 			       coord_t *coord );
 int           cde_paste      ( coord_t *coord, reiser4_item_data *data, 
-			       carry_level *todo UNUSED_ARG );
+			       carry_plugin_info *info UNUSED_ARG );
 int           cde_can_shift  ( unsigned free_space, coord_t *coord, 
 			       znode *target, shift_direction pend, 
 			       unsigned *size, unsigned want );

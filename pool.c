@@ -223,6 +223,9 @@ reiser4_pool_header *add_obj( reiser4_pool *pool /* pool from which to
 	case POOLO_LAST:
 		pool_level_list_push_back( list, result );
 		break;
+	case POOLO_FIRST:
+		pool_level_list_push_front( list, result );
+		break;
 	default: wrong_return_value( "nikita-927", "order" );
 	}
 	return result;

@@ -43,7 +43,7 @@ static carry_node *find_left_neighbor( carry_node *node /* node to find left
 		}
 	}
 
-	left = add_carry( doing, POOLO_BEFORE, node );
+	left = add_carry_skip( doing, POOLO_BEFORE, node );
 	if( IS_ERR( left ) )
 		return left;
 
@@ -133,7 +133,7 @@ static carry_node *find_right_neighbor( carry_node *node /* node to find right
 	if( result == 0 ) {
 		/* ok, node found and locked. */
 		reiser4_stat_level_add( doing, carry_right_in_cache );
-		right = add_carry( doing, POOLO_AFTER, node );
+		right = add_carry_skip( doing, POOLO_AFTER, node );
 		if( !IS_ERR( right ) ) {
 			right -> node = lh.node;
 			move_lh( &right -> lock_handle, &lh );
@@ -618,8 +618,8 @@ static int insert_paste_common( carry_op *op /* carry operation being
 		 *        -- v6root/usr/sys/ken/slp.c
 		 */
 		if( op -> node -> real_node != op -> u.insert.d -> coord -> node ) {
-			op -> node = add_carry( doing, POOLO_AFTER, 
-							op -> node );
+			op -> node = add_carry_skip( doing, POOLO_AFTER, 
+						     op -> node );
 			if( IS_ERR( op -> node ) )
 				return PTR_ERR( op -> node );
 			op -> node -> node = op -> u.insert.d -> coord -> node;
@@ -664,8 +664,9 @@ static int carry_insert( carry_op *op /* operation to perform */,
 {
 	znode            *node;
 	carry_insert_data cdata;
-	coord_t        coord;
+	coord_t           coord;
 	reiser4_item_data data;
+	carry_plugin_info info;
 	int               result;
 
 	assert( "nikita-1036", op != NULL );
@@ -694,9 +695,11 @@ static int carry_insert( carry_op *op /* operation to perform */,
 		space_needed_for_op( node, op ) <= znode_free_space( node ) );
 
 	/* ask node layout to create new item. */
+	info.doing  = doing;
+	info.todo   = todo;
 	result = node_plugin_by_node( node ) -> create_item
 		( op -> u.insert.d -> coord, op -> u.insert.d -> key,
-		  op -> u.insert.d -> data, todo );
+		  op -> u.insert.d -> data, &info );
 	doing -> restartable = 0;
 	znode_set_dirty( node );
 
@@ -719,10 +722,11 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 			 carry_level *todo /* next carry level */ )
 {
 	int         result;
-	coord_t coord;
-	coord_t coord2;
+	coord_t     coord;
+	coord_t     coord2;
 	znode      *parent;
 	znode      *child;
+	carry_plugin_info info;
 
 	assert( "nikita-893", op != NULL );
 	assert( "nikita-894", todo != NULL );
@@ -769,8 +773,10 @@ static int carry_delete( carry_op *op /* operation to be performed */,
 	}
 
 	coord_dup( &coord2, &coord );
+	info.doing  = doing;
+	info.todo   = todo;
 	result = node_plugin_by_node( parent ) -> cut_and_kill
-		( &coord, &coord2, NULL, NULL, NULL, todo, 
+		( &coord, &coord2, NULL, NULL, NULL, &info, 
 		  NULL, op -> u.delete.flags );
 	doing -> restartable = 0;
 	znode_set_dirty( coord.node );
@@ -798,6 +804,7 @@ static int carry_cut( carry_op *op /* operation to be performed */,
 		      carry_level *todo /* next carry level */ )
 {
 	int result;
+	carry_plugin_info info;
 
 	assert( "nikita-896", op != NULL );
 	assert( "nikita-897", todo != NULL );
@@ -805,13 +812,15 @@ static int carry_cut( carry_op *op /* operation to be performed */,
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, cut );
 
+	info.doing  = doing;
+	info.todo   = todo;
 	if( op -> u.cut -> flags & DELETE_KILL )
 		/* data gets removed from the tree */
 		result = node_plugin_by_node( op -> node -> real_node ) ->
 			cut_and_kill( op -> u.cut -> from, op -> u.cut -> to,
 				      op -> u.cut -> from_key, op -> u.cut -> to_key,
 				      op -> u.cut -> smallest_removed,
-				      todo, op -> u.cut -> iplug_params, 
+				      &info, op -> u.cut -> iplug_params, 
 				      0 /* FIXME-NIKITA flags */ );
 	else
 		/* data get cut,  */
@@ -819,7 +828,7 @@ static int carry_cut( carry_op *op /* operation to be performed */,
 			cut( op -> u.cut -> from, op -> u.cut -> to,
 			     op -> u.cut -> from_key, op -> u.cut -> to_key,
 			     op -> u.cut -> smallest_removed,
-			     todo, 0 /* FIXME-NIKITA flags */ );
+			     &info, 0 /* FIXME-NIKITA flags */ );
 	znode_set_dirty( op -> u.cut -> from -> node );
 	znode_set_dirty( op -> u.cut -> to -> node );
 	doing -> restartable = 0;
@@ -849,6 +858,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	int                  real_size;
 	item_plugin         *iplug;
 	int                  can_paste_here;
+	carry_plugin_info    info;
 
 	assert( "nikita-982", op != NULL );
 	assert( "nikita-983", todo != NULL );
@@ -902,8 +912,10 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 			change_item_size( op -> u.insert.d -> coord, real_size );
 	}
 	doing -> restartable = 0;
+	info.doing  = doing;
+	info.todo   = todo;
 	result = iplug -> common.paste( op -> u.insert.d -> coord,
-					op -> u.insert.d -> data, todo );
+					op -> u.insert.d -> data, &info );
 	znode_set_dirty( node );
 	if( real_size < 0 ) {
 		node -> nplug ->
@@ -917,7 +929,7 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 
 		unit_key_by_coord( op -> u.insert.d -> coord, &item_key );
 		node -> nplug -> update_item_key 
-			( op -> u.insert.d -> coord, &item_key, todo );
+			( op -> u.insert.d -> coord, &item_key, &info );
 	}
 
 	return result;
@@ -1045,10 +1057,11 @@ static int update_delimiting_key( znode *parent /* node key is updated
 							  * store error
 							  * message */)
 {
-	coord_t  left_pos;
-	coord_t  right_pos;
+	coord_t      left_pos;
+	coord_t      right_pos;
 	int          result;
 	reiser4_key  ldkey;
+	carry_plugin_info info;
 
 	assert( "nikita-1177", right != NULL );
 	/* find position of right left child in a parent */
@@ -1090,8 +1103,10 @@ static int update_delimiting_key( znode *parent /* node key is updated
 	}
 	*error_msg = NULL;
 
+	info.doing  = doing;
+	info.todo   = todo;
 	node_plugin_by_node( parent ) -> update_item_key
-		( &right_pos, leftmost_key_in_node( right, &ldkey ), todo );
+		( &right_pos, leftmost_key_in_node( right, &ldkey ), &info );
 	doing -> restartable = 0;
 	znode_set_dirty( parent );
 	return 0;
@@ -1223,12 +1238,15 @@ static int carry_shift_data( sideof side /* in what direction to move data */,
 {
 	int result;
 	znode *source;
+	carry_plugin_info info;
 
 	source = insert_coord -> node;
+	info.doing = doing;
+	info.todo  = todo;
 	result = node_plugin_by_node( node ) -> shift
 		( insert_coord, node, 
 		  ( side == LEFT_SIDE ) ? SHIFT_LEFT : SHIFT_RIGHT, 0,
-		  including_insert_coord_p, todo );
+		  including_insert_coord_p, &info );
 	assert( "nikita-915", result >= 0 );
 	if( result > 0 ) {
 		doing -> restartable = 0;

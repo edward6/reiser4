@@ -179,7 +179,7 @@ lookup_result tail_lookup (const reiser4_key * key, lookup_bias bias,
  */
 /* Audited by: green(2002.06.14) */
 int tail_paste (coord_t * coord, reiser4_item_data * data,
-		carry_level * todo UNUSED_ARG)
+		carry_plugin_info *info UNUSED_ARG)
 {
 	unsigned old_item_length;
 	char * item;
@@ -296,7 +296,7 @@ void tail_copy_units (coord_t * target, coord_t * source,
 		item_key_by_coord (source, &key);
 		set_key_offset (&key, get_key_offset (&key) + from);
 
-		node_plugin_by_node (target->node)->update_item_key (target, &key, 0/*todo*/);
+		node_plugin_by_node (target->node)->update_item_key (target, &key, 0/*info*/);
 	}
 }
 
@@ -349,7 +349,7 @@ int tail_cut_units (coord_t * coord, unsigned * from, unsigned * to,
 		 */
 		item_key_by_coord (coord, &key);
 		set_key_offset (&key, get_key_offset (&key) + count);
-		node_plugin_by_node (coord->node)->update_item_key (coord, &key, 0/*todo*/);
+		node_plugin_by_node (coord->node)->update_item_key (coord, &key, 0/*info*/);
 	}
 
 	if (REISER4_DEBUG)

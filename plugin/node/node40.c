@@ -20,8 +20,8 @@
 /** magic number that is stored in ->magic field of node header */
 const __u32 reiser4_node_magic = 0x52344653; /* (*(__u32 *)"R4FS"); */
 
-static int prepare_for_update (znode * left, znode * right, carry_level * todo);
-static int prepare_for_removal (znode * empty, carry_level * todo);
+static int prepare_for_update (znode * left, znode * right, carry_plugin_info *info);
+static int prepare_for_removal (znode * empty, carry_plugin_info *info);
 
 
 /* header of node of reiser40 format is at the beginning of node */
@@ -769,7 +769,7 @@ static int should_notify_parent (const znode *node)
 /* Auditor comments: This function cannot be called with any spinlocks held in
    case passed data is in userspace, because userspace access might schedule */
 int node40_create_item (coord_t * target, const reiser4_key * key,
-			reiser4_item_data * data, carry_level * todo )
+			reiser4_item_data * data, carry_plugin_info *info )
 {
 	node_header_40 * nh;
 	item_header_40 * ih;
@@ -837,7 +837,7 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
 	}
 	/* copy item body */
 	if (data->iplug->common.paste != NULL) {
-		data->iplug->common.paste (target, data, todo);
+		data->iplug->common.paste (target, data, info);
 	}
 	else if (data->data != NULL) {
 		if (data->user) {
@@ -855,7 +855,7 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
 
 	if (target->item_pos == 0) {
 		/* left delimiting key has to be updated */
-		prepare_for_update (NULL, target->node, todo);
+		prepare_for_update (NULL, target->node, info);
 	}
 
 	if (item_plugin_by_coord (target) -> common.create_hook != NULL) {
@@ -873,7 +873,7 @@ int node40_create_item (coord_t * target, const reiser4_key * key,
 */
 /* Audited by: green(2002.06.13) */
 void node40_update_item_key (coord_t * target, reiser4_key * key,
-			     carry_level * todo)
+			     carry_plugin_info *info)
 {
 	item_header_40 * ih;
 
@@ -881,7 +881,7 @@ void node40_update_item_key (coord_t * target, reiser4_key * key,
 	xmemcpy (&ih->key, key, sizeof (reiser4_key));
 
 	if (target->item_pos == 0) {
-		prepare_for_update (NULL, target->node, todo);
+		prepare_for_update (NULL, target->node, info);
 	}
 }
 
@@ -937,13 +937,13 @@ static unsigned cut_units (coord_t * coord, unsigned *from, unsigned *to,
 /* this is auxiliary function used by both cutting methods - cut and
    cut_and_kill. If it is called by cut_and_kill (@cut == 0) special action
    (kill_hook) will be performed on every unit being removed from tree. When
-   @todo != 0 - it is called not by node40_shift who cares about delimiting
+   @info != 0 - it is called not by node40_shift who cares about delimiting
    keys itself - update znode's delimiting keys */
 /* Audited by: green(2002.06.13) */
 static int cut_or_kill (coord_t * from, coord_t * to,
 			const reiser4_key * from_key,
 			const reiser4_key * to_key,
-			reiser4_key * smallest_removed, carry_level * todo, 
+			reiser4_key * smallest_removed, carry_plugin_info *info, 
 			int cut, void *cut_params, __u32 flags)
 {
 	znode * node;
@@ -1156,16 +1156,16 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 		node40_update_item_key (&coord, &unit_key, 0);
 	}
 
-	if (todo) {
+	if (info) {
 		/* it is not called by node40_shift, so we have to take care
 		   of changes on upper levels */
 		if (node_is_empty (node) && !(flags & DELETE_RETAIN_EMPTY))
 			/* all contents of node is deleted */
-			prepare_for_removal (node, todo);
+			prepare_for_removal (node, info);
 		else if (!keyeq (&node40_ih_at (node, 0)->key,
 				 &old_first_key)) {
 			/* first key changed */
-			prepare_for_update (NULL, node, todo);
+			prepare_for_update (NULL, node, info);
 		}
 	}
 
@@ -1181,10 +1181,10 @@ int node40_cut_and_kill (coord_t * from, coord_t * to,
 			 const reiser4_key * from_key,
 			 const reiser4_key * to_key,
 			 reiser4_key * smallest_removed,
-			 carry_level * todo, void *kill_params, __u32 flags)
+			 carry_plugin_info *info, void *kill_params, __u32 flags)
 {
 	return cut_or_kill (from, to, from_key, to_key, smallest_removed,
-			    todo, 0 /* not cut */, kill_params, flags);
+			    info, 0 /* not cut */, kill_params, flags);
 }
 
 
@@ -1195,10 +1195,10 @@ int node40_cut (coord_t * from, coord_t * to,
 		const reiser4_key * from_key,
 		const reiser4_key * to_key,
 		reiser4_key * smallest_removed,
-		carry_level * todo, __u32 flags)
+		carry_plugin_info *info, __u32 flags)
 {
 	return cut_or_kill (from, to, from_key, to_key, smallest_removed,
-			    todo, 1 /* cut */, NULL, flags);
+			    info, 1 /* cut */, NULL, flags);
 }
 
 
@@ -1730,15 +1730,15 @@ void update_znode_dkeys (znode * left, znode * right)
 }
 
 
-/* something was moved between @left and @right. Add carry operation to @todo
+/* something was moved between @left and @right. Add carry operation to @info
    list to have carry to update delimiting key between them */
 /* Audited by: green(2002.06.13) */
-static int prepare_for_update (znode * left, znode * right, carry_level * todo)
+static int prepare_for_update (znode * left, znode * right, carry_plugin_info *info)
 {
 	carry_op * op;
 	carry_node * cn;
 
-	if (todo == NULL)
+	if (info == NULL)
 		/*
 		 * nowhere to send operation to.
 		 */
@@ -1747,12 +1747,12 @@ static int prepare_for_update (znode * left, znode * right, carry_level * todo)
 	if (!should_notify_parent (right))
 		return 0;
 
-	op = post_carry (todo, COP_UPDATE, right, 1);
+	op = node_post_carry (info, COP_UPDATE, right, 1);
 	if (IS_ERR (op) || op == NULL)
 		return op ? PTR_ERR (op) : -EIO;
 
 	if (left != NULL) {
-		cn = add_carry (todo, POOLO_BEFORE, op->node);
+		cn = add_carry (info->todo, POOLO_BEFORE, op->node);
 		if (IS_ERR (cn))
 			return PTR_ERR (cn);
 		cn->parent = 1;
@@ -1767,15 +1767,15 @@ static int prepare_for_update (znode * left, znode * right, carry_level * todo)
 
 
 /* to delete a pointer to @empty from the tree add corresponding carry
-   operation (delete) to @todo list */
+   operation (delete) to @info list */
 /* Audited by: green(2002.06.13) */
-static int prepare_for_removal (znode * empty, carry_level * todo)
+static int prepare_for_removal (znode * empty, carry_plugin_info *info)
 {
 	carry_op * op;
 
 	if (!should_notify_parent (empty))
 		return 0;
-	op = post_carry (todo, COP_DELETE, empty, 1);
+	op = node_post_carry (info, COP_DELETE, empty, 1);
 	if (IS_ERR (op) || op == NULL)
 		return op ? PTR_ERR (op) : -EIO;
 
@@ -1992,7 +1992,7 @@ int node40_shift (coord_t * from, znode * to,
 				       be deleted from the tree if this is set
 				       to 1 */
 		  int including_stop_coord /* */,
-		  carry_level * parent_todo)
+		  carry_plugin_info *info)
 {
 	struct shift_params shift;
 	int result;
@@ -2072,14 +2072,14 @@ int node40_shift (coord_t * from, znode * to,
 	   and amount of data which was really shifted */
 	adjust_coord (from, &shift, result, including_stop_coord);
 
-	/* add update operation to @todo, which is the list of operations to
+	/* add update operation to @info, which is the list of operations to
 	   be performed on a higher level */
-	result = prepare_for_update (left, right, parent_todo);
+	result = prepare_for_update (left, right, info);
 	if (!result && node_is_empty (source) && delete_child) {
 		/* all contents of @from->node is moved to @to and @from->node
 		   has to be removed from the tree, so, on higher level we
 		   will be removing the pointer to node @from->node */
-		result = prepare_for_removal (source, parent_todo);
+		result = prepare_for_removal (source, info);
 	}
 
 #ifdef DEBUGGING_SHIFT
