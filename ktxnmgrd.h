@@ -22,6 +22,7 @@ struct ktxnmgrd_context {
 	signed long timeout;
 	struct task_struct *tsk;
 	txn_mgrs_list_head queue;
+	int started:1;
 	int done:1;
 	int rescan:1;
 	__u32 duties;
