@@ -7,7 +7,7 @@
 /*
  * there are three "types" of readahead:
  * 1. readahead for unformatted nodes
- * 2. readahead for directories: it is implemented via zloa
+ * 2. readahead for directories: it is implemented via zload
  * 3. 
  */
 
@@ -18,7 +18,12 @@ readdir_readahead(znode *node, ra_info_t *info)
 	znode *next;
 	int i;
 
-	assert("vs-1143", !blocknr_is_fake(znode_get_block(node)));
+	if (blocknr_is_fake(znode_get_block(node)))
+		/*
+		 * it is possible that @node has been eflushed, and, thus, has
+		 * no page. Don't do read-ahead at all.
+		 */
+		return;
 
 	ra_params = get_current_super_ra_params();
 
