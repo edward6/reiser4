@@ -538,7 +538,6 @@ jparse(jnode * node, struct page *page)
 static inline void
 load_page(struct page *page, jnode *node)
 {
-	PROF_BEGIN(load_page);
 	page_cache_get(page);
 	if (!is_writeout_mode()) 
 		/* We do not mark pages active if jload is called as a part of
@@ -552,7 +551,6 @@ load_page(struct page *page, jnode *node)
 	kmap(page);
 	if (REISER4_USE_EFLUSH && JF_ISSET(node, JNODE_EFLUSH))
 		UNDER_SPIN_VOID(jnode, node, eflush_del(node, 0));
-	PROF_END(load_page, load_page);
 }
 
 /* load jnode's data into memory using read_cache_page() */
@@ -723,6 +721,7 @@ void
 jrelse(jnode * node /* jnode to release references to */)
 {
 	struct page *page;
+	PROF_BEGIN(jrelse);
 
 	assert("nikita-487", node != NULL);
 	assert("nikita-489", atomic_read(&node->d_count) > 0);
@@ -753,6 +752,7 @@ jrelse(jnode * node /* jnode to release references to */)
 		JF_CLR(node, JNODE_LOADED);
 	UNLOCK_JNODE(node);
 	jput(node);
+	PROF_END(jrelse, jrelse);
 }
 
 /* start async io for @node */
@@ -1404,7 +1404,8 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	}
 
 	printk("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
-	       " block: %s, d_count: %d, x_count: %d, pg: %p, atom: %p(%i), type: %s, ",
+	       " block: %s, d_count: %d, x_count: %d, "
+	       "pg: %p, atom: %p, lock: %i:%i, type: %s, ",
 	       prefix, node, node->state,
 	       jnode_state_name(node, JNODE_LOADED),
 	       jnode_state_name(node, JNODE_HEARD_BANSHEE),
@@ -1428,7 +1429,12 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	       jnode_state_name(node, JNODE_EPROTECTED),
 	       jnode_get_level(node), sprint_address(jnode_get_block(node)),
 	       atomic_read(&node->d_count), atomic_read(&node->x_count),
-	       jnode_page(node), node->atom, !capture_list_is_clean(node),
+	       jnode_page(node), node->atom,
+#if REISER4_LOCKPROF
+	       node->guard.held, node->guard.trying,
+#else
+	       0, 0,
+#endif
 	       jnode_type_name(jnode_get_type(node)));
 	if (jnode_is_unformatted(node)) {
 		printk("inode: %llu, index: %lu, ", 
