@@ -307,6 +307,7 @@ static int page_cache_drop_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 	lock = jnode_to_page_lock( node );
 	spin_lock( lock );
 	page = jnode_page( node );
+	trace_if( TRACE_PCACHE, print_page( "drop node", page ) );
 	if( page != NULL ) {
 		assert( "nikita-2182", lock == page_to_jnode_lock( page ) );
 		lock_page( page );
