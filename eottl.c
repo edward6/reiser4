@@ -367,6 +367,7 @@ int handle_eottl( cbk_handle *h /* cbk handle */,
 			result = add_empty_leaf( h -> coord, h -> active_lh,
 						 h -> key, rd_key( h -> coord, &key ) );
 			if( result ) {
+				print_fs_info ("add_empty_leaf failed", reiser4_get_current_sb ());
 				h -> error = "could not add empty leaf";
 				h -> result = result;
 				*outcome = LOOKUP_DONE;
