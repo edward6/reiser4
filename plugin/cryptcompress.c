@@ -1938,6 +1938,12 @@ get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode,
 	assert("edward-731", clust != NULL);
 	assert("edward-732", inode != NULL);
 
+	if (clust->hint->coord.valid) {
+		assert("edward-1293", clust->dstat != INVAL_DISK_CLUSTER);
+		assert("edward-1294", znode_is_write_locked(clust->hint->coord.lh->node));
+		/* already have a valid locked position */
+		return (clust->dstat == FAKE_DISK_CLUSTER ? CBK_COORD_NOTFOUND : CBK_COORD_FOUND);
+	}
 	key_by_inode_cryptcompress(inode, clust_to_off(clust->index, inode), &key);
 	ra_info.key_to_stop = key;
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
@@ -3272,8 +3278,8 @@ capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
 reiser4_internal int
 mmap_cryptcompress(struct file * file, struct vm_area_struct * vma)
 {
-	assert("edward-1289", !(vma->vm_flags & VM_WRITE));
-	return generic_file_mmap(file, vma);
+	return -ENOSYS;
+	//return generic_file_mmap(file, vma);
 }
 
 
@@ -3323,9 +3329,8 @@ get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head 
 	}
 }
 
-/* plugin->u.file.delete */
-/* EDWARD-FIXME-HANS: comment is where? 
- VS-FIXME-HANS: how long ago did I ask the above?  Why aren't you supervising this work more closely?  You know he is a junior programmer.... */
+/* plugin->u.file.delete method
+   see plugin.h for description */
 reiser4_internal int
 delete_cryptcompress(struct inode *inode)
 {
@@ -3344,18 +3349,16 @@ delete_cryptcompress(struct inode *inode)
 	return delete_object(inode, 0);
 }
 
-/* plugin->u.file.init_inode_data */
-/* plugin->u.file.owns_item:
-   owns_item_common */
-/* plugin->u.file.pre_delete */
-/* EDWARD-FIXME-HANS: comment is where? */
+/* plugin->u.file.pre_delete method
+   see plugin.h for description */
 reiser4_internal int
 pre_delete_cryptcompress(struct inode *inode)
 {
 	return cryptcompress_truncate(inode, 0, 0);
 }
 
-/* plugin->u.file.setattr method */
+/* plugin->u.file.setattr method 
+   see plugin.h for description */
 reiser4_internal int
 setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 		      struct iattr *attr /* change description */ )
@@ -3396,7 +3399,6 @@ setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 
 			result = cryptcompress_truncate(inode, attr->ia_size, 1/* update stat data */);
 			if (result) {
-				/* FIXME-EDWARD: use safe_link here */
 				warning("edward-1192", "truncate_cryptcompress failed: oid %lli, "
 					"old size %lld, new size %lld, retval %d",
 					(unsigned long long)get_inode_oid(inode),
