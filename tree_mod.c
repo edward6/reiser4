@@ -160,7 +160,7 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 			 * @old_root.
 			 */
 			assert( "nikita-1110", 
-				is_empty_node( new_root ) );
+				node_is_empty( new_root ) );
 			spin_lock_dk( current_tree );
 			*znode_get_ld_key( new_root ) = *min_key();
 			*znode_get_rd_key( new_root ) = *max_key();
@@ -209,7 +209,7 @@ static int add_child_ptr( znode *parent, znode *child )
 
 	assert( "nikita-1111", parent != NULL );
 	assert( "nikita-1112", child != NULL );
-	assert( "nikita-1113", is_empty_node( parent ) );
+	assert( "nikita-1113", node_is_empty( parent ) );
 	assert( "nikita-1115", znode_get_level( parent ) == znode_get_level( child ) + 1 );
 
 	coord.node = parent;
@@ -288,7 +288,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 			result = zinit_new( old_root );
 			if( result == 0 ) {
 				assert( "nikita-1279", 
-					is_empty_node( old_root ) );
+					node_is_empty( old_root ) );
 				ZF_SET( old_root, ZNODE_HEARD_BANSHEE );
 				atomic_set( &old_root -> c_count, 0 );
 			}

@@ -361,7 +361,7 @@ static void tree_rec( reiser4_tree *tree, znode *node, __u32 flags )
 		print_znode( "", node );
 
 	print_znode_content( node, flags );
-	if( is_empty_node( node ) ) {
+	if( node_is_empty( node ) ) {
 		indent_znode( node );
 		info( "empty\n" );
 		return;

@@ -627,7 +627,7 @@ static void internal_unlock_znode (reiser4_lock_handle *handle)
 
 		/* Handle znode deallocation */
 		if (ZF_ISSET(node, ZNODE_HEARD_BANSHEE)) {
-			assert("nikita-1221", is_empty_node(node));
+			assert("nikita-1221", node_is_empty(node));
 
 			/*
 			 * invalidate lock. FIXME-NIKITA locking.  This doesn't
