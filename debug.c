@@ -46,7 +46,7 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 
 	/* do something more impressive here, print content of
 	   get_current_context() */
-	if (get_current_context() != NULL) {
+	if (get_current_context_check() != NULL) {
 		struct super_block *super;
 
 		print_lock_counters("pins held", lock_counters());
@@ -106,7 +106,7 @@ lock_counters()
 /* check that no spinlocks are held */
 void schedulable (void)
 {
-	if (REISER4_DEBUG && get_current_context() != NULL) {
+	if (REISER4_DEBUG && get_current_context_check() != NULL) {
 		lock_counters_info *counters;
 
 		counters = lock_counters();
@@ -152,7 +152,7 @@ check_stack(void)
 	if (REISER4_DEBUG_STACK) {
 		char dummy;
 		unsigned gap;
-		reiser4_context *context = get_current_context();
+		reiser4_context *context = get_current_context_check();
 
 		if (context == NULL)
 			return;
@@ -636,7 +636,7 @@ __u32 get_current_trace_flags(void)
 	__u32 flags;
 
 	flags = reiser4_current_trace_flags;
-	if (get_current_context() != NULL) {
+	if (get_current_context_check() != NULL) {
 		flags |= get_current_context()->trace_flags;
 		if (get_current_super_private() != NULL)
 			flags |= get_current_super_private()->trace_flags;
