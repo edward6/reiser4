@@ -22,8 +22,10 @@ typedef struct {
 	char *buf;
 	size_t size;
 	size_t used;
-	struct semaphore held;
+	spinlock_t lock;
+	struct list_head wait;
 	int disabled;
+	int long_term;
 } reiser4_trace_file;
 
 typedef enum {
