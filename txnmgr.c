@@ -1077,12 +1077,17 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	if (ret < 0)
 		reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
 
-	invalidate_list(&(*atom)->clean_nodes);
+	/* The atom->ovrwr_nodes list is processed under commit semaphore held
+	   because of bitmap nodes which are captured by special way in
+	   bitmap_pre_commit_hook(), that way does not include
+	   capture_fuse_wait() as a capturing of other nodes does -- the commit
+	   semaphore is used for transaction isolation instead. */
 	invalidate_list(&(*atom)->ovrwr_nodes);
-	invalidate_list(&(*atom)->writeback_nodes);
-	invalidate_list(&(*atom)->inodes);
-
 	up(&sbinfo->tmgr.commit_semaphore);
+	
+	invalidate_list(&(*atom)->clean_nodes);
+	invalidate_list(&(*atom)->writeback_nodes);
+	assert("zam-927", capture_list_empty(&(*atom)->inodes));
 
 	LOCK_ATOM(*atom);
 	(*atom)->stage = ASTAGE_DONE;
