@@ -70,6 +70,7 @@ void get_next_fake_blocknr (reiser4_block_nr *bnr)
 }
 
 
+/* wrapper to call space allocation plugin */
 int reiser4_alloc_blocks (reiser4_blocknr_hint *preceder, reiser4_block_nr *blk,
 			  reiser4_block_nr *len)
 {
@@ -82,7 +83,27 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *preceder, reiser4_block_nr *blk,
 
 	splug = get_current_super_private ()->space_plug;	
 	needed = *len;
-	return splug->alloc_blocks (preceder, needed, blk, len);
+	return splug->alloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
+				    preceder, needed, blk, len);
+}
+
+/* this wrapper is used by new_node only
+ * FIXME-VS: shouldn't this return "fake "block number?
+ */
+int reiser4_alloc_block( znode *neighbor, reiser4_block_nr *blocknr )
+{
+	space_allocator_plugin * splug;
+	reiser4_blocknr_hint preceder;
+	reiser4_block_nr one;
+
+	if (neighbor)
+		preceder.blk = ZJNODE (neighbor)->blocknr;
+	else
+		preceder.blk = 0;
+
+	splug = get_current_super_private ()->space_plug;	
+	return splug->alloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
+				    &preceder, 1, blocknr, &one);
 }
 
 
