@@ -186,11 +186,13 @@ static count_t file_len(
     uint64_t size;
     struct stat st;
 
+    /* Getting device size in 512 blocks */
     if (ioctl(*((int *)device->entity), BLKGETSIZE, &size) >= 0)
         return (count_t)(size / (device->blocksize / 512));
     
     memset(&st, 0, sizeof(st));
     
+    /* Getting device size in bytes */
     if (fstat(*((int *)device->entity), &st) >= 0)
 	return (count_t)(st.st_size / device->blocksize);
 

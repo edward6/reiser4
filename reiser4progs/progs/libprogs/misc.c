@@ -202,7 +202,6 @@ int progs_misc_dev_mounted(const char *name,
     struct mntent *ent;
     struct stat giv_st;
     struct stat mnt_st;
-    return 0;
 
     if (!(mnt = setmntent("/etc/mtab", "r")))
 	return 0;
@@ -214,7 +213,7 @@ int progs_misc_dev_mounted(const char *name,
 	if (stat(ent->mnt_fsname, &mnt_st) == 0) {
 	    if (mnt_st.st_rdev == giv_st.st_rdev) {
 		char *token;
-		while ((token = aal_strsep(ops ? (char **)&ops : NULL, ","))) {
+		while (ops && (token = aal_strsep((char **)&ops, ","))) {
 		    if (!hasmntopt(ent, token))
 			goto error_free_mnt;
 		}
