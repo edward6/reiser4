@@ -683,10 +683,11 @@ void longterm_unlock_znode (lock_handle *handle)
 			 * that node is dying.
 			 */
 			spin_unlock_znode(node);
+			ON_DEBUG(check_lock_data());
+			ON_DEBUG(check_lock_node_data(node));
 			forget_znode(handle);
 			zput(node);
 
-			ON_DEBUG( check_lock_data() );
 			return;
 		}
 	}
@@ -721,6 +722,7 @@ void longterm_unlock_znode (lock_handle *handle)
 	/* minus one reference from lh->node */
 	zput(node);
 	ON_DEBUG( check_lock_data() );
+	ON_DEBUG( check_lock_node_data( node ) );
 }
 
 /**
@@ -898,6 +900,7 @@ int longterm_lock_znode (
 	}
 
 	ON_DEBUG( check_lock_data() );
+	ON_DEBUG( check_lock_node_data( node ) );
 	return ret;
 }
 
@@ -1171,7 +1174,7 @@ void check_lock_stack( lock_stack *stack )
 
 extern spinlock_t active_contexts_lock;
 extern context_list_head active_contexts;
-TS_LIST_DEFINE(context, reiser4_context, contexts_link);
+TS_LIST_DEFINE( context, reiser4_context, contexts_link );
 
 void check_lock_data()
 {
@@ -1188,6 +1191,15 @@ void check_lock_data()
 	} else
 		check_lock_stack( &get_current_context() -> stack );
 }
+
+void check_lock_node_data( znode *node )
+{
+	spin_lock_znode( node );
+	owners_list_check( &node -> lock.owners );
+	requestors_list_check( &node -> lock.requestors );
+	spin_unlock_znode( node );
+}
+
 #endif
 
 /*
