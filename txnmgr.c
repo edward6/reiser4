@@ -653,7 +653,9 @@ void atom_dec_and_unlock(txn_atom * atom)
 
 /* Return a new atom, locked.  This adds the atom to the transaction manager's list and
    sets its reference count to 1, an artificial reference which is kept until it
-   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks. */
+   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks. 
+
+ZAM-FIXME-HANS: should we set node->atom and txnh->atom here also? */
 static txn_atom *
 atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 {
@@ -666,8 +668,7 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	assert("jmacd-43225", txnh->atom == NULL);
 
 	/* A memory allocation may schedule we have to release those spinlocks
-	 * before kmem_cache_alloc() call. */
-	UNLOCK_JNODE(node);
+	 * before kmem_cache_alloc() call. */	UNLOCK_JNODE(node);
 	UNLOCK_TXNH(txnh);
 
 	if (*atom_alloc == NULL) {
@@ -1535,7 +1536,7 @@ commit_txnh(txn_handle * txnh)
 
 	UNLOCK_TXNH(txnh);
 	atom_dec_and_unlock(cd.atom);
-	/* support for asynchronous commits. */
+/* ZAM-FIXME-HANS: comment on why are we doing this, what is the logic here? */
 	if (txnh->flags & TXNH_DONT_COMMIT)
 		ktxnmgrd_kick(&get_current_super_private()->tmgr);
 
@@ -2918,7 +2919,7 @@ capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode)
 	UNLOCK_TXNH(txnh);
 	return RETERR(-EAGAIN);
 }
-
+/* ZAM-FIXME-HANS: how do you know that this preserves the lock ordering invariants? */
 /* This function splices together two jnode lists (small and large) and sets all jnodes in
    the small list to point to the large atom.  Returns the length of the list. */
 static int
@@ -3196,7 +3197,9 @@ copy_on_capture(jnode *node, txn_atom *atom)
 
 #endif
 
-/* Perform copy-on-capture of a block.  INCOMPLETE CODE. */
+/* Perform copy-on-capture of a block.  INCOMPLETE CODE. 
+
+VS-FIXME-HANS: complete it or remove it.*/
 static int
 capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh, txn_capture mode)
 {
@@ -3309,6 +3312,8 @@ jnodes_of_one_atom(jnode * j1, jnode * j2)
 	return ret;
 }
 
+/* NIKITA-FIXME-HANS: send me an email explaining this, it seems rather small. I
+ * thought we discussed setting this to something like twice total RAM size. */
 unsigned int
 txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 {
@@ -3316,7 +3321,7 @@ txnmgr_get_max_atom_size(struct super_block *super UNUSED_ARG)
 }
 
 /* DEBUG HELP */
-
+/* ZAM-FIXME-HANS: this is classic josh working independently without concern for how others on the team code things.  Put this in debug.c, and teach it to use the reiserfs warning/panic infrastructure, or cut it entirely. */
 #if REISER4_DEBUG_OUTPUT
 void
 info_atom(const char *prefix, txn_atom * atom)
