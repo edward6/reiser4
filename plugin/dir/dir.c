@@ -245,7 +245,10 @@ unlink_common(struct inode *parent /* parent object */ ,
 	assert("nikita-2882", fplug->detach != NULL);
 
 	result = unlink_check_and_grab(parent, victim);
-	if (result == 0 && (result = fplug->detach(object, parent)) == 0) {
+	if (result != 0)
+		return result;
+
+	if ((result = fplug->detach(object, parent)) == 0) {
 		dir_plugin            *parent_dplug;
 		reiser4_dir_entry_desc entry;
 
