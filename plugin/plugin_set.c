@@ -168,7 +168,7 @@ static int plugin_set_field(plugin_set **set, const __u32 val, const int offset)
 		lock = &plugin_set_lock[replica.hashval & 7];
 		spin_lock(lock);
 		twin = ps_hash_find(&ps_table, &replica.hashval);
-		if (likely(twin) == NULL) {
+		if (likely(twin == NULL)) {
 			*set = psal;
 			ps_hash_insert_rcu(&ps_table, psal);
 		} else {
