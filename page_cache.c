@@ -759,13 +759,9 @@ drop_page(struct page *page)
 #if defined(PG_skipped)
 	ClearPageSkipped(page);
 #endif
-	if (page->mapping != NULL) {
-		remove_from_page_cache(page);
-		unlock_page(page);
-		/* page removed from the mapping---decrement page counter */
-		page_cache_release(page);
-	} else
-		unlock_page(page);
+	if (page->mapping != NULL)
+		delete_from_page_cache(page);
+	unlock_page(page);
 }
 
 
