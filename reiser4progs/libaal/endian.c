@@ -1,47 +1,70 @@
 /*
-    These have been stolen somewhere from linux.
+    Bits working functions. They are used by endianess macro.
+    Copyright (C) 1996-2002 Hans Reiser.
+    Author Yury Umanets.
 */
 
-#include <aal/endian.h>
+#if defined(__sparc__) || defined(__sparcv9)
+#  include <sys/int_types.h>
+#else
+#  include <stdint.h>
+#endif
 
-int le_set_bit (int nr, void * addr) {
-    uint8_t * p, mask;
-    int retval;
+/* 
+    Turns on specified bit in passed bit array. This variant of function is used 
+    for little endian machines.
+*/
+inline int aal_le_set_bit (int nr, void *addr) {
+    int val;
+    uint8_t *p, mask;
 
     p = (uint8_t *)addr;
     p += nr >> 3;
+    
     mask = 1 << (nr & 0x7);
-    /*cli();*/
-    retval = (mask & *p) != 0;
+    val = (mask & *p) != 0;
     *p |= mask;
-    /*sti();*/
-    return retval;
+    
+    return val;
 }
 
-int le_clear_bit (int nr, void * addr) {
-    uint8_t * p, mask;
-    int retval;
+/* 
+    Clears specified bit in passed bit array. This variant of function is used 
+    for little endian machines.
+*/
+inline int aal_le_clear_bit (int nr, void *addr) {
+    int val;
+    uint8_t *p, mask;
 
     p = (uint8_t *)addr;
     p += nr >> 3;
+    
     mask = 1 << (nr & 0x7);
-    /*cli();*/
-    retval = (mask & *p) != 0;
+    val = (mask & *p) != 0;
     *p &= ~mask;
-    /*sti();*/
-    return retval;
+    
+    return val;
 }
 
-int le_test_bit(int nr, const void * addr) {
-    uint8_t * p, mask;
+/* 
+    Tests specified bit in passed bit array. This variant of function is used 
+    for little endian machines.
+*/
+inline int aal_le_test_bit(int nr, const void *addr) {
+    uint8_t *p, mask;
 
     p = (uint8_t *)addr;
     p += nr >> 3;
     mask = 1 << (nr & 0x7);
+    
     return ((mask & *p) != 0);
 }
 
-int be_set_bit (int nr, void * addr) {
+/* 
+    Sets specified bit in passed bit array. This variant of function is used 
+    for big endian machines.
+*/
+inline int aal_be_set_bit (int nr, void *addr) {
     uint8_t mask = 1 << (nr & 0x7);
     uint8_t *p = (uint8_t *) addr + (nr >> 3);
     uint8_t old = *p;
@@ -51,7 +74,11 @@ int be_set_bit (int nr, void * addr) {
     return (old & mask) != 0;
 }
 
-int be_clear_bit (int nr, void * addr) {
+/* 
+    Clears specified bit in passed bit array. This variant of function is used 
+    for big endian machines.
+*/
+inline int aal_be_clear_bit (int nr, void *addr) {
     uint8_t mask = 1 << (nr & 0x07);
     uint8_t *p = (unsigned char *) addr + (nr >> 3);
     uint8_t old = *p;
@@ -60,9 +87,12 @@ int be_clear_bit (int nr, void * addr) {
     return (old & mask) != 0;
 }
 
-int be_test_bit(int nr, const void * addr) {
-    const uint8_t *ADDR = (__const__ uint8_t *) addr;
-
-    return ((ADDR[nr >> 3] >> (nr & 0x7)) & 1) != 0;
+/* 
+    Tests specified bit in passed bit array. This variant of function is used 
+    for big endian machines.
+*/
+inline int aal_be_test_bit(int nr, const void *addr) {
+    const uint8_t *arr = (const uint8_t *)addr;
+    return ((arr[nr >> 3] >> (nr & 0x7)) & 1) != 0;
 }
 

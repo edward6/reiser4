@@ -4,10 +4,15 @@
     Author Yury Umanets.
 */
 
+/*
+    Returns TRUE if passed value is power of two, FALSE otherwise. This function
+    is used for checking block size for validness. 
+*/
 int aal_pow_of_two(unsigned long n) {
     return (n & -n) == n;
 }
 
+/* Retuns log2 of passed value */
 int aal_log2(unsigned long n) {
     unsigned long x;
 

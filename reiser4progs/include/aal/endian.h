@@ -63,13 +63,13 @@
 #  define LE64_TO_CPU(x)		swap64(x)
 #  define BE64_TO_CPU(x)		(x)
 
-int be_set_bit (int nr, void * addr);
-int be_clear_bit (int nr, void * addr);
-int be_test_bit(int nr, const void * addr);
+inline int aal_be_set_bit (int nr, void *addr);
+inline int aal_be_clear_bit (int nr, void *addr);
+inline int aal_be_test_bit(int nr, const void *addr);
 
-# define set_bit(nr, addr)		be_set_bit(nr, addr)
-# define clear_bit(nr, addr)		be_clear_bit(nr, addr)
-# define test_bit(nr, addr)		be_test_bit(nr, addr)
+# define set_bit(nr, addr)		aal_be_set_bit(nr, addr)
+# define clear_bit(nr, addr)		aal_be_clear_bit(nr, addr)
+# define test_bit(nr, addr)		aal_be_test_bit(nr, addr)
 
 #else
 
@@ -87,13 +87,13 @@ int be_test_bit(int nr, const void * addr);
 #  define LE64_TO_CPU(x)		(x)
 #  define BE64_TO_CPU(x)		swap64(x)
 
-int le_set_bit (int nr, void * addr);
-int le_clear_bit (int nr, void * addr);
-int le_test_bit(int nr, const void * addr);
+inline int le_set_bit (int nr, void *addr);
+inline int le_clear_bit (int nr, void *addr);
+inline int le_test_bit(int nr, const void *addr);
 
-# define set_bit(nr, addr)		le_set_bit(nr, addr)
-# define clear_bit(nr, addr)		le_clear_bit(nr, addr)
-# define test_bit(nr, addr)		le_test_bit(nr, addr)
+# define set_bit(nr, addr)		aal_le_set_bit(nr, addr)
+# define clear_bit(nr, addr)		aal_le_clear_bit(nr, addr)
+# define test_bit(nr, addr)		aal_le_test_bit(nr, addr)
 
 #endif
 
@@ -110,5 +110,4 @@ int le_test_bit(int nr, const void * addr);
 #define set_le64(p, field, val) 	set_leXX(64, p, field, val)
 
 #endif
-
 

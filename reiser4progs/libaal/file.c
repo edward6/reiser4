@@ -1,5 +1,7 @@
 /*
-    file.c -- standard file device abstraction layer.
+    file.c -- standard file device abstraction layer. It is used files functions
+    to read or write into device.
+    
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -10,6 +12,7 @@
 
 #ifndef ENABLE_COMPACT
 
+/* This is needed for enabling such functions as seek64, etc. */
 #ifndef _GNU_SOURCE
 #  define _GNU_SOURCE
 #endif
@@ -19,6 +22,10 @@
 
 #include <aal/aal.h>
 
+/*
+    Handler for "read" operation for use with file device. See bellow for 
+    understanding where it is used. 
+*/
 static error_t file_read(aal_device_t *device, void *buff, blk_t block, count_t count) {
     loff_t off, len;
 	
@@ -36,6 +43,10 @@ static error_t file_read(aal_device_t *device, void *buff, blk_t block, count_t 
     return 0;
 }
 
+/*
+    Handler for "write" operation for use with file device. See bellow for 
+    understanding where it is used. 
+*/
 static error_t file_write(aal_device_t *device, void *buff, blk_t block, count_t count) {
     loff_t off, len;
 	
@@ -53,6 +64,10 @@ static error_t file_write(aal_device_t *device, void *buff, blk_t block, count_t
     return 0;
 }
 
+/*
+    Handler for "sync" operation for use with file device. See bellow for 
+    understanding where it is used. 
+*/
 static error_t file_sync(aal_device_t *device) {
 
     if (!device) 
@@ -61,6 +76,10 @@ static error_t file_sync(aal_device_t *device) {
     return fsync(*((int *)device->entity));
 }
 
+/*
+    Handler for "flags" operation for use with file device. See bellow for 
+    understanding where it is used. 
+*/
 static int file_flags(aal_device_t *device) {
 
     if (!device) 
@@ -69,6 +88,10 @@ static int file_flags(aal_device_t *device) {
     return device->flags;
 }
 
+/*
+    Handler for "equals" operation for use with file device. See bellow for 
+    understanding where it is used. 
+*/
 static int file_equals(aal_device_t *device1, aal_device_t *device2) {
 
     if (!device1 || !device2)
@@ -78,6 +101,10 @@ static int file_equals(aal_device_t *device1, aal_device_t *device2) {
 	(char *)device2->data, aal_strlen((char *)device1->data));
 }
 
+/*
+    Handler for "stat" operation for use with file device. See bellow for 
+    understanding where it is used. 
+*/
 static uint32_t file_stat(aal_device_t *device) {
     struct stat st;
 	
@@ -90,6 +117,10 @@ static uint32_t file_stat(aal_device_t *device) {
     return (uint32_t)st.st_dev;
 }
 
+/*
+    Handler for "len" operation for use with file device. See bellow for 
+    understanding where it is used. 
+*/
 static count_t file_len(aal_device_t *device) {
     loff_t max_off = 0;
 	
@@ -102,16 +133,25 @@ static count_t file_len(aal_device_t *device) {
     return (count_t)(max_off / device->blocksize);
 }
 
+/*
+    Initializing the file device operations. They are used when any operation of 
+    enumerated bellow is performed on a file device.
+*/
 static struct aal_device_ops ops = {
-    file_read, 
-    file_write, 
-    file_sync, 
-    file_flags, 
-    file_equals, 
-    file_stat, 
-    file_len
+    .read = file_read, 
+    .write = file_write, 
+    .sync = file_sync, 
+    .flags = file_flags, 
+    .equals = file_equals, 
+    .stat = file_stat, 
+    .len = file_len
 };
 
+/*
+    Opens actual file, initializes aal_device_t instance and returns it to caller.
+    This function as well fille device at all is whidely used in all reiser4progs
+    (mkfs, fsck, etc) for opening a device and working with them.
+*/
 aal_device_t *aal_file_open(const char *file, uint16_t blocksize, int flags) {
     int fd;
     aal_device_t *device;
@@ -138,6 +178,10 @@ error:
     return NULL;    
 }
 
+/*
+    This function reopens opened previously file device in order to change 
+    flags, device was opened with.
+*/
 error_t aal_file_reopen(aal_device_t *device, int flags) {
     int fd;
 	
@@ -155,6 +199,10 @@ error_t aal_file_reopen(aal_device_t *device, int flags) {
     return 0;
 }
 
+/* 
+    Closes file device. Close opened file descriptor, frees all assosiated memory.
+    It is usualy called at end for work any utility from reiser4progs set.
+*/
 void aal_file_close(aal_device_t *device) {
 
     if (!device) 

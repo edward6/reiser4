@@ -12,6 +12,7 @@
 
 #ifdef ENABLE_DEBUG
 
+/* This function is used to provide asserts via exception */
 int __assert(char *hint, int cond, char *text, char *file, 
     int line, char *function) 
 {

@@ -1,5 +1,7 @@
 /*
-    exception.c -- exceptions handling functions.
+    exception.c -- exceptions handling functions. Exception mechanism is used
+    in order to provide unified interface for error handling.
+    
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
@@ -14,6 +16,7 @@
 static aal_exception_option_t default_handler(aal_exception_t *exception);
 static aal_exception_handler_t exception_handler = default_handler;
 
+/* Strings for all exception types */
 static char *type_strings[] = {
     "Information", 
     "Warning", 
@@ -22,6 +25,7 @@ static char *type_strings[] = {
     "Bug"
 };
 
+/* Strings for all exception options */
 static char *option_strings[] = {
     "Yes", 
     "No", 
@@ -33,6 +37,10 @@ static char *option_strings[] = {
 
 static int fetch_count = 0;
 
+/* 
+    Helper functions for getting different exception attributes (option string, 
+    type string, etc). They are used in exception handing functions.
+*/
 char *aal_exception_type_string(aal_exception_type_t type) {
     return type_strings[type - 1];
 }
@@ -53,6 +61,12 @@ char *aal_exception_message(aal_exception_t *exception) {
     return exception->message;
 }
 
+/* 
+    Default exception handler. It just prints exception kind and message. It is 
+    possible to use an alternative handler in order to provide more smart exception 
+    handing. Alternative function for instance, might be make question to user, what 
+    libreiser4 should do after exception (retry, ignore, etc).
+*/
 static aal_exception_option_t default_handler(aal_exception_t *exception) {
 
     if (exception->type != EXCEPTION_BUG)
@@ -71,10 +85,15 @@ static aal_exception_option_t default_handler(aal_exception_t *exception) {
     }
 }
 
+/* 
+    Sets alternative exception handler, if passed handler isn't NULL. Otherwise 
+    sets exception handler into default one.
+ */
 void aal_exception_set_handler(aal_exception_handler_t handler) {
     exception_handler = handler ? handler : default_handler;
 }
 
+/* Finished exception life cycle, that is destroys exception */
 void aal_exception_catch(aal_exception_t *exception) {
 	
     if (!exception)	
@@ -84,6 +103,10 @@ void aal_exception_catch(aal_exception_t *exception) {
     aal_free(exception);
 }
 
+/* 
+    The job of this function is to call current exception handler and return 
+    the result of handling (for instance, retry, ignore, etc).
+*/
 static aal_exception_option_t aal_exception_actual_throw(aal_exception_t *exception) {
     aal_exception_option_t opt;
 
@@ -95,6 +118,10 @@ static aal_exception_option_t aal_exception_actual_throw(aal_exception_t *except
     return opt;
 }
 
+/* 
+    Public function for throw exception. It creates new exception instance and 
+    pass the control to aal_exception_actual_throw function for further handling.
+*/
 aal_exception_option_t aal_exception_throw(aal_exception_type_t type,
     aal_exception_option_t opts, const char *message, ...)
 {
@@ -102,10 +129,10 @@ aal_exception_option_t aal_exception_throw(aal_exception_type_t type,
     aal_exception_t *exception;
 
     if (!(exception = (aal_exception_t *)aal_malloc(sizeof(aal_exception_t))))
-	goto no_memory;
+	goto error_no_memory;
 
     if (!(exception->message = (char*)aal_malloc(4096)))
-	goto no_memory;
+	goto error_no_memory;
 
     aal_memset(exception->message, 0, 4096);
 	
@@ -117,11 +144,17 @@ aal_exception_option_t aal_exception_throw(aal_exception_type_t type,
     va_end(arg_list);
 	
     return aal_exception_actual_throw(exception);
-no_memory:
+    
+error_no_memory:
     aal_printf("Out of memory in exception handler!\n");
     return EXCEPTION_UNHANDLED;
 }
 
+/* 
+    These functions are used for switching exception factory into silent mode.
+    This mode forces do not handle exceptions at all. As it is may be used few
+    times while the control is walking via stack, there is counter.
+*/
 void aal_exception_fetch_all(void) {
     fetch_count++;
 }

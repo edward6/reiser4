@@ -29,6 +29,10 @@ aal_printf_handler_t aal_printf_get_handler(void) {
     return printf_handler;
 }
 
+/* 
+    Forms string by passed format string and agruments and prints it to stdout.
+    It is used for messages out, when exception factory not available.
+*/
 void aal_printf(const char *format, ...) {
     va_list arg_list;
     char buff[4096];
@@ -53,6 +57,13 @@ enum format_modifier {
 
 typedef enum format_modifier format_modifier_t;
 
+/*
+    This function is used for forming a string by passed format string and 
+    arguments. It is widely used in exception handling and in other places,
+    where format string is needed. It is almost full clone of standard libc
+    function. It was introduced in order to provide formating strings ability
+    in the allone mode.
+*/
 int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
     int i;
     long int li;

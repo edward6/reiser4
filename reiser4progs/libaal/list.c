@@ -1,5 +1,7 @@
 /*
-    list.c -- simple list implementation.
+    list.c -- doble-linked list implementation. This is a utility thing. It is 
+    used for storing plugins, nodes, etc.
+    
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.
 */
