@@ -15,6 +15,7 @@
 #include "../../inode.h"
 #include "../../super.h"
 #include "../../page_cache.h"
+#include "../../carry.h"
 
 #include "../plugin_header.h"
 #include "../item/item.h"
@@ -28,6 +29,7 @@
 #include <linux/fs.h>		/* for struct file  */
 #include <linux/mm.h>		/* for struct page */
 #include <linux/buffer_head.h>	/* for struct buffer_head */
+#include <linux/writeback.h>
 
 /* this file contains file plugin of regular reiser4 files. Those files are either built of tail items only (TAIL_ID) or
  * of extent items only (EXTENT_POINTER_ID) */
@@ -152,13 +154,13 @@ can_append(const coord_t * coord, const reiser4_key * key)
 }
 
 /* obtain lock on right neighbor and drop lock on current node */
-static int
+int
 goto_right_neighbor(coord_t * coord, lock_handle * lh)
 {
 	int result;
 	lock_handle lh_right;
 
-	assert("", znode_is_locked(coord->node));
+	assert("vs-1100", znode_is_locked(coord->node));
 
 	init_lh(&lh_right);
 	result = reiser4_get_right_neighbor(&lh_right, coord->node,
@@ -199,6 +201,8 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * k
 	}
 
 	if (!less_than_rdk(coord->node, key)) {
+		print_key("writing key", key);
+		info("how_to_write: !less than rdk\n");
 		zrelse(coord->node);
 		return RESEARCH;
 	}
@@ -206,7 +210,11 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * k
 	if (node_is_empty(coord->node)) {
 		assert("vs-879", znode_get_level(coord->node) == LEAF_LEVEL);
 		assert("vs-880", get_key_offset(key) == 0);
-		assert("vs-999", UNDER_SPIN(dk, current_tree, keyeq(key, znode_get_ld_key(coord->node))));
+		if (UNDER_SPIN(dk, current_tree, !keyeq(key, znode_get_ld_key(coord->node)))) {
+			/* this is possible when cbk_cache_search does eottl handling and returns not found */
+			zrelse(coord->node);
+			return RESEARCH;
+		}
 		assert("vs-1000", UNDER_SPIN(dk, current_tree, keylt(key, znode_get_rd_key(coord->node))));
 		assert("vs-1002", coord->between == EMPTY_NODE);
 		result = FIRST_ITEM;
@@ -253,6 +261,37 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * k
 ok:
 	check_coord(coord, key);
 	zrelse(coord->node);
+	return result;
+}
+
+/* update inode's timestamps and size. If any of these change - update sd as well */
+int
+update_inode_and_sd_if_necessary(struct inode *inode, loff_t new_size, int update_i_size)
+{
+	int result;
+	int update_sd;
+
+	update_sd = 0;
+	result = 0;
+	if (update_i_size) {
+		assert("vs-1104", inode->i_size != new_size);
+		inode->i_size = new_size;
+		update_sd = 1;
+	}
+	
+	if (inode->i_ctime.tv_sec != get_seconds() || 
+	    inode->i_mtime.tv_sec != get_seconds()) {
+		/* time stamps are to be updated */
+		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		update_sd = 1;
+	}
+	
+	if (update_sd) {
+		assert("vs-946", !inode_get_flag(inode, REISER4_NO_SD));
+		result = reiser4_write_sd(inode);
+		if (result)
+			warning("vs-636", "updating stat data failed: %i", result);
+	}
 	return result;
 }
 
@@ -389,40 +428,156 @@ find_file_size(struct inode *inode, loff_t * file_size)
 	return 0;
 }
 
+/* estimate and reserve space needed to cut one item and update one stat data */
+static int reserve_cut_iteration(tree_level height)
+{
+	grab_space_enable();
+	return reiser4_grab_space_exact(estimate_one_item_removal(height) + estimate_one_insert_into_item(height), 0);
+}
+
+/* estimate and reserve space needed to truncate page which gets partially truncated: one block for page itself, stat
+   data update (estimate_one_insert_into_item) and one item insertion (estimate_one_insert_into_item) which may happen
+   if page corresponds to hole extent and unallocated one will have to be created */
+static int reserve_partial_page(tree_level height)
+{
+	grab_space_enable();
+	return reiser4_grab_space_exact(1 + 2 * estimate_one_insert_into_item(height), BA_CAN_COMMIT);
+}
+
+/* cut file items one by one starting from the last one until new file size (inode->i_size) is reached. Reserve space
+   and update file stat data on every single cut from the tree */
+static int
+cut_file_items(struct inode *inode, loff_t new_size)
+{
+	coord_t intranode_to, intranode_from;
+	reiser4_key from_key, to_key, smallest_removed;
+	lock_handle lh;
+	int result;
+	znode *loaded;
+	STORE_COUNTERS;
+
+	inode_file_plugin(inode)->key_by_inode(inode, new_size, &from_key);
+	to_key = from_key;
+	set_key_offset(&to_key, get_key_offset(max_key()));
+
+	WRITE_TRACE(tree_by_inode(inode), tree_cut, &from_key, &to_key);
+
+	do {
+		/* FIXME-VS: find_next_item is highly optimized for sequential
+		   writes/reads. For case of cut_tree it can not help */
+		coord_init_zero(&intranode_to);
+		coord_init_zero(&intranode_from);
+		init_lh(&lh);
+		/* look for @to_key in the tree or use @to_coord if it is set
+		   properly */
+		result = find_next_item(0, &to_key, &intranode_to,	/* was set as hint in
+									 * previous loop
+									 * iteration (if there
+									 * was one) */
+					&lh, ZNODE_WRITE_LOCK, CBK_UNIQUE);
+		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
+			/* -EIO, or something like that */
+			break;
+
+		loaded = intranode_to.node;
+		result = zload(loaded);
+		if (result) {
+			done_lh(&lh);
+			break;
+		}
+
+		/* lookup for @from_key in current node */
+		assert("vs-686", intranode_to.node->nplug);
+		assert("vs-687", intranode_to.node->nplug->lookup);
+		result = intranode_to.node->nplug->lookup(intranode_to.node,
+							  &from_key, FIND_MAX_NOT_MORE_THAN, &intranode_from);
+
+		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
+			/* -EIO, or something like that */
+			zrelse(loaded);
+			done_lh(&lh);
+			break;
+		}
+
+		if (coord_eq(&intranode_from, &intranode_to) && !coord_is_existing_unit(&intranode_from)) {
+			/* nothing to cut */
+			result = 0;
+			zrelse(loaded);
+			done_lh(&lh);
+			break;
+		}
+		/* estimate and reserve space for removal of one item */
+		result = reserve_cut_iteration(tree_by_inode(inode)->height);
+		if (result) {
+			zrelse(loaded);
+			done_lh(&lh);
+			break;
+		}
+
+		/* cut data from one node */
+		smallest_removed = *min_key();
+		result = cut_node(&intranode_from, &intranode_to,	/* is used as an input and
+									   an output, with output
+									   being a hint used by next
+									   loop iteration */
+				  &from_key, &to_key, &smallest_removed, DELETE_KILL,	/*flags */
+				  0/* left neighbor is not known */);
+		zrelse(loaded);
+		done_lh(&lh);
+
+		if (result) {
+			/* cut_node may return -EDEADLK when we cut from the beginning of twig node and it had to lock
+			   neighbor to get "left child" to update its right delimiting key and it failed because left
+			   neighbor was locked. So, release lock held and try again */
+			all_grabbed2free();
+			if (result == -EDEADLK)
+				continue;
+			break;
+		}
+
+		assert("vs-301", !keyeq(&smallest_removed, min_key()));
+
+		result = update_inode_and_sd_if_necessary(inode, get_key_offset(&smallest_removed), 1/*update inode->i_size*/);
+		all_grabbed2free();
+		if (result)
+			break;
+		balance_dirty_pages(inode->i_mapping);
+
+	} while (keygt(&smallest_removed, &from_key));
+
+	CHECK_COUNTERS;
+	return result;
+}
+
 static int
 filler(void *vp, struct page *page)
 {
 	return unix_file_readpage(vp, page);
 }
 
-/* part of unix_file_truncate: it is called when truncate is used to make
-   file shorter */
+/* part of unix_file_truncate: it is called when truncate is used to make file shorter */
 static int
-shorten_file(struct inode *inode)
+shorten_file(struct inode *inode, loff_t new_size)
 {
 	int result;
-	reiser4_key from, to;
 	struct page *page;
 	int padd_from;
 	unsigned long index;
 	char *kaddr;
 
-	inode_file_plugin(inode)->key_by_inode(inode, inode->i_size, &from);
-	to = from;
-	set_key_offset(&to, get_key_offset(max_key()));
+	assert("vs-1106", inode->i_size > new_size);
 
-	/* all items of ordinary reiser4 file are grouped together. That is why
-	   we can use cut_tree. Plan B files (for instance) can not be
-	   truncated that simply */
-	result = cut_tree(tree_by_inode(inode), &from, &to);
+	/* all items of ordinary reiser4 file are grouped together. That is why we can use cut_tree. Plan B files (for
+	   instance) can not be truncated that simply */
+	result = cut_file_items(inode, new_size);
 	if (result)
 		return result;
 
+	assert("vs-1105", new_size == inode->i_size);
 	if (inode->i_size == 0) {
 		inode_clr_flag(inode, REISER4_FILE_STATE_KNOWN);
 		return 0;
 	}
-
 
 	if (file_is_built_of_tail_items(inode))
 		/* No need to worry about zeroing last page after new file end */
@@ -433,10 +588,15 @@ shorten_file(struct inode *inode)
 		/* file is truncate to page boundary */
 		return 0;
 
+	result = reserve_partial_page(tree_by_inode(inode)->height);
+	if (result)
+		return result;
+
 	/* last page is partially truncated - zero its content */
 	index = (inode->i_size >> PAGE_CACHE_SHIFT);
 	page = read_cache_page(inode->i_mapping, index, filler, 0);
 	if (IS_ERR(page)) {
+		all_grabbed2free();
 		if (likely(PTR_ERR(page) == -EINVAL)) {
 			/* looks like file is built of tail items */
 			return 0;
@@ -445,10 +605,12 @@ shorten_file(struct inode *inode)
 	}
 	wait_on_page_locked(page);
 	if (!PageUptodate(page)) {
+		all_grabbed2free();
 		page_cache_release(page);
 		return -EIO;
 	}
 	result = unix_file_writepage_nolock(page);
+	all_grabbed2free();
 	if (result) {
 		page_cache_release(page);
 		return result;
@@ -460,75 +622,29 @@ shorten_file(struct inode *inode)
 	flush_dcache_page(page);
 	kunmap_atomic(kaddr, KM_USER0);
 	reiser4_unlock_page(page);
-	page_cache_release(page);
-
+	page_cache_release(page);	
 	return 0;
 }
 
-/* part of unix_file_truncate: it is called when truncate is used to make file
-   longer */
-static loff_t append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f);
-
-/* make flow and write data (@buf) to the file. If @buf == 0 - hole of size @count will be created. This is called with
-   either NEA or EA obtained */
 static loff_t
-write_flow(struct file *file, struct inode *inode, const char *buf, size_t count, loff_t pos)
-{
-	int result;
-	file_plugin *fplug;
-	flow_t f;
-	loff_t written;
+write_flow(struct file *file, struct inode *inode, const char *buf, size_t count, loff_t pos);
 
-	fplug = inode_file_plugin(inode);
-	result = fplug->flow_by_inode(inode, (char *)buf, 1 /* user space */ ,
-				      count, pos, WRITE_OP, &f);
-	if (result)
-		return result;
-
-	written = append_and_or_overwrite(file, inode, &f);
-	if (written != count) {
-		/* we were not able to write expand file to desired size */
-		if (written < 0)
-			return (int) written;
-		return -ENOSPC;
-	}
-	assert("vs-1081", ergo(buf == 0, ((pos + count) == inode->i_size)));
-	return written;
-}
-
-static inline loff_t
-abs(loff_t v)
-{
-	return v < 0 ? -v : v;
-}
-
-
-/* Performs estimate of reserved blocks for truncate operation. Note,
-   that all estimate fundctions do not count the amount of blocks should
-   be reserved for internal blocks */
-reiser4_block_nr unix_file_estimate_truncate(struct inode *inode, loff_t old_size) {
-    tail_plugin *tail_plugin;
-    
-    assert("umka-1233", inode != NULL);
-   
-    /* Here should be called tail policy plugin in order to handle correctly
-       the situation of converting extent to tail */
-    tail_plugin = inode_tail_plugin(inode);
-    
-    assert("umka-1234", tail_plugin != NULL);
-    return tail_plugin->estimate(inode, abs(old_size - inode->i_size), 1) + 1;
-}
-
-/* append file which has size @cur_size with hole of certain size (@hole_size) */
+/* it is called when truncate is used to make file longer and when write position is set past real end of file. It
+   appends file which has size @cur_size with hole of certain size (@hole_size) */
 static int
-expand_file(struct inode *inode, loff_t cur_size, loff_t hole_size)
+append_hole(struct inode *inode, loff_t new_size)
 {
 	int result;
 	loff_t written;
+	loff_t hole_size;
+	
+	assert("vs-1107", inode->i_size < new_size);
 
 	result = 0;
-	written = write_flow(0, inode, 0, hole_size, cur_size);
+	hole_size = new_size - inode->i_size;
+	written = write_flow(0, inode, 0, new_size - inode->i_size, inode->i_size);
 	if (written != hole_size) {
+		/* return error because file is not expanded as required */
 		if (written > 0)
 			result = -ENOSPC;
 		else
@@ -541,37 +657,19 @@ expand_file(struct inode *inode, loff_t cur_size, loff_t hole_size)
 /* plugin->u.file.truncate
    this is called with exclusive access obtained in unix_file_setattr */
 int
-unix_file_truncate(struct inode *inode, loff_t size)
+unix_file_truncate(struct inode *inode, loff_t new_size)
 {
 	int result;
-	loff_t file_size;
-	reiser4_block_nr needed;
+	loff_t cur_size;
+	
+	assert("vs-1097", inode->i_size == new_size);
 
-	inode->i_size = size;
-
-	result = find_file_size(inode, &file_size);
+	result = find_file_size(inode, &cur_size);
 	if (result)
 		return result;
-	
-	needed = unix_file_estimate_truncate(inode, file_size);
-	
-	if (reiser4_grab_space_exact(needed, (size <= result) ? 
-				     BA_RESERVED | BA_CAN_COMMIT : BA_CAN_COMMIT) != 0) 
-		return -ENOSPC;
-	
-	trace_on(TRACE_RESERVE, "file truncate grabs %llu blocks.\n", needed);
 
-	if (file_size < inode->i_size)
-		result = expand_file(inode, file_size, inode->i_size - file_size);
-	else
-		result = shorten_file(inode);
-	
-	if (!result) {
-		result = reiser4_write_sd(inode);
-		if (result)
-			warning("vs-638", "updating stat data failed: %i", result);
-	}
-	return result;
+	inode->i_size = cur_size;
+	return (cur_size < new_size) ? append_hole(inode, new_size) : shorten_file(inode, new_size);
 }
 
 /* plugin->u.write_sd_by_inode = common_file_save */
@@ -1032,153 +1130,6 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	return (read_amount - f.length) ? (read_amount - f.length) : result;
 }
 
-#ifdef NEW_READ_IS_READY
-
-/* plugin->u.file.read */
-ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
-{
-	int result;
-	struct inode *inode;
-	coord_t coord;
-	lock_handle lh;
-	size_t to_read;		/* do we really need both this and read_amount? */
-	item_plugin *iplug;
-	reiser4_plugin_id id;
-	sink_t userspace_sink;
-
-	inode = file->f_dentry->d_inode;
-	result = 0;
-
-	/* this should now be called userspace_sink_build, now that we have
-	   both sinks and flows.  See discussion of sinks and flows in
-	   www.namesys.com/v4/v4.html */
-	result = userspace_sink_build(inode, buf, 1 /* user space */ , read_amount,
-				      *off, READ_OP, &f);
-
-	return result;
-
-	get_nonexclusive_access(inode);
-
-	/* have generic_readahead to return number of pages to
-	   readahead. generic_readahead must not do readahead, but return
-	   number of pages to readahead */
-	logical_intrafile_readahead_amount = logical_generic_readahead(struct file * file, off, read_amount);
-
-	while (intrafile_readahead_amount) {
-		if ((loff_t) get_key_offset(&f.key) >= inode->i_size)
-			/* do not read out of file */
-			break;	/* coord will point to current item on entry and next item on exit */
-		readahead_result = find_next_item(file, &f.key, &coord, &lh, ZNODE_READ_LOCK);
-		if (readahead_result != CBK_COORD_FOUND)
-			/* item had to be found, as it was not - we have
-			   -EIO */
-			break;
-
-		/* call readahead method of found item */
-		iplug = item_plugin_by_coord(&coord);
-		if (!iplug->s.file.readahead) {
-			readahead_result = -EINVAL;
-			break;
-		}
-
-		readahead_result = iplug->s.file.readahead(inode, &coord, &lh, &intrafile_readahead_amount);
-		if (readahead_result)
-			break;
-	}
-
-	unix_file_interfile_readahead(struct file *file, off, read_amount, coord);
-
-	to_read = f.length;
-	while (f.length) {
-		if ((loff_t) get_key_offset(&f.key) >= inode->i_size)
-			/* do not read out of file */
-			break;
-
-		page_cache_readahead(file, (unsigned long) (get_key_offset(&f.key) >> PAGE_CACHE_SHIFT));
-
-		/* coord will point to current item on entry and next item on exit */
-		coord_init_zero(&coord);
-		init_lh(&lh);
-
-		/* FIXEM-VS: seal might be used here */
-		result = find_next_item(0, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
-		if (result != CBK_COORD_FOUND) {
-			/* item had to be found, as it was not - we have
-			   -EIO */
-			done_lh(&lh);
-			break;
-		}
-
-		result = zload(coord.node);
-		if (result) {
-			done_lh(&lh);
-			break;
-		}
-
-		iplug = item_plugin_by_coord(&coord);
-		id = item_plugin_id(iplug);
-		if (id != EXTENT_POINTER_ID && id != TAIL_ID) {
-			result = -EIO;
-			zrelse(coord.node);
-			done_lh(&lh);
-			break;
-		}
-
-		set_tail_state(inode, id);
-
-		/* call read method of found item */
-		result = iplug->s.file.read(inode, &coord, &lh, &f);
-		zrelse(coord.node);
-		done_lh(&lh);
-		if (result) {
-			break;
-		}
-	}
-
-	if (to_read - f.length) {
-		/* something was read. Update stat data */
-		UPDATE_ATIME(inode);
-	}
-
-	drop_nonexclusive_access(inode);
-
-	/* update position in a file */
-	*off += (to_read - f.length);
-	/* return number of read bytes or error code if nothing is read */
-
-/* VS-FIXME-HANS: readahead_result needs to be handled here */
-	return (to_read - f.length) ? (to_read - f.length) : result;
-}
-
-unix_file_interfile_readahead(struct file * file, off, read_amount, coord)
-{
-
-	interfile_readahead_amount = unix_file_interfile_readahead_amount(struct file *file, off, read_amount);
-
-	while (interfile_readahead_amount--) {
-		right = get_right_neightbor(current);
-		if (right is just after current) {
-			coord_dup(right, current);
-			zload(current);
-
-		} else {
-			break;
-/* VS-FIXME-HANS: insert some coord releasing code here */
-		}
-
-	}
-
-}
-
-unix_file_interfile_readahead_amount(struct file *file, off, read_amount)
-{
-	/* current generic guess.  More sophisticated code can come later in v4.1+. */
-	return 8;
-}
-
-#endif				/* NEW_READ_IS_READY */
-
-
 /* This searches for write position in the tree and calls write method of
    appropriate item to actually copy user data into filesystem. This loops
    until all the data from flow @f are written to a file. */
@@ -1205,6 +1156,14 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 
 	to_write = f->length;
 	while (f->length) {
+		if (to_write == f->length) {
+			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
+			 * node between two extent items) */
+			result = reiser4_grab_space_exact(1 + estimate_one_insert_item(tree_by_inode(inode)->height), 0);
+			if (result)
+				return result;
+		}
+			
 		/* look for file's metadata (extent or tail item) corresponding
 		   to position we write to */
 		result = find_next_item(&hint, &f->key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT);
@@ -1240,12 +1199,14 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 			unset_hint(&hint);
 			break;
 		}
-		set_file_state(inode, id);
-		set_hint(&hint, &f->key, &coord);
+		if (!result) {
+			set_file_state(inode, id);
+			set_hint(&hint, &f->key, &coord);
+		} else
+			unset_hint(&hint);
 		done_lh(&lh);
+		preempt_point();
 	}
-	if (to_write != f->length)
-		update_sd_if_necessary(inode, f);
 
 	save_file_hint(file, &hint);
 
@@ -1255,49 +1216,31 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 	return (to_write - f->length) ? (to_write - f->length) : result;
 }
 
-int
-update_sd_if_necessary(struct inode *inode, const flow_t *f)
+/* make flow and write data (@buf) to the file. If @buf == 0 - hole of size @count will be created. This is called with
+   either NEA or EA obtained */
+static loff_t
+write_flow(struct file *file, struct inode *inode, const char *buf, size_t count, loff_t pos)
 {
 	int result;
-	int update_inode;
+	file_plugin *fplug;
+	flow_t f;
+	loff_t written;
 
-	update_inode = 0;
-	result = 0;
-	if ((loff_t) get_key_offset(&f->key) > inode->i_size) {
-		/* file got longer, stat data has to be updated */
-		inode->i_size = get_key_offset(&f->key);
-		update_inode = 1;
-	}
-	
-	if (inode->i_ctime.tv_sec != get_seconds() || 
-	    inode->i_mtime.tv_sec != get_seconds()) {
-		/* time stamps are to be updated */
-		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		update_inode = 1;
-	}
-	
-	if (update_inode) {
-		assert("vs-946", !inode_get_flag(inode, REISER4_NO_SD));
-		result = reiser4_write_sd(inode);
-		if (result)
-			warning("vs-636", "updating stat data failed: %i", result);
-	}
-	return result;
-}
+	fplug = inode_file_plugin(inode);
+	result = fplug->flow_by_inode(inode, (char *)buf, 1 /* user space */ ,
+				      count, pos, WRITE_OP, &f);
+	if (result)
+		return result;
 
-reiser4_block_nr
-unix_file_estimate_write(struct inode *inode, loff_t count,
-			 loff_t *off) 
-{
-	tail_plugin *tail_plugin;
-	
-	assert("umka-1242", inode != NULL);
-	assert("umka-1248", inode != NULL);
-	
-	tail_plugin = inode_tail_plugin(inode);
-	assert("umka-1241", tail_plugin != NULL);
-	
-	return tail_plugin->estimate(inode, count, 0/*is_fake*/) + 1;
+	written = append_and_or_overwrite(file, inode, &f);
+	if (written != count) {
+		/* we were not able to write expand file to desired size */
+		if (written < 0)
+			return (int) written;
+		return -ENOSPC;
+	}
+	assert("vs-1081", ergo(buf == 0, ((pos + count) == inode->i_size)));
+	return written;
 }
 
 /* plugin->u.file.write */
@@ -1311,7 +1254,6 @@ unix_file_write(struct file * file,	/* file to write to */
 	struct inode *inode;
 	ssize_t written;
 	loff_t pos;
-	reiser4_block_nr needed = 0;
 
 	schedulable();
 
@@ -1321,32 +1263,16 @@ unix_file_write(struct file * file,	/* file to write to */
 	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
 
 	get_nonexclusive_access(inode);
-	needed = unix_file_estimate_write(inode, count, off);
-	
-	/* FIXME-VITALY: grab needed blocks. They will go either 
-	    to fake allocated or to overwrite set. */
-	result = reiser4_grab_space_exact(needed, BA_CAN_COMMIT);
 
-	if (result != 0) {
-		drop_nonexclusive_access(inode);
-		return -ENOSPC;
-	}
-	
-	trace_on(TRACE_RESERVE, "file write grabs %llu blocks "
-		 "for %lu bytes long data.\n", needed, (unsigned long)count);
-	
+	/* estimation for write is entrusted to write item plugins */
+
 	pos = *off;
 	if (file->f_flags & O_APPEND)
 		pos = inode->i_size;
 
 	if (inode->i_size < pos) {
-		size_t hole_size;
-
-		/* append file with a hole. This allows extent_write and
-		   tail_write to not decide when hole appending is
-		   necessary. When it is required f->data == 0 */
-		hole_size = pos - inode->i_size;
-		result = expand_file(inode, inode->i_size, hole_size);
+		/* pos is set past real end of file */
+		result = append_hole(inode, pos);
 		if (result) {
 			drop_nonexclusive_access(inode);
 			return result;
@@ -1366,6 +1292,7 @@ unix_file_write(struct file * file,	/* file to write to */
 	return written;
 }
 
+#if 0
 /* Performs estimate of reserved blocks for file release operation. Note,
    that all estimate functions do not count the amount of blocks should
    be reserved for internal blocks */
@@ -1397,29 +1324,29 @@ reiser4_block_nr unix_file_estimate_release(struct inode *inode) {
 		inode_file_plugin(inode)->estimate.update(inode) + 1;
     }
 }
+#endif
 
 /* plugin->u.file.release
    convert all extent items into tail items if necessary */
 int
 unix_file_release(struct file *file)
 {
-	int result;
 	struct inode *inode;
-	reiser4_block_nr needed;
 
 	inode = file->f_dentry->d_inode;
 
 	if (inode->i_size == 0)
 		return 0;
-
+/*
+  	FIXME-VS: space reservation for file release is in extent2tail
 	needed = unix_file_estimate_release(inode);
 	result = reiser4_grab_space_exact(needed, BA_RESERVED | BA_CAN_COMMIT);
 	
 	if (result != 0) return -ENOSPC;
 	
 	trace_on(TRACE_RESERVE, "file release grabs %llu blocks.\n", needed);
+*/
 
-	/* FIXME-VS: it is not clear where to do extent2tail conversion yet */
 	if (!inode_get_flag(inode, REISER4_FILE_STATE_KNOWN))
 		/* there were no accesses to file body. Leave it as it is */
 		return 0;
@@ -1566,7 +1493,25 @@ unix_file_key_by_inode(struct inode *inode, loff_t off, reiser4_key *key)
    plugin->u.file.set_plug_in_inode = NULL
    plugin->u.file.create_blank_sd = NULL */
 
-/* plugin->u.file.delete = NULL
+/* plugin->u.file.delete */
+int
+unix_file_delete(struct inode *inode)
+{
+	int result;
+
+	assert("vs-1099", inode->i_nlink == 0);
+	if (inode->i_size) {
+		get_exclusive_access(inode);
+		inode->i_size = 0;
+		result = unix_file_truncate(inode, 0);
+		drop_exclusive_access(inode);
+		if (result)
+			return result;
+	}
+	return common_file_delete(inode);
+}
+
+/*
    plugin->u.file.add_link = NULL
    plugin->u.file.rem_link = NULL */
 
@@ -1589,6 +1534,13 @@ unix_file_owns_item(const struct inode *inode	/* object to check
 	return 1;
 }
 
+static int
+setattr_reserve(tree_level height)
+{
+	assert("vs-1096", is_grab_enabled());
+	return reiser4_grab_space_exact(estimate_one_insert_into_item(height), BA_CAN_COMMIT);
+}
+
 /* plugin->u.file.setattr method */
 /* This calls inode_setattr and if truncate is in effect it also takes
    exclusive inode access to avoid races */
@@ -1596,21 +1548,175 @@ int
 unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 		  struct iattr *attr /* change description */ )
 {
-	int truncate = attr->ia_valid & ATTR_SIZE;
-	int retval;
+	int result;
 
-	if (truncate)
-		get_exclusive_access(inode);
-
-	retval = inode_setattr(inode, attr);
-
-	if (truncate)
-		drop_exclusive_access(inode);
-
-	return retval;
+	if (attr->ia_valid & ATTR_SIZE) {
+		/* truncate does reservation itself and requires exclusive access obtained */
+		if (inode->i_size != attr->ia_size) {
+			get_exclusive_access(inode);
+			result = inode_setattr(inode, attr);
+			drop_exclusive_access(inode);
+		} else
+			result = 0;
+	} else {
+		result = setattr_reserve(tree_by_inode(inode)->height);
+		if (!result) {
+			result = inode_setattr(inode, attr);
+			if (!result)
+				result = reiser4_write_sd(inode);
+		}
+	}
+	return result;
 }
 
 /* plugin->u.file.can_add_link = common_file_can_add_link */
+
+#ifdef NEW_READ_IS_READY
+
+/* plugin->u.file.read */
+ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
+{
+	int result;
+	struct inode *inode;
+	coord_t coord;
+	lock_handle lh;
+	size_t to_read;		/* do we really need both this and read_amount? */
+	item_plugin *iplug;
+	reiser4_plugin_id id;
+	sink_t userspace_sink;
+
+	inode = file->f_dentry->d_inode;
+	result = 0;
+
+	/* this should now be called userspace_sink_build, now that we have
+	   both sinks and flows.  See discussion of sinks and flows in
+	   www.namesys.com/v4/v4.html */
+	result = userspace_sink_build(inode, buf, 1 /* user space */ , read_amount,
+				      *off, READ_OP, &f);
+
+	return result;
+
+	get_nonexclusive_access(inode);
+
+	/* have generic_readahead to return number of pages to
+	   readahead. generic_readahead must not do readahead, but return
+	   number of pages to readahead */
+	logical_intrafile_readahead_amount = logical_generic_readahead(struct file * file, off, read_amount);
+
+	while (intrafile_readahead_amount) {
+		if ((loff_t) get_key_offset(&f.key) >= inode->i_size)
+			/* do not read out of file */
+			break;	/* coord will point to current item on entry and next item on exit */
+		readahead_result = find_next_item(file, &f.key, &coord, &lh, ZNODE_READ_LOCK);
+		if (readahead_result != CBK_COORD_FOUND)
+			/* item had to be found, as it was not - we have
+			   -EIO */
+			break;
+
+		/* call readahead method of found item */
+		iplug = item_plugin_by_coord(&coord);
+		if (!iplug->s.file.readahead) {
+			readahead_result = -EINVAL;
+			break;
+		}
+
+		readahead_result = iplug->s.file.readahead(inode, &coord, &lh, &intrafile_readahead_amount);
+		if (readahead_result)
+			break;
+	}
+
+	unix_file_interfile_readahead(struct file *file, off, read_amount, coord);
+
+	to_read = f.length;
+	while (f.length) {
+		if ((loff_t) get_key_offset(&f.key) >= inode->i_size)
+			/* do not read out of file */
+			break;
+
+		page_cache_readahead(file, (unsigned long) (get_key_offset(&f.key) >> PAGE_CACHE_SHIFT));
+
+		/* coord will point to current item on entry and next item on exit */
+		coord_init_zero(&coord);
+		init_lh(&lh);
+
+		/* FIXEM-VS: seal might be used here */
+		result = find_next_item(0, &f.key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE);
+		if (result != CBK_COORD_FOUND) {
+			/* item had to be found, as it was not - we have
+			   -EIO */
+			done_lh(&lh);
+			break;
+		}
+
+		result = zload(coord.node);
+		if (result) {
+			done_lh(&lh);
+			break;
+		}
+
+		iplug = item_plugin_by_coord(&coord);
+		id = item_plugin_id(iplug);
+		if (id != EXTENT_POINTER_ID && id != TAIL_ID) {
+			result = -EIO;
+			zrelse(coord.node);
+			done_lh(&lh);
+			break;
+		}
+
+		set_tail_state(inode, id);
+
+		/* call read method of found item */
+		result = iplug->s.file.read(inode, &coord, &lh, &f);
+		zrelse(coord.node);
+		done_lh(&lh);
+		if (result) {
+			break;
+		}
+	}
+
+	if (to_read - f.length) {
+		/* something was read. Update stat data */
+		UPDATE_ATIME(inode);
+	}
+
+	drop_nonexclusive_access(inode);
+
+	/* update position in a file */
+	*off += (to_read - f.length);
+	/* return number of read bytes or error code if nothing is read */
+
+/* VS-FIXME-HANS: readahead_result needs to be handled here */
+	return (to_read - f.length) ? (to_read - f.length) : result;
+}
+
+unix_file_interfile_readahead(struct file * file, off, read_amount, coord)
+{
+
+	interfile_readahead_amount = unix_file_interfile_readahead_amount(struct file *file, off, read_amount);
+
+	while (interfile_readahead_amount--) {
+		right = get_right_neightbor(current);
+		if (right is just after current) {
+			coord_dup(right, current);
+			zload(current);
+
+		} else {
+			break;
+/* VS-FIXME-HANS: insert some coord releasing code here */
+		}
+
+	}
+
+}
+
+unix_file_interfile_readahead_amount(struct file *file, off, read_amount)
+{
+	/* current generic guess.  More sophisticated code can come later in v4.1+. */
+	return 8;
+}
+
+#endif				/* NEW_READ_IS_READY */
+
 
 /*
    Local variables:
