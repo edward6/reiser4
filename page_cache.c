@@ -521,6 +521,41 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		return ERR_PTR(RETERR(-ENOMEM));
 }
 
+
+/* this function is internally called by jnode_make_dirty() */
+int set_page_dirty_internal (struct page * page, int tag_as_moved)
+{
+	if (REISER4_STATS && !PageDirty(page))
+		reiser4_stat_inc(pages_dirty);
+
+	/* the below resembles __set_page_dirty_nobuffers except that it also clears REISER4_MOVED page tag */
+	if (!TestSetPageDirty(page)) {
+		struct address_space *mapping = page->mapping;
+
+		if (mapping) {
+			read_lock_irq(&mapping->tree_lock);
+			if (page->mapping) {	/* Race with truncate? */
+				BUG_ON(page->mapping != mapping);
+				if (!mapping->backing_dev_info->memory_backed)
+					inc_page_state(nr_dirty);
+				radix_tree_tag_set(&mapping->page_tree,
+					page->index, PAGECACHE_TAG_DIRTY);
+				if (tag_as_moved)
+					radix_tree_tag_set(
+						&mapping->page_tree, page->index, 
+						PAGECACHE_TAG_REISER4_MOVED);
+				else
+					radix_tree_tag_clear(
+						&mapping->page_tree, page->index, 
+						PAGECACHE_TAG_REISER4_MOVED);
+			}
+			read_unlock_irq(&mapping->tree_lock);
+			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
+		}
+	}
+	return 0;
+}
+
 reiser4_internal void capture_reiser4_inodes (
 	struct super_block * sb, struct writeback_control * wbc)
 {
@@ -659,7 +694,7 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 		 * list when clearing dirty flag. So it is enough to
 		 * just set dirty bit.
 		 */
-		set_page_dirty_internal(page);
+		set_page_dirty_internal(page, 0);
 		unlock_page(page);
 	}
  out:

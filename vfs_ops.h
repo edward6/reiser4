@@ -34,35 +34,6 @@ extern struct super_operations reiser4_super_operations;
 extern struct export_operations reiser4_export_operations;
 extern struct address_space_operations reiser4_as_operations;
 extern struct dentry_operations reiser4_dentry_operations;
-
-/* this function is internally called by jnode_make_dirty() */
-static inline int set_page_dirty_internal (struct page * page)
-{
-	if (REISER4_STATS && !PageDirty(page))
-		reiser4_stat_inc(pages_dirty);
-
-	/* the below resembles __set_page_dirty_nobuffers except that it also clears REISER4_MOVED page tag */
-	if (!TestSetPageDirty(page)) {
-		struct address_space *mapping = page->mapping;
-
-		if (mapping) {
-			read_lock_irq(&mapping->tree_lock);
-			if (page->mapping) {	/* Race with truncate? */
-				BUG_ON(page->mapping != mapping);
-				if (!mapping->backing_dev_info->memory_backed)
-					inc_page_state(nr_dirty);
-				radix_tree_tag_set(&mapping->page_tree,
-					page->index, PAGECACHE_TAG_DIRTY);
-				radix_tree_tag_clear(&mapping->page_tree,
-					page->index, PAGECACHE_TAG_REISER4_MOVED);
-			}
-			read_unlock_irq(&mapping->tree_lock);
-			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
-		}
-	}
-	return 0;
-}
-
 extern int reiser4_invalidatepage(struct page *page, unsigned long offset);
 extern int reiser4_releasepage(struct page *page, int gfp);
 extern int reiser4_writepages(struct address_space *, struct writeback_control *wbc);

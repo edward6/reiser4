@@ -704,7 +704,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			goto exit3;
 		}
 
-		set_page_dirty_internal(page);
+		set_page_dirty_internal(page, 0);
 		SetPageUptodate(page);
 		if (!PageReferenced(page))
 			SetPageReferenced(page);
@@ -1257,7 +1257,7 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 		done_lh(uf_coord->lh);
 		return PTR_ERR(j);
 	}
-	set_page_dirty_internal(page);
+	set_page_dirty_internal(page, 0);
 	unlock_page(page);
 
 	LOCK_JNODE(j);

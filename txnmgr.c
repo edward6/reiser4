@@ -2695,7 +2695,7 @@ znode_make_dirty(znode * z)
 		UNLOCK_JNODE(node);
 		/* reiser4 file write code calls set_page_dirty for
 		 * unformatted nodes, for formatted nodes we do it here. */
-		set_page_dirty_internal(page);
+		set_page_dirty_internal(page, 0);
 		page_cache_release(page);
 		/* bump version counter in znode */
 		z->version = znode_build_version(jnode_get_tree(node));

@@ -761,7 +761,7 @@ reiser4_internal void eflush_del (jnode * node, int page_locked)
 		 * ->releasepage() can free it. Re-dirty page, so ->writepage() will be
 		 * called again if necessary.
 		 */
-		set_page_dirty_internal(page);
+		set_page_dirty_internal(page, 0);
 
         assert("nikita-2766", atomic_read(&node->x_count) > 1);
         /* release allocated disk block and in-memory structures  */

@@ -277,12 +277,14 @@ void write_page_by_ent (struct page * page, struct writeback_control * wbc)
 	struct super_block * sb;
 	entd_context * ent;
 	struct wbq rq;
+	int phantom;
 
 	sb = page->mapping->host->i_sb;
 	ent = get_entd_context(sb);
 
+	phantom = jprivate(page) == NULL || jnode_is_dirty(jprivate(page)); 
 	/* re-dirty page */
-	set_page_dirty_internal(page);
+	set_page_dirty_internal(page, phantom);
 	/* unlock it to avoid deadlocks with the thread which will do actual i/o  */
 	unlock_page(page);
 
