@@ -12,7 +12,7 @@
 #include "../../seal.h"
 #include "dir.h"
 #include "../item/item.h"
-#include "..//security/perm.h"
+#include "../security/perm.h"
 #include "../plugin.h"
 #include "../object.h"
 #include "../../jnode.h"

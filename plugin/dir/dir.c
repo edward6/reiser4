@@ -682,7 +682,7 @@ print_dir_pos(const char *prefix, const dir_pos *pos)
 #define print_dir_pos(prefix, pos) noop
 #endif
 
-void
+static void
 adjust_dir_pos(struct file   * dir,
 	       readdir_pos   * readdir_spot,
 	       const dir_pos * mod_point,
@@ -700,10 +700,8 @@ adjust_dir_pos(struct file   * dir,
 	switch (dir_pos_cmp(mod_point, pos)) {
 	case LESS_THAN:
 		readdir_spot->entry_no += adj;
-		lock_kernel();
 		assert("nikita-2577", dir->f_pos + adj >= 0);
 		dir->f_pos += adj;
-		unlock_kernel();
 		if (de_id_cmp(&pos->dir_entry_key, &mod_point->dir_entry_key) == EQUAL_TO) {
 			assert("nikita-2575", mod_point->pos < pos->pos);
 			pos->pos += adj;

@@ -838,10 +838,14 @@ static loff_t
 seek_dir(struct file *file, loff_t off, int origin)
 {
 	loff_t result;
+	struct inode *inode;
 
+	inode = file->f_dentry->d_inode;
 	trace_on(TRACE_DIR | TRACE_VFS_OPS, "dir_seek: %s: %lli -> %lli/%i\n",
 		 file->f_dentry->d_name.name, file->f_pos, off, origin);
+	down(&inode->i_sem);
 	result = default_llseek(file, off, origin);
+	up(&inode->i_sem);
 	if (result >= 0) {
 		int ff;
 		coord_t coord;

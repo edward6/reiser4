@@ -13,6 +13,9 @@
 
 extern void directory_readahead(struct inode *dir, coord_t * coord);
 
+/* locking: fields of per file descriptor readdir_pos and ->f_pos are
+ * protected by ->i_sem on inode */
+
 /* logical position within directory */
 typedef struct {
 	/* key of directory entry (actually, part of a key sufficient to
