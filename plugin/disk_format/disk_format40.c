@@ -213,7 +213,7 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 
 	/* ok, we are sure that filesystem format is a format40 format */
 	/* Now check it's state */
-	result = reiser4_status_init(FORMAT40_STATUS_BLOCK);
+	result = reiser4_status_init(FORMAT40_STATUS_BLOCKNR);
 	if ( result && result != -EINVAL ) // -EINVAL means there is no magic, so probably just old fs.
 		return result;
 	

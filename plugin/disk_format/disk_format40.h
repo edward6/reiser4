@@ -64,7 +64,7 @@ typedef struct format40_super_info {
 #define FORMAT40_JOURNAL_FOOTER_BLOCKNR \
 	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 4)
 
-#define FORMAT40_STATUS_BLOCK \
+#define FORMAT40_STATUS_BLOCKNR \
 	((REISER4_MASTER_OFFSET / PAGE_CACHE_SIZE) + 5)
 
 /* Diskmap declarations */
