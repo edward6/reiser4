@@ -965,7 +965,7 @@ skip_jnode(const jnode *node)
 		int ghost;
 
 		inode = jnode_mapping(node)->host;
-		info = reiser4_inode_data(inode);
+		info = reiser4_inode_by_inode(inode);
 		/*
 		 * taking inode spin lock here would violate lock ordering
 		 * (jnode spin lock is already held). But this is not strictly
@@ -1029,9 +1029,9 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 			(*atom)->nr_flushers --;
 			UNLOCK_JNODE(node);
 			UNLOCK_ATOM(*atom);
-
+			fq_put(fq);
 			preempt_point();
-
+			
 			return -EAGAIN;
 		}
 
