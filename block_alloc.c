@@ -786,9 +786,9 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 			impossible("zam-531", "wrong block stage");
 		}
 	} else {
-		assert ("zam-821", ergo(hint->max_dist == 0, ret != -ENOSPC));
+		assert ("zam-821", ergo(hint->max_dist == 0 && !hint->backward, ret != -ENOSPC));
 		if (hint->block_stage == BLOCK_NOT_COUNTED)
-			grabbed2free(ctx, sbinfo, needed, "reiser4_alloc_blocks: failed for BLOCK_NOT_CONTED");
+			grabbed2free(ctx, sbinfo, needed, "reiser4_alloc_blocks: failed for BLOCK_NOT_COUNTED");
 	}
 
 	return ret;
