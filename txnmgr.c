@@ -2544,6 +2544,12 @@ znode_make_dirty(znode * z)
 	assert("nikita-3560", znode_is_write_locked(z));
 
 	node = ZJNODE(z);
+	/* znode is longterm locked, we can check dirty bit without spinlock */
+	if (JF_ISSET(node, JNODE_DIRTY)) {
+		/* znode is dirty already. All we have to do is to change znode version */
+ 		z->version = znode_build_version(jnode_get_tree(node));
+		return;
+	}
 
 	LOCK_JNODE(node);
 	jnode_make_dirty_locked(node);
