@@ -20,6 +20,24 @@
  *
  * See comments in kcond_wait().
  *
+ * TODO
+ *
+ *  1. Add an option (to kcond_init?) to make conditional variable async-safe
+ *  so that signals and broadcasts can be done from interrupt
+ *  handlers. Requires using spin_lock_irq in kcond_*().
+ *
+ *  2. "Predicated" sleeps: add predicate function to the qlink and only wake
+ *  sleeper if predicate is true. Probably requires additional parameters to
+ *  the kcond_{signal,broadcast}() to supply cookie to the predicate. Standard
+ *  wait_queues already have this functionality. Idea is that if one has
+ *  object behaving like finite state automaton it is possible to use single
+ *  per-object condition variable to signal all state transitions. Predicates
+ *  allow waiters to select only transitions they are interested in without
+ *  going through context switch.
+ *
+ *  3. It is relatively easy to add support for sleeping on the several
+ *  condition variables at once. Does anybody need this?
+ *
  */
 
 #include "reiser4.h"
