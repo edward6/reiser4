@@ -29,7 +29,7 @@ int blocknr_is_fake(const reiser4_block_nr * da);
 void get_next_fake_blocknr (reiser4_block_nr *bnr);
 extern int reiser4_alloc_blocks (reiser4_blocknr_hint * hint,
 				 reiser4_block_nr * start, reiser4_block_nr * len);
-extern void reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *);
+extern int reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *);
 extern int alloc_blocknr (znode *neighbor, reiser4_block_nr *blocknr);
 
 

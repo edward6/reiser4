@@ -282,6 +282,8 @@ extern int          txn_try_capture_page  (struct page        *pg,
 
 extern void         txn_delete_page       (struct page        *pg);
 
+extern txn_atom*    atom_get_locked_by_txnh (txn_handle       *txnh);
+
 #if REISER4_USER_LEVEL_SIMULATION
 extern int          memory_pressure        (struct super_block *super);
 #endif
