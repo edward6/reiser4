@@ -537,12 +537,18 @@ check_cde(const coord_t * coord /* coord of item to check */ ,
 	int result;
 	char *item_start;
 	char *item_end;
+	reiser4_key key;
 
 	coord_t c;
 
 	assert("nikita-1357", coord != NULL);
 	assert("nikita-1358", error != NULL);
 
+	if (!ergo(coord->item_pos != 0,
+		  is_dot_key(item_key_by_coord(coord, &key)))) {
+		*error = "CDE doesn't start with dot";
+		return -1;
+	}
 	item_start = item_body_by_coord(coord);
 	item_end = item_start + item_length_by_coord(coord);
 
