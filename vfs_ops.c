@@ -1513,10 +1513,12 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 {
 	struct buffer_head * super_bh;
 	struct reiser4_master_sb * master_sb;
+	reiser4_super_info_data *info;
 	int plugin_id;
 	layout_plugin * lplug;
 	struct inode * inode;
 	int result;
+	int i;
 	unsigned long blocksize;
 	reiser4_context __context;
 
@@ -1573,12 +1575,16 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 	s->s_op = &reiser4_super_operations;
 
-	spin_lock_init (&get_super_private(s)->guard);
+	info = get_super_private(s);
+	spin_lock_init (&info->guard);
+
+	for (i = 0; i < REISER4_JNODE_TO_PAGE_HASH_SIZE; ++i)
+		spin_lock_init (&info->j_to_p[i]);
 
 	/* init layout plugin */
-	get_super_private (s)->lplug = lplug;
+	info->lplug = lplug;
 
-	txn_mgr_init (&get_super_private (s)->tmgr);
+	txn_mgr_init (&info->tmgr);
 
 	/* initialize fake inode, formatted nodes will be read/written through
 	 * it */

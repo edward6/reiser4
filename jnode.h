@@ -161,6 +161,9 @@ extern int    jnode_flush     (jnode *node, int flags);
 extern int    flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos, struct page *pg);
 extern reiser4_blocknr_hint* flush_pos_hint (flush_position *pos);
 
+extern spinlock_t *jnode_to_page_lock( const jnode *node );
+extern spinlock_t *page_to_jnode_lock( const struct page *page );
+
 /*
  * FIXME-VS: these are used in plugin/item/extent.c
  */

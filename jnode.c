@@ -18,12 +18,6 @@
 
 static kmem_cache_t *_jnode_slab = NULL;
 
-/* The jnode_ptr_lock is a global spinlock used to protect the struct_page to
- * jnode mapping (i.e., it protects all struct_page_private fields).  It could
- * be a per-txnmgr spinlock instead. */
-/* FIXME: Nikita says this should be fixed, possibly per-superblock or something better. */
-spinlock_t    _jnode_ptr_lock = SPIN_LOCK_UNLOCKED;
-
 /* Initialize static variables in this file. */
 int
 jnode_init_static (void)
@@ -77,14 +71,32 @@ jnode*
 jnode_by_page (struct page* pg)
 {
 	jnode *node;
+	spinlock_t *lock;
 
 	assert ("nikita-2066", pg != NULL);
-	spin_lock (& _jnode_ptr_lock);
+	lock = page_to_jnode_lock (pg);
+	spin_lock (lock);
 	assert ("nikita-2068", PagePrivate (pg));
 	node = (jnode*) pg->private;
 	assert ("nikita-2067", node != NULL);
-	spin_unlock (& _jnode_ptr_lock);
+	spin_unlock (lock);
 	return node;
+}
+
+static unsigned int jnode_page_hash( const jnode *node )
+{
+	return ( ( ( unsigned long ) node ) / sizeof *node ) % REISER4_JNODE_TO_PAGE_HASH_SIZE;
+}
+
+spinlock_t *jnode_to_page_lock( const jnode *node )
+{
+	return &get_current_super_private() -> j_to_p[ jnode_page_hash( node ) ];
+}
+
+spinlock_t *page_to_jnode_lock( const struct page *page )
+{
+	return &get_super_private( page -> mapping -> host -> i_sb ) ->
+		j_to_p[ jnode_page_hash( ( jnode * ) page -> private ) ];
 }
 
 /* exported functions to allocate/free jnode objects outside this file */
@@ -127,6 +139,7 @@ jnode_of_page (struct page* pg)
 	 * add a small per-page array to handle more than one jnode per
 	 * page. */
 	jnode *jal = NULL;
+	spinlock_t *lock;
 	
 	assert("umka-176", pg != NULL);
 	/* check that page is unformatted */
@@ -134,11 +147,12 @@ jnode_of_page (struct page* pg)
 		get_super_private (pg->mapping->host->i_sb)->fake);
 	
  again:
-	spin_lock (& _jnode_ptr_lock);
+	lock = page_to_jnode_lock (pg);
+	spin_lock (lock);
 
 	if ((jnode*) pg->private == NULL) {
 		if (jal == NULL) {
-			spin_unlock (& _jnode_ptr_lock);
+			spin_unlock (lock);
 			jal = jalloc();
 
 			if (jal == NULL) {
@@ -171,7 +185,7 @@ jnode_of_page (struct page* pg)
 	 * If jnodes are unconditionally assigned at some other point, then
 	 * this interface and lock not needed? */
 
-	spin_unlock (& _jnode_ptr_lock);
+	spin_unlock (lock);
 
 	if (jal != NULL) {
 		jfree(jal);
@@ -278,14 +292,19 @@ void jnode_attach_page_nolock( jnode *node, struct page *pg )
 /* Audited by: umka (2002.06.15) */
 void jnode_attach_page( jnode *node, struct page *pg )
 {
+	spinlock_t *lock;
+
 	assert( "nikita-2047", node != NULL );
 	assert( "nikita-2048", pg != NULL );
 
 	trace_on( TRACE_PCACHE, "attach: node %p, page: %p\n", node, pg );
 
-	spin_lock( &_jnode_ptr_lock );
+	lock = jnode_to_page_lock( node );
+	spin_lock( lock );
 	jnode_attach_page_nolock( node, pg );
-	spin_unlock( &_jnode_ptr_lock );
+	assert( "nikita-2183", ergo( pg != NULL,
+				     lock == page_to_jnode_lock( pg ) ) );
+	spin_unlock( lock );
 }
 
 /* Audited by: umka (2002.06.15) */
@@ -305,16 +324,20 @@ void break_page_jnode_linkage( struct page *page, jnode *node )
 jnode *page_detach_jnode( struct page *page )
 {
 	jnode *node;
+	spinlock_t *lock;
 
 	assert( "nikita-2062", page != NULL );
 
 	trace_on( TRACE_PCACHE, "detach page: %p\n", page );
 
-	spin_lock( &_jnode_ptr_lock );
+	lock = page_to_jnode_lock( page );
+	spin_lock( lock );
 	node = ( jnode * ) page -> private;
-	if( node != NULL )
+	if( node != NULL ) {
+		assert( "nikita-2184", lock == jnode_to_page_lock( node ) );
 		break_page_jnode_linkage( page, node );
-	spin_unlock( &_jnode_ptr_lock );
+	}
+	spin_unlock( lock );
 	page_cache_release( page );
 	return node;
 }
@@ -323,19 +346,22 @@ jnode *page_detach_jnode( struct page *page )
 void jnode_detach_page( jnode *node )
 {
 	struct page *page;
+	spinlock_t  *lock;
 
 	assert( "nikita-2052", node != NULL );
 
 	trace_on( TRACE_PCACHE, "detach jnode: %p\n", node );
 
-	spin_lock( &_jnode_ptr_lock );
+	lock = jnode_to_page_lock( node );
+	spin_lock( lock );
 	page = jnode_page( node );
 	if( page == NULL ) {
-		spin_unlock( &_jnode_ptr_lock );
+		assert( "nikita-2185", lock == page_to_jnode_lock( page ) );
+		spin_unlock( lock );
 		return;
 	}
 	break_page_jnode_linkage( page, node );
-	spin_unlock( &_jnode_ptr_lock );
+	spin_unlock( lock );
 	page_cache_release( page );
 }
 
