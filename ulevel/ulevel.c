@@ -4267,9 +4267,9 @@ int real_main( int argc, char **argv )
 			atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
 		xmemset( &root_dentry, 0, sizeof root_dentry );
 
-		assert ("jmacd-998", super.s_blocksize == PAGE_SIZE /* don't blame me, otherwise. */);
-
 		init_context( &__context, &super );
+
+		assert ("jmacd-998", super.s_blocksize == PAGE_SIZE /* don't blame me, otherwise. */);
 
 		spin_lock_init( &mp_guard );
 		kcond_init( &memory_pressed );
