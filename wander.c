@@ -585,8 +585,24 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 
 		cur = next;
 	}
-
 	return set_size;
+}
+
+/* wait all j-nodes from given list for IO completion */
+static int wait_all_io (capture_list_head * list)
+{
+	int ret = 0;
+
+	jnode * cur = capture_list_front (list);
+
+	while (!capture_list_end(list, cur)) {
+		if (jnode_page(cur) != NULL) {
+			int tmp = jwait_io (cur, WRITE);
+			if (!ret) tmp = ret;
+		}
+	}
+
+	return ret;
 }
 
 /* overwrite set nodes IO completion handler */
@@ -612,6 +628,11 @@ static void wander_end_io (struct bio * bio)
 	}
 
 	bio_put (bio);
+
+	/* FIXME: there should be used a counter for submitted requests, which
+	 * gets decremented on each IO completion.  It allow us to avoid
+	 * unnecessary schedules when we wait on each page for IO
+	 * completes. */
 }
 
 /* create a BIO object for all pages for all j-nodes and submit write
