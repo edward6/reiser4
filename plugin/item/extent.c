@@ -2554,7 +2554,7 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 		JF_SET (j, ZNODE_RELOC);
 
 		/* Submit I/O and set the jnode clean. */
-		ret = flush_enqueue_jnode_page_locked (j, flush_pos, page);
+		ret = flush_enqueue_unformatted_page_locked (j, flush_pos, page);
 		/* page_detach_jnode (page); */
 		page_cache_release (page);
 		jput (j);
