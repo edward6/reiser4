@@ -30,11 +30,9 @@
 
 
 #include "space/bitmap.h"
-#include "space/test.h"
 #include "space/space_allocator.h"
 
 #include "disk_format/disk_format40.h"
-#include "disk_format/test.h"
 #include "disk_format/disk_format.h"
 
 #include <linux/fs.h>		/* for struct super_block, address_space  */
@@ -438,26 +436,6 @@ typedef struct oid_allocator_plugin {
 	void (*print_info) (const char *, reiser4_oid_allocator *);
 } oid_allocator_plugin;
 
-/* this plugin contains method to allocate and deallocate free space of disk */
-typedef struct space_allocator_plugin {
-	/* generic fields */
-	plugin_header h;
-	int (*init_allocator) (reiser4_space_allocator *, struct super_block *, void *);
-	int (*destroy_allocator) (reiser4_space_allocator *, struct super_block *);
-	int (*alloc_blocks) (reiser4_space_allocator *,
-			     reiser4_blocknr_hint *, int needed, reiser4_block_nr * start, reiser4_block_nr * len);
-	void (*dealloc_blocks) (reiser4_space_allocator *, reiser4_block_nr start, reiser4_block_nr len);
-#if REISER4_DEBUG
-	void (*check_blocks) (const reiser4_block_nr *, const reiser4_block_nr *, int);
-#endif
-	void (*print_info) (const char *, reiser4_space_allocator *);
-
-	/* program hooks from journal code */
-	int (*pre_commit_hook) (void);
-	void (*post_commit_hook) (void);
-	void (*post_write_back_hook) (void);
-} space_allocator_plugin;
-
 /* disk layout plugin: this specifies super block, journal, bitmap (if there
    are any) locations, etc */
 typedef struct disk_format_plugin {
@@ -526,8 +504,6 @@ union reiser4_plugin {
 	disk_format_plugin format;
 	/* object id allocator plugin */
 	oid_allocator_plugin oid_allocator;
-	/* disk space allocator plugin */
-	space_allocator_plugin space_allocator;
 	/* plugin for different jnode types */
 	jnode_plugin jnode;
 	/* plugin for pseudo files */
@@ -733,7 +709,6 @@ PLUGIN_BY_ID(compression_plugin, REISER4_COMPRESSION_PLUGIN_TYPE, compression);
 PLUGIN_BY_ID(tail_plugin, REISER4_TAIL_PLUGIN_TYPE, tail);
 PLUGIN_BY_ID(disk_format_plugin, REISER4_FORMAT_PLUGIN_TYPE, format);
 PLUGIN_BY_ID(oid_allocator_plugin, REISER4_OID_ALLOCATOR_PLUGIN_TYPE, oid_allocator);
-PLUGIN_BY_ID(space_allocator_plugin, REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE, space_allocator);
 PLUGIN_BY_ID(jnode_plugin, REISER4_JNODE_PLUGIN_TYPE, jnode);
 PLUGIN_BY_ID(pseudo_plugin, REISER4_PSEUDO_PLUGIN_TYPE, pseudo);
 

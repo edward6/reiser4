@@ -183,6 +183,10 @@ Instead we have two lock orderings, a high priority lock ordering, and a low pri
       by two or more threads. Please look at  lock_stack structure definition
       for the info how those fields are protected. */
 
+/* Znode lock and capturing intertwining. */
+
+/*  */
+
 /* Josh's explanation to Zam on why the locking and capturing code are intertwined.
   ZAM-FIXME-HANS: deadlock is not observed anymore, right?  rewrite this whole comment.
 

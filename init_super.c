@@ -161,7 +161,7 @@ _INIT_(read_super)
 
 		plugin_id = d16tocpu(&master_sb->disk_plugin_id);
 		/* only two plugins are available for now */
-		assert("vs-476", (plugin_id == FORMAT40_ID || plugin_id == TEST_FORMAT_ID));
+		assert("vs-476", plugin_id == FORMAT40_ID);
 		sbinfo->df_plug = disk_format_plugin_by_id(plugin_id);
 		sbinfo->diskmap_block = d64tocpu(&master_sb->diskmap);
 		brelse(super_bh);
