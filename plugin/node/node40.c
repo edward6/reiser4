@@ -962,7 +962,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 			freed_space_start = ih_40_get_offset (ih);
 			freed_space_end = freed_space_start + cut_size;
 			rightmost_not_moved = from->item_pos - 1;
-		} else if (from->unit_pos == 0) {
+		} else if (from_unit == 0) {
 			/*
 			 * head is cut, freed space is in the beginning
 			 */
@@ -972,7 +972,7 @@ static int cut_or_kill (tree_coord * from, tree_coord * to,
 			/* item now starts at different place */
 			ih_40_set_offset (ih, freed_space_end);
 			
-		} else if (to->unit_pos == last_unit_pos (to)) {
+		} else if (to_unit == last_unit_pos (to)) {
 			/*
 			 * tail is cut, freed space is in the end
 			 */
