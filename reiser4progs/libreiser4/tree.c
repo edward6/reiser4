@@ -12,7 +12,6 @@
 #  include <sys/stat.h>
 #endif
 
-#include <misc/misc.h>
 #include <reiser4/reiser4.h>
 
 #ifndef ENABLE_COMPACT

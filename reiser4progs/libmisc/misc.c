@@ -60,3 +60,42 @@ int reiser4_misc_bin_search(
     return 0;
 }
 
+#ifndef ENABLE_COMPACT
+
+long int reiserfs_misc_strtol(
+    const char *str,	    /* string to be converted */
+    int *error		    /* error will be stored here */
+) {
+    char *err;
+    long result = 0;
+
+    if (error)
+	*error = 0;
+	
+    if (!str) {
+	if (error) *error = 1; 
+	return 0;
+    }	
+	
+    result = strtol(str, &err, 10);
+	
+    if (errno == ERANGE || *err) {
+	if (error) *error = 1;
+	return 0;
+    }	
+	
+    return result;
+}
+
+char *reiserfs_misc_strcat(char *dest, size_t n, const char *src, ...) 
+{
+    va_list arg_list;
+    
+    va_start(arg_list, src);
+    aal_vsnprintf(dest + aal_strlen(dest), n - aal_strlen(dest), src, arg_list);
+    va_end(arg_list);
+    
+    return dest;
+}
+
+#endif
