@@ -431,7 +431,6 @@ static struct bio *page_bio( struct page *page, int gfp )
 
 		assert( "nikita-2026", jprivate( page ) != NULL );
 		node = jprivate( page );
-		assert( "nikita-2027", jnode_is_formatted( node ) );
 		super = page -> mapping -> host -> i_sb;
 		assert( "nikita-2029", super != NULL );
 		blksz = super -> s_blocksize;
