@@ -1759,8 +1759,8 @@ static void adjust_coord (new_coord * insert_coord,
 			} else {
 				/* @insert_coord is set after last unit of
 				   @insert->node */
-				ncoord_init_after_last_item (insert_coord,
-							     shift->wish_stop.node);
+				ncoord_init_last_unit (insert_coord,
+						       shift->wish_stop.node);
 				insert_coord->between = AFTER_UNIT;
 			}
 		}
