@@ -216,6 +216,7 @@ reiserfs_plugin_t *libreiser4_factory_suitable(
 	if (func(plugin, data))
 	    return plugin;
     }
+    
     return NULL;
 }
 

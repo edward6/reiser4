@@ -86,6 +86,25 @@ errno_t reiserfs_node_set_key(
 
 #endif
 
+/* This function is trying to detect node plugin */
+static reiserfs_plugin_t *reiserfs_node_guess(
+    aal_block_t *block		/* block node lies in */
+) {
+    reiserfs_id_t pid;
+    reiserfs_plugin_t *plugin;
+    
+    aal_assert("umka-902", block != NULL, return NULL);
+    
+    pid = *((uint16_t *)block->data);
+    
+    /* Finding node plugin by its id from node header */
+    if (!(plugin = libreiser4_factory_find(REISERFS_NODE_PLUGIN, pid))) {
+	/* FIXME-UMKA: Here will be further guessing */
+    }
+
+    return plugin;
+}
+
 /* Opens node on specified device and block number */
 reiserfs_node_t *reiserfs_node_open(
     aal_device_t *device,	/* device node will be opened on */
@@ -93,7 +112,6 @@ reiserfs_node_t *reiserfs_node_open(
     reiserfs_id_t key_pid	/* key plugin id to be used in opened node */
 ) {
     reiserfs_node_t *node;
-    reiserfs_id_t node_pid;
 
     aal_assert("umka-160", device != NULL, return NULL);
    
@@ -111,12 +129,13 @@ reiserfs_node_t *reiserfs_node_open(
     if (!(node->key_plugin = libreiser4_factory_find(REISERFS_KEY_PLUGIN, key_pid))) 
 	libreiser4_factory_failed(goto error_free_block, find, key, key_pid);
     
-    node_pid = *((uint16_t *)node->block->data);
-    
     /* Finding the node plugin by its id */
-    if (!(node->node_plugin = libreiser4_factory_find(REISERFS_NODE_PLUGIN, node_pid))) 
-	libreiser4_factory_failed(goto error_free_block, find, node, node_pid);
-
+    if (!(node->node_plugin = reiserfs_node_guess(node->block))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't guess node plugin for node %llu.", blk);
+	goto error_free_block;
+    }
+    
     /* Initializing node's entity by means of calling "open" method of node plugin */
     if (!(node->entity = libreiser4_plugin_call(goto error_free_block, 
 	node->node_plugin->node_ops, open, node->block)))
