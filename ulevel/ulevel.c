@@ -2489,7 +2489,8 @@ int alloc_extent (reiser4_tree *, coord_t *,
 		  lock_handle *, void *);
 #endif
 
-#define BUFSIZE 255
+
+size_t BUFSIZE;
 
 
 /* this copies normal file @oldname to reiser4 filesystem (in directory @dir
@@ -2527,6 +2528,7 @@ static int copy_file (const char * oldname, struct inode * dir,
 		return 1;
 	}	
 
+	BUFSIZE = st->st_size;
 	buf = xxmalloc (BUFSIZE);
 	if (!buf) {
 		perror ("copy_file: xxmalloc failed");
@@ -2549,6 +2551,7 @@ static int copy_file (const char * oldname, struct inode * dir,
 			iput (inode);
 			return 1;
 		}
+/*
 		if (!silent) {
 			switch (off % (BUFSIZE * 8)) {
 			case 0:
@@ -2574,6 +2577,7 @@ static int copy_file (const char * oldname, struct inode * dir,
 			}
 			fflush (stdout);
 		}
+*/
 		st->st_size -= count;
 		off += count;
 	}
