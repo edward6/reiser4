@@ -1120,6 +1120,8 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 
 	assert ("vs-316", !node_is_empty (from->node));
 
+	if (coord_eq (from, to))
+		return 0;
 	/* set @from and @to to first and last units which are to be removed
 	   (getting rid of betweenness) */
 	if (coord_set_to_right (from) || coord_set_to_left (to))
