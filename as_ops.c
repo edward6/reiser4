@@ -278,7 +278,8 @@ static int reiser4_commit_write(struct file *file, struct page *page,
 
 	/* here page is return locked. */
 	assert("umka-3103", PageLocked(page));
-	
+
+	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;
 }
