@@ -341,9 +341,9 @@ int reiser4_node_lookup(
     */
     reiser4_node_get_key(node, pos, &maxkey);
     
-    if (item.plugin->item_ops.common.maxkey) {
+    if (item.plugin->item_ops.maxkey) {
 	    
-	if (item.plugin->item_ops.common.maxkey(&maxkey) == -1) {
+	if (item.plugin->item_ops.maxkey(&maxkey) == -1) {
 	    aal_exception_error("Getting max key of the item %d "
 		"in the node %llu failed.", pos->item, 
 		aal_block_number(node->block));
@@ -358,10 +358,10 @@ int reiser4_node_lookup(
     }
     
     /* Calling lookup method of found item (most probably direntry item) */
-    if (!item.plugin->item_ops.common.lookup)
+    if (!item.plugin->item_ops.lookup)
 	return 0;
 	    
-    if ((lookup = item.plugin->item_ops.common.lookup(item.body, key, 
+    if ((lookup = item.plugin->item_ops.lookup(item.body, key, 
 	&pos->unit)) == -1) 
     {
 	aal_exception_error("Lookup in the item %d in the node %llu failed.", 

@@ -287,7 +287,7 @@ static errno_t node40_insert(reiser4_entity_t *entity,
 	return 0;
     }
     
-    return plugin_call(return -1, hint->plugin->item_ops.common,
+    return plugin_call(return -1, hint->plugin->item_ops,
 	init, node40_ib_at(node->block, pos->item), hint);
 }
 
@@ -303,8 +303,8 @@ static errno_t node40_paste(reiser4_entity_t *entity,
     if (node40_expand(node, pos, hint))
 	return -1;
 
-    return plugin_call(return -1, hint->plugin->item_ops.common,
-	insert, node40_ib_at(node->block, pos->item), pos->unit, hint);
+    return plugin_call(return -1, hint->plugin->item_ops, insert, 
+	node40_ib_at(node->block, pos->item), pos->unit, hint);
 }
 
 static errno_t node40_shrink(node40_t *node,
@@ -414,8 +414,8 @@ static errno_t node40_cut(reiser4_entity_t *entity,
     
     body = node40_ib_at(node->block, pos->item);
 	
-    if (!(len = plugin_call(return 0, plugin->item_ops.common, remove, body, 
-	pos->unit)))
+    if (!(len = plugin_call(return 0, plugin->item_ops, 
+	    remove, body, pos->unit)))
         return -1;
 	
     if (node40_shrink(node, pos, len))

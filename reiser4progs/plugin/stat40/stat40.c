@@ -198,29 +198,27 @@ static reiser4_plugin_t stat40_plugin = {
 	    .desc = "Stat data for reiserfs 4.0, ver. " VERSION,
 	},
 	.group = STATDATA_ITEM_GROUP,
-	.common = {
-		
+	
 #ifndef ENABLE_COMPACT
-	    .init	= stat40_init,
-	    .estimate	= stat40_estimate,
-	    .insert	= stat40_insert,
-	    .remove	= stat40_remove,
-	    .check	= stat40_check,
+        .init	    = stat40_init,
+        .estimate   = stat40_estimate,
+        .insert	    = stat40_insert,
+        .remove	    = stat40_remove,
+        .check	    = stat40_check,
 #else
-	    .init	= NULL,
-	    .estimate	= NULL,
-	    .insert	= NULL,
-	    .remove	= NULL,
-	    .check	= NULL,
+        .init	    = NULL,
+        .estimate   = NULL,
+        .insert	    = NULL,
+        .remove	    = NULL,
+        .check	    = NULL,
 #endif
-	    .maxkey	= NULL,
-	    .lookup	= NULL,
+        .maxkey	    = NULL,
+        .lookup	    = NULL,
 	    
-	    .count	= stat40_count,
-	    .confirm	= stat40_confirm,
-	    .valid	= stat40_valid,
-	    .print	= stat40_print
-	},
+        .count	    = stat40_count,
+        .confirm    = stat40_confirm,
+        .valid	    = stat40_valid,
+        .print	    = stat40_print,
 	
 	.specific = {
 	    .statdata = {

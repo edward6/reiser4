@@ -77,8 +77,8 @@ uint32_t reiser4_item_count(reiser4_item_t *item) {
     aal_assert("umka-1068", item->plugin != NULL, return 0);
     aal_assert("umka-1069", item->body != NULL, return 0);
     
-    if (item->plugin->item_ops.common.count)
-	return item->plugin->item_ops.common.count(item->body);
+    if (item->plugin->item_ops.count)
+	return item->plugin->item_ops.count(item->body);
 
     return 1;
 }
@@ -125,7 +125,7 @@ errno_t reiser4_item_estimate(
 	return 0;
     
     /* Estimate for the 2nd and for the 4th cases */
-    return plugin_call(return -1, hint->plugin->item_ops.common, 
+    return plugin_call(return -1, hint->plugin->item_ops, 
 	estimate, item->pos->unit, hint);
 }
 

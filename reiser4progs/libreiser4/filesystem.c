@@ -113,7 +113,7 @@ reiser4_fs_t *reiser4_fs_open(
 	goto error_free_oid;
     
     /* Opens root firectory */
-    if (!(fs->dir = reiser4_dir_open(fs, "/")))
+    if (!(fs->root = reiser4_file_open(fs, "/")))
 	goto error_free_tree;
     
     return fs;
@@ -236,7 +236,7 @@ reiser4_fs_t *reiser4_fs_create(
     /* Creates root directory */
     {
 	reiser4_plugin_t *dir_plugin;
-	reiser4_object_hint_t dir_hint;
+	reiser4_file_hint_t dir_hint;
 	
 	/* Finding directroy plugin */
 	if (!(dir_plugin = libreiser4_factory_ifind(DIR_PLUGIN_TYPE, 
@@ -252,7 +252,9 @@ reiser4_fs_t *reiser4_fs_create(
 	dir_hint.hash_pid = profile->hash;
 	
 	/* Creating object "dir40". See object.c for details */
-	if (!(fs->dir = reiser4_dir_create(fs, &dir_hint, dir_plugin, NULL, "/"))) {
+	if (!(fs->root = reiser4_file_create(fs, 
+	    &dir_hint, dir_plugin, NULL, "/"))) 
+	{
 	    aal_exception_error("Can't create root directory.");
 	    goto error_free_tree;
 	}
@@ -328,7 +330,7 @@ void reiser4_fs_close(
     aal_assert("umka-230", fs != NULL, return);
     
     /* Closong the all filesystem objects */
-    reiser4_object_close(fs->dir);
+    reiser4_file_close(fs->root);
     reiser4_tree_close(fs->tree);
     reiser4_oid_close(fs->oid);
     

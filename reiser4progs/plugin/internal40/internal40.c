@@ -72,28 +72,28 @@ static reiser4_plugin_t internal40_plugin = {
 	    .desc = "Internal item for reiserfs 4.0, ver. " VERSION,
 	},
 	.group = INTERNAL_ITEM_GROUP,
-	.common = {
+	
 #ifndef ENABLE_COMPACT	    
-	    .init	= internal40_init,
-	    .estimate	= internal40_estimate,
-	    .check	= internal40_check,
+        .init	    = internal40_init,
+        .estimate   = internal40_estimate,
+        .check	    = internal40_check,
 #else
-	    .init	= NULL,
-	    .estimate	= NULL,
-	    .check	= NULL,
+        .init	    = NULL,
+        .estimate   = NULL,
+        .check	    = NULL,
 #endif
-	    .lookup	= NULL,
-	    .maxkey	= NULL,
-	    .confirm	= NULL,
-	    .valid	= NULL,
+        .lookup	    = NULL,
+        .maxkey	    = NULL,
+        .confirm    = NULL,
+        .valid	    = NULL,
 	    
-	    .insert	= NULL,
-	    .count	= NULL,
-	    .remove	= NULL,
+        .insert	    = NULL,
+        .count	    = NULL,
+        .remove	    = NULL,
 	    
-	    .print	= internal40_print
-	},
-	.specific = {
+        .print	    = internal40_print,
+	
+    	.specific = {
 	    .internal = {
 		.get_ptr = internal40_get_ptr,
 #ifndef ENABLE_COMPACT

@@ -61,14 +61,14 @@ static void mkfs_init(void) {
 }
 
 /* Crates lost+found directory */
-static reiser4_object_t *mkfs_create_lost_found(reiser4_fs_t *fs, 
+static reiser4_file_t *mkfs_create_lost_found(reiser4_fs_t *fs, 
     reiser4_profile_t *profile) 
 {
     reiser4_plugin_t *plugin;
-    reiser4_object_hint_t hint;
+    reiser4_file_hint_t hint;
 
     /* Getting the plugin from entity of the root directory */
-    plugin = fs->dir->entity->plugin;
+    plugin = fs->root->entity->plugin;
 	
     /* Preparing object hint */
     hint.statdata_pid = profile->item.statdata;
@@ -76,7 +76,8 @@ static reiser4_object_t *mkfs_create_lost_found(reiser4_fs_t *fs,
     hint.hash_pid = profile->hash;
 	
     /* Creating lost+found */
-    return reiser4_dir_create(fs, &hint, plugin, fs->dir, "lost+found");
+    return reiser4_file_create(fs, &hint, plugin, 
+	fs->root, "lost+found");
 }
 
 int main(int argc, char *argv[]) {
@@ -333,14 +334,14 @@ int main(int argc, char *argv[]) {
 
 	/* Creating lost+found directory */
 	if (lost_found) {
-	    reiser4_object_t *object;
+	    reiser4_file_t *object;
 	    
 	    if (!(object = mkfs_create_lost_found(fs, profile))) {
 		aal_exception_error("Can't create lost+found directory.");
 		goto error_free_device;
 	    }
 	    
-	    reiser4_object_close(object);
+	    reiser4_file_close(object);
 	}
 	
 	/* 

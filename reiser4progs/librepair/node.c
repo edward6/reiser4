@@ -87,8 +87,8 @@ static errno_t repair_node_items_check(reiser4_node_t *node,
 	    return res;	
 
 	/* Check the item structure. */
-	if ((res = plugin_call(return -1, item.plugin->item_ops.common, check, 
-	    &item, data->options))) 
+	if ((res = plugin_call(return -1, item.plugin->item_ops, check, 
+		&item, data->options))) 
 	    return res;
     }
     

@@ -266,7 +266,7 @@ struct reiser4_direntry_hint {
 
 typedef struct reiser4_direntry_hint reiser4_direntry_hint_t;
 
-struct reiser4_object_hint {
+struct reiser4_file_hint {
     rpid_t statdata_pid;
     rpid_t direntry_pid;
     rpid_t tail_pid;
@@ -274,7 +274,7 @@ struct reiser4_object_hint {
     rpid_t hash_pid;
 };
 
-typedef struct reiser4_object_hint reiser4_object_hint_t;
+typedef struct reiser4_file_hint reiser4_file_hint_t;
 
 /* 
     Create item or paste into item on the base of this structure. Here "data" is 
@@ -393,57 +393,90 @@ struct reiser4_key_ops {
 
 typedef struct reiser4_key_ops reiser4_key_ops_t;
 
-struct reiser4_file_ops {
-    reiser4_plugin_header_t h;
+struct reiser4_regular_ops {
+
+    /* Reads the data from file to passed buffer */
+    errno_t (*read) (reiser4_entity_t *, char *, uint64_t);
+
+    /* Writes the data to file from passed buffer */
+    errno_t (*write) (reiser4_entity_t *, char *, uint64_t);
+
+    /* Truncates file to passed length */
+    errno_t (*truncate) (reiser4_entity_t *, uint64_t);
 };
 
-typedef struct reiser4_file_ops reiser4_file_ops_t;
+typedef struct reiser4_regular_ops reiser4_regular_ops_t;
 
-struct reiser4_dir_ops {
+struct reiser4_file_ops {
     reiser4_plugin_header_t h;
 
-    /* Creates new directory with passed parent and object keys */
+    /* Creates new file with passed parent and object keys */
     reiser4_entity_t *(*create) (const void *, reiser4_key_t *, 
-	reiser4_key_t *, reiser4_object_hint_t *); 
+	reiser4_key_t *, reiser4_file_hint_t *); 
     
-    /* Opens directory with specified key */
+    /* Opens a file with specified key */
     reiser4_entity_t *(*open) (const void *, reiser4_key_t *);
     
     /* Closes previously opened or created directory */
     void (*close) (reiser4_entity_t *);
 
-    /* 
-	Resets internal position so that next read from the directory will return
-	first entry.
-    */
-    errno_t (*rewind) (reiser4_entity_t *);
+    /* Resets internal position */
+    errno_t (*reset) (reiser4_entity_t *);
    
+    /* Returns current position in directory */
+    uint64_t (*offset) (reiser4_entity_t *);
+
+    /* Makes simple check of directory */
+    errno_t (*valid) (reiser4_entity_t *);
+
+    /* Returns current position in directory */
+    errno_t (*seek) (reiser4_entity_t *, uint64_t);
+    
+    /* Makes lookup inside dir */
+    int (*lookup) (reiser4_entity_t *, char *, reiser4_key_t *);
+    
     /* Reads next entry from the directory */
-    errno_t (*read) (reiser4_entity_t *, reiser4_entry_hint_t *);
+    errno_t (*entry) (reiser4_entity_t *, reiser4_entry_hint_t *);
     
     /* Adds new entry into directory */
     errno_t (*add) (reiser4_entity_t *, reiser4_entry_hint_t *);
 
     /* Removes entry from directory */
     errno_t (*remove) (reiser4_entity_t *, uint32_t);
-    
-    /* Makes simple check of directory */
-    errno_t (*valid) (reiser4_entity_t *);
 
-    /* Returns current position in directory */
-    uint32_t (*tell) (reiser4_entity_t *);
-
-    /* Returns current position in directory */
-    errno_t (*seek) (reiser4_entity_t *, uint32_t);
-
-    /* Makes lookup inside dir */
-    int (*lookup) (reiser4_entity_t *, char *, reiser4_key_t *);
+    /* Specific file operations */
+    reiser4_regular_ops_t regular;
 };
 
-typedef struct reiser4_dir_ops reiser4_dir_ops_t;
+typedef struct reiser4_file_ops reiser4_file_ops_t;
 
-struct reiser4_item_common_ops {
-    
+struct reiser4_direntry_ops {
+    errno_t (*entry) (reiser4_body_t *, uint32_t, 
+	reiser4_entry_hint_t *);
+};
+
+typedef struct reiser4_direntry_ops reiser4_direntry_ops_t;
+
+struct reiser4_statdata_ops {
+    uint16_t (*get_mode) (reiser4_body_t *);
+    errno_t (*set_mode) (reiser4_body_t *, uint16_t);
+};
+
+typedef struct reiser4_statdata_ops reiser4_statdata_ops_t;
+
+struct reiser4_internal_ops {
+    blk_t (*get_ptr) (reiser4_body_t *);
+    errno_t (*set_ptr) (reiser4_body_t *, blk_t);
+};
+
+typedef struct reiser4_internal_ops reiser4_internal_ops_t;
+
+struct reiser4_item_ops {
+    reiser4_plugin_header_t h;
+
+    /* Item group (stat data, internal, file body, etc) */
+    reiser4_item_group_t group;
+
     /* Forms item structures based on passed hint in passed memory area */
     errno_t (*init) (reiser4_body_t *, reiser4_item_hint_t *);
 
@@ -479,39 +512,6 @@ struct reiser4_item_common_ops {
 
     /* Checks the item structure. */
     errno_t (*check) (reiser4_body_t *, uint16_t);
-};
-
-typedef struct reiser4_item_common_ops reiser4_item_common_ops_t;
-
-struct reiser4_direntry_ops {
-    errno_t (*entry) (reiser4_body_t *, uint32_t, 
-	reiser4_entry_hint_t *);
-};
-
-typedef struct reiser4_direntry_ops reiser4_direntry_ops_t;
-
-struct reiser4_statdata_ops {
-    uint16_t (*get_mode) (reiser4_body_t *);
-    errno_t (*set_mode) (reiser4_body_t *, uint16_t);
-};
-
-typedef struct reiser4_statdata_ops reiser4_statdata_ops_t;
-
-struct reiser4_internal_ops {
-    blk_t (*get_ptr) (reiser4_body_t *);
-    errno_t (*set_ptr) (reiser4_body_t *, blk_t);
-};
-
-typedef struct reiser4_internal_ops reiser4_internal_ops_t;
-
-struct reiser4_item_ops {
-    reiser4_plugin_header_t h;
-
-    /* Item group (stat data, internal, file body, etc) */
-    reiser4_item_group_t group;
-
-    /* Methods common for all item types */
-    reiser4_item_common_ops_t common;
 
     /* Methods specific to particular type of item */
     union {
@@ -876,7 +876,6 @@ union reiser4_plugin {
     reiser4_plugin_header_t h;
 	
     reiser4_file_ops_t file_ops;
-    reiser4_dir_ops_t dir_ops;
     reiser4_item_ops_t item_ops;
     reiser4_node_ops_t node_ops;
     reiser4_hash_ops_t hash_ops;

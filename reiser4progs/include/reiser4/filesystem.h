@@ -141,7 +141,7 @@ struct reiser4_node {
 };
 
 /* Reiserfs object structure (file, dir) */
-struct reiser4_object {
+struct reiser4_file {
 
     /* Object entity. It is initialized by object plugin */
     reiser4_entity_t *entity;
@@ -156,7 +156,7 @@ struct reiser4_object {
     reiser4_fs_t *fs;
 };
 
-typedef struct reiser4_object reiser4_object_t;
+typedef struct reiser4_file reiser4_file_t;
 
 /* Reiser4 disk-format in-memory structure */
 struct reiser4_format {
@@ -282,16 +282,29 @@ typedef errno_t (*reiser4_setup_func_t) (reiser4_node_t *, reiser4_item_t *,
 
 /* Filesystem compound structure */
 struct reiser4_fs {
-    reiser4_master_t *master;
-    reiser4_format_t *format;
-    reiser4_journal_t *journal;
-    reiser4_alloc_t *alloc;
-    reiser4_oid_t *oid;
-    reiser4_tree_t *tree;
-    reiser4_object_t *dir;
-
-    reiser4_profile_t profile;
     
+    /* Pointer to the master super block wrapp object */
+    reiser4_master_t *master;
+
+    /* Pointer to the disk-format instance */
+    reiser4_format_t *format;
+
+    /* Pointer to the journal in use */
+    reiser4_journal_t *journal;
+
+    /* Pointer to the block allocator in use */
+    reiser4_alloc_t *alloc;
+
+    /* Pointer to the oid allocator */
+    reiser4_oid_t *oid;
+
+    /* Tree cache */
+    reiser4_tree_t *tree;
+
+    /* Root object */
+    reiser4_file_t *root;
+
+    /* User-specified data (used by fsck) */
     void *data;
 };
 

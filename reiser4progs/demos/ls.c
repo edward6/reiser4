@@ -35,7 +35,7 @@ static reiser4_node_t *__node_open(aal_block_t *block, void *data) {
 int main(int argc, char *argv[]) {
     reiser4_fs_t *fs;
     aal_device_t *device;
-    reiser4_object_t *object;
+    reiser4_file_t *object;
     reiser4_entry_hint_t entry;
 
 #ifndef ENABLE_COMPACT    
@@ -63,16 +63,16 @@ int main(int argc, char *argv[]) {
 	goto error_free_device;
     }
     
-    if (!(object = reiser4_dir_open(fs, argv[2]))) {
+    if (!(object = reiser4_file_open(fs, argv[2]))) {
 	aal_exception_error("Can't open dir \"%s\".", argv[2]);
 	goto error_free_fs;
     }
     
     {
 	reiser4_plugin_t *dir_plugin;
-	reiser4_object_hint_t dir_hint;
+	reiser4_file_hint_t dir_hint;
 	
-	dir_plugin = fs->dir->entity->plugin;
+	dir_plugin = fs->root->entity->plugin;
 	
 	dir_hint.statdata_pid = ITEM_STATDATA40_ID;
 	dir_hint.direntry_pid = ITEM_CDE40_ID;
@@ -81,28 +81,28 @@ int main(int argc, char *argv[]) {
 	{
 	    int i;
 	    char name[256];
-	    reiser4_object_t *dir;
+	    reiser4_file_t *dir;
 
 	    for (i = 0; i < 80; i++) {
 		aal_memset(name, 0, sizeof(name));
 		aal_snprintf(name, 256, "testdir%d", i);
-		if ((dir = reiser4_dir_create(fs, &dir_hint, dir_plugin, object, name)))
-		    reiser4_dir_close(dir);
+		if ((dir = reiser4_file_create(fs, &dir_hint, dir_plugin, object, name)))
+		    reiser4_file_close(dir);
 	    }
 	}
     }
     
-    if (reiser4_dir_rewind(object)) {
+    if (reiser4_file_reset(object)) {
 	aal_exception_error("Can't rewind dir \"%s\".", argv[2]);
 	goto error_free_object;
     }
 
-    while (!reiser4_dir_read(object, &entry)) {
+    while (!reiser4_file_entry(object, &entry)) {
 	fprintf(stdout, "[0x%llx:0x%llx] %s\n", (entry.objid.locality >> 4), 
 	    entry.objid.objectid, entry.name);
     }
     
-    reiser4_dir_close(object);
+    reiser4_file_close(object);
 //    reiser4_fs_sync(fs);
 
     reiser4_fs_close(fs);
@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
     return 0;
 
 error_free_object:
-    reiser4_dir_close(object);
+    reiser4_file_close(object);
 error_free_fs:
     reiser4_fs_close(fs);
 error_free_device:

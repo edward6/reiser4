@@ -35,7 +35,7 @@ static roid_t dir40_locality(dir40_t *dir) {
 	get_locality, dir->key.body);
 }
 
-static errno_t dir40_rewind(reiser4_entity_t *entity) {
+static errno_t dir40_reset(reiser4_entity_t *entity) {
     rpid_t pid;
     reiser4_key_t key;
     dir40_t *dir = (dir40_t *)entity;
@@ -182,21 +182,21 @@ static int dir40_continue(reiser4_entity_t *entity,
     return (dir_locality == next_locality);
 }
 
-static errno_t dir40_read(reiser4_entity_t *entity, 
+static errno_t dir40_entry(reiser4_entity_t *entity, 
     reiser4_entry_hint_t *entry) 
 {
     uint32_t count;
-    reiser4_item_ops_t *item_ops;
+    reiser4_plugin_t *plugin;
     dir40_t *dir = (dir40_t *)entity;
     
     aal_assert("umka-844", dir != NULL, return -1);
     aal_assert("umka-845", entry != NULL, return -1);
 
-    item_ops = &dir->direntry.plugin->item_ops;
+    plugin = dir->direntry.plugin;
     
     /* Getting count entries */
     if ((count = plugin_call(return -1, 
-	    item_ops->common, count, dir->direntry.body)) == 0)
+	    plugin->item_ops, count, dir->direntry.body)) == 0)
 	return -1;
 
     if (dir->place.pos.unit >= count) {
@@ -214,7 +214,7 @@ static errno_t dir40_read(reiser4_entity_t *entity,
     }
     
     /* Getting next entry from the current direntry item */
-    if ((plugin_call(return -1, item_ops->specific.direntry, 
+    if ((plugin_call(return -1, plugin->item_ops.specific.direntry, 
 	    entry, dir->direntry.body, dir->place.pos.unit, entry)))
 	return -1;
 
@@ -227,7 +227,7 @@ static int dir40_lookup(reiser4_entity_t *entity,
     char *name, reiser4_key_t *key) 
 {
     reiser4_key_t k;
-    reiser4_item_ops_t *item_ops;
+    reiser4_plugin_t *plugin;
     dir40_t *dir = (dir40_t *)entity;
     
     aal_assert("umka-1117", entity != NULL, return -1);
@@ -241,19 +241,19 @@ static int dir40_lookup(reiser4_entity_t *entity,
     plugin_call(return -1, k.plugin->key_ops, build_direntry, k.body, 
 	dir->hash, dir40_locality(dir), dir40_objectid(dir), name);
     
-    item_ops = &dir->direntry.plugin->item_ops;
+    plugin = dir->direntry.plugin;
 
     while (1) {
 
 	reiser4_place_t place;
 	
-	if (plugin_call(return -1, item_ops->common, lookup, 
+	if (plugin_call(return -1, plugin->item_ops, lookup, 
 	    dir->direntry.body, &k, &dir->place.pos.unit) == 1) 
 	{
 	    roid_t locality;
 	    reiser4_entry_hint_t entry;
 	    
-	    if ((plugin_call(return -1, item_ops->specific.direntry, 
+	    if ((plugin_call(return -1, plugin->item_ops.specific.direntry, 
 		    entry, dir->direntry.body, dir->place.pos.unit, &entry)))
 		return -1;
 
@@ -308,7 +308,7 @@ static reiser4_entity_t *dir40_open(const void *tree,
     }
     
     /* Positioning to the first directory unit */
-    if (dir40_rewind((reiser4_entity_t *)dir)) {
+    if (dir40_reset((reiser4_entity_t *)dir)) {
 	aal_exception_error("Can't rewind directory with oid 0x%llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
@@ -325,7 +325,7 @@ error_free_dir:
 
 static reiser4_entity_t *dir40_create(const void *tree, 
     reiser4_key_t *parent, reiser4_key_t *object, 
-    reiser4_object_hint_t *hint) 
+    reiser4_file_hint_t *hint) 
 {
     dir40_t *dir;
     
@@ -457,7 +457,7 @@ static reiser4_entity_t *dir40_create(const void *tree,
     unix_ext.rdev = 0;
 
     unix_ext.bytes = plugin_call(goto error_free_dir, 
-	dir->direntry.plugin->item_ops.common, estimate, ~0ul, 
+	dir->direntry.plugin->item_ops, estimate, ~0ul, 
 	&direntry_hint);
 
     stat.extentions.count = 1;
@@ -493,7 +493,7 @@ static reiser4_entity_t *dir40_create(const void *tree,
     }
 
     /* Positioning onto first directory unit */
-    if (dir40_rewind((reiser4_entity_t *)dir)) {
+    if (dir40_reset((reiser4_entity_t *)dir)) {
 	aal_exception_error("Can't rewind directory with oid 0x%llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
@@ -567,13 +567,13 @@ static void dir40_close(reiser4_entity_t *entity) {
     aal_free(entity);
 }
 
-static uint32_t dir40_tell(reiser4_entity_t *entity) {
+static uint64_t dir40_offset(reiser4_entity_t *entity) {
     aal_assert("umka-874", entity != NULL, return 0);
     return ((dir40_t *)entity)->pos;
 }
 
 static errno_t dir40_seek(reiser4_entity_t *entity, 
-    uint32_t offset) 
+    uint64_t offset) 
 {
     dir40_t *dir = (dir40_t *)entity;
     
@@ -586,7 +586,7 @@ static errno_t dir40_seek(reiser4_entity_t *entity,
 }
 
 static reiser4_plugin_t dir40_plugin = {
-    .dir_ops = {
+    .file_ops = {
 	.h = {
 	    .handle = NULL,
 	    .id = DIR_DIR40_ID,
@@ -595,22 +595,28 @@ static reiser4_plugin_t dir40_plugin = {
 	    .desc = "Compound directory for reiserfs 4.0, ver. " VERSION,
 	},
 #ifndef ENABLE_COMPACT
-	.create	    = dir40_create,
-	.add	    = dir40_add,
-	.remove	    = NULL,
+        .create	    = dir40_create,
+        .add	    = dir40_add,
+        .remove	    = NULL,
 #else
-	.create	    = NULL,
-	.add	    = NULL,
-	.remove	    = NULL,
+        .create	    = NULL,
+        .add	    = NULL,
+        .remove	    = NULL,
 #endif
-	.valid	    = NULL,
-	.lookup	    = dir40_lookup,
-	.open	    = dir40_open,
-	.close	    = dir40_close,
-	.rewind	    = dir40_rewind,
-	.tell	    = dir40_tell,
-	.seek	    = dir40_seek,
-	.read	    = dir40_read
+        .valid	    = NULL,
+        .open	    = dir40_open,
+        .close	    = dir40_close,
+        .reset	    = dir40_reset,
+        .offset	    = dir40_offset,
+        .seek	    = dir40_seek,
+        .lookup	    = dir40_lookup,
+        .entry	    = dir40_entry,
+	
+	.regular = {
+	    .read	    = NULL,
+	    .write	    = NULL,
+	    .truncate	    = NULL
+	}
     }
 };
 

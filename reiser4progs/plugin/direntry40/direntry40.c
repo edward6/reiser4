@@ -361,28 +361,28 @@ static reiser4_plugin_t direntry40_plugin = {
 	    .desc = "Compound direntry for reiserfs 4.0, ver. " VERSION,
 	},
 	.group = DIRENTRY_ITEM_GROUP,
-	.common = {
+	
 #ifndef ENABLE_COMPACT	    
-	    .init	= direntry40_init,
-	    .insert	= direntry40_insert,
-	    .remove	= direntry40_remove,
-	    .estimate	= direntry40_estimate,
-	    .check	= direntry40_check,
+        .init	    = direntry40_init,
+        .insert	    = direntry40_insert,
+        .remove	    = direntry40_remove,
+        .estimate   = direntry40_estimate,
+        .check	    = direntry40_check,
 #else
-	    .init	= NULL,
-	    .estimate	= NULL,
-	    .insert	= NULL,
-	    .remove	= NULL,
-	    .check	= NULL,
+        .init	    = NULL,
+        .estimate   = NULL,
+        .insert	    = NULL,
+        .remove	    = NULL,
+        .check	    = NULL,
 #endif
-	    .confirm	= NULL,
-	    .valid	= NULL,
+        .confirm    = NULL,
+        .valid	    = NULL,
 	    
-	    .print	= direntry40_print,
-	    .lookup	= direntry40_lookup,
-	    .maxkey	= direntry40_maxkey,
-	    .count	= direntry40_count
-	},
+        .print	    = direntry40_print,
+        .lookup	    = direntry40_lookup,
+        .maxkey	    = direntry40_maxkey,
+        .count	    = direntry40_count,
+	
 	.specific = {
 	    .direntry = { 
 		.entry = direntry40_entry
