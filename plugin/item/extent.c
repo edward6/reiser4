@@ -2022,284 +2022,6 @@ int extent_write (struct inode * inode, coord_t * coord,
 }
 
 
-#if 0
-/*
- * start i/o not loaded nodes
- */
-/* Audited by: green(2002.06.13) */
-static void start_page_read (struct page * page)
-{
-	struct buffer_head *pbhs [MAX_BUF_PER_PAGE];
-	struct buffer_head bhs [MAX_BUF_PER_PAGE];
-	int i, blocks, nr;
-	jnode * j;
-	char * data;
-
-
-	assert ("vs-657", PageLocked (page));
-	data = kmap (page);
-	blocks = PAGE_CACHE_SIZE / current_blocksize;
-
-	j = jnode_of_page (page);
-	for (i = 0, nr = 0; i < blocks; i ++, j = next_jnode (j)) {
-		assert ("vs-728", j);
-		if (JF_ISSET (j, ZNODE_LOADED))
-			continue;
-
-		assert ("vs-658", jnode_has_block (j));
-		bhs [nr].b_blocknr = j->blocknr;
-		bhs [nr].b_size = reiser4_get_current_sb ()->s_blocksize;
-		bhs [nr].b_data = data;
-		/* AUDIT: b_dev is not set for a buffer! */
-		pbhs [nr] = &bhs [nr];
-		nr ++;
-	}
-	for (i = 0; i < nr; i ++) {
-		lock_buffer (pbhs [i]);
-		mark_buffer_async_read (pbhs [i]);
-	}
-
-	for (i = 0; i < nr; i ++)
-		submit_bh (READ, pbhs [i]);
-}
-
-/*
- * extent_readpage uses search.c:iterate_tree() to go through all extents pointing to blocks a page consists of. One
- * page may consist of several blocks.  The pointers to these several blocks may be different extents.  These different
- * extents may be stored in different nodes.  iterate_tree will iterate through all those extents and call map_extent
- * for every one. This map_extent gets pointer to struct readpage_desc and records there how mapping of page buffers is
- * going
- */
-struct readpage_desc {
-	struct page * page;      /* page being read */
-	jnode * j;
-	unsigned done_nr;        /* number of buffers in the page we have
-				    processed */
-	unsigned have_to_read;   /* number of buffers in the array in above */
-	
-};
-
-
-/*
- * @arg is "readpage descriptor" which contains information about how many page
- * buffers have been proceeded already
- */
-/* Audited by: green(2002.06.13) */
-static int map_extent (reiser4_tree * tree UNUSED_ARG,
-		       coord_t * coord,
-		       lock_handle *lh UNUSED_ARG, void * arg)
-{
-	reiser4_extent * ext;
-	reiser4_block_nr pos_in_unit, width;
-	reiser4_block_nr start;
-	unsigned nr;
-	struct page * page;
-	struct inode * inode;
-	struct readpage_desc * desc;
-	unsigned blocksize;
-	unsigned i;
-	jnode * j;
-
-
-	desc = (struct readpage_desc *)arg;
-	page = desc->page;
-	assert ("vs-290", PageLocked (page));
-	
-	/*
-	 * not proceeded jnode
-	 */
-	j = desc->j;
-
-	inode = page->mapping->host;
-	
-	if (item_id_by_coord (coord) != EXTENT_POINTER_ID ||
-	    !inode_file_plugin (inode)->owns_item (inode, coord)) {
-		warning ("vs-283", "there should be more items of file");
-		return -EIO;
-	}
-	
-	ext = extent_by_coord (coord);
-	blocksize = reiser4_get_current_sb ()->s_blocksize;
-	/* AUDIT: PAGE_CACHE_SIZE should be used here */
-	pos_in_unit = in_extent (coord, (reiser4_block_nr)page->index * PAGE_CACHE_SIZE + 
-				 desc->done_nr * blocksize);
-	start = extent_get_start (ext);
-	width = extent_get_width (ext);
-
-	/*
-	 * number of buffers of @page we can proceed using this extent
-	 */
-	nr = PAGE_CACHE_SIZE / blocksize - desc->done_nr;
-	if (width - pos_in_unit < nr)
-		nr = width - pos_in_unit;
-
-	start += pos_in_unit;
-	for (i = 0; i < nr;
-	     i ++, j = next_jnode (j), desc->done_nr ++, pos_in_unit ++) {
-		assert ("vs-727", j);
-		if (JF_ISSET (j, ZNODE_LOADED))
-			continue;
-		if (!jnode_has_block (j)) {
-			if (state_of_extent (ext) == HOLE_EXTENT) {
-				xmemset (kmap (page) + desc->done_nr * blocksize, 0, blocksize);
-				flush_dcache_page (page);
-				kunmap (page);
-				JF_SET (j, ZNODE_LOADED);
-				continue;
-			} else {
-				assert ("vs-281", state_of_extent (ext) ==
-					ALLOCATED_EXTENT);
-				jnode_set_block (j, &start);
-				start ++;
-			}
-		}
-		/*
-		 * one more block to be read
-		 */
-		desc->have_to_read ++;
-	}
-
-	if (j != jnode_of_page (page)) {
-		/*
-		 * not all buffers of this page are done
-		 */
-		if ((reiser4_block_nr)round_up (inode->i_size, blocksize) !=
-		    ((reiser4_block_nr)page->index * PAGE_CACHE_SIZE + 
-		     desc->done_nr * blocksize)) {
-			/*
-			 * file should continue in next item
-			 */
-			desc->j = j;
-			return 1;
-		}
-
-		/*
-		 * file is over, padd the rest of page with zeros
-		 */
-		nr = PAGE_CACHE_SIZE / blocksize - desc->done_nr;
-		xmemset (kmap (page) + desc->done_nr * blocksize,
-			 0, blocksize * nr);
-		flush_dcache_page (page);
-		kunmap (page);
-		for (i = 0; i < nr; i ++, desc->done_nr ++, j = next_jnode (j)) {
-			assert ("vs-726", j);
-			JF_SET (j, ZNODE_LOADED);
-		}
-	}
-
-	return 0;
-}
-
-
-/*
- * set @coord to an extent containing beginning of the @page
- */
-/* Audited by: green(2002.06.13) */
-static int reset_coord (struct page * page,
-			coord_t * coord, lock_handle * lh)
-{
-	int result;
-	reiser4_key key;
-
-	/*
-	 * get key of first byte of the page
-	 */
-	item_key_by_coord (coord, &key);
-	set_key_offset (&key, (reiser4_block_nr)page->index << PAGE_CACHE_SHIFT);
-
-	if (key_in_extent (coord, &key)) {
-		/*
-		 * beginning of page is in extent @coord
-		 */
-		return 0;
-	} else if (key_in_item (coord, &key)) {
-		/*
-		 * key is in item, but as arg->coord is set to different
-		 * extent, we have to find that extent
-		 */
-		result = extent_lookup (&key, FIND_EXACT, coord);
-	} else {
-		/*
-		 * we have to recall coord_by_key to find an item
-		 * corresponding to the beginning of page being read
-		 */
-		assert ("vs-389", coord->item_pos == 0);
-		done_lh (lh);
-
-		coord_init_zero (coord);
-		init_lh (lh);
-		result = coord_by_key (current_tree, &key, coord, lh,
-				       ZNODE_READ_LOCK, FIND_EXACT,
-				       LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE);
-	}
-	return result;
-}
-
-
-/*
- * plugin->u.item.s.file.readpage
- * map all buffers of the page and start io if necessary
- */
-/* Audited by: green(2002.06.13) */
-/*
- * FIXME-VS: needs rewriting
- */
-int extent_readpage (void * vp, struct page * page)
-{
-	int result;
-	unsigned blocksize;
-	struct readpage_desc desc;
-	struct readpage_arg * arg;
-	jnode * j;
-
-
-	blocksize = current_blocksize;
-
-	arg = vp;
-	/* get or create jnode for a page */
-	j = jnode_of_page (page);
-
-	/*
-	 * set arg->coord to extent containing beginning of page
-	 */
-	result = reset_coord (page, arg->coord, arg->lh);
-	if (result) {
-		page_detach_jnode (page);
-		return result;
-	}
-
-	xmemset (&desc, 0, sizeof (struct readpage_desc));
-	desc.page = page;
-	desc.j = jnode_of_page (page);
-	/*
-	 * go through extents until all buffers are mapped
-	 */
-	result = iterate_tree (current_tree, arg->coord, arg->lh,
-			       map_extent, &desc,
-			       ZNODE_READ_LOCK, 1 /* through units */);
-	if (result && result != -ENAVAIL) {
-		page_detach_jnode (page);
-		return result;
-	}
-
-	/*
-	 * all the page jnodes got block number set
-	 */
-	assert ("vs-391", desc.done_nr == PAGE_CACHE_SIZE / blocksize);
-	if (!desc.have_to_read) {
-		/*
-		 * there is nothing to read
-		 */
-		SetPageUptodate (page);
-		unlock_page (page);
-	} else {
-		page_io (page, READ, GFP_NOIO);
-	}
-
-	return 0;
-}
-#endif
-
 /*
  * FIXME-VS: comment, cleanups are needed here
  */
@@ -2425,6 +2147,225 @@ int extent_read (struct inode * inode, coord_t * coord,
 }
 
 
+struct ra_page_range {
+	struct list_head next; /* list of page ranges */
+	struct list_head pages; /* list of newly created, contiguous, belonging
+				 * to one extent pages. Number of pages in this
+				 * list is not mmore than max number of pages
+				 * in bio */
+	int extent;
+	int nr_pages;
+};
+
+/* return true if number of pages in a range is maximal possible number of
+ * pages in one bio */
+static int range_is_full (struct ra_page_range * range)
+{
+	return ((unsigned)range->nr_pages == (BIO_MAX_SIZE / PAGE_CACHE_SIZE)) ? 1 : 0;
+}
+
+
+/* Implements plugin->u.item.s.file.readahead operation for extent items.
+ *
+ * scan extent item @coord starting from position addressing @start_page and
+ * create list of page ranges. Page range is a list of contiguous pages
+ * addressed by the same extent. Page gets into page range only if it is not
+ * yet attached to address space (this is checked by radix_tree_lookup). When
+ * page is found in address space - it is skipped and all the next pages get
+ * into different page range (even pages addressed by the same
+ * extent). Scanning stops either at the end of item or if number of pages for
+ * readahead @intrafile_readahead_amount is over.
+ *
+ * For every page range of the list: for every page from a range: add page into
+ * page cache, create bio and submit i/o. Note, that page range can be split
+ * into several bio-s as well when adding page into address space fails
+ * (because page is there already)
+ * 
+ */
+void extent_readahead (struct file * file, coord_t * coord,
+		       lock_handle * lh UNUSED_ARG,
+		       unsigned long start_page,
+		       unsigned long * intrafile_readahead_amount)
+{
+	struct address_space * mapping;
+	reiser4_extent * ext;
+	unsigned i, j, nr_units;
+	__u64 pos_in_unit;
+	LIST_HEAD (range_list);
+	struct ra_page_range * range;
+	struct page * page;
+	unsigned long left;
+	__u64 pages;
+
+
+	assert ("vs-789", file && file->f_dentry && file->f_dentry->d_inode &&
+		file->f_dentry->d_inode->i_mapping);
+	mapping = file->f_dentry->d_inode->i_mapping;
+
+	assert ("vs-779", current_blocksize == PAGE_CACHE_SIZE);
+	assert ("vs-782", *intrafile_readahead_amount);
+	/* make sure that unit, @coord is set to, addresses @start page */
+	assert ("vs-786", in_extent (coord, (__u64)start_page << PAGE_CACHE_SHIFT));
+
+	
+	nr_units = extent_nr_units (coord);
+	/* position in item matching to @start_page */
+	ext = extent_by_coord (coord);
+	pos_in_unit = in_extent (coord, (__u64)start_page << PAGE_CACHE_SHIFT);
+
+	/* number of pages to readahead */
+	left = *intrafile_readahead_amount;
+
+	/* while not all pages are allocated and item is not over */
+	for (i = 0; left && (coord->unit_pos + i < nr_units); i ++) {
+		/* how many pages from current extent to read ahead */
+		pages = extent_get_width (&ext [i]) - (i == 0 ? pos_in_unit : 0);
+		if (pages > left)
+			pages = left;
+
+		if (state_of_extent (&ext [i]) == UNALLOCATED_EXTENT) {
+			/* these pages are in memory */
+			start_page += pages;
+			left -= pages;
+			continue;
+		}
+
+		range = 0;
+		for (j = 0; j < pages; j ++) {
+			page = radix_tree_lookup (&mapping->page_tree,
+						  start_page + j);
+			if (page) {
+				/* page is already in address space */
+				if (range) {
+					/* contiguousness is broken */
+					range = 0;
+				}
+				continue;
+			}
+			if (range && range_is_full (range)) {
+				/* range is too big for one bio */
+				range = 0;
+			}
+			if (!range) {
+				/* create new range of contiguous pages
+				 * belonging to one extent */
+				/*
+				 * FIXME-VS: maybe this should be after
+				 * read_unlock (&mapping->page_lock)
+				 */
+				range = kmalloc (sizeof (struct ra_page_range), GFP_KERNEL);
+				if (!range)
+					break;
+				memset (range, 0, sizeof (struct ra_page_range));
+				range->nr_pages = 0;
+				range->extent = coord->unit_pos + i;
+				INIT_LIST_HEAD (&range->pages);
+				list_add (&range->next, &range_list);
+			}
+
+			read_unlock (&mapping->page_lock);
+			page = page_cache_alloc (mapping);
+			read_lock (&mapping->page_lock);
+			if (!page)
+				break;
+			page->index = start_page;
+			list_add (&page->list, &range->pages);
+			range->nr_pages ++;
+		}
+
+		left -= pages;
+		start_page += j;
+	}
+
+	/* submit bio for all ranges */
+	{
+		struct list_head * cur, * tmp;
+		struct bio * bio;
+		struct bio_vec * bvec;
+
+		list_for_each_safe (cur, tmp, &range_list) {
+			coord_t unit;
+			extent_state state;
+			struct list_head * cur2, * tmp2;
+
+
+			range = list_entry (cur, struct ra_page_range, pages);
+			
+			/* get extent unit which points to all pages of this range */
+			coord_dup (&unit, coord);
+			coord->unit_pos = range->extent;
+			coord->between = AT_UNIT;
+			state = state_of_extent (extent_by_coord (&unit));
+			assert ("vs-787", state != UNALLOCATED_EXTENT);
+
+			list_del (&range->next);
+			
+			list_for_each_safe (cur2, tmp2, &range->pages) {
+
+				page = list_entry (cur2, struct page, list);
+				list_del (&page->list);
+
+				if (add_to_page_cache_unique (page, mapping, page->index)) {
+					/* page is in address space already,
+					 * skip it, and submit bio we have so
+					 * far */
+					page_cache_release (page);
+					if (bio) {
+						bio->bi_vcnt = bio->bi_idx;
+						submit_bio (READ, bio);
+						bio = 0;
+						range->nr_pages -= bio->bi_vcnt;
+					}
+					range->nr_pages --;
+					continue;
+				}
+				
+				if (state == HOLE_EXTENT) {
+					memset (kmap (page), 0, PAGE_CACHE_SIZE);
+					flush_dcache_page (page);
+					kunmap (page);
+					SetPageUptodate (page);
+					unlock_page (page);
+					page_cache_release (page);
+					range->nr_pages --;
+				}
+				if (!bio) {
+					coord_t unit;
+					
+					bio = bio_alloc (GFP_KERNEL, range->nr_pages);
+					if (!bio) {
+						page_cache_release (page);
+						range->nr_pages --;
+						continue;
+					}
+					bio->bi_bdev = mapping->host->i_bdev;
+					bio->bi_vcnt = range->nr_pages;
+					bio->bi_idx = 0;
+					bio->bi_size = 0;
+					bio->bi_sector = extent_get_start (extent_by_coord (&unit)) +
+						in_extent (&unit, (__u64)page->index << PAGE_CACHE_SHIFT);
+					bio->bi_io_vec[0].bv_page = NULL;
+				}
+				bvec = &bio->bi_io_vec [bio->bi_idx];
+				bvec->bv_page = page;
+				bvec->bv_len = current_blocksize;
+				bvec->bv_offset = 0;
+				bio->bi_size += bvec->bv_len;
+				bio->bi_idx ++;
+				page_cache_release (page);
+			}
+			bio->bi_vcnt = bio->bi_idx;
+			submit_bio (READ, bio);
+			bio = 0;
+			range->nr_pages -= bio->bi_vcnt;
+			assert ("vs-783", list_empty (&range->pages));
+			assert ("vs-788", !range->nr_pages);
+			kfree (range);
+		}
+		assert ("vs-785", list_empty (&range_list));
+	}
+}
+
 /*
  * ask block allocator for some blocks
  */
@@ -2469,7 +2410,7 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 	loff_t offset;
 	struct inode * inode;
 	struct page * page;
-	int blocksize;
+	unsigned long blocksize;
 	unsigned long ind;
 	reiser4_key sd_key;
 	jnode * j;
