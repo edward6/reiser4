@@ -212,12 +212,6 @@ static int process_znode_backward (tap_t * tap, void * arg)
 		assert("zam-962", blocknr_is_fake(znode_get_block(child)));
 		cursor->hint.block_stage = BLOCK_UNALLOCATED;
 	} else {
-		assert("zam-963", !blocknr_is_fake(znode_get_block(child)));
-		ret = reiser4_dealloc_block(znode_get_block(child), 0,
-					    BA_DEFER | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
-		if (ret)
-			goto out;
-
 		if (znode_get_level(child) == LEAF_LEVEL)
 			cursor->hint.block_stage = BLOCK_FLUSH_RESERVED;
 		else {
@@ -238,6 +232,13 @@ static int process_znode_backward (tap_t * tap, void * arg)
 			goto out;
 
 		cursor->hint.blk = new_blocknr;
+	}
+
+	if (!ZF_ISSET(child, JNODE_CREATED)) {
+		ret = reiser4_dealloc_block(znode_get_block(child), 0,
+				    BA_DEFER | BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
+		if (ret)
+			goto out;
 	}
 
 	/* Flush doesn't process nodes twice, it will not discard this block
