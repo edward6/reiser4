@@ -1215,59 +1215,6 @@ assign_jnode_blocknrs(oid_t oid, unsigned long index, reiser4_block_nr first,
 	return 0;
 }
 
-#if 0
-static int
-extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __u64 count, flush_pos_t * pos)
-{
-	__u64 i;
-	reiser4_tree *tree;
-	jnode *j;
-	ON_DEBUG(jnode *check = 0;)
-
-	switch (state_of_extent(extent)) {
-	case UNALLOCATED_EXTENT:
-		return 1;
-	case HOLE_EXTENT:
-		return 0;
-	default:
-		break;
-	}
-	assert("jmacd-83112", state_of_extent(extent) == ALLOCATED_EXTENT);
-
-	/* look for all dirty jnodes and mark them OVERWRITE if they are not marked yet */
-	tree = current_tree;
-	for (i = 0; i < count; ++i, ++ind) {		
-		j = jlook_lock(tree, oid, ind);
-		if (!j)
-			continue;
-
-		if (!jnode_check_dirty(j)) {
-			jput(j);
-			continue;
-		}
-
-		ON_DEBUG({
-			/* all jnodes of this extent unit must belong
-			   to one atom. Check that */
-			if (check) {
-				assert("vs-936", jnodes_of_one_atom(check, j));
-			} else {
-				check = jref(j);
-			}
-		})
-
-		if (!jnode_check_flushprepped(j))
-			jnode_make_wander(j);
-
-		jput(j);
-	}
-
-	ON_DEBUG(if(check) jput(check);)
-	return 0;
-}
-
-#else
-
 /* return 1 if @extent unit needs allocation, 0 - otherwise. Try to update preceder in
    parent-first order for next block which will be allocated.
   
@@ -1422,8 +1369,6 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, __
       fail:
 	return ret;
 }
-
-#endif
 
 /* if @key is glueable to the item @coord is set to */
 static int
