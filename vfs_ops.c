@@ -2376,8 +2376,7 @@ static int capture_anonymous_pages (struct address_space * mapping)
 	while (!list_empty (&mapping->io_pages)) {
 		struct page *pg = list_entry(mapping->io_pages.prev, struct page, list);
 
-		list_del(&pg->list);
-		list_add(&pg->list, &mapping->dirty_pages);
+		list_move(&pg->list, &mapping->dirty_pages);
 		page_cache_get (pg);
 
 		write_unlock (&mapping->page_lock);
