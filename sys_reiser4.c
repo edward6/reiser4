@@ -62,6 +62,9 @@ sys_reiser4(char *p_string)
 	struct reiser4_syscall_w_space * work_space ;
 	str=getname(p_string);
 	if (!IS_ERR(str)) {
+
+		print_pwd_count("\n--------------------\ninit");
+
 		/* allocate work space for parser
 		   working variables, attached to this call */
 		if ( (work_space = reiser4_pars_init() ) == NULL ) {
@@ -75,6 +78,8 @@ sys_reiser4(char *p_string)
 		ret = yyparse(work_space);	/* parse command */
 		reiser4_pars_free(work_space);
 		putname(str);
+		print_pwd_count("end");
+
 	}
 	else {
 		ret = PTR_ERR(str);
