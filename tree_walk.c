@@ -924,11 +924,19 @@ static int tree_walk_by_handle (struct tree_walk_handle * h)
 				break;
 			}
 
+			ret = connect_znode(h->tap.coord, next_node);
+			if (ret) {
+				break;
+				zput (next_node);
+			}
+
 			init_lh(&next_lock);
 			ret = longterm_lock_znode(&next_lock, next_node, ZNODE_WRITE_LOCK, 0);
 			zput(next_node);
 			if (ret)
 				break;
+
+			set_child_delimiting_keys(h->tap.coord->node, h->tap.coord, next_node);
 
 			ret = go_next_node (h, &next_lock, NULL);
 			if (ret)
