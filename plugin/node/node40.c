@@ -139,7 +139,7 @@ static unsigned ih_40_get_offset (item_header_40 * ih)
 /* plugin->u.node.item_overhead
    look for description of this method in plugin/node/node.h
 */
-size_t node40_item_overhead (const znode * node UNUSED_ARG, flow * f UNUSED_ARG)
+size_t node40_item_overhead (const znode * node UNUSED_ARG, flow_t * f UNUSED_ARG)
 {
 	return sizeof (item_header_40);
 }
@@ -530,6 +530,19 @@ int node40_check( const znode *node, __u32 flags, const char **error )
 		if( item_plugin_by_coord( &coord ) -> b.check &&
 		    item_plugin_by_coord( &coord ) -> b.check( &coord, error ) )
 			return -1;
+		if( i ) {
+			tree_coord prev_coord;
+			/*
+			 * two neighboring items can not be mergeable
+			 */
+			reiser4_dup_coord( &prev_coord, &coord );
+			coord_prev_item( &prev_coord );
+			if( are_items_mergeable( &prev_coord, &coord ) ) {
+				*error = "mergeable items in one node";
+				return -1;		
+			}
+			reiser4_done_coord( &prev_coord );
+		}
 	}
 
 	if( flags & REISER4_NODE_DKEYS ) {
