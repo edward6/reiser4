@@ -32,6 +32,7 @@ Internal on-disk structure:
 #include "../../page_cache.h"
 #include "../../cluster.h"
 #include "../../flush.h"
+#include "../file/funcs.h"
 
 #include <linux/swap.h>
 #include <linux/fs.h>
@@ -58,7 +59,7 @@ pg_by_coord(const coord_t * coord)
 	return get_key_offset(item_key_by_coord(coord, &key)) >> PAGE_CACHE_SHIFT;
 }
 
-static unsigned long
+reiser4_internal unsigned long
 clust_by_coord(const coord_t * coord)
 {
 	return pg_by_coord(coord) >> cluster_shift_by_coord(coord);
@@ -449,7 +450,6 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 	assert("edward-128", f->data);
 	assert("edward-129", coord && coord->node);
 	assert("edward-130", coord_is_existing_unit(coord));
-//	assert("edward-131", znode_is_rlocked(coord->node));
 	assert("edward-132", znode_is_loaded(coord->node));
 
 	/* start read only from the beginning of ctail */
@@ -463,8 +463,10 @@ read_ctail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 
 	mark_page_accessed(znode_page(coord->node));
 	move_flow_forward(f, nr_units_ctail(coord));
-	coord->unit_pos --; /* ?? */
-	coord->between = AFTER_UNIT;
+
+	coord->item_pos ++;
+	coord->between = BEFORE_ITEM;
+	
 	return 0;
 }
 
@@ -474,30 +476,40 @@ reiser4_internal int
 ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 {
 	int result;
-
+	
 	assert("edward-139", clust->buf == NULL);
+	assert("edward-671", clust->hint != NULL);
 	assert("edward-140", clust->stat != FAKE_CLUSTER);
+	assert("edward-672", crc_inode_ok(inode));
 	assert("edward-145", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 	
+	if (!hint_prev_cluster(clust)) {
+		done_lh(clust->hint->coord.lh);
+		unset_hint(clust->hint);
+	}
 	/* allocate temporary buffer of disk cluster size */
 	
 	clust->bsize = inode_scaled_offset(inode, fsize_to_count(clust, inode) +
-					   max_crypto_overhead(inode_crypto_plugin(inode), inode_crypto_stat(inode)));
+					   max_crypto_overhead(inode));
 	if (clust->bsize > inode_scaled_cluster_size(inode))
 		clust->bsize = inode_scaled_cluster_size(inode);
 	
 	clust->buf = reiser4_kmalloc(clust->bsize, GFP_KERNEL);
 	if (!clust->buf)
 		return -ENOMEM;
+	
 	result = find_cluster(clust, inode, 1 /* read */, write);
-	if (result)
+	if (cbk_errored(result))
 		goto out;
+	
+	assert("edward-673", znode_is_any_locked(clust->hint->coord.lh->node));
+	
 	result = inflate_cluster(clust, inode);
 	if(result)
 		goto out;
 	return 0;
  out:
-	put_cluster_data(clust, inode);
+	put_cluster_data(clust);
 	return result;
 }
 
@@ -563,7 +575,7 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	SetPageUptodate(page);
  exit:
 	if (release)
-		put_cluster_data(clust, inode);
+		put_cluster_data(clust);
 	return 0;	
 }
 
@@ -571,6 +583,8 @@ do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 reiser4_internal int readpage_ctail(void * vp, struct page * page)
 {
 	int result;
+	hint_t hint;
+	lock_handle lh;
 	reiser4_cluster_t * clust = vp;
 
 	assert("edward-114", clust != NULL);
@@ -579,8 +593,19 @@ reiser4_internal int readpage_ctail(void * vp, struct page * page)
 	assert("edward-117", !jprivate(page) && !PagePrivate(page));
 	assert("edward-118", page->mapping && page->mapping->host);
 	
+	clust->hint = &hint;
+	init_lh(&lh);
+	result = load_file_hint(clust->file, &hint, &lh);
+	if (result)
+		return result;
+	
 	result = do_readpage_ctail(clust, page);
-
+	
+	hint.coord.valid = 0;
+	save_file_hint(clust->file, &hint);
+	done_lh(&lh);
+	put_cluster_data(clust);
+	
 	assert("edward-213", PageLocked(page));
 	return result;
 }
@@ -592,12 +617,14 @@ reiser4_internal int readpage_ctail(void * vp, struct page * page)
    FIXME_EDWARD: this function should return errors
 */
 reiser4_internal void
-readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct list_head *pages)
+readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages)
 {
+	int ret = 0;
+	hint_t hint;
+	lock_handle lh;
 	reiser4_cluster_t clust;
 	struct page *page;
 	struct pagevec lru_pvec;
-	int ret = 0;
 	struct inode * inode;
 
 	if (!list_empty(pages) && pages->next != pages->prev)
@@ -606,6 +633,15 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 	
 	pagevec_init(&lru_pvec, 0);
 	reiser4_cluster_init(&clust);
+	clust.file = vp;
+	clust.hint = &hint;
+	init_lh(&lh);
+	
+	ret = load_file_hint(clust.file, &hint, &lh);
+	if (ret)
+		return;
+	//coord_init_invalid(&hint.coord.base_coord, 0);
+	
 	inode = mapping->host;
 	
 	while (!list_empty(pages)) {
@@ -615,9 +651,12 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 			page_cache_release(page);
 			continue;
 		}
+		
+		/* FIXME-EDWARD: Fill all cluster's pages */
+		
 		/* update cluster handle if it is necessary */
 		if (!cluster_is_uptodate(&clust) || !page_of_cluster(page, &clust, inode)) {
-			put_cluster_data(&clust, inode);
+			release_cluster_buf(&clust);
 			clust.index = pg_to_clust(page->index, inode);
 			if (fsize_to_count(&clust, inode) <= PAGE_CACHE_SIZE) {
 				clust.pages = &page;
@@ -647,7 +686,11 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 		}
 		unlock_page(page);
 	}
-	put_cluster_data(&clust, inode);
+	hint.coord.valid = 0;
+	save_file_hint(clust.file, &hint);
+	
+	done_lh(&lh);
+	put_cluster_data(&clust);
 	pagevec_lru_add(&lru_pvec);
 	return;
 }
@@ -722,7 +765,8 @@ insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f, struct i
 	int ret;
 	coord_t point;
 	lock_handle lock;
-
+	
+	assert("edward-674", f->length <= inode_scaled_cluster_size(inode));
 	assert("edward-484", coord->between == AT_UNIT ||
 	       coord->between == AFTER_UNIT || coord->between == AFTER_ITEM);
 	
@@ -789,6 +833,39 @@ cut_ctail(coord_t * coord)
 	return cut_node_content(coord, &stop, NULL, NULL, NULL);
 }
 
+#define UNPREPPED_DCLUSTER_LEN 2
+
+/* insert minimal disk cluster for unprepped page cluster */
+int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode)
+{
+	char buf[UNPREPPED_DCLUSTER_LEN];
+	flow_t f;
+	int result;
+	
+	assert("edward-675", get_current_context()->grabbed_blocks == 0);
+	assert("edward-676", znode_is_wlocked(clust->hint->coord.lh->node));
+	
+	grab_space_enable();
+	result = reiser4_grab_space(estimate_insert_cluster(inode, 1 /*unprepped */), 0);
+	if (result)
+		return result;
+	xmemset(buf, 0, UNPREPPED_DCLUSTER_LEN);
+	
+	flow_by_inode_cryptcompress(inode, buf, 0 /* kernel space */, UNPREPPED_DCLUSTER_LEN, clust_to_off(clust->index, inode), WRITE_OP, &f);
+	
+	result = insert_crc_flow(&clust->hint->coord.base_coord, clust->hint->coord.lh, &f, inode);
+	all_grabbed2free();
+	if (result)
+		return result;
+	
+	assert("edward-677", reiser4_clustered_blocks(reiser4_get_current_sb()));
+	assert("edward-678", znode_is_dirty(clust->hint->coord.base_coord.node));
+	
+	znode_set_squeezable(clust->hint->coord.base_coord.node);
+	return result;
+}
+
+/* the following functions are used by flush item methods */
 /* plugin->u.item.s.file.write ? */
 reiser4_internal int
 write_ctail(flush_pos_t * pos, crc_write_mode_t mode)
@@ -804,6 +881,7 @@ write_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 	switch (mode) {
 	case CRC_FIRST_ITEM:
 	case CRC_APPEND_ITEM:
+		assert("edward-679", info->flow.data != NULL);
 		result = insert_crc_flow_in_place(&pos->coord, &pos->lock, &info->flow, info->inode);
 		break;
 	case CRC_OVERWRITE_ITEM:
@@ -852,13 +930,20 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 	assert("edward-227", scan->node != NULL);
 	assert("edward-228", jnode_is_cluster_page(scan->node));
 	assert("edward-639", znode_is_write_locked(scan->parent_lock.node));
-
-	jref(node);
-
+	
+	if (!znode_squeezable(scan->parent_lock.node)) {
+		assert("edward-680", !jnode_is_dirty(scan->node));
+		warning("edward-681", "cluster page is already processed");
+		return -EAGAIN;
+	}
+	
 	if (get_flush_scan_nstat(scan) == LINKED) {
 		/* nothing to do */
 		return 0;
 	}
+	
+	jref(node);
+	
 	do {
 		LOCK_JNODE(node);
 		if (!(jnode_is_dirty(node) &&
@@ -906,7 +991,7 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 			goto error;
 		assert("edward-234", f.length == 0);
 		JF_CLR(node, JNODE_NEW);
-		release_cluster_buf(&clust, inode);
+		release_cluster_buf(&clust);
 		jput(node);
 	}
 	while ((node = next_jnode_cluster(node, inode, &clust)));
@@ -916,7 +1001,7 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 	set_flush_scan_nstat(scan, LINKED);
 	return 0;
  error:	
-	release_cluster_buf(&clust, inode);
+	release_cluster_buf(&clust);
 	return result;
 }
 
@@ -970,6 +1055,7 @@ attach_squeeze_idata(flush_pos_t * pos, struct inode * inode)
 	assert("edward-249", pos->child != NULL);
 	assert("edward-250", pos->idata == NULL);
 	assert("edward-251", inode != NULL);
+	assert("edward-682", crc_inode_ok(inode));
 
 	fplug = inode_file_plugin(inode);
 	
@@ -999,6 +1085,9 @@ attach_squeeze_idata(flush_pos_t * pos, struct inode * inode)
 	/* attach flow by cluster buffer */
 	fplug->flow_by_inode(info->inode, info->clust->buf, 0/* kernel space */, info->clust->len, clust_to_off(info->clust->index, inode), WRITE_OP, &info->flow);
 	jput(pos->child);
+
+	assert("edward-683", crc_inode_ok(inode));
+
  	return 0;
 
  exit1:
@@ -1014,19 +1103,18 @@ attach_squeeze_idata(flush_pos_t * pos, struct inode * inode)
 static void
 detach_squeeze_idata(flush_squeeze_item_data_t ** idata)
 {
-
 	ctail_squeeze_info_t * info;
 	
 	assert("edward-253", idata != NULL);
 	info = &(*idata)->u.ctail_info;
-
+	
 	assert("edward-254", info->clust != NULL);
 	assert("edward-255", info->inode != NULL);
 	assert("edward-256", info->clust->buf != NULL);
-
-	release_cluster_buf(info->clust, info->inode);
+	
+	release_cluster_buf(info->clust);
 	reiser4_kfree(info->clust);
-	reiser4_kfree(info);
+	reiser4_kfree(*idata);
 	
 	*idata = NULL;
 }
@@ -1085,6 +1173,7 @@ squeeze_ctail(flush_pos_t * pos)
 			pos->child = NULL;
 			if (result != 0)
 				return result;
+			info = &pos->idata->u.ctail_info;
 		}
 		else
 			/* unsqueezable */
@@ -1115,7 +1204,7 @@ squeeze_ctail(flush_pos_t * pos)
 			}
 		}
 	}
-	assert("edward-433", pos->idata != NULL);
+	assert("edward-433", info != NULL);
 	result = write_ctail(pos, mode);
 	if (result) {
 		detach_squeeze_idata(&pos->idata);
