@@ -222,11 +222,8 @@ void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason UNUSED_ARG )
 {
 	if( ctx != NULL ) {
 		spin_lock( &ctx -> guard );
-		if( ctx -> tsk != NULL ) {
-			trace_on( TRACE_BUG | TRACE_TXN, 
-				  "Waking ktxnmgrd %i", ctx -> tsk -> pid );
+		if( ctx -> tsk != NULL )
 			kcond_signal( &ctx -> wait );
-		}
 		spin_unlock( &ctx -> guard );
 	}
 }

@@ -1037,8 +1037,6 @@ int txn_commit_some (txn_mgr *mgr)
 	assert ("nikita-2444", ctx != NULL);
 	assert ("nikita-2445", check_spin_is_locked (&mgr->daemon->guard));
 
-	trace_on (TRACE_BUG, "Cleaning dotards\n");
-
 	txnh = ctx->trans;
 	spin_lock_txnmgr (mgr);
 
@@ -1050,9 +1048,6 @@ int txn_commit_some (txn_mgr *mgr)
 		     atom = atom_list_next  (atom)) {
 
 			spin_lock_atom (atom);
-
-			trace_on (TRACE_BUG, 
-				  "\tflushing atom: %x\n", atom->atom_id);
 
 			if ((atom->stage < ASTAGE_PRE_COMMIT) &&
 			    (atom->txnh_count == 0) &&
