@@ -42,6 +42,8 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/writeback.h>
+#include <linux/mpage.h>
+#include <linux/backing-dev.h>
 
 /* inode operations */
 
@@ -2387,6 +2389,8 @@ int reiser4_writepages( struct address_space *mapping, struct writeback_control 
 {
 	int ret = 0;
 	struct super_block * s = mapping->host->i_sb;
+	struct backing_dev_info *bdi = mapping->backing_dev_info;
+
 	REISER4_ENTRY (s);
 
 	if (lock_stack_isclean(get_current_lock_stack())){
@@ -2400,13 +2404,25 @@ int reiser4_writepages( struct address_space *mapping, struct writeback_control 
 		 * caller of balance_dirty_pages() and jnode_flush(). */
 
 		long nr_submitted = 0;
+		int  flush_count = 0;
 		txn_mgr * tmgr = &get_super_private(s)->tmgr;
 
-		ret = txn_flush_one (tmgr, &nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
+		while (nr_submitted < wbc->nr_to_write && flush_count < wbc->nr_to_write ) {
 
-		wbc->nr_to_write -= nr_submitted;
+			if (wbc->nonblocking && bdi_write_congested(bdi)) {
+				blk_run_queues();
+				wbc->encountered_congestion = 1;
+				break;
+			}
+
+			ret = txn_flush_one (tmgr, &nr_submitted, JNODE_FLUSH_WRITE_BLOCKS);
+			wbc->nr_to_write -= nr_submitted;
+
+			/* endless loop prevention */
+			flush_count ++;
+		}
 	} else {
-		ret = mpage_writepages (mapping, wbc, NULL);
+		ret = generic_writepages (mapping, wbc);
 	}
 
 	REISER4_EXIT(ret);

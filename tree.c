@@ -108,6 +108,7 @@ design needs to be justified in a seminar on Monday.
 
 #include <linux/fs.h> /* for struct super_block  */
 #include <linux/spinlock.h>
+#include <linux/writeback.h>
 
 /* Long-dead pseudo-code removed Tue Apr 23 17:55:24 MSD 2002. */
 				/* email me the removed pseudo-code -Hans */
@@ -729,6 +730,10 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	spin_unlock (& active_contexts_lock);
 	context -> task  = current;
 #endif
+
+	if (sdata->fake)
+		balance_dirty_pages(sdata->fake->i_mapping);
+
 	return 0;
 }
 
