@@ -557,7 +557,7 @@ check_lock_object(lock_stack * owner)
 	assert("nikita-1843", spin_znode_is_locked(node));
 
 	/* See if the node is disconnected. */
-	if (ZF_ISSET(node, JNODE_IS_DYING)) {
+	if (unlikely(ZF_ISSET(node, JNODE_IS_DYING))) {
 		trace_on(TRACE_LOCKS, "attempt to lock dying znode: %p", node);
 		return -EINVAL;
 	}
@@ -565,11 +565,12 @@ check_lock_object(lock_stack * owner)
 	/* Do not ever try to take a lock if we are going in low priority
 	   direction and a node have a high priority request without high
 	   priority owners. */
-	if (!owner->curpri && check_deadlock_condition(node)) {
+	if (unlikely(!owner->curpri && check_deadlock_condition(node))) {
 		return -EAGAIN;
 	}
 
-	if (!is_lock_compatible(node, owner->request.mode) && !recursive(owner)){
+	if (unlikely(!is_lock_compatible(node, owner->request.mode) && 
+		     !recursive(owner))){
 		return -EAGAIN;
 	}
 
@@ -841,10 +842,10 @@ int longterm_lock_znode(
 		}
 
 		assert("nikita-1844", (ret == 0) || ((ret == -EAGAIN) && !non_blocking));
-		/* If we can get the lock... Try to capture first before taking the
-		   lock.*/
-		if ((ret = try_capture(ZJNODE(node), mode, try_capture_flags))
-		    != 0) {
+		/* If we can get the lock... Try to capture first before
+		   taking the lock.*/
+		ret = try_capture(ZJNODE(node), mode, try_capture_flags);
+		if (unlikely(ret != 0)) {
 			/* In the failure case, the txnmgr releases the znode's lock (or
 			   in some cases, it was released a while ago).  There's no need
 			   to reacquire it so we should return here, avoid releasing the
@@ -1149,7 +1150,7 @@ prepare_to_sleep(lock_stack * owner)
 		spin_unlock_stack(owner);
 	}
 
-	if (atomic_read(&owner->nr_signaled) != 0 && !owner->curpri) {
+	if (unlikely(atomic_read(&owner->nr_signaled) != 0 && !owner->curpri)) {
 		return -EDEADLK;
 	}
 	return 0;

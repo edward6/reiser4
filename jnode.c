@@ -592,7 +592,7 @@ int jload_gfp (jnode * node, int gfp_flags)
 	parsed = jnode_is_parsed(node);
 	UNLOCK_JNODE(node);
 
-	if (!parsed) {
+	if (unlikely(!parsed)) {
 		trace_on(TRACE_PCACHE, "read node: %p\n", node);
 
 		page = jnode_get_page_locked(node, gfp_flags);
