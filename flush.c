@@ -3155,7 +3155,9 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	jnode *neighbor;
 	unsigned long scan_index, unit_index, unit_width, scan_max, scan_dist;
 	reiser4_block_nr unit_start;
-	struct inode *ino = NULL;
+	/*struct inode *ino = NULL;*/
+	__u64 oid;
+	reiser4_key key;
 	/*struct page *pg;*/
 	int ret = 0, allocated, incr;
 	reiser4_tree *tree;
@@ -3182,16 +3184,18 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	 * get_inode when the extent item changes, not just the extent unit.  As it is,
 	 * this repeats the get_inode call for every unit even when the OID doesn't
 	 * change. */
+	oid = get_key_objectid (item_key_by_coord (&coord, &key));
+/*
 	extent_get_inode (& coord, & ino);
 
 	if (ino == NULL) {
 		scan->stop = 1;
 		return 0;
 	}
-
-	trace_on (TRACE_FLUSH_VERB, "%s scan index %lu: parent %p inode %llu\n",
+*/
+	trace_on (TRACE_FLUSH_VERB, "%s scan index %lu: parent %p oid %llu\n",
 		  (flush_scanning_left (scan) ? "left" : "right"),
-		  scan_index, coord.node, get_inode_oid (ino));
+		  scan_index, coord.node, oid);
 
 	/*
 	 * FIXME:NIKITA->* this is wrong: hole is treated as allocated extent
@@ -3222,14 +3226,14 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		incr      = +1;
 	}
 
-	tree = tree_by_inode (ino);
+	tree = current_tree;/*tree_by_inode (ino);*/
 
 	/* If the extent is allocated we have to check each of its blocks.  If the extent
 	 * is unallocated we can skip to the scan_max. */
 	if (allocated) {
 		do {
 			neighbor = UNDER_SPIN (tree, tree,
-					       jlook (tree, ino->i_mapping,
+					       jlook (tree, oid,
 						      scan_index));
 			if (neighbor == NULL)
 				goto stop_same_parent;
@@ -3252,12 +3256,11 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	} else {
 		/* Optimized case for unallocated extents, skip to the end. */
 		neighbor = UNDER_SPIN (tree, tree,
-				       jlook (tree, ino->i_mapping,
-					      scan_index));
+				       jlook (tree, oid, scan_index));
 		if (neighbor == NULL) {
 			/* jnode of unallocated block must be found */
 			impossible ("jmacd-8337",
-				    "unallocated node index %lu ino %lu not in memory", scan_max, ino->i_ino);
+				    "unallocated node index %lu ino %llu not in memory", scan_max, oid);
 			ret = -EIO;
 			goto exit;
 		}
@@ -3275,8 +3278,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		/* Continue as long as there are more extent units. */
 
 		scan_index = extent_unit_index (& coord) + (flush_scanning_left (scan) ? extent_unit_width (& coord) - 1 : 0);
-		assert ("vs-835", ino);
-		iput (ino);
+		/*assert ("vs-835", ino);*/
+		/*iput (ino);*/
 		goto repeat;
 	}
 
@@ -3313,7 +3316,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 
 	ret = 0;
  exit:
-	if (ino != NULL) { iput (ino); }
+	/*if (ino != NULL) { iput (ino); }*/
 	return ret;
 }
 

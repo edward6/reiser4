@@ -35,8 +35,9 @@ TS_HASH_DECLARE(j, jnode);
 TS_HASH_DECLARE(z, znode);
 
 typedef struct {
-	struct address_space *mapping;
+	__u64                 objectid;
 	unsigned long         index;
+	struct address_space *mapping;
 } jnode_key_t;
 
 struct jnode
@@ -206,7 +207,7 @@ extern jnode* jnew            (void);
 extern void   jnode_set_type  (jnode*, jnode_type);
 extern jnode* jget            (reiser4_tree *tree, struct page *pg);
 extern jnode *jfind           (struct page *pg);
-extern jnode *jlook           (reiser4_tree *, struct address_space *mapping,
+extern jnode *jlook           (reiser4_tree *, __u64 objectid,
 			       unsigned long index);
 extern jnode* jnode_by_page   (struct page* pg);
 extern jnode* jnode_of_page   (struct page* pg);

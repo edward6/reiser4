@@ -24,6 +24,7 @@
 #include "tree.h"
 #include "tree_walk.h"
 #include "super.h"
+#include "inode.h"
 #include "page_cache.h"
 
 #include <linux/types.h>
@@ -41,7 +42,7 @@ static inline int jnode_key_eq( const jnode_key_t *k1, const jnode_key_t *k2 )
 	assert( "nikita-2350", k1 != NULL );
 	assert( "nikita-2351", k2 != NULL );
 
-	return !memcmp( k1, k2, sizeof *k1 );
+	return ( k1 -> index == k2 -> index && k1 -> objectid == k2 -> objectid );
 }
 
 /** Hash jnode by its key (inode plus offset). Used by hash-table macros */
@@ -52,8 +53,9 @@ static inline __u32 jnode_key_hashfn( const jnode_key_t *key )
 
 	assert( "nikita-2352", key != NULL );
 
-	shift  = ( __u32 ) key -> mapping;
-	shift /= ( sizeof( struct inode ) & ~ ( sizeof ( struct inode ) - 1 ) );
+	shift  = (( ( __u32 )( key -> objectid & 0xffffffff ) ) |
+		  ( ( __u32 )( key -> objectid >> 32 ) ) );
+	/*shift /= ( sizeof( struct inode ) & ~ ( sizeof ( struct inode ) - 1 ) );*/
 	shift += ( __u32 ) key -> index;
 
 	hash = shift + ( shift >> REISER4_JNODE_HASH_TABLE_BITS );
@@ -215,16 +217,15 @@ jnode * jnew (void)
 
 /** look for jnode with given mapping and offset within hash table */
 jnode *jlook (reiser4_tree *tree, 
-	      struct address_space *mapping, unsigned long index)
+	      __u64 objectid, unsigned long index)
 {
 	jnode_key_t  jkey;
 	jnode       *node;
 
 	assert( "nikita-2353", tree != NULL );
-	assert( "nikita-2354", mapping != NULL );
 	assert( "nikita-2355", spin_tree_is_locked( tree ) );
 
-	jkey.mapping = mapping;
+	jkey.objectid = objectid;
 	jkey.index   = index;
 	node = j_hash_find( &tree -> jhash_table, &jkey );
 	if( node != NULL )
@@ -259,7 +260,7 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 		/** check hash-table first */
 		tree = tree_by_page (pg);
 		spin_lock_tree (tree);
-		in_hash = jlook (tree, pg->mapping, pg->index);
+		in_hash = jlook (tree, get_inode_oid (pg->mapping->host), pg->index);
 		if (in_hash != NULL) {
 			assert ("nikita-2358", jnode_page (in_hash) == NULL);
 			spin_unlock_tree (tree);
@@ -283,8 +284,9 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 
 			jref (jal);
 
-			jal->key.j.mapping = pg->mapping;
-			jal->key.j.index   = pg->index;
+			jal->key.j.mapping  = pg->mapping;
+			jal->key.j.objectid = get_inode_oid (pg->mapping->host);
+			jal->key.j.index    = pg->index;
 
 			jtable = &tree->jhash_table;
 			assert ("nikita-2357", 
@@ -301,7 +303,8 @@ jnode* jget (reiser4_tree *tree, struct page *pg)
 
 	assert ("nikita-2046", jnode_page(jprivate(pg)) == pg);
 	assert ("nikita-2364", jprivate(pg)->key.j.index == pg -> index);
-	assert ("nikita-2365", jprivate(pg)->key.j.mapping == pg -> mapping);
+	assert ("nikita-23657", jprivate(pg)->key.j.mapping == pg -> mapping);
+	assert ("nikita-2365", jprivate(pg)->key.j.objectid == pg -> mapping -> host -> i_ino);
 
 	if (jal != NULL) {
 		jfree(jal);
@@ -1304,9 +1307,8 @@ void info_jnode( const char *prefix /* prefix to print */,
 	      atomic_read( &node -> d_count ), atomic_read( &node -> x_count ),
 	      jnode_page( node ), jnode_type_name( jnode_get_type( node ) ) );
 	if( jnode_is_unformatted( node ) ) {
-		info( "inode: %li, index: %lu, ", 
-		      node -> key.j.mapping -> host -> i_ino, 
-		      node -> key.j.index );
+		info( "inode: %llu, index: %lu, ", 
+		      node -> key.j.objectid, node -> key.j.index );
 	}
 }
 
