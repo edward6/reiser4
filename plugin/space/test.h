@@ -14,12 +14,12 @@ typedef struct {
 	reiser4_block_nr new_block_nr;
 } test_space_allocator;
 
-int test_init_allocator(reiser4_space_allocator *, struct super_block *, void *arg);
-int test_alloc_blocks(reiser4_space_allocator *,
+int init_allocator_test(reiser4_space_allocator *, struct super_block *, void *arg);
+int alloc_blocks_test(reiser4_space_allocator *,
 		      reiser4_blocknr_hint *, int needed, reiser4_block_nr * start, reiser4_block_nr * len);
-void test_dealloc_blocks(reiser4_space_allocator *, reiser4_block_nr start, reiser4_block_nr len);
-void test_check_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired);
-void test_print_info(const char *, reiser4_space_allocator *);
+void dealloc_blocks_test(reiser4_space_allocator *, reiser4_block_nr start, reiser4_block_nr len);
+void check_blocks_test(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired);
+void print_info_test(const char *, reiser4_space_allocator *);
 
 /* __TEST_H__ */
 #endif

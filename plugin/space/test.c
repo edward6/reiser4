@@ -15,7 +15,7 @@
 
 /* plugin->u.space_allocator.init_allocator */
 int
-test_init_allocator(reiser4_space_allocator * allocator, struct super_block *super UNUSED_ARG, void *arg)
+init_allocator_test(reiser4_space_allocator * allocator, struct super_block *super UNUSED_ARG, void *arg)
 {
 	reiser4_block_nr *next;
 
@@ -42,8 +42,9 @@ test_init_allocator(reiser4_space_allocator * allocator, struct super_block *sup
 
 /* plugin->u.space_allocator.alloc_blocks */
 int
-test_alloc_blocks(reiser4_space_allocator * allocator, reiser4_blocknr_hint * hint, int needed, reiser4_block_nr * start	/* first of allocated blocks */
-		  , reiser4_block_nr * num /* num of allocated blocks */ )
+alloc_blocks_test(reiser4_space_allocator * allocator, reiser4_blocknr_hint * hint, int needed,
+		  reiser4_block_nr * start, /* first of allocated blocks */
+		  reiser4_block_nr * num /* num of allocated blocks */ )
 {
 	int p;
 	reiser4_block_nr min_free;
@@ -118,7 +119,7 @@ test_alloc_blocks(reiser4_space_allocator * allocator, reiser4_blocknr_hint * hi
 }
 
 void
-test_dealloc_blocks(reiser4_space_allocator * allocator UNUSED_ARG,
+dealloc_blocks_test(reiser4_space_allocator * allocator UNUSED_ARG,
 		    reiser4_block_nr start UNUSED_ARG, reiser4_block_nr len UNUSED_ARG)
 {
 	trace_on(TRACE_ALLOC, "test_dealloc_blocks: %llu blocks from %llu\n", start, len);
@@ -126,7 +127,7 @@ test_dealloc_blocks(reiser4_space_allocator * allocator UNUSED_ARG,
 }
 
 void
-test_check_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
+check_blocks_test(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
 {
 	test_space_allocator *allocator;
 
@@ -144,7 +145,7 @@ test_check_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len, 
 }
 
 void
-test_print_info(const char *str, reiser4_space_allocator * allocator)
+print_info_test(const char *str, reiser4_space_allocator * allocator)
 {
 	spin_lock(&allocator->u.test.guard);
 	printk("%s: test space allocator: next free block is %lli\n", str, allocator->u.test.new_block_nr);

@@ -529,7 +529,7 @@ done_bnode(struct bnode *bnode)
 /* plugin->u.space_allocator.init_allocator
     constructor of reiser4_space_allocator object. It is called on fs mount */
 int
-bitmap_init_allocator(reiser4_space_allocator * allocator, struct super_block *super, void *arg UNUSED_ARG)
+init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *super, void *arg UNUSED_ARG)
 {
 	struct bitmap_allocator_data *data = NULL;
 	bmap_nr_t bitmap_blocks_nr;
@@ -571,7 +571,7 @@ bitmap_init_allocator(reiser4_space_allocator * allocator, struct super_block *s
 /* plugin->u.space_allocator.destroy_allocator
    destructor. It is called on fs unmount */
 int
-bitmap_destroy_allocator(reiser4_space_allocator * allocator, struct super_block *super)
+destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *super)
 {
 	bmap_nr_t bitmap_blocks_nr;
 	bmap_nr_t i;
@@ -841,7 +841,7 @@ search_one_bitmap(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset, in
 
 /* allocate contiguous range of blocks in bitmap */
 
-int
+static int
 bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end, int min_len, int max_len)
 {
 	bmap_nr_t bmap, end_bmap;
@@ -878,7 +878,7 @@ out:
 /* plugin->u.space_allocator.alloc_blocks() */
 /* Audited by: green(2002.06.12) */
 int
-bitmap_alloc_blocks(reiser4_space_allocator * allocator UNUSED_ARG,
+alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
 		    reiser4_blocknr_hint * hint, int needed, reiser4_block_nr * start, reiser4_block_nr * len)
 {
 	struct super_block *super = get_current_context()->super;
@@ -938,7 +938,7 @@ out:
    of temporary objects like wandered blocks and transaction commit records
    requires immediate node deletion from WORKING BITMAP.*/
 void
-bitmap_dealloc_blocks(reiser4_space_allocator * allocator UNUSED_ARG, reiser4_block_nr start, reiser4_block_nr len)
+dealloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG, reiser4_block_nr start, reiser4_block_nr len)
 {
 	struct super_block *super = reiser4_get_current_sb();
 
@@ -971,8 +971,9 @@ bitmap_dealloc_blocks(reiser4_space_allocator * allocator UNUSED_ARG, reiser4_bl
 
 #if REISER4_DEBUG
 
+/* plugin->u.space_allocator.check_blocks(). */
 void
-bitmap_check_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
+check_blocks_bitmap(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
 {
 	struct super_block *super = reiser4_get_current_sb();
 
@@ -1092,6 +1093,7 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 	return 0;
 }
 
+/* plugin->u.space_allocator.pre_commit_hook(). */
 /* It just applies transaction changes to fs-wide COMMIT BITMAP, hoping the
    rest is done by transaction manager (allocate wandered locations for COMMIT
    BITMAP blocks, copy COMMIT BITMAP blocks data). */
@@ -1099,7 +1101,7 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
    only one transaction can be committed a time, therefore it is safe to access
    some global variables without any locking */
 void
-bitmap_pre_commit_hook(void)
+pre_commit_hook_bitmap(void)
 {
 	struct super_block * super = reiser4_get_current_sb();
 	txn_atom *atom;
