@@ -127,7 +127,7 @@ blk_t reiserfs_super_offset(reiserfs_fs_t *fs) {
     return fs->super->plugin->format.offset(fs->super->entity);
 }
 
-blk_t reiserfs_super_root(reiserfs_fs_t *fs) {
+blk_t reiserfs_super_get_root(reiserfs_fs_t *fs) {
     aal_assert("umka-112", fs != NULL, return 0);
     aal_assert("umka-113", fs->super != NULL, return 0);
 
@@ -135,12 +135,44 @@ blk_t reiserfs_super_root(reiserfs_fs_t *fs) {
     return fs->super->plugin->format.get_root(fs->super->entity);
 }
 
-count_t reiserfs_super_blocks(reiserfs_fs_t *fs) {
+count_t reiserfs_super_get_blocks(reiserfs_fs_t *fs) {
     aal_assert("umka-359", fs != NULL, return 0);
     aal_assert("umka-360", fs->super != NULL, return 0);
     
     reiserfs_plugin_check_routine(fs->super->plugin->format, get_blocks, return 0);
     return fs->super->plugin->format.get_blocks(fs->super->entity);
+}
+
+void reiserfs_super_set_root(reiserfs_fs_t *fs, blk_t root) {
+    aal_assert("umka-419", fs != NULL, return);
+    aal_assert("umka-420", fs->super != NULL, return);
+
+    reiserfs_plugin_check_routine(fs->super->plugin->format, set_root, return);
+    fs->super->plugin->format.set_root(fs->super->entity, root);
+}
+
+void reiserfs_super_set_blocks(reiserfs_fs_t *fs, count_t blocks) {
+    aal_assert("umka-421", fs != NULL, return);
+    aal_assert("umka-422", fs->super != NULL, return);
+    
+    reiserfs_plugin_check_routine(fs->super->plugin->format, set_blocks, return);
+    fs->super->plugin->format.set_blocks(fs->super->entity, blocks);
+}
+
+void reiserfs_super_set_free(reiserfs_fs_t *fs, count_t blocks) {
+    aal_assert("umka-423", fs != NULL, return);
+    aal_assert("umka-424", fs->super != NULL, return);
+    
+    reiserfs_plugin_check_routine(fs->super->plugin->format, set_free, return);
+    fs->super->plugin->format.set_free(fs->super->entity, blocks);
+}
+
+count_t reiserfs_super_get_free(reiserfs_fs_t *fs) {
+    aal_assert("umka-425", fs != NULL, return 0);
+    aal_assert("umka-426", fs->super != NULL, return 0);
+    
+    reiserfs_plugin_check_routine(fs->super->plugin->format, get_free, return 0);
+    return fs->super->plugin->format.get_free(fs->super->entity);
 }
 
 reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs) {

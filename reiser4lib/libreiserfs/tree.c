@@ -19,7 +19,7 @@ error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
 
-    root_blk = reiserfs_super_root(fs);
+    root_blk = reiserfs_super_get_root(fs);
 
 /*    if (reiserfs_fs_format_plugin_id(fs) == 0x2) {
 	if (!(fs->tree->root = reiserfs_node_open(fs->device, root_blk, 0x2)))
@@ -51,24 +51,16 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin
     if (!(fs->tree = aal_calloc(sizeof(*fs->tree), 0)))
 	return -1;
 
-    plugin_id = reiserfs_super_alloc_plugin(fs);
-    if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_ALLOC_PLUGIN, plugin_id))) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find allocator plugin by its id %x.", plugin_id);
-	goto error_free_tree;
-    }
-    
-    reiserfs_plugin_check_routine(plugin->alloc, find, goto error_free_tree);
-    if (!(root_blk = plugin->alloc.find(fs->alloc->entity, 0))) {
+    if (!(root_blk = reiserfs_alloc_find(fs))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't allocate block for root node.");
 	goto error_free_tree;
     }
-
-    reiserfs_plugin_check_routine(plugin->alloc, use, goto error_free_tree);
-    plugin->alloc.use(fs->alloc->entity, root_blk);
     
-    /* Here will be also allocation of leaf node */
+    reiserfs_alloc_use(fs, root_blk);
+    reiserfs_super_set_root(fs, root_blk);
+    
+    /* Here will be also allocated leaf node */
     
 /*    if (!(fs->tree->root = reiserfs_node_create(fs->device, root_blk, 
 	    node_plugin_id, REISERFS_ROOT_LEVEL))) 

@@ -18,9 +18,15 @@ extern error_t reiserfs_super_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t plu
 
 extern const char *reiserfs_super_format(reiserfs_fs_t *fs);
 
-extern blk_t reiserfs_super_root(reiserfs_fs_t *fs);
 extern blk_t reiserfs_super_offset(reiserfs_fs_t *fs);
-extern count_t reiserfs_super_blocks(reiserfs_fs_t *fs);
+
+extern blk_t reiserfs_super_get_root(reiserfs_fs_t *fs);
+extern count_t reiserfs_super_get_blocks(reiserfs_fs_t *fs);
+extern count_t reiserfs_super_get_free(reiserfs_fs_t *fs);
+
+extern void reiserfs_super_set_root(reiserfs_fs_t *fs, blk_t root);
+extern void reiserfs_super_set_blocks(reiserfs_fs_t *fs, count_t blocks);
+extern void reiserfs_super_set_free(reiserfs_fs_t *fs, count_t blocks);
 
 extern reiserfs_plugin_id_t reiserfs_super_journal_plugin(reiserfs_fs_t *fs);
 extern reiserfs_plugin_id_t reiserfs_super_alloc_plugin(reiserfs_fs_t *fs);

@@ -204,26 +204,23 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
 	return NULL;
 	
     fs->device = host_device;
-    
+
     if (reiserfs_master_create(fs, format_plugin_id, blocksize, uuid, label))    
 	goto error_free_fs;
-	    
+
     if (reiserfs_alloc_create(fs, alloc_plugin_id, len))
 	goto error_free_master;
-    
+
     if (reiserfs_super_create(fs, format_plugin_id, len))
 	goto error_free_alloc;
-	
+
     if (reiserfs_journal_create(fs, journal_device, journal_params))
 	goto error_free_super;
-	
+
     if (reiserfs_tree_create(fs, node_plugin_id))
 	goto error_free_journal;
     
-    /* Setting up free blocks value to format-specific super block */
-    reiserfs_plugin_check_routine(fs->super->plugin->format, set_free, goto error_free_journal);
-    fs->super->plugin->format.set_free(fs->super->entity, reiserfs_alloc_free(fs));
-
+    reiserfs_super_set_free(fs, reiserfs_alloc_free(fs));
     return fs;
 
 error_free_journal:
@@ -271,9 +268,9 @@ void reiserfs_fs_close(reiserfs_fs_t *fs) {
     
     aal_assert("umka-230", fs != NULL, return);
     
-/*    reiserfs_tree_close(fs);
+    reiserfs_tree_close(fs);
     if (fs->journal)
-	reiserfs_journal_close(fs);*/
+	reiserfs_journal_close(fs);
 	
     reiserfs_alloc_close(fs);
     reiserfs_super_close(fs);

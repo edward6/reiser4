@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
 	
 	aal_printf("Found reiserfs %s, block size %d, blocks: %d, used: %d, free: %d.\n", 
 	    reiserfs_fs_format(fs), reiserfs_fs_blocksize(fs), 
-	    reiserfs_super_blocks(fs), reiserfs_alloc_used(fs), 
+	    reiserfs_super_get_blocks(fs), reiserfs_alloc_used(fs), 
 	    reiserfs_alloc_free(fs));
     } else {
 	if (!(device = aal_file_open(argv[2], REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) {

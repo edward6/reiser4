@@ -154,7 +154,7 @@ reiserfs_bitmap_t *reiserfs_bitmap_alloc(blk_t len) {
     bitmap->used_blocks = 0;
     bitmap->total_blocks = len;
     bitmap->size = (len + 7) / 8;
-	
+    
     if (!(bitmap->map = (char *)aal_calloc(bitmap->size, 0)))
 	goto error_free_bitmap;
 	
@@ -220,7 +220,7 @@ error_t reiserfs_bitmap_pipe(reiserfs_bitmap_t *bitmap,
     for (left = bitmap->size, blk = bitmap->start, map = bitmap->map; left > 0; ) {	
 	chunk = (left < aal_device_get_blocksize(bitmap->device) ? left : 
 	    aal_device_get_blocksize(bitmap->device));
-		
+	
 	if (pipe_func && !pipe_func(bitmap->device, blk, map, chunk, NULL))
 	    return -1;
 		
@@ -268,7 +268,7 @@ reiserfs_bitmap_t *reiserfs_bitmap_create(aal_device_t *device,
     reiserfs_bitmap_t *bitmap;
     
     aal_assert("umka-363", device != NULL, return NULL);
-    
+
     if (!(bitmap = reiserfs_bitmap_alloc(len)))
 	return NULL;
 	

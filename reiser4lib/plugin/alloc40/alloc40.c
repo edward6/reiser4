@@ -36,7 +36,7 @@ error:
 }
 
 static reiserfs_alloc40_t *reiserfs_alloc40_create(aal_device_t *device, 
-    blk_t offset, count_t len)
+    count_t len)
 {
     reiserfs_alloc40_t *alloc;
 

@@ -36,7 +36,7 @@ error_t reiserfs_alloc_open(reiserfs_fs_t *fs) {
     fs->alloc->plugin = plugin;
 
     reiserfs_plugin_check_routine(plugin->alloc, open, goto error_free_alloc);
-    if (!(fs->alloc->entity = plugin->alloc.open(fs->device, reiserfs_super_blocks(fs)))) {
+    if (!(fs->alloc->entity = plugin->alloc.open(fs->device, reiserfs_super_get_blocks(fs)))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize block allocator plugin.");
 	goto error_free_alloc;
