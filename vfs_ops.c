@@ -2585,14 +2585,10 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 	   (mapping + private + page_cache_get() by shrink_cache()) */
 	if (page_count(page) > 3) {
-		/*if (JF_ISSET(node, JNODE_EFLUSH))
-		  info_jnode("reiser4_releasepage: count is too big: !not releasable node!!", node);*/
-		return 0;
+		return 1;
 	}
 
 	if (PageDirty(page)) {
-		/*if (JF_ISSET(node, JNODE_EFLUSH))
-		  info_jnode("reiser4_releasepage: page is dirty: !not releasable node!!", node);*/
 		return 0;
 	}
 
@@ -2617,12 +2613,11 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		/* return with page still locked. shrink_cache() expects this. */
 		REISER4_EXIT(1);
 	} else {
-		/**/
-		/*if (JF_ISSET(node, JNODE_EFLUSH))
-		  info_jnode("reiser4_releasepage: !not releasable node!!", node);*/
 		UNLOCK_JNODE(node);
 		assert("nikita-3020", schedulable());
-		return 0;
+		/* return non-zero. We don't want page to go to the active
+		 * list */
+		return 1;
 	}
 }
 
