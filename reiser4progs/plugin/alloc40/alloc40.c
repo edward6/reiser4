@@ -45,7 +45,7 @@ static errno_t callback_fetch_bitmap(reiser4_entity_t *format,
     current = start + (aal_block_size(block) * (blk / aal_block_size(block) / 8));
     
     chunk = (start + alloc->bitmap->size - current < (int)aal_block_size(block) ? 
-	start + alloc->bitmap->size - current : aal_block_size(block));
+	(int)(start + alloc->bitmap->size - current) : (int)aal_block_size(block));
     
     aal_memcpy(current, block->data, chunk);
     
@@ -168,7 +168,7 @@ static errno_t callback_flush_bitmap(reiser4_entity_t *format,
 	(blk / aal_block_size(block) / 8));
     
     chunk = (start + alloc->bitmap->size - current < (int)aal_block_size(block) ? 
-	start + alloc->bitmap->size - current : aal_block_size(block));
+	(int)(start + alloc->bitmap->size - current) : (int)aal_block_size(block));
 	    
     aal_memcpy(block->data, current, chunk);
     
