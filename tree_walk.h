@@ -18,6 +18,7 @@ int connect_znode(coord_t * coord, znode * node);
 
   @return : 0        - OK, 
 
+ZAM-FIXME-HANS: wrong return code name.  Change them all.
 	    -ENOENT  - neighbor is not in cache, what is detected by sibling
 	               link absence.
 
@@ -30,6 +31,10 @@ int connect_znode(coord_t * coord, znode * node);
             -EDEADLK - deadlock detected (request from high-priority process
 	               received), other error codes are conformed to
 		       /usr/include/asm/errno.h .
+
+ZAM-FIXME-HANS: unconform them, all of them.  They have no place in the internals of the filesystem except when they are
+returned to user space.  It would be equally useful to use Xwindows error codes, I cannot understand what inspired this,
+try to understand rather than conform in the future.
 
     * pointer to lock stack is not passed because we have magic
     * get_current_stack() function.
@@ -46,17 +51,18 @@ int reiser4_get_parent(lock_handle * result, znode * node, znode_lock_mode mode,
 typedef enum {
 	/* allows to read block from disk */
 	GN_DO_READ = 0x1,
-	/* locking left neighbor in stead of right one */
+	/* locking left neighbor instead of right one */
 	GN_GO_LEFT = 0x2,
 	/* automatically load neighbor node content */
 	GN_LOAD_NEIGHBOR = 0x4,
 	/* return -EAGAIN if can't lock  */
 	GN_TRY_LOCK = 0x8,
-	/* used internally in tree_walk.c, causes renew_sibling do not
-	   allocate neighbor znode, but only search for him in znode cache */
+	/* used internally in tree_walk.c, causes renew_sibling to not
+	   allocate neighbor znode, but only search for it in znode cache */
 	GN_NO_ALLOC = 0x10,
 	/* do not go across atom boundaries */
 	GN_SAME_ATOM = 0x20,
+/* ZAM-FIXME-HANS: would GN_LOCK_NOT_CONNECTED be a better name? */
 	/* allow to lock not connected nodes */
 	GN_ALLOW_NOT_CONNECTED = 0x40
 } znode_get_neigbor_flags;
@@ -86,7 +92,7 @@ extern void sibling_list_insert(znode * new, znode * before);
 extern void sibling_list_insert_nolock(znode * new, znode * before);
 extern void link_left_and_right(znode * left, znode * right);
 
-
+/* ZAM-FIXME-HANS: could use a comment, eh? */
 struct tree_walk_actor {
 	int (*process_znode)(tap_t* , void*);
 	int (*process_extent)(tap_t*, void*);
