@@ -108,6 +108,11 @@ typedef struct fplug {
 	    reiserfs_update_sd() in 3.x */
 	int ( *reiser4_write_inode)( struct inode *inode );
 	int ( *reiser4_readpage )( struct file *file, struct page * );
+	ssize_t ( *reiser4_read )( struct file *file, char *buf, size_t size, 
+			 loff_t *off );
+	ssize_t ( *reiser4_write )( struct file *file, char *buf, size_t size, 
+			 loff_t *off );
+
 	
 /* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to implement a
 	   deviation from some other method that uses them.  You could logically argue that they should be a separate
@@ -202,12 +207,6 @@ typedef struct reiser4_file_plugin {
 	    mid-air. This is called on object creation. */
 	int ( *inherit )( struct inode *inode, 
 			  struct inode *parent, struct inode *root );
-
-	/**
-	 * read from/write on object
-	 */
-	ssize_t ( *io )( struct file *file, char *buf, size_t size, 
-			 loff_t *off, rw_op op );
 
 	/** read-write methods */
 	rw_f_type rw_f[ WRITE_OP + 1 ];
