@@ -460,6 +460,9 @@ hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long
 
 	jtable = &node->tree->jhash_table;
 
+	/* when no spin locks are held, preload radix tree node. */
+	check_me("zam-992", radix_tree_preload(GFP_KERNEL) == 0);
+
 	WLOCK_TREE(node->tree);
 	/* race with some other thread inserting jnode into the hash table is
 	 * impossible, because we keep the page lock. */
@@ -473,6 +476,8 @@ hash_unformatted_jnode(jnode *node, struct address_space *mapping, unsigned long
 	inode_attach_jnode(node);
 
 	WUNLOCK_TREE(node->tree);
+
+	radix_tree_preload_end();
 }
 
 static void
