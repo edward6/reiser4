@@ -212,17 +212,18 @@ int init_inode( struct inode *inode /* inode to intialise */,
 */
 static int read_inode( struct inode * inode /* inode to read from disk */ )
 {
-	int          result;
-	reiser4_key  key;
-	tree_coord  coord;
-	lock_handle lh;
+	int                 result;
+	reiser4_key         key;
+	lock_handle         lh;
+	reiser4_inode_info *info;
 
 	assert( "nikita-298", inode != NULL );
 	
 	if( is_inode_loaded( inode ) )
 		return 0;
 
-	if( reiser4_inode_data( inode ) -> locality_id == 0 ) {
+	info = reiser4_inode_data( inode );
+	if( info -> locality_id == 0 ) {
 		warning( "nikita-300", "no locality in inode %lx",
 			 ( long ) inode -> i_ino );
 		make_bad_inode( inode );
@@ -231,31 +232,31 @@ static int read_inode( struct inode * inode /* inode to read from disk */ )
 
 	/* Release inode lock during io. */
 	reiser4_unlock_inode( inode );
-	init_coord( &coord );
+	init_coord( &info -> sd_coord );
 	init_lh( &lh );
 	/* locate stat-data in a tree and return znode locked */
-	result = lookup_sd( inode, ZNODE_READ_LOCK, &coord, &lh, &key );
+	result = lookup_sd( inode, ZNODE_READ_LOCK, 
+			    &info -> sd_coord, &lh, &key );
 	reiser4_lock_inode( inode );
 	if( ( result == 0 ) && ! is_inode_loaded( inode ) ) {
 		*reiser4_inode_flags( inode ) |= REISER4_LOADED;
 		assert( "nikita-301", is_inode_loaded( inode ) );
 		/* use stat-data plugin to load sd into inode. */
-		result = init_inode( inode, &coord );
+		result = init_inode( inode, &info -> sd_coord );
 		if( result == 0 ) {
-			/*
-			 * setup inode number and locality id from key.
-			 */
+			/* setup inode number and locality id from key. */
 			inode -> i_ino = get_key_objectid( &key );
 			assert( "nikita-1271", 
-				reiser4_inode_data( inode ) -> 
-				locality_id == get_key_locality( &key ) );
+				info -> locality_id == get_key_locality( &key ) );
+			/* initialise stat-data seal */
+			seal_init( &info -> sd_seal, &info -> sd_coord, &key );
 		}
 	}
 	/* lookup_sd() doesn't release coord because we want znode
 	   stay read-locked while stat-data fields are accessed in
 	   init_inode() */
 	done_lh( &lh );
-	done_coord( &coord );
+	done_coord( &info -> sd_coord );
 	if( result != 0 ) {
 		if( inode != NULL )
 			make_bad_inode( inode );
