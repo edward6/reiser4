@@ -2003,16 +2003,19 @@ update_znode_dkeys(znode * left, znode * right)
 		/* update left delimiting key of @right */
 		znode_set_ld_key(right, &key);
 		return;
-	} else if (!node_is_empty(left) && !node_is_empty(right)) {
+	}
+	if (!node_is_empty(left) && !node_is_empty(right)) {
 		/* update right delimiting key of @left */
 		znode_set_rd_key(left, &key);
 		/* update left delimiting key of @right */
 		znode_set_ld_key(right, &key);
 		return;
-	} else if (node_is_empty(left) && node_is_empty(right))
-		/* AUDIT: there are 2 checks below both stating that both nodes cannot be empty, yet we return success before we even had a chance to check for the error. Perhaps some typo is here? */
+	}
+	if (node_is_empty(left) && node_is_empty(right))
+		/* AUDIT: there are 2 checks below both stating that both nodes cannot be empty, yet we return success
+		   before we even had a chance to check for the error. Perhaps some typo is here? */
 		return;
-	else if (node_is_empty(left)) {
+	if (node_is_empty(left)) {
 		assert("vs-186", !node_is_empty(right));
 
 		/* update right delimiting key of @left */
