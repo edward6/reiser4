@@ -100,7 +100,7 @@ struct flush_position {
 	 * commits, causing the internal node to be re-written.  This is how it will be
 	 * fixed:
 	 *
-	 * 1. (FINISHED ALREADY: flush_scan_rapid()) In scan-left (but not right), after counting at least RELOCATE_THRESHOLD
+	 * 1. (ALMOST FINISHED: flush_scan_rapid()) In scan-left (but not right), after counting at least RELOCATE_THRESHOLD
 	 * nodes, flush begins an accelerated scan-left trying to find a node which is the
 	 * leftmost child of its parent with a left-neighbor that is clean.  The scan
 	 * end-point skips past non-rightmost, non-leftmost children of the parent because
@@ -1554,6 +1554,8 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 
 		internal_update (parent_coord, blk);
 
+		znode_set_dirty (parent_coord->node);
+
 	} else {
 		znode *fake = zget (current_tree, &FAKE_TREE_ADDR, NULL, 0 , GFP_KERNEL);
 
@@ -2295,12 +2297,8 @@ static int flush_scan_goto (flush_scan *scan, jnode *tonode)
  * parent coordinate. */
 static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_size, const coord_t *parent)
 {
-	int ret;
-
+	/* Release the old references, take the new reference. */
 	done_dh (& scan->node_load);
-	if ((ret = load_dh_jnode (& scan->node_load, node))) {
-		return ret;
-	}
 
 	if (scan->node != NULL) {
 		jput (scan->node);
@@ -2317,7 +2315,9 @@ static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_s
 		coord_dup (& scan->parent_coord, parent);
 	}
 
-	return 0;
+	/* Failure may happen at the load_dh call, but the caller can assume the reference
+	 * is safely taken. */
+	return load_dh_jnode (& scan->node_load, node);
 }
 
 /* Return true if scanning in the leftward direction. */
@@ -2899,6 +2899,8 @@ static int flush_scan_rapid (flush_scan *scan)
 		return 0;
 	}
 
+	/* FIXME: Need to unset scan->node somewhere here so we can tell if all the children are clean.  Or can that not happen? */
+
 	/* If the current scan position is formatted, get the parent coordinate so we can
 	 * test leftmost/rightmost.  Otherwise, we're already set.  Also, if we are at a
 	 * formatted position we already have scan->point_lock holding a lock on
@@ -3006,16 +3008,45 @@ static int flush_scan_rapid (flush_scan *scan)
  * This routine finds that node and sets scan->node, scan->parent_coord appropriately.
  * The structure of this code resembles the flush_scan_formatted and
  * flush_scan_extent_coord functions, except the logic is inverted: we want to scan past
- * clean/not-same-atom nodes and stop at the first dirty node in this pass.  Should we
- * fuse atoms if we find a dirty not same atom node?  Probabaly yes. */
+ * clean nodes and stop at the first dirty node in this pass.  We disregard the atom here
+ * and allow children in different atoms to fuse later during flush. */
 static int flush_scan_leftmost_dirty_unit (flush_scan *scan)
 {
+	int ret;
+
 	/* Starting from the leftmost unit... */
-	coord_init_first_unit (& scan->parent_coord, scan->parent_coord.node);
+	coord_init_before_first_item (& scan->parent_coord, scan->parent_coord.node);
 
-	/* FIXME: NOT FINISHED HERE. */
+	while (coord_next_unit (& scan->parent_coord) == 0) {
 
-	return 0;
+		/* Handle items by type: */
+		if (item_is_internal (& scan->parent_coord)) {
+
+			/* The internal item case is simple, check the only child and do
+			 * stop if it is dirty. */
+			jnode *child;
+
+			if ((ret = item_utmost_child (& scan->parent_coord, LEFT_SIDE, & child))) {
+				return ret;
+			}
+
+			/* Just check if it is dirty, not the atom. */
+			if (! jnode_check_dirty (child)) {
+				jput (child);
+				continue;
+			}
+
+			ret = flush_scan_set_current (scan, child, 1 /* add_size is irrelevant at this point */, NULL);
+			break;
+
+		} else {
+			assert ("jmacd-81900", item_is_extent (& scan->parent_coord));
+
+			/* FIXME: UNIMPLEMENTED */
+		}
+	} while ( == 0
+
+	return ret;
 }
 
 /********************************************************************************
