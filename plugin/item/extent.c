@@ -2744,6 +2744,19 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 	orig_ext = *extent_by_coord(un_extent);
 	orig_znode = un_extent->node;
 
+	/*
+	 * make sure that key is set properly
+	 */
+	if (REISER4_DEBUG) {
+		reiser4_key tmp;
+		
+		unit_key_by_coord(un_extent, &tmp);
+		set_key_offset(&tmp,
+			       get_key_offset(&tmp) +
+			       extent_get_width(new_ext) * current_blocksize);
+		assert("vs-1080", keyeq(&tmp, key));
+	}
+
 	/* set insert point after unit to be replaced */
 	un_extent->between = AFTER_UNIT;
 	result = insert_into_item(un_extent,
@@ -3093,9 +3106,8 @@ plug_hole(coord_t * coord, lock_handle * lh, reiser4_key * key)
 	/* insert_into_item will insert new units after the one @coord is set
 	 * to. So, update key correspondingly */
 	unit_key_by_coord(coord, key);	/* FIXME-VS: how does it work without this? */
-	set_key_offset(key, get_key_offset(key) +
-		       (pos_in_unit +
-			extent_get_width(&replace)) * current_blocksize);
+	set_key_offset(key, (get_key_offset(key) +
+			     extent_get_width(&replace) * current_blocksize));
 
 	return replace_extent(coord, lh, key,
 			      init_new_extent(&item, new_exts, count), &replace, 0	/* flags */
