@@ -46,17 +46,12 @@ int file_is_built_of_extents(const struct inode *inode)
 
 void set_file_state(struct inode *inode, item_id id)
 {
-	if (!inode_get_flag(inode, REISER4_FILE_STATE_KNOWN)) {
+	if (id == TAIL_ID)
+		inode_set_flag(inode, REISER4_BUILT_OF_TAILS);
+	else
+		inode_clr_flag(inode, REISER4_BUILT_OF_TAILS);
+	if (!inode_get_flag(inode, REISER4_FILE_STATE_KNOWN))
 		inode_set_flag(inode, REISER4_FILE_STATE_KNOWN);
-		if (id == TAIL_ID)
-			inode_set_flag(inode, REISER4_BUILT_OF_TAILS);
-		else
-			inode_clr_flag(inode, REISER4_BUILT_OF_TAILS);
-	} else {
-		/* tail state is claimed to be known, check whether it is known right */
-		assert("vs-1089", ((id == TAIL_ID && inode_get_flag(inode, REISER4_BUILT_OF_TAILS)) ||
-				   (id == EXTENT_POINTER_ID && !inode_get_flag(inode, REISER4_BUILT_OF_TAILS))));
-	}
 }
 
 /* get key of item next to one @coord is set to */
