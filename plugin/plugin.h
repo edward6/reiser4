@@ -342,6 +342,8 @@ typedef struct hash_plugin {
 typedef struct crypto_plugin {
 	/* generic fields */
 	plugin_header h;
+	/* secret key size */
+	unsigned keysize;
 	/* encryption atom size */
 	int (*blocksize)(struct inode *inode);
 	/* align manager */
@@ -615,7 +617,7 @@ typedef struct crc_object_create_data {
         reiser4_crypto_id      cra; /* id of the crypto algorithm */
         reiser4_compression_id coa; /* id of the compression algorithm */        
         __u8 * key;                 /* secret key */
-        __u8 * key_id;              /* secret key identification word */
+        __u8 * keyid;              /* secret key identification word */
 }crc_object_create_data;
 
 /* data type used to pack parameters that we pass to vfs
