@@ -2003,7 +2003,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 	/* make tree high enough */
 #define NAME_LENGTH 10
-	for (i = 0; i < 1; i ++) {
+	for (i = 0; tree->height < TWIG_LEVEL ; i ++) {
 		char name [NAME_LENGTH];
 		
 		memset (name, '0' + i, NAME_LENGTH - 1);
@@ -2012,7 +2012,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 	}
 
 	/* to insert extent items tree must be at least this high */
-	/*assert ("vs-359", tree->height > 1);*/
+	assert ("vs-359", tree->height > LEAF_LEVEL);
 
 
 	if (argc == 2) {
