@@ -4,6 +4,24 @@
 /*
  * Lnode manipulation functions.
  */
+/*
+ * Lnode is light-weight node used as common data-structure by both VFS access
+ * paths and reiser4() system call processing.
+ *
+ * One of the main targets of reiser4() system call is to allow manipulation
+ * on potentially huge number of objects. This makes use of inode in reiser4()
+ * impossible. On the other hand there is a need to synchronize reiser4() and
+ * VFS access.
+ *
+ * To do this small object (lnode) is allocated (on the stack if possible) for
+ * each object involved into reiser4() system call. Such lnode only contains
+ * lock, key and is linked into global hash table.
+ *
+ *
+ *
+ *
+ *
+ */
 
 #include "reiser4.h"
 
