@@ -641,11 +641,12 @@ void longterm_unlock_znode (lock_handle *handle)
 
 	assert ("jmacd-1021", handle != NULL);
 	assert ("jmacd-1022", handle->owner != NULL);
-	assert ("nikita-1392", lock_counters()->long_term_locked_znode > 0);
+	ON_DEBUG_CONTEXT (assert ("nikita-1392", 
+				  lock_counters()->long_term_locked_znode > 0));
 
 	assert("zam-130", oldowner == get_current_lock_stack());
 
-	ON_DEBUG(-- lock_counters()->long_term_locked_znode);
+	ON_DEBUG_CONTEXT(-- lock_counters()->long_term_locked_znode);
 
 	spin_lock_znode(node);
 
@@ -747,8 +748,8 @@ int longterm_lock_znode (
 	/* Check that the lock handle is initialized and isn't already being used. */
 	assert ("jmacd-808", handle->owner == NULL);
 
-	assert ("nikita-1391", lock_counters()->spin_locked == 0);
-
+	ON_DEBUG_CONTEXT (assert ("nikita-1391", 
+				  lock_counters()->spin_locked == 0));
 	if (request & ZNODE_LOCK_NONBLOCK)  {
 		try_capture_flags |= TXN_CAPTURE_NONBLOCKING;
 		non_blocking = 1;
@@ -905,7 +906,7 @@ int longterm_lock_znode (
 		/* count a reference from lockhandle->node */
 		zref (node);
 
-		ON_DEBUG(++ lock_counters()->long_term_locked_znode);
+		ON_DEBUG_CONTEXT(++ lock_counters()->long_term_locked_znode);
 		if (REISER4_DEBUG && mode == ZNODE_WRITE_LOCK)
 			node_check (node, REISER4_NODE_PANIC);
 	}
@@ -1059,7 +1060,7 @@ void move_lh_internal (lock_handle * new, lock_handle * old, int unlink_old)
 		if (owner->curpri) {
 			node->lock.nr_hipri_owners += 1;
 		}
-		ON_DEBUG(++ lock_counters()->long_term_locked_znode);
+		ON_DEBUG_CONTEXT(++ lock_counters()->long_term_locked_znode);
 
 		zref (node);
 	}
