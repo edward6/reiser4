@@ -1043,7 +1043,7 @@ static int make_space_by_new_nodes( carry_op *op, carry_level *doing,
 	if( unlikely( result ) ) {
 		return result;
 	}
-
+	op -> u.insert_flow.new_nodes ++;
 	if( !coord_is_after_rightmost( flow_insert_point( op ) ) ) {
 		carry_shift_data( RIGHT_SIDE, flow_insert_point( op ),
 				  new -> real_node, doing, todo,
@@ -1067,6 +1067,7 @@ static int make_space_by_new_nodes( carry_op *op, carry_level *doing,
 		if( unlikely( result ) ) {
 			return result;
 		}		
+		op -> u.insert_flow.new_nodes ++;
 	}
 
 	/* move insertion point to new node */
@@ -1167,7 +1168,7 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 			pos_in_node new_pos;
 
 			/* FIXME-VS: this is because node40_create_item changes
-			 * insert_point for some reasons */
+			 * insert_point for obscure reasons */
 			switch( insert_point -> between ) {
 			case AFTER_ITEM:
 				new_pos = insert_point -> item_pos + 1;
