@@ -1343,7 +1343,7 @@ read_super_block:
 
 		unlock_new_inode(inode);
 	}
-
+	s->s_maxbytes = MAX_LFS_FILESIZE;
 	reiser4_sysfs_init(s);
 
 	if (!silent)
