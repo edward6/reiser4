@@ -358,3 +358,4 @@ reiser4lib/stamp-h
 reiser4lib/stamp-h.in
 bash.rc3
 MKFS-DEV-HDB6
+read
