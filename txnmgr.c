@@ -492,13 +492,13 @@ atom_get_locked_with_txnh_locked_nocheck(txn_handle * txnh)
 
 try_again:
 
-	spin_lock_txnh(txnh);
+	LOCK_TXNH(txnh);
 	atom = txnh->atom;
 
 	if (atom && !spin_trylock_atom(atom)) {
 		/* If the atom lock fails then it could be in the middle of fusion, which
 		   means that txnh->atom pointer might be updated. */
-		spin_unlock_txnh(txnh);
+		UNLOCK_TXNH(txnh);
 
 		/* Busy loop. */
 		goto try_again;
@@ -523,7 +523,7 @@ get_current_atom_locked_nocheck(void)
 
 	atom = atom_get_locked_with_txnh_locked_nocheck(txnh);
 
-	spin_unlock_txnh(txnh);
+	UNLOCK_TXNH(txnh);
 	return atom;
 }
 
@@ -595,7 +595,7 @@ same_atom_dirty(jnode * node, jnode * check, int alloc_check, int alloc_value)
 			compat &= (alloc_value == jnode_is_flushprepped(check));
 		}
 
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 	}
 
 	UNLOCK_JNODE(check);
@@ -626,22 +626,22 @@ atom_dec_and_unlock(txn_atom * atom)
 	if (--atom->refcount == 0) {
 		/* take txnmgr lock and atom lock in proper order. */
 		if (!spin_trylock_txnmgr(mgr)) {
-			/* This atom should exist after we re-aquire its
+			/* This atom should exist after we re-acquire its
 			 * spinlock, so we increment its reference counter. */
 			++ atom->refcount;
-			spin_unlock_atom(atom);
+			UNLOCK_ATOM(atom);
 			spin_lock_txnmgr(mgr);
-			spin_lock_atom(atom);
+			LOCK_ATOM(atom);
 		}
 		assert("nikita-2656", spin_txnmgr_is_locked(mgr));
 		if (--atom->refcount == 0) {
 			atom_free(atom);
 		} else {
-			spin_unlock_atom(atom);
+			UNLOCK_ATOM(atom);
 		}
 		spin_unlock_txnmgr(mgr);
 	} else {
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 	}
 }
 
@@ -661,7 +661,7 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 
 	/* Cannot allocate under those spinlocks. */
 	UNLOCK_JNODE(node);
-	spin_unlock_txnh(txnh);
+	UNLOCK_TXNH(txnh);
 
 	if (*atom_alloc == NULL) {
 		(*atom_alloc) = kmem_cache_alloc(_atom_slab, GFP_KERNEL);
@@ -676,7 +676,7 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	spin_lock_txnmgr(mgr);
 
 	LOCK_JNODE(node);
-	spin_lock_txnh(txnh);
+	LOCK_TXNH(txnh);
 
 	/* Check if both atom pointers are still NULL... */
 	if (node->atom != NULL || txnh->atom != NULL) {
@@ -684,7 +684,7 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 		/* NOTE-NIKITA probably it is rather better to free
 		 * atom_alloc here than thread it up to try_capture(). */
 
-		spin_unlock_txnh(txnh);
+		UNLOCK_TXNH(txnh);
 		UNLOCK_JNODE(node);
 		spin_unlock_txnmgr(mgr);
 
@@ -700,7 +700,7 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 
 	/* Take the atom and txnmgr lock. No checks for lock ordering, because
 	   @atom is new and inaccessible for others. */
-	spin_lock_atom_no_ord(atom, 0);
+	spin_lock_atom_no_ord(atom, 0, 0);
 
 	atom_list_push_back(&mgr->atoms_list, atom);
 
@@ -762,7 +762,7 @@ atom_free(txn_atom * atom)
 
 	assert("jmacd-16", atom_isclean(atom));
 
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 
 	kmem_cache_free(_atom_slab, atom);
 }
@@ -874,7 +874,7 @@ atom_try_commit_locked(txn_atom * atom)
 		/* jnode_flush requires node locks, which require the atom
 		   lock and so on.  We begin this processing with the atom in
 		   the CAPTURE_WAIT state, unlocked. */
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 
 		/* Call jnode_flush() without tree_lock held. */
 		ret = jnode_flush(first_dirty, NULL, JNODE_FLUSH_COMMIT);
@@ -913,7 +913,7 @@ atom_try_commit_locked(txn_atom * atom)
 		}
 	}
 
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 
 	ret = current_atom_finish_all_fq();
 
@@ -932,7 +932,7 @@ atom_try_commit_locked(txn_atom * atom)
 	if (ret < 0)
 		reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
 
-	spin_lock_atom(atom);
+	LOCK_ATOM(atom);
 
 	invalidate_clean_list(atom);
 
@@ -982,8 +982,8 @@ static int force_commit_atom_nolock (txn_handle * txnh)
 	txnh->flags |= TXNH_WAIT_COMMIT;
 	atom->flags |= ATOM_FORCE_COMMIT;
 
-	spin_unlock_txnh(txnh);
-	spin_unlock_atom(atom);
+	UNLOCK_TXNH(txnh);
+	UNLOCK_ATOM(atom);
 
 	if ((ret = txn_end(ctx)) < 0) {
 		return ret;
@@ -1006,7 +1006,7 @@ int txnmgr_force_commit_current_atom (void)
 	atom = atom_get_locked_with_txnh_locked_nocheck(txnh);
 
 	if (atom == NULL) {
-		spin_unlock_txnh(txnh);
+		UNLOCK_TXNH(txnh);
 		return 0;
 	}
 	
@@ -1043,12 +1043,12 @@ again:
 	for (atom = atom_list_front(&mgr->atoms_list);
 	     /**/ !atom_list_end(&mgr->atoms_list, atom); atom = atom_list_next(atom)) {
 
-		spin_lock_atom(atom);
+		LOCK_ATOM(atom);
 
 		if (atom->stage < ASTAGE_PRE_COMMIT) {
 
 			spin_unlock_txnmgr(mgr);
-			spin_lock_txnh(txnh);
+			LOCK_TXNH(txnh);
 
 			/* Add force-context txnh */
 			capture_assign_txnh_nolock(atom, txnh);
@@ -1061,7 +1061,7 @@ again:
 			goto again;
 		}
 
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 	}
 
 #if REISER4_DEBUG
@@ -1100,12 +1100,12 @@ commit_some_atoms(txn_mgr * mgr)
 	for (atom = atom_list_front(&mgr->atoms_list);
 	     /**/ !atom_list_end(&mgr->atoms_list, atom); atom = atom_list_next(atom)) {
 
-		spin_lock_atom(atom);
+		LOCK_ATOM(atom);
 
 		if ((atom->stage < ASTAGE_PRE_COMMIT) && (atom->txnh_count == 0) && atom_should_commit(atom))
 			break;
 
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 	}
 
 	ret = atom_list_end(&mgr->atoms_list, atom);
@@ -1117,7 +1117,7 @@ commit_some_atoms(txn_mgr * mgr)
 		return 0;
 	}
 
-	spin_lock_txnh(txnh);
+	LOCK_TXNH(txnh);
 
 	/* Set the atom to force committing */
 	atom->flags |= ATOM_FORCE_COMMIT;
@@ -1125,8 +1125,8 @@ commit_some_atoms(txn_mgr * mgr)
 	/* Add force-context txnh */
 	capture_assign_txnh_nolock(atom, txnh);
 
-	spin_unlock_txnh(txnh);
-	spin_unlock_atom(atom);
+	UNLOCK_TXNH(txnh);
+	UNLOCK_ATOM(atom);
 
 	/* we are about to release daemon spin lock, notify daemon it
 	   has to rescan atoms */
@@ -1156,7 +1156,7 @@ flush_this_atom(txn_atom * atom, long *nr_submitted, int flags)
 	if (first_dirty) {
 
 		jref(first_dirty);
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 
 		ret = jnode_flush(first_dirty, NULL, flags);
 
@@ -1171,7 +1171,7 @@ flush_this_atom(txn_atom * atom, long *nr_submitted, int flags)
 		/* If we cannot find more dirty blocks, just commit this atom */
 
 		atom->flags |= ATOM_FORCE_COMMIT;
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 
 		/* we can commit atom here */
 		ret = txn_end (ctx);
@@ -1198,7 +1198,7 @@ int flush_one_atom(txn_mgr * tmgr, long *nr_submitted, int flags)
 	     atom = atom_list_next(atom)) 
 	{
 		/* lock atom before checking its state */
-		spin_lock_atom(atom);
+		LOCK_ATOM(atom);
 
 		/* we need an atom which is not being committed and which has no
 		 * flushers (jnode_flush() add one flusher at the beginning and
@@ -1206,7 +1206,7 @@ int flush_one_atom(txn_mgr * tmgr, long *nr_submitted, int flags)
 		if (atom->stage < ASTAGE_PRE_COMMIT && atom->nr_flushers == 0)
 			goto found;
 
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 	}
 
 	/* no one atom can be flushed */
@@ -1228,7 +1228,7 @@ found:
 	   chosen */
 	txnh = ctx->trans;
 
-	spin_lock_txnh(txnh);
+	LOCK_TXNH(txnh);
 
 	if (txnh->atom) {
 		/* There is a minor probability that atom was assigned to our
@@ -1237,8 +1237,8 @@ found:
 		   algorithm, we have to continue we which was already assigned
 		   to us. */
 		if (txnh->atom != atom) {
-			spin_unlock_atom(atom);
-			spin_unlock_txnh(txnh);
+			UNLOCK_ATOM(atom);
+			UNLOCK_TXNH(txnh);
 
 			/* get current atom locked */
 			atom = atom_get_locked_with_txnh_locked(txnh);
@@ -1252,7 +1252,7 @@ found:
 	assert("zam-758", spin_txnh_is_locked(txnh));
 	assert("zam-759", atom == txnh->atom);
 
-	spin_unlock_txnh(txnh);
+	UNLOCK_TXNH(txnh);
 
 	/* Here we get atom which we can flush by calling flush_this_atom() */
 	{			
@@ -1282,7 +1282,7 @@ flush_some_atom(long *nr_submitted, int flags)
 	int ret;
 
 	atom = atom_get_locked_with_txnh_locked_nocheck(txnh);
-	spin_unlock_txnh(txnh);
+	UNLOCK_TXNH(txnh);
 
 	if (atom) {
 		ret = flush_this_atom(atom, nr_submitted, flags);
@@ -1328,13 +1328,13 @@ void atom_wait_event(txn_atom * atom)
 	init_wlinks(&_wlinks);
 	fwaitfor_list_push_back(&atom->fwaitfor_list, &_wlinks);
 	atom->refcount++;
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 
 	assert("nikita-3056", no_counters_are_held());
 	prepare_to_sleep(_wlinks._lock_stack);
 	go_to_sleep(_wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_EVENT);
 
-	spin_lock_atom (atom);
+	LOCK_ATOM (atom);
 	fwaitfor_list_remove(&_wlinks);
 	atom_dec_and_unlock (atom);
 }
@@ -1377,7 +1377,7 @@ again:
 
 	/* The txnh stays open while we try to commit, since it is still being used, but
 	   we don't need the txnh lock while trying to commit. */
-	spin_unlock_txnh(txnh);
+	UNLOCK_TXNH(txnh);
 
 	if (wait) {
 		atom->nr_waiters --;
@@ -1437,7 +1437,7 @@ again:
 
 	assert("jmacd-1027", spin_atom_is_locked(atom));
 done:
-	spin_lock_txnh(txnh);
+	LOCK_TXNH(txnh);
 
 	atom->txnh_count -= 1;
 	txnh->atom = NULL;
@@ -1446,7 +1446,7 @@ done:
 
 	trace_on(TRACE_TXN, "close txnh atom %u refcount %d\n", atom->atom_id, atom->refcount - 1);
 
-	spin_unlock_txnh(txnh);
+	UNLOCK_TXNH(txnh);
 	atom_dec_and_unlock(atom);
 
 	/* Note: We are ignoring the failure code.  Can't change the result of the caller.
@@ -1523,7 +1523,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 
 	/* Get txnh spinlock, this allows us to compare txn_atom pointers but it doesn't
 	   let us touch the atoms themselves. */
-	spin_lock_txnh(txnh);
+	LOCK_TXNH(txnh);
 
 	block_atom = node->atom;
 	txnh_atom = txnh->atom;
@@ -1594,7 +1594,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 			   granted because the block is committing.  Locks still held. */
 		} else {
 			if (mode & TXN_CAPTURE_DONT_FUSE) {
-				spin_unlock_txnh(txnh);
+				UNLOCK_TXNH(txnh);
 				UNLOCK_JNODE(node);
 				return -E_NO_NEIGHBOR;
 			}
@@ -1638,7 +1638,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 				capture_assign_txnh_nolock(block_atom, txnh);
 				capture_assign_block_nolock(block_atom, node);
 
-				spin_unlock_atom(block_atom);
+				UNLOCK_ATOM(block_atom);
 			} else {
 				/* all locks are released already */
 				return PTR_ERR(block_atom);
@@ -1657,7 +1657,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 	assert("jmacd-741", spin_jnode_is_locked(node));
 
 	/* Release txnh lock, return with the jnode still locked. */
-	spin_unlock_txnh(txnh);
+	UNLOCK_TXNH(txnh);
 
 	return 0;
 }
@@ -1815,34 +1815,34 @@ check_not_fused_lock_owners(txn_handle * txnh, znode * node)
 
 		if (atomf == NULL) {
 			capture_assign_txnh_nolock(atomh, ctx->trans);
-			spin_unlock_txnh(ctx->trans);
+			UNLOCK_TXNH(ctx->trans);
 
 			reiser4_wake_up(lh->owner);
 			continue;
 		}
 
 		if (atomf == atomh) {
-			spin_unlock_txnh(ctx->trans);
+			UNLOCK_TXNH(ctx->trans);
 			continue;
 		}
 
 		if (!spin_trylock_atom(atomf)) {
-			spin_unlock_txnh(ctx->trans);
+			UNLOCK_TXNH(ctx->trans);
 			repeat = 1;
 			continue;
 		}
 
-		spin_unlock_txnh(ctx->trans);
+		UNLOCK_TXNH(ctx->trans);
 
 		if (atomf == atomh || atomf->stage > ASTAGE_CAPTURE_WAIT) {
-			spin_unlock_atom(atomf);
+			UNLOCK_ATOM(atomf);
 			continue;
 		}
 		// repeat = 1;
 
 		reiser4_wake_up(lh->owner);
 
-		spin_unlock_txnh(txnh);
+		UNLOCK_TXNH(txnh);
 		spin_unlock_znode(node);
 
 		/* @atomf is "small" and @atomh is "large", by
@@ -1854,11 +1854,11 @@ check_not_fused_lock_owners(txn_handle * txnh, znode * node)
 		return -EAGAIN;
 	}
 
-	spin_unlock_atom(atomh);
+	UNLOCK_ATOM(atomh);
 
 	if (repeat) {
 fail:
-		spin_unlock_txnh(txnh);
+		UNLOCK_TXNH(txnh);
 		spin_unlock_znode(node);
 		return -EAGAIN;
 	}
@@ -1908,7 +1908,7 @@ attach_txnh_to_node(txn_handle * txnh, jnode * node, txn_flags flags)
 	assert("jmacd-77918", txnh->atom == NULL);
 
 	LOCK_JNODE(node);
-	spin_lock_txnh(txnh);
+	LOCK_TXNH(txnh);
 
 	atom = atom_locked_by_jnode(node);
 
@@ -1922,9 +1922,9 @@ attach_txnh_to_node(txn_handle * txnh, jnode * node, txn_flags flags)
 
 	capture_assign_txnh_nolock(atom, txnh);
 
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 fail_unlock:
-	spin_unlock_txnh(txnh);
+	UNLOCK_TXNH(txnh);
 	UNLOCK_JNODE(node);
 	return ret;
 }
@@ -2000,7 +2000,7 @@ repeat:
 
 	uncapture_block(atom, node);
 
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 }
 
 /* this is similar to the above uncapture_page, except that it is always called for unformatted jnode which was just emergency
@@ -2024,7 +2024,7 @@ uncapture_jnode(jnode *node)
 
 	uncapture_block(atom, node);
 
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 }
 
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
@@ -2134,7 +2134,7 @@ jnode_set_dirty(jnode * node)
 		}
 	}
 
-	spin_unlock_atom (atom);
+	UNLOCK_ATOM (atom);
 
 	if (jnode_is_znode(node)) {
 		reiser4_tree *tree;
@@ -2221,7 +2221,7 @@ jnode_set_clean(jnode * node)
 	jnode_set_clean_nolock(node);
 
 	if (atom)
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 
 	UNLOCK_JNODE(node);
 }
@@ -2244,7 +2244,7 @@ capture_assign_block(txn_handle * txnh, jnode * node)
 	if (!spin_trylock_atom(atom)) {
 
 		/* EAGAIN releases locks. */
-		spin_unlock_txnh(txnh);
+		UNLOCK_TXNH(txnh);
 		UNLOCK_JNODE(node);
 
 		/* NOTE-NIKITA Busy loop here? Look at the comment in
@@ -2259,7 +2259,7 @@ capture_assign_block(txn_handle * txnh, jnode * node)
 		capture_assign_block_nolock(atom, node);
 
 		/* Success holds onto jnode & txnh locks.  Unlock atom. */
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 		return 0;
 	}
 }
@@ -2288,7 +2288,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 
 		/* EAGAIN releases locks. */
 		UNLOCK_JNODE(node);
-		spin_unlock_txnh(txnh);
+		UNLOCK_TXNH(txnh);
 
 		/* NOTE-NIKITA it looks like we have busy loop on atom spin
 		   lock here. We cannot simply acquire and immediately release
@@ -2338,7 +2338,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 	}
 
 	/* Unlock the atom */
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 	return 0;
 }
 
@@ -2433,11 +2433,11 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 
 	if ((mode & TXN_CAPTURE_NONBLOCKING) != 0) {
 		UNLOCK_JNODE(node);
-		spin_unlock_txnh(txnh);
-		spin_unlock_atom(atomf);
+		UNLOCK_TXNH(txnh);
+		UNLOCK_ATOM(atomf);
 
 		if (atomh) {
-			spin_unlock_atom(atomh);
+			UNLOCK_ATOM(atomh);
 		}
 
 		trace_on(TRACE_TXN, "thread %u nonblocking on atom %u\n", current->pid, atomf->atom_id);
@@ -2453,20 +2453,20 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 	/* Add txnh to atomf's waitfor list, unlock atomf. */
 	fwaitfor_list_push_back(&atomf->fwaitfor_list, &wlinks);
 	atomf->refcount += 1;
-	spin_unlock_atom(atomf);
+	UNLOCK_ATOM(atomf);
 
 	if (atomh) {
 		/* Add txnh to atomh's waiting list, unlock atomh. */
 		fwaiting_list_push_back(&atomh->fwaiting_list, &wlinks);
 		atomh->refcount += 1;
-		spin_unlock_atom(atomh);
+		UNLOCK_ATOM(atomh);
 	}
 
 	trace_on(TRACE_TXN, "thread %u waitfor %u waiting %u\n", current->pid,
 		 atomf->atom_id, atomh ? atomh->atom_id : 0);
 
 	/* Go to sleep. */
-	spin_unlock_txnh(txnh);
+	UNLOCK_TXNH(txnh);
 
 	if ((ret = prepare_to_sleep(wlinks._lock_stack)) != 0) {
 		trace_on(TRACE_TXN, "thread %u deadlock blocking on atom %u\n", current->pid, atomf->atom_id);
@@ -2482,13 +2482,13 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 	}
 
 	/* Remove from the waitfor list. */
-	spin_lock_atom(atomf);
+	LOCK_ATOM(atomf);
 	fwaitfor_list_remove(&wlinks);
 	atom_dec_and_unlock(atomf);
 
 	if (atomh) {
 		/* Remove from the waiting list. */
-		spin_lock_atom(atomh);
+		LOCK_ATOM(atomh);
 		fwaiting_list_remove(&wlinks);
 		atom_dec_and_unlock(atomh);
 	}
@@ -2524,10 +2524,10 @@ capture_init_fusion(jnode * node, txn_handle * txnh, txn_capture mode)
 
 	if (!spin_trylock_atom(atomh)) {
 		/* Release locks and try again. */
-		spin_unlock_atom(atomf);
+		UNLOCK_ATOM(atomf);
 noatomf_out:
 		UNLOCK_JNODE(node);
-		spin_unlock_txnh(txnh);
+		UNLOCK_TXNH(txnh);
 		return -EAGAIN;
 	}
 
@@ -2549,8 +2549,8 @@ noatomf_out:
 			/* A read request for a committing block can be satisfied w/o
 			   COPY-ON-CAPTURE.  Success holds onto the jnode & txnh
 			   locks. */
-			spin_unlock_atom(atomf);
-			spin_unlock_atom(atomh);
+			UNLOCK_ATOM(atomf);
+			UNLOCK_ATOM(atomh);
 			return 0;
 		} else {
 			/* Perform COPY-ON-CAPTURE.  Copy and try again.  This function
@@ -2567,7 +2567,7 @@ noatomf_out:
 	assert("jmacd-176", (atomh->stage == ASTAGE_CAPTURE_WAIT || atomf->stage != ASTAGE_CAPTURE_WAIT));
 
 	/* Now release the txnh lock: only holding the atoms at this point. */
-	spin_unlock_txnh(txnh);
+	UNLOCK_TXNH(txnh);
 	UNLOCK_JNODE(node);
 
 	/* Decide which should be kept and which should be merged. */
@@ -2628,9 +2628,9 @@ capture_fuse_txnh_lists(txn_atom * large, txnh_list_head * large_head, txnh_list
 		count += 1;
 
 		/* With the txnh lock held, update atom pointer. */
-		spin_lock_txnh(txnh);
+		LOCK_TXNH(txnh);
 		txnh->atom = large;
-		spin_unlock_txnh(txnh);
+		UNLOCK_TXNH(txnh);
 	}
 
 	/* Splice the txn_handle list. */
@@ -2735,7 +2735,7 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	small->stage = ASTAGE_FUSED;
 
 	/* Unlock atoms */
-	spin_unlock_atom(large);
+	UNLOCK_ATOM(large);
 	atom_dec_and_unlock(small);
 }
 
@@ -2752,10 +2752,10 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 	/* The txnh and its (possibly NULL) atom's locks are not needed at this
 	   point. */
 
-	spin_unlock_txnh(txnh);
+	UNLOCK_TXNH(txnh);
 
 	if (atomh != NULL) {
-		spin_unlock_atom(atomh);
+		UNLOCK_ATOM(atomh);
 	}
 
 	uncapture_block(atomf, node);
@@ -2763,7 +2763,7 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 	/* FIXME_JMACD What happens here?  Changes to: zstate?, buffer, data is copied -josh */
 
 	/* EAGAIN implies all locks are released. */
-	spin_unlock_atom(atomf);
+	UNLOCK_ATOM(atomf);
 	ON_SMP(assert("nikita-2187", spin_jnode_is_not_locked(node)));
 #endif
 	return -EIO;
