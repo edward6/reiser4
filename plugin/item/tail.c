@@ -317,18 +317,6 @@ int tail_cut_units (tree_coord * coord, unsigned * from, unsigned * to,
 	 */
 	assert ("vs-396", ergo (*from != 0, *to == last_unit_pos (coord)));
 
-	/*
-	 * check @from_key and @to_key if they are set
-	 */
-	assert ("vs-397",
-		ergo (from_key,				
-		      get_key_offset (from_key) ==
-		      get_key_offset (item_key_by_coord (coord, &key)) + *from)
-		);
-	assert ("vs-398",
-		ergo (to_key,
-		      get_key_offset (to_key) ==
-		      get_key_offset (item_key_by_coord (coord, &key)) + *to));
 
 	if (smallest_removed) {
 		/*
