@@ -167,8 +167,8 @@ static int wandered_extent_write(jnode *, int, const reiser4_block_nr *, flush_q
 
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
-	/* atom's overwrite set is temporary put here */
-	capture_list_head overwrite_set;
+	/* A pointer to the list of OVRWR nodes */
+	capture_list_head * overwrite_set;
 	/* atom's overwrite set size */
 	int overwrite_set_size;
 	/* jnodes for log record blocks */
@@ -193,7 +193,6 @@ static void
 init_commit_handle(struct commit_handle *ch, txn_atom * atom)
 {
 	xmemset(ch, 0, sizeof (struct commit_handle));
-	capture_list_init(&ch->overwrite_set);
 	capture_list_init(&ch->tx_list);
 
 	ch->atom = atom;
@@ -203,7 +202,6 @@ init_commit_handle(struct commit_handle *ch, txn_atom * atom)
 static void
 done_commit_handle(struct commit_handle *ch)
 {
-	assert("zam-689", capture_list_empty(&ch->overwrite_set));
 	assert("zam-690", capture_list_empty(&ch->tx_list));
 }
 
@@ -517,14 +515,14 @@ static void put_overwrite_set(struct commit_handle * ch)
 {
 	jnode * cur;
 
-	for (cur = capture_list_front(&ch->overwrite_set);
-	     ! capture_list_end(&ch->overwrite_set, cur);
+	for (cur = capture_list_front(ch->overwrite_set);
+	     ! capture_list_end(ch->overwrite_set, cur);
 	     cur = capture_list_next(cur))
 	{
 		jrelse(cur);
 	}
 
-	capture_list_splice(&ch->atom->clean_nodes, &ch->overwrite_set);
+	// capture_list_splice(&ch->atom->clean_nodes, ch->overwrite_set);
 
 }
 
@@ -532,28 +530,24 @@ static void put_overwrite_set(struct commit_handle * ch)
 static int
 get_overwrite_set(struct commit_handle *ch)
 {
-	capture_list_head *head;
 	jnode *cur;
 
 	assert("zam-697", ch->overwrite_set_size == 0);
 
-	head = &ch->atom->clean_nodes;
-	cur = capture_list_front(head);
+	ch->overwrite_set = &ch->atom->ovrwr_nodes;
+	cur = capture_list_front(ch->overwrite_set);
 
-	while (!capture_list_end(head, cur)) {
+	while (!capture_list_end(ch->overwrite_set, cur)) {
 		jnode *next = capture_list_next(cur);
 
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
 			trace_on(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
 		}
 
-		assert("nikita-2591", !jnode_check_dirty(cur));
 		if (0 && jnode_page(cur) && PageDirty(jnode_page(cur)) && !JF_ISSET(cur, JNODE_OVRWR))
 			reiser4_panic("nikita-2590", "Wow!");
 
 		if (JF_ISSET(cur, JNODE_OVRWR)) {
-			capture_list_remove_clean(cur);
-
 			if (jnode_get_type(cur) == JNODE_BITMAP)
 				ch->nr_bitmap++;
 			    
@@ -579,41 +573,19 @@ get_overwrite_set(struct commit_handle *ch)
 						return PTR_ERR(sj);
 
 					LOCK_JNODE(sj);
-
-					jnode_set_wander(sj);
-					capture_list_push_back(&ch->overwrite_set, sj);
-					sj->atom = ch->atom;
-					jref(sj);
-
+					JF_SET(sj, JNODE_OVRWR);
+					insert_into_atom_ovrwr_list(ch->atom, sj);
 					UNLOCK_JNODE(sj);
 
 					/* jload it as the rest of overwrite set */
 					jload (sj);
 
 					ch->overwrite_set_size++;
-				} else {
-					/* the fake znode was removed from
-					   overwrite set and from capture
-					   list, no jnode was added to
-					   transaction -- we decrement atom's
-					   capture count */
-					ch->atom->capture_count--;
 				}
-
-				LOCK_JNODE(cur);
-
-				cur->atom = NULL;
-				JF_CLR(cur, JNODE_OVRWR);
-
-				UNLOCK_JNODE(cur);
-				jput(cur);
-
+				uncapture_block(ch->atom, cur);
 			} else {
 				int ret;
-
-				capture_list_push_back(&ch->overwrite_set, cur);
 				ch->overwrite_set_size++;
-
 				ret = jload(cur);
 				if (ret) 
 					reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
@@ -918,8 +890,8 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 
 	rest = ch->overwrite_set_size;
 
-	cur = capture_list_front(&ch->overwrite_set);
-	while (!capture_list_end(&ch->overwrite_set, cur)) {
+	cur = capture_list_front(ch->overwrite_set);
+	while (!capture_list_end(ch->overwrite_set, cur)) {
 		assert("zam-567", JF_ISSET(cur, JNODE_OVRWR));
 
 		ret = get_more_wandered_blocks(rest, &block, &len);
@@ -937,7 +909,7 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 			return ret;
 
 		while ((len--) > 0) {
-			assert("zam-604", !capture_list_end(&ch->overwrite_set, cur));
+			assert("zam-604", !capture_list_end(ch->overwrite_set, cur));
 			cur = capture_list_next(cur);
 		}
 	}
@@ -1065,7 +1037,7 @@ reiser4_write_logs(void)
 
 		UNLOCK_ATOM(fq->atom);
 
-		ret = submit_batched_write(&ch.overwrite_set, fq);
+		ret = submit_batched_write(ch.overwrite_set, fq);
 
 		fq_put(fq);
 
@@ -1216,12 +1188,15 @@ replay_transaction(const struct super_block *s,
 {
 	reiser4_block_nr log_rec_block = *log_rec_block_p;
 	struct commit_handle ch;
+	capture_list_head overwrite_set;
 	jnode *log;
 	int ret;
 
 	init_commit_handle(&ch, NULL);
-
-	ret = restore_commit_handle(&ch, tx_head);
+	capture_list_init(&overwrite_set);
+	ch.overwrite_set = &overwrite_set;
+	
+	restore_commit_handle(&ch, tx_head);
 
 	while (log_rec_block != *end_block) {
 		struct log_record_header *LH;
@@ -1297,7 +1272,7 @@ replay_transaction(const struct super_block *s,
 
 			jnode_set_block(node, &block);
 
-			capture_list_push_back(&ch.overwrite_set, node);
+			capture_list_push_back(ch.overwrite_set, node);
 
 			++LE;
 		}
@@ -1315,8 +1290,8 @@ replay_transaction(const struct super_block *s,
 	}
 
 	{			/* write wandered set in place */
-		submit_batched_write(&ch.overwrite_set, 0);
-		ret = wait_on_jnode_list(&ch.overwrite_set);
+		submit_batched_write(ch.overwrite_set, 0);
+		ret = wait_on_jnode_list(ch.overwrite_set);
 
 		if (ret) {
 			ret = -EIO;
@@ -1328,8 +1303,8 @@ replay_transaction(const struct super_block *s,
 
 free_ow_set:
 
-	while (!capture_list_empty(&ch.overwrite_set)) {
-		jnode *cur = capture_list_front(&ch.overwrite_set);
+	while (!capture_list_empty(ch.overwrite_set)) {
+		jnode *cur = capture_list_front(ch.overwrite_set);
 		capture_list_remove_clean (cur);
 		jrelse(cur);
 		drop_io_head(cur);
