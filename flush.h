@@ -5,7 +5,7 @@
 #if !defined(__REISER4_FLUSH_H__)
 #define __REISER4_FLUSH_H__
 
-#include "plugin/item/ctail.h" /* for ctail scan/squeeze info */
+#include "plugin/cryptcompress.h"
 
 typedef enum {
 	UNLINKED = 0,
@@ -84,9 +84,8 @@ set_flush_scan_nstat(flush_scan * scan, flush_scan_node_stat_t nstat)
 
 typedef struct squeeze_item_info {
 	int mergeable;
-	union {
-		ctail_squeeze_info_t ctail_info;
-	} u;
+	struct inode * inode;
+	flow_t flow;
 } squeeze_item_info_t;
 
 typedef struct squeeze_info {
@@ -168,9 +167,16 @@ item_squeeze_plug (flush_pos_t * pos)
 	return pos->sq->iplug;
 }
 
+static inline squeeze_info_t * 
+squeeze_data (flush_pos_t * pos)
+{
+	return pos->sq;
+}
+
 static inline squeeze_item_info_t *
 item_squeeze_data (flush_pos_t * pos)
 {
+	assert("edward-955", squeeze_data(pos));
 	return pos->sq->itm;
 }
 
@@ -185,6 +191,19 @@ tfm_stream_sq (flush_pos_t * pos, tfm_stream_id id)
 {
 	assert("edward-854", pos->sq != NULL);
 	return tfm_stream(tfm_cluster_sq(pos), id);
+}
+
+static inline int
+should_squeeze_node(flush_pos_t * pos, znode * node)
+{
+	return znode_squeezable(node);
+}
+
+/* true if there is attached squeeze item info */
+static inline int
+should_squeeze_next_node(flush_pos_t * pos, znode * node)
+{
+	return squeeze_data(pos) && item_squeeze_data(pos);
 }
 
 #define SQUALLOC_THRESHOLD 256  /* meaningful for ctails */

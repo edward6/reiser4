@@ -11,6 +11,11 @@ static inline loff_t min_count(loff_t a, loff_t b)
 	return (a < b ? a : b);
 }
 
+static inline loff_t max_count(loff_t a, loff_t b)
+{
+	return (a > b ? a : b);
+}
+
 static inline __u8 inode_cluster_shift (struct inode * inode)
 {
 	assert("edward-92", inode != NULL);
@@ -149,6 +154,34 @@ fsize_to_count(reiser4_cluster_t * clust, struct inode * inode)
 
 	return off_to_count(inode->i_size, clust->index, inode);
 }
+
+static inline void
+reiser4_cluster_init (reiser4_cluster_t * clust){
+	assert("edward-84", clust != NULL);
+	xmemset(clust, 0, sizeof *clust);
+	clust->stat = DATA_CLUSTER;
+}
+
+int inflate_cluster(reiser4_cluster_t *, struct inode *);
+int find_cluster_item(hint_t * hint, const reiser4_key *key, int check_key,
+		      znode_lock_mode lock_mode, ra_info_t *ra_info,
+		      lookup_bias bias);
+int page_of_cluster(struct page *, reiser4_cluster_t *, struct inode *);
+int find_cluster(reiser4_cluster_t *, struct inode *, int read, int write);
+int flush_cluster_pages(reiser4_cluster_t *, jnode *, struct inode *);
+int deflate_cluster(reiser4_cluster_t *, struct inode *);
+void truncate_cluster(struct inode * inode, pgoff_t start, long count);
+void set_hint_cluster(struct inode * inode, hint_t * hint, unsigned long index, znode_lock_mode mode);
+int get_disk_cluster_locked(reiser4_cluster_t * clust, znode_lock_mode lock_mode);
+int hint_prev_cluster(reiser4_cluster_t * clust);
+void set_nrpages_by_inode(reiser4_cluster_t * clust, struct inode * inode);
+int grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust);
+void release_cluster_pages(reiser4_cluster_t * clust, int from);
+void put_cluster_handle(reiser4_cluster_t * clust, tfm_action act);
+int grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc, tfm_stream_id id);
+int tfm_cluster_is_uptodate (tfm_cluster_t * tc);
+void tfm_cluster_set_uptodate (tfm_cluster_t * tc);
+void tfm_cluster_clr_uptodate (tfm_cluster_t * tc);
 
 static inline int
 alloc_clust_pages(reiser4_cluster_t * clust, struct inode * inode )
