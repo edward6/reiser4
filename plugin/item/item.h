@@ -11,11 +11,12 @@ typedef enum {
 	OTHER_ITEM_TYPE
 } item_type;
 
+/*
 typedef struct item_in_node {
 	znode      *node;
 	pos_in_node pos;
 } item_in_node;
-
+*/
 struct item_ops {
 	/* in reiser4 key doesn't contain full item type only several bits of
 	   it. So after doing coord_by_key() we need to check that we really
@@ -95,7 +96,7 @@ struct item_ops {
 				carry_level *todo );
 		/**
 		 * return true if paste into @coord is allowed to skip
-		 * carry. That is, if such paste would reuquire any changes
+		 * carry. That is, if such paste would require any changes
 		 * at the parent level
 		 */
 		int ( *fast_paste )( const tree_coord *coord );

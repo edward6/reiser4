@@ -1,3 +1,7 @@
+/*
+ * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ */
+
 #include "reiser4.h"
 
 /* rules for locking during searches: never insert before the first
@@ -711,6 +715,9 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h)
 	spin_unlock_tree(h -> tree);
 
 	if (!ret) {
+		/*
+		 * FIXME: h->coord->node and active are of different levels?
+		 */
 		h->result = reiser4_connect_znode(h->coord, active);
 		if (h->result)
 			goto fail_or_restart;
@@ -757,16 +764,165 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h)
 	return LLR_DONE;
 }
 
+
+/*
+ * look to the right of @coord. If it is an item of internal type - 1 is
+ * returned. If that item is in another node - @coord and @lh are switched to
+ * that node
+ */
+static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
+{
+	reiser4_plugin *item_plugin;
+	int result;
+
+
+	if( coord -> item_pos != num_items( coord -> node ) - 1 ) {
+		/*
+		 * next item is in the same node
+		 */
+		coord -> item_pos ++;
+		item_plugin = item_plugin_by_coord( coord );
+		if( item_plugin -> u.item.item_type == INTERNAL_ITEM_TYPE )
+			return 1;
+		coord -> item_pos --;
+		return 0;
+	} else {
+		/*
+		 * look for next item in right neighboring node
+		 */
+		reiser4_lock_handle right_lh;
+		tree_coord right;
+
+
+		reiser4_init_lh( &right_lh );
+		result = reiser4_get_right_neighbor( &right_lh,
+						     coord -> node,
+						     ZNODE_READ_LOCK,
+						     GN_LOAD_NEIGHBOR | GN_DO_READ);
+		if( result && result != -ENAVAIL ) {
+			/* error occured */
+			reiser4_done_lh( &right_lh );
+			return result;
+		}
+		if( !result ) {
+			reiser4_init_coord( &right );
+			right.node = right_lh.node;
+			coord_first_unit( &right );
+			item_plugin = item_plugin_by_coord( &right );
+			if( item_plugin -> u.item.item_type == INTERNAL_ITEM_TYPE ) {
+				/*
+				 * switch to right neighbor
+				 */
+				reiser4_done_lh( lh );
+				reiser4_done_coord( coord );
+
+				reiser4_init_coord( coord );
+				reiser4_dup_coord( coord, &right );
+				reiser4_move_lh( lh, &right_lh );
+
+				reiser4_done_coord( &right );
+				return 1;
+			}
+		}
+		/* item to the right of @coord either does not exist or is not
+		   of internal type */
+		reiser4_done_coord( &right );
+		reiser4_done_lh( &right_lh );
+		return 0;
+	}
+}
+
+
+/*
+ * inserting empty leaf after (or between) item of not internal type we have to
+ * know which right delimiting key corresponding znode has to be inserted with
+ */
+static reiser4_key *rd_key( tree_coord *coord, reiser4_key *key )
+{
+	if( coord -> item_pos != num_items( coord -> node ) - 1 ) {
+		/*
+		 * get right delimiting key from an item to the right of @coord
+		 */
+		tree_coord tmp;
+
+		reiser4_dup_coord( &tmp, coord );
+		tmp.item_pos ++;
+		item_key_by_coord( &tmp, key );
+		reiser4_done_coord( &tmp );
+	} else {
+		/*
+		 * use right delimiting key of znode we insert new pointer to
+		 */
+		spin_lock_dk( current_tree );
+		*key = *znode_get_rd_key( coord -> node );
+		spin_unlock_dk( current_tree );
+	}
+	return key;
+}
+
+
+/*
+ * this is used to insert empty node into leaf level if tree lookup can not go
+ * further down because it stopped between items of not internal type
+ */
+static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
+			   const reiser4_key *key, const reiser4_key *rdkey)
+{
+	int result;
+	carry_pool        pool;
+	carry_level       todo;
+	carry_op         *op;
+	znode            *node;
+	reiser4_item_data item;
+
+
+	reiser4_init_carry_pool( &pool );
+	reiser4_init_carry_level( &todo, &pool );
+
+	node = new_node( insert_coord -> node, LEAF_LEVEL );	
+	if( IS_ERR( node ) )
+		return PTR_ERR( node );
+	/*
+	 * setup delimiting keys for node being inserted
+	 */
+	spin_lock_dk( current_tree );
+	*znode_get_ld_key( node ) = *key;
+	*znode_get_rd_key( node ) = *rdkey;
+	spin_unlock_dk( current_tree );
+
+	op = reiser4_post_carry( &todo, COP_INSERT, insert_coord -> node, 0 );
+	if( IS_ERR( op ) )
+		return PTR_ERR( op );
+
+	op -> u.insert.coord = insert_coord;
+	op -> u.insert.type = COPT_ITEM_DATA;
+	build_child_ptr_data( node, &item );
+	op -> u.insert.data = &item;
+	op -> u.insert.key = key;
+	/*
+	 * have @insert_coord to be set at inserted item after insertion is
+	 * done
+	 */
+	op -> node -> track = 1;
+	op -> node -> tracked = lh;
+
+	result = carry( &todo, 0 );
+	reiser4_done_carry_pool( &pool );
+
+	return result;
+}
+
 /*
    Process one node during tree traversal.
    This is standard function independent of tree locking protocols.
  */
 static level_lookup_result cbk_node_lookup( cbk_handle *h )
 {
-	reiser4_plugin   *node_plugin;
+	reiser4_plugin   *plugin;
 	lookup_bias       node_bias;
 	znode            *active;
 	reiser4_tree     *tree;
+	int               result;
 
 	assert( "nikita-379", h != NULL );
 
@@ -778,8 +934,8 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 	h -> result = zparse( active );
 	if( h -> result )
 		return LLR_DONE;
-	node_plugin = active -> node_plugin;
-	assert( "nikita-380", node_plugin != NULL );
+	plugin = active -> node_plugin;
+	assert( "nikita-380", plugin != NULL );
 
 	/* 
 	 * return item from "active" node with maximal key not greater than
@@ -793,52 +949,108 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 	 */
 	node_bias = ( h -> level <= h -> llevel ) ?
 		h -> bias : FIND_MAX_NOT_MORE_THAN;
-	if( node_plugin -> u.node.lookup( active, h -> key,
-					  node_bias, h -> coord ) ) {
-		if( h -> level != h -> slevel )
-			h -> error = "not found on internal node";
-		else
-			cbk_cache_add( active );
-		h -> result = CBK_COORD_NOTFOUND;
-		reiser4_stat_tree_add( cbk_notfound );
+	result = plugin -> u.node.lookup( active, h -> key,
+					       node_bias, h -> coord );
+	if( result != NS_FOUND && result != NS_NOT_FOUND ) {
+		/* error occured */
+		h -> result = result;
 		return LLR_DONE;
 	}
-	/* node lookup found item/unit */
-	if( h -> level > h -> slevel ) {
-		reiser4_plugin *item_plugin;
-
-		item_plugin = item_plugin_by_coord( h -> coord );
-		if( item_plugin -> u.item.item_type != INTERNAL_ITEM_TYPE ) {
-			/* strange item type found on non-stop level?!
-			   Twig horrors? */
-			h -> error = "strange item type";
-			h -> result = CBK_IO_ERROR;
-			return LLR_DONE;
-		}
-		/*
-		 * prepare delimiting keys for the next node
-		 */
-		if( prepare_delimiting_keys( h ) ) {
-			h -> error = "cannot prepare delimiting keys";
-			h -> result = CBK_IO_ERROR;
-			return LLR_DONE;
-		}
-		/* go down to next level */
-		item_plugin -> u.item.s.internal.down_link( h -> coord, h -> key,
-							    &h -> block );
-		-- h -> level;
-		return LLR_CONT; /* continue */
-	} else {
+	if( h -> level == h -> slevel ) {
 		/* welcome to the stop level */
-		/* success of tree lookup */
 		assert( "nikita-381", h -> coord -> node == active );
-		assert( "nikita-1604", ergo( h -> bias == FIND_EXACT, 
-					     coord_of_unit( h -> coord ) ) );
-		h -> result = CBK_COORD_FOUND;
-		reiser4_stat_tree_add( cbk_found );
+		if( result == NS_FOUND ) {
+			/* success of tree lookup */
+			assert( "nikita-1604",
+				ergo( h -> bias == FIND_EXACT, 
+				      coord_of_unit( h -> coord ) ) );
+			h -> result = CBK_COORD_FOUND;
+			reiser4_stat_tree_add( cbk_found );
+		} else {
+			h -> result = CBK_COORD_NOTFOUND;
+			reiser4_stat_tree_add( cbk_notfound );
+		}
 		cbk_cache_add( active );
 		return LLR_DONE;
 	}
+
+
+	if( h -> level > TWIG_LEVEL && result == NS_NOT_FOUND ) {
+		h -> error = "not found on internal node";
+		h -> result = result;
+		return LLR_DONE;
+	}
+
+	assert( "vs-361", h -> level > h -> slevel );
+
+	plugin = item_plugin_by_coord( h -> coord );
+	if( plugin -> u.item.item_type != INTERNAL_ITEM_TYPE ) {
+		/* strange item type found on non-stop level?!  Twig
+		   horrors? */
+		assert( "vs-356", h -> level == TWIG_LEVEL );
+		assert( "vs-357", plugin -> h.id == EXTENT_ITEM_ID );
+		/*
+		 * take a look at the item to the right of h -> coord
+		 */
+		result = is_next_item_internal( h -> coord, h -> active_lh );
+		if( result < 0 ) {
+			/*
+			 * error occured while we were trying to look at the
+			 * item to the right
+			 */
+			h -> error = "could not check next item";
+			h -> result = result;
+			return LLR_DONE;
+		}
+		if ( !result ) {
+			/*
+			 * item to the right is not internal one. Allocate a
+			 * new node and insert pointer to it after item h ->
+			 * coord
+			 */
+			reiser4_key key;
+			
+			
+			if (cbk_lock_mode( h -> level, h ) != ZNODE_WRITE_LOCK ) {
+				/*
+				 * we got node read locked, restart
+				 * coord_by_key to have write lock on twig
+				 * level
+				 */
+				assert( "vs-360", h -> llevel < TWIG_LEVEL );
+				h -> llevel = TWIG_LEVEL;
+				return LLR_REST;
+			}
+			
+			result = add_empty_leaf( h -> coord, h -> active_lh,
+						 h -> key, rd_key( h -> coord, &key ) );
+			if( result ) {
+				h -> error = "could not add empty leaf";
+				h -> result = result;
+				return LLR_DONE;
+			}
+			assert( "vs-358",
+				keycmp( h -> key,
+					item_key_by_coord( h -> coord,
+							   &key)) == EQUAL_TO );
+			assert( "vs-362", item_type_by_coord( h -> coord ) ==
+				INTERNAL_ITEM_TYPE );
+			plugin = item_plugin_by_coord( h -> coord );
+		}
+	}
+	/*
+	 * prepare delimiting keys for the next node
+	 */
+	if( prepare_delimiting_keys( h ) ) {
+		h -> error = "cannot prepare delimiting keys";
+		h -> result = CBK_IO_ERROR;
+		return LLR_DONE;
+	}
+	/* go down to next level */
+	plugin -> u.item.s.internal.down_link( h -> coord, h -> key,
+					       &h -> block );
+	-- h -> level;
+	return LLR_CONT; /* continue */
 }
 
 /**
@@ -927,6 +1139,7 @@ static int cbk_cache_search( cbk_handle *h /* cbk handle */ )
 				/*
 				 * do lookup inside node
 				 */
+				h -> level = znode_get_level( node );
 				llr = cbk_node_lookup( h );
 				
 				if( ( llr == LLR_DONE ) &&
@@ -1151,3 +1364,15 @@ static int sanity_check( cbk_handle *h )
 	} else
 		return 0;
 }
+
+/*
+ * Make Linus happy.
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * scroll-step: 1
+ * End:
+ */

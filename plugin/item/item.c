@@ -327,6 +327,49 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				}
 			}
 		}
+	},
+	[ BODY_ITEM_ID ] = {
+		.h = {
+			.rec_len = sizeof( reiser4_plugin ),
+			.type_id = REISER4_ITEM_PLUGIN_ID,
+			.id      = BODY_ITEM_ID,
+			.pops    = NULL,
+			.label   = "body",
+			.desc    = "body (or tail?) item",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.u = {
+			.item = {
+				.item_type = BODY_ITEM_TYPE,
+				.b = {
+					.max_key_inside = NULL,
+					.mergeable      = tail_mergeable,
+					.print          = NULL,
+					.check          = NULL,
+					.nr_units       = tail_nr_units,
+					.lookup         = tail_lookup,
+					.init           = NULL,
+					.paste          = tail_paste,
+					.fast_paste     = agree_to_fast_op,
+					.can_shift      = tail_can_shift,
+					.create_hook    = NULL,
+					.copy_units     = tail_copy_units,
+					.kill_hook      = NULL,
+					.shift_hook     = NULL,
+					.cut_units      = tail_cut_units,
+					.kill_units     = tail_cut_units,
+					.unit_key       = tail_unit_key,
+					.estimate       = NULL,
+					.item_data_by_flow = extent_item_data_by_flow
+				},
+				.s = {
+					.file = {
+						.write = NULL,
+						.fill_page = NULL
+					}
+				}
+			}
+		}
 	}
 };
 

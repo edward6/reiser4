@@ -143,6 +143,7 @@ SRC             := \
                    plugin/item/sde.c \
                    plugin/item/cde.c \
                    plugin/item/internal.c \
+                   plugin/item/tail.c \
                    plugin/hash.c \
                    plugin/tail.c \
                    plugin/item/item.c \

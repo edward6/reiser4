@@ -946,7 +946,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 				.owns_item           = common_file_owns_item,
 				.item_plugin_at      = NULL,
 				.truncate            = reiser4_ordinary_file_truncate,
-				.find_item	     = reiser4_ordinary_file_find_item,
+				.find_item	     = NULL,
 				.readpage	     = reiser4_ordinary_readpage
 			}
 		}

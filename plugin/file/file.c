@@ -20,6 +20,16 @@ write_todo what_todo (tree_coord * coord UNUSED_ARG, reiser4_key * key UNUSED_AR
 }
 
 
+/* look for item of file @inode corresponding to @key */
+static int find_item (struct inode * inode, reiser4_key * key,
+		      tree_coord * coord,
+		      reiser4_lock_handle * lh)
+{
+	return coord_by_key (tree_by_inode (inode), key, coord, lh, ZNODE_WRITE_LOCK,
+			     FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL);
+}
+
+
 /* plugin->u.file.rw_f [WRITE_OP]
  */
 ssize_t reiser4_ordinary_file_write (struct file * file,
@@ -30,7 +40,6 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 	tree_coord coord;
 	reiser4_lock_handle lh;	
 	size_t to_write;
-	reiser4_file_plugin * fplug;
 	reiser4_item_plugin * iplug;
 	
 
@@ -41,14 +50,13 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 	to_write = f->length;
 
 	inode = file->f_dentry->d_inode;
-	fplug = reiser4_get_file_plugin (inode);
 
 
 	while (f->length) {
 		reiser4_init_coord (&coord);
 		reiser4_init_lh (&lh);
 
-		result = fplug->find_item (tree_by_inode (inode), &f->key, &coord, &lh);
+		result = find_item (inode, &f->key, &coord, &lh);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			reiser4_done_lh (&lh);
 			reiser4_done_coord (&coord);
@@ -57,7 +65,7 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 		switch (what_todo (&coord, &f->key)) {
 		case WRITE_EXTENT:
 			iplug = &plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID)->u.item;
-				/* resolves to extent_write function */
+			/* resolves to extent_write function */
 
 			result = iplug->s.file.write (inode, &coord, &lh, f);
 			if (!result || result == -EAGAIN) {
@@ -80,15 +88,6 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 	return (to_write - f->length) ? (to_write - f->length) : result;
 }
 
-/* plugin->u.file.find_item
- */
-int reiser4_ordinary_file_find_item (reiser4_tree * tree, reiser4_key * key,
-				     tree_coord * coord,
-				     reiser4_lock_handle * lh)
-{
-	return coord_by_key (tree, key, coord, lh, ZNODE_WRITE_LOCK,
-			     FIND_EXACT, TWIG_LEVEL, TWIG_LEVEL);
-}
 
 
 /* plugin->u.file.readpage
@@ -102,12 +101,10 @@ int reiser4_ordinary_readpage (struct file * file, struct page * page)
 	tree_coord coord;
 	reiser4_lock_handle lh;
 	reiser4_key key;
-	reiser4_file_plugin * fplug;
 	reiser4_item_plugin * iplug;
 
 
 	inode = file->f_dentry->d_inode;
-	fplug = reiser4_get_file_plugin (inode);
 
 	build_sd_key (inode, &key);
 	set_key_type (&key, KEY_BODY_MINOR);
@@ -116,7 +113,7 @@ int reiser4_ordinary_readpage (struct file * file, struct page * page)
 	reiser4_init_coord (&coord);
 	reiser4_init_lh (&lh);
 
-	result = fplug->find_item (tree_by_inode (inode), &key, &coord, &lh);
+	result = find_item (inode, &key, &coord, &lh);
 	if (result != CBK_COORD_FOUND) {
 		warning ("vs-280", "No file items found");
 		reiser4_done_lh (&lh);

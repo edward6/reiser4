@@ -5,15 +5,15 @@
 #include "../../reiser4.h"
 
 
-/* plugin->u.item.b.max_key_inside
-   look for description of this method in plugin/item/item.h
+/*
+ * plugin->u.item.b.max_key_inside
  */
 reiser4_key * extent_max_key_inside (const tree_coord * coord, 
-				     reiser4_key * maxkey)
+				     reiser4_key * key)
 {
-	item_key_by_coord (coord, maxkey);
-	set_key_offset (maxkey, get_key_offset (max_key ()));
-	return maxkey;
+	item_key_by_coord (coord, key);
+	set_key_offset (key, get_key_offset (max_key ()));
+	return key;
 }
 
 
@@ -43,8 +43,10 @@ static unsigned long long extent_size (const tree_coord * coord, unsigned nr)
 }
 
 
-/* plugin->u.item.b.mergeable
-   first item is of extent type */
+/*
+ * plugin->u.item.b.mergeable
+ * first item is of extent type
+ */
 int extent_mergeable (const tree_coord * p1, const tree_coord * p2)
 {
 	reiser4_key key1, key2;
@@ -66,12 +68,80 @@ int extent_mergeable (const tree_coord * p1, const tree_coord * p2)
 }
 
 
-/* plugin->u.item.b.check
-*/
+/* extents in an extent item can be either holes, or unallocated or allocated
+   extents */
+typedef enum {
+	HOLE_EXTENT,
+	UNALLOCATED_EXTENT,
+	ALLOCATED_EXTENT
+} extent_state;
 
-/* plugin->u.item.b.nr_units
-   look for description of this method in plugin/item/item.h
-*/
+
+static extent_state state_of_extent (reiser4_extent * ext)
+{
+	switch (extent_get_start (ext)) {
+	case 0:
+		return HOLE_EXTENT;
+	case 1:
+		return UNALLOCATED_EXTENT;
+	}
+	return ALLOCATED_EXTENT;
+}
+
+
+/*
+ * plugin->u.item.b.print
+ */
+static const char * state2label (extent_state state)
+{
+	const char * label;
+
+	label = 0;
+	switch (state) {
+	case HOLE_EXTENT:
+		label = "hole";
+		break;
+
+	case UNALLOCATED_EXTENT:
+		label = "unalloc";
+		break;
+
+	case ALLOCATED_EXTENT:
+		label = "alloc";
+		break;
+	}
+	assert ("vs-376", label);
+	return label;
+}
+
+void extent_print (const char * prefix, tree_coord * coord)
+{
+	reiser4_extent * ext;
+	unsigned i, nr;
+
+	if (prefix)
+		info ("%s:", prefix);
+
+	nr = extent_nr_units (coord);
+	ext = (reiser4_extent *)item_body_by_coord (coord);
+
+	info ("%u: ", nr);
+	for (i = 0; i < nr; i ++, ext ++) {
+		info ("[%Lu (%Lu) %s]", extent_get_start (ext), extent_get_width (ext),
+		      state2label (state_of_extent (ext)));
+	}
+	info ("\n");
+}
+
+
+/*
+ * plugin->u.item.b.check
+ */
+
+
+/*
+ * plugin->u.item.b.nr_units
+ */
 unsigned extent_nr_units (const tree_coord * coord)
 {
 	/* length of extent item has to be multiple of extent size */
@@ -83,9 +153,9 @@ unsigned extent_nr_units (const tree_coord * coord)
 }
 
 
-/* plugin->u.item.b.lookup
-   look for description of this method in plugin/item/item.h
-*/
+/*
+ * plugin->u.item.b.lookup
+ */
 lookup_result extent_lookup (const reiser4_key * key, lookup_bias bias,
 			     tree_coord * coord) /* znode and item_pos are
 						     set to an extent item to
@@ -138,28 +208,14 @@ lookup_result extent_lookup (const reiser4_key * key, lookup_bias bias,
 }
 
 
-/* plugin->u.item.b.estimate_space_needed
-   in most cases amount of space needed to put flow into tree is sizeof
-   (reiser4_extent) but a case when we append item last extent of which is
-   hole extent and whole flow can be put into that extent. Also if a flow is
-   too big (or extents have limited width) there migh be a need to append
-   several extents
-*/
-int extent_estimate_space_needed (flow * f UNUSED_ARG, znode * node UNUSED_ARG)
-{
-	return sizeof (reiser4_extent);
-}
-
-
 /* plugin->u.item.b.paste 
-
    item @coord is set to has been appended with @data->length of free
    space. data->data contains data to be pasted into the item in position
    @coord->in_item.unit_pos. It must fit into that free space.
    @coord must be set between units.
 */
 int extent_paste (tree_coord * coord, reiser4_item_data * data,
-		  carry_level *todo UNUSED_ARG)
+		  carry_level * todo UNUSED_ARG)
 {
 	unsigned old_nr_units;
 	reiser4_extent * ext;
@@ -208,7 +264,8 @@ int extent_paste (tree_coord * coord, reiser4_item_data * data,
 }
 
 
-/* plugin->u.item.b.can_shift
+/*
+ * plugin->u.item.b.can_shift
  */
 int extent_can_shift (unsigned free_space, tree_coord * source,
 		      znode * target UNUSED_ARG, shift_direction pend UNUSED_ARG,
@@ -231,7 +288,8 @@ int extent_can_shift (unsigned free_space, tree_coord * source,
 }
 
 
-/* plugin->u.item.b.copy_units
+/*
+ * plugin->u.item.b.copy_units
  */
 void extent_copy_units (tree_coord * target, tree_coord * source,
 			unsigned from, unsigned count, shift_direction where_is_free_space,
@@ -270,30 +328,10 @@ void extent_copy_units (tree_coord * target, tree_coord * source,
 }
 
 
-/* extents in an extent item can be either holes, or unallocated or allocated
-   extents */
-typedef enum {
-	HOLE_EXTENT,
-	UNALLOCATED_EXTENT,
-	ALLOCATED_EXTENT
-} extent_state;
-
-
-static extent_state state_of_extent (reiser4_extent * ext)
-{
-	switch (extent_get_start (ext)) {
-	case 0:
-		return HOLE_EXTENT;
-	case 1:
-		return UNALLOCATED_EXTENT;
-	}
-	return ALLOCATED_EXTENT;
-}
-
-
-/* plugin->u.item.b.create_hook @arg is znode of leaf node for which we
-   need to update right delimiting key
-*/
+/* 
+ * plugin->u.item.b.create_hook
+ * @arg is znode of leaf node for which we need to update right delimiting key
+ */
 int extent_create_hook (const tree_coord * coord, void * arg)
 {
 	znode * node;
@@ -451,8 +489,8 @@ static int cut_or_kill_units (tree_coord * coord,
 }
 
 
-/* plugin->u.item.b.cut_units
-   look for description of this method in plugin/item/item.h
+/*
+ * plugin->u.item.b.cut_units
  */
 int extent_cut_units (tree_coord * item, unsigned from, unsigned count,
 		      shift_direction where_to_move_free_space,
@@ -464,8 +502,8 @@ int extent_cut_units (tree_coord * item, unsigned from, unsigned count,
 }
 
 
-/* plugin->u.item.b.kill_units
-   look for description of this method in plugin/item/item.h
+/*
+ * plugin->u.item.b.kill_units
  */
 int extent_kill_units (tree_coord * item, unsigned from, unsigned count,
 		       shift_direction where_to_move_free_space,
@@ -477,8 +515,8 @@ int extent_kill_units (tree_coord * item, unsigned from, unsigned count,
 }
 
 
-/* plugin->u.item.b.unit_key
-   look for description of this method in plugin/item/item.h
+/*
+ * plugin->u.item.b.unit_key
  */
 reiser4_key * extent_unit_key (const tree_coord * coord, reiser4_key * key)
 {
@@ -492,8 +530,13 @@ reiser4_key * extent_unit_key (const tree_coord * coord, reiser4_key * key)
 }
 
 
-/* plugin->u.item.b.item_data_by_flow
-   look for description of this method in plugin/item/item.h
+/*
+ * plugin->u.item.b.estimate
+ */
+
+
+/*
+ * plugin->u.item.b.item_data_by_flow
  */
 int extent_item_data_by_flow (const tree_coord * coord UNUSED_ARG,
 			      const flow * f,
@@ -521,94 +564,6 @@ static void set_extent (reiser4_extent * ext, extent_state state, __u64 width)
 			    "do not create extents but holes and unallocated");
 	}
 	extent_set_width (ext, width);
-}
-
-
-const char * state [] = {
-	"hole",
-	"unalloc",
-	"alloc"
-};
-
-
-/* plugin->u.item.b.print
- */
-void extent_print (const char * prefix, tree_coord * coord)
-{
-	reiser4_extent * ext;
-	unsigned i, nr;
-
-	if (prefix)
-		info ("%s:", prefix);
-
-	nr = extent_nr_units (coord);
-	ext = (reiser4_extent *)item_body_by_coord (coord);
-
-	info ("%u: ", nr);
-	for (i = 0; i < nr; i ++, ext ++) {
-		info ("[%Lu (%Lu) %s]", extent_get_start (ext), extent_get_width (ext),
-		      state [state_of_extent (ext)]);
-	}
-	info ("\n");
-}
-
-
-/* insert extent item (containing one unallocated extent of width 1) to place
-   set by @coord */
-static int insert_first_block (reiser4_tree * tree UNUSED_ARG,
-			       tree_coord * coord,
-			       reiser4_lock_handle * lh,
-			       reiser4_key * key, struct buffer_head * bh)
-{
-	int result;
-	reiser4_extent ext;
-	reiser4_item_data unit;
-	reiser4_key first_key;
-	tree_coord left;
-
-	assert ("vs-240",
-		(get_key_offset (key) &
-		 ~(reiser4_get_current_sb ()->s_blocksize - 1)) == 0);
-
-	first_key = *key;
-	set_key_offset (&first_key, 0ull);
-
-	set_extent (&ext, UNALLOCATED_EXTENT, 1ull);
-	unit.data = (char *)&ext;
-	unit.length = sizeof (reiser4_extent);
-	unit.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID);
-	unit.arg = 0;
-
-	/*
-	 * when inserting item into twig level we also have to update right
-	 * delimiting key of left neighboring znode on leaf level and to break
-	 * linkage between that znode and its right neighbor. This will be done
-	 * by extent_create_hook. znode is being taken here and passed down to
-	 * create_hook via item.arg
-	 */
-	left = *coord;
-	assert ("vs-347", left_item_pos (&left) >= 0);
-	left.item_pos = left_item_pos (&left);
-	if (item_plugin_by_coord (&left)->u.item.item_type == INTERNAL_ITEM_TYPE) {
-		left.unit_pos = last_unit_pos (&left);
-		left.between = AT_UNIT;
-		spin_lock_dk (current_tree);
-		unit.arg = child_znode (&left, 1/*do setup delimiting keys*/);
-		spin_unlock_dk (current_tree);
-		if (IS_ERR (unit.arg))
-			return PTR_ERR (unit.arg);
-	}
-	result = insert_by_coord (coord, &unit, &first_key, lh, 0, 0);
-	if (unit.arg)
-		zput (unit.arg);
-	if (result)
-		return result;
-
-	assert ("vs-241", reiser4_get_current_sb ());
-	bh->b_dev = reiser4_get_current_sb ()->s_dev;
-	mark_buffer_new (bh);
-	mark_buffer_mapped (bh);
-	return 0;
 }
 
 
@@ -762,6 +717,91 @@ static int add_extents (reiser4_tree * tree, tree_coord * coord,
 }
 
 
+/*
+ * position within extent pointed to by @coord to block containing given offset
+ * @off
+ */
+static unsigned long long in_extent (const tree_coord * coord,
+				     unsigned long long off)
+{
+        reiser4_key key;
+        unsigned long long cur;
+        reiser4_extent * ext;
+
+
+        assert ("vs-266", coord_of_unit (coord));
+
+        item_key_by_coord (coord, &key);
+        cur = get_key_offset (&key) + extent_size (coord, (unsigned) coord->unit_pos);
+
+        ext = extent_by_coord (coord);
+        assert ("vs-265", (off - cur) / reiser4_get_current_sb ()->s_blocksize < 
+                extent_get_width (ext));
+        return (off - cur) / reiser4_get_current_sb ()->s_blocksize;
+        
+}
+
+
+/* insert extent item (containing one unallocated extent of width 1) to place
+   set by @coord */
+static int insert_first_block (reiser4_tree * tree UNUSED_ARG,
+			       tree_coord * coord,
+			       reiser4_lock_handle * lh,
+			       reiser4_key * key, struct buffer_head * bh)
+{
+	int result;
+	reiser4_extent ext;
+	reiser4_item_data unit;
+	reiser4_key first_key;
+	tree_coord left;
+
+	assert ("vs-240",
+		(get_key_offset (key) &
+		 ~(reiser4_get_current_sb ()->s_blocksize - 1)) == 0);
+
+	first_key = *key;
+	set_key_offset (&first_key, 0ull);
+
+	set_extent (&ext, UNALLOCATED_EXTENT, 1ull);
+	unit.data = (char *)&ext;
+	unit.length = sizeof (reiser4_extent);
+	unit.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID);
+	unit.arg = 0;
+
+	/*
+	 * when inserting item into twig level we also have to update right
+	 * delimiting key of left neighboring znode on leaf level and to break
+	 * linkage between that znode and its right neighbor. This will be done
+	 * by extent_create_hook. znode is being taken here and passed down to
+	 * create_hook via item.arg
+	 */
+	left = *coord;
+	assert ("vs-347", left_item_pos (&left) >= 0);
+	left.item_pos = left_item_pos (&left);
+	if (item_plugin_by_coord (&left)->u.item.item_type == INTERNAL_ITEM_TYPE) {
+		left.unit_pos = last_unit_pos (&left);
+		left.between = AT_UNIT;
+		spin_lock_dk (current_tree);
+		unit.arg = child_znode (&left, 1/*do setup delimiting keys*/);
+		spin_unlock_dk (current_tree);
+		if (IS_ERR (unit.arg))
+			return PTR_ERR (unit.arg);
+	}
+	result = insert_by_coord (coord, &unit, &first_key, lh, 0, 0);
+	if (unit.arg)
+		zput (unit.arg);
+	if (result)
+		return result;
+
+	/* do whatever is needed to be done with new block of a file */
+	bh->b_dev = reiser4_get_current_sb ()->s_dev;
+	mark_buffer_new (bh);
+	mark_buffer_mapped (bh);
+	mark_buffer_unallocated (bh);
+	return 0;
+}
+
+
 /* @coord is set to the end of extent item. Append it with pointer to one
    block - either by expanding last unallocated extent or by appending a new
    one of width 1 */
@@ -805,32 +845,11 @@ static int append_one_block (reiser4_tree * tree, tree_coord * coord,
 	bh->b_dev = reiser4_get_current_sb ()->s_dev;
 	mark_buffer_mapped (bh);
 	mark_buffer_new (bh);
-	mark_buffer_uptodate (bh);
+	mark_buffer_unallocated (bh);
 
 	coord->unit_pos = last_unit_pos (coord);
 	coord->between = AFTER_UNIT;
 	return 0;
-}
-
-
-unsigned long long in_extent (const tree_coord * coord,
-                              unsigned long long off)
-{
-        reiser4_key key;
-        unsigned long long cur;
-        reiser4_extent * ext;
-
-
-        assert ("vs-266", coord_of_unit (coord));
-
-        item_key_by_coord (coord, &key);
-        cur = get_key_offset (&key) + extent_size (coord, (unsigned) coord->unit_pos);
-
-        ext = extent_by_coord (coord);
-        assert ("vs-265", (off - cur) / reiser4_get_current_sb ()->s_blocksize < 
-                extent_get_width (ext));
-        return (off - cur) / reiser4_get_current_sb ()->s_blocksize;
-        
 }
 
 
@@ -896,6 +915,46 @@ static block_nr blocknr_by_coord_in_extent (tree_coord * coord,
 }
 
 
+/*
+ * FIXME-VS: add code to get jnode by blocknumber
+ */
+struct jnode * extent_utmost_child (tree_coord * coord, sideof side)
+{
+	reiser4_extent * ext;
+	unsigned long long pos_in_unit;
+	block_nr block;
+	
+
+	if (side == LEFT_SIDE) {
+		/*
+		 * get first extent of item
+		 */
+		ext = extent_item (coord);
+		pos_in_unit = 0;
+	} else {
+		/*
+		 * get last extent of item and last position within it
+		 */
+		assert ("vs-363", side == RIGHT_SIDE);
+		ext = extent_item (coord) + last_unit_pos (coord);
+		pos_in_unit = extent_get_width (ext) - 1;
+	}
+	
+	switch (state_of_extent (ext)) {
+	case ALLOCATED_EXTENT:
+		block = extent_get_start (ext) + pos_in_unit;
+		break;
+	case HOLE_EXTENT:
+		block = 0;
+		break;
+	case UNALLOCATED_EXTENT:
+		impossible ("vs-364", "what here?");
+	}
+
+	return 0;
+}
+
+
 /* pointer to block for @bh exists in extent item and it is addressed by
    @coord. If it is hole - make unallocated extent for it. */
 static int overwrite_one_block (reiser4_tree * tree,
@@ -916,7 +975,9 @@ static int overwrite_one_block (reiser4_tree * tree,
 		break;
 
 	case UNALLOCATED_EXTENT:
-		mark_buffer_unallocated (bh);
+		assert ("vs-353", buffer_unallocated (bh));
+		assert ("vs-354", buffer_mapped (bh));
+		assert ("vs-355", buffer_new (bh));
 		break;
 		
 	case HOLE_EXTENT:
@@ -924,6 +985,7 @@ static int overwrite_one_block (reiser4_tree * tree,
 		if (result)
 			return result;
 		
+		/* do whatever is needed to be done with new block of a file */
 		mark_buffer_new (bh);
 		mark_buffer_unallocated (bh);
 		break;
@@ -1000,16 +1062,23 @@ static int add_hole (reiser4_tree * tree,
 		 * being taken here and passed down to create_hook via
 		 * item.arg
 		 */
-		left = *coord;
+		reiser4_dup_coord (&left, coord);
 		assert ("vs-346", left_item_pos (&left) >= 0);
 		left.item_pos = left_item_pos (&left);
 		if (item_plugin_by_coord (&left)->u.item.item_type == INTERNAL_ITEM_TYPE) {
 			left.unit_pos = last_unit_pos (&left);
 			left.between = AT_UNIT;
+
+			spin_lock_dk( current_tree );
 			item.arg = child_znode (&left, 1/*do setup delimiting keys*/);
-			if (IS_ERR (item.arg))
+			spin_unlock_dk( current_tree );
+
+			if (IS_ERR (item.arg)) {
+				reiser4_done_coord (&left);
 				return PTR_ERR (item.arg);
+			}
 		}
+		reiser4_done_coord (&left);
 		result = insert_by_coord (coord, &item, &hole_key, lh, 0, 0);
 		if (item.arg)
 			zput (item.arg);
@@ -1334,8 +1403,10 @@ int commit_write (struct page * page, unsigned long long file_off,
 }
 
 
-/* wouldn't it be possible to modify it such that appending of a lot of bytes is
-   done in one modification of extent?
+/*
+ * plugin->u.item.s.file.write
+ * wouldn't it be possible to modify it such that appending of a lot of bytes
+ * is done in one modification of extent?
  */
 int extent_write (struct inode * inode, tree_coord * coord,
 		  reiser4_lock_handle * lh, flow * f)
@@ -1415,7 +1486,6 @@ static void issue_read (struct buffer_head ** bhs, unsigned nr)
 }
 
 
-/* */
 #define MAX_READAHEAD 10
 
 static int readahead_filler (void * arg, struct page * page)
@@ -1639,6 +1709,52 @@ static void check_resize_result (tree_coord * coord, reiser4_key * key)
 }
 
 
+/* look for all pages containing buffers for which block numbers were just
+   allocated */
+static void set_blocknrs (unsigned long long objectid,
+			  unsigned long long offset,
+			  unsigned long long first,
+			  unsigned long long count)
+{
+	struct inode * inode;
+	struct page * page;
+	struct buffer_head * bh;
+	int blocksize, page_off;
+	unsigned long ind;
+
+
+	blocksize = reiser4_get_current_sb ()->s_blocksize;
+
+	inode = iget (reiser4_get_current_sb (), (unsigned long)objectid);
+	assert ("vs-348", inode);
+
+	while (1) {
+		ind = offset >> PAGE_SHIFT;
+		page = find_lock_page (inode->i_mapping, ind);
+		assert ("vs-349", page && page->buffers);
+		
+		bh = page->buffers;
+		for (page_off = 0; offset != (ind << PAGE_SHIFT) + page_off;
+		     page_off += blocksize, bh = bh->b_this_page);
+
+		do {
+			assert ("vs-350", buffer_mapped (bh));
+			assert ("vs-351", buffer_unallocated (bh));
+			bh->b_blocknr = first ++;
+			mark_buffer_allocated (bh);
+			offset += blocksize;
+			count --;
+			bh = bh->b_this_page;
+		} while (count && bh != page->buffers);
+
+		UnlockPage (page);
+		page_cache_release (page);
+		if (!count)
+			break;
+	}
+}
+
+
 /* this replaces unallocated extents with allocated ones. @coord may change to
    another node */
 static int allocate_unallocated_extent (reiser4_tree * tree,
@@ -1721,6 +1837,14 @@ static int allocate_unallocated_extent (reiser4_tree * tree,
 				if (result)
 					return result;
 
+				/*
+				 * set b_blocknrs of all buffers corresponding
+				 * to newly allocated extent
+				 */
+				set_blocknrs (get_key_objectid (key),
+					      get_key_offset (key) - needed * blocksize,
+					      first, needed);
+
 				if (!coord_of_unit (coord) ||
 				    (keycmp (key, unit_key_by_coord (coord, &tmp_key)) !=
 				     EQUAL_TO))
@@ -1729,12 +1853,9 @@ static int allocate_unallocated_extent (reiser4_tree * tree,
 					return 1;
 				if (REISER4_DEBUG)
 					/* after resize_item @coord is supposed
-					   to be set to unallocated extent
-					   inserted */
+					   to be set to extent next to just
+					   allocated one */
 					check_resize_result (coord, key);
-				/* print_znode ("AFTER RESIZE", coord->node);
-				print_znode_content (coord->node, REISER4_NODE_PRINT_HEADER |
-				REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);*/
 				goto restart;
 			}
 		}

@@ -5,6 +5,8 @@
 /*
  * User-level simulation.
  */
+#define _GNU_SOURCE
+#define _FILE_OFFSET_BITS 64
 
 #include "reiser4.h"
 
@@ -620,6 +622,7 @@ unsigned long get_jiffies ()
 /* mm/page_alloc.c */
 void page_cache_release (struct page * page)
 {
+	assert ("vs-352", page->count > 0);
 	page->count --;
 }
 
@@ -689,17 +692,17 @@ char *__prog_name;
 
 static int mmap_back_end_fd = -1;
 static char *mmap_back_end_start = NULL;
-static size_t mmap_back_end_size = 0;
+static off_t mmap_back_end_size = 0;
 
 int ulevel_read_node( reiser4_tree *tree UNUSED_ARG, 
 		      const reiser4_disk_addr *addr UNUSED_ARG, char **data )
 {
 	if( mmap_back_end_fd > 0 ) {
-		size_t start;
+		off_t start;
 
 		start = addr -> blk * reiser4_get_current_sb ()->s_blocksize;
 		if( start + reiser4_get_current_sb ()->s_blocksize > mmap_back_end_size ) {
-			warning( "nikita-1372", "Trying to access beyond the device: %i > %i",
+			warning( "nikita-1372", "Trying to access beyond the device: %Li > %Li",
 				 start, mmap_back_end_size );
 			return -EIO;
 		} else {
@@ -859,7 +862,7 @@ void test_search( int rounds, int size, int num )
 static int echo_filldir(void *buf UNUSED_ARG, const char *name, int namelen, 
 			loff_t offset, ino_t inode, unsigned ftype)
 {
-	info( "filldir[%i]: %s (%i), %llx, %lx, %i\n",
+	info( "filldir[%i]: %s (%i), %Lx, %Lx, %i\n",
 	      current_pid, name, namelen, offset, inode, ftype );
 	return 0;
 }
@@ -982,11 +985,11 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 	fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR, 1 );
 	root = allocate_znode( tree, fake, tree -> height, &tree -> root_block, 
-			       !strcmp( argv[ 2 ], "mkreiser4fs" ) );
+			       !strcmp( argv[ 2 ], "mkfs" ) );
 	root -> rd_key = *max_key();
 	reiser4_sibling_list_insert( root, NULL );
 
-	if( !strcmp( argv[ 2 ], "mkr4fs" ) ) {
+	if( !strcmp( argv[ 2 ], "mkfs" ) ) {
 		/*
 		 * root is already allocated/initialised above.
 		 */
@@ -1467,15 +1470,9 @@ static struct inode * create_root_dir (znode * root)
 				      WRITE TEST
  *****************************************************************************************/
 
-static int call_create (struct inode * dir, const char * name);
-static int call_mkdir (struct inode * dir, const char * name);
-static struct inode * call_lookup (struct inode * dir, const char * name);
-static ssize_t call_write (struct inode * inode, const char * buf, loff_t offset, unsigned count);
-static ssize_t call_read (struct inode * inode, loff_t offset, unsigned count);
-
-static int insert_item (struct inode *inode,
-			reiser4_item_data * data,
-			reiser4_key * key)
+int insert_item (struct inode *inode,
+		 reiser4_item_data * data,
+		 reiser4_key * key)
 {
 	tree_coord coord;
 	reiser4_lock_handle lh;
@@ -1486,7 +1483,7 @@ static int insert_item (struct inode *inode,
 	reiser4_init_coord (&coord);
 	reiser4_init_lh (&lh);
 
-	level = (data->plugin->h.type_id == EXTENT_ITEM_ID) ? TWIG_LEVEL : LEAF_LEVEL;
+	level = (data->plugin->h.id == EXTENT_ITEM_ID) ? TWIG_LEVEL : LEAF_LEVEL;
 	result = insert_by_key (tree_by_inode (inode), key, data, &coord, &lh,
 				level, reiser4_inter_syscall_ra (inode), 0);
 
@@ -1494,6 +1491,14 @@ static int insert_item (struct inode *inode,
 	reiser4_done_coord (&coord);
 	return result;
 }
+
+static int call_create (struct inode * dir, const char * name);
+static ssize_t call_write (struct inode * inode, const char * buf, loff_t offset, unsigned count);
+ssize_t call_read (struct inode * inode, loff_t offset, unsigned count);
+void call_truncate (struct inode * inode, loff_t size);
+static struct inode * call_lookup (struct inode * dir, const char * name);
+static int call_mkdir (struct inode * dir, const char * name);
+
 
 
 static int call_create (struct inode * dir, const char * name)
@@ -1538,7 +1543,7 @@ static ssize_t call_write (struct inode * inode, const char * buf,
 }
 
 
-static ssize_t call_read (struct inode * inode, loff_t offset, unsigned count)
+ssize_t call_read (struct inode * inode, loff_t offset, unsigned count)
 {
 	reiser4_context *old_context;
 	ssize_t result;
@@ -1563,8 +1568,8 @@ static ssize_t call_read (struct inode * inode, loff_t offset, unsigned count)
 	return result;
 }
 
-#if 0
-static void call_truncate (struct inode * inode, loff_t size)
+
+void call_truncate (struct inode * inode, loff_t size)
 {
 	reiser4_context *old_context;
 
@@ -1575,7 +1580,7 @@ static void call_truncate (struct inode * inode, loff_t size)
 	inode->i_op->truncate (inode);
 	reiser4_init_context (old_context, inode->i_sb);
 }
-#endif
+
 
 static struct inode * call_lookup (struct inode * dir, const char * name)
 {
@@ -1597,6 +1602,18 @@ static struct inode * call_lookup (struct inode * dir, const char * name)
 	
 }
 
+
+static struct inode * call_cd (struct inode * dir, const char * name)
+{
+	struct inode * inode;
+
+	inode = call_lookup (dir, name);
+	if (!inode)
+		return inode;
+	if (!)
+}
+
+
 static int call_mkdir (struct inode * dir, const char * name)
 {
 	reiser4_context *old_context;
@@ -1613,6 +1630,26 @@ static int call_mkdir (struct inode * dir, const char * name)
 
 	reiser4_init_context (old_context, dir->i_sb);
 	return result;
+}
+
+
+static int call_readdir (struct inode * dir)
+{
+	reiser4_context *old_context;
+	struct dentry dentry;
+	struct file file;
+
+
+	old_context = reiser4_get_current_context();
+	SUSPEND_CONTEXT( old_context );
+
+	memset (&file, 0, sizeof (struct file));
+	dentry.d_inode = dir;
+	file.f_dentry = &dentry;
+	while (dir->i_fop->readdir (&file, 0, echo_filldir) == 0);
+
+	reiser4_init_context (old_context, dir->i_sb);
+	return 0;
 }
 
 
@@ -1634,6 +1671,7 @@ int copy_file (const char * oldname,
 	int result;
 	struct inode * inode;
 
+	return 0;
 
 	result = 0;
 	/* read source file */
@@ -1712,9 +1750,13 @@ static int copy_dir (struct inode * dir)
 	char * cwd;
 	struct inode ** inodes;
 	int depth;
-	char label [10];
+	/*char label [10];*/
 	int i;
+	int dirs, files;
 
+
+	dirs = 0;
+	files = 0;
 
 	prefix = 0;
 	cwd = getcwd (0, 0);
@@ -1745,7 +1787,7 @@ static int copy_dir (struct inode * dir)
 			prefix = strlen (name);
 			continue;
 		}
-		printf ("%s : ", name + prefix + 1);
+		printf ("%s : ", name);
 		
 		if (!stat (name, &st)) {
 			if (S_ISDIR (st.st_mode)) {
@@ -1767,20 +1809,25 @@ static int copy_dir (struct inode * dir)
 					info ("copy_dir: lookup failed\n");
 					break;
 				}
+				dirs ++;
 			} else if (S_ISREG (st.st_mode)) {
 				printf ("REG\n");
 				if (copy_file (name, inodes [depth - 1], last_name (name + prefix + 1), &st)) {
+					info ("copy_dir: copy_file failed\n");
 					break;
 				}
+				files ++;
 			} else
 				printf ("OTHER");
 		} else {
 			perror ("copy_dir: stat failed");
 			break;
 		}
+		/*
 		sprintf (label, "TREE%d", i ++);
 		print_tree_rec (label, tree_by_inode (dir), REISER4_NODE_PRINT_HEADER |
 				REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
+		*/
 	}
 
 	free (name);
@@ -1791,7 +1838,43 @@ static int copy_dir (struct inode * dir)
 	}
 	free (cwd);
 
+	info ("DONE: %d dirs, %d files\n", dirs, files);
+
 	return 0;
+}
+
+
+/*
+ * go through all "twig" nodes and call alloc_extent for every item
+ */
+static void allocate_unallocated (reiser4_tree * tree)
+{
+	tree_coord coord;
+	reiser4_lock_handle lh;
+	reiser4_key key;
+	int result;
+
+
+	reiser4_init_coord (&coord);
+	reiser4_init_lh (&lh);
+
+	key_init (&key);
+	set_key_locality (&key, 2ull);
+	set_key_objectid (&key, 0x2aull);
+	set_key_type (&key, KEY_SD_MINOR);
+	set_key_offset (&key, 0ull);
+	result = coord_by_key (tree, &key, &coord, &lh,
+			       ZNODE_WRITE_LOCK, FIND_EXACT,
+			       TWIG_LEVEL, TWIG_LEVEL );
+	coord_first_unit (&coord);
+	result = reiser4_iterate_tree (tree, &coord, &lh, 
+				       alloc_extent, 0, ZNODE_WRITE_LOCK, 0);
+
+	reiser4_done_lh (&lh);
+	reiser4_done_coord (&coord);
+
+	print_tree_rec ("AFTER ALLOCATION", tree, REISER4_NODE_PRINT_HEADER |
+			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
 }
 
 
@@ -1818,89 +1901,50 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 	/* root directory is the only thing in the tree */
 
+	/* make tree high enough */
+#define NAME_LENGTH 128
+	for (i = 0; i < 2; i ++) {
+		char name [NAME_LENGTH];
+		
+		memset (name, '0' + i, NAME_LENGTH - 1);
+		name [NAME_LENGTH - 1] = 0;
+		call_create (root_dir, name);
+	}
+
+	/* to insert extent items tree must be at least this high */
+	assert ("vs-359", tree->height > 1);
+
+
 	if (argc == 2) {
 		/* ./a.out vs */
-#define NAME_LENGTH 128
-		for (i = 0; i < 2; i ++) {
-			char name [NAME_LENGTH];
-
-			memset (name, '0' + i, NAME_LENGTH - 1);
-			name [NAME_LENGTH - 1] = 0;
-			call_create (root_dir, name);
-		}
-
-		/* two files "000.." and "111.." are created */
-
-
 #if 1
 		{
-			reiser4_item_data data;
-			reiser4_key key;
-			reiser4_extent * ext;
 			char name [NAME_LENGTH];
 			char * buf;
 
 			memset (name, '0', NAME_LENGTH - 1);
 			name [NAME_LENGTH - 1] = 0;
 		
-
-			/* make a body of file "0000..." */
+			/*
+			 * "open" file "000000000000000000000000"
+			 */
 			inode = call_lookup (root_dir, name);
 			if (!inode || IS_ERR (inode)) {
 				info ("lookup failed for file %s\n", name);
 				return 0;
 			}
-		
-			data.data = malloc (4 * sizeof (reiser4_extent));
-			if (!data.data) {
-				info ("malloc failed\n");
-				return 0;
-			}
-			ext = (reiser4_extent *)data.data;
-			/* allocated */
-			extent_set_start (ext, 100ull);
-			extent_set_width (ext, 2ull);
-		
-			/* hole */
-			extent_set_start (ext + 1, 0ull);
-			extent_set_width (ext + 1, 3ull);
 
-			/* allocated */
-			extent_set_start (ext + 2, 200ull);
-			extent_set_width (ext + 2, 4ull);
-
-			/* unallocated */
-			extent_set_start (ext + 3, 1ull);
-			extent_set_width (ext + 3, 5ull);
-
-			data.length = 4 * sizeof (reiser4_extent);
-			data.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, EXTENT_ITEM_ID);
-
-			build_sd_key (inode, &key);
-			set_key_type (&key, KEY_BODY_MINOR);
-			set_key_offset (&key, 0ull);
-			if (insert_item (inode, &data, &key)) {
-				info ("insert_item failed\n");
-				return 0;
-			}
-			inode->i_size = 14 * blocksize;
-			if (reiser4_get_file_plugin (inode)->save_sd (inode)) {
-				info ("save_sd failed\n");
-				return 0;
-			}
-
-			/* now file "000..." looks like [100|2][0|3][200|4][u|5] */
-			print_tree_rec ("BEFORE WRITE 1", tree, REISER4_NODE_PRINT_HEADER |
-					REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
-
-
-			/* write 21 blocks of file */
+			/*
+			 * write to that file 10 blocks at offset 3 blocks
+			 */
 			buf = malloc (blocksize * 10);
 			assert ("vs-345", buf);
-			call_write (inode, buf, (loff_t)3 * blocksize, blocksize - 2/*15000*/);
+			call_write (inode, buf, (loff_t)3 * blocksize, blocksize * 10);
 
 		
-			/* open file "111.." */
+			/*
+			 * "open" file "11111111111111111111111"
+			 */
 			memset (name, '1', NAME_LENGTH - 1);
 			name [NAME_LENGTH - 1] = 0;
 			inode = call_lookup (root_dir, name);
@@ -1908,8 +1952,10 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				info ("lookup failed for file %s\n", name);
 				return 0;
 			}
-			/* write 10 blocks at offset blocksize */
-			call_write (inode, buf, (loff_t)1 * blocksize, 10 * blocksize);
+			/*
+			 * write to that file 5 blocks at offset 1 block
+			 */
+			call_write (inode, buf, (loff_t)1 * blocksize, blocksize * 5);
 
 			free (buf);
 			print_tree_rec ("AFTER 2 WRITES", tree, REISER4_NODE_PRINT_HEADER |
@@ -1918,35 +1964,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		}
 #endif
 
-#if 1 /* testing extent allocation */
-		{
-			tree_coord coord;
-			reiser4_lock_handle lh;
-			reiser4_key key;
-			int result;
-
-			reiser4_init_coord (&coord);
-			reiser4_init_lh (&lh);
-
-			key_init (&key);
-			set_key_locality (&key, 2ull);
-			set_key_objectid (&key, 0x2aull);
-			set_key_type (&key, KEY_SD_MINOR);
-			set_key_offset (&key, 0ull);
-			result = coord_by_key (tree, &key, &coord, &lh,
-					       ZNODE_WRITE_LOCK, FIND_EXACT,
-					       TWIG_LEVEL, TWIG_LEVEL );
-			coord_first_unit (&coord);
-			result = reiser4_iterate_tree (tree, &coord, &lh, 
-						       alloc_extent, 0, ZNODE_WRITE_LOCK, 0);
-
-			reiser4_done_lh (&lh);
-			reiser4_done_coord (&coord);
-
-			print_tree_rec ("AFTER ALLOCATION", tree, REISER4_NODE_PRINT_HEADER |
-					REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
-		}
-#endif
+		allocate_unallocated (tree);
 
 #if 0 /* cut_tree */
 		{
@@ -1993,13 +2011,110 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		}
 #endif
 	} else if (!strcmp (argv[2], "copydir")) {
-		copy_dir (root_dir);
+		/*
+		 * simulate cp -r
+		 */
+		struct inode * dir;
+
+
+		call_mkdir (root_dir, "testdir");
+		dir = call_lookup (root_dir, "testdir");
+
+		copy_dir (dir);
+
 		print_tree_rec ("AFTER COPY_DIR", tree, REISER4_NODE_PRINT_HEADER |
 				REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
+		call_readdir (dir);
+
+		allocate_unallocated (tree);
+
+		print_pages ();
+	} else if (!strcmp (argv[2], "twig")) {
+		/*
+		 * test modification of search to insert empty node when no
+		 * appropriate internal item is found
+		 */
+		struct inode * dir;
+
+		call_mkdir (root_dir, "dir1");
+		dir = call_lookup (root_dir, "dir1");
+		call_create (dir, "file1");
+		inode = call_lookup (dir, "file1");
+		call_write (inode, "Hello, world", 0ull, strlen ("Hello, world"));
+
+		call_mkdir (root_dir, "dir2");
+
+
+		dir = call_lookup (root_dir, "dir2");
+		call_create (dir, "file2");
+		inode = call_lookup (dir, "file2");
+		call_write (inode, "Hello, world2", 0ull, strlen ("Hello, world2"));
+#if 0
+		set_key_locality (&key, 35ull);
+		set_key_objectid (&key, 40ull);
+		set_key_type (&key, KEY_SD_MINOR);
+		set_key_offset (&key, 0ull);
+
+
+		item.plugin = plugin_by_id (REISER4_ITEM_PLUGIN_ID, SD_ITEM_ID);
+		if (insert_item (root_dir, &item, &key)) {
+			info ("insert_item failed for stat data\n");
+			return 1;
+		}
+#endif
+
+	} else if (!strcmp (argv[2], "tail")) {
+		/*
+		 * try to put tail items into tree
+		 */
+		
+	} else if (!strcmp (argv[2], "bash")) {
+		char * command = 0;
+		size_t n = 0;
+		struct inode * cwd;
+
+		if (call_mkdir (root_dir, "testdir")) {
+			info ("mkdir failed");
+			return 1;
+		}
+		cwd = call_lookup (root_dir, "testdir");
+		if (IS_ERR (cwd)) {
+			info ("lookup failed");
+			return 1;
+		}
+
+		while (getline (&command, &n, stdin) != -1) {
+			/* remove ending '\n' */
+			command [strlen (command) - 1] = 0;
+			if (!strncmp (command, "pwd", 2)) {
+				info ("Not ready\n");
+			} else if (!strncmp (command, "ls", 2)) {
+				call_readdir (cwd);
+			} else if (!strncmp (command, "cd ", 3)) {
+				struct inode * tmp;
+
+				tmp = call_cd (cwd, command + 3);
+				if (!tmp)
+					info ();
+				else
+					cwd = 
+			} else if (!strncmp (command, "mkdir ", 6)) {
+				if (call_mkdir (cwd, command + 6))
+					info ("mkdir \"%s\"\n", command + 6);
+			} else if (command [0] == 0 ||
+				   !strcmp (command, "exit")) {
+				break;
+			} else
+				info ("Unknown command \"%s\"\n", command);
+		}
+		info ("Done\n");
 	} else {
-		info ("%s vs OR %s vs copydir\n", argv [0], argv [0]);
+		info ("%s vs OR %s vs copydir OR vs twig OR vs tail\n", argv [0], argv [0]);
 	}
 
+	print_tree_rec ("DONE", tree, REISER4_NODE_PRINT_HEADER |
+			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS |
+			REISER4_NODE_CHECK);
 	return 0;
 }
 
@@ -2392,13 +2507,14 @@ int real_main( int argc, char **argv )
 	tree_height = 1;
 	if( getenv( "REISER4_UL_DURABLE_MMAP" ) != NULL ) {
 		mmap_back_end_fd = open( getenv( "REISER4_UL_DURABLE_MMAP" ),
-					 O_CREAT | O_RDWR, 0700 );
+					 O_CREAT | O_RDWR | O_LARGEFILE, 0700 );
 		if( mmap_back_end_fd == -1 ) {
-			fprintf( stderr, "%s: Cannot open %s\n", argv[ 0 ],
-				 getenv( "REISER4_UL_DURABLE_MMAP" ) );
+			fprintf( stderr, "%s: Cannot open %s: %s\n", argv[ 0 ],
+				 getenv( "REISER4_UL_DURABLE_MMAP" ),
+				 strerror( errno ) );
 			exit( 1 );
 		}
-		mmap_back_end_size = lseek( mmap_back_end_fd, 0, SEEK_END );
+		mmap_back_end_size = lseek64( mmap_back_end_fd, (off_t)0, SEEK_END );
 		if( ( off_t ) mmap_back_end_size == ( off_t ) -1 ) {
 			perror( "lseek" );
 			exit( 2 );
@@ -2406,18 +2522,18 @@ int real_main( int argc, char **argv )
 		mmap_back_end_start = mmap( NULL, 
 					    mmap_back_end_size, 
 					    PROT_WRITE | PROT_READ, 
-					    MAP_SHARED, mmap_back_end_fd, 0 );
+					    MAP_SHARED, mmap_back_end_fd, (off_t)0 );
 		if( mmap_back_end_start == MAP_FAILED ) {
 			perror( "mmap" );
 			exit( 3 );
 		}
-		if( pread( mmap_back_end_fd, &root_block, sizeof root_block, 0 ) != sizeof root_block ) {
+		if( pread( mmap_back_end_fd, &root_block, sizeof root_block, (off_t)0 ) != sizeof root_block ) {
 			perror( "read root block" );
 			exit( 4 );
 		}
 		if( root_block.blk == 0 )
 			root_block.blk = 3;
-		if( pread( mmap_back_end_fd, &tree_height, sizeof tree -> height, sizeof root_block ) != sizeof tree -> height ) {
+		if( pread( mmap_back_end_fd, &tree_height, sizeof tree -> height, (off_t)(sizeof root_block) ) != sizeof tree -> height ) {
 			perror( "read tree height" );
 			exit( 4 );
 		}
@@ -2454,12 +2570,12 @@ int real_main( int argc, char **argv )
 		reiser4_print_stats();
 	if( ( mmap_back_end_fd > 0 ) && 
 	    ( pwrite( mmap_back_end_fd, &tree -> root_block, 
-		      sizeof root_block, 0 ) != sizeof root_block ) ) {
+		      sizeof root_block, (off_t)0 ) != sizeof root_block ) ) {
 			perror( "write root block" );
 			exit( 5 );
 		}
 	if( ( mmap_back_end_fd > 0 ) && 
-	    ( pwrite( mmap_back_end_fd, &tree -> height, sizeof tree -> height, sizeof root_block ) != sizeof tree -> height ) ) {
+	    ( pwrite( mmap_back_end_fd, &tree -> height, sizeof tree -> height, (off_t)(sizeof root_block) ) != sizeof tree -> height ) ) {
 			perror( "write tree height" );
 			exit( 4 );
 	}

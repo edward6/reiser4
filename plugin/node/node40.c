@@ -1268,6 +1268,10 @@ static void copy_units (tree_coord * target, tree_coord * source,
 	plugin -> u.item.b.copy_units (target, 
 				       source, from, count, dir, free_space);
 	if (dir == SHIFT_PREPEND) {
+		/*
+		 * FIXME-VS: this looks not necessary. update_item_key was
+		 * called already by copy_units method
+		 */
 		reiser4_key split_key;
 
 		assert ("nikita-1469", target->unit_pos == 0);

@@ -34,9 +34,6 @@ ssize_t reiser4_ordinary_file_write (struct file * file,
 ssize_t reiser4_ordinary_file_read (struct file * file,
 				    flow * f, loff_t * off);
 int reiser4_ordinary_file_truncate (struct inode * inode, loff_t size);
-int reiser4_ordinary_file_find_item (reiser4_tree * tree, reiser4_key * key,
-				     tree_coord * coord,
-				     reiser4_lock_handle * lh);
 int reiser4_ordinary_readpage (struct file * file, struct page * page);
 
 

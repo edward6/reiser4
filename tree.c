@@ -711,7 +711,7 @@ znode *child_znode( const tree_coord *parent_coord, int setup_dkeys_p )
 		 */
 		warning( "nikita-1217", "Child of maize?" );
 		print_znode( "node", parent );
-		child = ERR_PTR( -EIO );
+		return ERR_PTR( -EIO );
 	}
 	if( item_type_by_coord( parent_coord ) == INTERNAL_ITEM_TYPE ) {
 		reiser4_disk_addr addr;

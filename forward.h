@@ -30,9 +30,10 @@ typedef struct tree_coord tree_coord;
 struct item_coord;
 typedef struct item_coord item_coord;
 
+/*
 struct unit_coord;
 typedef struct unit_coord unit_coord;
-
+*/
 struct shift_params;
 typedef struct shift_params shift_params;
 
