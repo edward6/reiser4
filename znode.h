@@ -21,6 +21,7 @@
 
 #include <linux/types.h>
 #include <linux/spinlock.h>
+#include <linux/pagemap.h> /* for PAGE_CACHE_SIZE */
 #include <asm/atomic.h>
 #include <asm/semaphore.h>
 
@@ -378,7 +379,15 @@ extern int zinit_new( znode *node );
 extern void zrelse( znode *node );
 extern void znode_change_parent( znode *new_parent, reiser4_block_nr *block );
 
-extern unsigned znode_size( const znode *node );
+/** size of data in znode */
+static inline unsigned
+znode_size(const znode * node UNUSED_ARG /* znode to query */ )
+{
+	assert("nikita-1416", node != NULL);
+	return PAGE_CACHE_SIZE;
+}
+
+
 extern unsigned znode_free_space( znode *node );
 extern int znode_is_loaded( const znode *node );
 extern int znode_is_loaded_nolock( const znode *node );

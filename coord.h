@@ -163,14 +163,15 @@ extern void coord_dup (coord_t *coord, const coord_t *old_coord);
 /* Copy a coordinate without check. */
 void coord_dup_nocheck (coord_t *coord, const coord_t *old_coord);
 
-/* Return the number of items at the present node.  Asserts coord->node != NULL. */
-extern unsigned coord_num_items (const coord_t *coord);
+unsigned coord_num_units(const coord_t * coord);
 
-/* Return the number of units at the present item.  Asserts coord_is_existing_item(). */
-extern unsigned coord_num_units (const coord_t *coord);
-
-/* Return the last valid unit number at the present item (i.e., coord_num_units() - 1). */
-extern unsigned coord_last_unit_pos (const coord_t *coord);
+/* Return the last valid unit number at the present item (i.e.,
+ * coord_num_units() - 1). */
+static inline unsigned
+coord_last_unit_pos(const coord_t * coord)
+{
+	return coord_num_units(coord) - 1;
+}
 
 #if REISER4_DEBUG
 /* For assertions only, checks for a valid coordinate. */
@@ -302,6 +303,7 @@ extern int coord_set_after_unit (coord_t *coord);
 
 /* Calls either coord_next_unit or coord_prev_unit depending on sideof argument. */
 extern int coord_sideof_unit (coord_t *coord, sideof dir);
+
 
 /** iterate over all units in @node */
 #define for_all_units( coord, node )					\

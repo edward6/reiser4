@@ -212,6 +212,18 @@ node40_free_space(znode * node)
 	return nh40_get_free_space(node40_node_header(node));
 }
 
+/**
+ * private inline version of node40_num_of_items() for use in this file. This
+ * is necessary, because address of node40_num_of_items() is taken and it is
+ * never inlined as a result.
+ */
+static inline int
+node40_num_of_items_internal(const znode * node)
+{
+	trace_stamp(TRACE_NODES);
+	return nh40_get_num_items(node40_node_header(node));
+}
+
 /* plugin->u.node.num_of_items
    look for description of this method in plugin/node/node.h
 */
@@ -219,7 +231,7 @@ int
 node40_num_of_items(const znode * node)
 {
 	trace_stamp(TRACE_NODES);
-	return nh40_get_num_items(node40_node_header(node));
+	return node40_num_of_items_internal(node);
 }
 
 /* plugin->u.node.item_by_coord
@@ -251,7 +263,7 @@ node40_length_by_coord(const coord_t * coord)
 	assert("vs-257", coord_is_existing_item(coord));
 
 	ih = node40_ih_at_coord(coord);
-	if ((int) coord->item_pos == node40_num_of_items(coord->node) - 1)
+	if ((int) coord->item_pos == node40_num_of_items_internal(coord->node) - 1)
 		return
 		    nh40_get_free_space_start(node40_node_header(coord->node)) -
 		    ih40_get_offset(ih);
@@ -320,7 +332,7 @@ node40_lookup(znode * node /* node to query */ ,
 
 	/* binary search for item that can contain given key */
 	left = 0;
-	right = node40_num_of_items(node) - 1;
+	right = node40_num_of_items_internal(node) - 1;
 	coord->node = node;
 	found = 0;
 
@@ -382,7 +394,7 @@ node40_lookup(znode * node /* node to query */ ,
 
 			assert("nikita-1084", median >= 0);
 			assert("nikita-1085",
-			       median < node40_num_of_items(node));
+			       median < node40_num_of_items_internal(node));
 			switch (keycmp(key, __get_key(median))) {
 			case EQUAL_TO:
 				if (!REISER4_NON_UNIQUE_KEYS) {
@@ -424,7 +436,7 @@ node40_lookup(znode * node /* node to query */ ,
 		/* this will set coord in empty node properly */
 		coord_init_first_unit(coord, node);
 
-	if (left >= node40_num_of_items(node))
+	if (left >= node40_num_of_items_internal(node))
 		return NS_NOT_FOUND;
 
 	/* key < leftmost key in a mode or node is corrupted and keys
@@ -540,7 +552,7 @@ node40_check(const znode * node /* node to check */ ,
 
 	assert("nikita-582", zdata(node) != NULL);
 
-	nr_items = node40_num_of_items(node);
+	nr_items = node40_num_of_items_internal(node);
 	if (nr_items < 0) {
 		*error = "Negative number of items";
 		return -1;
@@ -699,7 +711,7 @@ node40_parse(znode * node /* node to parse */ )
 			"Wrong magic in tree node: want %x, got %x",
 			REISER4_NODE_MAGIC, nh40_get_magic(header));
 	else {
-		node->nr_items = node40_num_of_items(node);
+		node->nr_items = node40_num_of_items_internal(node);
 		result = 0;
 	}
 	if (result == 0) {
@@ -1204,20 +1216,20 @@ cut_or_kill(coord_t * from, coord_t * to,
 
 	/* update item headers of moved items */
 	for (i = rightmost_not_moved + 1 + removed_entirely;
-	     (int) i < node40_num_of_items(node); i++) {
+	     (int) i < node40_num_of_items_internal(node); i++) {
 		ih = node40_ih_at(node, i);
 		ih40_set_offset(ih, (ih40_get_offset(ih) -
 				     (freed_space_end - freed_space_start)));
 	}
 
 	/* cut item headers of removed items */
-	ih = node40_ih_at(node, (unsigned) node40_num_of_items(node) - 1);
+	ih = node40_ih_at(node, (unsigned) node40_num_of_items_internal(node) - 1);
 	xmemmove(ih + removed_entirely, ih,
-		 sizeof (item_header40) * (node40_num_of_items(node) -
+		 sizeof (item_header40) * (node40_num_of_items_internal(node) -
 					   removed_entirely - first_removed));
 
 	/* update node header */
-	nh40_set_num_items(nh, node40_num_of_items(node) - removed_entirely);
+	nh40_set_num_items(nh, node40_num_of_items_internal(node) - removed_entirely);
 	node->nr_items -= removed_entirely;
 	nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) -
 				  (freed_space_end - freed_space_start));
@@ -1231,7 +1243,7 @@ cut_or_kill(coord_t * from, coord_t * to,
 
 		assert("vs-313", wrong_item >= removed_entirely);
 		wrong_item -= removed_entirely;
-		assert("vs-314", (int) wrong_item < node40_num_of_items(node));
+		assert("vs-314", (int) wrong_item < node40_num_of_items_internal(node));
 		coord.node = node;
 		coord_set_item_pos(&coord, wrong_item);
 		coord.unit_pos = 0;
@@ -1619,7 +1631,7 @@ node40_copy(struct shift_params *shift)
 		from_ih = node40_ih_at(from.node, 0);
 
 		coord_set_item_pos(&to,
-				   (unsigned) node40_num_of_items(to.node) - 1);
+				   (unsigned) node40_num_of_items_internal(to.node) - 1);
 		if (shift->merging_units) {
 			/* expand last item, so that plugin methods will see
 			 * correct data */
@@ -1691,7 +1703,7 @@ node40_copy(struct shift_params *shift)
 
 			/* copy item header of partially copied item */
 			coord_set_item_pos(&to,
-					   (unsigned) node40_num_of_items(to.
+					   (unsigned) node40_num_of_items_internal(to.
 									  node)
 					   - 1);
 			xmemcpy(to_ih, from_ih, sizeof (item_header40));
@@ -1708,7 +1720,7 @@ node40_copy(struct shift_params *shift)
 		/* copying to right */
 
 		coord_set_item_pos(&from,
-				   (unsigned) node40_num_of_items(from.node) -
+				   (unsigned) node40_num_of_items_internal(from.node) -
 				   1);
 		from_ih = node40_ih_at_coord(&from);
 

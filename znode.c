@@ -742,14 +742,6 @@ zrelse(znode * node /* znode to release references to */ )
 	jrelse(ZJNODE(node));
 }
 
-/** size of data in znode */
-unsigned
-znode_size(const znode * node UNUSED_ARG /* znode to query */ )
-{
-	assert("nikita-1416", node != NULL);
-	return PAGE_CACHE_SIZE;
-}
-
 /** returns free space in node */
 /* Audited by: umka (2002.06.11) */
 unsigned

@@ -168,16 +168,6 @@ coord_init_zero(coord_t * coord)
 	xmemset(coord, 0, sizeof (*coord));
 }
 
-/* Return the number of items at the present node.  Asserts coord->node != NULL. */
-/* Audited by: green(2002.06.15) */
-unsigned
-coord_num_items(const coord_t * coord)
-{
-	assert("jmacd-9805", coord->node != NULL);
-
-	return node_num_items(coord->node);
-}
-
 /* Return the number of units at the present item.  Asserts coord_is_existing_item(). */
 unsigned
 coord_num_units(const coord_t * coord)
@@ -185,14 +175,6 @@ coord_num_units(const coord_t * coord)
 	assert("jmacd-9806", coord_is_existing_item(coord));
 
 	return item_plugin_by_coord(coord)->b.nr_units(coord);
-}
-
-/* Return the last valid unit number at the present item (i.e., coord_num_units() - 1). */
-/* Audited by: green(2002.06.15) */
-unsigned
-coord_last_unit_pos(const coord_t * coord)
-{
-	return coord_num_units(coord) - 1;
 }
 
 /* Returns the current item positions.  Asserts non-empty. */
