@@ -2758,6 +2758,13 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 				 * points to have different predecer in
 				 * parent-first order
 				 */
+				/* FIXME: JMACD->VS: I think we should also
+				 * un-assign-jnode-blocknrs here.  I can reproduce the
+				 * problem for you.  This also leads to the problem in
+				 * squalloc_right_twig_cut, where we have disabled
+				 * cut_node() with a to_key argument.  So if this
+				 * allocation fails in the middle and only some of the
+				 * extent was copied, cut_node needs a to_key.  Right? */
 				free_blocks (first_allocated, allocated);
 				result = SQUEEZE_TARGET_FULL;
 				trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
