@@ -9,6 +9,7 @@
 
 #include <aal/aal.h>
 #include <reiserfs/plugin.h>
+#include <reiserfs/path.h>
 
 struct reiserfs_node_common_header {
     uint16_t plugin_id; 
@@ -20,7 +21,6 @@ struct reiserfs_node {
     aal_device_t *device;
     aal_block_t *block;
     reiserfs_opaque_t *entity;
-    
     reiserfs_plugin_t *plugin;
 };
 
@@ -37,6 +37,7 @@ extern reiserfs_plugin_id_t reiserfs_node_plugin(reiserfs_node_t *node);
     
 extern error_t reiserfs_node_check(reiserfs_node_t *node, int flags);
 extern error_t reiserfs_node_sync(reiserfs_node_t *node);
+extern reiserfs_coord_t *reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key);
 
 extern uint32_t reiserfs_node_item_maxsize(reiserfs_node_t *node);
 extern uint32_t reiserfs_node_item_maxnum(reiserfs_node_t *node);
@@ -47,6 +48,8 @@ extern reiserfs_plugin_id_t reiserfs_node_plugin(reiserfs_node_t *node);
 
 extern uint32_t reiserfs_node_get_free_space(reiserfs_node_t *node);
 extern void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value);
+
+extern int reiserfs_node_is_leaf(reiserfs_node_t *node);
 
 #endif
 

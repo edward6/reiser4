@@ -137,45 +137,43 @@ static void reiserfs_node40_print(reiserfs_node40_t *node, char *buff) {
     count for item_pos if after and -1 for unit_pos if item_lookup method has not been 
     implemented. Other values for unit_num are set by item lookup method.
 */
-static reiserfs_coord_t *lookup(reiserfs_node40_t *node, reiserfs_key_t *key) {
-    int ret;
-    int64_t pos;
-    reiserfs_coord_t *coord;
+static int reiserfs_node40_lookup(reiserfs_node40_t *node, reiserfs_key_t *key, 
+    reiserfs_coord_t *coord) 
+{
+    int found; int64_t pos;
     reiserfs_plugin_id_t plugin_id;
 
     reiserfs_plugin_t *plugin;
     
-    aal_assert("umka-470", node != NULL, return NULL);
-    aal_assert("umka-471", node->block != NULL, return NULL);
-    aal_assert("umka-472", key != NULL, return NULL);
-	
-    if (!(coord = aal_calloc(sizeof(*coord), 0)))
-	return NULL;
+    aal_assert("umka-470", node != NULL, return 0);
+    aal_assert("umka-472", key != NULL, return 0);
+    aal_assert("umka-478", coord != NULL, return 0);
+    aal_assert("umka-471", node->block != NULL, return 0);
 
     coord->node = node;
     
-    if ((ret = reiserfs_misc_bin_search(key, node, reiserfs_node40_item_count(node), 
+    if ((found = reiserfs_misc_bin_search(key, node, reiserfs_node40_item_count(node), 
 	reiserfs_node40_key_at, reiserfs_misc_comp_keys, &pos)) == -1)
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Binary search failed on node %d.", 
 	    aal_device_get_block_location(node->device, node->block));
-	goto error_free_coord;
+	return 0;
     }
 
     coord->item_pos = pos;
-    coord->unit_pos = -1; 
+    coord->unit_pos = -1;
     
     if (pos < 0 || pos >= reiserfs_node40_item_count(node))
-	return coord;
+	return found;
 
-    if (!ret) {
+    if (!found) {
 	/* We need to search whithin the found item */
 	plugin_id = get_ih40_plugin_id(reiserfs_node40_ih_at(node, pos));
 	if (!(plugin = reiserfs_plugins_find_by_coords(REISERFS_NODE_PLUGIN, plugin_id))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Node plugin cannot be find by its identifier %x.", plugin_id);
-	    goto error_free_coord;
+	    return found;
 	}
 
 /*    	Uncomment this when method's interfaces will be ready
@@ -185,12 +183,8 @@ static reiserfs_coord_t *lookup(reiserfs_node40_t *node, reiserfs_key_t *key) {
 	reiserfs_plugin_check_routine(plugin->item, lookup, return coord);
 	plugin->item->common.lookup(key, coord);*/
     }
- 
-    return coord;
-
-error_free_coord:
-    aal_free(coord);
-    return NULL;
+    
+    return found;
 }
 
 static error_t reiserfs_node40_insert(reiserfs_coord_t *where, 
@@ -245,11 +239,14 @@ static reiserfs_plugin_t node40_plugin = {
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *, aal_block_t *))reiserfs_node40_open,
 	.create = (reiserfs_opaque_t *(*)(aal_device_t *,aal_block_t *, uint8_t))reiserfs_node40_create,
 	.confirm = (error_t (*)(reiserfs_opaque_t *))reiserfs_node40_confirm,
-	.check =  (error_t (*)(reiserfs_opaque_t *, int))reiserfs_node40_check,
+	.check = (error_t (*)(reiserfs_opaque_t *, int))reiserfs_node40_check,
+	.lookup = (int (*)(reiserfs_opaque_t *, reiserfs_key_t *, reiserfs_coord_t *))reiserfs_node40_lookup,
+	
 	.item_maxsize = (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_maxsize,
 	.item_maxnum =  (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_maxnum,
 	.item_count = (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_item_count,
 	.level = (uint8_t (*)(reiserfs_opaque_t *))reiserfs_node40_level,
+	
 	.get_free_space = (uint32_t (*)(reiserfs_opaque_t *))reiserfs_node40_get_free_space,
 	.set_free_space = (void (*)(reiserfs_opaque_t *, uint32_t))reiserfs_node40_set_free_space,
 	.print = (void (*)(reiserfs_opaque_t *, char *))reiserfs_node40_print

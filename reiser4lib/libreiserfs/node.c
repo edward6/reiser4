@@ -58,10 +58,10 @@ error_free_node:
 #ifndef ENABLE_COMPACT
 
 reiserfs_node_t *reiserfs_node_create(
-    aal_device_t *device,                /* device which a node will be created on */
-    blk_t blk,                           /* allocated block */
-    reiserfs_plugin_id_t plugin_id,      /* node plugin id to be used */
-    uint8_t level)                       /* level of the node in the tree */
+    aal_device_t *device,			/* device which a node will be created on */
+    blk_t blk,					/* allocated block */
+    reiserfs_plugin_id_t plugin_id,		/* node plugin id to be used */
+    uint8_t level)				/* level of the node in the tree */
 
 {
     reiserfs_node_t *node;
@@ -110,7 +110,6 @@ void reiserfs_node_close(reiserfs_node_t *node) {
     aal_free(node);
 }
 
-/* Returns "true" on success or "false" on failure */
 error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     aal_assert("umka-123", node != NULL, return -1);
 
@@ -118,9 +117,23 @@ error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     return node->plugin->node.check(node->entity, flags);
 }
 
+reiserfs_coord_t *reiserfs_node_lookup(reiserfs_node_t *node, reiserfs_key_t *key) {
+    reiserfs_coord_t *coord;
+    
+    aal_assert("umka-475", node != NULL, return NULL);
+    aal_assert("umka-476", key != NULL, return NULL);
+
+    if (!(coord = aal_calloc(sizeof(*coord), 0)))
+	return NULL;
+
+    reiserfs_plugin_check_routine(node->plugin->node, lookup, return NULL);
+    node->plugin->node.lookup(node->entity, key, coord);
+
+    return coord;
+}
+
 #ifndef ENABLE_COMPACT
 
-/* Syncs formed node onto device */
 error_t reiserfs_node_sync(reiserfs_node_t *node) {
     aal_assert("umka-124", node != NULL, return 0);
     

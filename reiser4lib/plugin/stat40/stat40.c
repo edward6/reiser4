@@ -27,7 +27,7 @@ static error_t reiserfs_stat40_check(reiserfs_stat40_t *stat) {
     return 0;
 }
 
-static void reiserfs_stat40_print(reiserfs_stat40_t *stat) {
+static void reiserfs_stat40_print(reiserfs_stat40_t *stat, char *buff) {
 }
 
 #define STAT40_ID 0x1
@@ -46,16 +46,15 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .item_type = STAT40_ID,
 	    .create = (reiserfs_opaque_t *(*)(reiserfs_key_t *key))reiserfs_stat40_create,
 	    .paste = NULL,
-	    .confirm_format = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_confirm,
+	    .confirm = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_confirm,
 	    .check = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_check,
-	    .print = (void (*)(reiserfs_opaque_t *))reiserfs_stat40_print,
+	    .print = (void (*)(reiserfs_opaque_t *, char *))reiserfs_stat40_print,
 	    .nr_units = NULL,
 	    .remove_units = NULL,
 	    .estimate = NULL
 	},
 	.ops = {
-	    .sd = {
-	    }
+	    .stat = { }
 	}
     }
 };

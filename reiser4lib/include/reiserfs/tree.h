@@ -7,7 +7,8 @@
 #ifndef TREE_H
 #define TREE_H
 
-#include <reiserfs/reiserfs.h>
+#include <reiserfs/plugin.h>
+#include <reiserfs/filesystem.h>
 
 #define REISERFS_ROOT_LEVEL 2
 

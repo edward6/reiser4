@@ -8,6 +8,8 @@
 #define PLUGIN_H
 
 #include <aal/aal.h>
+#include <reiserfs/key.h>
+#include <reiserfs/path.h>
 
 typedef void reiserfs_opaque_t;
 typedef void reiserfs_params_opaque_t;
@@ -66,14 +68,19 @@ typedef struct reiserfs_dir_plugin reiserfs_dir_plugin_t;
 struct common_item_plugin {
     reiserfs_item_type_id_t item_type;
 
-    reiserfs_opaque_t *(*create) ();
-    int (*paste) (reiserfs_opaque_t *coord, reiserfs_opaque_t *item_data);
-    error_t (*confirm_format) (reiserfs_opaque_t *);
+    reiserfs_opaque_t *(*create) (reiserfs_key_t *);
+
+    int (*paste) (reiserfs_opaque_t *coord, 
+	reiserfs_opaque_t *item_data);
+    
+    error_t (*confirm) (reiserfs_opaque_t *);
     error_t (*check) (reiserfs_opaque_t *);
-    void (*print) (reiserfs_opaque_t *);
+    void (*print) (reiserfs_opaque_t *, char *);
     uint16_t (*nr_units) (reiserfs_opaque_t *coord);
+    
     int (*remove_units) (reiserfs_opaque_t *from_key,
 	reiserfs_opaque_t *to_key);
+    
     uint32_t (*estimate) (reiserfs_opaque_t *coord,
 	reiserfs_opaque_t *data);
 };
@@ -83,8 +90,10 @@ typedef struct common_item_plugin common_item_plugin_t;
 struct dir_entry_ops {
     int (*add_entry) (reiserfs_opaque_t *coord, reiserfs_opaque_t *parent, 
 	reiserfs_opaque_t *name, reiserfs_opaque_t *entry);
+    
     int (*rem_entry) (reiserfs_opaque_t *coord, reiserfs_opaque_t *parent,
         reiserfs_opaque_t *entry);
+    
     int (*max_name_len) (int block_size);
 };
 
@@ -93,21 +102,23 @@ typedef struct dir_entry_ops dir_entry_ops_t;
 struct file_ops {
     int (*write) (reiserfs_opaque_t *coord, reiserfs_opaque_t *file, 
 	reiserfs_opaque_t *buffer);
+    
     int (*read) (reiserfs_opaque_t *coord, reiserfs_opaque_t *file, 
 	reiserfs_opaque_t *buffer);
 };
 
 typedef struct file_ops file_ops_t;
 
-struct sd_ops {
+struct stat_ops {
 };
 
-typedef struct sd_ops sd_ops_t;
+typedef struct stat_ops stat_ops_t;
 
 struct internal_ops {
     void (*down_link) (reiserfs_opaque_t *coord, reiserfs_opaque_t *key,
 	aal_block_t *block);
-    /** check that given internal item contains given pointer. */
+    
+    /* check that given internal item contains given pointer. */
     int (*has_pointer_to) (reiserfs_opaque_t *coord, aal_block_t *block);
 };
 
@@ -122,9 +133,9 @@ struct reiserfs_item_plugin {
     /* methods specific to particular type of item */
     union {
 	dir_entry_ops_t dir;
-	file_ops_t      file;
-        sd_ops_t        sd;
-        internal_ops_t  internal;
+	file_ops_t file;
+        stat_ops_t stat;
+        internal_ops_t internal;
     } ops;
 };
 
@@ -138,6 +149,7 @@ struct reiserfs_node_plugin {
     
     error_t (*confirm) (reiserfs_opaque_t *);
     error_t (*check) (reiserfs_opaque_t *, int);
+    int (*lookup) (reiserfs_opaque_t *, reiserfs_key_t *, reiserfs_coord_t *);
     
     uint32_t (*item_maxsize) (reiserfs_opaque_t *);
     uint32_t (*item_maxnum) (reiserfs_opaque_t *);
@@ -292,7 +304,7 @@ typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugins_factory_
 	reiserfs_plugin_entry_t __plugin_entry = entry
 #endif
 	
-#define REISERFS_GUESS_PLUGIN_ID -1
+#define REISERFS_GUESS_PLUGIN_ID 0xff
 
 extern error_t reiserfs_plugins_init(void);
 extern void reiserfs_plugins_fini(void);

@@ -8,22 +8,21 @@
 #define PATH_H
 
 #include <aal/aal.h>
-#include <reiserfs/reiserfs.h>
-
-struct reiserfs_path {
-    aal_list_t *entity;		/* list for holding path elements */
-    void *data;			/* user specified per-path data */
-};
-
-typedef struct reiserfs_path reiserfs_path_t;
 
 struct reiserfs_coord {
-    reiserfs_opaque_t *node;	/* node in the tree */
+    void *node;			/* node in the tree */
     int16_t item_pos;		/* pos of an item in the node */
     int16_t unit_pos;		/* pos of an unit in the item */
 };
 
 typedef struct reiserfs_coord reiserfs_coord_t;
+
+struct reiserfs_path {
+    aal_list_t *entity;	    /* list for holding path elements */
+    void *data;		    /* user specified per-path data */
+};
+
+typedef struct reiserfs_path reiserfs_path_t;
 
 extern reiserfs_path_t *reiserfs_path_create(void *data);
 extern void reiserfs_path_free(reiserfs_path_t *path);
@@ -42,6 +41,8 @@ extern void reiserfs_path_delete(reiserfs_path_t *path,
 
 extern reiserfs_coord_t *reiserfs_path_at(reiserfs_path_t *path, 
     uint8_t level);
+
+extern void reiserfs_path_clear(reiserfs_path_t *path);
 
 #endif
 

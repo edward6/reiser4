@@ -4,6 +4,9 @@
     Author Vitaly Fertman.
 */
 
+#ifndef KEY_H
+#define KEY_H
+
 typedef enum {
     /* file name */
     KEY_FILE_NAME_MINOR = 0,
@@ -148,4 +151,6 @@ DEFINE_KEY_FIELD(offset, OFFSET, uint64_t);
 
 /* define get_key_hash(), set_key_hash() */
 DEFINE_KEY_FIELD(hash, HASH, uint64_t);
+
+#endif
 

@@ -8,6 +8,7 @@
 #  include <config.h>
 #endif
 
+#include <misc/misc.h>
 #include <reiserfs/reiserfs.h>
 
 error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
@@ -108,60 +109,39 @@ void reiserfs_tree_close(reiserfs_fs_t *fs) {
     fs->tree = NULL;
 }
 
-/*int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from, 
+int reiserfs_tree_lookup(reiserfs_fs_t *fs, blk_t from, 
     reiserfs_comp_func_t comp_func, reiserfs_key_t *key, 
     reiserfs_path_t *path) 
 {
-    reiserfs_block_t *node;
-    uint8_t level, found = 0, pos = 0;
+    int found = 0;
+    reiserfs_node_t *node;
+    reiserfs_coord_t *coord;
 	
-    aal_assert("umka-458", tree != NULL, return 0);
+    aal_assert("umka-458", fs != NULL, return 0);
     aal_assert("umka-459", key != NULL, return 0);
+    aal_assert("umka-473", comp_func != NULL, return 0);
 	
-    if (!comp_func) return 0;
-
     if (path)
 	reiserfs_path_clear(path);
 	
     while (1) {
-	if (!(node = reiserfs_fs_read(tree->fs, from))) {
+	if (!(node = reiserfs_node_open(fs->device, from, REISERFS_GUESS_PLUGIN_ID))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't read block %d.", from);
-	    return 0;
-	}    
-		
-	if ((level = get_node_level((reiserfs_node_head_t *)node->data)) > 
-	    (uint32_t)reiserfs_tree_height(tree) - 1)
-	{
-	    libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL, 
-		_("Invalid node level. Found %d, expected less than %d."), 
-		level, reiserfs_tree_height(tree));
+		"Can't open node %d.", from);
 	    return 0;
 	}
-		
-	if (!for_leaf && is_leaf_node(node))
+	
+	if (!(coord = reiserfs_node_lookup(node, key)))
 	    return 0;
-			
-	found = reiserfs_tools_fast_search(key, get_ih_item_head(node, 0), 
-	    get_node_nritems(get_node_head(node)), (is_leaf_node(node) ? 
-	    IH_SIZE : FULL_KEY_SIZE), comp_func, &pos);
+
+	if (path && !reiserfs_path_append(path, coord))
+	    return 0;
 		
-	if (path) {
-	    if (!reiserfs_path_inc(path, reiserfs_path_node_create(reiserfs_path_last(path), node, 
-		    (found && is_internal_node(node) ? pos + 1 : pos))))
-		return 0;
-	}
-		
-	if (is_leaf_node(node))
+/*	if (reiserfs_node_is_leaf(node))
 	    return found;
 			
-	if (level == 2 && !for_leaf)
-	    return 1;
-			
-	if (found) pos++;
-		
-	blk = get_dc_child_blocknr(get_node_disk_child(node, pos)) + tree->offset;
+	from = get_dc_child_blocknr(get_node_disk_child(node, pos)) + tree->offset;*/
     }
     return 0;
-}*/
+}
 

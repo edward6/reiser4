@@ -58,7 +58,9 @@ void reiserfs_path_remove(reiserfs_path_t *path,
 {
     aal_assert("umka-465", path != NULL, return);
     aal_assert("umka-466", coord != NULL, return);
-
+    
+    reiserfs_node_close(coord->node);
+    aal_free(coord);
     aal_list_remove(path->entity, coord);
 }
 
@@ -66,7 +68,7 @@ void reiserfs_path_delete(reiserfs_path_t *path,
     uint8_t level)
 {
     aal_assert("umka-467", path != NULL, return);
-    aal_list_remove(path->entity, aal_list_at(path->entity, level));
+    reiserfs_path_remove(path, (reiserfs_coord_t *)aal_list_at(path->entity, level));
 }
 
 reiserfs_coord_t *reiserfs_path_at(reiserfs_path_t *path, 
@@ -74,5 +76,18 @@ reiserfs_coord_t *reiserfs_path_at(reiserfs_path_t *path,
 {
     aal_assert("umka-469", path != NULL, return NULL);
     return (reiserfs_coord_t *)aal_list_at(path->entity, level);
+}
+
+void reiserfs_path_clear(reiserfs_path_t *path) {
+    aal_list_t *walk;
+    
+    aal_assert("umka-477", path != NULL, return);
+    
+    for (walk = aal_list_last(path->entity); walk; ) {
+	aal_list_t *temp = aal_list_prev(walk);
+	reiserfs_path_remove(path, temp->data);
+	walk = temp;
+    }
+    path->entity = NULL;
 }
 
