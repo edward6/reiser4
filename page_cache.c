@@ -184,6 +184,18 @@ int done_formatted_fake( struct super_block *super )
 	return 0;
 }
 
+
+/** ->readpage() method for formatted nodes */
+static int filler( void *node, 
+		   struct page *page /* page to read */ )
+{
+	assert ("nikita-1774", PageLocked (page));
+
+	jnode_attach_page ((jnode *)node, page);
+	page_cache_release (page);
+	return page_io (page, READ, GFP_NOIO);
+}
+
 /** 
  * ->read_node method of page-cache based tree operations 
  *
@@ -202,6 +214,23 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 	/*
 	 * FIXME-NIKITA: consider using read_cache_page() here.
 	 */
+	page = read_cache_page (get_super_fake (reiser4_get_current_sb ())->i_mapping,
+				(unsigned long)node,
+				filler, node);
+	if (IS_ERR (page)) {
+		page_cache_release (page);
+		return PTR_ERR (page);
+	}
+	wait_on_page_locked (page);
+	if (!PageUptodate (page)) {
+		page_cache_release (page);
+		return -EIO;
+	}
+	mark_page_accessed (page);
+	kmap_once (node, page);
+	return 0;
+
+#if 0
 	page = add_page( tree -> super, node );
 	if( page != NULL ) {
 		int result;
@@ -210,6 +239,13 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 			result = page -> mapping -> a_ops -> readpage( NULL,
 								       page );
 			if( result == 0 ) {
+				/*
+				 * FIXME-VS: did submit_bio completed?
+				 */
+				trace_on( TRACE_IO, "[%i]: waiting.. %lu %lu\n",
+					  current_pid,
+					  page -> mapping -> host -> i_ino, 
+					  page -> index );
 				wait_on_page_locked( page );
 				if( PageUptodate( page ) )
 					mark_page_accessed( page );
@@ -227,6 +263,8 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 		return result;
 	} else
 		return -ENOMEM;
+
+#endif
 }
 
 /** 
@@ -490,7 +528,7 @@ static void end_bio_single_page_write( struct bio *bio )
 static int formatted_readpage( struct file *f UNUSED_ARG, 
 			       struct page *page /* page to read */ )
 {
-	return page_io( page, READ, GFP_NOIO );
+	return page_io (page, READ, GFP_NOIO);
 }
 
 /** ->writepage() method for formatted nodes */
