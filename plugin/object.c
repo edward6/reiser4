@@ -903,6 +903,26 @@ dir_bind(struct inode *child, struct inode *parent)
 	return dplug->attach(child, parent);
 }
 
+int
+common_setattr(struct inode *inode /* Object to change attributes */,
+	       struct iattr *attr /* change description */)
+{
+	int   result;
+	__u64 tograb;
+
+	assert("nikita-3119", !(attr->ia_valid & ATTR_SIZE));
+
+	tograb = estimate_one_insert_into_item(tree_by_inode(inode)->height);
+	result = reiser4_grab_space(tograb, BA_CAN_COMMIT, __FUNCTION__);
+	if (!result) {
+		result = inode_setattr(inode, attr);
+		if (!result)
+			result = reiser4_write_sd(inode);
+		all_grabbed2free(__FUNCTION__);
+	}
+	return result;
+}
+
 static ssize_t
 isdir(void)
 {
@@ -994,7 +1014,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				      .can_add_link = common_file_can_add_link,
 				      .can_rem_link = is_dir_empty,
 				      .not_linked = dir_not_linked,
-				      .setattr = inode_setattr,
+				      .setattr = common_setattr,
 				      .getattr = common_getattr,
 				      .seek = dir_seek,
 				      .detach = dir_detach,
@@ -1039,7 +1059,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .can_add_link = common_file_can_add_link,
 				    .can_rem_link = NULL,
 				    .not_linked = common_not_linked,
-				    .setattr = inode_setattr,
+				    .setattr = common_setattr,
 				    .getattr = common_getattr,
 				    .seek = NULL,
 				    .detach = common_detach,
@@ -1083,7 +1103,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 				    .can_add_link = common_file_can_add_link,
 				    .can_rem_link = NULL,
 				    .not_linked = common_not_linked,
-				    .setattr = inode_setattr,
+				    .setattr = common_setattr,
 				    .getattr = common_getattr,
 				    .seek = NULL,
 				    .detach = common_detach,
