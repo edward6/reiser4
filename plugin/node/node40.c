@@ -226,7 +226,7 @@ int node40_length_by_coord (const coord_t * coord)
 	assert( "vs-257", coord_is_existing_item( coord ) );
 
 	ih = node40_ih_at_coord( coord );
-	if( coord -> item_pos == node40_num_of_items( coord -> node ) - 1 )
+	if( (int) coord -> item_pos == node40_num_of_items( coord -> node ) - 1 )
 		return nh_40_get_free_space_start( node40_node_header (coord -> node) ) -
 			ih_40_get_offset( ih );
 	else
@@ -1124,14 +1124,14 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 
 	/* update item headers of moved items */
 	for (i = rightmost_not_moved + 1 + removed_entirely; 
-	     i < node40_num_of_items (node); i ++) {
+	     (int)i < node40_num_of_items (node); i ++) {
 		ih = node40_ih_at (node, i);
 		ih_40_set_offset (ih, (ih_40_get_offset (ih) -
 				       (freed_space_end - freed_space_start)));
 	}
 
 	/* cut item headers of removed items */
-	ih = node40_ih_at (node, node40_num_of_items (node) - 1);
+	ih = node40_ih_at (node, (unsigned)node40_num_of_items (node) - 1);
 	xmemmove (ih + removed_entirely, ih,
 		 sizeof (item_header_40) * (node40_num_of_items (node) -
 					    removed_entirely - first_removed));
@@ -1154,7 +1154,7 @@ static int cut_or_kill (coord_t * from, coord_t * to,
 
 		assert ("vs-313", wrong_item >= removed_entirely);
 		wrong_item -= removed_entirely;
-		assert ("vs-314", wrong_item < node40_num_of_items (node));
+		assert ("vs-314", (int)wrong_item < node40_num_of_items (node));
 		coord.node = node;
 		coord.item_pos = wrong_item;
 		coord.unit_pos = 0;

@@ -902,7 +902,7 @@ int znode_just_created( const znode *node )
 	return( znode_page( node ) == NULL );
 }
 
-int znode_io_hook( const jnode *node, struct page *page, int rw )
+int znode_io_hook( const jnode *node, struct page *page UNUSED_ARG, int rw )
 {
 	return 0;
 
