@@ -1430,33 +1430,6 @@ reiser4_delete_inode(struct inode *object)
 
 	if (inode_get_flag(object, REISER4_LOADED)) {
 		file_plugin *fplug;
-#if 0
-		/* FIXME-VS: reservation for delete_inode is moved down to object plugin */
-		dir_plugin *dplug;
-
-		dplug = inode_dir_plugin(object);
-		
-		if (dplug != NULL)
-			reserved += dplug->estimate.done(reiser4_inode_data(object)->parent, object);
-
-		if (fplug != NULL)
-			reserved += 
-				fplug->estimate.truncate ? fplug->estimate.truncate(object, 0) : 0 + 
-				fplug->estimate.delete(object); 
-		
-		if (reiser4_grab_space_exact(reserved, BA_RESERVED | BA_CAN_COMMIT))
-			goto no_space;
-		
-		trace_on(TRACE_RESERVE, "delete inode grabs %llu blocks.\n", 
-			 reserved);
-		
-		get_exclusive_access(object);
-		truncate_object(object, (loff_t) 0);
-		drop_exclusive_access(object);
-
-		if (dplug != NULL)
-			dplug->done(object);
-#endif
 		fplug = inode_file_plugin(object);
 		if ((fplug != NULL) && (fplug->delete != NULL))
 			fplug->delete(object);
