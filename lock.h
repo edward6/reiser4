@@ -229,7 +229,7 @@ extern int znode_is_write_locked(const znode * node);
 	 (lock_counters()->spin_locked_txnmgr == 0) &&		\
 	 (lock_counters()->spin_locked_super == 0) &&		\
 	 (lock_counters()->spin_locked_inode_object == 0) &&	\
-	 (lock_counters()->spin_locked_cbk_cache == 0) &&	\
+	 (lock_counters()->rw_locked_cbk_cache == 0) &&	\
 	 (lock_counters()->spin_locked_epoch == 0) &&		\
 	 (lock_counters()->spin_locked_super_eflush == 0) &&	\
 	 spin_ordering_pred_stack_addendum)
