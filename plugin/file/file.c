@@ -1793,10 +1793,6 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	if (count) {
 		/* something was read. Update inode's atime and stat data */
 		update_atime(inode);
-#if 0
-		if (reiser4_update_sd(inode))
-			warning("vs-1705", "update atime failed: %llu", get_inode_oid(inode));
-#endif
 	}
 
 	/* return number of read bytes or error code if nothing is read */
