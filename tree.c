@@ -210,6 +210,8 @@ static insert_result insert_with_carry_by_coord( coord_t  *coord /* coord
 	cdata.data  = data;
 	cdata.key   = key;
 	op -> u.insert.d = &cdata;
+	if( flags == 0 )
+		flags = current_tree -> carry.insert_flags;
 	op -> u.insert.flags = flags;
 	op -> u.insert.type = COPT_ITEM_DATA;
 	op -> u.insert.child = 0;
@@ -262,6 +264,8 @@ static int paste_with_carry( coord_t *coord /* coord of paste */,
 	cdata.data  = data;
 	cdata.key   = key;
 	op -> u.paste.d = &cdata;
+	if( flags == 0 )
+		flags = current_tree -> carry.paste_flags;
 	op -> u.paste.flags = flags;
 	op -> u.paste.type  = COPT_ITEM_DATA;
 	if( lh != NULL ) {

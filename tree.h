@@ -127,6 +127,16 @@ struct reiser4_tree {
 	/** default plugin used to create new nodes in a tree. */
 	node_plugin         *nplug;
 	struct super_block  *super;
+	struct {
+		/** carry flags used for insertion of new nodes */
+		__u32        new_node_flags;
+		/** carry flags used for insertion of new extents */
+		__u32        new_extent_flags;
+		/** carry flags used for paste operations */
+		__u32        paste_flags;
+		/** carry flags used for insert operations */
+		__u32        insert_flags;
+	} carry;
 };
 
 extern void init_tree_0( reiser4_tree * );
