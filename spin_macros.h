@@ -1,6 +1,31 @@
 /* Copyright 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* Wrapper functions/macros for spinlocks. */
+/* Wrapper functions/macros for spin locks. */
+
+/*
+ * This file implements wrapper functions and macros to work with spin locks
+ * and read write locks embedded into kernel objects. Wrapper functions
+ * provide following functionality:
+ *
+ *    (1) encapsulation of locks: in stead of writing spin_lock(&obj->lock),
+ *    where obj is object of type foo, one writes spin_lock_foo(obj).
+ *
+ *    (2) optional keeping (in per-thread reiser4_context->locks) information
+ *    about number of locks of particular type currently held by thread. This
+ *    is done if REISER4_DEBUG is on.
+ *
+ *    (3) optional checking of lock ordering. For object type foo, it is
+ *    possible to provide "lock ordering predicate" (possibly using
+ *    information stored in reiser4_context->locks) checking that locks are
+ *    acquired in proper order. This is done if REISER4_DEBUG is on.
+ *
+ *    (4) optional collection of spin lock contention statistics. In this mode
+ *    two sysfs objects (located in /sys/profregion) are associated with each
+ *    spin lock type. One object (foo_t) shows how much time was spent trying
+ *    to acquire spin locks of foo type. Another (foo_h) shows how much time
+ *    spin locks of the type foo were held locked.
+ *
+ */
 
 #ifndef __SPIN_MACROS_H__
 #define __SPIN_MACROS_H__
@@ -11,16 +36,21 @@
 #include "debug.h"
 #include "spinprof.h"
 
-/* not yet implemented */
+/* Checks that read write lock @s is locked (or not) by the -current-
+ * thread. not yet implemented */
 #define check_is_write_locked(s)     (1)
 #define check_is_read_locked(s)      (1)
 #define check_is_not_read_locked(s)  (1)
 #define check_is_not_write_locked(s) (1)
 
+/* Checks that spin lock @s is locked (or not) by the -current- thread. */
 #if REISER4_USER_LEVEL_SIMULATION
+     /* User level simulator. There spin locks know who owns them. */
 #    define check_spin_is_locked(s)     spin_is_locked(s)
 #    define check_spin_is_not_locked(s) spin_is_not_locked(s)
 #elif defined(CONFIG_DEBUG_SPINLOCK) && defined(CONFIG_SMP) && 0
+     /* Spin lock debugging in the kernel. This depends on patch that adds
+      * ->owner field to the spin lock. */
 #    define check_spin_is_not_locked(s) ((s)->owner != get_current())
 #    define spin_is_not_locked(s)       ((s)->owner == NULL)
 #    define check_spin_is_locked(s)     ((s)->owner == get_current())
@@ -39,14 +69,26 @@
 
 #if REISER4_LOCKPROF
 
+/* 
+ * If spin lock profiling is on, define profregions (see spinprof.[ch])
+ * exporting through sysfs information about spin lock contention. With each
+ * spin lock type two profregions are associated: "held" region (exported as
+ * /sys/profregion/foo_h), and "trying" region (exported as
+ * /sys/profregion/foo_t).
+ */
+
+/*
+ * This macro, given spin lock type, defines corresponding profregions and
+ * functions to register and unregister them.
+ */
 #define DEFINE_SPIN_PROFREGIONS(aname)						\
-struct profregion pregion_spin_ ## aname ## _held = {				\
+struct profregion pregion_spin_ ## aname ## _held = {   			\
 	.kobj = {								\
 		.name = #aname  "_h"						\
 	}									\
 };										\
 										\
-struct profregion pregion_spin_ ## aname ## _trying = {				\
+struct profregion pregion_spin_ ## aname ## _trying = { 			\
 	.kobj = {								\
 		.name = #aname  "_t"						\
 	}									\
@@ -75,27 +117,39 @@ typedef struct { int foo; } aname ## _spin_dummy_profregion
 extern struct profregion pregion_spin_ ## NAME ## _held;	\
 extern struct profregion pregion_spin_ ## NAME ## _trying;
 
+/* 
+ * If spin lock profiling is on, define profregions (see spinprof.[ch])
+ * exporting through sysfs information about read write lock contention. With
+ * each read write lock type four profregions are associated: "read held" and
+ * "write held" regions, and "read trying" and "write trying" regions,
+ * exported as /sys/profregion/foo_{r,w}_{t,h}.
+ */
 
+
+/*
+ * This macro, given read write lock type, defines corresponding profregions
+ * and functions to register and unregister them.
+ */
 #define DEFINE_RW_PROFREGIONS(aname)						\
-struct profregion pregion_rw_ ## aname ## _r_held = {				\
+struct profregion pregion_rw_ ## aname ## _r_held = {   			\
 	.kobj = {								\
 		.name = #aname  "_r_h"						\
 	}									\
 };										\
 										\
-struct profregion pregion_rw_ ## aname ## _w_held = {				\
+struct profregion pregion_rw_ ## aname ## _w_held = {   			\
 	.kobj = {								\
 		.name = #aname  "_w_h"						\
 	}									\
 };										\
 										\
-struct profregion pregion_rw_ ## aname ## _r_trying = {				\
+struct profregion pregion_rw_ ## aname ## _r_trying = {   			\
 	.kobj = {								\
 		.name = #aname  "_r_t"						\
 	}									\
 };										\
 										\
-struct profregion pregion_rw_ ## aname ## _w_trying = {				\
+struct profregion pregion_rw_ ## aname ## _w_trying = {   			\
 	.kobj = {								\
 		.name = #aname  "_w_t"						\
 	}									\
@@ -134,6 +188,10 @@ extern struct profregion pregion_rw_ ## NAME ## _w_held;	\
 extern struct profregion pregion_rw_ ## NAME ## _r_trying;	\
 extern struct profregion pregion_rw_ ## NAME ## _w_trying;
 
+/*
+ * Helper macros to enter and leave profiling regions.
+ */
+
 #define GETCPU(cpu)				\
 	int cpu = get_cpu()
 
@@ -149,6 +207,10 @@ extern struct profregion pregion_rw_ ## NAME ## _w_trying;
 
 /* REISER4_LOCKPROF */
 #else
+
+/*
+ * If spin lock profiling is disabled, declare everything to noops.
+ */
 
 #define DEFINE_SPIN_PROFREGIONS(aname)				\
 static inline int register_ ## aname ## _profregion(void)	\
@@ -183,29 +245,51 @@ static inline void unregister_ ## aname ## _profregion(void)	\
 /* REISER4_LOCKPROF */
 #endif
 
+/*
+ * Data structure embedded into kernel objects together with spin lock.
+ */
 typedef struct reiser4_spin_data {
+	/* spin lock proper */
 	spinlock_t lock;
 #if REISER4_LOCKPROF
+	/* number of times clock interrupt found spin lock of this objects to
+	 * be held */
 	int        held;
+	/* number of times clock interrupt found that current thread is trying
+	 * to acquire this spin lock */
 	int        trying;
 #endif
 } reiser4_spin_data;
 
+/*
+ * Data structure embedded into kernel objects together with read write lock.
+ */
 typedef struct reiser4_rw_data {
+	/* read write lock proper */
 	rwlock_t lock;
 #if REISER4_LOCKPROF
+	/* number of times clock interrupt found read write lock of this
+	 * objects to be read held */
 	int      r_held;
+	/* number of times clock interrupt found that current thread is trying
+	 * to acquire this lock for read */
 	int      r_trying;
+	/* number of times clock interrupt found read write lock of this
+	 * objects to be write held */
 	int      w_held;
+	/* number of times clock interrupt found that current thread is trying
+	 * to acquire this lock for write */
 	int      w_trying;
 #endif
 } reiser4_rw_data;
 
-/* Define several inline functions for each type of spinlock. */
+/* Define several inline functions for each type of spinlock. This is long
+ * monster macro definition. */
 #define SPIN_LOCK_FUNCTIONS(NAME,TYPE,FIELD)					\
 										\
 DECLARE_SPIN_PROFREGIONS(NAME)							\
 										\
+/* Initialize spin lock embedded in @x			*/			\
 static inline void spin_ ## NAME ## _init(TYPE *x)				\
 {										\
 	assert("nikita-2987", x != NULL);					\
@@ -213,28 +297,40 @@ static inline void spin_ ## NAME ## _init(TYPE *x)				\
 	spin_lock_init(& x->FIELD.lock);					\
 }										\
 										\
+/* Increment per-thread lock counter for this lock type and total counter */	\
+/* of acquired spin locks. This is helper function used by spin lock      */	\
+/* acquiring functions below                                              */	\
 static inline void spin_ ## NAME ## _inc(void)					\
 {										\
 	__ODC(++ lock_counters()->spin_locked_ ## NAME);			\
 	__ODC(++ lock_counters()->spin_locked);					\
 }										\
 										\
+/* Decrement per-thread lock counter and total counter of acquired spin   */	\
+/* locks. This is helper function used by spin lock releasing functions   */	\
+/* below.                                                                 */	\
 static inline void spin_ ## NAME ## _dec(void)					\
 {										\
 	__ODC(--lock_counters()->spin_locked_ ## NAME);				\
 	__ODC(--lock_counters()->spin_locked);					\
 }										\
 										\
+/* Return true of spin lock embedded in @x is acquired by -current-       */	\
+/* thread                                                                 */	\
 static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
 {										\
 	return check_spin_is_locked (& x->FIELD.lock);				\
 }										\
 										\
+/* Return true of spin lock embedded in @x is not acquired by -current-   */	\
+/* thread                                                                 */	\
 static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
 {										\
 	return check_spin_is_not_locked (& x->FIELD.lock);			\
 }										\
 										\
+/* Acquire spin lock embedded in @x without checking lock ordering.       */	\
+/* This is useful when, for example, locking just created object.         */	\
 static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x, 			\
 						  locksite *t, locksite *h)	\
 {										\
@@ -248,6 +344,16 @@ static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x, 			\
 	spin_ ## NAME ## _inc();						\
 }										\
 										\
+/* Lock @x with explicit indication of spin lock profiling "sites".       */	\
+/* Locksite is used by spin lock profiling code (spinprof.[ch]) to        */	\
+/* identify fragment of code that locks @x.                               */	\
+/*                                                                        */	\
+/* If clock interrupt finds that current thread is spinning waiting for   */	\
+/* the lock on @x, counters in @t will be incremented.                    */	\
+/*                                                                        */	\
+/* If clock interrupt finds that current thread holds the lock on @x,     */	\
+/* counters in @h will be incremented.                                    */	\
+/*                                                                        */	\
 static inline void spin_lock_ ## NAME ## _at (TYPE *x, 				\
 					      locksite *t, locksite *h)		\
 {										\
@@ -255,12 +361,15 @@ static inline void spin_lock_ ## NAME ## _at (TYPE *x, 				\
 	spin_lock_ ## NAME ## _no_ord(x, t, h);					\
 }										\
 										\
+/* Lock @x.                                                               */	\
 static inline void spin_lock_ ## NAME (TYPE *x)					\
 {										\
 	__ODCA("nikita-1383", spin_ordering_pred_ ## NAME(x));			\
 	spin_lock_ ## NAME ## _no_ord(x, 0, 0);					\
 }										\
 										\
+/* Try to obtain lock @x. On success, returns 1 with @x locked.           */	\
+/* If @x is already locked, return 0 immediately.                         */	\
 static inline int  spin_trylock_ ## NAME (TYPE *x)				\
 {										\
 	if (spin_trylock (& x->FIELD.lock)) {					\
@@ -274,6 +383,7 @@ static inline int  spin_trylock_ ## NAME (TYPE *x)				\
 	return 0;								\
 }										\
 										\
+/* Unlock @x.                                                             */	\
 static inline void spin_unlock_ ## NAME (TYPE *x)				\
 {										\
 	__ODCA("nikita-1375", lock_counters()->spin_locked_ ## NAME > 0);	\
@@ -286,6 +396,23 @@ static inline void spin_unlock_ ## NAME (TYPE *x)				\
 										\
 typedef struct { int foo; } NAME ## _spin_dummy
 
+/*
+ * Helper macro to perform a simple operation that requires taking of spin
+ * lock.
+ *
+ * 1. Acquire spin lock on object @obj of type @obj_type.
+ *
+ * 2. Execute @exp under spin lock, and store result.
+ *
+ * 3. Release spin lock.
+ *
+ * 4. Return result of @exp.
+ *
+ * Example:
+ *
+ * right_delimiting_key = UNDER_SPIN(dk, current_tree, *znode_get_rd_key(node));
+ *
+ */
 #define UNDER_SPIN(obj_type, obj, exp)						\
 ({										\
 	typeof (obj) __obj;							\
@@ -301,6 +428,9 @@ typedef struct { int foo; } NAME ## _spin_dummy
 	__result;								\
 })
 
+/* 
+ * The same as UNDER_SPIN, but without storing and returning @exp's result.
+ */
 #define UNDER_SPIN_VOID(obj_type, obj, exp)					\
 ({										\
 	typeof (obj) __obj;							\
@@ -315,11 +445,13 @@ typedef struct { int foo; } NAME ## _spin_dummy
 })
 
 
-/* Define several inline functions for each type of rwlock. */
+/* Define several inline functions for each type of read write lock. This is
+ * insanely long macro definition. */
 #define RW_LOCK_FUNCTIONS(NAME,TYPE,FIELD)					\
 										\
 DECLARE_RW_PROFREGIONS(NAME)							\
 										\
+/* Initialize read write lock embedded into @x.                           */	\
 static inline void rw_ ## NAME ## _init(TYPE *x)				\
 {										\
 	assert("nikita-2988", x != NULL);					\
@@ -327,38 +459,45 @@ static inline void rw_ ## NAME ## _init(TYPE *x)				\
 	rwlock_init(& x->FIELD.lock);						\
 }										\
 										\
+/* True, if @x is read locked by the -current- thread.                    */	\
 static inline int  rw_ ## NAME ## _is_read_locked (const TYPE *x)		\
 {										\
 	return check_is_read_locked (& x->FIELD.lock);				\
 }										\
 										\
+/* True, if @x is write locked by the -current- thread.                   */	\
 static inline int  rw_ ## NAME ## _is_write_locked (const TYPE *x)		\
 {										\
 	return check_is_write_locked (& x->FIELD.lock);				\
 }										\
 										\
+/* True, if @x is not read locked by the -current- thread.                */	\
 static inline int  rw_ ## NAME ## _is_not_read_locked (TYPE *x)			\
 {										\
 	return check_is_not_read_locked (& x->FIELD.lock);			\
 }										\
 										\
+/* True, if @x is not write locked by the -current- thread.               */	\
 static inline int  rw_ ## NAME ## _is_not_write_locked (TYPE *x)		\
 {										\
 	return check_is_not_write_locked (& x->FIELD.lock);			\
 }										\
 										\
+/* True, if @x is either read or write locked by the -current- thread.    */	\
 static inline int  rw_ ## NAME ## _is_locked (const TYPE *x)			\
 {										\
-	return check_is_read_locked (& x->FIELD.lock) &&			\
+	return check_is_read_locked (& x->FIELD.lock) ||			\
 	       check_is_write_locked (& x->FIELD.lock);				\
 }										\
 										\
+/* True, if @x is neither read nor write locked by the -current- thread.  */	\
 static inline int  rw_ ## NAME ## _is_not_locked (const TYPE *x)		\
 {										\
 	return check_is_not_read_locked (& x->FIELD.lock) &&			\
 	       check_is_not_write_locked (& x->FIELD.lock);			\
 }										\
 										\
+/* This is helper function used by lock acquiring functions below         */	\
 static inline void read_ ## NAME ## _inc(void)					\
 {										\
 	__ODC(++ lock_counters()->read_locked_ ## NAME);			\
@@ -366,6 +505,7 @@ static inline void read_ ## NAME ## _inc(void)					\
 	__ODC(++ lock_counters()->spin_locked);					\
 }										\
 										\
+/* This is helper function used by lock acquiring functions below         */	\
 static inline void read_ ## NAME ## _dec(void)					\
 {										\
 	__ODC(-- lock_counters()->read_locked_ ## NAME);			\
@@ -373,6 +513,7 @@ static inline void read_ ## NAME ## _dec(void)					\
 	__ODC(-- lock_counters()->spin_locked);					\
 }										\
 										\
+/* This is helper function used by lock acquiring functions below         */	\
 static inline void write_ ## NAME ## _inc(void)					\
 {										\
 	__ODC(++ lock_counters()->write_locked_ ## NAME);			\
@@ -380,6 +521,7 @@ static inline void write_ ## NAME ## _inc(void)					\
 	__ODC(++ lock_counters()->spin_locked);					\
 }										\
 										\
+/* This is helper function used by lock acquiring functions below         */	\
 static inline void write_ ## NAME ## _dec(void)					\
 {										\
 	__ODC(-- lock_counters()->write_locked_ ## NAME);			\
@@ -387,7 +529,8 @@ static inline void write_ ## NAME ## _dec(void)					\
 	__ODC(-- lock_counters()->spin_locked);					\
 }										\
 										\
-										\
+/* Acquire read lock on @x without checking lock ordering predicates.     */	\
+/* This is useful when, for example, locking just created object.         */	\
 static inline void read_lock_ ## NAME ## _no_ord (TYPE *x,			\
 						  locksite *t, locksite *h)	\
 {										\
@@ -401,6 +544,8 @@ static inline void read_lock_ ## NAME ## _no_ord (TYPE *x,			\
 	read_ ## NAME ## _inc();						\
 }										\
 										\
+/* Acquire write lock on @x without checking lock ordering predicates.    */	\
+/* This is useful when, for example, locking just created object.         */	\
 static inline void write_lock_ ## NAME ## _no_ord (TYPE *x,			\
 						   locksite *t, locksite *h)	\
 {										\
@@ -414,6 +559,8 @@ static inline void write_lock_ ## NAME ## _no_ord (TYPE *x,			\
 	write_ ## NAME ## _inc();						\
 }										\
 										\
+/* Read lock @x with explicit indication of spin lock profiling "sites".  */	\
+/* See spin_lock_foo_at() above for more information.                     */	\
 static inline void read_lock_ ## NAME ## _at (TYPE *x, 				\
 					      locksite *t, locksite *h)		\
 {										\
@@ -421,6 +568,8 @@ static inline void read_lock_ ## NAME ## _at (TYPE *x, 				\
 	read_lock_ ## NAME ## _no_ord(x, t, h);					\
 }										\
 										\
+/* Write lock @x with explicit indication of spin lock profiling "sites". */	\
+/* See spin_lock_foo_at() above for more information.                     */	\
 static inline void write_lock_ ## NAME ## _at (TYPE *x,				\
 					       locksite *t, locksite *h)	\
 {										\
@@ -428,18 +577,21 @@ static inline void write_lock_ ## NAME ## _at (TYPE *x,				\
 	write_lock_ ## NAME ## _no_ord(x, t, h);				\
 }										\
 										\
+/* Read lock @x.                                                          */	\
 static inline void read_lock_ ## NAME (TYPE *x)					\
 {										\
 	__ODCA("nikita-2975", rw_ordering_pred_ ## NAME(x));			\
 	read_lock_ ## NAME ## _no_ord(x, 0, 0);					\
 }										\
 										\
+/* Write lock @x.                                                         */	\
 static inline void write_lock_ ## NAME (TYPE *x)				\
 {										\
 	__ODCA("nikita-2978", rw_ordering_pred_ ## NAME(x));			\
 	write_lock_ ## NAME ## _no_ord(x, 0, 0);				\
 }										\
 										\
+/* Release read lock on @x.                                               */	\
 static inline void read_unlock_ ## NAME (TYPE *x)				\
 {										\
 	__ODCA("nikita-2979", lock_counters()->read_locked_ ## NAME > 0);	\
@@ -451,6 +603,7 @@ static inline void read_unlock_ ## NAME (TYPE *x)				\
 	PREG_EX(get_cpu(), &pregion_rw_ ## NAME ## _r_held);			\
 }										\
 										\
+/* Release write lock on @x.                                              */	\
 static inline void write_unlock_ ## NAME (TYPE *x)				\
 {										\
 	__ODCA("nikita-2979", lock_counters()->write_locked_ ## NAME > 0);	\
@@ -462,7 +615,8 @@ static inline void write_unlock_ ## NAME (TYPE *x)				\
 	PREG_EX(get_cpu(), &pregion_rw_ ## NAME ## _w_held);			\
 }										\
 										\
-										\
+/* Try to obtain write lock on @x. On success, returns 1 with @x locked.  */	\
+/* If @x is already locked, return 0 immediately.                         */	\
 static inline int  write_trylock_ ## NAME (TYPE *x)				\
 {										\
 	if (write_trylock (& x->FIELD.lock)) {					\
@@ -479,7 +633,23 @@ static inline int  write_trylock_ ## NAME (TYPE *x)				\
 										\
 typedef struct { int foo; } NAME ## _rw_dummy
 
-/* this does what?  comment this whole file.... NIKITA-FIXME-HANS */
+/*
+ * Helper macro to perform a simple operation that requires taking of read
+ * write lock.
+ *
+ * 1. Acquire read or write (depending on @rw parameter) lock on object @obj
+ * of type @obj_type.
+ *
+ * 2. Execute @exp under lock, and store result.
+ *
+ * 3. Release lock.
+ *
+ * 4. Return result of @exp.
+ *
+ * Example:
+ *
+ * tree_height = UNDER_RW(tree, current_tree, read, current_tree->height);
+ */
 #define UNDER_RW(obj_type, obj, rw, exp)				\
 ({									\
 	typeof (obj) __obj;						\
@@ -495,6 +665,9 @@ typedef struct { int foo; } NAME ## _rw_dummy
 	__result;							\
 })
 
+/* 
+ * The same as UNDER_RW, but without storing and returning @exp's result.
+ */
 #define UNDER_RW_VOID(obj_type, obj, rw, exp)				\
 ({									\
 	typeof (obj) __obj;						\
@@ -509,6 +682,12 @@ typedef struct { int foo; } NAME ## _rw_dummy
 })
 
 #if REISER4_LOCKPROF
+
+/*
+ * Wrapper function to work with locks of certain reiser4 objects. These
+ * functions allows to track where in code locks are held (or tried) for the
+ * longest time.
+ */
 
 #define LOCK_JNODE(node)				\
 ({							\
