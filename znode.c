@@ -645,7 +645,8 @@ int zload( znode *node /* znode to load */ )
 		 * we rely on proper synchronization in the underlying
 		 * transport.
 		 */
-		result = tree -> read_node( znode_get_block( node ), &data );
+		result = tree -> read_node( znode_get_block( node ), &data,
+					    reiser4_get_current_sb() -> s_blocksize );
 		reiser4_stat_znode_add( zload_read );
 		spin_lock_znode( node );
 
