@@ -42,7 +42,7 @@ symlink_create(struct inode *symlink,	/* inode of symlink */
 	symlink->u.generic_ip = (void *) data->name;
 
 	assert("vs-843", symlink->i_size == 0);
-	symlink->i_size = strlen(data->name);
+	INODE_SET_FIELD(symlink, i_size, strlen(data->name));
 
 	/* insert stat data appended with data->name */
 	result = common_file_save(symlink);

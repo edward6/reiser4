@@ -172,6 +172,35 @@ extern void reiser4_make_bad_inode(struct inode *inode);
 extern void inode_set_extension(struct inode *inode, sd_ext_bits ext);
 extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
 
+#define INODE_SET_FIELD(i, field, value)		\
+({							\
+	struct inode *__i;				\
+	typeof(value) __v;				\
+							\
+	__i = (i);					\
+	__v = (value);					\
+	inode_check_scale(__i, __i->field, __v);	\
+	__i->field = __v;				\
+})
+
+#define INODE_INC_FIELD(i, field)				\
+({								\
+	struct inode *__i;					\
+								\
+	__i = (i);						\
+	inode_check_scale(__i, __i->field, __i->field + 1);	\
+	++ __i->field;						\
+})
+
+#define INODE_DEC_FIELD(i, field)				\
+({								\
+	struct inode *__i;					\
+								\
+	__i = (i);						\
+	inode_check_scale(__i, __i->field, __i->field - 1);	\
+	-- __i->field;						\
+})
+
 static inline readdir_list_head *
 get_readdir_list(const struct inode *inode)
 {

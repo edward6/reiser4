@@ -274,7 +274,7 @@ update_inode_and_sd_if_necessary(struct inode *inode, loff_t new_size, int updat
 	result = 0;
 	if (update_i_size) {
 		assert("vs-1104", inode->i_size != new_size);
-		inode->i_size = new_size;
+		INODE_SET_FIELD(inode, i_size, new_size);
 		update_sd = 1;
 	}
 	
@@ -668,7 +668,7 @@ unix_file_truncate(struct inode *inode, loff_t new_size)
 		return result;
 
 	if (inode->i_size != cur_size) {
-		inode->i_size = cur_size;
+		INODE_SET_FIELD(inode, i_size, cur_size);
 		result = (cur_size < new_size) ? append_hole(inode, new_size) : shorten_file(inode, new_size);
 	} else {
 		/* when file is built of extens - find_file_size can only calculate old file size up to page size. Case
@@ -678,7 +678,7 @@ unix_file_truncate(struct inode *inode, loff_t new_size)
 		assert("vs-1116", (inode->i_size & ~PAGE_CACHE_MASK) == 0);
 	}
 	if (!result) {
-		inode->i_size = new_size;
+		INODE_SET_FIELD(inode, i_size, new_size);
 		inode->i_mtime = inode->i_ctime = CURRENT_TIME;
 		result = reiser4_write_sd(inode);		
 	}
@@ -1499,7 +1499,7 @@ unix_file_delete(struct inode *inode)
 	assert("vs-1099", inode->i_nlink == 0);
 	if (inode->i_size) {
 		get_exclusive_access(inode);
-		inode->i_size = 0;
+		INODE_SET_FIELD(inode, i_size, 0);
 		result = unix_file_truncate(inode, 0);
 		drop_exclusive_access(inode);
 		if (result) {
@@ -1555,6 +1555,7 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 	if (attr->ia_valid & ATTR_SIZE) {
 		/* truncate does reservation itself and requires exclusive access obtained */
 		if (inode->i_size != attr->ia_size) {
+			inode_check_scale(inode, inode->i_size, attr->ia_size);
 			get_exclusive_access(inode);
 			result = inode_setattr(inode, attr);
 			drop_exclusive_access(inode);

@@ -27,7 +27,7 @@ static int dscale_range(__u64 value)
 	return 0;
 }
 
-int dscale_read (char *address, __u64 *value)
+int dscale_read(char *address, __u64 *value)
 {
 	int tag;
 	int shift;
@@ -62,6 +62,7 @@ int dscale_write(char *address, __u64 value)
 
 	tag = dscale_range(value);
 	shift = 0;
+	value = __cpu_to_be64(value);
 	switch(tag) {
 	case 0:
 		put_unaligned((__u8)value, address);

@@ -1368,7 +1368,7 @@ reiser4_drop_inode(struct inode *object)
 		*/
 		__REISER4_ENTRY(object->i_sb,);
 
-		object->i_nlink = 0;
+		INODE_SET_FIELD(object, i_nlink, 0);
 		generic_delete_inode(object);
 		__REISER4_EXIT(&__context);
 	} else

@@ -430,7 +430,7 @@ add_name(struct inode *inode	/* inode where @coord is to be
 			   created. */
 			result = 0;
 		} else
-			dir->i_size += 1;
+			INODE_INC_FIELD(dir, i_size);
 	}
 	return result;
 }
@@ -833,7 +833,7 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 		result = inode_dir_item_plugin(object)->s.dir.add_entry(object, coord, &lh, where, entry);
 		if (result == 0) {
 			adjust_dir_file(object, where, fsdata->dec.pos + 1, +1);
-			object->i_size += 1;
+			INODE_INC_FIELD(object, i_size);
 		}
 	} else if (result == 0) {
 		assert("nikita-2232", coord->node == lh.node);
@@ -879,7 +879,7 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 				   inode_dir_item_plugin(object)->s.dir.rem_entry(object, &where->d_name, coord, &lh, entry));
 		if (result == 0) {
 			if (object->i_size >= 1)
-				object->i_size -= 1;
+				INODE_DEC_FIELD(object, i_size);
 			else {
 				warning("nikita-2509", "Dir %llu is runt", get_inode_oid(object));
 				result = -EIO;
