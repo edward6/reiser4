@@ -25,6 +25,7 @@
 #include "page_cache.h"
 #include "wander.h"
 #include "super.h"
+#include "trace.h"
 #include "reiser4.h"
 
 #include <asm/atomic.h>
@@ -734,7 +735,8 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
 
 	flush_mode();
-	
+	write_in_trace("flush:in");
+
 	reiser4_stat_flush_add(flush);
 
 	/* Flush-concurrency debug code */
@@ -1057,7 +1059,8 @@ clean_out:
 	atom->nr_flushers--;
 	spin_unlock_atom(atom);
 	not_flush_mode();
-	
+	write_in_trace("flush:ex");
+
 	return ret;
 }
 

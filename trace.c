@@ -237,7 +237,7 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
 
 	file = &get_super_private(tree->super)->trace_file;
 
-	if (no_context) {
+	if (unlikely(in_interrupt() || in_irq())) {
 		info("cannot write trace from interrupt\n");
 		return 0;
 	}
@@ -276,8 +276,20 @@ write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...)
 		}
 	}
 	va_end(args);
-	return write_trace(file, "%i:[%s]:%c:%x:%lu:%s\n",
-			   current->pid, kdevname(to_kdev_t(tree->super->s_dev)), op, 0xacc0u, jiffies, buf);
+	return write_trace(file, "%i:%s:[%s]:%lu:..tree:%c:%s\n",
+			   current->pid, current->comm, 
+			   kdevname(to_kdev_t(tree->super->s_dev)), jiffies, op, buf);
+}
+
+int write_in_trace(const char *mes)
+{
+	struct super_block *super;
+
+	super = reiser4_get_current_sb();
+	return write_trace(&get_super_private(super)->trace_file,
+			   "%i:%s:[%s]:%lu:%s\n",
+			   current->pid, current->comm,
+			   kdevname(to_kdev_t(super->s_dev)), jiffies, mes);
 }
 
 #endif

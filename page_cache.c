@@ -297,6 +297,29 @@ reiser4_unlock_page(struct page *page)
 	unlock_page(page);
 }
 
+#if REISER4_TRACE_TREE
+int reiser4_submit_bio_helper(const char *moniker, int rw, struct bio *bio)
+{
+	struct super_block *super;
+	reiser4_super_info_data *info;
+	reiser4_block_nr start;
+
+	super = reiser4_get_current_sb();
+	info = get_super_private(super);
+
+	start = bio->bi_sector >> (super->s_blocksize_bits - 9);
+	(void)write_trace(&info->trace_file, 
+			  "%i:%s:[%s]:%lu:....bio:%s:%c:%+lli:(%llu,%u)\n",
+			  current->pid, current->comm,
+			  kdevname(to_kdev_t(super->s_dev)), jiffies,
+			  moniker, (rw == READ) ? 'r' : 'w',
+			  start - info->last_touched - 1,
+			  start, bio->bi_vcnt);
+	info->last_touched = start + bio->bi_vcnt - 1;
+	return submit_bio(rw, bio);
+}
+#endif
+
 void reiser4_wait_page_writeback (struct page * page)
 {
 	assert ("zam-783", PageLocked(page));
@@ -467,7 +490,7 @@ page_io(struct page *page /* page to perform io for */ ,
 			SetPageWriteback(page);
 			reiser4_unlock_page(page);
 		}
-		submit_bio(rw, bio);
+		reiser4_submit_bio(rw, bio);
 		result = 0;
 	} else
 		result = PTR_ERR(bio);

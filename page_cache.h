@@ -18,6 +18,15 @@ extern reiser4_tree *tree_by_page(const struct page *page);
 extern void reiser4_lock_page(struct page *page);
 extern void reiser4_unlock_page(struct page *page);
 
+#if REISER4_TRACE_TREE
+extern int reiser4_submit_bio_helper(const char *moniker, 
+				     int rw, struct bio *bio);
+#define reiser4_submit_bio(rw, bio)				\
+	reiser4_submit_bio_helper(__FUNCTION__, (rw), (bio))
+#else
+#define reiser4_submit_bio(rw, bio) submit_bio((rw), (bio))
+#endif
+
 extern void reiser4_wait_page_writeback (struct page * page);
 static inline void lock_and_wait_page_writeback (struct page * page)
 {
@@ -26,7 +35,7 @@ static inline void lock_and_wait_page_writeback (struct page * page)
 	    reiser4_wait_page_writeback(page);
 }  
 
-#define jprivate( page ) ( ( jnode * ) ( page ) -> private )
+#define jprivate(page) ((jnode *) (page)->private)
 
 extern int page_io(struct page *page, jnode * node, int rw, int gfp);
 extern int page_common_writeback(struct page *page, int flush_flags);

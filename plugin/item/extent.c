@@ -1670,7 +1670,7 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 						if (bio->bi_idx) {
 							/* only submit not
 							   empty bio */
-							submit_bio(READ, bio);
+							reiser4_submit_bio(READ, bio);
 							bio = 0;
 						} else {
 							;	/* use the same bio */
@@ -1707,7 +1707,7 @@ extent_page_cache_readahead(struct file *file, coord_t * coord,
 					if (bio->bi_idx == BIO_MAX_SIZE / PAGE_CACHE_SIZE || !range->nr_pages) {
 						/* bio is full or there are no
 						   pages anymore */
-						submit_bio(READ, bio);
+						reiser4_submit_bio(READ, bio);
 						bio = 0;
 					}
 				}

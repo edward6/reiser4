@@ -95,11 +95,6 @@ struct reiser4_super_info_data {
 	/* amount of blocks used by file system data and meta-data. */
 	__u64 blocks_used;
 
-#if REISER4_DEBUG
-	/* minimum used blocks value (includes super blocks, bitmap blocks and
-	 * other fs reserved areas), depends on fs format and fs size. */
-	__u64 min_blocks_used;
-#endif
 	/* amount of free blocks. This is "working" free blocks counter. It is
 	   like "working" bitmap, please see block_alloc.c for description. */
 	__u64 blocks_free;
@@ -152,12 +147,6 @@ struct reiser4_super_info_data {
 
 	ln_hash_table lnode_htable;
 	spinlock_t lnode_htable_guard;
-#if REISER4_DEBUG
-	/* amount of space allocated by kmalloc. For debugging. */
-	int kmalloc_allocated;
-	/* list of all jnodes */
-	struct list_head all_jnodes;
-#endif
 
 	/* disk layout plugin */
 	disk_format_plugin *df_plug;
@@ -204,6 +193,19 @@ struct reiser4_super_info_data {
 
 	/* committed number of files (oid allocator state variable ) */
 	__u64 nr_files_committed;
+
+#if REISER4_DEBUG
+	/* minimum used blocks value (includes super blocks, bitmap blocks and
+	 * other fs reserved areas), depends on fs format and fs size. */
+	__u64 min_blocks_used;
+	/* amount of space allocated by kmalloc. For debugging. */
+	int kmalloc_allocated;
+	/* list of all jnodes */
+	struct list_head all_jnodes;
+#endif
+#if REISER4_TRACE_TREE
+	reiser4_block_nr last_touched;
+#endif
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct

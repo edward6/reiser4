@@ -587,7 +587,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 	}
 
 	add_fq_to_bio(fq, bio);
-	submit_bio(WRITE, bio);
+	reiser4_submit_bio(WRITE, bio);
 
 	update_blocknr_hint_default (s, jnode_get_block (first));
  

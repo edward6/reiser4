@@ -40,7 +40,7 @@
 	DCALL( KERN_DEBUG, printk, label, format , ## __VA_ARGS__)
 /* use info() for output without any kind of prefix like
     when doing output in several chunks. */
-#define info( format, ... ) printk( format , ## __VA_ARGS__)
+#define info(format, ...) printk(format , ## __VA_ARGS__)
 
 /* Assertion checked during compilation. 
     If "cond" is false (0) we get duplicate case label in switch.
@@ -49,23 +49,23 @@
     in 3.x journal.c. If cassertion fails you get compiler error,
     so no "maintainer-id". 
     From post by Andy Chou <acc@CS.Stanford.EDU> at lkml. */
-#define cassert( cond ) ({ switch( -1 ) { case ( cond ): case 0: break; } })
+#define cassert(cond) ({ switch(-1) { case (cond): case 0: break; } })
 
-#if defined( CONFIG_REISER4_DEBUG )
+#if defined(CONFIG_REISER4_DEBUG)
 /* turn on assertions */
 #define REISER4_DEBUG (1)
 #else
 #define REISER4_DEBUG (0)
 #endif
 
-#if defined( CONFIG_REISER4_CHECK_STACK )
+#if defined(CONFIG_REISER4_CHECK_STACK)
 /* check for stack overflow in each assertion check */
 #define REISER4_DEBUG_STACK (1)
 #else
 #define REISER4_DEBUG_STACK (0)
 #endif
 
-#if defined( CONFIG_REISER4_DEBUG_MODIFY )
+#if defined(CONFIG_REISER4_DEBUG_MODIFY)
 /* this significantly slows down testing, but we should run our testsuite
    through with this every once in a while.  */
 #define REISER4_DEBUG_MODIFY (1)
@@ -73,21 +73,21 @@
 #define REISER4_DEBUG_MODIFY (0)
 #endif
 
-#if defined( CONFIG_REISER4_DEBUG_MEMCPY )
+#if defined(CONFIG_REISER4_DEBUG_MEMCPY)
 /* provide our own memcpy/memmove to profile shifts */
 #define REISER4_DEBUG_MEMCPY (1)
 #else
 #define REISER4_DEBUG_MEMCPY (0)
 #endif
 
-#if defined( CONFIG_REISER4_DEBUG_NODE )
+#if defined(CONFIG_REISER4_DEBUG_NODE)
 /* check consistency of internal node structures */
 #define REISER4_DEBUG_NODE (1)
 #else
 #define REISER4_DEBUG_NODE (0)
 #endif
 
-#if defined( CONFIG_REISER4_ZERO_NEW_NODE )
+#if defined(CONFIG_REISER4_ZERO_NEW_NODE)
 /* if this is non-zero, clear content of new node, otherwise leave whatever
    may happen to be here */
 #define REISER4_ZERO_NEW_NODE (1)
@@ -95,7 +95,7 @@
 #define REISER4_ZERO_NEW_NODE (0)
 #endif
 
-#if defined( CONFIG_REISER4_TRACE )
+#if defined(CONFIG_REISER4_TRACE)
 /* tracing facility.
   
     REISER4_DEBUG doesn't necessary implies tracing, because tracing is only
@@ -107,14 +107,14 @@
 #define REISER4_TRACE (0)
 #endif
 
-#if defined( CONFIG_REISER4_TRACE_TREE )
+#if defined(CONFIG_REISER4_EVENT_LOG)
 /* collect tree traces */
 #define REISER4_TRACE_TREE (1)
 #else
 #define REISER4_TRACE_TREE (0)
 #endif
 
-#if defined( CONFIG_REISER4_STATS )
+#if defined(CONFIG_REISER4_STATS)
 /* collect internal stats. Should be switched to use kernel logging facility
    once latter merged.  */
 #define REISER4_STATS (1)
@@ -122,14 +122,14 @@
 #define REISER4_STATS (0)
 #endif
 
-#if defined( CONFIG_REISER4_DEBUG_OUTPUT )
+#if defined(CONFIG_REISER4_DEBUG_OUTPUT)
 /* debugging print functions. */
 #define REISER4_DEBUG_OUTPUT (1)
 #else
 #define REISER4_DEBUG_OUTPUT (0)
 #endif
 
-#define noop   do {;} while( 0 )
+#define noop   do {;} while(0)
 
 #if REISER4_DEBUG
 /* version of info that only actually prints anything when _d_ebugging

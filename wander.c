@@ -703,7 +703,7 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 
 		add_fq_to_bio(fq, bio);
 
-		submit_bio(WRITE, bio);
+		reiser4_submit_bio(WRITE, bio);
 
 		nr -= nr_blocks;
 

@@ -42,6 +42,7 @@ extern int hold_trace(reiser4_trace_file * file, int flag);
 extern int disable_trace(reiser4_trace_file * file, int flag);
 extern void close_trace_file(reiser4_trace_file * file);
 extern int write_trace_stamp(reiser4_tree * tree, reiser4_traced_op op, ...);
+extern int write_in_trace(const char *mes);
 
 #else
 
@@ -55,10 +56,11 @@ typedef struct {
 #define disable_trace( file, flag ) (0)
 #define close_trace_file( file ) noop
 #define write_trace_stamp( tree, op, ... ) (0)
+#define write_in_trace(const char *mes) (0)
 
 #endif
 
-#define WRITE_TRACE( ... ) ( ( void ) write_trace_stamp( __VA_ARGS__ ) )
+#define WRITE_TRACE(...) ((void) write_trace_stamp(__VA_ARGS__))
 
 /* __REISER4_TRACE_H__ */
 #endif
