@@ -273,6 +273,7 @@ static int process_znode_backward (tap_t * tap, void * arg)
  out:
 	done_load_count(&parent_load);
 	done_lh(&parent_lock);
+	assert("zam-982", (unsigned)(cursor->count) <= get_current_context()->grabbed_blocks);
 	return ret;
 }
 
@@ -284,15 +285,15 @@ static int process_extent_backward (tap_t * tap, void * arg)
 
 	assert("zam-978", (unsigned)(cursor->count) <= get_current_context()->grabbed_blocks);
 
-	ret = process_extent_backward_for_repacking(tap, cursor->count, &cursor->hint);
-	if (ret > 0) {
-		cursor->stats.jnodes_dirtied += ret;
-		cursor->count -= ret;
-		if (cursor->count <= 0)
-			     return -E_REPEAT;
-		return 0;
-	}
-	return ret;
+	ret = process_extent_backward_for_repacking(tap, &cursor->count, &cursor->hint);
+	if (ret < 0)
+		return ret;
+
+	cursor->stats.jnodes_dirtied += ret;
+	if (cursor->count <= 0)
+		return -E_REPEAT;
+
+	return 0;
 }
 /* A set of functions to be called by tree_walk in repacker forward pass. */
 static struct tree_walk_actor forward_actor = {
