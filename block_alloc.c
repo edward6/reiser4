@@ -359,7 +359,7 @@ static int search_one_bitmap (int bmap, int *offset, int max_offset,
 }
 
 /** allocate contiguous range of blocks in bitmap */
-int reiser4_bitmap_alloc (block_nr *start, block_nr end, int min_len, int max_len)
+int bitmap_alloc (block_nr *start, block_nr end, int min_len, int max_len)
 {
 	int bmap, offset;
 	int end_bmap, end_offset;
@@ -539,7 +539,7 @@ int reiser4_alloc_blocks (struct reiser4_blocknr_hint * hint UNUSED_ARG, block_n
 	if (search_end > info_data->blocks_used) 
 		search_end = reiser4_data_blocks (super);
 
-	actual_len = reiser4_bitmap_alloc (&search_start, search_end, 1, *len);
+	actual_len = bitmap_alloc (&search_start, search_end, 1, *len);
 
 	if (actual_len != 0) goto out;
 
@@ -547,7 +547,7 @@ int reiser4_alloc_blocks (struct reiser4_blocknr_hint * hint UNUSED_ARG, block_n
 	search_end = search_start;
 	search_start = 0;
 
-	actual_len = reiser4_bitmap_alloc (&search_start, search_end, 1, *len);
+	actual_len = bitmap_alloc (&search_start, search_end, 1, *len);
 
  out:
 	if (actual_len <= 0) return actual_len;
