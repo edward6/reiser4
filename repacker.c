@@ -163,7 +163,7 @@ static int repacker_d(void *arg)
 	{
 		struct repacker_stats stats = {.znodes_dirtied = 0, .jnodes_dirtied = 0};
 
-		ret = tree_walk(NULL, &repacker_actor, &stats);
+		ret = tree_walk(NULL, 0, &repacker_actor, &stats);
 		printk(KERN_INFO "reiser4 repacker: "
 		       "%lu formatted node(s) processed, %lu unformatted node(s) processed, ret = %d\n",
 		       stats.znodes_dirtied, stats.jnodes_dirtied, ret);

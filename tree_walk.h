@@ -92,7 +92,7 @@ struct tree_walk_actor {
 	int (*process_extent)(tap_t*, void*);
 	int (*before)(void *);
 };
-extern int tree_walk(const reiser4_key *, struct tree_walk_actor *, void *opaque);
+extern int tree_walk(const reiser4_key *, int, struct tree_walk_actor *, void *);
 
 #endif				/* __FS_REISER4_TREE_WALK_H__ */
 
