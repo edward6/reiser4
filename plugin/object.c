@@ -785,7 +785,9 @@ common_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct ks
 	stat->dev = obj->i_sb->s_dev;
 	stat->ino = oid_to_uino(get_inode_oid(obj));
 	stat->mode = obj->i_mode;
-	stat->nlink = obj->i_nlink;
+	/* don't confuse userland with huge nlink. This is not entirely
+	 * correct, because nlink_t is not necessary 16 bit signed. */
+	stat->nlink = min(obj->i_nlink, (typeof(obj->i_nlink))0x7fff);
 	stat->uid = obj->i_uid;
 	stat->gid = obj->i_gid;
 	stat->rdev = kdev_t_to_nr(obj->i_rdev);
