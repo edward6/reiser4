@@ -567,13 +567,13 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 
 		/* we are under memory pressure so release jnode also. */
 		jput(node);
-		read_lock_irq(&mapping->tree_lock);
+		write_lock_irq(&mapping->tree_lock);
 		/* shrink_list() + radix-tree */
 		if (page_count(page) == 2) {
 			__remove_from_page_cache(page);
 			__put_page(page);
 		}
-		read_unlock_irq(&mapping->tree_lock);
+		write_unlock_irq(&mapping->tree_lock);
 
 		return 1;
 	} else {
