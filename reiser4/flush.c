@@ -108,17 +108,19 @@ submanagers should be employed.
 #include "reiser4.h"
 
 /* Perform encryption, allocate-on-flush, and squeezing-left of slums. */
-int flush_znode_slum (znode *node UNUSED_ARG)
+int flush_jnode_slum (jnode *node)
 {
 	/* Somewhere in here, ZNODE_RELOC and ZNODE_WANDERED are set. */
 
 	/* Lots to do in here.  The txnmgr expects this to clean the node. */
-	znode_set_clean (node);
+	jnode_set_clean (node);
 
 	/* Squeeze the slum. */
 
 	return 0;
 }
+
+#if YOU_CAN_COMPILE_PSEUDO_CODE
 
 /* This function accepts a znode argument for now, since we don't really have hooks to the
  * real VM yet.
@@ -176,7 +178,7 @@ int reiser4_flush_node (znode *node)
 }
 
 
-#if YOU_CAN_COMPILE_PSEUDO_CODE
+
 /* this version probably won't get implemented, see the one below */
 reiser4_flush_page(page page)
 {
