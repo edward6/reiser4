@@ -2508,8 +2508,10 @@ static int must_insert (coord_t * coord, reiser4_key * key)
 
 
 /*
+ * helper for allocate_and_copy_extent
  * append last item in the @node with @data if @data and last item are
- * mergeable, otherwise insert @data after last item in @node
+ * mergeable, otherwise insert @data after last item in @node. Have carry to
+ * put new data in available space only. This is because we are in squeezing.
  *
  * FIXME-VS: me might want to try to union last extent in item @left and @data
  */
@@ -2548,7 +2550,6 @@ static int try_to_glue (znode * left, coord_t * right,
 			reiser4_block_nr first_allocated,
 			reiser4_block_nr allocated)
 {
-	int result;
 	coord_t last;	
 	reiser4_key item_key, last_key;
 	reiser4_extent * ext;
@@ -2565,8 +2566,8 @@ static int try_to_glue (znode * left, coord_t * right,
 	if (item_plugin_by_coord (&last) != item_plugin_by_coord (right))
 		return 0;
 
-	result = 0;
-	if (keyeq (last_key_in_extent (&last, &last_key), &item_key) &&
+	if (state_of_extent (ext) &&
+	    keyeq (last_key_in_extent (&last, &last_key), &item_key) &&
 	    (extent_get_start (ext) + extent_get_width (ext) ==
 	     first_allocated)) {
 		/*
@@ -2574,27 +2575,27 @@ static int try_to_glue (znode * left, coord_t * right,
 		 * @left
 		 */
 		extent_set_width (ext, extent_get_width (ext) + allocated);
-		result = 1;
+		return 1;
 	}
-	return result;
+	return 0;
 }
 
 
 /*
- * @right is extent item. @left and @right are extents of one file. Copy item
+ * @right is extent item. @left is left neighbor of @right->node. Copy item
  * @right to @left unit by unit. Units which do not require allocation are
  * copied as they are. Units requiring allocation are copied after destinating
  * start block number and extent size to them. Those units may get inflated due
  * to impossibility to allocate desired number of contiguous free blocks
+ * @flush_pos - needs comment
  */
 /* Audited by: green(2002.06.13) */
 int allocate_and_copy_extent (znode * left, coord_t * right,
 			      flush_position *flush_pos,
 			      /*
-			       * biggest key which was moved, it is
-			       * * maintained while shifting is in *
-			       * progress and is used to cut right *
-			       * node at the end
+			       * biggest key which was moved, it is maintained
+			       * while shifting is in progress and is used to
+			       * cut right node at the end
 			       */
 			      reiser4_key * stop_key)
 {
@@ -2652,7 +2653,8 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 		 */
 		to_allocate = extent_get_width (ext);
 		/*
-		 * while whole extent is allocated
+		 * until whole extent is allocated and there is space in left
+		 * neighbor
 		 */
 		while (to_allocate) {
 			result = extent_allocate_blocks (flush_pos_hint (flush_pos), to_allocate,
@@ -2669,56 +2671,43 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 			/* FIXME: JMACD->ZAM->VS: I think the block allocator should do this. */
 			flush_pos_hint (flush_pos)->blk += allocated;
 
-			if (try_to_glue (left, right, first_allocated, allocated)) {
+			if (!try_to_glue (left, right, first_allocated, allocated)) {
 				/*
-				 * find all pages containing allocated blocks
-				 * and map corresponding buffers
+				 * could not copy current extent by just
+				 * increasing width of last extent in left
+				 * neighbor, add new extent to the end of
+				 * @left
 				 */
-				if ((result = assign_jnode_blocknrs (&key, first_allocated, allocated, flush_pos))) {
+				extent_set_start (&new_ext, first_allocated);
+				extent_set_width (&new_ext, (reiser4_block_nr)allocated);
+
+				result = put_unit_to_end (left, &key,
+							  init_new_extent (&data,
+									   &new_ext, 1));
+				if (result == -ENOSPC) {
+					/*
+					 * @left is full, free blocks we
+					 * grabbed because this extent will
+					 * stay in right->node, and, therefore,
+					 * blocks it points to have different
+					 * predecer in parent-first order. Set
+					 * "defer" parameter of
+					 * reiser4_dealloc_block to 0 because
+					 * these blocks can be made allocable
+					 * again immediately
+					 */
+					reiser4_dealloc_blocks (&first_allocated, &allocated,
+								0 /* defer */);
+					result = SQUEEZE_TARGET_FULL;
+					trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
 					goto done;
 				}
-				/*
-				 * update stop key
-				 */
-				set_key_offset (&key, get_key_offset (&key) +
-						allocated * blocksize);
-				*stop_key = key;
-				set_key_offset (stop_key, get_key_offset (&key) - 1);
-				result = SQUEEZE_CONTINUE;
-				continue;
 			}
 			/*
-			 * append @left with new extent
+			 * find all pages for which blocks were allocated and
+			 * assign block numbers to jnodes of those pages
 			 */
-			extent_set_start (&new_ext, first_allocated);
-			extent_set_width (&new_ext, (reiser4_block_nr)allocated);
-
-			result = put_unit_to_end (left, &key,
-						  init_new_extent (&data,
-								   &new_ext, 1));
-			if (result == -ENOSPC) {
-				/*
-				 * left->node is full, free blocks we grabbed
-				 * because this extent will stay in
-				 * right->node, and, therefore, blocks it
-				 * points to have different predecer in
-				 * parent-first order. Set "defer" parameter of
-				 * reiser4_dealloc_block to 0 because these
-				 * blocks can be made allocable again
-				 * immediately
-				 */
-				reiser4_dealloc_blocks (&first_allocated, &allocated,
-							0 /* defer */, BLOCK_UNALLOCATED);
-				result = SQUEEZE_TARGET_FULL;
-				trace_on (TRACE_EXTENTS, "alloc_and_copy_extent: target full, to_allocate = %llu\n", to_allocate);
-				goto done;
-			}
-			/*
-			 * find all pages containing allocated blocks and map
-			 * corresponding buffers
-			 */
-			if ((result = assign_jnode_blocknrs (&key, first_allocated,
-							     allocated, flush_pos))) {
+			if ((result = assign_jnode_blocknrs (&key, first_allocated, allocated, flush_pos))) {
 				goto done;
 			}
 			/*
@@ -2733,9 +2722,8 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 	}
  done:
 
-	/* FIXME: JMACD->VS: This assertion is wrong, should be (result == FULL || result
-	 * == CONTINUE || result < 0) I think.  It can never fail right now... */
-	assert ("vs-421", result == SQUEEZE_TARGET_FULL || SQUEEZE_CONTINUE);
+	assert ("vs-421",
+		result < 0 || result == SQUEEZE_TARGET_FULL || SQUEEZE_CONTINUE);
 
 	/* set coord to first unit in it */
 	assert ("vs-678", item_is_extent (right));
@@ -2746,11 +2734,12 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 
 
 /*
- * paste new unallocated extent of width after unit @coord is set to. Ask
+ * helper for allocate_extent_item_in_place.
+ * paste new unallocated extent of @width after unit @coord is set to. Ask
  * insert_into_item to not try to shift anything to left
  */
 /* Audited by: green(2002.06.13) */
-	static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
+static int paste_unallocated_extent (coord_t * item, reiser4_key * key,
 				     reiser4_block_nr width)
 {
 	int result;
@@ -2823,8 +2812,8 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 
 		unit_key_by_coord (item, &key);
 		/*
-		 * find all pages containing allocated blocks and map
-		 * corresponding buffers
+		 * find all pages for which blocks were allocated and assign
+		 * block numbers to jnodes of those pages
 		 */
 		if ((result = assign_jnode_blocknrs (&key, first_allocated, allocated, flush_pos))) {
 			return result;
@@ -2835,14 +2824,12 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 			 * whole extent is allocated
 			 */
 			continue;
-		/*
-		 * update @key offset to offset of the part of extent which was
-		 * not allocated
-		 */
+		/* set @key to key of first byte of part of extent whihc left
+		 * unallocated */
 		set_key_offset (&key, get_key_offset (&key) + allocated * blocksize);
-		/*
-		 * put the rest of extent into tree
-		 */
+
+		/* put remaining unallocated extent into tree right after newly
+		 * overwritten one */
 		result = paste_unallocated_extent (item, &key, 
 						   initial_width - allocated);
 		if (result)
@@ -2877,53 +2864,6 @@ int allocate_extent_item_in_place (coord_t * item, flush_position *flush_pos)
 	return 0;
 }
 
-#if 0
-/*
- * iterate_tree's actor is to test extent allocation
- */
-/* Audited by: green(2002.06.13) */
-int alloc_extent (reiser4_tree * tree UNUSED_ARG, coord_t * coord,
-		  lock_handle * lh UNUSED_ARG, void * arg UNUSED_ARG)
-{
-	reiser4_blocknr_hint preceder;
-
-	if (item_id_by_coord (coord) != EXTENT_POINTER_ID) {
-		return 1;
-	}
-
-	/*
-	 * try to calculate block number of left neighbor in parent-first order
-	 */
-	if (coord->item_pos == 0) {
-		preceder.blk = *znode_get_block (coord->node);
-	} else {
-		coord_t prev;
-		reiser4_block_nr da;
-
-		assert ("vs-455", coord->unit_pos == 0);
-		coord_dup (&prev, coord);
-		/* there must exist an unit to the left of coord */
-		coord_prev_unit (&prev);
-		assert ("vs-680", coord_is_existing_unit (&prev));
-
-		if (item_is_internal (&prev)) {
-			item_plugin_by_coord (&prev)->s.internal.down_link (&prev, 0,
-						       &da);
-			preceder.blk = da;
-		} else if (item_id_by_coord (&prev) == EXTENT_POINTER_ID) {
-			reiser4_extent * ext;
-			ext = extent_by_coord (&prev);
-			preceder.blk = extent_get_start (ext) + extent_get_width (ext);
-		} else
-			impossible ("vs-454", "unknown item type");
-
-	}
-
-	/* FIXME: used only by ulevel, but what about this return value? */
-	allocate_extent_item_in_place (coord, &preceder);
-	return 1;
-}
-#endif
 
 /* Block offset of first block addressed by unit */
 /* Audited by: green(2002.06.13) */
