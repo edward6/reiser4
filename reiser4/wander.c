@@ -311,7 +311,7 @@ int format_commit_record (txn_atom *atom UNUSED_ARG)
 {
 #if 0
 	int level;
-	txn_node *scan;
+	znode *scan;
 
 	for (level = 0; level < REISER4_MAX_ZTREE_HEIGHT; level += 1) {
 
