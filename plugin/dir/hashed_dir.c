@@ -10,9 +10,11 @@
 #include "../../reiser4.h"
 
 static int create_dot_dotdot( struct inode *object, struct inode *parent );
-static int find_entry( const struct inode *dir, const struct qstr *name, 
-		       tree_coord *coord, lock_handle *lh,
+static int find_entry( const struct inode *dir, struct dentry *name, 
+		       lock_handle *lh, 
 		       znode_lock_mode mode, reiser4_dir_entry_desc *entry );
+static int check_item( const struct inode *dir, 
+		       const tree_coord *coord, const char *name );
 
 /** create sd for directory file. Create stat-data, dot, and dotdot. */
 int hashed_create( struct inode *object /* new directory */, 
@@ -160,8 +162,8 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 				  struct dentry *dentry /* name to look for */ )
 {
 	int                    result;
-	tree_coord             coord;
-	lock_handle    lh;
+	tree_coord            *coord;
+	lock_handle            lh;
 	const char            *name;
 	int                    len;
 	reiser4_dir_entry_desc entry;
@@ -196,21 +198,20 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 	 */
 	dentry -> d_op = &reiser4_dentry_operation;
 
-	init_coord( &coord );
+	coord = &reiser4_get_dentry_fsdata( dentry ) -> entry_coord;
 	init_lh( &lh );
 
 	/*
 	 * find entry in a directory. This is plugin method.
 	 */
-	result = find_entry( parent, &dentry -> d_name, &coord, &lh,
-			     ZNODE_READ_LOCK, &entry );
+	result = find_entry( parent, dentry, &lh, ZNODE_READ_LOCK, &entry );
 	if( result == 0 ) {
 		/* entry was found, extract object key from it. */
-		result = item_plugin_by_coord( &coord ) ->
-			s.dir.extract_key( &coord, &entry.key );
+		result = item_plugin_by_coord( coord ) ->
+			s.dir.extract_key( coord, &entry.key );
 	}
 	done_lh( &lh );
-	done_coord( &coord );
+	done_coord( coord );
 	
 	if( result == 0 ) {
 		struct inode *inode;
@@ -253,22 +254,22 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 						     * directory entry */ )
 {
 	int                 result;
-	tree_coord          coord;
+	tree_coord         *coord;
 	lock_handle lh;
 
 	assert( "nikita-1114", object != NULL );
 	assert( "nikita-1250", where != NULL );
 
-	init_coord( &coord );
 	init_lh( &lh );
 
 	trace_on( TRACE_DIR, "[%i]: creating \"%s\" in %lx\n", current_pid,
 		  where -> d_name.name, object -> i_ino );
+
+	coord = &reiser4_get_dentry_fsdata( where ) -> entry_coord;
 	/*
 	 * check for this entry in a directory. This is plugin method.
 	 */
-	result = find_entry( object, &where -> d_name, &coord, &lh, 
-			     ZNODE_WRITE_LOCK, entry );
+	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry );
 	if( result == -ENOENT ) {
 		/*
 		 * add new entry. Just pass control to the directory
@@ -276,12 +277,11 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 		 */
 		assert( "nikita-1709", inode_dir_item_plugin( object ) );
 		result = inode_dir_item_plugin( object ) ->
-			s.dir.add_entry( object, 
-					 &coord, &lh, where, entry );
+			s.dir.add_entry( object, coord, &lh, where, entry );
 	} else if( result == 0 )
 		result = -EEXIST;
 	done_lh( &lh );
-	done_coord( &coord );
+	done_coord( coord );
 	return result;
 }
 
@@ -296,20 +296,19 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 					    * removed */ )
 {
 	int                 result;
-	tree_coord          coord;
+	tree_coord         *coord;
 	lock_handle lh;
 
 	assert( "nikita-1124", object != NULL );
 	assert( "nikita-1125", where != NULL );
 
-	init_coord( &coord );
 	init_lh( &lh );
 
 	/*
 	 * check for this entry in a directory. This is plugin method.
 	 */
-	result = find_entry( object, &where -> d_name, &coord, &lh,
-			     ZNODE_WRITE_LOCK, entry );
+	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry );
+	coord = &reiser4_get_dentry_fsdata( where ) -> entry_coord;
 	if( result == 0 ) {
 		/*
 		 * remove entry. Just pass control to the directory item
@@ -317,10 +316,10 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 		 */
 		assert( "vs-542", inode_dir_item_plugin( object ) );
 		result = inode_dir_item_plugin( object ) ->
-			s.dir.rem_entry( object, &coord, &lh, entry );
+			s.dir.rem_entry( object, coord, &lh, entry );
 	}
 	done_lh( &lh );
-	done_coord( &coord );
+	done_coord( coord );
 	return result;
 }
 
@@ -357,36 +356,52 @@ typedef struct entry_actor_args {
  *
  */
 static int find_entry( const struct inode *dir /* directory to scan */, 
-		       const struct qstr *name /* name to search for */, 
-		       tree_coord *coord /* resulting coord */, 
+		       struct dentry *de /* name to search for */, 
 		       lock_handle *lh /* resulting lock handle */,
 		       znode_lock_mode mode /* required lock mode */,
 		       reiser4_dir_entry_desc *entry /* parameters of found
 						      * directory entry */ )
 {
-	int         result;
-
+	seal_t            *seal;
+	const struct qstr *name;
+	tree_coord        *coord;
+	int                result;
 
 	assert( "nikita-1130", lh != NULL );
 	assert( "nikita-1128", dir != NULL );
 	assert( "nikita-1129", name != NULL );
+	assert( "nikita-1895", seal != NULL );
 
-	/*
-	 * compose key of directory entry for @name
-	 */
+	name = &de -> d_name;
+	coord = &reiser4_get_dentry_fsdata( de ) -> entry_coord;
+	seal  = &reiser4_get_dentry_fsdata( de ) -> entry_seal;
+	/* compose key of directory entry for @name */
 	result = build_entry_key( dir, name, &entry -> key );
 	if( result != 0 )
 		return result;
 
-	result = coord_by_key( tree_by_inode( dir ), &entry -> key, coord, lh,
-			       mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
-			       CBK_FOR_INSERT );
+	if( seal_is_set( seal ) ) {
+		/* check seal */
+		result = seal_validate( seal, coord, &entry -> key, LEAF_LEVEL,
+					lh, FIND_EXACT, mode, ZNODE_LOCK_LOPRI );
+		if( result == 0 ) {
+			/* key was found. Check that it is really item we are
+			 * looking for. */
+			result = check_item( dir, coord, name -> name );
+			if( result == 0 )
+				return 0;
+		}
+	} else
+		result = -EAGAIN;
+	if( result != 0 )
+		result = coord_by_key( tree_by_inode( dir ), 
+				       &entry -> key, coord, lh,
+				       mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
+				       CBK_FOR_INSERT );
 	if( result == CBK_COORD_FOUND ) {
 		entry_actor_args arg;
 
-		/*
-		 * Iterate through all units with the same keys.
-		 */
+		/* Iterate through all units with the same keys. */
 		arg.name      = name -> name;
 		arg.key       = &entry -> key;
 		arg.not_found = 0;
@@ -400,16 +415,13 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 		init_lh( &arg.last_lh );
 
 		result = iterate_tree( tree_by_inode( dir ), 
-					       coord, lh, entry_actor, &arg, 
-					       mode, 1 );
+				       coord, lh, entry_actor, &arg, mode, 1 );
 		/*
 		 * if end of the tree or extent was reached during
 		 * scanning.
 		 */
 		if( arg.not_found || ( result == -ENAVAIL ) ) {
-			/*
-			 * step back
-			 */
+			/* step back */
 			done_lh( lh );
 			done_coord( coord );
 
@@ -422,6 +434,8 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 		done_lh( &arg.last_lh );
 		done_coord( &arg.last_coord );
 	}
+	if( result == 0 )
+		seal_init( seal, coord, &entry -> key );
 	return result;
 }
 
@@ -433,9 +447,8 @@ static int entry_actor( reiser4_tree *tree /* tree being scanned */,
 			lock_handle *lh /* current lock handle */,
 			void *entry_actor_arg /* argument to scan */ )
 {
-	reiser4_key         unit_key;
-	item_plugin *iplug;
-	entry_actor_args   *args;
+	reiser4_key       unit_key;
+	entry_actor_args *args;
 
 	assert( "nikita-1131", tree != NULL );
 	assert( "nikita-1132", coord != NULL );
@@ -462,13 +475,35 @@ static int entry_actor( reiser4_tree *tree /* tree being scanned */,
 		args -> last_coord.between = AFTER_UNIT;
 		return 0;
 	}
+
+	done_coord( &args -> last_coord );
+	dup_coord( &args -> last_coord, coord );
+	if( args -> last_lh.node != lh -> node ) {
+		int lock_result;
+
+		done_lh( &args -> last_lh );
+		assert( "nikita-1896", znode_is_any_locked( lh -> node ) );
+		lock_result = longterm_lock_znode( &args -> last_lh, lh -> node,
+						   args -> mode, 
+						   ZNODE_LOCK_HIPRI );
+		if( lock_result != 0 )
+			return lock_result;
+	}
+	return check_item( args -> inode, coord, args -> name );
+}
+
+static int check_item( const struct inode *dir, 
+		       const tree_coord *coord, const char *name )
+{
+	item_plugin      *iplug;
+
 	iplug = item_plugin_by_coord( coord );
 	if( iplug == NULL ) {
 		warning( "nikita-1135", "Cannot get item plugin" );
 		print_coord( "coord", coord, 1 );
 		return -EIO;
 	} else if( item_id_by_coord( coord ) !=
-		   item_id_by_plugin( inode_dir_item_plugin( args -> inode ) ) ) {
+		   item_id_by_plugin( inode_dir_item_plugin( dir ) ) ) {
 		/* item id of current item does not match to id of items a
 		 * directory is built of */
 		warning( "nikita-1136", "Wrong item plugin" );
@@ -478,33 +513,17 @@ static int entry_actor( reiser4_tree *tree /* tree being scanned */,
 	}
 	assert( "nikita-1137", iplug -> s.dir.extract_name );
 
-	done_coord( &args -> last_coord );
-	dup_coord( &args -> last_coord, coord );
-	if( args -> last_lh.node != lh -> node ) {
-		int lock_result;
-
-		done_lh( &args -> last_lh );
-		assert( "", znode_is_any_locked( lh -> node ) );
-		lock_result = longterm_lock_znode( &args -> last_lh, lh -> node,
-						  args -> mode, 
-						  ZNODE_LOCK_HIPRI );
-		if( lock_result != 0 )
-			return lock_result;
-	}
-	
 	trace_on( TRACE_DIR, "[%i]: \"%s\", \"%s\" in %lli\n",
-		  current_pid, args -> name, 
+		  current_pid, name, 
 		  iplug -> s.dir.extract_name( coord ),
 		  *znode_get_block( coord -> node ) );
-
 	/*
 	 * Compare name stored in this entry with name we are looking for.
 	 * 
 	 * FIXME-NIKITA Here should go code for support of something like
 	 * unicode, code tables, etc.
 	 */
-	return !!strcmp( args -> name, 
-			 iplug -> s.dir.extract_name( coord ) );
+	return !!strcmp( name, iplug -> s.dir.extract_name( coord ) );
 }
 
 /* 
