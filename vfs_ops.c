@@ -1253,7 +1253,8 @@ reiser4_release(struct inode *i /* inode released */ ,
 /* FIXME: This way to support fsync is too expensive. Proper solution support is to commit only atoms which contain
    dirty pages from given address space. */
 static int
-reiser4_fsync(struct file *file, struct dentry *dentry, int datasync)
+reiser4_fsync(struct file *file UNUSED_ARG, 
+	      struct dentry *dentry, int datasync UNUSED_ARG)
 {
 	REISER4_ENTRY(dentry->d_inode->i_sb);
 	REISER4_EXIT(txnmgr_force_commit_all(dentry->d_inode->i_sb));
