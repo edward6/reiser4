@@ -529,7 +529,7 @@ static void entd_flush(struct super_block *super)
 {
 	long            nr_submitted = 0;
 	int             result;
-	reiser4_context txn;
+	reiser4_context ctx;
 	struct writeback_control wbc = {
 		.bdi		= NULL,
 		.sync_mode	= WB_SYNC_NONE,
@@ -538,15 +538,16 @@ static void entd_flush(struct super_block *super)
 		.nonblocking	= 0,
 	};
 
-	init_context(&txn, super);
+	init_context(&ctx, super);
 
-	txn.entd = 1;
+	ctx.entd = 1;
 
 	entd_capture_anonymous_pages(super, &wbc);
 	result = flush_some_atom(&nr_submitted, &wbc, 0);
 	if (result != 0)
 		warning("nikita-3100", "Flush failed: %i", result);
-	reiser4_exit_context(&txn);
+	context_set_commit_async(&ctx);
+	reiser4_exit_context(&ctx);
 }
 
 /* Make Linus happy.
