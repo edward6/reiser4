@@ -18,6 +18,7 @@ reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ] = {
 			},
 			.init_oid_allocator   = oid_40_read_allocator,
 			.oids_used            = oid_40_used,
+			.next_oid             = oid_40_next_oid,
 			.oids_free            = oid_40_free,
 			.allocate_oid         = oid_40_allocate,
 			.release_oid          = oid_40_release,
