@@ -964,6 +964,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 {
 	znode            *node;
 	carry_insert_data cdata;
+	carry_insert_data cdata2;
 	tree_coord        coord;
 	reiser4_item_data data;
 	carry_op         *delete_dummy;
@@ -1034,6 +1035,8 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 */
 	if( is_empty_node( node ) ) {
 		delete_dummy = reiser4_post_carry( todo, COP_DELETE, node, 1 );
+		if( IS_ERR( delete_dummy ) )
+			return PTR_ERR( delete_dummy );
 		delete_dummy -> u.delete.child = NULL;
 		delete_dummy -> u.delete.flags = DELETE_RETAIN_EMPTY;
 	}
@@ -1044,6 +1047,9 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 */
 	insert_extent = reiser4_post_carry( todo, COP_INSERT, node, 1 );
 	if( IS_ERR( insert_extent ) )
+		/*
+		 * FIXME-NIKITA cleanup @delete_dummy
+		 */
 		return PTR_ERR( insert_extent );
 	/*
 	 * FIXME-NIKITA insertion by key is simplest option here. Another
@@ -1051,6 +1057,7 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 * item.
 	 */
 	insert_extent -> u.insert.type = COPT_KEY;
+	insert_extent -> u.insert.d = &cdata2;
 	insert_extent -> u.insert.d -> data = op -> u.extent.d -> data;
 	insert_extent -> u.insert.d -> key  = op -> u.extent.d -> key;
 	insert_extent -> u.insert.d -> data -> arg = op -> u.extent.d -> coord;
