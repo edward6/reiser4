@@ -292,7 +292,7 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 				ON_DEBUG( ++ killed );
 			}
 		}
-		assert( "nikita-2178", killed > 0 );
+		assert( "nikita-2178", ( parents == 0 ) || ( killed > 0 ) );
 	} while( parents > 0 );
 
 	spin_unlock_tree( tree );
