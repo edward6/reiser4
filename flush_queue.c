@@ -452,7 +452,7 @@ static void release_prepped_list(flush_queue_t * fq)
    @return: number of submitted blocks (>=0) if success, otherwise -- an error
             code (<0). */
 int
-write_fq(flush_queue_t * fq)
+write_fq(flush_queue_t * fq, long * nr_submitted)
 {
 	int ret;
 	txn_atom * atom;
@@ -462,12 +462,10 @@ write_fq(flush_queue_t * fq)
 	atom->nr_running_queues ++;
 	UNLOCK_ATOM(atom);
 	
-	ret = write_jnode_list(&fq->prepped, fq);
-	if (ret)
-		return ret;
-
+	ret = write_jnode_list(&fq->prepped, fq, nr_submitted);
 	release_prepped_list(fq);
-	return 0;
+
+	return ret;
 }
 
 /* Getting flush queue object for exclusive use by one thread. May require
