@@ -1748,6 +1748,23 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 				}
 			}
 		},
+		{
+			/* tree traversal readahead parameters:
+			   -o readahead:MAX:ADJACENT:LEAVES_ONLY:ONE_PARENT_ONLY
+			   set MAX to 0 to disable tree traversal readahead */
+			.name = "readahead",
+			.type = OPT_FORMAT,
+			.u = {
+				.f = {
+					.format  = "%u:%u:%u:%u",
+					.nr_args = 4,
+					.arg1 = &info->ra_params.max,
+					.arg2 = &info->ra_params.adjacent_only,
+					.arg3 = &info->ra_params.leaves_only,
+					.arg4 = &info->ra_params.one_parent_only
+				}
+			}
+		},
 
 #if REISER4_TRACE_TREE
 		{
@@ -1796,6 +1813,14 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 
 	trace_file_name = NULL;
 
+	/*
+	  init default readahead params
+	*/
+	info->ra_params.max = 256;
+	info->ra_params.adjacent_only = 1;
+	info->ra_params.leaves_only = 1;
+	info->ra_params.one_parent_only = 0;
+
 	result = parse_options(opt_string, opts, sizeof_array(opts));
 	if (result != 0)
 		return result;
@@ -1821,6 +1846,14 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	else
 		info->trace_file.type = log_to_bucket;
 #endif
+
+	/*
+	 * FIXME-VS: remove after debugging readahead mount option
+	 */
+	info("readahead options: max=%d, adjacent=%d, leaves only=%d, one parent=%d\n", 
+	     info->ra_params.max, info->ra_params.adjacent_only, info->ra_params.leaves_only,
+	     info->ra_params.one_parent_only);
+
 	return result;
 }
 
