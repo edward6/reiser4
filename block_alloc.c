@@ -53,6 +53,76 @@ int blocknr_is_fake(const reiser4_block_nr * da)
 	return (*da & REISER4_FAKE_BLOCKNR_BIT_MASK) ? 1 : 0;
 }
 
+/* Adjust "working" free blocks counter for number of blocks we are going to
+ * allocate. This function should be called before bitmap scanning or
+ * allocating fake block numbers 
+ *
+ * @super           -- pointer on reiser4 super block;
+ * @min_block_count -- minimum number of blocks we reserve;
+ * @max_block_count -- maximum number of blocks we want to reserve;
+ * @reserved        -- out parameter for max. number of reserved blocks, 
+ *                     less than @max_block_count and
+ *                     more than or equal to @min_block_count;
+ * @return          -- 0 if success,  -ENOSPC, if all
+ *                     free blocks are preserved or already allocated.
+ **/
+
+/* FIXME-ZAM: reserved blocks could be counted in a reiser4 super block field,
+ * it allows more error checks. */
+
+static int reserve_blocks (struct super_block * super,
+			   reiser4_block_nr * reserved,
+			   const reiser4_block_nr min_block_count,
+			   const reiser4_block_nr max_block_count)
+{
+	__u64 free_blocks;
+	int ret = 0;
+
+	reiser4_spin_lock_sb (super);
+
+	assert ("zam-472", reserved != NULL);
+	assert ("zam-473", min_block_count != 0);
+	assert ("zam-474", max_block_count >= min_block_count);
+
+	free_blocks = reiser4_free_blocks (super);
+
+	if (free_blocks < min_block_count) {
+		ret = -ENOSPC;
+		goto unlock_and_ret;
+	}
+
+	if (free_blocks <= max_block_count) {
+		*reserved = free_blocks;
+		free_blocks = 0;
+	} else {
+		free_blocks -= max_block_count;
+		*reserved = max_block_count;
+	}
+
+	reiser4_set_free_blocks (super, free_blocks);
+
+ unlock_and_ret:
+	reiser4_spin_unlock_sb (super);
+
+	return ret;
+} 
+
+/**
+ * Adjust free blocks count for blocks which were reserved but were not used.
+ */
+static void free_reserved_blocks (struct super_block * super, reiser4_block_nr count)
+{
+	__u64 free_blocks;
+
+	reiser4_spin_lock_sb (super);
+
+	free_blocks = reiser4_free_blocks (super);
+	free_blocks += count;
+	reiser4_set_free_blocks (super, free_blocks);
+	
+	reiser4_spin_unlock_sb (super);
+}
+
 /** a generator for tree nodes fake block numbers */
 /* Audited by: green(2002.06.11) */
 void get_next_fake_blocknr (reiser4_block_nr *bnr)
@@ -79,31 +149,42 @@ void get_next_fake_blocknr (reiser4_block_nr *bnr)
 
 
 /* wrapper to call space allocation plugin */
-/* Audited by: green(2002.06.11) */
 int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 			  reiser4_block_nr *len)
 {
+	struct super_block * super = reiser4_get_current_sb ();
+
 	space_allocator_plugin * splug;
-	int needed;
+	reiser4_block_nr needed;
 	int ret;
 
 	assert ("vs-514", (get_current_super_private () &&
 			   get_current_super_private ()->space_plug &&
 			   get_current_super_private ()->space_plug->alloc_blocks));
 
-	splug = get_current_super_private ()->space_plug;	
-	needed = *len;
-	ret = splug->alloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
-				   hint, needed, blk, len);
-
-	if (ret != 0 && hint != NULL && hint -> not_counted) {
-		struct super_block * super = reiser4_get_current_sb ();
-		assert ("zam-463", *len > reiser4_free_blocks(super));
-
-		reiser4_spin_lock_sb (super);
-		reiser4_set_free_blocks (super, reiser4_free_blocks(super) - (*len));
-		reiser4_spin_unlock_sb (super);
+	if (hint != NULL && hint -> not_counted) {
+		/* we should not allocate reserved space */
+		ret = reserve_blocks (super, &needed, (reiser4_block_nr)1, *len);
+		if (ret != 0) return ret;		
+	} else {
+		needed  = *len;
 	}
+
+	splug = get_current_super_private ()->space_plug;	
+	ret = splug->alloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
+				   hint, (int) needed, blk, len);
+
+
+	if (hint != NULL && hint -> not_counted) {
+		if (ret == 0) {
+			assert ("zam-475", *len <= needed);
+			free_reserved_blocks (super, needed - *len);
+		} else {
+			free_reserved_blocks (super, needed);
+		}
+	}
+
+	return ret;
 }
 
 /** Blocks deallocation function may do an actual deallocation through space
