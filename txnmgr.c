@@ -622,7 +622,7 @@ atom_try_commit_locked (txn_atom *atom)
 	assert ("jmacd-150", atom->txnh_count == 1);
 	assert ("jmacd-151", atom_isopen (atom));
 
-	trace_on (TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, (unsigned) pthread_self ());
+	trace_on (TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", atom->atom_id, current_pid);
 
 	/* When trying to commit, make sure we keep trying, also prevent new txnhs. */
 	atom->flags |= ATOM_FORCE_COMMIT;
@@ -1630,7 +1630,7 @@ capture_fuse_wait (jnode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *ato
 			spin_unlock_atom (atomh);
 		}
 
-		trace_on (TRACE_TXN, "thread %u nonblocking on atom %u\n", (unsigned) pthread_self (), atomf->atom_id);
+		trace_on (TRACE_TXN, "thread %u nonblocking on atom %u\n", current_pid, atomf->atom_id);
 
 		return -EAGAIN;
 	}
@@ -1655,19 +1655,21 @@ capture_fuse_wait (jnode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *ato
 		spin_unlock_atom (atomh);
 	}
 
-	trace_on (TRACE_TXN, "thread %u waitfor %u waiting %u\n", (unsigned) pthread_self (), atomf->atom_id, atomh ? atomh->atom_id : 0);
+	trace_on (TRACE_TXN, "thread %u waitfor %u waiting %u\n", current_pid, atomf->atom_id, atomh ? atomh->atom_id : 0);
 
 	/* Go to sleep. */
 	spin_unlock_txnh (txnh);
 	
 	if ((ret = prepare_to_sleep (wlinks._lock_stack)) != 0) {
-		trace_on (TRACE_TXN, "thread %u deadlock blocking on atom %u\n", (unsigned) pthread_self (), atomf->atom_id);
+		trace_on (TRACE_TXN, "thread %u deadlock blocking on atom %u\n", current_pid, atomf->atom_id);
 	} else {
-		go_to_sleep      (wlinks._lock_stack);
+		ret = go_to_sleep (wlinks._lock_stack);
 
-		ret = -EAGAIN;
+		if (ret == 0) {
+			ret = -EAGAIN;
+		}
 
-		trace_on (TRACE_TXN, "thread %u wakeup %u waiting %u\n", (unsigned) pthread_self (), atomf->atom_id, atomh ? atomh->atom_id : 0);
+		trace_on (TRACE_TXN, "thread %u wakeup %u waiting %u\n", current_pid, atomf->atom_id, atomh ? atomh->atom_id : 0);
 	}
 
 	/* Remove from the waitfor list. */
