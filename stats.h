@@ -257,9 +257,6 @@ typedef struct reiser4_statistics {
 		statcnt_t reparenting;
 		/* right delimiting key is not exact */
 		statcnt_t rd_key_skew;
-		/* how many times lookup_multikey() has to restart from the
-		   beginning because of the broken seal. */
-		statcnt_t multikey_restart;
 		statcnt_t check_left_nonuniq;
 		statcnt_t left_nonuniq_found;
 	} tree;
@@ -422,17 +419,8 @@ typedef struct reiser4_statistics {
 	struct {
 		/* seals that were found pristine */
 		statcnt_t perfect_match;
-		/* how many times key drifted from sealed node */
-		statcnt_t key_drift;
 		/* how many times node under seal was out of cache */
 		statcnt_t out_of_cache;
-		/* how many times wrong node was found under seal */
-		statcnt_t wrong_node;
-		/* how many times coord was found in exactly the same position
-		   under seal */
-		statcnt_t didnt_move;
-		/* how many times key was actually found under seal */
-		statcnt_t found;
 	} seal;
 	struct {
 		tshash_stat znode;

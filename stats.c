@@ -131,7 +131,6 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(tree.fast_cut),
 	DEFINE_STATCNT(tree.reparenting),
 	DEFINE_STATCNT(tree.rd_key_skew),
-	DEFINE_STATCNT(tree.multikey_restart),
 	DEFINE_STATCNT(tree.check_left_nonuniq),
 	DEFINE_STATCNT(tree.left_nonuniq_found),
 
@@ -232,11 +231,7 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STATCNT(pool.kmalloc),
 
 	DEFINE_STATCNT(seal.perfect_match),
-	DEFINE_STATCNT(seal.key_drift),
 	DEFINE_STATCNT(seal.out_of_cache),
-	DEFINE_STATCNT(seal.wrong_node),
-	DEFINE_STATCNT(seal.didnt_move),
-	DEFINE_STATCNT(seal.found),
 
 	DEFINE_STATCNT(hashes.znode.lookup),
 	DEFINE_STATCNT(hashes.znode.insert),

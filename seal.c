@@ -160,28 +160,6 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				reiser4_stat_inc(seal.perfect_match);
 			} else
 				result = -E_REPEAT;
-#if 0
-			} else if (coord->between != AT_UNIT)
-				/* if seal was placed on position with node
-				   (rather than on the existing unit within
-				   node), we don't know what to lookup for.
-				
-				   Seals were designed to "point" to existing
-				   units in the tree, rather than positions
-				   within a node. This is not a problem
-				   usually, though.
-				*/
-				result = -E_REPEAT;
-			else if (znode_contains_key_lock(node, key))
-				/* seal is broken, but there is a hope that
-				   key is still in @node */
-				result = seal_search_node(seal, coord, node, key, bias, level);
-			else {
-				/* key is not in @node */
-				reiser4_stat_inc(seal.key_drift);
-				result = -E_REPEAT;
-			}
-#endif
 		}
 		if (result != 0) {
 			if (should_repeat(result))
@@ -218,54 +196,6 @@ seal_matches(const seal_t * seal /* seal to check */ ,
 	assert("nikita-1993", node != NULL);
 
 	return UNDER_SPIN(jnode, ZJNODE(node), (seal->version == node->version));
-}
-
-/* intranode search */
-/* Audited by: green(2002.06.17) */
-static int
-seal_search_node(seal_t * seal /* seal to repair */ ,
-		 coord_t * coord /* coord attached to @seal */ ,
-		 znode * node /* node to search in */ ,
-		 const reiser4_key * key /* key attached to @seal */ ,
-		 lookup_bias bias /* search bias */ ,
-		 tree_level level /* node level */ )
-{
-	int result;
-	reiser4_key unit_key;
-
-	assert("nikita-1888", seal != NULL);
-	assert("nikita-1994", coord != NULL);
-	assert("nikita-1892", node != NULL);
-	assert("nikita-1893", znode_is_any_locked(node));
-
-	return -E_REPEAT;
-
-	if ((znode_get_level(node) != level) ||
-	    ZF_ISSET(node, JNODE_HEARD_BANSHEE) || ZF_ISSET(node, JNODE_IS_DYING) || (node != coord->node)) {
-		reiser4_stat_inc(seal.wrong_node);
-		return -E_REPEAT;
-	}
-
-	result = zload(node);
-	if (result != 0)
-		return result;
-
-	if (coord_is_existing_unit(coord) && keyeq(key, unit_key_by_coord(coord, &unit_key))) {
-		/* coord is still at the same position in the @node */
-		reiser4_stat_inc(seal.didnt_move);
-		result = 0;
-	} else {
-		result = node_plugin_by_node(node)->lookup(node, key, bias, coord);
-		if (result == NS_FOUND) {
-			/* renew seal */
-			reiser4_stat_inc(seal.found);
-			seal_init(seal, coord, key);
-		} else
-			result = -E_REPEAT;	/* Remove -ENOENT to simplify seal
-						 * interface */
-	}
-	zrelse(node);
-	return result;
 }
 
 #if REISER4_DEBUG_OUTPUT
