@@ -21,10 +21,10 @@ typedef enum {
 
     Pru  ,   /* _pruner */
 
-    Stb  ,   /* ` string begin */
-    Ste  ,   /* ' string end */
-    Lpr  ,   /* ( [ { */
-    Rpr  ,   /* ) ] } */
+    W_b  ,   /* ` string begin */
+    W_e  ,   /* ' string end */
+    Lpr  ,   /* ( */
+    Rpr  ,   /* ) */
     Com  ,   /* , */
     Mns  ,   /* - */
 
@@ -52,7 +52,8 @@ typedef enum {
     Pls  ,   /* +  ???*/
     Res  ,   /*  */
 
-    Str  ,
+    Str  ,   /* " */
+    Ste  , 
     ASG  ,
     App  ,
     Lnk  ,
@@ -70,7 +71,7 @@ static char   ncl     [256] = {
 	ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,
 	/* 32*/
       /*        !     "    #     $     %     &     ' */
-	Blk,  Res,  Res,  Res,  Res,  Res,  Res,  Ste,
+	Blk,  Res,  Str,  Res,  Res,  Res,  Res,  W_e,
       /* (      )     *    +     ,     -     .     / */
         Lpr,  Rpr,  Res,  Pls,  Com,  Mns,  Dot,  Slh,
       /* 0      1     2    3     4     5     6     7 */
@@ -89,7 +90,7 @@ static char   ncl     [256] = {
 	Wrd,  Wrd,  Wrd,  Lsq,  Bsl,  Rsq,  Res,  Pru,
 	/* 96*/
       /* `      a     b    c     d     e     f     g */
-        Stb,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,
+        W_b,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,
       /* h      i     j    k     l     m     n     o */
 	Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,  Wrd,
       /* p      q     r    s     t     u     v     w */
@@ -147,8 +148,8 @@ pars_key [] = {
 
 struct lexcls lexcls[] = {
 /*
-..   a   1       _   `   '     (   )   ,   -   <   /   [   ]     \   {   }   |   ;   :   .   =     >   ?   +
-Blk Wrd Int Ptr Pru Stb Ste   Lpr Rpr Com Mns Les Slh Lsq Rsq   Bsl Lfl Rfl Pip Sp1 Sp2 Dot Sp4   Sp5 Sp6 Pls ...  */
+..   a   1       _   `   '     (   )   ,   -   <   /   [   ]     \   {   }   |   ;   :   .   =     >   ?   +       "
+Blk Wrd Int Ptr Pru W_b W_e   Lpr Rpr Com Mns Les Slh Lsq Rsq   Bsl Lfl Rfl Pip Sp1 Sp2 Dot Sp4   Sp5 Sp6 Pls ... Str */
 [Blk]={ 0, {0,
 Blk,Wrd,Int,Ptr,Pru,Str,ERR,  Lpr,Rpr,Com,Mns,Les,Slh,Lsq,Rsq,  Bsl,Lfl,Rfl,Pip,Sp1,Sp2,Dot,Sp4,  Sp5,Sp6,ERR,ERR,ERR,ERR,ERR,ERR}},
 [Wrd]={  WORD, {0,
@@ -161,15 +162,12 @@ OK ,Wrd,Int,Wrd,Wrd,OK ,OK ,  OK ,OK ,OK ,Wrd,OK ,OK ,OK ,OK ,  Wrd,OK ,OK ,OK ,
 OK ,Wrd,Wrd,Wrd,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  Wrd,OK ,OK ,OK ,OK ,OK ,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 [Pru]={  P_RUNNER,{0,
 OK ,Pru,Pru,Pru,Pru,OK ,OK ,  OK ,OK ,OK ,Pru,OK ,OK ,OK ,OK ,  Pru,OK ,OK ,OK ,OK ,OK ,Pru,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
-/*
-[Stb]={  STRING_CONSTANT_EMPTY, {1,
-Str,Str,Str,Str,Str,Str,OK ,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str}},
-*/
-[Stb]={  0, {1,
-Stb,Stb,Stb,Stb,Stb,Stb,Str,  Stb,Stb,Stb,Stb,Stb,Stb,Stb,Stb,  Stb,Stb,Stb,Stb,Stb,Stb,Stb,Stb,  Stb,Stb,Stb,Stb,Stb,Stb,Stb,Stb}},
 
-[Ste]={  0, {0,
-ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR}},
+[W_b]={  0, {1,
+W_b,W_b,W_b,W_b,W_b,W_b,W_e,  W_b,W_b,W_b,W_b,W_b,W_b,W_b,W_b,  W_b,W_b,W_b,W_b,W_b,W_b,W_b,W_b,  W_b,W_b,W_b,W_b,W_b,W_b,W_b,W_b}},
+[W_e]={  WORD, {1,
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+
 [Lpr]={  L_BRACKET /*L_PARENT*/,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 [Rpr]={  R_BRACKET,{0,
@@ -217,9 +215,11 @@ OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,
 [Str]={  STRING_CONSTANT,{1,
 Str,Str,Str,Str,Str,Str,OK ,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str}},
 */
-[Str]={  STRING_CONSTANT,{1,
-OK ,OK ,OK ,OK ,OK ,OK ,Stb,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
 
+[Str]={  0,{0,
+Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Ste ,Str,Str,Str}},
+[Ste]={  STRING_CONSTANT,{1,
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,Str ,OK ,OK ,OK }},
 
 [ASG]={  L_ASSIGN,{0,
 OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},

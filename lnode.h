@@ -51,6 +51,7 @@ typedef struct lnode_header {
 
 typedef struct lnode_dentry {
 	lnode_header h;
+	atomic_t * lock;
 	struct dentry *dentry;
 	struct vfsmount *mnt;
 } lnode_dentry;
@@ -86,11 +87,11 @@ typedef struct lnode_pseudo {
 
 union lnode {
 	lnode_header h;
-	lnode_dentry dentry;
-	lnode_inode inode;
-	lnode_reiser4_inode reiser4_inode;
-	lnode_lw lw;
-	lnode_pseudo pseudo;
+	lnode_dentry l_dentry;
+	lnode_inode l_inode;
+	lnode_reiser4_inode l_reiser4_inode;
+	lnode_lw l_lw;
+	lnode_pseudo l_pseudo;
 };
 
 extern int lnodes_init(void);

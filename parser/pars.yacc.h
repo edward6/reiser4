@@ -48,6 +48,7 @@ struct reiser4_syscall_w_space {
 
 	expr_v4_t   * root_e;          /* root expression  for this task */
 	struct nameidata nd;           /* work field for pass to VFS mount points */
+	atomic_t * lock;
 };
 
 
