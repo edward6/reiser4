@@ -379,6 +379,12 @@ int unix_file_readpage (struct file * file, struct page * page)
 }
 
 
+/*
+* FIXME-VS: if/when do_page_cache_readahead*/
+static reiser4_page_cache_readahead ()
+{
+}
+
 
 /* plugin->u.file.read */
 ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
