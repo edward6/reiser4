@@ -112,7 +112,7 @@ void reiser4_done_tree( reiser4_tree *tree /* tree to release */ )
 		reiser4_kfree( tree -> cbk_cache, sizeof( cbk_cache ) );
 }
 
-node_plugin *node_plugin_by_coord ( const tree_coord *coord )
+node_plugin *node_plugin_by_coord ( const new_coord *coord )
 {
 	assert( "vs-1", coord != NULL );
 	assert( "vs-2", coord -> node != NULL );
@@ -130,7 +130,7 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 			     reiser4_item_data *data UNUSED_ARG /* parameters
 								 * for item
 								 * creation */,
-			     tree_coord *coord /* resulting insertion coord */,
+			     new_coord *coord /* resulting insertion coord */,
 			     lock_handle * lh /* resulting lock
 						       * handle */,
 			     tree_level stop_level /** level where to insert */,
@@ -164,6 +164,13 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 		result = IBK_OOM;
 		break;
 	case CBK_COORD_NOTFOUND:
+		/*
+		 * FIXME-VS: temporary fix. The proper one should go to node's
+		 * lookup?
+		 */
+		if( node_is_empty( coord -> node ) )
+			/* this will set coord in empty node properly */
+			ncoord_init_first_unit( coord, coord -> node);
 		result = insert_by_coord( coord, data, key, lh, ra, ira, 0/*flags*/ );
 		break;
 	}
@@ -175,7 +182,7 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
  * insert item by calling carry. Helper function called if short-cut
  * insertion failed 
  */
-static insert_result insert_with_carry_by_coord( tree_coord  *coord /* coord
+static insert_result insert_with_carry_by_coord( new_coord  *coord /* coord
 								     * where
 								     * to
 								     * insert */,
@@ -238,7 +245,7 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord /* coord
  * different block.
  *
  */
-static int paste_with_carry( tree_coord *coord /* coord of paste */, 
+static int paste_with_carry( new_coord *coord /* coord of paste */, 
 			     lock_handle *lh /* lock handle of node
 						      * where item is
 						      * pasted */,
@@ -286,7 +293,7 @@ static int paste_with_carry( tree_coord *coord /* coord of paste */,
  * that will do full carry().
  *
  */
-insert_result insert_by_coord( tree_coord  *coord /* coord where to
+insert_result insert_by_coord( new_coord  *coord /* coord where to
 						    * insert. coord->node has
 						    * to be write locked by
 						    * caller */,
@@ -339,7 +346,7 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 	    ( ( coord -> item_pos != 0 ) || 
 	      ( coord -> unit_pos != 0 ) || 
 	      ( coord -> between == AFTER_UNIT ) ) &&
-	    !coord_is_leftmost( coord ) && 
+	    !ncoord_is_leftmost_unit( coord ) && 
 	    ( node_plugin_by_coord( coord ) -> fast_insert != NULL ) &&
 	    node_plugin_by_coord( coord ) -> fast_insert( coord ) ) {
 		int result;
@@ -360,7 +367,7 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 /*
  * @coord is set to leaf level and @data is to be inserted to twig level
  */
-insert_result insert_extent_by_coord( tree_coord  *coord /* coord where to
+insert_result insert_extent_by_coord( new_coord  *coord /* coord where to
 							  * insert. coord->node
 							  * has to be write
 							  * locked by caller */,
@@ -391,7 +398,8 @@ insert_result insert_extent_by_coord( tree_coord  *coord /* coord where to
  * paste_with_carry() that will do full carry().
  *
  */
-static int insert_into_item( tree_coord *coord /* coord of pasting */,
+/* paste_into_item */
+static int insert_into_item( new_coord *coord /* coord of pasting */,
 			    lock_handle *lh /* lock handle on node
 						     * involved */,
 			    reiser4_key *key /* key of unit being pasted*/, 
@@ -466,7 +474,7 @@ static int insert_into_item( tree_coord *coord /* coord of pasting */,
 }
 
 /** this either appends or truncates item @coord */
-resize_result resize_item( tree_coord *coord /* coord of item being resized */, 
+resize_result resize_item( new_coord *coord /* coord of item being resized */, 
 			   reiser4_item_data *data /* parameters of resize*/,
 			   reiser4_key *key /* key of new unit */, 
 			   lock_handle *lh /* lock handle of node
@@ -515,7 +523,7 @@ resize_result resize_item( tree_coord *coord /* coord of item being resized */,
 /**
  * Given a coord in parent node, obtain a znode for the corresponding child
  */
-znode *child_znode( const tree_coord *parent_coord /* coord of pointer to
+znode *child_znode( const new_coord *parent_coord /* coord of pointer to
 						    * child */, 
 		    int setup_dkeys_p /* if !0 update delimiting keys of
 				       * child */ )
@@ -746,7 +754,7 @@ int deallocate_znode( znode *node /* znode released */ )
 /**
  * Check that internal item at @pointer really contains pointer to @child.
  */
-int check_tree_pointer( const tree_coord *pointer /* would-be pointer to
+int check_tree_pointer( const new_coord *pointer /* would-be pointer to
 						   * @child */, 
 			const znode *child /* child znode */ )
 {
@@ -759,7 +767,7 @@ int check_tree_pointer( const tree_coord *pointer /* would-be pointer to
 	if( znode_get_level( pointer -> node ) != znode_get_level( child ) + 1 )
 		return NS_NOT_FOUND;
 
-	if( coord_of_unit( pointer ) ) {
+	if( ncoord_is_existing_unit( pointer ) ) {
 		item_plugin     *iplug;
 		reiser4_block_nr addr;
 
@@ -783,14 +791,14 @@ int check_tree_pointer( const tree_coord *pointer /* would-be pointer to
 /**
  * find coord of pointer to new @child in @parent.
  *
- * Find the &tree_coord in the @parent where pointer to a given @child will
+ * Find the &new_coord in the @parent where pointer to a given @child will
  * be in.
  *
  */
 int find_new_child_ptr( znode *parent /* parent znode, passed locked */,
 			znode *child UNUSED_ARG /* child znode, passed locked */,
 			znode *left /* left brother of new node */,
-			tree_coord *result /* where result is stored in */ )
+			new_coord *result /* where result is stored in */ )
 {
 	int ret;
 
@@ -813,12 +821,12 @@ int find_new_child_ptr( znode *parent /* parent znode, passed locked */,
 /**
  * find coord of pointer to @child in @parent.
  *
- * Find the &tree_coord in the @parent where pointer to a given @child is in.
+ * Find the &new_coord in the @parent where pointer to a given @child is in.
  *
  */
 int find_child_ptr( znode *parent /* parent znode, passed locked */,
 		    znode *child /* child znode, passed locked */,
-		    tree_coord *result /* where result is stored in */ )
+		    new_coord *result /* where result is stored in */ )
 {
 	int                lookup_res;
 	node_plugin       *nplug;
@@ -830,7 +838,7 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	assert( "nikita-936", result != NULL );
 	assert( "zam-356", znode_is_loaded(parent)); 
 
-	init_coord( result );
+	ncoord_init_zero( result );
 	result -> node = parent;
 
 	nplug = parent -> nplug;
@@ -882,14 +890,14 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 /**
  * find coord of pointer to @child in @parent by scanning
  *
- * Find the &tree_coord in the @parent where pointer to a given @child
+ * Find the &new_coord in the @parent where pointer to a given @child
  * is in by scanning all internal items in @parent and comparing block
  * numbers in them with that of @child.
  *
  */
 int find_child_by_addr( znode *parent /* parent znode, passed locked */, 
 			znode *child /* child znode, passed locked */, 
-			tree_coord *result /* where result is stored in */ )
+			new_coord *result /* where result is stored in */ )
 {
 	int ret;
 
@@ -913,7 +921,7 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 	 * through... every other time it is redundent.
 	 */
 	
-	for( coord_first_unit( result, parent ) ; coord_of_unit( result ) ; ) {
+	for( ncoord_init_before_first_item( result, parent ) ; ncoord_next_unit( result ) ; ) {
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
 			spin_lock_tree( current_tree );
 			child -> ptr_in_parent_hint = *result;
@@ -921,8 +929,6 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 			ret = NS_FOUND;
 			break;
 		}
-		if( coord_next_unit( result ) )
-			break;
 	}
 	return ret;
 }
@@ -958,10 +964,10 @@ void *unallocated_disk_addr_to_ptr( const reiser4_block_nr *addr /* address to
 int shift_everything_left (znode * right, znode * left, carry_level *todo)
 {
 	int result;
-	tree_coord from;
+	new_coord from;
 	node_plugin * nplug;
 
-	coord_last_unit (&from, right);
+	ncoord_init_last_unit (&from, right);
 
 	nplug = node_plugin_by_node (right);
 	result = nplug->shift (&from, left, SHIFT_LEFT,
@@ -976,7 +982,7 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 
 /* allocate new node and insert a pointer to it into the tree such that new
    node becomes a right neighbor of @insert_coord->node */
-znode *insert_new_node (tree_coord * insert_coord, lock_handle *lh)
+znode *insert_new_node (new_coord * insert_coord, lock_handle *lh)
 {
 	int result;
 	carry_pool  pool;
@@ -1008,7 +1014,7 @@ znode *insert_new_node (tree_coord * insert_coord, lock_handle *lh)
 
 /* returns true if removing bytes of given range of key [from_key, to_key]
  * causes removing of whole item @from */
-static int item_removed_completely (tree_coord * from,
+static int item_removed_completely (new_coord * from,
 				    const reiser4_key * from_key, 
 				    const reiser4_key * to_key)
 {
@@ -1041,7 +1047,7 @@ static int item_removed_completely (tree_coord * from,
  * extent. This may return -EDEADLK because of trying to get left neighbor
  * locked. So, caller should repeat an attempt
  */
-static int prepare_twig_cut (tree_coord * from, tree_coord * to,
+static int prepare_twig_cut (new_coord * from, new_coord * to,
 			     const reiser4_key * from_key, 
 			     const reiser4_key * to_key,
 			     znode * locked_left_neighbor)
@@ -1049,7 +1055,7 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 	int result;
 	reiser4_key key;
 	lock_handle left_lh;
-	tree_coord left_coord;
+	new_coord left_coord;
 	znode * left_child;
 	znode * right_child;
 
@@ -1067,9 +1073,9 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 
 	assert ("vs-593", from->unit_pos == 0);
 
-	dup_coord (&left_coord, from);
+	ncoord_dup (&left_coord, from);
 	init_lh (&left_lh);
-	if (coord_prev_unit (&left_coord)) {
+	if (ncoord_prev_unit (&left_coord)) {
 		if (!locked_left_neighbor) {
 			/* @from is leftmost item in its node */
 			result = reiser4_get_left_neighbor (&left_lh, from->node,
@@ -1091,9 +1097,9 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 			}
 
 			/* we have acquired left neighbor of from->node */
-			coord_last_unit (&left_coord, left_lh.node);
+			ncoord_init_last_unit (&left_coord, left_lh.node);
 		} else {
-			coord_last_unit (&left_coord, locked_left_neighbor);
+			ncoord_init_last_unit (&left_coord, locked_left_neighbor);
 		}
 	}
 
@@ -1118,21 +1124,21 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 	 * and get right child if it is necessary */
 	if (item_removed_completely (from, from_key, to_key)) {
 		/* try to get right child of removed item */
-		tree_coord right_coord;
+		new_coord right_coord;
 		lock_handle right_lh;
 
 
-		assert ("vs-607", to->unit_pos == last_unit_pos (to));
-		dup_coord (&right_coord, to);
+		assert ("vs-607", to->unit_pos == ncoord_last_unit_pos (to));
+		ncoord_dup (&right_coord, to);
 		init_lh (&right_lh);
-		if (coord_next_unit (&right_coord)) {
+		if (ncoord_next_unit (&right_coord)) {
 			/* @to is rightmost unit in the node */
 			result = reiser4_get_right_neighbor (&right_lh, from->node,
 							     ZNODE_READ_LOCK,
 							     GN_DO_READ);
 			switch (result) {
 			case 0:
-				coord_first_unit (&right_coord, right_lh.node);
+				ncoord_init_first_unit (&right_coord, right_lh.node);
 				item_key_by_coord (&right_coord, &key);
 				break;
 
@@ -1208,9 +1214,9 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
  * removed key is stored in @smallest_removed 
  *
  */
-int cut_node (tree_coord * from /* coord of the first unit/item that will be
+int cut_node (new_coord * from /* coord of the first unit/item that will be
 				  * eliminated */, 
-	      tree_coord * to /* coord of the last unit/item that will be
+	      new_coord * to /* coord of the last unit/item that will be
 				* eliminated */,
 	      const reiser4_key * from_key /* first key to be removed */, 
 	      const reiser4_key * to_key /* last key to be removed */,
@@ -1230,20 +1236,20 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 
 	assert ("vs-316", !node_is_empty (from->node));
 
-	if (coord_eq (from, to) && !coord_of_unit (from)) {
-		assert ("nikita-1812", !coord_of_unit (to)); /* Napoleon
-							      * defeated */
+	if (ncoord_eq (from, to) && !ncoord_is_existing_unit (from)) {
+		assert ("nikita-1812", !ncoord_is_existing_unit (to));
+		/* Napoleon defeated */
 		return 0;
 	}
 	/* set @from and @to to first and last units which are to be removed
 	   (getting rid of betweenness) */
-	if (coord_set_to_right (from) || coord_set_to_left (to))
+	if (ncoord_set_to_right (from) || ncoord_set_to_left (to))
 		return -EIO;
 
 	/* make sure that @from and @to are set to existing units in the
 	   node */
-	assert ("vs-161", coord_of_unit (from));
-	assert ("vs-162", coord_of_unit (to));
+	assert ("vs-161", ncoord_is_existing_unit (from));
+	assert ("vs-162", ncoord_is_existing_unit (to));
 
 
 	if (znode_get_level (from->node) == TWIG_LEVEL && item_is_extent (from)) {
@@ -1308,13 +1314,13 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 int cut_tree (reiser4_tree * tree, 
 	      const reiser4_key * from_key, const reiser4_key * to_key)
 {
-	tree_coord intranode_to, intranode_from;
+	new_coord intranode_to, intranode_from;
 	reiser4_key smallest_removed;
 	lock_handle lock_handle;
 	int result;
 
 
-	init_coord (&intranode_to);
+	ncoord_init_zero (&intranode_to);
 	init_lh(&lock_handle);
 
 #define WE_HAVE_READAHEAD (0)
@@ -1345,8 +1351,8 @@ int cut_tree (reiser4_tree * tree,
 			/* -EIO, or something like that */
 			break;
 
-		if (coord_eq (&intranode_from, &intranode_to) && 
-		    !coord_of_unit (&intranode_from)) {
+		if (ncoord_eq (&intranode_from, &intranode_to) && 
+		    !ncoord_is_existing_unit (&intranode_from)) {
 			/* nothing to cut */
 			result = 0;
 			break;
@@ -1364,7 +1370,6 @@ int cut_tree (reiser4_tree * tree,
 		assert ("vs-301", !keyeq (&smallest_removed, min_key ()));
 	} while (keygt (&smallest_removed, from_key));
 
-	done_coord (&intranode_to);
 	done_lh(&lock_handle);
 
 	return result;
