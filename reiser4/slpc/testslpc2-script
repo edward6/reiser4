@@ -1,0 +1,105 @@
+#!/bin/sh
+
+# DEV8
+PROCS="1 2 3 4 5 6 7"
+SKEYS="400 40000 4000000 40000000"
+TESTS="testslpc2-rw testslpc2-ex"
+NREPS="1 2 3 4 5" # 5 repetitions per test
+OPCNT="20000000"  # 20 million
+
+# ORBIT
+#  PROCS="1"
+#  SKEYS="4 40 400 4000"
+#  TESTS="testslpc2-rw testslpc2-ex"
+#  NREPS="1"
+#  OPCNT="20000"
+
+# workload mix: INSERT SEARCH DELETE APPEND
+
+# Search dominant: 10 80 10 0
+for t in $TESTS; do
+  for p in $PROCS; do
+    for s in $SKEYS; do
+      for r in $NREPS; do
+        ./$t $p $s $OPCNT 10 80 10 0
+      done
+    done
+  done
+done
+
+# Update dominant: 40 20 40 0
+for t in $TESTS; do
+  for p in $PROCS; do
+    for s in $SKEYS; do
+      for r in $NREPS; do
+        ./$t $p $s $OPCNT 40 20 40 0
+      done
+    done
+  done
+done
+
+# Balanced workload: 25 50 25 0
+for t in $TESTS; do
+  for p in $PROCS; do
+    for s in $SKEYS; do
+      for r in $NREPS; do
+        ./$t $p $s $OPCNT 25 50 25 0
+      done
+    done
+  done
+done
+
+# Balanced workload: 33 34 33 0
+for t in $TESTS; do
+  for p in $PROCS; do
+    for s in $SKEYS; do
+      for r in $NREPS; do
+        ./$t $p $s $OPCNT 33 34 33 0
+      done
+    done
+  done
+done
+
+# Append workload: 0 0 0 100
+for t in $TESTS; do
+  for p in $PROCS; do
+    for s in $SKEYS; do
+      for r in $NREPS; do
+        ./$t $p $s $OPCNT 0 0 0 100
+      done
+    done
+  done
+done
+
+#  # Insert dominant: 100 0 0 0
+#  for t in $TESTS; do
+#    for p in $PROCS; do
+#      for s in $SKEYS; do
+#        for r in $NREPS; do
+#          ./$t $p $s $OPCNT 100 0 0 0
+#        done
+#      done
+#    done
+#  done
+
+#  # Append/insert workload: 50 0 0 50
+#  for t in $TESTS; do
+#    for p in $PROCS; do
+#      for s in $SKEYS; do
+#        for r in $NREPS; do
+#          ./$t $p $s $OPCNT 50 0 0 50
+#        done
+#      done
+#    done
+#  done
+
+#  # Append workload: 0 0 0 100
+#  for t in $TESTS; do
+#    for p in $PROCS; do
+#      for s in $SKEYS; do
+#        for r in $NREPS; do
+#          ./$t $p $s $OPCNT 0 0 0 100
+#        done
+#      done
+#    done
+#  done
