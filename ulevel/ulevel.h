@@ -132,7 +132,8 @@ void run_##b ()					\
 	_x > _y ? _x : _y; })
 
 
-#define MEMORY_PRESSURE_THRESHOLD   (10000)
+#define MEMORY_PRESSURE_THRESHOLD   (1000)
+#define MEMORY_PRESSURE_HOWMANY     (100)
 
 /* from <linux/list.h> */
 

@@ -95,13 +95,6 @@ typedef enum {
        /** this node is currently wandered */
        ZNODE_WANDER            = 8,
 	   
-       /** this node was deleted by its txn.  Eliminated because the
-	* znode/jnode will be released as soon as possible.  The atom doesn't
-	* need to keep track of deleted nodes, and this also allows us to
-	* delete nodes that are not in memory (which will be common for
-	* extents). */
-       /*ZNODE_DELETED           = */
-
        /** this znode has been modified */
        ZNODE_DIRTY             = 9,
        /** this znode has been modified */
@@ -170,6 +163,9 @@ extern reiser4_blocknr_hint* flush_pos_hint (flush_position *pos);
 
 extern spinlock_t *jnode_to_page_lock( const jnode *node );
 extern spinlock_t *page_to_jnode_lock( const struct page *page );
+
+extern int jnode_check_allocated (jnode *node);
+extern int znode_check_allocated (znode *node);
 
 /*
  * FIXME-VS: these are used in plugin/item/extent.c
@@ -286,6 +282,13 @@ static inline int jnode_check_dirty( jnode *node )
 	is_dirty = jnode_is_dirty (node);
 	spin_unlock_jnode (node);
 	return is_dirty;
+}
+
+static inline int jnode_is_allocated (jnode *node)
+{
+	assert( "jmacd-78212", node != NULL );
+	assert ("jmacd-71276", spin_jnode_is_locked (node));
+	return ! jnode_is_dirty (node) || JF_ISSET (node, ZNODE_RELOC) || JF_ISSET (node, ZNODE_WANDER);
 }
 
 /** return true if "node" is the root */

@@ -25,8 +25,6 @@ static inline int  load_jh (load_handle *zh, jnode *node) { done_zh (zh); return
 static inline void move_zh (load_handle *new, load_handle *old) { done_zh (new); new->node = old->node; old->node = NULL; }
 static inline void copy_zh (load_handle *new, load_handle *old) { done_zh (new); new->node = old->node; atomic_inc (& ZJNODE(old->node)->d_count); }
 
-#define jnode_check_allocated(node) (JF_ISSET (node, ZNODE_RELOC) || JF_ISSET (node, ZNODE_WANDER))
-
 /* The flush_scan data structure maintains the state of an in-progress flush
  * scan on a single level of the tree. */
 struct flush_scan {
@@ -122,8 +120,6 @@ static int           jnode_lock_parent_coord      (jnode *node,
 						   lock_handle *parent_lh,
 						   load_handle *parent_zh,
 						   znode_lock_mode mode);
-static int           jnode_is_allocated           (jnode *node);
-static int           znode_is_allocated           (znode *node);
 static int           znode_get_utmost_if_dirty    (znode *node, lock_handle *right_lock, sideof side, znode_lock_mode mode);
 static int           znode_same_parents           (znode *a, znode *b);
 
@@ -139,6 +135,9 @@ static void          flush_pos_release_point      (flush_position *pos);
 static int           flush_pos_lock_parent        (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, load_handle *parent_load, znode_lock_mode mode);
 
 static const char*   flush_pos_tostring           (flush_position *pos);
+
+static int jnode_check_dirty_and_connected( jnode *node );
+
 
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (to
@@ -173,24 +172,24 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		return 0;
 	}
 
-	/* A race is possible where node is not dirty at this point. */
-	if (! jnode_check_dirty (node)) {
-		return 0;
-	}
-
 	flush_scan_init (& right_scan);
 	flush_scan_init (& left_scan);
 
 	trace_if (TRACE_FLUSH, info ("flush jnode %p\n", node));
 	
-	trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF));
+	/*trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF));*/
 	/*trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
+
+	/* A race is possible where node is not dirty at this point. */
+	if (! jnode_check_dirty_and_connected (node)) {
+		return 0;
+	}
 
 	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
 		return ret;
 	}
 
-	if (jnode_is_allocated (node)) {
+	if (jnode_check_allocated (node)) {
 		/* If the node has already been through the allocate process, we have
 		 * decided whether it is to be relocated or overwritten (or if it is a new
 		 * block, it has an initial allocation). */
@@ -268,11 +267,25 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
    failed:
 
 	//print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF);
+	if (nr_to_flush != NULL) {
+		(*nr_to_flush) = flush_pos.enqueue_cnt;
+	}
 
 	flush_pos_done (& flush_pos);
 	flush_scan_done (& left_scan);
 	flush_scan_done (& right_scan);
 	return ret;
+}
+
+static int jnode_check_dirty_and_connected( jnode *node )
+{
+	int is_dirty;
+	assert( "jmacd-7798", node != NULL );
+	assert( "jmacd-7799", spin_jnode_is_not_locked (node) );
+	spin_lock_jnode (node);
+	is_dirty = jnode_is_dirty (node) && (jnode_is_unformatted (node) || znode_is_connected (JZNODE (node)));
+	spin_unlock_jnode (node);
+	return is_dirty;
 }
 
 /********************************************************************************
@@ -478,7 +491,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 
 	/* If the ancestor is clean or already allocated, or if the child is not a
 	 * leftmost child, stop going up. */
-	if (! znode_is_dirty (coord->node) || znode_is_allocated (coord->node) || ! coord_is_leftmost_unit (coord)) {
+	if (! znode_is_dirty (coord->node) || znode_check_allocated (coord->node) || ! coord_is_leftmost_unit (coord)) {
 		return 0;
 	}
 
@@ -500,7 +513,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
 
 		/* Recursive call. */
 		if (znode_is_dirty (acoord.node) &&
-		    ! znode_is_allocated (acoord.node) &&
+		    ! znode_check_allocated (acoord.node) &&
 		    (ret = flush_alloc_one_ancestor (& acoord, pos))) {
 			goto exit;
 		}
@@ -565,11 +578,11 @@ static int flush_enqueue_ancestors (znode *node, flush_position *pos)
 
 	assert ("jmacd-7444", znode_is_any_locked (node));
 
-	if (! znode_is_dirty (node) || ! znode_is_allocated (node)) {
+	if (! znode_is_dirty (node) || ! znode_check_allocated (node)) {
 		return 0;
 	}
 
-	assert ("jmacd-7443", znode_is_allocated (node));
+	assert ("jmacd-7443", znode_check_allocated (node));
 
 	if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
 		return ret;
@@ -619,7 +632,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/* Originally the idea was to assert that a node is always allocated before the
 	 * upward recursion here, but its not always true.  We are allocating in the
 	 * rightward direction and there is no reason the ancestor must be allocated. */
-	/*assert ("jmacd-9925", znode_is_allocated (node));*/
+	/*assert ("jmacd-9925", znode_check_allocated (node));*/
 
 	if ((ret = load_zh (& node_load, node))) {
 		warning ("jmacd-61424", "zload failed: %d", ret);
@@ -744,7 +757,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] ready to enqueue node %p: %s\n", call_depth, node, flush_pos_tostring (pos));
 
 	/* Now finished with node. */
-	if (znode_check_dirty (node) && znode_is_allocated (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
+	if (znode_check_dirty (node) && znode_check_allocated (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
 		warning ("jmacd-61440", "flush_enqueue_jnode failed: %d", ret);
 		goto exit;
 	}
@@ -765,7 +778,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/* Allocate the right node. */
 	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] ready to allocate right %p: %s\n", call_depth, right_lock.node, flush_pos_tostring (pos));
 
-	if (! znode_is_allocated (right_lock.node)) {
+	if (! znode_check_allocated (right_lock.node)) {
 		if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, & parent_load, ZNODE_WRITE_LOCK))) {
 			warning ("jmacd-61430", "jnode_lock_parent_coord failed: %d", ret);
 			goto exit;
@@ -923,7 +936,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 	/* We have a new right and it should have been allocated by the call to
 	 * flush_squalloc_one_changed_ancestor. */
-	assert ("jmacd-90123", jnode_is_allocated (ZJNODE (right_lock.node)));
+	assert ("jmacd-90123", jnode_check_allocated (ZJNODE (right_lock.node)));
 
 	if (is_unformatted) {
 		done_lh (& pos->parent_lock);
@@ -961,7 +974,7 @@ static int flush_squalloc_right (flush_position *pos)
 	trace_on (TRACE_FLUSH, "squalloc_right alloc ancestors: %s\n", flush_pos_tostring (pos));
 
 	assert ("jmacd-9921", jnode_check_dirty (pos->point));
-	assert ("jmacd-9925", ! jnode_is_allocated (pos->point));
+	assert ("jmacd-9925", ! jnode_check_allocated (pos->point));
 
 	if ((ret = flush_alloc_ancestors (pos))) {
 		goto exit;
@@ -1169,8 +1182,8 @@ static int squalloc_right_twig (znode    *left,
 	stop_key = *min_key ();
 
 	trace_on (TRACE_FLUSH, "squalloc_right_twig:before copy extents: %p %p\n", left, right);
-	trace_if (TRACE_FLUSH, print_node_content ("left", left, ~0u));
-	trace_if (TRACE_FLUSH, print_node_content ("right", right, ~0u));
+	/*trace_if (TRACE_FLUSH, print_node_content ("left", left, ~0u));*/
+	/*trace_if (TRACE_FLUSH, print_node_content ("right", right, ~0u));*/
 
 	while (item_is_extent (&coord)) {
 		reiser4_key last_stop_key;
@@ -1209,8 +1222,8 @@ static int squalloc_right_twig (znode    *left,
 	}
 
 	trace_on (TRACE_FLUSH, "squalloc_right_twig:after copy extents: %p %p\n", left, right);
-	trace_if (TRACE_FLUSH, print_node_content ("left", left, ~0u));
-	trace_if (TRACE_FLUSH, print_node_content ("right", right, ~0u));
+	/*trace_if (TRACE_FLUSH, print_node_content ("left", left, ~0u));*/
+	/*trace_if (TRACE_FLUSH, print_node_content ("right", right, ~0u));*/
 
 	if (!keyeq (&stop_key, min_key ())) {
 		int cut_ret;
@@ -1224,7 +1237,7 @@ static int squalloc_right_twig (znode    *left,
 			return cut_ret;
 		}
 
-		trace_if (TRACE_FLUSH, print_node_content ("right_after_cut", right, ~0u));
+		/*trace_if (TRACE_FLUSH, print_node_content ("right_after_cut", right, ~0u));*/
 	}
 
 	if (ret == SQUEEZE_TARGET_FULL) { goto out; }
@@ -1327,19 +1340,20 @@ static int shift_one_internal_unit (znode * left, znode * right)
  * process.  This implies the block address has been finalized for the
  * duration of this atom (or it is clean and will remain in place).  If this
  * returns true you may use the block number as a hint. */
-static int jnode_is_allocated (jnode *node)
+int jnode_check_allocated (jnode *node)
 {
-	/* This assertion is for strictness.  Usually you shouldn't ask if it is allocated
-	 * unless it is dirty. */
-	assert ("jmacd-9270", jnode_check_dirty (node));
-
-	/* It must be relocated or wandered.  New allocations are set to relocate. */
-	return jnode_check_allocated (node);
+	/* It must be clean or relocated or wandered.  New allocations are set to relocate. */
+	int ret;
+	assert ("jmacd-71275", spin_jnode_is_not_locked (node));
+	spin_lock_jnode (node);
+	ret = jnode_is_allocated (node);
+	spin_unlock_jnode (node);
+	return ret;
 }
 
-static int znode_is_allocated (znode *node)
+int znode_check_allocated (znode *node)
 {
-	return jnode_is_allocated (ZJNODE (node));
+	return jnode_check_allocated (ZJNODE (node));
 }
 
 /* Audited by: umka (2002.06.11) */
@@ -1408,7 +1422,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 {
 	int ret;
 
-	assert ("jmacd-7987", ! jnode_is_allocated (ZJNODE (node)));
+	assert ("jmacd-7987", ! jnode_check_allocated (ZJNODE (node)));
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
 
@@ -1499,8 +1513,12 @@ int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos UNUSED_ARG
 {
 	int ret;
 
-	assert ("jmacd-1772", jnode_check_dirty (node));
-	assert ("jmacd-1771", jnode_is_allocated (node));
+	if (! jnode_check_dirty (node) || JF_ISSET (node, ZNODE_HEARD_BANSHEE)) {
+		unlock_page (pg);
+		return 0;
+	}
+	    
+	assert ("jmacd-1771", jnode_check_allocated (node));
 
 	ret = write_one_page (pg, 0);
 
@@ -1631,7 +1649,7 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
 		return -ENAVAIL;
 	}
 
-	if (! (go = txn_same_atom_dirty (ZJNODE (node), ZJNODE (neighbor)))) {
+	if (! (go = txn_same_atom_dirty (ZJNODE (node), ZJNODE (neighbor), 0))) {
 		ret = -ENAVAIL;
 		goto fail;
 	}
@@ -1709,9 +1727,7 @@ static int flush_scan_finished (flush_scan *scan)
  * If not, deref the "left" node and stop the scan. */
 static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 {
-	int go;
-
-	go = jnode_check_dirty (tonode) && ! jnode_is_allocated (tonode) && txn_same_atom_dirty (scan->node, tonode);
+	int go = txn_same_atom_dirty (scan->node, tonode, 1);
 
 	if (! go) {
 		jput (tonode);
@@ -1775,7 +1791,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	trace_if (TRACE_FLUSH, info ("%s scan starts %lu: node %p(atom=%p,dirty=%u,allocated=%u)\n",
 				     (flush_scanning_left (scan) ? "left" : "right"),
 				     scan_index,
-				     scan->node, scan->node->atom, jnode_check_dirty (scan->node), jnode_is_allocated (scan->node)));
+				     scan->node, scan->node->atom, jnode_check_dirty (scan->node), jnode_check_allocated (scan->node)));
 
  repeat:
 	/* If the get_inode call is expensive we can be a bit more clever... */
@@ -1872,7 +1888,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		trace_on (TRACE_FLUSH, "unalloc scan index %lu: node %p(atom=%p,dirty=%u,allocated=%u)\n",
 			  scan_index, neighbor, neighbor->atom, jnode_check_dirty (neighbor), jnode_check_allocated (neighbor));
 
-		assert ("jmacd-3551", ! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node));
+		assert ("jmacd-3551", ! jnode_check_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node, 0));
 
 		if ((ret = flush_scan_set_current (scan, neighbor, scan_dist, & coord))) {
 			goto exit;
