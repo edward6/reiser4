@@ -33,7 +33,8 @@
    Cluster sizes are represented as (PAGE_CACHE_SIZE << shift), where
    shift (= 0, 1, 2,... ).  You'll note that this representation
    affects the allowed values for cluster size.  This is stored in
-   disk stat-data (EDWARD-FIXME-HANS: where and by what name?)
+   disk stat-data (CLUSTER_STAT, layout is in reiser4_cluster_stat (see
+   (plugin/item/static_stat.h) for details).
    Note that working with
    cluster_size > PAGE_SIZE (when cluster_shift > 0, and cluster contains more
    then one page) is suboptimal because before compression we should assemble
