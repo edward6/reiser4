@@ -273,7 +273,7 @@ kill_hook_ctail(const coord_t *coord, unsigned from, unsigned count, void *p)
 
 		item_key_by_coord(coord, &key);
 		if (from == 0 &&
-		    get_key_offset(&key) & ((loff_t) (cluster_size_by_coord(coord)) - 1 == 0))
+		    ((get_key_offset(&key) & ((loff_t) (cluster_size_by_coord(coord)) - 1)) == 0))
 			truncate_pages_cryptcompress(inode->i_mapping, off_to_pg(get_key_offset(&key)));
 	}
 	return 0;
