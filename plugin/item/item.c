@@ -54,7 +54,7 @@ item_length_by_coord(const coord_t * coord /* coord to query */ )
 	trace_stamp(TRACE_TREE);
 
 	len = node_plugin_by_node(coord->node)->length_by_coord(coord);
-	check_contexts();
+	ON_DEBUG(check_contexts());
 	return len;
 }
 
