@@ -692,7 +692,8 @@ static inline void
 junprotect (jnode * node)
 {
 	assert("zam-837", !JF_ISSET(node, JNODE_EFLUSH));
-	assert("zam-838", JF_ISSET(node, JNODE_EPROTECTED));
+	/* when REISER4_USE_EFLUSH is not defined - EPROTECT bit does not get set */
+	assert("zam-838", ergo(REISER4_USE_EFLUSH, JF_ISSET(node, JNODE_EPROTECTED)));
 
 	JF_CLR(node, JNODE_EPROTECTED);
 }
