@@ -687,8 +687,10 @@ unix_file_writepage(struct page *page)
 	assert("vs-1084", page->mapping && page->mapping->host);
 	assert("vs-1085", (page->mapping->host->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT)));
 
-	if (PagePrivate(page))
+	if (PagePrivate(page)) {
+		assert("vs-1097", jnode_mapped(jnode_by_page(page)));
 		return 0;
+	}
 
 	inode = page->mapping->host;
 
@@ -810,6 +812,8 @@ unix_file_readpage(struct file *file, struct page *page)
 	save_file_hint(file, &hint);
 
 	assert("vs-979", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
+	/* if page has jnode - that jnode is mapped */
+	assert("vs-1098", ergo(result == 0 && PagePrivate(page), jnode_mapped(jnode_by_page(page))));
 	return result;
 }
 
