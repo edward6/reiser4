@@ -313,7 +313,6 @@ int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	zrelse (coord->node);
 	return 1;
 }
-#endif
 
 /* get right neighbor and set coord to first unit in it */
 static int get_next_item (coord_t * coord, lock_handle * lh,
@@ -348,6 +347,7 @@ static int get_next_item (coord_t * coord, lock_handle * lh,
 
 	return result;	
 }
+#endif
 
 
 static int item_of_that_file (const coord_t * coord, const reiser4_key * key)
@@ -572,9 +572,10 @@ int find_next_item (struct sealed_coord * hint,
 	/* collect statistics on the number of calls to this function which did
 	 * not get optimized */
 	reiser4_stat_file_add (find_next_item_via_cbk);
-	return coord_by_key (current_tree, key, coord, lh,
-			     lock_mode, SEARCH_BIAS,
-			     TWIG_LEVEL, LEAF_LEVEL, cbk_flags);
+	result = coord_by_key (current_tree, key, coord, lh,
+			       lock_mode, SEARCH_BIAS,
+			       TWIG_LEVEL, LEAF_LEVEL, cbk_flags);
+	return result;
 }
 
 
@@ -638,7 +639,6 @@ static int shorten (struct inode * inode)
 	reiser4_key from, to;
 	struct page * page;
 	int padd_from;
-	jnode * j;
 	unsigned long index;
 	char *kaddr;
 
