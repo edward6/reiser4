@@ -158,7 +158,7 @@ sub_from_sb_unallocated(const struct super_block *super, __u64 count, reiser4_ba
 
 	if (flags & BA_FORMATTED) {
 		unallocated = reiser4_fake_allocated(super);
-		assert("zam-528", unallocated >= count);
+		assert("zam-806", unallocated >= count);
 		unallocated -= count;
 		reiser4_set_fake_allocated(super, unallocated);
 	} else {
@@ -398,7 +398,7 @@ grabbed2fake_allocated(__u64 count, reiser4_ba_flags_t flags)
 	reiser4_spin_lock_sb(super);
 
 	sub_from_sb_grabbed(super, count);
-	add_to_sb_unallocated(super, count, flags & BA_FORMATTED);
+	add_to_sb_unallocated(super, count, flags);
 
 	assert("vs-922", check_block_counters(super));
 
