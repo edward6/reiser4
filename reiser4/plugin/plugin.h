@@ -39,9 +39,6 @@ TS_LIST_DECLARE( plugin );
 
 /** common part of each plugin instance. */
 typedef struct reiser4_plugin_header {
-	/** record len. Set this to sizeof( reiser4_plugin_header ).
-	    Used to check for stale dynamic plugins. */
-	int                  rec_len;
 	/** plugin type */
 	reiser4_plugin_type  type_id;
 	/** id of this plugin */
@@ -88,98 +85,102 @@ struct reiser4_entry {
 	struct inode *obj;
 };
 
-/** file (object) plugin.  Defines the set of methods that file plugins implement, some of which are optional.  This includes all of the file related VFS operations.  
+/** file (object) plugin.  Defines the set of methods that file plugins implement, some of which are optional.  This includes all of the file related VFS operations. 
+
+separate file and directory plugins
+ 
 */
-typedef struct reiser4_file_plugin {
 
-	/** install given plugin on fresh object. Initialise inode fields.
-	    This must set REISER4_NO_STAT_DATA bit in our inode flags. 
-	    This is called on object creation
-	    (create_object()).*/
-	int ( *install )( struct inode *inode, reiser4_plugin *plug,
-			  struct inode *parent, 
-			  reiser4_object_create_data *data );
+typedef struct fplug {
 
-	/** setup given plugin on already initialised inode. This is
-	    done during reading inode from disk. */
-	int ( *activate )( struct inode *inode, reiser4_plugin *plug );
+/* reiser4 required file operations */
 
-	/** save stat-data (inode) onto disk. It was called
-	    reiserfs_update_sd() in 3.x */
-	int ( *save_sd )( struct inode *inode );
-
-	/**
-	 * methods in ->estimate sub-structure determine how much space call
-	 * to the appropriate plugin method will consume in the journal log.
-	 *
-	 * Such estimation need not to be exact, but it has to be
-	 * conservative.
-	 *
-	 */
-	struct estimate_how_much_to_reserve_in_transaction_for_op {
-		/** 
-		 * how much space to reserve in transcrash to do io (read or
-		 * write) on this file. Generic function will call this and
-		 * start transcrash, it should also keep track of nested
-		 * transcrashes.  ->rw() should provide conservative
-		 * estimation. Actual amount of pages supplied to journal by
-		 * operation can be less, because of overwrite etc. If
-		 * reasonable estimation is impossible, return 0 here and do
-		 * manual transcrash handling in the low-level method.
-		 */
-		int ( *rw )( struct file *file, char *buf, size_t size, 
-			     loff_t *off, rw_op op );
-
-		/** how much space to reserve in transcrash to create new
-		    entry in this object */
-		int ( *add )( const struct inode *object, struct dentry *dentry,
-			      reiser4_object_create_data *data );
-
-		/** how much space to reserve in transcrash to remove entry in
-		    this object */
-		int ( *rem )( const struct inode *object, struct dentry *dentry );
-		/** how much space to reserve in transcrash to create new
-		    object of this type */
-		int ( *create )( reiser4_object_create_data *data );
-
-		/** 
-		 * how much space to reserve in transcrash to delete empty
-		 * (fresh) object of this type
-		 *
-		 */
-		int ( *destroy )( const struct inode *inode );
-
-		/** 
-		 * how much space to reserve in transcrash to add link to this
-		 * object.
-		 */
-		int ( *add_link )( const struct inode *inode );
-
-		/** how much space to reserve in transcrash to remvoe link
-		    from this object */
-		int ( *rem_link )( const struct inode *inode );
-
-		/** how much space to reserve in transcrash to update object's
-		    stat-data */
-		int ( *save )( const struct inode *inode );
-	} estimate;
-
-	int ( *create_child )( struct inode *parent, struct dentry *dentry, 
+	/* note that keys should have 0 for their offsets */
+	int (*write_flow)(flow * flow);
+	int (*read_flow)(flow * flow);
+	
+/* VFS required/defined operations */
+	int ( *reiser4_truncate )( struct inode *inode, loff_t size );
+	/* create new object described by @data and add it to the @parent directory under the name described by
+	   @dentry */
+	int ( *reiser4_create )( struct inode *parent, struct dentry *dentry, 
 			       reiser4_object_create_data *data );
-	int ( *unlink )( struct inode *parent, struct dentry *victim );
-	int ( *link )( struct inode *parent, struct dentry *existing, 
-		       struct dentry *where );
-	/** create stat-data for this object and clear 
-	    REISER4_NO_STAT_DATA in our inode flags. */
-	int ( *create )( struct inode *object, struct inode *parent, 
-			 reiser4_object_create_data *data );
-
+	/** save inode cached stat-data onto disk. It was called
+	    reiserfs_update_sd() in 3.x */
+	int ( *reiser4_write_inode)( struct inode *inode );
+	int ( *reiser4_readpage )( struct file *file, struct page * );
+	
+/* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to implement a
+	   deviation from some other method that uses them.  You could logically argue that they should be a separate
+	   type of plugin. */
+	/**
+	 * Construct flow into @f according to user-supplied data.
+	 */
+	int ( *flow_by_inode )( struct file *file, char *buf, size_t size, 
+			     loff_t *off, rw_op op, flow *f );
+	int (*flow_by_key)(key key, flow * flow);
+	/* set the plugin for a file.  Called during file creation in reiser4() and creat(). */
+	int (*set_plug_in_sd)(plug_type plug_type, key key_of_sd);
+	/* set the plugin for a file.  Called during file creation in creat() but not reiser4() unless an inode already exists
+	   for the file. */
+	int (*set_plug_in_inode)(plug_type plug_type, struct inode *inode);
+	int (*create_blank_sd)(key key);
 	/** 
 	 * delete this object's stat-data if REISER4_NO_STAT_DATA is cleared
 	 * and set REISER4_NO_STAT_DATA 
 	 *
 	 */
-	int ( *destroy )( struct inode *object, struct inode *parent );
+	int ( *destroy_stat_data )( struct inode *object, struct inode *parent );
+	/** bump reference counter on "object" */
+	int ( *add_link )( struct inode *object );
+
+	/** decrease reference counter on "object" */
+	int ( *rem_link )( struct inode *object );
+
+	/** return true if item addressed by @coord belongs to @inode.
+	    This is used by read/write to properly slice flow into items
+	    in presence of multiple key assignment policies, because
+	    items of a file are not necessarily contiguous in a key space,
+	    for example, in a plan-b. */
+	int ( *owns_item )( const struct inode *inode,
+			    const tree_coord *coord );
+
+	int ( *can_add_link )( key key );
+
+
+
+
+
+} fplug;
+
+typedef struct dplug {
+
+	/* returns whether it is a builtin */
+	int (*is_built_in)(char * name, int length);
+
+/* VFS required/defined operations below this line */
+	int ( *unlink )( struct inode *parent, struct dentry *victim );
+	int ( *link )( struct inode *parent, struct dentry *existing, 
+		       struct dentry *where );
+	/** lookup for "name" within this object and return its key in
+	    "key". If this is not implemented (set to NULL),
+	    reiser4_lookup will return -ENOTDIR 
+
+	should be made to be more precisely VFS lookup -Hans 
+
+	*/
+	file_lookup_result ( *lookup )( struct inode *inode, 
+					const struct qstr *name,
+					reiser4_key *key, reiser4_entry *entry );
+/* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to implement a
+	   deviation from some other method that uses them.  You could logically argue that they should be a separate
+	   type of plugin. */
+
+	/** check whether "name" is acceptable name to be inserted into
+	    this object. Optionally implemented by directory-like objects.
+	    Can check for maximal length, reserved symbols etc */
+	int ( *is_name_acceptable )( const struct inode *inode, 
+				     const char *name, int len );
 
 	int ( *add_entry )( struct inode *object, struct dentry *where, 
 			    reiser4_object_create_data *data, 
@@ -188,13 +189,13 @@ typedef struct reiser4_file_plugin {
 	int ( *rem_entry )( struct inode *object, 
 			    struct dentry *where, reiser4_entry *entry );
 
-	/** bump reference counter on "object" */
-	int ( *add_link )( struct inode *object );
 
-	/** decrease reference counter on "object" */
-	int ( *rem_link )( struct inode *object );
 
-	int ( *can_add_link )( const struct inode *object );
+} dplug;
+
+typedef struct reiser4_file_plugin {
+
+/* these that remain below need to be discussed with Nikita on monday. */
 
 	/** inherit plugin properties from parent object and from top
 	    object. Latter is particulary required in a case when parent
@@ -202,8 +203,6 @@ typedef struct reiser4_file_plugin {
 	    mid-air. This is called on object creation. */
 	int ( *inherit )( struct inode *inode, 
 			  struct inode *parent, struct inode *root );
-
-	int ( *is_empty )( const struct inode *inode );
 
 	/**
 	 * read from/write on object
@@ -214,32 +213,6 @@ typedef struct reiser4_file_plugin {
 	/** read-write methods */
 	rw_f_type rw_f[ WRITE_OP + 1 ];
 
-	/**
-	 * Construct flow into @f according to user-supplied data.
-	 */
-	int ( *build_flow )( struct file *file, char *buf, size_t size, 
-			     loff_t *off, rw_op op, flow *f );
-
-	/** check whether "name" is acceptable name to be inserted into
-	    this object. Optionally implemented by directory-like objects.
-	    Can check for maximal length, reserved symbols etc */
-	int ( *is_name_acceptable )( const struct inode *inode, 
-				     const char *name, int len );
-
-	/** lookup for "name" within this object and return its key in
-	    "key". If this is not implemented (set to NULL),
-	    reiser4_lookup will return -ENOTDIR */
-	file_lookup_result ( *lookup )( struct inode *inode, 
-					const struct qstr *name,
-					reiser4_key *key, reiser4_entry *entry );
-
-	/** return true if item addressed by @coord belongs to @inode.
-	    This is used by read/write to properly slice flow into items
-	    in presence of multiple key assignment policies, because
-	    items of a file are not necessarily contiguous in a key space,
-	    for example, in a plan-b. */
-	int ( *owns_item )( const struct inode *inode,
-			    const tree_coord *coord );
 	/** return pointer to plugin of new item that should be inserted
 	    into body of @inode at position determined by @key. This is
 	    called by write() when it has to insert new item into
@@ -247,10 +220,8 @@ typedef struct reiser4_file_plugin {
 	int ( *item_plugin_at )( const struct inode *inode, 
 				 const reiser4_key *key );
 
-	int ( *truncate )( struct inode *inode, loff_t size );
 	int ( *find_item )( reiser4_tree *tree, reiser4_key *key,
 			    tree_coord *coord, reiser4_lock_handle *lh );
-	int ( *readpage )( struct file *file, struct page * );
 } reiser4_file_plugin;
 
 typedef struct reiser4_tail_plugin {
@@ -415,7 +386,7 @@ struct reiser4_object_create_data {
 	int         rdev;
 	/** symlink target */
 	const char *name;
-	/* add here something for non-stanard objects you invent, like
+	/* add here something for non-standard objects you invent, like
 	   query for interpolation file etc. */
 };
 
