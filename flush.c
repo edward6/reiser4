@@ -165,7 +165,7 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 	flush_scan_init (& right_scan);
 	flush_scan_init (& left_scan);
 
-	//print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR);
+	print_tree_rec ("parent_first", current_tree, REISER4_NODE_PRINT_ZADDR);
 	trace_if (TRACE_FLUSH, print_tree_rec ("parent_first", current_tree, REISER4_NODE_CHECK));
 
 	assert ("jmacd-5012", jnode_check_dirty (node));
@@ -339,7 +339,12 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	 * a dirty unformatted leftmost child of a clean twig. */
 	if ((ret = reiser4_get_right_neighbor (& right_lock, pos->parent_lock.node, ZNODE_WRITE_LOCK, 0))) {
 		/* If -ENAVAIL,-ENOENT we are finished (or do we go upward anyway?). */
-		if (ret == -ENAVAIL || ret == -ENOENT) { ret = flush_pos_stop (pos); }
+		if (ret == -ENAVAIL || ret == -ENOENT) {
+
+			/* Now finished with twig node. */
+			ret = flush_enqueue_jnode (ZJNODE (pos->parent_lock.node), pos);
+			flush_pos_stop (pos);
+		}
 		goto exit;
 	}
 
@@ -480,7 +485,7 @@ static int flush_alloc_one_ancestor (coord_t *coord, flush_position *pos)
  * nodes. */
 static int flush_alloc_ancestors (flush_position *pos)
 {
-	int ret;
+	int ret = 0;
 	lock_handle plock;
 	load_handle pload;
 	coord_t pcoord;
@@ -491,18 +496,20 @@ static int flush_alloc_ancestors (flush_position *pos)
 	init_lh (& plock);
 	init_zh (& pload);
 
-	/* Lock the parent (it may already be locked, thus the special case). */
-	if ((ret = flush_pos_lock_parent (pos, & pcoord, & plock, & pload, ZNODE_WRITE_LOCK))) {
-		goto exit;
-	}
+	if (flush_pos_unformatted (pos) || ! znode_is_root (JZNODE (pos->point))) {
+		/* Lock the parent (it may already be locked, thus the special case). */
+		if ((ret = flush_pos_lock_parent (pos, & pcoord, & plock, & pload, ZNODE_WRITE_LOCK))) {
+			goto exit;
+		}
 
-	/* It may not be dirty, in which case we should decide whether to relocate the
-	 * child now. */
-	if ((ret = flush_left_relocate_dirty (pos->point, & pcoord, pos))) {
-		goto exit;
-	}
+		/* It may not be dirty, in which case we should decide whether to relocate the
+		 * child now. */
+		if ((ret = flush_left_relocate_dirty (pos->point, & pcoord, pos))) {
+			goto exit;
+		}
 
-	ret = flush_alloc_one_ancestor (& pcoord, pos);
+		ret = flush_alloc_one_ancestor (& pcoord, pos);
+	}
 
 	/* If we are at a formatted node, allocate it now. */
 	if (ret == 0 && ! flush_pos_unformatted (pos)) {
@@ -723,7 +730,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 			goto exit;
 		}
 
-		/* We are leaving 'node' now, enqueue it. */
+		/* We are leaving node now, enqueue it. */
 		if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
 			return ret;
 		}
@@ -734,7 +741,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		}
 
 		/* Procede with unformatted case. */
-		assert ("jmacd-9260", flush_pos_unformatted (pos));
+		assert ("jmacd-9259", flush_pos_unformatted (pos));
 		assert ("jmacd-9260", ! coord_is_after_rightmost (& pos->parent_coord));
 		is_unformatted = 1;
 		node = pos->parent_lock.node;
@@ -749,6 +756,12 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		/* If positioned over a formatted node, then the preceding
 		 * get_utmost_if_dirty would have succeeded if it were in memory. */
 		if (item_is_internal (& pos->parent_coord)) {
+
+			/* We are leaving twig now, enqueue it.  FIXME: right??? */
+			if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
+				return ret;
+			}
+			
 			ret = flush_pos_stop (pos);
 			goto exit;
 		}
@@ -851,7 +864,9 @@ static int flush_squalloc_right (flush_position *pos)
 		if ((ret = flush_squalloc_changed_ancestors (pos))) {
 			goto exit;
 		}
+	}
 
+	if (flush_pos_valid (pos)) {
 		/* Repeat. */
 		goto STEP_2;
 	}
@@ -1269,7 +1284,7 @@ static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 	ON_DEBUG (pos->enqueue_cnt += 1);
 	jnode_set_clean (node);
 
-	//info ("enqueue node: %p block %llu level %u\n", node, *jnode_get_block (node), jnode_get_level (node));
+	info ("enqueue node: %p block %llu level %u\n", node, *jnode_get_block (node), jnode_get_level (node));
 
 	return ret;
 }
@@ -1459,7 +1474,7 @@ static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 {
 	int go;
 
-	go = ! jnode_is_allocated (tonode) && txn_same_atom_dirty (scan->node, tonode);
+	go = jnode_check_dirty (tonode) && ! jnode_is_allocated (tonode) && txn_same_atom_dirty (scan->node, tonode);
 
 	if (! go) {
 		jput (tonode);
@@ -2003,14 +2018,14 @@ static int flush_pos_to_parent (flush_position *pos)
 	 * question, therefore we are not interested in saving ->point. */
 	done_lh (& pos->point_lock);
 	jput (pos->point);
-	pos->point = NULL;
+	pos->point = NULL; /* @@@ FIXME: */
 	return 0;
 }
 
 static int flush_pos_unformatted (flush_position *pos)
 {
 	/* FIXME: more asserts. */
-	return pos->point == NULL;
+	return pos->parent_lock.node != NULL;
 }
 
 static void flush_pos_release_point (flush_position *pos)

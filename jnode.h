@@ -221,6 +221,7 @@ static inline unsigned long jnode_get_index (jnode *node)
 /* returns true if node is formatted, i.e, it's not a znode */
 static inline int jnode_is_unformatted( const jnode *node)
 {
+	assert ("jmacd-0123", node != NULL);
 	return JF_ISSET (node, ZNODE_UNFORMATTED);
 }
 

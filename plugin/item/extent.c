@@ -786,7 +786,6 @@ static void optimize_extent (coord_t * item)
 	reiser4_extent * ext, * prev, * start;
 	reiser4_block_nr width;
 
-
 	ext = start = extent_item (item);
 	old_num = extent_nr_units (item);
 	prev = NULL;
@@ -834,6 +833,7 @@ static void optimize_extent (coord_t * item)
 
 		/*
 		 * nothing should happen cutting
+		 * FIXME: JMACD->VS: Just return the error!
 		 */
 		assert ("vs-456", result == 0);
 	}
