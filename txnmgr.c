@@ -511,9 +511,9 @@ txn_end (reiser4_context *context)
 
 /* Get the atom belonging to a txnh, which is not locked.  Return with both
  * txnh and atom locked.  This performs the necessary spin_trylock to break
- * the lock-ordering cycle.  May not return NULL. */
+ * the lock-ordering cycle.  May return NULL. */
 txn_atom*
-atom_get_locked_with_txnh_locked (txn_handle *txnh)
+atom_get_locked_with_txnh_locked_nocheck (txn_handle *txnh)
 {
 	txn_atom *atom;
 	
@@ -523,12 +523,9 @@ atom_get_locked_with_txnh_locked (txn_handle *txnh)
  try_again:
 
 	spin_lock_txnh (txnh);
-
 	atom = txnh->atom;
 
-	assert ("jmacd-309", atom != NULL);
-
-	if (! spin_trylock_atom (atom)) {
+	if (atom && ! spin_trylock_atom (atom)) {
 		/* If the atom lock fails then it could be in the middle of fusion, which
 		 * means that txnh->atom pointer might be updated. */
 		spin_unlock_txnh (txnh);
@@ -537,6 +534,18 @@ atom_get_locked_with_txnh_locked (txn_handle *txnh)
 		goto try_again;
 	}
 
+	return atom;
+}
+
+/* Same as atom_get_locked_with_txnh_locked_nocheck, by may not return NULL */
+txn_atom * 
+atom_get_locked_with_txnh_locked (txn_handle *txnh)
+{
+	txn_atom * atom;
+
+	atom = atom_get_locked_with_txnh_locked_nocheck (txnh);
+
+	assert ("jmacd-309", atom != NULL);
 	return atom;
 }
 

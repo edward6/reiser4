@@ -379,6 +379,7 @@ extern int          txn_attach_txnh_to_node (txn_handle *txnh, jnode *node, txn_
 
 extern void         txn_delete_page       (struct page        *pg);
 
+extern txn_atom*    atom_get_locked_with_txnh_locked_nocheck (txn_handle       *txnh);
 extern txn_atom*    atom_get_locked_with_txnh_locked (txn_handle       *txnh);
 extern txn_atom*    get_current_atom_locked (void);
 extern txn_atom*    atom_get_locked_by_jnode (jnode *);
