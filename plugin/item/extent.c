@@ -1497,7 +1497,15 @@ unprotect_extent_nodes(oid_t oid, unsigned long ind, __u64 count)
 	for (i = 0 ; i < count; ++ i, ++ ind) {
 		jnode  *node;
 
-		node = jlook_lock(tree, oid, ind);
+		read_lock_tree(tree);
+		node = jlook(tree, oid, ind);
+		if (node == NULL) {
+			int j;
+			for (j = 0 ; j < 1000 ; ++j) {
+				;
+			}
+		}
+		read_unlock_tree(tree);
 		assert("vs-1204", node);
 		junprotect(node);
 		unprotected ++;
