@@ -31,6 +31,7 @@
 #include "kattr.h"
 #include "entd.h"
 #include "emergency_flush.h"
+#include "prof.h"
 
 #include <linux/profile.h>
 #include <linux/types.h>

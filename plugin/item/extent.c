@@ -8,6 +8,7 @@
 #include "../../inode.h"
 #include "../../page_cache.h"
 #include "../../emergency_flush.h"
+#include "../../prof.h"
 
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
