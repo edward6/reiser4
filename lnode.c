@@ -84,6 +84,8 @@
 
 static reiser4_key *lnode_inode_key( const lnode *node, reiser4_key *result );
 static reiser4_key *lnode_lw_key( const lnode *node, reiser4_key *result );
+static int lnode_inode_eq( const lnode *node1, const lnode *node2 );
+static int lnode_lw_eq( const lnode *node1, const lnode *node2 );
 
 static int lnode_valid_type( lnode_type type );
 
@@ -99,21 +101,26 @@ static struct {
 	int ( *get_plugins )( const lnode *node, reiser4_plugin_ref *area );
 	/** set a plugin suit for the corresponding file system object */
 	int ( *set_plugins )( lnode *node, const reiser4_plugin_ref *area );
+	/** true if @node1 and @node2 refer to the same object */
+	int ( *eq )( const lnode *node1, const lnode *node2 );
 } lnode_ops[ LNODE_NR_TYPES ] = {
 	[ LNODE_INODE ] = {
 		.key         = lnode_inode_key,
 		.get_plugins = NULL,
-		.set_plugins = NULL
+		.set_plugins = NULL,
+		.eq          = lnode_inode_eq
 	},
 	[ LNODE_PSEUDO ] = {
 		.key         = NULL,
 		.get_plugins = NULL,
-		.set_plugins = NULL
+		.set_plugins = NULL,
+		.eq          = NULL
 	},
 	[ LNODE_LW ] = {
 		.key         = lnode_lw_key,
 		.get_plugins = NULL,
-		.set_plugins = NULL
+		.set_plugins = NULL,
+		.eq          = lnode_lw_eq
 	},
 };
 
@@ -264,6 +271,21 @@ void lput( lnode *node /* lnode to release */ )
 	spin_unlock( &sinfo -> lnode_htable_guard );
 }
 
+/** true if @node1 and @node2 refer to the same object */
+int lnode_eq( const lnode *node1 /* first node to compare */, 
+	      const lnode *node2 /* second node to compare */ )
+{
+	assert( "nikita-1921", node1 != NULL );
+	assert( "nikita-1922", node2 != NULL ); /* Finnegans Wake started */
+
+	if( node1 -> h.oid != node2 -> h.oid )
+		return 0;
+	else if( node1 -> h.type != node2 -> h.type )
+		return 0;
+	else
+		return lnode_ops[ node1 -> h.type ].eq( node1, node2 );
+}
+
 /** return key of object behind @node */
 reiser4_key *lnode_key( const lnode *node /* lnode to query */, 
 			reiser4_key *result /* result */ )
@@ -310,6 +332,33 @@ static reiser4_key *lnode_lw_key( const lnode *node /* lnode to query */,
 {
 	*result = node -> lw.key;
 	return result;
+}
+
+/** compare two inodes */
+static int lnode_inode_eq( const lnode *node1 /* first node to compare */, 
+			   const lnode *node2 /* second node to compare */ )
+{
+	assert( "nikita-1923", node1 != NULL );
+	assert( "nikita-1924", node2 != NULL );
+
+	assert( "nikita-1927", node1 -> inode.inode != NULL );
+	assert( "nikita-1928", node2 -> inode.inode != NULL );
+
+	return ( node1 -> inode.inode == node1 -> inode.inode );
+		
+}
+
+/** compare two lw objects */
+static int lnode_lw_eq( const lnode *node1 /* first node to compare */, 
+			const lnode *node2 /* second node to compare */ )
+{
+	assert( "nikita-1925", node1 != NULL );
+	assert( "nikita-1926", node2 != NULL );
+
+	/* we only get there if oids are equal */
+	assert( "nikita-1929", node1 -> h.oid == node2 -> h.oid );
+	assert( "nikita-1930", keyeq( &node1 -> lw.key, &node2 -> lw.key ) );
+	return 1;
 }
 
 /*

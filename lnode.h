@@ -67,6 +67,7 @@ union lnode {
 extern int lnodes_init( struct super_block *super );
 extern lnode *lget( lnode *node, lnode_type type, oid_t oid );
 extern void lput( lnode *node );
+extern int lnode_eq( const lnode *node1, const lnode *node2 );
 
 extern struct inode *inode_by_lnode( const lnode *node );
 extern reiser4_key *lnode_key( const lnode *node, reiser4_key *result );
