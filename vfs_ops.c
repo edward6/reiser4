@@ -1487,7 +1487,7 @@ reiser4_get_sb(struct file_system_type *fs_type	/* file
 						 * system
 						 * type */ ,
 	       int flags /* flags */ ,
-	       char *dev_name /* device name */ ,
+	       const char *dev_name /* device name */ ,
 	       void *data /* mount options */ )
 {
 	return get_sb_bdev(fs_type, flags, dev_name, data, reiser4_fill_super);
