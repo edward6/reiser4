@@ -264,7 +264,7 @@ cut_tail_items(struct inode *inode, loff_t offset, int count)
 	set_key_offset(&to, (__u64) (offset + count - 1));
 
 	/* cut everything between those keys */
-	return cut_tree(tree_by_inode(inode), &from, &to, NULL);
+	return cut_tree(tree_by_inode(inode), &from, &to);
 }
 
 typedef enum {
@@ -283,6 +283,7 @@ for_all_pages(struct page **pages, unsigned nr_pages, page_action action)
 			continue;
 		switch(action) {
 		case UNLOCK:
+			set_page_dirty_internal(pages[i]);
 			reiser4_unlock_page(pages[i]);
 			break;
 		case DROP:
@@ -682,7 +683,7 @@ extent2tail(unix_file_info_t *uf_info)
 		/* cut part of file we have read */
 		set_key_offset(&from, (__u64) (i << PAGE_CACHE_SHIFT));
 		set_key_offset(&to, (__u64) ((i << PAGE_CACHE_SHIFT) + PAGE_CACHE_SIZE - 1));
-		result = cut_tree(tree_by_inode(inode), &from, &to, NULL);
+		result = cut_tree(tree_by_inode(inode), &from, &to);
 		if (result) {
 			page_cache_release(page);
 			break;
