@@ -1320,11 +1320,13 @@ static int put_super (struct super_block * s)
 	if (get_super_private (s)->lplug->release)
 		get_super_private (s)->lplug->release (s);
 		
+	/* no assertions below this line */
+	__REISER4_EXIT (&__context);
+
 	done_formatted_fake (s);
 	kfree(s->u.generic_sbp);
 	s->u.generic_sbp = NULL;
-	
-	REISER4_EXIT (0);
+	return 0;
 }
 
 /* Audited by: umka (2002.06.12) */
