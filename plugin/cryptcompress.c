@@ -52,12 +52,9 @@ int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
 int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
 reiser4_key * append_cluster_key_ctail(const coord_t *, reiser4_key *);
 int setattr_reserve(reiser4_tree *);
-int reserve_cut_iteration(reiser4_tree *);
 int writepage_ctail(struct page *);
-int truncate_jnodes_range(struct inode *inode, unsigned long from, int count);
 int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size);
 int delete_object(struct inode *inode, int mode);
-int ctail_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
 int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
 int hint_is_set(const hint_t *hint);
 reiser4_plugin * get_default_plugin(pset_member memb);
@@ -86,7 +83,7 @@ init_inode_data_cryptcompress(struct inode *inode,
 }
 
 #if REISER4_DEBUG
-reiser4_internal int
+static int
 crc_generic_check_ok(void)
 {
 	return MIN_CRYPTO_BLOCKSIZE == DC_CHECKSUM_SIZE << 1; 
@@ -456,21 +453,7 @@ inode_scaled_cluster_size (struct inode * inode)
 	return inode_scaled_offset(inode, inode_cluster_size(inode));
 }
 
-/* return true if the cluster contains specified page */
-#if 0
 static int
-page_of_cluster(struct page * page, reiser4_cluster_t * clust, struct inode * inode)
-{
-	assert("edward-162", page != NULL);
-	assert("edward-163", clust != NULL);
-	assert("edward-164", inode != NULL);
-	assert("edward-165", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-
-	return (pg_to_clust(page->index, inode) == clust->index);
-}
-#endif
-
-reiser4_internal int
 new_cluster(reiser4_cluster_t * clust, struct inode * inode)
 {
 	return (clust_to_off(clust->index, inode) >= inode->i_size);
@@ -506,15 +489,6 @@ set_cluster_nrpages(reiser4_cluster_t * clust, struct inode * inode)
 		count_to_nrpages(max_count(win->off + win->count + win->delta,
 					   fsize_to_count(clust, inode)));
 	return;
-}
-
-reiser4_internal void
-set_nrpages_by_inode(reiser4_cluster_t * clust, struct inode * inode)
-{
-	assert("edward-785", clust != NULL);
-	assert("edward-786", inode != NULL);
-
-	clust->nr_pages = count_to_nrpages(fsize_to_count(clust, inode));
 }
 
 /* plugin->key_by_inode() */
@@ -1354,7 +1328,7 @@ grab_cluster_pages_jnode(struct inode * inode, reiser4_cluster_t * clust)
 }
 
 /* collect unlocked cluster pages */
-reiser4_internal int
+static int
 grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 {
 	int i;
@@ -1444,7 +1418,7 @@ release_cluster_pages_and_jnode(reiser4_cluster_t * clust)
 }
 
 #if REISER4_DEBUG
-reiser4_internal int
+static int
 window_ok(reiser4_slide_t * win, struct inode * inode)
 {
 	assert ("edward-1115", win != NULL);
@@ -1454,7 +1428,7 @@ window_ok(reiser4_slide_t * win, struct inode * inode)
 		(win->off + win->count + win->delta <= inode_cluster_size(inode));
 }
 
-reiser4_internal int
+static int
 cluster_ok(reiser4_cluster_t * clust, struct inode * inode)
 {
 	assert("edward-279", clust != NULL);

@@ -317,7 +317,7 @@ set_file_state(struct inode *inode, int cbk_result, tree_level level)
 	}
 }
 
-reiser4_internal int
+static int
 find_file_item(hint_t *hint, /* coord, lock handle and seal are here */
 	       const reiser4_key *key, /* key of position in a file of next read/write */
 	       znode_lock_mode lock_mode, /* which lock (read/write) to put on returned node */
@@ -490,7 +490,8 @@ static int reserve_partial_page(reiser4_tree *tree)
 }
 
 /* estimate and reserve space needed to cut one item and update one stat data */
-reiser4_internal int reserve_cut_iteration(reiser4_tree *tree)
+static int
+reserve_cut_iteration(reiser4_tree *tree)
 {
 	__u64 estimate = estimate_one_item_removal(tree)
 		+ estimate_one_insert_into_item(tree);
@@ -2537,16 +2538,6 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 		result = setattr_common(inode, attr);
 
 	return result;
-}
-
-/* plugin->u.file.can_add_link = common_file_can_add_link */
-/* VS-FIXME-HANS: why does this always resolve to extent pointer?  this wrapper serves what purpose?  get rid of it. */
-/* plugin->u.file.readpages method */
-reiser4_internal void
-readpages_unix_file(struct file *file, struct address_space *mapping,
-		    struct list_head *pages)
-{
-	assert("vs-1740", 0);
 }
 
 /* plugin->u.file.init_inode_data */
