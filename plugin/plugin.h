@@ -1,5 +1,5 @@
 /*
- * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
 
 /*
@@ -9,73 +9,6 @@
 
 #if !defined( __FS_REISER4_PLUGIN_TYPES_H__ )
 #define __FS_REISER4_PLUGIN_TYPES_H__
-
-
-/* plugin data-types and constants */
-
-typedef enum {
-	REISER4_FILE_PLUGIN_TYPE,
-	REISER4_DIR_PLUGIN_TYPE,
-	REISER4_ITEM_PLUGIN_TYPE,
-	REISER4_NODE_PLUGIN_TYPE,
-	REISER4_HASH_PLUGIN_TYPE,
-	REISER4_TAIL_PLUGIN_TYPE,
-	REISER4_HOOK_PLUGIN_TYPE,
-	REISER4_PERM_PLUGIN_TYPE,
-	REISER4_SD_EXT_PLUGIN_TYPE,
-	REISER4_LAYOUT_PLUGIN_TYPE,
-	REISER4_OID_ALLOCATOR_PLUGIN_TYPE,
-	REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE,
-	REISER4_PLUGIN_TYPES
-} reiser4_plugin_type;
-
-typedef int reiser4_plugin_id;
-
-struct reiser4_plugin_ops;
-/** generic plugin operations, supported by each 
-    plugin type. */
-typedef struct reiser4_plugin_ops reiser4_plugin_ops;
-
-struct reiser4_plugin_ref;
-typedef struct reiser4_plugin_ref reiser4_plugin_ref;
-
-TS_LIST_DECLARE( plugin );
-
-/** common part of each plugin instance. */
-typedef struct plugin_header {
-	/** plugin type */
-	reiser4_plugin_type  type_id;
-	/** id of this plugin */
-	reiser4_plugin_id    id;
-	/** plugin operations */
-	reiser4_plugin_ops  *pops;
-	/** short label of this plugin */
-	const char          *label;
-	/** descriptive string. Put your copyright message here. */
-	const char          *desc;
-	/** list linkage */
-	plugin_list_link     linkage;
-} plugin_header;
-
-/** VFS operations */
-typedef enum {
-	/* inode ops */
-	VFS_CREATE_OP, VFS_LINK_OP, VFS_UNLINK_OP, VFS_SYMLINK_OP,
-	VFS_MKDIR_OP, VFS_RMDIR_OP, VFS_MKNOD_OP, VFS_RENAME_OP,
-	VFS_READLINK_OP, VFS_FOLLOW_LINK_OP, VFS_TRUNCATE_OP,
-	VFS_PERMISSION_OP, VFS_REVALIDATE_OP, VFS_SETATTR_OP,
-	VFS_GETATTR_OP,
-
-	/* file ops */
-	VFS_LLSEEK_OP, VFS_READ_OP, VFS_WRITE_OP, VFS_READDIR_OP,
-	VFS_POLL_OP, VFS_IOCTL_OP, VFS_MMAP_OP, VFS_OPEN_OP, VFS_FLUSH_OP,
-	VFS_RELEASE_OP, VFS_FSYNC_OP, VFS_FASYNC_OP, VFS_LOCK_OP, VFS_READV_OP,
-	VFS_WRITEV_OP, VFS_SENDPAGE_OP, VFS_GET_UNMAPPED_AREA_OP,
-
-	/* as ops */
-	VFS_WRITEPAGE_OP, VFS_READPAGE_OP, VFS_SYNC_PAGE_OP,
-	VFS_PREPARE_WRITE_OP, VFS_COMMIT_WRITE_OP, VFS_BMAP_OP
-} vfs_op;
 
 typedef ssize_t ( *rw_f_type )( struct file *file, flow_t *a_flow, loff_t *off );
 
@@ -271,7 +204,8 @@ typedef struct file_plugin {
 
 
 typedef struct dir_plugin {
-
+	/** generic fields */
+	plugin_header h;
 	/* resolves one component of name_in, and returns the key that it
 	 * resolves to plus the remaining name */
 	int ( *resolve)(name_t * name_in, /* name within this directory that is to be found */
@@ -317,6 +251,8 @@ typedef struct dir_plugin {
 } dir_plugin;
 
 typedef struct tail_plugin {
+	/** generic fields */
+	plugin_header h;
 	/** returns non-zero iff file's tail has to be stored
 	    in a direct item. */
 	int ( *have_tail )( const struct inode *inode, loff_t size );
@@ -324,17 +260,23 @@ typedef struct tail_plugin {
 } tail_plugin;
 
 typedef struct hash_plugin {
+	/** generic fields */
+	plugin_header h;
 	/** computes hash of the given name */
 	__u64 ( *hash ) ( const unsigned char *name, int len );
 } hash_plugin;
 
 /* hook plugins exist for debugging only? */
 typedef struct hook_plugin {
+	/** generic fields */
+	plugin_header h;
 	/** abstract hook function */
 	int ( *hook ) ( struct super_block *super, ... );
 } hook_plugin;
 
 typedef struct sd_ext_plugin {
+	/** generic fields */
+	plugin_header h;
 	int ( *present ) ( struct inode *inode, char **area, int *len );
 	int ( *absent ) ( struct inode *inode );
 	int ( *save_len ) ( struct inode *inode );
@@ -347,6 +289,8 @@ typedef struct sd_ext_plugin {
  * to deallocate objectid when file gets removed, to report number of used and
  * free objectids */
 typedef struct oid_allocator_plugin {
+	/** generic fields */
+	plugin_header h;
 	int ( *init_oid_allocator )( reiser4_oid_allocator *map, __u64 nr_files,
 				     __u64 oids );
 	/* used to report statfs->f_files */	
@@ -367,6 +311,8 @@ typedef struct oid_allocator_plugin {
 
 /* this plugin contains method to allocate and deallocate free space of disk */
 typedef struct space_allocator_plugin {
+	/** generic fields */
+	plugin_header h;
 	int ( *init_allocator )( reiser4_space_allocator *,
 				 struct super_block * );
 	int ( *destroy_allocator )( reiser4_space_allocator *,
@@ -380,6 +326,8 @@ typedef struct space_allocator_plugin {
 /* disk layout plugin: this specifies super block, journal, bitmap (if there
  * are any) locations, etc */
 typedef struct layout_plugin {
+	/** generic fields */
+	plugin_header h;
 	/* replay journal, initialize super_info_data, etc */
 	int ( *get_ready )( struct super_block *, void * data);
 
@@ -388,27 +336,54 @@ typedef struct layout_plugin {
 } layout_plugin;
 
 
-/** plugin instance. 
-    We keep everything inside single union for simplicity.
-    Alternative solution is to to keep size of actual plugin
-    in plugin type description. */
-	union reiser4_plugin {
-	/** generic fields */
-	plugin_header generic;
-		file_plugin      file;
-		dir_plugin       dir;
-		hash_plugin      hash;
-		tail_plugin      tail;
-		hook_plugin      hook;
-		perm_plugin      perm;
-		node_plugin      node;
-		item_plugin      item;
-		sd_ext_plugin    sd_ext;
-		layout_plugin    layout;
-		oid_allocator_plugin   oid_allocator;
-		space_allocator_plugin space_allocator;
-	/*	void                  *generic; */
-	} u;
+/* plugin instance.                                                         */
+/*                                                                          */
+/* This is "wrapper" union for all types of plugins. Most of the code uses  */
+/* plugins of particular type (file_plugin, dir_plugin, etc.)  rather than  */
+/* operates with pointers to reiser4_plugin. This union is only used in     */
+/* some generic code in plugin/plugin.c that operates on all                */
+/* plugins. Technically speaking purpose of this union is to add type       */
+/* safety to said generic code: each plugin type (file_plugin, for          */
+/* example), contains plugin_header as its first memeber. This first member */
+/* is located at the same place in memory as .h member of                   */
+/* reiser4_plugin. Generic code, obtains pointer to reiser4_plugin and      */
+/* looks in the .h which is header of plugin type located in union. This    */
+/* allows to avoid type-casts.                                              */
+union reiser4_plugin {
+	/* generic fields */
+	plugin_header           h;
+	/** file plugin */
+	file_plugin             file;
+	/** directory plugin */
+	dir_plugin              dir;
+	/** hash plugin, used by directory plugin */
+	hash_plugin             hash;
+	/** tail plugin, used by file plugin */
+	tail_plugin             tail;
+	/** hook plugin. For debugging */
+	hook_plugin             hook;
+	/** permission plugin */
+	perm_plugin             perm;
+	/** node plugin */
+	node_plugin             node;
+#if 0
+	/** item plugin */
+	item_plugin             item;
+#endif
+	/** stat-data extension plugin */
+	sd_ext_plugin           sd_ext;
+	/** disk layout plugin */
+	layout_plugin           layout;
+	/** object id allocator plugin */
+	oid_allocator_plugin    oid_allocator;
+	/** disk space allocator plugin */
+	space_allocator_plugin  space_allocator;
+	/** 
+	 * place-holder for new plugin types that can be registered
+	 * dynamically, and used by other dynamically loaded plugins. 
+	 */
+	void                   *generic;
+};
 
 typedef enum { 
 	REISER4_LIGHT_WEIGHT_INODE = 0x1,
@@ -453,7 +428,7 @@ struct reiser4_plugin_ops {
 };
 
 
-/* functions implemented in fs/reiser4/plugin/base.c */
+/* functions implemented in fs/reiser4/plugin/plugin.c */
 
 /** stores plugin reference in reiser4-specific part of inode */
 extern int set_object_plugin( struct inode *inode, reiser4_plugin_id id );
@@ -474,7 +449,8 @@ typedef enum { REGULAR_FILE_PLUGIN_ID, DIRECTORY_FILE_PLUGIN_ID,
 		* VFS: fifos, devices, sockets 
 		*/
 	       SPECIAL_FILE_PLUGIN_ID,
-/* comment this nikita, and comment every LAST usage in our code -Hans */
+	       /* number of file plugins. Used as size of arrays to hold
+		* file plugins. */
 	       LAST_FILE_PLUGIN_ID
 } reiser4_file_id;
 
@@ -549,36 +525,35 @@ extern reiser4_plugin *plugin_by_disk_id( reiser4_tree *tree,
 extern reiser4_plugin *plugin_by_unsafe_id( reiser4_plugin_type type_id, 
 					    reiser4_plugin_id id );
 
-#define PLUGIN_BY_ID(TYPE,ID,FIELD)                                                \
-static inline TYPE *TYPE ## _by_id( reiser4_plugin_id id )                         \
-{                                                                                  \
-	reiser4_plugin *plugin = plugin_by_id ( ID, id );                     \
-	return plugin ? & plugin -> u.FIELD : NULL;                                \
-}                                                                                  \
-static inline TYPE *TYPE ## _by_disk_id( reiser4_tree *tree, d16 *id )             \
-{                                                                                  \
-	reiser4_plugin *plugin = plugin_by_disk_id ( tree, ID, id );          \
-	return plugin ? & plugin -> u.FIELD : NULL;                                \
-}                                                                                  \
-static inline TYPE *TYPE ## _by_unsafe_id( reiser4_plugin_id id )                  \
-{                                                                                  \
-	reiser4_plugin *plugin = plugin_by_unsafe_id ( ID, id );              \
-	return plugin ? & plugin -> u.FIELD : NULL;                                \
-}                                                                                  \
-static inline reiser4_plugin* TYPE ## _to_plugin( TYPE* plugin )                   \
-{                                                                                  \
-	if (plugin != NULL)                                                        \
-		return (reiser4_plugin*) (((long) plugin) - sizeof (plugin_header));       \
-	else                                                                       \
-		return NULL;                                                       \
-}                                                                                  \
-static inline reiser4_plugin_id TYPE ## _id( TYPE* plugin )                        \
-{                                                                                  \
-	return TYPE ## _to_plugin (plugin) -> h.id;                                \
-}                                                                                  \
+#define PLUGIN_BY_ID(TYPE,ID,FIELD)					\
+static inline TYPE *TYPE ## _by_id( reiser4_plugin_id id )		\
+{									\
+	reiser4_plugin *plugin = plugin_by_id ( ID, id );		\
+	return plugin ? & plugin -> FIELD : NULL;			\
+}									\
+static inline TYPE *TYPE ## _by_disk_id( reiser4_tree *tree, d16 *id )	\
+{									\
+	reiser4_plugin *plugin = plugin_by_disk_id ( tree, ID, id );	\
+	return plugin ? & plugin -> FIELD : NULL;			\
+}									\
+static inline TYPE *TYPE ## _by_unsafe_id( reiser4_plugin_id id )	\
+{									\
+	reiser4_plugin *plugin = plugin_by_unsafe_id ( ID, id );	\
+	return plugin ? & plugin -> FIELD : NULL;			\
+}									\
+static inline reiser4_plugin* TYPE ## _to_plugin( TYPE* plugin )	\
+{									\
+	return ( reiser4_plugin * ) plugin;				\
+}									\
+static inline reiser4_plugin_id TYPE ## _id( TYPE* plugin )		\
+{									\
+	return TYPE ## _to_plugin (plugin) -> h.id;			\
+}									\
 typedef struct { int foo; } TYPE ## _plugin_dummy
 
+#if 0
 PLUGIN_BY_ID(common_item_plugin,REISER4_ITEM_PLUGIN_TYPE,item);
+#endif
 PLUGIN_BY_ID(file_plugin,REISER4_FILE_PLUGIN_TYPE,file);
 PLUGIN_BY_ID(dir_plugin,REISER4_DIR_PLUGIN_TYPE,dir);
 PLUGIN_BY_ID(node_plugin,REISER4_NODE_PLUGIN_TYPE,node);

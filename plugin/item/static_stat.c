@@ -587,60 +587,54 @@ static int plugin_sd_save( struct inode *inode /* object being processed */,
 
 reiser4_plugin sd_ext_plugins[ LAST_SD_EXTENSION ] = {
 	[ UNIX_STAT ] = {
-		.h = {
-			.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
-			.id      = UNIX_STAT,
-			.pops    = NULL,
-			.label   = "unix-sd",
-			.desc    = "unix stat-data fields",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.u = {
-			.sd_ext = {
-				.present   = unix_sd_present, 
-				.absent    = unix_sd_absent,
-				.save_len  = unix_sd_save_len,
-				.save      = unix_sd_save,
-				.alignment = 8
-			}
+		.sd_ext = {
+			.h = {
+				.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
+				.id      = UNIX_STAT,
+				.pops    = NULL,
+				.label   = "unix-sd",
+				.desc    = "unix stat-data fields",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.present   = unix_sd_present, 
+			.absent    = unix_sd_absent,
+			.save_len  = unix_sd_save_len,
+			.save      = unix_sd_save,
+			.alignment = 8
 		}
 	},
 	[ PLUGIN_STAT ] = {
-		.h = {
-			.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
-			.id      = PLUGIN_STAT,
-			.pops    = NULL,
-			.label   = "plugin-sd",
-			.desc    = "plugin stat-data fields",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.u = {
-			.sd_ext = {
-				.present   = plugin_sd_present, 
-				.absent    = plugin_sd_absent,
-				.save_len  = plugin_sd_save_len,
-				.save      = plugin_sd_save,
-				.alignment = 8
-			}
+		.sd_ext = {
+			.h = {
+				.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
+				.id      = PLUGIN_STAT,
+				.pops    = NULL,
+				.label   = "plugin-sd",
+				.desc    = "plugin stat-data fields",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.present   = plugin_sd_present, 
+			.absent    = plugin_sd_absent,
+			.save_len  = plugin_sd_save_len,
+			.save      = plugin_sd_save,
+			.alignment = 8
 		}
 	},
 	[ GEN_AND_FLAGS_STAT ] = {
-		.h = {
-			.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
-			.id      = GEN_AND_FLAGS_STAT,
-			.pops    = NULL,
-			.label   = "gaf-sd",
-			.desc    = "generation and attrs stat-data fields",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.u = {
-			.sd_ext = {
-				.present   = gaf_sd_present, 
-				.absent    = NULL,
-				.save_len  = gaf_sd_save_len,
-				.save      = gaf_sd_save,
-				.alignment = 8
-			}
+		.sd_ext = {
+			.h = {
+				.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
+				.id      = GEN_AND_FLAGS_STAT,
+				.pops    = NULL,
+				.label   = "gaf-sd",
+				.desc    = "generation and attrs fields",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.present   = gaf_sd_present, 
+			.absent    = NULL,
+			.save_len  = gaf_sd_save_len,
+			.save      = gaf_sd_save,
+			.alignment = 8
 		}
 	}
 };

@@ -449,7 +449,7 @@ static void make_item_data (tree_coord * coord, reiser4_item_data * item,
  * insert tail item consisting of zeros only. Number of bytes appended to the
  * file is returned
  */
-static int create_hole (tree_coord * coord, reiser4_lock_handle * lh, flow_t * f)
+static int create_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
 {
 	int result;
 	reiser4_key hole_key;
@@ -473,7 +473,7 @@ static int create_hole (tree_coord * coord, reiser4_lock_handle * lh, flow_t * f
  * append @coord item with zeros. Number of bytes appended to the file is
  * returned
  */
-static int append_hole (tree_coord * coord, reiser4_lock_handle * lh, flow_t * f)
+static int append_hole (tree_coord * coord, lock_handle * lh, flow_t * f)
 {
 	int result;
 	reiser4_key hole_key;
@@ -513,7 +513,7 @@ static void move_flow_forward (flow_t * f, unsigned count)
  * insert first item of file into tree. Number of bytes appended to the file is
  * returned
  */
-static int insert_first_item (tree_coord * coord, reiser4_lock_handle * lh, flow_t * f)
+static int insert_first_item (tree_coord * coord, lock_handle * lh, flow_t * f)
 {
 	reiser4_item_data item;
 	int result;
@@ -534,7 +534,7 @@ static int insert_first_item (tree_coord * coord, reiser4_lock_handle * lh, flow
  * append item @coord with flow @f's data. Number of bytes appended to the file
  * is returned
  */
-static int append_tail (tree_coord * coord, reiser4_lock_handle * lh, flow_t * f)
+static int append_tail (tree_coord * coord, lock_handle * lh, flow_t * f)
 {
 	reiser4_item_data item;
 	int result;
@@ -584,7 +584,7 @@ static int overwrite_tail (tree_coord * coord, flow_t * f)
  * access to data stored in tails goes directly through formatted nodes
  */
 int tail_write (struct inode * inode, tree_coord * coord,
-		reiser4_lock_handle * lh, flow_t * f)
+		lock_handle * lh, flow_t * f)
 {
 	int result;
 
@@ -637,7 +637,7 @@ int tail_write (struct inode * inode, tree_coord * coord,
  * plugin->u.item.s.file.read
  */
 int tail_read (struct inode * inode UNUSED_ARG, tree_coord * coord,
-	       reiser4_lock_handle * lh UNUSED_ARG, flow_t * f)
+	       lock_handle * lh UNUSED_ARG, flow_t * f)
 {
 	unsigned count;
 

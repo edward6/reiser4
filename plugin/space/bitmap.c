@@ -579,7 +579,7 @@ int block_alloc_pre_commit_hook (txn_atom * atom)
 			/* capture a commit bitmap block */
 			/* Is there an interface to node capture another that
 			   longterm_lock_znode() ? */
-			reiser4_lock_handle lh;
+			lock_handle lh;
 
 			init_lh(&lh);
 

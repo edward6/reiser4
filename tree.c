@@ -264,13 +264,13 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 								 * for item
 								 * creation */,
 			     tree_coord *coord /* resulting insertion coord */,
-			     reiser4_lock_handle * lh /* resulting lock
+			     lock_handle * lh /* resulting lock
 						       * handle */,
 			     tree_level stop_level /** level where to insert */,
-			     inter_syscall_ra_hint *ra UNUSED_ARG /* repetitive
+			     inter_syscall_rap *ra UNUSED_ARG /* repetitive
 								   * access
 								   * hint */,
-			     intra_syscall_ra_hint ira UNUSED_ARG /* repetitive
+			     intra_syscall_rap ira UNUSED_ARG /* repetitive
 								   * access
 								   * hint */, 
 			     __u32 flags /* insertion flags */ )
@@ -312,7 +312,7 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord /* coord
 								     * where
 								     * to
 								     * insert */,
-						 reiser4_lock_handle *lh /* lock
+						 lock_handle *lh /* lock
 									  * handle
 									  * of
 									  * insertion
@@ -372,7 +372,7 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord /* coord
  *
  */
 static int paste_with_carry( tree_coord *coord /* coord of paste */, 
-			     reiser4_lock_handle *lh /* lock handle of node
+			     lock_handle *lh /* lock handle of node
 						      * where item is
 						      * pasted */,
 			     reiser4_item_data *data /* parameters of new
@@ -426,12 +426,12 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 			       reiser4_item_data *data /* data to be
 							* inserted */, 
 			       const reiser4_key *key /* key of new item */,
-			       reiser4_lock_handle *lh /* lock handle of write
+			       lock_handle *lh /* lock handle of write
 							* lock on node */,
-			       inter_syscall_ra_hint *ra UNUSED_ARG /* repetitive
+			       inter_syscall_rap *ra UNUSED_ARG /* repetitive
 								     * access
 								     * hint */,
-			       intra_syscall_ra_hint ira UNUSED_ARG /* repetitive
+			       intra_syscall_rap ira UNUSED_ARG /* repetitive
 								     * access
 								     * hint */, 
 			       __u32 flags /* insertion flags */ )
@@ -499,7 +499,7 @@ insert_result insert_extent_by_coord( tree_coord  *coord /* coord where to
 				      reiser4_item_data *data /* data to be
 							       * inserted */, 
 				      const reiser4_key *key /* key of new item */,
-				      reiser4_lock_handle *lh /* lock handle of
+				      lock_handle *lh /* lock handle of
 							       * write lock on
 							       * node */
 				      )
@@ -524,7 +524,7 @@ insert_result insert_extent_by_coord( tree_coord  *coord /* coord where to
  *
  */
 static int paste_into_item( tree_coord *coord /* coord of pasting */,
-			    reiser4_lock_handle *lh /* lock handle on node
+			    lock_handle *lh /* lock handle on node
 						     * involved */,
 			    reiser4_key *key /* key of unit being pasted*/, 
 			    reiser4_item_data *data /* parameters for new
@@ -598,7 +598,7 @@ static int paste_into_item( tree_coord *coord /* coord of pasting */,
 resize_result resize_item( tree_coord *coord /* coord of item being resized */, 
 			   reiser4_item_data *data /* parameters of resize*/,
 			   reiser4_key *key /* key of new unit */, 
-			   reiser4_lock_handle *lh /* lock handle of node
+			   lock_handle *lh /* lock handle of node
 						    * being modified */,
 			   cop_insert_flag flags /* carry flags */ )
 {
@@ -830,7 +830,7 @@ void show_context (int show_tree)
  * the node that has been removed from the tree. At this point node is removed
  * from sibling list and its lock is invalidated.
  */
-void forget_znode (reiser4_lock_handle *handle)
+void forget_znode (lock_handle *handle)
 {
 	znode *node;
 
@@ -1096,7 +1096,7 @@ int shift_everything_left (znode * right, znode * left, carry_level *todo)
 
 /* allocate new node and insert a pointer to it into the tree such that new
    node becomes a right neighbor of @insert_coord->node */
-znode *insert_new_node (tree_coord * insert_coord, reiser4_lock_handle *lh)
+znode *insert_new_node (tree_coord * insert_coord, lock_handle *lh)
 {
 	int result;
 	carry_pool  pool;
@@ -1224,7 +1224,7 @@ int cut_tree (reiser4_tree * tree,
 {
 	tree_coord intranode_to, intranode_from;
 	reiser4_key smallest_removed;
-	reiser4_lock_handle lock_handle;
+	lock_handle lock_handle;
 	int result;
 
 

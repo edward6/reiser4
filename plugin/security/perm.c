@@ -10,25 +10,23 @@
 
 reiser4_plugin perm_plugins[] = {
 	[ RWX_PERM_ID ] = {
-		.h = {
-			.type_id = REISER4_PERM_PLUGIN_TYPE,
-			.id      = RWX_PERM_ID,
-			.pops    = NULL,
-			.label   = "rwx",
-			.desc    = "standard UNIX permissions",
-			.linkage = TS_LIST_LINK_ZERO,
-		},
-		.u = {
-			.perm = {
-				.rw_ok     = NULL,
-				.lookup_ok = NULL,
-				.create_ok = NULL,
-				.link_ok   = NULL,
-				.unlink_ok = NULL,
-				.delete_ok = NULL,
-				/* smart thing */
-				.mask_ok   = vfs_permission
-			}
+		.perm = {
+			.h = {
+				.type_id = REISER4_PERM_PLUGIN_TYPE,
+				.id      = RWX_PERM_ID,
+				.pops    = NULL,
+				.label   = "rwx",
+				.desc    = "standard UNIX permissions",
+				.linkage = TS_LIST_LINK_ZERO,
+			},
+			.rw_ok     = NULL,
+			.lookup_ok = NULL,
+			.create_ok = NULL,
+			.link_ok   = NULL,
+			.unlink_ok = NULL,
+			.delete_ok = NULL,
+			/* smart thing */
+			.mask_ok   = vfs_permission
 		}
 	}
 };

@@ -410,25 +410,23 @@ int is_name_acceptable( const struct inode *inode /* directory to check */,
 
 reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {
 	[ HASHED_DIR_PLUGIN_ID ] = {
-		.h = {
-			.type_id = REISER4_DIR_PLUGIN_TYPE,
-			.id      = HASHED_DIR_PLUGIN_ID,
-			.pops    = NULL,
-			.label   = "dir",
-			.desc    = "hashed directory",
-			.linkage = TS_LIST_LINK_ZERO
-		},
-		.u = {
-			.dir = {
-				.resolve             = NULL,
-				.resolve_into_inode/*lookup*/              = hashed_lookup,
-				.unlink              = common_unlink,
-				.link                = common_link,
-				.is_name_acceptable  = is_name_acceptable,
-				.add_entry           = hashed_add_entry,
-				.rem_entry           = hashed_rem_entry,
-				.create_child        = common_create_child
-			}
+		.dir = {
+			.h = {
+				.type_id = REISER4_DIR_PLUGIN_TYPE,
+				.id      = HASHED_DIR_PLUGIN_ID,
+				.pops    = NULL,
+				.label   = "dir",
+				.desc    = "hashed directory",
+				.linkage = TS_LIST_LINK_ZERO
+			},
+			.resolve             = NULL,
+			.resolve_into_inode/*lookup*/              = hashed_lookup,
+			.unlink              = common_unlink,
+			.link                = common_link,
+			.is_name_acceptable  = is_name_acceptable,
+			.add_entry           = hashed_add_entry,
+			.rem_entry           = hashed_rem_entry,
+			.create_child        = common_create_child
 		}
 	}
 };

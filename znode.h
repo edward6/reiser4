@@ -31,7 +31,7 @@ TS_LIST_DECLARE(locks);
 /**
  * Per-znode lock object
  */
-struct __reiser4_zlock {
+struct zlock {
         /**
 	 * The number of readers if positive; the number of recursively taken
 	 * write locks if negative */
@@ -194,7 +194,7 @@ struct znode {
 	   be significant. -Hans */
 
 	/* znode lock object */
-	reiser4_zlock lock;
+	zlock lock;
 
 	/* what about when it is unallocated?  Did we ever resolve how
 	   we were going to find buffers with unallocated blocknrs?
@@ -344,7 +344,7 @@ typedef enum {
  * implement n<->m relationship between lock owners and lock objects. We call
  * them `lock handles'.
  */
-struct __reiser4_lock_handle {
+struct lock_handle {
 	/**
 	 * This flag indicates that a signal to yield a lock was passed to
 	 * lock owner and counted in owner->nr_signalled 
@@ -354,7 +354,7 @@ struct __reiser4_lock_handle {
 	int signaled;
 	/**
 	 * A link to owner of a lock */
-	reiser4_lock_stack *owner;
+	lock_stack *owner;
 	/**
 	 * A link to znode locked */
 	znode *node;
@@ -369,7 +369,7 @@ struct __reiser4_lock_handle {
 /**
  * A lock stack structure for accumulating locks owned by a process
  */
-struct __reiser4_lock_stack {
+struct lock_stack {
 	/**
 	 * A guard lock protecting a lock stack */
 	spinlock_t sguard;
@@ -399,7 +399,7 @@ struct __reiser4_lock_stack {
 	struct {
 		/**
 		 * A pointer to uninitialized link object */
-		reiser4_lock_handle *handle;
+		lock_handle *handle;
 		/*
 		 * A pointer to the object we want to lock */
 		znode *node;
@@ -441,29 +441,29 @@ struct __reiser4_lock_stack {
  * User-visible znode locking functions
 \*****************************************************************************/
 
-extern int longterm_lock_znode     (reiser4_lock_handle *handle,
+extern int longterm_lock_znode     (lock_handle *handle,
 				   znode               *node,
 				   znode_lock_mode      mode,
 				   znode_lock_request   request);
-extern void longterm_unlock_znode  (reiser4_lock_handle *handle);
+extern void longterm_unlock_znode  (lock_handle *handle);
 
 extern int check_deadlock ( void );
 
-extern reiser4_lock_stack *get_current_lock_stack (void);
+extern lock_stack *get_current_lock_stack (void);
 
-extern void init_lock_stack (reiser4_lock_stack * owner);
-extern void reiser4_init_lock (reiser4_zlock * lock);
+extern void init_lock_stack (lock_stack * owner);
+extern void reiser4_init_lock (zlock * lock);
 
-extern void init_lh (reiser4_lock_handle*);
-extern void move_lh (reiser4_lock_handle *new, reiser4_lock_handle *old);
-extern void done_lh (reiser4_lock_handle*);
+extern void init_lh (lock_handle*);
+extern void move_lh (lock_handle *new, lock_handle *old);
+extern void done_lh (lock_handle*);
 
-extern int  prepare_to_sleep (reiser4_lock_stack *owner);
-extern void go_to_sleep      (reiser4_lock_stack *owner);
-extern void __reiser4_wake_up          (reiser4_lock_stack *owner);
+extern int  prepare_to_sleep (lock_stack *owner);
+extern void go_to_sleep      (lock_stack *owner);
+extern void __reiser4_wake_up          (lock_stack *owner);
 
 extern void show_lock_stack    (reiser4_context    *owner);
-extern int  lock_stack_isclean (reiser4_lock_stack *owner);
+extern int  lock_stack_isclean (lock_stack *owner);
 
 /* zlock object state check macros: only used in assertions.  Both forms imply that the
  * lock is held by the current thread. */
@@ -475,9 +475,9 @@ extern int znode_is_write_locked( const znode *node );
 /* lock ordering is: first take znode spin lock, then lock stack spin lock */
 #define spin_ordering_pred_stack(stack) (1)
 /** Same for lock_stack */
-SPIN_LOCK_FUNCTIONS(stack,reiser4_lock_stack,sguard);
+SPIN_LOCK_FUNCTIONS(stack,lock_stack,sguard);
 
-static inline void reiser4_wake_up (reiser4_lock_stack *owner)
+static inline void reiser4_wake_up (lock_stack *owner)
 {
 	spin_lock_stack(owner);
 	__reiser4_wake_up(owner);

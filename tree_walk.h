@@ -36,7 +36,7 @@ int connect_znode (tree_coord *coord, znode * node);
 
 */
 
-int reiser4_get_parent (reiser4_lock_handle * result, znode * node,
+int reiser4_get_parent (lock_handle * result, znode * node,
 			znode_lock_mode mode, int only_connected_p );
 
 
@@ -53,12 +53,12 @@ typedef enum {
 				 * cache */
 } znode_get_neigbor_flags;
 
-int reiser4_get_neighbor (reiser4_lock_handle * neighbor,
+int reiser4_get_neighbor (lock_handle * neighbor,
 			  znode * node, znode_lock_mode lock_mode, int flags);
 
 /* there are wrappers for most common usages of reiser4_get_neighbor() */
 static inline
-int reiser4_get_left_neighbor (reiser4_lock_handle * result, 
+int reiser4_get_left_neighbor (lock_handle * result, 
 			       znode * node,
 			       int lock_mode, int flags)
 {
@@ -66,12 +66,12 @@ int reiser4_get_left_neighbor (reiser4_lock_handle * result,
 }
 
 static inline
-int reiser4_get_right_neighbor (reiser4_lock_handle * result, znode * node, int lock_mode, int flags)
+int reiser4_get_right_neighbor (lock_handle * result, znode * node, int lock_mode, int flags)
 {
     return reiser4_get_neighbor (result, node, lock_mode, flags & (~GN_GO_LEFT));
 }
 
-extern void invalidate_lock (reiser4_lock_handle *_link);
+extern void invalidate_lock (lock_handle *_link);
 
 extern void sibling_list_remove (znode * node);
 extern void sibling_list_insert (znode *new, znode *before);

@@ -213,6 +213,9 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "key.h"
 #include "kassign.h"
 #include "coords.h"
+#include "tshash.h"
+#include "tslist.h"
+#include "plugin/plugin_header.h"
 #include "plugin/item/static_stat.h"
 #include "plugin/item/internal.h"
 #include "plugin/item/sde.h"
@@ -237,8 +240,6 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "plugin/disk_format/layout_40.h"
 #include "plugin/disk_format/layout.h"
 
-#include "tshash.h"
-#include "tslist.h"
 #include "plugin/plugin.h"
 #include "txnmgr.h"
 #include "znode.h"

@@ -250,7 +250,7 @@ static int read_inode( struct inode * inode /* inode to read from disk */ )
 	int          result;
 	reiser4_key  key;
 	tree_coord  coord;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 
 	assert( "nikita-298", inode != NULL );
 	

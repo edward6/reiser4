@@ -774,7 +774,7 @@ static void optimize_extent (tree_coord * item)
    inserted. Attempt to union adjacent extents is made. So, resulting item may
    be longer, shorter or of the same length as initial item */
 static int add_extents (tree_coord * coord,
-			reiser4_lock_handle * lh,
+			lock_handle * lh,
 			reiser4_key * key,
 			reiser4_item_data * data)
 {
@@ -943,7 +943,7 @@ static reiser4_block_nr in_extent (const tree_coord * coord,
 
 /* insert extent item (containing one unallocated extent of width 1) to place
    set by @coord */
-static int insert_first_block (tree_coord * coord, reiser4_lock_handle * lh,
+static int insert_first_block (tree_coord * coord, lock_handle * lh,
 			       reiser4_key * key, struct buffer_head * bh)
 {
 	int result;
@@ -979,7 +979,7 @@ static int insert_first_block (tree_coord * coord, reiser4_lock_handle * lh,
    block - either by expanding last unallocated extent or by appending a new
    one of width 1 */
 static int append_one_block (tree_coord * coord,
-			     reiser4_lock_handle *lh, struct buffer_head * bh)
+			     lock_handle *lh, struct buffer_head * bh)
 {
 	int result;
 	reiser4_extent * ext, new_ext;
@@ -1024,7 +1024,7 @@ static int append_one_block (tree_coord * coord,
 
 /* @coord is set to hole extent, replace it with unallocated extent of length
    1 and correct amount of hole extents around it */
-static int plug_hole (tree_coord * coord, reiser4_lock_handle * lh,
+static int plug_hole (tree_coord * coord, lock_handle * lh,
 		      reiser4_block_nr off)
 {
 	reiser4_extent * ext,
@@ -1215,7 +1215,7 @@ int extent_utmost_child_real_block ( const tree_coord *coord, sideof side, reise
 
 /* pointer to block for @bh exists in extent item and it is addressed by
    @coord. If it is hole - make unallocated extent for it. */
-static int overwrite_one_block (tree_coord * coord, reiser4_lock_handle * lh,
+static int overwrite_one_block (tree_coord * coord, lock_handle * lh,
 				struct buffer_head * bh,
 				reiser4_block_nr off)
 {
@@ -1271,7 +1271,7 @@ typedef enum {
 /* @coord is set either to the end of last extent item of a file or to a place
    where first item of file has to be inserted to. Calculate size of hole to
    be inserted. If that hole is too big - only part of it is inserted */
-static int add_hole (tree_coord * coord, reiser4_lock_handle * lh,
+static int add_hole (tree_coord * coord, lock_handle * lh,
 		     reiser4_key * key,
 		     extent_write_todo todo)
 {
@@ -1486,7 +1486,7 @@ static int overwritten_entirely (loff_t file_size,
 
 /* map all buffers of @page the write falls to. Number of bytes which can be
    written into @page are returned via @count */
-static int prepare_write (tree_coord * coord, reiser4_lock_handle * lh,
+static int prepare_write (tree_coord * coord, lock_handle * lh,
 			  struct page * page, reiser4_key * key,
 			  unsigned * count)
 {
@@ -1675,7 +1675,7 @@ static int commit_write (struct page * page, reiser4_block_nr file_off,
  * is done in one modification of extent?
  */
 int extent_write (struct inode * inode, tree_coord * coord,
-		  reiser4_lock_handle * lh, flow_t * f)
+		  lock_handle * lh, flow_t * f)
 {
 	int result;
 	struct page * page;
@@ -1788,7 +1788,7 @@ struct readpage_desc {
  */
 static int map_extent (reiser4_tree * tree UNUSED_ARG,
 		       tree_coord * coord,
-		       reiser4_lock_handle *lh UNUSED_ARG, void * arg)
+		       lock_handle *lh UNUSED_ARG, void * arg)
 {
 	reiser4_extent * ext;
 	reiser4_block_nr pos_in_unit, width;
@@ -1894,7 +1894,7 @@ static int map_extent (reiser4_tree * tree UNUSED_ARG,
  * set @coord to an extent containing beginning of the @page
  */
 static int reset_coord (struct page * page,
-			tree_coord * coord, reiser4_lock_handle * lh)
+			tree_coord * coord, lock_handle * lh)
 {
 	int result;
 	reiser4_key key;
@@ -2093,7 +2093,7 @@ static void read_ahead (struct page * page, tree_coord * coord)
  * plugin->u.item.s.file.read
  */
 int extent_read (struct inode * inode, tree_coord * coord,
-		 reiser4_lock_handle * lh, flow_t * f)
+		 lock_handle * lh, flow_t * f)
 {
 	int result;
 	struct page * page;
@@ -2272,7 +2272,7 @@ static void check_resize_result (tree_coord * coord, reiser4_key * key UNUSED_AR
 /* this replaces unallocated extents with allocated ones. @coord may change to
    another node */
 static int allocate_unallocated_extent (tree_coord * coord,
-					reiser4_lock_handle * lh,
+					lock_handle * lh,
 					reiser4_key * key)
 {
 	int result;
@@ -2762,7 +2762,7 @@ int allocate_extent_item_in_place (tree_coord * item, reiser4_blocknr_hint * pre
  * iterate_tree's actor is to test extent allocation
  */
 int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
-		  reiser4_lock_handle * lh UNUSED_ARG, void * arg UNUSED_ARG)
+		  lock_handle * lh UNUSED_ARG, void * arg UNUSED_ARG)
 {
 	reiser4_blocknr_hint preceder;
 

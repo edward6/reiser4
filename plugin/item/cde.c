@@ -856,7 +856,7 @@ char *cde_extract_name( const tree_coord *coord /* coord of item */ )
 /** ->s.dir.add_entry() method for this item plugin */
 int cde_add_entry( const struct inode *dir /* directory object */, 
 		   tree_coord *coord /* coord of item */, 
-		   reiser4_lock_handle *lh /* lock handle for insertion */, 
+		   lock_handle *lh /* lock handle for insertion */, 
 		   const struct dentry *name /* name to insert */, 
 		   reiser4_dir_entry_desc *dir_entry /* parameters of new
 						      * directory entry */ )

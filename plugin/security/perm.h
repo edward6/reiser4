@@ -26,6 +26,9 @@
  *
  */
 typedef struct perm_plugin {
+	/* generic fields */
+	plugin_header           h;
+
 	/** check permissions for read/write */
 	int ( *rw_ok )( struct file *file, const char *buf, 
 			size_t size, loff_t *off, rw_op op );

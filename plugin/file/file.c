@@ -30,7 +30,7 @@ typedef enum {
  * look for item of file @inode corresponding to @key
  */
 static int find_item (reiser4_key * key, tree_coord * coord,
-		      reiser4_lock_handle * lh,
+		      lock_handle * lh,
 		      znode_lock_mode lock_mode)
 {
 	return coord_by_key (current_tree, key, coord, lh,
@@ -122,7 +122,7 @@ write_todo what_todo (struct inode * inode, flow_t * f, tree_coord * coord)
 
 static int tail2extent (struct inode * inode UNUSED_ARG,
 			tree_coord * coord UNUSED_ARG,
-			reiser4_lock_handle * lh UNUSED_ARG)
+			lock_handle * lh UNUSED_ARG)
 {
 	return 0;
 }
@@ -137,7 +137,7 @@ ssize_t ordinary_file_write (struct file * file, char * buf, size_t size,
 	int result;
 	struct inode * inode;
 	tree_coord coord;
-	reiser4_lock_handle lh;	
+	lock_handle lh;	
 	size_t to_write;
 	file_plugin * fplug;
 	item_plugin * iplug;
@@ -230,7 +230,7 @@ int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
 {
 	int result;
 	tree_coord coord;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 	reiser4_key key;
 	item_plugin * iplug;
 	struct readpage_arg arg;
@@ -298,7 +298,7 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 	int result;
 	struct inode * inode;
 	tree_coord coord;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 	size_t to_read;
 	item_plugin * iplug;
 	flow_t f;

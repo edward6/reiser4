@@ -118,6 +118,9 @@ typedef enum {
    The responsibility of the node layout is to store and give access
    to the sequence of items within the node.  */
 typedef struct node_plugin {
+	/* generic fields */
+	plugin_header           h;
+
 	/* calculates the amount of space that will be required to store an
 	   item which is in addition to the space consumed by the item body.
 	   (the space consumed by the item body can be gotten by calling

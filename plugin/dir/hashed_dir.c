@@ -11,7 +11,7 @@
 
 static int create_dot_dotdot( struct inode *object, struct inode *parent );
 static int find_entry( const struct inode *dir, const struct qstr *name, 
-		       tree_coord *coord, reiser4_lock_handle *lh,
+		       tree_coord *coord, lock_handle *lh,
 		       znode_lock_mode mode, reiser4_dir_entry_desc *entry );
 
 /** create sd for directory file. Create stat-data, dot, and dotdot. */
@@ -161,7 +161,7 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 {
 	int                    result;
 	tree_coord             coord;
-	reiser4_lock_handle    lh;
+	lock_handle    lh;
 	const char            *name;
 	int                    len;
 	reiser4_dir_entry_desc entry;
@@ -263,7 +263,7 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 {
 	int                 result;
 	tree_coord          coord;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 
 	assert( "nikita-1114", object != NULL );
 	assert( "nikita-1250", where != NULL );
@@ -327,7 +327,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 {
 	int                 result;
 	tree_coord          coord;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 
 	assert( "nikita-1124", object != NULL );
 	assert( "nikita-1125", where != NULL );
@@ -378,7 +378,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 
 static int entry_actor( reiser4_tree *tree /* tree being scanned */, 
 			tree_coord *coord /* current coord */, 
-			reiser4_lock_handle *lh /* current lock handle */,
+			lock_handle *lh /* current lock handle */,
 			void *args /* argument to scan */ );
 
 typedef struct entry_actor_args {
@@ -392,7 +392,7 @@ typedef struct entry_actor_args {
 	znode_lock_mode mode;
 
 	tree_coord          last_coord;
-	reiser4_lock_handle last_lh;
+	lock_handle last_lh;
 
 } entry_actor_args;
 
@@ -410,7 +410,7 @@ typedef struct entry_actor_args {
 static int find_entry( const struct inode *dir /* directory to scan */, 
 		       const struct qstr *name /* name to search for */, 
 		       tree_coord *coord /* resulting coord */, 
-		       reiser4_lock_handle *lh /* resulting lock handle */,
+		       lock_handle *lh /* resulting lock handle */,
 		       znode_lock_mode mode /* required lock mode */,
 		       reiser4_dir_entry_desc *entry /* parameters of found
 						      * directory entry */ )
@@ -480,7 +480,7 @@ static int find_entry( const struct inode *dir /* directory to scan */,
  */
 static int entry_actor( reiser4_tree *tree /* tree being scanned */, 
 			tree_coord *coord /* current coord */, 
-			reiser4_lock_handle *lh /* current lock handle */,
+			lock_handle *lh /* current lock handle */,
 			void *args /* argument to scan */ )
 {
 	reiser4_key       unit_key;

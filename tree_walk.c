@@ -33,7 +33,7 @@
     each case. This is parameterized by dir argument, which ?word missing here? byte offset for
     neighbor pointer field within znode structure. This function should be
     called with the tree lock held */
-static int lock_neighbor (reiser4_lock_handle * result /* resulting lock
+static int lock_neighbor (lock_handle * result /* resulting lock
 							* handle*/, 
 			  znode * node /* node to lock */,
 			  int dir, /* FIXME: I have no understanding of why this is named this, and it seems like it should be more strongly typed. -Hans */
@@ -100,7 +100,7 @@ static int lock_neighbor (reiser4_lock_handle * result /* resulting lock
 }
 
 /* description is in tree_walk.h */
-int reiser4_get_parent (reiser4_lock_handle * result /* resulting lock
+int reiser4_get_parent (lock_handle * result /* resulting lock
 						      * handle */, 
 			znode * node /* child node */,
 			znode_lock_mode mode /* type of lock: read or write */, 
@@ -129,7 +129,7 @@ int reiser4_get_parent (reiser4_lock_handle * result /* resulting lock
  * bit in @flags parameter 
  */
 static inline
-int lock_side_neighbor( reiser4_lock_handle * result,
+int lock_side_neighbor( lock_handle * result,
 			znode * node,
 			znode_lock_mode mode, int flags)
 {
@@ -207,7 +207,7 @@ static void link_znodes (znode * first, znode * second, int to_left)
  * boundary. Should be called under tree lock, it protects nonexistence of
  * sibling link on parent level, if lock_side_neighbor() fails with
  * -ENOENT. */
-static int far_next_coord (tree_coord * coord, reiser4_lock_handle * handle, int flags)
+static int far_next_coord (tree_coord * coord, lock_handle * handle, int flags)
 {
 	int ret;
 	znode *node;
@@ -248,7 +248,7 @@ static int far_next_coord (tree_coord * coord, reiser4_lock_handle * handle, int
 /** Very significant function which performs a step in horizontal direction
  * when sibling pointer is not available.  Actually, it is only function which
  * does it. */
-static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
+static int renew_sibling_link (tree_coord * coord, lock_handle * handle,
 			       znode * child, tree_level level, int flags, int *nr_locked)
 {
 	int ret;
@@ -336,7 +336,7 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 static int connect_one_side (tree_coord * coord, znode * node, int flags)
 {
 	tree_coord local;
-	reiser4_lock_handle handle;
+	lock_handle handle;
 	int nr_locked;
 	int ret;
 
@@ -410,7 +410,7 @@ int connect_znode (tree_coord * coord, znode * node)
 static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, int flags)
 {
 	tree_coord local;
-	reiser4_lock_handle empty[2];
+	lock_handle empty[2];
 	reiser4_tree * tree = current_tree;
 	znode * neighbor = NULL;
 	int nr_locked = 0;
@@ -471,7 +471,7 @@ static int renew_neighbor (tree_coord * coord, znode * node, tree_level level, i
  * locked.
  */
 
-int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
+int reiser4_get_neighbor (lock_handle * neighbor /* lock handle that
 							  * points to origin
 							  * node we go to
 							  * left/right/upward
@@ -483,7 +483,7 @@ int reiser4_get_neighbor (reiser4_lock_handle * neighbor /* lock handle that
 				     * above) subset. */ )
 {
 	reiser4_tree * tree = current_tree;
-	reiser4_lock_handle path[REAL_MAX_ZTREE_HEIGHT];
+	lock_handle path[REAL_MAX_ZTREE_HEIGHT];
 
 	tree_coord coord;
 

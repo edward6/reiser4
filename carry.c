@@ -979,8 +979,8 @@ int lock_carry_node( carry_level *level /* level @node is in */,
 {
 	int    result;
 	znode *reference_point;
-	reiser4_lock_handle lh;
-	reiser4_lock_handle tmp_lh;
+	lock_handle lh;
+	lock_handle tmp_lh;
 
 	assert( "nikita-887", level != NULL );
 	assert( "nikita-882", node != NULL );

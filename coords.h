@@ -40,7 +40,7 @@ struct tree_coord {
  */
 struct readpage_arg {
 	tree_coord * coord;
-	reiser4_lock_handle * lh;
+	lock_handle * lh;
 };
 
 extern int init_coord( tree_coord *coord );

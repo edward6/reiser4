@@ -19,7 +19,6 @@
  *
  */
 typedef struct reiser4_inode_info {
-	lnode_header            lnode_header;
 	/** plugin of file */
 	file_plugin            *file;
 	/** plugin of dir */
@@ -30,8 +29,10 @@ typedef struct reiser4_inode_info {
 	tail_plugin            *tail;
 	/** hash plugin. Only meaningful for directories. */
 	hash_plugin            *hash;
+#if 0
 	/** plugin of stat-data */
 	item_plugin            *sd;
+#endif
 	/** reiser4-specific inode flags. They are "transient" and 
 	    are not supposed to be stored on a disk. Used to trace
 	    "state" of inode. Bitmasks for this field are defined in 
@@ -44,7 +45,7 @@ typedef struct reiser4_inode_info {
 	short                      sd_len;
 	/** bitmask of non-default plugins for this inode */
 	__u16                      plugin_mask;
-	inter_syscall_ra_hint      ra;
+	inter_syscall_rap          ra;
 	/** locality id for this file */
 	oid_t                      locality_id;
 	/**
@@ -62,7 +63,7 @@ extern dir_plugin *get_dir_plugin( const struct inode *inode );
 extern int reiser4_max_filename_len( const struct inode *inode );
 extern int max_hash_collisions( const struct inode *dir );
 extern sd_plugin *get_sd_plugin( const struct inode *inode );
-extern inter_syscall_ra_hint *inter_syscall_ra( const struct inode *inode );
+extern inter_syscall_rap *inter_syscall_ra( const struct inode *inode );
 extern void reiser4_lock_inode( struct inode *inode );
 extern int reiser4_lock_inode_interruptible( struct inode *inode );
 extern void reiser4_unlock_inode( struct inode *inode );
@@ -76,10 +77,10 @@ extern int reiser4_add_nlink( struct inode *object );
 extern int reiser4_del_nlink( struct inode *object );
 extern int truncate_object( struct inode *inode, loff_t size );
 extern int lookup_sd( struct inode *inode, znode_lock_mode lock_mode, 
-			 tree_coord *coord, reiser4_lock_handle *lh,
+			 tree_coord *coord, lock_handle *lh,
 			 reiser4_key *key );
 int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode, 
-		      tree_coord *coord, reiser4_lock_handle *lh, 
+		      tree_coord *coord, lock_handle *lh, 
 		      reiser4_key *key );
 extern int guess_plugin_by_mode( struct inode *inode );
 extern int common_file_install( struct inode *inode, reiser4_plugin *plug,

@@ -233,9 +233,7 @@ int init_plugins( void )
 			plugin = &ptype -> builtin[ i ];
 				
 			if( plugin -> h.label == NULL )
-				/*
-				 * uninitialized slot encountered
-				 */
+				/* uninitialized slot encountered */
 				continue;
 			if( plugin -> h.type_id != type_id )
 				BUG();
@@ -553,18 +551,16 @@ extern reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ];
 
 reiser4_plugin hook_plugins[] = {
 	[ DUMP_HOOK_ID ] = {
-		.h = {
-			.type_id = REISER4_HOOK_PLUGIN_TYPE,
-			.id      = DUMP_HOOK_ID,
-			.pops    = NULL,
-			.label   = "dump",
-			.desc    = "dump hook",
-			.linkage = TS_LIST_LINK_ZERO,
-		},
-		.u = {
-			.hook = {
-				.hook = dump_hook
-			}
+		.hook = {
+			.h = {
+				.type_id = REISER4_HOOK_PLUGIN_TYPE,
+				.id      = DUMP_HOOK_ID,
+				.pops    = NULL,
+				.label   = "dump",
+				.desc    = "dump hook",
+				.linkage = TS_LIST_LINK_ZERO,
+			},
+			.hook = dump_hook
 		}
 	}
 };

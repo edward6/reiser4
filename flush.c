@@ -40,9 +40,9 @@ static int           flush_preceder_rightmost     (const tree_coord *parent_coor
 static int           flush_should_relocate        (jnode *node, const tree_coord *parent_coord);
 
 static int           flush_lock_greatest_dirty_ancestor (jnode                *start,
-							 reiser4_lock_handle  *start_lock,
+							 lock_handle  *start_lock,
 							 jnode               **gda,
-							 reiser4_lock_handle  *gda_lock,
+							 lock_handle  *gda_lock,
 							 reiser4_blocknr_hint *preceder);
 
 static int           squalloc_parent_first              (jnode *gda, reiser4_blocknr_hint *preceder);
@@ -55,7 +55,7 @@ static int           shift_one_internal_unit            (znode *left, znode *rig
 
 static int           jnode_lock_parent_coord      (jnode *node,
 						   tree_coord *coord,
-						   reiser4_lock_handle *parent_lh,
+						   lock_handle *parent_lh,
 						   znode_lock_mode mode);
 static jnode*        jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index);
 static int           jnode_is_allocated           (jnode *node);
@@ -76,7 +76,7 @@ int jnode_flush (jnode *node)
 {
 	int ret;
 	jnode *gda = NULL;             /* gda == greatest dirty ancestor, jref'd when set. */
-	reiser4_lock_handle  gda_lock; /* if gda is formatted, a write lock */
+	lock_handle  gda_lock; /* if gda is formatted, a write lock */
 	reiser4_blocknr_hint preceder; /* hint for block allocation */
 
 	preceder.blk = 0;
@@ -141,9 +141,9 @@ int jnode_flush (jnode *node)
  * is returned.
  */
 static int flush_lock_greatest_dirty_ancestor (jnode                *start_node,
-					       reiser4_lock_handle  *start_lock,
+					       lock_handle  *start_lock,
 					       jnode               **gda,
-					       reiser4_lock_handle  *gda_lock,
+					       lock_handle  *gda_lock,
 					       reiser4_blocknr_hint *preceder)
 {
 	int ret;
@@ -151,8 +151,8 @@ static int flush_lock_greatest_dirty_ancestor (jnode                *start_node,
 	znode *parent_node;
 	flush_scan level_scan;
 	tree_coord parent_coord;
-	reiser4_lock_handle end_lock;
-	reiser4_lock_handle parent_lock;
+	lock_handle end_lock;
+	lock_handle parent_lock;
 
 	flush_scan_init (& level_scan);
 	init_lh        (& parent_lock);
@@ -340,7 +340,7 @@ static int flush_preceder_hint (jnode *gda,
 	znode *parent;
 	tree_coord coord;
 	common_item_plugin *iplug;
-	reiser4_lock_handle parent_lock;
+	lock_handle parent_lock;
 
 	/* If the preceder is already initialized, return. */
 	if (preceder->blk != 0) {
@@ -482,7 +482,7 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 {
 	int ret, goright;
 	znode *right;
-	reiser4_lock_handle right_lock;
+	lock_handle right_lock;
 	int squeeze;
 
         /* Stop recursion if its not dirty, meaning don't allocate children
@@ -935,7 +935,7 @@ static int jnode_allocate_flush (jnode *node, reiser4_blocknr_hint *preceder)
 static int
 jnode_lock_parent_coord (jnode *node,
 			 tree_coord *coord,
-			 reiser4_lock_handle *parent_lh,
+			 lock_handle *parent_lh,
 			 znode_lock_mode parent_mode)
 {
 	int ret;
@@ -1034,7 +1034,7 @@ static void flush_scan_set_current (flush_scan *scan, jnode *node)
 static int flush_scan_left_using_parent (flush_scan *scan)
 {
 	int ret;
-	reiser4_lock_handle node_lh, parent_lh, left_parent_lh;
+	lock_handle node_lh, parent_lh, left_parent_lh;
 	tree_coord coord;
 	common_item_plugin *iplug;
 	jnode *child_left;

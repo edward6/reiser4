@@ -28,10 +28,10 @@ typedef struct simple_dir_item_plugin {
 	 */
 	unsigned ( *simple_extract_file_type )( const tree_coord *coord );
 	int ( *simple_add_entry )( const struct inode *dir,
-				   tree_coord *coord, reiser4_lock_handle *lh,
+				   tree_coord *coord, lock_handle *lh,
 				   const struct dentry *name, reiser4_dir_entry_desc *entry );
 	int ( *simple_rem_entry )( const struct inode *dir,
-				   tree_coord *coord, reiser4_lock_handle *lh,
+				   tree_coord *coord, lock_handle *lh,
 				   reiser4_dir_entry_desc *entry );
 	int ( *simple_max_name_len )( int block_size );
 } simple_dir_item_plugin;
@@ -59,10 +59,10 @@ int   de_extract_key  ( const tree_coord *coord, reiser4_key *key );
 char *de_extract_name ( const tree_coord *coord );
 unsigned de_extract_file_type( const tree_coord *coord );
 int   de_add_entry    ( const struct inode *dir, tree_coord *coord, 
-			reiser4_lock_handle *lh, const struct dentry *name, 
+			lock_handle *lh, const struct dentry *name, 
 			reiser4_dir_entry_desc *entry );
 int   de_rem_entry    ( const struct inode *dir, tree_coord *coord, 
-			reiser4_lock_handle *lh, reiser4_dir_entry_desc *entry );
+			lock_handle *lh, reiser4_dir_entry_desc *entry );
 int   de_max_name_len ( int block_size );
 
 /* __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__ */

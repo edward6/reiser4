@@ -1381,7 +1381,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		} sd;
 
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
-			reiser4_lock_handle lh;
+			lock_handle lh;
 
 			init_coord( &coord );
 			init_lh( &lh );
@@ -1510,7 +1510,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		} sd;
 
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
-			reiser4_lock_handle lh;
+			lock_handle lh;
 
 			init_coord( &coord );
 			init_lh( &lh );
@@ -1587,8 +1587,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		STYPE( txn_atom );
 		STYPE( kcondvar_t );
 		STYPE( spinlock_t );
-		STYPE( reiser4_zlock );
-		STYPE( reiser4_lock_handle );
+		STYPE( zlock );
+		STYPE( lock_handle );
 		STYPE( tree_coord );
 	} else if( !strcmp( argv[ 2 ], "binseq" ) ) {
 		if( argc == 4 )
@@ -1620,7 +1620,7 @@ static struct inode * create_root_dir (znode * root)
 	} sd;
 	int ret;
 	carry_insert_data cdata;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 
 
 	init_carry_pool( &pool );
@@ -1713,7 +1713,7 @@ int insert_item (struct inode *inode,
 		 reiser4_key * key)
 {
 	tree_coord coord;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 	tree_level level;
 	int result;
 
@@ -1880,7 +1880,7 @@ static int call_readdir_long (struct inode * dir, const char *prefix)
 
 
 int alloc_extent (reiser4_tree *, tree_coord *,
-		  reiser4_lock_handle *, void *);
+		  lock_handle *, void *);
 
 #define BUFSIZE 255
 
@@ -2217,7 +2217,7 @@ static void diff (const char * full_name,
 static void allocate_unallocated (reiser4_tree * tree)
 {
 	tree_coord coord;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 	reiser4_key key;
 	int result;
 
@@ -2252,9 +2252,9 @@ static void allocate_unallocated (reiser4_tree * tree)
 int squalloc_right_neighbor (znode * left, znode * right, 
 			     reiser4_blocknr_hint *preceder);
 static int do_twig_squeeze (reiser4_tree * tree, tree_coord * coord,
-			    reiser4_lock_handle * lh, void * arg UNUSED_ARG)
+			    lock_handle * lh, void * arg UNUSED_ARG)
 {
-	reiser4_lock_handle right_lock;
+	lock_handle right_lock;
 	int result;
 	reiser4_block_nr da;
 	reiser4_blocknr_hint preceder;
@@ -2320,7 +2320,7 @@ static int do_twig_squeeze (reiser4_tree * tree, tree_coord * coord,
 static void squeeze_twig_level (reiser4_tree * tree)
 {
 	tree_coord coord;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 	reiser4_key key;
 	int result;
 
@@ -2784,7 +2784,7 @@ void* build_test_handler (void* arg)
 
 	for (;;) {
 		reiser4_item_data      data;
-		reiser4_lock_handle    lock;
+		lock_handle    lock;
 		jmacd_sd               sd;
 		tree_coord            coord;
 		reiser4_key            key;
@@ -2851,7 +2851,7 @@ void* drive_test_handler (void* arg)
 
 	for (;;) {
 		reiser4_item_data      data;
-		reiser4_lock_handle    lock;
+		lock_handle    lock;
 		jmacd_sd               sd;
 		tree_coord             coord;
 		reiser4_key            key, next_key;

@@ -413,7 +413,7 @@ int get_inv_entry (struct inode * invert_inode, /* inode of invert's body */
 	
 	if (type == LIGHT_WEIGHT_FILE) {
 		tree_coord coord;
-		reiser4_lock_handle lh;
+		lock_handle lh;
 		
 		assert ("edward-108", key != NULL);
 		

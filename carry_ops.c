@@ -104,7 +104,7 @@ static carry_node *find_right_neighbor( carry_node *node /* node to find right
 {
 	int         result;
 	carry_node *right;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 
 	init_lh( &lh );
 

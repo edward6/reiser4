@@ -251,7 +251,7 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 	/* obtain and lock "fake" znode protecting changes in tree height. */
 	fake = zget( tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL );
 	if( !IS_ERR( fake ) ) {
-		reiser4_lock_handle handle_for_fake;
+		lock_handle handle_for_fake;
 
 		init_lh( &handle_for_fake );
 		result = longterm_lock_znode( &handle_for_fake, 

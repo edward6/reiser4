@@ -73,7 +73,7 @@ static void key_warning( const char *error_message /* message to print */,
 int lookup_sd( struct inode *inode /* inode to look sd for */, 
 	       znode_lock_mode lock_mode /* lock mode */, 
 	       tree_coord *coord /* resulting coord */, 
-	       reiser4_lock_handle *lh /* resulting lock handle */, 
+	       lock_handle *lh /* resulting lock handle */, 
 	       reiser4_key *key /* resulting key */ )
 {
 	assert( "nikita-1692", inode != NULL );
@@ -89,7 +89,7 @@ int lookup_sd( struct inode *inode /* inode to look sd for */,
 int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */, 
 		      znode_lock_mode lock_mode /* lock mode */, 
 		      tree_coord *coord /* resulting coord */, 
-		      reiser4_lock_handle *lh /* resulting lock handle */, 
+		      lock_handle *lh /* resulting lock handle */, 
 		      reiser4_key *key /* resulting key */ )
 
 {
@@ -158,7 +158,7 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 	const char *error_message;
 	char *area;
 	inodes_plugins *ref;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 	oid_allocator_plugin *oplug;
 	oid_t oid;
 
@@ -269,7 +269,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 	reiser4_item_data  data;
 	const char *error_message;
 	inodes_plugins *state;
-	reiser4_lock_handle lh;
+	lock_handle lh;
 
 	assert( "nikita-726", inode != NULL );
 

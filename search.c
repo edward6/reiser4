@@ -293,8 +293,8 @@ typedef struct cbk_handle {
 	/** result passed back to caller */
 	lookup_result        result;
 	/** lock handles for active and parent */
-	reiser4_lock_handle *parent_lh;
-	reiser4_lock_handle *active_lh;
+	lock_handle *parent_lh;
+	lock_handle *active_lh;
 	reiser4_key          ld_key;
 	reiser4_key          rd_key;
 	__u32                flags;
@@ -344,7 +344,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 						* in "coord" are only valid if
 						* coord_by_key() returned
 						* "CBK_COORD_FOUND" */,
-			    reiser4_lock_handle *lh ,
+			    lock_handle *lh ,
 			    znode_lock_mode lock_mode /* type of lookup we
 						       * want on node. Pass
 						       * ZNODE_READ_LOCK here
@@ -368,7 +368,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 			    __u32      flags /* search flags */ )
 {
 	cbk_handle          handle;
-	reiser4_lock_handle parent_lh;
+	lock_handle parent_lh;
 
 	init_lh(lh);
 	init_lh(&parent_lh);
@@ -407,7 +407,7 @@ lookup_result coord_by_key( reiser4_tree *tree /* tree to perform search
 
 /* relook for @key in the tree if @coord is not set correspondingly already */
 int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
-			   tree_coord * coord, reiser4_lock_handle * lh,
+			   tree_coord * coord, lock_handle * lh,
 			   lookup_bias bias,
 			   tree_level lock_level,/* at which level to start
 						    getting write locks */
@@ -443,7 +443,7 @@ int coord_by_hint_and_key (reiser4_tree * tree, const reiser4_key * key,
  */
 int iterate_tree( reiser4_tree *tree /* tree to scan */, 
 		  tree_coord *coord /* coord to start from */, 
-		  reiser4_lock_handle *lh /* lock handle to start with and to
+		  lock_handle *lh /* lock handle to start with and to
 					   * update along the way */, 
 		  tree_iterate_actor_t actor /* function to call on each
 					      * item/unit */, 
@@ -469,7 +469,7 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 		    ( !through_units_p && ( coord -> item_pos + 1u == 
 					    node_num_items( coord -> node ) ) ) ) {
 			do {
-				reiser4_lock_handle couple;
+				lock_handle couple;
 
 				/* 
 				 * move to the next node 
@@ -716,7 +716,7 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
  * returned. If that item is in another node - @coord and @lh are switched to
  * that node
  */
-static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
+static int is_next_item_internal( tree_coord *coord,  lock_handle *lh )
 {
 	common_item_plugin *iplug;
 	int result;
@@ -736,7 +736,7 @@ static int is_next_item_internal( tree_coord *coord,  reiser4_lock_handle *lh )
 		/*
 		 * look for next item in right neighboring node
 		 */
-		reiser4_lock_handle right_lh;
+		lock_handle right_lh;
 		tree_coord right;
 
 
@@ -809,7 +809,7 @@ static reiser4_key *rd_key( tree_coord *coord, reiser4_key *key )
  * this is used to insert empty node into leaf level if tree lookup can not go
  * further down because it stopped between items of not internal type
  */
-static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
+static int add_empty_leaf( tree_coord *insert_coord, lock_handle *lh,
 			   const reiser4_key *key, const reiser4_key *rdkey )
 {
 	int result;
@@ -1271,7 +1271,7 @@ static level_lookup_result search_to_left( cbk_handle *h /* search handle */ )
 	znode              *node;
 	znode              *neighbor;
 
-	reiser4_lock_handle lh;
+	lock_handle lh;
 
 	assert( "nikita-1761", h != NULL );
 	assert( "nikita-1762", h -> level == h -> slevel );

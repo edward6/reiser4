@@ -88,9 +88,9 @@ int           extent_utmost_child      (const tree_coord *coord, sideof side, jn
 /*
  * plugin->u.item.s.file.*
  */
-int extent_write    (struct inode *, tree_coord *, reiser4_lock_handle *,
+int extent_write    (struct inode *, tree_coord *, lock_handle *,
 		     flow_t *);
-int extent_read     (struct inode *, tree_coord *, reiser4_lock_handle *,
+int extent_read     (struct inode *, tree_coord *, lock_handle *,
 		     flow_t *);
 int extent_readpage (void * arg, struct page * page);
 
@@ -103,9 +103,9 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 
 typedef struct extent_item_plugin {
 	int (* write) (struct inode *, tree_coord *,
-		       reiser4_lock_handle *, flow_t *);
+		       lock_handle *, flow_t *);
 	int (* read) (struct inode *, tree_coord *,
-		      reiser4_lock_handle *, flow_t *);
+		      lock_handle *, flow_t *);
 	int (* readpage) (void *, struct page *);
 	common_item_plugin * common;
 } extent_item_plugin;

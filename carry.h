@@ -62,10 +62,10 @@ typedef struct carry_node {
 	__u32               track       :1;
 
 	/** type of lock we want to take on this node */
-	reiser4_lock_handle  lock_handle;
+	lock_handle  lock_handle;
 	/** lock handle supplied by user that we are tracking. See
 	 * above. */
-	reiser4_lock_handle *tracked;
+	lock_handle *tracked;
 } carry_node;
 
 /** 

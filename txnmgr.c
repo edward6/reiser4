@@ -74,7 +74,7 @@ typedef struct _txn_wait_links txn_wait_links;
 
 struct _txn_wait_links
 {
-	reiser4_lock_stack *_lock_stack;
+	lock_stack *_lock_stack;
 	fwaitfor_list_link  _fwaitfor_link;
 	fwaiting_list_link  _fwaiting_link;
 };

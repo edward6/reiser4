@@ -58,10 +58,10 @@ int           cde_check      ( tree_coord *coord, const char **error );
 int   cde_extract_key  ( const tree_coord *coord, reiser4_key *key );
 char *cde_extract_name ( const tree_coord *coord );
 int   cde_add_entry    ( const struct inode *dir, tree_coord *coord, 
-			 reiser4_lock_handle *lh, const struct dentry *name, 
+			 lock_handle *lh, const struct dentry *name, 
 			 reiser4_dir_entry_desc *entry );
 int   cde_rem_entry    ( const struct inode *dir, tree_coord *coord, 
-			 reiser4_lock_handle *lh, reiser4_dir_entry_desc *entry );
+			 lock_handle *lh, reiser4_dir_entry_desc *entry );
 int   cde_max_name_len ( int block_size );
 
 reiser4_key  *cde_max_key_inside( const tree_coord *coord, 
@@ -86,10 +86,10 @@ typedef struct compound_dir_item_plugin {
 	 */
 	unsigned ( *compound_extract_file_type )( const tree_coord *coord );
 	int ( *compound_add_entry )( const struct inode *dir,
-				     tree_coord *coord, reiser4_lock_handle *lh,
+				     tree_coord *coord, lock_handle *lh,
 				     const struct dentry *name, reiser4_dir_entry_desc *entry );
 	int ( *compound_rem_entry )( const struct inode *dir,
-				     tree_coord *coord, reiser4_lock_handle *lh,
+				     tree_coord *coord, lock_handle *lh,
 				     reiser4_dir_entry_desc *entry );
 	int ( *compound_max_name_len )( int block_size );
 } compound_dir_item_plugin;

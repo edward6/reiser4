@@ -9,20 +9,20 @@
 #if !defined( __REISER4_FORWARD_H__ )
 #define __REISER4_FORWARD_H__
 
-typedef struct zlock reiser4_zlock;
-typedef struct lock_stack reiser4_lock_stack;
-typedef struct lock_handle reiser4_lock_handle;
+typedef struct zlock zlock;
+typedef struct lock_stack lock_stack;
+typedef struct lock_handle lock_handle;
 typedef struct znode znode;
 typedef struct flow flow_t;
 typedef struct tree_coord tree_coord;
 typedef struct item_coord item_coord;
 typedef struct shift_params shift_params;
 typedef struct reiser4_object_create_data reiser4_object_create_data;
-typedef struct reiser4_plugin reiser4_plugin;
+typedef union  reiser4_plugin reiser4_plugin;
 typedef struct common_item_plugin common_item_plugin;
 typedef struct reiser4_item_data reiser4_item_data;
-typedef union reiser4_key reiser4_key;
-typedef union reiser4_dblock_nr reiser4_dblock_nr;
+typedef union  reiser4_key reiser4_key;
+typedef union  reiser4_dblock_nr reiser4_dblock_nr;
 typedef struct reiser4_tree reiser4_tree;
 typedef struct carry_tree_op carry_tree_op;
 typedef struct carry_tree_node carry_tree_node;
@@ -177,6 +177,7 @@ struct name {
 typedef struct name name_t;
 
 typedef union lnode lnode;
+
 
 /* __REISER4_FORWARD_H__ */
 #endif

@@ -228,8 +228,8 @@
  * The following data structures are used in reiser4 locking
  * implementation:
  *
- * Lock owner (reiser4_lock_stack) is an lock objects accumulator. It
- * has a list of special link objects (reiser4_lock_handle) each one
+ * Lock owner (lock_stack) is an lock objects accumulator. It
+ * has a list of special link objects (lock_handle) each one
  * has a pointer to lock object this lock owner owns.  Reiser4 lock
  * object (reiser4_lock) has list of link objects of same type each
  * one points to lock owner object -- this lock object owner.  This
@@ -251,8 +251,8 @@
  * SHORT_TERM LOCKING
  *
  * We use following scheme for protection of shared objects in smp
- * environment: locks (reiser4_zlock objects) and lock owners
- * (reiser4_lock_stack objects) have own spinlocks. The spinlock at
+ * environment: locks (zlock objects) and lock owners
+ * (lock_stack objects) have own spinlocks. The spinlock at
  * lock object protects all lock object fields and double-linked lists
  * of requesters and owner_links. The spinlock in lock_stack structure
  * protects only owner->nr_hipri_requests flag. There is simple rule to avoid
@@ -324,9 +324,9 @@
 #include "reiser4.h"
 
 /* defining of list manipulation functions for lists declared in znode.h */
-TS_LIST_DEFINE(requestors, reiser4_lock_stack, requestors_link);
-TS_LIST_DEFINE(owners, reiser4_lock_handle, owners_link);
-TS_LIST_DEFINE(locks, reiser4_lock_handle, locks_link);
+TS_LIST_DEFINE(requestors, lock_stack, requestors_link);
+TS_LIST_DEFINE(owners, lock_handle, owners_link);
+TS_LIST_DEFINE(locks, lock_handle, locks_link);
 
 /* In general I think these macros should not be exposed. */
 #define znode_is_locked(node)          ((node)->lock.nr_readers != 0)
@@ -341,7 +341,7 @@ TS_LIST_DEFINE(locks, reiser4_lock_handle, locks_link);
 /**
  * Returns a lock owner associated with current thread
  */
-reiser4_lock_stack* get_current_lock_stack ( void )
+lock_stack* get_current_lock_stack ( void )
 {
 	return &get_current_context()->stack;
 }
@@ -351,7 +351,7 @@ reiser4_lock_stack* get_current_lock_stack ( void )
  */
 static void wake_up_all_lopri_owners (znode *node)
 {
-	reiser4_lock_handle *handle = owners_list_front(&node->lock.owners);
+	lock_handle *handle = owners_list_front(&node->lock.owners);
 
 	assert("nikita-1824", spin_znode_is_locked(node));
 	while (!owners_list_end(&node->lock.owners, handle)) {
@@ -380,7 +380,7 @@ static void wake_up_all_lopri_owners (znode *node)
  * to a lock.
  */
 static inline void link_object (
-	reiser4_lock_handle *handle, reiser4_lock_stack *owner, znode *node
+	lock_handle *handle, lock_stack *owner, znode *node
 )
 {
 	assert ("jmacd-810", handle->owner == NULL);
@@ -399,7 +399,7 @@ static inline void link_object (
 /*
  * Breaks a relation between a lock and its owner
  */
-static inline void unlink_object (reiser4_lock_handle *handle)
+static inline void unlink_object (lock_handle *handle)
 {
 	assert ("zam-354", handle->owner != NULL);
 	assert ("nikita-1608", handle->node != NULL);
@@ -416,7 +416,7 @@ static inline void unlink_object (reiser4_lock_handle *handle)
 /*
  * Actually locks an object knowing that we are able to do this
  */
-static void lock_object (reiser4_lock_stack *owner, znode *node)
+static void lock_object (lock_stack *owner, znode *node)
 {
 	assert("nikita-1834", spin_znode_is_locked(node));
 	assert("nikita-1839", owner == get_current_lock_stack());
@@ -441,7 +441,7 @@ static void lock_object (reiser4_lock_stack *owner, znode *node)
 /**
  * Check for recursive write locking
  */
-static int recursive (reiser4_lock_stack *owner, znode *node)
+static int recursive (lock_stack *owner, znode *node)
 {
 	int ret;
 	/*
@@ -464,8 +464,8 @@ static int recursive (reiser4_lock_stack *owner, znode *node)
 /* Returns true if the lock is held by the calling thread. */
 int znode_is_any_locked( const znode *node )
 {
-	reiser4_lock_handle *handle;
-	reiser4_lock_stack  *stack;
+	lock_handle *handle;
+	lock_stack  *stack;
 	int ret;
 	
 	if (! znode_is_locked( node )) {
@@ -496,8 +496,8 @@ int znode_is_any_locked( const znode *node )
 /* Returns true if a write lock is held by the calling thread. */
 int znode_is_write_locked( const znode *node )
 {
-	reiser4_lock_stack  *stack;
-	reiser4_lock_handle *handle;
+	lock_stack  *stack;
+	lock_handle *handle;
 	
 	if( ! znode_is_wlocked( node ) ) {
 		return 0;
@@ -534,7 +534,7 @@ static inline int check_deadlock_condition (znode *node)
 /**
  * checks lock/request compatibility
  */
-static int can_lock_object (reiser4_lock_stack *owner, znode *node)
+static int can_lock_object (lock_stack *owner, znode *node)
 {
 	assert("nikita-1842", owner == get_current_lock_stack());
 	assert("nikita-1843", spin_znode_is_locked(node));
@@ -564,12 +564,12 @@ static int can_lock_object (reiser4_lock_stack *owner, znode *node)
  * because znode locked by high-priority process can't satisfy our "deadlock
  * condition".
  */
-static void set_high_priority(reiser4_lock_stack *owner)
+static void set_high_priority(lock_stack *owner)
 {
 	assert("nikita-1846", owner == get_current_lock_stack());
 	/* Do nothing if current priority is already high */
 	if (!owner->curpri) {
-		reiser4_lock_handle *item = locks_list_front(&owner->locks);
+		lock_handle *item = locks_list_front(&owner->locks);
 		while (!locks_list_end(&owner->locks, item)) {
 			znode *node = item->node;
 
@@ -591,7 +591,7 @@ static void set_high_priority(reiser4_lock_stack *owner)
 /**
  * Sets a low priority to the process.
  */
-static void set_low_priority(reiser4_lock_stack *owner)
+static void set_low_priority(lock_stack *owner)
 {
 	/* Do nothing if current priority is already low */
 	if (owner->curpri) {
@@ -600,7 +600,7 @@ static void set_low_priority(reiser4_lock_stack *owner)
 		 * actually current thread, and check whether we are reaching
 		 * deadlock possibility anywhere.
 		 */
-		reiser4_lock_handle *handle = locks_list_front(&owner->locks);
+		lock_handle *handle = locks_list_front(&owner->locks);
 		while (!locks_list_end(&owner->locks, handle)) {
 			znode *node = handle->node;
 			spin_lock_znode(node);
@@ -633,10 +633,10 @@ static void set_low_priority(reiser4_lock_stack *owner)
 /**
  * unlock a znode long term lock
  */
-void longterm_unlock_znode (reiser4_lock_handle *handle)
+void longterm_unlock_znode (lock_handle *handle)
 {
 	znode *node =  handle->node;
-	reiser4_lock_stack *oldowner = handle->owner;
+	lock_stack *oldowner = handle->owner;
 
 	assert ("jmacd-1021", handle != NULL);
 	assert ("jmacd-1022", handle->owner != NULL);
@@ -703,7 +703,7 @@ void longterm_unlock_znode (reiser4_lock_handle *handle)
 
 	/* If there are pending lock requests we wake up a requestor */
 	if (!requestors_list_empty(&node->lock.requestors)) {
-		reiser4_lock_stack *requestor;
+		lock_stack *requestor;
 
 		requestor = requestors_list_front(&node->lock.requestors);
 		reiser4_wake_up(requestor);
@@ -722,7 +722,7 @@ void longterm_unlock_znode (reiser4_lock_handle *handle)
  */
 int longterm_lock_znode (
 	/* local link object (may be allocated on the process owner); */
-	reiser4_lock_handle *handle,
+	lock_handle *handle,
 	/* znode we want to lock. */
 	znode               *node ,
 	/* {ZNODE_READ_LOCK, ZNODE_WRITE_LOCK, ZNODE_WRITE_IF_DIRTY}; */
@@ -736,7 +736,7 @@ int longterm_lock_znode (
 	int wake_up_next = 0;
 
 	/* Get current process context */
-	reiser4_lock_stack *owner = get_current_lock_stack();
+	lock_stack *owner = get_current_lock_stack();
 
 	/* Check that the lock handle is initialized and isn't already being used. */
 	assert ("jmacd-808", handle->owner == NULL);
@@ -882,7 +882,7 @@ int longterm_lock_znode (
 	}
 
 	if (wake_up_next && !requestors_list_empty(&node->lock.requestors)) {
-		reiser4_lock_stack *next =
+		lock_stack *next =
 			requestors_list_front(&node->lock.requestors);
 		reiser4_wake_up(next);
 	}
@@ -904,14 +904,14 @@ int longterm_lock_znode (
  * lock object invalidation means changing of lock object state to `INVALID'
  * and waiting for all other processes to cancel theirs lock requests.
  */
-void invalidate_lock (reiser4_lock_handle *handle /* path to lock
+void invalidate_lock (lock_handle *handle /* path to lock
 							   * owner and lock
 							   * object is being
 							   * invalidated. */ )
 {
 	znode *node = handle->node;
-	reiser4_lock_stack *owner = handle->owner;
-	reiser4_lock_stack *rq;
+	lock_stack *owner = handle->owner;
+	lock_stack *rq;
 
 	assert("zam-325", owner == get_current_lock_stack());
 
@@ -957,7 +957,7 @@ void invalidate_lock (reiser4_lock_handle *handle /* path to lock
  * User visible znode locking function. Differs from internal lock_znode() in incrementing
  * znode usage counter.  A lock handle counts its own znode reference (in some situations
  * it could be the only reference). */
-int reiser4_lock_znode (reiser4_lock_handle *handle,
+int reiser4_lock_znode (lock_handle *handle,
 			znode               *node, /* it locks this node? */
 			znode_lock_mode      mode, /* read or write */
 			znode_lock_request   request)
@@ -981,7 +981,7 @@ int reiser4_lock_znode (reiser4_lock_handle *handle,
  * User visible znode unlocking function. Differs from internal unlock_znode()
  * in decrementing znode usage counter.
  */
-void reiser4_unlock_znode (reiser4_lock_handle *handle)
+void reiser4_unlock_znode (lock_handle *handle)
 {
 	znode *node;
 
@@ -1000,11 +1000,11 @@ void reiser4_unlock_znode (reiser4_lock_handle *handle)
 /**
  * Initializes lock_stack.
  */
-void init_lock_stack (reiser4_lock_stack *owner /* pointer to
+void init_lock_stack (lock_stack *owner /* pointer to
 							 * allocated
 							 * structure. */)
 {
-	xmemset(owner, 0, sizeof(reiser4_lock_stack));
+	xmemset(owner, 0, sizeof(lock_stack));
 	locks_list_init(&owner->locks);
 	requestors_list_clean (owner);
 	spin_lock_init(&owner->sguard);
@@ -1015,17 +1015,17 @@ void init_lock_stack (reiser4_lock_stack *owner /* pointer to
 /**
  * Initializes lock object.
  */
-void reiser4_init_lock (reiser4_zlock *lock /* pointer on allocated
+void reiser4_init_lock (zlock *lock /* pointer on allocated
 					     * uninitialized lock object
 					     * structure. */ )
 {
-	xmemset(lock, 0, sizeof(reiser4_zlock));
+	xmemset(lock, 0, sizeof(zlock));
 	requestors_list_init(&lock->requestors);
 	owners_list_init(&lock->owners);
 }
 
 /* lock handle initialization */
-void init_lh (reiser4_lock_handle *handle)
+void init_lh (lock_handle *handle)
 {
 	xmemset(handle, 0, sizeof *handle);
 	locks_list_clean(handle);
@@ -1033,7 +1033,7 @@ void init_lh (reiser4_lock_handle *handle)
 }
 
 /* freeing of lock handle resources */
-void done_lh (reiser4_lock_handle *handle)
+void done_lh (lock_handle *handle)
 {
 	assert ("zam-342", handle != NULL);
 	if (handle->owner != NULL)
@@ -1044,10 +1044,10 @@ void done_lh (reiser4_lock_handle *handle)
  * Transfer a lock handle (presumably so that variables can be moved between stack and
  * heap locations).
  */
-void move_lh (reiser4_lock_handle * new, reiser4_lock_handle * old)
+void move_lh (lock_handle * new, lock_handle * old)
 {
 	znode * node = old -> node;
-	reiser4_lock_stack * owner = old -> owner;
+	lock_stack * owner = old -> owner;
 	int signaled;
 
 	/*
@@ -1073,14 +1073,14 @@ void move_lh (reiser4_lock_handle * new, reiser4_lock_handle * old)
 /* after getting -EDEADLK we unlock znodes until this function returns false */
 int check_deadlock ( void )
 {
-	reiser4_lock_stack * owner = get_current_lock_stack();
+	lock_stack * owner = get_current_lock_stack();
 	return atomic_read(&owner->nr_signaled) != 0;
 }
 
 /**
  * Reset the semaphore (under protection of lock_stack spinlock) to avoid lost
  * wake-up. */
-int prepare_to_sleep (reiser4_lock_stack *owner)
+int prepare_to_sleep (lock_stack *owner)
 {
 	assert("nikita-1847", owner == get_current_lock_stack());
 
@@ -1121,7 +1121,7 @@ int prepare_to_sleep (reiser4_lock_stack *owner)
 /*
  * Wakes up a single thread
  */
-void __reiser4_wake_up (reiser4_lock_stack *owner)
+void __reiser4_wake_up (lock_stack *owner)
 {
 	up(&owner->sema);
 }
@@ -1129,12 +1129,12 @@ void __reiser4_wake_up (reiser4_lock_stack *owner)
 /*
  * Puts a thread to sleep
  */
-void go_to_sleep (reiser4_lock_stack *owner)
+void go_to_sleep (lock_stack *owner)
 {
 	down(&owner->sema);
 }
 
-int lock_stack_isclean (reiser4_lock_stack *owner)
+int lock_stack_isclean (lock_stack *owner)
 {
 	if (locks_list_empty (& owner->locks)) {
 		assert ("zam-353", atomic_read(&owner->nr_signaled) == 0);
@@ -1149,8 +1149,8 @@ int lock_stack_isclean (reiser4_lock_stack *owner)
  */
 void show_lock_stack (reiser4_context *context)
 {
-	reiser4_lock_handle *handle;
-	reiser4_lock_stack  *owner = & context->stack;
+	lock_handle *handle;
+	lock_stack  *owner = & context->stack;
 
 	spin_lock_stack (owner);
 

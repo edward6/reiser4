@@ -79,7 +79,7 @@ unsigned de_extract_file_type( const tree_coord *coord UNUSED_ARG /* coord of
 
 int de_add_entry( const struct inode *dir /* directory of item */, 
 		  tree_coord *coord /* coord of item */, 
-		  reiser4_lock_handle *lh /* insertion lock handle */, 
+		  lock_handle *lh /* insertion lock handle */, 
 		  const struct dentry *name /* name to add */, 
 		  reiser4_dir_entry_desc *entry /* parameters of new directory
 						 * entry */ )
@@ -105,7 +105,7 @@ int de_add_entry( const struct inode *dir /* directory of item */,
 
 int de_rem_entry( const struct inode *dir UNUSED_ARG /* directory of item */, 
 		  tree_coord *coord /* coord of item */,
-		  reiser4_lock_handle *lh UNUSED_ARG /* lock handle for
+		  lock_handle *lh UNUSED_ARG /* lock handle for
 						      * removal */, 
 		  reiser4_dir_entry_desc *entry UNUSED_ARG /* parameters of
 							    * directory entry

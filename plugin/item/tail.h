@@ -32,9 +32,9 @@ reiser4_key * tail_unit_key        (const tree_coord * coord,
 
 typedef struct tail_item_plugin {
 	int (* write_2) (struct inode *, tree_coord *,
-		       reiser4_lock_handle *, flow_t *);
+		       lock_handle *, flow_t *);
 	int (* read_2) (struct inode *, tree_coord *,
-		      reiser4_lock_handle *, flow_t *);
+		      lock_handle *, flow_t *);
 	int (* readpage_2) (void *, struct page *);
 	common_item_plugin * common_2;
 } tail_item_plugin;
@@ -42,6 +42,6 @@ typedef struct tail_item_plugin {
 /*
  *
  */
-int tail_write (struct inode *, tree_coord *, reiser4_lock_handle *, flow_t *);
-int tail_read  (struct inode *, tree_coord *, reiser4_lock_handle *, flow_t *);
+int tail_write (struct inode *, tree_coord *, lock_handle *, flow_t *);
+int tail_read  (struct inode *, tree_coord *, lock_handle *, flow_t *);
 
