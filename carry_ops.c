@@ -88,7 +88,7 @@ find_left_neighbor(carry_op * op	/* node to find left
 		if (result != 0)
 			left = ERR_PTR(result);
 		reiser4_stat_level_inc(doing, carry_left_in_cache);
-	} else if ((result == -E_NO_NEIGHBOR) || (result == -ENOENT)) {
+	} else if (result == -E_NO_NEIGHBOR || result == -ENOENT) {
 		/* node is leftmost node in a tree, or neighbor wasn't in
 		   cache, or there is an extent on the left. */
 		if (REISER4_STATS && (result == -ENOENT))
@@ -1390,9 +1390,9 @@ can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * d
 
 	/* check whether we can paste to the item @icoord is "at" when we
 	   ignore ->between field */
-	if ((old_iplug == new_iplug) && item_can_contain_key(&circa, key, data)) {
+	if (old_iplug == new_iplug && item_can_contain_key(&circa, key, data)) {
 		result = 1;
-	} else if ((icoord->between == BEFORE_UNIT) || (icoord->between == BEFORE_ITEM)) {
+	} else if (icoord->between == BEFORE_UNIT || icoord->between == BEFORE_ITEM) {
 		/* otherwise, try to glue to the item at the left, if any */
 		coord_dup(&circa, icoord);
 		if (coord_set_to_left(&circa)) {
@@ -1406,7 +1406,7 @@ can_paste(coord_t * icoord, const reiser4_key * key, const reiser4_item_data * d
 				icoord->between = AFTER_UNIT;
 			}
 		}
-	} else if ((icoord->between == AFTER_UNIT) || (icoord->between == AFTER_ITEM)) {
+	} else if (icoord->between == AFTER_UNIT || icoord->between == AFTER_ITEM) {
 		coord_dup(&circa, icoord);
 		/* otherwise, try to glue to the item at the right, if any */
 		if (coord_set_to_right(&circa)) {
