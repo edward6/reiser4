@@ -48,10 +48,10 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	/* initialize fields of reiser4 private part of super block which
 	 * are common for all disk formats
 	 * FIXME-VS: shouldn't that initizlization be in common code? */
-	reiser4_set_block_count (s, 0ull);
+	reiser4_set_block_count (s, 10023ull);
 	/* number of used blocks */
-	reiser4_set_data_blocks (s, d64tocpu( &disk_sb->new_block_nr ) - 1);
-	reiser4_set_free_blocks (s, 0ull);
+	reiser4_set_data_blocks (s, 10001ull);
+	reiser4_set_free_blocks (s, 10000ull); /* just some random value in fact */
 
 	/* init oid allocator */		  
 	private->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
