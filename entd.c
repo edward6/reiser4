@@ -384,7 +384,7 @@ wait_for_flush(struct page *page, jnode *node, struct writeback_control *wbc)
 		/*
 		 * if memory pressure is low, do nothing
 		 */
-		if (page_zone(page)->prev_priority > (DEF_PRIORITY - 3)) {
+		if (0/*page_zone(page)->prev_priority > (DEF_PRIORITY - 3)*/) {
 			reiser4_stat_inc(wff.low_priority);
 			result = 1;
 			break;
