@@ -131,6 +131,7 @@ typedef struct reiser4_master_sb {
 	d16 disk_plugin_id; /* id of disk layout plugin */
 	d16 blocksize;
 	char uuid [16];     /* unique id */
+	char label [16];     /* filesystem label */
 } reiser4_master_sb;
 
 
