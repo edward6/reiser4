@@ -1491,70 +1491,53 @@ squalloc(flush_position * pos)
 			   position--first to see if it needs flushprep, then to see if it is
 			   another extent or an internal item. */
 			if (!coord_is_after_rightmost(&pos->parent_coord)) {
+				if (item_is_extent(&pos->parent_coord)) {
+					jnode * child;
+					int keep_going;
 
-				jnode *child;
-				int keep_going;
+					/* Here we check should we repeat step 4 with extent, does our slum 
+					   continue there */
+					if (extent_is_unallocated(&pos->parent_coord))
+						continue;
 
-				/* If child is not flushprepped then repeat, otherwise stop here. */
-				if ((ret = item_utmost_child(&pos->parent_coord, LEFT_SIDE, &child)) || (child == NULL)) {
-					break;
-				}
-
-				if (IS_ERR(child)) {
-					/* item_utmost_child() failed to find leftmost
-					   child. Currently this is only possible due
-					   to the race with unlink. See comment in
-					   extent_utmost_child().
-
-					   NOTE-NIKITA this is strange:
-					   extent_utmost_child() puts either 0 or
-					   result of jlook() into *child.
-					*/
-					pos_stop(pos);
-					ret = -EINVAL;
-					break;
-				}
-
-				/* at this moment parent of @child is locked which
-				 * hopefully protects @child's flushpreppedness from
-				 * changing from under us. 
-				 *
-				 * Really: jnode_set_{reloc,wander}() are only called
-				 * from node's parent is long term locked, except for
-				 * fake, super block, and bitmap jnodes.
-				 *
-				 * The only remaining problem is the spontaneous
-				 * clearing of JNODE_DIRTY bit (one that happens
-				 * without taking the lock on the parent):
-				 * dequeue_jnode(), prepare_node_for_write(),
-				 * uncapture_page()
-				 */
-				keep_going = !jnode_check_flushprepped(child);
-
-				jput(child);
-
-				if (keep_going) {
-
-					trace_on(TRACE_FLUSH_VERB,
-						 "sq_r unformatted_right_is_dirty: %s type %s\n",
-						 pos_tostring(pos),
-						 item_is_extent(&pos->parent_coord) ? "extent" : "internal");
-
-					/* If the flush position is not an extent item (at this
-					   twig), we should descend to the formatted child. */
-					if (!item_is_extent(&pos->parent_coord)
-					    && (ret = pos_child_and_alloc(pos))) {
+					/* If child is not flushprepped then repeat, otherwise stop here. */
+					ret = item_utmost_child(&pos->parent_coord, LEFT_SIDE, &child);
+					if (ret || child == NULL) {
+						ret = pos_stop(pos);
 						break;
 					}
 
-					trace_on(TRACE_FLUSH_VERB,
-						 "sq_r unformatted_goto_step2: %s\n", pos_tostring(pos));
-					continue;
+					if (IS_ERR(child)) {
+						/* item_utmost_child() failed to find leftmost
+						   child. Currently this is only possible due
+						   to the race with unlink. See comment in
+						   extent_utmost_child().
+						   
+						   NOTE-NIKITA this is strange:
+						   extent_utmost_child() puts either 0 or
+						   result of jlook() into *child.
+						*/
+						pos_stop(pos);
+						ret = -EINVAL;
+						break;
+					}
+
+					keep_going = jnode_check_flushprepped(child);
+
+					jput(child);
+
+					if (!keep_going)
+						break;
 				} else {
-					/* Finished. */
-					ret = 0;
-					break;
+					/* If the flush position is not an extent item (at this
+					   twig), we should descend to the formatted child. */
+					ret = pos_child_and_alloc(pos);
+					if (ret)
+						break;
 				}
+				trace_on(TRACE_FLUSH_VERB,
+						 "sq_r unformatted_goto_step4: %s\n", pos_tostring(pos));
+				continue;
 			} else {
 				/* end of the twig reached */
 
