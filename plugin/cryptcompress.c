@@ -514,27 +514,6 @@ cryptcompress_readpages(struct file *file UNUSED_ARG, struct address_space *mapp
 }
 
 void
-lock_cluster_pages(reiser4_cluster_t * clust)
-{
-	int i;
-	for (i=0; i < clust->nr_pages; i++) {
-		assert("edward-217", clust->pages[i] != NULL);
-		reiser4_lock_page((clust->pages[i]));
-	}
-}
-
-void
-unlock_cluster_pages(reiser4_cluster_t * clust)
-{
-	int i;
-	for (i=0; i < clust->nr_pages; i++) {
-		assert("edward-206", clust->pages[i] != NULL);
-		assert("edward-207", (PageLocked(clust->pages[i])));
-		reiser4_unlock_page((clust->pages[i]));
-	}
-}
-
-void
 release_cluster_pages(reiser4_cluster_t * clust)
 {
 	int i;
@@ -651,10 +630,14 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 	page_off = clust->off & (PAGE_CACHE_SIZE - 1);
 	
 	while (clust->count) {
+		struct page * page;
+		page = clust->pages[clust->off >> PAGE_CACHE_SHIFT];
 		to_page = min_count(PAGE_CACHE_SIZE - page_off, clust->count);
-		data = kmap_atomic(clust->pages[clust->off >> PAGE_CACHE_SHIFT], KM_USER0);
+		reiser4_lock_page(page);
+		data = kmap_atomic(page, KM_USER0);
 		memset(data + page_off, 0, to_page);
 		kunmap_atomic(data, KM_USER0);
+		reiser4_unlock_page(page);
 		
 		clust->off += to_page;
 		clust->count -= to_page;
@@ -678,7 +661,6 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 {
 	int i;
 	int result = 0;
-	int unlock = 1;
 	unsigned to_read;
 	item_plugin * iplug;
 	
@@ -688,26 +670,27 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 	to_read = clust->off + clust->count + clust->delta;
 	
 	for (i = 0; i < clust->nr_pages; i++) {
+
+		assert ("edward-218", !PageLocked(clust->pages[i]));
+		
 		if (clust->off <= (i << PAGE_CACHE_SHIFT) && (i << PAGE_CACHE_SHIFT) <= to_read)
 			/* page will be completely overwritten, skip this */
 			continue;
 		if (PageUptodate(clust->pages[i]))
 			continue;
 		if (!cluster_is_uptodate(clust)) {
-			/* protect cluster when read from the same buffer 
-			   FIXME-EDWARD: Prone to deadlock */
-			lock_cluster_pages(clust);
 			result = ctail_read_cluster(clust, inode);
 			if (result)
 				break;
 		}
-		/* FIXME-EDWARD: ADD new item plugin s.file.read_cluster */
+		reiser4_lock_page(clust->pages[i]);
 		result =  do_readpage_ctail(clust, clust->pages[i]);
-		if (result)
+		reiser4_unlock_page(clust->pages[i]);
+		if (result) {
+			impossible("edward-219", "do_readpage_ctail returned crap");
 			break;
+		}
 	}
-	if (unlock)
-		unlock_cluster_pages(clust);
 	release_cluster_buf(clust, inode);
 	return result;
 }
