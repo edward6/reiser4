@@ -219,6 +219,8 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
 #   define reiserfs_plugin_register(plugin) 
 #endif
 
+#define REISERFS_GUESS_PLUGIN_ID -1
+	
 extern error_t reiserfs_plugins_init(void);
 extern void reiserfs_plugins_fini(void);
 

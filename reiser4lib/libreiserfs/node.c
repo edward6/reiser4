@@ -10,9 +10,10 @@
 
 #include <reiserfs/reiserfs.h>
 
-reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk) {
+reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk, 
+    reiserfs_plugin_id_t plugin_id) 
+{
     reiserfs_node_t *node;
-    reiserfs_plugin_id_t plugin_id;
     
     aal_assert("umka-160", device != NULL, return NULL);
     
@@ -27,7 +28,9 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk) {
 	goto error_free_node;
     }
     
-    plugin_id = reiserfs_node_get_plugin_id(node);
+    if (plugin_id == REISERFS_GUESS_PLUGIN_ID) 
+	plugin_id = reiserfs_node_get_plugin_id(node);
+    
     if (!(node->plugin = reiserfs_plugins_find(REISERFS_NODE_PLUGIN, plugin_id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Node plugin cannot be find by its identifier %x.", plugin_id);

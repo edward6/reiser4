@@ -26,7 +26,8 @@ struct reiserfs_node {
 
 typedef struct reiserfs_node reiserfs_node_t;
 
-extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk);
+extern reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk, 
+    reiserfs_plugin_id_t plugin_id);
 
 extern reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk, 
     reiserfs_plugin_id_t plugin_id, uint8_t level);

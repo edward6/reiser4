@@ -20,9 +20,14 @@ error_t reiserfs_tree_open(reiserfs_fs_t *fs) {
 	return -1;
 
     root_blk = reiserfs_super_root_block(fs);
-    
-    if (!(fs->tree->root = reiserfs_node_open(fs->device, root_blk)))
-        goto error_free_tree;
+   
+    if (reiserfs_fs_format_plugin_id(fs) == 0x2) {
+	if (!(fs->tree->root = reiserfs_node_open(fs->device, root_blk, 0x2)))
+	    goto error_free_tree;
+    } else {	
+	if (!(fs->tree->root = reiserfs_node_open(fs->device, root_blk, REISERFS_GUESS_PLUGIN_ID)))
+	    goto error_free_tree;
+    }	
     
     return 0;
 
