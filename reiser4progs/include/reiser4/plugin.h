@@ -275,6 +275,9 @@ struct reiserfs_item_hint {
 
     /* The key of item */
     reiserfs_key_t key;
+
+    /* The key of object item belong to */
+    reiserfs_key_t owner;
     
     uint16_t len;
     reiserfs_plugin_t *plugin;

@@ -214,92 +214,24 @@ static errno_t reiserfs_node_relocate(
     aal_assert("umka-799", src_node != NULL, return -1);
     aal_assert("umka-800", dst_node != NULL, return -1);
 
-    if (src_pos->unit == 0xffffffff) {
+    item.data = reiserfs_node_item_body(src_node, src_pos);
+    item.len = reiserfs_node_item_len(src_node, src_pos);
+    
+    /* Getting the key of item that is going to be copied */
+    reiserfs_node_get_key(src_node, src_pos, (reiserfs_key_t *)&item.key);
+    
+    pid = reiserfs_node_item_get_pid(src_node, src_pos);
+	
+    if (!(item.plugin = libreiser4_factory_find_by_id(ITEM_PLUGIN_TYPE, pid)))
+        libreiser4_factory_failed(return -1, find, item, pid);
 
-        /* Relocating item */
-	item.data = reiserfs_node_item_body(src_node, src_pos);
-	item.len = reiserfs_node_item_len(src_node, src_pos);
-    
-	/* Getting the key of item that is going to be copied */
-	reiserfs_node_get_key(src_node, src_pos, (reiserfs_key_t *)&item.key);
-    
-	pid = reiserfs_node_item_get_pid(src_node, src_pos);
-	
-	if (!(item.plugin = libreiser4_factory_find_by_id(ITEM_PLUGIN_TYPE, pid)))
-	    libreiser4_factory_failed(return -1, find, item, pid);
-
-	/* Insering the item into new location */
-	if (reiserfs_node_insert(dst_node, dst_pos, &item))
-	    return -1;
-    } else {
-	    
-	/* Relocating unit */
-	void *body;
-	
-	reiserfs_plugin_t *plugin;
-	reiserfs_entry_hint_t entry;
-	reiserfs_direntry_hint_t direntry;
-	reiserfs_item_hint_t direntry_item;
-	
-	if (!(body = reiserfs_node_item_body(src_node, src_pos)))
-	    return -1;
-	
-	if (!(plugin = reiserfs_node_item_plugin(src_node, src_pos)))
-	    return -1;
-    
-        if ((libreiser4_plugin_call(return -1, plugin->item_ops.specific.direntry, 
-		get_entry, body, src_pos->unit, &entry)))
-	    return -1;
-	
-	aal_memset(&direntry_item, 0, sizeof(direntry_item));
-	    
-	direntry.count = 1;
-	direntry_item.plugin = plugin;
-	direntry_item.type = DIRENTRY_ITEM;
-	
-	/* FIXME-UMKA: Here should be not hardcoded plugin id */
-	if (!(direntry_item.key.plugin = 
-		libreiser4_factory_find_by_id(KEY_PLUGIN_TYPE, KEY_REISER40_ID)))
-	    return -1;
-	
-	{
-	    reiserfs_key_t key;
-	    oid_t locality, objectid;
-	    reiserfs_plugin_t *hash_plugin;
-	    
-	    hash_plugin = libreiser4_factory_find_by_id(HASH_PLUGIN_TYPE, HASH_R5_ID);
-	    
-	    reiserfs_node_get_key(src_node, src_pos, &key);
-	    locality = reiserfs_key_get_locality(&key);
-	    objectid = reiserfs_key_get_objectid(&key);
-	    
-	    libreiser4_plugin_call(return -1, direntry_item.key.plugin->key_ops,
-		build_entry_full, direntry_item.key.body, hash_plugin, locality, 
-		objectid, entry.name);
-	}
-	
-	if (!(direntry.entry = aal_calloc(sizeof(entry), 0)))
-	    return -1;
-	
-	direntry.entry[0] = entry;
-	direntry_item.hint = &direntry;
-	
-	/* 
-	    Correction of unit pos in odrer to create new compound item, if passed
-	    item pos doesn't pouint to one.
-	*/
-	if (dst_pos->item >= reiserfs_node_count(dst_node))
-	    dst_pos->unit = 0xffffffff;
-	
-	if (reiserfs_node_insert(dst_node, dst_pos, &direntry_item))
-	    return -1;
-    }
+    /* Insering the item into new location */
+    if (reiserfs_node_insert(dst_node, dst_pos, &item))
+        return -1;
     
     /* Remove src item if remove flag is turned on */
-    if (remove) {
-	if (reiserfs_node_remove(src_node, src_pos))
-	    return -1;
-    }
+    if (remove && reiserfs_node_remove(src_node, src_pos))
+        return -1;
     
     return 0;
 }

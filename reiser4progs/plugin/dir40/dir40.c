@@ -336,6 +336,9 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
 	direntry.entry[1].name);
     
     direntry_item.hint = &direntry;
+
+    direntry_item.owner.plugin = object->plugin;
+    aal_memcpy(direntry_item.owner.body, object->body, key_size);
     
     /* Initializing stat data hint */
     aal_memset(&stat_item, 0, sizeof(stat_item));
@@ -367,6 +370,9 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     stat.ext.hint[0] = &unix_ext;
 
     stat_item.hint = &stat;
+    
+    stat_item.owner.plugin = object->plugin;
+    aal_memcpy(stat_item.owner.body, object->body, key_size);
 
     /* Calling balancing code in order to insert statdata item into the tree */
     if (core->tree_ops.item_insert(tree, &stat_item)) {
@@ -450,7 +456,15 @@ static errno_t dir40_add(reiserfs_dir40_t *dir,
     
     item.len = 0;
     item.plugin = dir->direntry_plugin;
-
+    
+    {
+	uint32_t key_size = libreiser4_plugin_call(goto error_free_entry, 
+	    dir->key.plugin->key_ops, size,);
+	
+	item.owner.plugin = dir->key.plugin;
+	aal_memcpy(item.owner.body, dir->key.body, key_size);
+    }
+    
     /* Inserting the entry to the tree */
     if (core->tree_ops.item_insert(dir->tree, &item)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
