@@ -2021,6 +2021,15 @@ became_dirty:
 				goto became_dirty;
 		}
 	}
+
+	assert ("zam-875", znode_check_flushprepped(right_lock.node));
+
+	/* Update the preceder by a block number of just processed right twig
+	 * node. The code above could miss the preceder updating because
+	 * allocate_znode() could not be called for this node. */
+	pos->preceder.blk = *znode_get_block(right_lock.node);
+	check_preceder(pos->preceder.blk);
+
 	coord_init_first_unit(&at_right, right_lock.node);
 	assert("zam-868", coord_is_existing_unit(&at_right));
 
