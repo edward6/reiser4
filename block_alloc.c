@@ -350,7 +350,7 @@ reiser4_grab_space(__u64 * grabbed, __u64 min_block_count, __u64 max_block_count
 	    /* Trying to commit the all transactions if BA_CAN_COMMIT flag present */
 	    if (flags & BA_CAN_COMMIT) {
 		    if (txnmgr_force_commit_all(get_current_context()->super) != 0)
-			rpanic("umka-1272", "Can't commit transactions durring block allocation\n");
+			reiser4_panic("umka-1272", "Can't commit transactions durring block allocation\n");
 
 		    ret = reiser4_grab(grabbed, min_block_count, max_block_count, flags);
 	    }
