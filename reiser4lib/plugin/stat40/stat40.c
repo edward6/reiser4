@@ -45,13 +45,14 @@ static reiserfs_plugin_t stat40_plugin = {
 	.common = {
 	    .item_type = STAT40_ID,
 	    .create = (reiserfs_opaque_t *(*)(reiserfs_key_t *key))reiserfs_stat40_create,
-	    .paste = NULL,
+	    .add_unit = NULL,
 	    .confirm = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_confirm,
 	    .check = (error_t (*)(reiserfs_opaque_t *))reiserfs_stat40_check,
 	    .print = (void (*)(reiserfs_opaque_t *, char *))reiserfs_stat40_print,
-	    .nr_units = NULL,
+	    .units_count = NULL,
 	    .remove_units = NULL,
-	    .estimate = NULL
+	    .estimate = NULL,
+	    .is_internal = NULL
 	},
 	.ops = {
 	    .stat = { }
