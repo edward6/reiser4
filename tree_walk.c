@@ -210,6 +210,7 @@ static void link_znodes (znode * first, znode * second, int to_left)
 static int far_next_coord (tree_coord * coord, reiser4_lock_handle * handle, int flags)
 {
 	int ret;
+	znode *node;
 
 	handle->owner = NULL;	/* mark lock handle as unused */
 
@@ -225,11 +226,11 @@ static int far_next_coord (tree_coord * coord, reiser4_lock_handle * handle, int
 	reiser4_done_coord(coord);
 	reiser4_init_coord(coord);
 
-	coord->node = handle->node;
+	node = handle->node;
 
 	/* corresponded zrelse() should be called by the clients of
 	 * far_next_coords(), in place when this node gets unlocked. */
-	ret = zload(coord->node);
+	ret = zload(handle->node);
 
 	if (ret) {
 		reiser4_unlock_znode(handle);
@@ -237,8 +238,8 @@ static int far_next_coord (tree_coord * coord, reiser4_lock_handle * handle, int
 		return ret;
 	}
 
-	if (flags & GN_GO_LEFT) coord_last_unit(coord);
-	else                    coord_first_unit(coord);
+	if (flags & GN_GO_LEFT) coord_last_unit(coord, node);
+	else                    coord_first_unit(coord, node);
 
 	spin_lock_tree(current_tree);
 	return 0;
