@@ -1320,8 +1320,8 @@ __go_to_sleep(lock_stack * owner
 		    reiser4_stat_add(txnmgr.slept_in_wait_atom, jiffies - sleep_start);
 		    break;
 	    default:
-		    reiser4_stat_add_at_level_value(node_level, time_slept, 
-						    jiffies - sleep_start);
+		    reiser4_stat_add_at_level(node_level, time_slept, 
+					      jiffies - sleep_start);
 	}
 #endif
 }
