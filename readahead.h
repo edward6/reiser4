@@ -3,31 +3,28 @@
 #ifndef __READAHEAD_H__
 #define __READAHEAD_H__
 
-/* reiser4 super block is a field of this type. It controls readahead during tree traversals */
-typedef struct formatted_read_ahead_params {
-	int max;
-	int adjacent_only;
-	int leaves_only;
-	int one_parent_only;
-} ra_params_t;
 
 typedef enum {
-	RA_READDIR,
-	RA_READFILE
-} ra_type;
+	RA_ADJACENT_ONLY = 1,       /* only requests nodes which are adjacent. Default is NO (not only adjacent) */
+	RA_ALL_LEVELS = 2,	    /* only request readahead for children of twin nodes. Default is NO (leaves only) */
+	RA_CONTINUE_ON_PRESENT = 4, /* when one of nodes to be readahead is in memory already, skip it, but continue
+				       readahead submission. Default is NO (stop submission) */
+	RA_READ_ON_GRN = 8          /* looking for right neighbor read all necessary nodes. Default is NO (use cache
+				       only) */
+} ra_global_flags;
+
+/* reiser4 super block has a field of this type. It controls readahead during tree traversals */
+typedef struct formatted_read_ahead_params {
+	unsigned long max; /* request not more than this amount of nodes. Default is totalram_pages / 4 */
+	int flags;
+} ra_params_t;
 
 
-typedef struct read_ahead_info {
-	ra_type type;
-	union {
-		struct {
-			oid_t oid;
-		} readdir;
-	} u;
+typedef struct {
+	reiser4_key key_to_stop;
 } ra_info_t;
 
-/* readahead whole directory and all its stat datas */
-void readdir_readahead(znode *node, ra_info_t *info);
+void formatted_readahead(znode *, ra_info_t *);
 
 /* __READAHEAD_H__ */
 #endif
