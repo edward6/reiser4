@@ -2933,6 +2933,24 @@ int alloc_extent (reiser4_tree * tree UNUSED_ARG, tree_coord * coord,
 }
 
 
+/* Block offset of firts block addressed by unit */
+__u64 extent_unit_index (tree_coord * item)
+{
+	reiser4_key key;
+
+	assert ("vs-648", coord_of_unit (item));
+	unit_key_by_coord (item, &key);
+	return get_key_offset (&key) / reiser4_get_current_sb ()->s_blocksize;
+}
+
+
+__u64 extent_unit_width (tree_coord * item)
+{
+	assert ("vs-649", coord_of_unit (item));
+	return width_by_coord (item);
+}
+
+
 /* 
  * Local variables:
  * c-indentation-style: "K&R"
