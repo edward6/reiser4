@@ -81,10 +81,10 @@ pointer_at(const coord_t * coord /* coord of item */ )
 /* get znode pointed to by internal @item */
 static znode *
 znode_at(const coord_t * item /* coord of item */ ,
-	 znode * parent /* parent node */ , int incore_p)
+	 znode * parent /* parent node */)
 {
 	/* Take DK lock, as required by child_znode. */
-	return UNDER_SPIN(dk, znode_get_tree(item->node), child_znode(item, parent, incore_p, 0));
+	return UNDER_SPIN(dk, znode_get_tree(item->node), child_znode(item, parent, 0, 1));
 }
 
 /* store pointer from internal item into "block". Implementation of
@@ -186,7 +186,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 	assert("nikita-1181", znode_get_level(item->node) > LEAF_LEVEL);
 	assert("nikita-1450", item->unit_pos == 0);
 
-	child = znode_at(item, item->node, 0);
+	child = znode_at(item, item->node);
 	if (!IS_ERR(child)) {
 		int result = 0;
 		reiser4_tree *tree;
@@ -240,7 +240,7 @@ internal_kill_hook(const coord_t * item /* coord of item */ ,
 	assert("nikita-1224", from == 0);
 	assert("nikita-1225", count == 1);
 
-	child = znode_at(item, item->node, 0);
+	child = znode_at(item, item->node);
 	if (IS_ERR(child))
 		return PTR_ERR(child);
 	else if (node_is_empty(child)) {

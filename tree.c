@@ -554,6 +554,7 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 	assert("nikita-1374", parent_coord != NULL);
 	assert("nikita-1482", parent != NULL);
 	assert("nikita-1384", spin_dk_is_locked(znode_get_tree(parent)));
+	assert("nikita-2947", znode_is_any_locked(parent));
 
 	if (znode_get_level(parent) <= LEAF_LEVEL) {
 		/* trying to get child of leaf node */
@@ -900,6 +901,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	int result;
 	reiser4_key key;
 	lock_handle left_lh;
+	lock_handle right_lh;
 	coord_t left_coord;
 	znode *left_child;
 	znode *right_child;
@@ -923,8 +925,11 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	left_zloaded_here = 0;
 	right_zloaded_here = 0;
 
+	left_child = right_child = NULL;
+
 	coord_dup(&left_coord, from);
 	init_lh(&left_lh);
+	init_lh(&right_lh);
 	if (coord_prev_unit(&left_coord)) {
 		/* @from is leftmost item in its node */
 		if (!locked_left_neighbor) {
@@ -986,11 +991,9 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	if (item_removed_completely(from, from_key, to_key)) {
 		/* try to get right child of removed item */
 		coord_t right_coord;
-		lock_handle right_lh;
 
 		assert("vs-607", to->unit_pos == coord_last_unit_pos(to));
 		coord_dup(&right_coord, to);
-		init_lh(&right_lh);
 		if (coord_next_unit(&right_coord)) {
 			/* @to is rightmost unit in the node */
 			result = reiser4_get_right_neighbor(&right_lh, from->node, ZNODE_READ_LOCK, GN_DO_READ);
@@ -1051,12 +1054,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 			/* link left_child and right_child */
 			UNDER_SPIN_VOID(tree, znode_get_tree(right_coord.node),
 					link_left_and_right(left_child, right_child));
-			zput(right_child);
 		}
-		if (right_zloaded_here)
-			zrelse(right_lh.node);
-		done_lh(&right_lh);
-
 	} else {
 		/* only head of item @to is removed. calculate new item key, it
 		   will be used to set right delimiting key of "left child" */
@@ -1070,7 +1068,14 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	UNDER_SPIN_VOID(dk, znode_get_tree(left_child), 
 			znode_set_rd_key(left_child, &key));
 
-	zput(left_child);
+	if (right_child)
+		zput(right_child);
+	if (right_zloaded_here)
+		zrelse(right_lh.node);
+	done_lh(&right_lh);
+
+	if (left_child)
+		zput(left_child);
 	if (left_zloaded_here)
 		zrelse(left_lh.node);
 	done_lh(&left_lh);

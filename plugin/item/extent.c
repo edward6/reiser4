@@ -461,9 +461,13 @@ extent_create_hook(const coord_t * coord, void *arg)
 	if (!arg)
 		return 0;
 
+	child_coord = arg;
+	tree = znode_get_tree(coord->node);
+
+	spin_lock_dk(tree);
+	spin_lock_tree(tree);
 	/* find a node on the left level for which right delimiting key has to
 	   be updated */
-	child_coord = arg;
 	if (coord_wrt(child_coord) == COORD_ON_THE_LEFT) {
 		assert("vs-411", znode_is_left_connected(child_coord->node));
 		node = child_coord->node->left;
@@ -472,22 +476,19 @@ extent_create_hook(const coord_t * coord, void *arg)
 		node = child_coord->node;
 	}
 
-	if (!node)
-		return 0;
+	if (node) {
+		znode_set_rd_key(node, item_key_by_coord(coord, &key));
 
-	tree = znode_get_tree(node);
-	UNDER_SPIN_VOID(dk, tree, 
-			znode_set_rd_key(node, item_key_by_coord(coord, &key)));
-
-	/* break sibling links */
-	spin_lock_tree(tree);
-	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && node->right) {
-		/*ZF_CLR (node->right, JNODE_LEFT_CONNECTED); */
-		node->right->left = NULL;
-		/*ZF_CLR (node, JNODE_RIGHT_CONNECTED); */
-		node->right = NULL;
+		/* break sibling links */
+		if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && node->right) {
+			/*ZF_CLR (node->right, JNODE_LEFT_CONNECTED); */
+			node->right->left = NULL;
+			/*ZF_CLR (node, JNODE_RIGHT_CONNECTED); */
+			node->right = NULL;
+		}
 	}
 	spin_unlock_tree(tree);
+	spin_unlock_dk(tree);
 	return 0;
 }
 
