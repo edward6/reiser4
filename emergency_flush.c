@@ -673,7 +673,7 @@ static void eflush_free (jnode * node)
 			radix_tree_tag_clear(
 				jnode_tree_by_reiser4_inode(info), index_jnode(node),
 				EFLUSH_TAG_ANONYMOUS);
-			info->anonymous_eflushed --;
+			ON_DEBUG(info->anonymous_eflushed --);
 		} else
 			ON_DEBUG(info->captured_eflushed --);
 
