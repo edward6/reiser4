@@ -117,13 +117,13 @@ extern inline T k40_get_##L (const key40_t *key);		    \
 extern inline void k40_set_##L(key40_t *key, T loc);
 								    
 #define DEFINE_KEY40_FIELD(L, U, T)				    \
-static inline T k40_get_##L (const key40_t *key) {			    \
+static inline T k40_get_##L (const key40_t *key) {		    \
     aal_assert("vpf-036", key != NULL, return 0);		    \
     return (T) ((k40_get_el(key, KEY40_##U##_INDEX) &		    \
 	KEY40_##U##_MASK) >> KEY40_##U##_SHIFT);		    \
 }								    \
 								    \
-static inline void k40_set_##L(key40_t *key, T loc) {			    \
+static inline void k40_set_##L(key40_t *key, T loc) {		    \
     uint64_t el;						    \
 								    \
     aal_assert("vpf-033", key != NULL, return);			    \

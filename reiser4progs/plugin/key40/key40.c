@@ -154,33 +154,41 @@ static errno_t key40_build_hash(key40_t *key,
     reiser4_plugin_t *hash_plugin, const char *name) 
 {
     uint16_t len;
+    oid_t objectid, offset;
     
     aal_assert("vpf-101", key != NULL, return -1);
     aal_assert("vpf-102", name != NULL, return -1);
     aal_assert("vpf-128", hash_plugin != NULL, return -1); 
     
     len = aal_strlen(name);
-    if (len != 1 || aal_strncmp(name, ".", 1)) {
-	/* 
-	    Not dot, pack the first part of the name into 
-	    objectid.
-	*/
-	key40_set_objectid(key, key40_pack_string(name, 1));
-	if (len <= OID_CHARS + sizeof(uint64_t)) {
-	    if (len > OID_CHARS)
-		/* 
-		    Does not fit into objectid, pack the second part of 
-		    the name into offset. 
-		*/
-		key40_set_offset(key, key40_pack_string(name + 7, 0));
-	} else {
-	    /* Note in the key that it is hash, not a name */
-	    key->el[1] |= 0x0100000000000000ull;
-		
- 	    key40_set_hash(key, hash_plugin->hash_ops.build((const char *)name, 
-		aal_strlen(name)));
+    
+    if (len == 1 && name[0] == '.')
+	return 0;
+    
+    /* 
+        Not dot, pack the first part of the name into 
+        objectid.
+    */
+    objectid = key40_pack_string(name, 1);
+    
+    if (len <= OID_CHARS + sizeof(uint64_t)) {
+	offset = 0ull;
+
+        if (len > OID_CHARS) {
+	    /* 
+		Does not fit into objectid, pack the second part of 
+		the name into offset. 
+	    */
+	    offset = key40_pack_string(name + OID_CHARS, 0);
 	}
+    } else {
+	objectid = 0x0100000000000000ull;
+	offset = hash_plugin->hash_ops.build((const char *)(name + OID_CHARS),
+	    aal_strlen(name) - OID_CHARS);
     }
+    
+    key40_set_objectid(key, objectid);
+    key40_set_offset(key, offset);
 
     return 0;
 }
