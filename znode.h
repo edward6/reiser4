@@ -328,10 +328,11 @@ typedef enum {
 
        /* znode lock is being invalidated */
        ZNODE_IS_DYING          = 11,
-
+       /* znode data are mapped into memory */
+       ZNODE_KMAPPED           = 12
        /* jnode of block which has pointer (allocated or unallocated) from
 	* extent or somethign similar (indirect item, for example) */
-       ZNODE_MAPPED            = 12
+       ZNODE_MAPPED            = 13
 } reiser4_znode_state;
 
 /* Macros for accessing the znode state. */
