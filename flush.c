@@ -1206,11 +1206,6 @@ static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 	}
 
 	lock_page (pg);
-
-	assert ("nikita-2112", pg -> mapping);
-	check_me ("nikita-2113", TestClearPageDirty (pg));
-	assert ("nikita-2114", !PageWriteback (pg));
-
 	ret = write_one_page (pg, 0);
 
 	ON_DEBUG (pos->enqueue_cnt += 1);
