@@ -1400,7 +1400,7 @@ static int flush_forward_squalloc (flush_position *pos)
 		 * allocate_extent_item_in_place call will try to allocate everything.  If
 		 * the disk is fragmented and we are low on memory, this may be a bad
 		 * idea.  Perhaps extent allocation should be aware of this... */
-		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, pos, pos->point))) {
+		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, pos/*, pos->point*/))) {
 			goto exit;
 		}
 
@@ -2517,6 +2517,47 @@ int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 	return flush_queue_jnode (node, pos);
 }
 
+
+/*
+ * FIXEM-VS: temporary old end io handler
+ */
+/* This is an I/O completion callback which is called after the result of a submit_bio has
+ * completed.  Its task is to notify any waiters that are waiting, either for an
+ * individual page or an atom (via the io_handle) which may be waiting to commit. */
+static void flush_bio_write (struct bio *bio)
+{
+	int i;
+
+	if (bio->bi_vcnt == 0) {
+		warning ("nikita-2243", "Empty write bio completed.");
+		return ;
+	}
+	/* Note, we may put assertion here that this is in fact our sb and so
+	   on */
+	if (0 && REISER4_TRACE) {
+		info ("flush_bio_write completion for %u blocks: BIO %p\n",
+		      bio->bi_vcnt, bio);
+	}
+
+	for (i = 0; i < bio->bi_vcnt; i += 1) {
+		struct page *pg = bio->bi_io_vec[i].bv_page;
+
+		if (0 && REISER4_TRACE) {
+			print_page ("flush_bio_write", pg);
+		}
+
+		if (! test_bit (BIO_UPTODATE, & bio->bi_flags)) {
+			SetPageError (pg);
+		}
+
+		end_page_writeback (pg);
+	}
+
+	io_handle_end_io (bio);
+
+	bio_put (bio);
+}
+#if 0
 /* This is an I/O completion callback which is called after the result of a submit_bio has
  * completed.  Its task is to notify any waiters that are waiting, either for an
  * individual page or an atom (via the io_handle) which may be waiting to commit. */
@@ -2556,6 +2597,7 @@ static int flush_bio_write (struct bio *bio, unsigned int bytes_done, int err)
 	bio_put (bio);
 	return 0;
 }
+#endif
 
 /* Write some of the the flush_position->queue contents to disk.
  */
