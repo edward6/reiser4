@@ -31,15 +31,16 @@ int main( int argc, char **argv )
   struct timeval instant;
   unsigned long prev;
   unsigned long N;
-  int ebusy;
   int ch;
   int pad;
   unsigned long cycle;
+  int dodirs;
 
   N = 0;
   pad = 0;
+  dodirs = 0;
   cycle = 20000;
-  while( ( ch = getopt( argc, argv, "n:p:c:" ) ) != -1 )
+  while( ( ch = getopt( argc, argv, "dn:p:c:" ) ) != -1 )
 	{
 	  switch( ch )
 		{
@@ -52,6 +53,9 @@ int main( int argc, char **argv )
 		case 'c':
 		  cycle = atol( optarg );
 		  break;
+		case 'd':
+		  dodirs = 1;
+		  break;
 		default:
 		  exit( 0 );
 		}
@@ -59,7 +63,6 @@ int main( int argc, char **argv )
 
   base = strlen( alphabet );
   memset( name, base + 10, MAX_LEN + 1 );
-  ebusy = 0;
   prev = 0;
   gettimeofday( &instant, 0 );
   start = instant;
@@ -115,31 +118,34 @@ int main( int argc, char **argv )
 		  fname[ j - min + shift ] = alphabet[ ( int ) name[ j ] ];
 		}
 	  fname[ MAX_LEN - min + shift ] = 0;
-	  fd = open( fname, O_CREAT, 0777 );
+	  if( dodirs )
+		{
+		  fd = mkdir( fname, 0744 );
+		}
+	  else
+		{
+		  fd = open( fname, O_CREAT, 0444 );
+		}
 	  if( fd == -1 )
 		{
-		  if( errno != EBUSY )
-			{
-			  perror( "open" );
-			  printf( "%li files created\n", i );
-			  exit( 2 );
-			}
-		  else
-			{
-			  ebusy ++;
-			}
+		  perror( "open" );
+		  printf( "%li files created\n", i );
+		  exit( 2 );
 		}
-	  close( fd );
+	  if( !dodirs )
+		{
+		  close( fd );
+		}
 	  if( ( i % cycle ) == 0 )
 		{
 		  struct timeval now;
 
 		  gettimeofday( &now, 0 );
-		  printf( "%lli files: %lli (%f/%f), %i: %s\n", i, 
+		  printf( "%lli\t files: %lli (%f/%f), %s\n", i, 
 				  tdiff( &now, &instant ),
 				  RAT( i * 1000000, tdiff( &now, &start ) ), 
 				  RAT( ( i - prev ) * 1000000, tdiff( &now, &instant ) ),
-				  ebusy, fname );
+				  fname );
 		  gettimeofday( &instant, 0 );
 		  prev = i;
 		}
