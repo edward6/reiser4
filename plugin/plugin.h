@@ -240,6 +240,8 @@ typedef struct file_plugin {
 		reiser4_block_nr (*update) (const struct inode *);
 		reiser4_block_nr (*unlink) (struct inode *, struct inode *);
 	} estimate;
+	void (*readpages)(struct file *file, struct address_space *mapping,
+			  struct list_head *pages);	
 } file_plugin;
 
 typedef struct dir_plugin {
@@ -538,7 +540,7 @@ void move_flow_forward(flow_t * f, unsigned count);
 /* builtin plugins */
 
 /* builtin file-plugins */
-typedef enum { REGULAR_FILE_PLUGIN_ID, DIRECTORY_FILE_PLUGIN_ID,
+typedef enum { UNIX_FILE_PLUGIN_ID, DIRECTORY_FILE_PLUGIN_ID,
 	SYMLINK_FILE_PLUGIN_ID,
 	/* SPECIAL_FILE_PLUGIN_ID is for objects completely handled by
 	   VFS: fifos, devices, sockets  */
