@@ -662,7 +662,7 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 			struct page *pg;
 
 			/* jload() helps if node was emergency flushed */
-			ret = jload(node);
+			ret = jload(cur);
 			if (ret) 
 				rpanic ("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
 
@@ -675,7 +675,7 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 			assert("zam-605", !PageWriteback(pg));
 			SetPageWriteback(pg);
 
-			jrelse(node);
+			jrelse(cur);
 
 			write_lock(&pg->mapping->page_lock);
 
