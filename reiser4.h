@@ -139,7 +139,7 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  * This either means incredibly heavy contention for this part of a tree, or
  * some corruption or bug.
  */
-#define REISER4_CBK_ITERATIONS_LIMIT  (100)
+#define REISER4_CBK_ITERATIONS_LIMIT  (50)
 
 /**
  * read all blocks when one block on the page is read
