@@ -205,7 +205,6 @@ extern int write_in_trace(const char *func, const char *mes);
                 if (__ret != 0) {				\
 			return errret;				\
 		}						\
-		schedulable();					\
         } while (0)
 
 #define REISER4_ENTRY_PTR(super)  __REISER4_ENTRY(super, ERR_PTR(__ret))
