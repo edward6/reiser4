@@ -250,19 +250,22 @@ int find_next_item (struct sealed_coord * hint,
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_file_add (find_next_item);
 
-	result = hint_validate (hint, key, coord, lh);
-	if (!result) {
-		if (coord_set_properly (key, coord)) {
-			reiser4_stat_file_add (find_next_item_via_seal);
-			return CBK_COORD_FOUND;
-		}
-
-		result = get_next_item (coord, lh, lock_mode);
-		if (!result)
+	if (hint) {
+		hint->lock = lock_mode;
+		result = hint_validate (hint, key, coord, lh);
+		if (!result) {
 			if (coord_set_properly (key, coord)) {
-				reiser4_stat_file_add (find_next_item_via_right_neighbor);
+				reiser4_stat_file_add (find_next_item_via_seal);
 				return CBK_COORD_FOUND;
 			}
+
+			result = get_next_item (coord, lh, lock_mode);
+			if (!result)
+				if (coord_set_properly (key, coord)) {
+					reiser4_stat_file_add (find_next_item_via_right_neighbor);
+					return CBK_COORD_FOUND;
+				}
+		}
 	}
 
 #if 0
@@ -526,7 +529,7 @@ static int load_file_hint (struct file * file,
 	reiser4_file_fsdata * fsdata;
 
 
-	memset (hint, 0, sizeof (hint));
+	xmemset (hint, 0, sizeof (hint));
 	if (file) {
 		fsdata = reiser4_get_file_fsdata (file);
 		if (IS_ERR (fsdata))
@@ -653,7 +656,7 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 				 "No file items found (%d). "
 				 "Race with truncate?\n",
 				 page->index, file->f_dentry->d_inode->i_ino,
-				 result, file->f_dentry->d_inode->i_size);
+				 file->f_dentry->d_inode->i_size, result);
 			done_lh (&lh);
 			break;
 		}
@@ -794,9 +797,18 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	struct sealed_coord hint;
 
 
+	if (!read_amount)
+		/*
+		 * Before any action described below is taken, and if nbyte is
+		 * zero, the read() function may detect and return errors as
+		 * described below. In the absence of errors, or if error
+		 * detection is not performed, the read() function shall
+		 * return zero and have no other results. --SUS
+		 */
+		return 0;
+
 	inode = file->f_dentry->d_inode;
 
-	assert ("vs-973", read_amount > 0);
 	assert ("vs-972", !inode_get_flag( inode, REISER4_NO_SD ));
 
 	get_nonexclusive_access (inode);
