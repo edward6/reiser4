@@ -5,6 +5,7 @@
 #define MAX_CLUSTER_SHIFT 4
 #define MIN_SIZE_FOR_COMPRESSION 64
 #define MIN_CRYPTO_BLOCKSIZE 8
+#define CLUSTER_MAGIC_SIZE (MIN_CRYPTO_BLOCKSIZE >> 1)
 
 typedef enum {
 	DATA_CLUSTER = 0,
@@ -12,10 +13,11 @@ typedef enum {
 } reiser4_cluster_status;
 
 typedef struct reiser4_cluster{
-	coord_t coord;
 	__u8 * buf;      /* pointer to the cluster's data */
 	size_t len;      /* actual size of the data above, this is <= (PAGE_CACHE_SIZE << cluster_shift),
 			    "<" takes place when this structure represents the end of file */
+	loff_t off;      /* offset of the first page */
+	size_t tlen;     /* size of updated buffer to release */
 	reiser4_cluster_status stat;
 } reiser4_cluster_t;
 
