@@ -936,19 +936,19 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		   enum
 		*/
 		SB_FIELD_OPT(debug_flags, "%i"),
-		/* txnmgr.atom_max_size=N
+		/* tmgr.atom_max_size=N
 		
 		   Atoms containing more than N blocks will be forced to
 		   commit. N is decimal.
 		*/
 		SB_FIELD_OPT(tmgr.atom_max_size, "%u"),
-		/* txnmgr.atom_max_age=N
+		/* tmgr.atom_max_age=N
 		
 		   Atoms older than N seconds will be forced to commit. N is
 		   decimal.
 		*/
 		SB_FIELD_OPT(tmgr.atom_max_age, "%u"),
-		/* txnmgr.atom_max_flushers=N
+		/* tmgr.atom_max_flushers=N
 
 		   limit of concurrent flushers for one atom. 0 means no limit.
 		 */
