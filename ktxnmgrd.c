@@ -36,8 +36,7 @@ ktxnmgrd(void *arg)
 	/* standard kernel thread prologue */
 	me = current;
 	/* reparent_to_init() is done by daemonize() */
-	daemonize();
-	strcpy(me->comm, __FUNCTION__);
+	daemonize(__FUNCTION__);
 
 	/* block all signals */
 	spin_lock_irq(&me->sighand->siglock);
@@ -218,7 +217,7 @@ scan_mgr(txn_mgr * mgr)
 	assert("nikita-2456", tree->super != NULL);
 
 	{
-		REISER4_ENTRY(tree->super, SCAN_MGR_OP);
+		REISER4_ENTRY(tree->super);
 
 		/* Count a spinlock taken without context */
 		spin_ktxnmgrd_inc();
