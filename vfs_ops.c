@@ -1185,9 +1185,9 @@ reiser4_get_file_fsdata(struct file *f	/* file
 static const char *
 tail_status(const struct inode *inode)
 {
-	if (!inode_get_flag(inode, REISER4_TAIL_STATE_KNOWN))
+	if (!inode_get_flag(inode, REISER4_FILE_STATE_KNOWN))
 		return "unknown";
-	if (inode_get_flag(inode, REISER4_HAS_TAIL))
+	if (inode_get_flag(inode, REISER4_BUILT_OF_TAILS))
 		return "tail";
 	return "notail";
 }
