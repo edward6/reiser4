@@ -1305,7 +1305,7 @@ static int delete_node (znode * left, znode * node, reiser4_key * smallest_remov
 		if (left) 
 			left->rd_key = node->rd_key;
 		if (smallest_removed)
-			*smallest_removed = node->ld_key;
+			*smallest_removed = *znode_get_ld_key(node);
 		WUNLOCK_DK(tree);
 	}
  failed:
@@ -1457,8 +1457,8 @@ int cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key
 
 /**
  * The cut_tree subroutine which does progressive deletion of items and whole
- * nodes from left to right (which is not optimal but implementation seems to be
- * easier).
+ * nodes from right to left (which is not optimal but implementation seems to
+ * be easier).
  *
  * @tap: the point deletion process begins from,
  * @from_key: the beginning of the deleted key range,
@@ -1483,36 +1483,39 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 	init_lh(&next_node_lock);
 
 	while (1) {
-		node_plugin *nplug;
+		znode       *node;  /* node from which items are cut */
+		node_plugin *nplug; /* node plugin for @node */
+
+		node = tap->coord->node;
 
 		/* Move next_node_lock to the next node on the left. */
-		result = reiser4_get_left_neighbor(&next_node_lock, tap->coord->node, 
+		result = reiser4_get_left_neighbor(&next_node_lock, node,
 						   ZNODE_WRITE_LOCK, GN_DO_READ);
 		if ((result != 0) && (result != -E_NO_NEIGHBOR))
 			break;
 
 		/* Check can we deleted the node as a whole. */
-		if (iterations && znode_get_level(tap->coord->node) == LEAF_LEVEL &&
-		    UNDER_RW(dk, current_tree, read, keyle(from_key, &tap->coord->node->ld_key))) 
-		{
-			result = delete_node(next_node_lock.node, tap->coord->node, smallest_removed);
-			if (result)
-				break;
+		if (iterations && znode_get_level(node) == LEAF_LEVEL &&
+		    UNDER_RW(dk, current_tree, read, 
+			     keyle(from_key, znode_get_ld_key(node)))) {
+			result = delete_node(next_node_lock.node, 
+					     node, smallest_removed);
 		} else {
 			result = tap_load(tap);
 			if (result)
 				return result;
 
 			if (iterations)
-				coord_init_last_unit(tap->coord, tap->coord->node);
+				coord_init_last_unit(tap->coord, node);
 
 			/* Prepare the second (right) point for cut_node() */
-			nplug = tap->coord->node->nplug;
+			nplug = node->nplug;
 
 			assert("vs-686", nplug);
 			assert("vs-687", nplug->lookup);
 
-			result = nplug->lookup(tap->coord->node, from_key, 
+			/* left_coord is leftmost unit cut from @node */
+			result = nplug->lookup(node, from_key, 
 					       FIND_MAX_NOT_MORE_THAN, &left_coord);
 
 			if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND)
@@ -1520,12 +1523,18 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 
 			/* cut data from one node */
 			*smallest_removed = *min_key();
-			result = cut_node(&left_coord, tap->coord, from_key, to_key, 
-					  smallest_removed, DELETE_KILL, next_node_lock.node, object);
+			result = cut_node(&left_coord, 
+					  tap->coord, 
+					  from_key, 
+					  to_key, 
+					  smallest_removed, 
+					  DELETE_KILL, 
+					  next_node_lock.node, 
+					  object);
 			tap_relse(tap);
-			if (result)
-				break;
 		}
+		if (result)
+			break;
 
 		/* Check whether all items with keys >= from_key were removed
 		 * from the tree. */
