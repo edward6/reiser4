@@ -1312,6 +1312,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 int flush_enqueue_jnode (jnode *node, flush_position *pos)
 {
 	struct page *pg;
+	int ret;
 
 	if ((pg = jnode_page (node)) == NULL) {
 		return -ENOMEM;
@@ -1319,7 +1320,9 @@ int flush_enqueue_jnode (jnode *node, flush_position *pos)
 
 	lock_page (pg);
 
-	return flush_enqueue_jnode_page_locked (node, pos, pg);
+	ret = flush_enqueue_jnode_page_locked (node, pos, pg);
+	ON_DEBUG (pos->enqueue_cnt += 1);
+	return ret;
 }
 
 /* FIXME: comment */
@@ -1332,7 +1335,6 @@ int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos, struct pa
 
 	ret = write_one_page (pg, 0);
 
-	ON_DEBUG (pos->enqueue_cnt += 1);
 	jnode_set_clean (node);
 
 	info ("enqueue node: %p block %llu level %u\n", node, *jnode_get_block (node), jnode_get_level (node));

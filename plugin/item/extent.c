@@ -2410,6 +2410,9 @@ static int map_allocated_buffers (reiser4_key * key,
 		j = jnode_of_page (page);
 		jnode_set_block (j, &first);
 
+		/* FIXME: JMACD, VS?  We need to figure out relocation. */
+		JF_SET (j, ZNODE_WANDER);
+
 		/* Submit I/O and set the jnode clean. */
 		if ((ret = flush_enqueue_jnode_page_locked (j, flush_pos, page))) {
 			return ret;
