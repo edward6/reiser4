@@ -676,7 +676,10 @@ atom_try_commit_locked (txn_atom *atom)
 	spin_unlock_atom (atom);
 
 	ret = reiser4_write_logs();
-	if (ret) return ret;
+	if (ret) {
+		warning ("zam-597", "write log failed"); 
+		return ret;
+	}
 
 	/* Now close this txnh's reference to the atom. */
 	spin_lock_atom (atom);
@@ -1375,7 +1378,11 @@ void jnode_set_dirty( jnode *node )
 		assert ("jmacd-9777", node->atom != NULL && znode_is_any_locked (JZNODE (node)));
 	}
 
-	current_tree->ops->dirty_node (current_tree, node);
+	if (node->pg)
+		current_tree->ops->dirty_node (current_tree, node);
+	else
+		assert ("zam-596", znode_above_root(JZNODE(node)));
+
 	spin_unlock_jnode (node);
 }
 

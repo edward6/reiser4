@@ -20,6 +20,7 @@ reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ] = {
 			.get_ready     = format_40_get_ready,
 			.root_dir_key  = format_40_root_dir_key,
 			.release       = format_40_release,
+			.log_super     = format_40_log_super,
 			.print_info    = NULL
 		}
 	},

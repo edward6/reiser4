@@ -364,6 +364,7 @@ typedef struct layout_plugin {
 	const reiser4_key * ( *root_dir_key )( const struct super_block * );
 
 	int ( *release )( struct super_block * );
+	jnode * (*log_super)( struct super_block * );
 	void ( *print_info )( struct super_block * );
 } layout_plugin;
 

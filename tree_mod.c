@@ -155,6 +155,7 @@ znode *add_tree_root( znode *old_root /* existing tree root */,
 			if( result == 0 ) {
 				++ tree -> height;
 				tree -> root_block = *znode_get_block( new_root );
+				znode_set_dirty (fake);
 				/* new root is a child of "fake" node */
 				spin_lock_tree( tree );
 				new_root -> ptr_in_parent_hint.node = fake;
@@ -287,6 +288,8 @@ static int kill_root( reiser4_tree *tree /* tree from which root is being
 			-- tree -> height;
 			assert( "nikita-1202", 
 				tree -> height = znode_get_level( new_root ) );
+
+			znode_set_dirty( fake );
 
 			/*
 			 * don't take long term lock a @new_root. Take

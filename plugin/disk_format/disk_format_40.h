@@ -37,6 +37,7 @@ typedef struct format_40_disk_super_block {
 /* format 40 specific part of reiser4_super_info_data */
 typedef struct format_40_super_info {
 	format_40_disk_super_block actual_sb;
+	jnode * sb_jnode;
 } format_40_super_info;
 
 #define FORMAT_40_JOURNAL_HEADER_BLOCKNR 19
@@ -47,5 +48,5 @@ typedef struct format_40_super_info {
 int                 format_40_get_ready    (struct super_block *, void * data);
 const reiser4_key * format_40_root_dir_key (const struct super_block *);
 int                 format_40_release      (struct super_block * s);
-
+jnode             * format_40_log_super    (struct super_block * s);
 

@@ -128,6 +128,44 @@ static int init_journal_info (struct super_block * s)
 	done_journal_info(s);
 	return ret;
 }
+
+
+static int get_super_jnode (struct super_block * s)
+{
+	reiser4_super_info_data * private = get_super_private(s);
+	jnode * sb_jnode;
+	int ret;
+
+	if (!(sb_jnode = jnew()))
+		return -ENOMEM;
+
+	sb_jnode->blocknr = FORMAT_40_OFFSET / s->s_blocksize;
+
+	ret = jload (sb_jnode);
+
+	if (ret) {jfree (sb_jnode) ; return ret;}
+
+	jref (sb_jnode);
+	jrelse(sb_jnode);
+
+	private->u.format_40.sb_jnode = sb_jnode;
+
+	return 0;
+}
+
+
+static void done_super_jnode (struct super_block * s)
+{
+	jnode * sb_jnode = get_super_private(s)->u.format_40.sb_jnode;
+
+	if (sb_jnode) {
+		jput (sb_jnode);
+		jnode_detach_page(sb_jnode);
+		jfree (sb_jnode);
+	}
+}
+
+
 /* plugin->u.layout.get_ready */
 int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 {
@@ -240,8 +278,44 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	 */
 	/*private->kmalloc_allocated = 0;*/
 #endif
-	return 0;
+		/* FIXME: it will be in read_super */
+	result = get_super_jnode(s);
+
+	return result;
 }
+
+static void pack_40_super (const struct super_block * s, char * data)
+{
+	format_40_disk_super_block * super_data = (format_40_disk_super_block*)data;
+	reiser4_super_info_data * private = get_super_private(s);
+
+	assert ("zam-591", data != NULL);
+
+	cputod64(reiser4_free_committed_blocks(s), &super_data->free_blocks);
+	cputod64(private->tree.root_block, &super_data->root_block);
+//	cputod64(???, &super_data->oid);
+	cputod16(private->tree.height, &super_data->tree_height);
+}
+
+
+/* return a jnode which should be added to transaction when the super block
+ * gets logged */
+jnode * format_40_log_super (struct super_block * s)
+{
+	jnode * sb_jnode;
+	int ret;
+
+	sb_jnode = get_super_private(s)->u.format_40.sb_jnode;
+
+	jload (sb_jnode);
+
+	pack_40_super (s, jdata(sb_jnode));
+
+	jrelse (sb_jnode);
+
+	return sb_jnode;
+}
+
 
 int format_40_release (struct super_block * s)
 {
@@ -261,6 +335,8 @@ int format_40_release (struct super_block * s)
 		get_super_private(s)->space_plug->destroy_allocator(&get_super_private(s)->space_allocator, s);
 
 	done_journal_info(s);
+
+	done_super_jnode(s);
 
 	return 0;
 }

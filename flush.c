@@ -168,6 +168,15 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 
 	spin_lock_jnode (node);
 
+	/* a special case for znode-above-root */
+	if (jnode_is_formatted(node) && znode_above_root(JZNODE(node))) {
+		/* just pass dirty znode-above-root to overwrite set */
+		JF_SET(node, ZNODE_WANDER);
+		spin_unlock_jnode(node);
+		jnode_set_clean(node);
+		return 0;
+	}
+
 	/* A race is possible where node is not dirty or worse, not connected, by this point. */
 	if (! jnode_is_dirty (node) ||
 	    (jnode_is_formatted (node) && !znode_is_connected (JZNODE (node))) ||
@@ -178,18 +187,6 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		}
 		spin_unlock_jnode (node);
 		trace_on (TRACE_FLUSH_VERB, "flush_jnode not dirty/connected or queued\n");
-		return 0;
-	}
-
-	/* a special case for znode-above-root */
-	spin_lock_jnode (node);
-	ret = jnode_get_level(node) == 0;
-	spin_unlock_jnode (node);
-	if (ret) {
-		assert ("zam-589", znode_above_root(JZNODE(node)));
-		/* just pass dirty znode-above-root to overwrite set */
-		jnode_set_clean(node);
-		JF_SET(node, ZNODE_WANDER);
 		return 0;
 	}
 
@@ -1414,6 +1411,8 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 		spin_lock_tree (current_tree);
 		current_tree->root_block = blk;
 		spin_unlock_tree (current_tree);
+
+		znode_set_dirty(node);
 	}
 
 	ret = znode_rehash (node, & blk);

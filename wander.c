@@ -363,16 +363,46 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 	while (!capture_list_end (head, cur)) {
 		jnode * next = capture_list_next(cur);
 
-
-		if (jnode_get_level(cur) == 0) {
-			warning ("zam-590", "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, ZNODE_WANDER)); 
+		if (jnode_is_formatted(cur) && znode_above_root(JZNODE(cur))) {
+			warning ("zam-590", "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, ZNODE_WANDER));
 		}
 
-		if (JF_ISSET(cur, ZNODE_WANDER)) { 
-			set_size ++;
 
+		if (JF_ISSET(cur, ZNODE_WANDER)) { 
 			capture_list_remove_clean (cur);
-			capture_list_push_front (overwrite_list, cur);
+
+			if (jnode_is_formatted(cur) && znode_above_root(JZNODE(cur))) {
+				/* we replace fake znode by another (real)
+				 * znode which is suggested by disk_layout
+				 * plugin */
+
+				/* FIXME: it looks like fake znode should be
+				 * replaced by jnode supplied by
+				 * disk_layout. */
+
+				struct super_block * s = reiser4_get_current_sb();
+				reiser4_super_info_data * private = get_current_super_private();
+
+				if (private->lplug->log_super) {
+					jnode *sbj = private->lplug->log_super(s);
+
+					assert ("zam-593", sbj != NULL);
+
+					if (IS_ERR(sbj)) return PTR_ERR(sbj);
+
+					JF_SET(sbj, ZNODE_WANDER);
+					capture_list_push_front (overwrite_list, sbj);
+					sbj->atom = atom;
+
+					zput(cur);
+
+					set_size ++;
+				}
+
+			} else {
+				capture_list_push_front (overwrite_list, cur);
+				set_size ++;
+			}
 		}
 
 		cur = next;
@@ -738,9 +768,13 @@ int reiser4_write_logs (void)
 	pre_commit_hook();
 
 	atom = get_current_atom_locked();
+	spin_unlock_atom(atom);
+
 	/* count overwrite set and place it in a separate list */
 	overwrite_set_size = get_overwrite_set (atom, &overwrite_set);
-	spin_unlock_atom(atom);
+
+	if (overwrite_set_size < 0)
+		goto up_and_ret;
 
 	/* count all records needed for storing of the wandered set */
 	tx_size = get_tx_size (super, overwrite_set_size);
