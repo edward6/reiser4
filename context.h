@@ -10,7 +10,6 @@
 #include "spin_macros.h"
 #include "dformat.h"
 #include "type_safe_list.h"
-#include "jnode.h"
 #include "tap.h"
 #include "lock.h"
 
