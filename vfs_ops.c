@@ -1293,11 +1293,17 @@ const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
 const int REISER4_MAGIC_OFFSET = 16 * 4096; /* offset to magic string from the
 					     * beginning of device */
 
+/** type of option parseable by parse_option() */
 typedef enum {
+	/** value of option is arbitrary string */
 	OPT_STRING,
+	/** option specifies bit in a bitmask */
 	OPT_BIT,
+	/** value of option should conform to sprintf() format */
 	OPT_FORMAT,
+	/** option can take one of predefined values */
 	OPT_ONEOF,
+	/** option specifies reiser4 plugin */
 	OPT_PLUGIN
 } opt_type_t;
 
@@ -1306,15 +1312,28 @@ typedef struct opt_bitmask_bit {
 	int         bit_nr;
 } opt_bitmask_bit;
 
+/** description of option parseable by parse_option() */
 typedef struct opt_desc {
+	/** 
+	 * option name.
+	 * 
+	 * parsed portion of string has a form "name=value".
+	 */
 	const char *name;
+	/** type of option */
 	opt_type_t type;
 	union {
+		/** where to store value of string option (type == OPT_STRING) */
 		char **string;
+		/** description of bits for bit option (type == OPT_BIT) */
 		struct {
 			int   nr;
 			void *addr;
 		} bit;
+		/** 
+		 * description of format and targets for format option (type
+		 * == OPT_FORMAT)
+		 */
 		struct {
 			const char *format;
 			int   nr_args;
@@ -1324,7 +1343,9 @@ typedef struct opt_desc {
 			void *arg4;
 		} f;
 		struct {
+			/* NOT YET */
 		} oneof;
+		/** description of plugin option */
 		struct {
 			reiser4_plugin **addr;
 			const char      *type_label;
@@ -1337,7 +1358,11 @@ typedef struct opt_desc {
 	} u;
 } opt_desc_t;
 
-static int parse_option( char *opt_string, opt_desc_t *opt )
+/**
+ * parse one option
+ */
+static int parse_option( char *opt_string /* starting point of parsing*/, 
+			 opt_desc_t *opt /* option description */ )
 {
 	/* 
 	 * foo=bar, 
@@ -1349,6 +1374,10 @@ static int parse_option( char *opt_string, opt_desc_t *opt )
 	char *val_start;
 	int   result;
 	const char *err_msg;
+
+	/*
+	 * FIXME-NIKITA think about using lib/cmdline.c functions here.
+	 */
 
 	val_start = strchr( opt_string, '=' );
 	if( val_start != NULL ) {
@@ -1420,7 +1449,10 @@ static int parse_option( char *opt_string, opt_desc_t *opt )
 	return result;
 }
 
-static int parse_options( char *opt_string, opt_desc_t *opts, int nr_opts )
+/** parse options */
+static int parse_options( char *opt_string /* starting point */, 
+			  opt_desc_t *opts /* array with option description */, 
+			  int nr_opts /* number of elements in @opts */ )
 {
 	int result;
 	
@@ -1995,10 +2027,17 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 {
 	jnode        *node;
-	reiser4_tree *tree;
 
 	assert( "nikita-2257", PagePrivate( page ) );
 	assert( "nikita-2259", PageLocked( page ) );
+	ON_DEBUG_CONTEXT( assert( "nikita-2586", 
+				  lock_counters() -> spin_locked == 0 ) );
+
+	/*
+	 * FIXME-NIKITA: this can be called in the context of reiser4 call. It
+	 * is not clear what to do in this case. A lot of deadlock seems be
+	 * possible.
+	 */
 
 	node = jnode_by_page( page );
 	assert( "nikita-2258", node != NULL );
@@ -2026,20 +2065,31 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 		spin_unlock_jnode( node );
 		return 0;
 	}
-	page_clear_jnode_nolock( page, node );
-	spin_unlock_jnode( node );
-	tree = tree_by_page( page );
 
-	/*
-	 * we are under memory pressure so release jnode
-	 * also. jdrop() internally re-checks x_count.
-	 */
-	jdrop_in_tree( node, tree );
+	{
+		reiser4_tree *tree = tree_by_page( page );
+		REISER4_ENTRY( tree -> super );
 
-	/*
-	 * return with page still locked. shrink_cache() expects this.
-	 */
-	return 1;
+		/* account for spin_lock_jnode() above */
+		if( REISER4_DEBUG && get_current_context() == &__context ) {
+			++ lock_counters() -> spin_locked_jnode;
+			++ lock_counters() -> spin_locked;
+		}
+
+		jref( node );
+		page_clear_jnode_nolock( page, node );
+		spin_unlock_jnode( node );
+
+		/*
+		 * we are under memory pressure so release jnode also.
+		 */
+
+		jput( node );
+		/*
+		 * return with page still locked. shrink_cache() expects this.
+		 */
+		REISER4_EXIT( 1 );
+	}
 }
 
 int reiser4_writepages( struct address_space *mapping UNUSED_ARG, 
