@@ -1,8 +1,0 @@
-#! /bin/sh
-
-FSTYPE=ext2
-MOPTS=''
-MPOINT=/mnt/b1
-DEVICE=/dev/hdb1
-MKOPTS=''
-
