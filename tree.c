@@ -629,7 +629,6 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 {
 	reiser4_tree *tree;
 	reiser4_super_info_data *sdata;
-	__u32 tid;
 
 	assert("nikita-2662", !no_context);
 
@@ -643,7 +642,6 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	xmemset(context, 0, sizeof *context);
 
 
-	tid = set_current();
 	if (is_in_reiser4_context()) {
 		reiser4_context *parent;
 
@@ -662,8 +660,9 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	tree = &sdata->tree;
 
 	context->super = super;
-	context->tid = tid;
-
+#if (REISER4_DEBUG)
+	context->tid = set_current();
+#endif
 	assert("green-7", super->s_op == NULL || super->s_op == &reiser4_super_operations);
 
 	context->magic = context_magic;
