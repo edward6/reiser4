@@ -1588,20 +1588,14 @@ static int node40_delete_copied (struct shift_params * shift)
 		/* we were shifting to left, remove everything from the
 		   beginning of @shift->wish_stop->node upto
 		   @shift->wish_stop */
-		from.node = shift->real_stop.node;
-		from.item_pos = 0;
-		from.unit_pos = 0;
-		from.between = AT_UNIT;
+		ncoord_init_first_unit (&from, shift->real_stop.node);
 		to = shift->real_stop;
 	} else {
 		/* we were shifting to right, remove everything from
 		   @shift->stop_coord upto to end of
 		   @shift->stop_coord->node */
 		from = shift->real_stop;
-		to.node = from.node;
-		to.item_pos = node_num_items (to.node) - 1;
-		to.unit_pos = ncoord_last_unit_pos (&to);
-		to.between = AT_UNIT;
+		ncoord_init_last_unit (&to, from.node);
 	}
 
 	return node40_cut (&from, &to, 0, 0, 0, 0, 0);
@@ -1747,11 +1741,13 @@ static void adjust_coord (new_coord * insert_coord,
 				/* @insert_coord is set before first unit of
 				   @to node */
 				ncoord_init_before_first_item (insert_coord, shift->target);
+				insert_coord->between = BEFORE_UNIT;
 			} else {
 				/* @insert_coord is set after last unit of
 				   @insert->node */
 				ncoord_init_after_last_item (insert_coord,
 							     shift->wish_stop.node);
+				insert_coord->between = AFTER_UNIT;
 			}
 		}
 		return;

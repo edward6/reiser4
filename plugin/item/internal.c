@@ -52,7 +52,7 @@ static internal_item_layout *internal_at( const new_coord *coord /* coord of
 }
 
 /* FIXME: ugly hack */
-void internal_update (const tree_coord *coord, reiser4_block_nr blocknr)
+void internal_update (const new_coord *coord, reiser4_block_nr blocknr)
 {
 	internal_item_layout *item = internal_at (coord);
 	cpu_to_dblock (blocknr, & item->pointer);

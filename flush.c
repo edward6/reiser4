@@ -1379,15 +1379,15 @@ static int flush_alloc_block (reiser4_blocknr_hint *preceder, jnode *node, reise
 	 * when root block is relocated. */
 	if (! znode_is_root (JZNODE (node))) {
 		new_coord ncoord;
-		tree_coord tcoord;
+		/*tree_coord tcoord;*/
 
 		if ((ret = jnode_lock_parent_coord (node, & ncoord, & parent_lock, ZNODE_WRITE_LOCK))) {
 			goto out;
 		}
 
-		ncoord_to_tcoord (& tcoord, & ncoord);
+		/*ncoord_to_tcoord (& tcoord, & ncoord);*/
 
-		internal_update (& tcoord, blk);
+		internal_update (&ncoord, blk);
 
 	} else {
 		znode *fake = zget (current_tree, &FAKE_TREE_ADDR, NULL, 0 , GFP_KERNEL);

@@ -481,9 +481,8 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 		/*
 		 * move further 
 		 */
-		if( ( through_units_p && ncoord_is_rightmost_unit( coord ) ) || 
-		    ( !through_units_p && ( coord -> item_pos + 1u == 
-					    node_num_items( coord -> node ) ) ) ) {
+		if( ( through_units_p && ncoord_next_unit( coord ) ) || 
+		    ( !through_units_p && ncoord_next_item( coord ) ) ) {
 			do {
 				lock_handle couple;
 
@@ -507,10 +506,8 @@ int iterate_tree( reiser4_tree *tree /* tree to scan */,
 				} else
 					return result;
 			} while( node_is_empty( coord -> node ) );
-		} else if( through_units_p )
-			ncoord_next_unit( coord );
-		else
-			ncoord_next_item( coord );
+		};
+
 		assert( "nikita-1149", ncoord_is_existing_unit( coord ) );
 	}
 	zrelse( coord -> node );

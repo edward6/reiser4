@@ -50,8 +50,11 @@ void ncoord_init_last_unit  (new_coord *coord, znode *node)
 {
 	int is_empty = node_is_empty (node);
 
-	ncoord_init_values (coord, node, (is_empty ? 0 : node_num_items (node) - 1), 0, (is_empty ? EMPTY_NODE : AT_UNIT));
-
+	ncoord_init_values (coord, node,
+			    (is_empty ? 0 : node_num_items (node) - 1), 0,
+			    (is_empty ? EMPTY_NODE : AT_UNIT));
+	if (!is_empty)
+		coord->unit_pos = ncoord_last_unit_pos (coord);
 	assert ("jmacd-9802", ncoord_check (coord));
 }
 

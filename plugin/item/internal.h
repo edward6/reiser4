@@ -47,7 +47,7 @@ int         internal_utmost_child_real_block ( const new_coord  *coord,
 					       reiser4_block_nr  *block );
 
 /* FIXME: ugly hack */
-void internal_update (const tree_coord *coord, reiser4_block_nr blocknr);
+void internal_update (const new_coord *coord, reiser4_block_nr blocknr);
 
 
 /* __FS_REISER4_PLUGIN_ITEM_INTERNAL_H__ */
