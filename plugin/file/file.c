@@ -1479,12 +1479,14 @@ unpack(struct inode *inode)
 	if (result == 0) {
 		if (file_is_built_of_tails(inode))
 			result = tail2extent(inode);
+#if 0
 		if (result == 0) {
 			state = reiser4_inode_data(inode);
 			tplug = tail_plugin_by_id(NEVER_TAIL_ID);
 			plugin_set_tail(&state->pset, tplug);
 			inode_set_plugin(inode, tail_plugin_to_plugin(tplug));
 		}
+#endif
 	}
 
 	drop_exclusive_access(inode);
