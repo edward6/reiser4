@@ -649,7 +649,37 @@ void lru_cache_del (struct page * page UNUSED_ARG)
 
 /* mm/filemap.c */
 
-struct list_head page_list;
+/* hash table support */
+
+#define PAGE_HASH_TABLE_SIZE 8192
+
+typedef struct page *page_p;
+
+static inline int indexeq( const page_p *p1,
+			   const page_p *p2 )
+{
+	return 
+		( ( *p1 ) -> index == ( *p2 ) -> index ) && 
+		( ( *p1 ) -> mapping == ( *p2 ) -> mapping );
+}
+
+static inline __u32 indexhashfn( const page_p *p )
+{
+	__u32 result;
+
+	result = ( ( __u32 ) ( *p ) -> mapping ) << 16;
+	result = result | ( ( *p ) -> index & 0xffff );
+	return result & ( PAGE_HASH_TABLE_SIZE - 1 );
+}
+
+/** The hash table definition */
+#define KMALLOC( size ) malloc( size )
+#define KFREE( ptr, size ) free( ptr )
+TS_HASH_DEFINE( pc, struct page, page_p, self, link, indexhashfn, indexeq );
+#undef KFREE
+#undef KMALLOC
+
+pc_hash_table page_htable;
 static spinlock_t page_list_guard;
 
 static void init_page (struct page * page, struct address_space * mapping,
@@ -658,15 +688,16 @@ static void init_page (struct page * page, struct address_space * mapping,
 	page->index = ind;
 	page->mapping = mapping;
 	page->private = 0;
+	page->self = page;
 	atomic_set (&page->count, 1);
 	/* use kmap to set this */
 	page->virtual = 0;
 	spin_lock_init (&page->lock);
 	spin_lock_init (&page->lock2);
 
-	INIT_LIST_HEAD (&page -> mapping_list);
+	list_add(&page->mapping_list, &mapping->locked_pages);
 	spin_lock( &page_list_guard );
-	list_add (&page->list, &page_list);
+	pc_hash_insert( &page_htable, page );
 	spin_unlock( &page_list_guard );
 }
 
@@ -711,36 +742,32 @@ void remove_inode_page (struct page * page)
 struct page * find_get_page (struct address_space * mapping,
 			     unsigned long ind)
 {
-	struct list_head * cur;
 	struct page * page;
+	struct {
+		unsigned long index;
+		struct address_space *mapping;
+	} pkey = { .index = ind, .mapping = mapping };
+	page_p pkey_p = ( page_p ) &pkey;
 
-
-	list_for_each (cur, &page_list) {
-		page = list_entry (cur, struct page, list);
-		spin_lock (&page->lock2);
-		if (page->index == ind && page->mapping == mapping) {
-			atomic_inc (&page->count);
-			spin_unlock (&page->lock2);
-			return page;
-		}
-		spin_unlock (&page->lock2);
-	}
-	return 0;
+	spin_lock( &page_list_guard );
+	page = pc_hash_find( &page_htable, &pkey_p );
+	if( page != NULL )
+		atomic_inc (&page->count);
+	spin_unlock( &page_list_guard );
+	return page;
 }
 
 
 static void truncate_inode_pages (struct address_space * mapping,
 				  loff_t from)
 {
-	struct list_head * tmp;
-	struct list_head * cur;
-	struct page * page;
+	struct page *  tmp;
+	struct page *  page;
+	struct page ** bucket;
 	unsigned ind;
 
-
 	ind = (from + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-	list_for_each_safe (cur, tmp, &page_list) {
-		page = list_entry (cur, struct page, list);
+	for_all_in_htable( &page_htable, bucket, page, tmp, link ) {
 		if (page->mapping == mapping) {
 			if (page->index >= ind) {
 				spin_lock (&page->lock2);
@@ -755,7 +782,7 @@ static void truncate_inode_pages (struct address_space * mapping,
 				atomic_dec (&page->count);
 				if (!atomic_read (&page->count)) {
 					spin_lock( &page_list_guard );
-					list_del_init (&page->list);
+					pc_hash_remove( &page_htable, page );
 					spin_unlock( &page_list_guard );
 					free (page);
 				}
@@ -818,14 +845,6 @@ struct page *read_cache_page (struct address_space * mapping,
 	return page;
 }
 
-void page_cache_print()
-{
-	struct list_head * cur;
-
-	list_for_each (cur, &page_list)
-		print_page( list_entry ( cur, struct page, list ) );
-}
-
 int generic_file_mmap(struct file * file UNUSED_ARG,
 		      struct vm_area_struct * vma UNUSED_ARG)
 {
@@ -860,18 +879,18 @@ void page_cache_readahead (struct file * file UNUSED_ARG, unsigned long offset U
 
 static void invalidate_pages (void)
 {
-	struct list_head * cur, * tmp;
-	struct page * page;
+	struct page *  tmp;
+	struct page *  page;
+	struct page ** bucket;
 
 	spin_lock( &page_list_guard );
-	list_for_each_safe (cur, tmp, &page_list) {
-		page = list_entry (cur, struct page, list);
+	for_all_in_htable( &page_htable, bucket, page, tmp, link ) {
 		spin_lock (&page->lock2);
 		lock_page (page);
 		assert ("vs-666", !PageDirty (page));
 		assert ("vs-667", atomic_read (&page->count) == 0);
 		assert ("vs-668", !page->kmap_count);
-		list_del_init( &page -> list );
+		pc_hash_remove( &page_htable, page );
 		free (page);
 		spin_unlock (&page->lock2);
 	}
@@ -880,13 +899,12 @@ static void invalidate_pages (void)
 
 void print_pages (void)
 {
-	struct list_head * cur;
-	struct page * page;
+	struct page *  tmp;
+	struct page *  page;
+	struct page ** bucket;
 
-	list_for_each (cur, &page_list) {
-		page = list_entry (cur, struct page, list);
-		print_page (page);
-	}
+	for_all_in_htable( &page_htable, bucket, page, tmp, link )
+		print_page( page );
 }
 
 
@@ -955,14 +973,14 @@ void page_cache_release (struct page * page)
 /* fs/buffer.c */
 int fsync_bdev(struct block_device * bdev)
 {
-	struct list_head * cur;
-	struct page * page;
-	jnode * j;
+	struct page *  tmp;
+	struct page *  page;
+	struct page ** bucket;
 
-	list_for_each (cur, &page_list) {
+	for_all_in_htable( &page_htable, bucket, page, tmp, link ) {
 		struct buffer_head bh, *pbh;
+		jnode *j;
 
-		page = list_entry (cur, struct page, list);
 		if (!PageDirty (page))
 			continue;
 		impossible ("vs-747", "still dirty pages?");
@@ -1963,12 +1981,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		 reiser4_tree *tree )
 {
 	int ret;
-	carry_pool  pool;
-	carry_level lowest_level;
-	carry_op   *op;
 	reiser4_key key;
 	coord_t coord;
-	carry_insert_data cdata;
 	int i;
 
 	assert( "nikita-1096", tree != NULL );
@@ -2282,103 +2296,6 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		info( "Huh?\n" );
 	}
 	return 0;
-}
-
-
-/* insert stat data of root directory and make its inode */
-static struct inode * create_root_dir (znode * root)
-{
-	carry_pool  pool;
-	carry_level lowest_level;
-	carry_op   *op;
-	reiser4_inode_info *info;
-	struct inode * inode;
-	reiser4_item_data data;
-	reiser4_key key;
-	coord_t coord;
-	struct {
-		reiser4_stat_data_base base;
-	} sd;
-	int ret;
-	carry_insert_data cdata;
-	lock_handle lh;
-	struct super_block *s;
-
-	key_init( &key );
-	set_key_type( &key, KEY_SD_MINOR );
-	set_key_locality( &key, 2ull );
-	set_key_objectid( &key, 42ull );
-	init_lh( &lh );
-	
-	if( !fs_is_here ) {
-		init_carry_pool( &pool );
-		init_carry_level( &lowest_level, &pool );
-
-		ret = longterm_lock_znode( &lh, root, 
-					   ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
-		assert( "nikita-1792", ret == 0 );
-		op = post_carry( &lowest_level, COP_INSERT, root, 0 );
-
-		assert( "nikita-1269", !IS_ERR( op ) && ( op != NULL ) );
-		// fill in remaining fields in @op, according to
-		// carry.h:carry_op
-		cdata.data = &data;
-		cdata.key = &key;
-		cdata.coord = &coord;
-		op -> u.insert.type = COPT_ITEM_DATA;
-		op -> u.insert.d = &cdata;
-	
-		xmemset( &sd, 0, sizeof sd );
-		cputod16( S_IFDIR | 0111, &sd.base.mode );
-		cputod16( 0x0 , &sd.base.extmask );
-		cputod32( 1, &sd.base.nlink );
-		cputod64( 0x283746ull, &sd.base.size );
-
-		/* this inserts stat data */
-		data.data = ( char * ) &sd;
-		data.user = 0;
-		data.length = sizeof sd.base;
-		data.iplug = item_plugin_by_id( STATIC_STAT_DATA_ID );
-		zload( root );
-		coord_init_first_unit( &coord, root );
-		zrelse( root );
-	
-		ret = carry( &lowest_level, NULL );
-		printf( "result: %i\n", ret );
-		info( "_____________sd inserted_____________\n" );
-		done_carry_pool( &pool );
-	} else {
-		ret = coord_by_key( current_tree,
-				    &key, &coord, &lh, ZNODE_READ_LOCK,
-				    FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
-				    CBK_UNIQUE );
-		assert( "nikita-1933", ret == 0 );
-	}
-
-	done_lh( &lh );
-
-	s = reiser4_get_current_sb();
-	inode = reiser4_iget( s, &key );
-	info = reiser4_inode_data (inode);
-
-	if( info -> file == NULL )
-		info -> file = default_file_plugin(s);
-	if( info -> dir == NULL )
-		info -> dir = default_dir_plugin(s);
-	if( info -> sd == NULL )
-		info -> sd = default_sd_plugin(s);
-	if( info -> hash == NULL )
-		info -> hash = default_hash_plugin(s);
-	if( info -> tail == NULL )
-		info -> tail = default_tail_plugin(s);
-	if( info -> perm == NULL )
-		info -> perm = default_perm_plugin(s);
-	if( info -> dir_item == NULL )
-		info -> dir_item = default_dir_item_plugin(s);
-	
-	call_create (inode, ".");
-	s -> s_root -> d_inode = inode;
-	return inode;
 }
 
 
@@ -4376,7 +4293,7 @@ int PAGE_CACHE_MASK;
 
 int real_main( int argc, char **argv )
 {
-	int result, eresult, fresult;
+	int result;
 	struct super_block *s;
 	reiser4_tree *tree;
 	reiser4_context __context;
@@ -4403,10 +4320,11 @@ int real_main( int argc, char **argv )
 	PAGE_CACHE_MASK	= (~(PAGE_CACHE_SIZE-1));
 	info ("PAGE_CACHE_SHIFT=%d, PAGE_CACHE_SIZE=%d, PAGE_CACHE_MASK=0x%x\n",
 	      PAGE_CACHE_SHIFT, PAGE_CACHE_SIZE, PAGE_CACHE_MASK);
-/*
-	trap_signal( SIGBUS );
-	trap_signal( SIGSEGV );
-*/
+
+	if( getenv( "REISER4_TRAP" ) ) {
+		trap_signal( SIGBUS );
+		trap_signal( SIGSEGV );
+	}
 
 	if( getenv( "REISER4_TRACE_FLAGS" ) != NULL ) {
 		reiser4_current_trace_flags = 
@@ -4417,7 +4335,7 @@ int real_main( int argc, char **argv )
 
 
 	INIT_LIST_HEAD( &inode_hash_list );
-	INIT_LIST_HEAD( &page_list );
+	pc_hash_init( &page_htable, PAGE_HASH_TABLE_SIZE );
 
 	/*
 	 * FIXME-VS: will be fixed
@@ -4492,24 +4410,7 @@ int main (int argc, char **argv)
 		rpanic ("jmacd-901", "pthread_key_create failed");
 	}
 
-	if (argc == 1) {
-		int i;
-
-		struct {
-			int argc; const char *argv[ 10 ];
-		} args[] = {
-			{ 4, { "./a.out", "nikita", "ibk", "300", } },
-			{ 6, { "./a.out", "nikita", "dir", "1000", "0", } }
-		};
-
-		for( i = 0 ; i < sizeof_array( args ) ; ++ i ) {
-			ret = real_main( args[ i ].argc, args[ i ].argv );
-			if( ret != 0 )
-				break;
-		}
-	} else
-		ret = real_main (argc, argv);
-	return ret;
+	return real_main (argc, argv);
 }	
 
 void funJustAfterMain()
@@ -4625,9 +4526,9 @@ int write_one_page(struct page *page, int wait)
 		wait_on_page_writeback(page);
 
 	spin_lock(&mapping->page_lock);
-	list_del(&page->list);
+	list_del(&page->mapping_list);
 	if (TestClearPageDirty(page)) {
-		list_add(&page->list, &mapping->locked_pages);
+		list_add(&page->mapping_list, &mapping->locked_pages);
 		page_cache_get(page);
 		spin_unlock(&mapping->page_lock);
 		ret = mapping->a_ops->writepage(page);
@@ -4638,7 +4539,7 @@ int write_one_page(struct page *page, int wait)
 		}
 		page_cache_release(page);
 	} else {
-		list_add(&page->list, &mapping->clean_pages);
+		list_add(&page->mapping_list, &mapping->clean_pages);
 		spin_unlock(&mapping->page_lock);
 		unlock_page(page);
 	}

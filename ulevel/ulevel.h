@@ -57,6 +57,7 @@ extern void spinlock_bug (const char *msg);
 
 #include "kutlock.h"
 
+#include "../tshash.h"
 #include "../reiser4.h"
 #include "../forward.h"
 #include "../debug.h"
@@ -735,18 +736,23 @@ struct kcondvar_t
 
 /* include/linux/mm.h */
 
+/** declare hash table of znodes */
+TS_HASH_DECLARE(pc, struct page);
+
 struct page {
 	unsigned long index;
-	void * virtual;
 	struct address_space *mapping;
+	void * virtual;
 	unsigned long flags;
 	atomic_t count;
 	unsigned long private;
-	struct list_head list;
+	/** pointers to maintain hash-table */
+	pc_hash_link            link;
 	struct list_head mapping_list;
 	spinlock_t lock;
 	spinlock_t lock2;
 	int kmap_count;
+	struct page *self;
 };
 
 #define PG_locked	 0	/* Page is locked. Don't touch. */

@@ -196,6 +196,9 @@ for ((item) = *(bucket), (next) = (item) ? (item) -> field._next : NULL ;	\
      (item) != NULL ;								\
      (item) = (next), (next) = (item) ? (item) -> field._next : NULL )
 
+#define for_all_in_htable(table, head, item, next, field)			\
+for_all_ht_buckets(table, head) for_all_in_bucket(head, item, next, field)
+
 #endif /* __REISER4_TSHASH_H__ */
 
 /*
