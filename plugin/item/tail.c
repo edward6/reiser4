@@ -312,7 +312,7 @@ overwrite_tail(coord_t * coord, flow_t * f)
 /* drop longterm znode lock before calling balance_dirty_pages. balance_dirty_pages may cause transaction to close,
    therefore we have to update stat data if necessary */
 static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f, coord_t *coord, lock_handle *lh,
-				    struct sealed_coord *hint, coord_state_t coord_state)
+				    hint_t *hint, coord_state_t coord_state)
 {
 	int result;
 	loff_t new_size;
@@ -360,7 +360,7 @@ overwrite_reserve(reiser4_tree *tree)
 /* plugin->u.item.s.file.write
    access to data stored in tails goes directly through formatted nodes */
 int
-write_tail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint, int grabbed)
+write_tail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, hint_t *hint, int grabbed)
 {
 	int result;
 	write_mode todo;

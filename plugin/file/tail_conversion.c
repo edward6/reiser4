@@ -9,7 +9,7 @@
 /* this file contains:
    tail2extent and extent2tail */
 
-int find_file_item(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *,
+int find_file_item(hint_t *, const reiser4_key *, coord_t *, lock_handle *,
 		   znode_lock_mode, __u32 cbk_flags, ra_info_t *, unix_file_info_t *, file_state *);
 int goto_right_neighbor(coord_t *, lock_handle *);
 void set_file_state_extents(struct inode *);
@@ -407,7 +407,6 @@ tail2extent(unix_file_info_t *uf_info)
 				lock_handle lh;
 
 				/* get next item */
-				coord_init_zero(&coord);
 				result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, uf_info, 0);
 				if (result != CBK_COORD_FOUND) {
 					/* tail conversion can not be called for empty file */
@@ -534,8 +533,6 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 	result = 0;
 
 	assert("vs-1089", count);
-
-	coord_init_zero(&coord);
 
 	/* build flow */
 	inode_file_plugin(inode)->flow_by_inode(inode, kmap(page), 0 /* not user space */ ,

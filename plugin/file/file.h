@@ -3,6 +3,8 @@
 #if !defined( __REISER4_FILE_H__ )
 #define __REISER4_FILE_H__
 
+#include "../../seal.h"
+
 /* declarations of functions implementing file plugin for unix file plugin */
 int truncate_unix_file(struct inode *, loff_t size);
 int readpage_unix_file(void *, struct page *);
@@ -41,9 +43,21 @@ typedef enum {
 	COORD_UNKNOWN_STATE = 3
 } coord_state_t;
 
-void set_hint(struct sealed_coord *, const reiser4_key *, coord_t *, coord_state_t);
-void unset_hint(struct sealed_coord *);
-int hint_validate(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *);
+#define HINT_MAGIC 1081120
+typedef struct {
+	seal_t seal;
+	coord_t coord;
+	reiser4_key key;
+	tree_level level;
+	znode_lock_mode lock;
+#if REISER4_DEBUG
+	int magic;
+#endif
+} hint_t;
+
+void set_hint(hint_t *, const reiser4_key *, coord_t *, coord_state_t);
+void unset_hint(hint_t *);
+int hint_validate(hint_t *, const reiser4_key *, coord_t *, lock_handle *);
 int update_inode_and_sd_if_necessary(struct inode *, loff_t new_size, int update_i_size, int update_sd);
 
 typedef enum {

@@ -27,7 +27,7 @@ int cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 /*int check_check(const coord_t * coord, const char **error);*/
 
 /* plugin->u.item.s.* */
-int write_ctail(struct inode *, coord_t *, lock_handle *, flow_t *, struct sealed_coord *, int);
+int write_ctail(struct inode *, coord_t *, lock_handle *, flow_t *, hint_t *, int);
 int read_ctail(struct file *, coord_t *, flow_t *);
 int readpage_ctail(void *, struct page *);
 int writepage_ctail(coord_t *, lock_handle *, struct page *);

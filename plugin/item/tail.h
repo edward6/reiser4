@@ -21,7 +21,8 @@ int cut_units_tail(coord_t * item, unsigned *from,
 reiser4_key *unit_key_tail(const coord_t * coord, reiser4_key * key);
 
 /* plugin->u.item.s.* */
-int write_tail(struct inode *, coord_t *, lock_handle *, flow_t *, struct sealed_coord *, int grabbed);
+#include "../file/file.h"
+int write_tail(struct inode *, coord_t *, lock_handle *, flow_t *, hint_t *, int grabbed);
 int read_tail(struct file *, coord_t *, flow_t *);
 reiser4_key *append_key_tail(const coord_t * coord, reiser4_key * key, void *);
 int key_in_item_tail(coord_t * coord, const reiser4_key * key, void *);

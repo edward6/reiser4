@@ -271,7 +271,7 @@ cut_units_ctail(coord_t * coord, unsigned *from, unsigned *to,
 
 /* plugin->u.item.s.file.write */
 int
-write_ctail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, struct sealed_coord *hint, int grabbed)
+write_ctail(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, hint_t *hint, int grabbed)
 {
 	return 0;
 }
