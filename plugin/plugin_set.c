@@ -329,8 +329,8 @@ reiser4_internal int plugin_set_init(void)
 reiser4_internal void plugin_set_done(void)
 {
 	/* NOTE: scan hash table and recycle all objects. */
-	kmem_cache_destroy(plugin_set_slab);
 	ps_hash_done(&ps_table);
+	kmem_cache_destroy(plugin_set_slab);
 }
 
 
