@@ -473,34 +473,6 @@ reiser4_writepages(struct address_space *mapping,
 	spin_lock(&inode_lock);
 	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
 	spin_unlock(&inode_lock);
-#if 0
-	/*
-	 * NOTE-NIKITA dubious: we need to clear I_LOCK here, because
-	 * transaction commit from under I_LOCK can dead-lock with
-	 * reiser4_iget() trying to obtain I_LOCK within transaction. I am not
-	 * sure whether it is legal to unlock inode during
-	 * ->writepages(). Should consult AKPM.
-	 */
-	waslocked = inode->i_state & I_LOCK;
-	if (waslocked) {
-		inode->i_state &= ~I_LOCK;
-		wake_up_inode(inode);
-	}
-	spin_unlock(&inode_lock);
-
-	ret = writeout(mapping, wbc);
-
-	if (waslocked) {
-		spin_lock(&inode_lock);
-		while (inode->i_state & I_LOCK) {
-			spin_unlock(&inode_lock);
-			wait_on_inode(inode);
-			spin_lock(&inode_lock);
-		}
-		inode->i_state |= I_LOCK;
-		spin_unlock(&inode_lock);
-	}
-#endif
 	reiser4_exit_context(&ctx);
 	return ret;
 }
