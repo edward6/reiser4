@@ -528,6 +528,16 @@ reiser4_statfs(struct super_block *super	/* super block of file
 
 	/* maximal acceptable name length depends on directory plugin. */
 	buf->f_namelen = -1;
+
+	/* This printks internal reiser4 info (if CONFIG_REISER4_STATS is
+	   compiled on) each time reiser4_statfs is called.
+
+	   FIXME-ZAM: this should be implemented through sysfs which is more
+	   correct but more complex; remove this call after proper
+	   implementation is finished */
+	if (reiser4_is_debugged(super, REISER4_STATS_ON_STATFS))
+		reiser4_print_stats();
+
 	REISER4_EXIT(0);
 }
 
