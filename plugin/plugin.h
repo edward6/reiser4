@@ -353,10 +353,9 @@ typedef struct crypto_plugin {
 	unsigned nr_keywords;
 	/* minimal input blocksize accepted by the algorithm */
 	size_t (*blocksize)(__u16 keysize);
-	/* On-the-fly offset translator (for asymmetric crypto-algorithms).
-	   Accepts input offset @src which is multiple of @blocksize, returns
-	   scaled offset. We call this "scale" instead of "inflate" to not mix
-	   this with decompression */
+	/* Offset translator (meaningful for asymmetric crypto-algorithms).
+	   Offset translation allows to keep consistency in key space when
+	   crypto algorithm inflate data. */
 	loff_t (*scale)(struct inode * inode, size_t blocksize, loff_t src);	
 	/* align manager */
 	int (*align_cluster)(__u8 *tail, int clust_size, int blocksize);
