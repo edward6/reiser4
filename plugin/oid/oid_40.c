@@ -76,6 +76,21 @@ __u64 oid_40_free( reiser4_oid_allocator *map )
 	return result;
 }
 
+/**
+ * plugin->u.oid_allocator.next_oid
+ */
+__u64 oid_40_next_oid( reiser4_oid_allocator *map)
+{
+	__u64 result;
+
+	assert ("zam-601", map != NULL);
+
+	lock(map);
+	result = map -> u.oid_40.next_to_use;
+	unlock(map);
+
+	return result;
+}
 
 /**
  * plugin->u.oid_allocator.oids_used
