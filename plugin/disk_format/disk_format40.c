@@ -78,7 +78,7 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block
 {
 	struct buffer_head *super_bh;
 	format40_disk_super_block *disk_sb;
-	reiser4_block_nr rootblock = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location */
+	reiser4_block_nr rootblock;
 
 	assert("umka-487", s != NULL);
 
@@ -91,6 +91,8 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block
 	
         if ( jh && reiser4_get_diskmap_value( FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JH, jh) != 0 )
 		*jh = FORMAT40_JOURNAL_HEADER_BLOCKNR; /* Default format-specific location, if there is nothing in diskmap */
+#else
+	rootblock = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location, if there is nothing in diskmap */
 #endif
 
 	if (!(super_bh = sb_bread(s, rootblock)))
@@ -130,8 +132,8 @@ get_super_jnode(struct super_block *s)
 #ifdef CONFIG_REISER4_BADBLOCKS
 
         if ( reiser4_get_diskmap_value( FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_SUPER, &super_block_nr) != 0 )
-		super_block_nr = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location, if there is nothing in diskmap */
 #endif
+		super_block_nr = FORMAT40_OFFSET / s->s_blocksize; /* Default format-specific location, if there is nothing in diskmap */
 
 	sb_jnode = alloc_io_head(&super_block_nr);
 
