@@ -15,7 +15,7 @@
     that will be actually called, can be printk, panic etc.
     This is for use by other debugging macros, not by users. */
 #define DCALL( lev, fun, label, format, args... )				\
-         do { fun( lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]: " format "\n",	\
+         do { fun( lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n",	\
 		       no_context ? "interrupt" : current_pname,		\
 		       no_context ? -1 : current_pid,				\
 		       __func__, __FILE__, __LINE__, label ,  ##args );		\
@@ -196,7 +196,7 @@ extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
 #define trace_if( flags, e ) 							\
-	if( get_current_context() && get_current_trace_flags() & (flags) ) e
+	if( get_current_trace_flags() & (flags) ) e
 #else
 #define trace_if( flags, e ) noop
 #endif

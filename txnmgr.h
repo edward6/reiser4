@@ -249,6 +249,8 @@ struct txn_handle
 	txnh_list_link         txnh_link;
 };
 
+TS_LIST_DECLARE(txn_mgrs);
+
 /* The transaction manager: one is contained in the reiser4_super_info_data */
 struct txn_mgr
 {
@@ -266,7 +268,15 @@ struct txn_mgr
 
 	/* a semaphore object for commit serialization */
 	struct semaphore       commit_semaphore;
+
+	/* a list of all txnmrgs served by particular daemon. */
+	txn_mgrs_list_link     linkage;
+
+	/* description of daemon for this txnmgr */
+	ktxnmgrd_context      *daemon;
 };
+
+TS_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
 
 /****************************************************************************************
 				  FUNCTION DECLARATIONS
@@ -287,7 +297,7 @@ extern void         txn_begin             (reiser4_context    *context);
 extern int          txn_end               (reiser4_context    *context);
 
 extern int          txn_mgr_force_commit  (struct super_block *super);
-
+extern int          txn_commit_some       (txn_mgr *mgr);
 extern int          txn_same_atom_dirty   (jnode              *base,
 					   jnode              *check,
 					   int                 alloc_check,

@@ -51,6 +51,8 @@ typedef unsigned pos_in_item;
 typedef struct jnode jnode;
 typedef struct reiser4_blocknr_hint reiser4_blocknr_hint;
 
+typedef struct ktxnmgrd_context ktxnmgrd_context;
+
 struct inode;
 struct page;
 struct file;

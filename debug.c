@@ -386,10 +386,16 @@ void reiser4_print_stats()
  */
 __u32 get_current_trace_flags( void )
 {
-	return 
-		get_current_context() -> trace_flags | 
-		get_current_super_private() -> trace_flags |
-		reiser4_current_trace_flags;
+	__u32 flags;
+
+	flags = reiser4_current_trace_flags;
+	if( get_current_context() != NULL ) {
+		flags |= get_current_context() -> trace_flags;
+		if( get_current_super_private() != NULL )
+			flags |= get_current_super_private() -> trace_flags;
+	}
+
+	return flags;
 }
 
 /** 
