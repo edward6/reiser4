@@ -244,18 +244,6 @@ struct znode {
 	 * size of node referenced by this znode. This is not necessary
 	 * block size, because there znodes for extents.
 	 */
-	/* nikita, you were supposed to read the bio code, and
-	   recommend how to adjust our code to it.
-
-	   If the extent is not stored in contiguous memory pages, and
-	   it probably is not, then data plus size is not sufficient,
-	   and some pointer to the new replacement for buffer heads
-	   (iobuf, or iovec?) is called for for extents.
-
-	   -Hans */
-	/* Josh says: I have read the bio code.  The extent will not be stored in contiguous memory.  The kiobuf, which
-	 * is used to create a struct bio, basically uses an array of struct page pointers.  Wow 120 characters is wide!
-	 */
 	unsigned      size;
 
 	/* Let's review why we need delimiting keys other than in the
