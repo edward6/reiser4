@@ -68,8 +68,12 @@ typedef struct cbk_cache {
 	/* actual array of slots */
 	cbk_cache_slot *slot;
 	/* serializator */
-	spinlock_t guard;
+	reiser4_spin_data guard;
 } cbk_cache;
+
+#define spin_ordering_pred_cbk_cache(cache) (1)
+
+SPIN_LOCK_FUNCTIONS(cbk_cache, cbk_cache, guard);
 
 TS_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
 
