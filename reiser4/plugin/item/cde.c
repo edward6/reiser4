@@ -866,6 +866,8 @@ static int try_to_glue_to( tree_coord *coord, const struct inode *dir,
 	result = 0;
 	if( can_glue_to( coord, dir, plugin ) )
 		result = 1;
+	else if( is_empty_node( coord -> node ) )
+		result = 0;
 	else if( coord_between_items( coord ) ) {
 		tree_coord neighbor;
 
