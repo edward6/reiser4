@@ -126,11 +126,13 @@ nh40_get_mkfs_id(node40_header * nh)
 	return d32tocpu(&nh->flush.mkfs_id);
 }
 
+#if 0
 static void
 nh40_set_flush_id(node40_header * nh, __u64 id)
 {
 	cputod64(id, &nh->flush.flush_id);
 }
+#endif
 
 static inline __u64
 nh40_get_flush_id(node40_header * nh)
