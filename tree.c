@@ -347,10 +347,7 @@ insert_result insert_by_coord( new_coord  *coord /* coord where to
 	 *
 	 */
 	if( ( item_size <= znode_free_space( coord -> node ) ) && 
-	    ( ( coord -> item_pos != 0 ) || 
-	      ( coord -> unit_pos != 0 ) || 
-	      ( coord -> between == AFTER_UNIT ) ) &&
-	    !ncoord_is_leftmost_unit( coord ) && 
+	    !ncoord_is_before_leftmost( coord ) && 
 	    ( node_plugin_by_coord( coord ) -> fast_insert != NULL ) &&
 	    node_plugin_by_coord( coord ) -> fast_insert( coord ) ) {
 		int result;
@@ -1379,61 +1376,6 @@ int cut_tree (reiser4_tree * tree,
 
 	return result;
 }
-
-
-
-
-
-#if 0
-/* ??? shouldn't this start from bigger key? Then
-   reiser4_ordinary_file_truncate will be able to use it. Because if cut_tree
-   will not complete due to power failure or other error file will be left in
-   consistent state only if deleting from larger to smaller */
-cut_error cut_tree_original(key * from, key * to)
-{
-	request_read_ahead_key_range(from, to, LIMIT_READ_AHEAD_BY_CACHE_SIZE_ONLY);
-	/* locking? */
-	spans_node = key_range_spans_node(from, to);
-
-	/* partial cut first item if cut
-	   starts from the middle of it */
-	if(key_cmp(from, key_of_item(from_item_header) == LESS_THAN )) {
-		handler(from_item_header)->cut(from_item_header, from, to, node);
-		from_coord = next_item(from_item_coord); /* need to check error conditions here.... */
-	}
-
-
-	while (from < to)
-		{
-			from_item_coord = item_coord_by_key(from);
-
-			/* need to check error conditions here in case there is no
-			   next item.... */
-			next_item = next_item(from_item_coord);
-
-			/* partial item cuts: invokes item
-			   handler directly, by contrast whole
-			   item cuts invoke node handlers
-			   (which call whole item delete
-			   handlers) */
-			if (key_by_item_coord (next_item) > to)
-				{
-					handler(from_item_header)->cut(from_item_header, from, to, node);
-					if(node_num_items(from_item_coord.node) == 0)
-						delete_node(from_item_coord.node);
-					break;
-				}
-			/* whole item deletes */
-			/* this indirectly calls the item handler delete method */
-			node->delete_item(from_item_coord);
-			/* if node is empty, delete it */
-			if (node_num_items(from_item_coord.node) == 0)
-				delete_node(from_item_coord.node);
-		}
-}
-#endif
-
-
 
 
 /*
