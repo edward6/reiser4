@@ -255,6 +255,25 @@ reiser4_set_fake_allocated_unformatted(const struct super_block *super, __u64 nr
 	get_super_private(super)->blocks_fake_allocated_unformatted = nr;
 }
 
+
+/* get/set value of/to counter of clustered blocks */
+__u64 reiser4_clustered_blocks(const struct super_block *super)
+{
+	assert("edward-601", super != NULL);
+	assert("edward-602", is_reiser4_super(super));
+
+	return get_super_private(super)->blocks_clustered;
+}
+
+void
+reiser4_set_clustered_blocks(const struct super_block *super, __u64 nr)
+{
+	assert("edward-603", super != NULL);
+	assert("edward-604", is_reiser4_super(super));
+
+	get_super_private(super)->blocks_clustered = nr;
+}
+
 /* space allocator used by this file system */
 reiser4_space_allocator *
 get_space_allocator(const struct super_block * super)
