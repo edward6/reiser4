@@ -938,10 +938,8 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 		 file->f_dentry->d_inode->i_size);
 
 	inode = file->f_dentry->d_inode;
-	if (inode_file_plugin(inode)->mmap == NULL)
-		result = -ENOSYS;
-	else
-		result = inode_file_plugin(inode)->mmap(file, vma);
+	assert("nikita-2936", inode_file_plugin(inode)->mmap != NULL);
+	result = inode_file_plugin(inode)->mmap(file, vma);
 	write_syscall_trace("ex");
 	REISER4_EXIT(result);
 }
