@@ -420,6 +420,80 @@ union reiserfs_plugin {
 
 typedef union reiserfs_plugin reiserfs_plugin_t;
 
+/* 
+    To create a new item or to insert into the item we 
+    need to perform the following operations:
+    1. Create the description of the data being inserted.
+    2. Ask item plugin how much space is needed for the 
+       data, described in 1.   
+    3. Free needed space for data being inserted.
+    4. Ask item plugin to create an item (to paste into 
+       the item) on the base of description from 1.
+
+    For such purposes we have: 
+    1. Fixed description structures for all item types (stat, 
+       diritem, internal, etc).
+    2. Estimate common item method which gets coord of where 
+       to insert into (NULL or unit_pos == -1 for insertion, 
+       otherwise it is pasting) and data description from 1.
+    3. Insert node methods prepare needed space and call 
+       Create/Paste item methods if data description is specified.
+    4. Create/Paste item methods if data description has not 
+       beed specified on 3. 
+*/
+
+/* 
+    Create item or paste into item on the base of this structure. 
+    "data" is a pointer to data to be copied. 
+*/ 
+struct reiserfs_item_info {    
+    void *data;
+    void *info;
+
+    uint16_t length;
+    reiserfs_plugin_t *plugin;
+};
+typedef struct reiserfs_item_info reiserfs_item_info_t;
+
+struct reiserfs_internal_info {    
+    blk_t blk;
+};
+
+typedef struct reiserfs_internal_info reiserfs_internal_info_t;
+
+struct reiserfs_stat_info {
+    /*  
+	These fields should be changed to what proper description of 
+	needed extentions. 
+    */
+    uint16_t mode;
+    uint16_t extmask;
+    uint32_t nlink;
+    uint64_t size;
+};
+
+typedef struct reiserfs_stat_info reiserfs_stat_info_t;
+
+struct reiserfs_entry_info {
+    uint64_t parent_id;
+    uint64_t object_id;
+    char *name;
+};
+
+typedef struct reiserfs_entry_info reiserfs_entry_info_t;
+
+struct reiserfs_direntry_info {
+    uint16_t count;
+    reiserfs_entry_info_t *entry;
+};
+
+typedef struct reiserfs_direntry_info reiserfs_direntry_info_t;
+
+struct reiserfs_dir_info {
+};
+
+typedef struct reiserfs_dir_info reiserfs_dir_info_t;
+
 struct reiserfs_plugins_factory {
     reiserfs_plugin_t *(*find_by_coords)(reiserfs_plugin_id_t, reiserfs_plugin_id_t);
     reiserfs_plugin_t *(*find_by_label)(const char *);
