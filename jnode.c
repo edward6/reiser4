@@ -951,6 +951,24 @@ jdrop(jnode * node)
 	jdrop_in_tree(node, jnode_get_tree(node));
 }
 
+/* called from jput() to wait for io completion */
+static void jnode_finish_io(jnode * node)
+{
+	struct page *page;
+
+	assert("nikita-2922", node != NULL);
+
+	LOCK_JNODE(node);
+	page = jnode_page(node);
+	if (page != NULL) {
+		page_cache_get(page);
+		UNLOCK_JNODE(node);
+		wait_on_page_writeback(page);
+		page_cache_release(page);
+	} else
+		UNLOCK_JNODE(node);
+}
+
 void
 jput_final(jnode * node)
 {
@@ -975,25 +993,6 @@ jput_final(jnode * node)
 			jnode_try_drop(node);
 	}
 	/* if !r_i_p some other thread is already killing it */
-}
-
-/* called from jput() to wait for io completion */
-void
-jnode_finish_io(jnode * node)
-{
-	struct page *page;
-
-	assert("nikita-2922", node != NULL);
-
-	LOCK_JNODE(node);
-	page = jnode_page(node);
-	if (page != NULL) {
-		page_cache_get(page);
-		UNLOCK_JNODE(node);
-		wait_on_page_writeback(page);
-		page_cache_release(page);
-	} else
-		UNLOCK_JNODE(node);
 }
 
 int

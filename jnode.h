@@ -592,7 +592,6 @@ extern struct address_space * jnode_mapping(const jnode * node);
 extern unsigned long jnode_index(const jnode * node);
 
 extern int jnode_try_drop(jnode * node);
-extern void jnode_finish_io(jnode * node);
 
 static inline void jput(jnode * node);
 extern void jput_final(jnode * node);
