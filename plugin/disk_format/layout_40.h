@@ -26,10 +26,11 @@ typedef struct layout_40_disk_super_block {
 				    * flushed. Needed if layout 40
 				    * will have few super blocks */
 	/*  56 */ char magic[16];  /* magic string R4Sb-Default */
+	/*  72 */ d16 tree_height; /* height of filesystem tree */
 	
-	/*  72 */ d16 journal_plugin_id; /* journal plugin identifier */
-	/*  74 */ d16 alloc_plugin_id; /* space allocator plugin identifier */
-	/*  76 */ d16 tree_height; /* height of filesystem tree */
+	/*  74 */ d16 journal_plugin_id; /* journal plugin identifier */
+	/*  76 */ d16 alloc_plugin_id; /* space allocator plugin identifier */
+	
 	/*  78 */ d16 padd [3];
 	/*  84 */ char not_used [428];
 } layout_40_disk_super_block;
