@@ -2231,7 +2231,7 @@ static int flush_empty_queue (flush_position *pos)
 #if REISER4_USER_LEVEL_SIMULATION
 			max_j = pos->queue_num;
 #else
- 			max_j = min (pos->queue_num, i+ (bdev_get_queue (super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9)));
+ 			max_j = min (pos->queue_num, (bdev_get_queue (super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9)));
 #endif
 
 			nr = 1;
