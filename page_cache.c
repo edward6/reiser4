@@ -398,11 +398,12 @@ static int formatted_writepage( struct page *page /* page to write */ )
 static int formatted_invalidatepage( struct page *page /* page to write */,
 				     unsigned long offset /*  truncate offset */ )
 {
+	REISER4_ENTRY (page->mapping->host->i_sb);
 	assert( "nikita-2109", jprivate( page ) == NULL );
 	assert( "nikita-2110", offset == 0 );
 	assert( "nikita-2111", !PageDirty( page ) );
 	assert( "nikita-2112", PageUptodate( page ) );
-	return 0;
+	REISER4_EXIT (0);
 }
 
 int page_io( struct page *page, int rw, int gfp )
