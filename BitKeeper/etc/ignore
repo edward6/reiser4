@@ -33,3 +33,7 @@ reiser4/tree:dir
 core.*
 core
 all-reiser4.c
+doc/set-theoretic-stuff.aux
+doc/set-theoretic-stuff.dvi
+doc/set-theoretic-stuff.idx
+doc/set-theoretic-stuff.log
