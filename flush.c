@@ -2538,9 +2538,10 @@ static int flush_scan_formatted (flush_scan *scan)
 
 		init_lh (& end_lock);
 
-		/* Need the node locked to get the parent lock, but we only need to
-		 * read-lock it since we will release it right away. */
-		if ((ret = longterm_lock_znode (& end_lock, JZNODE (scan->node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+		/* Need the node locked to get the parent lock, We have to
+		   take write lock since there is at least one call path
+		   where this znode is already write-locked by us. */
+		if ((ret = longterm_lock_znode (& end_lock, JZNODE (scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
 			/* EINVAL or EDEADLK here mean... try again!  At this point we've
 			 * scanned too far and can't back out, just start over. */
 			return ret;
