@@ -2826,6 +2826,6 @@ print_atom(const char *prefix, txn_atom * atom)
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 98
+   fill-column: 120
    End:
 */
