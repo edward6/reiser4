@@ -1489,7 +1489,8 @@ void print_coord_content( const char *prefix /* prefix to print */,
 		info( "%s: null\n", prefix );
 		return;
 	}
-	if( ( p -> node != NULL ) && znode_is_loaded( p -> node ) )
+	if( ( p -> node != NULL ) && znode_is_loaded( p -> node ) && 
+	    coord_is_existing_item( p ) )
 		info( "%s: data: %p, length: %i\n", prefix,
 		      item_body_by_coord( p ), item_length_by_coord( p ));
 	print_znode( prefix, p -> node );
