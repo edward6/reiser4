@@ -13,8 +13,7 @@
 #include <aal/aal.h>
 #include <stdarg.h>
 
-static aal_exception_option_t __default_exception_handler(aal_exception_t *exception);
-static aal_exception_handler_t exception_handler = __default_exception_handler;
+static aal_exception_handler_t exception_handler = NULL;
 
 /* Strings for all exception types */
 static char *type_strings[] = {
@@ -75,48 +74,6 @@ char *aal_exception_message(
     return exception->message;
 }
 
-/*
-    Default exception handler. It just prints exception kind and message. It is 
-    possible to use an alternative handler in order to provide more smart exception 
-    handing. Alternative function for instance, might be make question to user, what 
-    libreiser4 should do after exception (retry, ignore, etc).
-*/
-static aal_exception_option_t __default_exception_handler(
-    aal_exception_t *exception		/* exception to be processed */
-) {
-
-    if (exception->type == EXCEPTION_ERROR || 
-	exception->type == EXCEPTION_FATAL ||
-	exception->type == EXCEPTION_BUG)
-        aal_gauge_failed(); 
-    else
-	aal_gauge_pause();
-
-    /* Printing exception type */
-    if (exception->type != EXCEPTION_BUG)
-	aal_printf(ERR, "%s: ", aal_exception_type_string(exception->type));
-    
-    /* Printing exception message */
-    aal_printf(ERR, "%s\n", exception->message);
-
-    switch (exception->options) {
-        case EXCEPTION_OK:
-        case EXCEPTION_CANCEL:
-	case EXCEPTION_IGNORE:
-	    if (exception->type == EXCEPTION_WARNING || 
-		    exception->type == EXCEPTION_INFORMATION)
-		aal_gauge_resume();
-	    
-            return exception->options;
-	    
-        default:
-	    if (exception->type == EXCEPTION_WARNING || 
-		    exception->type == EXCEPTION_INFORMATION)
-		aal_gauge_resume();
-            return EXCEPTION_UNHANDLED;
-    }
-}
-
 /* 
     Sets alternative exception handler, if passed handler isn't NULL. Otherwise 
     sets exception handler into default one.
@@ -124,7 +81,7 @@ static aal_exception_option_t __default_exception_handler(
 void aal_exception_set_handler(
     aal_exception_handler_t handler	/* new exception handler */
 ) {
-    exception_handler = handler ? handler : __default_exception_handler;
+    exception_handler = handler;
 }
 
 /* Finishes exception life cycle, that is, destroys exception */
@@ -148,7 +105,7 @@ static aal_exception_option_t aal_exception_actual_throw(
 ) {
     aal_exception_option_t opt;
 
-    if (fetch_count)
+    if (!exception_handler || fetch_count)
 	return EXCEPTION_UNHANDLED;
 	
     opt = exception_handler(exception);
@@ -190,7 +147,6 @@ aal_exception_option_t aal_exception_throw(
     return aal_exception_actual_throw(exception);
     
 error_no_memory:
-    aal_printf(ERR, "Out of memory in exception handler!\n");
     return EXCEPTION_UNHANDLED;
 }
 

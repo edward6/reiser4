@@ -356,13 +356,10 @@ aal_exception_option_t progs_exception_handler(
 	aal_gauge_pause();
 
     if (progs_exception_bit_count(exception->options, 0) == 1) {
-	if (!(stream = streams[exception->type])) {
-	    fprintf(stderr, "There is no stream assosiated with %s exception type\n",
-		aal_exception_type_string(exception->type));
-	    
+	if (!(stream = streams[exception->type]))
 	    stream = stderr;
-	}
     }
+    
     /* Printing exception type */
     if (exception->type != EXCEPTION_BUG)
         fprintf(stream, "%s: ", aal_exception_type_string(exception->type));

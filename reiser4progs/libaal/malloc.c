@@ -60,15 +60,12 @@ void *aal_malloc(
 	We are using simple printf function instead of exception, because exception
 	initialization is needed correctly worked memory allocation handler.
     */
-    if (!malloc_handler) {
-	aal_printf(ERR, "Fatal: Invalid \"malloc\" handler.\n");
+    if (!malloc_handler)
 	return NULL;
-    }
 
-    if (!(mem = malloc_handler(size))) {
-	aal_printf(ERR, "Fatal: Out of memory.\n");
+    if (!(mem = malloc_handler(size)))
 	return NULL;
-    }
+
     return mem;
 }
 
@@ -111,15 +108,11 @@ int aal_realloc(
 ) {
     void *mem;
 
-    if (!realloc_handler) {
-	aal_printf(ERR, "Fatal: Invalid \"realloc\" handler.\n");
+    if (!realloc_handler)
 	return 0;
-    }
 
-    if (!(mem = (void *)realloc_handler(*old, size))) {
-	aal_printf(ERR, "Fatal: Out of memory.\n");
+    if (!(mem = (void *)realloc_handler(*old, size)))
 	return 0;
-    }
     
     *old = mem;
     return 1;
@@ -144,10 +137,8 @@ aal_free_handler_t aal_free_get_handler(void) {
 void aal_free(
     void *ptr			    /* pointer onto memory to be released */
 ) {
-    if (!free_handler) {
-	aal_printf(ERR, "Fatal: Invalid \"free\" handler.\n");
+    if (!free_handler)
 	return;
-    }
 
     free_handler(ptr);
 }

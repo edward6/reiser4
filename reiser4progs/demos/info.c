@@ -19,44 +19,44 @@
 #include <progs/misc.h>
 
 static void info_print_usage(void) {
-    aal_printf(ERR, "Usage: info FILE\n");
+    fprintf(stderr, "Usage: info FILE\n");
 }
 
 static void info_print_plugin(reiserfs_plugin_t *plugin) {
-    aal_printf(ERR, "%x:%x:%s\n(%s)\n\n", plugin->h.type, plugin->h.id, plugin->h.label, plugin->h.desc);
+    fprintf(stderr, "%x:%x:%s\n(%s)\n\n", plugin->h.type, plugin->h.id, plugin->h.label, plugin->h.desc);
 }
 
 static void info_print_fs(reiserfs_fs_t *fs) {
     reiserfs_plugin_t *plugin;
 
-    aal_printf(ERR, "\nreiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
+    fprintf(stderr, "\nreiserfs %s, block size %u, blocks: %llu, used: %llu, free: %llu.\n\n", 
 	reiserfs_fs_format(fs), reiserfs_fs_blocksize(fs), 
 	reiserfs_format_get_blocks(fs->format), reiserfs_alloc_used(fs->alloc), 
 	reiserfs_alloc_free(fs->alloc));
 
-    aal_printf(ERR, "Used plugins:\n-------------\n");
+    fprintf(stderr, "Used plugins:\n-------------\n");
 
-    aal_printf(ERR, "(1) ");
+    fprintf(stderr, "(1) ");
     info_print_plugin(fs->format->plugin);
     
     if (fs->journal) {
-	aal_printf(ERR, "(2) ");
+	fprintf(stderr, "(2) ");
 	info_print_plugin(fs->journal->plugin);
     }
 
-    aal_printf(ERR, "(3) ");
+    fprintf(stderr, "(3) ");
     info_print_plugin(fs->alloc->plugin);
     
-    aal_printf(ERR, "(4) ");
+    fprintf(stderr, "(4) ");
     info_print_plugin(fs->oid->plugin);
     
-    aal_printf(ERR, "(5) ");
+    fprintf(stderr, "(5) ");
     info_print_plugin(fs->key.plugin);
     
-    aal_printf(ERR, "(6) ");
+    fprintf(stderr, "(6) ");
     info_print_plugin(fs->tree->cache->node->node_plugin);
     
-    aal_printf(ERR, "(7) ");
+    fprintf(stderr, "(7) ");
     info_print_plugin(fs->dir->plugin);
 }
 

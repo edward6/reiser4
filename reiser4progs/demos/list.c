@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     aal_list_append(list, "Third test line");
     
     aal_list_foreach_forward(walk, list)
-    	aal_printf(OUT, "%s\n", (char *)walk->item);
+    	fprintf(stderr, "%s\n", (char *)walk->item);
 
     aal_list_free(list);
     return 0;

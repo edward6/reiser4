@@ -16,8 +16,10 @@
 #include <aal/aal.h>
 #include <reiser4/reiser4.h>
 
+#include <progs/misc.h>
+
 static void ls_print_usage(void) {
-    aal_printf(ERR, "Usage: ls FILE DIR\n");
+    fprintf(stderr, "Usage: ls FILE DIR\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -33,6 +35,8 @@ int main(int argc, char *argv[]) {
 	return 0xfe;
     }
 	
+    aal_exception_set_handler(progs_exception_handler);
+
     if (libreiser4_init(0)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't initialize libreiser4.");
@@ -95,7 +99,7 @@ int main(int argc, char *argv[]) {
     }
 
     while (!reiserfs_dir_read(object, &entry)) {
-	aal_printf(OUT, "[%llx:%llx] %s\n", (entry.objid.locality >> 4), 
+	fprintf(stderr, "[%llx:%llx] %s\n", (entry.objid.locality >> 4), 
 	    entry.objid.objectid, entry.name);
     }
     
