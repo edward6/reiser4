@@ -324,6 +324,7 @@ main(int argc, char **argv)
 			       rate((done - subtotal) * ratio, delta), 
 			       rate(done * ratio, i));
 		}
+		fflush(stdout);
 		if (limit != 0) {
 			int origfreq;
 
