@@ -1023,12 +1023,6 @@ jnode_mapping(const jnode * node)
 	assert("nikita-2714", map != NULL);
 	assert("nikita-2897", is_reiser4_inode(map->host));
 	assert("nikita-2715", get_inode_oid(map->host) == node->key.j.objectid);
-	/*
-	 * truncate removes page from mapping, from this moment on, nothing
-	 * protects inode from recycling
-	 */
-	assert("nikita-3163", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
-
 	return map;
 }
 
