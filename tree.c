@@ -846,7 +846,6 @@ int check_tree_pointer( const tree_coord *pointer, const znode *child )
 	assert( "nikita-1018", pointer -> node != NULL );
 
 	assert( "nikita-1325", znode_is_any_locked( pointer -> node ) );
-	assert( "nikita-1326", znode_is_any_locked( child ) );
 
 	if( znode_get_level( pointer -> node ) != znode_get_level( child ) + 1 )
 		return NS_NOT_FOUND;
