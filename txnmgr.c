@@ -494,10 +494,12 @@ atom_locked_by_jnode(jnode * node)
 		if (atom == NULL)
 			break;
 
-		/* NIKITA-FIXME-HANS: broken english
+		/* NIKITA-FIXME-HANS: broken english 
 
-		there could be not contention for the atom spin lock at this
-		 * moment and trylock can succeed. */
+		HANS-FIXME-NIKITA: English is spelled with the first letter
+		capitalized.
+
+		If atom is not locked, grab the lock and return */
 		if (spin_trylock_atom(atom))
 			break;
 
