@@ -1338,6 +1338,18 @@ znodes_check_dk(reiser4_tree * tree)
 
 #endif
 
+#if defined(REISER4_DEBUG) || defined(REISER4_DEBUG_MODIFY) || defined(REISER4_DEBUG_OUTPUT)
+
+/* return non-0 iff data are loaded into znode */
+int
+znode_is_loaded(const znode * node /* znode to query */ )
+{
+	assert("nikita-497", node != NULL);
+	return jnode_is_loaded(ZJNODE(node));
+}
+
+#endif
+
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"

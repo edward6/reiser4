@@ -312,14 +312,9 @@ znode_get_tree(const znode * node)
 	return jnode_get_tree(ZJNODE(node));
 }
 
-/* return non-0 iff data are loaded into znode */
-static inline int
-znode_is_loaded(const znode * node /* znode to query */ )
-{
-	assert("nikita-497", node != NULL);
-	return jnode_is_loaded(ZJNODE(node));
-}
-
+#if defined(REISER4_DEBUG) || defined(REISER4_DEBUG_MODIFY) || defined(REISER4_DEBUG_OUTPUT)
+int znode_is_loaded(const znode * node /* znode to query */ );
+#endif
 
 extern z_hash_table *get_htable(reiser4_tree * tree, 
 				const reiser4_block_nr * const blocknr);
