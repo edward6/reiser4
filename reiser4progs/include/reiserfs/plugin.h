@@ -41,12 +41,13 @@ typedef int reiserfs_plugin_id_t;
 #define REISERFS_PLUGIN_MAX_LABEL	16
 #define REISERFS_PLUGIN_MAX_DESC	256
 
+/* Common plugins header */
 struct reiserfs_plugin_header {
-    void *handle;
-    reiserfs_plugin_id_t id;
-    reiserfs_plugin_id_t type;
-    const char label[REISERFS_PLUGIN_MAX_LABEL];
-    const char desc[REISERFS_PLUGIN_MAX_DESC];
+    void *handle;				    /* handle filled by plugins factory */
+    reiserfs_plugin_id_t id;			    /* plugin identifier */
+    reiserfs_plugin_id_t type;			    /* plugin type */
+    const char label[REISERFS_PLUGIN_MAX_LABEL];    /* short plugin name */
+    const char desc[REISERFS_PLUGIN_MAX_DESC];	    /* long plugin description */
 };
 
 typedef struct reiserfs_plugin_header reiserfs_plugin_header_t;
@@ -95,8 +96,8 @@ struct reiserfs_common_item_plugin {
 typedef struct reiserfs_common_item_plugin reiserfs_common_item_plugin_t;
 
 struct reiserfs_dir_entry_ops {
-    int (*add_entry) (reiserfs_opaque_t *, int32_t, reiserfs_opaque_t *parent, 
-	char *, reiserfs_opaque_t *entry);
+    int (*add_entry) (reiserfs_opaque_t *, int32_t, 
+	reiserfs_opaque_t *parent, char *, reiserfs_opaque_t *entry);
     
     int (*max_name_len) (int blocksize);
 };
@@ -105,7 +106,6 @@ typedef struct reiserfs_dir_entry_ops reiserfs_dir_entry_ops_t;
 
 struct reiserfs_file_ops {
     int (*write) (reiserfs_opaque_t *file, void *buff);
-    
     int (*read) (reiserfs_opaque_t *file, void *buff);
 };
 
@@ -204,35 +204,84 @@ struct reiserfs_perm_plugin {
 
 typedef struct reiserfs_perm_plugin reiserfs_perm_plugin_t;
 
+/* Format plugin. */
 struct reiserfs_format_plugin {
     reiserfs_plugin_header_t h;
-	
+    
+    /* 
+	Called during filesystem opening (mounting).
+	It reads format-specific super block and initializes
+	plugins suitable for this format.
+    */
     reiserfs_opaque_t *(*open) (aal_device_t *, aal_device_t *);
     
+    /* 
+	Called during filesystem creating. It forms format-specific
+	super block, initializes plugins and calls their create 
+	method.
+    */
     reiserfs_opaque_t *(*create) (aal_device_t *, count_t, 
 	aal_device_t *, reiserfs_params_opaque_t *);
     
+    /*
+	Called during filesystem syncing. It calls method sync
+	for every "child" plugin (block allocator, journal, etc).
+    */
     error_t (*sync) (reiserfs_opaque_t *);
+
+    /*
+	Checks format-specific super block for validness. Also checks
+	whether filesystem objects lie in valid places. For example,
+	format-specific supetr block for format40 must lie in 17-th
+	4096 byte block.
+    */
     error_t (*check) (reiserfs_opaque_t *);
+
+    /*
+	Probes whether filesystem on given device has this format.
+	Returns "true" if so and "false" otherwise.
+    */
     int (*probe) (aal_device_t *device);
+
+    /*
+	Closes opened or created previously filesystem. Frees
+	all assosiated memory.
+    */
     void (*close) (reiserfs_opaque_t *);
     
+    /*
+	Returns format string for this format. For example
+	"reiserfs 4.0".
+    */
     const char *(*format) (reiserfs_opaque_t *);
+
+    /* 
+	Returns offset in blocks where format-specific super block 
+	lies.
+    */
     blk_t (*offset) (reiserfs_opaque_t *);
     
+    /* Gets/sets root block for this format */
     blk_t (*get_root) (reiserfs_opaque_t *);
     void (*set_root) (reiserfs_opaque_t *, blk_t);
     
+    /* Gets/sets block count for this format */
     count_t (*get_blocks) (reiserfs_opaque_t *);
     void (*set_blocks) (reiserfs_opaque_t *, count_t);
     
+    /* Gets/sets free blocks number for this format */
     count_t (*get_free) (reiserfs_opaque_t *);
     void (*set_free) (reiserfs_opaque_t *, count_t);
     
+    /* Returns children objects plugins */
     reiserfs_plugin_id_t (*journal_plugin_id) (reiserfs_opaque_t *);
     reiserfs_plugin_id_t (*alloc_plugin_id) (reiserfs_opaque_t *);
     reiserfs_plugin_id_t (*oid_plugin_id) (reiserfs_opaque_t *);
     
+    /* 
+	Returns initialized children entities (journal, block allocator)
+	oid alloactor.
+    */
     reiserfs_opaque_t *(*journal) (reiserfs_opaque_t *);
     reiserfs_opaque_t *(*alloc) (reiserfs_opaque_t *);
     reiserfs_opaque_t *(*oid) (reiserfs_opaque_t *);
