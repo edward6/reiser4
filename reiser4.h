@@ -310,8 +310,8 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 #include "debug.h"
 
 #if REISER4_USER_LEVEL_SIMULATION
-#define check_spin_is_locked(s)     spin_is_locked(s)
-#define check_spin_is_not_locked(s) spin_is_not_locked(s)
+#    define check_spin_is_locked(s)     spin_is_locked(s)
+#    define check_spin_is_not_locked(s) spin_is_not_locked(s)
 #else
 #    define check_spin_is_not_locked(s) (1)
 #    define spin_is_not_locked(s)       (1)
