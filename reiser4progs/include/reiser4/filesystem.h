@@ -297,7 +297,6 @@ extern reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     void *journal_params);
 
 extern errno_t reiserfs_fs_sync(reiserfs_fs_t *fs);
-extern errno_t reiserfs_fs_check(reiserfs_fs_t *fs);
 
 #endif
 

@@ -13,11 +13,12 @@
 
 static reiserfs_core_t *core = NULL;
 
-static errno_t stat40_confirm(reiserfs_stat40_t *stat) {
+static errno_t stat40_confirm(reiserfs_body_t *body) {
+    aal_assert("umka-1008", body != NULL, return -1);
     return 0;
 }
 
-static aal_list_t *stat40_ext_init(uint64_t extmask) {
+static aal_list_t *stat40_extinit(uint64_t extmask) {
     int i;
     aal_list_t *plugins = NULL;
     
@@ -36,23 +37,25 @@ static aal_list_t *stat40_ext_init(uint64_t extmask) {
     return aal_list_first(plugins);
 }
 
-static void stat40_ext_done(aal_list_t *list) {
+static void stat40_extdone(aal_list_t *list) {
     aal_assert("umka-888", list != NULL, return);
     aal_list_free(list);
 }
 
 #ifndef ENABLE_COMPACT
 
-static errno_t stat40_create(reiserfs_stat40_t *stat, 
+static errno_t stat40_init(reiserfs_body_t *body, 
     reiserfs_item_hint_t *hint)
 {
     void *ext;
-    aal_list_t *ext_plugins = NULL;
+    reiserfs_stat40_t *stat;
+    aal_list_t *extplugins;
     reiserfs_stat_hint_t *stat_hint;
     
-    aal_assert("vpf-076", stat != NULL, return -1); 
+    aal_assert("vpf-076", body != NULL, return -1); 
     aal_assert("vpf-075", hint != NULL, return -1);
     
+    stat = (reiserfs_stat40_t *)body;
     stat_hint = (reiserfs_stat_hint_t *)hint->hint;
     
     st40_set_mode(stat, stat_hint->mode);
@@ -64,23 +67,23 @@ static errno_t stat40_create(reiserfs_stat40_t *stat,
 	int i = 0;
 	aal_list_t *walk = NULL;
 	
-	if (!(ext_plugins = stat40_ext_init(stat_hint->extmask))) {
+	if (!(extplugins = stat40_extinit(stat_hint->extmask))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't initialize stat data extention plugins.");
 	    return -1;
 	}
 
-	if (aal_list_length(ext_plugins) != stat_hint->ext.count) {
+	if (aal_list_length(extplugins) != stat_hint->ext.count) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Invalid extmask or stat data hint detected.");
 	    return -1;
 	}
     
 	ext = ((void *)stat) + sizeof(reiserfs_stat40_t);
-	aal_list_foreach_forward(walk, ext_plugins) {
+	aal_list_foreach_forward(walk, extplugins) {
 	    reiserfs_plugin_t *plugin = (reiserfs_plugin_t *)walk->item;
 	
-	    libreiser4_plugin_call(return -1, plugin->sdext_ops, create, 
+	    libreiser4_plugin_call(return -1, plugin->sdext_ops, init, 
 		ext, stat_hint->ext.hint[i++]);
 	
 	    /* 
@@ -91,15 +94,15 @@ static errno_t stat40_create(reiserfs_stat40_t *stat,
 
 	    /* FIXME-UMKA: Here also should be support for more then 16 extentions */
 	}
-	stat40_ext_done(ext_plugins);
+	stat40_extdone(extplugins);
     }
     
     return 0;
 }
 
 static errno_t stat40_estimate(uint32_t pos, reiserfs_item_hint_t *hint) {
+    aal_list_t *extplugins = NULL;
     reiserfs_stat_hint_t *stat_hint;
-    aal_list_t *ext_plugins = NULL;
     
     aal_assert("vpf-074", hint != NULL, return -1);
 
@@ -109,19 +112,20 @@ static errno_t stat40_estimate(uint32_t pos, reiserfs_item_hint_t *hint) {
     if (stat_hint->extmask) {
 	aal_list_t *walk = NULL;
 	
-	if (!(ext_plugins = stat40_ext_init(stat_hint->extmask))) {
+	if (!(extplugins = stat40_extinit(stat_hint->extmask))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't initialize stat data extention plugins.");
 	    return -1;
 	}
 
 	/* Estimating the all stat data extentions */
-	aal_list_foreach_forward(walk, ext_plugins) {
+	aal_list_foreach_forward(walk, extplugins) {
 	    reiserfs_plugin_t *plugin = (reiserfs_plugin_t *)walk->item;
+	    
 	    hint->len += libreiser4_plugin_call(return -1, plugin->sdext_ops, 
 		length,);
 	}
-	stat40_ext_done(ext_plugins);
+	stat40_extdone(extplugins);
     }
     
     return 0;
@@ -129,21 +133,20 @@ static errno_t stat40_estimate(uint32_t pos, reiserfs_item_hint_t *hint) {
 
 #endif
 
-static errno_t stat40_check(reiserfs_stat40_t *stat, int flags) {
+static errno_t stat40_valid(reiserfs_body_t *body, 
+    int flags) 
+{
+    aal_assert("umka-1007", body != NULL, return -1);
     return 0;
 }
 
-static errno_t stat40_print(reiserfs_stat40_t *stat, 
+static errno_t stat40_print(reiserfs_body_t *body, 
     char *buff, uint32_t n)
 {
-    aal_assert("umka-546", stat != NULL, return -1);
+    aal_assert("umka-546", body != NULL, return -1);
     aal_assert("umka-547", buff != NULL, return -1);
 
     return -1;
-}
-
-static uint32_t stat40_minsize(void) {
-    return sizeof(reiserfs_stat40_t);
 }
 
 static int stat40_internal(void) {
@@ -154,14 +157,16 @@ static int stat40_compound(void) {
     return 0;
 }
 
-static uint16_t stat40_get_mode(reiserfs_stat40_t *stat) {
-    aal_assert("umka-710", stat != NULL, return 0);
-    return st40_get_mode(stat);
+static uint16_t stat40_get_mode(reiserfs_body_t *body) {
+    aal_assert("umka-710", body != NULL, return 0);
+    return st40_get_mode((reiserfs_stat40_t *)body);
 }
 
-static void stat40_set_mode(reiserfs_stat40_t *stat, uint16_t mode) {
-    aal_assert("umka-711", stat != NULL, return);
-    st40_set_mode(stat, mode);
+static void stat40_set_mode(reiserfs_body_t *body, 
+    uint16_t mode)
+{
+    aal_assert("umka-711", body != NULL, return);
+    st40_set_mode((reiserfs_stat40_t *)body, mode);
 }
 
 static reiserfs_plugin_t stat40_plugin = {
@@ -176,45 +181,40 @@ static reiserfs_plugin_t stat40_plugin = {
 	.common = {
 		
 #ifndef ENABLE_COMPACT
-	    .create = (errno_t (*)(const void *, reiserfs_item_hint_t *))
-		stat40_create,
-	    
-	    .estimate = (errno_t (*)(uint32_t, reiserfs_item_hint_t *))
-		stat40_estimate,
+	    .init	= stat40_init,
+	    .estimate	= stat40_estimate,
 #else
-	    .create = NULL,
-	    .estimate = NULL,
+	    .create	= NULL,
+	    .estimate	= NULL,
 #endif
-	    .confirm = (errno_t (*)(const void *))stat40_confirm,
-	    .check = (errno_t (*)(const void *, int))stat40_check,
+	    .maxkey	= NULL,
+	    .lookup	= NULL,
 	    
-	    .print = (errno_t (*)(const void *, char *, uint32_t))
-		stat40_print,
+	    .insert	= NULL,
+	    .count	= NULL,
+	    .remove	= NULL,
 	    
-	    .minsize = (uint32_t (*)(void))stat40_minsize,
-	    .internal = stat40_internal,
-	    .compound = stat40_compound,
+	    .confirm	= stat40_confirm,
+	    .valid	= stat40_valid,
+	    .print	= stat40_print,
+	    .internal	= stat40_internal,
+	    .compound	= stat40_compound,
 
-	    .maxkey = NULL,
-	    .lookup = NULL,
-	    
-	    .insert = NULL,
-	    .count = NULL,
-	    .remove = NULL
 	},
+	
 	.specific = {
 	    .statdata = {
-		.get_mode = (uint16_t (*)(const void *))stat40_get_mode,
-		.set_mode = (void (*)(const void *, uint16_t))stat40_get_mode
+		.get_mode = stat40_get_mode,
+		.set_mode = stat40_set_mode
 	    }
 	}
     }
 };
 
-static reiserfs_plugin_t *stat40_entry(reiserfs_core_t *c) {
+static reiserfs_plugin_t *stat40_start(reiserfs_core_t *c) {
     core = c;
     return &stat40_plugin;
 }
 
-libreiser4_factory_register(stat40_entry);
+libreiser4_factory_register(stat40_start);
 

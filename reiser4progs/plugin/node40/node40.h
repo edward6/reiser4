@@ -11,11 +11,10 @@
 #include <misc/misc.h>
 #include <reiser4/reiser4.h>
 
-/* (*(__u32 *)"R4FS"); */
+/* (*(__u32 *)"R4FS") */
 #define REISERFS_NODE40_MAGIC 0x52344653
 
 struct reiserfs_node40 {
-    /* There will bne other fields in the future */
     aal_block_t *block;
 };
 
@@ -27,7 +26,7 @@ typedef struct reiserfs_flush_stamp {
 } reiserfs_flush_stamp_t;
 
 /* Format of node header for node40 */
-struct reiserfs_nh40 {
+struct reiserfs_node40_header {
     uint16_t pid; 
     uint16_t free_space;
     uint16_t free_space_start;
@@ -38,9 +37,9 @@ struct reiserfs_nh40 {
     reiserfs_flush_stamp_t flush_stamp;
 };
 
-typedef struct reiserfs_nh40 reiserfs_nh40_t;  
+typedef struct reiserfs_node40_header reiserfs_node40_header_t;  
 
-#define reiserfs_nh40(block)			((reiserfs_nh40_t *)block->data)
+#define reiserfs_nh40(block)			((reiserfs_node40_header_t *)block->data)
 
 #define nh40_get_pid(header)			aal_get_le16(header, pid)
 #define nh40_set_pid(header, val)		aal_set_le16(header, pid, val)
@@ -72,7 +71,7 @@ union reiserfs_key40 {
 
 typedef union reiserfs_key40 reiserfs_key40_t;
 
-struct reiserfs_ih40 {
+struct reiserfs_item40_header {
     reiserfs_key40_t key;
     
     uint16_t offset;
@@ -80,7 +79,7 @@ struct reiserfs_ih40 {
     uint16_t pid;
 };
 
-typedef struct reiserfs_ih40 reiserfs_ih40_t;
+typedef struct reiserfs_item40_header reiserfs_item40_header_t;
 
 #define ih40_get_offset(ih)			aal_get_le16(ih, offset)
 #define ih40_set_offset(ih, val)		aal_set_le16(ih, offset, val)
@@ -92,8 +91,8 @@ typedef struct reiserfs_ih40 reiserfs_ih40_t;
 #define ih40_set_pid(ih, val)			aal_set_le16(ih, pid, val)
 
 /* Returns item header by pos */
-inline reiserfs_ih40_t *node40_ih_at(aal_block_t *block, uint32_t pos) {
-    return ((reiserfs_ih40_t *)(block->data + block->size)) - pos - 1;
+inline reiserfs_item40_header_t *node40_ih_at(aal_block_t *block, uint32_t pos) {
+    return ((reiserfs_item40_header_t *)(block->data + block->size)) - pos - 1;
 }
 
 /* Retutrns item body by pos */

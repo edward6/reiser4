@@ -28,13 +28,13 @@ static reiserfs_plugin_t r5_hash_plugin = {
 	    .label = "r5_hash",
 	    .desc = "Implementation of r5 hash for reiserfs 4.0, ver. " VERSION,
 	},
-	.build = (uint64_t (*)(const unsigned char *, uint32_t))r5_hash_build
+	.build = r5_hash_build
     }
 };
 
-static reiserfs_plugin_t *r5_hash_entry(reiserfs_core_t *c) {
+static reiserfs_plugin_t *r5_hash_start(reiserfs_core_t *c) {
     return &r5_hash_plugin;
 }
 
-libreiser4_factory_register(r5_hash_entry);
+libreiser4_factory_register(r5_hash_start);
 

@@ -1,7 +1,7 @@
 /*
     direntry40.c -- reiserfs default direntry plugin.
     Copyright (C) 1996-2002 Hans Reiser.
-    Author Vitaly Fertman.
+    Author Yury Umanets.
 */
 
 #ifdef HAVE_CONFIG_H
@@ -15,41 +15,39 @@
 
 static reiserfs_core_t *core = NULL;
 
-static uint32_t direntry40_count(reiserfs_direntry40_t *direntry) {
-    aal_assert("umka-865", direntry != NULL, return 0);
-    return de40_get_count(direntry);
+static uint32_t direntry40_count(reiserfs_body_t *body) {
+    aal_assert("umka-865", body != NULL, return 0);
+    return de40_get_count((reiserfs_direntry40_t *)body);
 }
 
-static errno_t direntry40_get_entry(reiserfs_direntry40_t *direntry, 
+static errno_t direntry40_entry(reiserfs_body_t *body, 
     uint32_t pos, reiserfs_entry_hint_t *entry)
 {
     uint32_t offset;
     reiserfs_entry40_t *en;
     reiserfs_objid_t *objid;
     
-    aal_assert("umka-866", direntry != NULL, return -1);
+    aal_assert("umka-866", body != NULL, return -1);
     
-    if (pos > de40_get_count(direntry))
+    if (pos > direntry40_count(body))
 	return -1;
     
     offset = sizeof(reiserfs_direntry40_t) + 
 	pos * sizeof(reiserfs_entry40_t);
     
-    en = (reiserfs_entry40_t *)(((char *)direntry) + offset);
+    en = (reiserfs_entry40_t *)(((char *)body) + offset);
     
     entry->entryid.objectid = eid_get_objectid((reiserfs_entryid_t *)(&en->entryid));
     entry->entryid.offset = eid_get_offset((reiserfs_entryid_t *)(&en->entryid));
     
     offset = en40_get_offset(en); 
-    objid = (reiserfs_objid_t *)(((char *)direntry) + offset);
+    objid = (reiserfs_objid_t *)(((char *)body) + offset);
     
     entry->objid.objectid = oid_get_objectid(objid);
     entry->objid.locality = oid_get_locality(objid);
 
-    /* Here will be also filling up of entry->entryid */
-    
     offset += sizeof(*objid);
-    entry->name = ((char *)direntry) + offset;
+    entry->name = ((char *)body) + offset;
     
     return 0;
 }
@@ -70,7 +68,7 @@ static errno_t direntry40_estimate(uint32_t pos, reiserfs_item_hint_t *hint) {
 	    sizeof(reiserfs_objid_t) + 1;
     }
 
-    if (pos == 0xffffffff)
+    if (pos == ~0ul)
 	hint->len += sizeof(reiserfs_direntry40_t);
     
     return 0;
@@ -82,7 +80,8 @@ static uint32_t direntry40_unitlen(reiserfs_direntry40_t *direntry,
     char *name;
     uint32_t offset;
     
-    aal_assert("umka-936", pos < de40_get_count(direntry), return 0);
+    aal_assert("umka-936", 
+	pos < de40_get_count(direntry), return 0);
     
     offset = en40_get_offset(&direntry->entry[pos]);
     name = (char *)(((char *)direntry) + offset + sizeof(reiserfs_objid_t));
@@ -90,23 +89,25 @@ static uint32_t direntry40_unitlen(reiserfs_direntry40_t *direntry,
     return (aal_strlen(name) + sizeof(reiserfs_objid_t) + 1);
 }
 
-static errno_t direntry40_insert(reiserfs_direntry40_t *direntry, 
-    uint32_t pos, reiserfs_item_hint_t *hint)
+static errno_t direntry40_insert(reiserfs_body_t *body, uint32_t pos, 
+    reiserfs_item_hint_t *hint)
 {
     uint32_t i, offset;
     uint32_t len_before = 0;
     uint32_t len_after = 0;
     
+    reiserfs_direntry40_t *direntry;
     reiserfs_direntry_hint_t *direntry_hint;
     
-    aal_assert("umka-791", direntry != NULL, return -1);
+    aal_assert("umka-791", body != NULL, return -1);
     aal_assert("umka-792", hint != NULL, return -1);
-    aal_assert("umka-897", pos != 0xffffffff, return -1);
+    aal_assert("umka-897", pos != ~0ul, return -1);
 
+    direntry = (reiserfs_direntry40_t *)body;
+    direntry_hint = (reiserfs_direntry_hint_t *)hint->hint;
+    
     if (pos > de40_get_count(direntry))
 	return -1;
-
-    direntry_hint = (reiserfs_direntry_hint_t *)hint->hint;
     
     /* Getting offset area of new entry body will be created at */
     if (de40_get_count(direntry) > 0) {
@@ -188,21 +189,29 @@ static errno_t direntry40_insert(reiserfs_direntry40_t *direntry,
     return 0;
 }
 
-static errno_t direntry40_create(reiserfs_direntry40_t *direntry, 
+static errno_t direntry40_init(reiserfs_body_t *body, 
     reiserfs_item_hint_t *hint)
 {
-    de40_set_count(direntry, 0);
-    return direntry40_insert(direntry, 0, hint);
+    aal_assert("umka-1010", body != NULL, return -1);
+
+    de40_set_count((reiserfs_direntry40_t *)body, 0);
+    return direntry40_insert(body, 0, hint);
 }
 
-static uint32_t direntry40_remove(reiserfs_direntry40_t *direntry, 
+static uint32_t direntry40_remove(reiserfs_body_t *body, 
     uint32_t pos)
 {
     uint32_t i, head_len;
     uint32_t offset, rem_len;
+
+    reiserfs_direntry40_t *direntry;
     
-    aal_assert("umka-934", direntry != NULL, return 0);
-    aal_assert("umka-935", pos < de40_get_count(direntry), return 0);
+    aal_assert("umka-934", body != NULL, return 0);
+
+    direntry = (reiserfs_direntry40_t *)body;
+    
+    if (pos >= de40_get_count(direntry))
+	return 0;
 
     offset = en40_get_offset(&direntry->entry[pos]);
     head_len = offset - sizeof(reiserfs_entry40_t) -
@@ -244,17 +253,13 @@ static uint32_t direntry40_remove(reiserfs_direntry40_t *direntry,
 
 #endif
 
-static errno_t direntry40_print(reiserfs_direntry40_t *direntry, 
+static errno_t direntry40_print(reiserfs_body_t *body, 
     char *buff, uint32_t n) 
 {
-    aal_assert("umka-548", direntry != NULL, return -1);
+    aal_assert("umka-548", body != NULL, return -1);
     aal_assert("umka-549", buff != NULL, return -1);
 
     return -1;
-}
-
-static uint32_t direntry40_minsize(void) {
-    return sizeof(reiserfs_direntry40_t);
 }
 
 static int direntry40_internal(void) {
@@ -266,8 +271,8 @@ static int direntry40_compound(void) {
 }
 
 /* 
-    Helper function that is used by lookup method 
-    for getting n-th element of direntry.
+    Helper function that is used by lookup method for getting n-th element of 
+    direntry.
 */
 static void *callback_elem_for_lookup(void *direntry, 
     uint32_t pos, void *data) 
@@ -276,12 +281,10 @@ static void *callback_elem_for_lookup(void *direntry,
 }
 
 /* 
-    Helper function that is used by lookup method
-    for comparing given key with passed dirid.
+    Helper function that is used by lookup method for comparing given key with 
+    passed dirid.
 */
-static int callback_comp_for_lookup(const void *key1, 
-    const void *key2, void *data) 
-{
+static int callback_comp_for_lookup(void *key1, void *key2, void *data) {
     oid_t locality;
     reiserfs_key_t key;
     reiserfs_plugin_t *plugin;
@@ -302,41 +305,47 @@ static int callback_comp_for_lookup(const void *key1,
 	set_locality, (void *)&key, locality);
     
     return libreiser4_plugin_call(return -1, plugin->key_ops, 
-	compare_full, &key, key2);
+	compare, &key, key2);
 }
 
-static int direntry40_lookup(reiserfs_direntry40_t *direntry, 
+static int direntry40_lookup(reiserfs_body_t *body, 
     reiserfs_key_t *key, uint32_t *pos)
 {
     int lookup;
     uint64_t unit;
-    
+
     aal_assert("umka-610", key != NULL, return -1);
     aal_assert("umka-717", key->plugin != NULL, return -1);
     
-    aal_assert("umka-609", direntry != NULL, return -1);
+    aal_assert("umka-609", body != NULL, return -1);
     aal_assert("umka-629", pos != NULL, return -1);
     
-    if ((lookup = reiserfs_misc_bin_search((void *)direntry, 
-	    de40_get_count(direntry), key->body, callback_elem_for_lookup, 
-	    callback_comp_for_lookup, key->plugin, &unit)) != -1)
+    if ((lookup = reiserfs_misc_bin_search((void *)body, direntry40_count(body), 
+	    key->body, callback_elem_for_lookup, callback_comp_for_lookup, 
+	    key->plugin, &unit)) != -1)
 	*pos = (uint32_t)unit;
 
     return lookup;
 }
 
 static errno_t direntry40_maxkey(reiserfs_key_t *key) {
+    oid_t offset;
+    oid_t objectid;
+    reiserfs_body_t *maxkey;
+    
     aal_assert("umka-716", key->plugin != NULL, return -1);
 
-    aal_assert("vpf-121", key->plugin->key_ops.set_objectid != NULL, return -1);
-    aal_assert("vpf-122", key->plugin->key_ops.get_objectid != NULL, return -1);
-    aal_assert("vpf-123", key->plugin->key_ops.maximal != NULL, return -1);
+    maxkey = libreiser4_plugin_call(return -1, key->plugin->key_ops,
+	maximal,);
     
-    key->plugin->key_ops.set_objectid(key->body, 
-	key->plugin->key_ops.get_objectid(key->plugin->key_ops.maximal()));
+    objectid = key->plugin->key_ops.get_objectid(maxkey);
+    offset = key->plugin->key_ops.get_objectid(maxkey);
     
-    key->plugin->key_ops.set_offset(key->body, 
-	key->plugin->key_ops.get_offset(key->plugin->key_ops.maximal()));
+    libreiser4_plugin_call(return -1, key->plugin->key_ops,
+	set_objectid, key->body, objectid);
+    
+    libreiser4_plugin_call(return -1, key->plugin->key_ops, 
+	set_offset, key->body, offset);
     
     return 0;
 }
@@ -352,51 +361,39 @@ static reiserfs_plugin_t direntry40_plugin = {
 	},
 	.common = {
 #ifndef ENABLE_COMPACT	    
-	    .create = (errno_t (*)(const void *, reiserfs_item_hint_t *))
-		direntry40_create,
-	    
-	    .estimate = (errno_t (*)(uint32_t, reiserfs_item_hint_t *))
-		direntry40_estimate,
-	    
-	    .insert = (errno_t (*)(const void *, uint32_t, reiserfs_item_hint_t *))
-		direntry40_insert,
-	    
-	    .remove = (uint32_t (*)(const void *, uint32_t))direntry40_remove,
+	    .init	= direntry40_init,
+	    .insert	= direntry40_insert,
+	    .remove	= direntry40_remove,
+	    .estimate	= direntry40_estimate,
 #else
-	    .create = NULL,
-	    .estimate = NULL,
-	    .insert = NULL,
-	    .remove = NULL,
+	    .create	= NULL,
+	    .estimate	= NULL,
+	    .insert	= NULL,
+	    .remove	= NULL,
 #endif
-	    .print = (errno_t (*)(const void *, char *, uint32_t))
-		direntry40_print,
+	    .confirm	= NULL,
+	    .valid	= NULL,
 	    
-	    .lookup = (int (*) (const void *, reiserfs_key_t *, uint32_t *))
-		direntry40_lookup,
-	    
-	    .minsize = (uint32_t (*)(void))direntry40_minsize,
-	    .maxkey = (errno_t (*)(const void *))direntry40_maxkey,
-	    .count = (uint32_t (*)(const void *))direntry40_count,
+	    .print	= direntry40_print,
+	    .lookup	= direntry40_lookup,
+	    .maxkey	= direntry40_maxkey,
+	    .count	= direntry40_count,
 	   
-	    .internal = direntry40_internal,
-	    .compound = direntry40_compound,
-	    
-	    .confirm = NULL,
-	    .check = NULL
+	    .internal	= direntry40_internal,
+	    .compound	= direntry40_compound
 	},
 	.specific = {
 	    .direntry = { 
-		.get_entry = (errno_t (*)(const void *, uint32_t, 
-		    reiserfs_entry_hint_t *))direntry40_get_entry
+		.entry = direntry40_entry
 	    }
 	}
     }
 };
 
-static reiserfs_plugin_t *direntry40_entry(reiserfs_core_t *c) {
+static reiserfs_plugin_t *direntry40_start(reiserfs_core_t *c) {
     core = c;
     return &direntry40_plugin;
 }
 
-libreiser4_factory_register(direntry40_entry);
+libreiser4_factory_register(direntry40_start);
 

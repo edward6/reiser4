@@ -13,7 +13,9 @@
 
 static reiserfs_core_t *core = NULL;
 
-static reiserfs_entity_t *oid40_open(void *start, uint32_t len) {
+static reiserfs_entity_t *oid40_open(const void *start, 
+    uint32_t len) 
+{
     reiserfs_oid40_t *oid;
 
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
@@ -25,24 +27,26 @@ static reiserfs_entity_t *oid40_open(void *start, uint32_t len) {
     oid->next = oid40_get_next(start);
     oid->used = oid40_get_used(start);
     
-    return oid;
+    return (reiserfs_entity_t *)oid;
 }
 
-static void oid40_close(reiserfs_oid40_t *oid) {
-    aal_assert("umka-510", oid != NULL, return);
-    aal_free(oid);
+static void oid40_close(reiserfs_entity_t *entity) {
+    aal_assert("umka-510", entity != NULL, return);
+    aal_free(entity);
 }
 
 #ifndef ENABLE_COMPACT
 
-static reiserfs_entity_t *oid40_create(void *start, uint32_t len) {
+static reiserfs_entity_t *oid40_create(const void *start, 
+    uint32_t len) 
+{
     reiserfs_oid40_t *oid;
 
     if (!(oid = aal_calloc(sizeof(*oid), 0)))
 	return NULL;
 
     oid->start = start;
-    oid->len= len;
+    oid->len = len;
 
     oid->next = REISERFS_OID40_RESERVED;
     oid->used = 0;
@@ -53,31 +57,41 @@ static reiserfs_entity_t *oid40_create(void *start, uint32_t len) {
     return oid;
 }
 
-static errno_t oid40_sync(reiserfs_oid40_t *oid) {
-    oid40_set_next(oid->start, oid->next);
-    oid40_set_used(oid->start, oid->used);
+static errno_t oid40_sync(reiserfs_entity_t *entity) {
+    aal_assert("umka-1016", entity != NULL, return -1);
+    
+    oid40_set_next(((reiserfs_oid40_t *)entity)->start, 
+	((reiserfs_oid40_t *)entity)->next);
+    
+    oid40_set_used(((reiserfs_oid40_t *)entity)->start, 
+	((reiserfs_oid40_t *)entity)->used);
     
     return 0;
 }
 
-static oid_t oid40_alloc(reiserfs_oid40_t *oid) {
-    aal_assert("umka-513", oid != NULL, return 0);
+static oid_t oid40_alloc(reiserfs_entity_t *entity) {
+    aal_assert("umka-513", entity != NULL, return 0);
 
-    oid->next++;
-    oid->used++;
+    ((reiserfs_oid40_t *)entity)->next++;
+    ((reiserfs_oid40_t *)entity)->used++;
     
-    return oid->next;
+    return ((reiserfs_oid40_t *)entity)->next;
 }
 
-static void oid40_dealloc(reiserfs_oid40_t *oid, oid_t id) {
-    aal_assert("umka-528", oid != NULL, return);
-    oid->used--;
+static void oid40_dealloc(reiserfs_entity_t *entity, 
+    oid_t id) 
+{
+    aal_assert("umka-528", entity != NULL, return);
+    ((reiserfs_oid40_t *)entity)->used--;
 }
 
-static errno_t oid40_check(reiserfs_oid40_t *oid, int flags) {
-    aal_assert("umka-966", oid != NULL, return -1);
+static errno_t oid40_valid(reiserfs_entity_t *entity, 
+    int flags) 
+{
+    aal_assert("umka-966", entity != NULL, return -1);
 
-    if (oid->next < REISERFS_OID40_ROOT_PARENT_LOCALITY)
+    if (((reiserfs_oid40_t *)entity)->next < 
+	    REISERFS_OID40_ROOT_PARENT_LOCALITY)
 	return -1;
     
     return 0;
@@ -85,14 +99,14 @@ static errno_t oid40_check(reiserfs_oid40_t *oid, int flags) {
 
 #endif
 
-static oid_t oid40_free(reiserfs_oid40_t *oid) {
-    aal_assert("umka-961", oid != NULL, return 0);
-    return 0xffffffffffffffff - oid->next;
+static oid_t oid40_free(reiserfs_entity_t *entity) {
+    aal_assert("umka-961", entity != NULL, return 0);
+    return ~0ull - ((reiserfs_oid40_t *)entity)->next;
 }
 
-static oid_t oid40_used(reiserfs_oid40_t *oid) {
-    aal_assert("umka-530", oid != NULL, return 0);
-    return oid->used;
+static oid_t oid40_used(reiserfs_entity_t *entity) {
+    aal_assert("umka-530", entity != NULL, return 0);
+    return ((reiserfs_oid40_t *)entity)->used;
 }
 
 static oid_t oid40_root_parent_locality(void) {
@@ -116,35 +130,34 @@ static reiserfs_plugin_t oid40_plugin = {
 	    .label = "oid40",
 	    .desc = "Inode allocator for reiserfs 4.0, ver. " VERSION,
 	},
-	.open = (reiserfs_entity_t *(*)(const void *, uint32_t))oid40_open,
-	.close = (void (*)(reiserfs_entity_t *))oid40_close,
-
+	.open		= oid40_open,
+	.close		= oid40_close,
+	.valid		= oid40_valid,
 #ifndef ENABLE_COMPACT	
-	.create = (reiserfs_entity_t *(*)(const void *, uint32_t))oid40_create,
-	.alloc = (oid_t (*)(reiserfs_entity_t *))oid40_alloc,
-	.dealloc = (void (*)(reiserfs_entity_t *, oid_t))oid40_dealloc,
-	.sync = (errno_t (*)(reiserfs_entity_t *))oid40_sync,
-	.check = (errno_t (*)(reiserfs_entity_t *, int))oid40_check,
+	.create		= oid40_create,
+	.alloc		= oid40_alloc,
+	.dealloc	= oid40_dealloc,
+	.sync		= oid40_sync,
 #else
-	.create = NULL,
-	.alloc = NULL,
-	.dealloc = NULL,
-	.sync = NULL,
-	.check = NULL, 
+	.create		= NULL,
+	.alloc		= NULL,
+	.dealloc	= NULL,
+	.sync		= NULL,
 #endif
-	.used = (oid_t (*)(reiserfs_entity_t *))oid40_used,
-	.free = (oid_t (*)(reiserfs_entity_t *))oid40_free,
+	.used		= oid40_used,
+	.free		= oid40_free,
 	
-	.root_parent_locality = (oid_t (*)(void))oid40_root_parent_locality,
-	.root_locality = (oid_t (*)(void))oid40_root_locality,
-	.root_objectid = (oid_t (*)(void))oid40_root_objectid
+	.root_locality	= oid40_root_locality,
+	.root_objectid	= oid40_root_objectid,
+		
+	.root_parent_locality	= oid40_root_parent_locality
     }
 };
 
-static reiserfs_plugin_t *oid40_entry(reiserfs_core_t *c) {
+static reiserfs_plugin_t *oid40_start(reiserfs_core_t *c) {
     core = c;
     return &oid40_plugin;
 }
 
-libreiser4_factory_register(oid40_entry);
+libreiser4_factory_register(oid40_start);
 

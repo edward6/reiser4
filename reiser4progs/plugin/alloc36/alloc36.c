@@ -15,7 +15,7 @@
 
 static reiserfs_core_t *core = NULL;
 
-static reiserfs_alloc36_t *alloc36_open(aal_device_t *device, count_t len) {
+static reiserfs_entity_t *alloc36_open(aal_device_t *device, count_t len) {
     reiserfs_alloc36_t *alloc;
 
     aal_assert("umka-413", device != NULL, return NULL);
@@ -26,7 +26,8 @@ static reiserfs_alloc36_t *alloc36_open(aal_device_t *device, count_t len) {
     /* Allocator initialization must be here */
 	
     alloc->device = device;
-    return alloc;
+    
+    return (reiserfs_entity_t *)alloc;
 
 error_free_alloc:
     aal_free(alloc);
@@ -36,7 +37,7 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-static reiserfs_alloc36_t *alloc36_create(aal_device_t *device, count_t len) {
+static reiserfs_entity_t *alloc36_create(aal_device_t *device, count_t len) {
     reiserfs_alloc36_t *alloc;
 
     aal_assert("umka-414", device != NULL, return NULL);
@@ -47,7 +48,8 @@ static reiserfs_alloc36_t *alloc36_create(aal_device_t *device, count_t len) {
     /* Creating of the disk structures must be here. */
 	
     alloc->device = device;
-    return alloc;
+    
+    return (reiserfs_entity_t *)alloc;
 
 error_free_alloc:
     aal_free(alloc);
@@ -55,17 +57,16 @@ error:
     return NULL;
 }
 
-static errno_t alloc36_sync(reiserfs_alloc36_t *alloc) {
-    aal_assert("umka-415", alloc != NULL, return -1);
-    
+static errno_t alloc36_sync(reiserfs_entity_t *entity) {
+    aal_assert("umka-415", entity != NULL, return -1);
     return -1;
 }
 
 #endif
 
-static void alloc36_close(reiserfs_alloc36_t *alloc) {
-    aal_assert("umka-416", alloc != NULL, return);
-    aal_free(alloc);
+static void alloc36_close(reiserfs_entity_t *entity) {
+    aal_assert("umka-416", entity != NULL, return);
+    aal_free(entity);
 }
 
 static reiserfs_plugin_t alloc36_plugin = {
@@ -79,32 +80,32 @@ static reiserfs_plugin_t alloc36_plugin = {
 	},
 
 #ifndef ENABLE_COMPACT
-	.create = (reiserfs_entity_t *(*)(aal_device_t *, count_t))alloc36_create,
-	.sync = (errno_t (*)(reiserfs_entity_t *))alloc36_sync,
+	.create	    = alloc36_create,
+	.sync	    = alloc36_sync,
 #else
-	.create = NULL,
-	.sync = NULL,
+	.create	    = NULL,
+	.sync	    = NULL,
 #endif
-	.close = (void (*)(reiserfs_entity_t *))alloc36_close,
-	.open = (reiserfs_entity_t *(*)(aal_device_t *, count_t))alloc36_open,
+	.close	    = alloc36_close,
+	.open	    = alloc36_open,
 
-	.mark = NULL,
-	.test = NULL,
+	.mark	    = NULL,
+	.test	    = NULL,
 	
-	.alloc = NULL,
-	.dealloc = NULL,
+	.alloc	    = NULL,
+	.dealloc    = NULL,
 	
-	.free = NULL,
-	.used = NULL,
+	.free	    = NULL,
+	.used	    = NULL,
 
-	.check = NULL,
+	.valid	    = NULL,
     }
 };
 
-static reiserfs_plugin_t *alloc36_entry(reiserfs_core_t *c) {
+static reiserfs_plugin_t *alloc36_start(reiserfs_core_t *c) {
     core = c;
     return &alloc36_plugin;
 }
 
-libreiser4_factory_register(alloc36_entry);
+libreiser4_factory_register(alloc36_start);
 

@@ -17,7 +17,7 @@ static errno_t journal36_header_check(reiserfs_journal36_header_t *header,
     return 0;
 }
 
-static reiserfs_journal36_t *journal36_open(aal_device_t *device) {
+static reiserfs_entity_t *journal36_open(aal_device_t *device) {
     reiserfs_journal36_t *journal;
 
     aal_assert("umka-406", device != NULL, return NULL);
@@ -29,12 +29,15 @@ static reiserfs_journal36_t *journal36_open(aal_device_t *device) {
     
     journal->device = device;
 	
-    return journal;
+    return (reiserfs_entity_t *)journal;
 }
 
-static errno_t journal36_sync(reiserfs_journal36_t *journal) {
+static errno_t journal36_sync(reiserfs_entity_t *entity) {
+    reiserfs_journal36_t *journal;
     
-    aal_assert("umka-407", journal != NULL, return -1);
+    aal_assert("umka-407", entity != NULL, return -1);
+    
+    journal = (reiserfs_journal36_t *)entity;
     
     if (aal_block_write(journal->header)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
@@ -42,15 +45,16 @@ static errno_t journal36_sync(reiserfs_journal36_t *journal) {
 	    aal_device_error(journal->device));
 	return -1;
     }
+    
     return 0;
 }
 
-static void journal36_close(reiserfs_journal36_t *journal) {
-    aal_assert("umka-408", journal != NULL, return);
-    aal_free(journal);
+static void journal36_close(reiserfs_entity_t *entity) {
+    aal_assert("umka-408", entity != NULL, return);
+    aal_free(entity);
 }
 
-static errno_t journal36_replay(reiserfs_journal36_t *journal) {
+static errno_t journal36_replay(reiserfs_entity_t *entity) {
     return 0;
 }
 
@@ -64,18 +68,18 @@ static reiserfs_plugin_t journal36_plugin = {
 	    .desc = "Default journal for reiserfs 3.6.x, ver. " VERSION,
 	},
 	.create = NULL, 
-	.open = (reiserfs_entity_t *(*)(aal_device_t *))journal36_open,
-	.close = (void (*)(reiserfs_entity_t *))journal36_close,
-	.sync = (errno_t (*)(reiserfs_entity_t *))journal36_sync,
-	.replay = (errno_t (*)(reiserfs_entity_t *))journal36_replay,
-	.check = NULL,
+	.open	= journal36_open,
+	.close	= journal36_close,
+	.sync	= journal36_sync,
+	.replay = journal36_replay,
+	.valid	= NULL
     }
 };
 
-static reiserfs_plugin_t *journal36_entry(reiserfs_core_t *c) {
+static reiserfs_plugin_t *journal36_start(reiserfs_core_t *c) {
     core = c;
     return &journal36_plugin;
 }
 
-libreiser4_factory_register(journal36_entry);
+libreiser4_factory_register(journal36_start);
 

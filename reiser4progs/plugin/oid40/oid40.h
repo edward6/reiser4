@@ -17,7 +17,7 @@
 #define REISERFS_OID40_RESERVED			(1 << 16)
 
 struct reiserfs_oid40 {
-    void *start;
+    const void *start;
     uint32_t len;
 
     uint64_t next;

@@ -11,7 +11,7 @@
 #include <aal/aal.h>
 
 typedef void *(*reiserfs_elem_func_t) (void *, uint32_t, void *);
-typedef int (*reiserfs_comp_func_t) (const void *, const void *, void *);
+typedef int (*reiserfs_comp_func_t) (void *, void *, void *);
 
 extern int reiserfs_misc_bin_search(void *array, uint32_t count, 
     void *needle, reiserfs_elem_func_t elem_func, 

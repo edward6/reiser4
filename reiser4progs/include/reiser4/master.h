@@ -21,11 +21,11 @@ extern reiserfs_master_t *reiserfs_master_create(aal_device_t *device,
 
 extern errno_t reiserfs_master_sync(reiserfs_master_t *master);
 
-extern errno_t reiserfs_master_check(reiserfs_master_t *master);
 extern reiserfs_plugin_t *reiserfs_master_guess(aal_device_t *device);
 
 #endif
 
+extern errno_t reiserfs_master_valid(reiserfs_master_t *master);
 extern reiserfs_master_t *reiserfs_master_open(aal_device_t *device);
 extern int reiserfs_master_confirm(aal_device_t *device);
 extern void reiserfs_master_close(reiserfs_master_t *master);

@@ -13,6 +13,8 @@ typedef uint64_t oid_t;
 
 typedef uint32_t reiserfs_id_t;
 typedef void reiserfs_entity_t;
+typedef void reiserfs_body_t;
+
 typedef union reiserfs_plugin reiserfs_plugin_t;
 
 enum reiserfs_plugin_type {
@@ -310,63 +312,63 @@ struct reiserfs_key_ops {
     reiserfs_plugin_header_t h;
 
     /* Smart check of key structure */
-    errno_t (*check) (const void *, int);
+    errno_t (*valid) (reiserfs_body_t *, int);
     
     /* Confirms key format */
-    int (*confirm) (const void *);
+    int (*confirm) (reiserfs_body_t *);
 
     /* Returns minimal key for this key-format */
-    const void *(*minimal) (void);
+    reiserfs_body_t *(*minimal) (void);
     
     /* Returns maximal key for this key-format */
-    const void *(*maximal) (void);
+    reiserfs_body_t *(*maximal) (void);
     
     /* Get size of the key */
     uint8_t (*size) (void);
 
     /* Compares two keys by comparing its all components */
-    int (*compare_full) (const void *, const void *);
-
-    /* Compares two keys by comparing only objectid and locality */
-    int (*compare_short) (const void *, const void *);
+    int (*compare) (reiserfs_body_t *, reiserfs_body_t *);
 
     /* 
-	Cleans key up. Actually it just memsets it by zeros, but more smart behavior may 
-	be implemented.
+	Cleans key up. Actually it just memsets it by zeros, but more smart behavior 
+	may be implemented.
     */
-    void (*clean) (const void *);
+    void (*clean) (reiserfs_body_t *);
+
+    errno_t (*build_generic) (reiserfs_body_t *, 
+	uint32_t, uint64_t, uint64_t, uint64_t);
+    
+    errno_t (*build_direntry) (reiserfs_body_t *, 
+	reiserfs_plugin_t *, uint64_t, uint64_t, 
+	const char *);
+    
+    errno_t (*build_objid) (reiserfs_body_t *, 
+	uint32_t, uint64_t, uint64_t);
+    
+    errno_t (*build_entryid) (reiserfs_body_t *, 
+	reiserfs_plugin_t *, const char *);
+
+    errno_t (*build_by_entry) (reiserfs_body_t *, void *);
 
     /* Gets/sets key type (minor in reiser4 notation) */	
-    void (*set_type) (const void *, uint32_t);
-    uint32_t (*get_type) (const void *);
+    void (*set_type) (reiserfs_body_t *, uint32_t);
+    uint32_t (*get_type) (reiserfs_body_t *);
 
     /* Gets/sets key locality */
-    void (*set_locality) (const void *, uint64_t);
-    uint64_t (*get_locality) (const void *);
+    void (*set_locality) (reiserfs_body_t *, uint64_t);
+    uint64_t (*get_locality) (reiserfs_body_t *);
     
     /* Gets/sets key objectid */
-    void (*set_objectid) (const void *, uint64_t);
-    uint64_t (*get_objectid) (const void *);
+    void (*set_objectid) (reiserfs_body_t *, uint64_t);
+    uint64_t (*get_objectid) (reiserfs_body_t *);
 
     /* Gets/sets key offset */
-    void (*set_offset) (const void *, uint64_t);
-    uint64_t (*get_offset) (const void *);
+    void (*set_offset) (reiserfs_body_t *, uint64_t);
+    uint64_t (*get_offset) (reiserfs_body_t *);
 
     /* Gets/sets directory key hash */
-    void (*set_hash) (const void *, uint64_t);
-    uint64_t (*get_hash) (const void *);
-
-    /* Gets/sets directory key generation counter */
-    void (*set_counter) (const void *, uint8_t);
-    uint8_t (*get_counter) (const void *);
-    
-    errno_t (*build_generic_full) (const void *, uint32_t, uint64_t, uint64_t, uint64_t);
-    errno_t (*build_entry_full) (const void *, void *, uint64_t, uint64_t, const char *);
-    
-    errno_t (*build_generic_short) (const void *, uint32_t, uint64_t, uint64_t);
-    errno_t (*build_entry_short) (const void *, void *, const char *);
-
-    errno_t (*build_by_entry) (const void *, void *);
+    void (*set_hash) (reiserfs_body_t *, uint64_t);
+    uint64_t (*get_hash) (reiserfs_body_t *);
 };
 
 typedef struct reiserfs_key_ops reiserfs_key_ops_t;
@@ -403,8 +405,11 @@ struct reiserfs_dir_ops {
     /* Adds new entry into directory */
     errno_t (*add) (reiserfs_entity_t *, reiserfs_entry_hint_t *);
 
+    /* Removes entry from directory */
+    errno_t (*remove) (reiserfs_entity_t *, uint32_t);
+    
     /* Makes check of directory */
-    errno_t (*check) (reiserfs_entity_t *, int);
+    errno_t (*valid) (reiserfs_entity_t *, int);
 
     /* 
 	Simple check for validness (for instance, is statdata exists for dir40 
@@ -424,37 +429,34 @@ typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;
 struct reiserfs_item_common_ops {
     
     /* Forms item structures based on passed hint in passed memory area */
-    errno_t (*create) (const void *, reiserfs_item_hint_t *);
-
-    /* Makes lookup for passed key */
-    int (*lookup) (const void *, reiserfs_key_t *, uint32_t *);
-
-    /* Confirms item type */
-    int (*confirm) (const void *);
-
-    /* Checks item for validness */
-    errno_t (*check) (const void *, int);
-
-    /* Prints item into specified buffer */
-    errno_t (*print) (const void *, char *, uint32_t);
-
-    /* Get the max key which could be stored in the item of this type */
-    errno_t (*maxkey) (const void *);
-    
-    /* Returns unit count */
-    uint32_t (*count) (const void *);
-
-    /* Removes specified unit from the item. Returns released space */
-    uint32_t (*remove) (const void *, uint32_t);
+    errno_t (*init) (reiserfs_body_t *, reiserfs_item_hint_t *);
 
     /* Inserts unit described by passed hint into the item */
-    errno_t (*insert) (const void *, uint32_t, reiserfs_item_hint_t *);
+    errno_t (*insert) (reiserfs_body_t *, uint32_t, reiserfs_item_hint_t *);
     
+    /* Removes specified unit from the item. Returns released space */
+    uint32_t (*remove) (reiserfs_body_t *, uint32_t);
+
     /* Estimates item */
     errno_t (*estimate) (uint32_t, reiserfs_item_hint_t *);
     
-    /* Retunrs min size the item may occupy */
-    uint32_t (*minsize) (void);
+    /* Confirms item type */
+    int (*confirm) (reiserfs_body_t *);
+
+    /* Makes lookup for passed key */
+    int (*lookup) (reiserfs_body_t *, reiserfs_key_t *, uint32_t *);
+
+    /* Checks item for validness */
+    errno_t (*valid) (reiserfs_body_t *, int);
+
+    /* Prints item into specified buffer */
+    errno_t (*print) (reiserfs_body_t *, char *, uint32_t);
+
+    /* Get the max key which could be stored in the item of this type */
+    errno_t (*maxkey) (reiserfs_key_t *);
+    
+    /* Returns unit count */
+    uint32_t (*count) (reiserfs_body_t *);
 
     /* Returns TRUE if item plugin is internal item plugin */
     int (*internal) (void);
@@ -466,22 +468,23 @@ struct reiserfs_item_common_ops {
 typedef struct reiserfs_item_common_ops reiserfs_item_common_ops_t;
 
 struct reiserfs_direntry_ops {
-    errno_t (*get_entry) (const void *, uint32_t, reiserfs_entry_hint_t *);
+    errno_t (*entry) (reiserfs_body_t *, uint32_t, 
+	reiserfs_entry_hint_t *);
 };
 
 typedef struct reiserfs_direntry_ops reiserfs_direntry_ops_t;
 
 struct reiserfs_stat_ops {
-    uint16_t (*get_mode) (const void *);
-    void (*set_mode) (const void *, uint16_t);
+    uint16_t (*get_mode) (reiserfs_body_t *);
+    void (*set_mode) (reiserfs_body_t *, uint16_t);
 };
 
 typedef struct reiserfs_stat_ops reiserfs_stat_ops_t;
 
 struct reiserfs_internal_ops {
-    errno_t (*set_pointer) (const void *, blk_t);
-    blk_t (*get_pointer) (const void *);
-    int (*has_pointer) (const void *, blk_t);
+    errno_t (*set_pointer) (reiserfs_body_t *, blk_t);
+    blk_t (*get_pointer) (reiserfs_body_t *);
+    int (*has_pointer) (reiserfs_body_t *, blk_t);
 };
 
 typedef struct reiserfs_internal_ops reiserfs_internal_ops_t;
@@ -506,11 +509,15 @@ typedef struct reiserfs_item_ops reiserfs_item_ops_t;
 struct reiserfs_sdext_ops {
     reiserfs_plugin_header_t h;
 
-    errno_t (*create) (void *, void *);
-    errno_t (*open) (void *, void *);
-
+    errno_t (*init) (reiserfs_body_t *, 
+	reiserfs_sdext_unix_hint_t *);
+    
+    errno_t (*open) (reiserfs_body_t *, 
+	reiserfs_sdext_unix_hint_t *);
+    
+    int (*confirm) (reiserfs_body_t *);
+    
     uint32_t (*length) (void);
-    int (*confirm) (void *);
 };
 
 typedef struct reiserfs_sdext_ops reiserfs_sdext_ops_t;
@@ -542,13 +549,13 @@ struct reiserfs_node_ops {
     errno_t (*close) (reiserfs_entity_t *);
     
     /* Confirms that given block contains valid node of requested format */
-    int (*confirm) (reiserfs_entity_t *);
+    int (*confirm) (aal_block_t *);
 
     /* 
 	Make more smart node check and return result to caller. Thsi method is 
 	used for fsck purposes.
     */
-    errno_t (*check) (reiserfs_entity_t *, int);
+    errno_t (*valid) (reiserfs_entity_t *, int);
     
     /* Prints node into given buffer */
     errno_t (*print) (reiserfs_entity_t *, char *, uint32_t);
@@ -574,9 +581,6 @@ struct reiserfs_node_ops {
     /* Removes unit at specified pos */
     errno_t (*cut) (reiserfs_entity_t *, reiserfs_pos_t *);
     
-    /* Returns max item count */
-    uint32_t (*maxnum) (reiserfs_entity_t *);
-
     /* Returns item count */
     uint32_t (*count) (reiserfs_entity_t *);
     
@@ -673,7 +677,7 @@ struct reiserfs_format_ops {
 	format-specific super block for format40 must lie in 17-th
 	block for 4096 byte long blocks.
     */
-    errno_t (*check) (reiserfs_entity_t *, int);
+    errno_t (*valid) (reiserfs_entity_t *, int);
 
     /*
 	Probes whether filesystem on given device has this format.
@@ -745,7 +749,7 @@ struct reiserfs_oid_ops {
     errno_t (*sync) (reiserfs_entity_t *);
 
     /* Makes check for validness */
-    errno_t (*check) (reiserfs_entity_t *, int);
+    errno_t (*valid) (reiserfs_entity_t *, int);
     
     /* Gets next object id */
     uint64_t (*alloc) (reiserfs_entity_t *);
@@ -801,7 +805,7 @@ struct reiserfs_alloc_ops {
     count_t (*used) (reiserfs_entity_t *);
 
     /* Checks blocks allocator on validness */
-    errno_t (*check) (reiserfs_entity_t *, int);
+    errno_t (*valid) (reiserfs_entity_t *, int);
 };
 
 typedef struct reiserfs_alloc_ops reiserfs_alloc_ops_t;
@@ -819,7 +823,7 @@ struct reiserfs_journal_ops {
     void (*close) (reiserfs_entity_t *);
 
     /* Checks journal metadata on validness */
-    errno_t (*check) (reiserfs_entity_t *, int);
+    errno_t (*valid) (reiserfs_entity_t *, int);
     
     /* Synchronizes journal */
     errno_t (*sync) (reiserfs_entity_t *);

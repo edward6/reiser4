@@ -11,7 +11,9 @@
 
 #define REISERFS_3_5_SUPER_SIGNATURE "ReIsErFs"
 #define REISERFS_3_6_SUPER_SIGNATURE "ReIsEr2Fs"
-#define REISERFS_JR_SUPER_SIGNATURE "ReIsEr3Fs"
+#define REISERFS_JR_SUPER_SIGNATURE  "ReIsEr3Fs"
+
+#define REISERFS_FORMAT36_OFFSET     (65536)
 
 struct reiserfs_journal_params {
     uint32_t jp_start;
@@ -59,10 +61,12 @@ typedef struct reiserfs_format36_super reiserfs_format36_super_t;
 
 struct reiserfs_format36 {
     aal_device_t *device;
-    aal_block_t *super;
+    aal_block_t *block;
 };
 
 typedef struct reiserfs_format36 reiserfs_format36_t;
+
+#define format36_super(block)			((reiserfs_format36_super_t *)block->data)
 
 #define SUPER_V1_SIZE				(sizeof(reiserfs_super_v1_t))
 #define SUPER_V2_SIZE				(sizeof(reiserfs_super_t))

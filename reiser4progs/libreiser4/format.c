@@ -113,14 +113,14 @@ errno_t reiserfs_format_sync(
 }
 
 /* Checks passed disk-format for validness */
-errno_t reiserfs_format_check(
+errno_t reiserfs_format_valid(
     reiserfs_format_t *format,	/* format to be checked */
     int flags			/* some flags (not used at the moment) */
 ) {
     aal_assert("umka-829", format != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, format->plugin->format_ops, 
-	check, format->entity, flags);
+	valid, format->entity, flags);
 }
 
 /* Marks format area as used */

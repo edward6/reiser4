@@ -39,7 +39,7 @@ reiserfs_plugin_t *reiserfs_key_guess(const void *data) {
     Compares two keys in plugin independent maner by means of using one of 
     passed keys plugin.
 */
-int reiserfs_key_compare_full(
+int reiserfs_key_compare(
     reiserfs_key_t *key1,	    /* the first key for comparing */
     reiserfs_key_t *key2	    /* the second one */
 ) {
@@ -50,22 +50,7 @@ int reiserfs_key_compare_full(
     aal_assert("umka-906", key1->plugin->h.id == key2->plugin->h.id, return -1);
 
     return libreiser4_plugin_call(return -1, key1->plugin->key_ops, 
-	compare_full, key1->body, key2->body);
-}
-
-/* Compares two companents of passed keys (locality and objectid) */
-int reiserfs_key_compare_short(
-    reiserfs_key_t *key1,	    /* the first key for comparing */
-    reiserfs_key_t *key2	    /* the second one */
-) {
-    aal_assert("umka-764", key1 != NULL, return -1);
-    aal_assert("umka-765", key2 != NULL, return -1);
-    aal_assert("umka-906", key1->plugin != NULL, return -1);
-    aal_assert("umka-906", key2->plugin != NULL, return -1);
-    aal_assert("umka-906", key1->plugin->h.id == key2->plugin->h.id, return -1);
-
-    return libreiser4_plugin_call(return -1, key1->plugin->key_ops, 
-	compare_short, key1->body, key2->body);
+	compare, key1->body, key2->body);
 }
 
 /* Cleans specified key */
@@ -80,7 +65,7 @@ void reiserfs_key_clean(
 } 
 
 /* Builds full non-directory key */
-errno_t reiserfs_key_build_generic_full(
+errno_t reiserfs_key_build_generic(
     reiserfs_key_t *key,	    /* key to be built */
     uint32_t type,		    /* key type to be used */
     oid_t locality,		    /* locality to be used */
@@ -91,11 +76,11 @@ errno_t reiserfs_key_build_generic_full(
     aal_assert("umka-666", key->plugin != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, key->plugin->key_ops, 
-	build_generic_full, key->body, type, locality, objectid, offset);
+	build_generic, key->body, type, locality, objectid, offset);
 }
 
 /* Builds short non-directory key */
-errno_t reiserfs_key_build_generic_short(
+errno_t reiserfs_key_build_objid(
     reiserfs_key_t *key,	    /* key to be built */
     uint32_t type,		    /* key type */
     oid_t locality,		    /* key locality */
@@ -105,11 +90,11 @@ errno_t reiserfs_key_build_generic_short(
     aal_assert("umka-666", key->plugin != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, key->plugin->key_ops, 
-	build_generic_short, key->body, type, locality, objectid);
+	build_objid, key->body, type, locality, objectid);
 }
 
 /* Builds full directory key */
-errno_t reiserfs_key_build_entry_full(
+errno_t reiserfs_key_build_direntry(
     reiserfs_key_t *key,	    /* key to be built */
     reiserfs_plugin_t *hash_plugin, /* hash plugin to be used */
     oid_t locality,		    /* loaclity to be used */
@@ -121,11 +106,11 @@ errno_t reiserfs_key_build_entry_full(
     aal_assert("umka-670", name != NULL, return -1);
     
     return libreiser4_plugin_call(return -1, key->plugin->key_ops, 
-	build_entry_full, key->body, hash_plugin, locality, objectid, name);
+	build_direntry, key->body, hash_plugin, locality, objectid, name);
 }
 
 /* Builds short entry key */
-errno_t reiserfs_key_build_entry_short(
+errno_t reiserfs_key_build_entryid(
     reiserfs_key_t *key,	    /* key to be built */
     reiserfs_plugin_t *hash_plugin, /* hash plugin to be used */
     const char *name		    /* entry name */
@@ -135,7 +120,7 @@ errno_t reiserfs_key_build_entry_short(
     aal_assert("umka-670", name != NULL, return -1);
     
     return libreiser4_plugin_call(return -1, key->plugin->key_ops, 
-	build_entry_short, key->body, hash_plugin, name);
+	build_entryid, key->body, hash_plugin, name);
 }
 
 /* Builds full key by entry short key */

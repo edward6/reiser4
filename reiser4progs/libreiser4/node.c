@@ -172,7 +172,7 @@ errno_t reiserfs_node_rdkey(
     aal_assert("umka-753", node != NULL, return -1);
     aal_assert("umka-754", key != NULL, return -1);
     
-    reiserfs_pos_init(&pos, reiserfs_node_count(node) - 1, 0xffffffff);
+    reiserfs_pos_init(&pos, reiserfs_node_count(node) - 1, ~0ul);
     reiserfs_node_get_key(node, &pos, key);
     
     return 0;
@@ -188,7 +188,7 @@ errno_t reiserfs_node_ldkey(
     aal_assert("umka-753", node != NULL, return -1);
     aal_assert("umka-754", key != NULL, return -1);
 
-    reiserfs_pos_init(&pos, 0, 0xffffffff);
+    reiserfs_pos_init(&pos, 0, ~0ul);
     reiserfs_node_get_key(node, &pos, key);
     
     return 0;
@@ -280,8 +280,8 @@ errno_t reiserfs_node_split(
     median = reiserfs_node_count(node) / 2;
     while (reiserfs_node_count(node) > median) {
 
-	reiserfs_pos_init(&dst_pos, 0, 0xffffffff);
-        reiserfs_pos_init(&src_pos, reiserfs_node_count(node) - 1, 0xffffffff);
+	reiserfs_pos_init(&dst_pos, 0, ~0ul);
+        reiserfs_pos_init(&src_pos, reiserfs_node_count(node) - 1, ~0ul);
 	
 	if (reiserfs_node_move(right, &dst_pos, node, &src_pos))
 	    return -1;
@@ -291,14 +291,14 @@ errno_t reiserfs_node_split(
 }
 
 /* Checks node for validness */
-errno_t reiserfs_node_check(
+errno_t reiserfs_node_valid(
     reiserfs_node_t *node,	/* node to be checked */
     int flags			/* some flags (not used at the moment) */
 ) {
     aal_assert("umka-123", node != NULL, return -1);
     
     return libreiser4_plugin_call(return -1, node->plugin->node_ops, 
-	check, node->entity, flags);
+	valid, node->entity, flags);
 }
 
 #endif
@@ -319,15 +319,16 @@ int reiserfs_node_lookup(
     reiserfs_key_t *key,	/* key to be find */
     reiserfs_pos_t *pos		/* found pos will be stored here */
 ) {
+    int lookup; 
     reiserfs_key_t maxkey;
-    int lookup; void *body;
+    reiserfs_body_t *body;
     reiserfs_plugin_t *plugin;
     
     aal_assert("umka-475", pos != NULL, return -1);
     aal_assert("vpf-048", node != NULL, return -1);
     aal_assert("umka-476", key != NULL, return -1);
 
-    reiserfs_pos_init(pos, 0, 0xffffffff);
+    reiserfs_pos_init(pos, 0, ~0ul);
 
     if (reiserfs_node_count(node) == 0)
 	return 0;
@@ -366,7 +367,7 @@ int reiserfs_node_lookup(
 	    return -1;
 	}
 	
-	if (reiserfs_key_compare_full(key, &maxkey) > 0) {
+	if (reiserfs_key_compare(key, &maxkey) > 0) {
 	    pos->item++;
 	    return 0;
 	}
@@ -403,14 +404,6 @@ int reiserfs_node_lookup(
     return lookup;
 }
 
-/* Retutrns max possible number of items in specified node */
-uint32_t reiserfs_node_maxnum(reiserfs_node_t *node) {
-    aal_assert("umka-452", node != NULL, return 0);
-    
-    return libreiser4_plugin_call(return 0, node->plugin->node_ops,
-	maxnum, node->entity);
-}
-
 /* Returns real item count in specified node */
 uint32_t reiserfs_node_count(reiserfs_node_t *node) {
     aal_assert("umka-453", node != NULL, return 0);
@@ -429,7 +422,7 @@ errno_t reiserfs_node_remove(
     aal_assert("umka-767", node != NULL, return -1);
     aal_assert("umka-768", pos != NULL, return -1);
 
-    if (pos->unit == 0xffffffff)
+    if (pos->unit == ~0ul)
 	return libreiser4_plugin_call(return -1, node->plugin->node_ops, 
 	    remove, node->entity, pos);
     else
@@ -465,12 +458,12 @@ errno_t reiserfs_node_insert(
     }
     
     /* Checking if item length is gretter then free space in node */
-    if (item->len + (pos->unit == 0xffffffff ? reiserfs_node_item_overhead(node) : 0) >
+    if (item->len + (pos->unit == ~0ul ? reiserfs_node_item_overhead(node) : 0) >
         reiserfs_node_get_space(node))
     {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
             "There is no space to insert the %s of (%u) size in the node (%llu).",
-            (pos->unit == 0xffffffff ? "item" : "unit"), item->len, 
+            (pos->unit == ~0ul ? "item" : "unit"), item->len, 
 	    aal_block_get_nr(node->block));
         return -1;
     }
@@ -479,7 +472,7 @@ errno_t reiserfs_node_insert(
 	Inserting new item or passting unit into one existent item pointed by 
 	pos->item.
     */
-    if (pos->unit == 0xffffffff) {
+    if (pos->unit == ~0ul) {
         if ((ret = libreiser4_plugin_call(return -1, node->plugin->node_ops, 
 		insert, node->entity, pos, item)) != 0)
 	    return ret;
@@ -586,7 +579,7 @@ uint32_t reiserfs_node_item_len(
 }
 
 /* Returns body pointer of speficied item */
-void *reiserfs_node_item_body(
+reiserfs_body_t *reiserfs_node_item_body(
     reiserfs_node_t *node,	/* node item body will be obtained from */
     reiserfs_pos_t *pos		/* item pos body will be obtained at */
 ) {
@@ -647,7 +640,7 @@ blk_t reiserfs_node_get_pointer(
     reiserfs_node_t *node,	/* node pointer will be obtained from */
     reiserfs_pos_t *pos		/* item position to be used */
 ) {
-    void *body;
+    reiserfs_body_t *body;
     reiserfs_plugin_t *plugin;
     
     aal_assert("vpf-041", node != NULL, return 0);
@@ -691,7 +684,7 @@ int reiserfs_node_has_pointer(
     reiserfs_pos_t *pos,	/* pos internal item lies */
     blk_t blk			/* pointer to be checked */
 ) {
-    void *body;
+    reiserfs_body_t *body;
     reiserfs_plugin_t *plugin;
   
     aal_assert("umka-607", node != NULL, return 0);
@@ -765,7 +758,7 @@ errno_t reiserfs_node_set_pointer(
     reiserfs_pos_t *pos,	/* internal item pos */
     blk_t blk			/* new pointer */
 ) {
-    void *body;
+    reiserfs_body_t *body;
     reiserfs_plugin_t *plugin;
     
     aal_assert("umka-607", node != NULL, return -1);
@@ -803,22 +796,22 @@ errno_t reiserfs_node_set_pointer(
     or of item_info->info (data to be created on the base of).
     
     1. Insertion of data: 
-    a) pos->unit == 0xffffffff 
+    a) pos->unit == ~0ul 
     b) hint->data != NULL
     c) get hint->plugin on the base of pos.
     
     2. Insertion of info: 
-    a) pos->unit == 0xffffffff 
+    a) pos->unit == ~0ul 
     b) hint->info != NULL
     c) hint->plugin != NULL
     
     3. Pasting of data: 
-    a) pos->unit != 0xffffffff 
+    a) pos->unit != ~0ul 
     b) hint->data != NULL
     c) get hint->plugin on the base of pos.
     
     4. Pasting of info: 
-    a) pos->unit_pos != 0xffffffff 
+    a) pos->unit_pos != ~0ul 
     b) hint->info != NULL
     c) get hint->plugin on the base of pos.
 */
@@ -833,7 +826,7 @@ errno_t reiserfs_node_item_estimate(
     aal_assert("umka-604", pos != NULL, return -1);
 
     /* We must have hint->plugin initialized for the 2nd case */
-    aal_assert("vpf-118", pos->unit != 0xffffffff || 
+    aal_assert("vpf-118", pos->unit != ~0ul || 
 	item->plugin != NULL, return -1);
    
     if (!item->plugin && !(item->plugin = reiserfs_node_item_plugin(node, pos))) {

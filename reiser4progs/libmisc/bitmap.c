@@ -116,7 +116,7 @@ static blk_t reiserfs_bitmap_calc(
 	uint16_t bits = sizeof(uint64_t) * 8;
 		
 	if (i + bits < end && i % 0x8 == 0 &&
-	    *block64 == (flag == 0 ? 0xffffffffffffffffll : 0)) 
+	    *block64 == (flag == 0 ? ~0ull : 0)) 
 	{
 	    blocks += bits;
 	    i += bits;

@@ -26,10 +26,10 @@ extern reiserfs_journal_t *reiserfs_journal_create(reiserfs_format_t *format,
 extern errno_t reiserfs_journal_sync(reiserfs_journal_t *journal);
 extern errno_t reiserfs_journal_replay(reiserfs_journal_t *journal);
 
-extern errno_t reiserfs_journal_check(reiserfs_journal_t *journal, 
-    int flags);
-
 #endif
+
+extern errno_t reiserfs_journal_valid(reiserfs_journal_t *journal, 
+    int flags);
 
 extern void reiserfs_journal_close(reiserfs_journal_t *journal);
 

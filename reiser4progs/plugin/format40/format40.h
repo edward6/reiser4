@@ -11,6 +11,9 @@
 
 #define REISERFS_FORMAT40_MAGIC		    "R4Sb-Default"
 #define REISERFS_FORMAT40_OFFSET	    (65536 + 4096)
+#define REISERFS_FORMAT40_JHEADER	    (4096 * 19)
+#define REISERFS_FORMAT40_JFOOTER	    (4096 * 20)
+
 
 struct reiserfs_format40_super {
     uint64_t sb_block_count;
@@ -55,7 +58,7 @@ typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 
 struct reiserfs_format40 {
     aal_device_t *device;
-    aal_block_t *super;
+    aal_block_t *block;
 };
 
 typedef struct reiserfs_format40 reiserfs_format40_t;

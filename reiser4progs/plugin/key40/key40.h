@@ -79,18 +79,7 @@ typedef enum {
     KEY40_GEN_SHIFT        = 0,
 } reiserfs_key40_shift_t;
 
-/*#define KEY40_COMP_ELEMENT(k1, k2, off)	    \
-    ({					    \
-	uint64_t e1;			    \
-	uint64_t e2;			    \
-					    \
-	e1 = get_key40_el(k1, off);	    \
-	e2 = get_key40_el(k2, off);	    \
-					    \
-	e1 < e2 ? -1 : (e1 == e2 ? 0 : 1);  \
-    })*/
-
-static inline uint64_t get_key40_el(const reiserfs_key40_t *key,
+static inline uint64_t k40_get_el(const reiserfs_key40_t *key,
     reiserfs_key40_field_t off)
 {
     aal_assert("vpf-029", key != NULL,  return 0);
@@ -98,7 +87,7 @@ static inline uint64_t get_key40_el(const reiserfs_key40_t *key,
     return LE64_TO_CPU(key->el[off]);
 }
 
-static inline void set_key40_el(reiserfs_key40_t *key,
+static inline void k40_set_el(reiserfs_key40_t *key,
     reiserfs_key40_field_t off, uint64_t value)
 {
     aal_assert("vpf-031", key != NULL, return);
@@ -106,12 +95,12 @@ static inline void set_key40_el(reiserfs_key40_t *key,
     key->el[off] = CPU_TO_LE64(value);
 }
 
-inline int KEY40_COMP_ELEMENT(void *k1, void *k2, int off) {
+inline int k40_comp_el(void *k1, void *k2, int off) {
     uint64_t e1;
     uint64_t e2;
 
-    e1 = get_key40_el(k1, off);
-    e2 = get_key40_el(k2, off);
+    e1 = k40_get_el(k1, off);
+    e2 = k40_get_el(k2, off);
 
     return (e1 < e2 ? -1 : (e1 == e2 ? 0 : 1));
 }
@@ -121,18 +110,18 @@ inline int KEY40_COMP_ELEMENT(void *k1, void *k2, int off) {
     field F with type T.
 */
 #define DEFINE_KEY40_FIELD(L, U, T)				    \
-static inline T get_key40_##L (const reiserfs_key40_t *key) {	    \
+static inline T k40_get_##L (const reiserfs_key40_t *key) {	    \
     aal_assert("vpf-036", key != NULL, return 0);		    \
-    return (T) ((get_key40_el(key, KEY40_##U##_INDEX) &		    \
+    return (T) ((k40_get_el(key, KEY40_##U##_INDEX) &		    \
 	KEY40_##U##_MASK) >> KEY40_##U##_SHIFT);		    \
 }								    \
 								    \
-static inline void set_key40_##L(reiserfs_key40_t *key, T loc) {    \
+static inline void k40_set_##L(reiserfs_key40_t *key, T loc) {    \
     uint64_t el;						    \
 								    \
     aal_assert("vpf-033", key != NULL, return);			    \
 								    \
-    el = get_key40_el(key, KEY40_##U##_INDEX);			    \
+    el = k40_get_el(key, KEY40_##U##_INDEX);			    \
 								    \
     el &= ~KEY40_##U##_MASK;					    \
 								    \
@@ -140,25 +129,14 @@ static inline void set_key40_##L(reiserfs_key40_t *key, T loc) {    \
         ~KEY40_##U##_MASK) == 0, return);			    \
 								    \
     el |= (loc << KEY40_##U##_SHIFT);				    \
-    set_key40_el(key, KEY40_##U##_INDEX, el);			    \
+    k40_set_el(key, KEY40_##U##_INDEX, el);			    \
 }
 
-/* Define get_key40_locality(), set_key40_locality() */
 DEFINE_KEY40_FIELD(locality, LOCALITY, uint64_t);
-
-/* Define get_key40_type(), set_key40_type() */
 DEFINE_KEY40_FIELD(type, TYPE, reiserfs_key40_minor_t);
-
-/* Define get_key40_band(), set_key40_band() */
 DEFINE_KEY40_FIELD(band, BAND, uint64_t);
-
-/* Define get_key40_objectid(), set_key40_objectid() */
 DEFINE_KEY40_FIELD(objectid, OBJECTID, uint64_t);
-
-/* Define get_key40_offset(), set_key40_offset() */
 DEFINE_KEY40_FIELD(offset, OFFSET, uint64_t);
-
-/* Define get_key40_hash(), set_key40_hash() */
 DEFINE_KEY40_FIELD(hash, HASH, uint64_t);
 
 #endif

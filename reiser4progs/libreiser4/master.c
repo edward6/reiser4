@@ -66,7 +66,7 @@ error_free_master:
 }
 
 /* This function checks master super block for validness */
-errno_t reiserfs_master_check(reiserfs_master_t *master) {
+errno_t reiserfs_master_valid(reiserfs_master_t *master) {
     aal_assert("umka-898", master != NULL, return -1);
     return 0;
 }

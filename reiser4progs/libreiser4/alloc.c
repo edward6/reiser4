@@ -196,14 +196,14 @@ blk_t reiserfs_alloc_alloc(
 	alloc, alloc->entity);
 }
 
-errno_t reiserfs_alloc_check(
+errno_t reiserfs_alloc_valid(
     reiserfs_alloc_t *alloc,	/* allocator to be checked */
     int flags			/* some flags will be used by plugin in the future */
 ) {
     aal_assert("umka-833", alloc != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, alloc->plugin->alloc_ops, 
-	check, alloc->entity, flags);
+	valid, alloc->entity, flags);
 }
 
 #endif

@@ -29,7 +29,7 @@ do {								\
     h1 += b1;							\
 } while(0)
 
-uint64_t tea_hash_build(const unsigned char *name, uint64_t len) {
+uint64_t tea_hash_build(const unsigned char *name, uint32_t len) {
     uint64_t k[] = { 0x9464a485, 0x542e1a94, 0x3e846bff, 0xb75bcfc3}; 
 
     uint64_t i;
@@ -148,13 +148,13 @@ static reiserfs_plugin_t tea_hash_plugin = {
 	    .label = "tea_hash",
 	    .desc = "Implementation of tea hash for reiserfs 4.0, ver. " VERSION,
 	},
-	.build = (uint64_t (*)(const unsigned char *, uint32_t))tea_hash_build
+	.build = tea_hash_build
     }
 };
 
-static reiserfs_plugin_t *tea_hash_entry(reiserfs_core_t *c) {
+static reiserfs_plugin_t *tea_hash_start(reiserfs_core_t *c) {
     return &tea_hash_plugin;
 }
 
-libreiser4_factory_register(tea_hash_entry);
+libreiser4_factory_register(tea_hash_start);
 

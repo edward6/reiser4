@@ -136,14 +136,14 @@ errno_t reiserfs_journal_sync(
 }
 
 /* Checks jouranl structure for validness */
-errno_t reiserfs_journal_check(
+errno_t reiserfs_journal_valid(
     reiserfs_journal_t *journal, /* jouranl to eb checked */
     int flags			 /* some flags to be used */
 ) {
     aal_assert("umka-830", journal != NULL, return -1);
 
     return libreiser4_plugin_call(return -1, journal->plugin->journal_ops, 
-	check, journal->entity, flags);
+	valid, journal->entity, flags);
 }
 
 #endif

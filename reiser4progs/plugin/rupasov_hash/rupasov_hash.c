@@ -58,13 +58,13 @@ static reiserfs_plugin_t rupasov_hash_plugin = {
 	    .label = "rupasov_hash",
 	    .desc = "Implementation of rupasov hash for reiserfs 4.0, ver. " VERSION,
 	},
-	.build = (uint64_t (*)(const unsigned char *, uint32_t))rupasov_hash_build
+	.build = rupasov_hash_build
     }
 };
 
-static reiserfs_plugin_t *rupasov_hash_entry(reiserfs_core_t *c) {
+static reiserfs_plugin_t *rupasov_hash_start(reiserfs_core_t *c) {
     return &rupasov_hash_plugin;
 }
 
-libreiser4_factory_register(rupasov_hash_entry);
+libreiser4_factory_register(rupasov_hash_start);
 

@@ -38,7 +38,7 @@ static errno_t reiserfs_fs_build_root_key(
     fs->key.plugin = plugin;
 
     /* Building the key */
-    reiserfs_key_build_generic_full(&fs->key, KEY40_STATDATA_MINOR,
+    reiserfs_key_build_generic(&fs->key, KEY40_STATDATA_MINOR,
 	parent_objectid, objectid, 0);
 
     return 0;
@@ -66,7 +66,7 @@ reiserfs_fs_t *reiserfs_fs_open(
     if (!(fs->master = reiserfs_master_open(host_device)))
 	goto error_free_fs;
     
-    if (reiserfs_master_check(fs->master))
+    if (reiserfs_master_valid(fs->master))
 	goto error_free_master;
     
     /* Setting actual used block size from master super block */
@@ -83,14 +83,14 @@ reiserfs_fs_t *reiserfs_fs_open(
     if (!(fs->format = reiserfs_format_open(host_device, pid)))
 	goto error_free_master;
 
-    if (reiserfs_format_check(fs->format, 0))
+    if (reiserfs_format_valid(fs->format, 0))
 	goto error_free_format;
     
     /* Initializes block allocator. See alloc.c for details */
     if (!(fs->alloc = reiserfs_alloc_open(fs->format)))
 	goto error_free_format;
     
-    if (reiserfs_alloc_check(fs->alloc, 0))
+    if (reiserfs_alloc_valid(fs->alloc, 0))
 	goto error_free_alloc;
     
     /* Jouranl device may be not specified. In this case it will not be opened */
@@ -103,7 +103,7 @@ reiserfs_fs_t *reiserfs_fs_open(
 	if (!(fs->journal = reiserfs_journal_open(fs->format, journal_device)))
 	    goto error_free_alloc;
     
-	if (reiserfs_journal_check(fs->journal, 0))
+	if (reiserfs_journal_valid(fs->journal, 0))
 	    goto error_free_journal;
 
 #ifndef ENABLE_COMPACT	
@@ -137,7 +137,7 @@ reiserfs_fs_t *reiserfs_fs_open(
     if (!(fs->oid = reiserfs_oid_open(fs->format)))
 	goto error_free_journal;
   
-    if (reiserfs_oid_check(fs->oid, 0))
+    if (reiserfs_oid_valid(fs->oid, 0))
 	goto error_free_oid;
     
     /* 
@@ -356,27 +356,6 @@ errno_t reiserfs_fs_sync(
 
     /* Synchronizing the tree */
     if (reiserfs_tree_sync(fs->tree))
-	return -1;
-    
-    return 0;
-}
-
-/* Makes simple check of the all filesystem object metadata */
-errno_t reiserfs_fs_check(
-    reiserfs_fs_t *fs		/* filesystem to be checked */
-) {
-    aal_assert("umka-980", fs != NULL, return -1);
-
-    if (reiserfs_format_check(fs->format, 0))
-	return -1;
-	    
-    if (reiserfs_alloc_check(fs->alloc, 0))
-	return -1;
-    
-    if (reiserfs_oid_check(fs->oid, 0))
-	return -1;
-    
-    if (fs->journal && reiserfs_oid_check(fs->oid, 0))
 	return -1;
     
     return 0;

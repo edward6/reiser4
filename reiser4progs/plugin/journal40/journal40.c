@@ -30,6 +30,7 @@ static errno_t journal40_check_header(reiserfs_journal40_header_t *header,
 	    get_jh_last_commited(header), aal_device_len(device));
 	return -1;
     }
+    
     return 0;
 }
 
@@ -48,7 +49,7 @@ static errno_t journal40_check_footer(reiserfs_journal40_footer_t *footer,
     return 0;
 }
 
-static reiserfs_journal40_t *journal40_open(aal_device_t *device) {
+static reiserfs_entity_t *journal40_open(aal_device_t *device) {
     reiserfs_journal40_t *journal;
 
     aal_assert("umka-409", device != NULL, return NULL);
@@ -75,7 +76,8 @@ static reiserfs_journal40_t *journal40_open(aal_device_t *device) {
     }
 	
     journal->device = device;
-    return journal;
+    
+    return (reiserfs_entity_t *)journal;
 
 error_free_footer:
     aal_block_free(journal->footer);    
@@ -89,7 +91,7 @@ error:
 
 #ifndef ENABLE_COMPACT
 
-static reiserfs_journal40_t *journal40_create(aal_device_t *device, 
+static reiserfs_entity_t *journal40_create(aal_device_t *device, 
     void *params) 
 {
     reiserfs_journal40_t *journal;
@@ -113,7 +115,7 @@ static reiserfs_journal40_t *journal40_create(aal_device_t *device,
     
     /* Forming journal footer basing on passed params */
     
-    return journal;
+    return (reiserfs_entity_t *)journal;
 
 error_free_header:
     aal_block_free(journal->header);
@@ -123,7 +125,11 @@ error:
     return NULL;
 }
 
-static errno_t journal40_check(reiserfs_journal40_t *journal, int flags) {
+static errno_t journal40_valid(reiserfs_entity_t *entity, 
+    int flags) 
+{
+    reiserfs_journal40_t *journal = (reiserfs_journal40_t *)entity;
+    
     aal_assert("umka-965", journal != NULL, return -1);
     
     if (journal40_check_header(journal->header->data, journal->device))
@@ -135,7 +141,8 @@ static errno_t journal40_check(reiserfs_journal40_t *journal, int flags) {
     return 0;
 }
 
-static errno_t journal40_sync(reiserfs_journal40_t *journal) {
+static errno_t journal40_sync(reiserfs_entity_t *entity) {
+    reiserfs_journal40_t *journal = (reiserfs_journal40_t *)entity;
 
     aal_assert("umka-410", journal != NULL, return -1);
     
@@ -159,16 +166,18 @@ static errno_t journal40_sync(reiserfs_journal40_t *journal) {
 
 #endif
 
-static void journal40_close(reiserfs_journal40_t *journal) {
-    aal_assert("umka-411", journal != NULL, return);
+static void journal40_close(reiserfs_entity_t *entity) {
+    reiserfs_journal40_t *journal = (reiserfs_journal40_t *)entity;
+    
+    aal_assert("umka-411", entity != NULL, return);
 
     aal_block_free(journal->header);
     aal_block_free(journal->footer);
     aal_free(journal);
 }
 
-static errno_t journal40_replay(reiserfs_journal40_t *journal) {
-    aal_assert("umka-412", journal != NULL, return -1);
+static errno_t journal40_replay(reiserfs_entity_t *entity) {
+    aal_assert("umka-412", entity != NULL, return -1);
     return 0;
 }
 
@@ -181,29 +190,25 @@ static reiserfs_plugin_t journal40_plugin = {
 	    .label = "journal40",
 	    .desc = "Default journal for reiserfs 4.0, ver. " VERSION,
 	},
-	.open = (reiserfs_entity_t *(*)(aal_device_t *))
-	    journal40_open,
+	.open	= journal40_open,
 	
 #ifndef ENABLE_COMPACT
-	.create = (reiserfs_entity_t *(*)(aal_device_t *, void *))
-	    journal40_create,
-
-	.sync = (errno_t (*)(reiserfs_entity_t *))journal40_sync,
-	.check = (errno_t (*)(reiserfs_entity_t *, int))journal40_check,
+	.create	= journal40_create,
+	.sync	= journal40_sync,
 #else
 	.create = NULL,
-	.sync = NULL,
-	.check = NULL,
+	.sync	= NULL,
 #endif
-	.close = (void (*)(reiserfs_entity_t *))journal40_close,
-	.replay = (errno_t (*)(reiserfs_entity_t *))journal40_replay,
+	.valid	= journal40_valid,
+	.close	= journal40_close,
+	.replay = journal40_replay,
     }
 };
 
-static reiserfs_plugin_t *journal40_entry(reiserfs_core_t *c) {
+static reiserfs_plugin_t *journal40_start(reiserfs_core_t *c) {
     core = c;
     return &journal40_plugin;
 }
 
-libreiser4_factory_register(journal40_entry);
+libreiser4_factory_register(journal40_start);
 

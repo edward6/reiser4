@@ -20,7 +20,7 @@ static reiserfs_core_t *core = NULL;
     block allocator, this function calles reiserfs_bitmap_open function in order to 
     load it from device.
 */
-static reiserfs_alloc40_t *alloc40_open(aal_device_t *device, 
+static reiserfs_entity_t *alloc40_open(aal_device_t *device, 
     count_t len) 
 {
     blk_t offset;
@@ -43,7 +43,8 @@ static reiserfs_alloc40_t *alloc40_open(aal_device_t *device,
     }
   
     alloc->device = device;
-    return alloc;
+    
+    return (reiserfs_entity_t *)alloc;
 
 error_free_alloc:
     aal_free(alloc);
@@ -57,7 +58,7 @@ error:
     Initializes new alloc40 instance, creates bitmap and return new instance to 
     caller (block allocator in libreiser4).
 */
-static reiserfs_alloc40_t *alloc40_create(aal_device_t *device, 
+static reiserfs_entity_t *alloc40_create(aal_device_t *device, 
     count_t len)
 {
     blk_t offset;
@@ -78,7 +79,8 @@ static reiserfs_alloc40_t *alloc40_create(aal_device_t *device,
     }
 
     alloc->device = device;
-    return alloc;
+    
+    return (reiserfs_entity_t *)alloc;
 
 error_free_alloc:
     aal_free(alloc);
@@ -87,8 +89,10 @@ error:
 }
 
 /* Saves alloc40 data (bitmap in fact) to device */
-static errno_t alloc40_sync(reiserfs_alloc40_t *alloc) {
-
+static errno_t alloc40_sync(reiserfs_entity_t *entity) {
+    
+    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+	
     aal_assert("umka-366", alloc != NULL, return -1);
     aal_assert("umka-367", alloc->bitmap != NULL, return -1);
     
@@ -98,7 +102,9 @@ static errno_t alloc40_sync(reiserfs_alloc40_t *alloc) {
 #endif
 
 /* Frees alloc40 instance */
-static void alloc40_close(reiserfs_alloc40_t *alloc) {
+static void alloc40_close(reiserfs_entity_t *entity) {
+    
+    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
     
     aal_assert("umka-368", alloc != NULL, return);
     aal_assert("umka-369", alloc->bitmap != NULL, return);
@@ -110,7 +116,9 @@ static void alloc40_close(reiserfs_alloc40_t *alloc) {
 #ifndef ENABLE_COMPACT
 
 /* Marks specified block as used in its own bitmap */
-static void alloc40_mark(reiserfs_alloc40_t *alloc, blk_t blk) {
+static void alloc40_mark(reiserfs_entity_t *entity, blk_t blk) {
+    
+    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
     
     aal_assert("umka-370", alloc != NULL, return);
     aal_assert("umka-371", alloc->bitmap != NULL, return);
@@ -119,7 +127,8 @@ static void alloc40_mark(reiserfs_alloc40_t *alloc, blk_t blk) {
 }
 
 /* Marks "blk" as free */
-static void alloc40_dealloc(reiserfs_alloc40_t *alloc, blk_t blk) {
+static void alloc40_dealloc(reiserfs_entity_t *entity, blk_t blk) {
+    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
     
     aal_assert("umka-372", alloc != NULL, return);
     aal_assert("umka-373", alloc->bitmap != NULL, return);
@@ -128,8 +137,9 @@ static void alloc40_dealloc(reiserfs_alloc40_t *alloc, blk_t blk) {
 }
 
 /* Finds first free block in bitmap and returns it to caller */
-static blk_t alloc40_alloc(reiserfs_alloc40_t *alloc) {
+static blk_t alloc40_alloc(reiserfs_entity_t *entity) {
     blk_t blk;
+    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
     
     aal_assert("umka-374", alloc != NULL, return 0);
     aal_assert("umka-375", alloc->bitmap != NULL, return 0);
@@ -148,7 +158,8 @@ static blk_t alloc40_alloc(reiserfs_alloc40_t *alloc) {
 #endif
 
 /* Returns free blcoks count */
-count_t alloc40_free(reiserfs_alloc40_t *alloc) {
+count_t alloc40_free(reiserfs_entity_t *entity) {
+    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
 
     aal_assert("umka-376", alloc != NULL, return 0);
     aal_assert("umka-377", alloc->bitmap != NULL, return 0);
@@ -157,7 +168,8 @@ count_t alloc40_free(reiserfs_alloc40_t *alloc) {
 }
 
 /* Returns used blocks count */
-count_t alloc40_used(reiserfs_alloc40_t *alloc) {
+count_t alloc40_used(reiserfs_entity_t *entity) {
+    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
     
     aal_assert("umka-378", alloc != NULL, return 0);
     aal_assert("umka-379", alloc->bitmap != NULL, return 0);
@@ -166,7 +178,9 @@ count_t alloc40_used(reiserfs_alloc40_t *alloc) {
 }
 
 /* Checks whether specified block is used or not */
-int alloc40_test(reiserfs_alloc40_t *alloc, blk_t blk) {
+int alloc40_test(reiserfs_entity_t *entity, blk_t blk) {
+    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+    
     aal_assert("umka-663", alloc != NULL, return 0);
     aal_assert("umka-664", alloc->bitmap != NULL, return 0);
 
@@ -174,7 +188,9 @@ int alloc40_test(reiserfs_alloc40_t *alloc, blk_t blk) {
 }
 
 /* Checks allocator on validness */
-errno_t alloc40_check(reiserfs_alloc40_t *alloc, int flags) {
+errno_t alloc40_valid(reiserfs_entity_t *entity, int flags) {
+    reiserfs_alloc40_t *alloc = (reiserfs_alloc40_t *)entity;
+    
     aal_assert("umka-963", alloc != NULL, return -1);
     aal_assert("umka-964", alloc->bitmap != NULL, return -1);
 
@@ -191,33 +207,33 @@ static reiserfs_plugin_t alloc40_plugin = {
 	    .label = "alloc40",
 	    .desc = "Space allocator for reiserfs 4.0, ver. " VERSION,
 	},
-	.open = (reiserfs_entity_t *(*)(aal_device_t *, count_t))alloc40_open,
-	.close = (void (*)(reiserfs_entity_t *))alloc40_close,
+	.open	    = alloc40_open,
+	.close	    = alloc40_close,
 
 #ifndef ENABLE_COMPACT
-	.create = (reiserfs_entity_t *(*)(aal_device_t *, count_t))alloc40_create,
-	.sync = (errno_t (*)(reiserfs_entity_t *))alloc40_sync,
-	.mark = (void (*)(reiserfs_entity_t *, blk_t))alloc40_mark,
-	.alloc = (blk_t (*)(reiserfs_entity_t *))alloc40_alloc,
-	.dealloc = (void (*)(reiserfs_entity_t *, blk_t))alloc40_dealloc,
+	.create	    = alloc40_create,
+	.sync	    = alloc40_sync,
+	.mark	    = alloc40_mark,
+	.alloc	    = alloc40_alloc,
+	.dealloc    = alloc40_dealloc,
 #else
-	.create = NULL,
-	.sync = NULL,
-	.mark = NULL,
-	.alloc = NULL,
-	.dealloc = NULL,
+	.create	    = NULL,
+	.sync	    = NULL,
+	.mark	    = NULL,
+	.alloc	    = NULL,
+	.dealloc    = NULL,
 #endif
-	.test = (int (*)(reiserfs_entity_t *, blk_t))alloc40_test,
-	.free = (count_t (*)(reiserfs_entity_t *))alloc40_free,
-	.used = (count_t (*)(reiserfs_entity_t *))alloc40_used,
-	.check = (errno_t (*)(reiserfs_entity_t *, int))alloc40_check,
+	.test	    = alloc40_test,
+	.free	    = alloc40_free,
+	.used	    = alloc40_used,
+	.valid	    = alloc40_valid,
     }
 };
 
-static reiserfs_plugin_t *alloc40_entry(reiserfs_core_t *c) {
+static reiserfs_plugin_t *alloc40_start(reiserfs_core_t *c) {
     core = c;
     return &alloc40_plugin;
 }
 
-libreiser4_factory_register(alloc40_entry);
+libreiser4_factory_register(alloc40_start);
 

@@ -141,11 +141,11 @@ void reiserfs_oid_dealloc(
 }
 
 /* Checks specified oid allocator on validness */
-errno_t reiserfs_oid_check(reiserfs_oid_t *oid, int flags) {
+errno_t reiserfs_oid_valid(reiserfs_oid_t *oid, int flags) {
     aal_assert("umka-962", oid != NULL, return -1);
     
     return libreiser4_plugin_call(return -1, oid->plugin->oid_ops, 
-	check, oid->entity, flags);
+	valid, oid->entity, flags);
 }
 
 /* Synchronizes specified oid allocator */

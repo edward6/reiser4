@@ -27,13 +27,13 @@ static reiserfs_plugin_t fnv1_hash_plugin = {
 	    .label = "fnv1_hash",
 	    .desc = "Implementation of fnv1 for reiserfs 4.0, ver. " VERSION,
 	},
-	.build = (uint64_t (*)(const unsigned char *, uint32_t))fnv1_hash_build
+	.build = fnv1_hash_build
     }
 };
 
-static reiserfs_plugin_t *fnv1_hash_entry(reiserfs_core_t *c) {
+static reiserfs_plugin_t *fnv1_hash_start(reiserfs_core_t *c) {
     return &fnv1_hash_plugin;
 }
 
-libreiser4_factory_register(fnv1_hash_entry);
+libreiser4_factory_register(fnv1_hash_start);
 
