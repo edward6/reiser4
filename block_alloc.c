@@ -89,16 +89,49 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *preceder, reiser4_block_nr *blk,
 }
 
 /* wrapper to call dealloc_blocks method of space allocation plugin */
-void reiser4_dealloc_blocks (const reiser4_block_nr * start, const reiser4_block_nr * len)
+int reiser4_dealloc_blocks (const reiser4_block_nr * start, const reiser4_block_nr * len)
 {
-	space_allocator_plugin * splug;
+	txn_atom          * atom; 
+	int                 ret;
+	
+	assert ("zam-431", *len != 0);
+	assert ("zam-432", *start != 0);
 
-	assert ("zam-425", (get_current_super_private () &&
-			    get_current_super_private ()->space_plug &&
-			    get_current_super_private ()->space_plug->dealloc_blocks));
+	/* a generic part of dealloc_blocks is to add deleted blocks to
+	 * current atom DELETED set */
+	do {
+		txn_handle        * tx;
+		blocknr_set_entry * bsep = NULL;
 
-	splug = get_current_super_private()->space_plug;
-	splug->dealloc_blocks (get_space_allocator (reiser4_get_current_sb ()), start, len);
+		tx = get_current_context() -> trans;
+		assert ("zam-429", tx != NULL);
+
+		atom = atom_get_locked_by_txnh (tx);
+		assert ("zam-430", atom != NULL);
+
+		if (*len == 1) ret = blocknr_set_add_block (atom, & atom->delete_set, &bsep, start);
+		else           ret = blocknr_set_add_extent (atom, & atom->delete_set, &bsep, start, len);
+
+	} while (ret != -EAGAIN);
+
+	if (ret != 0) return ret;
+
+	assert ("zam-433", atom != NULL);
+	spin_unlock_atom (atom);
+
+	{ /* and a plugin-specific part */
+		space_allocator_plugin * splug;
+
+		assert ("zam-425", (get_current_super_private () &&
+				    get_current_super_private ()->space_plug ));
+
+		splug = get_current_super_private()->space_plug;
+
+		if (splug -> dealloc_blocks != NULL)
+			splug->dealloc_blocks (get_space_allocator (reiser4_get_current_sb ()), *start, *len);
+	}
+
+	return 0;
 }
 
 /** obtain block number for formatted node */
