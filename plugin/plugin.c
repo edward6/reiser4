@@ -226,7 +226,8 @@ int init_plugins( void )
 
 		ptype = &plugins[ type_id ];
 		plugin_list_init( &ptype -> plugins_list );
-		dinfo( "Of type %s (%s):\n", ptype -> label, ptype -> desc );
+		trace_on( TRACE_PLUGINS, 
+			  "Of type %s (%s):\n", ptype -> label, ptype -> desc );
 		for( i = 0 ; i < ptype -> builtin_num ; ++ i ) {
 			reiser4_plugin *plugin;
 
@@ -238,7 +239,7 @@ int init_plugins( void )
 			if( plugin -> h.type_id != type_id )
 				BUG();
 			plugin -> h.id = i;
-			print_plugin( "\t", plugin ); 
+			trace_if( TRACE_PLUGINS, print_plugin( "\t", plugin ) );
 			if( plugin -> h.id > max_id ) {
 				max_id = plugin -> h.id;
 			}
