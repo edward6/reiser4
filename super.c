@@ -61,7 +61,6 @@ __u64 reiser4_block_count(const struct super_block * super	/* super block
 {
 	assert("vs-494", super != NULL);
 	assert("vs-495", is_reiser4_super(super));
-	assert("green-101", reiser4_spin_sb_is_locked(super));
 	return get_super_private(super)->block_count;
 }
 
@@ -77,7 +76,6 @@ reiser4_set_block_count(const struct super_block *super, __u64 nr)
 {
 	assert("vs-501", super != NULL);
 	assert("vs-502", is_reiser4_super(super));
-	assert("green-100", reiser4_spin_sb_is_locked(super));
 	get_super_private(super)->block_count = nr;
 }
 
@@ -87,7 +85,6 @@ __u64 reiser4_data_blocks(const struct super_block *super	/* super block
 {
 	assert("nikita-452", super != NULL);
 	assert("nikita-453", is_reiser4_super(super));
-	assert("green-102", reiser4_spin_sb_is_locked(super));
 	return get_super_private(super)->blocks_used;
 }
 
@@ -97,7 +94,6 @@ reiser4_set_data_blocks(const struct super_block *super, __u64 nr)
 {
 	assert("vs-503", super != NULL);
 	assert("vs-504", is_reiser4_super(super));
-	assert("green-103", reiser4_spin_sb_is_locked(super));
 	get_super_private(super)->blocks_used = nr;
 }
 
@@ -107,7 +103,6 @@ __u64 reiser4_free_blocks(const struct super_block *super	/* super block
 {
 	assert("nikita-454", super != NULL);
 	assert("nikita-455", is_reiser4_super(super));
-	assert("green-104", reiser4_spin_sb_is_locked(super));
 	return get_super_private(super)->blocks_free;
 }
 
@@ -117,7 +112,6 @@ reiser4_set_free_blocks(const struct super_block *super, __u64 nr)
 {
 	assert("vs-505", super != NULL);
 	assert("vs-506", is_reiser4_super(super));
-	assert("green-105", reiser4_spin_sb_is_locked(super));
 	get_super_private(super)->blocks_free = nr;
 }
 
@@ -126,7 +120,6 @@ void
 reiser4_inc_free_blocks(const struct super_block *super)
 {
 	assert("vs-496", reiser4_free_blocks(super) < reiser4_block_count(super));
-	assert("green-106", reiser4_spin_sb_is_locked(super));
 	get_super_private(super)->blocks_free++;
 }
 
@@ -153,7 +146,6 @@ __u64 reiser4_free_committed_blocks(const struct super_block *super)
 {
 	assert("vs-497", super != NULL);
 	assert("vs-498", is_reiser4_super(super));
-	assert("green-107", reiser4_spin_sb_is_locked(super));
 	return get_super_private(super)->blocks_free_committed;
 }
 
@@ -164,7 +156,6 @@ reiser4_set_free_committed_blocks(const struct super_block *super, __u64 nr)
 {
 	assert("vs-507", super != NULL);
 	assert("vs-508", is_reiser4_super(super));
-	assert("green-108", reiser4_spin_sb_is_locked(super));
 	get_super_private(super)->blocks_free_committed = nr;
 }
 
@@ -194,7 +185,6 @@ __u64 reiser4_grabbed_blocks(const struct super_block * super)
 {
 	assert("zam-512", super != NULL);
 	assert("zam-513", is_reiser4_super(super));
-	assert("green-109", reiser4_spin_sb_is_locked(super));
 
 	return get_super_private(super)->blocks_grabbed;
 }
@@ -204,7 +194,6 @@ reiser4_set_grabbed_blocks(const struct super_block *super, __u64 nr)
 {
 	assert("zam-514", super != NULL);
 	assert("zam-515", is_reiser4_super(super));
-	assert("green-110", reiser4_spin_sb_is_locked(super));
 
 	get_super_private(super)->blocks_grabbed = nr;
 }
@@ -213,7 +202,6 @@ __u64 reiser4_flush_reserved (const struct super_block *super)
 {
 	assert ("vpf-285", super != NULL);
 	assert ("vpf-286", is_reiser4_super (super));
-	assert("green-111", reiser4_spin_sb_is_locked(super));
 
 	return get_super_private (super) -> blocks_flush_reserved;
 }
@@ -222,7 +210,6 @@ void reiser4_set_flush_reserved (const struct super_block *super, __u64 nr)
 {
 	assert ("vpf-282", super != NULL);
 	assert ("vpf-283", is_reiser4_super (super));
-	assert("green-112", reiser4_spin_sb_is_locked(super));
 
 	get_super_private (super) -> blocks_flush_reserved = nr;
 }
@@ -232,7 +219,6 @@ __u64 reiser4_fake_allocated(const struct super_block *super)
 {
 	assert("zam-516", super != NULL);
 	assert("zam-517", is_reiser4_super(super));
-	assert("green-113", reiser4_spin_sb_is_locked(super));
 
 	return get_super_private(super)->blocks_fake_allocated;
 }
@@ -242,7 +228,6 @@ reiser4_set_fake_allocated(const struct super_block *super, __u64 nr)
 {
 	assert("zam-518", super != NULL);
 	assert("zam-519", is_reiser4_super(super));
-	assert("green-114", reiser4_spin_sb_is_locked(super));
 
 	get_super_private(super)->blocks_fake_allocated = nr;
 }
@@ -252,7 +237,6 @@ __u64 reiser4_fake_allocated_unformatted(const struct super_block *super)
 {
 	assert("zam-516", super != NULL);
 	assert("zam-517", is_reiser4_super(super));
-	assert("green-115", reiser4_spin_sb_is_locked(super));
 
 	return get_super_private(super)->blocks_fake_allocated_unformatted;
 }
@@ -262,7 +246,6 @@ reiser4_set_fake_allocated_unformatted(const struct super_block *super, __u64 nr
 {
 	assert("zam-518", super != NULL);
 	assert("zam-519", is_reiser4_super(super));
-	assert("green-116", reiser4_spin_sb_is_locked(super));
 
 	get_super_private(super)->blocks_fake_allocated_unformatted = nr;
 }
