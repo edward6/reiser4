@@ -52,23 +52,26 @@ static const d64 *get_last_committed_tx (struct super_block *s)
 	return &h->last_committed_tx; 
 }
 
-static void set_last_committed_tx (struct super_block *s, const d64 * block)
+static void format_journal_header (struct super_block *s, capture_list_head * tx)
 {
 	struct reiser4_super_info_data * private;
 	struct journal_header * h;
+	jnode * txhead;
 
 	private = get_super_private(s);
 	assert ("zam-479", private != NULL);
 	assert ("zam-480", private->journal_header != NULL);
+
+	txhead = capture_list_front(tx);
 
 	jload_and_lock (private->journal_header);
 
 	h = (struct journal_header*)jdata(private->journal_header);
 	assert ("zam-484", h != NULL);
 
-	junlock_and_relse (private->journal_header);
+	cputod64(*jnode_get_block(txhead), &h->last_committed_tx);
 
-	h->last_committed_tx = *block;
+	junlock_and_relse (private->journal_header);
 }
 
 static const d64 *get_last_flushed_tx (struct super_block * s)
@@ -90,23 +93,29 @@ static const d64 *get_last_flushed_tx (struct super_block * s)
 	return &h->last_flushed_tx;
 }
 
-static void set_last_flushed_tx (struct super_block *s, const d64 *block)
+static void format_journal_footer (struct super_block *s, capture_list_head * tx)
 {
 	struct reiser4_super_info_data * private;
 	struct journal_footer * h;
+	jnode * txhead;
 
 	private = get_super_private(s);
+
+	assert ("zam-581", tx != NULL);
 	assert ("zam-493", private != NULL);
 	assert ("zam-494", private->journal_header != NULL);
+
+	txhead = capture_list_front (tx);
 
 	jload_and_lock (private->journal_footer);
 
 	h = (struct journal_footer*)jdata(private->journal_footer);
 	assert ("zam-495", h != NULL);
 
-	junlock_and_relse (private->journal_footer);
+	cputod64(*jnode_get_block(txhead), &h->last_flushed_tx);
+	cputod64(reiser4_free_committed_blocks(s), &h->free_blocks);
 
-	h->last_flushed_tx = *block;
+	junlock_and_relse (private->journal_footer);
 }
 
 /* log record capacity depends on current block size */
@@ -246,7 +255,7 @@ static int update_journal_header (capture_list_head * tx_list)
 
 	cputod64 (*jnode_get_block(head), &block);
 
-	set_last_committed_tx (s, &block);
+	format_journal_header (s, tx_list);
 
 	ret = submit_write(jh, 1, jnode_get_block(jh), NULL);
 
@@ -268,12 +277,10 @@ static int update_journal_footer (capture_list_head * tx_list)
 	reiser4_super_info_data * private = get_super_private(s);
 
 	jnode * jf = private->journal_footer;
-	jnode * tx_head = capture_list_front (tx_list);
 
 	int ret;
 
-	assert ("zam-496", !capture_list_end (tx_list, tx_head));
-	set_last_flushed_tx (s, (d64*)jnode_get_block(tx_head));
+	format_journal_footer (s, tx_list);
 
 	ret = submit_write (jf, 1, jnode_get_block(jf), NULL);
 	if (ret) return ret;
@@ -779,6 +786,54 @@ int reiser4_write_logs (void)
 	capture_list_splice (&atom->clean_nodes, &overwrite_set);
 
 	return ret;
+}
+
+/* reiser4 replay journal procedure */
+int reiser4_replay_journal (struct super_block * s)
+{
+	/* FIXME: it is a limited version of journal replaying which just
+	 * takes saved free block counter from journal footer, searches for
+	 * not flushed transaction and prints a warning, if those transactions
+	 * found.*/
+
+	reiser4_super_info_data * private = get_super_private(s);
+	jnode *jh, *jf;
+
+	struct journal_header * header_struct;
+	struct journal_footer * footer_struct;
+
+	int ret;
+
+	assert ("zam-582", private != NULL);
+
+	jh = private->journal_header;
+	jf = private->journal_footer;
+
+	if (!jh || !jf) {
+		/* it is possible that disk layout does not support journal
+		 * structures, we just warn about this */
+		warning ("zam-583", "journal control blocks were not loaded by disk layout plugin.  "
+			 "journal replaying is not possible.\n");
+		return 0;
+	}
+
+	if ((ret = jload(jf)) < 0) return ret;
+	if ((ret = jload(jh)) < 0) return ret;
+
+	header_struct = (struct journal_header*)jdata(jh);
+	footer_struct = (struct journal_footer*)jdata(jf);
+
+	if (d64tocpu(&footer_struct->free_blocks)) {
+		reiser4_set_free_blocks (s, d64tocpu(&footer_struct->free_blocks));
+	}
+
+	if (memcmp(&header_struct->last_committed_tx,
+		   &footer_struct->last_flushed_tx, sizeof(d64)))
+	{
+		warning ("zam-584", "not flushed transactions found \n");
+	}
+
+	return 0;
 }
 
 /*
