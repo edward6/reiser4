@@ -335,6 +335,10 @@ static ssize_t reiser4_read( struct file *file /* file to read from */,
 	assert( "umka-073", buf != NULL );
 	assert( "umka-074", off != NULL );
 	
+	trace_on( TRACE_VFS_OPS, "READ: (i_ino %li, size %lld): %u bytes from pos %lli\n",
+		  file -> f_dentry -> d_inode -> i_ino,
+		  file -> f_dentry -> d_inode -> i_size, size, *off );
+
 	fplug = inode_file_plugin( file -> f_dentry -> d_inode );
 	assert( "nikita-417", fplug != NULL );
 
@@ -367,6 +371,9 @@ static ssize_t reiser4_write( struct file *file /* file to write on */,
 	assert( "nikita-1422", buf != NULL );
 	assert( "nikita-1424", off != NULL );
 
+	trace_on( TRACE_VFS_OPS, "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n",
+		  inode -> i_ino, inode -> i_size, size, *off );
+
 	fplug = inode_file_plugin( inode );
 	if( fplug -> write != NULL ) {
 		result = fplug -> write( file, buf, size, off );
@@ -384,6 +391,9 @@ static void reiser4_truncate( struct inode *inode /* inode to truncate */)
 	
 	assert( "umka-075", inode != NULL );
 	
+	trace_on( TRACE_VFS_OPS, "TRUNCATE: i_ino %li to size %lli\n",
+		  inode -> i_ino, inode -> i_size );
+
 	truncate_object( inode, inode -> i_size );
 	/* 
 	 * for mysterious reasons ->truncate() VFS call doesn't return
@@ -692,6 +702,9 @@ static loff_t reiser4_llseek( struct file *file, loff_t off, int origin )
 	loff_t     ( *seek_fn )( struct file *, loff_t, int );
 	REISER4_ENTRY( inode -> i_sb );
 	
+	trace_on( TRACE_VFS_OPS, "llseek: (i_ino %li, size %lld): off %lli, origin %d\n",
+		  inode -> i_ino, inode -> i_size, off, origin );
+
 	fplug = inode_file_plugin( inode );
 	assert( "nikita-2291", fplug != NULL );
 	seek_fn = fplug -> seek ? : default_llseek;
@@ -814,6 +827,10 @@ static int reiser4_mmap (struct file * file, struct vm_area_struct * vma)
 	struct inode * inode;
 	int            result;
 	REISER4_ENTRY (file -> f_dentry -> d_inode -> i_sb);
+
+	trace_on( TRACE_VFS_OPS, "MMAP: (i_ino %li, size %lld)\n",
+		  file -> f_dentry -> d_inode -> i_ino,
+		  file -> f_dentry -> d_inode -> i_size );
 
 	inode = file->f_dentry->d_inode;
 	if (inode_file_plugin (inode)->mmap == NULL)
@@ -1130,6 +1147,17 @@ reiser4_file_fsdata *reiser4_get_file_fsdata( struct file *f /* file
 	return f -> private_data;
 }
 
+
+static const char *tail_status( const struct inode *inode )
+{
+	if (!inode_get_flag( inode, REISER4_TAIL_STATE_KNOWN ) )
+		return "unknown";
+	if (inode_get_flag( inode, REISER4_HAS_TAIL ) )
+		return "tail";
+	return "notail";		
+}
+
+
 /** Release reiser4 file. This is f_op->release() method. Called when last
  * holder closes a file */
 /* Audited by: umka (2002.06.12) */
@@ -1146,6 +1174,9 @@ static int reiser4_release( struct inode *i /* inode released */,
 	fplug = inode_file_plugin( i );
 	assert( "umka-082", fplug != NULL );
 	
+	trace_on( TRACE_VFS_OPS, "RELEASE: (i_ino %li, size %lld, tail status: %s)\n",
+		  i -> i_ino, i -> i_size, tail_status( i ) );
+
 	if( fplug -> release )
 		result = fplug -> release( f );
 	else
