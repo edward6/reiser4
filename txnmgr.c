@@ -867,9 +867,11 @@ int memory_pressure (struct super_block *super, int *nr_to_flush)
 	     /**/ ! atom_list_end   (& mgr->atoms_list, atom) && node == NULL;
 	     atom = atom_list_next  (atom)) {
 
-		spin_lock_atom (atom);
+		if (! spin_trylock_atom (atom)) {
+			continue;
+		}
 
-		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
+		for (level = 0; atom->stage < ASTAGE_CAPTURE_WAIT && level < REAL_MAX_ZTREE_HEIGHT; level += 1) {
 			if (! capture_list_empty (& atom->dirty_nodes [level])) {
 				/* Found a dirty node to flush. */
 				node = jref (capture_list_back (& atom->dirty_nodes [level]));
