@@ -291,7 +291,7 @@ static long oids_used( struct super_block *s /* super block of file system in
 	assert( "vs-484", get_super_private( s ) );
 
 	oplug = get_super_private( s ) -> oid_plug;
-	if( !oplug || oplug -> oids_used )
+	if( !oplug || !oplug -> oids_used )
 		return (long)-1;
 
 	used = oplug -> oids_used( &get_super_private( s ) -> oid_allocator );
@@ -314,7 +314,7 @@ static long oids_free( struct super_block *s /* super block of file system in
 	assert( "vs-485", get_super_private( s ) );
 
 	oplug = get_super_private( s ) -> oid_plug;
-	if( !oplug || oplug -> oids_free )
+	if( !oplug || !oplug -> oids_free )
 		return (long)-1;
 
 	used = oplug -> oids_free( &get_super_private( s ) -> oid_allocator );
