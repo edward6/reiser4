@@ -938,8 +938,6 @@ cut_ctail(coord_t * coord)
 	return cut_node_content(coord, &stop, NULL, NULL, NULL);
 }
 
-void edward_break_unprepped(void){;}
-
 #define UNPREPPED_DCLUSTER_LEN 2
 
 /* insert minimal disk cluster for unprepped page cluster */

@@ -2185,8 +2185,6 @@ set_window(reiser4_cluster_t * clust, reiser4_slide_t * win,
 	clust->win = win;
 }
 
-static void edward_break_hole(void){;}
-
 static int
 set_cluster_params(struct inode * inode, reiser4_cluster_t * clust, 
 		   reiser4_slide_t * win, flow_t * f, loff_t file_off)
@@ -2204,7 +2202,6 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust,
 	
 	if (file_off > inode->i_size) {
 		/* Uhmm, hole in crypto-file... */
-		edward_break_hole();
 		loff_t hole_size;
 		hole_size = file_off - inode->i_size;
 
