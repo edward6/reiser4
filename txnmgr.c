@@ -1,4 +1,4 @@
-/* Copyright (C) 2001 Hans Reiser.  All rights reserved.
+/* Copyright (C) 2001, 2002 Hans Reiser.  All rights reserved.
  */
 
 /* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The txnmgr processes
