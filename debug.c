@@ -16,6 +16,8 @@
 #include <linux/spinlock.h>
 #include <linux/kallsyms.h>
 #include <linux/vmalloc.h>
+#include <linux/ctype.h>
+#include <linux/sysctl.h>
 
 __u32 reiser4_current_trace_flags = 0;
 
@@ -567,6 +569,127 @@ flags_tostring(int flags)
 		return "(unknown)";
 	}
 }
+
+
+static int
+proc_dodebug(ctl_table *table, int write, struct file *file,
+				void *buffer, size_t *lenp)
+{
+	char		tmpbuf[20], *p, c;
+	unsigned int	value;
+	size_t		left, len;
+
+	if ((file->f_pos && !write) || !*lenp) {
+		*lenp = 0;
+		return 0;
+	}
+
+	left = *lenp;
+
+	if (write) {
+		if (!access_ok(VERIFY_READ, buffer, left))
+			return -EFAULT;
+		p = (char *) buffer;
+		while (left && __get_user(c, p) >= 0 && isspace(c))
+			left--, p++;
+		if (!left)
+			goto done;
+
+		if (left > sizeof(tmpbuf) - 1)
+			return -EINVAL;
+		copy_from_user(tmpbuf, p, left);
+		tmpbuf[left] = '\0';
+
+		for (p = tmpbuf, value = 0; '0' <= *p && *p <= '9'; p++, left--)
+			value = 10 * value + (*p - '0');
+		if (*p && !isspace(*p))
+			return -EINVAL;
+		while (left && isspace(*p))
+			left--, p++;
+		*(unsigned int *) table->data = value;
+	} else {
+		if (!access_ok(VERIFY_WRITE, buffer, left))
+			return -EFAULT;
+		len = sprintf(tmpbuf, "%d", *(unsigned int *) table->data);
+		if (len > left)
+			len = left;
+		__copy_to_user(buffer, tmpbuf, len);
+		if ((left -= len) > 0) {
+			put_user('\n', (char *)buffer + len);
+			left--;
+		}
+	}
+
+done:
+	*lenp -= left;
+	file->f_pos += *lenp;
+	return 0;
+}
+
+unsigned int trace_flags;
+
+#define REISER4_SYSCTL_TRACE_FLAGS 1
+static ctl_table reiser4_sysctl[] = {
+	{
+		/* /proc/sys/fs/reiser4/trace_flags */
+		.ctl_name	= REISER4_SYSCTL_TRACE_FLAGS,
+		.procname	= "trace_flags",
+		.data		= &trace_flags,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= &proc_dodebug
+	},
+	{
+		.ctl_name = 0
+	}
+};
+
+#define SYS_FS_REISER4 1
+ctl_table sys_fs_reiser4[] = {
+	{
+		/* /proc/sys/fs/reiser4 */
+		.ctl_name = SYS_FS_REISER4,
+		.procname = "reiser4",
+		.mode = 0644,
+		.child = reiser4_sysctl
+	},
+	{
+		.ctl_name = 0
+	}
+};
+
+ctl_table sys_fs[] = {
+	{
+		/* /proc/sys/fs/ */
+		.ctl_name = CTL_FS,
+		.procname = "fs",
+		.mode = 0644,
+		.child = sys_fs_reiser4
+	},
+	{
+		.ctl_name = 0
+	}
+};
+
+static struct ctl_table_header *reiser4_sysctl_header;
+
+int
+reiser4_sysctl_init(void)
+{
+	if (!reiser4_sysctl_header)
+		reiser4_sysctl_header = register_sysctl_table(sys_fs, 1);
+	return 0;
+}
+
+void
+reiser4_sysctl_done(void)
+{
+	if (reiser4_sysctl_header) {
+		unregister_sysctl_table(reiser4_sysctl_header);
+		reiser4_sysctl_header = NULL;
+	}	
+}
+
 
 /* Make Linus happy.
    Local variables:
