@@ -153,7 +153,7 @@ int internal_utmost_child ( const coord_t  *coord,
 void internal_print( const char *prefix /* prefix to print */, 
 		     coord_t *coord /* coord of item to print  */ )
 {
-	info( "%s: internal: %llu\n", prefix, pointer_at( coord ) );
+	info( "%s: internal: %llx\n", prefix, pointer_at( coord ) );
 }
 
 /** return true only if this item really points to "block" */
@@ -329,12 +329,6 @@ int internal_shift_hook( const coord_t *item /* coord of item */,
 
 /* plugin->u.item.b.nr_units - item.c:single_unit
  */
-
-/* plugin->u.item.b.lookup - not defined
- */
-
-
-
 
 
 /* 

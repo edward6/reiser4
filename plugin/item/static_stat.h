@@ -122,6 +122,11 @@ typedef struct reiser4_unix_stat {
 	/* 32 */
 } reiser4_unix_stat;
 
+/** symlink stored as part of inode */
+typedef struct reiser4_symlink_stat {
+	char body[ 0 ];
+} reiser4_symlink_stat;
+
 typedef struct reiser4_plugin_slot {
 	/*  0 */ d16 type_id;
 	/*  2 */ d16 id;

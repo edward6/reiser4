@@ -410,15 +410,19 @@ static int symlink_sd_present( struct inode *inode,
 			       char **area, int *len )
 {
 	int result;
+	int length;
+	reiser4_symlink_stat *sd;
 
+	length = ( int ) inode -> i_size;
 	/* *len is number of bytes in stat data item from *area to the end of
 	 * item. It must be not less than size of symlink + 1 for ending 0 */
-	assert( "vs-839", inode -> i_size + 1 <= *len );
-	assert( "vs-840", *( *area + inode->i_size ) == 0 );
+	assert( "vs-839", length <= *len );
+	assert( "vs-840", *( *area + length ) == 0 );
 
-	result = symlink_target_to_inode( inode, *area, ( int )inode -> i_size );
+	sd = ( reiser4_symlink_stat * ) *area;
+	result = symlink_target_to_inode( inode, &sd -> body, length );
 
-	move_on( len, area, ( int ) inode -> i_size + 1 );
+	move_on( len, area, length + 1 );
 	return result;
 }
 
@@ -433,34 +437,36 @@ static int symlink_sd_save_len( struct inode *inode)
 }
 
 /* this is called on create and update stat data. Do nothing on update but
- * update area */
+ * update @area */
 static int symlink_sd_save( struct inode *inode, char **area )
 {
 	int result;
-	const char *target;
+	int length;
+	reiser4_symlink_stat *sd;
 
+	length = ( int ) inode -> i_size;
 	/* inode->i_size must be set already */
-	assert( "vs-841", inode -> i_size );
+	assert( "vs-841", length );
 
-	if( inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
+	result = 0;
+	if( !inode_get_flag( inode, REISER4_GENERIC_VP_USED ) ) {
+		const char *target;
+
+		target = ( const char * )( inode -> u.generic_ip );
+		inode -> u.generic_ip = 0;
+
+		result = symlink_target_to_inode( inode, target, length );
+
+		/* copy symlink to stat data */
+		xmemcpy( *area, target, ( size_t ) length );
+		( *area )[ length ] = 0;
+	} else {
 		/* there is nothing to do in update but move area */
 		assert( "vs-844", !memcmp( inode -> u.generic_ip,
-					   *area, 
-					   ( size_t ) inode -> i_size + 1 ) );
-		*area += ( inode -> i_size + 1 );
-		return 0;
+					   *area, ( size_t ) length + 1 ) );
 	}
 
-	target = ( const char * )( inode -> u.generic_ip );
-	inode -> u.generic_ip = 0;
-
-	result = symlink_target_to_inode( inode, target, 
-					  ( int ) inode -> i_size );
-
-	/* copy symlink to stat data */
-	xmemcpy( *area, target, ( size_t ) inode -> i_size );
-	( *area )[ inode -> i_size ] = 0;
-	*area += ( inode -> i_size + 1 );
+	*area += ( length + 1 );
 	return result;
 }
 
@@ -645,7 +651,7 @@ static int plugin_sd_save_len( struct inode *inode /* object being processed */ 
 	   here later hardwired???
 	   Why not simply get len_for() to return size of that exact plugin?
 	   Addition can be performed here. Also probably some kind of loop
-	   should be done thriugh all plugins, not blind hardwiring of all
+	   should be done through all plugins, not blind hardwiring of all
 	   plugins known at compilation time */
 	len = len_for( file_plugin_to_plugin( state -> file ), inode, len );
 	len = len_for( perm_plugin_to_plugin( state -> perm ), inode, len );
