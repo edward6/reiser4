@@ -215,14 +215,19 @@ void kmem_cache_free( kmem_cache_t *slab, void *addr )
 	spin_unlock (& slab -> lock);
 }
 
+/* 
+    Audited by umka (2002.06.13)
+    xmemset may try access NULL addr in the case kmalloc 
+    will unable to allocate specified size.
+*/
 void *kmem_cache_alloc( kmem_cache_t *slab, int gfp_flag UNUSE )
 {
 	void *addr;
 
 	addr = kmalloc( slab -> size, 0 );
-	xmemset( addr, 0, slab -> size );
 
 	if (addr) {
+		xmemset( addr, 0, slab -> size );
 		spin_lock (& slab -> lock);
 		slab -> count += 1;
 		spin_unlock (& slab -> lock);
