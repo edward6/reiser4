@@ -1494,13 +1494,20 @@ static struct inode * create_root_dir (znode * root)
 	} sd;
 	int ret;
 	carry_insert_data cdata;
+	reiser4_lock_handle lh;
 
 
 	reiser4_init_carry_pool( &pool );
 	reiser4_init_carry_level( &lowest_level, &pool );
-	
+
+	reiser4_init_lh( &lh );
+	ret = reiser4_lock_znode( &lh, root, 
+				  ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI );
+	assert( "nikita-1792", ret == 0 );
 	op = reiser4_post_carry( &lowest_level,
 				 COP_INSERT, root, 0 );
+
+	reiser4_done_lh( &lh );
 	assert( "nikita-1269", !IS_ERR( op ) && ( op != NULL ) );
 	// fill in remaining fields in @op, according to
 	// carry.h:carry_op
@@ -2777,6 +2784,7 @@ int real_main( int argc, char **argv )
 	txn_init_static();
 	sys_rand_init();
 	xmemset( &super, 0, sizeof super );
+	spin_lock_init( &reiser4_get_super_private( &super ) -> bit_tear_guard );
 	super.s_blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
 		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
 	assert( "vs-417", super.s_blocksize == 512 ||
