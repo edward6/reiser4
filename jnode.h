@@ -275,13 +275,6 @@ typedef enum {
 	JNODE_CC = 26,
 	/* this jnode is copy of coced original */
 	JNODE_CCED = 27,
-#if REISER4_DEBUG
-	/* this is set when jnode was copied on capture */
-	JNODE_CCED_RELOC = 28,
-	JNODE_CCED_OVRWR = 29,
-	JNODE_CCED_CLEAN = 30,
-	JNODE_CCED_UBER = 31,
-#endif
 } reiser4_jnode_state;
 
 /* Macros for accessing the jnode state. */
