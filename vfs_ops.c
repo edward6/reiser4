@@ -1724,26 +1724,36 @@ reiser4_get_dentry(struct super_block *sb, void *data)
 static struct dentry *
 reiser4_get_parent(struct dentry *child)
 {
-	struct inode *dir;
-	struct dentry dentry, *parent;
+	struct inode *dir, *parent;
+	struct dentry dentry, *parent_dentry;
+	reiser4_key key;
 	int result;
-	
+
 	dir = child->d_inode;
-	assert("vs-1484", inode_dir_plugin(dir) && inode_dir_plugin(dir)->lookup);
+	assert("vs-1484", inode_dir_plugin(dir) && inode_dir_plugin(dir)->lookup_name);
 
 	memset(&dentry, 0, sizeof(dentry));
 	dentry.d_name.name = "..";
 	dentry.d_name.len = 2;
 
-	result = inode_dir_plugin(dir)->lookup(dir, &dentry);
+	result = inode_dir_plugin(dir)->lookup_name(dir, &dentry, &key);
 	if (result)
 		return ERR_PTR(result);
-	parent = d_alloc_anon(dentry.d_inode);
-	if (!parent) {
-		iput(dentry.d_inode);
-		parent = ERR_PTR(-ENOMEM);
+	
+	parent = reiser4_iget(sb, &key);
+	if (!IS_ERR(inode)) {
+		parent_dentry = d_alloc_anon(parent);
+		if (!parent_dentry) {
+			/* FIXME: reiser4_iget might return down()-ed inode */
+			iput(parent);
+			parent_dentry = ERR_PTR(-ENOMEM);
+		}
+		if (!is_inode_loaded(parent))
+			reiser4_iget_complete(parent);
+		
+		return parent_dentry;
 	}
-	return parent;
+	return ERR_PTR(PTR_ERR(parent));
 }
 
 struct export_operations reiser4_export_operations = {

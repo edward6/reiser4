@@ -1171,6 +1171,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.desc = "hashed directory",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
+		.lookup_name = lookup_name_hashed,
 		.lookup = lookup_hashed,
 		.unlink = unlink_common,
 		.link = link_common,
@@ -1200,10 +1201,11 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.id = SEEKABLE_HASHED_DIR_PLUGIN_ID,
 			.pops = NULL,
 			.label = "dir",
-			.desc = "hashed directory",
+			.desc = "directory hashed with 31 bit hash",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.lookup = lookup_pseudo,
+		.lookup_name = lookup_name_hashed,
+		.lookup = lookup_hashed,
 		.unlink = unlink_common,
 		.link = link_common,
 		.is_name_acceptable = is_name_acceptable,

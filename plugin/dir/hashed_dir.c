@@ -275,10 +275,14 @@ create_dot_dotdot(struct inode *object	/* object to create dot and
 	return result;
 }
 
-/* implementation of ->lookup() method for hashed directories. */
-int lookup_hashed(struct inode * parent	/* inode of directory to
-					 * lookup into */ ,
-		  struct dentry * dentry /* name to look for */ )
+/* implementation of lookup_name() method for hashed directories
+
+   it looks for name specified in @dentry in directory @parent and if name is found - key of object found entry points
+   to is stored in @entry->key */
+int
+lookup_name_hashed(const struct inode *parent /* inode of directory to lookup for name in */,
+		   const struct dentry *dentry /* name to look for */,
+		   reiser4_key *key /* place to store key */)
 {
 	int result;
 	coord_t *coord;
@@ -316,10 +320,23 @@ int lookup_hashed(struct inode * parent	/* inode of directory to
 	result = find_entry(parent, dentry, &lh, ZNODE_READ_LOCK, &entry);
 	if (result == 0) {
 		/* entry was found, extract object key from it. */
-		result = WITH_COORD(coord, item_plugin_by_coord(coord)->s.dir.extract_key(coord, &entry.key));
+		result = WITH_COORD(coord, item_plugin_by_coord(coord)->s.dir.extract_key(coord, key));
 	}
 	done_lh(&lh);
+	return result;
 
+}
+
+/* implementation of ->lookup() method for hashed directories. */
+int lookup_hashed(struct inode * parent	/* inode of directory to
+					 * lookup into */ ,
+		  struct dentry * dentry /* name to look for */ )
+{
+	int result;
+	struct inode *inode;
+	reiser4_dir_entry_desc entry;
+
+	result = lookup_name_hashed(parent, dentry, &entry.key);
 	if (result == 0) {
 		inode = reiser4_iget(parent->i_sb, &entry.key);
 		if (!IS_ERR(inode)) {
