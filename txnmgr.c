@@ -2863,55 +2863,6 @@ count_jnode(txn_atom *atom, jnode *node, atom_list old_list, atom_list new_list,
 
 #endif
 
-
-#if 0
-
-/* Unset the dirty status for this jnode.  If the jnode is dirty, this
-   involves locking the atom (for its capture lists), removing from the
-   dirty_nodes list and pushing in to the clean list. */
-reiser4_internal void
-jnode_make_clean(jnode * node)
-{
-	txn_atom *atom;
-
-	assert("umka-205", node != NULL);
-	assert("jmacd-1083", spin_jnode_is_not_locked(node));
-
-	LOCK_JNODE(node);
-
-	atom = jnode_get_atom(node);
-
-	if (jnode_is_dirty(node)) {
-
-		JF_CLR(node, JNODE_DIRTY);
-
-		assert("jmacd-9366", !jnode_is_dirty(node));
-
-		/*ON_TRACE (TRACE_FLUSH, "clean %sformatted node %p\n",
-		   jnode_is_unformatted (node) ? "un" : "", node); */
-	}
-
-	/* do not steal nodes from flush queue */
-	if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
-		/* Now it's possible that atom may be NULL, in case this was called
-		   from invalidate page */
-		if (atom != NULL) {
-			capture_list_remove_clean(node);
-			capture_list_push_front(ATOM_CLEAN_LIST(atom), node);
-			/*XXXX*/ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), CLEAN_LIST, 1));
-		}
-	}
-
-	if (atom)
-		UNLOCK_ATOM(atom);
-
-	ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
-	UNLOCK_JNODE(node);
-}
-
-#endif
-
-
 /* Make node OVRWR and put it on atom->overwrite_nodes list, atom lock and jnode
  * lock should be taken before calling this function. */
 reiser4_internal void jnode_make_wander_nolock (jnode * node)
