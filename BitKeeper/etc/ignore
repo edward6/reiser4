@@ -23,11 +23,13 @@
 .crypt.o.cmd
 .ctypes
 .debug.o.cmd
+.debug.o.d
 .depend
 .dependencies
 .diskmap.o.cmd
 .dscale.o.cmd
 .emergency_flush.o.cmd
+.emergency_flush.o.d
 .entd.o.cmd
 .eottl.o.cmd
 .estimate.o.cmd
@@ -36,6 +38,7 @@
 .flush.o.d
 .flush.o.tmp
 .flush_queue.o.cmd
+.flush_queue.o.d
 .gdbinit
 .hdepend
 .inode.o.cmd
@@ -45,6 +48,7 @@
 .ioctl.o.cmd
 .ioctl.o.d
 .jnode.o.cmd
+.jnode.o.d
 .kassign.o.cmd
 .kattr.o.cmd
 .kattr.o.d
@@ -70,9 +74,11 @@
 .tap.o.cmd
 .trace.o.cmd
 .tree.o.cmd
+.tree.o.d
 .tree_mod.o.cmd
 .tree_walk.o.cmd
 .txnmgr.o.cmd
+.txnmgr.o.d
 .version
 .vfs_ops.o.cmd
 .vfs_ops.o.d
@@ -184,6 +190,7 @@ lock.bbg
 mkfs
 oid.c.old
 oid.h.old
+page_cache.E
 page_cache.bb
 page_cache.bbg
 plugin/.built-in.o.cmd
@@ -243,6 +250,7 @@ plugin/item/.sde.o.cmd
 plugin/item/.static_stat.o.cmd
 plugin/item/.static_stat.o.d
 plugin/item/.tail.o.cmd
+plugin/item/.tail.o.d
 plugin/item/cde.bb
 plugin/item/cde.bbg
 plugin/item/extent.bb
@@ -289,6 +297,7 @@ plugin/security/acl.bbg
 plugin/security/perm.bb
 plugin/security/perm.bbg
 plugin/space/.bitmap.o.cmd
+plugin/space/.bitmap.o.d
 plugin/space/.built-in.o.cmd
 plugin/space/.space_allocator.o.cmd
 plugin/space/.test.o.cmd
@@ -1326,10 +1335,3 @@ write-test.2
 yet_unneeded_abstractions/oid/.oid40.o.cmd
 znode.bb
 znode.bbg
-.debug.o.d
-.emergency_flush.o.d
-.flush_queue.o.d
-.jnode.o.d
-.tree.o.d
-.txnmgr.o.d
-plugin/space/.bitmap.o.d
