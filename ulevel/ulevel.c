@@ -1382,6 +1382,7 @@ static struct inode * create_root_dir (znode * root)
 	carry_pool  pool;
 	carry_level lowest_level;
 	carry_op   *op;
+	struct reiser4_inode_info *rii;
 	struct inode * inode;
 	reiser4_item_data data;
 	reiser4_key key;
@@ -1429,10 +1430,11 @@ static struct inode * create_root_dir (znode * root)
 	reiser4_done_carry_pool( &pool );
 
 
-	inode = malloc (sizeof (struct inode));
-	if (!inode)
+	rii = malloc (sizeof *rii);
+	if (!rii)
 		return ERR_PTR (errno);
 
+	inode = &rii -> vfs_inode;
 	inode->i_ino = 42;
 	atomic_set( &inode->i_count, 0 );
 	inode->i_mode = 0;
