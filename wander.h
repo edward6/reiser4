@@ -7,7 +7,7 @@
                             REISER4 JOURNAL ON-DISK DATA STRUCTURES  
  *****************************************************************************************/
 
-#define WRITE_LOG 0
+#define WRITE_LOG 1
 
 #define TX_HEADER_MAGIC  "TxMagic4"
 #define LOG_RECORD_MAGIC "LogMagc4"
