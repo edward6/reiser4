@@ -195,6 +195,7 @@ static struct address_space_operations formatted_fake_as_ops;
 
 static const oid_t fake_ino = 0x1;
 static const oid_t bitmap_ino = 0x2;
+static const oid_t cc_ino = 0x3;
 
 /* one-time initialization of fake inodes handling functions. */
 int
@@ -203,12 +204,27 @@ init_fakes()
 	return 0;
 }
 
+static void
+init_fake_inode(struct super_block *super, struct inode *fake, struct inode **pfake)
+{
+	assert("nikita-2168", fake->i_state & I_NEW);
+	fake->i_mapping->a_ops = &formatted_fake_as_ops;
+	fake->i_blkbits = super->s_blocksize_bits;
+	fake->i_size = ~0ull;
+	fake->i_rdev = super->s_bdev->bd_dev;
+	fake->i_bdev = super->s_bdev;
+	*pfake = fake;
+	/* NOTE-NIKITA something else? */
+	unlock_new_inode(fake);
+}
+
 /* initialize fake inode to which formatted nodes are bound in the page cache. */
 int
 init_formatted_fake(struct super_block *super)
 {
 	struct inode *fake;
 	struct inode *bitmap;
+	struct inode *cc;
 	reiser4_super_info_data *sinfo;
 
 	assert("nikita-1703", super != NULL);
@@ -217,28 +233,22 @@ init_formatted_fake(struct super_block *super)
 	fake = iget_locked(super, oid_to_ino(fake_ino));
 
 	if (fake != NULL) {
-		assert("nikita-2168", fake->i_state & I_NEW);
-		fake->i_mapping->a_ops = &formatted_fake_as_ops;
-		fake->i_blkbits = super->s_blocksize_bits;
-		fake->i_size = ~0ull;
-		fake->i_rdev = super->s_bdev->bd_dev;
-		fake->i_bdev = super->s_bdev;
-		get_super_private(super)->fake = fake;
-		/* NOTE-NIKITA something else? */
-		unlock_new_inode(fake);
+		init_fake_inode(super, fake, &sinfo->fake);
 
 		bitmap = iget_locked(super, oid_to_ino(bitmap_ino));
-
 		if (bitmap != NULL) {
-			assert("nikita-2168", bitmap->i_state & I_NEW);
-			bitmap->i_mapping->a_ops = &formatted_fake_as_ops;
-			bitmap->i_blkbits = super->s_blocksize_bits;
-			bitmap->i_size = ~0ull;
-			bitmap->i_rdev = super->s_bdev->bd_dev;
-			bitmap->i_bdev = super->s_bdev;
-			sinfo->bitmap = bitmap;
-			unlock_new_inode(bitmap);
-			return 0;
+			init_fake_inode(super, bitmap, &sinfo->bitmap);
+
+			cc = iget_locked(super, oid_to_ino(cc_ino));
+			if (cc != NULL) {
+				init_fake_inode(super, cc, &sinfo->cc);
+				return 0;
+			} else {
+				iput(sinfo->fake);
+				iput(sinfo->bitmap);
+				sinfo->fake = NULL;
+				sinfo->bitmap = NULL;
+			}
 		} else {
 			iput(sinfo->fake);
 			sinfo->fake = NULL;
@@ -265,7 +275,11 @@ done_formatted_fake(struct super_block *super)
 		iput(sinfo->bitmap);
 		sinfo->bitmap = NULL;
 	}
-
+	
+	if (sinfo->cc != NULL) {
+		iput(sinfo->cc);
+		sinfo->cc = NULL;
+	}
 	return 0;
 }
 
