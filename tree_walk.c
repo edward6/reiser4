@@ -305,8 +305,8 @@ static int renew_sibling_link (tree_coord * coord, reiser4_lock_handle * handle,
 			 * valid. */
 			spin_unlock_tree(tree);
 			ret = PTR_ERR(neighbor);
-			if (handle->node != NULL) {
-				zput(handle->node);
+			if (handle->owner != NULL) {
+				zrelse(handle->node, 1);
 				reiser4_unlock_znode(handle);
 				(*nr_locked) --;
 			}
@@ -347,16 +347,10 @@ static int connect_one_side (tree_coord * coord, znode * node, int flags)
 
 	reiser4_done_coord(&local);
 
-	/*
-	 * FIXME-VS renew_sibling_link() already did
-	 * reiser4_unlock_znode(handle) before returning -ENAVAIL, so here it
-	 * crashes.
-	 */
-	if (handle.node != NULL) {
+	if (handle.owner != NULL) {
 		/* complementary operations for zload() and lock() in far_next_coord() */
 		zrelse(handle.node, 1);
-		if (handle.owner != NULL)
-			reiser4_unlock_znode(&handle);
+		reiser4_unlock_znode(&handle);
 	}
 
 	/* we catch error codes which are not interesting for us because we
