@@ -1040,9 +1040,9 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 	/* it is safe to unlock atom with is in ASTAGE_PRE_COMMIT */
 	assert ("zam-767", atom->stage == ASTAGE_PRE_COMMIT);
 
-	spin_unlock_atom (atom);
+	UNLOCK_ATOM (atom);
 	ret = load_and_lock_bnode(bnode);
-	spin_lock_atom (atom);
+	LOCK_ATOM (atom);
 
 	if (ret)
 		return ret;
@@ -1116,12 +1116,12 @@ bitmap_pre_commit_hook(void)
 					warning("vpf-262", "Checksum for the bitmap block %llu is incorrect", bmap);
 
 				assert ("zam-779", atom->stage == ASTAGE_PRE_COMMIT);
-				spin_unlock_atom (atom);
+				UNLOCK_ATOM (atom);
 
 				check_bnode_loaded(bn);
 				load_and_lock_bnode(bn);
 
-				spin_lock_atom (atom);
+				LOCK_ATOM (atom);
 
 				byte = *(bnode_commit_data(bn) + offset / 8);
 				reiser4_set_bit(offset, bnode_commit_data(bn));
@@ -1152,7 +1152,7 @@ bitmap_pre_commit_hook(void)
 
 	blocks_freed -= atom->nr_blocks_allocated;
 
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 
 	{
 		__u64 free_committed_blocks;

@@ -707,21 +707,21 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	/* NOTE-NIKITA taking read-lock on tree here assumes that @result is
 	 * not aliased to ->in_parent of some znode. Otherwise, xmemcpy()
 	 * below would modify data protected by tree lock. */
-	read_lock_tree(tree);
+	RLOCK_TREE(tree);
 	/* fast path. Try to use cached value. Lock tree to keep
 	   node->pos_in_parent and pos->*_blocknr consistent. */
 	if (child->in_parent.item_pos + 1 != 0) {
 		reiser4_stat_inc(tree.pos_in_parent_set);
 		xmemcpy(result, &child->in_parent, sizeof *result);
 		if (check_tree_pointer(result, child) == NS_FOUND) {
-			read_unlock_tree(tree);
+			RUNLOCK_TREE(tree);
 			return NS_FOUND;
 		}
 
 		reiser4_stat_inc(tree.pos_in_parent_miss);
 		coord_invalid_item_pos(&child->in_parent);
 	}
-	read_unlock_tree(tree);
+	RUNLOCK_TREE(tree);
 
 	/* is above failed, find some key from @child. We are looking for the
 	   least key in a child. */
@@ -731,10 +731,10 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	lookup_res = nplug->lookup(parent, &ld, FIND_EXACT, result);
 	/* update cached pos_in_node */
 	if (lookup_res == NS_FOUND) {
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 		child->in_parent = *result;
 		child->in_parent.between = AT_UNIT;
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 		lookup_res = check_tree_pointer(result, child);
 	}
 	spin_unlock_dk(tree);

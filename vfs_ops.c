@@ -2501,7 +2501,7 @@ try_to_lock:
 						   from a flush queue */
 
 					} else {
-						spin_unlock_atom(atom);
+						UNLOCK_ATOM(atom);
 					}
 
 					jput(node);

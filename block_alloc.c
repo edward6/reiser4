@@ -240,7 +240,7 @@ print_block_counters(const char *prefix,
 		atom = get_current_atom_locked_nocheck();
 	if (atom != NULL) {
 		printk("\tatom: R: %llu", atom->flush_reserved);
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 	}
 	printk("\n");
 }
@@ -596,7 +596,7 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 			/* we assume that current atom exists at this moment */
 			txn_atom * atom = get_current_atom_locked ();
 			atom -> nr_blocks_allocated += *len;
-			spin_unlock_atom (atom);
+			UNLOCK_ATOM (atom);
 		}
 
 		switch (hint->block_stage) {
@@ -614,7 +614,7 @@ __reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 			{
 				txn_atom * atom = get_current_atom_locked ();
 				flush_reserved2used(atom, *len);
-				spin_unlock_atom (atom);
+				UNLOCK_ATOM (atom);
 			}
 			break;
 		default:
@@ -783,7 +783,7 @@ __grabbed2flush_reserved(__u64 count)
 
 	grabbed2flush_reserved_nolock (atom, count, "__grabbed2flush_reserved");
 
-	spin_unlock_atom (atom);
+	UNLOCK_ATOM (atom);
 }
 
 void flush_reserved2grabbed(txn_atom * atom, __u64 count)
@@ -839,7 +839,7 @@ __u64 atom_flush_reserved(void)
 	    return 0;
 
 	count = atom->flush_reserved;
-	spin_unlock_atom (atom);
+	UNLOCK_ATOM (atom);
 
 	return count;
 }
@@ -873,7 +873,7 @@ __flush_reserved2free_all(void)
 	    
 	trace_on(TRACE_RESERVE2, "flush_reserved2free_all moved %llu flush reserved blocks to free for %s\n", count, message);
 
-	spin_unlock_atom (atom);
+	UNLOCK_ATOM (atom);
 }
 
 /* release all blocks grabbed in context which where not used. */
@@ -1002,7 +1002,7 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 		assert("zam-477", ret == 0);
 		assert("zam-433", atom != NULL);
 		
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 
 	} else {
 		/* actual deletion is done through space allocator plugin */
@@ -1022,7 +1022,7 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 			 * back if allocation is discarded. */
 			txn_atom * atom = get_current_atom_locked ();
 			atom->nr_blocks_allocated -= *len;
-			spin_unlock_atom (atom);
+			UNLOCK_ATOM (atom);
 		}
 
 		switch (target_stage) {
@@ -1058,7 +1058,7 @@ __reiser4_dealloc_blocks(const reiser4_block_nr * start, const reiser4_block_nr 
 
 			atom = get_current_atom_locked();
 			used2flush_reserved(atom, *len, flags & BA_FORMATTED);
-			spin_unlock_atom(atom);
+			UNLOCK_ATOM(atom);
 			break;
 		}
 		default:
@@ -1121,12 +1121,12 @@ apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4
 	}
 
 	/* it should be safe because of atom stage */
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 
 	if (splug->dealloc_blocks != NULL)
 		splug->dealloc_blocks(&sbinfo->space_allocator, *a, len);
 
-	spin_lock_atom(atom);
+	LOCK_ATOM(atom);
 
 	/* adjust sb block counters */
 	used2grabbed(len);
@@ -1148,7 +1148,7 @@ post_commit_hook(void)
 	   until commit is done */
 	blocknr_set_iterator(atom, &atom->delete_set, apply_dset, NULL, 1);
 
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 
 	assert("zam-504", get_current_super_private() != NULL);
 	splug = get_current_super_private()->space_plug;

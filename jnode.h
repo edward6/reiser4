@@ -256,21 +256,6 @@ JF_TEST_AND_SET(jnode * j, int f)
 */
 SPIN_LOCK_FUNCTIONS(jnode, jnode, guard);
 
-#if REISER4_LOCKPROF
-
-#define LOCK_JNODE(node)			\
-({						\
-	LOCKSITE_INIT(__hits);			\
-						\
-	spin_lock_jnode_at(node, &__hits);	\
-})
-
-#else
-#define LOCK_JNODE(node) spin_lock_jnode(node)
-#endif
-
-#define UNLOCK_JNODE(node) spin_unlock_jnode(node)
-
 static inline int
 jnode_is_in_deleteset(const jnode * node)
 {

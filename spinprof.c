@@ -3,6 +3,7 @@
 /* spin lock profiling */
 
 
+#include "kattr.h"
 #include "spinprof.h"
 #include "debug.h"
 
@@ -22,26 +23,87 @@ void profregion_functions_end_here(void);
 
 static locksite none = {
 	.hits = 0,
-	.func = "<noop>",
-	.file = "<nowhere>",
+	.func = "",
+	.file = "",
 	.line = 0
 };
+
+struct profregion_attr {
+	struct attribute attr;
+	ssize_t (*show)(struct profregion *pregion, char *buf);
+};
+
+#define PROFREGION_ATTR(aname)			\
+static struct profregion_attr aname = {		\
+	.attr = {				\
+		.name = #aname,			\
+		.mode = 0666			\
+	},					\
+	.show = aname ## _show			\
+}
+
+static ssize_t hits_show(struct profregion *pregion, char *buf)
+{
+	char *p = buf;
+	KATTR_PRINT(p, buf, "%i\n", pregion->hits);
+	return (p - buf);
+}
+
+static ssize_t busy_show(struct profregion *pregion, char *buf)
+{
+	char *p = buf;
+	KATTR_PRINT(p, buf, "%i\n", pregion->busy);
+	return (p - buf);
+}
+
+static ssize_t obj_show(struct profregion *pregion, char *buf)
+{
+	char *p = buf;
+	KATTR_PRINT(p, buf, "%p\n", pregion->obj);
+	return (p - buf);
+}
+
+static ssize_t objhit_show(struct profregion *pregion, char *buf)
+{
+	char *p = buf;
+	KATTR_PRINT(p, buf, "%i\n", pregion->objhit);
+	return (p - buf);
+}
+
+static ssize_t code_show(struct profregion *pregion, char *buf)
+{
+	char *p = buf;
+	locksite *site;
+
+	site = pregion->code ? : &none;
+	KATTR_PRINT(p, buf, "%s:%s:%i\n", site->func, site->file, site->line);
+	return (p - buf);
+}
+
+static ssize_t codehit_show(struct profregion *pregion, char *buf)
+{
+	char *p = buf;
+	KATTR_PRINT(p, buf, "%i\n", pregion->codehit);
+	return (p - buf);
+}
+
+PROFREGION_ATTR(hits);
+PROFREGION_ATTR(busy);
+PROFREGION_ATTR(obj);
+PROFREGION_ATTR(objhit);
+PROFREGION_ATTR(code);
+PROFREGION_ATTR(codehit);
 
 static ssize_t
 profregion_show(struct kobject * kobj, struct attribute *attr, char *buf)
 {
 	struct profregion *pregion;
-	char *p;
-	locksite *site;
+	struct profregion_attr *pattr;
 
-	p = buf;
 	pregion = container_of(kobj, struct profregion, kobj);
+	pattr   = container_of(attr, struct profregion_attr, attr);
 
-	site = pregion->code ? : &none;
-	p += snprintf(p, LEFT(p, buf), "%i %p [%i] %s:%s:%i [%i]\n",
-		      pregion->hits, pregion->obj, pregion->objhit,
-		      site->func, site->file, site->line, pregion->codehit);
-	return (p - buf);
+	return pattr->show(pregion, buf);
 }
 
 static ssize_t profregion_store(struct kobject * kobj,struct attribute * attr,
@@ -50,7 +112,12 @@ static ssize_t profregion_store(struct kobject * kobj,struct attribute * attr,
 	struct profregion *pregion;
 
 	pregion = container_of(kobj, struct profregion, kobj);
-	pregion->hits = 0;
+	pregion->hits    = 0;
+	pregion->busy    = 0;
+	pregion->obj     = 0;
+	pregion->objhit  = 0;
+	pregion->code    = 0;
+	pregion->codehit = 0;
 	return size;
 }
 
@@ -59,13 +126,14 @@ static struct sysfs_ops profregion_attr_ops = {
 	.store = profregion_store
 };
 
-static struct attribute hits_attr = {
-	.name = "hits",
-	.mode = 0666
-};
-
 static struct attribute * def_attrs[] = {
-	&hits_attr
+	&hits.attr, 
+	&busy.attr, 
+	&obj.attr, 
+	&objhit.attr, 
+	&code.attr, 
+	&codehit.attr, 
+	NULL
 };
 
 static struct kobj_type ktype_profregion = {
@@ -148,6 +216,11 @@ static int callback(struct notifier_block *self, unsigned long val, void *p)
 		if (unlikely(hits > preg->codehit)) {
 			preg->codehit = hits;
 			preg->code    = act->codeloc;
+		}
+		for (; ntop > 0 ; --ntop) {
+			preg = stack->stack[ntop - 1].preg;
+			if (preg != NULL)
+				++ preg->busy;
 		}
 	} else if (is_in_reiser4_context())
 		incontext.hits ++;

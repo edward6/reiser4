@@ -212,7 +212,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 		left = arg;
 		tree = znode_get_tree(item->node);
 		spin_lock_dk(tree);
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 		assert("nikita-1400", (child->in_parent.node == NULL) || (znode_above_root(child->in_parent.node)));
 		atomic_inc(&item->node->c_count);
 		child->in_parent = *item;
@@ -224,7 +224,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 		trace_on(TRACE_ZWEB, "create: %llx: %i [%llx]\n",
 			 *znode_get_block(item->node), atomic_read(&item->node->c_count), *znode_get_block(child));
 
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 		if ((left != NULL) && !keyeq(znode_get_rd_key(left),
 					     znode_get_rd_key(child))) {
 			znode_set_rd_key(child, znode_get_rd_key(left));
@@ -316,7 +316,7 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
 		return 0;
 	if (!IS_ERR(child)) {
 		reiser4_stat_inc(tree.reparenting);
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 		atomic_inc(&new_node->c_count);
 		assert("nikita-1395", znode_parent(child) == old_node);
 		assert("nikita-1396", atomic_read(&old_node->c_count) > 0);
@@ -324,7 +324,7 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
 		assert("nikita-1781", znode_parent(child) == new_node);
 		assert("nikita-1782", check_tree_pointer(item, child) == NS_FOUND);
 		del_c_ref(old_node);
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 		zput(child);
 		trace_on(TRACE_ZWEB, "shift: %llx: %i -> %lli: %i [%llx]\n",
 			 *znode_get_block(old_node),

@@ -90,14 +90,14 @@ lock_neighbor(
 		/* protect it from deletion. */
 		zref(neighbor);
 
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 
 		ret = longterm_lock_znode(result, neighbor, mode, req);
 
 		/* The lock handle obtains its own reference, release the one from above. */
 		zput(neighbor);
 
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 
 		/* restart if node we got reference to is being
 		   invalidated. we should not get reference to this node
@@ -114,9 +114,9 @@ lock_neighbor(
 
 		/* znode was locked by mistake; unlock it and restart locking
 		   process from beginning. */
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 		longterm_unlock_znode(result);
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 	}
 }
 
@@ -258,7 +258,7 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 
 	node = handle->node;
 	tree = znode_get_tree(node);
-	write_unlock_tree(tree);
+	WUNLOCK_TREE(tree);
 
 	coord_init_zero(coord);
 
@@ -268,7 +268,7 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 
 	if (ret) {
 		longterm_unlock_znode(handle);
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 		return ret;
 	}
 
@@ -277,7 +277,7 @@ far_next_coord(coord_t * coord, lock_handle * handle, int flags)
 	else
 		coord_init_first_unit(coord, node);
 
-	write_lock_tree(tree);
+	WLOCK_TREE(tree);
 	return 0;
 }
 
@@ -302,18 +302,18 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 	assert("umka-247", child != NULL);
 	assert("umka-303", tree != NULL);
 
-	write_lock_tree(tree);
+	WLOCK_TREE(tree);
 	ret = far_next_coord(coord, handle, flags);
 
 	if (ret) {
 		if (ret != -ENOENT) {
-			write_unlock_tree(tree);
+			WUNLOCK_TREE(tree);
 			return ret;
 		}
 	} else {
 		item_plugin *iplug;
 
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 		if (handle->owner != NULL) {
 			(*nr_locked)++;
 			side_parent = handle->node;
@@ -338,7 +338,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 		}
 
 		if (IS_ERR(neighbor)) {
-			write_unlock_tree(tree);
+			WUNLOCK_TREE(tree);
 			ret = PTR_ERR(neighbor);
 			return ret;
 		}
@@ -347,12 +347,12 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 			/* update delimiting keys */
 			set_child_delimiting_keys(coord->node, coord, neighbor);
 
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 	}
 
 	link_znodes(child, neighbor, flags & GN_GO_LEFT);
 
-	write_unlock_tree(tree);
+	WUNLOCK_TREE(tree);
 
 	/* if GN_NO_ALLOC isn't set we keep reference to neighbor znode */
 	if (neighbor != NULL && (flags & GN_NO_ALLOC))
@@ -425,21 +425,21 @@ connect_znode(coord_t * coord, znode * node)
 		return ret;
 
 	/* protect `connected' state check by tree_lock */
-	write_lock_tree(tree);
+	WLOCK_TREE(tree);
 
 	if (!znode_is_right_connected(node)) {
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 		/* connect right (default is right) */
 		ret = connect_one_side(coord, node, GN_NO_ALLOC);
 		if (ret)
 			goto zrelse_and_ret;
 
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 	}
 
 	ret = znode_is_left_connected(node);
 
-	write_unlock_tree(tree);
+	WUNLOCK_TREE(tree);
 
 	if (!ret) {
 		ret = connect_one_side(coord, node, GN_NO_ALLOC | GN_GO_LEFT);

@@ -454,7 +454,7 @@ extent_create_hook(const coord_t * coord, void *arg)
 	tree = znode_get_tree(coord->node);
 
 	spin_lock_dk(tree);
-	write_lock_tree(tree);
+	WLOCK_TREE(tree);
 	/* find a node on the left level for which right delimiting key has to
 	   be updated */
 	if (coord_wrt(child_coord) == COORD_ON_THE_LEFT) {
@@ -476,7 +476,7 @@ extent_create_hook(const coord_t * coord, void *arg)
 			node->right = NULL;
 		}
 	}
-	write_unlock_tree(tree);
+	WUNLOCK_TREE(tree);
 	spin_unlock_dk(tree);
 	return 0;
 }

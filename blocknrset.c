@@ -170,7 +170,7 @@ blocknr_set_add(txn_atom * atom,
 
 		/* See if a bse was previously allocated. */
 		if (*new_bsep == NULL) {
-			spin_unlock_atom(atom);
+			UNLOCK_ATOM(atom);
 			*new_bsep = bse_alloc();
 			return (*new_bsep != NULL) ? -EAGAIN : -ENOMEM;
 		}

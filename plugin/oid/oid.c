@@ -59,7 +59,7 @@ oid_count_allocated(void)
 
 	atom = get_current_atom_locked();
 	atom->nr_objects_created++;
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 }
 
 /* count an object deletion in atom's nr_objects_deleted */
@@ -70,7 +70,7 @@ oid_count_released(void)
 
 	atom = get_current_atom_locked();
 	atom->nr_objects_deleted++;
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 }
 
 __u64 oid_used(void)

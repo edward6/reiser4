@@ -301,10 +301,10 @@ zinit(znode * node /* znode to initialise */ ,
 	jnode_init(&node->zjnode, tree);
 	reiser4_init_lock(&node->lock);
 
-	write_lock_tree(tree);
+	WLOCK_TREE(tree);
 	coord_init_parent_hint(&node->in_parent, parent);
 	node->version = ++tree->znode_epoch;
-	write_unlock_tree(tree);
+	WUNLOCK_TREE(tree);
 	ON_DEBUG_MODIFY(spin_lock_init(&node->cksum_guard));
 	ON_DEBUG_MODIFY(node->cksum = 0);
 }
@@ -363,7 +363,7 @@ znode_rehash(znode * node /* node to rehash */ ,
 	tree = znode_get_tree(node);
 	htable = &tree->zhash_table;
 
-	write_lock_tree(tree);
+	WLOCK_TREE(tree);
 	/* remove znode from hash-table */
 	z_hash_remove(htable, node);
 
@@ -375,7 +375,7 @@ znode_rehash(znode * node /* node to rehash */ ,
 
 	/* insert it into hash */
 	z_hash_insert(htable, node);
-	write_unlock_tree(tree);
+	WUNLOCK_TREE(tree);
 	return 0;
 }
 
@@ -398,7 +398,7 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	assert("jmacd-507", blocknr != NULL);
 
 	/* Precondition for call to zlook_internal: locked hash table */
-	read_lock_tree(tree);
+	RLOCK_TREE(tree);
 
 	result = z_hash_find_index(&tree->zhash_table, blknrhashfn(blocknr), blocknr);
 
@@ -409,7 +409,7 @@ zlook(reiser4_tree * tree, const reiser4_block_nr * const blocknr)
 	}
 
 	/* Release hash table lock: non-null result now referenced. */
-	read_unlock_tree(tree);
+	RUNLOCK_TREE(tree);
 
 	return result;
 }
@@ -451,7 +451,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 
 	zth = &tree->zhash_table;
 	/* Take the hash table lock. */
-	read_lock_tree(tree);
+	RLOCK_TREE(tree);
 
 	/* NOTE-NIKITA address-as-unallocated-blocknr still is not
 	   implemented. */
@@ -479,7 +479,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	}
 
 	/* Release the hash table lock. */
-	read_unlock_tree(tree);
+	RUNLOCK_TREE(tree);
 
 	if (result != NULL) {
 
@@ -519,7 +519,7 @@ retry_miss_race:
 		add_x_ref(ZJNODE(result));
 
 		/* Repeat search in case of a race, first take the hash table lock. */
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 
 		shadow = z_hash_find_index(zth, hashi, blocknr);
 
@@ -527,7 +527,7 @@ retry_miss_race:
 
 			/* Another process won: release hash lock, free result, retry as
 			   if it were an earlier hit. */
-			write_unlock_tree(tree);
+			WUNLOCK_TREE(tree);
 			zfree(result);
 			result = shadow;
 			goto retry_miss_race;
@@ -543,7 +543,7 @@ retry_miss_race:
 		}
 
 		/* Release hash lock. */
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 
 	}
 
@@ -820,11 +820,11 @@ znode_is_root(const znode * node /* znode to query */ )
 
 	result = znode_get_level(node) == znode_get_tree(node)->height;
 	if (REISER4_DEBUG) {
-		read_lock_tree(znode_get_tree(node));
+		RLOCK_TREE(znode_get_tree(node));
 		assert("nikita-1208", !result || znode_is_true_root(node));
 		assert("nikita-1209", !result || znode_get_level(znode_parent(node)) == 0);
 		assert("nikita-1212", !result || ((node->left == NULL) && (node->right == NULL)));
-		read_unlock_tree(znode_get_tree(node));
+		RUNLOCK_TREE(znode_get_tree(node));
 	}
 	return result;
 }
@@ -856,7 +856,7 @@ znode_io_hook(jnode * node, struct page *page UNUSED_ARG, int rw)
 		assert("zam-674", atom != NULL);
 		if (!(atom->flags & ATOM_FORCE_COMMIT))
 			result = 1;
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 		UNLOCK_JNODE(node);
 		if (result)
 			return 0;	/* not a commit */
@@ -1025,13 +1025,13 @@ znode_invariant(const znode * node /* znode to check */ )
 	assert("umka-064", current_tree != NULL);
 
 	spin_lock_znode((znode *) node);
-	read_lock_tree(znode_get_tree(node));
+	RLOCK_TREE(znode_get_tree(node));
 	result = znode_invariant_f(node, &failed_msg);
 	if (!result) {
 		print_znode("corrupted node", node);
 		warning("jmacd-555", "Condition %s failed", failed_msg);
 	}
-	read_unlock_tree(znode_get_tree(node));
+	RUNLOCK_TREE(znode_get_tree(node));
 	spin_unlock_znode((znode *) node);
 	return result;
 }
@@ -1178,7 +1178,7 @@ print_znodes(const char *prefix, reiser4_tree * tree)
 		info_znode(prefix, node);
 	}
 	if (tree_lock_taken)
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 }
 #endif
 
@@ -1217,7 +1217,7 @@ znodes_check_dk(reiser4_tree * tree)
 		return;
 
 	spin_lock_dk(tree);
-	read_lock_tree(tree);
+	RLOCK_TREE(tree);
 	htable = &tree->zhash_table;
 
 	for_all_in_htable(htable, z, node, next) {
@@ -1230,7 +1230,7 @@ znodes_check_dk(reiser4_tree * tree)
 			       keyeq(znode_get_rd_key(node->left),
 				     znode_get_ld_key(node)));
 	}
-	read_unlock_tree(tree);
+	RUNLOCK_TREE(tree);
 	spin_unlock_dk(tree);
 }
 

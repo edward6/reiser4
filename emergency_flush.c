@@ -234,7 +234,7 @@ emergency_flush(struct page *page)
 			if (!flushable(node, page) || needs_allocation(node) || !jnode_is_dirty(node)) {
 				trace_on(TRACE_EFLUSH, "failure-3\n");
 				UNLOCK_JNODE(node);
-				spin_unlock_atom(atom);
+				UNLOCK_ATOM(atom);
 				fq_put(fq);
 				return 0;
 			}
@@ -245,7 +245,7 @@ emergency_flush(struct page *page)
 			queue_jnode(fq, node);
 
 			UNLOCK_JNODE(node);
-			spin_unlock_atom(atom);
+			UNLOCK_ATOM(atom);
 
 			result = write_fq(fq, 0);
 			trace_on(TRACE_EFLUSH, "flushed %d blocks\n", result);
@@ -398,10 +398,10 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	ef->node = node;
 	ef->blocknr = *blocknr;
 	jref(node);
-	write_lock_tree(tree);
+	WLOCK_TREE(tree);
 	ef_hash_insert(get_jnode_enhash(node), ef);
 	++ get_super_private(tree->super)->eflushed;
-	write_unlock_tree(tree);
+	WUNLOCK_TREE(tree);
 	/*
 	 * set JNODE_EFLUSH bit on the jnode. inode is not yet pinned at this
 	 * point. We are safe, because page it is still attached to both @node
@@ -471,7 +471,7 @@ eflush_del(jnode *node, int page_locked)
 
 		tree = jnode_get_tree(node);
 
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 		ef = ef_hash_find(table, C(node));
 		assert("nikita-2745", ef != NULL);
 		blk = ef->blocknr;
@@ -601,7 +601,7 @@ static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, bl
 		atom = atom_locked_by_jnode(node);
 		assert("nikita-2785", atom != NULL);
 		grabbed2flush_reserved_nolock(atom, 1, "ef_free_block_with_stage");
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 		UNLOCK_JNODE(node);
 	}
 	return result;
@@ -642,7 +642,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 		atom = atom_locked_by_jnode(node);
 		assert("nikita-2785", atom != NULL);
 		flush_reserved2grabbed(atom, 1);
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 		hint->block_stage = BLOCK_GRABBED;
 	}
 
@@ -718,7 +718,7 @@ drop_enodes(struct inode *inode, unsigned long index)
 		list_del(&ef_node->list);
 
 		/* remove eflush node from hash table */
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 		assert("vs-1178", ef_hash_find(table, C(ef_node->node)) == ef_node);
 		ef_hash_remove(table, ef_node);
 		-- get_super_private(tree->super)->eflushed;

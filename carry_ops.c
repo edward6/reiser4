@@ -1218,13 +1218,13 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	child = op->u.delete.child ? 
 		carry_real(op->u.delete.child) : op->node->node;
 	tree = znode_get_tree(child);
-	read_lock_tree(tree);
+	RLOCK_TREE(tree);
 	if (znode_parent(child) != parent) {
 		/* NOTE-NIKITA add stat counter for this. */
 		parent = znode_parent(child);
 		assert("nikita-2581", find_carry_node(doing, parent));
 	}
-	read_unlock_tree(tree);
+	RUNLOCK_TREE(tree);
 
 	assert("nikita-1213", znode_get_level(parent) > LEAF_LEVEL);
 
@@ -1705,7 +1705,7 @@ carry_update(carry_op * op /* operation to be performed */ ,
 		left = NULL;
 
 	tree = znode_get_tree(rchild->node);
-	read_lock_tree(tree);
+	RLOCK_TREE(tree);
 	right = znode_parent(rchild->node);
 	if (REISER4_STATS) {
 		znode *old_right;
@@ -1722,7 +1722,7 @@ carry_update(carry_op * op /* operation to be performed */ ,
 			*/
 			reiser4_stat_level_inc(doing, half_split_race);
 	}
-	read_unlock_tree(tree);
+	RUNLOCK_TREE(tree);
 
 	if (right != NULL) {
 		result = update_delimiting_key(right,

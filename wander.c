@@ -476,9 +476,9 @@ dealloc_wmap_actor(txn_atom * atom,
 	assert("zam-500", *b != 0);
 	assert("zam-501", !blocknr_is_fake(b));
 
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, 0, "dealloc_wmap_actor");
-	spin_lock_atom(atom);
+	LOCK_ATOM(atom);
 
 	return 0;
 }
@@ -489,9 +489,9 @@ dealloc_wmap(struct commit_handle *ch)
 {
 	assert("zam-696", ch->atom != NULL);
 
-	spin_lock_atom(ch->atom);
+	LOCK_ATOM(ch->atom);
 	blocknr_set_iterator(ch->atom, &ch->atom->wandered_map, dealloc_wmap_actor, NULL, 1);
-	spin_unlock_atom(ch->atom);
+	UNLOCK_ATOM(ch->atom);
 }
 
 /* helper function for alloc wandered blocks, which refill set of block
@@ -841,7 +841,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 		atom = get_current_atom_locked();
 		blocknr_set_iterator(atom, &atom->wandered_map, &store_wmap_actor, &params, 0);
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 	}
 
 	{			/* relse all jnodes from tx_list */
@@ -896,7 +896,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			return ret;
 		}
 
-		spin_unlock_atom(atom);
+		UNLOCK_ATOM(atom);
 
 		cur = capture_list_next(cur);
 		++block;
@@ -979,7 +979,7 @@ reiser4_write_logs(void)
 	sbinfo->nr_files_committed += (unsigned) atom->nr_objects_created;
 	sbinfo->nr_files_committed -= (unsigned) atom->nr_objects_deleted;
 
-	spin_unlock_atom(atom);
+	UNLOCK_ATOM(atom);
 
 	init_commit_handle(&ch, atom);
 

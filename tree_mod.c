@@ -146,12 +146,12 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				tree->root_block = *znode_get_block(new_root);
 				znode_set_dirty(fake);
 				/* new root is a child of "fake" node */
-				write_lock_tree(tree);
+				WLOCK_TREE(tree);
 				in_parent = &new_root->in_parent;
 				in_parent->node = fake;
 				coord_invalid_item_pos(in_parent);
 				in_parent->between = AT_UNIT;
-				write_unlock_tree(tree);
+				WUNLOCK_TREE(tree);
 
 				/* insert into new root pointer to the
 				   @old_root. */
@@ -268,7 +268,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 
 		/* don't take long term lock a @new_root. Take spinlock. */
 
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 
 		/* new root is child on "fake" node */
 		new_root->in_parent.node = fake;
@@ -277,7 +277,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 		atomic_inc(&fake->c_count);
 
 		sibling_list_insert_nolock(new_root, NULL);
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 
 		/* reinitialise old root. */
 		result = node_plugin_by_node(old_root)->init(old_root);

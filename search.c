@@ -590,7 +590,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	   ->in_parent: coord where pointer to this node is stored in
 	   parent.
 	*/
-	write_lock_tree(h->tree);
+	WLOCK_TREE(h->tree);
 
 	if (znode_just_created(active) && (h->coord->node != NULL))
 		active->in_parent = *h->coord;
@@ -605,7 +605,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	   releasing-acquiring spinlock requires d-cache flushing on some
 	   architectures and can thus be expensive.
 	*/
-	write_unlock_tree(h->tree);
+	WUNLOCK_TREE(h->tree);
 
 	if (!ret) {
 		/* FIXME: h->coord->node and active are of different levels? */
@@ -619,14 +619,14 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	/* FIXME: there is a guess that right delimiting key which are brought from the parent can be incorrect
 	   already */
 	spin_lock_dk(h->tree);
-	read_lock_tree(h->tree);
+	RLOCK_TREE(h->tree);
 	if (ZF_ISSET(active, JNODE_RIGHT_CONNECTED) && active->right) {
 		if (!keyeq(znode_get_rd_key(active), znode_get_ld_key(active->right))) {
 			printk("cbk_level_lookup: right delimiting key changed. Corrected\n");
 			znode_set_rd_key(active, znode_get_ld_key(active->right));
 		}
 	}
-	read_unlock_tree(h->tree);
+	RUNLOCK_TREE(h->tree);
 	spin_unlock_dk(h->tree);
 
 
@@ -1043,7 +1043,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	key = h->key;
 
 	spin_lock_dk(tree);
-	read_lock_tree(tree);
+	RLOCK_TREE(tree);
 	cbk_cache_lock(cache);
 	slot = cbk_cache_list_prev(cbk_cache_list_front(&cache->lru));
 	while (1) {
@@ -1066,7 +1066,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 	}
 
 	cbk_cache_unlock(cache);
-	read_unlock_tree(tree);
+	RUNLOCK_TREE(tree);
 	spin_unlock_dk(tree);
 
 	assert("nikita-2475", cbk_cache_invariant(cache));
@@ -1470,7 +1470,7 @@ void
 check_dkeys(const znode *node)
 {
 	spin_lock_dk(current_tree);
-	read_lock_tree(current_tree);
+	RLOCK_TREE(current_tree);
 
 	assert("vs-1197", !keygt(&node->ld_key, &node->rd_key));
 
@@ -1482,7 +1482,7 @@ check_dkeys(const znode *node)
 		/* check right neighbor */
 		assert("vs-1199", keyeq(&node->rd_key, &node->right->ld_key));
 
-	read_unlock_tree(current_tree);
+	RUNLOCK_TREE(current_tree);
 	spin_unlock_dk(current_tree);
 }
 

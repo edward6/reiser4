@@ -209,7 +209,7 @@ DECLARE_SPIN_PROFREGIONS(NAME)							\
 static inline void spin_ ## NAME ## _init(TYPE *x)				\
 {										\
 	assert("nikita-2987", x != NULL);					\
-	memset(& x->FIELD, 0, sizeof x->FIELD); 				\
+	memset(& x->FIELD, 0, sizeof x->FIELD);					\
 	spin_lock_init(& x->FIELD.lock);					\
 }										\
 										\
@@ -235,28 +235,30 @@ static inline int  spin_ ## NAME ## _is_not_locked (TYPE *x)			\
 	return check_spin_is_not_locked (& x->FIELD.lock);			\
 }										\
 										\
-static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x, locksite *loc)	\
+static inline void spin_lock_ ## NAME ## _no_ord (TYPE *x, 			\
+						  locksite *t, locksite *h)	\
 {										\
 	GETCPU(cpu);								\
 	assert("nikita-2703", spin_ ## NAME ## _is_not_locked(x));		\
-	PREG_IN(cpu, &pregion_spin_ ## NAME ## _trying, &x->FIELD.trying, loc);	\
+	PREG_IN(cpu, &pregion_spin_ ## NAME ## _trying, &x->FIELD.trying, t);	\
 	spin_lock(&x->FIELD.lock);						\
 	PREG_REPLACE(cpu,							\
-		     &pregion_spin_ ## NAME ## _held, &x->FIELD.held, loc);	\
+		     &pregion_spin_ ## NAME ## _held, &x->FIELD.held, h);	\
 	PUTCPU(cpu);								\
 	spin_ ## NAME ## _inc();						\
 }										\
 										\
-static inline void spin_lock_ ## NAME ## _at (TYPE *x, locksite *loc)		\
+static inline void spin_lock_ ## NAME ## _at (TYPE *x, 				\
+					      locksite *t, locksite *h)		\
 {										\
 	__ODCA("nikita-1383", spin_ordering_pred_ ## NAME(x));			\
-	spin_lock_ ## NAME ## _no_ord(x, loc);					\
+	spin_lock_ ## NAME ## _no_ord(x, t, h);					\
 }										\
 										\
 static inline void spin_lock_ ## NAME (TYPE *x)					\
 {										\
 	__ODCA("nikita-1383", spin_ordering_pred_ ## NAME(x));			\
-	spin_lock_ ## NAME ## _no_ord(x, NULL);					\
+	spin_lock_ ## NAME ## _no_ord(x, 0, 0);					\
 }										\
 										\
 static inline int  spin_trylock_ ## NAME (TYPE *x)				\
@@ -284,30 +286,32 @@ static inline void spin_unlock_ ## NAME (TYPE *x)				\
 										\
 typedef struct { int foo; } NAME ## _spin_dummy
 
-#define UNDER_SPIN(obj_type, obj, exp)			\
-({							\
-	typeof (obj) __obj;				\
-	typeof (exp) __result;				\
-	LOCKSITE_INIT(__hits);				\
-							\
-	__obj = (obj);					\
-	assert("nikita-2492", __obj != NULL);		\
-	spin_lock_ ## obj_type ## _at (__obj, &__hits);	\
-	__result = exp;					\
-	spin_unlock_ ## obj_type (__obj);		\
-	__result;					\
+#define UNDER_SPIN(obj_type, obj, exp)						\
+({										\
+	typeof (obj) __obj;							\
+	typeof (exp) __result;							\
+	LOCKSITE_INIT(__hits_trying);						\
+	LOCKSITE_INIT(__hits_held);						\
+										\
+	__obj = (obj);								\
+	assert("nikita-2492", __obj != NULL);					\
+	spin_lock_ ## obj_type ## _at (__obj, &__hits_trying, &__hits_held);	\
+	__result = exp;								\
+	spin_unlock_ ## obj_type (__obj);					\
+	__result;								\
 })
 
-#define UNDER_SPIN_VOID(obj_type, obj, exp)		\
-({							\
-	typeof (obj) __obj;				\
-	LOCKSITE_INIT(__hits);				\
-							\
-	__obj = (obj);					\
-	assert("nikita-2492", __obj != NULL);		\
-	spin_lock_ ## obj_type ## _at (__obj, &__hits);	\
-	exp;						\
-	spin_unlock_ ## obj_type (__obj);		\
+#define UNDER_SPIN_VOID(obj_type, obj, exp)					\
+({										\
+	typeof (obj) __obj;							\
+	LOCKSITE_INIT(__hits_trying);						\
+	LOCKSITE_INIT(__hits_held);						\
+										\
+	__obj = (obj);								\
+	assert("nikita-2492", __obj != NULL);					\
+	spin_lock_ ## obj_type ## _at (__obj, &__hits_trying, &__hits_held);	\
+	exp;									\
+	spin_unlock_ ## obj_type (__obj);					\
 })
 
 
@@ -319,7 +323,7 @@ DECLARE_RW_PROFREGIONS(NAME)							\
 static inline void rw_ ## NAME ## _init(TYPE *x)				\
 {										\
 	assert("nikita-2988", x != NULL);					\
-	memset(& x->FIELD, 0, sizeof x->FIELD); 				\
+	memset(& x->FIELD, 0, sizeof x->FIELD);					\
 	rwlock_init(& x->FIELD.lock);						\
 }										\
 										\
@@ -384,38 +388,56 @@ static inline void write_ ## NAME ## _dec(void)					\
 }										\
 										\
 										\
-static inline void read_lock_ ## NAME ## _no_ord (TYPE *x)			\
+static inline void read_lock_ ## NAME ## _no_ord (TYPE *x,			\
+						  locksite *t, locksite *h)	\
 {										\
 	GETCPU(cpu);								\
 	assert("nikita-2976", rw_ ## NAME ## _is_not_read_locked(x));		\
-	PREG_IN(cpu, &pregion_rw_ ## NAME ## _r_trying, &x->FIELD.r_trying, 0);	\
+	PREG_IN(cpu, &pregion_rw_ ## NAME ## _r_trying, &x->FIELD.r_trying, t);	\
 	read_lock(&x->FIELD.lock);						\
-	PREG_REPLACE(cpu, &pregion_rw_ ## NAME ## _r_held, &x->FIELD.r_held, 0);\
+	PREG_REPLACE(cpu, &pregion_rw_ ## NAME ## _r_held,			\
+		     &x->FIELD.r_held, h);					\
 	PUTCPU(cpu);								\
 	read_ ## NAME ## _inc();						\
 }										\
 										\
-static inline void write_lock_ ## NAME ## _no_ord (TYPE *x)			\
+static inline void write_lock_ ## NAME ## _no_ord (TYPE *x,			\
+						   locksite *t, locksite *h)	\
 {										\
 	GETCPU(cpu);								\
 	assert("nikita-2977", rw_ ## NAME ## _is_not_write_locked(x));		\
-	PREG_IN(cpu, &pregion_rw_ ## NAME ## _w_trying, &x->FIELD.w_trying, 0);	\
+	PREG_IN(cpu, &pregion_rw_ ## NAME ## _w_trying, &x->FIELD.w_trying, t);	\
 	write_lock(&x->FIELD.lock);						\
-	PREG_REPLACE(cpu, &pregion_rw_ ## NAME ## _w_held, &x->FIELD.w_held, 0);\
+	PREG_REPLACE(cpu, &pregion_rw_ ## NAME ## _w_held,			\
+		     &x->FIELD.w_held, h);					\
 	PUTCPU(cpu);								\
 	write_ ## NAME ## _inc();						\
+}										\
+										\
+static inline void read_lock_ ## NAME ## _at (TYPE *x, 				\
+					      locksite *t, locksite *h)		\
+{										\
+	__ODCA("nikita-2975", rw_ordering_pred_ ## NAME(x));			\
+	read_lock_ ## NAME ## _no_ord(x, t, h);					\
+}										\
+										\
+static inline void write_lock_ ## NAME ## _at (TYPE *x,				\
+					       locksite *t, locksite *h)	\
+{										\
+	__ODCA("nikita-2978", rw_ordering_pred_ ## NAME(x));			\
+	write_lock_ ## NAME ## _no_ord(x, t, h);				\
 }										\
 										\
 static inline void read_lock_ ## NAME (TYPE *x)					\
 {										\
 	__ODCA("nikita-2975", rw_ordering_pred_ ## NAME(x));			\
-	read_lock_ ## NAME ## _no_ord(x);					\
+	read_lock_ ## NAME ## _no_ord(x, 0, 0);					\
 }										\
 										\
 static inline void write_lock_ ## NAME (TYPE *x)				\
 {										\
 	__ODCA("nikita-2978", rw_ordering_pred_ ## NAME(x));			\
-	write_lock_ ## NAME ## _no_ord(x);					\
+	write_lock_ ## NAME ## _no_ord(x, 0, 0);				\
 }										\
 										\
 static inline void read_unlock_ ## NAME (TYPE *x)				\
@@ -458,29 +480,90 @@ static inline int  write_trylock_ ## NAME (TYPE *x)				\
 typedef struct { int foo; } NAME ## _rw_dummy
 
 /* this does what?  comment this whole file.... NIKITA-FIXME-HANS */
-#define UNDER_RW(obj_type, obj, rw, exp)	\
-({						\
-	typeof (obj) __obj;			\
-	typeof (exp) __result;			\
-						\
-	__obj = (obj);				\
-	assert("nikita-2981", __obj != NULL);	\
-	rw ## _lock_ ## obj_type (__obj);	\
-	__result = exp;				\
-	rw ## _unlock_ ## obj_type (__obj);	\
-	__result;				\
+#define UNDER_RW(obj_type, obj, rw, exp)				\
+({									\
+	typeof (obj) __obj;						\
+	typeof (exp) __result;						\
+	LOCKSITE_INIT(__hits_t);					\
+	LOCKSITE_INIT(__hits_h);					\
+									\
+	__obj = (obj);							\
+	assert("nikita-2981", __obj != NULL);				\
+	rw ## _lock_ ## obj_type ## _at (__obj, &__hits_t, &__hits_h);	\
+	__result = exp;							\
+	rw ## _unlock_ ## obj_type (__obj);				\
+	__result;							\
 })
 
-#define UNDER_RW_VOID(obj_type, obj, rw, exp)	\
-({						\
-	typeof (obj) __obj;			\
-						\
-	__obj = (obj);				\
-	assert("nikita-2982", __obj != NULL);	\
-	rw ## _lock_ ## obj_type (__obj);	\
-	exp;					\
-	rw ## _unlock_ ## obj_type (__obj);	\
+#define UNDER_RW_VOID(obj_type, obj, rw, exp)				\
+({									\
+	typeof (obj) __obj;						\
+	LOCKSITE_INIT(__hits_t);					\
+	LOCKSITE_INIT(__hits_h);					\
+									\
+	__obj = (obj);							\
+	assert("nikita-2982", __obj != NULL);				\
+	rw ## _lock_ ## obj_type ## _at (__obj, &__hits_t, &__hits_h);	\
+	exp;								\
+	rw ## _unlock_ ## obj_type (__obj);				\
 })
+
+#if REISER4_LOCKPROF
+
+#define LOCK_JNODE(node)				\
+({							\
+	LOCKSITE_INIT(__hits_t);			\
+	LOCKSITE_INIT(__hits_h);			\
+							\
+	spin_lock_jnode_at(node, &__hits_t, &__hits_h);	\
+})
+
+#define LOCK_ATOM(atom)					\
+({							\
+	LOCKSITE_INIT(__hits_t);			\
+	LOCKSITE_INIT(__hits_h);			\
+							\
+	spin_lock_atom_at(atom, &__hits_t, &__hits_h);	\
+})
+
+#define LOCK_TXNH(txnh)					\
+({							\
+	LOCKSITE_INIT(__hits_t);			\
+	LOCKSITE_INIT(__hits_h);			\
+							\
+	spin_lock_txnh_at(txnh, &__hits_t, &__hits_h);	\
+})
+
+#define RLOCK_TREE(tree)				\
+({							\
+	LOCKSITE_INIT(__hits_t);			\
+	LOCKSITE_INIT(__hits_h);			\
+							\
+	read_lock_tree_at(tree, &__hits_t, &__hits_h);	\
+})
+
+#define WLOCK_TREE(tree)				\
+({							\
+	LOCKSITE_INIT(__hits_t);			\
+	LOCKSITE_INIT(__hits_h);			\
+							\
+	write_lock_tree_at(tree, &__hits_t, &__hits_h);	\
+})
+
+
+#else
+#define LOCK_JNODE(node) spin_lock_jnode(node)
+#define LOCK_ATOM(atom) spin_lock_atom(atom)
+#define LOCK_TXNH(txnh) spin_lock_txnh(txnh)
+#define RLOCK_TREE(tree) read_lock_tree(tree)
+#define WLOCK_TREE(tree) write_lock_tree(tree)
+#endif
+
+#define UNLOCK_JNODE(node) spin_unlock_jnode(node)
+#define UNLOCK_ATOM(atom) spin_unlock_atom(atom)
+#define UNLOCK_TXNH(txnh) spin_unlock_txnh(txnh)
+#define RUNLOCK_TREE(tree) read_unlock_tree(tree)
+#define WUNLOCK_TREE(tree) write_unlock_tree(tree)
 
 /* __SPIN_MACROS_H__ */
 #endif

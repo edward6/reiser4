@@ -298,18 +298,18 @@ again:
 		jnode *in_hash;
 		/* check hash-table first */
 		tree = tree_by_page(pg);
-		write_lock_tree(tree);
+		WLOCK_TREE(tree);
 		in_hash = jlook(tree, oid, pg->index);
 		if (in_hash != NULL) {
 			assert("nikita-2358", jnode_page(in_hash) == NULL);
-			write_unlock_tree(tree);
+			WUNLOCK_TREE(tree);
 			UNDER_SPIN_VOID(jnode, in_hash, jnode_attach_page(in_hash, pg));
 			in_hash->key.j.mapping = pg->mapping;
 		} else {
 			j_hash_table *jtable;
 
 			if (jal == NULL) {
-				write_unlock_tree(tree);
+				WUNLOCK_TREE(tree);
 				jal = jnew();
 
 				if (jal == NULL) {
@@ -329,7 +329,7 @@ again:
 			assert("nikita-2357", j_hash_find(jtable, &jal->key.j) == NULL);
 
 			j_hash_insert(jtable, jal);
-			write_unlock_tree(tree);
+			WUNLOCK_TREE(tree);
 
 			UNDER_SPIN_VOID(jnode, jal, jnode_attach_page(jal, pg));
 			jal = NULL;
@@ -814,11 +814,11 @@ jnode_try_drop(jnode * node)
 	jplug = jnode_ops(node);
 
 	LOCK_JNODE(node);
-	write_lock_tree(tree);
+	WLOCK_TREE(tree);
 	if (jnode_page(node) != NULL) {
 		JF_CLR(node, JNODE_RIP);
 		UNLOCK_JNODE(node);
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 		return -EBUSY;
 	}
 
@@ -829,7 +829,7 @@ jnode_try_drop(jnode * node)
 		result = jplug->remove(node, tree);
 	else
 		JF_CLR(node, JNODE_RIP);
-	write_unlock_tree(tree);
+	WUNLOCK_TREE(tree);
 	return result;
 }
 
@@ -859,7 +859,7 @@ jdelete(jnode * node /* jnode to finish with */)
 
 	tree = jnode_get_tree(node);
 
-	write_lock_tree(tree);
+	WLOCK_TREE(tree);
 	result = jplug->is_busy(node);
 	if (!result) {
 		/* detach page */
@@ -873,7 +873,7 @@ jdelete(jnode * node /* jnode to finish with */)
 		if (page != NULL)
 			reiser4_unlock_page(page);
 	}
-	write_unlock_tree(tree);
+	WUNLOCK_TREE(tree);
 	return result;
 }
 
@@ -905,7 +905,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 	page = jnode_lock_page(node);
 	assert("nikita-2405", spin_jnode_is_locked(node));
 
-	write_lock_tree(tree);
+	WLOCK_TREE(tree);
 
 	result = jplug->is_busy(node);
 	if (!result) {
@@ -928,7 +928,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 		if (page != NULL)
 			reiser4_unlock_page(page);
 	}
-	write_unlock_tree(tree);
+	WUNLOCK_TREE(tree);
 	return result;
 }
 
@@ -1347,14 +1347,14 @@ jnode_invariant(const jnode * node, int tlocked, int jlocked)
 	if (!jlocked && !tlocked)
 		LOCK_JNODE((jnode *) node);
 	if (!tlocked)
-		read_lock_tree(jnode_get_tree(node));
+		RLOCK_TREE(jnode_get_tree(node));
 	result = jnode_invariant_f(node, &failed_msg);
 	if (!result) {
 		info_jnode("corrupted node", node);
 		warning("jmacd-555", "Condition %s failed", failed_msg);
 	}
 	if (!tlocked)
-		read_unlock_tree(jnode_get_tree(node));
+		RUNLOCK_TREE(jnode_get_tree(node));
 	if (!jlocked && !tlocked)
 		UNLOCK_JNODE((jnode *) node);
 	return result;
@@ -1477,7 +1477,7 @@ print_jnodes(const char *prefix, reiser4_tree * tree)
 		printk("\n");
 	}
 	if (tree_lock_taken)
-		write_unlock_tree(tree);
+		WUNLOCK_TREE(tree);
 }
 
 #endif

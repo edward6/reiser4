@@ -33,6 +33,7 @@ typedef struct locksite {
 
 struct profregion {
 	int            hits;
+	int            busy;
 	struct kobject kobj;
 	void          *obj;
 	int            objhit;
