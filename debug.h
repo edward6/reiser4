@@ -105,21 +105,21 @@
 #define ON_DEBUG( exp ) exp
 
 typedef struct lock_counters_info {
-	int                   spin_locked_jnode;
-	int                   spin_locked_tree;
-	int                   spin_locked_dk;
-	int                   spin_locked_txnh;
-	int                   spin_locked_atom;
-	int                   spin_locked_stack;
-	int                   spin_locked_txnmgr;
-	int                   spin_locked_inode;
-	int                   spin_locked;
-	int                   page_locked;
-	int                   long_term_locked_znode;
-
-	int                   d_refs;
-	int                   x_refs;
-	int                   t_refs;
+	 int                   spin_locked_jnode;
+	 int                   spin_locked_tree;
+	 int                   spin_locked_dk;
+	 int                   spin_locked_txnh;
+	 int                   spin_locked_atom;
+	 int                   spin_locked_stack;
+	 int                   spin_locked_txnmgr;
+	 int                   spin_locked_inode;
+	 int                   spin_locked;
+	 int                   page_locked;
+	 int                   long_term_locked_znode;
+	 
+	 int                   d_refs;
+	 int                   x_refs;
+	 int                   t_refs;
 } lock_counters_info;
 
 extern lock_counters_info *lock_counters(void);
