@@ -116,9 +116,11 @@ static int
 item_of_that_file(const coord_t * coord, const reiser4_key * key)
 {
 	reiser4_key max_possible;
+	item_plugin *iplug;
 
-	assert("vs-1011", coord->iplug->b.max_key_inside);
-	return keylt(key, coord->iplug->b.max_key_inside(coord, &max_possible));
+	iplug = item_plugin_by_coord(coord);
+	assert("vs-1011", iplug->b.max_key_inside);
+	return keylt(key, iplug->b.max_key_inside(coord, &max_possible));
 }
 
 #if REISER4_DEBUG
@@ -140,9 +142,11 @@ static int
 can_append(const coord_t * coord, const reiser4_key * key)
 {
 	reiser4_key next;
+	item_plugin *iplug;
 
-	assert("vs-1012", coord->iplug->b.real_max_key_inside);
-	coord->iplug->b.real_max_key_inside(coord, &next);
+	iplug = item_plugin_by_coord(coord);
+	assert("vs-1012", iplug->b.real_max_key_inside);
+	iplug->b.real_max_key_inside(coord, &next);
 	set_key_offset(&next, get_key_offset(&next) + 1);
 	return keyeq(key, &next);
 }
@@ -222,6 +226,8 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * k
 	assert("vs-1008", keylt(key, get_next_item_key(coord, &check)));
 
 	if ((item_is_tail(coord) || item_is_extent(coord)) && item_of_that_file(coord, key)) {
+		item_plugin *iplug;
+
 		/* @coord is set to item we have to write to */
 		if (can_append(coord, key)) {
 			/* @key is adjacent to last key of item @coord */
@@ -231,7 +237,8 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * k
 			goto ok;
 		}
 
-		if (coord->iplug->b.key_in_item(coord, key)) {
+		iplug = item_plugin_by_coord(coord);
+		if (iplug->b.key_in_item(coord, key)) {
 			/* @key is in item. coord->unit_pos is set
 			   properly */
 			coord->between = AT_UNIT;
@@ -865,7 +872,10 @@ item_to_operate_on(struct inode *inode, flow_t * f, coord_t * coord)
 
 	if (f->op == READ_OP) {
 		assert("", coord_is_existing_item(coord));
-		coord->iplug = item_plugin_by_coord(coord);
+		/*
+		 * FIXME:NIKITA->VS HUH?
+		 */
+		/* coord->iplug = item_plugin_by_coord(coord); */
 		assert("vs-1083", item_contains_key(coord, &f->key));
 		return TAIL_ID;	
 	}

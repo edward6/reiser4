@@ -828,9 +828,7 @@ optimize_extent(const coord_t * item)
 
 		assert("vs-952", new_num < old_num);
 
-		from.node = item->node;
-		from.item_pos = item->item_pos;
-		from.iplug = item->iplug;
+		coord_dup(&from, item);
 		from.unit_pos = new_num;
 		from.between = AT_UNIT;
 
