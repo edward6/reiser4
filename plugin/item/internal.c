@@ -227,9 +227,6 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
 		write_unlock_tree(tree);
 		if ((left != NULL) && !keyeq(znode_get_rd_key(left),
 					     znode_get_rd_key(child))) {
-			warning("nikita-2990", "Synched");
-			print_znode("left", left);
-			print_znode("right", child);
 			znode_set_rd_key(child, znode_get_rd_key(left));
 		}
 		spin_unlock_dk(tree);
