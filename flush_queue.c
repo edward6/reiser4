@@ -34,10 +34,10 @@ SPIN_LOCK_FUNCTIONS(fq, flush_queue_t, guard);
    LOCKING: 
 
    fq->guard spin lock protects fq->atom pointer and nothing else.  fq->prepped
-   list, fq->nr_queued protected by atom spin lock.  For modification of
-   fq->send both atom spin lock and "in-use" fq state are needed. To safely
-   traverse fq->sent list only one locking (fq state or atom spin lock) is
-   enough. atom->fq_list and fq->state protected by atom spin lock.
+   list protected by atom spin lock.  For modification of fq->send both atom
+   spin lock and "in-use" fq state are needed. To safely traverse fq->sent list
+   only one locking (fq state or atom spin lock) is enough. atom->fq_list and
+   fq->state protected by atom spin lock.
 
    The deadlock-safe order for flush queues and atoms is: first lock atom, then
    lock flush queue, then lock jnode.
@@ -116,14 +116,12 @@ create_fq(void)
 static void
 count_enqueued_node(flush_queue_t * fq)
 {
-	fq->nr_queued++;
 	fq->atom->num_queued++;
 }
 
 static void
 count_dequeued_node(flush_queue_t * fq)
 {
-	fq->nr_queued--;
 	fq->atom->num_queued--;
 }
 
@@ -154,7 +152,6 @@ void
 done_fq(flush_queue_t * fq)
 {
 	assert("zam-763", capture_list_empty(&fq->prepped));
-	assert("zam-765", fq->nr_queued == 0);
 	assert("zam-766", atomic_read(&fq->nr_submitted) == 0);
 
 	reiser4_kfree(fq, sizeof *fq);
@@ -417,7 +414,7 @@ static void release_prepped_list(flush_queue_t * fq)
 {
 	txn_atom * atom;
 
-	assert("zam-904", fq_in_use(fq));
+	assert ("zam-904", fq_in_use(fq));
  again:
 	atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
 
@@ -457,7 +454,10 @@ static void release_prepped_list(flush_queue_t * fq)
 	}
 
 	assert ("zam-908", capture_list_empty(&fq->prepped));
-	assert ("zam-909", fq->nr_queued == 0);
+
+	if (-- atom->nr_running_queues == 0)
+		atom_send_event(atom);
+	
 	UNLOCK_ATOM(atom);
 }
 
@@ -470,7 +470,13 @@ int
 write_fq(flush_queue_t * fq)
 {
 	int ret;
-
+	txn_atom * atom;
+	
+	atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
+	assert ("zam-924", atom);
+	atom->nr_running_queues ++;
+	UNLOCK_ATOM(atom);
+	
 	ret = write_jnode_list(&fq->prepped, fq);
 	if (ret)
 		return ret;
@@ -556,7 +562,6 @@ fq_put_nolock(flush_queue_t * fq)
 {
 	assert("zam-747", fq->atom != NULL);
 	assert("zam-902", capture_list_empty(&fq->prepped));
-	assert("zam-910", fq->nr_queued == 0);
 	mark_fq_ready(fq);
 	assert("vs-1245", fq->owner == current);
 	fq->owner = 0;

@@ -2080,6 +2080,17 @@ repeat:
 
 	assert("jmacd-5177", blocknr_entry == NULL);
 
+	while (JF_ISSET(node, JNODE_FLUSH_QUEUED) && atom->nr_running_queues) {
+		UNLOCK_JNODE(node);
+		atom_wait_event(atom);
+		LOCK_JNODE(node);
+		atom = atom_locked_by_jnode(node);
+		if (atom == NULL) {
+			UNLOCK_JNODE(node);
+			return;
+		}
+	}
+
 	uncapture_block(atom, node);
 
 	UNLOCK_ATOM(atom);
@@ -2955,19 +2966,17 @@ uncapture_block(txn_atom * atom, jnode * node)
 	node->written = 0;
 #endif
 
-	if (!JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
-		/* do not remove jnode from capture list if it is on flush queue */
-		capture_list_remove_clean(node);
-		atom->capture_count -= 1;
-		node->atom = NULL;
-		UNLOCK_JNODE(node);
-
-		/*trace_if (TRACE_FLUSH, print_page ("uncapture", node->pg)); */
-
-		jput(node);
-	} else
-		UNLOCK_JNODE(node);
-
+	capture_list_remove_clean(node);
+	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
+		assert("zam-925", atom_isopen(atom));
+		atom->num_queued --;
+		JF_CLR(node, JNODE_FLUSH_QUEUED);
+	}
+	atom->capture_count -= 1;
+	node->atom = NULL;
+	UNLOCK_JNODE(node);
+	/*trace_if (TRACE_FLUSH, print_page ("uncapture", node->pg)); */
+	jput(node);
 	ON_DEBUG_CONTEXT(--lock_counters()->t_refs);
 }
 

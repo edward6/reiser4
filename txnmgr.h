@@ -262,6 +262,10 @@ struct txn_atom {
 	/* number of treads which do jnode_flush() over this atom */
 	int nr_flushers;
 
+	/* number of flush queues which are IN_USE and jnodes from fq->prepped
+	 * are submitted to disk by the write_fq() routine. */
+	int nr_running_queues;
+
 	/* A counter of grabbed unformatted nodes. */
 	reiser4_block_nr flush_reserved;
 };
@@ -468,8 +472,6 @@ struct flush_queue {
 	/* A list which contains queued nodes, queued nodes are removed any
 	 * atom's list and put on this ->prepped one. */
 	capture_list_head prepped;
-	/* total number of queued nodes */
-	int nr_queued;
 	/* number of submitted i/o requests */
 	atomic_t nr_submitted;
 	/* number of i/o errors */
