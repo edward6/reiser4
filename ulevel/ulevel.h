@@ -766,6 +766,8 @@ void mark_inode_dirty (struct inode * inode);
  * Kernel (and user level) pointers have redundant information, so we
  * can use a scheme where we can return either an error code or a dentry
  * pointer with the same return value.
+
+Isn't this bad style?  Please discuss with me.  NIKITA-FIXME-HANS
  *
  * This should be a per-architecture thing, to allow different
  * error and pointer decisions.
