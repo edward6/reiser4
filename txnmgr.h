@@ -64,8 +64,7 @@ typedef enum {
 	 * exclusive type designation from extra bits that may be supplied -- see
 	 * below. */
 	TXN_CAPTURE_TYPES = (TXN_CAPTURE_READ_ATOMIC |
-			     TXN_CAPTURE_READ_NONCOM |
-			     TXN_CAPTURE_READ_MODIFY | TXN_CAPTURE_WRITE),
+			     TXN_CAPTURE_READ_NONCOM | TXN_CAPTURE_READ_MODIFY | TXN_CAPTURE_WRITE),
 
 	/* A subset of CAPTURE_TYPES, CAPTURE_WTYPES is a mask of request types that
 	 * indicate modification will occur. */
@@ -346,24 +345,21 @@ extern int txnmgr_done(txn_mgr * mgr);
 extern int txn_reserve(int reserved);
 
 extern void txn_begin(reiser4_context * context);
-extern int txn_end(reiser4_context * context);
+extern long txn_end(reiser4_context * context);
 
-extern int mgr_force_commit_all(struct super_block *super);
+extern int txnmgr_force_commit_all(struct super_block *super);
 
 extern int commit_one_atom(txn_mgr *);
 extern int flush_one_atom(txn_mgr *, long *, int);
 extern int flush_some_atom(long *, int);
 
-extern int same_atom_dirty(jnode * base,
-			   jnode * check, int alloc_check, int alloc_value);
+extern int same_atom_dirty(jnode * base, jnode * check, int alloc_check, int alloc_value);
 
 extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags);
 
-extern int try_capture_page(struct page *pg,
-			    znode_lock_mode mode, int non_blocking);
+extern int try_capture_page(struct page *pg, znode_lock_mode mode, int non_blocking);
 
-extern int attach_txnh_to_node(txn_handle * txnh, jnode * node,
-			       txn_flags flags);
+extern int attach_txnh_to_node(txn_handle * txnh, jnode * node, txn_flags flags);
 
 extern void uncapture_page(struct page *pg);
 
@@ -412,25 +408,16 @@ extern void blocknr_set_merge(blocknr_set * from, blocknr_set * into);
 extern int blocknr_set_add_extent(txn_atom * atom,
 				  blocknr_set * bset,
 				  blocknr_set_entry ** new_bsep,
-				  const reiser4_block_nr * start,
-				  const reiser4_block_nr * len);
+				  const reiser4_block_nr * start, const reiser4_block_nr * len);
 extern int blocknr_set_add_block(txn_atom * atom,
-				 blocknr_set * bset,
-				 blocknr_set_entry ** new_bsep,
-				 const reiser4_block_nr * block);
+				 blocknr_set * bset, blocknr_set_entry ** new_bsep, const reiser4_block_nr * block);
 extern int blocknr_set_add_pair(txn_atom * atom,
 				blocknr_set * bset,
-				blocknr_set_entry ** new_bsep,
-				const reiser4_block_nr * a,
-				const reiser4_block_nr * b);
+				blocknr_set_entry ** new_bsep, const reiser4_block_nr * a, const reiser4_block_nr * b);
 
-typedef int (*blocknr_set_actor_f) (txn_atom *, const reiser4_block_nr *,
-				    const reiser4_block_nr *, void *);
+typedef int (*blocknr_set_actor_f) (txn_atom *, const reiser4_block_nr *, const reiser4_block_nr *, void *);
 
-extern int blocknr_set_iterator(txn_atom * atom,
-				blocknr_set * bset,
-				blocknr_set_actor_f actor,
-				void *data, int delete);
+extern int blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f actor, void *data, int delete);
 /*
  * these are needed to move to PAGE_CACHE_SIZE > blocksize
  */
@@ -551,8 +538,7 @@ extern int scan_and_write_fq(flush_queue_t *, int);
 extern int finish_all_fq(txn_atom *, int *);
 extern int current_atom_finish_all_fq(void);
 extern void init_atom_fq_parts(txn_atom *);
-extern int writeback_queued_jnodes(struct super_block *, jnode *,
-			struct writeback_control *);
+extern int writeback_queued_jnodes(struct super_block *, jnode *, struct writeback_control *);
 
 extern void add_fq_to_bio(flush_queue_t *, struct bio *);
 extern flush_queue_t *get_fq_for_current_atom(void);
