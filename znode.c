@@ -202,7 +202,7 @@ znodes_init()
 {
 	znode_slab = kmem_cache_create("znode_cache", sizeof (znode), 0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (znode_slab == NULL) {
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 	} else {
 		return 0;
 	}
@@ -515,7 +515,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 		result = zalloc(gfp_flag);
 		if (!result) {
 			PROF_END(zget, zget);
-			return ERR_PTR(-ENOMEM);
+			return ERR_PTR(RETERR(-ENOMEM));
 		}
 
 		zinit(result, parent, tree);
@@ -552,7 +552,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 		warning("jmacd-504",
 			"Wrong level for cached block %llu: %i expecting %i",
 			*blocknr, znode_get_level(result), level);
-		return ERR_PTR(-EIO);
+		return ERR_PTR(RETERR(-EIO));
 	}
 
 	assert("nikita-1227", znode_invariant(result));
@@ -611,7 +611,7 @@ zparse(znode * node /* znode to parse */ )
 			if (unlikely(result != 0))
 				node->nplug = NULL;
 		} else {
-			result = -EIO;
+			result = RETERR(-EIO);
 		}
 	} else
 		result = 0;
@@ -727,17 +727,6 @@ reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key)
 	assert("nikita-2943", 
 	       znode_is_any_locked(node) || 
 	       keyeq(znode_get_ld_key(node), min_key()));
-
-#if 0
-	printk("znode_set_ld_key: %p %p %p %p %p %p %p %p\n", node,
-	       __builtin_return_address(0),
-	       __builtin_return_address(1),
-	       __builtin_return_address(2),
-	       __builtin_return_address(3),
-	       __builtin_return_address(4),
-	       __builtin_return_address(5),
-	       __builtin_return_address(6));
-#endif
 
 	node->ld_key = *key;
 	return &node->ld_key;
@@ -905,7 +894,7 @@ relocate_locked(znode * node, znode * parent, reiser4_block_nr * blk)
 		}
 		grabbed2free_mark(grabbed);
 	} else
-		result = -EIO;
+		result = RETERR(-EIO);
 	return result;
 }
 

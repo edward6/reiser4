@@ -133,7 +133,7 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 			reiser4_init_pool_obj(result);
 			pool_extra_list_push_front(&pool->extra, result);
 		} else
-			return ERR_PTR(-ENOMEM);
+			return ERR_PTR(RETERR(-ENOMEM));
 	}
 	++pool->objs;
 	pool_level_list_clean(result);

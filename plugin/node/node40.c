@@ -449,7 +449,7 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 			print_key("min", &bstop->key);
 			print_znode("node", node);
 			print_coord_content("coord", coord);
-			return -EIO;
+			return RETERR(-EIO);
 		} else {
 			coord->between = BEFORE_UNIT;
 			return NS_NOT_FOUND;
@@ -463,7 +463,7 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 		print_key("key", key);
 		print_znode("node", node);
 		print_coord_content("coord", coord);
-		return -EIO;
+		return RETERR(-EIO);
 	}
 
 	coord_set_iplug(coord, iplug);
@@ -717,7 +717,7 @@ node40_parse(znode * node /* node to parse */ )
 	}
 	if (result != 0)
 		print_znode("node", node);
-	return result;
+	return RETERR(result);
 }
 
 /* plugin->u.node.init
@@ -1773,7 +1773,7 @@ node40_prepare_for_removal(znode * empty, carry_plugin_info * info)
 		return 0;
 	op = node_post_carry(info, COP_DELETE, empty, 1);
 	if (IS_ERR(op) || op == NULL)
-		return op ? PTR_ERR(op) : -EIO;
+		return RETERR(op ? PTR_ERR(op) : -EIO);
 
 	op->u.delete.child = 0;
 	/* fare thee well */

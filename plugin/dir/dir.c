@@ -147,7 +147,7 @@ common_link(struct inode *parent /* parent directory */ ,
 	    return reserve;
 
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "common_link"))
-	    return -ENOSPC;
+	    return RETERR(-ENOSPC);
 
 	result = reiser4_add_nlink(object, parent, 1);
 	if (result == 0) {
@@ -365,7 +365,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	}
 	object = new_inode(parent->i_sb);
 	if (object == NULL)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 	/* we'll update i_nlink below */
 	object->i_nlink = 0;
 	/* new_inode() initializes i_ino to "arbitrary" value. Reset it to 0,
@@ -423,7 +423,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 
 	reserve = common_estimate_create_child(parent, object);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, __FUNCTION__))
-		return -ENOSPC;
+		return RETERR(-ENOSPC);
 
 	/* mark inode `immutable'. We disable changes to the file being
 	   created until valid directory entry for it is inserted. Otherwise,
@@ -796,7 +796,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 	assert("nikita-2552", tap->lh != NULL);
 
 	if (offset < 0)
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	else if (offset == 0ll) {
 		/* rewind to the beginning of directory */
 		xmemset(pos, 0, sizeof *pos);
@@ -865,7 +865,7 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 	name = iplug->s.dir.extract_name(coord, buf);
 	assert("nikita-1371", name != NULL);
 	if (iplug->s.dir.extract_key(coord, &sd_key) != 0)
-		return -EIO;
+		return RETERR(-EIO);
 
 	/* get key of directory entry */
 	unit_key_by_coord(coord, &de_key);

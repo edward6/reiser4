@@ -96,7 +96,7 @@ test_alloc_blocks(reiser4_space_allocator * allocator, reiser4_blocknr_hint * hi
 			 reiser4_block_count
 			 (reiser4_get_current_sb()), reiser4_free_blocks(reiser4_get_current_sb()));
 
-		return -ENOSPC;
+		return RETERR(-ENOSPC);
 	}
 	allocator->u.test.new_block_nr = min_free;
 

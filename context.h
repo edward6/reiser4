@@ -88,8 +88,9 @@ struct reiser4_context {
 	struct task_struct *task; /* so we can easily find owner of the stack */
 	
 	reiser4_block_nr grabbed_initially;
-	void *grabbed_at[5];
+	backtrace_path   grabbed_at;
 	flushers_list_link  flushers_link;
+	err_site err;
 #endif
 #if REISER4_DEBUG_NODE
 	int disable_node_check;

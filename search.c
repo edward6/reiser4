@@ -51,7 +51,7 @@ cbk_cache_init(cbk_cache * cache /* cache to init */ )
 
 	cache->slot = kmalloc(sizeof (cbk_cache_slot) * cache->nr_slots, GFP_KERNEL);
 	if (cache->slot == NULL)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 
 	cbk_cache_list_init(&cache->lru);
 	for (i = 0; i < cache->nr_slots; ++i) {
@@ -482,7 +482,7 @@ restart:
 		} else if (unlikely(iterations > REISER4_MAX_CBK_ITERATIONS)) {
 			h->error =
 			    "reiser-2018: Too many iterations. Tree corrupted, or (less likely) starvation occurring.";
-			h->result = -EIO;
+			h->result = RETERR(-EIO);
 			break;
 		}
 		switch (cbk_level_lookup(h)) {

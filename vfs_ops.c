@@ -307,7 +307,7 @@ reiser4_readlink(struct dentry *dentry, char *buf, int buflen)
 	assert("vs-852", S_ISLNK(dentry->d_inode->i_mode));
 	reiser4_stat_inc_at(dentry->d_inode->i_sb, vfs_calls.readlink);
 	if (!dentry->d_inode->u.generic_ip || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_VP_USED))
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	return vfs_readlink(dentry, buf, buflen, dentry->d_inode->u.generic_ip);
 }
 
@@ -318,7 +318,7 @@ reiser4_follow_link(struct dentry *dentry, struct nameidata *data)
 
 	reiser4_stat_inc_at(dentry->d_inode->i_sb, vfs_calls.follow_link);
 	if (!dentry->d_inode->u.generic_ip || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_VP_USED))
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	return vfs_follow_link(data, dentry->d_inode->u.generic_ip);
 }
 
@@ -663,7 +663,7 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	if (fplug->readpage != NULL)
 		result = fplug->readpage(f, page);
 	else
-		result = -EINVAL;
+		result = RETERR(-EINVAL);
 	if (result != 0) {
 		SetPageError(page);
 		reiser4_unlock_page(page);
@@ -732,7 +732,7 @@ reiser4_bmap(struct address_space *mapping, sector_t block)
 
 	fplug = inode_file_plugin(mapping->host);
 	if (!fplug || !fplug->get_block) {
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 
 	REISER4_EXIT(generic_block_bmap(mapping, block, fplug->get_block));
@@ -807,7 +807,7 @@ reiser4_do_page_cache_readahead(struct file *file, unsigned long start_page, uns
 
 		iplug = item_plugin_by_coord(&coord);
 		if (!iplug->s.file.page_cache_readahead) {
-			result = -EINVAL;
+			result = RETERR(-EINVAL);
 			zrelse(coord.node);
 			break;
 		}
@@ -1229,7 +1229,7 @@ reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 		/* NOTE-NIKITA use slab in stead */
 		dentry->d_fsdata = reiser4_kmalloc(sizeof (reiser4_dentry_fsdata), GFP_KERNEL);
 		if (dentry->d_fsdata == NULL)
-			return ERR_PTR(-ENOMEM);
+			return ERR_PTR(RETERR(-ENOMEM));
 		xmemset(dentry->d_fsdata, 0, sizeof (reiser4_dentry_fsdata));
 	}
 	return dentry->d_fsdata;
@@ -1270,7 +1270,7 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		/* NOTE-NIKITA use slab in stead */
 		fsdata = reiser4_kmalloc(sizeof *fsdata, GFP_KERNEL);
 		if (fsdata == NULL)
-			return ERR_PTR(-ENOMEM);
+			return ERR_PTR(RETERR(-ENOMEM));
 		xmemset(fsdata, 0, sizeof *fsdata);
 
 		inode = f->f_dentry->d_inode;
@@ -1371,7 +1371,7 @@ init_inodecache(void)
 {
 	inode_cache = kmem_cache_create("reiser4_icache",
 					sizeof (reiser4_inode_object), 0, SLAB_HWCACHE_ALIGN, init_once, NULL);
-	return (inode_cache != NULL) ? 0 : -ENOMEM;
+	return (inode_cache != NULL) ? 0 : RETERR(-ENOMEM);
 }
 
 /* initialise slab cache where reiser4 inodes lived */
@@ -1661,7 +1661,7 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 	case OPT_STRING:
 		if (val_start == NULL) {
 			err_msg = "String arg missing";
-			result = -EINVAL;
+			result = RETERR(-EINVAL);
 		} else
 			*opt->u.string = val_start;
 		break;
@@ -1674,13 +1674,13 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 	case OPT_FORMAT:
 		if (val_start == NULL) {
 			err_msg = "Formatted arg missing";
-			result = -EINVAL;
+			result = RETERR(-EINVAL);
 			break;
 		}
 		if (sscanf(val_start, opt->u.f.format,
 			   opt->u.f.arg1, opt->u.f.arg2, opt->u.f.arg3, opt->u.f.arg4) != opt->u.f.nr_args) {
 			err_msg = "Wrong conversion";
-			result = -EINVAL;
+			result = RETERR(-EINVAL);
 		}
 		break;
 	case OPT_ONEOF:
@@ -1691,7 +1691,7 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 
 			if (*opt->u.plugin.addr != NULL) {
 				err_msg = "Plugin already set";
-				result = -EINVAL;
+				result = RETERR(-EINVAL);
 				break;
 			}
 
@@ -1700,7 +1700,7 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 				*opt->u.plugin.addr = plug;
 			else {
 				err_msg = "Wrong plugin";
-				result = -EINVAL;
+				result = RETERR(-EINVAL);
 			}
 			break;
 		}
@@ -1743,7 +1743,7 @@ parse_options(char *opt_string /* starting point */ ,
 			warning("nikita-2307", "Unrecognized option: \"%s\"", opt_string);
 			/* traditionally, -EINVAL is returned on wrong mount
 			   option */
-			result = -EINVAL;
+			result = RETERR(-EINVAL);
 		}
 		opt_string = next;
 	}
@@ -1992,7 +1992,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	sbinfo->optimal_io_size <<= VFS_BLKSIZE_BITS;
 	if (sbinfo->optimal_io_size == 0) {
 		warning("nikita-2497", "optimal_io_size is too small");
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 #if REISER4_TRACE_TREE
 	if (trace_file_name != NULL)
@@ -2148,7 +2148,7 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 	sbinfo = kmalloc(sizeof (reiser4_super_info_data), GFP_KERNEL);
 
 	if (!sbinfo)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 
 	s->s_fs_info = sbinfo;
 	memset(sbinfo, 0, sizeof (*sbinfo));
@@ -2169,7 +2169,7 @@ read_super_block:
 	/* look for reiser4 magic at hardcoded place */
 	super_bh = sb_bread(s, (int) (REISER4_MAGIC_OFFSET / s->s_blocksize));
 	if (!super_bh) {
-		result = -EIO;
+		result = RETERR(-EIO);
 		goto error1;
 	}
 
@@ -2217,6 +2217,8 @@ read_super_block:
 
 	spin_super_init(sbinfo);
 	spin_super_eflush_init(sbinfo);
+
+	init_tree_0(&sbinfo->tree);
 
 	/* init layout plugin */
 	sbinfo->df_plug = df_plug;
@@ -2269,7 +2271,7 @@ read_super_block:
 	/* allocate dentry for root inode, It works with inode == 0 */
 	s->s_root = d_alloc_root(inode);
 	if (!s->s_root) {
-		result = -ENOMEM;
+		result = RETERR(-ENOMEM);
 		goto error4;
 	}
 	s->s_root->d_op = &reiser4_dentry_operation;
@@ -2475,7 +2477,7 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 			assert("nikita-3149", 
 			       !JF_ISSET(node, JNODE_FLUSH_QUEUED));
 			uncapture_page(page);
-			UNDER_SPIN_VOID(jnode, 
+			UNDER_SPIN_VOID(jnode,
 					node, page_clear_jnode(page, node));
 			jput(node);
 		}
@@ -2556,7 +2558,9 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 			spin_jnode_inc();
 
 		jref(node);
-		jnode_wait_fq(node);
+		/* there is no need to synchronize against
+		 * jnode_extent_write() here, because pages seen by
+		 * jnode_extent_write() are !releasable(). */
 		page_clear_jnode(page, node);
 		UNLOCK_JNODE(node);
 

@@ -51,7 +51,7 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 		if (!znode_just_created(result)) {
 			warning("nikita-2213", "Allocated already existing block: %llu", blocknr);
 			zput(result);
-			return ERR_PTR(-EIO);
+			return ERR_PTR(RETERR(-EIO));
 		}
 
 		/* @result is created and inserted into hash-table. There is
@@ -126,7 +126,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 		  
 		   -EXFULL? -EINVAL?
 		*/
-		result = -ENOSPC;
+		result = RETERR(-ENOSPC);
 	} else {
 		/* Allocate block for new root. It's not that
 		   important where it will be allocated, as root is

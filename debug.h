@@ -209,6 +209,17 @@ extern lock_counters_info *lock_counters(void);
 #define lock_counters() ((lock_counters_info *)NULL)
 #endif
 
+#if REISER4_DEBUG
+/* update debug.c:fill_backtrace() if you change this */
+#define REISER4_BACKTRACE_DEPTH (6)
+typedef void *backtrace_path[REISER4_BACKTRACE_DEPTH];
+extern void fill_backtrace(backtrace_path path);
+#else
+typedef struct {} backtrace_path;
+#define fill_backtrace(path) noop
+#endif
+
+
 /* flags controlling debugging behavior. Are set through debug_flags=N mount
    option. */
 typedef enum {
@@ -346,11 +357,10 @@ extern __u32 reiser4_current_trace_flags;
 #include <asm-i386/msr.h>
 
 #define REISER4_PROF_TRACE_NUM (8)
-#define REISER4_PROF_TRACE_DEPTH (6)
 
 typedef struct reiser4_trace {
 	unsigned long hash;
-	void *trace[REISER4_PROF_TRACE_DEPTH];
+	backtrace_path path;
 	__u64 hits;
 } reiser4_trace;
 
@@ -948,6 +958,30 @@ extern void *xmemset(void *s, int c, size_t n);
 })
 #else
 #define DEBUGON(cond) noop
+#endif
+
+#if REISER4_DEBUG
+typedef struct err_site {
+	backtrace_path path;
+	int            code;
+	const char    *file;
+	int            line;
+} err_site;
+extern void return_err(int code, const char *file, int line);
+extern void report_err(void);
+
+#define RETERR(code) 				\
+({						\
+	typeof(code) __code;			\
+						\
+	__code = (code);			\
+	return_err(__code, __FILE__, __LINE__);	\
+	__code;					\
+})
+
+#else
+typedef struct err_site {} err_site;
+#define RETERR(code) code
 #endif
 
 /* __FS_REISER4_DEBUG_H__ */

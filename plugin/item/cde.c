@@ -966,7 +966,7 @@ cde_rem_entry(struct inode *dir /* directory of item */ ,
 
 	if (inode_get_bytes(dir) < length) {
 		warning("nikita-2628", "Dir is broke: %llu: %llu", get_inode_oid(dir), inode_get_bytes(dir));
-		return -EIO;
+		return RETERR(-EIO);
 	}
 
 	/* cut_node() is supposed to take pointers to _different_

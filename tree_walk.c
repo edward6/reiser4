@@ -84,7 +84,7 @@ lock_neighbor(
 
 		if (neighbor == NULL || !((flags & GN_ALLOW_NOT_CONNECTED)
 					  || znode_is_connected(neighbor))) {
-			return -E_NO_NEIGHBOR;
+			return RETERR(-E_NO_NEIGHBOR);
 		}
 
 		/* protect it from deletion. */
@@ -177,7 +177,7 @@ lock_side_neighbor(lock_handle * result, znode * node, znode_lock_mode mode, int
 				   * tree; in this case we return -ENOENT --
 				   * means neighbor at least not found in
 				   * cache */
-		return -ENOENT;
+		return RETERR(-ENOENT);
 
 	return ret;
 }
@@ -326,7 +326,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 		if (!item_is_internal(coord)) {
 			link_znodes(child, NULL, flags & GN_GO_LEFT);
 			/* we know there can't be formatted neighbor */
-			return -E_NO_NEIGHBOR;
+			return RETERR(-E_NO_NEIGHBOR);
 		}
 
 		iplug->s.internal.down_link(coord, NULL, &da);
@@ -591,7 +591,7 @@ again:
 		return ret;
 	if (znode_above_root(path[0].node)) {
 		longterm_unlock_znode(&path[0]);
-		return -E_NO_NEIGHBOR;
+		return RETERR(-E_NO_NEIGHBOR);
 	}
 
 	while (1) {
@@ -640,7 +640,7 @@ again:
 				goto fail;
 			++h;
 			if (znode_above_root(path[h].node)) {
-				ret = -E_NO_NEIGHBOR;
+				ret = RETERR(-E_NO_NEIGHBOR);
 				goto fail;
 			}
 			break;

@@ -259,7 +259,7 @@ handle_default_plugin_option(char *option,	/* Option should has form
 	plug_label = strchr(option, ':');
 	if (plug_label == NULL) {
 		printk("Use 'plug=type:label'\n");
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 
 	*plug_label = '\0';
@@ -268,13 +268,13 @@ handle_default_plugin_option(char *option,	/* Option should has form
 	plugin = lookup_plugin(type_label, plug_label);
 	if (plugin == NULL) {
 		printk("Unknown plugin: %s:%s\n", type_label, plug_label);
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 	if (area[plugin->h.type_id] != NULL) {
 		printk("Plugin already set\n");
 		print_plugin("existing", area[plugin->h.type_id]);
 		print_plugin("new", plugin);
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 	area[plugin->h.type_id] = plugin;
 	return 0;
@@ -377,7 +377,7 @@ locate_plugin(struct inode *inode, plugin_locator * loc)
 		loc->id = plugin->h.id;
 		return 0;
 	} else
-		return -EINVAL;
+		return RETERR(-EINVAL);
 
 }
 #endif

@@ -338,7 +338,7 @@ allocate_inv_entry(void)
 
 	inv_entry = reiser4_kmalloc(sizeof (struct inv_entry), GFP_KERNEL);
 	if (!inv_entry)
-		return ERR_PTR(-ENOMEM);
+		return ERR_PTR(RETERR(-ENOMEM));
 	inv_entry->ie_file = NULL;
 	inv_entry->ie_sd = NULL;
 	INIT_LIST_HEAD(&inv_entry->ie_list);
@@ -372,7 +372,7 @@ allocate_incore_sd_base(struct inv_entry *inv_entry)
 
 	isd_base = reiser4_kmalloc(sizeof (struct incore_sd_base), GFP_KERNEL);
 	if (!isd_base)
-		return (-ENOMEM);
+		return RETERR(-ENOMEM);
 	inv_entry->ie_sd = isd_base;
 	return 0;
 }

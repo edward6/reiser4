@@ -559,7 +559,7 @@ check_lock_object(lock_stack * owner)
 	/* See if the node is disconnected. */
 	if (unlikely(ZF_ISSET(node, JNODE_IS_DYING))) {
 		trace_on(TRACE_LOCKS, "attempt to lock dying znode: %p", node);
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 
 	/* Do not ever try to take a lock if we are going in low priority
@@ -1151,7 +1151,7 @@ prepare_to_sleep(lock_stack * owner)
 	}
 
 	if (unlikely(atomic_read(&owner->nr_signaled) != 0 && !owner->curpri)) {
-		return -EDEADLK;
+		return RETERR(-EDEADLK);
 	}
 	return 0;
 }

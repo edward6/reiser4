@@ -274,7 +274,7 @@ is_writepage_done(jnode *node, int *iterations)
 	 * memory scan.
 	 */
 	if (++ (*iterations) > 100)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 
 	return 0;
 }

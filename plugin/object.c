@@ -259,7 +259,7 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 					ref->sd_coord = coord;
 					check_inode_seal(inode, &coord, &key);
 				} else
-					result = -EIO;
+					result = RETERR(-EIO);
 			}
 			zrelse(coord.node);
 		}
@@ -475,7 +475,7 @@ common_file_delete(struct inode *inode /* object to remove */ )
 			warning("nikita-2847", 
 				"Cannot delete unnamed sd of %lli. Run fsck", 
 				get_inode_oid(inode));
-			return -ENOSPC;
+			return RETERR(-ENOSPC);
 		}
 		result = common_file_delete_no_reserve(inode);
 	} else
@@ -494,7 +494,7 @@ static int common_delete_directory(struct inode *inode)
 
 	/* grab space enough for removing two items */
 	if (reiser4_grab_space(2 * estimate_one_item_removal(tree_by_inode(inode)->height), BA_RESERVED | BA_CAN_COMMIT, "common_delete_directory"))
-		return -ENOSPC;
+		return RETERR(-ENOSPC);
 
 	result = dplug->done(inode);
 	if (!result)
@@ -580,7 +580,7 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 		break;
 	default:
 		warning("nikita-737", "wrong file mode: %o", inode->i_mode);
-		return -EIO;
+		return RETERR(-EIO);
 	case S_IFREG:
 		fplug_id = UNIX_FILE_PLUGIN_ID;
 		break;
@@ -620,7 +620,7 @@ common_file_create(struct inode *object, struct inode *parent,
 
 	if (reiser4_grab_space(reserve = 
 			       common_estimate_create(object), BA_CAN_COMMIT, "common_file_create")) {
-		return -ENOSPC;
+		return RETERR(-ENOSPC);
 	}
 	return common_file_save(object);
 }

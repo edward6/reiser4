@@ -286,7 +286,7 @@ error:
 	if (_txnh_slab != NULL) {
 		kmem_cache_destroy(_txnh_slab);
 	}
-	return -ENOMEM;
+	return RETERR(-ENOMEM);
 }
 
 /* Un-initialize static variables in this file. */
@@ -709,7 +709,7 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 		(*atom_alloc) = kmem_cache_alloc(_atom_slab, GFP_KERNEL);
 
 		if (*atom_alloc == NULL)
-			return ERR_PTR(-ENOMEM);
+			return ERR_PTR(RETERR(-ENOMEM));
 	}
 
 	/* and, also, txnmgr spin lock should be taken before jnode and txnh
@@ -1633,7 +1633,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 			if (mode & TXN_CAPTURE_DONT_FUSE) {
 				UNLOCK_TXNH(txnh);
 				UNLOCK_JNODE(node);
-				return -E_NO_NEIGHBOR;
+				return RETERR(-E_NO_NEIGHBOR);
 			}
 
 			/* In this case, both txnh and node belong to different atoms.  This function
@@ -2896,7 +2896,7 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 	UNLOCK_ATOM(atomf);
 	ON_SMP(assert("nikita-2187", spin_jnode_is_not_locked(node)));
 #endif
-	return -EIO;
+	return RETERR(-EIO);
 }
 
 /* Release a block from the atom, reversing the effects of being captured.

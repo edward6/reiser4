@@ -88,7 +88,7 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block
 
 		fixmap_bh = sb_bread(s, get_super_private(s)->fixmap_block);
 		if ( !fixmap_bh )
-			return ERR_PTR(-EIO);
+			return ERR_PTR(RETERR(-EIO));
 
 		fixmap = (struct format40_fixmap_block *) fixmap_bh->b_data;
 		/* Compare magic */
@@ -96,7 +96,7 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block
 			/* Wrong magic */
 			brelse(fixmap_bh);
 			warning("green-2003", "fixmap is specified, but its magic is wrong");
-			return ERR_PTR(-EINVAL);
+			return ERR_PTR(RETERR(-EINVAL));
 		}
 
 		/* Check for alternative superblock location */
@@ -114,12 +114,12 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG, reiser4_block
 #endif
 
 	if (!(super_bh = sb_bread(s, rootblock)))
-		return ERR_PTR(-EIO);
+		return ERR_PTR(RETERR(-EIO));
 
 	disk_sb = (format40_disk_super_block *) super_bh->b_data;
 	if (strcmp(disk_sb->magic, FORMAT40_MAGIC)) {
 		brelse(super_bh);
-		return ERR_PTR(-EINVAL);
+		return ERR_PTR(RETERR(-EINVAL));
 	}
 
 	reiser4_set_block_count(s, d64tocpu(&disk_sb->block_count));
@@ -154,7 +154,7 @@ get_super_jnode(struct super_block *s)
 
 		fixmap_bh = sb_bread(s, get_super_private(s)->fixmap_block);
 		if ( !fixmap_bh )
-			return -EIO;
+			return RETERR(-EIO);
 
 		fixmap = (struct format40_fixmap_block *) fixmap_bh->b_data;
 		/* Compare magic, all of this is redundant sunce we have already checked this
@@ -163,7 +163,7 @@ get_super_jnode(struct super_block *s)
 			/* Wrong magic */
 			brelse(fixmap_bh);
 			warning("green-2004", "fixmap is specified, but its magic is wrong");
-			return -EINVAL;
+			return RETERR(-EINVAL);
 		}
 
 		/* Check for alternative superblock location */
@@ -230,8 +230,6 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	if (IS_ERR(super_bh))
 		return PTR_ERR(super_bh);
 	brelse(super_bh);
-
-	init_tree_0(&sbinfo->tree);
 
 	/* map jnodes for journal control blocks (header, footer) to disk  */
 	result = init_journal_info(s, &jheader_block, &jfooter_block);
@@ -376,7 +374,7 @@ format40_release(struct super_block *s)
 	/* FIXME-UMKA: Should we tell block transaction manager to commit all if 
 	 * we will have no space left? */
 	if (reiser4_grab_space(1, BA_RESERVED, "format40_release"))
-		return -ENOSPC;
+		return RETERR(-ENOSPC);
 	    
 	if ((ret = capture_super_block(s))) {
 		warning("vs-898", "capture_super_block failed in umount: %d", ret);

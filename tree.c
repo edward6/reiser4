@@ -197,7 +197,7 @@ insert_with_carry_by_coord(coord_t * coord /* coord where to insert */ ,
 
 	op = post_carry(&lowest_level, cop, coord->node, 0);
 	if (IS_ERR(op) || (op == NULL))
-		return op ? PTR_ERR(op) : -EIO;
+		return RETERR(op ? PTR_ERR(op) : -EIO);
 	cdata.coord = coord;
 	cdata.data = data;
 	cdata.key = key;
@@ -251,7 +251,7 @@ paste_with_carry(coord_t * coord /* coord of paste */ ,
 
 	op = post_carry(&lowest_level, COP_PASTE, coord->node, 0);
 	if (IS_ERR(op) || (op == NULL))
-		return op ? PTR_ERR(op) : -EIO;
+		return RETERR(op ? PTR_ERR(op) : -EIO);
 	cdata.coord = coord;
 	cdata.data = data;
 	cdata.key = key;
@@ -487,7 +487,7 @@ resize_result resize_item(coord_t * coord /* coord of item being resized */ ,
 		op = post_carry(&lowest_level, COP_CUT, coord->node, 0);
 		if (IS_ERR(op) || (op == NULL)) {
 			zrelse(node);
-			return op ? PTR_ERR(op) : -EIO;
+			return RETERR(op ? PTR_ERR(op) : -EIO);
 		}
 		not_yet("nikita-1263", "resize_item() can not cut data yet");
 	} else
@@ -512,7 +512,7 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 
 	op = post_carry(&lowest_level, COP_INSERT_FLOW, coord->node, 0 /* operate directly on coord -> node */ );
 	if (IS_ERR(op) || (op == NULL))
-		return op ? PTR_ERR(op) : -EIO;
+		return RETERR(op ? PTR_ERR(op) : -EIO);
 
 	/* these are permanent during insert_flow */
 	data.user = 1;
@@ -559,7 +559,7 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 		/* trying to get child of leaf node */
 		warning("nikita-1217", "Child of maize?");
 		print_znode("node", parent);
-		return ERR_PTR(-EIO);
+		return ERR_PTR(RETERR(-EIO));
 	}
 	if (item_is_internal(parent_coord)) {
 		reiser4_block_nr addr;
@@ -580,7 +580,7 @@ child_znode(const coord_t * parent_coord	/* coord of pointer to
 	} else {
 		warning("nikita-1483", "Internal item expected");
 		print_znode("node", parent);
-		child = ERR_PTR(-EIO);
+		child = ERR_PTR(RETERR(-EIO));
 	}
 	return child;
 }
@@ -671,7 +671,7 @@ find_new_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	ret = find_child_ptr(parent, left, result);
 	if (ret != NS_FOUND) {
 		warning("nikita-1489", "Cannot find brother position: %i", ret);
-		return -EIO;
+		return RETERR(-EIO);
 	} else {
 		result->between = AFTER_UNIT;
 		return NS_NOT_FOUND;
@@ -844,7 +844,7 @@ insert_new_node(coord_t * insert_coord, lock_handle * lh)
 	init_carry_level(&this_level, &pool);
 	init_carry_level(&parent_level, &pool);
 
-	new_znode = ERR_PTR(-EIO);
+	new_znode = ERR_PTR(RETERR(-EIO));
 	cn = add_new_znode(insert_coord->node, 0, &this_level, &parent_level);
 	if (!IS_ERR(cn)) {
 		result = longterm_lock_znode(lh, carry_real(cn), 
@@ -953,7 +953,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 			case -EDEADLK:
 				/* need to restart */
 			default:
-				return result;
+				return RETERR(result);
 			}
 
 			/* we have acquired left neighbor of from->node */
@@ -1139,7 +1139,7 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 	   (getting rid of betweenness) */
 	if (coord_set_to_right(from) || coord_set_to_left(to)) {
 		warning("jmacd-18128", "coord_set failed");
-		return -EIO;
+		return RETERR(-EIO);
 	}
 
 	/* make sure that @from and @to are set to existing units in the
@@ -1161,7 +1161,7 @@ cut_node(coord_t * from		/* coord of the first unit/item that will be
 
 	op = post_carry(&lowest_level, COP_CUT, from->node, 0);
 	if (IS_ERR(op) || (op == NULL))
-		return op ? PTR_ERR(op) : -EIO;
+		return RETERR(op ? PTR_ERR(op) : -EIO);
 
 	cdata.from = from;
 	cdata.to = to;

@@ -71,8 +71,8 @@ hashed_init(struct inode *object /* new directory */ ,
 	trace_stamp(TRACE_DIR);
 
 	reserve = hashed_estimate_init(parent, object);
-	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "hashed_init: reserve for creating \".\" and \"..\"?"))
-		return -ENOSPC;
+	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, __FUNCTION__))
+		return RETERR(-ENOSPC);
 	
 	return create_dot_dotdot(object, parent);
 }
@@ -124,7 +124,7 @@ hashed_done(struct inode *object /* object being deleted */)
 	reserve = hashed_estimate_done(object);
 	if (reiser4_grab_space(reserve, 
 			       BA_CAN_COMMIT | BA_RESERVED, "hashed_done")) 
-		return -ENOSPC;
+		return RETERR(-ENOSPC);
 				
 	xmemset(&goodby_dots, 0, sizeof goodby_dots);
 	entry.obj = goodby_dots.d_inode = object;
@@ -393,7 +393,7 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 	} else {
 		warning("nikita-2326", "Unexpected item type");
 		print_plugin("item", item_plugin_to_plugin(from_item));
-		result = -EIO;
+		result = RETERR(-EIO);
 	}
 	zrelse(node);
 	return result;
@@ -554,7 +554,7 @@ static int hashed_rename_estimate_and_grab(
 	reserve = hashed_estimate_rename(old_dir, old_name, new_dir, new_name);
 	
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "hashed_rename"))
-		return -ENOSPC;
+		return RETERR(-ENOSPC);
 
 	return 0;
 }
@@ -736,7 +736,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 			/* VFS told us that @new_name is "negative" dentry,
 			   but we found directory entry. */
 			warning("nikita-2331", "Target found unexpectedly");
-			result = -EIO;
+			result = RETERR(-EIO);
 		}
 	}
 
@@ -797,7 +797,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 			/* replace_name() decreases i_nlink on @old_dir */
 		} else {
 			warning("nikita-2336", "Dotdot not found in %llu", get_inode_oid(old_inode));
-			result = -EIO;
+			result = RETERR(-EIO);
 		}
 		done_lh(&dotdot_lh);
 		reiser4_free_dentry_fsdata(&dotdot_name);
@@ -834,7 +834,7 @@ hashed_add_entry(struct inode *object	/* directory to add new name
 		
 	reserve = inode_dir_plugin(object)->estimate.add_entry(object);
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "hashed_add_entry"))
-		return -ENOSPC;
+		return RETERR(-ENOSPC);
 
 	init_lh(&lh);
 	trace_on(TRACE_DIR, "[%i]: creating \"%s\" in %llu\n", current->pid, where->d_name.name, get_inode_oid(object));
@@ -879,7 +879,7 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 	assert("nikita-1125", where != NULL);
 
 	if (reiser4_grab_space(inode_dir_plugin(object)->estimate.rem_entry(object), BA_CAN_COMMIT | BA_RESERVED, __FUNCTION__))
-		return -ENOSPC;
+		return RETERR(-ENOSPC);
 	
 	init_lh(&lh);
 
@@ -900,7 +900,7 @@ hashed_rem_entry(struct inode *object	/* directory from which entry
 				INODE_DEC_FIELD(object, i_size);
 			else {
 				warning("nikita-2509", "Dir %llu is runt", get_inode_oid(object));
-				result = -EIO;
+				result = RETERR(-EIO);
 			}
 		}
 	}
@@ -1031,7 +1031,7 @@ find_entry(const struct inode *dir /* directory to scan */,
 				if (result == 0) {
 					coord_dup(coord, &arg.last_coord);
 					move_lh(lh, &arg.last_lh);
-					result = -ENOENT;
+					result = RETERR(-ENOENT);
 					zrelse(arg.last_coord.node);
 					--arg.non_uniq;
 				}
@@ -1106,14 +1106,14 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
 	if (iplug == NULL) {
 		warning("nikita-1135", "Cannot get item plugin");
 		print_coord("coord", coord, 1);
-		return -EIO;
+		return RETERR(-EIO);
 	} else if (item_id_by_coord(coord) != item_id_by_plugin(inode_dir_item_plugin(dir))) {
 		/* item id of current item does not match to id of items a
 		   directory is built of */
 		warning("nikita-1136", "Wrong item plugin");
 		print_coord("coord", coord, 1);
 		print_plugin("plugin", item_plugin_to_plugin(iplug));
-		return -EIO;
+		return RETERR(-EIO);
 	}
 	assert("nikita-1137", iplug->s.dir.extract_name);
 

@@ -435,7 +435,7 @@ eflush_init(void)
 	eflush_slab = kmem_cache_create("eflush_cache", sizeof (eflush_node_t), 
 					0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (eflush_slab == NULL)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 	else
 		return 0;
 }
@@ -756,7 +756,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	if (result == 0) {
 		*efnode = ef_alloc(GFP_NOFS | __GFP_HIGH);
 		if (*efnode == NULL)
-			result = -ENOMEM;
+			result = RETERR(-ENOMEM);
 		else {
 #if REISER4_DEBUG
 			(*efnode)->initial_stage = hint->block_stage;

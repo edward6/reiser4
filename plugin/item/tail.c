@@ -317,7 +317,7 @@ static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t 
 	int result;
 	loff_t new_size;
 	
-	if (hint && coord_state != COORD_WRONG_STATE)
+	if (hint && coord_state == COORD_RIGHT_STATE)
 		set_hint(hint, &f->key, coord, coord_state);
 	else
 		unset_hint(hint);
@@ -411,7 +411,7 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f, str
 			break;
 		default:
 			impossible("vs-1031", "does this ever happen?");
-			result = -EIO;
+			result = RETERR(-EIO);
 			break;
 
 		}

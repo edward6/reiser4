@@ -572,7 +572,7 @@ bitmap_init_allocator(reiser4_space_allocator * allocator, struct super_block *s
 	data = reiser4_kmalloc(sizeof (struct bitmap_allocator_data), GFP_KERNEL);
 
 	if (data == NULL)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 
 	/* allocation and initialization for the array of bnodes */
 	bitmap_blocks_nr = get_nr_bmap(super);
@@ -585,7 +585,7 @@ bitmap_init_allocator(reiser4_space_allocator * allocator, struct super_block *s
 
 	if (data->bitmap == NULL) {
 		reiser4_kfree(data, (size_t) (sizeof (struct bnode) * bitmap_blocks_nr));
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 	}
 
 	for (i = 0; i < bitmap_blocks_nr; i++)
@@ -659,11 +659,11 @@ prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 
 	*wjnode_ret = wjnode = bnew();
 	if (wjnode == NULL)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 
 	*cjnode_ret = cjnode = bnew();
 	if (cjnode == NULL)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 
 	bmap = bnode - get_bnode(super, 0);
 
@@ -953,7 +953,7 @@ bitmap_alloc_blocks(reiser4_space_allocator * allocator UNUSED_ARG,
 
 out:
 	if (actual_len == 0)
-		return -ENOSPC;
+		return RETERR(-ENOSPC);
 
 	if (actual_len < 0)
 		return actual_len;

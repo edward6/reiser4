@@ -170,7 +170,7 @@ int plugin_set_field(plugin_set **set, void *val, int offset, int len)
 					psal = kmem_cache_alloc(plugin_set_slab,
 								GFP_KERNEL);
 					if (psal == NULL)
-						result = -ENOMEM;
+						result = RETERR(-ENOMEM);
 					continue;
 				}
 				*(*set = psal) = replica;
@@ -217,7 +217,7 @@ int plugin_set_init(void)
 						    SLAB_HWCACHE_ALIGN, 
 						    NULL, NULL);
 		if (plugin_set_slab == NULL)
-			result = -ENOMEM;
+			result = RETERR(-ENOMEM);
 	}
 	return result;
 }

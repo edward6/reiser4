@@ -224,7 +224,7 @@ init_formatted_fake(struct super_block *super)
 		unlock_new_inode(fake);
 		return 0;
 	} else
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 }
 
 /* release fake inode for @super */
@@ -484,7 +484,7 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 
 		return bio;
 	} else
-		return ERR_PTR(-ENOMEM);
+		return ERR_PTR(RETERR(-ENOMEM));
 }
 
 /* Common memory pressure notification. */
@@ -558,7 +558,7 @@ page_common_writeback(struct page *page /* page to start writeback from */ ,
 		result = emergency_flush(page);
 	else {
 		/* race with truncate? */
-		result = -EINVAL;
+		result = RETERR(-EINVAL);
 	}
 	if (result <= 0)
 		REISER4_EXIT(WRITEPAGE_ACTIVATE);

@@ -2261,7 +2261,7 @@ overwrite_one_block(coord_t * coord, lock_handle * lh, jnode * j, reiser4_key * 
 
 	default:
 		impossible("vs-238", "extent of unknown type found");
-		return -EIO;
+		return RETERR(-EIO);
 	}
 
 	return 0;
@@ -2398,7 +2398,7 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 
 	if (!PageUptodate(page)) {
 		warning("jmacd-61238", "prepare_page: page not up to date");
-		result = -EIO;
+		result = RETERR(-EIO);
 	}
 	
  done:
@@ -2422,7 +2422,7 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 	loff_t new_size;
 	PROF_BEGIN(extent_bdp);
 
-	if (hint && coord_state != COORD_WRONG_STATE)
+	if (hint && coord_state == COORD_RIGHT_STATE)
 		set_hint(hint, &f->key, coord, coord_state);
 	else
 		unset_hint(hint);
@@ -2525,7 +2525,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 
 		page = prof_grab_cache_page(inode->i_mapping, index);
 		if (!page) {
-			result = -ENOMEM;
+			result = RETERR(-ENOMEM);
 			goto exit1;
 		}
 
@@ -2745,7 +2745,7 @@ extent_read(struct file *file, coord_t *coord, flow_t * f)
 		page_detach_jnode(page, inode->i_mapping, page_nr);
 		page_cache_release(page);
 		warning("jmacd-97178", "extent_read: page is not up to date");
-		return -EIO;
+		return RETERR(-EIO);
 	}
 
 	/* position within the page to read from */
@@ -2814,7 +2814,7 @@ extent_readpage(coord_t * coord, struct page *page)
 	assert("vs-1047", (page->mapping->host->i_ino == get_key_objectid(item_key_by_coord(coord, &key))));
 
 	if (!offset_is_in_item(coord, ((loff_t) page->index) << PAGE_CACHE_SHIFT, &pos))
-		return -EINVAL;
+		return RETERR(-EINVAL);
 
 	switch (state_of_extent(extent_by_coord(coord))) {
 	case HOLE_EXTENT:
@@ -2858,7 +2858,7 @@ extent_readpage(coord_t * coord, struct page *page)
 
 	default:
 		impossible("vs-957", "extent_readpage: wrong extent");
-		return -EIO;
+		return RETERR(-EIO);
 	}
 
 	page_io(page, j, READ, GFP_NOIO);

@@ -90,6 +90,7 @@ reiser4_print_prefix(const char *level, const char *mid,
 	}
 	printk("%s reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n",
 	       level, comm, pid, function, file, lineno, mid);
+	report_err();
 }
 
 /* Preemption point: this should be called periodically during long running
@@ -250,14 +251,9 @@ update_prof_trace(reiser4_prof_cnt *cnt)
 	int minind;
 	__u64 minhit;
 	unsigned long hash;
-	void *bt[REISER4_PROF_TRACE_DEPTH];
+	backtrace_path bt;
 
-	bt[0] = __builtin_return_address(2);
-	bt[1] = __builtin_return_address(3);
-	bt[2] = __builtin_return_address(4);
-	bt[3] = __builtin_return_address(5);
-	bt[4] = __builtin_return_address(6);
-	bt[5] = __builtin_return_address(7);
+	fill_backtrace(bt);
 
 	for (i = 0, hash = 0 ; i < REISER4_PROF_TRACE_DEPTH ; ++ i) {
 		hash <<= 4;
@@ -822,6 +818,50 @@ commit_check_locks()
 	counters->inode_sem_w = inode_sem_w;
 	return result;
 }
+
+void 
+return_err(int code, const char *file, int line)
+{
+	if (code < 0) {
+		reiser4_context *ctx = get_current_context();
+
+		if (ctx != NULL) {
+			fill_backtrace(ctx->err.path);
+			ctx->err.code = code;
+			ctx->err.file = file;
+			ctx->err.line = line;
+		}
+	}
+}
+
+void 
+report_err(void)
+{
+	reiser4_context *ctx = get_current_context_check();
+
+	if (ctx != NULL) {
+		if (ctx->err.code != 0) {
+			int i;
+			printk("code: %i at %s:%i", 
+			       ctx->err.code, ctx->err.file, ctx->err.line);
+			for (i = 0; i < REISER4_BACKTRACE_DEPTH ; ++ i)
+				printk("%p ", ctx->err.path[i]);
+			printk("\n");
+		}
+	}
+}
+
+#ifdef CONFIG_FRAME_POINTER
+void fill_backtrace(backtrace_path path)
+{
+	path[0] = __builtin_return_address(1);
+	path[1] = __builtin_return_address(2);
+	path[2] = __builtin_return_address(3);
+	path[3] = __builtin_return_address(4);
+	path[4] = __builtin_return_address(5);
+	path[5] = __builtin_return_address(6);
+}
+#endif
 #endif
 
 #if KERNEL_DEBUGGER

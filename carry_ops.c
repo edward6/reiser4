@@ -1644,15 +1644,15 @@ update_delimiting_key(znode * parent	/* node key is updated
 		if ((left_pos.node != NULL)
 		    && !coord_is_existing_unit(&left_pos)) {
 			*error_msg = "Left child is bastard";
-			return -EIO;
+			return RETERR(-EIO);
 		}
 		if (!coord_is_existing_unit(&right_pos)) {
 			*error_msg = "Right child is bastard";
-			return -EIO;
+			return RETERR(-EIO);
 		}
 		if ((left_pos.node != NULL) && !coord_are_neighbors(&left_pos, &right_pos)) {
 			*error_msg = "Children are not direct siblings";
-			return -EIO;
+			return RETERR(-EIO);
 		}
 	}
 	*error_msg = NULL;
@@ -1730,7 +1730,7 @@ carry_update(carry_op * op /* operation to be performed */ ,
 					       lchild ? lchild->node : NULL, rchild->node, doing, todo, &error_msg);
 	} else {
 		error_msg = "Cannot find node to update key in";
-		result = -EIO;
+		result = RETERR(-EIO);
 	}
 	/* operation will be reposted to the next level by the
 	   ->update_item_key() method of node plugin, if necessary. */

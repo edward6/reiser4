@@ -99,7 +99,7 @@ PREFIX##_hash_init (PREFIX##_hash_table *hash,						\
   hash->_stats = stats; 								\
   if (hash->_table == NULL)								\
     {											\
-      return -ENOMEM;									\
+      return RETERR(-ENOMEM);								\
     }											\
   xmemset (hash->_table, 0, sizeof (ITEM_TYPE*) * buckets);				\
   return 0;										\

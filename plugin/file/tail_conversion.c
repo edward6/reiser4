@@ -390,7 +390,7 @@ tail2extent(struct inode *inode)
 			pages[i] = grab_cache_page(inode->i_mapping, (unsigned long) (get_key_offset(&key)
 										      >> PAGE_CACHE_SHIFT));
 			if (!pages[i]) {
-				result = -ENOMEM;
+				result = RETERR(-ENOMEM);
 				goto error;
 			}
 
@@ -441,7 +441,7 @@ tail2extent(struct inode *inode)
 					/* something other than tail found. This is only possible when first item of a
 					   file found during call to reiser4_mmap.
 					*/
-					result = -EIO;
+					result = RETERR(-EIO);
 					if (get_key_offset(&key) == 0 && item_id_by_coord(&coord) == EXTENT_POINTER_ID)
 						result = 0;
 
@@ -661,7 +661,7 @@ extent2tail(struct inode *inode)
 
 		if (!PageUptodate(page)) {
 			page_cache_release(page);
-			result = -EIO;
+			result = RETERR(-EIO);
 			break;
 		}
 

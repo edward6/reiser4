@@ -49,7 +49,7 @@ int dscale_read(char *address, __u64 *value)
 		shift = 1;
 		break;
 	default:
-		return -EIO;
+		return RETERR(-EIO);
 	}
 	cleartag(value);
 	return shift + (1 << tag);

@@ -283,7 +283,7 @@ internal_kill_hook(const coord_t * item /* coord of item */ ,
 		print_znode("parent", item->node);
 		print_znode("child", child);
 		zput(child);
-		return -EIO;
+		return RETERR(-EIO);
 	}
 }
 

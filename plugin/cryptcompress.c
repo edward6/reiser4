@@ -66,7 +66,7 @@ extern int common_file_save(struct inode *inode);
 
 	info->expkey = reiser4_kmalloc(cplug->keysize, GFP_KERNEL);
 	if (!info->expkey)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 	result = cplug->set_key(info->expkey, crc_data->key);
 	if (result)
 		goto destroy_key;

@@ -302,7 +302,7 @@ current_atom_finish_all_fq(void)
 		return ret;
 
 	if (nr_io_errors)
-		return -EIO;
+		return RETERR(-EIO);
 
 	return 0;
 }
@@ -525,7 +525,7 @@ fq_by_atom(txn_atom * atom, flush_queue_t ** new_fq)
 	*new_fq = create_fq();
 
 	if (*new_fq == NULL)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 
 	return -EAGAIN;
 }

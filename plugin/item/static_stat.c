@@ -140,7 +140,7 @@ not_enough_space(struct inode *inode /* object being processed */ ,
 	assert("nikita-618", inode != NULL);
 
 	warning("nikita-619", "Not enough space in %llu while loading %s", get_inode_oid(inode), where);
-	return -EINVAL;
+	return RETERR(-EINVAL);
 }
 
 /* helper function used while loading inode/plugin state from
@@ -150,7 +150,7 @@ unknown_plugin(reiser4_plugin_id id /* invalid id */ ,
 	       struct inode *inode /* object being processed */ )
 {
 	warning("nikita-620", "Unknown plugin %i in %llu", id, get_inode_oid(inode));
-	return -EINVAL;
+	return RETERR(-EINVAL);
 }
 
 /* helper function used while storing/loading inode/plugin data to/from
@@ -213,7 +213,7 @@ sd_load(struct inode *inode /* object being processed */ ,
 			sdplug = sd_ext_plugin_by_id(bit);
 			if (sdplug == NULL) {
 				warning("nikita-627", "No such extension %i in inode %llu", bit, get_inode_oid(inode));
-				result = -EINVAL;
+				result = RETERR(-EINVAL);
 				break;
 			}
 			if (mask & 1) {
@@ -235,7 +235,7 @@ sd_load(struct inode *inode /* object being processed */ ,
 			/* next portion of bitmask */
 			if (len < (int) sizeof (d16)) {
 				warning("nikita-629", "No space for bitmap in inode %llu", get_inode_oid(inode));
-				result = -EINVAL;
+				result = RETERR(-EINVAL);
 				break;
 			}
 			mask = d16tocpu((d16 *) sd);
@@ -251,7 +251,7 @@ sd_load(struct inode *inode /* object being processed */ ,
 				}
 				/* too much */
 				warning("nikita-630", "Too many extensions in %llu", get_inode_oid(inode));
-				result = -EINVAL;
+				result = RETERR(-EINVAL);
 				break;
 			}
 		} else
@@ -565,7 +565,7 @@ symlink_target_to_inode(struct inode *inode, const char *target, int len)
 	   places, though */
 	inode->u.generic_ip = reiser4_kmalloc((size_t) len + 1, GFP_KERNEL);
 	if (!inode->u.generic_ip)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 
 	xmemcpy((char *) (inode->u.generic_ip), target, (size_t) len);
 	((char *) (inode->u.generic_ip))[len] = 0;
@@ -751,7 +751,7 @@ plugin_sd_present(struct inode *inode /* object being processed */ ,
 		} else {
 			warning("nikita-658", "duplicate plugin for %llu", get_inode_oid(inode));
 			print_plugin("plugin", plugin);
-			return -EINVAL;
+			return RETERR(-EINVAL);
 		}
 		next_stat(len, area, sizeof *slot);
 		if (plugin->h.pops == NULL)
@@ -930,7 +930,7 @@ static int keyid_to_inode (struct inode *inode, const __u8 * word)
 
 	info->keyid = reiser4_kmalloc(sizeof(reiser4_keyid_stat), GFP_KERNEL);
 	if (!info->keyid)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 
 	xmemcpy(info->keyid, word, sizeof(reiser4_keyid_stat));
 	inode_set_flag(inode, REISER4_KEYID_LOADED);

@@ -139,7 +139,7 @@ error:
 	if (_jnode_slab != NULL) {
 		kmem_cache_destroy(_jnode_slab);
 	}
-	return -ENOMEM;
+	return RETERR(-ENOMEM);
 }
 
 int
@@ -319,7 +319,7 @@ again:
 				jal = jnew();
 
 				if (jal == NULL) {
-					return ERR_PTR(-ENOMEM);
+					return ERR_PTR(RETERR(-ENOMEM));
 				}
 				takeread = 0;
 				goto again;
@@ -534,7 +534,7 @@ static struct page * jnode_get_page_locked(jnode * node, int gfp_flags)
 		jplug = jnode_ops(node);
 		page = grab_cache_page(jplug->mapping(node), jplug->index(node));
 		if (page == NULL)
-			return ERR_PTR(-ENOMEM);
+			return ERR_PTR(RETERR(-ENOMEM));
 	} else {
 		if (!TestSetPageLocked(page)) {
 			UNLOCK_JNODE(node);
@@ -608,7 +608,7 @@ int jload_gfp (jnode * node, int gfp_flags)
 
 		wait_on_page_locked(page);
 		if (!PageUptodate(page)) {
-			result = -EIO;
+			result = RETERR(-EIO);
 			goto failed;
 		}
 
@@ -928,7 +928,16 @@ jnode_wait_fq(jnode * node)
 	assert("nikita-3147", node != NULL);
 	assert("nikita-3148", JF_ISSET(node, JNODE_HEARD_BANSHEE));
 
-	LOCK_JNODE(node);
+	UNDER_SPIN_VOID(jnode, node, jnode_wait_fq_locked(node));
+}
+
+/* same as jnode_wait_fq(), but with jnode already locked */
+void
+jnode_wait_fq_locked(jnode * node)
+{
+	assert("nikita-3150", node != NULL);
+	assert("nikita-3151", JF_ISSET(node, JNODE_HEARD_BANSHEE));
+
 	while (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 		txn_atom * atom;
 
@@ -937,7 +946,6 @@ jnode_wait_fq(jnode * node)
 		atom_wait_event(atom);
 		LOCK_JNODE(node);
 	}
-	UNLOCK_JNODE(node);
 }
 
 void
@@ -992,7 +1000,7 @@ jwait_io(jnode * node, int rw)
 		wait_on_page_writeback(page);
 	}
 	if (PageError(page))
-		result = -EIO;
+		result = RETERR(-EIO);
 
 	return result;
 }
@@ -1054,8 +1062,6 @@ jnode_remove_op(jnode * node, reiser4_tree * tree)
 static int inode_jnode_remove_op(jnode * node, reiser4_tree * tree)
 {
 	/* remove from super block's all_jnodes list */
-	/*printk("remove inode jnode: %p, [%p %p %p %p]\n", node, __builtin_return_address(0), __builtin_return_address(1),
-	  __builtin_return_address(2), __builtin_return_address(3));*/
 	assert("nikita-2422", !list_empty(&node->jnodes));
 	assert("nikita-2663", capture_list_is_clean(node));
 

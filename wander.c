@@ -628,7 +628,7 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 
 		bio = bio_alloc(GFP_NOIO, nr_blocks);
 		if (!bio)
-			return -ENOMEM;
+			return RETERR(-ENOMEM);
 
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
@@ -780,7 +780,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 			cur = alloc_io_head(&first);
 
 			if (cur == NULL) {
-				ret = -ENOMEM;
+				ret = RETERR(-ENOMEM);
 				goto free_not_assigned;
 			}
 
@@ -1151,7 +1151,7 @@ check_tx_head(const jnode * node)
 
 	if (memcmp(&TH->magic, TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE) != 0) {
 		warning("zam-627", "tx head at block %s corrupted\n", sprint_address(jnode_get_block(node)));
-		return -EIO;
+		return RETERR(-EIO);
 	}
 
 	return 0;
@@ -1164,7 +1164,7 @@ check_log_record(const jnode * node)
 
 	if (memcmp(&RH->magic, LOG_RECORD_MAGIC, LOG_RECORD_MAGIC_SIZE) != 0) {
 		warning("zam-628", "log record at block %s corrupted\n", sprint_address(jnode_get_block(node)));
-		return -EIO;
+		return RETERR(-EIO);
 	}
 
 	return 0;
@@ -1223,13 +1223,13 @@ replay_transaction(const struct super_block *s,
 		if (nr_log_records == 0) {
 			warning("zam-631",
 				"number of log records in the linked list" " greater than number stored in tx head.\n");
-			ret = -EIO;
+			ret = RETERR(-EIO);
 			goto free_ow_set;
 		}
 
 		log = alloc_io_head(&log_rec_block);
 		if (log == NULL)
-			return -ENOMEM;
+			return RETERR(-ENOMEM);
 
 		ret = jload(log);
 		if (ret < 0) {
@@ -1261,7 +1261,7 @@ replay_transaction(const struct super_block *s,
 
 			node = alloc_io_head(&block);
 			if (node == NULL) {
-				ret = -ENOMEM;
+				ret = RETERR(-ENOMEM);
 				/*
 				 * FIXME-VS:???
 				 */
@@ -1301,7 +1301,7 @@ replay_transaction(const struct super_block *s,
 
 	if (nr_log_records != 0) {
 		warning("zam-632", "number of log records in the linked list" " less than number stored in tx head.\n");
-		ret = -EIO;
+		ret = RETERR(-EIO);
 		goto free_ow_set;
 	}
 
@@ -1310,7 +1310,7 @@ replay_transaction(const struct super_block *s,
 		ret = wait_on_jnode_list(ch.overwrite_set);
 
 		if (ret) {
-			ret = -EIO;
+			ret = RETERR(-EIO);
 			goto free_ow_set;
 		}
 	}
@@ -1373,7 +1373,7 @@ replay_oldest_transaction(struct super_block *s)
 	while (1) {
 		tx_head = alloc_io_head(&prev_tx);
 		if (!tx_head)
-			return -ENOMEM;
+			return RETERR(-ENOMEM);
 
 		ret = jload(tx_head);
 		if (ret < 0) {
@@ -1541,7 +1541,7 @@ load_journal_control_block(jnode ** node, const reiser4_block_nr * block)
 
 	*node = alloc_io_head(block);
 	if (!(*node))
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 
 	ret = jload(*node);
 

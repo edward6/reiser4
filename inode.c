@@ -224,7 +224,7 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 	default:
 		warning("nikita-291", "wrong file mode: %o for %llu", inode->i_mode, get_inode_oid(inode));
 		reiser4_make_bad_inode(inode);
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 	return 0;
 }
@@ -401,7 +401,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 	inode = iget5_locked(super, (unsigned long) get_key_objectid(key),
 			     reiser4_inode_find_actor, init_locked_inode, (reiser4_key *) key);
 	if (inode == NULL)
-		return ERR_PTR(-ENOMEM);
+		return ERR_PTR(RETERR(-ENOMEM));
 	else if (is_bad_inode(inode)) {
 		warning("nikita-304", "Stat data not found");
 		print_key("key", key);
@@ -417,7 +417,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 	}
 	if (is_bad_inode(inode)) {
 		iput(inode);
-		inode = ERR_PTR(-EIO);
+		inode = ERR_PTR(RETERR(-EIO));
 	} else if (REISER4_DEBUG) {
 		reiser4_key found_key;
 

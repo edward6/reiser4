@@ -1982,7 +1982,7 @@ static int one_shot_filldir(void *arg, const char *name, int namelen,
 		return 0;
 	} else {
 		info -> fired = 0;
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 }
 

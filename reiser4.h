@@ -220,7 +220,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 
 /** Reiser4 specific error codes **/
 
-#define REISER4_ERROR_CODES_BASE 1000
+#define REISER4_ERROR_CODES_BASE 500
 
 /* Neighbor is not available (side neighbor or parent) */
 #define E_NO_NEIGHBOR  (REISER4_ERROR_CODES_BASE)

@@ -57,7 +57,7 @@ static int prepare(scint_t *scint, __u64 value, int gfp_mask)
 		scint->datum = ((__u32)arena) | 0x80000000;
 		return 1;
 	} else
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 }
 
 void scint_init(scint_t *scint)
@@ -106,7 +106,7 @@ int scint_init_once(void)
 {
 	scint_slab = kmem_cache_create("scint-cache", sizeof(__u64), 0, 
 				       SLAB_HWCACHE_ALIGN, NULL, NULL);
-	return (scint_slab == NULL) ? -ENOMEM : 0;
+	return (scint_slab == NULL) ? RETERR(-ENOMEM) : 0;
 }
 
 void scint_done_once(void)

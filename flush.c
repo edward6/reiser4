@@ -2772,7 +2772,7 @@ neighbor_in_slum(
 		/* May return -ENOENT or -E_NO_NEIGHBOR. */
 		/* FIXME(C): check EINVAL, EDEADLK */
 		if (ret == -ENOENT) {
-			ret = -E_NO_NEIGHBOR;
+			ret = RETERR(-E_NO_NEIGHBOR);
 		}
 
 		return ret;
@@ -2783,7 +2783,7 @@ neighbor_in_slum(
 		return 0;
 
 	done_lh(lock);
-	return -E_NO_NEIGHBOR;
+	return RETERR(-E_NO_NEIGHBOR);
 }
 
 /* Return true if two znodes have the same parent.  This is called with both nodes

@@ -350,7 +350,7 @@ find_file_item(struct sealed_coord *hint,
 				assert("vs-1151", coord->between == AFTER_UNIT);
 				result = goto_right_neighbor(coord, lh);
 				if (result == -E_NO_NEIGHBOR)
-					return -EIO;
+					return RETERR(-EIO);
 				if (result)
 					return result;
 				assert("vs-1152", equal_to_ldk(coord->node, key));
@@ -613,7 +613,7 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd)
 		all_grabbed2free("shorten_file: page !uptodate");
 		page_cache_release(page);
 		reiser4_release_reserved(inode->i_sb);
-		return -EIO;
+		return RETERR(-EIO);
 	}
 	result = unix_file_writepage_nolock(page);
 	assert("vs-98221", PageLocked(page));
@@ -656,7 +656,7 @@ append_hole(struct inode *inode, loff_t new_size)
 	if (written != hole_size) {
 		/* return error because file is not expanded as required */
 		if (written > 0)
-			result = -ENOSPC;
+			result = RETERR(-ENOSPC);
 		else
 			result = written;
 	} else {
@@ -759,10 +759,11 @@ void
 set_hint(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord, coord_state_t coord_state)
 {
 	assert("vs-1208", coord->node);
-	assert("vs-1213", coord_state == COORD_RIGHT_STATE || coord_state == COORD_UNKNOWN_STATE);
+	assert("vs-1213", coord_state == COORD_RIGHT_STATE);
 	assert("vs-1207",
-	       WITH_DATA_RET(coord->node, 1, (ergo(coord_state == COORD_RIGHT_STATE, coord_is_existing_item(coord) &&
-						   item_plugin_by_coord(coord)->s.file.key_in_item(coord, key, 0)))));
+	       WITH_DATA_RET(coord->node, 1, 
+			     coord_is_existing_item(coord) && 
+			     item_plugin_by_coord(coord)->s.file.key_in_item(coord, key, 0)));
 	seal_init(&hint->seal, coord, key);
 	hint->coord = *coord;
 	hint->key = *key;
@@ -869,7 +870,7 @@ unix_file_writepage(struct page *page)
 		drop_nonexclusive_access(inode);
 		reiser4_lock_page(page);
 		page_cache_release(page);
-		return -EIO;
+		return RETERR(-EIO);
 	}
 
 	/* writepage may involve insertion of one unit into tree */
@@ -948,7 +949,7 @@ unix_file_readpage(void *vp, struct page *page)
 			page->index, page->mapping->host->i_ino, page->mapping->host->i_size, result);
 		zrelse(coord.node);
 		done_lh(&lh);
-		return -EIO;
+		return RETERR(-EIO);
 	}
 
 	/* get plugin of found item or use plugin if extent if there are no
@@ -957,7 +958,7 @@ unix_file_readpage(void *vp, struct page *page)
 	if (iplug->s.file.readpage)
 		result = iplug->s.file.readpage(&coord, page);
 	else
-		result = -EINVAL;
+		result = RETERR(-EINVAL);
 
 	if (!result) {
 		set_key_offset(&key, (loff_t) (page->index + 1) << PAGE_CACHE_SHIFT);
@@ -1027,7 +1028,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	result = reiser4_grab_space(needed, BA_CAN_COMMIT, "unix_file_read");	
 	if (result != 0) {
 		drop_nonexclusive_access(inode);
-		return -ENOSPC;
+		return RETERR(-ENOSPC);
 	}
 
 	/* build flow */
@@ -1258,7 +1259,7 @@ write_checks(struct file * file, size_t * ocount, loff_t * off)
 	count = *ocount;
 
 	if (unlikely(pos < 0))
-		return -EINVAL;
+		return RETERR(-EINVAL);
 
 	if (unlikely(file->f_error)) {
 		int ferr;
@@ -1581,7 +1582,7 @@ unix_file_get_block(struct inode *inode,
 	if (iplug->s.file.get_block)
 		result = iplug->s.file.get_block(&coord, block, bh_result);
 	else
-		result = -EINVAL;
+		result = RETERR(-EINVAL);
 
 	zrelse(coord.node);
 	done_lh(&lh);
@@ -1792,7 +1793,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		/* call readahead method of found item */
 		iplug = item_plugin_by_coord(&coord);
 		if (!iplug->s.file.readahead) {
-			readahead_result = -EINVAL;
+			readahead_result = RETERR(-EINVAL);
 			break;
 		}
 
@@ -1833,7 +1834,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		iplug = item_plugin_by_coord(&coord);
 		id = item_plugin_id(iplug);
 		if (id != EXTENT_POINTER_ID && id != TAIL_ID) {
-			result = -EIO;
+			result = RETERR(-EIO);
 			zrelse(coord.node);
 			done_lh(&lh);
 			break;

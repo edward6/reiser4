@@ -42,13 +42,13 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 
 	super_bh = sb_bread(s, (int) (REISER4_MAGIC_OFFSET / s->s_blocksize));
 	if (!super_bh)
-		return -EIO;
+		return RETERR(-EIO);
 
 	disk_sb = (test_disk_super_block *) (super_bh->b_data + sizeof (struct reiser4_master_sb));
 
 	if (strcmp(disk_sb->magic, TEST_MAGIC)) {
 		brelse(super_bh);
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 
 	/* FIXME-VS: remove this debugging info */
@@ -137,13 +137,13 @@ test_format_release(struct super_block *s)
 	super_bh = sb_bread(s, (int) (REISER4_MAGIC_OFFSET / s->s_blocksize));
 	if (!super_bh) {
 		warning("vs-630", "could not read super block");
-		return -EIO;
+		return RETERR(-EIO);
 	}
 	disk_sb = (test_disk_super_block *) (super_bh->b_data + sizeof (struct reiser4_master_sb));
 	if (strcmp(disk_sb->magic, TEST_MAGIC)) {
 		warning("vs-631", "no test format found");
 		brelse(super_bh);
-		return -EIO;
+		return RETERR(-EIO);
 	}
 
 	/* update test disk format super block */

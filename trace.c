@@ -51,7 +51,7 @@ open_trace_file(struct super_block *super, const char *file_name, size_t size, r
 	}
 	trace->buf = vmalloc(size);
 	if (trace->buf == NULL)
-		return -ENOMEM;
+		return RETERR(-ENOMEM);
 	trace->size = size;
 	if (!strcmp(file_name, "/dev/console")) {
 		trace->type = log_to_console;
@@ -65,7 +65,7 @@ open_trace_file(struct super_block *super, const char *file_name, size_t size, r
 	}
 	if (trace->fd->f_dentry->d_inode->i_sb == super) {
 		warning("nikita-2506", "Refusing to log onto traced fs");
-		return -EINVAL;
+		return RETERR(-EINVAL);
 	}
 	trace->fd->f_dentry->d_inode->i_flags |= S_NOATIME;
 	trace->fd->f_flags |= O_APPEND;
@@ -252,7 +252,7 @@ trace_flush(reiser4_trace_file * file)
 			END_KERNEL_IO;
 		} else {
 			warning("nikita-2504", "no ->write() in trace-file");
-			result = -EINVAL;
+			result = RETERR(-EINVAL);
 		}
 
 		convert_to_shortterm(file);
