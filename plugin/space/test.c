@@ -34,7 +34,8 @@ int test_init_allocator (reiser4_space_allocator * allocator,
 }
 
 /*
- * probability of getting blocks perfectly allocated (eek, floating point in kernel?)
+ * Probability of getting blocks perfectly allocated (eek, floating point in kernel?)
+ * When it is 10, you get what you asked for.
  */
 #define P 10
 

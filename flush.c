@@ -96,6 +96,7 @@ static int           flush_left_relocate_dirty    (jnode *node, const coord_t *p
 
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
 static int           flush_enqueue_jnode          (jnode *node, flush_position *pos);
+static int           flush_enqueue_ancestors      (znode *node, flush_position *pos);
 
 
 static int           flush_finish                 (flush_position *pos);
@@ -356,7 +357,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 
 			/* Now finished with twig node (enqueue if dirty). */
 			if (znode_check_dirty (pos->parent_lock.node)) {
-				ret = flush_enqueue_jnode (ZJNODE (pos->parent_lock.node), pos);
+				ret = flush_enqueue_ancestors (pos->parent_lock.node, pos);
 			} else {
 				ret = 0;
 			}
@@ -366,7 +367,7 @@ static int flush_right_relocate_end_of_twig (flush_position *pos)
 	}
 
 	/* If it is dirty then we don't care about its leftmost child yet. */
-	if (znode_is_dirty (pos->parent_lock.node)) {
+	if (znode_is_dirty (right_lock.node)) {
 		ret = 0;
 		goto exit;
 	}
@@ -636,13 +637,38 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		/* Emptied the right node, repeat. */
 		done_zh (& right_load);
 		done_lh (& right_lock);
-		any_shifted |= 1;
+		any_shifted = 1;
 		goto RIGHT_AGAIN;
 
 	case SQUEEZE_TARGET_FULL:
 		/* Fully squeezed this node.  Keep right lock. */
 		any_shifted |= ! coord_is_after_rightmost (& at_right);
 		break;
+
+	case SUBTREE_MOVED:
+		any_shifted = 1;
+		break;
+	}
+
+	/* any_shifted may be true but we still may have allocated to the end of a twig
+	 * (via extent_copy_and_allocate), in which case we should unset it. */
+	if (any_shifted && flush_pos_unformatted (pos)) {
+		/* We reached this point because we were at the end of a twig, and now we
+		 * have shifted new contents into that twig.  Skip past any allocated
+		 * extents.  If we are still at the end of the node, unset any_shifted. */
+		coord_next_unit (& pos->parent_coord);
+
+		assert ("jmacd-1731", coord_is_existing_unit (& pos->parent_coord));
+
+		while (coord_is_existing_unit (& pos->parent_coord) &&
+		       item_is_extent (& pos->parent_coord)) {
+			assert ("jmacd-8612", ! extent_is_unallocated (& pos->parent_coord));
+			coord_next_unit (& pos->parent_coord);
+		}
+
+		if (! coord_is_existing_unit (& pos->parent_coord)) {
+			any_shifted = 0;
+		}
 	}
 
 	/* If anything is shifted at an upper level, we should not allocate any further
@@ -977,8 +1003,8 @@ static int flush_squalloc_right (flush_position *pos)
 
 	assert ("jmacd-2011", (ret < 0 ||
 			       ret == SQUEEZE_SOURCE_EMPTY ||
-			       ret == SQUEEZE_TARGET_FULL  /*||
-			       ret == SUBTREE_MOVED*/));
+			       ret == SQUEEZE_TARGET_FULL ||
+			       ret == SUBTREE_MOVED));
 
 	if (ret == SQUEEZE_SOURCE_EMPTY) {
 		reiser4_stat_flush_add (squeezed_completely);
@@ -1035,7 +1061,6 @@ static int squalloc_right_twig (znode    *left,
 	reiser4_key stop_key;
 
 	assert ("jmacd-2008", ! node_is_empty (right));
- repeat:
 	coord_init_first_unit (&coord, right);
 
 	/* Initialize stop_key to detect if any extents are copied.  After
@@ -1097,20 +1122,11 @@ static int squalloc_right_twig (znode    *left,
 		return ret;
 	}
 
-	/* FIXME: This is a kludge.  The code was formerly structured to shift only one
-	 * internal unit at a time so that squalloc could be called recursively on each
-	 * shifted subtree, but now we don't do that anymore so more than one internal
-	 * unit could be shifted at a time.  However, this should work. */
+	/* Shift an internal unit.  The child must be allocated before shifting any more
+	 * extents, so we stop here. */
 	ret = shift_one_internal_unit (left, right);
 
-	if (ret == SUBTREE_MOVED) {
-		if (! node_is_empty (right)) {
-			goto repeat;
-		}
-		return SQUEEZE_SOURCE_EMPTY;
-	}
-
-	assert ("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL);
+	assert ("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL || ret == SUBTREE_MOVED);
 	return ret;
 }
 
@@ -1366,6 +1382,12 @@ int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos UNUSED_ARG
 	jnode_set_clean (node);
 
 	trace_if (TRACE_FLUSH, info ("enqueue %snode: %p block %llu level %u\n", jnode_is_formatted (node) ? "z" : "j", node, *jnode_get_block (node), jnode_get_level (node)));
+
+	if (jnode_is_formatted (node)) {
+		int x;
+		x = 1;
+		x += 1;
+	}	
 
 	return ret;
 }
@@ -2175,7 +2197,10 @@ reiser4_blocknr_hint* flush_pos_hint (flush_position *pos)
 static const char* flush_pos_tostring (flush_position *pos)
 {
 	static char fmtbuf[256];
+	load_handle load;
 	fmtbuf[0] = 0;
+
+	init_zh (& load);
 
 	if (pos->point != NULL) {
 		sprintf (fmtbuf+strlen(fmtbuf), "pt: %p ", pos->point);
@@ -2183,6 +2208,10 @@ static const char* flush_pos_tostring (flush_position *pos)
 
 	if (pos->parent_lock.node != NULL) {
 		sprintf (fmtbuf+strlen(fmtbuf), "par: %p", pos->parent_lock.node);
+
+		if (load_zh (& load, pos->parent_lock.node)) {
+			return "*error*";
+		}
 
 		if (coord_is_before_leftmost (& pos->parent_coord)) {
 			sprintf (fmtbuf+strlen(fmtbuf), "[left]");
@@ -2199,6 +2228,7 @@ static const char* flush_pos_tostring (flush_position *pos)
 			
 	}
 
+	done_zh (& load);
 	return fmtbuf;
 }
 #endif
