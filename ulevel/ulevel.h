@@ -405,6 +405,9 @@ struct fown_struct {
 	int signum;		/* posix.1b rt signal to be delivered on IO */
 };
 
+struct vfsmount {
+	struct super_block *mnt_sb;
+};
 
 struct file {
 	struct list_head	f_list;
@@ -556,6 +559,9 @@ struct super_operations {
 	int (*dentry_to_fh)(struct dentry *, __u32 *fh, int *lenp, int need_parent);
 	int (*show_options)(struct seq_file *, struct vfsmount *);
 };
+
+extern int seq_printf(struct seq_file *, const char *, ...)
+	__attribute__ ((format (printf,2,3)));
 
 struct task_struct {
 	char *comm;

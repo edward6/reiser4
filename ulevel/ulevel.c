@@ -5204,6 +5204,11 @@ loff_t default_llseek( struct file *file, loff_t offset, int origin )
 	return retval;
 }
 
+int seq_printf(struct seq_file *file UNUSED_ARG, const char *f UNUSED_ARG, ...)
+{
+	return 0;
+}
+
 /*
  * Make Linus happy.
  * Local variables:
