@@ -314,7 +314,7 @@ show_device(struct super_block * s,
 	char *p;
 
 	p = buf;
-	KATTR_PRINT(p, buf, "%lu\n", (unsigned long)s->s_dev);
+	KATTR_PRINT(p, buf, "%d:%d\n", MAJOR(s->s_dev), MINOR(s->s_dev));
 	return (p - buf);
 }
 
