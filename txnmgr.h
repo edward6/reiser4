@@ -91,7 +91,7 @@ typedef enum {
 	/* Initially an atom is free. */
 	ASTAGE_FREE = 0,
 
-	/* An atom begins by intering the CAPTURE_FUSE stage, where it proceeds to capture
+	/* An atom begins by entering the CAPTURE_FUSE stage, where it proceeds to capture
 	   blocks and fuse with other atoms. */
 	ASTAGE_CAPTURE_FUSE = 1,
 
