@@ -1311,7 +1311,7 @@ struct kstat {
 #define kdev_t_to_nr( x ) ( x )
 
 #if !REISER4_DEBUG
-typedef off64_t long long
+typedef long long off64_t;
 #endif
 
 static inline void init_rwsem( struct rw_semaphore *rwsem )
