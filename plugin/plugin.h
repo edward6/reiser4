@@ -546,7 +546,9 @@ typedef enum { REGULAR_FILE_PLUGIN_ID, DIRECTORY_FILE_PLUGIN_ID,
 	/* SPECIAL_FILE_PLUGIN_ID is for objects completely handled by
 	   VFS: fifos, devices, sockets  */
 	SPECIAL_FILE_PLUGIN_ID,
-	/* number of file plugins. Used as size of arrays to hold
+	/* Plugin id for crypto-compression objects */       
+	CRC_FILE_PLUGIN_ID,       
+        /* number of file plugins. Used as size of arrays to hold
 	   file plugins. */
 	LAST_FILE_PLUGIN_ID
 } reiser4_file_id;
@@ -557,22 +559,6 @@ typedef enum {
 	SEEKABLE_HASHED_DIR_PLUGIN_ID,
 	LAST_DIR_ID
 } reiser4_dir_id;
-
-/* data type used to pack parameters that we pass to vfs
-    object creation function create_object() */
-struct reiser4_object_create_data {
-	/* plugin to control created object */
-	reiser4_file_id id;
-	/* mode of regular file, directory or special file */
-/* what happens if some other sort of perm plugin is in use? */
-	int mode;
-	/* rdev of special file */
-	int rdev;
-	/* symlink target */
-	const char *name;
-	/* add here something for non-standard objects you invent, like
-	   query for interpolation file etc. */
-};
 
 /* builtin hash-plugins */
 
@@ -592,6 +578,13 @@ typedef enum {
 	LAST_CRYPTO_ID
 } reiser4_crypto_id;
 
+/* builtin compression plugins */
+
+typedef enum {
+	NONE_COMPRESSION_ID,
+	LAST_COMPRESSION_ID
+} reiser4_compression_id;
+
 /* builtin tail-plugins */
 
 typedef enum {
@@ -602,6 +595,32 @@ typedef enum {
 	TEST_TAIL_ID,
 	LAST_TAIL_ID
 } reiser4_tail_id;
+
+/* Encapsulation of crypto-compressed objects specific data */ 
+typedef struct crc_object_create_data {
+        reiser4_crypto_id      cra; /* id of the crypto algorithm */
+        reiser4_compression_id coa; /* id of the compression algorithm */        
+        __u8 * key;                 /* secret key */
+        __u8 * key_id;              /* secret key identification word */
+}crc_object_create_data;
+
+/* data type used to pack parameters that we pass to vfs
+    object creation function create_object() */
+struct reiser4_object_create_data {
+	/* plugin to control created object */
+	reiser4_file_id id;
+	/* mode of regular file, directory or special file */
+/* what happens if some other sort of perm plugin is in use? */
+	int mode;
+	/* rdev of special file */
+	int rdev;
+	/* symlink target */
+	const char *name;
+	/* add here something for non-standard objects you invent, like
+	   query for interpolation file etc. */
+	/* crypto-compression objects create data */
+	crc_object_create_data * crc;
+};
 
 #define MAX_PLUGIN_TYPE_LABEL_LEN  32
 #define MAX_PLUGIN_PLUG_LABEL_LEN  32
