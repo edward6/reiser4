@@ -168,12 +168,15 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 				 * @node wasn't yet submitted for io.
 				 */
 				sendit = 1;
+			} else {
 			}
+		} else if (JF_ISSET(node, JNODE_RELOC)) {
 		} else {
 		}
 		if (sendit) {
-			-- wbc->nr_to_write;
 			result = page_io(page, node, WRITE, GFP_NOFS|__GFP_HIGH);
+			if (result == 0)
+				-- wbc->nr_to_write;
 		}
 	}
 	spin_unlock_jnode(node);
