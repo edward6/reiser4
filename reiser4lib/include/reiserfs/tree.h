@@ -19,5 +19,13 @@ extern error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 extern error_t reiserfs_tree_sync(reiserfs_fs_t *fs);
 extern void reiserfs_tree_close(reiserfs_fs_t *fs, int sync);
 
+struct reiserfs_coord {
+    reiserfs_node_opaque_t *node;
+    uint16_t item_pos;
+    uint16_t unit_pos; 
+};
+
+typedef struct reiserfs_coord reiserfs_coord_t;
+
 #endif
 

@@ -18,12 +18,12 @@ typedef enum {
     /** Name hash. Sits in 3rd element */
     KEY_HASH_INDEX       = 2,
     KEY_LAST_INDEX       = 3
-} reiser4_key_field_index;
+} reiserfs_key_field_index;
 
-union reiser4_key {
+union reiserfs_key {
     uint64_t el[ KEY_LAST_INDEX ];
     int pad;
 };
 
-typedef union reiser4_key reiser4_key_t;
+typedef union reiserfs_key reiserfs_key_t;
 
