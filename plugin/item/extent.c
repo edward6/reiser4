@@ -1154,7 +1154,7 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	jnode_set_created (j);
 	jnode_set_block (j, &null_block_nr);
 
-	reiser4_stat_file_add (unallocated_pointers);
+	reiser4_stat_file_add (pointers);
 	reiser4_stat_file_add (write_repeats);
 
 	/*
@@ -1231,7 +1231,7 @@ static int append_one_block (coord_t * coord, lock_handle *lh, jnode * j,
 	jnode_set_created (j);
 	jnode_set_block (j, &null_block_nr);
 
-	reiser4_stat_file_add (unallocated_pointers);
+	reiser4_stat_file_add (pointers);
 	return 0;
 }
 
@@ -1598,7 +1598,7 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 		jnode_set_mapped (j);
 		jnode_set_created (j);
 		jnode_set_block (j, &null_block_nr);
-		reiser4_stat_file_add (unallocated_pointers);
+		reiser4_stat_file_add (pointers);
 		break;
 
 	default:
@@ -2322,8 +2322,6 @@ static int extent_allocate_blocks (reiser4_blocknr_hint *preceder,
 		 */
 		impossible ("vs-420", "could not allocate unallocated: %d", result);
 	}
-
-	reiser4_stat_file_add_few (allocated_pointers, *allocated);
 
 	return result;
 }
