@@ -1,7 +1,11 @@
 <html>
-<head><title>libreiserfs architecture document</title></head>
+<head><title>Reiser4 libreiserfs architecture document.</title></head>
 <body>
-<center><h1>libreiserfs architercure document.<br>24 May 2002</h1></center>
+
+<table width=70%><tr><td align=center>
+<h1>libreiserfs architercure document.</h1>
+<h3>24 May 2002</h2>
+</td></tr></table>
 
 <h2>Introduction</h2>
 <table width=70%><tr><td align=justify>
@@ -115,8 +119,8 @@ of device (drive) (/dev/hda, /dev/hdb, etc).<br><br>
 
 For example, "dal_ops" for GNU GRUB looks roughly like this:<br><br>
 
-This stuff lies in separate device.S file. This function does 
-all work on device.<br>
+For example, this stuff lies in separate device.S file. Function "biosdisk" 
+does all work on device.
 </td></tr></table>
 	
 <table width=70%><tr><td align=justify>
@@ -641,7 +645,85 @@ Filesystem API will be containing all public function.<br><br>
 There are general functions: reiserfs_fs_open, reiserfs_fs_close, 
 reiserfs_fs_resize, reiserfs_fs_copy, etc, and some utilities: 
 reiserfs_fs_format, reiserfs_fs_uuid, reiserfs_fs_lable, reiserfs_fs_size, 
-reiserfs_fs_metadata_size, etc.
+reiserfs_fs_metadata_size, etc.<br><br>
+
+Filesysetm object initialization and finalization routines.<br><br>
+
+<pre>
+struct reiserfs_fs {
+	dal_t *dal;
+
+	reiserfs_tree_t *tree;
+	reiserfs_super_t *super;
+	reiserfs_oid_t *oid;
+	reiserfs_alloc_t *alloc;
+	reiserfs_journal_t *journal;
+
+	uint16_t flags;
+};
+
+reiserfs_fs_t *reiserfs_fs_open(dal_t *host_dal, dal_t *journal_dal) {
+	blk_t root_block;
+	reiserfs_fs_t *fs;
+	blk_t journal_block;
+
+	uint16_t alloc_plug_id;
+	uint16_t journal_plug_id;
+
+	ASSERT(host_dal != NULL, return NULL);
+	ASSERT(journal_dal != NULL, return NULL);
+
+	if (!(fs != libreiserfs_calloc(sizeof(*fs), 0)))
+		 return NULL;
+
+	if (!(fs-&gt;super = reiserfs_super_open(host_dal))) {
+		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+			  _("Couldn't open superblock."));
+		 goto error_free_fs;
+	}
+
+	journal_plug_id = super-&gt;layout_plug-&gt;u.layout.journal_plug_id();
+	journal_block = super-&gt;layout_plug-&gt;u.get_journal_block();
+	if (!(fs-&gt;journal = reiserfs_journal_open(journal_dal, journal_block, journal_plug_id))) {
+		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+			  _("Couldn't open journal."));
+		 goto error_free_super;
+	}
+
+	alloc_plug_id = super-&gt;layout_plug-&gt;u.layout.alloc_plug_id();
+	if (!(fs-&gt;alloc = reiserfs_alloc_open(alloc_plug_id))) {
+		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+			  _("Couldn't open allocator"));
+		 goto error_free_journal
+	}
+
+	oid_plug_id = super-&gt;layout_plug-&gt;u.layout.oid_plug_id();
+	if (!(fs-&gt;oid = reiserfs_oid_open(oid_plug_id))) {
+		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+			  _("Couldn't open oid allocator."));
+		 goto error_free_alloc;
+	}
+
+	root_block = super-&gt;layout_plug-&gt;u.layout.get_root_block();
+	if (!(fs-&gt;tree = reiserfs_tree_open(root_block))) {
+	libreiserfs_free(fs-&gt;super);
+error_free_fs:
+	libreiserfs_free(fs);
+error:
+	return  NULL;
+}
+
+void reiserfs_fs_close(reiserfs_fs_t *fs) {
+	reiserfs_journal_close(fs-&gt;journal);
+	reiserfs_super_close(fs-&gt;super);
+	reiserfs_alloc_close(fs-&gt;alloc);
+	reiserfs_tree_close(fs-&gt;alloc);
+	libreiserfs_free(fs);
+}
+</pre><br>
+
+See bellow, for detailed journal and super-block code.
+
 </td></tr></table>
 
 <h3>Journal plugin. Journal API.</h3>
@@ -672,7 +754,7 @@ Also interface must let to do something with the journal
 
 Besides, libreiserfs code must know where journal is
 placed. Especially standard journal in reiser3. Journal
-plugin  must  have an journal-internals independent interface.<br><br>
+plugin  must  have an journal-internals independent interface.<br>
 
 <pre>
 typedef void reiserfs_opaque_t;
@@ -735,6 +817,77 @@ reiserfs_journal_close, reiserfs_journal_replay, reiserfs_journal_resize,
 etc.
 
 Also it will contain common code for all journal formats.<br>
+
+Journal initialization and finalization will roughly look:<br>
+
+<pre>
+struct reiserfs_journal {
+	dal_t *dal;
+	reiserfs_opaque_t *journal_instance;
+	reiserfs_plug_t *journal_plug;
+};
+
+typedef struct reiserfs_journal reiserfs_journal_t;
+</pre>
+
+<b>dal_t *dal</b>
+
+<p>
+DAL where journal lies.<br><br>
+
+<b>reiserfs_opaque_t *journal_instance</b>
+
+<p>
+Pointer to initialized journal instance. Will be using later to interact with
+underlying journal.<br><br>
+
+<b>reiserfs_plug_t *journal_plug</b>
+
+<p>
+Journal format plugin.<br><br>
+
+<pre>
+reiserfs_journal_t *reiserfs_journal_open(dak_t *dal, blk_t journal_block,
+	uint16_t journal_plug_id)
+{
+	reiserfs_opaque_t *journal_instance;
+	reiserfs_journal_t *journal;
+	reiserfs_plug_t *journal_plug;
+
+	if (!(journal_plug = reiserfs_plug_load(REISERFS_PLUG_JOURNAL, journal_plug_id)))
+		 return NULL;
+
+	if (!(journal_instance = journal_plug-&gt;u.journal.init(dal))) {
+		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+			  _("Couldn't initialize journal."));
+		 return NULL;
+	}
+
+	if (!(journal = libreiserfs_calloc(sizeof(*journal), 0)))
+		 goto error_free_journal_instance;
+	
+	journal-&gt;journal_block = journal_block;
+	journal-&gt;journal_plug = journal_plug;
+	journal-&gt;journal_instance = journal_instance;
+
+	/* Optional journal replaying */
+
+	return journal;
+
+error_free_journal_instance:
+	libreiserfs_free(journal_instance);
+error:
+	return NULL;
+}
+		 
+void reiserfs_journal_close(reiserfs_journal_t *journal) {
+	ASSERT(journal != NULL, return);
+
+	journal-&gt;journal_plug-&gt;u.journal-&gt;done(journal-&gt;journal_instance);
+	reiserfs_plug_unload(journal-&gt;journal_plug);
+	libreiserfs_free(journal);
+}
+</pre>
 </td></tr></table>
 
 <h3>Disk-Format plugin. Superblock API.</h3>
@@ -753,7 +906,7 @@ cache will be initialized in order to be able to find any
 superblock at filesystem opening time.<br><br>
 
 Also  disk-format plugin defines  where  root  block  is
-located, etc. It will look like this:<br><br>
+located, etc. It will look like this:<br>
 
 <pre>
 struct reiserfs_layout_plug {
@@ -848,6 +1001,70 @@ Gets/sets "file_count" of super block of this layout.<br><br>
 Superblock API will be a set of wrapper functions for Disk-Format plugin.
 It will include the following: reiserfs_super_open, reiserfs_super_close, 
 reiserfs_super_update_magic, etc.
+
+Superblock initialization and finalization routins will roughly look:<br>
+
+<pre>
+struct reiserfs_super {
+	reiserfs_opaque_t *layout_instance;
+	reiserfs_plug_t *layout_plug;
+};
+typedef struct reiserfs_super reiserfs_super_t;
+</pre>
+
+<b>reiserfs_plug_t *layout_plug</b>
+
+<p>
+The pointer to layout_plugin<br><br>
+
+<b>reiserfs_opaque_t *layout_instance</b>
+
+<p>
+Pointer to initialized instance of some layout. Will be using later
+for working with that layout.<br>
+
+<pre>
+reiserfs_super_t *reiserfs_super_open(dal_t *dal) {
+   int i;
+   reiserfs_super_t *super;
+   reiserfs_opaque_t *layout_instance = NULL;
+   reiserfs_plug_t *layout_plug = NULL;
+
+   for (i = 0; i &lt; plug_count; i++) {
+	   if (plugs[i]-&gt;plug_kind != REISERFS_PLUG_DISK_LAYOUT)
+		  continue;
+
+	   if ((layout_instance = plugs[i]-&gt;u.layout.init(dal))) {
+			layout_plug = plugs[i];
+			break;
+	   }
+	}
+
+	if (!layout_plug) {
+		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
+			  _("Couldn't find any disk layout."));
+		 return NULL;
+	}
+
+	if (!(super = libreiserfs_calloc(sizeof(*super), 0)))
+		 return NULL;
+
+	super-&gt;layout_plug = layout_plug;
+	super-&gt;layout_instance = layout_instance;
+
+	return super;
+}
+
+void reiserfs_super_close(reiserfs_super_t *super) {
+	ASSERT(super != NULL, return);
+
+	super-&gt;layout_plug-&gt;u.layout-&gt;done(super-&gt;layout_instance);
+
+	/* Layout plugins must do not unload */
+
+	libreiserfs_free(journal);
+}
+</pre>
 
 </td></tr></table>
 
@@ -981,18 +1198,6 @@ Plugin description. For example, "This is the standard journal plugin for Reiser
 Plugin instance.<br>
 
 <pre>
-struct reiserfs_fs {
-	dal_t *dal;
-
-	reiserfs_tree_t *tree;
-	reiserfs_super_t *super;
-	reiserfs_oid_t *oid;
-	reiserfs_alloc_t *alloc;
-	reiserfs_journal_t *journal;
-
-	uint16_t flags;
-};
-
 reiserfs_plug_t *reiserfs_plug_load_by_name(const char *name) {
 	char *error;
 	void *plug_handle;
@@ -1085,200 +1290,6 @@ loaded plugin in the cache.<br><br>
 Unloads plugin, unregisters it from cache.<br><br>
 
 In finalization time plugin factory will release all plugins.
-</td></tr></table>
-
-<table width=70%><tr><td align=justify>
-Filesystem opening stuff look roughly like following:<br>
-
-<pre>
-reiserfs_super_t *reiserfs_super_open(dal_t *dal) {
-   int i;
-   reiserfs_super_t *super;
-   reiserfs_opaque_t *layout_instance = NULL;
-   reiserfs_plug_t *layout_plug = NULL;
-
-   for (i = 0; i &lt; plug_count; i++) {
-	   if (plugs[i]-&gt;plug_kind != REISERFS_PLUG_DISK_LAYOUT)
-		  continue;
-
-	   if ((layout_instance = plugs[i]-&gt;u.layout.init(dal))) {
-			layout_plug = plugs[i];
-			break;
-	   }
-	}
-
-	if (!layout_plug) {
-		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-			  _("Couldn't find any disk layout."));
-		 return NULL;
-	}
-
-	if (!(super = libreiserfs_calloc(sizeof(*super), 0)))
-		 return NULL;
-
-	super-&gt;layout_plug = layout_plug;
-	super-&gt;layout_instance = layout_instance;
-
-	return super;
-}
-
-void reiserfs_super_close(reiserfs_super_t *super) {
-	ASSERT(super != NULL, return);
-
-	super-&gt;layout_plug-&gt;u.layout-&gt;done(super-&gt;layout_instance);
-
-	/* Layout plugins must do not unload */
-
-	libreiserfs_free(journal);
-}
-
-reiserfs_journal_t *reiserfs_journal_open(dak_t *dal, blk_t journal_block,
-	uint16_t journal_plug_id)
-{
-	reiserfs_opaque_t *journal_instance;
-	reiserfs_journal_t *journal;
-	reiserfs_plug_t *journal_plug;
-
-	if (!(journal_plug = reiserfs_plug_load(REISERFS_PLUG_JOURNAL, journal_plug_id)))
-		 return NULL;
-
-	if (!(journal_instance = journal_plug-&gt;u.journal.init(dal))) {
-		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-			  _("Couldn't initialize journal."));
-		 return NULL;
-	}
-
-	if (!(journal = libreiserfs_calloc(sizeof(*journal), 0)))
-		 goto error_free_journal_instance;
-	
-	journal-&gt;journal_block = journal_block;
-	journal-&gt;journal_plug = journal_plug;
-	journal-&gt;journal_instance = journal_instance;
-
-	/* Optional journal replaying */
-
-	return journal;
-
-error_free_journal_instance:
-	libreiserfs_free(journal_instance);
-error:
-	return NULL;
-}
-		 
-void reiserfs_journal_close(reiserfs_journal_t *journal) {
-	ASSERT(journal != NULL, return);
-
-	journal-&gt;journal_plug-&gt;u.journal-&gt;done(journal-&gt;journal_instance);
-	reiserfs_plug_unload(journal-&gt;journal_plug);
-	libreiserfs_free(journal);
-}
-
-reiserfs_fs_t *reiserfs_fs_open(dal_t *host_dal, dal_t *journal_dal) {
-	blk_t root_block;
-	reiserfs_fs_t *fs;
-	blk_t journal_block;
-
-	uint16_t alloc_plug_id;
-	uint16_t journal_plug_id;
-
-	ASSERT(host_dal != NULL, return NULL);
-	ASSERT(journal_dal != NULL, return NULL);
-
-	if (!(fs != libreiserfs_calloc(sizeof(*fs), 0)))
-		 return NULL;
-
-	if (!(fs-&gt;super = reiserfs_super_open(host_dal))) {
-		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-			  _("Couldn't open superblock."));
-		 goto error_free_fs;
-	}
-
-	journal_plug_id = super-&gt;layout_plug-&gt;u.layout.journal_plug_id();
-	journal_block = super-&gt;layout_plug-&gt;u.get_journal_block();
-	if (!(fs-&gt;journal = reiserfs_journal_open(journal_dal, journal_block, journal_plug_id))) {
-		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-			  _("Couldn't open journal."));
-		 goto error_free_super;
-	}
-
-	alloc_plug_id = super-&gt;layout_plug-&gt;u.layout.alloc_plug_id();
-	if (!(fs-&gt;alloc = reiserfs_alloc_open(alloc_plug_id))) {
-		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-			  _("Couldn't open allocator"));
-		 goto error_free_journal
-	}
-
-	oid_plug_id = super-&gt;layout_plug-&gt;u.layout.oid_plug_id();
-	if (!(fs-&gt;oid = reiserfs_oid_open(oid_plug_id))) {
-		 libreiserfs_exception_throw(EXCEPTION_ERROR, EXCEPTION_CANCEL,
-			  _("Couldn't open oid allocator."));
-		 goto error_free_alloc;
-	}
-
-	root_block = super-&gt;layout_plug-&gt;u.layout.get_root_block();
-	if (!(fs-&gt;tree = reiserfs_tree_open(root_block))) {
-	libreiserfs_free(fs-&gt;super);
-error_free_fs:
-	libreiserfs_free(fs);
-error:
-	return  NULL;
-}
-
-Main library structures are following:
-
-struct reiserfs_super {
-	reiserfs_opaque_t *layout_instance;
-	reiserfs_plug_t *layout_plug;
-};
-
-typedef struct reiserfs_super reiserfs_super_t;
-</pre>
-
-<b>reiserfs_plug_t *layout_plug</b>
-
-<p>
-The pointer to layout_plugin<br><br>
-
-<b>reiserfs_opaque_t *layout_instance</b>
-
-<p>
-Pointer to initialized instance of some layout. Will be using later
-for working with that layout.<br>
-
-<pre>
-struct reiserfs_journal {
-	dal_t *dal;
-	reiserfs_opaque_t *journal_instance;
-	reiserfs_plug_t *journal_plug;
-};
-
-typedef struct reiserfs_journal reiserfs_journal_t;
-</pre>
-
-<b>dal_t *dal</b>
-
-<p>
-DAL where journal lies.<br><br>
-
-<b>reiserfs_opaque_t *journal_instance</b>
-
-<p>
-Pointer to initialized journal instance. Will be using later to interact with
-underlying journal.<br><br>
-
-<b>reiserfs_plug_t *journal_plug</b>
-
-<p>
-Journal format plugin.<br>
-
-<pre>
-struct reiserfs_tree {
-	reiserfs_fs_t *fs;
-};
-
-typedef struct reiserfs_tree reiserfs_tree_t;
-</pre><br>
-
 </td></tr></table>
 
 Copyright 1996-2002 Hans Reiser
