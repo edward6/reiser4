@@ -12,24 +12,40 @@
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block, etc  */
 
+#if REISER4_LARGE_KEY
+#define ORDERING_CHARS (sizeof(__u64) - 1)
+#define OID_CHARS (sizeof(__u64))
+#else
+#define ORDERING_CHARS (0)
 #define OID_CHARS (sizeof(__u64) - 1)
+#endif
+
 #define OFFSET_CHARS (sizeof(__u64))
+
+#define INLINE_CHARS (ORDERING_CHARS + OID_CHARS)
 
 static const __u64 longname_mark = 0x0100000000000000ull;
 
 int
 is_longname_key(const reiser4_key *key)
 {
+	__u64 highpart;
+
 	assert("nikita-2863", key != NULL);
 	assert("nikita-2864", get_key_type(key) == KEY_FILE_NAME_MINOR);
 
-	return (get_key_objectid(key) & longname_mark) ? 1 : 0;
+	if (REISER4_LARGE_KEY)
+		highpart = get_key_ordering(key);
+	else
+		highpart = get_key_objectid(key);
+
+	return (highpart & longname_mark) ? 1 : 0;
 }
 
 int
 is_longname(const char *name UNUSED_ARG, int len)
 {
-	return len > OID_CHARS + OFFSET_CHARS;
+	return len > ORDERING_CHARS + OID_CHARS + OFFSET_CHARS;
 }
 
 /* code ascii string into __u64.
@@ -75,12 +91,17 @@ unpack_string(__u64 value, char *buf)
 char *
 extract_name_from_key(const reiser4_key *key, char *buf)
 {
-	char *cont;
+	char *c;
 
 	assert("nikita-2868", !is_longname_key(key));
 
-	cont = unpack_string(get_key_objectid(key) & ~longname_mark, buf);
-	(void)unpack_string(get_key_offset(key), cont);
+	c = buf;
+	if (REISER4_LARGE_KEY) {
+		c = unpack_string(get_key_ordering(key) & ~longname_mark, c);
+		c = unpack_string(get_key_fulloid(key), c);
+	} else
+		c = unpack_string(get_key_fulloid(key) & ~longname_mark, c);
+	unpack_string(get_key_offset(key), c);
 	return buf;
 }
 
@@ -94,7 +115,8 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 		       reiser4_key * result	/* resulting key of directory
 						 * entry */ )
 {
-	oid_t objectid;
+	__u64 ordering;
+	__u64 objectid;
 	__u64 offset;
 	const char *name;
 	int len;
@@ -143,23 +165,36 @@ build_entry_key_common(const struct inode *dir	/* directory where entry is
 	   file's name. This imposes global ordering on directory
 	   entries.
 	*/
-	objectid = pack_string(name, 1);
+	if (REISER4_LARGE_KEY) {
+		ordering = pack_string(name, 1);
+		objectid = pack_string(name + ORDERING_CHARS, 0);
+	} else
+		objectid = pack_string(name, 1);
 	if (!is_longname(name, len)) {
-		if (len > OID_CHARS)
-			offset = pack_string(name + OID_CHARS, 0);
+		if (len > INLINE_CHARS)
+			offset = pack_string(name + INLINE_CHARS, 0);
 		else
 			offset = 0ull;
 	} else {
-		/* note in a key fact that offset contains hash. */
-		objectid |= longname_mark;
+		/* note in a key the fact that offset contains hash. */
+		if (REISER4_LARGE_KEY)
+			ordering |= longname_mark;
+		else
+			objectid |= longname_mark;
+
 		/* offset is the hash of the file name. */
-		offset = inode_hash_plugin(dir)->hash(name + OID_CHARS, 
-						      len - OID_CHARS);
+		offset = inode_hash_plugin(dir)->hash(name + INLINE_CHARS,
+						      len - INLINE_CHARS);
 	}
 
-	/* objectid is 60 bits */
-	assert("nikita-1405", !(objectid & ~KEY_OBJECTID_MASK));
-	set_key_objectid(result, objectid);
+	if (REISER4_LARGE_KEY) {
+		set_key_ordering(result, ordering);
+		set_key_fulloid(result, objectid);
+	} else {
+		/* objectid is 60 bits */
+		assert("nikita-1405", !(objectid & ~KEY_OBJECTID_MASK));
+		set_key_objectid(result, objectid);
+	}
 	set_key_offset(result, offset);
 	return 0;
 }
@@ -243,7 +278,10 @@ is_dot_key(const reiser4_key * key /* key to check */ )
 {
 	assert("nikita-1717", key != NULL);
 	assert("nikita-1718", get_key_type(key) == KEY_FILE_NAME_MINOR);
-	return (get_key_objectid(key) == 0ull) && (get_key_offset(key) == 0ull);
+	return 
+		(get_key_ordering(key) == 0ull) && 
+		(get_key_objectid(key) == 0ull) && 
+		(get_key_offset(key) == 0ull);
 }
 
 /* build key for stat-data.

@@ -103,8 +103,11 @@ print_key(const char *prefix /* prefix to print */ ,
 			       get_key_offset(key));
 		if (get_key_type(key) == KEY_FILE_NAME_MINOR) {
 			char buf[DE_NAME_BUF_LEN];
+			char *c;
 
-			unpack_string(get_key_objectid(key), buf);
+			c = buf;
+			c = unpack_string(get_key_ordering(key), c);
+			unpack_string(get_key_fulloid(key), c);
 			printk("[%s", buf);
 			if (is_longname_key(key))
 				printk("...]\n");

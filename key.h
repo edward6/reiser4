@@ -88,6 +88,8 @@ typedef enum {
 	KEY_BAND_INDEX,
 	/* objectid. Sits in 2nd element */
 	KEY_OBJECTID_INDEX = KEY_BAND_INDEX,
+	/* full objectid. Sits in 2nd element */
+	KEY_FULLOID_INDEX = KEY_BAND_INDEX,
 	/* Offset. Sits in 3rd element */
 	KEY_OFFSET_INDEX,
 	/* Name hash. Sits in 3rd element */
@@ -120,6 +122,8 @@ typedef enum {
 	KEY_BAND_MASK = 0xf000000000000000ull,
 	/* objectid occupies lower 60 bits of the 2nd element */
 	KEY_OBJECTID_MASK = 0x0fffffffffffffffull,
+	/* full 64bit objectid*/
+	KEY_FULLOID_MASK = 0xffffffffffffffffull,
 	/* offset is just 3rd L.M.Nt itself */
 	KEY_OFFSET_MASK = 0xffffffffffffffffull,
 	/* ordering is whole second element */
@@ -132,6 +136,7 @@ typedef enum {
 	KEY_TYPE_SHIFT = 0,
 	KEY_BAND_SHIFT = 60,
 	KEY_OBJECTID_SHIFT = 0,
+	KEY_FULLOID_SHIFT = 0,
 	KEY_OFFSET_SHIFT = 0,
 	KEY_ORDERING_SHIFT = 0,
 } reiser4_key_field_shift;
@@ -194,6 +199,8 @@ DEFINE_KEY_FIELD(type, TYPE, key_minor_locality);
 DEFINE_KEY_FIELD(band, BAND, __u64);
 /* define get_key_objectid(), set_key_objectid() */
 DEFINE_KEY_FIELD(objectid, OBJECTID, oid_t);
+/* define get_key_fulloid(), set_key_fulloid() */
+DEFINE_KEY_FIELD(fulloid, FULLOID, oid_t);
 /* define get_key_offset(), set_key_offset() */
 DEFINE_KEY_FIELD(offset, OFFSET, __u64);
 #if (REISER4_LARGE_KEY)

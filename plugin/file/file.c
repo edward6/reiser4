@@ -1878,13 +1878,17 @@ init_inode_data_unix_file(struct inode *inode,
 		inode_dir_plugin(parent)->build_entry_key(parent, 
 							  &crd->dentry->d_name, 
 							  &key);
-		set_inode_ordering(inode, get_key_objectid(&key));
 	} else {
+		coord_t *coord;
+
+		coord = &reiser4_inode_data(inode)->sd_coord;
+		coord_clear_iplug(coord);
 		/* safe to use ->sd_coord, because node is under long term
 		 * lock */
-		item_key_by_coord(&reiser4_inode_data(inode)->sd_coord, &key);
-		set_inode_ordering(inode, get_key_ordering(&key));
+		WITH_DATA(coord->node, item_key_by_coord(coord, &key));
 	}
+
+	set_inode_ordering(inode, get_key_ordering(&key));
 }
 
 /* plugin->u.file.pre_delete */

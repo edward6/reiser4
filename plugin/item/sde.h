@@ -44,7 +44,11 @@ int de_rem_and_shrink(struct inode *dir, coord_t * coord, int length);
 char *extract_dent_name(const coord_t * coord, 
 			directory_entry_format *dent, char *buf);
 
+#if REISER4_LARGE_KEY
+#define DE_NAME_BUF_LEN (24)
+#else
 #define DE_NAME_BUF_LEN (16)
+#endif
 
 /* __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__ */
 #endif
