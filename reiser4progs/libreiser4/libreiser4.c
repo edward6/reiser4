@@ -79,12 +79,12 @@ static inline errno_t __item_body(
     
     /* Getting item from the node */
     *item = libreiser4_plugin_call(return -1, node->plugin->node_ops, 
-	item_body, node->entity, place->pos.item);
+	item_body, node->entity, &place->pos);
     
     /* Getting item length from the node */
     if (len) {
 	*len = libreiser4_plugin_call(return -1, node->plugin->node_ops,
-	    item_len, node->entity, place->pos.item);
+	    item_len, node->entity, &place->pos);
     }
     
     return 0;
@@ -148,7 +148,7 @@ static inline errno_t __item_key(
     aal_assert("umka-871", place != NULL, return -1);
 
     return reiserfs_node_get_key(((reiserfs_cache_t *)place->cache)->node, 
-	place->pos.item, key);
+	&place->pos, key);
 }
 
 /* Handler for plugin id requests */
@@ -163,14 +163,15 @@ static inline reiserfs_id_t __item_pid(
     switch (type) {
 	case ITEM_PLUGIN_TYPE:
 	    return reiserfs_node_item_get_pid(((reiserfs_cache_t *)place->cache)->node, 
-		place->pos.item);
+		&place->pos);
+	    
 	case NODE_PLUGIN_TYPE:
 	    return reiserfs_node_get_pid(((reiserfs_cache_t *)place->cache)->node);
-	default: {
+	    
+	default:
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Unknown plugin type %x.", type);
 	    return INVALID_PLUGIN_ID;
-	}
     }
 }
 

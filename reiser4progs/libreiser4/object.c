@@ -20,8 +20,8 @@ reiserfs_plugin_t *reiserfs_object_guess(reiserfs_object_t *object) {
     reiserfs_plugin_t *item_plugin;
     
     /* Getting plugin for the first object item (most probably stat data item) */
-    if (!(item_plugin = reiserfs_node_item_get_plugin(object->coord.cache->node, 
-	object->coord.pos.item)))
+    if (!(item_plugin = reiserfs_node_item_plugin(object->coord.cache->node, 
+	&object->coord.pos)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find first item plugin.");
@@ -30,7 +30,7 @@ reiserfs_plugin_t *reiserfs_object_guess(reiserfs_object_t *object) {
     
     /* Getting first item body */
     if (!(item_body = reiserfs_node_item_body(object->coord.cache->node, 
-	object->coord.pos.item)))
+	&object->coord.pos)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find first item plugin.");
@@ -94,7 +94,7 @@ static errno_t reiserfs_object_lookup(
 	}
 	
 	if (!(item_body = reiserfs_node_item_body(object->coord.cache->node, 
-	    object->coord.pos.item))) 
+	    &object->coord.pos))) 
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get item body. Node %llu, item %u.", 
@@ -103,8 +103,8 @@ static errno_t reiserfs_object_lookup(
 	    return -1;
 	}
 	
-	if (!(item_plugin = reiserfs_node_item_get_plugin(object->coord.cache->node, 
-	    object->coord.pos.item)))
+	if (!(item_plugin = reiserfs_node_item_plugin(object->coord.cache->node, 
+	    &object->coord.pos)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get item plugin. Node %llu, item %u.", 

@@ -95,25 +95,31 @@ static uint32_t node40_count(reiserfs_node40_t *node) {
     return nh40_get_num_items(reiserfs_nh40(node->block));
 }
 
-static errno_t node40_get_key(reiserfs_node40_t *node, uint32_t pos, 
-    reiserfs_key_t *key) 
+static errno_t node40_get_key(reiserfs_node40_t *node, 
+    reiserfs_pos_t *pos, reiserfs_key_t *key) 
 {
     aal_assert("umka-821", key != NULL, return -1);
     aal_assert("vpf-009", node != NULL, return -1);
-    aal_assert("umka-810", pos < node40_count(node), return -1);
+    aal_assert("umka-939", pos != NULL, return -1);
     
-    aal_memcpy(key->body, &(node40_ih_at(node->block, pos)->key), 
+    aal_assert("umka-810", pos->item < node40_count(node), return -1);
+        
+    aal_memcpy(key->body, &(node40_ih_at(node->block, pos->item)->key), 
 	sizeof(reiserfs_key40_t));
     
     return 0;
 }
 
 /* Gets item's body at given pos */
-static void *node40_item_body(reiserfs_node40_t *node, uint32_t pos) {
+static void *node40_item_body(reiserfs_node40_t *node, 
+    reiserfs_pos_t *pos) 
+{
     aal_assert("vpf-040", node != NULL, return NULL);
-    aal_assert("umka-814", pos < node40_count(node), return NULL);
+    aal_assert("umka-940", pos != NULL, return NULL);
     
-    return node40_ib_at(node->block, pos);
+    aal_assert("umka-814", pos->item < node40_count(node), return NULL);
+    
+    return node40_ib_at(node->block, pos->item);
 }
 
 /*
@@ -133,31 +139,39 @@ static uint32_t node40_item_maxsize(reiserfs_node40_t *node) {
 }
 
 static uint32_t node40_item_get_pid(reiserfs_node40_t *node, 
-    uint32_t pos)
+    reiserfs_pos_t *pos)
 {
-    aal_assert("vpf-039", node != NULL, return 0);
-    aal_assert("umka-815", pos < node40_count(node), return 0);
+    aal_assert("vpf-039", node != NULL, return INVALID_PLUGIN_ID);
+    aal_assert("umka-941", pos != NULL, return INVALID_PLUGIN_ID);
     
-    return ih40_get_pid(node40_ih_at(node->block, pos));
+    aal_assert("umka-815", pos->item < node40_count(node), return 0);
+    
+    return ih40_get_pid(node40_ih_at(node->block, pos->item));
 }
 
 /* Returns length of item at pos */
-static uint32_t node40_item_len(reiserfs_node40_t *node, uint32_t pos) {
+static uint32_t node40_item_len(reiserfs_node40_t *node, 
+    reiserfs_pos_t *pos) 
+{
     aal_assert("vpf-037", node != NULL, return 0);
-    aal_assert("umka-815", pos < node40_count(node), return 0);
+    aal_assert("umka-942", pos != NULL, return 0);
     
-    return ih40_get_length(node40_ih_at(node->block, pos));    
+    aal_assert("umka-815", pos->item < node40_count(node), return 0);
+    
+    return ih40_get_length(node40_ih_at(node->block, pos->item));
 }
 
 #ifndef ENABLE_COMPACT
 
 static errno_t node40_item_set_pid(reiserfs_node40_t *node, 
-    uint32_t pos, uint32_t pid) 
+    reiserfs_pos_t *pos, uint32_t pid)
 {
     aal_assert("vpf-039", node != NULL, return -1);
-    aal_assert("umka-816", pos < node40_count(node), return -1);
+    aal_assert("umka-943", pos != NULL, return -1);
+    
+    aal_assert("umka-816", pos->item < node40_count(node), return -1);
 
-    ih40_set_pid(node40_ih_at(node->block, pos), pid);
+    ih40_set_pid(node40_ih_at(node->block, pos->item), pid);
 
     return 0;
 }
@@ -264,7 +278,9 @@ static errno_t node40_insert(reiserfs_node40_t *node,
     This function removes item from the node at specified pos. Do not try to 
     understand it. This is impossible. But it works correctly.
 */
-static errno_t node40_remove(reiserfs_node40_t *node, reiserfs_pos_t *pos) {
+static errno_t node40_remove(reiserfs_node40_t *node, 
+    reiserfs_pos_t *pos) 
+{
     int do_move;
     uint32_t offset;
     reiserfs_nh40_t *nh;
@@ -398,16 +414,18 @@ static errno_t node40_set_level(reiserfs_node40_t *node, uint8_t level) {
    return 0;
 }
 
-static errno_t node40_set_key(reiserfs_node40_t *node, uint32_t pos, 
-    reiserfs_key_t *key) 
+static errno_t node40_set_key(reiserfs_node40_t *node, 
+    reiserfs_pos_t *pos, reiserfs_key_t *key) 
 {
     aal_assert("umka-819", key != NULL, return -1);
     aal_assert("umka-820", key->plugin != NULL, return -1);
     
     aal_assert("umka-809", node != NULL, return -1);
-    aal_assert("umka-811", pos < node40_count(node), return -1);
+    aal_assert("umka-944", pos != NULL, return -1);
+    
+    aal_assert("umka-811", pos->item < node40_count(node), return -1);
 
-    aal_memcpy(&(node40_ih_at(node->block, pos)->key), key, 
+    aal_memcpy(&(node40_ih_at(node->block, pos->item)->key), key, 
 	key->plugin->key_ops.size());
 
     return 0;
@@ -499,13 +517,14 @@ static reiserfs_plugin_t node40_plugin = {
 	.get_pid = (uint32_t (*)(reiserfs_entity_t *))node40_get_pid,
 	.get_level = (uint8_t (*)(reiserfs_entity_t *))node40_get_level,
 	
-	.get_key = (errno_t (*)(reiserfs_entity_t *, uint32_t, reiserfs_key_t *))
-	    node40_get_key,
+	.get_key = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *, 
+	    reiserfs_key_t *)) node40_get_key,
 	
 	.get_space = (uint32_t (*)(reiserfs_entity_t *))node40_get_space,
 	
 #ifndef ENABLE_COMPACT
-	.create = (reiserfs_entity_t *(*)(aal_block_t *, uint8_t))node40_create,
+	.create = (reiserfs_entity_t *(*)(aal_block_t *, uint8_t))
+	    node40_create,
 	
 	.insert = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *, 
 	    reiserfs_item_hint_t *))node40_insert,
@@ -516,18 +535,20 @@ static reiserfs_plugin_t node40_plugin = {
 	.remove = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *))
 	    node40_remove,
 	
-	.set_level = (errno_t (*)(reiserfs_entity_t *, uint8_t))node40_set_level,
+	.set_level = (errno_t (*)(reiserfs_entity_t *, uint8_t))
+	    node40_set_level,
 	
-	.set_pid = (errno_t (*)(reiserfs_entity_t *, uint32_t))node40_get_pid,
+	.set_pid = (errno_t (*)(reiserfs_entity_t *, uint32_t))
+	    node40_get_pid,
 	
-	.set_key = (errno_t (*)(reiserfs_entity_t *, uint32_t, reiserfs_key_t *))
-	    node40_set_key,
+	.set_key = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *, 
+	    reiserfs_key_t *))node40_set_key,
 	
 	.set_space = (errno_t (*)(reiserfs_entity_t *, uint32_t))
 	    node40_set_space,
 
-	.item_set_pid = (errno_t (*)(reiserfs_entity_t *, uint32_t, uint32_t))
-	    node40_item_set_pid,
+	.item_set_pid = (errno_t (*)(reiserfs_entity_t *, reiserfs_pos_t *, 
+	    uint32_t))node40_item_set_pid,
 #else
 	.create = NULL,
 	.insert = NULL,
@@ -541,11 +562,16 @@ static reiserfs_plugin_t node40_plugin = {
 #endif
 	.item_overhead = (uint32_t (*)(void))node40_item_overhead,
 	
-	.item_maxsize = (uint32_t (*)(reiserfs_entity_t *))node40_item_maxsize,
-	.item_len = (uint32_t (*)(reiserfs_entity_t *, uint32_t))node40_item_len,
-	.item_body = (void *(*)(reiserfs_entity_t *, uint32_t))node40_item_body,
+	.item_maxsize = (uint32_t (*)(reiserfs_entity_t *))
+	    node40_item_maxsize,
+	
+	.item_len = (uint32_t (*)(reiserfs_entity_t *, reiserfs_pos_t *))
+	    node40_item_len,
+	
+	.item_body = (void *(*)(reiserfs_entity_t *, reiserfs_pos_t *))
+	    node40_item_body,
 
-	.item_get_pid = (uint32_t (*)(reiserfs_entity_t *, uint32_t))
+	.item_get_pid = (uint32_t (*)(reiserfs_entity_t *, reiserfs_pos_t *))
 	    node40_item_get_pid,
     }
 };

@@ -117,8 +117,9 @@ static errno_t reiserfs_cache_nkey(
 		direction, key);
 	}
     }
+    
     pos.item += (direction == RIGHT ? 1 : -1);
-    reiserfs_node_get_key(cache->parent->node, pos.item, key);
+    reiserfs_node_get_key(cache->parent->node, &pos, key);
     
     return 0;
 }

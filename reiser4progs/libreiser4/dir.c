@@ -27,8 +27,8 @@ reiserfs_object_t *reiserfs_dir_open(
 	return NULL;
     
     /* Getting plugin for the first object item (most probably stat data item) */
-    if (!(item_plugin = reiserfs_node_item_get_plugin(object->coord.cache->node, 
-	object->coord.pos.item)))
+    if (!(item_plugin = reiserfs_node_item_plugin(object->coord.cache->node, 
+	&object->coord.pos)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find first item plugin.");
@@ -37,7 +37,7 @@ reiserfs_object_t *reiserfs_dir_open(
     
     /* Getting first item body */
     if (!(item_body = reiserfs_node_item_body(object->coord.cache->node, 
-	object->coord.pos.item)))
+	&object->coord.pos)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find first item plugin.");

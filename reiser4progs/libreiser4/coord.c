@@ -11,6 +11,17 @@
 
 #include <reiser4/reiser4.h>
 
+/* Initializes reiserfs_pos_t struct */
+inline void reiserfs_pos_init(
+    reiserfs_pos_t *pos,	/* pos to be initialized */
+    uint32_t item,		/* item number */
+    uint32_t unit		/* unit number */
+) {
+    aal_assert("umka-955", pos != NULL, return);
+    pos->item = item;
+    pos->unit = unit;
+}
+
 /* Creates coord instance based on passed cache, item pos and unit pos params */
 reiserfs_coord_t *reiserfs_coord_create(
     reiserfs_cache_t *cache,	/* the first component of coord */

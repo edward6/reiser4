@@ -587,24 +587,24 @@ struct reiserfs_node_ops {
     errno_t (*set_level) (reiserfs_entity_t *, uint8_t);
     
     /* Gets/sets key at pos */
-    errno_t (*get_key) (reiserfs_entity_t *, uint32_t, reiserfs_key_t *);
-    errno_t (*set_key) (reiserfs_entity_t *, uint32_t, reiserfs_key_t *);
+    errno_t (*get_key) (reiserfs_entity_t *, reiserfs_pos_t *, reiserfs_key_t *);
+    errno_t (*set_key) (reiserfs_entity_t *, reiserfs_pos_t *, reiserfs_key_t *);
 
     /* Returns item's overhead */
     uint32_t (*item_overhead) (void);
 
     /* Returns item's length by pos */
-    uint32_t (*item_len) (reiserfs_entity_t *, uint32_t);
+    uint32_t (*item_len) (reiserfs_entity_t *, reiserfs_pos_t *);
     
     /* Returns item's max size */
     uint32_t (*item_maxsize) (reiserfs_entity_t *);
     
     /* Gets item at passed pos */
-    void *(*item_body) (reiserfs_entity_t *, uint32_t);
+    void *(*item_body) (reiserfs_entity_t *, reiserfs_pos_t *);
 
     /* Gets/sets node's plugin ID */
-    uint32_t (*item_get_pid) (reiserfs_entity_t *, uint32_t);
-    errno_t (*item_set_pid) (reiserfs_entity_t *, uint32_t, uint32_t);
+    uint32_t (*item_get_pid) (reiserfs_entity_t *, reiserfs_pos_t *);
+    errno_t (*item_set_pid) (reiserfs_entity_t *, reiserfs_pos_t *, uint32_t);
 };
 
 typedef struct reiserfs_node_ops reiserfs_node_ops_t;

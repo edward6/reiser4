@@ -9,6 +9,9 @@
 
 #include <reiser4/filesystem.h>
 
+extern inline void reiserfs_pos_init(reiserfs_pos_t *pos,
+    uint32_t item, uint32_t unit);
+
 extern reiserfs_coord_t *reiserfs_coord_create(reiserfs_cache_t *cache, 
     uint16_t item, uint16_t unit);
 

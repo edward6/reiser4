@@ -274,7 +274,7 @@ int reiserfs_tree_lookup(
 	    coord->pos.item--;
 	}
 
-	if (!reiserfs_node_item_internal(coord->cache->node, coord->pos.item)) {
+	if (!reiserfs_node_item_internal(coord->cache->node, &coord->pos)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Not internal item was found on the twig level. "
 		"Sorry, drilling doesn't supported yet!");
@@ -283,7 +283,7 @@ int reiserfs_tree_lookup(
 
 	/* Getting the node pointer from internal item */
 	if (!(blk = reiserfs_node_get_pointer(coord->cache->node, 
-	    coord->pos.item))) 
+	    &coord->pos)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't get pointer from internal item %u, node %llu.", 
@@ -297,7 +297,7 @@ int reiserfs_tree_lookup(
 	    Check whether specified node already in cache. If so, we use node
 	    from the cache.
 	*/
-	reiserfs_node_get_key(coord->cache->node, coord->pos.item, &ikey);
+	reiserfs_node_get_key(coord->cache->node, &coord->pos, &ikey);
 
 	if (!(coord->cache = reiserfs_cache_find(parent, &ikey))) {
 	    /* 
@@ -335,7 +335,7 @@ errno_t reiserfs_tree_move(
 	reiserfs_key_t key;
 	reiserfs_cache_t *child;
 
-	reiserfs_node_get_key(src->cache->node, src->pos.item, &key);
+	reiserfs_node_get_key(src->cache->node, &src->pos, &key);
 	
 	if ((child = reiserfs_cache_find(src->cache, &key))) {
 	    reiserfs_cache_unregister(src->cache, child);
@@ -412,10 +412,13 @@ errno_t reiserfs_tree_shift(
     item_overhead = reiserfs_node_item_overhead(old->cache->node);
     
     /* Trying to move items into the left neighbour */
-    if (left) {
+    if (left && reiserfs_node_count(old->cache->node) > 0) {
+	reiserfs_pos_t mpos;
+
+	reiserfs_pos_init(&mpos, 0, 0xffff);
 
         /* Initializing item_len by first length of first item from shifted node */
-	item_len = reiserfs_node_item_len(old->cache->node, 0) + 
+	item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
 	    item_overhead;
 	
 	/* Moving items until insertion point reach first position in node */
@@ -449,7 +452,7 @@ errno_t reiserfs_tree_shift(
 	    }
 	    
 	    if (reiserfs_node_count(old->cache->node) > 0) {
-		item_len = reiserfs_node_item_len(old->cache->node, 0) + 
+		item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
 		    item_overhead;
 	    }
 	}
@@ -457,9 +460,13 @@ errno_t reiserfs_tree_shift(
     
     /* Trying to move items into the right neghbour */
     if (right && reiserfs_node_count(old->cache->node) > 0) {
+	reiserfs_pos_t mpos;
 	
-	item_len = reiserfs_node_item_len(old->cache->node, 
-	    reiserfs_node_count(old->cache->node) - 1) + item_overhead;
+	reiserfs_pos_init(&mpos, 
+	    reiserfs_node_count(old->cache->node) - 1, 0xffff);
+	
+	item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
+	    item_overhead;
 	    
 	while (reiserfs_node_count(old->cache->node) > 0 && 
 	    reiserfs_node_get_space(right->node) >= item_len)
@@ -498,8 +505,9 @@ errno_t reiserfs_tree_shift(
 	    }
 	    
 	    if (reiserfs_node_count(old->cache->node) > 0) {
-		item_len = reiserfs_node_item_len(old->cache->node, 
-		    reiserfs_node_count(old->cache->node) - 1) + item_overhead;
+		mpos.item = reiserfs_node_count(old->cache->node) - 1;
+		item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
+		    item_overhead;
 	    }
 	}
     }
@@ -538,7 +546,7 @@ errno_t reiserfs_tree_shift(
 	    set new ldkey into parent internal node.
 	*/
 	if (reiserfs_key_compare_full(&old_ldkey, &new_ldkey) != 0) {
-	    if (reiserfs_node_set_key(parent->node, pos.item, &new_ldkey)) {
+	    if (reiserfs_node_set_key(parent->node, &pos, &new_ldkey)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't update left delimiting key of shifted node.");
 		return -1;
@@ -557,7 +565,10 @@ errno_t reiserfs_tree_shift(
 	    internal key in parent;
 	*/
 	if (reiserfs_key_compare_full(&right_ldkey, &new_ldkey) != 0) {
-	    if (reiserfs_node_set_key(parent->node, pos.item + 1, &new_ldkey)) {
+		
+	    pos.item++;
+	    
+	    if (reiserfs_node_set_key(parent->node, &pos, &new_ldkey)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		    "Can't update left delimiting key of right neighbour block %llu.",
 		    aal_block_get_nr(right->node->block));
@@ -729,9 +740,7 @@ errno_t reiserfs_tree_insert(
 	}
 
 	/* Updating coord by just allocated leaf */
-	coord->cache = cache;
-	coord->pos.item = 0;
-	coord->pos.unit = 0xffff;
+	reiserfs_coord_init(coord, cache, 0, 0xffff);
 	
         if (reiserfs_node_insert(coord->cache->node, &coord->pos, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -884,12 +893,10 @@ errno_t reiserfs_tree_insert(
 	    if (insert.pos.item < reiserfs_node_count(insert.cache->node)) {
 		reiserfs_pos_t src_pos;
 		reiserfs_pos_t dst_pos;
-
-		dst_pos.unit = 0xffff;
-		dst_pos.item = 0;
 		
-		src_pos.unit = 0xffff;
-		src_pos.item = reiserfs_node_count(insert.cache->node) - 1;
+		reiserfs_pos_init(&dst_pos, 0, 0xffff);
+		reiserfs_pos_init(&src_pos, 
+		    reiserfs_node_count(insert.cache->node) - 1, 0xffff);
 		
 		if (reiserfs_node_move(cache->node, &dst_pos, insert.cache->node, &src_pos)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
