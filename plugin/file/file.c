@@ -29,18 +29,18 @@ find_item ()
 }
 #endif
 
+#define SEARCH_BIAS FIND_MAX_NOT_MORE_THAN
+/*#define SEARCH_BIAS FIND_EXACT*/
 
-/* return true if writing to position specified by @key requires appending item
- * @coord is set to */
-static int append_to_this_item (const reiser4_key * key, const coord_t * coord)
+
+/* get key of item next to one @coord is set to */
+static reiser4_key * get_next_item_key (const coord_t * coord,
+					reiser4_key * next_key)
 {
-	reiser4_key tmp_key; /* will be used for various purposes */
-
-
 	if (coord->item_pos == node_num_items (coord->node) - 1) {
 		/* get key of next item if it is in right neighbor */
 		spin_lock_dk (current_tree);
-		tmp_key = *znode_get_rd_key (coord->node);
+		*next_key = *znode_get_rd_key (coord->node);
 		spin_unlock_dk (current_tree);
 	} else {
 		/* get key of next item if it is in the same node */
@@ -48,38 +48,37 @@ static int append_to_this_item (const reiser4_key * key, const coord_t * coord)
 		
 		coord_dup (&next, coord);
 		check_me ("vs-730", coord_next_item (&next) == 0);
-		item_key_by_coord (&next, &tmp_key);
+		item_key_by_coord (&next, next_key);
 	}
-	if (keygt (&tmp_key, key)) {
-		/* make sure that we can append into coord */
-		item_plugin * iplug;
-
-		iplug = item_plugin_by_coord (coord);
-		if (iplug && iplug->common.max_key_inside) {
-			if (keyge (key, item_key_by_coord (coord, &tmp_key)) &&
-			    keyle (key,
-				   iplug->common.max_key_inside (coord,
-								 &tmp_key))) {
-				/* we can use @coord writing to position
-				 * @key */
-				return 1;
-			}
-		}
-	}
-	return 0;
+	return next_key;
 }
 
 
 /* check whether coord is set as if it was just set by node's lookup with
  * @key. If yes - 1 is returned. If it is not - check whether @key is inside of
  * this node, if yes - call node lookup. Otherwise - return 0 */
-static int coord_set_properly (const reiser4_key * key, coord_t * coord)
+int coord_set_properly (const reiser4_key * key, coord_t * coord)
 {
 	int result;
+	coord_t item;         /* item @coord is set to or after */
+	reiser4_key item_key; /* key of that item */
+	item_plugin * iplug;  /* plugin of item coord is set to or after */
+	reiser4_key max_key,  /* max key currently contained in that item */
+		max_possible_key, /* max possible key which can be stored in
+				   * that item */
+		next_item_key; /* key of item next to that item or right
+				* delimiting key */
+
 
 	result = zload (coord->node);
 	if (result)
 		return 0;
+	/* FIXME-VS: fow now */
+	assert ("vs-735", !node_is_empty (coord->node));
+	assert ("vs-736", coord->between != BEFORE_ITEM);
+	assert ("vs-737", coord->between != BEFORE_UNIT);
+
+
 	if (coord_is_existing_unit (coord)) {
 		/* check whether @key is inside of this unit */
 		item_plugin * iplug;
@@ -88,19 +87,20 @@ static int coord_set_properly (const reiser4_key * key, coord_t * coord)
 		assert ("vs-716", iplug && iplug->common.key_in_coord);
 
 		if (iplug->common.key_in_coord (coord, key)) {
+			/*
+			 * FIXME-VS: should coord be updated?
+			 */
 			zrelse (coord->node);
 			return 1;
 		}
 	}
 
-	/* if we have to append item @coord is set to */
-	if (append_to_this_item (key, coord)) {
-		/* set coord after last unit in the item */
-		coord->unit_pos = coord_last_unit_pos (coord);
-		coord->between = AFTER_UNIT;
-		zrelse (coord->node);
-		return 1;		
-	}
+	/* get key of item after which coord is set */
+	coord_dup (&item, coord);
+	item.unit_pos = 0;
+	item.between = AT_UNIT;
+	item_key_by_coord (&item, &item_key);
+	iplug = item_plugin_by_coord (&item);
 
 
 	/* @coord requires re-setting, check whether @key is in this node
@@ -120,6 +120,42 @@ static int coord_set_properly (const reiser4_key * key, coord_t * coord)
 		zrelse (coord->node);
 		return 0;
 	}
+
+	/* max key stored in item */
+	if (iplug->common.real_max_key_inside)
+		iplug->common.real_max_key_inside (&item, &max_key);
+	else
+		max_key = item_key;
+
+	/* max possible key which can be in item */
+	if (iplug->common.max_key_inside)
+		iplug->common.max_key_inside (&item, &max_possible_key);
+	else
+		max_possible_key = item_key;
+
+	/* key of item next to coord or right delimiting key */
+	get_next_item_key (coord, &next_item_key);
+
+	if (keyge (key, &item_key)) {
+		/* item_key <= key */
+		if (keygt (key, &max_possible_key)) {
+			/* key > max_possible_key */
+			assert ("vs-739", keylt (key, &next_item_key));
+			coord->unit_pos = 0;
+			coord->between = AFTER_ITEM;
+			zrelse (coord->node);
+			return 1;		
+		}
+		if (keylt (key, &max_possible_key)) {
+			/* key < max_possible_key */
+			assert ("vs-740", keygt (key, &max_key));
+			coord->unit_pos = coord_last_unit_pos (coord);
+			coord->between = AFTER_UNIT;
+			zrelse (coord->node);
+			return 1;		
+		}
+	}
+
 	/*
 	 * We assume that this function is being used for the unix file plugin,
 	 * that no two items of this file exist in the same node, and that we
@@ -130,7 +166,7 @@ static int coord_set_properly (const reiser4_key * key, coord_t * coord)
 	 */
 	impossible ("vs-725", "do we ever get here?");
 	node_plugin_by_node (coord->node)->lookup (coord->node, key,
-						   FIND_MAX_NOT_MORE_THAN,
+						   SEARCH_BIAS,
 						   coord);
 	zrelse (coord->node);
 	return 1;
@@ -199,7 +235,7 @@ int find_next_item (struct file * file,
 				sealed_coord = fdata->reg.coord;
 				result = seal_validate (&seal, &sealed_coord, key,
 							znode_get_level (sealed_coord.node),
-							lh, FIND_MAX_NOT_MORE_THAN, lock_mode,
+							lh, SEARCH_BIAS, lock_mode,
 							ZNODE_LOCK_LOPRI);
 				if (result == 0) {
 					/* set coord based on seal */
@@ -227,7 +263,7 @@ int find_next_item (struct file * file,
 	 * not get optimized */
 	reiser4_stat_file_add (full_find_items);
 	return coord_by_key (current_tree, key, coord, lh,
-			     lock_mode, FIND_MAX_NOT_MORE_THAN,
+			     lock_mode, SEARCH_BIAS,
 			     TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE | CBK_FOR_INSERT);
 }
 
