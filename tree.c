@@ -1391,7 +1391,7 @@ init_tree(reiser4_tree * tree	/* pointer to structure being
 	tree->znode_epoch = 1ull;
 
 	cbk_cache_list_init(&tree->cbk_cache.lru);
-	spin_lock_init(&tree->cbk_cache.guard);
+	spin_cbk_cache_init(&tree->cbk_cache);
 
 	result = znodes_tree_init(tree);
 	if (result == 0)
