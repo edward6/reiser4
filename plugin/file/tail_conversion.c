@@ -513,7 +513,17 @@ int tail2extent (struct inode * inode)
 					done_lh (&lh);
 					goto error;
 				}
-				
+				if (coord.between == AFTER_UNIT) {
+					/*
+					 * this is used to detect end of file when inode->i_size can not be used 
+					 */
+					done_lh (&lh);
+					done = 1;
+					p_data = kmap_atomic (pages [i], KM_USER0);
+					memset (p_data + page_off, 0, PAGE_CACHE_SIZE - page_off);
+					kunmap_atomic (p_data, KM_USER0);
+					break;
+				}	
 				result = zload (coord.node);
 				if (result) {
 					done_lh (&lh);
