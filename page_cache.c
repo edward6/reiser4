@@ -193,6 +193,7 @@ int done_formatted_fake( struct super_block *super )
 static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 {
 	struct page *page;
+	int result;
 
 	assert( "nikita-2169", node != NULL );
 	assert( "nikita-2038", tree != NULL );
@@ -201,8 +202,6 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 
 	page = add_page( tree -> super, node );
 	if( page != NULL ) {
-		int result;
-
 		if( !PageUptodate( page ) ) {
 			result = page -> mapping -> a_ops -> readpage( NULL,
 								       page );
@@ -219,12 +218,13 @@ static int page_cache_read_node( reiser4_tree *tree, jnode *node )
 			result = 1;
 		}
 		kmap_once( node, page );
-		/* return with jnode spin-locked */
-		return result;
 	} else {
 		spin_lock_jnode( node );
-		return -ENOMEM;
+		result = -ENOMEM;
 	}
+	assert( "nikita-2239", ergo( page != NULL, !PageLocked( page ) ) );
+	/* return with jnode spin-locked */
+	return result;
 }
 
 /** 

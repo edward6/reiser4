@@ -100,7 +100,10 @@ spinlock_t *jnode_to_page_lock( const jnode *node )
 		( spin_ind < sizeof_array( get_current_super_private() -> j_to_p ) ) );
 	result = &get_current_super_private() -> j_to_p[ spin_ind ];
 #ifdef CONFIG_DEBUG_SPINLOCK
-	assert( "nikita-2241", result -> magic == SPINLOCK_MAGIC );
+	if( result -> magic != SPINLOCK_MAGIC ) {
+		warning( "nikita-2242", "Unitialized spinlock: %i", spin_ind );
+		info_jnode( "jnode", node );
+	}
 #endif
 	return result;
 }
