@@ -102,11 +102,8 @@ static void
 ea2nea(struct inode *inode)
 {
 	assert("vs-1168", ea_obtained(inode));
-	ea_set(inode, 0);
-	inode_clr_flag(inode, REISER4_EXCLUSIVE_USE);
-	downgrade_write(&reiser4_inode_data(inode)->sem);
-	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_w --);
-	ON_DEBUG_CONTEXT(lock_counters()->inode_sem_r ++);
+	drop_exclusive_access(inode);
+	get_nonexclusive_access(inode);
 }
 
 static int
