@@ -464,24 +464,31 @@ int jwrite_to (jnode * node UNUSED_ARG, const reiser4_block_nr * block UNUSED_AR
 	return 0;
 }
 
-int jwait_io (jnode * node)
+int jwait_io (jnode * node, int rw)
 {
 	struct page * page;
+	int           result;
 
 	assert ("zam-447", node != NULL);
 	assert ("zam-448", jnode_page (node) != NULL);
 
 	page = jnode_page (node);
 
-	if (!PageUptodate (page)) {
+	result = 0;
+	if (rw == READ) {
 		wait_on_page_locked (page);
-
-		if (!PageUptodate (page)) return -EIO;
+		if (PageError(page))
+			result = -EIO;
 	} else {
-		unlock_page (page);
+		assert ("nikita-2227", rw == WRITE);
+		wait_on_page_writeback (page);
+		if (PageError(page))
+			result = -EIO;
 	}
 
-	return 0;
+	assert ("nikita-2228", !PageLocked (page));
+
+	return result;
 }
 
 #if REISER4_DEBUG

@@ -394,7 +394,7 @@ static int write_tx (capture_list_head * tx_list)
 	cur = capture_list_back (tx_list);
 
 	while (!capture_list_end (tx_list, cur)) {
-		ret = jwait_io (cur);
+		ret = jwait_io (cur, WRITE);
 		jrelse (cur);
 		jnode_detach_page (cur);
 
@@ -416,7 +416,7 @@ static int write_tx (capture_list_head * tx_list)
 
 		if (ret) return ret;
 
-		ret = jwait_io (private->journal_header);
+		ret = jwait_io (private->journal_header, WRITE);
 	}
 	
 	return ret;
@@ -526,7 +526,7 @@ int reiser4_flush_logs (void)
 	ret = jwrite (private->journal_footer);
 	if (ret) return ret;
 
-	ret = jwait_io (private->journal_footer);
+	ret = jwait_io (private->journal_footer, WRITE);
 	if (ret) return ret;
 
 	/* free blocks of flushed transaction */
