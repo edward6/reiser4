@@ -1,12 +1,12 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 /* Jnode manipulation functions. */
 /* Jnode is entity used to track blocks with data and meta-data in reiser4.
-  
+
    In particular, jnodes are used to track transactional information
    associated with each block. Each znode contains jnode as ->zjnode field.
-  
+
    Jnode stands for either Josh or Journal node.
-  
+
 */
 
 #include "reiser4.h"
@@ -244,7 +244,7 @@ jnew_unformatted(void)
 
 /* look for jnode with given mapping and offset within hash table */
 jnode *
-jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long index)
+jlookup(reiser4_tree * tree, oid_t objectid, unsigned long index)
 {
 	jnode_key_t jkey;
 	jnode *node;
@@ -404,8 +404,6 @@ do_jget(reiser4_tree * tree, struct page * pg)
 	oid_t oid = get_inode_oid(pg->mapping->host);
 
 	assert("umka-176", pg != NULL);
-	/* check that page is unformatted */
-	assert("nikita-2065", pg->mapping->host != get_super_private(pg->mapping->host->i_sb)->fake);
 	assert("nikita-2394", PageLocked(pg));
 
 	result = jprivate(pg);
@@ -415,7 +413,7 @@ do_jget(reiser4_tree * tree, struct page * pg)
 	/* check hash-table first */
 	tree = tree_by_page(pg);
 
-	result = jlook_lock(tree, oid, pg->index);
+	result = jlookup(tree, oid, pg->index);
 	if (unlikely(result != NULL)) {
 		assert("nikita-2358", jnode_page(result) == NULL);
 		UNDER_SPIN_VOID(jnode, result, jnode_attach_page(result, pg));
@@ -442,8 +440,6 @@ jnode_of_page(struct page * pg)
 	jnode * result;
 
 	assert("umka-176", pg != NULL);
-	/* check that page is unformatted */
-	assert("nikita-2065", pg->mapping->host != get_super_private(pg->mapping->host->i_sb)->fake);
 	assert("nikita-2394", PageLocked(pg));
 
 	result = do_jget(tree_by_page(pg), pg);
@@ -451,14 +447,16 @@ jnode_of_page(struct page * pg)
 	if (REISER4_DEBUG && !IS_ERR(result)) {
 		assert("nikita-3210", result == jprivate(pg));
 		assert("nikita-2046", jnode_page(jprivate(pg)) == pg);
-		assert("nikita-2364", jprivate(pg)->key.j.index == pg->index);
-		assert("nikita-2367", 
-		       jprivate(pg)->key.j.mapping == pg->mapping);
-		assert("nikita-2365", 
-		       jprivate(pg)->key.j.objectid == get_inode_oid(pg->mapping->host));
-		assert("vs-1200", 
-		       jprivate(pg)->key.j.objectid == pg->mapping->host->i_ino);
-		assert("nikita-2356", jnode_is_unformatted(jnode_by_page(pg)));
+		if (jnode_is_unformatted(jprivate(pg))) {
+			assert("nikita-2364", jprivate(pg)->key.j.index == pg->index);
+			assert("nikita-2367",
+			       jprivate(pg)->key.j.mapping == pg->mapping);
+			assert("nikita-2365",
+			       jprivate(pg)->key.j.objectid == get_inode_oid(pg->mapping->host));
+			assert("vs-1200",
+			       jprivate(pg)->key.j.objectid == pg->mapping->host->i_ino);
+			assert("nikita-2356", jnode_is_unformatted(jnode_by_page(pg)));
+		}
 		assert("nikita-2956", jnode_invariant(jprivate(pg), 0, 0));
 	}
 	return result;
@@ -516,7 +514,7 @@ page_detach_jnode(struct page *page, struct address_space *mapping, unsigned lon
 }
 
 /* return @node page locked.
-  
+
    Locking ordering requires that one first takes page lock and afterwards
    spin lock on node attached to this page. Sometimes it is necessary to go in
    the opposite direction. This is done through standard trylock-and-release
@@ -591,7 +589,7 @@ jnode_get_page_locked(jnode * node, int gfp_flags)
 
 	if (page == NULL) {
 		UNLOCK_JNODE(node);
-		page = find_or_create_page(jnode_get_mapping(node), 
+		page = find_or_create_page(jnode_get_mapping(node),
 					   jnode_get_index(node), gfp_flags);
 		if (page == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
@@ -640,7 +638,7 @@ static void check_jload(jnode * node, struct page * page)
 			nh = (node40_header *)kmap(page);
 			/* this only works for node40-only file systems. For
 			 * debugging. */
-			assert("nikita-3253", 
+			assert("nikita-3253",
 			       z->nr_items == d16tocpu(&nh->nr_items));
 			kunmap(page);
 		}
@@ -706,14 +704,14 @@ int jload_gfp (jnode * node /* node to load */, int gfp_flags /* allocation
 		page = jnode_page(node);
 		check_jload(node, page);
 		node->data = kmap(page);
-		reiser4_stat_inc_at_level(jnode_get_level(node), 
+		reiser4_stat_inc_at_level(jnode_get_level(node),
 					  jnode.jload_already);
 	}
 
 	if (unlikely(REISER4_USE_EFLUSH && JF_ISSET(node, JNODE_EFLUSH)))
 		UNDER_SPIN_VOID(jnode, node, eflush_del(node, 0));
 
-	if (!is_writeout_mode()) 
+	if (!is_writeout_mode())
 		/* We do not mark pages active if jload is called as a part of
 		 * jnode_flush() or reiser4_write_logs().  Both jnode_flush()
 		 * and write_logs() add no value to cached data, there is no
@@ -1237,7 +1235,7 @@ jnode_is_busy(const jnode * node, jnode_type jtype)
 {
 	if (atomic_read(&node->x_count) > 0)
 		return 1;
-	if (jtype == JNODE_FORMATTED_BLOCK && 
+	if (jtype == JNODE_FORMATTED_BLOCK &&
 	    atomic_read(&JZNODE(node)->c_count) > 0)
 		return 1;
 	return 0;
@@ -1259,7 +1257,7 @@ jnode_remove(jnode * node, jnode_type jtype, reiser4_tree * tree UNUSED_ARG)
 	case JNODE_FORMATTED_BLOCK:
 		remove_znode(node, tree);
 		break;
-	default: 
+	default:
 		wrong_return_value("nikita-3196", "Wrong jnode type");
 	}
 }
@@ -1337,7 +1335,7 @@ jnode_free(jnode * node, jnode_type jtype)
 #endif
 		assert("nikita-3219", list_empty(&node->rcu.list));
 		call_rcu(&node->rcu, jnode_free_actor, node);
-	} 
+	}
 	else
 		jnode_list_remove(node);
 }
@@ -1442,13 +1440,13 @@ jdelete(jnode * node /* jnode to finish with */)
 }
 
 /* drop jnode on the floor.
-  
+
    Return value:
-  
+
     -EBUSY:  failed to drop jnode, because there are still references to it
-  
+
     0:       successfully dropped jnode
-  
+
 */
 static int
 jdrop_in_tree(jnode * node, reiser4_tree * tree)
@@ -1588,7 +1586,7 @@ jnode_invariant_f(const jnode * node,
 		/* only relocated node can be queued, except that when znode
 		 * is being deleted, its JNODE_RELOC bit is cleared */
 		_ergo(JF_ISSET(node, JNODE_FLUSH_QUEUED),
-		      JF_ISSET(node, JNODE_RELOC) || 
+		      JF_ISSET(node, JNODE_RELOC) ||
 		      JF_ISSET(node, JNODE_HEARD_BANSHEE)) &&
 
 		_check(node->jnodes.prev != NULL) &&
@@ -1603,7 +1601,7 @@ jnode_invariant_f(const jnode * node,
 
 		/* for unformatted node ->objectid and ->mapping fields are
 		 * consistent */
-		_ergo(jnode_is_unformatted(node), 
+		_ergo(jnode_is_unformatted(node),
 		      node->key.j.objectid == get_inode_oid(node->key.j.mapping->host)) &&
 		/* [jnode-refs] invariant */
 
@@ -1732,7 +1730,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 #endif
 	       jnode_type_name(jnode_get_type(node)));
 	if (jnode_is_unformatted(node)) {
-		printk("inode: %llu, index: %lu, ", 
+		printk("inode: %llu, index: %lu, ",
 		       node->key.j.objectid, node->key.j.index);
 	}
 }
