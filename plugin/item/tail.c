@@ -272,7 +272,181 @@ reiser4_key * tail_unit_key (const tree_coord * coord, reiser4_key * key)
  */
 
 
-/* plugin->u.item.s.file.write
+typedef enum {
+	CREATE_HOLE,
+	APPEND_HOLE,
+	FIRST_ITEM,
+	OVERWRITE,
+	APPEND,
+	RESEARCH,
+	CANT_CONTINUE
+} tail_write_todo;
+
+
+static tail_write_todo what_todo (struct inode * inode, tree_coord * coord,
+				  reiser4_key * key)
+{
+	reiser4_key item_key;
+
+
+	spin_lock_dk (current_tree);
+	if (!znode_contains_key (coord->node, key)) {
+		spin_unlock_dk (current_tree);
+		return RESEARCH;
+	}
+	spin_unlock_dk (current_tree);
+
+
+	if (inode->i_size == 0) {
+		/*
+		 * no items of this file in tree yet
+		 */
+		if (get_key_offset (key) == 0)
+			return FIRST_ITEM;
+		else
+			return CREATE_HOLE;
+	}
+
+	if (item_plugin_id (item_plugin_by_coord (coord)) != BODY_ITEM_ID)
+		return CAN_CONTINUE;
+
+	item_key_by_coord (coord, &item_key);
+	if (get_key_objectid (key) != get_key_objectid (&item_key))
+		return CANT_CONTINUE;
+
+	if (coord_of_unit (coord)) {
+		/*
+		 * make sure that @coord is set to proper position
+		 */
+		if (get_key_offset (key) ==
+		    get_key_offset (unit_key_by_coord (coord, &item_key)))
+			return OVERWRITE;
+		else
+			return RESEARCH;
+	}
+
+	assert ("vs-380", coord->between == AFTER_UNIT);
+	assert ("vs-381", coord->unit_pos == last_unit_pos (coord));
+
+	if (get_key_offset (key) == (get_key_offset (&item_key) +
+				     coord->unit_pos + 1))
+		return APPEND;
+	return APPEND_HOLE;
+}
+
+
+static int create_hole (tree_coord * coord,
+			reiser4_lock_handle * lh, flow * f)
+{
+	reiser4_item_data item;
+	
+	item.data = 0;
+	item.length = ;
+	item.arg = 0;
+	item.iplug = ;
+	return insert_by_coord (coord, &item, key);
+}
+
+
+/*
+ * plugin->u.item.s.file.write
+ * access to data stored in tails goes directly through formatted nodes
+ */
+int tail_write (struct inode * inode, tree_coord * coord,
+		reiser4_lock_handle * lh, flow * f)
+{
+	int result;
+	struct page * page;
+	unsigned long long file_off; /* offset within a file we write to */
+	unsigned long long blocksize;
+	reiser4_tree * tree;
+	int research = 0;
+	char * kaddr;
+	unsigned count;
+
+
+	switch (what_todo (inode, coord, &f->key)) {
+	case CREATE_HOLE:
+		result = create_hole (coord, lh, );
+		break;
+	case APPEND_HOLE:
+		result = append_hole (coord, lh, );
+		break;
+	case FIRST_ITEM:
+		result = insert_first_item (coord, lh, );
+		break;
+	case OVERWRITE:
+		result = overwrite_tail (coord, lh, f);
+		break;
+	case APPEND:
+		result = append_tail (coord, lh, f);
+		break;
+	case RESEARCH:
+		result = -EAGAIN;
+		break;
+	case CANT_CONTINUE:
+	default:
+		result = -EIO;
+		break;
+	}
+	return result;
+}
+	/*
+	 *
+	 */
+
+
+	tree = tree_by_inode (inode);
+
+	blocksize = reiser4_get_current_sb ()->s_blocksize;
+	file_off = get_key_offset (&f->key);
+
+	while (f->length) {
+		page = grab_cache_page (inode->i_mapping,
+					(unsigned long)(file_off >> PAGE_SHIFT));
+		if (IS_ERR (page))
+			return PTR_ERR (page);
+
+		kaddr = kmap (page);
+		count = f->length;
+		result = prepare_write (tree, coord, lh, page, &f->key, &count);
+		if (result && result != -EAGAIN) {
+			/* error occurred */
+			kunmap (page);
+			UnlockPage (page);
+			page_cache_release (page);
+			return result;
+		}
+
+		if (result == -EAGAIN)
+			/* not entire page is prepared for writing into it */
+			research = 1;
+
+		result = __copy_from_user (kaddr + (file_off & ~PAGE_MASK),
+					   f->data, count);
+		flush_dcache_page (page);
+
+		commit_write (page, file_off, count);
+
+		kunmap (page);
+		UnlockPage (page);
+		page_cache_release (page);
+		if (result)
+			return result;
+
+		file_off += count;
+		f->data += count;
+		f->length -= count;
+		set_key_offset (&f->key, file_off);
+
+		if (research)
+			return -EAGAIN;
+	}
+
+	return 0;
+}
+
+
 /* plugin->u.item.s.file.fill_page
    this uses @reiser4_iterate_tree to find all blocks populating @page. 
  */
