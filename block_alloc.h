@@ -91,7 +91,7 @@ static inline int reiser4_dealloc_block (const reiser4_block_nr *block, int defe
 }
 
 extern int assign_fake_blocknr (reiser4_block_nr *);
-extern void release_blocknr (reiser4_block_nr *);
+extern int release_blocknr (const reiser4_block_nr *);
 
 extern void pre_commit_hook      (void);
 extern void post_commit_hook     (void);
