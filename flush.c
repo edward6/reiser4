@@ -196,9 +196,14 @@ static int slum_allocate (slum_scan *scan)
 	if (znode_is_dirty (parent_lock.node)) {
 
 		/* FIXME: if not relocating, but dirty, then we have a read
-		 * lock, need a write lock.
+		 * lock, need a write lock.  If scan->node is a znode then we
+		 * could lock the tree, ref parent, unlock tree, spinlock
+		 * parent, check dirty bit, unspinlock. */
+		if (! relocate_child) {
+			
+		}
 
-		/* scan parent level, then squeeze */
+		/* Scan parent level, then squeeze */
 		if ((ret = slum_scan_left (& parent_scan, ZJNODE (parent_lock.node)))) {
 			goto failure;
 		}
