@@ -1241,6 +1241,16 @@ static void unregister_profregions(void)
 	unregister_tree_profregion();
 }
 
+#if REISER4_DEBUG
+void finish_rcu(reiser4_super_info_data *sbinfo)
+{
+	spin_lock_irq(&sbinfo->all_guard);
+	while (atomic_read(&sbinfo->jnodes_in_flight) > 0)
+		kcond_wait(&sbinfo->rcu_done, &sbinfo->all_guard, 0);
+	spin_unlock_irq(&sbinfo->all_guard);
+}
+#endif
+
 /* umount. */
 static void
 reiser4_kill_super(struct super_block *s)

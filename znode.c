@@ -1035,7 +1035,7 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 #define _check(exp) ((*msg) = #exp, (exp))
 
 	return
-		jnode_invariant_f(node, msg) &&
+		jnode_invariant_f(ZJNODE(node), msg) &&
 
 		/* [znode-fake] invariant */
 
