@@ -727,6 +727,12 @@ typedef struct reiser4_statistics {
 		stat_cnt raced_with_truncate;
 		stat_cnt empty_bio;
 		stat_cnt commit_from_writepage;
+
+		stat_cnt capture_equal;
+		stat_cnt capture_both;
+		stat_cnt capture_block;
+		stat_cnt capture_txnh;
+		stat_cnt capture_none;
 	} txnmgr;
 	struct {
 		/* how many nodes were squeezed to left neighbor completely */

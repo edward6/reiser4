@@ -364,6 +364,11 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(txnmgr.raced_with_truncate),
 	DEFINE_STAT_CNT(txnmgr.empty_bio),
 	DEFINE_STAT_CNT(txnmgr.commit_from_writepage),
+	DEFINE_STAT_CNT(txnmgr.capture_equal),
+	DEFINE_STAT_CNT(txnmgr.capture_both),
+	DEFINE_STAT_CNT(txnmgr.capture_block),
+	DEFINE_STAT_CNT(txnmgr.capture_txnh),
+	DEFINE_STAT_CNT(txnmgr.capture_none),
 
 	DEFINE_STAT_CNT(flush.squeezed_completely),
 	DEFINE_STAT_CNT(flush.flushed_with_unallocated),
