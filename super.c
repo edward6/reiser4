@@ -32,7 +32,6 @@ reiser4_super_info_data *get_super_private( const struct super_block *super )
 	return ( reiser4_super_info_data * )super -> u.generic_sbp;
 }
 
-
 /**
  * Return reiser4 fstype: value that is returned in ->f_type field by statfs()
  */
@@ -50,28 +49,111 @@ int reiser4_blksize( const struct super_block *super )
 {
 	assert( "nikita-450", super != NULL );
 	assert( "nikita-451", is_reiser4_super( super ) );
+	/* FIXME-VS: blocksize has to be 512, 1024, 2048, etc */
+	assert ("zam-391", super->s_blocksize > 0);
 	return super -> s_blocksize;
 }
 
 
+/* functions to read/modify fields of reiser4_super_info_data */
+
+/**
+ * get number of blocks in file system
+ */
+__u64 reiser4_block_count( const struct super_block *super )
+{
+	assert( "vs-494", super != NULL );
+	assert( "vs-495", is_reiser4_super( super ) );
+	return get_super_private( super ) -> block_count2;
+}
+
+/* set number of block in filesystem */
+void reiser4_set_block_count( const struct super_block *super, __u64 nr )
+{
+	assert( "vs-501", super != NULL );
+	assert( "vs-502", is_reiser4_super( super ) );
+	get_super_private( super ) -> block_count2 = nr;
+}
+
 /**
  * amount of blocks used (allocated for data) in file system
  */
-long reiser4_data_blocks( const struct super_block *super )
+__u64 reiser4_data_blocks( const struct super_block *super )
 {
 	assert( "nikita-452", super != NULL );
 	assert( "nikita-453", is_reiser4_super( super ) );
-	return get_super_private( super ) -> blocks_used;
+	return get_super_private( super ) -> blocks_used2;
+}
+
+/* set number of block used in filesystem */
+void reiser4_set_data_blocks( const struct super_block *super, __u64 nr )
+{
+	assert( "vs-503", super != NULL );
+	assert( "vs-504", is_reiser4_super( super ) );
+	get_super_private( super ) -> blocks_used2 = nr;
 }
 
 /**
  * amount of free blocks in file system
  */
-long reiser4_free_blocks( const struct super_block *super )
+__u64 reiser4_free_blocks( const struct super_block *super )
 {
 	assert( "nikita-454", super != NULL );
 	assert( "nikita-455", is_reiser4_super( super ) );
-	return get_super_private( super ) -> blocks_free;
+	return get_super_private( super ) -> blocks_free2;
+}
+
+/* set number of blocks free in filesystem */
+void reiser4_set_free_blocks( const struct super_block *super, __u64 nr )
+{
+	assert( "vs-505", super != NULL );
+	assert( "vs-506", is_reiser4_super( super ) );
+	get_super_private( super ) -> blocks_free2 = nr;
+}
+
+/* increment reiser4_super_info_data's counter of free blocks */
+void reiser4_inc_free_blocks( const struct super_block *super )
+{
+	assert( "vs-496",
+		reiser4_free_blocks( super ) < reiser4_block_count( super ));
+	get_super_private( super ) -> blocks_free2 ++;
+}
+
+/**
+ * amount of free blocks in file system
+ */
+__u64 reiser4_free_committed_blocks( const struct super_block *super )
+{
+	assert( "vs-497", super != NULL );
+	assert( "vs-498", is_reiser4_super( super ) );
+	return get_super_private( super ) -> blocks_free_committed2;
+}
+
+/* this is only used once on mount time to number of free blocks in
+ * filesystem */
+void reiser4_set_free_committed_blocks( const struct super_block *super,
+					__u64 nr )
+{
+	assert( "vs-507", super != NULL );
+	assert( "vs-508", is_reiser4_super( super ) );
+	get_super_private( super ) -> blocks_free_committed2 = nr;
+}
+
+/* increment reiser4_super_info_data's counter of free committed blocks */
+void reiser4_inc_free_committed_blocks( const struct super_block *super )
+{
+	assert( "vs-499",
+		reiser4_free_committed_blocks( super ) <
+		reiser4_block_count( super ));
+	get_super_private( super ) -> blocks_free_committed2 ++;
+}
+
+/* decrement reiser4_super_info_data's counter of free committed blocks */
+void reiser4_dec_free_committed_blocks( const struct super_block *super )
+{
+	assert( "vs-500",
+		reiser4_free_committed_blocks( super ) > 0);
+	get_super_private( super ) -> blocks_free_committed2 --;
 }
 
 /**
@@ -102,7 +184,17 @@ reiser4_oid_allocator *get_oid_allocator( const struct super_block *super )
 {
 	assert( "nikita-458", super != NULL );
 	assert( "nikita-459", is_reiser4_super( super ) );
-	return &get_super_private( super ) -> allocator;
+	return &get_super_private( super ) -> oid_allocator;
+}
+
+/**
+ * space allocator used by this file system
+ */
+reiser4_space_allocator *reiser4_get_space_allocator( const struct super_block *super )
+{
+	assert( "nikita-458", super != NULL );
+	assert( "nikita-459", is_reiser4_super( super ) );
+	return &get_super_private( super ) -> space_allocator;
 }
 
 /**
