@@ -184,6 +184,8 @@ static inline void set_key_ ## L ( reiser4_key *key, T loc )		\
 	set_key_el( key, KEY_ ## U ## _INDEX, el );			\
 }
 
+typedef __u64 oid_t;
+
 /* define get_key_locality(), set_key_locality() */
 DEFINE_KEY_FIELD( locality, LOCALITY, oid_t );
 /* define get_key_type(), set_key_type() */
