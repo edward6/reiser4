@@ -532,10 +532,9 @@ node40_check(const znode * node /* node to check */ ,
 
 	assert("nikita-580", node != NULL);
 	assert("nikita-581", error != NULL);
+	assert("nikita-2948", znode_is_loaded(node));
 	trace_stamp(TRACE_NODES);
 
-	if (!znode_is_loaded(node))
-		return 0;
 
 	if (ZF_ISSET(node, JNODE_HEARD_BANSHEE))
 		return 0;
@@ -552,9 +551,6 @@ node40_check(const znode * node /* node to check */ ,
 		prev = node->ld_key;
 	else
 		prev = *min_key();
-
-	if (zload((znode *) node) != 0)
-		return 0;
 
 	old_offset = 0;
 	coord_init_zero(&coord);
@@ -637,6 +633,8 @@ node40_check(const znode * node /* node to check */ ,
 	if (flags & REISER4_NODE_DKEYS) {
 		spin_lock_tree(current_tree);
 
+		flags |= REISER4_NODE_TREE_STABLE;
+
 		if (keygt(&prev, &node->rd_key)) {
 			reiser4_stat_inc(tree.rd_key_skew);
 			if (flags & REISER4_NODE_TREE_STABLE) {
@@ -671,7 +669,6 @@ node40_check(const znode * node /* node to check */ ,
 	}
 	spin_unlock_dk(current_tree);
 
-	zrelse((znode *) node);
 	return 0;
 }
 
