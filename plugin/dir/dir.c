@@ -816,7 +816,6 @@ set_pos(struct inode * inode, readdir_pos * pos, tap_t * tap)
 	coord_t      coord;
 	lock_handle  lh;
 	tap_t        scan;
-	file_plugin *fplug;
 	de_id       *did;
 	reiser4_key  de_key;
 
@@ -825,7 +824,6 @@ set_pos(struct inode * inode, readdir_pos * pos, tap_t * tap)
 	tap_init(&scan, &coord, &lh, ZNODE_READ_LOCK);
 	tap_copy(&scan, tap);
 	tap_load(&scan);
-	fplug = inode_file_plugin(inode);
 	pos->position.pos = 0;
 
 	did = &pos->position.dir_entry_key;
@@ -1065,7 +1063,6 @@ readdir_common(struct file *f /* directory file being read */ ,
 	coord_t coord;
 	lock_handle lh;
 	tap_t tap;
-	file_plugin *fplug;
 	readdir_pos *pos;
 
 	assert("nikita-1359", f != NULL);
@@ -1092,7 +1089,6 @@ readdir_common(struct file *f /* directory file being read */ ,
 		 "readdir: inode: %llu offset: %lli\n", 
 		 get_inode_oid(inode), f->f_pos);
 
-	fplug = inode_file_plugin(inode);
 	result = dir_readdir_init(f, &tap, &pos);
 	if (result == 0) {
 		result = tap_load(&tap);
