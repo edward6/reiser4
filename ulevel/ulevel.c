@@ -4984,7 +4984,7 @@ void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 		if( item_is_internal( &coord ) ) {
 			znode *child;
 
-			child = UNDER_SPIN( dk, current_tree,
+			child = UNDER_SPIN( dk, znode_get_tree( coord.node ),
 					    child_znode( &coord, 
 							 coord.node, 0, 0 ) );
 			if( !IS_ERR( child ) ) {

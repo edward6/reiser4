@@ -651,6 +651,8 @@ struct writeback_control {
 					   older than this */
 	long nr_to_write;		/* Write this many pages, and decrement
 					   this for each page written */
+	unsigned int gfp_mask;
+	int priority;
 };
 
 
