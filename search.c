@@ -867,6 +867,24 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 	reiser4_tree     *tree;
 	int               result;
 
+	/**
+	 * true if @key is left delimiting key of @node
+	 */
+	static int key_is_ld( znode *node, const reiser4_key *key )
+	{
+		int is_ld;
+			
+		assert( "nikita-1716", node != NULL );
+		assert( "nikita-1717", key != NULL );
+			
+		spin_lock_dk( current_tree );
+		assert( "nikita-1718", znode_contains_key( node, key ) );
+		is_ld = keycmp( znode_get_ld_key( node ), key ) == EQUAL_TO;
+		spin_unlock_dk( current_tree );
+		return is_ld;
+	}
+
+
 	assert( "nikita-379", h != NULL );
 
 	/* disinter actively used active out of handle */
@@ -901,7 +919,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 				ergo( h -> bias == FIND_EXACT, 
 				      coord_of_unit( h -> coord ) ) );
 			if( !( h -> flags & CBK_UNIQUE ) && 
-			    coord_is_leftmost( h -> coord ) ) {
+			    key_is_ld( active, h -> key ) ) {
 				return search_to_left( h );
 			} else
 				h -> result = CBK_COORD_FOUND;
