@@ -171,6 +171,7 @@
 #include "wander.h"
 #include "reiser4.h"
 #include "super.h"
+#include "vfs_ops.h"
 
 #include <linux/types.h>
 #include <linux/fs.h>		/* for struct super_block  */
