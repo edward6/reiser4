@@ -29,6 +29,7 @@ typedef struct internal_item_layout {
 	/*  4 */
 } internal_item_layout;
 
+int internal_mergeable (const tree_coord * p1, const tree_coord * p2);
 lookup_result internal_lookup (const reiser4_key * key, lookup_bias bias,
 			       tree_coord * coord);
 /** store pointer from internal item into "block". Implementation of
