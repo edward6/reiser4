@@ -18,15 +18,25 @@ int main( int argc, char **argv )
   time_t start;
   time_t instant;
   unsigned long prev;
+  unsigned long N;
   int ebusy;
-  
+
+  if( argc == 2 )
+	{
+	  N = atol( argv[ 1 ] );
+	}
+  else
+	{
+	  N = 0;
+	}
+
   base = strlen( alphabet );
   memset( name, base + 10, MAX_LEN + 1 );
   ebusy = 0;
   prev = 0;
   instant = start = time( NULL );
 
-  for( i = 0 ; ; ++ i )
+  for( i = 0 ; N && i < N ; ++ i )
 	{
 	  int j;
 	  int c;
@@ -80,10 +90,10 @@ int main( int argc, char **argv )
 		  time_t now;
 
 		  now = time( NULL );
-		  printf( "%li files: %li (%f/%f), %i\n", i, time( NULL ) - instant,
+		  printf( "%li files: %li (%f/%f), %i: %s\n", i, time( NULL ) - instant,
 				  ( now - start ) ? RAT( i, now - start ) : 0.0, 
 				  ( now - instant ) ? RAT( i - prev, now - instant ) : 0.0,
-				  ebusy );
+				  ebusy, fname );
 		  instant = time( NULL );
 		  prev = i;
 		}
