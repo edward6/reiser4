@@ -14,14 +14,14 @@
 int reiserfs_tree_node_check(reiserfs_fs_t *fs, aal_block_t *block) {
     reiserfs_plugin_id_t id;
     reiserfs_plugin_t *plugin;
-    reiserfs_node_head_t *head;
+    reiserfs_node_header_t *header;
 
     ASSERT(fs != NULL, return 0);
     ASSERT(block != NULL, return 0);
 
-    head = (reiserfs_node_head_t *)block->data;
+    header = (reiserfs_node_header_t *)block->data;
    
-    id = get_nh_plugin_id(head);
+    id = get_nh_plugin_id(header);
     if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-035", 
 	    "Can't find node plugin for root node by its identifier %x.", id);
@@ -37,7 +37,7 @@ int reiserfs_tree_open(reiserfs_fs_t *fs) {
     aal_block_t *block;
     reiserfs_plugin_id_t id;
     reiserfs_plugin_t *plugin;
-    reiserfs_node_head_t *head;
+    reiserfs_node_header_t *header;
 
     ASSERT(fs != NULL, return 0);
     ASSERT(fs->super != NULL, return 0);
@@ -59,8 +59,8 @@ int reiserfs_tree_open(reiserfs_fs_t *fs) {
 	goto error_free_tree;
     }
 
-    head = (reiserfs_node_head_t *)block->data;
-    id = get_nh_plugin_id(head);
+    header = (reiserfs_node_header_t *)block->data;
+    id = get_nh_plugin_id(header);
     
     if (!(plugin = reiserfs_plugin_find(REISERFS_NODE_PLUGIN, id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "umka-039", 
