@@ -279,7 +279,7 @@ typedef unsigned long long stat_cnt;
  * set of statistics counter. This is embedded into super-block when
  * REISER4_STATS is on.
  */
-typedef struct reiser4_stat {
+typedef struct reiser4_statistics {
 	struct {
 		/*
 		 * calls to coord_by_key
