@@ -296,18 +296,6 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 			result = -EINVAL;
 			break;
 		}
-		/*
-		 * FIXME-NIKITA hardcode reference to particular
-		 * directory item plugin. This should be done in a way
-		 * similar to sd.
-		 */
-		
-		assert( "nikita-1709", 
-			common_item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> item_plugin_id
-			== SIMPLE_DIR_ENTRY_ID );
-		result = item_plugin_by_id( REISER4_DIR_ITEM_PLUGIN ) -> 
-			s.dir.add_entry( object, 
-					 &coord, &lh, where, entry );
 	} else if( result == 0 )
 		result = -EEXIST;
 	done_lh( &lh );
@@ -347,28 +335,17 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 		 */
 		switch( get_object_state( object ) -> dir_item_plugin_id) {
 		case SIMPLE_DIR_ENTRY_ID:
-			result = simple_dir_plugin.simple_add_entry( object, 
-								     &coord, &lh, where, entry );
+			result = simple_dir_plugin.simple_rem_entry( object, 
+								     &coord, &lh, entry );
 			break;
 		case COMPOUND_DIR_ID:
-			result = compound_dir_plugin.compound_add_entry( object, 
-									 &coord, &lh, where, entry );
+			result = compound_dir_plugin.compound_rem_entry( object, 
+									 &coord, &lh, entry );
 			break;
 		default:
 			result = -EINVAL;
 			break;
 		}
-
-		if( item_plugin_id_by_coord( &coord ) != SIMPLE_DIR_ENTRY_IT ) {
-			warning( "nikita-1161", "Non directory item found" );
-			print_plugin( "plugin", item_plugin_to_plugin (item_plugin_by_coord( &coord ) ) );
-			print_coord_content( "at", &coord );
-			print_inode( "dir", object );
-			result = -EIO;
-		} else
-			result = item_plugin_by_coord( &coord ) -> 
-				s.dir.rem_entry( object, 
-							&coord, &lh, entry );
 	}
 	done_lh( &lh );
 	done_coord( &coord );
@@ -483,9 +460,10 @@ static int entry_actor( reiser4_tree *tree /* tree being scanned */,
 			lock_handle *lh /* current lock handle */,
 			void *args /* argument to scan */ )
 {
-	reiser4_key       unit_key;
-	item_plugin      *iplug;
-	entry_actor_args *args;
+	reiser4_key         unit_key;
+	common_item_plugin *iplug;
+	entry_actor_args   *args;
+	int ( *extract_name )(); /**/
 
 	assert( "nikita-1131", tree != NULL );
 	assert( "nikita-1132", coord != NULL );
@@ -513,15 +491,16 @@ static int entry_actor( reiser4_tree *tree /* tree being scanned */,
 		args -> last_coord.between = AFTER_UNIT;
 		return 0;
 	}
+	/* get common item plugin of found item */
 	iplug = item_plugin_by_coord( coord );
 	if( iplug == NULL ) {
 		warning( "nikita-1135", "Cannot get item plugin" );
 		print_coord( "coord", coord, 1 );
 		return -EIO;
-	} else if( ( item_plugin_id_by_coord( coord ) != SIMPLE_DIR_ENTRY_IT ) ) {
+	} else if( ( item_plugin_id_by_coord( coord ) != SIMPLE_DIR_ENTRY_ID ) ) {
 		warning( "nikita-1136", "Wrong item plugin" );
 		print_coord( "coord", coord, 1 );
-		print_plugin( "plugin", item_plugin_to_plugin (iplug) );
+		print_plugin( "plugin", common_item_plugin_to_plugin (iplug) );
 		return -EIO;
 	}
 	assert( "nikita-1137", iplug -> s.dir.extract_name );

@@ -75,7 +75,7 @@ typedef struct compound_dir_item_plugin {
 	 * extract stat-data key from directory entry at @coord and place it
 	 * into @key.
 	 */
-	int ( *compound_extract_key )( const tree_coord *coord, reiser4_key *key );
+	int ( *compound_file_key_by_entry )( const tree_coord *coord, reiser4_key *key );
 	/**
 	 * extract name from directory entry at @coord and return it
 	 */

@@ -537,7 +537,7 @@ extern reiser4_plugin hook_plugins[ DUMP_HOOK_ID + 1 ];
 /* defined in fs/reiser4/plugin/security/security.c */
 extern reiser4_plugin perm_plugins[ LAST_PERM_ID ];
 /* defined in fs/reiser4/plugin/item/item.c */
-extern reiser4_plugin item_plugins[ LAST_ITEM_IT ];
+extern reiser4_plugin item_plugins[ LAST_ITEM_ID ];
 /* defined in fs/reiser4/plugin/node/node.c */
 extern reiser4_plugin node_plugins[ LAST_NODE_ID ];
 #if 0

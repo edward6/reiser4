@@ -235,9 +235,10 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 		sd_plugin *sd_plug;
 
 		assert( "nikita-725", /* have we really inserted stat data? */
-			item_is_stat_data( &coord ) );
+			item_plugin_by_coord( &coord ) -> item_plugin_id ==
+			STATIC_STAT_DATA_ID );
 
-		sd_plug = find_sd_plugin (data.iplug->item_plugin_id);
+		sd_plug = find_sd_plugin (STATIC_STAT_DATA_ID);
 		if( sd_plug && sd_plug -> save ) {
 			area = item_body_by_coord( &coord );
 			result = sd_plug -> save( inode, &area );

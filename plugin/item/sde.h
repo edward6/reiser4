@@ -17,7 +17,7 @@ typedef struct simple_dir_item_plugin {
 	 * extract stat-data key from directory entry at @coord and place it
 	 * into @key.
 	 */
-	int ( *simple_extract_key )( const tree_coord *coord, reiser4_key *key );
+	int ( *simple_file_key_by_entry )( const tree_coord *coord, reiser4_key *key );
 	/**
 	 * extract name from directory entry at @coord and return it
 	 */
