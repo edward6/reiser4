@@ -141,57 +141,12 @@ querying of what blocks a file occupies, can be thought of as a poorly
 abstracted version of this (and the linux boot loaders currently
 support this poor abstraction we offer.)
 
-ascii_command = '/home/teletubbies/..new/(..name/glove_location,
-..object_t/audit/encrypted,
-(..perm_t/acl));glove_location/..acl/..new(uid/357, access/denied));
-..audit/..new/mailto/"teletubbies@pbs.org";
-glove_location_file/..copy/"we stole it quite some number of years ago,
-and put it in the very first loot pile (in the hole near the purple
-flower).';
-
-1. /home/teletubbies/..new/(..name/glove_location,
-..object_t/audit/encrypted, (..perm_t/acl));
-
-   directory/..new/(..plugin_name<-value, ... )
-
-where :
-
-value := STRING
-| number
-| Object_Name
-
-   /home/teletubbies/..new/(..name/glove_location,
-..object_t/audit/encrypted, ..perm_t/acl );
-   /home/teletubbies/..new/(..name<-glove_location,
-..object_t<-(audit|encrypted), ..perm_t<-acl );
-
-2. glove_location/..acl/..new(uid/357, access/denied));
-
-   file/..plugin_name/..new/(..plugin_name<-value, ... )
-
-   glove_location/..acl/..new/(uid<-357, access<-denied));
-   glove_location/..acl/(uid=357, access<-denied)); /* find uid EQ 357
-and set acess to denied*/
-   glove_location/..acl/(uid!=357, access<-denied)); /* find all uid not
-EQ 357 and set acess to denied*/
+<p>
+ascii_command = 
+<p>                '/home/teletubbies/(..new/(..name<-glove_location,..object_t<-(audit|encrypted), ..perm_t<-acl );
+<p>                 glove_location/..acl/(uid=357, access<-denied));
+<p>                /home/teletubbies/glove_location/..audit/..new/(mailto<-"(teletubbies@pbs.org));
+<p>                /home/teletubbies/glove_location<-"(we stole it quite some number of years ago,and put it in the very first loot pile (in the hole near the purple flower).);'
 
 
-3. ..audit/..new/mailto/"teletubbies@pbs.org";
-
-   /home/teletubbies/..audit/..new/(mailto<-"teletubbies@pbs.org");
-
-
-
-4. glove_location_file/..copy/"we stole it quite some number of years
-ago, and put it in the very first loot pile (in the hole near the purple
-flower).';
-
-   body_of_file_source/..copy(file_target)
-or
-   file_target<-body_of_file_source
-
-
-   "we stole it quite some number of years ago, and put it in the very
-first loot pile (in the hole near the purple
-flower)."/..copy(glove_location_file);
 
