@@ -368,13 +368,13 @@ int
 reiser4_grab_reserved(struct super_block *super,
 		      __u64 count, reiser4_ba_flags_t flags, const char *message)
 {
-	reiser4_super_info_data *info;
+	reiser4_super_info_data *sbinfo;
 
-	info = get_super_private(super);
+	sbinfo = get_super_private(super);
 	if (reiser4_grab_space(count, flags, message)) {
-		down(&info->delete_sema);
-		assert("nikita-2929", info->delete_sema_owner == NULL);
-		info->delete_sema_owner = current;
+		down(&sbinfo->delete_sema);
+		assert("nikita-2929", sbinfo->delete_sema_owner == NULL);
+		sbinfo->delete_sema_owner = current;
 
 		if(reiser4_grab_space(count, flags | BA_RESERVED, message)) {
 			warning("zam-833", 
@@ -525,11 +525,11 @@ fake_allocated2used(__u64 count, reiser4_ba_flags_t flags)
 void
 update_blocknr_hint_default (const struct super_block *s, const reiser4_block_nr * block)
 {
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 
 	reiser4_spin_lock_sb(s);
-	if (*block < private->block_count) {
-		private->blocknr_hint_default = *block;
+	if (*block < sbinfo->block_count) {
+		sbinfo->blocknr_hint_default = *block;
 	} else {
 		warning("zam-676",
 			"block number %llu is too large to be used in a blocknr hint\n", (unsigned long long) *block);
@@ -1100,9 +1100,13 @@ apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4
 {
 	space_allocator_plugin *splug;
 	struct super_block *s = reiser4_get_current_sb();
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 
 	__u64 len = 1;
+
+	assert("zam-552", sbinfo != NULL);
+	splug = sbinfo->space_plug;
+	assert("zam-553", splug != NULL);
 
 	if (b != NULL)
 		len = *b;
@@ -1116,15 +1120,11 @@ apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4
 		reiser4_spin_unlock_sb(s);
 	}
 
-	assert("zam-552", get_current_super_private() != NULL);
-	splug = get_current_super_private()->space_plug;
-	assert("zam-553", splug != NULL);
-
 	/* it should be safe because of atom stage */
 	spin_unlock_atom(atom);
 
 	if (splug->dealloc_blocks != NULL)
-		splug->dealloc_blocks(&private->space_allocator, *a, len);
+		splug->dealloc_blocks(&sbinfo->space_allocator, *a, len);
 
 	spin_lock_atom(atom);
 

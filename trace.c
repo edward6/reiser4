@@ -381,20 +381,20 @@ void
 write_io_trace(const char *moniker, int rw, struct bio *bio)
 {
 	struct super_block *super;
-	reiser4_super_info_data *info;
+	reiser4_super_info_data *sbinfo;
 	reiser4_block_nr start;
 	char jbuf[100];
 
 	super = reiser4_get_current_sb();
-	info = get_super_private(super);
+	sbinfo = get_super_private(super);
 
 	start = bio->bi_sector >> (super->s_blocksize_bits - 9);
 	jnode_short_info(jprivate(bio->bi_io_vec[0].bv_page), jbuf);
 	write_current_tracef("......bio %s %c %+lli  (%llu,%u) %s",
 			     moniker, (rw == READ) ? 'r' : 'w',
-			     start - info->last_touched - 1,
+			     start - sbinfo->last_touched - 1,
 			     start, bio->bi_vcnt, jbuf);
-	info->last_touched = start + bio->bi_vcnt - 1;
+	sbinfo->last_touched = start + bio->bi_vcnt - 1;
 }
 
 #endif

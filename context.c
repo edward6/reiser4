@@ -28,7 +28,7 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 					 * work with */)
 {
 	reiser4_tree *tree;
-	reiser4_super_info_data *sdata;
+	reiser4_super_info_data *sbinfo;
 
 	assert("nikita-2662", !in_interrupt() && !in_irq());
 
@@ -54,9 +54,9 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 			return 0;
 		}
 	}
-	sdata = get_super_private(super);
-	assert("nikita-2727", sdata != NULL);
-	tree = &sdata->tree;
+	sbinfo = get_super_private(super);
+	assert("nikita-2727", sbinfo != NULL);
+	tree = &sbinfo->tree;
 
 	context->super = super;
 #if (REISER4_DEBUG)
@@ -103,11 +103,11 @@ is_in_reiser4_context(void)
 static void 
 balance_dirty_pages_at(reiser4_context * context)
 {
-	reiser4_super_info_data * sdata = get_super_private(context->super);
+	reiser4_super_info_data * sbinfo = get_super_private(context->super);
 
-	if (context->nr_marked_dirty != 0 && sdata->fake && 
+	if (context->nr_marked_dirty != 0 && sbinfo->fake && 
 	    !(current->flags & PF_MEMALLOC) && !current_is_pdflush()) {
-		balance_dirty_pages(sdata->fake->i_mapping);
+		balance_dirty_pages(sbinfo->fake->i_mapping);
 	}
 }
 

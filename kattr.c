@@ -166,14 +166,14 @@ struct kobj_type ktype_reiser4 = {
 static ssize_t
 kattr_stats_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 {
-	reiser4_super_info_data *info;
+	reiser4_super_info_data *sbinfo;
 	reiser4_kattr *kattr;
 
-	info = container_of(kobj, reiser4_super_info_data, stats_kobj);
+	sbinfo = container_of(kobj, reiser4_super_info_data, stats_kobj);
 	kattr = to_kattr(attr);
 
 	if (kattr->show != NULL)
-		return kattr->show(info->tree.super, kattr, 0, buf);
+		return kattr->show(sbinfo->tree.super, kattr, 0, buf);
 	else
 		return 0;
 }
@@ -190,7 +190,7 @@ static struct kobj_type ktype_noattr = {
 static ssize_t
 kattr_level_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 {
-	reiser4_super_info_data *info;
+	reiser4_super_info_data *sbinfo;
 	reiser4_level_stats_kobj *level_kobj;
 	int level;
 	reiser4_kattr *kattr;
@@ -198,11 +198,11 @@ kattr_level_show(struct kobject *kobj, struct attribute *attr,  char *buf)
 	level_kobj = container_of(kobj, reiser4_level_stats_kobj, kobj);
 	level = level_kobj->level;
 	level_kobj -= level;
-	info = container_of(level_kobj, reiser4_super_info_data, level[0]);
+	sbinfo = container_of(level_kobj, reiser4_super_info_data, level[0]);
 	kattr = to_kattr(attr);
 
 	if (kattr->show != NULL)
-		return kattr->show(info->tree.super, kattr, &level, buf);
+		return kattr->show(sbinfo->tree.super, kattr, &level, buf);
 	else
 		return 0;
 }
@@ -216,15 +216,15 @@ static struct kobj_type ktype_level_reiser4 = {
 	.default_attrs	= NULL
 };
 
-static int register_level_attrs(reiser4_super_info_data *info, int i)
+static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 {
 	struct kobject *parent;
 	struct kobject *level;
 	int result;
 
-	parent = &info->stats_kobj;
-	info->level[i].level = i;
-	level = &info->level[i].kobj;
+	parent = &sbinfo->stats_kobj;
+	sbinfo->level[i].level = i;
+	level = &sbinfo->level[i].kobj;
 	level->parent = kobject_get(parent);
 	if (level->parent != NULL) {
 		snprintf(level->name, 
@@ -241,12 +241,12 @@ static int register_level_attrs(reiser4_super_info_data *info, int i)
 
 int reiser4_sysfs_init(struct super_block *super)
 {
-	reiser4_super_info_data *info;
+	reiser4_super_info_data *sbinfo;
 	struct kobject *kobj;
 	int result;
 	ON_STATS(struct kobject *stats_kobj);
 
-	info = get_super_private(super);
+	sbinfo = get_super_private(super);
 
 	kobj = &super->kobj;
 
@@ -258,7 +258,7 @@ int reiser4_sysfs_init(struct super_block *super)
 		return result;
 #if REISER4_STATS
 	/* add attributes representing statistical counters */
-	stats_kobj = &info->stats_kobj;
+	stats_kobj = &sbinfo->stats_kobj;
 	stats_kobj->parent = kobject_get(kobj);
 	snprintf(stats_kobj->name, KOBJ_NAME_LEN, "stats");
 	stats_kobj->ktype = &ktype_noattr;
@@ -270,7 +270,7 @@ int reiser4_sysfs_init(struct super_block *super)
 		int i;
 
 		for (i = 0; i < REAL_MAX_ZTREE_HEIGHT; ++i) {
-			result = register_level_attrs(info, i);
+			result = register_level_attrs(sbinfo, i);
 			if (result != 0)
 				break;
 		}

@@ -17,11 +17,11 @@ oid_allocate(oid_t * oid)
 {
 	struct super_block *s = reiser4_get_current_sb();
 
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 	oid_allocator_plugin *oplug;
 
-	assert("vs-479", private != NULL);
-	oplug = private->oid_plug;
+	assert("vs-479", sbinfo != NULL);
+	oplug = sbinfo->oid_plug;
 	assert("vs-480", oplug && oplug->allocate_oid);
 	return oplug->allocate_oid(get_oid_allocator(s), oid);
 }
@@ -32,11 +32,11 @@ oid_release(oid_t oid)
 {
 	struct super_block *s = reiser4_get_current_sb();
 
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 	oid_allocator_plugin *oplug;
 
-	assert("nikita-1902", private != NULL);
-	oplug = private->oid_plug;
+	assert("nikita-1902", sbinfo != NULL);
+	oplug = sbinfo->oid_plug;
 	assert("nikita-1903", (oplug != NULL) && (oplug->release_oid != NULL));
 	return oplug->release_oid(get_oid_allocator(s), oid);
 }
@@ -75,46 +75,46 @@ oid_count_released(void)
 
 __u64 oid_used(void)
 {
-	reiser4_super_info_data *private = get_current_super_private();
+	reiser4_super_info_data *sbinfo = get_current_super_private();
 
-	assert("zam-636", private != NULL);
-	assert("zam-598", private->oid_plug != NULL);
-	assert("zam-599", private->oid_plug->oids_used != NULL);
+	assert("zam-636", sbinfo != NULL);
+	assert("zam-598", sbinfo->oid_plug != NULL);
+	assert("zam-599", sbinfo->oid_plug->oids_used != NULL);
 
-	return private->oid_plug->oids_used(&private->oid_allocator);
+	return sbinfo->oid_plug->oids_used(&sbinfo->oid_allocator);
 }
 
 __u64 oid_next(void)
 {
-	reiser4_super_info_data *private = get_current_super_private();
+	reiser4_super_info_data *sbinfo = get_current_super_private();
 
-	assert("zam-637", private != NULL);
-	assert("zam-638", private->oid_plug != NULL);
-	assert("zam-639", private->oid_plug->next_oid != NULL);
+	assert("zam-637", sbinfo != NULL);
+	assert("zam-638", sbinfo->oid_plug != NULL);
+	assert("zam-639", sbinfo->oid_plug->next_oid != NULL);
 
-	return private->oid_plug->next_oid(&private->oid_allocator);
+	return sbinfo->oid_plug->next_oid(&sbinfo->oid_allocator);
 }
 
 int
 oid_init_allocator(const struct super_block *s, __u64 nr_files, __u64 oids)
 {
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 
-	assert("zam-640", private != NULL);
-	assert("zam-641", private->oid_plug != NULL);
-	assert("zam-642", private->oid_plug->init_oid_allocator != NULL);
+	assert("zam-640", sbinfo != NULL);
+	assert("zam-641", sbinfo->oid_plug != NULL);
+	assert("zam-642", sbinfo->oid_plug->init_oid_allocator != NULL);
 
-	return private->oid_plug->init_oid_allocator(&private->oid_allocator, nr_files, oids);
+	return sbinfo->oid_plug->init_oid_allocator(&sbinfo->oid_allocator, nr_files, oids);
 }
 
 #if REISER4_DEBUG_OUTPUT
 void
 oid_print_allocator(const char *prefix, const struct super_block *s)
 {
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 
-	if (private->oid_plug && private->oid_plug->print_info)
-		private->oid_plug->print_info(prefix, &private->oid_allocator);
+	if (sbinfo->oid_plug && sbinfo->oid_plug->print_info)
+		sbinfo->oid_plug->print_info(prefix, &sbinfo->oid_allocator);
 	return;
 }
 #endif

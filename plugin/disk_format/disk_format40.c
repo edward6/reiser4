@@ -108,7 +108,7 @@ read_super_block(struct super_block *s UNUSED_ARG)
 static int
 get_super_jnode(struct super_block *s)
 {
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 	jnode *sb_jnode;
 	reiser4_block_nr super_block_nr;
 	int ret;
@@ -127,7 +127,7 @@ get_super_jnode(struct super_block *s)
 	pin_jnode_data(sb_jnode);
 	jrelse(sb_jnode);
 
-	private->u.format40.sb_jnode = sb_jnode;
+	sbinfo->u.format40.sb_jnode = sb_jnode;
 
 	return 0;
 }
@@ -150,7 +150,7 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	int result;
 	struct buffer_head *super_bh;
 	/* UMKA-FIXME-HANS: needs better name */
-	reiser4_super_info_data *private;
+	reiser4_super_info_data *sbinfo;
 	format40_disk_super_block  sb;
 	/* FIXME-NIKITA ugly work-around: keep copy of on-disk super-block */
 	format40_disk_super_block *sb_copy = &sb;
@@ -165,14 +165,14 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	assert("vs-474", get_super_private(s));
 
 	/* initialize reiser4_super_info_data */
-	private = get_super_private(s);
+	sbinfo = get_super_private(s);
 
 	super_bh = find_a_disk_format40_super_block(s);
 	if (IS_ERR(super_bh))
 		return PTR_ERR(super_bh);
 	brelse(super_bh);
 
-	init_tree_0(&private->tree);
+	init_tree_0(&sbinfo->tree);
 
 	/* map jnodes for journal control blocks (header, footer) to disk  */
 	result = init_journal_info(s, &jheader_block, &jfooter_block);
@@ -197,48 +197,48 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	brelse(super_bh);
 
 	/* init oid allocator */
-	private->oid_plug = oid_allocator_plugin_by_id(OID40_ALLOCATOR_ID);
+	sbinfo->oid_plug = oid_allocator_plugin_by_id(OID40_ALLOCATOR_ID);
 	result = oid_init_allocator(s, get_format40_file_count(sb_copy), get_format40_oid(sb_copy));
 	if (result)
 		return result;
 
 	/* initializing tail policy */
-	private->plug.t = tail_plugin_by_id(get_format40_tail_policy(sb_copy));
-	assert("umka-751", private->plug.t);
+	sbinfo->plug.t = tail_plugin_by_id(get_format40_tail_policy(sb_copy));
+	assert("umka-751", sbinfo->plug.t);
 
 	/* get things necessary to init reiser4_tree */
 	root_block = get_format40_root_block(sb_copy);
 	height = get_format40_tree_height(sb_copy);
 	nplug = node_plugin_by_id(NODE40_ID);
 
-	private->tree.super = s;
+	sbinfo->tree.super = s;
 	/* init reiser4_tree for the filesystem */
-	result = init_tree(&private->tree, &root_block, height, nplug);
+	result = init_tree(&sbinfo->tree, &root_block, height, nplug);
 
 	if (result)
 		return result;
 
 	/* initialize reiser4_super_info_data */
-	private->default_uid = 0;
-	private->default_gid = 0;
+	sbinfo->default_uid = 0;
+	sbinfo->default_gid = 0;
 
 	reiser4_set_mkfs_id(s, get_format40_mkfs_id(sb_copy));
 	reiser4_set_block_count(s, get_format40_block_count(sb_copy));
 	reiser4_set_free_blocks(s, get_format40_free_blocks(sb_copy));
 
-	private->fsuid = 0;
+	sbinfo->fsuid = 0;
 	/* FIXME-VS: this is should be taken from mount data? */
-	private->trace_flags = 0;
-	private->fs_flags |= (1 << REISER4_ADG);	/* hard links for directories
+	sbinfo->trace_flags = 0;
+	sbinfo->fs_flags |= (1 << REISER4_ADG);	/* hard links for directories
 							 * are not supported */
-	private->fs_flags |= (1 << REISER4_ONE_NODE_PLUGIN);	/* all nodes in
+	sbinfo->fs_flags |= (1 << REISER4_ONE_NODE_PLUGIN);	/* all nodes in
 								 * layout 40 are
 								 * of one
 								 * plugin */
 
 	/* FIXME-VS: maybe this should be dealt with in common code */
-	xmemset(&private->stats, 0, sizeof (reiser4_stat));
-	/* private->tmgr is initialized already */
+	xmemset(&sbinfo->stats, 0, sizeof (reiser4_stat));
+	/* sbinfo->tmgr is initialized already */
 
 	/* recover sb data which were logged separately from sb block */
 	reiser4_journal_recover_sb_data(s);
@@ -247,7 +247,7 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	reiser4_set_data_blocks(s, get_format40_block_count(sb_copy) - get_format40_free_blocks(sb_copy));
 
 #if REISER4_DEBUG
-	private->min_blocks_used = 
+	sbinfo->min_blocks_used = 
 		16 /* reserved area */ + 
 		2 /* super blocks */ + 
 		2 /* journal footer and header */;
@@ -255,10 +255,10 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 
 	/* layout 40 uses bitmap based space allocator - the one implemented in
 	   plugin/space/bitmap.[ch] */
-	private->space_plug = space_allocator_plugin_by_id(BITMAP_SPACE_ALLOCATOR_ID);
-	assert("vs-493", (private->space_plug && private->space_plug->init_allocator));
+	sbinfo->space_plug = space_allocator_plugin_by_id(BITMAP_SPACE_ALLOCATOR_ID);
+	assert("vs-493", (sbinfo->space_plug && sbinfo->space_plug->init_allocator));
 	/* init disk space allocator */
-	result = private->space_plug->init_allocator(get_space_allocator(s), s, 0);
+	result = sbinfo->space_plug->init_allocator(get_space_allocator(s), s, 0);
 	if (result)
 		return result;
 
@@ -271,20 +271,20 @@ static void
 pack_format40_super(const struct super_block *s, char *data)
 {
 	format40_disk_super_block *super_data = (format40_disk_super_block *) data;
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 
 	assert("zam-591", data != NULL);
-	assert("zam-598", private->oid_plug != NULL);
-	assert("zam-599", private->oid_plug->oids_used != NULL);
-	assert("zam-600", private->oid_plug->next_oid != NULL);
+	assert("zam-598", sbinfo->oid_plug != NULL);
+	assert("zam-599", sbinfo->oid_plug->oids_used != NULL);
+	assert("zam-600", sbinfo->oid_plug->next_oid != NULL);
 
 	cputod64(reiser4_free_committed_blocks(s), &super_data->free_blocks);
-	cputod64(private->tree.root_block, &super_data->root_block);
+	cputod64(sbinfo->tree.root_block, &super_data->root_block);
 
-	cputod64(private->oid_plug->next_oid(&private->oid_allocator), &super_data->oid);
-	cputod64(private->oid_plug->oids_used(&private->oid_allocator), &super_data->file_count);
+	cputod64(sbinfo->oid_plug->next_oid(&sbinfo->oid_allocator), &super_data->oid);
+	cputod64(sbinfo->oid_plug->oids_used(&sbinfo->oid_allocator), &super_data->file_count);
 
-	cputod16(private->tree.height, &super_data->tree_height);
+	cputod16(sbinfo->tree.height, &super_data->tree_height);
 }
 
 /* return a jnode which should be added to transaction when the super block
@@ -309,10 +309,10 @@ int
 format40_release(struct super_block *s)
 {
 	int ret;
-	reiser4_super_info_data *info;
+	reiser4_super_info_data *sbinfo;
 
-	info = get_super_private(s);
-	assert("zam-579", info != NULL);
+	sbinfo = get_super_private(s);
+	assert("zam-579", sbinfo != NULL);
 
 	/* FIXME-UMKA: Should we tell block transaction manager to commit all if 
 	 * we will have no space left? */
@@ -330,12 +330,12 @@ format40_release(struct super_block *s)
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		print_fs_info("umount ok", s);
 
-	done_tree(&info->tree);
+	done_tree(&sbinfo->tree);
 
-	assert("zam-580", info->space_plug != NULL);
+	assert("zam-580", sbinfo->space_plug != NULL);
 
-	if (info->space_plug->destroy_allocator != NULL)
-		info->space_plug->destroy_allocator(&info->space_allocator, s);
+	if (sbinfo->space_plug->destroy_allocator != NULL)
+		sbinfo->space_plug->destroy_allocator(&sbinfo->space_allocator, s);
 
 	done_journal_info(s);
 

@@ -1778,7 +1778,7 @@ parse_options(char *opt_string /* starting point */ ,
 			}					\
 		}
 
-#define SB_FIELD_OPT( field, fmt ) NUM_OPT( #field, fmt, &info -> field )
+#define SB_FIELD_OPT( field, fmt ) NUM_OPT( #field, fmt, &sbinfo -> field )
 
 #define PLUG_OPT( label, ptype, plug )					\
 	{								\
@@ -1796,7 +1796,7 @@ static int
 reiser4_parse_options(struct super_block *s, char *opt_string)
 {
 	int result;
-	reiser4_super_info_data *info = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 	char *trace_file_name;
 
 	opt_desc_t opts[] = {
@@ -1866,13 +1866,13 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		/* carry flags used for insert operations */
 		SB_FIELD_OPT(tree.carry.insert_flags, "%u"),
 
-		PLUG_OPT("plugin.tail", tail, &info->plug.t),
-		PLUG_OPT("plugin.sd", item, &info->plug.sd),
-		PLUG_OPT("plugin.dir_item", item, &info->plug.dir_item),
-		PLUG_OPT("plugin.perm", perm, &info->plug.p),
-		PLUG_OPT("plugin.file", file, &info->plug.f),
-		PLUG_OPT("plugin.dir", dir, &info->plug.d),
-		PLUG_OPT("plugin.hash", hash, &info->plug.h),
+		PLUG_OPT("plugin.tail", tail, &sbinfo->plug.t),
+		PLUG_OPT("plugin.sd", item, &sbinfo->plug.sd),
+		PLUG_OPT("plugin.dir_item", item, &sbinfo->plug.dir_item),
+		PLUG_OPT("plugin.perm", perm, &sbinfo->plug.p),
+		PLUG_OPT("plugin.file", file, &sbinfo->plug.f),
+		PLUG_OPT("plugin.dir", dir, &sbinfo->plug.d),
+		PLUG_OPT("plugin.hash", hash, &sbinfo->plug.h),
 
 		{
 			/* turn on BSD-style gid assignment */
@@ -1881,7 +1881,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 			.u = {
 				.bit = {
 					.nr = REISER4_BSD_GID,
-					.addr = &info->fs_flags
+					.addr = &sbinfo->fs_flags
 				}
 			}
 		},
@@ -1893,7 +1893,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 			.u = {
 				.bit = {
 					.nr = REISER4_32_BIT_TIMES,
-					.addr = &info->fs_flags
+					.addr = &sbinfo->fs_flags
 				}
 			}
 		},
@@ -1904,7 +1904,7 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 			.u = {
 				.bit = {
 					.nr = REISER4_MTFLUSH,
-					.addr = &info->fs_flags
+					.addr = &sbinfo->fs_flags
 				}
 			}
 		},
@@ -1920,8 +1920,8 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 				.f = {
 					.format  = "%u:%u",
 					.nr_args = 2,
-					.arg1 = &info->ra_params.max,
-					.arg2 = &info->ra_params.flags
+					.arg1 = &sbinfo->ra_params.max,
+					.arg2 = &sbinfo->ra_params.flags
 				}
 			}
 		},
@@ -1937,80 +1937,80 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 #endif
 	};
 
-	info->txnmgr.atom_max_size = REISER4_ATOM_MAX_SIZE;
-	info->txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
+	sbinfo->txnmgr.atom_max_size = REISER4_ATOM_MAX_SIZE;
+	sbinfo->txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
 
-	info->tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
+	sbinfo->tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
 
-	info->flush.relocate_threshold = FLUSH_RELOCATE_THRESHOLD;
-	info->flush.relocate_distance = FLUSH_RELOCATE_DISTANCE;
-	info->flush.queue_size = FLUSH_QUEUE_SIZE;
-	info->flush.written_threshold = FLUSH_WRITTEN_THRESHOLD;
-	info->flush.scan_maxnodes = FLUSH_SCAN_MAXNODES;
+	sbinfo->flush.relocate_threshold = FLUSH_RELOCATE_THRESHOLD;
+	sbinfo->flush.relocate_distance = FLUSH_RELOCATE_DISTANCE;
+	sbinfo->flush.queue_size = FLUSH_QUEUE_SIZE;
+	sbinfo->flush.written_threshold = FLUSH_WRITTEN_THRESHOLD;
+	sbinfo->flush.scan_maxnodes = FLUSH_SCAN_MAXNODES;
 
-	if (info->plug.t == NULL)
-		info->plug.t = tail_plugin_by_id(REISER4_TAIL_PLUGIN);
-	if (info->plug.sd == NULL)
-		info->plug.sd = item_plugin_by_id(REISER4_SD_PLUGIN);
-	if (info->plug.dir_item == NULL)
-		info->plug.dir_item = item_plugin_by_id(REISER4_DIR_ITEM_PLUGIN);
-	if (info->plug.p == NULL)
-		info->plug.p = perm_plugin_by_id(REISER4_PERM_PLUGIN);
-	if (info->plug.f == NULL)
-		info->plug.f = file_plugin_by_id(REISER4_FILE_PLUGIN);
-	if (info->plug.d == NULL)
-		info->plug.d = dir_plugin_by_id(REISER4_DIR_PLUGIN);
-	if (info->plug.h == NULL)
-		info->plug.h = hash_plugin_by_id(REISER4_HASH_PLUGIN);
+	if (sbinfo->plug.t == NULL)
+		sbinfo->plug.t = tail_plugin_by_id(REISER4_TAIL_PLUGIN);
+	if (sbinfo->plug.sd == NULL)
+		sbinfo->plug.sd = item_plugin_by_id(REISER4_SD_PLUGIN);
+	if (sbinfo->plug.dir_item == NULL)
+		sbinfo->plug.dir_item = item_plugin_by_id(REISER4_DIR_ITEM_PLUGIN);
+	if (sbinfo->plug.p == NULL)
+		sbinfo->plug.p = perm_plugin_by_id(REISER4_PERM_PLUGIN);
+	if (sbinfo->plug.f == NULL)
+		sbinfo->plug.f = file_plugin_by_id(REISER4_FILE_PLUGIN);
+	if (sbinfo->plug.d == NULL)
+		sbinfo->plug.d = dir_plugin_by_id(REISER4_DIR_PLUGIN);
+	if (sbinfo->plug.h == NULL)
+		sbinfo->plug.h = hash_plugin_by_id(REISER4_HASH_PLUGIN);
 
-	info->optimal_io_size = REISER4_OPTIMAL_IO_SIZE;
+	sbinfo->optimal_io_size = REISER4_OPTIMAL_IO_SIZE;
 
-	info->tree.carry.new_node_flags = REISER4_NEW_NODE_FLAGS;
-	info->tree.carry.new_extent_flags = REISER4_NEW_EXTENT_FLAGS;
-	info->tree.carry.paste_flags = REISER4_PASTE_FLAGS;
-	info->tree.carry.insert_flags = REISER4_INSERT_FLAGS;
+	sbinfo->tree.carry.new_node_flags = REISER4_NEW_NODE_FLAGS;
+	sbinfo->tree.carry.new_extent_flags = REISER4_NEW_EXTENT_FLAGS;
+	sbinfo->tree.carry.paste_flags = REISER4_PASTE_FLAGS;
+	sbinfo->tree.carry.insert_flags = REISER4_INSERT_FLAGS;
 
 	trace_file_name = NULL;
 
 	/*
 	  init default readahead params
 	*/
-	info->ra_params.max = totalram_pages / 4;
-	info->ra_params.flags = 0;
+	sbinfo->ra_params.max = totalram_pages / 4;
+	sbinfo->ra_params.flags = 0;
 
 	result = parse_options(opt_string, opts, sizeof_array(opts));
 	if (result != 0)
 		return result;
 
-	if (info->ra_params.max == -1UL)
-		info->ra_params.max = max_sane_readahead(info->ra_params.max);
+	if (sbinfo->ra_params.max == -1UL)
+		sbinfo->ra_params.max = max_sane_readahead(sbinfo->ra_params.max);
 
-	info->txnmgr.atom_max_age *= HZ;
-	if (info->txnmgr.atom_max_age <= 0)
+	sbinfo->txnmgr.atom_max_age *= HZ;
+	if (sbinfo->txnmgr.atom_max_age <= 0)
 		/* overflow */
-		info->txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE;
+		sbinfo->txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE;
 
 	/* round optimal io size up to 512 bytes */
-	info->optimal_io_size >>= VFS_BLKSIZE_BITS;
-	info->optimal_io_size <<= VFS_BLKSIZE_BITS;
-	if (info->optimal_io_size == 0) {
+	sbinfo->optimal_io_size >>= VFS_BLKSIZE_BITS;
+	sbinfo->optimal_io_size <<= VFS_BLKSIZE_BITS;
+	if (sbinfo->optimal_io_size == 0) {
 		warning("nikita-2497", "optimal_io_size is too small");
 		return -EINVAL;
 	}
 #if REISER4_TRACE_TREE
 	if (trace_file_name != NULL)
-		result = open_trace_file(s, trace_file_name, REISER4_TRACE_BUF_SIZE, &info->trace_file);
+		result = open_trace_file(s, trace_file_name, REISER4_TRACE_BUF_SIZE, &sbinfo->trace_file);
 	else
-		info->trace_file.type = log_to_bucket;
+		sbinfo->trace_file.type = log_to_bucket;
 #endif
 
 	/*
 	 * FIXME-VS: remove after debugging readahead mount option
 	 */
-	printk("readahead options: max=%lu, flags=0x%x\n", info->ra_params.max, info->ra_params.flags);
+	printk("readahead options: max=%lu, flags=0x%x\n", sbinfo->ra_params.max, sbinfo->ra_params.flags);
 
 	/* disable single-threaded flush as it leads to deadlock */
-	info->fs_flags |= (1 << REISER4_MTFLUSH);
+	sbinfo->fs_flags |= (1 << REISER4_MTFLUSH);
 	return result;
 }
 
@@ -2018,14 +2018,14 @@ static int
 reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 {
 	struct super_block *super;
-	reiser4_super_info_data *info;
+	reiser4_super_info_data *sbinfo;
 
 	super = mnt->mnt_sb;
-	info = get_super_private(super);
+	sbinfo = get_super_private(super);
 
-	seq_printf(m, ",trace=0x%x", info->trace_flags);
-	seq_printf(m, ",debug=0x%x", info->debug_flags);
-	seq_printf(m, ",atom_max_size=0x%x", info->txnmgr.atom_max_size);
+	seq_printf(m, ",trace=0x%x", sbinfo->trace_flags);
+	seq_printf(m, ",debug=0x%x", sbinfo->debug_flags);
+	seq_printf(m, ",atom_max_size=0x%x", sbinfo->txnmgr.atom_max_size);
 
 	seq_printf(m, ",default plugins: file=\"%s\"", default_file_plugin(super)->h.label);
 	seq_printf(m, ",dir=\"%s\"", default_dir_plugin(super)->h.label);
@@ -2044,10 +2044,10 @@ extern ktxnmgrd_context kdaemon;
 static void
 init_committed_sb_counters(const struct super_block *s)
 {
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 
-	private->blocks_free_committed = private->blocks_free;
-	private->nr_files_committed = oid_used();
+	sbinfo->blocks_free_committed = sbinfo->blocks_free;
+	sbinfo->nr_files_committed = oid_used();
 }
 
 DEFINE_SPIN_PROFREGIONS(jnode);
@@ -2125,7 +2125,7 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 {
 	struct buffer_head *super_bh;
 	struct reiser4_master_sb *master_sb;
-	reiser4_super_info_data *info;
+	reiser4_super_info_data *sbinfo;
 	int plugin_id;
 	disk_format_plugin *df_plug;
 	struct inode *inode;
@@ -2148,22 +2148,22 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 
 	/* this is common for every disk layout. It has a pointer where layout
 	   specific part of info can be attached to, though */
-	info = kmalloc(sizeof (reiser4_super_info_data), GFP_KERNEL);
+	sbinfo = kmalloc(sizeof (reiser4_super_info_data), GFP_KERNEL);
 
-	if (!info)
+	if (!sbinfo)
 		return -ENOMEM;
 
-	s->s_fs_info = info;
-	memset(info, 0, sizeof (*info));
-	ON_DEBUG(INIT_LIST_HEAD(&info->all_jnodes));
+	s->s_fs_info = sbinfo;
+	memset(sbinfo, 0, sizeof (*sbinfo));
+	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
 
-	sema_init(&info->delete_sema, 1);
-	sema_init(&info->flush_sema, 1);
+	sema_init(&sbinfo->delete_sema, 1);
+	sema_init(&sbinfo->flush_sema, 1);
 	s->s_op = &reiser4_super_operations;
 
 	result = init_context(&__context, s);
 	if (result) {
-		kfree(info);
+		kfree(sbinfo);
 		s->s_fs_info = NULL;
 		return result;
 	}
@@ -2215,15 +2215,15 @@ read_super_block:
 		goto error1;
 	}
 
-	spin_super_init(info);
+	spin_super_init(sbinfo);
 
 	/* init layout plugin */
-	info->df_plug = df_plug;
-	info->tree.super = s;
+	sbinfo->df_plug = df_plug;
+	sbinfo->tree.super = s;
 
-	txnmgr_init(&info->tmgr);
+	txnmgr_init(&sbinfo->tmgr);
 
-	result = ktxnmgrd_attach(&kdaemon, &info->tmgr);
+	result = ktxnmgrd_attach(&kdaemon, &sbinfo->tmgr);
 	if (result) {
 		goto error2;
 	}
@@ -2253,7 +2253,7 @@ read_super_block:
 		goto error4;
 	}
 
-	result = cbk_cache_init(&info->tree.cbk_cache);
+	result = cbk_cache_init(&sbinfo->tree.cbk_cache);
 	if (result) {
 		goto error4;
 	}
@@ -2306,11 +2306,11 @@ error4:
 error3:
 	done_formatted_fake(s);
 	/* shutdown daemon */
-	ktxnmgrd_detach(&info->tmgr);
+	ktxnmgrd_detach(&sbinfo->tmgr);
 error2:
-	txnmgr_done(&info->tmgr);
+	txnmgr_done(&sbinfo->tmgr);
 error1:
-	kfree(info);
+	kfree(sbinfo);
 	s->s_fs_info = NULL;
 
 	__context.trans = NULL;
@@ -2321,11 +2321,11 @@ error1:
 static void
 reiser4_kill_super(struct super_block *s)
 {
-	reiser4_super_info_data *info;
+	reiser4_super_info_data *sbinfo;
 	reiser4_context context;
 
-	info = (reiser4_super_info_data *) s->s_fs_info;
-	if (!info) {
+	sbinfo = (reiser4_super_info_data *) s->s_fs_info;
+	if (!sbinfo) {
 		/* mount failed */
 		s->s_op = 0;
 		kill_block_super(s);
@@ -2360,12 +2360,12 @@ reiser4_kill_super(struct super_block *s)
 		goto out;
 
 	/* shutdown daemon if last mount is removed */
-	ktxnmgrd_detach(&info->tmgr);
+	ktxnmgrd_detach(&sbinfo->tmgr);
 
 	check_block_counters(s);
 	done_formatted_fake(s);
 
-	close_trace_file(&info->trace_file);
+	close_trace_file(&sbinfo->trace_file);
 
 	/* we don't want ->write_super to be called any more. */
 	s->s_op->write_super = NULL;
@@ -2376,15 +2376,15 @@ reiser4_kill_super(struct super_block *s)
 		struct list_head *scan;
 
 		/* print jnodes that survived umount. */
-		list_for_each(scan, &info->all_jnodes) {
+		list_for_each(scan, &sbinfo->all_jnodes) {
 			jnode *busy;
 
 			busy = list_entry(scan, jnode, jnodes);
 			info_jnode("\nafter umount", busy);
 		}
 	}
-	if (info->kmalloc_allocated > 0)
-		warning("nikita-2622", "%i bytes still allocated", info->kmalloc_allocated);
+	if (sbinfo->kmalloc_allocated > 0)
+		warning("nikita-2622", "%i bytes still allocated", sbinfo->kmalloc_allocated);
 #endif
 
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
@@ -2396,7 +2396,7 @@ out:
 
 	phash_super_destroy(s);
 
-	kfree(info);
+	kfree(sbinfo);
 	s->s_fs_info = NULL;
 }
 

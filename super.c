@@ -417,7 +417,7 @@ default_dir_item_plugin(const struct super_block * super UNUSED_ARG	/*  super
 int reiser4_blocknr_is_sane_for(const struct super_block *super, 
 				const reiser4_block_nr *blk)
 {
-	reiser4_super_info_data *info;
+	reiser4_super_info_data *sbinfo;
 
 	assert("nikita-2957", super != NULL);
 	assert("nikita-2958", blk != NULL);
@@ -425,8 +425,8 @@ int reiser4_blocknr_is_sane_for(const struct super_block *super,
 	if (blocknr_is_fake(blk))
 		return 1;
 
-	info = get_super_private(super);
-	return *blk < info->block_count;
+	sbinfo = get_super_private(super);
+	return *blk < sbinfo->block_count;
 }
 
 int reiser4_blocknr_is_sane(const reiser4_block_nr *blk)
@@ -438,27 +438,27 @@ int reiser4_blocknr_is_sane(const reiser4_block_nr *blk)
 void
 print_fs_info(const char *prefix, const struct super_block *s)
 {
-	reiser4_super_info_data *private;
+	reiser4_super_info_data *sbinfo;
 
-	private = get_super_private(s);
+	sbinfo = get_super_private(s);
 
 	printk("================ fs info (%s) =================\n", prefix);
-	printk("root block: %lli\ntree height: %i\n", private->tree.root_block, private->tree.height);
-	if (private->space_plug->print_info)
-		private->space_plug->print_info("", get_space_allocator(s));
+	printk("root block: %lli\ntree height: %i\n", sbinfo->tree.root_block, sbinfo->tree.height);
+	if (sbinfo->space_plug->print_info)
+		sbinfo->space_plug->print_info("", get_space_allocator(s));
 
-	oid_print_allocator(private->oid_plug->h.label, s);
+	oid_print_allocator(sbinfo->oid_plug->h.label, s);
 	printk("Block counters:\n\tblock count\t%llu\n\tfree blocks\t%llu\n"
 	       "\tused blocks\t%llu\n\tgrabbed\t%llu\n\tfake allocated formatted\t%llu\n"
 	       "\tfake allocated unformatted\t%llu\n",
 	       reiser4_block_count(s), reiser4_free_blocks(s),
 	       reiser4_data_blocks(s), reiser4_grabbed_blocks(s),
 	       reiser4_fake_allocated(s), reiser4_fake_allocated_unformatted(s));
-	print_key("Root directory key", private->df_plug->root_dir_key(s));
+	print_key("Root directory key", sbinfo->df_plug->root_dir_key(s));
 
-	if (private->df_plug->print_info) {
-		printk("=========== disk format info (%s) =============\n", private->df_plug->h.label);
-		private->df_plug->print_info(s);
+	if (sbinfo->df_plug->print_info) {
+		printk("=========== disk format info (%s) =============\n", sbinfo->df_plug->h.label);
+		sbinfo->df_plug->print_info(s);
 	}
 
 }

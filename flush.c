@@ -697,7 +697,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	flush_scan left_scan;
 	int todo;
 	struct super_block *sb;
-	reiser4_super_info_data *info;
+	reiser4_super_info_data *sbinfo;
 
 	txn_atom *atom;
 	flush_queue_t *fq = NULL;
@@ -706,12 +706,12 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	assert("nikita-3022", schedulable());
 
 	sb = reiser4_get_current_sb();
-	info = get_super_private(sb);
+	sbinfo = get_super_private(sb);
 	if (!reiser4_is_set(sb, REISER4_MTFLUSH)) {
 #if REISER4_STATS		
 		unsigned long sleep_start = jiffies;
 #endif
-		down(&info->flush_sema);
+		down(&sbinfo->flush_sema);
 #if REISER4_STATS
 		reiser4_stat_add(flush.slept_in_mtflush_sem , jiffies - sleep_start);
 #endif
@@ -840,7 +840,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   and, hence, is kept during leftward scan. As a result, we have to
 	   use try-lock when taking long term locks during the leftward scan.
 	*/
-	if ((ret = scan_left(&left_scan, &right_scan, node, info->flush.scan_maxnodes))) {
+	if ((ret = scan_left(&left_scan, &right_scan, node, sbinfo->flush.scan_maxnodes))) {
 		goto failed;
 	}
 
@@ -852,7 +852,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	reiser4_stat_add(flush.left, left_scan.count);
 
 	/* ZAM-FIXME-HANS: reduce the layers of wrappings, eliminate get_params function please */
-	todo = info->flush.relocate_threshold - left_scan.count;
+	todo = sbinfo->flush.relocate_threshold - left_scan.count;
 	if (todo > 0) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
@@ -869,7 +869,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 	/* ... and the answer is: we should relocate leaf nodes if at least
 	   FLUSH_RELOCATE_THRESHOLD nodes were found. */
-	flush_pos.leaf_relocate = (left_scan.count + right_scan.count >= info->flush.relocate_threshold);
+	flush_pos.leaf_relocate = (left_scan.count + right_scan.count >= sbinfo->flush.relocate_threshold);
 
 	/*assert ("jmacd-6218", jnode_check_dirty (left_scan.node)); */
 
@@ -1023,7 +1023,7 @@ clean_out:
 	write_syscall_trace("ex");
 
 	if (!reiser4_is_set(sb, REISER4_MTFLUSH))
-		up(&info->flush_sema);
+		up(&sbinfo->flush_sema);
 
 	return ret;
 }
@@ -2166,7 +2166,7 @@ static int
 allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 {
 	int ret;
-	reiser4_super_info_data * info = get_current_super_private();
+	reiser4_super_info_data * sbinfo = get_current_super_private();
 	/* FIXME(D): We have the node write-locked and should have checked for ! 
 	   allocated() somewhere before reaching this point, but there can be a race, so
 	   this assertion is bogus. */
@@ -2205,7 +2205,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			dist = (nblk < pos->preceder.blk) ? (pos->preceder.blk - nblk) : (nblk - pos->preceder.blk);
 
 			/* See if we can find a closer block (forward direction only). */
-			pos->preceder.max_dist = min((reiser4_block_nr)info->flush.relocate_distance, dist);
+			pos->preceder.max_dist = min((reiser4_block_nr)sbinfo->flush.relocate_distance, dist);
 			pos->preceder.level = znode_get_level(node);
 
 			if ((ret = allocate_znode_update(node, parent_coord, pos))
@@ -2216,7 +2216,7 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 			if (ret == 0) {
 				/* Got a better allocation. */
 				jnode_set_reloc(ZJNODE(node));
-			} else if (dist < info->flush.relocate_distance) {
+			} else if (dist < sbinfo->flush.relocate_distance) {
 				/* The present allocation is good enough. */
 				jnode_set_wander(ZJNODE(node));
 			} else {

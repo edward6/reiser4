@@ -338,14 +338,14 @@ SPIN_LOCK_FUNCTIONS(super, reiser4_super_info_data, guard);
 
 static inline void reiser4_spin_lock_sb(const struct super_block * s)
 {
-	reiser4_super_info_data * private = get_super_private (s);
-	spin_lock_super(private);
+	reiser4_super_info_data * sbinfo = get_super_private (s);
+	spin_lock_super(sbinfo);
 }
 
 static inline void reiser4_spin_unlock_sb(const struct super_block * s)
 {
-	reiser4_super_info_data * private = get_super_private (s);
-	spin_unlock_super(private);
+	reiser4_super_info_data * sbinfo = get_super_private (s);
+	spin_unlock_super(sbinfo);
 }
 
 extern __u64 flush_reserved        ( const struct super_block*);

@@ -679,15 +679,15 @@ reiser4_kfree(void *area /* memory to from */,
 	kfree(area);
 	if (REISER4_DEBUG) {
 		struct super_block *super;
-		reiser4_super_info_data *info;
+		reiser4_super_info_data *sbinfo;
 
 		super = reiser4_get_current_sb();
-		info = get_super_private(super);
+		sbinfo = get_super_private(super);
 
 		reiser4_spin_lock_sb(super);
-		assert("nikita-1411", info != NULL);
-		assert("nikita-1412", info->kmalloc_allocated >= (int) size);
-		ON_DEBUG(info->kmalloc_allocated -= size);
+		assert("nikita-1411", sbinfo != NULL);
+		assert("nikita-1412", sbinfo->kmalloc_allocated >= (int) size);
+		ON_DEBUG(sbinfo->kmalloc_allocated -= size);
 		reiser4_spin_unlock_sb(super);
 	}
 }
@@ -700,13 +700,13 @@ reiser4_kfree_in_sb(void *area /* memory to from */,
 	assert("nikita-2729", area != NULL);
 	kfree(area);
 	if (REISER4_DEBUG) {
-		reiser4_super_info_data *info;
+		reiser4_super_info_data *sbinfo;
 
-		info = get_super_private(sb);
+		sbinfo = get_super_private(sb);
 
 		reiser4_spin_lock_sb(sb);
-		assert("nikita-2730", info->kmalloc_allocated >= (int) size);
-		ON_DEBUG(info->kmalloc_allocated -= size);
+		assert("nikita-2730", sbinfo->kmalloc_allocated >= (int) size);
+		ON_DEBUG(sbinfo->kmalloc_allocated -= size);
 		reiser4_spin_unlock_sb(sb);
 	}
 }

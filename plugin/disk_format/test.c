@@ -33,12 +33,12 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	reiser4_key *root_key;
 	test_disk_super_block *disk_sb;
 	struct buffer_head *super_bh;
-	reiser4_super_info_data *private;
+	reiser4_super_info_data *sbinfo;
 	reiser4_block_nr root_block;
 	tree_level height;
 
-	private = get_super_private(s);
-	assert("vs-626", private);
+	sbinfo = get_super_private(s);
+	assert("vs-626", sbinfo);
 
 	super_bh = sb_bread(s, (int) (REISER4_MAGIC_OFFSET / s->s_blocksize));
 	if (!super_bh)
@@ -56,7 +56,7 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 
 	/* store key of root directory in format specific part of
 	   reiser4 private super data */
-	root_key = &private->u.test_format.root_dir_key;
+	root_key = &sbinfo->u.test_format.root_dir_key;
 	key_init(root_key);
 	set_key_locality(root_key, d64tocpu(&disk_sb->root_locality));
 	set_key_objectid(root_key, d64tocpu(&disk_sb->root_objectid));
@@ -72,19 +72,19 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	reiser4_set_data_blocks(s, d64tocpu(&disk_sb->next_free_block));
 	reiser4_set_free_blocks(s, (d64tocpu(&disk_sb->block_count) - d64tocpu(&disk_sb->next_free_block)));
 	/* set tail policy plugin */
-	private->plug.t = tail_plugin_by_id(d16tocpu(&disk_sb->tail_policy));
+	sbinfo->plug.t = tail_plugin_by_id(d16tocpu(&disk_sb->tail_policy));
 
 	/* init oid allocator */
-	private->oid_plug = oid_allocator_plugin_by_id(OID40_ALLOCATOR_ID);
-	assert("vs-627", (private->oid_plug && private->oid_plug->init_oid_allocator));
-	result = private->oid_plug->init_oid_allocator(get_oid_allocator(s),
+	sbinfo->oid_plug = oid_allocator_plugin_by_id(OID40_ALLOCATOR_ID);
+	assert("vs-627", (sbinfo->oid_plug && sbinfo->oid_plug->init_oid_allocator));
+	result = sbinfo->oid_plug->init_oid_allocator(get_oid_allocator(s),
 						       d64tocpu(&disk_sb->next_free_oid),
 						       d64tocpu(&disk_sb->next_free_oid));
 
 	/* init space allocator */
-	private->space_plug = space_allocator_plugin_by_id(TEST_SPACE_ALLOCATOR_ID);
-	assert("vs-628", (private->space_plug && private->space_plug->init_allocator));
-	result = private->space_plug->init_allocator(get_space_allocator(s), s, &disk_sb->next_free_block);
+	sbinfo->space_plug = space_allocator_plugin_by_id(TEST_SPACE_ALLOCATOR_ID);
+	assert("vs-628", (sbinfo->space_plug && sbinfo->space_plug->init_allocator));
+	result = sbinfo->space_plug->init_allocator(get_space_allocator(s), s, &disk_sb->next_free_block);
 	if (result) {
 		brelse(super_bh);
 		return result;
@@ -95,8 +95,8 @@ test_format_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	height = d16tocpu(&disk_sb->tree_height);
 	assert("vs-642", d16tocpu(&disk_sb->node_plugin) == NODE40_ID);
 
-	private->tree.super = s;
-	result = init_tree(&private->tree, &root_block, height, node_plugin_by_id(NODE40_ID));
+	sbinfo->tree.super = s;
+	result = init_tree(&sbinfo->tree, &root_block, height, node_plugin_by_id(NODE40_ID));
 	if (result) {
 		brelse(super_bh);
 		return result;

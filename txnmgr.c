@@ -842,7 +842,7 @@ find_first_dirty(txn_atom * atom)
 static long
 atom_try_commit_locked(txn_atom * atom)
 {
-	reiser4_super_info_data * private = get_current_super_private ();
+	reiser4_super_info_data * sbinfo = get_current_super_private ();
 	long ret = 0;
 	jnode *first_dirty;	/* a variable for atom's dirty lists scanning */
 
@@ -921,7 +921,7 @@ atom_try_commit_locked(txn_atom * atom)
 
 	/* isolate critical code path which should be executed by only one
 	 * thread using tmgr semaphore */
-	down(&private->tmgr.commit_semaphore);
+	down(&sbinfo->tmgr.commit_semaphore);
 
 	ret = reiser4_write_logs();
 	if (ret < 0)
@@ -931,7 +931,7 @@ atom_try_commit_locked(txn_atom * atom)
 
 	invalidate_clean_list(atom);
 
-	up(&private->tmgr.commit_semaphore);
+	up(&sbinfo->tmgr.commit_semaphore);
 
 	atom->stage = ASTAGE_DONE;
 
@@ -1060,10 +1060,10 @@ again:
 
 #if REISER4_DEBUG
 	{
-		reiser4_super_info_data * p = get_super_private(super);
+		reiser4_super_info_data * sbinfo = get_super_private(super);
 		reiser4_spin_lock_sb(super);
-		assert("zam-813", p->blocks_fake_allocated_unformatted == 0);
-		assert("zam-812", p->blocks_fake_allocated == 0);
+		assert("zam-813", sbinfo->blocks_fake_allocated_unformatted == 0);
+		assert("zam-812", sbinfo->blocks_fake_allocated == 0);
 		reiser4_spin_unlock_sb(super);
 	}
 #endif

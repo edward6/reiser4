@@ -252,20 +252,20 @@ lget(lnode * node /* lnode to add to the hash table */ ,
 void
 lput(lnode * node /* lnode to release */ )
 {
-	reiser4_super_info_data *sinfo;
+	reiser4_super_info_data *sbinfo;
 
 	assert("nikita-1864", node != NULL);
 	assert("nikita-1961", lnode_valid_type(node->h.type));	/* man in
 								 * a
 								 * space */
-	sinfo = get_current_super_private();
-	spin_lock(&sinfo->lnode_guard);
-	assert("nikita-1878", ln_hash_find(&sinfo->lnode_htable, &node->h.oid) == node);
+	sbinfo = get_current_super_private();
+	spin_lock(&sbinfo->lnode_guard);
+	assert("nikita-1878", ln_hash_find(&sbinfo->lnode_htable, &node->h.oid) == node);
 	if (--node->h.ref == 0) {
-		ln_hash_remove(&sinfo->lnode_htable, node);
+		ln_hash_remove(&sbinfo->lnode_htable, node);
 		kcond_broadcast(&node->h.cvar);
 	}
-	spin_unlock(&sinfo->lnode_guard);
+	spin_unlock(&sbinfo->lnode_guard);
 }
 
 /* true if @node1 and @node2 refer to the same object */

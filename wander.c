@@ -211,45 +211,45 @@ done_commit_handle(struct commit_handle *ch)
 static void
 format_journal_header(struct commit_handle *ch)
 {
-	struct reiser4_super_info_data *private;
+	struct reiser4_super_info_data *sbinfo;
 	struct journal_header *h;
 	jnode *txhead;
 
-	private = get_super_private(ch->super);
-	assert("zam-479", private != NULL);
-	assert("zam-480", private->journal_header != NULL);
+	sbinfo = get_super_private(ch->super);
+	assert("zam-479", sbinfo != NULL);
+	assert("zam-480", sbinfo->journal_header != NULL);
 
 	txhead = capture_list_front(&ch->tx_list);
 
-	jload(private->journal_header);
+	jload(sbinfo->journal_header);
 
-	h = (struct journal_header *) jdata(private->journal_header);
+	h = (struct journal_header *) jdata(sbinfo->journal_header);
 	assert("zam-484", h != NULL);
 
 	cputod64(*jnode_get_block(txhead), &h->last_committed_tx);
 
-	jrelse(private->journal_header);
+	jrelse(sbinfo->journal_header);
 }
 
 /* fill journal footer block data */
 static void
 format_journal_footer(struct commit_handle *ch)
 {
-	struct reiser4_super_info_data *private;
+	struct reiser4_super_info_data *sbinfo;
 	struct journal_footer *F;
 
 	jnode *tx_head;
 
-	private = get_super_private(ch->super);
+	sbinfo = get_super_private(ch->super);
 
 	tx_head = capture_list_front(&ch->tx_list);
 
-	assert("zam-493", private != NULL);
-	assert("zam-494", private->journal_header != NULL);
+	assert("zam-493", sbinfo != NULL);
+	assert("zam-494", sbinfo->journal_header != NULL);
 
-	check_me("zam-691", jload(private->journal_footer) == 0);
+	check_me("zam-691", jload(sbinfo->journal_footer) == 0);
 
-	F = (struct journal_footer *) jdata(private->journal_footer);
+	F = (struct journal_footer *) jdata(sbinfo->journal_footer);
 	assert("zam-495", F != NULL);
 
 	cputod64(*jnode_get_block(tx_head), &F->last_flushed_tx);
@@ -258,7 +258,7 @@ format_journal_footer(struct commit_handle *ch)
 	cputod64(ch->nr_files, &F->nr_files);
 	cputod64(ch->next_oid, &F->next_oid);
 
-	jrelse(private->journal_footer);
+	jrelse(sbinfo->journal_footer);
 }
 
 /* log record capacity depends on current block size */
@@ -397,9 +397,9 @@ store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const r
 static int
 update_journal_header(struct commit_handle *ch)
 {
-	struct reiser4_super_info_data *private = get_super_private(ch->super);
+	struct reiser4_super_info_data *sbinfo = get_super_private(ch->super);
 
-	jnode *jh = private->journal_header;
+	jnode *jh = sbinfo->journal_header;
 	jnode *head = capture_list_front(&ch->tx_list);
 
 	int ret;
@@ -418,7 +418,7 @@ update_journal_header(struct commit_handle *ch)
 	if (ret)
 		return ret;
 
-	private->last_committed_tx = *jnode_get_block(head);
+	sbinfo->last_committed_tx = *jnode_get_block(head);
 
 	return 0;
 }
@@ -429,9 +429,9 @@ update_journal_header(struct commit_handle *ch)
 static int
 update_journal_footer(struct commit_handle *ch)
 {
-	reiser4_super_info_data *private = get_super_private(ch->super);
+	reiser4_super_info_data *sbinfo = get_super_private(ch->super);
 
-	jnode *jf = private->journal_footer;
+	jnode *jf = sbinfo->journal_footer;
 
 	int ret;
 
@@ -573,10 +573,10 @@ get_overwrite_set(struct commit_handle *ch)
 				   disk_layout. */
 
 				struct super_block *s = reiser4_get_current_sb();
-				reiser4_super_info_data *private = get_current_super_private();
+				reiser4_super_info_data *sbinfo = get_current_super_private();
 
-				if (private->df_plug->log_super) {
-					jnode *sj = private->df_plug->log_super(s);
+				if (sbinfo->df_plug->log_super) {
+					jnode *sj = sbinfo->df_plug->log_super(s);
 
 					assert("zam-593", sj != NULL);
 
@@ -960,7 +960,7 @@ reiser4_write_logs(void)
 	txn_atom *atom;
 
 	struct super_block *super = reiser4_get_current_sb();
-	reiser4_super_info_data *private = get_super_private(super);
+	reiser4_super_info_data *sbinfo = get_super_private(super);
 
 	struct commit_handle ch;
 
@@ -976,15 +976,15 @@ reiser4_write_logs(void)
 
 	atom = get_current_atom_locked();
 
-	private->nr_files_committed += (unsigned) atom->nr_objects_created;
-	private->nr_files_committed -= (unsigned) atom->nr_objects_deleted;
+	sbinfo->nr_files_committed += (unsigned) atom->nr_objects_created;
+	sbinfo->nr_files_committed -= (unsigned) atom->nr_objects_deleted;
 
 	spin_unlock_atom(atom);
 
 	init_commit_handle(&ch, atom);
 
-	ch.free_blocks = private->blocks_free_committed;
-	ch.nr_files = private->nr_files_committed;
+	ch.free_blocks = sbinfo->blocks_free_committed;
+	ch.nr_files = sbinfo->nr_files_committed;
 	ch.next_oid = oid_next();
 
 	/* count overwrite set and place it in a separate list */
@@ -1344,8 +1344,8 @@ free_ow_set:
 static int
 replay_oldest_transaction(struct super_block *s)
 {
-	reiser4_super_info_data *private = get_super_private(s);
-	jnode *jf = private->journal_footer;
+	reiser4_super_info_data *sbinfo = get_super_private(s);
+	jnode *jf = sbinfo->journal_footer;
 	unsigned int total;
 	struct journal_footer *F;
 	struct tx_header *T;
@@ -1367,14 +1367,14 @@ replay_oldest_transaction(struct super_block *s)
 
 	jrelse(jf);
 
-	if (private->last_committed_tx == last_flushed_tx) {
+	if (sbinfo->last_committed_tx == last_flushed_tx) {
 		/* all transactions are replayed */
 		return 0;
 	}
 
 	trace_on(TRACE_REPLAY, "not flushed transactions found.");
 
-	prev_tx = private->last_committed_tx;
+	prev_tx = sbinfo->last_committed_tx;
 
 	/* searching for oldest not flushed transaction */
 	while (1) {
@@ -1441,19 +1441,19 @@ replay_oldest_transaction(struct super_block *s)
 int
 reiser4_journal_recover_sb_data(struct super_block *s)
 {
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 	struct journal_footer *JF;
 	int ret;
 
-	assert("zam-673", private->journal_footer != NULL);
+	assert("zam-673", sbinfo->journal_footer != NULL);
 
-	if ((ret = jload(private->journal_footer)))
+	if ((ret = jload(sbinfo->journal_footer)))
 		return ret;
 
-	if ((ret = check_journal_footer(private->journal_footer)))
+	if ((ret = check_journal_footer(sbinfo->journal_footer)))
 		goto out;
 
-	JF = (struct journal_footer *) jdata(private->journal_footer);
+	JF = (struct journal_footer *) jdata(sbinfo->journal_footer);
 
 	/* was there at least one flushed transaction?  */
 	if (d64tocpu(&JF->last_flushed_tx)) {
@@ -1465,7 +1465,7 @@ reiser4_journal_recover_sb_data(struct super_block *s)
 		oid_init_allocator(s, d64tocpu(&JF->nr_files), d64tocpu(&JF->next_oid));
 	}
 out:
-	jrelse(private->journal_footer);
+	jrelse(sbinfo->journal_footer);
 	return ret;
 }
 
@@ -1478,7 +1478,7 @@ reiser4_journal_replay(struct super_block *s)
 	   not flushed transaction and prints a warning, if those transactions
 	   found.*/
 
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 	jnode *jh, *jf;
 
 	struct journal_header *H;
@@ -1486,10 +1486,10 @@ reiser4_journal_replay(struct super_block *s)
 
 	int ret;
 
-	assert("zam-582", private != NULL);
+	assert("zam-582", sbinfo != NULL);
 
-	jh = private->journal_header;
-	jf = private->journal_footer;
+	jh = sbinfo->journal_header;
+	jf = sbinfo->journal_footer;
 
 	if (!jh || !jf) {
 		/* it is possible that disk layout does not support journal
@@ -1527,7 +1527,7 @@ reiser4_journal_replay(struct super_block *s)
 	}
 
 	H = (struct journal_header *) jdata(jh);
-	private->last_committed_tx = d64tocpu(&H->last_committed_tx);
+	sbinfo->last_committed_tx = d64tocpu(&H->last_committed_tx);
 
 	jrelse(jh);
 
@@ -1579,19 +1579,19 @@ unload_journal_control_block(jnode ** node)
 void
 done_journal_info(struct super_block *s)
 {
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 
-	assert("zam-476", private != NULL);
+	assert("zam-476", sbinfo != NULL);
 
-	unload_journal_control_block(&private->journal_header);
-	unload_journal_control_block(&private->journal_footer);
+	unload_journal_control_block(&sbinfo->journal_header);
+	unload_journal_control_block(&sbinfo->journal_footer);
 }
 
 /* load journal control blocks */
 int
 init_journal_info(struct super_block *s, const reiser4_block_nr * header_block, const reiser4_block_nr * footer_block)
 {
-	reiser4_super_info_data *private = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 	int ret;
 
 	assert("zam-650", header_block != NULL);
@@ -1599,15 +1599,15 @@ init_journal_info(struct super_block *s, const reiser4_block_nr * header_block, 
 	assert("zam-652", *header_block != 0);
 	assert("zam-653", *footer_block != 0);
 
-	ret = load_journal_control_block(&private->journal_header, header_block);
+	ret = load_journal_control_block(&sbinfo->journal_header, header_block);
 
 	if (ret)
 		return ret;
 
-	ret = load_journal_control_block(&private->journal_footer, footer_block);
+	ret = load_journal_control_block(&sbinfo->journal_footer, footer_block);
 
 	if (ret) {
-		unload_journal_control_block(&private->journal_header);
+		unload_journal_control_block(&sbinfo->journal_header);
 	}
 
 	return ret;
