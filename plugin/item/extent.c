@@ -699,7 +699,7 @@ cut_or_kill_units(coord_t * coord,
 						BA_DEFER /* unformatted with defer */, "cut_or_kill_units: from");
 				}
 				extent_set_width(ext, new_width);
-				znode_set_dirty(coord->node);
+				znode_make_dirty(coord->node);
 			}
 			(*from)++;
 			count--;
@@ -761,7 +761,7 @@ cut_or_kill_units(coord_t * coord,
 				extent_set_start(ext, extent_get_start(ext) + old_width - new_width);
 			}
 			extent_set_width(ext, new_width);
-			znode_set_dirty(coord->node);
+			znode_make_dirty(coord->node);
 			(*to)--;
 			count--;
 		}
@@ -904,7 +904,7 @@ optimize_extent(const coord_t * item)
 		assert("vs-456", result == 0);
 	}
 	check_me("nikita-2755", reiser4_grab_space_force(1, BA_RESERVED, "optimize_extent") == 0);
-	znode_set_dirty(item->node);
+	znode_make_dirty(item->node);
 }
 
 /* return 1 if offset @off is inside of extent unit pointed to by @coord. Set pos_in_unit inside of unit
@@ -1174,7 +1174,7 @@ add_hole(coord_t * coord, lock_handle * lh, const reiser4_key * key)
 		   @hole_width blocks. Note that we do not worry about
 		   overflowing - extent width is 64 bits */
 		set_extent(ext, HOLE_EXTENT, 0, extent_get_width(ext) + hole_width);
-		znode_set_dirty(coord->node);
+		znode_make_dirty(coord->node);
 		zrelse(loaded);
 		return 0;
 	}
@@ -1298,16 +1298,8 @@ extent_needs_allocation(extent_state st, oid_t oid, unsigned long ind, __u64 cou
 			}
 		})
 
-		if (!jnode_check_flushprepped(j)) {
-			txn_atom * atom;
-
-			LOCK_JNODE(j);
-			atom = atom_locked_by_jnode(j);
-			assert("nikita-3111", atom != NULL);
-			jnode_set_wander(j);
-			UNLOCK_ATOM(atom);
-			UNLOCK_JNODE(j);
-		}
+		if (!jnode_check_flushprepped(j))
+			jnode_make_wander(j);
 
 		jput(j);
 	}
@@ -1786,7 +1778,7 @@ allocate_and_copy_extent(znode * left, coord_t * right, flush_pos_t * flush_pos,
 				assert("vs-1207", extent_get_width(ext) == 0);
 				extent_set_start(ext, first_allocated);
 				extent_set_width(ext, allocated);
-				znode_set_dirty(left);
+				znode_make_dirty(left);
 			}
 			to_allocate -= allocated;
 
@@ -1890,7 +1882,7 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 			assert("vs-988", !memcmp(ext, &orig_ext, sizeof (*ext)));
 
 			*ext = *new_ext;
-			znode_set_dirty(coord_after.node);
+			znode_make_dirty(coord_after.node);
 
 			if (coord_after.node != orig_znode)
 				zrelse(coord_after.node);
@@ -2039,7 +2031,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_pos_t * f
 			*ext = replace;
 
 			/* no need to grab space as it is done already */
-			znode_set_dirty(coord->node);
+			znode_make_dirty(coord->node);
 			continue;
 		}
 
@@ -2184,7 +2176,7 @@ append_one_block(coord_t * coord, lock_handle * lh, jnode * j, reiser4_key * key
 	switch (state_of_extent(ext)) {
 	case UNALLOCATED_EXTENT:
 		set_extent(ext, UNALLOCATED_EXTENT, 0, extent_get_width(ext) + 1);
-		znode_set_dirty(coord->node);
+		znode_make_dirty(coord->node);
 		break;
 
 	case HOLE_EXTENT:
@@ -2227,14 +2219,14 @@ plug_hole(coord_t * coord, lock_handle * lh, reiser4_key * key)
 
 	if (width == 1) {
 		set_extent(ext, UNALLOCATED_EXTENT, 0, 1ull);
-		znode_set_dirty(coord->node);
+		znode_make_dirty(coord->node);
 		return 0;
 	} else if (pos_in_unit == 0) {
 		if (coord->unit_pos) {
 			if (state_of_extent(ext - 1) == UNALLOCATED_EXTENT) {
 				extent_set_width(ext - 1, extent_get_width(ext - 1) + 1);
 				extent_set_width(ext, width - 1);
-				znode_set_dirty(coord->node);
+				znode_make_dirty(coord->node);
 				return 0;
 			}
 		}
@@ -2248,7 +2240,7 @@ plug_hole(coord_t * coord, lock_handle * lh, reiser4_key * key)
 			if (state_of_extent(ext + 1) == UNALLOCATED_EXTENT) {
 				extent_set_width(ext + 1, extent_get_width(ext + 1) + 1);
 				extent_set_width(ext, width - 1);
-				znode_set_dirty(coord->node);
+				znode_make_dirty(coord->node);
 				return 0;
 			}
 		}
@@ -2620,7 +2612,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
 		if (result)
 			goto exit3;
-		jnode_set_dirty(j);
+		jnode_make_dirty(j);
 		jput(j);
 
 		assert("vs-1072", PageDirty(page));
@@ -2940,7 +2932,7 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 	result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
 	if (result)
 		return result;
-	jnode_set_dirty(j);
+	jnode_make_dirty(j);
 	jput(j);
 
 	assert("vs-1073", PageDirty(page));
