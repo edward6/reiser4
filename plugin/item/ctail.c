@@ -119,7 +119,8 @@ nr_units_ctail(const coord_t * coord)
 /* plugin->u.item.b.unit_key: 
    tail_unit_key */
 
-/* estimate how much space is needed to insert/paste @data->length bytes
+/* plugin->u.item.b.estimate:
+   estimate how much space is needed to insert/paste @data->length bytes
    into ctail at @coord */
 int
 estimate_ctail(const coord_t * coord /* coord of item */,
