@@ -186,16 +186,17 @@ reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 
 	/* ask plugin whether it can add yet another link to this
 	   object */
-	if (!fplug->can_add_link(object)) {
+	if (!fplug->can_add_link(object))
 		return RETERR(-EMLINK);
-	}
 
 	assert("nikita-2211", fplug->add_link != NULL);
 	/* call plugin to do actual addition of link */
 	result = fplug->add_link(object, parent);
 
+	mark_inode_update(object, write_sd_p);
+
 	/* optionally update stat data */
-	if ((result == 0) && write_sd_p)
+	if (result == 0 && write_sd_p)
 		result = fplug->write_sd_by_inode(object);
 	return result;
 }
@@ -224,8 +225,9 @@ reiser4_del_nlink(struct inode *object	/* object from which link is
 
 	/* call plugin to do actual deletion of link */
 	result = fplug->rem_link(object, parent);
+	mark_inode_update(object, write_sd_p);
 	/* optionally update stat data */
-	if ((result == 0) && write_sd_p)
+	if (result == 0 && write_sd_p)
 		result = fplug->write_sd_by_inode(object);
 	return result;
 }

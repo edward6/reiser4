@@ -206,13 +206,14 @@ done_context(reiser4_context * context /* context being released */)
 		assert("jmacd-673", parent->trans == NULL);
 		assert("jmacd-1002", lock_stack_isclean(&parent->stack));
 		assert("nikita-1936", no_counters_are_held());
+		assert("nikita-3403", !delayed_inode_updates(context->dirty));
 		assert("nikita-2626", tap_list_empty(taps_list()));
 
 		log_entry(context->super, ":ex");
 
 		if (context->grabbed_blocks != 0)
 			all_grabbed2free();
-		
+
 		/*
 		 * synchronize against longterm_unlock_znode():
 		 * wake_up_requestor() wakes up requestors without holding

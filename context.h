@@ -23,6 +23,28 @@
 ON_DEBUG(TYPE_SAFE_LIST_DECLARE(context);)
 ON_DEBUG(TYPE_SAFE_LIST_DECLARE(flushers);)
 
+#if REISER4_DEBUG
+
+#define TRACKED_DELAYED_UPDATE (10)
+
+typedef struct {
+	ino_t ino;
+	int   delayed;
+} dirty_inode_info[TRACKED_DELAYED_UPDATE];
+
+extern void mark_inode_update(struct inode *object, int immediate);
+extern int  delayed_inode_updates(dirty_inode_info info);
+
+#else
+
+typedef struct {} dirty_inode_info;
+
+#define mark_inode_update(object, immediate) noop
+#define delayed_inode_updates(info) noop
+
+#endif
+
+
 /* global context used during system call. Variable of this type is
    allocated on the stack at the beginning of the reiser4 part of the
    system call and pointer to it is stored in the
@@ -95,6 +117,7 @@ struct reiser4_context {
 	backtrace_path   grabbed_at;
 	flushers_list_link  flushers_link;
 	err_site err;
+	dirty_inode_info dirty;
 #endif
 #if REISER4_TRACE
 	/* per-thread tracing flags. Use reiser4_trace_flags enum to set
