@@ -3496,8 +3496,11 @@ static int extent_write_flow (struct inode * inode, lw_coord_t * lw_coord, flow_
 
 
 	do {
+		/*
+		 * make sure that znode is not locked by current thread
+		 */
 		assert ("vs-959", (lw_coord->coord->node &&
-				   !znode_is_locked (lw_coord->coord->node)));
+				   !znode_is_any_locked (lw_coord->coord->node)));
 
 		/* number of bytes to be written to page */
 		to_page = PAGE_CACHE_SIZE - page_off;
