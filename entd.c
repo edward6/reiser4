@@ -27,6 +27,7 @@
 #define DEF_PRIORITY 12
 
 static void entd_flush(struct super_block *super);
+static int entd(void *arg);
 
 #define entd_set_comm(state)					\
 	snprintf(current->comm, sizeof(current->comm),	\
@@ -36,6 +37,32 @@ static inline entd_context *
 get_entd_context(struct super_block *super)
 {
 	return &get_super_private(super)->entd;
+}
+
+reiser4_internal void
+init_entd_context(struct super_block *super)
+{
+	entd_context * ctx;
+
+	assert("nikita-3104", super != NULL);
+
+	ctx = get_entd_context(super);
+
+	xmemset(ctx, 0, sizeof *ctx);
+	kcond_init(&ctx->startup);
+	kcond_init(&ctx->wait);
+	init_completion(&ctx->finish);
+	spin_lock_init(&ctx->guard);
+
+	kernel_thread(entd, super, CLONE_VM | CLONE_FS | CLONE_FILES);
+
+	spin_lock(&ctx->guard);
+	while (ctx->tsk == NULL)
+		kcond_wait(&ctx->startup, &ctx->guard, 0);
+	spin_unlock(&ctx->guard);
+#if REISER4_DEBUG
+	flushers_list_init(&ctx->flushers_list);
+#endif
 }
 
 static int
@@ -98,32 +125,6 @@ entd(void *arg)
 	complete_and_exit(&ctx->finish, 0);
 	/* not reached. */
 	return 0;
-}
-
-reiser4_internal void
-init_entd_context(struct super_block *super)
-{
-	entd_context * ctx;
-
-	assert("nikita-3104", super != NULL);
-
-	ctx = get_entd_context(super);
-
-	xmemset(ctx, 0, sizeof *ctx);
-	kcond_init(&ctx->startup);
-	kcond_init(&ctx->wait);
-	init_completion(&ctx->finish);
-	spin_lock_init(&ctx->guard);
-
-	kernel_thread(entd, super, CLONE_VM | CLONE_FS | CLONE_FILES);
-
-	spin_lock(&ctx->guard);
-	while (ctx->tsk == NULL)
-		kcond_wait(&ctx->startup, &ctx->guard, 0);
-	spin_unlock(&ctx->guard);
-#if REISER4_DEBUG
-	flushers_list_init(&ctx->flushers_list);
-#endif
 }
 
 reiser4_internal void

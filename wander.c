@@ -779,6 +779,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 					 * adding pages to the bio.
 					 */
 					unlock_page(pg);
+					page_cache_release(pg);
 					break;
 				}
 
@@ -1191,6 +1192,7 @@ jnode_extent_write(capture_list_head * head, jnode * first, int nr, const reiser
 				 * pages to the bio.
 				 */
 				unlock_page(pg);
+				page_cache_release(pg);
 				break;
 			}
 

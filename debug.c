@@ -370,22 +370,33 @@ report_err(void)
 extern int kswapd(void *);
 
 #include <linux/personality.h>
+#include "ktxnmgrd.h"
 
 struct repacker;
 extern int reiser4_repacker(struct repacker *);
 extern int repacker_d(void*);
 
-extern struct exec_domain default_exec_domain;
+static int is_addr_in(void *addr, void *start, void *end)
+{
+	return start < addr && addr < end;
+}
+
 static int is_last_frame(void *addr)
 {
 	if (addr == NULL)
 		return 1;
-	/* XXX gross hack */
-	if ((void *)kswapd < addr && addr < (void *)wakeup_kswapd)	
+	if (is_addr_in(addr, kswapd, wakeup_kswapd))
 		return 1;
-	if ((void *)reiser4_repacker < addr && addr < (void *)repacker_d)	
+	else if (is_addr_in(addr, reiser4_repacker, repacker_d))
 		return 1;
-	return 0;
+	else if (is_addr_in(addr, init_ktxnmgrd_context, ktxnmgrd_attach))
+		return 1;
+	else if (is_addr_in(addr, init_entd_context, done_entd_context))
+		return 1;
+	else if (!kernel_text_address((unsigned long)addr))
+		return 1;
+	else
+		return 0;
 }
 
 reiser4_internal void

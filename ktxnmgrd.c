@@ -46,6 +46,21 @@ static int scan_mgr(txn_mgr * mgr);
 	snprintf( current -> comm, sizeof( current -> comm ),	\
 		  "%s:%s", __FUNCTION__, ( state ) )
 
+reiser4_internal void
+init_ktxnmgrd_context(ktxnmgrd_context * ctx)
+{
+	assert("nikita-2442", ctx != NULL);
+
+	xmemset(ctx, 0, sizeof *ctx);
+	init_completion(&ctx->finish);
+	kcond_init(&ctx->startup);
+	kcond_init(&ctx->wait);
+	kcond_init(&ctx->loop);
+	spin_lock_init(&ctx->guard);
+	ctx->timeout = REISER4_TXNMGR_TIMEOUT;
+	txn_mgrs_list_init(&ctx->queue);
+}
+
 /* The background transaction manager daemon, started as a kernel thread
    during reiser4 initialization. */
 static int
@@ -140,21 +155,6 @@ ktxnmgrd(void *arg)
 }
 
 #undef set_comm
-
-reiser4_internal void
-init_ktxnmgrd_context(ktxnmgrd_context * ctx)
-{
-	assert("nikita-2442", ctx != NULL);
-
-	xmemset(ctx, 0, sizeof *ctx);
-	init_completion(&ctx->finish);
-	kcond_init(&ctx->startup);
-	kcond_init(&ctx->wait);
-	kcond_init(&ctx->loop);
-	spin_lock_init(&ctx->guard);
-	ctx->timeout = REISER4_TXNMGR_TIMEOUT;
-	txn_mgrs_list_init(&ctx->queue);
-}
 
 reiser4_internal int
 ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
