@@ -1266,7 +1266,6 @@ void jnode_set_dirty( jnode *node )
 /* Unset the dirty status for this jnode.  If the jnode is dirty, this involves locking the atom (for its capture
  * lists), removing from the dirty_nodes list and pushing in to the clean list.
  */
-/* Audited by: umka (2002.06.13) */
 void jnode_set_clean( jnode *node )
 {
 	txn_atom *atom;
@@ -1296,12 +1295,17 @@ void jnode_set_clean( jnode *node )
 	 */
 	atom = atom_get_locked_by_jnode (node);
 	
-	assert ("jmacd-1201", atom != NULL);
-
 	capture_list_remove     (node);
-	capture_list_push_front (& atom->clean_nodes, node);
+
+	/* Now it's possible that atom may be NULL, in case this was called
+	   from invalidate page */
 	
-	spin_unlock_atom (atom);
+	if ( atom != NULL ) {
+
+		capture_list_push_front (& atom->clean_nodes, node);
+	
+		spin_unlock_atom (atom);
+	}
 
 	spin_unlock_jnode (node);
 	if (! JF_ISSET (node, ZNODE_UNFORMATTED))
