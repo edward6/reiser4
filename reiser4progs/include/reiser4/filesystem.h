@@ -177,6 +177,8 @@ extern reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
 
 extern error_t reiserfs_fs_sync(reiserfs_fs_t *fs);
 
+extern error_t reiserfs_fs_check(reiserfs_fs_t *fs);
+
 #endif
 
 extern const char *reiserfs_fs_format(reiserfs_fs_t *fs);

@@ -185,6 +185,7 @@ AC_OUTPUT([
     reiser4progs/Makefile
     reiser4progs/libmisc/Makefile
     reiser4progs/mkfs/Makefile
+    reiser4progs/fsck/Makefile
     debug/Makefile
     doc/Makefile
     reiser4progs.spec

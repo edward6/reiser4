@@ -1,8 +1,12 @@
 /*
     mkfs.c -- the program to create reiser4 filesystem.
     Copyright (C) 1996-2002 Hans Reiser.
-    Author Vitaly Fertman.
+    Author Yury Umanets.
 */
+
+#ifdef HAVE_CONFIG_H
+#  include <config.h> 
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -12,105 +16,14 @@
 #include <reiser4/reiser4.h>
 #include <reiser4progs/misc.h>
 
-static reiserfs_profile_t profiles[] = {
-    [0] = {
-	.label = "default40",
-	.desc = "Profile for reiser4 with default tail policy",
-    
-	.node = 0x0,
-	.item = {
-	    .internal = 0x3,
-	    .statdata = 0x0,
-	    .direntry = 0x2,
-	    .fileentry = 0x0
-	},
-	.file = 0x0,
-	.dir = 0x0,
-	.hash = 0x0,
-	.tail = REISERFS_SMART_TAIL,
-	.hook = 0x0,
-	.perm = 0x0,
-	.format = 0x0,
-	.oid = 0x0,
-	.alloc = 0x0,
-	.journal = 0x0,
-	.key = 0x0
-    },
-    [1] = {
-	.label = "extent40",
-	.desc = "Profile for reiser4 with extents turned on",
-	.node = 0x0,
-	.item = {
-	    .internal = 0x3,
-	    .statdata = 0x0,
-	    .direntry = 0x2,
-	    .fileentry = 0x0
-	},
-	.file = 0x0,
-	.dir = 0x0,
-	.hash = 0x0,
-	.tail = REISERFS_NEVER_TAIL,
-	.hook = 0x0,
-	.perm = 0x0,
-	.format = 0x0,
-	.oid = 0x0,
-	.alloc = 0x0,
-	.journal = 0x0,
-	.key = 0x0
-    },
-    [2] = {
-	.label = "tail40",
-	.desc = "Profile for reiser4 with tail only turned on",
-    
-	.node = 0x0,
-	.item = {
-	    .internal = 0x3,
-	    .statdata = 0x0,
-	    .direntry = 0x2,
-	    .fileentry = 0x0
-	},
-	.file = 0x0,
-	.dir = 0x0,
-	.hash = 0x0,
-	.tail = REISERFS_ALWAYS_TAIL,
-	.hook = 0x0,
-	.perm = 0x0,
-	.format = 0x0,
-	.oid = 0x0,
-	.alloc = 0x0,
-	.journal = 0x0,
-	.key = 0x0
-    }
-};
-
-static reiserfs_profile_t *mkfs_find_profile(const char *profile) {
-    unsigned i;
-    
-    aal_assert("vpf-104", profile != NULL, return NULL);
-    
-    for (i = 0; i < (sizeof(profiles) / sizeof(reiserfs_profile_t)); i++) {
-	if (!strncmp(profiles[i].label, profile, strlen(profiles[i].label)))
-	    return &profiles[i];
-    }
-
-    return NULL;
-}
-
-static void mkfs_list_profiles(void) {
-    unsigned i;
-    
-    for (i = 0; i < (sizeof(profiles) / sizeof(reiserfs_profile_t)); i++)
-	printf("(%d) %s (%s).\n", i + 1, profiles[i].label, profiles[i].desc);
-}
-
 static void mkfs_print_usage(void) {
-    fprintf(stderr, "Usage: mkfs.reiser4 [ options ] device [ size[K|M|G] ]\n");
+    fprintf(stderr, "Usage: mkfs.reiser4 [ options ] FILE [ size[K|M|G] ]\n");
     
     fprintf(stderr, "Options:\n"
 	"  -v | --version                 prints current version.\n"
 	"  -u | -h | --usage | --help     prints program usage.\n"
-	"  -p | --profile                 profile to be used.\n"
 	"  -q | --quiet                   forces creating filesystem without\n"
+	"  -p | --profile                 profile to be used.\n"
 	"                                 warning message.\n"
 	"  -k | --known-profiles          prints known profiles.\n"
 	"  -b N | --block-size=N          block size, 4096 by default,\n"
@@ -135,8 +48,9 @@ int main(int argc, char *argv[]) {
 	{"version", no_argument, NULL, 'v'},
 	{"usage", no_argument, NULL, 'u'},
 	{"help", no_argument, NULL, 'h'},
-	{"profile", no_argument, NULL, 'p'},
-	{"force", no_argument, NULL, 'q'},
+	{"profile", required_argument, NULL, 'p'},
+	{"known-profiles", no_argument, NULL, 'k'},
+	{"quiet", no_argument, NULL, 'q'},
 	{"block-size", required_argument, NULL, 'b'},
 	{"label", required_argument, NULL, 'l'},
 	{"uuid", required_argument, NULL, 'i'},
@@ -173,7 +87,7 @@ int main(int argc, char *argv[]) {
 		break;
 	    }
 	    case 'k': {
-		mkfs_list_profiles();
+		reiser4progs_list_profile();
 		return 0;
 	    }
 	    case 'b': {
@@ -214,7 +128,7 @@ int main(int argc, char *argv[]) {
 	return 0xfe;
     }
     
-    if (!(profile = mkfs_find_profile(profile_label))) {
+    if (!(profile = reiser4progs_find_profile(profile_label))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find profile by its label \"%s\".", profile_label);
 	return 0xff;
@@ -249,18 +163,18 @@ int main(int argc, char *argv[]) {
 	return 0xfe;
     }
     
-    if (libreiser4_init()) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-	    "Can't initialize libreiser4.");
-	goto error;
-    }
-
     if (!(device = aal_file_open(host_dev, blocksize, O_RDWR))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't open device %s.", host_dev);
-	goto error_free_libreiser4;
+	goto error;
     }
     
+    if (libreiser4_init()) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't initialize libreiser4.");
+	goto error_free_device;
+    }
+
     dev_len = aal_device_len(device);
     
     if (!fs_len)
@@ -275,13 +189,13 @@ int main(int argc, char *argv[]) {
     if (!force) {
 	if (!(c = reiser4progs_misc_choose_propose("ynYN", "Please select (y/n) ", 
 		"All data on %s will be lost (y/n) ", host_dev)))
-	    goto error_free_device;
+	    goto error_free_libreiser4;
 	
 	if (c == 'n' || c == 'N')
-	    goto error_free_device;
+	    goto error_free_libreiser4;
     }
 
-    fprintf(stderr, "Creating reiserfs with \"%s\" profile...", profile->label);
+    fprintf(stderr, "Creating reiser4 with \"%s\" profile...", profile->label);
     fflush(stderr);
     
     if (!(fs = reiserfs_fs_create(profile, device, blocksize, 
@@ -289,7 +203,7 @@ int main(int argc, char *argv[]) {
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't create filesystem on %s.", aal_device_name(device));
-	goto error_free_device;
+	goto error_free_libreiser4;
     }
     fprintf(stderr, "done\n");
 
@@ -317,10 +231,10 @@ int main(int argc, char *argv[]) {
 
 error_free_fs:
     reiserfs_fs_close(fs);
-error_free_device:
-    aal_file_close(device);
 error_free_libreiser4:
     libreiser4_done();
+error_free_device:
+    aal_file_close(device);
 error:
     return 0xff;
 }

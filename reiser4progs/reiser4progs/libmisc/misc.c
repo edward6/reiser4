@@ -148,3 +148,94 @@ int reiser4progs_misc_size_check(const char *str) {
     return !error;
 }
 
+static reiserfs_profile_t reiser4profiles[] = {
+    [0] = {
+	.label = "default40",
+	.desc = "Profile for reiser4 with default tail policy",
+    
+	.node = 0x0,
+	.item = {
+	    .internal = 0x3,
+	    .statdata = 0x0,
+	    .direntry = 0x2,
+	    .fileentry = 0x0
+	},
+	.file = 0x0,
+	.dir = 0x0,
+	.hash = 0x0,
+	.tail = REISERFS_SMART_TAIL,
+	.hook = 0x0,
+	.perm = 0x0,
+	.format = 0x0,
+	.oid = 0x0,
+	.alloc = 0x0,
+	.journal = 0x0,
+	.key = 0x0
+    },
+    [1] = {
+	.label = "extent40",
+	.desc = "Profile for reiser4 with extents turned on",
+	.node = 0x0,
+	.item = {
+	    .internal = 0x3,
+	    .statdata = 0x0,
+	    .direntry = 0x2,
+	    .fileentry = 0x0
+	},
+	.file = 0x0,
+	.dir = 0x0,
+	.hash = 0x0,
+	.tail = REISERFS_NEVER_TAIL,
+	.hook = 0x0,
+	.perm = 0x0,
+	.format = 0x0,
+	.oid = 0x0,
+	.alloc = 0x0,
+	.journal = 0x0,
+	.key = 0x0
+    },
+    [2] = {
+	.label = "tail40",
+	.desc = "Profile for reiser4 with tail only turned on",
+    
+	.node = 0x0,
+	.item = {
+	    .internal = 0x3,
+	    .statdata = 0x0,
+	    .direntry = 0x2,
+	    .fileentry = 0x0
+	},
+	.file = 0x0,
+	.dir = 0x0,
+	.hash = 0x0,
+	.tail = REISERFS_ALWAYS_TAIL,
+	.hook = 0x0,
+	.perm = 0x0,
+	.format = 0x0,
+	.oid = 0x0,
+	.alloc = 0x0,
+	.journal = 0x0,
+	.key = 0x0
+    }
+};
+
+reiserfs_profile_t *reiser4progs_find_profile(const char *profile) {
+    unsigned i;
+    
+    aal_assert("vpf-104", profile != NULL, return NULL);
+    
+    for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiserfs_profile_t)); i++) {
+	if (!strncmp(reiser4profiles[i].label, profile, strlen(reiser4profiles[i].label)))
+	    return &reiser4profiles[i];
+    }
+
+    return NULL;
+}
+
+void reiser4progs_list_profile(void) {
+    unsigned i;
+    
+    for (i = 0; i < (sizeof(reiser4profiles) / sizeof(reiserfs_profile_t)); i++)
+	printf("(%d) %s (%s).\n", i + 1, reiser4profiles[i].label, reiser4profiles[i].desc);
+}
+

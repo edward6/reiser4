@@ -393,6 +393,10 @@ error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
     return 0;
 }
 
+error_t reiserfs_fs_check(reiserfs_fs_t *fs) {
+    return 0;
+}
+
 #endif
 
 /* 
