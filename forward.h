@@ -33,6 +33,7 @@ typedef struct txn_mgr txn_mgr;
 typedef struct reiser4_dir_entry_desc reiser4_dir_entry_desc;
 typedef struct reiser4_context reiser4_context;
 typedef struct carry_level carry_level;
+typedef struct blocknr_set blocknr_set;
 /* super_block->u.generic_sbp points to this */
 typedef struct reiser4_super_info_data reiser4_super_info_data;
 /*next two objects are fields of reiser4_super_info_data */

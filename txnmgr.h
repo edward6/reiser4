@@ -19,6 +19,8 @@ TS_LIST_DECLARE(fwaiting);         /* waiting on another atom and one for revers
 
 TS_LIST_DECLARE(capture);          /* The transaction's list of captured znodes */
 
+TS_LIST_DECLARE(blocknr_set);      /* Used for the transaction's delete set and wandered mapping. */
+
 /****************************************************************************************
 				    TYPE DECLARATIONS
  ****************************************************************************************/
@@ -234,6 +236,11 @@ struct txn_mgr
 
 	/* A counter used to assign atom->atom_id values. */
 	__u32                  id_count;
+};
+
+/* A block number set consists of only the list head. */
+struct blocknr_set {
+	blocknr_set_list_head entries;
 };
 
 /****************************************************************************************

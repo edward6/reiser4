@@ -319,6 +319,11 @@ typedef enum {
        /** this node is currently wandered */
        ZNODE_WANDER            = 9,
 
+       /** this node was modified by an atom and was subsequently allocated.
+	* If this is set, it implies that one of ZNODE_ALLOC, ZNODE_RELOC, or
+	* ZNODE_WANDER has been set. */
+       ZNODE_SQUALLOCED         = 10,
+	   
        /** this node was deleted by its txn.  Eliminated because the
 	* znode/jnode will be released as soon as possible.  The atom doesn't
 	* need to keep track of deleted nodes, and this also allows us to

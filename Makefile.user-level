@@ -135,6 +135,7 @@ SRC		:= \
 		   flush.c \
 		   wander.c \
 		   search.c \
+		   blocknrset.c \
 		   plugin/plugin.c \
 		   plugin/node/node.c \
 		   plugin/node/node40.c \
