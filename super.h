@@ -20,6 +20,7 @@
 
 #include "plugin/disk_format/disk_format40.h"
 #include "plugin/security/perm.h"
+#include "plugin/dir/dir.h"
 
 #include "emergency_flush.h"
 
@@ -70,7 +71,7 @@ typedef enum {
 #if REISER4_STATS
 
 typedef struct reiser4_level_stats_kobj {
-	struct kobject kobj;
+	struct fs_kobject kobj;
 	int level;
 } reiser4_level_stats_kobj;
 
@@ -305,12 +306,15 @@ struct reiser4_super_info_data {
 	/* operations for objects on this file system */
 	object_ops ops;
 
+	/* dir_cursor_info see plugin/dir/dir.[ch] for more details */
+	d_cursor_info d_info;
+
 #if REISER4_USE_SYSFS
 	/* kobject representing this file system. It is visible as
 	 * /sys/fs/reiser4/<devname>. All other kobjects for this file system
 	 * (statistical counters, tunables, etc.) are below it in sysfs
 	 * hierarchy. */
-	struct kobject kobj;
+	struct fs_kobject kobj;
 #endif
 #if REISER4_STATS
 	/* Statistical counters. reiser4_stat is empty data-type unless
@@ -318,7 +322,7 @@ struct reiser4_super_info_data {
 	reiser4_stat *stats;
 	/* kobject for statistical counters. Visible as
 	 * /sys/fs/reiser4/<devname>/stats */
-	struct kobject stats_kobj;
+	struct fs_kobject stats_kobj;
 	/* kobjects for per-level statistical counters. Each level is visible
 	   as /sys/fs/reiser4/<devname>/stats-NN */
 	reiser4_level_stats_kobj level[REISER4_MAX_ZTREE_HEIGHT];
