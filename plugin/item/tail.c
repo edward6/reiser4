@@ -99,7 +99,7 @@ lookup_result tail_lookup (const reiser4_key * key, lookup_bias bias,
 	/*
 	 * set coord after last unit
 	 */
-	coord->unit_pos = tail_nr_units (coord);
+	coord->unit_pos = tail_nr_units (coord) - 1;
 	coord->between = AFTER_UNIT;
 	return bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
 }
@@ -478,8 +478,7 @@ int tail_write (struct inode * inode, tree_coord * coord,
 	int result;
 
 
-	result = 0;
-	while (f->length && !result) {
+	while (f->length) {
 		switch (what_todo (inode, coord, &f->key)) {
 		case CREATE_HOLE:
 			result = create_hole (coord, lh, f);
@@ -504,9 +503,19 @@ int tail_write (struct inode * inode, tree_coord * coord,
 			result = -EIO;
 			break;
 		}
+		if (result)
+			return result;
+
+		if (get_key_offset (&f->key) > (__u64)inode->i_size) {
+			/*
+			 * file became longer
+			 */
+			inode->i_size = get_key_offset (&f->key);
+			mark_inode_dirty (inode);
+		}
 	}
 
-	return result;
+	return 0;
 }
 
 
