@@ -93,9 +93,7 @@ find_a_disk_format40_super_block(struct super_block *s UNUSED_ARG)
 	}
 
 	reiser4_set_block_count(s, d64tocpu(&disk_sb->block_count));
-	reiser4_set_data_blocks(s,
-				d64tocpu(&disk_sb->block_count) -
-				d64tocpu(&disk_sb->free_blocks));
+	reiser4_set_data_blocks(s, d64tocpu(&disk_sb->block_count) - d64tocpu(&disk_sb->free_blocks));
 	reiser4_set_free_blocks(s, (d64tocpu(&disk_sb->free_blocks)));
 
 	return super_bh;
@@ -162,10 +160,8 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	tree_level height;
 	node_plugin *nplug;
 
-	static const reiser4_block_nr jfooter_block =
-	    FORMAT40_JOURNAL_HEADER_BLOCKNR;
-	static const reiser4_block_nr jheader_block =
-	    FORMAT40_JOURNAL_FOOTER_BLOCKNR;
+	static const reiser4_block_nr jfooter_block = FORMAT40_JOURNAL_HEADER_BLOCKNR;
+	static const reiser4_block_nr jheader_block = FORMAT40_JOURNAL_FOOTER_BLOCKNR;
 
 	assert("vs-475", s != NULL);
 	assert("vs-474", get_super_private(s));
@@ -197,14 +193,12 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 
 	/* initialize part of reiser4_super_info_data specific to layout 40 */
 	sb_copy = &private->u.format40.actual_sb;
-	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data),
-	       sizeof (*sb_copy));
+	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data), sizeof (*sb_copy));
 	brelse(super_bh);
 
 	/* init oid allocator */
 	private->oid_plug = oid_allocator_plugin_by_id(OID40_ALLOCATOR_ID);
-	result = oid_init_allocator(s, get_format40_file_count(sb_copy),
-				    get_format40_oid(sb_copy));
+	result = oid_init_allocator(s, get_format40_file_count(sb_copy), get_format40_oid(sb_copy));
 	if (result)
 		return result;
 
@@ -214,13 +208,10 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 
 	/* layout 40 uses bitmap based space allocator - the one implemented in
 	 * plugin/space/bitmap.[ch] */
-	private->space_plug =
-	    space_allocator_plugin_by_id(BITMAP_SPACE_ALLOCATOR_ID);
-	assert("vs-493", (private->space_plug &&
-			  private->space_plug->init_allocator));
+	private->space_plug = space_allocator_plugin_by_id(BITMAP_SPACE_ALLOCATOR_ID);
+	assert("vs-493", (private->space_plug && private->space_plug->init_allocator));
 	/* init disk space allocator */
-	result =
-	    private->space_plug->init_allocator(get_space_allocator(s), s, 0);
+	result = private->space_plug->init_allocator(get_space_allocator(s), s, 0);
 	if (result)
 		return result;
 
@@ -244,9 +235,7 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 	reiser4_set_block_count(s, get_format40_block_count(sb_copy));
 	reiser4_set_free_blocks(s, get_format40_free_blocks(sb_copy));
 	/* number of used blocks */
-	reiser4_set_data_blocks(s,
-				get_format40_block_count(sb_copy) -
-				get_format40_free_blocks(sb_copy));
+	reiser4_set_data_blocks(s, get_format40_block_count(sb_copy) - get_format40_free_blocks(sb_copy));
 
 	private->inode_generation = get_format40_oid(sb_copy);
 	private->fsuid = 0;
@@ -281,8 +270,7 @@ format40_get_ready(struct super_block *s, void *data UNUSED_ARG)
 static void
 pack_format40_super(const struct super_block *s, char *data)
 {
-	format40_disk_super_block *super_data =
-	    (format40_disk_super_block *) data;
+	format40_disk_super_block *super_data = (format40_disk_super_block *) data;
 	reiser4_super_info_data *private = get_super_private(s);
 
 	assert("zam-591", data != NULL);
@@ -293,10 +281,8 @@ pack_format40_super(const struct super_block *s, char *data)
 	cputod64(reiser4_free_committed_blocks(s), &super_data->free_blocks);
 	cputod64(private->tree.root_block, &super_data->root_block);
 
-	cputod64(private->oid_plug->next_oid(&private->oid_allocator),
-		 &super_data->oid);
-	cputod64(private->oid_plug->oids_used(&private->oid_allocator),
-		 &super_data->file_count);
+	cputod64(private->oid_plug->next_oid(&private->oid_allocator), &super_data->oid);
+	cputod64(private->oid_plug->oids_used(&private->oid_allocator), &super_data->file_count);
 
 	cputod16(private->tree.height, &super_data->tree_height);
 }
@@ -328,12 +314,11 @@ format40_release(struct super_block *s)
 		return -ENOSPC;
 	    
 	if ((ret = capture_super_block(s))) {
-		warning("vs-898", "capture_super_block failed in umount: %d",
-			ret);
+		warning("vs-898", "capture_super_block failed in umount: %d", ret);
 	}
 
 	/* FIXME: JMACD->NIKITA: Are we sure this is right?  I don't remember writing this. */
-	if ((ret = mgr_force_commit_all(s))) {
+	if ((ret = txnmgr_force_commit_all(s))) {
 		warning("jmacd-74438", "txn_force failed in umount: %d", ret);
 	}
 
@@ -346,9 +331,7 @@ format40_release(struct super_block *s)
 	assert("zam-580", get_super_private(s)->space_plug != NULL);
 
 	if (get_super_private(s)->space_plug->destroy_allocator != NULL)
-		get_super_private(s)->space_plug->
-		    destroy_allocator(&get_super_private(s)->space_allocator,
-				      s);
+		get_super_private(s)->space_plug->destroy_allocator(&get_super_private(s)->space_allocator, s);
 
 	done_journal_info(s);
 
@@ -391,7 +374,5 @@ format40_print_info(const struct super_block *s)
 	     get_format40_free_blocks(sb_copy),
 	     get_format40_root_block(sb_copy),
 	     tail_plugin_by_id(get_format40_tail_policy(sb_copy))->h.label,
-	     get_format40_oid(sb_copy),
-	     get_format40_file_count(sb_copy),
-	     get_format40_tree_height(sb_copy));
+	     get_format40_oid(sb_copy), get_format40_file_count(sb_copy), get_format40_tree_height(sb_copy));
 }
