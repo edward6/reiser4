@@ -789,7 +789,7 @@ static void optimize_extent (tree_coord * item)
 		dup_coord (&to, &from);
 		to.unit_pos = old_num - 1;
 
-		result = cut_node (&from, &to, 0, 0, 0, DELETE_DONT_COMPACT);
+		result = cut_node (&from, &to, 0, 0, 0, DELETE_DONT_COMPACT, 0);
 		done_coord (&from);
 		done_coord (&to);
 		/*
@@ -947,7 +947,7 @@ static int add_extents (tree_coord * coord,
 		to = *coord;
 		to.unit_pos = old_num - 1;
 		to.between = AT_UNIT;
-		return cut_node (&from, &to, 0, 0, 0, 0/*flags*/);
+		return cut_node (&from, &to, 0, 0, 0, 0/*flags*/, 0);
 	}
 }
 
@@ -1168,7 +1168,6 @@ int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp )
 
 	{
 		reiser4_key key;
-		reiser4_block_nr objectid;
 		reiser4_block_nr offset;
 		struct inode * inode;
 		struct page * pg;
@@ -1176,25 +1175,28 @@ int extent_utmost_child ( const tree_coord *coord, sideof side, jnode **childp )
 		item_key_by_coord (coord, &key);
 
 		/* FIXME: Probably not quite right. */
-		objectid = get_key_objectid (&key);
-		offset   = get_key_offset (&key) +
-			pos_in_unit * reiser4_get_current_sb ()->s_blocksize;
-
+		set_key_type (&key, KEY_SD_MINOR);
+		set_key_offset (&key, 0ull);
 		inode = reiser4_iget (reiser4_get_current_sb (), &key);
 		if (!inode) {
 			/* inode must be in memory */
 			return -EIO;
 		}
-		assert ("vs-544", offset >> PAGE_SHIFT < ~0ul);
-		pg = find_get_page (inode->i_mapping, (unsigned long)(offset >> PAGE_SHIFT));
+
+		offset   = get_key_offset (&key) +
+			pos_in_unit * reiser4_get_current_sb ()->s_blocksize;
+		assert ("vs-544", offset >> PAGE_CACHE_SHIFT < ~0ul);
+		pg = find_get_page (inode->i_mapping, (unsigned long)(offset >> PAGE_CACHE_SHIFT));
 
 		if (pg == NULL || IS_ERR (pg)) {
+			iput (inode);
 			return -EIO;
 		}
 
 		*childp = jnode_of_page (pg);
 
 		page_cache_release (pg);
+		iput (inode);
 	}
 
 	return 0;
@@ -1810,7 +1812,7 @@ int extent_write (struct inode * inode, tree_coord * coord,
 		if (f->user == 1) {
 			assert ("vs-586", !page);
 			page = grab_cache_page (inode->i_mapping,
-						(unsigned long)(file_off >> PAGE_SHIFT));
+						(unsigned long)(file_off >> PAGE_CACHE_SHIFT));
 			if (!page) {
 				return -ENOMEM;
 			}
@@ -2029,7 +2031,7 @@ static int reset_coord (struct page * page,
 	 * get key of first byte of the page
 	 */
 	item_key_by_coord (coord, &key);
-	set_key_offset (&key, (reiser4_block_nr)page->index << PAGE_SHIFT);
+	set_key_offset (&key, (reiser4_block_nr)page->index << PAGE_CACHE_SHIFT);
 
 	if (key_in_extent (coord, &key)) {
 		/*
@@ -2189,7 +2191,7 @@ static void read_ahead (struct page * page, tree_coord * coord)
 	/*
 	 * offset of last block in the page
 	 */
-	offset = ((reiser4_block_nr)page->index << PAGE_SHIFT) + PAGE_SIZE - 
+	offset = ((reiser4_block_nr)page->index << PAGE_CACHE_SHIFT) + PAGE_SIZE - 
 		reiser4_get_current_sb ()->s_blocksize;
 	/*
 	 * position wihin the extent of next block
@@ -2229,7 +2231,7 @@ int extent_read (struct inode * inode, tree_coord * coord,
 	char * kaddr;
 
 
-	page_nr = (get_key_offset (&f->key) >> PAGE_SHIFT);
+	page_nr = (get_key_offset (&f->key) >> PAGE_CACHE_SHIFT);
 	arg.coord = coord;
 	arg.lh = lh;
 
@@ -2266,7 +2268,7 @@ int extent_read (struct inode * inode, tree_coord * coord,
 	page_off = (get_key_offset (&f->key) & ~PAGE_MASK);
 
 	/* number of bytes which can be read from the page */
-	if (page_nr == (inode->i_size >> PAGE_SHIFT)) {
+	if (page_nr == (inode->i_size >> PAGE_CACHE_SHIFT)) {
 		/* we read last page of a file. Calculate size of file tail */
 		count = inode->i_size & ~PAGE_MASK;
 	} else {
@@ -2342,22 +2344,26 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 	struct buffer_head * bh;
 	int blocksize, page_off;
 	unsigned long ind;
+	reiser4_key sd_key;
 
 
 	objectid = get_key_objectid (key);
 	offset = get_key_offset (key);
 	blocksize = reiser4_get_current_sb ()->s_blocksize;
 
-	inode = reiser4_iget (reiser4_get_current_sb (), key);
+	sd_key = *key;
+	set_key_type (&sd_key, KEY_SD_MINOR);
+	set_key_offset (&sd_key, 0ull);
+	inode = reiser4_iget (reiser4_get_current_sb (), &sd_key);
 	assert ("vs-348", inode);
 
 	while (1) {
-		ind = offset >> PAGE_SHIFT;
+		ind = offset >> PAGE_CACHE_SHIFT;
 		page = find_lock_page (inode->i_mapping, ind);
 		assert ("vs-349", page && page->buffers);
 		
 		bh = page->buffers;
-		for (page_off = 0; offset != (ind << PAGE_SHIFT) + page_off;
+		for (page_off = 0; offset != (ind << PAGE_CACHE_SHIFT) + page_off;
 		     page_off += blocksize, bh = bh->b_this_page);
 
 		do {
@@ -2375,6 +2381,7 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 		if (!count)
 			break;
 	}
+	iput (inode);
 }
 
 
@@ -2876,7 +2883,7 @@ int allocate_extent_item_in_place (tree_coord * item, reiser4_blocknr_hint * pre
 	 * extents))
 	 */
 	optimize_extent (item);
-	coord_first_item_unit (item);
+	coord_last_item_unit (item);
 	return 0;
 }
 
