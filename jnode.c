@@ -527,7 +527,7 @@ jload(jnode * node)
 	int result;
 	struct page *page;
 
-	assert ("zam-778", lock_counters()->spin_locked == 0);
+	schedulable();
 
 	result = 0;
 	reiser4_stat_znode_add(zload);
@@ -882,7 +882,7 @@ noparse(jnode * node UNUSED_ARG)
 	return 0;
 }
 
-static struct address_space *
+struct address_space *
 jnode_mapping(const jnode * node)
 {
 	struct address_space *map;
@@ -895,7 +895,7 @@ jnode_mapping(const jnode * node)
 	return map;
 }
 
-static unsigned long
+unsigned long
 jnode_index(const jnode * node)
 {
 	return node->key.j.index;
