@@ -297,6 +297,17 @@ reiser4_unlock_page(struct page *page)
 	unlock_page(page);
 }
 
+void reiser4_wait_page_writeback (struct page * page)
+{
+	assert ("zam-783", PageLocked(page));
+
+	do {
+		reiser4_unlock_page(page);
+		wait_on_page_writeback(page);
+		reiser4_lock_page(page);
+	} while (PageWriteback(page));
+}
+
 /* return tree @page is in */
 reiser4_tree *
 tree_by_page(const struct page *page /* page to query */ )
