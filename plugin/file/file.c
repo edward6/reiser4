@@ -2285,8 +2285,16 @@ reiser4_internal ssize_t sendfile_unix_file (
 	struct inode * inode;
 	ssize_t ret;
 
+	int gotaccess = 0;
+
 	inode = file->f_dentry->d_inode;
-	ret = unpack(inode, 0, 0);
+
+	down(&inode->i_sem);
+
+	ret = check_pages_unix_file(file, 0, 1, 1, &gotaccess);
+	if (gotaccess)
+		drop_exclusive_access(unix_file_inode_data(inode));
+	up(&inode->i_sem);
 	if (ret)
 		return ret;
 
@@ -2296,13 +2304,14 @@ reiser4_internal ssize_t sendfile_unix_file (
 reiser4_internal int prepare_write_unix_file (
 	struct file * file, struct page * page, unsigned from, unsigned to)
 {
-	struct inode * inode;
 	ssize_t ret;
+	int gotaccess;
 
-	inode = file->f_dentry->d_inode;
-	ret = unpack(inode, 0, 0);
+	ret = check_pages_unix_file(file, 0, 1, 1, &gotaccess);
 	if (ret)
 		return ret;
+	if (gotaccess)
+		drop_exclusive_access(unix_file_inode_data(file->f_dentry->d_inode));
 	return prepare_write_common(file, page, from, to);
 }
 
