@@ -1796,7 +1796,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		/* reset block size if it is not a right one FIXME-VS: better comment is needed */
 		blocksize = d16tocpu (&master_sb->blocksize);
 		
-		if ((blocksize != PAGE_CACHE_SIZE) {
+		if (blocksize != PAGE_CACHE_SIZE) {
 			if (!silent)
 				warning ("nikita-2609",
 					 "%s: wrong block size %ld\n",
