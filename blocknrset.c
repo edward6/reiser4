@@ -274,6 +274,55 @@ void blocknr_set_merge (blocknr_set *from, blocknr_set *into)
 	}
 }
 
+/* Iterate over all blocknr set elements, should be called under atom (spin)lock held. */
+int blocknr_set_iterator (txn_atom * atom,
+			  blocknr_set * bset,
+			  blocknr_set_actor_f actor,
+			  void * data,
+			  int    delete)
+{
+	
+	blocknr_set_entry * entry;
+	
+	assert ("zam-429", atom != NULL);
+	assert ("zam-430", spin_atom_is_locked (atom));
+	assert ("zam-431", bset != 0);
+	assert ("zam-432", actor != NULL);
+
+	entry = blocknr_set_list_front(&bset->entries);
+	while (blocknr_set_list_end(&bset->entries, entry)) {
+		blocknr_set_entry * tmp = blocknr_set_list_next(entry);
+		unsigned int i;
+		int ret;
+
+		for (i = 0; i < entry->nr_singles; i++) {
+			const reiser4_block_nr one = 1;
+
+			ret = actor (atom, &entry->ents[i], &one, data);
+
+			/* FIXME: we can't break a loop if delete flag is
+			 * set. It is just an implementation issue and could
+			 * changed if one needs it. */
+			if (ret != 0 && !delete) return ret; 
+		}
+
+		for (i = 0; i < entry->nr_pairs; i++) {
+			struct blocknr_pair *ab;
+
+			ab = bse_get_pair (entry, i);
+
+			ret = actor (atom, &ab->a, &ab->b, data);
+			
+			if (ret != 0 && !delete) return ret;
+		}
+
+		if (delete) blocknr_set_list_remove(entry);
+
+		entry = tmp;
+	}
+
+	return 0;
+}
 
 
 /* 

@@ -309,6 +309,14 @@ extern int          blocknr_set_add_pair   (txn_atom                *atom,
 					    const reiser4_block_nr  *a,
 					    const reiser4_block_nr  *b);
 
+typedef int (*blocknr_set_actor_f) (txn_atom*, const reiser4_block_nr*, const reiser4_block_nr*, void*);
+					    
+extern int          blocknr_set_iterator   (txn_atom                *atom,
+					    blocknr_set             *bset,
+					    blocknr_set_actor_f     actor,
+					    void                    *data,
+					    int                     delete);
+
 /*****************************************************************************************
 				     INLINE FUNCTIONS
  *****************************************************************************************/
