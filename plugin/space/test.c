@@ -36,7 +36,7 @@ int test_init_allocator (reiser4_space_allocator * allocator,
 /*
  * probability of getting blocks perfectly allocated (eek, floating point in kernel?)
  */
-#define P 10
+#define P 2
 
 /* plugin->u.space_allocator.alloc_blocks */
 int test_alloc_blocks (reiser4_space_allocator * allocator,
@@ -44,7 +44,7 @@ int test_alloc_blocks (reiser4_space_allocator * allocator,
 		       reiser4_block_nr * start /* first of allocated blocks */,
 		       reiser4_block_nr * num /* num of allocated blocks */)
 {
-	double p;
+	int p;
 	reiser4_block_nr min_free;
 	unsigned int rand;
 
@@ -62,7 +62,7 @@ int test_alloc_blocks (reiser4_space_allocator * allocator,
 		hint->blk = min_free;
 	}
 
-	p = jiffies % 10;
+	p = 1 + (int) (10.0 * random () / (RAND_MAX + 1.0));
 	if (p < P) {
 		/*
 		 * return what we were asked for
