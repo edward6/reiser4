@@ -1188,6 +1188,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 	size_t to_write;
 	struct sealed_coord hint;
 	int (*write_f) (struct inode *, coord_t *, lock_handle *, flow_t *);
+	int state;
 
 	schedulable();
 
@@ -1221,13 +1222,15 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 			return result;
 		}
 
+		state = 0;
 		if (file_is_empty(inode)) {
 			/* we are having exclusive access to a file, so, change file state here */
+			assert("vs-1196", get_key_offset(&f->key) == 0);
 			if (should_have_notail(inode, get_key_offset(&f->key) + f->length)) {
-				set_file_state_extents(inode);
+				state = 1;
 				write_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.write;
 			} else {
-				set_file_state_tails(inode);
+				state = 2;
 				write_f = item_plugin_by_id(TAIL_ID)->s.file.write;
 			}
 		} else if (file_is_built_of_extents(inode)) {
@@ -1246,6 +1249,12 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t * f)
 		}
 
 		result = write_f(inode, &coord, &lh, f);
+		if (to_write != f->length && file_is_empty(inode)) {
+			/* we have written something and file was empty, change file state */
+			assert("vs-1195", state == 1 || state == 2);
+			(state == 1) ? set_file_state_extents(inode) : set_file_state_tails(inode);
+		}
+
 		if (result) {
 			unset_hint(&hint);
 			done_lh(&lh);
