@@ -2424,6 +2424,13 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	assert("nikita-3137", PageLocked(page));
 	assert("nikita-3138", !PageWriteback(page));
 
+	/* capture page being truncated. */
+	ret = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
+	if (ret != 0) {
+		warning("nikita-3141", "Cannot capture: %i", ret);
+		print_page("page", page);
+	}
+
 	if (offset == 0) {
 		jnode *node;
 
