@@ -339,8 +339,6 @@ typedef enum {
 
 	TRACE_CAPTURE_ANONYMOUS = (1 << 28), /* 0x10000000 */
 
-	TRACE_WRITEOUT = (1 << 29), /* 0x20000000 */
-
 	/* vague section: used to trace bugs. Use it to issue optional prints
 	   at arbitrary points of code. */
 	TRACE_BUG = (1 << 31),	/* 0x80000000 */
@@ -529,13 +527,12 @@ typedef struct err_site {} err_site;
 #endif
 
 /* operations to clog */
-/* debugging eflush_free which does not find eflush node in hash table */
-#define EFLUSH_DEL 0
-#define EFLUSH_START 1
-#define EFLUSH_DONE 2
-#define EFLUSH_RELOC 3
-#define EFLUSH_FAILED 4
-#define OP_NUM 5
+/* debugging lack of reserved space in tail conversion */
+#define T2E_RESERVE 0
+#define E2T_RESERVE 1
+#define ALL_GRABBED2FREE 2
+#define ALL_GRABBED2FREE_IN_COMMIT 3
+#define OP_NUM 4
 
 void clog_op(int op, void *);
 void print_clog(void);

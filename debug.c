@@ -647,35 +647,37 @@ int clog_id = 0;
 void
 clog_op(int op, void *data)
 {
-	spin_lock(&clog_lock);
-	if (clog_length == CLOG_LENGTH) {
-		clog[clog_start].id = clog_id ++;
-		clog[clog_start].op = op;
-		clog[clog_start].data = data;
-		clog[clog_start].pid = current->pid;
-		clog_start ++;
-		clog_start %= CLOG_LENGTH;
-	} else {
-		assert("vs-1672", clog_start == 0);
-		clog[clog_length].id = clog_id ++;
-		clog[clog_length].op = op;
-		clog[clog_length].data = data;
-		clog[clog_length].pid = current->pid;
-		clog_length ++;		
+	if (!strcmp("mmap", current->comm)) {
+		spin_lock(&clog_lock);
+		
+		if (clog_length == CLOG_LENGTH) {
+			clog[clog_start].id = clog_id ++;
+			clog[clog_start].op = op;
+			clog[clog_start].data = data;
+			clog[clog_start].pid = current->pid;
+			clog_start ++;
+			clog_start %= CLOG_LENGTH;
+		} else {
+			assert("vs-1672", clog_start == 0);
+			clog[clog_length].id = clog_id ++;
+			clog[clog_length].op = op;
+			clog[clog_length].data = data;
+			clog[clog_length].pid = current->pid;
+			clog_length ++;		
+		}
+		
+		spin_unlock(&clog_lock);
 	}
-
-	spin_unlock(&clog_lock);
 }
 
 static const char *
 op2str(int op)
 {
 	static const char *op_names[OP_NUM] = {
-		"eflush-del",
-		"eflush-start",
-		"eflush-done",
-		"eflush-reloc",
-		"eflush-failed",
+		"t2e-reserve",
+		"e2t-reserve",
+		"all-grabbed2free",
+		"all-grabbed2free-commit",
 	};
 	assert("vs-1673", op < OP_NUM);
 	return op_names[op];
