@@ -1437,6 +1437,12 @@ drop_access(unix_file_info_t *uf_info)
 		drop_nonexclusive_access(uf_info);
 }
 
+void balance_dirty_page_unix_file(struct inode *object)
+{
+	/* balance dirty pages periodically */
+	balance_dirty_pages_ratelimited(object->i_mapping);
+}
+
 /* plugin->u.file.write */
 ssize_t
 write_unix_file(struct file *file, /* file to write to */

@@ -2541,6 +2541,7 @@ extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 {
 	int result;
 	loff_t new_size;
+	struct inode *object;
 
 	if (hint->coord.valid)
 		set_hint(hint, &f->key);
@@ -2549,12 +2550,13 @@ extent_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 	longterm_unlock_znode(hint->coord.lh);
 
 	new_size = get_key_offset(&f->key);
-	result = update_inode_and_sd_if_necessary(mapping->host, new_size, (new_size > mapping->host->i_size) ? 1 : 0, 1/* update stat data */);
+	object = mapping->host;
+	result = update_inode_and_sd_if_necessary(object, new_size, 
+						  (new_size > object->i_size) ? 1 : 0, 1/* update stat data */);
 	if (result)
 		return result;
 
-	/* balance dirty pages periodically */
-	balance_dirty_pages_ratelimited(mapping);
+	balance_dirty_page_unix_file(object);
 
 	return hint_validate(hint, &f->key, 0/* do not check key */, ZNODE_WRITE_LOCK);
 }
@@ -2696,8 +2698,9 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 				goto exit3;
 			}
 			ON_TRACE(TRACE_EXTENTS, "OK\n");
-		} else
+		} else {
 			/*!!!move_coord*/;
+		}
 
 		/* if page is not completely overwritten - read it if it is not new or fill by zeros otherwise */
 		result = prepare_page(inode, page, file_off, page_off, count);

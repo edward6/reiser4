@@ -314,7 +314,7 @@ static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t 
 	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
 	spin_unlock(&inode_lock);
 
-	balance_dirty_pages_ratelimited(mapping);
+	balance_dirty_page_unix_file(mapping->host);
 	return hint_validate(hint, &f->key, 0/* do not check key */, ZNODE_WRITE_LOCK);
 }
 

@@ -22,6 +22,8 @@ void readpages_unix_file(struct file *, struct address_space *, struct list_head
 void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_unix_file(struct inode *);
 
+void balance_dirty_page_unix_file(struct inode *object);
+
 /* all the write into unix file is performed by item write method. Write method of unix file plugin only decides which
    item plugin (extent or tail) and in which mode (one from the enum below) to call */
 typedef enum {
