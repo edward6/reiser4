@@ -1124,7 +1124,7 @@ read_readpages(struct address_space *mapping, struct list_head *pages, void *dat
 
 static void
 call_page_cache_readahead(struct address_space *mapping, struct file *file, unsigned long page_nr,
-			  const uf_coord_t *uf_coord)
+			  const uf_coord_t *uf_coord, unsigned long ra_pages)
 {
 	reiser4_file_fsdata *fsdata;
 	uf_coord_t ra_coord;
@@ -1135,7 +1135,7 @@ call_page_cache_readahead(struct address_space *mapping, struct file *file, unsi
 	fsdata->ra2.data = &ra_coord;
 	fsdata->ra2.readpages = read_readpages;
 
-	page_cache_readahead(mapping, &file->f_ra, file, page_nr, 0);
+	page_cache_readahead(mapping, &file->f_ra, file, page_nr, ra_pages);
 	fsdata->ra2.readpages = NULL;
 }
 
@@ -1171,6 +1171,7 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 	uf_coord_t *uf_coord;
 	coord_t *coord;
 	extent_coord_extension_t *ext_coord;
+	unsigned long ra_pages;
 
 	uf_coord = &hint->coord;
 	assert("vs-1318", coord_extension_is_ok(uf_coord));
@@ -1198,9 +1199,10 @@ read_extent(struct file *file, flow_t *flow,  hint_t *hint)
 	page_off = (unsigned long)(file_off & (PAGE_CACHE_SIZE - 1));
 
 	count = PAGE_CACHE_SIZE - page_off;
+	ra_pages = (flow->length + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
 
 	do {
-		call_page_cache_readahead(inode->i_mapping, file, page_nr, uf_coord);
+		call_page_cache_readahead(inode->i_mapping, file, page_nr, uf_coord, ra_pages);
 
 		/* this will return page if it exists and is uptodate, otherwise it will allocate page and call
 		   extent_readpage to fill it */
