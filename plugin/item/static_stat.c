@@ -41,6 +41,24 @@ void sd_print( const char *prefix /* prefix to print */,
 	}
 }
 
+void sd_item_stat( const coord_t *coord, void *vp )
+{
+	reiser4_stat_data_base *sd;
+	mode_t mode;
+	sd_stat *stat;
+	
+	stat = ( sd_stat * )vp;
+	sd = ( reiser4_stat_data_base * )item_body_by_coord( coord );
+	mode = d16tocpu( &sd -> mode );
+
+	if( S_ISREG( mode ) )
+		stat->files ++;
+	else if( S_ISDIR( mode ) )
+		stat->dirs ++;
+	else
+		stat->others ++;
+}
+
 /** helper function used while we are dumping/loading inode/plugin state
     to/from the stat-data. */
 /* Audited by: green(2002.06.14) */
