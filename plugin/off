@@ -1,0 +1,35 @@
+/home/edward/rep/reiser4/plugin/item/ctail.c:321:	assert("edward-139", clust->buf == NULL);
+/home/edward/rep/reiser4/plugin/item/ctail.c:322:	assert("edward-140", clust->stat != HOLE_CLUSTER);
+/home/edward/rep/reiser4/plugin/item/ctail.c:337:	clust->buf = reiser4_kmalloc(inode_scaled_cluster_size(inode), GFP_KERNEL);
+/home/edward/rep/reiser4/plugin/item/ctail.c:338:	if (!clust->buf) 
+/home/edward/rep/reiser4/plugin/item/ctail.c:345:	fplug->flow_by_inode(inode, clust->buf, 0 /* kernel space */,
+/home/edward/rep/reiser4/plugin/item/ctail.c:357:				clust->stat = HOLE_CLUSTER;
+/home/edward/rep/reiser4/plugin/item/ctail.c:383:	clust->len = inode_scaled_cluster_size(inode) - f.length;
+/home/edward/rep/reiser4/plugin/item/ctail.c:384:	if (clust->len % cr_plug->blocksize(inode_crypto_stat(inode)->keysize)) {
+/home/edward/rep/reiser4/plugin/item/ctail.c:388:	clust->off = offset;
+/home/edward/rep/reiser4/plugin/item/ctail.c:427:	if (clust->stat == HOLE_CLUSTER) {
+/home/edward/rep/reiser4/plugin/item/ctail.c:430:		assert("edward-119", clust->buf == NULL);
+/home/edward/rep/reiser4/plugin/item/ctail.c:443:	assert("edward-120", clust->len <= inode_cluster_size(inode));
+/home/edward/rep/reiser4/plugin/item/ctail.c:447:	length = (index == clust->len >> PAGE_CACHE_SHIFT ?
+/home/edward/rep/reiser4/plugin/item/ctail.c:449:		  inode_cluster_size(inode) - clust->len : PAGE_CACHE_SIZE);
+/home/edward/rep/reiser4/plugin/item/ctail.c:451:	memcpy(data, clust->buf + (index << PAGE_CACHE_SHIFT), length);
+/home/edward/rep/reiser4/plugin/item/ctail.c:452:	memset(data + clust->len, 0, PAGE_CACHE_SIZE - length);
+/home/edward/rep/reiser4/plugin/item/ctail.c:471:	return (clust->buf != NULL && page->index....); 
+/home/edward/rep/reiser4/plugin/cryptcompress.c:264:	if (clust->buf)
+/home/edward/rep/reiser4/plugin/cryptcompress.c:265:		reiser4_kfree(clust->buf, (clust->tlen ?
+/home/edward/rep/reiser4/plugin/cryptcompress.c:267:					   clust->tlen :
+/home/edward/rep/reiser4/plugin/cryptcompress.c:277:	return (clust->buf == NULL && clust->stat != HOLE_CLUSTER);
+/home/edward/rep/reiser4/plugin/cryptcompress.c:329:	size = (inode->i_size - clust->off < inode_cluster_size(inode) ?
+/home/edward/rep/reiser4/plugin/cryptcompress.c:330:		inode->i_size - clust->off : inode_cluster_size(inode));
+/home/edward/rep/reiser4/plugin/cryptcompress.c:333:	assert("edward-154", clust->len <= size);
+/home/edward/rep/reiser4/plugin/cryptcompress.c:334:	assert("edward-155", clust->tlen == 0);
+/home/edward/rep/reiser4/plugin/cryptcompress.c:342:	nr_fips = clust->len/blksize;
+/home/edward/rep/reiser4/plugin/cryptcompress.c:347:				 clust->buf + i*blksize /* src */);
+/home/edward/rep/reiser4/plugin/cryptcompress.c:348:	if (size == clust->len) {
+/home/edward/rep/reiser4/plugin/cryptcompress.c:351:		tbuf = clust->buf;
+/home/edward/rep/reiser4/plugin/cryptcompress.c:352:		clust->buf = buf;
+/home/edward/rep/reiser4/plugin/cryptcompress.c:353:		clust->tlen = size;
+/home/edward/rep/reiser4/plugin/cryptcompress.c:376:	tail_size = *(buf + (clust->len - 1)); 
+/home/edward/rep/reiser4/plugin/cryptcompress.c:377:	if (memcmp(buf + clust->len - (size_t)CLUSTER_MAGIC_SIZE - tail_size,
+/home/edward/rep/reiser4/plugin/cryptcompress.c:386:		co_plug->decompress(wbuf, buf, clust->len, clust->buf, &clust->len);
+/home/edward/rep/reiser4/plugin/cryptcompress.c:388:		assert("edward-157", size == clust->len);
