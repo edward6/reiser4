@@ -38,7 +38,7 @@ static reiserfs_plugin_t *reiserfs_object_guess_plugin(reiserfs_object_t *object
     }
     
     /* FIXME-UMKA: Here should be real detecting instead of hardcoded plugin */
-    return libreiser4_factory_find(REISERFS_DIR_PLUGIN, 0x0);
+    return libreiser4_factory_find_by_id(REISERFS_DIR_PLUGIN, 0x0);
 }
 
 /* 

@@ -28,7 +28,7 @@ reiserfs_oid_t *reiserfs_oid_open(
 	return NULL;
    
     /* Getting oid allocator plugin */
-    if (!(plugin = libreiser4_factory_find(REISERFS_OID_PLUGIN, oid_pid))) 
+    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_OID_PLUGIN, oid_pid))) 
 	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_pid);
     
     oid->plugin = plugin;
@@ -80,7 +80,7 @@ reiserfs_oid_t *reiserfs_oid_create(
 	return NULL;
    
     /* Getting plugin from plugin id */
-    if (!(plugin = libreiser4_factory_find(REISERFS_OID_PLUGIN, oid_pid)))
+    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_OID_PLUGIN, oid_pid)))
 	libreiser4_factory_failed(goto error_free_oid, find, oid, oid_pid);
     
     oid->plugin = plugin;

@@ -521,7 +521,7 @@ errno_t reiserfs_tree_add(
     item.type = REISERFS_INTERNAL_ITEM;
     
     /* FIXME-UMKA: Hardcoded internal item id */
-    if (!(item.plugin = libreiser4_factory_find(REISERFS_ITEM_PLUGIN, REISERFS_INTERNAL_ITEM)))
+    if (!(item.plugin = libreiser4_factory_find_by_id(REISERFS_ITEM_PLUGIN, REISERFS_INTERNAL_ITEM)))
     	libreiser4_factory_failed(return -1, find, item, REISERFS_INTERNAL_ITEM);
    
     /* Estimating found internal node */

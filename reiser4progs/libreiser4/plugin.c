@@ -22,6 +22,7 @@
 struct walk_desc {
     reiserfs_plugin_type_t type;    /* needed plugin type */
     reiserfs_id_t id;		    /* needed plugin id */
+    const char *name;
 };
 
 typedef struct walk_desc walk_desc_t;
@@ -31,14 +32,23 @@ aal_list_t *plugins = NULL;
 
 extern reiserfs_core_t core;
 
+static int callback_match_coord(reiserfs_plugin_t *plugin, walk_desc_t *desc) {
+    return (plugin->h.type == desc->type);
+}
+
 /* Helper callback function for matching plugin by type and id */
-static int callback_match_coord(
+static int callback_match_id(
     reiserfs_plugin_t *plugin,	    /* current plugin in list */
     walk_desc_t *desc		    /* desction contained needed plugin type and id */
 ) {
     return (plugin->h.type == desc->type && plugin->h.id == desc->id);
 }
 
+static int callback_match_name(reiserfs_plugin_t *plugin, walk_desc_t *desc) {
+    return (plugin->h.type == desc->type && !aal_strncmp(plugin->h.label, desc->name, 
+	aal_strlen(desc->name)));
+}
+    
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
 
 /* Loads non-builtin plugin by filename */
@@ -185,7 +195,7 @@ void libreiser4_factory_done(void) {
 }
 
 /* Finds plugins by its type and id */
-reiserfs_plugin_t *libreiser4_factory_find(
+reiserfs_plugin_t *libreiser4_factory_find_by_id(
     reiserfs_plugin_type_t type,	    /* requested plugin type */
     reiserfs_id_t id			    /* requested plugin id */
 ) {
@@ -199,7 +209,63 @@ reiserfs_plugin_t *libreiser4_factory_find(
 	
     /* Calling list function in order to find needed plugin */
     return (found = aal_list_find_custom(aal_list_first(plugins), (void *)&desc, 
+       (comp_func_t)callback_match_id, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
+}
+
+reiserfs_plugin_t *libreiser4_factory_find_by_name(reiserfs_plugin_type_t type, 
+    const char *name) 
+{
+    aal_list_t *found;
+    walk_desc_t desc;
+
+    aal_assert("vpf-156", name != NULL, return NULL);    
+       
+    desc.type = type;
+    desc.name = name;
+       
+    return (found = aal_list_find_custom(aal_list_first(plugins), (void *)&desc, 
+	(comp_func_t)callback_match_name, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
+}
+
+/* 
+    Will be useful when we will have a well defined hierarchy of plugin classes when e.g.
+    printing all plugins of one partitcular type.
+*/
+reiserfs_plugin_t *libreiser4_factory_find(reiserfs_plugin_t *start_plugin, 
+    reiserfs_plugin_type_t type)
+{
+    aal_list_t *found, *curr;
+    walk_desc_t desc;
+
+    if (start_plugin) {
+	if ((curr = aal_list_find(aal_list_first(plugins), start_plugin)) == NULL)
+	    return NULL;
+	curr = curr->next;
+    } else {
+	curr = aal_list_first(plugins); 
+    }
+
+    desc.type = type;
+
+    return (found = aal_list_find_custom(curr, (void *)&desc,
 	(comp_func_t)callback_match_coord, NULL)) ? (reiserfs_plugin_t *)found->item : NULL;
+}
+
+reiserfs_plugin_t *libreiser4_factory_get_next(reiserfs_plugin_t *start_plugin)
+{
+    aal_list_t *found, *curr;
+    walk_desc_t desc;
+
+    if (start_plugin) {
+	if ((curr = aal_list_find(aal_list_first(plugins), start_plugin)) == NULL)
+	    return NULL;
+	if (curr) 
+	    curr = curr->next;
+    } else {
+	curr = aal_list_first(plugins); 
+    }
+    
+    return curr ? curr->item : NULL;
 }
 
 /* Finds plugins by its type and id */

@@ -17,7 +17,7 @@ static inline reiserfs_plugin_t *__plugin_find(
     reiserfs_plugin_type_t type,    /* needed type of plugin*/
     reiserfs_id_t id		    /* needed plugin id */
 ) {
-    return libreiser4_factory_find(type, id);
+    return libreiser4_factory_find_by_id(type, id);
 }
 
 #ifndef ENABLE_COMPACT

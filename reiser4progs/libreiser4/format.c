@@ -32,7 +32,7 @@ reiserfs_format_t *reiserfs_format_open(
 	return NULL;
     
     /* Finding needed plugin by its plugin id */
-    if (!(plugin = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, pid))) 
+    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_FORMAT_PLUGIN, pid))) 
 	libreiser4_factory_failed(goto error_free_format, find, format, pid);
     
     format->plugin = plugin;
@@ -69,7 +69,7 @@ reiserfs_format_t *reiserfs_format_create(
     aal_assert("umka-105", device != NULL, return NULL);
 
     /* Getting needed plugin from plugin factory */
-    if (!(plugin = libreiser4_factory_find(REISERFS_FORMAT_PLUGIN, pid))) 
+    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_FORMAT_PLUGIN, pid))) 
 	libreiser4_factory_failed(return NULL, find, format, pid); 
     
     /* Allocating memory */

@@ -32,7 +32,7 @@ reiserfs_plugin_t *reiserfs_key_guess(const void *data) {
 	FIXME-UMKA: Here will be more smart guess code. It should be supporting
 	all reiser3 key formats and reiser4 key format.
     */
-    return libreiser4_factory_find(REISERFS_KEY_PLUGIN, 0x0);
+    return libreiser4_factory_find_by_id(REISERFS_KEY_PLUGIN, 0x0);
 }
 
 /* 

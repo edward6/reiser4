@@ -34,7 +34,7 @@ reiserfs_node_t *reiserfs_node_create(
     }
     
     /* Finding the node plugin by its id */
-    if (!(node->plugin = libreiser4_factory_find(REISERFS_NODE_PLUGIN, pid))) 
+    if (!(node->plugin = libreiser4_factory_find_by_id(REISERFS_NODE_PLUGIN, pid))) 
 	libreiser4_factory_failed(goto error_free_block, find, node, pid);
 
     /* Requesting the plugin for initialization of the entity */
@@ -93,7 +93,7 @@ static reiserfs_plugin_t *reiserfs_node_guess(
     pid = *((uint16_t *)block->data);
     
     /* Finding node plugin by its id from node header */
-    if (!(plugin = libreiser4_factory_find(REISERFS_NODE_PLUGIN, pid))) {
+    if (!(plugin = libreiser4_factory_find_by_id(REISERFS_NODE_PLUGIN, pid))) {
 	/* FIXME-UMKA: Here will be further guessing code */
     }
 
@@ -214,7 +214,7 @@ static errno_t reiserfs_node_relocate(
     
     pid = reiserfs_node_item_get_pid(src_node, src_pos->item);
 	
-    if (!(item.plugin = libreiser4_factory_find(REISERFS_ITEM_PLUGIN, pid)))
+    if (!(item.plugin = libreiser4_factory_find_by_id(REISERFS_ITEM_PLUGIN, pid)))
 	libreiser4_factory_failed(return -1, find, item, pid);
 
     /* Insering the item into new location */
@@ -622,7 +622,7 @@ reiserfs_plugin_t *reiserfs_node_item_get_plugin(
 ) {
     aal_assert("umka-755", node != NULL, return NULL);
     
-    return libreiser4_factory_find(REISERFS_ITEM_PLUGIN, 
+    return libreiser4_factory_find_by_id(REISERFS_ITEM_PLUGIN, 
 	reiserfs_node_item_get_pid(node, pos));
 }
 
