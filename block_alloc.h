@@ -116,7 +116,7 @@ int reiser4_dealloc_block         (const reiser4_block_nr *,
 #define reiser4_grab_space_force(count, flags)		\
 	reiser4_grab_space(count, flags | BA_FORCE)
 
-extern void grabbed2free_mark(int mark);
+extern void grabbed2free_mark(__u64 mark);
 extern int  reiser4_grab_reserved(struct super_block *,
 				  __u64, reiser4_ba_flags_t);
 extern void reiser4_release_reserved(struct super_block *super);

@@ -846,7 +846,8 @@ fake_allocated2free(__u64 count, reiser4_ba_flags_t flags)
 	grabbed2free(ctx, sbinfo, count);
 }
 
-reiser4_internal void grabbed2free_mark(int mark)
+reiser4_internal void
+grabbed2free_mark(__u64 mark)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -854,9 +855,9 @@ reiser4_internal void grabbed2free_mark(int mark)
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
 
-	assert("nikita-3007", mark >= 0);
+	assert("nikita-3007", (__s64)mark >= 0);
 	assert("nikita-3006",
-	       ctx->grabbed_blocks >= (__u64)mark);
+	       ctx->grabbed_blocks >= mark);
 	grabbed2free(ctx, sbinfo, ctx->grabbed_blocks - mark);
 }
 
