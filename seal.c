@@ -167,18 +167,18 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				assert("nikita-1898", WITH_DATA_RET(coord->node, 1, check_seal_match(coord, key)));
 				reiser4_stat_inc(seal.perfect_match);
 			} else
-				result = -E_REPEAT;
+				result = RETERR(-E_REPEAT);
 		}
 		if (result != 0) {
 			if (should_repeat(result))
-				result = -E_REPEAT;
+				result = RETERR(-E_REPEAT);
 			/* unlock node on failure */
 			done_lh(lh);
 		}
 	} else {
 		/* znode wasn't in cache */
 		reiser4_stat_inc(seal.out_of_cache);
-		result = -E_REPEAT;
+		result = RETERR(-E_REPEAT);
 	}
 	return result;
 }
