@@ -44,23 +44,13 @@ void jnode_set_block( jnode *node /* jnode to update */,
 	
 	node -> blocknr = *blocknr;
 }
-#if 0
-/* this is used to assign block number to jnode of unformatted node */
-void jnode_set_block (jnode * node, reiser4_block_nr block)
-{
-	assert ("vs-650", node != NULL);
-	assert ("vs-672", node->blocknr);
-	assert ("vs-651", blocknr_is_fake (&node->blocknr));
-	node->blocknr = block;
-}
-#endif
 
 /* return true if jnode has real blocknr */
 int jnode_has_block (jnode * node)
 {
 	assert ("vs-673", node);
-	assert ("vs-674", node->blocknr);
-	return blocknr_is_fake (&node->blocknr) ? 0 : 1;
+	assert ("vs-674", jnode_is_unformatted (node));
+	return node->blocknr;
 }
 
 /* Audited by: umka (2002.06.15) */
