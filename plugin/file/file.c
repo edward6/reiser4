@@ -472,7 +472,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 			/* do not read out of file */
 			break;
 
-                page_cache_readahead (file, (unsigned long)(get_key_offset (&f.key) >> PAGE_CACHE_SHIFT));
+                /*page_cache_readahead (file, (unsigned long)(get_key_offset (&f.key) >> PAGE_CACHE_SHIFT));*/
 
 		/* coord will point to current item on entry and next item on exit */
 		result = find_next_item (file, &f.key, &coord, &lh,
