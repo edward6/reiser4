@@ -28,6 +28,7 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/pagemap.h>
+#include <linux/swap.h>
 #include <linux/fs.h>		/* for struct address_space  */
 
 static kmem_cache_t *_jnode_slab = NULL;
