@@ -93,7 +93,7 @@ static int common_link( struct inode *parent /* parent directory */,
 	data.mode = object -> i_mode;
 	data.id   = inode_file_plugin( object ) -> h.id;
 
-	result = reiser4_add_nlink( object );
+	result = reiser4_add_nlink( object, 1 );
 	if( result == 0 ) {
 		/* add entry to the parent */
 		result = parent_dplug -> add_entry( parent, 
@@ -101,7 +101,7 @@ static int common_link( struct inode *parent /* parent directory */,
 		if( result != 0 ) {
 			/* failure to add entry to the parent, remove
 			   link from "existing" */
-			result = reiser4_del_nlink( object );
+			result = reiser4_del_nlink( object, 1 );
 			/* now, if this fails, we have a file with too
 			   big nlink---space leak, much better than
 			   directory entry pointing to nowhere */
@@ -355,101 +355,6 @@ static int common_create_child( struct inode *parent /* parent object */,
 	return result;
 }
 
-/** ->rename directory plugin method implementation */
-int common_rename( struct inode *old_dir /* directory where @old is located */,
-		   struct dentry *old /* old name */,
-		   struct inode *new_dir /* directory where @new is located */, 
-		   struct dentry *new /* new name */ )
-{
-	assert( "nikita-2318", old_dir != NULL );
-	assert( "nikita-2319", new_dir != NULL );
-	assert( "nikita-2320", old != NULL );
-	assert( "nikita-2321", new != NULL );
-
-	/*
-	 * From `The Open Group Base Specifications Issue 6'
-	 *
-	 *
-	 * If either the old or new argument names a symbolic link, rename()
-	 * shall operate on the symbolic link itself, and shall not resolve
-	 * the last component of the argument. If the old argument and the new
-	 * argument resolve to the same existing file, rename() shall return
-	 * successfully and perform no other action.
-	 *
-	 * [this is done by VFS: vfs_rename()]
-	 *
-	 *
-	 * If the old argument points to the pathname of a file that is not a
-	 * directory, the new argument shall not point to the pathname of a
-	 * directory. 
-	 *
-	 * [checked by VFS: vfs_rename->may_delete()]
-	 *
-	 *            If the link named by the new argument exists, it shall
-	 * be removed and old renamed to new. In this case, a link named new
-	 * shall remain visible to other processes throughout the renaming
-	 * operation and refer either to the file referred to by new or old
-	 * before the operation began. 
-	 *
-	 * [we should assure this]
-	 *
-	 *                             Write access permission is required for
-	 * both the directory containing old and the directory containing new.
-	 *
-	 * [checked by VFS: vfs_rename->may_delete(), may_create()]
-	 *
-	 * If the old argument points to the pathname of a directory, the new
-	 * argument shall not point to the pathname of a file that is not a
-	 * directory. 
-	 *
-	 * [checked by VFS: vfs_rename->may_delete()]
-	 *
-	 *            If the directory named by the new argument exists, it
-	 * shall be removed and old renamed to new. In this case, a link named
-	 * new shall exist throughout the renaming operation and shall refer
-	 * either to the directory referred to by new or old before the
-	 * operation began. 
-	 *
-	 * [we should assure this]
-	 *
-	 *                  If new names an existing directory, it shall be
-	 * required to be an empty directory.
-	 *
-	 * [we should check this]
-	 *
-	 * If the old argument points to a pathname of a symbolic link, the
-	 * symbolic link shall be renamed. If the new argument points to a
-	 * pathname of a symbolic link, the symbolic link shall be removed.
-	 *
-	 * The new pathname shall not contain a path prefix that names
-	 * old. Write access permission is required for the directory
-	 * containing old and the directory containing new. If the old
-	 * argument points to the pathname of a directory, write access
-	 * permission may be required for the directory named by old, and, if
-	 * it exists, the directory named by new.
-	 *
-	 * [checked by VFS: vfs_rename(), vfs_rename_dir()]
-	 *
-	 * If the link named by the new argument exists and the file's link
-	 * count becomes 0 when it is removed and no process has the file
-	 * open, the space occupied by the file shall be freed and the file
-	 * shall no longer be accessible. If one or more processes have the
-	 * file open when the last link is removed, the link shall be removed
-	 * before rename() returns, but the removal of the file contents shall
-	 * be postponed until all references to the file are closed.
-	 *
-	 * [iput() handles this, but we can do this manually, a la
-	 * reiser4_unlink()]
-	 *
-	 * Upon successful completion, rename() shall mark for update the
-	 * st_ctime and st_mtime fields of the parent directory of each file.
-	 *
-	 * [N/A]
-	 *
-	 */
-
-}
-
 /** ->is_name_acceptable() method of directory plugin */
 /* Audited by: green(2002.06.15) */
 int is_name_acceptable( const struct inode *inode /* directory to check */, 
@@ -461,6 +366,74 @@ int is_name_acceptable( const struct inode *inode /* directory to check */,
 	assert( "nikita-735", len > 0 );
 	
 	return len <= reiser4_max_filename_len( inode );
+}
+
+/** true if directory is empty (only contains dot and dotdot) */
+int is_dir_empty( const struct inode *dir )
+{
+	reiser4_key de_key;
+	int         result;
+	struct qstr dot;
+	coord_t  coord;
+	lock_handle lh;
+
+	assert( "nikita-1976", dir != NULL );
+
+	/* Directory has to be empty. */
+
+	/*
+	 * FIXME-NIKITA this is not correct if hard links on directories are
+	 * supported in this fs (if reiser4_adg( dir -> i_sb ) is false). But
+	 * then, how to determine that last "outer" link is removed?
+	 *
+	 */
+
+	dot.name = ".";
+	dot.len  = 1;
+
+	result = inode_dir_plugin( dir ) -> entry_key( dir, &dot, &de_key );
+	if( result != 0 )
+		return result;
+
+	coord_init_zero( &coord );
+	init_lh( &lh );
+		
+	/* 
+	 * FIXME-NIKITA this looks almost exactly like code in
+	 * readdir(). Consider implementing iterate_dir( dir, actor )
+	 * function.
+	 */
+	result = coord_by_key( tree_by_inode( dir ), &de_key, &coord, &lh, 
+			       ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN,
+			       LEAF_LEVEL, LEAF_LEVEL, 0 );
+	switch( result ) {
+	case CBK_COORD_FOUND:
+		result = iterate_tree( tree_by_inode( dir ), &coord, &lh, 
+				       is_empty_actor, ( void * ) dir, 
+				       ZNODE_READ_LOCK, 1 );
+		switch( result ) {
+		default:
+		case -ENOTEMPTY:
+			break;
+		case 0:
+		case -ENAVAIL:
+			result = 0;
+			break;
+		}
+		break;
+	case CBK_COORD_NOTFOUND:
+		/* no entries?! */
+		warning( "nikita-2002", "Directory %lli is TOO empty",
+			 ( __u64 ) dir -> i_ino );
+		result = 0;
+		break;
+	default:
+		/* some other error */
+		break;
+	}
+	done_lh( &lh );
+
+	return result;
 }
 
 reiser4_plugin dir_plugins[ LAST_DIR_ID ] = {

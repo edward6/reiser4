@@ -858,7 +858,7 @@ int lookup_multikey( cbk_handle *handle /* handles to search */,
 	int once_again;
 
 	/* helper routine to clean up seals and locks */
-	static void done_handles(void) {
+	static void done_handles( void ) {
 		for( i = 0 ; i < nr_keys - 1 ; ++ i )
 			seal_done( &seal[ i ] );
 		if( result != 0 ) {
@@ -953,40 +953,43 @@ int lookup_multikey( cbk_handle *handle /* handles to search */,
 /** 
  * lookup two keys in a tree. This is required for node-level locking during
  * rename. Arguments are similar to these of coord_by_key(). 
+ *
+ * Returned value: if some sort of unexpected error (-EIO, -ENOMEM) happened,
+ * all locks are released, all seals are invalidated, and error code is
+ * returned. *result1 and *result2 are not modified. If searches completed
+ * successfully (items were either found, or not found), 0 is returned and
+ * *result1 and *result2 contain search results for respective keys.
+ *
  */
-lookup_result lookup_couple( reiser4_tree *tree /* tree to perform search in */, 
-			     const reiser4_key *key1 /* first key to look for */,
-			     const reiser4_key *key2 /* second key to look
-						      * for */,
-			     coord_t *coord1 /* where to store result for the
-					      * @key1 */,
-			     coord_t *coord2 /* where to store result for the
-					      * @key2 */,
-			     lock_handle *lh1 /* where to keep lock for
-					       * @coord1 */,
-			     lock_handle *lh2 /* where to keep lock for
-					       * @coord2 */,
-			     znode_lock_mode lock_mode /* type of lookup we
-							* want on node. */, 
-			     lookup_bias bias /* what to return if coord with
-					       * exactly the @key is not in
-					       * the tree */,
-			     tree_level lock_level /* tree level where to
-						    * start taking @lock type
-						    * of locks */,
-			     tree_level stop_level /* tree level to stop. Pass
-						    * LEAF_LEVEL or TWIG_LEVEL
-						    * here Item being looked
-						    * for has to be between
-						    * @lock_level and
-						    * @stop_level,
-						    * inclusive */,
-			     __u32      flags /* search flags */ )
+int lookup_couple( reiser4_tree *tree /* tree to perform search in */, 
+		   const reiser4_key *key1 /* first key to look for */,
+		   const reiser4_key *key2 /* second key to look for */,
+		   coord_t *coord1 /* where to store result for the @key1 */,
+		   coord_t *coord2 /* where to store result for the @key2 */,
+		   lock_handle *lh1 /* where to keep lock for @coord1 */,
+		   lock_handle *lh2 /* where to keep lock for @coord2 */,
+		   znode_lock_mode lock_mode /* type of lookup we want on
+					      * node. */, 
+		   lookup_bias bias /* what to return if coord with exactly
+				     * the @key is not in the tree */,
+		   tree_level lock_level /* tree level where to start taking
+					  * @lock type of locks */,
+		   tree_level stop_level /* tree level to stop. Pass
+					  * LEAF_LEVEL or TWIG_LEVEL here Item
+					  * being looked for has to be between
+					  * @lock_level and @stop_level,
+					  * inclusive */,
+		   __u32      flags /* search flags */,
+		   lookup_result *result1 /* where to put result of search for
+					   * @key1 */, 
+		   lookup_result *result2 /* where to put result of search for
+					   * @key2 */ )
 {
 	cbk_handle  handle[ 2 ];
 	lock_handle parent_lh[ 2 ];
 	int         first_pos;
 	int         secnd_pos;
+	int         result;
 
 	cassert( REISER4_MAX_MULTI_SEARCH >= 2 );
 	assert( "nikita-2139", tree != NULL );
@@ -1036,7 +1039,12 @@ lookup_result lookup_couple( reiser4_tree *tree /* tree to perform search in */,
 	handle[ secnd_pos ].active_lh  = lh2;
 	handle[ secnd_pos ].parent_lh  = &parent_lh[ secnd_pos ];
 
-	return lookup_multikey( handle, 2 );
+	result = lookup_multikey( handle, 2 );
+	if( result == 0 ) {
+		*result1 = handle[ first_pos ].result;
+		*result2 = handle[ secnd_pos ].result;
+	}
+	return result;
 }
 
 /** true if @key is one of delimiting keys in @node */

@@ -37,7 +37,7 @@ struct reiser4_dir_entry_desc {
 
 int is_name_acceptable( const struct inode *inode, const char *name UNUSED_ARG, 
 			int len );
-extern struct dentry_operations reiser4_dentry_operation;
+int is_dir_empty( const struct inode *dir );
 
 /* __REISER4_DIR_H__ */
 #endif

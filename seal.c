@@ -89,6 +89,11 @@ int seal_is_set( const seal_t *seal /* seal to query */ )
  *
  * If seal was burned, or broken irreparably, return -EAGAIN.
  *
+ * FIXME-NIKITA currently seal_validate() returns -EAGAIN if key we are
+ * looking for is in range of keys covered by the sealed node, but item wasn't
+ * found by node ->lookup() method. Alternative is to return -ENOENT in this
+ * case, but this would complicate callers logic.
+ *
  */
 /* Audited by: green(2002.06.17) */
 int seal_validate( seal_t            *seal  /* seal to validate */, 
@@ -212,7 +217,7 @@ static int seal_search_node( seal_t      *seal  /* seal to repair */,
 	result = zload( node );
 	if( result != 0 )
 		return result;
-	
+
 	if( coord_is_existing_unit( coord ) && 
 	    keyeq( key, unit_key_by_coord( coord, &unit_key ) ) ) {
 		/* coord is still at the same position in the @node */
@@ -226,7 +231,8 @@ static int seal_search_node( seal_t      *seal  /* seal to repair */,
 			reiser4_stat_seal_add( found );
 			seal_init( seal, coord, key );
 		} else
-			result = -ENOENT;
+			result = -EAGAIN; /* Remove -ENOENT to simplify seal
+					   * interface */
 	}
 	zrelse( node );
 	return result;

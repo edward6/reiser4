@@ -443,7 +443,17 @@ int common_file_can_add_link( const struct inode *object /* object to check */ )
 {
 	assert( "nikita-732", object != NULL );
 
-	return object -> i_nlink < ( ( nlink_t ) ~0 );
+	/*
+	 * Problem is that nlink_t is usually short, which doesn't left room
+	 * for many links, and, in particular to many sub-directoires (each
+	 * sub-directory has dotdot counting as link in a parent).
+	 *
+	 * Possible work-around (read: kludge) is to implement special object
+	 * plugin that will save "true nlink" in private inode
+	 * parent. Stat-data (static_stat.c) is ready for 32bit nlink
+	 * counters.
+	 */
+	return object -> i_nlink < ( ( ( nlink_t ) ~0 ) >> 1 );
 }
 
 /** common_file_delete() - delete object stat-data */
@@ -676,74 +686,6 @@ static int common_rem_link( struct inode *object )
 	return inode_file_plugin( object ) -> write_sd_by_inode( object );
 }
 
-/** ->can_rem_link() method for file plugin of directories */
-static int dir_can_rem_link( const struct inode *dir )
-{
-	reiser4_key de_key;
-	int         result;
-	struct qstr dot;
-	coord_t  coord;
-	lock_handle lh;
-
-	assert( "nikita-1976", dir != NULL );
-
-	/* Directory has to be empty. */
-
-	/*
-	 * FIXME-NIKITA this is not correct if hard links on directories are
-	 * supported in this fs (if reiser4_adg( dir -> i_sb ) is false). But
-	 * then, how to determine that last "outer" link is removed?
-	 *
-	 */
-
-	dot.name = ".";
-	dot.len  = 1;
-
-	result = inode_dir_plugin( dir ) -> entry_key( dir, &dot, &de_key );
-	if( result != 0 )
-		return result;
-
-	coord_init_zero( &coord );
-	init_lh( &lh );
-		
-	/* 
-	 * FIXME-NIKITA this looks almost exactly like code in
-	 * readdir(). Consider implementing iterate_dir( dir, actor )
-	 * function.
-	 */
-	result = coord_by_key( tree_by_inode( dir ), &de_key, &coord, &lh, 
-			       ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN,
-			       LEAF_LEVEL, LEAF_LEVEL, 0 );
-	switch( result ) {
-	case CBK_COORD_FOUND:
-		result = iterate_tree( tree_by_inode( dir ), &coord, &lh, 
-				       is_empty_actor, ( void * ) dir, 
-				       ZNODE_READ_LOCK, 1 );
-		switch( result ) {
-		default:
-		case -ENOTEMPTY:
-			break;
-		case 0:
-		case -ENAVAIL:
-			result = 0;
-			break;
-		}
-		break;
-	case CBK_COORD_NOTFOUND:
-		/* no entries?! */
-		warning( "nikita-2002", "Directory %lli is TOO empty",
-			 ( __u64 ) dir -> i_ino );
-		result = 0;
-		break;
-	default:
-		/* some other error */
-		break;
-	}
-	done_lh( &lh );
-
-	return result;
-}
-
 /** ->single_link() method for file plugins */
 static int common_single_link( const struct inode *inode )
 {
@@ -926,7 +868,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.rem_link            = common_rem_link,
 			.owns_item           = hashed_owns_item,
 			.can_add_link        = common_file_can_add_link,
-			.can_rem_link        = dir_can_rem_link,
+			.can_rem_link        = is_dir_empty,
 			.single_link         = dir_single_link,
 			.setattr             = inode_setattr,
 			.getattr             = common_getattr,

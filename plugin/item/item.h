@@ -227,6 +227,11 @@ typedef struct {
 	 */
 	int ( *extract_key )( const coord_t *coord, reiser4_key *key );
 	/**
+	 * update object key in item.
+	 */
+	int ( *update_key )( const coord_t *coord, 
+			     const reiser4_key *key, lock_handle *lh );
+	/**
 	 * extract name from directory entry at @coord and return it
 	 */
 	char *( *extract_name )( const coord_t *coord );
