@@ -852,30 +852,6 @@ optimize_extent(const coord_t *item)
 	znode_make_dirty(item->node);
 }
 
-#if REISER4_DEBUG
-
-/* return 1 if offset @off is inside of extent unit pointed to by @coord. Set pos_in_unit inside of unit
-   correspondingly */
-static int
-offset_is_in_unit(const coord_t *coord, loff_t off)
-{
-	reiser4_key unit_key;
-	__u64 unit_off;
-	reiser4_extent *ext;
-
-	ext = extent_by_coord(coord);
-
-	unit_key_extent(coord, &unit_key);
-	unit_off = get_key_offset(&unit_key);
-	if (off < unit_off)
-		return 0;
-	if (off >= (unit_off + (current_blocksize * extent_get_width(ext))))
-		return 0;
-	return 1;
-}
-
-#endif
-
 /* Return the reiser_extent and position within that extent. */
 static reiser4_extent *
 extent_utmost_ext(const coord_t *coord, sideof side, reiser4_block_nr *pos_in_unit)
@@ -1292,7 +1268,7 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, fl
 	   What does this mean?  Did you do it as requested or
 	   differently?
 	*/
-
+	/*printk("extents %d, pos_leaf_relocate %d\n", relocate, pos_leaf_relocate(pos));*/
 	relocate = relocate && pos_leaf_relocate(pos);
 
 	/* Now if relocating, free old blocks & change extent state */
@@ -1375,6 +1351,11 @@ extent_needs_allocation(reiser4_extent *extent, oid_t oid, unsigned long ind, fl
 	if (check) 
 		jput(check);
 #endif
+/*
+	if (relocate)
+		printk("extent is entirely dirty: (%llu %llu)\n",
+		       extent_get_start(extent), extent_get_width(extent));
+*/
 	return relocate;
 }
 
@@ -2360,7 +2341,7 @@ reserve_extent_write_iteration(struct inode *inode, reiser4_tree *tree)
 }
 
 static void
-move_coord_page(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int full_page)
+write_move_coord(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int full_page)
 {
 	extent_coord_extension_t *ext_coord;
 
@@ -2513,7 +2494,7 @@ extent_write_flow(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, wri
 		jput(j);
 
 		move_flow_forward(f, count);
-		move_coord_page(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
+		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
 			
 		/* throttle the writer */
 		result = extent_balance_dirty_pages(inode->i_mapping, f, hint);
@@ -2608,8 +2589,29 @@ write_extent(struct inode *inode, flow_t *f, hint_t *hint, int grabbed, write_mo
 }
 
 #if REISER4_DEBUG
+
+/* return 1 if offset @off is inside of extent unit pointed to by @coord. Set pos_in_unit inside of unit
+   correspondingly */
 static int
-check_key_in_unit(const coord_t *coord, const reiser4_key *key)
+offset_is_in_unit(const coord_t *coord, loff_t off)
+{
+	reiser4_key unit_key;
+	__u64 unit_off;
+	reiser4_extent *ext;
+
+	ext = extent_by_coord(coord);
+
+	unit_key_extent(coord, &unit_key);
+	unit_off = get_key_offset(&unit_key);
+	if (off < unit_off)
+		return 0;
+	if (off >= (unit_off + (current_blocksize * extent_get_width(ext))))
+		return 0;
+	return 1;
+}
+
+static int
+coord_matches_key(const coord_t *coord, const reiser4_key *key)
 {
 	reiser4_key item_key;
 
@@ -2687,7 +2689,7 @@ read_extent(struct file *file, flow_t *f, uf_coord_t *uf_coord)
 	assert("vs-1351", f->length > 0);
 	assert("vs-1119", znode_is_rlocked(coord->node));
 	assert("vs-1120", znode_is_loaded(coord->node));
-	assert("vs-1256", check_key_in_unit(coord, &f->key));
+	assert("vs-1256", coord_matches_key(coord, &f->key));
 	assert("vs-1355", get_key_offset(&f->key) + f->length <= inode->i_size);
 
 	/* offset in a file to start read from */
@@ -2737,12 +2739,12 @@ read_extent(struct file *file, flow_t *f, uf_coord_t *uf_coord)
 			return RETERR(-EFAULT);
 		
 		/* coord should still be set properly */
-		assert("vs-1263", check_key_in_unit(coord, &f->key));
+		assert("vs-1263", coord_matches_key(coord, &f->key));
 		move_flow_forward(f, count);
 		if (page_off + count == PAGE_CACHE_SIZE)
 			if (read_move_coord(coord, ext_coord))
 				uf_coord->valid = 0;
-		assert("vs-1214", ergo(uf_coord->valid == 1, check_key_in_unit(coord, &f->key)));
+		assert("vs-1214", ergo(uf_coord->valid == 1, coord_matches_key(coord, &f->key)));
 		page_off = 0;
 		page_nr ++;
 		count = PAGE_CACHE_SIZE;
@@ -3042,24 +3044,6 @@ init_coord_extension_extent(uf_coord_t *uf_coord, loff_t lookuped)
 
 	uf_coord->valid = 1;
 }
-
-#if REISER4_DEBUG
-/*
-  plugin->u.item.s.file.key_in_item
-  return true if @coord is set inside of item to key @key
-*/
-int
-key_in_item_extent(const uf_coord_t *uf_coord, const reiser4_key *key)
-{
-	reiser4_key item_key;
-
-	if (keylt(key, item_key_by_coord(&uf_coord->base_coord, &item_key)))
-		return 0;
-	if (keygt(key, append_key_extent(&uf_coord->base_coord, &item_key)))
-		return 0;
-	return offset_is_in_unit(&uf_coord->base_coord, get_key_offset(key));
-}
-#endif
 
 /*
    Local variables:

@@ -561,18 +561,6 @@ append_key_ctail(const coord_t *coord, reiser4_key *key)
 	return NULL;
 }
 
-#if REISER4_DEBUG
-/*
-  plugin->u.item.s.file.key_in_item
-  return true @coord is set inside of item to key @key
-*/
-int
-key_in_item_ctail(const uf_coord_t *coord, const reiser4_key *key)
-{
-	return 0;
-}
-#endif
-
 /* Make Linus happy.
    Local variables:
    c-indentation-style: "K&R"

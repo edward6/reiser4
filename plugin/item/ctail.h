@@ -37,9 +37,6 @@ int readpage_ctail(void *, struct page *);
 int writepage_ctail(uf_coord_t *, struct page *, write_mode_t);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
-#if REISER4_DEBUG
-int key_in_item_ctail(const uf_coord_t *, const reiser4_key *);
-#endif
 
 __u8 inode_cluster_shift (struct inode *);
 size_t inode_cluster_size (struct inode *);

@@ -117,9 +117,6 @@ int writepage_extent(uf_coord_t *, struct page *, write_mode_t);
 reiser4_key *append_key_extent(const coord_t *, reiser4_key *);
 void init_coord_extension_extent(uf_coord_t *, loff_t offset);
 int get_block_address_extent(const uf_coord_t *, sector_t block, struct buffer_head *);
-#if REISER4_DEBUG
-int key_in_item_extent(const uf_coord_t *, const reiser4_key *);
-#endif
 
 
 /* these are used in flush.c

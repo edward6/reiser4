@@ -239,10 +239,11 @@ typedef struct {
 	reiser4_key *(*append_key) (const coord_t *, reiser4_key *);
 
 	void (*init_coord_extension)(uf_coord_t *, loff_t);
-
+#if 0
 #if REISER4_DEBUG
 	/* return true if item contains key in it, coord is adjusted correspondingly */
 	int (*key_in_item) (const uf_coord_t *, const reiser4_key *);
+#endif
 #endif
 } file_ops;
 
