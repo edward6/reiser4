@@ -105,7 +105,7 @@ init_fq(flush_queue_t * fq)
 
 	atomic_set(&fq->nr_submitted, 0);
 
-	capture_list_init(&fq->prepped);
+	capture_list_init(ATOM_FQ_LIST(fq));
 
 	sema_init(&fq->io_sem, 0);
 	spin_fq_init(fq);
@@ -184,12 +184,13 @@ detach_fq(flush_queue_t * fq)
 reiser4_internal void
 done_fq(flush_queue_t * fq)
 {
-	assert("zam-763", capture_list_empty(&fq->prepped));
+	assert("zam-763", capture_list_empty(ATOM_FQ_LIST(fq)));
 	assert("zam-766", atomic_read(&fq->nr_submitted) == 0);
 
 	kmem_cache_free(fq_slab, fq);
 }
 
+/* */
 reiser4_internal void
 mark_jnode_queued(flush_queue_t *fq, jnode *node)
 {
@@ -208,18 +209,16 @@ queue_jnode(flush_queue_t * fq, jnode * node)
 	assert("zam-714", jnode_is_dirty(node));
 	assert("zam-716", fq->atom != NULL);
 	assert("zam-717", fq->atom == node->atom);
-	assert("zam-826", JF_ISSET(node, JNODE_RELOC));
 	assert("zam-907", fq_in_use(fq));
 
-	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
-		assert("vs-1481", node->list == FQ_LIST);
-		return;		/* queued already */
-	}
+	assert("zam-826", JF_ISSET(node, JNODE_RELOC));
+	assert("vs-1481", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
+	assert("vs-1481", NODE_LIST(node) != FQ_LIST);
 
 	mark_jnode_queued(fq, node);
 	capture_list_remove_clean(node);
-	capture_list_push_back(&fq->prepped, node);
-	ON_DEBUG(node->list = FQ_LIST);
+	capture_list_push_back(ATOM_FQ_LIST(fq), node);
+	/*XXXX*/ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node), FQ_LIST, 1));
 }
 
 /* repeatable process for waiting io completion on a flush queue object */
@@ -229,7 +228,7 @@ wait_io(flush_queue_t * fq, int *nr_io_errors)
 	assert("zam-738", fq->atom != NULL);
 	assert("zam-739", spin_atom_is_locked(fq->atom));
 	assert("zam-736", fq_in_use(fq));
-	assert("zam-911", capture_list_empty(&fq->prepped));
+	assert("zam-911", capture_list_empty(ATOM_FQ_LIST(fq)));
 
 	if (atomic_read(&fq->nr_submitted) != 0) {
 		UNLOCK_ATOM(fq->atom);
@@ -371,7 +370,7 @@ fuse_fq(txn_atom * to, txn_atom * from)
 
 
 	for_all_type_safe_list(fq, &from->flush_queues, fq) {
-		scan_fq_and_update_atom_ref(&fq->prepped, to);
+		scan_fq_and_update_atom_ref(ATOM_FQ_LIST(fq), to);
 		spin_lock_fq(fq);
 		fq->atom = to;
 		spin_unlock_fq(fq);
@@ -469,24 +468,25 @@ static void release_prepped_list(flush_queue_t * fq)
 	assert ("zam-904", fq_in_use(fq));
 	atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
 
-	while(!capture_list_empty(&fq->prepped)) {
+	while(!capture_list_empty(ATOM_FQ_LIST(fq))) {
 		jnode * cur;
 
-		cur = capture_list_front(&fq->prepped);
+		cur = capture_list_front(ATOM_FQ_LIST(fq));
 		capture_list_remove_clean(cur);
 
 		count_dequeued_node(fq);
 		LOCK_JNODE(cur);
 		assert("nikita-3154", !JF_ISSET(cur, JNODE_OVRWR));
-		assert("vs-1615", cur->list == FQ_LIST);
+		assert("nikita-3154", JF_ISSET(cur, JNODE_RELOC));
+		assert("nikita-3154", JF_ISSET(cur, JNODE_FLUSH_QUEUED));
 		JF_CLR(cur, JNODE_FLUSH_QUEUED);
 
 		if (JF_ISSET(cur, JNODE_DIRTY)) {
-			capture_list_push_back(&atom->dirty_nodes[jnode_get_level(cur)], cur);
-			ON_DEBUG(cur->list = DIRTY_LIST);
+			capture_list_push_back(ATOM_DIRTY_LIST(atom, jnode_get_level(cur)), cur);
+			ON_DEBUG(count_jnode(atom, cur, FQ_LIST, DIRTY_LIST, 1));
 		} else {
-			capture_list_push_back(&atom->clean_nodes, cur);
-			ON_DEBUG(cur->list = CLEAN_LIST);
+			capture_list_push_back(ATOM_CLEAN_LIST(atom), cur);
+			ON_DEBUG(count_jnode(atom, cur, FQ_LIST, CLEAN_LIST, 1));
 		}
 
 		UNLOCK_JNODE(cur);
@@ -521,7 +521,7 @@ write_fq(flush_queue_t * fq, long * nr_submitted)
 	atom->nr_running_queues ++;
 	UNLOCK_ATOM(atom);
 	
-	ret = write_jnode_list(&fq->prepped, fq, nr_submitted);
+	ret = write_jnode_list(ATOM_FQ_LIST(fq), fq, nr_submitted);
 	release_prepped_list(fq);
 
 	return ret;
@@ -614,7 +614,7 @@ reiser4_internal void
 fq_put_nolock(flush_queue_t * fq)
 {
 	assert("zam-747", fq->atom != NULL);
-	assert("zam-902", capture_list_empty(&fq->prepped));
+	assert("zam-902", capture_list_empty(ATOM_FQ_LIST(fq)));
 	mark_fq_ready(fq);
 	assert("vs-1245", fq->owner == current);
 	ON_DEBUG(fq->owner = NULL);
@@ -712,7 +712,26 @@ reiser4_internal int fq_by_jnode_gfp(jnode * node, flush_queue_t ** fq, int gfp)
 
 reiser4_internal int fq_by_jnode(jnode * node, flush_queue_t ** fq)
 {
-	return fq_by_jnode_gfp(node, fq, GFP_KERNEL);
+        return fq_by_jnode_gfp(node, fq, GFP_KERNEL);
+}
+
+void check_fq(const txn_atom *atom)
+{
+	/* check number of nodes on all atom's flush queues */
+	flush_queue_t *fq;
+	int count;
+	jnode *node;
+
+	count = 0;
+	for_all_type_safe_list(fq, &atom->flush_queues, fq) {
+		spin_lock_fq(fq);
+		for_all_type_safe_list(capture, ATOM_FQ_LIST(fq), node)
+			count ++;
+		spin_unlock_fq(fq);
+	}
+	if (count != atom->fq)
+		warning("", "fq counter %d, real %d\n", atom->fq, count);
+			
 }
 
 /* Make Linus happy.
