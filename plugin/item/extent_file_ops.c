@@ -209,6 +209,7 @@ append_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block
 
 		/* update coord extension */
 		ext_coord->width ++;
+		ON_DEBUG(extent_set_width(&uf_coord->extension.extent.extent, ext_coord->width));
 		break;
 
 	case HOLE_EXTENT:
@@ -268,7 +269,7 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 				ext_coord->width = extent_get_width(ext - 1);
 				ext_coord->pos_in_unit = ext_coord->width - 1;
 				ext_coord->ext_offset -= sizeof(reiser4_extent);
-				ON_DEBUG(ext_coord->extent = *ext_by_ext_coord(uf_coord));
+				ON_DEBUG(ext_coord->extent = *extent_by_coord(coord));
 				return 0;
 			}
 		}
@@ -289,7 +290,7 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 				ext_coord->width = extent_get_width(ext + 1);
 				ext_coord->pos_in_unit = 0;
 				ext_coord->ext_offset += sizeof(reiser4_extent);
-				ON_DEBUG(ext_coord->extent = *ext_by_ext_coord(uf_coord));
+				ON_DEBUG(ext_coord->extent = *extent_by_coord(coord));
 				return 0;
 			}
 		}
@@ -1313,26 +1314,23 @@ init_coord_extension_extent(uf_coord_t *uf_coord, loff_t lookuped)
 	ext_coord->nr_units = nr_units_extent(coord);
 	ext_coord->ext_offset = (char *)extent_by_coord(coord) - zdata(coord->node);
 	ext_coord->width = extent_get_width(extent_by_coord(coord));
+	ON_DEBUG(ext_coord->extent = *extent_by_coord(coord));
+	uf_coord->valid = 1;
 
+	/* pos_in_unit is the only uninitialized field in extended coord */
 	if (coord->between == AFTER_UNIT) {
 		assert("vs-1330", coord->unit_pos == nr_units_extent(coord) - 1);
 
 		ext_coord->pos_in_unit = ext_coord->width - 1;
-		uf_coord->valid = 1;
-		ON_DEBUG(ext_coord->extent = *ext_by_ext_coord(uf_coord));
-		return;
+	} else {
+		/* AT_UNIT */
+		unit_key_by_coord(coord, &key);
+		offset = get_key_offset(&key);
+		
+		assert("vs-1328", offset <= lookuped);
+		assert("vs-1329", lookuped < offset + ext_coord->width * current_blocksize);
+		ext_coord->pos_in_unit = ((lookuped - offset) >> current_blocksize_bits);
 	}
-
-	/* AT_UNIT */
-	unit_key_by_coord(coord, &key);
-	offset = get_key_offset(&key);
-
-	assert("vs-1328", offset <= lookuped);
-	assert("vs-1329", lookuped < offset + ext_coord->width * current_blocksize);
-	ext_coord->pos_in_unit = ((lookuped - offset) >> current_blocksize_bits);
-	uf_coord->valid = 1;
-
-	ON_DEBUG(ext_coord->extent = *extent_by_coord(coord));
 }
 
 /*
