@@ -43,7 +43,7 @@ By default we read and write (if probably) as symlink and if we
 specify ..invert at reading time that too we can specify it at write time.
 
 example:
-/my_invert_file/..invert<- ( /filenameA<-"(The contents of filenameA)+"(some text stored in the invert)+/filenameB<-"(The contents of filenameB) )
+/my_invert_file/..invert<- ( (/filenameA<-"(The contents of filenameA))+"(some text stored in the invert)+(/filenameB<-"(The contents of filenameB) ) )
 will create  /my_invert_file as invert, and will creat /filenameA and /filenameB with specified body.
 
 read of /my_invert_file/..invert will be 
