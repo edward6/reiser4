@@ -1691,6 +1691,7 @@ typedef struct commit_data {
 	/* have we waited on atom. */
 	int          wait;
 	int          failed;
+	int          wake_ktxnmgrd_up;
 } commit_data;
 
 /*
@@ -1729,6 +1730,7 @@ try_commit_txnh(commit_data *cd)
 		if (atom_should_commit_asap(cd->atom)) {
 			cd->atom->stage = ASTAGE_CAPTURE_WAIT;
 			cd->atom->flags |= ATOM_FORCE_COMMIT;
+			cd->wake_ktxnmgrd_up = 1;
 			atom_send_event(cd->atom);
 		}
 		if (cd->txnh->flags & TXNH_DONT_COMMIT) {
@@ -1828,7 +1830,7 @@ commit_txnh(txn_handle * txnh)
 	/* if we don't want to do a commit (TXNH_DONT_COMMIT is set, probably
 	 * because it takes time) by current thread, we do that work
 	 * asynchronously by ktxnmgrd daemon. */
-	if (txnh->flags & TXNH_DONT_COMMIT)
+	if (cd.wake_ktxnmgrd_up)
 		ktxnmgrd_kick(&get_current_super_private()->tmgr);
 
 	/* VS-FIXME-ANONYMOUS-BUT-ASSIGNED-TO-VS-BY-HANS: Note: We are ignoring the failure code.  Can't change the result of the caller.
