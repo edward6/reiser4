@@ -1790,6 +1790,7 @@ int copy_file (const char * oldname,
 	buf = malloc (BUFSIZE);
 	if (!buf) {
 		perror ("copy_file: malloc failed");
+		iput (inode);
 		return 1;
 	}
 
@@ -1800,10 +1801,12 @@ int copy_file (const char * oldname,
 			count = st->st_size;
 		if (read (fd, buf, count) != (ssize_t)count) {
 			perror ("copy_file: read failed");
+			iput (inode);
 			return 1;
 		}
 		if (call_write (inode, buf, off, count) != (ssize_t)count) {
 			info ("copy_file: write failed\n");
+			iput (inode);
 			return 1;
 		}
 		switch (off % (BUFSIZE * 8)) {
@@ -1834,6 +1837,7 @@ int copy_file (const char * oldname,
 	}
 
 	printf ("\b");
+	iput (inode);
 	close (fd);
 	free (buf);
 	return 0;
@@ -1872,6 +1876,7 @@ static int copy_dir (struct inode * dir)
 	/*char label [10];*/
 	int i;
 	int dirs, files;
+	char * local;
 
 
 	/*
@@ -1909,27 +1914,33 @@ static int copy_dir (struct inode * dir)
 				perror ("copy_dir: chdir failed");
 				break;
 			}
-			prefix = strlen (name);
+			if (name [strlen (name) - 1] == '/')
+				prefix = strlen (name) - 1;
+			else
+				prefix = strlen (name);
 			continue;
 		}
 		printf ("%s : ", name);
+		local = name + prefix + 1;
 		
-		if (!stat (name, &st)) {
+		/* stat "source" file */
+		if (!stat (local, &st)) {
+			depth = get_depth (local) + 1;
+			assert ("vs-344", depth > 1);
+
 			if (S_ISDIR (st.st_mode)) {
 				printf ("DIR\n");
-				depth = get_depth (name + prefix + 1) + 1;
 				inodes = (struct inode **) realloc (inodes, sizeof (struct inode *) * depth);
 				if (!inodes) {
 					info ("copy_dir: realloc failed\n");
 					break;
 				}
-				assert ("vs-344", depth > 1);
 
-				if (call_mkdir (inodes [depth - 2], last_name (name + prefix + 1))) {
+				if (call_mkdir (inodes [depth - 2], last_name (local))) {
 					info ("copy_dir: mkdir failed\n");
 					break;
 				}
-				inodes [depth - 1] = call_lookup (inodes [depth - 2], last_name (name + prefix + 1));
+				inodes [depth - 1] = call_lookup (inodes [depth - 2], last_name (local));
 				if (IS_ERR (inodes [depth - 1])) {
 					info ("copy_dir: lookup failed\n");
 					break;
@@ -1947,7 +1958,7 @@ static int copy_dir (struct inode * dir)
 #endif
 			} else if (S_ISREG (st.st_mode)) {
 				printf ("REG\n");
-				if (copy_file (name, inodes [depth - 1], last_name (name + prefix + 1), &st)) {
+				if (copy_file (local, inodes [depth - 2], last_name (local), &st)) {
 					info ("copy_dir: copy_file failed\n");
 					break;
 				}
@@ -2084,6 +2095,108 @@ static void allocate_unallocated (reiser4_tree * tree)
 	reiser4_done_coord (&coord);
 
 	print_tree_rec ("AFTER ALLOCATION", tree, REISER4_NODE_PRINT_HEADER |
+			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
+}
+
+
+/*
+ * tree_iterate actor
+ */
+int squalloc_right_neighbor (znode * left, znode * right, block_nr *preceder);
+static int do_twig_squeeze (reiser4_tree * tree, tree_coord * coord,
+			    reiser4_lock_handle * lh, void * arg UNUSED_ARG)
+{
+	reiser4_lock_handle right_lock;
+	int result;
+	reiser4_disk_addr da;
+	block_nr preceder;
+
+
+	assert ("vs-461", coord->item_pos == 0 && coord->unit_pos == 0 &&
+		coord->between == AT_UNIT);
+	/*
+	 * allocate extents
+	 */
+	do {
+		alloc_extent (tree, coord, lh, 0);
+	} while (coord_next_item (coord));
+
+
+	/*
+	 * get preceder
+	 */
+	coord_last_unit (coord, 0);
+	if (item_is_internal (coord)) {
+		item_plugin_by_coord (coord)->s.internal.down_link (coord, 0,
+								    &da);
+		preceder = da.blk;
+	} else if (item_is_extent (coord)) {
+		reiser4_extent * ext;
+		ext = extent_by_coord (coord);
+		preceder = extent_get_start (ext) + extent_get_width (ext);
+	} else
+		impossible ("vs-462", "unknown item type");
+
+
+ get_right_neighbor:
+	/*
+	 * squeeze right neighbor
+	 */
+	reiser4_init_lh (&right_lock);
+	result = reiser4_get_right_neighbor (&right_lock, coord->node,
+					     ZNODE_WRITE_LOCK, GN_DO_READ);
+	if (result) {
+		return result;
+	}
+
+	while ((result = squalloc_right_neighbor (coord->node, right_lock.node,
+						  &preceder)) == SUBTREE_MOVED);
+	reiser4_done_lh (&right_lock);
+	if (result == SQUEEZE_SOURCE_EMPTY) {
+		/*
+		 * get next right neighbor
+		 */
+		goto get_right_neighbor;
+	}
+
+	/*
+	 * we have done with this node
+	 */
+	coord_last_unit (coord, 0);
+	return 1;
+}
+
+/*
+ * go through all "twig" nodes and call squeeze_right_neighbor
+ */
+static void squeeze_twig_level (reiser4_tree * tree)
+{
+	tree_coord coord;
+	reiser4_lock_handle lh;
+	reiser4_key key;
+	int result;
+
+
+	reiser4_init_coord (&coord);
+	reiser4_init_lh (&lh);
+
+	key_init (&key);
+	set_key_locality (&key, 2ull);
+	set_key_objectid (&key, 0x2aull);
+	set_key_type (&key, KEY_SD_MINOR);
+	set_key_offset (&key, 0ull);
+	result = coord_by_key (tree, &key, &coord, &lh,
+			       ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
+			       TWIG_LEVEL, TWIG_LEVEL, 
+			       CBK_FOR_INSERT | CBK_UNIQUE);
+	coord_first_unit (&coord, NULL);
+	result = reiser4_iterate_tree (tree, &coord, &lh, 
+				       do_twig_squeeze, 0, ZNODE_WRITE_LOCK, 0/* through items */);
+
+	reiser4_done_lh (&lh);
+	reiser4_done_coord (&coord);
+
+	print_tree_rec ("AFTER SQUEEZING TWIG", tree, REISER4_NODE_PRINT_HEADER |
 			REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
 }
 
@@ -2231,16 +2344,20 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 		call_mkdir (root_dir, "testdir");
 		dir = call_lookup (root_dir, "testdir");
-
+		if (IS_ERR (dir)) {
+			info ("rootdir lookup failed");
+			return 1;
+		}
 		copy_dir (dir);
 
 		print_tree_rec ("AFTER COPY_DIR", tree, REISER4_NODE_PRINT_HEADER |
 				REISER4_NODE_PRINT_KEYS | REISER4_NODE_PRINT_ITEMS);
 		call_readdir (dir, "copydir");
 
-		allocate_unallocated (tree);
+		squeeze_twig_level (tree);
+		/*allocate_unallocated (tree);*/
 
-		print_pages ();
+		/*print_pages ();*/
 	} else if (!strcmp (argv[2], "twig")) {
 		/*
 		 * test modification of search to insert empty node when no
@@ -2383,6 +2500,8 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				}
 			} else if (!strcmp (command, "alloc")) {
 				allocate_unallocated (tree_by_inode (cwd));
+			} else if (!strcmp (command, "squeeze")) {
+				squeeze_twig_level (tree_by_inode (cwd));
 			} else if (!strncmp (command, "p", 1)) {
 				/*
 				 * print tree
@@ -2407,6 +2526,7 @@ static int vs_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				      "\ttouch          - create empty file\n"
 				      "\trm             - remove file\n"
 				      "\talloc          - allocate unallocated extents\n"
+				      "\tsqueeze        - squeeze twig level\n"
 				      "\tp              - print tree\n"
 				      "\texit\n");
 		}
