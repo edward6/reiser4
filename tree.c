@@ -438,7 +438,7 @@ insert_result insert_by_key( reiser4_tree *tree,
 		result = IBK_OOM;
 		break;
 	case CBK_COORD_NOTFOUND:
-		result = insert_by_coord( coord, data, key, lh, ra, ira );
+		result = insert_by_coord( coord, data, key, lh, ra, ira, 0/*flags*/ );
 		break;
 	}
 	return result;
@@ -449,7 +449,8 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord,
 						 reiser4_lock_handle *lh,
 						 reiser4_item_data *data, 
 						 const reiser4_key *key,
-						 carry_opcode cop )
+						 carry_opcode cop,
+						 cop_insert_flag flags )
 {
 	int result;
 	carry_pool  pool;
@@ -467,10 +468,13 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord,
 	cdata.data  = data;
 	cdata.key   = key;
 	op -> u.insert.d = &cdata;
+	op -> u.insert.flags = flags;
 	op -> u.insert.type = COPT_ITEM_DATA;
 	op -> u.insert.child = 0;
-	op -> node -> track = 1;
-	op -> node -> tracked = lh;
+	if( lh != NULL ) {
+		op -> node -> track = 1;
+		op -> node -> tracked = lh;
+	}	
 
 	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
 	result = carry( &lowest_level, 0 );
@@ -487,9 +491,9 @@ static insert_result insert_with_carry_by_coord( tree_coord  *coord,
  * different block.
  *
  */
-static int paste_with_carry( tree_coord *coord,
-			     reiser4_lock_handle *lh,
-			     reiser4_item_data *data, const reiser4_key *key )
+static int paste_with_carry( tree_coord *coord, reiser4_lock_handle *lh,
+			     reiser4_item_data *data, const reiser4_key *key,
+			     cop_insert_flag flags )
 {
 	int result;
 	carry_pool  pool;
@@ -507,6 +511,7 @@ static int paste_with_carry( tree_coord *coord,
 	cdata.data  = data;
 	cdata.key   = key;
 	op -> u.paste.d = &cdata;
+	op -> u.paste.flags = flags;
 	op -> u.paste.type  = COPT_ITEM_DATA;
 	if( lh != NULL ) {
 		op -> node -> track = 1;
@@ -539,14 +544,29 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 			       reiser4_lock_handle *lh /* lock handle of write
 							* lock on node */,
 			       inter_syscall_ra_hint *ra UNUSED_ARG,
-			       intra_syscall_ra_hint ira UNUSED_ARG
+			       intra_syscall_ra_hint ira UNUSED_ARG,
+			       cop_insert_flag flags  
 			       )
 {
+	unsigned item_size;
+
 	assert( "vs-247", coord != NULL );
 	assert( "vs-248", data != NULL );
 	assert( "vs-249", data -> length > 0 );
 	assert( "nikita-1191", znode_is_write_locked( coord -> node ) );
 
+
+	item_size = space_needed( coord -> node, NULL, data, 1 );
+	if( item_size > znode_free_space( coord -> node ) &&
+	    ( flags & COPI_DONT_SHIFT_LEFT ) &&
+	    ( flags & COPI_DONT_SHIFT_RIGHT ) &&
+	    ( flags & COPI_DONT_ALLOCATE ) ) {
+		/*
+		 * we are forced to use free space of coord->node and new item
+		 * does not fit into it
+		 */
+		return -ENOSPC;
+	}
 	/*
 	 * shortcut insertion without carry() overhead.
 	 *
@@ -560,8 +580,7 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 	 * - node plugin agrees with this
 	 *
 	 */
-	if( ( space_needed( coord -> node, NULL, data, 1 ) <= 
-	      znode_free_space( coord -> node ) ) && 
+	if( ( item_size <= znode_free_space( coord -> node ) ) && 
 	    ( ( coord -> item_pos != 0 ) || 
 	      ( coord -> unit_pos != 0 ) || 
 	      ( coord -> between == AFTER_UNIT ) ) &&
@@ -578,10 +597,9 @@ insert_result insert_by_coord( tree_coord  *coord /* coord where to
 		/*
 		 * otherwise do full-fledged carry().
 		 */
-		return insert_with_carry_by_coord( coord, lh, data, key, COP_INSERT );
+		return insert_with_carry_by_coord( coord, lh, data, key, COP_INSERT, flags );
 	}
 }
-
 
 /*
  * @coord is set to leaf level and @data is to be inserted to twig level
@@ -604,7 +622,7 @@ insert_result insert_extent_by_coord( tree_coord  *coord /* coord where to
 	assert( "vs-408", znode_is_write_locked( coord -> node ) );
 	assert( "vs-409", znode_get_level( coord -> node ) );
 
-	return insert_with_carry_by_coord( coord, lh, data, key, COP_EXTENT );
+	return insert_with_carry_by_coord( coord, lh, data, key, COP_EXTENT, 0/*flags*/ );
 }
 
 
@@ -619,7 +637,8 @@ insert_result insert_extent_by_coord( tree_coord  *coord /* coord where to
  */
 static int paste_into_item( tree_coord *coord,
 			    reiser4_lock_handle *lh,
-			    reiser4_key *key, reiser4_item_data *data )
+			    reiser4_key *key, reiser4_item_data *data,
+			    cop_insert_flag flags )
 {
 	int result;
 	int size_change;
@@ -630,6 +649,19 @@ static int paste_into_item( tree_coord *coord,
 	nplug = node_plugin_by_coord( coord );
 
 	assert( "nikita-1480", iplug == data -> iplug );
+
+
+	size_change = space_needed( coord -> node, coord, data, 0 );
+	if( size_change > ( int ) znode_free_space( coord -> node ) &&
+	    ( flags & COPI_DONT_SHIFT_LEFT ) &&
+	    ( flags & COPI_DONT_SHIFT_RIGHT ) &&
+	    ( flags & COPI_DONT_ALLOCATE ) ) {
+		/*
+		 * we are forced to use free space of coord->node and new data
+		 * does not fit into it
+		 */
+		return -ENOSPC;
+	}
 
 	/*
 	 * shortcut paste without carry() overhead.
@@ -645,8 +677,6 @@ static int paste_into_item( tree_coord *coord,
 	 *
 	 * - item plugin agrees with us
 	 */
-
-	size_change = space_needed( coord -> node, coord, data, 0 );
 	if( ( size_change <= ( int ) znode_free_space( coord -> node ) ) && 
 	    ( ( coord -> item_pos != 0 ) || 
 	      ( coord -> unit_pos != 0 ) ||
@@ -669,13 +699,14 @@ static int paste_into_item( tree_coord *coord,
 		/*
 		 * otherwise do full-fledged carry().
 		 */
-		result = paste_with_carry( coord, lh, data, key );
+		result = paste_with_carry( coord, lh, data, key, flags );
 	return result;
 }
 
 /** this either appends or truncates item @coord */
-resize_result resize_item( tree_coord *coord, reiser4_lock_handle *lh,
-			   reiser4_key *key, reiser4_item_data *data )
+resize_result resize_item( tree_coord *coord, reiser4_item_data *data,
+			   reiser4_key *key, reiser4_lock_handle *lh,
+			   cop_insert_flag flags )
 {
 	int result;
 	carry_pool  pool;
@@ -702,12 +733,16 @@ resize_result resize_item( tree_coord *coord, reiser4_lock_handle *lh,
 			return op ? PTR_ERR (op) : -EIO;
 		not_yet( "nikita-1263", "resize_item() can not cut data yet" );
 	} else
-		result = paste_into_item( coord, lh, key, data );
+		result = paste_into_item( coord, lh, key, data, flags );
 
+#if 0
+	/*
+	 * FIXME-VS: this is not needed
+	 */
 	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
 	result = carry (&lowest_level, 0);
 	reiser4_done_carry_pool( &pool );
-
+#endif
 	return result;
 }
 
@@ -758,7 +793,7 @@ znode *child_znode( const tree_coord *parent_coord, int setup_dkeys_p )
 
 
 
-int is_empty_node (const znode * node)
+int node_is_empty (const znode * node)
 {
 	return node_plugin_by_node( node ) -> num_of_items (node) == 0;
 }
@@ -1089,7 +1124,7 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 			ret = NS_FOUND;
 			break;
 		}
-		if( coord_next( result ) )
+		if( coord_next_unit( result ) )
 			break;
 	}
 	return ret;
@@ -1265,7 +1300,7 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 	carry_op * op;
 	carry_cut_data cdata;
 
-	assert ("vs-316", !is_empty_node (from->node));
+	assert ("vs-316", !node_is_empty (from->node));
 
 	/* set @from and @to to first and last units which are to be removed
 	   (getting rid of betweenness) */
