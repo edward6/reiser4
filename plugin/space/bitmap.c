@@ -1221,6 +1221,104 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 /* Only one instance of this function can be running at one given time, because
    only one transaction can be committed a time, therefore it is safe to access
    some global variables without any locking */
+
+#if REISER4_COPY_ON_CAPTURE
+
+extern spinlock_t scan_lock;
+
+void
+pre_commit_hook_bitmap(void)
+{
+	struct super_block * super = reiser4_get_current_sb();
+	txn_atom *atom;
+
+	long long blocks_freed = 0;
+
+	atom = get_current_atom_locked ();
+	assert ("zam-876", atom->stage == ASTAGE_PRE_COMMIT);
+	spin_unlock_atom(atom);
+
+
+
+	{			/* scan atom's captured list and find all freshly allocated nodes,
+				 * mark corresponded bits in COMMIT BITMAP as used */
+		capture_list_head *head = &atom->clean_nodes;
+		jnode *node;
+
+		spin_lock(&scan_lock);
+		node = capture_list_front(head);
+
+		while (!capture_list_end(head, node)) {
+			assert("vs-1445", node->list == CLEAN_LIST);
+			JF_SET(node, JNODE_SCANNED);
+			spin_unlock(&scan_lock);
+
+			/* we detect freshly allocated jnodes */
+			if (JF_ISSET(node, JNODE_RELOC)) {
+				bmap_nr_t bmap;
+
+				bmap_off_t offset;
+				struct bnode *bn;
+				__u32 size = bmap_size(super->s_blocksize);
+				char byte;
+
+				assert("zam-559", !JF_ISSET(node, JNODE_OVRWR));
+				assert("zam-460", !blocknr_is_fake(&node->blocknr));
+
+				parse_blocknr(&node->blocknr, &bmap, &offset);
+				bn = get_bnode(super, bmap);
+
+				assert("vpf-276", offset / 8 < size);
+
+				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
+					warning("vpf-262", "Checksum for the bitmap block %llu is incorrect", bmap);
+
+				check_bnode_loaded(bn);
+				load_and_lock_bnode(bn);
+
+				byte = *(bnode_commit_data(bn) + offset / 8);
+				reiser4_set_bit(offset, bnode_commit_data(bn));
+
+				*bnode_commit_crc(bn) =
+				    adler32_recalc(*bnode_commit_crc(bn), byte,
+						    *(bnode_commit_data(bn) + offset / 8), size - offset / 8);
+
+				release_and_unlock_bnode(bn);
+
+				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
+					warning("vpf-275", "Checksum for the bitmap block %llu is incorrect", bmap);
+
+				/* working of this depends on how it inserts
+				   new j-node into clean list, because we are
+				   scanning the same list now. It is OK, if
+				   insertion is done to the list front */
+				cond_add_to_overwrite_set (atom, bn->cjnode);
+			}
+
+			spin_lock(&scan_lock);
+			JF_CLR(node, JNODE_SCANNED);
+			node = capture_list_next(node);
+		}
+		spin_unlock(&scan_lock);		
+	}
+
+	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap, &blocks_freed, 0);
+
+	blocks_freed -= atom->nr_blocks_allocated;
+
+	{
+		reiser4_super_info_data *sbinfo;
+
+		sbinfo = get_super_private(super);
+
+		reiser4_spin_lock_sb(sbinfo);
+		sbinfo->blocks_free_committed += blocks_freed;
+		reiser4_spin_unlock_sb(sbinfo);
+	}
+}
+
+#else /* ! REISER4_COPY_ON_CAPTURE */
+
 void
 pre_commit_hook_bitmap(void)
 {
@@ -1299,6 +1397,7 @@ pre_commit_hook_bitmap(void)
 		reiser4_spin_unlock_sb(sbinfo);
 	}
 }
+#endif /* ! REISER4_COPY_ON_CAPTURE */
 
 /* plugin->u.space_allocator.init_allocator
     constructor of reiser4_space_allocator object. It is called on fs mount */
