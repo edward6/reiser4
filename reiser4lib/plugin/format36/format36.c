@@ -131,8 +131,7 @@ static error_t reiserfs_format36_sync(reiserfs_format36_t *format) {
 }
 
 static reiserfs_format36_t *reiserfs_format36_create(aal_device_t *device, 
-    count_t blocks, reiserfs_opaque_t *alloc, reiserfs_plugin_id_t journal_plugin_id, 
-    reiserfs_plugin_id_t alloc_plugin_id_t, reiserfs_plugin_id_t oid_plugin_id)
+    count_t blocks)
 {
     return NULL;
 }
@@ -190,6 +189,11 @@ static blk_t reiserfs_format36_offset(reiserfs_format36_t *format) {
     return (REISERFS_MASTER_OFFSET / aal_device_get_blocksize(format->device));
 }
 
+static reiserfs_opaque_t *reiserfs_format36_alloc(reiserfs_format36_t *format) {
+    aal_assert("umka-488", format != NULL, return 0);
+    return format->alloc;
+}
+
 static blk_t reiserfs_format36_get_root(reiserfs_format36_t *format) {
     aal_assert("umka-387", format != NULL, return 0);
     return get_sb_root_block((reiserfs_format36_super_t *)format->super->data);
@@ -232,8 +236,7 @@ static reiserfs_plugin_t format36_plugin = {
 	},
 	.open = (reiserfs_opaque_t *(*)(aal_device_t *))reiserfs_format36_open,
 	
-	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t, reiserfs_opaque_t *, 
-	    reiserfs_plugin_id_t, reiserfs_plugin_id_t, reiserfs_plugin_id_t))
+	.create = (reiserfs_opaque_t *(*)(aal_device_t *, count_t))
 	    reiserfs_format36_create,
 	
 	.close = (void (*)(reiserfs_opaque_t *))reiserfs_format36_close,
@@ -243,13 +246,15 @@ static reiserfs_plugin_t format36_plugin = {
 	.format = (const char *(*)(reiserfs_opaque_t *))reiserfs_format36_format,
 
 	.offset = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_offset,
+	.alloc = (reiserfs_opaque_t *(*)(reiserfs_opaque_t *))reiserfs_format36_alloc,
 	
 	.get_root = (blk_t (*)(reiserfs_opaque_t *))reiserfs_format36_get_root,
-	.get_blocks = (count_t (*)(reiserfs_opaque_t *))reiserfs_format36_get_blocks,
-	.get_free = (count_t (*)(reiserfs_opaque_t *))reiserfs_format36_get_free,
-	
 	.set_root = (void (*)(reiserfs_opaque_t *, blk_t))reiserfs_format36_set_root,
+	
+	.get_blocks = (count_t (*)(reiserfs_opaque_t *))reiserfs_format36_get_blocks,
 	.set_blocks = (void (*)(reiserfs_opaque_t *, count_t))reiserfs_format36_set_blocks,
+	
+	.get_free = (count_t (*)(reiserfs_opaque_t *))reiserfs_format36_get_free,
 	.set_free = (void (*)(reiserfs_opaque_t *, count_t))reiserfs_format36_set_free,
 	
 	.journal_plugin_id = (reiserfs_plugin_id_t(*)(reiserfs_opaque_t *))

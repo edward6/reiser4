@@ -189,11 +189,9 @@ error:
 #ifndef ENABLE_COMPACT
 
 reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device, 
-    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t journal_plugin_id, 
-    reiserfs_plugin_id_t alloc_plugin_id, reiserfs_plugin_id_t oid_plugin_id, 
-    reiserfs_plugin_id_t node_plugin_id, size_t blocksize, const char *uuid, 
-    const char *label, count_t len, aal_device_t *journal_device, 
-    reiserfs_params_opaque_t *journal_params)
+    reiserfs_plugin_id_t format_plugin_id, reiserfs_plugin_id_t node_plugin_id, 
+    size_t blocksize, const char *uuid, const char *label, count_t len, 
+    aal_device_t *journal_device, reiserfs_params_opaque_t *journal_params)
 {
     reiserfs_fs_t *fs;
 
@@ -215,18 +213,15 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
     if (reiserfs_master_create(fs, format_plugin_id, blocksize, uuid, label))    
 	goto error_free_fs;
 
-    if (reiserfs_alloc_create(fs, alloc_plugin_id, len))
+    if (reiserfs_super_create(fs, format_plugin_id, len))
 	goto error_free_master;
 
-    if (reiserfs_super_create(fs, format_plugin_id, journal_plugin_id, 
-	    alloc_plugin_id, oid_plugin_id, len))
-	goto error_free_alloc;
-
-    if (reiserfs_journal_create(fs, journal_device, journal_params))
+    if (reiserfs_alloc_create(fs, len))
 	goto error_free_super;
 
-    /* Here will be also initialization code for oid allocator */
-    
+    if (reiserfs_journal_create(fs, journal_device, journal_params))
+	goto error_free_alloc;
+
     if (reiserfs_tree_create(fs, node_plugin_id))
 	goto error_free_journal;
     
@@ -235,10 +230,10 @@ reiserfs_fs_t *reiserfs_fs_create(aal_device_t *host_device,
 
 error_free_journal:
     reiserfs_journal_close(fs);
-error_free_super:
-    reiserfs_super_close(fs);
 error_free_alloc:
     reiserfs_alloc_close(fs);
+error_free_super:
+    reiserfs_super_close(fs);
 error_free_master:
     reiserfs_master_close(fs);    
 error_free_fs:

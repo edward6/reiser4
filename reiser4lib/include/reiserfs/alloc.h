@@ -14,7 +14,7 @@
 extern error_t reiserfs_alloc_open(reiserfs_fs_t *fs);
 
 extern error_t reiserfs_alloc_create(reiserfs_fs_t *fs, 
-    reiserfs_plugin_id_t plugin_id, count_t blocks);
+    count_t blocks);
 
 extern error_t reiserfs_alloc_sync(reiserfs_fs_t *fs);
 extern void reiserfs_alloc_close(reiserfs_fs_t *fs);

@@ -29,12 +29,8 @@ typedef struct format_40_disk_super_block {
 	/*  56 */ char magic[16];  /* magic string R4Sb-Default */
 	/*  72 */ d16 tree_height; /* height of filesystem tree */
 	
-	/*  74 */ d16 journal_plugin_id; /* journal plugin identifier */
-	/*  76 */ d16 alloc_plugin_id;	 /* space allocator plugin identifier */
-	/*  78 */ d16 oid_plugin_id;	 /* oid allocator plugin identifier */
-	
-	/*  80 */ d16 padd [3];
-	/*  86 */ char not_used [426];
+	/*  74 */ d16 padd [3];
+	/*  80 */ char not_used [420];
 } format_40_disk_super_block;
 
 

@@ -9,8 +9,12 @@
 
 #include <aal/aal.h>
 
-#define REISERFS_FORMAT40_MAGIC "R4Sb-Default"
-#define REISERFS_FORMAT40_OFFSET (65536 + 4096)
+#define REISERFS_FORMAT40_MAGIC	    "R4Sb-Default"
+#define REISERFS_FORMAT40_OFFSET    (65536 + 4096)
+
+#define REISERFS_FORMAT40_JOURNAL   0x0
+#define REISERFS_FORMAT40_ALLOC	    0x0
+#define REISERFS_FORMAT40_OID	    0x0
 
 struct reiserfs_format40_super {
     uint64_t sb_block_count;
@@ -22,12 +26,8 @@ struct reiserfs_format40_super {
     char sb_magic[16];
     uint16_t sb_tree_height;
     
-    uint16_t sb_journal_plugin_id;
-    uint16_t sb_alloc_plugin_id;
-    uint16_t sb_oid_plugin_id;
-
     uint16_t sb_padd[3];
-    char sb_unused[426];
+    char sb_unused[420];
 } __attribute__((__packed__));
 
 typedef struct reiserfs_format40_super reiserfs_format40_super_t;
@@ -53,18 +53,11 @@ typedef struct reiserfs_format40_super reiserfs_format40_super_t;
 #define get_sb_flushes(sb)				get_le64(sb, sb_flushes)
 #define set_sb_flushes(sb, val)				set_le64(sb, sb_flushes, val)
 
-#define get_sb_journal_plugin_id(sb)			get_le16(sb, sb_journal_plugin_id)
-#define set_sb_journal_plugin_id(sb, val)		set_le16(sb, sb_journal_plugin_id, val)
-
-#define get_sb_alloc_plugin_id(sb)			get_le16(sb, sb_alloc_plugin_id)
-#define set_sb_alloc_plugin_id(sb, val)			set_le16(sb, sb_alloc_plugin_id, val)
-
-#define get_sb_oid_plugin_id(sb)			get_le16(sb, sb_oid_plugin_id)
-#define set_sb_oid_plugin_id(sb, val)			set_le16(sb, sb_oid_plugin_id, val)
-
 struct reiserfs_format40 {
     aal_device_t *device;
     aal_block_t *super;
+
+    reiserfs_opaque_t *alloc;
 };
 
 typedef struct reiserfs_format40 reiserfs_format40_t;

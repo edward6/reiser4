@@ -8,7 +8,7 @@
 #  include <config.h>
 #endif
 
-#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITIC)
+#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
 #  include <dlfcn.h>
 #  include <sys/types.h>
 #  include <dirent.h>
@@ -38,7 +38,7 @@ static int callback_match_label(reiserfs_plugin_t *plugin, const char *label) {
     return aal_strncmp(plugin->h.label, label, aal_strlen(plugin->h.label));
 }
 
-#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITIC)
+#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
 
 reiserfs_plugin_t *reiserfs_plugins_load_by_name(const char *name) {
     void *handle, *addr;
@@ -95,14 +95,14 @@ reiserfs_plugin_t *reiserfs_plugins_load_by_entry(reiserfs_plugin_entry_t entry)
 void reiserfs_plugins_unload(reiserfs_plugin_t *plugin) {
     aal_assert("umka-158", plugin != NULL, return);
     aal_assert("umka-166", plugins != NULL, return);
-#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITIC)
+#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
     dlclose(plugin->h.handle);
 #endif
     aal_list_remove(plugins, plugin);
 }
 
 error_t reiserfs_plugins_init(void) {
-#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITIC)
+#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
     DIR *dir;
     struct dirent *ent;
 #else
@@ -113,7 +113,7 @@ error_t reiserfs_plugins_init(void) {
 
     aal_assert("umka-159", plugins == NULL, return -1);
     
-#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITIC)
+#if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
     if (!(dir = opendir(PLUGIN_DIR))) {
     	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	    "Can't open directory %s.", PLUGIN_DIR);
