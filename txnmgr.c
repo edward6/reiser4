@@ -480,21 +480,40 @@ atom_dec_and_unlock (txn_atom *atom)
 
 /* Return an new atom, locked.  This adds the atom to the transaction manager's list and
  * sets its reference count to 1, an artificial reference which is kept until it
- * commits. */
-/* Audited by: umka (2002.06.13), umka (2002.06.15) */
+ * commits.  We play strange games to avoid allocation under jnode & txnh spinlocks. */
 static txn_atom*
-atom_begin_andlock (void)
+atom_begin_andlock (txn_atom **atom_alloc, jnode *node, txn_handle *txnh)
 {
-	/*
-	 * FIXME:NIKITA->JMACD we are under jnode spinlock, allocation is
-	 * unsafe.
-	 */
-	txn_atom *atom = kmem_cache_alloc (_atom_slab, GFP_KERNEL);
-	txn_mgr  *mgr  = &get_super_private (reiser4_get_current_sb ())->tmgr;
+	txn_atom *atom;
+	txn_mgr  *mgr;
 
-	if (atom == NULL) {
-		return ERR_PTR (-ENOMEM);
+	assert ("jmacd-43228", spin_jnode_is_locked (node));
+	assert ("jmacd-43227", spin_txnh_is_locked (txnh));
+	assert ("jmacd-43226", node->atom == NULL);
+	assert ("jmacd-43225", txnh->atom == NULL);
+
+	if (*atom_alloc == NULL) {
+		/* Cannot allocate under those spinlocks. */
+		spin_unlock_jnode (node);
+		spin_unlock_txnh (txnh);
+		(*atom_alloc) = kmem_cache_alloc (_atom_slab, GFP_KERNEL);
+		spin_lock_jnode (node);
+		spin_lock_txnh (txnh);
+
+		if (*atom_alloc == NULL) {
+			return ERR_PTR (-ENOMEM);
+		}
+
+		/* Check if both atom pointers are still NULL... */
+		if (node->atom != NULL || txnh->atom != NULL) {
+			return ERR_PTR (-EAGAIN);
+		}
 	}
+
+	atom = *atom_alloc;
+	*atom_alloc = NULL;
+
+	mgr = &get_super_private (reiser4_get_current_sb ())->tmgr;
 
 	atom_init (atom);
 
@@ -981,7 +1000,8 @@ int memory_pressure (struct super_block *super, int *nr_to_flush)
 static int
 try_capture_block (txn_handle  *txnh,
 		   jnode       *node,
-		   txn_capture  mode)
+		   txn_capture  mode,
+		   txn_atom   **atom_alloc)
 {
 	int ret;
 	txn_atom *block_atom;
@@ -1053,7 +1073,7 @@ try_capture_block (txn_handle  *txnh,
 		} else {
 
 			/* In this case, neither txnh nor page are assigned to an atom. */
-			block_atom = atom_begin_andlock ();
+			block_atom = atom_begin_andlock (atom_alloc, node, txnh);
 
 			if (! IS_ERR (block_atom)) {
 				/* Assign both, release atom lock. */
@@ -1104,6 +1124,7 @@ txn_try_capture (jnode           *node,
 	int ret;
 	txn_handle  *txnh;
 	txn_capture  cap_mode;
+	txn_atom    *atom_alloc = NULL;
 
 	if ((txnh = get_current_context ()->trans) == NULL) {
 		rpanic ("jmacd-492", "invalid transaction txnh");
@@ -1135,7 +1156,7 @@ txn_try_capture (jnode           *node,
 
  repeat:
 	/* Repeat try_capture as long as -EAGAIN is returned. */
-	ret = try_capture_block (txnh, node, cap_mode);
+	ret = try_capture_block (txnh, node, cap_mode, & atom_alloc);
 
 	/* Regardless of non_blocking:
 	 *
@@ -1176,6 +1197,10 @@ txn_try_capture (jnode           *node,
 
 	/* Jnode is still locked. */
 	ON_SMP (assert ("jmacd-760", spin_jnode_is_locked (node)));
+
+	if (atom_alloc != NULL) {
+		kmem_cache_free (_atom_slab, atom_alloc);
+	}
 
 	return ret;
 }
