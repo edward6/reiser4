@@ -44,11 +44,6 @@ wrdtab * WrdTabAlloc()
 {
 	wrdtab * wrd;
 
-	work_space->WrdTabHead      = 
-	work_space->WrdTabHead->
-	work_space->WrdTabHead->
-	work_space->WrdTabHead->
-
 	if ( ( wrd = ( wrdtab *    ) kmalloc( sizeof( wrdtab    ) ) ) != 0 )
 		{
 			wrd->wrd_next   = NULL;
@@ -107,7 +102,7 @@ asmlinkage long  sys_reiser4(char * str)
 	
 	                                                    /* initialize fields */
 	                                                    /* this two field used for parsing string, one (inline) stay on begin */
-	work_space->pline  =  work_space->inline = str;     /*   of token, second (pline) walk to end to token                   */
+	work_space->pline  =  work_space->inline = str;     /*   of token, second (pline) walk to end to token                    */
 
 
 
