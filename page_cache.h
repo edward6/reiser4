@@ -12,7 +12,7 @@ extern int init_fakes( void );
 extern int init_formatted_fake( struct super_block *super );
 extern int done_formatted_fake( struct super_block *super );
 
-#if REISER4_DEBUG
+#if REISER4_DEBUG_MEMCPY
 extern void *xmemcpy( void *dest, const void *src, size_t n );
 extern void *xmemmove( void *dest, const void *src, size_t n );
 extern void *xmemset( void *s, int c, size_t n );

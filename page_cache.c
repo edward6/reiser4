@@ -182,21 +182,55 @@ int done_formatted_fake( struct super_block *super )
 	return 0;
 }
 
-#if REISER4_DEBUG
-void *xmemcpy( void *dest, const void *src, size_t n )
+#if REISER4_DEBUG_MEMCPY
+struct mem_ops_table {
+	void * ( *cpy ) ( void *dest, const void *src, size_t n );
+	void * ( *move )( void *dest, const void *src, size_t n );
+	void * ( *set ) ( void *s, int c, size_t n );
+};
+
+void *xxmemcpy( void *dest, const void *src, size_t n )
 {
 	return memcpy( dest, src, n );
 }
 
-void *xmemmove( void *dest, const void *src, size_t n )
+void *xxmemmove( void *dest, const void *src, size_t n )
 {
 	return memmove( dest, src, n );
 }
 
-void *xmemset( void *s, int c, size_t n )
+void *xxmemset( void *s, int c, size_t n )
 {
 	return memset( s, c, n );
 }
+
+struct mem_ops_table std_mem_ops = {
+	.cpy  = xxmemcpy,
+	.move = xxmemmove,
+	.set  = xxmemset
+};
+
+struct mem_ops_table *mem_ops = &std_mem_ops;
+
+/*
+ * Our own versions of memcpy, memmove, and memset used to profile shifts of
+ * tree node content. Coded to avoid inlining.
+ */
+void *xmemcpy( void *dest, const void *src, size_t n )
+{
+	return mem_ops -> cpy( dest, src, n );
+}
+
+void *xmemmove( void *dest, const void *src, size_t n )
+{
+	return mem_ops -> move( dest, src, n );
+}
+
+void *xmemset( void *s, int c, size_t n )
+{
+	return mem_ops -> set( s, c, n );
+}
+
 #endif
 
 

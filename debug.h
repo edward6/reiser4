@@ -78,6 +78,9 @@
 				* our testsuite through with this every once in a
 				* while. */
 
+/** provide our own memcpy/memmove to profile shifts */
+#define REISER4_DEBUG_MEMCPY (1)
+
 #define noop   do {;} while( 0 )
 
 #if REISER4_DEBUG
