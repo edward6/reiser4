@@ -1076,7 +1076,6 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 		return result;
 	}
 
-	set_jnode_unallocated (j);
 	jnode_set_mapped (j);
 
 	return 0;
@@ -1119,7 +1118,6 @@ static int append_one_block (coord_t * coord,
 		break;
 	}
 
-	set_jnode_unallocated (j);
 	jnode_set_mapped (j);
 
 	coord->unit_pos = coord_last_unit_pos (coord);
@@ -1411,7 +1409,6 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 	switch (state_of_extent(ext)) {
 	case ALLOCATED_EXTENT:
 		j->blocknr = blocknr_by_coord_in_extent (coord, off);
-		set_jnode_allocated (j);
 		break;
 
 	case UNALLOCATED_EXTENT:
@@ -1421,7 +1418,6 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 		result = plug_hole (coord, lh, off);
 		if (result)
 			return result;
-		set_jnode_unallocated (j);
 		jnode_set_mapped (j);
 		break;
 
@@ -2396,13 +2392,18 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 	while (1) {
 		ind = offset >> PAGE_CACHE_SHIFT;
 		page = find_lock_page (inode->i_mapping, ind);
-		assert ("vs-349", page && page_buffers (page));
+		assert ("vs-349", page && page->private);
 		
-		bh = page_buffers (page);
+		j = jnode_of_page (page);
 		/* AUDIT: bh is not checked for NULL */
+#if 0
 		for (page_off = 0; offset != (ind << PAGE_CACHE_SHIFT) + page_off;
 		     page_off += blocksize, bh = bh->b_this_page);
-
+#endif
+		/* set blocknumber for jnode */
+		assert ("vs-351", !jnode_has_block (j));
+		jnode_set_block (j, &first);
+#if 0
 		do {
 			assert ("vs-350", buffer_mapped (bh));
 			bh->b_blocknr = first;
@@ -2416,7 +2417,7 @@ static void map_allocated_buffers (reiser4_key * key, reiser4_block_nr first,
 			count --;
 			bh = bh->b_this_page;
 		} while (count && bh != page_buffers (page));
-
+#endif
 		unlock_page (page);
 		page_cache_release (page);
 		if (!count)
