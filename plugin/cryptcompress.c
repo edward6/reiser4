@@ -1001,12 +1001,13 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	}
 	
 	if (try_encrypt(clust, inode)) {
-		assert("edward-716", inode_get_crypto(inode) != NULL);
 		/* align and encrypt */
 		int oh; /* ohhh, the crypto alignment overhead */
 		int i, icb, ocb;
 		__u32 * expkey;
 		crypto_plugin * cplug = inode_crypto_plugin(inode);
+		
+		assert("edward-716", inode_get_crypto(inode) != NULL);
 		
 		icb = crypto_blocksize(inode);
 		ocb = inode_scaled_offset(inode, icb);
