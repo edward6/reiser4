@@ -2177,7 +2177,7 @@ safelink_unix_file(struct inode *object, reiser4_safe_link_t link,
 reiser4_internal ssize_t sendfile_common (
 	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target)
 {
-	int result = 0;
+	ssize_t result = 0;
 	file_plugin *fplug;
 	struct inode *inode;
 	unsigned long index;
@@ -2279,8 +2279,14 @@ reiser4_internal ssize_t sendfile_common (
 reiser4_internal ssize_t sendfile_unix_file (
 	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target)
 {
+	struct inode * inode;
 	ssize_t ret;
-	/* FIXME(Zam): unpack file before calling sendfile_common(). */
+
+	inode = file->f_dentry->d_inode;
+	ret = unpack(inode, 0, 0);
+	if (ret)
+		return ret;
+
 	ret = sendfile_common(file, ppos, count, actor, target);
 	return ret;
 }
