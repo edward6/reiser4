@@ -7,9 +7,7 @@
 #ifndef NODE_H
 #define NODE_H
 
-#include <aal/aal.h>
-#include <reiserfs/filesystem.h>
-#include <reiserfs/plugin.h>
+#include <reiserfs/key.h>
 #include <reiserfs/path.h>
 
 extern reiserfs_node_t *reiserfs_node_alloc();

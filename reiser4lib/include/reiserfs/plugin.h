@@ -8,7 +8,6 @@
 #define PLUGIN_H
 
 #include <aal/aal.h>
-#include <reiserfs/key.h>
 
 typedef void reiserfs_opaque_t;
 typedef void reiserfs_params_opaque_t;
@@ -70,7 +69,7 @@ struct reiserfs_common_item_plugin {
     error_t (*create) (reiserfs_opaque_t *, reiserfs_opaque_t *);
     error_t (*open) (reiserfs_opaque_t *);
     error_t (*close) (reiserfs_opaque_t *);
-    int (*lookup) (reiserfs_opaque_t *, reiserfs_key_t *);
+    int (*lookup) (reiserfs_opaque_t *, reiserfs_opaque_t *);
 
     int (*add_unit) (reiserfs_opaque_t *, int32_t, 
 	reiserfs_opaque_t *unit_info);
@@ -149,7 +148,7 @@ struct reiserfs_node_plugin {
     error_t (*close) (reiserfs_opaque_t *);
     error_t (*confirm) (reiserfs_opaque_t *);
     error_t (*check) (reiserfs_opaque_t *, int);
-    int (*lookup) (reiserfs_opaque_t *, reiserfs_key_t *);
+    int (*lookup) (reiserfs_opaque_t *, reiserfs_opaque_t *);
     error_t (*insert) (reiserfs_opaque_t *, reiserfs_opaque_t *, 
 	    reiserfs_opaque_t *);
     error_t (*update_parent) (reiserfs_opaque_t *parent, 
@@ -160,7 +159,7 @@ struct reiserfs_node_plugin {
     uint16_t (*item_max_num) (reiserfs_opaque_t *);
     uint16_t (*item_count) (reiserfs_opaque_t *);
     uint16_t (*item_length) (reiserfs_opaque_t *, int32_t);
-    reiserfs_key_t *(*key_at) (reiserfs_opaque_t *, int32_t);
+    reiserfs_opaque_t *(*key_at) (reiserfs_opaque_t *, int32_t);
     uint16_t (*item_plugin_id) (reiserfs_opaque_t *, int32_t);
     void *(*item) (reiserfs_opaque_t *, int32_t);
     
