@@ -1099,7 +1099,8 @@ void *mkdir_thread( mkdir_thread_info *info )
 		}
 		info( "(%i) %i:%s %s/%s: %i\n", current_pid, i, op,
 		      dir_name, name, ret );
-		if( ( ret != 0 ) && ( ret != -EEXIST ) && ( ret != -ENOENT ) )
+		if( ( ret != 0 ) && ( ret != -EEXIST ) && ( ret != -ENOENT ) &&
+		    ( ret != -EINTR ) )
 			rpanic( "nikita-1493", "!!!" );
 		/* print_tree_rec( "tree", tree, 
 		   REISER4_NODE_PRINT_ZNODE ); */
