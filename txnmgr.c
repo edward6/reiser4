@@ -917,22 +917,19 @@ atom_try_commit_locked(txn_atom * atom)
 
 	trace_on(TRACE_FLUSH, "everything written back atom %u\n", atom->atom_id);
 
-	if (WRITE_LOG) {
-		/* isolate critical code path which should be executed by only one thread using tmgr semaphore */
-		down(&private->tmgr.commit_semaphore);
+	/* isolate critical code path which should be executed by only one
+	 * thread using tmgr semaphore */
+	down(&private->tmgr.commit_semaphore);
 
-		ret = reiser4_write_logs();
-		if (ret < 0) {
-			reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
-		}
-	}
+	ret = reiser4_write_logs();
+	if (ret < 0)
+		reiser4_panic("zam-597", "write log failed (%ld)\n", ret);
 
 	spin_lock_atom(atom);
 
 	invalidate_clean_list(atom);
 
-	if (WRITE_LOG)
-		up(&private->tmgr.commit_semaphore);
+	up(&private->tmgr.commit_semaphore);
 
 	atom->stage = ASTAGE_DONE;
 
