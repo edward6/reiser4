@@ -11,8 +11,8 @@
 #include "dformat.h"
 #include "tslist.h"
 #include "jnode.h"
-#include "znode.h"
 #include "tap.h"
+#include "lock.h"
 
 #include <linux/types.h>	/* for __u??  */
 #include <linux/fs.h>		/* for struct super_block  */
@@ -229,8 +229,11 @@ extern int write_in_trace(const char *func, const char *mes);
  * directory. Commit will be performed by ktxnmgrd. */
 static inline void context_set_commit_async(reiser4_context * ctx)
 {
-	ctx->nobalance = 1;
-	ctx->trans->flags |= TXNH_DONT_COMMIT;
+	reiser4_context *context;
+
+	context = ctx->parent;
+	context->nobalance = 1;
+	context->trans->flags |= TXNH_DONT_COMMIT;
 }
 
 extern int reiser4_exit_context(reiser4_context * context);
