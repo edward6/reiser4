@@ -19,7 +19,7 @@ design needs to be justified in a seminar on Monday.
   
      Physical consistency of delimiting key is protected by special dk spin
      lock. That is, delimiting keys can only be inspected or modified under
-     this lock [FIXME-NIKITA it should be probably changed to read/write
+     this lock [NOTE-NIKITA it should be probably changed to read/write
      lock.]. But dk lock is only sufficient for fast "pessimistic" check,
      because to simplify code and to decrease lock contention, balancing
      (carry) only updates delimiting keys right before unlocking all locked
@@ -461,7 +461,7 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 		reiser4_stat_tree_add(fast_paste);
 		if (size_change > 0)
 			nplug->change_item_size(coord, size_change);
-		/* FIXME-NIKITA: huh? where @key is used? */
+		/* NOTE-NIKITA: huh? where @key is used? */
 		result = iplug->b.paste(coord, data, NULL);
 		znode_set_dirty(coord->node);
 		if (size_change < 0)
@@ -625,7 +625,6 @@ forget_znode(lock_handle * handle)
 	sibling_list_remove(node);
 	invalidate_lock(handle);
 
-	/* and remove node from transaction. FIXME-NIKITA Locking? */
 	uncapture_page(znode_page(node));
 }
 
@@ -1315,7 +1314,7 @@ check_jnode_for_unallocated(jnode * node)
 
 	return 0;
 
-	/* FIXME-NIKITA to properly implement this we need long-term lock on
+	/* NOTE-NIKITA to properly implement this we need long-term lock on
 	   znode. */
 	if (jnode_is_znode(node) && jnode_get_level(node) >= TWIG_LEVEL) {
 		int ret = zload(JZNODE(node));
@@ -1340,7 +1339,7 @@ check_jnode_for_unallocated_in_core(znode * z)
 
 	return 0;
 
-	/* FIXME-NIKITA to properly implement this we need long-term lock on
+	/* NOTE-NIKITA to properly implement this we need long-term lock on
 	   znode. */
 	for_all_units(&coord, z) {
 		if (item_is_internal(&coord)) {

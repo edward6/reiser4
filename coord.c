@@ -30,7 +30,6 @@ coord_normalize(coord_t * coord)
 	node = coord->node;
 	assert("vs-683", node);
 
-	/* FIXME-NIKITA overkill */
 	coord_clear_iplug(coord);
 
 	if (node_is_empty(node)) {

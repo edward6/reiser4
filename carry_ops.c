@@ -360,8 +360,6 @@ put_split_point(carry_op * op, int adj, __u32 flags)
   
    See comments in the body.
   
-   GREEN-FIXME-HANS: why isn't this code audited?
-  
    Assumes that the node format favors insertions at the right end of the node
    as node40 does.
   
@@ -660,7 +658,7 @@ insert_paste_common(carry_op * op	/* carry operation being
 		   added to the lock_carry_node(), to lock node by its key.
 		  
 		*/
-		/* FIXME-NIKITA Lookup bias is fixed to FIND_EXACT. Complain
+		/* NOTE-NIKITA Lookup bias is fixed to FIND_EXACT. Complain
 		   if you need something else. */
 		op->u.insert.d->coord = coord;
 		node = op->node->real_node;
@@ -1205,7 +1203,7 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 	tree = znode_get_tree(child);
 	spin_lock_tree(tree);
 	if (znode_parent(child) != parent) {
-		/* FIXME-NIKITA add stat counter for this. */
+		/* NOTE-NIKITA add stat counter for this. */
 		parent = znode_parent(child);
 		assert("nikita-2581", find_carry_node(doing, parent));
 	}
@@ -1538,7 +1536,7 @@ carry_extent(carry_op * op /* operation to perform */ ,
 	assert("nikita-1754", node != NULL);
 	assert("nikita-1755", node_plugin_by_node(node) != NULL);
 	assert("nikita-1700", coord_wrt(op->u.extent.d->coord) != COORD_INSIDE);
-	/* FIXME-NIKITA add some checks here. Not assertions, -EIO. Check that
+	/* NOTE-NIKITA add some checks here. Not assertions, -EIO. Check that
 	   extent fits between items. */
 
 	info.doing = doing;
@@ -1567,7 +1565,7 @@ carry_extent(carry_op * op /* operation to perform */ ,
 		/* @delete_dummy will be automatically destroyed on the level
 		   exiting  */
 		return PTR_ERR(insert_extent);
-	/* FIXME-NIKITA insertion by key is simplest option here. Another
+	/* NOTE-NIKITA insertion by key is simplest option here. Another
 	   possibility is to insert on the left or right of already existing
 	   item.
 	*/

@@ -106,7 +106,7 @@ check_seal_match(const coord_t * coord, const reiser4_key * k)
   
    If seal was burned, or broken irreparably, return -EAGAIN.
   
-   FIXME-NIKITA currently seal_validate() returns -EAGAIN if key we are
+   NOTE-NIKITA currently seal_validate() returns -EAGAIN if key we are
    looking for is in range of keys covered by the sealed node, but item wasn't
    found by node ->lookup() method. Alternative is to return -ENOENT in this
    case, but this would complicate callers logic.

@@ -32,7 +32,7 @@ typedef struct pseudo_ops {
 	/* generic name of this pseudo object "..acl", "..key", etc. */
 	const char *name;
 
-	/* FIXME-NIKITA some other operations. Reiser4 syntax people should
+	/* NOTE-NIKITA some other operations. Reiser4 syntax people should
 	   add something here. */
 
 } pseudo_ops;

@@ -293,7 +293,7 @@ build_de_id(const struct inode *dir /* inode of directory */ ,
 	assert("nikita-1290", dir != NULL);
 	assert("nikita-1292", id != NULL);
 
-	/* FIXME-NIKITA this is suboptimal. */
+	/* NOTE-NIKITA this is suboptimal. */
 	inode_dir_plugin(dir)->entry_key(dir, name, &key);
 	return build_de_id_by_key(&key, id);
 }
@@ -360,7 +360,7 @@ cmp_t key_id_key_cmp(const obj_key_id * id /* object key id to compare */ ,
 cmp_t de_id_cmp(const de_id * id1 /* first &de_id to compare */ ,
 		const de_id * id2 /* second &de_id to compare */ )
 {
-	/* FIXME-NIKITA ugly implementation */
+	/* NOTE-NIKITA ugly implementation */
 	reiser4_key k1;
 	reiser4_key k2;
 

@@ -139,8 +139,6 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 			lock_handle rlh;
 
 			init_lh(&rlh);
-			/* FIXME-NIKITA pass lock handle from add_new_root()
-			   in stead */
 			result = longterm_lock_znode(&rlh, new_root, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
 			if (result == 0) {
 				coord_t *in_parent;

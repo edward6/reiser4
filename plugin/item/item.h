@@ -60,7 +60,6 @@ typedef struct {
 	    
 	*/
 	reiser4_key *(*max_key_inside) (const coord_t * coord, reiser4_key * area);
-/* NIKITA-FIXME-HANS: comment this */
 	/* Maximal key that is _really_ occupied by this item currently. This
 	   cannot be greater than ->max_key_inside.
 	  
@@ -196,7 +195,7 @@ typedef struct {
 
 	/* return true if unit to which coord is set contains @key */
 	int (*key_in_unit) (const coord_t * coord, const reiser4_key * key);
-	/* NIKITA-FIXME-HANS: comment needed */
+	/* gather statistics */
 	void (*item_stat) (const coord_t * coord, void *);
 } balance_ops;
 

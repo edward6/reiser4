@@ -2664,9 +2664,9 @@ jnode_lock_parent_coord(jnode         * node,
 		/* Unformatted node case: Generate a key for the extent entry,
 		   search in the tree using coord_by_key, which handles
 		   locking for us. */
-		/* FIXME-NIKITA it may happen that inode doesn't exist at this
-		   point, because all pages for jnodes from unallocated extent
-		   were eflushed and inode was evicted. */
+		/* It may happen that inode doesn't exist at this point,
+		   because all pages for jnodes from unallocated extent were
+		   eflushed and inode was evicted. */
 		struct inode *ino = jnode_mapping(node)->host;
 		reiser4_key key;
 		file_plugin *fplug = inode_file_plugin(ino);
@@ -3446,7 +3446,7 @@ stop_same_parent:
 
 		/* If we are scanning left and we stop in the middle of an allocated
 		   extent, we know the preceder immediately.. */
-		/* FIXME:NIKITA->* middle of extent is (scan_index - unit_index) != 0. */
+		/* middle of extent is (scan_index - unit_index) != 0. */
 		if (flush_scanning_left(scan) && (scan_index - unit_index) != 0) {
 			/* FIXME(B): Someone should step-through and verify that this preceder
 			   calculation is indeed correct. */

@@ -304,14 +304,6 @@ reiser4_is_set(const struct super_block *super, reiser4_fs_flag f)
 	return test_bit((int) f, &get_super_private(super)->fs_flags);
 }
 
-/* inode generation to use for the newly created inode */
-__u32 new_inode_generation(const struct super_block * super	/* super block
-								 * queried */ )
-{
-	assert("nikita-464", is_reiser4_super(super));
-	return get_super_private(super)->inode_generation;
-}
-
 /* amount of blocks reserved for given group in file system */
 static __u64
 reserved_for_gid(const struct super_block *super UNUSED_ARG	/* super

@@ -652,7 +652,7 @@ submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queu
 		if (!bio)
 			return -ENOMEM;
 
-		/* FIXME:NIKITA->ZAM this is very similar to the
+		/* NOTE:NIKITA->ZAM this is very similar to the
 		   submit_write(). */
 
 		bio->bi_sector = block * (super->s_blocksize >> 9);

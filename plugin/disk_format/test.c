@@ -123,7 +123,6 @@ test_format_release(struct super_block *s)
 	test_disk_super_block *disk_sb;
 	int ret;
 
-	/* FIXME: JMACD->NIKITA: Are we sure this is right?  I don't remember writing this. */
 	if ((ret = txnmgr_force_commit_all(s))) {
 		warning("jmacd-7711", "txn_force failed in umount: %d", ret);
 	}

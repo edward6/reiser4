@@ -478,7 +478,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	/* Take the hash table lock. */
 	spin_lock_tree(tree);
 
-	/* FIXME-NIKITA address-as-unallocated-blocknr still is not
+	/* NOTE-NIKITA address-as-unallocated-blocknr still is not
 	   implemented. */
 	if (0 && is_disk_addr_unallocated(blocknr)) {
 		/* Asked for unallocated znode. */
@@ -495,7 +495,7 @@ zget(reiser4_tree * tree, const reiser4_block_nr * const blocknr, znode * parent
 	   references. */
 	if (result != NULL) {
 		add_x_ref(ZJNODE(result));
-		/* FIXME-NIKITA it should be so, but special case during
+		/* NOTE-NIKITA it should be so, but special case during
 		   creation of new root makes such assertion highly
 		   complicated.
 		*/
@@ -610,7 +610,8 @@ znode_guess_plugin(const znode * node	/* znode to guess
 #ifdef GUESS_EXISTS
 		reiser4_plugin *plugin;
 
-		/* FIXME-NIKITA add locking here when dynamic plugins will be implemented */
+		/* NOTE-NIKITA add locking here when dynamic plugins will be
+		 * implemented */
 		for_all_plugins(REISER4_NODE_PLUGIN_TYPE, plugin) {
 			if ((plugin->u.node.guess != NULL) && plugin->u.node.guess(node))
 				return plugin;

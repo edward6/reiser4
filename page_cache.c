@@ -218,7 +218,7 @@ init_formatted_fake(struct super_block *super)
 		fake->i_rdev = to_kdev_t(super->s_bdev->bd_dev);
 		fake->i_bdev = super->s_bdev;
 		get_super_private(super)->fake = fake;
-		/* FIXME-NIKITA something else? */
+		/* NOTE-NIKITA something else? */
 		unlock_new_inode(fake);
 		return 0;
 	} else

@@ -136,7 +136,7 @@ hashed_done(struct inode *object /* object being deleted */ )
 			*/
 			warning("nikita-2252", "Cannot remove dot of %lli: %i", get_inode_oid(object), result);
 
-		/* FIXME-NIKITA this only works if @parent is -the- parent of
+		/* NOTE-NIKITA this only works if @parent is -the- parent of
 		   @object, viz. object whose key is stored in dotdot
 		   entry. Wouldn't work with hard-links on directories.
 		*/
@@ -166,7 +166,6 @@ hashed_owns_item(const struct inode *inode /* object to check against */ ,
 	assert("nikita-1334", coord != NULL);
 
 	if (item_type_by_coord(coord) == DIR_ENTRY_ITEM_TYPE)
-		/* FIXME-NIKITA move this into kassign.c */
 		return get_key_locality(item_key_by_coord(coord, &item_key)) == get_inode_oid(inode);
 	else
 		return common_file_owns_item(inode, coord);
@@ -356,7 +355,7 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 		   to @from_dir. @from_dir i_nlink will be decreased when
 		   iput() will be called on @from_inode.
 		  
-		   FIXME-NIKITA if file-system is not ADG (hard-links are
+		   If file-system is not ADG (hard-links are
 		   supported on directories), iput(from_inode) will not remove
 		   @from_inode, and thus above is incorrect, but hard-links on
 		   directories are problematic in many other respects.
@@ -369,7 +368,7 @@ replace_name(struct inode *to_inode	/* inode where @from_coord is
 			result = 0;
 		}
 
-		/* FIXME-NIKITA consider calling plugin method in stead of
+		/* NOTE-NIKITA consider calling plugin method in stead of
 		   accessing inode fields directly. */
 		from_dir->i_mtime = CURRENT_TIME;
 	} else {
@@ -706,7 +705,7 @@ hashed_rename(struct inode *old_dir /* directory where @old is located */ ,
 	/* add or replace name for @old_inode as @new_name */
 	if (new_inode != NULL) {
 		/* target (@new_name) exists. */
-		/* FIXME-NIKITA not clear what to do with objects that are
+		/* Not clear what to do with objects that are
 		   both directories and files at the same time. */
 		if (result == CBK_COORD_FOUND)
 			result = replace_name(old_inode, new_dir, new_inode, new_coord, &new_lh);
@@ -1100,7 +1099,7 @@ check_item(const struct inode *dir, const coord_t * coord, const char *name)
 		 current->pid, name, iplug->s.dir.extract_name(coord), *znode_get_block(coord->node));
 	/* Compare name stored in this entry with name we are looking for.
 	   
-	   FIXME-NIKITA Here should go code for support of something like
+	   NOTE-NIKITA Here should go code for support of something like
 	   unicode, code tables, etc.
 	*/
 	return !!strcmp(name, iplug->s.dir.extract_name(coord));

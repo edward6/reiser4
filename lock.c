@@ -1085,7 +1085,7 @@ prepare_to_sleep(lock_stack * owner)
 	assert("nikita-1847", owner == get_current_lock_stack());
 
 	if (0) {
-		/* FIXME-NIKITA: I commented call to sema_init() out hoping
+		/* NOTE-NIKITA: I commented call to sema_init() out hoping
 		   that it is the reason or thread sleeping in
 		   down(&owner->sema) without any other thread running.
 		  
@@ -1099,17 +1099,6 @@ prepare_to_sleep(lock_stack * owner)
 		spin_unlock_stack(owner);
 	}
 
-	/* FIXME-NIKITA: this check looks bogus, because it is done without
-	   any king of lock being held. So, it looks like ->nr_signaled can
-	   change just after this function returns. But, the only place where
-	   ->nr_signaled can be changed concurrently, that is, where
-	   owner->nr_signaled is changed and 
-	  
-	                 owner != get_current_lock_stack()
-	   
-	   is wake_up_all_lopri_owners() and this function calls up() later.
-	   
-	*/
 	if (atomic_read(&owner->nr_signaled) != 0 && !owner->curpri) {
 		return -EDEADLK;
 	}

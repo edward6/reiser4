@@ -491,7 +491,6 @@ restart:
 			goto restart;
 		}
 	}
-	/* NIKITA-FIXME-HANS: think about whether this should be a separate function */
 	/* that's all. The rest is error handling */
 	if (unlikely(h->error != NULL)) {
 		warning("nikita-373", "%s: level: %i, "
@@ -558,9 +557,9 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	if (znode_just_created(active))
 		setup_delimiting_keys(h);
 
-	/* FIXME-NIKITA this is ugly kludge. Reminder: this is necessary,
-	   because ->lookup() method returns coord with ->between field
-	   probably set to something different from AT_UNIT.
+	/* this is ugly kludge. Reminder: this is necessary, because
+	   ->lookup() method returns coord with ->between field probably set
+	   to something different from AT_UNIT.
 	*/
 	h->coord->between = AT_UNIT;
 
@@ -699,10 +698,10 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 		assert("nikita-381", h->coord->node == active);
 		if (result == NS_FOUND) {
 			/* success of tree lookup */
-			/* FIXME-NIKITA following assertion doesn't work
-			   currently, because ->lookup method of internal item
-			   sets ->between == AFTER_UNIT and bias is
-			   unconditionally set to FIND_EXACT above (why?)
+			/* following assertion doesn't work currently, because
+			   ->lookup method of internal item sets ->between ==
+			   AFTER_UNIT and bias is unconditionally set to
+			   FIND_EXACT above (why?)
 			*/
 			assert("nikita-1604", 1 || ergo(h->bias == FIND_EXACT, coord_is_existing_unit(h->coord)));
 			if (!(h->flags & CBK_UNIQUE) && key_is_ld(active, h->key)) {
@@ -719,7 +718,6 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 	}
 
 	if (h->level > TWIG_LEVEL && result == NS_NOT_FOUND) {
-		/* NIKITA-FIXME-HANS: why is this error message not signed? */
 		h->error = "not found on internal node";
 		h->result = result;
 		return LOOKUP_DONE;

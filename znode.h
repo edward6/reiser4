@@ -61,7 +61,7 @@ struct zlock {
 
 /* &znode - node in a reiser4 tree.
   
-   FIXME-NIKITA fields in this struct have to be rearranged (later) to reduce
+   NOTE-NIKITA fields in this struct have to be rearranged (later) to reduce
    cacheline pressure.
   
    Locking: 
@@ -103,7 +103,7 @@ struct zlock {
   
    If you ever need to spin lock two nodes at once, do this in "natural"
    memory order: lock znode with lower address first. (See
-   spin_lock_znode_pair() and spin_lock_znode_triple() functions, FIXME-NIKITA
+   spin_lock_znode_pair() and spin_lock_znode_triple() functions, NOTE-NIKITA
    TDB)
   
    ->node_plugin is never changed once set. This means that after code made
@@ -257,7 +257,7 @@ struct lock_stack {
 	   required to preserve order. Unlike wait_queue it works when process
 	   is woken up before getting to sleep. 
 	  
-	   FIXME-NIKITA: Transaction manager is going to have condition variables
+	   NOTE-NIKITA: Transaction manager is going to have condition variables
 	   (&kcondvar_t) anyway, so this probably will be replaced with
 	   one in the future.
 	  

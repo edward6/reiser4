@@ -434,7 +434,6 @@ jnode_get_type(const jnode * node)
 		[7] = LAST_JNODE_TYPE,	/* invalid */
 	};
 
-	/* FIXME-NIKITA atomicity? */
 	return mask_to_type[(node->state & state_mask) >> JNODE_TYPE_1];
 }
 

@@ -121,7 +121,6 @@ sd_item_stat(const coord_t * coord, void *vp)
 
 	stat = (sd_stat *) vp;
 	sd = (reiser4_stat_data_base *) item_body_by_coord(coord);
-	/* FIXME-NIKITA will fix later. */
 	mode = 0;		// d16tocpu( &sd -> mode );
 
 	if (S_ISREG(mode))
@@ -202,9 +201,8 @@ sd_load(struct inode *inode /* object being processed */ ,
 	sd_base = (reiser4_stat_data_base *) sd;
 	state = reiser4_inode_data(inode);
 	mask = state->extmask = d16tocpu(&sd_base->extmask);
-	state->sd_len = len;
+	inode_set_flag(inode, REISER4_SDLEN_KNOWN);
 
-/* NIKITA-FIXME-HANS: comment this function */
 	next_stat(&len, &sd, sizeof *sd_base);
 	for (bit = 0, chunk = 0; (mask != 0) || (bit <= LAST_IMPORTANT_SD_EXTENSION); ++bit, mask >>= 1) {
 		if (((bit + 1) % 16) != 0) {
@@ -261,10 +259,6 @@ sd_load(struct inode *inode /* object being processed */ ,
 	}
 	/* common initialisations */
 	inode->i_blksize = get_super_private(inode->i_sb)->optimal_io_size;
-	/*
-	 * FIXME-NIKITA event global died 2002.11.06.
-	 */
-	/* inode->i_version = ++event; */
 	if (len > 0)
 		warning("nikita-631", "unused space in inode %llu", get_inode_oid(inode));
 	return result;

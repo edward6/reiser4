@@ -99,7 +99,7 @@ static int lnode_valid_type(lnode_type type);
 
 /* Common operations for various types of lnodes.
   
-   FIXME-NIKITA consider making this plugin. */
+   NOTE-NIKITA consider making this plugin. */
 static struct {
 	/* get a key of the corresponding file system object */
 	reiser4_key *(*key) (const lnode * node, reiser4_key * result);

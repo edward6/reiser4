@@ -34,7 +34,7 @@
 
 /* Directory read-ahead control.
   
-   FIXME-NIKITA this is just stub. This function is supposed to be
+   NOTE-NIKITA this is just stub. This function is supposed to be
    called during lookup, readdir, and may be creation.
   
 */
@@ -282,7 +282,7 @@ common_unlink(struct inode *parent /* parent object */ ,
 	   Directories always go through this path (until hard-links on
 	   directories are allowed).
 	*/
-	/* FIXME-NIKITA this is commented out, because ->i_count check is not
+	/* NOTE-NIKITA this is commented out, because ->i_count check is not
 	   valid---actually we also should check victim->d_count, but this
 	   requires spin_lock(&dcache_lock), so we need cut-n-paste something
 	   from d_delete().
@@ -470,8 +470,8 @@ common_create_child(struct inode *parent /* parent object */ ,
 		inode_clr_flag(object, REISER4_IMMUTABLE);
 		if (result != -ENAMETOOLONG)
 			warning("nikita-2219",
-				"Failed to create sd for %llu (%lx)",
-				get_inode_oid(object), reiser4_inode_data(object)->flags);
+				"Failed to create sd for %llu",
+				get_inode_oid(object));
 		return result;
 	}
 
@@ -603,7 +603,7 @@ is_dir_empty(const struct inode *dir)
 	   number of entries. */
 	return dir->i_size <= 2 ? 0 : -ENOTEMPTY;
 
-	/* FIXME-NIKITA this is not correct if hard links on directories are
+	/* NOTE-NIKITA this is not correct if hard links on directories are
 	   supported in this fs (if REISER4_ADG is not set in dir ->
 	   i_sb). But then, how to determine that last "outer" link is
 	   removed?
@@ -702,7 +702,7 @@ adjust_dir_pos(struct file   * dir,
 		/* directory entry to which @pos points to is being
 		   removed. 
 		  
-		   FIXME-NIKITA: Right thing to do is to update @pos to point
+		   NOTE-NIKITA: Right thing to do is to update @pos to point
 		   to the next entry. This is complex (we are under spin-lock
 		   for one thing). Just rewind it to the beginning. Next
 		   readdir will have to scan the beginning of

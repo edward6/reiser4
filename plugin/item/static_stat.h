@@ -37,8 +37,6 @@ Yet this compromise deserves to be compromised a little.
 We accomodate the case where you have no more than the standard unix file attributes by using an "extension bitmask":
 each bit in it indicates presence or absence of or particular stat data extension (see sd_ext_bits enum).
 
-NIKITA-FIXME-HANS: explain what an extension is.
-
   If the first
 bit of the extension bitmask bit is 0, we have light-weight file whose attributes are either inherited from parent
 directory (as uid, gid) or initialised to some sane values.
@@ -49,7 +47,6 @@ directory (as uid, gid) or initialised to some sane values.
 
     ->present() called by sd_load() when this extension is found in stat-data
     ->absent() called by sd_load() when this extension is not found in stat-data
-NIKITA-FIXME-HANS: needs three more sentences to explain absent().
     ->save_len() called by sd_len() to calculate total length of stat-data
     ->save() called by sd_save() to store extension data into stat-data
 
@@ -95,9 +92,6 @@ typedef enum {
    existence of such specifications.  Note that once lightweight files
    exist, you need compressed item headers to make the solution
    complete.  Not until v4.1, or later.  */
-/* NIKITA-FIXME-HANS: read the above */
-/* HANS-FIXME-ZAM: it would be better to see light-weight files before changing
-   stat_data_base. Do you have a proof that they do not need this? */
 /* minimal stat-data. This allows to support light-weight files. */
 typedef struct reiser4_stat_data_base {
 	/*  0 */ d16 extmask;
@@ -139,11 +133,9 @@ typedef struct reiser4_plugin_slot {
 	/*  0 */ d16 type_id;
 	/*  2 */ d16 id;
 /*  4 *//* here plugin stores its persistent state */
-/* NIKITA-FIXME-HANS: what does that mean? */
 } PACKED reiser4_plugin_slot;
 
 /* stat-data extension for files with non-standard plugin. */
-/* NIKITA-FIXME-HANS: comment on these things as a set, what they are used for, etc. */
 typedef struct reiser4_plugin_stat {
 	/* number of additional plugins, associated with this object */
 	/*  0 */ d16 plugins_no;

@@ -1443,7 +1443,7 @@ node40_copy(struct shift_params *shift)
 
 	coord_init_first_unit(&to, shift->target);
 
-	/* FIXME:NIKITA->VS not sure what I am doing: shift->target is empty,
+	/* NOTE:NIKITA->VS not sure what I am doing: shift->target is empty,
 	   hence to.between is set to EMPTY_NODE above. Looks like we want it
 	   to be AT_UNIT.
 	  

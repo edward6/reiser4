@@ -336,10 +336,6 @@ overwrite_tail(coord_t * coord, flow_t * f)
 	if (count > f->length)
 		count = f->length;
 
-	/* FIXME:NIKITA->VS this is called with f -> data == NULL during
-	   unix_file_write->expand_file->write_flow->tail_write.
-	   No, overwrite is not supposed to work for expanding. If it does - that is a bug
-	*/
 	if (__copy_from_user((char *) item_body_by_coord(coord) + coord->unit_pos, f->data, count))
 		return -EFAULT;
 
@@ -422,7 +418,7 @@ tail_write(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t * f)
 		/* throttle the writer */
 		result = tail_balance_dirty_pages(inode->i_mapping, f, coord, lh);
 		if (result) {
-			reiser4_stat_tail_add(bdp_caused_repeats);
+			// reiser4_stat_tail_add(bdp_caused_repeats);
 			break;
 		}		
 	}

@@ -724,7 +724,6 @@ jnode_try_drop(jnode * node)
 		return -EBUSY;
 	}
 
-	/* FIXME-NIKITA znode releasing is not yet fully supported */
 	result = jplug->is_busy(node);
 	spin_unlock_jnode(node);
 	if (result == 0)

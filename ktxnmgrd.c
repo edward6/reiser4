@@ -228,7 +228,7 @@ scan_mgr(txn_mgr * mgr)
 	reiser4_tree *tree;
 	assert("nikita-2454", mgr != NULL);
 
-	/* FIXME-NIKITA this only works for atoms embedded into super blocks. */
+	/* NOTE-NIKITA this only works for atoms embedded into super blocks. */
 	tree = &container_of(mgr, reiser4_super_info_data, tmgr)->tree;
 	assert("nikita-2455", tree != NULL);
 	assert("nikita-2456", tree->super != NULL);

@@ -200,7 +200,7 @@ are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
 	trace_if(TRACE_NODES, print_key("k1", item_key_by_coord(i1, &k1)));
 	trace_if(TRACE_NODES, print_key("k2", item_key_by_coord(i2, &k2)));
 
-	/* FIXME-NIKITA are_items_mergeable() is also called by assertions in
+	/* NOTE-NIKITA are_items_mergeable() is also called by assertions in
 	   shifting code when nodes are in "suspended" state. */
 	assert("nikita-1663", keyle(item_key_by_coord(i1, &k1), item_key_by_coord(i2, &k2)));
 

@@ -889,10 +889,6 @@ item_to_operate_on(struct inode *inode, flow_t * f, coord_t * coord)
 
 	if (f->op == READ_OP) {
 		assert("", coord_is_existing_item(coord));
-		/*
-		 * FIXME:NIKITA->VS HUH?
-		 */
-		/* coord->iplug = item_plugin_by_coord(coord); */
 		assert("vs-1083", item_contains_key(coord, &f->key));
 		return TAIL_ID;	
 	}

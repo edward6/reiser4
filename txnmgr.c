@@ -676,8 +676,8 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	/* Check if both atom pointers are still NULL... */
 	if (node->atom != NULL || txnh->atom != NULL) {
 		trace_on(TRACE_TXN, "alloc atom race\n");
-		/* FIXME-NIKITA probably it is rather better to free
-		   *atom_alloc here than thread it up to try_capture(). */
+		/* NOTE-NIKITA probably it is rather better to free
+		 * atom_alloc here than thread it up to try_capture(). */
 		return ERR_PTR(-EAGAIN);
 	}
 
@@ -1686,7 +1686,7 @@ repeat:
 		   works yet, but it may also return EAGAIN.  When the request is
 		   legitimately blocked, the requestor goes to sleep in fuse_wait, so this
 		   is not a busy loop. */
-		/* FIXME-NIKITA: still don't understand:
+		/* NOTE-NIKITA: still don't understand:
 		  
 		   try_capture_block->capture_assign_txnh->spin_trylock_atom->EAGAIN
 		  
@@ -2163,7 +2163,7 @@ capture_assign_block(txn_handle * txnh, jnode * node)
 		spin_unlock_txnh(txnh);
 		spin_unlock_jnode(node);
 
-		/* FIXME-NIKITA Busy loop here? Look at the comment in
+		/* NOTE-NIKITA Busy loop here? Look at the comment in
 		   capture_assign_txnh(). */
 		return -EAGAIN;
 
@@ -2206,7 +2206,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 		spin_unlock_jnode(node);
 		spin_unlock_txnh(txnh);
 
-		/* FIXME-NIKITA it looks like we have busy loop on atom spin
+		/* NOTE-NIKITA it looks like we have busy loop on atom spin
 		   lock here. We cannot simply acquire and immediately release
 		   atom spin lock here to avoid it because fusion can
 		   invalidate atom object. The only way to synchronise against

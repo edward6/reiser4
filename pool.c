@@ -32,11 +32,11 @@
    To keep track of dynamically allocated objects, pool adds its own linkage
    to each object. 
   
-   FIXME-NIKITA This linkage also contains some balancing-specific data. This
+   NOTE-NIKITA This linkage also contains some balancing-specific data. This
    is not perfect. On the other hand, balancing is currently the only client
    of pool code.
   
-   FIXME-NIKITA Another desirable feature is to rewrite all pool manipulation
+   NOTE-NIKITA Another desirable feature is to rewrite all pool manipulation
    functions in the style of tslist/tshash, i.e., make them unreadable, but
    type-safe.
   

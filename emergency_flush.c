@@ -200,7 +200,7 @@ emergency_flush(struct page *page)
 
 			spin_unlock_jnode(node);
 
-			/* FIXME-NIKITA JNODE_WRITEBACK bit is not set here */
+			/* XXX JNODE_WRITEBACK bit is not set here */
 			result = page_io(page, 
 					 node, WRITE, GFP_NOFS | __GFP_HIGH);
 			if (result == 0) {

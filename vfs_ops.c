@@ -119,7 +119,6 @@ static int reiser4_dentry_to_fh(struct dentry *, __u32 * fh, int *lenp, int need
 
 static int reiser4_writepage(struct page *);
 static int reiser4_readpage(struct file *, struct page *);
-static int reiser4_vm_writeback(struct page *page, struct writeback_control *wbc);
 /* static int reiser4_prepare_write(struct file *, 
 				 struct page *, unsigned, unsigned);
 static int reiser4_commit_write(struct file *, 
@@ -1120,7 +1119,7 @@ reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 
 	if (dentry->d_fsdata == NULL) {
 		reiser4_stat_file_add(fsdata_alloc);
-		/* FIXME-NIKITA use slab in stead */
+		/* NOTE-NIKITA use slab in stead */
 		dentry->d_fsdata = reiser4_kmalloc(sizeof (reiser4_dentry_fsdata), GFP_KERNEL);
 		if (dentry->d_fsdata == NULL)
 			return ERR_PTR(-ENOMEM);
@@ -1162,7 +1161,7 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		reiser4_inode *info;
 
 		reiser4_stat_file_add(private_data_alloc);
-		/* FIXME-NIKITA use slab in stead */
+		/* NOTE-NIKITA use slab in stead */
 		fsdata = reiser4_kmalloc(sizeof *fsdata, GFP_KERNEL);
 		if (fsdata == NULL)
 			return ERR_PTR(-ENOMEM);
@@ -1261,9 +1260,8 @@ init_once(void *obj /* pointer to new inode */ ,
 	info = obj;
 
 	if ((flags & (SLAB_CTOR_VERIFY | SLAB_CTOR_CONSTRUCTOR)) == SLAB_CTOR_CONSTRUCTOR) {
-		/* FIXME-NIKITA add here initialisations for locks, list
-		   heads, etc. that will be added to our private inode part. */
-		/* FIXME-NIKITA where inode is zeroed? */
+		/* NOTE-NIKITA add here initialisations for locks, list heads,
+		   etc. that will be added to our private inode part. */
 		inode_init_once(&info->vfs_inode);
 		init_rwsem(&info->p.sem);
 		info->p.eflushed = 0;
@@ -1306,7 +1304,6 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 
 		info = &obj->p;
 
-		info->flags = 0;
 		info->file = NULL;
 		info->dir = NULL;
 		info->perm = NULL;
@@ -1315,7 +1312,6 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 		info->sd = NULL;
 		info->dir_item = NULL;
 		info->extmask = 0ull;
-		info->sd_len = 0;
 		info->locality_id = 0ull;
 		info->parent = NULL;
 		info->plugin_mask = 0;
@@ -1353,7 +1349,7 @@ reiser4_dirty_inode(struct inode *inode)
 	int result;
 	__REISER4_ENTRY(inode->i_sb,);
 
-	/* FIXME-NIKITA: VFS expects ->dirty_inode() to be relatively
+	/* NOTE-NIKITA: VFS expects ->dirty_inode() to be relatively
 	   cheap. For example, each quota call invokes it. Our dirty inode
 	   updates stat-data in the tree. Per-inode seals probably alleviate
 	   this significantly, but still.
@@ -1533,7 +1529,7 @@ parse_option(char *opt_string /* starting point of parsing */ ,
 	int result;
 	const char *err_msg;
 
-	/* FIXME-NIKITA think about using lib/cmdline.c functions here. */
+	/* NOTE-NIKITA think about using lib/cmdline.c functions here. */
 
 	val_start = strchr(opt_string, '=');
 	if (val_start != NULL) {
@@ -2009,7 +2005,7 @@ read_super_block:
 
 	assert("nikita-2687", check_block_counters(s));
 
-	/* FIXME-NIKITA actually, options should be parsed by plugins also. */
+	/* NOTE-NIKITA actually, options should be parsed by plugins also. */
 	result = reiser4_parse_options(s, data);
 	if (result) {
 		goto error4;
@@ -2163,8 +2159,6 @@ reiser4_write_super(struct super_block *s)
 	int ret;
 	__REISER4_ENTRY(s,);
 
-	/* FIXME: JMACD->NIKITA: Are we sure this is right?  I don't remember putting this
-	   here. */
 	if ((ret = txnmgr_force_commit_all(s))) {
 		warning("jmacd-77113", "txn_force failed in write_super: %d", ret);
 	}
@@ -2333,7 +2327,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	assert("nikita-2259", PageLocked(page));
 	ON_DEBUG_CONTEXT(assert("nikita-2586", lock_counters()->spin_locked == 0));
 
-	/* FIXME-NIKITA: this can be called in the context of reiser4 call. It
+	/* NOTE-NIKITA: this can be called in the context of reiser4 call. It
 	   is not clear what to do in this case. A lot of deadlocks seems be
 	   possible. */
 
@@ -2580,7 +2574,6 @@ module_exit(done_reiser4);
 MODULE_DESCRIPTION("Reiser4 filesystem");
 MODULE_AUTHOR("Hans Reiser <Reiser@Namesys.COM>");
 
-/* FIXME-NIKITA is this correct? */
 MODULE_LICENSE("GPL");
 
 /* description of the reiser4 file system type in the VFS eyes. */
@@ -2590,7 +2583,7 @@ static struct file_system_type reiser4_fs_type = {
 	.get_sb = reiser4_get_sb,
 	.kill_sb = reiser4_kill_super,
 
-	/* FIXME-NIKITA something more? */
+	/* NOTE-NIKITA something more? */
 	.fs_flags = FS_REQUIRES_DEV,
 	.next = NULL
 };

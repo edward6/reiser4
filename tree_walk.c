@@ -321,7 +321,6 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 		/* does coord object points to internal item? We do not
 		   support sibling pointers between znode for formatted and
 		   unformatted nodes and return -ENAVAIL in that case. */
-		/* FIXME-NIKITA nikita: can child_znode() be used here? */
 		iplug = item_plugin_by_coord(coord);
 		if (!item_is_internal(coord)) {
 			link_znodes(child, NULL, flags & GN_GO_LEFT);

@@ -117,7 +117,7 @@ de_add_entry(struct inode *dir /* directory of item */ ,
 	data.user = 0;
 	data.iplug = item_plugin_by_id(SIMPLE_DIR_ENTRY_ID);
 
-	/* FIXME-NIKITA quota plugin */
+	/* NOTE-NIKITA quota plugin */
 	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, data.length))
 		return -EDQUOT;
 
@@ -160,7 +160,7 @@ de_rem_entry(struct inode *dir /* directory of item */ ,
 	coord_dup(&shadow, coord);
 	result = cut_node(coord, &shadow, NULL, NULL, NULL, DELETE_KILL, 0);
 	if (result == 0) {
-		/* FIXME-NIKITA quota plugin */
+		/* NOTE-NIKITA quota plugin */
 		DQUOT_FREE_SPACE_NODIRTY(dir, length);
 	}
 	return result;

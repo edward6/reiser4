@@ -208,9 +208,9 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 		init_carry_level(done, doing->pool);
 	}
 
-	/* FIXME-NIKITA enough free memory has to be reserved. */
+	/* NOTE-NIKITA enough free memory has to be reserved. */
 	/* iterate until there is nothing more to do */
-	while (/*(result == 0) && */(carry_op_num(doing) > 0)) {
+	while (result == 0 && carry_op_num(doing) > 0) {
 		carry_level *tmp;
 
 		ON_STATS(todo->level_no = doing->level_no + 1);
@@ -273,7 +273,6 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	/* all counters, but x_refs should remain the same. x_refs can change
 	   owing to transaction manager */
 	CHECK_COUNTERS;
-	/* FIXME-NIKITA probably balance_dirty_pages() should be called here. */
 	return result;
 }
 
@@ -590,7 +589,6 @@ add_carry(carry_level * level	/* &carry_level to add node
 
 	result = (carry_node *) add_obj(&level->pool->node_pool, &level->nodes, order, &reference->header);
 	if (!IS_ERR(result) && (result != NULL))
-		/* FIXME-NIKITA this is never decreased */
 		++level->nodes_num;
 	return result;
 }
@@ -615,7 +613,6 @@ add_op(carry_level * level /* &carry_level to add node to */ ,
 	trace_stamp(TRACE_CARRY);
 	result = (carry_op *) add_obj(&level->pool->op_pool, &level->ops, order, &reference->header);
 	if (!IS_ERR(result) && (result != NULL))
-		/* FIXME-NIKITA this is never decreased */
 		++level->ops_num;
 	return result;
 }
