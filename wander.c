@@ -170,8 +170,7 @@ ZAM-FIXME-HANS: use term "play" and define it too;-)
 
 int WRITE_LOG = 1;		/* journal is written by default  */
 
-static int submit_write(jnode *, int, const reiser4_block_nr *,
-			flush_queue_t * fq);
+static int submit_write(jnode *, int, const reiser4_block_nr *, flush_queue_t * fq);
 
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
@@ -277,8 +276,7 @@ format_journal_footer(struct commit_handle *ch)
 static int
 log_record_capacity(const struct super_block *super)
 {
-	return (super->s_blocksize - sizeof (struct log_record_header)) /
-	    sizeof (struct log_entry);
+	return (super->s_blocksize - sizeof (struct log_record_header)) / sizeof (struct log_entry);
 }
 
 /**
@@ -333,8 +331,7 @@ format_log_record(struct commit_handle *ch, jnode * node, int serial)
 		next = capture_list_front(&ch->tx_list);
 
 	assert("zam-465", LRH != NULL);
-	assert("zam-463",
-	       ch->super->s_blocksize > sizeof (struct log_record_header));
+	assert("zam-463", ch->super->s_blocksize > sizeof (struct log_record_header));
 
 	xmemset(jdata(node), 0, (size_t) ch->super->s_blocksize);
 	xmemcpy(jdata(node), LOG_RECORD_MAGIC, LOG_RECORD_MAGIC_SIZE);
@@ -347,8 +344,7 @@ format_log_record(struct commit_handle *ch, jnode * node, int serial)
 
 /* add one wandered map entry to formatted log record */
 static void
-store_entry(jnode * node,
-	    int index, const reiser4_block_nr * a, const reiser4_block_nr * b)
+store_entry(jnode * node, int index, const reiser4_block_nr * a, const reiser4_block_nr * b)
 {
 	char *data;
 	struct log_entry *pairs;
@@ -373,8 +369,7 @@ get_tx_size(struct commit_handle *ch)
 	/* count all ordinary log records 
 	 * (<overwrite_set_size> - 1) / <log_record_capacity> + 1 and add one
 	 * for tx head block */
-	ch->tx_size =
-	    (ch->overwrite_set_size - 1) / log_record_capacity(ch->super) + 2;
+	ch->tx_size = (ch->overwrite_set_size - 1) / log_record_capacity(ch->super) + 2;
 }
 
 /* A special structure for using in store_wmap_actor() for saving its state
@@ -392,17 +387,14 @@ struct store_wmap_params {
 /* an actor for use in blocknr_set_iterator routine which populates the list
  * of pre-formatted log records by wandered map info */
 static int
-store_wmap_actor(txn_atom * atom UNUSED_ARG,
-		 const reiser4_block_nr * a,
-		 const reiser4_block_nr * b, void *data)
+store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4_block_nr * b, void *data)
 {
 	struct store_wmap_params *params = data;
 
 	if (params->idx >= params->capacity) {
 		/* a new log record should be taken from the tx_list */
 		params->cur = capture_list_next(params->cur);
-		assert("zam-454",
-		       !capture_list_end(params->tx_list, params->cur));
+		assert("zam-454", !capture_list_end(params->tx_list, params->cur));
 
 		params->idx = 0;
 	}
@@ -481,8 +473,7 @@ dealloc_tx_list(struct commit_handle *ch)
 		jnode *cur = capture_list_pop_front(&ch->tx_list);
 
 		ON_DEBUG(capture_list_clean(cur));
-		reiser4_dealloc_block(jnode_get_block(cur), 0,
-				      BLOCK_NOT_COUNTED);
+		reiser4_dealloc_block(jnode_get_block(cur), 0, BLOCK_NOT_COUNTED);
 
 		unpin_jnode_data(cur);
 		drop_io_head(cur);
@@ -493,8 +484,7 @@ dealloc_tx_list(struct commit_handle *ch)
  * from atom's overwrite set. */
 static int
 dealloc_wmap_actor(txn_atom * atom,
-		   const reiser4_block_nr * a UNUSED_ARG,
-		   const reiser4_block_nr * b, void *data UNUSED_ARG)
+		   const reiser4_block_nr * a UNUSED_ARG, const reiser4_block_nr * b, void *data UNUSED_ARG)
 {
 
 	assert("zam-499", b != NULL);
@@ -515,8 +505,7 @@ dealloc_wmap(struct commit_handle *ch)
 	assert("zam-696", ch->atom != NULL);
 
 	spin_lock_atom(ch->atom);
-	blocknr_set_iterator(ch->atom, &ch->atom->wandered_map,
-			     dealloc_wmap_actor, NULL, 1);
+	blocknr_set_iterator(ch->atom, &ch->atom->wandered_map, dealloc_wmap_actor, NULL, 1);
 	spin_unlock_atom(ch->atom);
 }
 
@@ -536,8 +525,6 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	hint.block_stage = BLOCK_FLUSH_RESERVED;
 	trace_on(TRACE_RESERVE, "flush allocates %llu blocks for wandering logs.", wide_len);
 	ret = reiser4_alloc_blocks (&hint, start, &wide_len, 1/*not unformatted*/, 0);
-
-	blocknr_hint_done(&hint);
 	*len = (int) wide_len;
 
 	return ret;
@@ -559,13 +546,11 @@ get_overwrite_set(struct commit_handle *ch)
 		jnode *next = capture_list_next(cur);
 
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
-			trace_on(TRACE_LOG, "fake znode found , WANDER=(%d)\n",
-				 JF_ISSET(cur, JNODE_OVRWR));
+			trace_on(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
 		}
 
 		assert("nikita-2591", !jnode_check_dirty(cur));
-		if (0 && jnode_page(cur) &&
-		    PageDirty(jnode_page(cur)) && !JF_ISSET(cur, JNODE_OVRWR))
+		if (0 && jnode_page(cur) && PageDirty(jnode_page(cur)) && !JF_ISSET(cur, JNODE_OVRWR))
 			rpanic("nikita-2590", "Wow!");
 
 		if (JF_ISSET(cur, JNODE_OVRWR)) {
@@ -584,14 +569,11 @@ get_overwrite_set(struct commit_handle *ch)
 				 * replaced by jnode supplied by
 				 * disk_layout. */
 
-				struct super_block *s =
-				    reiser4_get_current_sb();
-				reiser4_super_info_data *private =
-				    get_current_super_private();
+				struct super_block *s = reiser4_get_current_sb();
+				reiser4_super_info_data *private = get_current_super_private();
 
 				if (private->df_plug->log_super) {
-					jnode *sj =
-					    private->df_plug->log_super(s);
+					jnode *sj = private->df_plug->log_super(s);
 
 					assert("zam-593", sj != NULL);
 
@@ -601,9 +583,7 @@ get_overwrite_set(struct commit_handle *ch)
 					spin_lock_jnode(sj);
 
 					jnode_set_wander(sj);
-					capture_list_push_back(&ch->
-							       overwrite_set,
-							       sj);
+					capture_list_push_back(&ch->overwrite_set, sj);
 					sj->atom = ch->atom;
 					jref(sj);
 
@@ -645,8 +625,7 @@ get_overwrite_set(struct commit_handle *ch)
  * @block_p block number.  If @fq is not NULL it means that waiting for i/o
  * completion will be done more efficiently by using flush_queue_t objects */
 static int
-submit_write(jnode * first, int nr,
-	     const reiser4_block_nr * block_p, flush_queue_t * fq)
+submit_write(jnode * first, int nr, const reiser4_block_nr * block_p, flush_queue_t * fq)
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int max_blocks;
@@ -659,13 +638,13 @@ submit_write(jnode * first, int nr,
 
 	block = *block_p;
 
+	trace_on (TRACE_IO_W, "write of %d blocks starting from %llu\n",
+		  nr, (unsigned long long)block);
+
 #if REISER4_USER_LEVEL_SIMULATION
 	max_blocks = nr;
 #else
-	max_blocks =
-	    bdev_get_queue(super->s_bdev)->max_sectors >> (super->
-							   s_blocksize_bits -
-							   9);
+	max_blocks = bdev_get_queue(super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9);
 #endif
 
 	while (nr > 0) {
@@ -719,7 +698,7 @@ submit_write(jnode * first, int nr,
 			/*
 			 * prepare node to being written
 			 */
-			jnode_ops(cur)->io_hook(cur, pg, WRITE);
+			jnode_io_hook(cur, pg, WRITE);
 
 			bio->bi_io_vec[i].bv_page = pg;
 			bio->bi_io_vec[i].bv_len = super->s_blocksize;
@@ -857,8 +836,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		params.capacity = log_record_capacity(reiser4_get_current_sb());
 
 		atom = get_current_atom_locked();
-		blocknr_set_iterator(atom, &atom->wandered_map,
-				     &store_wmap_actor, &params, 0);
+		blocknr_set_iterator(atom, &atom->wandered_map, &store_wmap_actor, &params, 0);
 		spin_unlock_atom(atom);
 	}
 
@@ -877,8 +855,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 free_not_assigned:
 	/* We deallocate blocks not yet assigned to jnodes on tx_list. The
 	 * caller takes care about invalidating of tx list  */
-	reiser4_dealloc_blocks(&first, &len, 0, BLOCK_GRABBED,
-			       1 /* not unformatted */ );
+	reiser4_dealloc_blocks(&first, &len, 0, BLOCK_GRABBED, 1 /* not unformatted */ );
 
 	return ret;
 }
@@ -900,12 +877,8 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 	while ((len--) > 0) {
 		do {
 			atom = get_current_atom_locked();
-			assert("zam-536",
-			       !blocknr_is_fake(jnode_get_block(cur)));
-			ret =
-			    blocknr_set_add_pair(atom, &atom->wandered_map,
-						 &new_bsep,
-						 jnode_get_block(cur), &block);
+			assert("zam-536", !blocknr_is_fake(jnode_get_block(cur)));
+			ret = blocknr_set_add_pair(atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block);
 		} while (ret == -EAGAIN);
 
 		if (ret) {
@@ -913,9 +886,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			 * map */
 			reiser4_block_nr wide_len = len;
 
-			reiser4_dealloc_blocks(&block, &wide_len, 0,
-					       BLOCK_NOT_COUNTED,
-					       1 /* not unformatted */ );
+			reiser4_dealloc_blocks(&block, &wide_len, 0, BLOCK_NOT_COUNTED, 1 /* not unformatted */ );
 			return ret;
 		}
 
@@ -965,8 +936,7 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 			return ret;
 
 		while ((len--) > 0) {
-			assert("zam-604",
-			       !capture_list_end(&ch->overwrite_set, cur));
+			assert("zam-604", !capture_list_end(&ch->overwrite_set, cur));
 			cur = capture_list_next(cur);
 		}
 	}
@@ -1032,10 +1002,9 @@ reiser4_write_logs(void)
 	/* VITALY: Check that flush_reserve is enough. */	
 	assert("vpf-279", check_atom_reserved_blocks(atom, ch.overwrite_set_size));
 
-/*	if (reiser4_grab_space_exact(ch.tx_size, 1))
-		goto up_and_ret;*/
-
-	trace_on(TRACE_RESERVE, "tx logs grabs %d blocks.", ch.tx_size);
+	if ((ret = reiser4_grab_space_force((__u64)
+					    (ch.overwrite_set_size + ch.tx_size))))
+		goto up_and_ret;
 
 	{
 		flush_queue_t *fq;
@@ -1072,8 +1041,7 @@ reiser4_write_logs(void)
 
 	trace_on(TRACE_LOG,
 		 "journal header updated (tx head at block %s)\n",
-		 sprint_address(jnode_get_block
-				(capture_list_front(&ch.tx_list))));
+		 sprint_address(jnode_get_block(capture_list_front(&ch.tx_list))));
 
 	post_commit_hook();
 
@@ -1109,8 +1077,7 @@ reiser4_write_logs(void)
 
 	trace_on(TRACE_LOG,
 		 "journal footer updated (tx head at block %s)\n",
-		 sprint_address(jnode_get_block
-				(capture_list_front(&ch.tx_list))));
+		 sprint_address(jnode_get_block(capture_list_front(&ch.tx_list))));
 
 	post_write_back_hook();
 
@@ -1156,8 +1123,7 @@ wait_on_jnode_list(capture_list_head * head)
 	jnode *scan;
 	int ret = 0;
 
-	for (scan = capture_list_front(head);
-	     !capture_list_end(head, scan); scan = capture_list_next(scan)) {
+	for (scan = capture_list_front(head); !capture_list_end(head, scan); scan = capture_list_next(scan)) {
 		struct page *pg = jnode_page(scan);
 
 		if (pg) {
@@ -1185,8 +1151,7 @@ check_tx_head(const jnode * node)
 	struct tx_header *TH = (struct tx_header *) jdata(node);
 
 	if (memcmp(&TH->magic, TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE) != 0) {
-		warning("zam-627", "tx head at block %s corrupted\n",
-			sprint_address(jnode_get_block(node)));
+		warning("zam-627", "tx head at block %s corrupted\n", sprint_address(jnode_get_block(node)));
 		return -EIO;
 	}
 
@@ -1199,8 +1164,7 @@ check_log_record(const jnode * node)
 	struct log_record_header *RH = (struct log_record_header *) jdata(node);
 
 	if (memcmp(&RH->magic, LOG_RECORD_MAGIC, LOG_RECORD_MAGIC_SIZE) != 0) {
-		warning("zam-628", "log record at block %s corrupted\n",
-			sprint_address(jnode_get_block(node)));
+		warning("zam-628", "log record at block %s corrupted\n", sprint_address(jnode_get_block(node)));
 		return -EIO;
 	}
 
@@ -1237,8 +1201,7 @@ static int
 replay_transaction(const struct super_block *s,
 		   jnode * tx_head,
 		   const reiser4_block_nr * log_rec_block_p,
-		   const reiser4_block_nr * end_block,
-		   unsigned int nr_log_records)
+		   const reiser4_block_nr * end_block, unsigned int nr_log_records)
 {
 	reiser4_block_nr log_rec_block = *log_rec_block_p;
 	struct commit_handle ch;
@@ -1257,8 +1220,7 @@ replay_transaction(const struct super_block *s,
 
 		if (nr_log_records == 0) {
 			warning("zam-631",
-				"number of log records in the linked list"
-				" greater than number stored in tx head.\n");
+				"number of log records in the linked list" " greater than number stored in tx head.\n");
 			ret = -EIO;
 			goto free_ow_set;
 		}
@@ -1326,8 +1288,7 @@ replay_transaction(const struct super_block *s,
 	}
 
 	if (nr_log_records != 0) {
-		warning("zam-632", "number of log records in the linked list"
-			" less than number stored in tx head.\n");
+		warning("zam-632", "number of log records in the linked list" " less than number stored in tx head.\n");
 		ret = -EIO;
 		goto free_ow_set;
 	}
@@ -1433,9 +1394,7 @@ replay_oldest_transaction(struct super_block *s)
 	pin_jnode_data(tx_head);
 	jrelse(tx_head);
 
-	ret =
-	    replay_transaction(s, tx_head, &log_rec_block,
-			       jnode_get_block(tx_head), total - 1);
+	ret = replay_transaction(s, tx_head, &log_rec_block, jnode_get_block(tx_head), total - 1);
 
 	unpin_jnode_data(tx_head);
 	drop_io_head(tx_head);
@@ -1481,8 +1440,7 @@ reiser4_journal_recover_sb_data(struct super_block *s)
 		reiser4_set_free_blocks(s, d64tocpu(&JF->free_blocks));
 
 		/* restore oid allocator state */
-		oid_init_allocator(s, d64tocpu(&JF->nr_files),
-				   d64tocpu(&JF->next_oid));
+		oid_init_allocator(s, d64tocpu(&JF->nr_files), d64tocpu(&JF->next_oid));
 	}
 out:
 	jrelse(private->journal_footer);
@@ -1555,8 +1513,7 @@ reiser4_journal_replay(struct super_block *s)
 	while ((ret = replay_oldest_transaction(s)) == -EAGAIN)
 		nr_tx_replayed++;
 
-	trace_on(TRACE_REPLAY, "%d transactions replayed ret = %d",
-		 nr_tx_replayed, ret);
+	trace_on(TRACE_REPLAY, "%d transactions replayed ret = %d", nr_tx_replayed, ret);
 
 	return ret;
 }
@@ -1610,9 +1567,7 @@ done_journal_info(struct super_block *s)
 
 /* load journal control blocks */
 int
-init_journal_info(struct super_block *s,
-		  const reiser4_block_nr * header_block,
-		  const reiser4_block_nr * footer_block)
+init_journal_info(struct super_block *s, const reiser4_block_nr * header_block, const reiser4_block_nr * footer_block)
 {
 	reiser4_super_info_data *private = get_super_private(s);
 	int ret;
@@ -1622,14 +1577,12 @@ init_journal_info(struct super_block *s,
 	assert("zam-652", *header_block != 0);
 	assert("zam-653", *footer_block != 0);
 
-	ret =
-	    load_journal_control_block(&private->journal_header, header_block);
+	ret = load_journal_control_block(&private->journal_header, header_block);
 
 	if (ret)
 		return ret;
 
-	ret =
-	    load_journal_control_block(&private->journal_footer, footer_block);
+	ret = load_journal_control_block(&private->journal_footer, footer_block);
 
 	if (ret) {
 		unload_journal_control_block(&private->journal_header);
