@@ -71,6 +71,7 @@ typedef struct {
 #define write_tree_trace(tree, op, ...) noop
 #define write_node_trace(node) noop
 #define write_page_trace(mapping, index) noop
+#define jnode_short_info(j, buf) buf
 
 #endif
 
