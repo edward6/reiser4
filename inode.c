@@ -44,6 +44,35 @@ int inode_get_flag( const struct inode *inode, reiser4_file_plugin_flags f )
 	return test_bit( ( int ) f, &reiser4_inode_data( inode ) -> flags );
 }
 
+oid_t get_inode_oid( const struct inode *inode )
+{
+	assert( "nikita-2519", inode != NULL );
+	if( REISER4_INO_IS_OID ) {
+		assert( "nikita-2520", BITS_PER_LONG >= 64 );
+		return ( oid_t ) inode -> i_ino;
+	} else 
+		return 
+			( reiser4_inode_data( inode ) -> oid_hi << OID_HI_SHIFT ) | 
+			inode -> i_ino;
+}
+
+void set_inode_oid( struct inode *inode, oid_t oid )
+{
+	assert( "nikita-2519", inode != NULL );
+	if( REISER4_INO_IS_OID )
+		inode -> i_ino = oid;
+	else {
+		inode -> i_ino = ( ino_t ) oid;
+		reiser4_inode_data( inode ) -> oid_hi = oid >> OID_HI_SHIFT;
+	}
+	assert( "nikita-2521", get_inode_oid( inode ) == oid );
+}
+
+ino_t ino_t_by_oid( oid_t oid )
+{
+	return ( ino_t ) oid;
+}
+
 /** lock inode. We lock file-system wide spinlock, because we have to lock
  *  inode _before_ we have actually read and initialised it and we cannot rely
  *  on memset() in fs/inode.c to initialise spinlock. Alternative is to grab
@@ -338,7 +367,7 @@ static int init_locked_inode( struct inode *inode /* new inode */,
 	assert( "nikita-1995", inode != NULL );
 	assert( "nikita-1996", opaque != NULL );
 	key = opaque;
-	inode -> i_ino = get_key_objectid( key );
+	set_inode_oid( inode, get_key_objectid( key ) );
 	reiser4_inode_data( inode ) -> locality_id = get_key_locality( key );
 	return 0;
 }
@@ -364,7 +393,10 @@ int reiser4_inode_find_actor( struct inode *inode /* inode from hash table to
 	
 	key = opaque;
 	return 
-		( inode -> i_ino == get_key_objectid( key ) ) &&
+		/*
+		 * oid is unique, so first term is enough, actually.
+		 */
+		( oid_by_inode( inode ) == get_key_objectid( key ) ) &&
 		( reiser4_inode_data( inode ) -> locality_id == get_key_locality( key ) );
 }
 

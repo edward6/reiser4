@@ -38,6 +38,16 @@ typedef enum {
 	REISER4_GENERIC_VP_USED    = 6
 } reiser4_file_plugin_flags;
 
+#if BITS_PER_LONG == 32
+#define REISER4_INO_IS_OID (1)
+typedef __u32  oid_hi_t;
+#else
+#define REISER4_INO_IS_OID (0)
+typedef struct {;}  oid_hi_t;
+#endif
+
+#define OID_HI_SHIFT ( sizeof( ino_t ) * 8 )
+
 /* state associated with each inode.
  * reiser4 inode.
  *
@@ -85,12 +95,18 @@ typedef struct reiser4_inode_info {
 	/* tail2extent and extent2tail use down_write, read, write, readpage -
 	 * down_read */
 	struct rw_semaphore        sem;
+	/** high 32 bits of object id */
+	oid_hi_t                   oid_hi;
 	/** generic fields not specific to reiser4, but used by VFS */
 	struct inode       vfs_inode;
 } reiser4_inode_info;
 
 #define spin_ordering_pred_inode( inode )   (1)
 SPIN_LOCK_FUNCTIONS( inode, reiser4_inode_info, guard );
+
+extern oid_t get_inode_oid( const struct inode *inode );
+extern void  set_inode_oid( struct inode *inode, oid_t oid );
+extern ino_t ino_t_by_oid( oid_t oid );
 
 extern reiser4_tree *tree_by_inode( const struct inode *inode );
 extern reiser4_inode_info *reiser4_inode_data( const struct inode *inode );
