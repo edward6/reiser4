@@ -174,6 +174,14 @@ typedef struct file_plugin {
 	 */
 	int ( *set_plug_in_inode )( reiser4_plugin_type plug_type, struct inode *inode );
 	int ( *create_blank_sd )( reiser4_key *key );
+
+	/**
+	 * set up plugins for new @object created in @parent. @root is root
+	 * directory.
+	 */
+	int ( *adjust_to_parent )( struct inode *object,
+				   struct inode *parent,
+				   struct inode *root );
 	/*
 	 * this does whatever is necessary to do when object is created. For
 	 * instance, for ordinary files stat data is inserted, for directory

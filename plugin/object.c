@@ -700,20 +700,72 @@ static int dir_can_rem_link( const struct inode *dir )
 }
 
 /** ->single_link() method for file plugins */
-int common_single_link( const struct inode *inode )
+static int common_single_link( const struct inode *inode )
 {
 	assert( "nikita-2007", inode != NULL );
 	return ( inode -> i_nlink == 1 );
 }
 
 /** ->single_link() method for directory file plugin */
-int dir_single_link( const struct inode *inode )
+static int dir_single_link( const struct inode *inode )
 {
 	assert( "nikita-2008", inode != NULL );
 	/* one link from dot */
 	return ( inode -> i_nlink == 2 );
 }
 
+#define grab_plugin( self, ancestor, plugin )			\
+	if( ( self ) -> plugin == NULL )			\
+		( self ) -> plugin = ( ancestor ) -> plugin
+
+/** ->adjust_to_parent() method for regular files */
+static int common_adjust_to_parent( struct inode *object /* new object */,
+				    struct inode *parent /* parent directory */,
+				    struct inode *root /* root directory */ )
+{
+	reiser4_inode_info *self;
+	reiser4_inode_info *ancestor;
+
+	assert( "nikita-2068", object != NULL );
+	if( parent == NULL )
+		parent = root;
+	assert( "nikita-2069", parent != NULL );
+
+	self     = reiser4_inode_data( object );
+	ancestor = reiser4_inode_data( parent );
+
+	grab_plugin( self, ancestor, file );
+	grab_plugin( self, ancestor, sd );
+	grab_plugin( self, ancestor, tail );
+	grab_plugin( self, ancestor, perm );
+	return 0;
+}
+
+/** ->adjust_to_parent() method for directory files */
+static int dir_adjust_to_parent( struct inode *object /* new object */,
+				 struct inode *parent /* parent directory */,
+				 struct inode *root /* root directory */ )
+{
+	reiser4_inode_info *self;
+	reiser4_inode_info *ancestor;
+
+	assert( "nikita-2068", object != NULL );
+	if( parent == NULL )
+		parent = root;
+	assert( "nikita-2069", parent != NULL );
+
+	self     = reiser4_inode_data( object );
+	ancestor = reiser4_inode_data( parent );
+
+	grab_plugin( self, ancestor, file );
+	grab_plugin( self, ancestor, dir );
+	grab_plugin( self, ancestor, sd );
+	grab_plugin( self, ancestor, hash );
+	grab_plugin( self, ancestor, tail );
+	grab_plugin( self, ancestor, perm );
+	grab_plugin( self, ancestor, dir_item );
+	return 0;
+}
 
 reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 	[ REGULAR_FILE_PLUGIN_ID ] = {
@@ -740,6 +792,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.set_plug_in_sd      = NULL,
 			.set_plug_in_inode   = NULL,
 			.create_blank_sd     = NULL,
+			.adjust_to_parent    = common_adjust_to_parent,
 			.create              = unix_file_create,
 			.destroy_stat_data   = common_file_delete,
 			.add_link            = NULL,
@@ -774,6 +827,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.set_plug_in_sd      = NULL,
 			.set_plug_in_inode   = NULL,
 			.create_blank_sd     = NULL,
+			.adjust_to_parent    = dir_adjust_to_parent,
 			.create              = hashed_create,
 			.destroy_stat_data   = hashed_delete,
 			.add_link            = NULL,
@@ -808,6 +862,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.set_plug_in_sd      = NULL,
 			.set_plug_in_inode   = NULL,
 			.create_blank_sd     = NULL,
+			.adjust_to_parent    = common_adjust_to_parent,
 			.create              = NULL,
 			/*
 			 * FIXME-VS: symlink should probably have its own destroy method
@@ -846,6 +901,7 @@ reiser4_plugin file_plugins[ LAST_FILE_PLUGIN_ID ] = {
 			.set_plug_in_sd      = NULL,
 			.set_plug_in_inode   = NULL,
 			.create_blank_sd     = NULL,
+			.adjust_to_parent    = common_adjust_to_parent,
 			.destroy_stat_data   = common_file_delete,
 			.add_link            = NULL,
 			.rem_link            = common_rem_link,

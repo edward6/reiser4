@@ -301,45 +301,19 @@ static int common_create_child( struct inode *parent /* parent object */,
 	}
 #endif /* install */
 
-#ifndef INHERIT_EXISTS
 	/*
 	 * if any of hash, tail, sd or permission plugins for newly created
 	 * object are not set yet set them here inheriting them from parent
 	 * directory
 	 */
-	{
-		reiser4_inode_info *self;
-		reiser4_inode_info *ancestor;
-
-		/*
-		 * FIXME-NIKITA this is wrong: this way each file by default
-		 * inherits directory plugin of parent directory.
-		 */
-		self     = reiser4_inode_data( object );
-		ancestor = reiser4_inode_data
-			( parent ? : object -> i_sb -> s_root -> d_inode );
-		if ( self -> dir == NULL )
-			self -> dir = ancestor -> dir;
-		if ( self -> sd == NULL )
-			self -> sd = ancestor -> sd;
-		if ( self -> hash == NULL )
-			self -> hash = ancestor -> hash;
-		if ( self -> tail == NULL )
-			self -> tail = ancestor -> tail;
-		if ( self -> perm == NULL )
-			self -> perm = ancestor -> perm;
-		if ( self -> dir_item == NULL )
-			self -> dir_item = ancestor -> dir_item;
-	}
-#else
-	result = fplug -> inherit
+	assert( "nikita-2070", fplug -> adjust_to_parent != NULL );
+	result = fplug -> adjust_to_parent
 		( object, parent, object -> i_sb -> s_root -> d_inode );
-	if( result < 0 ) {
+	if( result != 0 ) {
 		warning( "nikita-432", "Cannot inherit from %lx to %lx", 
 			 ( long ) parent -> i_ino, ( long ) object -> i_ino );
 		return result;
 	}
-#endif /* inherit */
 
 	/* reget plugin after installation */
 	fplug = inode_file_plugin( object );
