@@ -316,7 +316,7 @@ node_check(znode * node /* node to check */ ,
 
 	if (lock_counters()->spin_locked_dk > 0)
 		return;
-	if (lock_counters()->spin_locked_tree > 0)
+	if (lock_counters()->rw_locked_tree > 0)
 		return;
 
 	if (znode_above_root(node))
