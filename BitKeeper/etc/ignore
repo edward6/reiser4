@@ -1011,3 +1011,8 @@ MKFS-DEV-HDB10-TAIL
 MKFS-DEV-HDB10-TEST
 bobber.tree
 .trace.o.cmd
+reiser4progs/libreiser4/.deps/cache.P
+reiser4progs/libreiser4/.deps/coord.P
+reiser4progs/libreiser4/cache.lo
+reiser4progs/libreiser4/coord.lo
+reiser4progs/reiser4progs/libmisc/.deps/misc.pp
