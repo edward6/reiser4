@@ -218,11 +218,8 @@
  * twig to the left).  If the left neighbor of the leftmost child is also dirty, then
  * continue the scan at the left twig and repeat.  This option will cause flush to
  * allocate more twigs in a single pass, but it also has the potential to write many more
- * nodes than would otherwise be written without the RAPID_SCAN option.  FIXME: RAPID_SCAN
- * is partially implemented.
-
-ZAM-FIXME-HANS: pull RAPID_SCAN from the code for now, and make a comment about what version to find it in, this code is complex enough.
-
+ * nodes than would otherwise be written without the RAPID_SCAN option.  RAPID_SCAN
+ * was partially implemented, code removed August 12, 2002 by JMACD.
  */
 
 /* FLUSH CALLED ON NON-LEAF LEVEL.  Most of our design considerations assume that the
@@ -250,13 +247,6 @@ Resizing is done by shifting everything either all the way to the left or all th
  * DECLARATIONS:
  ********************************************************************************/
 
-/* The following RAPID_SCAN define disables the partially-implemented rapid_scan option to
- * flush.  Eventually, after a little more work this can be experimented with as a mount
- * option.  It enables a more expansize/agressive flushing--Hans is concerned that this
- * may lead to "precipitation".  The flush algorithm works with or without rapid_scan, and
- * acts more conservatively without it.  Described in more detail below. */
-#define USE_RAPID_SCAN 0
-
 /* The flush_scan data structure maintains the state of an in-progress flush-scan on a
  * single level of the tree.  A flush-scan is used for counting the number of adjacent
  * nodes to flush, which is used to determine whether we should relocate, and it is also
@@ -271,12 +261,7 @@ struct flush_scan {
 	unsigned  count;
 
 	/* There may be a maximum number of nodes for a scan on any single level.  When
-	 * going leftward, max_count is determined by FLUSH_SCAN_MAXNODES (see reiser4.h)
-	 * if RAPID_SCAN is disabled and FLUSH_RELOCATE_THRESHOLD if RAPID_SCAN is
-	 * enabled.  (This is because RAPID_SCAN will skip past clean and dirty nodes on
-	 * the level, therefore there is no need to count precisely once the THRESHOLD has
-	 * been reached.)  When going rightward, the max_count is determined by the number
-	 * of nodes required to reach FLUSH_RELOCATE_THRESHOLD. */
+	 * going leftward, max_count is determined by FLUSH_SCAN_MAXNODES (see reiser4.h) */
 	unsigned max_count;
 
 	/* Direction: Set to one of the sideof enumeration: { LEFT_SIDE, RIGHT_SIDE }. */
@@ -295,9 +280,8 @@ struct flush_scan {
 	load_count node_load;
 
 	/* During left-scan, if the final position (a.k.a. endpoint node) is formatted the
-	 * node is locked using this lock handle.  The endpoint needs to be locked for two
-	 * reasons: RAPID_SCAN requires the lock before starting, and otherwise the lock
-	 * is transferred to the flush_position object after scanning finishes. */
+	 * node is locked using this lock handle.  The endpoint needs to be locked for
+	 * transfer to the flush_position object after scanning finishes. */
 	lock_handle node_lock;
 
 	/* When the position is unformatted, its parent, coordinate, and parent
@@ -591,12 +575,9 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
 
 	/* First scan left and remember the leftmost scan position.  If the leftmost
-	 * position is unformatted we remember its parent_coord.  If RAPID_SCAN is
-	 * enabled, the scan should be limited by FLUSH_RELOCATE_THRESHOLD since the rapid
-	 * scan will continue without precisely counting nodes.  If RAPID_SCAN is
-	 * disabled, then we scan up until counting FLUSH_SCAN_MAXNODES. */
-	if ((ret = flush_scan_left (& left_scan, & right_scan, node,
-				    USE_RAPID_SCAN ? FLUSH_RELOCATE_THRESHOLD : FLUSH_SCAN_MAXNODES))) {
+	 * position is unformatted we remember its parent_coord.  We scan until counting
+	 * FLUSH_SCAN_MAXNODES. */
+	if ((ret = flush_scan_left (& left_scan, & right_scan, node, FLUSH_SCAN_MAXNODES))) {
 		goto failed;
 	}
 
@@ -2682,12 +2663,8 @@ static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, un
 		return ret;
 	}
 
-	/* Now continue with rapid scan. */
-#if USE_RAPID_SCAN
-	return flush_scan_rapid (scan);
-#else
+	/* Rapid_scan would go here (with limit set to FLUSH_RELOCATE_THRESHOLD). */
 	return 0;
-#endif
 }
 
 /* Performs rightward scanning... Does not count the starting node.  The limit parameter
@@ -3182,176 +3159,6 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	if (ino != NULL) { iput (ino); }
 	return ret;
 }
-
-#if 0
-/* After performing the block-by-block scan, we continue skipping past the non-leftmost,
- * non-rightmost interior children of the parent.  This is only called in the left-scan
- * direction, and the code assumes that direction.  It will be easy to change if necessary
- * so that rapid scan can go in either direction, but it is currently not necessary.
- */
-static int flush_scan_rapid (flush_scan *scan)
-{
-	load_count lt_data;	/* lt == left twig */
-	lock_handle lt_lock;
-	coord_t     lt_coord;
-	int         is_dirty;
-	int         ret;
-
-	/* If the current scan position is formatted, get the parent coordinate so we can
-	 * test leftmost/rightmost.  Otherwise, we're already set.  Also, if we are at a
-	 * formatted position we already have scan->point_lock holding a lock on
-	 * scan->node.  We have to maintain that lock in addition to the parent locks as
-	 * we continue with the rapid scan. */
-	if (jnode_is_znode (scan->node)) {
-		if ((ret = jnode_lock_parent_coord (scan->node, & scan->parent_coord, & scan->parent_lock, & scan->parent_load, ZNODE_WRITE_LOCK))) {
-			return ret;
-		}
-
-		/* We release point_lock and reacquire it later. */
-		done_lh (& scan->node_lock);
-	}
-
-	/* If the current node is not the leftmost child, set parent_coord to the leftmost
-	 * dirty child of its parent. */
-	if (! coord_is_leftmost_unit (& scan->parent_coord)) {
-
-		/* The call to flush_scan_leftmost_dirty_unit re-initializes
-		 * scan->parent_coord to the leftmost _unit_ that has dirty children.
-		 * This also resets the scan->node properly. */
-		if ((ret = flush_scan_leftmost_dirty_unit (scan))) {
-			return ret;
-		}
-	}
-
-	init_lh (& lt_lock);
-	init_lc (& lt_data);
-
-	/* Now we loop as long as we are positioned at the leftmost child of the parent.
-	 * In this case, we check the left neighbor to see if it is dirty.  If the left
-	 * neighbor is dirty then we repeat: set parent_coord to the leftmost unit that
-	 * has dirty children... */
-	while (coord_is_leftmost_unit (& scan->parent_coord)) {
-
-		/* There is an optimization possible here because there are two ways to
-		 * obtain the left neighbor.  If scan->node is a znode we can go left by
-		 * checking its ->left sibling pointer, but this is not general in case of
-		 * unformatted nodes.  Only the general case is implemented: get the left
-		 * twig and access its rightmost child.  Check if the rightmost child is
-		 * dirty.  If not, stop here.
-		 *
-		 * If the rightmost child of the left twig is dirty, then set
-		 * scan->parent_coord to the left twig and again find the leftmost unit
-		 * with a dirty child.
-		 *
-		 * Finally, repeat this loop.
-		 */
-		if ((ret = reiser4_get_left_neighbor (& lt_lock, scan->parent_coord.node, ZNODE_WRITE_LOCK, GN_SAME_ATOM))) {
-			/* We get NAVAIL or NOENT if the left twig is not in memory, in
-			 * which case stop the rapid scan. */
-			if (ret == -ENAVAIL || ret == -ENOENT) {
-				ret = 0;
-			}
-			goto fail;
-		}
-
-		/* Load the left twig, check if its rightmost child is dirty. */
-		if ((ret = load_lc_znode (& lt_data, lt_lock.node))) {
-			goto fail;
-		}
-
-		coord_init_last_unit (& lt_coord, lt_lock.node);
-
-		if ((ret = item_utmost_child_dirty (& lt_coord, RIGHT_SIDE, & is_dirty))) {
-			goto fail;
-		}
-
-		/* If the rightmost child is not dirty, stop where we are. */
-		if (! is_dirty) {
-			break;
-		}
-
-		/* Rightmost child of left twig is dirty, now continue at that twig. */
-		move_lc (& scan->parent_load, & lt_data);
-		move_lh (& scan->parent_lock, & lt_lock);
-
-		/* Set coordinate to the leftmost dirty unit.  This also resets scan->node
-		 * properly. */
-		if ((ret = flush_scan_leftmost_dirty_unit (scan))) {
-			goto fail;
-		}
-	}
-
-	ret = 0;
- fail:
-	done_lc (& lt_data);
-	done_lh (& lt_lock);
-
-	/* Finally, if we are returning success and the position is formatted then we
-	 * should reacquire the scan->point_lock, which gets moved into
-	 * flush_pos.point_lock. */
-	if (ret == 0 && jnode_is_znode (scan->node)) {
-
-		assert ("jmacd-76620", lock_stack_isclean (get_current_lock_stack ()));
-
-		ret = longterm_lock_znode (& scan->node_lock, JZNODE (scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
-	}
-
-	return ret;
-}
-
-/* During flush_scan_rapid we need to find the leftmost dirty child/unit of a parent.
- * This routine finds that node and sets scan->node, scan->parent_coord appropriately.
- * The structure of this code resembles the flush_scan_formatted and
- * flush_scan_extent_coord functions, except the logic is inverted: we want to scan past
- * clean nodes and stop at the first dirty node in this pass.  We disregard the atom here
- * and allow children in different atoms to fuse later during flush. */
-static int flush_scan_leftmost_dirty_unit (flush_scan *scan)
-{
-	int ret;
-
-	/* FIXME(G): UNIMPLEMENTED: The whole idea of leftmost_dirty_unit may be wrong, and
-	 * this leads to a possible simplification which is not being pursued since
-	 * rapid_scan is not going to be used right away.  The idea here was to find the
-	 * first dirty node, but why do that?  If flush can support twig-positions for
-	 * clean nodes then calling coord_init_first_item should be sufficient.  Would
-	 * require simple changes to flush_scan_rapid, but the trick is fixing
-	 * jnode_flush() to handle it. */
-
-	/* Starting from the leftmost unit... */
-	coord_init_before_first_item (& scan->parent_coord, scan->parent_coord.node);
-
-	while (coord_next_unit (& scan->parent_coord) == 0) {
-
-		/* Handle items by type: */
-		if (item_is_internal (& scan->parent_coord)) {
-
-			/* The internal item case is simple, check the only child and do
-			 * stop if it is dirty. */
-			jnode *child;
-
-			if ((ret = item_utmost_child (& scan->parent_coord, LEFT_SIDE, & child))) {
-				return ret;
-			}
-
-			/* Just check if it is dirty, not the atom. */
-			if (! jnode_check_dirty (child)) {
-				jput (child);
-				continue;
-			}
-
-			ret = flush_scan_set_current (scan, child, 1 /* add_count is irrelevant at this point */, NULL);
-			break;
-
-		} else {
-			assert ("jmacd-81900", item_is_extent (& scan->parent_coord));
-
-			/* ... */
-		}
-	} while (1);
-
-	return ret;
-}
-#endif
 
 /********************************************************************************
  * FLUSH POS HELPERS
