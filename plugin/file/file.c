@@ -554,9 +554,9 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 		if (result)
 			break;
 
+		INODE_SET_FIELD(inode, i_size, new_size);
 		if (update_sd) {
 			/* Final sd update after the file gets its correct size */
-			INODE_SET_FIELD(inode, i_size, new_size);
 			inode->i_ctime = inode->i_mtime = CURRENT_TIME;
 			result = reiser4_update_sd(inode);
 		}
@@ -590,10 +590,13 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_siz
 		return result;
 
 	assert("vs-1105", new_size == inode->i_size);
-	if (inode->i_size == 0) {
+	if (new_size == 0) {
 		set_file_state_empty(inode);
 		return 0;
 	}
+
+	/* this is truncate */
+	assert("vs-1654", update_sd);
 
 	if (file_is_built_of_tails(inode))
 		/* No need to worry about zeroing last page after new file end */
