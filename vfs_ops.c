@@ -393,7 +393,6 @@ init_once(void *obj /* pointer to new inode */ ,
 		   etc. that will be added to our private inode part. */
 		inode_init_once(&info->vfs_inode);
 		info->p.eflushed_anon = 0;
-		INIT_LIST_HEAD(&info->p.moved_pages);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
 		rw_latch_init(&info->p.coc_sem);
 		INIT_LIST_HEAD(&info->p.eflushed_jnodes);
@@ -527,7 +526,9 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	if (info->pset)
 		plugin_set_put(info->pset);
 
-	assert("nikita-2872", list_empty(&info->moved_pages));
+	/* FIXME: assert that info's page radix tree is empty */
+	/*assert("nikita-2872", list_empty(&info->moved_pages));*/
+
 	/* cannot add similar assertion about ->i_list as prune_icache return
 	 * inode into slab with dangling ->list.{next,prev}. This is safe,
 	 * because they are re-initialized in the new_inode(). */
@@ -592,7 +593,7 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 			/* do not put more requests to overload write queue */
 			if (wbc->nonblocking &&
 			    bdi_write_congested(mapping->backing_dev_info)) {
-				blk_run_queues();
+				/*blk_run_queues();*/
 				wbc->encountered_congestion = 1;
 				break;
 			}
