@@ -149,7 +149,8 @@ write_trace_raw(reiser4_trace_file * file, const void *data, size_t len)
 {
 	int result;
 
-	if ((file == NULL) || (file->type == log_to_bucket) || (file->buf == NULL) || (file->disabled > 0))
+	if (file == NULL || file->type == log_to_bucket ||
+	    file->buf == NULL || file->disabled > 0)
 		return 0;
 
 	LOCK_OR_FAIL(file);

@@ -147,7 +147,7 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define FLUSH_SCAN_MAXNODES 10000
 
 /* default tracing buffer size */
-#define REISER4_TRACE_BUF_SIZE ( 1 << 21 )
+#define REISER4_TRACE_BUF_SIZE (1 << 15)
 
 /* what size units of IO we would like cp, etc., to use, in writing to
    reiser4. In bytes.

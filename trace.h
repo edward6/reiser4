@@ -79,7 +79,7 @@ typedef struct {
 #define write_page_trace(mapping, index) noop
 #define jnode_short_info(j, buf) buf
 
-#define trace_mark(mark) noop
+#define trace_mark(mark)  noop
 
 #endif
 
