@@ -92,7 +92,7 @@ int oid_init_allocator( __u64 nr_files, __u64 oids)
 
 	assert ("zam-640", private != NULL);
 	assert ("zam-641", private->oid_plug != NULL);
-	assert ("zam-642", private->oid_plug->read_allocator != NULL);
+	assert ("zam-642", private->oid_plug->init_oid_allocator != NULL);
 
 	return private->oid_plug->init_oid_allocator(&private->oid_allocator, nr_files, oids);
 }
