@@ -212,6 +212,7 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 	if (jnode_is_unformatted (scan->node)) {
 
 		/* FIXME_JMACD: Don't know how to do this. */
+
 		ret = 0;
 
 	} else {

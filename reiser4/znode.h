@@ -566,7 +566,6 @@ static inline int jnode_is_unformatted( const jnode *node)
 
 /* Make it look like various znode functions exist instead of treating znodes as
  * jnodes in znode-specific code. */
-
 #define znode_get_level(x)          jnode_get_level ( ZJNODE(x) )
 #define znode_set_level(x,l)        jnode_set_level ( ZJNODE(x), (l) )
 
