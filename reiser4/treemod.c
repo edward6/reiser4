@@ -214,7 +214,7 @@ static int add_child_ptr( znode *parent, znode *child )
 	coord_first_unit( &coord );
 
 	build_child_ptr_data( child, &data );
-	data.cookie = NULL;
+	data.arg = NULL;
 
 	spin_lock_dk( current_tree );
 	key = znode_get_ld_key( child );
