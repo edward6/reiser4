@@ -257,6 +257,25 @@ void tfm_cluster_set_uptodate (tfm_cluster_t * tc);
 void tfm_cluster_clr_uptodate (tfm_cluster_t * tc);
 unsigned long clust_by_coord(const coord_t * coord, struct inode * inode);
 
+/* move cluster handle to the target position
+   specified by the page of index @pgidx 
+*/
+static inline void
+move_cluster_forward(reiser4_cluster_t * clust, struct inode * inode,
+		     pgoff_t pgidx, int * progress)
+{
+	assert("edward-1297", clust != NULL);
+	assert("edward-1298", inode != NULL);
+	
+	reset_cluster_params(clust);
+	if (*progress &&
+	    /* hole in the indices */
+	    pg_to_clust(pgidx, inode) != clust->index + 1)
+		invalidate_hint_cluster(clust);
+	*progress = *progress + 1;
+	clust->index = pg_to_clust(pgidx, inode);
+}
+
 static inline int
 alloc_clust_pages(reiser4_cluster_t * clust, struct inode * inode )
 {
