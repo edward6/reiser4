@@ -25,6 +25,7 @@ static int prepare_for_removal (znode * empty, carry_level * todo);
 
 
 /* header of node of reiser40 format is at the beginning of node */
+/* Audited by: green(2002.06.12) */
 static node_header_40 *node40_node_header( const znode *node /* node to
 							      * query */ )
 {
@@ -36,24 +37,28 @@ static node_header_40 *node40_node_header( const znode *node /* node to
 
 
 /* functions to get/set fields of node_header_40 */
+/* Audited by: green(2002.06.12) */
 static void nh_40_set_magic (node_header_40 * nh, __u32 value)
 {
 	cputod32 (value, &nh->magic);
 }
 
 
+/* Audited by: green(2002.06.12) */
 static __u32 nh_40_get_magic (node_header_40 * nh)
 {
 	return d32tocpu (&nh->magic);
 }
 
 
+/* Audited by: green(2002.06.12) */
 static void nh_40_set_free_space (node_header_40 * nh, unsigned value)
 {
 	cputod16 (value, &nh->free_space);
 	/*node->free_space = value;*/
 }
 
+/* Audited by: green(2002.06.12) */
 static unsigned nh_40_get_free_space (node_header_40 * nh)
 {
 	return d16tocpu (&nh->free_space);
@@ -61,36 +66,42 @@ static unsigned nh_40_get_free_space (node_header_40 * nh)
 
 
 
+/* Audited by: green(2002.06.12) */
 static void nh_40_set_free_space_start (node_header_40 * nh, unsigned value)
 {
 	cputod16 (value, &nh->free_space_start);
 }
 
 
+/* Audited by: green(2002.06.12) */
 static unsigned nh_40_get_free_space_start (node_header_40 * nh)
 {
 	return d16tocpu (&nh->free_space_start);
 }
 
 
+/* Audited by: green(2002.06.12) */
 static void nh_40_set_level (node_header_40 * nh, unsigned value)
 {
 	cputod8 (value, &nh->level);
 }
 
 
+/* Audited by: green(2002.06.12) */
 static unsigned nh_40_get_level (node_header_40 * nh)
 {
 	return d8tocpu( &nh->level);
 }
 
 
+/* Audited by: green(2002.06.12) */
 static void nh_40_set_num_items (node_header_40 * nh, unsigned value)
 {
 	cputod16 (value, &nh->num_items);
 }
 
 
+/* Audited by: green(2002.06.12) */
 static unsigned nh_40_get_num_items (node_header_40 * nh)
 {
 	return d16tocpu( &nh->num_items);
@@ -102,11 +113,13 @@ static unsigned nh_40_get_num_items (node_header_40 * nh)
 
 
 /* array of item headers is at the end of node */
+/* Audited by: green(2002.06.12) */
 static item_header_40 *node40_ih_at( const znode *node, unsigned pos )
 {
 	return (item_header_40 *)( zdata( node ) + znode_size( node ) ) - pos - 1;
 }
 
+/* Audited by: green(2002.06.12) */
 static item_header_40 *node40_ih_at_coord( const new_coord *coord )
 {
 	return (item_header_40 *)( zdata( coord -> node ) + 
@@ -116,12 +129,14 @@ static item_header_40 *node40_ih_at_coord( const new_coord *coord )
 
 
 /* functions to get/set fields of item_header_40 */
+/* Audited by: green(2002.06.12) */
 static void ih_40_set_offset (item_header_40 * ih, unsigned offset)
 {
 	cputod16 (offset, &ih->offset);
 }
 
 
+/* Audited by: green(2002.06.12) */
 static unsigned ih_40_get_offset (item_header_40 * ih)
 {
 	return d16tocpu (&ih->offset);
@@ -140,6 +155,7 @@ static unsigned ih_40_get_offset (item_header_40 * ih)
 /* plugin->u.node.item_overhead
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 size_t node40_item_overhead (const znode * node UNUSED_ARG, flow_t * f UNUSED_ARG)
 {
 	return sizeof (item_header_40);
@@ -154,6 +170,7 @@ size_t node40_item_overhead (const znode * node UNUSED_ARG, flow_t * f UNUSED_AR
 /* plugin->u.node.free_space
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 size_t node40_free_space ( znode *node )
 {
 	assert( "nikita-577", node != NULL );
@@ -168,6 +185,7 @@ size_t node40_free_space ( znode *node )
 /* plugin->u.node.lookup
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 node_search_result node40_lookup( znode *node /* node to query */, 
 				  const reiser4_key *key /* key to look for */,
 				  lookup_bias bias /* search bias */, 
@@ -363,6 +381,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 /* plugin->u.node.num_of_items
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 int node40_num_of_items( const znode *node )
 {
 	trace_stamp( TRACE_NODES );
@@ -373,6 +392,7 @@ int node40_num_of_items( const znode *node )
 /* plugin->u.node.item_by_coord
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 char * node40_item_by_coord( const new_coord *coord )
 {
 	item_header_40 *ih;
@@ -390,6 +410,7 @@ char * node40_item_by_coord( const new_coord *coord )
 /* plugin->u.node.length_by_coord
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 int node40_length_by_coord (const new_coord * coord)
 {
 	item_header_40 * ih;
@@ -411,6 +432,7 @@ int node40_length_by_coord (const new_coord * coord)
 /* plugin->u.node.plugin_by_coord
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 item_plugin *node40_plugin_by_coord( const new_coord *coord )
 {
 	item_header_40 *ih;
@@ -428,6 +450,7 @@ item_plugin *node40_plugin_by_coord( const new_coord *coord )
 /* plugin->u.node.key_at
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 reiser4_key *node40_key_at( const new_coord *coord, reiser4_key *key )
 {
 	item_header_40 *ih;
@@ -444,6 +467,7 @@ reiser4_key *node40_key_at( const new_coord *coord, reiser4_key *key )
 /* plugin->u.node.estimate
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 size_t node40_estimate( znode *node )
 {
 	size_t result;
@@ -459,6 +483,7 @@ size_t node40_estimate( znode *node )
 /* plugin->u.node.check
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 int node40_check( const znode *node /* node to check */, 
 		  __u32 flags /* check flags */, 
 		  const char **error /* where to store error message */ )
@@ -603,6 +628,7 @@ int node40_check( const znode *node /* node to check */,
 /* plugin->u.node.parse
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 int node40_parse( const znode *node /* node to parse */)
 {
 	node_header_40   *header;
@@ -627,6 +653,7 @@ int node40_parse( const znode *node /* node to parse */)
 /* plugin->u.node.init
    look for description of this method in plugin/node/node.h
 */
+/* Audited by: green(2002.06.12) */
 int node40_init( znode *node /* node to initialise */)
 {
 	node_header_40 *header;
@@ -654,6 +681,7 @@ int node40_init( znode *node /* node to initialise */)
 }
 
 
+/* Audited by: green(2002.06.12) */
 int node40_guess( const znode *node /* node to guess plugin of */)
 {
 	assert( "nikita-1058", node != NULL );
@@ -667,6 +695,7 @@ int node40_guess( const znode *node /* node to guess plugin of */)
 }
 
 
+/* Audited by: green(2002.06.12) */
 void node40_print( const znode *node /* node to print */, 
 		   __u32 flags UNUSED_ARG /* print flags */ )
 {
