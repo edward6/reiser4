@@ -982,6 +982,7 @@ jnode_set_type(jnode * node, jnode_type type)
 		[JNODE_UNFORMATTED_BLOCK] = 1,
 		[JNODE_FORMATTED_BLOCK] = 0,
 		[JNODE_BITMAP] = 2,
+		[JNODE_CLUSTER_PAGE] = 3,
 		[JNODE_IO_HEAD] = 6
 	};
 
@@ -1181,6 +1182,24 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			  .index = znode_index,
 			  .io_hook = no_hook
 	},
+	[JNODE_CLUSTER_PAGE] = {
+				     .h = {
+					   .type_id = REISER4_JNODE_PLUGIN_TYPE,
+					   .id = JNODE_CLUSTER_PAGE,
+					   .pops = NULL,
+					   .label = "cluster page",
+					   .desc = "cluster page",
+					   .linkage = TS_LIST_LINK_ZERO
+				     },
+				     .init = noparse,
+				     .parse = noparse,
+				     .remove = jnode_remove_op,
+				     .delete = jnode_remove_op,
+				     .is_busy = jnode_is_busy,
+				     .mapping = jnode_mapping,
+				     .index = jnode_index,
+				     .io_hook = no_hook
+	},	
 	[JNODE_IO_HEAD] = {
 			   .h = {
 				 .type_id = REISER4_JNODE_PLUGIN_TYPE,
@@ -1327,6 +1346,8 @@ jnode_type_name(jnode_type type)
 		return "formatted";
 	case JNODE_BITMAP:
 		return "bitmap";
+	case JNODE_CLUSTER_PAGE:
+		return "cluster page";		
 	case JNODE_IO_HEAD:
 		return "io head";
 	case LAST_JNODE_TYPE:
