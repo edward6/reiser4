@@ -1506,25 +1506,25 @@ struct file_system_type reiser4_fs_type = {
 };
 
 struct super_operations reiser4_super_operations = {
-	.alloc_inode = reiser4_alloc_inode,	/* d */
-	.destroy_inode = reiser4_destroy_inode,	/* d */
-	.read_inode = noop_read_inode,	/* d */
-	.dirty_inode = NULL, /*reiser4_dirty_inode,*/	/* d */
- 	.write_inode        = NULL, /* d */
- 	.put_inode          = NULL, /* d */
-	.drop_inode = reiser4_drop_inode,	/* d */
-	.delete_inode = reiser4_delete_inode,	/* d */
-	.clear_inode  = reiser4_clear_inode,    /* d */
-	.put_super = NULL /* d */ ,
+	.alloc_inode = reiser4_alloc_inode,
+	.destroy_inode = reiser4_destroy_inode,
+	.read_inode = noop_read_inode,
+	.dirty_inode = NULL,
+ 	.write_inode = NULL,
+ 	.put_inode = NULL,
+	.drop_inode = reiser4_drop_inode,
+	.delete_inode = reiser4_delete_inode,
+	.put_super = NULL,
 	.write_super = reiser4_write_super,
-/*      .sync_fs = NULL, */
-/* 	.write_super_lockfs = reiser4_write_super_lockfs, */
-/* 	.unlockfs           = reiser4_unlockfs, */
-	.statfs = reiser4_statfs,	/* d */
-/* 	.remount_fs         = reiser4_remount_fs, */
-/* 	.umount_begin       = reiser4_umount_begin,*/
+	.sync_fs = NULL,
+ 	.write_super_lockfs = NULL, 
+ 	.unlockfs           = NULL,
+	.statfs = reiser4_statfs,
+ 	.remount_fs         = NULL,
+	.clear_inode  = reiser4_clear_inode,
+ 	.umount_begin       = NULL,
 	.sync_inodes = reiser4_sync_inodes,
-	.show_options = reiser4_show_options	/* d */
+	.show_options = reiser4_show_options
 };
 
 /*
