@@ -163,14 +163,8 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 	case CBK_OOM:
 		result = IBK_OOM;
 		break;
-	case CBK_COORD_NOTFOUND: {
-		znode *insertion_node;
-
+	case CBK_COORD_NOTFOUND:
 		assert( "nikita-2017", coord -> node != NULL );
-		insertion_node = coord -> node;
-		result = zload( insertion_node );
-		if( result != 0 )
-			break;
 		/*
 		 * FIXME-VS: temporary fix. The proper one should go to node's
 		 * lookup?
@@ -180,9 +174,7 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 			ncoord_init_first_unit( coord, coord -> node );
 		result = insert_by_coord( coord, 
 					  data, key, lh, ra, ira, 0/*flags*/ );
-		zrelse( insertion_node );		
 		break;
-	}
 	}
 	return result;
 }
@@ -321,15 +313,21 @@ insert_result insert_by_coord( new_coord  *coord /* coord where to
 			       __u32 flags /* insertion flags */ )
 {
 	unsigned item_size;
+	int      result;
+	znode   *node;
 
 	assert( "vs-247", coord != NULL );
 	assert( "vs-248", data != NULL );
 	assert( "vs-249", data -> length > 0 );
 	assert( "nikita-1191", znode_is_write_locked( coord -> node ) );
 
+	node = coord -> node;
+	result = zload( node );
+	if( result != 0 )
+		return result;
 
-	item_size = space_needed( coord -> node, NULL, data, 1 );
-	if( item_size > znode_free_space( coord -> node ) &&
+	item_size = space_needed( node, NULL, data, 1 );
+	if( item_size > znode_free_space( node ) &&
 	    ( flags & COPI_DONT_SHIFT_LEFT ) &&
 	    ( flags & COPI_DONT_SHIFT_RIGHT ) &&
 	    ( flags & COPI_DONT_ALLOCATE ) ) {
@@ -341,38 +339,40 @@ insert_result insert_by_coord( new_coord  *coord /* coord where to
 		 * item into node as possible, but don't shift data from this
 		 * node elsewhere. Returning -ENOSPC is "normal" here.
 		 */
-		return -ENOSPC;
-	}
-	/*
-	 * shortcut insertion without carry() overhead.
-	 *
-	 * Only possible if:
-	 *
-	 * - there is enough free space
-	 *
-	 * - insertion is not into the leftmost position in a node (otherwise
-	 * it would require updating of delimiting key in a parent)
-	 *
-	 * - node plugin agrees with this
-	 *
-	 */
-	if( ( item_size <= znode_free_space( coord -> node ) ) && 
-	    !ncoord_is_before_leftmost( coord ) && 
-	    ( node_plugin_by_coord( coord ) -> fast_insert != NULL ) &&
-	    node_plugin_by_coord( coord ) -> fast_insert( coord ) ) {
+		result = -ENOSPC;
+	} else if( ( item_size <= znode_free_space( node ) ) && 
+		   !ncoord_is_before_leftmost( coord ) && 
+		   ( node_plugin_by_node( node ) -> fast_insert != NULL ) &&
+		   node_plugin_by_node( node ) -> fast_insert( coord ) ) {
+		/*
+		 * shortcut insertion without carry() overhead.
+		 *
+		 * Only possible if:
+		 *
+		 * - there is enough free space
+		 *
+		 * - insertion is not into the leftmost position in a node
+		 *   (otherwise it would require updating of delimiting key in a
+		 *   parent)
+		 *
+		 * - node plugin agrees with this
+		 *
+		 */
 		int result;
 
 		reiser4_stat_tree_add( fast_insert );
-		result = node_plugin_by_node( coord -> node ) -> create_item
+		result = node_plugin_by_node( node ) -> create_item
 			( coord, key, data, NULL );
-		znode_set_dirty( coord -> node );
-		return result;
+		znode_set_dirty( node );
 	} else {
 		/*
 		 * otherwise do full-fledged carry().
 		 */
-		return insert_with_carry_by_coord( coord, lh, data, key, COP_INSERT, flags );
+		result = insert_with_carry_by_coord( coord, lh, data, 
+						     key, COP_INSERT, flags );
 	}
+	zrelse( node );
+	return result;
 }
 
 /*
