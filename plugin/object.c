@@ -573,7 +573,7 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 		warning("nikita-737", "wrong file mode: %o", inode->i_mode);
 		return -EIO;
 	case S_IFREG:
-		fplug_id = REGULAR_FILE_PLUGIN_ID;
+		fplug_id = UNIX_FILE_PLUGIN_ID;
 		break;
 	}
 	info = reiser4_inode_data(inode);
@@ -895,10 +895,10 @@ dir_bind(struct inode *child, struct inode *parent)
 }
 
 file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
-	[REGULAR_FILE_PLUGIN_ID] = {
+	[UNIX_FILE_PLUGIN_ID] = {
 				    .h = {
 					  .type_id = REISER4_FILE_PLUGIN_TYPE,
-					  .id = REGULAR_FILE_PLUGIN_ID,
+					  .id = UNIX_FILE_PLUGIN_ID,
 					  .pops = NULL,
 					  .label = "reg",
 					  .desc = "regular file",
@@ -934,7 +934,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .create = common_estimate_create,
 					    .update = common_estimate_update,
 					    .unlink = common_estimate_unlink
-				    }
+				    },
+				    .readpages = unix_file_readpages
 	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
 				      .h = {
@@ -974,7 +975,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .create = common_estimate_create_dir,
 					    .update = common_estimate_update,
 					    .unlink = dir_estimate_unlink
-				      }
+				      },
+				    .readpages = NULL
 	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
 				    .h = {
@@ -1016,7 +1018,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .create = common_estimate_create,
 					    .update = common_estimate_update,
 					    .unlink = common_estimate_unlink
-				    }
+				    },
+				    .readpages = NULL
 	},
 	[SPECIAL_FILE_PLUGIN_ID] = {
 				    .h = {
@@ -1057,7 +1060,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 					    .create = common_estimate_create,
 					    .update = common_estimate_update,
 					    .unlink = common_estimate_unlink
-				    }
+				    },
+				    .readpages = NULL
 	}
 };
 
