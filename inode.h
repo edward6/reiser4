@@ -67,9 +67,6 @@ typedef enum {
 	/* file was partially converted. It's body consists of a mix of tail
 	 * and extent items. */
 	REISER4_PART_CONV = 10,
-	/* inode was created through NFS request. Disconnected file state may
-	 * exist. */
-	REISER4_STATELESS = 11
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.
