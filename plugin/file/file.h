@@ -40,8 +40,6 @@ int     unix_file_get_block    (struct inode *, sector_t block,
 				struct buffer_head * bh_result, int create);
 
 
-int     unix_file_create       (struct inode * object, struct inode * parent,
-				reiser4_object_create_data * data);
 int     unix_file_key_by_inode (struct inode *, loff_t off, reiser4_key *);
 int     unix_file_create       (struct inode * object, struct inode * parent,
 			        reiser4_object_create_data * data);
