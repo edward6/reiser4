@@ -708,7 +708,7 @@ prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 	jref(wjnode);
 
 	/* load commit bitmap */
-	ret = jload_gfp(cjnode, GFP_NOFS);
+	ret = jload_gfp(cjnode, GFP_NOFS, 1);
 	
 	if (ret)
 		goto error;
