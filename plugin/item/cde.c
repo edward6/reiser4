@@ -438,7 +438,7 @@ max_key_inside_cde(const coord_t * coord /* coord of item */ ,
 
 	item_key_by_coord(coord, result);
 	set_key_ordering(result, get_key_ordering(max_key()));
-	set_key_objectid(result, get_key_objectid(max_key()));
+	set_key_fulloid(result, get_key_fulloid(max_key()));
 	set_key_offset(result, get_key_offset(max_key()));
 	return result;
 }
