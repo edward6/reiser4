@@ -102,7 +102,6 @@ struct hint {
 void set_hint(hint_t *, const reiser4_key *, znode_lock_mode);
 void unset_hint(hint_t *);
 int hint_validate(hint_t *, const reiser4_key *, int check_key, znode_lock_mode);
-int update_inode_and_sd_if_necessary(struct inode *, loff_t new_size, int update_i_size, int update_times, int update_sd);
 
 
 #if REISER4_DEBUG
