@@ -1433,6 +1433,15 @@ static int shift_one_internal_unit (znode * left, znode * right)
 	carry_plugin_info info;
 
 	assert ("nikita-2247", znode_get_level (left) == znode_get_level (right));
+	assert ("nikita-2435", znode_is_write_locked (left));
+	assert ("nikita-2436", znode_is_write_locked (right));
+
+	if (REISER4_DEBUG) {
+		spin_lock_tree (current_tree);
+		assert ("nikita-2434", left->right == right);
+		spin_unlock_tree (current_tree);
+	}
+
 	coord_init_first_unit (&coord, right);
 
 	assert ("jmacd-2007", item_is_internal (&coord));
