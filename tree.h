@@ -262,7 +262,6 @@ typedef enum { SHIFTED_SOMETHING  = 0,
 } shift_result;
 
 extern node_plugin *node_plugin_by_coord ( const coord_t *coord );
-/*extern node_plugin *node_plugin_by_node( const znode *node );*/
 extern int is_coord_in_node( const coord_t *coord );
 extern int key_in_node( const reiser4_key *, const coord_t * );
 extern void coord_item_move_to( coord_t *coord, int items );
