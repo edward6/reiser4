@@ -270,13 +270,22 @@ unlink_common(struct inode *parent /* parent object */ ,
 			if (result == 0 && fplug->not_linked(object))
 				result = safe_link_add(object, SAFE_UNLINK);
 		}
-		if (unlikely(result != 0))
+		if (unlikely(result != 0 && result != -ENOMEM))
 			warning("nikita-3398", "Cannot unlink %llu (%i)",
 				get_inode_oid(object), result);
 	}
+
+	if (unlikely(result != 0)) {
+		/* if operation failed commit pending inode modifications to
+		 * the stat-data */
+		reiser4_update_sd(object);
+		reiser4_update_sd(parent);
+	}
+
 	reiser4_release_reserved(object->i_sb);
 
 	/* @object's i_ctime was updated by ->rem_link() method(). */
+
 	return result;
 }
 
@@ -385,7 +394,8 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 	plugin_set_file(&reiser4_inode_data(object)->pset, obj_plug);
 	result = obj_plug->set_plug_in_inode(object, parent, data);
 	if (result) {
-		warning("nikita-431", "Cannot install plugin %i on %llx", data->id, get_inode_oid(object));
+		warning("nikita-431", "Cannot install plugin %i on %llx",
+			data->id, get_inode_oid(object));
 		return result;
 	}
 
@@ -416,7 +426,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 
 	/* obtain directory plugin (if any) for new object. */
 	obj_dir = inode_dir_plugin(object);
-	if ((obj_dir != NULL) && (obj_dir->init == NULL))
+	if (obj_dir != NULL && obj_dir->init == NULL)
 		return RETERR(-EPERM);
 
 	reiser4_inode_data(object)->locality_id = get_inode_oid(parent);
@@ -447,7 +457,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 	result = obj_plug->create(object, parent, data);
 	if (result != 0) {
 		inode_clr_flag(object, REISER4_IMMUTABLE);
-		if (result != -ENAMETOOLONG)
+		if (result != -ENAMETOOLONG && result != -ENOMEM)
 			warning("nikita-2219",
 				"Failed to create sd for %llu",
 				get_inode_oid(object));
@@ -463,7 +473,7 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 		/* create entry */
 		result = par_dir->add_entry(parent, dentry, data, &entry);
 		if (result == 0) {
-			result = reiser4_add_nlink(object, parent, 1);
+			result = reiser4_add_nlink(object, parent, 0);
 			/* If O_CREAT is set and the file did not previously
 			   exist, upon successful completion, open() shall
 			   mark for update the st_atime, st_ctime, and
@@ -472,26 +482,31 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 			*/
 			/* @object times are already updated by
 			   reiser4_add_nlink() */
-			if (result == 0) {
-				result = reiser4_update_dir(parent);
-				if (result != 0)
-					reiser4_del_nlink(object, parent, 1);
-			}
+			if (result == 0)
+				reiser4_update_dir(parent);
 			if (result != 0)
-				/* cleanup failure to update times */
+				/* cleanup failure to add nlink */
 				par_dir->rem_entry(parent, dentry, &entry);
 		}
 		if (result != 0)
 			/* cleanup failure to add entry */
-			if (obj_dir != NULL)
-				obj_dir->done(object);
-	} else
+			obj_plug->detach(object, parent);
+	} else if (result != -ENOMEM)
 		warning("nikita-2219", "Failed to initialize dir for %llu: %i",
 			get_inode_oid(object), result);
 
-	if (result != 0)
+	/*
+	 * update stat-data, committing all pending modifications to the inode
+	 * fields.
+	 */
+	reiser4_update_sd(object);
+	if (result != 0) {
+		/* if everything was ok (result == 0), parent stat-data is
+		 * already updated above (update_parent_dir()) */
+		reiser4_update_sd(parent);
 		/* failure to create entry, remove object */
 		obj_plug->delete(object);
+	}
 
 	/* file has name now, clear immutable flag */
 	inode_clr_flag(object, REISER4_IMMUTABLE);
@@ -1109,7 +1124,6 @@ readdir_common(struct file *f /* directory file being read */ ,
 						break;
 				}
 			} else if (result == -E_REPEAT) {
-				++ f->f_pos;
 				/* feed_entry() had to restart. */
 				++ f->f_pos;
 				tap_relse(&tap);
