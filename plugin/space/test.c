@@ -144,9 +144,9 @@ void test_check_blocks (const reiser4_block_nr * start,
 
 	if (desired)
 		/* we only can check that those blocks will never be allocated */
-		assert ("vs-836", start + len <= allocator->new_block_nr);
+		assert ("vs-836", *start + *len <= allocator->new_block_nr);
 	else
-		assert ("vs-837", start >= allocator->new_block_nr);
+		assert ("vs-837", *start >= allocator->new_block_nr);
 
 	spin_unlock (&allocator->guard);
 }
