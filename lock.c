@@ -904,8 +904,9 @@ longterm_lock_znode(
 	for (;;) {
 		ADDSTAT(node, lock_iteration);
 
-		/* Check the lock's availability: if it is unavaiable we get E_REPEAT, 0
-		   indicates "can_lock", otherwise the node is invalid.  */
+		/* Check the lock's availability: if it is unavaiable we get
+		   E_REPEAT, 0 indicates "can_lock", otherwise the node is
+		   invalid.  */
 		ret = can_lock_object(owner);
 
 		if (unlikely(ret == -EINVAL)) {
