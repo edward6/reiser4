@@ -2698,6 +2698,15 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		assert("nikita-3033", schedulable());
 
+		/*
+		 * FIXME: at this moment we are keeping long term lock
+		 * (hint->lh), if user space buffer is part of mmapped reiser4
+		 * file, then page faulting routine will call
+		 * reiser4_readpage->...->coord_by_key()->BOOM!
+		 *
+		 * Reproducible by iozone -a -B -G -K
+		 */
+
 		/* copy user data into page */
 		result = __copy_from_user((char *)kmap(page) + page_off, flow->data, count);
 		kunmap(page);
