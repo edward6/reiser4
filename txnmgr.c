@@ -1410,8 +1410,10 @@ commit_some_atoms(txn_mgr * mgr)
 		 * eligible for committing at all */
 		if (atom_is_committable(atom)) {
 			/* now, take spin lock and re-check */
-			if (UNDER_SPIN(atom, atom, atom_is_committable(atom)))
+			LOCK_ATOM(atom);
+			if (atom_is_committable(atom))
 				break;
+			UNLOCK_ATOM(atom);
 		}
 	}
 
