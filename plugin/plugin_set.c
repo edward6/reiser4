@@ -12,7 +12,9 @@
 /* slab for plugin sets */
 static kmem_cache_t *plugin_set_slab;
 
-static spinlock_t plugin_set_lock = SPIN_LOCK_UNLOCKED;
+static spinlock_t plugin_set_lock[8] __cacheline_aligned_in_smp = {
+	[0 ... 7] = SPIN_LOCK_UNLOCKED
+};
 
 /* hash table support */
 
@@ -136,61 +138,62 @@ plugin_set *plugin_set_clone(plugin_set *set)
 
 void plugin_set_put(plugin_set *set)
 {
+	spinlock_t *lock;
+
 	assert("nikita-2900", set != NULL);
 
-	if (atomic_dec_and_lock(&set->ref, &plugin_set_lock)) {
+	lock = &plugin_set_lock[set->hashval & 7];
+	if (atomic_dec_and_lock(&set->ref, lock)) {
 		assert("nikita-2899", set != &empty_set);
 		ps_hash_remove(&ps_table, set);
-		spin_unlock(&plugin_set_lock);
+		spin_unlock(lock);
 		kmem_cache_free(plugin_set_slab, set);
 	}
 }
 
 int plugin_set_field(plugin_set **set, void *val, int offset, int len)
 {
-	int result;
+	spinlock_t *lock;
+	plugin_set  replica;
+	plugin_set *twin;
+	plugin_set *psal;
+	plugin_set *orig;
 
 	assert("nikita-2902", set != NULL);
 	assert("nikita-2904", *set != NULL);
 	assert("nikita-2903", val != NULL);
 
-	result = 0;
-	if (memcmp(((char *)*set) + offset, val, len)) {
-		plugin_set replica;
-		plugin_set *twin;
-		plugin_set *psal;
-		plugin_set *orig;
+	if (unlikely(!memcmp(((char *)*set) + offset, val, len)))
+		return 0;
 
-		replica = *(orig = *set);
-		xmemcpy(((char *)&replica) + offset, val, len);
-		replica.hashval = calculate_hash(&replica);
-		psal = NULL;
-		do {
-			spin_lock(&plugin_set_lock);
-			twin = ps_hash_find(&ps_table, &replica.ref);
-			if (twin == NULL) {
-				if (psal == NULL) {
-					spin_unlock(&plugin_set_lock);
-					psal = kmem_cache_alloc(plugin_set_slab,
-								GFP_KERNEL);
-					if (psal == NULL)
-						result = RETERR(-ENOMEM);
-					continue;
-				}
-				*(*set = psal) = replica;
-				atomic_set(&psal->ref, 1);
-				ps_hash_insert(&ps_table, psal);
-				psal = NULL;
-			} else
-				*set = plugin_set_clone(twin);
-			spin_unlock(&plugin_set_lock);
-			plugin_set_put(orig);
-			break;
-		} while (result == 0);
-		if (psal != NULL)
+	replica = *(orig = *set);
+	xmemcpy(((char *)&replica) + offset, val, len);
+	replica.hashval = calculate_hash(&replica);
+	psal = NULL;
+	lock = &plugin_set_lock[replica.hashval & 7];
+	spin_lock(lock);
+	twin = ps_hash_find(&ps_table, &replica.ref);
+	if (unlikely(twin == NULL)) {
+		spin_unlock(lock);
+		psal = kmem_cache_alloc(plugin_set_slab, GFP_KERNEL);
+		if (psal == NULL)
+			return RETERR(-ENOMEM);
+		atomic_set(&psal->ref, 1);
+		*psal = replica;
+		spin_lock(lock);
+		twin = ps_hash_find(&ps_table, &replica.ref);
+		if (likely(twin) == NULL) {
+			*set = psal;
+			ps_hash_insert(&ps_table, psal);
+		} else {
+			*set = plugin_set_clone(twin);
 			kmem_cache_free(plugin_set_slab, psal);
-	}
-	return result;
+		}
+	} else
+		*set = plugin_set_clone(twin);
+	spin_unlock(lock);
+	plugin_set_put(orig);
+	return 0;
 }
 
 #define DEFINE_PLUGIN_SET(type, field)						\
