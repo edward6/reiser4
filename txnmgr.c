@@ -1654,7 +1654,9 @@ txn_try_capture_page  (struct page        *pg,
 	if (ret == 0) {
 		spin_unlock_jnode (node);
 	}
+	unlock_page (pg);
 	jput (node);
+	lock_page (pg);
 	return ret;
 }
 
