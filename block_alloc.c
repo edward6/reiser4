@@ -616,7 +616,7 @@ int assign_fake_blocknr (reiser4_block_nr *blocknr)
 
 /* release disk space (reserved or real one) depend on block number type (fake
  * or real) */
-void release_blocknr (reiser4_block_nr * block)
+int  release_blocknr (const reiser4_block_nr * block)
 {
 	const reiser4_block_nr one = 1;
 
@@ -624,10 +624,13 @@ void release_blocknr (reiser4_block_nr * block)
 	/* FIXME: more checks about jnode state should be here */
 
 	if (blocknr_is_fake (block)) {
+		reiser4_count_fake_deallocation ((__u64)1);
 		reiser4_release_grabbed_space ((__u64)1);
 	} else {
-		reiser4_dealloc_blocks (block, &one, 1, BLOCK_NOT_COUNTED);
+		return reiser4_dealloc_blocks (block, &one, 1, BLOCK_NOT_COUNTED);
 	}
+
+	return 0;
 }
 /** wrappers for block allocator plugin methods */
 extern void pre_commit_hook (void)
