@@ -205,10 +205,6 @@ extern void done_context(reiser4_context * context);
 
 extern int is_in_reiser4_context(void);
 
-/* return context associated with given thread */
-
-void get_context_ok(reiser4_context *);
-
 /*
  * return reiser4_context for the thread @tsk
  */

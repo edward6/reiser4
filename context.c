@@ -60,58 +60,6 @@ check_contexts(void)
 /* REISER4_DEBUG_CONTEXTS */
 #endif
 
-struct {
-	void *task;
-	void *context;
-	void *path[16];
-} context_ok;
-
-
-
-reiser4_internal void get_context_ok(reiser4_context *ctx)
-{
-	int i;
-	void *addr = NULL, *frame = NULL;
-
-#define CTX_FRAME(nr)						\
-	case (nr):						\
-		addr  = __builtin_return_address((nr));	 	\
-                frame = __builtin_frame_address(nr);		\
-		break
-
-	memset(&context_ok, 0, sizeof(context_ok));
-
-	context_ok.task = current;
-	context_ok.context = ctx;
-	for (i = 0; i < 16; i ++) {
-		switch(i) {
-			CTX_FRAME(0);
-			CTX_FRAME(1);
-			CTX_FRAME(2);
-			CTX_FRAME(3);
-			CTX_FRAME(4);
-			CTX_FRAME(5);
-			CTX_FRAME(6);
-			CTX_FRAME(7);
-			CTX_FRAME(8);
-			CTX_FRAME(9);
-			CTX_FRAME(10);
-			CTX_FRAME(11);
-			CTX_FRAME(12);
-			CTX_FRAME(13);
-			CTX_FRAME(14);
-			CTX_FRAME(15);
-		default:
-			impossible("", "");
-		}
-		if (frame > (void *)ctx)
-			break;
-		context_ok.path[i] = addr;
-	}
-#undef CTX_FRAME
-}
-
-
 /* initialise context and bind it to the current thread
 
    This function should be called at the beginning of reiser4 part of
