@@ -328,7 +328,7 @@ range
 
 %%
 
-#define version "40.0"
+#define yyversion "40.0"
 
 #include <sys/types.h>
 
@@ -354,7 +354,7 @@ char * insymbol( struct yy_r4_work_spaces * ws )
 #define next_symbol(ws) ((*(curr_symbol(ws)++))?curr_symbol(ws):NULL)
 
 
-static yylex( struct yy_r4_work_spaces * ws )
+static reiser4_lex( struct yy_r4_work_spaces * ws )
 {
 	char term,n,i;
 	int ret;
@@ -385,20 +385,17 @@ static yylex( struct yy_r4_work_spaces * ws )
 		{
 		case Wrd:
 			move_selected_word(ws);
-			if (yylval = b_check_word(ws)) 
-				{
-					ret=yyval;
-				}
-			else
+			if ( !(ret = b_check_word(ws)) )
 				{
 					ret=Wrd;
+					yyval.var=inittab(ws);
 				}
 			break;
 		default :                                /*  others  */
 			ret=*ws->yytext;
 			break;
 		}
-	return(ret);
+	return ret;
 }
 
 /* move_selected_word - copy term from input bufer to free space. 
@@ -464,7 +461,7 @@ move_selected_word(struct yy_r4_work_spaces * ws )
 						}
 				}
 			else *ws->tmpWrdEnd++ = *ws->yytext++;
-	                if( ws->tmpWrdEnd > maxtab )
+maxtab	                if( ws->tmpWrdEnd > maxtab ) /*freeSpaceBase[FREESPACESIZE]*/
 		                {
 					yyerror( ws ); /* Internal text buffer overflow */
 					exit();
@@ -495,6 +492,8 @@ b_check_word(struct yy_r4_work_spaces * ws )
 
 
 
+#define get_firts_wrd(ws) (ws)->WrdHead
+#define get_next_wrd(cur_var) (cur_var)->next
 
 var_t * inttab(struct yy_r4_work_spaces * ws )
 {
@@ -503,34 +502,36 @@ var_t * inttab(struct yy_r4_work_spaces * ws )
 	var_t * new_var;
 	int len;
 
-	new_var = get_first_wrd(ws);
+	new_var =  get_first_wrd(ws);
 
 	len = strlen( ws->freeSpace );
 
-	cur_var = Nul;
-	while ( !( new_var == Null ) )
+	cur_var = NULL;
+	while ( !( new_var == NULL ) )
 		{
 			cur_var = new_var;
 			if ( cur_var->u.len == len )
 				{
-					if( !( strncmp( cur_var->ut.name, ws->freeSpace, cur_var->u.len ) )  )
+					if( !( strncmp( cur_var->u.name, ws->freeSpace, cur_var->u.len ) )  )
 						{
 							return cur_var;
 						}
 				}
 			
-			new_var = get_next_wrd(ws,cur_var);
+			new_var = get_next_wrd(cur_var);
 		}
 	
 
-	new_var           = (var_t*)( (char*)(ws->freeSpace) + len );
+	new_var         = (var_t*)( (char*)(ws->freeSpace) + len );
 	new_var->u.name = ws->freeSpace;
-	new_var->u.len  = ws->freeSpace;
-	new_var->next     = Null;
+	new_var->u.len  = (usigned long)new_var - (usigned long)ws->freeSpace;
+	ws->freeSpace= (char *)((usigned long)new_var + sizeof(struct var));
 
-	if (cur_var==Null)
+	new_var->next   = NULL;
+
+	if (cur_var==NULL)
 		{
-			ws->WrdHead   = new_war;
+			ws->WrdHead   = new_var;
 		}
 	else
 		{
@@ -542,13 +543,13 @@ var_t * inttab(struct yy_r4_work_spaces * ws )
 
 
 
-
+//#include ???? dentry, 
 
 lnode * get_root_lnode(struct yy_r4_work_space * ws)
 {
 	struct dentry   dentry;
 	struct dentry * result;
-	reiswr4_key   * k_rez;
+	reiser4_key   * k_rez;
 	lnode         * l_rez;
 	struct nameidata nd;
 
@@ -572,7 +573,7 @@ lnode * get_root_lnode(struct yy_r4_work_space * ws)
 }
 
 
-int pars_path_walk(struct yy_r4_work_space * ws, struct Name * NamePtr)
+int pars_path_walk(struct yy_r4_work_space * ws, struct ???Name * NamePtr)
 {
 	struct lnode * lnode;
 	int error;
@@ -763,27 +764,6 @@ ldw(struct yy_r4_work_space * ws)
 	level--;
 }
 
-reinitial( struct yy_r4_work_spaces * ws)
-{
-	int i;
-
-	ws->Str              =
-	ws->StrBase          =   (struct streg *) kmallok();
-	ws->freeSpace     =   
-	ws->freeSpaceBase = kmallok();
-
-	yyerrco =  0;
-	errco   =  0;
-	level   =  0;
-	varco   = -1;
-	strco   =  0;
-	newvar(0);
-}
-
-initial( struct yy_r4_work_spaces * ws)
-{
-	reinitial();
-}
 
 
 
