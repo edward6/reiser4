@@ -76,11 +76,13 @@ static reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t
         max_item_size = tree_by_inode(inode)->nplug->max_item_size();
 
 	/* Here 2 is the worse node packing factor */
-	max_item_size = div64_32(max_item_size, 2, NULL);
+	max_item_size >>= 1;
 	
-	/* The four blocks become dirty durring shifting on the leaf level */
-	block_nr = div64_32(size + (max_item_size - 1), max_item_size, NULL) + 4;
+	block_nr = div64_32(size + (max_item_size - 1), max_item_size, NULL);
 	
+	/** write_flow writes in small pieces and every write starts it own balancing. 
+	 *  Early flush may clean dirty nodes and they can become dirty again during
+	 *  futher writes. */
 	estimate_internal_amount(1, tree_by_inode(inode)->height, &amount);
 
 	return block_nr + (block_nr * amount) + 

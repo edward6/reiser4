@@ -89,7 +89,10 @@ void estimate_internal_amount(__u32 childen, __u32 tree_height, __u64 *amount)
 	assert("umka-1249", amount != NULL);
 	
 	ten_percent = ((103 * childen) >> 10);
-	*amount = (tree_height * 2 + (4 + ten_percent));
+	
+	/** If we have too many balancings at the time, tree height can raise on more
+	 *  then 1. Assume that if tree_height is 5, it can raise on 1 only. */
+	*amount = ((tree_height < 5 ? 5 : tree_height) * 2 + (4 + ten_percent));
 }
 
 /* helper function to print errors */

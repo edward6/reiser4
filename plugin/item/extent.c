@@ -1800,7 +1800,6 @@ extent_allocate_blocks(reiser4_blocknr_hint * preceder,
 
 	*allocated = wanted_count;
 	preceder->max_dist = 0;	/* scan whole disk, if needed */
-	/* FIXME-VS: ask Zam how to use this block_stage */
 	preceder->block_stage = BLOCK_UNALLOCATED;
 	result = reiser4_alloc_blocks (preceder, first_allocated, allocated, 0/*unformatted*/,
 	    0/* do not use 5% */);
@@ -2359,11 +2358,10 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 		assert("vs-1080", keyeq(&tmp, key));
 	}
 
-	/* Grab from 100% of disk space, not 95% as usual. */
-	reiser4_grab_space_enable();
 	grabbed = get_current_context()->grabbed_blocks;
 	estimate_internal_amount(1, znode_get_tree(orig_znode)->height, &needed);
-	if (reiser4_grab_space_exact(needed, 1))
+	/* Grab from 100% of disk space, not 95% as usual. */
+	if (reiser4_grab_space_force(needed, 1))
 		rpanic("vpf-340", "No space left in reserved area.");
 	
 	/* set insert point after unit to be replaced */

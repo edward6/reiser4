@@ -469,10 +469,8 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
 	if (hint->block_stage == BLOCK_NOT_COUNTED) {
-		reiser4_grab_space_enable();
 		trace_on(TRACE_RESERVE, "grab for not counted %llu blocks.\n", *len);
-		ret = reiser4_grab_space(&needed, (reiser4_block_nr) 1, *len, 
-			from_reserved_space);
+		ret = reiser4_grab_space_force(*len, from_reserved_space);
 		if (ret != 0)
 			return ret;
 	}
