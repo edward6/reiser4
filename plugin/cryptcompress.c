@@ -84,12 +84,12 @@ crc_inode_ok(struct inode * inode)
 	reiser4_inode * info = reiser4_inode_data(inode);
 	cryptcompress_info_t * data = cryptcompress_inode_data(inode);
 	
-	assert("edward-686", 
-	       (info->cluster_shift <= MAX_CLUSTER_SHIFT) &&
-	       (data->tfm[CRYPTO_TFM] == NULL) &&
-	       (data->tfm[DIGEST_TFM] == NULL));
-	//inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-	return 1;
+	if ((info->cluster_shift <= MAX_CLUSTER_SHIFT) &&
+	    (data->tfm[CRYPTO_TFM] == NULL) &&
+	    (data->tfm[DIGEST_TFM] == NULL))
+		return 1;
+	assert("edward-686", 0);
+	return 0;
 }
 
 reiser4_internal crypto_stat_t * inode_crypto_stat (struct inode * inode)
@@ -1050,9 +1050,6 @@ deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		int i, icb, ocb;
 		__u32 * expkey;
 		crypto_plugin * cplug = inode_crypto_plugin(inode);
-		crypto_stat_t * stat = inode_crypto_stat(inode);
-				
-		assert("edward-604", stat != NULL);
 		
 		icb = crypto_blocksize(inode);
 		ocb = inode_scaled_offset(inode, icb);
@@ -1252,9 +1249,7 @@ inflate_cluster(reiser4_cluster_t *clust, /* cluster handle, contains assembled
 		int icb, ocb;
 		__u32 * expkey;
 		crypto_plugin * cplug = inode_crypto_plugin(inode);
-		crypto_stat_t * stat = inode_crypto_stat(inode);
-
-		assert("edward-616", stat != 0);
+		
 		assert("edward-617", cplug != 0);
 
 		if (clust->nr_pages == 1)
