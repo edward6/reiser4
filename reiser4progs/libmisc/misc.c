@@ -14,10 +14,15 @@
     0 - exact key has not been found. key of *pos < then wanted.
 */
 
-int reiserfs_misc_bin_search(void *array, uint32_t count, void *needle,
-    reiserfs_elem_func_t elem_func, reiserfs_comp_func_t comp_func,
-    void *data, uint64_t *pos)
-{
+int reiserfs_misc_bin_search(
+    void *array,		    /* opaque pointer to array item will be searched in */
+    uint32_t count,		    /* array length */
+    void *needle,		    /* array item to be found */
+    reiserfs_elem_func_t elem_func, /* callback function for getting next item from the array */
+    reiserfs_comp_func_t comp_func, /* callback function for comparing items from the array */
+    void *data,			    /* user-specified data */
+    uint64_t *pos		    /* pointer result will be saved in */
+) {
     void *elem;
     int res = 0;
     int left, right, i;

@@ -41,12 +41,13 @@ static errno_t reiserfs_tree_setup(reiserfs_tree_t *tree) {
 
     tree->limit.cur = 0;
 
-    /* 
-	FIXME-UMKA: This value should be calculated basing on available memory in the 
-	system, but for awhile it will be hardcoded value. So, we set it up by 1000 
-	blocks.
-    */
-    tree->limit.max = 1000;
+    if (libreiser4_mlimit_get() > 0)
+	tree->limit.max = libreiser4_mlimit_get();
+    else {
+	/* FIXME-UMKA: Here limit should be calculated by libreiser4 itself */
+	tree->limit.max = 1000;
+    }
+    
     tree->limit.enabled = 1;
     
     return 0;
