@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
     int c, error;
     char uuid[17], label[17];
     count_t fs_len = 0, dev_len = 0;
-    char *host_dev, *profile_label = "profile40";
+    char *host_dev, *profile_label = "default40";
     uint16_t blocksize = REISERFS_DEFAULT_BLOCKSIZE;
     
     reiserfs_fs_t *fs;
