@@ -430,13 +430,7 @@ jnode_set_reloc(jnode * node)
 	JF_SET(node, JNODE_RELOC);
 }
 
-static inline void
-jnode_set_wander(jnode * node)
-{
-	assert("nikita-2431", node != NULL);
-	assert("nikita-2432", !JF_ISSET(node, JNODE_RELOC));
-	JF_SET(node, JNODE_OVRWR);
-}
+extern void jnode_set_wander(jnode * node);
 
 /* bump data counter on @node */
 static inline void add_d_ref(jnode * node /* node to increase d_count of */ )
