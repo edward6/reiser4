@@ -4,19 +4,47 @@
 #include "tree_walk.h"
 #include "super.h"
 
-/*
- * there are three "types" of readahead:
- * 1. readahead for unformatted nodes
- * 2. readahead for directories: it is implemented via zload
- * 3. 
- */
 
+/* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:1 */
+static inline int ra_adjacent_only(int flags)
+{
+	return flags & RA_ADJACENT_ONLY;
+}
+
+/* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:2 */
+static inline int ra_all_levels(int flags)
+{
+	return flags & RA_ALL_LEVELS;
+}
+
+/* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:4 */
+static inline int ra_continue_if_present(int flags)
+{
+	return flags & RA_CONTINUE_ON_PRESENT;
+}
+
+/* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:8 */
+static inline int ra_get_rn_hard(int flags)
+{
+	return flags & RA_READ_ON_GRN;
+}
+
+/* this is used by formatted_readahead to decide whether read for right neighbor of node is to be issued. It returns 1
+   if right neighbor's first key is less or equal to readahead's stop key */
+static int
+should_readahead_neighbor(znode *node, ra_info_t *info)
+{
+	return (UNDER_SPIN(dk, ZJNODE(node)->tree, keyle(znode_get_rd_key(node), &info->key_to_stop)));
+}
+
+/* start read for @node and for few of its right neighbors */
 void
-readdir_readahead(znode *node, ra_info_t *info)
+formatted_readahead(znode *node, ra_info_t *info)
 {
 	ra_params_t *ra_params;
-	znode *next;
+	znode *cur;
 	int i;
+	int grn_flags;
 
 	if (blocknr_is_fake(znode_get_block(node)))
 		/*
@@ -27,45 +55,66 @@ readdir_readahead(znode *node, ra_info_t *info)
 
 	ra_params = get_current_super_ra_params();
 
-	if (ra_params->leaves_only && znode_get_level(node) != LEAF_LEVEL)
-		/*
-		 * FIXME-VS: for now only for leaf 
-		 */
+	if (!ra_continue_if_present(ra_params->flags) && !znode_just_created(node))
+		/* node is available immediately and global readahead flags require to not readahead in this case */
 		return;
 
 	jstartio(ZJNODE(node));
-	i = 1;
 
-	next = zref(node);
-	while (1) {
-		lock_handle lh;
-		int grn_flags;
+	if (!ra_all_levels(ra_params->flags) && znode_get_level(node) != LEAF_LEVEL)
+		return;
 
-		if (i >= ra_params->max)
-			break;
-		if (UNDER_SPIN(dk, ZJNODE(next)->tree, (get_key_locality(znode_get_rd_key(next)) != info->u.readdir.oid ||
-							get_key_type(znode_get_rd_key(next)) >= KEY_BODY_MINOR)))
-			break;
-		init_lh(&lh);
+	write_current_tracef("...readahead\n");
 
-		grn_flags = GN_DO_READ; /* read all necessary internals */
-		if (reiser4_get_right_neighbor(&lh, next, ZNODE_READ_LOCK, grn_flags))
+	grn_flags = (ra_get_rn_hard(ra_params->flags) ? GN_DO_READ : 0);
+
+	/*
+	 * FIXME-ZAM: GN_DO_READ seems to not work these days
+	 */
+	grn_flags |= GN_DO_READ;
+
+	i = 0;
+	cur = zref(node);
+	while (i < ra_params->max) {
+		lock_handle next_lh;
+
+		if (!should_readahead_neighbor(cur, info))
 			break;
-		if (blocknr_is_fake(znode_get_block(lh.node))) {
-			done_lh(&lh);
+
+		init_lh(&next_lh);
+		if (reiser4_get_right_neighbor(&next_lh, cur, ZNODE_READ_LOCK, grn_flags))
+			break;
+
+		if (!ra_continue_if_present(ra_params->flags) && !znode_just_created(next_lh.node)) {
+			/* node is available already. Do not readahead more */
+			done_lh(&next_lh);
 			break;
 		}
-		if (ra_params->adjacent_only && *znode_get_block(lh.node) != *znode_get_block(next) + 1) {
-			done_lh(&lh);
+
+		assert("vs-1143", !blocknr_is_fake(znode_get_block(next_lh.node)));
+
+		if (ra_adjacent_only(ra_params->flags) && *znode_get_block(next_lh.node) != *znode_get_block(cur) + 1) {
+			done_lh(&next_lh);
 			break;
 		}
 
-		zput(next);
-		next = zref(lh.node);
-		done_lh(&lh);
-		jstartio(ZJNODE(next));
+		zput(cur);
+		cur = zref(next_lh.node);
+		done_lh(&next_lh);
+		jstartio(ZJNODE(cur));
 		i ++;
 	}
-	zput(next);
+	zput(cur);
+
+	write_current_tracef("...readahead exits\n");
 }
 
+/*
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
+*/
