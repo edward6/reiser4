@@ -822,6 +822,7 @@ extent_write_hole(struct inode *inode, flow_t *flow, hint_t *hint, int grabbed)
 	flow->length = 0;
 	result = add_hole(coord, hint->coord.lh, &flow->key);
 	hint->coord.valid = 0;
+	unset_hint(hint);
 	if (!result) {
 		done_lh(hint->coord.lh);
 		INODE_SET_FIELD(inode, i_size, new_size);

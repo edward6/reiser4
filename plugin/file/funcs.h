@@ -11,7 +11,7 @@ int tail2extent(unix_file_info_t *);
 int extent2tail(unix_file_info_t *);
 int finish_conversion(struct inode *inode);
 
-void hint_init_zero(hint_t *, lock_handle *);
+void hint_init_zero(hint_t *);
 int find_file_item(hint_t *, const reiser4_key *, znode_lock_mode,
 		   ra_info_t *, struct inode *);
 int find_file_item_nohint(coord_t *, lock_handle *, const reiser4_key *,

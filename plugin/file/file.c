@@ -416,10 +416,9 @@ find_file_item_nohint(coord_t *coord, lock_handle *lh, const reiser4_key *key,
    plugin->u.file.read_flow = NULL */
 
 reiser4_internal void
-hint_init_zero(hint_t *hint, lock_handle *lh)
+hint_init_zero(hint_t *hint)
 {
 	xmemset(hint, 0, sizeof (*hint));
-	hint->coord.lh = lh;
 }
 
 /* find position of last byte of last item of the file plus 1. This is used by truncate and mmap to find real file
@@ -601,6 +600,10 @@ shorten_file(struct inode *inode, loff_t new_size)
 		return 0;
 	}
 
+	/* FIXME: not sure how crypto files will work here. Probably they will not. */
+	result = find_file_state(unix_file_inode_data(inode));
+	if (result)
+		return result;
 	if (file_is_built_of_tails(inode))
 		/* No need to worry about zeroing last page after new file end */
 		return 0;
@@ -661,13 +664,13 @@ shorten_file(struct inode *inode, loff_t new_size)
 }
 
 static loff_t
-write_flow(struct file *, struct inode *, const char *buf, loff_t count, loff_t pos);
+write_flow(hint_t *, struct file *, struct inode *, const char *buf, loff_t count, loff_t pos);
 
 /* it is called when truncate is used to make file longer and when write position is set past real end of file. It
    appends file which has size @cur_size with hole of certain size (@hole_size). It returns 0 on success, error code
    otherwise */
 static int
-append_hole(struct inode *inode, loff_t new_size)
+append_hole(hint_t *hint, struct inode *inode, loff_t new_size)
 {
 	int result;
 	loff_t written;
@@ -677,7 +680,7 @@ append_hole(struct inode *inode, loff_t new_size)
 
 	result = 0;
 	hole_size = new_size - inode->i_size;
-	written = write_flow(NULL, inode, NULL/*buf*/, hole_size,
+	written = write_flow(hint, NULL, inode, NULL/*buf*/, hole_size,
 			     inode->i_size);
 	if (written != hole_size) {
 		/* return error because file is not expanded as required */
@@ -699,9 +702,11 @@ static int
 truncate_file_body(struct inode *inode, loff_t new_size)
 {
 	int result;
+	hint_t hint;
 
+	hint_init_zero(&hint);
 	if (inode->i_size < new_size)
-		result = append_hole(inode, new_size);
+		result = append_hole(&hint, inode, new_size);
 	else
 		result = shorten_file(inode, new_size);
 
@@ -722,7 +727,7 @@ truncate_unix_file(struct inode *inode, loff_t new_size)
 /* get access hint (seal, coord, key, level) stored in reiser4 private part of
    struct file if it was stored in a previous access to the file */
 reiser4_internal int
-load_file_hint(struct file *file, hint_t *hint, lock_handle *lh)
+load_file_hint(struct file *file, hint_t *hint)
 {
 	reiser4_file_fsdata *fsdata;
 
@@ -733,7 +738,6 @@ load_file_hint(struct file *file, hint_t *hint, lock_handle *lh)
 
 		if (seal_is_set(&fsdata->reg.hint.seal)) {
 			*hint = fsdata->reg.hint;
-			hint->coord.lh = lh;
 			/* force re-validation of the coord on the first
 			 * iteration of the read/write loop. */
 			hint->coord.valid = 0;
@@ -741,7 +745,7 @@ load_file_hint(struct file *file, hint_t *hint, lock_handle *lh)
 		}
 		xmemset(&fsdata->reg.hint, 0, sizeof(hint_t));
 	}
-	hint_init_zero(hint, lh);
+	hint_init_zero(hint);
 	return 0;
 }
 
@@ -1475,9 +1479,11 @@ readpage_unix_file(void *vp, struct page *page)
 	inode = page->mapping->host;
 
 	file = vp;
-	result = load_file_hint(file, &hint, &lh);
+	result = load_file_hint(file, &hint);
 	if (result)
 		return result;
+	init_lh(&lh);
+ 	hint.coord.lh = &lh;
 
 	/* get key of first byte of the page */
 	key_by_inode_unix_file(inode, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
@@ -1504,7 +1510,8 @@ readpage_unix_file(void *vp, struct page *page)
 		done_lh(&lh);
 		return result;
 	}
-	if (!hint.coord.valid)
+	
+	if (hint.coord.valid == 0)
 		validate_extended_coord(&hint.coord, (loff_t) page->index << PAGE_CACHE_SHIFT);
 
 	if (!coord_is_existing_unit(coord)) {
@@ -1566,59 +1573,68 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
 	return estimate_update_common(inode);
 }
 
-/* plugin->u.file.read
+#define NR_PAGES_TO_PIN 8
 
-   the read method for the unix_file plugin
+static int
+reiser4_get_user_pages(struct page **pages, unsigned long addr, size_t count, 
+		       int rw, size_t *bytes)
+{
+	int nr_pages;
 
-*/
-reiser4_internal ssize_t
-read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
+	nr_pages = ((addr + count + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT) -
+		(addr >> PAGE_CACHE_SHIFT);
+	if (nr_pages > NR_PAGES_TO_PIN) {
+		nr_pages = NR_PAGES_TO_PIN;
+		*bytes = (nr_pages * PAGE_CACHE_SIZE) - (addr & (PAGE_CACHE_SIZE - 1));
+	} else
+		*bytes = count;
+
+	down_read(&current->mm->mmap_sem);
+	nr_pages = get_user_pages(current, current->mm, addr,
+				nr_pages, (rw == READ), 0,
+				pages, NULL);
+	up_read(&current->mm->mmap_sem);
+	return nr_pages;
+}
+
+static void
+reiser4_put_user_pages(struct page **pages, int nr_pages)
+{
+	int i;
+
+	for (i = 0; i < nr_pages; i ++)
+		page_cache_release(pages[i]);
+}
+
+/* this is called with nonexclusive access obtained, file's container can not change */
+static size_t
+read_file(hint_t *hint, file_container_t container,
+	  struct file *file, /* file to write to */
+	  char *buf, /* address of user-space buffer */
+	  size_t count, /* number of bytes to write */
+	  loff_t *off)
 {
 	int result;
 	struct inode *inode;
-	flow_t f;
-	lock_handle lh;
-	hint_t hint;
-	coord_t *coord;
-	size_t read;
-	reiser4_block_nr needed;
+	flow_t flow;
 	int (*read_f) (struct file *, flow_t *, hint_t *);
-	unix_file_info_t *uf_info;
-	loff_t size;
-
-	if (unlikely(!read_amount))
-		return 0;
+	coord_t *coord;
 
 	inode = file->f_dentry->d_inode;
-	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 
-	uf_info = unix_file_inode_data(inode);
-	get_nonexclusive_access(uf_info);
-
-	size = i_size_read(inode);
-	if (*off >= size) {
-		/* position to read from is past the end of file */
-		drop_access(uf_info);
-		return 0;
-	}
-
-	if (*off + read_amount > size)
-		read_amount = size - *off;
-
-	/* we have nonexclusive access (NA) obtained. File's container may not change until we drop NA. If possible -
-	   calculate read function beforehand */
- 	switch(uf_info->container) {
+	/* we have nonexclusive access (NA) obtained. File's container may not
+	   change until we drop NA. If possible - calculate read function
+	   beforehand */
+	switch(container) {
 	case UF_CONTAINER_EXTENTS:
 		read_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.read;
 		break;
 
 	case UF_CONTAINER_TAILS:
 		/* this is read-ahead for tails-only files */
-		result = reiser4_file_readahead(file, *off, read_amount);
-		if (result) {
-			drop_access(uf_info);
+		result = reiser4_file_readahead(file, *off, count);
+		if (result)
 			return result;
-		}
 
 		read_f = item_plugin_by_id(FORMATTING_ID)->s.file.read;
 		break;
@@ -1630,34 +1646,24 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	case UF_CONTAINER_EMPTY:
 	default:
 		warning("vs-1297", "File (ino %llu) has unexpected state: %d\n",
-			(unsigned long long)get_inode_oid(inode), uf_info->container);
-		drop_access(uf_info);
+			(unsigned long long)get_inode_oid(inode), container);
 		return RETERR(-EIO);
-	}
-
-	needed = unix_file_estimate_read(inode, read_amount); /* FIXME: tree_by_inode(inode)->estimate_one_insert */
-	result = reiser4_grab_space(needed, BA_CAN_COMMIT);
-	if (result != 0) {
-		drop_access(uf_info);
-		return result;
 	}
 
 	/* build flow */
 	assert("vs-1250", inode_file_plugin(inode)->flow_by_inode == flow_by_inode_unix_file);
-	result = flow_by_inode_unix_file(inode, buf, 1 /* user space */ , read_amount, *off, READ_OP, &f);
-	if (unlikely(result)) {
-		drop_access(uf_info);
+	result = flow_by_inode_unix_file(inode, buf, 1 /* user space */ , count, *off, READ_OP, &flow);
+	if (unlikely(result))
 		return result;
-	}
 
-	/* get seal and coord sealed with it from reiser4 private data of struct file.  The coord will tell us where our
-	   last read of this file finished, and the seal will help to determine if that location is still valid.
+	/* get seal and coord sealed with it from reiser4 private data
+	   of struct file.  The coord will tell us where our last read
+	   of this file finished, and the seal will help to determine
+	   if that location is still valid.
 	*/
-	coord = &hint.coord.base_coord;
-	result = load_file_hint(file, &hint, &lh);
-
-	while (f.length && result == 0) {
-		result = find_file_item(&hint, &f.key, ZNODE_READ_LOCK, NULL, inode);
+	coord = &hint->coord.base_coord;
+	while (flow.length && result == 0) {
+		result = find_file_item(hint, &flow.key, ZNODE_READ_LOCK, NULL, inode);
 		if (cbk_errored(result))
 			/* error happened */
 			break;
@@ -1666,37 +1672,131 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 			/* there were no items corresponding to given offset */
 			break;
 
-		/*coord_clear_iplug(coord);*/
-		hint.coord.valid = 0;
 		result = zload(coord->node);
 		if (unlikely(result))
 			break;
 
-		validate_extended_coord(&hint.coord, get_key_offset(&f.key));
-
+		if (hint->coord.valid == 0)
+			validate_extended_coord(&hint->coord, get_key_offset(&flow.key));
+			
 		/* call item's read method */
 		if (!read_f)
 			read_f = item_plugin_by_coord(coord)->s.file.read;
-		result = read_f(file, &f, &hint);
+		result = read_f(file, &flow, hint);
 		zrelse(coord->node);
-		done_lh(&lh);
+		done_lh(hint->coord.lh);
 	}
 
-	done_lh(&lh);
+	return (count - flow.length) ? (count - flow.length) : result;
+}
+
+static int is_user_space(const char *buf)
+{
+	return (unsigned long)buf < PAGE_OFFSET;
+}
+
+/* plugin->u.file.read
+
+   the read method for the unix_file plugin
+
+*/
+reiser4_internal ssize_t
+read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
+{
+	int result;
+	struct inode *inode;
+	lock_handle lh;
+	hint_t hint;
+	unix_file_info_t *uf_info;
+	struct page *pages[NR_PAGES_TO_PIN];
+	int nr_pages;
+	size_t count, read, left;
+	reiser4_block_nr needed;
+	loff_t size;
+	int user_space;
+
+	if (unlikely(read_amount == 0))
+		return 0;
+
+	inode = file->f_dentry->d_inode;
+	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
+
+	uf_info = unix_file_inode_data(inode);
+
+	needed = unix_file_estimate_read(inode, read_amount);
+	result = reiser4_grab_space(needed, BA_CAN_COMMIT);
+	if (result != 0)
+		return result;
+
+	result = load_file_hint(file, &hint);
+	if (result)
+		return result;
+	init_lh(&lh);
+	hint.coord.lh = &lh;
+
+	left = read_amount;
+	count = 0;
+	user_space = is_user_space(buf);
+	nr_pages = 0;
+	while (left > 0) {
+		size_t to_read;		
+
+		size = i_size_read(inode);
+		if (*off >= size)
+			/* position to read from is past the end of file */
+			break;
+		if (*off + left > size)
+			left = size - *off;
+
+		if (user_space) {
+			nr_pages = reiser4_get_user_pages(pages, (unsigned long)buf, left, READ, &to_read);
+			if (nr_pages < 0)
+				return nr_pages;
+		} else
+			to_read = left;
+
+		get_nonexclusive_access(uf_info);
+
+		/* define more precisely read size now when filesize can not change */
+		if (*off >= inode->i_size)
+			/* position to read from is past the end of file */
+			break;
+		if (*off + left > inode->i_size)
+			left = inode->i_size - *off;
+		if (*off + to_read > inode->i_size)
+			to_read = inode->i_size - *off;
+
+		assert("vs-1706", to_read <= left);
+		read = read_file(&hint, uf_info->container, file, buf, to_read, off);
+
+		if (user_space)
+			reiser4_put_user_pages(pages, nr_pages);
+		drop_nonexclusive_access(uf_info);
+
+		if (read < 0) {
+			result = read;
+			break;
+		}
+		left -= read;
+		buf += read;
+
+		/* update position in a file */
+		*off += read;
+		/* total number of read bytes */
+		count += read;
+	}
 	save_file_hint(file, &hint);
 
-	read = read_amount - f.length;
-	if (read)
-		/* something was read. Update stat data */
+	if (count) {
+		/* something was read. Update inode's atime and stat data */
 		update_atime(inode);
 
-	drop_access(uf_info);
-
-	/* update position in a file */
-	*off += read;
+		if (reiser4_update_sd(inode))
+			warning("vs-1705", "update atime failed: %llu", get_inode_oid(inode));
+	}
 
 	/* return number of read bytes or error code if nothing is read */
-	return read ?: result;
+	return count ? count : result;
 }
 
 typedef int (*write_f_t)(struct inode *, flow_t *, hint_t *, int grabbed, write_mode_t);
@@ -1705,11 +1805,10 @@ typedef int (*write_f_t)(struct inode *, flow_t *, hint_t *, int grabbed, write_
    appropriate item to actually copy user data into filesystem. This loops
    until all the data from flow @f are written to a file. */
 static loff_t
-append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
+append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, flow_t *flow)
 {
 	int result;
 	lock_handle lh;
-	hint_t hint;
 	loff_t to_write;
 	write_f_t write_f;
 	file_container_t cur_container, new_container;
@@ -1718,38 +1817,28 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 
 	assert("nikita-3031", schedulable());
 	assert("vs-1109", get_current_context()->grabbed_blocks == 0);
+	assert("vs-1708", hint != NULL);
 
-	/* get seal and coord sealed with it from reiser4 private data of
-	   struct file */
-	result = load_file_hint(file, &hint, &lh);
-	if (result)
-		return result;
+	init_lh(&lh);
+	hint->coord.lh = &lh;
 
+	result = 0;
 	uf_info = unix_file_inode_data(inode);
 
 	to_write = flow->length;
 	while (flow->length) {
+
 		assert("vs-1123", get_current_context()->grabbed_blocks == 0);
 
-		{
-			size_t count;
-
-			count = PAGE_CACHE_SIZE;
-
-			if (count > flow->length)
-				count = flow->length;
-			fault_in_pages_readable(flow->data, count);
-		}
-
 		if (to_write == flow->length) {
-			/* it may happend that find_next_item will have to insert empty node to the tree (empty leaf
+			/* it may happend that find_file_item will have to insert empty node to the tree (empty leaf
 			   node between two extent items) */
 			result = reiser4_grab_space_force(1 + estimate_one_insert_item(tree_by_inode(inode)), 0);
 			if (result)
 				return result;
 		}
 		/* look for file's metadata (extent or tail item) corresponding to position we write to */
-		result = find_file_item(&hint, &flow->key, ZNODE_WRITE_LOCK, NULL/* ra_info */, inode);
+		result = find_file_item(hint, &flow->key, ZNODE_WRITE_LOCK, NULL/* ra_info */, inode);
 		all_grabbed2free();
 		if (IS_CBKERR(result)) {
 			/* error occurred */
@@ -1777,13 +1866,16 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 
 		case UF_CONTAINER_TAILS:
 			if (should_have_notail(uf_info, get_key_offset(&flow->key) + flow->length)) {
-				longterm_unlock_znode(&lh);
-				if (!ea_obtained(uf_info))
-					return RETERR(-E_REPEAT);
+				done_lh(&lh);
+ 				drop_nonexclusive_access(uf_info);
+				txn_restart_current();
+ 				get_exclusive_access(uf_info);
 				result = tail2extent(uf_info);
+ 				drop_exclusive_access(uf_info);
+ 				get_nonexclusive_access(uf_info);
 				if (result)
 					return result;
-				unset_hint(&hint);
+				unset_hint(hint);
 				continue;
 			}
 			write_f = item_plugin_by_id(FORMATTING_ID)->s.file.write;
@@ -1791,22 +1883,22 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 			break;
 
 		default:
-			longterm_unlock_znode(&lh);
+			done_lh(&lh);
 			return RETERR(-EIO);
 		}
 
 		result = zload(lh.node);
 		if (result) {
-			longterm_unlock_znode(&lh);
+			done_lh(&lh);
 			return result;
 		}
 		loaded = lh.node;
 
 		result = write_f(inode,
 				 flow,
-				 &hint,
+				 hint,
 				 0/* not grabbed */,
-				 how_to_write(&hint.coord, &flow->key));
+				 how_to_write(&hint->coord, &flow->key));
 
 		assert("nikita-3142", get_current_context()->grabbed_blocks == 0);
 		if (cur_container == UF_CONTAINER_EMPTY && to_write != flow->length) {
@@ -1822,9 +1914,6 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 			break;
 		preempt_point();
 	}
-	if (result == -EEXIST)
-		printk("write returns EEXIST!\n");
-	save_file_hint(file, &hint);
 
 	/* if nothing were written - there must be an error */
 	assert("vs-951", ergo((to_write == flow->length), result < 0));
@@ -1836,7 +1925,7 @@ append_and_or_overwrite(struct file *file, struct inode *inode, flow_t *flow)
 /* make flow and write data (@buf) to the file. If @buf == 0 - hole of size @count will be created. This is called with
    uf_info->latch either read- or write-locked */
 static loff_t
-write_flow(struct file *file, struct inode *inode, const char *buf, loff_t count, loff_t pos)
+write_flow(hint_t *hint, struct file *file, struct inode *inode, const char *buf, loff_t count, loff_t pos)
 {
 	int result;
 	flow_t flow;
@@ -1848,7 +1937,7 @@ write_flow(struct file *file, struct inode *inode, const char *buf, loff_t count
 	if (result)
 		return result;
 
-	return append_and_or_overwrite(file, inode, &flow);
+	return append_and_or_overwrite(hint, file, inode, &flow);
 }
 
 reiser4_internal void
@@ -1957,7 +2046,8 @@ mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 }
 
 static ssize_t
-write_file(struct file *file, /* file to write to */
+write_file(hint_t *hint,
+	   struct file *file, /* file to write to */
 	   const char *buf, /* address of user-space buffer */
 	   size_t count, /* number of bytes to write */
 	   loff_t *off /* position in file to write to */)
@@ -1973,14 +2063,14 @@ write_file(struct file *file, /* file to write to */
 
 	if (inode->i_size < pos) {
 		/* pos is set past real end of file */
-		written = append_hole(inode, pos);
+		written = append_hole(hint, inode, pos);
 		if (written)
 			return written;
 		assert("vs-1081", pos == inode->i_size);
 	}
 
 	/* write user data to the file */
-	written = write_flow(file, inode, buf, count, pos);
+	written = write_flow(hint, file, inode, buf, count, pos);
 	if (written > 0)
 		/* update position in a file */
 		*off = pos + written;
@@ -1988,6 +2078,8 @@ write_file(struct file *file, /* file to write to */
 	/* return number of written bytes, or error code */
 	return written;
 }
+
+#if 0
 
 /* plugin->u.file.write */
 reiser4_internal ssize_t
@@ -2096,6 +2188,171 @@ write_unix_file(struct file *file, /* file to write to */
 	up(&inode->i_sem);
 	current->backing_dev_info = 0;
 	return written;
+}
+
+#endif
+
+
+
+/* plugin->u.file.write */
+reiser4_internal ssize_t
+write_unix_file(struct file *file, /* file to write to */
+		const char *buf, /* address of user-space buffer */
+		size_t write_amount, /* number of bytes to write */
+		loff_t *off /* position in file to write to */)
+{
+	int result;
+	struct inode *inode;
+	hint_t hint;
+	unix_file_info_t *uf_info;
+	struct page *pages[NR_PAGES_TO_PIN];
+	int nr_pages;
+	size_t count, written, left;
+	int user_space;
+
+	if (unlikely(write_amount == 0))
+		return 0;
+
+	inode = file->f_dentry->d_inode;
+	assert("vs-947", !inode_get_flag(inode, REISER4_NO_SD));
+
+	uf_info = unix_file_inode_data(inode);
+
+  	down(&uf_info->write);
+	
+	result = generic_write_checks(file, off, &write_amount, 0);
+	if (result) {
+		up(&uf_info->write);
+		return result;
+	}
+
+	/* linux's VM requires this. See mm/vmscan.c:shrink_list() */
+	current->backing_dev_info = inode->i_mapping->backing_dev_info;
+
+	if (inode_get_flag(inode, REISER4_PART_CONV)) {
+		/* we can not currently write to a file which is partially converted */
+		get_exclusive_access(uf_info);
+		result = finish_conversion(inode);
+		drop_exclusive_access(uf_info);
+		if (result) {
+			current->backing_dev_info = NULL;
+			up(&uf_info->write);
+			return result;
+		}
+	}
+
+	if (inode_get_flag(inode, REISER4_HAS_MMAP) && uf_info->container == UF_CONTAINER_TAILS) {
+		/* file built of tails was mmaped. So, there might be
+		   faultin-ed pages filled by tail item contents and mapped to
+		   process address space. 
+		   Before starting write:
+
+		   1) block new page creation by obtaining exclusive access to
+		   the file
+
+		   2) unmap address space of all mmap - now it is by
+		   reiser4_invalidate_pages which invalidate pages as well
+
+		   3) convert file to extents to not enter here on each write
+		   to mmaped file */
+		get_exclusive_access(uf_info);
+		result = check_pages_unix_file(inode);
+		drop_exclusive_access(uf_info);
+		if (result) {
+			current->backing_dev_info = NULL;
+ 			up(&uf_info->write);
+			return result;
+		}
+	}
+
+	/* UNIX behavior: clear suid bit on file modification. This cannot be
+	   done earlier, because removing suid bit captures blocks into
+	   transaction, which should be done after taking either exclusive or
+	   non-exclusive access on the file. */
+	result = remove_suid(file->f_dentry);
+	if (result != 0) {
+		current->backing_dev_info = NULL;
+		up(&uf_info->write);
+		return result;
+	}
+	grab_space_enable();
+
+	/* get seal and coord sealed with it from reiser4 private data of
+	 * struct file */
+	result = load_file_hint(file, &hint);
+	if (result)
+		return result;
+
+	left = write_amount;
+	count = 0;
+	user_space = is_user_space(buf);
+	nr_pages = 0;
+	while (left > 0) {
+		int try_free_space = 1;
+		int excl = 0;
+		size_t to_write;
+
+		/* getting exclusive or not exclusive access requires no
+		   transaction open */
+		txn_restart_current();
+
+		if (user_space) {
+			nr_pages = reiser4_get_user_pages(pages, (unsigned long)buf, left, WRITE, &to_write);
+			if (nr_pages < 0) {
+				current->backing_dev_info = NULL;
+				up(&uf_info->write);
+				return nr_pages;
+			}
+		} else
+			to_write = left;
+
+		if (inode->i_size == 0) {
+			get_exclusive_access(uf_info);
+			excl = 1;
+		} else {
+			get_nonexclusive_access(uf_info);
+			excl = 0;
+		}
+
+		all_grabbed2free();
+		written = write_file(&hint, file, buf, to_write, off);
+		if (user_space)
+			reiser4_put_user_pages(pages, nr_pages);
+		if (excl)
+			drop_exclusive_access(uf_info);
+		else
+			drop_nonexclusive_access(uf_info);
+
+		/* With no locks held we can commit atoms in attempt to recover
+		 * free space. */
+		if (written == -ENOSPC && try_free_space) {
+			txnmgr_force_commit_all(inode->i_sb, 0);
+			try_free_space = 0;
+			continue;
+		}
+		if (written < 0) {
+			result = written;
+			break;
+		}
+		left -= written;
+		buf += written;
+
+		/* total number of written bytes */
+		count += written;
+	}
+
+	if ((file->f_flags & O_SYNC) || IS_SYNC(inode)) {
+		txn_restart_current();
+		result = sync_unix_file(inode, 0/* data and stat data */);
+		if (result)
+			warning("reiser4-7", "failed to sync file %llu",
+				(unsigned long long)get_inode_oid(inode));
+	}
+
+	up(&uf_info->write);
+ 	current->backing_dev_info = 0;
+	save_file_hint(file, &hint);
+	return count ? count : result;
 }
 
 /* plugin->u.file.release() convert all extent items into tail items if
@@ -2336,12 +2593,14 @@ setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 	if (attr->ia_valid & ATTR_SIZE) {
 		/* truncate does reservation itself and requires exclusive
 		 * access obtained */
-		unix_file_info_t *ufo;
-
-		ufo = unix_file_inode_data(inode);
-		get_exclusive_access(ufo);
+		unix_file_info_t *uf_info;
+		
+		uf_info = unix_file_inode_data(inode);
+		down(&uf_info->write);
+		get_exclusive_access(uf_info);
 		result = setattr_truncate(inode, attr);
-		drop_exclusive_access(ufo);
+		drop_exclusive_access(uf_info);
+		up(&uf_info->write);
 	} else
 		result = setattr_common(inode, attr);
 
@@ -2378,6 +2637,7 @@ init_inode_data_unix_file(struct inode *inode,
 	data = unix_file_inode_data(inode);
 	data->container = create ? UF_CONTAINER_EMPTY : UF_CONTAINER_UNKNOWN;
 	init_rwsem(&data->latch);
+	sema_init(&data->write, 1);
 	data->tplug = inode_formatting_plugin(inode);
 	data->exclusive_use = 0;
 
@@ -2392,10 +2652,15 @@ init_inode_data_unix_file(struct inode *inode,
 reiser4_internal int
 pre_delete_unix_file(struct inode *inode)
 {
+	unix_file_info_t *uf_info;
+	int result;
+
 	/* FIXME: put comment here */
-	/*if (inode->i_size == 0)
-	  return 0;*/
-	return truncate_file_body(inode, 0/* size */);
+	uf_info = unix_file_inode_data(inode);
+	get_exclusive_access(uf_info);
+	result = truncate_file_body(inode, 0/* size */);
+	drop_exclusive_access(uf_info);
+	return result;
 }
 
 /* Reads @count bytes from @file and calls @actor for every page read. This is

@@ -54,18 +54,29 @@ struct inode;
 
 /* unix file plugin specific part of reiser4 inode */
 typedef struct unix_file_info {
-	struct rw_semaphore latch; /* this read-write lock protects file containerization change. Accesses which do not change
-			     file containerization (see file_container_t) (read, readpage, writepage, write (until tail
-			     conversion is involved)) take read-lock. Accesses which modify file containerization
-			     (truncate, conversion from tail to extent and back) take write-lock. */
-	file_container_t container; /* this enum specifies which items are used to build the file */
-	struct formatting_plugin *tplug; /* plugin which controls when file is to be converted to extents and back to
-					    tail */
+	/* this read-write lock protects file containerization change. Accesses
+	   which do not change file containerization (see file_container_t)
+	   (read, readpage, writepage, write (until tail conversion is
+	   involved)) take read-lock. Accesses which modify file
+	   containerization (truncate, conversion from tail to extent and back)
+	   take write-lock. */
+	struct rw_semaphore latch;
+	/* this semaphore is used to serialize writes instead of inode->i_sem,
+	   because write_unix_file uses get_user_pages which is to be used
+	   under mm->mmap_sem and because it is required to take mm->mmap_sem
+	   before inode->i_sem, so inode->i_sem would have to be up()-ed before
+	   calling to get_user_pages which is unacceptable */
+	struct semaphore write;
+	/* this enum specifies which items are used to build the file */
+	file_container_t container;
+	/* plugin which controls when file is to be converted to extents and
+	   back to tail */
+	struct formatting_plugin *tplug;
 	/* if this is set, file is in exclusive use */
 	int exclusive_use;
 #if REISER4_DEBUG
-	void *ea_owner; /* pointer to task struct of thread owning exclusive
-			 * access to file */
+	/* pointer to task struct of thread owning exclusive access to file */
+	void *ea_owner;
 #endif
 } unix_file_info_t;
 
@@ -104,26 +115,20 @@ int hint_validate(hint_t *, const reiser4_key *, int check_key, znode_lock_mode)
 
 
 #if REISER4_DEBUG
-static inline struct task_struct *
-inode_ea_owner(const unix_file_info_t *uf_info)
+
+/* return 1 is exclusive access is obtained, 0 - otherwise */
+static inline int ea_obtained(unix_file_info_t *uf_info)
 {
-	return uf_info->ea_owner;
+	int ret;
+
+	ret = down_read_trylock(&uf_info->latch);
+	if (ret)
+		up_read(&uf_info->latch);
+	return !ret;
 }
 
-static inline void ea_set(unix_file_info_t *uf_info, void *value)
-{
-	uf_info->ea_owner = value;
-}
-#else
-#define ea_set(inode, value) noop
 #endif
 
-static inline int ea_obtained(const unix_file_info_t *uf_info)
-{
-	assert("vs-1167", ergo (inode_ea_owner(uf_info) != NULL,
-				inode_ea_owner(uf_info) == current));
-	return uf_info->exclusive_use;
-}
 
 /* __REISER4_FILE_H__ */
 #endif

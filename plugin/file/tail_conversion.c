@@ -32,19 +32,11 @@ get_exclusive_access(unix_file_info_t *uf_info)
 	BUG_ON(get_current_context()->trans->atom != NULL);
 	LOCK_CNT_INC(inode_sem_w);
 	down_write(&uf_info->latch);
-	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
-	assert("vs-1157", !ea_obtained(uf_info));
-	ea_set(uf_info, current);
-	uf_info->exclusive_use = 1;
 }
 
 reiser4_internal void
 drop_exclusive_access(unix_file_info_t *uf_info)
 {
-	assert("nikita-3060", inode_ea_owner(uf_info) == current);
-	assert("vs-1158", ea_obtained(uf_info));
-	ea_set(uf_info, 0);
-	uf_info->exclusive_use = 0;
 	up_write(&uf_info->latch);
 	assert("nikita-3049", LOCK_CNT_NIL(inode_sem_r));
 	assert("nikita-3049", LOCK_CNT_GTZ(inode_sem_w));
@@ -58,15 +50,11 @@ get_nonexclusive_access(unix_file_info_t *uf_info)
 	assert("nikita-3029", schedulable());
 	down_read(&uf_info->latch);
 	LOCK_CNT_INC(inode_sem_r);
-	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
-	assert("vs-1159", !ea_obtained(uf_info));
 }
 
 reiser4_internal void
 drop_nonexclusive_access(unix_file_info_t *uf_info)
 {
-	assert("nikita-3060", inode_ea_owner(uf_info) == NULL);
-	assert("vs-1160", !ea_obtained(uf_info));
 	up_read(&uf_info->latch);
 	LOCK_CNT_DEC(inode_sem_r);
 }
@@ -279,10 +267,12 @@ tail2extent(unix_file_info_t *uf_info)
 	if (inode_get_flag(inode, REISER4_PART_CONV)) {
 		/* find_start() doesn't need block reservation */
 		result = find_start(inode, FORMATTING_ID, &offset);
-		if (result == -ENOENT)
-			/* no extent found, everything is converted */
+		if (result == -ENOENT) {
+			/* no tail items found, everything is converted */
+			uf_info->container = UF_CONTAINER_EXTENTS;
+			complete_conversion(inode);
 			return 0;
-		else if (result != 0)
+		} else if (result != 0)
 			/* some other error */
 			return result;
 	}
@@ -451,8 +441,9 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 	flow_by_inode_unix_file(inode, kmap(page), 0 /* not user space */ ,
 				count, (loff_t) (page->index << PAGE_CACHE_SHIFT), WRITE_OP, &f);
 	iplug = item_plugin_by_id(FORMATTING_ID);
+	hint_init_zero(&hint);
 	init_lh(&lh);
-	hint_init_zero(&hint, &lh);
+	hint.coord.lh = &lh;
 	coord = &hint.coord.base_coord;
 	while (f.length) {
 		result = find_file_item_nohint(coord, &lh, &f.key, ZNODE_WRITE_LOCK, inode);
@@ -551,10 +542,12 @@ extent2tail(unix_file_info_t *uf_info)
 	if (inode_get_flag(inode, REISER4_PART_CONV)) {
 		/* find_start() doesn't need block reservation */
 		result = find_start(inode, EXTENT_POINTER_ID, &offset);
-		if (result == -ENOENT)
+		if (result == -ENOENT) {
 			/* no extent found, everything is converted */
+			uf_info->container = UF_CONTAINER_TAILS;
+			complete_conversion(inode);
 			return 0;
-		else if (result != 0)
+		} else if (result != 0)
 			/* some other error */
 			return result;
 	}
@@ -707,6 +700,7 @@ finish_conversion(struct inode *inode)
 			result = extent2tail(unix_file_inode_data(inode));
 	} else
 		result = 0;
+	assert("vs-1712", ergo(result == 0, !inode_get_flag(inode, REISER4_PART_CONV)));
 	return result;
 }
 
