@@ -10,6 +10,9 @@
 
 #ifndef ENABLE_COMPACT
 #  include <sys/stat.h>
+#  include <sys/types.h>
+#  include <unistd.h>
+#  include <time.h>
 #endif
 
 #include <reiser4/reiser4.h>
@@ -240,10 +243,13 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
 {
     uint32_t key_size;
     reiserfs_dir40_t *dir;
-    reiserfs_item_hint_t item;
     reiserfs_stat_hint_t stat;
+    reiserfs_item_hint_t stat_item;
+    reiserfs_item_hint_t direntry_item;
     reiserfs_direntry_hint_t direntry;
    
+    reiserfs_sdext_unix_hint_t unix_ext;
+    
     oid_t objectid;
     oid_t parent_objectid;
     oid_t parent_locality;
@@ -270,8 +276,6 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     objectid = libreiser4_plugin_call(return NULL, 
 	object->plugin->key_ops, get_objectid, object->body);
     
-    aal_memset(&item, 0, sizeof(item));
-    
     if (!(dir->statdata_plugin = core->factory_ops.plugin_find(REISERFS_ITEM_PLUGIN, 
 	hint->statdata_pid)))
     {
@@ -285,46 +289,28 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
 	libreiser4_factory_failed(goto error_free_dir, find, 
 	    direntry, hint->direntry_pid);
     }
-    
+
     key_size = libreiser4_plugin_call(goto error_free_dir, 
 	object->plugin->key_ops, size,);
     
-    /* Initializing stat data hint */
-    item.plugin = dir->statdata_plugin;
-    item.type = item.plugin->h.id; 
+    /* 
+	Initializing direntry item hint. This should done earlier than initializing 
+	of the stat data item hint, because we will need size of direntry item durring
+	stat data initialization.
+    */
+    aal_memset(&direntry_item, 0, sizeof(direntry_item));
 
-    item.key.plugin = object->plugin;
-    aal_memcpy(item.key.body, object->body, key_size);
+    direntry_item.plugin = dir->direntry_plugin;
+    direntry_item.type = direntry_item.plugin->h.id; 
     
-    stat.mode = S_IFDIR | 0755;
-    stat.extmask = 0;
-    stat.nlink = 2;
-    stat.size = 0;
-
-    item.hint = &stat;
-
-    /* Calling balancing code in order to insert statdata item into the tree */
-    if (core->tree_ops.item_insert(tree, &item)) {
-	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't insert stat data item of object %llx into "
-	    "the thee.", objectid);
-	goto error_free_dir;
-    }
-    
-    aal_memset(&item, 0, sizeof(item));
-
-    /* Initializing direntry hint */
-    item.plugin = dir->direntry_plugin;
-    item.type = item.plugin->h.id; 
-    
-    item.key.plugin = object->plugin; 
-    aal_memcpy(item.key.body, parent, key_size);
+    direntry_item.key.plugin = object->plugin; 
+    aal_memcpy(direntry_item.key.body, parent, key_size);
     
     direntry.count = 2;
    
     libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
-	build_entry_full, item.key.body, dir->hash_plugin, parent_objectid, 
-	objectid, ".");
+	build_entry_full, direntry_item.key.body, dir->hash_plugin, 
+	parent_objectid, objectid, ".");
     
     if (!(direntry.entry = aal_calloc(direntry.count*sizeof(*direntry.entry), 0)))
 	goto error_free_dir;
@@ -351,10 +337,49 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
 	build_entry_short, &direntry.entry[1].entryid, dir->hash_plugin, 
 	direntry.entry[1].name);
     
-    item.hint = &direntry;
+    direntry_item.hint = &direntry;
+    
+    /* Initializing stat data hint */
+    aal_memset(&stat_item, 0, sizeof(stat_item));
+    
+    stat_item.plugin = dir->statdata_plugin;
+    stat_item.type = stat_item.plugin->h.id; 
+
+    stat_item.key.plugin = object->plugin;
+    aal_memcpy(stat_item.key.body, object->body, key_size);
+    
+    /* Initializing stat data item hint. */
+    stat.mode = S_IFDIR | 0755;
+    stat.extmask = hint->sdext;
+    stat.nlink = 2;
+    stat.size = 0;
+    
+    unix_ext.uid = getuid();
+    unix_ext.gid = getgid();
+    unix_ext.atime = time(NULL);
+    unix_ext.mtime = time(NULL);
+    unix_ext.ctime = time(NULL);
+    unix_ext.rdev = 0;
+
+    unix_ext.bytes = libreiser4_plugin_call(goto error_free_dir, 
+	dir->direntry_plugin->item_ops.common, estimate, 0xffff, 
+	&direntry_item);
+
+    stat.ext.count = 1;
+    stat.ext.hint[0] = &unix_ext;
+
+    stat_item.hint = &stat;
+
+    /* Calling balancing code in order to insert statdata item into the tree */
+    if (core->tree_ops.item_insert(tree, &stat_item)) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't insert stat data item of object %llx into "
+	    "the thee.", objectid);
+	goto error_free_dir;
+    }
     
     /* Inserting the direntry item into the tree */
-    if (core->tree_ops.item_insert(tree, &item)) {
+    if (core->tree_ops.item_insert(tree, &direntry_item)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't insert direntry item of object %llx into "
 	    "the thee.", objectid);

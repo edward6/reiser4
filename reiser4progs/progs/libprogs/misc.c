@@ -47,7 +47,9 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.oid = 0x0,
 	.alloc = 0x0,
 	.journal = 0x0,
-	.key = 0x0
+	.key = 0x0,
+	
+	.sdext = 1 << REISERFS_UNIX_SDEXT
     },
     [1] = {
 	.label = "extent40",
@@ -73,7 +75,9 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.oid = 0x0,
 	.alloc = 0x0,
 	.journal = 0x0,
-	.key = 0x0
+	.key = 0x0,
+	
+	.sdext = 1 << REISERFS_UNIX_SDEXT
     },
     [2] = {
 	.label = "tail40",
@@ -101,7 +105,9 @@ static reiserfs_profile_t reiser4profiles[] = {
 	.oid = 0x0,
 	.alloc = 0x0,
 	.journal = 0x0,
-	.key = 0x0
+	.key = 0x0,
+	
+	.sdext = 1 << REISERFS_UNIX_SDEXT
     }
 };
 

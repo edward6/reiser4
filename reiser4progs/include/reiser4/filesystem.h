@@ -15,11 +15,11 @@
 #include <reiser4/plugin.h>
 #include <reiser4/key.h>
 
-#define REISERFS_DEFAULT_BLOCKSIZE	4096
-#define REISERFS_MASTER_OFFSET		65536
-#define REISERFS_MASTER_MAGIC		"R4Sb"
+#define REISERFS_DEFAULT_BLOCKSIZE	(4096)
+#define REISERFS_MASTER_OFFSET		(65536)
+#define REISERFS_MASTER_MAGIC		("R4Sb")
 
-#define REISERFS_LEGACY_FORMAT		0x0
+#define REISERFS_LEGACY_FORMAT		(0x0)
 
 /* Master super block structure and macros */
 struct reiserfs_master {
@@ -51,8 +51,8 @@ struct reiserfs_profile {
     reiserfs_id_t node;
     
     struct {
-	reiserfs_id_t internal;
 	reiserfs_id_t statdata;
+	reiserfs_id_t internal;
 	reiserfs_id_t direntry;
 	reiserfs_id_t drop;
 	reiserfs_id_t extent;
@@ -72,6 +72,7 @@ struct reiserfs_profile {
     reiserfs_id_t alloc;
     reiserfs_id_t journal;
     reiserfs_id_t key;
+    uint64_t sdext;
 };
 
 typedef struct reiserfs_profile reiserfs_profile_t;

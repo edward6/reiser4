@@ -19,6 +19,7 @@ libreiser4_plugins	     = libplugins_header.la \
 			       $(top_builddir)/plugin/tea_hash/libtea_hash-static.la \
 			       $(top_builddir)/plugin/rupasov_hash/librupasov_hash-static.la \
 			       $(top_builddir)/plugin/fnv1_hash/libfnv1_hash-static.la \
+			       $(top_builddir)/plugin/sdext_unix/libsdext_unix-static.la \
 			       libplugins_footer.la
 
 lib_LTLIBRARIES		     = libreiser4.la

@@ -24,7 +24,7 @@ enum reiserfs_plugin_type {
     REISERFS_DROP_POLICY_PLUGIN,
     REISERFS_HOOK_PLUGIN,
     REISERFS_PERM_PLUGIN,
-    REISERFS_SD_EXT_PLUGIN,
+    REISERFS_SDEXT_PLUGIN,
     REISERFS_FORMAT_PLUGIN,
     REISERFS_OID_PLUGIN,
     REISERFS_ALLOC_PLUGIN,
@@ -65,6 +65,42 @@ enum reiserfs_hash {
 
 typedef enum reiserfs_hash reiserfs_hash_t;
 
+/* Stat data extention bits */
+enum reiserfs_sdext {
+    /* 
+	Data required to implement unix stat(2) call. Layout is in structure
+	reiserfs_stat40_unix. If this is not present, file is light-weight.
+    */
+    REISERFS_UNIX_SDEXT,
+
+    /* Stat data has symlink name included */
+    REISERFS_SYMLINK_SDEXT,
+    /* 
+	If this is present, file is controlled by non-standard plugin (that is, 
+	plugin that cannot be deduced from file mode bits), for example, aggregation, 
+	interpolation etc. 
+    */
+    REISERFS_PLUGIN_SDEXT,
+    /* 
+	This extension contains inode generation and persistent inode
+        flags.
+    */
+    REISERFS_GEN_AND_FLAGS_SDEXT,
+    /* 
+	This extension contains capabilities sets, associated with this
+        file. Layout is in reiserfs_capabilities_stat
+    */
+    REISERFS_CAPABILITIES_SDEXT,
+    /* 
+	This contains additional set of 32bit [anc]time fields to
+        implement 64bit times a la BSD. 
+    */
+    REISERFS_LARGE_TIMES_SDEXT,
+    REISERFS_LAST_SDEXT
+};
+
+typedef enum reiserfs_sdext reiserfs_sdext_t;
+
 /* 
     Maximal possible key size. It is used for creating temporary keys by declaring 
     array of uint8_t elements REISERFS_KEY_SIZE long.
@@ -96,8 +132,8 @@ typedef enum {
 } reiserfs_key40_minor_t;
 
 /* 
-    To create a new item or to insert into the item we need to 
-    perform the following operations:
+    To create a new item or to insert into the item we need to perform the 
+    following operations:
     
     (1) Create the description of the data being inserted.
     (2) Ask item plugin how much space is needed for the 
@@ -129,15 +165,30 @@ struct reiserfs_internal_hint {
 
 typedef struct reiserfs_internal_hint reiserfs_internal_hint_t;
 
-/*  
-    These fields should be changed to what proper description 
-    of needed extentions. 
-*/
+struct reiserfs_sdext_unix_hint {
+    uint32_t uid;
+    uint32_t gid;
+    uint32_t atime;
+    uint32_t mtime;
+    uint32_t ctime;
+    uint32_t rdev;
+    uint64_t bytes;
+};
+
+typedef struct reiserfs_sdext_unix_hint reiserfs_sdext_unix_hint_t;
+
+/* These fields should be changed to what proper description of needed extentions */
 struct reiserfs_stat_hint {
     uint16_t mode;
     uint16_t extmask;
     uint32_t nlink;
     uint64_t size;
+    
+    /* Stat data extention hints */
+    struct {
+	uint32_t count;
+	void *hint[16];
+    } ext;
 };
 
 typedef struct reiserfs_stat_hint reiserfs_stat_hint_t;
@@ -174,6 +225,7 @@ struct reiserfs_object_hint {
     reiserfs_id_t drop_pid;
     reiserfs_id_t extent_pid;
     reiserfs_id_t hash_pid;
+    uint64_t sdext;
 };
 
 typedef struct reiserfs_object_hint reiserfs_object_hint_t;
@@ -415,6 +467,19 @@ struct reiserfs_item_ops {
 };
 
 typedef struct reiserfs_item_ops reiserfs_item_ops_t;
+
+/* Unix stat data fileds extention plugin */
+struct reiserfs_sdext_ops {
+    reiserfs_plugin_header_t h;
+
+    errno_t (*create) (void *, void *);
+    errno_t (*open) (void *, void *);
+
+    uint32_t (*length) (void);
+    int (*confirm) (void *);
+};
+
+typedef struct reiserfs_sdext_ops reiserfs_sdext_ops_t;
 
 /*
     Node plugin operates on passed block. It doesn't any initialization, so it 
@@ -707,6 +772,7 @@ union reiserfs_plugin {
     reiserfs_alloc_ops_t alloc_ops;
     reiserfs_journal_ops_t journal_ops;
     reiserfs_key_ops_t key_ops;
+    reiserfs_sdext_ops_t sdext_ops;
 };
 
 /* 

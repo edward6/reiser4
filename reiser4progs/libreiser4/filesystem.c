@@ -429,6 +429,8 @@ reiserfs_fs_t *reiserfs_fs_create(
 	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->object.dir);
 	
 	dir_hint.statdata_pid = profile->item.statdata;
+	dir_hint.sdext = profile->sdext;
+
 	dir_hint.direntry_pid = profile->item.direntry;
 	dir_hint.hash_pid = profile->hash;
 	

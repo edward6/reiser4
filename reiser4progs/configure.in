@@ -196,6 +196,7 @@ AC_OUTPUT([
     plugin/tea_hash/Makefile
     plugin/rupasov_hash/Makefile
     plugin/fnv1_hash/Makefile
+    plugin/sdext_unix/Makefile
     demos/Makefile
     progs/Makefile
     progs/libprogs/Makefile
