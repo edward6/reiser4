@@ -287,6 +287,16 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
 	new_node = item->node;
 	assert("nikita-2132", new_node != old_node);
 	tree = znode_get_tree(item->node);
+	/* FIXME-NIKITA here lies a problem:
+	 *
+	 * internal_shift_hook() is called during balancing to update parent
+	 * pointers in affected children. But at the moment of call delimiting
+	 * keys of parent are not yet updated. Hence, child_znode() that tries
+	 * to setup delimiting keys of child gets wrong keys from parent (when
+	 * delimiting keys of utmost child are set). Currently this is ok,
+	 * because of JNODE_DKSET bit in child state, but changes to ->shift()
+	 * method of node plugin are expected.
+	 */
 	child = UNDER_SPIN(dk, tree, child_znode(item, old_node, 1, 1));
 	if (child == NULL)
 		return 0;
