@@ -1646,17 +1646,19 @@ static void reiser4_kill_super (struct super_block *s)
 	/* flushes transactions, etc. */
 	get_super_private (s)->lplug->release (s);
 
-	/* no assertions below this line */
-	__REISER4_EXIT (&__context);
-
 	done_formatted_fake (s);
-	kfree(s->u.generic_sbp);
-	s->u.generic_sbp = NULL;
+
 	/*
 	 * we don't want ->write_super to be called any more.
 	 */
 	s->s_op->write_super = NULL;
 	kill_block_super(s);
+
+	/* no assertions below this line */
+	__REISER4_EXIT (&__context);
+
+	kfree(s->u.generic_sbp);
+	s->u.generic_sbp = NULL;
 }
 
 static void reiser4_write_super (struct super_block * s)
