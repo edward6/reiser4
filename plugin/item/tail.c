@@ -656,7 +656,10 @@ int tail_write (struct inode * inode, coord_t * coord,
 
 	if (!f->length) {
 		/* special case: expanding truncate */
-		return coord_is_existing_item (coord) ?
+		reiser4_item_data data;
+
+		data.iplug = item_plugin_by_id (TAIL_ID);
+		return tail_can_contain_key (coord, &f->key, &data) ?
 			append_hole (coord, lh, f) : create_hole (coord, lh, f);
 	}
 
