@@ -68,13 +68,15 @@ int test_alloc_blocks (reiser4_space_allocator * allocator,
 #else
 	p = jiffies % 10;
 #endif
-	if (p <= P) {
+	if (1 /*p <= P*/) {
 		/*
 		 * return what we were asked for
 		 */
 		*start = hint->blk;
 		*num = needed;
 	} else {
+		assert ("jmacd-10081", P != 10);
+
 		/* return blocks not contiguous with hint->blk */
 		*start = hint->blk + 3;
 		/*
