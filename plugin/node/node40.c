@@ -1707,7 +1707,15 @@ prepare_for_update(znode * left, znode * right, carry_plugin_info * info)
 		return op ? PTR_ERR(op) : -EIO;
 
 	if (left != NULL) {
-		cn = add_carry(info->todo, POOLO_BEFORE, op->node);
+		carry_node *reference;
+
+		if (info->doing)
+			reference = insert_carry_node(info->doing, 
+						      info->todo, left);
+		else
+			reference = op->node;
+		assert("nikita-2992", reference != NULL);
+		cn = add_carry(info->todo, POOLO_BEFORE, reference);
 		if (IS_ERR(cn))
 			return PTR_ERR(cn);
 		cn->parent = 1;

@@ -286,6 +286,12 @@ carry_node *add_carry(carry_level * level, pool_ordering order, carry_node * ref
 carry_node *add_carry_skip(carry_level * level, pool_ordering order, carry_node * reference);
 carry_op *add_op(carry_level * level, pool_ordering order, carry_op * reference);
 
+extern carry_node *insert_carry_node(carry_level * doing, 
+				     carry_level * todo, const znode * node);
+
+extern carry_node *add_carry_atplace(carry_level *doing, 
+				     carry_level *todo, znode *node);
+
 extern carry_node *find_begetting_brother(carry_node * node, carry_level * kin);
 
 extern void init_carry_pool(carry_pool * pool);

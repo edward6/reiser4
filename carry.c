@@ -669,7 +669,7 @@ find_carry_node(carry_level * level, const znode * node)
 	return NULL;
 }
 
-static carry_node *
+carry_node *
 insert_carry_node(carry_level * doing, carry_level * todo, const znode * node)
 {
 	carry_node *base;
@@ -689,6 +689,21 @@ insert_carry_node(carry_level * doing, carry_level * todo, const znode * node)
 	return scan;
 }
 
+carry_node *
+add_carry_atplace(carry_level *doing, carry_level *todo, znode *node)
+{
+	carry_node *reference;
+
+	assert("nikita-2994", doing != NULL);
+	assert("nikita-2995", todo != NULL);
+	assert("nikita-2996", node != NULL);
+
+	reference = insert_carry_node(doing, todo, node);
+	assert("nikita-2997", reference != NULL);
+
+	return add_carry(todo, POOLO_BEFORE, reference);
+}
+
 /* like post_carry(), but designed to be called from node plugin methods.
    This function is different from post_carry() in that it finds proper place
    to insert node in the queue. */
@@ -703,7 +718,6 @@ node_post_carry(carry_plugin_info * info	/* carry parameters
 					 * operate directly on @node
 					 * or on it parent. */ )
 {
-	carry_node *reference;
 	carry_op *result;
 	carry_node *child;
 
@@ -713,13 +727,10 @@ node_post_carry(carry_plugin_info * info	/* carry parameters
 	if (info->doing == NULL)
 		return post_carry(info->todo, op, node, apply_to_parent_p);
 
-	reference = insert_carry_node(info->doing, info->todo, node);
-	assert("nikita-2206", reference != NULL);
-
 	result = add_op(info->todo, POOLO_LAST, NULL);
 	if (IS_ERR(result))
 		return result;
-	child = add_carry(info->todo, POOLO_BEFORE, reference);
+	child = add_carry_atplace(info->doing, info->todo, node);
 	if (IS_ERR(child)) {
 		reiser4_pool_free(&result->header);
 		return (carry_op *) child;
@@ -1260,6 +1271,15 @@ add_new_znode(znode * brother	/* existing left neighbor of new
    debugging is turned off to print dumps at errors.
 */
 #if REISER4_DEBUG
+static reiser4_key *
+get_min_key(znode * node, reiser4_key * key)
+{
+	if (!node_is_empty(node))
+		return leftmost_key_in_node(node, key);
+	else
+		return znode_get_ld_key(node);
+}
+
 static int
 carry_level_invariant(carry_level * level)
 {
@@ -1274,11 +1294,16 @@ carry_level_invariant(carry_level * level)
 		znode *left;
 		znode *right;
 
+		reiser4_key lkey;
+		reiser4_key rkey;
+
 		spin_lock_dk(current_tree);
 		if (node != carry_node_front(level)) {
 			right = node->node;
 			left = carry_node_prev(node)->node;
-			if (!keyle(znode_get_ld_key(left), znode_get_ld_key(right))) {
+			if (right && left && 
+			    !keyle(get_min_key(left, &lkey), 
+				   get_min_key(right, &rkey))) {
 				print_node_content("left", left, ~REISER4_NODE_SILENT);
 				print_node_content("right", right, ~REISER4_NODE_SILENT);
 				spin_unlock_dk(current_tree);
@@ -1288,7 +1313,9 @@ carry_level_invariant(carry_level * level)
 		if (node != carry_node_back(level)) {
 			left = node->node;
 			right = carry_node_next(node)->node;
-			if (!keyle(znode_get_ld_key(left), znode_get_ld_key(right))) {
+			if (right && left && 
+			    !keyle(get_min_key(left, &lkey),
+				   get_min_key(right, &rkey))) {
 				print_node_content("left", left, ~REISER4_NODE_SILENT);
 				print_node_content("right", right, ~REISER4_NODE_SILENT);
 				spin_unlock_dk(current_tree);
