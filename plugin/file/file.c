@@ -34,7 +34,7 @@ static int find_item (reiser4_key * key, tree_coord * coord,
 		      znode_lock_mode lock_mode)
 {
 	return coord_by_key (current_tree, key, coord, lh,
-			     lock_mode, FIND_EXACT,
+			     lock_mode, FIND_MAX_NOT_MORE_THAN/*FIND_EXACT*/,
 			     LEAF_LEVEL, LEAF_LEVEL);
 }
 
@@ -341,6 +341,7 @@ ssize_t ordinary_file_read (struct file * file, char * buf, size_t size,
 		reiser4_done_coord (&coord);
 		if (!result)
 			continue;
+		break;
 	}
 
 	*off += (to_read - f.length);

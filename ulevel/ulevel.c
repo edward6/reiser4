@@ -1886,7 +1886,7 @@ static void diff (const char * full_name,
 			break;
 		}
 		if (call_read (inode, buf2, off, count) != (ssize_t)count) {
-			info ("diff: write failed\n");
+			info ("diff: read failed\n");
 			break;
 		}
 		if (memcmp (buf1, buf2, count)) {

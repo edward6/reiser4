@@ -320,7 +320,7 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 				.s = {
 					.file = {
 						.write = extent_write,
-						.read  = NULL,
+						.read  = extent_read,
 						.readpage = extent_readpage
 					}
 				},
