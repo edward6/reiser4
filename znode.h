@@ -47,15 +47,12 @@ typedef struct parent_coord {
     ->left
     ->right
     ->in_parent
+    ->c_count
 
    Following fields are protected by the global delimiting key lock (dk_lock):
 
     ->ld_key (to update ->ld_key long-term lock on the node is also required)
     ->rd_key
-
-   Atomic counters
-
-    ->c_count
 
    Following fields are protected by the long term lock:
 
@@ -115,7 +112,7 @@ struct znode {
 	   because we don't want to take and release spinlock for each
 	   reference addition/drop.
 	*/
-	atomic_t c_count;
+	int c_count;
 
 	/* plugin of node attached to this znode. NULL if znode is not
 	   loaded. */
@@ -146,7 +143,7 @@ struct znode {
 #if REISER4_STATS
 	int last_lookup_pos;
 #endif
-};
+} __attribute__((aligned(16)));
 
 /* In general I think these macros should not be exposed. */
 #define znode_is_locked(node)          (lock_is_locked(&node->lock))
@@ -161,7 +158,6 @@ struct znode {
 #define	ZF_ISSET(p,f)	        JF_ISSET(ZJNODE(p), (f))
 #define	ZF_SET(p,f)		JF_SET  (ZJNODE(p), (f))
 
-extern void del_c_ref(znode *node);
 extern znode *zget(reiser4_tree * tree, const reiser4_block_nr * const block,
 		   znode * parent, tree_level level, int gfp_flag);
 extern znode *zlook(reiser4_tree * tree, const reiser4_block_nr * const block);
