@@ -46,13 +46,17 @@ struct flush_scan {
 
 	/* The current scan position, referenced. */
 	jnode    *node;
-/* JMACD-FIXME-HANS: what is a point_load? */
-	load_handle point_load;
 
-	/* When the position is unformatted, its parent and coordinate. */
+	/* A handle for zload/zrelse of current scan position node. */
+	load_handle node_load; 
+
+	/* When the position is unformatted, its parent, coordinate, and parent
+	 * zload/zrelse handle. */
 	lock_handle parent_lock;
 	coord_t     parent_coord;
 	load_handle parent_load;
+
+	/* The block allocation hint. */
 	reiser4_block_nr preceder_blk;
 };
 
@@ -1483,7 +1487,7 @@ static void flush_scan_init (flush_scan *scan)
 	memset (scan, 0, sizeof (*scan));
 	init_lh (& scan->parent_lock);
 	init_zh (& scan->parent_load);
-	init_zh (& scan->point_load);
+	init_zh (& scan->node_load);
 	coord_init_invalid (& scan->parent_coord, NULL);
 }
 
@@ -1494,7 +1498,7 @@ static void flush_scan_done (flush_scan *scan)
 		jput (scan->node);
 		scan->node = NULL;
 	}
-	done_zh (& scan->point_load);
+	done_zh (& scan->node_load);
 	done_zh (& scan->parent_load);
 	done_lh (& scan->parent_lock);
 }
@@ -1527,7 +1531,7 @@ static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_s
 {
 	int ret;
 	
-	if ((ret = load_jh (& scan->point_load, node))) {
+	if ((ret = load_jh (& scan->node_load, node))) {
 		return ret;
 	}
 
@@ -1783,8 +1787,11 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 		 * proceed.  Otherwise, repeat the above loop with next_coord. */
 		if (jnode_is_formatted (child)) {
 			done_lh (& scan->parent_lock);
+			done_zh (& scan->parent_load);
 			break;
-		} else {
+		}
+
+		if (next_load.node != NULL) {
 			done_lh (& scan->parent_lock);
 			move_lh (& scan->parent_lock, & next_lock);
 			move_zh (& scan->parent_load, & next_load);
