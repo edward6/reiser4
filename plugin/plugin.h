@@ -23,6 +23,7 @@ typedef enum {
 	REISER4_HOOK_PLUGIN_TYPE,
 	REISER4_PERM_PLUGIN_TYPE,
 	REISER4_SD_EXT_PLUGIN_TYPE,
+	REISER4_LAYOUT_PLUGIN_TYPE,
 	REISER4_PLUGIN_TYPES
 } reiser4_plugin_type;
 
@@ -312,11 +313,7 @@ typedef struct dir_plugin {
 typedef struct tail_plugin {
 	/** returns non-zero iff file's tail has to be stored
 	    in a direct item. */
-	int ( *tail )( const struct inode *inode, loff_t size );
-
-	/** returns non-zero iff file's tail has to be stored
-	    unformatted node */
-	int ( *notail )( const struct inode *inode, loff_t new_size );
+	int ( *have_tail )( const struct inode *inode, loff_t size );
 
 } tail_plugin;
 
@@ -340,6 +337,26 @@ typedef struct sd_ext_plugin {
 	int alignment;
 } sd_ext_plugin;
 
+
+/* disk layout plugin: this specifies super block, journal, bitmap (if there
+ * are any) locations, etc */
+typedef struct layout_plugin {
+	/* replay journal, initialize super_info_data, prepare block allocator,
+	 * etc */
+	int ( *get_ready )( struct super_block *, reiser4_super_info_data *,
+			    struct buffer_head * );
+	/* key of root directory stat data */
+	const reiser4_key * ( *root_dir_key )( void );
+	/* used to report statfs->f_files */	
+	long ( *oids_used )( struct super_block * );
+	/* used to report statfs->f_ffree */	
+	long ( *oids_free )( struct super_block * );
+	/* allocate new objectid */
+	int ( *allocate_oid )( struct super_block *, oid_t * );
+	/* release objectid */
+	int ( *release_oid )( struct super_block *, oid_t );
+} layout_plugin;
+
 /** plugin instance. 
     We keep everything inside single union for simplicity.
     Alternative solution is to to keep size of actual plugin
@@ -358,6 +375,7 @@ struct reiser4_plugin {
 		node_plugin   node;
 		item_plugin   item;
 		sd_ext_plugin sd_ext;
+		layout_plugin layout;
 		void                *generic;
 	} u;
 };
@@ -580,6 +598,7 @@ PLUGIN_BY_ID(sd_ext_plugin,REISER4_SD_EXT_PLUGIN_TYPE,sd_ext);
 PLUGIN_BY_ID(perm_plugin,REISER4_PERM_PLUGIN_TYPE,perm);
 PLUGIN_BY_ID(hash_plugin,REISER4_HASH_PLUGIN_TYPE,hash);
 PLUGIN_BY_ID(tail_plugin,REISER4_TAIL_PLUGIN_TYPE,tail);
+PLUGIN_BY_ID(layout_plugin,REISER4_LAYOUT_PLUGIN_TYPE,layout);
 
 extern int save_plugin_id( reiser4_plugin *plugin, d16 *area );
 
