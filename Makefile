@@ -78,8 +78,6 @@ reiser4-objs := \
 		   entd.o\
 		   readahead.o \
 		   crypt.o \
-		   minilzo.o\
-		   compress.o\
 		   diskmap.o \
 		   prof.o \
 		   repacker.o \
@@ -95,6 +93,9 @@ reiser4-objs := \
 		   plugin/cryptcompress.o \
 		   plugin/digest.o \
 		   plugin/node/node40.o \
+           \
+		   plugin/compress/minilzo.o \
+		   plugin/compress/compress.o \
            \
 		   plugin/item/static_stat.o \
 		   plugin/item/sde.o \
