@@ -1167,7 +1167,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 
 	result = longterm_lock_znode( h -> active_lh, node, 
 				      cbk_lock_mode( level, h ), 
-				      ZNODE_LOCK_HIPRI );
+				      ZNODE_LOCK_LOPRI );
 	zput( node );
 	if( result != 0 )
 		return result;

@@ -85,106 +85,133 @@ we do as much deletion as insertion....
  * two pointers per bucket, doubling the size of the bucket array (in
  * addition to two pointers per item).
  */
-#define TS_HASH_DEFINE(PREFIX,ITEM_TYPE,KEY_TYPE,KEY_NAME,LINK_NAME,HASH_FUNC,EQ_FUNC)        \
-                                                                                              \
-static __inline__ int                                                                         \
-PREFIX##_hash_init (PREFIX##_hash_table *hash,                                                \
-		    __u32                buckets)                                             \
-{                                                                                             \
-  hash->_table   = (ITEM_TYPE**) KMALLOC (sizeof (ITEM_TYPE*) * buckets);                     \
-  hash->_buckets = buckets;                                                                   \
-  if (hash->_table == NULL)                                                                   \
-    {                                                                                         \
-      return -ENOMEM;                                                                         \
-    }                                                                                         \
-  xmemset (hash->_table, 0, sizeof (ITEM_TYPE*) * buckets);                                   \
-  return 0;                                                                                   \
-}                                                                                             \
-                                                                                              \
-static __inline__ void                                                                        \
-PREFIX##_hash_done (PREFIX##_hash_table *hash)                                                \
-{                                                                                             \
-  if (hash->_table != NULL)                                                                   \
-    KFREE (hash->_table, sizeof (ITEM_TYPE*) * hash->_buckets);                               \
-  hash->_table = NULL;                                                                        \
-}                                                                                             \
-                                                                                              \
-static __inline__ ITEM_TYPE*                                                                  \
-PREFIX##_hash_find_index (PREFIX##_hash_table *hash,                                          \
-			  __u32                hash_index,                                    \
-			  KEY_TYPE const      *find_key)                                      \
-{                                                                                             \
-  ITEM_TYPE *item;                                                                            \
-                                                                                              \
-  for (item  = hash->_table[hash_index];                                                      \
-       item != NULL;                                                                          \
-       item  = item->LINK_NAME._next)                                                         \
-    {                                                                                         \
-      if (EQ_FUNC (& item->KEY_NAME, find_key))                                               \
-        {                                                                                     \
-          return item;                                                                        \
-        }                                                                                     \
-    }                                                                                         \
-                                                                                              \
-  return NULL;                                                                                \
-}                                                                                             \
-                                                                                              \
-static __inline__ int                                                                         \
-PREFIX##_hash_remove_index (PREFIX##_hash_table *hash,                                        \
-			    __u32                hash_index,                                  \
-			    ITEM_TYPE           *del_item)                                    \
-{                                                                                             \
-  ITEM_TYPE *hash_item = hash->_table[hash_index];                                            \
-  ITEM_TYPE *last_item;                                                                       \
-                                                                                              \
-  if (del_item == hash_item)                                                                  \
-    {                                                                                         \
-      hash->_table[hash_index] = del_item->LINK_NAME._next;                                   \
-      return 1;                                                                               \
-    }                                                                                         \
-                                                                                              \
-  for (last_item  = hash_item, hash_item = hash_item->LINK_NAME._next;                        \
-       hash_item != NULL;                                                                     \
-       last_item  = hash_item, hash_item = hash_item->LINK_NAME._next)                        \
-    {                                                                                         \
-      if (hash_item == del_item)                                                              \
-	{                                                                                     \
-	  last_item->LINK_NAME._next = hash_item->LINK_NAME._next;                            \
-	  return 1;                                                                           \
-	}                                                                                     \
-    }                                                                                         \
-                                                                                              \
-  return 0;                                                                                   \
-}                                                                                             \
-                                                                                              \
-static __inline__ void                                                                        \
-PREFIX##_hash_insert_index (PREFIX##_hash_table *hash,                                        \
-			    __u32                hash_index,                                  \
-			    ITEM_TYPE           *ins_item)                                    \
-{                                                                                             \
-  ins_item->LINK_NAME._next = hash->_table[hash_index];                                       \
-  hash->_table[hash_index]  = ins_item;                                                       \
-}                                                                                             \
-                                                                                              \
-static __inline__ ITEM_TYPE*                                                                  \
-PREFIX##_hash_find (PREFIX##_hash_table *hash,                                                \
-	            KEY_TYPE const      *find_key)                                            \
-{                                                                                             \
-  return PREFIX##_hash_find_index (hash, HASH_FUNC(find_key), find_key);                      \
-}                                                                                             \
-                                                                                              \
-static __inline__ int                                                                         \
-PREFIX##_hash_remove (PREFIX##_hash_table *hash,                                              \
-		      ITEM_TYPE           *del_item)                                          \
-{                                                                                             \
-  return PREFIX##_hash_remove_index (hash, HASH_FUNC(&del_item->KEY_NAME), del_item);         \
-}                                                                                             \
-                                                                                              \
-static __inline__ void                                                                        \
-PREFIX##_hash_insert (PREFIX##_hash_table *hash,                                              \
-		      ITEM_TYPE           *ins_item)                                          \
-{                                                                                             \
-  return PREFIX##_hash_insert_index (hash, HASH_FUNC(&ins_item->KEY_NAME), ins_item);         \
+#define TS_HASH_DEFINE(PREFIX,ITEM_TYPE,KEY_TYPE,KEY_NAME,LINK_NAME,HASH_FUNC,EQ_FUNC)	\
+											\
+static __inline__ int									\
+PREFIX##_hash_init (PREFIX##_hash_table *hash,						\
+		    __u32                buckets)					\
+{											\
+  hash->_table   = (ITEM_TYPE**) KMALLOC (sizeof (ITEM_TYPE*) * buckets);		\
+  hash->_buckets = buckets;								\
+  if (hash->_table == NULL)								\
+    {											\
+      return -ENOMEM;									\
+    }											\
+  xmemset (hash->_table, 0, sizeof (ITEM_TYPE*) * buckets);				\
+  return 0;										\
+}											\
+											\
+static __inline__ void									\
+PREFIX##_hash_done (PREFIX##_hash_table *hash)						\
+{											\
+  if (hash->_table != NULL)								\
+    KFREE (hash->_table, sizeof (ITEM_TYPE*) * hash->_buckets);				\
+  hash->_table = NULL;									\
+}											\
+											\
+static __inline__ ITEM_TYPE*								\
+PREFIX##_hash_find_index (PREFIX##_hash_table *hash,					\
+			  __u32                hash_index,				\
+			  KEY_TYPE const      *find_key)				\
+{											\
+  ITEM_TYPE *item;									\
+											\
+  for (item  = hash->_table[hash_index];						\
+       item != NULL;									\
+       item  = item->LINK_NAME._next)							\
+    {											\
+      if (EQ_FUNC (& item->KEY_NAME, find_key))						\
+        {										\
+          return item;									\
+        }										\
+    }											\
+											\
+  return NULL;										\
+}											\
+											\
+static __inline__ int									\
+PREFIX##_hash_remove_index (PREFIX##_hash_table *hash,					\
+			    __u32                hash_index,				\
+			    ITEM_TYPE           *del_item)				\
+{											\
+  ITEM_TYPE *hash_item = hash->_table[hash_index];					\
+  ITEM_TYPE *last_item;									\
+											\
+  if (del_item == hash_item)								\
+    {											\
+      hash->_table[hash_index] = del_item->LINK_NAME._next;				\
+      return 1;										\
+    }											\
+											\
+  for (last_item  = hash_item, hash_item = hash_item->LINK_NAME._next;			\
+       hash_item != NULL;								\
+       last_item  = hash_item, hash_item = hash_item->LINK_NAME._next)			\
+    {											\
+      if (hash_item == del_item)							\
+	{										\
+	  last_item->LINK_NAME._next = hash_item->LINK_NAME._next;			\
+	  return 1;									\
+	}										\
+    }											\
+											\
+  return 0;										\
+}											\
+											\
+static __inline__ void									\
+PREFIX##_hash_insert_index (PREFIX##_hash_table *hash,					\
+			    __u32                hash_index,				\
+			    ITEM_TYPE           *ins_item)				\
+{											\
+  ins_item->LINK_NAME._next = hash->_table[hash_index];					\
+  hash->_table[hash_index]  = ins_item;							\
+}											\
+											\
+static __inline__ ITEM_TYPE*								\
+PREFIX##_hash_find (PREFIX##_hash_table *hash,						\
+	            KEY_TYPE const      *find_key)					\
+{											\
+  return PREFIX##_hash_find_index (hash, HASH_FUNC(find_key), find_key);		\
+}											\
+											\
+static __inline__ int									\
+PREFIX##_hash_remove (PREFIX##_hash_table *hash,					\
+		      ITEM_TYPE           *del_item)					\
+{											\
+  return PREFIX##_hash_remove_index (hash, HASH_FUNC(&del_item->KEY_NAME), del_item);	\
+}											\
+											\
+static __inline__ void									\
+PREFIX##_hash_insert (PREFIX##_hash_table *hash,					\
+		      ITEM_TYPE           *ins_item)					\
+{											\
+  return PREFIX##_hash_insert_index (hash, HASH_FUNC(&ins_item->KEY_NAME), ins_item);	\
+}											\
+											\
+static __inline__ ITEM_TYPE *								\
+PREFIX##_hash_first (PREFIX##_hash_table *hash, __u32 ind)				\
+{											\
+  ITEM_TYPE *first;									\
+											\
+  for (first = NULL; ind < hash->_buckets; ++ ind) {					\
+    first = hash->_table[ind];  							\
+    if (first != NULL)									\
+      break;										\
+  }											\
+  return first;										\
+}											\
+											\
+static __inline__ ITEM_TYPE *								\
+PREFIX##_hash_next (PREFIX##_hash_table *hash,						\
+		    ITEM_TYPE           *item)						\
+{											\
+  ITEM_TYPE  *next;									\
+											\
+  if (item == NULL)									\
+    return NULL;									\
+  next = item->LINK_NAME._next;								\
+  if (next == NULL)									\
+    next = PREFIX##_hash_first (hash, HASH_FUNC(&item->KEY_NAME) + 1);			\
+  return next;										\
 }
 
 
@@ -197,8 +224,10 @@ for ((item) = *(bucket), (next) = (item) ? (item) -> field._next : NULL ;	\
      (item) != NULL ;								\
      (item) = (next), (next) = (item) ? (item) -> field._next : NULL )
 
-#define for_all_in_htable(table, head, item, next, field)			\
-for_all_ht_buckets(table, head) for_all_in_bucket(head, item, next, field)
+#define for_all_in_htable(table, prefix, item, next)						    \
+for ((item) = prefix ## _hash_first ((table), 0), (next) = prefix ## _hash_next ((table), (item)) ; \
+     (item) != NULL ;										    \
+     (item) = (next), (next) = prefix ## _hash_next ((table), (item)))
 
 #endif /* __REISER4_TSHASH_H__ */
 
