@@ -1485,7 +1485,7 @@ static int full_squeeze_right_twig (flush_pos_t * pos, znode * left, znode * rig
 		coord_next_item(&dest_coord);
 	}
 
-	return SQUEEZE_SOURCE_EMPTY;
+	ret = SQUEEZE_SOURCE_EMPTY;
 
  out:
 	if (result)
@@ -1722,7 +1722,7 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 
 	ret = handle_pos_on_formatted(pos);
 
-	if (ret == -EINVAL) {
+	if (ret == -ENAVAIL) {
 		/* cannot get right neighbor, go process extents. */
 		pos->state = POS_TO_TWIG;
 		return 0;
