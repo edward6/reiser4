@@ -141,7 +141,8 @@ static int flushable(const jnode * node, struct page *page);
 static eflush_node_t *ef_alloc(int flags);
 static reiser4_ba_flags_t ef_block_flags(const jnode *node);
 static int ef_free_block(jnode *node, const reiser4_block_nr *blk);
-static int ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **enode);
+static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, block_stage_t stage);
+static int ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **enode, reiser4_blocknr_hint *hint);
 static int eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef);
 
 /* slab for eflush_node_t's */
@@ -185,11 +186,14 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 	if (flushable(node, page)) {
 		reiser4_block_nr blk;
 		eflush_node_t *efnode;
+		reiser4_blocknr_hint hint;
 
 		blk = 0ull;
 		efnode = NULL;
 
-		result = ef_prepare(node, &blk, &efnode);
+		blocknr_hint_init(&hint);
+
+		result = ef_prepare(node, &blk, &efnode, &hint);
 		if (flushable(node, page) && result == 0 && 
 		    test_clear_page_dirty(page)) {
 			assert("nikita-2759", efnode != NULL);
@@ -214,11 +218,14 @@ emergency_flush(struct page *page, struct writeback_control *wbc)
 		} else {
 			spin_unlock_jnode(node);
 			if (blk != 0ull)
-				ef_free_block(node, &blk);
+				ef_free_block_with_stage(node, &blk, hint.block_stage);
 			if (efnode != NULL)
 				kmem_cache_free(eflush_slab, efnode);
 			trace_on(TRACE_EFLUSH, "failure-2\n");
 		}
+
+		blocknr_hint_done(&hint);
+
 	} else {
 		spin_unlock_jnode(node);
 		trace_on(TRACE_EFLUSH, "failure-1\n");
@@ -277,6 +284,9 @@ struct eflush_node {
 	jnode           *node;
 	reiser4_block_nr blocknr;
 	ef_hash_link     linkage;
+#if REISER4_DEBUG
+	block_stage_t    initial_stage;
+#endif
 };
 
 /* The hash table definition */
@@ -427,6 +437,14 @@ eflush_del(jnode *node, int page_locked)
 
 		spin_unlock_jnode(node);
 
+#if REISER4_DEBUG
+		if (blocknr_is_fake(&blk)) {
+			assert ("zam-817", ef->initial_stage == BLOCK_UNALLOCATED);
+		} else {
+			assert ("zam-818", ef->initial_stage == BLOCK_GRABBED);
+		}
+#endif
+
 		kmem_cache_free(eflush_slab, ef);
 		ef_free_block(node, &blk);
 
@@ -467,14 +485,10 @@ ef_block_flags(const jnode *node)
 	return jnode_is_znode(node) ? BA_FORMATTED : 0;
 }
 
-static int ef_free_block(jnode *node, const reiser4_block_nr *blk)
+static int ef_free_block_with_stage(jnode *node, const reiser4_block_nr *blk, block_stage_t stage)
 {
-	block_stage_t stage;
 	int result = 0;
 	reiser4_block_nr one;
-
-	stage = blocknr_is_fake(jnode_get_block(node)) ? 
-		BLOCK_UNALLOCATED : BLOCK_GRABBED;
 
 	one = 1ull;
 	/* We cannot just ask block allocator to return block into flush
@@ -495,11 +509,20 @@ static int ef_free_block(jnode *node, const reiser4_block_nr *blk)
 	return result;
 }
 
+static int ef_free_block(jnode *node, const reiser4_block_nr *blk)
+{
+	block_stage_t stage;
+
+	stage = blocknr_is_fake(jnode_get_block(node)) ? 
+		BLOCK_UNALLOCATED : BLOCK_GRABBED;
+
+	return ef_free_block_with_stage(node, blk, stage);
+}
+
 static int 
-ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode)
+ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_blocknr_hint * hint)
 {
 	int result;
-	reiser4_blocknr_hint hint;
 	reiser4_block_nr one;
 
 	assert("nikita-2760", node != NULL);
@@ -507,11 +530,11 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode)
 	assert("nikita-2762", efnode != NULL);
 	assert("nikita-2763", spin_jnode_is_locked(node));
 
-	hint.blk         = EFLUSH_START_BLOCK;
-	hint.max_dist    = 0;
-	hint.level       = jnode_get_level(node);
+	hint->blk         = EFLUSH_START_BLOCK;
+	hint->max_dist    = 0;
+	hint->level       = jnode_get_level(node);
 	if (blocknr_is_fake(jnode_get_block(node)))
-		hint.block_stage = BLOCK_UNALLOCATED;
+		hint->block_stage = BLOCK_UNALLOCATED;
 	else {
 		txn_atom *atom;
 
@@ -522,7 +545,7 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode)
 		assert("nikita-2785", atom != NULL);
 		flush_reserved2grabbed(atom, 1);
 		spin_unlock_atom(atom);
-		hint.block_stage = BLOCK_GRABBED;
+		hint->block_stage = BLOCK_GRABBED;
 	}
 
 	/* XXX protect @node from being concurrently eflushed. Otherwise,
@@ -530,11 +553,16 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode)
 	spin_unlock_jnode(node);
 
 	one = 1ull;
-	result = reiser4_alloc_blocks(&hint, blk, &one, ef_block_flags(node));
+	result = reiser4_alloc_blocks(hint, blk, &one, ef_block_flags(node));
 	if (result == 0) {
 		*efnode = ef_alloc(GFP_NOFS | __GFP_HIGH);
 		if (*efnode == NULL)
 			result = -ENOMEM;
+		else {
+#if REISER4_DEBUG
+			(*efnode)->initial_stage = hint->block_stage;
+#endif
+		}
 	}
 	spin_lock_jnode(node);
 	return result;

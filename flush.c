@@ -2535,6 +2535,7 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 
 	pos->preceder.block_stage = BLOCK_GRABBED;
 	if (ZF_ISSET(node, JNODE_CREATED)) {
+		assert ("zam-816", blocknr_is_fake(jnode_get_block(node)));
 		pos->preceder.block_stage = BLOCK_UNALLOCATED;
 	}
 
@@ -2590,7 +2591,12 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 		zput(fake);
 	}
 
+	ret = zload(node);
+	if (ret)
+		goto exit;
+
 	ret = znode_rehash(node, &blk);
+	zrelse(node);
 exit:
 	done_lh(&fake_lock);
 	return ret;
