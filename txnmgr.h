@@ -332,10 +332,6 @@ extern int          capture_super_block   (struct super_block * s);
 
 extern int txn_jnodes_of_one_atom (jnode *, jnode *);
 
-#if REISER4_USER_LEVEL_SIMULATION
-extern int          memory_pressure        (struct super_block *super, int *nr_to_flush);
-#endif
-
 /* See the comment on the function blocknrset.c:blocknr_set_add for the
  * calling convention of these three routines. */
 extern void         blocknr_set_init       (blocknr_set             *bset);
