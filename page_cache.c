@@ -541,7 +541,7 @@ int set_page_dirty_internal (struct page * page, int tag_as_moved)
 				radix_tree_tag_set(&mapping->page_tree,
 					page->index, PAGECACHE_TAG_DIRTY);
 				if (tag_as_moved) {
-					assert("vs-1731", 0);
+					assert("vs-1731", REISER4_USE_ENTD);
 					radix_tree_tag_set(
 						&mapping->page_tree, page->index,
 						PAGECACHE_TAG_REISER4_MOVED);
