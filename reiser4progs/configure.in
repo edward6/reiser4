@@ -174,9 +174,11 @@ AC_OUTPUT([
     include/aal/Makefile
     include/misc/Makefile
     include/reiser4/Makefile
+    include/repair/Makefile
     libaal/Makefile
     libmisc/Makefile
     libreiser4/Makefile
+    librepair/Makefile
     plugin/Makefile
     plugin/format40/Makefile
     plugin/journal40/Makefile

@@ -320,7 +320,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "Synchronizing...");
     
     if (reiserfs_fs_sync(fs)) {
-	progs_fatal("Can't synchronize created filesystem.\n");
+	progs_fatal("Can't synchronize the filesystem.\n");
 	goto free_fs;
     }
 
