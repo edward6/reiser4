@@ -8,12 +8,12 @@
 #  include <config.h>
 #endif
 
-#include <aal/aal.h>
-#include <reiser4/reiser4.h>
-
 #include "format40.h"
 
+extern reiser4_plugin_t format40_plugin;
+
 static reiser4_core_t *core = NULL;
+
 static errno_t format40_super_check(format40_super_t *super, 
     aal_device_t *device) 
 {
@@ -37,7 +37,7 @@ static errno_t format40_super_check(format40_super_t *super,
     return 0;
 }
 
-static int format40_signature(format40_super_t *super) {
+static int format40_magic(format40_super_t *super) {
     return aal_strncmp(super->sb_magic, FORMAT40_MAGIC, 
 	aal_strlen(FORMAT40_MAGIC)) == 0;
 }
@@ -55,7 +55,7 @@ static aal_block_t *format40_super_open(aal_device_t *device) {
 	return NULL;
     }
 
-    if (!format40_signature((format40_super_t *)block->data))
+    if (!format40_magic((format40_super_t *)block->data))
 	return NULL;
     
     return block;
@@ -70,10 +70,11 @@ static reiser4_entity_t *format40_open(aal_device_t *device) {
 	return NULL;
 
     format->device = device;
+    format->plugin = &format40_plugin;
     
     if (!(format->block = format40_super_open(device)))
 	goto error_free_format;
-		
+    
     return (reiser4_entity_t *)format;
 
 error_free_format:
@@ -98,6 +99,7 @@ static reiser4_entity_t *format40_create(aal_device_t *device,
 	return NULL;
     
     format->device = device;
+    format->plugin = &format40_plugin;
 
     if (!(format->block = aal_block_alloc(device, (FORMAT40_OFFSET / 
 	aal_device_get_bs(device)), 0))) 
@@ -124,10 +126,6 @@ error:
     return NULL;
 }
 
-extern errno_t format40_check(reiser4_entity_t *entity, uint16_t options);
-extern void format40_print(reiser4_entity_t *entity, char *buf, uint32_t size, 
-    uint16_t options);
-
 /* This function should update all copies of the super block */
 static errno_t format40_sync(reiser4_entity_t *entity) {
     format40_t *format;
@@ -151,9 +149,7 @@ static errno_t format40_sync(reiser4_entity_t *entity) {
 
 #endif
 
-static errno_t format40_valid(reiser4_entity_t *entity, 
-    int flags) 
-{
+static errno_t format40_valid(reiser4_entity_t *entity) {
     format40_t *format;
     
     aal_assert("umka-397", entity != NULL, return -1);
@@ -194,20 +190,6 @@ static void format40_oid_area(reiser4_entity_t *entity,
     
     *oid_start = &super->sb_oid;
     *oid_len = &super->sb_file_count - &super->sb_oid;
-}
-
-static void format40_journal_area(reiser4_entity_t *entity, 
-    blk_t *start, blk_t *end) 
-{
-    aal_assert("umka-734", entity != NULL, return);
-    aal_assert("umka-978", start != NULL, return);
-    aal_assert("umka-979", end != NULL, return);
-    
-    *start = (FORMAT40_JHEADER / 
-	aal_device_get_bs(((format40_t *)entity)->device));
-    
-    *end = (FORMAT40_JFOOTER / 
-	aal_device_get_bs(((format40_t *)entity)->device));
 }
 
 static const char *formats[] = {"4.0"};
@@ -317,28 +299,82 @@ static void format40_set_height(reiser4_entity_t *entity,
     set_sb_tree_height(super, height);
 }
 
+extern errno_t format40_check(reiser4_entity_t *entity, 
+    uint16_t options);
+
+extern void format40_print(reiser4_entity_t *entity, 
+    char *buf, uint32_t n, uint16_t options);
+
 #endif
 
-static int format40_alloc_block(reiser4_entity_t *entity, blk_t blk) {
-    uint64_t blocksize = aal_device_get_bs(((format40_t *)entity)->device);
-	    
-    if (!(blk % (blocksize * 8)))
-        return 1;
+#define FORMAT40_JHEADER (4096 * 19)
+#define FORMAT40_JFOOTER (4096 * 20)
+
+/* This function describes journal layout in format40 */
+static errno_t format40_journal_layout(reiser4_entity_t *entity,
+    reiser4_action_func_t action_func, void *data)
+{
+    blk_t blk;
+    format40_t *format = (format40_t *)entity;
     
-    return (blk == (FORMAT40_OFFSET / blocksize + 1));
+    aal_assert("umka-1040", format != NULL, return -1);
+    aal_assert("umka-1041", action_func != NULL, return -1);
+    
+    blk = FORMAT40_JHEADER / aal_device_get_bs(format->device);
+    
+    if (action_func(format->device, blk, data))
+	return -1;
+    
+    blk = FORMAT40_JFOOTER / aal_device_get_bs(format->device);
+    
+    if (action_func(format->device, blk, data))
+	return -1;
+
+    return 0;
 }
 
-static int format40_data_block(reiser4_entity_t *entity, blk_t blk) 
-{
-    uint64_t blocksize = aal_device_get_bs(((format40_t *)entity)->device);
-    
-    if (format40_alloc_block(entity, blk))
-	return 0;
-		
-    if (blk <= (uint64_t)FORMAT40_JFOOTER / blocksize)
-	return 0;
+#define FORMAT40_ALLOC (REISER4_MASTER_OFFSET + (4096 * 2))
 
-    return 1;
+static errno_t format40_alloc_layout(reiser4_entity_t *entity,
+    reiser4_action_func_t action_func, void *data) 
+{
+    blk_t blk, start;
+    format40_t *format = (format40_t *)entity;
+	
+    aal_assert("umka-347", entity != NULL, return -1);
+    aal_assert("umka-348", action_func != NULL, return -1);
+
+    start = FORMAT40_ALLOC / aal_device_get_bs(format->device);
+    
+    for (blk = start; blk < format40_get_len(entity);) {	
+	
+	if (action_func(format->device, blk, data))
+	    return -1;
+	
+	blk = (blk / (aal_device_get_bs(format->device) * 8) + 1) * 
+	    (aal_device_get_bs(format->device) * 8);
+    }
+    
+    return 0;
+}
+
+static errno_t format40_format_layout(reiser4_entity_t *entity,
+    reiser4_action_func_t action_func, void *data) 
+{
+    blk_t blk, offset;
+    format40_t *format = (format40_t *)entity;
+        
+    aal_assert("umka-1042", entity != NULL, return -1);
+    aal_assert("umka-1043", action_func != NULL, return -1);
+    
+    offset = FORMAT40_OFFSET / format->device->blocksize;
+    
+    for (blk = 0; blk <= offset; blk++) {
+	if (action_func(format->device, blk, data))
+	    return -1;
+    }
+    
+    return 0;
 }
 
 static reiser4_plugin_t format40_plugin = {
@@ -364,7 +400,6 @@ static reiser4_plugin_t format40_plugin = {
 	.print		= NULL,
 #endif
 	.oid_area	= format40_oid_area,
-	.journal_area	= format40_journal_area,
 	
 	.close		= format40_close,
 	.confirm	= format40_confirm,
@@ -374,6 +409,10 @@ static reiser4_plugin_t format40_plugin = {
 	.get_len	= format40_get_len,
 	.get_free	= format40_get_free,
 	.get_height	= format40_get_height,
+
+	.format_layout	= format40_format_layout,
+	.alloc_layout	= format40_alloc_layout,
+	.journal_layout	= format40_journal_layout,
 	
 #ifndef ENABLE_COMPACT	
 	.set_root	= format40_set_root,
@@ -388,9 +427,7 @@ static reiser4_plugin_t format40_plugin = {
 #endif
 	.journal_pid	= format40_journal_pid,
 	.alloc_pid	= format40_alloc_pid,
-	.oid_pid	= format40_oid_pid,
-	.data_block	= format40_data_block,
-	.alloc_block	= format40_alloc_block
+	.oid_pid	= format40_oid_pid
     }
 };
 

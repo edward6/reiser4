@@ -1,5 +1,5 @@
 /*
-    librepai/format.c - methods are needed for handle the fs format.
+    libprogs/format.c - methods are needed for handle the fs format.
     Copyright (C) 1996-2002 Hans Reiser.
     Author Vitaly Fertman.
 */
@@ -38,8 +38,8 @@ static reiser4_plugin_t *__choose_format(reiser4_fs_t *fs, aal_device_t *host_de
 		"profile's one.\nDo not forget to specify the correct on-disk format "
 		"in the profile next time.", plugin->h.label);
 	else if (repair_verbose(repair_data(fs))) {
-	    aal_exception_info("The on-disk format (%s) was detected on (%s).", 
-		plugin->h.label, aal_device_name(host_device));
+	    aal_exception_info("The on-disk format (%s) was detected on (%s).", plugin->h.label, 
+		aal_device_name(host_device));
 	}
     }
     
@@ -55,6 +55,9 @@ errno_t repair_format_check(reiser4_fs_t *fs) {
     
     if (!fs->format) {
 	/* Format was not opened. */
+	aal_exception_fatal("Cannot open the on-disk format on (%s)", 
+	    aal_device_name(repair_data(fs)->host_device));
+	
 	if (!(plugin = __choose_format(fs, repair_data(fs)->host_device)))
 	    return -1;
 
@@ -69,7 +72,7 @@ errno_t repair_format_check(reiser4_fs_t *fs) {
     } 
     
     /* Format was either opened or created. Check it and fix it. */
-    if (libreiser4_plugin_call(return -1, fs->format->plugin->format_ops, check, 
+    if (libreiser4_plugin_call(return -1, fs->format->entity->plugin->format_ops, check, 
 	fs->format->entity, repair_data(fs)->options)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Failed to recover the on-disk format (%s) on (%s).", plugin->h.label, 
@@ -91,8 +94,8 @@ void repair_format_print(reiser4_fs_t *fs, FILE *stream, uint16_t options) {
 
     aal_memset(buf, 0, 4096);
 
-    libreiser4_plugin_call(return, fs->format->plugin->format_ops, print, 
+    libreiser4_plugin_call(return, fs->format->entity->plugin->format_ops, print, 
 	fs->format->entity, buf, 4096, options);
+    
     fprintf(stream, "%s", buf);
 }
-

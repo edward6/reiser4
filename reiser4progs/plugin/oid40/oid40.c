@@ -8,8 +8,9 @@
 #  include <config.h>
 #endif
 
-#include <reiser4/reiser4.h>
 #include "oid40.h"
+
+extern reiser4_plugin_t oid40_plugin;
 
 static reiser4_core_t *core = NULL;
 
@@ -26,6 +27,7 @@ static reiser4_entity_t *oid40_open(const void *start,
     
     oid->next = oid40_get_next(start);
     oid->used = oid40_get_used(start);
+    oid->plugin = &oid40_plugin;
     
     return (reiser4_entity_t *)oid;
 }
@@ -51,10 +53,12 @@ static reiser4_entity_t *oid40_create(const void *start,
     oid->next = OID40_RESERVED;
     oid->used = 0;
     
+    oid->plugin = &oid40_plugin;
+    
     oid40_set_next(start, OID40_RESERVED);
     oid40_set_used(start, 0);
     
-    return oid;
+    return (reiser4_entity_t *)oid;
 }
 
 static errno_t oid40_sync(reiser4_entity_t *entity) {
@@ -87,7 +91,7 @@ static void oid40_dealloc(reiser4_entity_t *entity,
 
 #endif
 
-static errno_t oid40_valid(reiser4_entity_t *entity, int flags) {
+static errno_t oid40_valid(reiser4_entity_t *entity) {
     aal_assert("umka-966", entity != NULL, return -1);
 
     if (((oid40_t *)entity)->next < OID40_ROOT_PARENT_LOCALITY)

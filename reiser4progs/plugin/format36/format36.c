@@ -8,10 +8,9 @@
 #  include <config.h>
 #endif
 
-#include <aal/aal.h>
-#include <reiser4/reiser4.h>
-
 #include "format36.h"
+
+extern reiser4_plugin_t format36_plugin;
 
 static reiser4_core_t *core = NULL;
 
@@ -113,6 +112,8 @@ static reiser4_entity_t *format36_open(aal_device_t *device) {
 	goto error_free_format;
 	
     format->device = device;
+    format->plugin = &format36_plugin;
+    
     return (reiser4_entity_t *)format;
 
 error_free_format:
@@ -149,9 +150,7 @@ static reiser4_entity_t *format36_create(aal_device_t *device,
 
 #endif
 
-static errno_t format36_valid(reiser4_entity_t *entity, 
-    int flags) 
-{
+static errno_t format36_valid(reiser4_entity_t *entity) {
     format36_super_t *super;
     
     aal_assert("umka-383", entity != NULL, return -1);
@@ -314,11 +313,12 @@ static reiser4_plugin_t format36_plugin = {
 	.alloc_pid	= format36_alloc_pid,
 	.oid_pid	= format36_oid_pid,
 	
+	.format_layout	= NULL,
+	.journal_layout	= NULL,
+	.alloc_layout	= NULL,
+	
 	.get_height	= NULL,
-	.oid_area	= NULL,
-	.journal_area	= NULL,
-	.data_block	= NULL,
-	.alloc_block	= NULL
+	.oid_area	= NULL
     }
 };
 

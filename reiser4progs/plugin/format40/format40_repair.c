@@ -126,7 +126,7 @@ errno_t format40_check(reiser4_entity_t *entity, uint16_t options) {
     return 0;
 }
 
-void format40_print(reiser4_entity_t *entity, char *buf, uint32_t size, uint16_t options) 
+void format40_print(reiser4_entity_t *entity, char *buf, size_t n, uint16_t options) 
 {
     format40_super_t *super;
     
