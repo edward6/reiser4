@@ -1035,7 +1035,6 @@ init_committed_sb_counters(const struct super_block *s)
 	sbinfo->nr_files_committed = oids_used(s);
 }
 
-DEFINE_SPIN_PROFREGIONS(zgen);
 DEFINE_SPIN_PROFREGIONS(epoch);
 DEFINE_SPIN_PROFREGIONS(jnode);
 DEFINE_SPIN_PROFREGIONS(stack);
@@ -1053,27 +1052,58 @@ DEFINE_SPIN_PROFREGIONS(zlock);
 DEFINE_RW_PROFREGIONS(dk);
 DEFINE_RW_PROFREGIONS(tree);
 
-#if 0 && REISER4_LOCKPROF
+#if REISER4_LOCKPROF
+
+static void echo_jnode(const char *prefix, const jnode *j)
+{
+	printk("%s %llx %i\n", prefix, *jnode_get_block(j), jnode_get_level(j));
+}
+
 static void jnode_most_wanted(struct profregion * preg)
 {
-	print_jnode("most wanted", container_of(preg->obj, jnode, guard.trying));
+	jnode *node;
+
+	node = container_of(preg->obj, jnode, guard.trying);
+	echo_jnode("jnode wanted", node);
 }
 
 static void jnode_most_held(struct profregion * preg)
 {
-	print_jnode("most held", container_of(preg->obj, jnode, guard.held));
+	jnode *node;
+
+	node = container_of(preg->obj, jnode, guard.held);
+	echo_jnode("jnode held", node);
 }
+
+static void zlock_most_wanted(struct profregion * preg)
+{
+	znode *node;
+
+	node = container_of(preg->obj, znode, lock.guard.trying);
+	echo_jnode("zlock wanted", ZJNODE(node));
+}
+
+static void zlock_most_held(struct profregion * preg)
+{
+	znode *node;
+
+	node = container_of(preg->obj, znode, lock.guard.held);
+	echo_jnode("zlock held", ZJNODE(node));
+}
+
 #endif
 
 static int register_profregions(void)
 {
-#if 0 && REISER4_LOCKPROF
+#if REISER4_LOCKPROF
 	pregion_spin_jnode_held.champion = jnode_most_held;
 	pregion_spin_jnode_trying.champion = jnode_most_wanted;
+
+	pregion_spin_zlock_held.champion = zlock_most_held;
+	pregion_spin_zlock_trying.champion = zlock_most_wanted;
 #endif
 	register_zlock_profregion();
 	register_super_eflush_profregion();
-	register_zgen_profregion();
 	register_epoch_profregion();
 	register_jnode_profregion();
 	register_stack_profregion();
@@ -1096,7 +1126,6 @@ static void unregister_profregions(void)
 {
 	unregister_zlock_profregion();
 	unregister_super_eflush_profregion();
-	unregister_zgen_profregion();
 	unregister_epoch_profregion();
 	unregister_jnode_profregion();
 	unregister_stack_profregion();
