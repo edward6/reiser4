@@ -663,7 +663,7 @@ cut_or_kill_units(coord_t * coord,
 			}
 		}
 
-		/* set @key_inside to key of last byte addrressed to extent @to */
+		/* set @key_inside to key of last byte addressed to extent @to */
 		set_key_offset(&key_inside, last);
 
 		if (keylt(to_key, &key_inside)) {
@@ -1737,7 +1737,7 @@ extent_allocate_blocks(reiser4_blocknr_hint * preceder,
 	if (result) {
 		/* no free space
 		   FIXME-VS: returning -ENOSPC is not enough
-		   here. It should not happen actully
+		   here. It should not happen actually
 		*/
 		impossible("vs-420", "could not allocate unallocated: %d", result);
 	}
@@ -2249,7 +2249,7 @@ done:
 }
 
 /* used in allocate_extent_item_in_place and plug_hole to replace @un_extent
-   with either two or three extens
+   with either two or three extents
 
    (@un_extent) with allocated (@star, @alloc_width) and unallocated
    (@unalloc_width). Have insert_into_item to not try to shift anything to
@@ -2551,7 +2551,7 @@ allocate_extent_item_in_place(coord_t * coord, lock_handle * lh, flush_position 
 		if (result)
 			break;
 
-		/* coord->node may change in balancing. Neverthless,
+		/* coord->node may change in balancing. Nevertheless,
 		   lh->node must still be set to node replace started
 		   from */
 		assert("vs-1026", orig == lh->node);
