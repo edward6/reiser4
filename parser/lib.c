@@ -11,12 +11,10 @@
 
 #include <linux/mount.h>
 
-/* FIXME:NIKITA->VOVA this file uses indentation completely different than the
- * rest of reiser4 and kernel. This complicates reading of the code by other
- * people. I think this should be changed.
- * OK. But after it's works*/
-
-
+#define my_mntget(mess,s)  mntget(s); printk ("mntget  %d,  %s\n",(s)->mnt_count, mess)
+#define my_dget(mess,s)    dget(s)  ; printk ("dget    %d,  %s\n",(s)->d_count, mess)
+#define my_mntput(s)       mntput(s); printk ("             mntput %d\n",(s)->mnt_count)
+#define my_dput(s)         dput(s)  ; printk ("             dput   %d\n",(s)->d_count)
 
 #define LEX_XFORM  1001
 #define LEXERR2    1002
@@ -131,15 +129,9 @@ static int reiser4_pars_free(struct reiser4_syscall_w_space * ws /* work space p
 static inline void path4_release( struct dentry *de, struct vfsmount *mnt)
 {
 	assert("VD-path4_release:root dentry",    de != NULL);
-//	assert("VD-path4_release:root d_count",   de->d_count > 0 );
 	assert("VD-path4_release:root mnt",       mnt != NULL);
-//	assert("VD-path4_release:root mnt_count", mnt->mnt_count >0 );
-
-	printk("path4_release: de_put =%d\n ",    de->d_count);
-	printk("path4_release: mnt_put =%d\n ",   mnt->mnt_count);
-
-	dput(   de  );
-	mntput( mnt );
+	my_dput(   de  );
+	my_mntput( mnt );
 }
 
 /* FIXME:NIKITA->VOVA code below looks like custom made memory allocator. Why
@@ -323,8 +315,8 @@ static lnode * get_lnode(struct reiser4_syscall_w_space * ws /* work space ptr *
 			ln                = lget( LNODE_DENTRY, get_inode_oid( ws->nd.dentry->d_inode) );
 			{
 				read_lock(&current->fs->lock);
-				ln->dentry.mnt    = mntget(ws->nd.mnt);
-				ln->dentry.dentry = dget(ws->nd.dentry);
+				ln->dentry.mnt    = my_mntget("lget", ws->nd.mnt);
+				ln->dentry.dentry = my_dget("lget", ws->nd.dentry);
 				read_unlock(&current->fs->lock);
 			}
 			PTRACE( ws, "no r4 lnode=%p,dentry=%p", ln, ln->dentry.dentry);
@@ -668,17 +660,12 @@ static expr_v4_t *  init_root(struct reiser4_syscall_w_space * ws /* work space 
 //	walk_init_root( "/", (&ws->nd));   /* from namei.c walk_init_root */
 	{
 		read_lock(&current->fs->lock);
-		ws->nd.mnt = mntget(current->fs->rootmnt); 
-		ws->nd.dentry = dget(current->fs->root);
+		ws->nd.mnt = my_mntget("root", current->fs->rootmnt); 
+		ws->nd.dentry = my_dget("root", current->fs->root);
 		read_unlock(&current->fs->lock);
 	}
 
-	printk("init_root: de_get pwd =%d\n ", current->fs->root->d_count);
-	printk("init_root: mnt_get pwd =%d\n ", current->fs->rootmnt->mnt_count);
-
-
 	e->pars_var.v->ln     = get_lnode( ws ) ;
-
 	e->pars_var.v->parent = NULL;
 	return e;
 }
@@ -695,8 +682,8 @@ static expr_v4_t *  init_pwd(struct reiser4_syscall_w_space * ws /* work space p
 //	path_lookup(".",,&(ws->nd));   /* from namei.c path_lookup */
 	{
 		read_lock(&current->fs->lock);
-		ws->nd.mnt = mntget(current->fs->pwdmnt);
-		ws->nd.dentry = dget(current->fs->pwd);
+		ws->nd.mnt = my_mntget("pwd",current->fs->pwdmnt);
+		ws->nd.dentry = my_dget("pwd",current->fs->pwd);
 		read_unlock(&current->fs->lock);
 	}
 
@@ -974,8 +961,8 @@ static pars_var_t *  lookup_pars_var_word(struct reiser4_syscall_w_space * ws /*
 
 			{
 				read_lock(&current->fs->lock);
-				rez_pars_var->ln->dentry.mnt    = mntget(ws->nd.mnt);
-				rez_pars_var->ln->dentry.dentry = dget(ws->nd.dentry);
+				rez_pars_var->ln->dentry.mnt    = my_mntget("pars_v",ws->nd.mnt);
+				rez_pars_var->ln->dentry.dentry = my_dget("pars_v",ws->nd.dentry);
 				read_unlock(&current->fs->lock);
 			}
 		}
