@@ -370,21 +370,23 @@ static __u32 adler32(char *data, __u32 len) {
     Recalculates the adler32 checksum for only 1 byte change.
     adler - previous adler checksum
     old_data, data - old, new byte values.
-    tail == chunk length, checksum was calculated for, - offset of the changed 
-    byte within this chunk.
+    tail == (chunk - offset) : length, checksum was calculated for, - offset of 
+    the changed byte within this chunk.
     This function could be used for checksum calculation optimisation, but not 
     used for now. -Vitaly.
 */
-static inline __u32 checksum_recalc(__u32 adler, char old_data, char data, __u32 tail) {
-	long long int delta = (unsigned char) data - old_data;
-	__u32 s1 = adler & 0xffff;
-	__u32 s2 = (adler >> 16) & 0xffff;
 
-	s1 = (delta + s1) % ADLER_BASE;
-	s2 = (delta * tail + s2) % ADLER_BASE;
-		
-	return (s2 << 16) | s1;
+static __u32 checksum_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 tail) {
+        __u32 delta = data - old_data + 2 * ADLER_BASE;
+        __u32 s1 = adler & 0xffff;
+        __u32 s2 = (adler >> 16) & 0xffff;
+
+        s1 = (delta + s1) % ADLER_BASE;
+        s2 = (delta * tail + s2) % ADLER_BASE;
+
+        return (s2 << 16) | s1;
 }
+
 
 /* The useful optimization in reiser4 bitmap handling would be dynamic bitmap
  * blocks loading/unloading which is different from v3.x where all bitmap
@@ -1110,6 +1112,7 @@ void bitmap_pre_commit_hook (void)
 				bmap_off_t offset;
 				struct bnode * bn;
 				__u32 size = bmap_size(get_current_context()->super->s_blocksize);
+				char byte;
 
 				assert ("zam-559", !JF_ISSET(node, JNODE_OVRWR));
 				assert ("zam-460", !blocknr_is_fake(& node->blocknr));
@@ -1117,18 +1120,27 @@ void bitmap_pre_commit_hook (void)
 				parse_blocknr(& node->blocknr, &bmap, &offset);
 				bn = get_bnode (ctx->super, bmap);
 
+				assert ("vpf-276", offset / 8 < size);
+				
 				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
 				    warning("vpf-262", "Checksum for the bitmap block %llu is incorrect",
 					bmap);
 				
 				check_bnode_loaded (bn);
-					
+				
 				load_and_lock_bnode (bn);
+				byte = *(bnode_commit_data(bn) + offset / 8);				
 				reiser4_set_bit (offset, bnode_commit_data(bn));
 				
-				*bnode_commit_crc(bn) = adler32(bnode_commit_data(bn), size); 
+				*bnode_commit_crc(bn) = checksum_recalc(*bnode_commit_crc(bn), byte, 
+				    *(bnode_commit_data(bn) + offset / 8), size - offset / 8);
+				
+//				*bnode_commit_crc(bn) = adler32(bnode_commit_data(bn), size); 
 					
 				release_and_unlock_bnode (bn);
+				
+				if (REISER4_DEBUG && *bnode_commit_crc(bn) != adler32(bnode_commit_data(bn), size))
+				    warning("vpf-275", "Checksum for the bitmap block %llu is incorrect", bmap);
 
 				blocks_freed --;
 
