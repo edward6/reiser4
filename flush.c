@@ -1644,10 +1644,17 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 	{
 		txn_atom * atom;
 
-		pos->queue_num++;
-		atom->num_queued ++;
-
 		atom = atom_get_locked_by_jnode (node);
+		assert ("zam-661", atom != NULL);
+
+		/* flush_pos appears on the atom list since one jnode is queued */
+		if (capture_list_empty(&pos->queue)) {
+			flushers_list_push_back (&atom->flushers, pos);
+			assert ("zam-664", pos->queue_num == 0);
+		} 
+
+		pos->queue_num ++;
+		atom->num_queued ++;
 
 		capture_list_remove (node);
 		capture_list_push_back(&pos->queue, jref (node));
@@ -1684,6 +1691,11 @@ static void flush_dequeue_jnode (flush_position * pos, jnode * node)
 
 	pos->queue_num --;
 	atom->num_queued --;
+
+	if (capture_list_empty (&pos->queue)) {
+		flushers_list_remove (pos);
+		assert ("zam-663", pos->queue_num == 0);
+	}
 
 	spin_unlock_atom (atom);
 	spin_unlock_jnode (node);
@@ -2748,12 +2760,14 @@ static int flush_pos_valid (flush_position *pos)
 	return pos->point != NULL || lock_mode (& pos->parent_lock) != ZNODE_NO_LOCK;
 }
 
-/* invalidate flush queue */
-static void flush_dequeue_all (struct flush_position * pos)
+/* return jnode back to atom's lists */
+static void invalidate_flush_queue (struct flush_position * pos)
 {
+	if (capture_list_empty(&pos->queue)) return;
 
-	while (!capture_list_empty(&pos->queue)) {
-		jnode * cur = capture_list_pop_front(&pos->queue);
+
+	while (1) {
+		jnode * cur = capture_list_pop_front (&pos->queue);
 		txn_atom * atom;
 		
 		spin_lock_jnode (cur);
@@ -2762,23 +2776,28 @@ static void flush_dequeue_all (struct flush_position * pos)
 		JF_CLR (cur, ZNODE_FLUSH_BUSY);
 		JF_CLR (cur, ZNODE_FLUSH_QUEUED);
 		
-		capture_list_remove (cur);
 		pos->queue_num --;
-		atom->num_queued ++;
+		atom->num_queued --;
 
 		if (jnode_is_dirty(cur)) capture_list_push_back (&atom->dirty_nodes[jnode_get_level(cur)], cur);
 		else                     capture_list_push_back (&atom->clean_nodes, cur);
 
-		spin_unlock_atom (atom);
 		spin_unlock_jnode (cur);
-	}
 
+		if (capture_list_empty(&pos->queue)) {
+			flushers_list_remove(pos);
+			spin_unlock_atom (atom);
+			break;
+		}
+
+		spin_unlock_atom (atom);
+	}
 }
 
 /* Release any resources of a flush_position. */
 static void flush_pos_done (flush_position *pos)
 {
-	flush_dequeue_all (pos);
+	invalidate_flush_queue (pos);
 	flush_pos_stop (pos);
 	blocknr_hint_done (& pos->preceder);
 }
@@ -2789,15 +2808,6 @@ static int flush_pos_stop (flush_position *pos)
 	done_dh (& pos->parent_load);
 	done_dh (& pos->point_load);
 	if (pos->point != NULL) {
-		txn_atom * atom;
-
-		spin_lock_jnode (pos->point);
-		atom = atom_get_locked_by_jnode(pos->point);
-		assert ("zam-657", atom != NULL);
-		assert ("zam-658", atom == pos->atom);
-		spin_unlock_atom (atom);
-		spin_unlock_jnode (pos->point);
-
 		jput (pos->point);
 		pos->point = NULL;
 	}
@@ -2908,28 +2918,6 @@ static int flush_pos_set_point (flush_position *pos, jnode *node)
 {
 	flush_pos_release_point (pos);
 	pos->point = jref (node);
-
-	{
-		txn_atom * atom;
-
-		int ret = -EAGAIN;
-
-		spin_lock_jnode (node);
-		atom = atom_get_locked_by_jnode (node);
-
-		if (atom) {
-			flushers_list_push_back(&atom->flushers, pos);
-			pos->atom = atom;
-			spin_unlock_atom(atom);
-
-			ret = 0;
-		}
-
-		spin_unlock_jnode (node);
-		
-		if (ret) return ret;
-	}
-
 	return load_dh_jnode (& pos->point_load, node);
 }
 
