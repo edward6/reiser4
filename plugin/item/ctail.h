@@ -25,8 +25,11 @@ void ctail_print(const char *prefix, coord_t * coord);
 int ctail_check(const coord_t * coord, const char **error);
 
 /* plugin->u.item.s.* */
-int ctail_write(struct inode *, coord_t *, lock_handle *, flow_t *, struct sealed_coord *);
+int ctail_write(struct inode *, coord_t *, lock_handle *, flow_t *, struct sealed_coord *, int);
 int ctail_read(struct file *, coord_t *, flow_t *);
+int ctail_readpage(coord_t *, struct page *);
+int ctail_writepage(coord_t *, lock_handle *, struct page *);
+void ctail_readpages(coord_t *, struct address_space *, struct list_head *);
 reiser4_key *ctail_append_key(const coord_t * coord, reiser4_key * key, void *);
 int ctail_key_in_item(coord_t * coord, const reiser4_key * key, void *);
 
