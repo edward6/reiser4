@@ -125,7 +125,7 @@ print_node_content(const char *prefix /* output prefix */ ,
 		print_znode("znode is not loaded\n", node);
 		return;
 	}
-	if ((flags & REISER4_NODE_PRINT_HEADER) && (node_plugin_by_node(node)->print != NULL)) {
+	if (node_plugin_by_node(node)->print != NULL) {
 		indent_znode(node);
 		node_plugin_by_node(node)->print(prefix, node, flags);
 
@@ -143,57 +143,50 @@ print_node_content(const char *prefix /* output prefix */ ,
 	coord.between = AT_UNIT;
 	/*indent_znode (node); */
 	for (i = 0; i < node_num_items(node); i++) {
+		int j;
+		int length;
+		char *data;
+
 		indent_znode(node);
 		printk("%d: ", i);
 
 		coord_set_item_pos(&coord, i);
 
 		iplug = item_plugin_by_coord(&coord);
-		if (flags & REISER4_NODE_PRINT_PLUGINS) {
-			print_plugin("\titem plugin", item_plugin_to_plugin(iplug));
-			indent_znode(node);
-		}
-		if (flags & REISER4_NODE_PRINT_KEYS) {
-			item_key_by_coord(&coord, &key);
-			print_key("\titem key", &key);
-		}
+		print_plugin("\titem plugin", item_plugin_to_plugin(iplug));
+		indent_znode(node);
+		item_key_by_coord(&coord, &key);
+		print_key("\titem key", &key);
 
-		if ((flags & REISER4_NODE_PRINT_ITEMS) && (iplug->b.print)) {
-			indent_znode(node);
-			printk("\tlength %d\n", item_length_by_coord(&coord));
-			indent_znode(node);
-			iplug->b.print("\titem", &coord);
-		}
-		if (flags & REISER4_NODE_PRINT_DATA) {
-			int j;
-			int length;
-			char *data;
+		indent_znode(node);
+		printk("\tlength %d\n", item_length_by_coord(&coord));
+		indent_znode(node);
+		iplug->b.print("\titem", &coord);
 
-			data = item_body_by_coord(&coord);
-			length = item_length_by_coord(&coord);
-			indent_znode(node);
-			printk("\titem length: %i, offset: %i\n", length, data - zdata(node));
-			for (j = 0; j < length; ++j) {
-				char datum;
+		data = item_body_by_coord(&coord);
+		length = item_length_by_coord(&coord);
+		indent_znode(node);
+		printk("\titem length: %i, offset: %i\n", length, data - zdata(node));
+		for (j = 0; j < length; ++j) {
+			char datum;
 
-				if ((j % 16) == 0) {
-					/* next 16 bytes */
-					if (j == 0) {
-						indent_znode(node);
-						printk("\tdata % .2i: ", j);
-					} else {
-						printk("\n");
-						indent_znode(node);
-						printk("\t     % .2i: ", j);
-					}
+			if ((j % 16) == 0) {
+				/* next 16 bytes */
+				if (j == 0) {
+					indent_znode(node);
+					printk("\tdata % .2i: ", j);
+				} else {
+					printk("\n");
+					indent_znode(node);
+					printk("\t     % .2i: ", j);
 				}
-				datum = data[j];
-				printk("%c", hex_to_ascii((datum & 0xf0) >> 4));
-				printk("%c ", hex_to_ascii(datum & 0xf));
 			}
-			printk("\n");
-			indent_znode(node);
+			datum = data[j];
+			printk("%c", hex_to_ascii((datum & 0xf0) >> 4));
+			printk("%c ", hex_to_ascii(datum & 0xf));
 		}
+		printk("\n");
+		indent_znode(node);
 		printk("======================\n");
 	}
 	printk("\n");
@@ -216,7 +209,7 @@ print_node_items(const char *prefix /* output prefix */ ,
 		print_znode("znode is not loaded\n", node);
 		return;
 	}
-	if ((flags & REISER4_NODE_PRINT_HEADER) && (node_plugin_by_node(node)->print != NULL)) {
+	if (node_plugin_by_node(node)->print != NULL) {
 		indent_znode(node);
 		node_plugin_by_node(node)->print(prefix, node, flags);
 
@@ -240,57 +233,51 @@ print_node_items(const char *prefix /* output prefix */ ,
 	}
 
 	for (i = from; i < from + count; i++) {
+		int j;
+		int length;
+		char *data;
+
 		indent_znode(node);
 		printk("%d: ", i);
 
 		coord_set_item_pos(&coord, i);
 
 		iplug = item_plugin_by_coord(&coord);
-		if (flags & REISER4_NODE_PRINT_PLUGINS) {
-			print_plugin("\titem plugin", item_plugin_to_plugin(iplug));
-			indent_znode(node);
-		}
-		if (flags & REISER4_NODE_PRINT_KEYS) {
-			item_key_by_coord(&coord, &key);
-			print_key("\titem key", &key);
-		}
+		print_plugin("\titem plugin", item_plugin_to_plugin(iplug));
+		indent_znode(node);
+		item_key_by_coord(&coord, &key);
+		print_key("\titem key", &key);
 
-		if ((flags & REISER4_NODE_PRINT_ITEMS) && (iplug->b.print)) {
+		if (iplug->b.print) {
 			indent_znode(node);
 			printk("\tlength %d\n", item_length_by_coord(&coord));
 			indent_znode(node);
 			iplug->b.print("\titem", &coord);
 		}
-		if (flags & REISER4_NODE_PRINT_DATA) {
-			int j;
-			int length;
-			char *data;
+		data = item_body_by_coord(&coord);
+		length = item_length_by_coord(&coord);
+		indent_znode(node);
+		printk("\titem length: %i, offset: %i\n", length, data - zdata(node));
+		for (j = 0; j < length; ++j) {
+			char datum;
 
-			data = item_body_by_coord(&coord);
-			length = item_length_by_coord(&coord);
-			indent_znode(node);
-			printk("\titem length: %i, offset: %i\n", length, data - zdata(node));
-			for (j = 0; j < length; ++j) {
-				char datum;
-
-				if ((j % 16) == 0) {
-					/* next 16 bytes */
-					if (j == 0) {
-						indent_znode(node);
-						printk("\tdata % .2i: ", j);
-					} else {
-						printk("\n");
-						indent_znode(node);
-						printk("\t     % .2i: ", j);
-					}
+			if ((j % 16) == 0) {
+				/* next 16 bytes */
+				if (j == 0) {
+					indent_znode(node);
+					printk("\tdata % .2i: ", j);
+				} else {
+					printk("\n");
+					indent_znode(node);
+					printk("\t     % .2i: ", j);
 				}
-				datum = data[j];
-				printk("%c", hex_to_ascii((datum & 0xf0) >> 4));
-				printk("%c ", hex_to_ascii(datum & 0xf));
 			}
-			printk("\n");
-			indent_znode(node);
+			datum = data[j];
+			printk("%c", hex_to_ascii((datum & 0xf0) >> 4));
+			printk("%c ", hex_to_ascii(datum & 0xf));
 		}
+		printk("\n");
+		indent_znode(node);
 		printk("======================\n");
 	}
 	printk("\n");
