@@ -630,8 +630,9 @@ static struct address_space_operations formatted_fake_as_ops = {
 	 * actually start io by jabbing device drivers.
 	 */
 	.sync_page      = block_sync_page,
-	/* Write back some dirty pages from this mapping. Called from sync. */
-	.writepages     = NULL,
+	/* Write back some dirty pages from this mapping. Called from sync.
+	   called during sync (pdflush) */
+	.writepages     = reiser4_writepages,
 	/* Perform a writeback as a memory-freeing operation. */
 	.vm_writeback   = formatted_vm_writeback,
 	/* Set a page dirty */

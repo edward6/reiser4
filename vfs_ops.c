@@ -452,22 +452,10 @@ static int reiser4_statfs( struct super_block *super /* super block of file
 
 /** ->writepage() VFS method in reiser4 address_space_operations */
 /* Audited by: umka (2002.06.12) */
-static int reiser4_writepage( struct page *page UNUSED_ARG /* page used as a
-							    * hint. This page
-							    * belongs to
-							    * memory zone that
-							    * VM is trying to
-							    * make free space
-							    * in. Writing this
-							    * very page is OK,
-							    * but not
-							    * necessary. */ )
+static int reiser4_writepage( struct page *page UNUSED_ARG )
 {
-	/*
-	 * FIXME-NIKITA not sure about this. Especially about GFP_* flag here
-	 * and in page_cache.c.
-	 */
-	return page_io( page, WRITE, GFP_NOIO );
+	warning( "nikita-2277", "IMPLEMENT ME: ->writepage" );
+	return 0;
 }
 
 /** ->readpage() VFS method in reiser4 address_space_operations */
@@ -1927,6 +1915,14 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	REISER4_EXIT( result );
 }
 
+int reiser4_writepages( struct address_space *mapping UNUSED_ARG, 
+			int *nr_to_write UNUSED_ARG )
+{
+	trace_on( TRACE_PCACHE, "Writepages called and ignored for %li\n",
+		  ( long ) mapping -> host -> i_ino );
+	return 0;
+}
+
 struct address_space_operations reiser4_as_operations = {
 	.writepage      = reiser4_writepage,
 	.readpage       = reiser4_readpage,
@@ -1936,9 +1932,12 @@ struct address_space_operations reiser4_as_operations = {
 	 * actually start io by jabbing device drivers.
 	 */
  	.sync_page      = block_sync_page,
-	.writepages     = NULL,
+	/** called during sync (pdflush) */
+	.writepages     = reiser4_writepages,
+	/** called during memory pressure by kswapd */
 	.vm_writeback   = reiser4_vm_writeback,
 	.set_page_dirty = __set_page_dirty_nobuffers,
+	/** called during read-ahead */
 	.readpages      = NULL,
 	/*reiser4_prepare_write,*/
 	.prepare_write  = V( never_ever_prepare_write_vfs ),

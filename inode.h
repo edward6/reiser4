@@ -150,7 +150,8 @@ extern struct super_operations reiser4_super_operations;
 extern struct address_space_operations reiser4_as_operations;
 
 extern int reiser4_invalidatepage( struct page *page, unsigned long offset );
-extern int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG );
+extern int reiser4_releasepage( struct page *page, int gfp );
+extern int reiser4_writepages( struct address_space *, int *nr_to_write );
 
 /**
  * &reiser4_dentry_fsdata - reiser4-specific data attached to dentries.
