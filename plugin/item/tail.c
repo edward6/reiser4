@@ -336,7 +336,7 @@ static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t 
 
 	balance_dirty_pages_ratelimited(mapping);
 	result = hint_validate(hint, &f->key, lh, 0/* do not check key */);
-	assert("", ergo(result == 0, memcmp(&hint->coord, coord, sizeof(coord_t))));
+	assert("vs-1284", ergo(result == 0, memcmp(&hint->coord, coord, sizeof(coord_t))));
 	return result;
 }
 
