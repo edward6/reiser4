@@ -21,13 +21,6 @@ static inline int ra_all_levels(int flags)
 	return flags & RA_ALL_LEVELS;
 }
 
-/* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:4 */
-/* REMOVE THIS */
-static inline int ra_continue_if_present(int flags)
-{
-	return flags & RA_CONTINUE_ON_PRESENT;
-}
-
 /* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:8 */
 static inline int ra_get_rn_hard(int flags)
 {
@@ -61,10 +54,6 @@ formatted_readahead(znode *node, ra_info_t *info)
 
 	ra_params = get_current_super_ra_params();
 
-	if (!ra_continue_if_present(ra_params->flags) && !znode_just_created(node))
-		/* node is available immediately and global readahead flags require to not readahead in this case */
-		return;
-
 	jstartio(ZJNODE(node));
 
 	if (!ra_all_levels(ra_params->flags) && znode_get_level(node) != LEAF_LEVEL)
@@ -95,12 +84,6 @@ formatted_readahead(znode *node, ra_info_t *info)
 		init_lh(&next_lh);
 		if (reiser4_get_right_neighbor(&next_lh, cur, ZNODE_READ_LOCK, grn_flags))
 			break;
-
-		if (!ra_continue_if_present(ra_params->flags) && !znode_just_created(next_lh.node)) {
-			/* node is available already. Do not readahead more */
-			done_lh(&next_lh);
-			break;
-		}
 
 		if (JF_ISSET(ZJNODE(next_lh.node), JNODE_EFLUSH)) {
 			/* emergency flushed znode is encountered. That means we are low on memory. Do not readahead

@@ -9,6 +9,7 @@ typedef enum {
 	RA_ALL_LEVELS = 2,	    /* only request readahead for children of twin nodes. Default is NO (leaves only) */
 	RA_CONTINUE_ON_PRESENT = 4, /* when one of nodes to be readahead is in memory already, skip it, but continue
 				       readahead submission. Default is NO (stop submission) */
+                                    /* The implementation was removed by Hans' request. */
 	RA_READ_ON_GRN = 8          /* looking for right neighbor read all necessary nodes. Default is NO (use cache
 				       only) */
 } ra_global_flags;
