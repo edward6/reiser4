@@ -202,6 +202,7 @@ int progs_misc_dev_mounted(const char *name,
     struct mntent *ent;
     struct stat giv_st;
     struct stat mnt_st;
+    return 0;
 
     if (!(mnt = setmntent("/etc/mtab", "r")))
 	return 0;
