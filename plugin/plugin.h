@@ -73,7 +73,11 @@ typedef enum {
 
 typedef ssize_t ( *rw_f_type )( struct file *file, flow *a_flow, loff_t *off );
 
-/** entry in file object */
+/** entry in file object
+
+Files have bytes not entries, or do you mean entry in directory?  Explain this to me.  -Hans
+
+*/
 struct reiser4_entry {
 	/*
 	 * key of directory entry
@@ -82,6 +86,7 @@ struct reiser4_entry {
 	/*
 	 * inode of object bound by this entry
 	 */
+				/* this will not work for reiser4() */
 	struct inode *obj;
 };
 
@@ -205,8 +210,7 @@ typedef struct reiser4_file_plugin {
 	    object. Latter is particulary required in a case when parent
 	    object is unaccessible like when knfsd asks for inode in the
 	    mid-air. This is called on object creation. */
-	int ( *inherit )( struct inode *inode, 
-			  struct inode *parent, struct inode *root );
+	int ( *set_unspecified_values)( );
 
 	/** return pointer to plugin of new item that should be inserted
 	    into body of @inode at position determined by @key. This is

@@ -139,7 +139,18 @@
  * TODO:
  *
  * New plugin types/plugings:
- * 
+ * Things we should be able to separately choose to inherit:
+ *
+ * security plugins
+ *
+ * stat data
+ *
+ * file bodies
+ *
+ * fplugs
+ *
+ * dplugs
+ *
  *  . perm:acl
  * 
  *  d audi---audit plugin intercepting and possibly logging all 
