@@ -79,7 +79,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 					 * statistics */ )
 {
 	sector_t bfree;
-	sector_t reserved;
+	sector_t avail;
 	reiser4_context ctx;
 	
 	assert("nikita-408", super != NULL);
@@ -91,8 +91,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	statfs->f_type = statfs_type(super);
 	statfs->f_bsize = super->s_blocksize;
 
-	statfs->f_blocks = reiser4_block_count(super);
-	bfree = reiser4_free_blocks(super);
+	avail = reiser4_block_count(super);
 	/*
 	 * 5% of total block space is reserved. This is needed for flush and
 	 * for truncates (so that we are able to perform truncate/unlink even
@@ -100,14 +99,25 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	 * is hidden from statfs(2), users will mistakenly guess that they
 	 * have enough free space to complete some operation, which is
 	 * frustrating.
+	 *
+	 * Another possible solution is to subtract ->blocks_reserved from
+	 * ->f_bfree, but changing available space seems less intrusive than
+	 * letting user to see 5% of disk space to be used directly after
+	 * mkfs.
 	 */
-	reserved = get_super_private(super)->blocks_reserved;
-	/* make sure statfs->f_bfree never goes negative */
-	if (bfree > reserved)
-		bfree -= reserved;
+	avail -= get_super_private(super)->blocks_reserved;
+	statfs->f_blocks = avail;
+	bfree = reiser4_free_blocks(super);
+	/* make sure statfs->f_bfree is never larger than statfs->f_blocks */
+	if (bfree > avail)
+		bfree = avail;
 	statfs->f_bfree = bfree;
-	
-	statfs->f_bavail = statfs->f_bfree - reiser4_reserved_blocks(super, 0, 0);
+
+	if (bfree > reiser4_reserved_blocks(super, 0, 0))
+		bfree -= reiser4_reserved_blocks(super, 0, 0);
+	else
+		bfree = 0;
+	statfs->f_bavail = bfree;
 /* FIXME: Seems that various df implementations are way unhappy by such big numbers.
    So we will leave those as zeroes.
 	statfs->f_files = oids_used(super) + oids_free(super);
@@ -907,6 +917,9 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		BIT_OPT("mtflush", REISER4_MTFLUSH),
 		/* disable pseudo files support */
 		BIT_OPT("nopseudo", REISER4_NO_PSEUDO),
+		/* Don't load all bitmap blocks at mount time, it is useful
+		   for machines with tiny RAM and large disks. */
+		BIT_OPT("dont_load_bitmap", REISER4_DONT_LOAD_BITMAP),
 
 		{
 			/* tree traversal readahead parameters:
@@ -948,18 +961,6 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 			}
 		},
 #endif
-		/* Don't load all bitmap blocks at mount time, it is useful for machines
-		   with tiny RAM and large disks. */
-		{
-			.name = "dont_load_bitmap",
-			.type = OPT_BIT,
-			.u = {
-				.bit = {
-					.nr = REISER4_DONT_LOAD_BITMAP,
-					.addr = &sbinfo->fs_flags
-				}
-			}
-		}
 	};
 
 	sbinfo->tmgr.atom_max_size = txnmgr_get_max_atom_size(s);
