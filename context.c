@@ -27,7 +27,6 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	     struct super_block *super	/* super block we are going to
 					 * work with */)
 {
-	reiser4_super_info_data *sbinfo;
 
 	assert("nikita-2662", !in_interrupt() && !in_irq());
 
@@ -54,8 +53,6 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 			return 0;
 		}
 	}
-	sbinfo = get_super_private(super);
-	assert("nikita-2727", sbinfo != NULL);
 
 	context->super = super;
 #if (REISER4_DEBUG)
