@@ -170,6 +170,16 @@ struct reiserfs_direntry_hint {
 
 typedef struct reiserfs_direntry_hint reiserfs_direntry_hint_t;
 
+struct reiserfs_object_hint {
+    reiserfs_id_t statdata_pid;
+    reiserfs_id_t direntry_pid;
+    reiserfs_id_t tail_pid;
+    reiserfs_id_t extent_pid;
+    reiserfs_id_t hash_pid;
+};
+
+typedef struct reiserfs_object_hint reiserfs_object_hint_t;
+
 /* 
     Create item or paste into item on the base of this structure. Here "data" is 
     a pointer to data to be copied. 
@@ -295,7 +305,7 @@ struct reiserfs_dir_ops {
 
     /* Creates new directory with passed parent and object keys */
     reiserfs_entity_t *(*create) (const void *, reiserfs_key_t *, 
-	reiserfs_key_t *); 
+	reiserfs_key_t *, reiserfs_object_hint_t *); 
     
     /* Opens directory with specified key */
     reiserfs_entity_t *(*open) (const void *, reiserfs_key_t *);
@@ -748,7 +758,8 @@ struct reiserfs_core {
     errno_t (*tree_left) (const void *, reiserfs_place_t *);
 
     /* Returs plugin id by coord */
-    reiserfs_id_t (*tree_pid) (const void *, reiserfs_place_t *);
+    reiserfs_id_t (*tree_pid) (const void *, reiserfs_place_t *, 
+	reiserfs_plugin_type_t type);
 };
 
 typedef struct reiserfs_core reiserfs_core_t;
@@ -777,7 +788,8 @@ typedef errno_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
     
 #endif
 
-#define REISERFS_GUESS_PLUGIN 0xff
+#define REISERFS_GUESS_PLUGIN 0xffff
+#define REISERFS_INVAL_PLUGIN 0xffff
 
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
 

@@ -404,13 +404,20 @@ reiserfs_fs_t *reiserfs_fs_create(reiserfs_profile_t *profile,
     /* Creates root directory */
     {
 	reiserfs_plugin_t *dir_plugin;
+	reiserfs_object_hint_t dir_hint;
 	
 	/* Finding directroy plugin */
 	if (!(dir_plugin = libreiser4_factory_find(REISERFS_DIR_PLUGIN, profile->dir)))
 	    libreiser4_factory_failed(goto error_free_tree, find, dir, profile->dir);
 
+	dir_hint.statdata_pid = profile->item.statdata;
+	dir_hint.direntry_pid = profile->item.direntry;
+	dir_hint.hash_pid = profile->hash;
+	
 	/* Creating object "dir40". See object.c for details */
-	if (!(fs->dir = reiserfs_object_create(fs, dir_plugin, NULL, NULL))) {
+	if (!(fs->dir = reiserfs_object_create(fs, dir_plugin, 
+	    NULL, &dir_hint, NULL))) 
+	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't create root directory.");
 	    goto error_free_tree;

@@ -114,13 +114,23 @@ static inline errno_t __tree_key(const void *tree,
 }
 
 static inline reiserfs_id_t __tree_pid(const void *tree, 
-    reiserfs_place_t *place)
+    reiserfs_place_t *place, reiserfs_plugin_type_t type)
 {
     aal_assert("umka-872", tree != NULL, return -1);
     aal_assert("umka-873", place != NULL, return -1);
-
-    return reiserfs_node_item_get_pid(((reiserfs_cache_t *)place->cache)->node, 
-	place->pos.item);
+    
+    switch (type) {
+	case REISERFS_ITEM_PLUGIN:
+	    return reiserfs_node_item_get_pid(((reiserfs_cache_t *)place->cache)->node, 
+		place->pos.item);
+	case REISERFS_NODE_PLUGIN:
+	    return reiserfs_node_get_pid(((reiserfs_cache_t *)place->cache)->node);
+	default: {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Unknown plugin type %x.", type);
+	    return REISERFS_INVAL_PLUGIN;
+	}
+    }
 }
 
 reiserfs_core_t core = {

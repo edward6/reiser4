@@ -24,7 +24,8 @@ extern errno_t reiserfs_object_read(reiserfs_object_t *object,
 #ifndef ENABLE_COMPACT
 
 extern reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, 
-    reiserfs_plugin_t *plugin, reiserfs_object_t *parent, const char *name);
+    reiserfs_plugin_t *plugin, reiserfs_object_t *parent, 
+    reiserfs_object_hint_t *hint, const char *name);
 
 extern errno_t reiserfs_object_add(reiserfs_object_t *object, 
     reiserfs_entry_hint_t *hint);

@@ -61,19 +61,17 @@ static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
 
 /* This function grabs the stat data of directory */
 static errno_t dir40_realize(reiserfs_dir40_t *dir) {
-    reiserfs_place_t place;
-    
     aal_assert("umka-857", dir != NULL, return -1);	
 
     /* Positioning to the dir stat data */
-    if (core->tree_lookup(dir->tree, &dir->key, &place) != 1) {
+    if (core->tree_lookup(dir->tree, &dir->key, &dir->place) != 1) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find stat data of directory with oid %llx.", 
 	    dir40_objectid(dir));
 	return -1;
     }
     
-    return core->tree_data(dir->tree, &place, 
+    return core->tree_data(dir->tree, &dir->place, 
 	&dir->statdata.data, &dir->statdata.len);
 }
 
@@ -106,7 +104,8 @@ static errno_t dir40_read(reiserfs_dir40_t *dir,
 	    return -1;
 	
 	/* Here we check is next item belongs to this directory */
-	if (core->tree_pid(dir->tree, &dir->place) != dir->direntry_plugin->h.id)
+	if (core->tree_pid(dir->tree, &dir->place, REISERFS_ITEM_PLUGIN) != 
+		dir->direntry_plugin->h.id)
 	    return -1;
 	
 	if (core->tree_data(dir->tree, &dir->place, &dir->direntry, NULL))
@@ -133,44 +132,27 @@ static errno_t dir40_read(reiserfs_dir40_t *dir,
 }
 
 static reiserfs_dir40_t *dir40_open(const void *tree, 
-    reiserfs_key_t *key) 
+    reiserfs_key_t *object) 
 {
+    uint32_t key_size;
     reiserfs_dir40_t *dir;
+    reiserfs_id_t statdata_pid;
+    reiserfs_id_t direntry_pid;
 
     aal_assert("umka-836", tree != NULL, return NULL);
-    aal_assert("umka-837", key != NULL, return NULL);
-    aal_assert("umka-838", key->plugin != NULL, return NULL);
+    aal_assert("umka-837", object != NULL, return NULL);
+    aal_assert("umka-838", object->plugin != NULL, return NULL);
     
     if (!(dir = aal_calloc(sizeof(*dir), 0)))
 	return NULL;
     
     dir->tree = tree;
     
-    dir->key.plugin = key->plugin;
-    aal_memcpy(dir->key.body, key->body, libreiser4_plugin_call(goto error_free_dir, 
-	key->plugin->key_ops, size,));
+    key_size = libreiser4_plugin_call(goto error_free_dir, 
+	object->plugin->key_ops, size,);
     
-    /* FIXME-UMKA: Here should not be hardcoded plugin ids */
-    if (!(dir->statdata_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
-	REISERFS_STATDATA_ITEM)))
-    {
-	libreiser4_factory_failed(goto error_free_dir, find, 
-	    statdata, REISERFS_STATDATA_ITEM);
-    }
-    
-    if (!(dir->direntry_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
-	REISERFS_CDE_ITEM)))
-    {
-	libreiser4_factory_failed(goto error_free_dir, find, 
-	    direntry, REISERFS_CDE_ITEM);
-    }
-    
-    if (!(dir->hash_plugin = core->factory_find(REISERFS_HASH_PLUGIN, 
-	REISERFS_R5_HASH)))
-    {
-	libreiser4_factory_failed(goto error_free_dir, find, 
-	    hash, REISERFS_R5_HASH);
-    }
+    dir->key.plugin = object->plugin;
+    aal_memcpy(dir->key.body, object->body, key_size);
     
     /* Grabbing stat data */
     if (dir40_realize(dir)) {
@@ -180,12 +162,63 @@ static reiserfs_dir40_t *dir40_open(const void *tree,
 	goto error_free_dir;
     }
     
+    /* 
+	Initializing stat data plugin after dir40_realize function find and grab 
+	pointer to the statdata item.
+    */
+    if ((statdata_pid = core->tree_pid(dir->tree, &dir->place, 
+	REISERFS_ITEM_PLUGIN)) == REISERFS_INVAL_PLUGIN)
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't get stat data plugin id from the tree.");
+	goto error_free_dir;
+    }
+    
+    if (!(dir->statdata_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+	statdata_pid)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    statdata, statdata_pid);
+    }
+    
+    /*
+	Since hash plugin id will be stored as statdata extenstion, we should initialize
+	hash plugin of the directory after stat data oplugin initialization. But for awhile
+	it is a hardcoded value. We will need to fix it after stat data extentions will be 
+	supported.
+    */
+    if (!(dir->hash_plugin = core->factory_find(REISERFS_HASH_PLUGIN, 
+	REISERFS_R5_HASH)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    hash, REISERFS_R5_HASH);
+    }
+    
     /* Positioning to the first directory unit */
     if (dir40_rewind(dir)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't rewind directory with oid %llx.", 
 	    dir40_objectid(dir));
 	goto error_free_dir;
+    }
+    
+    /* 
+	Initializing direntry plugin after dir40_rewind function find and grab pointer
+	to the first direntry item.
+    */
+    if ((direntry_pid = core->tree_pid(dir->tree, &dir->place, 
+	REISERFS_ITEM_PLUGIN)) == REISERFS_INVAL_PLUGIN)
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't get direntry plugin id from the tree.");
+	goto error_free_dir;
+    }
+    
+    if (!(dir->direntry_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+	direntry_pid)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    direntry, direntry_pid);
     }
     
     return dir;
@@ -198,24 +231,22 @@ error_free_dir:
 #ifndef ENABLE_COMPACT
 
 static reiserfs_dir40_t *dir40_create(const void *tree, 
-    reiserfs_key_t *parent, reiserfs_key_t *object) 
+    reiserfs_key_t *parent, reiserfs_key_t *object, 
+    reiserfs_object_hint_t *hint) 
 {
+    uint32_t key_size;
     reiserfs_dir40_t *dir;
     reiserfs_item_hint_t item;
     reiserfs_stat_hint_t stat;
-    reiserfs_plugin_t *key_plugin;
-    reiserfs_plugin_t *hash_plugin;
     reiserfs_direntry_hint_t direntry;
    
-    reiserfs_id_t stat_pid;
-    reiserfs_id_t direntry_pid;
-    
+    oid_t objectid;
     oid_t parent_objectid;
     oid_t parent_locality;
-    oid_t objectid;
 
     aal_assert("umka-743", parent != NULL, return NULL);
     aal_assert("umka-744", object != NULL, return NULL);
+    aal_assert("umka-881", object->plugin != NULL, return NULL);
     aal_assert("umka-835", tree != NULL, return NULL);
 
     if (!(dir = aal_calloc(sizeof(*dir), 0)))
@@ -223,35 +254,43 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     dir->tree = tree;
     
-    key_plugin = object->plugin;
-
-    /* FIXME-UMKA: Here should be not hardcoded hash plugin id */
-    if (!(hash_plugin = core->factory_find(REISERFS_HASH_PLUGIN, REISERFS_R5_HASH)))
-	libreiser4_factory_failed(goto error_free_dir, find, hash, REISERFS_R5_HASH);
+    if (!(dir->hash_plugin = core->factory_find(REISERFS_HASH_PLUGIN, hint->hash_pid)))
+	libreiser4_factory_failed(goto error_free_dir, find, hash, hint->hash_pid);
     
     parent_objectid = libreiser4_plugin_call(return NULL, 
-	key_plugin->key_ops, get_objectid, parent->body);
+	object->plugin->key_ops, get_objectid, parent->body);
     
     parent_locality = libreiser4_plugin_call(return NULL, 
-	key_plugin->key_ops, get_locality, parent->body);
+	object->plugin->key_ops, get_locality, parent->body);
     
     objectid = libreiser4_plugin_call(return NULL, 
-	key_plugin->key_ops, get_objectid, object->body);
+	object->plugin->key_ops, get_objectid, object->body);
     
     aal_memset(&item, 0, sizeof(item));
     
-    /* Initializing stat data hint */
-    item.type = REISERFS_STATDATA_ITEM; 
-   
-    /* FIXME-UMKA: Here should not hardcoded stat data plugin id */
-    stat_pid = REISERFS_STATDATA_ITEM;
-    if (!(item.plugin = core->factory_find(REISERFS_ITEM_PLUGIN, stat_pid))) 
-	libreiser4_factory_failed(goto error_free_dir, find, item, stat_pid);
-
-    item.key.plugin = key_plugin;
+    if (!(dir->statdata_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+	hint->statdata_pid)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    statdata, hint->statdata_pid);
+    }
     
-    aal_memcpy(item.key.body, object->body, libreiser4_plugin_call(goto error_free_dir, 
-	key_plugin->key_ops, size,));
+    if (!(dir->direntry_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
+	hint->direntry_pid)))
+    {
+	libreiser4_factory_failed(goto error_free_dir, find, 
+	    direntry, hint->direntry_pid);
+    }
+    
+    key_size = libreiser4_plugin_call(goto error_free_dir, 
+	object->plugin->key_ops, size,);
+    
+    /* Initializing stat data hint */
+    item.plugin = dir->statdata_plugin;
+    item.type = item.plugin->h.id; 
+
+    item.key.plugin = object->plugin;
+    aal_memcpy(item.key.body, object->body, key_size);
     
     stat.mode = S_IFDIR | 0755;
     stat.extmask = 0;
@@ -271,44 +310,42 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     aal_memset(&item, 0, sizeof(item));
 
     /* Initializing direntry hint */
-    item.type = REISERFS_CDE_ITEM; 
+    item.plugin = dir->direntry_plugin;
+    item.type = item.plugin->h.id; 
     
-    /* FIXME-UMKA: Here should be not hardcoded direntry plugin id */
-    direntry_pid = REISERFS_CDE_ITEM;
-    if (!(item.plugin = core->factory_find(REISERFS_ITEM_PLUGIN, direntry_pid))) 
-	libreiser4_factory_failed(goto error_free_dir, find, item, direntry_pid);
-    
-    item.key.plugin = key_plugin; 
-    aal_memcpy(item.key.body, parent, libreiser4_plugin_call(goto error_free_dir, 
-	key_plugin->key_ops, size,));
+    item.key.plugin = object->plugin; 
+    aal_memcpy(item.key.body, parent, key_size);
     
     direntry.count = 2;
    
-    libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, 
-	build_entry_full, item.key.body, hash_plugin, parent_objectid, 
+    libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
+	build_entry_full, item.key.body, dir->hash_plugin, parent_objectid, 
 	objectid, ".");
     
-    if (!(direntry.entry = aal_calloc(direntry.count * 
-	    sizeof(reiserfs_entry_hint_t), 0)))
+    if (!(direntry.entry = aal_calloc(direntry.count*sizeof(*direntry.entry), 0)))
 	goto error_free_dir;
     
     /* Preparing dot entry */
     direntry.entry[0].name = ".";
     
-    libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, build_generic_short, 
-        &direntry.entry[0].objid, KEY40_STATDATA_MINOR, parent_objectid, objectid);
+    libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
+	build_generic_short, &direntry.entry[0].objid, KEY40_STATDATA_MINOR, 
+	parent_objectid, objectid);
 	
-    libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, build_entry_short, 
-	&direntry.entry[0].entryid, hash_plugin, direntry.entry[0].name);
+    libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
+	build_entry_short, &direntry.entry[0].entryid, dir->hash_plugin, 
+	direntry.entry[0].name);
     
     /* Preparing dot-dot entry */
     direntry.entry[1].name = "..";
     
-    libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, build_generic_short, 
-        &direntry.entry[1].objid, KEY40_STATDATA_MINOR, parent_locality, parent_objectid);
+    libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
+	build_generic_short, &direntry.entry[1].objid, KEY40_STATDATA_MINOR, 
+	parent_locality, parent_objectid);
 	
-    libreiser4_plugin_call(goto error_free_dir, key_plugin->key_ops, build_entry_short, 
-	&direntry.entry[1].entryid, hash_plugin, direntry.entry[1].name);
+    libreiser4_plugin_call(goto error_free_dir, object->plugin->key_ops, 
+	build_entry_short, &direntry.entry[1].entryid, dir->hash_plugin, 
+	direntry.entry[1].name);
     
     item.hint = &direntry;
     
@@ -322,31 +359,8 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     
     aal_free(direntry.entry);
     
-    dir->key.plugin = key_plugin;
-    aal_memcpy(dir->key.body, object->body, libreiser4_plugin_call(goto error_free_dir, 
-	key_plugin->key_ops, size,));
-    
-    /* FIXME-UMKA: Here should not be hardcoded plugin ids */
-    if (!(dir->statdata_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
-	REISERFS_STATDATA_ITEM)))
-    {
-	libreiser4_factory_failed(goto error_free_dir, find, 
-	    statdata, REISERFS_STATDATA_ITEM);
-    }
-    
-    if (!(dir->direntry_plugin = core->factory_find(REISERFS_ITEM_PLUGIN, 
-	REISERFS_CDE_ITEM)))
-    {
-	libreiser4_factory_failed(goto error_free_dir, find, 
-	    direntry, REISERFS_CDE_ITEM);
-    }
-    
-    if (!(dir->hash_plugin = core->factory_find(REISERFS_HASH_PLUGIN, 
-	REISERFS_R5_HASH)))
-    {
-	libreiser4_factory_failed(goto error_free_dir, find, 
-	    hash, REISERFS_R5_HASH);
-    }
+    dir->key.plugin = object->plugin;
+    aal_memcpy(dir->key.body, object->body, key_size);
     
     /* Grabbing the stat data item */
     if (dir40_realize(dir)) {
@@ -405,7 +419,7 @@ static reiserfs_plugin_t dir40_plugin = {
 	},
 #ifndef ENABLE_COMPACT
 	.create = (reiserfs_entity_t *(*)(const void *, reiserfs_key_t *, 
-	    reiserfs_key_t *))dir40_create,
+	    reiserfs_key_t *, reiserfs_object_hint_t *))dir40_create,
 	
 	.add = (errno_t (*)(reiserfs_entity_t *, reiserfs_entry_hint_t *))
 	    dir40_read,
