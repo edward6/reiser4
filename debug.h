@@ -827,6 +827,14 @@ typedef struct reiser4_statistics {
 		tshash_stat lnode;
 		tshash_stat eflush;
 	} hashes;
+	struct {
+		stat_cnt asked;
+		stat_cnt iteration;
+		stat_cnt wait_flush;
+		stat_cnt wait_congested;
+		stat_cnt kicked;
+		stat_cnt cleaned;
+	} entd;
 	/* how many non-unique keys were scanned into tree */
 	stat_cnt non_uniq;
 	/* maximal length of sequence of items with identical keys found
@@ -889,6 +897,7 @@ extern __u32 get_current_trace_flags(void);
 
 #if REISER4_DEBUG
 extern int no_counters_are_held(void);
+extern int commit_check_locks(void);
 extern void check_stack(void);
 #endif
 

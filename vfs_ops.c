@@ -29,6 +29,7 @@
 #include "super.h"
 #include "reiser4.h"
 #include "kattr.h"
+#include "entd.h"
 #include "emergency_flush.h"
 
 #include <linux/profile.h>
@@ -1796,6 +1797,9 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 		/* carry flags used for insert operations */
 		SB_FIELD_OPT(tree.carry.insert_flags, "%u"),
 
+		/* timeout (in seconds) to wait for ent thread in writepage */
+		SB_FIELD_OPT(entd.timeout, "%lu"),
+
 		PLUG_OPT("plugin.tail", tail, &sbinfo->plug.t),
 		PLUG_OPT("plugin.sd", item, &sbinfo->plug.sd),
 		PLUG_OPT("plugin.dir_item", item, &sbinfo->plug.dir_item),
@@ -1900,6 +1904,8 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	sbinfo->tree.carry.paste_flags = REISER4_PASTE_FLAGS;
 	sbinfo->tree.carry.insert_flags = REISER4_INSERT_FLAGS;
 
+	sbinfo->entd.timeout = REISER4_ENTD_TIMEOUT;
+
 	trace_file_name = NULL;
 
 	/*
@@ -1919,6 +1925,10 @@ reiser4_parse_options(struct super_block *s, char *opt_string)
 	if (sbinfo->txnmgr.atom_max_age <= 0)
 		/* overflow */
 		sbinfo->txnmgr.atom_max_age = REISER4_ATOM_MAX_AGE;
+
+	/* NOTE add check for sane maximal value. After tuning. */
+	if (sbinfo->entd.timeout <= 0)
+		sbinfo->entd.timeout = REISER4_ENTD_TIMEOUT;
 
 	/* round optimal io size up to 512 bytes */
 	sbinfo->optimal_io_size >>= VFS_BLKSIZE_BITS;
@@ -2159,6 +2169,8 @@ read_super_block:
 		goto error2;
 	}
 
+	init_entd_context(s);
+
 	/* initialize fake inode, formatted nodes will be read/written through
 	   it */
 	result = init_formatted_fake(s);
@@ -2289,6 +2301,8 @@ reiser4_kill_super(struct super_block *s)
 	/* flushes transactions, etc. */
 	if (get_super_private(s)->df_plug->release(s) != 0)
 		goto out;
+
+	done_entd_context(s);
 
 	/* shutdown daemon if last mount is removed */
 	ktxnmgrd_detach(&sbinfo->tmgr);

@@ -26,6 +26,7 @@
 #include "wander.h"
 #include "super.h"
 #include "trace.h"
+#include "entd.h"
 #include "reiser4.h"
 
 #include <asm/atomic.h>
@@ -564,7 +565,7 @@ static int write_prepped_nodes (flush_pos_t * pos, int scan)
 		*pos->nr_written += ret;
 		ret = 0;
 	}
-
+	flush_started_io();
 	return ret;
 }
 
@@ -736,6 +737,8 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	trace_if(TRACE_FLUSH,
 		 if (atomic_read(&flush_cnt) > 1) printk("flush concurrency\n"););
 #endif
+
+	enter_flush(sb);
 
 	trace_on(TRACE_FLUSH, "flush squalloc %s %s\n", jnode_tostring(node), flags_tostring(flags));
 
@@ -932,6 +935,8 @@ failed:
 	writeout_mode_disable();
 	write_syscall_trace("ex");
 
+	leave_flush(sb);
+
 	if (!reiser4_is_set(sb, REISER4_MTFLUSH))
 		up(&sbinfo->flush_sema);
 
@@ -1080,6 +1085,7 @@ int flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	{
 		int ret1;
 
+		flush_started_io();
 		ret1 = scan_and_write_fq(fq, 0);
 		if (ret1 > 0)
 			*nr_submitted += ret1;
