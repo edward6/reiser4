@@ -459,7 +459,7 @@ static int flush_alloc_one_ancestor(coord_t * coord, flush_position * pos);
 static int flush_set_preceder(const coord_t * coord_in, flush_position * pos);
 
 /* Main flush algorithm.  Note on abbreviation: "squeeze and allocate" == "squalloc". */
-static int flush_forward_squalloc(flush_position * pos);
+static int squalloc(flush_position * pos);
 static int flush_squalloc_one_changed_ancestor(znode * node, int call_depth, flush_position * pos);
 static int flush_squalloc_changed_ancestors(flush_position * pos);
 
@@ -625,11 +625,11 @@ static int write_prepped_nodes (flush_position * pos, int scan)
    After left-scan and possibly right-scan, we prepare a flush_position object with the
    starting flush point or parent coordinate, which was determined using scan-left.
    
-   Next we call the main flush routine, flush_forward_squalloc, which iterates along the
+   Next we call the main flush routine, squalloc, which iterates along the
    leaf level, squeezing and allocating nodes (and placing them into the flush queue).
   
-   After flush_forward_squalloc returns we take extra steps to ensure that all the children
-   of the final twig node are allocated--this involves repeating flush_forward_squalloc
+   After squalloc returns we take extra steps to ensure that all the children
+   of the final twig node are allocated--this involves repeating squalloc
    until we finish at a twig with no unallocated children.
   
    Finally, we call flush_empty_queue to submit write-requests to disk.  If we encounter
@@ -641,6 +641,8 @@ static int write_prepped_nodes (flush_position * pos, int scan)
    probably be handled properly rather than restarting, but there are a bunch of cases to
    audit.
 */
+
+/* ZAM-FIXME-HANS: a lot of these ifs could be made into inlined subfunctions.  Please attempt to structure this function a bit more. */
 long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 {
 	long ret = 0;
@@ -826,7 +828,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	/*assert ("jmacd-6218", jnode_check_dirty (left_scan.node)); */
 
 	/* Funny business here.  We set the 'point' in the flush_position at prior to
-	   starting flush_forward_squalloc regardless of whether the first point is
+	   starting squalloc regardless of whether the first point is
 	   formatted or unformatted.  Without this there would be an invariant, in the
 	   rest of the code, that if the flush_position is unformatted then
 	   flush_position->point is NULL and flush_position->parent_{lock,coord} is set,
@@ -864,25 +866,25 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	check_preceder(flush_pos.preceder.blk);
 	flush_scan_done(&left_scan);
 
-	/* Check for relocation and allocate ancestors of the flush position.  First
+	/* Check for relocation and allocate ancestors of the initial flush position.  First
 	   perform a relocation check of the flush point (in reverse parent-first
 	   context--see flush_reverse_relocate_test), then if the node is a leftmost child
 	   and the parent is dirty repeat this process at the next level up.  Once
 	   reaching the highest ancestor, allocate on the way back down.  In otherwords,
 	   this operation recurses up in reverse parent-first order and then allocates on
 	   the way back.  This initializes the flush operation for the main
-	   flush_forward_squalloc loop, which continues to allocate in forward parent-first
+	   squalloc loop, which continues to allocate in forward parent-first
 	   order. */
 	ret = flush_alloc_ancestors(&flush_pos);
 	if (ret)
 		goto failed;
 
 	/* Do the main rightward-bottom-up squeeze and allocate loop. */
-	ret = flush_forward_squalloc(&flush_pos);
+	ret = squalloc(&flush_pos);
 	if (ret) {
 		/* FIXME(C): This ENAVAIL check is an ugly, UGLY hack to prevent a certain
 		   deadlocks by trying to prevent atoms from fusing during flushing.  We
-		   allow -ENAVAIL code to be returned from flush_forward_squalloc and
+		   allow -ENAVAIL code to be returned from squalloc and
 		   continue to flush_empty_queue.  The proper solution, I feel, is to
 		   catch -EINVAL everywhere it may be generated, not at the top level like
 		   this.  For example, every call to jnode_lock_parent_coord should check
@@ -913,7 +915,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   children to the right (we are not concerned with unallocated children to the
 	   left--in that case the twig itself should not have been allocated).  If the
 	   twig has unallocated children to the right, set the parent_coord to that
-	   position and then repeat the call to flush_forward_squalloc.
+	   position and then repeat the call to squalloc.
 	  
 	   Testing for unallocated children may be defined in two ways: if any internal
 	   item has a fake block number, it is unallocated; if any extent item is
@@ -1111,7 +1113,7 @@ flush_reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_c
 	return 0;
 }
 
-/* This function is called when flush_forward_squalloc reaches the end of a twig node.  At
+/* This function is called when squalloc reaches the end of a twig node.  At
    this point the leftmost child of the right twig may be considered for relocation.  This
    is another case of the reverse parent-first context relocate test (where we are testing
    the child against its parent which precedes it in parent-first order).  The right twig
@@ -1262,7 +1264,7 @@ flush_alloc_ancestors(flush_position * pos)
 	}
 
 	/* Finally, allocate the current flush point if it is formatted.  This leaves us
-	   with the current point allocated, ready to call the flush_forward_squalloc
+	   with the current point allocated, ready to call the squalloc
 	   loop. */
 	if (ret == 0 && !flush_pos_on_twig_level(pos)) {
 		ret = flush_allocate_znode(JZNODE(pos->point), &pcoord, pos);
@@ -1422,7 +1424,7 @@ exit:
    step sets the flush position to the next-right node.  Then repeat steps 4 and 5.
 */
 static int
-flush_forward_squalloc(flush_position * pos)
+squalloc(flush_position * pos)
 {
 	int ret = 0;
 	PROF_BEGIN(forward_squalloc);
@@ -1583,7 +1585,7 @@ exit:
 	return ret;
 }
 
-/* This implements "step 5" described in flush_forward_squalloc.  This is the entry point
+/* This implements "step 5" described in squalloc.  This is the entry point
    for the recursive function flush_squalloc_one_changed_ancestor, described above.  This
    function mainly deals with special cases related to the twig-level and extents, then
    initiates the upward-recursive call, then establishes the next flush position after the
@@ -1600,7 +1602,7 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 	   extent) or the current leaf. */
 	if ((on_twig_level = flush_pos_on_twig_level(pos))) {
 		/* If we are checking for changed ancestors, we must have reached the
-		   end-of-twig situation described in flush_forward_squalloc.  Otherwise
+		   end-of-twig situation described in squalloc.  Otherwise
 		   we would have repeated extent allocation or descended to a formatted
 		   leaf. */
 		assert("jmacd-9812", coord_is_after_rightmost(&pos->parent_coord));
@@ -1754,7 +1756,7 @@ flush_squalloc_changed_ancestors(flush_position * pos)
 			goto exit;
 		}
 
-		/* In this case, continue the outer flush_forward_squalloc loop. */
+		/* In this case, continue the outer squalloc loop. */
 		ret = 0;
 		goto exit;
 	}
@@ -1806,7 +1808,7 @@ exit:
 	return ret;
 }
 
-/* This implements the recursive part of step 5 described in flush_forward_squalloc,
+/* This implements the recursive part of step 5 described in squalloc,
    including squeezing on the way up, as long as the node and its right neighbor have
    different parents, then allocating the right side on the way back down.  This is a
    complicated beast.  The call_depth paramter tells us how high in the recursion we are.
@@ -3487,7 +3489,7 @@ flush_pos_init(flush_position * pos)
 	init_load_count(&pos->point_load);
 }
 
-/* The flush loop inside flush_forward_squalloc periodically checks flush_pos_valid to
+/* The flush loop inside squalloc periodically checks flush_pos_valid to
    determine when "enough flushing" has been performed.  This will return true until one
    of the following conditions is met:
   
@@ -3516,7 +3518,7 @@ flush_pos_done(flush_position * pos)
 }
 
 /* Reset the point and parent.  Called during flush subroutines to terminate the
-   flush_forward_squalloc loop. */
+   squalloc loop. */
 static int
 flush_pos_stop(flush_position * pos)
 {
