@@ -104,14 +104,15 @@ static reiserfs_plugin_t stat40_plugin = {
 	    .confirm = (errno_t (*)(void *))stat40_confirm,
 	    .check = (errno_t (*)(void *))stat40_check,
 	    .print = (void (*)(void *, char *, uint16_t))stat40_print,
-	    .minsize = (uint32_t (*)(void))stat40_minsize,
+	    .minsize = (uint16_t (*)(void))stat40_minsize,
 	    .internal = (int (*)(void))stat40_internal,
 
 	    .max_key = NULL,
 	    .lookup = NULL,
-	    .unit_add = NULL,
-	    .unit_count = NULL,
-	    .unit_remove = NULL
+	    
+	    .insert = NULL,
+	    .count = NULL,
+	    .remove = NULL
 	},
 	.specific = {
 	    .stat = {

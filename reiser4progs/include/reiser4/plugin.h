@@ -129,8 +129,8 @@ typedef struct reiserfs_key_ops reiserfs_key_ops_t;
 struct reiserfs_file_ops {
     reiserfs_plugin_header_t h;
 
-    void *(*build) (void *, void *, uint16_t, uint16_t); 
-    void (*destroy) (void *);
+    void *(*create) (void *, void *, uint16_t, uint16_t); 
+    void (*close) (void *);
 };
 
 typedef struct reiserfs_file_ops reiserfs_file_ops_t;
@@ -138,8 +138,8 @@ typedef struct reiserfs_file_ops reiserfs_file_ops_t;
 struct reiserfs_dir_ops {
     reiserfs_plugin_header_t h;
 
-    void *(*build) (void *, void *, uint16_t, uint16_t); 
-    void (*destroy) (void *);
+    void *(*create) (void *, void *, uint16_t, uint16_t); 
+    void (*close) (void *);
 };
 
 typedef struct reiserfs_dir_ops reiserfs_dir_ops_t;
@@ -160,12 +160,12 @@ struct reiserfs_item_common_ops {
     */
     errno_t (*max_key) (void *);
     
-    int (*unit_add) (void *, void *, void *);
-    uint16_t (*unit_count) (void *);
-    int (*unit_remove) (void *, int32_t, int32_t);
+    errno_t (*insert) (void *, uint16_t, void *);
+    errno_t (*remove) (void *, uint16_t);
+    uint16_t (*count) (void *);
     
     errno_t (*estimate) (void *, void *);
-    uint32_t (*minsize) (void);
+    uint16_t (*minsize) (void);
     
     int (*internal) (void);
 };

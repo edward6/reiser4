@@ -255,7 +255,7 @@ static errno_t node40_paste(aal_block_t *block, reiserfs_pos_t *pos,
 	return -1;
 
     return libreiser4_plugin_call(return -1, item->plugin->item.common,
-	unit_add, node40_ib_at(block, pos->item), pos, item);
+	insert, node40_ib_at(block, pos->item), pos->unit, item);
 }
 
 /*

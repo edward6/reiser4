@@ -200,7 +200,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .create = NULL,
 	    .estimate = NULL,
 #endif
-	    .minsize = (uint32_t (*)(void))direntry40_minsize,
+	    .minsize = (uint16_t (*)(void))direntry40_minsize,
 	    .print = (void (*)(void *, char *, uint16_t))direntry40_print,
 	    .lookup = (int (*) (void *, void *, void *))direntry40_lookup,
 	    .internal = (int (*)(void))direntry40_internal,
@@ -209,9 +209,9 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .confirm = NULL,
 	    .check = NULL,
 
-	    .unit_add = NULL,
-	    .unit_count = NULL,
-	    .unit_remove = NULL
+	    .insert = NULL,
+	    .count = NULL,
+	    .remove = NULL
 	},
 	.specific = {
 	    .dir = { }

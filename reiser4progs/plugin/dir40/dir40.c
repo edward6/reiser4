@@ -20,11 +20,10 @@ static reiserfs_plugin_factory_t *factory = NULL;
 #ifndef ENABLE_COMPACT
 
 /*
-    FIXME-UMKA: Is it possible will be exist objects without 
-    stat data? If so, we need to throw out stat_plugin_id
-    from accepted parameters.
+    FIXME-UMKA: Is it possible will be exist objects without stat data? If so, 
+    we need to throw out stat_plugin_id from accepted parameters.
 */
-static reiserfs_object_hint_t *dir40_build(reiserfs_key_t *parent, 
+static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent, 
     reiserfs_key_t *object, uint16_t stat_plugin_id, uint16_t direntry_plugin_id) 
 {
     reiserfs_object_hint_t *hint;
@@ -136,7 +135,7 @@ error:
     return NULL;
 }
 
-static void dir40_destroy(reiserfs_object_hint_t *hint) {
+static void dir40_close(reiserfs_object_hint_t *hint) {
     int i;
     
     aal_assert("umka-750", hint != NULL, return);
@@ -166,13 +165,13 @@ static reiserfs_plugin_t dir40_plugin = {
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},
 #ifndef ENABLE_COMPACT
-	.build = (void *(*)(void *, void *, uint16_t, uint16_t))
-	    dir40_build,
+	.create = (void *(*)(void *, void *, uint16_t, uint16_t))
+	    dir40_create,
 
-	.destroy = (void (*)(void *))dir40_destroy
+	.close = (void (*)(void *))dir40_close
 #else
-	.build = NULL,
-	.destroy = NULL
+	.create = NULL,
+	.close = NULL
 #endif
     }
 };

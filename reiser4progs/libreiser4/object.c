@@ -221,7 +221,7 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
 	
     if (plugin->h.type == REISERFS_DIR_PLUGIN) {
 	if (!(object->hint = libreiser4_plugin_call(goto error_free_object, plugin->dir, 
-	    build, &parent_key, &object_key, profile->item.statdata, profile->item.direntry)))
+	    create, &parent_key, &object_key, profile->item.statdata, profile->item.direntry)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't create directory hint.");
@@ -229,7 +229,7 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
 	}
     } else {
 	if (!(object->hint = libreiser4_plugin_call(goto error_free_object, plugin->file, 
-	    build, &parent_key, &object_key, profile->item.statdata, profile->item.fileentry)))
+	    create, &parent_key, &object_key, profile->item.statdata, profile->item.fileentry)))
 	{
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't create file hint.");
@@ -263,7 +263,7 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
 
 error_free_hint:
     libreiser4_plugin_call(goto error_free_object, plugin->dir, 
-	destroy, object->hint);
+	close, object->hint);
 error_free_object:
     aal_free(object);
     return NULL;
@@ -276,7 +276,7 @@ void reiserfs_object_close(reiserfs_object_t *object) {
     
     if (object->hint) {
 	libreiser4_plugin_call(return, object->plugin->dir, 
-	    destroy, object->hint);
+	    close, object->hint);
     }
     aal_free(object);
 }
