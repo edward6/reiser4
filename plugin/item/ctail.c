@@ -592,8 +592,7 @@ insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f, struct i
 	return ret;
 }
 
-
-/* overwrite first @f->length bytes of the item and cut remainder without carry */
+/* overwrite tail citem or its part */
 static int
 overwrite_ctail(coord_t * coord, flow_t * f)
 {
@@ -606,23 +605,31 @@ overwrite_ctail(coord_t * coord, flow_t * f)
 	assert("edward-273", coord->unit_pos == 0);
 	assert("edward-274", znode_is_write_locked(coord->node));
 	assert("edward-275", schedulable());
-
+	
 	count = item_length_by_coord(coord);
 	
-	if (count > f->length) {
-		node_plugin * nplug = node_plugin_by_coord(coord);
-		nplug->change_item_size(coord, count - f->length);
+	if (count > f->length)
 		count = f->length;
-	}
 	xmemcpy(item_body_by_coord(coord), f->data, count);
 	move_flow_forward(f, count);
+	coord->unit_pos += count; 
 	return 0;
 }
 
+/* cut ctail item or its tail subset */ 
 static int
 cut_ctail(coord_t * coord)
 {
-	return 0;
+	coord_t stop;
+
+	assert("edward-435", coord_is_existing_unit(coord));
+
+	if(coord->unit_pos == coord_last_unit_pos(coord))
+		return 0;
+	coord_dup(&stop, coord);
+	stop.unit_pos = coord_last_unit_pos(coord);
+	
+	return cut_node(coord, &stop, NULL, NULL, NULL, 0, NULL, NULL);
 }
 
 /* plugin->u.item.s.file.write ? */
@@ -637,7 +644,7 @@ write_ctail(flow_t *f, coord_t *coord, lock_handle *lh, int grabbed, crc_write_m
 		result = insert_crc_flow_in_place(coord, lh, f, inode);
 		break;
 	case CRC_OVERWRITE_ITEM:
-		result = overwrite_ctail(coord, f);
+		overwrite_ctail(coord, f);
 	case CRC_CUT_ITEM:
 		result = cut_ctail(coord);
 		break;
