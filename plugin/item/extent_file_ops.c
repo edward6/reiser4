@@ -30,6 +30,7 @@ coord_extension_is_ok(const uf_coord_t *uf_coord)
 				       extent_get_start(ext_coord->ext) == extent_get_start(&ext_coord->extent) &&
 				       extent_get_width(ext_coord->ext) == extent_get_width(&ext_coord->extent)));
 }
+
 #endif
 
 /* @coord is set either to the end of last extent item of a file
@@ -294,27 +295,32 @@ plug_hole(uf_coord_t *uf_coord, reiser4_key *key)
 
 /* make unallocated node pointer in the position @uf_coord is set to */
 static int
-overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block)
+overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *block, int *created)
 {
 	int result;
 	extent_coord_extension_t *ext_coord;
 
 	assert("vs-1312", uf_coord->base_coord.between == AT_UNIT);
-
+	
+	result = 0;
+	*created = 0;
 	ext_coord = &uf_coord->extension.extent;
 	switch (state_of_extent(ext_coord->ext)) {
 	case ALLOCATED_EXTENT:
 		*block = extent_get_start(ext_coord->ext) + ext_coord->pos_in_unit;
-		result = 0;
 		break;
 
 	case HOLE_EXTENT:
 		result = plug_hole(uf_coord, key);
-		if (!result)
+		if (!result) {
 			*block = fake_blocknr_unformatted();
+			*created = 1;
+		}
 		break;
 
 	case UNALLOCATED_EXTENT:
+		break;
+
 	default:
 		impossible("vs-238", "extent of unknown type found");
 		result = RETERR(-EIO);
@@ -324,30 +330,56 @@ overwrite_one_block(uf_coord_t *uf_coord, reiser4_key *key, reiser4_block_nr *bl
 	return result;
 }
 
+#if REISER4_DEBUG
+
+/* after make extent uf_coord's lock handle must be set to node containing unit which was inserted/found */
+static void
+check_make_extent_result(int result, reiser4_key *key, lock_handle *lh, reiser4_block_nr block)
+{
+	coord_t coord;
+
+	if (result != 0) {
+		return;
+	}
+	       
+	assert("vs-960", znode_is_write_locked(lh->node));
+	zload(lh->node);
+	result = lh->node->nplug->lookup(lh->node, key, FIND_EXACT, &coord);
+	assert("vs-1502", result == NS_FOUND);
+	zrelse(lh->node);
+}
+
+#endif
+
 static int
-make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_block_nr *block)
+make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_block_nr *block, int *created)
 {
 	int result;
 
 	assert("vs-960", znode_is_write_locked(uf_coord->base_coord.node));
 	assert("vs-1334", znode_is_loaded(uf_coord->base_coord.node));
 
+	DISABLE_NODE_CHECK;
+
+	*block = 0;
 	switch (mode) {
 	case FIRST_ITEM:
 		/* create first item of the file */
 		result = insert_first_block(uf_coord, key, block);
+		*created = 1;
 		break;
 
 	case APPEND_ITEM:
 		item_plugin_by_coord(&uf_coord->base_coord);
 		assert("vs-1316", coord_extension_is_ok(uf_coord));
 		result = append_one_block(uf_coord, key, block);
+		*created = 1;
 		break;
 
 	case OVERWRITE_ITEM:
 		item_plugin_by_coord(&uf_coord->base_coord);
 		assert("vs-1316", coord_extension_is_ok(uf_coord));
-		result = overwrite_one_block(uf_coord, key, block);
+		result = overwrite_one_block(uf_coord, key, block, created);
 		break;
 
 	default:
@@ -355,65 +387,9 @@ make_extent(reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode, reiser4_b
 		result = RETERR(-E_REPEAT);
 		break;
 	}
-		
-	return result;
-}
 
-/* if page is not completely overwritten - read it if it is not new or fill by zeros otherwise */
-static int
-prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned from, unsigned count)
-{
-	char *data;
-	int result;
-	jnode *j;
-
-	result = 0;
-	if (PageUptodate(page))
-		goto done;
-
-	if (count == inode->i_sb->s_blocksize)
-		goto done;
-
-	j = jnode_by_page(page);
-
-	/* jnode may be emergency flushed and have fake blocknumber, */
-
-	if (JF_ISSET(j, JNODE_NEW)) {
-		/* new page does not get zeroed. Fill areas around write one by 0s */
-		data = kmap_atomic(page, KM_USER0);
-		memset(data, 0, from);
-		memset(data + from + count, 0, PAGE_CACHE_SIZE - from - count);
-		flush_dcache_page(page);
-		kunmap_atomic(data, KM_USER0);
-		goto done;
-	}
-	/* page contains some data of this file */
-	assert("vs-699", inode->i_size > (__u64)page->index << PAGE_CACHE_SHIFT);
-
-	if (from == 0 && file_off + count >= inode->i_size) {
-		/* current end of file is in this page. write areas covers it
-		   all. No need to read block. Zero page past new end of file,
-		   though */
-		data = kmap_atomic(page, KM_USER0);
-		memset(data + from + count, 0, PAGE_CACHE_SIZE - from - count);
-		kunmap_atomic(data, KM_USER0);
-		goto done;
-	}
-
-	/* read block because its content is not completely overwritten */
-	reiser4_stat_inc(extent.unfm_block_reads);
-
-	page_io(page, j, READ, GFP_NOIO);
-
-	lock_page(page);
-	UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
-
-	if (!PageUptodate(page)) {
-		warning("jmacd-61238", "prepare_page: page not up to date");
-		result = RETERR(-EIO);
-	}
-	
- done:
+	ENABLE_NODE_CHECK;
+	ON_DEBUG(check_make_extent_result(result, key, uf_coord->lh, *block));
 	return result;
 }
 
@@ -489,42 +465,6 @@ write_move_coord(coord_t *coord, uf_coord_t *uf_coord, write_mode_t mode, int fu
 		ext_coord->pos_in_unit ++;
 }
 
-static jnode *
-index_extent_jnode(reiser4_tree *tree, struct address_space *mapping, oid_t oid, unsigned long index,
-		   reiser4_key *key, uf_coord_t *uf_coord, write_mode_t mode)
-{
-	int result;
-	jnode *j;
-
-	assert("vs-1397", get_key_objectid(key) == oid);
-	assert("vs-1395", get_key_offset(key) == (loff_t)index << PAGE_CACHE_SHIFT);
-
-	j = jlookup(tree, oid, index);
-	if (!j || !jnode_mapped(j)) {
-		reiser4_block_nr blocknr;
-
-		DISABLE_NODE_CHECK;
-		result = make_extent(key, uf_coord, mode, &blocknr);
-		ENABLE_NODE_CHECK;
-		if (result) {
-			return ERR_PTR(result);
-		}
-
-		if (j == NULL)
-			j = find_get_jnode(tree, mapping, oid, index);
-		if (blocknr_is_fake(&blocknr)) {
-			jnode_set_created(j);
-			JF_SET(j, JNODE_NEW);
-		}
-		jnode_set_mapped(j);
-		jnode_set_block(j, &blocknr);
-	} else {
-		assert("vs-1421", mode == OVERWRITE_ITEM);
-	}
-	assert("vs-1430", jnode_get_mapping(j) == mapping);
-	return j;
-}
-
 static void
 set_hint_unlock_node(hint_t *hint, flow_t *f, znode_lock_mode mode)
 {
@@ -534,6 +474,29 @@ set_hint_unlock_node(hint_t *hint, flow_t *f, znode_lock_mode mode)
 		unset_hint(hint);
 	}
 	longterm_unlock_znode(hint->coord.lh);
+}
+
+static int
+write_is_partial(struct inode *inode, loff_t file_off, unsigned page_off, unsigned count)
+{
+	if (count == inode->i_sb->s_blocksize)
+		return 0;
+	if (page_off == 0 && file_off + count >= inode->i_size)
+		return 0;
+	return 1;
+}
+
+/* this initialize content of page not covered by write */
+static void
+zero_around(struct page *page, int from, int count)
+{
+	char *data;
+	
+	data = kmap_atomic(page, KM_USER0);
+	memset(data, 0, from);
+	memset(data + from + count, 0, PAGE_CACHE_SIZE - from - count);
+	flush_dcache_page(page);
+	kunmap_atomic(data, KM_USER0);
 }
 
 /* write flow's data into file by pages */
@@ -579,6 +542,9 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	page_key = flow->key;
 	set_key_offset(&page_key, (loff_t)page_nr << PAGE_CACHE_SHIFT);
 	do {
+		reiser4_block_nr blocknr;
+		int created;
+
 		if (!grabbed) {
 			result = reserve_extent_write_iteration(inode, tree);
 			if (result)
@@ -591,11 +557,23 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		write_page_trace(inode->i_mapping, page_nr);
 
-		j = index_extent_jnode(tree, inode->i_mapping, oid, page_nr, &page_key, uf_coord, mode);
+		result = make_extent(&page_key, uf_coord, mode, &blocknr, &created);
+		if (result) {
+			goto exit1;
+		}
+		/* look for jnode and create it if it does not exist yet */
+		j = find_get_jnode(tree, inode->i_mapping, oid, page_nr);
 		if (IS_ERR(j)) {
 			result = PTR_ERR(j);
 			goto exit1;
 		}
+		if (created) {
+			/* extent corresponding to this jnode was just created */
+			assert("vs-1504", *jnode_get_block(j) == 0);
+			UNDER_SPIN_VOID(jnode, j, JF_SET(j, JNODE_CREATED));
+			jnode_set_block(j, &blocknr);		
+		} else
+			assert("vs-1505", *jnode_get_block(j) == blocknr);
 
 		move_flow_forward(flow, count);
 		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
@@ -611,14 +589,65 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		page_cache_get(page);
 		assert("vs-1425", jnode_page(j) == page);
 
-		/* if page is not completely overwritten - read it if it is not new or fill by zeros otherwise */
-		result = prepare_page(inode, page, file_off, page_off, count);
-		if (result) {
-			if (JF_ISSET(j, JNODE_NEW))
-				JF_SET(j, JNODE_HEARD_BANSHEE);
-			goto exit3;
+#if 0
+		if (!PageUptodate(page)) {
+			if (write_is_partial(inode, file_off, page_off, count)) {
+				if (new_page) {
+					/* */
+				}
+
+			} &&
+			    (JF_ISSET(j, JNODE_EFLUSH) || !JF_ISSET(j, JNODE_CREATED))) {
+				/* page is not being overwritten completely, therefore we have to take care about data
+				   which might be written to file already. */
+				unlock_page(page);
+				result = jload(j);
+				lock_page(page);
+				if (result)
+					goto exit3;
+				jrelse(j);
+			} else {
+				/* page is either new () or its content is going to be overwritten. Here we zero page
+				   content around write area */
+				char *data;
+				
+				data = kmap_atomic(page, KM_USER0);
+				memset(data, 0, page_off);
+				memset(data + page_off + count, 0, PAGE_CACHE_SIZE - page_off - count);
+				flush_dcache_page(page);
+				kunmap_atomic(data, KM_USER0);
+			}
+		} else
+			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
+#endif
+
+		if (!PageUptodate(page)) {
+			if (write_is_partial(inode, file_off, page_off, count)) {
+				/* page is not being overwritten completely, therefore we have to take care about data
+				   which might be written to file already */				
+				if (JF_ISSET(j, JNODE_EFLUSH)) {
+					unlock_page(page);
+					result = jload(j);
+					lock_page(page);
+					if (result)
+						goto exit3;
+					jrelse(j);
+					/* locked page will prevents jnode from eflushing */
+				} else {
+					/* there is no need to jload */
+					zero_around(page, page_off, count);
+				}
+			} else {
+				/* there is no need to jload */				
+				zero_around(page, page_off, count);
+				UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
+			}
+		} else {
+			/* page did not manage to get relleased yet */
+			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 		}
 
+		assert("vs-1503", UNDER_SPIN(jnode, j, !JF_ISSET(j, JNODE_EFLUSH)));
 		assert("nikita-3033", schedulable());
 
 		/* copy user data into page */
@@ -627,12 +656,11 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		if (unlikely(result)) {
 			/* FIXME: write(fd, 0, 10); to empty file will write no data but file will get increased
 			   size. */
-			if (JF_ISSET(j, JNODE_NEW))
-				JF_SET(j, JNODE_HEARD_BANSHEE);
+			/*if (JF_ISSET(j, JNODE_NEW))
+			  JF_SET(j, JNODE_HEARD_BANSHEE);*/
 			result = RETERR(-EFAULT);
 			goto exit3;
 		}
-		JF_CLR(j, JNODE_NEW);
 
 		set_page_dirty_internal(page);
 		SetPageUptodate(page);
@@ -988,9 +1016,15 @@ static int
 do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 {
 	jnode *j;
+	struct address_space *mapping;
+	unsigned long index;
+	oid_t oid;
 
+	mapping = page->mapping;
+	oid = get_inode_oid(mapping->host);
+	index = page->index;
 	ON_TRACE(TRACE_EXTENTS, "readpage_extent: page (oid %llu, index %lu, count %d)..",
-		 get_inode_oid(page->mapping->host), page->index, page_count(page));
+		 oid, index, page_count(page));
 
 	switch (state_of_extent(ext)) {
 	case HOLE_EXTENT:
@@ -999,33 +1033,36 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 		 * it is possible to have hole page with jnode, if page was
 		 * eflushed previously.
 		 */
-		j = jlookup(current_tree, get_inode_oid(page->mapping->host),
-			       page->index);
+		j = jlookup(current_tree, oid, index);
 		if (j == NULL) {
 			zero_page(page);
 			return 0;
 		}
+		LOCK_JNODE(j);
+		if (!jnode_page(j)) {
+			jnode_attach_page(j, page);			
+		} else {
+			assert("vs-1504", jnode_page(j) == page);
+		}
+		
+		UNLOCK_JNODE(j);
 		break;
 
 	case ALLOCATED_EXTENT:
-	{
-		reiser4_block_nr blocknr;
-
 		j = jnode_of_page(page);
 		if (IS_ERR(j))
 			return PTR_ERR(j);
-		if (!jnode_mapped(j)) {
-			jnode_set_mapped(j);
+		if (*jnode_get_block(j) == 0) {
+			reiser4_block_nr blocknr;
+
 			blocknr = extent_get_start(ext) + pos;
 			jnode_set_block(j, &blocknr);
 		} else
 			assert("vs-1403", j->blocknr == extent_get_start(ext) + pos);
 		break;
-	}
 		
 	case UNALLOCATED_EXTENT:
-		j = jlookup(current_tree, get_inode_oid(page->mapping->host),
-			       page->index);
+		j = jlookup(current_tree, oid, index);
 		assert("nikita-2688", j);
 		assert("vs-1426", jnode_page(j) == NULL);
 
@@ -1033,6 +1070,7 @@ do_readpage_extent(reiser4_extent *ext, reiser4_block_nr pos, struct page *page)
 		ON_TRACE(TRACE_EXTENTS, "jnode %s attached to page\n", jnode_tostring(j));
 
 		if (!JF_ISSET(j, JNODE_EFLUSH)) {
+			assert("", 0);
 			ON_TRACE(TRACE_EXTENTS, "page fault on not initialized page\n");
 			zero_page(page);
 			jput(j);
@@ -1141,6 +1179,8 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 {
 	jnode *j;
 	int result;
+	reiser4_block_nr blocknr;
+	int created;
 
 	ON_TRACE(TRACE_EXTENTS, "WP: index %lu, count %d..", page->index, page_count(page));
 
@@ -1149,26 +1189,37 @@ capture_extent(reiser4_key *key, uf_coord_t *uf_coord, struct page *page, write_
 	assert("vs-864", znode_is_wlocked(uf_coord->base_coord.node));
 	assert("vs-1398", get_key_objectid(key) == get_inode_oid(page->mapping->host));
 
-	/* FIXME: unlock page? */
-	j = index_extent_jnode(current_tree, page->mapping, get_key_objectid(key), page->index, key, uf_coord, mode);
-	if (IS_ERR(j))
-		return PTR_ERR(j);
-	done_lh(uf_coord->lh);
-	JF_CLR(j, JNODE_NEW);
+	result = make_extent(key, uf_coord, mode, &blocknr, &created);
+	if (result) {
+		done_lh(uf_coord->lh);
+		return result;
+	}
 
 	lock_page(page);
-	LOCK_JNODE(j);
-	if (!jnode_page(j)) {
-		jnode_attach_page(j, page);
+	j = jnode_of_page(page);
+	if (IS_ERR(j)) {
+		unlock_page(page);
+		done_lh(uf_coord->lh);
+		return PTR_ERR(j);
 	}
+	set_page_dirty_internal(page);
 	unlock_page(page);
 
+	if (created) {
+		/* extent corresponding to this jnode was just created */
+		assert("vs-1504", *jnode_get_block(j) == 0);
+		UNDER_SPIN_VOID(jnode, j, JF_SET(j, JNODE_CREATED));
+		jnode_set_block(j, &blocknr);		
+	} else
+		assert("vs-1505", *jnode_get_block(j) == blocknr);
+	done_lh(uf_coord->lh);
+
+
+	LOCK_JNODE(j);
 	result = try_capture(j, ZNODE_WRITE_LOCK, 0, 1/* can_coc */);
 	if (result != 0)
 		reiser4_panic("nikita-3324", "Cannot capture jnode: %i", result);
 	jnode_make_dirty_locked(j);
-	set_page_dirty_internal(page);
-
 	UNLOCK_JNODE(j);
 	jput(j);
 
