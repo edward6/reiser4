@@ -30,6 +30,46 @@ find_item ()
 #endif
 
 
+/* return true if writing to position specified by @key requires appending item
+ * @coord is set to */
+static int append_to_this_item (const reiser4_key * key, const coord_t * coord)
+{
+	reiser4_key tmp_key; /* will be used for various purposes */
+
+
+	if (coord->item_pos == node_num_items (coord->node) - 1) {
+		/* get key of next item if it is in right neighbor */
+		spin_lock_dk (current_tree);
+		tmp_key = *znode_get_rd_key (coord->node);
+		spin_unlock_dk (current_tree);
+	} else {
+		/* get key of next item if it is in the same node */
+		coord_t next;
+		
+		coord_dup (&next, coord);
+		check_me ("vs-730", coord_set_to_right (&next));
+		item_key_by_coord (&next, &tmp_key);
+	}
+	if (keygt (&tmp_key, key)) {
+		/* make sure that we can append into coord */
+		item_plugin * iplug;
+
+		iplug = item_plugin_by_coord (coord);
+		if (iplug && iplug->common.max_key_inside) {
+			if (keyge (key, item_key_by_coord (coord, &tmp_key)) &&
+			    keyle (key,
+				   iplug->common.max_key_inside (coord,
+								 &tmp_key))) {
+				/* we can use @coord writing to position
+				 * @key */
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+
+
 /* check whether coord is set as if it was just set by node's lookup with
  * @key. If yes - 1 is returned. If it is not - check whether @key is inside of
  * this node, if yes - call node lookup. Otherwise - return 0 */
@@ -51,47 +91,17 @@ static int coord_set_properly (const reiser4_key * key, coord_t * coord)
 			zrelse (coord->node);
 			return 1;
 		}
-	} else {
-		/* when coord is set after last unit in an item - it is very
-		 * often exactly what we need */
-		if (coord_is_after_last_unit (coord)) {
-			/* just check key of next item before using that
-			 * coord */
-			reiser4_key tmp_key; /* will be used for various purposes */
-
-			if (coord->item_pos == node_num_items (coord->node) - 1) {
-				/* get key of next item if it is in right
-				 * neighbor */
-				spin_lock_dk (current_tree);
-				tmp_key = *znode_get_rd_key (coord->node);
-				spin_unlock_dk (current_tree);
-			} else {
-				/* get key of next item if it is in the same
-				 * node */
-				coord_t next;
-
-				coord_dup (&next, coord);
-				check_me ("vs-730", coord_set_to_right (&next));
-				item_key_by_coord (&next, &tmp_key);
-			}
-			if (keygt (&tmp_key, key)) {
-				/* make sure that we can append into coord */
-				item_plugin * iplug;
-
-				iplug = item_plugin_by_coord (coord);
-				if (iplug && iplug->common.max_key_inside) {
-					if (keyge (key, item_key_by_coord (coord, &tmp_key)) &&
-					    keyle (key,
-						   iplug->common.max_key_inside (coord, &tmp_key))) {
-						/* we can use @coord writing to
-						 * position @key */
-						zrelse (coord->node);
-						return 1;
-					}
-				}
-			}
-		}
 	}
+
+	/* if we have to append item @coord is set to */
+	if (append_to_this_item (key, coord)) {
+		/* set coord after last unit in the item */
+		coord->unit_pos = coord_last_unit_pos (coord);
+		coord->between = AFTER_UNIT;
+		zrelse (coord->node);
+		return 1;		
+	}
+
 
 	/* @coord requires re-setting, check whether @key is in this node
 	 * before calling node's lookup */
@@ -327,7 +337,6 @@ int unix_file_readpage (struct file * file, struct page * page)
 
 
 
-
 /* plugin->u.file.read */
 ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 			loff_t * off)
@@ -338,8 +347,11 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	lock_handle lh;
 	size_t to_read;		/* do we really need both this and read_amount? */
 	item_plugin * iplug;
+#ifdef NEW_READ_IS_READY
 	sink_t userspace_sink;
-
+#else
+	flow_t f;
+#endif /* NEW_READ_IS_READY */
 
 	/* collect statistics on the number of reads */
 	reiser4_stat_file_add (reads);
@@ -353,15 +365,22 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	/* this should now be called userspace_sink_build, now that we have
 	 * both sinks and flows.  See discussion of sinks and flows in
 	 * www.namesys.com/v4/v4.html */
+#ifdef NEW_READ_IS_READ
 	result = userspace_sink_build (inode, buf, 1/* user space */, read_amount,
 				    *off, READ_OP, &f);
+#else
+	result = common_build_flow (inode, buf, 1/* user space */, read_amount,
+				    *off, READ_OP, &f);
+#endif
 	if (result)
 		return result;
 
 	get_nonexclusive_access (inode);
 	
+#ifdef NEW_READ_IS_READY
 	intrafile_readahead_amount = unix_file_readahead(struct file * file, off, read_amount);
-	
+#endif /* NEW_READ_IS_READY */
+
 	coord_init_zero (&coord);
 	init_lh (&lh);
 
@@ -391,6 +410,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 			break;
 	}
 
+#ifdef NEW_READ_IS_READY
 	while (intrafile_readahead_amount) {
 			if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
 			/* do not read out of file */
@@ -415,6 +435,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	}
 
 	unix_file_interfile_readahead(struct file * file, off, read_amount, coord);
+#endif /* NEW_READ_IS_READY */
 
 	done_lh (&lh);
 	if( to_read - f.length ) {
@@ -437,6 +458,7 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	return (to_read - f.length) ? (to_read - f.length) : result;
 }
 
+#ifdef NEW_READ_IS_READY
 unix_file_interfile_readahead(struct file * file, off, read_amount, coord)
 {
 
@@ -466,6 +488,8 @@ unix_file_interfile_readahead_amount(struct file * file, off, read_amount)
 				/* current generic guess.  More sophisticated code can come later in v4.1+. */
 	return 8;
 }
+
+#endif /* NEW_READ_IS_READY */
 
 
 /* these are write modes. Certain mode is chosen depending on resulting file
