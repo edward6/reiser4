@@ -1664,6 +1664,11 @@ static void reiser4_kill_super (struct super_block *s)
 
 	trace_on (TRACE_VFS_OPS, "kill_super\n");
 
+	/*
+	 * kludgey kludge.
+	 */
+	reiser4_current_trace_flags |= TRACE_PCACHE;
+
 	/* flushes transactions, etc. */
 	get_super_private (s)->lplug->release (s);
 
@@ -1677,6 +1682,11 @@ static void reiser4_kill_super (struct super_block *s)
 
 	/* no assertions below this line */
 	__REISER4_EXIT (&__context);
+
+	/*
+	 * end of kludgey kludge.
+	 */
+	reiser4_current_trace_flags &= ~TRACE_PCACHE;
 
 	kfree(s->u.generic_sbp);
 	s->u.generic_sbp = NULL;
