@@ -193,7 +193,7 @@ check_block_counters(const struct super_block *super)
  * counters.  This function should be called before bitmap scanning or
  * allocating fake block numbers
  *
- * @super           -- pointer on reiser4 super block;
+ * @super           -- pointer to reiser4 super block;
  * @min_block_count -- minimum number of blocks we reserve;
  * @max_block_count -- maximum number of blocks we want to reserve;
  * @reserved        -- out parameter for max. number of reserved blocks, 
