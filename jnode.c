@@ -623,7 +623,7 @@ do_jget(reiser4_tree * tree, struct page * pg)
 	 *
 	 * When page already exists, jnode is created
 	 * (jnode_of_page()->do_jget()) under page lock. This is done in
-	 * ->witepage(), or when capturing anonymous page dirtied through
+	 * ->writepage(), or when capturing anonymous page dirtied through
 	 * mmap.
 	 *
 	 * Jnode without page is created by index_extent_jnode().
