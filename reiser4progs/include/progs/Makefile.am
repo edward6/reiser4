@@ -1,1 +1,0 @@
-progsincludedir		= $(includedir)/progs
