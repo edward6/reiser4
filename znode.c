@@ -310,7 +310,7 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 /* ZNODE STRUCTURES */
 
 /* allocate fresh znode */
-static znode *
+znode *
 zalloc(int gfp_flag /* allocation flag */ )
 {
 	znode *node;
@@ -324,7 +324,7 @@ zalloc(int gfp_flag /* allocation flag */ )
    @node:    znode to initialize;
    @parent:  parent znode;
    @tree:    tree we are in. */
-static void
+void
 zinit(znode * node, const znode * parent, reiser4_tree * tree)
 {
 	assert("nikita-466", node != NULL);
@@ -334,7 +334,7 @@ zinit(znode * node, const znode * parent, reiser4_tree * tree)
 
 	assert("umka-051", tree != NULL);
 
-	jnode_init(&node->zjnode, tree);
+	jnode_init(&node->zjnode, tree, JNODE_FORMATTED_BLOCK);
 	reiser4_init_lock(&node->lock);
 	init_parent_coord(&node->in_parent, parent);
 	ON_DEBUG_MODIFY(node->cksum = 0);
