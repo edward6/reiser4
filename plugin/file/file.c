@@ -224,7 +224,10 @@ ok:
 
 /* update inode's timestamps and size. If any of these change - update sd as well */
 int
-update_inode_and_sd_if_necessary(struct inode *inode, loff_t new_size, int update_i_size, int do_update)
+update_inode_and_sd_if_necessary(struct inode *inode, 
+				 loff_t new_size, 
+				 int update_i_size, int update_times,
+				 int do_update)
 {
 	int result;
 	int inode_changed;
@@ -240,8 +243,8 @@ update_inode_and_sd_if_necessary(struct inode *inode, loff_t new_size, int updat
 		inode_changed = 1;
 	}
 	
-	if (inode->i_ctime.tv_sec != get_seconds() || 
-	    inode->i_mtime.tv_sec != get_seconds()) {
+	if (update_times && (inode->i_ctime.tv_sec != get_seconds() || 
+			     inode->i_mtime.tv_sec != get_seconds())) {
 		/* time stamps are to be updated */
 		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
 		inode_changed = 1;
@@ -511,7 +514,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 			/* -EAGAIN is a signal to interrupt a long file truncation process */
 			/* FIXME(Zam) cut_tree does not support that signaling.*/
 			result = update_inode_and_sd_if_necessary
-				(inode, get_key_offset(&smallest_removed), 1, update_sd);
+				(inode, get_key_offset(&smallest_removed), 1, 1, update_sd);
 			if (result)
 				break;
 
@@ -524,7 +527,7 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 			break;
 
 		/* Final sd update after the file gets its correct size */
-		result = update_inode_and_sd_if_necessary(inode, new_size, 1, update_sd);
+		result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, update_sd);
 		break;
 	}
 
@@ -681,7 +684,7 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 			if (update_sd) {
 				result = setattr_reserve(tree_by_inode(inode));
 				if (!result)
-					result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1);
+					result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1, 1);
 				all_grabbed2free(__FUNCTION__);
 			}
 		}

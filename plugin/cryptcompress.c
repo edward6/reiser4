@@ -1232,6 +1232,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		result = update_inode_and_sd_if_necessary(inode,
 							  get_key_offset(&f.key),
 							  (get_key_offset(&f.key) > inode->i_size) ? 1 : 0,
+							  1, 
 							  1/* update stat data */);
 		if (result)
 			goto exit1;

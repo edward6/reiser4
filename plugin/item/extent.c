@@ -2748,7 +2748,7 @@ extent_write_hole(struct inode *inode, flow_t *flow, hint_t *hint, int grabbed)
 	hint->coord.valid = 0;
 	if (!result) {
 		done_lh(hint->coord.lh);
-		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update i_size*/, 1/* update stat data */);
+		result = update_inode_and_sd_if_necessary(inode, new_size, 1/*update i_size*/, 1, 1/* update stat data */);
 	}
 	if (!grabbed)
 		all_grabbed2free("extent_write_hole");
