@@ -332,7 +332,8 @@ common_create_child(struct inode *parent /* parent object */ ,
 		    struct dentry *dentry /* new name */ ,
 		    reiser4_object_create_data * data	/* parameters
 							 * of new
-							 * object */ )
+							 * object */,
+		    struct inode ** retobj)
 {
 	int result;
 
@@ -370,7 +371,8 @@ common_create_child(struct inode *parent /* parent object */ ,
 	/* we'll update i_nlink below */
 	object->i_nlink = 0;
 
-	dentry->d_inode = object;   /* So that on error iput will be called. */
+	/* So that on error iput will be called. */
+	*retobj = object;
 
 	if (DQUOT_ALLOC_INODE(object)) {
 		DQUOT_DROP(object);
@@ -469,12 +471,9 @@ common_create_child(struct inode *parent /* parent object */ ,
 			   reiser4_add_nlink() */
 			if (result == 0)
 				result = update_dir(parent);
-			if (result != 0) {
+			if (result != 0)
 				/* cleanup failure to update times */
-				dentry->d_inode = object;
 				par_dir->rem_entry(parent, dentry, &entry);
-				dentry->d_inode = NULL;
-			}
 		}
 		if (result != 0)
 			/* cleanup failure to add entry */

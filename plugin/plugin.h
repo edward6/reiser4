@@ -193,7 +193,8 @@ typedef struct file_plugin {
 	int (*adjust_to_parent) (struct inode * object, struct inode * parent, struct inode * root);
 	/* this does whatever is necessary to do when object is created. For
 	   instance, for ordinary files stat data is inserted */
-	int (*create) (struct inode * object, struct inode * parent, reiser4_object_create_data * data);
+	int (*create) (struct inode * object, struct inode * parent, 
+		       reiser4_object_create_data * data);
 	/* delete empty object. This method should check REISER4_NO_SD
 	   and set REISER4_NO_SD on success. Deletion of empty object
 	   at least includes removal of stat-data if any. For directories this
@@ -265,7 +266,10 @@ typedef struct dir_plugin {
 
 	/* create new object described by @data and add it to the @parent
 	   directory under the name described by @dentry */
-	int (*create_child) (struct inode * parent, struct dentry * dentry, reiser4_object_create_data * data);
+	int (*create_child) (struct inode * parent, 
+			     struct dentry * dentry, 
+			     reiser4_object_create_data * data,
+			     struct inode ** retobj);
 
 	/* readdir implementation */
 	int (*readdir) (struct file * f, void *cookie, filldir_t filldir);

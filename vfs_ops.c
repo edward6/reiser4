@@ -1184,12 +1184,10 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 		result = -ENOTDIR;
 	else if (dplug->create_child != NULL) {
 		struct inode *child;
-		
-		result = dplug->create_child(parent, dentry, data);
-		child = dentry->d_inode;
+
+		result = dplug->create_child(parent, dentry, data, &child);
 		if (unlikely(result != 0)) {
 			if (child != NULL) {
-				dentry->d_inode = NULL;
 				reiser4_make_bad_inode(child);
 				iput(child);
 			}
@@ -1198,7 +1196,6 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 			trace_on(TRACE_VFS_OPS, "create: %s (%o) %llu\n",
 				 dentry->d_name.name, data->mode, get_inode_oid(child));
 		}
-		
 	} else
 		result = -EPERM;
 
