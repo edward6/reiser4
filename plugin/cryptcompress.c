@@ -659,7 +659,8 @@ static int
 __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 {
 	int result = 0;
-	int reserved = 0;
+	int prepped = 0;
+	int unprepped = 0;
 	
 	assert("edward-965", schedulable());
 	assert("edward-439", inode != NULL);
@@ -674,18 +675,18 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 	}
 	assert("edward-442", jprivate(clust->pages[0]) != NULL);
 	
-	reserved = estimate_insert_cluster(inode, 0/* prepped */);
-	result = reiser4_grab_space_force(reserved, BA_CAN_COMMIT);
+	prepped =   estimate_insert_cluster(inode, 0);
+	unprepped = estimate_insert_cluster(inode, 1);
+	result = reiser4_grab_space_force(prepped + unprepped, BA_CAN_COMMIT);
 	if (result)
 		return result;
 	clust->reserved = 1;
-	grabbed2cluster_reserved(reserved);
-	all_grabbed2free();
+	grabbed2cluster_reserved(prepped);
 	
 #if REISER4_DEBUG
 	{
 		reiser4_context * ctx = get_current_context();
-		assert("edward-966", ctx->grabbed_blocks == 0);
+		assert("edward-966", ctx->grabbed_blocks == unprepped);
 	}
 #endif
 	return 0;
@@ -727,8 +728,8 @@ find_cluster_item(hint_t * hint,
 	
 	if (hint->coord.valid) {
 		/* The caller is find_disk_cluster()
-		   or get_disk_cluster_locked (if we write 
-		   the rest of the flow to the next cluster).
+		   or get_disk_cluster_locked (if disk cluster was fake, or
+		   we write the rest of the flow to the next cluster).
 		*/
 		assert("edward-709", znode_is_any_locked(coord->node));
 
@@ -756,6 +757,7 @@ find_cluster_item(hint_t * hint,
 				       get_dc_item_stat(hint) == DC_FIRST_ITEM ||
 				       get_dc_item_stat(hint) == DC_CHAINED_ITEM);
 				zrelse(coord->node);
+				longterm_unlock_znode(hint->coord.lh);
 				goto traverse_tree;
 			}
 			assert("edward-1098", item_id_by_coord(coord) == CTAIL_ID);
@@ -787,8 +789,8 @@ find_cluster_item(hint_t * hint,
 				return CBK_COORD_FOUND;
 			}
 			zrelse(coord->node);
+		case DC_INVALID_STATE:	
 			return CBK_COORD_NOTFOUND;
-			break;
 		default:
 			impossible("edward-1100", "bad disk cluster state");
 		}
@@ -1859,8 +1861,9 @@ find_cluster(reiser4_cluster_t * clust,
 	assert("edward-226", schedulable());
 	assert("edward-137", inode != NULL);
 	assert("edward-729", crc_inode_ok(inode));
-	assert("edward-474", get_current_context()->grabbed_blocks == 0);
-
+	assert("edward-474", ergo(clust->reserved,
+				  get_current_context()->grabbed_blocks ==
+				  estimate_insert_cluster(inode, 1)));
 	hint = clust->hint;
 	cl_idx = clust->index;
 	fplug = inode_file_plugin(inode);
@@ -1895,6 +1898,8 @@ find_cluster(reiser4_cluster_t * clust,
 				/* first item not found, this is treated
 				   as disk cluster is absent */
 				clust->dstat = FAKE_DISK_CLUSTER;
+				/* crc_validate_extended_coord */;
+				hint->coord.valid = 1;
 				result = 0;
 				goto out2;
 			}
@@ -1934,27 +1939,32 @@ find_cluster(reiser4_cluster_t * clust,
 	set_dc_item_stat(clust->hint, DC_AFTER_CLUSTER);
 	clust->dstat = REAL_DISK_CLUSTER;
 	set_hint_cluster(inode, clust->hint, clust->index + 1, write ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK);
-	all_grabbed2free();
+	if (write)
+		grabbed2free(get_current_context(), 
+			     get_super_private(get_current_context()->super), 
+			     get_current_context()->grabbed_blocks - estimate_insert_cluster(inode, 1));
 	return 0;
  out:
 	zrelse(hint->coord.base_coord.node);
  out2:
-	all_grabbed2free();
+	if (write)
+		grabbed2free(get_current_context(), 
+			     get_super_private(get_current_context()->super), 
+			     get_current_context()->grabbed_blocks - estimate_insert_cluster(inode, 1));
 	return result;
 }
 
 reiser4_internal int
-get_disk_cluster_locked(reiser4_cluster_t * clust, znode_lock_mode lock_mode)
+get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode, 
+			znode_lock_mode lock_mode)
 {
 	reiser4_key key;
 	ra_info_t ra_info;
-	struct inode * inode;
-
+	
 	assert("edward-730", schedulable());
 	assert("edward-731", clust != NULL);
-	assert("edward-732", clust->file != NULL);
+	assert("edward-732", inode != NULL);
 
-	inode = clust->file->f_dentry->d_inode;
 	key_by_inode_cryptcompress(inode, clust_to_off(clust->index, inode), &key);
 	ra_info.key_to_stop = key;
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
@@ -1979,7 +1989,9 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 
 	iplug = item_plugin_by_id(CTAIL_ID);
 
-	assert("edward-733", get_current_context()->grabbed_blocks == 0);
+	assert("edward-733", ergo(clust->reserved, 
+				  get_current_context()->grabbed_blocks == 
+				  estimate_insert_cluster(inode, 1)));
 	assert("edward-924", !tfm_cluster_is_uptodate(&clust->tc));
 
 #if REISER4_DEBUG
@@ -2086,9 +2098,13 @@ crc_make_unprepped_cluster (reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-739", crc_inode_ok(inode));
 	assert("edward-1053", clust->hint != NULL);
 	
-	if (!should_create_unprepped_cluster(clust, inode))
+	if (!should_create_unprepped_cluster(clust, inode)) {
+		assert("edward-1165", ergo(clust->reserved, 
+					  get_current_context()->grabbed_blocks == 
+					  estimate_insert_cluster(inode, 1)));
+		all_grabbed2free();
 		return 0;	
-	
+	}
 	result = ctail_make_unprepped_cluster(clust, inode);
 	if (result)
 		return result;
@@ -2800,7 +2816,9 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 	int result;
 	cloff_t aidx; /* appended index to the last actual one */
 	loff_t old_size = inode->i_size;
-	
+
+	assert("edward-1167", (new_size != old_size) || (!new_size && !old_size));
+
 	result = find_actual_cloff(inode, &aidx);
 	if (result)
 		return result;
@@ -2810,7 +2828,7 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 		if (old_size > new_size) {
 			cloff_t start;
 			start = count_to_nrclust(new_size, inode);
-			
+
 			truncate_pg_clusters(inode, start);
 			assert("edward-663", ergo(!new_size,
 						  reiser4_inode_data(inode)->anonymous_eflushed == 0 &&
@@ -2887,7 +2905,10 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index)
 	hint.coord.lh = &lh;	
 	reiser4_cluster_init(&clust, 0);
 	clust.hint = &hint;
-	
+
+	result = alloc_cluster_pgset(&clust, cluster_nrpages(mapping->host));
+	if (result)
+		goto out;
 	to_capture = (__u32)CAPTURE_APAGE_BURST >> inode_cluster_shift(mapping->host);
 	
 	do {
@@ -2927,7 +2948,7 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index)
 			 "capture anonymous: oid %llu: end index %lu, captured %u\n",
 			 get_inode_oid(mapping->host), *index, CAPTURE_APAGE_BURST - to_capture);
 	}
-
+ out:
 	done_lh(&lh);
 	put_cluster_handle(&clust, TFM_READ);
 	return result;
@@ -2952,8 +2973,6 @@ capture_cryptcompress(struct inode *inode, const struct writeback_control *wbc)
 
 	if (!crc_inode_has_anon_pages(inode))
 		return 0;
-	
-	assert("edward-1129", 0);
 	
 	info = cryptcompress_inode_data(inode);
 	
@@ -2994,17 +3013,6 @@ capture_cryptcompress(struct inode *inode, const struct writeback_control *wbc)
 	return result;
 }
 
-static inline void
-validate_crc_extended_coord(uf_coord_t *uf_coord, loff_t offset)
-{
-	assert("edward-418", uf_coord->valid == 0);
-	assert("edward-419", item_plugin_by_coord(&uf_coord->base_coord)->s.file.init_coord_extension);
-
-	/* FIXME: */
-	item_body_by_coord(&uf_coord->base_coord);
-	item_plugin_by_coord(&uf_coord->base_coord)->s.file.init_coord_extension(uf_coord, offset);
-}
-
 /* plugin->u.file.mmap */
 reiser4_internal int
 mmap_cryptcompress(struct file * file, struct vm_area_struct * vma)
@@ -3027,7 +3035,8 @@ get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head 
 		hint_t hint;
 		lock_handle lh;
 		item_plugin *iplug;
-
+		
+		assert("edward-1166", 0);
 		assert("edward-420", create == 0);
 		key_by_inode_cryptcompress(inode, (loff_t)block * current_blocksize, &key);
 		init_lh(&lh);
@@ -3048,7 +3057,7 @@ get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head 
 		assert("edward-421", iplug == item_plugin_by_id(CTAIL_ID));
 
 		if (!hint.coord.valid)
-			validate_crc_extended_coord(&hint.coord,
+			crc_validate_extended_coord(&hint.coord,
 						(loff_t) block << PAGE_CACHE_SHIFT);
 		if (iplug->s.file.get_block)
 			result = iplug->s.file.get_block(&hint.coord.base_coord, block, bh_result);
