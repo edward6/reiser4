@@ -255,6 +255,7 @@ extern void jnode_attach_page_nolock( jnode *node, struct page *pg );
 extern void jnode_attach_page( jnode *node, struct page *pg );
 extern jnode *page_detach_jnode( struct page *page );
 extern void jnode_detach_page( jnode *node );
+extern void break_page_jnode_linkage( struct page *page, jnode *node );
 
 /** return true if "node" is dirty, node is unlocked */
 static inline int jnode_check_dirty( jnode *node )

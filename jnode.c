@@ -288,7 +288,7 @@ void jnode_attach_page( jnode *node, struct page *pg )
 }
 
 /* Audited by: umka (2002.06.15) */
-static void break_page_jnode_linkage( struct page *page, jnode *node )
+void break_page_jnode_linkage( struct page *page, jnode *node )
 {
 	assert( "nikita-2063", page != NULL );
 	assert( "nikita-2064", node != NULL );
