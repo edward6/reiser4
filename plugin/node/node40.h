@@ -34,8 +34,8 @@ typedef struct node_header_40 {
 	/** 1 is leaf level, 2 is twig level, root is the numerically largest
 	 * level */
 	d8	       level;
-/* commented out uncommented field */
- /* 	d32	       magic; */
+	/** magic field we need to tell formatted nodes */
+  	d32	       magic;
 	/** number of items --- is it too large? Probably.  */
 	d16           num_items;
 	/** node flags to be used by fsck (reiser4ck or reiser4fsck?)

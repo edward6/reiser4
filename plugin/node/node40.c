@@ -838,14 +838,14 @@ int node40_create_item (new_coord * target, const reiser4_key * key,
 		data->iplug->common.paste (target, data, todo);
 	}
 	else if (data->data != NULL) {
-		if (data->user)
+		if (data->user) {
 			/* AUDIT: Are we really should not check that pointer from userspace was valid and data bytes were available? How will we return -EFAULT of some kind without this check? */
 			assert( "green-2", lock_counters() -> spin_locked == 0 );
 			/* copy data from user space */
 			__copy_from_user (zdata (target->node) + offset,
 					  data->data, 
 					  (unsigned)data->length);
-		else
+		} else
 			/* copy from kernel space */
 			xmemcpy (zdata (target->node) + offset, data->data,
 				 (unsigned)data->length);

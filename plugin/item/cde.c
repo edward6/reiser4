@@ -295,7 +295,6 @@ static int paste_entry( const new_coord *coord /* coord of item */,
 	   Also a more major thing is that there should be a way to figure out
 	   amount of space in dent -> name and be able to check that we are
 	   not going to overwrite more than we supposed to */
-	*/
 	strcpy( ( char * ) dent -> name, entry -> name -> name );
 	cputod8( 0, &dent -> name[ entry -> name -> len ] );
 	return 0;
@@ -334,7 +333,9 @@ int cde_estimate( const new_coord *coord /* coord of item */,
 	for( i = 0 ; i < e -> num_of_entries ; ++i )
 		/* AUDIT Huh?! Why to use expensive strlen() thing if there is
 		   ...name -> len already? */
-		result += strlen( e -> entry[ i ].name -> name ) + 1;
+		assert( "nikita-2054", 
+			strlen( e -> entry[ i ].name -> name ) == e -> entry[ i ].name -> len );
+		result += e -> entry[ i ].name -> len + 1;
 	( ( reiser4_item_data * ) data ) -> length = result;
 	return result;
 }
@@ -367,7 +368,7 @@ reiser4_key *cde_unit_key( const new_coord *coord /* coord of item */,
 /**
  * cde_mergeable(): implementation of ->mergeable() item method.
  *
- * Two directory items are mergeable if they are from the same
+ * Two directory items are mergeable iff they are from the same
  * directory. That simple.
  *
  */
