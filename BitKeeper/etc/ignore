@@ -95,6 +95,7 @@ josh-test.2
 josh-test.4
 josh-test.5
 josh-test.6
+josh-test.7
 kernel.loop
 mkfs
 oid.c.old
@@ -139,6 +140,7 @@ plugin/space/.bitmap.o.cmd
 plugin/space/.built-in.o.cmd
 plugin/space/.space_allocator.o.cmd
 plugin/space/.test.o.cmd
+print
 read
 read-test
 read.c
@@ -733,3 +735,6 @@ testdir/file
 testdir/s1/file
 ulevel/#ulevel.h#
 vs-pub-key
+write-test
+write-test.1
+write-test.2
