@@ -603,10 +603,10 @@ forget_znode(lock_handle * handle)
 	assert("vs-164", znode_is_write_locked(node));
 	assert("nikita-1280", ZF_ISSET(node, JNODE_HEARD_BANSHEE));
 
-	write_lock_tree(tree);
+	WLOCK_TREE(tree);
 	sibling_list_remove(node);
 	znode_remove(node, tree);
-	write_unlock_tree(tree);
+	WUNLOCK_TREE(tree);
 
 	invalidate_lock(handle);
 	uncapture_page(znode_page(node));
