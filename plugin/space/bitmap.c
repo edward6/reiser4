@@ -63,12 +63,16 @@ static int reiser4_find_next_zero_bit (void * addr, int size, int start_offset)
 		nr = find_next_zero_bit_in_byte(*p, bit_nr);
 
 		if (nr < 8) return (byte_nr << 3) + nr;
+
+		++ byte_nr;
 	}
 
-	while (++ byte_nr < max_byte_nr) {
+	while (byte_nr < max_byte_nr) {
 		if (*(++p) != 0xFF) {
 			return (byte_nr << 3) + find_next_zero_bit_in_byte(*p, 0);
 		}
+
+		++ byte_nr;
 	}
 
 	return size;
@@ -91,12 +95,16 @@ static int reiser4_find_next_set_bit (void * addr, int size, int start_offset)
 		nr = find_next_zero_bit_in_byte(~ (unsigned int) (*p), bit_nr);
 
 		if (nr < 8) return (byte_nr << 3) + nr;
+
+		++ byte_nr;
 	}
 
-	while (++ byte_nr < max_byte_nr) {
+	while (byte_nr < max_byte_nr) {
 		if (*(++p) != 0) {
 			return (byte_nr << 3) + find_next_zero_bit_in_byte(~ (unsigned int) (*p), 0);
 		}
+
+		++ byte_nr;
 	}
 
 	return size;
@@ -441,7 +449,7 @@ int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_
 	int len;
 
 	struct super_block * super = get_current_context()->super;
-	int max_offset = super->s_blocksize;
+	int max_offset = super->s_blocksize * 8;
 
 	parse_blocknr(start, &bmap, &offset);
 	parse_blocknr(end, &end_bmap, &end_offset);
@@ -494,11 +502,7 @@ int bitmap_alloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	 * @start to the end of the disk */
 
 	search_start = hint->blk;
-	search_end   = hint->blk + *len;
-
-	if (search_end > reiser4_block_count (super)) {
-		search_end = reiser4_block_count (super);
-	}
+	search_end   = reiser4_block_count(super);
 
 	actual_len = bitmap_alloc (&search_start, &search_end, 1, needed);
 

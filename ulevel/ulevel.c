@@ -3939,7 +3939,7 @@ static int bm_test_read_node (const reiser4_block_nr *addr, char **data, size_t 
 
 		if (*data == NULL) return -ENOMEM;
 
-		xmemset(*data, '0', blksz);
+		xmemset(*data, 0, blksz);
 		set_bit(offset, (long*)*data);
 
 	} else {
