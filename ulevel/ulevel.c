@@ -3536,7 +3536,6 @@ static int bash_mkfs (char * file_name)
 		/* initialize empty tree */
 		tree = &get_super_private( &super ) -> tree;
 		init_formatted_fake( &super );
-		init_tree_ops( tree, &super, /*&mkfs_tops*/ &page_cache_tops);
 		result = init_tree( tree, &root_block,
 				    1/*tree_height*/, node_plugin_by_id( NODE40_ID ));
 
