@@ -350,6 +350,10 @@ void get_working_bitmap_blocknr (bmap_nr_t bmap, reiser4_block_nr *bnr)
 
 /** Load node at given blocknr, update given pointer. This function should be
  * called under bnode spin lock held */
+/* AUDIT (green) I think it incorrect that in caqse of loading failure 
+   load_bnode_half and load_and_lock_bnode still returns locked bnode. It should
+   only return locked bnode on success. So that caller can immediattely exit
+   on failure without unlocking bnode first */
 static int load_bnode_half (struct bnode * bnode, char ** data, reiser4_block_nr *block)
 {
 	struct super_block * super = get_current_context() -> super;
