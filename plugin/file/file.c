@@ -202,7 +202,6 @@ write_mode how_to_write(coord_t * coord, lock_handle * lh, const reiser4_key * k
 
 	if (!less_than_rdk(coord->node, key)) {
 		print_key("writing key", key);
-		info("how_to_write: !less than rdk\n");
 		zrelse(coord->node);
 		return RESEARCH;
 	}
