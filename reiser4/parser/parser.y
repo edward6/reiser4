@@ -454,97 +454,97 @@ asynchronous_list
 /* hte ASSIGNMENT operator mast be have a value: bytes to written */
 
 assignment          
-:  Object_Name L_ASSIGN       Expression                { assign( $1, $3 ); }  /*  <-  direct assigne  */
-|  Object_Name L_ASSIGN INV_L Expression INV_R          { assign_invert( $1, $4 ); }/*  <-  invert assign. destination mast have ..invert method  */
-|  Object_Name L_SYMLINK      Expression                { symlink( $1, $3 ); }/*   ->  symlink   */
+:  Object_Name L_ASSIGN       Expression                { $$ = assign( $1, $3 ); }            /*  <-  direct assigne  */
+|  Object_Name L_ASSIGN INV_L Expression INV_R          { $$ = assign_invert( $1, $4 ); }     /*  <-  invert assign. destination mast have ..invert method  */
+|  Object_Name L_SYMLINK      Expression                { $$ = symlink( $1, $3 ); }           /*   ->  symlink   */
 
 
 Expression          
-: Object_Name
-| op_level assignment ')'                                { level_down( OP_LEVEL );}/*  this expresion has value written bytes       */
-| Constant                                               { $$ = $1; }
-| Expression '+' Expression                              { $$ = connect_expression( $1,  $3 ); }
-| Expression EQ Expression                               { $$ = compare_expression( $1, $2, $3 ); }
-| Expression NE Expression                               { $$ = compare_expression( $1, $2, $3 ); }
-| Expression LE Expression                               { $$ = compare_expression( $1, $2, $3 ); }
-| Expression GE Expression                               { $$ = compare_expression( $1, $2, $3 ); }
-| Expression LT Expression                               { $$ = compare_expression( $1, $2, $3 ); }
-| Expression GT Expression                               { $$ = compare_expression( $1, $2, $3 ); }
+: Object_Name                                           {}
+| op_level assignment ')'                               { $$ = $2; level_down( OP_LEVEL );}/*  this expresion mast have value of written bytes    */
+| Constant                                              { $$ = $1; }
+| Expression '+' Expression                             { $$ = connect_expression( $1,  $3 ); }
+| Expression EQ Expression                              { $$ = compare_expression( $1, $2, $3 ); }
+| Expression NE Expression                              { $$ = compare_expression( $1, $2, $3 ); }
+| Expression LE Expression                              { $$ = compare_expression( $1, $2, $3 ); }
+| Expression GE Expression                              { $$ = compare_expression( $1, $2, $3 ); }
+| Expression LT Expression                              { $$ = compare_expression( $1, $2, $3 ); }
+| Expression GT Expression                              { $$ = compare_expression( $1, $2, $3 ); }
 /*                    | Expression IS pattern   */
-| Expression OR  Expression                              { $$ = compare_expression( $1, $2, $3 ); }
-| Expression AND Expression                              { $$ = compare_expression( $1, $2, $3 ); }
-| NOT '(' Expression ')'                                 { $$ = not_expression( $3 ); }
-| op_level Expression ')'                                { $$ = $2; level_down( OP_LEVEL ); }
-| EXIST Object_Name                                      { $$ = check_exist( $2 ); }
+| Expression OR  Expression                             { $$ = compare_expression( $1, $2, $3 ); }
+| Expression AND Expression                             { $$ = compare_expression( $1, $2, $3 ); }
+| NOT '(' Expression ')'                                { $$ = not_expression( $3 ); }
+| op_level Expression ')'                               { $$ = $2; level_down( OP_LEVEL ); }
+| EXIST Object_Name                                     { $$ = check_exist( $2 ); }
 ;
 
 if_statement        
-: if_Expression Then_Else                { make_end_label(); level_down(IF_STATEMENT);}
+: if_Expression Then_Else                               { $$ = $1; make_end_label(); level_down(IF_STATEMENT);}
 
 if_Expression 
-: if Expression                         { goto_if_false( $1-1, $2 ); }
+: if Expression                                         { $$ = $2; goto_if_false( $1-1, $2 ); }
 
-if: IF                                  { level_up( IF_STATEMENT ); $$ = reserv_label( 2 ); }
+if: IF                                                  { level_up( IF_STATEMENT ); $$ = reserv_label( 2 ); }
 
 Then_Else           
 : then_operation           
 | then_operation else operation
 
 then_operation
-: THEN operation                       { goto_end();}
+: THEN operation                                        { goto_end();}
 ;
 
 else
-: ELSE                                { else_lab();}
+: ELSE                                                  { else_lab();}
 ;
 
 /* Object name begin */
 Object_Name
-: Object_Path_Name 
-| Object_Path_Name SLASH3 range_type
-| '[' Unordered_list ']'                                                            /* gruping: [name1 name2 [name3]]  */
+: Object_Path_Name                                      {}
+| Object_Path_Name SLASH3 range_type                    {}
+| '[' Unordered_list ']'                                {}                            /* gruping: [name1 name2 [name3]]  */
 ;
 
 Unordered_list
-: Object_Name
-| P_RUNNER
-| Unordered_list SP Unordered_list
+: Object_Name                                           {}
+| P_RUNNER                                              {}
+| Unordered_list SP Unordered_list                      {}
 ;
 
 Object_Path_Name
-: SLASH Object_relative_Name                                           /* /foo */
-| SLASH PROCESS                                                        /* /??? */
-| Object_relative_Name                                                 /* foo  */
+: SLASH Object_relative_Name                            {}               /* /foo */
+| SLASH PROCESS                                         {}               /* /??? */
+| Object_relative_Name                                  {}               /* foo  */
 ;
 
 Object_relative_Name
-: Object_sub_Name
-| Object_relative_Name  SLASH Object_sub_Name                        /* foo/bar/baz */
+: Object_sub_Name                                       {}
+| Object_relative_Name  SLASH Object_sub_Name           {}             /* foo/bar/baz */
 ;
 
 Object_sub_Name
-:  WORD                                                              /* foo */
+:  WORD                                                 {}             /* foo */
 ;
 
 range_type
-:  RANGE SLASH L_PAREN range_set R_PAREN                             /* /..range/(offset<-12345,p_bytes_written<-0xff001258,...) */
-|  STAT SLASH WORD                                                   /* /..stat/atime */
-|  STAT                                                              /* /..stat */
+:  RANGE SLASH L_PAREN range_set R_PAREN                {}             /* /..range/(offset<-12345,p_bytes_written<-0xff001258,...) */
+|  STAT SLASH WORD                                      {}             /* /..stat/atime */
+|  STAT                                                 {}             /* /..stat */
 ;
 
 range_set
-: range
-| range_set ',' range
+: range                                                 {}
+| range_set ',' range                                   {}
 ;
 
 range
-: OFFSET  L_ASSIGN N_WORD                                                     /*offset<-12345*/
-| OFFSET_BACK  L_ASSIGN N_WORD                                                /*offset_back<-12345*/
-| FIRST  L_ASSIGN N_WORD                                                      /*first_byte<-123456*/
-| LAST  L_ASSIGN N_WORD                                                       /*last_byte<-123456*/
-| P_BYTES_WRITTEN  L_ASSIGN P_WORD                                            /*p_bytes_written<-0xff001258*/
-| P_BYTES_READ  L_ASSIGN P_WORD                                               /*p_bytes_read<-0xff001258*/
-| BYTES                                                                       /*p_units<-bytes*/
+: OFFSET  L_ASSIGN N_WORD                               {}                      /*offset<-12345*/
+| OFFSET_BACK  L_ASSIGN N_WORD                          {}                      /*offset_back<-12345*/
+| FIRST  L_ASSIGN N_WORD                                {}                      /*first_byte<-123456*/
+| LAST  L_ASSIGN N_WORD                                 {}                      /*last_byte<-123456*/
+| P_BYTES_WRITTEN  L_ASSIGN P_WORD                      {}                      /*p_bytes_written<-0xff001258*/
+| P_BYTES_READ  L_ASSIGN P_WORD                         {}                      /*p_bytes_read<-0xff001258*/
+| BYTES                                                 {}                      /*p_units<-bytes*/
 /*                    | LINES                                                                       /*p_units<-lines*/
 ;
 
