@@ -12,7 +12,7 @@ tmp.o: tmp.c  lex.yy.c y.tab.c
 	cc -c -O tmp.c
 
 y.tab.c: parser.y
-	yacc -v parser.y
+	./yacc -v parser.y
 
 lex.yy.c: lex.l
 	lex -v lex.l
