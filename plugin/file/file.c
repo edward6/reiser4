@@ -162,11 +162,11 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 
 		/* look for file metadata corresponding to position we read
 		 * from */
-		if (finding_first_item && inode contains unbroken seal) {
+		if (finding_first_item && inode contains valid seal for where we want to write) {
 			use seal pointed to by struct file to try to find first item;
 		}
 				/* on entry, lh should be lock on current node, on exit lh should be lock of node for item found */
-		result = next_item_by_seal_and_key(&f.key, &coord, &lh,
+		result = next_item_by_locked_coord_of_current_item_and_key(&f.key, &coord, &lh,
 						   ZNODE_READ_LOCK, coord_of_current_item);
 #endif
 		result = find_item (&f.key, &coord, &lh,
