@@ -141,7 +141,14 @@ extern ino_t oid_to_ino(oid_t oid) __attribute__ ((const));
 extern ino_t oid_to_uino(oid_t oid) __attribute__ ((const));
 
 extern reiser4_tree *tree_by_inode(const struct inode *inode);
-extern reiser4_inode *reiser4_inode_data(const struct inode *inode);
+/* return pointer to reiser4-specific part of inode */
+static inline reiser4_inode *
+reiser4_inode_data(const struct inode * inode /* inode queried */)
+{
+	assert("nikita-254", inode != NULL);
+	return &container_of(inode, reiser4_inode_object, vfs_inode)->p;
+}
+
 extern int reiser4_max_filename_len(const struct inode *inode);
 extern int max_hash_collisions(const struct inode *dir);
 extern inter_syscall_rap *inter_syscall_ra(const struct inode *inode);

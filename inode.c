@@ -21,15 +21,6 @@
 
 #include <linux/fs.h>		/* for struct super_block,  address_space */
 
-/* return pointer to reiser4-specific part of inode */
-/* Audited by: green(2002.06.17) */
-reiser4_inode *
-reiser4_inode_data(const struct inode * inode /* inode queried */)
-{
-	assert("nikita-254", inode != NULL);
-	return &container_of(inode, reiser4_inode_object, vfs_inode)->p;
-}
-
 /* return reiser4 internal tree which inode belongs to */
 /* Audited by: green(2002.06.17) */
 reiser4_tree *
