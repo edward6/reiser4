@@ -883,6 +883,7 @@ done_load_count(load_count * dh)
 	if (dh->node != NULL) {
 		for (; dh->d_ref > 0; --dh->d_ref)
 			zrelse(dh->node);
+		dh->node = NULL;
 	}
 }
 
