@@ -68,6 +68,13 @@ static void   invalidate_clean_list           (txn_atom * atom);
 void          print_atom                      (const char *prefix,
 					       txn_atom   *atom);
 
+/* The jnode_real_level() function was originally added for a very good purpose, and then
+ * the reason for it to be added was taken away, thus the function now does exactly the
+ * same thing as jnode_get_level.  What it used to do was subtract one from the level
+ * because LEAF_LEVEL == 1 and all nodes should be higher than the leaf level.  In the
+ * txnmgr there are per-level arrays and it was a slight waste of space to never use index
+ * 0, thus the subtraction.  However, the transaction code was modified to also capture
+ * the fake znode, which has level 0, so this code now does nothing special. */
 /* Audited by: umka (2002.06.13) */
 static inline unsigned jnode_real_level (jnode *node)
 {
@@ -100,13 +107,14 @@ TS_LIST_DEFINE(fwaiting,txn_wait_links,_fwaiting_link);
 static kmem_cache_t *_atom_slab = NULL;
 static kmem_cache_t *_txnh_slab = NULL; /* FIXME_LATER_JMACD Will it be used? */
 
+ON_DEBUG (extern atomic_t flush_cnt;)
+
 /*****************************************************************************************
 				       TXN_INIT
 *****************************************************************************************/
 
 /* Initialize static variables in this file. */
 /* Audited by: umka (2002.06.13) */
-extern atomic_t flush_cnt;
 int
 txn_init_static (void)
 {

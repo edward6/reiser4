@@ -177,7 +177,8 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
  */
 #define REISER4_MAX_MULTI_SEARCH (4)
 
-/* FIXME: Make these mount options. */
+/* FIXME: JMACD->? Make these flush-tunables into mount options. */
+
 /* If flush finds more than FLUSH_RELOCATE_THRESHOLD adjacent dirty leaf-level blocks it
  * will force them to be relocated. */
 #define FLUSH_RELOCATE_THRESHOLD 64
@@ -192,6 +193,11 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
    this jnode will be clean already, and we will save some seeks. */
 #define FLUSH_WRITTEN_THRESHOLD 50
 
+/**
+ * The maximum number of nodes to scan left on a level during flush.
+ */
+#define FLUSH_SCAN_MAXNODES 10000
+
 /* 
  * what size units of IO we would like cp, etc., to use, in writing to
  * reiser4. In 512 byte blocks.
@@ -201,11 +207,6 @@ extern const int REISER4_MAGIC_OFFSET; /* offset to magic string from the
 /* AUDIT: THIS CALCULATION IS INCORRECT. stat(2) returns optimal i/o blocksize
    in bytes */
 #define REISER4_OPTIMAL_IO_SIZE( super, inode ) ((64 * 1024) >> VFS_BLKSIZE_BITS)
-
-/**
- * The maximum number of nodes to scan left on a level during flush.
- */
-#define REISER4_FLUSH_SCAN_MAXNODES 10000
 
 /**
  * Number of hashed spinlocks used to protect page-to-jnode linkage

@@ -1,17 +1,11 @@
 /* Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
  */
 
-/* The design document for this file is at www.namesys.com/flush-alg.html.
- * Note on abbreviation: "squeeze and allocate" == "squalloc" */
+/* The design document for this file is at www.namesys.com/flush-alg.html. */
 
 #include "reiser4.h"
 
-/* JMACD-FIXME: Comments are out of date and missing in this file. */
-
-#define USE_RAPID_SCAN 0
-
-/* JMACD-FIXME-HANS: Please describe how you plan to implement a repacker and resizer using this flush code (1-2
- * paragraphs)
+/* On repacking and resizing:
  *
  * Is the purpose of a resizer to move blocks from their current positions in areas of the
  * disk that are being reclaimed?  I don't think flush will participate in that process.
@@ -26,31 +20,55 @@
  * defining the criteria used to select blocks for repacking.
  */
 
-/* The flush_scan data structure maintains the state of an in-progress flush
- * scan on a single level of the tree. */
+/* The following RAPID_SCAN define disables the partially-implemented rapid_scan option to
+ * flush.  Eventually, after a little more work this can be experimented with as a mount
+ * option.  It enables a more expansize/agressive flushing--Hans is concerned that this
+ * may lead to "precipitation".  The flush algorithm works with or without rapid_scan, and
+ * acts more conservatively without it. */
+#define USE_RAPID_SCAN 0
+
+/* The flush_scan data structure maintains the state of an in-progress flush-scan on a
+ * single level of the tree.  A flush-scan is used for counting the number of adjacent
+ * nodes to flush, which is used to determine whether we should relocate, and it is also
+ * used to find a starting point for flush.  A flush-scan object can scan in both right
+ * and left directions via the flush_scan_left() and flush_scan_right() interfaces.  The
+ * right- and left-variations are similar but perform different functions.  When scanning
+ * left we (optionally perform rapid scanning and then) longterm-lock the endpoint node.
+ * When scanning right we are simply counting the number of adjacent, dirty nodes. */
 struct flush_scan {
-	/* The current number of nodes on this level. */
-	unsigned  size;
+
+	/* The current number of nodes scanned on this level. */
+	unsigned  count;
 
 	/* There may be a maximum number of nodes for a scan on any single level.  When
-	 * going leftward, it is determined by REISER4_FLUSH_SCAN_MAXNODES (see
-	 * reiser4.h).  When going rightward, it is determined by the number of nodes
-	 * required to reach FLUSH_RELOCATE_THRESHOLD. */
-	unsigned max_size;
+	 * going leftward, max_count is determined by FLUSH_SCAN_MAXNODES (see reiser4.h)
+	 * if RAPID_SCAN is disabled and FLUSH_RELOCATE_THRESHOLD if RAPID_SCAN is
+	 * enabled.  (This is because RAPID_SCAN will skip past clean and dirty nodes on
+	 * the level, therefore there is no need to count precisely once the THRESHOLD has
+	 * been reached.)  When going rightward, the max_count is determined by the number
+	 * of nodes required to reach FLUSH_RELOCATE_THRESHOLD. */
+	unsigned max_count;
 
 	/* Direction: Set to one of the sideof enumeration: { LEFT_SIDE, RIGHT_SIDE }. */
 	sideof direction;
 
-	/* True if some condition stops the search (e.g., we found a clean
-	 * node before reaching max size, we found a node belonging to another
-	 * atom). */
+	/* Initially @stop is set to false then set true once some condition stops the
+	 * search (e.g., we found a clean node before reaching max_count or we found a
+	 * node belonging to another atom). */
 	int       stop;
 
-	/* The current scan position, referenced. */
+	/* The current scan position.  If @node is non-NULL then it is referenced by
+	 * jref(). */
 	jnode    *node;
 
 	/* A handle for zload/zrelse of current scan position node. */
 	data_handle node_load;
+
+	/* During left-scan, if the final position (a.k.a. endpoint node) is formatted the
+	 * node is locked using this lock handle.  The endpoint needs to be locked for two
+	 * reasons: RAPID_SCAN requires the lock before starting, and otherwise the lock
+	 * is transferred to the flush_position object after scanning finishes. */
+	lock_handle node_lock;
 
 	/* When the position is unformatted, its parent, coordinate, and parent
 	 * zload/zrelse handle. */
@@ -58,15 +76,15 @@ struct flush_scan {
 	coord_t     parent_coord;
 	data_handle parent_load;
 
-	/* When the final position is formatted, the node is locked here. */
-	lock_handle point_lock;
-
-	/* The block allocation hint. */
+	/* The block allocator preceder hint.  Sometimes flush_scan determines what the
+	 * preceder is and if so it sets it here, after which it is copied into the
+	 * flush_position.  Otherwise, the preceder is computed later. */
 	reiser4_block_nr preceder_blk;
 };
 
 /* An encapsulation of the current flush point and all the parameters that are passed
- * through the entire flush routine. */
+ * through the entire squeeze-and-allocate stage of the flush routine.  A single
+ * flush_position object is constructed after left- and right-scanning finishes. */
 struct flush_position {
 	jnode                *point;           /* The current position, if it is formatted. */
 	lock_handle           point_lock;      /* The current position lock. */
@@ -79,9 +97,9 @@ struct flush_position {
 						* found to suggest a relocate policy. */
 	int                  *nr_to_flush;     /* If called under memory pressure,
 						* indicates how many nodes to flush. */
-	int                   alloc_cnt;       /* The number of nodes allocated during squalloc. */
+	int                   alloc_cnt;       /* The number of nodes allocated during squeeze and allococate. */
 	int                   enqueue_cnt;     /* The number of nodes enqueued (released
-						* for write) during squalloc.  This number
+						* for write) during squeeze and allocate.  This number
 						* would equal alloc_cnt except for:
 						*
 						* - Nodes may be deleted that never get enqueued
@@ -155,23 +173,24 @@ static int           flush_scan_extent_coord      (flush_scan *scan, const coord
 static int           flush_scan_rapid             (flush_scan *scan);
 static int           flush_scan_leftmost_dirty_unit (flush_scan *scan);
 
-static int           flush_query_relocate_dirty    (jnode *node, const coord_t *parent_coord, flush_position *pos);
-
+/* Flush allocate, relocate, write-queueing functions: */
+static int           flush_query_relocate_dirty   (jnode *node, const coord_t *parent_coord, flush_position *pos);
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
 static int           flush_release_znode          (znode *node);
 static int           flush_rewrite_jnode          (jnode *node);
 static int           flush_queue_jnode            (jnode *node, flush_position *pos);
+static int           flush_empty_queue            (flush_position *pos, int nobusy);
 
-static int           flush_empty_queue                 (flush_position *pos, int nobusy);
+/* Main flush algorithm.  Note on abbreviation: "squeeze and allocate" == "squalloc". */
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, flush_position *pos);
 static int           squalloc_right_twig          (znode *left, znode *right, flush_position *pos);
 static int           squalloc_right_twig_cut      (coord_t * to, reiser4_key * to_key, znode *left);
 static int           squeeze_right_non_twig       (znode *left, znode *right);
 static int           shift_one_internal_unit      (znode *left, znode *right);
-
 static int           flush_squeeze_left_edge      (flush_position *pos);
 static int           flush_squalloc_right         (flush_position *pos);
 
+/* Flush helper functions: */
 static int           jnode_lock_parent_coord      (jnode *node,
 						   coord_t *coord,
 						   lock_handle *parent_lh,
@@ -196,8 +215,14 @@ static const char*   flush_jnode_tostring         (jnode *node);
 static const char*   flush_znode_tostring         (znode *node);
 static const char*   flush_flags_tostring         (int flags);
 
-/* FIXME: */
-atomic_t flush_cnt;
+/* This flush_cnt variable is used to track the number of concurrent flush operations,
+ * useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
+ * no static initializer function...) */
+ON_DEBUG (atomic_t flush_cnt;)
+
+/********************************************************************************
+ * JNODE_FLUSH: MAIN ENTRY POINT
+ ********************************************************************************/
 
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (to
@@ -235,11 +260,11 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	}
 
 	/* temporary debugging code */
-	atomic_inc (& flush_cnt);
-	trace_on (TRACE_FLUSH, "flush enter: pid %ul %u concurrent procs\n", current_pid, atomic_read (& flush_cnt));
-	if (atomic_read (& flush_cnt) > 1) {
-		/*trace_on (TRACE_FLUSH, "flush concurrency\n");*/
-	}
+	ON_DEBUG (atomic_inc (& flush_cnt);
+		  trace_on (TRACE_FLUSH, "flush enter: pid %ul %u concurrent procs\n", current_pid, atomic_read (& flush_cnt));
+		  if (atomic_read (& flush_cnt) > 1) {
+			  /*trace_on (TRACE_FLUSH, "flush concurrency\n");*/
+		  });
 
 	spin_lock_jnode (node);
 
@@ -317,17 +342,22 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	/*trace_if (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK));*/
 
 	/* First scan left and remember the leftmost scan position.  If the leftmost
-	 * position is unformatted we remember its parent_coord. */
-	if ((ret = flush_scan_left (& left_scan, & right_scan, node, FLUSH_RELOCATE_THRESHOLD))) {
+	 * position is unformatted we remember its parent_coord.  If RAPID_SCAN is
+	 * enabled, the scan should be limited by FLUSH_RELOCATE_THRESHOLD since the rapid
+	 * scan will continue without precisely counting nodes.  If RAPID_SCAN is
+	 * disabled, then we scan up until counting FLUSH_SCAN_MAXNODES. */
+	if ((ret = flush_scan_left (& left_scan, & right_scan, node,
+				    USE_RAPID_SCAN ? FLUSH_RELOCATE_THRESHOLD : FLUSH_SCAN_MAXNODES))) {
 		goto failed;
 	}
 
-	/* Then possibly go right to decide if we will relocate everything possible.  This
-	 * is only done if we did not scan past enough nodes in the leftward scan.  If we
-	 * do scan right, only go far enough to establish that at least
-	 * FLUSH_RELOCATE_THRESHOLD number of nodes are being flushed. */
-	if ((left_scan.size < FLUSH_RELOCATE_THRESHOLD) &&
-	    (ret = flush_scan_right (& right_scan, node, FLUSH_RELOCATE_THRESHOLD - left_scan.size))) {
+	/* Then possibly go right to decide if we will use a policy of relocating leaves.
+	 * This is only done if we did not scan past (and count) enough nodes during the
+	 * leftward scan.  If we do scan right, we only care to go far enough to establish
+	 * that at least FLUSH_RELOCATE_THRESHOLD number of nodes are being flushed.  The
+	 * scan limit is the difference between left_scan.count and the threshold. */
+	if ((left_scan.count < FLUSH_RELOCATE_THRESHOLD) &&
+	    (ret = flush_scan_right (& right_scan, node, FLUSH_RELOCATE_THRESHOLD - left_scan.count))) {
 		goto failed;
 	}
 
@@ -336,7 +366,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 
 	/* ... and the answer is: we should relocate leaf nodes if at least
 	 * FLUSH_RELOCATE_THRESHOLD nodes were found. */
-	flush_pos.leaf_relocate = (left_scan.size + right_scan.size >= FLUSH_RELOCATE_THRESHOLD);
+	flush_pos.leaf_relocate = (left_scan.count + right_scan.count >= FLUSH_RELOCATE_THRESHOLD);
 
 	/*assert ("jmacd-6218", jnode_check_dirty (left_scan.node));*/
 
@@ -358,7 +388,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		move_lh (& flush_pos.parent_lock, & left_scan.parent_lock);
 		move_dh (& flush_pos.parent_load, & left_scan.parent_load);
 	} else {
-		move_lh (& flush_pos.point_lock, & left_scan.point_lock);
+		move_lh (& flush_pos.point_lock, & left_scan.node_lock);
 	}
 
 	/* In some cases, we discover the parent-first preceder during the
@@ -430,7 +460,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		}
 	}
 
-	atomic_dec (& flush_cnt);
+	ON_DEBUG (atomic_dec (& flush_cnt));
 
 	return ret;
 }
@@ -2250,7 +2280,7 @@ static int znode_same_parents (znode *a, znode *b)
 static void flush_scan_init (flush_scan *scan)
 {
 	memset (scan, 0, sizeof (*scan));
-	init_lh (& scan->point_lock);
+	init_lh (& scan->node_lock);
 	init_lh (& scan->parent_lock);
 	init_dh (& scan->parent_load);
 	init_dh (& scan->node_load);
@@ -2267,13 +2297,13 @@ static void flush_scan_done (flush_scan *scan)
 	}
 	done_dh (& scan->parent_load);
 	done_lh (& scan->parent_lock);
-	done_lh (& scan->point_lock);
+	done_lh (& scan->node_lock);
 }
 
 /* Returns true if flush scanning is finished. */
 static int flush_scan_finished (flush_scan *scan)
 {
-	return scan->stop || scan->size >= scan->max_size;
+	return scan->stop || scan->count >= scan->max_count;
 }
 
 /* Return true if the scan should continue to the @tonode.  True if the node meets the
@@ -2292,10 +2322,10 @@ static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 	return go;
 }
 
-/* Set the current scan->node, refcount it, increment size by the @add_size (number to
+/* Set the current scan->node, refcount it, increment count by the @add_count (number to
  * count, e.g., skipped unallocated nodes), deref previous current, and copy the current
  * parent coordinate. */
-static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_size, const coord_t *parent)
+static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_count, const coord_t *parent)
 {
 	/* Release the old references, take the new reference. */
 	done_dh (& scan->node_load);
@@ -2305,7 +2335,7 @@ static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_s
 	}
 
 	scan->node  = node;
-	scan->size += add_size;
+	scan->count += add_count;
 
 	/* This next stmt is somewhat inefficient.  The flush_scan_extent_coord code could
 	 * delay this update step until it finishes and update the parent_coord only once.
@@ -2364,7 +2394,7 @@ static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, un
 {
 	int ret;
 
-	scan->max_size  = limit;
+	scan->max_count  = limit;
 	scan->direction = LEFT_SIDE;
 
 	if ((ret = flush_scan_set_current (scan, jref (node), 1 /* count starting node */, NULL /* no parent coord */))) {
@@ -2378,7 +2408,7 @@ static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, un
 	/* Before rapid scanning, we need a lock on scan->node so that we can get its
 	 * parent, only if formatted. */
 	if (jnode_is_znode (scan->node) &&
-	    (ret = longterm_lock_znode (& scan->point_lock, JZNODE (scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI))) {
+	    (ret = longterm_lock_znode (& scan->node_lock, JZNODE (scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI))) {
 		/* EINVAL means the node was deleted, DEADLK should be impossible here
 		 * because we've asserted that the lockstack is clean. */
 		assert ("jmacd-34113", ret != -EDEADLK);
@@ -2402,7 +2432,7 @@ static int flush_scan_right (flush_scan *scan, jnode *node, unsigned limit)
 {
 	int ret;
 
-	scan->max_size  = limit;
+	scan->max_count  = limit;
 	scan->direction = RIGHT_SIDE;
 
 	if ((ret = flush_scan_set_current (scan, jref (node), 0 /* do not count starting node */, NULL /* no parent coord */))) {
@@ -2478,7 +2508,7 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
  * - node->left/right is non-NULL
  * - node->left/right is connected, dirty
  * - node->left/right belongs to the same atom
- * - scan has not reached maximum size
+ * - scan has not reached maximum count
  */
 static int flush_scan_formatted (flush_scan *scan)
 {
@@ -2899,8 +2929,6 @@ static int flush_scan_rapid (flush_scan *scan)
 		return 0;
 	}
 
-	/* FIXME: Need to unset scan->node somewhere here so we can tell if all the children are clean.  Or can that not happen? */
-
 	/* If the current scan position is formatted, get the parent coordinate so we can
 	 * test leftmost/rightmost.  Otherwise, we're already set.  Also, if we are at a
 	 * formatted position we already have scan->point_lock holding a lock on
@@ -2912,7 +2940,7 @@ static int flush_scan_rapid (flush_scan *scan)
 		}
 
 		/* We release point_lock and reacquire it later. */
-		done_lh (& scan->point_lock);
+		done_lh (& scan->node_lock);
 	}
 
 	/* If the current node is not the leftmost child, set parent_coord to the leftmost
@@ -2921,8 +2949,7 @@ static int flush_scan_rapid (flush_scan *scan)
 
 		/* The call to flush_scan_leftmost_dirty_unit re-initializes
 		 * scan->parent_coord to the leftmost _unit_ that has dirty children.
-		 * This also resets the scan->node properly.
-		 */
+		 * This also resets the scan->node properly. */
 		if ((ret = flush_scan_leftmost_dirty_unit (scan))) {
 			return ret;
 		}
@@ -2998,7 +3025,7 @@ static int flush_scan_rapid (flush_scan *scan)
 
 		assert ("jmacd-76620", lock_stack_isclean (get_current_lock_stack ()));
 
-		ret = longterm_lock_znode (& scan->point_lock, JZNODE (scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+		ret = longterm_lock_znode (& scan->node_lock, JZNODE (scan->node), ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
 	}
 
 	return ret;
@@ -3036,7 +3063,7 @@ static int flush_scan_leftmost_dirty_unit (flush_scan *scan)
 				continue;
 			}
 
-			ret = flush_scan_set_current (scan, child, 1 /* add_size is irrelevant at this point */, NULL);
+			ret = flush_scan_set_current (scan, child, 1 /* add_count is irrelevant at this point */, NULL);
 			break;
 
 		} else {
@@ -3044,7 +3071,7 @@ static int flush_scan_leftmost_dirty_unit (flush_scan *scan)
 
 			/* FIXME: UNIMPLEMENTED */
 		}
-	} while ( == 0
+	} while (1);
 
 	return ret;
 }
