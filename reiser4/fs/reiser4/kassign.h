@@ -1,0 +1,77 @@
+/*
+ * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
+ */
+
+/*
+ * Key assignment policy interface.
+ */
+
+#if !defined( __KASSIGN_H__ )
+#define __KASSIGN_H__
+
+/* key assignment functions */ 
+
+/**
+ * Information from which key of file stat-data can be uniquely
+ * restored. This depends on key assignment policy for
+ * stat-data. Currently it's enough to store object id and locality id
+ * (60+60==120) bits, because minor packing locality and offset of
+ * stat-data key are always known constants: KEY_SD_MINOR and 0
+ * respectively. For simplicity 4 bits are wasted in each id, and just
+ * two 64 bit integers are stored.
+ *
+ * This field has to be byte-aligned, because we don't want to waste
+ * space in directory entries. There is another side of a coin of
+ * course: we waste CPU and bus bandwidth in stead, by copying data back
+ * and forth.
+ *
+ */
+typedef struct obj_key_id {
+	d8 locality[ sizeof( __u64 ) ];
+	d8 objectid[ sizeof( __u64 ) ];
+} obj_key_id;
+
+/**
+ * Information sufficient to uniquely identify directory entry within
+ * compressed directory item.
+ *
+ * For alignment issues see &obj_key_id above.
+ */
+typedef struct de_id {
+	d8 objectid[ sizeof( __u64 ) ];
+	d8 offset  [ sizeof( __u64 ) ];
+} de_id;
+
+extern int build_obj_key_id( const reiser4_key *key, obj_key_id *id );
+extern int build_inode_key_id( const struct inode *obj, obj_key_id *id );
+extern int extract_key_from_id( const obj_key_id *id, reiser4_key *key );
+extern oid_t extract_dir_id_from_key( const reiser4_key *de_key );
+extern int build_de_id( const struct inode *dir, const struct inode *obj, 
+			const struct qstr *name, de_id *id );
+extern int build_de_id_by_key( const reiser4_key *entry_key, de_id *id );
+extern int extract_key_from_de_id( const oid_t locality, 
+			    const de_id *id, reiser4_key *key );
+extern cmp_t key_id_cmp( const obj_key_id *i1, const obj_key_id *i2 );
+extern cmp_t key_id_key_cmp( const obj_key_id *id, const reiser4_key *key );
+extern cmp_t de_id_key_cmp( const de_id *id, const reiser4_key *key );
+
+extern int build_readdir_key( struct file *dir, reiser4_key *result );
+extern int build_entry_key( const struct inode *dir, const struct qstr *name,
+			    reiser4_key *result );
+extern reiser4_key *build_sd_key( const struct inode *target, 
+				  reiser4_key *result );
+
+/* __KASSIGN_H__ */
+#endif
+
+/* 
+ * Make Linus happy.
+ * Local variables:
+ * c-indentation-style: "K&R"
+ * mode-name: "LC"
+ * c-basic-offset: 8
+ * tab-width: 8
+ * fill-column: 120
+ * End:
+ */
+
