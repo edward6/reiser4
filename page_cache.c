@@ -184,18 +184,6 @@ int done_formatted_fake( struct super_block *super )
 	return 0;
 }
 
-
-/** ->readpage() method for formatted nodes */
-static int filler( void *node, 
-		   struct page *page /* page to read */ )
-{
-	assert ("nikita-1774", PageLocked (page));
-
-	jnode_attach_page ((jnode *)node, page);
-	page_cache_release (page);
-	return page_io (page, READ, GFP_NOIO);
-}
-
 /** 
  * ->read_node method of page-cache based tree operations 
  *
