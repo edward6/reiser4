@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
@@ -956,32 +955,8 @@ optimize_extent(const coord_t * item)
 	znode_set_dirty(item->node);
 }
 
-/*
- * position within extent pointed to by @coord to block containing given offset
- * @off
- */
-static reiser4_block_nr
-in_extent(const coord_t * coord, reiser4_block_nr off)
-{
-	reiser4_key key;
-	reiser4_block_nr cur;
-	reiser4_extent *ext;
-
-	assert("vs-266", coord_is_existing_unit(coord));
-
-	item_key_by_coord(coord, &key);
-	cur = get_key_offset(&key) + extent_size(coord, (unsigned) coord->unit_pos);
-
-	ext = extent_by_coord(coord);
-	/*
-	 * make sure that @off is within current extent
-	 */
-	assert("vs-390", off >= cur && off < (cur + extent_get_width(ext) * current_blocksize));
-	return (off - cur) >> current_blocksize_bits;
-}
-
-/* return 1 if offset @off is inside of extent unit pointed to by @coord. Set
- * pos inside of unit */
+/* return 1 if offset @off is inside of extent unit pointed to by @coord. Set pos_in_unit inside of unit
+ * correspondingly */
 static int
 offset_is_in_extent(const coord_t * coord, loff_t off, reiser4_block_nr * pos_in_unit)
 {
@@ -999,14 +974,18 @@ offset_is_in_extent(const coord_t * coord, loff_t off, reiser4_block_nr * pos_in
 	return 1;
 }
 
-/* return value is block number pointed by the @coord */
+/* @coord is set to allocated extent. offset @off is inside that extent. return number of block corresponding to offset
+ * @off */
 static reiser4_block_nr
-blocknr_by_coord_in_extent(coord_t * coord, reiser4_block_nr off)
+blocknr_by_coord_in_extent(const coord_t * coord, reiser4_block_nr off)
 {
+	reiser4_block_nr pos_in_unit;
+
 	assert("vs-12", coord_is_existing_unit(coord));
 	assert("vs-264", state_of_extent(extent_by_coord(coord)) == ALLOCATED_EXTENT);
+	check_me("vs-1092", offset_is_in_extent(coord, off, &pos_in_unit));
 
-	return extent_get_start(extent_by_coord(coord)) + in_extent(coord, off);
+	return extent_get_start(extent_by_coord(coord) + pos_in_unit);
 }
 
 /**
@@ -1439,6 +1418,15 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 
 	trace_on(TRACE_EXTENTS, "OK\n");
 
+	return 0;
+}
+
+int extent_get_block_address(const coord_t *coord, sector_t block, struct buffer_head *bh)
+{
+	if (state_of_extent(extent_by_coord(coord)) != ALLOCATED_EXTENT)
+		bh->b_blocknr = 0;
+	else
+		bh->b_blocknr = blocknr_by_coord_in_extent(coord, block * current_blocksize);
 	return 0;
 }
 
@@ -2849,7 +2837,7 @@ plug_hole(coord_t * coord, lock_handle * lh, reiser4_key * key)
 
 	ext = extent_by_coord(coord);
 	width = extent_get_width(ext);
-	pos_in_unit = in_extent(coord, get_key_offset(key));
+	check_me("vs-1090", offset_is_in_extent(coord, get_key_offset(key), &pos_in_unit));
 
 	if (width == 1) {
 		set_extent(ext, UNALLOCATED_EXTENT, 0, 1ull);

@@ -523,8 +523,9 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 					      .read = extent_read,
 					      .readpage = extent_readpage,
 					      .writepage = extent_writepage,
-					      .page_cache_readahead = NULL
-					      /*extent_page_cache_readahead */ ,
+					      .page_cache_readahead = NULL,
+					      .get_block = extent_get_block_address
+					      /*extent_page_cache_readahead */
 					      }
 				     }
 			       }
@@ -578,7 +579,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				    .read = tail_read,
 				    .readpage = NULL,
 				    .writepage = NULL,
-				    .page_cache_readahead = NULL}
+				    .page_cache_readahead = NULL,
+				    .get_block = NULL}
 			   }
 		     }
 };

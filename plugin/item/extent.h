@@ -114,6 +114,7 @@ int extent_page_cache_readahead(struct file *file, coord_t * coord,
 				lock_handle * lh UNUSED_ARG,
 				unsigned long start_page, unsigned long intrafile_readahead_amount);
 #endif
+int extent_get_block_address(const coord_t *, sector_t block, struct buffer_head *);
 
 /* these are used in flush.c
  * FIXME-VS: should they be somewhere in item_plugin? */
