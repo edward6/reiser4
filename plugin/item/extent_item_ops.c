@@ -653,7 +653,7 @@ cut_or_kill_units(coord_t *coord,
 
 			/* detach jnodes from inode's tree of jnodes */
 			/*XXXX*/jnodes = reiser4_inode_data(inode)->jnodes;
-			truncated_jnodes = truncate_inode_jnodes_range(inode, start, start + nr_pages);
+			truncated_jnodes = truncate_inode_jnodes_range(inode, start, nr_pages);
 			/*XXXX*/add_history(&key, *from, count, jnodes, truncated_jnodes, start);
 
 			drop_eflushed_nodes(inode, start, start + nr_pages);
