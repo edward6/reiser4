@@ -944,10 +944,7 @@ commit_txnh (txn_handle *txnh)
 {
 	int ret = 0;
 	txn_atom *atom;
-	/*
-	 * FIXME:NIKITA->JMACD hack to disable commits during memory pressure.
-	 */
-	int failed = no_commit_thread();
+	int failed = 0;
 
 	assert("umka-192", txnh != NULL);
 	
@@ -964,18 +961,27 @@ commit_txnh (txn_handle *txnh)
 	/* Only the atom is still locked. */
 	if (! failed && (atom->txnh_count == 1) && atom_should_commit (atom)) {
 
-		ret = atom_try_commit_locked (atom);
+		/*
+		 * FIXME:NIKITA->JMACD hack to disable commits during memory
+		 * pressure.
+		 */
+		if (no_commit_thread()) {
+			ktxnmgrd_kick();
+		} else {
 
-		if (ret != 0) {
-			assert ("jmacd-1027", spin_atom_is_not_locked (atom));
-			if (ret != -EAGAIN) {
-				warning ("jmacd-7881", "transaction commit failed: %d", ret);
-				failed = 1;
-			} else {
-				trace_on (TRACE_TXN, "try_commit atom repeat\n");
-				ret = 0;
+			ret = atom_try_commit_locked (atom);
+
+			if (ret != 0) {
+				assert ("jmacd-1027", spin_atom_is_not_locked (atom));
+				if (ret != -EAGAIN) {
+					warning ("jmacd-7881", "transaction commit failed: %d", ret);
+					failed = 1;
+				} else {
+					trace_on (TRACE_TXN, "try_commit atom repeat\n");
+					ret = 0;
+				}
+				goto again;
 			}
-			goto again;
 		}
 	}
 
