@@ -96,7 +96,6 @@ static unsigned long reiser4_get_unmapped_area(struct file *, unsigned long,
 
 static struct inode *reiser4_alloc_inode(struct super_block *super);
 static void reiser4_destroy_inode(struct inode *inode);
-static void reiser4_dirty_inode(struct inode *);
 static void reiser4_drop_inode(struct inode *);
 static void reiser4_delete_inode(struct inode *);
 static void reiser4_write_super(struct super_block *);
@@ -105,6 +104,7 @@ static void reiser4_kill_super(struct super_block *);
 static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt);
 static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 #if 0
+static void reiser4_dirty_inode(struct inode *);
 static void reiser4_write_inode(struct inode *, int);
 static void reiser4_put_inode(struct inode *);
 static void reiser4_write_super_lockfs(struct super_block *);
@@ -309,15 +309,19 @@ reiser4_setattr(struct dentry *dentry, struct iattr *attr)
 	REISER4_ENTRY(inode->i_sb);
 
 	assert("nikita-2269", attr != NULL);
+	assert("vs-1108", inode);
 
 	result = perm_chk(inode, setattr, dentry, attr);
 	if (result == 0) {
-		file_plugin *fplug;
+		if (!inode_get_flag(inode, REISER4_IMMUTABLE)) {
+			file_plugin *fplug;
 
-		fplug = inode_file_plugin(inode);
-		assert("nikita-2271", fplug != NULL);
-		assert("nikita-2296", fplug->setattr != NULL);
-		result = fplug->setattr(inode, attr);
+			fplug = inode_file_plugin(inode);
+			assert("nikita-2271", fplug != NULL);
+			assert("nikita-2296", fplug->setattr != NULL);
+			result = fplug->setattr(inode, attr);
+		} else
+			result = -EAGAIN;
 	}
 	REISER4_EXIT(result);
 }
@@ -1342,6 +1346,8 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	kmem_cache_free(inode_cache, reiser4_inode_data(inode));
 }
 
+#if 0
+
 /* ->dirty_inode() super operation */
 static void
 reiser4_dirty_inode(struct inode *inode)
@@ -1371,6 +1377,8 @@ reiser4_dirty_inode(struct inode *inode)
 no_space:
 	__REISER4_EXIT(&__context);
 }
+#endif
+
 
 extern void generic_drop_inode(struct inode *object);
 
@@ -1411,10 +1419,10 @@ reiser4_delete_inode(struct inode *object)
 
 	if (inode_get_flag(object, REISER4_LOADED)) {
 		file_plugin *fplug;
+#if 0
+		/* FIXME-VS: reservation for delete_inode is moved down to object plugin */
 		dir_plugin *dplug;
-		reiser4_block_nr reserved = 0;
 
-		fplug = inode_file_plugin(object);
 		dplug = inode_dir_plugin(object);
 		
 		if (dplug != NULL)
@@ -1437,11 +1445,12 @@ reiser4_delete_inode(struct inode *object)
 
 		if (dplug != NULL)
 			dplug->done(object);
-
+#endif
+		fplug = inode_file_plugin(object);
 		if ((fplug != NULL) && (fplug->delete != NULL))
 			fplug->delete(object);
 	}
-no_space:
+
 	object->i_blocks = 0;
 	clear_inode(object);
 	__REISER4_EXIT(&__context);
@@ -2674,7 +2683,7 @@ struct super_operations reiser4_super_operations = {
 	.alloc_inode = reiser4_alloc_inode,	/* d */
 	.destroy_inode = reiser4_destroy_inode,	/* d */
 	.read_inode = noop_read_inode,	/* d */
-	.dirty_inode = reiser4_dirty_inode,	/* d */
+	.dirty_inode = NULL, /*reiser4_dirty_inode,*/	/* d */
 /* 	.write_inode        = reiser4_write_inode, */
 /* 	.put_inode          = reiser4_put_inode, */
 	.drop_inode = reiser4_drop_inode,	/* d */
