@@ -454,7 +454,7 @@ TS_HASH_DEFINE(ef, eflush_node_t, jnode *, node, linkage, jnode_hfn, jnode_eq);
 int 
 eflush_init(void)
 {
-	eflush_slab = kmem_cache_create("eflush_cache", sizeof (eflush_node_t), 
+	eflush_slab = kmem_cache_create("eflush", sizeof (eflush_node_t), 
 					0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (eflush_slab == NULL)
 		return RETERR(-ENOMEM);

@@ -320,7 +320,7 @@ init_once(void *obj /* pointer to new inode */ ,
 int
 init_inodecache(void)
 {
-	inode_cache = kmem_cache_create("reiser4_icache",
+	inode_cache = kmem_cache_create("reiser4_inode",
 					sizeof (reiser4_inode_object), 0, SLAB_HWCACHE_ALIGN, init_once, NULL);
 	return (inode_cache != NULL) ? 0 : RETERR(-ENOMEM);
 }

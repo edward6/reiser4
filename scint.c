@@ -104,7 +104,7 @@ static kmem_cache_t *scint_slab;
 
 int scint_init_once(void)
 {
-	scint_slab = kmem_cache_create("scint-cache", sizeof(__u64), 0, 
+	scint_slab = kmem_cache_create("scint", sizeof(__u64), 0, 
 				       SLAB_HWCACHE_ALIGN, NULL, NULL);
 	return (scint_slab == NULL) ? RETERR(-ENOMEM) : 0;
 }

@@ -201,7 +201,7 @@ static kmem_cache_t *znode_slab;
 int
 znodes_init()
 {
-	znode_slab = kmem_cache_create("znode_cache", sizeof (znode), 0, SLAB_HWCACHE_ALIGN, NULL, NULL);
+	znode_slab = kmem_cache_create("znode", sizeof (znode), 0, SLAB_HWCACHE_ALIGN, NULL, NULL);
 	if (znode_slab == NULL) {
 		return RETERR(-ENOMEM);
 	} else {
