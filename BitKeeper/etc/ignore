@@ -1337,3 +1337,4 @@ znode.bb
 znode.bbg
 debug.E
 .stats.o.cmd
+stats
