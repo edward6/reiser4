@@ -1485,7 +1485,7 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 	while (1) {
 		node_plugin *nplug;
 
-		/* Advance the intranode_from position to the next node. */
+		/* Move next_node_lock to the next node on the left. */
 		result = reiser4_get_left_neighbor(&next_node_lock, tap->coord->node, 
 						   ZNODE_WRITE_LOCK, GN_DO_READ);
 		if ((result != 0) && (result != -E_NO_NEIGHBOR))
@@ -1616,7 +1616,7 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 	init_lh(&lock);
 
 	do {
-		/* Find leftmost item to cut away from the tree. */
+		/* Find rightmost item to cut away from the tree. */
 		result = coord_by_key(current_tree, to_key, &right_coord, &lock, 
 				      ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
 				      TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE, 0/*ra_info*/);
