@@ -897,7 +897,7 @@ longterm_lock_znode(
 	txnh = get_current_context()->trans;
 	lock = &node->lock;
 
-	if (mode == ZNODE_READ_LOCK && !hipri && !non_blocking) {
+	if (mode == ZNODE_READ_LOCK && request == 0) {
 		ret = longterm_lock_tryfast(owner, txnh);
 		if (ret <= 0)
 			return ret;
@@ -917,7 +917,7 @@ longterm_lock_znode(
 			ADDSTAT(node, lock_lopri);
 	}
 
-	cap_mode = build_capture_mode(node, mode, cap_flags);
+	cap_mode = build_capture_mode(ZJNODE(node), mode, cap_flags);
 
 	/* Synchronize on node's zlock guard lock. */
 	WLOCK_ZLOCK(lock);
