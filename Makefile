@@ -3,79 +3,80 @@
 #
 
 obj-$(CONFIG_REISER4_FS) += reiser4.o
-ifdef CONFIG_REISER4_CHECK
-CFLAGS_debug.o += -O0
-CFLAGS_jnode.o += -O0
-CFLAGS_znode.o += -O0
-CFLAGS_key.o += -O0
-CFLAGS_pool.o += -O0
-CFLAGS_tree_mod.o += -O0
-CFLAGS_carry.o += -O0
-CFLAGS_carry_ops.o += -O0
-CFLAGS_lock.o += -O0
-CFLAGS_tree.o += -O0
-CFLAGS_tap.o += -O0
-CFLAGS_coord.o += -O0
-CFLAGS_block_alloc.o += -O0
-CFLAGS_txnmgr.o += -O0
-CFLAGS_kassign.o += -O0
-CFLAGS_flush.o += -O0
-CFLAGS_wander.o += -O0
-CFLAGS_eottl.o += -O0
-CFLAGS_search.o += -O0
-CFLAGS_blocknrset.o += -O0
-CFLAGS_super.o += -O0
-CFLAGS_tree_walk.o += -O0
-CFLAGS_inode.o += -O0
-CFLAGS_vfs_ops.o += -O0
-CFLAGS_page_cache.o += -O0
-CFLAGS_lnode.o += -O0
-CFLAGS_kcond.o += -O0
-CFLAGS_seal.o += -O0
-CFLAGS_io_handle.o += -O0
-CFLAGS_flush_queue.o += -O0
-CFLAGS_ktxnmgrd.o += -O0
-CFLAGS_trace.o += -O0
-CFLAGS_all-reiser4.o += -O0
-endif
-ifdef CONFIG_REISER4_ALL_IN_ONE
-reiser4-objs := all-reiser4.o
-else
-reiser4-objs := \
-	   debug.o \
-	   jnode.o \
-	   znode.o \
-	   key.o \
-	   pool.o \
-	   tree_mod.o \
-	   carry.o \
-	   carry_ops.o \
-	   lock.o \
-	   tree.o \
-	   tap.o \
-	   coord.o \
-	   block_alloc.o \
-	   txnmgr.o \
-	   kassign.o \
-	   flush.o \
-	   eottl.o \
-	   wander.o \
-	   search.o \
-	   blocknrset.o \
-	   super.o \
-	   tree_walk.o \
-	   inode.o \
-	   vfs_ops.o \
-	   page_cache.o \
-	   lnode.o \
-	   kcond.o \
-	   seal.o \
-	   io_handle.o \
-	   flush_queue.o \
-	   trace.o \
-	   ktxnmgrd.o
 
-obj-$(CONFIG_REISER4_FS) += plugin/
+ifeq ($(CONFIG_REISER4_CHECK),y)
+	EXTRA_CFLAGS += -O0
 endif
+
+reiser4-objs := \
+		   debug.o \
+		   jnode.o \
+		   znode.o \
+		   key.o \
+		   pool.o \
+		   tree_mod.o \
+		   carry.o \
+		   carry_ops.o \
+		   lock.o \
+		   tree.o \
+		   tap.o \
+		   coord.o \
+		   block_alloc.o \
+		   txnmgr.o \
+		   kassign.o \
+		   flush.o \
+		   wander.o \
+		   eottl.o \
+		   search.o \
+		   page_cache.o \
+		   lnode.o \
+		   kcond.o \
+		   seal.o \
+		   io_handle.o \
+		   trace.o \
+		   flush_queue.o \
+		   ktxnmgrd.o \
+		   blocknrset.o \
+		   super.o \
+		   tree_walk.o \
+		   inode.o \
+		   vfs_ops.o \
+           \
+		   plugin/plugin.o \
+		   plugin/node/node.o \
+		   plugin/node/node40.o \
+		   plugin/object.o \
+		   plugin/symlink.o \
+           \
+		   plugin/item/static_stat.o \
+		   plugin/item/sde.o \
+		   plugin/item/cde.o \
+		   plugin/item/internal.o \
+		   plugin/item/tail.o \
+           \
+		   plugin/hash.o \
+		   plugin/tail_policy.o \
+		   plugin/item/item.o \
+           \
+		   plugin/dir/hashed_dir.o \
+		   plugin/dir/dir.o \
+           \
+		   plugin/security/perm.o \
+		   plugin/security/acl.o \
+           \
+           plugin/oid/oid40.o \
+           plugin/oid/oid.o \
+           \
+           plugin/space/bitmap.o \
+           plugin/space/test.o \
+		   plugin/space/space_allocator.o \
+           \
+           plugin/disk_format/disk_format40.o \
+           plugin/disk_format/test.o \
+           plugin/disk_format/disk_format.o \
+           \
+		   plugin/item/extent.o \
+		   plugin/file/file.o \
+           plugin/file/tail_conversion.o
 
 include $(TOPDIR)/Rules.make
