@@ -5,182 +5,6 @@
 
 #include "reiser4.h"
 
-/* On repacking and resizing:
- *
- * Is the purpose of a resizer to move blocks from their current positions in areas of the
- * disk that are being reclaimed?  I don't think flush will participate in that process.
- * Somehow the tree should be scanned to locate the parent of all those blocks.  Those
- * blocks can be simply marked dirty, and the block allocator can be informed of a pending
- * resize, causing it to allocate blocks outside the area being reclaimed.
- *
- * A repacker will be based on this code in the following way.  A traversal of the tree is
- * made in parent-first order.  When the repacker finds an area of the tree that is
- * significantly fragmented (using some criterion) it will dirty those nodes and depend on
- * flush to relocate them to a contiguous location on disk.  Most of the details are in
- * defining the criteria used to select blocks for repacking.
- */
-
-/* The following RAPID_SCAN define disables the partially-implemented rapid_scan option to
- * flush.  Eventually, after a little more work this can be experimented with as a mount
- * option.  It enables a more expansize/agressive flushing--Hans is concerned that this
- * may lead to "precipitation".  The flush algorithm works with or without rapid_scan, and
- * acts more conservatively without it.  Described in more detail below. */
-#define USE_RAPID_SCAN 0
-
-/* The flush_scan data structure maintains the state of an in-progress flush-scan on a
- * single level of the tree.  A flush-scan is used for counting the number of adjacent
- * nodes to flush, which is used to determine whether we should relocate, and it is also
- * used to find a starting point for flush.  A flush-scan object can scan in both right
- * and left directions via the flush_scan_left() and flush_scan_right() interfaces.  The
- * right- and left-variations are similar but perform different functions.  When scanning
- * left we (optionally perform rapid scanning and then) longterm-lock the endpoint node.
- * When scanning right we are simply counting the number of adjacent, dirty nodes. */
-struct flush_scan {
-
-	/* The current number of nodes scanned on this level. */
-	unsigned  count;
-
-	/* There may be a maximum number of nodes for a scan on any single level.  When
-	 * going leftward, max_count is determined by FLUSH_SCAN_MAXNODES (see reiser4.h)
-	 * if RAPID_SCAN is disabled and FLUSH_RELOCATE_THRESHOLD if RAPID_SCAN is
-	 * enabled.  (This is because RAPID_SCAN will skip past clean and dirty nodes on
-	 * the level, therefore there is no need to count precisely once the THRESHOLD has
-	 * been reached.)  When going rightward, the max_count is determined by the number
-	 * of nodes required to reach FLUSH_RELOCATE_THRESHOLD. */
-	unsigned max_count;
-
-	/* Direction: Set to one of the sideof enumeration: { LEFT_SIDE, RIGHT_SIDE }. */
-	sideof direction;
-
-	/* Initially @stop is set to false then set true once some condition stops the
-	 * search (e.g., we found a clean node before reaching max_count or we found a
-	 * node belonging to another atom). */
-	int       stop;
-
-	/* The current scan position.  If @node is non-NULL then it is referenced by
-	 * jref(). */
-	jnode    *node;
-
-	/* A handle for zload/zrelse of current scan position node. */
-	data_handle node_load;
-
-	/* During left-scan, if the final position (a.k.a. endpoint node) is formatted the
-	 * node is locked using this lock handle.  The endpoint needs to be locked for two
-	 * reasons: RAPID_SCAN requires the lock before starting, and otherwise the lock
-	 * is transferred to the flush_position object after scanning finishes. */
-	lock_handle node_lock;
-
-	/* When the position is unformatted, its parent, coordinate, and parent
-	 * zload/zrelse handle. */
-	lock_handle parent_lock;
-	coord_t     parent_coord;
-	data_handle parent_load;
-
-	/* The block allocator preceder hint.  Sometimes flush_scan determines what the
-	 * preceder is and if so it sets it here, after which it is copied into the
-	 * flush_position.  Otherwise, the preceder is computed later. */
-	reiser4_block_nr preceder_blk;
-};
-
-/* An encapsulation of the current flush point and all the parameters that are passed
- * through the entire squeeze-and-allocate stage of the flush routine.  A single
- * flush_position object is constructed after left- and right-scanning finishes. */
-struct flush_position {
-	jnode                *point;           /* The current position, if it is formatted (with a minor exception,
-						* allowing an unformatted node to be set here, explained in jnode_flush,
-						* below). */
-	lock_handle           point_lock;      /* The current position lock, if it is formatted. */
-	lock_handle           parent_lock;     /* Parent of the current position, if it is unformatted. */
-	coord_t               parent_coord;    /* Parent coordinate of the current position, if unformatted. */
-	data_handle           point_load;      /* Loaded point */
-	data_handle           parent_load;     /* Loaded parent */
-	reiser4_blocknr_hint  preceder;        /* The flush 'hint' state. */
-	int                   leaf_relocate;   /* True if enough leaf-level nodes were
-						* found to suggest a relocate policy. */
-	int                  *nr_to_flush;     /* If called under memory pressure,
-						* indicates how many nodes the VM asked to flush. */
-	int                   alloc_cnt;       /* The number of nodes allocated during squeeze and allococate. */
-	int                   enqueue_cnt;     /* The number of nodes enqueued during squeeze and allocate. */
-	capture_list_head     queue;           /* The flush queue holds allocated but not-yet-submitted jnodes that are
-						* actually written when flush_empty_queue() is called. */
- 	int                   queue_num;       /* The current number of queue entries. */
-
-	flushers_list_link    flushers_link;   /* A list link of all flush_positions active for an atom. */
-	txn_atom             *atom;            /* The current atom of this flush_position--maintained during atom fusion. */
-	struct reiser4_io_handle * hio;        /* The handle for waiting on I/O completions. */
-};
-
-/* The flushers list maintains a per-atom list of active flush_positions.  This is because
- * each concurrent flush maintains its own, private queue of allocated nodes.  When a node
- * is placed on the flush queue it is removed from the atom's dirty list.  When the node
- * is finally written to disk, it is returned to the atom's clean list.  Remember that
- * atoms can fuse during flush--the flushers lists are fused and each flush_position and
- * every jnode in the flush queues are updated to reflect the new combined atom. */
-TS_LIST_DEFINE(flushers, struct flush_position, flushers_link);
-
-/* Flush-scan helper functions. */
-static void          flush_scan_init              (flush_scan *scan);
-static void          flush_scan_done              (flush_scan *scan);
-static int           flush_scan_set_current       (flush_scan *scan, jnode *node, unsigned add_size, const coord_t *parent);
-static int           flush_scan_finished          (flush_scan *scan);
-static int           flush_scanning_left          (flush_scan *scan);
-
-/* Flush-scan algorithm. */
-static int           flush_scan_left              (flush_scan *scan, flush_scan *right, jnode *node, unsigned limit);
-static int           flush_scan_right             (flush_scan *scan, jnode *node, unsigned limit);
-static int           flush_scan_common            (flush_scan *scan, flush_scan *other);
-static int           flush_scan_formatted         (flush_scan *scan);
-static int           flush_scan_extent            (flush_scan *scan, int skip_first);
-static int           flush_scan_extent_coord      (flush_scan *scan, const coord_t *in_coord);
-#if 0
-static int           flush_scan_rapid             (flush_scan *scan);
-static int           flush_scan_leftmost_dirty_unit (flush_scan *scan);
-#endif
-
-/* Main flush algorithm.  Note on abbreviation: "squeeze and allocate" == "squalloc". */
-/*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, flush_position *pos);
-static int           squalloc_right_twig          (znode *left, znode *right, flush_position *pos);
-static int           squalloc_right_twig_cut      (coord_t * to, reiser4_key * to_key, znode *left);
-static int           squeeze_right_non_twig       (znode *left, znode *right);
-static int           shift_one_internal_unit      (znode *left, znode *right);
-static int           flush_squeeze_left_edge      (flush_position *pos);
-static int           flush_squalloc_right         (flush_position *pos);
-
-/* Flush allocate, relocate, write-queueing functions: */
-static int           flush_query_relocate_dirty   (jnode *node, const coord_t *parent_coord, flush_position *pos);
-static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
-static int           flush_rewrite_jnode          (jnode *node);
-static int           flush_queue_jnode            (jnode *node, flush_position *pos);
-static int           flush_empty_queue            (flush_position *pos);
-
-/* Flush helper functions: */
-static int           jnode_lock_parent_coord      (jnode *node, coord_t *coord, lock_handle *parent_lh, data_handle *parent_zh, znode_lock_mode mode);
-static int           znode_get_utmost_if_dirty    (znode *node, lock_handle *right_lock, sideof side, znode_lock_mode mode);
-static int           znode_same_parents           (znode *a, znode *b);
-
-/* Flush position functions */
-static int           flush_pos_init               (flush_position *pos, int *nr_to_flush);
-static int           flush_pos_valid              (flush_position *pos);
-static void          flush_pos_done               (flush_position *pos);
-static int           flush_pos_stop               (flush_position *pos);
-static int           flush_pos_unformatted        (flush_position *pos);
-static int           flush_pos_to_child_and_alloc (flush_position *pos);
-static int           flush_pos_to_parent          (flush_position *pos);
-static int           flush_pos_set_point          (flush_position *pos, jnode *node);
-static void          flush_pos_release_point      (flush_position *pos);
-static int           flush_pos_lock_parent        (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, data_handle *parent_load, znode_lock_mode mode);
-
-/* Flush debug functions */
-static const char*   flush_pos_tostring           (flush_position *pos);
-static const char*   flush_jnode_tostring         (jnode *node);
-static const char*   flush_znode_tostring         (znode *node);
-static const char*   flush_flags_tostring         (int flags);
-
-/* This flush_cnt variable is used to track the number of concurrent flush operations,
- * useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
- * no static initializer function...) */
-ON_DEBUG (atomic_t flush_cnt;)
-
 /********************************************************************************
  * IMPLEMENTATION NOTES
  ********************************************************************************/
@@ -381,6 +205,185 @@ ON_DEBUG (atomic_t flush_cnt;)
  * leaf, even when it is not.  This is a simple approach, and there may be a more optimal
  * policy but until a problem with this approach is discovered, simplest is probably best.
  */
+
+/* REPACKING AND RESIZING.  Is the purpose of a resizer to move blocks from their current
+ * positions in areas of the disk that are being reclaimed?  I don't think flush will
+ * participate in that process.  Somehow the tree should be scanned to locate the parent
+ * of all those blocks.  Those blocks can be simply marked dirty, and the block allocator
+ * can be informed of a pending resize, causing it to allocate blocks outside the area
+ * being reclaimed.
+ *
+ * A repacker will be based on this code in the following way.  A traversal of the tree is
+ * made in parent-first order.  When the repacker finds an area of the tree that is
+ * significantly fragmented (using some criterion) it will dirty those nodes and depend on
+ * flush to relocate them to a contiguous location on disk.  Most of the details are in
+ * defining the criteria used to select blocks for repacking.
+ */
+
+/********************************************************************************
+ * DECLARATIONS:
+ ********************************************************************************/
+
+/* The following RAPID_SCAN define disables the partially-implemented rapid_scan option to
+ * flush.  Eventually, after a little more work this can be experimented with as a mount
+ * option.  It enables a more expansize/agressive flushing--Hans is concerned that this
+ * may lead to "precipitation".  The flush algorithm works with or without rapid_scan, and
+ * acts more conservatively without it.  Described in more detail below. */
+#define USE_RAPID_SCAN 0
+
+/* The flush_scan data structure maintains the state of an in-progress flush-scan on a
+ * single level of the tree.  A flush-scan is used for counting the number of adjacent
+ * nodes to flush, which is used to determine whether we should relocate, and it is also
+ * used to find a starting point for flush.  A flush-scan object can scan in both right
+ * and left directions via the flush_scan_left() and flush_scan_right() interfaces.  The
+ * right- and left-variations are similar but perform different functions.  When scanning
+ * left we (optionally perform rapid scanning and then) longterm-lock the endpoint node.
+ * When scanning right we are simply counting the number of adjacent, dirty nodes. */
+struct flush_scan {
+
+	/* The current number of nodes scanned on this level. */
+	unsigned  count;
+
+	/* There may be a maximum number of nodes for a scan on any single level.  When
+	 * going leftward, max_count is determined by FLUSH_SCAN_MAXNODES (see reiser4.h)
+	 * if RAPID_SCAN is disabled and FLUSH_RELOCATE_THRESHOLD if RAPID_SCAN is
+	 * enabled.  (This is because RAPID_SCAN will skip past clean and dirty nodes on
+	 * the level, therefore there is no need to count precisely once the THRESHOLD has
+	 * been reached.)  When going rightward, the max_count is determined by the number
+	 * of nodes required to reach FLUSH_RELOCATE_THRESHOLD. */
+	unsigned max_count;
+
+	/* Direction: Set to one of the sideof enumeration: { LEFT_SIDE, RIGHT_SIDE }. */
+	sideof direction;
+
+	/* Initially @stop is set to false then set true once some condition stops the
+	 * search (e.g., we found a clean node before reaching max_count or we found a
+	 * node belonging to another atom). */
+	int       stop;
+
+	/* The current scan position.  If @node is non-NULL then it is referenced by
+	 * jref(). */
+	jnode    *node;
+
+	/* A handle for zload/zrelse of current scan position node. */
+	data_handle node_load;
+
+	/* During left-scan, if the final position (a.k.a. endpoint node) is formatted the
+	 * node is locked using this lock handle.  The endpoint needs to be locked for two
+	 * reasons: RAPID_SCAN requires the lock before starting, and otherwise the lock
+	 * is transferred to the flush_position object after scanning finishes. */
+	lock_handle node_lock;
+
+	/* When the position is unformatted, its parent, coordinate, and parent
+	 * zload/zrelse handle. */
+	lock_handle parent_lock;
+	coord_t     parent_coord;
+	data_handle parent_load;
+
+	/* The block allocator preceder hint.  Sometimes flush_scan determines what the
+	 * preceder is and if so it sets it here, after which it is copied into the
+	 * flush_position.  Otherwise, the preceder is computed later. */
+	reiser4_block_nr preceder_blk;
+};
+
+/* An encapsulation of the current flush point and all the parameters that are passed
+ * through the entire squeeze-and-allocate stage of the flush routine.  A single
+ * flush_position object is constructed after left- and right-scanning finishes. */
+struct flush_position {
+	jnode                *point;           /* The current position, if it is formatted (with a minor exception,
+						* allowing an unformatted node to be set here, explained in jnode_flush,
+						* below). */
+	lock_handle           point_lock;      /* The current position lock, if it is formatted. */
+	lock_handle           parent_lock;     /* Parent of the current position, if it is unformatted. */
+	coord_t               parent_coord;    /* Parent coordinate of the current position, if unformatted. */
+	data_handle           point_load;      /* Loaded point */
+	data_handle           parent_load;     /* Loaded parent */
+	reiser4_blocknr_hint  preceder;        /* The flush 'hint' state. */
+	int                   leaf_relocate;   /* True if enough leaf-level nodes were
+						* found to suggest a relocate policy. */
+	int                  *nr_to_flush;     /* If called under memory pressure,
+						* indicates how many nodes the VM asked to flush. */
+	int                   alloc_cnt;       /* The number of nodes allocated during squeeze and allococate. */
+	int                   enqueue_cnt;     /* The number of nodes enqueued during squeeze and allocate. */
+	capture_list_head     queue;           /* The flush queue holds allocated but not-yet-submitted jnodes that are
+						* actually written when flush_empty_queue() is called. */
+ 	int                   queue_num;       /* The current number of queue entries. */
+
+	flushers_list_link    flushers_link;   /* A list link of all flush_positions active for an atom. */
+	txn_atom             *atom;            /* The current atom of this flush_position--maintained during atom fusion. */
+	struct reiser4_io_handle * hio;        /* The handle for waiting on I/O completions. */
+};
+
+/* The flushers list maintains a per-atom list of active flush_positions.  This is because
+ * each concurrent flush maintains its own, private queue of allocated nodes.  When a node
+ * is placed on the flush queue it is removed from the atom's dirty list.  When the node
+ * is finally written to disk, it is returned to the atom's clean list.  Remember that
+ * atoms can fuse during flush--the flushers lists are fused and each flush_position and
+ * every jnode in the flush queues are updated to reflect the new combined atom. */
+TS_LIST_DEFINE(flushers, struct flush_position, flushers_link);
+
+/* Flush-scan helper functions. */
+static void          flush_scan_init              (flush_scan *scan);
+static void          flush_scan_done              (flush_scan *scan);
+static int           flush_scan_set_current       (flush_scan *scan, jnode *node, unsigned add_size, const coord_t *parent);
+static int           flush_scan_finished          (flush_scan *scan);
+static int           flush_scanning_left          (flush_scan *scan);
+
+/* Flush-scan algorithm. */
+static int           flush_scan_left              (flush_scan *scan, flush_scan *right, jnode *node, unsigned limit);
+static int           flush_scan_right             (flush_scan *scan, jnode *node, unsigned limit);
+static int           flush_scan_common            (flush_scan *scan, flush_scan *other);
+static int           flush_scan_formatted         (flush_scan *scan);
+static int           flush_scan_extent            (flush_scan *scan, int skip_first);
+static int           flush_scan_extent_coord      (flush_scan *scan, const coord_t *in_coord);
+#if 0
+static int           flush_scan_rapid             (flush_scan *scan);
+static int           flush_scan_leftmost_dirty_unit (flush_scan *scan);
+#endif
+
+/* Main flush algorithm.  Note on abbreviation: "squeeze and allocate" == "squalloc". */
+/*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, flush_position *pos);
+static int           squalloc_right_twig          (znode *left, znode *right, flush_position *pos);
+static int           squalloc_right_twig_cut      (coord_t * to, reiser4_key * to_key, znode *left);
+static int           squeeze_right_non_twig       (znode *left, znode *right);
+static int           shift_one_internal_unit      (znode *left, znode *right);
+static int           flush_squeeze_left_edge      (flush_position *pos);
+static int           flush_squalloc_right         (flush_position *pos);
+
+/* Flush allocate, relocate, write-queueing functions: */
+static int           flush_query_relocate_dirty   (jnode *node, const coord_t *parent_coord, flush_position *pos);
+static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
+static int           flush_rewrite_jnode          (jnode *node);
+static int           flush_queue_jnode            (jnode *node, flush_position *pos);
+static int           flush_empty_queue            (flush_position *pos);
+
+/* Flush helper functions: */
+static int           jnode_lock_parent_coord      (jnode *node, coord_t *coord, lock_handle *parent_lh, data_handle *parent_zh, znode_lock_mode mode);
+static int           znode_get_utmost_if_dirty    (znode *node, lock_handle *right_lock, sideof side, znode_lock_mode mode);
+static int           znode_same_parents           (znode *a, znode *b);
+
+/* Flush position functions */
+static int           flush_pos_init               (flush_position *pos, int *nr_to_flush);
+static int           flush_pos_valid              (flush_position *pos);
+static void          flush_pos_done               (flush_position *pos);
+static int           flush_pos_stop               (flush_position *pos);
+static int           flush_pos_unformatted        (flush_position *pos);
+static int           flush_pos_to_child_and_alloc (flush_position *pos);
+static int           flush_pos_to_parent          (flush_position *pos);
+static int           flush_pos_set_point          (flush_position *pos, jnode *node);
+static void          flush_pos_release_point      (flush_position *pos);
+static int           flush_pos_lock_parent        (flush_position *pos, coord_t *parent_coord, lock_handle *parent_lock, data_handle *parent_load, znode_lock_mode mode);
+
+/* Flush debug functions */
+static const char*   flush_pos_tostring           (flush_position *pos);
+static const char*   flush_jnode_tostring         (jnode *node);
+static const char*   flush_znode_tostring         (znode *node);
+static const char*   flush_flags_tostring         (int flags);
+
+/* This flush_cnt variable is used to track the number of concurrent flush operations,
+ * useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
+ * no static initializer function...) */
+ON_DEBUG (atomic_t flush_cnt;)
 
 /********************************************************************************
  * TODO LIST (no particular order):
