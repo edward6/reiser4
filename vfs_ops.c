@@ -626,7 +626,7 @@ reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 	/*
 	 * What we are trying to do here is to capture all "anonymous" pages.
 	 */
-	generic_sync_sb_inodes(sb, wbc);
+	capture_reiser4_inodes(sb, wbc);
 	spin_unlock(&inode_lock);
 	writeout(sb, wbc);
 

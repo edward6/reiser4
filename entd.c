@@ -521,7 +521,7 @@ static void entd_capture_anonymous_pages(
 	struct super_block * super, struct writeback_control * wbc)
 {
 	spin_lock(&inode_lock);
-	generic_sync_sb_inodes(super, wbc);
+	capture_reiser4_inodes(super, wbc);
 	spin_unlock(&inode_lock);
 }
 

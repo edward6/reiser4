@@ -522,6 +522,43 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		return ERR_PTR(RETERR(-ENOMEM));
 }
 
+reiser4_internal void capture_reiser4_inodes (
+	struct super_block * sb, struct writeback_control * wbc)
+{
+	const unsigned long start = jiffies;
+
+	if (list_empty(&sb->s_io))
+		list_splice_init(&sb->s_dirty, &sb->s_io);
+
+	while (!list_empty(&sb->s_io)) {
+		struct inode *inode = list_entry(
+			sb->s_io.prev, struct inode, i_list);
+
+		if (time_after(inode->dirtied_when, start))
+			break;
+
+		list_move(&inode->i_list, &sb->s_dirty);
+		__iget(inode);
+		spin_unlock(&inode_lock);
+
+		{
+			file_plugin *fplug;
+			
+			fplug = inode_file_plugin(inode);
+			if (fplug != NULL && fplug->capture != NULL)
+				/* call file plugin method to capture anonymous pages and
+				 * anonymous jnodes */
+				fplug->capture(inode, wbc);
+		}
+
+		iput(inode);
+		spin_lock(&inode_lock);
+
+		if (wbc->nr_to_write <= 0)
+			break;
+	}
+}
+
 #if REISER4_USE_ENTD
 
 #if 0 /* pages not having jnodes (anonymous pages) can be found in reiser_inode's radix tree of pages */
