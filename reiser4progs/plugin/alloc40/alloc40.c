@@ -13,11 +13,7 @@
 
 #include "alloc40.h"
 
-/* 
-    Pointer to libreiser4 plugin factory. As all libreiser4 plugins are able to 
-    use another plugins, it is needed to make request find plugin by its attributes.
-*/
-static reiserfs_plugin_factory_t *factory = NULL;
+static reiserfs_core_t *core = NULL;
 
 /* 
     Performs actual opening of the alloc40 allocator. As alloc40 is the bitmap-based
@@ -212,9 +208,8 @@ static reiserfs_plugin_t alloc40_plugin = {
     }
 };
 
-/* Registering aloc40 plugin in plugin factory */
-static reiserfs_plugin_t *alloc40_entry(reiserfs_plugin_factory_t *f) {
-    factory = f;
+static reiserfs_plugin_t *alloc40_entry(reiserfs_core_t *c) {
+    core = c;
     return &alloc40_plugin;
 }
 

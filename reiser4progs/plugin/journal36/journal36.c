@@ -9,7 +9,7 @@
 
 #include "journal36.h"
 
-static reiserfs_plugin_factory_t *factory = NULL;
+static reiserfs_core_t *core = NULL;
 
 static errno_t journal36_header_check(reiserfs_journal36_header_t *header, 
     aal_device_t *device) 
@@ -75,8 +75,8 @@ static reiserfs_plugin_t journal36_plugin = {
     }
 };
 
-static reiserfs_plugin_t *journal36_entry(reiserfs_plugin_factory_t *f) {
-    factory = f;
+static reiserfs_plugin_t *journal36_entry(reiserfs_core_t *c) {
+    core = c;
     return &journal36_plugin;
 }
 

@@ -25,9 +25,7 @@ typedef struct walk_desc walk_desc_t;
 
 aal_list_t *plugins = NULL;
 
-reiserfs_plugin_factory_t factory = {
-    libreiser4_factory_find
-};
+extern reiserfs_core_t core;
 
 static int callback_match_coord(reiserfs_plugin_t *plugin, walk_desc_t *desc) {
     return (plugin->h.type == desc->type && plugin->h.id == desc->id);
@@ -75,7 +73,7 @@ reiserfs_plugin_t *libreiser4_plugin_load_by_entry(reiserfs_plugin_entry_t entry
     
     aal_assert("umka-259", entry != NULL, return NULL);
     
-    if (!(plugin = entry(&factory))) {
+    if (!(plugin = entry(&core))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't initialiaze plugin.");
 	return NULL;

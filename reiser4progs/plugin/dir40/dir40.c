@@ -15,7 +15,7 @@
 #include <reiser4/reiser4.h>
 #include "dir40.h"
 
-static reiserfs_plugin_factory_t *factory = NULL;
+static reiserfs_core_t *core = NULL;
 
 #ifndef ENABLE_COMPACT
 
@@ -64,7 +64,7 @@ static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent,
     hint->item[0].type = REISERFS_STATDATA_ITEM; 
     
     if (!(hint->item[0].plugin = 
-	factory->find(REISERFS_ITEM_PLUGIN, stat_pid)))
+	core->factory_find(REISERFS_ITEM_PLUGIN, stat_pid)))
     {
 	libreiser4_factory_failed(goto error_free_item, 
 	    find, item, stat_pid);
@@ -86,7 +86,7 @@ static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent,
     /* Initializing direntry hint */
     hint->item[1].type = REISERFS_CDE_ITEM; 
     
-    if (!(hint->item[1].plugin = factory->find(REISERFS_ITEM_PLUGIN,
+    if (!(hint->item[1].plugin = core->factory_find(REISERFS_ITEM_PLUGIN,
 	direntry_pid)))
     {
 	libreiser4_factory_failed(goto error_free_hint0, find, item, 
@@ -177,8 +177,8 @@ static reiserfs_plugin_t dir40_plugin = {
     }
 };
 
-static reiserfs_plugin_t *dir40_entry(reiserfs_plugin_factory_t *f) {
-    factory = f;
+static reiserfs_plugin_t *dir40_entry(reiserfs_core_t *c) {
+    core = c;
     return &dir40_plugin;
 }
 

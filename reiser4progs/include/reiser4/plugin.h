@@ -658,28 +658,26 @@ union reiserfs_plugin {
     This structure is passed to all plugins in initialization time and used
     for access libreiser4 factories.
 */
-struct reiserfs_plugin_factory {
+struct reiserfs_core {
     /* Finds plugin by its attribues (type and id) */
-//    reiserfs_plugin_t *(*plugin_find)(reiserfs_plugin_type_t, reiserfs_id_t);
-
-    reiserfs_plugin_t *(*find)(reiserfs_plugin_type_t, reiserfs_id_t);
+    reiserfs_plugin_t *(*factory_find)(reiserfs_plugin_type_t, reiserfs_id_t);
 
     /* 
 	Inserts item/unit into the tree by calling reiserfs_tree_insert function,
 	used by all object plugins (dir, file, etc)
     */
-//    errno_t (*tree_insert)(void *, reiserfs_item_hint_t *);
+    errno_t (*tree_insert)(const void *, reiserfs_item_hint_t *);
     
     /*
 	Removes item/unit from the tree. It is used in all object plugins for
 	modification purposes.
     */
-//    errno_t (*tree_remove)(void *, reiserfs_key_t *);
+    errno_t (*tree_remove)(const void *, reiserfs_key_t *);
 };
 
-typedef struct reiserfs_plugin_factory reiserfs_plugin_factory_t;
+typedef struct reiserfs_core reiserfs_core_t;
 
-typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugin_factory_t *);
+typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_core_t *);
 typedef errno_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 
 /* Plugin functions and macros */

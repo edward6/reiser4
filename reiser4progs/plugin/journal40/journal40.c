@@ -13,7 +13,7 @@
 
 #include "journal40.h"
 
-static reiserfs_plugin_factory_t *factory = NULL;
+static reiserfs_core_t *core = NULL;
 
 static errno_t journal40_check_header(reiserfs_journal40_header_t *header, 
     aal_device_t *device) 
@@ -204,8 +204,8 @@ static reiserfs_plugin_t journal40_plugin = {
     }
 };
 
-static reiserfs_plugin_t *journal40_entry(reiserfs_plugin_factory_t *f) {
-    factory = f;
+static reiserfs_plugin_t *journal40_entry(reiserfs_core_t *c) {
+    core = c;
     return &journal40_plugin;
 }
 

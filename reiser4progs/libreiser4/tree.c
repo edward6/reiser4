@@ -735,7 +735,7 @@ errno_t reiserfs_tree_insert(reiserfs_tree_t *tree, reiserfs_item_hint_t *item) 
 
 /* Removes item by specified key */
 errno_t reiserfs_tree_remove(reiserfs_tree_t *tree, 
-    reiserfs_coord_t *coord) 
+    reiserfs_key_t *key) 
 {
     return -1;
 }

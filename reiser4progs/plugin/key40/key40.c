@@ -8,7 +8,7 @@
 #include <reiser4/plugin.h>
 #include "key40.h"
 
-static reiserfs_plugin_factory_t *factory = NULL;
+static reiserfs_core_t *core = NULL;
 
 static const reiserfs_key40_t MINIMAL_KEY = {
     .el = { 0ull, 0ull, 0ull }
@@ -288,8 +288,8 @@ static reiserfs_plugin_t key40_plugin = {
     }
 };
 
-static reiserfs_plugin_t *key40_entry(reiserfs_plugin_factory_t *f) {
-    factory = f;
+static reiserfs_plugin_t *key40_entry(reiserfs_core_t *c) {
+    core = c;
     return &key40_plugin;
 }
 

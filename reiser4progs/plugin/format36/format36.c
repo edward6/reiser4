@@ -13,7 +13,7 @@
 
 #include "format36.h"
 
-static reiserfs_plugin_factory_t *factory = NULL;
+static reiserfs_core_t *core = NULL;
 
 static int format36_3_5_signature(const char *signature) {
     return(!aal_strncmp(signature, REISERFS_3_5_SUPER_SIGNATURE,
@@ -292,8 +292,8 @@ static reiserfs_plugin_t format36_plugin = {
     }
 };
 
-static reiserfs_plugin_t *format36_entry(reiserfs_plugin_factory_t *f) {
-    factory = f;
+static reiserfs_plugin_t *format36_entry(reiserfs_core_t *c) {
+    core = c;
     return &format36_plugin;
 }
 

@@ -13,7 +13,7 @@
 
 #include "format40.h"
 
-static reiserfs_plugin_factory_t *factory = NULL;
+static reiserfs_core_t *core = NULL;
 
 static errno_t format40_super_check(reiserfs_format40_super_t *super, 
     aal_device_t *device) 
@@ -306,8 +306,8 @@ static reiserfs_plugin_t format40_plugin = {
     }
 };
 
-static reiserfs_plugin_t *format40_entry(reiserfs_plugin_factory_t *f) {
-    factory = f;
+static reiserfs_plugin_t *format40_entry(reiserfs_core_t *c) {
+    core = c;
     return &format40_plugin;
 }
 

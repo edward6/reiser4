@@ -13,7 +13,7 @@
 
 #define REISERFS_NODE40_PID (0x0)
 
-static reiserfs_plugin_factory_t *factory = NULL;
+static reiserfs_core_t *core = NULL;
 
 #ifndef ENABLE_COMPACT
 
@@ -361,7 +361,7 @@ static uint32_t node40_maxnum(reiserfs_node40_t *node) {
 	uint32_t pid = ih40_get_pid(node40_ih_at(node->block, i));
 	
 	if (!plugin || plugin->h.id != pid) {
-	    if (!(plugin = factory->find(REISERFS_ITEM_PLUGIN, pid)))
+	    if (!(plugin = core->factory_find(REISERFS_ITEM_PLUGIN, pid)))
 		libreiser4_factory_failed(return 0, find, item, pid);
 	}
 	
@@ -562,8 +562,8 @@ static reiserfs_plugin_t node40_plugin = {
     }
 };
 
-static reiserfs_plugin_t *node40_entry(reiserfs_plugin_factory_t *f) {
-    factory = f;
+static reiserfs_plugin_t *node40_entry(reiserfs_core_t *c) {
+    core = c;
     return &node40_plugin;
 }
 
