@@ -279,7 +279,7 @@ static int slum_allocate_and_squeeze_children (znode *node)
 		case EXTENT_ITEM_TYPE:
 
 			/* FIXME: */
-			/*allocate_extent_item (item);*/
+			allocate_extent_item_in_place (&crd, preceder);
 			break;
 
 		case INTERNAL_ITEM_TYPE: {
@@ -306,11 +306,60 @@ static int slum_allocate_and_squeeze_children (znode *node)
 	return 0;
 }
 
+
+/*
+ * shift items from @right to @left. Unallocated extents of extent items are
+ * allocated first and then moved. When unit of internal item is moved -
+ * squeezing stops and SUBTREE_MOVED is returned. When all content of @rigth is
+ * squeezed - SQUEEZE_CONTINUE is returned. If nothing can be moved into @left
+ * anymore - SQUEEZE_DONE is returned
+ */
+squeeze_result allocate_and_squeeze_right_neighbor (znode * left,
+						    znode * right)
+{
+	squeeze_result result;
+
+
+	assert ("vs-425", !is_empty_node (left) && !is_empty_node (right));
+
+
+	switch (znode_get_level (left)) {
+	case LEAF_LEVEL:
+		/*
+		 * shift as much as possible
+		 */
+		result = squeeze_leaves (left, right);
+		break;
+
+	case TWIG_LEVEL:
+		/*
+		 * shift with extent allocating until either internal item
+		 * encountered or everything is shifted or no free space left
+		 * in @left
+		 */
+		result = allocate_and_squeeze_twig (left, right);
+		break;
+
+	default:
+		/*
+		 * all other levels contain items of internal type only
+		 */
+		result = shift_one_internal_unit (left, right);
+		break;
+
+	}
+
+	return result;
+}
+
+
 static int slum_allocate_and_squeeze_parent_first (jnode *node)
 {
 	int ret, goright;
 	znode *right;
 	reiser4_lock_handle right_lock;
+	squeeze_result squeeze;
+
 
         /* Stop recursion if its not dirty, meaning don't allocate children
          * either.  Children might be dirty but there is an overwrite below
@@ -379,39 +428,45 @@ static int slum_allocate_and_squeeze_parent_first (jnode *node)
 	assert ("jmacd-1052", ! is_empty_node (right_lock.node));
 
 	/* FIXME: Check ZNODE_HEARD_BANSHEE? */
-#if 0	
-	/* Try to move into @node content of its right
-	 * neighbor. Moving stops whenever one unit of internal item
-	 * and, therefore, whole subtree is moved */
-	while (squeeze_to_left (node, right_lock.node) == subtree_moved) {
 
-		/* Last item in @node is an internal item. Its last
-		 * unit was just moved from node->right, therefore, it
-		 * points to subtree which still has to be allocated &
-		 * squeezed. */
-		assert ("jmacd-2002", is_internal_item (last_item (node)));
 
+	while ((squeeze = allocate_and_squeeze_right_neighbor (node, right_lock.node)) ==
+	       SUBTREE_MOVED) {
 		/*
-		 * FIXME-VS: the below complication can be avoided if
-		 * we can disregard the possibility of merging new last
-		 * child of @node with its left neighbor
+		 * unit of internal item is shifted - allocated and squeeze that
+		 * subtree which roots from last unit in node
 		 */
-		if (is_internal_item (last_but_one (node)) &&
-		    jnode_is_dirty (internal_item_child (last_but_one (node)))) {
-			/*
-			 * we may have to squeeze moved child with old
-			 * last child
-			 */
-			allocate_and_squeeze_parent_first (internal_item_child (last_but_one (node)));
-		} else {
-			/*
-			 * there is nothing to the left of moved child
-			 * we can squeeze it with
-			 */
-			allocate_and_squeeze_parent_first (internal_item_child (last_item (node)));
+		tree_coord crd;
+		znode *child;
+		
+		reiser4_init_coord (& crd);
+		crd.node = node;
+
+		coord_last_unit (& crd);
+		assert ("vs-442", item_type_is_internal (& crd));
+
+		child = child_znode (& crd, 1/*set delim key*/);
+		if (IS_ERR (child)) { return PTR_ERR (child); }
+
+		if (! znode_is_dirty (child)) { continue; }
+
+		if ((ret = slum_allocate_and_squeeze_parent_first (ZJNODE (child)))) {
+			return ret;
 		}
 	}
-#endif
+	if (squeeze == SQUEEZE_CONTINUE)
+		/*
+		 * right neighbor was squeezes completely into @node, try to
+		 * squeeze with new right neighbor
+		 */
+		goto again;
+	/*
+	 * error or nothing else of right_lock.node can be shifted to @node
+	 */
+	assert ("vs-444", node_is_empty (right_lock.node));
+	assert ("vs-443", squeeze == SQUEEZE_DONE || squeeze < 0);
+	ret = ((squeeze < 0) ? squeeze : 0);
+
  cleanup:
 	reiser4_done_lh (& right_lock);
 	return ret;
