@@ -538,7 +538,8 @@ worker(void *arg)
 			       stats.end.tv_sec - stats.start.tv_sec,
 			       stats.end.tv_usec - stats.start.tv_usec);
 			break;
-		} else if (stats.stop)
+		}
+		if (stats.stop)
 			break;
 	}
 }
