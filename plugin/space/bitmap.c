@@ -115,7 +115,7 @@ static void reiser4_clear_bits (char * addr, int start, int end)
 	first_byte = start >> 3;
 	last_byte = (end - 1) >> 3;
 
-	if (last_byte > first_byte + 1) memset (addr + start + 1, 0, last_byte - first_byte - 1);
+	if (last_byte > first_byte + 1) xmemset (addr + start + 1, 0, last_byte - first_byte - 1);
 
 	first_byte_mask >>= 8 - (start & 0x7);
 	last_byte_mask  <<= (end - 1) & 0x7;
@@ -141,7 +141,7 @@ static void reiser4_set_bits (char * addr, int start, int end)
 	first_byte = start >> 3;
 	last_byte = (end - 1) >> 3;
 
-	if (last_byte > first_byte + 1) memset (addr + start + 1, 0xFF, last_byte - first_byte - 1);
+	if (last_byte > first_byte + 1) xmemset (addr + start + 1, 0xFF, last_byte - first_byte - 1);
 
 	first_byte_mask <<= 8 - (start & 0x7);
 	last_byte_mask  >>= (end - 1) & 0x7;
