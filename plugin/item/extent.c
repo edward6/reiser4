@@ -2783,7 +2783,7 @@ int allocate_extent_item_in_place (coord_t * item, lock_handle * lh, flush_posit
 
 		/* set @key to key of first byte of part of extent which left
 		 * unallocated */
-		set_key_offset (&key, get_key_offset (&key) + initial_width * blocksize);
+		set_key_offset (&key, get_key_offset (&key) + allocated * blocksize);
 
 		/* [u/initial_width] ->
 		   [first_allocated/allocated][u/initial_width - allocated] */
@@ -2803,7 +2803,7 @@ int allocate_extent_item_in_place (coord_t * item, lock_handle * lh, flush_posit
 				unit_key_by_coord (item, &ext_key);
 				set_key_offset (&ext_key,
 						get_key_offset (&ext_key) +
-						initial_width * blocksize);
+						allocated * blocksize);
 				keyeq (&ext_key, &key);
 			}));
 		assert ("vs-994", extent_get_start (extent_by_coord (item)) == first_allocated);
@@ -3113,9 +3113,8 @@ static int plug_hole (coord_t * coord, lock_handle * lh, reiser4_key * key)
 
 	/* insert_into_item will insert new units after the one @coord is set
 	 * to. So, update key correspondingly */
-	set_key_offset (key, get_key_offset (key) +
-			(width - pos_in_unit) * current_blocksize);
-	
+	set_key_offset (key, get_key_offset (key) + (width_after * current_blocksize));
+
 	coord->between = AFTER_UNIT;
 
 	/*
@@ -3135,6 +3134,10 @@ static int plug_hole (coord_t * coord, lock_handle * lh, reiser4_key * key)
 		/* FIXME-VS: we might also try to optimize @coord */
 		ret = zload (coord_after.node);
 		if (likely (!ret)) {
+			ext = extent_by_coord (&coord_after);
+
+			assert ("vs-996", state_of_extent (ext) == HOLE_EXTENT);
+			assert ("vs-997", extent_get_width (ext) == width);
 			set_extent (extent_by_coord (&coord_after), 
 				    state_after, width_after);
 			znode_set_dirty (coord_after.node);
