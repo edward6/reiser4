@@ -14,6 +14,7 @@
 #include "../../wander.h"
 #include "../../diskmap.h"
 #include "../../inode.h"
+#include "../../ktxnmgrd.h"
 #include "../../status_flags.h"
 
 #include <linux/types.h>	/* for __u??  */
@@ -372,6 +373,10 @@ release_format40(struct super_block *s)
 	}
 	if (reiser4_is_debugged(s, REISER4_STATS_ON_UMOUNT))
 		print_fs_info("umount ok", s);
+
+	/* shutdown daemon if last mount is removed. This should be done
+	 * before disk format is shut down. */
+	ktxnmgrd_detach(&sbinfo->tmgr);
 
 	/*done_tree(&sbinfo->tree);*/
 
