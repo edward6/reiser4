@@ -890,7 +890,7 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 	   supplied to us by caller (VFS). */
 	if (filldir(dirent, name, (int) strlen(name),
 		    /* offset of the next entry */
-		    (loff_t) pos->entry_no + 1,
+		    (loff_t) pos->entry_no,
 		    /* inode number of object bounden by this entry */
 		    oid_to_uino(get_key_objectid(&sd_key)),
 		    iplug->s.dir.extract_file_type(coord)) < 0) {
