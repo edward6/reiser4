@@ -330,9 +330,11 @@ coord_by_handle(cbk_handle * handle)
 	write_tree_trace(handle->tree, tree_lookup, handle->key);
 
 	/* first check whether "key" is in cache of recent lookups. */
+/*
 	if (cbk_cache_search(handle) == 0)
 		return handle->result;
 	else
+*/
 		return traverse_tree(handle);
 }
 
@@ -616,6 +618,21 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		}
 	}
 
+	/* FIXME: there is a guess that right delimiting key which are brought from the parent can be incorrect
+	   already */
+	spin_lock_dk(h->tree);
+	read_lock_tree(h->tree);
+	if (ZF_ISSET(active, JNODE_RIGHT_CONNECTED) && active->right) {
+		if (!keyeq(znode_get_rd_key(active), znode_get_ld_key(active->right))) {
+			info("cbk_level_lookup: right delimiting key changed. Corrected\n");
+			znode_set_rd_key(active, znode_get_ld_key(active->right));
+		}
+	}
+	read_unlock_tree(h->tree);
+	spin_unlock_dk(h->tree);
+
+
+
 	/* put_parent() cannot be called earlier, because connect_znode()
 	   assumes parent node is referenced; */
 	put_parent(h);
@@ -667,6 +684,8 @@ fail_or_restart:
 	return LOOKUP_DONE;
 }
 
+void check_dkeys(const znode *node);
+
 /* Process one node during tree traversal.
   
    This is called by cbk_level_lookup(). */
@@ -706,6 +725,9 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 
 	nplug = active->nplug;
 	assert("nikita-380", nplug != NULL);
+
+	/* FIXME: remove after debugging */
+	check_dkeys(active);
 
 	/* return item from "active" node with maximal key not greater than
 	   "key"  */
@@ -1442,6 +1464,28 @@ sanity_check(cbk_handle * h /* search handle */ )
 		return LOOKUP_DONE;
 	} else
 		return 0;
+}
+
+
+/* check left and right delimiting keys of a znode */
+void
+check_dkeys(const znode *node)
+{
+	spin_lock_dk(current_tree);
+	read_lock_tree(current_tree);
+
+	assert("vs-1197", !keygt(&node->ld_key, &node->rd_key));
+
+	if (ZF_ISSET(node, JNODE_LEFT_CONNECTED) && node->left != NULL)
+		/* check left neighbor */
+		assert("vs-1198", keyeq(&node->left->rd_key, &node->ld_key));
+
+	if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && node->right != NULL)
+		/* check right neighbor */
+		assert("vs-1199", keyeq(&node->rd_key, &node->right->ld_key));
+
+	read_unlock_tree(current_tree);
+	spin_unlock_dk(current_tree);
 }
 
 /* Make Linus happy.
