@@ -2147,6 +2147,7 @@ prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture)
 		grab_cluster_pages      (inode, clust));
 }
 
+/* Truncate all the pages and jnode bound with the cluster of index @index */
 reiser4_internal void
 truncate_page_cluster(struct inode *inode, cloff_t index)
 {
@@ -2181,12 +2182,12 @@ truncate_page_cluster(struct inode *inode, cloff_t index)
 			     get_current_super_private(),
 			     estimate_insert_cluster(inode, 0));
 		
-		/* clear dirty bit so concurrent flush
-		   won't convert the disk cluster */
+		assert("edward-1198", found == nr_pages);
+		/* This will clear dirty bit so concurrent flush
+		   won't start to convert the disk cluster */
+		assert("edward-1199", PageUptodate(pages[0]));
 		uncapture_cluster_jnode(node);
 		
-		assert("edward-1198", found == nr_pages);
-		assert("edward-1199", PageUptodate(pages[0]));
 		for (i = 1; i < nr_pages ; i++) {
 			assert("edward-1200", PageUptodate(pages[i]));
 			
