@@ -135,6 +135,11 @@ struct znode {
 	__u32 cksum;
 	spinlock_t cksum_guard;
 #endif
+
+#ifdef REISER4_DEBUG
+	void *creator;
+	reiser4_key first_key;
+#endif
 };
 
 /* In general I think these macros should not be exposed. */
