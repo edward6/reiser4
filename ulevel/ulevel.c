@@ -1012,6 +1012,8 @@ int submit_bio (int rw, struct bio *bio)
 {
 	int i;
 
+	set_bit( BIO_UPTODATE, &bio -> bi_flags );
+	bio -> bi_end_io(bio);
 	return 0;
 
 	assert ("jmacd-997", rw == WRITE);
