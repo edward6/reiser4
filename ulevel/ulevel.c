@@ -3790,11 +3790,23 @@ int jmacd_test( int argc UNUSED_ARG,
 static int bm_test_read_node (const reiser4_block_nr *addr, char **data, size_t blksz )
 {
 	struct super_block * super = get_current_context() -> super;
-
-	/* it is a hack for finding what block we read (bitmap block or not) */
-	int bmap_nr = *addr / super->s_blocksize;
+	int bmap_nr;
 	reiser4_block_nr bmap_block_addr;
 
+	assert ("zam-413", *data == NULL);
+
+	if (blocknr_is_fake(addr)) {
+		*data = reiser4_kmalloc (blksz, GFP_KERNEL);
+
+		if (*data == NULL) return -ENOMEM;
+
+		xmemset (*data, 0, blksz);
+
+		return 0;
+	}
+
+	/* it is a hack for finding what block we read (bitmap block or not) */
+	bmap_nr = *addr / super->s_blocksize;
 	get_bitmap_blocknr (super,  bmap_nr, &bmap_block_addr);
 
 	if (disk_addr_eq (addr, &bmap_block_addr)) {
@@ -3863,7 +3875,6 @@ static int bitmap_test (int argc UNUSED_ARG, char ** argv UNUSED_ARG, reiser4_tr
 		reiser4_alloc_blocks (&hint, &block, &len);
 
 		blocknr_hint_done (&hint);
-		
 	}
 
 
