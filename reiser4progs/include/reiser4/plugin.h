@@ -441,13 +441,13 @@ struct reiserfs_item_common_ops {
     /* Returns unit count */
     uint32_t (*count) (const void *);
 
-    /* Removes specified unit from the item */
-    errno_t (*remove) (const void *, uint32_t);
+    /* Removes specified unit from the item. Returns released space */
+    uint32_t (*remove) (const void *, uint32_t);
 
     /* Inserts unit described by passed hint into the item */
     errno_t (*insert) (const void *, uint32_t, reiserfs_item_hint_t *);
     
-    /* Estimatess item */
+    /* Estimates item */
     errno_t (*estimate) (uint32_t, reiserfs_item_hint_t *);
     
     /* Retunrs min size the item may occupy */

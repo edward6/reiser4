@@ -247,7 +247,7 @@ int reiserfs_tree_lookup(
     aal_assert("umka-742", key != NULL, return -1);
     aal_assert("umka-742", coord != NULL, return -1);
   
-    reiserfs_coord_init(coord, tree->cache, 0, 0xffff);
+    reiserfs_coord_init(coord, tree->cache, 0, 0xffffffff);
     while (1) {
 	/* 
 	    Looking up for key inside node. Result of lookuping will be stored
@@ -330,16 +330,17 @@ errno_t reiserfs_tree_move(
     reiserfs_coord_t *dst,	    /* destination coord of item*/
     reiserfs_coord_t *src	    /* source coord of item */
 ) {
-	
-    if (reiserfs_node_get_level(src->cache->node) > REISERFS_LEAF_LEVEL) {
-	reiserfs_key_t key;
-	reiserfs_cache_t *child;
+    if (src->pos.unit == 0xffffffff) {
+	if (reiserfs_node_get_level(src->cache->node) > REISERFS_LEAF_LEVEL) {
+	    reiserfs_key_t key;
+	    reiserfs_cache_t *child;
 
-	reiserfs_node_get_key(src->cache->node, &src->pos, &key);
+	    reiserfs_node_get_key(src->cache->node, &src->pos, &key);
 	
-	if ((child = reiserfs_cache_find(src->cache, &key))) {
-	    reiserfs_cache_unregister(src->cache, child);
-	    reiserfs_cache_register(dst->cache, child);
+	    if ((child = reiserfs_cache_find(src->cache, &key))) {
+		reiserfs_cache_unregister(src->cache, child);
+		reiserfs_cache_register(dst->cache, child);
+	    }
 	}
     }
     
@@ -415,7 +416,7 @@ errno_t reiserfs_tree_shift(
     if (left && reiserfs_node_count(old->cache->node) > 0) {
 	reiserfs_pos_t mpos;
 
-	reiserfs_pos_init(&mpos, 0, 0xffff);
+	reiserfs_pos_init(&mpos, 0, 0xffffffff);
 
         /* Initializing item_len by first length of first item from shifted node */
 	item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
@@ -441,10 +442,10 @@ errno_t reiserfs_tree_shift(
 	    } else
 	        new->pos.item--;
 	    
-	    reiserfs_coord_init(&src, old->cache, 0, 0xffff);
+	    reiserfs_coord_init(&src, old->cache, 0, 0xffffffff);
 	    
 	    reiserfs_coord_init(&dst, left, 
-		reiserfs_node_count(left->node), 0xffff);
+		reiserfs_node_count(left->node), 0xffffffff);
 	    
 	    if (reiserfs_tree_move(&dst, &src)) {
 	        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -464,7 +465,7 @@ errno_t reiserfs_tree_shift(
 	reiserfs_pos_t mpos;
 	
 	reiserfs_pos_init(&mpos, 
-	    reiserfs_node_count(old->cache->node) - 1, 0xffff);
+	    reiserfs_node_count(old->cache->node) - 1, 0xffffffff);
 	
 	item_len = reiserfs_node_item_len(old->cache->node, &mpos) + 
 	    item_overhead;
@@ -496,9 +497,9 @@ errno_t reiserfs_tree_shift(
 	    }
 	    
 	    reiserfs_coord_init(&src, old->cache, 
-		reiserfs_node_count(old->cache->node) - 1, 0xffff);
+		reiserfs_node_count(old->cache->node) - 1, 0xffffffff);
 
-	    reiserfs_coord_init(&dst, right, 0, 0xffff);
+	    reiserfs_coord_init(&dst, right, 0, 0xffffffff);
 	
 	    if (reiserfs_tree_move(&dst, &src)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -714,7 +715,7 @@ errno_t reiserfs_tree_insert(
 	Correcting unit position in the case lookup was called for pasting unit 
 	into existent item, not for inserting new item.
     */
-    if (coord->pos.unit != 0xffff)
+    if (coord->pos.unit != 0xffffffff)
 	coord->pos.unit++;
     
     /* Estimating item in order to insert it into found node */
@@ -724,7 +725,7 @@ errno_t reiserfs_tree_insert(
     /* Needed space is estimated space plugs item overhead */
     needed = item->len;
 
-    if (coord->pos.unit == 0xffff)
+    if (coord->pos.unit == 0xffffffff)
 	needed += reiserfs_node_item_overhead(coord->cache->node);
     
     /* 
@@ -742,7 +743,7 @@ errno_t reiserfs_tree_insert(
 	}
 
 	/* Updating coord by just allocated leaf */
-	reiserfs_coord_init(coord, cache, 0, 0xffff);
+	reiserfs_coord_init(coord, cache, 0, 0xffffffff);
 	
         if (reiserfs_node_insert(coord->cache->node, &coord->pos, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -768,7 +769,7 @@ errno_t reiserfs_tree_insert(
         if (reiserfs_node_insert(coord->cache->node, &coord->pos, item)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		"Can't insert an %s into the node %llu.", 
-		(coord->pos.unit == 0xffff ? "item" : "unit"),
+		(coord->pos.unit == 0xffffffff ? "item" : "unit"),
 		aal_block_get_nr(coord->cache->node->block));
 	    return -1;
 	}
@@ -806,7 +807,7 @@ errno_t reiserfs_tree_insert(
 	    if (reiserfs_node_insert(insert.cache->node, &insert.pos, item)) {
 		aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 		    "Can't insert an %s into the node %llu.", 
-		    (insert.pos.unit == 0xffff ? "item" : "unit"),
+		    (insert.pos.unit == 0xffffffff ? "item" : "unit"),
 		    aal_block_get_nr(insert.cache->node->block));
 		return -1;
 	    }
@@ -870,7 +871,7 @@ errno_t reiserfs_tree_insert(
 		coord->pos.item = insert.pos.item >= (count / 2) ?
 		    insert.pos.item - (count / 2) : insert.pos.item;
 		
-		coord->pos.unit = 0xffff;
+		coord->pos.unit = 0xffffffff;
 		
 		if (reiserfs_node_insert(coord->cache->node, &coord->pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -898,10 +899,10 @@ errno_t reiserfs_tree_insert(
 		reiserfs_pos_t src_pos;
 		reiserfs_pos_t dst_pos;
 		
-		reiserfs_pos_init(&dst_pos, 0, 0xffff);
+		reiserfs_pos_init(&dst_pos, 0, 0xffffffff);
 
 		reiserfs_pos_init(&src_pos, 
-		    reiserfs_node_count(insert.cache->node) - 1, 0xffff);
+		    reiserfs_node_count(insert.cache->node) - 1, 0xffffffff);
 		
 		if (reiserfs_node_move(cache->node, &dst_pos, insert.cache->node, &src_pos)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -934,19 +935,23 @@ errno_t reiserfs_tree_insert(
 		if (reiserfs_node_insert(insert.cache->node, &insert.pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert an %s into the node %llu.", 
-			(coord->pos.unit == 0xffff ? "item" : "unit"),
+			(coord->pos.unit == 0xffffffff ? "item" : "unit"),
 			aal_block_get_nr(coord->cache->node->block));
 		    return -1;
 		}
 	    } else {
-		coord->pos.item = 0;
-		coord->cache = cache;
-	    
+
+	        coord->cache = cache;
+	        coord->pos.item = 0;
+	        coord->pos.unit = 0xffffffff;
+		
 		if (reiserfs_node_insert(coord->cache->node, &coord->pos, item)) {
 		    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 			"Can't insert an %s into the node %llu.", 
-			(coord->pos.unit == 0xffff ? "item" : "unit"),
+			(coord->pos.unit == 0xffffffff ? "item" : "unit"),
 			aal_block_get_nr(coord->cache->node->block));
+		    
+		    reiserfs_tree_dealloc(cache);
 		    return -1;
 		}
 		

@@ -76,7 +76,7 @@ struct reiserfs_ih40 {
     reiserfs_key40_t key;
     
     uint16_t offset;
-    uint16_t length;
+    uint16_t len;
     uint16_t pid;
 };
 
@@ -85,8 +85,8 @@ typedef struct reiserfs_ih40 reiserfs_ih40_t;
 #define ih40_get_offset(ih)			aal_get_le16(ih, offset)
 #define ih40_set_offset(ih, val)		aal_set_le16(ih, offset, val)
 
-#define ih40_get_length(ih)			aal_get_le16(ih, length)
-#define ih40_set_length(ih, val)		aal_set_le16(ih, length, val)
+#define ih40_get_len(ih)			aal_get_le16(ih, len)
+#define ih40_set_len(ih, val)			aal_set_le16(ih, len, val)
 
 #define ih40_get_pid(ih)			aal_get_le16(ih, pid)
 #define ih40_set_pid(ih, val)			aal_set_le16(ih, pid, val)

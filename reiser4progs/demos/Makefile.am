@@ -4,8 +4,7 @@ list_SOURCES	= list.c
 
 list_LDFLAGS	= $(PROGS_LDFLAGS)
 
-list_LDADD 	= $(top_builddir)/libreiser4/libreiser4.la \
-	          $(top_builddir)/progs/libmisc/libmisc.a
+list_LDADD 	= $(top_builddir)/libreiser4/libreiser4.la
 
 info_SOURCES	= info.c
 

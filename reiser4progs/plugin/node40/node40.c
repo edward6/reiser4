@@ -158,7 +158,7 @@ static uint32_t node40_item_len(reiserfs_node40_t *node,
     
     aal_assert("umka-815", pos->item < node40_count(node), return 0);
     
-    return ih40_get_length(node40_ih_at(node->block, pos->item));
+    return ih40_get_len(node40_ih_at(node->block, pos->item));
 }
 
 #ifndef ENABLE_COMPACT
@@ -176,7 +176,7 @@ static errno_t node40_item_set_pid(reiserfs_node40_t *node,
     return 0;
 }
 
-static errno_t node40_prepare(reiserfs_node40_t *node, 
+static errno_t node40_prepare_insert(reiserfs_node40_t *node, 
     reiserfs_pos_t *pos, reiserfs_item_hint_t *item) 
 {
     void *body;
@@ -197,14 +197,14 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     aal_assert("umka-712", item->key.plugin != NULL, return -1);
 
     is_space = (nh40_get_free_space(reiserfs_nh40(node->block)) >= 
-	item->len + (pos->unit == 0xffff ? sizeof(reiserfs_ih40_t) : 0));
-
+	item->len + (pos->unit == 0xffffffff ? sizeof(reiserfs_ih40_t) : 0));
+    
     is_range = (pos->item <= node40_count(node));
     
     aal_assert("vpf-026", is_space, return -1);
     aal_assert("vpf-027", is_range, return -1);
 
-    is_insert = (pos->unit == 0xffff);
+    is_insert = (pos->unit == 0xffffffff);
     item_pos = pos->item + !is_insert;
     
     nh = reiserfs_nh40(node->block);
@@ -235,7 +235,7 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     
     if (!is_insert) {
 	ih = node40_ih_at(node->block, pos->item);
-	ih40_set_length(ih, ih40_get_length(ih) + item->len);
+	ih40_set_len(ih, ih40_get_len(ih) + item->len);
 	return 0;
     }
     
@@ -243,7 +243,7 @@ static errno_t node40_prepare(reiserfs_node40_t *node,
     
     ih40_set_offset(ih, offset);
     ih40_set_pid(ih, item->plugin->h.id);
-    ih40_set_length(ih, item->len);
+    ih40_set_len(ih, item->len);
     
     return 0;
 }
@@ -256,9 +256,9 @@ static errno_t node40_insert(reiserfs_node40_t *node,
     
     aal_assert("umka-818", node != NULL, return -1);
     aal_assert("vpf-119", pos != NULL, return -1);
-    aal_assert("umka-908", pos->unit == 0xffff, return -1);
+    aal_assert("umka-908", pos->unit == 0xffffffff, return -1);
     
-    if (node40_prepare(node, pos, item))
+    if (node40_prepare_insert(node, pos, item))
 	return -1;
 
     nh = reiserfs_nh40(node->block);
@@ -274,6 +274,70 @@ static errno_t node40_insert(reiserfs_node40_t *node,
     }
 }
 
+/* Pastes unit into item described by hint structure. */
+static errno_t node40_paste(reiserfs_node40_t *node, 
+    reiserfs_pos_t *pos, reiserfs_item_hint_t *item) 
+{   
+    aal_assert("vpf-120", pos != NULL && 
+	pos->unit != 0xffffffff, return -1);
+    
+    if (node40_prepare_insert(node, pos, item))
+	return -1;
+
+    return libreiser4_plugin_call(return -1, item->plugin->item_ops.common,
+	insert, node40_ib_at(node->block, pos->item), pos->unit, item);
+}
+
+static errno_t node40_prepare_remove(reiserfs_node40_t *node,
+    reiserfs_pos_t *pos, uint32_t len) 
+{
+    uint32_t offset;
+    reiserfs_nh40_t *nh;
+    reiserfs_ih40_t *ih;
+        
+    int is_range;
+    int is_move;
+    int is_cut;
+    
+    aal_assert("umka-958", node != NULL, return -1);
+    aal_assert("umka-959", pos != NULL, return -1);
+
+    is_range = (pos->item < node40_count(node));
+    aal_assert("umka-960", is_range, return -1);
+    
+    is_cut = (pos->unit != 0xffffffff);
+    
+    nh = reiserfs_nh40(node->block);
+    ih = node40_ih_at(node->block, pos->item);
+    offset = ih40_get_offset(ih);
+
+    is_move = ((offset + ih40_get_len(ih)) < 
+	nh40_get_free_space_start(nh));
+    
+    if (is_move) {
+	reiserfs_ih40_t *cur;
+	reiserfs_ih40_t *end;
+	
+	/* Moving the item bodies */
+	aal_memmove(node->block->data + offset, node->block->data + 
+	    offset + len, nh40_get_free_space_start(nh) - offset - len);
+    
+	/* Updating offsets */
+	end = node40_ih_at(node->block, nh40_get_num_items(nh) - 1);
+
+	for (cur = ih - 1; cur >= end; cur--)
+	    ih40_set_offset(cur, ih40_get_offset(cur) - len);
+	
+	/* Moving headers */
+	if (!is_cut)
+	    aal_memmove(end, end + 1, ((void *)ih) - ((void *)end));
+    }
+	
+    nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - len);
+    
+    return 0;
+}
+
 /* 
     This function removes item from the node at specified pos. Do not try to 
     understand it. This is impossible. But it works correctly.
@@ -281,73 +345,47 @@ static errno_t node40_insert(reiserfs_node40_t *node,
 static errno_t node40_remove(reiserfs_node40_t *node, 
     reiserfs_pos_t *pos) 
 {
-    int do_move;
-    uint32_t offset;
-    reiserfs_nh40_t *nh;
     reiserfs_ih40_t *ih;
+    reiserfs_nh40_t *nh;
     
-    reiserfs_ih40_t *ih_at_pos;
-    reiserfs_ih40_t *ih_at_end = NULL;
-    
-    aal_assert("umka-762", node != NULL, return -1);
-    aal_assert("umka-763", pos != NULL, return -1);
-
     nh = reiserfs_nh40(node->block);
-    
-    aal_assert("umka-763", pos->item < nh40_get_num_items(nh), return -1);
-    
-    ih_at_pos = node40_ih_at(node->block, pos->item);
-    
-    /* Moving the data */
-    offset = ih40_get_offset(ih_at_pos);
+    ih = node40_ih_at(node->block, pos->item);
 
-    do_move = ((offset + ih40_get_length(ih_at_pos)) < 
-	nh40_get_free_space_start(nh));
-    
-    if (do_move) {
-	aal_memmove(node->block->data + offset, node->block->data + offset + 
-	    ih40_get_length(ih_at_pos), nh40_get_free_space_start(nh) - 
-	    offset - ih40_get_length(ih_at_pos));
-    
-	/* Updating offsets */
-	ih_at_end = node40_ih_at(node->block, nh40_get_num_items(nh) - 1);
-	for (ih = ih_at_pos - 1; ih >= ih_at_end; ih--)
-	    ih40_set_offset(ih, ih40_get_offset(ih) - ih40_get_length(ih_at_pos));
+    /* Removing either item or unit, depending on pos */
+    if (pos->unit == 0xffffffff) {
+	if (node40_prepare_remove(node, pos, ih40_get_len(ih)))
+	    return -1;
+	
+	nh40_set_num_items(nh, nh40_get_num_items(nh) - 1);
+	nh40_set_free_space(nh, nh40_get_free_space(nh) + 
+	    ih40_get_len(ih) + sizeof(reiserfs_ih40_t));
+    } else {
+	void *body;
+        uint32_t len;
+	reiserfs_id_t pid;
+	reiserfs_plugin_t *plugin;
+	
+	if ((pid = ih40_get_pid(ih)) == INVALID_PLUGIN_ID)
+	    return -1;
+	
+	if (!(plugin = core->factory_ops.plugin_find(ITEM_PLUGIN_TYPE, pid)))
+	    libreiser4_factory_failed(return -1, find, item, pid);
+	
+	body = node40_ib_at(node->block, pos->item);
+	
+	if (!(len = plugin->item_ops.common.remove(body, pos->unit)))
+	    return -1;
+	
+        if (node40_prepare_remove(node, pos, len))
+	    return -1;
+	
+	ih40_set_len(ih, ih40_get_len(ih) + len);
+	nh40_set_free_space(nh, nh40_get_free_space(nh) + len);
     }
 	
-    /* 
-	Updating node header. This is performed before moving the headers because
-	we need ih_at_pos item length, that will be killed by moving.
-    */
-    nh40_set_free_space(nh, nh40_get_free_space(nh) + 
-	ih40_get_length(ih_at_pos) + sizeof(reiserfs_ih40_t));
-    
-    nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - 
-	ih40_get_length(ih_at_pos));
-    
-    nh40_set_num_items(nh, nh40_get_num_items(nh) - 1);
-    
-    /* Moving the item headers */
-    if (do_move) {
-	aal_memmove(ih_at_end, ih_at_end + 1, ((void *)ih_at_pos) - 
-	    ((void *)ih_at_end));
-    }
-    
     return 0;
 }
 
-/* Pastes unit into item described by hint structure. */
-static errno_t node40_paste(reiserfs_node40_t *node, 
-    reiserfs_pos_t *pos, reiserfs_item_hint_t *item) 
-{   
-    aal_assert("vpf-120", pos != NULL && pos->unit != 0xffff, return -1);
-    
-    if (node40_prepare(node, pos, item))
-	return -1;
-
-    return libreiser4_plugin_call(return -1, item->plugin->item_ops.common,
-	insert, node40_ib_at(node->block, pos->item), pos->unit, item);
-}
 
 #endif
 

@@ -25,8 +25,8 @@ inline void reiserfs_pos_init(
 /* Creates coord instance based on passed cache, item pos and unit pos params */
 reiserfs_coord_t *reiserfs_coord_create(
     reiserfs_cache_t *cache,	/* the first component of coord */
-    uint16_t item,		/* the second one */
-    uint16_t unit		/* the third one */
+    uint32_t item,		/* the second one */
+    uint32_t unit		/* the third one */
 ) {
     reiserfs_coord_t *coord;
 
@@ -43,8 +43,8 @@ reiserfs_coord_t *reiserfs_coord_create(
 errno_t reiserfs_coord_init(
     reiserfs_coord_t *coord,	/* coord to be initialized */
     reiserfs_cache_t *cache,	/* the first component of coord */
-    uint16_t item,		/* the second one */
-    uint16_t unit		/* the third one */
+    uint32_t item,		/* the second one */
+    uint32_t unit		/* the third one */
 ) {
     aal_assert("umka-795", coord != NULL, return -1);
     

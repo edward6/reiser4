@@ -70,7 +70,7 @@ static errno_t direntry40_estimate(uint32_t pos, reiserfs_item_hint_t *hint) {
 	    sizeof(reiserfs_objid_t) + 1;
     }
 
-    if (pos == 0xffff)
+    if (pos == 0xffffffff)
 	hint->len += sizeof(reiserfs_direntry40_t);
     
     return 0;
@@ -101,7 +101,7 @@ static errno_t direntry40_insert(reiserfs_direntry40_t *direntry,
     
     aal_assert("umka-791", direntry != NULL, return -1);
     aal_assert("umka-792", hint != NULL, return -1);
-    aal_assert("umka-897", pos != 0xffff, return -1);
+    aal_assert("umka-897", pos != 0xffffffff, return -1);
 
     if (pos > de40_get_count(direntry))
 	return -1;
@@ -195,21 +195,23 @@ static errno_t direntry40_create(reiserfs_direntry40_t *direntry,
     return direntry40_insert(direntry, 0, hint);
 }
 
-static errno_t direntry40_remove(reiserfs_direntry40_t *direntry, 
+static uint32_t direntry40_remove(reiserfs_direntry40_t *direntry, 
     uint32_t pos)
 {
     uint32_t i, head_len;
     uint32_t offset, rem_len;
     
-    aal_assert("umka-934", direntry != NULL, return -1);
-    aal_assert("umka-935", pos < de40_get_count(direntry), return -1);
+    aal_assert("umka-934", direntry != NULL, return 0);
+    aal_assert("umka-935", pos < de40_get_count(direntry), return 0);
 
     offset = en40_get_offset(&direntry->entry[pos]);
     head_len = offset - sizeof(reiserfs_entry40_t) -
 	(((char *)&direntry->entry[pos]) - ((char *)direntry));
 
     rem_len = direntry40_unitlen(direntry, pos);
-    aal_memmove(&direntry->entry[pos], &direntry->entry[pos + 1], head_len);
+
+    aal_memmove(&direntry->entry[pos], 
+	&direntry->entry[pos + 1], head_len);
 
     for (i = 0; i < pos; i++) {
 	en40_set_offset(&direntry->entry[i], 
@@ -237,7 +239,7 @@ static errno_t direntry40_remove(reiserfs_direntry40_t *direntry,
     
     de40_set_count(direntry, de40_get_count(direntry) - 1);
     
-    return 0;
+    return rem_len + sizeof(reiserfs_entry40_t);
 }
 
 #endif
@@ -359,7 +361,7 @@ static reiserfs_plugin_t direntry40_plugin = {
 	    .insert = (errno_t (*)(const void *, uint32_t, reiserfs_item_hint_t *))
 		direntry40_insert,
 	    
-	    .remove = (errno_t (*)(const void *, uint32_t))direntry40_remove,
+	    .remove = (uint32_t (*)(const void *, uint32_t))direntry40_remove,
 #else
 	    .create = NULL,
 	    .estimate = NULL,

@@ -13,10 +13,10 @@ extern inline void reiserfs_pos_init(reiserfs_pos_t *pos,
     uint32_t item, uint32_t unit);
 
 extern reiserfs_coord_t *reiserfs_coord_create(reiserfs_cache_t *cache, 
-    uint16_t item, uint16_t unit);
+    uint32_t item, uint32_t unit);
 
 extern errno_t reiserfs_coord_init(reiserfs_coord_t *coord, 
-    reiserfs_cache_t *cache, uint16_t item, uint16_t unit);
+    reiserfs_cache_t *cache, uint32_t item, uint32_t unit);
 
 extern void reiserfs_coord_free(reiserfs_coord_t *coord);
 

@@ -360,7 +360,7 @@ static reiserfs_dir40_t *dir40_create(const void *tree,
     unix_ext.rdev = 0;
 
     unix_ext.bytes = libreiser4_plugin_call(goto error_free_dir, 
-	dir->direntry_plugin->item_ops.common, estimate, 0xffff, 
+	dir->direntry_plugin->item_ops.common, estimate, 0xffffffff, 
 	&direntry_item);
 
     stat.ext.count = 1;
