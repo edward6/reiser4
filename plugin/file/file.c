@@ -505,10 +505,23 @@ reserve_cut_iteration(reiser4_tree *tree)
 				     BA_CAN_COMMIT);
 }
 
+reiser4_internal int
+update_file_size(struct inode *inode, reiser4_key * key, int update_sd)
+{
+	int result = 0;
+	INODE_SET_FIELD(inode, i_size, get_key_offset(key));
+	if (update_sd) {
+		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
+		result = reiser4_update_sd(inode);
+	}
+	return result;
+}
+
 /* cut file items one by one starting from the last one until new file size (inode->i_size) is reached. Reserve space
    and update file stat data on every single cut from the tree */
 reiser4_internal int
-cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size)
+cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size,
+	       int (*update_actor)(struct inode *, reiser4_key *, int))
 {
 	reiser4_key from_key, to_key;
 	reiser4_key smallest_removed;
@@ -534,15 +547,10 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 		if (result == -E_REPEAT) {
 			/* -E_REPEAT is a signal to interrupt a long file truncation process */
 			if (progress) {
-				INODE_SET_FIELD(inode, i_size, get_key_offset(&smallest_removed));
-				if (update_sd) {
-					inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-					result = reiser4_update_sd(inode);
-					if (result)
-						break;
-				}
+				result = update_actor(inode, &smallest_removed, update_sd);
+				if (result)
+					break;
 			}
-
 			all_grabbed2free();
 			reiser4_release_reserved(inode->i_sb);
 
@@ -554,20 +562,15 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_s
 		}
 		if (result && !(result == CBK_COORD_NOTFOUND && new_size == 0 && inode->i_size == 0))
 			break;
-
-		result = 0;
-		INODE_SET_FIELD(inode, i_size, new_size);
-		if (progress && update_sd) {
-			/* Final sd update after the file gets its correct size */
-			inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-			result = reiser4_update_sd(inode);
-		}
+		
+		set_key_offset(&smallest_removed, new_size);
+		/* Final sd update after the file gets its correct size */
+		result = update_actor(inode, &smallest_removed, update_sd);
 		break;
 	}
-
 	all_grabbed2free();
 	reiser4_release_reserved(inode->i_sb);
-
+	
 	return result;
 }
 
@@ -585,7 +588,7 @@ shorten_file(struct inode *inode, loff_t new_size)
 
 	/* all items of ordinary reiser4 file are grouped together. That is why we can use cut_tree. Plan B files (for
 	   instance) can not be truncated that simply */
-	result = cut_file_items(inode, new_size, 1/*update_sd*/, get_key_offset(max_key()));
+	result = cut_file_items(inode, new_size, 1/*update_sd*/, get_key_offset(max_key()), update_file_size);
 	if (result)
 		return result;
 
