@@ -62,7 +62,7 @@ typedef enum {
 
 static void          flush_scan_init              (flush_scan *scan);
 static void          flush_scan_done              (flush_scan *scan);
-static void          flush_scan_set_current       (flush_scan *scan, jnode *node, unsigned add_size);
+static int           flush_scan_set_current       (flush_scan *scan, jnode *node, unsigned add_size);
 static int           flush_scan_common            (flush_scan *scan, flush_scan *other);
 static int           flush_scan_finished          (flush_scan *scan);
 static int           flush_scan_extent            (flush_scan *scan, int skip_first);
@@ -1224,6 +1224,10 @@ static int jnode_lock_parent_coord (jnode *node,
 			return ret;
 		}
 
+		if ((ret = zload (parent_lh->node))) {
+			return ret;
+		}
+
 	} else {
 		/* Formatted node case: */
 		assert ("jmacd-2061", ! znode_is_root (JZNODE (node)));
@@ -1235,7 +1239,13 @@ static int jnode_lock_parent_coord (jnode *node,
 		/* Make the child's position "hint" up-to-date.  (Unless above
 		 * root, which caller must check.) */
 		if (coord != NULL) {
+
+			if ((ret = zload (parent_lh->node))) {
+				return ret;
+			}
+
 			if ((ret = find_child_ptr (parent_lh->node, JZNODE (node), coord))) {
+				zrelse (parent_lh->node);
 				return ret;
 			}
 		}
@@ -1329,7 +1339,11 @@ static void flush_scan_done (flush_scan *scan)
 {
 	if (scan->node != NULL) {
 		jput (scan->node);
+		zrelse (JZNODE (scan->node));
 		scan->node = NULL;
+	}
+	if (scan->parent_lock.node != NULL) {
+		zrelse (scan->parent_lock.node);
 	}
 	done_lh (& scan->parent_lock);
 }
@@ -1358,14 +1372,25 @@ static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 }
 
 /* Set the current scan->node, refcount it, increment size, and deref previous current. */
-static void flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_size)
+static int flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_size)
 {
+	int ret;
+	
+	if (jnode_is_formatted (node) && (ret = zload (JZNODE (node)))) {
+		return ret;
+	}
+
 	if (scan->node != NULL) {
+		if (jnode_is_formatted (scan->node)) {
+			zrelse (JZNODE (scan->node));
+		}
 		jput (scan->node);
 	}
 
 	scan->node  = node;
 	scan->size += add_size;
+
+	return 0;
 }
 
 /* Return true if going left. */
@@ -1458,7 +1483,9 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 						goto stop_same_parent;
 					}
 
-					flush_scan_set_current (scan, neighbor, 1);
+					if ((ret = flush_scan_set_current (scan, neighbor, 1))) {
+						goto exit;
+					}
 
 					scan_index += incr;
 				} while (scan_max != scan_index);
@@ -1483,7 +1510,9 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 
 				assert ("jmacd-3551", ! jnode_is_allocated (neighbor) && txn_same_atom_dirty (neighbor, scan->node));
 
-				flush_scan_set_current (scan, neighbor, scan_dist);
+				if ((ret = flush_scan_set_current (scan, neighbor, scan_dist))) {
+					goto exit;
+				}
 
 				scan_index  = scan_max;
 			}
@@ -1521,7 +1550,7 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
  * the neighbor if it is unformatted. */
 static int flush_scan_extent (flush_scan *scan, int skip_first)
 {
-	int ret;
+	int ret = 0;
 	lock_handle next_lock;
 	coord_t next_coord;
 	jnode *child;
@@ -1581,7 +1610,9 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 		}
 
 		/* If so, make it current. */
-		flush_scan_set_current (scan, child, 1);
+		if ((ret = flush_scan_set_current (scan, child, 1))) {
+			goto exit;
+		}
 
 		/* Now continue.  If formatted we release the parent lock and return, then
 		 * proceed.  Otherwise, repeat the above loop with next_coord. */
@@ -1611,6 +1642,7 @@ static int flush_scan_formatted (flush_scan *scan)
 	 * - node->left/right belongs to the same atom
 	 * - scan has not reached maximum size
 	 */
+	int ret;
 	znode *neighbor;
 
 	assert ("jmacd-1401", ! flush_scan_finished (scan));
@@ -1645,7 +1677,9 @@ static int flush_scan_formatted (flush_scan *scan)
 		}
 
 		/* Advance the flush_scan state to the left. */
-		flush_scan_set_current (scan, ZJNODE (neighbor), 1);
+		if ((ret = flush_scan_set_current (scan, ZJNODE (neighbor), 1))) {
+			return ret;
+		}
 
 	} while (! flush_scan_finished (scan));
 
@@ -1682,10 +1716,14 @@ static int flush_scan_formatted (flush_scan *scan)
 /* Performs leftward scanning starting from either kind of node.  Counts the starting node. */
 static int flush_scan_left (flush_scan *scan, flush_scan *right, jnode *node, __u32 limit)
 {
+	int ret;
+
 	scan->max_size  = limit;
 	scan->direction = LEFT_SIDE;
 
-	flush_scan_set_current (scan, jref (node), 1);
+	if ((ret = flush_scan_set_current (scan, jref (node), 1))) {
+		return ret;
+	}
 
 	return flush_scan_common (scan, right);
 }
@@ -1698,7 +1736,9 @@ static int flush_scan_right (flush_scan *scan, jnode *node, __u32 limit)
 	scan->max_size  = limit;
 	scan->direction = RIGHT_SIDE;
 
-	flush_scan_set_current (scan, jref (node), 0);
+	if ((ret = flush_scan_set_current (scan, jref (node), 0))) {
+		return ret;
+	}
 
 	ret = flush_scan_common (scan, NULL);
 
@@ -1726,8 +1766,11 @@ static int flush_scan_common (flush_scan *scan, flush_scan *other)
 			}
 
 			assert ("jmacd-8661", other != NULL);
+
+			/* Duplicate the reference into the other flush_scan. */
 			coord_dup (& other->parent_coord, & scan->parent_coord);
 			copy_lh (& other->parent_lock, & scan->parent_lock);
+			atomic_inc (& other->parent_coord.node->d_count);
 		}
 
 		if ((ret = flush_scan_extent (scan, 0/*skip_first*/))) {
@@ -1880,7 +1923,7 @@ static int flush_pos_lock_parent (flush_position *pos, coord_t *parent_coord, lo
 		assert ("jmacd-9923", have_mode == mode);
 		copy_lh (parent_lock, & pos->parent_lock);
 		coord_dup (parent_coord, & pos->parent_coord);
-		return 0;
+		return zload (parent_lock->node);
 
 	} else {
 		assert ("jmacd-9922", ! znode_is_root (JZNODE (pos->point)));
