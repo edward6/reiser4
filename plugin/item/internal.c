@@ -10,6 +10,17 @@
 
 /* see internal.h for explanation */
 
+/*
+ * plugin->u.item.b.mergeable
+ */
+int internal_mergeable (const tree_coord * p1 UNUSED_ARG,
+			const tree_coord * p2 UNUSED_ARG)
+{
+	/*
+	 * internal items are not mergeable
+	 */
+	return 0;
+}
 
 /*
  *
