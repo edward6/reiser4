@@ -156,17 +156,6 @@ unsigned extent_nr_units (const tree_coord * coord)
 
 
 /*
- * max possible key extent @coord may have
- */
-static reiser4_key * max_key_inside (const tree_coord * coord, 
-				     reiser4_key * key)
-{
-	item_key_by_coord (coord, key);
-	set_key_offset (key, get_key_offset (max_key ()));
-	return key;
-}
-
-/*
  * plugin->u.item.b.lookup
  */
 lookup_result extent_lookup (const reiser4_key * key, lookup_bias bias,
@@ -823,7 +812,7 @@ static int insert_first_block (tree_coord * coord, reiser4_lock_handle * lh,
 	reiser4_extent ext;
 	reiser4_item_data unit;
 	reiser4_key first_key;
-	tree_coord left;
+
 
 	assert ("vs-240",
 		(get_key_offset (key) &
@@ -838,29 +827,6 @@ static int insert_first_block (tree_coord * coord, reiser4_lock_handle * lh,
 	unit.iplug  = item_plugin_by_id (EXTENT_ITEM_ID);
 	unit.arg = 0;
 
-#if 0
-	/*
-	 * when inserting item into twig level we also have to update right
-	 * delimiting key of left neighboring znode on leaf level and to break
-	 * linkage between that znode and its right neighbor. This will be done
-	 * by extent_create_hook. znode is being taken here and passed down to
-	 * create_hook via item.arg
-	 */
-	left = *coord;
-	assert ("vs-347", left_item_pos (&left) >= 0);
-	left.item_pos = left_item_pos (&left);
-	if (item_plugin_by_coord (&left)->item_type == INTERNAL_ITEM_TYPE) {
-		impossible ("vs-410", "this is no necessary anymore");
-		left.unit_pos = last_unit_pos (&left);
-		left.between = AT_UNIT;
-		spin_lock_dk (current_tree);
-		unit.arg = child_znode (&left, 1/*do setup delimiting keys*/);
-		spin_unlock_dk (current_tree);
-		if (IS_ERR (unit.arg)) {
-			return PTR_ERR (unit.arg);
-		}
-	}
-#endif
 	result = insert_extent_by_coord (coord, &unit, &first_key, lh);
 	if (result) {
 		return result;
@@ -1118,42 +1084,11 @@ static int add_hole (tree_coord * coord, reiser4_lock_handle * lh,
 
 	if (todo == CREATE_HOLE) {
 		reiser4_key hole_key;
-		tree_coord left;
 
 		hole_key = *key;
 		set_key_offset (&hole_key, 0ull);
 
 		result = insert_extent_by_coord (coord, &item, &hole_key, lh);
-#if 0
-		/*
-		 * when inserting item into twig level we also have to update
-		 * right delimiting key of left neighboring znode on leaf level
-		 * and to break linkage between that znode and its right
-		 * neighbor. This will be done by extent_create_hook. znode is
-		 * being taken here and passed down to create_hook via
-		 * item.arg
-		 */
-		reiser4_dup_coord (&left, coord);
-		assert ("vs-346", left_item_pos (&left) >= 0);
-		left.item_pos = left_item_pos (&left);
-		if (item_plugin_by_coord (&left)->item_type == INTERNAL_ITEM_TYPE) {
-			left.unit_pos = last_unit_pos (&left);
-			left.between = AT_UNIT;
-
-			spin_lock_dk( current_tree );
-			item.arg = child_znode (&left, 1/*do setup delimiting keys*/);
-			spin_unlock_dk( current_tree );
-
-			if (IS_ERR (item.arg)) {
-				reiser4_done_coord (&left);
-				return PTR_ERR (item.arg);
-			}
-		}
-		reiser4_done_coord (&left);
-		result = insert_extent_by_coord (coord, &item, &hole_key, lh);
-		if (item.arg)
-			zput (item.arg);
-#endif
 	} else {
  		/* @coord points to last extent of the item and to its last block */
 		assert ("vs-29",
