@@ -10,6 +10,7 @@
 #include "debug.h"
 
 #include <asm/param.h>		/* for HZ */
+#include <linux/errno.h>
 
 extern const char *REISER4_SUPER_MAGIC_STRING;
 extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
@@ -216,6 +217,14 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #ifndef __KERNEL__
 #include "build.h"
 #endif
+
+/** Reiser4 specific error codes **/
+
+/* Neighbor is not available (side neighbor or parent) */
+#define E_NO_NEIGHBOR  (ENAVAIL)
+
+/* Node was not found in cache */
+#define E_NOT_IN_CACHE (ENOENT)
 
 #endif				/* __REISER4_H__ */
 
