@@ -430,8 +430,11 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 
 		if (jnode_page (&bnode->wjnode) != NULL) {
 			assert ("zam-480", jnode_page (&bnode->cjnode) != NULL);
-			
+
+			jput (&bnode->wjnode);
 			jdrop(&bnode->wjnode);
+
+			jput (&bnode->cjnode);
 			jdrop(&bnode->cjnode);
 
 			/* FIXME: check for page state and ref count should be
@@ -499,6 +502,9 @@ static int load_and_lock_bnode (struct bnode * bnode)
 		/* working bitmap is initialized by on-disk commit bitmap */
 		xmemcpy(bnode_working_data(bnode), bnode_commit_data(bnode), super->s_blocksize);
 	}
+
+	jref(wj);
+	jref(cj);
 
 	return 0;
 
