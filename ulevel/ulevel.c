@@ -1791,7 +1791,7 @@ struct dentry * d_alloc_root(struct inode * inode)
 }
 
 
-znode *allocate_znode( reiser4_tree *tree, znode *parent,
+znode *ulevel_allocate_znode( reiser4_tree *tree, znode *parent,
 		       unsigned int level, const reiser4_block_nr *addr )
 {
 	znode *root;
@@ -3675,8 +3675,8 @@ static int bash_mkfs (char * file_name)
 			atoi( getenv( "REISER4_CBK_SLOTS" ) ) : CBK_CACHE_SLOTS;
 
 		result = cbk_cache_init( &tree -> cbk_cache );
-		fake = allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR );
-		root = allocate_znode( tree, fake, tree->height, &tree->root_block);
+		fake = ulevel_allocate_znode( tree, NULL, 0, &FAKE_TREE_ADDR );
+		root = ulevel_allocate_znode( tree, fake, tree->height, &tree->root_block);
 		root -> rd_key = *max_key();
 		sibling_list_insert( root, NULL );
 
