@@ -24,14 +24,15 @@
 
 /* specification how block allocation was counted in sb block counters */
 typedef enum {
-	BLOCK_NOT_COUNTED = 0,	/* reiser4 has no info about this block yet */
-	BLOCK_GRABBED = 1,	/* free space grabbed for further allocation
-				 * of this block */
-	BLOCK_UNALLOCATED = 3,	/* block is used for existing in-memory object
-				 * ( unallocated formatted or unformatted
-				 * node) */
-	BLOCK_ALLOCATED = 4	/* block is mapped to disk, real on-disk block
-				 * number assigned */
+	BLOCK_NOT_COUNTED	= 0,	/* reiser4 has no info about this block yet */
+	BLOCK_GRABBED		= 1,	/* free space grabbed for further allocation
+					   of this block */
+	BLOCK_FLUSH_RESERVED	= 2,	/* block is reserved for flush needs. */
+	BLOCK_UNALLOCATED	= 3,	/* block is used for existing in-memory object
+					   ( unallocated formatted or unformatted
+					   node) */
+	BLOCK_ALLOCATED		= 4	/* block is mapped to disk, real on-disk block
+					   number assigned */
 } block_stage_t;
 
 /** a hint for block allocator */
@@ -56,19 +57,29 @@ extern void blocknr_hint_init(reiser4_blocknr_hint * hint);
 extern void blocknr_hint_done(reiser4_blocknr_hint * hint);
 
 /* free -> grabbed -> fake_allocated -> used */
-extern int reiser4_grab_space(reiser4_block_nr *, __u64, __u64);
-extern int reiser4_grab_space_exact(__u64);
+extern int reiser4_grab_space(reiser4_block_nr *, __u64, __u64, int);
+extern int reiser4_grab_space_exact(__u64, int);
 /* grabbed -> fake_allocated */
 extern int assign_fake_blocknr(reiser4_block_nr *, int formatted);
 /* fake_allocated -> used */
 extern int reiser4_alloc_blocks(reiser4_blocknr_hint * hint,
 				reiser4_block_nr * start,
-				reiser4_block_nr * len, int formatted);
+				reiser4_block_nr * len, 
+				int formatted, 
+				int reserved);
 
 /* used -> fake_allocated -> grabbed -> free */
 extern void fake_allocated2free(__u64, int formatted);
 extern void grabbed2free(__u64);
 extern void all_grabbed2free(void);
+extern void flush_reserved2free_all (void);
+extern void flush_reserved2atom_all (void);
+extern int  sub_from_atom_flush_reserved(__u32);
+extern void grabbed2flush_reserved (__u64);
+extern int check_atom_reserved_blocks(struct txn_atom *, __u64);
+extern void reiser4_grab_space_enable(void);
+extern int  reiser4_is_grab_space_enabled(void);
+extern __u64 reiser4_atom_flush_reserved(void);
 
 extern int blocknr_is_fake(const reiser4_block_nr * da);
 extern int reiser4_dealloc_blocks(const reiser4_block_nr *,

@@ -82,19 +82,33 @@ add_to_sb_grabbed(const struct super_block *super, __u64 count)
 	reiser4_set_grabbed_blocks(super, grabbed_blocks);
 }
 
+static void add_to_sb_flush_reserved (const struct super_block * super, __u64 count)
+{
+	__u64 reserved = reiser4_flush_reserved (super);
+
+	reserved += count;
+	reiser4_set_flush_reserved (super, reserved);
+}
+
 static void
 sub_from_sb_grabbed(const struct super_block *super, __u64 count)
-{
 	__u64 grabbed_blocks = reiser4_grabbed_blocks(super);
-
 	assert("zam-525", grabbed_blocks >= count);
 	grabbed_blocks -= count;
 	reiser4_set_grabbed_blocks(super, grabbed_blocks);
 }
 
+static void sub_from_sb_flush_reserved (const struct super_block * super, __u64 count)
+{
+	__u64 reserved = reiser4_flush_reserved (super);
+
+	assert ("vpf-291", reserved >= count);
+	reserved -= count;
+	reiser4_set_flush_reserved (super, reserved);
+}
+
 static void
 add_to_ctx_grabbed(__u64 count)
-{
 	reiser4_context *ctx = get_current_context();
 	ctx->grabbed_blocks += count;
 }
@@ -106,6 +120,20 @@ sub_from_ctx_grabbed(__u64 count)
 
 	assert("zam-527", ctx->grabbed_blocks >= count);
 	ctx->grabbed_blocks -= count;
+}
+
+static void add_to_ctx_flush_reserved (__u64 count)
+{
+	reiser4_context * ctx = get_current_context();
+	ctx->flush_reserved += count;
+}
+
+static void sub_from_ctx_flush_reserved (__u64 count)
+{
+	reiser4_context * ctx = get_current_context();
+
+	assert ("vpf-284", ctx->flush_reserved >= count);
+	ctx->flush_reserved -= count;
 }
 
 static void
@@ -160,6 +188,33 @@ sub_from_sb_used(const struct super_block *super, __u64 count)
 	reiser4_set_data_blocks(super, used_blocks);
 }
 
+static int add_to_atom_flush_reserved(__u32 count)
+{
+	txn_atom * atom = get_current_atom_locked_nocheck ();
+
+	if (!atom)
+	    return 1;
+	
+	atom->flush_reserved += count;
+
+	spin_unlock_atom (atom);
+
+	return 0;
+}
+
+int sub_from_atom_flush_reserved(__u32 count)
+{
+	txn_atom * atom = get_current_atom_locked_nocheck ();
+
+	if (!atom)
+	    return 1;
+	
+	atom->flush_reserved -= count;
+
+	spin_unlock_atom (atom);
+
+	return 0;
+}
 /*
  * super block has 4 counters: free, used, grabbed, unallocated. Their sum
  * must be number of blocks on a device. This function checks this
@@ -171,23 +226,44 @@ check_block_counters(const struct super_block *super)
 
 	sum = reiser4_grabbed_blocks(super) + reiser4_free_blocks(super) +
 	    reiser4_data_blocks(super) + reiser4_fake_allocated(super) +
-	    reiser4_fake_allocated_unformatted(super);
+	    reiser4_fake_allocated_unformatted(super) + reiser4_flush_reserved(super);
 	if (reiser4_block_count(super) != sum) {
 		info("super block counters: "
 		     "used %llu, free %llu, "
 		     "grabbed %llu, fake allocated (formatetd %llu, unformatted %llu), "
-		     "sum %llu, must be (block count) %llu\n",
+		     "reserved %llu, sum %llu, must be (block count) %llu\n",
 		     reiser4_data_blocks(super),
 		     reiser4_free_blocks(super),
 		     reiser4_grabbed_blocks(super),
 		     reiser4_fake_allocated(super),
 		     reiser4_fake_allocated_unformatted(super),
+		     reiser4_flush_reserved(super),
 		     sum, reiser4_block_count(super));
 		return 0;
 	}
 	return 1;
 }
 
+/* Get the amount of blocks of 5% of disk. */
+static int reiser4_fs_reserved_space(struct super_block * super) 
+{
+    return reiser4_block_count (super) / 20;
+}
+
+void reiser4_grab_space_enable(void) 
+{
+	get_current_context()->grab_enabled = 1;
+}
+
+static void reiser4_grab_space_disable(void) 
+{
+	get_current_context()->grab_enabled = 0;
+}
+
+int reiser4_is_grab_enabled(void)
+{
+	return get_current_context()->grab_enabled;
+}
 /* Adjust "working" free blocks counter for number of blocks we are going to
  * allocate.  Record number of grabbed blocks in fs-wide and per-thread
  * counters.  This function should be called before bitmap scanning or
@@ -208,23 +284,26 @@ check_block_counters(const struct super_block *super)
 
 int
 reiser4_grab_space(__u64 * grabbed, __u64 min_block_count,
-		   __u64 max_block_count)
+		   __u64 max_block_count, int reserved)
 {
 	struct super_block *super = reiser4_get_current_sb();
-	__u64 free_blocks;
+	__u64 free_blocks, reserved_blocks;
 	int ret = 0;
 
-	reiser4_spin_lock_sb(super);
+	if (!reiser4_is_grab_enabled())
+		return 0;
 
+	reiser4_spin_lock_sb(super);
 	assert("zam-472", grabbed != NULL);
 	assert("zam-474", max_block_count >= min_block_count);
-
 	free_blocks = reiser4_free_blocks(super);
 
 	/*trace_if (TRACE_ALLOC, info ("reiser4_grab_space: free_blocks %llu\n",
 	   free_blocks)); */
 
-	if (free_blocks < min_block_count) {
+	if ((reserved && (free_blocks < min_block_count)) || 
+	    (!reserved && (free_blocks - reserved_blocks < min_block_count))) 
+	{
 		ret = -ENOSPC;
 		trace_if(TRACE_ALLOC,
 			 info
@@ -251,19 +330,20 @@ reiser4_grab_space(__u64 * grabbed, __u64 min_block_count,
 unlock_and_ret:
 	reiser4_spin_unlock_sb(super);
 
+	reiser4_grab_space_disable();
 	return ret;
 }
 
 /**
  * A simple wrapper for reiser4_grab_space, suitable for most places when we
- * are going to allocate exact number of blocks 
+ * are going to allocate exact number of blocks .
+ * Reserved means that allocated from 5% of disk space.
  */
 int
-reiser4_grab_space_exact(__u64 count)
+reiser4_grab_space_exact(__u64 count, int reserved)
 {
 	__u64 not_used;
-
-	return reiser4_grab_space(&not_used, count, count);
+	return reiser4_grab_space(&not_used, count, count, reserved);
 }
 
 /**
@@ -357,7 +437,7 @@ fake_allocated2used(__u64 count, int formatted)
 /* wrapper to call space allocation plugin */
 int
 reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
-		     reiser4_block_nr * len, int formatted)
+		     reiser4_block_nr * len, int formatted, int reserved)
 {
 	space_allocator_plugin *splug;
 	reiser4_block_nr needed = *len;
@@ -389,8 +469,9 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		}
 	}
 
+	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
 	if (stage == BLOCK_NOT_COUNTED) {
-		ret = reiser4_grab_space(&needed, (reiser4_block_nr) 1, *len);
+		ret = reiser4_grab_space(&needed, (reiser4_block_nr) 1, *len, reserved);
 		if (ret != 0)
 			return ret;
 	}
@@ -408,10 +489,16 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		switch (stage) {
 		case BLOCK_NOT_COUNTED:
 		case BLOCK_GRABBED:
+			warning("vpf-334", "SPACE: use %s %llu blocks.", stage == BLOCK_GRABBED ? "grabbed" : "not counted", *len)
 			grabbed2used(*len);
 			break;
 		case BLOCK_UNALLOCATED:
+			warning("vpf-335", "SPACE: allocate %llu blocks.", *len);
 			fake_allocated2used(*len, formatted);
+			break;
+		case BLOCK_FLUSH_RESERVED:
+		    	warning("vpf-334", "SPACE: get wandered %llu blocks.", *len);
+			assert("vpf-294", !sub_from_atom_flush_reserved(*len));
 			break;
 		default:
 			impossible("zam-531", "wrong block stage");
@@ -483,15 +570,91 @@ grabbed2free(__u64 count)
 	reiser4_set_free_blocks(super, reiser4_free_blocks(super) + count);
 
 	assert("nikita-2684", check_block_counters(super));
-
 	reiser4_spin_unlock_sb(super);
 }
-
-void
-fake_allocated2free(__u64 count, int formatted)
+int check_atom_reserved_blocks(struct txn_atom *atom, __u64 overwrite_set) 
 {
-	fake_allocated2grabbed(count, formatted);
-	grabbed2free(count);
+    assert ("vpf-288", atom != NULL);
+
+    return atom->flush_reserved >= overwrite_set;
+}
+
+void grabbed2flush_reserved (__u64 count) 
+{
+	const struct super_block * super = reiser4_get_current_sb(); 
+	txn_atom * atom = get_current_atom_locked_nocheck ();
+
+	sub_from_ctx_grabbed (count);
+
+	/* add to atom if exists, otherwise to ctx. */
+	if (atom) {
+	    atom->flush_reserved += count;
+	    spin_unlock_atom (atom);
+	} else
+	    add_to_ctx_flush_reserved (count);
+
+	reiser4_spin_lock_sb(super);
+
+	sub_from_sb_grabbed(super, count);
+	add_to_sb_flush_reserved(super, count);
+
+	assert ("vpf-292", check_block_counters (super));
+
+	reiser4_spin_unlock_sb (super);	
+}
+
+__u64 reiser4_atom_flush_reserved(void)
+{
+	__u32 count;
+	
+	txn_atom * atom = get_current_atom_locked_nocheck ();
+
+	if (!atom) 
+	    return 0;
+
+	count = atom->flush_reserved;
+	spin_unlock_atom (atom);
+
+	return count;
+}
+
+void flush_reserved2free_all ()
+{
+	struct super_block * super = reiser4_get_current_sb ();
+	txn_atom * atom = get_current_atom_locked_nocheck ();
+	__u64 count;
+
+	if (!atom) 
+	    return;
+
+	count = atom->flush_reserved;
+	
+	sub_from_atom_flush_reserved(count);
+
+	reiser4_spin_lock_sb (super);
+	
+	sub_from_sb_flush_reserved(super, count);
+	reiser4_set_free_blocks (super, reiser4_free_blocks (super) + count);
+	
+	assert ("vpf-277", check_block_counters (super));
+
+	reiser4_spin_unlock_sb (super);
+	    
+	spin_unlock_atom (atom);
+}
+
+void flush_reserved2atom_all() 
+{
+	txn_atom * atom = get_current_atom_locked_nocheck ();
+	__u64 count = get_current_context() -> flush_reserved;
+	
+	sub_from_ctx_flush_reserved(count);
+	
+	if (atom) {
+	    add_to_atom_flush_reserved(count);
+	    spin_unlock_atom (atom);	
+	} else
+	    panic("No atom was created for dirty nodes.");
 }
 
 /**
@@ -637,6 +800,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 		case BLOCK_NOT_COUNTED:
 			assert("vs-960", formatted == 1);
 			used2grabbed(*len);
+			/* VITALY: This is what was grabbed for internal/tx-lists/similar only */
 			grabbed2free(*len);
 			break;
 		case BLOCK_GRABBED:
