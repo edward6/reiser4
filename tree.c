@@ -606,6 +606,7 @@ forget_znode(lock_handle * handle)
 
 	invalidate_lock(handle);
 
+	/* FIXME:NIKITA->ZAM node is not spin locked at this point. */
 	assert ("zam-941", get_current_context()->trans->atom == ZJNODE(node)->atom);
 
 	/* Get e-flush block allocation back before deallocating node's
