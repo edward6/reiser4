@@ -1858,15 +1858,10 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 			 * there could be only 2 references to this page.
 			 */
 			assert( "nikita-2262", page_count( page ) >= 2 );
-			/*
-			 * FIXME-NIKITA: this doesn't work, because we
-			 * currently have no way of determining whether jnode
-			 * is in use. Enable this when jnodes get proper
-			 * ->x_count.
-			 */
-			/* page_detach_jnode( page );
+
+			page_detach_jnode( page );
 			assert( "nikita-2261", page_count( page ) == 2 );
-			*/
+
 			/*
 			 * this page is just about to be recycled by
 			 * shrink_cache()
