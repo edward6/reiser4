@@ -247,7 +247,9 @@ int jnode_flush (jnode *node, int flags UNUSED_ARG)
 			goto failed;
 		}
 
-		assert ("jmacd-8966", flush_pos.alloc_cnt == flush_pos.enqueue_cnt);			  
+		/* This is not true because, e.g., an allocated node (such as the root)
+		 * can disappear during squalloc. */
+		/*assert ("jmacd-8966", flush_pos.alloc_cnt == flush_pos.enqueue_cnt); */
 	}
 
 	/* Perform batch write. FIXME: Not here, somewhere in the caller... */
@@ -723,11 +725,11 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	}
 
  exit:
-	done_lh (& right_lock);
-	done_lh (& parent_lock);
 	done_zh (& node_load);
 	done_zh (& right_load);
 	done_zh (& parent_load);
+	done_lh (& right_lock);
+	done_lh (& parent_lock);
 	return ret;
 }
 
@@ -741,13 +743,15 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 	if ((is_unformatted = flush_pos_unformatted (pos))) {
 		assert ("jmacd-9812", coord_is_after_rightmost (& pos->parent_coord));
+
+		trace_on (TRACE_FLUSH, "squalloc_right changed ancestors unformatted before: %s\n", flush_pos_tostring (pos));
+
 		node = pos->parent_lock.node;
-		assert ("jmacd-9814", znode_is_write_locked (node));
 	} else {
 		node = JZNODE (pos->point);
-		assert ("jmacd-9813", znode_is_write_locked (node));
 	}
 
+	assert ("jmacd-9814", znode_is_write_locked (node));
 	assert ("jmacd-4386", znode_check_dirty (node));
 
 	init_lh (& right_lock);
@@ -760,8 +764,13 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 	 * twig. */
 	if (is_unformatted && ! coord_is_after_rightmost (& pos->parent_coord)) {
 
+		trace_on (TRACE_FLUSH, "squalloc_right changed ancestors unformatted after: %s\n", flush_pos_tostring (pos));
+
 		/* In which case we should continue to the right. */
-		coord_next_item (& pos->parent_coord);
+		/* FIXME: I'm unsure of this, was coord_next_unit, but the assertion below was failing. */
+		coord_set_to_right (& pos->parent_coord);
+
+		assert ("jmacd-8188", ! coord_is_after_rightmost (& pos->parent_coord));
 
 		/* Then, if we are positioned at a formatted item, allocate & descend. */
 		if (item_is_internal (& pos->parent_coord)) {
@@ -787,7 +796,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 		/* We are leaving node now, enqueue it. */
 		if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
-			return ret;
+			goto exit;
 		}
 		
 		/* We may have a unformatted node to the right. */
@@ -814,7 +823,7 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		stop_at_twig:
 			/* We are leaving twig now, enqueue it if allocated. */
 			if (znode_check_dirty (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
-				return ret;
+				goto exit;
 			}
 			
 			ret = flush_pos_stop (pos);
@@ -834,10 +843,11 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 
 	/* We have a new right and it should have been allocated by the call to
 	 * flush_squalloc_one_changed_ancestor. */
-	assert ("jmacd-8112", jnode_is_allocated (ZJNODE (right_lock.node)));
+	assert ("jmacd-8113", jnode_is_allocated (ZJNODE (right_lock.node)));
 
 	/* We are leaving 'node' now, enqueue it for writing.  (If position is
 	 * unformatted, the twig may be clean, thus the dirty check). */
+	/* FIXME: Isn't this done in squalloc_one_changed_ancestor? */
 	if (znode_check_dirty (node) && (ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
 		return ret;
 	}
@@ -1382,12 +1392,6 @@ int flush_enqueue_jnode_page_locked (jnode *node, flush_position *pos UNUSED_ARG
 	jnode_set_clean (node);
 
 	trace_if (TRACE_FLUSH, info ("enqueue %snode: %p block %llu level %u\n", jnode_is_formatted (node) ? "z" : "j", node, *jnode_get_block (node), jnode_get_level (node)));
-
-	if (jnode_is_formatted (node)) {
-		int x;
-		x = 1;
-		x += 1;
-	}	
 
 	return ret;
 }
@@ -2218,9 +2222,10 @@ static const char* flush_pos_tostring (flush_position *pos)
 		} else if (coord_is_after_rightmost (& pos->parent_coord)) {
 			sprintf (fmtbuf+strlen(fmtbuf), "[right]");
 		} else {
-			sprintf (fmtbuf+strlen(fmtbuf), "[%s %u,%u/%u %s]",
+			sprintf (fmtbuf+strlen(fmtbuf), "[%s i=%u/%u,u=%u/%u %s]",
 				 coord_tween_tostring (pos->parent_coord.between),
 				 pos->parent_coord.item_pos,
+				 node_num_items (pos->parent_coord.node),
 				 pos->parent_coord.unit_pos,
 				 coord_num_units (& pos->parent_coord),
 				 item_is_extent (& pos->parent_coord) ? "ext" : (item_is_internal (& pos->parent_coord) ? "int" : "other"));
