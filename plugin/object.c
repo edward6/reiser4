@@ -1566,7 +1566,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		/* FIXME: check which of these are relly needed */
-		.open = NULL,
+		.open = open_cryptcompress,
 		.truncate = truncate_cryptcompress,
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.readpage = readpage_cryptcompress,
@@ -1610,7 +1610,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 			 .done  = wire_done_common
 		 },
 		.readpages = readpages_cryptcompress,
-		.init_inode_data = NULL,
+		.init_inode_data = init_inode_data_cryptcompress,
 		.pre_delete = pre_delete_cryptcompress,
 		.drop = drop_common,
 		.delete_inode = delete_inode_common,
