@@ -3036,7 +3036,7 @@ static int bash_mkfs (const char * file_name)
 			cputod16 (HASHED_DIR_PLUGIN_ID, &test_sb->root_dir_plugin);
 			cputod16 (DEGENERATE_HASH_ID, &test_sb->root_hash_plugin);
 			cputod16 (NODE40_ID, &test_sb->node_plugin);
-			cputod16 (ALWAYS_TAIL_ID, &test_sb->tail_policy); /* FIXME: mount option! */
+			cputod16 (NEVER_TAIL_ID, &test_sb->tail_policy); /* FIXME: mount option! */
 
 			/* block count on device */
 			block_count = get_fs_size (&super);
@@ -4214,7 +4214,7 @@ static void *uswapd( void *untyped )
 void declare_memory_pressure( void )
 {
 	/* FIXME: To disable ulevel memory pressure, return here.  Make it an environment option? */
-	return;
+	/*return;*/
 	spin_lock( &mp_guard );
 	is_mp = 1;
 	spin_unlock( &mp_guard );
@@ -4544,6 +4544,8 @@ int block_sync_page(struct page *page)
 {
 	return 0;
 }
+
+void blk_run_queues (void) { }
 
 /*
  * Make Linus happy.

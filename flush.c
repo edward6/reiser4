@@ -1543,6 +1543,8 @@ static void flush_bio_write (struct bio *bio)
 	   sb and so on */
 	__REISER4_ENTRY (bio->bi_io_vec[0].bv_page->mapping->host->i_sb,);
 
+	trace_on (TRACE_FLUSH, "flush_bio_write completion for %u blocks: BIO %p\n", bio->bi_vcnt, bio);
+
 	for (i = 0; i < bio->bi_vcnt; i += 1) {
 		struct page *pg = bio->bi_io_vec[i].bv_page;
 		jnode *node;
@@ -1657,7 +1659,7 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 			/* Set j to the first non-consecutive, non-wandered block (or end-of-queue) */
 			for (j = i + 1; j < max_j; j += 1) {
-				if (JF_ISSET (pos->queue[j], ZNODE_WANDER) ||
+				if (/*JF_ISSET (pos->queue[j], ZNODE_WANDER) ||*/ /* FIXME: Removed as part of the above temporary workaround. */
 				    JF_ISSET (pos->queue[j], ZNODE_FLUSH_BUSY) ||
 				    (*jnode_get_block (prev) + 1 != *jnode_get_block (pos->queue[j]))) {
 					break;
@@ -1666,7 +1668,6 @@ static int flush_finish (flush_position *pos, int none_busy)
 			}
 
 			nr = j - i;
-			trace_on (TRACE_FLUSH, "flush_finish writes %u consecutive blocks\n", nr);
 
 			/* FIXME: What GFP flag? */
 			if ((bio = bio_alloc (GFP_NOIO, nr)) == NULL) {
@@ -1709,7 +1710,13 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 			i = j;
 			pos->enqueue_cnt += nr;
+
+			trace_on (TRACE_FLUSH, "flush_finish writes %u consecutive blocks: BIO %p\n", nr, bio);
+
 			submit_bio (WRITE, bio);
+
+			/* FIXME: !!! temporary solution !!! */
+			blk_run_queues ();
 		}
 	}
 
