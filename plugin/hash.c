@@ -1,5 +1,9 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
+/* NIKITA-FIXME-HANS: update the web page to correctly describe hash plugins.  I wrote those words before any of this
+ * code got written, and it is no longer well related to the code.  Also read the security plugins section of our web
+ * page and change it as needed. */
+
 /* Hash functions */
 
 #include "../debug.h"
