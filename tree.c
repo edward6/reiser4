@@ -1433,6 +1433,203 @@ int cut_tree (reiser4_tree * tree,
 }
 
 
+#if REISER4_DEBUG
+
+/** helper called by print_tree_rec() */
+static void tree_rec_dot( reiser4_tree *tree /* tree to print */, 
+			  znode *node /* node to print */, 
+			  __u32 flags /* print flags */, 
+			  FILE *dot /* dot-output */ )
+{
+	int ret;
+	coord_t coord;
+	char buffer_l[ 100 ];
+	char buffer_r[ 100 ];
+
+	ret = zload( node );
+	if( ret != 0 ) {
+		info( "Cannot load/parse node: %i", ret );
+		return;
+	}
+
+	fprintf( dot, "B%lli [shape=record,label=\"%lli\\n%s\\n%s\"];\n", 
+		 *znode_get_block( node ), 
+		 *znode_get_block( node ),
+		 sprintf_key( buffer_l, &node -> ld_key ),
+		 sprintf_key( buffer_r, &node -> rd_key ) );
+
+	for( ncoord_init_before_first_item( &coord, node ); ncoord_next_item( &coord ) == 0; ) {
+
+		if( item_is_internal( &coord ) ) {
+			znode *child;
+
+			spin_lock_dk( current_tree );
+			child = child_znode( &coord, 0 );
+			spin_unlock_dk( current_tree );
+			if( !IS_ERR( child ) ) {
+				tree_rec_dot( tree, child, flags, dot );
+				fprintf( dot, "B%lli -> B%lli ;\n", 
+					 *znode_get_block( node ),
+					 *znode_get_block( child ) );
+				zput( child );
+			} else {
+				info( "Cannot get child: %li\n", 
+				      PTR_ERR( child ) );
+			}
+		}
+	}
+	zrelse( node );
+	/*
+	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL )
+		print_address( "end children of node", znode_get_block( node ) );
+	*/
+}
+
+/** helper called by print_tree_rec() */
+static void tree_rec( reiser4_tree *tree /* tree to print */, 
+		      znode *node /* node to print */, 
+		      __u32 flags /* print flags */ )
+{
+	int ret;
+	coord_t coord;
+
+	ret = zload( node );
+	if( ret != 0 ) {
+		info( "Cannot load/parse node: %i", ret );
+		return;
+	}
+
+	if( flags & REISER4_NODE_PRINT_ZNODE )
+		print_znode( "", node );
+
+	print_znode_content( node, flags );
+	if( node_is_empty( node ) ) {
+		indent_znode( node );
+		info( "empty\n" );
+		zrelse( node );
+		return;
+	}
+
+	if( flags & REISER4_NODE_CHECK )
+		node_check( node, flags );
+
+	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
+		print_address( "children of node", znode_get_block( node ) );
+	}
+
+	for( ncoord_init_before_first_item( &coord, node ); ncoord_next_item( &coord ) == 0; ) {
+
+		if( item_is_internal(&coord ) ) {
+			znode *child;
+
+			spin_lock_dk( current_tree );
+			child = child_znode( &coord, 0 );
+			spin_unlock_dk( current_tree );
+			if( !IS_ERR( child ) ) {
+				tree_rec( tree, child, flags );
+				zput( child );
+			} else {
+				info( "Cannot get child: %li\n", 
+				      PTR_ERR( child ) );
+			}
+		}
+	}
+	if( flags & REISER4_NODE_PRINT_HEADER && znode_get_level( node ) != LEAF_LEVEL ) {
+		print_address( "end children of node", znode_get_block( node ) );
+	}
+	zrelse( node );
+}
+
+/**
+ * debugging aid: recursively print content of a @tree.
+ */
+void print_tree_rec (const char * prefix /* prefix to print */, 
+		     reiser4_tree * tree /* tree to print */, 
+		     __u32 flags /* print flags*/ )
+{
+	znode *fake;
+	znode *root;
+
+	if( ( flags & ( unsigned ) ~REISER4_NODE_CHECK ) != 0 )
+		info( "tree: [%s]\n", prefix );
+	fake = zget( tree, &FAKE_TREE_ADDR, NULL, 0, GFP_KERNEL );
+	if( IS_ERR( fake ) ) {
+		info( "Cannot get fake\n" );
+		return;
+	}
+	root = zget( tree, &tree -> root_block, fake, tree -> height, 
+		     GFP_KERNEL );
+	if( IS_ERR( root ) ) {
+		info( "Cannot get root\n" );
+		return;
+	}
+	tree_rec( tree, root, flags );
+
+#if REISER4_USER_LEVEL_SIMULATION
+	if( ! ( flags & REISER4_NODE_DONT_DOT ) ) {
+		char path[ 1024 ];
+		FILE *dot;
+
+		sprintf( path, "/tmp/%s.dot", prefix );
+		dot = fopen( path, "w+" );
+		if( dot != NULL ) {
+			fprintf( dot,
+				 "digraph L0 {\n"
+				 "ordering=out;\n"
+				 "node [shape = box];\n" );
+			tree_rec_dot( tree, root, flags, dot );
+			fprintf( dot, "}\n" );
+			fclose( dot );
+		}
+	}
+#endif
+	if( ( flags & ( unsigned ) ~REISER4_NODE_CHECK ) != 0 )
+		info( "end tree: [%s]\n", prefix );
+	zput( root );
+	zput( fake );
+}
+
+
+/** Debugging aid: print information about inode. */
+void print_inode( const char *prefix /* prefix to print */, 
+		  const struct inode *i /* inode to print */ )
+{
+	reiser4_key         inode_key;
+	reiser4_inode_info *ref;
+
+	if( i == NULL ) {
+		info( "%s: inode: null\n", prefix );
+		return;
+	}
+	info( "%s: ino: %lu, count: %i, link: %i, mode: %o, size: %llu\n",
+	      prefix, i -> i_ino, atomic_read( &i -> i_count ), i -> i_nlink,
+	      i -> i_mode, ( unsigned long long ) i -> i_size );
+	info( "\tuid: %i, gid: %i, dev: %i, rdev: %i\n", 
+	      i -> i_uid, i -> i_gid, i -> i_dev, i -> i_rdev );
+	info( "\tatime: %li, mtime: %li, ctime: %li\n",
+	      i -> i_atime, i -> i_mtime, i -> i_ctime );
+	info( "\tblkbits: %i, blksize: %lu, blocks: %lu\n",
+	      i -> i_blkbits, i -> i_blksize, i -> i_blocks );
+	info( "\tversion: %lu, generation: %i, attr. flags: %u, flags: %u\n",
+	      i -> i_version, i -> i_generation, i -> i_attr_flags, 
+	      i -> i_flags );
+	info( "\tis_reiser4_inode: %i\n", is_reiser4_inode( i ) );
+	print_key( "\tkey", build_sd_key( i, &inode_key ) );
+	ref = reiser4_inode_data( i );
+	print_plugin( "\tfile", file_plugin_to_plugin( ref -> file ) );
+	print_plugin( "\tdir", dir_plugin_to_plugin( ref -> dir ) );
+	print_plugin( "\tperm", perm_plugin_to_plugin( ref -> perm ) );
+	print_plugin( "\ttail", tail_plugin_to_plugin( ref -> tail ) );
+	print_plugin( "\thash", hash_plugin_to_plugin( ref -> hash ) );
+	print_plugin( "\tsd", item_plugin_to_plugin( ref -> sd ) );
+	print_seal( "\tsd_seal", &ref -> sd_seal );
+	ncoord_print( "\tsd_coord", &ref -> sd_coord, 1 );
+	info( "\tflags: %u, bytes: %llu, extmask: %llu, sd_len: %i, pmask: %i, locality: %llu\n",
+	      ref -> flags, ref -> bytes, ref -> extmask, 
+	      ( int ) ref -> sd_len, ref -> plugin_mask, ref -> locality_id );
+}
+#endif
+
 /*
  * Make Linus happy.
  * Local variables:
