@@ -1537,27 +1537,40 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	memset (s->u.generic_sbp, 0, sizeof (reiser4_super_info_data));
 
 	result = init_context (&__context, s);
-	if (result)
+	if (result) {
+		kfree (s->u.generic_sbp);
+		s->u.generic_sbp = NULL;
 		return result;
+	}
 
  read_super_block:
 	/* look for reiser4 magic at hardcoded place */
 	super_bh = sb_bread (s, (int)(REISER4_MAGIC_OFFSET / s->s_blocksize));
-	if (!super_bh)
-		REISER4_EXIT (-EIO);
+	if (!super_bh) {
+		result = -EIO;
+		goto error1;
+	}
 	
 	master_sb = (struct reiser4_master_sb *)super_bh->b_data;
 	/* check reiser4 magic string */
+	result = -EINVAL;
 	if (!strncmp (master_sb->magic, REISER4_SUPER_MAGIC_STRING, 4)) {
 		/* reset block size if it is not a right one FIXME-VS: better comment is needed */
 		blocksize = d16tocpu (&master_sb->blocksize);
+		
+		if (blocksize != PAGE_CACHE_SIZE) {
+			info ("reiser4_fill_super: %s: wrong block size %ld\n",
+			      s->s_id, blocksize);
+			brelse (super_bh);
+			goto error1;
+		}
 		if (blocksize != s->s_blocksize) {
 			brelse (super_bh);
-			if (!sb_set_blocksize (s, (int)blocksize))
-				REISER4_EXIT (-EINVAL);
+			if (!sb_set_blocksize (s, (int)blocksize)) {
+				goto error1;
+			}
 			goto read_super_block;
 		}
-		info ("Blocksize %lu\n", blocksize);
 
 		plugin_id = d16tocpu (&master_sb->disk_plugin_id);
 		/* only two plugins are available for now */
@@ -1574,12 +1587,12 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 		 * umka (2002.06.12) Is it possible when format-specific super
 		 * block exists but there no master super block?
 		 */
-		REISER4_EXIT (-EINVAL);
+		goto error1;
 	}
 
 	s->s_op = &reiser4_super_operations;
 
-	info = get_super_private(s);
+	info = get_super_private (s);
 	spin_lock_init (&info->guard);
 
 	for (i = 0; i < REISER4_JNODE_TO_PAGE_HASH_SIZE; ++i)
@@ -1593,72 +1606,90 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	/* initialize fake inode, formatted nodes will be read/written through
 	 * it */
 	result = init_formatted_fake (s);
-	if (result)
-		REISER4_EXIT (result);
+	if (result) {
+		goto error2;
+	}
 
 	/* call disk format plugin method to do all the preparations like
 	 * journal replay, reiser4_super_info_data initialization, read oid
 	 * allocator, etc */
 	result = lplug->get_ready (s, data);
-	if (result)
-		REISER4_EXIT (result);
+	if (result) {
+		goto error3;
+	}
 
 	/*
 	 * FIXME-NIKITA actually, options should be parsed by plugins also.
 	 */
 	result = reiser4_parse_options (s, data);
-	if (result)
-		REISER4_EXIT (result);
+	if (result) {
+		goto error4;
+	}
 
 	inode = reiser4_iget (s, lplug->root_dir_key (s));
-	if ( !IS_ERR( inode ) ) {
-		/* allocate dentry for root inode, It works with inode == 0 */
-		s->s_root = d_alloc_root (inode);
-		if (!s->s_root) {
-			/*
-			 * FIXME-NIKITA shouldn't this be -ENOMEM?
-			 */
-			REISER4_EXIT (-EINVAL);
-		}
-		s->s_root->d_op = &reiser4_dentry_operation;
+	if ( IS_ERR( inode ) ) {
+		result = PTR_ERR (inode);
+		goto error4;
+	}
+	/* allocate dentry for root inode, It works with inode == 0 */
+	s->s_root = d_alloc_root (inode);
+	if (!s->s_root) {
+		result = -ENOMEM;
+		goto error4;
+	}
+	s->s_root->d_op = &reiser4_dentry_operation;
 
-		if( inode -> i_state & I_NEW ) {
-			reiser4_inode_info *info;
-
-			info = reiser4_inode_data (inode);
-
-			if( info -> file == NULL )
-				info -> file = default_file_plugin(s);
-			if( info -> dir == NULL )
-				info -> dir = default_dir_plugin(s);
-			if( info -> sd == NULL )
-				info -> sd = default_sd_plugin(s);
-			if( info -> hash == NULL )
-				info -> hash = default_hash_plugin(s);
-			if( info -> tail == NULL )
-				info -> tail = default_tail_plugin(s);
-			if( info -> perm == NULL )
-				info -> perm = default_perm_plugin(s);
-			if( info -> dir_item == NULL )
-				info -> dir_item = default_dir_item_plugin(s);
-			assert( "nikita-1951", info -> file != NULL );
-			assert( "nikita-1814", info -> dir  != NULL );
-			assert( "nikita-1815", info -> sd   != NULL );
-			assert( "nikita-1816", info -> hash != NULL );
-			assert( "nikita-1817", info -> tail != NULL );
-			assert( "nikita-1818", info -> perm != NULL );
-			assert( "vs-545",      info -> dir_item != NULL );
-			unlock_new_inode (inode);
-		}
-	} else
-		REISER4_EXIT (PTR_ERR (inode));
+	if( inode -> i_state & I_NEW ) {
+		reiser4_inode_info *info;
+		
+		info = reiser4_inode_data (inode);
+		
+		if( info -> file == NULL )
+			info -> file = default_file_plugin(s);
+		if( info -> dir == NULL )
+			info -> dir = default_dir_plugin(s);
+		if( info -> sd == NULL )
+			info -> sd = default_sd_plugin(s);
+		if( info -> hash == NULL )
+			info -> hash = default_hash_plugin(s);
+		if( info -> tail == NULL )
+			info -> tail = default_tail_plugin(s);
+		if( info -> perm == NULL )
+			info -> perm = default_perm_plugin(s);
+		if( info -> dir_item == NULL )
+			info -> dir_item = default_dir_item_plugin(s);
+		assert( "nikita-1951", info -> file != NULL );
+		assert( "nikita-1814", info -> dir  != NULL );
+		assert( "nikita-1815", info -> sd   != NULL );
+		assert( "nikita-1816", info -> hash != NULL );
+		assert( "nikita-1817", info -> tail != NULL );
+		assert( "nikita-1818", info -> perm != NULL );
+		assert( "vs-545",      info -> dir_item != NULL );
+		unlock_new_inode (inode);
+	}
 
 	REISER4_EXIT (0);
+
+ error4:
+	get_super_private (s)->lplug->release (s);
+ error3:
+	done_formatted_fake (s);
+ error2:
+	txn_mgr_done (&info->tmgr);
+ error1:
+	kfree (s->u.generic_sbp);
+	s->u.generic_sbp = NULL;
+
+	REISER4_EXIT (result);
 }
 
 static void reiser4_kill_super (struct super_block *s)
 {
 	__REISER4_ENTRY (s,);
+
+	if (!s->u.generic_sbp)
+		/* mount failed */
+		return;
 
 	trace_on (TRACE_VFS_OPS, "kill_super\n");
 
