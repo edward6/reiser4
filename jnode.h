@@ -272,25 +272,27 @@ extern int jnode_done_static(void);
 
 /* Jnode routines */
 extern jnode *jalloc(void);
-extern void jfree(jnode * node);
+extern void jfree(jnode * node) NONNULL;
 extern jnode *jnew(void);
-extern jnode *jlook(reiser4_tree *, oid_t objectid, unsigned long index);
-extern jnode *jlook_lock(reiser4_tree * tree, oid_t objectid, unsigned long ind);
-extern jnode *jnode_by_page(struct page *pg);
-extern jnode *jnode_of_page(struct page *pg);
-extern jnode *page_next_jnode(jnode * node);
-extern void jnode_init(jnode * node, reiser4_tree * tree);
-extern void jnode_make_dirty(jnode * node);
-extern void jnode_make_clean_nolock(jnode * node);
-extern void jnode_make_clean(jnode * node);
-extern void jnode_make_wander_nolock(jnode * node);
-extern void jnode_make_wander(jnode*);
-extern void jnode_make_reloc(jnode*, flush_queue_t*);
-extern void jnode_set_block(jnode * node, const reiser4_block_nr * blocknr);
-extern int jnode_io_hook(jnode *node, struct page *page, int rw);
+extern jnode *jlook(reiser4_tree *, oid_t objectid, unsigned long index) NONNULL;
+extern jnode *jlook_lock(reiser4_tree * tree, 
+			 oid_t objectid, unsigned long ind) NONNULL;
+extern jnode *jnode_by_page(struct page *pg) NONNULL;
+extern jnode *jnode_of_page(struct page *pg) NONNULL;
+extern jnode *page_next_jnode(jnode * node) NONNULL;
+extern void jnode_init(jnode * node, reiser4_tree * tree) NONNULL;
+extern void jnode_make_dirty(jnode * node) NONNULL;
+extern void jnode_make_clean_nolock(jnode * node) NONNULL;
+extern void jnode_make_clean(jnode * node) NONNULL;
+extern void jnode_make_wander_nolock(jnode * node) NONNULL;
+extern void jnode_make_wander(jnode*) NONNULL;
+extern void jnode_make_reloc(jnode*, flush_queue_t*) NONNULL;
+extern void jnode_set_block(jnode * node, 
+			    const reiser4_block_nr * blocknr) NONNULL;
+extern int jnode_io_hook(jnode *node, struct page *page, int rw) NONNULL;
 
-extern struct page *jnode_lock_page(jnode *);
-extern struct address_space *jnode_get_mapping(const jnode * node);
+extern struct page *jnode_lock_page(jnode *) NONNULL;
+extern struct address_space *jnode_get_mapping(const jnode * node) NONNULL;
 
 /* block number of node */
 static inline const reiser4_block_nr *
@@ -358,7 +360,7 @@ extern void print_jnodes(const char *prefix, reiser4_tree * tree);
 #define print_jnode(p, n) noop
 #endif
 
-extern int znode_is_root(const znode * node);
+extern int znode_is_root(const znode * node) NONNULL;
 
 /* bump reference counter on @node */
 static inline void
@@ -379,22 +381,22 @@ jref(jnode * node)
 	return node;
 }
 
-extern int jdelete(jnode * node);
-
-/* get the page of jnode */
-/* ZAM-FIXME-HANS: do you mean we get a (page aligned) pointer to the start of the data for the jnode? */
-static inline char *
-jdata(const jnode * node)
-{
-	assert("nikita-1415", node != NULL);
-	return node->pg ? node->data : NULL;
-}
+extern int jdelete(jnode * node) NONNULL;
 
 /* get the page of jnode */
 static inline struct page *
 jnode_page(const jnode * node)
 {
 	return node->pg;
+}
+
+/* return pointer to jnode data */
+static inline char *
+jdata(const jnode * node)
+{
+	assert("nikita-1415", node != NULL);
+	assert("nikita-3198", jnode_page(node) != NULL);
+	return node->data;
 }
 
 static inline int
@@ -404,8 +406,10 @@ jnode_is_loaded(const jnode * node)
 	return JF_ISSET(node, JNODE_LOADED);
 }
 
-extern void page_detach_jnode(struct page *page, struct address_space *mapping, unsigned long index);
-extern void page_clear_jnode(struct page *page, jnode * node);
+extern void page_detach_jnode(struct page *page, 
+			      struct address_space *mapping, 
+			      unsigned long index) NONNULL;
+extern void page_clear_jnode(struct page *page, jnode * node) NONNULL;
 
 static inline void
 jnode_set_reloc(jnode * node)
@@ -427,27 +431,27 @@ static inline void add_d_ref(jnode * node /* node to increase d_count of */ )
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 
-extern int jload_gfp(jnode * node, int gfp);
+extern int jload_gfp(jnode * node, int gfp) NONNULL;
 
 static inline int jload(jnode * node)
 {
 	return jload_gfp(node, GFP_KERNEL);
 }
 
-extern int jinit_new(jnode * node);
-extern int jstartio(jnode * node);
+extern int jinit_new(jnode * node) NONNULL;
+extern int jstartio(jnode * node) NONNULL;
 
-extern int jdrop_in_tree(jnode * node, reiser4_tree * tree);
-extern void jdrop(jnode * node);
-extern int jwait_io(jnode * node, int rw);
+extern int jdrop_in_tree(jnode * node, reiser4_tree * tree) NONNULL;
+extern void jdrop(jnode * node) NONNULL;
+extern int jwait_io(jnode * node, int rw) NONNULL;
 
-extern void jrelse_nolock(jnode * node);
+extern void jrelse_nolock(jnode * node) NONNULL;
 
-extern jnode *alloc_io_head(const reiser4_block_nr * block);
-extern void drop_io_head(jnode * node);
+extern jnode *alloc_io_head(const reiser4_block_nr * block) NONNULL;
+extern void drop_io_head(jnode * node) NONNULL;
 
-extern void jnode_wait_fq(jnode * node);
-extern void jnode_wait_fq_locked(jnode * node);
+extern void jnode_wait_fq(jnode * node) NONNULL;
+extern void jnode_wait_fq_locked(jnode * node) NONNULL;
 
 static inline reiser4_tree *
 jnode_get_tree(const jnode * node)
