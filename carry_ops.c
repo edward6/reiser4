@@ -284,7 +284,14 @@ static int free_space_shortage( znode *node, carry_op *op )
 	case COP_PASTE:
 		return space_needed_for_op( node, op ) - znode_free_space( node );
 	case COP_EXTENT:
-		return coord_after_last( op -> u.insert.coord ) ? -1 : +1;
+		/*
+		 * when inserting extent shift data around until insertion
+		 * point is utmost in the node.
+		 */
+		if( coord_wrt( op -> u.insert.coord ) == COORD_INSIDE )
+			return +1;
+		else 
+			return -1;
 	}
 }
 
@@ -561,23 +568,33 @@ static int insert_paste_common( carry_op *op /* carry operation being
 		 * nothing to do. Fall through to make_space().
 		 */
 		;
+	} else if( op -> u.insert.type == COPT_KEY ) {
 		/*
-		 * FIXME-NIKITA Currently we cannot do batching at the lowest
-		 * level, because operations here are given by coords where
-		 * modification is to be performed, and one modification can
-		 * invalidate coords of all following operations.
+		 * Problem with doing batching at the lowest level, is that
+		 * operations here are given by coords where modification is
+		 * to be performed, and one modification can invalidate coords
+		 * of all following operations.
 		 *
-		 * So, we can implement yet another type for operation that
+		 * So, we are implementing yet another type for operation that
 		 * will use (the only) "locator" stable across shifting of
 		 * data between nodes, etc.: key (COPT_KEY).
 		 *
-		 * Here new clause is to be added that resolves key to the
-		 * coord in the node.
+		 * This clause resolves key to the coord in the node.
 		 *
 		 * But node can change also. Probably some pieces have to be
 		 * added to the lock_carry_node(), to lock node by its key.
 		 *
 		 */
+		/*
+		 * FIXME-NIKITA return value is just dropped on the floor,
+		 * because what else can we do?
+		 *
+		 * Lookup bias is fixed to FIND_EXACT. Complain if you need
+		 * something else.
+		 */
+		node_plugin_by_node( op -> node -> real_node ) -> lookup
+			( op -> node -> real_node, op -> u.insert.key, 
+			  FIND_EXACT, op -> u.insert.coord );
 	} else if( op -> u.insert.type == COPT_CHILD ) {
 		/*
 		 * if we are asked to insert pointer to the child into
@@ -607,10 +624,7 @@ static int insert_paste_common( carry_op *op /* carry operation being
 		 * nodes before this one already caused parent node to
 		 * split (may be several times).
 		 *
-		 * FIXME-NIKITA now goes thing that I don't like at all.
-		 * I am going to come up with better solution, really.
-		 *
-		 * 2002.03.18. Famous last words.
+		 * I am going to come up with better solution.
 		 *
 		 * You are not expected to understand this.
 		 *        -- v6root/usr/sys/ken/slp.c
@@ -932,14 +946,45 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	znode            *node;
 	tree_coord        coord;
 	reiser4_item_data data;
+	carry_op         *insert_extent;
 	int               result;
 
 	assert( "nikita-1036", op != NULL );
 	assert( "nikita-1037", todo != NULL );
-	assert( "nikita-1038", op -> op == COP_INSERT );
+	assert( "nikita-1038", op -> op == COP_EXTENT );
 
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, extent );
+
+	/*
+	 * extent insertion overview:
+	 *
+	 * extents live on the TWIG LEVEL, which is level one above the leaf
+	 * one. This complicates extent insertion logic somewhat: it may
+	 * happen (and going to happen all the time) that in logical key
+	 * ordering extent has to be placed between items I1 and I2, located
+	 * at the leaf level, but I1 and I2 are in the same formatted leaf
+	 * node N1. To insert extent one has to 
+	 *
+	 *  (1) reach node N1 and shift data between N1, its neighbors and
+	 *  possibly newly allocated nodes until I1 and I2 fall into different
+	 *  nodes. Since I1 and I2 are still neighboring items in logical key
+	 *  order, they will be necessary utmost items in their respective
+	 *  nodes.
+	 *
+	 *  (2) After this new extent item is inserted into node on the twig
+	 *  level.
+	 *
+	 * Fortunately this process can reuse almost all code from standard
+	 * insertion procedure (viz. make_space() and insert_paste_common()),
+	 * due to the following observation: make_space() only shifts data up
+	 * to and excluding or including insertion point. It never
+	 * "over-moves" through insertion point. Thus, one can use
+	 * make_space() to perform step (1). All required for this is just to
+	 * instruct free_space_shortage() to keep make_space() shifting data
+	 * until insertion point is at the node border.
+	 *
+	 */
 
 	/*
 	 * perform common functionality of insert and paste.
@@ -948,21 +993,25 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	if( result != 0 )
 		return result;
 
-	node = op -> u.insert.coord -> node;
+	node = op -> u.extent.coord -> node;
 	assert( "nikita-1039", node != NULL );
 	assert( "nikita-1040", node_plugin_by_node( node ) != NULL );
-	assert( "nikita-1700", coord_after_last( op -> u.insert.coord ) );
-	
+	assert( "nikita-1700", coord_wrt( op -> u.extent.coord ) != COORD_INSIDE );
 	/*
-	 * ask node layout to create new item.
+	 * FIXME-NIKITA add some checks here. Not assertions, -EIO. Check that
+	 * extent fits between items.
 	 */
-	result = node_plugin_by_node( node ) -> create_item
-		( op -> u.insert.coord, op -> u.insert.key,
-		  op -> u.insert.data, todo );
-	doing -> restartable = 0;
-	znode_set_dirty( node );
-	reiser4_done_coord( &coord );
-	return result;
+
+	/*
+	 * proceed with inserting extent item into parent. We are definetely
+	 * inserting rather than pasting if we get that far.
+	 */
+	insert_extent = reiser4_post_carry( todo, COP_INSERT, node, 1 );
+	insert_extent -> u.insert.type = COPT_KEY;
+	insert_extent -> u.insert.data = op -> u.extent.data;
+	insert_extent -> u.insert.key  = op -> u.extent.key;
+		
+	return 0;
 }
 
 /**
