@@ -585,13 +585,11 @@ eflush_del(jnode *node, int page_locked)
 			wait_on_page_locked(page);
 			page_cache_release(page);
 			LOCK_JNODE(node);
-			if (unlikely(!JF_ISSET(node, JNODE_EFLUSH))) {
+			if (unlikely(!JF_ISSET(node, JNODE_EFLUSH)))
 				/*
 				 * race: some other thread unflushed jnode.
 				 */
-				UNLOCK_JNODE(node);
 				return;
-			}
 		}
 		assert("nikita-2766", atomic_read(&node->x_count) > 1);
 
