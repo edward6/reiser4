@@ -599,7 +599,7 @@ void call_on_each_assert(void)
 		reiser4_super_info_data *sinfo;
 		reiser4_context *ctx;
 
-		ctx = (reiser4_context *) current->fs_context;
+		ctx = (reiser4_context *) current->journal_info;
 		sinfo = ctx->super->s_fs_info;
 		/* put checks here */
 	}
