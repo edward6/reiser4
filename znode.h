@@ -243,9 +243,9 @@ struct znode {
 #define	ZF_SET(p,f)		JF_SET  (ZJNODE(p), (f))
 
 /**
- * Since we have R/W znode locks we need addititional bidirectional `link' objects to
- * implement n<->m relationship between lock owners and lock objects. We call
- * them `lock handles'.
+ * Since we have R/W znode locks we need additional bidirectional `link'
+ * objects to implement n<->m relationship between lock owners and lock
+ * objects. We call them `lock handles'.
  */
 struct lock_handle {
 	/**
