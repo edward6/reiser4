@@ -1,7 +1,6 @@
 /* Copyright 2001 by Hans Reiser, licensing governed by reiser4/README */
 
-/* The design document for this file is in flush.alg.  FIXME: It needs to be
- * rewritten and put on the web. */
+/* The design document for this file is at www.namesys.com/flush-alg.html */
 
 /* Note on abbreviation: "squeeze and allocate" == "squalloc" */
 
