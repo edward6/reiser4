@@ -88,7 +88,7 @@ jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 
 	assert("nikita-2360", tree != NULL);
 
-	trace_if(TRACE_ZWEB, UNDER_RW_VOID(tree, tree, read,
+	IF_TRACE(TRACE_ZWEB, UNDER_RW_VOID(tree, tree, read,
 					   print_jnodes("umount", tree)));
 
 	jtable = &tree->jhash_table;
@@ -561,7 +561,7 @@ int jload_gfp (jnode * node, int gfp_flags)
 	UNLOCK_JNODE(node);
 
 	if (unlikely(!parsed)) {
-		trace_on(TRACE_PCACHE, "read node: %p\n", node);
+		ON_TRACE(TRACE_PCACHE, "read node: %p\n", node);
 
 		page = jnode_get_page_locked(node, gfp_flags);
 		if (IS_ERR(page)) {
@@ -687,7 +687,7 @@ jrelse(jnode * node /* jnode to release references to */)
 
 	ON_DEBUG_CONTEXT(--lock_counters()->d_refs);
 
-	trace_on(TRACE_PCACHE, "release node: %p\n", node);
+	ON_TRACE(TRACE_PCACHE, "release node: %p\n", node);
 
 	page = jnode_page(node);
 	if (likely(page != NULL)) {
@@ -731,7 +731,7 @@ jnode_try_drop(jnode * node)
 	assert("nikita-2582", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
 	assert("nikita-2583", JF_ISSET(node, JNODE_RIP));
 
-	trace_on(TRACE_PCACHE, "trying to drop node: %p\n", node);
+	ON_TRACE(TRACE_PCACHE, "trying to drop node: %p\n", node);
 
 	tree = jnode_get_tree(node);
 	jplug = jnode_ops(node);
@@ -775,7 +775,7 @@ jdelete(jnode * node /* jnode to finish with */)
 	 * acquired additional reference counter. */
 	assert("nikita-2917", !JF_ISSET(node, JNODE_EFLUSH));
 
-	trace_on(TRACE_PCACHE, "delete node: %p\n", node);
+	ON_TRACE(TRACE_PCACHE, "delete node: %p\n", node);
 
 	jplug = jnode_ops(node);
 
@@ -823,7 +823,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 	assert("nikita-2403", !JF_ISSET(node, JNODE_HEARD_BANSHEE));
 	// assert( "nikita-2532", JF_ISSET( node, JNODE_RIP ) );
 
-	trace_on(TRACE_PCACHE, "drop node: %p\n", node);
+	ON_TRACE(TRACE_PCACHE, "drop node: %p\n", node);
 
 	jplug = jnode_ops(node);
 

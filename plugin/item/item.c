@@ -197,8 +197,8 @@ are_items_mergeable(const coord_t * i1 /* coord of first item */ ,
 	iplug = item_plugin_by_coord(i1);
 	assert("nikita-1338", iplug != NULL);
 
-	trace_if(TRACE_NODES, print_key("k1", item_key_by_coord(i1, &k1)));
-	trace_if(TRACE_NODES, print_key("k2", item_key_by_coord(i2, &k2)));
+	IF_TRACE(TRACE_NODES, print_key("k1", item_key_by_coord(i1, &k1)));
+	IF_TRACE(TRACE_NODES, print_key("k2", item_key_by_coord(i2, &k2)));
 
 	/* NOTE-NIKITA are_items_mergeable() is also called by assertions in
 	   shifting code when nodes are in "suspended" state. */

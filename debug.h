@@ -260,10 +260,10 @@ extern int is_in_reiser4_context(void);
 
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
-#define trace_if(flags, e) 							\
+#define IF_TRACE(flags, e) 							\
 	if(get_current_trace_flags() & (flags)) e
 #else
-#define trace_if( flags, e ) noop
+#define IF_TRACE( flags, e ) noop
 #endif
 
 /* tracing flags. */
@@ -339,12 +339,12 @@ typedef enum {
 extern __u32 reiser4_current_trace_flags;
 
 /* just print where we are: file, function, line */
-#define trace_stamp( f )   trace_if( f, reiser4_log( "trace", "" ) )
+#define trace_stamp( f )   IF_TRACE( f, reiser4_log( "trace", "" ) )
 /* print value of "var" */
 #define trace_var( f, format, var ) 				\
-        trace_if( f, reiser4_log( "trace", #var ": " format, var ) )
+        IF_TRACE( f, reiser4_log( "trace", #var ": " format, var ) )
 /* print output only if appropriate trace flag(s) is on */
-#define trace_on( f, ... )   trace_if(f, printk(__VA_ARGS__))
+#define ON_TRACE( f, ... )   IF_TRACE(f, printk(__VA_ARGS__))
 
 #if REISER4_STATS
 

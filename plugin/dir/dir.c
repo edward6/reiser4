@@ -690,10 +690,10 @@ adjust_dir_pos(struct file   * dir,
 {
 	dir_pos *pos;
 
-	trace_on(TRACE_DIR, "adjust: %s/%i", dir->f_dentry->d_name.name, adj);
-	trace_if(TRACE_DIR, print_dir_pos(" mod", mod_point));
-	trace_if(TRACE_DIR, print_dir_pos(" spot", &readdir_spot->position));
-	trace_on(TRACE_DIR, "\n\tspot.entry_no: %llu\n", readdir_spot->entry_no);
+	ON_TRACE(TRACE_DIR, "adjust: %s/%i", dir->f_dentry->d_name.name, adj);
+	IF_TRACE(TRACE_DIR, print_dir_pos(" mod", mod_point));
+	IF_TRACE(TRACE_DIR, print_dir_pos(" spot", &readdir_spot->position));
+	ON_TRACE(TRACE_DIR, "\n\tspot.entry_no: %llu\n", readdir_spot->entry_no);
 
 	reiser4_stat_inc(dir.readdir.adjust_pos);
 
@@ -923,7 +923,7 @@ feed_entry(readdir_pos * pos, coord_t * coord, filldir_t filldir, void *dirent)
 
 	/* get key of directory entry */
 	unit_key_by_coord(coord, &de_key);
-	trace_on(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
 		 name, pos->entry_no + 1, get_key_objectid(&sd_key));
 
 	/* update @pos */
@@ -977,8 +977,8 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	*pos = &fsdata->dir.readdir;
 	spin_unlock_inode(inode);
 
-	trace_if(TRACE_DIR, print_dir_pos("readdir", &(*pos)->position));
-	trace_on(TRACE_DIR, " entry_no: %llu\n", (*pos)->entry_no);
+	IF_TRACE(TRACE_DIR, print_dir_pos("readdir", &(*pos)->position));
+	ON_TRACE(TRACE_DIR, " entry_no: %llu\n", (*pos)->entry_no);
 
 	/* move @tap to the current position */
 	return dir_rewind(f, *pos, f->f_pos, tap);
@@ -1018,7 +1018,7 @@ readdir_common(struct file *f /* directory file being read */ ,
 	set_key_objectid(&tap.ra_info.key_to_stop, get_key_objectid(max_key()));
 	set_key_offset(&tap.ra_info.key_to_stop, get_key_offset(max_key()));
 
-	trace_on(TRACE_DIR | TRACE_VFS_OPS, 
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, 
 		 "readdir: inode: %llu offset: %lli\n", 
 		 get_inode_oid(inode), f->f_pos);
 

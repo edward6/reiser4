@@ -560,7 +560,7 @@ get_overwrite_set(struct commit_handle *ch)
 		jnode *next = capture_list_next(cur);
 
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
-			trace_on(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
+			ON_TRACE(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
 		}
 
 		if (JF_ISSET(cur, JNODE_OVRWR)) {
@@ -643,7 +643,7 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 
 	block = *block_p;
 
-	trace_on (TRACE_IO_W, "write of %d blocks starting from %llu\n",
+	ON_TRACE (TRACE_IO_W, "write of %d blocks starting from %llu\n",
 		  nr, (unsigned long long)block);
 
 #if REISER4_USER_LEVEL_SIMULATION
@@ -1023,7 +1023,7 @@ int reiser4_write_logs(long * nr_submitted)
 	 * submitted to disk. */
 	*nr_submitted += ch.overwrite_set_size - ch.nr_bitmap;
 
-	trace_on(TRACE_LOG, "commit atom (id = %u, count = %u)\n", atom->atom_id, atom->capture_count);
+	ON_TRACE(TRACE_LOG, "commit atom (id = %u, count = %u)\n", atom->atom_id, atom->capture_count);
 
 	/* Grab space for modified bitmaps from 100% of disk space. */
 	if (reiser4_grab_space_force(ch.nr_bitmap, BA_RESERVED, "reiser4_write_logs: for modified bitmaps"))
@@ -1081,12 +1081,12 @@ int reiser4_write_logs(long * nr_submitted)
 	if (ret)
 		goto up_and_ret;
 
-	trace_on(TRACE_LOG, "overwrite set (%u blocks) written to wandered locations\n", ch.overwrite_set_size);
+	ON_TRACE(TRACE_LOG, "overwrite set (%u blocks) written to wandered locations\n", ch.overwrite_set_size);
 
 	if ((ret = update_journal_header(&ch)))
 		goto up_and_ret;
 
-	trace_on(TRACE_LOG,
+	ON_TRACE(TRACE_LOG,
 		 "journal header updated (tx head at block %s)\n",
 		 sprint_address(jnode_get_block(capture_list_front(&ch.tx_list))));
 
@@ -1127,12 +1127,12 @@ int reiser4_write_logs(long * nr_submitted)
 	if (ret)
 		goto up_and_ret;
 
-	trace_on(TRACE_LOG, "overwrite set written in place\n");
+	ON_TRACE(TRACE_LOG, "overwrite set written in place\n");
 
 	if ((ret = update_journal_footer(&ch)))
 		goto up_and_ret;
 
-	trace_on(TRACE_LOG,
+	ON_TRACE(TRACE_LOG,
 		 "journal footer updated (tx head at block %s)\n",
 		 sprint_address(jnode_get_block(capture_list_front(&ch.tx_list))));
 
@@ -1426,7 +1426,7 @@ replay_oldest_transaction(struct super_block *s)
 		return 0;
 	}
 
-	trace_on(TRACE_REPLAY, "not flushed transactions found.");
+	ON_TRACE(TRACE_REPLAY, "not flushed transactions found.");
 
 	prev_tx = sbinfo->last_committed_tx;
 
@@ -1463,7 +1463,7 @@ replay_oldest_transaction(struct super_block *s)
 	total = d32tocpu(&T->total);
 	log_rec_block = d64tocpu(&T->next_block);
 
-	trace_on(TRACE_REPLAY,
+	ON_TRACE(TRACE_REPLAY,
 		 "not flushed transaction found (head block %s, %u wander records)\n",
 		 sprint_address(jnode_get_block(tx_head)), total);
 
@@ -1584,7 +1584,7 @@ reiser4_journal_replay(struct super_block *s)
 	while ((ret = replay_oldest_transaction(s)) == -EAGAIN)
 		nr_tx_replayed++;
 
-	trace_on(TRACE_REPLAY, "%d transactions replayed ret = %d", nr_tx_replayed, ret);
+	ON_TRACE(TRACE_REPLAY, "%d transactions replayed ret = %d", nr_tx_replayed, ret);
 
 	return ret;
 }

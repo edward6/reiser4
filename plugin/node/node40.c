@@ -1402,7 +1402,7 @@ copy_units(coord_t * target, coord_t * source, unsigned from, unsigned count, sh
 	assert("nikita-1464", source != NULL);
 	assert("nikita-1465", from + count <= coord_num_units(source));
 
-	trace_if(TRACE_COORDS, print_coord("copy_units source:", source, 0));
+	IF_TRACE(TRACE_COORDS, print_coord("copy_units source:", source, 0));
 
 	iplug = item_plugin_by_coord(source);
 	assert("nikita-1468", iplug == item_plugin_by_coord(target));
@@ -1444,7 +1444,7 @@ copy(struct shift_params *shift)
 
 	from = shift->wish_stop;
 
-	trace_if(TRACE_COORDS, print_coord("node40_copy from:", &from, 0));
+	IF_TRACE(TRACE_COORDS, print_coord("node40_copy from:", &from, 0));
 
 	coord_init_first_unit(&to, shift->target);
 
@@ -1471,8 +1471,8 @@ copy(struct shift_params *shift)
 			nh40_set_free_space_start(nh, (unsigned) free_space_start);
 			nh40_set_free_space(nh, nh40_get_free_space(nh) - shift->merging_bytes);
 
-			trace_if(TRACE_COORDS, print_coord("before copy_units from:", &from, 0));
-			trace_if(TRACE_COORDS, print_coord("before copy_units to:", &to, 0));
+			IF_TRACE(TRACE_COORDS, print_coord("before copy_units from:", &from, 0));
+			IF_TRACE(TRACE_COORDS, print_coord("before copy_units to:", &to, 0));
 
 			/* appending last item of @target */
 			copy_units(&to, &from, 0,	/* starting from 0-th unit */
@@ -2140,7 +2140,7 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 		return 0;
 	}
 
-	trace_if(TRACE_COORDS, print_coord("shift->wish_stop before copy:", &shift.wish_stop, 0));
+	IF_TRACE(TRACE_COORDS, print_coord("shift->wish_stop before copy:", &shift.wish_stop, 0));
 
 	copy(&shift);
 
@@ -2173,7 +2173,7 @@ shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,
 	      shift.pend == SHIFT_LEFT ? "LEFT" : "RIGHT",
 	      shift.merging_units, shift.entire, shift.part_units, shift.shift_bytes);
 #endif
-	trace_on(TRACE_SHIFT, "shift: [%Li] %s--%s [%Li]: %i\n",
+	ON_TRACE(TRACE_SHIFT, "shift: [%Li] %s--%s [%Li]: %i\n",
 		 *znode_get_block(left),
 		 (shift.pend == SHIFT_LEFT) ? "<" : "",
 		 (shift.pend == SHIFT_LEFT) ? "" : ">", *znode_get_block(right), shift.shift_bytes);

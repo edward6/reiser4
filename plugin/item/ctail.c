@@ -596,7 +596,7 @@ int readpage_ctail(void * vp, struct page *page)
 		SetPageUptodate(page);
 		reiser4_unlock_page(page);
 		
-		trace_on(TRACE_CTAIL, " - hole, OK\n");
+		ON_TRACE(TRACE_CTAIL, " - hole, OK\n");
 		return 0;
 	}	
 	

@@ -157,7 +157,7 @@ reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 	/* ask plugin whether it can add yet another link to this
 	   object */
 	if (!fplug->can_add_link(object)) {
-		return -EMLINK;
+		return RETERR(-EMLINK);
 	}
 
 	assert("nikita-2211", fplug->add_link != NULL);
@@ -1384,7 +1384,7 @@ reiser4_kill_super(struct super_block *s)
 
 	init_context(&context, s);
 
-	trace_on(TRACE_VFS_OPS, "kill_super\n");
+	ON_TRACE(TRACE_VFS_OPS, "kill_super\n");
 
 	reiser4_sysfs_done(s);
 
