@@ -2,9 +2,9 @@
  */
 
 /* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The txnmgr processes
- * capture_block requests and manages the relationship between txn_nodes and atoms through the various stages of a
+ * capture_block requests and manages the relationship between znodes and atoms through the various stages of a
  * transcrash, and it also oversees the fusion and capture-on-copy processes.  The main difficulty with this task is
- * maintaining a deadlock-free lock ordering between atoms and txn_nodes/handles.  The reason for the difficulty is that
+ * maintaining a deadlock-free lock ordering between atoms and znodes/handles.  The reason for the difficulty is that
  * txn_nodes, handles, and atoms contain pointer circles, and the cycle must be broken.  The main requirement is that
  * atom-fusion be deadlock free, so once you hold the atom_lock you may then wait to aquire any txn_node or handle lock.
  * This implies that any time you check the atom-pointer of a txn_node or handle and then try to lock that atom, you
@@ -32,20 +32,20 @@ static void   capture_assign_txnh_nolock      (txn_atom   *atom,
 					       txn_handle *txnh);
 
 static void   capture_assign_block_nolock     (txn_atom   *atom,
-					       txn_node   *node);
+					       znode      *node);
 
 static int    capture_assign_block            (txn_handle *txnh,
-					       txn_node   *node);
+					       znode      *node);
 
-static int    capture_assign_txnh             (txn_node    *node,
+static int    capture_assign_txnh             (znode       *node,
 					       txn_handle  *txnh,
 					       txn_capture  mode);
 
-static int    capture_init_fusion             (txn_node    *node,
+static int    capture_init_fusion             (znode       *node,
 					       txn_handle  *txnh,
 					       txn_capture  mode);
 
-static int    capture_fuse_wait               (txn_node    *node,
+static int    capture_fuse_wait               (znode       *node,
 					       txn_handle  *txnh,
 					       txn_atom    *atomf,
 					       txn_atom    *atomh,
@@ -54,13 +54,13 @@ static int    capture_fuse_wait               (txn_node    *node,
 static void   capture_fuse_into               (txn_atom   *small,
 					       txn_atom   *large);
 
-static int    capture_copy                    (txn_node   *node,
+static int    capture_copy                    (znode      *node,
 					       txn_handle *txnh,
 					       txn_atom   *atomf,
 					       txn_atom   *atomh);
 
 static void   uncapture_block                 (txn_atom   *atom,
-					       txn_node   *node);
+					       znode      *node);
 
 
 /* Local debugging */
@@ -223,9 +223,9 @@ atom_isclean (txn_atom *atom)
 		fwaiting_list_empty    (& atom->fwaiting_list));
 }
 
-/* Initialize the transaction-specific txn_node fields. */
+/* Initialize the transaction-specific znode fields. */
 void
-txn_node_init (txn_node *node)
+txn_znode_init (znode *node)
 {
 	node->atom = NULL;
 	capture_list_clean (node);
@@ -524,14 +524,14 @@ atom_should_commit (txn_atom *atom)
  * nodes/slums, it calls the appropriate allocate/balancing routines.
  *
  * Called by the single remaining open txnh, which is closing.  Therefore as long as we
- * hold the atom lock none of the txn_nodes can be captured and/or locked.
+ * hold the atom lock none of the znodes can be captured and/or locked.
  */
 static int
 atom_try_commit_locked (txn_atom *atom)
 {
 	int level;
 	int ret;
-	txn_node *scan;
+	znode *scan;
 	
 	assert ("jmacd-150", atom->txnh_count == 1);
 	assert ("jmacd-151", atom_isopen (atom));
@@ -698,14 +698,14 @@ commit_txnh (txn_handle *txnh)
  */
 static int
 try_capture_block (txn_handle  *txnh,
-		   txn_node    *node,
+		   znode       *node,
 		   txn_capture  mode)
 {
 	int ret;
 	txn_atom *block_atom;
 	txn_atom *txnh_atom;
 
-	/* Should not call capture for READ_NONCOM requests, txnhd in block_capture. */
+	/* Should not call capture for READ_NONCOM requests, handled in txn_try_capture. */
 	assert ("jmacd-567", CAPTURE_TYPE (mode) != TXN_CAPTURE_READ_NONCOM);
 
 	/* FIXME_LATER_JMACD Should assert that atom->tree == node->tree somewhere. */
@@ -804,7 +804,7 @@ try_capture_block (txn_handle  *txnh,
  * held.
  */
 int
-txn_try_capture (txn_node        *node,
+txn_try_capture (znode           *node,
 		 znode_lock_mode  lock_mode,
 		 int              non_blocking)
 {
@@ -911,7 +911,7 @@ capture_assign_txnh_nolock (txn_atom   *atom,
  * block, adds it to the capture list, increments capture_count. */
 static void
 capture_assign_block_nolock (txn_atom *atom,
-			     txn_node *node)
+			     znode    *node)
 {
 	assert ("jmacd-321", spin_znode_is_locked (node));
 	assert ("jmacd-323", node->atom == NULL);
@@ -994,7 +994,7 @@ void znode_set_clean( znode *node )
  * the transaction handle is currently open, we know the atom must also be open. */
 static int
 capture_assign_block (txn_handle *txnh,
-		      txn_node   *node)
+		      znode      *node)
 {
 	txn_atom *atom = txnh->atom;
 
@@ -1028,7 +1028,7 @@ capture_assign_block (txn_handle *txnh,
  * initiate copy-on-capture.
  */
 static int
-capture_assign_txnh (txn_node    *node,
+capture_assign_txnh (znode       *node,
 		     txn_handle  *txnh,
 		     txn_capture  mode)
 {
@@ -1135,7 +1135,7 @@ wakeup_atom_waiting_list (txn_atom *atom)
  * BOTH_ATOM_LOCKS.  Result: all four locks are released.
  */
 static int
-capture_fuse_wait (txn_node *node, txn_handle *txnh, txn_atom *atomf, txn_atom *atomh, txn_capture mode)
+capture_fuse_wait (znode *node, txn_handle *txnh, txn_atom *atomf, txn_atom *atomh, txn_capture mode)
 {
 	int ret;
 
@@ -1217,7 +1217,7 @@ capture_fuse_wait (txn_node *node, txn_handle *txnh, txn_atom *atomf, txn_atom *
  * pointer and call capture_fuse_into.
  */
 static int
-capture_init_fusion (txn_node    *node,
+capture_init_fusion (znode       *node,
 		     txn_handle  *txnh,
 		     txn_capture  mode)
 {
@@ -1411,7 +1411,7 @@ capture_fuse_into (txn_atom  *small,
 /* Perform copy-on-capture of a block.  INCOMPLETE CODE.
  */
 static int
-capture_copy (txn_node     *node,
+capture_copy (znode        *node,
 	      txn_handle   *txnh,
 	      txn_atom     *atomf,
 	      txn_atom     *atomh)
@@ -1440,7 +1440,8 @@ capture_copy (txn_node     *node,
 /* Release a block from the atom, reversing the effects of being captured.  Delete it from
  * any slum.  Currently this is only called when the atom commits. */
 static void
-uncapture_block (txn_atom *atom, txn_node *node)
+uncapture_block (txn_atom *atom,
+		 znode    *node)
 {
 	assert ("jmacd-1021", node->atom == atom);
 	assert ("jmacd-1022", spin_znode_is_not_locked (node));
@@ -1466,7 +1467,7 @@ uncapture_block (txn_atom *atom, txn_node *node)
 void
 atom_print (txn_atom *atom)
 {
-	txn_node *scan;
+	znode *scan;
 	char prefix[32];
 	int level;
 	

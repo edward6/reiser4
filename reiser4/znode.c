@@ -248,7 +248,7 @@ static void zinit( znode *node, znode *parent )
 	node -> ptr_in_parent_hint.node = parent;
 	node -> ptr_in_parent_hint.item_pos = ~0u;
 
-	txn_node_init (node);
+	txn_znode_init (node);
 }
 
 /** zdestroy() -- Return a znode to the slab allocator.

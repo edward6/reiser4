@@ -234,8 +234,6 @@ struct txn_mgr
 	__u32                  id_count;
 };
 
-typedef znode txn_node;
-
 /****************************************************************************************
 				  FUNCTION DECLARATIONS
  ****************************************************************************************/
@@ -249,7 +247,7 @@ extern void         txn_mgr_init          (txn_mgr            *mgr);
 extern int          txn_done_static       (void);
 extern int          txn_mgr_done          (txn_mgr            *mgr);
 
-extern void         txn_node_init         (txn_node            *node);
+extern void         txn_znode_init        (znode              *node);
 
 extern int          txn_reserve           (int                 reserved);
 
@@ -258,7 +256,7 @@ extern int          txn_end               (reiser4_context    *context);
 
 extern int          txn_mgr_force_commit  (struct super_block *super);
 
-extern int          txn_try_capture       (txn_node           *node,
+extern int          txn_try_capture       (znode              *node,
 					   znode_lock_mode     mode,
 					   int                 non_blocking);
 
@@ -276,7 +274,7 @@ SPIN_LOCK_FUNCTIONS(atom,txn_atom,alock);
 SPIN_LOCK_FUNCTIONS(txnh,txn_handle,hlock);
 SPIN_LOCK_FUNCTIONS(txnmgr,txn_mgr,tmgr_lock);
 
-TS_LIST_DEFINE(capture,txn_node,capture_link);
+TS_LIST_DEFINE(capture,znode,capture_link);
 
 # endif /* __REISER4_TXNMGR_H__ */
 
