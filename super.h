@@ -209,7 +209,6 @@ struct reiser4_super_info_data {
 #if REISER4_TRACE_TREE
 	reiser4_block_nr last_touched;
 #endif
-	reiser4_block_nr preceder; /* FIXME: remove after debugging */
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
