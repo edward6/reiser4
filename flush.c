@@ -211,6 +211,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 			(*nr_to_flush) = 0;
 		}
 		spin_unlock_jnode (node);
+		jnode_set_clean(node);
 		trace_on (TRACE_FLUSH, "flush nothing %s\n", flush_jnode_tostring (node));
 		return 0;
 	}
