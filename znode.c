@@ -646,11 +646,8 @@ zload_ra(znode * node /* znode to load */, ra_info_t *info)
 	assert("nikita-2125", atomic_read(&ZJNODE(node)->x_count) > 0);
 	schedulable();
 
-	if (info && znode_just_created(node)) {
-		/* only handle readahead flags if node content is not available immediately */
-		if (info->type == RA_READDIR)
-			readdir_readahead(node, info);
-	}
+	if (info)
+		formatted_readahead(node, info);
 
 	result = jload(ZJNODE(node));
 	ON_DEBUG_MODIFY(znode_pre_write(node));
