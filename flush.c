@@ -909,7 +909,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 
 	todo = flush_get_params()->relocate_threshold - left_scan.count;
 	if (todo > 0) {
-		ret = flush_scan_right(&right_scan, node, todo);
+		ret = flush_scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
 			goto failed;
 	}
@@ -1181,7 +1181,7 @@ flush_reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_c
 
 		if (ret == 1) {
 
-			if (reiser4_grab_space_force(1, BA_RESERVED) != 0)
+			if (reiser4_grab_space_force((__u64)1, BA_RESERVED) != 0)
 			    reiser4_panic("umka-1250", "No space left durring flush.");
 			
 			assert("jmacd-18923", znode_is_write_locked(parent_coord->node));
@@ -2415,7 +2415,7 @@ shift_one_internal_unit(znode * left, znode * right)
 
 	if (moved) {
 		/* Grabbing two blocks for left and right neighbours */
-		if ((ret = reiser4_grab_space_force(2, BA_RESERVED)) != 0)
+		if ((ret = reiser4_grab_space_force((__u64)2, BA_RESERVED)) != 0)
 			return ret;
 		
 		znode_set_dirty(left);
@@ -2590,7 +2590,7 @@ flush_allocate_znode_update(znode * node, coord_t * parent_coord, flush_position
 	lock_handle fake_lock;
 
 	/* for a node and its parent */
-	ret = reiser4_grab_space_force(2, BA_RESERVED);
+	ret = reiser4_grab_space_force((__u64)2, BA_RESERVED);
 	
 	if (ret != 0)
 		return ret;

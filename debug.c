@@ -62,7 +62,7 @@ void
 reiser4_print_prefix(const char *level, const char *mid,
 		     const char *function, const char *file, int lineno)
 {
-	char *comm;
+	const char *comm;
 	int   pid;
 
 	if (unlikely(in_interrupt() || in_irq())) {

@@ -418,7 +418,7 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 	if (left < 0)
 		left = 0;
 
-	coord_set_item_pos(coord, (unsigned) left);
+	coord_set_item_pos(coord, (unsigned short) left);
 	coord->unit_pos = 0;
 	coord->between = AT_UNIT;
 
@@ -560,7 +560,7 @@ node40_check(const znode * node /* node to check */ ,
 		unsigned j;
 
 		ih = node40_ih_at(node, (unsigned) i);
-		coord_set_item_pos(&coord, (unsigned) i);
+		coord_set_item_pos(&coord, (unsigned short) i);
 		if ((ih40_get_offset(ih) >=
 		     znode_size(node) - nr_items * sizeof (item_header40)) ||
 		    (ih40_get_offset(ih) < sizeof (node40_header))) {
@@ -814,7 +814,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 	if (coord_set_to_right(target))
 		/* there are not items to the right of @target, so, new item
 		   will be inserted after last one */
-		coord_set_item_pos(target, nh40_get_num_items(nh));
+		coord_set_item_pos(target, (pos_in_node)nh40_get_num_items(nh));
 
 	if (target->item_pos < nh40_get_num_items(nh)) {
 		/* there are items to be moved to prepare space for new
@@ -970,7 +970,7 @@ cut_or_kill(struct cut_list *params, int cut)
 	unsigned i;
 	unsigned cut_size;
 	reiser4_key old_first_key;
-	unsigned short wrong_item; /* position of item for which may get
+	pos_in_node wrong_item; /* position of item for which may get
 				      mismatching item key and key of first
 				      unit in it */
 	unsigned from_unit, to_unit;
@@ -983,7 +983,7 @@ cut_or_kill(struct cut_list *params, int cut)
 	nh = node40_node_header(node);
 	old_first_key = node40_ih_at(node, 0)->key;
 
-	wrong_item = ~0;
+	wrong_item = (pos_in_node)~0;
 	if (params->from->item_pos == params->to->item_pos) {
 		/* cut one item (partially or as whole) */
 		first_removed = params->from->item_pos;

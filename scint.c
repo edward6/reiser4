@@ -15,8 +15,16 @@
    scint->datum is value itself.
  */
 
-#include "scint.h"
+#include "forward.h"
 #include "debug.h"
+#include "plugin/plugin.h"
+#include "plugin/security/perm.h"
+#include "scint.h"
+
+#include <linux/types.h>	/* for __u?? , ino_t */
+#include <linux/fs.h>		/* for struct super_block, struct rw_semaphore, etc  */
+#include <linux/spinlock.h>
+#include <asm/types.h>
 
 #include <linux/slab.h>
 

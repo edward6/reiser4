@@ -116,7 +116,7 @@ print_node_content(const char *prefix /* output prefix */ ,
 		   const znode * node /* node to print */ ,
 		   __u32 flags /* print flags */ )
 {
-	unsigned i;
+	unsigned short i;
 	coord_t coord;
 	item_plugin *iplug;
 	reiser4_key key;

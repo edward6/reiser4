@@ -5,9 +5,7 @@
 #if !defined( __REISER4_FORWARD_H__ )
 #define __REISER4_FORWARD_H__
 
-#ifdef __KERNEL__
 #include <asm/errno.h>
-#endif
 
 typedef struct zlock zlock;
 typedef struct lock_stack lock_stack;
