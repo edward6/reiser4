@@ -781,7 +781,7 @@ int deallocate_znode( znode *node /* znode released */ )
 {
 	assert ("umka-320", node != NULL);
 	assert ("nikita-1281", ZF_ISSET (node, ZNODE_HEARD_BANSHEE));
-	zdestroy( node );
+	zdelete( node );
 	return 0;
 }
 

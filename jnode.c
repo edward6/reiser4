@@ -355,7 +355,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s], level: %i, pg: %p, ",
+	info( "%s: %p: state: %lu: [%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, pg: %p, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, ZNODE_LOADED ),
@@ -369,6 +369,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 	      jnode_state_name( node, ZNODE_DIRTY ),
 	      jnode_state_name( node, ZNODE_WRITEOUT ),
 	      jnode_state_name( node, ZNODE_IS_DYING ),
+	      jnode_state_name( node, ZNODE_UNFORMATTED ),
 	      
 	      jnode_get_level( node ), jnode_page( node ) );
 }

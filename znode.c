@@ -234,6 +234,11 @@ static void zfree( znode *node /* znode to free */ )
 {
 	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-465", node != NULL );
+	assert( "nikita-2120", znode_page( node ) == NULL );
+	/*
+	 * poison memory.
+	 */
+	ON_DEBUG( xmemset( node, 0xde, sizeof *node ) );
 	kmem_cache_free( znode_slab, node );
 }
 
@@ -242,7 +247,8 @@ static void zfree( znode *node /* znode to free */ )
 void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 {
 	znode       **bucket;
-	znode        *item;
+	znode        *node;
+	znode        *next;
 	int           parents;
 
 	assert( "nikita-795", tree != NULL );
@@ -260,10 +266,10 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 	do {
 		parents = 0;
 		for_all_ht_buckets( &tree -> hash_table, bucket ) {
-			for_all_in_bucket( bucket, item, link ) {
-				if( atomic_read( &item -> c_count ) == 0 ) {
-					znode_remove( item );
-					zfree( item );
+			for_all_in_bucket( bucket, node, next, link ) {
+				if( atomic_read( &node -> c_count ) == 0 ) {
+					znode_remove( node );
+					zfree( node );
 				} else
 					++ parents;
 			}
@@ -340,32 +346,44 @@ static void znode_remove( znode *node /* znode to remove */ )
 	z_hash_remove( & current_tree -> hash_table, node );
 }
 
-/** zdestroy() -- Return a znode to the slab allocator.
+static int znode_lock_remove( reiser4_tree *tree, znode *node )
+{
+	assert( "nikita-2121", node != NULL );
+	assert( "nikita-2122", tree != NULL );
+
+	spin_lock_tree( tree );
+
+	if( atomic_read( &node -> x_count ) > 0 ) {
+		spin_unlock_tree( tree );
+		return -EAGAIN;
+	}
+
+	znode_remove( node );
+	spin_unlock_tree( tree );
+	return 0;
+}
+
+/** zdelete() -- Remove znode from the tree
  *
  * This is called from deallocate_znode() when last reference to the
  * znode removed from the tree is release.
  */
-/* Audited by: umka (2002.06.11), umka (2002.06.15) */
-void zdestroy( znode *node /* znode to finish with */ )
+void zdelete( znode *node /* znode to finish with */ )
 {
 	reiser4_tree *tree;
 
 	trace_stamp( TRACE_ZNODES );
 	assert( "nikita-467", node != NULL );
 	assert( "nikita-1443", current_tree != NULL );
+	assert( "nikita-2123", ZF_ISSET( node, ZNODE_HEARD_BANSHEE ) );
 
 	tree = current_tree;
-	spin_lock_tree( tree );
 
-	if( atomic_read( &node -> x_count ) > 0 ) {
-		spin_unlock_tree( tree );
+	if( znode_lock_remove( tree, node ) )
 		return;
-	}
-
-	znode_remove( node );
-	spin_unlock_tree( tree );
 
 	assert( "nikita-2057", tree -> ops -> delete_node != NULL );
+
 	/*
 	 * remove node backing store (page).
 	 */
@@ -374,10 +392,35 @@ void zdestroy( znode *node /* znode to finish with */ )
 			 *znode_get_block( node ) );
 	}
 
+	zfree( node );
+}
+
+/** zdrop() -- Remove znode from the tree.
+ *
+ * This is called when last reference to the znode is release.
+ */
+void zdrop( znode *node /* znode to finish with */ )
+{
+	reiser4_tree *tree;
+
+	trace_stamp( TRACE_ZNODES );
+	assert( "nikita-467", node != NULL );
+	assert( "nikita-1443", current_tree != NULL );
+
+	tree = current_tree;
+	if( znode_lock_remove( tree, node ) )
+		return;
+
+	assert( "nikita-2057", tree -> ops -> drop_node != NULL );
+
 	/*
-	 * poison memory.
+	 * drop backing store (page).
 	 */
-	ON_DEBUG( xmemset( node, 0xde, sizeof *node ) );
+	if( tree -> ops -> drop_node( tree, ZJNODE( node ) ) != 0 ) {
+		warning( "nikita-2058", "Failed to drop node: %llx",
+			 *znode_get_block( node ) );
+	}
+
 	zfree( node );
 }
 
@@ -764,6 +807,7 @@ int zload( znode *node /* znode to load */ )
 	assert( "nikita-484", node != NULL );
 	assert( "nikita-1377", znode_invariant( node ) );
 	assert( "jmacd-7771", ! znode_above_root( node ) );
+	assert( "nikita-2125", atomic_read( &node -> x_count ) > 0 );
 
 	result = 0;
 	spin_lock_znode( node );
@@ -1251,17 +1295,19 @@ void info_znode( const char *prefix /* prefix to print */,
 void print_znodes( const char *prefix, reiser4_tree *tree )
 {
 	znode       **bucket;
-	znode        *item;
+	znode        *node;
+	znode        *next;
 	z_hash_table *htable;
+
+	if( tree == NULL )
+		tree = current_tree;
 
 	spin_lock_tree( tree );
 	htable = &tree -> hash_table;
 
 	for_all_ht_buckets( htable, bucket ) {
-		for_all_in_bucket( bucket, item, link ) {
-			info_znode( prefix, item );
-			/*info( "\n" );*/
-		}
+		for_all_in_bucket( bucket, node, next, link )
+			info_znode( prefix, node );
 	}
 	spin_unlock_tree( tree );
 }

@@ -191,9 +191,10 @@ PREFIX##_hash_insert (PREFIX##_hash_table *hash,                                
 for ((head) = &(table) -> _table[ 0 ] ;					\
      (head) != &(table) -> _table[ (table) -> _buckets ] ; ++ (head))
 
-#define for_all_in_bucket(bucket, item, field)	\
-for ((item) = *(bucket) ; (item) != NULL ;	\
-     (item) = (item) -> field._next)
+#define for_all_in_bucket(bucket, item, next, field)				\
+for ((item) = *(bucket), (next) = (item) ? (item) -> field._next : NULL ;	\
+     (item) != NULL ;								\
+     (item) = (next), (next) = (item) ? (item) -> field._next : NULL )
 
 #endif /* __REISER4_TSHASH_H__ */
 

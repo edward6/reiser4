@@ -584,8 +584,6 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 	if (h->result)
 		goto fail_or_restart;
 
-	put_parent(h);
-
 	/* 
 	 * if @active is accessed for the first time, setup delimiting keys on
 	 * it. Delimiting keys are taken from the parent node. See
@@ -634,9 +632,17 @@ static level_lookup_result cbk_level_lookup (cbk_handle *h /* search handle */)
 		 * FIXME: h->coord->node and active are of different levels?
 		 */
 		h->result = connect_znode(h->coord, active);
-		if (h->result)
+		if (h->result) {
+			put_parent(h);
 			goto fail_or_restart;
+		}
 	}
+
+	/*
+	 * put_parent() cannot be called earlier, because connect_znode()
+	 * assumes parent node is referenced;
+	 */
+	put_parent(h);
 
 	if( ( !znode_contains_key_lock( active, h -> key ) &&
 	      ( h -> flags & CBK_TRUST_DK ) ) ||
