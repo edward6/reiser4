@@ -879,11 +879,9 @@ cluster_invariant(reiser4_cluster_t * clust, struct inode * inode)
 
 /* guess next cluster status */
 static inline reiser4_cluster_status
-next_cluster_stat(struct inode * inode, loff_t file_off, loff_t length, reiser4_cluster_t * clust)
+next_cluster_stat(reiser4_cluster_t * clust)
 {
-	return (clust->stat == HOLE_CLUSTER &&
-		clust->delta == 0 /* no non-zero data */ &&
-		clust->off + clust->count <= inode_cluster_size(inode) ? HOLE_CLUSTER : DATA_CLUSTER);
+	return (clust->stat == HOLE_CLUSTER && clust->delta == 0 /* no non-zero data */ ? HOLE_CLUSTER : DATA_CLUSTER);
 }
 
 /* guess next cluster params */
@@ -903,7 +901,7 @@ update_cluster(struct inode * inode, reiser4_cluster_t * clust, loff_t file_off,
 		xmemset(*clust->pages, 0, sizeof(clust->pages) << inode_cluster_shift(inode));
 		break;
 	case HOLE_CLUSTER:
-		switch(next_cluster_stat(inode, file_off, to_file, clust)) {
+		switch(next_cluster_stat(clust)) {
 		case HOLE_CLUSTER:
 			/* skip */
 			clust->stat = HOLE_CLUSTER;
@@ -914,7 +912,7 @@ update_cluster(struct inode * inode, reiser4_cluster_t * clust, loff_t file_off,
 			xmemset(*clust->pages, 0, sizeof(clust->pages) << inode_cluster_shift(inode));
 			break;
 		case DATA_CLUSTER:
-			/* stay */
+			/* keep immovability */
 			clust->stat = DATA_CLUSTER;
 			clust->off = clust->off + clust->count;
 			clust->count = clust->delta;
@@ -1249,14 +1247,16 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust, flow_t * f, 
 
 /* Main write procedure for cryptcompress objects,
    this slices user's data into clusters and copies to page cache.
-   If error occures, returns number of bytes in successfully written clusters  */
+   If @buf != NULL, returns number of bytes in successfully written clusters,
+   otherwise returns error */
 /* FIXME_EDWARD replace flow by something lightweigth */
 
 static loff_t 
 write_cryptcompress_flow(struct file * file , struct inode * inode, const char *buf, size_t count, loff_t pos)
 {
-	int i, result;
+	int i;
 	flow_t f;
+	int result = 0;
 	size_t to_write;
 	loff_t file_off;
 	reiser4_cluster_t clust;
@@ -1280,7 +1280,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		
 	set_cluster_params(inode, &clust, &f, file_off);
 	
-	if (next_cluster_stat(inode, file_off, f.length, &clust) == HOLE_CLUSTER) {
+	if (next_cluster_stat(&clust) == HOLE_CLUSTER) {
 		result = prepare_cluster(inode, file_off, f.length, &clust);
 		if (result)
 			goto exit;
@@ -1344,11 +1344,15 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
  exit:
 	if (result == -EEXIST)
 		printk("write returns EEXIST!\n");
-	/* if nothing were written - there must be an error */
-	assert("edward-195", ergo((to_write == f.length), result < 0));
+
 	reiser4_kfree(pages, sizeof(*pages) << inode_cluster_shift(inode));
-	
-	return (to_write - f.length) ? (to_write - f.length) : result;
+
+	if (buf) {
+		/* if nothing were written - there must be an error */
+		assert("edward-195", ergo((to_write == f.length), result < 0));
+		return (to_write - f.length) ? (to_write - f.length) : result;
+	}
+	return result;
 }
 
 static ssize_t
@@ -1407,8 +1411,9 @@ write_cryptcompress(struct file * file, /* file to write to */
 	return result;
 }
 
-/* Helper function for cryptcompress_truncate. If this returns 0,
-   then @idx is the cover size of all file items in cluster units */
+/* Helper function for cryptcompress_truncate.
+   If this returns 0, then @idx is minimal cluster
+   index that isn't contained in this file */
 static int
 find_file_idx(struct inode *inode, unsigned long * idx)
 {
@@ -1458,10 +1463,12 @@ find_file_idx(struct inode *inode, unsigned long * idx)
 	return 0;
 }
 
+/* The following two procedures are called when truncate decided
+   to deal with real items */
 static int
 cryptcompress_append_hole(struct inode * inode, loff_t new_size)
 {
-	return 0;
+	return write_cryptcompress_flow(0, inode, 0, 0, new_size);
 }
 
 static int
@@ -1480,21 +1487,22 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 {
 	int result;
 	loff_t old_size = inode->i_size; 
-	unsigned long idx; /* current real file index */
+	unsigned long idx;
 	unsigned long old_idx = off_to_clust(old_size, inode);
 	unsigned long new_idx = off_to_clust(new_size, inode);
 	
 	/* inode->i_size != new size */
 
-	/* NOTE-EDWARD: without decompression we can specify file offsets only up to cluster size */ 
+	/* without decompression we can specify
+	   real file offsets only up to cluster size */ 
 	result = find_file_idx(inode, &idx);
 
 	assert("edward-278", idx <= old_idx);
 
 	if (result)
 		return result;
-	if (idx != old_idx && idx < new_idx) {
-		/* do not touch items */
+	if (idx <= new_idx) {
+		/* do not deal with items */
 		if (update_sd) {
 			result = setattr_reserve(tree_by_inode(inode));
 			if (!result)
