@@ -259,7 +259,7 @@ static int slum_lock_left_ancestor (jnode *level_node, jnode **left_ancestor, re
 /********************************************************************************
  * SLUM ALLOCATE AND SQUEEZE
  ********************************************************************************/
-
+#if NOT_YET
 static int slum_allocate_and_squeeze_children (znode *node)
 {
 	int ret;
@@ -308,19 +308,160 @@ static int slum_allocate_and_squeeze_children (znode *node)
 
 
 /*
+ * @left and @right are formatted neighboring nodes on leaf level. Shift as
+ * much as possible from @right to @left
+ */
+static squeeze_result squeeze_leaves (znode * right, znode * left)
+{
+	squeeze_result result;
+	carry_pool pool;
+	carry_level todo;
+
+
+	reiser4_init_carry_pool (&pool);
+	reiser4_init_carry_level (&todo, &pool);
+	
+	result = shift_everything_left (right, left, &todo);
+	if (result < 0)
+		return result;
+	/*
+	 * carry is called to update delimiting key or to remove empty node
+	 */
+	result = carry (&todo, 0/*done*/);
+	
+	reiser4_done_carry_pool (&pool);
+	if (result < 0)
+		return result;
+
+	return node_is_empty (right) ? SQUEEZE_CONTINUE: SQUEEZE_DONE;
+}
+
+
+/*
+ * shift first unit of first item if it is an internal one
+ */
+static squeeze_result shift_one_internal_unit (znode * left, znode * right)
+{
+	int result;
+	carry_pool pool;
+	carry_level todo;
+	tree_coord coord;
+	int size;
+
+
+	if (node_is_empty (right))
+		return SQUEEZE_CONTINUE;
+
+	coord.node = right;
+	coord_first_unit (&coord);
+
+	if (!item_is_internal (&coord)) {
+		assert ("vs-433", item_is_extent (&coord));
+		return SQUEEZE_DONE;
+	}
+
+	reiser4_init_carry_pool (&pool);
+	reiser4_init_carry_level (&todo, &pool);
+
+	size = item_length_by_coord (&coord);
+	result = node_plugin_by_node (left)->shift (&coord, left, SHIFT_LEFT,
+						    1/* delete @right if it becomes empty*/,
+						    0/* move coord */,
+						    &todo);
+	assert ("vs-423", result == 0 || size == result);
+
+	/*
+	 * carry is called to update delimiting key or to remove empty node
+	 */
+	if (carry (&todo, 0)) {
+		/*
+		 * FIXME-VS: not sure yet what to do here
+		 */
+		impossible ("vs-432", "carry should have done its job");
+	}
+
+	reiser4_done_carry_pool (&pool);
+	return result ? SUBTREE_MOVED : SQUEEZE_DONE;
+}
+
+
+/*
+ * cut node to->node from the beginning up to coord @to
+ */
+static void cut_copied (tree_coord * to, reiser4_key * to_key)
+{
+	tree_coord from;
+	reiser4_key from_key;
+
+
+	reiser4_init_coord (&from);
+	coord_first_unit (&from);
+	item_key_by_coord (&from, &from_key);
+
+	/*
+	 * @to is set to first unit which does not have to be cut or after last
+	 * item in the node
+	 */
+	if (coord_of_unit (to))
+		coord_prev (to);
+	if (cut_node (&from, to, &from_key, to_key, 0, DONT_COMPACT)) {
+		/*
+		 * FIXME-VS: not sure yet what to do here
+		 */
+		impossible ("vs-434", "carry should have done its job");
+	}
+	return;
+}
+
+
+/*
+ * FIXME-VS: this assumes that twig level may contain only items of internal or
+ * extent type
+ */
+static squeeze_result allocate_and_squeeze_twig (znode * left, znode * right,
+						 block_nr * preceder)
+{
+	squeeze_result result;
+	tree_coord coord;
+	reiser4_key stop_key;
+
+
+	reiser4_init_coord (&coord);
+	coord.node = right;
+	coord_first_unit (&coord);
+
+	while (coord_next_item (&coord) && item_is_extent (&coord)) {
+		result = allocate_and_copy_extent (left, &coord, preceder, &stop_key);
+		if (result == SQUEEZE_DONE) {
+			/*
+			 * could not complete with current extent item
+			 */
+			break;
+		}
+	}
+
+	cut_copied (&coord, &stop_key);
+	reiser4_done_coord (&coord);
+
+	return shift_one_internal_unit (left, right);
+}
+
+
+/*
  * shift items from @right to @left. Unallocated extents of extent items are
  * allocated first and then moved. When unit of internal item is moved -
  * squeezing stops and SUBTREE_MOVED is returned. When all content of @rigth is
  * squeezed - SQUEEZE_CONTINUE is returned. If nothing can be moved into @left
  * anymore - SQUEEZE_DONE is returned
  */
-squeeze_result allocate_and_squeeze_right_neighbor (znode * left,
-						    znode * right)
+static squeeze_result allocate_and_squeeze_right_neighbor (znode * left,
+							   znode * right,
+							   block_nr * preceder)
 {
 	squeeze_result result;
 
 
-	assert ("vs-425", !is_empty_node (left) && !is_empty_node (right));
+	assert ("vs-425", !node_is_empty (left) && !node_is_empty (right));
 
 
 	switch (znode_get_level (left)) {
@@ -337,7 +478,7 @@ squeeze_result allocate_and_squeeze_right_neighbor (znode * left,
 		 * encountered or everything is shifted or no free space left
 		 * in @left
 		 */
-		result = allocate_and_squeeze_twig (left, right);
+		result = allocate_and_squeeze_twig (left, right, preceder);
 		break;
 
 	default:
@@ -376,7 +517,7 @@ static int slum_allocate_and_squeeze_parent_first (jnode *node)
 		return 0;
 	}
 
-	assert ("jmacd-1050", ! is_empty_node (JZNODE (node)));
+	assert ("jmacd-1050", ! node_is_empty (JZNODE (node)));
 	assert ("jmacd-1051", znode_is_write_locked (JZNODE (node)));
 	
 	/* Allocate (parent) first. It might be allocated already. */
@@ -425,12 +566,12 @@ static int slum_allocate_and_squeeze_parent_first (jnode *node)
 		goto cleanup;
 	}
 
-	assert ("jmacd-1052", ! is_empty_node (right_lock.node));
+	assert ("jmacd-1052", ! node_is_empty (right_lock.node));
 
 	/* FIXME: Check ZNODE_HEARD_BANSHEE? */
 
 
-	while ((squeeze = allocate_and_squeeze_right_neighbor (node, right_lock.node)) ==
+	while ((squeeze = allocate_and_squeeze_right_neighbor (JZNODE (node), right_lock.node)) ==
 	       SUBTREE_MOVED) {
 		/*
 		 * unit of internal item is shifted - allocated and squeeze that
@@ -440,7 +581,7 @@ static int slum_allocate_and_squeeze_parent_first (jnode *node)
 		znode *child;
 		
 		reiser4_init_coord (& crd);
-		crd.node = node;
+		crd.node = JZNODE (node);
 
 		coord_last_unit (& crd);
 		assert ("vs-442", item_type_is_internal (& crd));
@@ -471,6 +612,8 @@ static int slum_allocate_and_squeeze_parent_first (jnode *node)
 	reiser4_done_lh (& right_lock);
 	return ret;
 }
+
+#endif /*NOTYET*/
 
 /********************************************************************************
  * SLUM JNODE INTERFACE
