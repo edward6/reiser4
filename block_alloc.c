@@ -380,11 +380,11 @@ int reiser4_dealloc_blocks (
 	const reiser4_block_nr * len,
 	/* defer actual block freeing until transaction commit */
 	int defer,
-	/* if @defer is zero, @target_stage means the stage of blocks is
-	 * deleted from WORKING bitmap. They might be just unmapped from disk,
-	 * or freed but disk space is still grabbed by our thread, or these
-	 * blocks must not be counted in any reiser4 sb block counters.
-	 **/
+	/* if @defer is zero, @target_stage means the stage of blocks which
+	 * will be deleted from WORKING bitmap. They might be just unmapped
+	 * from disk, or freed but disk space is still grabbed by current
+	 * thread, or these blocks must not be counted in any reiser4 sb block
+	 * counters, see block_stage_t comment. */
 	block_stage_t target_stage)
 {
 	txn_atom          * atom = NULL; 

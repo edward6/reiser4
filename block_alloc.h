@@ -19,10 +19,14 @@
 
 /* specification how block allocation was counted in sb block counters */
 typedef enum { 
-	BLOCK_NOT_COUNTED = 0,
-	BLOCK_GRABBED = 1,
-	BLOCK_UNALLOCATED = 3,
-	BLOCK_ALLOCATED = 4
+	BLOCK_NOT_COUNTED = 0,	/* reiser4 has no info about this block yet */
+	BLOCK_GRABBED = 1,	/* free space grabbed for further allocation
+				 * of this block */
+	BLOCK_UNALLOCATED = 3,	/* block is used for existing in-memory object
+				 * ( unallocated formatted or unformatted
+				 * node) */
+	BLOCK_ALLOCATED = 4	/* block is mapped to disk, real on-disk block
+				 * number assigned */
 } block_stage_t;
 
 /** a hint for block allocator */
@@ -30,11 +34,16 @@ struct reiser4_blocknr_hint {
 	/* FIXME: I think we want to add a longterm lock on the bitmap block here.  This
 	 * is to prevent jnode_flush() calls from interleaving allocations on the same
 	 * bitmap, once a hint is established. */
-	reiser4_block_nr blk;	     /* search start hint */
-	reiser4_block_nr max_dist;   /* if not zero, it is a region size we
-				      * search for free blocks in */
-	tree_level       level;      /* level for allocation, may be useful have
-				      * branch-level and higher write-optimized. */
+
+	/* search start hint */
+	reiser4_block_nr blk;
+	/* if not zero, it is a region size we search for free blocks in */
+	reiser4_block_nr max_dist;
+	/* level for allocation, may be useful have branch-level and higher
+	 * write-optimized. */
+	tree_level       level;
+	/* block allocator assumes that blocks, which will be mapped to disk,
+	 * are in this specified block_stage */
 	block_stage_t    block_stage;
 };
 
