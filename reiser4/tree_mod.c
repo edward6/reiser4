@@ -11,7 +11,6 @@
 static int add_child_ptr( znode *parent, znode *child );
 
 extern int reiser4_alloc_block( znode *neighbor, reiser4_disk_addr *blocknr );
-extern int deallocate_node( znode *node );
 
 /**
  * warning only issued if error is not -EAGAIN
