@@ -136,6 +136,12 @@ static extent_state state_of_extent (reiser4_extent * ext)
 	return ALLOCATED_EXTENT;
 }
 
+int extent_is_allocated (tree_coord *item)
+{
+	assert ("jmacd-5133", item_is_extent (item)); 
+
+	return state_of_extent (extent_item (item)) == ALLOCATED_EXTENT;
+}
 
 /*
  * plugin->u.item.b.print

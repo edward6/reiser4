@@ -244,7 +244,7 @@ flush_scan_config flush_scan_get_config (jnode *node, int flags)
  * @end_node == @start_node.
  *
  * Once the @end_node is locked, the parent is read-locked.  If at the root level,
- * get_parent_lock returns the above root node; in that case stop recursion.
+ * jnode_lock_parent_coord returns the above root node; in that case stop recursion.
  *
  * With both the child (end) node and the parent node locked, decide whether to relocate
  * the child node.  If the child node will be relocated, then dirty the parent (because
@@ -1605,40 +1605,44 @@ static void flush_scan_set_current (flush_scan *scan, jnode *node)
 	scan->node  = node;
 }
 
-/* Perform a single leftward step using the parent, finding the next-left item, and
- * descending.  Only used at the left-boundary of an extent or range of znodes. */
+/* Perform a single left- or rightward step using the parent, finding the next item, and
+ * descend.  Only used at the left- or right-boundary of an extent or range of znodes on
+ * the leaf level. */
 static int flush_scan_using_parent (flush_scan *scan)
 {
 	int ret;
-	lock_handle node_lh, parent_lh, left_parent_lh;
+	lock_handle node_lh, parent_lh, neighbor_lh;
 	tree_coord coord;
 	item_plugin *iplug;
-	jnode *child_left;
+	jnode *child;
 
 	assert ("jmacd-1403", ! flush_scan_finished (scan));
+	assert ("jmacd-1404", jnode_get_level (scan->node) == LEAF_LEVEL);
 
 	init_coord (& coord);
 	init_lh    (& node_lh);
 	init_lh    (& parent_lh);
-	init_lh    (& left_parent_lh);
+	init_lh    (& neighbor_lh);
 
-	/* Lock the node itself, which is necessary for getting its parent. */
-	if (jnode_is_formatted (scan->node) &&
-	    (ret = longterm_lock_znode (& node_lh, JZNODE (scan->node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
-		goto done;
+	if (jnode_is_formatted (scan->node)) {
+
+		/* Lock the node itself, which is necessary for getting its parent. */
+		if ((ret = longterm_lock_znode (& node_lh, JZNODE (scan->node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+			goto done;
+		}
+
+		/* Check root case. */
+		if (znode_is_root (JZNODE (scan->node))) {
+			scan->stop = 1;
+			ret = 0;
+			goto done;
+		}
 	}
 
 	/* Since we have reached the end of a formatted or unformatted region
 	 * we are going to read-lock the parent.  This may cause atom fusion
 	 * (if the parent is already dirty). */
 	if ((ret = jnode_lock_parent_coord (scan->node, & coord, & parent_lh, ZNODE_READ_LOCK))) {
-		goto done;
-	}
-
-	/* Check root case. */
-	if (znode_above_root (parent_lh.node)) {
-		scan->stop = 1;
-		ret = 0;
 		goto done;
 	}
 
@@ -1653,7 +1657,7 @@ static int flush_scan_using_parent (flush_scan *scan)
 		/* Lock the neighboring parent node, but don't read into memory.  ENOENT
 		 * means not-in-memory.  This may also cause atom fusion, but in such case
 		 * the regions were adjacent and so this makes sense. */
-		if ((ret = reiser4_get_neighbor (& left_parent_lh, parent_lh.node, ZNODE_READ_LOCK, (scan->going_left ? GN_GO_LEFT : 0)))) {
+		if ((ret = reiser4_get_neighbor (& neighbor_lh, parent_lh.node, ZNODE_READ_LOCK, (scan->going_left ? GN_GO_LEFT : 0)))) {
 			if (ret == -ENOENT) {
 				scan->stop = 1;
 				ret = 0;
@@ -1666,7 +1670,7 @@ static int flush_scan_using_parent (flush_scan *scan)
 			done_lh (& parent_lh);
 
 			/* Set coord to the rightmost position of the left-of-parent node. */
-			coord_last_unit (& coord, left_parent_lh.node);
+			coord_last_unit (& coord, neighbor_lh.node);
 		}
 	}
 
@@ -1676,46 +1680,44 @@ static int flush_scan_using_parent (flush_scan *scan)
 	assert ("jmacd-2040", iplug->common.utmost_child != NULL);
 
 	/* Get the rightmost child of this coord, which is the child to the left of the scan position. */
-	if ((ret = iplug->common.utmost_child (& coord, RIGHT_SIDE, & child_left))) {
+	if ((ret = iplug->common.utmost_child (& coord, scan->going_left ? RIGHT_SIDE : LEFT_SIDE, & child))) {
 		goto done;
 	}
 
 	/* If the child is not in memory, stop. */
-	if (child_left == NULL) {
+	if (child == NULL) {
 		scan->stop = 1;
 		ret = 0;
 		goto done;
 	}
 
 	/* We've found a child to the left, now see if we should continue the scan.  If not then scan->stop is set. */
-	if (flush_scan_goto (scan, child_left)) {
-		flush_scan_set_current (scan, child_left);
+	if (flush_scan_goto (scan, child)) {
+		flush_scan_set_current (scan, child);
 	}
 
 	/* Release locks. */
  done:
 	done_lh (& node_lh);
 	done_lh (& parent_lh);
-	done_lh (& left_parent_lh);
+	done_lh (& neighbor_lh);
 
 	return ret;
 }
 
-/* Performs leftward scanning starting from a formatted node */
+/* Performs left- or rightward scanning starting from a formatted node. */
 static int flush_scan_formatted (flush_scan *scan)
 {
 	/* Follow left pointers under tree lock as long as:
 	 *
-	 * - node->left is non-NULL
-	 * - node->left is connected, dirty
-	 * - node->left belongs to the same atom
+	 * - node->left/right is non-NULL
+	 * - node->left/right is connected, dirty
+	 * - node->left/right belongs to the same atom
 	 * - scan has not reached maximum size
 	 */
-	znode *left;
+	znode *neighbor;
 
 	assert ("jmacd-1401", ! flush_scan_finished (scan));
-
-	/*info_znode ("scan_left: ", node);*/
 
 	do {
 		/* Node should be connected. */
@@ -1729,32 +1731,32 @@ static int flush_scan_formatted (flush_scan *scan)
 		/* It may be that a node is inserted or removed between a node
 		 * and its left sibling while the tree lock is released, but
 		 * the left boundary does not need to be precise. */
-		if ((left = node->left) != NULL) {
-			zref (left);
+		if ((neighbor = (scan->going_left ? node->left : node->right)) != NULL) {
+			zref (neighbor);
 		}
 
 		spin_unlock_tree (current_tree);
 
 		/* If left is NULL, need to continue using parent. */
-		if (left == NULL) {
+		if (neighbor == NULL) {
 			break;
 		}
 
 		/* Check the condition for going left, break if it is not met,
 		 * release left reference. */
-		if (! flush_scan_goto (scan, ZJNODE (left))) {
+		if (! flush_scan_goto (scan, ZJNODE (neighbor))) {
 			break;
 		}
 
 		/* Advance the flush_scan state to the left. */
-		flush_scan_set_current (scan, ZJNODE (left));
+		flush_scan_set_current (scan, ZJNODE (neighbor));
 
 	} while (! flush_scan_finished (scan));
 
-	/* If left is NULL then we reached the end of a formatted region, or else the
+	/* If neighbor is NULL then we reached the end of a formatted region, or else the
 	 * sibling is out of memory, now check for an extent to the left (as long as
 	 * LEAF_LEVEL). */
-	if (left == NULL && jnode_get_level (scan->node) == LEAF_LEVEL && ! flush_scan_finished (scan)) {
+	if (neighbor == NULL && jnode_get_level (scan->node) == LEAF_LEVEL && ! flush_scan_finished (scan)) {
 		return flush_scan_using_parent (scan);
 	}
 
@@ -1765,39 +1767,66 @@ static int flush_scan_formatted (flush_scan *scan)
 /* Performs leftward scanning starting from an unformatted node */
 static int flush_scan_extent (flush_scan *scan)
 {
-	/* FIXME: Want to skip unallocated extents. */
-	jnode *left;
-	unsigned long scan_index;
+	jnode *neighbor;
 
 	assert ("jmacd-1404", ! flush_scan_finished (scan));
 	assert ("jmacd-1405", jnode_get_level (scan->node) == LEAF_LEVEL);
 
-	/* Starting at the index (i.e., block offset) of the jnode in its extent... */
-	scan_index = jnode_get_index (scan->node);
+	/* First, check if this node is unallocated. */
+	if (blocknr_is_fake (jnode_get_block (scan->node))) {
+		
+#if 0
+		/* ... in which case we will skip to the beginning of its extent unit. */
+		lock_handle parent_lock;
+		tree_coord parent_coord;
+		int ret;
 
-	while (scan_index > 0 && ! flush_scan_finished (scan)) {
+		init_lh (& parent_lock);
 
-		/* For each loop iteration, get the previous index. */
-		left = jnode_get_extent_neighbor (scan->node, --scan_index);
-
-		/* If the left neighbor is not in memory... */
-		if (left == NULL) {
-			scan->stop = 1;
-			break;
+		if ((ret = jnode_lock_parent_coord (scan->node, & parent_coord, & parent_lock, ZNODE_READ_LOCK))) {
+			done_lh (& parent_lock);
+			return ret;
 		}
 
-		/* Check the condition for going left. */
-		if (! flush_scan_goto (scan, left)) {
-			break;
-		}
+		assert ("jmacd-6442", ! extent_is_allocated (& parent_coord));
 
-		/* Advance the flush_scan state to the left. */
-		flush_scan_set_current (scan, left);
+		scan->size += extent_unit_width (& parent_coord) - 1;
+
+		done_lh (& parent_lock);
+#else
+		abort ();
+#endif
+
+	} else {
+
+		/* Otherwise, start at the index (i.e., block offset) of the jnode in its
+		 * extent... */
+		unsigned long scan_index = jnode_get_index (scan->node);
+
+		while (scan_index > 0 && ! flush_scan_finished (scan)) {
+
+			/* For each loop iteration, get the previous index. */
+			neighbor = jnode_get_extent_neighbor (scan->node, --scan_index);
+
+			/* If the neighbor is not in memory... */
+			if (neighbor == NULL) {
+				scan->stop = 1;
+				break;
+			}
+
+			/* Check the condition for continuing. */
+			if (! flush_scan_goto (scan, neighbor)) {
+				break;
+			}
+
+			/* Advance the flush_scan state. */
+			flush_scan_set_current (scan, neighbor);
+		}
 	}
 
 	/* If we made it all the way to the beginning of the extent, check for another
 	 * extent or znode to the left. */
-	if (scan_index == 0 && ! flush_scan_finished (scan)) {
+	if (! flush_scan_finished (scan)) {
 		return flush_scan_using_parent (scan);
 	}
 
