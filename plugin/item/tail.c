@@ -129,8 +129,12 @@ int tail_paste (tree_coord * coord, reiser4_item_data * data,
 	/*
 	 * tail items never get pasted in the middle
 	 */
-	assert ("vs-363", coord->unit_pos == 0 ||
-		coord->unit_pos == old_item_length);
+	assert ("vs-363",
+		(coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
+		(coord->unit_pos == old_item_length - 1 &&
+		 coord->between == AFTER_UNIT) ||
+		(coord->unit_pos == 0 && old_item_length == 0 &&
+		 coord->between == AT_UNIT));
 
 	item = item_body_by_coord (coord);
 	if (coord->unit_pos == 0)
@@ -362,10 +366,12 @@ static void make_item_data (tree_coord * coord, reiser4_item_data * item,
 
 
 /*
- * insert tail item consisting of zeros only
+ * insert tail item consisting of zeros only. Number of bytes appended to the
+ * file is returned
  */
 static int create_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 {
+	int result;
 	reiser4_key hole_key;
 	reiser4_item_data item;
 
@@ -375,15 +381,21 @@ static int create_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 
 	assert ("vs-384", get_key_offset (&f->key) <= INT_MAX);
 	make_item_data (coord, &item, 0, (unsigned)get_key_offset (&f->key));
-	return insert_by_coord (coord, &item, &hole_key, lh, 0, 0);
+	result = insert_by_coord (coord, &item, &hole_key, lh, 0, 0);
+	if (result)
+		return result;
+
+	return item.length;
 }
 
 
 /*
- * append @coord item with zeros
+ * append @coord item with zeros. Number of bytes appended to the file is
+ * returned
  */
 static int append_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 {
+	int result;
 	reiser4_key hole_key;
 	reiser4_item_data item;
 
@@ -397,7 +409,11 @@ static int append_hole (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 	make_item_data (coord, &item, 0,
 			(unsigned)(get_key_offset (&f->key) -
 				   get_key_offset (&hole_key)));
-	return resize_item (coord, lh, &hole_key, &item);
+	result = resize_item (coord, lh, &hole_key, &item);
+	if (result)
+		return result;
+
+	return item.length;
 }
 
 
@@ -414,7 +430,8 @@ static void move_flow_forward (flow * f, unsigned count)
 
 
 /*
- * insert first item of file into tree
+ * insert first item of file into tree. Number of bytes appended to the file is
+ * returned
  */
 static int insert_first_item (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 {
@@ -429,12 +446,13 @@ static int insert_first_item (tree_coord * coord, reiser4_lock_handle * lh, flow
 		return result;
 	
 	move_flow_forward (f, (unsigned)item.length);
-	return 0;
+	return item.length;
 }
 
 
 /*
- * append item @coord with flow @f's data
+ * append item @coord with flow @f's data. Number of bytes appended to the file
+ * is returned
  */
 static int append_tail (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 {
@@ -443,20 +461,24 @@ static int append_tail (tree_coord * coord, reiser4_lock_handle * lh, flow * f)
 
 
 	make_item_data (coord, &item, f->data, f->length);
+	/*
+	 * FIXME-VS: we must copy data with __copy_from_user
+	 */
 	result = resize_item (coord, lh, &f->key, &item);
 	if (result)
 		return result;
 
 	move_flow_forward (f, (unsigned)item.length);
-	return 0;
+	return item.length;
 }
 
 
 /*
- *
+ * copy user data over file tail item
  */
 static int overwrite_tail (tree_coord * coord, flow * f)
 {
+	int result;
 	unsigned count;
 
 
@@ -467,9 +489,11 @@ static int overwrite_tail (tree_coord * coord, flow * f)
 	/*
 	 * FIXME-ME: mark_znode_dirty ?
 	 */
-	memcpy ((char *)item_body_by_coord (coord) + coord->unit_pos, f->data,
-		count);
-
+	result = __copy_from_user ((char *)item_body_by_coord (coord) +
+				   coord->unit_pos, f->data, count);
+	if (result)
+		return result;
+		
 	move_flow_forward (f, count);
 	return 0;
 }
@@ -510,14 +534,14 @@ int tail_write (struct inode * inode, tree_coord * coord,
 			result = -EIO;
 			break;
 		}
-		if (result)
+		if (result < 0)
 			return result;
 
-		if (get_key_offset (&f->key) > (__u64)inode->i_size) {
+		if (result) {
 			/*
 			 * file became longer
 			 */
-			inode->i_size = get_key_offset (&f->key);
+			inode->i_size += result;
 			mark_inode_dirty (inode);
 		}
 	}
