@@ -339,9 +339,8 @@ emergency_flush(struct page *page)
 			/* get flush queue for this node */
 			result = fq_by_jnode(node, &fq);
 
-			if (result) {
+			if (result)
 				return result;
-			}
 
 			atom = node->atom;
 
@@ -364,6 +363,9 @@ emergency_flush(struct page *page)
 			UNLOCK_ATOM(atom);
 
 			result = write_fq(fq, NULL);
+			if (result != 0)
+				lock_page(page);
+
 			ON_TRACE(TRACE_EFLUSH, "flushed %d blocks\n", result);
 			/* Even if we wrote nothing, We unlocked the page, so let know to the caller that page should
 			   not be unlocked again */

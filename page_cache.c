@@ -464,8 +464,10 @@ page_io(struct page *page /* page to perform io for */ ,
 		}
 		reiser4_submit_bio(rw, bio);
 		result = 0;
-	} else
+	} else {
+		unlock_page(page);
 		result = PTR_ERR(bio);
+	}
 	return result;
 }
 
