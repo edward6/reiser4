@@ -809,16 +809,19 @@ void bitmap_post_commit_hook (void) {
 	spin_unlock_atom (atom);
 }
 
-/** an actor which marks all original block locations from a wandered set as
- * free in commit bitmap, and mark target locations as used. */
-/* Audited by: green(2002.06.12) */
-/* AUDIT: this function does not do what is described by above comment.
-   It also seems that nobody know how exactly wset works, so this would
-   be rewritten soon */
-static int apply_wset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
-				       const reiser4_block_nr * a,
-				       const reiser4_block_nr * b UNUSED_ARG,
-				       void                   * data UNUSED_ARG)
+/** an actor which clears all wandered locations in a WORKING BITMAP */
+
+/* FIXME-ZAM: I assume that WANDERED MAP is stored in blocknr set data
+ * structure as a set of pairs (a = <real block location>, b = <wandered block
+ * location>). So, this procedure just makes all blocks which were temporary
+ * used for writing of wandered blocks free for reusing -- i.e. clears bits in
+ * WORKING BITMAP */
+
+static int apply_wset_to_working_bmap (
+	txn_atom               * atom UNUSED_ARG,
+	const reiser4_block_nr * a UNUSED_ARG, 
+	const reiser4_block_nr * b,
+	void                   * data UNUSED_ARG)
 {
 	struct bnode * bnode;
 	struct super_block * sb = reiser4_get_current_sb ();
@@ -826,7 +829,7 @@ static int apply_wset_to_working_bmap (txn_atom               * atom UNUSED_ARG,
 	bmap_nr_t bmap;
 	bmap_off_t offset;
 
-	parse_blocknr (a, &bmap, &offset);
+	parse_blocknr (b, &bmap, &offset);
 
 	bnode = get_bnode (sb, bmap);
 	assert ("zam-456", bnode != NULL);
