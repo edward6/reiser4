@@ -1759,6 +1759,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 		/* Lock the first page, test writeback. */
 		cpage = jnode_page (check);
+		assert ("jmacd-78199", cpage != NULL);
 		lock_page (cpage);
 
 		if (PageWriteback (cpage)) {
@@ -1781,7 +1782,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			int blksz;
 			int max_j;
 
-			super = jnode_page (check)->mapping->host->i_sb;
+			super = cpage->mapping->host->i_sb;
 			assert( "jmacd-2029", super != NULL );
 
 			/* FIXME: Need to work on this: */
