@@ -3174,6 +3174,10 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 	int ret = 0, allocated, incr;
 	reiser4_tree *tree;
 
+	if ( !jnode_check_dirty(scan->node))
+		return -EAGAIN; // Race with truncate, this node is already
+				// truncated.
+
 	coord_dup (& coord, in_coord);
 
 	assert ("jmacd-1404", ! flush_scan_finished (scan));
