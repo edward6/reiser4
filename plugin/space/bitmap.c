@@ -496,6 +496,13 @@ init_bnode(struct bnode *bnode,
 	atomic_set(&bnode->loaded, 0);
 }
 
+static void
+release(jnode *node)
+{
+	jrelse(node);
+	jput(node);
+}
+
 /* This function is for internal bitmap.c use because it assumes that jnode is
    in under full control of this thread */
 static void
@@ -504,9 +511,9 @@ done_bnode(struct bnode *bnode)
 	if (bnode) {
 		atomic_set(&bnode->loaded, 0);
 		if (bnode->wjnode != NULL)
-			jrelse(bnode->wjnode);
+			release(bnode->wjnode);
 		if (bnode->cjnode != NULL)
-			jrelse(bnode->cjnode);
+			release(bnode->cjnode);
 		bnode->wjnode = bnode->cjnode = NULL;
 	}
 }
@@ -623,17 +630,25 @@ prepare_bnode(struct bnode *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 	get_working_bitmap_blocknr(bmap, &wjnode->blocknr);
 	get_bitmap_blocknr(super, bmap, &cjnode->blocknr);
 
+	jref(cjmode);
+	jref(wjnode);
+
 	/* load commit bitmap */
 	ret = jload_gfp(cjnode, GFP_NOFS);
-	if (ret != 0)
-		return ret;
-
-	/* allocate memory for working bitmap block. Note that for
-	 * bitmaps. jinit_new() doesn't actually modifies node content, so
-	 * parallel calls to this are ok. */
-	ret = jinit_new(wjnode);
+	if (ret == 0) {
+		/* allocate memory for working bitmap block. Note that for
+		 * bitmaps jinit_new() doesn't actually modifies node content,
+		 * so parallel calls to this are ok. */
+		ret = jinit_new(wjnode);
+		if (ret != 0)
+			jrelse(cjnode);
+	}
+	if (ret != 0) {
+		jput(cjnode);
+		jput(wjnode);
+		*wjnode_ret = *cjnode_ret = NULL;
+	}
 	return ret;
-
 }
 
 /* load bitmap blocks "on-demand" */
@@ -682,9 +697,9 @@ load_and_lock_bnode(struct bnode *bnode)
 	}
 
 	if (wjnode != NULL)
-		jrelse(wjnode);
+		release(wjnode);
 	if (cjnode != NULL)
-		jrelse(cjnode);
+		release(cjnode);
 
 	return ret;
 }
