@@ -14,6 +14,7 @@
 /* create sd for directory file. Create stat-data, dot, and dotdot. */
 extern int hashed_init(struct inode *object, struct inode *parent, reiser4_object_create_data *);
 extern int hashed_done(struct inode *object);
+extern int hashed_detach(struct inode *object, struct inode *parent);
 extern int hashed_owns_item(const struct inode *inode, const coord_t * coord);
 extern file_lookup_result hashed_lookup(struct inode *inode, struct dentry *dentry);
 /*					     const struct qstr *name, name_t *,
@@ -29,8 +30,8 @@ extern reiser4_block_nr	  hashed_estimate_rename(
 					     struct dentry *old_name,
 					     struct inode  *new_dir,
 					     struct dentry *new_name);
-extern reiser4_block_nr	  hashed_estimate_init(struct inode *, struct inode *);
-extern reiser4_block_nr	  hashed_estimate_done(struct inode *, struct inode *);
+extern reiser4_block_nr   hashed_estimate_detach(struct inode *parent, 
+						 struct inode *object);
 
 /* __HASHED_DIR_H__ */
 #endif
