@@ -34,19 +34,19 @@ phasheq(const phash_hash_link * a1, const phash_hash_link * a2)
 	return (h1->user == h1->user) && (h1->object == h2->object);
 }
 
-static inline __u32
-hash(__u32 user, __u32 object)
+static inline unsigned long
+hash(unsigned long user, unsigned long object)
 {
 	return (user >> 3) ^ (object >> 1);
 }
 
-static inline __u32
+static inline unsigned long
 phash_hash(const phash_hash_link * a)
 {
 	phash_header *h;
 
 	h = to_header(a);
-	return hash((__u32)h->user, (__u32)h->object);
+	return hash((unsigned long)h->user, (unsigned long)h->object);
 }
 
 /* The hash table definition */
