@@ -1283,7 +1283,6 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
  * locked before call, this function unlocks them on exit. */
 static int force_commit_atom_nolock (txn_handle * txnh)
 {
-	int ret;
 	txn_atom * atom;
 
 	assert ("zam-837", txnh != NULL);
