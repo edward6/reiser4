@@ -13,7 +13,7 @@
  *     of the last file name) and file deletion (truncate of file body to zero
  *     and deletion of stat-data, that happens when last file descriptor is
  *     closed), may belong to different transactions T1 and T2. If a crash
- *     happens after T2 commit, but before T2 commit, on-disk file system has
+ *     happens after T1 commit, but before T2 commit, on-disk file system has
  *     a file without name, that is, disk space leak.
  *
  *     2. Truncate. Truncate of large file may spawn multiple transactions. If
