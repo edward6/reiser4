@@ -121,7 +121,7 @@ static int           flush_pos_to_parent          (flush_position *pos);
 static void          flush_pos_set_point          (flush_position *pos, jnode *node);
 static void          flush_pos_release_point      (flush_position *pos);
 
-#define FLUSH_IS_BROKEN 0
+#define FLUSH_IS_BROKEN 1
 #define FLUSH_DEBUG     1
 
 /* This is the main entry point for flushing a jnode, called by the transaction manager
