@@ -918,7 +918,7 @@ static int submit_reloc_list (void)
 
 	scan_reloc_list(fq->atom, fq);
 	UNLOCK_ATOM(fq->atom);
-	ret = write_fq(fq, 0);
+	ret = write_fq(fq);
 	fq_put(fq);
 	
 	return ret;
