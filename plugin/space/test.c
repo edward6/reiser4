@@ -12,7 +12,7 @@
 
 /* plugin->u.space_allocator.init_allocator */
 int test_init_allocator (reiser4_space_allocator * allocator,
-			 struct super_block * super, void * arg)
+			 struct super_block * super UNUSED_ARG, void * arg)
 {
 	reiser4_block_nr * next;
 
