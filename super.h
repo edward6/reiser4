@@ -54,7 +54,9 @@ typedef enum {
 	/* if set, bsd gid assignment is supported. */
 	REISER4_BSD_GID = 2,
 	/* [mac]_time are 32 bit in inode */
-	REISER4_32_BIT_TIMES = 3
+	REISER4_32_BIT_TIMES = 3,
+	/* allow concurrent flushes */
+	REISER4_MTFLUSH = 4
 } reiser4_fs_flag;
 
 /* reiser4-specific part of super block */
@@ -213,6 +215,8 @@ struct reiser4_super_info_data {
 	   one cut_tree tread is allowed to grab space from reserved area (it is 5% of
 	   disk space(2002.11.09)) */
 	struct semaphore delete_sema;
+	/* serialize semaphore */
+	struct semaphore flush_sema;
 };
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
