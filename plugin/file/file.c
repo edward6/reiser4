@@ -1527,6 +1527,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	reiser4_block_nr needed;
 	int (*read_f) (struct file *, flow_t *, hint_t *);
 	unix_file_info_t *uf_info;
+	loff_t size;
 
 	if (unlikely(!read_amount))
 		return 0;
@@ -1534,15 +1535,18 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	inode = file->f_dentry->d_inode;
 	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 
-	if (*off >= inode->i_size)
-		/* position to read from is past the end of file */
-		return 0;
-
-	if (*off + read_amount > inode->i_size)
-		read_amount = inode->i_size - *off;
-
 	uf_info = unix_file_inode_data(inode);
 	get_nonexclusive_access(uf_info);
+
+	size = i_size_read(inode);
+	if (*off >= size) {
+		/* position to read from is past the end of file */
+		drop_access(uf_info);
+		return 0;
+	}
+
+	if (*off + read_amount > size)
+		read_amount = size - *off;
 
 	/* we have nonexclusive access (NA) obtained. File's container may not change until we drop NA. If possible -
 	   calculate read function beforehand */
@@ -1566,8 +1570,9 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 		read_f = 0;
 		break;
 
+	case UF_CONTAINER_EMPTY:
 	default:
-		warning("vs-1297", "File (ino %llu) has unknown state: %d\n", get_inode_oid(inode), uf_info->container);
+		warning("vs-1297", "File (ino %llu) has unexpected state: %d\n", get_inode_oid(inode), uf_info->container);
 		drop_access(uf_info);
 		return RETERR(-EIO);
 	}
