@@ -197,7 +197,7 @@ extern int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord,
 				 reiser4_lock_handle *lh, 
 				 tree_iterate_actor_t actor, void *arg,
 				 znode_lock_mode mode, int through_units_p );
-int is_empty_node (const znode * node);
+int node_is_empty (const znode * node);
 
 
 typedef enum { SHIFTED_SOMETHING  = 0,
@@ -278,7 +278,8 @@ insert_result insert_by_coord( tree_coord  *coord,
 			       reiser4_item_data *data, const reiser4_key *key,
 			       reiser4_lock_handle *lh,
 			       inter_syscall_ra_hint *ra UNUSED_ARG,
-			       intra_syscall_ra_hint ira UNUSED_ARG );
+			       intra_syscall_ra_hint ira UNUSED_ARG,
+			       cop_insert_flag );
 insert_result insert_extent_by_coord( tree_coord  *coord,
 				      reiser4_item_data *data,
 				      const reiser4_key *key,
@@ -288,9 +289,9 @@ int cut_node (tree_coord * from, tree_coord * to,
 	      const reiser4_key * to_key,
 	      reiser4_key * smallest_removed);
 
-resize_result resize_item( tree_coord *coord,
-			  reiser4_lock_handle *lh, reiser4_key *key,
-			  reiser4_item_data *data );
+resize_result resize_item( tree_coord *coord, reiser4_item_data *data,
+			   reiser4_key *key, reiser4_lock_handle *lh,
+			   cop_insert_flag );
 int find_new_child_ptr( znode *parent, znode *child, znode *left, 
 			tree_coord *result );
 
