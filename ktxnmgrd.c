@@ -210,9 +210,10 @@ ktxnmgrd_detach(txn_mgr * mgr)
 static int
 scan_mgr(txn_mgr * mgr)
 {
-	int ret;
+	int              ret;
+	reiser4_context  ctx;
+	reiser4_tree    *tree;
 
-	reiser4_tree *tree;
 	assert("nikita-2454", mgr != NULL);
 
 	/* NOTE-NIKITA this only works for atoms embedded into super blocks. */
@@ -220,16 +221,15 @@ scan_mgr(txn_mgr * mgr)
 	assert("nikita-2455", tree != NULL);
 	assert("nikita-2456", tree->super != NULL);
 
-	{
-		REISER4_ENTRY(tree->super);
+	init_context(&ctx, tree->super);
 
-		/* Count a spinlock taken without context */
-		spin_ktxnmgrd_inc();
+	/* Count a spinlock taken without context */
+	spin_ktxnmgrd_inc();
 
-		ret = commit_some_atoms(mgr);
+	ret = commit_some_atoms(mgr);
 
-		REISER4_EXIT(ret);
-	}
+	reiser4_exit_context(&ctx);
+	return ret;
 }
 
 /* Make Linus happy.
