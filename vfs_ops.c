@@ -552,6 +552,7 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 	assert( "umka-078", f != NULL );
 	assert( "umka-079", page != NULL );
 	assert( "nikita-2280", PageLocked( page ) );
+	assert( "vs-976", !PageUptodate( page ) );
 
 	assert( "vs-318", page -> mapping && page -> mapping -> host );
 	assert( "nikita-1352", 
