@@ -189,7 +189,6 @@ typedef struct lock_counters_info {
 	 int                   spin_locked_fmgr;
 	 int                   spin_locked_inode;
 	 int                   spin_locked;
-	 int                   page_locked;
 	 int                   long_term_locked_znode;
 	 
 	 int                   d_refs;
@@ -233,8 +232,12 @@ typedef enum {
 extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
 extern int reiser4_is_debugged( struct super_block *super, __u32 flag );
 
+/**
+ * FIXME-NIKITA this is wrong, because other file systems share ->fs_context
+ * with us.
+ */
 #define ON_CONTEXT( e )	do {			\
-	if( current -> journal_info != NULL ) {	\
+	if( current -> fs_context != NULL ) {	\
 		e;				\
 	} } while( 0 )
 
