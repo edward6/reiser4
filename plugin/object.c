@@ -295,6 +295,8 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	assert("nikita-728", state->pset->sd != NULL);
 	data.iplug = state->pset->sd;
 
+	DEBUGON(inode->i_ino == 0x178aa);
+
 	/* data.length is how much space to add to (or remove
 	   from if negative) sd */
 	if (!inode_get_flag(inode, REISER4_SDLEN_KNOWN)) {
@@ -302,6 +304,7 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 		data.length = 
 			data.iplug->s.sd.save_len(inode) - 
 			item_length_by_coord(coord);
+		inode_set_flag(inode, REISER4_SDLEN_KNOWN);
 	} else
 		data.length = 0;
 	spin_unlock_inode(inode);

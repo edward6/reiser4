@@ -53,21 +53,18 @@ extent_set_width(reiser4_extent * ext, reiser4_block_nr width)
 
 #define extent_item(coord) 					\
 ({								\
-	DEBUGON(znode_get_level((coord)->node) != TWIG_LEVEL);	\
 	DEBUGON(!item_is_extent(coord));			\
 	((reiser4_extent *)item_body_by_coord (coord));		\
 })
 
 #define extent_by_coord(coord)					\
 ({								\
-	DEBUGON(znode_get_level((coord)->node) != TWIG_LEVEL);	\
 	DEBUGON(!item_is_extent(coord));			\
 	(extent_item (coord) + (coord)->unit_pos);		\
 })
 
 #define width_by_coord(coord) 					\
 ({								\
-	DEBUGON(znode_get_level((coord)->node) != TWIG_LEVEL);	\
 	DEBUGON(!item_is_extent(coord));			\
 	extent_get_width (extent_by_coord(coord));		\
 })
