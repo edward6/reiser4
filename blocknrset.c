@@ -345,6 +345,11 @@ int blocknr_set_iterator (txn_atom * atom,
 			 * actor==apply_dset_to_commit_bmap with
 			 * entry->ents[0]==NULL.
 			 */
+			/*
+			 * FIXED: maybe this is becasue removed unallocated
+			 * jnodes got into delete set? Now, there do not, so
+			 * hopefully, you will not see that anymore
+			 */
 			ret = actor (atom, &entry->ents[i], NULL, data);
 
 			/* FIXME: we can't break a loop if delete flag is
