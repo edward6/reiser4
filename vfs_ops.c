@@ -66,7 +66,6 @@ static void reiser4_dirty_inode (struct inode *);
 static void reiser4_write_inode (struct inode *, int);
 static void reiser4_put_inode (struct inode *);
 static void reiser4_delete_inode (struct inode *);
-static void reiser4_put_super (struct super_block *);
 static void reiser4_write_super (struct super_block *);
 static void reiser4_write_super_lockfs (struct super_block *);
 static void reiser4_unlockfs (struct super_block *);
@@ -82,11 +81,13 @@ static int reiser4_show_options( struct seq_file *m, struct vfsmount *mnt );
 static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 
 
-
+/* address space operations */
 
 static int reiser4_writepage(struct page *);
 static int reiser4_readpage(struct file *, struct page *);
 static int reiser4_sync_page(struct page *);
+static int reiser4_vm_writeback( struct page *page UNUSED_ARG, 
+				 int *nr_to_write UNUSED_ARG );
 /*
 static int reiser4_prepare_write(struct file *, 
 				 struct page *, unsigned, unsigned);
@@ -476,6 +477,14 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 		return -EINVAL;
 	}
 	return fplug -> readpage( f, page );
+}
+
+static int reiser4_vm_writeback( struct page *page UNUSED_ARG, 
+				 int *nr_to_write UNUSED_ARG )
+{
+	dinfo( "Kernel declared memory pressure for inode %llu!\n",
+	       ( __u64 ) page -> mapping -> host -> i_ino );
+	return 0;
 }
 
 /* ->sync_page()
@@ -1825,7 +1834,7 @@ struct address_space_operations reiser4_as_operations = {
 	.readpage       = reiser4_readpage,
  	.sync_page      = NULL,
 	.writepages     = NULL,
-	.vm_writeback   = NULL,
+	.vm_writeback   = reiser4_vm_writeback,
 	.set_page_dirty = __set_page_dirty_nobuffers,
 	.readpages      = NULL,
 	/*reiser4_prepare_write,*/

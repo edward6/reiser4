@@ -560,6 +560,7 @@ static struct bio *page_bio( struct page *page, int gfp )
 static int formatted_fake_pressure_handler( struct page *page UNUSED_ARG, 
 					    int *nr_to_write UNUSED_ARG )
 {
+	dinfo( "Kernel declared memory pressure for formatted nodes!\n" );
 	return 0;
 }
 
