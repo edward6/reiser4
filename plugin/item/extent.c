@@ -1388,22 +1388,6 @@ int extent_utmost_child ( const coord_t *coord, sideof side, jnode **childp )
 		/* index of first or last (depending on @side) page addressed
 		 * by the extent */
 		index = (unsigned long)(get_key_offset (&key) >> PAGE_CACHE_SHIFT);
-#if 0
-		pg = reiser4_lock_page (inode->i_mapping, index);
-
-		if (pg == NULL) {
-			*childp = NULL;
-			iput (inode);
-			return 0;
-		}
-
-		*childp = jnode_of_page (pg);
-		if (IS_ERR(*childp))
-			*childp = NULL;
-
-		unlock_page (pg);
-		page_cache_release (pg);
-#endif
 		*childp = UNDER_SPIN (tree, tree, 
 				      jlook (tree, inode->i_mapping, index));
 		iput (inode);
@@ -2532,11 +2516,11 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 				break;
 			}
 
-			if (jnode_check_flushprepped (j) /* Was (! jnode_check_dirty (j)) but
-							  * the node may already have been *
-							  * allocated, in which case we take
-							  * the * previous allocation for
-							  * this * extent. */) {
+			/* Was (! jnode_check_dirty (j)) but the node may
+			 * already have been * allocated, in which case we
+			 * take the * previous allocation for this *
+			 * extent. */
+			if (jnode_check_flushprepped (j)) {
 				jput (j);
 				all_need_alloc = 0;
 				break;
@@ -2545,12 +2529,14 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 			jput (j);
 		}
 #endif
-		/* If all blocks are dirty we may justify relocating this extent. */
+		/* If all blocks are dirty we may justify relocating this
+		 * extent. */
 
-		/* FIXME: JMACD->HANS: It is very complicated to use the formula you give
-		 * in the document for extent-relocation because asking "is there a closer
-		 * allocation" may not have a great answer.  There may be a closer
-		 * allocation but it may be not large enough.
+		/* FIXME: JMACD->HANS: It is very complicated to use the
+		 * formula you give in the document for extent-relocation
+		 * because asking "is there a closer allocation" may not have
+		 * a great answer.  There may be a closer allocation but it
+		 * may be not large enough.
 		 *
 		 * JOSH-FIXME-HANS
 		 *
@@ -2561,7 +2547,7 @@ static int extent_needs_allocation (reiser4_extent *extent, const coord_t *coord
 		 *
 		 * What does this mean?  Did you do it as requested or
 		 * differently?
-		*/
+		 */
 		relocate = (all_need_alloc == 1) && flush_pos_leaf_relocate (pos);
 		/*
 		 * FIXME-VS: no relocation of allocated extents yet
