@@ -609,7 +609,9 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	coord_init_zero( &coord );
 	init_lh( &lh );
 
+	info( "readdir: offset: %lli\n", f -> f_pos );
 	result = build_readdir_key( f, &arg.key );
+	print_key( "readdir", &arg.key );
 	if( result == 0 ) {
 		result = coord_by_key( tree_by_inode( inode ), &arg.key, 
 				       &coord, &lh, 
@@ -972,9 +974,6 @@ static int reiser4_release( struct inode *i /* inode released */,
 	assert( "umka-081", i != NULL );
 	assert( "nikita-1447", f != NULL );
 
-	if( f -> private_data != NULL )
-		reiser4_kfree( f -> private_data, 
-			       sizeof( reiser4_file_fsdata ) );
 	fplug = inode_file_plugin( i );
 	assert( "umka-082", fplug != NULL );
 	
@@ -982,6 +981,11 @@ static int reiser4_release( struct inode *i /* inode released */,
 		result = fplug -> release( f );
 	else
 		result = 0;
+
+	if( f -> private_data != NULL )
+		reiser4_kfree( f -> private_data, 
+			       sizeof( reiser4_file_fsdata ) );
+
 	REISER4_EXIT( result );
 }
 
@@ -1050,6 +1054,9 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG /* tree scanned */,
 		args -> skipped = args -> skip = 1;
 		args -> key = de_key;
 	}
+
+	info( "readdir: %s\n", name );
+
 	/*
 	 * send information about directory entry to the ->filldir() filler
 	 * supplied to us by caller (VFS).
@@ -1224,7 +1231,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 				REISER4_EXIT (-EINVAL);
 			goto read_super_block;
 		}
-		info ("BLocksize %lu\n", blocksize);
+		info ("Blocksize %lu\n", blocksize);
 
 		plugin_id = d16tocpu (&master_sb->disk_plugin_id);
 		/* only one plugin is available for now */
