@@ -1546,10 +1546,9 @@ static int cut_tree_worker (tap_t * tap, const reiser4_key * from_key,
 		if (result != 0 && result != -E_NO_NEIGHBOR)
 			break;
 		/* Check can we delete the node as a whole. */
-		if (iterations && znode_get_level(node) == LEAF_LEVEL &&
-		    UNDER_RW(dk, current_tree, read,
-			     (lazy ? keyle(from_key, znode_get_ld_key(node)) :
-			      keylt(from_key, znode_get_ld_key(node))))) {
+		if (lazy && iterations && znode_get_level(node) == LEAF_LEVEL &&
+		    UNDER_RW(dk, current_tree, read, keyle(from_key, znode_get_ld_key(node))))
+		{
 			result = delete_node(node, smallest_removed, object);
 		} else {
 			result = tap_load(tap);
