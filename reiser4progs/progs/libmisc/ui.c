@@ -194,8 +194,9 @@ aal_list_t *progs_ui_get_possibilities(void) {
 /* Common alpha handler */
 static char *progs_ui_alpha_handler(
     const char *prompt, char *defvalue, 
-    aal_check_alpha_func_t check_func)
-{
+    aal_check_alpha_func_t check_func, 
+    void *data
+) {
     char *line;
     char buff[255];
     
@@ -208,7 +209,7 @@ static char *progs_ui_alpha_handler(
 	if (aal_strlen((line = progs_ui_readline(buff))) == 0) 
 	    return defvalue;
 
-	if (!check_func || check_func(line))
+	if (!check_func || check_func(line, data))
 	    break;
     }
     
@@ -218,7 +219,8 @@ static char *progs_ui_alpha_handler(
 /* Common for all progs ui get numeric handler */
 static int64_t progs_ui_numeric_handler(
     const char *prompt, int64_t defvalue, 
-    aal_check_numeric_func_t check_func
+    aal_check_numeric_func_t check_func,
+    void *data
 ) {
     char buff[255];
     int64_t value = 0;
@@ -244,7 +246,7 @@ static int64_t progs_ui_numeric_handler(
 	    continue;
 	}
 	
-	if (!check_func || check_func(value))
+	if (!check_func || check_func(value, data))
 	    break;
     }
     

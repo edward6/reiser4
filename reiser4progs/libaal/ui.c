@@ -16,13 +16,13 @@ aal_numeric_func_t aal_ui_get_numeric_handler(void) {
     return numeric_handler;
 }
 
-int64_t aal_ui_get_numeric(const char *prompt, 
-    int64_t defvalue, aal_check_numeric_func_t check_func) 
+int64_t aal_ui_get_numeric(const char *prompt, int64_t defvalue, 
+    aal_check_numeric_func_t check_func, void *data) 
 {
     if (!numeric_handler)
 	return ~0ll;
     
-    return numeric_handler(prompt, defvalue, check_func);
+    return numeric_handler(prompt, defvalue, check_func, data);
 }
 
 static aal_alpha_func_t alpha_handler = NULL;
@@ -35,12 +35,12 @@ aal_alpha_func_t aal_ui_get_alpha_handler(void) {
     return alpha_handler;
 }
 
-char *aal_ui_get_alpha(const char *prompt, 
-    char *defvalue, aal_check_alpha_func_t check_func) 
+char *aal_ui_get_alpha(const char *prompt, char *defvalue, 
+    aal_check_alpha_func_t check_func, void *data) 
 {
     if (!alpha_handler)
 	return NULL;
     
-    return alpha_handler(prompt, defvalue, check_func);
+    return alpha_handler(prompt, defvalue, check_func, data);
 }
 
