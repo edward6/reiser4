@@ -227,13 +227,7 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 /** ->drop_node method of page-cache based tree operations */
 static int page_cache_drop_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
-	struct page *page = jnode_page( node );
 	trace_on( TRACE_PCACHE, "drop node: %p\n", node );
-
-	if ( page ) {
-		/* If there is a page, clear it's dirty flag, so that it won't be attempted to be written to disk later */
-		ClearPageDirty( page );
-	}
  	jnode_detach_page( node );
 	return 0;
 }
@@ -404,39 +398,6 @@ int page_io( struct page *page, int rw, int gfp )
 	REISER4_EXIT( result );
 }
 
-#define page_flag_name( page, flag )			\
-	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag ## "|")+3) : "" )
-
-void __tmp_print_page( struct page *page )
-{
-	if( page == NULL ) {
-		info( "null page\n" );
-		return;
-	}
-	info( "page: %p index: %lu virtual: %p mapping: %p private: %lx\n",
-	      page,
-	      page -> index, page -> virtual, page -> mapping, page -> private );
-	info( "flags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
-	      page_flag_name( page,  PG_locked ),
-	      page_flag_name( page,  PG_error ),
-	      page_flag_name( page,  PG_referenced ),
-	      page_flag_name( page,  PG_uptodate ),
-
-	      page_flag_name( page,  PG_dirty_dontuse ),
-	      page_flag_name( page,  PG_lru ),
-	      page_flag_name( page,  PG_active ),
-	      page_flag_name( page,  PG_slab ),
-
-	      page_flag_name( page,  PG_highmem ),
-	      page_flag_name( page,  PG_checked ),
-	      page_flag_name( page,  PG_arch_1 ),
-	      page_flag_name( page,  PG_reserved ),
-
-	      page_flag_name( page,  PG_private ),
-	      page_flag_name( page,  PG_writeback ),
-	      page_flag_name( page,  PG_nosave ) );
-}
-
 
 /** helper function to construct bio for page */
 static struct bio *page_bio( struct page *page, int gfp )
@@ -466,9 +427,7 @@ static struct bio *page_bio( struct page *page, int gfp )
 		int                 blksz;
 		struct super_block *super;
 
-		trace_if( TRACE_BUG, 
-			  info_jnode( "page", ( jnode * ) page -> index ) );
-		trace_if( TRACE_BUG, __tmp_print_page( page ) );
+		trace_if( TRACE_BUG, print_page( page ) );
 
 		assert( "nikita-2026", jprivate( page ) != NULL );
 		node = jprivate( page );
@@ -563,6 +522,45 @@ node_operations page_cache_tops = {
 	.dirty_node    = page_cache_dirty_node
 };
 
+#if REISER4_DEBUG
+
+#define page_flag_name( page, flag )			\
+	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag ## "|")+3) : "" )
+
+void print_page( struct page *page )
+{
+	if( page == NULL ) {
+		info( "null page\n" );
+		return;
+	}
+	info( "page index: %lu virtual: %p mapping: %p count: %i private: %lx\n",
+	      page -> index, page -> virtual, page -> mapping, 
+	      atomic_read( &page -> count ), page -> private );
+	info( "flags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s\n",
+	      page_flag_name( page,  PG_locked ),
+	      page_flag_name( page,  PG_error ),
+	      page_flag_name( page,  PG_referenced ),
+	      page_flag_name( page,  PG_uptodate ),
+
+	      page_flag_name( page,  PG_dirty_dontuse ),
+	      page_flag_name( page,  PG_lru ),
+	      page_flag_name( page,  PG_active ),
+	      page_flag_name( page,  PG_slab ),
+
+	      page_flag_name( page,  PG_highmem ),
+	      page_flag_name( page,  PG_checked ),
+	      page_flag_name( page,  PG_arch_1 ),
+	      page_flag_name( page,  PG_reserved ),
+
+	      page_flag_name( page,  PG_private ),
+	      page_flag_name( page,  PG_writeback ),
+	      page_flag_name( page,  PG_nosave ) );
+	if( jprivate( page ) != NULL )
+		info_jnode( "page jnode", jprivate( page ) );
+}
+
+
+#endif
 
 /*
  * Make Linus happy.

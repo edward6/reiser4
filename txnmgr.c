@@ -1429,7 +1429,7 @@ void jnode_set_dirty( jnode *node )
 		assert ("jmacd-9777", node->atom != NULL && znode_is_any_locked (JZNODE (node)));
 	}
 
-	current_tree -> ops -> dirty_node( current_tree, node );
+	current_tree->ops->dirty_node (current_tree, node);
 	spin_unlock_jnode (node);
 }
 
@@ -1471,7 +1471,6 @@ void jnode_set_clean( jnode *node )
 	capture_list_push_front (& atom->clean_nodes, node);
 	
 	spin_unlock_atom (atom);
-
 
 	spin_unlock_jnode (node);
 }

@@ -627,7 +627,7 @@ static void init_page (struct page * page, struct address_space * mapping,
 	page->index = ind;
 	page->mapping = mapping;
 	page->private = 0;
-	page->count = 1;
+	atomic_set (&page->count, 1);
 	/* use kmap to set this */
 	page->virtual = 0;
 	spin_lock_init (&page->lock);
@@ -670,7 +670,7 @@ void unlock_page (struct page * p)
 
 void remove_inode_page (struct page * page)
 {
-	assert ("vs-618", page->count == 2);
+	assert ("vs-618", atomic_read (&page->count) == 2);
 	page->mapping = 0;
 
 	txn_delete_page (page);
@@ -688,7 +688,7 @@ struct page * find_get_page (struct address_space * mapping,
 		page = list_entry (cur, struct page, list);
 		spin_lock (&page->lock2);
 		if (page->index == ind && page->mapping == mapping) {
-			page->count ++;
+			atomic_inc (&page->count);
 			spin_unlock (&page->lock2);
 			return page;
 		}
@@ -713,10 +713,10 @@ static void truncate_inode_pages (struct address_space * mapping,
 		if (page->mapping == mapping) {
 			if (page->index >= ind) {
 				spin_lock (&page->lock2);
-				page->count ++;
+				atomic_inc (&page->count);
 				remove_inode_page (page);
-				page->count --;
-				if (!page->count) {
+				atomic_dec (&page->count);
+				if (!atomic_read (&page->count)) {
 					spin_lock( &page_list_guard );
 					list_del_init (&page->list);
 					spin_unlock( &page_list_guard );
@@ -778,40 +778,6 @@ struct page *read_cache_page (struct address_space * mapping,
 	return page;
 }
 
-#define page_flag_name( page, flag )			\
-	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag ## "|")+3) : "" )
-
-void print_page( struct page *page )
-{
-	if( page == NULL ) {
-		info( "null page\n" );
-		return;
-	}
-	info( "page index: %lu virtual: %p mapping: %p count: %i private: %lx kmap_count %d\n",
-	      page -> index, page -> virtual, page -> mapping, page -> count,
-	      page -> private, page -> kmap_count );
-	info( "flags: %s%s%s%s %s%s%s%s %s%s%s%s %s%s%s%s\n",
-	      page_flag_name( page,  PG_locked ),
-	      page_flag_name( page,  PG_error ),
-	      page_flag_name( page,  PG_referenced ),
-	      page_flag_name( page,  PG_uptodate ),
-
-	      page_flag_name( page,  PG_dirty_dontuse ),
-	      page_flag_name( page,  PG_lru ),
-	      page_flag_name( page,  PG_active ),
-	      page_flag_name( page,  PG_slab ),
-
-	      page_flag_name( page,  PG_highmem ),
-	      page_flag_name( page,  PG_checked ),
-	      page_flag_name( page,  PG_arch_1 ),
-	      page_flag_name( page,  PG_reserved ),
-
-	      page_flag_name( page,  PG_private ),
-	      page_flag_name( page,  PG_writeback ),
-	      page_flag_name( page,  PG_nosave ),
-	      page_flag_name( page,  PG_kmapped ) );
-}
-
 void page_cache_print()
 {
 	struct list_head * cur;
@@ -837,6 +803,12 @@ void wait_on_page_locked(struct page * page)
 	}
 }
 
+void wait_on_page_writeback(struct page * page)
+{
+	return;
+}
+
+
 /* mm/readahead.c */
 void page_cache_readahead (struct file * file UNUSED_ARG, unsigned long offset UNUSED_ARG)
 {
@@ -855,8 +827,8 @@ static void invalidate_pages (void)
 		spin_lock (&page->lock2);
 		lock_page (page);
 		assert ("vs-666", !PageDirty (page));
-		assert ("vs-667", page->count == 0);
-		assert ("vs-668", !PageKmaped (page));
+		assert ("vs-667", atomic_read (&page->count) == 0);
+		assert ("vs-668", !page->kmap_count);
 		list_del_init( &page -> list );
 		free (page);
 		spin_unlock (&page->lock2);
@@ -891,9 +863,7 @@ void print_inodes (void)
 char * kmap (struct page * page)
 {
 	spin_lock (&page->lock2);
-	if (!PageKmaped (page)) {
-		assert ("vs-664", page->kmap_count == 0);
-		SetPageKmaped (page);
+	if (!page->kmap_count) {
 		page->virtual = (char *)page + sizeof (struct page);
 	}
 	page->kmap_count ++;
@@ -904,12 +874,10 @@ char * kmap (struct page * page)
 
 void kunmap (struct page * page)
 {
-	assert ("vs-665", PageKmaped (page));
 	assert ("vs-724", page->kmap_count > 0);
 	spin_lock (&page->lock2);
 	page->kmap_count --;
 	if (page->kmap_count == 0) {
-		ClearPageKmaped (page);
 		page->virtual = 0;
 	}
 	spin_unlock (&page->lock2);
@@ -928,7 +896,7 @@ unsigned long get_jiffies ()
 void page_cache_get(struct page * page)
 {
 	spin_lock( &page_list_guard );
-	page->count ++;
+	atomic_inc (&page->count);
 	spin_unlock( &page_list_guard );
 }
 
@@ -936,8 +904,8 @@ void page_cache_get(struct page * page)
 void page_cache_release (struct page * page)
 {
 	spin_lock( &page_list_guard );
-	assert ("vs-352", page->count > 0);
-	page->count --;
+	assert ("vs-352", atomic_read (&page->count) > 0);
+	atomic_dec (&page->count);
 	spin_unlock( &page_list_guard );
 }
 
@@ -4825,6 +4793,47 @@ int __set_page_dirty_nobuffers(struct page *page)
 			spin_unlock( &page_list_guard );
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
+	}
+	return ret;
+}
+
+/**
+ * write_one_page - write out a single page and optionally wait on I/O
+ *
+ * @page - the page to write
+ * @wait - if true, wait on writeout
+ *
+ * The page must be locked by the caller and will be unlocked upon return.
+ *
+ * write_one_page() returns a negative error code if I/O failed.
+ */
+int write_one_page(struct page *page, int wait)
+{
+	struct address_space *mapping = page->mapping;
+	int ret = 0;
+
+	assert ("nikita-2104", PageLocked(page));
+
+	if (wait && PageWriteback(page))
+		wait_on_page_writeback(page);
+
+	spin_lock(&mapping->page_lock);
+	list_del(&page->list);
+	if (TestClearPageDirty(page)) {
+		list_add(&page->list, &mapping->locked_pages);
+		page_cache_get(page);
+		spin_unlock(&mapping->page_lock);
+		ret = mapping->a_ops->writepage(page);
+		if (ret == 0 && wait) {
+			wait_on_page_writeback(page);
+			if (PageError(page))
+				ret = -EIO;
+		}
+		page_cache_release(page);
+	} else {
+		list_add(&page->list, &mapping->clean_pages);
+		spin_unlock(&mapping->page_lock);
+		unlock_page(page);
 	}
 	return ret;
 }

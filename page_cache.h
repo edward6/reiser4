@@ -5,8 +5,8 @@
  * Memory pressure hooks. Fake inodes handling. See memory.c.
  */
 
-#if !defined( __REISER4_MEMORY_H__ )
-#define __REISER4_MEMORY_H__
+#if !defined( __REISER4_PAGE_CACHE_H__ )
+#define __REISER4_PAGE_CACHE_H__
 
 extern int init_fakes( void );
 extern int init_formatted_fake( struct super_block *super );
@@ -34,7 +34,14 @@ static int never_ever_ ## op ( void )						\
 	return -EIO;								\
 }
 
-/* __REISER4_MEMORY_H__ */
+
+#if REISER4_DEBUG
+extern void print_page( struct page *page );
+#else
+#define print_page( p ) noop
+#endif
+
+/* __REISER4_PAGE_CACHE_H__ */
 #endif
 
 /*

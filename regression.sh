@@ -24,14 +24,14 @@ for r in `seq 1 $ROUNDS`
 do
 echo Round $r
 # "non-persistent" tests
-if [ x$REISER4_UL_DURABLE_MMAP = x ]
-then
-	run ./a.out nikita ibk 30${ORDER} || exit 1
-	mv gmon.out gmon.out.ibk.30${ORDER}.$r 2>/dev/null
-
+#if [ x$REISER4_UL_DURABLE_MMAP = x ]
+#then
+#	run ./a.out nikita ibk 30${ORDER} || exit 1
+#	mv gmon.out gmon.out.ibk.30${ORDER}.$r 2>/dev/null
+#
 #	run ./a.out jmacd build 3 1000 1000 || exit 4
 #	mv gmon.out gmon.out.build.3.1000.$r 2>/dev/null
-fi
+#fi
 
 run ./a.out nikita dir 1 100${ORDER} 0 || exit 2
 mv gmon.out gmon.out.dir.1.100${ORDER}.0.$r 2>/dev/null

@@ -1691,7 +1691,7 @@ struct address_space_operations reiser4_as_operations = {
  	.sync_page      = NULL,
 	.writepages     = NULL,
 	.vm_writeback   = NULL,
-	.set_page_dirty = NULL,
+	.set_page_dirty = __set_page_dirty_nobuffers,
 	.readpages      = NULL,
 	/*reiser4_prepare_write,*/
 	.prepare_write  = V( never_ever_prepare_write_vfs ),

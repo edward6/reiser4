@@ -544,6 +544,7 @@ struct address_space {
 	struct vm_area_struct	*i_mmap_shared; /* list of shared mappings */
 	spinlock_t		i_shared_lock;  /* and spinlock protecting it */
 	int			gfp_mask;	/* how to allocate the pages */
+	spinlock_t                page_lock;
 };
 
 struct block_device;
@@ -727,23 +728,6 @@ struct kcondvar_t
   int                _count;
 };
 
-/** initialize the condition variable, to be goverened by the supplied lock.  every other
- * call to a kcondvar_ function assumes that the lock is already held. */
-extern void	  kcondvar_init      (kcondvar_t        *kcond,
-				      spinlock_t        *lock);
-
-/** wait for a signal/broadcast */
-extern void       kcondvar_wait      (kcondvar_t        *kcond);
-
-/** return the number of waiters */
-extern int        kcondvar_waiters   (kcondvar_t        *kcond);
-
-/** signal a waiter */
-extern void       kcondvar_signal    (kcondvar_t        *kcond);
-
-/** broadcast to all waiters */
-extern void       kcondvar_broadcast (kcondvar_t        *kcond);
-
 #define DEBUGGING_REISER4_WRITE
 #ifdef DEBUGGING_REISER4_WRITE
 
@@ -754,7 +738,7 @@ struct page {
 	void * virtual;
 	struct address_space *mapping;
 	unsigned long flags;
-	unsigned count;
+	atomic_t count;
 	unsigned long private;
 	struct list_head list;
 	struct list_head mapping_list;
@@ -781,7 +765,6 @@ struct page {
 #define PG_private		12	/* Has something at ->private */
 #define PG_writeback		13	/* Page is under writeback */
 #define PG_nosave		15	/* Used for system suspend/resume */
-#define PG_kmapped              16
 
 #define inc_page_state(member)	noop
 #define dec_page_state(member)	noop
@@ -912,15 +895,9 @@ struct page {
 #define ClearPageNosave(page)		clear_bit(PG_nosave, &(page)->flags)
 #define TestClearPageNosave(page)	test_and_clear_bit(PG_nosave, &(page)->flags)
 
-#define PageKmaped(page)	test_bit(PG_kmapped, &(page)->flags)
-#define SetPageKmaped(page)	set_bit(PG_kmapped, &(page)->flags)
-#define TestSetPageKmaped(page)	test_and_set_bit(PG_kmapped, &(page)->flags)
-#define ClearPageKmaped(page)		clear_bit(PG_kmapped, &(page)->flags)
-#define TestClearPageKmaped(page)	test_and_clear_bit(PG_kmapped, &(page)->flags)
-
 #define page_address(page)                                              \
 	({								\
-		assert ("vs-694", PageKmaped (page));			\
+		assert ("vs-694", page->kmap_count > 0);			\
 		(page)->virtual;					\
 	})
 
@@ -1339,6 +1316,11 @@ static inline int set_page_dirty(struct page *page)
 	}
 	return __set_page_dirty_buffers(page);
 }
+
+extern int write_one_page(struct page *page, int wait);
+
+extern void wait_on_page_locked(struct page *page);
+extern void wait_on_page_writeback(struct page *page);
 
 /* __REISER4_ULEVEL_H__ */
 #endif
