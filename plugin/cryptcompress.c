@@ -1433,7 +1433,7 @@ set_cluster_pages_dirty(reiser4_cluster_t * clust)
 		
 		lock_page(pg);
 		
-		set_page_dirty_internal(pg);
+		set_page_dirty_internal(pg, 0);
 		SetPageUptodate(pg);
 		mark_page_accessed(pg);	
 		
