@@ -391,7 +391,7 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 	bitmap_blocks_nr = get_nr_bmap(super);
 
 	for (i = 0; i < bitmap_blocks_nr; i ++) {
-		ON_DEBUG (struct bnode * bnode = data -> bitmap + i);
+		struct bnode * bnode = data -> bitmap + i;
 
 		spin_lock_bnode (bnode);
 
