@@ -3422,8 +3422,8 @@ scan_by_coord(flush_scan * scan)
 			   the first coordinate. */
 			assert("jmacd-1231", item_is_internal(&scan->parent_coord));
 		}
-
-		if(iplug->f.utmost_child == NULL) {
+		
+		if(iplug->f.utmost_child == NULL || znode_get_level(scan->parent_coord.node) != TWIG_LEVEL) {
 			/* stop this coord and continue on parrent level */
 			ret = scan_set_current(scan, ZJNODE(scan->parent_coord.node), 1, NULL);
 			if (ret != 0) 
@@ -3459,7 +3459,7 @@ scan_by_coord(flush_scan * scan)
 
 			coord_init_sideof_unit(&next_coord, next_lock.node, sideof_reverse(scan->direction));
 		}
-
+		
 		/* We are only interested in continuing if the next item has the same id.
 		   If so we will return to the scan_common loop and the next call will be
 		   to scan_formatted() to handle this case. */
