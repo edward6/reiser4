@@ -317,7 +317,7 @@ static int alloc_tx (capture_list_head * head, int nr)
 	while (!capture_list_empty (head)) {
 		jnode * node = capture_list_pop_back(head);
 
-		junload (node);
+		jrelse (node);
 		jfree (node);
 	}
 

@@ -16,7 +16,7 @@ function run()
 
 function do_mkfs()
 {
-	echo "mkfs $REISER4_MOUNT" | a.out sh
+	echo "mkfs $REISER4_MOUNT" | ./a.out sh
 }
 
 export REISER4_PRINT_STATS=1

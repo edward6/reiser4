@@ -416,7 +416,7 @@ int jwait_io (jnode * node)
 	return 0;
 }
 
-int junload (jnode * node)
+int jrelse (jnode * node)
 {
 	reiser4_tree * tree = current_tree;
 	int ret;
@@ -431,7 +431,7 @@ int junload (jnode * node)
 	return ret;
 }
 
-void jrelse (jnode * node)
+void junload (jnode * node)
 {
 	spin_lock_jnode (node);
 

@@ -3086,7 +3086,7 @@ static int bash_mkfs (const char * file_name)
 			/* block allocator */
 			root_block = bh->b_blocknr + 1;
 			next_block = root_block + 1;
-			get_super_private (&super)->space_plug = space_allocator_plugin_by_id (TEST_SPACE_ALLOCATOR_ID);
+			get_super_private (&super)->space_plug = space_allocator_plugin_by_id (BITMAP_SPACE_ALLOCATOR_ID);
 			get_super_private (&super)->space_plug->
 				init_allocator (get_space_allocator( &super ),
 						&super, &next_block );
@@ -3610,7 +3610,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			}
 			result = bash_mount (/*&context,*/ command + 6, &sb);
 			if (result) {
-				info ("mount failed: %s\n", strerror (result));
+				info ("mount failed: %s\n", strerror (-result));
 				continue;
 			}
 			assert ("vs-767", sb);

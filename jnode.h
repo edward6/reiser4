@@ -301,8 +301,8 @@ typedef struct node_operations {
 extern int  jload    (jnode* node);
 extern int  jwrite   (jnode* node);
 extern int  jwait_io (jnode* node);
-extern int  junload  (jnode* node);
-extern void jrelse   (jnode* node);
+extern int  jrelse   (jnode* node);
+extern void junload  (jnode* node);
 
 /* __JNODE_H__ */
 #endif

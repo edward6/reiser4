@@ -91,20 +91,20 @@ static void done_journal_info (struct super_block *s)
 	assert ("zam-476", private != NULL);
 
 	if (private->journal_header != NULL) {
-		if (JF_ISSET(private->journal_header, ZNODE_LOADED)) 
-			junload (private->journal_header);
-		if (jnode_page(private->journal_footer))
+		if (JF_ISSET(private->journal_header, ZNODE_KMAPPED)) 
 			jrelse (private->journal_header);
+		if (jnode_page(private->journal_footer))
+			junload (private->journal_header);
 		jfree (private->journal_header);
 
 		private->journal_header = NULL;
 	}
 
 	if (private->journal_footer != NULL) {
-		if (JF_ISSET(private->journal_footer, ZNODE_LOADED))
-			junload (private->journal_footer);
-		if (jnode_page(private->journal_footer))
+		if (JF_ISSET(private->journal_footer, ZNODE_KMAPPED))
 			jrelse (private->journal_footer);
+		if (jnode_page(private->journal_footer))
+			junload (private->journal_footer);
 		jfree (private->journal_footer);
 
 		private->journal_footer = NULL;
@@ -127,10 +127,10 @@ static int init_journal_info (struct super_block * s)
 	private->journal_footer->blocknr = FORMAT_40_JOURNAL_FOOTER_BLOCKNR;
 
 	if ((ret = jload (private->journal_header)) < 0) goto fail;
-	junload (private->journal_header);
+	jrelse (private->journal_header);
 	
 	if ((ret = jload (private->journal_footer)) < 0) goto fail;
-	junload (private->journal_footer);
+	jrelse (private->journal_footer);
 
 	return 0;
  fail:

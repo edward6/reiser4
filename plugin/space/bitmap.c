@@ -411,8 +411,8 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 			assert ("zam-480", jnode_page (&bnode->cjnode) != NULL);
 			spin_unlock_jnode(&bnode->wjnode);
 
-			jrelse (& bnode->wjnode);
-			jrelse (&bnode->cjnode);
+			junload (& bnode->wjnode);
+			junload (&bnode->cjnode);
 
 			/* FIXME: check for page state and ref count should be
 			 * added here */
@@ -443,7 +443,12 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 	ret = jload (&bnode->cjnode);
 
-	if (ret < 0) { junload(&bnode->cjnode); return ret;}
+	if (ret < 0) { 
+		jrelse(&bnode->cjnode);
+		junload(&bnode->cjnode);
+	
+		return ret;
+	}
 
 	if (ret == 0) {		
 		/* node has been loaded by this jload call  */
@@ -460,8 +465,8 @@ static int load_and_lock_bnode (struct bnode * bnode)
 
 static void release_and_unlock_bnode (struct bnode * bnode)
 {
-	junload (&bnode->cjnode);
-	junload (&bnode->wjnode);
+	jrelse (&bnode->cjnode);
+	jrelse (&bnode->wjnode);
 }
 
 #if 0
