@@ -229,7 +229,6 @@ static int slum_scan_left_using_parent (slum_scan *scan)
 			coord_last_unit (& coord);
 		}
 
-		
 	}
 
 	/* FIXME_JMACD: */
