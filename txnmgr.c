@@ -1248,8 +1248,8 @@ int txn_flush_one (txn_mgr * tmgr, long * nr_submitted, int flags)
 		}
 	}
 
-	txn_end (ctx);
-	txn_begin (ctx);
+//	txn_end (ctx);
+//	txn_begin (ctx);
 
 	return 0;
 }
