@@ -516,7 +516,6 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 
 	trace_on(TRACE_RESERVE, 
 		 "flush allocates %llu blocks for wandering logs.\n", wide_len);
-	
 	*len = (int) wide_len;
 
 	return ret;
@@ -1008,7 +1007,6 @@ reiser4_write_logs(void)
 		/* FIXME-VITALY: Check this with Zam. */
 		trace_on(TRACE_RESERVE, "free all (%llu) reserved.\n", 
 			 reiser4_atom_flush_reserved());
-
 		flush_reserved2free_all();
 		
 		fq_put(fq);
@@ -1082,7 +1080,6 @@ up_and_ret:
 	/* VITALY: Free flush_reserved blocks. */
 	trace_on(TRACE_RESERVE, "release all grabbed blocks (%llu).\n", 
 		 get_current_context()->grabbed_blocks);
-
 	all_grabbed2free();	
 	capture_list_splice(&ch.atom->clean_nodes, &ch.overwrite_set);
 	done_commit_handle(&ch);
