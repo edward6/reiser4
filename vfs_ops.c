@@ -2555,11 +2555,10 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 
 	REISER4_ENTRY(s);
 
-	/* Here we can call synchronously. We can be called from
-	   balance_dirty_pages() Reiser4 code is supposed to call
-	   balance_dirty_pages at paces where no locks are hold it means we can
-	   call begin jnode_flush right from there having no deadlocks between the
-	   caller of balance_dirty_pages() and jnode_flush(). */
+	/* Here we can call synchronously. We can be called from balance_dirty_pages()
+	   Reiser4 code is supposed to call balance_dirty_pages at places where no locks
+	   are hold it means we can call begin jnode_flush right from there having no
+	   deadlocks between the caller of balance_dirty_pages() and jnode_flush(). */
 
 	assert("zam-760", lock_stack_isclean(get_current_lock_stack()));
 
