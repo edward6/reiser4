@@ -618,14 +618,21 @@ forget_znode(lock_handle * handle)
 
 	if (!blocknr_is_fake(znode_get_block(node))) {
 		int ret;
-		ret = reiser4_dealloc_block
-			(znode_get_block(node), 0 /* not used */, BA_DEFER | BA_FORMATTED, __FUNCTION__);
+
+		/* An already allocated block goes right to the atom's delete set. */
+		ret = reiser4_dealloc_block(znode_get_block(node), 0, BA_DEFER | BA_FORMATTED, __FUNCTION__);
 		if (ret)
 			warning("zam-942", "can\'t add a block (%llu) number to atom's delete set\n",
 					(unsigned long long)(*znode_get_block(node)));
 
 		spin_lock_znode(node);
-		if (znode_is_dirty(node) && !znode_created(node)) {
+		/* Here we return flush reserved block which was reserved at the
+		 * moment when this allocated node was marked dirty and still
+		 * not used by flush in node relocation procedure.  */
+		if (znode_is_dirty(node) && !znode_created(node) &&
+		    !ZF_ISSET(node, JNODE_RELOC) && !ZF_ISSET(node, JNODE_OVRWR) && 
+		    (znode_get_level(node) == LEAF_LEVEL))
+		{
 			txn_atom * atom ;
 
 			atom = atom_locked_by_jnode(ZJNODE(node));
