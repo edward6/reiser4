@@ -170,15 +170,18 @@ attach_crypto_stat(struct inode * inode, crypto_data_t * data)
 	
 	crypto_stat_t * stat;
 	struct scatterlist sg;
-	struct crypto_tfm * tfm;
+	struct crypto_tfm * dtfm;
 	
 	assert("edward-690", inode_get_crypto(inode));
-
+	assert("edward-766", inode_get_digest(inode));
+	
+	dtfm =  inode_get_digest(inode);
+	
 	stat = reiser4_kmalloc(sizeof(*stat), GFP_KERNEL);
 	if (!stat)
 		return -ENOMEM;
 
-	stat->keyid = reiser4_kmalloc((size_t)crypto_tfm_alg_digestsize(tfm), GFP_KERNEL);
+	stat->keyid = reiser4_kmalloc((size_t)crypto_tfm_alg_digestsize(dtfm), GFP_KERNEL);
 	if (!stat->keyid) {
 		reiser4_kfree(stat);
 		return -ENOMEM;
@@ -194,9 +197,9 @@ attach_crypto_stat(struct inode * inode, crypto_data_t * data)
 	sg.offset = offset_in_page (txt);
 	sg.length = data->keyid_size;
 	
-	crypto_digest_init (tfm);
-	crypto_digest_update (tfm, &sg, 1);
-	crypto_digest_final (tfm, stat->keyid);
+	crypto_digest_init (dtfm);
+	crypto_digest_update (dtfm, &sg, 1);
+	crypto_digest_final (dtfm, stat->keyid);
 	
 	reiser4_inode_data(inode)->crypt = stat;
 	reiser4_kfree(txt);
