@@ -726,7 +726,15 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	spin_lock_atom_no_ord(atom, 0, 0);
 
 	atom_list_push_back(&mgr->atoms_list, atom);
-
+/* GREEN-FIXME-HANS: please give a mini-seminar on precisely when variables have
+ * to be atomically incremented/assigned.  I am a bit fuzzy on it, and I suspect
+ * others are also. Also discuss what limits there are on compiler reordering of
+ * instructions.  Can a compiler ever reorder past the release of a lock?  The
+ * answer must be no, but explain why?  Do they avoid reordering past assembly
+ * instructions and lock macros are in assembly?  After that, go through all
+ * assignments in reiser4 and verify that the choice of whether to do them
+ * atomically is correct. Yes, I know, it will be a mind numbing task, but it
+ * has to be done by someone.  */
 	atom->atom_id = mgr->id_count++;
 	mgr->atom_count += 1;
 
@@ -776,6 +784,7 @@ atom_free(txn_atom * atom)
 	/* Remove from the txn_mgr's atom list */
 	assert("nikita-2657", spin_txnmgr_is_locked(mgr));
 	mgr->atom_count -= 1;
+/* ZAM-FIXME-HANS: why does tags not find this function? */
 	atom_list_remove_clean(atom);
 
 	/* Clean the atom */
@@ -853,7 +862,8 @@ jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
 /* Scan atom->writeback_nodes list and dispatch jnodes according to their state:
  * move dirty and !writeback jnodes to @fq, clean jnodes to atom's clean
  * list. */
-static void scan_wb_list (txn_atom * atom, flush_queue_t * fq)
+/* ZAM-FIXME-HANS: why aren't clean nodes handled by the end IO handler ? */
+static void dispatch_wb_list (txn_atom * atom, flush_queue_t * fq)
 {
 	jnode * cur;
 
@@ -889,7 +899,7 @@ static int submit_wb_list (void)
 	if (IS_ERR(fq))
 		return PTR_ERR(fq);
 
-	scan_wb_list(fq->atom, fq);
+	dispatch_wb_list(fq->atom, fq);
 	UNLOCK_ATOM(fq->atom);
 	trace_mark(flush);
 	ret = write_fq(fq, NULL);
@@ -901,18 +911,19 @@ static int submit_wb_list (void)
 /* when during system call inode is "captured" (by reiser4_mark_inode_dirty) - blocks grabbed for stat data update are
    moved to atom's flush_reserved bucket. On commit time (right before updating stat datas of all captured inodes) those
    blocks are moved to grabbed. This function is used to calculate number of blocks reserved for stat data update when
-   those blocks get mover back and forwward between buckets of grabbed and flush_reserved blocks */
+   those blocks get moved back and forwward between buckets of grabbed and flush_reserved blocks */
 static reiser4_block_nr reserved_for_sd_update(struct inode *inode)
 {
 	return inode_file_plugin(inode)->estimate.update(inode);
 }
-
+/* NIKITA-FIXME-HANS: write this more clearly. */
 static void atom_update_stat_data(txn_atom **atom)
 {
 	jnode *j;
 	
 	assert ("vs-1241", spin_atom_is_locked(*atom));
 	while (!capture_list_empty(&(*atom)->inodes)) {
+/* NIKITA-FIXME-HANS: why is this declared here? */
 		struct inode *inode;
 
 		j = capture_list_front(&((*atom)->inodes));
@@ -940,7 +951,8 @@ static int current_atom_complete_writes (void)
 	int ret;
 
 	/* Scan wb list for nodes with already completed i/o, re-submit them to
-	 * disk */
+	 * disk 
+	 ZAM-FIXME-HANS: explain this. If the IO is completed, what is there to resubmit? */
 	ret = submit_wb_list();
 	if (ret < 0)
 		return ret;
@@ -978,7 +990,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 {
 	reiser4_super_info_data * sbinfo = get_current_super_private ();
 	long ret;
-	int  flushiters;
+	int  flushiters;	/* NIKITA-FIXME-HANS: comment this */
 	
 	assert ("zam-888", atom != NULL && *atom != NULL);
 	assert ("zam-886", spin_atom_is_locked(*atom));
