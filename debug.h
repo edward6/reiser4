@@ -917,14 +917,14 @@ extern void *xmemset(void *s, int c, size_t n);
 	!(__i & (__i - 1));			\
 })
 
-#define KERNEL_DEBUGGER (0)
+#define KERNEL_DEBUGGER (1)
 
 #if KERNEL_DEBUGGER
 #define DEBUGON(cond)				\
 ({						\
 	extern void debugtrap(void);		\
 						\
-	if (cond)				\
+	if (unlikely(cond))			\
 		debugtrap();			\
 })
 #else
