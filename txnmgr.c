@@ -415,7 +415,6 @@ atom_init (txn_atom     *atom)
 	blocknr_set_init   (& atom->wandered_map);
 
 	fq_init_atom (atom);
-	atom_init_io (atom);
 }
 
 #if REISER4_DEBUG
@@ -807,8 +806,6 @@ atom_free (txn_atom *atom)
 
 	blocknr_set_destroy (& atom->delete_set);
 	blocknr_set_destroy (& atom->wandered_map);
-
-	atom_done_io (atom);
 
 	assert ("jmacd-16", atom_isclean (atom));
 
@@ -2526,9 +2523,6 @@ capture_fuse_into (txn_atom  *small,
 
 	/* splice flush queues */
 	fq_fuse (large, small);
-
-	/* splice lists of i/o handles */
-	atom_fuse_io (large, small);
 	
 	/* Transfer list counts to large. */
 	large->txnh_count          += small->txnh_count;

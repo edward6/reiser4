@@ -171,8 +171,7 @@ ZAM-FIXME-HANS: use term "play" and define it too;-)
 
 int WRITE_LOG = 1;		/* journal is written by default  */
 
-
-static int submit_write (jnode*, int, const reiser4_block_nr *, int use_io_handle);
+static int submit_write (jnode*, int, const reiser4_block_nr *, flush_queue_t * fq);
 
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
@@ -193,6 +192,8 @@ struct commit_handle {
 	txn_atom             *atom;
 	/* current super block */
 	struct super_block   *super;
+
+	/* */
 };
 
 
@@ -418,7 +419,7 @@ static int update_journal_header (struct commit_handle * ch)
 
 	format_journal_header (ch);
 
-	ret = submit_write(jh, 1, jnode_get_block(jh), 0);
+	ret = submit_write(jh, 1, jnode_get_block(jh), NULL);
 
 	if (ret) return ret;
 
@@ -610,41 +611,14 @@ static int get_overwrite_set (struct commit_handle * ch)
 	return ch->overwrite_set_size;
 }
 
-/* overwrite set nodes IO completion handler */
-static int wander_end_io (struct bio *bio, 
-			  unsigned int bytes_done UNUSED_ARG, 
-			  int err UNUSED_ARG)
-{
-	int i;
-
-	if (bio->bi_size != 0)
-		return 1;
-
-	for (i = 0; i < bio->bi_vcnt; i += 1) {
-		struct page *pg = bio->bi_io_vec[i].bv_page;
-
-		if (! test_bit (BIO_UPTODATE, & bio->bi_flags))
-			SetPageError (pg);
-
-		end_page_writeback (pg);
-		page_cache_release (pg);
-	}
-
-	io_handle_end_io(bio);
-
-	bio_put(bio);
-	return 0;
-}
-
 /** Submit a write request for @nr jnodes beginning from the @first, other
  * jnodes are after the @first on the double-linked "capture" list.  All
  * jnodes will be written to the disk region of @nr blocks starting with
- * @block_p block number.  If @use_io_handle option is set (!= 0) it means
- * that i/o handle object is allocated and it will be used for this i/o
- * request synchronization.*/
+ * @block_p block number.  If @fq is not NULL it means that waiting for i/o
+ * completion will be done more efficiently by using flush_queue_t objects */
 static int submit_write (jnode * first, int nr, 
 			 const reiser4_block_nr * block_p,
-			 int use_io_handle)
+			 flush_queue_t * fq)
 {
 	struct super_block * super = reiser4_get_current_sb();
 	int max_blocks;
@@ -667,7 +641,6 @@ static int submit_write (jnode * first, int nr,
 		struct bio * bio;
 		int nr_blocks = min (nr, max_blocks);
 		int i;
-		int ret;
 
 		bio = bio_alloc(GFP_NOIO, nr_blocks);
 		if (!bio)
@@ -679,7 +652,6 @@ static int submit_write (jnode * first, int nr,
 		bio->bi_bdev   = super->s_bdev;
 		bio->bi_vcnt   = nr_blocks;
 		bio->bi_size   = super->s_blocksize * nr_blocks;
-		bio->bi_end_io = wander_end_io;
 
 		for (i = 0; i < nr_blocks; i++) {
 			struct page * pg;
@@ -708,15 +680,7 @@ static int submit_write (jnode * first, int nr,
 			cur = capture_list_next (cur);
 		}
 
-		if (use_io_handle) {
-			ret = current_atom_add_bio(bio);
-			if (ret) {
-				bio_put(bio);
-				return ret;
-			}
-		} else {
-			bio->bi_private = NULL;
-		}
+		fq_add_bio (fq, bio);
 
 		submit_bio(WRITE, bio);
 
@@ -733,7 +697,7 @@ static int submit_write (jnode * first, int nr,
 /* This is a procedure which recovers a contiguous sequences of disk block
  * numbers in the given list of j-nodes and submits write requests on this
  * per-sequence basis */
-static int submit_batched_write (capture_list_head * head, int use_io_handle)
+static int submit_batched_write (capture_list_head * head, flush_queue_t * fq)
 {
 	int ret;
 	jnode * beg = capture_list_front(head);
@@ -748,7 +712,7 @@ static int submit_batched_write (capture_list_head * head, int use_io_handle)
 			cur = capture_list_next(cur);
 		}
 
-		ret = submit_write(beg, nr, jnode_get_block(beg), use_io_handle);
+		ret = submit_write(beg, nr, jnode_get_block(beg), fq);
 		if (ret) return ret;
 
 		beg = cur;
@@ -759,7 +723,7 @@ static int submit_batched_write (capture_list_head * head, int use_io_handle)
 
 /* allocate given number of nodes over the journal area and link them into a
  * list, return pinter to the first jnode in the list */
-static int alloc_tx (struct commit_handle * ch)
+static int alloc_tx (struct commit_handle * ch, flush_queue_t * fq)
 {
 	reiser4_blocknr_hint  hint;
 
@@ -850,7 +814,7 @@ static int alloc_tx (struct commit_handle * ch)
 		}
 	}
 
-	ret = submit_batched_write(&ch->tx_list, 1);
+	ret = submit_batched_write(&ch->tx_list, fq);
 
 	return ret;
 
@@ -906,7 +870,7 @@ static int add_region_to_wmap (jnode * cur,
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
  * submit IO for allocated blocks.  We assume that current atom is in a stage
  * when any atom fusion is impossible and atom is unlocked and it is safe. */
-int alloc_wandered_blocks (struct commit_handle * ch)
+int alloc_wandered_blocks (struct commit_handle * ch, flush_queue_t * fq)
 {
 	reiser4_block_nr block;
 
@@ -925,15 +889,18 @@ int alloc_wandered_blocks (struct commit_handle * ch)
 		assert ("zam-567", JF_ISSET(cur, JNODE_OVRWR));
 
 		ret = get_more_wandered_blocks (rest, &block, &len); 
-		if (ret) return ret;
+		if (ret)
+			return ret;
 
 		rest -= len;
 
 		ret = add_region_to_wmap(cur, len, &block);
-		if (ret) return ret;
+		if (ret) 
+			return ret;
 
-		ret = submit_write (cur, len, &block, 1);
-		if (ret) return ret;
+		ret = submit_write (cur, len, &block, fq);
+		if (ret)
+			return ret;
 
 		while ((len --) > 0) {
 			assert ("zam-604", !capture_list_end(&ch->overwrite_set, cur));
@@ -994,13 +961,25 @@ int reiser4_write_logs (void)
 	if ((ret = reiser4_grab_space_exact((__u64)(ch.overwrite_set_size + ch.tx_size))))
 		goto up_and_ret;
 
-	if ((ret = alloc_wandered_blocks (&ch)))
-		goto up_and_ret;
+	{
+		flush_queue_t * fq;
 
-	if ((ret = alloc_tx (&ch)))
-		goto up_and_ret;
+		fq = get_fq_for_current_atom ();
 
-	ret = current_atom_wait_on_io();
+		if (IS_ERR (fq)) {
+			ret = PTR_ERR (fq);
+			goto up_and_ret;
+		}
+
+		if ((ret = alloc_wandered_blocks (&ch, fq)) 
+		    || (ret = alloc_tx (&ch, fq))) 
+		{
+			fq_put (fq);
+			goto up_and_ret;
+		}
+	}
+
+	ret = current_atom_finish_all_fq();
 	if (ret) goto up_and_ret;
 
 	trace_on (TRACE_LOG, "overwrite set written to wandered locations\n");
@@ -1014,12 +993,30 @@ int reiser4_write_logs (void)
 
 	post_commit_hook();
 
-	/* force j-nodes write back */
-	if ((ret = submit_batched_write(&ch.overwrite_set, 1)))
-		goto up_and_ret;
+	{
+		/* force j-nodes write back */
 
-	ret = current_atom_wait_on_io();
-	if (ret) goto up_and_ret;
+		flush_queue_t * fq;
+
+		fq = get_fq_for_current_atom ();
+
+		if (IS_ERR(fq)) {
+			ret = PTR_ERR (fq);
+			goto up_and_ret;
+		}
+			
+		ret = submit_batched_write(&ch.overwrite_set, fq);
+
+		fq_put (fq);
+
+		if (ret)
+			goto up_and_ret;
+	}
+
+	ret = current_atom_finish_all_fq();
+
+	if (ret)
+		goto up_and_ret;
 
 
 	trace_on (TRACE_LOG, "overwrite set written in place\n");
@@ -1035,6 +1032,12 @@ int reiser4_write_logs (void)
 	post_write_back_hook();
 
  up_and_ret:
+	if (ret) {
+		/* there could be fq attached to current atom; the only way to
+		 * remove them is: */
+		current_atom_finish_all_fq ();
+	}
+
 	up(&private->tmgr.commit_semaphore);
 
 	/* free blocks of flushed transaction */

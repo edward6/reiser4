@@ -449,6 +449,7 @@ static int fq_end_io (struct bio * bio, unsigned int bytes_done UNUSED_ARG,
 		      int err UNUSED_ARG)
 {
 	int i;
+	int nr_errors = 0;
 	flush_queue_t * fq = bio->bi_private;
 
 	if (bio->bi_size != 0)
@@ -459,7 +460,7 @@ static int fq_end_io (struct bio * bio, unsigned int bytes_done UNUSED_ARG,
 
 		if (! test_bit (BIO_UPTODATE, & bio->bi_flags)) {
 			SetPageError (pg);
-			atomic_inc(&fq->nr_errors);
+			nr_errors ++;
 		}
 
 		{
@@ -476,12 +477,27 @@ static int fq_end_io (struct bio * bio, unsigned int bytes_done UNUSED_ARG,
 		page_cache_release (pg);
 	}
 
+	if (fq) {
+		atomic_add(nr_errors, &fq->nr_errors);
 
-	if (atomic_sub_and_test(bio->bi_vcnt, &fq->nr_submitted))
-		up (&fq->sema);
+		if (atomic_sub_and_test(bio->bi_vcnt, &fq->nr_submitted))
+			up (&fq->sema);
+	}
 
 	bio_put (bio);
 	return 0;
+}
+
+/* Count I/O requests which will be submitted by @bio in given flush queues
+ * @fq */
+void fq_add_bio (flush_queue_t * fq, struct bio * bio)
+{
+	bio->bi_private = fq;
+
+	if (fq) {
+		atomic_add (bio->bi_vcnt, &fq->nr_submitted);
+		bio->bi_end_io  = fq_end_io;
+	}
 }
 
 /* submitting to write prepared list of jnodes */
@@ -501,8 +517,6 @@ static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
 	bio->bi_bdev    = s->s_bdev;
 	bio->bi_vcnt    = nr;
 	bio->bi_size    = s->s_blocksize * nr;
-	bio->bi_end_io  = fq_end_io;
-	bio->bi_private = fq;
 
 	for (nr_processed = 0;
 	     nr_processed < nr;
@@ -532,7 +546,7 @@ static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
 		bio->bi_io_vec[nr_processed].bv_offset = 0;
 	}
 
-	atomic_add (nr, &fq->nr_submitted);
+	fq_add_bio (fq, bio);
 	submit_bio (WRITE, bio);
 
 	return nr;
@@ -702,6 +716,24 @@ int fq_get (txn_atom * atom, flush_queue_t ** new_fq)
 		return -ENOMEM;
 
 	return -EAGAIN;
+}
+
+/* A wrapper around fq_get for getting a flush queue object for current atom */
+flush_queue_t * get_fq_for_current_atom (void)
+{
+	flush_queue_t * fq = NULL;
+	txn_atom * atom;
+	int ret;
+
+	do {
+		atom = get_current_atom_locked ();
+		ret = fq_get (atom, &fq);
+	} while (ret == -EAGAIN);
+	
+	if (ret)
+		return ERR_PTR (ret);
+
+	return fq;
 }
 
 /* Releasing flush queue object after exclusive use */

@@ -176,7 +176,6 @@ struct blocknr_set {
 	blocknr_set_list_head entries;
 };
 
-TS_LIST_DECLARE (io_handles);
 TS_LIST_DECLARE (fq);
 TS_LIST_DECLARE (fq_prepared);
 
@@ -250,9 +249,6 @@ struct txn_atom
 				 * atom's lists and put on flush_queue */
 	/* ZAM-FIXME-HANS unclear: all flush queue objects that flush this atom are on this list  */
 	fq_list_head      flush_queues; 
-
-	/* active i/o requests accounting */
-	io_handles_list_head        io_handles;
 
 	/* number of threads who waits this atom commit completion */
 	int nr_waiters;
@@ -380,41 +376,6 @@ extern int          blocknr_set_iterator   (txn_atom                *atom,
 					    blocknr_set_actor_f     actor,
 					    void                    *data,
 					    int                      delete);
-
-/* reiser4 I/O handle, see io_handle.c for details */
-struct reiser4_io_handle {
-	/* 
-	 * this semaphore is upped when all submitted i/o requests complete */
-	struct semaphore      io_sema;
-	/*
-	 * number of submitted BIOs (struct bio) */
-	atomic_t              nr_submitted;
-	/*
-	 * number of i/o errors */
-	atomic_t              nr_errors;
-	/*
-	 * per-atom list of i/o handles */
-	io_handles_list_link  linkage;
-};
-
-extern void io_handle_end_io (struct bio                *bio);
-
-extern int  atom_add_bio     (txn_atom                  *atom,
-			      struct bio                *bio,
-			      struct reiser4_io_handle **io);
-
-extern int  atom_wait_on_io (txn_atom                  *atom,
-			      int                       *error_count);
-
-extern void atom_fuse_io     (txn_atom                 *to,
-			      txn_atom                 *from);
-
-extern void atom_init_io     (txn_atom                 *atom);
-extern void atom_done_io     (txn_atom                 *atom);
-
-extern int  current_atom_add_bio (struct bio*);
-extern int  current_atom_wait_on_io (void);
-
 /*
  * these are needed to move to PAGE_CACHE_SIZE > blocksize
  */
@@ -512,7 +473,10 @@ extern int  fq_write       (flush_queue_t *, int);
 extern int  finish_all_fq  (txn_atom *, int *);
 extern int  current_atom_finish_all_fq (void);
 extern void fq_init_atom   (txn_atom *);
-extern int  fq_mem_pressure (struct super_block *, jnode *, int);
+extern int  fq_writeback (struct super_block *, jnode *, int);
+
+extern void fq_add_bio     (flush_queue_t *, struct bio *);
+extern flush_queue_t * get_fq_for_current_atom (void);
 
 /* Debugging */
 #if REISER4_DEBUG_OUTPUT
