@@ -968,3 +968,10 @@ reiser4progs/libreiser4/object.lo
 fs.loop
 reiser4progs/libreiser4/.deps/object.Plo
 plugin/.symlink.o.cmd
+reiser4progs/libaal/.libs/libaal-static.al
+reiser4progs/libaal/.libs/libaal-static.la
+reiser4progs/libaal/libaal-static.la
+reiser4progs/libreiser4/.libs/libreiser4-static.al
+reiser4progs/libreiser4/.libs/libreiser4-static.la
+reiser4progs/libreiser4/libreiser4-static.la
+reiser4progs/reiser4progs/libmisc/.deps/misc.Po
