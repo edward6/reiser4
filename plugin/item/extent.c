@@ -1270,7 +1270,8 @@ extent_writepage(coord_t * coord, lock_handle * lh, struct page *page)
 
 	assert("vs-1052", PageLocked(page));
 	assert("vs-1051", page->mapping && page->mapping->host);
-	assert("vs-1054", znode_is_loaded(coord->node));
+	/* FIXME:NIKITA->VS make_extent loads znode itself */
+	/* assert("vs-1054", znode_is_loaded(coord->node)); */
 	assert("vs-864", znode_is_wlocked(coord->node));
 
 	result = try_capture_page(page, ZNODE_WRITE_LOCK, 0);
@@ -1350,7 +1351,7 @@ extent_read(struct inode *inode, coord_t *coord, flow_t * f)
 	if (PagePrivate(page)) {
 		j = jnode_by_page(page);
 		if (j)
-			UNDER_SPIN_VOID(jnode, j, eflush_del(j));
+			UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 	}
 	reiser4_unlock_page(page);
 
@@ -2853,7 +2854,7 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 	page_io(page, j, READ, GFP_NOIO);
 
 	reiser4_lock_page(page);
-	UNDER_SPIN_VOID(jnode, j, eflush_del(j));
+	UNDER_SPIN_VOID(jnode, j, eflush_del(j, 1));
 
 	if (!PageUptodate(page)) {
 		warning("jmacd-61238", "prepare_page: page not up to date");
