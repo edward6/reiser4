@@ -518,7 +518,7 @@ lock_cluster_pages(reiser4_cluster_t * clust)
 {
 	int i;
 	for (i=0; i < clust->nr_pages; i++) {
-		assert("edward-xxx", clust->pages[i] != NULL);
+		assert("edward-217", clust->pages[i] != NULL);
 		reiser4_lock_page((clust->pages[i]));
 	}
 }
