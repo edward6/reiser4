@@ -109,6 +109,7 @@ reiserfs_plugin_t *reiserfs_plugins_load(const char *name) {
     void *handle, *entry;
 #endif
     reiserfs_plugin_t *plugin;
+    reiserfs_plugin_t *(*get_plugin_entry) (void);
     
     aal_assert("umka-156", name != NULL, return NULL);
     
@@ -125,8 +126,9 @@ reiserfs_plugin_t *reiserfs_plugins_load(const char *name) {
 	    "Can't find symbol \"%s\" in plugin %s.", ENTRY, name);
 	goto error_free_handle;
     }
-    
-    plugin = *((reiserfs_plugin_t **)entry);
+   
+    get_plugin_entry = (reiserfs_plugin_t *(*)(void))entry;
+    plugin = get_plugin_entry();
     plugin->h.handle = handle;
 
     plugins = aal_list_append(plugins, plugin);
@@ -146,11 +148,8 @@ void reiserfs_plugins_unload(reiserfs_plugin_t *plugin) {
     aal_assert("umka-158", plugin != NULL, return);
     aal_assert("umka-166", plugins != NULL, return);
 #ifndef ENABLE_COMPACT	
-    if (!plugins)
-	return;
-	
     dlclose(plugin->h.handle);
-#endif	
+#endif
     aal_list_remove(plugins, plugin);
 }
 
