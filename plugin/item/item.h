@@ -33,6 +33,7 @@ typedef enum {
 /* this is the part of each item plugin that all items are expected to
    support or at least explicitly fail to support by setting the
    pointer to null. */
+struct cut_list;
 typedef struct {
 	item_type_id item_type;
 
@@ -155,7 +156,7 @@ typedef struct {
 	   balancing to perform dealloc_block - this will probably
 	   break balancing due to deadlock issues
 	*/
-	int (*kill_hook) (const coord_t * item, unsigned from, unsigned count, void *kill_params);
+	int (*kill_hook) (const coord_t * item, unsigned from, unsigned count);
 	int (*shift_hook) (const coord_t * item, unsigned from, unsigned count, znode * old_node);
 
 	/* unit @*from contains @from_key. unit @*to contains
