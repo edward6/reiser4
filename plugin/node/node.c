@@ -97,7 +97,10 @@ void indent (unsigned indentation)
 /* Audited by: green(2002.06.12) */
 void indent_znode( const znode *node /* current node */ )
 {
-	indent( current_tree -> height - znode_get_level( node ) );
+	if( current_tree -> height < znode_get_level( node ) )
+		indent( 0 );
+	else
+		indent( current_tree -> height - znode_get_level( node ) );
 }
 
 /**
