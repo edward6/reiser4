@@ -292,8 +292,12 @@ struct reiser4_super_info_data {
 
 	/* serialize semaphore */
 	struct semaphore flush_sema;
+
+	/* Diskmap's blocknumber */
+	__u64 diskmap_block;
 #ifdef CONFIG_REISER4_BADBLOCKS
-	__u64 fixmap_block;
+	/* Alternative master superblock offset (in bytes) */
+	unsigned long altsuper;
 #endif
 };
 
