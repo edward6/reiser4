@@ -82,6 +82,9 @@ add_to_sb_grabbed(const struct super_block *super, __u64 count)
 	reiser4_set_grabbed_blocks(super, grabbed_blocks);
 }
 
+/*
+ * Increase the counter of block reserved for flush in super block.
+ */
 static void add_to_sb_flush_reserved (const struct super_block * super, __u64 count)
 {
 	__u64 reserved = reiser4_flush_reserved (super);

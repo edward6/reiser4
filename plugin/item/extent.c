@@ -2757,7 +2757,11 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 		assert("vs-1080", keyeq(&tmp, key));
 	}
 
-	reiser4_grab_space_exact(1, 1);	
+	/* Grab from 100% of disk space, not 95% as usual. */
+	reiser4_grab_space_enable();
+	if (reiser4_grab_space_exact(1, 1))
+		return -ENOSPC;	    
+	
 	grabbed = get_current_context()->grabbed_blocks;
 
 	/* set insert point after unit to be replaced */
