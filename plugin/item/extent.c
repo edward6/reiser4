@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
  */
@@ -3389,22 +3390,16 @@ static int extent_write_flow (struct inode * inode, struct sealed_coord * hint,
  * 1. real write - to write data from flow to a file (@page == 0 && @f->data != 0)
  *
  * 2. expanding truncate (@page == 0 && @f->data == 0)
- *
- * 3. to make extent for page which contains data already. This occurs in
- * tail conversion (@page != 0 && @f->data == 0)
  */
-int extent_write (struct inode * inode, struct sealed_coord * hint, flow_t * f,
-		  struct page * page)
+int extent_write (struct inode * inode, struct sealed_coord * hint, flow_t * f)
 {
 	int result;
 
 
-	if (!page && f->data)
+	if (f->data)
 		/* real write */
-		return extent_write_flow (inode, hint, f);
-
-
-	if (!f->data && !page) {
+		result = extent_write_flow (inode, hint, f);
+	else {
 		/* expanding truncate. add_hole requires f->key to be set to
 		 * new end of file */
 		coord_t coord;
@@ -3421,24 +3416,9 @@ int extent_write (struct inode * inode, struct sealed_coord * hint, flow_t * f,
 		f->length = 0;
 		result = add_hole (&coord, &lh, &f->key);
 		done_lh (&lh);
-		return result;
 	}
 
-	impossible ("vs-1059", "does this still ever happen?");
-	return 0;
-#if 0
-	/* tail2extent is in progress. Page contains data already. Make extent
-	 * for it */
-	assert ("vs-884", page != 0);
-	assert ("vs-963", !f->data);
-	assert ("vs-894", f->length <= PAGE_CACHE_SIZE);
-	result = extent_writepage (hint, page);
-	if (result == 0) {
-		/* everything is ok */
-		f->length = 0;
-	}
 	return result;
-#endif
 }
 
 /*
