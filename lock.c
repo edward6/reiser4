@@ -1,20 +1,29 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
  * reiser4/README */
 
-/* Traditional deadlock avoidance is achieved by acquiring all locks in a single order.  V4 balances the tree from the bottom up, and searches the tree from the top down, and that is really the way we want it, so tradition won't work for us.
+/* Traditional deadlock avoidance is achieved by acquiring all locks in a single
+   order.  V4 balances the tree from the bottom up, and searches the tree from
+   the top down, and that is really the way we want it, so tradition won't work
+   for us.
 
-Instead we have two lock orderings, a high priority lock ordering, and a low priority lock ordering.  Each node in the tree has a lock in its znode.
+   Instead we have two lock orderings, a high priority lock ordering, and a low
+   priority lock ordering.  Each node in the tree has a lock in its znode.
 
-   Suppose we have a set of processes which lock (R/W) tree nodes. Each
-   process has a set (maybe empty) of already locked nodes ("process locked
-   set"). Each process may have a pending lock request to a node locked by
-   another process.  Note: we lock and unlock, but do not transfer locks: it is possible transferring locks instead would save some bus locking....
+   Suppose we have a set of processes which lock (R/W) tree nodes. Each process
+   has a set (maybe empty) of already locked nodes ("process locked set"). Each
+   process may have a pending lock request to a node locked by another process.
+   Note: we lock and unlock, but do not transfer locks: it is possible
+   transferring locks instead would save some bus locking....
 
-   Deadlock occurs when we have a loop constructed from
-   process locked sets and lock request vectors.
+   Deadlock occurs when we have a loop constructed from process locked sets and
+   lock request vectors.
 
 
-   NOTE: The reiser4 "tree" is a tree on disk, but its cached representation in memory is extended with "znodes" with which we connect nodes with their left and right neighbors using sibling pointers stored in the znodes.  When we perform balancing operations we often go from left to right and from right to left.
+   NOTE: The reiser4 "tree" is a tree on disk, but its cached representation in
+   memory is extended with "znodes" with which we connect nodes with their left
+   and right neighbors using sibling pointers stored in the znodes.  When we
+   perform balancing operations we often go from left to right and from right to
+   left.
 
 
    +-P1-+          +-P3-+
