@@ -36,12 +36,6 @@ typedef enum {
  * support or at least explicitly fail to support by setting the
  * pointer to null. */
 typedef struct {
-	/* in reiser4 the key doesn't contain the full item type only several bits of
-	   it. So after doing coord_by_key() we need to check that we really
-	   found what we have looked for, rather than some different item that
-	   has the same minor packing locality. Use "item_plugin_id" to determine
-	   what kind of item you have found.  
-	*/
 	item_type_id item_type;
 
 	/** operations called by balancing 
@@ -54,10 +48,10 @@ typedef struct {
 	/** 
 	 * maximal key that can _possibly_ be occupied by this item
 	 *
-	 *  When node ->lookup() method (called by
-	 *  coord_by_key()) reaches an item after binary search
-	 *  ->max_key_inside() item plugin's method is used to determine
-	 *  if new item should pasted into existing item 
+	 *  When inserting, and node ->lookup() method (called by
+	 *  coord_by_key()) reaches an item after binary search,
+	 *  the  ->max_key_inside() item plugin method is used to determine
+	 *  whether new item should pasted into existing item 
 	 *   (new_key<=max_key_inside()) or new item has to be created
 	 *  (new_key>max_key_inside()).
 	 *
@@ -69,7 +63,7 @@ typedef struct {
 	 */
 	reiser4_key *( *max_key_inside )( const coord_t *coord, 
 					  reiser4_key *area );
-
+/* NIKITA-FIXME-HANS: comment this */
 	/**
 	 * Maximal key that is _really_ occupied by this item currently. This
 	 * cannot be greater than ->max_key_inside.
@@ -116,11 +110,13 @@ typedef struct {
 	/* number of atomic things in an item */
 	unsigned ( *nr_units )( const coord_t *coord );
 	
-	/**
-	 * search for @key in the body of item at @coord. This method is
-	 * responsible for setting ->unit_pos in @coord. If no exact match was
-	 * found, prepare @coord->between for paste, taking @bias into account.
-	 */
+	/* search within item for a unit within the item, and return a
+	   pointer to it.  This can be used to calculate how many
+	   bytes to shrink an item if you use pointer arithmetic and
+	   compare to the start of the item body if the item's data
+	   are continuous in the node, if the item's data are not
+	   continuous in the node, all sorts of other things are maybe
+	   going to break as well. */
 	lookup_result ( *lookup )( const reiser4_key *key, 
 				   lookup_bias bias, coord_t *coord );
 	/** method called by ode_plugin->create_item() to initialise new
@@ -234,7 +230,7 @@ typedef struct {
 
 	/* return true if unit to which coord is set contains @key */
 	int ( *key_in_unit )( const coord_t *coord, const reiser4_key *key );
-
+	/* NIKITA-FIXME-HANS: comment needed */
 	void ( *item_stat )( const coord_t *coord, void * );
 } balance_ops;
 

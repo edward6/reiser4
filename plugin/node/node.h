@@ -80,9 +80,9 @@ pointers in the nodes that they point to.
 /* There is an inherent 3-way tradeoff between optimizing and
    exchanging disks between different architectures and code
    complexity.  This is optimal and simple and inexchangeable.
-   Someone else can do the code for the exchanging disks and make it
+   Someone else can do the code for exchanging disks and make it
    complex. It would not be that hard.  Using other than the PAGE_SIZE
-   might be suboptimal.  y*/
+   might be suboptimal.  */
 
 #if !defined( __REISER4_NODE_H__ )
 #define __REISER4_NODE_H__
@@ -131,10 +131,10 @@ typedef enum {
 #define REISER4_TREE_CHECK_ALL ( REISER4_TREE_CHECK & ~REISER4_NODE_ONLY_INCORE )
 
 /**
-   The responsibility of the node layout is to store and give access
+   The responsibility of the node plugin is to store and give access
    to the sequence of items within the node.  */
 typedef struct node_plugin {
-	/* generic fields */
+	/* generic plugin fields */
 	plugin_header           h;
 
 	/* calculates the amount of space that will be required to store an
@@ -144,7 +144,8 @@ typedef struct node_plugin {
 	size_t        ( *item_overhead )( const znode *node, flow_t *f );
 
 	/**
-	 * returns free space by looking into node content
+	 * returns free space by looking into node (i.e., without using
+	 * znode->free_space).
 	 */
 	size_t           ( *free_space )( znode *node );
 	/** search within the node for the one item which might
@@ -166,17 +167,17 @@ typedef struct node_plugin {
 	/** store item key in @key */
 	reiser4_key * ( *key_at )( const coord_t *coord, reiser4_key *key );
 	/** conservatively estimate whether unit of what size can fit
-	    into node. This estimation have to be performed without
-	    actually looking into node's content (free space is saved in
+	    into node. This estimation should be performed without
+	    actually looking into the node's content (free space is saved in
 	    znode). */
 	size_t  ( *estimate )( znode *node );
 
-	/* performs every consistency check the node layout author could
+	/* performs every consistency check the node plugin author could
 	 * imagine. Optional. */
 	int   ( *check )( const znode *node, __u32 flags, const char **error );
 
 	/*
-	 * Called when node is read into memory and node layout plugin is
+	 * Called when node is read into memory and node plugin is
 	 * already detected. This should read some data into znode (like free
 	 * space counter) and, optionally, check data consistency.
 	 */
