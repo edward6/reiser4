@@ -29,6 +29,8 @@
 #include "plugin.h"
 #include "object.h"
 
+#include <linux/writeback.h>
+
 int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
 int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
 
@@ -40,14 +42,14 @@ inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode
 
 /* plugin->create() method for crypto-compressed files 
 
-  . install plugins
-  . set bits in appropriate masks
-  . attach secret key
-  . attach crypto info 
-  . attach cluster info
+. install plugins
+. set bits in appropriate masks
+. attach secret key
+. attach crypto info 
+. attach cluster info
 
-  FIXME-EDWARD: Cipher and hash key-id by the secret key
-  (open method requires armored identification of the key */
+FIXME-EDWARD: Cipher and hash key-id by the secret key
+(open method requires armored identification of the key */
 
 int create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_create_data * data)
 {
@@ -396,9 +398,9 @@ void get_cluster_magic(__u8 * magic)
 }
 
 /*
-   . decrypt cluster was read from disk
-   . check for cluster magic
-   . decompress
+  . decrypt cluster was read from disk
+  . check for cluster magic
+  . decompress
 */
 int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		    struct inode *inode)
@@ -430,7 +432,7 @@ int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 		return -ENOMEM;
 	nr_fips = clust->len/blksize;
 	expkey = cryptcompress_inode_data(inode)->expkey;
-
+	
 	for (i=0; i < nr_fips; i++)
 		cr_plug->decrypt(expkey, buf + i*blksize, /* dst */
 				 clust->buf + i*blksize /* src */);
@@ -451,15 +453,15 @@ int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	   
 	   data
 	   cluster_magic  (4)   indicates presence of compression
-	                        infrastructure, should be private.
+	   infrastructure, should be private.
 	   aligning_tail        created by ->align() method of crypto-plugin,
-				we don't align non-compressed clusters 
-            
+	   we don't align non-compressed clusters 
+	   
 	   Aligning tail format:			
-
+	   
            data 				
 	   tail_size      (1)   size of aligning tail,
-				1 <= tail_size <= blksize  
+	   1 <= tail_size <= blksize  
 	*/
 	get_cluster_magic(magic);
 	tail_size = *(buf + (clust->len - 1)); 
@@ -481,15 +483,124 @@ int inflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
 	return result;	
 }
 
-/*
-   . compress cluster
-   . append end-of-cluster magic (NOTE-EDWARD: this magic should be private)
-   . align and encrypt result
-*/
-void deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
-		    struct inode *inode)
+/* the two following functions reflect our policy of compression quality */
+static inline int
+try_compress(reiser4_cluster_t * clust, struct inode * inode)
 {
+	return (inode_compression_plugin(inode) && clust->count >= MIN_SIZE_FOR_COMPRESSION);
 }
+
+static inline int
+save_compressed(reiser4_cluster_t * clust, struct inode * inode)
+{
+	return (clust->len +
+		inode_crypto_plugin(inode)->blocksize(inode_crypto_stat(inode)->keysize) +
+		CLUSTER_MAGIC_SIZE < clust->count);
+}
+
+static void
+attach_magic(reiser4_cluster_t * clust, __u8 * buf)
+{
+	__u8 magic[CLUSTER_MAGIC_SIZE];
+	
+	get_cluster_magic(magic);
+	memcpy(buf + clust->len, magic, (size_t)CLUSTER_MAGIC_SIZE);
+	clust->len += (size_t)CLUSTER_MAGIC_SIZE;
+}	
+
+static inline void
+alternate_buffers(reiser4_cluster_t * clust, __u8 * buff)
+{
+	__u8 * tmp;
+	tmp = buff;
+	buff = clust->buf;
+	clust->buf = tmp;
+}
+
+/*
+  Maybe compress cluster, then maybe encrypt result
+  FIXME-EDWARD: the only symmetric algorithms with ecb are supported for a while */
+int
+deflate_cluster(reiser4_cluster_t *clust, /* contains data to process */
+		struct inode *inode)
+{
+	int result = 0;
+	__u8 * wbuf = NULL;
+	__u8 * buff = NULL;
+	
+	assert("edward-401", clust->buf != 0);
+	
+	if (try_compress(clust, inode)) {
+		/* try to compress, discard bad results */
+		compression_plugin * cplug = inode_compression_plugin(inode);
+		
+		buff = reiser4_kmalloc(inode_scaled_cluster_size(inode), GFP_KERNEL);
+		if (buff == NULL)
+			return -ENOMEM;
+		wbuf = reiser4_kmalloc(cplug->mem_req, GFP_KERNEL);
+		if (wbuf == NULL) {
+			result = -ENOMEM;
+			goto exit1;
+		}
+		cplug->compress(wbuf, clust->buf, clust->count, buff /* result */, &clust->len /* result */);
+
+		if (save_compressed(clust, inode)) {
+			/* Accept */
+			attach_magic(clust, buff);
+			goto next;
+		}
+		/* Discard */
+		reiser4_kfree(wbuf, cplug->mem_req);
+	}
+	clust->len = clust->count;
+ next:
+	if (inode_crypto_plugin(inode) != NULL) {
+		/* align and encrypt */
+		int i;
+		int tail_size;
+		int nr_fips;
+		__u32 * expkey;
+		crypto_plugin * cplug = inode_crypto_plugin(inode);
+		size_t cra_bsize = cplug->blocksize(inode_crypto_stat(inode)->keysize);
+		
+		if (buff == NULL || clust->count == clust->len)
+			/* non-compressed */
+			alternate_buffers(clust, buff);
+					
+		if (clust->buf == NULL)
+			clust->buf = reiser4_kmalloc(inode_scaled_cluster_size(inode), GFP_KERNEL);
+		if (clust->buf == NULL)
+			return -ENOMEM;
+		
+		tail_size = cplug->align_cluster(buff + clust->len, clust->len, cra_bsize);
+		clust->len += tail_size;
+		
+		assert("edward-402", clust->len <= inode_cluster_size(inode));
+		
+		*(buff + clust->len - 1) = tail_size;
+		nr_fips = clust->len/cra_bsize;
+		
+		if(clust->len % cra_bsize == 0)
+			assert("edward-403", 0);
+		
+		expkey = cryptcompress_inode_data(inode)->expkey;
+		
+		assert("edward-404", expkey != NULL);
+		
+		for (i=0; i < nr_fips; i++)
+			cplug->encrypt(expkey, clust->buf /* dst */ + i*cra_bsize, buff /* src */ + i*cra_bsize);
+	}
+	else if (buff != NULL && clust->len != clust->count)
+		/* compressed, non-encrypted */
+		alternate_buffers(clust, buff);
+	/* non-compressed, non-encrypted */
+ exit1:
+	if (buff != NULL) 
+		reiser4_kfree(buff, inode_scaled_cluster_size(inode));
+	
+	return result;
+}
+
 /* plugin->read() :
  * generic_file_read()   
  * All key offsets don't make sense in traditional unix semantics unless they
@@ -508,7 +619,7 @@ readpage_cryptcompress(void *vp, struct page *page)
 	
 	assert("edward-88", PageLocked(page));
 	assert("edward-89", page->mapping && page->mapping->host);
-
+	
 	file = vp;
 	assert("edward-113", page->mapping == file->f_dentry->d_inode->i_mapping);
 	
@@ -522,7 +633,7 @@ readpage_cryptcompress(void *vp, struct page *page)
 	iplug = item_plugin_by_id(CTAIL_ID);
 	if (!iplug->s.file.readpage)
 		return -EINVAL;
-
+	
 	result = iplug->s.file.readpage(&clust, page);
 	
 	assert("edward-64", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
@@ -549,20 +660,20 @@ set_cluster_pages_dirty(reiser4_cluster_t * clust)
 {
 	int i;
 	struct page * pg;
-
+	
 	for (i=0; i < clust->nr_pages; i++) {
-
+		
 		pg = clust->pages[i];
-
+		
 		reiser4_lock_page(pg);
-
+		
 		set_page_dirty_internal(pg);
 		SetPageUptodate(pg);
 		if (!PageReferenced(pg))
 			SetPageReferenced(pg);	
-
+		
 		reiser4_unlock_page(pg);
-
+		
 		page_cache_release(pg);
 	}
 }
@@ -704,6 +815,14 @@ update_cluster(struct inode * inode, reiser4_cluster_t * clust, loff_t file_off,
 	clust->delta = 0;
 }
 
+
+static inline size_t
+sizeof_tmp_buffer (struct inode * inode)
+{
+	return (inode_crypto_plugin(inode) ? inode_scaled_cluster_size(inode) :
+		inode_cluster_size(inode));
+}
+
 /* stick pages into united flow, then release the ones */
 int
 flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
@@ -716,10 +835,9 @@ flush_cluster_pages(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-238", clust->off == 0);
 	assert("edward-239", clust->count == 0);	
 	assert("edward-240", clust->delta == 0);
-	
-	down(&inode->i_sem);
-	
 	assert("edward-241", schedulable());
+
+	clust->count = inode_cluster_size(inode);
 	clust->nr_pages = inode_cluster_pages(inode);
 	if (inode->i_size < (clust->index + clust->nr_pages) << PAGE_CACHE_SHIFT) {
 		clust->count = (unsigned)(inode->i_size & inode_cluster_size(inode));
@@ -797,6 +915,7 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 			return result;
 		}
 		make_cluster_jnodes_dirty(clust);
+		balance_dirty_pages_ratelimited(inode->i_mapping);
 	}
  update:
 	update_cluster(inode, clust, file_off, to_file);
@@ -1085,6 +1204,16 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		clust.stat = DATA_CLUSTER;
 		file_off += clust.count;
 		move_flow_forward(&f, clust.count);
+
+		result = update_inode_and_sd_if_necessary(inode,
+							  get_key_offset(&f.key),
+							  (get_key_offset(&f.key) > inode->i_size) ? 1 : 0,
+							  1/* update stat data */);
+		if (result)
+			goto exit1;
+		
+		balance_dirty_pages_ratelimited(inode->i_mapping);
+		
 		clust.count = min_count(inode_cluster_size(inode) - clust.off, f.length);
 		continue;
 	exit2:
@@ -1143,7 +1272,7 @@ write_cryptcompress(struct file * file, /* file to write to */
 		    const char *buf, /* address of user-space buffer */
 		    size_t count, /* number of bytes to write */
 		    loff_t * off /* position to write which */)
-		{
+{
 	ssize_t result;
 	struct inode *inode;
 	
@@ -1228,12 +1357,12 @@ setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 }
 
 /*
-   Local variables:
-   c-indentation-style: "K&R"
-   mode-name: "LC"
-   c-basic-offset: 8
-   tab-width: 8
-   fill-column: 120
-   scroll-step: 1
-   End:
+  Local variables:
+  c-indentation-style: "K&R"
+  mode-name: "LC"
+  c-basic-offset: 8
+  tab-width: 8
+  fill-column: 120
+  scroll-step: 1
+  End:
 */
