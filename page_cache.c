@@ -596,7 +596,8 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 	jnode *node;
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 
-	assert ("jmacd-77908", get_current_context()->parent == NULL);
+	assert ("jmacd-77908", 
+		get_current_context()->parent == get_current_context());
 
 	assert( "vs-828", PageLocked( page ) );
 	unlock_page( page );
