@@ -88,8 +88,8 @@ struct reiserfs_dir_plugin {
     reiserfs_plugin_header_t h;
 
     reiserfs_opaque_t *(*create) (void);
-    reiserfs_opaque_t *(*init) (void);
-    void (*fini) (reiserfs_opaque_t *);
+    reiserfs_opaque_t *(*open) (void);
+    void (*close) (reiserfs_opaque_t *);
 };
 
 typedef struct reiserfs_dir_plugin reiserfs_dir_plugin_t;
@@ -105,14 +105,15 @@ struct reiserfs_item_ops {
     void (*print) (void *, char *, uint16_t);
     
     /* 
-	Unit-working routines. I'm sorry Vitaly, these names 
-	are more better on my own.
+	Unit-working routines. 	We need to create special opaque 
+	type for item_info and unit_info. But for awhile it will 
+	be void *.
 
-	We need to create special opaque type for item_info and 
-	unit_info. But for awhile it will be void *
+	Vitaly: No, we should not. I wrote about it already in 
+	filesystem.h. 
     */
     int (*unit_add) (void *, int32_t, void *);
-    uint16_t (*unit_count) (void *);
+    uint16_t (*units_count) (void *);
     int (*unit_remove) (void *, int32_t, int32_t);
     
     void (*estimate) (void *, void *);
@@ -159,7 +160,7 @@ typedef struct reiserfs_item_plugin reiserfs_item_plugin_t;
 
 /*
     Node plugin operates on passed block. It doesn't any 
-    initialization, so it hasn't fini method and all its
+    initialization, so it hasn't close method and all its
     methods accepts first argument aal_block_t, not initialized
     previously hypothetic instance of node.
 */
@@ -172,6 +173,13 @@ struct reiserfs_node_plugin {
     */
     error_t (*create) (aal_block_t *, uint8_t);
 
+    /* 
+	Perform some needed operations to the futher fast work 
+	with the node. Useful for compressed nodes, etc.
+     */
+    error_t (*open) (reiserfs_opaque_t *);
+    error_t (*close) (reiserfs_opaque_t *);
+    
     /*
 	Confirms that given block contains valid node of
 	requested format.
@@ -191,9 +199,6 @@ struct reiserfs_node_plugin {
     /*
 	This is optional method. That means that there could be 
 	node formats which do not keep level.
-
-	FIXME-UMKA: At the moment this is not optional methods.
-	This is because balancing is based on node level idiom.
     */
     uint8_t (*get_level) (aal_block_t *);
     void (*set_level) (aal_block_t *, uint8_t);
@@ -233,10 +238,9 @@ struct reiserfs_node_plugin {
     
     /* Compare two keys */
     int (*key_cmp) (const void *, const void *);
-    
+	
     /* Gets key by pos */
     void *(*key_at) (aal_block_t *, int32_t);
-    
 };
 
 typedef struct reiserfs_node_plugin reiserfs_node_plugin_t;
@@ -274,7 +278,7 @@ struct reiserfs_format_plugin {
 	It reads format-specific super block and initializes
 	plugins suitable for this format.
     */
-    reiserfs_opaque_t *(*init) (aal_device_t *, aal_device_t *);
+    reiserfs_opaque_t *(*open) (aal_device_t *, aal_device_t *);
     
     /* 
 	Called during filesystem creating. It forms format-specific
@@ -308,7 +312,7 @@ struct reiserfs_format_plugin {
 	Closes opened or created previously filesystem. Frees
 	all assosiated memory.
     */
-    void (*fini) (reiserfs_opaque_t *);
+    void (*close) (reiserfs_opaque_t *);
     
     /*
 	Returns format string for this format. For example
@@ -357,8 +361,8 @@ typedef struct reiserfs_format_plugin reiserfs_format_plugin_t;
 struct reiserfs_oid_plugin {
     reiserfs_plugin_header_t h;
 
-    reiserfs_opaque_t *(*init) (oid_t, oid_t);
-    void (*fini) (reiserfs_opaque_t *);
+    reiserfs_opaque_t *(*open) (oid_t, oid_t);
+    void (*close) (reiserfs_opaque_t *);
     
     oid_t (*alloc) (reiserfs_opaque_t *);
     void (*dealloc) (reiserfs_opaque_t *, oid_t);
@@ -377,9 +381,9 @@ typedef struct reiserfs_oid_plugin reiserfs_oid_plugin_t;
 struct reiserfs_alloc_plugin {
     reiserfs_plugin_header_t h;
     
-    reiserfs_opaque_t *(*init) (aal_device_t *, count_t);
+    reiserfs_opaque_t *(*open) (aal_device_t *, count_t);
     reiserfs_opaque_t *(*create) (aal_device_t *, count_t);
-    void (*fini) (reiserfs_opaque_t *);
+    void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
 
     void (*mark) (reiserfs_opaque_t *, blk_t);
@@ -396,9 +400,9 @@ typedef struct reiserfs_alloc_plugin reiserfs_alloc_plugin_t;
 struct reiserfs_journal_plugin {
     reiserfs_plugin_header_t h;
     
-    reiserfs_opaque_t *(*init) (aal_device_t *);
+    reiserfs_opaque_t *(*open) (aal_device_t *);
     reiserfs_opaque_t *(*create) (aal_device_t *, reiserfs_params_opaque_t *params);
-    void (*fini) (reiserfs_opaque_t *);
+    void (*close) (reiserfs_opaque_t *);
     error_t (*sync) (reiserfs_opaque_t *);
     error_t (*replay) (reiserfs_opaque_t *);
 };
