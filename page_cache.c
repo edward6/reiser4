@@ -472,7 +472,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 	/* Perform a writeback as a memory-freeing operation. */
 	.vm_writeback   = formatted_fake_pressure_handler,
 	/* Set a page dirty */
-	.set_page_dirty = NULL,
+	.set_page_dirty = __set_page_dirty_nobuffers,
 	/* used for read-ahead. Not applicable */
 	.readpages      = V( never_ever_readpages ),
 	.prepare_write  = V( never_ever_prepare_write ),

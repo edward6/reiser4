@@ -655,6 +655,7 @@ extern struct inode *iget_locked(struct super_block *sb, unsigned long ino);
 #define I_DIRTY    0x1
 #define I_NEW      0x2
 #define I_LOCK     0x4
+#define I_DIRTY_PAGES 0x8
 void mark_inode_dirty (struct inode * inode);
 
 /* [cut from include/linux/fs.h]
@@ -1318,6 +1319,8 @@ static inline void init_rwsem( struct rw_semaphore *rwsem )
 {
 	sema_init( &rwsem -> sem, 1 );
 }
+
+int __set_page_dirty_nobuffers(struct page *page);
 
 /* __REISER4_ULEVEL_H__ */
 #endif
