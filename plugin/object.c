@@ -362,28 +362,6 @@ update_sd_at(struct inode * inode, coord_t * coord, reiser4_key * key,
 	return result;
 }
 
-#define SEAL_VALIDATE \
-{\
-	PROF_BEGIN(seal_validate);\
-	if (seal_is_set(&seal)) {\
-		/* first, try to use seal */\
-		build_sd_key(inode, &key);\
-		result = seal_validate(&seal,\
-				       &coord,\
-				       &key,\
-				       LEAF_LEVEL,\
-				       &lh,\
-				       FIND_EXACT,\
-				       ZNODE_WRITE_LOCK,\
-				       ZNODE_LOCK_LOPRI);\
-		if (result == 0)\
-			check_sd_coord(&coord, &key);\
-	} else\
-		result = -E_REPEAT;\
-	PROF_END(seal_validate);\
-}
-
-
 /* Update existing stat-data in a tree. Called with inode state locked. Return
    inode state locked. */
 static int
