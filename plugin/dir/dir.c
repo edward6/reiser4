@@ -368,9 +368,8 @@ common_create_child(struct inode *parent /* parent object */ ,
 	assert("nikita-1420", data != NULL);
 	par_dir = inode_dir_plugin(parent);
 	/* check permissions */
-	if (perm_chk(parent, create, parent, dentry, data)) {
+	if (perm_chk(parent, create, parent, dentry, data))
 		return -EPERM;
-	}
 
 	/* check, that name is acceptable for parent */
 	if (par_dir->is_name_acceptable &&
@@ -439,7 +438,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT, "comon_create_child"))
 		return -ENOSPC;
-	
+
 	/* mark inode `immutable'. We disable changes to the file being
 	   created until valid directory entry for it is inserted. Otherwise,
 	   if file were expanded and insertion of directory entry fails, we
@@ -850,6 +849,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 						continue;
 					}
 				}
+				break;
 			}
 		}
 	} else {
