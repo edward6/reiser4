@@ -38,7 +38,7 @@ void inode_clr_flag( struct inode *inode, reiser4_file_plugin_flags f )
 	clear_bit( ( int ) f, &reiser4_inode_data( inode ) -> flags );
 }
 
-int inode_get_flag( struct inode *inode, reiser4_file_plugin_flags f )
+int inode_get_flag( const struct inode *inode, reiser4_file_plugin_flags f )
 {
 	assert( "nikita-2251", inode != NULL );
 	return test_bit( ( int ) f, &reiser4_inode_data( inode ) -> flags );

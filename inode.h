@@ -140,7 +140,7 @@ extern void print_inode( const char *prefix, const struct inode *i );
 
 extern void inode_set_flag( struct inode *inode, reiser4_file_plugin_flags f );
 extern void inode_clr_flag( struct inode *inode, reiser4_file_plugin_flags f );
-extern int  inode_get_flag( struct inode *inode, reiser4_file_plugin_flags f );
+extern int  inode_get_flag( const struct inode *inode, reiser4_file_plugin_flags f );
 
 extern file_plugin *inode_file_plugin( const struct inode *inode );
 extern dir_plugin  *inode_dir_plugin ( const struct inode *inode );
