@@ -13,7 +13,7 @@
 
 #include <misc/misc.h>
 
-int reiserfs_bin_search (
+int reiserfs_misc_bin_search (
     void * find_it,                 /* element to be found */
     int64_t * ppos,                 /* return position */
     uint32_t count,                 /* count of elements to look through */
@@ -66,7 +66,7 @@ int reiserfs_bin_search (
     return 0;
 }
 
-int reiserfs_comp_keys (void *key1, void *key2) {
+int reiserfs_misc_comp_keys(void *key1, void *key2) {
     return -1;
 }
 
