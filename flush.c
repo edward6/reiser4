@@ -504,12 +504,7 @@ struct flush_position {
 						* indicates how many nodes the VM asked to flush. */
 	int                   alloc_cnt;       /* The number of nodes allocated during squeeze and allococate. */
 	int                   prep_or_free_cnt;/* The number of nodes prepared for write (allocate) or squeezed and freed. */
-	capture_list_head     queue;           /* The flush queue holds allocated but not-yet-submitted jnodes that are
-						* actually written when flush_empty_queue() is called. */
- 	int                   queue_num;       /* The current number of queue entries. */
-
-	flushers_list_link    flushers_link;   /* A list link of all flush_positions active for an atom. */
-	txn_atom             *atom;            /* The current atom of this flush_position--maintained during atom fusion. */
+	flush_queue_t         *fq;
 };
 
 /* The flushers list maintains a per-atom list of active flush_positions.  This is because
@@ -518,7 +513,6 @@ struct flush_position {
  * is finally written to disk, it is returned to the atom's clean list.  Remember that
  * atoms can fuse during flush--the flushers lists are fused and each flush_position and
  * every jnode in the flush queues are updated to reflect the new combined atom. */
-TS_LIST_DEFINE(flushers, struct flush_position, flushers_link);
 
 /* Flush-scan helper functions. */
 static void          flush_scan_init              (flush_scan *scan);
@@ -561,8 +555,6 @@ static int           flush_reverse_relocate_end_of_twig        (flush_position *
 /* Flush allocate write-queueing functions: */
 static int           flush_allocate_znode         (znode *node, coord_t *parent_coord, flush_position *pos);
 static int           flush_allocate_znode_update  (znode *node, coord_t *parent_coord, flush_position *pos);
-static int           flush_rewrite_jnode          (jnode *node);
-static int           flush_queue_jnode            (jnode *node, flush_position *pos);
 static int           flush_empty_queue            (flush_position *pos);
 
 /* Flush helper functions: */
@@ -571,7 +563,7 @@ static int           znode_get_utmost_if_dirty    (znode *node, lock_handle *rig
 static int           znode_same_parents           (znode *a, znode *b);
 
 /* Flush position functions */
-static int           flush_pos_init               (flush_position *pos, long *nr_to_flush);
+static int           flush_pos_init               (flush_position *pos, long*, flush_queue_t*);
 static int           flush_pos_valid              (flush_position *pos);
 static void          flush_pos_done               (flush_position *pos);
 static int           flush_pos_stop               (flush_position *pos);
@@ -717,6 +709,9 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
 	flush_scan right_scan;
 	flush_scan left_scan;
 
+	txn_atom * atom;
+	flush_queue_t * fq = NULL;
+
 	assert ("jmacd-76619", lock_stack_isclean (get_current_lock_stack ()));
 
 	/* Flush-concurrency debug code */
@@ -724,7 +719,36 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
 		  trace_on (TRACE_FLUSH, "flush enter: pid %ul %u concurrent procs\n", current_pid, atomic_read (& flush_cnt));
 		  trace_if (TRACE_FLUSH, if (atomic_read (& flush_cnt) > 1) { info ("flush concurrency\n"); }););
 
-	spin_lock_jnode (node);
+
+	/* The following code gets an fq attached to the atom and takes spin
+	 * locks on both atom and jnode */
+	while(1) {
+		spin_lock_jnode (node);
+		atom = atom_get_locked_by_jnode (node);
+		spin_unlock_jnode (node);
+
+		if (atom == NULL)
+			goto clean_out;
+
+		ret = fq_get (atom, &fq);
+
+		if (ret) {
+			if (ret == -EAGAIN)
+				continue;
+			goto clean_out;
+		}
+			
+		spin_lock_jnode (node);
+
+		if (node->atom == atom)
+			break;	/* we got it all */
+
+		fq_put (fq);
+		fq = NULL;
+
+		spin_unlock_jnode (node);
+		spin_unlock_atom (atom);
+	} 
 
 	/* A special case for znode-above-root.  The above-root (fake) znode is captured
 	 * and dirtied when the tree height changes or when the root node is relocated.
@@ -736,8 +760,11 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
 	if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
 		/* Just pass dirty znode-above-root to overwrite set. */
 		jnode_set_wander(node);
+		jnode_set_clean_nolock(node);
+
 		spin_unlock_jnode(node);
-		jnode_set_clean(node);
+		spin_unlock_atom (atom);
+
 		trace_on (TRACE_FLUSH, "flush aboveroot %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 		goto clean_out;
 	}
@@ -757,6 +784,7 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
 			(*nr_to_flush) = 0;
 		}
 		spin_unlock_jnode (node);
+		spin_unlock_atom (atom); 
 		trace_on (TRACE_FLUSH, "flush nothing %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 		goto clean_out;
 	}
@@ -770,25 +798,32 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
 	if (jnode_is_flushprepped (node)) {
 
 		trace_on (TRACE_FLUSH, "flush rewrite %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
-		ret = flush_rewrite_jnode (node);
+		if (WRITE_LOG && JF_ISSET (node, JNODE_OVRWR)) {
+			jnode_set_clean_nolock (node);
 
-		assert ("jmacd-97755", spin_jnode_is_not_locked (node));
-
+		} else {
+			/* put it back into flush queue */
+			fq_queue_node (fq, node);
+		}
 		if (nr_to_flush != NULL) {
 			(*nr_to_flush) = 1;
 		}
 
+		spin_unlock_jnode (node);
+		spin_unlock_atom (atom);
+ 
 		goto clean_out;
 	}
 
 	spin_unlock_jnode (node);
+	spin_unlock_atom (atom);
 
 	trace_on (TRACE_FLUSH, "flush squalloc %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 
 	/* Initialize a flush position.  Currently this cannot fail but if any memory
 	 * allocation, locks, etc. were needed then this would be the place to fail before
 	 * flush really gets going. */
-	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
+	if ((ret = flush_pos_init (& flush_pos, nr_to_flush, fq))) {
 		goto clean_out;
 	}
 
@@ -973,6 +1008,8 @@ int jnode_flush (jnode *node, long *nr_to_flush, int flags UNUSED_ARG)
  clean_out:
 
 	ON_DEBUG (atomic_dec (& flush_cnt));
+
+	fq_put (fq);
 
 	return ret;
 }
@@ -1400,7 +1437,7 @@ static int flush_forward_squalloc (flush_position *pos)
 		 * allocate_extent_item_in_place call will try to allocate everything.  If
 		 * the disk is fragmented and we are low on memory, this may be a bad
 		 * idea.  Perhaps extent allocation should be aware of this... */
-		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, pos/*, pos->point*/))) {
+		if ((ret = allocate_extent_item_in_place (& pos->parent_coord, pos))) {
 			goto exit;
 		}
 
@@ -2364,16 +2401,27 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	check_preceder (pos->preceder.blk);
 	pos->alloc_cnt += 1;
 
-	spin_lock_znode (node);
+	{
+		txn_atom * atom;
 
-	assert ("jmacd-4277", ! blocknr_is_fake (& pos->preceder.blk));
-	/*assert ("jmacd-4278", ! ZF_ISSET (node, JNODE_FLUSH_BUSY));*/
+		assert ("jmacd-4277", ! blocknr_is_fake (& pos->preceder.blk));
+		/*assert ("jmacd-4278", ! ZF_ISSET (node, JNODE_FLUSH_BUSY));*/
 
-	/*ZF_SET (node, JNODE_FLUSH_BUSY);*/
-	trace_on (TRACE_FLUSH, "alloc: %s\n", flush_znode_tostring (node));
+		/*ZF_SET (node, JNODE_FLUSH_BUSY);*/
+		trace_on (TRACE_FLUSH, "alloc: %s\n", flush_znode_tostring (node));
 
-	/* Queue it now, releases lock. */
-	return flush_queue_jnode (ZJNODE (node), pos);
+		spin_lock_znode (node);
+		atom = atom_get_locked_by_jnode (ZJNODE(node));
+
+		if (atom) {
+			fq_queue_node (pos->fq, ZJNODE(node));
+			spin_unlock_atom (atom);
+		}
+
+		spin_unlock_znode (node);
+
+		return 0;
+	}
 }
 
 /* A subroutine of flush_allocate_znode, this is called first to see if there is a close
@@ -2437,131 +2485,25 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 	return ret;
 }
 
-/* Enter a jnode into the flush queue. */
-static int flush_queue_jnode (jnode *node, flush_position *pos)
-{
-	assert ("jmacd-65551", spin_jnode_is_locked (node));
-
-	/* FIXME(D): See atomicity comment in flush_rewrite_jnode. */
-	if (! jnode_is_dirty (node) || JF_ISSET (node, JNODE_HEARD_BANSHEE) || JF_ISSET (node, JNODE_FLUSH_QUEUED)) {
-		spin_unlock_jnode (node);
-		return 0;
-	}
-
-	JF_SET (node, JNODE_FLUSH_QUEUED);
-
-	// assert ("zam-670", PageDirty(jnode_page(node)));
-	assert ("jmacd-1771", jnode_is_flushprepped (node));
-
-	{
-		txn_atom * atom;
-
-		atom = atom_get_locked_by_jnode (node);
-		assert ("zam-661", atom != NULL);
-
-		/* flush_pos is added to the atom->flushers list the first time a jnode is queued. */
-		if (capture_list_empty(&pos->queue)) {
-			flushers_list_push_back (&atom->flushers, pos);
-			assert ("zam-664", pos->queue_num == 0);
-		}
-
-		pos->queue_num ++;
-		atom->num_queued ++;
-
-		capture_list_remove (node);
-		capture_list_push_back(&pos->queue, jref (node));
-
-		spin_unlock_atom (atom);
-	}
-
-	/*trace_if (TRACE_FLUSH, if (jnode_is_unformatted (node)) { info ("queue: %s\n", flush_jnode_tostring (node)); });*/
-
-	spin_unlock_jnode (node);
-
-	return 0;
-}
-
-/* Take jnode from flush queue and put it on clean_nodes list, called during
- * flush_empty_queue. */
-static void flush_dequeue_jnode (flush_position * pos, jnode * node)
-{
-	txn_atom * atom;
-
-	spin_lock_jnode (node);
-	atom = atom_get_locked_by_jnode (node);
-
-	assert ("zam-645", JF_ISSET (node, JNODE_FLUSH_QUEUED));
-
-	JF_CLR (node, JNODE_FLUSH_QUEUED);
-	JF_CLR (node, JNODE_DIRTY);
-
-	capture_list_remove (node);
-	capture_list_push_back (&atom->clean_nodes, node);
-
-	pos->queue_num --;
-	atom->num_queued --;
-
-	if (capture_list_empty (&pos->queue)) {
-		flushers_list_remove (pos);
-		assert ("zam-663", pos->queue_num == 0);
-	}
-
-	spin_unlock_atom (atom);
-	spin_unlock_jnode (node);
-
-	jput (node);
-}
-
 /* This is called by the extent code for each jnode after allocation has been performed.
  * Contrast with thef flush_allocate_znode() routine, which does znode allocation and then
  * calls flush_queue_jnode, the unformatted allocation is handled by the extent plugin and
  * simply queued by this function. */
 int flush_enqueue_unformatted (jnode *node, flush_position *pos)
 {
+	txn_atom * atom;
 	/* flush_queue_jnode expects the jnode to be locked. */
 	spin_lock_jnode (node);
-	return flush_queue_jnode (node, pos);
-}
 
-/* This is an I/O completion callback which is called after the result of a submit_bio has
- * completed.  Its task is to notify any waiters that are waiting, either for an
- * individual page or an atom (via the io_handle) which may be waiting to commit. */
-static int flush_bio_write (struct bio *bio, 
-			    unsigned int bytes_done UNUSED_ARG, 
-			    int err UNUSED_ARG)
-{
-	int i;
+	atom = atom_get_locked_by_jnode (node);
 
-	if (bio->bi_size != 0)
-		return 1;
-	if (bio->bi_vcnt == 0) {
-		warning ("nikita-2243", "Empty write bio completed.");
-		return 0;
-	}
-	/* Note, we may put assertion here that this is in fact our sb and so
-	   on */
-	if (0 && REISER4_TRACE) {
-		info ("flush_bio_write completion for %u blocks: BIO %p\n",
-		      bio->bi_vcnt, bio);
+	if (atom) {
+		fq_queue_node (pos->fq, node);
+		spin_unlock_atom (atom);
 	}
 
-	for (i = 0; i < bio->bi_vcnt; i += 1) {
-		struct page *pg = bio->bi_io_vec[i].bv_page;
+	spin_unlock_jnode (node);
 
-		if (0 && REISER4_TRACE) {
-			print_page ("flush_bio_write", pg);
-		}
-
-		if (! test_bit (BIO_UPTODATE, & bio->bi_flags)) {
-			SetPageError (pg);
-		}
-
-		end_page_writeback (pg);
-	}
-
-	io_handle_end_io (bio);
-
-	bio_put (bio);
 	return 0;
 }
 
@@ -2569,268 +2511,7 @@ static int flush_bio_write (struct bio *bio,
  */
 static int flush_empty_queue (flush_position *pos)
 {
-	int flushed = 0; /* Track number of jnodes we've flushed already */
-	int ret = 0;
-
-	jnode * node;
-
-	trace_on (TRACE_FLUSH, "flush_empty_queue with %u queued\n", pos->queue_num);
-
-	if (pos->queue_num == 0) {
-		return 0;
-	}
-
-	/* We can safely traverse this flush queue without locking of atom and nodes
-	 * because only this thread can add nodes to it and all already queued nodes are
-	 * protected from moving out by JNODE_FLUSH_QUEUED bit */
-	node = capture_list_front (&pos->queue);
-	while (!capture_list_end (&pos->queue, node)) {
-		jnode * check = node;
-		struct page *cpage;
-
-		assert ("jmacd-71235", check != NULL);
-		assert ("jmacd-71236", JF_ISSET (check, JNODE_FLUSH_QUEUED));
-
-		node = capture_list_next (node);
-
-		/* FIXME(D): See the atomicity comment in flush_rewrite_jnode. */
-		if (! jnode_check_dirty (check) || JF_ISSET (check, JNODE_HEARD_BANSHEE)) {
-			flush_dequeue_jnode (pos, check);
-			trace_on (TRACE_FLUSH, "flush_empty_queue not dirty %s\n", flush_jnode_tostring (check));
-			continue;
-		}
-
-		assert ("jmacd-71236", jnode_check_flushprepped (check));
-
-		/* Increase number of flushed jnodes */
-		flushed ++;
-
-		/* FIXME(E): JMACD->ZAM: I think that WANDER nodes should never be put in the
-		 * queue at all, they should simply be ignored by jnode_flush_queue or
-		 * something similar.  Then we don't need this special case here or below
-		 * (See the NOTE*** mark below). */
-		if (WRITE_LOG && JF_ISSET (check, JNODE_OVRWR)) {
-			/* Log-writer expects these to be on the clean list.  They cannot
-			 * leave memory and will remain captured. */
-			flush_dequeue_jnode (pos, check);
-
-			trace_on (TRACE_FLUSH, "flush_empty_queue skips wandered %s\n", flush_jnode_tostring (check));
-			continue;
-		}
-
-		ret = jload (check);
-		if (ret != 0) {
-			warning ("nikita-2423", "Failure to load jnode: %i", ret);
-			info_jnode ("jnode", check);
-			break;
-		}
-		/* Lock the first page, test writeback. */
-		cpage = jnode_lock_page (check);
-		spin_unlock_jnode (check);
-		assert ("jmacd-78199", cpage != NULL);
-
-		/* ZAM writes: This situation should be impossible with new flush queue
-		 * implementation */
-		assert ("jmacd-89162", ! PageWriteback (cpage));
-
-		if (1) {
-
-			/* Find consecutive nodes. */
-			struct bio *bio;
-			/*jnode *prev = check;*/
-			int nr, i;
-			struct super_block *super;
-			int blksz;
-			int max_j;
-
-			super = cpage->mapping->host->i_sb;
-			assert( "jmacd-2029", super != NULL );
-
-			/* FIXME: Should eliminate these #if lines, fix ulevel to support
-			 * the operations: */
-#if REISER4_USER_LEVEL_SIMULATION
-			max_j = pos->queue_num;
-#else
- 			max_j = min (pos->queue_num, (bdev_get_queue (super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9)));
-#endif
-
-			for (nr = 1;
-			     /* true */;
-			     ++ nr, node = capture_list_next (node))
-			{
-				struct page *npage;
-
-				if (capture_list_end(&pos->queue, node) || nr >= max_j)
-					break;
-
-				npage = jnode_lock_page (node);
-				spin_unlock_jnode (node);
-
-				if ((WRITE_LOG && JF_ISSET (node, JNODE_OVRWR)) /* NOTE*** Wandered blocks should not enter the queue.  See the note above */ ||
-				    /*JF_ISSET (node, JNODE_FLUSH_BUSY) ||*/
-				    (*jnode_get_block (node) != *jnode_get_block (check) + nr) ||
-				    !npage || PageWriteback (npage)) {
-					if (npage)
-						unlock_page (npage);
-					break;
-				}
-
-			}
-
-			/* FIXME: JMACD->NIKITA: Is this GFP flag right? */
-			if ((bio = bio_alloc (GFP_NOIO, nr)) == NULL) {
-				/* FIXME(F): EEEEK, Pages are all locked right now.  Help! */
-				ret = -ENOMEM;
-				warning ("jmacd-987123", "Self destruct");
-				break;
-			}
-
-			blksz = super->s_blocksize;
-			assert( "jmacd-2028", blksz == ( int ) PAGE_CACHE_SIZE );
-
-			bio->bi_sector = *jnode_get_block (check) * (blksz >> 9);
-			bio->bi_bdev   = super->s_bdev;
-			bio->bi_end_io = flush_bio_write;
-
-			trace_on (TRACE_FLUSH_VERB, "flush_empty_queue writes");
-
-			for (node = check, i = 0; i < nr; i++) {
-				struct page *pg;
-				jnode * tmp = node;
-
-				node = capture_list_next (node);
-
-				trace_on (TRACE_FLUSH_VERB, " %s", flush_jnode_tostring (tmp));
-
-				ret = jload (tmp);
-				if (ret != 0) {
-					warning ("nikita-2430", "Failure to load jnode: %i", ret);
-					info_jnode ("jnode", tmp);
-					continue;
-				}
-
-				pg = jnode_page (tmp);
-				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
-
-				assert ("jmacd-74233", !PageWriteback (pg));
-				SetPageWriteback (pg);
-				set_page_clean_nolock(pg);
-
-				unlock_page (pg);
-
-				/* Prepare node to being written by calling the io_hook.
-				 * This checks, among other things, that there are no
-				 * unallocated children of this node.
-				 */
-				/* FIXME(G): JMACD->?: The io_hook is temporarily disabled
-				 * until we actually solve the unallocated-children issue.
-				 * Until then, it is possible that we will write nodes
-				 * with unallocated children, it just means those nodes
-				 * will be dirtied again when the children are
-				 * allocated. */
-				/*jnode_ops (tmp)->io_hook (tmp, pg, WRITE);*/
-
-				bio->bi_io_vec[i].bv_page   = pg;
-				bio->bi_io_vec[i].bv_len    = blksz;
-				bio->bi_io_vec[i].bv_offset = 0;
-
-				flush_dequeue_jnode(pos, tmp);
-				jrelse (tmp);
-			}
-
-			bio->bi_vcnt = nr;
-			bio->bi_size   = blksz * nr;
-
-			pos->prep_or_free_cnt += nr;
-
-			trace_on (TRACE_FLUSH_VERB, "\n");
-			trace_on (TRACE_FLUSH, "flush_empty_queue %u consecutive blocks: BIO %p\n", nr, bio);
-
-			{
-				reiser4_block_nr block = *jnode_get_block (check) + nr - 1;
-				reiser4_update_last_written_location (super, &block);
-			}
-
-			ret = current_atom_add_bio(bio);
-
-			if (ret) {
-				bio_put (bio);
-				/* FIXME: we should unlock pages before quit */
-				return ret;
-			}
-
-			ON_DEBUG_CONTEXT( assert( "nikita-2585", lock_counters() -> spin_locked == 0 ) );
-			submit_bio (WRITE, bio);
-		}
-		jrelse (check);
-	}
-
-	blk_run_queues ();
-	trace_if (TRACE_FLUSH, if (ret == 0) { info ("flush_empty_queue wrote %u\n", pos->queue_num); });
-
-	return ret;
-}
-
-/* This writes a single page when it is flushed after an earlier allocation within the
- * same txn. */
-static int flush_rewrite_jnode (jnode *node)
-{
-	struct page *pg;
-	int ret;
-
-	/* FIXME(D): Have to be absolutely sure that HEARD_BANSHEE isn't set when we write,
-	 * otherwise if the page was a fresh allocation the dealloc of that block might
-	 * have been non-deferred, and then we could trash otherwise-allocated data? */
-	assert ("jmacd-53312", spin_jnode_is_locked (node));
-	assert ("jmacd-53313", jnode_is_dirty (node));
-	assert ("jmacd-53314", ! JF_ISSET (node, JNODE_HEARD_BANSHEE));
-	assert ("jmacd-53315", ! JF_ISSET (node, JNODE_FLUSH_QUEUED));
-	assert ("jmacd-53316", jnode_is_flushprepped (node));
-
-	/* If this node is being wandered, just set it clean and return. */
-	if ((WRITE_LOG && JF_ISSET (node, JNODE_OVRWR))) {
-		spin_unlock_jnode (node);
-		jnode_set_clean (node);
-		return 0;
-	}
-
-	/* FIXME: JMACD->NIKITA: This spinlock does very little.  Why?  Races are
-	 * everywhere and I'm confused.  What do you think? */
-	spin_unlock_jnode (node);
-
- repeat:
-	pg = jnode_lock_page (node);
-	spin_unlock_jnode (node);
-	if (pg == NULL) {
-		return 0;
-	}
-
-	if (PageWriteback (pg)) {
-		/* FIXME-ZAM: There is no simple alternative other than wait
-		 * on i/o. We cannot just to put this jnode into atom's clean
-		 * list because we this jnode page contains modified data
-		 * which have to be re-submitted to disk. We cannot put this
-		 * jnode back to atom dirty list because jnode_flush() will
-		 * spin trying to move this jnode from dirty list. The
-		 * solution might be in adding special per-atom list for
-		 * jnodes which have an i/o in progress. However, it looks
-		 * like a duplication of page cache structures. */
-		unlock_page (pg);
-		wait_on_page_writeback (pg);
-
-		goto repeat;
-	}
-
-	jnode_set_clean (node);
-
-	/* NOTE: this page can be not dirty due to mpage.c:mpage_writepages
-	 * strange behavior which is in cleaning page right before calling
-	 * reiser4 hook (reiser4_writepage) */
-	// assert ("jmacd-76515", PageDirty (pg));
-
-	ret = write_one_page (pg, 0 /* no wait */);
-
-	return ret;
+	return fq_write (pos->fq, 0);
 }
 
 /********************************************************************************
@@ -3655,12 +3336,8 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
  ********************************************************************************/
 
 /* Initialize the fields of a flush_position. */
-static int flush_pos_init (flush_position *pos, long *nr_to_flush)
+static int flush_pos_init (flush_position *pos, int *nr_to_flush, flush_queue_t * fq)
 {
-	capture_list_init (&pos->queue);
-	flushers_list_clean (pos);
-
-	pos->queue_num = 0;
 	pos->point = NULL;
 	pos->leaf_relocate = 0;
 	pos->alloc_cnt = 0;
@@ -3674,6 +3351,8 @@ static int flush_pos_init (flush_position *pos, long *nr_to_flush)
 	init_lh (& pos->parent_lock);
 	init_load_count (& pos->parent_load);
 	init_load_count (& pos->point_load);
+
+	pos->fq = fq;
 
 	return 0;
 }
@@ -3697,44 +3376,9 @@ static int flush_pos_valid (flush_position *pos)
 	return pos->point != NULL || lock_mode (& pos->parent_lock) != ZNODE_NO_LOCK;
 }
 
-/* return one jnode back to atom's lists */
-static void invalidate_queued_jnode (struct flush_position * pos, jnode * node)
-{
-	txn_atom * atom;
-
-	spin_lock_jnode (node);
-	atom = atom_get_locked_by_jnode (node);
-
-	/*JF_CLR (cur, JNODE_FLUSH_BUSY);*/
-	JF_CLR (node, JNODE_FLUSH_QUEUED);
-
-	pos->queue_num --;
-	atom->num_queued --;
-
-	if (jnode_is_dirty(node)) capture_list_push_back (&atom->dirty_nodes[jnode_get_level(node)], node);
-	else                      capture_list_push_back (&atom->clean_nodes, node);
-
-	spin_unlock_jnode (node);
-
-	if (capture_list_empty(&pos->queue))
-		flushers_list_remove(pos);
-
-	spin_unlock_atom (atom);
-}
-
-/* Return jnode back to atom's lists */
-static void invalidate_flush_queue (struct flush_position * pos)
-{
-	while(!capture_list_empty(&pos->queue)) {
-		jnode * cur = capture_list_pop_front (&pos->queue);
-		invalidate_queued_jnode (pos, cur);
-	}
-}
-
 /* Release any resources of a flush_position.  Called when jnode_flush finishes. */
 static void flush_pos_done (flush_position *pos)
 {
-	invalidate_flush_queue (pos);
 	flush_pos_stop (pos);
 	blocknr_hint_done (& pos->preceder);
 }
@@ -3917,38 +3561,6 @@ reiser4_blocknr_hint* flush_pos_hint (flush_position *pos)
 int flush_pos_leaf_relocate (flush_position *pos)
 {
 	return pos->leaf_relocate;
-}
-
-/* During atom fusion, splice together the list of current flush positions. */
-void flush_fuse_queues (txn_atom *large, txn_atom *small)
-{
-	flush_position *pos;
-
-	assert ("zam-659", spin_atom_is_locked (large));
-	assert ("zam-660", spin_atom_is_locked (small));
-
-	for (pos = flushers_list_front (&small->flushers);
-	     /**/! flushers_list_end   (&small->flushers, pos);
-	     pos = flushers_list_next (pos)) {
-		jnode * scan;
-
-		pos->atom = large;
-
-		for (scan = capture_list_front (&pos->queue);
-		     /**/ ! capture_list_end   (&pos->queue, scan);
-		     scan = capture_list_next (scan)) {
-			UNDER_SPIN_VOID (jnode, scan, scan->atom = large);
-		}
-	}
-
-	flushers_list_splice (&large->flushers, & small->flushers);
-	large->num_queued += small->num_queued;
-	small->num_queued = 0;
-}
-
-void flush_init_atom (txn_atom * atom)
-{
-	flushers_list_init (& atom->flushers);
 }
 
 static flush_params *flush_get_params( void )
