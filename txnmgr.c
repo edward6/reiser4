@@ -2760,6 +2760,9 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	small->nr_objects_deleted = 0;
 	small->nr_objects_created = 0;
 
+	/* Merge blocks reserved for overwrite set. */
+	large->flushed_reserved += small->flushed_reserved;
+	    
 	/* Notify any waiters--small needs to unload its wait lists.  Waiters actually remove
 	 * themselves from the list before returning from the fuse_wait function. */
 	wakeup_atom_waitfor_list(small);
