@@ -106,7 +106,7 @@ typedef struct streg                /* for compile time level information */
 	                            /* struct nameidata * curent_nd; */
 } streg;
 
-
+/*
 typedef struct StrTab
 {
 	wrdtab * Str_next;
@@ -114,7 +114,7 @@ typedef struct StrTab
 	int      StrTabLast;
 	strreg   StrTabName[STRTABSIZE];
 } StrTab;
-
+*/
 
 freeList(freeSpace * list)
 {
@@ -129,25 +129,6 @@ freeList(freeSpace * list)
 }
 
 
-
-/*
-#define freeList(space,pref) free##pref##List(space->pref)
-
-*/
-
-
-
-freefreeSpaceList(Strtab * list)
-{
-	freeSpace * current,* next;
-	next = list;
-	while (next)
-		{
-			current= next;
-			next = current->freeSpace_next;
-			kfree(current);
-		}
-}
 
 
 struct msglist
@@ -202,7 +183,10 @@ struct yy_r4_work_spaces
 	streg     * StrTabHead;
 
 	wrdTab    * WrdHead;
-
+	
+	lnode     * current_path;
+	
+	lnode * root_lnode;
 
 	/*	int       * Gencode;*/
 };
@@ -230,8 +214,6 @@ static struct
 	Code[] =
 {
 };
-
-
 
 
 
@@ -288,6 +270,85 @@ TS_LIST_DEFINE( r4_pars, p_VarTab, links );
  *        item = r4_pars_list_next  (item))
  *     {...}
  * */
+
+
+
+struct tree_struct
+{
+	union tree_node *chain;
+	union tree_node *type;
+};
+
+
+struct tree_string
+{
+	char common[sizeof (struct tree_stuct)];
+	int  length;
+	char *pointer;
+};
+
+
+struct tree_identifier
+{
+	char common[sizeof (struct tree_stuct)];
+	
+	int length;
+	char *pointer;
+};
+
+struct tree_var
+{
+	char common[sizeof (struct tree_stuct)];
+	union tree_node *purpose;
+	union tree_node *value;
+};
+
+
+
+
+
+struct tree_list
+{
+  char common[sizeof (struct tree_stuct)];
+  union tree_node *purpose;
+  union tree_node *value;
+};
+
+struct tree_vec
+{
+  char common[sizeof (struct tree_stuct)];
+  int length;
+l   union tree_node *a[1];
+};
+
+
+
+
+struct tree_type
+{
+  char common[sizeof (struct tree_stuct)];
+
+	union tree_node (* construct)( union tree_node *, union tree_node *  );
+	union tree_node (* de_struct)(union tree_node *);
+
+};
+
+union tree_node
+{
+  struct tree_stuct common;
+
+  struct tree_string string;
+
+  struct tree_identifier identifier;
+
+  struct tree_type type;
+
+  struct tree_list list;
+  struct tree_vec vec;
+  struct tree_exp exp;
+
+ };
+
 
 
 static struct
