@@ -298,6 +298,11 @@ typedef enum {
 	TRACE_REPLAY      =     (1 << 20),     /* 0x00100000 */
 
 	/*
+	 * trace space allocation
+	 */
+	TRACE_ALLOC       =     (1 << 21),     /* 0x00200000 */
+
+	/*
 	 * vague section: used to trace bugs. Use it to issue optional prints
 	 * at arbitrary points of code.
 	 */
