@@ -1,0 +1,118 @@
+
+                           LOCKS IN REISER4
+
+Reiser4 introduces following locks:
+
+1.  Per-super-block tree spin lock                              (tree_lock*)
+
+2.  Per-super-block delimiting key spin lock                    (dk_lock*)
+
+3.  Per-jnode spin lock                                         (jnode_lock*)
+
+4.  Per-znode lock with deadlock detection                      (longterm_lock)
+
+5.  Per-reiser4-inode spin lock                                 (inode_guard*+)
+
+6.  Per-atom spin lock                                          (atom_lock*)
+
+7.  Per-transaction-handle spin lock                            (txnh_lock*)
+
+8.  Per-transaction-manager spin lock                           (txnmgr_lock*)
+
+9.  Per-lock-stack spin-lock                                    (stack_lock*+)
+
+10. Per-inode read-write lock                                   (inode_rw_lock)
+
+11. Per-super-block spin lock                                   (super_guard+)
+
+12. Per-flushing-thread spin lock                               (ktxnmgrd_lock)
+
+13. Per-super-block lnode hash table lock                       (lnode_guard+)
+
+14. Per-super-block cbk cache spin lock                         (cbk_guard)
+
+15. Per-jnode spin lock used by debugging code to access and 
+    modify check sum                                            (cksum_guard+)
+
+16. Per-super-block oid map spin lock                           (oid_guard+)
+
+17. Per-super-block spin lock used by "test" disk format plugin to serialize
+    block allocation                                            (test_lock+)
+
+18. per-condition-variable spin lock                            (kcond_lock+)
+
+19. single spin lock used to serialize fake block allocation    (fake_lock+)
+
+20. single spin lock used to serialize calls to reiser4_panic   (panic_guard+)
+
+21. single spin lock used by debugging code to keep track of all active
+    reiser4_context instances                                   (contexts_lock+)
+
+22. Various locks used by the user level simulator
+
+Locks marked by (*) after label, are accessed through spin lock macros,
+defined in reiser4.h. For them, locking ordering is checked at runtime (at
+least in the principle) when REISER4_DEBUG is on(e).
+
+Locks marked by (+) after label exist only for serializing concurrent access
+to the shared data and are not supposed to be used in conjunction with any
+other locks. They are omitted from locking ordering below to simplify the
+picture.
+
+Also, following kernel locks are used by our code:
+
+1. Per-page lock                                                (page_lock)
+
+2. Per-inode semaphore                                          (i_sem)
+
+                                LOCK ORDERING
+
+Lock ordering from kernel locks is taken from mm/filemap.c. Locks can be taken
+from the left to the right. Locks on the same indentation level are unordered
+with respect to each other. Any spinlock is righter than any long term lock,
+obviously.
+
+i_sem
+..inode_rw_lock
+....page_lock
+......longterm_lock
+........ktxnmgrd_lock
+..........txnmgr_lock
+............atom_lock
+..............jnode_lock
+................txnh_lock
+..................dk_lock
+....................tree_lock
+......................cbk_guard
+........->i_shared_lock		          [vmtruncate]
+..........->private_lock		      [__free_pte->__set_page_dirty_buffers]
+............->swap_list_lock
+..............->swap_device_lock	  [exclusive_swap_page,.others]
+................->mapping->page_lock
+............inode_lock		          [__mark_inode_dirty]
+..............->sb_lock		          [fs/fs-writeback.c]
+        ^
+        +-- spin locks are starting here. Don't schedule rightward.
+
+Nice and clear picture with all reiser4 locks totally ordered, right?
+
+Unfortunately, it is not always possible to adhere to this ordering. When it
+is necessary to take locks "decreasing" order, standard trylock-and-repeat
+loop is employed. See:
+
+   atom_get_locked_with_txnh_locked(),
+   atom_get_locked_by_jnode(),
+   atom_free(), and
+   jnode_lock_page()
+
+functions for examples of this.
+
+2002.09.19. Nikita.
+
+
+^ Local variables:
+^ mode-name: "Memo"
+^ indent-tabs-mode: nil
+^ tab-width: 4
+^ eval: (progn (flyspell-mode) (flyspell-buffer))
+^ End:
