@@ -107,9 +107,14 @@ struct reiser4_super_info_data {
 	__u64     blocks_grabbed;
 
 	/**
-	 * number of unallocated blocks in tree.
+	 * number of fake allocated unformatted blocks in tree.
 	 */
-	__u64     blocks_unallocated;
+	__u64     blocks_fake_allocated_unformatted;
+
+	/**
+	 * number of fake allocated formatted blocks in tree.
+	 */
+	__u64     blocks_fake_allocated;
 
 	/**
 	 * current inode generation.
@@ -245,8 +250,10 @@ extern void reiser4_dec_free_committed_blocks( const struct super_block *super )
 
 extern __u64 reiser4_grabbed_blocks        ( const struct super_block* );
 extern void  reiser4_set_grabbed_blocks    ( const struct super_block*, __u64 nr );
-extern __u64 reiser4_unallocated_blocks    ( const struct super_block* );
-extern void  reiser4_set_unallocated_blocks( const struct super_block*, __u64 nr );
+extern __u64 reiser4_fake_allocated        ( const struct super_block* );
+extern void  reiser4_set_fake_allocated    ( const struct super_block*, __u64 nr );
+extern __u64 reiser4_fake_allocated_unformatted ( const struct super_block* );
+extern void  reiser4_set_fake_allocated_unformatted( const struct super_block*, __u64 nr );
 
 extern long reiser4_reserved_blocks( const struct super_block *super, 
 				     uid_t uid, gid_t gid );

@@ -36,7 +36,7 @@ znode *new_node( znode *brother /* existing left neighbor of new node */,
 	/* AUDIT: In this point passed "level" should be checked for validness */
 	assert( "umka-264", level < REAL_MAX_ZTREE_HEIGHT );
 
-	retcode = assign_fake_blocknr( &blocknr );
+	retcode = assign_fake_blocknr( &blocknr, 1/*formatted*/ );
 	if( retcode == 0 ) {
 		result = zget( current_tree, &blocknr, NULL, level, GFP_KERNEL );
 		if( IS_ERR( result ) ) {
