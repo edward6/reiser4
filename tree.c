@@ -1664,7 +1664,7 @@ void print_inode( const char *prefix /* prefix to print */,
 	      i -> i_mode, ( unsigned long long ) i -> i_size );
 	info( "\tuid: %i, gid: %i, dev: %i, rdev: %i\n", 
 	      i -> i_uid, i -> i_gid, 
-	      kdev_t_to_nr( i -> i_dev ), kdev_t_to_nr( i -> i_rdev ) );
+	      i -> i_dev, kdev_t_to_nr( i -> i_rdev ) );
 	info( "\tatime: %li, mtime: %li, ctime: %li\n",
 	      i -> i_atime, i -> i_mtime, i -> i_ctime );
 	info( "\tblkbits: %i, blksize: %lu, blocks: %lu\n",
