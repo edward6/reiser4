@@ -634,6 +634,7 @@ jput(jnode * node)
 	assert("jmacd-509", node != NULL);
 	assert("jmacd-510", atomic_read(&node->x_count) > 0);
 	assert("nikita-3065", spin_jnode_is_not_locked(node));
+	assert("zam-926", schedulable());
 	ON_DEBUG_CONTEXT(--lock_counters()->x_refs);
 
 	if (atomic_dec_and_lock(&node->x_count, &node->guard.lock)) {
