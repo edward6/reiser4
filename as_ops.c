@@ -595,6 +595,22 @@ reiser4_internal int reiser4_start_up_io(struct page *page)
 	return 0;
 }
 
+static int reiser4_writepages_nofile (
+	struct address_space * mapping, struct writeback_control * wbc)
+{
+	mapping->dirtied_when = jiffies|1;
+	spin_lock(&inode_lock);
+	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
+	spin_unlock(&inode_lock);
+	return 0;
+}
+
+static int reiser4_writepage_nofile (
+	struct page * page, struct writeback_control * wbc)
+{
+	return 0;
+}
+
 /*
  * reiser4 methods for VM
  */
@@ -636,6 +652,10 @@ struct address_space_operations reiser4_as_operations = {
 	.direct_IO = NULL
 };
 
+struct address_space_operations reiser4_as_ops_nofile = {
+	.writepages = reiser4_writepages_nofile,
+	.writepage  = reiser4_writepage_nofile
+}; 
 
 /* Make Linus happy.
    Local variables:

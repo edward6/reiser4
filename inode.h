@@ -334,6 +334,8 @@ extern int setup_inode_ops(struct inode *inode, reiser4_object_create_data *);
 extern struct inode *reiser4_iget(struct super_block *super, const reiser4_key * key, int silent);
 extern void reiser4_iget_complete (struct inode * inode);
 extern int reiser4_inode_find_actor(struct inode *inode, void *opaque);
+extern int get_reiser4_inode_by_key (struct inode **, const reiser4_key *);
+
 
 extern void inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f);
 extern void inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);

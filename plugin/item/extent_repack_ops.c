@@ -18,35 +18,9 @@
 static int get_reiser4_inode_by_tap (struct inode ** result, tap_t * tap)
 {
 	reiser4_key ext_key;
-	struct super_block * super = reiser4_get_current_sb();
-	struct inode * inode;
 
 	unit_key_by_coord(tap->coord, &ext_key);
-
-	/* We do not need to read reiser4 inode from disk and initialize all
-	 * reiser4 inode fields. */
-	inode = iget_locked(super, (unsigned long)get_key_objectid(&ext_key));
-	if (inode == NULL)
-		return -ENOMEM;
-	if (is_bad_inode(inode)) {
-		iput(inode);
-		return -EIO;
-	}
-
-	if (inode->i_state & I_NEW) {
-		reiser4_inode * inode_data = reiser4_inode_data(inode);
-
-		/* These inode fields are required for tree traversal. */
-		set_inode_oid(inode, get_key_objectid(&ext_key));
-		inode_data->locality_id = get_key_locality(&ext_key);
-#if REISER4_LARGE_KEY
-		inode_data->ordering = get_key_ordering(&ext_key);
-#endif
-		unlock_new_inode(inode);
-	}
-
-	*result = inode;
-	return 0;
+	return get_reiser4_inode_by_key(result, &ext_key);
 }
 
 static jnode * get_jnode_by_mapping (struct inode * inode, long index)

@@ -32,6 +32,7 @@ extern struct inode_operations reiser4_special_inode_operations;
 extern struct super_operations reiser4_super_operations;
 extern struct export_operations reiser4_export_operations;
 extern struct address_space_operations reiser4_as_operations;
+extern struct address_space_operations reiser4_as_ops_nofile;
 extern struct dentry_operations reiser4_dentry_operations;
 
 /* this function is internally called by jnode_make_dirty() */

@@ -641,6 +641,41 @@ inode_clean_vroot(struct inode *inode)
 	UNLOCK_INODE(info);
 }
 
+reiser4_internal int
+get_reiser4_inode_by_key (struct inode ** result, const reiser4_key * key)
+{
+	struct super_block * super = reiser4_get_current_sb();
+	struct inode * inode;
+
+	/* We do not need to read reiser4 inode from disk and initialize all
+	 * reiser4 inode fields. */
+	inode = iget_locked(super, (unsigned long)get_key_objectid(key));
+	if (inode == NULL)
+		return -ENOMEM;
+	if (is_bad_inode(inode)) {
+		iput(inode);
+		return -EIO;
+	}
+
+	if (inode->i_state & I_NEW) {
+		reiser4_inode * inode_data = reiser4_inode_data(inode);
+
+		/* These inode fields are required for tree traversal. */
+		set_inode_oid(inode, get_key_objectid(key));
+		inode_data->locality_id = get_key_locality(key);
+#if REISER4_LARGE_KEY
+		inode_data->ordering = get_key_ordering(key);
+#endif
+
+		inode->i_mapping->a_ops = &reiser4_as_ops_nofile;
+		unlock_new_inode(inode);
+	}
+
+	*result = inode;
+	return 0;
+}
+
+
 #if REISER4_DEBUG_OUTPUT
 /* Debugging aid: print information about inode. */
 reiser4_internal void
