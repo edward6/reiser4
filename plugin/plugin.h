@@ -38,6 +38,7 @@
 #include <linux/buffer_head.h>	/* for struct buffer_head */
 #include <linux/dcache.h>	/* for struct dentry */
 #include <linux/types.h>
+#include <linux/crypto.h>
 
 /* a flow is a sequence of bytes being written to or read from the tree.  The
    tree will slice the flow into items while storing it into nodes, but all of
@@ -396,10 +397,10 @@ typedef struct hash_plugin {
 typedef struct crypto_plugin {
 	/* generic fields */
 	plugin_header h;
+	int (*alloc) (struct inode * inode);
+	void (*free) (struct inode * inode);  
 	/* number of cpu expkey words */
 	unsigned nr_keywords;
-	/* minimal input blocksize accepted by the crypto algorithm */
-	size_t (*blocksize)(__u16 keysize);
 	/* Offset translator. For each offset this returns (k * offset), where
 	   k (k >= 1) is a coefficient of expansion of the crypto algorithm.
 	   For all symmetric algorithms k == 1. For asymmetric algorithms (which
@@ -413,7 +414,7 @@ typedef struct crypto_plugin {
 	   special format specific to the crypto algorithm */
 	int (*align_cluster)(__u8 *tail, int clust_size, int blocksize);
 	/* low-level key manager (check, install, etc..) */
-	int (*set_key) (__u32 *expkey, const __u8 *key);
+	int (*setkey) (struct crypto_tfm *tfm, const __u8 *key, unsigned int keylen);
 	/* main text processing procedures */
 	void (*encrypt) (__u32 *expkey, __u8 *dst, const __u8 *src);
 	void (*decrypt) (__u32 *expkey, __u8 *dst, const __u8 *src);
@@ -422,28 +423,17 @@ typedef struct crypto_plugin {
 typedef struct digest_plugin {
 	/* generic fields */
 	plugin_header h;
-	/* input blocksize */
-	unsigned int blksize;
-	/* digestsize */
-	unsigned int digestsize;
-	/* alloc context */
-	int (*alloc)(void *ctx);
-	/* free context */
-	void (*free)(void *ctx);
-	/* main procedures */
-	void (*init)(void *ctx);
-	void (*update)(void *ctx,           /* context specific to particular
-					     * type of digest algorithm */
-		       const __u8 *data,    /* input data  */
-		       unsigned int len     /* input data size */);
-	void (*final)(void *ctx, __u8 *out  /* destination digest */);
+	/* digest size */
+	int dsize; 
+	int (*alloc) (struct inode * inode);
+	void (*free) (struct inode * inode);
 } digest_plugin;
 
 typedef struct compression_plugin {
 	/* generic fields */
 	plugin_header h;
-	/* working memory size, bytes */
-	unsigned mem_req;
+	int (*alloc) (struct inode * inode);
+	void (*free) (struct inode * inode);
 	/* the maximum number of bytes the size of the "compressed" data can
 	 * exceed the uncompressed data. */
 	unsigned overrun;	
@@ -670,6 +660,7 @@ typedef enum {
 
 typedef enum {
 	NONE_COMPRESSION_ID,
+	GZIP_COMPRESSION_ID,
 	LAST_COMPRESSION_ID
 } reiser4_compression_id;
 
@@ -693,8 +684,11 @@ typedef struct crypto_data {
 } crypto_data_t;
 
 /* compression/clustering specific data */
-typedef reiser4_compression_id compression_data_t; /* id of the compression algorithm */
-typedef __u8 cluster_data_t;       /* cluster info */
+typedef struct compression_data {
+	reiser4_compression_id coa; /* id of the compression algorithm */	
+} compression_data_t; 
+
+typedef __u8 cluster_data_t;        /* cluster info */
 
 /* data type used to pack parameters that we pass to vfs
     object creation function create_object() */
