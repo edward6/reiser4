@@ -36,10 +36,10 @@
 
 _INIT_(mount_flags_check)
 {
-	if (bdev_read_only(s->s_bdev) || (s->s_flags & MS_RDONLY)) {
+/*	if (bdev_read_only(s->s_bdev) || (s->s_flags & MS_RDONLY)) {
 		warning("nikita-3322", "Readonly reiser4 is not yet supported");
 		return RETERR(-EROFS);
-	}
+	}*/
 	return 0;
 }
 
