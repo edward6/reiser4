@@ -916,7 +916,8 @@ allocator code, oid allocator code will be skiped.</p>
 <p>Filesystem API will be containing all public functions.</p>
 
 <p>There are general functions:<br>
-reiserfs_fs_open, reiserfs_fs_close, reiserfs_fs_resize, reiserfs_fs_copy, etc.</p>
+reiserfs_fs_open, reiserfs_fs_close, reiserfs_fs_resize, reiserfs_fs_copy, reiserfs_fs_check, 
+etc.</p>
 
 <p>And some utilities:<br>
 reiserfs_fs_format, reiserfs_fs_uuid, reiserfs_fs_lable,
@@ -1026,12 +1027,11 @@ plugin.</p>
 following properties: journal  will  be  transaction-based
 and journal can be opened and closed.</p>
 
-<p>Initialization will include reading the journal header,
-checking it for validness. Possibly it will build  journal
-cache,  or  something  else.  The  journal  behavior fully
-depends on the journal plugin. Then  journal  plugin  will
-prepare initialized journal instance and will returns it to
-caller.</p>
+<p>Opening (initialization) will include reading the journal header,
+checking it for validness. Possibly it will build journal
+cache, or something else. The journal behavior fully depends on 
+the journal plugin. Then journal plugin  will prepare initialized 
+journal instance and will returns it to caller.</p>
 
 <p>Journal plugin interface will depends on common journal 
 parameters for every journal format. As reiser4 will support 
@@ -1039,10 +1039,6 @@ old journal format, journal plugin must export interface to
 obtain such parameters: start, length, max_trans_size, etc. 
 Also interface must let to do something with the journal 
 (tuning, resizing, etc).</p>
-
-<p>Besides, libreiserfs code must know where journal is
-placed. Especially standard journal in reiser3. Journal
-plugin  must  have an journal-internals independent interface.</p>
 
 <pre>
 typedef void reiserfs_opaque_t;
@@ -1057,10 +1053,16 @@ struct reiserfs_journal_plug {
 	int (*alterable) (reiserfs_opaque_t *);
 
 	/* Journal routines which are specific for reiser3 journal format */
-	int (*resize) (reiserfs_opaque_t *, blk_t, blk_t);
-	void (*boundaries) (reiserfs_opaque_t *, blk_t *, blk_t *);
-
-	/* Calls for obtaining and modifying journal parameters */
+	void (*switch) (dal_t *dal);
+	
+	blk_t (*get_start) (reisrefs_opaque_t *);
+	void (*set_start) (reiserfs_opaque_t *, blk_t start);
+	
+	blk_t (*get_len) (reisrefs_opaque_t *);
+	void (*set_len) (reiserfs_opaque_t *, blk_t len);
+	
+	blk_t (*get_max_trans) (reisrefs_opaque_t *);
+	void (*set_max_trans) (reiserfs_opaque_t *, blk_t max_trans);
 };
 </pre>
 
@@ -1087,11 +1089,25 @@ and returns initialized journal instance.</p>
 
 <p>Returns "bool" value that means whether journal can be resized, tuned or not.</p>
 
-<b>void (*boundaries) (reiserfs_opaque_t *, blk_t *, blk_t *)</b>
+<b>void (*switch) (dal_t *dal)</b>
 
-<p>Returns journal boundaries for journal in reiser3. As journal in reiser4 will
-has not exactly defined boundaries, this function will do nothing or will be
-uninitialized.</p>
+<p>Switch journal in reiser3 onto specified device.</p>
+
+<b>blk_t (*get_start) (reisrefs_opaque_t *)<br>
+void (*set_start) (reiserfs_opaque_t *, blk_t start)</b>
+
+<p>Gets/sets journal start for reiser3 journal format.</p>
+
+<b>blk_t (*get_len) (reisrefs_opaque_t *)<br>
+void (*set_len) (reiserfs_opaque_t *, blk_t len)</b>
+
+<p>Gets/sets journal length for reiser3 journal format. "set_len" and "set_start" 
+routines will be using for journal resizing in reiser3.</p>
+	
+<b>blk_t (*get_max_trans) (reisrefs_opaque_t *)</b>
+<b>void (*set_max_trans) (reiserfs_opaque_t *, blk_t max_trans)</b>
+
+<p>Gets/sets "max_trans_size" value for reiser3 journal.</p>
 
 <p>Journal API will be a set of wrapper functions for journal plugin. 
 There following: reiserfs_journal_create, reiserfs_journal_open,
@@ -1158,7 +1174,7 @@ error_free_journal_instance:
 error:
 	return NULL;
 }
-		 
+
 void reiserfs_journal_close(reiserfs_journal_t *journal) {
 	ASSERT(journal != NULL, return);
 
@@ -1597,6 +1613,11 @@ loaded plugin in the cache.</p>
 <p>In the finalization time, plugin factory will release all plugins.</p>
 
 <h3>Builtin plugins.</h3>
+<table width=70%><tr><td align=justify>
+<p>Not implemented yet!</p>
+</td></tr></table>
+
+<h3>Common source branch for user-space and kernel-space purposes.</h3>
 <table width=70%><tr><td align=justify>
 <p>Not implemented yet!</p>
 </td></tr></table>
