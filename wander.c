@@ -1087,7 +1087,7 @@ reiser4_write_logs(void)
 	post_write_back_hook();
 
 	reiser4_stat_inc(txnmgr.post_commit_writes);
-	reiser4_stat_add(txnmgr.time_spent_in_commits, commit_start_time - jiffies);
+	reiser4_stat_add(txnmgr.time_spent_in_commits, jiffies - commit_start_time);
 
 up_and_ret:
 	if (ret) {
