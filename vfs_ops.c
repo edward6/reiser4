@@ -1060,8 +1060,6 @@ do {						\
 	});
 #endif
 
-	kfree(opts);
-
 	sbinfo->tmgr.atom_max_size = txnmgr_get_max_atom_size(s);
 	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
 	sbinfo->tmgr.atom_max_flushers = ATOM_MAX_FLUSHERS;
@@ -1089,6 +1087,7 @@ do {						\
 	sbinfo->ra_params.flags = 0;
 
 	result = parse_options(opt_string, opts, p - opts);
+	kfree(opts);
 	if (result != 0)
 		return result;
 
