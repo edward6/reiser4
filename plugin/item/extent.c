@@ -1071,8 +1071,10 @@ static int insert_first_block (coord_t * coord, lock_handle * lh, jnode * j,
 	}
 
 	jnode_set_mapped (j);
+	jnode_set_new (j);
 
-	return 0;
+	reiser4_stat_file_add (write_repeats);
+	return -EAGAIN;
 }
 
 
@@ -1113,6 +1115,7 @@ static int append_one_block (coord_t * coord,
 	}
 
 	jnode_set_mapped (j);
+	jnode_set_new (j);
 
 	coord->unit_pos = coord_last_unit_pos (coord);
 	coord->between = AFTER_UNIT;
@@ -1453,9 +1456,11 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 	switch (state_of_extent(ext)) {
 	case ALLOCATED_EXTENT:
 		j->blocknr = blocknr_by_coord_in_extent (coord, off);
+		jnode_set_mapped (j);
 		break;
 
 	case UNALLOCATED_EXTENT:
+		jnode_set_mapped (j);
 		break;
 		
 	case HOLE_EXTENT:
@@ -1463,6 +1468,7 @@ static int overwrite_one_block (coord_t * coord, lock_handle * lh,
 		if (result)
 			return result;
 		jnode_set_mapped (j);
+		jnode_set_new (j);
 		break;
 
 	default:
@@ -1782,8 +1788,10 @@ static int extent_get_create_block (coord_t * coord, lock_handle * lh,
 	case EXTENT_CREATE_HOLE:
 	case EXTENT_APPEND_HOLE:
 		result = add_hole (coord, lh, key, todo);
-		if (!result)
+		if (!result) {
+			reiser4_stat_file_add (write_repeats);
 			result = -EAGAIN;
+		}
 		return result;
 
 	case EXTENT_FIRST_BLOCK:
@@ -1919,23 +1927,19 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 			result = extent_get_create_block (coord, lh, &f->key,
 							  j, to_block);
 			if (result) {
-				/* @coord is set properly on first iteration of
-				 * loop. It is not necessary true on other
-				 * iterations. -EAGAIN can be returned on first
-				 * iteration in case of hole creating,
-				 * though */
-				assert ("vs-703", ergo (result == -EAGAIN,
-							((block != first) ||
-							 ((((page->mapping->host->i_size + current_blocksize - 1) & (~(current_blocksize - 1))) + current_blocksize) <= (loff_t)get_key_offset (&f->key)))));
-				break;
+				if (!(result == -EAGAIN && page->index == 0))
+					break;
+				assert ("vs-777", result == -EAGAIN && page->index == 0);
 			}
 		}
 		assert ("vs-702", jnode_mapped (j));
 		if (f->data) {
-			if (have_to_read_block (page->mapping->host, j, file_off + written, to_block)) {
-				result = read_block (j->blocknr, b_data);
-				if (result) {
-					/* i/o error */
+			if (have_to_read_block (page->mapping->host, j,
+						file_off + written, to_block)) {
+				page_io (page, READ, GFP_NOIO);
+				wait_on_page_locked (page);
+				if (!PageUptodate (page)) {
+					result = -EIO;
 					break;
 				}
 			}
@@ -1955,11 +1959,11 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 				jnode_clear_new (j);
 			}
 			/* copy data into page */
-			result = __copy_from_user (b_data + block_off,
-						   f->data + written, (unsigned)to_block);
-			if (result) {
+			if (unlikely (__copy_from_user (b_data + block_off,
+							f->data + written,
+						(unsigned)to_block))) {
 				/* FIXME-VS: undo might be necessary */
-				break;
+				return -EFAULT;
 			}
 		}
 		jnode_set_loaded (j);
@@ -1968,6 +1972,10 @@ static int write_flow_to_page (coord_t * coord, lock_handle * lh, flow_t * f,
 		left -= to_block;
 		block_off = 0;
 		b_data += current_blocksize;
+		if (result)
+			/* after inserting first item of a file - research is
+			 * required */
+			break;
 	}
 
 	if (first == 0 && block == (int)(PAGE_CACHE_SIZE / current_blocksize)) {
@@ -2350,7 +2358,6 @@ int extent_readpage (void * vp, struct page * page)
 	page_io (page, READ, GFP_NOIO);
 	return 0;
 }
-
 
 
 /*
