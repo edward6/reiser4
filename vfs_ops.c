@@ -2204,13 +2204,76 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 		 * ->private pointer is protected by page lock that we are
 		 * holding right now.
 		 */
+again:
 		node = jnode_by_page( page );
 		if( node != NULL ) {
 			jref( node );
 try_to_lock:
 			spin_lock_jnode( node );
 			reiser4_unlock_page( page );
+
 			ret = txn_try_capture( node, ZNODE_WRITE_LOCK, 0 );
+
+			if( !ret) {
+				/* If node is flush queued (i.e. prepard to
+				 * write to disk) we are trying to submit flush
+				 * queues to disk one by one and wait i/o
+				 * completion. We repeat it until our node
+				 * becomes not queued. */
+				if (JF_ISSET (node, JNODE_FLUSH_QUEUED ) ) {
+					txn_atom * atom;
+					int nr_io_errors;
+
+					atom = atom_get_locked_by_jnode (node);
+					spin_unlock_jnode (node);
+
+					assert ("zam-x1070", atom != NULL);
+
+					/*
+					 * FIXME-VS: we call finish_all_fq
+					 * because currently it is not possible
+					 * to find which flush queue the node
+					 * is on
+					 */
+					nr_io_errors = 0;
+					ret = finish_all_fq (atom, &nr_io_errors);
+
+					if (ret) {
+						if (ret == -EBUSY) {
+							/* All flush queues are
+							 * busy we have to wait
+							 * an atom event and
+							 * rescan atom's list
+							 * for not busy flush
+							 * queues. */
+							atom = atom_wait_event (get_current_context()->trans);
+							spin_unlock_atom (atom);
+
+							jput (node);
+							reiser4_lock_page( page );
+							goto again;
+						}
+
+						if (ret != -EAGAIN) 
+							reiser4_panic ("zam-x1071: cannot flush queued node (ret = %d)\n", ret);
+						/* -EAGAIN means we have to
+						 * repeat. Repeating of
+						 * finish_all_fq() may be not
+						 * needed because the node we
+						 * wanted to write is already
+						 * written to disk and removed
+						 * from a flush queue */
+
+					} else {
+						spin_unlock_atom (atom);
+					}
+
+					jput (node);
+					reiser4_lock_page( page );
+					goto again;
+				}
+			}
+
 			spin_unlock_jnode( node );
 			/*
 			 * return with page still
