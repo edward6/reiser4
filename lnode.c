@@ -344,13 +344,15 @@ static int lnode_inode_eq( const lnode *node1 /* first node to compare */,
 	assert( "nikita-1927", node1 -> inode.inode != NULL );
 	assert( "nikita-1928", node2 -> inode.inode != NULL );
 
-	return ( node1 -> inode.inode == node1 -> inode.inode );
+	return( node1 -> inode.inode == node2 -> inode.inode );
 		
 }
 
 /** compare two lw objects */
-static int lnode_lw_eq( const lnode *node1 /* first node to compare */, 
-			const lnode *node2 /* second node to compare */ )
+static int lnode_lw_eq( const lnode *node1 UNUSED_ARG /* first node to
+						       * compare */, 
+			const lnode *node2 UNUSED_ARG /* second node to
+						       * compare */ )
 {
 	assert( "nikita-1925", node1 != NULL );
 	assert( "nikita-1926", node2 != NULL );
