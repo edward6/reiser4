@@ -686,6 +686,7 @@ void longterm_unlock_znode (lock_handle *handle)
 			forget_znode(handle);
 			zput(node);
 
+			ON_DEBUG( check_lock_data() );
 			return;
 		}
 	}
@@ -719,6 +720,7 @@ void longterm_unlock_znode (lock_handle *handle)
 
 	/* minus one reference from lh->node */
 	zput(node);
+	ON_DEBUG( check_lock_data() );
 }
 
 /**
@@ -895,6 +897,7 @@ int longterm_lock_znode (
 		ON_DEBUG(++ lock_counters()->long_term_locked_znode);
 	}
 
+	ON_DEBUG( check_lock_data() );
 	return ret;
 }
 
@@ -1157,25 +1160,33 @@ void show_lock_stack (reiser4_context *context)
 	spin_unlock_stack (owner);
 }
 
-#if REISER4_DEBUG && 0
+#if REISER4_DEBUG
+
 void check_lock_stack( lock_stack *stack )
 {
+	spin_lock_stack( stack );
+	locks_list_check( &stack -> locks );
+	spin_unlock_stack( stack );
 }
 
 extern spinlock_t active_contexts_lock;
+extern context_list_head active_contexts;
+TS_LIST_DEFINE(context, reiser4_context, contexts_link);
 
 void check_lock_data()
 {
-	reiser4_context *context;
+	if (0) {
+		reiser4_context *context;
 
-	spin_lock (& active_contexts_lock);
-	for( context = context_list_from( &active_contexts ) ;
-	     ! context_list_end( &active_contexts, context ) ;
-	     context = context_list_next( context ) ) {
-		check_lock_stack( &context -> stack );
-	}
-	spin_unlock (& active_contexts_lock);
-
+		spin_lock (& active_contexts_lock);
+		for( context = context_list_front( &active_contexts ) ;
+		     ! context_list_end( &active_contexts, context ) ;
+		     context = context_list_next( context ) ) {
+			check_lock_stack( &context -> stack );
+		}
+		spin_unlock (& active_contexts_lock);
+	} else
+		check_lock_stack( &get_current_context() -> stack );
 }
 #endif
 

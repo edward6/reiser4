@@ -539,6 +539,12 @@ extern int  load_dh_node( data_handle *dh, znode *node );
 #define CHECK_COUNTERS noop
 #endif
 
+#if REISER4_DEBUG
+extern void check_lock_data();
+#else
+#define check_lock_data() noop
+#endif
+
 /* __ZNODE_H__ */
 #endif
 
