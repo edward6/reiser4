@@ -500,20 +500,6 @@ static int formatted_writepage( struct page *page /* page to write */ )
 	return page_io( page, WRITE, GFP_NOIO );
 }
 
-/** ->invalidatepage() method for formatted nodes */
-static int formatted_invalidatepage( struct page *page UNUSED_ARG /* page to
-								   * write */,
-				     unsigned long offset UNUSED_ARG /*  truncate
-								      *  offset */ )
-{
-/*	warning( "nikita-2129", "Shouldn't happen" );*/
-	REISER4_ENTRY (page->mapping->host->i_sb);
-	assert( "nikita-2160", offset == 0 ); /* FIXME */
-	txn_delete_page( page );
-	page_detach_jnode( page );
-	REISER4_EXIT (0);
-}
-
 int page_io( struct page *page, int rw, int gfp )
 {
 	struct bio *bio;
@@ -596,12 +582,13 @@ static struct bio *page_bio( struct page *page, int rw, int gfp )
 /**
  * memory pressure notification. Flush transaction, etc.
  */
-static int formatted_fake_pressure_handler( struct page *page, int *nr_to_write )
+static int formatted_vm_writeback( struct page *page, int *nr_to_write )
 {
 	int result;
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
 
-	result = jnode_flush (jnode_by_page (page), nr_to_write, JNODE_FLUSH_MEMORY_FORMATTED);
+	result = jnode_flush (jnode_by_page (page),
+			      nr_to_write, JNODE_FLUSH_MEMORY_FORMATTED);
 	REISER4_EXIT( result );
 }
 
@@ -640,7 +627,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 	/* Write back some dirty pages from this mapping. Called from sync. */
 	.writepages     = NULL,
 	/* Perform a writeback as a memory-freeing operation. */
-	.vm_writeback   = formatted_fake_pressure_handler,
+	.vm_writeback   = formatted_vm_writeback,
 	/* Set a page dirty */
 	.set_page_dirty = formatted_set_page_dirty,
 	/* used for read-ahead. Not applicable */
@@ -648,9 +635,16 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.prepare_write  = V( never_ever_prepare_write ),
 	.commit_write   = V( never_ever_commit_write ),
 	.bmap           = V( never_ever_bmap ),
-	/* called on umount */
-	.invalidatepage = formatted_invalidatepage,
-	.releasepage    = NULL,
+	/* called just before page is being detached from inode mapping and
+	 * removed from memory. Called on truncate, cut/squeeze, and
+	 * umount. */
+	.invalidatepage = reiser4_invalidatepage,
+	/**
+	 * this is called by shrink_cache() so that file system can try to
+	 * release objects (jnodes, buffers, journal heads) attached to page
+	 * and, may be made page itself free-able.
+	 */
+	.releasepage    = reiser4_releasepage,
 	.direct_IO      = V( never_ever_direct_IO )
 };
 

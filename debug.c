@@ -132,6 +132,7 @@ void check_stack( void )
 void check_spinlocks_array( void )
 {
 #ifdef CONFIG_DEBUG_SPINLOCK
+	if( REISER4_DEBUG == 3 ) {
 		reiser4_context *context = get_current_context();
 		reiser4_super_info_data * sprivate; 
 		int i;
@@ -148,6 +149,7 @@ void check_spinlocks_array( void )
 				BUG();
 			}
 		}
+	}
 #endif
 }
 

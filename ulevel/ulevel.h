@@ -1401,6 +1401,11 @@ static inline void read_unlock (spinlock_t * lock)
 extern int block_sync_page(struct page *page);
 extern void blk_run_queues (void);
 
+static inline int page_count( const struct page *page )
+{
+	return atomic_read( &page -> count );
+}
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 

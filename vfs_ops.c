@@ -1851,14 +1851,51 @@ define_never_ever_op( direct_IO_vfs )
 
 #define V( func ) ( ( void * ) ( func ) )
 
-/** ->invalidatepage method for unformatted pages */
-static int reiser4_invalidatepage( struct page *page, unsigned long offset )
+/** ->invalidatepage method for reiser4 */
+int reiser4_invalidatepage( struct page *page, unsigned long offset )
 {
 	REISER4_ENTRY (page->mapping->host->i_sb);
 	assert( "nikita-2160", offset == 0 ); /* FIXME */
 	txn_delete_page( page );
 	page_detach_jnode( page );
 	REISER4_EXIT (0);
+}
+
+/** ->releasepage method for reiser4 */
+int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
+{
+	jnode *node;
+	int    result;
+
+	assert( "nikita-2257", PagePrivate( page ) );
+	assert( "nikita-2259", PageLocked( page ) );
+	node = jnode_by_page( page );
+	assert( "nikita-2258", node != NULL );
+
+	if( PageDirty( page ) )
+		return 0;
+
+	spin_lock_jnode( node );
+
+	assert( "nikita-2264", !jnode_is_dirty( node ) );
+	if( node -> atom == NULL ) {
+		assert( "nikita-2262", page_count( page ) == 3 );
+		/*
+		 * page is free-able: one reference from page cache itself and
+		 * another from ->private field. (Third reference is temporary
+		 * acquired by shrink_cache().)
+		 */
+		page_detach_jnode( page );
+		assert( "nikita-2261", page_count( page ) == 2 );
+
+		/*
+		 * this page is just about to be recycled by shrink_cache()
+		 */
+		result = 1;
+	} else
+		result = 0;
+	spin_unlock_jnode( node );
+	return result;
 }
 
 struct address_space_operations reiser4_as_operations = {
@@ -1880,7 +1917,7 @@ struct address_space_operations reiser4_as_operations = {
 	.commit_write   = V( never_ever_commit_write_vfs ),
  	.bmap           = reiser4_bmap,
 	.invalidatepage = reiser4_invalidatepage,
-	.releasepage    = NULL,
+	.releasepage    = reiser4_releasepage,
  	/*reiser4_direct_IO*/
 	.direct_IO      = V( never_ever_direct_IO_vfs )
 };
