@@ -648,6 +648,11 @@ static int submit_write (jnode * first, int nr,
 
 		assert ("zam-574", jnode_page (first) != NULL);
 
+		/*
+		 * FIXME:NIKITA->ZAM this is very similar to the
+		 * fq_submit_write().
+		 */
+
 		bio->bi_sector = block * (super->s_blocksize >>9);
 		bio->bi_bdev   = super->s_bdev;
 		bio->bi_vcnt   = nr_blocks;
@@ -664,7 +669,19 @@ static int submit_write (jnode * first, int nr,
 
 			assert ("zam-605", !PageWriteback(pg));
 			SetPageWriteback (pg);
-			set_page_clean_nolock(pg);
+
+			write_lock(&pg->mapping->page_lock);
+
+			/*
+			 * don't check return value: submit page even if it
+			 * wasn't dirty.
+			 */
+			test_clear_page_dirty(pg);
+
+			list_del(&pg->list);
+			list_add(&pg->list, &pg->mapping->locked_pages);
+				
+			write_unlock(&pg->mapping->page_lock);
 
 			reiser4_unlock_page (pg);
 

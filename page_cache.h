@@ -37,7 +37,6 @@ static int never_ever_ ## op ( void )						\
 	return -EIO;								\
 }
 
-extern void set_page_clean_nolock( struct page * );
 extern void drop_page( struct page *page, jnode *node );
 
 #if REISER4_DEBUG_OUTPUT

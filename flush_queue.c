@@ -545,7 +545,17 @@ static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
 
 		assert ("zam-728", !PageWriteback (pg));
 		SetPageWriteback (pg);
-		ClearPageDirty (pg);
+
+		write_lock(&pg->mapping->page_lock);
+		/*
+		 * clear dirty bit and update page cache statistics.
+		 */
+		test_clear_page_dirty (pg);
+
+		list_del(&pg->list);
+		list_add(&pg->list, &pg->mapping->locked_pages);
+
+		write_unlock(&pg->mapping->page_lock);
 
 		reiser4_unlock_page (pg);
 
