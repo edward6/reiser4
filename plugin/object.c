@@ -971,6 +971,52 @@ static void drop_object_body(struct inode *inode)
 /* doesn't seem to be exported in headers. */
 extern spinlock_t inode_lock;
 
+static void delete_inode_common(struct inode *object)
+{
+	/* create context here.
+
+	removal of inode from the hash table (done at the very beginning of
+	generic_delete_inode(), truncate of pages, and removal of file's
+	extents has to be performed in the same atom. Otherwise, it may so
+	happen, that twig node with unallocated extent will be flushed to the
+	disk.
+	*/
+	reiser4_context ctx;
+
+	init_context(&ctx, object->i_sb);
+	/*
+	 * FIXME: this resembles generic_delete_inode
+	 */
+	hlist_del_init(&object->i_hash);
+	list_del_init(&object->i_list);
+	object->i_state|=I_FREEING;
+	inodes_stat.nr_inodes--;
+	spin_unlock(&inode_lock);
+
+	uncapture_inode(object);
+
+	if (!is_bad_inode(object))
+		drop_object_body(object);
+
+	if (object->i_data.nrpages)
+		truncate_inode_pages(&object->i_data, 0);
+
+	security_inode_delete(object);
+	if (!is_bad_inode(object))
+		DQUOT_INIT(object);
+
+	object->i_sb->s_op->delete_inode(object);
+	if (object->i_state != I_CLEAR)
+		BUG();
+	destroy_inode(object);
+	(void)reiser4_exit_context(&ctx);
+}
+
+static void forget_inode_common(struct inode *object)
+{
+	generic_forget_inode(object);
+}
+
 static void drop_common(struct inode * object)
 {
 	file_plugin *fplug;
@@ -983,45 +1029,12 @@ static void drop_common(struct inode * object)
 	fplug = inode_file_plugin(object);
 	/* fplug is NULL for fake inode */
 	if (fplug != NULL && fplug->not_linked(object)) {
-		/* create context here.
-
-		   removal of inode from the hash table (done at the very
-		   beginning of generic_delete_inode(), truncate of pages, and
-		   removal of file's extents has to be performed in the same
-		   atom. Otherwise, it may so happen, that twig node with
-		   unallocated extent will be flushed to the disk.
-		*/
-		reiser4_context ctx;
-
-		init_context(&ctx, object->i_sb);
-		/*
-		 * FIXME: this resembles generic_delete_inode
-		 */
-		hlist_del_init(&object->i_hash);
-		list_del_init(&object->i_list);
-		object->i_state|=I_FREEING;
-		inodes_stat.nr_inodes--;
-		spin_unlock(&inode_lock);
-
-		uncapture_inode(object);
-
-		if (!is_bad_inode(object))
-			drop_object_body(object);
-
-		if (object->i_data.nrpages)
-			truncate_inode_pages(&object->i_data, 0);
-
-		security_inode_delete(object);
-		if (!is_bad_inode(object))
-			DQUOT_INIT(object);
-
-		object->i_sb->s_op->delete_inode(object);
-		if (object->i_state != I_CLEAR)
-			BUG();
-		destroy_inode(object);
-		(void)reiser4_exit_context(&ctx);
-	} else
-		generic_forget_inode(object);
+		assert("nikita-3231", fplug->delete_inode != NULL);
+		fplug->delete_inode(object);
+	} else {
+		assert("nikita-3232", fplug->forget_inode != NULL);
+		fplug->forget_inode(object);
+	}
 }
 
 static ssize_t
@@ -1087,7 +1100,9 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.readpages = readpages_unix_file,
 		.init_inode_data = init_inode_data_unix_file,
 		.pre_delete = pre_delete_unix_file,
-		.drop = drop_common
+		.drop = drop_common,
+		.delete_inode = delete_inode_common,
+		.forget_inode = forget_inode_unix_file
 	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1133,7 +1148,9 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
-		.drop = drop_common
+		.drop = drop_common,
+		.delete_inode = delete_inode_common,
+		.forget_inode = forget_inode_common
 	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1181,7 +1198,9 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.readpages = NULL,
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
-		.drop = drop_common
+		.drop = drop_common,
+		.delete_inode = delete_inode_common,
+		.forget_inode = forget_inode_common
 	},
 	[SPECIAL_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1229,6 +1248,8 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.drop = drop_common,
+		.delete_inode = delete_inode_common,
+		.forget_inode = forget_inode_common	
 	},
 	[PSEUDO_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1275,7 +1296,9 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.readpages = NULL,
 		.init_inode_data = NULL,
 		.pre_delete = NULL,
-		.drop = drop_pseudo
+		.drop = drop_pseudo,
+		.delete_inode = NULL,
+		.forget_inode = NULL
 	}
 };
 

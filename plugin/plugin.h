@@ -257,6 +257,11 @@ typedef struct file_plugin {
 
 	/* called from reiser4_drop_inode() */
 	void (*drop)(struct inode *);
+
+	/* called from ->drop() when there are no links, and object should be
+	 * garbage collected. */
+	void (*delete_inode)(struct inode *);
+	void (*forget_inode)(struct inode *);
 } file_plugin;
 
 typedef struct dir_plugin {

@@ -1520,26 +1520,37 @@ write_unix_file(struct file *file, /* file to write to */
 	return written;
 }
 
-/* plugin->u.file.release
+/* plugin->u.file.forget_inode
    convert all extent items into tail items if necessary */
+void 
+forget_inode_unix_file(struct inode *object)
+{
+	unix_file_info_t *uf_info;
+
+	uf_info = unix_file_inode_data(object);
+
+	if (uf_info->container != UF_CONTAINER_UNKNOWN) {
+		get_exclusive_access(uf_info);
+		if (uf_info->container == UF_CONTAINER_EXTENTS && 
+		    !should_have_notail(uf_info, object->i_size)) {
+			int result;
+
+			result = extent2tail(uf_info);
+			if (result != 0) {
+				warning("nikita-3233", "Failed to convert in ->forget_inode(%llu)",
+					get_inode_oid(object));
+				print_inode("inode", object);
+			}
+		}
+		drop_exclusive_access(uf_info);
+	}
+}
+
+/* plugin->u.file.release */
 int
 release_unix_file(struct inode *inode, struct file *file)
 {
-	int result;
-	unix_file_info_t *uf_info;
-
-	uf_info = unix_file_inode_data(file->f_dentry->d_inode);
-
-	if (uf_info->container == UF_CONTAINER_UNKNOWN)
-		return 0;
-
-	get_exclusive_access(uf_info);
-	if (uf_info->container == UF_CONTAINER_EXTENTS && !should_have_notail(uf_info, uf_info->inode->i_size))
-		result = extent2tail(uf_info);
-	else
-		result = 0;
-	drop_exclusive_access(uf_info);
-	return result;
+	return 0;
 }
 
 struct page *
