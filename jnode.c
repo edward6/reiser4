@@ -1224,7 +1224,7 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	}
 
 	info("%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i,"
-	     " block: %s, d_count: %d, x_count: %d, pg: %p, type: %s, ",
+	     " block: %s, d_count: %d, x_count: %d, pg: %p, atom: %p(%i), type: %s, ",
 	     prefix, node, node->state,
 	     jnode_state_name(node, JNODE_LOADED),
 	     jnode_state_name(node, JNODE_HEARD_BANSHEE),
@@ -1246,7 +1246,8 @@ info_jnode(const char *prefix /* prefix to print */ ,
 	     jnode_state_name(node, JNODE_ASYNC),
 	     jnode_get_level(node), sprint_address(jnode_get_block(node)),
 	     atomic_read(&node->d_count), atomic_read(&node->x_count),
-	     jnode_page(node), jnode_type_name(jnode_get_type(node)));
+	     jnode_page(node), node->atom, !capture_list_is_clean(node),
+	     jnode_type_name(jnode_get_type(node)));
 	if (jnode_is_unformatted(node)) {
 		info("inode: %llu, index: %lu, ", node->key.j.objectid, node->key.j.index);
 	}
