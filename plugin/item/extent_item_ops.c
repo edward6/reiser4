@@ -385,8 +385,6 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 	const reiser4_key *pfrom_key, *pto_key;
 	struct inode *inode;
 	reiser4_tree *tree;
-	znode *left;
-	znode *right;
 	pgoff_t from_off, to_off, offset, skip;
 	int retval;
 
@@ -414,20 +412,34 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 
 	if (!keylt(pto_key, &max_item_key)) {
 		if (!keygt(pfrom_key, &min_item_key)) {
+			znode *left, *right;
+
 			/* item is to be removed completely */
-			if (kdata->left != NULL) {
-				assert("nikita-3316", kdata->right != NULL);
+			assert("nikita-3316", kdata->left != NULL && kdata->right != NULL);
 				
-				left = kdata->left->node;
-				right = kdata->right->node;
+			left = kdata->left->node;
+			right = kdata->right->node;
 				
-				tree = current_tree;
-				WLOCK_TREE(tree);
-				link_left_and_right(left, right);
-				WUNLOCK_TREE(tree);
-				if (right != NULL)
-					UNDER_RW_VOID(dk, tree, write, update_znode_dkeys(left, right));
+			/* if neighbors of item being removed are znodes - link them */
+			tree = current_tree;
+			UNDER_RW_VOID(tree, tree, write, link_left_and_right(left, right));
+
+			if (left) {
+				/* update right delimiting key of left neighbor of extent item */
+				coord_t next;
+				reiser4_key key;
+
+				coord_dup(&next, coord);
+				
+				WLOCK_DK(tree);
+				if (coord_next_item(&next))
+					key = *znode_get_rd_key(coord->node);
+				else
+					item_key_by_coord(&next, &key);
+				znode_set_rd_key(left, &key);
+				WUNLOCK_DK(tree);
 			}
+
 			from_off = get_key_offset(&min_item_key) >> PAGE_CACHE_SHIFT;
 			to_off = (get_key_offset(&max_item_key) + 1) >> PAGE_CACHE_SHIFT;
 			retval = ITEM_KILLED;
@@ -442,6 +454,17 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 		assert("vs-1571", keyeq(pfrom_key, &min_item_key));
 		assert("vs-1572", (get_key_offset(pfrom_key) & (PAGE_CACHE_SIZE - 1)) == 0);
 		assert("vs-1573", ((get_key_offset(pto_key) + 1) & (PAGE_CACHE_SIZE - 1)) == 0);
+
+		if (kdata->left->node) {
+			/* update right delimiting key of left neighbor of extent item */
+			reiser4_key key;
+
+			key = *pto_key;
+			set_key_offset(&key, get_key_offset(pto_key) + 1);
+
+			UNDER_RW_VOID(dk, current_tree, write, znode_set_rd_key(kdata->left->node, &key));
+		}		
+
 		from_off = get_key_offset(pfrom_key) >> PAGE_CACHE_SHIFT;
 		to_off = (get_key_offset(pto_key) + 1) >> PAGE_CACHE_SHIFT;
 		retval = ITEM_HEAD_KILLED;
