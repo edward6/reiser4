@@ -25,6 +25,8 @@
  * are written in place) and _before_ wandered blocks and log records are
  * freed in WORKING bitmap */
 
+static int submit_write (jnode*, int, const reiser4_block_nr *);
+
 static const d64 *get_last_committed_tx (struct super_block *s)
 {
 	struct reiser4_super_info_data * private;
@@ -276,10 +278,6 @@ static int alloc_tx (capture_list_head * head, int nr)
 
 			cur->blocknr = first;
 
-			/*
-			 * FIXME-VS: on success jload->read_node returns spin locked
-			 * jnode, please take care to spin_unlock
-			 */
 			ret = jload(cur);
 
 			if (ret != 0) {
@@ -293,10 +291,10 @@ static int alloc_tx (capture_list_head * head, int nr)
 		}
 	}
 
-
 	prev = 0;
-	cur = capture_list_front(head);
-	txhead = capture_list_back(head);
+
+	txhead = capture_list_front(head);
+	cur    = capture_list_back(head);
 
 	assert ("zam-467", cur != txhead);
 
@@ -304,6 +302,7 @@ static int alloc_tx (capture_list_head * head, int nr)
 	while (cur != txhead) {
 		format_log_record (cur, nr, --serial, &prev);
 		prev = *jnode_get_block(cur);
+		cur = capture_list_prev(cur);
 	}
 
 	format_tx_head(txhead, nr, &prev);
@@ -362,7 +361,7 @@ static void fill_tx (capture_list_head * tx_list,struct super_block * super)
 
 	assert ("zam-452", !capture_list_empty(tx_list));
 
-	first_record = capture_list_back (tx_list);
+	first_record = capture_list_front (tx_list);
 	assert ("zam-468", !capture_list_end(tx_list, first_record));
 	params.cur = capture_list_next (first_record);
 	assert ("zam-469", !capture_list_end(tx_list, params.cur));
@@ -383,15 +382,16 @@ static int write_tx (capture_list_head * tx_list)
 
 	assert ("zam-456", !capture_list_empty(tx_list));
 
-	cur = capture_list_back (tx_list);
+	cur = capture_list_front (tx_list);
 
 	while (capture_list_end (tx_list, cur)) {
-		ret = jwrite (cur);
-
+		ret = submit_write (cur, 1, jnode_get_block(cur));
 		if (ret != 0) return ret;
+
+		cur = capture_list_next(cur);
 	}
 
-	cur = capture_list_back (tx_list);
+	cur = capture_list_front (tx_list);
 
 	while (!capture_list_end (tx_list, cur)) {
 		ret = jwait_io (cur, WRITE);
@@ -399,12 +399,15 @@ static int write_tx (capture_list_head * tx_list)
 		jnode_detach_page (cur);
 
 		if (ret != 0) return ret;
+
+		cur = capture_list_next(cur);
 	}
 
 	{	/* update journal header */
 
 		struct super_block * s = reiser4_get_current_sb();
 		struct reiser4_super_info_data * private = get_super_private (s);
+		jnode * jh = private->journal_header;
 		jnode * head = capture_list_back (tx_list);
 		d64 block;
 
@@ -412,11 +415,11 @@ static int write_tx (capture_list_head * tx_list)
 
 		set_last_committed_tx (s, &block);
 
-		ret = jwrite(private->journal_header);
+		ret = submit_write(jh, 1, jnode_get_block(jh));
 
 		if (ret) return ret;
 
-		ret = jwait_io (private->journal_header, WRITE);
+		ret = jwait_io (jh, WRITE);
 	}
 	
 	return ret;
@@ -486,7 +489,7 @@ static void dealloc_tx_list (txn_atom * atom)
 }
 
 static int dealloc_wmap_actor (
-	txn_atom               * atom UNUSED_ARG,
+	txn_atom               * atom,
 	const reiser4_block_nr * a UNUSED_ARG, 
 	const reiser4_block_nr * b,
 	void                   * data UNUSED_ARG)
@@ -496,7 +499,9 @@ static int dealloc_wmap_actor (
 	assert ("zam-500", *b != 0);
 	assert ("zam-501", !blocknr_is_fake(b));
 
+	spin_unlock_atom(atom);
 	reiser4_dealloc_block (b, 0, BLOCK_NOT_COUNTED);
+	spin_lock_atom(atom);
 
 	return 0;
 }
@@ -504,7 +509,9 @@ static int dealloc_wmap_actor (
 /* free wandered block locations of  already written in place transaction */
 static void dealloc_wmap (txn_atom * atom)
 {
+	spin_lock_atom (atom);
 	blocknr_set_iterator (atom, &atom->wandered_map, dealloc_wmap_actor, NULL, 1);
+	spin_unlock_atom(atom);
 }
 
 /* This function is called after write-back is finished. We update journal
@@ -516,6 +523,7 @@ int reiser4_flush_logs (void)
 	jnode * tx_head = capture_list_back (&atom->tx_list);
 	struct super_block * s = reiser4_get_current_sb();
 	reiser4_super_info_data * private = get_super_private(s);
+	jnode * jf = private->journal_footer;
 	int ret;
 
 	spin_unlock_atom (atom);
@@ -523,10 +531,10 @@ int reiser4_flush_logs (void)
 	assert ("zam-496", !capture_list_end (&atom->tx_list, tx_head));
 	set_last_flushed_tx (s, (d64*)jnode_get_block(tx_head));
 
-	ret = jwrite (private->journal_footer);
+	ret = submit_write (jf, 1, jnode_get_block(jf));
 	if (ret) return ret;
 
-	ret = jwait_io (private->journal_footer, WRITE);
+	ret = jwait_io (jf, WRITE);
 	if (ret) return ret;
 
 	/* free blocks of flushed transaction */
@@ -557,18 +565,78 @@ static int get_more_wandered_blocks (int count, reiser4_block_nr * start, reiser
 	return ret;
 }
 
-/* count Overwrite Set size */
-static int get_owerwrite_set_size (txn_atom * atom)
+/* count Overwrite Set size and place Overwrite Set on a separate list  */
+static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_list)
 {
 	int set_size = 0;
 
 	capture_list_head * head = &atom->clean_nodes;
 	jnode * cur = capture_list_front(head);
 
-	while (!capture_list_end (head, cur))
-		if (JF_ISSET(cur, ZNODE_WANDER)) set_size ++;
+	while (!capture_list_end (head, cur)) {
+		jnode * next = capture_list_next(cur);
+
+		if (JF_ISSET(cur, ZNODE_WANDER)) { 
+			set_size ++;
+
+			capture_list_remove_clean (cur);
+			capture_list_push_front (overwrite_list, cur);
+		}
+
+		cur = next;
+	}
 
 	return set_size;
+}
+
+/* create a BIO object for all pages for all j-nodes and submit write
+ * request. j-nodes are in a double-linked list (capture_list)*/
+static int submit_write (jnode * first UNUSED_ARG,
+			 int nr UNUSED_ARG,
+			 const reiser4_block_nr * start_block UNUSED_ARG)
+{
+	return 0;
+}
+
+/* add given wandered mapping to atom's wandered map */
+static int add_region_to_wmap (txn_atom * atom,
+			       jnode ** cur,
+			       const reiser4_block_nr *len_p,
+			       const reiser4_block_nr *block_p)
+{
+	int ret;
+	blocknr_set_entry *new_bsep = NULL;
+	reiser4_block_nr block;
+	reiser4_block_nr len;
+
+	assert ("zam-568", block_p != NULL);
+	block = *block_p;
+	assert ("zam-569", len_p != NULL);
+	len = *len_p;
+
+	while ((len --) > 0) {  
+		do {
+			spin_lock_atom(atom);
+			assert ("zam-536", !blocknr_is_fake (jnode_get_block(*cur)));
+			ret = blocknr_set_add_pair (
+				atom, &atom->wandered_map, &new_bsep, jnode_get_block(*cur), &block );
+		} while (ret == -EAGAIN);
+
+		if (ret) {
+			/* deallocate blocks which were not added to wandered
+			 * map */
+			reiser4_dealloc_blocks(&block, &len, 0, BLOCK_GRABBED); 
+			reiser4_release_grabbed_space (len);
+			return ret;
+		}
+
+		spin_unlock_atom(atom);
+
+		(*cur) = capture_list_next (*cur);
+		++ block;
+	}
+
+	return 0;
 }
 
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
@@ -582,74 +650,55 @@ int alloc_wandered_blocks (void)
 	reiser4_block_nr len = 0;
 	reiser4_block_nr block;
 
-	int     level;
 	int     ret;
 
-	blocknr_set_entry *new_bsep = NULL;
+	jnode * cur;
+
+	capture_list_head overwrite_set;
 	txn_atom *atom = get_current_atom_locked ();
 
-	set_size = get_owerwrite_set_size (atom);
+
+	capture_list_init (&overwrite_set);
+
+	set_size = get_overwrite_set (atom, &overwrite_set);
+
+	spin_unlock_atom(atom);
 
 	assert ("zam-534", set_size != 0);
 
 	ret = reiser4_grab_space1 ((__u64)set_size);
 
-	if (ret) return ret;
+	if (ret) goto out;
 
 	rest = set_size;
 
-	spin_unlock_atom (atom);
+	cur = capture_list_front(&overwrite_set);
+	while (!capture_list_end(&overwrite_set, cur)) {
 
-	for (level = 0; level <= REAL_MAX_ZTREE_HEIGHT; level ++) {
-		capture_list_head * head = &atom->dirty_nodes[level];
-		jnode * cur = capture_list_front(head);
+		assert ("zam-567", JF_ISSET(cur, ZNODE_WANDER));
 
-		while (!capture_list_end (head, cur)) {
+		ret = get_more_wandered_blocks (rest, &block, &len); 
 
-			if (!JF_ISSET(cur, ZNODE_WANDER)) continue;
+		if (ret) goto free_blocks;
 
-			if (len == 0) {
-				ret = get_more_wandered_blocks (rest, &block, &len); 
-				if (ret) goto free_blocks;
-			}
+		ret = add_region_to_wmap(atom, &cur, &len, &block);
 
-			ret = jwrite_to (cur, &block);
+		if (ret) goto free_blocks;
 
-			if (ret) goto free_blocks;
+		ret = submit_write (cur, (int)len, &block);
 
-			assert ("zam-536", !blocknr_is_fake (jnode_get_block(cur)));
-
-			spin_lock_atom (atom);
-
-			ret = blocknr_set_add_pair (
-				atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block );
-
-			if (ret ==  -EAGAIN) {
-				spin_lock_atom (atom);
-				ret = blocknr_set_add_pair (
-					atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block );
-			}
-
-			if (ret) goto free_blocks;
-
-			spin_unlock_atom (atom);
-
-			block ++; len --;
-		}
-
-		cur = capture_list_next (cur);
+		if (ret) goto free_blocks;
 	}
 
-	assert ("zam-535", len == 0);
-	return 0;
+ out:
+	capture_list_splice(&atom->clean_nodes, &overwrite_set);
+
+	return ret;
 	
  free_blocks:
 	/* free all blocks from wandered map*/
 	dealloc_wmap(atom);
-
-	reiser4_release_grabbed_space ((__u64)set_size);
-	
-	return ret;
+	goto out;
 	
 }
 

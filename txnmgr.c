@@ -596,7 +596,7 @@ static int
 atom_try_commit_locked (txn_atom *atom)
 {
 	int level;
-	int ret;
+	int ret = 0;
 	jnode *scan;
 	reiser4_super_info_data * private = get_current_super_private();
 
@@ -657,16 +657,26 @@ atom_try_commit_locked (txn_atom *atom)
  	 * tmgr semaphore */
 	down (&private->tmgr.commit_semaphore);
 
-	pre_commit_hook ();
+	do {
+		pre_commit_hook ();
+#if 1
+		ret = alloc_wandered_blocks();
+		if (ret) break;
 
-#if 0
-	alloc_wandered_blocks ();
-
-	/* write transaction log records in a manner which allows further
-	 * transaction recovery after a system crash */
-	reiser4_write_logs ();
+		/* write transaction log records in a manner which allows further
+		 * transaction recovery after a system crash */
+		ret = reiser4_write_logs();
 #endif
+	} while (0);
+
 	up (&private->tmgr.commit_semaphore);
+
+	if (ret) return ret;
+
+	/* FIXME: force write-back should be here */
+
+	ret = reiser4_flush_logs();
+	if (ret) return ret;
 
 	/* Now close this txnh's reference to the atom. */
 	spin_lock_atom (atom);
