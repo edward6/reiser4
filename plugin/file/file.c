@@ -235,7 +235,6 @@ update_inode_and_sd_if_necessary(struct inode *inode, loff_t new_size, int updat
 {
 	int result;
 	int inode_changed;
-	PROF_BEGIN(update_sd);
 
 	result = 0;
 
@@ -262,7 +261,7 @@ update_inode_and_sd_if_necessary(struct inode *inode, loff_t new_size, int updat
 		if (result)
 			warning("vs-636", "updating stat data failed: %i", result);
 	}
-	PROF_END(update_sd,update_sd);
+
 	return result;
 }
 
@@ -781,7 +780,6 @@ int
 hint_validate(struct sealed_coord *hint, const reiser4_key * key, coord_t * coord, lock_handle * lh)
 {
 	int result;
-	PROF_BEGIN(validate);
 
 	if (!hint || !hint_is_set(hint) || !keyeq(key, &hint->key))
 		/* hint either not set or set for different key */
@@ -792,7 +790,6 @@ hint_validate(struct sealed_coord *hint, const reiser4_key * key, coord_t * coor
 	if (result)
 		return result;
 	coord_dup_nocheck(coord, &hint->coord);
-	PROF_END(validate, validate);
 	return 0;
 }
 
