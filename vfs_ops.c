@@ -223,29 +223,34 @@ static int reiser4_rename (struct inode *old_dir UNUSED_ARG,
 			   struct inode *new_dir UNUSED_ARG,
 			   struct dentry *new UNUSED_ARG)
 {
+	printk("reiser4_rename\n");
 	return -ENOSYS;
 }
 
 static int reiser4_readlink (struct dentry *denrty UNUSED_ARG,
 			     char *buf UNUSED_ARG, int buflen UNUSED_ARG)
 {
+	printk("reiser4_readlink\n");
 	return -ENOSYS;
 }
 
 static int reiser4_follow_link (struct dentry *dentry UNUSED_ARG,
 				struct nameidata *data UNUSED_ARG)
 {
+	printk("reiser4_follow_link\n");
 	return -ENOSYS;
 }
 
 static int reiser4_revalidate (struct dentry *dentry UNUSED_ARG)
 {
+	printk("reiser4_revalidate\n");
 	return -ENOSYS;
 }
 
 static int reiser4_setattr (struct dentry *dentry UNUSED_ARG,
 			    struct iattr *attr UNUSED_ARG)
 {
+	printk("reiser4_setattr\n");
 	return -ENOSYS;
 }
 
@@ -253,6 +258,7 @@ static int reiser4_getattr (struct vfsmount *mnt UNUSED_ARG,
 			    struct dentry *dentry UNUSED_ARG,
 			    struct kstat *stat UNUSED_ARG)
 {
+	printk("reiser4_getattr\n");
 	return -ENOSYS;
 }
 
@@ -436,6 +442,7 @@ static int reiser4_writepage( struct page *page UNUSED_ARG /* page used as a
 							    * but not
 							    * necessary. */ )
 {
+	printk("reiser4_writepage\n");
 	return -ENOSYS;
 }
 
@@ -1408,8 +1415,8 @@ struct inode_operations reiser4_inode_operations = {
  	.rmdir       = reiser4_rmdir, /* d */
 	.mknod       = reiser4_mknod, /* d */
  	.rename      = reiser4_rename,
- 	.readlink    = reiser4_readlink,
- 	.follow_link = reiser4_follow_link,
+/* 	.readlink    = reiser4_readlink, */
+/* 	.follow_link = reiser4_follow_link, */
  	.truncate    = reiser4_truncate, /* d */
  	.permission  = reiser4_permission, /* d */
 /* 	.revalidate  = reiser4_revalidate, */
