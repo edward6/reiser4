@@ -969,6 +969,7 @@ reiser4_write_logs(void)
 #if REISER4_STATS
 	unsigned long commit_start_time = jiffies;
 #endif
+	writeout_mode_enable();
 
 	/* block allocator may add j-nodes to the clean_list */
 	pre_commit_hook();
@@ -1108,6 +1109,8 @@ up_and_ret:
 	put_overwrite_set(&ch);
 
 	done_commit_handle(&ch);
+
+	writeout_mode_disable();
 
 	return ret;
 }

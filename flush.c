@@ -780,7 +780,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 #endif
 	}
 
-	flush_mode();
+	writeout_mode_enable();
 	write_syscall_trace("in");
 
 	reiser4_stat_inc(flush.flush);
@@ -1096,7 +1096,7 @@ clean_out:
 	atom = get_current_atom_locked();
 	atom->nr_flushers--;
 	spin_unlock_atom(atom);
-	not_flush_mode();
+	writeout_mode_disable();
 	write_syscall_trace("ex");
 
 	if (!reiser4_is_set(sb, REISER4_MTFLUSH))

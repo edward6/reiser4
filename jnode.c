@@ -519,7 +519,8 @@ load_page(struct page *page, jnode *node)
 {
 	PROF_BEGIN(load_page);
 	page_cache_get(page);
-	mark_page_accessed(page);
+	if (!is_writeout_mode())
+		mark_page_accessed(page);
 	kmap(page);
 	if (REISER4_USE_EFLUSH)
 		UNDER_SPIN_VOID(jnode, node, eflush_del(node, 0));

@@ -24,11 +24,6 @@
 /* list of active lock stacks */
 ON_DEBUG(TS_LIST_DECLARE(context);)
 
-typedef enum {
-	FLUSH_MODE	    =   (1 << 0),
-	GRAB_ENABLED        =	(1 << 1)
-} context_flags_t;
-
 /* global context used during system call. Variable of this type is
    allocated on the stack at the beginning of the reiser4 part of the
    system call and pointer to it is stored in the
@@ -70,8 +65,12 @@ struct reiser4_context {
 	/* parent context */
 	reiser4_context *parent;
 	tap_list_head taps;
-	long                  flags;
-	int		      grab_enabled;
+
+	/* grabbing space is enabled */
+	int grab_enabled:1;
+    	/* should be set when we are write dirty nodes to disk in jnode_flush or
+	 * reiser4_write_logs() */
+	int writeout_mode:1;
 	    
 #if REISER4_DEBUG
 	/* thread ID */
@@ -152,34 +151,34 @@ get_current_context(void)
 		return NULL;
 }
 
-static inline int is_flush_mode(void)
+static inline int is_writeout_mode(void)
 {
-	return get_current_context()->flags &   FLUSH_MODE;
+	return get_current_context()->writeout_mode;
 }
 
-static inline void flush_mode(void)
+static inline void writeout_mode_enable(void)
 {
-	get_current_context()->flags |=  FLUSH_MODE;
+	get_current_context()->writeout_mode = 1;
 }
 
-static inline void not_flush_mode(void)
+static inline void writeout_mode_disable(void)
 {
-	get_current_context()->flags &= ~FLUSH_MODE;
+	get_current_context()->writeout_mode = 0;
 }
 
 static inline void grab_space_enable(void) 
 {
-	get_current_context()->flags |= GRAB_ENABLED;
+	get_current_context()->grab_enabled = 1;
 }
 
 static inline void grab_space_disable(void) 
 {
-	get_current_context()->flags &= ~GRAB_ENABLED;
+	get_current_context()->grab_enabled = 0;
 }
 
 static inline int is_grab_enabled(void)
 {
-	return get_current_context()->flags & GRAB_ENABLED;
+	return get_current_context()->grab_enabled;
 }
 
 #define REISER4_TRACE_CONTEXT (0)

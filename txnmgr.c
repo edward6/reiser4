@@ -2102,7 +2102,6 @@ jnode_set_dirty(jnode * node)
 
 		page = jnode_page(node);
 		set_page_dirty_internal(page);
-		mark_page_accessed(page);
 	} else
 		/* FIXME-NIKITA dubious. What if jnode doesn't have page,
 		   because it was early flushed, or ->releasepaged? */
