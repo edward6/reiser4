@@ -338,10 +338,6 @@ typedef struct { int foo; } NAME ## _spin_dummy
 #include "super.h"
 #include "page_cache.h"
 
-/* this is used for methods which should not be called */
-int never_ever(void);
-#define NO_SUCH_OP ( ( void * ) never_ever )
-
 #endif /* __REISER4_H__ */
 
 /* 

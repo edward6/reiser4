@@ -449,17 +449,16 @@ static int formatted_fake_pressure_handler( struct page *page UNUSED_ARG,
 	return -ENOSYS;
 }
 
-/**
- * stub for fake address space methods that should be never called
- */
-int never_ever(void)
-{
-	warning( "nikita-1708", 
-		 "Unexpected filemap operation was called for fake znode" );
-	return -EIO;
-}
+define_never_ever_op( sync_page );
+define_never_ever_op( writepages );
+define_never_ever_op( readpages );
+define_never_ever_op( prepare_write );
+define_never_ever_op( commit_write );
+define_never_ever_op( bmap );
+define_never_ever_op( invalidatepage );
+define_never_ever_op( direct_IO );
 
-#define NO_SUCH_OP ( ( void * ) never_ever )
+#define V( func ) ( ( void * ) ( func ) )
 
 /**
  * address space operations for the fake inode
@@ -468,21 +467,21 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.writepage      = NULL,
 	/* this is called to read formatted node */
 	.readpage       = formatted_readpage,
-	.sync_page      = NO_SUCH_OP,
+	.sync_page      = V( never_ever_sync_page ),
 	/* Write back some dirty pages from this mapping. Called from sync. */
-	.writepages     = NO_SUCH_OP,
+	.writepages     = V( never_ever_writepages ),
 	/* Perform a writeback as a memory-freeing operation. */
 	.vm_writeback   = formatted_fake_pressure_handler,
 	/* Set a page dirty */
 	.set_page_dirty = NULL,
 	/* used for read-ahead. Not applicable */
-	.readpages      = NO_SUCH_OP,
-	.prepare_write  = NO_SUCH_OP,
-	.commit_write   = NO_SUCH_OP,
-	.bmap           = NO_SUCH_OP,
-	.invalidatepage = NO_SUCH_OP,
+	.readpages      = V( never_ever_readpages ),
+	.prepare_write  = V( never_ever_prepare_write ),
+	.commit_write   = V( never_ever_commit_write ),
+	.bmap           = V( never_ever_bmap ),
+	.invalidatepage = V( never_ever_invalidatepage ),
 	.releasepage    = NULL,
-	.direct_IO      = NO_SUCH_OP
+	.direct_IO      = V( never_ever_direct_IO )
 };
 
 tree_operations page_cache_tops = {

@@ -1473,6 +1473,12 @@ struct file_operations reiser4_file_operations = {
 /* 	.get_unmapped_area = reiser4_get_unmapped_area */
 };
 
+define_never_ever_op( prepare_write );
+define_never_ever_op( commit_write );
+define_never_ever_op( direct_IO );
+
+#define V( func ) ( ( void * ) ( func ) )
+
 struct address_space_operations reiser4_as_operations = {
 	.writepage      = reiser4_writepage,
 	.readpage       = reiser4_readpage,
@@ -1481,12 +1487,15 @@ struct address_space_operations reiser4_as_operations = {
 	.vm_writeback   = NULL,
 	.set_page_dirty = NULL,
 	.readpages      = NULL,
- 	.prepare_write  = NO_SUCH_OP,/*reiser4_prepare_write,*/
- 	.commit_write   = NO_SUCH_OP,/*reiser4_commit_write,*/
+	/*reiser4_prepare_write,*/
+	.prepare_write  = V( never_ever_prepare_write ),
+	/*reiser4_commit_write,*/
+	.commit_write   = V( never_ever_commit_write ),
  	.bmap           = reiser4_bmap,
 	.invalidatepage = NULL,
 	.releasepage    = NULL,
- 	.direct_IO      = NO_SUCH_OP/*reiser4_direct_IO*/
+ 	/*reiser4_direct_IO*/
+	.direct_IO      = V( never_ever_direct_IO )
 };
 
 struct super_operations reiser4_super_operations = {

@@ -24,6 +24,15 @@ extern void *xmemset( void *s, int c, size_t n );
 
 extern tree_operations page_cache_tops;
 
+#define define_never_ever_op( op )						\
+static int never_ever_ ## op ( void )						\
+{										\
+	warning( "nikita-1708",							\
+		 "Unexpected operation" #op " was called for fake znode" );	\
+	return -EIO;								\
+}										\
+typedef int __dummy_never_ever_ ## op 
+
 /* __REISER4_MEMORY_H__ */
 #endif
 
