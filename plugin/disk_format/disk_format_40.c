@@ -86,10 +86,8 @@ static int get_super_jnode (struct super_block * s)
 {
 	reiser4_super_info_data * private = get_super_private(s);
 	jnode * sb_jnode;
+	reiser4_block_nr super_block_nr;
 	int ret;
-
-	if (!(sb_jnode = jnew()))
-		return -ENOMEM;
 
 	/*
 	 * FIXME-NIKITA jnew() returns unreferenced jnode which is
@@ -97,11 +95,13 @@ static int get_super_jnode (struct super_block * s)
 	 * returns.
 	 */
 
-	sb_jnode->blocknr = FORMAT_40_OFFSET / s->s_blocksize;
+	super_block_nr = FORMAT_40_OFFSET / s->s_blocksize;
+
+	sb_jnode = alloc_io_head (&super_block_nr);
 
 	ret = jload (sb_jnode);
 
-	if (ret) {jfree (sb_jnode) ; return ret;}
+	if (ret) {drop_io_head (sb_jnode) ; return ret;}
 
 	jref (sb_jnode);
 	jrelse(sb_jnode);
@@ -118,7 +118,7 @@ static void done_super_jnode (struct super_block * s)
 
 	if (sb_jnode) {
 		jput (sb_jnode);
-		jdrop(sb_jnode);
+		drop_io_head(sb_jnode);
 	}
 }
 
