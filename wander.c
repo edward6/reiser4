@@ -333,7 +333,7 @@ static int get_more_wandered_blocks (int count, reiser4_block_nr * start, int *l
 	return ret;
 }
 
-/* count Overwrite Set size and place Overwrite Set on a separate list  */
+/* count overwrite set size and place overwrite set on a separate list  */
 static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_list)
 {
 	int set_size = 0;
@@ -573,11 +573,12 @@ static int submit_batched_write (capture_list_head * head, struct io_handle * io
 
 /* allocate given number of nodes over the journal area and link them into a
  * list, return pinter to the first jnode in the list */
-static int alloc_tx (int nr, capture_list_head * tx_list, struct io_handle * io_hdl)
+static int alloc_tx (int nr, capture_list_head * tx_list, struct io_handle * io)
 {
 	reiser4_blocknr_hint  hint;
 
 	reiser4_block_nr allocated = 0;
+	reiser4_block_nr first, len;
 
 	jnode * cur;
 	jnode *txhead;
@@ -587,29 +588,29 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct io_handle * io_
 	int ret;
 
 	while (allocated < (unsigned)nr) {
-		reiser4_block_nr first, len = (nr - allocated);
-		int j;
+		len  = (nr - allocated);
 
 		blocknr_hint_init (&hint);
-		/* FIXME: there should be some block allocation policy for
-		 * nodes which contain log records */
+
 		hint.block_stage = BLOCK_GRABBED;
 
+		/* FIXME: there should be some block allocation policy for
+		 * nodes which contain log records */
 		ret = reiser4_alloc_blocks (&hint, &first, &len);
 
 		blocknr_hint_done (&hint);
 
-		if (ret != 0) goto fail;
+		if (ret) return ret;
 
 		allocated += len;
 
 		/* create jnodes for all log records */
-		for (j = 0; (unsigned)j < len; j++) {
+		while (len --) {
 			cur = jnew ();
 
 			if (cur == NULL) {
 				ret = -ENOMEM;
-				goto fail;
+				goto free_not_assigned;
 			}
 
 			jnode_set_block(cur, &first);
@@ -618,7 +619,7 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct io_handle * io_
 
 			if (ret != 0) {
 				jfree (cur);
-				goto fail;
+				goto free_not_assigned;
 			}
 
 			capture_list_push_back (tx_list, cur);
@@ -667,23 +668,16 @@ static int alloc_tx (int nr, capture_list_head * tx_list, struct io_handle * io_
 			jrelse (cur);
 			cur = capture_list_next (cur);
 		}
-
-
 	}
 
-	ret = submit_batched_write(tx_list, io_hdl);
-	if (ret) goto fail;
+	ret = submit_batched_write(tx_list, io);
 
-	return 0;
+	return ret;
 
- fail:
-	while (!capture_list_empty (tx_list)) {
-		jnode * node = capture_list_pop_back(tx_list);
-
-		jrelse (node);
-		jdrop (node);
-		jfree (node);
-	}
+ free_not_assigned:
+	/* We deallocate blocks not yet assigned to jnodes on tx_list. The
+	 * caller takes care about invalidating of tx list  */
+	reiser4_dealloc_blocks(&first, &len, 0, BLOCK_GRABBED);
 
 	return ret;
 }
@@ -792,7 +786,7 @@ int reiser4_write_logs (void)
 	capture_list_head overwrite_set, tx_list;
 	int overwrite_set_size, tx_size;
 
-	int ret=0;
+	int ret;
 
 	capture_list_init (&overwrite_set);
 	capture_list_init (&tx_list);
@@ -810,8 +804,12 @@ int reiser4_write_logs (void)
 	/* count overwrite set and place it in a separate list */
 	overwrite_set_size = get_overwrite_set (atom, &overwrite_set);
 
-	if (overwrite_set_size < 0)
+	trace_on (TRACE_LOG, "overwrite set contains %d blocks\n", overwrite_set_size);
+
+	if (overwrite_set_size < 0) {
+		ret = overwrite_set_size;
 		goto up_and_ret;
+	}
 
 	/* count all records needed for storing of the wandered set */
 	tx_size = get_tx_size (super, overwrite_set_size);
@@ -830,8 +828,14 @@ int reiser4_write_logs (void)
 	ret = done_io_handle(&io_hdl);
 	if (ret) goto up_and_ret;
 
+	trace_on (TRACE_LOG, "overwrite set written to wandered locations\n");
+
 	if ((ret = update_journal_header(&tx_list)))
 		goto up_and_ret;
+
+	trace_on (TRACE_LOG,
+		  "journal header updated (tx head at block %llX)\n",
+		  (unsigned long long int)(*jnode_get_block(capture_list_front(&tx_list))));
 
 	post_commit_hook();
 
@@ -844,8 +848,16 @@ int reiser4_write_logs (void)
 	ret = done_io_handle(&io_hdl);
 	if (ret) goto up_and_ret;
 
+
+	trace_on (TRACE_LOG, "overwrite set written in place\n");
+
+
 	if ((ret = update_journal_footer(capture_list_front(&tx_list))))
 		goto up_and_ret;
+
+	trace_on (TRACE_LOG,
+		  "journal footer updated (tx head at block %llX)\n",
+		  (unsigned long long int)(*jnode_get_block(capture_list_front(&tx_list))));
 
 	post_write_back_hook();
 
