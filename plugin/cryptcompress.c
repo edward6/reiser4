@@ -33,6 +33,8 @@
 
 int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
 int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
+reiser4_key * append_cluster_key_ctail(const coord_t *, reiser4_key *);
+int setattr_reserve(reiser4_tree *);
 
 /* get cryptcompress specific portion of inode */
 inline cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode)
@@ -227,7 +229,9 @@ loff_t inode_scaled_offset (struct inode * inode,
 	cplug = inode_crypto_plugin(inode);
 	
 	assert("edward-109", cplug != NULL);
-	
+
+	if (src_off == get_key_offset(max_key()))
+		return src_off;
 	size = cplug->blocksize(stat->keysize);
 	return cplug->scale(inode, size, src_off);
 }
@@ -249,7 +253,7 @@ inode_scaled_cluster_size (struct inode * inode)
 
 /* plugin->key_by_inode() */
 int
-cluster_key_by_inode(struct inode *inode, loff_t off, reiser4_key * key)
+key_by_inode_cryptcompress(struct inode *inode, loff_t off, reiser4_key * key)
 {
 	assert("edward-64", inode != 0);
 	assert("edward-112", !(off & ~(~0ULL << inode_cluster_shift(inode) << PAGE_CACHE_SHIFT)));
@@ -279,11 +283,11 @@ flow_by_inode_cryptcompress(struct inode *inode /* file to build flow for */ ,
 	f->user = user;
 	f->op = op;
 	assert("edward-150", inode_file_plugin(inode) != NULL);
-	assert("edward-151", inode_file_plugin(inode)->key_by_inode == cluster_key_by_inode);
+	assert("edward-151", inode_file_plugin(inode)->key_by_inode == key_by_inode_cryptcompress);
 
 	if (op == WRITE_OP && user == 1)
 		return 0;
-	return cluster_key_by_inode(inode, off, &f->key);
+	return key_by_inode_cryptcompress(inode, off, &f->key);
 }
 
 void reiser4_cluster_init (reiser4_cluster_t * clust){
@@ -356,7 +360,8 @@ int
 find_cluster_item(hint_t * hint, /* coord, lh, seal */
 		  const reiser4_key *key, /* key of next cluster item to read */
 		  znode_lock_mode lock_mode /* which lock */,
-		  ra_info_t *ra_info)
+		  ra_info_t *ra_info,
+		  lookup_bias bias)
 {
 	int result;
 	coord_t *coord;
@@ -385,7 +390,7 @@ find_cluster_item(hint_t * hint, /* coord, lh, seal */
 	coord_init_zero(coord);
 	hint->coord.valid = 0;
 	return  coord_by_key(current_tree, key, coord, hint->coord.lh, lock_mode,
-			     FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE, ra_info);
+			     bias, LEAF_LEVEL, LEAF_LEVEL, CBK_UNIQUE, ra_info);
 }
 
 void get_cluster_magic(__u8 * magic)
@@ -974,7 +979,7 @@ int find_cluster(reiser4_cluster_t * clust,
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
 	
 	while (f.length) {
-		result = find_cluster_item(&hint, &f.key, (write ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK), &ra_info);
+		result = find_cluster_item(&hint, &f.key, (write ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK), &ra_info, FIND_EXACT);
 		switch (result) {
 		case CBK_COORD_NOTFOUND:
 			if (inode_scaled_offset(inode, index << PAGE_CACHE_SHIFT) == get_key_offset(&f.key)) {
@@ -1305,6 +1310,108 @@ write_cryptcompress(struct file * file, /* file to write to */
 	return result;
 }
 
+/* Helper function for cryptcompress_truncate. If this returns 0,
+   then @idx is the cover size of all file items in cluster units */
+static int
+find_file_idx(struct inode *inode, unsigned long * idx)
+{
+	int result;
+	reiser4_key key;
+	hint_t hint;
+	coord_t *coord;
+	lock_handle lh;
+	item_plugin *iplug;
+	
+	assert("edward-276", inode_file_plugin(inode)->key_by_inode == key_by_inode_cryptcompress);
+	key_by_inode_cryptcompress(inode, get_key_offset(max_key()), &key);
+
+	hint_init_zero(&hint, &lh);
+	/* find the last item of this file */
+	result = find_cluster_item(&hint, &key, ZNODE_READ_LOCK, 0/* ra_info */, FIND_MAX_NOT_MORE_THAN);
+	if (result == CBK_COORD_NOTFOUND) {
+		/* there are no items of this file */
+		done_lh(&lh);
+		*idx = 0;
+		return 0;
+	}
+	if (result != CBK_COORD_FOUND) {
+		/* error occured */
+		done_lh(&lh);
+		return result;
+	}
+	coord = &hint.coord.base_coord;
+	
+	/* there are items of this file (at least one) */
+	coord_clear_iplug(coord);
+	result = zload(coord->node);
+	if (unlikely(result)) {
+		done_lh(&lh);
+		return result;
+	}
+	iplug = item_plugin_by_coord(coord);
+	assert("edward-277", iplug == item_plugin_by_id(CTAIL_ID));
+
+	append_cluster_key_ctail(coord, &key);
+	
+	*idx = cluster_index_by_offset(inode, get_key_offset(&key));
+
+	zrelse(coord->node);
+	done_lh(&lh);
+
+	return 0;
+}
+
+static int
+cryptcompress_append_hole(struct inode * inode, loff_t new_size)
+{
+	return 0;
+}
+
+static int
+shorten_cryptcompress(struct inode * inode, loff_t new_size, int update_sd)
+{
+	return 0;
+}
+
+/* This is called in setattr_cryptcompress when it is used to truncate,
+   and in delete_cryptcompress */
+
+static int
+cryptcompress_truncate(struct inode *inode, /* old size */
+		       loff_t new_size, /* new size */ 
+		       int update_sd)
+{
+	int result;
+	loff_t old_size = inode->i_size; 
+	unsigned long idx; /* current real file index */
+	unsigned long old_idx = cluster_index_by_offset(inode, old_size);
+	unsigned long new_idx = cluster_index_by_offset(inode, new_size);
+	
+	/* inode->i_size != new size */
+
+	/* NOTE-EDWARD: without decompression we can specify file offsets only up to cluster size */ 
+	result = find_file_idx(inode, &idx);
+
+	assert("edward-278", idx <= old_idx);
+
+	if (result)
+		return result;
+	if (idx != old_idx && idx < new_idx) {
+		/* do not touch items */
+		if (update_sd) {
+			result = setattr_reserve(tree_by_inode(inode));
+			if (!result)
+				result = update_inode_and_sd_if_necessary(inode, new_size, 1, 1);
+			all_grabbed2free(__FUNCTION__);	
+		}
+		return result;
+	}
+	INODE_SET_FIELD(inode, i_size, new_size);
+	result = (old_size < new_size ? cryptcompress_append_hole(inode, new_size) :
+		  shorten_cryptcompress(inode, new_size, update_sd));
+	return result;
+}
+
 /* plugin->u.file.truncate */
 int
 truncate_cryptcompress(struct inode *inode, loff_t new_size)
@@ -1372,7 +1479,38 @@ int
 setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 		      struct iattr *attr /* change description */ )
 {
-	return 0;
+	int result;
+	
+	if (attr->ia_valid & ATTR_SIZE) {
+		/* truncate does reservation itself and requires exclusive access obtained */
+		if (inode->i_size != attr->ia_size) {
+			loff_t old_size;
+			
+			inode_check_scale(inode, inode->i_size, attr->ia_size);
+			
+			old_size = inode->i_size;
+			
+			result = cryptcompress_truncate(inode, attr->ia_size, 1/* update stat data */);
+			
+			if (!result) {
+				/* items are removed already. inode_setattr will call vmtruncate to invalidate truncated
+				   pages and truncate_cryptcompress which will do nothing. FIXME: is this necessary? */
+				INODE_SET_FIELD(inode, i_size, old_size);
+				result = inode_setattr(inode, attr);
+			}
+		} else
+			result = 0;
+	} else {
+		result = setattr_reserve(tree_by_inode(inode));
+		if (!result) {
+			result = inode_setattr(inode, attr);
+			if (!result)
+				/* "capture" inode */
+				result = reiser4_mark_inode_dirty(inode);
+			all_grabbed2free(__FUNCTION__);
+		}
+	}
+	return result;	
 }
 
 /*
