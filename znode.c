@@ -282,7 +282,8 @@ void zdestroy( znode *node )
 	 * process taking reference to this node.
 	 */
 
-	if( znode_parent( node ) != NULL ) {
+	if( ( znode_parent( node ) != NULL ) && 
+	    !znode_above_root( znode_parent( node ) ) ) {
 		/* father, onto your hands I forward my spirit... */
 		atomic_dec( &znode_parent( node ) -> c_count );
 		assert( "nikita-472",
