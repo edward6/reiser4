@@ -1745,6 +1745,10 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 				/* FIXME: Use TestClearPageDirty */
 				assert ("jmacd-74233", !PageWriteback (pg));
+				/*
+				 * FIXME-VS: jnode_set_clean did not
+				 * ClearPageDirty. temporary: do it here then
+				 */
 				assert ("jmacd-74234", PageDirty (pg));
 				ClearPageDirty (pg);
 				SetPageWriteback (pg);
