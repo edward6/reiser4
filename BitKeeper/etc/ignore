@@ -1102,3 +1102,6 @@ reiser4progs/progs/fsck/fsck.reiser4
 reiser4progs/progs/libprogs/.deps/misc.P
 reiser4progs/progs/libprogs/Makefile
 reiser4progs/progs/libprogs/Makefile.in
+reiser4progs/libaal/.deps/bitops.Plo
+reiser4progs/progs/fsck/.deps/fsck.Po
+reiser4progs/progs/libprogs/.deps/misc.Po
