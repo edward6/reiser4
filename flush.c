@@ -493,22 +493,43 @@ static void move_flush_pos (flush_pos_t * pos, lock_handle * new_lock,
 }
 
 /* Prepare flush position for alloc_pos_and_ancestors() and squalloc() */
-static void prepare_flush_pos(flush_pos_t *pos, flush_scan * left_scan)
+static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 {
-	if (jnode_is_unformatted(left_scan->node)) {
-		pos->state = POS_ON_EPOINT;
-		move_flush_pos(pos, &left_scan->parent_lock, &left_scan->parent_load, &left_scan->parent_coord);
-		pos->child = jref(left_scan->node);
-	} else {
+	int ret;
+	load_count load;
+	lock_handle lock;
 
-		pos->state = (jnode_get_level(left_scan->node) == LEAF_LEVEL) ? POS_ON_LEAF : POS_ON_INTERNAL;
-		move_flush_pos(pos, &left_scan->node_lock, &left_scan->node_load, NULL);
+	init_lh(&lock);
+	init_load_count(&load);
+
+	if (jnode_is_znode(org)) {
+		ret = longterm_lock_znode(&lock, JZNODE(org), 
+					  ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+		if (ret)
+			return ret;
+
+		ret = incr_load_count_znode(&load, JZNODE(org));
+		if (ret)
+			return ret;
+
+		pos->state = (jnode_get_level(org) == LEAF_LEVEL) ? POS_ON_LEAF : POS_ON_INTERNAL;
+		move_flush_pos(pos, &lock, &load, NULL);
+	} else {
+		coord_t parent_coord;
+		ret = jnode_lock_parent_coord(org, &parent_coord, &lock, 
+					      &load, ZNODE_WRITE_LOCK, 0);
+		if (ret)
+			goto done;
+
+		pos->state = POS_ON_EPOINT;
+		move_flush_pos(pos, &lock, &load, &parent_coord);
+		pos->child = jref(org);
 	}
 
-	/* In some cases, we discover the parent-first preceder during the
-	   leftward scan.  Copy it. */
-	pos->preceder.blk = left_scan->preceder_blk;
-	check_preceder(pos->preceder.blk);
+ done:
+	done_load_count(&load);
+	done_lh(&lock);
+	return ret;
 }
 
 /* TODO LIST (no particular order): */
@@ -599,6 +620,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	int todo;
 	struct super_block *sb;
 	reiser4_super_info_data *sbinfo;
+	jnode * leftmost_in_slum = NULL;
 
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
 	assert("nikita-3022", schedulable());
@@ -664,6 +686,9 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	if (ret != 0)
 		goto failed;
 
+	leftmost_in_slum = jref(left_scan.node);
+	scan_done(&left_scan);
+	
 	/* Then possibly go right to decide if we will use a policy of relocating leaves.
 	   This is only done if we did not scan past (and count) enough nodes during the
 	   leftward scan.  If we do scan right, we only care to go far enough to establish
@@ -674,7 +699,7 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	todo = sbinfo->flush.relocate_threshold - left_scan.count;
 	/* FIXME-NIKITA scan right is inherently deadlock prone, because we
 	 * are (potentially) holding a lock on the twig node at this moment. */
-	if (0 && todo > 0) {
+	if (todo > 0) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
 			goto failed;
@@ -719,16 +744,16 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	/* Check jnode state after flush_scan completed. Having a lock on this
 	   node or its parent (in case of unformatted) helps us in case of
 	   concurrent flushing. */
-	if (jnode_check_flushprepped(left_scan.node)) {
+	if (jnode_check_flushprepped(leftmost_in_slum)) {
 		ON_TRACE(TRACE_FLUSH_VERB, "flush concurrency: %s already allocated\n", pos_tostring(&flush_pos));
 		ret = 0;
 		goto failed;
 	}
 
 	/* Now setup flush_pos using scan_left's endpoint. */
-	prepare_flush_pos(&flush_pos, &left_scan);
-
-	scan_done(&left_scan);
+	ret = prepare_flush_pos(&flush_pos, leftmost_in_slum);
+	if (ret)
+		goto failed;
 
 	/* Set pos->preceder and (re)allocate pos and its ancestors if it is needed  */
 	ret = alloc_pos_and_ancestors(&flush_pos);
@@ -820,6 +845,9 @@ failed:
 			ret = ret1;
 
 	}
+
+	if (leftmost_in_slum)
+		jput(leftmost_in_slum);
 
 	pos_done(&flush_pos);
 	scan_done(&left_scan);
@@ -2709,7 +2737,6 @@ jnode_lock_parent_coord(jnode         * node,
 {
 	int ret;
 
-	assert("edward-300", coord_is_invalid(coord));
 	assert("edward-53", jnode_is_unformatted(node) || jnode_is_znode(node));
 	assert("edward-54", jnode_is_unformatted(node) || znode_is_any_locked(JZNODE(node)));
 
@@ -3137,8 +3164,7 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 		if (ret)
 			return ret;
 
-	}
-	else {
+	} else {
 		/* unformatted position */
 
 		ret = jnode_lock_parent_coord(scan->node, &scan->parent_coord, &scan->parent_lock,
