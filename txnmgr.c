@@ -15,6 +15,85 @@
  *   http://namesys.com/txn-doc.html
  */
 
+/* Thoughts on the external transaction interface:
+ *
+ * In the current code, a TRANSCRASH handle is created implicitely by REISER4_ENTRY and
+ * closed by REISER4_EXIT, occupying the scope of a single system call.  We wish to give
+ * certain applications an interface to begin and close (commit) transactions.  Since our
+ * implementation of transactions does not yet support isolation, allowing an application
+ * to open a transaction implies trusting it to later close the transaction.  Part of the
+ * transaction interface will be aimed at enabling that trust, but the interface for
+ * actually using transactions is fairly narrow.
+ *
+ * BEGIN_TRANSCRASH: Returns a transcrash identifier.  It should be possible to translate
+ * this identifier into a string that a shell-script could use, allowing you to start a
+ * transaction by issuing a command.  Once open, the transcrash should be set in the task
+ * structure, and there should be options (I suppose) to allow it to be carried across
+ * fork/exec.  A transcrash has several options:
+ *
+ *   - READ_FUSING or WRITE_FUSING: The default policy is for txn-capture to capture only
+ *   on writes (WRITE_FUSING) and allow "dirty reads".  If the application wishes to
+ *   capture on reads as well, it should set READ_FUSING.
+ *
+ *   - TIMEOUT: Since a non-isolated transcrash cannot be undone, every transcrash must
+ *   eventually close (or else the machine must crash).  If the application dies an
+ *   unexpected death with an open transcrash, for example, or if it hangs for a long
+ *   duration, one solution (to avoid crashing the machine) is to simply close it anyway.
+ *   This is a dangerous option, but it is one way to solve the problem until isolated
+ *   transcrashes are available for untrusted applications.
+ *
+ * RESERVE_BLOCKS: A running transcrash should indicate to the transaction manager how
+ * many dirty blocks it expects.  The reserve_blocks interface should be called at a point
+ * where it is safe for the application to fail, because the system may not be able to
+ * grant the allocation and the application must be able to back-out.  For this reason,
+ * the number of reserve-blocks can also be passed as an argument to BEGIN_TRANSCRASH, but
+ * the application may also wish to extend the allocation after beginning its transcrash.
+ *
+ * CLOSE_TRANSCRASH: The application closes the transcrash when it is finished making
+ * modifications that require transaction protection.  When isolated transactions are
+ * supported the CLOSE operation is replaced by either COMMIT or ABORT.  For example, if a
+ * RESERVE_BLOCKS call fails for the application, it should "abort" by calling
+ * CLOSE_TRANSCRASH, even though it really commits any changes that were made (which is
+ * why, for safety, the application should call RESERVE_BLOCKS before making any changes).
+ *
+ * For actually implementing these out-of-system-call-scopped transcrashes, the
+ * reiser4_context has a "txn_handle *trans" pointer that may be set to an open
+ * transcrash.  Currently there are no dynamically-allocated transcrashes, but there is a
+ * "kmem_cache_t *_txnh_slab" created for that purpose in this file.
+ */
+
+/* Extending the other system call interfaces for future transaction features:
+ *
+ * Specialized applications may benefit from passing flags to the ordinary system call
+ * interface such as read(), write(), or stat().  For example, the application specifies
+ * WRITE_FUSING by default but wishes to add that a certain read() command should be
+ * treated as READ_FUSING.  But which read?  Is it the directory-entry read, the stat-data
+ * read, or the file-data read?  These issues are straight-forward, but there are a lot of
+ * them and adding the necessary flags-passing code will be tedious.
+ *
+ * When supporting isolated transactions, there is a corresponding READ_MODIFY_WRITE (RMW)
+ * flag, which specifies that although it is a read operation being requested, a
+ * write-lock should be taken.  The reason is that read-locks are shared while write-locks
+ * are exclusive, so taking a read-lock when a later-write is known in advance will often
+ * leads to deadlock.  If a reader knows it will write later, it should issue read
+ * requests with the RMW flag set.
+ */
+
+/* Special space reservation:
+ *
+ * The space reserved for a transcrash by calling RESERVE_BLOCKS does not cover all
+ * possible space requirements that a transaction may encounter trying to flush.  The
+ * prime example of this is extent-allocation, which can consume an unpredictable amount
+ * of space during flush, due to fragmentation.  We have discussed two ways to reserve for
+ * any "extra allocation":
+ *
+ * - Reserve a fixed percentage of disk space for use (e.g., 5%), and if that approach
+ * doesn't work (because Nikita Was Right), then...
+ *
+ * - Reserve an amount of disk space proportional to the number of unallocated extent
+ * blocks, or something like that.
+ */
+
 #include "reiser4.h"
 
 static void   atom_free                       (txn_atom   *atom);
