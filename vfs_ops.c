@@ -578,6 +578,7 @@ int reiser4_do_page_cache_readahead (struct file * file,
 		iplug = item_plugin_by_coord (&coord);
 		if (!iplug->s.file.page_cache_readahead) {
 			result = -EINVAL;
+			zrelse (coord.node);
 			break;
 		}
 		/* item's readahead returns number of pages for which readahead
@@ -585,12 +586,15 @@ int reiser4_do_page_cache_readahead (struct file * file,
 		result = iplug->s.file.page_cache_readahead (file, &coord, &lh,
 							     cur_page,
 							     intrafile_readahead_amount);
-		if (result <= 0)
+		zrelse (coord.node);
+		if (result <= 0) {
 			break;
+		}
 		assert ("vs-794", (unsigned long)result <= intrafile_readahead_amount);
 		intrafile_readahead_amount -= result;
 		cur_page += result;
 	}
+	done_lh (&lh);
 	return result <= 0 ? result : (cur_page - start_page);
 }
 
