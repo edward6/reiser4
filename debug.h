@@ -41,7 +41,7 @@
     From post by Andy Chou <acc@CS.Stanford.EDU> at lkml. */
 #define cassert( cond ) ({ switch( -1 ) { case ( cond ): case 0: } })
 
-//#define CONFIG_REISER4_CHECK
+#define CONFIG_REISER4_CHECK
 
 #if defined( CONFIG_REISER4_CHECK )
 #define REISER4_DEBUG (1)
@@ -126,7 +126,7 @@ extern lock_counters_info *lock_counters();
     output useless for average user.
 */
 
-#define REISER4_TRACE (0)
+#define REISER4_TRACE (1)
 
 #if REISER4_TRACE
 /* helper macro for tracing, see trace_stamp() below. */
@@ -213,7 +213,7 @@ extern __u32 reiser4_current_trace_flags;
 #define trace_on( f, args... )   trace_if( f, dinfo( ##args ) )
 
 /** statistics gathering */
-#define REISER4_STATS (0)
+#define REISER4_STATS (1)
 
 #if REISER4_STATS
 
