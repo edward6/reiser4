@@ -37,7 +37,7 @@ static int test_tail( const struct inode *inode UNUSED_ARG /* inode to operate
 							    * on */,
 		      loff_t size /* new object size */ )
 {
-	if (size > PAGE_SIZE * 8)
+	if (size > PAGE_SIZE * 4)
 		return 0;
 	return 1;
 }
