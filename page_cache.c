@@ -465,6 +465,7 @@ int page_common_writeback( struct page *page, int *nr_to_write, int flush_flags 
 	}
 
 	jput (node);
+	prune_jcache (32, 1024);
 	REISER4_EXIT (result);
 }
 
@@ -545,7 +546,7 @@ void set_page_clean_nolock (struct page * pg)
 #if REISER4_DEBUG
 
 #define page_flag_name( page, flag )			\
-	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag ## "|")+3) : "" )
+	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag "|")+3) : "" )
 
 void print_page( const char *prefix, struct page *page )
 {

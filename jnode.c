@@ -67,7 +67,6 @@ int jnodes_tree_init( reiser4_tree *tree /* tree to initialise jnodes for */ )
 int jnodes_tree_done( reiser4_tree *tree /* tree to destroy jnodes for */ )
 {
 	j_hash_table  *jtable;
-	jnode        **bucket;
 	jnode         *node;
 	jnode         *next;
 	int            killed;
@@ -86,7 +85,7 @@ int jnodes_tree_done( reiser4_tree *tree /* tree to destroy jnodes for */ )
 
 	do {
 		killed = 0;
-		for_all_in_htable( jtable, bucket, node, next, link.j ) {
+		for_all_in_htable( jtable, j, node, next ) {
 			assert( "nikita-2361", !atomic_read( &node -> x_count ) );
 			jdrop( node );
 			++ killed;
@@ -708,9 +707,8 @@ int jload( jnode *node )
 					if( unlikely( result != 0 ) ) {
 						page = jnode_lock_page( node );
 						assert( "nikita-2467", page );
-						page_detach_jnode( page );
-						unlock_page( page );
-						spin_unlock_jnode( node );
+						page_detach_jnode_nolock( node, 
+									  page );
 					}
 				} else
 					result = -EIO;
@@ -856,6 +854,15 @@ int jdelete( jnode *node /* jnode to finish with */ )
 			unlock_page( page );
 		return -EAGAIN;
 	}
+
+	tree = current_tree;
+
+	spin_lock_tree( tree );
+	if( atomic_read( &node -> x_count ) > 0 ) {
+		spin_unlock_tree( tree );
+		return -EAGAIN;
+	}
+
 	if( page != NULL ) {
 		assert( "nikita-2181", PageLocked( page ) );
 		ClearPageDirty( page );
@@ -866,25 +873,23 @@ int jdelete( jnode *node /* jnode to finish with */ )
 	} else
 		spin_unlock_jnode( node );
 
-	tree = current_tree;
-
-	spin_lock_tree( tree );
-	if( atomic_read( &node -> x_count ) > 0 ) {
-		spin_unlock_tree( tree );
-		return -EAGAIN;
-	}
 	result = jnode_ops( node ) -> delete( node, tree );
 	spin_unlock_tree( tree );
-	if( result != 0 )
-		warning( "nikita-2363", "Failed to delete jnode: %llx: %i",
-			 *jnode_get_block( node ), result );
 	return result;
 }
 
-/* drop jnode on the floor */
-void jdrop_in_tree( jnode *node, reiser4_tree *tree )
+/**
+ * drop jnode on the floor.
+ *
+ * Return value:
+ *
+ *  -EBUSY:  failed to drop jnode, because there are still references to it
+ *
+ *  0:       successfully dropped jnode
+ *
+ */
+int jdrop_in_tree( jnode *node, reiser4_tree *tree, int drop_page_p )
 {
-	int           result;
 	struct page  *page;
 
 	assert( "zam-602", node != NULL );
@@ -893,7 +898,7 @@ void jdrop_in_tree( jnode *node, reiser4_tree *tree )
 
 	/* still in use? */
 	if( atomic_read( &node -> x_count ) > 0 )
-		return;
+		return -EBUSY;
 
 	spin_unlock_tree( tree );
 
@@ -901,6 +906,7 @@ void jdrop_in_tree( jnode *node, reiser4_tree *tree )
 
 	page = jnode_lock_page( node );
 	assert( "nikita-2405", spin_jnode_is_locked( node ) );
+
 	if( atomic_read( &node -> d_count ) > 0 ) {
 		/*
 		 * updates to ->d_count are not protected by any lock by
@@ -908,29 +914,37 @@ void jdrop_in_tree( jnode *node, reiser4_tree *tree )
 		 * passes through acquiring of page lock and jnode spin
 		 * lock. At this moment we hold both locks.
 		 */
-		spin_lock_tree( tree );
-		return;
-	}
-	if( page != NULL ) {
-		assert( "nikita-2126", !PageDirty( page ) );
-		assert( "nikita-2127", PageUptodate( page ) );
-		assert( "nikita-2181", PageLocked( page ) );
-		remove_inode_page( page );
-		page_detach_jnode_nolock( node, page );
-		page_cache_release( page );
-	} else
 		spin_unlock_jnode( node );
+		if( page != NULL )
+			unlock_page( page );
+		spin_lock_tree( tree );
+		return -EBUSY;
+	}
 
 	spin_lock_tree( tree );
 
 	/* reference was acquired by other thread. */
 	if( atomic_read( &node -> x_count ) > 0 )
-		return;
+		return -EBUSY;
 
-	result = jnode_ops( node ) -> remove( node, tree );
-	if( result != 0 )
-		warning( "nikita-2363", "Failed to drop jnode: %llx: %i",
-			 *jnode_get_block( node ), result );
+	assert( "nikita-2488", page == node -> pg );
+	if( page != NULL ) {
+		if( drop_page_p ) {
+			assert( "nikita-2126", !PageDirty( page ) );
+			assert( "nikita-2127", PageUptodate( page ) );
+			assert( "nikita-2181", PageLocked( page ) );
+			remove_inode_page( page );
+			page_detach_jnode_nolock( node, page );
+			page_cache_release( page );
+		} else {
+			spin_unlock_jnode( node );
+			unlock_page( page );
+			return -EBUSY;
+		}
+	} else
+		spin_unlock_jnode( node );
+
+	return jnode_ops( node ) -> remove( node, tree );
 }
 
 /**
@@ -939,7 +953,7 @@ void jdrop_in_tree( jnode *node, reiser4_tree *tree )
  */
 void jdrop (jnode * node)
 {
-	jdrop_in_tree (node, current_tree);
+	jdrop_in_tree (node, current_tree, 1);
 }
 
 int jwait_io (jnode * node, int rw)
@@ -965,13 +979,61 @@ int jwait_io (jnode * node, int rw)
 	return result;
 }
 
+#define DEATH_QUEUE_SIZE (32)
+
 /**
  * shrink jnode (and znode) hash tables. This is not very important as of now,
  * because reiser4_releasepage() would drop jnode when releasing page.
  */
-int prune_jcache( int goal )
+int prune_jcache( int goal, int to_scan )
 {
-	return 0;
+	int            recycled;
+	int            killed;
+	j_hash_table  *jtable;
+	jnode         *node;
+	jnode         *next;
+	reiser4_tree  *tree;
+
+	assert( "nikita-2484", goal >= 0 );
+
+	tree = current_tree;
+	jtable = &tree -> jhash_table;
+	recycled = 0;
+
+	do {
+		killed = 0;
+		spin_lock_tree( tree );
+
+		for_all_in_htable( jtable, j, node, next ) {
+			if( ! -- to_scan )
+				break;
+
+			if( next != NULL )
+				jref( next );
+
+			if( !JF_ISSET( node, JNODE_HEARD_BANSHEE ) ) {
+				/*
+				 * jdrop_in_tree() might schedule and release
+				 * tree spin lock, but @next is safe, because
+				 * of jref().
+				 */
+				killed += !jdrop_in_tree( node, tree, 0 );
+			} else {
+				spin_unlock_tree( tree );
+				killed += !jdelete( node );
+				spin_lock_tree( tree );
+			}
+			/*
+			 * don't want to use jput(), because @next may already
+			 * heard banshee
+			 */
+			if( next != NULL )
+				atomic_dec( &next -> x_count );
+		}
+		spin_unlock_tree( tree );
+		recycled += killed;
+	} while( ( recycled < goal ) && ( killed > 0 ) && to_scan );
+	return recycled;
 }
 
 jnode_type jnode_get_type( const jnode *node )
@@ -1082,8 +1144,9 @@ static int znode_remove_op( jnode *node, reiser4_tree *tree )
 		 */
 		znode_remove( z, tree );
 		zfree( z );
+		return 0;
 	}
-	return 0;
+	return -EBUSY;
 }
 
 static int znode_init( jnode *node )
@@ -1100,7 +1163,7 @@ static int no_hook( jnode *node UNUSED_ARG,
 	return 1;
 }
 
-static int other_remove_op( jnode *node, reiser4_tree *tree )
+static int other_remove_op( jnode *node, reiser4_tree *tree UNUSED_ARG )
 {
 	jfree( node );
 	return 0;
@@ -1269,7 +1332,7 @@ const char *jnode_type_name( jnode_type type )
 }
 
 #define jnode_state_name( node, flag )			\
-	( JF_ISSET( ( node ), ( flag ) ) ? ((#flag ## "|")+6) : "" )
+	( JF_ISSET( ( node ), ( flag ) ) ? ((#flag "|")+6) : "" )
 
 /** debugging aid: output human readable information about @node */
 /* Audited by: umka (2002.06.11) */
@@ -1283,7 +1346,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, type: %s, ",
+	info( "%s: %p: state: %lx: [%s%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, block: %llu, d_count: %d, x_count: %d, pg: %p, type: %s, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, JNODE_LOADED ),
@@ -1298,6 +1361,7 @@ void info_jnode( const char *prefix /* prefix to print */,
 	      jnode_state_name( node, JNODE_IS_DYING ),
 	      jnode_state_name( node, JNODE_MAPPED ),
 	      jnode_state_name( node, JNODE_FLUSH_QUEUED ),
+	      jnode_state_name( node, JNODE_DROP ),
 
 	      jnode_get_level( node ), *jnode_get_block( node ),
 	      atomic_read( &node -> d_count ), atomic_read( &node -> x_count ),
@@ -1312,7 +1376,6 @@ void info_jnode( const char *prefix /* prefix to print */,
 /** this is cut-n-paste replica of print_znodes() */
 void print_jnodes( const char *prefix, reiser4_tree *tree )
 {
-	jnode       **bucket;
 	jnode        *node;
 	jnode        *next;
 	j_hash_table *htable;
@@ -1329,7 +1392,7 @@ void print_jnodes( const char *prefix, reiser4_tree *tree )
 	tree_lock_taken = spin_trylock_tree( tree );
 	htable = &tree -> jhash_table;
 
-	for_all_in_htable( htable, bucket, node, next, link.j ) {
+	for_all_in_htable( htable, j, node, next ) {
 		info_jnode( prefix, node );
 		info( "\n" );
 	}
