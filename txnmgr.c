@@ -13,7 +13,7 @@ whether the differences are well founded.  */
 /* I cannot help but to disagree with the sentiment above. Locking of
  * transaction manager is _not_ badly designed, and, at the very least, is not
  * the scaling bottleneck. Scaling bottleneck is _exactly_ hi-lo priority
- * locking on znodes, especially in the root node on the tree. --nikita,
+ * locking on znodes, especially on the root node of the tree. --nikita,
  * 2003.10.13 */
 
 /* The txnmgr is a set of interfaces that keep track of atoms and transcrash handles.  The
