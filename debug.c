@@ -853,6 +853,8 @@ report_err(void)
 	}
 }
 
+#endif
+
 #ifdef CONFIG_FRAME_POINTER
 void fill_backtrace(backtrace_path path)
 {
@@ -863,7 +865,6 @@ void fill_backtrace(backtrace_path path)
 	path[4] = __builtin_return_address(5);
 	path[5] = __builtin_return_address(6);
 }
-#endif
 #endif
 
 #if KERNEL_DEBUGGER
