@@ -99,6 +99,7 @@ static int reiser4_set_page_dirty (struct page * page /* page to mark dirty */)
 	return 0;
 }
 
+static int reiser4_set_page_dirty_lru(struct page *) __attribute__((unused));
 /* alternative version of reiser4_set_page_dirty() that tried to keep dirty
  * pages in LRU order */
 static int reiser4_set_page_dirty_lru(struct page * page)
