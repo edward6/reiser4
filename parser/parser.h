@@ -7,7 +7,7 @@
 #define IF_STATEMENT
 
 
-                                 /* size's defines      */
+                                 /* sizes defines      */
 #define WRDTABSIZE
 #define FREESPACESIZE
 #define VARTABSIZE
@@ -161,6 +161,33 @@ struct yy_r4_work_space
 	streg     * StrTabHead;
 	int       * Gencode;
 };
+
+
+
+
+
+static struct
+{
+	unsigned char numOfParam;
+	unsigned char typesOfParam[]       ;
+}
+	typesOfCommand[]=
+{
+};
+
+
+
+static struct 
+{
+	void (*	call_function)(void) ;
+	unsigned char type;            /* describe parameters, and its types */
+}
+	Code[] =
+{
+};
+
+
+
 
 
 TS_LIST_DECLARE( r4_pars );
