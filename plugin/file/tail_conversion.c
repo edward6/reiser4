@@ -232,7 +232,7 @@ static int replace (struct inode * inode, struct page ** pages, unsigned nr_page
 	iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 
 	for (i = 0; i < nr_pages; i ++) {
-		unlock_page (pages [i]);
+		reiser4_unlock_page (pages [i]);
 		result = unix_file_writepage_nolock (pages [i]);
 		if (result)
 			break;

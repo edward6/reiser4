@@ -1571,12 +1571,12 @@ int extent_readpage (coord_t * coord, lock_handle * lh, struct page * page)
 		/* the page is read while page was unlocked */
 		assert ("vs-1043", jnode_by_page (page));
 		assert ("vs-1042", PageUptodate (page));
-		unlock_page (page);
+		reiser4_unlock_page (page);
 		return 0;
 	}
 	if (PageUptodate (page)) {
 		/* nothing todo: page matching to hole */
-		unlock_page (page);
+		reiser4_unlock_page (page);
 		return 0;
 	}
 
@@ -1602,7 +1602,7 @@ int extent_readpage (coord_t * coord, lock_handle * lh, struct page * page)
 		flush_dcache_page (page);
 		kunmap_atomic (kaddr, KM_USER0);
 		SetPageUptodate (page);
-		unlock_page (page);
+		reiser4_unlock_page (page);
 		
 		trace_on (TRACE_EXTENTS, " - hole, OK\n");
 		
@@ -1612,7 +1612,7 @@ int extent_readpage (coord_t * coord, lock_handle * lh, struct page * page)
 	case ALLOCATED_EXTENT:
 		j = jnode_of_page (page);
 		if (IS_ERR (j)) {
-			unlock_page (page);
+			reiser4_unlock_page (page);
 			return PTR_ERR (j);
 		}
 		jnode_set_mapped (j);

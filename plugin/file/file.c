@@ -958,7 +958,7 @@ static int unix_file_readpage_nolock (void * file, struct page * page)
 int unix_file_readpage_nolock_locked_page (void * file,
 					   struct page * page)
 {
-	unlock_page (page);
+	reiser4_unlock_page (page);
 	return unix_file_readpage_nolock (file, page);
 }
 
@@ -1010,15 +1010,15 @@ int unix_file_writepage_nolock (struct page * page)
 			}
 			loaded = coord.node;
 			
-			lock_page (page);
+			reiser4_lock_page (page);
 			
 			/* get plugin of extent item */
 			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 			result = iplug->s.file.writepage (&coord, &lh, page);
+			assert ("vs-982", PageLocked (page));
 			if (result == -EAGAIN) {
 				info ("writepage_nolock: item writepage returned EAGAIN\n");
-				assert ("vs-982", PageLocked (page));
-				unlock_page (page);
+				reiser4_unlock_page (page);
 				zrelse (loaded);
 				done_lh (&lh);
 				continue;
@@ -1030,12 +1030,11 @@ int unix_file_writepage_nolock (struct page * page)
 			zrelse (loaded);
 			done_lh (&lh);
 			
-			assert ("vs-1063", PageLocked (page));
 			return result;
 		}
 	}
 
-	lock_page (page);
+	reiser4_lock_page (page);
 	return result;
 }
 
@@ -1056,16 +1055,16 @@ static int page_op (struct file * file, struct page * page, rw_op op)
 	/* to keep order of locks right we have to unlock page before
 	 * call to get_nonexclusive_access */
 	page_cache_get (page);
-	unlock_page (page);
+	reiser4_unlock_page (page);
 
 	get_nonexclusive_access (inode);
-	lock_page (page);
+	reiser4_lock_page (page);
 	if (!page->mapping) {
 		drop_nonexclusive_access (inode);
 		return -EIO;
 	}
 	assert ("vs-1067", inode->i_size > ((loff_t)page->index << PAGE_CACHE_SHIFT));
-	unlock_page (page);
+	reiser4_unlock_page (page);
 	/* page is unlocked but it can not be invalidated, because truncate
 	 * requires exclusive access to the file */
 	result = ((op == READ_OP) ?
