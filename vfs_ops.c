@@ -2500,7 +2500,10 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 	REISER4_EXIT(ret);
 }
 
-static int
+#if !REISER4_DEBUG
+static
+#endif
+int
 releasable(const jnode *node)
 {
 	assert("nikita-2781", node != NULL);

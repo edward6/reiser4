@@ -632,6 +632,7 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
+			ON_DEBUG(int releasable(const jnode *));
 
 			pg = jnode_page(cur);
 			assert("zam-573", pg != NULL);
@@ -640,23 +641,11 @@ jnode_extent_write(jnode * first, int nr, const reiser4_block_nr * block_p, flus
 
 			lock_and_wait_page_writeback(pg);
 
-			/*
-			 * race with truncate. We have to submit half baked
-			 * bio.
-			 */
-			if (pg->mapping != jnode_get_mapping(cur)) {
-				reiser4_unlock_page(pg);
-				page_cache_release(pg);
-				reiser4_stat_inc(txnmgr.raced_with_truncate);
-				/* skip this node */
-				nr --;
-				cur = capture_list_next(cur);
-				block ++;
-				break;
-			}
-
 			LOCK_JNODE(cur);
+			assert("nikita-3166", 
+			       pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
+			assert("nikita-3165", !releasable(cur));
 			JF_SET(cur, JNODE_WRITEBACK);
 			JF_CLR(cur, JNODE_DIRTY);
 			UNLOCK_JNODE(cur);
