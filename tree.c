@@ -903,6 +903,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 	coord_t left_coord;
 	znode *left_child;
 	znode *right_child;
+	reiser4_tree *tree;
 	int left_zloaded_here, right_zloaded_here;
 
 	assert("umka-326", from != NULL);
@@ -975,8 +976,9 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 		return 0;
 	}
 
-	left_child = UNDER_SPIN(dk, znode_get_tree(left_coord.node),
-				child_znode(&left_coord, left_coord.node, 0, 1 /* update delimiting keys */ ));
+	tree = znode_get_tree(left_coord.node);
+	left_child = UNDER_SPIN(dk, tree,
+				child_znode(&left_coord, left_coord.node, 1, 0 /* update delimiting keys */ ));
 	if (IS_ERR(left_child)) {
 		if (left_zloaded_here)
 			zrelse(left_lh.node);
@@ -1003,7 +1005,8 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 					if (left_zloaded_here)
 						zrelse(left_lh.node);
 					done_lh(&left_lh);
-					zput(left_child);
+					if (left_child)
+						zput(left_child);
 					return result;
 				}
 				right_zloaded_here = 1;
@@ -1014,7 +1017,7 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 			case -ENAVAIL:
 				/* there is no formatted node to the right of
 				   from->node */
-				UNDER_SPIN_VOID(dk, znode_get_tree(from->node), key = *znode_get_rd_key(from->node));
+				UNDER_SPIN_VOID(dk, tree, key = *znode_get_rd_key(from->node));
 				right_coord.node = 0;
 				break;
 			default:
@@ -1023,7 +1026,8 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 				if (left_zloaded_here)
 					zrelse(left_lh.node);
 				done_lh(&left_lh);
-				zput(left_child);
+				if (left_child)
+					zput(left_child);
 				return result;
 			}
 		} else {
@@ -1035,8 +1039,8 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 		if (right_coord.node &&	/* there is right neighbor of @from */
 		    item_is_internal(&right_coord)) {	/* it is internal item */
 			right_child = UNDER_SPIN
-			    (dk, znode_get_tree(right_coord.node),
-			     child_znode(&right_coord, right_coord.node, 0, 1 /* update delimiting keys */ ));
+			    (dk, tree,
+			     child_znode(&right_coord, right_coord.node, 1, 0 /* update delimiting keys */ ));
 
 			if (IS_ERR(right_child)) {
 				if (right_zloaded_here)
@@ -1045,12 +1049,13 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 				if (left_zloaded_here)
 					zrelse(left_lh.node);
 				done_lh(&left_lh);
-				zput(left_child);
+				if (left_child)
+					zput(left_child);
 				return PTR_ERR(right_child);
 			}
 
 			/* link left_child and right_child */
-			UNDER_SPIN_VOID(tree, znode_get_tree(right_coord.node),
+			UNDER_SPIN_VOID(tree, tree,
 					link_left_and_right(left_child, right_child));
 		}
 	} else {
@@ -1063,8 +1068,9 @@ prepare_twig_cut(coord_t * from, coord_t * to,
 
 	/* update right delimiting key of left_child */
 
-	UNDER_SPIN_VOID(dk, znode_get_tree(left_child), 
-			znode_set_rd_key(left_child, &key));
+	if (left_child)
+		UNDER_SPIN_VOID(dk, tree,
+				znode_set_rd_key(left_child, &key));
 
 	if (right_child)
 		zput(right_child);

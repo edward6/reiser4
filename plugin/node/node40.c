@@ -2111,14 +2111,15 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 
 	node40_copy(&shift);
 
+	result = node40_delete_copied(&shift);
+	if (result < 0)
+		return result;
+
+	update_znode_dkeys(left, right);
 	/* item which has been moved from one node to another might want to do
 	   something on that event. This can be done by item's shift_hook
 	   method, which will be now called for every moved items */
 	call_shift_hooks(&shift);
-
-	result = node40_delete_copied(&shift);
-	if (result < 0)
-		return result;
 
 	update_taps(&shift);
 

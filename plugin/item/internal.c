@@ -84,7 +84,7 @@ znode_at(const coord_t * item /* coord of item */ ,
 	 znode * parent /* parent node */)
 {
 	/* Take DK lock, as required by child_znode. */
-	return UNDER_SPIN(dk, znode_get_tree(item->node), child_znode(item, parent, 0, 1));
+	return UNDER_SPIN(dk, znode_get_tree(item->node), child_znode(item, parent, 1, 0));
 }
 
 /* store pointer from internal item into "block". Implementation of
@@ -297,7 +297,7 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
 	 * because of JNODE_DKSET bit in child state, but changes to ->shift()
 	 * method of node plugin are expected.
 	 */
-	child = UNDER_SPIN(dk, tree, child_znode(item, old_node, 1, 1));
+	child = UNDER_SPIN(dk, tree, child_znode(item, old_node, 1, 0));
 	if (child == NULL)
 		return 0;
 	if (!IS_ERR(child)) {
