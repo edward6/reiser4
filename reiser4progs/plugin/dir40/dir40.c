@@ -43,14 +43,14 @@ static reiserfs_object_hint_t *dir40_create(reiserfs_key_t *parent,
 
     key_plugin = object->plugin;
     
-    parent_objectid = libreiser4_plugin_call(return NULL, key_plugin->key_ops, 
-	get_objectid, parent->body);
+    parent_objectid = libreiser4_plugin_call(return NULL, 
+	key_plugin->key_ops, get_objectid, parent->body);
     
-    parent_locality = libreiser4_plugin_call(return NULL, key_plugin->key_ops, 
-	get_locality, parent->body);
+    parent_locality = libreiser4_plugin_call(return NULL, 
+	key_plugin->key_ops, get_locality, parent->body);
     
-    objectid = libreiser4_plugin_call(return NULL, key_plugin->key_ops, 
-	get_objectid, object->body);
+    objectid = libreiser4_plugin_call(return NULL, 
+	key_plugin->key_ops, get_objectid, object->body);
     
     if (!(hint = aal_calloc(sizeof(*hint), 0)))
 	return NULL;

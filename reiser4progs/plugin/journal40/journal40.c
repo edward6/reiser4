@@ -191,13 +191,16 @@ static reiserfs_plugin_t journal40_plugin = {
 	    journal40_create,
 
 	.sync = (errno_t (*)(reiserfs_entity_t *))journal40_sync,
+	.check = NULL,
 #else
 	.create = NULL,
 	.sync = NULL,
+	.check = NULL,
 #endif
 	.area = (void (*)(reiserfs_entity_t *, blk_t *, blk_t *))journal40_area,
 	.close = (void (*)(reiserfs_entity_t *))journal40_close,
-	.replay = (errno_t (*)(reiserfs_entity_t *))journal40_replay
+	.replay = (errno_t (*)(reiserfs_entity_t *))journal40_replay,
+	.confirm = NULL,
     }
 };
 

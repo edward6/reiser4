@@ -69,7 +69,9 @@ static reiserfs_plugin_t journal36_plugin = {
 	.open = (reiserfs_entity_t *(*)(aal_device_t *))journal36_open,
 	.close = (void (*)(reiserfs_entity_t *))journal36_close,
 	.sync = (errno_t (*)(reiserfs_entity_t *))journal36_sync,
-	.replay = (errno_t (*)(reiserfs_entity_t *))journal36_replay
+	.replay = (errno_t (*)(reiserfs_entity_t *))journal36_replay,
+	.check = NULL,
+	.confirm = NULL
     }
 };
 

@@ -206,7 +206,9 @@ static reiserfs_plugin_t alloc40_plugin = {
 #endif
 	.test = (int (*)(reiserfs_entity_t *, blk_t))alloc40_test,
 	.free = (count_t (*)(reiserfs_entity_t *))alloc40_free,
-	.used = (count_t (*)(reiserfs_entity_t *))alloc40_used
+	.used = (count_t (*)(reiserfs_entity_t *))alloc40_used,
+	.check = NULL,
+	.confirm = NULL
     }
 };
 

@@ -96,7 +96,10 @@ static reiserfs_plugin_t alloc36_plugin = {
 	.dealloc = NULL,
 	
 	.free = NULL,
-	.used = NULL
+	.used = NULL,
+
+	.check = NULL,
+	.confirm = NULL
     }
 };
 

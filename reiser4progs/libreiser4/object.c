@@ -241,7 +241,7 @@ reiserfs_object_t *reiserfs_object_create(reiserfs_fs_t *fs, reiserfs_object_t *
 	}
     } else {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Sorry, file are not supported now!");
+	    "Sorry, files are not supported now!");
 	goto error_free_object;
     }
     

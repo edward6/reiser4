@@ -266,13 +266,14 @@ static reiserfs_plugin_t format40_plugin = {
 #ifndef ENABLE_COMPACT	
 	.sync = (errno_t (*)(reiserfs_entity_t *))format40_sync,
 	.create = (reiserfs_entity_t *(*)(aal_device_t *, count_t, uint16_t))format40_create,
+	.check = (errno_t (*)(reiserfs_entity_t *, int))format40_check,
 #else
 	.sync = NULL,
 	.create = NULL,
+	.check = NULL,
 #endif
 	.oid = (void (*)(reiserfs_entity_t *, void **, void **))format40_oid,
 	.close = (void (*)(reiserfs_entity_t *))format40_close,
-	.check = (errno_t (*)(reiserfs_entity_t *, int))format40_check,
 	.confirm = (int (*)(aal_device_t *))format40_confirm,
 	.format = (const char *(*)(reiserfs_entity_t *))format40_format,
 	
