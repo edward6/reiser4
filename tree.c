@@ -299,10 +299,10 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 	case CBK_COORD_NOTFOUND:
 		assert( "nikita-2017", coord -> node != NULL );
 		result = zload( coord -> node );
-		if( result != NULL )
+		if( result != 0 )
 			break;
 		result = insert_by_coord( coord, data, key, lh, ra, ira, 0 );
-		zrelse( node );
+		zrelse( coord -> node );
 		break;
 	}
 	return result;
