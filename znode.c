@@ -1096,6 +1096,17 @@ znode_invariant_f(const znode * node /* znode to check */ ,
 		/* orphan doesn't have a parent */
 		_ergo(ZF_ISSET(node, JNODE_ORPHAN), znode_parent(node) == 0) &&
 
+		/* [znode-modify] invariant */
+
+		/* if znode is not write-locked, its checksum remains
+		 * invariant */
+		/* unfortunately, zlock is unordered w.r.t. jnode_lock, so we
+		 * cannot check this. */
+		/*
+		UNDER_RW(zlock, (zlock *)&node->lock,
+			 read, _ergo(!znode_is_wlocked(node),
+				     znode_at_read(node))) &&
+		*/
 		/* [znode-refs] invariant */
 
 		/* only referenced znode can be long-term locked */
@@ -1168,6 +1179,11 @@ __u32 znode_checksum(const znode * node)
 	return (h << 16) | (l & 0xffff);
 }
 
+static inline int znode_has_data(const znode *z)
+{
+	return znode_page(z) != NULL && page_address(znode_page(z)) == zdata(z);
+}
+
 void znode_set_checksum(jnode * node, int locked_p)
 {
 	if (jnode_is_znode(node)) {
@@ -1177,7 +1193,7 @@ void znode_set_checksum(jnode * node, int locked_p)
 
 		if (!locked_p)
 			LOCK_JNODE(node);
-		if (znode_page(z) != NULL)
+		if (znode_has_data(z))
 			z->cksum = znode_checksum(z);
 		else
 			z->cksum = 0;
@@ -1192,7 +1208,7 @@ znode_pre_write(znode * node)
 	assert("umka-066", node != NULL);
 
 	spin_lock_znode(node);
-	if (znode_page(node) != NULL) {
+	if (znode_has_data(node)) {
 		if (node->cksum == 0 && !znode_is_dirty(node))
 			node->cksum = znode_checksum(node);
 	}
@@ -1206,15 +1222,34 @@ znode_post_write(znode * node)
 
 	assert("umka-067", node != NULL);
 
-	if (znode_page(node) != NULL) {
+	if (znode_has_data(node)) {
 		cksum = znode_checksum(node);
 
-		if (!znode_is_dirty(node) &&
-		    cksum != node->cksum && node->cksum != 0)
+		if (cksum != node->cksum && node->cksum != 0)
 			reiser4_panic("jmacd-1081",
 				      "changed znode is not dirty: %llu",
 				      node->zjnode.blocknr);
 	}
+}
+
+int
+znode_at_read(const znode * node)
+{
+	__u32 cksum;
+
+	assert("umka-067", node != NULL);
+
+	if (znode_has_data(node)) {
+		cksum = znode_checksum((znode *)node);
+
+		if (cksum != node->cksum && node->cksum != 0) {
+			reiser4_panic("nikita-3561",
+				      "znode is changed: %llu",
+				      node->zjnode.blocknr);
+			return 0;
+		}
+	}
+	return 1;
 }
 #endif
 
