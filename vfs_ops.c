@@ -46,6 +46,9 @@
 #include <linux/writeback.h>
 #include <linux/mpage.h>
 #include <linux/backing-dev.h>
+#include <linux/quotaops.h>
+#include <linux/security.h>
+
 
 /* inode operations */
 
@@ -99,6 +102,7 @@ static unsigned long reiser4_get_unmapped_area(struct file *, unsigned long,
 
 static struct inode *reiser4_alloc_inode(struct super_block *super);
 static void reiser4_destroy_inode(struct inode *inode);
+static void reiser4_put_inode(struct inode *inode);
 static void reiser4_drop_inode(struct inode *);
 static void reiser4_delete_inode(struct inode *);
 static void reiser4_write_super(struct super_block *);
@@ -155,7 +159,7 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to look fo
 	dir_plugin *dplug;
 	int retval;
 	struct dentry *result;
-	REISER4_ENTRY_PTR(parent->i_sb);
+	REISER4_ENTRY_PTR(parent->i_sb, LOOKUP_OP);
 
 	assert("nikita-403", parent != NULL);
 	assert("nikita-404", dentry != NULL);
@@ -269,7 +273,7 @@ static int
 reiser4_rename(struct inode *old_dir, struct dentry *old, struct inode *new_dir, struct dentry *new)
 {
 	int result;
-	REISER4_ENTRY(old_dir->i_sb);
+	REISER4_ENTRY(old_dir->i_sb, RENAME_OP);
 
 	assert("nikita-2314", old_dir != NULL);
 	assert("nikita-2315", old != NULL);
@@ -321,7 +325,7 @@ reiser4_setattr(struct dentry *dentry, struct iattr *attr)
 {
 	struct inode *inode = dentry->d_inode;
 	int result;
-	REISER4_ENTRY(inode->i_sb);
+	REISER4_ENTRY(inode->i_sb, SETATTR_OP);
 
 	assert("nikita-2269", attr != NULL);
 	assert("vs-1108", inode);
@@ -348,7 +352,7 @@ reiser4_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct k
 {
 	struct inode *inode = dentry->d_inode;
 	int result;
-	REISER4_ENTRY(inode->i_sb);
+	REISER4_ENTRY(inode->i_sb, GETATTR_OP);
 
 	reiser4_stat_inc(vfs_calls.getattr);
 	result = perm_chk(inode, getattr, mnt, dentry, stat);
@@ -381,7 +385,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 {
 	ssize_t result;
 	struct inode *inode = file->f_dentry->d_inode;
-	REISER4_ENTRY(inode->i_sb);
+	REISER4_ENTRY(inode->i_sb, SYSREAD_OP);
 	write_syscall_trace("%s", file->f_dentry->d_name.name);
 
 	assert("umka-072", file != NULL);
@@ -422,7 +426,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 	struct inode *inode;
 	ssize_t result;
 
-	REISER4_ENTRY((inode = file->f_dentry->d_inode)->i_sb);
+	REISER4_ENTRY((inode = file->f_dentry->d_inode)->i_sb, SYSWRITE_OP);
 	write_syscall_trace("%s", file->f_dentry->d_name.name);
 
 	assert("nikita-1421", file != NULL);
@@ -447,11 +451,43 @@ reiser4_write(struct file *file /* file to write on */ ,
 	REISER4_EXIT(result);
 }
 
+/* helper function: call object plugin to truncate file to @size */
+static int
+truncate_object(struct inode *inode /* object to truncate */ ,
+		loff_t size /* size to truncate object to */ )
+{
+	file_plugin *fplug;
+	int result;
+
+	assert("nikita-1026", inode != NULL);
+	assert("nikita-1027", is_reiser4_inode(inode));
+	assert("nikita-1028", inode->i_sb != NULL);
+
+	write_syscall_trace("%llu %lli", get_inode_oid(inode), size);
+
+	/* if among pages which are being removed completely there are emergency flushed ones - drop them first */
+	drop_enodes(inode, (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
+#if REISER4_USE_EFLUSH
+	assert("vs-1181", inode_get_flag(inode, REISER4_DONT_EFLUSH));
+	inode_clr_flag(inode, REISER4_DONT_EFLUSH);
+#endif
+	fplug = inode_file_plugin(inode);
+	assert("vs-142", fplug != NULL);
+
+	assert("nikita-2933", fplug->truncate != NULL);
+	result = fplug->truncate(inode, size);
+	if (result != 0)
+		warning("nikita-1602", "Truncate error: %i for %lli", result, get_inode_oid(inode));
+
+	write_syscall_trace("ex");
+	return result;
+}
+
 /* ->truncate() VFS method in reiser4 inode_operations */
 static void
 reiser4_truncate(struct inode *inode /* inode to truncate */ )
 {
-	__REISER4_ENTRY(inode->i_sb,);
+	__REISER4_ENTRY(inode->i_sb, TRUNCATE_OP,);
 
 	assert("umka-075", inode != NULL);
 
@@ -523,7 +559,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 {
 	long bfree;
 	
-	REISER4_ENTRY(super);
+	REISER4_ENTRY(super, STATFS_OP);
 
 	assert("nikita-408", super != NULL);
 	assert("nikita-409", buf != NULL);
@@ -610,7 +646,7 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 	struct inode *inode;
 	file_plugin *fplug;
 	int result;
-	REISER4_ENTRY(f->f_dentry->d_inode->i_sb);
+	REISER4_ENTRY(f->f_dentry->d_inode->i_sb, READPAGE_OP);
 
 	assert("umka-078", f != NULL);
 	assert("umka-079", page != NULL);
@@ -657,6 +693,7 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 	fplug = inode_file_plugin(mapping->host);
 	if (fplug->readpages)
 		fplug->readpages(file, mapping, pages);
+
 	/* FIXME-VS: until it is not centralized */
 	while (!list_empty(pages)) {
 		struct page *page = list_entry(pages->prev, struct page, list);
@@ -692,7 +729,7 @@ static sector_t
 reiser4_bmap(struct address_space *mapping, sector_t block)
 {
 	file_plugin *fplug;
-	REISER4_ENTRY(mapping->host->i_sb);
+	REISER4_ENTRY(mapping->host->i_sb, BMAP_OP);
 
 	reiser4_stat_inc(vfs_calls.bmap);
 
@@ -809,7 +846,7 @@ reiser4_link(struct dentry *existing	/* dentry of existing
 {
 	int result;
 	dir_plugin *dplug;
-	REISER4_ENTRY(parent->i_sb);
+	REISER4_ENTRY(parent->i_sb, LINK_OP);
 
 	assert("umka-080", existing != NULL);
 	assert("nikita-1031", parent != NULL);
@@ -836,7 +873,7 @@ reiser4_llseek(struct file *file, loff_t off, int origin)
 	file_plugin *fplug;
 	struct inode *inode = file->f_dentry->d_inode;
 	loff_t(*seek_fn) (struct file *, loff_t, int);
-	REISER4_ENTRY(inode->i_sb);
+	REISER4_ENTRY(inode->i_sb, LSEEK_OP);
 
 	reiser4_stat_inc(vfs_calls.llseek);
 
@@ -885,7 +922,7 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 	int result;
 	struct inode *inode = f->f_dentry->d_inode;
 
-	REISER4_ENTRY(inode->i_sb);
+	REISER4_ENTRY(inode->i_sb, READDIR_OP);
 	write_syscall_trace("%s", f->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.readdir);
 
@@ -910,7 +947,7 @@ static int
 reiser4_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int result;
-	REISER4_ENTRY(inode->i_sb);
+	REISER4_ENTRY(inode->i_sb, IOCTL_OP);
 	write_syscall_trace("%s", filp->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.ioctl);
 
@@ -929,7 +966,7 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct inode *inode;
 	int result;
-	REISER4_ENTRY(file->f_dentry->d_inode->i_sb);
+	REISER4_ENTRY(file->f_dentry->d_inode->i_sb, MMAP_OP);
 	write_syscall_trace("%s", file->f_dentry->d_name.name);
 	reiser4_stat_inc(vfs_calls.mmap);
 
@@ -951,7 +988,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 {
 	int result;
 	dir_plugin *dplug;
-	REISER4_ENTRY(parent->i_sb);
+	REISER4_ENTRY(parent->i_sb, UNLINK_OP);
 	write_syscall_trace("%s", victim->d_name.name);
 
 	assert("nikita-1435", parent != NULL);
@@ -1130,7 +1167,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 {
 	int result;
 	dir_plugin *dplug;
-	REISER4_ENTRY(parent->i_sb);
+	REISER4_ENTRY(parent->i_sb, CREATE_OP);
 	write_syscall_trace("%s %o", dentry->d_name.name, data->mode);
 
 	assert("nikita-426", parent != NULL);
@@ -1162,32 +1199,6 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 
 	write_syscall_trace("ex");
 	REISER4_EXIT(result);
-}
-
-/* helper function: call object plugin to truncate file to @size */
-int
-truncate_object(struct inode *inode /* object to truncate */ ,
-		loff_t size /* size to truncate object to */ )
-{
-	file_plugin *fplug;
-	int result;
-
-	assert("nikita-1026", inode != NULL);
-	assert("nikita-1027", is_reiser4_inode(inode));
-	assert("nikita-1028", inode->i_sb != NULL);
-
-	write_syscall_trace("%llu %lli", get_inode_oid(inode), size);
-
-	fplug = inode_file_plugin(inode);
-	assert("vs-142", fplug != NULL);
-
-	assert("nikita-2933", fplug->truncate != NULL);
-	result = fplug->truncate(inode, size);
-	if (result != 0)
-		warning("nikita-1602", "Truncate error: %i for %lli", 
-			result, get_inode_oid(inode));
-	write_syscall_trace("ex");
-	return result;
 }
 
 /* initial prefix of names of pseudo-files like ..plugin, ..acl,
@@ -1233,7 +1244,7 @@ reiser4_free_dentry_fsdata(struct dentry *dentry /* dentry released */ )
 static void
 reiser4_d_release(struct dentry *dentry /* dentry released */ )
 {
-	__REISER4_ENTRY(dentry->d_sb,);
+	__REISER4_ENTRY(dentry->d_sb, DRELEASE_OP, );
 	reiser4_free_dentry_fsdata(dentry);
 	(void)reiser4_exit_context(&__context);
 }
@@ -1296,7 +1307,7 @@ reiser4_release(struct inode *i /* inode released */ ,
 {
 	file_plugin *fplug;
 	int result;
-	REISER4_ENTRY(i->i_sb);
+	REISER4_ENTRY(i->i_sb, RELEASE_OP);
 
 	assert("umka-081", i != NULL);
 	assert("nikita-1447", f != NULL);
@@ -1324,7 +1335,7 @@ static int
 reiser4_fsync(struct file *file UNUSED_ARG, 
 	      struct dentry *dentry, int datasync UNUSED_ARG)
 {
-	REISER4_ENTRY(dentry->d_inode->i_sb);
+	REISER4_ENTRY(dentry->d_inode->i_sb, FSYNC_OP);
 	REISER4_EXIT(txnmgr_force_commit_all(dentry->d_inode->i_sb));
 }
 
@@ -1359,6 +1370,7 @@ init_once(void *obj /* pointer to new inode */ ,
 		info->p.eflushed = 0;
 		INIT_LIST_HEAD(&info->p.moved_pages);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
+		INIT_LIST_HEAD(&info->p.eflushed_nodes);
 #if REISER4_DEBUG
 		info->p.ea_owner = 0;
 #endif
@@ -1454,6 +1466,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 		plugin_set_put(info->pset);
 
 	assert("nikita-2872", list_empty(&info->moved_pages));
+	assert("", list_empty(&info->eflushed_nodes));
 	/* cannot add similar assertion about ->i_list as prune_icache return
 	 * inode into slab with dangling ->list.{next,prev}. This is safe,
 	 * because they are re-initialized in the new_inode(). */
@@ -1461,6 +1474,28 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	assert("nikita-2896", list_empty(&inode->i_hash));
 	assert("nikita-2898", readdir_list_empty(get_readdir_list(inode)));
 	kmem_cache_free(inode_cache, container_of(info, reiser4_inode_object, p));
+}
+
+/*
+ * FIXME-VS: if there were an appropriate inode state bit which we could set to prevent inode having emergency flushed
+ * nodes from being pruned then we would not need to increment inodes's reference counter when inode gets first
+ * emergency flushed node and therefore, we would not have to have this method to decrement that counter when last
+ * holder releases unlinked inode
+ */
+static void
+reiser4_put_inode(struct inode *inode)
+{
+	if (!inode_file_plugin(inode) || !inode_file_plugin(inode)->not_linked)
+		return;
+	spin_lock_inode(inode);
+	if (inode_file_plugin(inode)->not_linked(inode) && atomic_read(&inode->i_count) == 2 &&
+	    reiser4_inode_data(inode)->eflushed) {
+		/* there are no other inode holders but emergency flushed pages. Decrement inode->i_count here to have
+		 * iput_final->reiser4_drop_inode to be called */
+		/* FIXME: should inode_lock be held? */
+		atomic_dec(&inode->i_count);
+	}
+	spin_unlock_inode(inode);
 }
 
 extern void generic_drop_inode(struct inode *object);
@@ -1486,8 +1521,32 @@ reiser4_drop_inode(struct inode *object)
 		   atom. Otherwise, it may so happen, that twig node with
 		   unallocated extent will be flushed to the disk.
 		*/
-		__REISER4_ENTRY(object->i_sb,);
-		generic_delete_inode(object);
+		__REISER4_ENTRY(object->i_sb, DROPINODE_OP, );
+
+		/*
+		 * FIXME: the code below resembles to generic_delete_inode, except that it calls truncate_inode_pages
+		 * after reiser4_delete_inode
+		 */
+		list_del_init(&object->i_hash);
+		list_del_init(&object->i_list);
+		object->i_state|=I_FREEING;
+		inodes_stat.nr_inodes--;
+		spin_unlock(&inode_lock);
+
+		security_inode_delete(object);
+
+		if (!is_bad_inode(object))
+			DQUOT_INIT(object);
+
+		drop_enodes(object, 0);
+		reiser4_delete_inode(object);
+
+		if (object->i_data.nrpages)
+			truncate_inode_pages(&object->i_data, 0);
+
+		clear_inode(object);
+		destroy_inode(object);
+
 		(void)reiser4_exit_context(&__context);
 	} else
 		generic_forget_inode(object);
@@ -1497,7 +1556,7 @@ reiser4_drop_inode(struct inode *object)
 static void
 reiser4_delete_inode(struct inode *object)
 {
-	__REISER4_ENTRY(object->i_sb,);
+	__REISER4_ENTRY(object->i_sb, DELETEINODE_OP, );
 
 	reiser4_stat_inc(vfs_calls.delete_inode);
 	if (inode_get_flag(object, REISER4_LOADED)) {
@@ -1508,7 +1567,7 @@ reiser4_delete_inode(struct inode *object)
 	}
 
 	object->i_blocks = 0;
-	clear_inode(object);
+	/*clear_inode(object);*/
 	(void)reiser4_exit_context(&__context);
 }
 
@@ -2022,7 +2081,7 @@ reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
 	sema_init(&info->flush_sema, 1);
 	s->s_op = &reiser4_super_operations;
 
-	result = init_context(&__context, s);
+	result = init_context(&__context, s, FILLSUPER_OP);
 	if (result) {
 		kfree(info);
 		s->s_fs_info = NULL;
@@ -2192,7 +2251,7 @@ reiser4_kill_super(struct super_block *s)
 		return;
 	}
 
-	if (init_context(&context, s)) {
+	if (init_context(&context, s, KILLSUPER_OP)) {
 		warning("nikita-2728", "Cannot initialize context.");
 		return;
 	}
@@ -2264,7 +2323,7 @@ static void
 reiser4_write_super(struct super_block *s)
 {
 	int ret;
-	__REISER4_ENTRY(s,);
+	__REISER4_ENTRY(s, WRITESUPER_OP, );
 
 	reiser4_stat_inc(vfs_calls.write_super);
 	if ((ret = txnmgr_force_commit_all(s))) {
@@ -2295,7 +2354,7 @@ int
 reiser4_invalidatepage(struct page *page, unsigned long offset)
 {
 	int ret = 0;
-	REISER4_ENTRY(page->mapping->host->i_sb);
+	REISER4_ENTRY(page->mapping->host->i_sb, INVPAGE_OP);
 
 	if (offset == 0) {
 		jnode *node;
@@ -2383,6 +2442,12 @@ try_to_lock:
 					goto try_to_lock;
 				}
 			} else {
+				/* FIXME-VS: remove after debugging */
+				if (jnode_is_loaded(node)) {
+					info_jnode("invalidate_page: loaded jnode", node);
+					info("\n");
+				}
+				/* FIXME-VS: remove after debugging */
 				uncapture_page(page);
 
 				UNDER_SPIN_VOID(jnode, node, page_clear_jnode(page, node));
@@ -2402,10 +2467,14 @@ releasable(const jnode *node)
 	assert("nikita-2781", node != NULL);
 	assert("nikita-2783", spin_jnode_is_locked(node));
 
-	if (atomic_read(&node->d_count))
+	if (atomic_read(&node->d_count)) {
+		assert("vs-1183", !JF_ISSET(node, JNODE_EFLUSH));
 		return 0;
-	if (jnode_is_loaded(node))
+	}
+	if (jnode_is_loaded(node)) {
+		assert("vs-1182", !JF_ISSET(node, JNODE_EFLUSH));
 		return 0;
+	}
 
 	if (JF_ISSET(node, JNODE_EFLUSH))
 		return 1; /* yeah! */
@@ -2451,16 +2520,22 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	/* is_page_cache_freeable() check 
 
 	   (mapping + private + page_cache_get() by shrink_cache()) */
-	if (page_count(page) > 3)
+	if (page_count(page) > 3) {
+		/*if (JF_ISSET(node, JNODE_EFLUSH))
+		  info_jnode("reiser4_releasepage: count is too big: !not releasable node!!", node);*/
 		return 0;
+	}
 
-	if (PageDirty(page))
+	if (PageDirty(page)) {
+		/*if (JF_ISSET(node, JNODE_EFLUSH))
+		  info_jnode("reiser4_releasepage: page is dirty: !not releasable node!!", node);*/
 		return 0;
+	}
 
 	spin_lock_jnode(node);
 	if (releasable(node)) {
 		reiser4_tree *tree = tree_by_page(page);
-		REISER4_ENTRY(tree->super);
+		REISER4_ENTRY(tree->super, RELEASEPAGE_OP);
 
 		/* account for spin_lock_jnode() above */
 		if (REISER4_DEBUG && get_current_context() == &__context)
@@ -2478,6 +2553,9 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		/* return with page still locked. shrink_cache() expects this. */
 		REISER4_EXIT(1);
 	} else {
+		/**/
+		/*if (JF_ISSET(node, JNODE_EFLUSH))
+		  info_jnode("reiser4_releasepage: !not releasable node!!", node);*/
 		spin_unlock_jnode(node);
 		schedulable();
 		return 0;
@@ -2553,7 +2631,7 @@ reiser4_writepages(struct address_space *mapping, struct writeback_control *wbc)
 	struct super_block *s = mapping->host->i_sb;
 	struct backing_dev_info *bdi = mapping->backing_dev_info;
 
-	REISER4_ENTRY(s);
+	REISER4_ENTRY(s, WRITEPAGES_OP);
 
 	/* Here we can call synchronously. We can be called from balance_dirty_pages()
 	   Reiser4 code is supposed to call balance_dirty_pages at places where no locks
@@ -2843,7 +2921,7 @@ struct super_operations reiser4_super_operations = {
 	.read_inode = noop_read_inode,	/* d */
 	.dirty_inode = NULL, /*reiser4_dirty_inode,*/	/* d */
 /* 	.write_inode        = reiser4_write_inode, */
-/* 	.put_inode          = reiser4_put_inode, */
+ 	.put_inode          = reiser4_put_inode,
 	.drop_inode = reiser4_drop_inode,	/* d */
 	.delete_inode = reiser4_delete_inode,	/* d */
 	.put_super = NULL /* d */ ,
