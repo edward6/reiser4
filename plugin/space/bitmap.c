@@ -875,18 +875,18 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 		/* Do not search to `end_offset' if we need to find less than
 		 * `max_len' zero bits. */
 		if (end_offset + max_len < start)
-			end = start - max_len;
+			end = start - max_len + 1;
 		else
 			end = end_offset;
 
 		reiser4_find_last_set_bit(&end, data, end_offset, start);
 
-		if (end + min_len <= start) {
+		if (end + min_len <= start + 1) {
 			if (end < end_offset)
 				end = end_offset;
-			ret = start - end;
+			ret = start - end + 1;
 			*start_offset = end; /* `end' is lowest offset */
-			reiser4_set_bits(data, end, start);
+			reiser4_set_bits(data, end, start + 1);
 			break;
 		}
 
@@ -952,7 +952,7 @@ static int bitmap_alloc_backward(reiser4_block_nr * start, const reiser4_block_n
 	assert("zam-962", ergo(end_bmap == bmap, end_offset <= offset));
 
 	for (; bmap > end_bmap; end_bmap --, offset = max_offset) {
-		len = search_one_bitmap_backward(bmap, &offset, 1, min_len, max_len);
+		len = search_one_bitmap_backward(bmap, &offset, 0, min_len, max_len);
 		if (len != 0)
 			goto out;
 	}
