@@ -851,3 +851,7 @@ write-test
 write-test.1
 write-test.2
 copy-test
+rm-test
+rm.test-40
+rm.test-tail
+rm.test-test
