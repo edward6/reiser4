@@ -2723,7 +2723,7 @@ int allocate_and_copy_extent (znode * left, coord_t * right,
 					 * FIXME-VS: set target state to grabbed? 
 					 */
 					ON_DEBUG (if (allocate_times > 1) {
-						info ("stop here!\n");
+						/*info ("stop here!\n");*/
 					});
 
 					reiser4_dealloc_blocks (&first_allocated, &allocated,
