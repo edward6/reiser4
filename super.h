@@ -216,8 +216,21 @@ extern reiser4_super_info_data *get_current_super_private(void);
 
 extern const __u32 REISER4_SUPER_MAGIC;
 
-extern void reiser4_spin_lock_sb(const struct super_block *);
-extern void reiser4_spin_unlock_sb(const struct super_block *);
+#define spin_ordering_pred_reiser4_super_info_data(private) (1)
+SPIN_LOCK_FUNCTIONS(reiser4_super_info_data, reiser4_super_info_data, guard);
+
+static inline void reiser4_spin_lock_sb(const struct super_block * s)
+{
+	reiser4_super_info_data * private = get_super_private (s);
+	spin_lock_reiser4_super_info_data(private);
+}
+
+static inline void reiser4_spin_unlock_sb(const struct super_block * s)
+{
+	reiser4_super_info_data * private = get_super_private (s);
+	spin_unlock_reiser4_super_info_data(private);
+}
+
 extern __u64 reiser4_flush_reserved        ( const struct super_block*);
 extern void  reiser4_set_flush_reserved    ( const struct super_block*, __u64 nr );
 extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);

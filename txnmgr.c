@@ -1048,7 +1048,7 @@ commit_one_atom(txn_mgr * mgr)
 
 	ctx = get_current_context();
 	assert("nikita-2444", ctx != NULL);
-	assert("nikita-2445", check_spin_is_locked(&mgr->daemon->guard));
+	assert("nikita-2445", spin_ktxnmgrd_is_locked(mgr->daemon));
 
 	txnh = ctx->trans;
 	spin_lock_txnmgr(mgr);
@@ -1086,20 +1086,20 @@ commit_one_atom(txn_mgr * mgr)
 		/* we are about to release daemon spin lock, notify daemon it
 		   has to rescan atoms */
 		mgr->daemon->rescan = 1;
-		spin_unlock(&mgr->daemon->guard);
+		spin_unlock_ktxnmgrd(mgr->daemon);
 		ret = txn_end(ctx);
 
 		if (ret < 0)
 			txn_begin(ctx);
 
-		spin_lock(&mgr->daemon->guard);
+		spin_lock_ktxnmgrd(mgr->daemon);
 		spin_lock_txnmgr(mgr);
 		/* repeat search again */
 	}
 
 	spin_unlock_txnmgr(mgr);
 
-	assert("nikita-2447", check_spin_is_locked(&mgr->daemon->guard));
+	assert("nikita-2447", spin_ktxnmgrd_is_locked(mgr->daemon));
 
 	return ret;
 }

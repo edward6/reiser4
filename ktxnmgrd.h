@@ -7,6 +7,7 @@
 
 #include "kcond.h"
 #include "txnmgr.h"
+#include "spin_macros.h"
 
 #include <linux/fs.h>
 #include <linux/completion.h>
@@ -28,6 +29,10 @@ struct ktxnmgrd_context {
 	__u32 duties;
 	atomic_t pressure;
 };
+
+#define spin_ordering_pred_ktxnmgrd(ctx) (1)
+
+SPIN_LOCK_FUNCTIONS(ktxnmgrd, struct ktxnmgrd_context, guard);
 
 typedef enum {
 	CANNOT_COMMIT,

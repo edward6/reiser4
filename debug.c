@@ -86,6 +86,7 @@ lock_counters()
 void schedulable (void)
 {
 	assert ("zam-782", lock_counters()->spin_locked == 0);
+	might_sleep();
 }
 
 #endif
@@ -95,12 +96,14 @@ void
 print_lock_counters(const char *prefix, const lock_counters_info * info)
 {
 	info
-	    ("%s: jnode: %i, tree: %i, dk: %i, txnh: %i, atom: %i, stack: %i, txnmgr: %i, fq: %i "
+	    ("%s: jnode: %i, tree: %i, dk: %i, txnh: %i, atom: %i, stack: %i, txnmgr: %i, "
+	     "ktxnmgrd: %i, fq: %i, reiser4_sb: %i, "
 	     "inode: %i, spin: %i, long: %i\n" "d: %i, x: %i, t: %i\n", prefix,
 	     info->spin_locked_jnode, info->spin_locked_tree,
 	     info->spin_locked_dk, info->spin_locked_txnh,
 	     info->spin_locked_atom, info->spin_locked_stack,
-	     info->spin_locked_txnmgr, info->spin_locked_fq,
+	     info->spin_locked_txnmgr, info->spin_locked_ktxnmgrd,
+	     info->spin_locked_fq, info->spin_locked_reiser4_super_info_data,
 	     info->spin_locked_inode, info->spin_locked,
 	     info->long_term_locked_znode, info->d_refs, info->x_refs, info->t_refs);
 }

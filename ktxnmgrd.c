@@ -58,7 +58,7 @@ ktxnmgrd(void *arg)
 	me->fs_context = NULL;
 
 	ctx = arg;
-	spin_lock(&ctx->guard);
+	spin_lock_ktxnmgrd(ctx);
 	ctx->tsk = me;
 	kcond_broadcast(&ctx->startup);
 	ktxnmgrd_trace("started\n");
@@ -110,7 +110,7 @@ ktxnmgrd(void *arg)
 		} while (ctx->rescan);
 	}
 
-	spin_unlock(&ctx->guard);
+	spin_unlock_ktxnmgrd(ctx);
 
 	ktxnmgrd_trace("exiting\n");
 	complete_and_exit(&ctx->finish, 0);
@@ -140,7 +140,7 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 
 	assert("nikita-2448", mgr != NULL);
 
-	spin_lock(&ctx->guard);
+	spin_lock_ktxnmgrd(ctx);
 
 	first_mgr = !ctx->started;
 	ctx->started = 1;
@@ -150,7 +150,7 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 	mgr->daemon = ctx;
 	txn_mgrs_list_push_back(&ctx->queue, mgr);
 
-	spin_unlock(&ctx->guard);
+	spin_unlock_ktxnmgrd(ctx);
 
 	if (first_mgr) {
 		/* attaching first mgr, start daemon */
@@ -159,7 +159,7 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 		kernel_thread(ktxnmgrd, ctx, CLONE_VM | CLONE_FS | CLONE_FILES);
 	}
 
-	spin_lock(&ctx->guard);
+	spin_lock_ktxnmgrd(ctx);
 
 	/* daemon thread is not yet initialized */
 	if (ctx->tsk == NULL)
@@ -168,7 +168,7 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 
 	assert("nikita-2452", ctx->tsk != NULL);
 
-	spin_unlock(&ctx->guard);
+	spin_unlock_ktxnmgrd(ctx);
 	return 0;
 }
 
@@ -185,7 +185,7 @@ ktxnmgrd_detach(txn_mgr * mgr)
 	if (ctx == NULL)
 		return;
 
-	spin_lock(&ctx->guard);
+	spin_lock_ktxnmgrd(ctx);
 	txn_mgrs_list_remove(mgr);
 	mgr->daemon = NULL;
 
@@ -194,13 +194,13 @@ ktxnmgrd_detach(txn_mgr * mgr)
 		ctx->tsk = NULL;
 		ctx->done = 1;
 		ctx->started = 0;
-		spin_unlock(&ctx->guard);
+		spin_unlock_ktxnmgrd(ctx);
 		kcond_signal(&ctx->wait);
 
 		/* wait until daemon finishes */
 		wait_for_completion(&ctx->finish);
 	} else
-		spin_unlock(&ctx->guard);
+		spin_unlock_ktxnmgrd(ctx);
 }
 
 /* wake up ktxnmgrd thread */
@@ -208,12 +208,12 @@ void
 ktxnmgrd_kick(ktxnmgrd_context * ctx, ktxnmgrd_wake reason)
 {
 	if (ctx != NULL) {
-		spin_lock(&ctx->guard);
+		spin_lock_ktxnmgrd(ctx);
 		if (ctx->tsk != NULL) {
 			ctx->duties |= reason;
 			kcond_signal(&ctx->wait);
 		}
-		spin_unlock(&ctx->guard);
+		spin_unlock_ktxnmgrd(ctx);
 
 		preempt_point();
 	}
@@ -254,12 +254,12 @@ scan_mgr(txn_mgr * mgr)
 		if (!ret && need_flush(mgr)) {
 			long nr_submitted = 0;
 
-			spin_unlock (&mgr->daemon->guard);
+			spin_unlock_ktxnmgrd (mgr->daemon);
 
 			ret = flush_one_atom(mgr, &nr_submitted, 
 					     JNODE_FLUSH_WRITE_BLOCKS);
 
-			spin_lock (&mgr->daemon->guard);
+			spin_lock_ktxnmgrd (mgr->daemon);
 
 			/* FIXME-ZAM: this accounting should be re-implemented
 			 * or just thrown away. It is needed for current
