@@ -28,7 +28,7 @@ Following is not complete list of projects that are interested in using libreise
 GNU Parted, EVMS, GNU GRUB, Yaboot, Partimage, Reiserfsprogs.<br><br>
 
 <i>Why additional abstraction layer is required in libreiserfs
-	i to cooperate with these packages?</i><br><br>
+	in order to cooperate with these packages?</i><br><br>
 
 All these projects have their own abstract device that has 
 additional properties except being plain UNIX block device.  
@@ -76,9 +76,9 @@ read(),  write(),  and fsync() that operate on a UNIX file
 descriptor.<br><br>
 
 The GNU Parted DAL object will be a bit more complex.  One
-reason  that  Parted  requires a more sophisticated DAL is
-that  it  has,  roughly  speaking,  more  complex   device
-abstract  object.  Parted  is able to check for errors and
+reason that Parted requires a more sophisticated DAL is
+that it has, roughly speaking,  more  complex device
+abstract object. Parted  is able to check for errors and
 to abort current action if anything went wrong. Due to this 
 more complex behavior, libreiserfs cannot operate directly
 on a block device and file descriptor. Another feature  of
@@ -86,21 +86,21 @@ Parted is its support for partition "slices", which are
 sub-partitions of a  single  block  device  (supported  on
 FreeBSD, for example).<br><br>
 
-The  GNU  GRUB  system is a bootloader, so it runs without
-any kernel to support it. Therefore there must be a  layer
+The GNU GRUB system is a bootloader, so it runs without
+any kernel to support it. Therefore there must be a layer
 of abstraction between libreiserfs and the client programs
-that use it. Reiserfsprogs is a simple example that  would
+that use it. Reiserfsprogs is a simple example that would
 not require any DAL support, but support for a wider range
-of libreiserfs applications will require a  DAL  layer  to
+of libreiserfs applications will require a DAL layer to
 interface with them.<br><br>
 
-So  every  project  that  is going to use libreiserfs should
+So every project  that  is going to use libreiserfs should
 prepare "dal_ops" structure and fill it by its device 
-specific  I/O  working functions. This "dal_ops" structure
+specific I/O working functions. This "dal_ops" structure
 is the central component of DAL. To use DAL object for I/O 
 operations, libreiserfs will call installed in "dal_ops" 
-callback functions for every "read",  "write",  etc  operation
-every  time as it will be needed to read, write something.<br><br>
+callback functions for every "read", "write", etc operation
+every time as it will be needed to read, write something.<br><br>
 
 That is, all real I/O work is delegated to the appropriate
 callback function. For example,  reiserfsck_read is be called 
@@ -220,7 +220,7 @@ operation to Parted.
 </ul>
 
 Therefore DAL is just simple and stable interface. I has been called 
-it "stable", because it stills unchanged from one project to another.
+it as "stable", because it remains unchanged from one project to another.
 </td></tr></table>
 
 <h3>Implementation.</h3>
@@ -234,8 +234,8 @@ of files and directories.  If "stat" not implemented, then stat  struct
 
 <pre>
 struct dal_ops {
-	int (*read)(dal_t *, void *, blk_t, blk_t);
-	int (*write)(dal_t *, void *, blk_t, blk_t);
+	int (*read)(dal_t *, void *, blk_t, count_t);
+	int (*write)(dal_t *, void *, blk_t, count_t);
 	int (*sync)(dal_t *);
 	int (*flags)(dal_t *);
 	int (*equals)(dal_t *, dal_t *);
@@ -245,14 +245,14 @@ struct dal_ops {
 };
 </pre><br>
 
-<b>int (*read) (dal_t *dal, void *buff, blk_t block, blk_t count)</b>
+<b>int (*read) (dal_t *dal, void *buff, blk_t block, count_t count)</b>
 
 <p>
 Reads  count  of  blocks  into given buffer, starting from given block. 
 Returns true on success,  false  on  failure. Used by reiserfs_block_read 
 function  for  reading from device.<br><br>
 
-<b>int (*write) (dal_t *dal, void *buff, blk_t block, blk_t count)</b>
+<b>int (*write) (dal_t *dal, void *buff, blk_t block, count_t count)</b>
 
 <p>
 Writes count of blocks from given buffer onto device, starting from given 
@@ -485,11 +485,10 @@ journal then exception will be throwed out and NULL will be returned.
 Opening of a filesystem consists of the following steps:<br><br>
 
 initialize all internal structures; read superblock, and journal header; 
-replay journal; check superblock and journal header for validness 
-(sb_block_count  &lt;=  dev_length, etc);  re-read superblock from the 
-journal (if it was overwritten by journal  replay);  initialize bitmap; 
-optionally check it for validness; initialize tree; read the root block,
-and check it for validness; return initialized filesystem instance.
+replay journal; check ournal header for validness; re-read superblock from 
+the journal (if it was overwritten by journal replay); check superblock for 
+validness; initialize bitmap; optionally check it for validness; initialize tree; 
+read the root block, and check it for validness; return initialized filesystem instance.
 </td></tr></table>
 
 <h2>libreiserfs</h2>
