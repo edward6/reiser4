@@ -64,10 +64,13 @@ static void reiser4_truncate(struct inode *);
 static int reiser4_permission(struct inode *, int);
 static int reiser4_setattr(struct dentry *, struct iattr *);
 static int reiser4_getattr(struct vfsmount *mnt, struct dentry *, struct kstat *);
+
+#if 0
 static int reiser4_setxattr(struct dentry *, const char *, void *, size_t, int);
 static ssize_t reiser4_getxattr(struct dentry *, const char *, void *, size_t);
 static ssize_t reiser4_listxattr(struct dentry *, char *, size_t);
 static int reiser4_removexattr(struct dentry *, const char *);
+#endif
 
 /* file operations */
 
@@ -75,11 +78,12 @@ static loff_t reiser4_llseek(struct file *, loff_t, int);
 static ssize_t reiser4_read(struct file *, char *, size_t, loff_t *);
 static ssize_t reiser4_write(struct file *, const char *, size_t, loff_t *);
 static int reiser4_readdir(struct file *, void *, filldir_t);
-static unsigned int reiser4_poll(struct file *, struct poll_table_struct *);
 static int reiser4_mmap(struct file *, struct vm_area_struct *);
+static int reiser4_release(struct inode *, struct file *);
+#if 0
+static unsigned int reiser4_poll(struct file *, struct poll_table_struct *);
 static int reiser4_open(struct inode *, struct file *);
 static int reiser4_flush(struct file *);
-static int reiser4_release(struct inode *, struct file *);
 static int reiser4_fsync(struct file *, struct dentry *, int datasync);
 static int reiser4_fasync(int, struct file *, int);
 static int reiser4_lock(struct file *, int, struct file_lock *);
@@ -88,26 +92,30 @@ static ssize_t reiser4_writev(struct file *, const struct iovec *, unsigned long
 static ssize_t reiser4_sendpage(struct file *, struct page *, int, size_t, loff_t *, int);
 static unsigned long reiser4_get_unmapped_area(struct file *, unsigned long,
 					       unsigned long, unsigned long, unsigned long);
+#endif
+
 /* super operations */
 
 static struct inode *reiser4_alloc_inode(struct super_block *super);
 static void reiser4_destroy_inode(struct inode *inode);
 static void reiser4_dirty_inode(struct inode *);
-static void reiser4_write_inode(struct inode *, int);
-static void reiser4_put_inode(struct inode *);
 static void reiser4_drop_inode(struct inode *);
 static void reiser4_delete_inode(struct inode *);
 static void reiser4_write_super(struct super_block *);
-static void reiser4_write_super_lockfs(struct super_block *);
-static void reiser4_unlockfs(struct super_block *);
 static int reiser4_statfs(struct super_block *, struct statfs *);
-static int reiser4_remount_fs(struct super_block *, int *, char *);
-static void reiser4_clear_inode(struct inode *);
 static void reiser4_kill_super(struct super_block *);
-static struct dentry *reiser4_fh_to_dentry(struct super_block *sb, __u32 * fh, int len, int fhtype, int parent);
-static int reiser4_dentry_to_fh(struct dentry *, __u32 * fh, int *lenp, int need_parent);
 static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt);
 static int reiser4_fill_super(struct super_block *s, void *data, int silent);
+#if 0
+static void reiser4_write_inode(struct inode *, int);
+static void reiser4_put_inode(struct inode *);
+static void reiser4_write_super_lockfs(struct super_block *);
+static void reiser4_unlockfs(struct super_block *);
+static int reiser4_remount_fs(struct super_block *, int *, char *);
+static void reiser4_clear_inode(struct inode *);
+static struct dentry *reiser4_fh_to_dentry(struct super_block *sb, __u32 * fh, int len, int fhtype, int parent);
+static int reiser4_dentry_to_fh(struct dentry *, __u32 * fh, int *lenp, int need_parent);
+#endif
 
 /* address space operations */
 
