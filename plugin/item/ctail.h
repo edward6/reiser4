@@ -19,8 +19,7 @@ typedef enum {
 	DC_INVALID_STATE = 0,
 	DC_FIRST_ITEM = 1,
 	DC_CHAINED_ITEM = 2,
-	DC_AFTER_CLUSTER = 3,
-	DC_BEFORE_CLUSTER = 4
+	DC_AFTER_CLUSTER = 3
 } dc_item_stat;
 
 typedef struct {
