@@ -14,6 +14,7 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 #include <linux/spinlock.h>
+#include <linux/kallsyms.h>
 
 __u32 reiser4_current_trace_flags = 0;
 
@@ -186,6 +187,7 @@ reiser4_is_debugged(struct super_block *super, __u32 flag)
 }
 
 #define LEFT(p, buf) (PAGE_SIZE - (p - buf) - 1)
+#define PRINT(...) ({ p += snprintf(p, LEFT(p, buf) , ## __VA_ARGS__); })
 
 typedef struct reiser4_stats_cnt {
 	reiser4_kattr  kattr;
@@ -194,7 +196,8 @@ typedef struct reiser4_stats_cnt {
 	const char    *format;
 } reiser4_stats_cnt;
 
-#define getat(type, ptr, offset) (*(type *)(((char *)(ptr)) + (offset)))
+#define getptrat(type, ptr, offset) ((type *)(((char *)(ptr)) + (offset)))
+#define getat(type, ptr, offset) (*getptrat(type, ptr, offset))
 
 #define DEFINE_STAT_CNT_0(aname, afield, atype, afmt, aproc)	\
 {							\
@@ -213,6 +216,42 @@ typedef struct reiser4_stats_cnt {
 
 #if REISER4_PROF
 
+void update_prof_trace(reiser4_prof_cnt *cnt)
+{
+	int i;
+	int minind;
+	__u64 minhit;
+	unsigned long hash;
+	void *bt[REISER4_PROF_TRACE_DEPTH];
+
+	bt[0] = __builtin_return_address(2);
+	bt[1] = __builtin_return_address(3);
+	bt[2] = __builtin_return_address(4);
+	bt[3] = __builtin_return_address(5);
+	bt[4] = __builtin_return_address(6);
+	bt[5] = __builtin_return_address(7);
+
+	for (i = 0, hash = 0 ; i < REISER4_PROF_TRACE_DEPTH ; ++ i) {
+		hash <<= 4;
+		hash ^= (((unsigned long)bt[i]) >> 2);
+	}
+	minhit = ~0ull;
+	minind = 0;
+	for (i = 0 ; i < REISER4_PROF_TRACE_NUM ; ++ i) {
+		if (hash == cnt->bt[i].hash) {
+			++ cnt->bt[i].hits;
+			return;
+		}
+		if (cnt->bt[i].hits < minhit) {
+			minhit = cnt->bt[i].hits;
+			minind = i;
+		}
+	}
+	memcpy(&cnt->bt[minind].trace, &bt, sizeof bt);
+	cnt->bt[minind].hash = hash;
+	cnt->bt[minind].hits = 1;
+}
+
 void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now, 
 		     unsigned long swtch_mark)
 {
@@ -227,6 +266,7 @@ void update_prof_cnt(reiser4_prof_cnt *cnt, __u64 then, __u64 now,
 		cnt->noswtch_total += delta;
 		cnt->noswtch_max = max(cnt->noswtch_max, delta);
 	}
+	update_prof_trace(cnt);
 }
 
 static ssize_t 
@@ -235,15 +275,39 @@ show_prof_attr(struct super_block * s, reiser4_kattr * kattr,
 {
 	char *p;
 	reiser4_stats_cnt *cnt;
-	reiser4_prof_cnt   val;
+	reiser4_prof_cnt  *val;
+	int i;
 	(void)opaque;
 
 	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
-	val = getat(reiser4_prof_cnt, &get_super_private(s)->prof, cnt->offset);
+	val = getptrat(reiser4_prof_cnt, 
+		       &get_super_private(s)->prof, cnt->offset);
 	p = buf;
-	p += snprintf(p, LEFT(p, buf), "%llu %llu %llu %llu %llu %llu\n",
-		      val.nr, val.total, val.max,
-		      val.noswtch_nr, val.noswtch_total, val.noswtch_max);
+	PRINT("%llu %llu %llu %llu %llu %llu\n",
+	      val->nr, val->total, val->max,
+	      val->noswtch_nr, val->noswtch_total, val->noswtch_max);
+	for (i = 0 ; i < REISER4_PROF_TRACE_NUM ; ++ i) {
+		int j;
+
+		p += snprintf(p, LEFT(p, buf), "%llu: ", val->bt[i].hits);
+		for (j = 0 ; j < REISER4_PROF_TRACE_DEPTH ; ++ j) {
+			char         *module;
+			const char   *name;
+			char          namebuf[128];
+			unsigned long address;
+			unsigned long offset;
+			unsigned long size;
+
+			address = (unsigned long) val->bt[i].trace[j];
+			name = kallsyms_lookup(address, &size, 
+					       &offset, &module, namebuf);
+			PRINT("0x%lx ", address);
+			if (name != NULL)
+				PRINT("%s+%lx/%lx [%s] ", name, offset, size,
+				      module ? : "core");
+		}
+		PRINT("\n");
+	}
 	return (p - buf);
 }
 
@@ -254,6 +318,8 @@ show_prof_attr(struct super_block * s, reiser4_kattr * kattr,
 reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(jload),
 	DEFINE_PROF_CNT(carry),
+	DEFINE_PROF_CNT(flush_alloc),
+	DEFINE_PROF_CNT(forward_squalloc),
 	DEFINE_PROF_CNT(load_page)
 };
 
@@ -286,7 +352,7 @@ show_stat_attr(struct super_block * s, reiser4_kattr * kattr,
 	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
 	val = getat(stat_cnt, &get_super_private(s)->stats, cnt->offset);
 	p = buf;
-	p += snprintf(p, LEFT(p, buf), cnt->format, val);
+	PRINT(cnt->format, val);
 	return (p - buf);
 }
 
@@ -304,7 +370,7 @@ show_stat_level_attr(struct super_block * s, reiser4_kattr * kattr,
 	val = getat(stat_cnt, &get_super_private(s)->stats.level[level],
 		    cnt->offset);
 	p = buf;
-	p += snprintf(p, LEFT(p, buf), cnt->format, val);
+	PRINT(cnt->format, val);
 	return (p - buf);
 }
 
@@ -501,28 +567,6 @@ reiser4_print_stats()
 }
 
 int
-reiser4_populate_kattr_dir(struct kobject * kobj)
-{
-	int result;
-	int i;
-
-	result = 0;
-	for(i = 0 ; i < sizeof_array(reiser4_stat_defs) && !result ; ++ i)
-		result = sysfs_create_file(kobj,
-					  &reiser4_stat_defs[i].kattr.attr);
-
-#if REISER4_PROF
-	for(i = 0 ; i < sizeof_array(reiser4_prof_defs) && !result ; ++ i)
-		result = sysfs_create_file(kobj,
-					  &reiser4_prof_defs[i].kattr.attr);
-#endif
-	if (result != 0)
-		warning("nikita-2920", "Failed to add sysfs attr: %i, %i",
-			result, i);
-	return result;
-}
-
-int
 reiser4_populate_kattr_level_dir(struct kobject * kobj)
 {
 	int result;
@@ -544,6 +588,31 @@ reiser4_print_stats()
 {
 }
 #endif
+
+int
+reiser4_populate_kattr_dir(struct kobject * kobj)
+{
+	int result;
+	int i;
+
+	result = 0;
+#if REISER4_STATS
+	for(i = 0 ; i < sizeof_array(reiser4_stat_defs) && !result ; ++ i)
+		result = sysfs_create_file(kobj,
+					  &reiser4_stat_defs[i].kattr.attr);
+
+#endif
+#if REISER4_PROF
+	for(i = 0 ; i < sizeof_array(reiser4_prof_defs) && !result ; ++ i)
+		result = sysfs_create_file(kobj,
+					  &reiser4_prof_defs[i].kattr.attr);
+#endif
+	if (result != 0)
+		warning("nikita-2920", "Failed to add sysfs attr: %i, %i",
+			result, i);
+	return result;
+}
+
 
 /* tracing setup: global trace flags stored in global variable plus
    per-thread trace flags plus per-fs trace flags.

@@ -208,12 +208,12 @@ typedef enum {
 extern int reiser4_are_all_debugged(struct super_block *super, __u32 flags);
 extern int reiser4_is_debugged(struct super_block *super, __u32 flag);
 
-/* FIXME-NIKITA this is wrong, because other file systems share ->fs_context
-   with us. */
-#define ON_CONTEXT( e )	do {			\
-	if( current -> fs_context != NULL ) {	\
+extern int is_in_reiser4_context(void);
+
+#define ON_CONTEXT(e)	do {			\
+	if(is_in_reiser4_context()) {		\
 		e;				\
-	} } while( 0 )
+	} } while(0)
 
 #define ON_DEBUG_CONTEXT( e ) ON_DEBUG( ON_CONTEXT( e ) )
 
@@ -316,7 +316,7 @@ extern __u32 reiser4_current_trace_flags;
 #define trace_on( f, ... )   trace_if( f, info( __VA_ARGS__ ) )
 
 /* profiling. This is i386, rdtsc-based profiling. */
-#if 0 && (defined(__i386__) || defined(CONFIG_USERMODE))
+#if (defined(__i386__) || defined(CONFIG_USERMODE)) && defined(CONFIG_REISER4_PROF)
 #define REISER4_PROF (1)
 #else
 #define REISER4_PROF (0)
@@ -326,6 +326,15 @@ extern __u32 reiser4_current_trace_flags;
 /* include from asm-i386 directly to work under UML/i386 */
 #include <asm-i386/msr.h>
 
+#define REISER4_PROF_TRACE_NUM (4)
+#define REISER4_PROF_TRACE_DEPTH (6)
+
+typedef struct reiser4_trace {
+	unsigned long hash;
+	void *trace[REISER4_PROF_TRACE_DEPTH];
+	__u64 hits;
+} reiser4_trace;
+
 typedef struct reiser4_prof_cnt {
 	__u64 nr;
 	__u64 total;
@@ -333,11 +342,14 @@ typedef struct reiser4_prof_cnt {
 	__u64 noswtch_nr;
 	__u64 noswtch_total;
 	__u64 noswtch_max;
+	reiser4_trace bt[REISER4_PROF_TRACE_NUM];
 } reiser4_prof_cnt;
 
 typedef struct reiser4_prof {
 	reiser4_prof_cnt jload;
 	reiser4_prof_cnt carry;
+	reiser4_prof_cnt flush_alloc;
+	reiser4_prof_cnt forward_squalloc;
 	reiser4_prof_cnt load_page;
 } reiser4_prof;
 
@@ -774,7 +786,6 @@ typedef struct reiser4_statistics {
 } reiser4_stat;
 
 struct kobject;
-extern int reiser4_populate_kattr_dir(struct kobject * kobj);
 extern int reiser4_populate_kattr_level_dir(struct kobject * kobj);
 
 #else
@@ -794,10 +805,11 @@ extern int reiser4_populate_kattr_level_dir(struct kobject * kobj);
 typedef struct {
 } reiser4_stat;
 
-#define reiser4_populate_kattr_dir(kobj) (0)
 #define reiser4_populate_kattr_level_dir(kobj, i) (0)
 
 #endif
+
+extern int reiser4_populate_kattr_dir(struct kobject * kobj);
 
 extern void reiser4_do_panic(const char *format, ...)
 __attribute__ ((noreturn, format(printf, 1, 2)));

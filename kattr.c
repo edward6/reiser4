@@ -275,6 +275,8 @@ int reiser4_sysfs_init(struct super_block *super)
 				break;
 		}
 	}
+#else
+	result = reiser4_populate_kattr_dir(kobj);
 #endif
 	return result;
 }
