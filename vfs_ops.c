@@ -2059,6 +2059,8 @@ read_super_block:
 		unlock_new_inode(inode);
 	}
 
+	reiser4_register_sysfs_hook(s);
+
 	if (!silent)
 		print_fs_info("mount ok", s);
 	REISER4_EXIT(0);
@@ -2526,6 +2528,7 @@ typedef enum {
 	INIT_JNODES,
 	INIT_EFLUSH,
 	INIT_SCINT,
+	INIT_SYSFS,
 	INIT_FS_REGISTERED
 } reiser4_init_stage;
 
@@ -2542,6 +2545,7 @@ shutdown_reiser4(void)
 	}
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
+	DONE_IF(INIT_SYSFS, ;);
 	DONE_IF(INIT_SCINT, scint_done_once());
 	DONE_IF(INIT_EFLUSH, eflush_done());
 	DONE_IF(INIT_JNODES, jnode_done_static());
@@ -2585,6 +2589,7 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(jnode_init_static());
 	CHECK_INIT_RESULT(eflush_init());
 	CHECK_INIT_RESULT(scint_init_once());
+	CHECK_INIT_RESULT(reiser4_sysfs_init());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
 
 	assert("nikita-2515", init_stage == INIT_FS_REGISTERED);

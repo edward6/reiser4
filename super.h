@@ -26,6 +26,7 @@
 #include <linux/types.h>	/* for __u??, etc.  */
 #include <linux/fs.h>		/* for struct super_block, etc.  */
 #include <linux/list.h>		/* for struct list_head */
+#include <linux/kobject.h>      /* for kobject */
 
 typedef struct {
 	unsigned relocate_threshold;
@@ -193,6 +194,8 @@ struct reiser4_super_info_data {
 
 	/* committed number of files (oid allocator state variable ) */
 	__u64 nr_files_committed;
+
+	struct kobject kobj;
 
 #if REISER4_DEBUG
 	/* minimum used blocks value (includes super blocks, bitmap blocks and

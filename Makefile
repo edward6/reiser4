@@ -38,6 +38,7 @@ reiser4-objs := \
 		   trace.o \
 		   flush_queue.o \
 		   ktxnmgrd.o \
+		   kattr.o \
 		   blocknrset.o \
 		   super.o \
 		   tree_walk.o \
