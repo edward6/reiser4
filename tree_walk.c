@@ -264,8 +264,9 @@ static int far_next_coord (coord_t * coord, lock_handle * handle, int flags)
 
 /** Very significant function which performs a step in horizontal direction
  * when sibling pointer is not available.  Actually, it is only function which
- * does it. */
-/* Audited by: umka (2002.06.14) */
+ * does it. 
+ * Note: this function does not restore locking status at exit,
+ * caller should does care about proper unlocking and zrelsing */
 static int renew_sibling_link (coord_t * coord, lock_handle * handle,
 			       znode * child, tree_level level, int flags, int *nr_locked)
 {
@@ -298,15 +299,6 @@ static int renew_sibling_link (coord_t * coord, lock_handle * handle,
 		/* FIXME-NIKITA nikita: can child_znode() be used here? */
 		iplug = item_plugin_by_coord(coord);
 		if (!item_is_internal (coord)) {
-			if (handle->owner != NULL) {
-				/*
-				 * FIXME:NIKITA->ZAM after staring at this
-				 * line for some time, it looks to fevered
-				 * brain that zrelse() was necessary here.
-				 */
-				zrelse(handle->node);
-				longterm_unlock_znode(handle);
-			}
 			link_znodes(child, NULL, flags & GN_GO_LEFT);
 			/* we know there can't be formatted neighbor*/
 			return -ENAVAIL;
@@ -326,17 +318,8 @@ static int renew_sibling_link (coord_t * coord, lock_handle * handle,
 		}
 
 		if (IS_ERR(neighbor)) {
-			/* restore the state we had before entering
-			 * renew_sibling() except coord object is no more
-			 * valid. */
 			spin_unlock_tree(tree);
 			ret = PTR_ERR(neighbor);
-			if (handle->owner != NULL) {
-				zrelse(handle->node);
-				longterm_unlock_znode(handle);
-				(*nr_locked) --;
-			}
-
 			return ret;
 		}
 
@@ -379,6 +362,7 @@ static int connect_one_side (coord_t * coord, znode * node, int flags)
 	assert("umka-249", node != NULL);
 	
 	coord_dup_nocheck(&local, coord);
+
 	init_lh(&handle);
 
 	ret = renew_sibling_link(&local, &handle, node, znode_get_level( node ),
