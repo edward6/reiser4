@@ -39,25 +39,6 @@ can_contain_key_tail(const coord_t * coord, const reiser4_key * key, const reise
 	    get_key_objectid(key) != get_key_objectid(&item_key)) return 0;
 
 	return 1;
-
-	assert("vs-459",
-	       (coord->unit_pos == 0 && coord->between == BEFORE_UNIT) ||
-	       (coord->unit_pos == coord_last_unit_pos(coord) && coord->between == AFTER_UNIT));
-
-	if (coord->between == BEFORE_UNIT) {
-		if (get_key_offset(key) + data->length != get_key_offset(&item_key)) {
-			printk("could not merge tail items of one file\n");
-			return 0;
-		} else
-			return 1;
-
-	} else {
-		if (get_key_offset(key) != (get_key_offset(&item_key) + item_length_by_coord(coord))) {
-			printk("could not append tail item with " "a tail item of the same file\n");
-			return 0;
-		} else
-			return 1;
-	}
 }
 
 /* plugin->u.item.b.mergeable
