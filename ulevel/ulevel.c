@@ -128,8 +128,10 @@ void *xxmalloc( size_t size )
 {
 	++ total_allocations;
 
-	if( KMEM_FAILURES && ( rand() < kmalloc_failure_rate ) )
+	if( KMEM_FAILURES && ( rand() < kmalloc_failure_rate ) ) {
+		info( "xxmalloc failed at its discretion\n" );
 		return NULL;
+	}
 	if( total_allocations > MEMORY_PRESSURE_THRESHOLD )
 		declare_memory_pressure();
 	return malloc( size );
@@ -2546,23 +2548,26 @@ static int copy_file (const char * oldname, struct inode * dir,
 	if (!buf) {
 		perror ("copy_file: xxmalloc failed");
 		iput (inode);
-		return 1;
+		return -ENOMEM;
 	}
 
 	count = BUFSIZE;
 	off = 0;
 	while (st->st_size) {
+		int ret;
+
 		if ((loff_t)count > st->st_size)
 			count = st->st_size;
 		if (read (fd, buf, count) != (ssize_t)count) {
 			perror ("copy_file: read failed");
 			iput (inode);
-			return 1;
+			return -errno;
 		}
-		if (call_write (inode, buf, off, count) != (ssize_t)count) {
-			info ("copy_file: write failed\n");
+		ret = call_write (inode, buf, off, count);
+		if (ret != (ssize_t)count) {
+			info ("copy_file: write failed: %i: %i\n", ret, errno);
 			iput (inode);
-			return 1;
+			return ret;
 		}
 /*
 		if (!silent) {
@@ -3220,16 +3225,18 @@ static int bash_cp (char * real_file, struct inode * cwd, const char * name)
 {
 	struct stat st;
 	int silent;
+	int ret;
 	
 	if (stat (real_file, &st) || !S_ISREG (st.st_mode)) {
 		errno ? perror ("stat failed") : 
 			info ("%s is not regular file\n", real_file);
 	}
 	silent = 1;
-	if (copy_file (real_file, cwd, name, &st, silent)) {
-		info ("cp: copy_file failed\n");
+	ret = copy_file (real_file, cwd, name, &st, silent);
+	if (ret) {
+		info ("cp: copy_file failed: %i\n", ret);
 	}
-	return 0;
+	return ret;
 }
 
 
@@ -3532,7 +3539,6 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 
 	cwd = 0;
 
-	/*for ( ; (command = readline ("> ")) != NULL ; free (command)) {*/
 	tmp = 0;
 	tmp_n = 0;
 	while (1) {
