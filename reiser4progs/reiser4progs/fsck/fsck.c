@@ -38,7 +38,6 @@ int main(int argc, char *argv[]) {
     
     reiserfs_fs_t *fs;
     aal_device_t *device;
-    reiserfs_alloc_t *alloc;
     reiserfs_profile_t *profile;
     
     static struct option long_options[] = {
@@ -159,6 +158,12 @@ int main(int argc, char *argv[]) {
 	    goto error_free_libreiser4;
     }
 
+    /*
+	Most probably filesystem will not be openable, due to incorrect 
+	control structures. So, we should add one more argument to 
+	reiserfs_fs_open function, which will force it do not any checks 
+	on control structures.
+    */
     if (!(fs = reiserfs_fs_open(device, device, replay))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't open filesystem on %s.", host_dev);

@@ -14,6 +14,13 @@ typedef uint64_t count_t;
 
 struct aal_device_ops;
 
+/*
+    Abstract device structure. It consists of flags device 
+    opened with, user-specified data, some opaque entity
+    (for standard file it is file descriptor), name of device
+    (for instance, /dev/hda2), block size of device and device
+    operations.
+*/
 struct aal_device {
     int flags;
     void *data;
@@ -25,6 +32,9 @@ struct aal_device {
 
 typedef struct aal_device aal_device_t;
 
+/*
+    Operations which may be performed on the device.
+*/
 struct aal_device_ops {
     error_t (*read)(aal_device_t *, void *, blk_t, count_t);
     error_t (*write)(aal_device_t *, void *, blk_t, count_t);
@@ -35,6 +45,10 @@ struct aal_device_ops {
     count_t (*len)(aal_device_t *);
 };
 
+/*
+    Disk block structure. It is a replica of struct buffer_head
+    from the linux kernel.
+*/
 struct aal_block {
     int flags;
     void *data;

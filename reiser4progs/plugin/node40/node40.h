@@ -19,7 +19,7 @@ typedef struct flush_stamp {
     uint64_t flush_time;
 } flush_stamp_t;
 
-/* Format of node header for node40. */
+/* Format of node header for node40 */
 struct reiserfs_nh40 {
     reiserfs_node_header_t header;
     uint16_t free_space;
@@ -66,12 +66,6 @@ struct reiserfs_ih40 {
 
 typedef struct reiserfs_ih40 reiserfs_ih40_t;
 
-#define node40_ih_at(block, pos) \
-    ((reiserfs_ih40_t *) (block->data + block->size) - pos - 1)
-
-#define node40_item_at_pos(block, pos) \
-    (block->data + ih40_get_offset(node40_ih_at(block, pos)))
-    
 #define ih40_get_offset(ih)			get_le16(ih, offset)
 #define ih40_set_offset(ih, val)		set_le16(ih, offset, val)
 
@@ -81,5 +75,13 @@ typedef struct reiserfs_ih40 reiserfs_ih40_t;
 #define ih40_get_plugin_id(ih)			get_le16(ih, plugin_id)
 #define ih40_set_plugin_id(ih, val)		set_le16(ih, plugin_id, val)
 
+inline reiserfs_ih40_t *node40_ih_at(aal_block_t *block, uint32_t pos) {
+    return (reiserfs_ih40_t *)((block->data + block->size) - pos - 1);
+}
+
+inline void *node40_item_at_pos(aal_block_t *block, uint32_t pos) {
+    return block->data + ih40_get_offset(node40_ih_at(block, pos));
+}
+    
 #endif
 
