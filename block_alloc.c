@@ -92,6 +92,7 @@ static void add_to_sb_flush_reserved (const struct super_block * super, __u64 co
 
 static void
 sub_from_sb_grabbed(const struct super_block *super, __u64 count)
+{
 	__u64 grabbed_blocks = reiser4_grabbed_blocks(super);
 	assert("zam-525", grabbed_blocks >= count);
 	grabbed_blocks -= count;
@@ -109,6 +110,7 @@ static void sub_from_sb_flush_reserved (const struct super_block * super, __u64 
 
 static void
 add_to_ctx_grabbed(__u64 count)
+{
 	reiser4_context *ctx = get_current_context();
 	ctx->grabbed_blocks += count;
 }
