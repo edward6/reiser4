@@ -133,6 +133,8 @@ void reiser4_print_stats()
 	      "\t private_data_alloc:\t %lli\n"
 	      "\t writes:\t %lli\n"
 	      "\t write repeats:\t %lli\n"
+	      "\t tail2extent:\t %lli\n"
+	      "\t extent2tail:\t %lli\n"
 
 	      "flush:\n"
 	      "\t squeeze:\t %lli\n"
@@ -189,6 +191,8 @@ void reiser4_print_stats()
 	      s -> file.private_data_alloc,
 	      s -> file.writes,
 	      s -> file.write_repeats,
+	      s -> file.tail2extent,
+	      s -> file.extent2tail,
 
 	      s -> flush.squeeze,
 	      s -> flush.flush_carry,
