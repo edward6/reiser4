@@ -449,6 +449,17 @@ static int formatted_fake_pressure_handler( struct page *page UNUSED_ARG,
 	return -ENOSYS;
 }
 
+/**
+ * ->sync_page() method of fake inode address space operations. Called from
+ * wait_on_page() and lock_page().
+ *
+ * FIXME-NIKITA not sure what to do.
+ */
+static int formatted_sync_page( struct page * page UNUSED_ARG )
+{
+	return 0;
+}
+
 define_never_ever_op( sync_page );
 define_never_ever_op( writepages );
 define_never_ever_op( readpages );
@@ -467,7 +478,7 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.writepage      = NULL,
 	/* this is called to read formatted node */
 	.readpage       = formatted_readpage,
-	.sync_page      = V( never_ever_sync_page ),
+	.sync_page      = formatted_sync_page,
 	/* Write back some dirty pages from this mapping. Called from sync. */
 	.writepages     = V( never_ever_writepages ),
 	/* Perform a writeback as a memory-freeing operation. */
