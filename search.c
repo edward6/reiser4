@@ -1056,7 +1056,7 @@ static int cbk_cache_scan_slots( cbk_handle *h /* cbk handle */ )
 	key   = h -> key;
 
 	cbk_cache_lock( cache );
-	slot = cbk_cache_list_front( &cache -> lru );
+	slot = cbk_cache_list_prev( cbk_cache_list_front( &cache -> lru ) );
 	cbk_cache_unlock( cache );
 	while( 1 ) {
 		/*
