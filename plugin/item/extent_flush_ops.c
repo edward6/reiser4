@@ -227,6 +227,9 @@ repeat:
 			goto exit;
 		}
 
+		assert ("zam-1042", !jnode_is_flushprepped(neighbor));
+		assert ("zam-1043", blocknr_is_fake(jnode_get_block(neighbor)));
+
 		ON_TRACE(TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, jnode_tostring(neighbor));
 
 		/* XXX commented assertion out, because it is inherently
