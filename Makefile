@@ -87,6 +87,7 @@ reiser4-objs := \
 		   init_super.o \
 		   crab_lock.o \
 		   safe_link.o \
+                   writeout.o \
            \
 		   plugin/plugin.o \
 		   plugin/plugin_set.o \

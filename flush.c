@@ -28,6 +28,7 @@
 #include "reiser4.h"
 #include "prof.h"
 #include "flush.h"
+#include "writeout.h"
 
 #include <asm/atomic.h>
 #include <linux/fs.h>		/* for struct super_block  */
@@ -470,7 +471,8 @@ static int write_prepped_nodes (flush_pos_t * pos, int check_congestion)
 		return 0;
 #endif /* FLUSH_CHECKS_CONGESTION */
 	trace_mark(flush);
-	ret = write_fq(pos->fq, pos->nr_written, 1);
+	ret = write_fq(pos->fq, pos->nr_written, 
+		       WRITEOUT_SINGLE_STREAM | get_writeout_flags());
 	set_rapid_flush_mode(0);
 	flush_started_io();
 	return ret;
@@ -932,6 +934,11 @@ void set_rapid_flush_mode (int on)
 	atomic_set(&rapid_flush_mode_flg, on);
 }
 
+int get_rapid_flush_mode (void)
+{
+	return atomic_read(&rapid_flush_mode_flg);
+}
+
 #else
 
 #define rapid_flush(pos) (0)
@@ -1042,7 +1049,7 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 
 	flush_started_io();
 	trace_mark(flush);
-	ret = write_fq(fq, nr_submitted, 1);
+	ret = write_fq(fq, nr_submitted, WRITEOUT_SINGLE_STREAM | get_writeout_flags());
 	set_rapid_flush_mode(0);
 
 	*atom = get_current_atom_locked();

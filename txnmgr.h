@@ -471,9 +471,15 @@ extern int flush_some_atom(long *, struct writeback_control *, int);
 extern void atom_set_stage(txn_atom *atom, txn_stage stage);
 
 #if REISER4_USE_RAPID_FLUSH
+
 extern void set_rapid_flush_mode(int);
+extern int  get_rapid_flush_mode(void);
+
 #else
+
 #define set_rapid_flush_mode(on) do{}while(0)
+#define get_rapid_flush_mode()   (0)
+
 #endif
 
 extern int same_slum_check(jnode * base, jnode * check, int alloc_check, int alloc_value);
