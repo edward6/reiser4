@@ -698,6 +698,8 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 				 get_inode_oid( old_inode ) );
 			result = -EIO;
 		}
+		if( result == 0 )
+			reiser4_inode_data( old_inode ) -> parent = new_dir;
 		done_lh( &dotdot_lh );
 		reiser4_free_dentry_fsdata( &dotdot_name );
 	}
