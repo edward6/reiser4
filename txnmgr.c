@@ -1302,7 +1302,7 @@ void atom_wait_event(txn_atom * atom)
 	spin_unlock_atom(atom);
 
 	prepare_to_sleep(_wlinks._lock_stack);
-	go_to_sleep(_wlinks._lock_stack);
+	go_to_sleep(_wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_EVENT);
 
 	spin_lock_atom (atom);
 	fwaitfor_list_remove(&_wlinks);
@@ -2429,7 +2429,7 @@ capture_fuse_wait(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * 
 	if ((ret = prepare_to_sleep(wlinks._lock_stack)) != 0) {
 		trace_on(TRACE_TXN, "thread %u deadlock blocking on atom %u\n", current->pid, atomf->atom_id);
 	} else {
-		ret = go_to_sleep(wlinks._lock_stack);
+		ret = go_to_sleep(wlinks._lock_stack, ADD_TO_SLEPT_IN_WAIT_ATOM);
 
 		if (ret == 0) {
 			ret = -EAGAIN;

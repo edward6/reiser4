@@ -283,7 +283,22 @@ extern void done_lh(lock_handle *);
 extern znode_lock_mode lock_mode(lock_handle *);
 
 extern int prepare_to_sleep(lock_stack * owner);
-extern int go_to_sleep(lock_stack * owner);
+
+#if REISER4_STATS
+
+#define ADD_TO_SLEPT_IN_WAIT_EVENT (-1)
+#define ADD_TO_SLEPT_IN_WAIT_ATOM  (-2)
+
+int __go_to_sleep(lock_stack*, int);
+#define go_to_sleep(owner, level) __go_to_sleep(owner, level);
+
+#else
+
+int __go_to_sleep(lock_stack*);
+#define go_to_sleep(owner, level) __go_to_sleep(owner)
+
+#endif
+
 extern void __reiser4_wake_up(lock_stack * owner);
 
 extern int lock_stack_isclean(lock_stack * owner);
