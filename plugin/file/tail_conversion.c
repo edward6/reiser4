@@ -9,6 +9,15 @@
 /* this file contains:
    tail2extent and extent2tail */
 
+int find_file_item(struct sealed_coord *, const reiser4_key *, coord_t *, lock_handle *,
+		   znode_lock_mode, __u32 cbk_flags, ra_info_t *, struct inode *);
+int goto_right_neighbor(coord_t *, lock_handle *);
+void set_file_state_extents(struct inode *);
+void set_file_state_tails(struct inode *);
+int unix_file_writepage_nolock(struct page *page);
+int file_is_built_of_extents(const struct inode *inode);
+
+
 static int ea_obtained(const struct inode *inode)
 {
 	
@@ -314,6 +323,7 @@ tail2extent(struct inode *inode)
 	}
 
 	if (file_is_built_of_extents(inode)) {
+		warning("vs-1171", "file is built of tails already. Should not happen\n");
 		/* tail was converted by someone else */
 		if (access_switched)
 			ea2nea(inode);
