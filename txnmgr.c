@@ -421,11 +421,11 @@ atom_init(txn_atom * atom)
 	atom->start_time = jiffies;
 
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1)
-		capture_list_init(&atom->dirty_nodes[level]);
+		capture_list_init(ATOM_DIRTY_LIST(atom, level));
 
-	capture_list_init(&atom->clean_nodes);
-	capture_list_init(&atom->ovrwr_nodes);
-	capture_list_init(&atom->writeback_nodes);
+	capture_list_init(ATOM_CLEAN_LIST(atom));
+	capture_list_init(ATOM_OVRWR_LIST(atom));
+	capture_list_init(ATOM_WB_LIST(atom));
 	capture_list_init(&atom->inodes);
 	spin_atom_init(atom);
 	txnh_list_init(&atom->txnh_list);
@@ -449,7 +449,7 @@ atom_isclean(txn_atom * atom)
 	assert("umka-174", atom != NULL);
 
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
-		if (!capture_list_empty(&atom->dirty_nodes[level])) {
+		if (!capture_list_empty(ATOM_DIRTY_LIST(atom, level))) {
 			return 0;
 		}
 	}
@@ -461,9 +461,9 @@ atom_isclean(txn_atom * atom)
 		atomic_read(&atom->refcount) == 0 &&
 		atom_list_is_clean(atom) &&
 		txnh_list_empty(&atom->txnh_list) &&
-		capture_list_empty(&atom->clean_nodes) &&
-		capture_list_empty(&atom->ovrwr_nodes) &&
-		capture_list_empty(&atom->writeback_nodes) &&
+		capture_list_empty(ATOM_CLEAN_LIST(atom)) &&
+		capture_list_empty(ATOM_OVRWR_LIST(atom)) &&
+		capture_list_empty(ATOM_WB_LIST(atom)) &&
 		fwaitfor_list_empty(&atom->fwaitfor_list) &&
 		fwaiting_list_empty(&atom->fwaiting_list) &&
 		prot_list_empty(&atom->protected) &&
@@ -950,16 +950,16 @@ reiser4_internal jnode * find_first_dirty_jnode (txn_atom * atom, int flags)
 
 	/* The flush starts from LEAF_LEVEL (=1). */
 	for (level = 1; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
-		if (capture_list_empty(&atom->dirty_nodes[level]))
+		if (capture_list_empty(ATOM_DIRTY_LIST(atom, level)))
 			continue;
 
-		first_dirty = find_first_dirty_in_list(&atom->dirty_nodes[level], flags);
+		first_dirty = find_first_dirty_in_list(ATOM_DIRTY_LIST(atom, level), flags);
 		if (first_dirty)
 			return first_dirty;
 	}
 
 	/* znode-above-root is on the list #0. */
-	return find_first_dirty_in_list(&atom->dirty_nodes[0], flags);
+	return find_first_dirty_in_list(ATOM_DIRTY_LIST(atom, 0), flags);
 }
 
 #if REISER4_COPY_ON_CAPTURE
@@ -978,26 +978,26 @@ static void dispatch_wb_list (txn_atom * atom, flush_queue_t * fq)
 	jnode * cur;
 	int total, moved;	
 
-	assert("zam-905", atom_is_protected(atom));
+	assert("zam-905", spin_atom_is_locked(atom));
 
 	total = 0;
 	moved = 0;
 
 	spin_lock(&scan_lock);
-	cur = capture_list_front(&atom->writeback_nodes);
-	while (!capture_list_end(&atom->writeback_nodes, cur)) {
+	cur = capture_list_front(ATOM_WB_LIST(atom));
+	while (!capture_list_end(ATOM_WB_LIST(atom), cur)) {
 		jnode * next;
 
 		total ++;
 		JF_SET(cur, JNODE_SCANNED);
 		next = capture_list_next(cur);
-		if (!capture_list_end(&atom->writeback_nodes, next))
+		if (!capture_list_end(ATOM_WB_LIST(atom), next))
 			JF_SET(next, JNODE_SCANNED);
 
 		spin_unlock(&scan_lock);
 
 		LOCK_JNODE(cur);
-		assert("vs-1441", cur->list == WB_LIST);
+		assert("vs-1441", NODE_LIST(cur) == WB_LIST);
 		if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
 			moved ++;
 			if (JF_ISSET(cur, JNODE_DIRTY)) {
@@ -1005,9 +1005,8 @@ static void dispatch_wb_list (txn_atom * atom, flush_queue_t * fq)
 			} else {
 				/* move from writeback list to clean list */
 				capture_list_remove(cur);
-				capture_list_push_back(&atom->clean_nodes, cur);
-				assert("vs-1618", cur->list == WB_LIST);
-				ON_DEBUG(cur->list = CLEAN_LIST);
+				capture_list_push_back(ATOM_CLEAN_LIST(atom), cur);
+				ON_DEBUG(count_jnode(atom, cur, WB_LIST, CLEAN_LIST, 1));
 			}
 		}
 		UNLOCK_JNODE(cur);
@@ -1015,8 +1014,8 @@ static void dispatch_wb_list (txn_atom * atom, flush_queue_t * fq)
 		spin_lock(&scan_lock);
 		JF_CLR(cur, JNODE_SCANNED);
 		cur = next;
-		assert("vs-1450", ergo(!capture_list_end(&atom->writeback_nodes, cur),
-				       JF_ISSET(cur, JNODE_SCANNED) && cur->list == WB_LIST));
+		assert("vs-1450", ergo(!capture_list_end(ATOM_WB_LIST(atom), cur),
+				       JF_ISSET(cur, JNODE_SCANNED) && NODE_LIST(cur) == WB_LIST));
 	}
 	spin_unlock(&scan_lock);
 }
@@ -1098,7 +1097,7 @@ static void atom_update_stat_data(txn_atom **atom)
 		flush_reserved2grabbed(*atom, reserved_for_sd_update(inode));
 
 		capture_list_remove_clean(j);			
-		capture_list_push_back(&(*atom)->clean_nodes, j);
+		capture_list_push_back(ATOM_CLEAN_LIST(*atom), j);
 		UNLOCK_ATOM(*atom);
 
 		/* FIXME: it is not clear what to do if update sd fails. A warning will be issued (nikita-2221) */
@@ -1219,7 +1218,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	if (ret)
 		return ret;
 
-	assert ("zam-906", capture_list_empty(&(*atom)->writeback_nodes));
+	assert ("zam-906", capture_list_empty(ATOM_WB_LIST(*atom)));
 
 	ON_TRACE(TRACE_FLUSH, "everything written back atom %u\n",
 		 (*atom)->atom_id);
@@ -1237,11 +1236,11 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	   bitmap_pre_commit_hook(), that way does not include
 	   capture_fuse_wait() as a capturing of other nodes does -- the commit
 	   semaphore is used for transaction isolation instead. */
-	invalidate_list(&(*atom)->ovrwr_nodes);
+	invalidate_list(ATOM_OVRWR_LIST(*atom));
 	up(&sbinfo->tmgr.commit_semaphore);
 
-	invalidate_list(&(*atom)->clean_nodes);
-	invalidate_list(&(*atom)->writeback_nodes);
+	invalidate_list(ATOM_CLEAN_LIST(*atom));
+	invalidate_list(ATOM_WB_LIST(*atom));
 	assert("zam-927", capture_list_empty(&(*atom)->inodes));
 
 	LOCK_ATOM(*atom);
@@ -1579,6 +1578,8 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 static void
 invalidate_list(capture_list_head * head)
 {
+	txn_atom *atom;
+
 	spin_lock(&scan_lock);
 	while (!capture_list_empty(head)) {
 		jnode *node;
@@ -1587,6 +1588,8 @@ invalidate_list(capture_list_head * head)
 		JF_SET(node, JNODE_SCANNED);
 		spin_unlock(&scan_lock);
 
+		atom = node->atom;
+		LOCK_ATOM(atom);
 		LOCK_JNODE(node);
 		if (JF_ISSET(node, JNODE_CC) && node->pg) {
 			/* corresponding page_cache_get is in swap_jnode_pages */
@@ -1594,6 +1597,7 @@ invalidate_list(capture_list_head * head)
 			page_cache_release(node->pg);
 		}
 		uncapture_block(node);
+		UNLOCK_ATOM(atom);
 		JF_CLR(node, JNODE_SCANNED);
 		jput(node);
 
@@ -2526,19 +2530,18 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 	assert("jmacd-321", spin_jnode_is_locked(node));
 	assert("umka-295", spin_atom_is_locked(atom));
 	assert("jmacd-323", node->atom == NULL);
-	assert("vs-1442", node->list == NOT_CAPTURED);
 	BUG_ON(!capture_list_is_clean(node));
 	assert("nikita-3470", !jnode_is_dirty(node));
 
 	/* Pointer from jnode to atom is not counted in atom->refcount. */
 	node->atom = atom;
 
-	capture_list_push_back(&atom->clean_nodes, node);
+	capture_list_push_back(ATOM_CLEAN_LIST(atom), node);
 	atom->capture_count += 1;
 	/* reference to jnode is acquired by atom. */
 	jref(node);
 
-	ON_DEBUG(node->list = CLEAN_LIST);
+	ON_DEBUG(count_jnode(atom, node, NOT_CAPTURED, CLEAN_LIST, 1));
 
 	LOCK_CNT_INC(t_refs);
 
@@ -2607,9 +2610,9 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 		assert("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
 
 		capture_list_remove(node);
-		capture_list_push_back(&atom->dirty_nodes[level], node);
-		
-		ON_DEBUG(node->list = DIRTY_LIST);
+		capture_list_push_back(ATOM_DIRTY_LIST(atom, level), node);		
+		/*XXXX*/ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), DIRTY_LIST, 1));
+
 		/*
 		 * JNODE_CCED bit protects clean copy (page created by
 		 * copy-on-capture) from being evicted from the memory. This
@@ -2693,6 +2696,134 @@ znode_make_dirty(znode * z)
 	assert("jmacd-9777", node->atom != NULL);
 }
 
+#if REISER4_DEBUG
+
+void check_fq(const txn_atom *atom);
+
+/* move jnode form one list to another
+   call this after atom->capture_count is updated */
+void
+count_jnode(txn_atom *atom, jnode *node, atom_list old_list, atom_list new_list, int check_lists)
+{
+	assert("", spin_atom_is_locked(atom));
+	assert("", spin_jnode_is_locked(node));
+	assert("", NODE_LIST(node) == old_list);
+
+	switch(NODE_LIST(node)) {
+	case NOT_CAPTURED:
+		break;
+	case DIRTY_LIST:
+		assert("", atom->dirty > 0);
+		atom->dirty --;
+		break;
+	case CLEAN_LIST:
+		assert("", atom->clean > 0);
+		atom->clean --;
+		break;
+	case FQ_LIST:
+		assert("", atom->fq > 0);
+		atom->fq --;
+		break;
+	case WB_LIST:
+		assert("", atom->wb > 0);
+		atom->wb --;
+		break;
+	case OVRWR_LIST:
+		assert("", atom->ovrwr > 0);
+		atom->ovrwr --;
+		break;
+	case PROTECT_LIST:
+		/* protect list is an intermediate atom's list to which jnodes
+		   get put from dirty list before disk space is allocated for
+		   them. From this list jnodes can either go to flush queue list
+		   or back to dirty list */
+		assert("", atom->protect > 0);
+		assert("", new_list == FQ_LIST || new_list == DIRTY_LIST);
+		atom->protect --;
+		break;
+	default:
+		impossible("", "");
+	}
+	
+	switch(new_list) {
+	case NOT_CAPTURED:
+		break;
+	case DIRTY_LIST:
+		atom->dirty ++;		
+		break;
+	case CLEAN_LIST:
+		atom->clean ++;
+		break;
+	case FQ_LIST:
+		atom->fq ++;
+		break;
+	case WB_LIST:
+		atom->wb ++;
+		break;
+	case OVRWR_LIST:
+		atom->ovrwr ++;
+		break;
+	case PROTECT_LIST:
+		assert("", old_list == DIRTY_LIST);
+		atom->protect ++;
+		break;
+	default:
+		impossible("", "");
+	}
+	ASSIGN_NODE_LIST(node, new_list);
+	if (check_lists) {
+		int count;
+		tree_level level;
+		jnode *node;
+
+		count = 0;
+		
+		/* flush queue list */
+		/*check_fq(atom);*/
+
+		/* dirty list */
+		count = 0;
+		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
+			for_all_type_safe_list(capture, ATOM_DIRTY_LIST(atom, level), node)
+				count ++;
+		}
+		if (count != atom->dirty)
+			warning("", "dirty counter %d, real %d\n", atom->dirty, count);
+
+		/* clean list */
+		count = 0;
+		for_all_type_safe_list(capture, ATOM_CLEAN_LIST(atom), node)
+			count ++;
+		if (count != atom->clean)
+			warning("", "clean counter %d, real %d\n", atom->clean, count);
+
+		/* wb list */
+		count = 0;
+		for_all_type_safe_list(capture, ATOM_WB_LIST(atom), node)
+			count ++;
+		if (count != atom->wb)
+			warning("", "wb counter %d, real %d\n", atom->wb, count);
+
+		/* overwrite list */
+		count = 0;
+		for_all_type_safe_list(capture, ATOM_OVRWR_LIST(atom), node)
+			count ++;
+
+		if (count != atom->ovrwr)
+			warning("", "ovrwr counter %d, real %d\n", atom->ovrwr, count);
+	}
+	assert("vs-1624", atom->num_queued == atom->fq);
+	if (atom->capture_count != atom->dirty + atom->clean + atom->ovrwr + atom->wb + atom->fq + atom->protect) {
+		printk("count %d, dirty %d clean %d ovrwr %d wb %d fq %d protect %d\n", atom->capture_count, atom->dirty, atom->clean, atom->ovrwr, atom->wb, atom->fq, atom->protect);
+		assert("vs-1622", 
+		       atom->capture_count == atom->dirty + atom->clean + atom->ovrwr + atom->wb + atom->fq + atom->protect);
+	}
+}
+
+#endif
+
+
+#if 0
 
 /* Unset the dirty status for this jnode.  If the jnode is dirty, this
    involves locking the atom (for its capture lists), removing from the
@@ -2725,8 +2856,8 @@ jnode_make_clean(jnode * node)
 		   from invalidate page */
 		if (atom != NULL) {
 			capture_list_remove_clean(node);
-			capture_list_push_front(&atom->clean_nodes, node);
-			ON_DEBUG(node->list = CLEAN_LIST);
+			capture_list_push_front(ATOM_CLEAN_LIST(atom), node);
+			/*XXXX*/ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), CLEAN_LIST, 1));
 		}
 	}
 
@@ -2736,6 +2867,9 @@ jnode_make_clean(jnode * node)
 	ON_DEBUG_MODIFY(znode_set_checksum(node, 1));
 	UNLOCK_JNODE(node);
 }
+
+#endif
+
 
 /* Make node OVRWR and put it on atom->overwrite_nodes list, atom lock and jnode
  * lock should be taken before calling this function. */
@@ -2754,10 +2888,10 @@ reiser4_internal void jnode_make_wander_nolock (jnode * node)
 	assert("zam-895", atom != NULL);
 	assert("zam-894", atom_is_protected(atom));
 
-	capture_list_remove_clean(node);
-	capture_list_push_back(&atom->ovrwr_nodes, node);
-	ON_DEBUG(node->list = OVRWR_LIST);
 	JF_SET(node, JNODE_OVRWR);
+	capture_list_remove_clean(node);
+	capture_list_push_back(ATOM_OVRWR_LIST(atom), node);
+	/*XXXX*/ON_DEBUG(count_jnode(atom, node, DIRTY_LIST, OVRWR_LIST, 1));
 }
 
 /* Same as jnode_make_wander_nolock, but all necessary locks are taken inside
@@ -2776,6 +2910,20 @@ reiser4_internal void jnode_make_wander (jnode * node)
 	UNLOCK_JNODE(node);
 }
 
+/* this just sets RELOC bit  */
+static void
+jnode_make_reloc_nolock(flush_queue_t *fq, jnode *node)
+{
+	assert("vs-1480", spin_jnode_is_locked(node));
+	assert ("zam-916", jnode_is_dirty(node));
+	assert ("zam-917", !JF_ISSET(node, JNODE_RELOC));
+	assert ("zam-918", !JF_ISSET(node, JNODE_OVRWR));
+	assert ("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
+	assert ("nikita-3367", !blocknr_is_fake(jnode_get_block(node)));
+
+	jnode_set_reloc(node);
+}
+
 /* Make znode RELOC and put it on flush queue */
 reiser4_internal void znode_make_reloc (znode *z, flush_queue_t * fq)
 {
@@ -2786,15 +2934,9 @@ reiser4_internal void znode_make_reloc (znode *z, flush_queue_t * fq)
 	LOCK_JNODE(node);
 
 	atom = jnode_get_atom(node);
-
 	assert ("zam-919", atom != NULL);
-	assert ("zam-916", jnode_is_dirty(node));
-	assert ("zam-917", !JF_ISSET(node, JNODE_RELOC));
-	assert ("zam-918", !JF_ISSET(node, JNODE_OVRWR));
-	assert ("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
-	assert ("nikita-3367", !blocknr_is_fake(jnode_get_block(node)));
 
-	jnode_set_reloc(node);
+	jnode_make_reloc_nolock(fq, node);
 	queue_jnode(fq, node);
 
 	UNLOCK_ATOM(atom);
@@ -2807,15 +2949,10 @@ reiser4_internal void
 unformatted_make_reloc(jnode *node, flush_queue_t * fq)
 {
 	assert("vs-1479", jnode_is_unformatted(node));
-	assert("vs-1480", spin_jnode_is_locked(node));
-	assert ("zam-917", !JF_ISSET(node, JNODE_RELOC));
-	assert ("zam-918", !JF_ISSET(node, JNODE_OVRWR));
-	assert ("zam-920", !JF_ISSET(node, JNODE_FLUSH_QUEUED));
 
-	jnode_set_reloc(node);
+	jnode_make_reloc_nolock(fq, node);
 	mark_jnode_queued(fq, node);
 }
-
 
 static int
 trylock_wait(txn_atom *atom, txn_handle * txnh, jnode * node)
@@ -3373,14 +3510,13 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 
 	/* Splice and update the per-level dirty jnode lists */
 	for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; level += 1) {
-		zcount += capture_fuse_jnode_lists(large, &large->dirty_nodes[level], &small->dirty_nodes[level]);
+		zcount += capture_fuse_jnode_lists(large, ATOM_DIRTY_LIST(large, level), ATOM_DIRTY_LIST(small, level));
 	}
 
 	/* Splice and update the [clean,dirty] jnode and txnh lists */
-	zcount += capture_fuse_jnode_lists(large, &large->clean_nodes, &small->clean_nodes);
-	zcount += capture_fuse_jnode_lists(large, &large->ovrwr_nodes, &small->ovrwr_nodes);
-	zcount += capture_fuse_jnode_lists(large, &large->writeback_nodes, &small->writeback_nodes);
-
+	zcount += capture_fuse_jnode_lists(large, ATOM_CLEAN_LIST(large), ATOM_CLEAN_LIST(small));
+	zcount += capture_fuse_jnode_lists(large, ATOM_OVRWR_LIST(large), ATOM_OVRWR_LIST(small));
+	zcount += capture_fuse_jnode_lists(large, ATOM_WB_LIST(large), ATOM_WB_LIST(small));
 	zcount += capture_fuse_jnode_lists(large, &large->inodes, &small->inodes);
 	tcount += capture_fuse_txnh_lists(large, &large->txnh_list, &small->txnh_list);
 
@@ -3410,6 +3546,21 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 
 	/* splice flush queues */
 	fuse_fq(large, small);
+
+	/* update counter of jnode on every atom' list */
+	ON_DEBUG(large->dirty += small->dirty;
+		 small->dirty = 0;
+		 large->clean += small->clean;
+		 small->clean = 0;
+		 large->ovrwr += small->ovrwr;
+		 small->ovrwr = 0;
+		 large->wb += small->wb;
+		 small->wb = 0;
+		 large->fq += small->fq;
+		 small->fq = 0;
+		 large->protect += small->protect;
+		 small->protect = 0;
+		);
 
 	/* count flushers in result atom */
 	large->nr_flushers += small->nr_flushers;
@@ -3645,7 +3796,7 @@ remove_from_capture_list(jnode *node)
 	capture_list_remove_clean(node);
 	node->atom->capture_count --;
 	atomic_dec(&node->x_count);
-	ON_DEBUG(node->list = NOT_CAPTURED);
+	/*XXXX*/ON_DEBUG(count_jnode(node->atom, node, NODE_LIST(node), NOT_CAPTURED, 1));
 	node->atom = 0;
 }
 
@@ -3664,7 +3815,7 @@ replace_on_capture_list(jnode *node, jnode *copy)
 	jref(copy);
 	copy->atom = node->atom;
 	node->atom->capture_count ++;
-	ON_DEBUG(copy->list = node->list);
+	/*XXXX*/ON_DEBUG(count_jnode(node->atom, copy, NODE_LIST(copy), NODE_LIST(node), 1));
 
 	/* remove old jnode from capture list */
 	remove_from_capture_list(node);
@@ -3675,23 +3826,25 @@ replace_on_capture_list(jnode *node, jnode *copy)
 static int
 copy_on_capture_clean(jnode *node, txn_atom *atom)
 {
+	int result;
+
+	assert("vs-1625", spin_atom_is_locked(atom));
 	assert("vs-1432", spin_jnode_is_locked(node));
+
 	spin_lock(&scan_lock);
 	if (capturable(node, atom)) {
 		/* remove jnode from capture list */
 		remove_from_capture_list(node);
-
-		spin_unlock(&scan_lock);
-		UNLOCK_JNODE(node);
-
 		reiser4_stat_inc(coc.ok_clean);
-		return 0;
-	}
+		result = 0;
+	} else
+		result = RETERR(-E_REPEAT);
 
-	UNLOCK_JNODE(node);
 	spin_unlock(&scan_lock);
-
-	return RETERR(-E_REPEAT);
+	UNLOCK_JNODE(node);
+	UNLOCK_ATOM(atom);
+	
+	return result;
 }
 
 /* capture request is made for node which does not have page. In most cases this
@@ -3702,10 +3855,12 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 	int result;
 	jnode *copy;
 
+	assert("vs-1432", spin_atom_is_locked(atom));
 	assert("vs-1432", spin_jnode_is_locked(node));
 
 	jref(node);
 	UNLOCK_JNODE(node);
+	UNLOCK_ATOM(atom);
 	assert("nikita-3475", schedulable());
 	copy = jclone(node);
 	if (IS_ERR(copy)) {
@@ -3713,6 +3868,7 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 		return PTR_ERR(copy);
 	}
 	
+	LOCK_ATOM(atom);
 	LOCK_JNODE(node);
 	spin_lock(&scan_lock);
 	
@@ -3730,6 +3886,7 @@ copy_on_capture_nopage(jnode *node, txn_atom *atom)
 
 	spin_unlock(&scan_lock);
 	UNLOCK_JNODE(node);
+	UNLOCK_ATOM(atom);
 	assert("nikita-3476", schedulable());
 	jput(copy);
 	assert("nikita-3477", schedulable());
@@ -3770,6 +3927,7 @@ handle_coc(jnode *node, jnode *copy, struct page *page, struct page *new_page,
 	 * free space may not be re-used in insertion.
 	 */
 	radix_tree_preload(GFP_KERNEL);
+	LOCK_ATOM(atom);
 	lock_two_nodes(node, copy);
 	spin_lock(&scan_lock);
 	if (capturable(node, atom)) {
@@ -3802,6 +3960,7 @@ handle_coc(jnode *node, jnode *copy, struct page *page, struct page *new_page,
 		spin_unlock(&scan_lock);
 		UNLOCK_JNODE(node);
 		UNLOCK_JNODE(copy);
+		UNLOCK_ATOM(atom);
 		radix_tree_preload_end();
 		unlock_page(page);
 
@@ -3823,6 +3982,7 @@ handle_coc(jnode *node, jnode *copy, struct page *page, struct page *new_page,
 		spin_unlock(&scan_lock);
 		UNLOCK_JNODE(node);
 		UNLOCK_JNODE(copy);
+		UNLOCK_ATOM(atom);
 		radix_tree_preload_end();
 		kunmap(page);
 		unlock_page(page);
@@ -3850,6 +4010,7 @@ real_copy_on_capture(jnode *node, txn_atom *atom)
 	page_cache_get(page);
 	jref(node);
 	UNLOCK_JNODE(node);
+	UNLOCK_ATOM(atom);
 
 	/* prevent node from eflushing */
 	result = jload(node);
@@ -3884,7 +4045,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	int result;
 
 	assert("jmacd-321", spin_jnode_is_locked(node));
-	assert("umka-295", atom_is_protected(atom));
+	assert("umka-295", spin_atom_is_locked(atom));
 	assert("vs-1381", node->atom == atom);
 	assert("vs-1409", atom->stage > ASTAGE_CAPTURE_WAIT && atom->stage < ASTAGE_DONE);
 	assert("vs-1410", (jnode_get_type(node) == JNODE_FORMATTED_BLOCK ||
@@ -3896,6 +4057,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	ON_TRACE(TRACE_CAPTURE_COPY, "copy_on_capture: node %p, atom %p..", node, atom);
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
 		UNLOCK_JNODE(node);
+		UNLOCK_ATOM(atom);
 
 		reiser4_stat_inc(coc.eflush);
 		ON_TRACE(TRACE_CAPTURE_COPY, "eflushed\n");
@@ -3950,7 +4112,7 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 		/* create a copy of node, detach node from atom and attach its copy
 		   instead */
 		atomic_inc(&atomf->refcount);
-		UNLOCK_ATOM(atomf);
+		/*UNLOCK_ATOM(atomf);*/
 		result = create_copy_and_replace(node, atomf);
 		assert("nikita-3474", schedulable());
 		preempt_point();
@@ -3997,7 +4159,7 @@ reiser4_internal void uncapture_block(jnode * node)
 
 	assert("jmacd-1021", node->atom == atom);
 	assert("jmacd-1022", spin_jnode_is_locked(node));
-	assert("jmacd-1023", atom_is_protected(atom));
+	assert("jmacd-1023", spin_atom_is_locked(atom));
 
 	/*ON_TRACE (TRACE_TXN, "un-capture %p from atom %u (captured %u)\n",
 	 * node, atom->atom_id, atom->capture_count); */
@@ -4017,11 +4179,12 @@ reiser4_internal void uncapture_block(jnode * node)
 	capture_list_remove_clean(node);
 	if (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
 		assert("zam-925", atom_isopen(atom));
+		assert("vs-1623", NODE_LIST(node) == FQ_LIST);
 		ON_DEBUG(atom->num_queued --);
 		JF_CLR(node, JNODE_FLUSH_QUEUED);
 	}
 	atom->capture_count -= 1;
-	ON_DEBUG(node->list = NOT_CAPTURED);
+	ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), NOT_CAPTURED, 1));
 	node->atom = NULL;
 
 	UNLOCK_JNODE(node);
@@ -4040,11 +4203,11 @@ insert_into_atom_ovrwr_list(txn_atom * atom, jnode * node)
 	assert("zam-543", node->atom == NULL);
 	assert("vs-1433", !jnode_is_unformatted(node) && !jnode_is_znode(node));
 
-	capture_list_push_front(&atom->ovrwr_nodes, node);
+	capture_list_push_front(ATOM_OVRWR_LIST(atom), node);
 	jref(node);
 	node->atom = atom;
 	atom->capture_count++;
-	ON_DEBUG(node->list = OVRWR_LIST);
+	ON_DEBUG(count_jnode(atom, node, NODE_LIST(node), OVRWR_LIST, 1));
 }
 
 /* return 1 if two dirty jnodes belong to one atom, 0 - otherwise */
@@ -4099,17 +4262,16 @@ print_atom(const char *prefix, txn_atom * atom)
 
 		sprintf(list, "capture level %d", level);
 
-		for (pos_in_atom =
-		     capture_list_front(&atom->dirty_nodes[level]);
-		     /**/ !capture_list_end(&atom->dirty_nodes[level],
-					    pos_in_atom); pos_in_atom = capture_list_next(pos_in_atom)) {
+		for (pos_in_atom = capture_list_front(ATOM_DIRTY_LIST(atom, level));
+		     !capture_list_end(ATOM_DIRTY_LIST(atom, level), pos_in_atom); 
+		     pos_in_atom = capture_list_next(pos_in_atom)) {
 
 			info_jnode(list, pos_in_atom);
 			printk("\n");
 		}
 	}
 
-	for_all_type_safe_list(capture, &atom->clean_nodes, pos_in_atom) {
+	for_all_type_safe_list(capture, ATOM_CLEAN_LIST(atom), pos_in_atom) {
 		info_jnode("clean", pos_in_atom);
 		printk("\n");
 	}
