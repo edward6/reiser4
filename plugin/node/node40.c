@@ -265,8 +265,6 @@ node40_length_by_coord(const coord_t * coord)
 {
 	item_header40 *ih;
 	int result;
-	PROF_BEGIN(length_by_coord);
-
 
 	/* @coord is set to existing item */
 	assert("vs-256", coord != NULL);
@@ -277,7 +275,6 @@ node40_length_by_coord(const coord_t * coord)
 		result = nh40_get_free_space_start(node40_node_header(coord->node)) - ih40_get_offset(ih);
 	else
 		result = ih40_get_offset(ih - 1) - ih40_get_offset(ih);
-	PROF_END(length_by_coord, length_by_coord);
 
 	return result;
 }
