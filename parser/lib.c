@@ -13,8 +13,13 @@
 
 #define my_mntget(mess,s)  mntget(s); printk ("mntget  %d,  %s\n",(s)->mnt_count, mess)
 #define my_dget(mess,s)    dget(s)  ; printk ("dget    %d,  %s\n",(s)->d_count, mess)
-#define my_mntput(s)       mntput(s); printk ("             mntput %d\n",(s)->mnt_count)
-#define my_dput(s)         dput(s)  ; printk ("             dput   %d\n",(s)->d_count)
+
+#define path4_release( pointer )  { dput( (pointer).dentry ); \
+                                     mntput((pointer).mnt);   \
+           printk ("       mntput %d\n",((pointer).mnt)->mnt_count);\
+           printk ("         dput %d\n",((pointer).dentry)->d_count);\
+}
+
 
 #define LEX_XFORM  1001
 #define LEXERR2    1002
@@ -117,6 +122,19 @@ static int reiser4_pars_free(struct reiser4_syscall_w_space * ws /* work space p
 	assert("VD-reiser4_pars_free:root EXPR_LNODE", ws->root_e->h.type == EXPR_LNODE);
 	assert("VD-reiser4_pars_free:root lnode",      ws->root_e->lnode.lnode != NULL);
 
+#if 0
+//	walk_init_root( "/", (&ws->nd));   /* from namei.c walk_init_root */
+	{
+		read_lock(&current->fs->lock);
+		ws->nd.mnt = my_mntget("root", current->fs->rootmnt); 
+		ws->nd.dentry = my_dget("root", current->fs->root);
+		read_unlock(&current->fs->lock);
+	}
+#endif
+
+
+
+
 	free_expr( ws->cur_level->cur_exp );
 	free_expr( ws->root_e );
 	if ( ws->freeSpHead ) {
@@ -126,13 +144,18 @@ static int reiser4_pars_free(struct reiser4_syscall_w_space * ws /* work space p
 	return 0;
 }
 
+
+
+
+#if 0
 static inline void path4_release( struct dentry *de, struct vfsmount *mnt)
 {
-	assert("VD-path4_release:root dentry",    de != NULL);
-	assert("VD-path4_release:root mnt",       mnt != NULL);
+	assert("VD-path4_release: dentry",    de != NULL);
+	assert("VD-path4_release: mnt",       mnt != NULL);
 	my_dput(   de  );
 	my_mntput( mnt );
 }
+#endif
 
 /* FIXME:NIKITA->VOVA code below looks like custom made memory allocator. Why
  * not to use slab? */
@@ -149,9 +172,6 @@ static freeSpace_t * freeSpaceAlloc()
 	assert("VD kmalloc work space",fs!=NULL);
 	memset( fs , 0, sizeof( freeSpace_t ));
 	initNextFreeSpace(fs);
-
-
-
 	return fs;
 }
 
@@ -232,10 +252,8 @@ static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr
 		printk("free_expr:EXPR_PARS_VAR %d\n", expr->pars_var.v->count );
 //		if ( !--expr->pars_var.v->count )
 			{
-				path4_release( expr->pars_var.v->ln->dentry.dentry,
-					       expr->pars_var.v->ln->dentry.mnt );
-//				if ( !--expr->pars_var.v->count )
-					lput( expr->pars_var.v->ln );
+				path4_release( expr->pars_var.v->ln->dentry );
+				lput( expr->pars_var.v->ln );
 			}
 		break;
 	case EXPR_LIST:
@@ -252,14 +270,14 @@ static int free_expr( /*struct reiser4_syscall_w_space * ws, */ expr_v4_t * expr
 		assert("VD-free_expr.EXPR_ASSIGN.count", expr->assgn.target->count>0);
 //		if ( !--expr->assgn.target->count )
 		{
-			path4_release( expr->assgn.target->ln->dentry.dentry, expr->assgn.target->ln->dentry.mnt );
+			path4_release( expr->assgn.target->ln->dentry);
 			lput(expr->assgn.target->ln);
 		}
 		ret |= free_expr( expr->assgn.source );
 		break;
 	case EXPR_LNODE:
 		assert("VD-free_expr.lnode.lnode", expr->lnode.lnode!=NULL);
-		path4_release( expr->lnode.lnode->dentry.dentry,  expr->lnode.lnode->dentry.mnt );
+		path4_release( expr->lnode.lnode->dentry );
 		lput( expr->lnode.lnode ); 
 		break;
 	case EXPR_FLOW:
@@ -377,7 +395,8 @@ static  void  level_down(struct reiser4_syscall_w_space * ws /* work space ptr *
 	assert("VD-level_down: type mithmatch with level", type1==ws->cur_level->stype);
 	assert("VD-level_down: This is top level, prev == NULL", ws->cur_level->prev != NULL);
 
-//	path4_release(ws->cur_level->prev->wrk_exp);  ???????????
+	free_expr(ws->cur_level->prev->wrk_exp);
+
 	ws->cur_level->prev->wrk_exp = ws->cur_level->wrk_exp ;           /* current wrk for new level */
 	ws->cur_level                = ws->cur_level->prev;
 }
@@ -1393,12 +1412,8 @@ static int push_tube_list_stack(tube_t * tube, long type, void * pointer )
 
 static int change_tube_stack(tube_t * tube, long type, void * pointer )
 {
-	sourece_stack_t * ret;
-			printk("c 1 tube=%p, tube->writeoff=%d \n", tube, tube->writeoff);
-	ret             = tube->st_current;
-	ret->type       = type;
-	ret->u.pointer  = pointer;
-			printk("c 2 tube=%p, tube->writeoff=%d \n", tube, tube->writeoff);
+	tube->st_current->type       = type;
+	tube->st_current->u.pointer  = pointer;
 	return 0;
 }
 
@@ -1418,7 +1433,6 @@ static int pop_tube_stack( tube_t * tube )
 		}
 }
 
-
 /*  pop onto stack for calculate expressions one step */
 static void put_tube_src(tube_t * tube)
 {
@@ -1434,15 +1448,13 @@ static void put_tube_src(tube_t * tube)
 		}
 }
 
-
-
-
 /* push & pop onto stack for calculate expressions one step */
 static int get_tube_next_src(tube_t * tube)
 {
 	expr_v4_t * s;
 	expr_list_t * tmp;
 	int ret;
+	struct file * fl;
 
 	tube->readoff=0;
 
@@ -1468,13 +1480,17 @@ static int get_tube_next_src(tube_t * tube)
 				case EXPR_PARS_VAR:
 					assert("VD-free_expr.EXPR_PARS_VAR", s->pars_var.v!=NULL);
 					assert("VD-free_expr.EXPR_PARS_VAR.ln", s->pars_var.v->ln!=NULL);
-					//					if ( S_ISREG(s->pars_var.v->ln->dentry.dentry->d_inode) )
+//					if ( S_ISREG(s->pars_var.v->ln->dentry.dentry->d_inode) )
 					{
-						change_tube_stack( tube, ST_FILE ,
-								   dentry_open( s->pars_var.v->ln->dentry.dentry,
-										s->pars_var.v->ln->dentry.mnt, O_RDONLY ) );
+						fl=  dentry_open( s->pars_var.v->ln->dentry.dentry,
+								  s->pars_var.v->ln->dentry.mnt, O_RDONLY ) ;
+						if ( !IS_ERR(fl) )
+							{
+								change_tube_stack( tube, ST_FILE , fl);
+							}
+						else printk("error for open source\n");
 					}
-					//						else if ( S_ISDIR(s->pars_var.v->ln->dentry.dentry->d_inode) )
+//						else if ( S_ISDIR(s->pars_var.v->ln->dentry.dentry->d_inode) )
 					{
 #if 0          // not yet
 						while(NOT EOF)
@@ -1540,14 +1556,12 @@ static tube_t *  get_tube_general(tube_t * tube, pars_var_t *sink, expr_v4_t *so
 	char * buf;
 
 	tube              = kmalloc( sizeof(struct tube), GFP_KERNEL);
-	buf               = kmalloc( PUMP_BUF_SIZE, GFP_KERNEL);
 	if (!IS_ERR(tube))
 		{
 			if (!IS_ERR(buf))
 				{
 					START_KERNEL_IO_GLOB;
 					memset( tube , 0, sizeof( struct tube ));
-					memset( buf  , 0, PUMP_BUF_SIZE);
 					
 					assert("VD get_tube_general: no tube",!IS_ERR(tube));
 					assert("VD get_tube_general: dst no dentry",sink->ln->h.type== LNODE_DENTRY);
@@ -1584,19 +1598,21 @@ static tube_t *  get_tube_general(tube_t * tube, pars_var_t *sink, expr_v4_t *so
 
 static size_t reserv_space_in_sink(tube_t * tube )
 {
+	tube->buf = kmalloc( PUMP_BUF_SIZE, GFP_KERNEL);
+	memset( tube->buf  , 0, PUMP_BUF_SIZE);
 }
 
 static size_t get_available_src_len(tube_t * tube)
 {
 	size_t len;
 	size_t s_len;
-	len = PUMP_BUF_SIZE;
 	int ret = 1;
-			printk("p 1 tube=%p, tube->writeoff=%d \n", tube, tube->writeoff);
+	len = PUMP_BUF_SIZE;
+	printk("get av src len tube=%p, tube->writeoff=%d len=%d\n", tube,(int) (tube->writeoff), (int) len);
 	while ( tube->st_current != NULL && ret )
 		{
 			ret = 0;
-			switch(tube->st_current->type)
+			switch( tube->st_current->type )
 				{
 				case 	ST_FILE:
 					s_len = tube->st_current->u.file->f_dentry->d_inode->i_size;
@@ -1613,14 +1629,8 @@ static size_t get_available_src_len(tube_t * tube)
 					ret = 1;
 					break;
 				}
-			s_len -= tube->readoff;
-			if ( !s_len )
-				{
-					put_tube_src( tube );
-					ret = 1;
-				}
 		}
-	PTRACE1( " len =%d, slen=%d, readoff=%d", len, s_len, tube->readoff );
+	s_len -= tube->readoff;
 	if (tube->st_current == NULL)
 		{
 			len = 0;
@@ -1629,13 +1639,14 @@ static size_t get_available_src_len(tube_t * tube)
 		{
 			if ( len > s_len ) len = s_len;
 		}
+	printk( " len =%d, slen=%d, readoff=%d\n", (int)len,(int) s_len, (int)tube->readoff );
 	return len;
 }
 
-static int prep_tube_general(tube_t * tube)
+static size_t prep_tube_general(tube_t * tube)
 {
-	int ret;
-	if (tube->st_current != NULL)
+	size_t ret;
+	if ( tube->st_current != NULL )
 		{
 			ret = get_available_src_len( tube ) ;
 		}
@@ -1648,30 +1659,38 @@ static int prep_tube_general(tube_t * tube)
 	return ret;
 }
 
-static int source_to_tube_general(tube_t * tube)
-{
-//	tube->source->fplug->read(tube->offset,tube->len);
 
+
+static size_t source_to_tube_general(tube_t * tube)
+{
+	//	tube->source->fplug->read(tube->offset,tube->len);
+	size_t ret;
 	switch( tube->st_current->type )
 		{
 		case 	ST_FILE:
-			return 	vfs_read(tube->st_current->u.file, tube->buf, tube->len, &tube->readoff);
+			ret = vfs_read(tube->st_current->u.file, tube->buf, tube->len, &tube->readoff);
+			tube->len = ret;
 			break;
 		case 	ST_DE:
 			break;
 		case 	ST_WD:
-			memcpy( tube->buf,  tube->st_current->u.wd->u.name + tube->readoff, tube->len );
+			memcpy( tube->buf,  tube->st_current->u.wd->u.name + tube->readoff, ret = tube->len );
+			tube->readoff += ret;
 			break;
 		}
-			printk("get stack tube=%p, tube->readoff=%d\n", tube, tube->readoff);
-	return tube->len;
+	printk("source ro tube tube=%p, stack =%p tube->writeoff=%d,tube->readoff=%d\n", tube, tube->st_current, (int)tube->writeoff,(int)tube->readoff);
+	return ret;
 }
 
-static int tube_to_sink_general(tube_t * tube)
+static size_t tube_to_sink_general(tube_t * tube)
 {
+	size_t ret;
 //	tube->sink->fplug->write(tube->offset,tube->len);
 //	tube->offset += tube->len;
-	return 	vfs_write(tube->dst, tube->buf, tube->len, &tube->writeoff);
+	ret = vfs_write(tube->dst, tube->buf, tube->len, &tube->writeoff);
+	//	tube->writeoff += tube->len;
+	return ret;
+
 }
 
 static void put_tube(tube_t * tube)
@@ -1679,16 +1698,6 @@ static void put_tube(tube_t * tube)
 	PTRACE1( "%s\n", "begin");
 	END_KERNEL_IO_GLOB;
 	assert("VD :stack not empty ",tube->st_current == NULL);
-#if 0
-	if ( tube->st_current != NULL && tube->st_current->type == ST_FILE)
-		{
-			filp_close(tube->st_current->u.file, current->files );
-			while( !pop_tube_stack(tube) )
-				{
-					PTRACE1( "%s", "pop" );
-				}
-		}
-#endif
 	filp_close(tube->dst, current->files );
 	kfree(tube->buf);
 	kfree(tube);
@@ -1734,33 +1743,27 @@ static int  pump( pars_var_t *sink, expr_v4_t *source )
 	      }
       else
 	      {
-		      printk("p tube=%p, tube->writeoff=%d \n", tube, tube->writeoff);
+		      printk("p tube=%p, tube->writeoff=%d \n", tube, (int)tube->writeoff);
 		      prep_tube      = prep_tube_general;
 		      source_to_tube = source_to_tube_general;
 		      tube_to_sink   = tube_to_sink_general;
 #endif
 
-		      while ( prep_tube( tube )  )
+		      while ( tube->st_current != NULL && prep_tube( tube )  )
 			      {
-				      printk("p 1 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube, tube->writeoff,tube->readoff);
+				      printk("p 1 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube,(int) tube->writeoff, (int)tube->readoff);
 				      ret_code = source_to_tube( tube );
-				      tube->readoff += tube->len;
-				      ret_code = tube_to_sink( tube );
-				      tube->writeoff += tube->len;
-				      printk("p 2 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube, tube->writeoff,tube->readoff);
+				      if ( ret_code>0 )
+					      {
+						      ret_code = tube_to_sink( tube );
+					      }
+				      else
+					      {
+						      put_tube_src( tube );
+					      }
 			      }
-				      printk("p 3 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube, tube->writeoff,tube->readoff);
+				      printk("p 3 tube=%p,tube->writeoff=%d,tube->readoff=%d\n", tube,(int) tube->writeoff,(int)tube->readoff);
 
-#if 0
-		      while ( tube->st_current != NULL  )
-			      {
-				      while ( get_tube_next_src( tube ) );
-				      while( prep_tube( tube ) ) {
-					      ret_code = source_to_tube( tube );
-					      ret_code = tube_to_sink( tube );
-				      }
-			      }
-#endif
 		      ret_code=tube->writeoff;
 		      put_tube(tube);
 	      }

@@ -63,9 +63,9 @@ static  int source_not_empty(expr_v4_t *source);
 static tube_t * get_tube_general(tube_t * tube, pars_var_t *sink, expr_v4_t *source);
 static size_t reserv_space_in_sink(tube_t * tube);
 static size_t get_available_len(tube_t * tube);
-static int prep_tube_general(tube_t * tube);
-static int source_to_tube_general(tube_t * tube);
-static int tube_to_sink_general(tube_t * tube);
+static size_t prep_tube_general(tube_t * tube);
+static size_t source_to_tube_general(tube_t * tube);
+static size_t tube_to_sink_general(tube_t * tube);
 static void put_tube(tube_t * tube);
 static int pump( pars_var_t *sink, expr_v4_t *source );
 
