@@ -1,5 +1,87 @@
+  <!doctype html public "-//w3c//dtd html 4.0 transitional//en">
+<html>
+  <head>
+	<meta http-equiv="Content-Type" content="text/html; charset=ISO8859-1">
+	<meta name="Author" content="Joshua MacDonald and Hans Reiser">
+	<meta name="GENERATOR" content="Hand crafted in XEMACS">
+	<meta name="Description" content="Reiser4 flush algorithm description">
+        <meta name="keywords" content="ReiserFS, Reiser4, Reiser">
+	<meta name=pragma content=no-cache>
+        <body bgcolor="#FFFFFF"> 
+        <TITLE>Reiser4 Flush Algorithm Design Document</TITLE>
+  </head>
+
+<center>
+<H2><a href="http://www.namesys.com/v4/v4.html">Reiser4</a> Flush Algorithm Design Document</H2>
+<H4>Last Update: May. 21, 2002</H4>
+<H4>Joshua MacDonald and Hans Reiser</H4>
+</center>
+
+<H2>Overview</H2>
+
+The goal of the Reiser4 flushing algorithm is to orchestrate the process of
+writing dirty blocks to disk under two similar circumstances:
+
+<ul>
+<li> A <a href="http://www.namesys.com/txn-doc.html">Reiser4 transaction</a>
+flushes all of its blocks in order to commit.
+
+<li> A transaction flushes some of its blocks prior to commit when the VM
+exerts memory pressure.  This is known as early-flushing.
+</ul>
+
+Several tasks are performed at the time a block is flushed:
+
+<ul>
+<li> Delayed allocation.  New blocks are not assigned to disk locations until
+the first time they are actually flushed.  This means files that block
+allocation is never performed for files that are created and deleted in the
+same transaction (unless memory pressure intervenes).  This allows for many
+blocks to be allocated in sequential order and flushed in a single large
+write.
+
+<li>
+<a href="http://www.namesys.com/txn-doc.html#overwrite_relocate">Overwrite or
+relocate</a> determination.  A modified block may be relocated (i.e., written
+to a new block location), as opposed to overwritten (i.e., logged and written
+to the previous location), as long as its parent will be flushed by the same
+transaction.  We can forcefully relocate a node and dirty its parent in the
+process.  The decision to relocate or overwrite is left to a <em>flush
+plugin</em>, which contains the actual policy implementation.
+
+<li> Repacking.  Formatted nodes of the Reiser4 tree are condensed prior to
+flushing.  A range of dirty nodes of the internal tree will be rearranged, if
+possible, to eliminate unnecessary internal nodes and increase node-occupancy.
+
+<li> Encryption.  Encrypted items and blocks are not encrypted at the time of
+flushing.
+</ul>
+
+Given the all of these tasks are to be performed when flushing is performed,
+several basic questions arise: which order should the above tasks be applied
+in relative to each other, and in which tree-order should the above tasks be
+applied.  We find that some of these operations should be applied:
+
+<ul>
+<li>In bottom&#151;up order.  For example, we repack formatted nodes at the
+bottom of the tree before attempting to repack the higher levels because the
+elimination of a lower-level node means more repacking can be done at the
+higher level.
+
+<li>In parent&#151;first order.  In parent&#151;first order, the parent is
+(recursively) enumerated before each of its children.  For example, a complete
+scan of the file system tree leaves from left-to-right will <em>read</em>
+nodes in the parent&#151;first order (also known as a pre&#151;order
+traversal).  For this reason the flush algorithm described here also performs
+block-allocation in parent&#151;first order.
+
+</ul>
+
+<p>
 
 Pseudo-code for the current algorithm:
+
+<pre>
 
 
 
@@ -618,3 +700,4 @@ while (current_level <= top_level) {
 
   current_level += 1;
 }
+</pre>
