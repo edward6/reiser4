@@ -599,7 +599,9 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 
 	set_rapid_flush_mode(1);
 
-
+	/* set dirty bit back so that it will not contradict with PAGECACHE_TAG_* */
+	SetPageDirty(page);
+#if 0
 	FIXME: should be turned into assertion?
 	{
 		/* dirty bit is removed already. clear "reiser4 moved" tag as well */
@@ -610,6 +612,7 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 				     PAGECACHE_TAG_REISER4_MOVED);
 		spin_unlock_irqrestore(&page->mapping->tree_lock, flags);
 	}
+#endif
 
 #if REISER4_USE_ENTD
 	
