@@ -145,7 +145,9 @@ reiser4_readdir(struct file *f /* directory file being read */ ,
 	else
 		result = RETERR(-ENOTDIR);
 
-	update_atime(inode);
+	/*
+	 * directory st_atime is updated by callers (if necessary).
+	 */
 	write_syscall_trace("ex");
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
