@@ -1,31 +1,79 @@
 /* Copyright 2002 by Hans Reiser */
 
-/* Reiser4 log writer is here */
+/* The Reiser4 log writer is here */
 
 #include "reiser4.h"
 
 int WRITE_LOG = 1;		/* journal is written by default  */
 
-/* journal header and footer are stored in two dedicated device blocks and
- * contain block numbers of first block of last committed transaction and
- * block number of first block of for oldest not flushed transaction. */
-
-/* FIXME: we will see, can those blocks be combined together in one block or
- * can their data be put into reiser4 super block. */
-
-/* Journal header block get updated after all log records of a transaction is
- * beign committed are written  */
-
-/* Note: the fact that not a whole fs block is used may make reiser4 journal
- * more reliable because used part of fs block is less that 512 bytes which
- * write operation can be considered as an atomic operation. */
-
-/* FIXME: I think that `write atomicity' means atomic write of block with
- * sizes which are supported by the hardware */
-
-/* Journal footer gets updated after one transaction is flushed (all blocks
- * are written in place) and _before_ wandered blocks and log records are
- * freed in WORKING bitmap */
+/* The Reiser4 log writer takes care about safe writing of nodes modified
+ * during a transaction.  This safe writing means blocks should be written
+ * twice, once to specially allocated "wandered" locations, then in place.
+ * This gives a possibility to accept all modified blocks or discard all
+ * modified blocks also.  The log writer allocates and writes "wandered"
+ * blocks and maintains additional atom's on-disk structures as log records
+ * (each log record occupies one block) for storing of "wandered" map (a table
+ * which contains a relation between wandered and real block numbers) and
+ * other information might be needed at transaction recovery time.
+ * 
+ * NOTE: More exactly not all modified blocks are written twice.  There is an
+ * optimization performed by the reiser4 flush code (see flush.c) which allows
+ * not to write most blocks twice but only blocks from atom's 'overwrite set'.
+ * 
+ * The log records are linked into a circle: each log record contains a block
+ * number of the next log record, the last log records points to the first
+ * one.
+ *
+ * One log record (named "tx head" in this file) has format which is different
+ * from other log records. The "tx head" has a reference to the "tx head"
+ * block of the previously committed atom.  Also, "tx head" contains an fs
+ * information which is logged special way (free blocks counter, oid allocator
+ * state).
+ * 
+ * There are two journal control blocks, named journal header and journal
+ * footer which have fixed on-disk locations.  The journal header has a
+ * reference to the "tx head" block of the last committed atom.  The journal
+ * footer points to the "tx head" of the last flushed atom.  The atom is
+ * flushed when all blocks from its overwrite set are written to disk second
+ * time (i.e. written in place).
+ *
+ * The atom commit process is the following: 
+ *
+ * 1. The overwrite set is taken from atom's clean list, its size is counted.
+ *
+ * 2. The number of necessary log records (including tx head) is calculated,
+ *    log record blocks are allocated.
+ *
+ * 3. Allocate wandered blocks and populate log records by wandered map.
+ * 
+ * 4. submit write requests for log records and wandered blocks.
+ *
+ * 5. wait until submitted write requests complete.
+ * 
+ * 6. update journal header: change the pointer to the block number of just
+ * written tx head, submit an i/o for modified journal header block and wait
+ * i/o completion.
+ *
+ * NOTE: The special logging for bitmap blocks and some reiser4 super block
+ * fields makes processes of atom commit, flush and recovering a bit more
+ * complex (see comments in the source code for details).
+ *
+ * The atom flush process (the term "flush" is used here in a different
+ * meaning than in flush.c, it means writing block of atom's overwrite set
+ * in-place, i.e. to their real locations) follows atom commit.
+ *
+ * Atom flush:
+ *
+ * 1. Write atom's overwrite set in-place
+ *
+ * 2. Wait on i/o.
+ *
+ * 3. Update journal footer: change the pointer to block number of tx head
+ * block of the atom we currently flushing, submit an i/o, wait i/o
+ * completion.
+ *
+ * 4. Free disk space which was used for wandered blocks and log records.
+ */
 
 static int submit_write (jnode*, int, const reiser4_block_nr *, int use_io_handle);
 
