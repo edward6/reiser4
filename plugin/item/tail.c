@@ -335,7 +335,9 @@ static int tail_balance_dirty_pages(struct address_space *mapping, const flow_t 
 	spin_unlock(&inode_lock);
 
 	balance_dirty_pages_ratelimited(mapping);
-	return hint_validate(hint, &f->key, coord, lh);
+	result = hint_validate(hint, &f->key, lh, 0/* do not check key */);
+	assert("", ergo(result == 0, memcmp(&hint->coord, coord, sizeof(coord_t))));
+	return result;
 }
 
 /* calculate number of blocks which can be dirtied/added when flow is inserted and stat data gets updated and grab them.

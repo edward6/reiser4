@@ -2391,8 +2391,8 @@ static int extent_balance_dirty_pages(struct address_space *mapping, const flow_
 	if (coord_state == COORD_WRONG_STATE)
 		return -EAGAIN;
 
-	result = hint_validate(hint, &f->key, coord, lh);
-
+	result = hint_validate(hint, &f->key, lh, 0/* do not check key */);
+	assert("", ergo(result == 0, memcmp(&hint->coord, coord, sizeof(coord-t))));
 	return result;
 }
 

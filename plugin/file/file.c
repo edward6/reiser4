@@ -351,10 +351,10 @@ find_file_item(hint_t *hint,
 	init_lh(lh);
 	if (hint) {
 		hint->lock = lock_mode;
-		result = hint_validate(hint, key, coord, lh);
+		result = hint_validate(hint, key, lh, 1/*check key*/);
 		if (!result) {
-			if (equal_to_rdk(coord->node, key)) {
-				assert("vs-1151", coord->between == AFTER_UNIT);
+			*coord = hint->coord;
+			if (coord->between == AFTER_UNIT && equal_to_rdk(coord->node, key)) {
 				result = goto_right_neighbor(coord, lh);
 				if (result == -E_NO_NEIGHBOR)
 					return RETERR(-EIO);
@@ -747,15 +747,17 @@ load_file_hint(struct file *file, hint_t *hint)
 {
 	reiser4_file_fsdata *fsdata;
 
-	xmemset(hint, 0, sizeof (*hint));
 	if (file) {
 		fsdata = reiser4_get_file_fsdata(file);
 		if (IS_ERR(fsdata))
 			return PTR_ERR(fsdata);
 
-		if (seal_is_set(&fsdata->reg.hint.seal))
+		if (seal_is_set(&fsdata->reg.hint.seal)) {
 			*hint = fsdata->reg.hint;
+			return 0;
+		}
 	}
+	xmemset(hint, 0, sizeof (*hint));
 	return 0;
 }
 
@@ -794,7 +796,7 @@ set_hint(hint_t *hint, const reiser4_key * key, coord_t * coord, coord_state_t c
 			     item_plugin_by_coord(coord)->s.file.key_in_item(coord, key, 0)));
 	seal_init(&hint->seal, coord, key);
 	hint->coord = *coord;
-	hint->key = *key;
+	hint->offset = get_key_offset(key);
 	hint->level = znode_get_level(coord->node);
 	hint->lock = znode_is_wlocked(coord->node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK;
 }
@@ -805,22 +807,30 @@ hint_is_set(const hint_t *hint)
 	return seal_is_set(&hint->seal);
 }
 
-int
-hint_validate(hint_t *hint, const reiser4_key * key, coord_t * coord, lock_handle * lh)
+#if REISER4_DEBUG
+static int all_but_offset_key_eq(const reiser4_key *k1, const reiser4_key *k2)
 {
-	int result;
+	return (get_key_locality(k1) == get_key_locality(k2) &&
+		get_key_type(k1) == get_key_type(k2) &&
+		get_key_band(k1) == get_key_band(k2) &&
+		get_key_objectid(k1) == get_key_objectid(k2));
+}
+#endif
 
-	if (!hint || !hint_is_set(hint) || !keyeq(key, &hint->key))
+int
+hint_validate(hint_t *hint, const reiser4_key * key, lock_handle * lh, int check_key)
+{
+	if (!hint || !hint_is_set(hint))
 		/* hint either not set or set for different key */
 		return -EAGAIN;
 
-	result = seal_validate(&hint->seal, &hint->coord, key,
-			       hint->level, lh, FIND_MAX_NOT_MORE_THAN, hint->lock, ZNODE_LOCK_LOPRI);
-	if (result)
-		return result;
-	*coord = hint->coord;
-	/*coord_dup_nocheck(coord, &hint->coord);*/
-	return 0;
+	assert("vs-1277", all_but_offset_key_eq(key, &hint->seal.key));
+
+	if (check_key && get_key_offset(key) != hint->offset)
+		return -EAGAIN;
+
+	return seal_validate(&hint->seal, &hint->coord, key,
+			     hint->level, lh, FIND_MAX_NOT_MORE_THAN, hint->lock, ZNODE_LOCK_LOPRI);
 }
 
 /* nolock means: do not get EA or NEA on a file the page belongs to (it is obtained already either in
