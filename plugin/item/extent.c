@@ -1798,15 +1798,18 @@ int extent_readpage (void * vp, struct page * page)
 
 	switch (state) {
 	case HOLE_EXTENT:
-		memset (kmap (page), 0, PAGE_CACHE_SIZE);
-		flush_dcache_page (page);
-		kunmap (page);
-		SetPageUptodate (page);
-		unlock_page (page);
+		{
+			char *kaddr = kmap_atomic (page, KM_USER0);
+			memset (kaddr, 0, PAGE_CACHE_SIZE);
+			flush_dcache_page (page);
+			kunmap_atomic (kaddr, KM_USER0);
+			SetPageUptodate (page);
+			unlock_page (page);
 
-		trace_on (TRACE_EXTENTS, " - hole, OK\n");
+			trace_on (TRACE_EXTENTS, " - hole, OK\n");
 
-		return 0;
+			return 0;
+		}
 
 	case ALLOCATED_EXTENT:
 		/* create or find jnode */
@@ -2240,12 +2243,14 @@ int extent_page_cache_readahead (struct file * file, coord_t * coord,
 				/* page is added into mapping's tree of pages */
 
 				if (range->sector == 0) {
+					char *kaddr;
 					/* this range matches to hole
 					 * extent. no bio is created */
 					assert ("vs-799", bio == 0);
-					memset (kmap (page), 0, PAGE_CACHE_SIZE);
+					kaddr = kmap_atomic (page, KM_USER0);
+					memset (kaddr, 0, PAGE_CACHE_SIZE);
 					flush_dcache_page (page);
-					kunmap (page);
+					kunmap_atomic (kaddr, KM_USER0);
 					SetPageUptodate (page);
 					unlock_page (page);
 					page_cache_release (page);

@@ -394,11 +394,11 @@ int tail2extent (struct inode * inode)
 		
 		/* kmap/kunmap are necessary for pages which are not
 		 * addressable by direct kernel virtual addresses */
-		p_data = kmap (page);
+		p_data = kmap_atomic (page, KM_USER0);
 		/* copy item (as much as will fit starting from the beginning
 		 * of the item) into the page */
 		memcpy (p_data + page_off, item, (unsigned)count);
-		kunmap (page);
+		kunmap_atomic (p_data, KM_USER0);
 		page_off += count;
 		copied += count;
 		item += count;
@@ -406,9 +406,11 @@ int tail2extent (struct inode * inode)
 
 		if ((done = file_is_over (inode, &key, &coord)) ||
 		    all_pages_are_full (nr_pages, page_off)) {
+			char *kaddr;
 		done:
-			memset (kmap (page) + page_off, 0, PAGE_CACHE_SIZE - page_off);
-			kunmap (page);
+			kaddr = kmap_atomic (page, KM_USER0);
+			memset (kaddr + page_off, 0, PAGE_CACHE_SIZE - page_off);
+			kunmap_atomic (kaddr, KM_USER0);
 			zrelse (coord.node);
 			done_lh (&lh);
 			/* replace tail items with extent */

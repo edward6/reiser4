@@ -368,6 +368,7 @@ static int shorten (struct inode * inode)
 	int padd_from;
 	jnode * j;
 	unsigned long index;
+	char *kaddr;
 
 
 	inode_file_plugin (inode)->key_by_inode (inode, inode->i_size, &from);
@@ -441,9 +442,10 @@ static int shorten (struct inode * inode)
 		}
 	}
 
-	memset (kmap (page) + padd_from, 0, PAGE_CACHE_SIZE - padd_from);
+	kaddr = kmap_atomic (page, KM_USER0);
+	memset (kaddr + padd_from, 0, PAGE_CACHE_SIZE - padd_from);
 	flush_dcache_page (page);
-	kunmap (page);
+	kunmap_atomic (kaddr, KM_USER0);
 
 	result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 	unlock_page (page);
