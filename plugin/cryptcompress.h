@@ -25,6 +25,9 @@ typedef enum {
 	CRC_CUT_ITEM = 4
 } crc_write_mode_t;
 
+/* reiser4 cluster manager transforms pages into set of items (and back) via
+   assembling/splitting contunuous regions where crypto/compression algorithm live.
+   This manager contains mostly operations with the following object: */   
 typedef struct reiser4_cluster{
 	__u8 * buf;      /* pointer to the contiguous region where crypto/compression algorithms live */
 	size_t len;      /* size of the region above */  
