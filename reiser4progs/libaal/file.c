@@ -212,7 +212,7 @@ static count_t file_len(
 	return 0;
     }
     
-    return (count_t)(max_off / device->blocksize);
+    return (count_t)(max_off / 1024);
 }
 
 /*
