@@ -173,7 +173,6 @@ static int format36_confirm(aal_device_t *device) {
     if (!(block = format36_super_open(device)))
 	return 0;
 	
-    aal_printf(ERR, "here\n");
     aal_block_free(block);
     return 1;
 }
