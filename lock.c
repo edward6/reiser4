@@ -684,7 +684,7 @@ void longterm_unlock_znode (reiser4_lock_handle *handle)
 		}
 	}
 
-	if (handle->signaled) atomic_dec(&handle->owner->nr_signaled);
+	if (handle->signaled) atomic_dec(&oldowner->nr_signaled);
 
 	/* Unlocking means owner<->object link deletion */
 	unlink_object(handle);
@@ -796,9 +796,12 @@ int longterm_lock_znode (
 				owner->request.mode = 0;
 				/* next requestor may not fail */
 				wake_up_next = 1;
-				warning("nikita-1845", "Failed to capture node: %i",
-					ret);
-				print_znode("node", node);
+				if (ret != -EAGAIN) {
+					warning("nikita-1845", 
+						"Failed to capture node: %i",
+						ret);
+					print_znode("node", node);
+				}
 				break;
 			}
 
@@ -919,7 +922,7 @@ void invalidate_lock (reiser4_lock_handle *handle /* path to lock
 	assert("nikita-1793", ! ZF_ISSET(node, ZNODE_RIGHT_CONNECTED));
 	assert("nikita-1394", ZF_ISSET(node, ZNODE_HEARD_BANSHEE));
 
-	if (handle->signaled) atomic_dec(&handle->owner->nr_signaled);
+	if (handle->signaled) atomic_dec(&owner->nr_signaled);
 
 	ZF_SET(node, ZNODE_IS_DYING);
 	unlink_object(handle);
@@ -1083,11 +1086,33 @@ int prepare_to_sleep (reiser4_lock_stack *owner)
 	assert("nikita-1847", owner == get_current_lock_stack());
 
 	if(0) {
+		/*
+		 * FIXME-NIKITA: I commented call to sema_init() out hoping
+		 * that it is the reason or thread sleeping in
+		 * down(&owner->sema) without any other thread running.
+		 *
+		 * Anyway, it is just an optimization: is semaphore is not
+		 * reinitialised at this point, in the worst case
+		 * longterm_lock_znode() would have to iterate its loop once
+		 * more.
+		 */
 		spin_lock_stack(owner);
 		sema_init(&owner->sema, 0);
 		spin_unlock_stack(owner);
 	}
 
+	/*
+	 * FIXME-NIKITA: this check looks bogus, because it is done without
+	 * any king of lock being held. So, it looks like ->nr_signaled can
+	 * change just after this function returns. But, the only place where
+	 * ->nr_signaled can be changed concurrently, that is, where
+	 * owner->nr_signaled is changed and 
+	 *
+	 *               owner != get_current_lock_stack()
+	 * 
+	 * is wake_up_all_lopri_owners() and this function calls up() later.
+	 * 
+	 */
 	if (atomic_read(&owner->nr_signaled) != 0 && !owner->curpri) {
 		return -EDEADLK;
 	}
