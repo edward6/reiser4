@@ -1483,8 +1483,6 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 	int ret;
 
 	if (txnh->atom == NULL) {
-		int found = 0;
-
 		/* current atom is available, take first from txnmgr */
 		txn_mgr *tmgr = &get_super_private(ctx->super)->tmgr;
 
@@ -1503,36 +1501,38 @@ flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 				capture_assign_txnh_nolock(atom, txnh);
 				UNLOCK_TXNH(txnh);
 
-				found = 1;
-				break;
+				goto found;
 			}
 
 			UNLOCK_ATOM(atom);
 		}
 
-		if (!found && !atom_list_empty(&tmgr->atoms_list)) {
-			/* Write throttling is case of no one atom can be
-			 * flushed/committed.  */
-			atom = atom_list_front(&tmgr->atoms_list);
+		/* Write throttling is case of no one atom can be
+		 * flushed/committed.  */
+		for_all_type_safe_list(atom, &tmgr->atoms_list, atom) {
 			LOCK_ATOM(atom);
-			spin_unlock_txnmgr(tmgr);
-			/* This atom is being flushed or committed.  We wait an
-			 * event which is sent at operation completion. */
-			assert("zam-1002", atom->stage >= ASTAGE_PRE_COMMIT 
-			       || atom->nr_flushers != 0);
-			printk ("-- %d sleep\n", (int)current->pid);
-			atom_wait_event(atom);
-			printk ("++ %d get up\n", (int)current->pid);
+			/* Repeat the check from the above. */
+			if (atom->stage < ASTAGE_PRE_COMMIT && atom->nr_flushers == 0) {
+				LOCK_TXNH(txnh);
+				capture_assign_txnh_nolock(atom, txnh);
+				UNLOCK_TXNH(txnh);
 
-			return 0;
+				goto found;
+			}
+			if (atom->stage <= ASTAGE_POST_COMMIT) {
+				spin_unlock_txnmgr(tmgr);
+				/* we just wait until atom's flusher
+				   makes a progress in flushing or
+				   committing the atom */
+				atom_wait_event(atom);
+				return 0;
+			}
+			UNLOCK_ATOM(atom);
 		}
-
 		spin_unlock_txnmgr(tmgr);
-
-		/* no suitable atoms found, return */
-		if (!found) {
-			return 0;
-		}
+		return 0;
+	found:
+		spin_unlock_txnmgr(tmgr);
 	} else
 		atom = get_current_atom_locked();
 
