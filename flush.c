@@ -64,7 +64,7 @@ static int           squalloc_leftpoint             (flush_position *pos);
 static int           squalloc_leftpoint_end_of_twig (flush_position *pos);
 static int           squalloc_update_leftpoint      (flush_position *pos);
 static int           squalloc_parent_first          (flush_position *pos);
-static int           squalloc_parent_first_recursive (flush_position *pos, znode *child);
+static int           squalloc_parent_first_recursive (flush_position *pos, znode *child, tree_coord *coord);
 
 static int           squalloc_children            (flush_position *pos);
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, reiser4_blocknr_hint *preceder);
@@ -84,13 +84,15 @@ static int           jnode_allocate_flush         (flush_position *pos);
 static int           znode_get_right_if_dirty     (znode *node, lock_handle *right_lock);
 static int           znode_same_parents           (znode *a, znode *b);
 
-static void          flush_pos_init               (flush_position *flush_pos);
-static void          flush_pos_done               (flush_position *flush_pos);
-static void          flush_pos_stop              (flush_position *flush_pos);
-static int           flush_pos_valid              (flush_position *flush_pos);
-static int           flush_pos_unformatted        (flush_position *flush_pos);
-static int           flush_pos_to_child           (flush_position *flush_pos);
-static int           flush_pos_to_parent          (flush_position *flush_pos);
+static void          flush_pos_init               (flush_position *pos);
+static void          flush_pos_done               (flush_position *pos);
+static void          flush_pos_stop               (flush_position *pos);
+static int           flush_pos_valid              (flush_position *pos);
+static int           flush_pos_unformatted        (flush_position *pos);
+static int           flush_pos_to_child           (flush_position *pos);
+static int           flush_pos_to_parent          (flush_position *pos);
+static void          flush_pos_set_point          (flush_position *pos, jnode *node);
+static void          flush_pos_release_point      (flush_position *pos);
 
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (to
@@ -300,7 +302,7 @@ static int flush_lock_leftpoint (jnode                  *start_node,
 			move_lh (& pos->parent_lock, & parent_lock);
 
 		} else {
-			pos->point = jref (end_node);
+			flush_pos_set_point (pos, end_node);
 
 			/* Get a write lock at end_node.  Release any locks we might hold
 			 * first, they are all read locks on this level. */
@@ -546,8 +548,8 @@ static int squalloc_leftpoint (flush_position *pos)
 				/* Advance to the right sibling of this znode. */
 				int same_parents = znode_same_parents (right_lock.node, JZNODE (pos->point));
 
-				jput (pos->point);
-				pos->point = jref (ZJNODE (right_lock.node));
+				flush_pos_set_point (pos, ZJNODE (right_lock.node));
+
 				done_lh (& pos->point_lock);
 				move_lh (& pos->point_lock, & right_lock);
 
@@ -604,7 +606,7 @@ static int squalloc_leftpoint_end_of_twig (flush_position *pos)
 		 * itself to pos->point then call update_leftpoint to find the actual
 		 * leftpoint node of the new sub-tree. */
 
-		pos->point = jref (ZJNODE (right_lock.node));
+		flush_pos_set_point (pos, ZJNODE (right_lock.node));
 		move_lh (& pos->point_lock, & right_lock);
 
 		/* Fallthrough to update_leftpoint. */
@@ -634,7 +636,7 @@ static int squalloc_leftpoint_end_of_twig (flush_position *pos)
 			}
 
 			/* Fallthrough to update_leftpoint. */
-			pos->point = jref (child);
+			flush_pos_set_point (pos, child);
 
 		} else {
 			/* If an unformatted child is dirty, then just continue at the
@@ -728,7 +730,7 @@ static int squalloc_parent_first (flush_position *pos)
 
 	init_lh (& right_lock);
 
- again:
+ right_again:
 	if ((ret = znode_get_right_if_dirty (JZNODE (pos->point), & right_lock))) {
 		/* A return value of -ENOENT means the neighbor is not dirty,
 		 * not in the same atom, or not in memory. */
@@ -738,10 +740,14 @@ static int squalloc_parent_first (flush_position *pos)
 
 	assert ("jmacd-1052", ! node_is_empty (right_lock.node));
 
+ squeeze_again:
 	/* Squeeze from the right until an internal node is shifted.  At that
 	 * point, we recurse downwards and squeeze its children.  When the
 	 * recursive case is finished, continue squeezing at this level. */
-	while ((squeeze = squalloc_right_neighbor (JZNODE (pos->point), right_lock.node, & pos->preceder)) == SUBTREE_MOVED) {
+	squeeze = squalloc_right_neighbor (JZNODE (pos->point), right_lock.node, & pos->preceder);
+
+	switch (squeeze) {
+	case SUBTREE_MOVED: {
 		/* Unit of internal item has been shifted, now allocate and
 		 * squeeze that subtree (now the last item of this node). */
 		tree_coord crd;
@@ -751,34 +757,42 @@ static int squalloc_parent_first (flush_position *pos)
 
 		assert ("vs-442", item_is_internal (& crd));
 
+		/* FIXME: Only want this child if it is in the same atom! */
 		child = child_znode (& crd, 1/*set delim key*/);
-		if (IS_ERR (child)) { ret = PTR_ERR (child); goto cleanup; }
+		if (IS_ERR (child)) {
+			ret = PTR_ERR (child);
+			goto cleanup;
+		}
 
 		/* Skipping this node if it is dirty means that we won't
 		 * squeeze and allocate any of its dirty grand-children.  Oh
 		 * well! */
-		if (! znode_is_dirty (child)) { continue; }
+		if (! znode_is_dirty (child)) {
+			goto squeeze_again;
+		}
 
 		/* Recursive case: single formatted child. */
-		if ((ret = squalloc_parent_first_recursive (pos, child))) {
+		if ((ret = squalloc_parent_first_recursive (pos, child, NULL))) {
 			goto cleanup;
 		}
+		goto squeeze_again;
 	}
-
-	if (squeeze == SQUEEZE_SOURCE_EMPTY) {
+	case SQUEEZE_SOURCE_EMPTY: {
 		/* Right neighbor was squeezed completely into @node, try to
 		 * squeeze with the new right neighbor.  Release the
 		 * right_lock first. */
 		assert ("vs-444", node_is_empty (right_lock.node));
 		done_lh (& right_lock);
-		goto again;
+		goto right_again;
 	}
+	default:
 
-	/* Either an error occured or SQUEEZE_TARGET_FULL (or
-	 * can't-squeeze-right, e.g., end-of-level or
-	 * unformatted-to-the-right) */
-	assert ("vs-443", squeeze == SQUEEZE_TARGET_FULL || squeeze < 0);
-	ret = ((squeeze < 0) ? squeeze : 0);
+		/* Either an error occured or SQUEEZE_TARGET_FULL (or
+		 * can't-squeeze-right, e.g., end-of-level or
+		 * unformatted-to-the-right) */
+		assert ("vs-443", squeeze == SQUEEZE_TARGET_FULL || squeeze < 0);
+		ret = ((squeeze < 0) ? squeeze : 0);
+	}
 
  cleanup:
 	done_lh (& right_lock);
@@ -807,11 +821,11 @@ static int squalloc_children (flush_position *pos)
 
 	/* Do ... while not the last unit. */
 	do {
-		if (item_id_by_coord (&crd) == EXTENT_POINTER_ID) {
+		if (item_id_by_coord (& crd) == EXTENT_POINTER_ID) {
 			if ((ret = allocate_extent_item_in_place (& crd, & pos->preceder))) {
 				return ret;
 			}
-		} else if (item_is_internal (&crd)) {
+		} else if (item_is_internal (& crd)) {
 			/* Get the child of this node pointer, check for
 			 * error, skip if it is not dirty. */
 			znode *child = child_znode (& crd, 1);
@@ -820,14 +834,13 @@ static int squalloc_children (flush_position *pos)
 
 			if (! znode_is_dirty (child)) { continue; }
 
-			/* Recursive call. */
-			if ((ret = squalloc_parent_first_recursive (pos, child))) {
+			/* Recursive call: since we release the lock on this node it is
+			 * possible that the coordinate will change, therefore pass the
+			 * coordinate to be updated. */
+			if ((ret = squalloc_parent_first_recursive (pos, child, & crd))) {
 				return ret;
 			}
 
-			/* FIXME: assert that the coord is still correct.  As long as the
-			 * recursive step doesn't go leftward at all, this should be the
-			 * case... */
 		} else {
 			warning ("jmacd-2001", "Unexpected item type above leaf level");
 			print_znode ("node", JZNODE (pos->point));
@@ -840,50 +853,58 @@ static int squalloc_children (flush_position *pos)
 }
 
 /* FIXME: comment */
-static int squalloc_parent_first_recursive (flush_position *pos, znode *child)
+static int squalloc_parent_first_recursive (flush_position *pos, znode *child, tree_coord *coord)
 {
-	jnode *save_pos = NULL;
-	lock_handle save_lock;
 	int ret;
 
 	assert ("jmacd-2329", ! flush_pos_unformatted (pos));
 
-	save_pos = pos->point; /* it is referenced. */
-	pos->point = NULL;
+	/* Relase pos->point reference (pos->point_lock still holds a reference). */
+	flush_pos_release_point (pos);
 
-	init_lh (& save_lock);
-	move_lh (& save_lock, & pos->point_lock);
+	/* Lock the child. */
+	{
+		/* Have to move the pos->point lock out of the way, it is being replaced. */
+		lock_handle save_lock;
+		init_lh (& save_lock);
+		move_lh (& save_lock, & pos->point_lock);
 
-	if ((ret = longterm_lock_znode (& pos->point_lock, child, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI))) {
-		goto exit;
+		ret = longterm_lock_znode (& pos->point_lock, child, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+
+		/* Now finished with the old pos->point lock, have a new one (or else we
+		 * didn't get the child lock and we lose the point_lock, doesn't matter). */
+		done_lh (& save_lock);
+
+		if (ret != 0) { return ret; }
 	}
 
-	done_lh (& save_lock);
+	/* Reference the child, set it to pos->point. */
 	pos->point = jref (ZJNODE (child));
 
+	/* Perform the recursive step. */
 	if ((ret = squalloc_parent_first (pos))) {
-		goto exit;
+		return ret;
 	}
 
 	assert ("jmacd-8122", child == JZNODE (pos->point));
 
-	/* It is conceivable that the parent changes -- what is the right thing to do? */
-	jput (pos->point);
-	pos->point = save_pos;
-	save_pos = NULL;
+	/* Release pos->point reference again. */
+	flush_pos_release_point (pos);
 
-	move_lh (& save_lock, & pos->point_lock);
+	/* Lock the parent. */
+	{
+		/* Have to move the pos->point lock out of the way, it is being replaced. */
+		lock_handle save_lock;
+		init_lh (& save_lock);
+		move_lh (& save_lock, & pos->point_lock);
 
-	if ((ret = longterm_lock_znode (& pos->point_lock, JZNODE (save_pos), ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI))) {
-		goto exit;
+		ret = jnode_lock_parent_coord (pos->point, coord, & pos->point_lock, ZNODE_WRITE_LOCK);
+
+		done_lh (& save_lock);
+
+		if (ret == 0) { pos->point = jref (ZJNODE (pos->point_lock.node)); }
 	}
 
- exit:
-	if (save_pos != NULL) {
-		jput (save_pos);
-	}
-	done_lh (& save_lock);
-		
 	return ret;
 }
 
@@ -1229,7 +1250,7 @@ static int jnode_lock_parent_coord (jnode *node,
 
 	} else {
 		/* Formatted node case: */
-		assert ("jmacd-2061", ! znode_is_root (JZNODE (node)));
+		/*assert ("jmacd-2061", ! znode_is_root (JZNODE (node)));*/
 
 		if ((ret = reiser4_get_parent (parent_lh, JZNODE (node), parent_mode, 1))) {
 			return ret;
@@ -1462,9 +1483,6 @@ static int flush_scan_left_formatted (flush_scan *scan, znode *node)
 
 	/*info_znode ("scan_left: ", node);*/
 
-	/* FIXME: should skip over unallocated extents, we know they are entirely
-	 * dirty. */
-
 	do {
 		/* Node should be connected. */
 		assert ("jmacd-1402", znode_is_connected (node));
@@ -1670,6 +1688,20 @@ static int flush_pos_unformatted (flush_position *pos)
 {
 	/* FIXME: more asserts. */
 	return pos->point == NULL;
+}
+
+static void flush_pos_release_point (flush_position *pos)
+{
+	if (pos->point != NULL) {
+		jput (pos->point);
+		pos->point = NULL;
+	}
+}
+
+static void flush_pos_set_point (flush_position *pos, jnode *node)
+{
+	flush_pos_release_point (pos);
+	pos->point = jref (node);
 }
 
 /*

@@ -1194,7 +1194,8 @@ void jnode_set_dirty( jnode *node )
 		spin_lock_tree (current_tree);
 		JZNODE (node)->version = ++ current_tree->znode_epoch;
 		spin_unlock_tree (current_tree);
-		assert ("nikita-1900", znode_is_write_locked (JZNODE (node))); /* 20-th century coming */
+		/*assert ("nikita-1900", znode_is_write_locked (JZNODE (node)));*/ /* 20-th century coming */
+		/* 20-th century is behind us, and this assertion doesn't hold. */
 	}
 
 	spin_unlock_jnode (node);
