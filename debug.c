@@ -3,11 +3,9 @@
 /* Debugging/logging/tracing/profiling/statistical facilities. */
 
 #include "kattr.h"
-#include "debug.h"
-#include "super.h"
-#include "znode.h"
-#include "super.h"
 #include "reiser4.h"
+#include "context.h"
+#include "super.h"
 
 #include <linux/sysfs.h>
 #include <linux/slab.h>
@@ -338,6 +336,7 @@ reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(forward_squalloc),
 	DEFINE_PROF_CNT(atom_wait_event),
 	DEFINE_PROF_CNT(set_child_delimiting_keys),
+	DEFINE_PROF_CNT(length_by_coord)
 	DEFINE_PROF_CNT(zget)
 };
 
