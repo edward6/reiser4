@@ -412,7 +412,7 @@ int tail2extent (struct inode * inode)
 {
 	int result;
 	reiser4_key key;     /* key of next byte to be moved to page */
-	ON_DEBUG (reiser4_key tmp);
+	ON_DEBUG (reiser4_key tmp;)
 	char * p_data;       /* data of page */
 	unsigned page_off = 0,   /* offset within the page where to copy data */
 		count;       /* number of bytes of item which can be
