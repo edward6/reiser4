@@ -102,18 +102,21 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 	int to_page;
 
 
-	assert ("vs-604", ergo (iplug->h.id == TAIL_ID, nr_pages == 1));
+	assert ("vs-604", ergo (item_plugin_id(iplug) == TAIL_ID, 
+				nr_pages == 1));
 	assert ("vs-564", iplug && iplug->s.file.write);
 
 
-	to_page = PAGE_CACHE_SIZE;
 	result = 0;
 
 	coord_init_zero (&coord);
 	init_lh (&lh);
 
 	for (i = 0; i < nr_pages; i ++) {
-		p_data = kmap (pages [i]);
+		if (item_plugin_id (iplug) == TAIL_ID)
+			p_data = kmap (pages [i]);
+		else
+			p_data = 0;
 
 		/* build flow */
 		if (count > (int)PAGE_CACHE_SIZE)
@@ -122,7 +125,7 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 			to_page = count;
 			
 		inode_file_plugin (inode)->
-			flow_by_inode (inode, 0/* no data to copy from */,
+			flow_by_inode (inode, p_data/* no data to copy from */,
 				       0/* not user space */,
 				       (unsigned)to_page,
 				       (loff_t)(pages[i]->index << PAGE_CACHE_SHIFT),
@@ -131,8 +134,10 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 		do {
 			znode * loaded;
 
-			result = find_next_item (0, &f.key, &coord, &lh, ZNODE_WRITE_LOCK);
-			if (result != CBK_COORD_NOTFOUND && result != CBK_COORD_FOUND) {
+			result = find_next_item (0, &f.key, &coord, &lh, 
+						 ZNODE_WRITE_LOCK);
+			if (result != CBK_COORD_NOTFOUND && 
+			    result != CBK_COORD_FOUND) {
 				goto done;
 			}
 			loaded = coord.node;
@@ -146,7 +151,8 @@ static int write_pages_by_item (struct inode * inode, struct page ** pages,
 			zrelse (loaded);
 		} while (result == -EAGAIN);
 
-		kunmap (pages [i]);
+		if (p_data != NULL)
+			kunmap (pages [i]);
 		/* page is written */
 		count -= to_page;
 	}
@@ -460,7 +466,8 @@ int extent2tail (struct file * file)
 	reiser4_key to;
 	int i;
 	unsigned count;
-
+	int (*filler)(void *,struct page*) = 
+		(int (*)(void *,struct page*))unix_file_readpage_nolock;
 
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_file_add (extent2tail);
@@ -484,19 +491,12 @@ int extent2tail (struct file * file)
 	result = 0;
 
 	for (i = 0; i < num_pages; i ++) {
-		page = grab_cache_page (inode->i_mapping, (unsigned long)i);
-		if (!page) {
-			if (i)
-				warning ("vs-550", "file left extent2tail-ed converted partially");
-			result = -ENOMEM;
+		page = read_cache_page (inode->i_mapping, i, filler, file);
+		if (IS_ERR (page)) {
+			result = PTR_ERR (page);
 			break;
 		}
-		result = unix_file_readpage_nolock (file, page);
-		if (result) {
-			unlock_page (page);
-			page_cache_release (page);
-			break;
-		}
+
 		wait_on_page_locked (page);
 
 		if (!PageUptodate (page)) {
@@ -506,6 +506,17 @@ int extent2tail (struct file * file)
 		}
 		
 		lock_page (page);
+
+		if (page->mapping != inode->i_mapping) {
+			/*
+			 * page was asynchronously removed from the page cache
+			 * while we were waiting for the lock. Re-try.
+			 */
+			unlock_page (page);
+			page_cache_release (page);
+			i --;
+			continue;
+		}
 
 		/* cut part of file we have read */
 		set_key_offset (&from, (__u64)(i << PAGE_CACHE_SHIFT));
@@ -526,8 +537,8 @@ int extent2tail (struct file * file)
 			page_cache_release (page);
 			break;
 		}
-		/* remove page from page cache */
-		lru_cache_del (page);
+		/* release page, detach jnode if any */
+		page -> mapping -> a_ops -> invalidatepage( page, 0 );
 		remove_inode_page (page);
 		unlock_page (page);
 		page_cache_release (page);		
@@ -538,7 +549,10 @@ int extent2tail (struct file * file)
 		 * FIXME-VS: not sure what to do when conversion did
 		 * not complete
 		 */
-		inode_get_flag (inode, REISER4_HAS_TAIL);
+		inode_set_flag (inode, REISER4_HAS_TAIL);
+	else
+		warning ("nikita-2282", "Partial conversion of %li: %i of %i",
+			 (long) inode->i_ino, i, num_pages);
 	drop_exclusive_access (inode);
 	return result;
 }

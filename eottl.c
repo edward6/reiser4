@@ -183,23 +183,25 @@ static int is_next_item_internal( coord_t *coord,  lock_handle *lh )
 /* Audited by: green(2002.06.15) */
 static reiser4_key *rd_key( coord_t *coord, reiser4_key *key )
 {
-	if( coord -> item_pos != node_num_items( coord -> node ) - 1 ) {
+	coord_t dup;
+
+	assert( "nikita-2281", coord_is_between_items( coord ) );
+	coord_dup( &dup, coord );
+
+	spin_lock_dk( current_tree );
+
+	if( coord_set_to_right( &dup ) == 0 )
 		/*
 		 * get right delimiting key from an item to the right of @coord
 		 */
-		coord_t tmp;
-
-		coord_dup( &tmp, coord );
-		tmp.item_pos ++;
-		item_key_by_coord( &tmp, key );
-	} else {
+		unit_key_by_coord( &dup, key );
+	else
 		/*
-		 * use right delimiting key of znode we insert new pointer to
+		 * use right delimiting key of parent znode
 		 */
-		spin_lock_dk( current_tree );
 		*key = *znode_get_rd_key( coord -> node );
-		spin_unlock_dk( current_tree );
-	}
+
+	spin_unlock_dk( current_tree );
 	return key;
 }
 

@@ -459,7 +459,6 @@ static int reiser4_writepage( struct page *page UNUSED_ARG )
 }
 
 /** ->readpage() VFS method in reiser4 address_space_operations */
-/* Audited by: umka (2002.06.12) */
 static int reiser4_readpage( struct file *f /* file to read from */, 
 			     struct page *page /* page where to read data
 						* into */ )
@@ -471,6 +470,7 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 	
 	assert( "umka-078", f != NULL );
 	assert( "umka-079", page != NULL );
+	assert( "nikita-2280", PageLocked( page ) );
 	
 	assert( "vs-318", page -> mapping && page -> mapping -> host );
 	assert( "nikita-1352", 
@@ -483,6 +483,14 @@ static int reiser4_readpage( struct file *f /* file to read from */,
 		result = fplug -> readpage( f, page );
 	else
 		result = -EINVAL;
+	if( result != 0 ) {
+		/*
+		 * callers don't check ->readpage() return value, so we have
+		 * to kill page ourselves.
+		 */
+		remove_inode_page( page );
+		unlock_page( page );
+	}
 	REISER4_EXIT( result );
 }
 
