@@ -1101,6 +1101,7 @@ static void init_once( void *obj /* pointer to new inode */,
 		 * FIXME-NIKITA where inode is zeroed?
 		 */
 		inode_init_once( &info -> vfs_inode );
+		spin_lock_init( &info -> guard );
 	}
 }
 

@@ -2635,9 +2635,9 @@ static int call_mkdir (struct inode * dir, const char * name)
 	dentry.d_name.len = strlen (name);
 	result = dir->i_op->mkdir (dir, &dentry, S_IFDIR | 0777);
 
-	init_context (old_context, dir->i_sb);
 	if( result == 0 )
 		iput( dentry.d_inode );
+	init_context (old_context, dir->i_sb);
 	return result;
 }
 
