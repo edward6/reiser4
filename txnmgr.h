@@ -330,6 +330,8 @@ SPIN_LOCK_FUNCTIONS(atom,txn_atom,alock);
 SPIN_LOCK_FUNCTIONS(txnh,txn_handle,hlock);
 SPIN_LOCK_FUNCTIONS(txnmgr,txn_mgr,tmgr_lock);
 
+extern spinlock_t _jnode_ptr_lock;
+
 # endif /* __REISER4_TXNMGR_H__ */
 
 /*
