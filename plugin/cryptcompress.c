@@ -1266,8 +1266,7 @@ set_cluster_pages_dirty(reiser4_cluster_t * clust, int * num)
 		
 		set_page_dirty_internal(pg);
 		SetPageUptodate(pg);
-		if (!PageReferenced(pg))
-			SetPageReferenced(pg);	
+		mark_page_accessed(pg);	
 		
 		unlock_page(pg);
 		
