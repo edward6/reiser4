@@ -1091,13 +1091,14 @@ commit_some_atoms(txn_mgr * mgr)
 		spin_unlock_atom(atom);
 	}
 
+	spin_unlock_txnmgr(mgr);
+
 	if (atom_list_end(&mgr->atoms_list, atom)) {
 		/* nothing found */
 		spin_unlock_ktxnmgrd(mgr->daemon);
 		return 0;
 	}
 
-	spin_unlock_txnmgr(mgr);
 	spin_lock_txnh(txnh);
 
 	/* Set the atom to force committing */
