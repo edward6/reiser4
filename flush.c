@@ -142,6 +142,7 @@ static void          flush_pos_release_point      (flush_position *pos);
  * During squeeze and allocate, nodes are scheduled for writeback and their jnodes are set
  * to the "clean" state (as far as the atom is concerned).
  */
+/* Audited by: green(2002.06.17) */ 
 int jnode_flush (jnode *node, int flags)
 {
 	int ret;
@@ -238,6 +239,7 @@ int jnode_flush (jnode *node, int flags)
 
 /* This should be a plugin or mount option.  This sets the default scan_left policy
  * according to flush-alg.html. */
+/* Audited by: green(2002.06.17) */ 
 flush_scan_config flush_scan_get_config (jnode *node, int flags)
 {
 	if (flags & JNODE_FLUSH_MEMORY && jnode_get_level (node) == LEAF_LEVEL) {
@@ -286,6 +288,7 @@ flush_scan_config flush_scan_get_config (jnode *node, int flags)
  * the leftpoint locked (and referenced), unless the node is unformatted, in which case
  * only a reference is returned.
  */
+/* Audited by: green(2002.06.17) */ 
 static int flush_lock_leftpoint (jnode                  *start_node,
 				 lock_handle            *start_lock,
 				 flush_scan_config       scan_config,
@@ -442,6 +445,7 @@ static int flush_lock_leftpoint (jnode                  *start_node,
  * flush-alg.html.  This is called at the end of each scan-left on a level while searching
  * for the leftpoint node.  This implements the is-it-close-enough-to-its-preceder? test
  * for relocation. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_should_relocate (const reiser4_block_nr *pblk,
 				  const reiser4_block_nr *nblk)
 {
@@ -464,6 +468,7 @@ static int flush_should_relocate (const reiser4_block_nr *pblk,
 }
 
 /* FIXME: comment */
+/* Audited by: green(2002.06.17) */ 
 static int flush_left_relocate  (jnode *node, const coord_t *parent_coord)
 {
 	int ret;
@@ -499,6 +504,7 @@ static int flush_left_relocate  (jnode *node, const coord_t *parent_coord)
  * leftmost child, then return its parent's block.  If the node is a leaf, return its left
  * neighbor's block.  Otherwise, call flush_find_rightmost to find the rightmost
  * descendent. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_find_preceder (jnode *node, coord_t *parent_coord, reiser4_block_nr *pblk)
 {
 	/* If ncoord_prev_unit returns 1, its the leftmost coord of its parent. */
@@ -521,6 +527,7 @@ static int flush_find_preceder (jnode *node, coord_t *parent_coord, reiser4_bloc
 /* Find the rightmost descendant block number of @node.  Set preceder->blk to
  * that value.  This can never be called on a leaf node, the leaf case is
  * handled by flush_preceder_hint. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_find_rightmost (const coord_t *parent_coord, reiser4_block_nr *pblk)
 {
 	int ret;
@@ -597,6 +604,7 @@ static int flush_find_rightmost (const coord_t *parent_coord, reiser4_block_nr *
  * cases.  The squalloc_leftpoint_end_of_twig and sqalloc_update_leftpoint functions
  * update the loop variables and return to this loop.
  */
+/* Audited by: green(2002.06.17) */ 
 static int squalloc_leftpoint (flush_position *pos)
 {
 	int ret;
@@ -736,6 +744,7 @@ static int squalloc_leftpoint (flush_position *pos)
  * squalloc_update_leftpoint appropriately to find the next leftpoint for parent first
  * traversal.  If neither is dirty, stop this squalloc.
  */
+/* Audited by: green(2002.06.17) */ 
 static int squalloc_leftpoint_end_of_twig (flush_position *pos)
 {
 	int ret;
@@ -817,6 +826,7 @@ static int squalloc_leftpoint_end_of_twig (flush_position *pos)
  * left-scanning disabled.  Returns with the squalloc_leftpoint loop variables set for the
  * next iteration of squalloc_leftpoint.
  */
+/* Audited by: green(2002.06.17) */ 
 static int squalloc_update_leftpoint (flush_position *pos)
 {
 	int ret;
@@ -850,6 +860,7 @@ static int squalloc_update_leftpoint (flush_position *pos)
  * recursively processed.  Once the shifted-right subtree is squeezed and allocated,
  * squeezing from the left continues.
  */
+/* Audited by: green(2002.06.17) */ 
 static int squalloc_parent_first (flush_position *pos)
 {
 	int ret;
@@ -977,6 +988,7 @@ static int squalloc_parent_first (flush_position *pos)
  *
  * For node children: call squalloc_parent_first (recursively).
  */
+/* Audited by: green(2002.06.17) */ 
 static int squalloc_children (flush_position *pos)
 {
 	int ret;
@@ -1034,6 +1046,7 @@ static int squalloc_children (flush_position *pos)
  * flush_position->point back to the parent.  It is conceivable that the parent can change
  * during this period, so the @coord argument is returned to allow it to change.
  */
+/* Audited by: green(2002.06.17) */ 
 static int squalloc_parent_first_recursive (flush_position *pos, znode *child, coord_t *coord)
 {
 	int ret;
@@ -1111,6 +1124,7 @@ static int squalloc_parent_first_recursive (flush_position *pos, znode *child, c
  * returned.  If nothing can be moved into @left anymore, SQUEEZE_TARGET_FULL
  * is returned.
  */
+/* Audited by: green(2002.06.17) */ 
 /*static*/ int squalloc_right_neighbor (znode    *left,
 					znode    *right,
 					reiser4_blocknr_hint *preceder)
@@ -1159,6 +1173,7 @@ static int squalloc_parent_first_recursive (flush_position *pos, znode *child, c
 /* Shift as much as possible from @right to @left using the memcpy-optimized
  * shift_everything_left.  @left and @right are formatted neighboring nodes on
  * leaf level. */
+/* Audited by: green(2002.06.17) */ 
 static int squeeze_right_leaf (znode * right, znode * left)
 {
 	int ret;
@@ -1194,6 +1209,7 @@ static int squeeze_right_leaf (znode * right, znode * left)
  * SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
  * internal item it calls shift_one_internal_unit and may then return
  * SUBTREE_MOVED. */
+/* Audited by: green(2002.06.17) */ 
 static int squalloc_right_twig (znode    *left,
 				znode    *right,
 				reiser4_blocknr_hint *preceder)
@@ -1269,6 +1285,7 @@ static int squalloc_right_twig (znode    *left,
 
 /* squalloc_right_twig helper function, cut a range of extent items from
  * cut node to->node from the beginning up to coord @to. */
+/* Audited by: green(2002.06.17) */ 
 static int squalloc_right_twig_cut (coord_t * to, reiser4_key * to_key, znode * left)
 {
 	coord_t from;
@@ -1285,6 +1302,7 @@ static int squalloc_right_twig_cut (coord_t * to, reiser4_key * to_key, znode * 
  * SQUEEZE_TARGET_FULL if it fails to shift an item, otherwise return
  * SUBTREE_MOVED.
  */
+/* Audited by: green(2002.06.17) */ 
 static int shift_one_internal_unit (znode * left, znode * right)
 {
 	int ret;
@@ -1340,6 +1358,7 @@ static int shift_one_internal_unit (znode * left, znode * right)
  * process.  This implies the block address has been finalized for the
  * duration of this atom (or it is clean and will remain in place).  If this
  * returns true you may use the block number as a hint. */
+/* Audited by: green(2002.06.17) */ 
 static int jnode_is_allocated (jnode *node)
 {
 	/* It must be relocated or wandered.  New allocations are set to relocate. */
@@ -1351,12 +1370,14 @@ static int jnode_is_allocated (jnode *node)
  * order, signifying that flush_allocate() must re-find the parent-first preceder.  If we
  * have decided to batch-relocate, however, we ignore this setting because we will
  * relocate anyway. */
+/* Audited by: green(2002.06.17) */ 
 static void flush_parent_first_broken (flush_position *pos)
 {
 	pos->parent_first_broken = 1;
 }
 
 /* FIXME: comment */
+/* Audited by: green(2002.06.17) */ 
 static int flush_alloc_block (reiser4_blocknr_hint *preceder, jnode *node, reiser4_block_nr max_dist)
 {
 	int ret;
@@ -1411,6 +1432,7 @@ out:
 }
 
 /* FIXME: comment */
+/* Audited by: green(2002.06.17) */ 
 static int flush_allocate_point (flush_position *pos)
 {
 	jnode *node = pos->point;
@@ -1508,6 +1530,7 @@ static int flush_allocate_point (flush_position *pos)
 }
 
 /* This enqueues the current flush point into the developing "struct bio" queue. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_enqueue_point (flush_position *pos)
 {
 	int ret;
@@ -1542,6 +1565,7 @@ static int flush_enqueue_point (flush_position *pos)
 	assert ("jmacd-9921", jnode_page (pos->point) != NULL);
 
 	bvec->bv_page   = jnode_page (pos->point);
+	/* AUDIT. I have a strong feeling that PAGE_CACHE_SIZE should be used here */
 	bvec->bv_len    = PAGE_SIZE;
 	bvec->bv_offset = PAGE_SIZE * (*jnode_get_block (pos->point));
 
@@ -1551,6 +1575,7 @@ static int flush_enqueue_point (flush_position *pos)
 }
 
 /* FIXME: comment */
+/* Audited by: green(2002.06.17) */ 
 static int flush_finish (flush_position *pos)
 {
 	int ret;
@@ -1641,6 +1666,7 @@ static int jnode_lock_parent_coord (jnode *node,
  * neighbor or the neighbor is not in memory, -ENOENT is returned.  If there
  * is a neighbor but it is not dirty or not in the same atom, -ENAVAIL is
  * returned. */
+/* Audited by: green(2002.06.17) */ 
 static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof side)
 {
 	znode *neighbor;
@@ -1686,6 +1712,7 @@ static int znode_get_utmost_if_dirty (znode *node, lock_handle *lock, sideof sid
 
 /* Return true if two znodes have the same parent.  This is called with both nodes
  * write-locked (for squeezing) so no tree lock is needed. */
+/* Audited by: green(2002.06.17) */ 
 static int znode_same_parents (znode *a, znode *b)
 {
 	assert ("jmacd-7011", znode_is_write_locked (a));
@@ -1700,6 +1727,7 @@ static int znode_same_parents (znode *a, znode *b)
  ********************************************************************************/
 
 /* Initialize the flush_scan data structure. */
+/* Audited by: green(2002.06.17) */ 
 static void flush_scan_init (flush_scan *scan)
 {
 	memset (scan, 0, sizeof (*scan));
@@ -1707,6 +1735,7 @@ static void flush_scan_init (flush_scan *scan)
 }
 
 /* Release any resources held by the flush scan, e.g., release locks, free memory, etc. */
+/* Audited by: green(2002.06.17) */ 
 static void flush_scan_done (flush_scan *scan)
 {
 	if (scan->node != NULL) {
@@ -1716,6 +1745,7 @@ static void flush_scan_done (flush_scan *scan)
 }
 
 /* Returns true if leftward flush scanning is finished. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_scan_finished (flush_scan *scan)
 {
 	return scan->stop || scan->size >= scan->max_size;
@@ -1724,6 +1754,7 @@ static int flush_scan_finished (flush_scan *scan)
 /* Return true if the scan should continue to the left.  Go left if the node
  * is not allocated, dirty, and in the same atom as the current scan position.
  * If not, deref the "left" node and stop the scan. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 {
 	int go;
@@ -1739,6 +1770,7 @@ static int flush_scan_goto (flush_scan *scan, jnode *tonode)
 }
 
 /* Set the current scan->node, refcount it, increment size, and deref previous current. */
+/* Audited by: green(2002.06.17) */ 
 static void flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_size)
 {
 	if (scan->node != NULL) {
@@ -1750,12 +1782,14 @@ static void flush_scan_set_current (flush_scan *scan, jnode *node, unsigned add_
 }
 
 /* Return true if going left. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_scanning_left (flush_scan *scan)
 {
 	return scan->direction == LEFT_SIDE;
 }
 
 /* Performs leftward scanning starting from an unformatted node and its parent coordinate */
+/* Audited by: green(2002.06.17) */ 
 static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 {
 	jnode *neighbor;
@@ -1872,6 +1906,7 @@ static int flush_scan_extent_coord (flush_scan *scan, coord_t *coord)
 /* Performs leftward scanning starting from an unformatted node.  Skip_first indicates
  * that the scan->node is set to a formatted node and we are interested in continuing at
  * the neighbor if it is unformatted. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_scan_extent (flush_scan *scan, int skip_first)
 {
 	int ret;
@@ -1882,6 +1917,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 		init_lh (& first_lock);
 
 		if ((ret = longterm_lock_znode (& first_lock, JZNODE (scan->node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
+			/* AUDIT: missing done_lh(& first_lock); here? */
 			return ret;
 		}
 	}
@@ -1954,6 +1990,7 @@ static int flush_scan_extent (flush_scan *scan, int skip_first)
 }
 
 /* Performs left- or rightward scanning starting from a formatted node. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_scan_formatted (flush_scan *scan)
 {
 	/* Follow left pointers under tree lock as long as:
@@ -2013,6 +2050,7 @@ static int flush_scan_formatted (flush_scan *scan)
 }
 
 /* Performs leftward scanning starting from either kind of node.  Counts the starting node. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_scan_left (flush_scan *scan, jnode *node)
 {
 	scan->max_size  = REISER4_FLUSH_SCAN_MAXNODES;
@@ -2024,6 +2062,7 @@ static int flush_scan_left (flush_scan *scan, jnode *node)
 }
 
 /* Performs rightward scanning... Does not count the starting node. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_scan_right_upto (flush_scan *scan, jnode *node, __u32 *res_count, __u32 limit)
 {
 	int ret;
@@ -2041,6 +2080,7 @@ static int flush_scan_right_upto (flush_scan *scan, jnode *node, __u32 *res_coun
 }
 
 /* Performs left or right scanning. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_scan_common (flush_scan *scan)
 {
 	int ret;
@@ -2068,6 +2108,7 @@ static int flush_scan_common (flush_scan *scan)
  ********************************************************************************/
 
 /* Initialize the fields of a flush_position. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_pos_init (flush_position *pos)
 {
 	pos->point = NULL;
@@ -2082,6 +2123,7 @@ static int flush_pos_init (flush_position *pos)
 	init_lh (& pos->parent_lock);
 
 	if ((pos->bio = bio_alloc (GFP_NOFS, FLUSH_RELOCATE_THRESHOLD)) == NULL) {
+		/* AUDIT missed done_lh() for pos->point_lock & pos->parent_lock? */
 		return -ENOMEM;
 	}
 
@@ -2089,6 +2131,7 @@ static int flush_pos_init (flush_position *pos)
 }
 
 /* Release any resources of a flush_position. */
+/* Audited by: green(2002.06.17) */ 
 static void flush_pos_done (flush_position *pos)
 {
 	flush_pos_stop (pos);
@@ -2101,6 +2144,7 @@ static void flush_pos_done (flush_position *pos)
 }
 
 /* Reset the point and parent. */
+/* Audited by: green(2002.06.17) */ 
 static void flush_pos_stop (flush_position *pos)
 {
 	if (pos->point != NULL) {
@@ -2112,6 +2156,7 @@ static void flush_pos_stop (flush_position *pos)
 }
 
 /* FIXME: comments. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_pos_to_child (flush_position *pos)
 {
 	int ret;
@@ -2142,6 +2187,7 @@ static int flush_pos_to_child (flush_position *pos)
 }
 
 /* FIXME: comments. */
+/* Audited by: green(2002.06.17) */ 
 static int flush_pos_to_parent (flush_position *pos)
 {
 	int ret;
@@ -2159,18 +2205,21 @@ static int flush_pos_to_parent (flush_position *pos)
 	return 0;
 }
 
+/* Audited by: green(2002.06.17) */ 
 static int flush_pos_valid (flush_position *pos)
 {
 	/* FIXME: more asserts. */
 	return pos->point != NULL || pos->parent_lock.node != NULL;
 }
 
+/* Audited by: green(2002.06.17) */ 
 static int flush_pos_unformatted (flush_position *pos)
 {
 	/* FIXME: more asserts. */
 	return pos->point == NULL;
 }
 
+/* Audited by: green(2002.06.17) */ 
 static void flush_pos_release_point (flush_position *pos)
 {
 	if (pos->point != NULL) {
@@ -2179,6 +2228,7 @@ static void flush_pos_release_point (flush_position *pos)
 	}
 }
 
+/* Audited by: green(2002.06.17) */ 
 static void flush_pos_set_point (flush_position *pos, jnode *node)
 {
 	flush_pos_release_point (pos);
