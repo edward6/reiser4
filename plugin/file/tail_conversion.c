@@ -274,6 +274,7 @@ int tail2extent (struct inode * inode)
 	coord_t coord;
 	lock_handle lh;	
 	reiser4_key key;     /* key of next byte to be moved to page */
+	reiser4_key tmp;     /* used for sanity check */
 	struct page * page;
 	char * p_data;       /* data of page */
 	unsigned page_off,   /* offset within the page where to copy data */
@@ -342,6 +343,8 @@ int tail2extent (struct inode * inode)
 				goto error1;
 			}
 			item = item_body_by_coord (&coord);
+			assert ("green-11",
+				keyeq (&key, item_key_by_coord (&coord, &tmp)));
 			copied = 0;
 		}
 		assert ("vs-562", unix_file_owns_item (inode, &coord));
