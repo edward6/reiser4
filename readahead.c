@@ -69,7 +69,8 @@ formatted_readahead(znode *node, ra_info_t *info)
 
 	ra_params = get_current_super_ra_params();
 
-	jstartio(ZJNODE(node));
+	if (znode_page(node) == NULL)
+		jstartio(ZJNODE(node));
 
 	if (!ra_all_levels(ra_params->flags) && znode_get_level(node) != LEAF_LEVEL)
 		return;
@@ -119,7 +120,8 @@ formatted_readahead(znode *node, ra_info_t *info)
 		zput(cur);
 		cur = zref(next_lh.node);
 		done_lh(&next_lh);
-		jstartio(ZJNODE(cur));
+		if (znode_page(cur) == NULL)
+			jstartio(ZJNODE(cur));
 		i ++;
 	}
 	zput(cur);
