@@ -765,7 +765,7 @@ jnode_wait_fq_locked(jnode * node)
 		LOCK_JNODE(node);
 	}
 }
-
+/* NIKITA-FIXME-HANS; explain not just this particular function, but the whole set of functions involved with this, or give me a mini-seminar on why it is obvious.;-) */
 void
 jput_final(jnode * node)
 {
