@@ -2997,7 +2997,7 @@ static int bash_mkfs (char * file_name)
 		free (command);
 		return 0;
 	} else {
-		info ("Usage: mkfs filename tail | notail | test\n");
+		info ("Usage: mkfs filename tail | notail | test | 40\n");
 		return 1;
 	}
 
