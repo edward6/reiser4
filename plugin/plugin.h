@@ -351,6 +351,9 @@ typedef struct space_allocator_plugin {
 			       reiser4_block_nr *start, reiser4_block_nr *len );
 	void ( *dealloc_blocks )( reiser4_space_allocator *,
 				  reiser4_block_nr start, reiser4_block_nr len );
+#if REISER4_DEBUG	
+	void ( *check_blocks )( const reiser4_block_nr *, const reiser4_block_nr *, int);
+#endif
 	void ( *print_info )( const char *, reiser4_space_allocator * );
 
 	/* program hooks from journal code */

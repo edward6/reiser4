@@ -340,6 +340,30 @@ static void get_next_fake_blocknr (reiser4_block_nr *bnr)
 }
 
 
+#if REISER4_DEBUG
+
+/* check "allocated" state of given block range */
+void reiser4_check_blocks (const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
+{
+	space_allocator_plugin * splug = get_current_super_private()->space_plug;
+
+	assert ("zam-625", splug != NULL);
+
+	if (splug->check_blocks != NULL) {
+		splug->check_blocks(start, len, desired);
+	}
+}
+
+/* check "allocated" state of given block */
+void reiser4_check_block (const reiser4_block_nr * block, int desired)
+{
+	const reiser4_block_nr one = 1;
+
+	reiser4_check_blocks(block, &one, desired);
+}
+
+#endif
+
 /* wrapper to call space allocation plugin */
 int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 			  reiser4_block_nr *len)

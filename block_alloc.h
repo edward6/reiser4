@@ -70,6 +70,18 @@ extern int reiser4_alloc_blocks (reiser4_blocknr_hint * hint,
 				 reiser4_block_nr * start, reiser4_block_nr * len);
 extern int reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int defer, block_stage_t);
 
+#if REISER4_DEBUG
+
+extern void reiser4_check_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int);
+extern void reiser4_check_block (const reiser4_block_nr *, int);
+
+#else
+
+#  define reiser4_check_blocks(beg, len, val)  do {} while (0)
+#  define reiser4_check_block(beg, val)        do {} while (0)
+
+#endif
+
 static inline int reiser4_dealloc_block (const reiser4_block_nr *block, int defer, block_stage_t stage)
 {
 	const reiser4_block_nr one = 1;

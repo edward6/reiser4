@@ -15,6 +15,12 @@ extern int bitmap_destroy_allocator (reiser4_space_allocator *, struct super_blo
 extern int bitmap_alloc_blocks      (reiser4_space_allocator *,
 				     reiser4_blocknr_hint *, int needed,
 				     reiser4_block_nr *start, reiser4_block_nr *len);
+#if REISER4_DEBUG
+
+extern void bitmap_check_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int);
+
+#endif
+
 extern void bitmap_dealloc_blocks (reiser4_space_allocator *,
 				   reiser4_block_nr,
 				   reiser4_block_nr);
@@ -25,7 +31,5 @@ typedef __u32 bmap_off_t;
 
 /* exported for user-level simulator */
 extern void get_bitmap_blocknr (struct super_block *, bmap_nr_t, reiser4_block_nr *);
-
-extern int bitmap_is_allocated (reiser4_block_nr *start);
 
 #endif /* __REISER4_PLUGIN_SPACE_BITMAP_H__ */

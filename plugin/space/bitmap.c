@@ -736,37 +736,49 @@ void bitmap_dealloc_blocks (reiser4_space_allocator * allocator UNUSED_ARG,
 	release_and_unlock_bnode (bnode);
 }
 
-int bitmap_is_allocated (reiser4_block_nr *start)
+#if REISER4_DEBUG
+
+void bitmap_check_blocks (const reiser4_block_nr *start, const reiser4_block_nr * len, int desired)
 {
 	struct super_block * super = reiser4_get_current_sb();
 
 	bmap_nr_t  bmap;
-	bmap_off_t offset;
+	bmap_off_t start_offset;
+	bmap_off_t end_offset;
 
 	struct bnode * bnode;
 	int ret;
-	const reiser4_block_nr one = 1;
 
-	check_block_range (start, &one);
-	parse_blocknr (start, &bmap, &offset);
+	assert ("zam-622", len != NULL);
+	check_block_range (start, len);
+	parse_blocknr (start, &bmap, &start_offset);
 
-	assert ("nikita-2214", offset + 1 <= (super->s_blocksize << 3));
+	end_offset = start_offset + *len;
+	assert ("nikita-2214", end_offset <= (super->s_blocksize << 3));
 
 	bnode = get_bnode (super, bmap);
 
 	assert ("nikita-2215", bnode != NULL);
 
 	ret = load_and_lock_bnode (bnode);
-	if (ret != 0)
-		return ret;
+	assert ("zam-626", ret == 0);
 
 	assert ("nikita-2216", JF_ISSET(&bnode->wjnode, ZNODE_LOADED));
 
-	ret = reiser4_test_bit (offset, bnode_working_data(bnode));
+	if (desired) {
+		assert ("zam-623", 
+			reiser4_find_next_zero_bit(bnode_working_data(bnode), end_offset, start_offset)
+			>= end_offset);
+	} else {
+		assert ("zam-624",
+			reiser4_find_next_set_bit(bnode_working_data(bnode), end_offset, start_offset)
+			>= end_offset);
+	}
 
 	release_and_unlock_bnode (bnode);
-	return !!ret;
 }
+
+#endif
 
 /* conditional insertion of @node into atom's clean list if it was not there */
 static void cond_add_to_clean_list (txn_atom * atom, jnode * node)
