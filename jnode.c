@@ -532,18 +532,17 @@ jload_gfp (jnode * node, int gfp_flags)
 	result = 0;
 	reiser4_stat_inc_at_level(jnode_get_level(node), jnode.jload);
 	jref(node);
-	spin_lock_jnode(node);
 	add_d_ref(node);
-	if (!jnode_is_loaded(node)) {
-		jnode_plugin *jplug;
 
+	if (!jnode_is_loaded(node)) {
+		/* If node is not loaded we need a spin lock to get reliable not
+		 * null jnode_page() result */
+		page = UNDER_SPIN(jnode, node, jnode_page(node));
 		/* read data from page cache. Page reference counter is
 		   incremented and page is kmapped, it will kunmapped in
 		   zrelse
 		*/
 		trace_on(TRACE_PCACHE, "read node: %p\n", node);
-
-		jplug = jnode_ops(node);
 
 		/* Our initial design was to index pages with formatted data
 		   by their block numbers. One disadvantage of this is that
@@ -574,20 +573,19 @@ jload_gfp (jnode * node, int gfp_flags)
 		    smaller (not yet implemented). Pointer to atom?
 
 		*/
-		page = jnode_page(node);
-		spin_unlock_jnode(node);
 		/* subtle locking point: ->pg pointer is protected by jnode
 		   spin lock, but it is safe to release spin lock here,
 		   because page can be detached from jnode only when ->d_count
 		   is 0, and JNODE_LOADED is not set.
 		*/
 		if (likely(page != NULL && !JF_ISSET(node, JNODE_ASYNC))) {
-			JF_SET(node, JNODE_LOADED);
 			load_page(page, node);
 			node->data = page_address(page);
 			reiser4_stat_inc_at_level(jnode_get_level(node), 
 						  jnode.jload_page);
+			JF_SET(node, JNODE_LOADED);
 		} else {
+			jnode_plugin *jplug = jnode_ops(node);
 			struct page_filler_arg f_arg = {.node = node, .gfp = gfp_flags };
  
 			page = read_cache_page(jplug->mapping(node), 
@@ -597,9 +595,9 @@ jload_gfp (jnode * node, int gfp_flags)
 			   @page is pinned into memory. */
 			if (!IS_ERR(page)) {
 				kmap(page);
-				node->data = page_address(page);
 				reiser4_lock_page(page);
 				spin_lock_jnode(node);
+				node->data = page_address(page);
 				if (jnode_page(node) == NULL)
 					/* this line and jget() are the only
 					 * places, where page is attached to
@@ -624,9 +622,6 @@ jload_gfp (jnode * node, int gfp_flags)
 				jrelse(node);
 		}
 	} else {
-		struct page *page;
-
-		spin_unlock_jnode(node);
 		page = jnode_page(node);
 		assert("nikita-2348", page != NULL);
 		load_page(page, node);
