@@ -534,10 +534,11 @@ reiser4_internal void capture_reiser4_inodes (
 		struct inode *inode = list_entry(
 			sb->s_io.prev, struct inode, i_list);
 
-		if (time_after(inode->dirtied_when, start))
-			break;
-
 		list_move(&inode->i_list, &sb->s_dirty);
+
+		if (time_after(inode->dirtied_when, start))
+			continue;
+
 		__iget(inode);
 		spin_unlock(&inode_lock);
 
@@ -551,9 +552,24 @@ reiser4_internal void capture_reiser4_inodes (
 				fplug->capture(inode, wbc);
 		}
 
-		iput(inode);
 		spin_lock(&inode_lock);
+		/* set inode state according what pages it has. */
+		if (!(inode->i_state & I_FREEING)) {
+			struct address_space * mapping = inode->i_mapping;
 
+			spin_lock(&mapping->page_lock);
+			if (list_empty(get_moved_pages(mapping)) &&
+			    list_empty(&mapping->dirty_pages)) 
+			{
+				inode->i_state &= ~(I_DIRTY);
+			}
+			spin_unlock(&mapping->page_lock);
+		}
+		spin_unlock(&inode_lock);
+
+		iput(inode);
+
+		spin_lock(&inode_lock);
 		if (wbc->nr_to_write <= 0)
 			break;
 	}
