@@ -298,6 +298,70 @@ static int free_space_shortage( znode *node /* node to check */,
 }
 
 /**
+ * helper function: update node pointer in operation after insertion
+ * point was probably shifted into @target.
+ */
+static znode *sync_op( carry_op *op, carry_node *target ) 
+{
+	znode *insertion_node;
+
+	/*
+	 * reget node from coord: shift might move insertion coord to
+	 * the neighbor
+	 */
+	insertion_node = op -> u.insert.d -> coord -> node;
+	/*
+	 * if insertion point was actually moved into new node,
+	 * update carry node pointer in operation.
+	 */
+	if( insertion_node != op -> node -> real_node ) {
+		op -> node = target;
+		assert( "nikita-2540", 
+			target -> real_node == insertion_node );
+	}
+	assert( "nikita-2541", 
+		op -> node -> real_node == op -> u.insert.d -> coord -> node );
+	return insertion_node;
+}
+
+static int get_split_point( carry_op *op, sideof dir )
+{
+	coord_t *coord;
+
+	assert( "nikita-2619", 
+		op -> op == COP_INSERT || 
+		op -> op == COP_PASTE  || op -> op == COP_EXTENT );
+
+	coord = op -> u.insert.d -> coord;
+
+	if( !coord_is_existing_item( coord ) )
+		return 0;
+	if( ( op -> u.insert.flags & COPI_GLUE_LEFT ) && dir == LEFT_SIDE && 
+	    coord -> unit_pos > 0 ) {
+		-- coord -> unit_pos;
+		/*
+		 * split point is different from the insertion point, confine
+		 * shift to the source node.
+		 */
+		op -> u.insert.flags &= ~COPI_GO_LEFT;
+		return -1;
+	}
+	/* glueing to the right is not yet implemented */
+	assert( "nikita-2620", !( op -> u.insert.flags & COPI_GLUE_RIGHT ) );
+	return 0;
+}
+
+static void put_split_point( carry_op *op, int adj, __u32 flags )
+{
+	assert( "nikita-2621",
+		op -> op == COP_INSERT || 
+		op -> op == COP_PASTE  || op -> op == COP_EXTENT );
+
+	op -> u.insert.d -> coord += adj;
+	op -> u.insert.flags = flags;
+}
+
+/**
  * This is insertion policy function. It shifts data to the left and right
  * neighbors of insertion coord and allocates new nodes until there is enough
  * free space to complete @op.
@@ -305,23 +369,8 @@ static int free_space_shortage( znode *node /* node to check */,
  * Follows logic of fs/reiser4/tree.c:insert_single_item()
  *
  * See comments in the body.
-
-GREEN-FIXME-HANS: why isn't this code audited?
-
-NIKITA-FIXME-HANS: can this be broken into subfunctions that will look like the following except with function arguments:
-
-if(!enough_space())
-    shift_insert_point_to_left;
-if(!enough_space())
-    shift_after_insert_point_to_right();
-if(!enough_space()){
-    insert_node_after_insert_point();
-    if(!insert_point_at_node_end())
-	shift_after_insert_point_to_right();
-	if ( optimizing_for_repeat_insertions_at_point)
-        insert_node_after_insert_point();// avoids pushing detritus around when repeated insertions occur
-}
-
+ *
+ * GREEN-FIXME-HANS: why isn't this code audited?
  *
  * Assumes that the node format favors insertions at the right end of the node
  * as node40 does.
@@ -338,34 +387,10 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 	int    blk_alloc;
 	znode *orig_node;
 	__u32  flags;
-
-	/**
-	 * helper function: update node pointer in operation after insertion
-	 * point was probably shifted into @target.
-	 */
-	static znode *sync_op( carry_op *op, carry_node *target ) {
-		znode *insertion_node;
-
-		/*
-		 * reget node from coord: shift might move insertion coord to
-		 * the neighbor
-		 */
-		insertion_node = op -> u.insert.d -> coord -> node;
-		/*
-		 * if insertion point was actually moved into new node,
-		 * update carry node pointer in operation.
-		 */
-		if( insertion_node != op -> node -> real_node ) {
-			op -> node = target;
-			assert( "nikita-2540", 
-				target -> real_node == insertion_node );
-		}
-		assert( "nikita-2541", 
-			op -> node -> real_node == op -> u.insert.d -> coord -> node );
-		return insertion_node;
-	}
+	int    adj;
 
 	carry_node *tracking;
+	coord_t    *coord;
 
 	assert( "nikita-890", op != NULL );
 	assert( "nikita-891", todo != NULL );
@@ -378,7 +403,8 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 
 	flags = op -> u.insert.flags;
 
-	orig_node = node = op -> u.insert.d -> coord -> node;
+	coord     = op -> u.insert.d -> coord;
+	orig_node = node = coord -> node;
 	tracking  = op -> node;
 
 	assert( "nikita-908", node != NULL );
@@ -422,15 +448,18 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 				print_znode( "node", node );
 			}
 		} else if( left != NULL ) {
+
+			adj = get_split_point( op, LEFT_SIDE );
 			/*
 			 * shift everything possible on the left of and
 			 * including insertion coord into the left neighbor
 			 */
-			result = carry_shift_data( LEFT_SIDE, 
-						   op -> u.insert.d -> coord,
+			result = carry_shift_data( LEFT_SIDE, coord, 
 						   left -> real_node, 
 						   doing, todo, 
 						   flags & COPI_GO_LEFT );
+			put_split_point( op, adj, flags );
+
 			/*
 			 * reget node from coord: shift_left() might move
 			 * insertion coord to the left neighbor
@@ -458,6 +487,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 				 PTR_ERR( right ) );
 			print_znode( "node", node );
 		} else if( right != NULL ) {
+			adj = get_split_point( op, RIGHT_SIDE );
 			/*
 			 * node containing insertion point, and its right
 			 * neighbor node are write locked by now.
@@ -465,11 +495,11 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 			 * shift everything possible on the right of but
 			 * excluding insertion coord into the right neighbor
 			 */
-			result = carry_shift_data( RIGHT_SIDE, 
-						   op -> u.insert.d -> coord,
+			result = carry_shift_data( RIGHT_SIDE, coord,
 						   right -> real_node, 
 						   doing, todo, 
 						   flags & COPI_GO_RIGHT );
+			put_split_point( op, adj, flags );
 			/*
 			 * reget node from coord: shift_right() might move
 			 * insertion coord to the right neighbor
@@ -535,8 +565,10 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		 */
 		coord_dup( &coord_shadow, op -> u.insert.d -> coord );
 		node_shadow = op -> node;
-		result = carry_shift_data( RIGHT_SIDE, op -> u.insert.d -> coord,
+		adj = get_split_point( op, RIGHT_SIDE );
+		result = carry_shift_data( RIGHT_SIDE, coord,
 					   fresh -> real_node, doing, todo, 1 );
+		put_split_point( op, adj, flags );
 		/*
 		 * if insertion point was actually moved into new node,
 		 * update carry node pointer in operation.
@@ -551,8 +583,8 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 			 * @shadow_node and @fresh.
 			 */
 			coord_normalize( &coord_shadow );
-			coord_dup( op -> u.insert.d -> coord, &coord_shadow );
-			node = op -> u.insert.d -> coord -> node;
+			coord_dup( coord, &coord_shadow );
+			node = coord -> node;
 			op -> node = node_shadow;
 			if( 1 || ( flags & COPI_STEP_BACK ) ) {
 				/* 
@@ -583,7 +615,8 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 					      ZNODE_LOCK_HIPRI );
 		reiser4_stat_level_add( doing, track_lh );
 	}
-	assert( "nikita-1622", ergo( result == 0, op -> node -> real_node == op -> u.insert.d -> coord -> node ) );
+	assert( "nikita-1622", ergo( result == 0, op -> node -> real_node == coord -> node ) );
+	assert( "nikita-2616", coord = op -> u.insert.d -> coord );
 	return result;
 }
 
@@ -1476,12 +1509,13 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 {
 	znode               *node;
 	carry_insert_data    cdata;
-	coord_t              coord;
+	coord_t              dcoord;
 	reiser4_item_data    data;
 	int                  result;
 	int                  real_size;
 	item_plugin         *iplug;
 	carry_plugin_info    info;
+	coord_t             *coord;
 
 	assert( "nikita-982", op != NULL );
 	assert( "nikita-983", todo != NULL );
@@ -1490,18 +1524,20 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	trace_stamp( TRACE_CARRY );
 	reiser4_stat_level_add( doing, paste );
 
-	coord_init_zero( &coord );
+	coord_init_zero( &dcoord );
 
-	result = insert_paste_common( op, doing, todo, &cdata, &coord, &data );
+	result = insert_paste_common( op, doing, todo, &cdata, &dcoord, &data );
 	if( result != 0 )
 		return result;
+
+	coord = op -> u.insert.d -> coord;
 
 	/*
 	 * handle case when op -> u.insert.coord doesn't point to the item
 	 * of required type. restart as insert.
 	 */
-	if( !can_paste( op -> u.insert.d -> coord, op -> u.insert.d -> key,
-			op -> u.insert.d -> data ) ) {
+	if( !can_paste( coord, 
+			op -> u.insert.d -> key, op -> u.insert.d -> data ) ) {
 		op -> op = COP_INSERT;
 		op -> u.insert.type = COPT_PASTE_RESTARTED;
 		reiser4_stat_level_add( doing, paste_restarted );
@@ -1511,8 +1547,8 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 		return result;
 	}
 
-	node = op -> u.insert.d -> coord -> node;
-	iplug = item_plugin_by_coord( op -> u.insert.d -> coord );
+	node = coord -> node;
+	iplug = item_plugin_by_coord( coord );
 	assert( "nikita-992", iplug != NULL );
 
 	assert( "nikita-985", node != NULL );
@@ -1521,32 +1557,26 @@ static int carry_paste( carry_op *op /* operation to be performed */,
 	assert( "nikita-987",
 		space_needed_for_op( node, op ) <= znode_free_space( node ) );
 
-	assert( "nikita-1286", coord_is_existing_item( op -> u.insert.d -> coord ) );
+	assert( "nikita-1286", coord_is_existing_item( coord ) );
 
 	real_size = space_needed_for_op( node, op );
 	if( real_size > 0 ) {
-		node -> nplug ->
-			change_item_size( op -> u.insert.d -> coord, real_size );
+		node -> nplug -> change_item_size( coord, real_size );
 	}
 	doing -> restartable = 0;
 	info.doing  = doing;
 	info.todo   = todo;
-	result = iplug -> common.paste( op -> u.insert.d -> coord,
-					op -> u.insert.d -> data, &info );
+	result = iplug -> common.paste( coord, op -> u.insert.d -> data, &info );
 	znode_set_dirty( node );
 	if( real_size < 0 ) {
-		node -> nplug ->
-			change_item_size( op -> u.insert.d -> coord, 
-					  real_size );
+		node -> nplug -> change_item_size( coord, real_size );
 	}
 	/* if we pasted at the beginning of the item, update item's key. */
-	if( ( op -> u.insert.d -> coord -> unit_pos == 0 ) &&
-	    ( op -> u.insert.d -> coord -> between != AFTER_UNIT ) ) {
+	if( ( coord -> unit_pos == 0 ) && ( coord -> between != AFTER_UNIT ) ) {
 		reiser4_key item_key;
 
-		unit_key_by_coord( op -> u.insert.d -> coord, &item_key );
-		node -> nplug -> update_item_key 
-			( op -> u.insert.d -> coord, &item_key, &info );
+		unit_key_by_coord( coord, &item_key );
+		node -> nplug -> update_item_key( coord, &item_key, &info );
 	}
 
 	return result;

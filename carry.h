@@ -171,7 +171,9 @@ typedef enum {
 	 * try to step back into original node if insertion into new node
 	 * fails after shifting data there.
 	 */
-	COPI_STEP_BACK           = ( 1 << 7 )
+	COPI_STEP_BACK           = ( 1 << 7 ),
+	COPI_GLUE_LEFT           = ( 1 << 8 ),
+	COPI_GLUE_RIGHT          = ( 1 << 9 )
 } cop_insert_flag;
 
 /* flags to cut and delete */
