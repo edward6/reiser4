@@ -837,11 +837,15 @@ static int squalloc_children (flush_position *pos)
 		} else if (item_is_internal (& crd)) {
 			/* Get the child of this node pointer, check for
 			 * error, skip if it is not dirty. */
-			znode *child = child_znode (& crd, 1);
+			znode *child;
+
+			spin_lock_dk (current_tree);
+			child = child_znode (& crd, 1);
+			spin_unlock_dk (current_tree);
 
 			if (IS_ERR (child)) { return PTR_ERR (child); }
 
-			if (! znode_is_dirty (child)) { continue; }
+			if (! znode_check_dirty (child)) { continue; }
 
 			/* Recursive call: since we release the lock on this node it is
 			 * possible that the coordinate will change, therefore pass the
@@ -1149,25 +1153,8 @@ static int shift_one_internal_unit (znode * left, znode * right)
 }
 
 /********************************************************************************
- * JNODE INTERFACE
+ * ALLOCATE INTERFACE
  ********************************************************************************/
-
-/* Gets the sibling of an unformatted jnode using its index, only if it is in
- * memory, and reference it. */
-static jnode* jnode_get_extent_neighbor (jnode *node, unsigned long node_index)
-{
-	struct page *pg;
-
-	pg = find_lock_page (node->pg->mapping, node_index);
-
-	if (pg == NULL) {
-		return NULL;
-	}
-
-	assert ("jmacd-1700", ! IS_ERR (pg));
-
-	return jnode_of_page (pg);
-}
 
 /* Return true if @node has already been processed by the squeeze and allocate
  * process.  This implies the block address has been finalized for the
@@ -1225,6 +1212,7 @@ static int jnode_allocate_flush (flush_position *pos)
 			goto exit;
 		}
 
+		info ("allocated block %llu\n", blk);
 		/* FIXME: HERE YOU ARE */
 	}
 
@@ -1260,6 +1248,27 @@ static int flush_extents (flush_position *pos UNUSED_ARG)
 {
 	/* FIXME: */
 	return 0;
+}
+
+/********************************************************************************
+ * JNODE INTERFACE
+ ********************************************************************************/
+
+/* Gets the sibling of an unformatted jnode using its index, only if it is in
+ * memory, and reference it. */
+static jnode* jnode_get_extent_neighbor (jnode *node, unsigned long node_index)
+{
+	struct page *pg;
+
+	pg = find_lock_page (node->pg->mapping, node_index);
+
+	if (pg == NULL) {
+		return NULL;
+	}
+
+	assert ("jmacd-1700", ! IS_ERR (pg));
+
+	return jnode_of_page (pg);
 }
 
 /* Lock a node (if formatted) and then get its parent locked, set the child's

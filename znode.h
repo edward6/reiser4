@@ -332,12 +332,12 @@ typedef enum {
        /*ZNODE_DELETED           = */
 
        /** this znode has been modified */
-       ZNODE_DIRTY             = 8,
+       ZNODE_DIRTY             = 9,
        /** this znode has been modified */
-       ZNODE_WRITEOUT          = 9,
+       ZNODE_WRITEOUT          = 10,
 
        /* znode lock is being invalidated */
-       ZNODE_IS_DYING          = 10,
+       ZNODE_IS_DYING          = 11,
 } reiser4_znode_state;
 
 /* Macros for accessing the znode state. */
