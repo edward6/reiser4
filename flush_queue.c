@@ -429,11 +429,12 @@ static void release_prepped_list(flush_queue_t * fq)
 			jput (cur);
 
 			goto again;
-		} else  if (JF_ISSET(cur, JNODE_DIRTY)) {
-			capture_list_push_back(&atom->dirty_nodes[jnode_get_level(cur)], cur);
-		} else {
-			capture_list_push_back(&atom->clean_nodes, cur);
 		}
+
+		if (JF_ISSET(cur, JNODE_DIRTY))
+			capture_list_push_back(&atom->dirty_nodes[jnode_get_level(cur)], cur);
+		else
+			capture_list_push_back(&atom->clean_nodes, cur);
 
 		UNLOCK_JNODE(cur);
 	}
