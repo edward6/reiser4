@@ -770,7 +770,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/* Allocate the right node. */
 	trace_on (TRACE_FLUSH_VERB, "sq1_ca[%u] ready to allocate right %s\n", call_depth, flush_znode_tostring (right_lock.node));
 
-	if (! znode_check_allocated (right_lock.node)) {
+	/* Check flush_pos_valid in case we have allocated enough already. */
+	if (! znode_check_allocated (right_lock.node) && flush_pos_valid (pos)) {
 		if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, & parent_load, ZNODE_WRITE_LOCK))) {
 			/* FIXME: check EINVAL, EDEADLK */
 			warning ("jmacd-61430", "jnode_lock_parent_coord failed: %d", ret);
@@ -849,8 +850,8 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 		/* Unless we get ENAVAIL at the leaf level, it means to stop. */
 		if (ret != -ENAVAIL || znode_get_level (node) != LEAF_LEVEL) {
 			if (ret == -ENAVAIL) {
-				ret = flush_release_ancestors (node);
 				trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (ENAVAIL, ancestors allocated): %s\n", flush_pos_tostring (pos));
+				ret = flush_release_ancestors (node);
 				flush_pos_stop (pos);
 			} else {
 				warning ("jmacd-61433", "znode_get_if_dirty failed: %d", ret);
@@ -899,8 +900,8 @@ static int flush_squalloc_changed_ancestors (flush_position *pos)
 			trace_on (TRACE_FLUSH_VERB, "sq_rca stop at twig, next is internal: %s\n", flush_pos_tostring (pos));
 		stop_at_twig:
 			/* We are leaving twig now, enqueue it if allocated. */
-			ret = flush_release_ancestors (node);
 			trace_on (TRACE_FLUSH_VERB, "sq_rca: STOP (at twig): %s\n", flush_pos_tostring (pos));
+			ret = flush_release_ancestors (node);
 			flush_pos_stop (pos);
 			goto exit;
 		}
@@ -1744,12 +1745,8 @@ static int flush_finish (flush_position *pos, int none_busy)
 
 				jnode_set_clean (node);
 
-				/* FIXME: Use TestClearPageDirty */
+				/* FIXME: Use TestClearPageDirty? */
 				assert ("jmacd-74233", !PageWriteback (pg));
-				/*
-				 * FIXME-VS: jnode_set_clean did not
-				 * ClearPageDirty. temporary: do it here then
-				 */
 				assert ("jmacd-74234", PageDirty (pg));
 				ClearPageDirty (pg);
 				SetPageWriteback (pg);
@@ -1839,10 +1836,11 @@ static int flush_rewrite_jnode (jnode *node)
 
 	/* FIXME: temporary */
 	if ((WRITE_LOG && JF_ISSET (node, ZNODE_WANDER))) {
+		spin_unlock_jnode (node);
 		return 0;
 	}
 
-	/* FIXME: This spinlock does very little.  Why?  Races everywhere. */
+	/* FIXME: This spinlock does very little.  Why?  Races are everywhere. */
 	spin_unlock_jnode (node);
 
 	if ((pg = jnode_page (node)) == NULL) {
@@ -2641,10 +2639,9 @@ static int flush_pos_to_child_and_alloc (flush_position *pos)
 
 	if (0) {
 	stop:
-		if ((ret = flush_release_ancestors (pos->parent_lock.node))) {
-			return ret;
-		}
-		return flush_pos_stop (pos);
+		ret = flush_release_ancestors (pos->parent_lock.node);
+		flush_pos_stop (pos);
+		return ret;
 	}
 
 	/* And keep going... */
