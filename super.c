@@ -211,7 +211,7 @@ static __u64 reserved_for_root( const struct super_block *super UNUSE )
 
 int reiser4_init_tree( reiser4_tree *tree /* pointer to structure being
 					   * initialised */, 
-		       const reiser4_disk_addr *root_block /* address of a
+		       const reiser4_block_nr *root_block /* address of a
 							    * root block on a
 							    * disk */,
 		       tree_level height /* height of a tree */, 

@@ -665,7 +665,8 @@ void node40_print( const znode *node, __u32 flags UNUSED_ARG )
 	
 	header = node40_node_header( node );
 	info( "BLOCKNR %Lu FREE_SPACE %u, LEVEL %u, ITEM_NUMBER %u\n",
-	      znode_get_block (node)->blk, nh_40_get_free_space( header ),
+	      *znode_get_block (node),
+	      nh_40_get_free_space( header ),
 	      nh_40_get_level( header ),
 	      nh_40_get_num_items( header ) );
 }
@@ -1953,10 +1954,10 @@ int node40_shift (tree_coord * from, znode * to,
 		shift.shift_bytes);
 #endif	
 	trace_on (TRACE_SHIFT, "shift: [%Li] %s--%s [%Li]: %i\n",
-		  znode_get_block (left) -> blk, 
+		  *znode_get_block (left), 
 		  (shift.pend == SHIFT_LEFT) ? "<" : "",
 		  (shift.pend == SHIFT_LEFT) ? "" : ">",
-		  znode_get_block (right) -> blk, shift.shift_bytes);
+		  *znode_get_block (right), shift.shift_bytes);
 
 	node_check (source, REISER4_NODE_PANIC);
 	node_check (to, REISER4_NODE_PANIC);

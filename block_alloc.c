@@ -7,35 +7,36 @@
 /** is it a real block number from real block device or fake block number for
  * not-yet-mapped object? */
 
-int blocknr_is_fake(const reiser4_disk_addr * da)
+int blocknr_is_fake(const reiser4_block_nr * da)
 {
-	return da->blk & REISER4_FAKE_BLOCKNR_BIT_MASK;
+	return *da & REISER4_FAKE_BLOCKNR_BIT_MASK;
 }
 
 
 /** a generator for tree nodes fake block numbers */
-static block_nr get_next_fake_blocknr ()
+static void get_next_fake_blocknr (reiser4_block_nr *bnr)
 {
-	static block_nr gen = 0;
+	/* FIXME: This isn't thread-safe. */
+	static reiser4_block_nr gen = 0;
 
-	++ gen;
+	gen += 1;
 
 	gen &= ~REISER4_BLOCKNR_STATUS_BIT_MASK;
 	gen |= REISER4_UNALLOCATED_BIT_MASK;
 
 #if REISER4_DEBUG
 	{
-		reiser4_disk_addr da = {.blk = gen};
 		znode * node;
 
-		node = zlook(current_tree, &da, 0);
+		node = zlook(current_tree, & gen, 0);
 		assert ("zam-394", node == NULL);
 	}
 #endif
 
-	return gen;
+	*bnr = gen;
 }
-static inline int find_next_zero_bit_in_byte (unsigned int byte, int start)
+
+static int find_next_zero_bit_in_byte (unsigned int byte, int start)
 {
 	unsigned int mask = 1 << start;
 	int i = start;
@@ -73,7 +74,7 @@ static inline void reiser4_clear_bit (int nr, void * addr)
 	*base &= ~(1 << (nr & 0x7));
 }
 
-static inline int reiser4_find_next_zero_bit (void * addr, int size, int start_offset)
+static int reiser4_find_next_zero_bit (void * addr, int size, int start_offset)
 {
 	unsigned char * p = addr;
 	int byte_nr = start_offset >> 3;
@@ -101,7 +102,7 @@ static inline int reiser4_find_next_zero_bit (void * addr, int size, int start_o
 
 #endif
 
-static inline int reiser4_find_next_set_bit (void * addr, int size, int start_offset)
+static int reiser4_find_next_set_bit (void * addr, int size, int start_offset)
 {
 	unsigned char * p = addr;
 	int byte_nr = start_offset >> 3;
@@ -113,21 +114,21 @@ static inline int reiser4_find_next_set_bit (void * addr, int size, int start_of
 	if (bit_nr != 0) {
 		int nr;
 
-		nr = find_next_zero_bit_in_byte(~(*p), bit_nr);
+		nr = find_next_zero_bit_in_byte(~ (unsigned int) (*p), bit_nr);
 
 		if (nr < 8) return (byte_nr << 3) + nr;
 	}
 
 	while (++ byte_nr < max_byte_nr) {
 		if (*(++p) != 0) {
-			return (byte_nr << 3) + find_next_zero_bit_in_byte(~(*p), 0);
+			return (byte_nr << 3) + find_next_zero_bit_in_byte(~ (unsigned int) (*p), 0);
 		}
 	}
 
 	return size;
 }
 
-static inline void reiser4_set_bits (char * addr, int start, int end)
+static void reiser4_set_bits (char * addr, int start, int end)
 {
 	int first_byte;
 	int last_byte;
@@ -185,33 +186,31 @@ static inline void reiser4_set_bits (char * addr, int start, int end)
  */
 
 /** calculate bitmap block number and offset within that bitmap block */
-static void parse_blocknr (block_nr block, int *bmap, int *offset)
+static void parse_blocknr (const reiser4_block_nr *block, int *bmap, int *offset)
 {
 	struct super_block * super = reiser4_get_current_context()->super;
 
-	*bmap   = block / super->s_blocksize;
-	*offset = block % super->s_blocksize;
+	*bmap   = *block / super->s_blocksize;
+	*offset = *block % super->s_blocksize;
 } 
 
 /* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
-block_nr get_working_bitmap_blocknr (int bmap)
+void get_working_bitmap_blocknr (int bmap, reiser4_block_nr *bnr)
 {
-	block_nr block = bmap;
-	return block | 0xF0000000LL;
+	/* FIXME: what's this 0xF0000000LL?  Name it. */
+	*bnr = (reiser4_block_nr) bmap | 0xF0000000LL;
 }
 
 /** Load node at given blocknr, update given pointer. This function should be
  * called under tree lock held */
-static inline int load_bnode_half (znode ** node_pp, block_nr block)
+static int load_bnode_half (znode ** node_pp, reiser4_block_nr *block)
 {
-	reiser4_disk_addr addr;
 	znode * node;
 	int ret;
 
 	spin_unlock_tree (current_tree);
 
-	addr.blk = block;
-	node = zget(current_tree, &addr, NULL, 0, GFP_KERNEL);
+	node = zget(current_tree, block, NULL, 0, GFP_KERNEL);
 
 	if (IS_ERR(node)) {
 		spin_lock_tree(current_tree);
@@ -254,17 +253,20 @@ static int load_bnode (struct reiser4_bnode * bnode)
 	struct super_block * super = reiser4_get_current_context()->super;
 	int ret = 0;
 	int bmap_nr = info_data->bitmap - bnode;
+	reiser4_block_nr bnr;
 
 	spin_lock_tree(current_tree);
 
 	if (bnode->commit == NULL) {
-		ret = load_bnode_half(&bnode->commit, get_bitmap_blocknr(super, bmap_nr));
+		get_bitmap_blocknr(super, bmap_nr, & bnr);
+		ret = load_bnode_half(&bnode->commit, & bnr);
 
 		if (ret < 0) goto out;
 	}
 
 	if (bnode->working == NULL) {
-		ret = load_bnode_half(&bnode->working, get_working_bitmap_blocknr(bmap_nr));
+		get_working_bitmap_blocknr(bmap_nr, &bnr);
+		ret = load_bnode_half(&bnode->working, & bnr);
 
 		if (ret < 0) goto out;
 
@@ -359,7 +361,7 @@ static int search_one_bitmap (int bmap, int *offset, int max_offset,
 }
 
 /** allocate contiguous range of blocks in bitmap */
-int bitmap_alloc (block_nr *start, block_nr end, int min_len, int max_len)
+int bitmap_alloc (reiser4_block_nr *start, const reiser4_block_nr *end, int min_len, int max_len)
 {
 	int bmap, offset;
 	int end_bmap, end_offset;
@@ -368,7 +370,7 @@ int bitmap_alloc (block_nr *start, block_nr end, int min_len, int max_len)
 	struct super_block * super = reiser4_get_current_context()->super;
 	int max_offset = super->s_blocksize;
 
-	parse_blocknr(*start, &bmap, &offset);
+	parse_blocknr(start, &bmap, &offset);
 	parse_blocknr(end, &end_bmap, &end_offset);
 
 	assert("zam-358", end_bmap >= bmap);
@@ -479,18 +481,20 @@ int alloc_new_unf_blocks (int count)
 }
 
 /** allocate one block for formatted node */
-int alloc_new_block (block_nr * block)
+int alloc_new_block (reiser4_block_nr * block)
 {
 	reiser4_super_info_data * info_data = get_current_super_private();
-	int ret = 0;
+	int ret;
 
 	spin_lock (&info_data->guard);
 
-	if (info_data->blocks_free == 0)
+	if (info_data->blocks_free == 0) {
 		ret = -ENOSPC;
-
-	-- info_data->blocks_free;
-	*block = get_next_fake_blocknr();
+	} else {
+		ret = 0;
+		-- info_data->blocks_free;
+		get_next_fake_blocknr (block);
+	}
 
 	spin_unlock (&info_data->guard);
 
@@ -513,16 +517,16 @@ void dealloc_new_blocks (int count)
 }
 
 /* real blocks allocation */
-/** */
-int reiser4_alloc_blocks (struct reiser4_blocknr_hint * hint UNUSED_ARG, block_nr *start, int *len)
+/** FIXME: Zam: isn't start contained in hint? -josh */
+int reiser4_alloc_blocks (struct reiser4_blocknr_hint * hint UNUSED_ARG, reiser4_block_nr *start, int *len)
 {
 	struct super_block      * super = reiser4_get_current_context()->super;
 	reiser4_super_info_data * info_data = get_super_private(super); 
 
 	int      actual_len;
 
-	block_nr search_start;
-	block_nr search_end;
+	reiser4_block_nr search_start;
+	reiser4_block_nr search_end;
 
 	assert ("zam-398", super != NULL);
 	assert ("zam-397", *start < info_data->blocks_used);
@@ -534,12 +538,13 @@ int reiser4_alloc_blocks (struct reiser4_blocknr_hint * hint UNUSED_ARG, block_n
 	 * @start to the end of the disk */
 
 	search_start = *start;
-	search_end = *start + *len;
+	search_end   = *start + *len;
 
-	if (search_end > info_data->blocks_used) 
+	if (search_end > info_data->blocks_used) {
 		search_end = reiser4_data_blocks (super);
+	}
 
-	actual_len = bitmap_alloc (&search_start, search_end, 1, *len);
+	actual_len = bitmap_alloc (&search_start, &search_end, 1, *len);
 
 	if (actual_len != 0) goto out;
 
@@ -547,7 +552,7 @@ int reiser4_alloc_blocks (struct reiser4_blocknr_hint * hint UNUSED_ARG, block_n
 	search_end = search_start;
 	search_start = 0;
 
-	actual_len = bitmap_alloc (&search_start, search_end, 1, *len);
+	actual_len = bitmap_alloc (&search_start, &search_end, 1, *len);
 
  out:
 	if (actual_len <= 0) return actual_len;
@@ -625,7 +630,7 @@ int block_alloc_pre_commit_hook (txn_atom * atom)
 		    !JF_ISSET(node, ZNODE_ALLOC))
 			continue;
 
-		parse_blocknr(node->blocknr.blk, &bmap, &offset);
+		parse_blocknr(& node->blocknr, &bmap, &offset);
 
 		assert("zam-370", !blocknr_is_fake(&node->blocknr));
 
@@ -708,7 +713,7 @@ int block_alloc_post_commit_hook (txn_atom * atom) {
 		/* ... apply DELETED_SET to the WORKING bitmap */
 		assert ("zam-403", !blocknr_is_fake(&node->blocknr));
 
-		parse_blocknr(node->blocknr.blk, &bmap, &offset);
+		parse_blocknr(& node->blocknr, &bmap, &offset);
 
 		bnode = (struct reiser4_bnode*)(info_data->bitmap) + bmap;
 
@@ -749,9 +754,9 @@ int block_alloc_post_writeback_hook (txn_atom * atom)
 		if (!JF_ISSET(node, ZNODE_WANDER))
 			continue;
 
-		assert ("zam-404", !blocknr_is_fake(&node->blocknr))
-;
-		parse_blocknr(node->blocknr.blk, &bmap, &offset);
+		assert ("zam-404", !blocknr_is_fake(&node->blocknr));
+
+		parse_blocknr(& node->blocknr, &bmap, &offset);
 		bnode = (struct reiser4_bnode*)(info_data->bitmap) + bmap;
 
 		assert ("zam-379", bnode->commit != NULL);
@@ -774,14 +779,14 @@ int block_alloc_post_writeback_hook (txn_atom * atom)
  * completed.
  */
 /*
- * probability of getting blocks prefectly allocated
+ * probability of getting blocks perfectly allocated (eek, floating point in kernel?)
  */
 #define P 0.2
-int allocate_new_blocks (block_nr * hint,
-			 block_nr * count)
+int allocate_new_blocks (reiser4_block_nr * hint,
+			 reiser4_block_nr * count)
 {
 	double p;
-	static block_nr min_free = 10000;
+	static reiser4_block_nr min_free = 10000;
 
 
 	assert ("vs-460", *count > 0);
@@ -804,12 +809,12 @@ int allocate_new_blocks (block_nr * hint,
 	return 0;
 }
 
-void reiser4_free_block (block_nr block UNUSED_ARG)
+void reiser4_free_block (reiser4_block_nr block UNUSED_ARG)
 {
 	return;
 }
 
-int free_blocks (block_nr hint UNUSED_ARG, block_nr count UNUSED_ARG)
+int free_blocks (reiser4_block_nr hint UNUSED_ARG, reiser4_block_nr count UNUSED_ARG)
 {
 	return 0;
 }

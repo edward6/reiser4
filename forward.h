@@ -21,7 +21,7 @@ typedef struct reiser4_object_create_data reiser4_object_create_data;
 typedef struct reiser4_plugin reiser4_plugin;
 typedef struct reiser4_item_data reiser4_item_data;
 typedef union reiser4_key reiser4_key;
-typedef union reiser4_disk_addr reiser4_disk_addr;
+typedef union reiser4_dblock_nr reiser4_dblock_nr;
 typedef struct reiser4_tree reiser4_tree;
 typedef struct carry_tree_op carry_tree_op;
 typedef struct carry_tree_node carry_tree_node;

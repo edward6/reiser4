@@ -80,20 +80,30 @@ static inline d64 *cputod64( __u64 oncpu, d64 *ondisk )
 	return ondisk;
 }
 
-/** data-type for block number on disk */
-typedef d64 dblock_nr;
-typedef __u64 block_nr;
+/** data-type for block number on disk: these types enable changing the block
+ * size to other sizes, but they are only a start.  Suppose we wanted to
+ * support 48bit block numbers.  The dblock_nr blk would be changed to "short
+ * blk[3]".  The block_nr type should remain an integral type greater or equal
+ * to the dblock_nr type in size so that CPU arithmetic operations work. */
+typedef __u64 reiser4_block_nr;
 
-union reiser4_disk_addr {
-
-	/**
-	 * block number on durable block-addressable storage
-	 */
-	block_nr     blk;
+/** data-type for block number on disk, disk format */
+union reiser4_dblock_nr {
+	d64      blk;
 };
 
-static inline int disk_addr_eq( const reiser4_disk_addr *b1, 
-				const reiser4_disk_addr *b2 )
+static inline __u64 dblock_to_cpu (const reiser4_dblock_nr *dblock)
+{
+	return d64tocpu (& dblock->blk);
+}
+
+static inline void cpu_to_dblock (__u64 block, reiser4_dblock_nr *dblock)
+{
+	cputod64 (block, & dblock->blk);
+}
+
+static inline int disk_addr_eq( const reiser4_block_nr *b1, 
+				const reiser4_block_nr *b2 )
 {
 	assert( "nikita-1033", b1 != NULL );
 	assert( "nikita-1266", b2 != NULL );
@@ -103,7 +113,7 @@ static inline int disk_addr_eq( const reiser4_disk_addr *b1,
 
 extern int get_nr_bmap (struct super_block * super);
 
-extern block_nr get_bitmap_blocknr (struct super_block *, int);
+extern void get_bitmap_blocknr (struct super_block *, int, reiser4_block_nr *);
 
 /* __FS_REISER4_DFORMAT_H__ */
 #endif

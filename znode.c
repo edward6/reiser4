@@ -18,7 +18,7 @@
  *  . they contain links to lists used by the transaction manager
  *
  * Znode is attached to some variable "block number" which is instance
- * of fs/reiser4/tree.h:reiser4_disk_addr type. Znode can exist without
+ * of fs/reiser4/tree.h:reiser4_block_nr type. Znode can exist without
  * appropriate node being actually loaded in memory. Existence of znode
  * itself is regulated by reference count (->x_count) in it. Each time
  * thread acquires reference to znode through call to zget(),
@@ -167,27 +167,27 @@
 /* hash table support */
 
 /** compare two block numbers for equality. Used by hash-table macros */
-static inline int blknreq( const reiser4_disk_addr *b1,
-			   const reiser4_disk_addr *b2 )
+static inline int blknreq( const reiser4_block_nr *b1,
+			   const reiser4_block_nr *b2 )
 {
 	assert( "nikita-534", b1 != NULL );
 	assert( "nikita-535", b2 != NULL );
 
-	return( b1 -> blk == b2 -> blk );
+	return *b1 == *b2;
 }
 
 /** Hash znode by block number. Used by hash-table macros */
-static inline __u32 blknrhashfn( const reiser4_disk_addr *b )
+static inline __u32 blknrhashfn( const reiser4_block_nr *b )
 {
 	assert( "nikita-536", b != NULL );
 
-	return( b -> blk & ( REISER4_ZNODE_HASH_TABLE_SIZE - 1 ) );
+	return *b & ( REISER4_ZNODE_HASH_TABLE_SIZE - 1 );
 }
 
 /** The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
-TS_HASH_DEFINE( z, znode, reiser4_disk_addr, zjnode.blocknr, link, blknrhashfn, blknreq );
+TS_HASH_DEFINE( z, znode, reiser4_block_nr, zjnode.blocknr, link, blknrhashfn, blknreq );
 #undef KFREE
 #undef KMALLOC
 
@@ -330,7 +330,7 @@ void zdestroy( znode *node )
  * tree->hash_lock.
  */
 znode*
-zlook (reiser4_tree *tree, const reiser4_disk_addr *const blocknr, tree_level level UNUSED_ARG)
+zlook (reiser4_tree *tree, const reiser4_block_nr *const blocknr, tree_level level UNUSED_ARG)
 {
 	znode *result;
 
@@ -383,7 +383,7 @@ znode *zref (znode *node)
  */
 znode*
 zget (reiser4_tree *tree,
-      const reiser4_disk_addr *const blocknr,
+      const reiser4_block_nr *const blocknr,
       znode        *parent,
       tree_level    level,
       int           gfp_flag)
@@ -495,7 +495,7 @@ zget (reiser4_tree *tree,
 	if (znode_get_level (result) != level) {
 		warning ("jmacd-504",
 			 "Wrong tree level for cached block %llu: level %i expecting %i",
-			 blocknr->blk,
+			 *blocknr,
 			 znode_get_level (result),
 			 level);
 		return ERR_PTR (-EIO);
@@ -601,8 +601,7 @@ int zload( znode *node )
 		 * we rely on proper synchronization in the underlying
 		 * transport.
 		 */
-		result = tree -> read_node( tree, 
-					    znode_get_block( node ), &data );
+		result = tree -> read_node( znode_get_block( node ), &data );
 		reiser4_stat_znode_add( zload_read );
 		spin_lock_znode( node );
 
@@ -746,7 +745,7 @@ int znode_is_loaded( const znode *node )
 /**
  * block number of node
  */
-const reiser4_disk_addr *znode_get_block( const znode *node )
+const reiser4_block_nr *znode_get_block( const znode *node )
 {
 	assert( "nikita-528", node  != NULL );
 

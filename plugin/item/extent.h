@@ -1,21 +1,21 @@
+
 /*
  * Copyright 2001 by Hans Reiser, licensing governed by reiser4/README
  */
 
 /* on disk extent */
 typedef struct {
-	d64 start;
-	d64 width;
+	reiser4_dblock_nr start;
+	reiser4_dblock_nr width;
 } reiser4_extent;
 
 
 /* macros to set/get fields of on-disk extent */
-#define extent_get_start(ext) d64tocpu(&((ext)->start))
-#define extent_get_width(ext) d64tocpu(&((ext)->width))
+static inline reiser4_block_nr extent_get_start(const reiser4_extent *ext) { return dblock_to_cpu (& ext->start); }
+static inline reiser4_block_nr extent_get_width(const reiser4_extent *ext) { return dblock_to_cpu (& ext->width); }
 
-#define extent_set_start(ext,a) cputod64 (a, &(ext)->start)
-#define extent_set_width(ext,a) cputod64 (a, &(ext)->width)
-
+static inline void extent_set_start(reiser4_extent *ext, reiser4_block_nr start) { cpu_to_dblock (start, & ext->start); }
+static inline void extent_set_width(reiser4_extent *ext, reiser4_block_nr width) { cpu_to_dblock (width, & ext->width); }
 
 #define extent_item(coord) ((reiser4_extent *)item_body_by_coord (coord))
 #define extent_by_coord(coord) (extent_item (coord) + (coord)->unit_pos)

@@ -17,15 +17,15 @@ typedef struct {
 	    to go next. */
 	void ( *down_link )( const tree_coord *coord, 
 			     const reiser4_key *key, 
-			     reiser4_disk_addr *block );
+			     reiser4_block_nr *block );
 	/** check that given internal item contains given pointer. */
 	int ( *has_pointer_to )( const tree_coord *coord, 
-				 const reiser4_disk_addr *block );
+				 const reiser4_block_nr *block );
 } internal_item_ops;
 
 /** on-disk layout of internal item */
 typedef struct internal_item_layout {
-	/*  0 */ dblock_nr pointer;
+	/*  0 */ reiser4_dblock_nr pointer;
 	/*  4 */
 } internal_item_layout;
 
@@ -36,9 +36,9 @@ lookup_result internal_lookup (const reiser4_key * key, lookup_bias bias,
     ->down_link() method */
 extern void internal_down_link    ( const tree_coord *coord, 
 				    const reiser4_key *key, 
-				    reiser4_disk_addr *block );
+				    reiser4_block_nr *block );
 extern int internal_has_pointer_to( const tree_coord *coord, 
-				    const reiser4_disk_addr *block );
+				    const reiser4_block_nr *block );
 extern int internal_create_hook   ( const tree_coord *item, void *arg );
 extern int internal_kill_hook     ( const tree_coord *item, 
 				    unsigned from, unsigned count );

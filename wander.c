@@ -91,7 +91,7 @@ enum log_record_types {
 struct _log_region {
 	/* A single region of the log. */
 
-	reiser4_disk_addr base; /* first block */
+	reiser4_block_nr base; /* first block */
 	__u32             blks; /* number of blocks */
 	__u32             generation;
 };
@@ -153,7 +153,7 @@ struct _log_record_footer {
 	d32   checksum;     /* Checksum of ... */
 };
 
-int block_is_allocated (const reiser4_disk_addr *blocknr UNUSED_ARG)
+int block_is_allocated (const reiser4_block_nr *blocknr UNUSED_ARG)
 {
 	/* stub function */
 	return 0;

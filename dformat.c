@@ -18,7 +18,7 @@ int get_nr_bmap (struct super_block * super)
 
 
 /** return a physical disk address for logical bitmap number @bmap */
-block_nr get_bitmap_blocknr (struct super_block * super, int bmap)
+void get_bitmap_blocknr (struct super_block * super, int bmap, reiser4_block_nr *bnr)
 {
 
 	assert ("zam-389", bmap >= 0);
@@ -27,9 +27,11 @@ block_nr get_bitmap_blocknr (struct super_block * super, int bmap)
 	/* FIXME_ZAM: before discussing of disk layouts and disk format
 	 * plugins I implement bitmap location scheme which is close to scheme
 	 * used in reiser 3.6 */
-	if (bmap == 0) return REISER4_FIRST_BITMAP_BLOCK;
-
-	return bmap * super->s_blocksize * 8;
+	if (bmap == 0) {
+		*bnr = REISER4_FIRST_BITMAP_BLOCK;
+	} else {
+		*bnr = bmap * super->s_blocksize * 8;
+	}
 }
 
 /* 
