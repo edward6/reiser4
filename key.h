@@ -357,6 +357,11 @@ prefetchkey(reiser4_key *key)
 	prefetch(&key->el[KEY_CACHELINE_END]);
 }
 
+/* (%Lx:%x:%Lx:%Lx:%Lx:%Lx) = 
+           1 + 16 + 1 + 1 + 1 + 1 + 1 + 16 + 1 + 16 + 1 + 16 + 1 */
+/* size of a buffer suitable to hold human readable key representation */
+#define KEY_BUF_LEN (80)
+
 extern int sprintf_key(char *buffer, const reiser4_key * key);
 #if REISER4_DEBUG_OUTPUT
 extern void print_key(const char *prefix, const reiser4_key * key);
