@@ -1831,6 +1831,8 @@ became_dirty:
 	pos->state = item_is_extent(&at_right) ? POS_ON_TWIG : POS_TO_LEAF;
 	move_flush_pos(pos, &right_lock, &right_load, &at_right);
 
+	/* submit prepped nodes when pos is going to the next twig */
+	ret = write_prepped_nodes(pos, 0);
  out:
 	done_load_count(&right_load);
 	done_lh(&right_lock);
