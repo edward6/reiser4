@@ -63,7 +63,6 @@ lock_counters_info *lock_counters()
 {
 	return &reiser4_get_current_context() -> locks;
 }
-#endif
 
 /**
  * check_stack() - check for possible stack overflow
@@ -86,6 +85,7 @@ void check_stack( void )
 	}
 	reiser4_stat_stack_check_max( gap );
 }
+#endif
 
 #if REISER4_STATS
 /**
