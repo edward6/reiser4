@@ -239,11 +239,21 @@ extern int is_reiser4_inode(const struct inode *inode);
 extern int setup_inode_ops(struct inode *inode, reiser4_object_create_data *);
 extern int init_inode(struct inode *inode, coord_t * coord);
 extern struct inode *reiser4_iget(struct super_block *super, const reiser4_key * key);
+extern void reiser4_iget_complete (struct inode * inode);
 extern int reiser4_inode_find_actor(struct inode *inode, void *opaque);
 
 extern void inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f);
 extern void inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
 extern int inode_get_flag(const struct inode *inode, reiser4_file_plugin_flags f);
+
+/*  has inode been initialized? */
+/* Audited by: green(2002.06.17) */
+static inline int
+is_inode_loaded(const struct inode *inode /* inode queried */ )
+{
+	assert("nikita-1120", inode != NULL);
+	return inode_get_flag(inode, REISER4_LOADED);
+}
 
 extern file_plugin *inode_file_plugin(const struct inode *inode);
 extern dir_plugin *inode_dir_plugin(const struct inode *inode);

@@ -140,19 +140,6 @@ inter_syscall_ra(const struct inode * inode	/* inode
 	return &reiser4_inode_data(inode)->ra;
 }
 
-/* should be moved into .h */
-
-#if REISER4_DEBUG
-/*  has inode been initialized? */
-/* Audited by: green(2002.06.17) */
-static int
-is_inode_loaded(const struct inode *inode /* inode queried */ )
-{
-	assert("nikita-1120", inode != NULL);
-	return inode_get_flag(inode, REISER4_LOADED);
-}
-#endif
-
 /* Install file, inode, and address_space operation on @inode, depending on
    its mode. */
 /* Audited by: green(2002.06.17) */
@@ -221,8 +208,6 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 
 	assert("nikita-292", coord != NULL);
 	assert("nikita-293", inode != NULL);
-	assert("nikita-1946", inode->i_state & I_NEW);
-	assert("nikita-2378", inode->i_state & I_LOCK);
 
 	coord_clear_iplug(coord);
 	result = zload(coord->node);
@@ -290,7 +275,6 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 	result = lookup_sd(inode, ZNODE_READ_LOCK, &coord, &lh, key);
 	assert("nikita-301", !is_inode_loaded(inode));
 	if (result == 0) {
-		inode_set_flag(inode, REISER4_LOADED);
 		/* use stat-data plugin to load sd into inode. */
 		result = init_inode(inode, &coord);
 		if (result == 0) {
@@ -310,10 +294,8 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 	   init_inode() */
 	done_lh(&lh);
 
-	if (result != 0) {
+	if (result != 0)
 		reiser4_make_bad_inode(inode);
-		unlock_new_inode(inode);
-	}
 }
 
 /* initialise new reiser4 inode being inserted into hash table. */
@@ -380,23 +362,39 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			     reiser4_inode_find_actor, init_locked_inode, (reiser4_key *) key);
 	if (inode == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
-	else if (is_bad_inode(inode)) {
+	if (is_bad_inode(inode)) {
 		warning("nikita-304", "Stat data not found");
 		print_key("key", key);
-	} else if (inode->i_state & I_NEW) {
-		/* locking: iget5_locked returns locked inode */
-		assert("nikita-1941", !is_inode_loaded(inode));
-		assert("nikita-1949", reiser4_inode_find_actor(inode, (reiser4_key *)
-							       key));
-		/* now, inode has objectid as -> i_ino and locality in
-		   reiser4-specific part. This data is enough for read_inode()
-		   to read stat data from the disk */
-		read_inode(inode, key);
-	}
-	if (is_bad_inode(inode)) {
 		iput(inode);
-		inode = ERR_PTR(RETERR(-EIO));
-	} else if (REISER4_DEBUG) {
+		return ERR_PTR(RETERR(-EIO));
+	}
+
+	if (inode->i_state & I_NEW)
+		unlock_new_inode(inode);
+
+	if (!is_inode_loaded(inode)) {
+		reiser4_inode * info;
+
+		info = reiser4_inode_data(inode);
+		down(&inode->i_sem);
+		if (!is_inode_loaded(inode)) {
+			/* locking: iget5_locked returns locked inode */
+			assert("nikita-1941", !is_inode_loaded(inode));
+			assert("nikita-1949", reiser4_inode_find_actor(inode, (reiser4_key *)
+								       key));
+			/* now, inode has objectid as -> i_ino and locality in
+			   reiser4-specific part. This data is enough for
+			   read_inode() to read stat data from the disk */
+			read_inode(inode, key);
+		}
+		if (is_bad_inode(inode)) {
+			up(&inode->i_sem);
+			iput(inode);
+			return ERR_PTR(RETERR(-EIO));
+		}
+	}
+
+	if (REISER4_DEBUG) {
 		reiser4_key found_key;
 
 		build_sd_key(inode, &found_key);
@@ -406,7 +404,19 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			print_key("found", &found_key);
 		}
 	}
+
 	return inode;
+}
+
+/* reiser4_iget() may return not fully initialized inode, this function should
+ * be called after one completes reiser4 inode initializing. */
+void reiser4_iget_complete (struct inode * inode)
+{
+	assert("zam-988", is_reiser4_inode(inode));
+	assert("zam-989", !is_inode_loaded(inode));
+
+	inode_set_flag(inode, REISER4_LOADED);
+	up(&inode->i_sem);
 }
 
 /* Audited by: green(2002.06.17) */
