@@ -1015,7 +1015,7 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	if (inode_get_crypto(inode) != NULL) {
 		crypto_plugin * cplug;
 
-		/* FIXME-EDWARD: isn't support yet */
+		/* FIXME-EDWARD: isn't supported yet */
 		assert("edward-908", 0);
 		cplug = inode_crypto_plugin(inode);
 		assert("edward-617", cplug != NULL);
@@ -1470,25 +1470,13 @@ update_sd_cryptcompress(struct inode *inode)
 }
 
 reiser4_internal void
-uncapture_page_cryptcompress(struct page *pg)
+uncapture_cluster_jnode(jnode *node)
 {
-	jnode *node;
 	txn_atom *atom;
-
-	assert("umka-199", pg != NULL);
-	assert("nikita-3155", PageLocked(pg));
 	
-	reiser4_clear_page_dirty(pg);
-
-	node = (jnode *) (pg->private);
-	if (node == NULL)
-		return;
-
-	LOCK_JNODE(node);
-
-	eflush_del(node, 1/* page is locked */);
-	/*assert ("zam-815", !JF_ISSET(node, JNODE_EFLUSH));*/
-
+	assert("edward-1023", spin_jnode_is_locked(node));
+	
+	/*jnode_make_clean(node);*/
 	atom = jnode_get_atom(node);
 	if (atom == NULL) {
 		assert("jmacd-7111", !jnode_is_dirty(node));
@@ -1549,7 +1537,7 @@ struct inode * inode)
 	node->page_count = 0;
 #endif	
 	cluster_reserved2grabbed(estimate_insert_cluster(inode, 0));
-	uncapture_jnode(node);
+	uncapture_cluster_jnode(node);
 	
 	UNLOCK_JNODE(node);
 	
