@@ -1082,6 +1082,7 @@ static int add_hole (tree_coord * coord, reiser4_lock_handle * lh,
 	item.iplug = item_plugin_by_id (EXTENT_ITEM_ID);	
 	item.arg = 0;
 
+	result = 0;
 	if (todo == CREATE_HOLE) {
 		reiser4_key hole_key;
 
