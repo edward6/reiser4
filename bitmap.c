@@ -50,8 +50,8 @@ static void parse_blocknr (block_nr block, int *bmap, int *offset)
 	*offset = block % super->s_blocksize;
 } 
 
-/* construct a fake block number for shadow bitmap (COMMIT BITMAP) block */
-block_nr get_commit_bitmap_blocknr (int bmap)
+/* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
+block_nr get_working_bitmap_blocknr (int bmap)
 {
 	block_nr block = bmap;
 	return bmap | 0xF0000000LL;
@@ -113,23 +113,23 @@ static int load_bnode (struct reiser4_bnode * bnode)
 
 	spin_lock_tree(current_tree);
 
-	if (bnode->working == NULL) {
-		ret = load_bnode_half(&bnode->working, reiser4_get_bitmap_blocknr(bmap));
+	if (bnode->commit == NULL) {
+		ret = load_bnode_half(&bnode->commit, reiser4_get_bitmap_blocknr(bmap));
 
 		if (ret < 0) goto out;
 	}
 
-	if (bnode->commit == NULL) {
-		ret = load_bnode_half(&bnode->commit, 
-				      get_commit_bitmap_blocknr(info->bitmap - bnode));
+	if (bnode->working == NULL) {
+		ret = load_bnode_half(&bnode->working, 
+				      get_working_bitmap_blocknr(info->bitmap - bnode));
 
 		if (ret < 0) goto out;
 
 		if (ret == 0) {
 			/* commit bitmap is initialized by on-disk bitmap
 			 * content (working bitmap in this context) */
-			xmemcpy(bnode->commit->data,
-			       bnode->working->data,
+			xmemcpy(bnode->working->data,
+			       bnode->commit->data,
 			       super->s_blocksize);
 		}
 
@@ -175,6 +175,36 @@ static inline block_nr reconstruct_wandered_blocknr (jnode * node)
 	return 0;
 }
 
+static inline void set_le_bits (char * addr, int start, int end)
+{
+	int first_byte;
+	int last_byte;
+	int i;
+
+	assert ("zam-386", start < end);
+
+	first_byte = start >> 3;
+	last_byte = (end - 1) >> 3;
+
+	for (i = first_byte + 1; i < last_byte) 
+		addr[i] = 0xFF;
+
+	{
+		unsigned char first_byte_mask = 0xFF;
+		unsigned char last_byte_mask = 0xFF;
+
+		first_byte_mask >>= (start & 0x7);
+		last_byte_mask <<= (8 - ((end - 1) & 0x7));
+	
+		if (first_byte == last_byte) {
+			addr[first_byte] | = (first_byte_mask & last_byte_mask);
+		} else {
+			addr[first_byte] |= first_byte_mask;
+			addr[last_byte]  |= last_byte_mask;
+		}
+	}
+}
+
 /** This function does all block allocation work but only for one bitmap
  * block.*/
 /* FIXME_ZAM: It does not allow us to allocate block ranges across bitmap
@@ -191,7 +221,7 @@ static int search_one_bitmap (int bmap, int *offset, int max_offset,
 	int start;
 	int end;
 
-	int ret;
+	int ret = 0;
 
 	assert("zam-364", min_len > 0);
 	assert("zam-365", max_len >= min_len);
@@ -205,24 +235,27 @@ static int search_one_bitmap (int bmap, int *offset, int max_offset,
 
 	start = *offset;
 
-	if (start + min_len >= max_offset) goto out;
+	while (start + min_len < max_offset) {
 
-	start = find_first_zero_bit(bnode->data, start, max_offset);
+		start = find_next_zero_le_bit((long*)bnode->data, max_offset, start);
 
-	if (start >= max_offset) goto out;
+		if (start >= max_offset) break;
 
-	search_end = ((start + max_len) > max_offset) ? max_offset : start + max_len;
-	end = find_first_nonzero_bit(bnode->data, start, search_end);
+		search_end = ((start + max_len) > max_offset) ? max_offset : start + max_len;
+		end = find_next_nonzero_le_bit((long*)bnode->data, search_end, start);
 
-	if (end < start + min_len) goto out;
+		if (end >= start + min_len) {
+			ret = end - start;
+			*offset = start;
+			set_le_bits(bnode->working->data, start, end);
 
-	ret = end - start;
-	*offset = start;
-	set_bits(bnode->working->data, start, end);
+			break;
+		}
 
-out:
+		start = end + 1;
+	}
+
 	spin_unlock_znode(bnode->working);
-
 	/*release_bnode(bnode);*/
 
 	return ret;
