@@ -273,7 +273,7 @@ static void parse_blocknr (const reiser4_block_nr *block, bmap_nr_t *bmap, bmap_
 	struct super_block * super = get_current_context()->super;
 
 	*bmap   = *block >> (super->s_blocksize_bits + 3);
-	*offset = *block & (super->s_blocksize - 1);
+	*offset = *block & ((super->s_blocksize << 3) - 1);
 
 	assert ("zam-433", *bmap < get_nr_bmap(super));
 } 
@@ -913,6 +913,7 @@ void bitmap_pre_commit_hook (void)
 		int err;
 
 		err = txn_try_capture(&bnode->cjnode, ZNODE_WRITE_LOCK, 0);
+		jnode_set_dirty (&bnode->cjnode);
 
 		if (err == -EAGAIN) continue;
 
