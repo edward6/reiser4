@@ -1934,11 +1934,9 @@ try_to_glue(znode * left, reiser4_block_nr first_allocated, reiser4_block_nr all
 	return 1;
 }
 
-#if REISER4_USE_EFLUSH
-
 /* before allocating unallocated extent we have to prevent from eflushing those jnodes which are not eflushed yet and
- * "unflush" jnodes which are already eflushed. Both are achieved by jload. However there can be too many eflushed
- * jnodes so, we limit number of them with this macro */
+   "unflush" jnodes which are already eflushed. Both are achieved by jload. However there can be too many eflushed
+   jnodes so, we limit number of them with this macro */
 #define JNODES_TO_UNFLUSH 16
 
 /* jload part of unallocated extent. Make sure that there were not more than JNODES_TO_UNFLUSH eflushed nodes. Return
@@ -1946,6 +1944,7 @@ try_to_glue(znode * left, reiser4_block_nr first_allocated, reiser4_block_nr all
 static __u64
 unflush_part(oid_t oid, unsigned long ind, __u64 count)
 {
+#if REISER4_USE_EFLUSH
 	__u64           i;
 	int             result;
 	reiser4_tree   *tree;
@@ -1981,12 +1980,17 @@ unflush_part(oid_t oid, unsigned long ind, __u64 count)
 				oid, ind, result);
 	}
 	return protected;
+#else
+/* !REISER4_USE_EFLUSH */
+	return count;
+#endif
 }
 
 /* jrelse @count nodes starting from index @ind */
 static int
 unflush_finish_part(oid_t oid, unsigned long ind, __u64 count)
 {
+#if REISER4_USE_EFLUSH
 	__u64         i;
 	reiser4_tree *tree;
 	int	      unprotected;
@@ -2005,14 +2009,11 @@ unflush_finish_part(oid_t oid, unsigned long ind, __u64 count)
 		jput(node);
 	}
 	return unprotected;
-}
-
 #else
-
-#define unflush_finish_part(oid, ind, count) noop
-#define unflush_part(oid, ind, count) (count)
-
+/* !REISER4_USE_EFLUSH */
+	return count;
 #endif
+}
 
 /* @right is extent item. @left is left neighbor of @right->node. Copy item
    @right to @left unit by unit. Units which do not require allocation are
