@@ -26,8 +26,8 @@ struct node40 {
 typedef struct node40 node40_t;
 
 struct node40_stamp {
-    uint32_t mkfs;
-    uint64_t time;
+    uint32_t mkfs_id;
+    uint64_t flush_id;
 };
 
 typedef struct node40_stamp node40_stamp_t;
