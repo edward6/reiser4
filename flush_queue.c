@@ -551,7 +551,7 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 		assert("nikita-2776", JF_ISSET(first, JNODE_FLUSH_QUEUED));
 		assert("zam-825", JF_ISSET(first, JNODE_RELOC));
 
-		result = emergency_unflush(first);
+		result = jload(first); /* un(-e-)flush it */
 		if (result != 0)
 			reiser4_panic("nikita-2775", 
 				      "Failure to reload jnode: %i", result);
@@ -589,6 +589,10 @@ submit_write(flush_queue_t * fq, jnode * first, int nr)
 
 		lock_and_wait_page_writeback(pg);
 		SetPageWriteback(pg);
+
+		/* we do not need to protect this node from e-flush anymore  */
+ 		jrelse(first);
+
 		if (doing_reclaim)
 			/* pages are submitted from kswapd as part of memory
 			 * reclamation. Mark them as such. */
