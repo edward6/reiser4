@@ -2,7 +2,7 @@
  * Copyright 2002 Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "reiser4.h"
+#include "../../reiser4.h"
 
 /*
  * reiser 4.0 default disk layout
@@ -83,7 +83,7 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	super_bh = find_any_super_block (s);
 	if (IS_ERR (super_bh))
 		return PTR_ERR (super_bh);
-	reiser4_sb_brelse (super_bh);
+	brelse (super_bh);
 
 	/* ok, we are sure that filesystem format is a layout 40 format */
 	result = replay_journal (s);
@@ -94,16 +94,15 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	if (IS_ERR (super_bh))
 		return PTR_ERR (super_bh);
 
-	/* initialize reiser4_super_info_data */
 	private = get_super_private (s);
 
-	/* copy on-disk super block into layout 40 private data */
+	/* initialize part of reiser4_super_info_data specific to layout 40 */
 	sb_copy = &private->u.layout_40.actual_sb;
-	memcpy (sb_copy, super_bh->b_data,
-		sizeof (sizeof (layout_40_disk_super_block)));
-	reiser4_sb_brelse (super_bh);
+	memcpy (sb_copy, ((layout_40_disk_super_block *)super_bh->b_data),
+		sizeof (*sb_copy));
+	brelse (super_bh);
 
-
+	/* FIXME-VS: shouldn't this be in reiser4_fil_super */
 	spin_lock_init (&private->guard);
 
 	/* layout 40 uses oid_40 oid allocator - the one implemented in
@@ -136,10 +135,11 @@ int layout_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 
 	/* init reiser4_tree for the filesystem */
 	result = init_tree (&private->tree, &root_block, height, nplug,
-			    0/* read_actor */, 0/* allocate_actor*/);
+			    default_read_node, default_allocate_node, default_unread_node);
 	if (result)
 		return result;
 
+	/* initialize reiser4_super_info_data */
 	private->default_uid = 0;
 	private->default_gid = 0;
 

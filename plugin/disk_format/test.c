@@ -2,7 +2,7 @@
  * Copyright 2002 Hans Reiser, licensing governed by reiser4/README
  */
 
-#include "reiser4.h"
+#include "../../reiser4.h"
 
 static void print_test_disk_sb (const char *, const test_disk_super_block *);
 
@@ -12,7 +12,7 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	int result;
 	reiser4_key * root_key;
 	test_disk_super_block * disk_sb;
-	struct buffer_head super_bh;
+	struct buffer_head * super_bh;
 	reiser4_super_info_data * private;
 	reiser4_block_nr root_block;
 	tree_level height;
@@ -21,20 +21,15 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	private = get_super_private (s);
 	assert ("vs-626", private);
 	
-
-	super_bh.b_blocknr = (int)(REISER4_MAGIC_OFFSET / s->s_blocksize);
-	super_bh.b_data = 0;
-	super_bh.b_count = 0;
-	super_bh.b_size = s->s_blocksize;
-	result = reiser4_sb_bread (s, &super_bh);
-	if (result)
-		return result;
+	super_bh = sb_bread (s, (int)(REISER4_MAGIC_OFFSET / s->s_blocksize));
+	if (!super_bh)
+		return -EIO;
 	
-	disk_sb = (test_disk_super_block *)(super_bh.b_data + 
+	disk_sb = (test_disk_super_block *)(super_bh->b_data + 
 					    sizeof (struct reiser4_master_sb));
 
 	if (strcmp (disk_sb->magic, TEST_MAGIC)) {
-		reiser4_sb_brelse (&super_bh);
+		brelse (super_bh);
 		return -EINVAL;
 	}
 
@@ -49,7 +44,7 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	set_key_objectid (root_key, d64tocpu (&disk_sb->root_objectid));
 	set_key_type (root_key, KEY_SD_MINOR);
 	set_key_offset (root_key, (__u64)0);
-	
+
 	/* init oid allocator */		  
 	private->oid_plug = oid_allocator_plugin_by_id (OID_40_ALLOCATOR_ID);
 	assert ("vs-627", (private->oid_plug &&
@@ -58,28 +53,29 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 							d64tocpu (&disk_sb->next_to_use),
 							d64tocpu (&disk_sb->next_to_use));
 
-	/* space allocator */
+	/* init space allocator */
 	private->space_plug = space_allocator_plugin_by_id (TEST_SPACE_ALLOCATOR_ID);
 	assert ("vs-628", (private->space_plug &&
 			   private->space_plug->init_allocator));
 	result = private->space_plug->init_allocator (get_space_allocator (s), s,
 						      &disk_sb->new_block_nr);
-	if (result)
+	if (result) {
+		brelse (super_bh);
 		return result;
-
+	}
 
 	/* init reiser4_tree for the filesystem */
 	root_block = d64tocpu (&disk_sb->root_block);
 	height = d16tocpu (&disk_sb->tree_height);
 	assert ("vs-642", d16tocpu (&disk_sb->node_plugin) == NODE40_ID);
 	result = init_tree (&private->tree, &root_block, height, node_plugin_by_id (NODE40_ID),
-			    ulevel_read_node, ulevel_allocate_node);
-	if (result)
-		return result;
+			    default_read_node, default_allocate_node, default_unread_node);
 
+	/* FIXME-VS: move up to reiser4_fill_super? */
+	result = init_formatted_fake (s);
 
-	reiser4_sb_brelse (&super_bh);
-	return 0;
+	brelse (super_bh);
+	return result;
 }
 
 
@@ -93,29 +89,23 @@ const reiser4_key * test_layout_root_dir_key (const struct super_block * s)
 /* plugin->u.layout.release */
 void test_layout_release (struct super_block * s)
 {
-	int result;
-	struct buffer_head super_bh;
+	struct buffer_head * super_bh;
 	test_disk_super_block * disk_sb;
 
 
-	super_bh.b_blocknr = (int)(REISER4_MAGIC_OFFSET / s->s_blocksize);
-	super_bh.b_data = 0;
-	super_bh.b_count = 0;
-	super_bh.b_size = s->s_blocksize;
-	result = reiser4_sb_bread (s, &super_bh);
-	if (result) {
+	super_bh = sb_bread (s, (int)(REISER4_MAGIC_OFFSET / s->s_blocksize));
+	if (!super_bh) {
 		warning ("vs-630", "could not read super block");
 		return;
 	}
-	disk_sb = (test_disk_super_block *)(super_bh.b_data + 
+	disk_sb = (test_disk_super_block *)(super_bh->b_data + 
 					    sizeof (struct reiser4_master_sb));
-	
 	if (strcmp (disk_sb->magic, TEST_MAGIC)) {
 		warning ("vs-631", "no test layout found");
-		reiser4_sb_brelse (&super_bh);
+		brelse (super_bh);
 		return;
 	}
-	
+
 	cputod64 (get_super_private (s)->tree.root_block, &disk_sb->root_block);
 	cputod16 (get_super_private (s)->tree.height, &disk_sb->tree_height);
 	/* oid allocator is a oid_40 one */
@@ -143,10 +133,11 @@ void test_layout_release (struct super_block * s)
 	/* FIXME-VS: remove this debugging info */
 	print_test_disk_sb ("release:\n", disk_sb);
 
-	reiser4_sb_bwrite (&super_bh);
-	reiser4_sb_brelse (&super_bh);
+	mark_buffer_dirty (super_bh);
+	ll_rw_block (WRITE, 1, &super_bh);
+	wait_on_buffer (super_bh);
+	brelse (super_bh);
 
-	iput (s->s_root->d_inode);
 	return;
 }
 
