@@ -376,7 +376,7 @@ int do_readpage_ctail(reiser4_cluster_t * clust, struct page *page)
 	inode = page->mapping->host;
 
 	if (!cluster_is_uptodate(clust)) {
-		clust->index = cluster_index_by_page(page, inode);
+		clust->index = pg_to_clust_to_pg(page->index, inode);
 		reiser4_unlock_page(page);
 		ret = ctail_read_cluster(clust, inode, 0 /* do not write */);
 		reiser4_lock_page(page);
@@ -482,7 +482,7 @@ readpages_ctail(void *coord UNUSED_ARG, struct address_space *mapping, struct li
 		/* update cluster if it is necessary */
 		if (!cluster_is_uptodate(&clust) || !page_of_cluster(page, &clust, inode)) {
 			put_cluster_data(&clust, inode);
-			clust.index = cluster_index_by_page(page, inode);
+			clust.index = pg_to_clust_to_pg(page->index, inode);
 			reiser4_unlock_page(page);
 			ret = ctail_read_cluster(&clust, inode, 0 /* do not write */);
 			if (ret)
@@ -680,7 +680,7 @@ int scan_ctail(flush_scan * scan, const coord_t * in_coord)
 	   in the tree (new file or converted hole), so insert flow and
 	   continue scan from rightmost dirty node */
 	
-	clust.index = cluster_index_by_page(page, inode);
+	clust.index = pg_to_clust_to_pg(page->index, inode);
 	
 	/* remove appropriate jnodes from dirty list */
 	result = flush_cluster_pages(&clust, inode);
