@@ -403,7 +403,7 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 
 		if (index == eindex) {
 			nr = isize & ~PAGE_CACHE_MASK;
-			if (nr < offset)
+			if (nr <= offset)
 				break;
 		}
 
@@ -454,6 +454,9 @@ static ssize_t reiser4_sendfile(struct file *file, loff_t *ppos,
 		index += offset >> PAGE_CACHE_SHIFT;
 		offset &= ~PAGE_CACHE_MASK;
 		page_cache_release(page);
+
+		if (ret != nr || desc.count == 0)
+			break;
 	}
 
 	*ppos = ((loff_t)index << PAGE_CACHE_SHIFT) + offset;
