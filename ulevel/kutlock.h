@@ -114,10 +114,14 @@ typedef struct
 	pthread_mutex_t  _guard;
 	int              _locked;
 	pthread_t        _tid;
+	int              _busy;
+	__u64            _calls;
+	__u64            _free;
+	__u64            _sleep;
 } spinlock_t;
 
 #undef SPIN_LOCK_UNLOCKED
-#define SPIN_LOCK_UNLOCKED (spinlock_t) { ._real = PTHREAD_MUTEX_INITIALIZER, ._guard = PTHREAD_MUTEX_INITIALIZER, ._locked = 0, ._tid = 0 }
+#define SPIN_LOCK_UNLOCKED (spinlock_t) { ._real = PTHREAD_MUTEX_INITIALIZER, ._guard = PTHREAD_MUTEX_INITIALIZER, ._locked = 0, ._tid = 0, ._busy = 0, ._calls = 0, ._free = 0, ._sleep = 0 }
 
 static __inline__ void
 spin_lock_init (spinlock_t *s)
@@ -126,22 +130,37 @@ spin_lock_init (spinlock_t *s)
 	pthread_mutex_init (& s->_guard, NULL);
 	s->_locked = 0;
 	s->_tid    = 0;
+	s->_busy   = 0;
+	s->_calls  = 0ull;
+	s->_free   = 0ull;
+	s->_sleep  = 0ull;
 }
 
 static __inline__ void
 spin_lock (spinlock_t *s)
 {
+	__u64 sleep_start;
+	__u64 sleep_end;
+
 	pthread_t me = pthread_self ();
 
 	pthread_mutex_lock (& s->_guard);
 	if (s->_locked && s->_tid == me) {
 		SPINLOCK_BUG ("recursive spinlock attempted");
 	}
+
+	s->_calls  += 1ull;
+	if (!s->_busy)
+		s->_free   += 1ull;
+	s->_busy    = 1;
 	pthread_mutex_unlock (& s->_guard);
 
+	rdtscll (sleep_start);
 	pthread_mutex_lock (& s->_real);
+	rdtscll (sleep_end);
 
 	pthread_mutex_lock (& s->_guard);
+	s->_sleep += sleep_end - sleep_start;
 	if (s->_locked) {
 		SPINLOCK_BUG ("spinlock was locked by someone else");
 	}
@@ -163,6 +182,7 @@ spin_unlock (spinlock_t *s)
 		SPINLOCK_BUG ("spinlock not locked by me");
 	}
 	s->_locked = 0;
+	s->_busy   = 0;
 	s->_tid    = 0;
 	pthread_mutex_unlock (& s->_real);
 	pthread_mutex_unlock (& s->_guard);
