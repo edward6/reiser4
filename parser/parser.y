@@ -50,12 +50,12 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %union 
 {
 	char charType;
-	/*	String * StrPtr;*/
 	expr_v4_t * expr;
-	//	expr_flow_t * flw;
-	expr_lnode_t * lnd;
-	vnode_t * vnode;
 	wrd_t * wrd;
+	/*	String * StrPtr;*/
+	//	expr_lnode_t * lnd;
+	//	expr_flow_t * flw;
+	//	vnode_t * vnode;
 }
 
 %type <charType> L_BRAKET R_BRAKET level_up
@@ -64,8 +64,8 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %type <wrd> P_RUNNER 
 %type <wrd> STRING_CONSTANT
 
-%type <vnode> Object_Name name  
-%type <vnode> Object_Name name  
+%type <expr> Object_Name name  
+//%type <vnode> Object_Name name  
 %type <expr> Expression 
 
 %type <expr> if_statement 
@@ -148,7 +148,7 @@ reiser4
 ;
 
 Expression
-: Object_Name                                     { $$ = objToExpr( ws, $1 );}
+: Object_Name                                     { $$ = $1;}
 | STRING_CONSTANT                                 { $$ = constToExpr( ws, $1 ); }
 | Expression PLUS       Expression                { $$ = connect_expression( ws, $1, $3 ); }
 | Expression SEMICOLON  Expression                { $$ = list_expression( ws, $1, $3 ); }
@@ -157,10 +157,10 @@ Expression
 
 | if_statement                                    { $$ = $1; level_down( ws, IF_STATEMENT ); }
                                                                             /* the ASSIGNMENT operator return a value: bytes written */
-|  Object_Name  L_ASSIGN        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
-|  Object_Name  L_APPEND        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
-|  Object_Name  L_ASSIGN  INV_L Expression INV_R   { $$ = assign_invert( ws, $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
-|  Object_Name  L_SYMLINK       Expression         { $$ = symlink( ws, $1, $3 ); }           /*   ->  symlink  the SYMLINK operator return a value: bytes ???? */
+|  target  L_ASSIGN        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
+|  target  L_APPEND        Expression         { $$ = assign( ws, $1, $3 ); }            /*  <-  direct assign  */
+|  target  L_ASSIGN  INV_L Expression INV_R   { $$ = assign_invert( ws, $1, $4 ); }     /*  <-  invert assign. destination must have ..invert method  */
+|  target  L_SYMLINK       Expression         { $$ = symlink( ws, $1, $3 ); }           /*   ->  symlink  the SYMLINK operator return a value: bytes ???? */
 ;
 
 if_statement        
@@ -196,6 +196,8 @@ then_operation
 
 
 
+target
+: Object_Name                                     { $$ = prepare_target( ws, 41 );}
 
 
 
@@ -206,8 +208,8 @@ Object_Name
 ;
 
 name
-: WORD                                            { $$ = $1; }
-//| level_up  Expression R_BRAKET                   { $$ =  $2 ; level_down( ws, $1, $3 );}
+: WORD                                            { $$ = lookup_word( ws, $1 ); }
+| level_up  Expression R_BRAKET                   { $$ =  $2 ; run_it( ws, $2 ); level_down( ws, $1, $3 );}
 ;
 
 level_up
