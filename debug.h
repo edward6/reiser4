@@ -88,7 +88,7 @@
  */
 #define assert( label, cond )					\
 ({								\
-	preempt_point();					\
+	check_preempt();					\
 	check_stack();						\
 	if( unlikely( !( cond ) ) )				\
 		rpanic( label, "assertion failed: " #cond );	\
@@ -749,6 +749,7 @@ typedef struct {} reiser4_stat;
 extern void reiser4_panic( const char *format, ... ) 
 __attribute__( ( noreturn, format( printf, 1, 2 ) ) );
 
+extern void check_preempt( void );
 extern void preempt_point( void );
 extern void reiser4_print_stats( void );
 
