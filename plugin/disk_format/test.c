@@ -6,8 +6,8 @@
 
 static void print_test_disk_sb (const char *, const test_disk_super_block *);
 
-/* plugin->u.layout.get_ready */
-int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
+/* plugin->u.format.get_ready */
+int test_format_get_ready (struct super_block * s, void * data UNUSED_ARG)
 {
 	int result;
 	reiser4_key * root_key;
@@ -33,14 +33,14 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 		return -EINVAL;
 	}
 
-	WRITE_LOG = 0; /* disable log writer for test disk layout */
+	WRITE_LOG = 0; /* disable log writer for test disk format */
 
 	/* FIXME-VS: remove this debugging info */
 	print_test_disk_sb ("get_ready:\n", disk_sb);
 
-	/* store key of root directory in layout specific part of
+	/* store key of root directory in format specific part of
 	 * reiser4 private super data */
-	root_key = &private->u.test_layout.root_dir_key;
+	root_key = &private->u.test_format.root_dir_key;
 	key_init (root_key);
 	set_key_locality (root_key, d64tocpu (&disk_sb->root_locality));
 	set_key_objectid (root_key, d64tocpu (&disk_sb->root_objectid));
@@ -95,15 +95,15 @@ int test_layout_get_ready (struct super_block * s, void * data UNUSED_ARG)
 }
 
 
-/* plugin->u.layout.root_dir_key */
-const reiser4_key * test_layout_root_dir_key (const struct super_block * s)
+/* plugin->u.format.root_dir_key */
+const reiser4_key * test_format_root_dir_key (const struct super_block * s)
 {
-	return &(get_super_private (s)->u.test_layout.root_dir_key);
+	return &(get_super_private (s)->u.test_format.root_dir_key);
 }
 
 
-/* plugin->u.layout.release */
-int test_layout_release (struct super_block * s)
+/* plugin->u.format.release */
+int test_format_release (struct super_block * s)
 {
 	struct buffer_head * super_bh;
 	test_disk_super_block * disk_sb;
@@ -113,6 +113,12 @@ int test_layout_release (struct super_block * s)
 	if ((ret = txn_mgr_force_commit_all (s))) {
 		warning ("jmacd-7711", "txn_force failed in umount: %d", ret);
 	}
+
+	/*
+	 * FIXME-VS: txn_mgr_force_commit_all and done_tree cound be
+	 * called by reiser4_kill_super
+	 */
+	print_fs_info ("umount ok", s);
 
 	done_tree (&get_super_private (s)->tree);
 
@@ -129,7 +135,7 @@ int test_layout_release (struct super_block * s)
 	disk_sb = (test_disk_super_block *)(super_bh->b_data + 
 					    sizeof (struct reiser4_master_sb));
 	if (strcmp (disk_sb->magic, TEST_MAGIC)) {
-		warning ("vs-631", "no test layout found");
+		warning ("vs-631", "no test format found");
 		brelse (super_bh);
 		return -EIO;
 	}
@@ -182,15 +188,9 @@ static void print_test_disk_sb (const char * mes,
 }
 
 
-/* plugin->u.layout.print_info */
-void test_layout_print_info (struct super_block * s)
+/* plugin->u.format.print_info */
+void test_format_print_info (const struct super_block * s)
 {
-	/* print filesystem information common to all layouts */
-	print_fs_info ("test layout", s);
-
-	/* print some info from test layout specific part of reiser4
-	 * private super block */
-	info ("test layout super info:\n");
-	print_key ("root_key", test_layout_root_dir_key (s));
+	/* there is nothing to print */
 }
 

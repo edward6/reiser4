@@ -389,8 +389,8 @@ static int get_overwrite_set (txn_atom * atom, capture_list_head * overwrite_lis
 				struct super_block * s = reiser4_get_current_sb();
 				reiser4_super_info_data * private = get_current_super_private();
 
-				if (private->lplug->log_super) {
-					jnode *sbj = private->lplug->log_super(s);
+				if (private->df_plug->log_super) {
+					jnode *sbj = private->df_plug->log_super(s);
 
 					assert ("zam-593", sbj != NULL);
 

@@ -418,10 +418,10 @@ int is_root_dir_key( const struct super_block *super /* super block to check*/,
 	/*
 	 * call disk plugin's root_dir_key method if it exists
 	 */
-	if( get_super_private( super ) -> lplug &&
-	    get_super_private( super ) -> lplug -> root_dir_key )
+	if( get_super_private( super ) -> df_plug &&
+	    get_super_private( super ) -> df_plug -> root_dir_key )
 		return keyeq( key, get_super_private( super ) ->
-			      lplug -> root_dir_key( super ) );
+			      df_plug -> root_dir_key( super ) );
 	return 0;
 }
 

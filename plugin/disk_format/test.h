@@ -31,13 +31,13 @@ typedef struct test_disk_super_block {
 typedef struct {
 	reiser4_key root_dir_key;
 	reiser4_block_nr new_blocknr;
-} test_layout_super_info;
+} test_format_super_info;
 
 
-/* declarations of functions implementing methods of layout plugin for
- * test layout. The functions theirself are in
+/* declarations of functions implementing methods of format plugin for
+ * test format. The functions theirself are in
  * plugin/disk_format/test.c */
-int                 test_layout_get_ready    (struct super_block *, void * data);
-const reiser4_key * test_layout_root_dir_key (const struct super_block *);
-int                 test_layout_release      (struct super_block *);
-void                test_layout_print_info   (struct super_block *);
+int                 test_format_get_ready    (struct super_block *, void * data);
+const reiser4_key * test_format_root_dir_key (const struct super_block *);
+int                 test_format_release      (struct super_block *);
+void                test_format_print_info   (const struct super_block *);

@@ -158,12 +158,12 @@ struct reiser4_super_info_data {
 #endif
 
 	/* disk layout plugin */
-	layout_plugin * lplug;
+	disk_format_plugin * df_plug;
 
 	/* disk layout specific part of reiser4 super info data */
 	union {
 		format_40_super_info   format_40;
-		test_layout_super_info test_layout;
+		test_format_super_info test_format;
 	} u;
 
 	unsigned long optimal_io_size;
