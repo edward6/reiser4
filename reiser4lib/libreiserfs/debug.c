@@ -1,6 +1,6 @@
 /*
 	debug.c -- libreiserfs assert implementation.
-	Copyright (C) 1996 - 2002 Hans Reiser
+	Copyright (C) 1996-2002 Hans Reiser
 */
 
 #ifdef HAVE_CONFIG_H

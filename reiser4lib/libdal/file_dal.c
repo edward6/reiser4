@@ -1,6 +1,6 @@
 /*
 	file_dal.c -- standard file device abstraction layer
-	Copyright (C) 1996 - 2002 Hans Reiser.
+	Copyright (C) 1996-2002 Hans Reiser.
 */
 
 #ifdef HAVE_CONFIG_H

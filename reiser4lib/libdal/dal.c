@@ -1,6 +1,6 @@
 /*
-	dal.c -- device abstraction API
-	Copyright (C) 1996 - 2002 Hans Reiser.
+	dal.c -- device abstraction layer.
+	Copyright (C) 1996-2002 Hans Reiser.
 */
 
 #ifdef HAVE_CONFIG_H

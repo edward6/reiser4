@@ -1,6 +1,6 @@
 /*
 	exception.c -- libreiserfs exceptions implementation
-	Copyright (C) 1996 - 2002 Hans Reiser.
+	Copyright (C) 1996-2002 Hans Reiser.
 */
 
 #ifdef HAVE_CONFIG_H
@@ -70,11 +70,7 @@ char *reiserfs_exception_hint(reiserfs_exception_t *ex) {
 }
 
 static reiserfs_exception_option_t default_handler(reiserfs_exception_t *ex) {
-	if (ex->type == EXCEPTION_BUG){
-		fprintf (stderr, _("A bug has been detected in libreiserfs. "
-	    	"Please email a bug report to umka@namesys.com containing the version (%s) "
-	    	"and the following message: "), VERSION);
-	} else {
+	if (ex->type != EXCEPTION_BUG){
 		fprintf (stderr, "%s: %s: ", reiserfs_exception_type_string(ex->type), 
 			reiserfs_exception_hint(ex));
 	}

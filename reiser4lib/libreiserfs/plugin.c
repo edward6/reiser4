@@ -1,6 +1,6 @@
 /*
 	plugin.c -- reiserfs plugin factory implementation.
-	Copyright (C) 1996 - 2002 Hans Reiser
+	Copyright (C) 1996-2002 Hans Reiser
 */
 
 #include <dlfcn.h>
@@ -28,7 +28,7 @@ struct run_desc {
 	reiserfs_plugin_id_t id;
 };
 
-static int callback_check_plugin(reiserfs_plugin_t *plugin, struct run_desc *desc) {
+static int callback_match_plugin(reiserfs_plugin_t *plugin, struct run_desc *desc) {
 	if (plugin->h.type == desc->type && plugin->h.id == desc->id)
 		return 1;
 	
@@ -45,7 +45,7 @@ static reiserfs_plugin_t *reiserfs_plugin_from_cashe(reiserfs_plugin_type_t type
 	desc.id = id;
 	
 	if (!(plugin = (reiserfs_plugin_t *)list_run(plugin_cashe, 
-			(int (*)(void *, void *))callback_check_plugin, (void *)&desc)))
+			(int (*)(void *, void *))callback_match_plugin, (void *)&desc)))
 		return NULL;
 	
 	plugin->h.nlink++;

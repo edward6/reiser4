@@ -1,6 +1,6 @@
 /*
 	list.c -- simple list implementation.
-	Copyright (C) 1996 - 2002 Hans Reiser
+	Copyright (C) 1996-2002 Hans Reiser
 */
 
 #include <stdlib.h>

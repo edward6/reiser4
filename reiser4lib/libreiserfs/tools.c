@@ -1,6 +1,6 @@
 /*
 	tools.c -- tool functions which are needed by libreiserfs
-	Copyright (C) 1996 - 2002 Hans Reiser
+	Copyright (C) 1996-2002 Hans Reiser
 */
 
 int reiserfs_tools_log2(int n) {
