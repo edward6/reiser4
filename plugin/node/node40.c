@@ -381,7 +381,7 @@ node_search_result node40_lookup( znode *node /* node to query */,
 	if( left < 0 )
 		left = 0;
 
-	coord_set_item_pos( coord, left );
+	coord_set_item_pos( coord, ( unsigned ) left );
 	coord -> unit_pos = 0;
 	coord -> between  = AT_UNIT;
 
@@ -531,7 +531,7 @@ int node40_check( const znode *node /* node to check */,
 		unsigned j;
 
 		ih = node40_ih_at( node, (unsigned)i );
-		coord_set_item_pos (&coord, i);
+		coord_set_item_pos (&coord, ( unsigned ) i);
 		if ( ( ih_40_get_offset( ih ) >= 
 		       znode_size( node ) - nr_items * sizeof( item_header_40 ) ) ||
 		     ( ih_40_get_offset( ih ) < sizeof( node_header_40 ) ) ) {
@@ -1524,7 +1524,8 @@ void node40_copy (struct shift_params * shift)
 		coord_set_item_pos (&from, 0);
 		from_ih = node40_ih_at (from.node, 0);
 
-		coord_set_item_pos (&to, node40_num_of_items (to.node) - 1);
+		coord_set_item_pos (&to, 
+				    (unsigned)node40_num_of_items (to.node) - 1);
 		if (shift->merging_units) {
 			/* expand last item, so that plugin methods will see
 			 * correct data */
@@ -1565,8 +1566,8 @@ void node40_copy (struct shift_params * shift)
 				zdata (from.node) + old_offset,/*ih_40_get_offset (from_ih),*/
 				shift->entire_bytes);
 
-			coord_add_item_pos (&from, shift->entire);
-			coord_add_item_pos (&to, shift->entire);
+			coord_add_item_pos (&from, (int)shift->entire);
+			coord_add_item_pos (&to, (int)shift->entire);
 		}
 
 		nh_40_set_free_space_start (nh, free_space_start + shift->shift_bytes - shift->merging_bytes);
@@ -1584,7 +1585,8 @@ void node40_copy (struct shift_params * shift)
 			   a new item into @target->node */
 
 			/* copy item header of partially copied item */
-			coord_set_item_pos (&to, node40_num_of_items (to.node) - 1);
+			coord_set_item_pos (&to, 
+					    (unsigned)node40_num_of_items (to.node) - 1);
 			xmemcpy (to_ih, from_ih, sizeof (item_header_40));
 			ih_40_set_offset (to_ih, nh_40_get_free_space_start (nh) - shift->part_bytes);
 			if (item_plugin_by_coord (&to)->common.init)
@@ -1596,7 +1598,8 @@ void node40_copy (struct shift_params * shift)
 	} else {
 		/* copying to right */
 
-		coord_set_item_pos (&from, node40_num_of_items (from.node) - 1);
+		coord_set_item_pos (&from, 
+				    (unsigned)node40_num_of_items (from.node) - 1);
 		from_ih = node40_ih_at_coord (&from);
 
 		coord_set_item_pos (&to, 0);
@@ -1660,7 +1663,7 @@ void node40_copy (struct shift_params * shift)
 						  ih_40_get_offset (from_ih) - old_offset +
 						  sizeof (node_header_40) + shift->part_bytes);
 			/* copy item bodies */
-			coord_add_item_pos (&from, - (shift->entire - 1));
+			coord_add_item_pos (&from, - (int)(shift->entire - 1));
 			xmemcpy (zdata (to.node) + sizeof (node_header_40) + shift->part_bytes,
 				item_body_by_coord (&from), shift->entire_bytes);
 			coord_dec_item_pos (&from);
@@ -2142,7 +2145,7 @@ int node40_shift (coord_t * from, znode * to,
 	node_check (to, REISER4_NODE_PANIC);
 	assert ("nikita-2080", coord_check (from));
 
-	return result ? result : shift.shift_bytes;
+	return result ? result : (int) shift.shift_bytes;
 }
 
 

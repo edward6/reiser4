@@ -14,23 +14,23 @@
     whatever standard prefixes/postfixes we want. "Fun" is a function
     that will be actually called, can be printk, panic etc.
     This is for use by other debugging macros, not by users. */
-#define DCALL( lev, fun, label, format, args... )				\
+#define DCALL( lev, fun, label, format, ... )				\
          do { fun( lev "reiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n" format "\n",	\
 		       no_context ? "interrupt" : current_pname,		\
 		       no_context ? -1 : current_pid,				\
-		       __func__, __FILE__, __LINE__, label ,  ##args );		\
+		       __func__, __FILE__, __LINE__, label , ## __VA_ARGS__ );	\
 		      } while( 0 )
 
 /** panic. Print backtrace and die */
-#define rpanic( label, format, args... )		\
-	DCALL( KERN_EMERG, reiser4_panic, label, format , ##args )
+#define rpanic( label, format, ... )		\
+	DCALL( KERN_EMERG, reiser4_panic, label, format , ## __VA_ARGS__ )
 /** print message with indication of current process, file, line and
     function */
-#define rlog( label, format, args... ) 				\
-	DCALL( KERN_DEBUG, printk, label, format , ##args )
+#define rlog( label, format, ... ) 				\
+	DCALL( KERN_DEBUG, printk, label, format , ## __VA_ARGS__ )
 /** use info() for output without any kind of prefix like
     when doing output in several chunks. */
-#define info( format, args... ) printk( format , ##args )
+#define info( format, ... ) printk( format , ## __VA_ARGS__ )
 
 /** Assertion checked during compilation. 
     If "cond" is false (0) we get duplicate case label in switch.
@@ -76,14 +76,14 @@
 #if REISER4_DEBUG
 /** version of info that only actually prints anything when _d_ebugging
     is on */
-#define dinfo( format, args... ) info( format , ##args )
+#define dinfo( format, ... ) info( format , ## __VA_ARGS__ )
 /** macro to catch logical errors. Put it into `default' clause of
     switch() statement. */
-#define impossible( label, format, args... ) 			\
-         rpanic( label, "impossible: " format , ##args )
+#define impossible( label, format, ... ) 			\
+         rpanic( label, "impossible: " format , ## __VA_ARGS__ )
 /** stub for something you are planning to implement in a future */
-#define not_implemented( label, format, args... )	\
-         rpanic( label, "not implemented: " format , ##args )
+#define not_implemented( label, format, ... )	\
+         rpanic( label, "not implemented: " format , ## __VA_ARGS__ )
 /**
  * assert assures that @cond is true. If it is not, rpanic() is
  * called. Use this for checking logical consistency and _never_ call
@@ -170,17 +170,17 @@ extern int reiser4_are_all_debugged( struct super_block *super, __u32 flags );
 #endif
 
 #ifndef __KERNEL__
-#define wprint( args... ) ( fprintf( stderr , ##args ) )
+#define wprint( ... ) ( fprintf( stderr , ## __VA_ARGS__ ) )
 #else
-#define wprint( args... ) ( printk( ##args ) )
+#define wprint( ... ) ( printk( ## __VA_ARGS__ ) )
 #endif
 
 #define wrong_return_value( label, function )				\
 	impossible( label, "wrong return value from " function )
-#define warning( label, format, args... )					\
-	DCALL( KERN_WARNING, wprint, label, "WARNING: " format , ##args )
-#define not_yet( label, format, args... )				\
-	rpanic( label, "NOT YET IMPLEMENTED: " format , ##args )
+#define warning( label, format, ... )					\
+	DCALL( KERN_WARNING, wprint, label, "WARNING: " format , ## __VA_ARGS__ )
+#define not_yet( label, format, ... )				\
+	rpanic( label, "NOT YET IMPLEMENTED: " format , ## __VA_ARGS__ )
 
 /** tracing facility.
 
@@ -321,7 +321,7 @@ extern __u32 reiser4_current_trace_flags;
 #define trace_var( f, format, var ) 				\
         trace_if( f, rlog( "trace", #var ": " format, var ) )
 /** print output only if appropriate trace flag(s) is on */
-#define trace_on( f, args... )   trace_if( f, dinfo( ##args ) )
+#define trace_on( f, ... )   trace_if( f, info( __VA_ARGS__ ) )
 
 #ifndef REISER4_STATS
 #define REISER4_STATS (1)
@@ -334,8 +334,8 @@ extern __u32 reiser4_current_trace_flags;
 
 #define ON_STATS( e ) e
 #define STS ( get_super_private_nocheck( reiser4_get_current_sb() ) -> stats )
-#define ST_INC_CNT( field ) ( ++ STS.field )
-#define ST_ADD_CNT( field, cnt ) ( STS.field += cnt )
+#define ST_INC_CNT( field ) ( ++ STS . field )
+#define ST_ADD_CNT( field, cnt ) ( STS . field += cnt )
 
 /*
  * Macros to gather statistical data. If REISER4_STATS is disabled, they
@@ -346,15 +346,15 @@ extern __u32 reiser4_current_trace_flags;
  *
  */
 
-#define reiser4_stat_key_add( stat ) ST_INC_CNT( key. ## stat )
-#define	reiser4_stat_tree_add( stat ) ST_INC_CNT( tree. ## stat )
-#define reiser4_stat_znode_add( stat ) ST_INC_CNT( znode. ## stat )
-#define reiser4_stat_dir_add( stat ) ST_INC_CNT( dir. ## stat )
-#define reiser4_stat_file_add( stat ) ST_INC_CNT( file. ## stat )
-#define reiser4_stat_flush_add( stat ) ST_INC_CNT( flush. ## stat )
-#define reiser4_stat_flush_add_few( stat, cnt ) ST_ADD_CNT( flush. ## stat, cnt )
-#define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. ## stat )
-#define reiser4_stat_seal_add( stat ) ST_INC_CNT( seal. ## stat )
+#define reiser4_stat_key_add( stat ) ST_INC_CNT( key . stat )
+#define	reiser4_stat_tree_add( stat ) ST_INC_CNT( tree . stat )
+#define reiser4_stat_znode_add( stat ) ST_INC_CNT( znode . stat )
+#define reiser4_stat_dir_add( stat ) ST_INC_CNT( dir . stat )
+#define reiser4_stat_file_add( stat ) ST_INC_CNT( file . stat )
+#define reiser4_stat_flush_add( stat ) ST_INC_CNT( flush . stat )
+#define reiser4_stat_flush_add_few( stat, cnt ) ST_ADD_CNT( flush . stat, cnt )
+#define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. stat )
+#define reiser4_stat_seal_add( stat ) ST_INC_CNT( seal. stat )
 
 #define	reiser4_stat_add_at_level( lev, stat )				\
 ({									\
@@ -363,7 +363,7 @@ extern __u32 reiser4_current_trace_flags;
 	assert ("green-10", lev >= LEAF_LEVEL );			\
 	level = ( lev ) - LEAF_LEVEL;					\
 	if( ( lev ) < REAL_MAX_ZTREE_HEIGHT ) {				\
-		ST_INC_CNT( level[ level ]. ## stat );			\
+		ST_INC_CNT( level[ level ]. stat );			\
 		ST_INC_CNT( level[ level ]. total_hits_at_level );	\
 	}								\
 })

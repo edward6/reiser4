@@ -21,9 +21,9 @@ static int scan_mgr( txn_mgr *mgr );
  * nothing. May be it will make lonely system administrator feeling less alone
  * at 3 A.M.
  */
-#define set_comm( s ) 						\
+#define set_comm( state ) 						\
 	snprintf( current -> comm, sizeof( current -> comm ),	\
-		  "%s:%s", __FUNCTION__, ( s ) )
+		  "%s:%s", __FUNCTION__, ( state ) )
 
 /**
  * The background transaction manager daemon, started as a kernel thread

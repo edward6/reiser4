@@ -558,7 +558,7 @@ int assign_fake_blocknr (reiser4_block_nr *blocknr)
 		return 0;
 	}
 
-#endif;
+#endif
 }
 
 /* release disk space (reserved or real one) depend on block number type (fake

@@ -37,7 +37,6 @@ CFLAGS	    := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
 	       -pipe \
 	       -W \
 	       -Wall \
-	       -Wtraditional \
 	       -Wid-clash-32 \
 	       -Wpointer-arith \
 	       -Wwrite-strings \
@@ -55,6 +54,7 @@ CFLAGS	    := -g -pthread $(PROFFLAGS) $(OPTFLAGS) \
 	       -Wreorder \
 	       -Wsign-promo
 
+#	       -Wtraditional \ gcc version 3.0.4 is mad about this
 #	       -Wshadow: forces warnings on int foo(flow *flow);
 #	       -pedantic, -ansi: don't allow macros with variable arguments
 #	       -Wmissing-declarations: kernel headers don't comply

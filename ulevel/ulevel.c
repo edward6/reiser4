@@ -1028,7 +1028,7 @@ static void truncate_inode_pages2 (struct address_space * mapping,
 	unsigned ind;
 
 	ind = (from + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-	for_all_in_htable( &page_htable, bucket, page, tmp, link ) {
+	for_all_in_htable( &page_htable, page, page, tmp ) {
 		if (page->mapping == mapping) {
 			if (page->index >= ind) {
 				spin_lock (&page->lock2);
@@ -1257,7 +1257,7 @@ static void invalidate_pages (void)
 	struct page ** bucket;
 
 	spin_lock( &page_list_guard );
-	for_all_in_htable( &page_htable, bucket, page, tmp, link ) {
+	for_all_in_htable( &page_htable, page, page, tmp ) {
 		spin_lock (&page->lock2);
 		lock_page (page);
 		assert ("vs-666", !PageDirty (page));
@@ -1301,7 +1301,6 @@ static void print_inode_pages (struct inode * inode)
 	struct address_space * mapping;
 	struct page *  tmp;
 	struct page *  page;
-	struct page ** bucket;
 
 
 	mapping = &inode->i_data;
@@ -1310,7 +1309,7 @@ static void print_inode_pages (struct inode * inode)
 
 
 	for_all_in_htable ((mp_hash_table *)mapping->page_tree.vp,
-			   bucket, page, tmp, link) {
+			   mp, page, tmp) {
 		info ("\t%p, index %lu, count %d, flags (%s, %s, %s)\n",
 		      page, page->index, atomic_read (&page->count),
 		      PageLocked (page) ? "locked" : "not locked",
@@ -1735,7 +1734,6 @@ int rseq_search( reiser4_key *array, int n, reiser4_key *key )
 			return 1;
 		case LESS_THAN:
 			return 0;
-		default:
 		}
 	}
 	return 0;
@@ -1751,7 +1749,6 @@ int seq_search( reiser4_key *array, int n, reiser4_key *key )
 			return 1;
 		case GREATER_THAN:
 			return 0;
-		default:
 		}
 	}
 	return 0;

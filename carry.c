@@ -1462,9 +1462,9 @@ void print_op( const char *prefix /* prefix to print */,
 	case COP_MODIFY:
 		print_carry( "\tchild", op -> u.modify.child );
 		info( "\tflag: %x\n", op -> u.modify.flag );
-		break;
 	default:
 		/* do nothing */
+		break;
 	}
 }
 

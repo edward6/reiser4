@@ -22,7 +22,7 @@
  * lock_neighbor() code usable to build lock_parent(), lock_right_neighbor,
  * lock_left_neighbor */
 #define GET_NODE_BY_PTR_OFFSET(node, off) (*(znode**)(((unsigned long)(node)) + (off)))
-#define FIELD_OFFSET(name)  ((int)(&((znode*)0)-> ## name ))
+#define FIELD_OFFSET(name)  offsetof(znode, name)
 #define PARENT_PTR_OFFSET FIELD_OFFSET(in_parent.node)
 #define LEFT_PTR_OFFSET   FIELD_OFFSET(left)
 #define RIGHT_PTR_OFFSET  FIELD_OFFSET(right)

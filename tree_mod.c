@@ -14,9 +14,9 @@ static int add_child_ptr( znode *parent, znode *child );
 /**
  * warning only issued if error is not -EAGAIN
  */
-#define ewarning( error, args... )		\
+#define ewarning( error, ... )			\
 	if( ( error ) != -EAGAIN )		\
-		warning( ##args )
+		warning( __VA_ARGS__ )
 
 /**
  * allocate new node on the @level and immediately on the right of @brother.
