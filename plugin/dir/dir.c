@@ -867,8 +867,18 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 	return result;
 }
 
-/* Function that is called by common_readdir() on each directory item while doing readdir. If it returns 0 - tap is
-   loaded and node it is set to is longterm lock locked, otherwise tap is relsed and node is longterm lock unlocked */
+/*
+ * Function that is called by common_readdir() on each directory entry while
+ * doing readdir. ->filldir callback may block, so we had to release long term
+ * lock while calling it. To avoid repeating tree traversal, seal is used. If
+ * seal is broken, we return -EAGAIN. Node is unlocked in this case.
+ *
+ * Whether node is unlocked in case of any other error is undefined. It is
+ * guaranteed to be still locked if success (0) is returned.
+ *
+ * When ->filldir() wants no more, feed_entry() returns 1, and node is
+ * unlocked.
+ */
 static int
 feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 {
@@ -877,7 +887,8 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 	reiser4_key sd_key;
 	int result;
 	char buf[DE_NAME_BUF_LEN];
-	char name_buf[32], *tmp_name;
+	char name_buf[32];
+	char *local_name;
 	unsigned file_type;
 	seal_t seal;
 	coord_t *coord;
@@ -891,62 +902,55 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 	assert("nikita-1371", name != NULL);
 
 	/* key of object the entry points to */	
-	if (iplug->s.dir.extract_key(coord, &sd_key) == 0) {
-		/* we must release longterm znode lock before calling filldir to avoid deadlock which may happen if filldir
-		   causes page fault. So, copy name to intermediate buffer */
-		if (strlen(name) + 1 > sizeof(name_buf)) {
-			tmp_name = kmalloc(strlen(name) + 1, GFP_KERNEL);
-		} else
-			tmp_name = name_buf;
+	if (iplug->s.dir.extract_key(coord, &sd_key) != 0)
+		return RETERR(-EIO);
 
-		if (tmp_name != NULL) {
-			strcpy(tmp_name, name);
-			file_type = iplug->s.dir.extract_file_type(coord);
-			
-			unit_key_by_coord(coord, &entry_key);
-			seal_init(&seal, coord, &entry_key);
-			
-			tap_relse(tap);
-			longterm_unlock_znode(tap->lh);
-			
-			ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
-				 name, pos->entry_no, get_key_objectid(&sd_key));
-			
-			/* send information about directory entry to the ->filldir() filler supplied to us by caller
-			   (VFS). */
-			result = filldir(dirent, name, (int) strlen(name),
-					 /* offset of the next entry */
-					 (loff_t) pos->entry_no,
-					 /* inode number of object bounden by this entry */
-					 oid_to_uino(get_key_objectid(&sd_key)),
-					 file_type);
-			if (tmp_name != name_buf)
-				kfree(tmp_name);
-			if (result < 0) {
-				/* ->filldir() is satisfied. (no space in buffer, IOW) */
-				result = 1;
-			} else {
-				result = seal_validate(&seal, coord, &entry_key, LEAF_LEVEL, tap->lh, FIND_EXACT,
-						       tap->mode, ZNODE_LOCK_HIPRI);
-				if (result == 0) {
-					result = tap_load(tap);
-					if (unlikely(result)) {
-						longterm_unlock_znode(tap->lh);
-						return result;
-					}
-				}
-			}
-			
-		} else
-			result = RETERR(-ENOMEM);
+	/* we must release longterm znode lock before calling filldir to avoid
+	   deadlock which may happen if filldir causes page fault. So, copy
+	   name to intermediate buffer */
+	if (strlen(name) + 1 > sizeof(name_buf)) {
+		local_name = kmalloc(strlen(name) + 1, GFP_KERNEL);
+		if (local_name == NULL)
+			return RETERR(-ENOMEM);
 	} else
-		result = RETERR(-EIO);
+		local_name = name_buf;
 
-	if (result < 0) {
-		tap_relse(tap);
-		done_lh(tap->lh);
-	}
+	strcpy(local_name, name);
+	file_type = iplug->s.dir.extract_file_type(coord);
 
+	unit_key_by_coord(coord, &entry_key);
+	seal_init(&seal, coord, &entry_key);
+			
+	longterm_unlock_znode(tap->lh);
+			
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
+		 name, pos->entry_no, get_key_objectid(&sd_key));
+			
+	/*
+	 * send information about directory entry to the ->filldir() filler
+	 * supplied to us by caller (VFS).
+	 *
+	 * ->filldir is entitled to do weird things. For example, ->filldir
+	 * supplied by knfsd re-enters file system. Make sure no locks are
+	 * held.
+	 */
+	assert("nikita-3436", lock_stack_isclean(get_current_lock_stack()));
+
+	result = filldir(dirent, name, (int) strlen(name),
+			 /* offset of the next entry */
+			 (loff_t) pos->entry_no,
+			 /* inode number of object bounden by this entry */
+			 oid_to_uino(get_key_objectid(&sd_key)),
+			 file_type);
+	if (local_name != name_buf)
+		kfree(local_name);
+	if (result < 0)
+		/* ->filldir() is satisfied. (no space in buffer, IOW) */
+		result = 1;
+	else
+		result = seal_validate(&seal, coord, &entry_key, LEAF_LEVEL,
+				       tap->lh, FIND_EXACT,
+				       tap->mode, ZNODE_LOCK_HIPRI);
 	return result;
 }
 
@@ -1094,7 +1098,8 @@ readdir_common(struct file *f /* directory file being read */ ,
 			} else if (result == 0) {
 				++ f->f_pos;
 				result = go_next_unit(&tap);
-				if (result == -E_NO_NEIGHBOR || result == -ENOENT) {
+				if (result == -E_NO_NEIGHBOR ||
+				    result == -ENOENT) {
 					result = 0;
 					break;
 				} else if (result == 0) {
@@ -1103,9 +1108,9 @@ readdir_common(struct file *f /* directory file being read */ ,
 					else
 						break;
 				}
-			} else if (result == -EAGAIN) {
+			} else if (result == -EAGAIN)
+				/* feed_entry() had to restart. */
 				goto repeat;
-			}
 		}
 		if (result == 0)
 			tap_relse(&tap);
