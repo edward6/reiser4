@@ -496,7 +496,6 @@ define_never_ever_op( readpages )
 define_never_ever_op( prepare_write )
 define_never_ever_op( commit_write )
 define_never_ever_op( bmap )
-define_never_ever_op( invalidatepage )
 define_never_ever_op( direct_IO )
 
 #define V( func ) ( ( void * ) ( func ) )
