@@ -34,20 +34,20 @@ typedef struct reiserfs_nh40 reiserfs_nh40_t;
 
 #define reiserfs_nh40(block)			((reiserfs_nh40_t *)block->data)
 
-#define nh40_get_free_space(header)		get_le16(header, free_space)
-#define nh40_set_free_space(header, val)	set_le16(header, free_space, val)
+#define nh40_get_free_space(header)		aal_get_le16(header, free_space)
+#define nh40_set_free_space(header, val)	aal_set_le16(header, free_space, val)
 
-#define nh40_get_free_space_start(header)	get_le16(header, free_space_start)
-#define nh40_set_free_space_start(header, val)	set_le16(header, free_space_start, val)
+#define nh40_get_free_space_start(header)	aal_get_le16(header, free_space_start)
+#define nh40_set_free_space_start(header, val)	aal_set_le16(header, free_space_start, val)
 
 #define nh40_get_level(header)			(header->level)
 #define nh40_set_level(header, val)		(header->level = val)
 
-#define nh40_get_magic(header)			get_le32(header, magic)
-#define nh40_set_magic(header, val)		set_le32(header, magic, val)
+#define nh40_get_magic(header)			aal_get_le32(header, magic)
+#define nh40_set_magic(header, val)		aal_set_le32(header, magic, val)
 
-#define nh40_get_num_items(header)		get_le16(header, num_items)
-#define nh40_set_num_items(header, val)		set_le16(header, num_items, val)
+#define nh40_get_num_items(header)		aal_get_le16(header, num_items)
+#define nh40_set_num_items(header, val)		aal_set_le16(header, num_items, val)
 
 /* 
     Item headers are not standard across all node layouts, pass
@@ -66,14 +66,14 @@ struct reiserfs_ih40 {
 
 typedef struct reiserfs_ih40 reiserfs_ih40_t;
 
-#define ih40_get_offset(ih)			get_le16(ih, offset)
-#define ih40_set_offset(ih, val)		set_le16(ih, offset, val)
+#define ih40_get_offset(ih)			aal_get_le16(ih, offset)
+#define ih40_set_offset(ih, val)		aal_set_le16(ih, offset, val)
 
-#define ih40_get_length(ih)			get_le16(ih, length)
-#define ih40_set_length(ih, val)		set_le16(ih, length, val)
+#define ih40_get_length(ih)			aal_get_le16(ih, length)
+#define ih40_set_length(ih, val)		aal_set_le16(ih, length, val)
 
-#define ih40_get_plugin_id(ih)			get_le16(ih, plugin_id)
-#define ih40_set_plugin_id(ih, val)		set_le16(ih, plugin_id, val)
+#define ih40_get_plugin_id(ih)			aal_get_le16(ih, plugin_id)
+#define ih40_set_plugin_id(ih, val)		aal_set_le16(ih, plugin_id, val)
 
 inline reiserfs_ih40_t *node40_ih_at(aal_block_t *block, uint32_t pos) {
     return ((reiserfs_ih40_t *)(block->data + block->size)) - pos - 1;

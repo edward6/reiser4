@@ -22,17 +22,17 @@ struct reiserfs_stat40_base {
 
 typedef struct reiserfs_stat40_base reiserfs_stat40_base_t;  
 
-#define sd40_get_mode(stat)		get_le16(stat, mode)
-#define sd40_set_mode(stat, val)	set_le16(stat, mode, val)
+#define sd40_get_mode(stat)		aal_get_le16(stat, mode)
+#define sd40_set_mode(stat, val)	aal_set_le16(stat, mode, val)
 
-#define sd40_get_extmask(stat)		get_le16(stat, extmask)
-#define sd40_set_extmask(stat, val)	set_le16(stat, extmask, val)
+#define sd40_get_extmask(stat)		aal_get_le16(stat, extmask)
+#define sd40_set_extmask(stat, val)	aal_set_le16(stat, extmask, val)
 
-#define sd40_get_nlink(stat)		get_le32(stat, nlink)
-#define sd40_set_nlink(stat, val)	set_le32(stat, nlink, val)
+#define sd40_get_nlink(stat)		aal_get_le32(stat, nlink)
+#define sd40_set_nlink(stat, val)	aal_set_le32(stat, nlink, val)
 
-#define sd40_get_size(stat)		get_le64(stat, size)
-#define sd40_set_size(stat, val)	set_le64(stat, size, val)
+#define sd40_get_size(stat)		aal_get_le64(stat, size)
+#define sd40_set_size(stat, val)	aal_set_le64(stat, size, val)
 
 /* 
     Stat-data extension. Please order this by presumed 

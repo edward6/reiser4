@@ -15,8 +15,8 @@ struct reiserfs_internal40 {
 
 typedef struct reiserfs_internal40 reiserfs_internal40_t;
 
-#define int40_get_pointer(int40)	get_le64(int40, pointer)
-#define int40_set_pointer(int40, val)   set_le64(int40, pointer, val)
+#define int40_get_pointer(int40)	aal_get_le64(int40, pointer)
+#define int40_set_pointer(int40, val)   aal_set_le64(int40, pointer, val)
 
 #endif
 

@@ -113,9 +113,9 @@ static inline int reiserfs_misc_be_clear_bit(int nr, void *addr) {
 }
  
 static inline int reiserfs_misc_be_test_bit(int nr, const void *addr) {
-    const uint8_t *ADDR = (__const__ uint8_t *) addr;
+    const uint8_t *a = (__const__ uint8_t *)addr;
  
-    return ((ADDR[nr >> 3] >> (nr & 0x7)) & 1) != 0;
+    return ((a[nr >> 3] >> (nr & 0x7)) & 1) != 0;
 }
  
 static inline int reiserfs_misc_be_find_first_zero_bit(const void *vaddr, unsigned size) {
@@ -136,17 +136,17 @@ static inline int reiserfs_misc_be_find_next_zero_bit(const void *vaddr, unsigne
     unsigned offset) 
 {
     uint32_t *p = ((uint32_t *) vaddr) + (offset >> 5);
-    uint32_t result = offset & ~31UL;
+    uint32_t result = offset & ~31ul;
     uint32_t tmp;
 
     if (offset >= size)
         return size;
 
     size -= result;
-    offset &= 31UL;
+    offset &= 31ul;
     if (offset) {
         tmp = *(p++);
-        tmp |= swap32(~0UL >> (32-offset));
+        tmp |= aal_swap32(~0ul >> (32 - offset));
 	
         if (size < 32)
 	    goto found_first;
@@ -157,9 +157,11 @@ static inline int reiserfs_misc_be_find_next_zero_bit(const void *vaddr, unsigne
 	size -= 32;
 	result += 32;
     }
-    while (size & ~31UL) {
+    while (size & ~31ul) {
+    
         if (~(tmp = *(p++)))
             goto found_middle;
+	    
 	result += 32;
 	size -= 32;
     }
@@ -168,9 +170,9 @@ static inline int reiserfs_misc_be_find_next_zero_bit(const void *vaddr, unsigne
     tmp = *p;
 
 found_first:
-    return result + reiserfs_misc_ffz(swap32(tmp) | (~0UL << size));
+    return result + reiserfs_misc_ffz(aal_swap32(tmp) | (~0ul< size));
 found_middle:
-    return result + reiserfs_misc_ffz(swap32(tmp));
+    return result + reiserfs_misc_ffz(aal_swap32(tmp));
 }
 
 inline int reiserfs_misc_set_bit(int nr, void *addr) {
@@ -200,7 +202,9 @@ inline int reiserfs_misc_test_bit(int nr, const void *addr) {
     return 0;
 }
 
-inline int reiserfs_misc_find_first_zero_bit(const void *vaddr, unsigned size) {
+inline int reiserfs_misc_find_first_zero_bit(const void *vaddr, 
+    unsigned size) 
+{
 #ifndef WORDS_BIGENDIAN    
     return reiserfs_misc_le_find_first_zero_bit(vaddr, size);
 #else 
@@ -209,7 +213,9 @@ inline int reiserfs_misc_find_first_zero_bit(const void *vaddr, unsigned size) {
     return 0;
 }
 
-inline int reiserfs_misc_find_next_zero_bit(const void *vaddr, unsigned size, unsigned offset) {
+inline int reiserfs_misc_find_next_zero_bit(const void *vaddr, 
+    unsigned size, unsigned offset) 
+{
 #ifndef WORDS_BIGENDIAN    
     return reiserfs_misc_le_find_next_zero_bit(vaddr, size, offset);
 #else 
@@ -217,4 +223,3 @@ inline int reiserfs_misc_find_next_zero_bit(const void *vaddr, unsigned size, un
 #endif 
     return 0;
 }
-

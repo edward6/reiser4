@@ -31,7 +31,7 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
 	goto error_free_node;
     }
     
-    set_le16((reiserfs_node_header_t *)node->block->data, plugin_id, plugin_id);
+    aal_set_le16((reiserfs_node_header_t *)node->block->data, plugin_id, plugin_id);
     if (!(node->plugin = libreiser4_factory_find(REISERFS_NODE_PLUGIN, plugin_id))) 
 	libreiser4_factory_failed(goto error_free_block, find, node, plugin_id);
 
@@ -386,7 +386,7 @@ void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value) {
 
 void reiserfs_node_set_plugin_id(reiserfs_node_t *node, reiserfs_id_t plugin_id) {
     aal_assert("umka-603", node != NULL, return);
-    set_le16((reiserfs_node_header_t *)node->block->data, plugin_id, plugin_id);
+    aal_set_le16((reiserfs_node_header_t *)node->block->data, plugin_id, plugin_id);
 }
 
 #endif
@@ -409,7 +409,7 @@ uint16_t reiserfs_node_get_free_space(reiserfs_node_t *node) {
 
 reiserfs_id_t reiserfs_node_get_plugin_id(reiserfs_node_t *node) {
     aal_assert("umka-161", node != NULL, return -1);
-    return get_le16((reiserfs_node_header_t *)node->block->data, plugin_id);
+    return aal_get_le16((reiserfs_node_header_t *)node->block->data, plugin_id);
 }
 
 /* Item functions */

@@ -30,11 +30,11 @@ struct reiserfs_master {
 
 typedef struct reiserfs_master reiserfs_master_t;
 
-#define get_mr_format_id(mr)		get_le16(mr, mr_format_id)
-#define set_mr_format_id(mr, val)	set_le16(mr, mr_format_id, val)
+#define get_mr_format_id(mr)		aal_get_le16(mr, mr_format_id)
+#define set_mr_format_id(mr, val)	aal_set_le16(mr, mr_format_id, val)
 
-#define get_mr_block_size(mr)		get_le16(mr, mr_blocksize)
-#define set_mr_block_size(mr, val)	set_le16(mr, mr_blocksize, val)
+#define get_mr_block_size(mr)		aal_get_le16(mr, mr_blocksize)
+#define set_mr_block_size(mr, val)	aal_set_le16(mr, mr_blocksize, val)
 
 typedef struct reiserfs_fs reiserfs_fs_t;
 

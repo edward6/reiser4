@@ -27,8 +27,8 @@ struct reiserfs_journal40_header {
 
 typedef struct reiserfs_journal40_header reiserfs_journal40_header_t;
 
-#define get_jh_last_commited(jh)		get_le64(jh, jh_last_commited)
-#define set_jh_last_commited(jh, val)		set_le64(jh, jh_last_commited, val)
+#define get_jh_last_commited(jh)		aal_get_le64(jh, jh_last_commited)
+#define set_jh_last_commited(jh, val)		aal_set_le64(jh, jh_last_commited, val)
 
 struct reiserfs_journal40_footer {
     uint64_t jf_last_flushed;
@@ -36,8 +36,8 @@ struct reiserfs_journal40_footer {
 
 typedef struct reiserfs_journal40_footer reiserfs_journal40_footer_t;
 
-#define get_jf_last_flushed(jf)			get_le64(jf, jf_last_flushed)
-#define set_jf_last_flushed(jf, val)		set_le64(jf, jf_last_flushed, val)
+#define get_jf_last_flushed(jf)			aal_get_le64(jf, jf_last_flushed)
+#define set_jf_last_flushed(jf, val)		aal_set_le64(jf, jf_last_flushed, val)
 
 #endif
 
