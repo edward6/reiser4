@@ -593,16 +593,17 @@ reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
 		int gfp_flag /* allocation flag */ )
 {
 	if (REISER4_DEBUG) {
-		struct super_block *super;
+		reiser4_super_info_data *sbinfo;
 
-		super = reiser4_get_current_sb();
-		assert("nikita-1407", super != NULL);
+		sbinfo = get_current_super_private();
+
+		assert("nikita-1407", sbinfo != NULL);
 		if (gfp_flag & __GFP_WAIT)
 			assert("nikita-3009", schedulable());
 
-		reiser4_spin_lock_sb(super);
-		ON_DEBUG(get_super_private(super)->kmalloc_allocated += size);
-		reiser4_spin_unlock_sb(super);
+		reiser4_spin_lock_sb(sbinfo);
+		ON_DEBUG(sbinfo->kmalloc_allocated += size);
+		reiser4_spin_unlock_sb(sbinfo);
 	}
 	return kmalloc(size, gfp_flag);
 }
@@ -616,17 +617,15 @@ reiser4_kfree(void *area /* memory to from */,
 
 	kfree(area);
 	if (REISER4_DEBUG) {
-		struct super_block *super;
 		reiser4_super_info_data *sbinfo;
 
-		super = reiser4_get_current_sb();
-		sbinfo = get_super_private(super);
+		sbinfo = get_current_super_private();
 
-		reiser4_spin_lock_sb(super);
+		reiser4_spin_lock_sb(sbinfo);
 		assert("nikita-1411", sbinfo != NULL);
 		assert("nikita-1412", sbinfo->kmalloc_allocated >= (int) size);
 		ON_DEBUG(sbinfo->kmalloc_allocated -= size);
-		reiser4_spin_unlock_sb(super);
+		reiser4_spin_unlock_sb(sbinfo);
 	}
 }
 
@@ -642,10 +641,10 @@ reiser4_kfree_in_sb(void *area /* memory to from */,
 
 		sbinfo = get_super_private(sb);
 
-		reiser4_spin_lock_sb(sb);
+		reiser4_spin_lock_sb(sbinfo);
 		assert("nikita-2730", sbinfo->kmalloc_allocated >= (int) size);
 		ON_DEBUG(sbinfo->kmalloc_allocated -= size);
-		reiser4_spin_unlock_sb(sb);
+		reiser4_spin_unlock_sb(sbinfo);
 	}
 }
 

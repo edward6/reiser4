@@ -352,15 +352,13 @@ SPIN_LOCK_FUNCTIONS(super, reiser4_super_info_data, guard);
 #define spin_ordering_pred_super_eflush(private) (1)
 SPIN_LOCK_FUNCTIONS(super_eflush, reiser4_super_info_data, eflush_guard);
 
-static inline void reiser4_spin_lock_sb(const struct super_block * s)
+static inline void reiser4_spin_lock_sb(reiser4_super_info_data *sbinfo)
 {
-	reiser4_super_info_data * sbinfo = get_super_private (s);
 	spin_lock_super(sbinfo);
 }
 
-static inline void reiser4_spin_unlock_sb(const struct super_block * s)
+static inline void reiser4_spin_unlock_sb(reiser4_super_info_data *sbinfo)
 {
-	reiser4_super_info_data * sbinfo = get_super_private (s);
 	spin_unlock_super(sbinfo);
 }
 

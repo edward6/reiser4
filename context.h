@@ -184,9 +184,9 @@ static inline void grab_space_disable(void)
 	get_current_context()->grab_enabled = 0;
 }
 
-static inline int is_grab_enabled(void)
+static inline int is_grab_enabled(reiser4_context *ctx)
 {
-	return get_current_context()->grab_enabled;
+	return ctx->grab_enabled;
 }
 
 #define REISER4_TRACE_CONTEXT (0)

@@ -39,7 +39,7 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 	assert("nikita-930", brother != NULL);
 	assert("umka-264", level < REAL_MAX_ZTREE_HEIGHT);
 
-	retcode = assign_fake_blocknr(&blocknr, BA_FORMATTED, "new_znode");
+	retcode = assign_fake_blocknr_formatted(&blocknr);
 	if (retcode == 0) {
 		result = zget(znode_get_tree(brother), &blocknr, NULL, level, GFP_KERNEL);
 		if (IS_ERR(result)) {

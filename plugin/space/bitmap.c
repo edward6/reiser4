@@ -1171,16 +1171,13 @@ pre_commit_hook_bitmap(void)
 	blocks_freed -= atom->nr_blocks_allocated;
 
 	{
-		__u64 free_committed_blocks;
+		reiser4_super_info_data *sbinfo;
 
-		reiser4_spin_lock_sb(super);
+		sbinfo = get_super_private(super);
 
-		free_committed_blocks = reiser4_free_committed_blocks(super);
-
-		free_committed_blocks += blocks_freed;
-		reiser4_set_free_committed_blocks(super, free_committed_blocks);
-
-		reiser4_spin_unlock_sb(super);
+		reiser4_spin_lock_sb(sbinfo);
+		sbinfo->blocks_free_committed += blocks_freed;
+		reiser4_spin_unlock_sb(sbinfo);
 	}
 }
 
