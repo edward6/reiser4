@@ -194,14 +194,11 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 	carry_level todo_area;
 	/* queue of new requests */
 	carry_level *todo;
-	__u64 grabbed;
 	STORE_COUNTERS;
 
 	assert("nikita-888", doing != NULL);
 
 	trace_stamp(TRACE_CARRY);
-
-	grabbed = get_current_context()->grabbed_blocks;
 	
 	todo = &todo_area;
 	init_carry_level(todo, doing->pool);
@@ -272,9 +269,6 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 		preempt_point();
 	}
 	done_carry_level(done);
-
-	/* release reserved, but unused disk space */
-	grabbed2free(grabbed - get_current_context()->grabbed_blocks);
 
 	/* all counters, but x_refs should remain the same. x_refs can change
 	   owing to transaction manager */
