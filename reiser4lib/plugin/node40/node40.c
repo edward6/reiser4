@@ -136,7 +136,6 @@ static void reiserfs_node40_print(reiserfs_node40_t *node, char *buff) {
     Returns -1 for item_pos if the wanted key goes before the first item of the node.
     Returns count for item_pos if after.
     Returns -1 for unit_pos if item_lookup method has not been implemented.
-    
     Other values for unit_num are set by item lookup method.
 */
 static reiserfs_coord_t *lookup(reiserfs_node40_t *node, reiserfs_key_t *key) {
@@ -155,8 +154,8 @@ static reiserfs_coord_t *lookup(reiserfs_node40_t *node, reiserfs_key_t *key) {
 
     coord->node = node;
     
-    if ((ret = reiserfs_misc_bin_search(key, &pos, reiserfs_node40_item_count(node), 
-	node, reiserfs_node40_key_at, reiserfs_misc_comp_keys)) == -1)
+    if ((ret = reiserfs_misc_bin_search(key, node, reiserfs_node40_item_count(node), 
+	reiserfs_node40_key_at, reiserfs_misc_comp_keys, &pos)) == -1)
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Binary search failed on node %d.", 

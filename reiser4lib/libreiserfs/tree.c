@@ -108,15 +108,15 @@ void reiserfs_tree_close(reiserfs_fs_t *fs) {
     fs->tree = NULL;
 }
 
-/*static int reiserfs_tree_lookup(reiserfs_tree_t *tree, blk_t from, 
+/*int reiserfs_tree_lookup(reiserfs_tree_t *tree, blk_t from, 
     reiserfs_comp_func_t comp_func, struct key *key, int for_leaf, 
     reiserfs_path_t *path) 
 {
     reiserfs_block_t *node;
-    uint32_t level, found = 0, pos = 0;
+    uint8_t level, found = 0, pos = 0;
 	
-    ASSERT(tree != NULL, return 0);
-    ASSERT(key != NULL, return 0);
+    aal_assert("umka-458", tree != NULL, return 0);
+    aal_assert("umka-459", key != NULL, return 0);
 	
     if (!comp_func) return 0;
 

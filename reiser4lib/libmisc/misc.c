@@ -4,29 +4,29 @@
     Author Vitaly Fertman.
 */  
 
-/* 
-    This implements binary search for 'find_it' among 'count' elements.
-    Return values: 
-    1 - key on *ppos  found exact key on *ppos position; 
-    0 - exect key has not been found. key on *ppos < then;
-*/
-
 #include <misc/misc.h>
 
-int reiserfs_misc_bin_search (
-    void *find_it,                  /* element to be found */
-    int64_t *ppos,                  /* return position */
-    uint32_t count,                 /* count of elements to look through */
-    void *entity,                   /* whose elements we are looking through */
-    get_element_to_comp_t get_elem, /* function to get element */
-    comp_function_t comp_func)      /* function to compare elements */
+/* 
+    This implements binary search for "needle" among "count" elements.
+    
+    Return values: 
+    1 - key on *pos found exact key on *pos position; 
+    0 - exact key has not been found. key on *pos < then;
+*/
+int reiserfs_misc_bin_search(
+    void *needle,		    /* element to be found */
+    void *array,		    /* array search will be performed on */ 
+    uint32_t count,		    /* array size */
+    reiserfs_elem_func_t elem_func, /* function for getting next element from given array */
+    reiserfs_comp_func_t comp_func, /* function for comparing needle and a lement from array */
+    uint64_t *pos)		    /* pointer on found pos a result will be stored in */
 {
     void *elem;
     int ret = 0;
     int64_t rbound, lbound, j;
 
     if (count == 0) {
-        *ppos = -1;
+        *pos = -1;
         return 0;
     }
 
@@ -34,34 +34,28 @@ int reiserfs_misc_bin_search (
     rbound = count - 1;
 
     for (j = (rbound + lbound) / 2; lbound <= rbound; j = (rbound + lbound) / 2) {
-	elem = get_elem(entity, j);
-	
-	if (elem == NULL) {
-	    *ppos = -1;
+	if (!(elem = elem_func(array, j))) {
+	    *pos = -1;
 	    return -1;
 	}
 	
-        ret = comp_func(elem, find_it);
-        if (ret < 0) { 
-	    /* second is greater */
+        if ((ret = comp_func(elem, needle)) < 0) { 
             lbound = j + 1;
             continue;
         } else if (ret > 0) { 
-	    /* first is greater */
-            if (j == 0)
-                break;
+            if (j == 0) 
+		break;
             rbound = j - 1;
             continue;
         } else { 
-	    /* equal */
-            *ppos = j;
+            *pos = j;
             return 1;
         }
     }
 
-    /* lbound == j, set *ppos on the position which element less than 'find_it' 
+    /* lbound == j, set *pos on the position which element less than "needle" 
        on the base of the last search  */
-    *ppos = lbound - (ret >= 0);
+    *pos = lbound - (ret >= 0);
 
     return 0;
 }
