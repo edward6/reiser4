@@ -2477,6 +2477,8 @@ reiser4_invalidatepage(struct page *page, unsigned long offset)
 			jnode_wait_fq(node);
 			assert("nikita-3149", 
 			       !JF_ISSET(node, JNODE_FLUSH_QUEUED));
+			/* page cannot be detached from jnode concurrently,
+			 * because it is locked */
 			uncapture_page(page);
 			UNDER_SPIN_VOID(jnode,
 					node, page_clear_jnode(page, node));

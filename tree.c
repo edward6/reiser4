@@ -594,6 +594,7 @@ forget_znode(lock_handle * handle)
 {
 	znode *node;
 	reiser4_tree *tree;
+	struct page *page;
 
 	assert("umka-319", handle != NULL);
 
@@ -609,7 +610,24 @@ forget_znode(lock_handle * handle)
 	WUNLOCK_TREE(tree);
 
 	invalidate_lock(handle);
-	uncapture_page(znode_page(node));
+	/*
+	 * uncapture page from transaction. There is a possibility of a race
+	 * with ->releasepage(): reiser4_releasepage() detaches page from this
+	 * jnode and we have nothing to uncapture. To avoid this, get
+	 * reference of node->pg under jnode spin lock. uncapture_page() will
+	 * deal with released page itself.
+	 */
+	spin_lock_znode(node);
+	page = znode_page(node);
+	if (likely(page != NULL)) {
+		page_cache_get(page);
+		spin_unlock_znode(node);
+		reiser4_lock_page(page);
+		uncapture_page(page);
+		reiser4_unlock_page(page);
+		page_cache_release(page);
+	} else
+		spin_unlock_znode(node);
 }
 
 /* Check that internal item at @pointer really contains pointer to @child. */
