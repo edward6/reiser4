@@ -463,8 +463,8 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 	iplug = item_plugin_by_id(FORMATTING_ID);
 	hint_init_zero(&hint);
 	init_lh(&lh);
-	hint.coord.lh = &lh;
-	coord = &hint.coord.base_coord;
+	hint.ext_coord.lh = &lh;
+	coord = &hint.ext_coord.coord;
 	while (f.length) {
 		result = find_file_item_nohint(coord, &lh, &f.key, ZNODE_WRITE_LOCK, inode);
 		if (IS_CBKERR(result))
@@ -479,7 +479,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 			break;
 		loaded = coord->node;
 
-		result = iplug->s.file.write(inode, &f, &hint, 1/*grabbed*/, how_to_write(&hint.coord, &f.key));
+		result = iplug->s.file.write(inode, &f, &hint, 1/*grabbed*/, how_to_write(&hint.ext_coord, &f.key));
 		zrelse(loaded);
 		done_lh(&lh);
 

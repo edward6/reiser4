@@ -975,9 +975,8 @@ feed_entry(struct file *f,
 		/* ->filldir() is satisfied. (no space in buffer, IOW) */
 		result = 1;
 	else
-		result = seal_validate(&seal, coord, &entry_key, LEAF_LEVEL,
-				       tap->lh, FIND_EXACT,
-				       tap->mode, ZNODE_LOCK_HIPRI);
+		result = seal_validate(&seal, coord, &entry_key,
+				       tap->lh, tap->mode, ZNODE_LOCK_HIPRI);
 	return result;
 }
 

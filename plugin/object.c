@@ -412,9 +412,7 @@ locate_inode_sd(struct inode *inode,
 		result = seal_validate(&seal,
 				       coord,
 				       key,
-				       LEAF_LEVEL,
 				       lh,
-				       FIND_EXACT,
 				       ZNODE_WRITE_LOCK,
 				       ZNODE_LOCK_LOPRI);
 		if (result == 0)

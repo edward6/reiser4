@@ -1280,8 +1280,8 @@ find_entry(struct inode *dir /* directory to scan */,
 
 	if (seal_is_set(seal)) {
 		/* check seal */
-		result = seal_validate(seal, coord, &entry->key, LEAF_LEVEL,
-				       lh, FIND_EXACT, mode, ZNODE_LOCK_LOPRI);
+		result = seal_validate(seal, coord, &entry->key,
+				       lh, mode, ZNODE_LOCK_LOPRI);
 		if (result == 0) {
 			/* key was found. Check that it is really item we are
 			   looking for. */
