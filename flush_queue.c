@@ -260,9 +260,11 @@ finish_all_fq(txn_atom * atom, int *nr_io_errors)
 			fq->owner = current;
 			ret = finish_fq(fq, nr_io_errors);
 
+			if ( *nr_io_errors )
+				reiser4_handle_error();
+
 			if (ret) {
 				fq_put(fq);
-				reiser4_handle_error();
 				return ret;
 			}
 
