@@ -479,7 +479,11 @@ static int flush_query_relocate_check (jnode *node, const coord_t *parent_coord,
 		return 1;
 	}
 
-	/* Find the preceder. */
+	/* Find the preceder.  FIXME: When the child is an unformatted, previously
+	 * allocated node, the coord may be leftmost even though the child is not the
+	 * parent-first preceder of the parent.  If the first dirty node appears somewhere
+	 * in the middle of the first extent unit, this preceder calculation is wrong.
+	 * Needs more logic in here. */
 	if (coord_is_leftmost_unit (parent_coord)) {
 		pblk = *znode_get_block (parent_coord->node);
 	} else {
@@ -622,6 +626,9 @@ static int flush_set_preceder (const coord_t *coord_in, flush_position *pos)
 
 	init_lh (& left_lock);
 
+	/* FIXME: Same FIXME as in "Find the preceder" in flush_query_relocate_check.
+	 * coord_is_leftmost_unit is not the right test if the unformatted child is in the
+	 * middle of the first extent unit. */
 	if (! coord_is_leftmost_unit (& coord)) {
 		coord_prev_unit (& coord);
 	} else {
@@ -1533,8 +1540,11 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 		return ret;
 	}
 
+	 /* FIXME: JMACD->ZAM: In the dealloc_block call, it is unclear to me whether I
+	  * need to pass BLOCK_NOT_COUNTED or whether setting preceder.block_stage above
+	  * is correct. */
 	if (! ZF_ISSET (node, JNODE_CREATED) &&
-	    (ret = reiser4_dealloc_block (znode_get_block (node), /* defer */1, 0 /* FIXME: JMACD->ZAM: Why 0 (BLOCK_NOT_COUNTED)? */))) {
+	    (ret = reiser4_dealloc_block (znode_get_block (node), 1 /* defer */, 0 /* BLOCK_NOT_COUNTED */))) {
 		return ret;
 	}
 
@@ -1657,14 +1667,9 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 /* FIXME: comment */
 static int flush_queue_jnode (jnode *node, flush_position *pos)
 {
-	/* FIXME: The main source of problems for this approach is likely to be that the
-	 * queue retains a reference to each node.  While a node is referenced it can
-	 * still be reached through the sibling list, which can confuse flush code.
-	 * However, this should only be able to confuse a concurrent flush process.  We
-	 * shall see. */
 	assert ("jmacd-65551", spin_jnode_is_locked (node));
 
-	/* FIXME: See comment in flush_rewrite_jnode. */
+	/* FIXME: See atomicity comment in flush_rewrite_jnode. */
 	if (! jnode_is_dirty (node) || JF_ISSET (node, JNODE_HEARD_BANSHEE) || JF_ISSET (node, JNODE_FLUSH_QUEUED)) {
 		spin_unlock_jnode (node);
 		return 0;
@@ -1675,14 +1680,13 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 	// assert ("zam-670", PageDirty(jnode_page(node)));
 	assert ("jmacd-1771", jnode_is_allocated (node));
 
-	// pos->queue[pos->queue_num++] = jref (node);
 	{
 		txn_atom * atom;
 
 		atom = atom_get_locked_by_jnode (node);
 		assert ("zam-661", atom != NULL);
 
-		/* flush_pos appears on the atom list since one jnode is queued */
+		/* flush_pos is added to the atom->flushers list the first time a jnode is queued. */
 		if (capture_list_empty(&pos->queue)) {
 			flushers_list_push_back (&atom->flushers, pos);
 			assert ("zam-664", pos->queue_num == 0);
@@ -1700,10 +1704,6 @@ static int flush_queue_jnode (jnode *node, flush_position *pos)
 	/*trace_if (TRACE_FLUSH, if (jnode_is_unformatted (node)) { info ("queue: %s\n", flush_jnode_tostring (node)); });*/
 
 	spin_unlock_jnode (node);
-
-	// if (pos->queue_num == FLUSH_QUEUE_SIZE) {
-	//	return flush_empty_queue (pos, 0);
-	// }
 
 	return 0;
 }
