@@ -34,10 +34,9 @@ int done_io_handle (struct reiser4_io_handle * io)
 
 void io_handle_add_bio (struct reiser4_io_handle * io, struct bio * bio)
 {
-	if (!io) return;
-
 	bio->bi_private = io;
-	atomic_add(bio->bi_vcnt, &io->nr_submitted);
+
+	if (io) atomic_add(bio->bi_vcnt, &io->nr_submitted);
 }
 
 void io_handle_end_io (const struct bio * bio)
