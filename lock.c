@@ -569,8 +569,7 @@ check_lock_object(lock_stack * owner)
 		return RETERR(-EAGAIN);
 	}
 
-	if (unlikely(!is_lock_compatible(node, owner->request.mode) && 
-		     !recursive(owner))) {
+	if (unlikely(!is_lock_compatible(node, owner->request.mode))) {
 		return RETERR(-EAGAIN);
 	}
 
@@ -985,7 +984,8 @@ longterm_lock_znode(
 	/* Synchronize on node's guard lock. */
 	spin_lock_znode(node);
 
-	if (mode == ZNODE_WRITE_LOCK && recursive(owner))
+	if (znode_is_locked(node) && 
+	    mode == ZNODE_WRITE_LOCK && recursive(owner))
 		return lock_tail(owner, wake_up_next, 0, mode);
 
 	for (;;) {
@@ -1073,7 +1073,7 @@ longterm_lock_znode(
 		spin_unlock_znode(node);
 		/* ... and sleep */
 		go_to_sleep(owner, level);
-
+		
 		spin_lock_znode(node);
 
 		if (hipri) {
