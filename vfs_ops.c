@@ -942,9 +942,20 @@ static int invoke_create_method( struct inode *parent /* parent directory */,
 	dplug = inode_dir_plugin( parent );
 	if( dplug == NULL )
 		result = -ENOTDIR;
-	else if( dplug -> create_child != NULL )
+	else if( dplug -> create_child != NULL ) {
+		struct inode *child;
+
 		result = dplug -> create_child( parent, dentry, data );
-	else
+		child = dentry -> d_inode;
+		if( unlikely( result != NULL ) ) {
+			if( child != NULL ) {
+				dentry -> d_inode = NULL;
+				reiser4_make_bad_inode( child );
+				iput( child );
+			}
+		} else
+			d_instantiate( dentry, child );
+	} else
 		result = -EPERM;
 
 	REISER4_EXIT( result );
@@ -1408,7 +1419,7 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 			 * set trace flags to be N for this mount. N can be C
 			 * numeric literal recognized by %i scanf specifier.
 			 * It is treated as bitfield filled by values of
-			 * debug.c:reiser4_trace_flags enum
+			 * debug.h:reiser4_trace_flags enum
 			 */
 			.name = "trace",
 			.type = OPT_FORMAT,
@@ -1429,6 +1440,28 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 		},
 		{
 			/*
+			 * debug=N
+			 *
+			 * set debug flags to be N for this mount. N can be C
+			 * numeric literal recognized by %i scanf specifier.
+			 * It is treated as bitfield filled by values of
+			 * debug.h:reiser4_debug_flags enum
+			 */
+			.name = "debug",
+			.type = OPT_FORMAT,
+			.u = {
+				.f = {
+					.format  = "%i",
+					.nr_args = 1,
+					.arg1 = &get_super_private (s) -> debug_flags,
+					.arg2 = NULL,
+					.arg3 = NULL,
+					.arg4 = NULL
+				}
+			}
+		},
+		{
+			/*
 			 * atom_max_size=N
 			 *
 			 * Atoms containing more than N blocks will be forced
@@ -1440,17 +1473,13 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 				.f = {
 					.format  = "%d",
 					.nr_args = 1,
-					/*
-					 * neat gcc feature: allow
-					 * non-constant initializers.
-					 */
 					.arg1 = &get_super_private (s) -> txnmgr.atom_max_size,
 					.arg2 = NULL,
 					.arg3 = NULL,
 					.arg4 = NULL
 				}
 			}
-		},
+		}
 	};
 
 	get_super_private (s) -> txnmgr.atom_max_size = REISER4_ATOM_MAX_SIZE;

@@ -333,21 +333,20 @@ static int common_create_child( struct inode *parent /* parent object */,
 					 result );
 			}
 		}
+	} else {
+		warning( "nikita-2219", "Failed to create sd for %lu (%x)",
+			 object -> i_ino, *reiser4_inode_flags( object ) );
 	}
+
 	/* file has name now, clear immutable flag */
 	*reiser4_inode_flags( object ) &= ~REISER4_IMMUTABLE;
 
-	if( result != 0 ) {
-		/* iput() will call ->delete_inode(). We should keep
-		   track of the existence of stat-data for this inode
-		   and avoid attempt to remove it in
-		   reiser4_delete_inode(). This is accomplished through
-		   REISER4_NO_STAT_DATA bit in
-		   inode.u.reiser4_i.plugin.flags */
-		iput( object );
-	} else {
-		d_instantiate( dentry, object );
-	}
+	/* 
+	 * on error, iput() will call ->delete_inode(). We should keep track
+	 * of the existence of stat-data for this inode and avoid attempt to
+	 * remove it in reiser4_delete_inode(). This is accomplished through
+	 * REISER4_NO_STAT_DATA bit in inode.u.reiser4_i.plugin.flags
+	 */
 	return result;
 }
 
