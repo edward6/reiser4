@@ -361,7 +361,8 @@ find_file_item(hint_t *hint,
 				if (result)
 					return result;
 				assert("vs-1152", equal_to_ldk(coord->node, key));
-
+				/* invalidate extent data of a coord */
+				coord->vp = 0;
 				reiser4_stat_inc(file.find_file_item_via_right_neighbor);
 			} else {
 				reiser4_stat_inc(file.find_file_item_via_seal);
@@ -1073,6 +1074,7 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 	int (*read_f) (struct file *, coord_t *, flow_t *);
 	unix_file_info_t *uf_info;
 	PROF_BEGIN(file_read);
+	item_plugin *iplug;
 
 	if (unlikely(!read_amount))
 		return 0;
@@ -1240,9 +1242,13 @@ ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t
 			return result;
 		}
 
-		if (uf_info->state == UNIX_FILE_BUILT_OF_EXTENTS)/*file_is_built_of_extents(inode))*/
-			read_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.read;
-		else
+		if (uf_info->state == UNIX_FILE_BUILT_OF_EXTENTS)/*file_is_built_of_extents(inode))*/ {			
+			assert("vs-1288", znode_get_level(coord.node) == TWIG_LEVEL);
+			iplug = item_plugin_by_id(EXTENT_POINTER_ID);
+			if (!coord.vp && iplug->b.init_coord)
+				iplug->b.init_coord(&coord);
+			read_f = iplug->s.file.read;
+		} else
 			read_f = item_plugin_by_id(TAIL_ID)->s.file.read;
 		result = read_f(file, &coord, &f);
 
