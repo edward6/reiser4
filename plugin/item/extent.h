@@ -111,7 +111,7 @@ int allocate_and_copy_extent (znode * left, tree_coord * right,
 int   extent_is_allocated (const tree_coord *item); /* True if this extent is allocated (i.e., not a hole, not unallocated). */
 __u64 extent_unit_index   (const tree_coord *item); /* Block offset of this unit. */
 __u64 extent_unit_width   (const tree_coord *item); /* Number of blocks in this unit. */
-int   extent_get_inode    (const tree_coord *item, struct inode **inode); /* Get the inode: you must iput() it. */
+void  extent_get_inode    (const tree_coord *item, struct inode **inode); /* Get the inode: you must iput() it. */
 
 /* 
  * Local variables:

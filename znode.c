@@ -716,8 +716,6 @@ int zinit_new( znode *node /* znode to initialise */ )
 		assert( "nikita-1235", znode_is_loaded( node ) );
 		assert( "nikita-1236", node_plugin_by_node( node ) != NULL );
 		result = node_plugin_by_node( node ) -> init( node );
-
-		info ("allocate znode: 0x%p\n", node);
 	}
 	return result;
 }

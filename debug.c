@@ -61,7 +61,9 @@ void preempt_point( void )
  */
 lock_counters_info *lock_counters()
 {
-	return &get_current_context() -> locks;
+	reiser4_context *ctx = get_current_context();
+	assert ("jmacd-1123", ctx != NULL);
+	return &ctx -> locks;
 }
 
 /**

@@ -73,7 +73,7 @@ extern int allocate_and_copy_extent_n            (znode * left, new_coord * righ
 extern int   extent_is_allocated_n               (const new_coord *item);
 extern __u64 extent_unit_index_n                 (const new_coord *item);
 extern __u64 extent_unit_width_n                 (const new_coord *item);
-extern int   extent_get_inode_n                  (const new_coord *item, struct inode **inode);
+extern void  extent_get_inode_n                  (const new_coord *item, struct inode **inode);
 
 extern int   node_shift_n (znode *pnode, new_coord *coord, znode *snode, sideof side,
 			   int del_right,

@@ -623,6 +623,11 @@ extern int init_special_inode( struct inode *inode, __u32 mode, __u32 rdev );
 extern void make_bad_inode( struct inode *inode );
 extern int is_bad_inode( struct inode *inode );
 
+struct inode * find_inode (struct super_block *super UNUSED_ARG,
+			   unsigned long ino, 
+			   int (*test)(struct inode *, void *), 
+			   void *data);
+
 extern struct inode *
 iget5_locked(struct super_block *sb, 
 	     unsigned long hashval, 

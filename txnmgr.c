@@ -66,6 +66,12 @@ void          atom_print                      (txn_atom   *atom);
 
 #define JNODE_ID(x) ((x)->blocknr)
 
+static inline unsigned jnode_real_level (jnode *node)
+{
+	assert ("jmacd-1232", jnode_get_level (node) >= LEAF_LEVEL);
+	return jnode_get_level (node) - LEAF_LEVEL;
+}
+
 /****************************************************************************************
 				    GENERIC STRUCTURES
 ****************************************************************************************/
@@ -291,11 +297,10 @@ jnode_of_page (struct page* pg)
 		 * znodes aren't having theirs set. */
 		jnode_init (jal);
 
-		jal->pg = pg;
+		jal->pg    = pg;
+		jal->level = LEAF_LEVEL;
 
 		JF_SET (jal, ZNODE_UNFORMATTED);
-
-		info ("allocate jnode: 0x%p\n", jal);
 
 		jal = NULL;
 	}
@@ -1122,6 +1127,36 @@ txn_try_capture_page  (struct page        *pg,
 	return ret;
 }
 
+/* This informs the transaction manager when an unformatted node is deleted. */
+void txn_delete_page (struct page *pg)
+{
+	jnode *node;
+	txn_atom *atom;
+
+	spin_lock (& _jnode_ptr_lock);
+	node = (jnode*) pg->private;
+	pg->private = NULL;
+	spin_unlock (& _jnode_ptr_lock);
+	
+	if (node == NULL) {
+		return;
+	}
+
+	spin_lock_jnode (node);
+
+	atom = atom_get_locked_by_jnode (node);
+
+	spin_unlock_jnode (node);
+
+	if (atom == NULL) {
+		return;
+	}
+
+	uncapture_block (atom, node);
+
+	spin_unlock_atom (atom);
+}
+
 /* No-locking version of assign_txnh.  Sets the transaction handle's atom pointer,
  * increases atom refcount, adds to txnh_list. */
 static void
@@ -1153,7 +1188,7 @@ capture_assign_block_nolock (txn_atom *atom,
 	node->atom = atom;
 
 	if (jnode_is_dirty (node)) {
-		capture_list_push_back (& atom->dirty_nodes[ jnode_get_level (node) - LEAF_LEVEL ], node);
+		capture_list_push_back (& atom->dirty_nodes[ jnode_real_level (node) ], node);
 	} else {
 		capture_list_push_back (& atom->clean_nodes, node);
 	}
@@ -1187,8 +1222,10 @@ void jnode_set_dirty( jnode *node )
 		 * jnode will be added to the appropriate list in capture_assign_block_nolock. */
 		if (atom != NULL) {
 
+			int level = jnode_real_level (node);
+
 			capture_list_remove     (node);
-			capture_list_push_front (& atom->dirty_nodes[ jnode_get_level (node) - LEAF_LEVEL ], node);
+			capture_list_push_front (& atom->dirty_nodes[level], node);
 
 			spin_unlock_atom (atom);
 		}

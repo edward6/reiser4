@@ -593,7 +593,7 @@ static int reiser4_unlink( struct inode *parent /* parent directory */,
 	assert( "nikita-2011", parent != NULL );
 	assert( "nikita-2012", victim != NULL );
 	assert( "nikita-2013", victim -> d_inode != NULL );
-	if( inode_dir_plugin( victim -> d_inode ) == NULL )
+	if( inode_dir_plugin( parent ) != NULL )
 		return unlink_file( parent, victim );
 	else
 		return -EISDIR;
@@ -1129,15 +1129,23 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 static int put_super (struct super_block * s)
 {
-	REISER4_ENTRY (s);
+	int ret;
 
-	if (get_super_private (s)->lplug->release)
-		get_super_private (s)->lplug->release (s);
+	if ((ret = txn_mgr_force_commit (s))) {
+		warning ("jmacd-7711", "txn_force failed in put_super: %u", ret);
+	}
 
-	kfree(s->u.generic_sbp);
-	s->u.generic_sbp = NULL;
+	{
+		REISER4_ENTRY (s);
 
-	REISER4_EXIT (0);
+		if (get_super_private (s)->lplug->release)
+			get_super_private (s)->lplug->release (s);
+		
+		kfree(s->u.generic_sbp);
+		s->u.generic_sbp = NULL;
+		
+		REISER4_EXIT (0);
+	}
 }
 
 static void reiser4_put_super (struct super_block * s)

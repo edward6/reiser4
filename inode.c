@@ -301,7 +301,7 @@ static int init_locked_inode( struct inode *inode /* new inode */,
 
 
 /**
- * reiser4_find_actor() - "find actor" supplied by reiser4 to iget5_locked().
+ * reiser4_inode_find_actor() - "find actor" supplied by reiser4 to iget5_locked().
  *
  * This function is called by iget5_locked() to distinguish reiserfs inodes
  * having the same inode numbers. Such inodes can only exist due to some
@@ -309,7 +309,7 @@ static int init_locked_inode( struct inode *inode /* new inode */,
  * inode numbers (objectids) are distinguished by their packing locality.
  *
  */
-static int find_actor( struct inode *inode /* inode from hash table to
+int reiser4_inode_find_actor( struct inode *inode /* inode from hash table to
 					    * check */,
 		       void *opaque /* "cookie" passed to iget5_locked(). This
 				     * is stat data key */ )
@@ -345,7 +345,7 @@ struct inode *reiser4_iget( struct super_block *super /* super block  */,
 	 * bits of objectid.
 	 */
 	inode = iget5_locked( super, ( unsigned long ) get_key_objectid( key ), 
-			      find_actor, init_locked_inode, 
+			      reiser4_inode_find_actor, init_locked_inode, 
 			      ( reiser4_key * ) key );
 	if( inode == NULL ) 
 		return NULL;
@@ -355,7 +355,7 @@ struct inode *reiser4_iget( struct super_block *super /* super block  */,
 	} else if( inode -> i_state & I_NEW ) {
 		/* locking: iget5_locked returns locked inode */
 		assert( "nikita-1941", ! is_inode_loaded( inode ) );
-		assert( "nikita-1949", find_actor( inode, 
+		assert( "nikita-1949", reiser4_inode_find_actor( inode, 
 						   ( reiser4_key * ) key ) );
 		/* now, inode has objectid as -> i_ino and locality in
 		   reiser4-specific part. This data is enough for read_inode()
