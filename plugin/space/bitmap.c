@@ -769,8 +769,8 @@ bitmap_iterator(reiser4_block_nr * start, reiser4_block_nr * start,
    have it in v4.x */
 
 static int
-search_one_bitmap(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset,
-		  int min_len, int max_len)
+search_one_bitmap_forward(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset,
+			  int min_len, int max_len)
 {
 	struct super_block *super = get_current_context()->super;
 	struct bnode *bnode = get_bnode(super, bmap);
@@ -847,12 +847,9 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 {
 	struct super_block *super = get_current_context()->super;
 	struct bnode *bnode = get_bnode(super, bmap);
-
 	char *data;
-
 	bmap_off_t start;
 	bmap_off_t end;
-
 	int ret;
 
 	assert("zam-958", min_len > 0);
@@ -867,20 +864,35 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 	start = *start_offset;
 
 	while (1) {
+		/* Find the beginning of the zero filled region */
 		if (reiser4_find_last_zero_bit(&start, data, end_offset, start))
 			break;
+		/* Is there more than `min_len' bits from `start' to
+		 * `end_offset'?  */
 		if (start < end_offset + min_len)
 			break;
 
-		if (!reiser4_find_last_set_bit(&end, data, end_offset, start)
-		    && end + min_len <= start) {
+		/* Do not search to `end_offset' if we need to find less than
+		 * `max_len' zero bits. */
+		if (end_offset + max_len < start)
+			end = start - max_len;
+		else
+			end = end_offset;
+
+		reiser4_find_last_set_bit(&end, data, end_offset, start);
+
+		if (end + min_len <= start) {
 			if (end < end_offset)
 				end = end_offset;
-			ret = end - start;
-			*start_offset = start;
+			ret = start - end;
+			*start_offset = end; /* `end' is lowest offset */
 			reiser4_set_bits(data, end, start);
 			break;
 		}
+
+		if (end <= end_offset)
+			/* left search boundary reached. */
+			break;
 		start = end - 1;
 	}
 
@@ -923,12 +935,12 @@ bitmap_alloc(reiser4_block_nr * start, const reiser4_block_nr * end, int min_len
 		assert("zam-359", ergo(end_bmap == bmap, end_offset > offset));
 
 		for (; bmap < end_bmap; bmap++, offset = 0) {
-			len = search_one_bitmap(bmap, &offset, max_offset, min_len, max_len);
+			len = search_one_bitmap_forward(bmap, &offset, max_offset, min_len, max_len);
 			if (len != 0)
 				goto out;
 		}
 		
-		len = search_one_bitmap(bmap, &offset, end_offset, min_len, max_len);
+		len = search_one_bitmap_forward(bmap, &offset, end_offset, min_len, max_len);
 	}
 out:
 	*start = bmap * max_offset + offset;
@@ -1364,7 +1376,7 @@ destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block
    mode-name: "LC"
    c-basic-offset: 8
    tab-width: 8
-   fill-column: 120
+   fill-column: 80
    scroll-step: 1
    End:
 */
