@@ -1321,6 +1321,7 @@ pre_commit_hook_bitmap(void)
 			int ret;
 
 			assert("vs-1445", node->list == CLEAN_LIST);
+			BUG_ON(node->atom != atom);
 			JF_SET(node, JNODE_SCANNED);
 			spin_unlock(&scan_lock);
 

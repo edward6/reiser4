@@ -328,6 +328,8 @@ reiser4_invalidatepage(struct page *page /* page to invalidate */,
 
 #define INC_NSTAT(node, counter) INC_STAT(jnode_page(node), node, counter)
 
+int is_cced(const jnode *node);
+
 /* help function called from reiser4_releasepage(). It returns true if jnode
  * can be detached from its page and page released. */
 static int
@@ -348,7 +350,7 @@ releasable(const jnode *node /* node to check */)
 	/* this jnode is just a copy. Its page cannot be released, because
 	 * otherwise next jload() would load obsolete data from disk
 	 * (up-to-date version may still be in memory). */
-	if (JF_ISSET(node, JNODE_CCED)) {
+	if (is_cced(node)) {
 		INC_NSTAT(node, vm.release.copy);
 		return 0;
 	}
