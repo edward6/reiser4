@@ -82,69 +82,6 @@ static struct buffer_head *read_super_block (struct super_block * s
     return find_a_disk_format_40_super_block(s);
 }
 
-/* load journal header or footer */
-static int load_journal_control_block (jnode ** node,  const reiser4_block_nr * block)
-{
-	int ret;
-
-	*node = jnew ();
-	if (!(*node)) return -ENOMEM;
-
-	jnode_set_block(*node, block);
-
-	ret = jload(*node);
-	if (ret) { jfree(*node); *node = NULL; return ret;}
-
-	jref(*node);
-	jrelse(*node);
-
-	return 0;
-}
-
-/* unload journal header or footer and free jnode */
-static void unload_journal_control_block (jnode ** node)
-{
-	if (*node) {
-		jput(*node);
-		jdrop(*node);
-		*node = NULL;
-	}
-}
-
-/* release journal control blocks */
-static void done_journal_info (struct super_block *s)
-{
-
-	reiser4_super_info_data * private = get_super_private (s);
-
-	assert ("zam-476", private != NULL);
-
-	unload_journal_control_block(&private->journal_header);
-	unload_journal_control_block(&private->journal_footer);
-}
-
-/* load journal control blocks */
-static int init_journal_info (struct super_block * s)
-{
-	reiser4_super_info_data * private = get_super_private(s);
-
-	const reiser4_block_nr jh_block = FORMAT_40_JOURNAL_HEADER_BLOCKNR;
-	const reiser4_block_nr jf_block = FORMAT_40_JOURNAL_FOOTER_BLOCKNR;
-
-	int ret;
-
-	ret = load_journal_control_block (&private->journal_header, &jh_block);
-	if (ret) return ret;
-
-	ret = load_journal_control_block (&private->journal_footer, &jf_block);
-	if (ret) {
-		unload_journal_control_block(&private->journal_header);
-	}
-
-	return ret;
-}
-
-
 static int get_super_jnode (struct super_block * s)
 {
 	reiser4_super_info_data * private = get_super_private(s);
@@ -198,6 +135,8 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	tree_level height;
 	node_plugin * nplug;
 
+	static const reiser4_block_nr jfooter_block = FORMAT_40_JOURNAL_HEADER_BLOCKNR;
+	static const reiser4_block_nr jheader_block = FORMAT_40_JOURNAL_FOOTER_BLOCKNR;
 
 	assert ("vs-475", s != NULL);
 	assert ("vs-474", get_super_private (s));
@@ -210,10 +149,8 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 		return PTR_ERR (super_bh);
 	brelse (super_bh);
 
-
-	result = init_journal_info (s); /* map jnodes for journal
-					 * control blocks (header,
-					 * footer) to disk  */
+	/* map jnodes for journal control blocks (header, footer) to disk  */
+	result = init_journal_info (s, &jheader_block, &jfooter_block); 
 
 	if (result)
 		return result;
