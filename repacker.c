@@ -190,7 +190,7 @@ static int process_znode_backward (tap_t * tap, void * arg)
 	__u64 new_blocknr;
 	int ret;
 
-	assert("zam-977", (unsigned)(cursor->count) >= get_current_context()->grabbed_blocks);
+	assert("zam-977", (unsigned)(cursor->count) <= get_current_context()->grabbed_blocks);
 
 	/* Add node to current transaction like in processing forward. */
 	ret = process_znode_forward(tap, arg);
@@ -282,7 +282,7 @@ static int process_extent_backward (tap_t * tap, void * arg)
 	struct repacker_cursor * cursor = arg;
 	int ret;
 
-	assert("zam-978", (unsigned)(cursor->count) >= get_current_context()->grabbed_blocks);
+	assert("zam-978", (unsigned)(cursor->count) <= get_current_context()->grabbed_blocks);
 
 	ret = process_extent_backward_for_repacking(tap, cursor->count, &cursor->hint);
 	if (ret > 0) {
