@@ -66,6 +66,8 @@ static reiser4_block_nr common_estimate_link(
 	res += fplug->estimate.update(object);
 	/* update_dir(parent) */
 	res += inode_file_plugin(parent)->estimate.update(parent);
+	/* safe-link */
+	res += estimate_one_item_removal(tree_by_inode(object));
 
 	return res;
 }
@@ -130,6 +132,20 @@ link_common(struct inode *parent /* parent directory */ ,
 
 	if (reiser4_grab_space(reserve, BA_CAN_COMMIT))
 	    return RETERR(-ENOSPC);
+
+	/*
+	 * Subtle race handling: sys_link() doesn't take i_sem on @parent. It
+	 * means that link(2) can race against unlink(2) or rename(2), and
+	 * inode is dead (->i_nlink == 0) when reiser4_link() is entered.
+	 *
+	 * For such inode we have to undo special processing done in
+	 * reiser4_unlink() viz. creation of safe-link.
+	 */
+	if (unlikely(inode_file_plugin(object)->not_linked(object))) {
+		result = safe_link_del(object, SAFE_UNLINK);
+		if (result != 0)
+			return result;
+	}
 
 	result = reiser4_add_nlink(object, parent, 1);
 	if (result == 0) {
@@ -647,8 +663,9 @@ adjust_dir_pos(struct file   * dir,
 		 dir ? (char *)dir->f_dentry->d_name.name : "(anon)", adj);
 	IF_TRACE(TRACE_DIR, print_dir_pos("\n mod", mod_point));
 	IF_TRACE(TRACE_DIR, print_dir_pos("\nspot", &readdir_spot->position));
-	ON_TRACE(TRACE_DIR, "\nf_pos: %llu, spot.entry_no: %llu\n",
-		 dir ? dir->f_pos : 0, readdir_spot->entry_no);
+	ON_TRACE(TRACE_DIR, "\nf_pos: %llu, spot.fpos: %llu entry_no: %llu\n",
+		 dir ? dir->f_pos : 0, readdir_spot->fpos,
+		 readdir_spot->entry_no);
 
 	reiser4_stat_inc(dir.readdir.adjust_pos);
 
@@ -666,7 +683,8 @@ adjust_dir_pos(struct file   * dir,
 		 * changes */
 		readdir_spot->entry_no += adj;
 		assert("nikita-2577", ergo(dir != NULL, dir->f_pos + adj >= 0));
-		if (de_id_cmp(&pos->dir_entry_key, &mod_point->dir_entry_key) == EQUAL_TO) {
+		if (de_id_cmp(&pos->dir_entry_key,
+			      &mod_point->dir_entry_key) == EQUAL_TO) {
 			assert("nikita-2575", mod_point->pos < pos->pos);
 			/*
 			 * if entry added/removed has the same key as current
@@ -947,8 +965,8 @@ feed_entry(struct file *f,
 			
 	longterm_unlock_znode(tap->lh);
 			
-	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu\n",
-		 name, pos->entry_no, get_key_objectid(&sd_key));
+	ON_TRACE(TRACE_DIR | TRACE_VFS_OPS, "readdir: %s, %llu, %llu, %llu\n",
+		 name, pos->fpos, pos->entry_no, get_key_objectid(&sd_key));
 			
 	/*
 	 * send information about directory entry to the ->filldir() filler
@@ -1027,7 +1045,8 @@ dir_readdir_init(struct file *f, tap_t * tap, readdir_pos ** pos)
 	spin_unlock_inode(inode);
 
 	IF_TRACE(TRACE_DIR, print_dir_pos("readdir", &(*pos)->position));
-	ON_TRACE(TRACE_DIR, " entry_no: %llu\n", (*pos)->entry_no);
+	ON_TRACE(TRACE_DIR, " fpos: %llu entry_no: %llu\n",
+		 (*pos)->entry_no, (*pos)->fpos);
 
 	/* move @tap to the current position */
 	return dir_rewind(f, *pos, f->f_pos - (*pos)->fpos, tap);
