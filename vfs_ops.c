@@ -15,6 +15,7 @@ static int reiser4_create (struct inode *,struct dentry *,int);
 static struct dentry * reiser4_lookup (struct inode *,struct dentry *);
 static int reiser4_link (struct dentry *,struct inode *,struct dentry *);
 static int reiser4_unlink (struct inode *,struct dentry *);
+static int reiser4_rmdir( struct inode *, struct dentry * );
 static int reiser4_symlink (struct inode *,struct dentry *,const char *);
 static int reiser4_mkdir (struct inode *,struct dentry *,int);
 static int reiser4_mknod (struct inode *,struct dentry *,int,int);
@@ -543,6 +544,42 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 	REISER4_EXIT( result );
 }
 
+static int unlink_file( struct inode *parent /* parent directory */, 
+			struct dentry *victim /* name of object being
+					       * unlinked */ )
+{
+	int result;
+	REISER4_ENTRY( parent -> i_sb );
+
+	assert( "nikita-1435", parent != NULL );
+	assert( "nikita-1436", victim != NULL );
+
+	/* is this dead-lock safe? FIXME-NIKITA */
+	if( ! reiser4_lock_inode_interruptible( parent ) ) {
+		if( ! reiser4_lock_inode_interruptible( victim -> d_inode ) ) {
+			dir_plugin *dplug;
+
+			dplug = inode_dir_plugin( parent );
+			assert( "nikita-1429", dplug != NULL );
+			if( dplug -> unlink != NULL )
+				result = dplug -> unlink( parent, victim );
+			else
+				result = -EPERM;
+			/* 
+			 * @victim can be already removed from the disk by
+			 * this time. Inode is then marked so that iput()
+			 * wouldn't try to remove stat data. But inode
+			 * itself is still there.
+			 */
+			reiser4_unlock_inode( victim -> d_inode );
+		} else
+			result = -EINTR;
+		reiser4_unlock_inode( parent );
+	} else
+		result = -EINTR;
+	REISER4_EXIT( result );
+}
+
 /** 
  * ->unlink() VFS method in reiser4 inode_operations
  *
@@ -553,58 +590,36 @@ static int reiser4_unlink( struct inode *parent /* parent directory */,
 			   struct dentry *victim /* name of object being
 						  * unlinked */ )
 {
-	int result;
-	dir_plugin *dplug;
-	REISER4_ENTRY( parent -> i_sb );
-
-	assert( "nikita-1435", parent != NULL );
-	assert( "nikita-1436", victim != NULL );
-
-	/* is this dead-lock safe? FIXME-NIKITA */
-	if( reiser4_lock_inode_interruptible( parent ) != 0 ) {
-		REISER4_EXIT( -EINTR );
-	}
-	if( reiser4_lock_inode_interruptible( victim -> d_inode ) != 0 ) {
-		reiser4_unlock_inode( parent );
-		REISER4_EXIT( -EINTR );
-	}
-	unlock_kernel();
-	dplug = inode_dir_plugin( parent );
-	assert( "nikita-1429", dplug != NULL );
-	if( dplug -> unlink != NULL ) {
-		result = dplug -> unlink( parent, victim );
-	} else {
-		result = -EPERM;
-	}
-	lock_kernel();
-	/* 
-	 * @victim can be already removed from the disk by this
-	 * time. Inode is then marked so that iput() wouldn't try to
-	 * remove stat data. But inode itself is still there. 
-	 */
-	reiser4_unlock_inode( victim -> d_inode );
-	reiser4_unlock_inode( parent );
-
-	REISER4_EXIT( result );
+	assert( "nikita-2011", parent != NULL );
+	assert( "nikita-2012", victim != NULL );
+	assert( "nikita-2013", victim -> d_inode != NULL );
+	if( inode_dir_plugin( victim -> d_inode ) == NULL )
+		return unlink_file( parent, victim );
+	else
+		return -EISDIR;
 }
 
-#if 0
 /** 
  * ->rmdir() VFS method in reiser4 inode_operations
  *
- * The same as unlink.
+ * The same as unlink, but only for directories.
  *
- * This only exists as comment place-holder. reiser4_inode_operations refers
- * to reiser4_unlink directly.
  */
 static int reiser4_rmdir( struct inode *parent /* parent directory */, 
 			  struct dentry *victim /* name of directory being
 						 * unlinked */ )
 {
-	/* there is no difference between unlink and rmdir for reiser4 */
-	return reiser4_unlink( parent, victim );
+	assert( "nikita-2014", parent != NULL );
+	assert( "nikita-2015", victim != NULL );
+	assert( "nikita-2016", victim -> d_inode != NULL );
+
+	if( inode_dir_plugin( victim -> d_inode ) != NULL )
+		/* there is no difference between unlink and rmdir for
+		 * reiser4 */
+		return unlink_file( parent, victim );
+	else
+		return -ENOTDIR;
 }
-#endif
 
 /** ->permission() method in reiser4_inode_operations. */
 static int reiser4_permission( struct inode *inode /* object */, 
@@ -1230,7 +1245,7 @@ struct inode_operations reiser4_inode_operations = {
  	.unlink      = reiser4_unlink, /* d */
 	.symlink     = reiser4_symlink, /* d */
 	.mkdir       = reiser4_mkdir, /* d */
- 	.rmdir       = reiser4_unlink, /* SIC */ /* d */
+ 	.rmdir       = reiser4_rmdir, /* d */
 	.mknod       = reiser4_mknod, /* d */
 /* 	.rename      = reiser4_rename, */
 /* 	.readlink    = reiser4_readlink, */
