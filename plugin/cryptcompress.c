@@ -1013,9 +1013,10 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-907", !tfm_cluster_is_uptodate(tc));
 	
 	if (inode_get_crypto(inode) != NULL) {
+		crypto_plugin * cplug;
+
 		/* FIXME-EDWARD: isn't support yet */
 		assert("edward-908", 0);
-		crypto_plugin * cplug;
 		cplug = inode_crypto_plugin(inode);
 		assert("edward-617", cplug != NULL);
 		
