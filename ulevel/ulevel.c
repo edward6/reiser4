@@ -3152,7 +3152,7 @@ static int bash_mkfs (const char * file_name)
 	super.s_root = &root_dentry;
 	blocksize = getenv( "REISER4_BLOCK_SIZE" ) ? 
 		atoi( getenv( "REISER4_BLOCK_SIZE" ) ) : 512;
-	super.s_blocksize = PAGE_CACHE_SIZE;
+	super.s_blocksize = blocksize;
 	for (super.s_blocksize_bits = 0; blocksize >>= 1; super.s_blocksize_bits ++);
 	super.s_bdev = &bd;
 	super.s_bdev->fd = open (file_name, O_RDWR);
