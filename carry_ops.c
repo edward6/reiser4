@@ -333,6 +333,14 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 	assert( "nikita-908", node != NULL );
 	assert( "nikita-909", node_plugin_by_node( node ) != NULL );
 
+	if( space_needed_for_op( node, op ) > znode_size( node ) ) {
+		/*
+		 * There is no chance ever to insert item large than whole
+		 * node. Return something silly.
+		 */
+		return -ENAMETOOLONG;
+	}
+
 	result = 0;
 	/*
 	 * If there is not enough space in a node, try to shift something to
@@ -341,7 +349,12 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 	 */
 	not_enough_space = free_space_shortage( node, op );
 	if( not_enough_space <= 0 )
-		return 0;	/* is this line live code, or for debug mode only? NIKITA-FIXME-HANS */
+		/*
+		 * it is possible that carry was called when there actually
+		 * was enough space in the node. For example, when inserting
+		 * leftmost item so that delimiting keys have to be updated.
+		 */
+		return 0;	
 	if( !( op -> u.insert.flags & COPI_DONT_SHIFT_LEFT ) ) {
 		carry_node *left;
 		/* 
@@ -350,7 +363,7 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		 */
 		reiser4_stat_level_add( doing, insert_looking_left );
 		left = find_left_neighbor( op -> node, doing );
-		if( unlikely(IS_ERR( left ) )) {
+		if( unlikely( IS_ERR( left ) ) ) {
 			if( PTR_ERR( left ) == -EAGAIN )
 				return -EAGAIN;
 			else {
@@ -403,15 +416,10 @@ static int make_space( carry_op *op /* carry operation, insert or paste */,
 		} else if( right != NULL ) {
 			/*
 			 * both nodes are write locked by now.
-both = ?
 			 *
-			 * shift everything possible on the right of and
-			 * including insertion coord into the right neighbor
+			 * shift everything possible on the right of but
+			 * excluding insertion coord into the right neighbor
 			 */
-/* NIKITA-FIXME-HANS Urgent! Should NOT include insertion point when shifting to the right.
-
-
-*/
 			result = carry_shift_data( RIGHT_SIDE, 
 						   op -> u.insert.d -> coord,
 						   right -> real_node, 
@@ -424,14 +432,21 @@ both = ?
 			not_enough_space = free_space_shortage( node, op );
 		}
 	}
-	/* If there is still not enough space, allocate new node(s). */
-/* the for statement below is cryptic and uncommented NIKITA-FIXME-HANS */
+	/* 
+	 * If there is still not enough space, allocate new node(s). 
+	 *
+	 * We try to allocate new blocks if COPI_DONT_ALLOCATE is not set in
+	 * the carry operation flags (currently this is needed during flush
+	 * only).
+	 */
 	for( blk_alloc = 0 ; 
 	     ( not_enough_space > 0 ) && ( result == 0 ) && ( blk_alloc < 2 ) &&
 	     !( op -> u.insert.flags & COPI_DONT_ALLOCATE ) ; ++ blk_alloc ) {
-		carry_node *fresh;/* NIKITA-FIXME-HANS why no commment! */
-		coord_t coord_shadow;/* NIKITA-FIXME-HANS why no commment! */
-		carry_node *node_shadow; /* NIKITA-FIXME-HANS why no commment! */
+		carry_node *fresh; /* new code we are allocating */
+		coord_t coord_shadow; /* remembered insertion point before
+				       * shifting into data into new node */
+		carry_node *node_shadow; /* remembered insertion node before
+					  * shifting */
 
 		reiser4_stat_level_add( doing, insert_alloc_new );
 		if( blk_alloc > 0 )
@@ -439,8 +454,7 @@ both = ?
 
 		/*
 		 * allocate new node on the right of @node. Znode and disk
-		 * block(s) for new node are allocated in bitmap.
-NIKITA-FIXME-HANS: Why isn't allocation delayed?
+		 * fake block number for new node are allocated.
 		 *
 		 * add_new_znode() posts carry operation COP_INSERT with
 		 * COPT_CHILD option to the parent level to add
@@ -487,10 +501,9 @@ NIKITA-FIXME-HANS: Why isn't allocation delayed?
 		not_enough_space = free_space_shortage( node, op );
 		if( ( not_enough_space > 0 ) && ( node != coord_shadow.node ) ) {
 			/* 
-			 * still no enough space?! Maybe there is enough
-			 * space in the source node now.
-
-NIKITA-FIXME-HANS: what is a source node?
+			 * still no enough space?! Maybe there is enough space
+			 * in the source node (i.e., node data are moved from)
+			 * now.
 			 */
 			coord_normalize( &coord_shadow );
 			coord_dup( op -> u.insert.d -> coord, &coord_shadow );
@@ -520,7 +533,7 @@ NIKITA-FIXME-HANS: what is a source node?
 	assert( "nikita-1622", ergo( result == 0, op -> node -> real_node == op -> u.insert.d -> coord -> node ) );
 	return result;
 }
-/* HANS-FIXME-HANS remove this comment once answer known: does this code somehow try to understand the size of the item that will be inserted before getting here, or does it determine the size of what will be inserted, or does it just make space, and then let something else fill it? */
+
 /**
  * insert_paste_common() - common part of insert and paste operations
  *
@@ -534,22 +547,33 @@ NIKITA-FIXME-HANS: what is a source node?
  *  . by supplying child pointer to which is to inserted into parent. In this
  *  case op -> u.insert.type == COPT_CHILD.
  *
- *  This is required, because when new node is allocated we don't know at what
- *  position pointer to it is to be stored in the parent. Actually, we don't
- *  even know what its parent will be, because parent can be re-balanced
- *  concurrently and new node re-parented, and because parent can be full and
- *  pointer to the new node will go into some other node.
+ *  . by supplying key of new item/unit. This is currently only used during
+ *  extent insertion
  *
- *  insert_paste_common() resolves pointer to child node into position
- *  in the parent by calling find_new_child_coord(), that fills
- *  reiser4_item_data. After this, insertion/paste proceeds uniformly.
+ * This is required, because when new node is allocated we don't know at what
+ * position pointer to it is to be stored in the parent. Actually, we don't
+ * even know what its parent will be, because parent can be re-balanced
+ * concurrently and new node re-parented, and because parent can be full and
+ * pointer to the new node will go into some other node.
  *
- *  Another complication is with finding free space during pasting. It may
- *  happen that while shifting items to the neighbors and newly allocated
- *  nodes, insertion coord can no longer be in the item we wanted to paste
- *  into. At this point, paste becomes (morphs) into insert. Moreover free
- *  space analysis has to be repeated, because amount of space required for
- *  insertion is different from that of paste (item header overhead, etc).
+ * insert_paste_common() resolves pointer to child node into position in the
+ * parent by calling find_new_child_coord(), that fills
+ * reiser4_item_data. After this, insertion/paste proceeds uniformly.
+ *
+ * Another complication is with finding free space during pasting. It may
+ * happen that while shifting items to the neighbors and newly allocated
+ * nodes, insertion coord can no longer be in the item we wanted to paste
+ * into. At this point, paste becomes (morphs) into insert. Moreover free
+ * space analysis has to be repeated, because amount of space required for
+ * insertion is different from that of paste (item header overhead, etc).
+ *
+ * This function "unifies" different insertion modes (by resolving child
+ * pointer or key into insertion coord), and then calls make_space() to free
+ * enough space in the node by shifting data to the left and right and by
+ * allocating new nodes if necessary. Carry operation knows amount of space
+ * required for its completion. After enough free space is obtained, caller of
+ * this function (carry_{insert,paste,etc.}) performs actual insertion/paste
+ * by calling item plugin method.
  *
  */
 static int insert_paste_common( carry_op *op /* carry operation being
