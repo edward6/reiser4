@@ -384,6 +384,7 @@ typedef struct reiser4_prof {
 	reiser4_prof_cnt atom_wait_event;
 	reiser4_prof_cnt set_child_delimiting_keys;
 	reiser4_prof_cnt zget;
+	reiser4_prof_cnt submit_bio;
 /* FIXME: write prifiling */
 	reiser4_prof_cnt extent_write;
 		/* 

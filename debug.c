@@ -363,7 +363,8 @@ reiser4_stats_cnt reiser4_prof_defs[] = {
 	DEFINE_PROF_CNT(bdp),
 	DEFINE_PROF_CNT(validate),
 /* FIXME: write profiling */
-	DEFINE_PROF_CNT(zget)
+	DEFINE_PROF_CNT(zget),
+	DEFINE_PROF_CNT(submit_bio)
 };
 
 void calibrate_prof(void)

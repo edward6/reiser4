@@ -259,8 +259,13 @@ reiser4_unlock_page(struct page *page)
 #if REISER4_TRACE_TREE
 int reiser4_submit_bio_helper(const char *moniker, int rw, struct bio *bio)
 {
+	int result;
+
+	PROF_BEGIN(submit_bio);
 	write_io_trace(moniker, rw, bio);
-	return submit_bio(rw, bio);
+	result = submit_bio(rw, bio);
+	PROF_END(submit_bio, submit_bio);
+	return result;
 }
 #endif
 
