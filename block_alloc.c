@@ -761,7 +761,7 @@ void flush_reserved2free_all ()
 	spin_unlock_atom (atom);
 }
 
-/* release all grabbed blocks which where not used. */
+/* release all blocks grabbed in context which where not used. */
 void
 all_grabbed2free(void)
 {
