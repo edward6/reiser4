@@ -1136,50 +1136,50 @@ to do something with the journal (tuning, resizing, etc).</p>
 <p>Journal plugin will roughly look:</p>
 
 <pre>
-typedef void reiserfs_opaque_t;
+typedef void reiserfs_journal_opaque_t;
 
 struct reiserfs_journal_plug {
-	reiserfs_opaque_t *(*init) (dal_t *dal);
-	reiserfs_opaque_t *(*create) (dal_t *dal);
-	void (*done) (reiserfs_opaque_t *);
+	reiserfs_journal_opaque_t *(*init) (dal_t *dal);
+	reiserfs_journal_opaque_t *(*create) (dal_t *dal, some_format_specific_parameters);
+	void (*done) (reiserfs_journal_opaque_t *);
 
 	/* Journal routines which are common in reiser3 and reiser4 journal format */
-	int (*replay) (reiserfs_opaque_t *, int is_replay);
-	int (*alterable) (reiserfs_opaque_t *);
+	int (*replay) (reiserfs_journal_opaque_t *, int is_replay);
+	int (*alterable) (reiserfs_journal_opaque_t *);
 	int (*switch) (dal_t *dal);
 
 	/* Deprecated part. Needed for reiser3 journal format. */
-	blk_t (*get_start) (reisrefs_opaque_t *);
-	void (*set_start) (reiserfs_opaque_t *, blk_t start);
+	blk_t (*get_start) (reisrefs_journal_opaque_t *);
+	void (*set_start) (reiserfs_journal_opaque_t *, blk_t start);
 	
-	blk_t (*get_len) (reisrefs_opaque_t *);
-	void (*set_len) (reiserfs_opaque_t *, blk_t len);
+	blk_t (*get_len) (reisrefs_journal_opaque_t *);
+	void (*set_len) (reiserfs_journal_opaque_t *, blk_t len);
 	
-	blk_t (*get_max_trans) (reisrefs_opaque_t *);
-	void (*set_max_trans) (reiserfs_opaque_t *, blk_t max_trans);
+	blk_t (*get_max_trans) (reisrefs_journal_opaque_t *);
+	void (*set_max_trans) (reiserfs_journal_opaque_t *, blk_t max_trans);
 };
 </pre>
 
-<b>reiserfs_opaque_t *(*init) (dal_t *dal)</b>
+<b>reiserfs_journal_opaque_t *(*init) (dal_t *dal)</b>
 
 <p>Opens journal (reading the header and checking it for errors) and returns
 initialized journal instance. This instance will be using to working with
 journal.</p>
 
-<b>reiserfs_opaque_t *(*create) (dal_t *dal)</b>
+<b>reiserfs_journal_opaque_t *(*create) (dal_t *dal, some_format_specific_parameters)</b>
 
 <p>Creates the journal on specified DAL. Opens created journal by "init" call
 and returns initialized journal instance.</p>
 
-<b>void (*done) (reiserfs_opaque_t *)</b>
+<b>void (*done) (reiserfs_journal_opaque_t *)</b>
 
 <p>Closes journal. Frees all internal structures.</p>
 
-<b>int (*replay) (reiserfs_opaque_t *, int is_replay)</b>
+<b>int (*replay) (reiserfs_journal_opaque_t *, int is_replay)</b>
 
 <p>Replays journal. Returns result of replaying.</p>
 
-<b>int (*alterable) (reiserfs_opaque_t *)</b>
+<b>int (*alterable) (reiserfs_journal_opaque_t *)</b>
 
 <p>Returns "bool" value that means whether journal can be resized, tuned or not.</p>
 
@@ -1188,19 +1188,19 @@ and returns initialized journal instance.</p>
 <p>Switches journal onto specified device. Returns "true" on success
 or "false" on failure.</p>
 
-<b>blk_t (*get_start) (reisrefs_opaque_t *)<br>
-void (*set_start) (reiserfs_opaque_t *, blk_t start)</b>
+<b>blk_t (*get_start) (reisrefs_journal_opaque_t *)<br>
+void (*set_start) (reiserfs_journal_opaque_t *, blk_t start)</b>
 
 <p>Gets/sets journal start for reiser3 journal format.</p>
 
-<b>blk_t (*get_len) (reisrefs_opaque_t *)<br>
-void (*set_len) (reiserfs_opaque_t *, blk_t len)</b>
+<b>blk_t (*get_len) (reisrefs_journal_opaque_t *)<br>
+void (*set_len) (reiserfs_journal_opaque_t *, blk_t len)</b>
 
 <p>Gets/sets journal length for reiser3 journal format. "set_len" and "set_start" 
 routines will be using for journal resizing in reiser3.</p>
 	
-<b>blk_t (*get_max_trans) (reisrefs_opaque_t *)</b>
-<b>void (*set_max_trans) (reiserfs_opaque_t *, blk_t max_trans)</b>
+<b>blk_t (*get_max_trans) (reisrefs_journal_opaque_t *)</b>
+<b>void (*set_max_trans) (reiserfs_journal_opaque_t *, blk_t max_trans)</b>
 
 <p>Gets/sets "max_trans_size" value for reiser3 journal.</p>
 
@@ -1214,7 +1214,7 @@ etc.</p>
 <pre>
 struct reiserfs_journal {
 	dal_t *dal;
-	reiserfs_opaque_t *journal_instance;
+	reiserfs_journal_opaque_t *journal_instance;
 	reiserfs_plug_t *journal_plug;
 };
 
@@ -1225,7 +1225,7 @@ typedef struct reiserfs_journal reiserfs_journal_t;
 
 <p>DAL where journal lies.</p>
 
-<b>reiserfs_opaque_t *journal_instance</b>
+<b>reiserfs_journal_opaque_t *journal_instance</b>
 
 <p>Pointer to initialized journal instance. Will be using later to interact with
 underlying journal.</p>
@@ -1240,7 +1240,7 @@ underlying journal.</p>
 reiserfs_journal_t *reiserfs_journal_open(dak_t *dal, blk_t journal_block,
 	uint16_t journal_plug_id)
 {
-	reiserfs_opaque_t *journal_instance;
+	reiserfs_journal_opaque_t *journal_instance;
 	reiserfs_journal_t *journal;
 	reiserfs_plug_t *journal_plug;
 
@@ -1302,89 +1302,109 @@ on someone device.</p>
 <p>Disk-Format plugin will look:</p>
 
 <pre>
-struct reiserfs_layout_plug {
-	reiserfs_opaque_t *(*init) (dal_t *);
-	void (*done) (reiserfs_opaque_t *);
-
-	reiserfs_key_t *(*get_rootdir_key) (reiserfs_opaque_t *); 
+typdef void reiserfs_layout_opaque_t;
 	
-	uint16_t (*alloc_plug_id) (reiserfs_opaque_t *);
-	uint16_t (*oid_plug_id) (reiserfs_opaque_t *);
-	uint16_t (*journal_plug_id) (reiserfs_opaque_t *);
+struct reiserfs_layout_plug {
+	reiserfs_layout_opaque_t *(*init) (dal_t *);
+	reiserfs_layout_opaque_t *(*create) (dal_t *, some_format_specific_parameters);
+	void (*done) (reiserfs_layout_opaque_t *);
+
+	reiserfs_key_t *(*get_rootdir_key) (reiserfs_layout_opaque_t *); 
+	
+	uint16_t (*alloc_plug_id) (reiserfs_layout_opaque_t *);
+	uint16_t (*oid_plug_id) (reiserfs_layout_opaque_t *);
+	uint16_t (*journal_plug_id) (reiserfs_layout_opaque_t *);
 
 	/* Routines for working with superblock */
-	blk_t (*get_journal_block) (reiserfs_opaque_t *);
-	void (*set_journal_block) (reiserfs_opaque_t *, blk_t);
+	blk_t (*get_journal_block) (reiserfs_layout_opaque_t *);
+	void (*set_journal_block) (reiserfs_layout_opaque_t *, blk_t);
 
-	blk_t (*get_block_count) (reiserfs_opaque_t *);
-	void (*set_block_count) (reiserfs_opaque_t *, blk_t);
+	blk_t (*get_block_count) (reiserfs_layout_opaque_t *);
+	void (*set_block_count) (reiserfs_layout_opaque_t *, blk_t);
 
-	blk_t (*get_free_blocks) (reiserfs_opaque_t *);
-	void (*set_free_blocks) (reiserfs_opaque_t *, blk_t);
+	blk_t (*get_free_blocks) (reiserfs_layout_opaque_t *);
+	void (*set_free_blocks) (reiserfs_layout_opaque_t *, blk_t);
 
-	blk_t (*get_root_block) (reiserfs_opaque_t *);
-	void (*set_root_block) (reiserfs_opaque_t *, blk_t);
+	blk_t (*get_root_block) (reiserfs_layout_opaque_t *);
+	void (*set_root_block) (reiserfs_layout_opaque_t *, blk_t);
 
-	uint16_t (*get_tree_height) (reiserfs_opaque_t *);
-	void (*set_tree_height) (reiserfs_opaque_t *, uint32_t);
+	uint16_t (*get_tree_height) (reiserfs_layout_opaque_t *);
+	void (*set_tree_height) (reiserfs_layout_opaque_t *, uint32_t);
 
-	uint64_t (*get_oid) (reiserfs_opaque_t *);
-	void (*set_oid) (reiserfs_opaque_t *, uint64_t);
+	uint64_t (*get_oid) (reiserfs_layout_opaque_t *);
+	void (*set_oid) (reiserfs_layout_opaque_t *, uint64_t);
 
-	uint64_t (*get_file_count) (reiserfs_opaque_t *);
-	void (*set_file_count) (reiserfs_opaque_t *, uint64_t);
+	uint64_t (*get_file_count) (reiserfs_layout_opaque_t *);
+	void (*set_file_count) (reiserfs_layout_opaque_t *, uint64_t);
 };
 
 typedef struct reiserfs_layout_plug reiserfs_layout_plug_t;
 </pre>
 
-<b>reiserfs_opaque_t *(*init) (dal_t *)</b>
+<b>reiserfs_layout_opaque_t *(*init) (dal_t *)</b>
+
+<p>Opens disk-layout. Initializes internal plugins strucres and returns
+layout opaque instance to caller.</p>
+
+<b>reiserfs_layout_opaque_t *(*create) (dal_t *, some_format_specific_parameters)</b>
+
+<p>Creates superblock onspecified device.</p>
+
+<b>void (*done) (reiserfs_layout_opaque_t *)</b>
+
+<p>Closes specified disk-layout instance. Frees all internal structures.</p>
+
+<b>uint16_t (*alloc_plug_id) (reiserfs_layout_opaque_t *)</b>
+
+<p>Returns allocator plugin identifier.</p>
+
+<b>uint16_t (*oid_plug_id) (reiserfs_layout_opaque_t *)</b>
 
 <p>Returns oid allocator plugin's ID. Will be used in order
 to find oid allocator plugin in plugins cashe and plugins
 map.</p>
 
-<b>reiserfs_key_t *(*get_rootdir_key) (reiserfs_opaque_t *)</b>
+<b>reiserfs_key_t *(*get_rootdir_key) (reiserfs_layout_opaque_t *)</b>
 
 <p>Returns root directory key.</p>
 
-<b>uint16_t (*alloc_plug_id) (reiserfs_opaque_t *)</b>
+<b>uint16_t (*alloc_plug_id) (reiserfs_layout_opaque_t *)</b>
 
 <p>Returns allocator's plugin ID. Will used in order to  find
 needed allocator plugin.</p>
 
-<b>blk_t (*get_journal_block) (reiserfs_opaque_t *)<br>
-reiserfs_opaque_t(*set_journal_block) (reiserfs_opaque_t *, blk_t)</b>
+<b>blk_t (*get_journal_block) (reiserfs_layout_opaque_t *)<br>
+reiserfs_layout_opaque_t(*set_journal_block) (reiserfs_layout_opaque_t *, blk_t)</b>
 
 <p>Gets/sets the block where journal header is lies.</p>
 
-<b>blk_t (*get_block_count) (reiserfs_opaque_t *)<br>
-reiserfs_opaque_t(*set_block_count) (reiserfs_opaque_t *, blk_t)</b>
+<b>blk_t (*get_block_count) (reiserfs_layout_opaque_t *)<br>
+reiserfs_layout_opaque_t(*set_block_count) (reiserfs_layout_opaque_t *, blk_t)</b>
 
 <p>Gets/sets  "block_count" field of super block of this layout.</p>
 
-<b>blk_t (*get_free_blocks) (reiserfs_opaque_t *)<br>
-reiserfs_opaque_t(*set_free_blocks) (reiserfs_opaque_t *, blk_t)</b>
+<b>blk_t (*get_free_blocks) (reiserfs_layout_opaque_t *)<br>
+reiserfs_layout_opaque_t(*set_free_blocks) (reiserfs_layout_opaque_t *, blk_t)</b>
 
 <p>Gets/sets "free_blocks" field of super block of this  layout.</p>
 
-<b>blk_t (*get_root_block) (reiserfs_opaque_t *)<br>
-reiserfs_opaque_t(*set_root_block) (reiserfs_opaque_t *, blk_t)</b>
+<b>blk_t (*get_root_block) (reiserfs_layout_opaque_t *)<br>
+reiserfs_layout_opaque_t(*set_root_block) (reiserfs_layout_opaque_t *, blk_t)</b>
 
 <p>Gets/sets "root_block"  field of super block of this layout.</p>
 
-<b>uint16_t (*get_tree_height) (reiserfs_opaque_t *)<br>
-reiserfs_opaque_t(*set_tree_height) (reiserfs_opaque_t *, uint16_t)</b>
+<b>uint16_t (*get_tree_height) (reiserfs_layout_opaque_t *)<br>
+reiserfs_layout_opaque_t(*set_tree_height) (reiserfs_layout_opaque_t *, uint16_t)</b>
 
 <p>Gets/sets field "tree_height" of super block of this  layout.</p>
 
-<b>uint64_t (*get_oid) (reiserfs_opaque_t *) reiserfs_opaque_t(*set_oid) <br>
-(reiserfs_opaque_t *, uint64_t)</b>
+<b>uint64_t (*get_oid) (reiserfs_layout_opaque_t *) reiserfs_layout_opaque_t(*set_oid) <br>
+(reiserfs_layout_opaque_t *, uint64_t)</b>
 
 <p>Gets/sets "oid" field of super block of this layout.</p>
 
-<b>uint64_t (*get_file_count) (reiserfs_opaque_t *) <br>
-reiserfs_opaque_t(*get_file_count) (reiserfs_opaque_t *, uint64_t)</b>
+<b>uint64_t (*get_file_count) (reiserfs_layout_opaque_t *) <br>
+reiserfs_layout_opaque_t(*get_file_count) (reiserfs_layout_opaque_t *, uint64_t)</b>
 
 <p>Gets/sets "file_count" of super block of this layout.</p>
 
@@ -1396,7 +1416,7 @@ reiserfs_super_update_magic, etc.</p>
 
 <pre>
 struct reiserfs_super {
-	reiserfs_opaque_t *layout_instance;
+	reiserfs_layout_opaque_t *layout_instance;
 	reiserfs_plug_t *layout_plug;
 };
 
@@ -1407,7 +1427,7 @@ typedef struct reiserfs_super reiserfs_super_t;
 
 <p>The pointer to layout_plugin</p>
 
-<b>reiserfs_opaque_t *layout_instance</b>
+<b>reiserfs_layout_opaque_t *layout_instance</b>
 
 <p>Pointer to initialized instance of some layout. Will be using later
 for working with that layout.</p>
@@ -1416,7 +1436,7 @@ for working with that layout.</p>
 reiserfs_super_t *reiserfs_super_open(dal_t *dal) {
    	int i;
   	reiserfs_super_t *super;
-   	reiserfs_opaque_t *layout_instance = NULL;
+   	reiserfs_layout_opaque_t *layout_instance = NULL;
    	reiserfs_plug_t *layout_plug = NULL;
 
 	for (i = 0; i &lt; plug_count; i++) {
@@ -1457,11 +1477,50 @@ void reiserfs_super_close(reiserfs_super_t *super) {
 <h3>Allocator plugin. Allocator API.</h3>
 
 <table width=70%><tr><td align=justify>
-<p>A replica of bitmap in reiser3. There will be functions:</p>
+<p>A replica of bitmap in reiser3. Allocator plugin will roughly look:</p>
 
-<p>reiserfs_alloc_open, reiserfs_alloc_create, reiserfs_alloc_close,  
-reiserfs_alloc_use, reiserfs_alloc_unuse, reiserfs_alloc_find, 
-reiserfs_alloc_resize, reiserfs_alloc_copy, reiserfs_alloc_clone.</p>
+<pre>
+typedef void reiserfs_alloc_opaque_t;
+
+struct reiserfs_segment {
+	blk_t start, end;
+};
+
+typedef struct reiserfs_segment reiserfs_segment_t;
+
+struct reiserfs_alloc {
+	reiserfs_alloc_opaque_t *(*init) (dal_t *);
+	reiserfs_alloc_opaque_t *(*create) (dal_t *);
+	void (*done) (reiserfs_alloc_opaque_t *);
+	int (*allocate) (reiserfs_alloc_opaque_t *, size_t blocks, reiserfs_segment_t *);
+	int (*deallocate) (reiserfs_alloc_opaque_t *, reiserfs_segment_t *);
+};
+
+typedef struct reiserfs_alloc reiserfs_alloc_t;
+</pre>
+
+<b>reiserfs_alloc_opaque_t *(*init) (dal_t *)</b>
+
+<p>Initializes allocator on specified device. Returns initialized alloator opaque
+instance.</p>
+
+<b>reiserfs_alloc_opaque_t *(*create) (dal_t *)</b>
+
+<p>Creteates allocator on specified device. Returns initialized allocator opaque
+instance.</p>
+
+<b>void (*done) (reiserfs_alloc_opaque_t *)</b>
+
+<p>Frees all allocator internal structures.</p>
+
+<b>int (*allocate) (reiserfs_alloc_opaque_t *, size_t blocks, reiserfs_segment_t *)</b>
+
+<p>Allocates "blocks" number of blocks, fills reiserfs_segment_t struct by start
+of allocated region and its end and returns result of operation to caller.</p>
+
+<b>int (*deallocate) (reiserfs_alloc_opaque_t *, reiserfs_segment_t *)</b>
+
+<p>Deallocates specified segment.</p>
 </td></tr></table>
 
 <h3>Balanced Tree API.</h3>
