@@ -2192,8 +2192,8 @@ replace_extent(coord_t * un_extent, lock_handle * lh,
 }
 
 /* when on flush time unallocated extent is to be replaced with allocated one it may happen that one unallocated extent
- * will have to be replalced with set of allocated extents. In this case insert_into_item will be called which may have
- * to add new nodes into tree. Space for that is taken from inviolable reserve (5%). */
+   will have to be replalced with set of allocated extents. In this case insert_into_item will be called which may have
+   to add new nodes into tree. Space for that is taken from inviolable reserve (5%). */
 static reiser4_block_nr
 reserve_replace(void)
 {
