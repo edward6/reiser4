@@ -344,7 +344,8 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 /* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
 void get_working_bitmap_blocknr (bmap_nr_t bmap, reiser4_block_nr *bnr)
 {
-	*bnr = (reiser4_block_nr) bmap | REISER4_BITMAP_BLOCKS_BIT_MASK;
+	*bnr = (reiser4_block_nr) bmap 
+		& ~REISER4_BLOCKNR_STATUS_BIT_MASK | REISER4_BITMAP_BLOCKS_STATUS_VALUE;
 }
 
 /** Load node at given blocknr, update given pointer. This function should be

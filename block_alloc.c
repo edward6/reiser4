@@ -65,7 +65,7 @@ void get_next_fake_blocknr (reiser4_block_nr *bnr)
 	spin_unlock (& fake_lock);
 	
 	*bnr &= ~REISER4_BLOCKNR_STATUS_BIT_MASK;
-	*bnr |= REISER4_UNALLOCATED_BIT_MASK;
+	*bnr |= REISER4_UNALLOCATED_STATUS_VALUE;
 
 #if REISER4_DEBUG
 	{

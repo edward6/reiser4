@@ -954,7 +954,7 @@ int is_disk_addr_unallocated( const reiser4_block_nr *addr /* address to
 {
 	assert( "nikita-1766", addr != NULL );
 	cassert( sizeof( reiser4_block_nr ) == 8 );
-	return (*addr & REISER4_UNALLOCATED_BIT_MASK) ? 1 : 0;
+	return (*addr & REISER4_BLOCKNR_STATUS_BIT_MASK) == REISER4_UNALLOCATED_STATUS_VALUE;
 }
 
 /**
@@ -967,9 +967,8 @@ void *unallocated_disk_addr_to_ptr( const reiser4_block_nr *addr /* address to
 {
 	assert( "nikita-1688", addr != NULL );
 	assert( "nikita-1689", is_disk_addr_unallocated( addr ) );
-	return ( void * ) ( long ) ( *addr & ~REISER4_UNALLOCATED_BIT_MASK );
+	return ( void * ) ( long ) ( *addr << 1 );
 }
-
 
 /* try to shift everything from @right to @left. If everything was shifted -
  * @right is removed from the tree.  Result is the number of bytes shifted. FIXME: right? */
