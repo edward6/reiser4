@@ -78,7 +78,7 @@ int extent_can_shift(unsigned free_space,
 void extent_copy_units(coord_t * target,
 		       coord_t * source,
 		       unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
-int extent_kill_item_hook(const coord_t *, unsigned from, unsigned count, void *kill_params);
+int extent_kill_item_hook(const coord_t *, unsigned from, unsigned count);
 int extent_create_hook(const coord_t * coord, void *arg);
 int extent_cut_units(coord_t *, unsigned *from,
 		     unsigned *to,
