@@ -107,14 +107,32 @@ init_fq(flush_queue_t * fq)
 	spin_fq_init(fq);
 }
 
+/* slab for flush queues */
+static kmem_cache_t *fq_slab;
+
+int init_fqs(void)
+{
+	fq_slab = kmem_cache_create("fq",
+				    sizeof (flush_queue_t),
+				    0,
+				    SLAB_HWCACHE_ALIGN,
+				    NULL,
+				    NULL);
+	return (fq_slab == NULL) ? RETERR(-ENOMEM) : 0;
+}
+
+void done_fqs(void)
+{
+	kmem_cache_destroy(fq_slab);
+}
+
 /* create new flush queue object */
 static flush_queue_t *
 create_fq(void)
 {
 	flush_queue_t *fq;
 
-	fq = reiser4_kmalloc(sizeof (*fq), GFP_KERNEL);
-
+	fq = kmem_cache_alloc(fq_slab, GFP_KERNEL);
 	if (fq)
 		init_fq(fq);
 
@@ -164,7 +182,7 @@ done_fq(flush_queue_t * fq)
 	assert("zam-763", capture_list_empty(&fq->prepped));
 	assert("zam-766", atomic_read(&fq->nr_submitted) == 0);
 
-	reiser4_kfree(fq, sizeof *fq);
+	kmem_cache_free(fq_slab, fq);
 }
 
 /* Putting jnode into the flush queue. Both atom and jnode should be

@@ -35,6 +35,7 @@
 #include "repacker.h"
 #include "init_super.h"
 #include "status_flags.h"
+#include "flush.h"
 
 #include <linux/profile.h>
 #include <linux/types.h>
@@ -229,6 +230,26 @@ reiser4_del_nlink(struct inode *object	/* object from which link is
 	return result;
 }
 
+/* slab for reiser4_dentry_fsdata */
+static kmem_cache_t *dentry_fsdata_slab;
+
+int init_dentry_fsdata(void)
+{
+	dentry_fsdata_slab = kmem_cache_create("dentry_fsdata",
+					       sizeof (reiser4_dentry_fsdata),
+					       0,
+					       SLAB_HWCACHE_ALIGN,
+					       NULL,
+					       NULL);
+	return (dentry_fsdata_slab == NULL) ? RETERR(-ENOMEM) : 0;
+}
+
+void done_dentry_fsdata(void)
+{
+	kmem_cache_destroy(dentry_fsdata_slab);
+}
+
+
 /* Return and lazily allocate if necessary per-dentry data that we
    attach to each dentry. */
 reiser4_dentry_fsdata *
@@ -239,9 +260,8 @@ reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 
 	if (dentry->d_fsdata == NULL) {
 		reiser4_stat_inc(vfs_calls.private_data_alloc);
-		/* NOTE-NIKITA use slab in stead */
-		dentry->d_fsdata = kmalloc(sizeof (reiser4_dentry_fsdata),
-					   GFP_KERNEL);
+		dentry->d_fsdata = kmem_cache_alloc(dentry_fsdata_slab,
+						    GFP_KERNEL);
 		if (dentry->d_fsdata == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
 		xmemset(dentry->d_fsdata, 0, sizeof (reiser4_dentry_fsdata));
@@ -255,7 +275,7 @@ void
 reiser4_free_dentry_fsdata(struct dentry *dentry /* dentry released */ )
 {
 	if (dentry->d_fsdata != NULL) {
-		kfree(dentry->d_fsdata);
+		kmem_cache_free(dentry_fsdata_slab, dentry->d_fsdata);
 		dentry->d_fsdata = NULL;
 	}
 }
@@ -266,6 +286,26 @@ reiser4_d_release(struct dentry *dentry /* dentry released */ )
 {
 	reiser4_free_dentry_fsdata(dentry);
 }
+
+/* slab for reiser4_dentry_fsdata */
+static kmem_cache_t *file_fsdata_slab;
+
+int init_file_fsdata(void)
+{
+	file_fsdata_slab = kmem_cache_create("file_fsdata",
+					     sizeof (reiser4_file_fsdata),
+					     0,
+					     SLAB_HWCACHE_ALIGN,
+					     NULL,
+					     NULL);
+	return (file_fsdata_slab == NULL) ? RETERR(-ENOMEM) : 0;
+}
+
+void done_file_fsdata(void)
+{
+	kmem_cache_destroy(file_fsdata_slab);
+}
+
 
 /* Return and lazily allocate if necessary per-file data that we attach
    to each struct file. */
@@ -280,8 +320,7 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		struct inode *inode;
 
 		reiser4_stat_inc(vfs_calls.private_data_alloc);
-		/* NOTE-NIKITA use slab in stead */
-		fsdata = reiser4_kmalloc(sizeof *fsdata, GFP_KERNEL);
+		fsdata = kmem_cache_alloc(file_fsdata_slab, GFP_KERNEL);
 		if (fsdata == NULL)
 			return ERR_PTR(RETERR(-ENOMEM));
 		xmemset(fsdata, 0, sizeof *fsdata);
@@ -297,10 +336,19 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		spin_unlock_inode(inode);
 		if (fsdata != NULL)
 			/* other thread initialised ->fsdata */
-			reiser4_kfree(fsdata, sizeof *fsdata);
+			kmem_cache_free(file_fsdata_slab, fsdata);
 	}
 	assert("nikita-2665", f->private_data != NULL);
 	return f->private_data;
+}
+
+void
+reiser4_free_file_fsdata(struct file *f)
+{
+	if (f->private_data != NULL) {
+		kmem_cache_free(file_fsdata_slab, f->private_data);
+		f->private_data = NULL;
+	}
 }
 
 /* our ->read_inode() is no-op. Reiser4 inodes should be loaded
@@ -1348,7 +1396,10 @@ typedef enum {
 	INIT_SPINPROF,
 	INIT_SYSFS,
 	INIT_LNODES,
-	INIT_FS_REGISTERED
+	INIT_FQS,
+	INIT_DENTRY_FSDATA,
+	INIT_FILE_FSDATA,
+	INIT_FS_REGISTERED,
 } reiser4_init_stage;
 
 static reiser4_init_stage init_stage;
@@ -1364,6 +1415,9 @@ shutdown_reiser4(void)
 	}
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
+	DONE_IF(INIT_FILE_FSDATA, done_file_fsdata());
+	DONE_IF(INIT_DENTRY_FSDATA, done_dentry_fsdata());
+	DONE_IF(INIT_FQS, done_fqs());
 	DONE_IF(INIT_LNODES, lnodes_done());
 	DONE_IF(INIT_SYSFS, reiser4_sysfs_done_once());
 	DONE_IF(INIT_SPINPROF, unregister_profregions());
@@ -1419,6 +1473,9 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(register_profregions());
 	CHECK_INIT_RESULT(reiser4_sysfs_init_once());
 	CHECK_INIT_RESULT(lnodes_init());
+	CHECK_INIT_RESULT(init_fqs());
+	CHECK_INIT_RESULT(init_dentry_fsdata());
+	CHECK_INIT_RESULT(init_file_fsdata());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
 
 	calibrate_prof();

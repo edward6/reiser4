@@ -24,8 +24,6 @@ extern int reiser4_update_sd(struct inode *object);
 extern int reiser4_add_nlink(struct inode *, struct inode *, int);
 extern int reiser4_del_nlink(struct inode *, struct inode *, int);
 
-extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
-
 extern struct file_operations reiser4_file_operations;
 extern struct inode_operations reiser4_inode_operations;
 extern struct inode_operations reiser4_symlink_inode_operations;
@@ -104,6 +102,9 @@ TYPE_SAFE_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);
 
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *dentry);
 extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *f);
+extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
+extern void reiser4_free_file_fsdata(struct file *f);
+
 extern void reiser4_handle_error(void);
 extern int reiser4_parse_options (struct super_block *, char *);
 

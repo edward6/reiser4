@@ -313,8 +313,7 @@ reiser4_release(struct inode *i /* inode released */ ,
 	else
 		result = 0;
 
-	if (f->private_data != NULL)
-		reiser4_kfree(f->private_data, sizeof (reiser4_file_fsdata));
+	reiser4_free_file_fsdata(f);
 
 	reiser4_exit_context(&ctx);
 	return result;

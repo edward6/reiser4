@@ -39,7 +39,7 @@ struct flush_scan {
 	jnode *node;
 	
 	/* item specific data, can be used when child is not linked yet by any items on
-	 * parent level (e.g. when we create new cryptcompress object */ 
+	 * parent level (e.g. when we create new cryptcompress object */
 	flush_scan_item_stat_t istat;
 
 	/* A handle for zload/zrelse of current scan position node. */
@@ -133,6 +133,9 @@ int scan_set_current(flush_scan * scan, jnode * node, unsigned add_size, const c
 int scan_finished(flush_scan * scan);
 int scanning_left(flush_scan * scan);
 int scan_goto(flush_scan * scan, jnode * tonode);
+
+int init_fqs(void);
+int done_fqs(void);
 
 #if REISER4_TRACE
 const char *jnode_tostring(jnode * node);
