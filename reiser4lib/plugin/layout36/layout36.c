@@ -6,8 +6,6 @@
 #include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
 
-#include <stdlib.h>
-
 #include "layout36.h"
 
 static int reiserfs_layout36_3_5_signature(const char *signature) {
@@ -25,7 +23,9 @@ static int reiserfs_layout36_journal_signature(const char *signature) {
 		strlen(REISERFS_JR_SUPER_SIGNATURE)));
 }
 
-static int reiserfs_layout36_any_signature(const char *signature) {
+static int reiserfs_layout36_signature(reiserfs_layout36_super_t *super) {
+	const char *signature = (const char *)super->s_v1.sb_magic;
+	
 	if (reiserfs_layout36_3_5_signature(signature) ||
 			reiserfs_layout36_3_6_signature(signature) ||
 			reiserfs_layout36_journal_signature(signature))
@@ -68,7 +68,7 @@ static aal_block_t *reiserfs_layout36_super_open(aal_device_t *device) {
 	for (i = 0; super_offset[i] != -1; i++) {
 		if ((block = aal_block_read(device, super_offset[i]))) {
 			super = (reiserfs_layout36_super_t *)block->data;
-			if (reiserfs_layout36_any_signature((const char *)super->s_v1.sb_magic)) {
+			if (reiserfs_layout36_signature(super)) {
 
 				size_t blocksize = get_sb_block_size(super);
 				if (!aal_device_set_blocksize(device, blocksize)) {
@@ -112,8 +112,8 @@ error:
 
 static void reiserfs_layout36_done(reiserfs_layout36_t *layout) {
 	if (!aal_block_write(layout->device, layout->super)) {
-		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-006", 
-			"Can't update super block.");
+		aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE, "umka-008", 
+			"Can't synchronize super block.");
 	}
 	aal_block_free(layout->super);
 	aal_free(layout);

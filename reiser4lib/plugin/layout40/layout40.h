@@ -6,25 +6,44 @@
 #ifndef LAYOUT40_H
 #define LAYOUT40_H
 
-#include <stdint.h>
 #include <aal/aal.h>
 
 struct reiserfs_layout40_super {
-	uint64_t s_block_count;
-	uint64_t s_free_blocks;
-	uint64_t s_root_block;
-	uint16_t s_tree_height;
-	uint16_t s_padd[3];
-	uint64_t s_oid;
-	uint64_t s_file_count;
-	uint64_t s_flushes;
-	char s_unused[424];
+	uint64_t sb_block_count;
+	uint64_t sb_free_blocks;
+	uint64_t sb_block_size;
+	uint64_t sb_root_block;
+	uint16_t sb_tree_height;
+	uint16_t sb_padd[3];
+	uint64_t sb_oid;
+	uint64_t sb_file_count;
+	uint64_t sb_flushes;
+	char sb_unused[424];
 };
 
 typedef struct reiserfs_layout40_super reiserfs_layout40_super_t;
 
+#define get_sb_block_count(sb)				get_le32(sb, sb_block_count)
+#define set_sb_block_count(sb, val)			set_le32(sb, sb_block_count, val)
+
+#define get_sb_free_blocks(sb)				get_le32(sb, sb_free_blocks)
+#define set_sb_free_blocks(sb, val)			set_le32(sb, sb_free_blocks, val)
+
+#define get_sb_root_block(sb)				get_le32(sb, sb_root_block)
+#define set_sb_root_block(sb, val)			set_le32(sb, sb_root_block, val)
+
+#define get_sb_tree_height(sb)				get_le32(sb, sb_tree_height)
+#define set_sb_tree_height(sb, val)			set_le32(sb, sb_tree_height, val)
+
+#define get_sb_block_size(sb)				get_le16(sb, sb_block_size)
+#define set_sb_block_size(sb, val)			set_le16(sb, sb_block_size, val)
+
+#define get_sb_oid(sb)						get_le16(sb, sb_oid)
+#define set_sb_oid(sb, val)					set_le16(sb, sb_oid, val)
+
 struct reiserfs_layout40 {
 	aal_device_t *device;
+	aal_block_t *super;
 };
 
 typedef struct reiserfs_layout40 reiserfs_layout40_t;

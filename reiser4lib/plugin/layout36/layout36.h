@@ -6,7 +6,6 @@
 #ifndef LAYOUT36_H
 #define LAYOUT36_H
 
-#include <stdint.h>
 #include <aal/aal.h>
 
 #define REISERFS_3_5_SUPER_SIGNATURE "ReIsErFs"
