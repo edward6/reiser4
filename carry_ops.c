@@ -1088,12 +1088,14 @@ make_space_by_new_nodes(carry_op * op, carry_level * doing, carry_level * todo)
 static int
 make_space_for_flow_insertion(carry_op * op, carry_level * doing, carry_level * todo)
 {
+	__u32 flags = op->u.insert_flow.flags;
+	
 	if (enough_space_for_whole_flow(op)) {
 		/* whole flow fits into insert point node */
 		return 0;
 	}
-
-	if (make_space_by_shift_left(op, doing, todo) == 0) {
+	
+	if (!(flags & COPI_DONT_SHIFT_LEFT) && (make_space_by_shift_left(op, doing, todo) == 0)) {
 		/* insert point is shifted to left neighbor of original insert
 		   point node and is set after last unit in that node. It has
 		   enough space to fit at least minimal fraction of flow. */
@@ -1105,7 +1107,7 @@ make_space_for_flow_insertion(carry_op * op, carry_level * doing, carry_level * 
 		return 0;
 	}
 
-	if (make_space_by_shift_right(op, doing, todo) == 0) {
+	if (!(flags & COPI_DONT_SHIFT_RIGHT) && (make_space_by_shift_right(op, doing, todo) == 0)) {
 		/* insert point is still set to the same node, but there is
 		   nothing to the right of insert point. */
 		return 0;
@@ -1115,7 +1117,7 @@ make_space_for_flow_insertion(carry_op * op, carry_level * doing, carry_level * 
 		/* whole flow fits into insert point node */
 		return 0;
 	}
-
+	
 	return make_space_by_new_nodes(op, doing, todo);
 }
 
