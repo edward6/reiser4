@@ -277,8 +277,7 @@ extern __u32 reiser4_mkfs_id(const struct super_block *super);
 extern void reiser4_set_mkfs_id(const struct super_block *super, __u32 id);
 
 extern __u64 reiser4_free_committed_blocks(const struct super_block *super);
-extern void reiser4_set_free_committed_blocks(const struct super_block *super,
-					      __u64 nr);
+extern void reiser4_set_free_committed_blocks(const struct super_block *super, __u64 nr);
 extern void reiser4_inc_free_committed_blocks(const struct super_block *super);
 extern void reiser4_dec_free_committed_blocks(const struct super_block *super);
 
@@ -287,14 +286,11 @@ extern void reiser4_set_grabbed_blocks(const struct super_block *, __u64 nr);
 extern __u64 reiser4_fake_allocated(const struct super_block *);
 extern void reiser4_set_fake_allocated(const struct super_block *, __u64 nr);
 extern __u64 reiser4_fake_allocated_unformatted(const struct super_block *);
-extern void reiser4_set_fake_allocated_unformatted(const struct super_block *,
-						   __u64 nr);
+extern void reiser4_set_fake_allocated_unformatted(const struct super_block *, __u64 nr);
 
-extern long reiser4_reserved_blocks(const struct super_block *super,
-				    uid_t uid, gid_t gid);
+extern long reiser4_reserved_blocks(const struct super_block *super, uid_t uid, gid_t gid);
 
-extern void reiser4_update_last_written_location(const struct super_block *,
-						 const reiser4_block_nr *);
+extern void reiser4_update_last_written_location(const struct super_block *, const reiser4_block_nr *);
 
 extern reiser4_space_allocator *get_space_allocator(const struct super_block
 						    *super);
