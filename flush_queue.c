@@ -151,6 +151,7 @@ detach_fq(flush_queue_t * fq)
 
 	spin_lock_fq(fq);
 	fq_list_remove_clean(fq);
+	assert("vs-1456", fq->atom->nr_flush_queues > 0);
 	ON_DEBUG(fq->atom->nr_flush_queues--);
 	fq->atom = NULL;
 	spin_unlock_fq(fq);
@@ -348,6 +349,9 @@ fuse_fq(txn_atom * to, txn_atom * from)
 	fq_list_splice(&to->flush_queues, &from->flush_queues);
 
 	to->num_queued += from->num_queued;
+
+	ON_DEBUG(to->nr_flush_queues += from->nr_flush_queues);
+	ON_DEBUG(from->nr_flush_queues = 0);
 }
 
 #if REISER4_DEBUG
