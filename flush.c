@@ -698,17 +698,24 @@ static int squalloc_parent_first (jnode *node, block_nr *preceder)
 
 /* Gets the sibling of an unformatted jnode using its index, only if it is in memory, and
  * reference it. */
-static jnode* jnode_get_neighbor_in_memory (jnode *node UNUSED_ARG, unsigned long node_index UNUSED_ARG)
+static jnode* jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index)
 {
-	/* FIXME_JMACD: jref (), consult with vs. */
-	not_yet ("jmacd-1700", "");
-	return NULL;
+	struct page *pg;
+
+	pg = find_lock_page (node->pg->mapping, node_index);
+
+	if (pg == NULL) {
+		return NULL;
+	}
+
+	assert ("jmacd-1700", ! IS_ERR (pg));
+	
+	return jnode_of_page (pg);
 }
 
 /* Get the index of a block. */
 static unsigned long jnode_get_index (jnode *node)
 {
-	not_yet ("jmacd-1700", "");
 	return node->pg->index;
 }
 

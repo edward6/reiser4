@@ -268,6 +268,8 @@ int ordinary_readpage (struct file * file UNUSED_ARG, struct page * page)
  * plugin->u.file.read
  */
 /*
+ * FIXME: This comment is out of date, there is no call to read_cache_page:
+ 
    this calls mm/filemap.c:read_cache_page() for every page spanned by the
    flow @f. This read_cache_page allocates a page if it does not exist and
    calls a function specified by caller (we specify reiser4_ordinary_readpage

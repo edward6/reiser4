@@ -130,7 +130,7 @@ struct jnode
 	/* the real blocknr (as far as the parent node is concerned) */
 	reiser4_disk_addr blocknr;
 
-	/* the struct page pointer 
+	/* the struct page pointer
 	 *
 	 * FIXME-NIKITA pointer to page is not enough when block size is
 	 * smaller than page size.

@@ -1582,7 +1582,7 @@ int extent_write (struct inode * inode, tree_coord * coord,
 		}
 
 		/* Capture the page. */
-		result = txn_try_capture_page (page, ZNODE_READ_LOCK, 0);
+		result = txn_try_capture_page (page, ZNODE_WRITE_LOCK, 0);
 		if (result != 0) {
 			goto capture_failed;
 		}
