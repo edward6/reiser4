@@ -161,6 +161,10 @@ static const char*   flush_jnode_tostring         (jnode *node);
 static const char*   flush_znode_tostring         (znode *node);
 static const char*   flush_flags_tostring         (int flags);
 
+/* FIXME: */
+#define FLUSH_SERIALIZE 1
+struct semaphore flush_semaphore;
+
 /* This is the main entry point for flushing a jnode, called by the transaction manager
  * when an atom closes (to commit writes) and called by the VM under memory pressure (to
  * early-flush dirty blocks).
@@ -181,15 +185,14 @@ static const char*   flush_flags_tostring         (int flags);
  */
 int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 {
-	int ret;
+	int ret = 0;
 	flush_position flush_pos;
 	flush_scan right_scan;
 	flush_scan left_scan;
 
-	/**/if (0 /* To disable flush and keep the txnmgr happy, just set node clean. */) {
-		/**/jnode_set_clean (node);
-		/**/return 0;
-	/**/}
+	if (FLUSH_SERIALIZE) {
+		down (& flush_semaphore);
+	}
 
 	spin_lock_jnode (node);
 
@@ -200,7 +203,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		spin_unlock_jnode(node);
 		jnode_set_clean(node);
 		trace_on (TRACE_FLUSH, "flush aboveroot %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
-		return 0;
+		goto clean_out;
 	}
 
 	/* A race is possible where node is not dirty or worse, not connected, by this point. */
@@ -213,7 +216,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 		}
 		spin_unlock_jnode (node);
 		trace_on (TRACE_FLUSH, "flush nothing %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
-		return 0;
+		goto clean_out;
 	}
 
 	if (jnode_is_allocated (node)) {
@@ -227,7 +230,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 			(*nr_to_flush) = 1;
 		}
 
-		return ret;
+		goto clean_out;
 	}
 
 	spin_unlock_jnode (node);
@@ -235,7 +238,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	trace_on (TRACE_FLUSH, "flush squalloc %s %s\n", flush_jnode_tostring (node), flush_flags_tostring (flags));
 
 	if ((ret = flush_pos_init (& flush_pos, nr_to_flush))) {
-		return ret;
+		goto clean_out;
 	}
 
 	flush_scan_init (& right_scan);
@@ -349,8 +352,13 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	 * flush is lengthy procedure. Give other threads chance to run. Also,
 	 * if signal was caught, return -EINTR.
 	 */
-	if (preempt_point())
+	if (preempt_point ()) {
 		ret = -EINTR;
+	}
+ clean_out:
+	if (FLUSH_SERIALIZE) {
+		up (& flush_semaphore);
+	}
 
 	return ret;
 }
