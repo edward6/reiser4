@@ -637,10 +637,6 @@ static int overwrite_tail (coord_t * coord, flow_t * f)
  * plugin->u.item.s.file.write
  * access to data stored in tails goes directly through formatted nodes
  */
-/* Audited by: green(2002.06.14) */
-/* AUDIT: Why page marked as unused when it is in fact used be below code? 
-
-VS-FIXME-HANS: why is audit question unanswered? */
 int tail_write (struct inode * inode, coord_t * coord,
 		lock_handle * lh, flow_t * f, struct page * page UNUSED_ARG)
 {
