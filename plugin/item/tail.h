@@ -33,6 +33,7 @@ reiser4_key * tail_unit_key        (const tree_coord * coord,
 /*
  * plugin->u.item.s.*
  */
-int tail_write (struct inode *, tree_coord *, lock_handle *, flow_t *);
+int tail_write (struct inode *, tree_coord *, lock_handle *, flow_t *,
+		struct page *);
 int tail_read  (struct inode *, tree_coord *, lock_handle *, flow_t *);
 
