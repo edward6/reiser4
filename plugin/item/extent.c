@@ -1228,6 +1228,9 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
    marked uptodate and dirty. If all buffers are uptodate - page is marked uptodate
  */
 
+/*
+ * return 1 we do not need to read block before overwriting
+ */
 static int overwritten_entirely (loff_t file_size,
 				 unsigned long long file_off,
 				 int count, int block_off)
@@ -1374,8 +1377,11 @@ static int prepare_write (reiser4_tree * tree, tree_coord * coord,
 }
 
 
-int commit_write (struct page * page, unsigned long long file_off,
-		  unsigned count)
+/*
+ * mark all modified buffers dirty, update inode's i_size
+ */
+static int commit_write (struct page * page, unsigned long long file_off,
+			 unsigned count)
 {
 	struct inode * inode;
 	unsigned page_off, cur_off, blocksize, to_block;
