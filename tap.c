@@ -97,6 +97,16 @@ int tap_to( tap_t *tap, znode *target )
 	return result;
 }
 
+int tap_to_coord( tap_t *tap, coord_t *target )
+{
+	int result;
+
+	result = tap_to( tap, target -> node );
+	if( result == 0 )
+		coord_dup( tap -> coord, target );
+	return result;
+}
+
 tap_list_head *taps_list()
 {
 	return &get_current_context() -> taps;
