@@ -33,7 +33,8 @@ oid_allocate(struct super_block *super)
 	if (sbinfo->next_to_use != ABSOLUTE_MAX_OID) {
 		oid = sbinfo->next_to_use ++;
 		sbinfo->oids_in_use ++;
-	}
+	} else
+		oid = ABSOLUTE_MAX_OID;
 	reiser4_spin_unlock_sb(super);	
 	return oid;
 }
