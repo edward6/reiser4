@@ -288,8 +288,9 @@ static int common_create_child( struct inode *parent, struct dentry *dentry,
 
 #ifndef INHERIT_EXISTS
 	/*
-	 * set hash, tail and permission plugins for newly created inode if
-	 * they were not set yet
+	 * if any of hash, tail, sd or permission plugins for newly created
+	 * object are not set yet set them here inheriting them from parent
+	 * directory
 	 */
 	{
 		reiser4_plugin_ref *self;
