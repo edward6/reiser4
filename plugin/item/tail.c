@@ -429,7 +429,10 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 	reiser4_key item_key;
 
 
+	assert ("vs-860", znode_is_loaded (coord->node));
+
 	if (!znode_contains_key_lock (coord->node, key)) {
+		
 		if (coord_is_before_leftmost (coord)) {
 			/*
 			 * we are in leaf node. Its left neighbor is unformatted node.
@@ -482,57 +485,6 @@ static tail_write_todo tail_what_todo (struct inode * inode, coord_t * coord,
 	if (get_key_offset (key) == get_key_offset (tail_max_key (coord, &item_key)) + 1)
 		return TAIL_APPEND;
 	return TAIL_APPEND_HOLE;
-
-#if 0
-	if (inode->i_size == 0) {
-		/*
-		 * no items of this file in tree yet
-		 */
-		if (get_key_offset (key) == 0)
-			return TAIL_FIRST_ITEM;
-		else
-			return TAIL_CREATE_HOLE;
-	}
-
-	if (!inode_file_plugin (inode)->owns_item (inode, coord)) {
-		/* extent2tail conversion is in progress */
-		if (get_key_offset (key))
-			return TAIL_CANT_CONTINUE;
-		return TAIL_FIRST_ITEM;
-	}
-
-	/* found item is tail item of the file we write to */
-	assert ("vs-580", item_id_by_coord (coord) == TAIL_ID);
-
-	item_key_by_coord (coord, &item_key);
-	assert ("vs-581",
-		get_key_objectid (key) == get_key_objectid (&item_key));
-
-
-	if (coord_is_existing_unit (coord)) {
-		/*
-		 * make sure that @coord is set to proper position
-		 */
-		if (get_key_offset (key) ==
-		    get_key_offset (unit_key_by_coord (coord, &item_key)))
-			return TAIL_OVERWRITE;
-		else
-			return TAIL_RESEARCH;
-	}
-
-	if (coord->between != AFTER_UNIT ||
-	    coord->unit_pos != coord_last_unit_pos (coord)) {
-		/*
-		 * FIXME-VS: we could try to adjust coord
-		 */
-		return TAIL_RESEARCH;
-	}	
-
-	if (get_key_offset (key) == (get_key_offset (&item_key) +
-				     coord->unit_pos + 1))
-		return TAIL_APPEND;
-	return TAIL_APPEND_HOLE;
-#endif
 }
 
 
@@ -695,14 +647,32 @@ int tail_write (struct inode * inode, coord_t * coord,
 		lock_handle * lh, flow_t * f, struct page * page UNUSED_ARG)
 {
 	int result;
-	tail_write_todo what;
 	znode * loaded;
+	tail_write_todo what;
+
+
+	/*
+	 * FIXME-VS: we can call item's write with not loaded znode
+	 */
+	assert ("vs-859", znode_is_loaded (coord->node));
+
+	result = 0;
+
+	if (!f->length) {
+		/* special case: expanding truncate */
+		return coord_is_existing_item (coord) ?
+			append_hole (coord, lh, f) : create_hole (coord, lh, f);
+	}
 
 	while (f->length) {
+		/*
+		 * coord->node may change as we loop here. So, we have to
+		 * remember node we zload and zrelse it
+		 */
 		loaded = coord->node;
-		result = zload (loaded);
+		result = zload (coord->node);
 		if (result)
-			break;
+			return result;
 		what = tail_what_todo (inode, coord, &f->key);
 
 		switch (what) {
