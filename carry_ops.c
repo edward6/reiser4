@@ -926,8 +926,8 @@ static size_t flow_insertion_overhead( carry_op *op )
 	return insertion_overhead;
 }
 
-/* how many bytes of flow can be written to node */
-static int what_can_be_written( carry_op *op )
+/* how many bytes of flow does fit to the node */
+static int what_can_fit_into_node( carry_op *op )
 {
 	size_t free, overhead;
 
@@ -946,7 +946,7 @@ static int what_can_be_written( carry_op *op )
 static int enough_space_for_whole_flow( carry_op *op )
 {
 	return 
-		( unsigned ) what_can_be_written( op ) == op -> u.insert_flow.flow -> length;
+		( unsigned ) what_can_fit_into_node( op ) == op -> u.insert_flow.flow -> length;
 }
 
 #define MIN_FLOW_FRACTION 1
@@ -954,7 +954,7 @@ static int enough_space_for_min_flow_fraction( carry_op *op )
 {
 	assert( "vs-902", coord_is_after_rightmost( flow_insert_point( op ) ) );
 	
-	return what_can_be_written( op ) >= MIN_FLOW_FRACTION;
+	return what_can_fit_into_node( op ) >= MIN_FLOW_FRACTION;
 }
 
 /* this returns 0 if left neighbor was obtained successfully and everything
@@ -1064,6 +1064,9 @@ static int make_space_by_new_nodes( carry_op *op, carry_level *doing,
 	node = flow_insert_point( op ) -> node;
 	
 	if( op -> u.insert_flow.new_nodes == CARRY_FLOW_NEW_NODES_LIMIT )
+		/*
+		 * FIXME-VS: this is confusing because it is limit reaches, not that we are running out of disk space
+		 */
 		return -ENOSPC;
 	/* add new node after insert point node */
 	new = add_new_znode( node, op -> node, doing, todo );
@@ -1118,8 +1121,8 @@ static int make_space_for_flow_insertion( carry_op *op, carry_level *doing,
 	}
 
 	if( make_space_by_shift_left( op, doing, todo ) == 0 ) {
-		/* insert point is set at node end and fraction of flow fits
-		 * into that node */
+		/* insert point is shifted to left neighbor of original insert point node and is set after last unit in
+		 * that node. It has enough space to fit at least minimal fraction of flow. */
 		return 0;
 	}
 
@@ -1129,8 +1132,7 @@ static int make_space_for_flow_insertion( carry_op *op, carry_level *doing,
 	}
 
 	if( make_space_by_shift_right( op, doing, todo ) == 0 ) {
-		/* insert point is set at node end and fraction of flow fits
-		 * into that node */
+		/* insert point is still set to the same node, but there is nothing to the right of insert point. */
 		return 0;
 	}
 
@@ -1191,10 +1193,10 @@ static int carry_insert_flow( carry_op *op, carry_level *doing, carry_level *tod
 
 		/* compose item data for insertion/pasting */
 		flow_insert_data( op ) -> data = f -> data;
-		flow_insert_data( op ) -> length = what_can_be_written( op );
+		flow_insert_data( op ) -> length = what_can_fit_into_node( op );
 
 		if( can_paste( insert_point, &f -> key, flow_insert_data( op ) ) ) {
-			/* existing item must be expanded */
+			/* insert point is set to item of file we are writing to and we have to append to it */
 			assert( "vs-903", insert_point -> between == AFTER_UNIT );
 			nplug -> change_item_size( insert_point, flow_insert_data( op ) -> length );
 			flow_insert_data( op ) -> iplug -> common.paste(
