@@ -157,8 +157,9 @@ static struct kobject cpu_prof;
  	DEFINE_PROF_ENTRY_0(#name,name)
 
 reiser4_prof reiser4_prof_defs = {
-	DEFINE_PROF_ENTRY(cbk),
+	DEFINE_PROF_ENTRY(fuse_wait),
 #if 0
+	DEFINE_PROF_ENTRY(cbk),
 	DEFINE_PROF_ENTRY(init_context),
 	DEFINE_PROF_ENTRY(jlook),
 	DEFINE_PROF_ENTRY(writepage),

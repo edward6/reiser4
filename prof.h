@@ -41,8 +41,9 @@ typedef struct {
 } reiser4_prof_entry;
 
 typedef struct {
-	reiser4_prof_entry cbk;
+	reiser4_prof_entry fuse_wait;
 #if 0
+	reiser4_prof_entry cbk;
 	reiser4_prof_entry init_context;
 	reiser4_prof_entry jlook;
 	reiser4_prof_entry writepage;
