@@ -478,33 +478,33 @@ connect_one_side(coord_t * coord, znode * node, int flags)
 	return ret;
 }
 
-/* if node is not in `connected' state, performs hash searches for left and
+/* if @child is not in `connected' state, performs hash searches for left and
    right neighbor nodes and establishes horizontal sibling links */
 /* Audited by: umka (2002.06.14), umka (2002.06.15) */
 reiser4_internal int
-connect_znode(coord_t * coord, znode * node)
+connect_znode(coord_t * parent_coord, znode * child)
 {
-	reiser4_tree *tree = znode_get_tree(node);
+	reiser4_tree *tree = znode_get_tree(child);
 	int ret = 0;
 
-	assert("zam-330", coord != NULL);
-	assert("zam-331", node != NULL);
-	assert("zam-332", coord->node != NULL);
+	assert("zam-330", parent_coord != NULL);
+	assert("zam-331", child != NULL);
+	assert("zam-332", parent_coord->node != NULL);
 	assert("umka-305", tree != NULL);
 
 	/* it is trivial to `connect' root znode because it can't have
 	   neighbors */
-	if (znode_above_root(coord->node)) {
-		node->left = NULL;
-		node->right = NULL;
-		ZF_SET(node, JNODE_LEFT_CONNECTED);
-		ZF_SET(node, JNODE_RIGHT_CONNECTED);
+	if (znode_above_root(parent_coord->node)) {
+		child->left = NULL;
+		child->right = NULL;
+		ZF_SET(child, JNODE_LEFT_CONNECTED);
+		ZF_SET(child, JNODE_RIGHT_CONNECTED);
 		return 0;
 	}
 
 	/* load parent node */
-	coord_clear_iplug(coord);
-	ret = zload(coord->node);
+	coord_clear_iplug(parent_coord);
+	ret = zload(parent_coord->node);
 
 	if (ret != 0)
 		return ret;
@@ -512,27 +512,27 @@ connect_znode(coord_t * coord, znode * node)
 	/* protect `connected' state check by tree_lock */
 	RLOCK_TREE(tree);
 
-	if (!znode_is_right_connected(node)) {
+	if (!znode_is_right_connected(child)) {
 		RUNLOCK_TREE(tree);
 		/* connect right (default is right) */
-		ret = connect_one_side(coord, node, GN_NO_ALLOC);
+		ret = connect_one_side(parent_coord, child, GN_NO_ALLOC);
 		if (ret)
 			goto zrelse_and_ret;
 
 		RLOCK_TREE(tree);
 	}
 
-	ret = znode_is_left_connected(node);
+	ret = znode_is_left_connected(child);
 
 	RUNLOCK_TREE(tree);
 
 	if (!ret) {
-		ret = connect_one_side(coord, node, GN_NO_ALLOC | GN_GO_LEFT);
+		ret = connect_one_side(parent_coord, child, GN_NO_ALLOC | GN_GO_LEFT);
 	} else
 		ret = 0;
 
 zrelse_and_ret:
-	zrelse(coord->node);
+	zrelse(parent_coord->node);
 
 	return ret;
 }
