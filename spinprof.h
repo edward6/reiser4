@@ -12,7 +12,7 @@
 #include <linux/profile.h>
 #include <linux/kobject.h>
 
-#ifdef CONFIG_PROFILING
+#if REISER4_LOCKPROF
 
 #define PROFREGION_MAX_DEPTH (12)
 
@@ -111,7 +111,7 @@ static inline void profregion_replace(int cpu, struct profregion *pregion,
 extern int  profregion_register(struct profregion *pregion);
 extern void profregion_unregister(struct profregion *pregion);
 
-/* CONFIG_PROFILING */
+/* REISER4_LOCKPROF */
 #else
 
 struct profregionstack {};
@@ -121,7 +121,7 @@ struct profregionstack {};
 typedef struct locksite {} locksite;
 #define LOCKSITE_INIT(name) extern locksite name
 
-/* CONFIG_PROFILING */
+/* REISER4_LOCKPROF */
 #endif
 
 /* __SPINPROF_H__ */

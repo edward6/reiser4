@@ -37,7 +37,6 @@
 #define __ODC ON_DEBUG_CONTEXT
 #define __ODCA(l, e) __ODC(assert(l, e))
 
-#define REISER4_LOCKPROF (1)
 #if REISER4_LOCKPROF
 
 #define DEFINE_SPIN_PROFREGIONS(aname)						\

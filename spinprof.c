@@ -12,7 +12,7 @@
 
 #include <asm/irq.h>
 
-#ifdef CONFIG_PROFILING
+#if REISER4_LOCKPROF
 
 #define LEFT(p, buf) (PAGE_SIZE - ((p) - (buf)) - 1)
 
@@ -154,7 +154,7 @@ int profregion_find(struct profregionstack *stack, struct profregion *pregion)
 	return 0;
 }
 
-/* CONFIG_PROFILING */
+/* REISER4_LOCKPROF */
 #endif
 
 /* Make Linus happy.

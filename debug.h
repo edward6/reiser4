@@ -129,6 +129,12 @@
 #define REISER4_DEBUG_OUTPUT (0)
 #endif
 
+#if defined(CONFIG_PROFILING)
+#define REISER4_LOCKPROF (1)
+#else
+#define REISER4_LOCKPROF (0)
+#endif
+
 #define noop   do {;} while(0)
 
 #if REISER4_DEBUG
