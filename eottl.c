@@ -300,7 +300,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 	if (*outcome == NS_FOUND) {
 		/* we have found desired key on twig level in extent item */
 		h->result = CBK_COORD_FOUND;
-		reiser4_stat_tree_add(cbk_found);
+		reiser4_stat_inc(tree.cbk_found);
 		*outcome = LOOKUP_DONE;
 		return 1;
 	}

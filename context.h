@@ -212,7 +212,6 @@ extern int write_in_trace(const char *func, const char *mes);
 #define REISER4_ENTRY_PTR(super)  __REISER4_ENTRY(super, ERR_PTR(__ret))
 #define REISER4_ENTRY(super)      __REISER4_ENTRY(super, __ret)
 
-extern void balance_dirty_pages_at(reiser4_context * context);
 extern int reiser4_exit_context(reiser4_context * context);
 
 #define REISER4_EXIT( ret_exp )				\

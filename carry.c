@@ -252,12 +252,12 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 				fatal_carry_error(doing, result);
 				return result;
 			}
-			reiser4_stat_level_add(doing, carry_restart);
+			reiser4_stat_level_inc(doing, carry_restart);
 			unlock_carry_level(doing, 1);
 		}
 		/* at this point @done can be safely unlocked */
 		done_carry_level(done);
-		reiser4_stat_level_add(doing, carry_done);
+		reiser4_stat_level_inc(doing, carry_done);
 		/* cyclically shift queues */
 		tmp = done;
 		done = doing;

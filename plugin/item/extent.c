@@ -2739,7 +2739,7 @@ prepare_page(struct inode *inode, struct page *page, loff_t file_off, unsigned f
 	}
 
 	/* read block because its content is not completely overwritten */
-	reiser4_stat_extent_add(unfm_block_reads);
+	reiser4_stat_inc(extent.unfm_block_reads);
 
 	page_io(page, j, READ, GFP_NOIO);
 
@@ -2885,7 +2885,7 @@ extent_write_flow(struct inode *inode, coord_t *coord, lock_handle *lh, flow_t *
 		result = extent_balance_dirty_pages(page->mapping, f, coord, lh);
 		all_grabbed2free("extent_write_flow");
 		if (result) {
-			reiser4_stat_extent_add(bdp_caused_repeats);
+			reiser4_stat_inc(extent.bdp_caused_repeats);
 			break;
 		}
 		continue;
@@ -3106,7 +3106,7 @@ extent_readpage(coord_t * coord, struct page *page)
 			return PTR_ERR(j);
 		}
 		init_allocated_jnode(j, extent_get_start(extent_by_coord(coord)) + pos);
-		reiser4_stat_extent_add(unfm_block_reads);
+		reiser4_stat_inc(extent.unfm_block_reads);
 
 		trace_on(TRACE_EXTENTS, " - allocated, read issued\n");
 

@@ -17,8 +17,11 @@ function print_files()
 print_files ""
 
 for l in level* ;do \
-	echo "Level $l"
 	cd $l
-	print_files "...."
+	hits=$(cat total_hits_at_level)
+	if [ $hits -gt 0 ] ;then
+		echo "Level $l"
+		print_files "...."
+	fi
 	cd ..
 done

@@ -320,10 +320,8 @@ extern __u32 reiser4_current_trace_flags;
 /* following macros update counters from &reiser4_stat below, which
    see */
 
-#define ON_STATS( e ) e
+#define ON_STATS(e) e
 #define STS (get_super_private_nocheck(reiser4_get_current_sb()) -> stats)
-#define ST_INC_CNT( field ) ( ++ STS . field )
-#define ST_ADD_CNT( field, cnt ) ( STS . field += cnt )
 
 /* Macros to gather statistical data. If REISER4_STATS is disabled, they
    are preprocessed to nothing.
@@ -333,44 +331,36 @@ extern __u32 reiser4_current_trace_flags;
   
 */
 
-#define	reiser4_stat_tree_add( stat ) ST_INC_CNT( tree . stat )
-#define reiser4_stat_dir_add( stat ) ST_INC_CNT( dir . stat )
-#define reiser4_stat_vfs_calls_add( stat ) ST_INC_CNT( vfs_calls . stat )
-#define reiser4_stat_file_add( stat ) ST_INC_CNT( file . stat )
-#define reiser4_stat_extent_add( stat ) ST_INC_CNT( extent . stat )
-#define reiser4_stat_tail_add( stat ) ST_INC_CNT( extent . stat )
-#define reiser4_stat_flush_add( stat ) ST_INC_CNT( flush . stat )
-#define reiser4_stat_flush_add_few( stat, cnt ) ST_ADD_CNT( flush . stat, cnt )
-#define reiser4_stat_pool_add( stat ) ST_INC_CNT( pool. stat )
-#define reiser4_stat_seal_add( stat ) ST_INC_CNT( seal. stat )
+#define	reiser4_stat_inc(counter)        (++ STS . counter)
+#define reiser4_stat_add(counter, delta) (STS . counter += (delta))
 
-#define	reiser4_stat_add_at_level(lev, stat)				\
-({									\
-	int level;							\
-									\
-	level = (lev) - LEAF_LEVEL;					\
-	if (level >= 0) {						\
-		if(level < REAL_MAX_ZTREE_HEIGHT) {			\
-			ST_INC_CNT(level[level]. stat);			\
-			ST_INC_CNT(level[level]. total_hits_at_level);	\
-		}							\
-	}								\
+#define	reiser4_stat_inc_at_level(lev, stat)					\
+({										\
+	int level;								\
+										\
+	level = (lev) - LEAF_LEVEL;						\
+	if (level >= 0) {							\
+		if(level < REAL_MAX_ZTREE_HEIGHT) {				\
+			reiser4_stat_inc(level[level]. stat);			\
+			reiser4_stat_inc(level[level]. total_hits_at_level);	\
+		}								\
+	}									\
 })
 
-#define	reiser4_stat_level_add( l, stat )			\
-	reiser4_stat_add_at_level( ( l ) -> level_no, stat )
+#define	reiser4_stat_level_inc(l, stat)			\
+	reiser4_stat_inc_at_level((l)->level_no, stat)
 
-#define MAX_CNT( field, value )						\
+#define MAX_CNT(field, value)						\
 ({									\
 	if(get_super_private_nocheck(reiser4_get_current_sb()) &&	\
 	    (value) > STS.field)					\
 		STS.field = (value);					\
 })
 
-#define reiser4_stat_nuniq_max(gen)			\
-({							\
-	ST_INC_CNT(non_uniq);				\
-	MAX_CNT(non_uniq_max, gen);			\
+#define reiser4_stat_nuniq_max(gen)		\
+({						\
+	reiser4_stat_inc(non_uniq);		\
+	MAX_CNT(non_uniq_max, gen);		\
 })
 
 #define reiser4_stat_stack_check_max( gap ) MAX_CNT( stack_size_max, gap )
@@ -635,16 +625,16 @@ typedef struct reiser4_statistics {
 		/* how many times jnode_flush was called */
 		stat_cnt flush;
 		/* how many nodes were scanned by flush_scan_left() */
-		stat_cnt flush_left;
+		stat_cnt left;
 		/* how many nodes were scanned by flush_scan_right() */
-		stat_cnt flush_right;
+		stat_cnt right;
 	} flush;
 	struct {
 		/* how many carry objects were allocated */
-		stat_cnt pool_alloc;
+		stat_cnt alloc;
 		/* how many "extra" carry objects were allocated by
 		   kmalloc. */
-		stat_cnt pool_kmalloc;
+		stat_cnt kmalloc;
 	} pool;
 	struct {
 		/* seals that were found pristine */
@@ -678,21 +668,7 @@ extern int reiser4_populate_kattr_level_dir(struct kobject * kobj, int level);
 
 #define ON_STATS( e ) noop
 
-#define	reiser4_stat_tree_add( stat ) noop
 #define	reiser4_stat_tree_level_add( level, stat ) noop
-#define reiser4_stat_dir_add( stat ) noop
-#define reiser4_stat_flush_add( stat ) noop
-#define reiser4_stat_flush_add_few( stat, cnt ) noop
-#define reiser4_stat_pool_add( stat ) noop
-#define reiser4_stat_vfs_calls_add( stat ) noop
-#define reiser4_stat_file_add( stat ) noop
-#define reiser4_stat_extent_add( stat ) noop
-#define reiser4_stat_tail_add( stat ) noop
-#define	reiser4_stat_add_at_level( lev, stat ) noop
-#define	reiser4_stat_level_add( l, stat ) noop
-#define reiser4_stat_nuniq_max( gen ) noop
-#define reiser4_stat_stack_check_max( gap ) noop
-#define reiser4_stat_seal_add( stat ) noop
 typedef struct {
 } reiser4_stat;
 

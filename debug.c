@@ -304,11 +304,11 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(flush.squeezed_leaf_items),
 	DEFINE_STAT_CNT(flush.squeezed_leaf_bytes),
 	DEFINE_STAT_CNT(flush.flush),
-	DEFINE_STAT_CNT(flush.flush_left),
-	DEFINE_STAT_CNT(flush.flush_right),
+	DEFINE_STAT_CNT(flush.left),
+	DEFINE_STAT_CNT(flush.right),
 
-	DEFINE_STAT_CNT(pool.pool_alloc),
-	DEFINE_STAT_CNT(pool.pool_kmalloc),
+	DEFINE_STAT_CNT(pool.alloc),
+	DEFINE_STAT_CNT(pool.kmalloc),
 
 	DEFINE_STAT_CNT(seal.perfect_match),
 	DEFINE_STAT_CNT(seal.key_drift),
@@ -370,7 +370,9 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(znode.lock_znode),
 	DEFINE_STAT_LEVEL_CNT(znode.lock_znode_iteration),
 	DEFINE_STAT_LEVEL_CNT(znode.lock_neighbor),
-	DEFINE_STAT_LEVEL_CNT(znode.lock_neighbor_iteration)
+	DEFINE_STAT_LEVEL_CNT(znode.lock_neighbor_iteration),
+
+	DEFINE_STAT_LEVEL_CNT(total_hits_at_level)
 };
 
 #define getat(ptr, offset) *(stat_cnt *)(((char *)(ptr)) + (offset))

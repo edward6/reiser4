@@ -146,7 +146,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				   coincide */
 				assert("nikita-1990", node == seal->coord.node);
 				assert("nikita-1898", WITH_DATA_RET(coord->node, 1, check_seal_match(coord, key)));
-				reiser4_stat_seal_add(perfect_match);
+				reiser4_stat_inc(seal.perfect_match);
 			} else if (coord->between != AT_UNIT)
 				/* if seal was placed on position with node
 				   (rather than on the existing unit within
@@ -164,7 +164,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				result = seal_search_node(seal, coord, node, key, bias, level);
 			else {
 				/* key is not in @node */
-				reiser4_stat_seal_add(key_drift);
+				reiser4_stat_inc(seal.key_drift);
 				result = -EAGAIN;
 			}
 		}
@@ -173,7 +173,7 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 			done_lh(lh);
 	} else {
 		/* znode wasn't in cache */
-		reiser4_stat_seal_add(out_of_cache);
+		reiser4_stat_inc(seal.out_of_cache);
 		result = -EAGAIN;
 	}
 	return result;
@@ -224,7 +224,7 @@ seal_search_node(seal_t * seal /* seal to repair */ ,
 
 	if ((znode_get_level(node) != level) ||
 	    ZF_ISSET(node, JNODE_HEARD_BANSHEE) || ZF_ISSET(node, JNODE_IS_DYING) || (node != coord->node)) {
-		reiser4_stat_seal_add(wrong_node);
+		reiser4_stat_inc(seal.wrong_node);
 		return -EAGAIN;
 	}
 
@@ -234,13 +234,13 @@ seal_search_node(seal_t * seal /* seal to repair */ ,
 
 	if (coord_is_existing_unit(coord) && keyeq(key, unit_key_by_coord(coord, &unit_key))) {
 		/* coord is still at the same position in the @node */
-		reiser4_stat_seal_add(didnt_move);
+		reiser4_stat_inc(seal.didnt_move);
 		result = 0;
 	} else {
 		result = node_plugin_by_node(node)->lookup(node, key, bias, coord);
 		if (result == NS_FOUND) {
 			/* renew seal */
-			reiser4_stat_seal_add(found);
+			reiser4_stat_inc(seal.found);
 			seal_init(seal, coord, key);
 		} else
 			result = -EAGAIN;	/* Remove -ENOENT to simplify seal

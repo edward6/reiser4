@@ -291,7 +291,7 @@ internal_shift_hook(const coord_t * item /* coord of item */ ,
 	if (child == NULL)
 		return 0;
 	if (!IS_ERR(child)) {
-		reiser4_stat_tree_add(reparenting);
+		reiser4_stat_inc(tree.reparenting);
 		spin_lock_tree(tree);
 		atomic_inc(&new_node->c_count);
 		assert("nikita-1395", znode_parent(child) == old_node);

@@ -119,7 +119,7 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 
 	assert("nikita-959", pool != NULL);
 	trace_stamp(TRACE_CARRY);
-	reiser4_stat_pool_add(pool_alloc);
+	reiser4_stat_inc(pool.alloc);
 
 	if (!pool_usage_list_empty(&pool->free)) {
 		result = pool_usage_list_pop_front(&pool->free);
@@ -127,7 +127,7 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 		assert("nikita-960", result->pool == pool);
 		assert("nikita-965", pool_extra_list_is_clean(result));
 	} else {
-		reiser4_stat_pool_add(pool_kmalloc);
+		reiser4_stat_inc(pool.kmalloc);
 		/* pool is empty. Extra allocations don't deserve dedicated
 		   slab to be served from, as they are expected to be rare. */
 		result = reiser4_kmalloc(pool->obj_size, GFP_KERNEL);

@@ -711,7 +711,7 @@ adjust_dir_pos(struct file   * dir,
 	trace_if(TRACE_DIR, print_dir_pos(" spot", &readdir_spot->position));
 	trace_on(TRACE_DIR, "\n\tspot.entry_no: %llu\n", readdir_spot->entry_no);
 
-	reiser4_stat_dir_add(readdir.adjust_pos);
+	reiser4_stat_inc(dir.readdir.adjust_pos);
 	pos = &readdir_spot->position;
 	switch (dir_pos_cmp(mod_point, pos)) {
 	case LESS_THAN:
@@ -724,11 +724,11 @@ adjust_dir_pos(struct file   * dir,
 			assert("nikita-2575", mod_point->pos < pos->pos);
 			pos->pos += adj;
 		}
-		reiser4_stat_dir_add(readdir.adjust_lt);
+		reiser4_stat_inc(dir.readdir.adjust_lt);
 		break;
 	case GREATER_THAN:
 		/* directory is modified after @pos: nothing to do. */
-		reiser4_stat_dir_add(readdir.adjust_gt);
+		reiser4_stat_inc(dir.readdir.adjust_gt);
 		break;
 	case EQUAL_TO:
 		/* cannot insert an entry readdir is looking at, because it
@@ -745,7 +745,7 @@ adjust_dir_pos(struct file   * dir,
 		   spin lock's stead and use rewind_right() here.
 		*/
 		xmemset(readdir_spot, 0, sizeof *readdir_spot);
-		reiser4_stat_dir_add(readdir.adjust_eq);
+		reiser4_stat_inc(dir.readdir.adjust_eq);
 	}
 }
 
@@ -815,7 +815,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 	else if (offset == 0ll) {
 		/* rewind to the beginning of directory */
 		xmemset(pos, 0, sizeof *pos);
-		reiser4_stat_dir_add(readdir.reset);
+		reiser4_stat_inc(dir.readdir.reset);
 		return dir_go_to(dir, pos, tap);
 	}
 
@@ -827,12 +827,12 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 		warning("nikita-2549", "Strange seekdir: %llu->%llu", pos->entry_no, destination);
 	if (shift >= 0) {
 		/* rewinding to the left */
-		reiser4_stat_dir_add(readdir.rewind_left);
+		reiser4_stat_inc(dir.readdir.rewind_left);
 		if (shift <= (int) pos->position.pos) {
 			/* destination is within sequence of entries with
 			   duplicate keys. */
 			pos->position.pos -= shift;
-			reiser4_stat_dir_add(readdir.left_non_uniq);
+			reiser4_stat_inc(dir.readdir.left_non_uniq);
 			result = dir_go_to(dir, pos, tap);
 		} else {
 			shift -= pos->position.pos;
@@ -845,7 +845,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 					result = rewind_left(tap, shift);
 					if (result == -EDEADLK) {
 						tap_done(tap);
-						reiser4_stat_dir_add(readdir.left_restart);
+						reiser4_stat_inc(dir.readdir.left_restart);
 						continue;
 					}
 				}
@@ -854,7 +854,7 @@ dir_rewind(struct file *dir, readdir_pos * pos, loff_t offset, tap_t * tap)
 		}
 	} else {
 		/* rewinding to the right */
-		reiser4_stat_dir_add(readdir.rewind_right);
+		reiser4_stat_inc(dir.readdir.rewind_right);
 		result = dir_go_to(dir, pos, tap);
 		if (result == 0)
 			result = rewind_right(tap, -shift);
@@ -967,7 +967,7 @@ common_readdir(struct file *f /* directory file being read */ ,
 	inode = f->f_dentry->d_inode;
 	assert("nikita-1360", inode != NULL);
 
-	reiser4_stat_dir_add(readdir.calls);
+	reiser4_stat_inc(dir.readdir.calls);
 
 	if (!S_ISDIR(inode->i_mode))
 		return -ENOTDIR;

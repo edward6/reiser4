@@ -638,7 +638,7 @@ node40_check(const znode * node /* node to check */ ,
 		spin_lock_tree(current_tree);
 
 		if (keygt(&prev, &node->rd_key)) {
-			reiser4_stat_tree_add(rd_key_skew);
+			reiser4_stat_inc(tree.rd_key_skew);
 			if (flags & REISER4_NODE_TREE_STABLE) {
 				*error = "Last key is greater than rdkey";
 				return -1;

@@ -422,7 +422,7 @@ traverse_tree(cbk_handle * h /* search handle */ )
 	assert("nikita-369", (h->bias == FIND_EXACT) || (h->bias == FIND_MAX_NOT_MORE_THAN));
 	assert("nikita-370", h->stop_level >= LEAF_LEVEL);
 	trace_stamp(TRACE_TREE);
-	reiser4_stat_tree_add(cbk);
+	reiser4_stat_inc(tree.cbk);
 
 	iterations = 0;
 
@@ -488,7 +488,7 @@ restart:
 			done = 1;
 			break;
 		case LOOKUP_REST:
-			reiser4_stat_tree_add(cbk_restart);
+			reiser4_stat_inc(tree.cbk_restart);
 			hput(h);
 			++iterations;
 			preempt_point();
@@ -614,9 +614,9 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		*/
 		if (REISER4_STATS) {
 			if (znode_contains_key_lock(active, h->key))
-				reiser4_stat_add_at_level(h->level, cbk_met_ghost);
+				reiser4_stat_inc_at_level(h->level, cbk_met_ghost);
 			else
-				reiser4_stat_add_at_level(h->level, cbk_key_moved);
+				reiser4_stat_inc_at_level(h->level, cbk_key_moved);
 		}
 		h->result = -EAGAIN;
 	}
@@ -713,10 +713,10 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 				return search_to_left(h);
 			} else
 				h->result = CBK_COORD_FOUND;
-			reiser4_stat_tree_add(cbk_found);
+			reiser4_stat_inc(tree.cbk_found);
 		} else {
 			h->result = CBK_COORD_NOTFOUND;
-			reiser4_stat_tree_add(cbk_notfound);
+			reiser4_stat_inc(tree.cbk_notfound);
 		}
 		cbk_cache_add(active);
 		return LOOKUP_DONE;
@@ -1072,7 +1072,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 
 		if (llr != LOOKUP_DONE) {
 			/* restart of continue on the next level */
-			reiser4_stat_tree_add(cbk_cache_wrong_node);
+			reiser4_stat_inc(tree.cbk_cache_wrong_node);
 			result = -ENOENT;
 		} else if ((h->result != CBK_COORD_NOTFOUND) && (h->result != CBK_COORD_FOUND))
 			/* io or oom */
@@ -1102,7 +1102,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		   so that cbk() will be performed. This is not that
 		   important, because such races should be rare. Are they?
 		*/
-		reiser4_stat_tree_add(cbk_cache_race);
+		reiser4_stat_inc(tree.cbk_cache_race);
 		result = -ENOENT;	/* -ERAUGHT */
 	}
 	zrelse(node);
@@ -1135,10 +1135,10 @@ cbk_cache_search(cbk_handle * h /* cbk handle */ )
 		if (result != 0) {
 			done_lh(h->active_lh);
 			done_lh(h->parent_lh);
-			reiser4_stat_tree_add(cbk_cache_miss);
+			reiser4_stat_inc(tree.cbk_cache_miss);
 		} else {
 			assert("nikita-1319", (h->result == CBK_COORD_NOTFOUND) || (h->result == CBK_COORD_FOUND));
-			reiser4_stat_tree_add(cbk_cache_hit);
+			reiser4_stat_inc(tree.cbk_cache_hit);
 			write_tree_trace(h->tree, tree_cached);
 			break;
 		}
@@ -1230,7 +1230,7 @@ search_to_left(cbk_handle * h /* search handle */ )
 	node = h->active_lh->node;
 	assert("nikita-1763", coord_is_leftmost_unit(coord));
 
-	reiser4_stat_tree_add(check_left_nonuniq);
+	reiser4_stat_inc(tree.check_left_nonuniq);
 	h->result = reiser4_get_left_neighbor(&lh, node, (int) h->lock_mode, GN_DO_READ);
 	neighbor = NULL;
 	switch (h->result) {
@@ -1260,12 +1260,12 @@ search_to_left(cbk_handle * h /* search handle */ )
 			if (h->result == NS_NOT_FOUND) {
 	case -ENAVAIL:
 				h->result = CBK_COORD_FOUND;
-				reiser4_stat_tree_add(cbk_found);
+				reiser4_stat_inc(tree.cbk_found);
 				cbk_cache_add(node);
 	default:		/* some other error */
 				result = LOOKUP_DONE;
 			} else if (h->result == NS_FOUND) {
-				reiser4_stat_tree_add(left_nonuniq_found);
+				reiser4_stat_inc(tree.left_nonuniq_found);
 				spin_lock_dk(znode_get_tree(neighbor));
 				h->rd_key = *znode_get_ld_key(node);
 				leftmost_key_in_node(neighbor, &h->ld_key);

@@ -831,7 +831,7 @@ znode_io_hook(jnode * node, struct page *page UNUSED_ARG, int rw)
 			return 0;	/* not a commit */
 
 		if (check_jnode_for_unallocated(node)) {
-			reiser4_stat_flush_add(flushed_with_unallocated);
+			reiser4_stat_inc(flush.flushed_with_unallocated);
 		}
 	}
 

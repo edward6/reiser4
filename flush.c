@@ -776,7 +776,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	flush_mode();
 	write_syscall_trace("in");
 
-	reiser4_stat_flush_add(flush);
+	reiser4_stat_inc(flush.flush);
 
 	/* Flush-concurrency debug code */
 #if REISER4_DEBUG
@@ -899,7 +899,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	   leftward scan.  If we do scan right, we only care to go far enough to establish
 	   that at least FLUSH_RELOCATE_THRESHOLD number of nodes are being flushed.  The
 	   scan limit is the difference between left_scan.count and the threshold. */
-	reiser4_stat_flush_add_few(flush_left, left_scan.count);
+	reiser4_stat_add(flush.left, left_scan.count);
 
 	todo = flush_get_params()->relocate_threshold - left_scan.count;
 	if (todo > 0) {
@@ -914,7 +914,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	trace_on(TRACE_FLUSH, "flush: left: %i, right: %i\n", 
 		 left_scan.count, right_scan.count);
 
-	reiser4_stat_flush_add_few(flush_right, right_scan.count);
+	reiser4_stat_add(flush.right, right_scan.count);
 
 	/* ... and the answer is: we should relocate leaf nodes if at least
 	   FLUSH_RELOCATE_THRESHOLD nodes were found. */
@@ -2157,7 +2157,7 @@ squalloc_right_neighbor(znode * left, znode * right, flush_position * pos)
 			      ret == SQUEEZE_SOURCE_EMPTY || ret == SQUEEZE_TARGET_FULL || ret == SUBTREE_MOVED));
 
 	if (ret == SQUEEZE_SOURCE_EMPTY) {
-		reiser4_stat_flush_add(squeezed_completely);
+		reiser4_stat_inc(flush.squeezed_completely);
 	}
 
 	trace_on(TRACE_FLUSH_VERB, "sq_rn[%u] returns %s: left %s\n",
@@ -2194,9 +2194,9 @@ squeeze_right_non_twig(znode * left, znode * right)
 
 	/* FIXME-VS: urgently added squeeze statistics */
 	if (znode_get_level(left) == LEAF_LEVEL) {
-		reiser4_stat_flush_add(squeezed_leaves);
-		reiser4_stat_flush_add_few(squeezed_leaf_items, node_num_items(left) - old_items);
-		reiser4_stat_flush_add_few(squeezed_leaf_bytes, old_free_space - znode_free_space(left));
+		reiser4_stat_inc(flush.squeezed_leaves);
+		reiser4_stat_add(flush.squeezed_leaf_items, node_num_items(left) - old_items);
+		reiser4_stat_add(flush.squeezed_leaf_bytes, old_free_space - znode_free_space(left));
 	}
 
 	UNDER_SPIN_VOID(dk, znode_get_tree(left), update_znode_dkeys(left, right));

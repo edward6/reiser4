@@ -346,7 +346,7 @@ insert_result insert_by_coord(coord_t * coord	/* coord where to
 		*/
 		int result;
 
-		reiser4_stat_tree_add(fast_insert);
+		reiser4_stat_inc(tree.fast_insert);
 		result = node_plugin_by_node(node)->create_item(coord, key, data, NULL);
 		znode_set_dirty(node);
 	} else {
@@ -440,7 +440,7 @@ insert_into_item(coord_t * coord /* coord of pasting */ ,
 	    (coord->unit_pos != 0) &&
 	    (nplug->fast_paste != NULL) &&
 	    nplug->fast_paste(coord) && (iplug->b.fast_paste != NULL) && iplug->b.fast_paste(coord)) {
-		reiser4_stat_tree_add(fast_paste);
+		reiser4_stat_inc(tree.fast_paste);
 		if (size_change > 0)
 			nplug->change_item_size(coord, size_change);
 		/* NOTE-NIKITA: huh? where @key is used? */
@@ -638,7 +638,7 @@ check_tree_pointer(const coord_t * pointer	/* would-be pointer to
 			iplug->s.internal.down_link(pointer, NULL, &addr);
 			/* check that cached value is correct */
 			if (disk_addr_eq(&addr, znode_get_block(child))) {
-				reiser4_stat_tree_add(pos_in_parent_hit);
+				reiser4_stat_inc(tree.pos_in_parent_hit);
 				return NS_FOUND;
 			}
 		}
@@ -709,14 +709,14 @@ find_child_ptr(znode * parent /* parent znode, passed locked */ ,
 	/* fast path. Try to use cached value. Lock tree to keep
 	   node->pos_in_parent and pos->*_blocknr consistent. */
 	if (child->in_parent.item_pos + 1 != 0) {
-		reiser4_stat_tree_add(pos_in_parent_set);
+		reiser4_stat_inc(tree.pos_in_parent_set);
 		xmemcpy(result, &child->in_parent, sizeof *result);
 		if (check_tree_pointer(result, child) == NS_FOUND) {
 			spin_unlock_tree(tree);
 			return NS_FOUND;
 		}
 
-		reiser4_stat_tree_add(pos_in_parent_miss);
+		reiser4_stat_inc(tree.pos_in_parent_miss);
 		coord_invalid_item_pos(&child->in_parent);
 	}
 	spin_unlock_tree(tree);

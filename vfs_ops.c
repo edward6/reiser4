@@ -374,7 +374,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 	assert("umka-073", buf != NULL);
 	assert("umka-074", off != NULL);
 
-	reiser4_stat_vfs_calls_add(reads);
+	reiser4_stat_inc(vfs_calls.reads);
 
 	trace_on(TRACE_VFS_OPS,
 		 "READ: (i_ino %li, size %lld): %u bytes from pos %lli\n",
@@ -416,7 +416,7 @@ reiser4_write(struct file *file /* file to write on */ ,
 	assert("nikita-1422", buf != NULL);
 	assert("nikita-1424", off != NULL);
 
-	reiser4_stat_vfs_calls_add(writes);
+	reiser4_stat_inc(vfs_calls.writes);
 
 	trace_on(TRACE_VFS_OPS,
 		 "WRITE: (i_ino %li, size %lld): %u bytes to pos %lli\n", inode->i_ino, inode->i_size, size, *off);
@@ -1182,7 +1182,7 @@ reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
 	assert("nikita-1365", dentry != NULL);
 
 	if (dentry->d_fsdata == NULL) {
-		reiser4_stat_file_add(fsdata_alloc);
+		reiser4_stat_inc(file.fsdata_alloc);
 		/* NOTE-NIKITA use slab in stead */
 		dentry->d_fsdata = reiser4_kmalloc(sizeof (reiser4_dentry_fsdata), GFP_KERNEL);
 		if (dentry->d_fsdata == NULL)
@@ -1224,7 +1224,7 @@ reiser4_get_file_fsdata(struct file *f	/* file
 		struct inode *inode;
 		reiser4_inode *info;
 
-		reiser4_stat_file_add(private_data_alloc);
+		reiser4_stat_inc(file.private_data_alloc);
 		/* NOTE-NIKITA use slab in stead */
 		fsdata = reiser4_kmalloc(sizeof *fsdata, GFP_KERNEL);
 		if (fsdata == NULL)
@@ -2441,7 +2441,7 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		page_clear_jnode(page, node);
 		spin_unlock_jnode(node);
 
-		reiser4_stat_add_at_level(jnode_get_level(node), page_released);
+		reiser4_stat_inc_at_level(jnode_get_level(node), page_released);
 
 		/* we are under memory pressure so release jnode also. */
 		jput(node);

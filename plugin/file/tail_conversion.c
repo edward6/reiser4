@@ -338,7 +338,7 @@ tail2extent(struct inode *inode)
 	}
 
 	/* collect statistics on the number of tail2extent conversions */
-	reiser4_stat_file_add(tail2extent);
+	reiser4_stat_inc(file.tail2extent);
 
 	/* get key of first byte of a file */
 	unix_file_key_by_inode(inode, 0ull, &key);
@@ -590,7 +590,7 @@ extent2tail(struct inode *inode)
 	int err = 0;
 
 	/* collect statistics on the number of extent2tail conversions */
-	reiser4_stat_file_add(extent2tail);
+	reiser4_stat_inc(file.extent2tail);
 
 	result = prepare_extent2tail(inode);
 	if (result)

@@ -171,7 +171,7 @@ emergency_flush(struct page *page)
 		return 0;
 
 	jref(node);
-	reiser4_stat_add_at_level(jnode_get_level(node), emergency_flush);
+	reiser4_stat_inc_at_level(jnode_get_level(node), emergency_flush);
 
 	trace_on(TRACE_EFLUSH, "eflush: %i...", get_super_private(sb)->eflushed);
 

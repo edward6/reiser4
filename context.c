@@ -90,10 +90,11 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 reiser4_context *
 get_context_by_lock_stack(lock_stack * owner)
 {
-	return (reiser4_context *) ((char *) owner - (int) (&((reiser4_context *) 0)->stack));
+	return container_of(owner, reiser4_context, stack);
 }
 
-void balance_dirty_pages_at(reiser4_context * context)
+static void 
+balance_dirty_pages_at(reiser4_context * context)
 {
 	reiser4_super_info_data * sdata = get_super_private(context->super);
 
