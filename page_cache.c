@@ -466,6 +466,7 @@ page_io(struct page *page /* page to perform io for */ ,
 		unlock_page(page);
 		result = PTR_ERR(bio);
 	}
+
 	return result;
 }
 
@@ -593,7 +594,6 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 	reiser4_stat_inc(pcwb.calls);
 
 	assert("vs-828", PageLocked(page));
-
 
 #if REISER4_USE_ENTD
 	
