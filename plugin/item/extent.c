@@ -2552,7 +2552,7 @@ static int extent_allocate_blocks (reiser4_blocknr_hint *preceder,
 		 * FIXME-VS: returning -ENOSPC is not enough
 		 * here. It should not happen actully
 		 */
-		impossible ("vs-420", "could not allocate unallocated");
+		impossible ("vs-420", "could not allocate unallocated: %d", result);
 	}
 
 	return result;
