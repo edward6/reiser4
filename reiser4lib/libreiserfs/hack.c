@@ -42,7 +42,7 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     reiserfs_direntry40_t *direntry_body;
 
     reiserfs_objid_t *dot_key;
-    reiserfs_objid_t *dotdot_key;
+    reiserfs_objid_t *dot_dot_key;
 
     aal_assert("umka-486", fs != NULL, return -1);
 
@@ -71,18 +71,19 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
 	sizeof(reiserfs_item40_header_t) - sizeof(reiserfs_internal40_t));
 
     /* Forming internal item and body */
-    item = (reiserfs_item40_header_t *)(block->data + block->size - sizeof(*item));
+    item = (reiserfs_item40_header_t *)(block->data + block->size) - 1;
+    
     aal_memset(&item->key, 0, sizeof(reiserfs_key_t));
     
     set_key_type(&item->key, KEY_SD_MINOR);
     set_key_locality(&item->key, 41);
     set_key_objectid(&item->key, 42);
     
-    set_ih40_plugin_id(item, 0x2);
+    set_ih40_plugin_id(item, 0x3);
     set_ih40_length(item, sizeof(reiserfs_internal40_t));
     set_ih40_offset(item, sizeof(reiserfs_node40_header_t));
     
-    internal_body = (reiserfs_internal40_t *)(node + get_ih40_offset(item));
+    internal_body = (reiserfs_internal40_t *)(block->data + get_ih40_offset(item));
     
     if (!(blk = reiserfs_alloc_find(fs))) {
 	aal_device_free_block(block);
@@ -114,15 +115,16 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     set_nh40_num_items(node, 2);
     
     set_nh40_free_space_start(node, sizeof(reiserfs_node40_header_t) + 
-	sizeof(reiserfs_stat40_t) + sizeof(reiserfs_direntry40_t));
+	sizeof(reiserfs_stat40_t) + sizeof(reiserfs_direntry40_t) + 
+	2*sizeof(reiserfs_direntry40_unit_t) + 2*sizeof(reiserfs_objid_t) + 2 + 3);
     
     set_nh40_free_space(node, block->size - (sizeof(reiserfs_node40_header_t) + 
-	(2 * sizeof(reiserfs_item40_header_t)) + sizeof(reiserfs_stat40_t) + 
+	(2*sizeof(reiserfs_item40_header_t)) + sizeof(reiserfs_stat40_t) + 
 	sizeof(reiserfs_direntry40_t) + 2*sizeof(reiserfs_direntry40_unit_t) + 2 + 3 + 
 	2*sizeof(reiserfs_objid_t)));
 
     /* Forming stat data item and body */
-    item = (reiserfs_item40_header_t *)(block->data + block->size - sizeof(reiserfs_stat40_t));
+    item = (reiserfs_item40_header_t *)(block->data + block->size) - 1;
     aal_memset(&item->key, 0, sizeof(reiserfs_key_t));
     
     set_key_type(&item->key, KEY_SD_MINOR);
@@ -133,41 +135,36 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     set_ih40_length(item, sizeof(reiserfs_stat40_t));
     set_ih40_offset(item, sizeof(reiserfs_node40_header_t));
     
-    stat_body = (reiserfs_stat40_t *)(node + get_ih40_offset(item));
+    stat_body = (reiserfs_stat40_t *)(block->data + get_ih40_offset(item));
     stat_body->mode = S_IFDIR | 0111;
     stat_body->extmask = 0;
     stat_body->nlink = 2;
     stat_body->size = 0;
 
     /* Forming direntry item and body */
-    item = (reiserfs_item40_header_t *)(block->data + block->size - sizeof(reiserfs_stat40_t) - 
-	sizeof(reiserfs_direntry40_t) - 2*sizeof(reiserfs_direntry40_unit_t) - 2 - 3 - 
-	2*sizeof(reiserfs_objid_t));
-    
+    item = (reiserfs_item40_header_t *)(block->data + block->size) - 2;
     aal_memset(&item->key, 0, sizeof(reiserfs_key_t));
     
     set_key_type(&item->key, KEY_FILE_NAME_MINOR);
     set_key_locality(&item->key, 42);
     
-    set_ih40_plugin_id(item, 0x1);
-    
+    set_ih40_plugin_id(item, 0x2);
     set_ih40_length(item, sizeof(reiserfs_direntry40_t) + 
-	2*sizeof(reiserfs_direntry40_unit_t) + 2*sizeof(reiserfs_objid_t) + aal_strlen(".") + 1 +
-	aal_strlen("..") + 1);
+	2*sizeof(reiserfs_direntry40_unit_t) + 2*sizeof(reiserfs_objid_t) + 
+	aal_strlen(".") + 1 + aal_strlen("..") + 1);
     
     set_ih40_offset(item, sizeof(reiserfs_node40_header_t) + sizeof(reiserfs_stat40_t));
     
-    direntry_body = (reiserfs_direntry40_t *)node + get_ih40_offset(item);
+    direntry_body = (reiserfs_direntry40_t *)(block->data + get_ih40_offset(item));
     direntry_body->num_entries = 2;
-    
-    direntry_body->entry[0].hash.objectid[0] = 42;
-    aal_memset(direntry_body->entry[0].hash.offset, 0, 16);
+   
+//    direntry_body->entry[0].hash.objectid[0] = 42;
 
     /* Offset of the first name in directory */
     direntry_body->entry[0].offset = sizeof(reiserfs_direntry40_t) + 
 	2*sizeof(reiserfs_direntry40_unit_t);
     
-    direntry_body->entry[1].hash.objectid[0] = 42;
+//    direntry_body->entry[1].hash.objectid[0] = 42;
     {
 	uint64_t packed = pack_string(".." + OID_CHARS, 0);
 	aal_memcpy(direntry_body->entry[1].hash.offset, &packed, sizeof(packed));
@@ -183,15 +180,19 @@ blk_t hack_create_tree(reiserfs_fs_t *fs, reiserfs_plugin_id_t node_plugin_id) {
     direntry_body->entry[1].offset = sizeof(reiserfs_direntry40_t) + 
 	2*sizeof(reiserfs_direntry40_unit_t) + sizeof(reiserfs_objid_t) + 2;
 
-    aal_memcpy((char *)(direntry_body + direntry_body->entry[0].offset), ".\0", 2);
-    dot_key = (reiserfs_objid_t *)(direntry_body + direntry_body->entry[0].offset + 2);
+    aal_memcpy((char *)(((void *)direntry_body) + direntry_body->entry[0].offset), ".\0", 2);
+    dot_key = (reiserfs_objid_t *)(((void *)direntry_body) + direntry_body->entry[0].offset + 2);
+
+    aal_memset(dot_key, 0, sizeof(*dot_key));
     dot_key->locality[0] = 41;
     dot_key->objectid[0] = 42;
     
-    aal_memcpy((char *)(direntry_body + direntry_body->entry[1].offset), "..\0", 3);
-    dot_key = (reiserfs_objid_t *)(direntry_body + direntry_body->entry[1].offset + 3);
-    dot_key->locality[0] = 41 - 3;
-    dot_key->objectid[0] = 41;
+    aal_memcpy((char *)(((void *)direntry_body) + direntry_body->entry[1].offset), "..\0", 3);
+    dot_dot_key = (reiserfs_objid_t *)(((void *)direntry_body) + direntry_body->entry[1].offset + 3);
+    
+    aal_memset(dot_dot_key, 0, sizeof(*dot_dot_key));
+    dot_dot_key->locality[0] = 41 - 3;
+    dot_dot_key->objectid[0] = 41;
 
     if (aal_device_write_block(fs->device, block)) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 

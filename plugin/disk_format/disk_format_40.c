@@ -46,22 +46,41 @@ static int replay_journal (struct super_block * s UNUSED_ARG)
 	return 0;
 }
 
-
 /* find any valid super block of disk_format_40 (even if the first
  * super block is destroyed) */
 static struct buffer_head * find_a_disk_format_40_super_block (struct super_block * s
 						  UNUSED_ARG)
 {
-	return ERR_PTR (-ENOSYS);
+    struct buffer_head *super_bh;
+    format_40_disk_super_block *disk_sb;
+
+    assert("umka-487", s != NULL);
+    
+    if (!(super_bh = sb_bread(s, (int)(FORMAT_40_OFFSET / s->s_blocksize))))
+	return ERR_PTR(-EIO);
+    
+    disk_sb = (format_40_disk_super_block *)super_bh->b_data;
+    if (strcmp(disk_sb->magic, FORMAT_40_MAGIC)) {
+	brelse(super_bh);
+	return ERR_PTR(-EINVAL);
+    }
+  
+    reiser4_set_block_count(s, d64tocpu(&disk_sb->block_count));
+    reiser4_set_data_blocks(s, d64tocpu(&disk_sb->block_count) - d64tocpu(&disk_sb->free_blocks));
+    reiser4_set_free_blocks(s, (d64tocpu(&disk_sb->free_blocks)));
+    
+    return super_bh;
 }
 
 
 /* find the most recent version of super block. This is called after journal is
  * replayed */
-static struct buffer_head * read_super_block (struct super_block * s
+static struct buffer_head *read_super_block (struct super_block * s
 					      UNUSED_ARG)
 {
-	return ERR_PTR (-ENOSYS);
+    /* FIXME-UMKA: Here must be reading of the most recent superblock copy. However, as
+     * journal isn't complete, we are using find_any_superblock function. */
+    return find_a_disk_format_40_super_block(s);
 }
 
 /* plugin->u.layout.get_ready */
@@ -159,7 +178,7 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 				       * plugin */
 
 	/* FIXME-VS: maybe this should be dealt with in common code */
-	xmemset (&private->stats, 0, sizeof (reiser4_stat));
+	xmemset(&private->stats, 0, sizeof (reiser4_stat));
 	/* private->tmgr is initialized already */
 
 	/* init fake inode which will be used to read all the formatted nodes

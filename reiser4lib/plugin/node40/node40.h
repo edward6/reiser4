@@ -14,6 +14,11 @@
 /* (*(__u32 *)"R4FS"); */
 #define REISERFS_NODE40_MAGIC 0x52344653
 
+typedef struct flush_stamp {
+    uint32_t mkfs_id;
+    uint64_t flush_time;
+} flush_stamp_t;
+
 /* Format of node header for node40. */
 struct reiserfs_node40_header {
     reiserfs_node_common_header_t header;
@@ -22,8 +27,7 @@ struct reiserfs_node40_header {
     uint8_t level;
     uint32_t magic;
     uint16_t num_items;
-    char flags;
-    uint32_t flush_time;
+    flush_stamp_t flush_stamp;
 };
 
 typedef struct reiserfs_node40_header reiserfs_node40_header_t;  
@@ -48,9 +52,6 @@ typedef struct reiserfs_node40_header reiserfs_node40_header_t;
 
 #define get_nh40_num_items(header)		get_le16(header, num_items)
 #define set_nh40_num_items(header, val)		set_le16(header, num_items, val)
-
-#define get_nh40_flush_time(header)		get_le32(header, flush_time)
-#define set_nh40_flush_time(header, val)	set_le32(header, flush_time, val)
 
 /* Node object which plugin works with */
 struct reiserfs_node40 {

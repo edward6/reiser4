@@ -20,8 +20,7 @@ static void usage(void) {
     fprintf(stderr, "Usage: meat DEV <open|create>\n");
 }
 
-static void print_plugin(reiserfs_plugin_t *plugin, char *kind) {
-    aal_printf("used %s:\n------------\n", kind);
+static void print_plugin(reiserfs_plugin_t *plugin) {
     aal_printf("%x:%x (%s)\n", plugin->h.type, plugin->h.id, plugin->h.label);
     aal_printf("%s\n\n", plugin->h.desc);
 }
@@ -34,12 +33,12 @@ static void print_fs(reiserfs_fs_t *fs) {
 	reiserfs_super_get_blocks(fs), reiserfs_alloc_used(fs), 
 	reiserfs_alloc_free(fs));
     
-    print_plugin(fs->super->plugin, "format");
+    print_plugin(fs->super->plugin);
     
     if (fs->journal)
-	print_plugin(fs->journal->plugin, "journal");
+	print_plugin(fs->journal->plugin);
 
-    print_plugin(fs->alloc->plugin, "alloc");
+    print_plugin(fs->alloc->plugin);
 }
 
 int main(int argc, char *argv[]) {
@@ -77,7 +76,6 @@ int main(int argc, char *argv[]) {
 		"Can't %s filesystem on %s.", argv[1], argv[2]);
 	    goto error_free_device;
 	}
-	print_fs(fs);
     } else {
 	if (!(device = aal_file_open(argv[2], REISERFS_DEFAULT_BLOCKSIZE, O_RDWR))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -105,10 +103,9 @@ int main(int argc, char *argv[]) {
 	    goto error_free_fs;
 	}
 	
-	aal_printf("reiserfs on %s successfully created.\n", argv[2]);
-	print_fs(fs);
     }
-    
+    print_fs(fs);
+
     reiserfs_fs_close(fs);
     libreiserfs_fini();
     aal_file_close(device);

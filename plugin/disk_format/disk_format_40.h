@@ -13,7 +13,8 @@
  */
 
 /* magic for default reiser4 layout */
-#define LAYOUT_40_MAGIC "R4Sb-Default"
+#define FORMAT_40_MAGIC "R4Sb-Default"
+#define FORMAT_40_OFFSET (65536 + 4096)
 
 /* ondisk super block for format 40. It is 512 bytes long */
 typedef struct format_40_disk_super_block {	
@@ -29,10 +30,11 @@ typedef struct format_40_disk_super_block {
 	/*  72 */ d16 tree_height; /* height of filesystem tree */
 	
 	/*  74 */ d16 journal_plugin_id; /* journal plugin identifier */
-	/*  76 */ d16 alloc_plugin_id; /* space allocator plugin identifier */
+	/*  76 */ d16 alloc_plugin_id;	 /* space allocator plugin identifier */
+	/*  78 */ d16 oid_plugin_id;	 /* oid allocator plugin identifier */
 	
-	/*  78 */ d16 padd [3];
-	/*  84 */ char not_used [428];
+	/*  80 */ d16 padd [3];
+	/*  86 */ char not_used [426];
 } format_40_disk_super_block;
 
 
