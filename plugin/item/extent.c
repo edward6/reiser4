@@ -2725,6 +2725,9 @@ static int assign_jnode_blocknrs (reiser4_key * key,
 	set_key_offset (&sd_key, 0ull);
 	inode = reiser4_iget (reiser4_get_current_sb (), &sd_key);
 	assert ("vs-348", inode);
+	if( inode -> i_state & I_NEW )
+		unlock_new_inode( inode );
+
 
 	/* offset of first byte addressed by block for which blocknr @first is
 	 * allocated */
