@@ -382,10 +382,18 @@ zget (reiser4_tree *tree,
 	/* Take the hash table lock. */
 	spin_lock_tree (tree);
 
-	/* Find a matching BLOCKNR in the hash table.  If the znode is found, we obtain an
-	 * reference (x_count) but the znode remains unlocked.  Have to worry about race
-	 * conditions later. */
-	result = z_hash_find_index (& tree->hash_table, hashi, blocknr);
+	if (is_disk_addr_unallocated (blocknr)) {
+		/*
+		 * Asked for unallocated znode.
+		 */
+		result = unallocated_disk_addr_to_ptr (blocknr);
+	} else {
+		/* Find a matching BLOCKNR in the hash table.  If the znode is
+		 * found, we obtain an reference (x_count) but the znode
+		 * remains * unlocked.  Have to worry about race conditions
+		 * later. */
+		result = z_hash_find_index (& tree->hash_table, hashi, blocknr);
+	}
 
 	/* According to the current design, the hash table lock protects new znode
 	 * references. */
