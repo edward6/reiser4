@@ -604,7 +604,7 @@ static inline int jprotect (jnode * node)
 	JF_SET(node, JNODE_EPROTECTED);
 	ret = JF_ISSET(node, JNODE_EFLUSH);
 
-	spin_unlock(node);
+	spin_unlock_jnode(node);
 
 	if (ret)
 		ret = emergency_unflush(node);
