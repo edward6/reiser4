@@ -382,7 +382,6 @@ void jnode_attach_page( jnode *node, struct page *pg )
 	page_cache_get( pg );
 	pg -> private = ( unsigned long ) node;
 	node -> pg  = pg;
-	node -> data = page_address( pg );
 	SetPagePrivate( pg );
 }
 
@@ -594,6 +593,7 @@ int jload( jnode *node )
 		if( page != NULL ) {
 			JF_SET( node, JNODE_LOADED );
 			load_page( page );
+			node -> data = page_address( page );
 		} else {
 			page = read_cache_page( jplug -> mapping( node ), 
 						jplug -> index( node ), 
@@ -604,6 +604,7 @@ int jload( jnode *node )
 			 */
 			if( !IS_ERR( page ) ) {
 				kmap( page );
+				node -> data = page_address( page );
 				/*
 				 * It is possible (however unlikely) that page
 				 * was concurrently released (by flush or
@@ -659,6 +660,7 @@ int jinit_new( jnode *node /* jnode to initialise */ )
 		UNDER_SPIN_VOID( jnode, node, jnode_attach_page( node, page ) );
 		unlock_page( page );
 		kmap( page );
+		node -> data = page_address( page );
 		result = 0;
 		spin_lock_jnode( node );
 		if( likely( !jnode_is_loaded( node ) ) ) {
