@@ -17,6 +17,29 @@ typedef struct {
 		unsigned scan_maxnodes;
 } flush_params;
 
+typedef enum {
+	/**
+	 * True if this file system doesn't support hard-links (multiple
+	 * names) for directories: this is default UNIX behavior.
+	 *
+	 * If hard-links on directoires are not allowed, file system is
+	 * Acyclic Directed Graph (modulo dot, and dotdot, of course).
+	 *
+	 * This is used by reiser4_link().
+	 */
+	REISER4_ADG            = 0,
+	/**
+	 * set if all nodes in internal tree have the same node layout plugin.
+	 * If so, znode_guess_plugin() will return tree->node_plugin in stead
+	 * of guessing plugin by plugin id stored in the node.
+	 */
+	REISER4_ONE_NODE_PLUGIN = 1,
+	/**
+	 * if set, bsd gid assignment is supported.
+	 */
+	REISER4_BSD_GID         = 2
+} reiser4_fs_flag;
+
 /** reiser4-specific part of super block */
 struct reiser4_super_info_data {
 	/**
@@ -120,17 +143,8 @@ struct reiser4_super_info_data {
 
 	/* super block flags */
 
-	/**
-	 * see reiser4_adg() for description.
-	 */
-	__u32    adg                :1;
-
-	/**
-	 * set if all nodes in internal tree have the same node layout plugin.
-	 * If so, znode_guess_plugin() will return tree->node_plugin in stead
-	 * of guessing plugin by plugin id stored in the node.
-	 */
-	__u32    one_node_plugin    :1;
+	/** file-system wide flags. See reiser4_fs_flag enum */
+	unsigned long  fs_flags;
 
 	/**
 	 * Statistical counters. reiser4_stat is empty data-type unless
@@ -212,6 +226,7 @@ extern const __u32 REISER4_SUPER_MAGIC;
 extern void reiser4_spin_lock_sb (const struct super_block *);
 extern void reiser4_spin_unlock_sb (const struct super_block *);
 
+extern int  reiser4_is_set( const struct super_block *super, reiser4_fs_flag f );
 extern long statfs_type( const struct super_block *super );
 extern int  reiser4_blksize( const struct super_block *super );
 extern __u64 reiser4_block_count( const struct super_block *super );
@@ -244,7 +259,6 @@ extern reiser4_oid_allocator *get_oid_allocator( const struct super_block *super
 extern struct inode *get_super_fake( const struct super_block *super );
 extern reiser4_tree *get_tree( const struct super_block *super );
 extern __u32 new_inode_generation( const struct super_block *super );
-extern int  reiser4_adg( const struct super_block *super );
 extern int  is_reiser4_super( const struct super_block *super );
 
 extern struct super_block *reiser4_get_current_sb( void );

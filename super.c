@@ -293,21 +293,6 @@ reiser4_tree *get_tree( const struct super_block *super /* super block
 }
 
 /**
- * True if this file system doesn't support hard-links (multiple names) for
- * directories: this is default UNIX behaviour.
- *
- * If hard-links on directoires are not allowed, file system is Acyclic
- * Directed Graph (modulo dot, and dotdot, of course).
- *
- * This is used by reiser4_link().
- *
- */
-int reiser4_adg( const struct super_block *super /* super block queried */ )
-{
-	return get_super_private( super ) -> adg;
-}
-
-/**
  * Check that @super is (looks like) reiser4 super block. This is mainly for
  * use in assertions.
  */
@@ -316,6 +301,11 @@ int is_reiser4_super( const struct super_block *super /* super block
 {
 	return ( super != NULL ) && 
 		( super -> s_op == &reiser4_super_operations );
+}
+
+int reiser4_is_set( const struct super_block *super, reiser4_fs_flag f )
+{
+	return test_bit( f, &get_super_private( super ) -> fs_flags );
 }
 
 /**

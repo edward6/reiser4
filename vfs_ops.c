@@ -1626,6 +1626,20 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 		PLUG_OPT( "plugin.dir",      dir,  &info -> plug.d ),
 		PLUG_OPT( "plugin.hash",     hash, &info -> plug.h ),
 
+		{
+			/*
+			 * turn on BSD-style gid assignment
+			 */
+			.name = "bsdgroups",
+			.type = OPT_BIT,
+			.u = {
+				.bit = {
+					.nr   = REISER4_BSD_GID,
+					.addr = &info -> fs_flags
+				}
+			}
+		},
+
 #if REISER4_TRACE_TREE
 		{
 			.name = "trace_file",
@@ -1674,6 +1688,8 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 	trace_file_name = NULL;
 
 	result = parse_options( opt_string, opts, sizeof_array( opts ) );
+	if( result != 0 )
+		return result;
 
 	info -> txnmgr.atom_max_age *= HZ;
 	if( info -> txnmgr.atom_max_age <= 0 )
@@ -1688,7 +1704,7 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 	info -> optimal_io_size <<= VFS_BLKSIZE_BITS;
 	if( info -> optimal_io_size == 0 ) {
 		warning( "nikita-2497", "optimal_io_size is too small" );
-		result = -EINVAL;
+		return -EINVAL;
 	}
 
 #if REISER4_TRACE_TREE

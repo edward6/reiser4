@@ -84,7 +84,8 @@ static int common_link( struct inode *parent /* parent directory */,
 
 	/* links to directories are not allowed if file-system
 	   logical name-space should be ADG */
-	if( reiser4_adg( parent -> i_sb ) && S_ISDIR( object -> i_mode ) )
+	if( reiser4_is_set( parent -> i_sb, REISER4_ADG ) && 
+	    S_ISDIR( object -> i_mode ) )
 		return -EISDIR;
 
 	/* check permissions */
@@ -464,8 +465,9 @@ int is_dir_empty( const struct inode *dir )
 
 	/*
 	 * FIXME-NIKITA this is not correct if hard links on directories are
-	 * supported in this fs (if reiser4_adg( dir -> i_sb ) is false). But
-	 * then, how to determine that last "outer" link is removed?
+	 * supported in this fs (if REISER4_ADG is not set in dir ->
+	 * i_sb). But then, how to determine that last "outer" link is
+	 * removed?
 	 */
 
 	dot.name = ".";

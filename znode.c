@@ -632,7 +632,7 @@ static node_plugin *znode_guess_plugin( const znode *node /* znode to guess
 	assert( "nikita-1055", zdata( node ) != NULL );
 	assert( "umka-053", current_tree != NULL );
 
-	if( get_current_super_private() -> one_node_plugin ) {
+	if( reiser4_is_set( reiser4_get_current_sb(), REISER4_ONE_NODE_PLUGIN ) ) {
 		return current_tree -> nplug;
 	} else {
 		return node_plugin_by_disk_id

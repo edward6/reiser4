@@ -502,14 +502,23 @@ static int common_set_plug( struct inode *object /* inode to set plugin on */,
 	/* this should be plugin decision */
 	object -> i_uid = current -> fsuid;
 	object -> i_mtime = object -> i_atime = object -> i_ctime = CURRENT_TIME;
-	/*
-	 * FIXME-NIKITA support for BSD style group-id assignment. See ext2
-	 * groupid mount option.
-	 */
 
-	if( parent -> i_mode & S_ISGID )
+	/*
+	 * support for BSD style group-id assignment.
+	 */
+	if( reiser4_is_set( object -> i_sb, REISER4_BSD_GID ) )
 		object -> i_gid = parent -> i_gid;
-	else
+	/*
+	 * parent directory has sguid bit
+	 */
+	else if( parent -> i_mode & S_ISGID ) {
+		object -> i_gid = parent -> i_gid;
+		if( S_ISDIR( object -> i_mode ) )
+			/*
+			 * sguid is inherited by sub-directories
+			 */
+			object -> i_mode |= S_ISGID;
+	} else
 		object -> i_gid = current -> fsgid;
 
 	/* this object doesn't have stat-data yet */
