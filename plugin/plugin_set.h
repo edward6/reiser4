@@ -15,6 +15,7 @@ TS_HASH_DECLARE(ps, plugin_set);
 
 struct plugin_set {
 	atomic_t            ref;
+	__u32               hashval;
 	/* plugin of file */
 	file_plugin        *file;
 	/* plugin of dir */
