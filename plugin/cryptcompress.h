@@ -25,7 +25,7 @@ typedef enum {
 	HOLE_CLUSTER = 1, /* indicates hole for write ops */
 	FAKE_CLUSTER = 2  /* indicates absence of disk cluster for read ops */
 } reiser4_cluster_status;
-
+/* EDWARD-FIXME-HANS: comment each transform below */
 /* reiser4 transforms */
 typedef enum {
 	CRYPTO_TFM,
@@ -313,6 +313,9 @@ alternate_streams(tfm_cluster_t * tc)
 /* reiser4 cluster manager transforms page cluster into disk cluster (and back) via
    input/output stream of crypto/compression algorithms using copy on clustering.
    COC means that page cluster will be assembled into united stream before compression,
+
+EDWARD-FIXME-HANS: discuss with vs whether coc is already taken as an acronym, and resolve the issue
+
    and output stream of decompression algorithm will be split into pages.
    This manager consists mostly of operations on the following object which represents
    one cluster:

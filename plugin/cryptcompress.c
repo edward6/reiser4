@@ -5,6 +5,8 @@ cryptcompress object plugin (see http://www.namesys.com/cryptcompress_design.htm
 for details).
 The list of cryptcompress specific EA:
 
+EDWARD-FIXME-HANS: we don't use extended attributes in reiser4..... please determine and use the appropriate term (e.g. metafile) throughout your code
+
                  Incore inode                               Disk stat-data
 ********************************************************************************************
 * data structure       *         field        * data structure       *          field      *
@@ -2679,7 +2681,8 @@ get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head 
 }
 
 /* plugin->u.file.delete */
-/* EDWARD-FIXME-HANS: comment is where? */
+/* EDWARD-FIXME-HANS: comment is where? 
+ VS-FIXME-HANS: how long ago did I ask the above?  Why aren't you supervising this work more closely?  You know he is a junior programmer.... */
 reiser4_internal int
 delete_cryptcompress(struct inode *inode)
 {
@@ -2730,6 +2733,10 @@ setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 		   which calls truncate_inode_pages and fs's truncate in case when size of file changes) - it seems
 		   reasonable to have reiser4_setattr which will take care of removing pages, jnodes and extents
 		   simultaneously in case of truncate.
+		   Q: do you think implementing truncate using setattr is ugly,
+		   and vfs needs improving, or is there some sense in which this is a good design? 
+
+		   A: VS-FIXME-HANS: 
 		*/
 
 		/* truncate does reservation itself and requires exclusive access obtained */
