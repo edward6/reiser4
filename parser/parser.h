@@ -43,6 +43,8 @@ typedef int YYSTYPE;
 #define labco    ws->ws_labco 
 #define strco    ws->ws_strco 
 #define varco    ws->ws_varco 
+#define yylex    reiser4_lex(work_space)
+
 
 
 
@@ -76,7 +78,7 @@ struct var
 {
 	struct qstr u ;             /* txt.name  is ptr to space     */
 	var_t * next ;              /* next var                      */
-	struct lnode *  v_lnode;    /* lnode for object     on r4-fs */
+	struct lnode *  vlnode;    /* lnode for object     on r4-fs */
 	int vtype   ;               /* Type of name                  */
 	int vSpace  ;               /* v4  space name or not         */
 	int vlevel  ;               /* level                     */
@@ -98,13 +100,13 @@ typedef struct streg                /* for compile time level information */
 
 freeList(freeSpace_t * list)
 {
-	freeSpace_t * current,* next;
+	freeSpace_t * curr,* next;
 	next = list;
 	while (next)
 		{
-			current = next;
-			next    = current->freeSpace_next;
-			kfree(current);
+			curr = next;
+			next = curr->freeSpace_next;
+			kfree(curr);
 		}
 }
 
@@ -154,7 +156,7 @@ struct yy_r4_work_spaces
 	                               /* working fields  */
 	char * tmpWrdEnd; 
 	char * freeSpace;
-	char * yytext
+	char * yytext;
 	                               /* space for   */
 	freeSpace_t * freeSpHead;
 	/*
@@ -181,8 +183,9 @@ static struct
 	unsigned char typesOfParam[]       ;
 }
 	typesOfCommand[]=
-{
-};
+		{ 
+			{0,0}
+		};
 
 
 
@@ -298,7 +301,7 @@ struct tree_vec
 {
   char common[sizeof (struct tree_stuct)];
   int length;
-l   union tree_node *a[1];
+  union tree_node *a[1];
 };
 
 
@@ -347,7 +350,6 @@ key [] =
 		{ "exist"       ,    EXIST          },
 		
 		{ "first"       ,    FIRST          },
-		{ "first_byte"  ,    FIRST_BYTE     },
 		
 		{ "ge"          ,    GE             },
 		{ "gt"          ,    GT             },
@@ -358,8 +360,6 @@ key [] =
 		{ "le"          ,    LE             },
 		{ "lt"          ,    LT             },
 		
-		{ "last_byte"   ,    LAST_BYTE      },
-		
 		{ "ne"          ,    NE             },
 		{ "not"         ,    NOT            },
 		
@@ -367,12 +367,12 @@ key [] =
 		{ "offset_back" ,    OFFSET_BACK    },
 		{ "or"          ,    OR             },
 		
-		{ "/process"     ,    PROCESS        },
+		{ "/process"     ,    SLASH_PROCESS },
+
+		{ "/range"       ,    SLASH_RANGE    },
 		
-		{ "/range"       ,    RANGE          },
-		
-		{ "/stat"        ,    STAT           },
-		
+		{ "/stat"        ,    SLASH_STAT     },
+
 		{ "then"        ,    THEN           },
 		{ "tw/"          ,    TRANSCRASH     }
 	}

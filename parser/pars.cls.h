@@ -7,7 +7,7 @@
 //
 
 
-
+/*
 #define yymaxdepth __file_##maxdepth
 #define yyparse __file_parse
 #define yylex   __file_lex
@@ -46,7 +46,7 @@
 #define yygindex __file_yygindex
 #define yytable  __file_yytable
 #define yycheck  __file_yycheck
-
+*/
 
 
 
@@ -89,10 +89,13 @@
 
 
 #define Str 32
+#define ASG 33
+#define App 34
+#define Lnk 35
 
 
 
-static
+/*static*/
 char   ncl     [256] =
 {
 	ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,  ERR,
