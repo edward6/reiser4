@@ -228,6 +228,9 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 	init_carry_level( &todo, &pool );
 	ON_STATS( todo.level_no = TWIG_LEVEL );
 
+
+	assert ("", znode_contains_key_lock (insert_coord->node, key));
+
 	grabbed = get_current_context() -> grabbed_blocks;
 	result = reiser4_grab_space1( (__u64)1 );
 	if( result != 0 )
