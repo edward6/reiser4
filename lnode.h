@@ -8,7 +8,7 @@
 #include "forward.h"
 #include "dformat.h"
 #include "kcond.h"
-#include "tshash.h"
+#include "type_safe_hash.h"
 #include "plugin/plugin_header.h"
 #include "plugin/plugin_set.h"
 #include "key.h"
@@ -28,7 +28,7 @@ typedef enum {
 typedef union lnode lnode;
 
 /* declare hash table of lnode_lw's */
-TS_HASH_DECLARE(ln, lnode);
+TYPE_SAFE_HASH_DECLARE(ln, lnode);
 
 /* common part of various lnode types */
 typedef struct lnode_header {

@@ -5,17 +5,17 @@
 #ifndef __REISER4_POOL_H__
 #define __REISER4_POOL_H__
 
-#include "tslist.h"
+#include "type_safe_list.h"
 #include <linux/types.h>
 
 /* each pool object is either on a "used" or "free" list. */
-TS_LIST_DECLARE(pool_usage);
+TYPE_SAFE_LIST_DECLARE(pool_usage);
 
 /* list of extra pool objects */
-TS_LIST_DECLARE(pool_extra);
+TYPE_SAFE_LIST_DECLARE(pool_extra);
 
 /* list of pool objects on a given level */
-TS_LIST_DECLARE(pool_level);
+TYPE_SAFE_LIST_DECLARE(pool_level);
 
 typedef struct reiser4_pool {
 	size_t obj_size;
@@ -41,11 +41,11 @@ typedef enum {
 } pool_ordering;
 
 /* each pool object is either on a "used" or "free" list. */
-TS_LIST_DEFINE(pool_usage, reiser4_pool_header, usage_linkage);
+TYPE_SAFE_LIST_DEFINE(pool_usage, reiser4_pool_header, usage_linkage);
 /* list of extra pool objects */
-TS_LIST_DEFINE(pool_extra, reiser4_pool_header, extra_linkage);
+TYPE_SAFE_LIST_DEFINE(pool_extra, reiser4_pool_header, extra_linkage);
 /* list of pool objects on a given level */
-TS_LIST_DEFINE(pool_level, reiser4_pool_header, level_linkage);
+TYPE_SAFE_LIST_DEFINE(pool_level, reiser4_pool_header, level_linkage);
 
 /* pool manipulation functions */
 

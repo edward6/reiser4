@@ -43,7 +43,7 @@ digest_plugin digest_plugins[LAST_DIGEST_ID] = {
 			.pops = NULL,
 			.label = "none",
 			.desc = "trivial digest",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.blksize = NONE_BLOCK_SIZE,
 		.digestsize = NONE_DIGEST_SIZE,

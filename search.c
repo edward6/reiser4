@@ -369,7 +369,6 @@ object_lookup(struct inode *object,
 
 	assert("nikita-3023", schedulable());
 
-	assert("nikita-353", object != NULL);
 	assert("nikita-354", key != NULL);
 	assert("nikita-355", coord != NULL);
 	assert("nikita-356", (bias == FIND_EXACT) || (bias == FIND_MAX_NOT_MORE_THAN));
@@ -379,7 +378,7 @@ object_lookup(struct inode *object,
 	trace_stamp(TRACE_TREE);
 
 	cbk_pack(&handle,
-		 tree_by_inode(object),
+		 object != NULL ? tree_by_inode(object) : current_tree,
 		 key,
 		 coord,
 		 lh,

@@ -519,7 +519,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Object plugins",
 		.builtin_num = sizeof_array(file_plugins),
 		.builtin = file_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (file_plugin)
 	},
 	[REISER4_DIR_PLUGIN_TYPE] = {
@@ -528,7 +528,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Directory plugins",
 		.builtin_num = sizeof_array(dir_plugins),
 		.builtin = dir_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (dir_plugin)
 	},
 	[REISER4_HASH_PLUGIN_TYPE] = {
@@ -537,7 +537,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Directory hashes",
 		.builtin_num = sizeof_array(hash_plugins),
 		.builtin = hash_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (hash_plugin)
 	},
 	[REISER4_CRYPTO_PLUGIN_TYPE] = {
@@ -546,7 +546,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Crypto plugins",
 		.builtin_num = sizeof_array(crypto_plugins),
 		.builtin = crypto_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (crypto_plugin)
 	},
 	[REISER4_DIGEST_PLUGIN_TYPE] = {
@@ -555,7 +555,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Digest plugins",
 		.builtin_num = sizeof_array(digest_plugins),
 		.builtin = digest_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (digest_plugin)
 	},
 	[REISER4_COMPRESSION_PLUGIN_TYPE] = {
@@ -564,7 +564,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Compression plugins",
 		.builtin_num = sizeof_array(compression_plugins),
 		.builtin = compression_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (compression_plugin)
 	},
 
@@ -574,7 +574,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Tail inlining policies",
 		.builtin_num = sizeof_array(tail_plugins),
 		.builtin = tail_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (tail_plugin)
 	},
 	[REISER4_PERM_PLUGIN_TYPE] = {
@@ -583,7 +583,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Permission checks",
 		.builtin_num = sizeof_array(perm_plugins),
 		.builtin = perm_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (perm_plugin)
 	},
 	[REISER4_ITEM_PLUGIN_TYPE] = {
@@ -592,7 +592,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Item handlers",
 		.builtin_num = sizeof_array(item_plugins),
 		.builtin = item_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (item_plugin)
 	},
 	[REISER4_NODE_PLUGIN_TYPE] = {
@@ -601,7 +601,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "node layout handlers",
 		.builtin_num = sizeof_array(node_plugins),
 		.builtin = node_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (node_plugin)
 	},
 	[REISER4_SD_EXT_PLUGIN_TYPE] = {
@@ -610,7 +610,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Parts of stat-data",
 		.builtin_num = sizeof_array(sd_ext_plugins),
 		.builtin = sd_ext_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (sd_ext_plugin)
 	},
 	[REISER4_SPACE_ALLOCATOR_PLUGIN_TYPE] = {
@@ -619,7 +619,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "allocate/deallocate disk free space",
 		.builtin_num = sizeof_array(space_plugins),
 		.builtin = space_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (space_allocator_plugin)
 	},
 	[REISER4_FORMAT_PLUGIN_TYPE] = {
@@ -628,7 +628,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "defines filesystem on disk layout",
 		.builtin_num = sizeof_array(format_plugins),
 		.builtin = format_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (disk_format_plugin)
 	},
 	[REISER4_JNODE_PLUGIN_TYPE] = {
@@ -637,7 +637,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "defined kind of jnode",
 		.builtin_num = sizeof_array(jnode_plugins),
 		.builtin = jnode_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (jnode_plugin)
 	},
 	[REISER4_PSEUDO_PLUGIN_TYPE] = {
@@ -646,7 +646,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "pseudo file",
 		.builtin_num = sizeof_array(pseudo_plugins),
 		.builtin = pseudo_plugins,
-		.plugins_list = TS_LIST_HEAD_ZERO,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (pseudo_plugin)
 	}
 };

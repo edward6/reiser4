@@ -83,7 +83,6 @@ extern void invalidate_lock(lock_handle * _link);
 
 extern void sibling_list_remove(znode * node);
 extern void sibling_list_drop(znode * node);
-extern void sibling_list_insert(znode * new, znode * before);
 extern void sibling_list_insert_nolock(znode * new, znode * before);
 extern void link_left_and_right(znode * left, znode * right);
 

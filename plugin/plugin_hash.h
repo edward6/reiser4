@@ -7,8 +7,8 @@
 #define __PLUGIN_HASH_H__
 
 #include "plugin_header.h"
-#include "../tslist.h"
-#include "../tshash.h"
+#include "../type_safe_list.h"
+#include "../type_safe_hash.h"
 
 typedef enum phash_scope {
 	PHASH_INODE,
@@ -28,7 +28,7 @@ typedef struct phash_ops {
 	int (*destroy)(phash_user *user, void *object, phash_header *value);
 } phash_ops;
 
-TS_LIST_DECLARE(phash);
+TYPE_SAFE_LIST_DECLARE(phash);
 
 struct phash_user {
 	reiser4_plugin_type type_id;
@@ -38,7 +38,7 @@ struct phash_user {
 	phash_list_link     link;
 };
 
-TS_HASH_DECLARE(phash, phash_header);
+TYPE_SAFE_HASH_DECLARE(phash, phash_header);
 
 struct phash_header {
 	phash_hash_link link;

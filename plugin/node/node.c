@@ -343,7 +343,7 @@ node_plugin node_plugins[LAST_NODE_ID] = {
 			     .pops = NULL,
 			     .label = "unified",
 			     .desc = "unified node layout",
-			     .linkage = TS_LIST_LINK_ZERO,
+			     .linkage = TYPE_SAFE_LIST_LINK_ZERO,
 			     }
 		       ,
 		       .item_overhead = item_overhead_node40,

@@ -666,9 +666,9 @@ forget_znode(lock_handle * handle)
 		 */
 		page_cache_get(page);
 		spin_unlock_znode(node);
-		reiser4_lock_page(page);
+		lock_page(page);
 		uncapture_page(page);
-		reiser4_unlock_page(page);
+		unlock_page(page);
 		page_cache_release(page);
 	} else {
 		txn_atom * atom;
@@ -1576,9 +1576,16 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 
 	do {
 		/* Find rightmost item to cut away from the tree. */
-		result = coord_by_key(current_tree, to_key, &right_coord, &lock,
-				      ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN,
-				      TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE, 0/*ra_info*/);
+		result = object_lookup(object,
+				       to_key,
+				       &right_coord,
+				       &lock,
+				       ZNODE_WRITE_LOCK,
+				       FIND_MAX_NOT_MORE_THAN,
+				       TWIG_LEVEL,
+				       LEAF_LEVEL,
+				       CBK_UNIQUE,
+				       0/*ra_info*/);
 		if (result != CBK_COORD_FOUND)
 			break;
 

@@ -90,7 +90,7 @@ ktxnmgrd(void *arg)
 		*/
 		do {
 			ctx->rescan = 0;
-			for_all_tslist(txn_mgrs, &ctx->queue, mgr) {
+			for_all_type_safe_list(txn_mgrs, &ctx->queue, mgr) {
 				scan_mgr(mgr);
 
 				spin_lock(&ctx->guard);

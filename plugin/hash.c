@@ -250,7 +250,7 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
 			.pops = NULL,
 			.label = "rupasov",
 			.desc = "Original Yura's hash",
-			.linkage = TS_LIST_LINK_ZERO}
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 		,
 		.hash = hash_rupasov
 	},
@@ -261,7 +261,7 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
 			.pops = NULL,
 			.label = "r5",
 			.desc = "r5 hash",
-			.linkage = TS_LIST_LINK_ZERO}
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 		,
 		.hash = hash_r5
 	},
@@ -272,7 +272,7 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
 			.pops = NULL,
 			.label = "tea",
 			.desc = "tea hash",
-			.linkage = TS_LIST_LINK_ZERO}
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 		,
 		.hash = hash_tea
 	},
@@ -283,7 +283,7 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
 			.pops = NULL,
 			.label = "fnv1",
 			.desc = "fnv1 hash",
-			.linkage = TS_LIST_LINK_ZERO}
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 		,
 		.hash = hash_fnv1
 	},
@@ -294,7 +294,7 @@ hash_plugin hash_plugins[LAST_HASH_ID] = {
 			.pops = NULL,
 			.label = "degenerate hash",
 			.desc = "Degenerate hash: only for testing",
-			.linkage = TS_LIST_LINK_ZERO}
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 		,
 		.hash = hash_deg
 	}

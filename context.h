@@ -9,7 +9,7 @@
 #include "debug.h"
 #include "spin_macros.h"
 #include "dformat.h"
-#include "tslist.h"
+#include "type_safe_list.h"
 #include "jnode.h"
 #include "tap.h"
 #include "lock.h"
@@ -20,8 +20,8 @@
 #include <linux/sched.h>	/* for struct task_struct */
 
 /* list of active lock stacks */
-ON_DEBUG(TS_LIST_DECLARE(context);)
-ON_DEBUG(TS_LIST_DECLARE(flushers);)
+ON_DEBUG(TYPE_SAFE_LIST_DECLARE(context);)
+ON_DEBUG(TYPE_SAFE_LIST_DECLARE(flushers);)
 
 /* global context used during system call. Variable of this type is
    allocated on the stack at the beginning of the reiser4 part of the
@@ -110,8 +110,8 @@ struct reiser4_context {
 };
 
 #if REISER4_DEBUG
-TS_LIST_DEFINE(context, reiser4_context, contexts_link);
-TS_LIST_DEFINE(flushers, reiser4_context, flushers_link);
+TYPE_SAFE_LIST_DEFINE(context, reiser4_context, contexts_link);
+TYPE_SAFE_LIST_DEFINE(flushers, reiser4_context, flushers_link);
 #endif
 
 extern reiser4_context *get_context_by_lock_stack(lock_stack *);

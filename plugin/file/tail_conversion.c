@@ -223,9 +223,9 @@ prepare_tail2extent(struct inode *inode)
 	/* space necessary for tail2extent convertion: space for @nodes removals from tree, @unformatted_nodes blocks
 	   for unformatted nodes, and space for @unformatted_nodes insertions into item (extent insertions) */
 	/*
-	 * FIXME-NIKITA if grab_space would try to commit current transaction
-	 * at this point we are stymied, because long term lock is held in
-	 * @first_lh. I removed BA_CAN_COMMIT from garbbing flags.
+	 * if grab_space would try to commit current transaction at this point
+	 * we are stymied, because long term lock is held in @first_lh. I
+	 * removed BA_CAN_COMMIT from garbbing flags.
 	 */
 	result = reiser4_grab_space_force(formatted_nodes * estimate_one_item_removal(tree) + unformatted_nodes +
 					  unformatted_nodes * estimate_one_insert_into_item(tree), 0, "tail2extent");
@@ -275,10 +275,10 @@ for_all_pages(struct page **pages, unsigned nr_pages, page_action action)
 		switch(action) {
 		case UNLOCK:
 			set_page_dirty_internal(pages[i]);
-			reiser4_unlock_page(pages[i]);
+			unlock_page(pages[i]);
 			break;
 		case DROP:
-			reiser4_unlock_page(pages[i]);
+			unlock_page(pages[i]);
 		case RELEASE:
 			/* Cannot assert that page is not locked here, because
 			 * other thread can lock it. */
@@ -352,14 +352,14 @@ tail2extent(unix_file_info_t *uf_info)
 	if (uf_info->container == UF_CONTAINER_EXTENTS) {
 		warning("vs-1171",
 			"file %llu is built of tails already. Should not happen",
-			get_inode_oid(uf_info->inode));
+			get_inode_oid(unix_file_info_to_inode(uf_info)));
 		/* tail was converted by someone else */
 		if (access_switched)
 			ea2nea(uf_info);
 		return 0;
 	}
 
-	result = prepare_tail2extent(uf_info->inode);
+	result = prepare_tail2extent(unix_file_info_to_inode(uf_info));
 	if (result) {
 		if (access_switched)
 			ea2nea(uf_info);
@@ -370,7 +370,7 @@ tail2extent(unix_file_info_t *uf_info)
 	reiser4_stat_inc(file.tail2extent);
 
 	/* get key of first byte of a file */
-	key_by_inode_unix_file(uf_info->inode, 0ull, &key);
+	key_by_inode_unix_file(unix_file_info_to_inode(uf_info), 0ull, &key);
 
 	done = 0;
 	result = 0;
@@ -378,7 +378,7 @@ tail2extent(unix_file_info_t *uf_info)
 		xmemset(pages, 0, sizeof (pages));
 		for (i = 0; i < sizeof_array(pages) && !done; i++) {
 			assert("vs-598", (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
-			pages[i] = grab_cache_page(uf_info->inode->i_mapping, (unsigned long) (get_key_offset(&key)
+			pages[i] = grab_cache_page(unix_file_info_to_inode(uf_info)->i_mapping, (unsigned long) (get_key_offset(&key)
 											       >> PAGE_CACHE_SHIFT));
 			if (!pages[i]) {
 				result = RETERR(-ENOMEM);
@@ -425,7 +425,7 @@ tail2extent(unix_file_info_t *uf_info)
 					done_lh(&lh);
 					goto error;
 				}
-				assert("vs-562", owns_item_unix_file(uf_info->inode, coord));
+				assert("vs-562", owns_item_unix_file(unix_file_info_to_inode(uf_info), coord));
 				assert("vs-856", coord->between == AT_UNIT);
 				assert("green-11", keyeq(&key, unit_key_by_coord(coord, &tmp)));
 				assert("vs-1170", item_id_by_coord(coord) == FROZEN_TAIL_ID);
@@ -466,7 +466,7 @@ tail2extent(unix_file_info_t *uf_info)
 				zrelse(coord->node);
 				done_lh(&lh);
 
-				if (get_key_offset(&key) == (__u64)uf_info->inode->i_size) {
+				if (get_key_offset(&key) == (__u64)unix_file_info_to_inode(uf_info)->i_size) {
 					/* end of file is detected here */
 					p_data = kmap_atomic(pages[i], KM_USER0);
 					memset(p_data + page_off, 0, PAGE_CACHE_SIZE - page_off);
@@ -481,7 +481,7 @@ tail2extent(unix_file_info_t *uf_info)
 		   znode lock */
 		for_all_pages(pages, sizeof_array(pages), UNLOCK);
 
-		result = replace(uf_info->inode, pages, i, (int) ((i - 1) * PAGE_CACHE_SIZE + page_off));
+		result = replace(unix_file_info_to_inode(uf_info), pages, i, (int) ((i - 1) * PAGE_CACHE_SIZE + page_off));
 		for_all_pages(pages, sizeof_array(pages), RELEASE);
 		if (result)
 			goto exit;
@@ -602,9 +602,9 @@ static int prepare_extent2tail(struct inode *inode)
 	/* space necessary for extent2tail convertion: space for @nodes removals from tree and space for calculated
 	 * amount of flow insertions and 1 node and one insertion into tree for search_by_key(CBK_FOR_INSERT) */
 	/*
-	 * FIXME-NIKITA if grab_space would try to commit current transaction
-	 * at this point we are stymied, because long term lock is held in
-	 * @first_lh. I removed BA_CAN_COMMIT from garbbing flags.
+	 * if grab_space would try to commit current transaction at this point
+	 * we are stymied, because long term lock is held in @first_lh. I
+	 * removed BA_CAN_COMMIT from garbbing flags.
 	 */
 	result = reiser4_grab_space(twig_nodes * estimate_one_item_removal(tree) +
 				    flow_insertions * estimate_insert_flow(tree->height) +
@@ -633,7 +633,7 @@ extent2tail(unix_file_info_t *uf_info)
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_inc(file.extent2tail);
 
-	inode = uf_info->inode;
+	inode = unix_file_info_to_inode(uf_info);
 	result = prepare_extent2tail(inode);
 	if (result) {
 		/* no space? Leave file stored in extent state */
@@ -687,7 +687,7 @@ extent2tail(unix_file_info_t *uf_info)
 		}
 
 		/* release page */
-		reiser4_lock_page(page);
+		lock_page(page);
 		/* page is already detached from jnode and mapping. */
 		assert("vs-1086", page->mapping == NULL);
 		assert("nikita-2690", (!PagePrivate(page) && page->private == 0));

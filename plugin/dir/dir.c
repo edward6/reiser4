@@ -14,7 +14,7 @@
 #include "../../key.h"
 #include "../../kassign.h"
 #include "../../coord.h"
-#include "../../tslist.h"
+#include "../../type_safe_list.h"
 #include "../plugin.h"
 #include "dir.h"
 #include "../item/item.h"
@@ -689,7 +689,7 @@ adjust_dir_file(struct inode *dir, const struct dentry * de, int offset, int adj
 
 	spin_lock_inode(dir);
 
-	for_all_tslist(readdir, get_readdir_list(dir), scan)
+	for_all_type_safe_list(readdir, get_readdir_list(dir), scan)
 		adjust_dir_pos(scan->back, &scan->dir.readdir, &mod_point, adj);
 
 	spin_unlock_inode(dir);
@@ -1100,7 +1100,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.pops = NULL,
 			.label = "dir",
 			.desc = "hashed directory",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.lookup = lookup_hashed,
 		.unlink = unlink_common,
@@ -1130,7 +1130,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.pops = NULL,
 			.label = "dir",
 			.desc = "hashed directory",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.lookup = lookup_pseudo,
 		.unlink = unlink_common,
@@ -1160,7 +1160,7 @@ dir_plugin dir_plugins[LAST_DIR_ID] = {
 			.pops = NULL,
 			.label = "pseudo",
 			.desc = "pseudo directory",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.lookup = lookup_pseudo,
 		.unlink = eperm,

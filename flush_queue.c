@@ -1,7 +1,7 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 #include "debug.h"
-#include "tslist.h"
+#include "type_safe_list.h"
 #include "super.h"
 #include "txnmgr.h"
 #include "jnode.h"
@@ -22,8 +22,8 @@
    kept on the flush queue until memory pressure or atom commit asks
    flush queues to write some or all from their jnodes. */
 
-TS_LIST_DEFINE(fq, flush_queue_t, alink);
-TS_LIST_DEFINE(atom, txn_atom, atom_link);
+TYPE_SAFE_LIST_DEFINE(fq, flush_queue_t, alink);
+TYPE_SAFE_LIST_DEFINE(atom, txn_atom, atom_link);
 
 #if REISER4_DEBUG
 #   define spin_ordering_pred_fq(fq)  (1)
@@ -253,7 +253,7 @@ finish_all_fq(txn_atom * atom, int *nr_io_errors)
 	if (fq_list_empty(&atom->flush_queues))
 		return 0;
 
-	for_all_tslist(fq, &atom->flush_queues, fq) {
+	for_all_type_safe_list(fq, &atom->flush_queues, fq) {
 		if (fq_ready(fq)) {
 			int ret;
 
@@ -321,7 +321,7 @@ scan_fq_and_update_atom_ref(capture_list_head * list, txn_atom * atom)
 {
 	jnode *cur;
 
-	for_all_tslist(capture, list, cur) {
+	for_all_type_safe_list(capture, list, cur) {
 		LOCK_JNODE(cur);
 		cur->atom = atom;
 		UNLOCK_JNODE(cur);
@@ -338,7 +338,7 @@ fuse_fq(txn_atom * to, txn_atom * from)
 	assert("zam-721", spin_atom_is_locked(from));
 
 
-	for_all_tslist(fq, &from->flush_queues, fq) {
+	for_all_type_safe_list(fq, &from->flush_queues, fq) {
 		scan_fq_and_update_atom_ref(&fq->prepped, to);
 		spin_lock_fq(fq);
 		fq->atom = to;
@@ -570,10 +570,6 @@ fq_put_nolock(flush_queue_t * fq)
 	assert("vs-1245", fq->owner == current);
 	ON_DEBUG(fq->owner = NULL);
 }
-
-/* NIKITA-FIXME-HANS: find all instances where we have a wrapper for locking
- * before calling, and we never call except through the wrapper, and condense
- * the wrapper into the function it wraps. */
 
 void
 fq_put(flush_queue_t * fq)

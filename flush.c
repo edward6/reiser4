@@ -7,7 +7,7 @@
 #include "dformat.h"
 #include "key.h"
 #include "coord.h"
-#include "tslist.h"
+#include "type_safe_list.h"
 #include "plugin/item/item.h"
 #include "plugin/plugin.h"
 #include "plugin/object.h"
@@ -697,8 +697,8 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	reiser4_stat_add(flush.left, left_scan.count);
 
 	todo = sbinfo->flush.relocate_threshold - left_scan.count;
-	/* FIXME-NIKITA scan right is inherently deadlock prone, because we
-	 * are (potentially) holding a lock on the twig node at this moment. */
+	/* scan right is inherently deadlock prone, because we are
+	 * (potentially) holding a lock on the twig node at this moment. */
 	if (todo > 0) {
 		ret = scan_right(&right_scan, node, (unsigned)todo);
 		if (ret != 0)
@@ -2898,7 +2898,7 @@ znode_same_parents(znode * a, znode * b)
 	/* We lock the whole tree for this check.... I really don't like whole tree
 	 * locks... -Hans */
 	return UNDER_RW(tree, znode_get_tree(a), read,
-			(znode_parent_nolock(a) == znode_parent_nolock(b)));
+			(znode_parent(a) == znode_parent(b)));
 }
 
 /* FLUSH SCAN */
@@ -3325,8 +3325,8 @@ scan_by_coord(flush_scan * scan)
 			if (scan_finished(scan))
 				break;
 		} else {
-			/* FIXME:NIKITA->* the same race against truncate as
-			 * above is possible here, it seems */
+			/* the same race against truncate as above is possible
+			 * here, it seems */
 
 			/* NOTE-JMACD: In this case, apply the same end-of-node logic but don't scan
 			   the first coordinate. */

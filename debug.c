@@ -34,12 +34,6 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 	if (in_panic == 0) {
 		in_panic = 1;
 
-		/* FIXME-NIKITA bust_spinlocks() should go here. Quoting
-		   lib/bust_spinlocks.c:
-	
-		   bust_spinlocks() clears any spinlocks which would prevent oops,
-		   die(), BUG() and panic() information from reaching the user.
-		*/
 		spin_lock(&panic_guard);
 		va_start(args, format);
 		vsnprintf(panic_buf, sizeof(panic_buf), format, args);

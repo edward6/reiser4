@@ -6,16 +6,15 @@
 #define __REISER4_TAP_H__
 
 #include "forward.h"
-#include "tslist.h"
+#include "type_safe_list.h"
 #include "readahead.h"
 
-TS_LIST_DECLARE(tap);
+TYPE_SAFE_LIST_DECLARE(tap);
 
 /**
     tree_access_pointer aka tap. Data structure combining coord_t and lock
     handle.
-NIKITA-FIXME-HANS: the below means what?
-    Invariants involving this data-type:
+    Invariants involving this data-type, see doc/lock-ordering for details:
 
       [tap-sane]
  */
@@ -34,7 +33,7 @@ struct tree_access_pointer {
 	ra_info_t ra_info;
 };
 
-TS_LIST_DEFINE(tap, tap_t, linkage);
+TYPE_SAFE_LIST_DEFINE(tap, tap_t, linkage);
 
 typedef int (*go_actor_t) (tap_t * tap);
 

@@ -19,7 +19,6 @@
 #include <linux/err.h>
 
 static int add_child_ptr(znode * parent, znode * child);
-/* NIKITA-FIXME-HANS: remove the use of EAGAIN, why is it still here? */
 /* warning only issued if error is not -E_REPEAT */
 #define ewarning( error, ... )			\
 	if( ( error ) != -E_REPEAT )		\

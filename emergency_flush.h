@@ -20,7 +20,7 @@ extern spinlock_t eflushed_guard;
 struct eflush_node;
 typedef struct eflush_node eflush_node_t;
 
-TS_HASH_DECLARE(ef, eflush_node_t);
+TYPE_SAFE_HASH_DECLARE(ef, eflush_node_t);
 
 struct eflush_node {
 	jnode           *node;

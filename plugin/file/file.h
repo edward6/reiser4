@@ -55,9 +55,9 @@ typedef struct unix_file_info {
 	file_container_t container; /* this enum specifies which items are used to build the file */
 	struct tail_plugin *tplug; /* tail policy plugin which controls when file is to be converted to extents and back
 				      to tail */
-/* NIKITA-FIXME-HANS: this expenditure of bytes is really needed why/where? */
-	struct inode *inode;
-/* NIKITA-FIXME-HANS: comment this properly */
+	/* pointer back to the inode */
+	struct inode *_inode;
+	/* if this is set, file is in exclusive use */
 	int exclusive_use;
 #if REISER4_DEBUG
 	void *ea_owner; /* pointer to task struct of thread owning exclusive
@@ -69,7 +69,6 @@ typedef struct unix_file_info {
 } unix_file_info_t;
 
 inline struct unix_file_info *unix_file_inode_data(const struct inode * inode);
-
 
 #include "../../coord.h"
 #include "../item/extent.h"
@@ -87,7 +86,8 @@ struct uf_coord {
 
 #include "../../seal.h"
 
-/* NIKITA-FIXME-HANS: comments */
+/* structure used to speed up file operations (reads and writes). It contains
+ * a seal over last file item accessed. */
 struct hint {
 	seal_t seal;
 	uf_coord_t coord;

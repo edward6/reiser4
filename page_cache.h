@@ -9,14 +9,13 @@
 
 #include <linux/fs.h>		/* for struct super_block, address_space  */
 #include <linux/mm.h>		/* for struct page  */
+#include <linux/pagemap.h>	/* for lock_page()  */
 
 extern int init_fakes(void);
 extern int init_formatted_fake(struct super_block *super);
 extern int done_formatted_fake(struct super_block *super);
 
 extern reiser4_tree *tree_by_page(const struct page *page);
-extern void reiser4_lock_page(struct page *page);
-extern void reiser4_unlock_page(struct page *page);
 
 #if REISER4_TRACE_TREE
 extern char *jnode_short_info(const jnode *j, char *buf);
@@ -31,7 +30,7 @@ extern int reiser4_submit_bio_helper(const char *moniker,
 extern void reiser4_wait_page_writeback (struct page * page);
 static inline void lock_and_wait_page_writeback (struct page * page)
 {
-	reiser4_lock_page(page);
+	lock_page(page);
 	if (unlikely(PageWriteback(page)))
 	    reiser4_wait_page_writeback(page);
 }

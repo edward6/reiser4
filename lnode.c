@@ -159,7 +159,7 @@ oid_hash(ln_hash_table *table, const oid_t * o /* oid to hash */ )
 /* The hash table definition */
 #define KMALLOC(size) kmalloc((size), GFP_KERNEL)
 #define KFREE(ptr, size) kfree(ptr)
-TS_HASH_DEFINE(ln, lnode, oid_t, h.oid, h.link, oid_hash, oid_eq);
+TYPE_SAFE_HASH_DEFINE(ln, lnode, oid_t, h.oid, h.link, oid_hash, oid_eq);
 #undef KFREE
 #undef KMALLOC
 

@@ -229,7 +229,7 @@ print_contexts(void)
 
 	spin_lock(&active_contexts_lock);
 
-	for_all_tslist(context, &active_contexts, context) {
+	for_all_type_safe_list(context, &active_contexts, context) {
 		print_context("context", context);
 	}
 

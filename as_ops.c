@@ -134,7 +134,7 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 		result = RETERR(-EINVAL);
 	if (result != 0) {
 		SetPageError(page);
-		reiser4_unlock_page(page);
+		unlock_page(page);
 	}
 	reiser4_exit_context(&ctx);
 	return 0;
@@ -303,8 +303,15 @@ int jnode_is_releasable(const jnode *node)
 	reiser4_stat_inc_at(page->mapping->host->i_sb, 				\
 			    level[jnode_get_level(node) - LEAF_LEVEL].counter);
 
-/* ->releasepage method for reiser4 */
-/* NIKITA-FIXME-HANS: comment this function */
+/*
+ * ->releasepage method for reiser4
+ *
+ * This is called by VM scanner when it comes across clean page.  What we have
+ * to do here is to check whether page can really be released (freed that is)
+ * and if so, detach jnode from it and remove page from the page cache.
+ *
+ * Check for releasability is done by releasable() function.
+ */
 int
 reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 {

@@ -9,7 +9,7 @@
 #include "debug.h"
 #include "spin_macros.h"
 #include "dformat.h"
-#include "tslist.h"
+#include "type_safe_list.h"
 #include "plugin/node/node.h"
 #include "plugin/plugin.h"
 #include "jnode.h"
@@ -25,7 +25,7 @@
 extern const reiser4_block_nr UBER_TREE_ADDR;
 
 /* define typed list for cbk_cache lru */
-TS_LIST_DECLARE(cbk_cache);
+TYPE_SAFE_LIST_DECLARE(cbk_cache);
 
 /* &cbk_cache_slot - entry in a coord cache.
 
@@ -76,7 +76,7 @@ typedef struct cbk_cache {
 RW_LOCK_FUNCTIONS(cbk_cache, cbk_cache, guard);
 
 
-TS_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
+TYPE_SAFE_LIST_DEFINE(cbk_cache, cbk_cache_slot, lru);
 
 /* level_lookup_result - possible outcome of looking up key at some level.
    This is used by coord_by_key when traversing tree downward. */

@@ -1,9 +1,8 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by
+ * reiser4/README */
 
 /* Handling of "pseudo" files representing unified access to meta data in
    reiser4. See pseudo.c for more comments. */
-
-/* NIKITA-FIXME-HANS: write a comprehensive pseudo file design document */
 
 #if !defined( __REISER4_PSEUDO_H__ )
 #define __REISER4_PSEUDO_H__
@@ -77,10 +76,14 @@ struct pseudo_plugin {
 	int (*readdir)(struct file *f, void *dirent, filldir_t filld);
 };
 
-	/* NIKITA-FIXME-HANS: improve commenting */
+/* portion of reiser4_inode specific for pseudo files */
 typedef struct pseudo_info {
+	/* pseudo file plugin controlling this file */
 	pseudo_plugin *plugin;
+	/* host object, for /etc/passwd/..oid, this is pointer to inode of
+	 * /etc/passwd */
 	struct inode  *host;
+	/* for private use of pseudo file plugin */
 	unsigned long  datum;
 } pseudo_info_t;
 

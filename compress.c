@@ -28,7 +28,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 			.pops = NULL,
 			.label = "none",
 			.desc = "Null compression",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.mem_req = MIN_CLUSTER_SIZE,
 	        .compress = compress_none,

@@ -66,7 +66,7 @@ jnode_key_hashfn(j_hash_table *table, const jnode_key_t * key)
 /* The hash table definition */
 #define KMALLOC(size) vmalloc(size)
 #define KFREE(ptr, size) vfree(ptr)
-TS_HASH_DEFINE(j, jnode, jnode_key_t, key.j, link.j, jnode_key_hashfn, jnode_key_eq);
+TYPE_SAFE_HASH_DEFINE(j, jnode, jnode_key_t, key.j, link.j, jnode_key_hashfn, jnode_key_eq);
 #undef KFREE
 #undef KMALLOC
 
@@ -514,7 +514,7 @@ page_detach_jnode(struct page *page, struct address_space *mapping, unsigned lon
 {
 	assert("nikita-2395", page != NULL);
 
-	reiser4_lock_page(page);
+	lock_page(page);
 	if ((page->mapping == mapping) && (page->index == index) && PagePrivate(page)) {
 		jnode *node;
 
@@ -522,7 +522,7 @@ page_detach_jnode(struct page *page, struct address_space *mapping, unsigned lon
 		assert("nikita-2399", spin_jnode_is_not_locked(node));
 		UNDER_SPIN_VOID(jnode, node, page_clear_jnode(page, node));
 	}
-	reiser4_unlock_page(page);
+	unlock_page(page);
 }
 
 /* return @node page locked.
@@ -849,33 +849,11 @@ static void jnode_finish_io(jnode * node)
 		UNLOCK_JNODE(node);
 }
 
-/* wait until jnode is removed from flush queue. */
-void
-jnode_wait_fq(jnode * node)
-{
-	assert("nikita-3147", node != NULL);
-	assert("nikita-3148", JF_ISSET(node, JNODE_HEARD_BANSHEE));
-
-	UNDER_SPIN_VOID(jnode, node, jnode_wait_fq_locked(node));
-}
-
-/* same as jnode_wait_fq(), but with jnode already locked */
-void
-jnode_wait_fq_locked(jnode * node)
-{
-	assert("nikita-3150", node != NULL);
-	assert("nikita-3151", JF_ISSET(node, JNODE_HEARD_BANSHEE));
-
-	while (JF_ISSET(node, JNODE_FLUSH_QUEUED)) {
-		txn_atom * atom;
-
-		atom = atom_locked_by_jnode(node);
-		UNLOCK_JNODE(node);
-		atom_wait_event(atom);
-		LOCK_JNODE(node);
-	}
-}
-/* NIKITA-FIXME-HANS; explain not just this particular function, but the whole set of functions involved with this, or give me a mini-seminar on why it is obvious.;-) */
+/*
+ * This is called by jput() when last reference to jnode is released. This is
+ * separate function, because we want fast path of jput() to be inline and,
+ * therefore, small.
+ */
 void
 jput_final(jnode * node)
 {
@@ -1163,7 +1141,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			.pops = NULL,
 			.label = "unformatted",
 			.desc = "unformatted node",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.init = init_noinit,
 		.parse = parse_noparse,
@@ -1178,7 +1156,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			.pops = NULL,
 			.label = "formatted",
 			.desc = "formatted tree node",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.init = init_znode,
 		.parse = parse_znode,
@@ -1193,7 +1171,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			.pops = NULL,
 			.label = "bitmap",
 			.desc = "bitmap node",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.init = init_noinit,
 		.parse = parse_noparse,
@@ -1208,7 +1186,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			.pops = NULL,
 			.label = "io head",
 			.desc = "io head",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.init = init_noinit,
 		.parse = parse_noparse,
@@ -1223,7 +1201,7 @@ jnode_plugin jnode_plugins[LAST_JNODE_TYPE] = {
 			.pops = NULL,
 			.label = "inode",
 			.desc = "inode's builtin jnode",
-			.linkage = TS_LIST_LINK_ZERO
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.init = NULL,
 		.parse = NULL,
@@ -1437,7 +1415,7 @@ jdelete(jnode * node /* jnode to finish with */)
 		WUNLOCK_TREE(tree);
 		UNLOCK_JNODE(node);
 		if (page != NULL)
-			reiser4_unlock_page(page);
+			unlock_page(page);
 	}
 	return result;
 }
@@ -1480,11 +1458,6 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 			assert("nikita-2126", !PageDirty(page));
 			assert("nikita-2127", PageUptodate(page));
 			assert("nikita-2181", PageLocked(page));
-			/* usually one calls jnode_wait_fq() before detaching
-			 * page from jnode to avoid races with
-			 * jnode_extent_write(). But here last reference to
-			 * jnode is dropped, which means, jnode is no longer
-			 * in atom. */
 			page_clear_jnode(page, node);
 		}
 		UNLOCK_JNODE(node);
@@ -1499,7 +1472,7 @@ jdrop_in_tree(jnode * node, reiser4_tree * tree)
 		WUNLOCK_TREE(tree);
 		UNLOCK_JNODE(node);
 		if (page != NULL)
-			reiser4_unlock_page(page);
+			unlock_page(page);
 	}
 	return result;
 }

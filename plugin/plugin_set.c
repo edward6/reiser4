@@ -98,7 +98,7 @@ pshash(ps_hash_table *table, const unsigned long * a)
 /* The hash table definition */
 #define KMALLOC(size) kmalloc((size), GFP_KERNEL)
 #define KFREE(ptr, size) kfree(ptr)
-TS_HASH_DEFINE(ps, plugin_set, unsigned long, hashval, link, pshash, pseq);
+TYPE_SAFE_HASH_DEFINE(ps, plugin_set, unsigned long, hashval, link, pshash, pseq);
 #undef KFREE
 #undef KMALLOC
 

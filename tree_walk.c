@@ -811,7 +811,9 @@ sibling_list_drop(znode * node)
 	ON_DEBUG(node->left = node->right = NULL);
 }
 
-/* Audited by: umka (2002.06.14), umka (2002.06.15) */
+/* Insert new node into sibling list. Regular balancing inserts new node
+   after (at right side) existing and locked node (@before), except one case
+   of adding new tree root node. @before should be NULL in that case. */
 void
 sibling_list_insert_nolock(znode * new, znode * before)
 {
@@ -840,19 +842,6 @@ sibling_list_insert_nolock(znode * new, znode * before)
 	assert("nikita-3281", check_sibling_list(before));
 }
 
-/* Insert new node into sibling list. Regular balancing inserts new node
-   after (at right side) existing and locked node (@before), except one case
-   of adding new tree root node. @before should be NULL in that case. */
-/* Audited by: umka (2002.06.14) */
-void
-sibling_list_insert(znode * new, znode * before)
-{
-	assert("umka-256", new != NULL);
-	assert("umka-257", znode_get_tree(new) != NULL);
-
-	UNDER_RW_VOID(tree, znode_get_tree(new), write,
-		      sibling_list_insert_nolock(new, before));
-}
 struct tw_handle {
 	/* A key for tree walking (re)start, updated after each successful tree
 	 * node processing */

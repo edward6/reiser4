@@ -146,7 +146,7 @@ oid_allocator_plugin oid_plugins[LAST_OID_ALLOCATOR_ID] = {
 				      .pops = NULL,
 				      .label = "reiser40 default oid manager",
 				      .desc = "no reusing objectids",
-				      .linkage = TS_LIST_LINK_ZERO,
+				      .linkage = TYPE_SAFE_LIST_LINK_ZERO,
 				      }
 				,
 				.init_oid_allocator = oid40_read_allocator,

@@ -11,7 +11,7 @@
 #include "spin_macros.h"
 #include "key.h"
 #include "coord.h"
-#include "tslist.h"
+#include "type_safe_list.h"
 #include "plugin/node/node.h"
 #include "jnode.h"
 #include "readahead.h"
@@ -26,18 +26,18 @@
    which want to lock given znode.
 
    Locking: protected by znode spin lock. */
-TS_LIST_DECLARE(requestors);
+TYPE_SAFE_LIST_DECLARE(requestors);
 /* per-znode list of lock handles for this znode
 
    Locking: protected by znode spin lock. */
-TS_LIST_DECLARE(owners);
+TYPE_SAFE_LIST_DECLARE(owners);
 /* per-owner list of lock handles that point to locked znodes which
    belong to one lock owner
 
    Locking: this list is only accessed by the thread owning the lock stack this
    list is attached to. Hence, no locking is necessary.
 */
-TS_LIST_DECLARE(locks);
+TYPE_SAFE_LIST_DECLARE(locks);
 
 /* Per-znode lock object */
 struct zlock {
@@ -160,9 +160,9 @@ struct lock_stack {
 };
 
 /* defining of list manipulation functions for lists above */
-TS_LIST_DEFINE(requestors, lock_stack, requestors_link);
-TS_LIST_DEFINE(owners, lock_handle, owners_link);
-TS_LIST_DEFINE(locks, lock_handle, locks_link);
+TYPE_SAFE_LIST_DEFINE(requestors, lock_stack, requestors_link);
+TYPE_SAFE_LIST_DEFINE(owners, lock_handle, owners_link);
+TYPE_SAFE_LIST_DEFINE(locks, lock_handle, locks_link);
 
 /*
   User-visible znode locking functions

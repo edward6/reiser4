@@ -9,7 +9,7 @@
 #include <linux/slab.h>
 #include <linux/stddef.h>
 
-TS_LIST_DEFINE(phash, phash_user, link);
+TYPE_SAFE_LIST_DEFINE(phash, phash_user, link);
 
 static phash_list_head phash_anchor[PHASH_LAST];
 static spinlock_t phash_lock = SPIN_LOCK_UNLOCKED;
@@ -52,7 +52,7 @@ phash_hash(phash_hash_table *table, const phash_hash_link * a)
 /* The hash table definition */
 #define KMALLOC(size) kmalloc((size), GFP_KERNEL)
 #define KFREE(ptr, size) kfree(ptr)
-TS_HASH_DEFINE(phash, phash_header,
+TYPE_SAFE_HASH_DEFINE(phash, phash_header,
 	       phash_hash_link, link, link, phash_hash, phasheq);
 #undef KFREE
 #undef KMALLOC
@@ -121,7 +121,7 @@ int phash_destroy_hook(phash_scope scope, void *object)
 	do {
 		called = 0;
 		spin_lock(&phash_lock);
-		for_all_tslist(phash, &phash_anchor[scope], user) {
+		for_all_type_safe_list(phash, &phash_anchor[scope], user) {
 			phash_header *head;
 
 			if (user->ops.destroy == NULL)

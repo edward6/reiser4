@@ -5,7 +5,7 @@
 #if !defined( __PLUGIN_SET_H__ )
 #define __PLUGIN_SET_H__
 
-#include "../tshash.h"
+#include "../type_safe_hash.h"
 #include "plugin.h"
 
 #include <linux/rcupdate.h>
@@ -13,7 +13,7 @@
 struct plugin_set;
 typedef struct plugin_set plugin_set;
 
-TS_HASH_DECLARE(ps, plugin_set);
+TYPE_SAFE_HASH_DECLARE(ps, plugin_set);
 
 struct plugin_set {
 	unsigned long               hashval;

@@ -5,7 +5,7 @@
 
 #include "debug.h"
 #include "dformat.h"
-#include "tslist.h"
+#include "type_safe_list.h"
 #include "txnmgr.h"
 
 #include <linux/slab.h>
@@ -55,7 +55,7 @@ struct blocknr_pair {
 };
 
 /* The list definition. */
-TS_LIST_DEFINE(blocknr_set, blocknr_set_entry, link);
+TYPE_SAFE_LIST_DEFINE(blocknr_set, blocknr_set_entry, link);
 
 /* Return the number of blocknr slots available in a blocknr_set_entry. */
 /* Audited by: green(2002.06.11) */

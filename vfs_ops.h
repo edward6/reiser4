@@ -8,7 +8,7 @@
 #include "forward.h"
 #include "coord.h"
 #include "seal.h"
-#include "tslist.h"
+#include "type_safe_list.h"
 #include "plugin/dir/dir.h"
 #include "plugin/file/file.h"
 #include "super.h"
@@ -76,7 +76,7 @@ typedef struct reiser4_dentry_fsdata {
 } reiser4_dentry_fsdata;
 
 /* declare data types and manipulation functions for readdir list. */
-TS_LIST_DECLARE(readdir);
+TYPE_SAFE_LIST_DECLARE(readdir);
 
 /* &reiser4_dentry_fsdata - reiser4-specific data attached to files.
 
@@ -99,7 +99,7 @@ typedef struct reiser4_file_fsdata {
 	} reg;
 } reiser4_file_fsdata;
 
-TS_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);
+TYPE_SAFE_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);
 
 extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *dentry);
 extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *f);

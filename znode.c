@@ -187,7 +187,7 @@ blknrhashfn(z_hash_table *table, const reiser4_block_nr * b)
 /* The hash table definition */
 #define KMALLOC( size ) reiser4_kmalloc( ( size ), GFP_KERNEL )
 #define KFREE( ptr, size ) reiser4_kfree( ptr, size )
-TS_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z, blknrhashfn, blknreq);
+TYPE_SAFE_HASH_DEFINE(z, znode, reiser4_block_nr, zjnode.key.z, zjnode.link.z, blknrhashfn, blknreq);
 #undef KFREE
 #undef KMALLOC
 
@@ -807,7 +807,7 @@ znode_is_root(const znode * node /* znode to query */ )
 
 /* Returns true is @node was just created by zget() and wasn't ever loaded
    into memory. */
-/* NIKITA-FIXME-HANS: What happens at flush time, do you get znodes left around for which the below is true?  */
+/* NIKITA-HANS: yes */
 int
 znode_just_created(const znode * node)
 {

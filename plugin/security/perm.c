@@ -48,7 +48,7 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
 			       .pops = NULL,
 			       .label = "rwx",
 			       .desc = "standard UNIX permissions",
-			       .linkage = TS_LIST_LINK_ZERO
+			       .linkage = TYPE_SAFE_LIST_LINK_ZERO
 			 },
 			 .read_ok = NULL,
 			 .write_ok = NULL,

@@ -13,7 +13,7 @@
 #include "../debug.h"
 #include "../dformat.h"
 #include "../key.h"
-#include "../tslist.h"
+#include "../type_safe_list.h"
 #include "../plugin/plugin_header.h"
 #include "../plugin/item/static_stat.h"
 #include "../plugin/item/internal.h"
@@ -393,7 +393,7 @@ struct dentry_operations {
 
 /*
 
-TS_LIST_DECLARE( r4_pars );
+TYPE_SAFE_LIST_DECLARE( r4_pars );
 
 
 
@@ -409,7 +409,7 @@ struct _p_VarTab
 };
 
 
-TS_LIST_DEFINE( r4_pars, p_VarTab, links );
+TYPE_SAFE_LIST_DEFINE( r4_pars, p_VarTab, links );
 
  *
  * r4_pars_list_init             Initialize a list_head

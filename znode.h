@@ -11,7 +11,7 @@
 #include "spin_macros.h"
 #include "key.h"
 #include "coord.h"
-#include "tslist.h"
+#include "type_safe_list.h"
 #include "plugin/node/node.h"
 #include "jnode.h"
 #include "lock.h"
@@ -369,10 +369,9 @@ extern void copy_load_count(load_count * new, load_count * old);	/* Copy the con
 /* Variable initializers for load_count. */
 #define INIT_LOAD_COUNT ( load_count * ){ .node = NULL, .d_ref = 0 }
 #define INIT_LOAD_COUNT_NODE( n ) ( load_count ){ .node = ( n ), .d_ref = 0 }
-/* NIKITA-FIXME-HANS: comment this */
-/* A convenience macro for use in assertions or debug-only code, where loaded data is only
-   required to perform the debugging check.  This macro encapsulates an expression inside
-   a pair of calls to zload()/zrelse(). */
+/* A convenience macro for use in assertions or debug-only code, where loaded
+   data is only required to perform the debugging check.  This macro
+   encapsulates an expression inside a pair of calls to zload()/zrelse(). */
 #define WITH_DATA( node, exp )				\
 ({							\
 	long __with_dh_result;				\

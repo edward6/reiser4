@@ -7,7 +7,7 @@
 
 /* plugin data-types and constants */
 
-#include "../tslist.h"
+#include "../type_safe_list.h"
 #include "../dformat.h"
 
 typedef enum {
@@ -35,7 +35,7 @@ struct reiser4_plugin_ops;
     plugin type. */
 typedef struct reiser4_plugin_ops reiser4_plugin_ops;
 
-TS_LIST_DECLARE(plugin);
+TYPE_SAFE_LIST_DECLARE(plugin);
 
 /* common part of each plugin instance. */
 typedef struct plugin_header {
