@@ -1177,6 +1177,10 @@ static int squeeze_right_leaf (znode * right, znode * left)
 
 	ret = shift_everything_left (right, left, & todo);
 
+	spin_lock_dk (current_tree);
+	update_znode_dkeys (left, right);
+	spin_unlock_dk (current_tree);
+
 	if (ret >= 0) {
 		/* Carry is called to update delimiting key or to remove empty
 		 * node. */
@@ -1310,12 +1314,17 @@ static int shift_one_internal_unit (znode * left, znode * right)
 						  1/* delete @right if it becomes empty*/,
 						  0/* move coord */,
 						  &todo);
+	znode_set_dirty (left);
+	znode_set_dirty (right);
+	spin_lock_dk (current_tree);
+	update_znode_dkeys (left, right);
+	spin_unlock_dk (current_tree);
 
 	/* If shift returns positive, then we shifted the item. */
 	assert ("vs-423", ret <= 0 || size == ret);
 	moved = (ret > 0);
 
-	if (ret > 0) {
+	if (moved) {
 		/* Carry is called to update delimiting key or to remove empty
 		 * node. */
 		ret = carry (&todo, NULL /* previous level */);
