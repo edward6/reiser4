@@ -199,9 +199,11 @@ struct reiser4_super_info_data {
 	/* file-system wide flags. See reiser4_fs_flag enum */
 	unsigned long fs_flags;
 
+#if REISER4_STATS
 	/* Statistical counters. reiser4_stat is empty data-type unless
 	   REISER4_STATS is set. */
 	reiser4_stat *stats;
+#endif
 
 	/* transaction manager */
 	txn_mgr tmgr;
