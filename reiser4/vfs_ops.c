@@ -98,7 +98,7 @@ inline static ssize_t io_to_object   ( struct file *file, char *buf,
 
 static int readdir_actor( reiser4_tree *tree, 
 			  tree_coord *coord, reiser4_lock_handle *lh,
-			  void *cookie );
+			  void *arg );
 
 /**
  * reiser4_lookup() - entry point for ->lookup() method.
@@ -463,16 +463,16 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 				       ZNODE_READ_LOCK, FIND_MAX_NOT_MORE_THAN,
 				       LEAF_LEVEL, LEAF_LEVEL );
 		if( result == CBK_COORD_FOUND ) {
-			readdir_actor_args cookie;
+			readdir_actor_args arg;
 			reiser4_file_fsdata *fsdata;
 
-			cookie.dirent   = dirent;
-			cookie.filldir  = filldir;
-			cookie.dir      = f;
+			arg.dirent   = dirent;
+			arg.filldir  = filldir;
+			arg.dir      = f;
 
 			result = reiser4_iterate_tree
 				( tree_by_inode( inode ), &coord, &lh, 
-				  readdir_actor, &cookie, ZNODE_READ_LOCK, 1 );
+				  readdir_actor, &arg, ZNODE_READ_LOCK, 1 );
 			/*
 			 * if end of the tree or extent was reached
 			 * during scanning. That's fine.
@@ -481,10 +481,10 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 				result = 0;
 
 			f -> f_version = inode -> i_version;
-			f -> f_pos = cookie.offset_hi;
+			f -> f_pos = arg.offset_hi;
 			fsdata = reiser4_get_file_fsdata( f );
 			if( ! IS_ERR( fsdata ) )
-				fsdata -> readdir_offset = cookie.offset_lo;
+				fsdata -> readdir_offset = arg.offset_lo;
 			else
 				result = PTR_ERR( fsdata );
 		}
@@ -730,7 +730,7 @@ static int reiser4_release( struct inode *i UNUSED_ARG, struct file *f )
  */
 static int readdir_actor( reiser4_tree *tree UNUSED_ARG,
 			  tree_coord *coord,
-			  reiser4_lock_handle *lh UNUSED_ARG,void *cookie )
+			  reiser4_lock_handle *lh UNUSED_ARG, void *arg )
 {
 	readdir_actor_args  *args;
 	reiser4_file_plugin *fplug;
@@ -742,12 +742,12 @@ static int readdir_actor( reiser4_tree *tree UNUSED_ARG,
 
 	assert( "nikita-1367", tree != NULL );
 	assert( "nikita-1368", coord != NULL );
-	assert( "nikita-1369", cookie != NULL );
+	assert( "nikita-1369", arg != NULL );
 	
 	if( item_type_by_coord( coord ) != DIR_ENTRY_ITEM_TYPE )
 		return 0;
 
-	args = cookie;
+	args = arg;
 	inode = args -> dir -> f_dentry -> d_inode;
 	assert( "nikita-1370", inode != NULL );
 	fplug = reiser4_get_file_plugin( inode );
