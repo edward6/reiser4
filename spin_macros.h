@@ -328,7 +328,8 @@ static inline void spin_ ## NAME ## _dec(void)					\
 /* thread                                                                 */	\
 static inline int  spin_ ## NAME ## _is_locked (const TYPE *x)			\
 {										\
-	return check_spin_is_locked (& x->FIELD.lock);				\
+	return check_spin_is_locked (& x->FIELD.lock) &&			\
+	       LOCK_CNT_GTZ(spin_locked_ ## NAME);				\
 }										\
 										\
 /* Return true of spin lock embedded in @x is not acquired by -current-   */	\
@@ -407,8 +408,9 @@ static inline void spin_unlock_ ## NAME (TYPE *x)				\
 {										\
 	assert("nikita-1375", LOCK_CNT_GTZ(spin_locked_ ## NAME));		\
 	assert("nikita-1376", LOCK_CNT_GTZ(spin_locked > 0));			\
-	spin_ ## NAME ## _dec();						\
 	assert("nikita-2703", spin_ ## NAME ## _is_locked(x));			\
+										\
+	spin_ ## NAME ## _dec();						\
 	spin_unlock (& x->FIELD.lock);						\
 	PREG_EX(get_cpu(), &pregion_spin_ ## NAME ## _held);			\
 }										\
