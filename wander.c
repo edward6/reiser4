@@ -664,7 +664,9 @@ get_overwrite_set(struct commit_handle *ch)
 			/* Count not leaves here because we have to grab disk
 			 * space for wandered blocks. They were not counted as
 			 * "flush reserved". This should be done after doing
-			 * jload() to avoid races with emergency flush. */
+			 * jload() to avoid races with emergency
+			 * flush. Counting should be done _after_ nodes are
+			 * pinned * into memory by jload(). */
 			if (!jnode_is_leaf(cur))
 				nr_not_leaves ++;
 			/* this is to check atom's flush reserved space for
@@ -1043,24 +1045,6 @@ get_overwrite_set(struct commit_handle *ch)
 			ON_TRACE(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
 		}
 
-		/* Count not leaves here because we have to grab disk space for
-		 * wandered blocks. They were not counted as "flush
-		 * reserved". */
-		if (!jnode_is_leaf(cur))
-			nr_not_leaves ++;
-		else {
-#if REISER4_DEBUG
-			/* at this point @cur either has JNODE_FLUSH_RESERVED
-			 * or is eflushed. Locking is not strong enough to
-			 * write an assertion checking for this. */
-			if (jnode_is_znode(cur))
-				nr_formatted_leaves ++;
-			else
-				nr_unformatted_leaves ++;
-#endif
-			JF_CLR(cur, JNODE_FLUSH_RESERVED);
-		}
-
 		/* Count bitmap locks for getting correct statistics what number
 		 * of blocks were cleared by the transaction commit. */
 		if (jnode_get_type(cur) == JNODE_BITMAP)
@@ -1108,6 +1092,25 @@ get_overwrite_set(struct commit_handle *ch)
 			ret = jload_gfp(cur, GFP_KERNEL, 0);
 			if (ret)
 				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
+		}
+
+		/* Count not leaves here because we have to grab disk space
+		 * for wandered blocks. They were not counted as "flush
+		 * reserved". Counting should be done _after_ nodes are pinned
+		 * into memory by jload(). */
+		if (!jnode_is_leaf(cur))
+			nr_not_leaves ++;
+		else {
+#if REISER4_DEBUG
+			/* at this point @cur either has JNODE_FLUSH_RESERVED
+			 * or is eflushed. Locking is not strong enough to
+			 * write an assertion checking for this. */
+			if (jnode_is_znode(cur))
+				nr_formatted_leaves ++;
+			else
+				nr_unformatted_leaves ++;
+#endif
+			JF_CLR(cur, JNODE_FLUSH_RESERVED);
 		}
 
 		cur = next;
