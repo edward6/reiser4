@@ -1,4 +1,119 @@
 
+Pseudo-code for the current algorithm:
+
+
+
+FLUSH_JNODE(jnode)
+
+  Call flush_lock_leftpoint(scan_left=1) to find the initial leftpoint
+  Call squalloc_leftpoint to squeeze, allocate, and flush slum
+
+FLUSH_LOCK_LEFTPOINT(start_node, scan_left) returns leftpoint
+
+  If (scan_left) {
+    set end_node <- flush_scan_left (start_node)
+  } else {
+    end_node <- start_node
+  }
+  If end_node should be relocated, dirty parent
+  If parent is dirty, recursive case on parent
+  If parent is not dirty, return end_node, the leftpoint
+
+FLUSH_SHOULD_RELOCATE(node) returns boolean
+
+  If node is not leftmost child of its parent, return FALSE
+  If node is a leaf, return TRUE
+  If node's leftmost child is relocated, return TRUE
+
+FLUSH_PRECEDER_HINT(node) sets block number "hint" for block allocation,
+  ideally the block location of the right neighbor in parent-first traversal.
+
+  If node is left-most child of parent, return parent's block number
+  If node is a leaf-node, return its left sibling's block number
+  Otherwise, call flush_preceder_rightmost
+
+FLUSH_PRECEDER_RIGHTMOST computes the rightmost descendent of a node (which may not be available)
+
+  If right-most child is not in memory, set hint to 0 (no hint)
+  If right-most child is a leaf, return its block number
+  Otherwise, recurse on right-most child
+
+FLUSH_SCAN_LEFT(node)
+
+  Repeatedly find left neighbor at node's level as long as:
+  - left is dirty
+  - left is in same atom
+  This is complicated by handling of the leaf level, which involves scanning extents
+
+SQUALLOC_LEFTPOINT(node)
+
+  Call squalloc_parent_first on the leftpoint then find next leftpoint.
+  This is complicated by handling of the leaf level, which involves scanning
+  at the parent level.
+
+SQUALLOC_LEFTPOINT_END_OF_TWIG(twig)
+
+  When squalloc_leftpoint reaches the end of a twig node (while handling the
+  leaf-level), it checks the twig's right neighbor, then the twig's right
+  neighbor's leftmost child, whichever is dirty.  Then calls
+  squalloc_update_leftpoint to find the higest dirty ancestor, which is the
+  next leftpoint.
+
+SQUALLOC_UPDATE_LEFTPOINT(node)
+
+  Calls flush_lock_leftpoint(node,scan_left=0) to find the highest dirty
+  ancestor, the next leftpoint to the right of the previous leftpoint subtree.
+
+SQUALLOC_PARENT_FIRST(node)
+
+  If not dirty, return
+  If already allocated, return
+  If preceder hint is not yet set, set it now
+  Allocate node
+  If (level > LEAF_LEVEL) allocate children (squalloc_children)
+  Get node's right neighbor
+  Squeeze (and allocate) right neighbor (squalloc_right_neighbor), which
+  squeezes from the right into this node until a sub-tree (internal node)
+  is shifted.
+  When an internal node is shifted, recursively squeeze and allocate the child.
+  When the right sibling is empty, repeat with next right sibling
+
+SQUALLOC_CHILDREN(node)
+
+  For each item in node:
+    If item is extent, allocate_extent_item_in_place
+    If item is internal, recursively call squalloc_parent_first
+
+SQUALLOC_RIGHT_NEIGHBOR(left, right)
+
+  If at twig level, squalloc_right_twig
+  If at leaf level, squalloc_right_leaf
+  Else shift_one_internal_unit
+
+SQUALLOC_RIGHT_TWIG(left, right)
+
+  While first item of right is extent, allocate_and_copy_extent
+  Else shift_one_internal_unit
+
+SQUALLOC_RIGHT_LEAF(left, right)
+
+  Calls shift_everything_left, the memcpy-optimized shift routine
+
+SHIFT_ONE_INTERNAL_UNIT(left, right)
+
+  Shift a single internal unit from left to right, after which
+  squalloc_parent_first will be called on the shifted sub-tree.
+
+
+
+
+
+
+
+
+
+
+
 /*
 
 The use of atomic commits dramatically impacts the use of LRU as the
