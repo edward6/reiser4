@@ -296,7 +296,7 @@ reiser4_find_last_set_bit (bmap_off_t * result, void * addr, bmap_off_t low_off,
 		}
 		-- last_byte;
 	}
-	while (last_byte > first_byte) {
+	while (last_byte >= first_byte) {
 		if (base[last_byte] != 0x0) {
 			last_bit = find_last_set_bit_in_byte((unsigned)base[last_byte], 7);
 			assert ("zam-972", last_bit < 8);
@@ -332,7 +332,7 @@ reiser4_find_last_zero_bit (bmap_off_t * result, void * addr, bmap_off_t low_off
 		}
 		-- last_byte;
 	}
-	while (last_byte > first_byte) {
+	while (last_byte >= first_byte) {
 		if (base[last_byte] != 0xFF) {
 			*result =  (last_byte << 3) +
 				find_last_set_bit_in_byte(~(unsigned)base[last_byte], 7);
@@ -885,11 +885,15 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 
 		if (reiser4_find_last_set_bit(&end, data, search_end, start))
 			end = search_end;
+		else
+			end ++;
+
 		if (end + min_len <= start + 1) {
 			if (end < search_end)
 				end = search_end;
 			ret = start - end + 1;
 			*start_offset = end; /* `end' is lowest offset */
+			assert ("zam-987", reiser4_find_next_set_bit(data, start + 1, end) >= start + 1);
 			reiser4_set_bits(data, end, start + 1);
 			break;
 		}
