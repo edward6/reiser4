@@ -201,7 +201,7 @@ typedef enum {
 	/** 
 	 * coord_by_key() can trust delimiting keys. This options is not user
 	 * accessible. coord_by_key() will set it automatically. It will be
-	 * only celared by special-case in extents-on-the-twig-level handling
+	 * only cleared by special-case in extents-on-the-twig-level handling
 	 * where it is necessary to insert item with a key smaller than
 	 * leftmost key in a node. This is necessary because of extents being
 	 * located at the twig level. For explanation, see comment just above
@@ -346,14 +346,14 @@ extern void print_address( const char *prefix, const reiser4_block_nr *block );
 extern const char *bias_name( lookup_bias bias );
 extern int cbk_cache_init( cbk_cache *cache );
 extern void cbk_cache_invalidate( const znode *node, reiser4_tree *tree );
-extern void cbk_cache_add( znode *node );
+extern void cbk_cache_add( const znode *node );
 
 extern int check_jnode_for_unallocated (jnode * node);
 
 #if REISER4_DEBUG
 extern void print_tree_rec (const char * prefix, reiser4_tree * tree, __u32 flags);
-extern void print_cbk_slot( const char *prefix, cbk_cache_slot *slot );
-extern void print_cbk_cache( const char *prefix, cbk_cache  *cache );
+extern void print_cbk_slot( const char *prefix, const cbk_cache_slot *slot );
+extern void print_cbk_cache( const char *prefix, const cbk_cache  *cache );
 #else
 #define print_tree_rec( p, f, t ) noop
 #define print_cbk_slot( p, s ) noop

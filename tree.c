@@ -140,7 +140,7 @@ insert_result insert_by_key( reiser4_tree *tree /* tree to insert new item
 
 	result = coord_by_key( tree, key, coord, lh, ZNODE_WRITE_LOCK, 
 			       FIND_EXACT, stop_level, stop_level, 
-			       flags | CBK_FOR_INSERT);
+			       flags | CBK_FOR_INSERT );
 	switch( result ) {
 	default:
 		break;
@@ -591,10 +591,11 @@ znode *child_znode( const coord_t *parent_coord /* coord of pointer to
 }
 
 
-/* Audited by: umka (2002.06.16) */
 unsigned node_num_items (const znode * node)
 {
-	return node_plugin_by_node (node)->num_of_items (node);
+	assert ("nikita-2468", 
+		node_plugin_by_node (node)->num_of_items (node) == node->nr_items);
+	return node->nr_items;
 }
 
 /* Audited by: umka (2002.06.16) */
@@ -804,6 +805,8 @@ int check_tree_pointer( const coord_t *pointer /* would-be pointer to
 	if( znode_get_level( pointer -> node ) != znode_get_level( child ) + 1 )
 		return NS_NOT_FOUND;
 
+	( ( coord_t * ) pointer ) -> iplug = NULL;
+
 	if( coord_is_existing_unit( pointer ) ) {
 		item_plugin     *iplug;
 		reiser4_block_nr addr;
@@ -891,16 +894,16 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	 * fast path. Try to use cached value. Lock tree to keep
 	 * node->pos_in_parent and pos->*_blocknr consistent.
 	 */
-	if( child -> ptr_in_parent_hint.item_pos + 1 != 0 ) {
+	if( child -> in_parent.item_pos + 1 != 0 ) {
 		reiser4_stat_tree_add( pos_in_parent_set );
-		*result = child -> ptr_in_parent_hint;
+		xmemcpy( result, &child -> in_parent, sizeof *result );
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
 			spin_unlock_tree( current_tree );
 			return NS_FOUND;
 		}
 
 		reiser4_stat_tree_add( pos_in_parent_miss );
-		child -> ptr_in_parent_hint.item_pos = ~0u;
+		coord_set_item_pos( &child -> in_parent, ~0u );
 	}
 	spin_unlock_tree( current_tree );
 
@@ -917,8 +920,8 @@ int find_child_ptr( znode *parent /* parent znode, passed locked */,
 	/* update cached pos_in_node */
 	if( lookup_res == NS_FOUND ) {
 		spin_lock_tree( current_tree );
-		child -> ptr_in_parent_hint = *result;
-		child -> ptr_in_parent_hint.between = AT_UNIT;
+		child -> in_parent = *result;
+		child -> in_parent.between = AT_UNIT;
 		spin_unlock_tree( current_tree );
 		lookup_res = check_tree_pointer( result, child );
 	}
@@ -954,7 +957,7 @@ int find_child_by_addr( znode *parent /* parent znode, passed locked */,
 	for_all_units( result, parent ) {
 		if( check_tree_pointer( result, child ) == NS_FOUND ) {
 			spin_lock_tree( current_tree );
-			child -> ptr_in_parent_hint = *result;
+			child -> in_parent = *result;
 			spin_unlock_tree( current_tree );
 			ret = NS_FOUND;
 			break;

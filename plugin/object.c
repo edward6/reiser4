@@ -96,6 +96,7 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 {
 	int   result;
 	const char *error_message;
+	__u32       flags;
 #if REISER4_DEBUG
 	reiser4_key key_found;
 #endif
@@ -109,9 +110,11 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 	   This returns in "node" pointer to a locked znode and in "pos"
 	   position of an item found in node. Both are only valid if
 	   coord_found is returned. */
+	flags  = ( lock_mode == ZNODE_WRITE_LOCK ) ? CBK_FOR_INSERT : 0;
+	flags |= CBK_UNIQUE;
 	result = coord_by_key( tree, key, coord, lh,
 			       lock_mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
-			       CBK_UNIQUE | CBK_FOR_INSERT );
+			       flags );
 	switch( result ) {
 	case CBK_OOM:
 		error_message = "out of memory while looking for sd of";

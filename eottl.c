@@ -288,21 +288,21 @@ static int add_empty_leaf( coord_t *insert_coord, lock_handle *lh,
 inline int handle_eottl( cbk_handle *h /* cbk handle */, 
 		  int *outcome /* how traversal should proceed */ )
 {
-	int result;
+	int         result;
 	reiser4_key key;
+	coord_t    *coord;
 
-	if( h -> level != TWIG_LEVEL ) {
+	coord = h -> coord;
+
+	if( h -> level != TWIG_LEVEL || 
+	    ( coord_is_existing_item( coord ) && item_is_internal( coord ) ) ) {
 		/*
 		 * Continue to traverse tree downward.
 		 */
-		assert( "nikita-2341", h -> level > TWIG_LEVEL );
 		return 0;
 	}
 
-	/*
-	 * FIXME-NIKITA not yet. Callers are not ready to set CBK_FOR_INSERT.
-	 */
-	if( 0 && !( h -> flags & CBK_FOR_INSERT ) ) {
+	if( !( h -> flags & CBK_FOR_INSERT ) ) {
 		/*
 		 * tree traversal is not for insertion. Just return
 		 * CBK_COORD_NOTFOUND.
@@ -312,96 +312,87 @@ inline int handle_eottl( cbk_handle *h /* cbk handle */,
 		return 1;
 	}
 
-	/*
-	 * FIXME-VS: work around twig thing: h->coord can be set such that
-	 * item_plugin can not be taken (h->coord->between == AFTER_ITEM)
-	 */
-	if( !coord_is_existing_item( h -> coord ) || 
-	    !item_is_internal( h -> coord ) ) {
-		/* strange item type found on non-stop level?!  Twig
-		   horrors? */
-		assert( "vs-356", h -> level == TWIG_LEVEL );
-		assert( "vs-357",
-			({
-				coord_t coord;
+	/* strange item type found on non-stop level?!  Twig
+	   horrors? */
+	assert( "vs-356", h -> level == TWIG_LEVEL );
+	assert( "vs-357",
+		({
+			coord_t lcoord;
+			
+			coord_dup( &lcoord, coord );
+			check_me( "vs-733", coord_set_to_left( &lcoord ) == 0);
+			item_id_by_coord( &lcoord ) == EXTENT_POINTER_ID;
+		}));
 
-				coord_dup( &coord, h -> coord );
-				check_me( "vs-733", coord_set_to_left( &coord ) == 0);
-				item_id_by_coord( &coord ) == EXTENT_POINTER_ID;
-			}));
+	if( *outcome == NS_FOUND ) {
+		/*
+		 * we have found desired key on twig level in extent item
+		 */
+		h -> result = CBK_COORD_FOUND;
+		reiser4_stat_tree_add( cbk_found );
+		*outcome = LOOKUP_DONE;
+		return 1;
+	}
 
-		if( *outcome == NS_FOUND ) {
+	/* take a look at the item to the right of h -> coord */
+	result = is_next_item_internal( coord, h -> active_lh );
+	if( result < 0 ) {
+		/*
+		 * error occured while we were trying to look at the item to
+		 * the right
+		 */
+		h -> error = "could not check next item";
+		h -> result = result;
+		*outcome = LOOKUP_DONE;
+		return 1;
+	} else if( result == 0 ) {
+		
+		/*
+		 * item to the right is not internal one. Allocate a new node
+		 * and insert pointer to it after item h -> coord.
+		 *
+		 * This is a result of extents being located at the twig
+		 * level. For explanation, see comment just above
+		 * is_next_item_internal().
+		 */
+		if( cbk_lock_mode( h -> level, h ) != ZNODE_WRITE_LOCK ) {
 			/*
-			 * we have found desired key on twig level in extent item
+			 * we got node read locked, restart coord_by_key to
+			 * have write lock on twig level
 			 */
-			h -> result = CBK_COORD_FOUND;
-			reiser4_stat_tree_add( cbk_found );
-			*outcome = LOOKUP_DONE;
+			h -> lock_level = TWIG_LEVEL;
+			h -> lock_mode  = ZNODE_WRITE_LOCK;
+			*outcome = LOOKUP_REST;
 			return 1;
 		}
-
-		/* take a look at the item to the right of h -> coord */
-		result = is_next_item_internal( h -> coord, h -> active_lh );
-		if( result < 0 ) {
-			/*
-			 * error occured while we were trying to look at the
-			 * item to the right
-			 */
-			h -> error = "could not check next item";
+		
+		result = add_empty_leaf( coord, h -> active_lh,
+					 h -> key, rd_key( coord, &key ) );
+		if( result ) {
+			h -> error = "could not add empty leaf";
 			h -> result = result;
 			*outcome = LOOKUP_DONE;
 			return 1;
-		} else if( result == 0 ) {
-		
-			/*
-			 * item to the right is not internal one. Allocate a new
-			 * node and insert pointer to it after item h -> coord.
-			 *
-			 * This is a result of extents being located at the twig
-			 * level. For explanation, see comment just above
-			 * is_next_item_internal().
-			 */
-			if( cbk_lock_mode( h -> level, h ) != ZNODE_WRITE_LOCK ) {
-				/*
-				 * we got node read locked, restart
-				 * coord_by_key to have write lock on twig
-				 * level
-				 */
-				h -> lock_level = TWIG_LEVEL;
-				h -> lock_mode  = ZNODE_WRITE_LOCK;
-				*outcome = LOOKUP_REST;
-				return 1;
-			}
-			
-			result = add_empty_leaf( h -> coord, h -> active_lh,
-						 h -> key, rd_key( h -> coord, &key ) );
-			if( result ) {
-				print_fs_info ("add_empty_leaf failed", reiser4_get_current_sb ());
-				h -> error = "could not add empty leaf";
-				h -> result = result;
-				*outcome = LOOKUP_DONE;
-				return 1;
-			}
-			assert( "vs-358", keyeq( h -> key, item_key_by_coord( h -> coord, &key ) ) );
-		} else {
-			/* 
-			 * this is special case mentioned in the comment on
-			 * tree.h:cbk_flags. We have found internal item
-			 * immediately on the right of extent, and we are
-			 * going to insert new item there. Key of item we are
-			 * going to insert is smaller than leftmost key in the
-			 * node pointed to by said internal item (otherwise
-			 * search wouldn't come to the extent in the first
-			 * place).
-			 *
-			 * This is a result of extents being located at the
-			 * twig level. For explanation, see comment just above
-			 * is_next_item_internal().
-			 */
-			h -> flags &= ~CBK_TRUST_DK;
 		}
+		assert( "vs-358", keyeq( h -> key, 
+					 item_key_by_coord( coord, &key ) ) );
+	} else {
+		/* 
+		 * this is special case mentioned in the comment on
+		 * tree.h:cbk_flags. We have found internal item immediately
+		 * on the right of extent, and we are going to insert new item
+		 * there. Key of item we are going to insert is smaller than
+		 * leftmost key in the node pointed to by said internal item
+		 * (otherwise search wouldn't come to the extent in the first
+		 * place).
+		 *
+		 * This is a result of extents being located at the twig
+		 * level. For explanation, see comment just above
+		 * is_next_item_internal().
+		 */
+		h -> flags &= ~CBK_TRUST_DK;
 	}
-	assert( "vs-362", item_is_internal( h -> coord ) );
+	assert( "vs-362", item_is_internal( coord ) );
 	return 0;
 }
 

@@ -844,6 +844,7 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 	seal_t            *seal;
 	coord_t           *coord;
 	int                result;
+	__u32              flags;
 
 	assert( "nikita-1130", lh != NULL );
 	assert( "nikita-1128", dir != NULL );
@@ -878,9 +879,10 @@ static int find_entry( const struct inode *dir /* directory to scan */,
 				return 0;
 		}
 	}
+	flags = ( mode == ZNODE_WRITE_LOCK ) ? CBK_FOR_INSERT : 0;
 	result = coord_by_key( tree_by_inode( dir ), &entry -> key, coord, lh,
-			       mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, 
-			       CBK_FOR_INSERT );
+			       mode, FIND_EXACT, LEAF_LEVEL, LEAF_LEVEL, flags );
+
 	if( result == CBK_COORD_FOUND ) {
 		entry_actor_args arg;
 
