@@ -25,9 +25,6 @@ struct flush_scan {
 
 	/* The current scan position. */
 	jnode    *node;
-
-	/* Lock at the end of the scan, if formatted. */
-	reiser4_lock_handle node_lock;
 };
 
 static void          flush_scan_init               (flush_scan *scan);
@@ -62,11 +59,25 @@ static int           jnode_lock_parent_coord      (jnode *node,
 						   znode_lock_mode mode);
 static jnode*        jnode_get_neighbor_in_memory (jnode *node, unsigned long node_index);
 static int           jnode_is_allocated           (jnode *node);
-static int           jnode_allocate               (jnode *node, reiser4_blocknr_hint *preceder);
+static int           jnode_allocate_flush         (jnode *node, reiser4_blocknr_hint *preceder);
 
-/* FIXME: Need to fix utmost_child calls to un-ref properly! */
+/* FIXME: extent_utmost_child reveals trouble: if its unallocated?  if its a
+ * hole?  Need an extra state bit to say "not yet sqalloced", need to avoid
+ * passing over already-allocated nodes, I think.  Discussion with Hans --
+ * looks okay for holes.
 
-#define FLUSH_WORKS 1
+The questions we ask:
+
+Is the left child dirty?
+
+Get the right child's block number?  (What if its unallocated?)
+
+Get the right child?  (For "rightmost descendant's block number", what if its unallocated?)
+
+Get the right child?  (For "leftward scan")
+
+ */
+
 
 /* This is the main entry point for flushing a jnode.  Two basic steps are
  * performed: first the "greatest dirty ancestor" of the input jnode is
@@ -89,23 +100,15 @@ int jnode_flush (jnode *node)
 	 * found by recursing upward as long as the parent is dirty and
 	 * leftward along each level as long as the left neighbor is dirty. 
 	 */
-	if (FLUSH_WORKS && (ret = flush_lock_greatest_dirty_ancestor (node, NULL, & gda, & gda_lock, & preceder))) {
+	if ((ret = flush_lock_greatest_dirty_ancestor (node, NULL, & gda, & gda_lock, & preceder))) {
 		goto failed;
 	}
 
 	/* Squeeze and allocate in parent-first order, scheduling writes and
 	 * cleaning jnodes.  The algorithm is described in more detail
 	 * below. */
-	if (FLUSH_WORKS && (ret = squalloc_parent_first (gda, & preceder))) {
+	if ((ret = squalloc_parent_first (gda, & preceder))) {
 		goto failed;
-	}
-
-	if (! FLUSH_WORKS) {
-		/* FIXME: Old behavior: The txnmgr expects this to clean the
-		 * node.  (i.e., move it to the clean list).  That's all this
-		 * does for now. */
-		jnode_set_clean (node);
-		ret = 0;
 	}
 
    failed:
@@ -274,6 +277,7 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
 {
 	int ret;
 	int is_leftmost;
+	int is_dirty;
 	item_plugin *iplug;
 	jnode *left_child;
 	znode *parent = parent_coord->node;
@@ -304,8 +308,10 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
 
 	iplug = item_plugin_by_coord (& coord);
 
+	assert ("jmacd-2049", iplug->utmost_child != NULL);
+
 	/* Get the parent's leftmost child (if in memory). */
-	if ((ret = iplug->utmost_child (& coord, LEFT_SIDE, 0, & left_child, NULL))) {
+	if ((ret = iplug->utmost_child (& coord, LEFT_SIDE, & left_child, NULL))) {
 		assert ("jmacd-2051", ret < 0);
 		return ret;
 	}
@@ -315,13 +321,11 @@ static int flush_should_relocate (jnode *node, const tree_coord *parent_coord)
 		return 0;
 	}
 
-	if (jnode_is_dirty (left_child)) {
-		/* Leftmost of parent, leftmost child dirty, relocate. */
-		return 1;
-	}
+	/* Leftmost child of parent: relocate parent if child dirty. */
+	is_dirty = jnode_is_dirty (left_child);
 
-	/* Leftmost of parent, leftmost child clean, don't relocate. */
-	return 0;
+	jput (left_child);
+	return is_dirty;
 }
 
 /* Called to initialize a hint for block allocation to begin from.  If the
@@ -400,7 +404,7 @@ static int flush_preceder_hint (jnode *gda,
 
 		/* Get the rightmost block number of this coord, which is the
 		 * child to the left of GDA. */
-		ret = iplug->utmost_child (& coord, RIGHT_SIDE, 0, NULL, & preceder->blk);
+		ret = iplug->utmost_child (& coord, RIGHT_SIDE, NULL, & preceder->blk);
 
 	} else if (is_leftmost) {
 		/* Leftmost case */
@@ -441,13 +445,13 @@ static int flush_preceder_rightmost (const tree_coord *parent_coord, reiser4_blo
 
 		/* Get the rightmost block number of this coord, which is the
 		 * child to the left of GDA. */
-		return iplug->utmost_child (parent_coord, RIGHT_SIDE, 0, NULL, & preceder->blk);
+		return iplug->utmost_child (parent_coord, RIGHT_SIDE, NULL, & preceder->blk);
 	}
 
 	/* Recurse downwards case: */
 
 	/* Get the child if it is in memory. */
-	if ((ret = iplug->utmost_child (parent_coord, RIGHT_SIDE, UTMOST_GET_CHILD, & child, & preceder->blk))) {
+	if ((ret = iplug->utmost_child (parent_coord, RIGHT_SIDE, & child, & preceder->blk))) {
 		return ret;
 	}
 
@@ -523,7 +527,7 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 		if ((ret = flush_preceder_hint (node, NULL, preceder))) { return ret; }
 
 		/* Allocate it. */
-		if ((ret = jnode_allocate (node, preceder))) { return ret; }
+		if ((ret = jnode_allocate_flush (node, preceder))) { return ret; }
 
                 /* Recursive case: handles all children. */
                 if ((jnode_get_level (node) > LEAF_LEVEL) &&
@@ -566,8 +570,6 @@ static int squalloc_parent_first (jnode *node, reiser4_blocknr_hint *preceder)
 	}
 
 	assert ("jmacd-1052", ! node_is_empty (right_lock.node));
-
-	/* FIXME: Check ZNODE_HEARD_BANSHEE? */
 
 	/* Squeeze from the right until an internal node is shifted.  At that
 	 * point, we recurse downwards and squeeze its children.  When the
@@ -930,7 +932,8 @@ static int jnode_is_allocated (jnode *node)
 	return ! blocknr_is_fake (jnode_get_block (node));
 }
 
-static int jnode_allocate (jnode *node, reiser4_blocknr_hint *preceder)
+/* Allocate a block number and flush. */
+static int jnode_allocate_flush (jnode *node, reiser4_blocknr_hint *preceder)
 {
 	int ret;
 	int len;
@@ -941,6 +944,8 @@ static int jnode_allocate (jnode *node, reiser4_blocknr_hint *preceder)
 		return ret;
 	}
 
+	/* Now the node has been allocated.  FIXME: WRITE IT.  Set it
+	 * clean. */
 	jnode_set_clean (node);
 
 	node->blocknr = blk;
@@ -1006,7 +1011,6 @@ jnode_lock_parent_coord (jnode *node,
 static void flush_scan_init (flush_scan *scan)
 {
 	memset (scan, 0, sizeof (*scan));
-	init_lh (& scan->node_lock);
 }
 
 /* Release any resources held by the flush scan, e.g., release locks, free memory, etc. */
@@ -1015,8 +1019,6 @@ static void flush_scan_cleanup (flush_scan *scan)
 	if (scan->node != NULL) {
 		jput (scan->node);
 	}
-
-	done_lh (& scan->node_lock);
 }
 
 /* Returns true if leftward flush scanning is finished. */
@@ -1068,8 +1070,7 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 	init_lh    (& parent_lh);
 	init_lh    (& left_parent_lh);
 
-	/* Lock the node itself, (FIXME:) which is necessary for getting its
-	 * parent. FIXME: Not sure LOPRI is correct. */
+	/* Lock the node itself, which is necessary for getting its parent. */
 	if (jnode_is_formatted (scan->node) &&
 	    (ret = longterm_lock_znode (& node_lh, JZNODE (scan->node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
 		goto done;
@@ -1115,7 +1116,7 @@ static int flush_scan_left_using_parent (flush_scan *scan)
 	assert ("jmacd-2040", iplug->utmost_child != NULL);
 
 	/* Get the rightmost child of this coord, which is the child to the left of the scan position. */
-	if ((ret = iplug->utmost_child (& coord, RIGHT_SIDE, UTMOST_GET_CHILD, & child_left, NULL))) {
+	if ((ret = iplug->utmost_child (& coord, RIGHT_SIDE, & child_left, NULL))) {
 		goto done;
 	}
 
@@ -1259,20 +1260,12 @@ static int flush_scan_left (flush_scan *scan, jnode *node)
 		}
 
 		if (ret != 0) {
-			/* FIXME_JMACD: what to do about deadlock? */
 			return ret;
 		}
 
-	} while (! flush_scan_left_finished (scan));
+	} while (ret == 0 && ! flush_scan_left_finished (scan));
 
-	/* At the end of a scan, get a lock (if applicable). */
-	if (ret == 0 &&
-	    jnode_is_formatted (scan->node) &&
-	    (ret = longterm_lock_znode (& scan->node_lock, JZNODE (scan->node), ZNODE_READ_LOCK, ZNODE_LOCK_LOPRI))) {
-		return ret;
-	}
-
-	return 0;
+	return ret;
 }
 
 /*
