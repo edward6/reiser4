@@ -105,9 +105,9 @@ tap_done(tap_t * tap)
 	assert("nikita-2565", tap != NULL);
 	assert("nikita-2566", tap->coord->node == tap->lh->node);
 	tap_check(tap);
-	done_lh(tap->lh);
 	if (tap->loaded > 0)
 		zrelse(tap->lh->node);
+	done_lh(tap->lh);
 	tap->loaded = 0;
 	tap_list_remove_clean(tap);
 	tap->coord->node = NULL;
