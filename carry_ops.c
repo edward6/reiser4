@@ -1014,6 +1014,8 @@ static int carry_extent( carry_op *op /* operation to perform */,
 	 * inserting rather than pasting if we get that far.
 	 */
 	insert_extent = reiser4_post_carry( todo, COP_INSERT, node, 1 );
+	if( IS_ERR( insert_extent ) )
+		return PTR_ERR( insert_extent );
 	insert_extent -> u.insert.type = COPT_KEY;
 	insert_extent -> u.insert.data = op -> u.extent.data;
 	insert_extent -> u.insert.key  = op -> u.extent.key;
