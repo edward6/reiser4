@@ -203,6 +203,20 @@ static int page_cache_release_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 	return 0;
 }
 
+/** ->delete_node method of page-cache based tree operations */
+static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
+{
+	struct page *page;
+
+	page = jnode_page( page );
+
+	/* Leave it on the LRU if it gets converted into anonymous buffers */
+	ClearPageDirty( page );
+	ClearPageUptodate( page );
+	remove_inode_page( page );
+ 	jnode_detach_page( node );
+}
+
 /** ->drop_node method of page-cache based tree operations */
 static int page_cache_drop_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 {
@@ -362,15 +376,17 @@ int page_io( struct page *page, int rw, int gfp )
 {
 	struct bio *bio;
 	int         result;
-
+	REISER4_ENTRY( page -> mapping -> host -> i_sb );
+	
 	assert( "nikita-2094", page != NULL );
+
 	bio = page_bio( page, gfp );
 	if( !IS_ERR( bio ) ) {
 		submit_bio( rw, bio );
 		result = 0;
 	} else
 		result = PTR_ERR( bio );
-	return result;
+	REISER4_EXIT( result );
 }
 
 /** helper function to construct bio for page */
@@ -441,14 +457,20 @@ static int formatted_set_page_dirty( struct page *page )
 	return __set_page_dirty_nobuffers( page );
 }
 
-define_never_ever_op( readpages );
-define_never_ever_op( prepare_write );
-define_never_ever_op( commit_write );
-define_never_ever_op( bmap );
-define_never_ever_op( invalidatepage );
-define_never_ever_op( direct_IO );
+define_never_ever_op( readpages )
+define_never_ever_op( prepare_write )
+define_never_ever_op( commit_write )
+define_never_ever_op( bmap )
+define_never_ever_op( invalidatepage )
+define_never_ever_op( direct_IO )
 
 #define V( func ) ( ( void * ) ( func ) )
+
+/** place holder for methods that doesn't make sense for fake inode */
+static int ok( void )
+{
+	return 0;
+}
 
 /**
  * address space operations for the fake inode
@@ -475,15 +497,15 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.prepare_write  = V( never_ever_prepare_write ),
 	.commit_write   = V( never_ever_commit_write ),
 	.bmap           = V( never_ever_bmap ),
-	.invalidatepage = V( never_ever_invalidatepage ),
+	.invalidatepage = V( ok ),
 	.releasepage    = NULL,
 	.direct_IO      = V( never_ever_direct_IO )
 };
 
-tree_operations page_cache_tops = {
+node_operations page_cache_tops = {
 	.read_node     = page_cache_read_node,
 	.allocate_node = page_cache_allocate_node,
-	.delete_node   = page_cache_drop_node,
+	.delete_node   = page_cache_delete_node,
 	.release_node  = page_cache_release_node,
 	.drop_node     = page_cache_drop_node,
 	.dirty_node    = page_cache_dirty_node
