@@ -656,6 +656,7 @@ typedef struct reiser4_statistics {
 		stat_cnt lookup;
 		stat_cnt create;
 		stat_cnt mkdir;
+		stat_cnt symlink;
 		stat_cnt mknod;
 		stat_cnt rename;
 		stat_cnt readlink;

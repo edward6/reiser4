@@ -415,6 +415,7 @@ reiser4_stats_cnt reiser4_stat_defs[] = {
 	DEFINE_STAT_CNT(vfs_calls.lookup),
 	DEFINE_STAT_CNT(vfs_calls.create),
 	DEFINE_STAT_CNT(vfs_calls.mkdir),
+	DEFINE_STAT_CNT(vfs_calls.symlink),
 	DEFINE_STAT_CNT(vfs_calls.mknod),
 	DEFINE_STAT_CNT(vfs_calls.rename),
 	DEFINE_STAT_CNT(vfs_calls.readlink),
