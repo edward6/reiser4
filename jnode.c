@@ -42,7 +42,7 @@ static inline __u32 jnode_key_hashfn( const jnode_key_t *key )
 	shift += ( __u32 ) key -> index;
 
 	hash = shift + ( shift >> REISER4_JNODE_HASH_TABLE_BITS );
-	return hash ( REISER4_JNODE_HASH_TABLE_SIZE - 1 );
+	return hash & ( REISER4_JNODE_HASH_TABLE_SIZE - 1 );
 }
 
 /** The hash table definition */
