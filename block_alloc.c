@@ -202,6 +202,13 @@ sub_from_sb_used(reiser4_super_info_data *sbinfo, __u64 count)
 	sbinfo->blocks_used -= count;
 }
 
+static void
+sub_from_cluster_reserved(reiser4_super_info_data *sbinfo, __u64 count)
+{
+	assert("edward-501", sbinfo->blocks_clustered >= count);
+	sbinfo->blocks_clustered -= count;
+}
+
 /* Increase the counter of block reserved for flush in atom. */
 static void
 add_to_atom_flush_reserved_nolock (txn_atom * atom, __u32 count)
@@ -493,6 +500,65 @@ grabbed2fake_allocated_unformatted(void)
 
 	assert("vs-922", check_block_counters(ctx->super));
 
+	reiser4_spin_unlock_sb(sbinfo);
+}
+
+void
+grabbed2cluster_reserved(int count)
+{
+	reiser4_context *ctx;
+	reiser4_super_info_data *sbinfo;
+	
+	ctx = get_current_context();
+	sub_from_ctx_grabbed(ctx, count);
+
+	sbinfo = get_super_private(ctx->super);
+	reiser4_spin_lock_sb(sbinfo);
+	
+	sub_from_sb_grabbed(sbinfo, count);
+	sbinfo->blocks_clustered += count;
+
+	assert("edward-504", check_block_counters(ctx->super));
+	
+	reiser4_spin_unlock_sb(sbinfo);
+}
+void
+cluster_reserved2grabbed(int count)
+{
+	reiser4_context *ctx;
+	reiser4_super_info_data *sbinfo;
+	
+	ctx = get_current_context();
+	
+	sbinfo = get_super_private(ctx->super);
+	reiser4_spin_lock_sb(sbinfo);
+
+	sub_from_cluster_reserved(sbinfo, count);
+	sbinfo->blocks_grabbed += count;
+
+	assert("edward-505", check_block_counters(ctx->super));
+	
+	reiser4_spin_unlock_sb(sbinfo);
+	ctx->grabbed_blocks += count;
+}
+
+void
+cluster_reserved2free(int count)
+{
+	reiser4_context *ctx;
+	reiser4_super_info_data *sbinfo;
+	
+	assert("edward-503", get_current_context()->grabbed_blocks == 0);
+
+	ctx = get_current_context();
+	sbinfo = get_super_private(ctx->super);
+	reiser4_spin_lock_sb(sbinfo);
+
+	sub_from_cluster_reserved(sbinfo, count);
+	sbinfo->blocks_free += count;
+	
+	assert("edward-502", check_block_counters(ctx->super));
+	
 	reiser4_spin_unlock_sb(sbinfo);
 }
 

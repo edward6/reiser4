@@ -193,7 +193,10 @@ struct reiser4_super_info_data {
 
 	/* number of blocks reserved for flush operations. */
 	__u64 blocks_flush_reserved;
-
+	
+        /* number of blocks reserved for cluster operations. */
+	__u64 blocks_clustered;
+	
 	/* unique file-system identifier */
 	/* does this conform to Andreas Dilger UUID stuff? */
 	__u32 fsuid;

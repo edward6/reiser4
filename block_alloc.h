@@ -165,6 +165,9 @@ extern __u64 atom_flush_reserved(void);
 
 extern int blocknr_is_fake(const reiser4_block_nr * da);
 
+extern void grabbed2cluster_reserved(int count);
+extern void cluster_reserved2grabbed(int count);
+extern void cluster_reserved2free(int count);
 
 extern int check_block_counters(const struct super_block *);
 
