@@ -20,9 +20,9 @@ the differences are well founded.  */
    hold the atom_lock you may then wait to acquire any jnode or handle lock.  This implies
    that any time you check the atom-pointer of a jnode or handle and then try to lock that
    atom, you must use trylock() and possibly reverse the order.
-  
+
    This code implements the design documented at:
-  
+
      http://namesys.com/txn-doc.html
 
 ZAM-FIXME-HANS: update v4.html to contain all of the information present in the above (but updated), and then remove the
@@ -33,7 +33,7 @@ year old --- define all technical terms used.
 */
 
 /* Thoughts on the external transaction interface:
-  
+
    In the current code, a TRANSCRASH handle is created implicitly by init_context() (which creates state that lasts for
    the duration of a system call and is called at the start of ReiserFS methods implementing VFS operations), and closed
    by reiser4_exit_context(), occupying the scope of a single system call.  We wish to give certain applications an
@@ -41,42 +41,42 @@ year old --- define all technical terms used.
    isolation, allowing an application to open a transaction implies trusting it to later close the transaction.  Part of
    the transaction interface will be aimed at enabling that trust, but the interface for actually using transactions is
    fairly narrow.
-  
+
    BEGIN_TRANSCRASH: Returns a transcrash identifier.  It should be possible to translate
    this identifier into a string that a shell-script could use, allowing you to start a
    transaction by issuing a command.  Once open, the transcrash should be set in the task
    structure, and there should be options (I suppose) to allow it to be carried across
    fork/exec.  A transcrash has several options:
-  
+
      - READ_FUSING or WRITE_FUSING: The default policy is for txn-capture to capture only
      on writes (WRITE_FUSING) and allow "dirty reads".  If the application wishes to
      capture on reads as well, it should set READ_FUSING.
-  
+
      - TIMEOUT: Since a non-isolated transcrash cannot be undone, every transcrash must eventually close (or else the
      machine must crash).  If the application dies an unexpected death with an open transcrash, for example, or if it
      hangs for a long duration, one solution (to avoid crashing the machine) is to simply close it anyway.  This is a
      dangerous option, but it is one way to solve the problem until isolated transcrashes are available for untrusted
-     applications.  
+     applications.
 
      It seems to be what databases do, though it is unclear how one avoids a DoS attack creating a vulnerability based
      on resource starvation.  Guaranteeing that some minimum amount of computational resources are made available would
      seem more correct than guaranteeing some amount of time.  When we again have someone to code the work, this issue
      should be considered carefully.  -Hans
-  
+
    RESERVE_BLOCKS: A running transcrash should indicate to the transaction manager how
    many dirty blocks it expects.  The reserve_blocks interface should be called at a point
    where it is safe for the application to fail, because the system may not be able to
    grant the allocation and the application must be able to back-out.  For this reason,
    the number of reserve-blocks can also be passed as an argument to BEGIN_TRANSCRASH, but
    the application may also wish to extend the allocation after beginning its transcrash.
-  
+
    CLOSE_TRANSCRASH: The application closes the transcrash when it is finished making
    modifications that require transaction protection.  When isolated transactions are
    supported the CLOSE operation is replaced by either COMMIT or ABORT.  For example, if a
    RESERVE_BLOCKS call fails for the application, it should "abort" by calling
    CLOSE_TRANSCRASH, even though it really commits any changes that were made (which is
    why, for safety, the application should call RESERVE_BLOCKS before making any changes).
-  
+
    For actually implementing these out-of-system-call-scopped transcrashes, the
    reiser4_context has a "txn_handle *trans" pointer that may be set to an open
    transcrash.  Currently there are no dynamically-allocated transcrashes, but there is a
@@ -84,14 +84,14 @@ year old --- define all technical terms used.
 */
 
 /* Extending the other system call interfaces for future transaction features:
-  
+
    Specialized applications may benefit from passing flags to the ordinary system call
    interface such as read(), write(), or stat().  For example, the application specifies
    WRITE_FUSING by default but wishes to add that a certain read() command should be
    treated as READ_FUSING.  But which read?  Is it the directory-entry read, the stat-data
    read, or the file-data read?  These issues are straight-forward, but there are a lot of
    them and adding the necessary flags-passing code will be tedious.
-  
+
    When supporting isolated transactions, there is a corresponding READ_MODIFY_WRITE (RMW)
    flag, which specifies that although it is a read operation being requested, a
    write-lock should be taken.  The reason is that read-locks are shared while write-locks
@@ -100,11 +100,11 @@ year old --- define all technical terms used.
    requests with the RMW flag set.
 */
 
-/* 
+/*
    The znode/atom deadlock avoidance.
 
    FIXME(Zam): writing of this comment is in progress.
-   
+
    The atom's special stage ASTAGE_CAPTURE_WAIT introduces a kind of atom's
    long-term locking, which makes reiser4 locking scheme more complex.  It had
    deadlocks until we implement deadlock avoidance algorithms.  That deadlocks
@@ -145,8 +145,68 @@ year old --- define all technical terms used.
 
    Both algorithms together prevent waiting a longterm lock without atom fusion
    with atoms of all lock owners, which is a key thing for getting atom/znode
-   locking deadlocks.  
+   locking deadlocks.
 */
+
+/*
+ * Transactions and mmap(2).
+ *
+ *     1. Transactions are not supported for accesses through mmap(2), because
+ *     this would effectively amount to user-level transactions whose duration
+ *     is beyond control of the kernel.
+ *
+ *     2. That said, we still want to preserve some decency with regard to
+ *     mmap(2). During normal write(2) call, following sequence of events
+ *     happens:
+ *
+ *         1. page is created;
+ *
+ *         2. jnode is created, dirtied and captured into current atom.
+ *
+ *         3. extent is inserted and modified.
+ *
+ *     Steps (2) and (3) take place under long term lock on the twig node.
+ *
+ *     When file is accessed through mmap(2) page is always created during
+ *     page fault. After this (in reiser4_readpage()->readpage_extent()):
+ *
+ *         1. if access is made to non-hole page new jnode is created, (if
+ *         necessary)
+ *
+ *         2. if access is made to the hole page, jnode is not created (XXX
+ *         not clear why).
+ *
+ *     Also, even if page is created by write page fault it is not marked
+ *     dirty immediately by handle_mm_fault(). Probably this is to avoid races
+ *     with page write-out.
+ *
+ *     Dirty bit installed by hardware is only transferred to the struct page
+ *     later, when page is unmapped (in zap_pte_range(), or
+ *     try_to_unmap_one()).
+ *
+ *     So, with mmap(2) we have to handle following irksome situations:
+ *
+ *         1. there exists modified page (clean or dirty) without jnode
+ *
+ *         2. there exists modified page (clean or dirty) with clean jnode
+ *
+ *         3. clean page which is a part of atom can be transparently modified
+ *         at any moment through mapping without becoming dirty.
+ *
+ *     (1) and (2) can lead to the out-of-memory situation: ->writepage()
+ *     doesn't know what to do with such pages and ->sync_sb()/->writepages()
+ *     don't see them, because these methods operate on atoms.
+ *
+ *     (3) can lead to the loss of data: suppose we have dirty page with dirty
+ *     captured jnode captured by some atom. As part of early flush (for
+ *     example) page was written out. Dirty bit was cleared on both page and
+ *     jnode. After this page is modified through mapping, but kernel doesn't
+ *     notice and just discards page and jnode as part of commit. (XXX
+ *     actually it doesn't, because to reclaim page ->releasepage() has to be
+ *     called and before this dirty bit will be transferred to the struct
+ *     page).
+ *
+ */
 
 #include "debug.h"
 #include "tslist.h"
@@ -447,7 +507,7 @@ txn_end(reiser4_context * context)
 		   atom to this transaction handle only if there are locked and
 		   not yet fused nodes.  It cannot happen because lock stack
 		   should be clean at this moment. */
-		if (txnh->atom != NULL) 
+		if (txnh->atom != NULL)
 			ret = commit_txnh(txnh);
 
 		assert("jmacd-633", txnh_isclean(txnh));
@@ -655,7 +715,7 @@ void atom_dec_and_unlock(txn_atom * atom)
 
 /* Return a new atom, locked.  This adds the atom to the transaction manager's list and
    sets its reference count to 1, an artificial reference which is kept until it
-   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks. 
+   commits.  We play strange games to avoid allocation under jnode & txnh spinlocks.
 
 ZAM-FIXME-HANS: should we set node->atom and txnh->atom here also? */
 static txn_atom *
@@ -791,7 +851,7 @@ atom_free(txn_atom * atom)
 static int
 atom_is_dotard(const txn_atom * atom)
 {
-	return time_after(jiffies, atom->start_time + 
+	return time_after(jiffies, atom->start_time +
 			  get_current_super_private()->tmgr.atom_max_age);
 }
 
@@ -808,7 +868,7 @@ static int
 atom_should_commit(const txn_atom * atom)
 {
 	assert("umka-189", atom != NULL);
-	return 
+	return
 		(atom->flags & ATOM_FORCE_COMMIT) ||
 		((unsigned) atom_pointer_count(atom) > get_current_super_private()->tmgr.atom_max_size) ||
 		atom_is_dotard(atom);
@@ -825,7 +885,7 @@ atom_should_commit_asap(const txn_atom * atom)
 	captured = (unsigned) atom_pointer_count(atom);
 	pinnedpages = (captured >> PAGE_CACHE_SHIFT) * sizeof(jnode);
 
-	return 
+	return
 		(pinnedpages > (totalram_pages >> 3)) ||
 		(atom->flushed > 100);
 }
@@ -985,13 +1045,13 @@ static int current_atom_complete_writes (void)
 /* Called with the atom locked and no open "active" transaction handlers except
    ours, this function calls flush_current_atom() until all dirty nodes are
    processed.  Then it initiates commit processing.
-  
+
    Called by the single remaining open "active" txnh, which is closing. Other
    open txnhs belong to processes which wait atom commit in commit_txnh()
    routine. They are counted as "waiters" in atom->nr_waiters.  Therefore as
    long as we hold the atom lock none of the jnodes can be captured and/or
    locked.
-   
+
    Return value is an error code if commit fails.
 */
 static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
@@ -1008,10 +1068,10 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	assert("jmacd-151", atom_isopen(*atom));
 
 	/* lock ordering: delete_sema and commit_sema are unordered */
-	assert("nikita-3184", 
+	assert("nikita-3184",
 	       get_current_super_private()->delete_sema_owner != current);
 
-	ON_TRACE(TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", 
+	ON_TRACE(TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n",
 		 (*atom)->atom_id, current->pid);
 
 	/* call reiser4_update_sd for all atom's inodes */
@@ -1024,7 +1084,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 
 		*atom = get_current_atom_locked();
 		if (flushiters > TOOMANYFLUSHES && IS_POW(flushiters)) {
-			warning("nikita-3176", 
+			warning("nikita-3176",
 				"Flushing like mad: %i", flushiters);
 			info_atom("atom", *atom);
 		}
@@ -1053,13 +1113,11 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	UNLOCK_ATOM(*atom);
 
 	ret = current_atom_complete_writes();
-	if (ret) {
-		printk("complete_writes: %ld\n", ret);
+	if (ret)
 		return ret;
-	}
 
 	assert ("zam-906", capture_list_empty(&(*atom)->writeback_nodes));
-	ON_TRACE(TRACE_FLUSH, "everything written back atom %u\n", 
+	ON_TRACE(TRACE_FLUSH, "everything written back atom %u\n",
 		 (*atom)->atom_id);
 
 	/* isolate critical code path which should be executed by only one
@@ -1157,7 +1215,7 @@ int txnmgr_force_commit_current_atom (void)
 	}
 	
 	return force_commit_atom_nolock(txnh);
-} 
+}
 
 /* Called to force commit of any outstanding atoms.  @commit_new_atoms controls
  * should we commit new atoms which are created after this functions is
@@ -1194,7 +1252,7 @@ again:
 		/* Commit any atom which can be committed.  If @commit_new_atoms
 		 * is not set we commit only atoms which were created before
 		 * this call is started. */
-		if (atom->stage < ASTAGE_PRE_COMMIT && 
+		if (atom->stage < ASTAGE_PRE_COMMIT &&
 		    (!commit_new_atoms || (atom->start_time <= start_time))) {
 			spin_unlock_txnmgr(mgr);
 			LOCK_TXNH(txnh);
@@ -1291,14 +1349,14 @@ commit_some_atoms(txn_mgr * mgr)
    atom and call jnode_flush() for him.  If current transaction handle has
    already assigned atom (current atom) we have to close current transaction
    prior to switch to another atom or do something with current atom. This
-   code tries to flush current atom. 
+   code tries to flush current atom.
 
    flush_some_atom() is called as part of memory clearing process. It is
    invoked from balance_dirty_pages(), pdflushd, and entd.
 
    If we can flush no nodes, atom is committed, because this frees memory.
 
-   If atom is too large or too old it is committed also. 
+   If atom is too large or too old it is committed also.
 */
 int flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags)
 {
@@ -1339,7 +1397,7 @@ int flush_some_atom(long *nr_submitted, struct writeback_control *wbc, int flags
 		/* no suitable atoms found, return */
 		if (!found)
 			return 0;
-	} else 
+	} else
 		atom = get_current_atom_locked();
 
 	ret = flush_current_atom(flags, nr_submitted, &atom);
@@ -1401,8 +1459,8 @@ void atom_wait_event(txn_atom * atom)
 	txn_wait_links _wlinks;
 
 	assert("zam-744", spin_atom_is_locked(atom));
-	assert("nikita-3156", 
-	       lock_stack_isclean(get_current_lock_stack()) || 
+	assert("nikita-3156",
+	       lock_stack_isclean(get_current_lock_stack()) ||
 	       atom->nr_running_queues > 0);
 
 	init_wlinks(&_wlinks);
@@ -1471,7 +1529,7 @@ try_commit_txnh(commit_data *cd)
 
 	ON_TRACE(TRACE_TXN,
 		 "commit_txnh: atom %u failed %u; txnh_count %u; should_commit %u\n",
-		 cd->atom->atom_id, cd->failed, cd->atom->txnh_count, 
+		 cd->atom->atom_id, cd->failed, cd->atom->txnh_count,
 		 atom_should_commit(cd->atom));
 
 	if (cd->failed)
@@ -1568,7 +1626,7 @@ commit_txnh(txn_handle * txnh)
 
 	txnh_list_remove(txnh);
 
-	ON_TRACE(TRACE_TXN, "close txnh atom %u refcount %d\n", 
+	ON_TRACE(TRACE_TXN, "close txnh atom %u refcount %d\n",
 		 cd.atom->atom_id, atomic_read(&cd.atom->refcount));
 
 	UNLOCK_TXNH(txnh);
@@ -1581,10 +1639,10 @@ commit_txnh(txn_handle * txnh)
 
 	/* VS-FIXME-ANONYMOUS-BUT-ASSIGNED-TO-VS-BY-HANS: Note: We are ignoring the failure code.  Can't change the result of the caller.
 	   E.g., in write():
-	  
+	
 	     result = 512;
 	     REISER4_EXIT (result);
-	  
+	
 	   It cannot "forget" that 512 bytes were written, even if commit fails.  This
 	   means force_txn_commit will retry forever.  Is there a better solution?
 	*/
@@ -1596,39 +1654,39 @@ commit_txnh(txn_handle * txnh)
 /* This routine attempts a single block-capture request.  It may return -E_REPEAT if some
    condition indicates that the request should be retried, and it may block if the
    txn_capture mode does not include the TXN_CAPTURE_NONBLOCKING request flag.
-  
+
    The try_capture() function (below) is the external interface, which calls this
    function repeatedly as long as -E_REPEAT is returned.
-  
+
    This routine encodes the basic logic of block capturing described by:
-  
+
      http://namesys.com/txn-doc.html
 
 ZAM-FIXME-HANS: update reference
-  
+
    Our goal here is to ensure that any two blocks that contain dependent modifications
    should commit at the same time.  This function enforces this discipline by initiating
    fusion whenever a transaction handle belonging to one atom requests to read or write a
    block belonging to another atom (TXN_CAPTURE_WRITE or TXN_CAPTURE_READ_ATOMIC).
-  
+
    In addition, this routine handles the initial assignment of atoms to blocks and
    transaction handles.  These are possible outcomes of this function:
-  
+
    1. The block and handle are already part of the same atom: return immediate success
-  
+
    2. The block is assigned but the handle is not: call capture_assign_txnh to assign
       the handle to the block's atom.
-  
+
    3. The handle is assigned but the block is not: call capture_assign_block to assign
       the block to the handle's atom.
-  
+
    4. Both handle and block are assigned, but to different atoms: call capture_init_fusion
       to fuse atoms.
-  
+
    5. Neither block nor handle are assigned: create a new atom and assign them both.
-  
+
    6. A read request for a non-captured block: return immediate success.
-  
+
    This function acquires and releases the handle's spinlock.  This function is called
    under the jnode lock and if the return value is 0, it returns with the jnode lock still
    held.  If the return is -E_REPEAT or some other error condition, the jnode lock is
@@ -1690,7 +1748,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 		/* It is time to perform deadlock prevention check over the node we want to capture.
 		   It is possible this node was locked for read without capturing it. The
 		   optimization which allows to do it helps us in keeping atoms independent as long
-		   as possible but it may cause lock/fuse deadlock problems. 
+		   as possible but it may cause lock/fuse deadlock problems.
 
 		   A number of similar deadlock situations with locked but not captured nodes were
 		   found.  In each situation there are two or more threads: one of them does flushing
@@ -1913,9 +1971,9 @@ repeat:
 		   legitimately blocked, the requestor goes to sleep in fuse_wait, so this
 		   is not a busy loop. */
 		/* NOTE-NIKITA: still don't understand:
-		  
+		
 		   try_capture_block->capture_assign_txnh->spin_trylock_atom->E_REPEAT
-		  
+		
 		   looks like busy loop?
 		*/
 		goto repeat;
@@ -1923,7 +1981,7 @@ repeat:
 
 	/* free extra atom object that was possibly allocated by
 	   try_capture_block().
-	  
+	
 	   Do this before acquiring jnode spin lock to
 	   minimize time spent under lock. --nikita */
 	if (atom_alloc != NULL) {
@@ -1957,7 +2015,7 @@ try_capture(jnode * node, znode_lock_mode lock_mode, txn_capture flags
 {
 	assert("jmacd-604", spin_jnode_is_locked(node));
 
-	return try_capture_args(node, get_current_context()->trans, lock_mode, 
+	return try_capture_args(node, get_current_context()->trans, lock_mode,
 				flags, flags & TXN_CAPTURE_NONBLOCKING, 0/*cap mode*/);
 }
 /* fuse all 'active' atoms of lock owners of given node. */
@@ -2131,7 +2189,7 @@ int uncapture_inode(struct inode *inode)
 }
 
 /* This informs the transaction manager when a node is deleted.  Add the block to the
-   atom's delete set and uncapture the block.  
+   atom's delete set and uncapture the block.
 
 VS-FIXME-HANS: this E_REPEAT paradigm clutters the code and creates a need for
 explanations.  find all the functions that use it, and unless there is some very
@@ -2240,7 +2298,7 @@ uncapture_jnode(jnode *node)
 
 	atom = atom_locked_by_jnode(node);
 	if (atom == NULL) {
-		assert("jmacd-7111", !jnode_check_dirty(node));
+		assert("jmacd-7111", !jnode_is_dirty(node));
 		UNLOCK_JNODE (node);
 		unhash_unformatted_jnode(node);
 		jput(node);
@@ -2330,7 +2388,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 	   relocate set nor overwrite one. If node is in overwrite or
 	   relocate set we assume that atom's flush reserved counter was
 	   already adjusted. */
-	if (!JF_ISSET(node, JNODE_CREATED) && !JF_ISSET(node, JNODE_RELOC) 
+	if (!JF_ISSET(node, JNODE_CREATED) && !JF_ISSET(node, JNODE_RELOC)
 	    && !JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node))
 	{
 		assert("vs-1093", !blocknr_is_fake(&node->blocknr));
@@ -2401,7 +2459,7 @@ znode_make_dirty(znode * z)
 		 * modifications are lost due to update of in-flight page),
 		 * but it requires locking on page to check PG_writeback
 		 * bit. */
-		/* assert("nikita-3292", 
+		/* assert("nikita-3292",
 		       !PageWriteback(page) || ZF_ISSET(z, JNODE_WRITEBACK)); */
 		page_cache_get(page);
 		ON_DEBUG_MODIFY(znode_set_checksum(ZJNODE(z), 1));
@@ -2445,7 +2503,7 @@ jnode_make_clean(jnode * node)
 
 		assert("jmacd-9366", !jnode_is_dirty(node));
 
-		/*ON_TRACE (TRACE_FLUSH, "clean %sformatted node %p\n", 
+		/*ON_TRACE (TRACE_FLUSH, "clean %sformatted node %p\n",
 		   jnode_is_unformatted (node) ? "un" : "", node); */
 	}
 
@@ -2641,7 +2699,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 
 	assert("umka-298", atom != NULL);
 
-	/* 
+	/*
 	 * optimization: this code went through three evolution stages. Main
 	 * driving force of evolution here is lock ordering:
 	 *
@@ -2651,7 +2709,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 	 *
 	 *     2. node belongs to atom, and
 	 *
-	 *     3. txnh don't. 
+	 *     3. txnh don't.
 	 *
 	 * What we want to do here is to acquire spin lock on node's atom and
 	 * modify it somehow depending on its ->stage. In the simplest case,
@@ -2677,7 +2735,7 @@ capture_assign_txnh(jnode * node, txn_handle * txnh, txn_capture mode)
 		LOCK_TXNH(txnh);
 		/* NOTE-NIKITA is it at all possible that current txnh
 		 * spontaneously changes ->atom from NULL to non-NULL? */
-		if (node->atom == NULL || 
+		if (node->atom == NULL ||
 		    txnh->atom != NULL || atom != node->atom) {
 			/* something changed. Caller have to re-decide */
 			UNLOCK_ATOM(atom);
@@ -2739,7 +2797,7 @@ capture_super_block(struct super_block *s)
 	lock_handle lh;
 
 	init_lh(&lh);
-	result = get_uber_znode(get_tree(s), 
+	result = get_uber_znode(get_tree(s),
 				ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI, &lh);
 	if (result)
 		return result;
@@ -2794,13 +2852,13 @@ wakeup_atom_waiting_list(txn_atom * atom)
    another atom or, due to age, enter the CAPTURE_WAIT state itself, at which point it
    needs to unblock the handle to avoid deadlock.  When the txnh is unblocked it will
    proceed and fuse the two atoms in the CAPTURE_WAIT state.
-  
+
    In other words, if either atomh or atomf change state, the handle will be awakened,
    thus there are two lists per atom: WAITING and WAITFOR.
-   
+
    This is also called by capture_assign_txnh with (atomh == NULL) to wait for atomf to
    close but it is not assigned to an atom of its own.
-  
+
    Lock ordering in this method: all four locks are held: JNODE_LOCK, TXNH_LOCK,
    BOTH_ATOM_LOCKS.  Result: all four locks are released.
 */
@@ -2983,7 +3041,7 @@ capture_fuse_jnode_lists(txn_atom * large, capture_list_head * large_head, captu
 	assert("umka-219", large_head != NULL);
 	assert("umka-220", small_head != NULL);
 	/* small atom should be locked also. */
-	assert("zam-968", spin_atom_is_locked(large)); 
+	assert("zam-968", spin_atom_is_locked(large));
 
 	/* For every jnode on small's capture list... */
 	for_all_tslist(capture, small_head, node) {
@@ -3142,12 +3200,12 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 
 #if REISER4_COPY_ON_CAPTURE
 
-/* capture copy has to replace jnode on capture list (overwrite list of atom?) 
+/* capture copy has to replace jnode on capture list (overwrite list of atom?)
    with cc jnode. Capture list is being continuously scanned: (by
    wander.c:write_jnode_list(), wander.c:jnode_extent_write(), others?). Those
    scanners assume that number of jnodes on that list does not change. (FIXME:
    is it true?).
-   
+
    Race between replacement and scanning are avoided with one global spin lock
    (scan_lock) and JNODE_SCANNED state of jnode. Replacement (in capture copy)
    goes under scan_lock locked only if jnode is not in JNODE_SCANNED state. This
@@ -3421,7 +3479,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 
 #endif /* REISER4_COPY_ON_CAPTURE */
 
-/* Perform copy-on-capture of a block.  INCOMPLETE CODE. 
+/* Perform copy-on-capture of a block.  INCOMPLETE CODE.
 
 VS-FIXME-HANS: complete it or remove it.*/
 static int
@@ -3451,9 +3509,9 @@ capture_copy(jnode * node, txn_handle * txnh, txn_atom * atomf, txn_atom * atomh
 #endif
 }
 
-/* Release a block from the atom, reversing the effects of being captured, 
+/* Release a block from the atom, reversing the effects of being captured,
    do not release atom's reference to jnode due to holding spin-locks.
-   Currently this is only called when the atom commits. 
+   Currently this is only called when the atom commits.
 
    NOTE: this function does not release a (journal) reference to jnode
    due to locking optimizations, you should call jput() somewhere after
