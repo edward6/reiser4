@@ -2762,12 +2762,7 @@ static int bash_cpr (struct inode * dir, const char * source)
 			result = errno;
 			break;
 		}
-		{
-			char * tmp;
-			tmp = getcwd (0, 0);
-			info ("%s/%s\n", tmp, dirent->d_name);
-			free (tmp);
-		}
+		info ("%s\n", name);
 		if (S_ISDIR (st.st_mode)) {
 			result = call_mkdir (dir, dirent->d_name);
 			if (result)
@@ -2815,6 +2810,8 @@ static int bash_diff (char * real_file, struct inode * cwd, const char * name)
 		perror ("diff: stat failed");
 		return 0;
 	}
+	/* read by 255 bytes */
+	BUFSIZE = 255;
 
 	/*
 	 * open file in "normal" filesystem
