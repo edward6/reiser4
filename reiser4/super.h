@@ -9,38 +9,51 @@
 #if !defined( __REISER4_SUPER_H__ )
 #define __REISER4_SUPER_H__
 
-/** reiser4-specific part of inode */
+/** reiser4-specific part of super block */
 typedef struct reiser4_super_info_data {
 	/**
 	 * allocator used to allocate new object ids for objects in the file
-	 * system. Current default implementation of object id allocator 
+	 * system. Current default implementation of object id allocator is
+	 * just counter and
 	 */
 	reiser4_oid_allocator allocator;
+
 	/**
-	 *
+	 * reiser4 internal tree
 	 */
 	reiser4_tree       tree;
+
 	/**
-	 *
+	 * default user id used for light-weight files without their own
+	 * stat-data.
 	 */
 	uid_t              default_uid;
+
 	/**
-	 *
+	 * default group id used for light-weight files without their own
+	 * stat-data.
 	 */
 	gid_t              default_gid;
 
 	/**
-	 *
+	 * amount of blocks used by file system data and meta-data.
 	 */
 	__u32    blocks_used;
+
 	/**
-	 *
+	 * amount of free blocks.
 	 */
 	__u32    blocks_free;
+
 	/**
+	 * current inode generation.
+	 *
+	 * FIXME-NIKITA not sure this is really needed now when we have 64-bit
+	 * inode numbers.
 	 *
 	 */
 	__u32    inode_generation;
+
 	/** unique file-system identifier */
 	__u32    fsuid;
 
@@ -53,26 +66,32 @@ typedef struct reiser4_super_info_data {
 	/* super block flags */
 
 	/**
-	 *
+	 * see reiser4_adg() for description.
 	 */
 	__u32    adg                :1;
+
 	/**
-	 *
+	 * set if all nodes in internal tree have the same node layout plugin.
+	 * If so, znode_guess_plugin() will return tree->node_plugin in stead
+	 * of guessing plugin by plugin id stored in the node.
 	 */
 	__u32    one_node_plugin    :1;
 
 	/**
-	 *
+	 * Statistical counters. reiser4_stat is empty data-type unless
+	 * REISER4_STATS is set.
 	 */
 	reiser4_stat     stats;
 
 	/** transaction manager */
 	txn_mgr              tmgr;
 
+#if REISER4_DEBUG
 	/**
-	 *
+	 * amount of space allocated by kmalloc. For debugging.
 	 */
-	int                  allocated;
+	int                  kmalloc_allocated;
+#endif
 
 } reiser4_super_info_data;
 
