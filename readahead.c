@@ -18,6 +18,7 @@ static inline int ra_all_levels(int flags)
 }
 
 /* global formatted node readahead parameter. It can be set by mount option -o readahead:NUM:4 */
+/* REMOVE THIS */
 static inline int ra_continue_if_present(int flags)
 {
 	return flags & RA_CONTINUE_ON_PRESENT;
@@ -87,6 +88,13 @@ formatted_readahead(znode *node, ra_info_t *info)
 
 		if (!ra_continue_if_present(ra_params->flags) && !znode_just_created(next_lh.node)) {
 			/* node is available already. Do not readahead more */
+			done_lh(&next_lh);
+			break;
+		}
+
+		if (JF_ISSET(ZJNODE(next_lh.node), JNODE_EFLUSH)) {
+			/* emergency flushed znode is encountered. That means we are low on memory. Do not readahead
+			   then */
 			done_lh(&next_lh);
 			break;
 		}
