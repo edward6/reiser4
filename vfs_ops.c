@@ -1,11 +1,7 @@
-/*
- * Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README
- */
+/* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/*
- * Interface to VFS. Reiser4 {file|inode|address_space|dentry}_operations
- * are defined here.
- */
+/* Interface to VFS. Reiser4 {file|inode|address_space|dentry}_operations
+   are defined here. */
 
 #include "forward.h"
 #include "debug.h"
@@ -122,29 +118,25 @@ static int reiser4_dentry_to_fh(struct dentry *, __u32 * fh, int *lenp, int need
 static int reiser4_writepage(struct page *);
 static int reiser4_readpage(struct file *, struct page *);
 static int reiser4_vm_writeback(struct page *page, struct writeback_control *wbc);
-/*
-static int reiser4_prepare_write(struct file *, 
+/* static int reiser4_prepare_write(struct file *, 
 				 struct page *, unsigned, unsigned);
 static int reiser4_commit_write(struct file *, 
 				struct page *, unsigned, unsigned);
 */
 static sector_t reiser4_bmap(struct address_space *, sector_t);
-/*
-static int reiser4_direct_IO(int, struct inode *, 
-			     struct kiobuf *, unsigned long, int);
-*/
+/* static int reiser4_direct_IO(int, struct inode *, 
+			     struct kiobuf *, unsigned long, int); */
 extern struct dentry_operations reiser4_dentry_operation;
 
 static struct file_system_type reiser4_fs_type;
 
 static int invoke_create_method(struct inode *parent, struct dentry *dentry, reiser4_object_create_data * data);
 
-/**
- * reiser4_lookup() - entry point for ->lookup() method.
- *
- * This is a wrapper for lookup_object which is a wrapper for the directory plugin that does the lookup.
- *
- * This is installed in ->lookup() in reiser4_inode_operations.
+/* reiser4_lookup() - entry point for ->lookup() method.
+  
+   This is a wrapper for lookup_object which is a wrapper for the directory plugin that does the lookup.
+  
+   This is installed in ->lookup() in reiser4_inode_operations.
  */
 /* Audited by: umka (2002.06.12) */
 static struct dentry *
@@ -304,10 +296,9 @@ reiser4_follow_link(struct dentry *dentry, struct nameidata *data)
 	return vfs_follow_link(data, dentry->d_inode->u.generic_ip);
 }
 
-/*
- * ->setattr() inode operation
- *
- * Called from notify_change.
+/* ->setattr() inode operation
+  
+   Called from notify_change.
  */
 static int
 reiser4_setattr(struct dentry *dentry, struct iattr *attr)
@@ -330,9 +321,7 @@ reiser4_setattr(struct dentry *dentry, struct iattr *attr)
 	REISER4_EXIT(result);
 }
 
-/**
- * ->getattr() inode operation called (indirectly) by sys_stat().
- */
+/* ->getattr() inode operation called (indirectly) by sys_stat(). */
 static int
 reiser4_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct kstat *stat)
 {
@@ -446,8 +435,8 @@ reiser4_truncate(struct inode *inode /* inode to truncate */ )
 	__REISER4_EXIT(&__context);
 }
 
-/** return number of files in a filesystem. It is used in reiser4_statfs to
- * fill ->f_ffiles */
+/* return number of files in a filesystem. It is used in reiser4_statfs to
+   fill ->f_ffiles */
 /* Audited by: umka (2002.06.12) */
 static long
 oids_used(struct super_block *s	/* super block of file system in
@@ -470,8 +459,8 @@ oids_used(struct super_block *s	/* super block of file system in
 		return (long) -1;
 }
 
-/** number of oids available for use by users. It is used in reiser4_statfs to
- * fill ->f_ffree */
+/* number of oids available for use by users. It is used in reiser4_statfs to
+   fill ->f_ffree */
 /* Audited by: umka (2002.06.12) */
 static long
 oids_free(struct super_block *s	/* super block of file system in
@@ -531,9 +520,7 @@ reiser4_statfs(struct super_block *super	/* super block of file
 	REISER4_EXIT(0);
 }
 
-/*
- * address space operations
- */
+/* address space operations */
 
 /** ->writepage() VFS method in reiser4 address_space_operations */
 static int
@@ -613,8 +600,7 @@ reiser4_vm_writeback(struct page *page, struct writeback_control *wbc)
 	return page_common_writeback(page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
 }
 
-/* 
-   ->writepages()
+/* ->writepages()
    ->vm_writeback()
    ->set_page_dirty()
    ->readpages()
@@ -638,25 +624,23 @@ reiser4_bmap(struct address_space *mapping, sector_t block)
 }
 
 /* ->invalidatepage()
-   ->releasepage()
-*/
+   ->releasepage() */
 
-/* 
- * FIXME-VS: 
- * for some reasons we are not satisfied with address space's readpages() method.
- *
- * Andrew Morton says:
- * Probably, we make do_page_cache_readahead an a_op.  It's a pretty small
- * function, so the fs can take a copy and massage it to suit.
- * We'll have to get that a_op to pass back to page_cache_readahead() the
- * start/nr_pages which it actually did start I/O against, so the readahead
- * logic can adjust its state.
- *
- * So, if/when this method will be added - the below is reiser4's
- * implementation
- * @start_page - number of page to start readahead from
- * @intrafile_readahead_amount - number of pages to issue i/o for
- * return value: number of pages for which i/o is started
+/* FIXME-VS: 
+   for some reasons we are not satisfied with address space's readpages() method.
+  
+   Andrew Morton says:
+   Probably, we make do_page_cache_readahead an a_op.  It's a pretty small
+   function, so the fs can take a copy and massage it to suit.
+   We'll have to get that a_op to pass back to page_cache_readahead() the
+   start/nr_pages which it actually did start I/O against, so the readahead
+   logic can adjust its state.
+  
+   So, if/when this method will be added - the below is reiser4's
+   implementation
+   @start_page - number of page to start readahead from
+   @intrafile_readahead_amount - number of pages to issue i/o for
+   return value: number of pages for which i/o is started
  */
 int
 reiser4_do_page_cache_readahead(struct file *file, unsigned long start_page, unsigned long intrafile_readahead_amount)
@@ -728,13 +712,12 @@ reiser4_do_page_cache_readahead(struct file *file, unsigned long start_page, uns
 	return result <= 0 ? result : (int) (cur_page - start_page);
 }
 
-/**
- * ->link() VFS method in reiser4 inode_operations
- *
- * entry point for ->link() method.
- *
- * This is installed as ->link inode operation for reiser4
- * inodes. Delegates all work to object plugin
+/* ->link() VFS method in reiser4 inode_operations
+  
+   entry point for ->link() method.
+  
+   This is installed as ->link inode operation for reiser4
+   inodes. Delegates all work to object plugin
  */
 /* Audited by: umka (2002.06.12) */
 static int
@@ -791,22 +774,21 @@ typedef struct readdir_actor_args {
 	reiser4_key key;
 } readdir_actor_args;
 
-/**
- * reiser4_readdir() - our readdir() method.
- *
- * readdir(2)/getdents(2) interface is based on implicit assumption that
- * readdir can be restarted from any particular point by supplying file
- * system with off_t-full of data. That is, file system fill ->d_off
- * field in struct dirent and later user passes ->d_off to the
- * seekdir(3), which is, actually, implemented by glibc as lseek(2) on
- * directory.
- *
- * Reiser4 cannot restart readdir from 64 bits of data, because two last
- * components of the key of directory entry are unknown, which given 128
- * bits: locality and type fields in the key of directory entry are
- * always known, to start readdir() from given point objectid and offset
- * fields have to be filled.
- *
+/* reiser4_readdir() - our readdir() method.
+  
+   readdir(2)/getdents(2) interface is based on implicit assumption that
+   readdir can be restarted from any particular point by supplying file
+   system with off_t-full of data. That is, file system fill ->d_off
+   field in struct dirent and later user passes ->d_off to the
+   seekdir(3), which is, actually, implemented by glibc as lseek(2) on
+   directory.
+  
+   Reiser4 cannot restart readdir from 64 bits of data, because two last
+   components of the key of directory entry are unknown, which given 128
+   bits: locality and type fields in the key of directory entry are
+   always known, to start readdir() from given point objectid and offset
+   fields have to be filled.
+  
  */
 static int
 reiser4_readdir(struct file *f /* directory file being read */ ,
@@ -878,11 +860,10 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	REISER4_EXIT(result);
 }
 
-/** 
- * ->unlink() VFS method in reiser4 inode_operations
- *
- * remove link from @parent directory to @victim object: delegate work
- * to object plugin
+/* ->unlink() VFS method in reiser4 inode_operations
+  
+   remove link from @parent directory to @victim object: delegate work
+   to object plugin
  */
 /* Audited by: umka (2002.06.12) */
 static int
@@ -899,11 +880,10 @@ reiser4_unlink(struct inode *parent /* parent directory */ ,
 		return -EISDIR;
 }
 
-/** 
- * ->rmdir() VFS method in reiser4 inode_operations
- *
- * The same as unlink, but only for directories.
- *
+/* ->rmdir() VFS method in reiser4 inode_operations
+  
+   The same as unlink, but only for directories.
+  
  */
 /* Audited by: umka (2002.06.12) */
 static int
@@ -944,9 +924,7 @@ reiser4_permission(struct inode *inode /* object */ ,
 	return result;
 }
 
-/**
- * update inode stat-data by calling plugin
- */
+/* update inode stat-data by calling plugin */
 int
 reiser4_write_sd(struct inode *object)
 {
@@ -962,11 +940,10 @@ reiser4_write_sd(struct inode *object)
 	return fplug->write_sd_by_inode(object);
 }
 
-/**
- * helper function: increase inode nlink count and call plugin method to save
- * updated stat-data.
- *
- * Used by link/create and during creation of dot and dotdot in mkdir
+/* helper function: increase inode nlink count and call plugin method to save
+   updated stat-data.
+  
+   Used by link/create and during creation of dot and dotdot in mkdir
  */
 int
 reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
@@ -996,11 +973,10 @@ reiser4_add_nlink(struct inode *object /* object to which link is added */ ,
 	return result;
 }
 
-/**
- * helper function: decrease inode nlink count and call plugin method to save
- * updated stat-data.
- *
- * Used by unlink/create
+/* helper function: decrease inode nlink count and call plugin method to save
+   updated stat-data.
+  
+   Used by unlink/create
  */
 int
 reiser4_del_nlink(struct inode *object	/* object from which link is
@@ -1097,7 +1073,7 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 	}
 }
 
-/** initial prefix of names of pseudo-files like ..plugin, ..acl,
+/* initial prefix of names of pseudo-files like ..plugin, ..acl,
     ..whatnot, ..and, ..his, ..dog 
 
     Reminder: This is an optional style convention, not a requirement.
@@ -1106,10 +1082,8 @@ truncate_object(struct inode *inode /* object to truncate */ ,
     pseudo-files without this prefix, I will be pissed.  -Hans */
 static const char PSEUDO_FILES_PREFIX[] = "..";
 
-/**
- * Return and lazily allocate if necessary per-dentry data that we
- * attach to each dentry.
- */
+/* Return and lazily allocate if necessary per-dentry data that we
+   attach to each dentry. */
 /* Audited by: umka (2002.06.12) */
 reiser4_dentry_fsdata *
 reiser4_get_dentry_fsdata(struct dentry *dentry	/* dentry
@@ -1145,10 +1119,8 @@ reiser4_d_release(struct dentry *dentry /* dentry released */ )
 	__REISER4_EXIT(&__context);
 }
 
-/**
- * Return and lazily allocate if necessary per-file data that we attach
- * to each struct file.
- */
+/* Return and lazily allocate if necessary per-file data that we attach
+   to each struct file. */
 reiser4_file_fsdata *
 reiser4_get_file_fsdata(struct file *f	/* file
 					 * queried */ )
@@ -1195,8 +1167,8 @@ tail_status(const struct inode *inode)
 	return "notail";
 }
 
-/** Release reiser4 file. This is f_op->release() method. Called when last
- * holder closes a file */
+/* Release reiser4 file. This is f_op->release() method. Called when last
+   holder closes a file */
 static int
 reiser4_release(struct inode *i /* inode released */ ,
 		struct file *f /* file released */ )
@@ -1225,24 +1197,20 @@ reiser4_release(struct inode *i /* inode released */ ,
 	REISER4_EXIT(result);
 }
 
-/** our ->read_inode() is no-op. Reiser4 inodes should be loaded
+/* our ->read_inode() is no-op. Reiser4 inodes should be loaded
     through fs/reiser4/inode.c:reiser4_iget() */
 static void
 noop_read_inode(struct inode *inode UNUSED_ARG)
 {
 }
 
-/***************************************************
- * initialisation and shutdown
- ***************************************************/
+/* initialisation and shutdown */
 
 /** slab cache for inodes */
 static kmem_cache_t *inode_cache;
 
-/**
- * initalisation function passed to the kmem_cache_create() to init new pages
- * grabbed by our inodecache.
- */
+/* initalisation function passed to the kmem_cache_create() to init new pages
+   grabbed by our inodecache. */
 static void
 init_once(void *obj /* pointer to new inode */ ,
 	  kmem_cache_t * cache UNUSED_ARG /* slab cache */ ,
@@ -1518,9 +1486,7 @@ typedef struct opt_desc {
 	} u;
 } opt_desc_t;
 
-/**
- * parse one option
- */
+/* parse one option */
 static int
 parse_option(char *opt_string /* starting point of parsing */ ,
 	     opt_desc_t * opt /* option description */ )
@@ -1886,7 +1852,7 @@ reiser4_show_options(struct seq_file *m, struct vfsmount *mnt)
 extern ktxnmgrd_context kdaemon;
 
 /* There are some 'committed' versions of reiser4 super block counters, which
- * correspond to reiser4 on-disk state. These counters are initialized here */
+   correspond to reiser4 on-disk state. These counters are initialized here */
 static void
 init_committed_sb_counters(const struct super_block *s)
 {
@@ -1896,10 +1862,9 @@ init_committed_sb_counters(const struct super_block *s)
 	private->nr_files_committed = oid_used();
 }
 
-/**
- * read super block from device and fill remaining fields in @s.
- *
- * This is read_super() of the past.  
+/* read super block from device and fill remaining fields in @s.
+  
+   This is read_super() of the past.  
  */
 static int
 reiser4_fill_super(struct super_block *s, void *data, int silent UNUSED_ARG)
@@ -2446,9 +2411,7 @@ typedef enum {
 
 static reiser4_init_stage init_stage;
 
-/**
- * finish with reiser4: this is called either at shutdown or at module unload.
- */
+/* finish with reiser4: this is called either at shutdown or at module unload. */
 static void __exit
 done_reiser4(void)
 {
@@ -2490,9 +2453,7 @@ static struct notifier_block low_mem_test = {
 };
 #endif
 
-/**
- * initialise reiser4: this is called either at bootup or at module load.
- */
+/* initialise reiser4: this is called either at bootup or at module load. */
 static int __init
 init_reiser4(void)
 {
@@ -2533,14 +2494,10 @@ module_exit(done_reiser4);
 MODULE_DESCRIPTION("Reiser4 filesystem");
 MODULE_AUTHOR("Hans Reiser <Reiser@Namesys.COM>");
 
-/*
- * FIXME-NIKITA is this correct?
- */
+/* FIXME-NIKITA is this correct? */
 MODULE_LICENSE("GPL");
 
-/**
- * description of the reiser4 file system type in the VFS eyes.
- */
+/* description of the reiser4 file system type in the VFS eyes. */
 static struct file_system_type reiser4_fs_type = {
 	.owner = THIS_MODULE,
 	.name = "reiser4",
@@ -2673,13 +2630,12 @@ struct dentry_operations reiser4_dentry_operation = {
 	.d_iput = NULL,
 };
 
-/* 
- * Make Linus happy.
- * Local variables:
- * c-indentation-style: "K&R"
- * mode-name: "LC"
- * c-basic-offset: 8
- * tab-width: 8
- * fill-column: 120
- * End:
+/* Make Linus happy.
+   Local variables:
+   c-indentation-style: "K&R"
+   mode-name: "LC"
+   c-basic-offset: 8
+   tab-width: 8
+   fill-column: 120
+   End:
  */
