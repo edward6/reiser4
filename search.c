@@ -654,7 +654,7 @@ prepare_object_lookup(cbk_handle * h)
 			if (h->result == 0) {
 				/* search for key in vroot. */
 				result = cbk_node_lookup(h);
-				zrelse(h->active_lh->node);
+				zrelse(vroot);/*h->active_lh->node);*/
 				if (h->active_lh->node != vroot) {
 					result = LOOKUP_REST;
 					reiser4_stat_inc(tree.object_lookup_moved);
@@ -947,8 +947,6 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 			ldkeyset = 1;
 		}
 		zrelse(parent);
-		if (unlikely(h->result != 0))
-			goto fail_or_restart;
 	}
 
 	/* this is ugly kludge. Reminder: this is necessary, because
@@ -1040,7 +1038,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 
 	/* reget @active from handle, because it can change in
 	   cbk_node_lookup()  */
-	active = h->active_lh->node;
+	/*active = h->active_lh->node;*/
 	zrelse(active);
 
 	return ret;
@@ -1160,8 +1158,11 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 
 	assert("vs-361", h->level > h->stop_level);
 
-	if (handle_eottl(h, &result))
+	if (handle_eottl(h, &result)) {
+		/**/
+		assert("vs-1674", result == LOOKUP_DONE || result == LOOKUP_REST);
 		return result;
+	}
 
 	assert("nikita-2116", item_is_internal(h->coord));
 	iplug = item_plugin_by_coord(h->coord);
@@ -1288,7 +1289,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 		llr = cbk_node_lookup(h);
 		/* if cbk_node_lookup() wandered to another node (due to eottl
 		   or non-unique keys), adjust @node */
-		node = h->active_lh->node;
+		/*node = h->active_lh->node;*/
 
 		if (llr != LOOKUP_DONE) {
 			/* restart or continue on the next level */
@@ -1302,7 +1303,7 @@ cbk_cache_scan_slots(cbk_handle * h /* cbk handle */ )
 			result = 0;
 
 			write_lock_cbk_cache(cache);
-			if (slot->node == node) {
+			if (slot->node == h->active_lh->node/*node*/) {
 				/* if this node is still in cbk cache---move
 				   its slot to the head of the LRU list. */
 				cbk_cache_list_remove(slot);
