@@ -101,7 +101,7 @@ item_type item_type_by_coord( const tree_coord *coord /* coord to query */ )
 
 	trace_stamp( TRACE_TREE );
 
-	return item_plugin_by_coord( coord ) -> common.type2;
+	return item_plugin_by_coord( coord ) -> h.id;
 }
 
 /* return id of item */

@@ -137,19 +137,18 @@ int item_is_statdata (const tree_coord *item)
 }
 
 reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
-	[ 0 ] = {
+	[ STATIC_STAT_DATA_ID ] = {
 		.item = {
 			.h = {
-				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = STATIC_STAT_DATA_ID,
-				.pops    = NULL,
-				.label   = "sd",
-				.desc    = "stat-data",
-				.linkage = TS_LIST_LINK_ZERO
+				.type_id   = REISER4_ITEM_PLUGIN_TYPE,
+				.id = STAT_DATA_ITEM_TYPE,
+				.pops      = NULL,
+				.label     = "sd",
+				.desc      = "stat-data",
+				.linkage   = TS_LIST_LINK_ZERO
 			},
 			.common = {
-				.type2                    = STAT_DATA_ITEM_TYPE,
-				.id2                      = STATIC_STAT_DATA_ID,
+				.id                      = STATIC_STAT_DATA_ID,
 				.max_key_inside          = single_key,
 				.can_contain_key         = NULL,
 				.mergeable               = NULL,
@@ -184,19 +183,18 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ 1 ] = {
+	[ SIMPLE_DIR_ENTRY_ID ] = {
 		.item = {
 			.h = {
-				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = SIMPLE_DIR_ENTRY_ID,
-				.pops    = NULL,
-				.label   = "de",
-				.desc    = "directory entry",
-				.linkage = TS_LIST_LINK_ZERO
+				.type_id   = REISER4_ITEM_PLUGIN_TYPE,
+				.id = DIR_ENTRY_ITEM_TYPE,
+				.pops      = NULL,
+				.label     = "de",
+				.desc      = "directory entry",
+				.linkage   = TS_LIST_LINK_ZERO
 			},
 			.common = {
-				.type2                    = DIR_ENTRY_ITEM_TYPE,
-				.id2                      = SIMPLE_DIR_ENTRY_ID,
+				.id                      = SIMPLE_DIR_ENTRY_ID,
 				.max_key_inside          = single_key,
 				.can_contain_key         = NULL,
 				.mergeable               = NULL,
@@ -234,19 +232,18 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ 2 ] = {
+	[ COMPOUND_DIR_ID ] = {
 		.item = {
 			.h = {
 				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = COMPOUND_DIR_ID,
+				.id      = DIR_ENTRY_ITEM_TYPE,
 				.pops    = NULL,
 				.label   = "cde",
 				.desc    = "compressed directory entry",
 				.linkage = TS_LIST_LINK_ZERO
 			},
 			.common = {
-				.type2                    = DIR_ENTRY_ITEM_TYPE,
-				.id2                      = COMPOUND_DIR_ID,
+				.id                      = COMPOUND_DIR_ID,
 				.max_key_inside          = cde_max_key_inside,
 				.can_contain_key         = cde_can_contain_key,
 				.mergeable               = cde_mergeable,
@@ -283,19 +280,18 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ 3 ] = {
+	[ NODE_POINTER_ID ] = {
 		.item = {
 			.h = {
 				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = NODE_POINTER_ID,
+				.id      = INTERNAL_ITEM_TYPE,
 				.pops    = NULL,
 				.label   = "internal",
 				.desc    = "internal item",
 				.linkage = TS_LIST_LINK_ZERO
 			},
 			.common = {
-				.type2                    = INTERNAL_ITEM_TYPE,
-				.id2                      = NODE_POINTER_ID,
+				.id                      = NODE_POINTER_ID,
 				.max_key_inside          = NULL,
 				.can_contain_key         = NULL,
 				.mergeable               = internal_mergeable,
@@ -328,19 +324,18 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ 4 ] = {
+	[ EXTENT_POINTER_ID ] = {
 		.item = {
 			.h = {
-				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = EXTENT_POINTER_ID,
-				.pops    = NULL,
-				.label   = "extent",
-				.desc    = "extent item",
-				.linkage = TS_LIST_LINK_ZERO
+				.type_id   = REISER4_ITEM_PLUGIN_TYPE,
+				.id = ORDINARY_FILE_METADATA_TYPE,
+				.pops      = NULL,
+				.label     = "extent",
+				.desc      = "extent item",
+				.linkage   = TS_LIST_LINK_ZERO
 			},
 			.common = {
-				.type2                   = ORDINARY_FILE_METADATA_TYPE,
-				.id2                     = EXTENT_POINTER_ID,
+				.id                      = EXTENT_POINTER_ID,
 				.max_key_inside          = extent_max_key_inside,
 				.can_contain_key         = extent_can_contain_key,
 				.mergeable               = extent_mergeable,
@@ -374,19 +369,18 @@ reiser4_plugin item_plugins[ LAST_ITEM_ID ] = {
 			}
 		}
 	},
-	[ 5 ] = {
+	[ TAIL_ID ] = {
 		.item = {
 			.h = {
-				.type_id = REISER4_ITEM_PLUGIN_TYPE,
-				.id      = TAIL_ID,
-				.pops    = NULL,
-				.label   = "body",
-				.desc    = "body (or tail?) item",
-				.linkage = TS_LIST_LINK_ZERO
+				.type_id   = REISER4_ITEM_PLUGIN_TYPE,
+				.id = ORDINARY_FILE_METADATA_TYPE,
+				.pops      = NULL,
+				.label     = "body",
+				.desc      = "body (or tail?) item",
+				.linkage   = TS_LIST_LINK_ZERO
 			},
 			.common = {
-				.type2                   = ORDINARY_FILE_METADATA_TYPE,
-				.id2                     = TAIL_ID,
+				.id                      = TAIL_ID,
 				.max_key_inside          = tail_max_key_inside,
 				.can_contain_key         = tail_can_contain_key,
 				.mergeable               = tail_mergeable,

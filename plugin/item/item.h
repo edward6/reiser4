@@ -12,7 +12,7 @@
  * handler, and all of the item specific portions of the item handler are put
  * into a union. */
 
-
+/* plugin_id-s for plugin_type_id of REISER4_ITEM_PLUGIN_TYPE */
 typedef enum { 
 	STAT_DATA_ITEM_TYPE,
 	DIR_ENTRY_ITEM_TYPE,
@@ -23,17 +23,17 @@ typedef enum {
 
 
 typedef enum { 
-	FIRST_ITEM_ID,
 	STATIC_STAT_DATA_ID,
 	SIMPLE_DIR_ENTRY_ID,
 	COMPOUND_DIR_ID,
+	NODE_POINTER_ID,
 	ACL_ID,
 	EXTENT_POINTER_ID, 
 	TAIL_ID, 
-	NODE_POINTER_ID,
 	LAST_ITEM_ID 
 } item_id;
 
+#define FIRST_ITEM_ID STATIC_STAT_DATA_ID
 
 /* flags to utmost_child method */
 typedef enum {
@@ -50,8 +50,7 @@ typedef struct {
 	   has the same minor packing locality. Use "item_plugin_id" to determine
 	   what kind of item you have found.  
 	*/
-	item_type type2;
-	item_id id2;
+	item_id id;
 
 	/** operations called by balancing 
 
@@ -301,7 +300,7 @@ struct item_plugin {
 
 static inline item_id item_id_by_plugin (item_plugin *plugin)
 {
-	return plugin->common.id2;
+	return plugin->common.id;
 }
 
 
