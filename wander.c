@@ -298,7 +298,7 @@ static int get_space_for_tx (int tx_size)
 	while (1) {
 		reiser4_block_nr not_used;
 
-		ret = reiser4_reserve_blocks 
+		ret = reiser4_grab_space 
 			(&not_used, (reiser4_block_nr)tx_size, (reiser4_block_nr)tx_size);
 
 		if (ret == 0) break;
@@ -558,7 +558,7 @@ static void dealloc_tx_list (txn_atom * atom)
 	while (!capture_list_empty (&atom->tx_list)) {
 		jnode * cur = capture_list_pop_front(&atom->tx_list);
 
-		reiser4_dealloc_block (jnode_get_block (cur), 0);
+		reiser4_dealloc_block (jnode_get_block (cur), 0, BLOCK_NOT_COUNTED);
 
 		jfree (cur);
 	}
@@ -575,7 +575,7 @@ static int dealloc_wmap_actor (
 	assert ("zam-500", *b != 0);
 	assert ("zam-501", !blocknr_is_fake(b));
 
-	reiser4_dealloc_block (b, 0);
+	reiser4_dealloc_block (b, 0, BLOCK_NOT_COUNTED);
 
 	return 0;
 }

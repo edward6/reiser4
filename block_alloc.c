@@ -52,9 +52,180 @@ int blocknr_is_fake(const reiser4_block_nr * da)
 	return (*da & REISER4_FAKE_BLOCKNR_BIT_MASK) ? 1 : 0;
 }
 
+/* Static functions for <reiser4 super block>/<reiser4 context> block counters
+ * arithmetic. Mostly, they are isolated to not to code same assertions in
+ * several places. */
+
+static void add_to_sb_grabbed (const struct super_block * super, __u64 count)
+{
+	__u64 grabbed_blocks = reiser4_grabbed_blocks (super);
+
+	grabbed_blocks += count;
+	reiser4_set_grabbed_blocks (super, grabbed_blocks);
+}
+
+static void sub_from_sb_grabbed (const struct super_block * super, __u64 count)
+{
+	__u64 grabbed_blocks = reiser4_grabbed_blocks (super);
+
+	assert ("zam-525", grabbed_blocks >= count);
+	grabbed_blocks -= count;
+	reiser4_set_grabbed_blocks (super, grabbed_blocks);
+}
+
+static void add_to_ctx_grabbed (__u64 count)
+{
+	reiser4_context * ctx = get_current_context();
+	ctx->grabbed_blocks += count;
+}
+
+static void sub_from_ctx_grabbed (__u64 count)
+{
+	reiser4_context * ctx = get_current_context();
+
+	assert ("zam-527", ctx->grabbed_blocks >= count);
+	ctx->grabbed_blocks += count;
+}
+
+static void add_to_sb_unallocated (const struct super_block * super, __u64 count)
+{
+	__u64 unallocated = reiser4_unallocated_blocks(super);
+
+	unallocated += count;
+	reiser4_set_unallocated_blocks(super, unallocated);
+}
+
+static void sub_from_sb_unallocated (const struct super_block * super, __u64 count)
+{
+	__u64 unallocated = reiser4_unallocated_blocks(super);
+
+	assert ("zam-528", unallocated >= count);
+	unallocated -= count;
+	reiser4_set_unallocated_blocks(super, unallocated);
+	
+}
+
+static void add_to_sb_used (const struct super_block * super, __u64 count)
+{
+	__u64 used_blocks = reiser4_data_blocks(super);
+	used_blocks += count;
+	reiser4_set_data_blocks (super, used_blocks);
+}
+
+static void sub_from_sb_used (const struct super_block *super, __u64 count)
+{
+	__u64 used_blocks = reiser4_data_blocks(super);
+
+	assert ("zam-530", used_blocks >= count);
+	used_blocks -= count;
+	reiser4_set_data_blocks (super, used_blocks);
+}
+
+/**
+ * should be called after @count fake block numbers are allocated or
+ * unallocated extent (@count blocks in size) created
+ */
+void reiser4_count_fake_allocation (__u64 count)
+{
+	const struct super_block * super = reiser4_get_current_sb(); 
+
+	sub_from_ctx_grabbed (count);
+
+	reiser4_spin_lock_sb(super);
+
+	sub_from_sb_grabbed(super, count);
+	add_to_sb_unallocated(super, count); 
+
+	reiser4_spin_unlock_sb (super);
+}
+
+/**
+ * disk space, virtually used by fake block numbers is counted as "grabbed" again.
+ */
+void reiser4_count_fake_deallocation (__u64 count)
+{
+	const struct super_block * super = reiser4_get_current_sb(); 
+
+	add_to_ctx_grabbed (count);
+
+	reiser4_spin_lock_sb(super);
+
+	add_to_sb_grabbed(super, count);
+	sub_from_sb_unallocated(super, count); 
+
+	reiser4_spin_unlock_sb (super);
+}
+
+/**
+ * adjust sb block counters when @count unallocated blocks get mapped to disk
+ */
+void reiser4_count_block_mapping (__u64 count)
+{
+	const struct super_block * super = reiser4_get_current_sb(); 
+
+	reiser4_spin_lock_sb(super);
+
+	sub_from_sb_unallocated(super, count);
+	add_to_sb_used(super, count);
+
+	reiser4_spin_unlock_sb (super);
+}
+/**
+ * adjust sb block counters when @count unallocated blocks get unmapped from
+ * disk
+ */
+void reiser4_count_block_unmapping (__u64 count)
+{
+	const struct super_block * super = reiser4_get_current_sb(); 
+
+	reiser4_spin_lock_sb(super);
+
+	add_to_sb_unallocated(super, count);
+	sub_from_sb_used(super, count);
+
+	reiser4_spin_unlock_sb (super);
+}
+
+/**
+ * adjust sb block counters, if real (on-disk) block allocation immediately
+ * follows grabbing of free disk space.
+ */
+void reiser4_count_real_allocation (__u64 count)
+{
+	const struct super_block * super = reiser4_get_current_sb(); 
+
+	sub_from_ctx_grabbed(count);
+
+	reiser4_spin_lock_sb(super);
+
+	sub_from_sb_grabbed(super, count);
+	add_to_sb_used(super, count);
+
+	reiser4_spin_unlock_sb (super);
+}
+
+/**
+ * adjust sb block counters if real (on-disk) blocks do not become unallocated
+ * after freeing, @count blocks become "grabbed".
+ */
+void reiser4_count_real_deallocation (__u64 count)
+{
+	const struct super_block * super = reiser4_get_current_sb(); 
+
+	add_to_ctx_grabbed(count);
+
+	reiser4_spin_lock_sb(super);
+
+	sub_from_sb_grabbed(super, count);
+	sub_from_sb_used(super, count);
+
+	reiser4_spin_unlock_sb (super);
+}
+
 /* Adjust "working" free blocks counter for number of blocks we are going to
- * allocate. This function should be called before bitmap scanning or
- * allocating fake block numbers 
+ * allocate.  Record number of grabbed blocks in fs-wide and per-thread
+ * counters.  This function should be called before bitmap scanning or
+ * allocating fake block numbers
  *
  * @super           -- pointer on reiser4 super block;
  * @min_block_count -- minimum number of blocks we reserve;
@@ -69,18 +240,15 @@ int blocknr_is_fake(const reiser4_block_nr * da)
 /* FIXME-ZAM: reserved blocks could be counted in a reiser4 super block field,
  * it allows more error checks. */
 
-int reiser4_reserve_blocks (reiser4_block_nr * reserved,
-			   const reiser4_block_nr min_block_count,
-			   const reiser4_block_nr max_block_count)
+int reiser4_grab_space (__u64 * grabbed, __u64 min_block_count, __u64 max_block_count)
 {
 	struct super_block * super = reiser4_get_current_sb ();
-
 	__u64 free_blocks;
 	int ret = 0;
 
 	reiser4_spin_lock_sb (super);
 
-	assert ("zam-472", reserved != NULL);
+	assert ("zam-472", grabbed != NULL);
 	assert ("zam-473", min_block_count != 0);
 	assert ("zam-474", max_block_count >= min_block_count);
 
@@ -91,14 +259,12 @@ int reiser4_reserve_blocks (reiser4_block_nr * reserved,
 		goto unlock_and_ret;
 	}
 
-	if (free_blocks <= max_block_count) {
-		*reserved = free_blocks;
-		free_blocks = 0;
-	} else {
-		free_blocks -= max_block_count;
-		*reserved = max_block_count;
-	}
+	*grabbed = free_blocks <= max_block_count ? free_blocks : max_block_count;
 
+	add_to_ctx_grabbed(*grabbed);
+	add_to_sb_grabbed(super, *grabbed);
+
+	free_blocks -= *grabbed;
 	reiser4_set_free_blocks (super, free_blocks);
 
  unlock_and_ret:
@@ -110,18 +276,28 @@ int reiser4_reserve_blocks (reiser4_block_nr * reserved,
 /**
  * Adjust free blocks count for blocks which were reserved but were not used.
  */
-void reiser4_free_reserved_blocks (const reiser4_block_nr count)
+void reiser4_release_grabbed_space (__u64 count)
 {
 	struct super_block * super = reiser4_get_current_sb ();
-	__u64 free_blocks;
+
+	sub_from_ctx_grabbed(count);
 
 	reiser4_spin_lock_sb (super);
 
-	free_blocks = reiser4_free_blocks (super);
-	free_blocks += count;
-	reiser4_set_free_blocks (super, free_blocks);
+	sub_from_sb_grabbed(super, count);
+	reiser4_set_free_blocks (super, reiser4_free_blocks (super) + count);
 	
 	reiser4_spin_unlock_sb (super);
+}
+/**
+ * release all grabbed blocks which where not used.
+ */
+void reiser4_release_all_grabbed_space (void)
+{
+	reiser4_context * ctx = get_current_context();
+	__u64 grabbed = ctx->grabbed_blocks;
+
+	reiser4_release_grabbed_space(grabbed);
 }
 
 /** a generator for tree nodes fake block numbers */
@@ -154,33 +330,42 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 			  reiser4_block_nr *len)
 {
 	space_allocator_plugin * splug;
-	reiser4_block_nr needed;
+	reiser4_block_nr needed = *len;
+	block_stage_t stage = BLOCK_NOT_COUNTED;
 	int ret;
 
 	assert ("vs-514", (get_current_super_private () &&
 			   get_current_super_private ()->space_plug &&
 			   get_current_super_private ()->space_plug->alloc_blocks));
 
-	if (hint != NULL && hint -> not_counted) {
-		/* we should not allocate reserved space */
-		ret = reiser4_reserve_blocks (&needed, (reiser4_block_nr)1, *len);
+	if (hint != NULL) stage = hint->block_stage;
+
+	if (stage == BLOCK_NOT_COUNTED) {
+		ret = reiser4_grab_space (&needed, (reiser4_block_nr)1, *len);
 		if (ret != 0) return ret;		
-	} else {
-		needed  = *len;
 	}
 
 	splug = get_current_super_private ()->space_plug;	
 	ret = splug->alloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
 				   hint, (int) needed, blk, len);
 
+	if (!ret) {
 
-	if (hint != NULL && hint -> not_counted) {
-		if (ret == 0) {
-			assert ("zam-475", *len <= needed);
-			reiser4_free_reserved_blocks (needed - *len);
-		} else {
-			reiser4_free_reserved_blocks (needed);
+		switch (stage) {
+		    case BLOCK_NOT_COUNTED:
+			    reiser4_release_grabbed_space (needed - *len);
+		    case BLOCK_GRABBED:
+			    reiser4_count_real_allocation (*len);
+			    break;
+		    case BLOCK_UNALLOCATED:
+			    reiser4_count_block_mapping (*len);
+			    break;
+		    default:
+			    impossible ("zam-531", "wrong block stage");
 		}
+	} else {
+		if (stage == BLOCK_NOT_COUNTED) 
+			reiser4_release_grabbed_space (needed);
 	}
 
 	return ret;
@@ -190,11 +375,17 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
  * plugin allocation or store deleted block numbers in atom's delete_set data
  * structure depend on @defer parameter.
  */
-void reiser4_dealloc_blocks (
+int reiser4_dealloc_blocks (
 	const reiser4_block_nr * start,
-	const reiser4_block_nr * len, 
+	const reiser4_block_nr * len,
 	/* defer actual block freeing until transaction commit */
-	int defer )
+	int defer,
+	/* if @defer is zero, @target_stage means the stage of blocks is
+	 * deleted from WORKING bitmap. They might be just unmapped from disk,
+	 * or freed but disk space is still grabbed by our thread, or these
+	 * blocks must not be counted in any reiser4 sb block counters.
+	 **/
+	block_stage_t target_stage)
 {
 	txn_atom          * atom = NULL; 
 	int                 ret;
@@ -215,6 +406,12 @@ void reiser4_dealloc_blocks (
 
 			if (ret == -ENOMEM) {
 				/* FIXME: JMACD->ZAM: return FAILURE. */
+				/* FIXME: ZAM->JMACD: we need a reliable
+				 * memory allocation for several things
+				 * including this one. It is used in Linux
+				 * kernel: see how block heads are
+				 * allocated */
+				return ret;
 			}
 
 			/* This loop might spin at most two times */
@@ -237,7 +434,24 @@ void reiser4_dealloc_blocks (
 		assert ("zam-462", splug -> dealloc_blocks != NULL);
 
 		splug->dealloc_blocks (get_space_allocator (reiser4_get_current_sb ()), *start, *len);
+
+		switch (target_stage) {
+		    case BLOCK_NOT_COUNTED:
+			    reiser4_count_real_deallocation(*len);
+			    reiser4_release_grabbed_space(*len);
+			    break;
+		    case BLOCK_GRABBED:
+			    reiser4_count_real_deallocation(*len);
+			    break;
+		    case BLOCK_UNALLOCATED:
+			    reiser4_count_block_unmapping(*len);
+			    break;
+		    default:
+			    impossible ("zam-532", "wrong block stage");
+		}
 	}
+
+	return 0;
 }
 
 /** obtain a block number for new formatted node which will be used to refer
@@ -248,11 +462,12 @@ int assign_fake_blocknr (reiser4_block_nr *blocknr)
 	reiser4_block_nr not_used;
 
 #if 0
-	ret = reiser4_reserve_blocks (&not_used, (reiser4_block_nr)1, (reiser4_block_nr)1);
+	ret = reiser4_grab_space (&not_used, (reiser4_block_nr)1, (reiser4_block_nr)1);
 
 	if (ret != 0) return ret;
 
 	get_next_fake_blocknr (blocknr);
+	reiser4_count_fake_allocation((__u64)1);
 
 	return 0;
 #else
@@ -284,9 +499,9 @@ void release_blocknr (reiser4_block_nr * block)
 	/* FIXME: more checks about jnode state should be here */
 
 	if (blocknr_is_fake (block)) {
-		reiser4_free_reserved_blocks ((reiser4_block_nr)1);
+		reiser4_release_grabbed_space ((__u64)1);
 	} else {
-		reiser4_dealloc_blocks (block, &one, 1);
+		reiser4_dealloc_blocks (block, &one, 1, BLOCK_NOT_COUNTED);
 	}
 }
 /** wrappers for block allocator plugin methods */

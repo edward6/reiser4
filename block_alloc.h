@@ -17,6 +17,13 @@
 #define REISER4_UNALLOCATED_STATUS_VALUE    0xF000000000000000ULL
 #define REISER4_BITMAP_BLOCKS_STATUS_VALUE  0x9000000000000000ULL
 
+/* specification how block allocation was counted in sb block counters */
+typedef enum { 
+	BLOCK_NOT_COUNTED = 0,
+	BLOCK_GRABBED = 1,
+	BLOCK_UNALLOCATED = 3,
+	BLOCK_ALLOCATED = 4
+} block_stage_t;
 
 /** a hint for block allocator */
 struct reiser4_blocknr_hint {
@@ -26,29 +33,37 @@ struct reiser4_blocknr_hint {
 	reiser4_block_nr blk;	     /* search start hint */
 	reiser4_block_nr max_dist;   /* if not zero, it is a region size we
 				      * search for free blocks in */
-	tree_level level;            /* level for allocation, may be useful have
+	tree_level       level;      /* level for allocation, may be useful have
 				      * branch-level and higher write-optimized. */
-	int not_counted:1;	     /* was space allocation counted when we
-				      * allocated these nodes as fake ones */
+	block_stage_t    block_stage;
 };
 
 extern void blocknr_hint_init (reiser4_blocknr_hint *hint);
 extern void blocknr_hint_done (reiser4_blocknr_hint *hint);
 
-extern int reiser4_reserve_blocks (reiser4_block_nr *,
-				    const reiser4_block_nr,
-				    const reiser4_block_nr);
-extern void reiser4_free_reserved_blocks (const reiser4_block_nr count);
+extern int reiser4_grab_space (reiser4_block_nr *, __u64, __u64);
+extern void reiser4_release_grabbed_space (__u64 count);
+extern void reiser4_release_all_grabbed_space (void);
+
+extern void reiser4_count_fake_allocation   (__u64);
+extern void reiser4_count_fake_deallocation (__u64);
+
+extern void reiser4_count_block_mapping     (__u64);
+extern void reiser4_count_block_unmapping   (__u64);
+
+extern void reiser4_count_real_allocation   (__u64);
+extern void reiser4_count_real_deallocation (__u64);
+
 
 extern int blocknr_is_fake(const reiser4_block_nr * da);
 extern int reiser4_alloc_blocks (reiser4_blocknr_hint * hint,
 				 reiser4_block_nr * start, reiser4_block_nr * len);
-extern void reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int);
+extern int reiser4_dealloc_blocks (const reiser4_block_nr *, const reiser4_block_nr *, int, block_stage_t);
 
-static inline void reiser4_dealloc_block (const reiser4_block_nr *block, int defer)
+static inline int reiser4_dealloc_block (const reiser4_block_nr *block, int defer, block_stage_t stage)
 {
 	const reiser4_block_nr one = 1;
-	reiser4_dealloc_blocks (block, &one, defer);
+	return reiser4_dealloc_blocks (block, &one, defer, stage);
 }
 
 extern int assign_fake_blocknr (reiser4_block_nr *);

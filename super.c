@@ -30,7 +30,7 @@ block queried */ )
 	return ( reiser4_super_info_data * )super -> u.generic_sbp;
 }
 
-void reiser4_spin_lock_sb (struct super_block * super)
+void reiser4_spin_lock_sb (const struct super_block * super)
 {
 	reiser4_super_info_data * info;
 
@@ -41,7 +41,7 @@ void reiser4_spin_lock_sb (struct super_block * super)
 	spin_lock(& info->guard);
 }
 
-void reiser4_spin_unlock_sb (struct super_block * super)
+void reiser4_spin_unlock_sb (const struct super_block * super)
 {
 	reiser4_super_info_data * info;
 
@@ -190,6 +190,44 @@ long reiser4_reserved_blocks( const struct super_block *super /* super block
 	if( REISER4_SUPPORT_ROOT_SPACE_RESERVATION && ( uid == 0 ) )
 		reserved += reserved_for_root( super );
 	return reserved;
+}
+
+/**
+ * get/set value of/to grabbed blocks counter
+ */
+__u64 reiser4_grabbed_blocks (const struct super_block *super)
+{
+	assert ("zam-512", super != NULL);
+	assert ("zam-513", is_reiser4_super (super));
+
+	return get_super_private (super) -> blocks_grabbed;
+}
+
+void reiser4_set_grabbed_blocks (const struct super_block *super, __u64 nr)
+{
+	assert ("zam-514", super != NULL);
+	assert ("zam-515", is_reiser4_super (super));
+
+	get_super_private (super) -> blocks_grabbed = nr;
+}
+
+/**
+ * get/set value of/to counter of unallocated blocks
+ */
+__u64 reiser4_unallocated_blocks (const struct super_block *super)
+{
+	assert ("zam-516", super != NULL);
+	assert ("zam-517", is_reiser4_super (super));
+
+	return get_super_private (super) -> blocks_unallocated;
+}
+
+void reiser4_set_unallocated_blocks (const struct super_block *super, __u64 nr)
+{
+	assert ("zam-518", super != NULL);
+	assert ("zam-519", is_reiser4_super (super));
+
+	get_super_private (super) -> blocks_unallocated = nr;
 }
 
 /**

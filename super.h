@@ -71,6 +71,16 @@ struct reiser4_super_info_data {
 	__u64    blocks_free_committed;
 
 	/**
+	 * number of blocks reserved for further allocation, for all threads.
+	 */
+	__u64     blocks_grabbed;
+
+	/**
+	 * number of blocks, not mapped to disk yet.
+	 */
+	__u64     blocks_unallocated;
+
+	/**
 	 * current inode generation.
 	 *
 	 * FIXME-NIKITA not sure this is really needed now when we have 64-bit
@@ -161,24 +171,29 @@ extern reiser4_super_info_data *get_current_super_private( void );
 
 extern const __u32 REISER4_SUPER_MAGIC;
 
-extern void reiser4_spin_lock_sb (struct super_block *);
-extern void reiser4_spin_unlock_sb (struct super_block *);
+extern void reiser4_spin_lock_sb (const struct super_block *);
+extern void reiser4_spin_unlock_sb (const struct super_block *);
 
 extern long statfs_type( const struct super_block *super );
 extern int  reiser4_blksize( const struct super_block *super );
-__u64 reiser4_block_count( const struct super_block *super );
-void reiser4_set_block_count( const struct super_block *super, __u64 nr );
-__u64 reiser4_data_blocks( const struct super_block *super );
-void reiser4_set_data_blocks( const struct super_block *super, __u64 nr );
-__u64 reiser4_free_blocks( const struct super_block *super );
-void reiser4_set_free_blocks( const struct super_block *super, __u64 nr );
-void reiser4_inc_free_blocks( const struct super_block *super );
+extern __u64 reiser4_block_count( const struct super_block *super );
+extern void reiser4_set_block_count( const struct super_block *super, __u64 nr );
+extern __u64 reiser4_data_blocks( const struct super_block *super );
+extern void reiser4_set_data_blocks( const struct super_block *super, __u64 nr );
+extern __u64 reiser4_free_blocks( const struct super_block *super );
+extern void reiser4_set_free_blocks( const struct super_block *super, __u64 nr );
+extern void reiser4_inc_free_blocks( const struct super_block *super );
 
-__u64 reiser4_free_committed_blocks( const struct super_block *super );
-void reiser4_set_free_committed_blocks( const struct super_block *super,
+extern __u64 reiser4_free_committed_blocks( const struct super_block *super );
+extern void reiser4_set_free_committed_blocks( const struct super_block *super,
 					__u64 nr );
-void reiser4_inc_free_committed_blocks( const struct super_block *super );
-void reiser4_dec_free_committed_blocks( const struct super_block *super );
+extern void reiser4_inc_free_committed_blocks( const struct super_block *super );
+extern void reiser4_dec_free_committed_blocks( const struct super_block *super );
+
+extern __u64 reiser4_grabbed_blocks        ( const struct super_block* );
+extern void  reiser4_set_grabbed_blocks    ( const struct super_block*, __u64 nr );
+extern __u64 reiser4_unallocated_blocks    ( const struct super_block* );
+extern void  reiser4_set_unallocated_blocks( const struct super_block*, __u64 nr );
 
 extern long reiser4_reserved_blocks( const struct super_block *super, 
 				     uid_t uid, gid_t gid );
