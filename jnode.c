@@ -1184,13 +1184,8 @@ void spin_lock_jnode_pair (jnode * first, jnode * second)
 
 void spin_unlock_jnode_pair (jnode * first, jnode * second)
 {
-	if (first < second) { 
-		spin_unlock_jnode (first);
-		spin_unlock_jnode (second);
-	} else {
-		spin_unlock_jnode (second);
-		spin_unlock_jnode (first);
-	}
+	spin_unlock_jnode (first);
+	spin_unlock_jnode (second);
 }
 
 /* return true if jnode atoms are not the same */
