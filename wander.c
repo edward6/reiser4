@@ -523,7 +523,7 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	 * blocks */
 	blocknr_hint_init(&hint);
 	hint.block_stage = BLOCK_FLUSH_RESERVED;
-	trace_on(TRACE_RESERVE, "flush allocates %llu blocks for wandering logs.", wide_len);
+	trace_on(TRACE_RESERVE, "flush allocates %llu blocks for wandering logs.\n", wide_len);
 	ret = reiser4_alloc_blocks (&hint, start, &wide_len, 1/*not unformatted*/, 0);
 	*len = (int) wide_len;
 
@@ -778,7 +778,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		/* FIXME: there should be some block allocation policy for
 		 * nodes which contain log records */
 		/* FIXME-VITALY: Who grabbed this? */
-		trace_on(TRACE_RESERVE, "flush allocates %llu blocks for tx lists.", len);
+		trace_on(TRACE_RESERVE, "flush allocates %llu blocks for tx lists.\n", len);
 		ret = reiser4_alloc_blocks (&hint, &first, &len, 1/*not unformatted*/, 1);
 
 		blocknr_hint_done(&hint);
@@ -1021,7 +1021,7 @@ reiser4_write_logs(void)
 			ret = alloc_tx(&ch, fq);
 		
 		/* FIXME-VITALY: Check this with Zam. */
-		trace_on(TRACE_RESERVE, "free all (%llu) reserved.", 
+		trace_on(TRACE_RESERVE, "free all (%llu) reserved.\n", 
 			reiser4_atom_flush_reserved());
 
 		flush_reserved2free_all();
@@ -1097,7 +1097,7 @@ up_and_ret:
 	dealloc_wmap(&ch);
 
 	/* VITALY: Free flush_reserved blocks. */
-	trace_on(TRACE_RESERVE, "release all grabbed blocks (%llu).", 
+	trace_on(TRACE_RESERVE, "release all grabbed blocks (%llu).\n", 
 		get_current_context()->grabbed_blocks);
 
 	all_grabbed2free();	

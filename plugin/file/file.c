@@ -517,7 +517,7 @@ unix_file_truncate(struct inode *inode, loff_t size)
 		return -ENOSPC;
 	}
 	
-	trace_on(TRACE_RESERVE, "file truncate grabs %llu blocks.", needed);
+	trace_on(TRACE_RESERVE, "file truncate grabs %llu blocks.\n", needed);
 
 	if (file_size < inode->i_size) {
 		ea2nea(inode);
@@ -882,7 +882,7 @@ item_to_operate_on(struct inode *inode, flow_t * f, const coord_t * coord)
 	return TAIL_ID;
 }
 
-reiser4_block_nr unix_file_estimate_read(struct inode *inode, size_t count) {
+reiser4_block_nr unix_file_estimate_read(struct inode *inode, loff_t count) {
     	/* We should reserve the one block, because of updating of the stat data
 	 * item */
 	return inode_file_plugin(inode)->estimate.update(inode);
@@ -917,7 +917,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	    return -ENOSPC;
 	}
 	
-	trace_on(TRACE_RESERVE, "file read grabs %llu blocks.", needed);
+	trace_on(TRACE_RESERVE, "file read grabs %llu blocks.\n", needed);
 
 	/* build flow */
 	result = inode_file_plugin(inode)->flow_by_inode(inode, buf, 1 /* user space */ ,
@@ -1284,11 +1284,10 @@ int update_sd_if_necessary(struct inode *inode, const flow_t *f)
 	return result;
 }
 
-reiser4_block_nr unix_file_estimate_write(struct inode *inode, size_t count,
+reiser4_block_nr unix_file_estimate_write(struct inode *inode, loff_t count,
     loff_t *off) 
 {
     tail_plugin *tail_plugin;
-    __u64 file_size, new_file_size;
     
     assert("umka-1242", inode != NULL);
     assert("umka-1248", inode != NULL);
@@ -1296,17 +1295,13 @@ reiser4_block_nr unix_file_estimate_write(struct inode *inode, size_t count,
     tail_plugin = inode_tail_plugin(inode);
     assert("umka-1241", tail_plugin != NULL);
    
-    file_size = inode->i_size;
-    new_file_size = *off + count > file_size ? *off + count : file_size;
-    
-    return tail_plugin->estimate(inode, new_file_size - file_size, 0/*is_fake*/) + 
-	    /*inode_file_plugin(inode)->estimate.update(inode) + */1;
+    return tail_plugin->estimate(inode, count, 0/*is_fake*/) + 1;
 }
 
 /* plugin->u.file.write */
 ssize_t unix_file_write(struct file * file,	/* file to write to */
 			const char *buf,	/* comments are needed */
-			size_t count,	/* number of bytes ot write */
+			size_t count,	/* number of bytes to write */
 			loff_t * off /* position to write which */ )
 {
 	int result;
@@ -1337,7 +1332,7 @@ ssize_t unix_file_write(struct file * file,	/* file to write to */
 	}
 	
 	trace_on(TRACE_RESERVE, "file write grabs %llu blocks "
-		"for %llu bytes long data.", needed, count);
+		"for %lu bytes long data.\n", needed, count);
 	
 	pos = *off;
 	if (file->f_flags & O_APPEND)
@@ -1434,7 +1429,7 @@ unix_file_release(struct file *file)
 	
 	if (result != 0) return -ENOSPC;
 	
-	trace_on(TRACE_RESERVE, "file release grabs %llu blocks.", needed);
+	trace_on(TRACE_RESERVE, "file release grabs %llu blocks.\n", needed);
 
 	/*
 	 * FIXME-VS: it is not clear where to do extent2tail conversion yet
@@ -1471,7 +1466,7 @@ static struct vm_operations_struct unix_file_vm_ops = {
 	.nopage = unix_file_filemap_nopage,
 };
 
-reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, size_t count) 
+reiser4_block_nr unix_file_estimate_mmap(struct inode *inode, loff_t count) 
 {
 	tail_plugin *tail_plugin;
 	assert("umka-1246", inode != NULL);
@@ -1502,7 +1497,7 @@ unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 	
 	if (result != 0) return -ENOSPC;
 	
-	trace_on(TRACE_RESERVE, "file mmap grabs %llu blocks.", needed);
+	trace_on(TRACE_RESERVE, "file mmap grabs %llu blocks.\n", needed);
 
 	/* tail2extent expects file to be nonexclusively locked */
 	get_nonexclusive_access(inode);

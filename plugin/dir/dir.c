@@ -153,7 +153,7 @@ common_link(struct inode *parent /* parent directory */ ,
 	if ((reserve = common_estimate_link(parent, existing->d_inode)) < 0)
 	    return reserve;
 
-	trace_on(TRACE_RESERVE, "link grabs %llu blocks.", reserve);
+	trace_on(TRACE_RESERVE, "link grabs %llu blocks.\n", reserve);
 
 	if (reiser4_grab_space_exact(reserve, 0))
 	    return -ENOSPC;
@@ -246,7 +246,7 @@ common_unlink(struct inode *parent /* parent object */ ,
 	if (reiser4_grab_space_exact(reserve, 1))
 		return -ENOSPC;
 	
-	trace_on(TRACE_RESERVE, "unlink grabs %llu blocks.", reserve);	
+	trace_on(TRACE_RESERVE, "unlink grabs %llu blocks.\n", reserve);	
 
 	/* check for race with create_object() */
 	if (inode_get_flag(object, REISER4_IMMUTABLE))
@@ -461,7 +461,7 @@ common_create_child(struct inode *parent /* parent object */ ,
 	if ((reserve = common_estimate_create_dir(parent, object)) < 0)
 	    return reserve;
 
-	trace_on(TRACE_RESERVE, "create child grabs %llu blocks.", reserve);
+	trace_on(TRACE_RESERVE, "create child grabs %llu blocks.\n", reserve);
 
 	if (reiser4_grab_space_exact(reserve, 0))
 	    return -ENOSPC;

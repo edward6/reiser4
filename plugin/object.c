@@ -519,7 +519,7 @@ common_file_delete(struct inode *inode /* object to remove */ )
 		if (reiser4_grab_space_exact((reserve = common_estimate_file_delete(inode)), 1))
 			return -ENOSPC;
 
-		trace_on(TRACE_RESERVE, "file delete grabs %llu block.", reserve);
+		trace_on(TRACE_RESERVE, "file delete grabs %llu block.\n", reserve);
 		
 		build_sd_key(inode, &sd_key);
 		result = cut_tree(tree_by_inode(inode), &sd_key, &sd_key);
@@ -651,7 +651,7 @@ common_file_create(struct inode *object, struct inode *parent UNUSED_ARG, reiser
 		    common_estimate_create(tree_by_inode(object)->height, object), 0))
 		return -ENOSPC;
 	
-	trace_on(TRACE_RESERVE, "file create grabs %llu, blocks.", reserve);
+	trace_on(TRACE_RESERVE, "file create grabs %llu, blocks.\n", reserve);
 	return reiser4_write_sd(object);
 }
 

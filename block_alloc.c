@@ -430,7 +430,7 @@ assign_fake_blocknr(reiser4_block_nr * blocknr, int formatted)
 		assert("zam-394", node == NULL);
 	}
 #endif
-	trace_on(TRACE_RESERVE, "moving 1 grabbed block to fake allocated.");
+	trace_on(TRACE_RESERVE, "moving 1 grabbed block to fake allocated.\n");
 	grabbed2fake_allocated(1, formatted);
 	
 	return 0;
@@ -512,7 +512,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	/* VITALY: allocator should grab this for internal/tx-lists/similar only. */
 	if (hint->block_stage == BLOCK_NOT_COUNTED) {
 		reiser4_grab_space_enable();
-		trace_on(TRACE_RESERVE, "grab for not counted %llu blocks.", *len);
+		trace_on(TRACE_RESERVE, "grab for not counted %llu blocks.\n", *len);
 		ret = reiser4_grab_space(&needed, (reiser4_block_nr) 1, *len, 
 			from_reserved_space);
 		if (ret != 0)
@@ -530,17 +530,17 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		switch (hint->block_stage) {
 		case BLOCK_NOT_COUNTED:
 		case BLOCK_GRABBED:
-			trace_on(TRACE_RESERVE, "use %s %llu blocks.", 
+			trace_on(TRACE_RESERVE, "use %s %llu blocks.\n", 
 				hint->block_stage == BLOCK_GRABBED ? 
 				"grabbed" : "not counted", *len);
 			grabbed2used(*len);
 			break;
 		case BLOCK_UNALLOCATED:
-			trace_on(TRACE_RESERVE, "allocate %llu blocks.", *len);
+			trace_on(TRACE_RESERVE, "allocate %llu blocks.\n", *len);
 			fake_allocated2used(*len, formatted);
 			break;
 		case BLOCK_FLUSH_RESERVED:
-		    	trace_on(TRACE_RESERVE, "get wandered %llu blocks.", *len);
+		    	trace_on(TRACE_RESERVE, "get wandered %llu blocks.\n", *len);
 			assert("vpf-294", !sub_from_atom_flush_reserved(*len));
 			break;
 		default:

@@ -244,7 +244,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 	if( result != 0 )
 		return result;
 
-	trace_on(TRACE_RESERVE, "balancing grabs 1 block for a leaf.");
+	trace_on(TRACE_RESERVE, "balancing grabs 1 block for a leaf.\n");
 
 	node = new_node(insert_coord->node, LEAF_LEVEL);
 	/* VITALY: Ungrab block for the balancing needs. */

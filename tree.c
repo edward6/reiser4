@@ -760,7 +760,7 @@ done_context(reiser4_context * context /* context being released */ )
 
 		if (context->grabbed_blocks != 0) {
 			trace_on(TRACE_RESERVE, "%llu grabbed blocks "
-				"were not freed, free them now", context->grabbed_blocks);
+				"were not freed, free them now.\n", context->grabbed_blocks);
 		
 			all_grabbed2free();
 		}
