@@ -95,7 +95,6 @@ jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 	j_hash_table *jtable;
 	jnode *node;
 	jnode *next;
-	int killed;
 
 	assert("nikita-2360", tree != NULL);
 
@@ -103,15 +102,10 @@ jnodes_tree_done(reiser4_tree * tree /* tree to destroy jnodes for */ )
 					   print_jnodes("umount", tree)));
 
 	jtable = &tree->jhash_table;
-	do {
-		killed = 0;
-		for_all_in_htable(jtable, j, node, next) {
-			assert("nikita-2361", !atomic_read(&node->x_count));
-			jdrop(node);
-			++killed;
-			break;
-		}
-	} while (killed > 0);
+	for_all_in_htable(jtable, j, node, next) {
+		assert("nikita-2361", !atomic_read(&node->x_count));
+		jdrop(node);
+	}
 
 	j_hash_done(&tree->jhash_table);
 	return 0;
