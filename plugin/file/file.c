@@ -837,12 +837,13 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 
 	to_read = f.length;
 	while (f.length) {
-		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
+		loff_t cur_offset;
+
+		cur_offset = (loff_t)get_key_offset (&f.key);
+		if (cur_offset >= inode->i_size)
 			/* do not read out of file */
 			break;
 		
-                page_cache_readahead (file, (unsigned long)(get_key_offset (&f.key) >> PAGE_CACHE_SHIFT));
-
 		result = find_next_item (&hint, &f.key, &coord, &lh,
 					 ZNODE_READ_LOCK, CBK_UNIQUE);
 		if (result != CBK_COORD_FOUND) {
@@ -853,8 +854,13 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 		}
 
 		mode = unix_file_how_to_read (inode, &coord);
+
+		set_hint (&hint, &f.key, &coord);
+		done_lh (&lh);
+
 		switch (mode) {
 		case READ_EXTENT:
+			page_cache_readahead (file, (unsigned long) (cur_offset >> PAGE_CACHE_SHIFT));
 			iplug = item_plugin_by_id (EXTENT_POINTER_ID);
 			break;
 
@@ -863,12 +869,8 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 			break;
 
 		default:
-			done_lh (&lh);
 			return mode;
 		}
-
-		set_hint (&hint, &f.key, &coord);
-		done_lh (&lh);
 
 		/* call read method of found item */
 		result = iplug->s.file.read (inode, &hint, &f);
