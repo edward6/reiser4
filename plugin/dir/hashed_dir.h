@@ -21,14 +21,14 @@ extern int                hashed_owns_item ( const struct inode *inode,
 extern file_lookup_result hashed_lookup    ( struct inode *inode, 
 					     const struct qstr *name,
 					     reiser4_key *key, 
-					     reiser4_entry *entry );
+					     reiser4_dir_entry_desc *entry );
 extern int                hashed_add_entry ( struct inode *object,
 					     struct dentry *where, 
 					     reiser4_object_create_data *,
-					     reiser4_entry *entry );
+					     reiser4_dir_entry_desc *entry );
 extern int                hashed_rem_entry ( struct inode *object, 
 					     struct dentry *where, 
-					     reiser4_entry *entry );
+					     reiser4_dir_entry_desc *entry );
 
 /* __HASHED_DIR_H__ */
 #endif

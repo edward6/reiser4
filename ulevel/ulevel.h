@@ -891,6 +891,10 @@ static inline int block_read_full_page(struct page *page UNUSED_ARG,
 	return 0;
 }
 
+static inline void mark_page_accessed( struct page *page UNUSED_ARG )
+{
+}
+
 #define PAGE_SHIFT	12
 #define PAGE_SIZE	(1UL << PAGE_SHIFT)
 #define PAGE_MASK	(~(PAGE_SIZE-1))

@@ -60,9 +60,9 @@ int   cde_extract_key  ( const tree_coord *coord, reiser4_key *key );
 char *cde_extract_name ( const tree_coord *coord );
 int   cde_add_entry    ( const struct inode *dir, tree_coord *coord, 
 			 reiser4_lock_handle *lh, const struct dentry *name, 
-			 reiser4_entry *entry );
+			 reiser4_dir_entry_desc *entry );
 int   cde_rem_entry    ( const struct inode *dir, tree_coord *coord, 
-			 reiser4_lock_handle *lh, reiser4_entry *entry );
+			 reiser4_lock_handle *lh, reiser4_dir_entry_desc *entry );
 int   cde_max_name_len ( int block_size );
 
 reiser4_key  *cde_max_key_inside( const tree_coord *coord, 

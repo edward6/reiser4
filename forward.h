@@ -69,8 +69,8 @@ typedef struct txn_handle txn_handle;
 struct txn_mgr;
 typedef struct txn_mgr txn_mgr;
 
-struct reiser4_entry;
-typedef struct reiser4_entry reiser4_entry;
+struct reiser4_dir_entry_desc;
+typedef struct reiser4_dir_entry_desc reiser4_dir_entry_desc;
 
 struct reiser4_context;
 typedef struct reiser4_context reiser4_context;

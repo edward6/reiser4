@@ -12,7 +12,7 @@
 static int create_dot_dotdot( struct inode *object, struct inode *parent );
 static int find_entry( const struct inode *dir, const struct qstr *name, 
 		       tree_coord *coord, reiser4_lock_handle *lh,
-		       znode_lock_mode mode, reiser4_entry *entry );
+		       znode_lock_mode mode, reiser4_dir_entry_desc *entry );
 
 /** create sd for directory file. Create stat-data, dot, and dotdot. */
 int hashed_create( struct inode *object /* new directory */, 
@@ -56,7 +56,7 @@ int hashed_create( struct inode *object /* new directory */,
  */
 int hashed_delete( struct inode *object, struct inode *parent )
 {
-	reiser4_entry entry;
+	reiser4_dir_entry_desc entry;
 	struct dentry goodby_dots;
 	int           result;
 
@@ -103,7 +103,7 @@ static int create_dot_dotdot( struct inode *object, struct inode *parent )
 {
 	int           result;
 	struct dentry dots_entry;
-	reiser4_entry entry;
+	reiser4_dir_entry_desc entry;
 
 	assert( "nikita-688", object != NULL );
 	assert( "nikita-689", S_ISDIR( object -> i_mode ) );
@@ -163,7 +163,7 @@ file_lookup_result hashed_lookup( struct inode *inode /* inode of
 							   * look for */, 
 				  reiser4_key *key /* length of name to
 						    * look for */,
-				  reiser4_entry *entry /* key of object
+				  reiser4_dir_entry_desc *entry /* key of object
 							* found */ )
 {
 	int                 result;
@@ -199,7 +199,7 @@ file_lookup_result hashed_lookup( struct inode *inode /* inode of
  */
 int hashed_add_entry( struct inode *object, struct dentry *where, 
 		      reiser4_object_create_data *data UNUSED_ARG, 
-		      reiser4_entry *entry )
+		      reiser4_dir_entry_desc *entry )
 {
 	int                 result;
 	tree_coord          coord;
@@ -245,7 +245,7 @@ int hashed_rem_entry( struct inode *object /* directory from which entry
 					    * is begin removed */, 
 		      struct dentry *where /* name that is being
 					    * removed */, 
-		      reiser4_entry *entry /* description of entry being
+		      reiser4_dir_entry_desc *entry /* description of entry being
 					    * removed */ )
 {
 	int                 result;
@@ -309,7 +309,7 @@ typedef struct entry_actor_args {
  */
 static int find_entry( const struct inode *dir, const struct qstr *name, 
 		       tree_coord *coord, reiser4_lock_handle *lh,
-		       znode_lock_mode mode, reiser4_entry *entry )
+		       znode_lock_mode mode, reiser4_dir_entry_desc *entry )
 {
 	int         result;
 

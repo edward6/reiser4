@@ -56,7 +56,7 @@ char *de_extract_name( const tree_coord *coord )
 
 int de_add_entry( const struct inode *dir, tree_coord *coord, 
 		  reiser4_lock_handle *lh, const struct dentry *name, 
-		  reiser4_entry *entry )
+		  reiser4_dir_entry_desc *entry )
 {
 	reiser4_item_data       data;
 	directory_entry_format *dent;
@@ -79,7 +79,7 @@ int de_add_entry( const struct inode *dir, tree_coord *coord,
 
 int de_rem_entry( const struct inode *dir UNUSED_ARG, tree_coord *coord, 
 		  reiser4_lock_handle *lh UNUSED_ARG , 
-		  reiser4_entry *entry UNUSED_ARG )
+		  reiser4_dir_entry_desc *entry UNUSED_ARG )
 {
 	int         result;
 	tree_coord coord_shadow;

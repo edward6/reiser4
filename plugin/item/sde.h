@@ -14,10 +14,10 @@ typedef struct dir_entry_ops {
 	char *( *extract_name )( const tree_coord *coord );
 	int ( *add_entry )( const struct inode *dir,
 			    tree_coord *coord, reiser4_lock_handle *lh,
-			    const struct dentry *name, reiser4_entry *entry );
+			    const struct dentry *name, reiser4_dir_entry_desc *entry );
 	int ( *rem_entry )( const struct inode *dir,
 			    tree_coord *coord, reiser4_lock_handle *lh,
-			    reiser4_entry *entry );
+			    reiser4_dir_entry_desc *entry );
 	int ( *max_name_len )( int block_size );
 } dir_entry_ops;
 
@@ -44,9 +44,9 @@ int   de_extract_key  ( const tree_coord *coord, reiser4_key *key );
 char *de_extract_name ( const tree_coord *coord );
 int   de_add_entry    ( const struct inode *dir, tree_coord *coord, 
 			reiser4_lock_handle *lh, const struct dentry *name, 
-			reiser4_entry *entry );
+			reiser4_dir_entry_desc *entry );
 int   de_rem_entry    ( const struct inode *dir, tree_coord *coord, 
-			reiser4_lock_handle *lh, reiser4_entry *entry );
+			reiser4_lock_handle *lh, reiser4_dir_entry_desc *entry );
 int   de_max_name_len ( int block_size );
 
 /* __FS_REISER4_PLUGIN_DIRECTORY_ENTRY_H__ */

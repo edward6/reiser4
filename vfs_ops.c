@@ -147,7 +147,7 @@ static struct dentry *lookup_object( struct inode *parent,
 	dir_plugin          *dplug;
 	struct inode        *inode;
 	reiser4_key          key;
-	reiser4_entry        entry;
+	reiser4_dir_entry_desc        entry;
 
 	const char          *name;
 	int                  len;

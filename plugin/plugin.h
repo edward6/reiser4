@@ -75,20 +75,48 @@ typedef enum {
 
 typedef ssize_t ( *rw_f_type )( struct file *file, flow *a_flow, loff_t *off );
 
-/** entry in file object
+/** 
+ * description of directory entry being created/destroyed/sought for
  * 
- * Files have bytes not entries, or do you mean entry in directory?  Explain this to me.  -Hans
+ * It is passed down to the directory plugin and farther to the
+ * directory item plugin methods. Creation of new directory is done in
+ * several stages: first we search for an entry with the same name, then
+ * create new one. reiser4_dir_entry_desc is used to store some information
+ * collected at some stage of this process and required later: key of
+ * item that we want to insert/delete and pointer to an object that will
+ * be bound by the new directory entry. Probably some more fields will
+ * be added there.
  *
  */
-struct reiser4_entry {
+struct reiser4_dir_entry_desc {
 	/*
 	 * key of directory entry
 	 */
 	reiser4_key   key;
 	/*
-	 * inode of object bound by this entry
+	 * inode of object bound by this entry.
+	 *
+	 * We need some uniform method to identify both "heavy-weight"
+	 * object accessible through VFS paths (inodes, dentries, etc.)
+	 * and light-weight object as manipulated by reiser4() system
+	 * call.
+	 *
+	 * For now let's leave inode here.
+	 *
+	 * When talking about unification, I mean something like
+	 *
+	 * typedef struct unified_object {
+	 *   enum unified_object_type; // inode, key, objectid+loclity, etc.
+	 *   union {
+	 *     struct inode *inode;
+	 *     reiser4_key  *key;
+	 *     // some other access method
+	 *   } u;
+	 * } unified_object;
+	 *
+	 * And use unified_object in all signatures.
+	 *
 	 */
-				/* this will not work for reiser4() */
 	struct inode *obj;
 };
 
@@ -181,7 +209,7 @@ typedef struct dir_plugin {
 	*/
 	file_lookup_result ( *lookup )( struct inode *inode, 
 					const struct qstr *name,
-					reiser4_key *key, reiser4_entry *entry );
+					reiser4_key *key, reiser4_dir_entry_desc *entry );
 	/* sub-methods: These are optional.  If used they will allow you to minimize the amount of code needed to
 	   implement a deviation from some other method that uses them.  You could logically argue that they should be a
 	   separate type of plugin. */
@@ -194,10 +222,10 @@ typedef struct dir_plugin {
 
 	int ( *add_entry )( struct inode *object, struct dentry *where, 
 			    reiser4_object_create_data *data, 
-			    reiser4_entry *entry );
+			    reiser4_dir_entry_desc *entry );
 
 	int ( *rem_entry )( struct inode *object, 
-			    struct dentry *where, reiser4_entry *entry );
+			    struct dentry *where, reiser4_dir_entry_desc *entry );
 } dir_plugin;
 
 typedef struct tail_plugin {
