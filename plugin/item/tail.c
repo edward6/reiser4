@@ -686,7 +686,7 @@ int tail_write (struct inode * inode, coord_t * coord,
 			break;
 		case TAIL_FIRST_ITEM:
 		case TAIL_APPEND:
-			result = insert_flow (coord, f);
+			result = insert_flow (coord, lh, f);
 			break;
 		case TAIL_OVERWRITE:
 			result = overwrite_tail (coord, f);

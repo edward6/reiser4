@@ -538,7 +538,7 @@ resize_result resize_item( coord_t *coord /* coord of item being resized */,
 }
 
 
-int insert_flow( coord_t *coord, flow_t *f)
+int insert_flow( coord_t *coord, lock_handle *lh, flow_t *f)
 {
 	int result;
 	carry_pool pool;
@@ -568,6 +568,9 @@ int insert_flow( coord_t *coord, flow_t *f)
 	op -> u.insert_flow.flow = f;
 	op -> u.insert_flow.data = &data;
 	op -> u.insert_flow.new_nodes = 0;
+
+	op -> node -> track = 1;
+	op -> node -> tracked = lh;
 
 	ON_STATS( lowest_level.level_no = znode_get_level( coord -> node ) );
 	result = carry( &lowest_level, 0 );

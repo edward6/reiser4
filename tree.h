@@ -353,7 +353,7 @@ resize_result resize_item( coord_t *coord, reiser4_item_data *data,
 int insert_into_item( coord_t *coord, lock_handle *lh, reiser4_key *key, 
 		      reiser4_item_data *data,
 		      cop_insert_flag );
-int insert_flow( coord_t *coord, flow_t *f);
+int insert_flow( coord_t *coord, lock_handle *lh, flow_t *f);
 int find_new_child_ptr( znode *parent, znode *child, znode *left, 
 			coord_t *result );
 
