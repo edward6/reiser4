@@ -643,7 +643,7 @@ zload(znode * node /* znode to load */ )
 	assert("nikita-1377", znode_invariant(node));
 	assert("jmacd-7771", !znode_above_root(node));
 	assert("nikita-2125", atomic_read(&ZJNODE(node)->x_count) > 0);
-	ON_DEBUG_CONTEXT(assert("nikita-2189", lock_counters()->spin_locked == 0));
+	schedulable();
 
 	result = jload(ZJNODE(node));
 	ON_DEBUG_MODIFY(znode_pre_write(node));
