@@ -61,7 +61,7 @@ void ncoord_init_before_first_item (new_coord *coord, znode *node)
 {
 	int is_empty = node_is_empty (node);
 
-	ncoord_init_values (coord, node, 0, 0, (is_empty ? EMPTY_NODE : BEFORE_UNIT));
+	ncoord_init_values (coord, node, 0, 0, (is_empty ? EMPTY_NODE : BEFORE_ITEM));
 
 	assert ("jmacd-9803", ncoord_check (coord));
 }
@@ -72,7 +72,7 @@ void ncoord_init_after_last_item (new_coord *coord, znode *node)
 {
 	int is_empty = node_is_empty (node);
 
-	ncoord_init_values (coord, node, (is_empty ? 0 : node_num_items (node) - 1), 0, (is_empty ? EMPTY_NODE : AFTER_UNIT));
+	ncoord_init_values (coord, node, (is_empty ? 0 : node_num_items (node) - 1), 0, (is_empty ? EMPTY_NODE : AFTER_ITEM));
 
 	assert ("jmacd-9804", ncoord_check (coord));
 }
@@ -1039,11 +1039,11 @@ __u64 extent_unit_width_n (const new_coord *coord)
 	return extent_unit_width (&tcoord);
 }
 
-int extent_get_inode_n (const new_coord *coord, struct inode **inode)
+void extent_get_inode_n (const new_coord *coord, struct inode **inode)
 {
 	tree_coord tcoord;
 	ncoord_to_tcoord (&tcoord, coord);
-	return extent_get_inode (&tcoord, inode);
+	extent_get_inode (&tcoord, inode);
 }
 
 int node_shift_n (znode *pnode, new_coord *coord, znode *snode, sideof side,
