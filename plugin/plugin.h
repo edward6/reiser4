@@ -349,15 +349,19 @@ typedef struct crypto_plugin {
 	plugin_header h;
 	/* number of cpu expkey words */
 	unsigned nr_keywords;
-	/* minimal input blocksize accepted by the algorithm */
+	/* minimal input blocksize accepted by the crypto algorithm */
 	size_t (*blocksize)(__u16 keysize);
-	/* Offset translator (meaningful for asymmetric crypto-algorithms).
-	   Offset translation allows to keep consistency in key space when
-	   crypto algorithm inflate data. 
-	EDWARD-FIXME-HANS: make these comments much longer, or reference a design document that explains it all. */
+	/* Offset translator. For each offset this returns (k * offset), where
+	   k (k >= 1) is a coefficient of expansion of the crypto algorithm.
+	   For all symmetric algorithms k == 1. For asymmetric algorithms (which
+	   inflate data) offset translation guarantees that all disk cluster's
+	   units will have keys smaller then next cluster's one.
+	*/
 	loff_t (*scale)(struct inode * inode, size_t blocksize, loff_t src);	
-	/* Align manager which aligns flow up to crypto block size before
-	   passing it to crypto algorithm */
+	/* Crypto algorithms can accept data only by chunks of crypto block
+	   size. This method is to align any flow up to crypto block size when
+	   we pass it to crypto algorithm. To align means to append padding of
+	   special format specific to the crypto algorithm */
 	int (*align_cluster)(__u8 *tail, int clust_size, int blocksize);
 	/* low-level key manager (check, install, etc..) */
 	int (*set_key) (__u32 *expkey, const __u8 *key);
