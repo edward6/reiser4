@@ -19,9 +19,11 @@ check_contexts(void)
 {
 	reiser4_context *ctx;
 
+	spin_lock(&active_contexts_lock);
 	for_all_type_safe_list(context, &active_contexts, ctx) {
 		assert("", ctx->magic == context_magic);
 	}
+	spin_unlock(&active_contexts_lock);
 }
 
 #endif
