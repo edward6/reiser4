@@ -3692,20 +3692,28 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 	reiser4_block_nr ext_width, ext_start;
 	long ext_index, reloc_ind;
 	reiser4_block_nr new_ext_width, new_ext_start, new_block;
+	int unallocated_flg;
 	int ret = 0;
 
 	parse_extent(coord, &ext_start, &ext_width, &ext_index);
 	assert("zam-974", *len != 0);
 
-	if (state_of_extent(extent_by_coord(coord)) == UNALLOCATED_EXTENT)
-		hint->block_stage = BLOCK_UNALLOCATED;
-	else 
-		hint->block_stage = BLOCK_FLUSH_RESERVED;
+	unallocated_flg = (state_of_extent(extent_by_coord(coord)) == UNALLOCATED_EXTENT);
+	hint->block_stage = unallocated_flg ? BLOCK_UNALLOCATED : BLOCK_FLUSH_RESERVED;
 		
 	new_ext_width = *len;
 	ret = reiser4_alloc_blocks(hint, &new_ext_start, &new_ext_width, BA_PERMANENT | BA_FORMATTED, __FUNCTION__);
 	if (ret)
 		return ret;
+
+	if (!unallocated_flg) {
+		reiser4_block_nr dealloc_ext_start;
+
+		dealloc_ext_start = ext_start + ext_width - *len;
+		ret = reiser4_dealloc_blocks(&dealloc_ext_start, len, 0, BA_DEFER | BA_PERMANENT, __FUNCTION__);
+		if (ret)
+			return ret;
+	}
 
 	new_block = new_ext_start;
 	for (reloc_ind = ext_width - new_ext_width; reloc_ind < ext_width; reloc_ind ++)
@@ -3715,8 +3723,6 @@ static int relocate_extent (struct inode * inode, coord_t * coord, reiser4_block
 		if (IS_ERR(check))
 			return PTR_ERR(check);
 		assert("zam-975", relocatable(check));
-
-		/* relocate node */
 		jnode_set_block(check, &new_block);
 		new_block ++;
 
