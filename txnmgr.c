@@ -1261,16 +1261,11 @@ flush_some_atom(long *nr_submitted, int flags)
 	txn_atom *atom;
 	int ret;
 
-/* can txnh ever be null? */
-	spin_lock_txnh(txnh);
-	atom = txnh->atom;
-	spin_unlock_txnh(txnh);
+	atom = atom_get_locked_with_txnh_locked_nocheck (txnh);
+	spin_unlock_txnh (txnh);
 
 	if (atom) {
-		atom = atom_get_locked_with_txnh_locked(txnh);
-		spin_unlock_txnh(txnh);
-
-		ret = flush_this_atom(atom, nr_submitted, flags);
+		ret = flush_this_atom (atom, nr_submitted, flags);
 	} else {
 		txn_mgr *tmgr = &get_super_private(ctx->super)->tmgr;
 		ret = flush_one(tmgr, nr_submitted, flags);
