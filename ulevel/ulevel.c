@@ -4243,7 +4243,7 @@ static void *uswapd( void *untyped )
 
 void declare_memory_pressure( void )
 {
-	/*return;*/
+	return;
 	spin_lock( &mp_guard );
 	is_mp = 1;
 	spin_unlock( &mp_guard );
