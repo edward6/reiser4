@@ -478,7 +478,7 @@ errno_t reiserfs_tree_lshift(
 			break;
 		    
 		    new->cache = left;
-		    new->pos.item = reiserfs_node_count(left->node) - 1;
+		    new->pos.item = reiserfs_node_count(left->node);
 		} else 
 		    new->pos.item--;
 	    } else
@@ -660,8 +660,8 @@ errno_t reiserfs_tree_mkspace(
 	return 0;
     
     /* Trying to shift items into left neighbour */
-/*    if (reiserfs_tree_lshift(tree, old, new, needed))
-	return -1;*/
+    if (reiserfs_tree_lshift(tree, old, new, needed))
+	return -1;
 
     /* Trying to shift items into right neighbour */
     if (reiserfs_node_get_space(new->cache->node) < needed && 
@@ -965,18 +965,24 @@ errno_t reiserfs_tree_insert(
     }
     
     /* Inserting item at coord if there is enough free space */
-    if (reiserfs_node_get_space(coord->cache->node) >= needed) {
-
-        if (reiserfs_cache_insert(coord->cache, &coord->pos, item)) {
-	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
-		"Can't insert an %s into the node %llu.", 
-		(coord->pos.unit == ~0ul ? "item" : "unit"),
-		aal_block_get_nr(coord->cache->node->block));
+    if (reiserfs_node_get_space(coord->cache->node) < needed) {
+	reiserfs_coord_t insert;
+		
+	if (reiserfs_tree_mkspace(tree, coord, &insert, needed))
 	    return -1;
-	}
 
-	return 0;
+	*coord = insert;
     }
+    
+    if (reiserfs_cache_insert(coord->cache, &coord->pos, item)) {
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	   "Can't insert an %s into the node %llu.", 
+	    (coord->pos.unit == ~0ul ? "item" : "unit"),
+	    aal_block_get_nr(coord->cache->node->block));
+	return -1;
+    }
+
+    return 0;
     
     /*
 	Here is the case when there is no enough free space in found node. In this
@@ -1018,8 +1024,6 @@ errno_t reiserfs_tree_insert(
 	    return -1;
 	}
 
-	return 0;
-	
 	if (item->type == INTERNAL_ITEM) {
 	    uint32_t count;
 	    reiserfs_cache_t *right;

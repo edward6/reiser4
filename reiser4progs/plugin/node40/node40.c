@@ -278,13 +278,12 @@ static errno_t node40_insert(reiserfs_entity_t *entity,
     nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
     
     if (item->data) {
-	aal_memcpy(node40_ib_at(node->block, pos->item), 
-	    item->data, item->len);
+	aal_memcpy(node40_ib_at(node->block, pos->item), item->data, item->len);
 	return 0;
-    } else {
-	return libreiser4_plugin_call(return -1, item->plugin->item_ops.common,
-	    init, node40_ib_at(node->block, pos->item), item);
     }
+    
+    return libreiser4_plugin_call(return -1, item->plugin->item_ops.common,
+	init, node40_ib_at(node->block, pos->item), item);
 }
 
 /* Pastes unit into item described by hint structure. */
@@ -345,7 +344,7 @@ static errno_t node40_shrink(reiserfs_node40_t *node,
 	
 	/* Moving headers */
 	if (!is_cut)
-	    aal_memmove(end, end + 1, ((void *)ih) - ((void *)end));
+	    aal_memmove(end + 1, end, ((void *)ih) - ((void *)end));
     }
 	
     nh40_set_free_space_start(nh, nh40_get_free_space_start(nh) - len);
@@ -360,6 +359,7 @@ static errno_t node40_shrink(reiserfs_node40_t *node,
 static errno_t node40_remove(reiserfs_entity_t *entity, 
     reiserfs_pos_t *pos) 
 {
+    uint32_t len;
     reiserfs_item40_header_t *ih;
     reiserfs_node40_header_t *nh;
     reiserfs_node40_t *node = (reiserfs_node40_t *)entity;
@@ -369,14 +369,15 @@ static errno_t node40_remove(reiserfs_entity_t *entity,
     
     nh = reiserfs_nh40(node->block);
     ih = node40_ih_at(node->block, pos->item);
+    len = ih40_get_len(ih);
 
     /* Removing either item or unit, depending on pos */
-    if (node40_shrink(node, pos, ih40_get_len(ih)))
+    if (node40_shrink(node, pos, len))
 	return -1;
 	
     nh40_set_num_items(nh, nh40_get_num_items(nh) - 1);
-    nh40_set_free_space(nh, nh40_get_free_space(nh) + 
-        ih40_get_len(ih) + sizeof(reiserfs_item40_header_t));
+    nh40_set_free_space(nh, nh40_get_free_space(nh) + len +
+        sizeof(reiserfs_item40_header_t));
 	
     return 0;
 }

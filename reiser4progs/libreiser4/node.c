@@ -367,20 +367,13 @@ int reiserfs_node_lookup(
 	    return -1;
 	}
 	
-	if (reiserfs_key_compare(key, &maxkey) > 0) {
-	    pos->item++;
-	    return 0;
-	}
-    } else {
-	/* 
-	    FIXME-UMKA: This is some dirty hack due to statdata plugin doesn't 
-	    contains maxkey method. It probably should be changes soon, or lookup
-	    will be redisigned.
-	*/
-	pos->item++;
-	return 0;
     }
 
+    if (reiserfs_key_compare(key, &maxkey) > 0) {
+        pos->item++;
+        return 0;
+    }
+    
     /* Calling lookup method of found item (most probably direntry item) */
     if (!plugin->item_ops.common.lookup)
 	return 0;
