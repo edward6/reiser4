@@ -2803,33 +2803,34 @@ static int bash_cpr (struct inode * dir, const char * source)
 
 
 
-static int bash_mount (reiser4_context * context, char * cmd)
+static int bash_mount (/*reiser4_context * context,*/ char * cmd, struct super_block **sb)
 {
-	struct super_block * sb;
+	/*struct super_block * sb;*/
 	char *opts;
 	char *file_name;
 
 	file_name = strsep( &cmd, (char *)" " );
 	opts = cmd;
 
-	sb = call_mount (file_name, opts);
-	if (IS_ERR (sb)) {
-		return PTR_ERR (sb);
+	*sb = call_mount (file_name, opts);
+	if (IS_ERR (*sb)) {
+		return PTR_ERR (*sb);
 	}
 
 	/* REISER4_ENTRY */
-	init_context (context, sb);
+/*	init_context (context, sb);*/
 	return 0;
 }
 
 
-static void bash_umount (reiser4_context * context)
+static void bash_umount (struct super_block * sb/*reiser4_context * context*/)
 {
 	int ret;
-	struct super_block * sb;
+	/*struct super_block * sb;*/
 	int fd;
 
-	sb = reiser4_get_current_sb ();
+	assert ("vs-768", sb);
+	/*sb = reiser4_get_current_sb ();*/
 	fd = sb->s_bdev->bd_dev;
 	call_umount (sb);
 
@@ -2841,9 +2842,10 @@ static void bash_umount (reiser4_context * context)
 	invalidate_pages ();
 
 	/* REISER4_EXIT */
+/*
         ret = txn_end (context);
 	done_context (context);
-
+*/
 	/*
 	txn_mgr_force_commit (s);
 	*/
@@ -3546,13 +3548,15 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 {
 	char * command = 0;
 	struct inode * cwd;
-	reiser4_context context;
+	/*reiser4_context context;*/
 	int mounted;
 	int result;
 	char * tmp;
 	int tmp_n;
+	struct super_block * sb;
 
 	mounted = 0;
+	sb = 0;
 
 	set_current ();
 	/* module_init () -> reiser4_init () -> register_filesystem */
@@ -3603,6 +3607,9 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		info ("> ");
 		if (getline (&tmp, &tmp_n, stdin) == -1)
 			break;
+		if (tmp[0] == '#')
+			/* ignore comments */
+			continue;
 		/*add_history (command);*/
 		/* remove \n */
 		tmp [strlen (tmp) - 1] = 0;
@@ -3612,13 +3619,13 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				info ("Umount first\n");
 				continue;
 			}
-			result = bash_mount (&context, command + 6);
+			result = bash_mount (/*&context,*/ command + 6, &sb);
 			if (result) {
 				info ("mount failed: %s\n", strerror (result));
 				continue;
 			}
-
-			cwd = reiser4_get_current_sb ()->s_root->d_inode;
+			assert ("vs-767", sb);
+			cwd = sb->s_root->d_inode;
 			mounted = 1;
 			continue;
 		}
@@ -3627,8 +3634,9 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 				info ("Mount first\n");
 				continue;
 			}
-			bash_umount (&context);
+			bash_umount (sb/*&context*/);
 			mounted = 0;
+			sb = 0;
 			continue;
 		}
 		if (!strncmp (command, "mkfs ", 5)) {
@@ -3641,7 +3649,7 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		}
 		if (!strcmp (command, "exit")) {
 			if (mounted)
-				bash_umount (&context);
+				bash_umount (sb/*&context*/);
 			break;
 		}
 		if (command[0] == 0 || !strcmp (command, "help")) {
@@ -3712,11 +3720,13 @@ static int bash_test (int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		} else if (!strcmp (command, "df")) {
 			bash_df (cwd);
 		} else if (!strncmp (command, "p", 1)) {
+			REISER4_ENTRY (sb);
 			/*
 			 * print tree
 			 */
 			print_tree_rec ("DONE", tree_by_inode (cwd),
 					REISER4_NODE_PRINT_ALL & ~REISER4_NODE_PRINT_PLUGINS & ~REISER4_NODE_PRINT_ZNODE & ~REISER4_NODE_PRINT_ZADDR);
+			__REISER4_EXIT (&__context);
 		} else if (!strncmp (command, "info", 1)) {
 			get_current_super_private ()->lplug->print_info (reiser4_get_current_sb ());
 		} else
@@ -4396,7 +4406,22 @@ int real_main( int argc, char **argv )
 
 	deregister_thread();
 
-	bash_umount ( &__context );
+	/*sb = reiser4_get_current_sb ();*/
+	{
+		int fd;
+
+		fd = reiser4_get_current_sb ()->s_bdev->bd_dev;
+		call_umount (reiser4_get_current_sb ());
+		
+		close (fd);
+		
+		/* free all pages and inodes, make sure that there are no dirty/used
+		 * pages/inodes */
+		invalidate_inodes ();
+		invalidate_pages ();
+
+		/*bash_umount ( &__context );*/
+	}
 	run_done_reiser4 ();
 	return 0;
 }
