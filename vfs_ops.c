@@ -103,7 +103,6 @@ static unsigned long reiser4_get_unmapped_area(struct file *, unsigned long,
 
 static struct inode *reiser4_alloc_inode(struct super_block *super);
 static void reiser4_destroy_inode(struct inode *inode);
-static void reiser4_put_inode(struct inode *inode);
 static void reiser4_drop_inode(struct inode *);
 static void reiser4_delete_inode(struct inode *);
 static void reiser4_write_super(struct super_block *);
@@ -470,12 +469,6 @@ truncate_object(struct inode *inode /* object to truncate */ ,
 
 	write_syscall_trace("%llu %lli", get_inode_oid(inode), size);
 
-	/* if among pages which are being removed completely there are emergency flushed ones - drop them first */
-	drop_enodes(inode, (inode->i_size + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
-#if REISER4_USE_EFLUSH
-	assert("vs-1181", inode_get_flag(inode, REISER4_DONT_EFLUSH));
-	inode_clr_flag(inode, REISER4_DONT_EFLUSH);
-#endif
 	fplug = inode_file_plugin(inode);
 	assert("vs-142", fplug != NULL);
 
@@ -1358,7 +1351,6 @@ init_once(void *obj /* pointer to new inode */ ,
 		info->p.eflushed = 0;
 		INIT_LIST_HEAD(&info->p.moved_pages);
 		readdir_list_init(get_readdir_list(&info->vfs_inode));
-		INIT_LIST_HEAD(&info->p.eflushed_nodes);
 	}
 }
 
@@ -1420,9 +1412,20 @@ static void
 reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 {
 	reiser4_inode *info;
+	int fallout;
 
 	info = reiser4_inode_data(inode);
 	reiser4_stat_inc_at(inode->i_sb, vfs_calls.destroy_inode);
+
+	spin_lock_inode(inode);
+	fallout = info->eflushed > 0;
+	if (fallout)
+		inode->i_state |= I_GHOST;
+	spin_unlock_inode(inode);
+
+	if (fallout)
+		return;
+
 	if (!is_bad_inode(inode) && inode_get_flag(inode, REISER4_LOADED)) {
 
 		assert("nikita-2828", reiser4_inode_data(inode)->eflushed == 0);
@@ -1462,28 +1465,6 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	kmem_cache_free(inode_cache, container_of(info, reiser4_inode_object, p));
 }
 
-/*
- * FIXME-VS: if there were an appropriate inode state bit which we could set to prevent inode having emergency flushed
- * nodes from being pruned then we would not need to increment inodes's reference counter when inode gets first
- * emergency flushed node and therefore, we would not have to have this method to decrement that counter when last
- * holder releases unlinked inode
- */
-static void
-reiser4_put_inode(struct inode *inode)
-{
-	if (!inode_file_plugin(inode) || !inode_file_plugin(inode)->not_linked)
-		return;
-	spin_lock_inode(inode);
-	if (inode_file_plugin(inode)->not_linked(inode) && atomic_read(&inode->i_count) == 2 &&
-	    reiser4_inode_data(inode)->eflushed) {
-		/* there are no other inode holders but emergency flushed pages. Decrement inode->i_count here to have
-		 * iput_final->reiser4_drop_inode to be called */
-		/* FIXME: should inode_lock be held? */
-		atomic_dec(&inode->i_count);
-	}
-	spin_unlock_inode(inode);
-}
-
 extern void generic_drop_inode(struct inode *object);
 
 static void
@@ -1498,9 +1479,10 @@ reiser4_drop_inode(struct inode *object)
 	   called and all existing ->not_linked() methods are one liners. */
 
 	fplug = inode_file_plugin(object);
-	if ((fplug != NULL) && fplug->not_linked(object)) {
+	assert("nikita-3084", fplug != NULL);
+	if (fplug->not_linked(object)) {
 		/* create context here.
-		  
+
 		   removal of inode from the hash table (done at the very
 		   beginning of generic_delete_inode(), truncate of pages, and
 		   removal of file's extents has to be performed in the same
@@ -1508,31 +1490,7 @@ reiser4_drop_inode(struct inode *object)
 		   unallocated extent will be flushed to the disk.
 		*/
 		__REISER4_ENTRY(object->i_sb, );
-
-		/*
-		 * FIXME: the code below resembles to generic_delete_inode, except that it calls truncate_inode_pages
-		 * after reiser4_delete_inode
-		 */
-		hlist_del_init(&object->i_hash);
-		list_del_init(&object->i_list);
-		object->i_state|=I_FREEING;
-		inodes_stat.nr_inodes--;
-		spin_unlock(&inode_lock);
-
-		security_inode_delete(object);
-
-		if (!is_bad_inode(object))
-			DQUOT_INIT(object);
-
-		drop_enodes(object, 0);
-		reiser4_delete_inode(object);
-
-		if (object->i_data.nrpages)
-			truncate_inode_pages(&object->i_data, 0);
-
-		clear_inode(object);
-		destroy_inode(object);
-
+		generic_delete_inode(object);
 		(void)reiser4_exit_context(&__context);
 	} else
 		generic_forget_inode(object);
@@ -1553,7 +1511,7 @@ reiser4_delete_inode(struct inode *object)
 	}
 
 	object->i_blocks = 0;
-	/*clear_inode(object);*/
+	clear_inode(object);
 	(void)reiser4_exit_context(&__context);
 }
 
@@ -3008,7 +2966,7 @@ struct super_operations reiser4_super_operations = {
 	.read_inode = noop_read_inode,	/* d */
 	.dirty_inode = NULL, /*reiser4_dirty_inode,*/	/* d */
 /* 	.write_inode        = reiser4_write_inode, */
- 	.put_inode          = reiser4_put_inode,
+ 	.put_inode          = NULL, /* d */
 	.drop_inode = reiser4_drop_inode,	/* d */
 	.delete_inode = reiser4_delete_inode,	/* d */
 	.put_super = NULL /* d */ ,
