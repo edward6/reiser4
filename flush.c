@@ -775,9 +775,10 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	   and, hence, is kept during leftward scan. As a result, we have to
 	   use try-lock when taking long term locks during the leftward scan.
 	*/
-	if ((ret = scan_left(&left_scan, &right_scan, node, sbinfo->flush.scan_maxnodes))) {
+	ret = scan_left(&left_scan, &right_scan, 
+			node, sbinfo->flush.scan_maxnodes);
+	if (ret != 0)
 		goto failed;
-	}
 
 	/* Then possibly go right to decide if we will use a policy of relocating leaves.
 	   This is only done if we did not scan past (and count) enough nodes during the
@@ -2718,7 +2719,8 @@ jnode_lock_parent_coord(jnode         * node,
 		   root, which caller must check.) */
 		if (coord != NULL) {
 
-			if ((ret = incr_load_count_znode(parent_zh, parent_lh->node))) {
+			ret = incr_load_count_znode(parent_zh, parent_lh->node);
+			if (ret != 0) {
 				warning("jmacd-976812", "incr_load_count_znode failed: %d", ret);
 				return ret;
 			}
@@ -2918,11 +2920,13 @@ scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit)
 	scan->max_count = limit;
 	scan->direction = LEFT_SIDE;
 
-	if ((ret = scan_set_current(scan, jref(node), 1, NULL))) {
+	ret = scan_set_current(scan, jref(node), 1, NULL);
+	if (ret != 0) {
 		return ret;
 	}
 
-	if ((ret = scan_common(scan, right))) {
+	ret = scan_common(scan, right);
+	if (ret != 0) {
 		return ret;
 	}
 
@@ -2954,7 +2958,8 @@ scan_right(flush_scan * scan, jnode * node, unsigned limit)
 	scan->max_count = limit;
 	scan->direction = RIGHT_SIDE;
 
-	if ((ret = scan_set_current(scan, jref(node), 0, NULL))) {
+	ret = scan_set_current(scan, jref(node), 0, NULL);
+	if (ret != 0) {
 		return ret;
 	}
 
@@ -2979,11 +2984,11 @@ scan_common(flush_scan * scan, flush_scan * other)
 
 		if (coord_is_invalid(&scan->parent_coord)) {
 
-			if (
-			    (ret =
-			     jnode_lock_parent_coord(scan->node,
-						     &scan->parent_coord,
-						     &scan->parent_lock, &scan->parent_load, ZNODE_WRITE_LOCK, 0))) {
+			ret = jnode_lock_parent_coord
+				(scan->node, &scan->parent_coord, 
+				 &scan->parent_lock, &scan->parent_load, 
+				 ZNODE_WRITE_LOCK, 0);
+			if (ret != 0) {
 				/* FIXME(C): check EINVAL, EDEADLK */
 				trace_on(TRACE_FLUSH,
 					 "flush_scan_common: jnode_lock_parent_coord returned %d\n", ret);				
@@ -3022,7 +3027,8 @@ scan_common(flush_scan * scan, flush_scan * other)
 	   formatted position, then returns and repeats this loop. */
 	while (!scan_finished(scan)) {
 
-		if ((ret = scan_formatted(scan))) {
+		ret = scan_formatted(scan);
+		if (ret != 0) {
 			return ret;
 		}
 	}

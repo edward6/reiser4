@@ -995,6 +995,8 @@ static int current_atom_complete_writes (void)
 	return current_atom_finish_all_fq();
 }
 
+#define TOOMANYFLUSHES (1)
+
 /* Called with the atom locked and no open "active" transaction handlers except
    ours, this function calls flush_current_atom() until all dirty nodes are
    processed.  Then it initiates commit processing.
@@ -1011,6 +1013,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 {
 	reiser4_super_info_data * sbinfo = get_current_super_private ();
 	long ret;
+	int  flushiters;
 	
 	assert ("zam-888", atom != NULL && *atom != NULL);
 	assert ("zam-886", spin_atom_is_locked(*atom));
@@ -1023,12 +1026,17 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	/* call reiser4_update_sd for all atom's inodes */
 	atom_update_stat_data(atom);
 
-	while (1) {
+	for (flushiters = 0 ;; ++ flushiters) {
 		ret = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS | JNODE_FLUSH_COMMIT, nr_submitted, atom);
 		if (ret != -EAGAIN)
 			break;
 
 		*atom = get_current_atom_locked();
+		if (flushiters > TOOMANYFLUSHES && IS_POW(flushiters)) {
+			warning("nikita-3176", 
+				"Flushing like mad: %i", flushiters);
+			info_atom("atom", *atom);
+		}
 	}
 
 	if (ret)
