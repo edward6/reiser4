@@ -517,7 +517,6 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 {
 	int result;
 
-#if 0
 	/* collect statistics on the number of calls to this function */
 	reiser4_stat_file_add(find_next_item);
 
@@ -525,21 +524,10 @@ find_next_item(struct sealed_coord *hint, const reiser4_key * key,	/* key of pos
 		hint->lock = lock_mode;
 		result = hint_validate(hint, key, coord, lh);
 		if (!result) {
-			if (coord_set_properly(key, coord)) {
-				reiser4_stat_file_add(find_next_item_via_seal);
-				return CBK_COORD_FOUND;
-			}
-
-			result = get_next_item(coord, lh, lock_mode);
-			if (!result)
-				if (coord_set_properly(key, coord)) {
-					reiser4_stat_file_add
-					    (find_next_item_via_right_neighbor);
-					return CBK_COORD_FOUND;
-				}
+			reiser4_stat_file_add(find_next_item_via_seal);
+			return CBK_COORD_FOUND;
 		}
 	}
-#endif
 #if 0
 	/*
 	 * FIXME-VS: longterm_lock_znode is needed here
@@ -625,6 +613,14 @@ find_file_size(struct inode *inode, loff_t * file_size)
 	return 0;
 }
 
+static int
+unix_file_writepage_nolock(struct page *page);
+
+static int filler(void *vp, struct page *page)
+{
+	return unix_file_readpage(vp, page);
+}
+
 /* part of unix_file_truncate: it is called when truncate is used to make
  * file shorter */
 static int
@@ -663,7 +659,7 @@ shorten(struct inode *inode)
 
 	/* last page is partially truncated - zero its content */
 	page = read_cache_page(inode->i_mapping, index,
-			       unix_file_readpage_nolock, 0);
+			       filler, 0);
 	if (IS_ERR(page)) {
 		if (likely(PTR_ERR(page) == -EINVAL)) {
 			/* looks like file is built of tail items */
@@ -676,7 +672,6 @@ shorten(struct inode *inode)
 		page_cache_release(page);
 		return -EIO;
 	}
-	reiser4_lock_page(page);
 	result = unix_file_writepage_nolock(page);
 	if (result) {
 		page_cache_release(page);
@@ -864,17 +859,18 @@ hint_validate(struct sealed_coord *hint, const reiser4_key * key,
 
 /*
  * this finds item of file corresponding to page being read in and calls its
- * readpage method. To perform search in the tree we unlock page, and then lock
- * it again after long term znode lock is obtained. While page is unlocked - it
- * can not be neither released (reference count is increased) nor invalidated
- * (truncate requires exclusive access which can not be obtained while we are
- * in unix_file_readpage_nolock because all its callers grab either exclusive
+ * readpage method. Start with unlocked page, so it can be made uptodate by
+ * someone else. So, check uptodateness after page is locked again after long
+ * term znode lock is obtained. While page is unlocked - it can not be neither
+ * released (reference count is increased) nor invalidated (truncate requires
+ * exclusive access which can not be obtained while we are in
+ * unix_file_readpage_nolock because all its callers grab either exclusive
  * (extent2tail->read_cache_page->filler->unix_file_readpage_nolock) or
  * nonexclusive
  * (reiser4_readpage->unix_file_readpage->unix_file_readpage_nolock) access to
  * the file)
  */
-int
+static int
 unix_file_readpage_nolock(void *file, struct page *page)
 {
 	int result;
@@ -883,17 +879,23 @@ unix_file_readpage_nolock(void *file, struct page *page)
 	reiser4_key key;
 	item_plugin *iplug;
 	struct sealed_coord hint;
-	struct inode *inode;
+	int uptodate;
 
-	assert("vs-1062", PageLocked(page));
+	assert("vs-1062", !PageLocked(page));
 	assert("vs-1061", page->mapping && page->mapping->host);
 
-	reiser4_unlock_page(page);
+	/*
+	 * FIXME-VS: this is to check how often does this happen
+	 */
+	uptodate = 0;
+	if (unlikely(PageUptodate(page))) {
+		info ("unix_file_readpage_nolock: page is already uptodate\n");
+		uptodate = 1;
+	}
 
 	/* get key of first byte of the page */
-	inode = page->mapping->host;
-
-	unix_file_key_by_inode(inode, (loff_t) page->index << PAGE_CACHE_SHIFT,
+	unix_file_key_by_inode(page->mapping->host,
+			       (loff_t) page->index << PAGE_CACHE_SHIFT,
 			       &key);
 
 	/* look for file metadata corresponding to first byte of page
@@ -912,14 +914,23 @@ unix_file_readpage_nolock(void *file, struct page *page)
 		reiser4_lock_page(page);
 		return result;
 	}
-	result = zload(coord.node);
+
 	reiser4_lock_page(page);
+	if (PageUptodate(page)) {
+		if (!uptodate)
+			info("unix_file_readpage_nolock: "
+			     "page became already uptodate\n");
+		done_lh(&lh);		
+		return 0;
+	}
+
+	result = zload(coord.node);
 	if (result) {
 		done_lh(&lh);
 		return result;
 	}
 
-	assert("nikita-2720", page->mapping == inode->i_mapping);
+	/*assert("nikita-2720", page->mapping == file->f_dentry->d_inode->i_mapping);*/
 
 	if (!coord_is_existing_unit(&coord)) {
 		/* this indicates corruption */
@@ -927,7 +938,8 @@ unix_file_readpage_nolock(void *file, struct page *page)
 			"Looking for page %lu of file %lu (size %lli). "
 			"No file items found (%d). "
 			"File is corrupted?\n",
-			page->index, inode->i_ino, inode->i_size, result);
+			page->index, page->mapping->host->i_ino,
+			page->mapping->host->i_size, result);
 		zrelse(coord.node);
 		done_lh(&lh);
 		return -EIO;
@@ -959,7 +971,7 @@ unix_file_readpage_nolock(void *file, struct page *page)
  * with unlocked page. Lock page after long term znode lock is obtained. Return
  * with page locked */
 /* this is used by tail2extent->replace to replace tail items with extent ones */
-int
+static int
 unix_file_writepage_nolock(struct page *page)
 {
 	int result;
@@ -969,69 +981,81 @@ unix_file_writepage_nolock(struct page *page)
 	item_plugin *iplug;
 	struct sealed_coord hint;
 	znode *loaded;
-	struct inode *inode;
 
-	assert("vs-1064", PageLocked(page));
+	assert("vs-1064", !PageLocked(page));
 	assert("vs-1065", page->mapping && page->mapping->host);
 
-	reiser4_unlock_page(page);
-
 	/* get key of first byte of the page */
-	inode = page->mapping->host;
-
-	unix_file_key_by_inode(inode, (loff_t) page->index << PAGE_CACHE_SHIFT,
+	unix_file_key_by_inode(page->mapping->host,
+			       (loff_t) page->index << PAGE_CACHE_SHIFT,
 			       &key);
 
-	/* look for file metadata corresponding to first byte of page
-	 * FIXME-VS: seal might be used here
-	 */
-	result = load_file_hint(0, &hint);
-	if (!result) {
-		while (1) {
-			coord_init_zero(&coord);
-			init_lh(&lh);
-			result = find_next_item(&hint, &key, &coord, &lh,
-						ZNODE_WRITE_LOCK,
-						CBK_UNIQUE | CBK_FOR_INSERT);
-			if (result != CBK_COORD_FOUND
-			    && result != CBK_COORD_NOTFOUND) {
-				done_lh(&lh);
-				break;
-			}
-			result = zload(coord.node);
-			if (result) {
-				done_lh(&lh);
-				break;
-			}
-			loaded = coord.node;
-
-			reiser4_lock_page(page);
-
-			/* get plugin of extent item */
-			iplug = item_plugin_by_id(EXTENT_POINTER_ID);
-			result = iplug->s.file.writepage(&coord, &lh, page);
-			assert("vs-982", PageLocked(page));
-			if (result == -EAGAIN) {
-				info
-				    ("writepage_nolock: item writepage returned EAGAIN\n");
-				reiser4_unlock_page(page);
-				zrelse(loaded);
-				done_lh(&lh);
-				continue;
-			}
-			if (!result && coord.node)
-				set_hint(&hint, &key, &coord);
-			else
-				unset_hint(&hint);
+	while (1) {
+		coord_init_zero(&coord);
+		init_lh(&lh);
+		result = find_next_item(&hint, &key, &coord, &lh,
+					ZNODE_WRITE_LOCK,
+					CBK_UNIQUE | CBK_FOR_INSERT);
+		if (result != CBK_COORD_FOUND
+		    && result != CBK_COORD_NOTFOUND) {
+			done_lh(&lh);
+			break;
+		}
+		result = zload(coord.node);
+		if (result) {
+			done_lh(&lh);
+			break;
+		}
+		loaded = coord.node;
+		
+		reiser4_lock_page(page);
+		
+		/* get plugin of extent item */
+		iplug = item_plugin_by_id(EXTENT_POINTER_ID);
+		result = iplug->s.file.writepage(&coord, &lh, page);
+		assert("vs-982", PageLocked(page));
+		if (result == -EAGAIN) {
+			info
+				("writepage_nolock: item writepage returned EAGAIN\n");
+			reiser4_unlock_page(page);
 			zrelse(loaded);
 			done_lh(&lh);
-
-			return result;
+			continue;
 		}
+		if (!result && coord.node)
+			set_hint(&hint, &key, &coord);
+		else
+			unset_hint(&hint);
+		zrelse(loaded);
+		done_lh(&lh);
+		
+		return result;
 	}
-
 	reiser4_lock_page(page);
 	return result;
+}
+
+#if 0
+/* this is used as a filler for read_cache_page (in extent2tail and shorten) */
+int
+unix_file_readpage_nolock_locked_page(void *file, struct page *page)
+{
+	assert("vs-1074", PageLocked(page));
+	assert("vs-1075", !PageUptodate(page));
+	
+	reiser4_unlock_page(page);
+	return unix_file_readpage(file, page);
+}
+#endif
+
+/* this is used as in tail2extent convertion */
+int
+unix_file_writepage_nolock_locked_page(struct page *page)
+{
+	assert("vs-1076", PageLocked(page));
+	
+	reiser4_unlock_page(page);
+	return unix_file_writepage_nolock(page);
 }
 
 static int
@@ -1041,7 +1065,7 @@ page_op(struct file *file, struct page *page, rw_op op)
 	struct inode *inode;
 
 	assert("vs-1032", PageLocked(page));
-	assert("vs-1033", ergo(op == READ_OP, !PageUptodate(page)));
+	assert("vs-1033", op == WRITE_OP);
 
 	if (PagePrivate(page))
 		return 0;
@@ -1053,14 +1077,13 @@ page_op(struct file *file, struct page *page, rw_op op)
 	reiser4_unlock_page(page);
 
 	get_nonexclusive_access(inode);
-	reiser4_lock_page(page);
-	if (!page->mapping) {
+	if (inode->i_size <= ((loff_t) page->index << PAGE_CACHE_SHIFT)) {
+		/* page is out of file */
 		drop_nonexclusive_access(inode);
+		reiser4_lock_page(page);
 		page_cache_release(page);
 		return -EIO;
 	}
-	assert("vs-1067",
-	       inode->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT));
 
 	result = ((op == READ_OP) ?
 		  unix_file_readpage_nolock(file, page) :
@@ -1075,11 +1098,96 @@ page_op(struct file *file, struct page *page, rw_op op)
 	return result;
 }
 
-/* plugin->u.file.readpage */
+/* plugin->u.file.readpage page must be not out of file. This is always called
+ * with NEA (reiser4's NonExclusive Access) obtained */
 int
 unix_file_readpage(struct file *file, struct page *page)
 {
-	return page_op(file, page, READ_OP);
+	int result;
+	coord_t coord;
+	lock_handle lh;
+	reiser4_key key;
+	item_plugin *iplug;
+	struct sealed_coord hint;
+
+	assert("vs-1062", PageLocked(page));
+	assert("vs-1061", page->mapping && page->mapping->host);
+	assert("vs-1078", (page->mapping->host->i_size >
+			   ((loff_t) page->index << PAGE_CACHE_SHIFT)));
+
+	/* get key of first byte of the page */
+	unix_file_key_by_inode(page->mapping->host,
+			       (loff_t) page->index << PAGE_CACHE_SHIFT,
+			       &key);
+
+	/* look for file metadata corresponding to first byte of page
+	 * FIXME-VS: seal might be used here
+	 */
+	result = load_file_hint(file, &hint);
+	if (result)
+		return result;
+
+	coord_init_zero(&coord);
+	init_lh(&lh);
+	reiser4_unlock_page(page);
+	result = find_next_item(&hint, &key, &coord, &lh,
+				ZNODE_READ_LOCK, CBK_UNIQUE);
+	reiser4_lock_page(page);
+	if (result != CBK_COORD_FOUND) {
+		/* this indicates file corruption */
+		done_lh(&lh);
+		return result;
+	}
+
+	if (PageUptodate(page)) {
+		info("unix_file_readpage: "
+		     "page became already uptodate\n");
+		done_lh(&lh);
+		unlock_page(page);
+		return 0;
+	}
+
+	result = zload(coord.node);
+	if (result) {
+		done_lh(&lh);
+		return result;
+	}
+
+	/*assert("nikita-2720", page->mapping == file->f_dentry->d_inode->i_mapping);*/
+
+	if (!coord_is_existing_unit(&coord)) {
+		/* this indicates corruption */
+		warning("vs-280",
+			"Looking for page %lu of file %lu (size %lli). "
+			"No file items found (%d). "
+			"File is corrupted?\n",
+			page->index, page->mapping->host->i_ino,
+			page->mapping->host->i_size, result);
+		zrelse(coord.node);
+		done_lh(&lh);
+		return -EIO;
+	}
+
+	/* get plugin of found item or use plugin if extent if there are no
+	 * one */
+	iplug = item_plugin_by_coord(&coord);
+	if (iplug->s.file.readpage)
+		result = iplug->s.file.readpage(&coord, &lh, page);
+	else
+		result = -EINVAL;
+
+	if (!result)
+		set_hint(&hint, &key, &coord);
+	else
+		unset_hint(&hint);
+	zrelse(coord.node);
+	done_lh(&lh);
+
+	save_file_hint(file, &hint);
+
+	assert("vs-979", ergo(result == 0, (PageLocked(page) ||
+					    PageUptodate(page))));
+	return result;
 }
 
 /* plugin->u.file.writepage */
@@ -1707,6 +1815,24 @@ unix_file_release(struct file *file)
 	return extent2tail(file);
 }
 
+struct page *
+unix_file_filemap_nopage(struct vm_area_struct * area, unsigned long address,
+			 int unused)
+{
+	struct page *page;
+	struct inode *inode;
+
+	inode = area->vm_file->f_dentry->d_inode;
+	get_nonexclusive_access(inode);
+	page = filemap_nopage(area, address, unused);
+	drop_nonexclusive_access(inode);
+	return page;
+}
+
+static struct vm_operations_struct unix_file_vm_ops = {
+	.nopage	= unix_file_filemap_nopage,
+};
+
 /* plugin->u.file.mmap
  * make sure that file is built of extent blocks
  */
@@ -1733,14 +1859,18 @@ unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 	if (!inode_get_flag(inode, REISER4_HAS_TAIL)) {
 		/* file is built of extents already */
 		drop_nonexclusive_access(inode);
-		return generic_file_mmap (file, vma);
+		return generic_file_mmap(file, vma);
 	}
 
 	result = tail2extent(inode);
 	drop_nonexclusive_access(inode);
 	if (result)
 		return result;
-	return generic_file_mmap(file, vma);
+	result = generic_file_mmap(file, vma);
+	if (result)
+		return result;
+	vma->vm_ops = &unix_file_vm_ops;
+	return 0;
 }
 
 /* plugin->u.file.get_block */
