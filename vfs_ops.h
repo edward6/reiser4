@@ -13,6 +13,7 @@
 #include "plugin/dir/dir.h"
 #include "plugin/file/file.h"
 #include "super.h"
+#include "readahead.h"
 
 #include <linux/types.h>	/* for loff_t */
 #include <linux/fs.h>		/* for struct address_space */
@@ -98,6 +99,7 @@ typedef struct reiser4_file_fsdata {
 		/* this is set by read_extent before calling page_cache_readahead */
 		void *coord;
 	} reg;
+	struct reiser4_file_ra_state ra;
 } reiser4_file_fsdata;
 
 TYPE_SAFE_LIST_DEFINE(readdir, reiser4_file_fsdata, dir.linkage);
