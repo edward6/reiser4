@@ -239,7 +239,13 @@ void reiser4_update_last_written_location( const struct super_block *s, const re
 	reiser4_super_info_data * private = get_super_private(s);
 
 	reiser4_spin_lock_sb(s);
-	private->last_written_location = *block;
+	if (*block < private->block_count) {
+		private->last_written_location = *block;
+	} else {
+		warning ("zam-676", 
+			 "block number %llu is too large to be used in a blocknr hint\n",
+			 (unsigned long long)*block);
+	}
 	reiser4_spin_unlock_sb(s);
 }
 

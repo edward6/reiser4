@@ -398,6 +398,7 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 		if (hint->blk == 0) {
 			reiser4_spin_lock_sb(s);
 			hint->blk = get_super_private(s)->last_written_location;
+			assert ("zam-677", hint->blk < get_super_private(s)->block_count);
 			reiser4_spin_unlock_sb(s);
 		}
 	}
@@ -407,11 +408,13 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *hint, reiser4_block_nr *blk,
 		if (ret != 0) return ret;		
 	}
 
-	splug = get_current_super_private ()->space_plug;	
-	ret = splug->alloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
-				   hint, (int) needed, blk, len);
+	splug = get_super_private (s)->space_plug;	
+	ret = splug->alloc_blocks (get_space_allocator (s), hint, (int) needed, blk, len);
 
 	if (!ret) {
+
+		assert ("zam-680", *blk < reiser4_block_count (s));
+		assert ("zam-681", *blk + *len < reiser4_block_count (s));
 
 		switch (stage) {
 		    case BLOCK_NOT_COUNTED:
@@ -529,8 +532,6 @@ int reiser4_dealloc_blocks (
  * to this newly allocated node until real allocation is done */
 int assign_fake_blocknr (reiser4_block_nr *blocknr)
 {
-	reiser4_block_nr not_used;
-
 #if 1
 	/* ret = reiser4_grab_space (&not_used, (reiser4_block_nr)1, (reiser4_block_nr)1);
 
