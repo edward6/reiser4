@@ -292,6 +292,15 @@ get_super_fake(const struct super_block *super	/* super block
 	return get_super_private(super)->fake;
 }
 
+/* return fake inode used to bind copied on capture nodes in the page cache */
+struct inode *
+get_cc_fake(const struct super_block *super	/* super block
+						   queried */ )
+{
+	assert("nikita-1757", super != NULL);
+	return get_super_private(super)->cc;
+}
+
 /* tree used by this file system */
 reiser4_tree *
 get_tree(const struct super_block * super	/* super block
