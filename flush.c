@@ -2345,18 +2345,11 @@ static pos_state_handle_t flush_pos_handlers[] = {
 static int squalloc (flush_pos_t * pos)
 {
 	int ret = 0;
-	/*XXXX*/ int twig = 0;
-
 	PROF_BEGIN(forward_squalloc);
+
 	/* maybe needs to be made a case statement with handle_pos_on_leaf as first case, for
 	 * greater CPU efficiency? Measure and see.... -Hans */
-	/*XXXX*/if (pos->state == POS_ON_EPOINT)
-		twig = 1;
-
 	while (pos_valid(pos)) {
-		if (twig)
-			/*XXXX*/printk("squalloc: node %p, item %d, unit %d, between %d\n", pos->coord.node,
-				       pos->coord.item_pos, pos->coord.unit_pos, pos->coord.between);
 		ret = flush_pos_handlers[pos->state](pos);
 		if (ret < 0)
 			break;
@@ -2365,10 +2358,6 @@ static int squalloc (flush_pos_t * pos)
 		if (ret)
 			break;
 	}
-	if (twig)
-		/*XXXX*/printk("squalloc done: node %p, item %d, unit %d, between %d\n", pos->coord.node,
-			       pos->coord.item_pos, pos->coord.unit_pos, pos->coord.between);
-		
 	
 	PROF_END(forward_squalloc);
 
