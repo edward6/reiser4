@@ -19,7 +19,7 @@ struct ktxnmgrd_context {
 	kcond_t startup;
 	struct completion finish;
 	kcond_t wait;
-	reiser4_spin_data guard;
+	spinlock_t guard;
 	signed long timeout;
 	struct task_struct *tsk;
 	txn_mgrs_list_head queue;
@@ -29,10 +29,6 @@ struct ktxnmgrd_context {
 	__u32 duties;
 	atomic_t pressure;
 };
-
-#define spin_ordering_pred_ktxnmgrd(ctx) (1)
-
-SPIN_LOCK_FUNCTIONS(ktxnmgrd, ktxnmgrd_context, guard);
 
 extern void init_ktxnmgrd_context(ktxnmgrd_context * context);
 

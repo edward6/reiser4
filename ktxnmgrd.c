@@ -51,7 +51,7 @@ ktxnmgrd(void *arg)
 	me->fs_context = NULL;
 
 	ctx = arg;
-	spin_lock_ktxnmgrd(ctx);
+	spin_lock(&ctx->guard);
 	ctx->tsk = me;
 	kcond_broadcast(&ctx->startup);
 	while (1) {
@@ -71,13 +71,8 @@ ktxnmgrd(void *arg)
 		   load-average. This doesn't require any special handling,
 		   because all signals were blocked.
 		*/
-		PREG_EX(get_cpu(), &pregion_spin_ktxnmgrd_held);
-		result = kcond_timedwait(&ctx->wait, 
-					 &ctx->guard.lock, ctx->timeout, 1);
-		PREG_IN(get_cpu(), 
-			&pregion_spin_ktxnmgrd_held, &ctx->guard.held, 0);
-		put_cpu();
-		if ((result != -ETIMEDOUT) && (result != 0)) {
+		result = kcond_timedwait(&ctx->wait, &ctx->guard, ctx->timeout, 1);
+		if (result != -ETIMEDOUT && result != 0) {
 			/* some other error */
 			warning("nikita-2443", "Error: %i", result);
 			continue;
@@ -98,7 +93,7 @@ ktxnmgrd(void *arg)
 			for_all_tslist(txn_mgrs, &ctx->queue, mgr) {
 				scan_mgr(mgr);
 
-				spin_lock_ktxnmgrd(ctx);
+				spin_lock(&ctx->guard);
 				if (ctx->rescan) {
 					/* the list could be modified while ctx
 					   spinlock was released, we have to
@@ -110,7 +105,7 @@ ktxnmgrd(void *arg)
 		} while (ctx->rescan);
 	}
 
-	spin_unlock_ktxnmgrd(ctx);
+	spin_unlock(&ctx->guard);
 
 	complete_and_exit(&ctx->finish, 0);
 	/* not reached. */
@@ -126,7 +121,7 @@ init_ktxnmgrd_context(ktxnmgrd_context * ctx)
 	kcond_init(&ctx->startup);
 	init_completion(&ctx->finish);
 	kcond_init(&ctx->wait);
-	spin_ktxnmgrd_init(ctx);
+	spin_lock_init(&ctx->guard);
 	ctx->timeout = REISER4_TXNMGR_TIMEOUT;
 	txn_mgrs_list_init(&ctx->queue);
 	atomic_set(&ctx->pressure, 0);
@@ -139,7 +134,7 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 
 	assert("nikita-2448", mgr != NULL);
 
-	spin_lock_ktxnmgrd(ctx);
+	spin_lock(&ctx->guard);
 
 	first_mgr = !ctx->started;
 	ctx->started = 1;
@@ -150,7 +145,7 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 	mgr->daemon = ctx;
 	txn_mgrs_list_push_back(&ctx->queue, mgr);
 
-	spin_unlock_ktxnmgrd(ctx);
+	spin_unlock(&ctx->guard);
 
 	if (first_mgr) {
 		/* attaching first mgr, start daemon */
@@ -159,16 +154,16 @@ ktxnmgrd_attach(ktxnmgrd_context * ctx, txn_mgr * mgr)
 		kernel_thread(ktxnmgrd, ctx, CLONE_VM | CLONE_FS | CLONE_FILES);
 	}
 
-	spin_lock_ktxnmgrd(ctx);
+	spin_lock(&ctx->guard);
 
 	/* daemon thread is not yet initialized */
 	if (ctx->tsk == NULL)
 		/* wait until initialization completes */
-		kcond_wait(&ctx->startup, &ctx->guard.lock, 0);
+		kcond_wait(&ctx->startup, &ctx->guard, 0);
 
 	assert("nikita-2452", ctx->tsk != NULL);
 
-	spin_unlock_ktxnmgrd(ctx);
+	spin_unlock(&ctx->guard);
 	return 0;
 }
 
@@ -185,7 +180,7 @@ ktxnmgrd_detach(txn_mgr * mgr)
 	if (ctx == NULL)
 		return;
 
-	spin_lock_ktxnmgrd(ctx);
+	spin_lock(&ctx->guard);
 	txn_mgrs_list_remove(mgr);
 	mgr->daemon = NULL;
 	ctx->rescan = 1;
@@ -195,13 +190,13 @@ ktxnmgrd_detach(txn_mgr * mgr)
 		ctx->tsk = NULL;
 		ctx->done = 1;
 		ctx->started = 0;
-		spin_unlock_ktxnmgrd(ctx);
+		spin_unlock(&ctx->guard);
 		kcond_signal(&ctx->wait);
 
 		/* wait until daemon finishes */
 		wait_for_completion(&ctx->finish);
 	} else
-		spin_unlock_ktxnmgrd(ctx);
+		spin_unlock(&ctx->guard);
 }
 
 /* scan one transaction manager for old atoms; should be called with ktxnmgrd
@@ -221,9 +216,6 @@ scan_mgr(txn_mgr * mgr)
 	assert("nikita-2456", tree->super != NULL);
 
 	init_context(&ctx, tree->super);
-
-	/* Count a spinlock taken without context */
-	spin_ktxnmgrd_inc();
 
 	ret = commit_some_atoms(mgr);
 
