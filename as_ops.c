@@ -562,12 +562,13 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 #undef INC_NSTAT
 #undef INC_STAT
 
-static void move_inode_out_from_sync_inodes_loop (struct address_space * mapping)
+reiser4_internal void
+move_inode_out_from_sync_inodes_loop(struct address_space * mapping)
 {
 	/* work around infinite loop in pdflush->sync_sb_inodes. */
 	/* Problem: ->writepages() is supposed to submit io for the pages from
 	 * ->io_pages list and to clean this list. */
-	mapping->dirtied_when = jiffies|1;
+	mapping->dirtied_when = jiffies;
 	spin_lock(&inode_lock);
 	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
 	spin_unlock(&inode_lock);

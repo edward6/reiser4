@@ -473,12 +473,8 @@ item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 	/* FIXME-VS: this is temporary: the problem is that bdp takes inodes
 	   from sb's dirty list and it looks like nobody puts there inodes of
 	   files which are built of tails */
-	if (back_to_dirty) {
-		mapping->dirtied_when = jiffies|1;
-		spin_lock(&inode_lock);
-		list_move(&inode->i_list, &inode->i_sb->s_dirty);
-		spin_unlock(&inode_lock);
-	}
+	if (back_to_dirty)
+		move_inode_out_from_sync_inodes_loop(mapping);
 
 	balance_dirty_page_unix_file(inode);
 	return hint_validate(hint, &f->key, 0/* do not check key */, ZNODE_WRITE_LOCK);
