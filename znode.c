@@ -62,16 +62,11 @@
  *
  * 3. His youth.
  *
- * If znode is bound to already existing node in a tree, its content is
- * read from the disk by call to zload(). At that moment, ZNODE_LOADED
- * bit is set in zstate and zdata() function starts to return non null
- * for this znode. zparse() function first calls zload(), then
- * determines which node layout this node is rendered in, and sets
- * ZNODE_PLUGIN bit in zstate on success.
- *
- * [merge ZNODE_PLUGIN with ZNODE_LOADED, and only use zload(). This is
- * not completely trivial, because of znodes for extents: there is no
- * parse stage for them.]
+ * If znode is bound to already existing node in a tree, its content is read
+ * from the disk by call to zload(). At that moment, ZNODE_LOADED bit is set
+ * in zstate and zdata() function starts to return non null for this
+ * znode. zload() further calls zparse() that determines which node layout
+ * this node is rendered in, and sets ->nplug on success.
  *
  * If znode is for new node just created, memory for it is allocated
  * [this is not done yet] and zinit_new() function is called to
@@ -79,15 +74,14 @@
  *
  * 4. His maturity.
  *
- * After this point, znode lingers in memory for some time. Threads
- * can acquire references to znode either by blocknr through call to
- * zget(), or by following a pointer to unallocated znode from
- * internal item [not implemented yet]. Each time reference to znode
- * is obtained, x_count is increased. Thread can read/write lock
- * znode. Znode data can be loaded through calls to zload()/zparse(),
- * d_count will be increased appropriately. If all references to znode
- * are released (x_count drops to 0), znode is not recycled
- * immediately. Rather, it is still cached in the hash table in the
+ * After this point, znode lingers in memory for some time. Threads can
+ * acquire references to znode either by blocknr through call to zget(), or by
+ * following a pointer to unallocated znode from internal item [not
+ * implemented yet]. Each time reference to znode is obtained, x_count is
+ * increased. Thread can read/write lock znode. Znode data can be loaded
+ * through calls to zload(), d_count will be increased appropriately. If all
+ * references to znode are released (x_count drops to 0), znode is not
+ * recycled immediately. Rather, it is still cached in the hash table in the
  * hope that it will be accessed shortly.
  *
  * There are two ways in which znode existence can be terminated: 
@@ -351,13 +345,31 @@ zlook (reiser4_tree *tree, const reiser4_block_nr *const blocknr)
 	/* According to the current design, the hash table lock protects new znode
 	 * references. */
 	if (result != NULL) {
-		atomic_inc (&result->x_count);
+		add_x_ref (result);
 	}
 
 	/* Release hash table lock: non-null result now referenced. */
 	spin_unlock_tree (tree);
 
 	return result;
+}
+
+/** bump reference counter on @node */
+void add_x_ref( znode *node /* node to increase x_count of */ )
+{
+	assert( "nikita-1911", node != NULL );
+
+	atomic_inc( &node -> x_count );
+	ON_DEBUG( ++ lock_counters() -> x_refs );
+}
+
+/** bump data counter on @node */
+void add_d_ref( znode *node /* node to increase d_count of */ )
+{
+	assert( "nikita-1911", node != NULL );
+
+	atomic_inc( &node -> d_count );
+	ON_DEBUG( ++ lock_counters() -> d_refs );
 }
 
 /**
@@ -367,7 +379,7 @@ znode *zref (znode *node)
 {
 	assert ("jmacd-508", (node != NULL) && ! IS_ERR (node));
 
-	atomic_inc (& node->x_count);
+	add_x_ref( node );
 	
 	return node;
 }
@@ -421,7 +433,7 @@ zget (reiser4_tree *tree,
 	/* According to the current design, the hash table lock protects new znode
 	 * references. */
 	if (result != NULL) {
-		atomic_inc (& result->x_count);
+		add_x_ref (result);
 	}
 
 	/* Release the hash table lock. */
@@ -462,7 +474,7 @@ zget (reiser4_tree *tree,
 
 		znode_set_level (result, level);
 
-		atomic_inc (& result->x_count);
+		add_x_ref (result);
 
 		/* Repeat search in case of a race, first take the hash table lock. */
 		spin_lock_tree (tree);
@@ -537,6 +549,7 @@ void zput (znode *node)
 		/* FIXME_JMACD: The atom has no reference because jnodes don't have
 		 * an x_count... what to do? */
 	}
+	ON_DEBUG ( -- lock_counters() -> x_refs );
 }
 
 /****************************************************************************************
@@ -577,6 +590,34 @@ static node_plugin *znode_guess_plugin( const znode *node /* znode to guess
 	}
 }
 
+/** parse node header and install ->node_plugin */
+static int zparse( znode *node /* znode to parse */ )
+{
+	int result;
+
+	assert( "nikita-1233", node != NULL );
+	assert( "nikita-1904", znode_is_loaded( node ) );
+
+	if( node -> nplug == NULL ) {
+		node_plugin *nplug;
+
+		assert( "nikita-1047", node -> nplug == NULL );
+		nplug = znode_guess_plugin( node );
+		if( nplug != NULL ) {
+			node -> nplug = nplug;
+			result = nplug -> init_znode/*parse*/( node );
+			if( unlikely( result != 0 ) )
+				node -> nplug = NULL;
+		} else {
+			result = -EIO;
+		}
+	} else
+		result = 0;
+	return result;
+}
+
+static int zrelse_nolock( znode *node );
+
 /** initialize new node */
 int zload( znode *node /* znode to load */ )
 {
@@ -585,8 +626,8 @@ int zload( znode *node /* znode to load */ )
 	assert( "nikita-484", node != NULL );
 	assert( "nikita-1377", znode_invariant( node ) );
 
-	spin_lock_znode( node );
 	result = 0;
+	spin_lock_znode( node );
 	reiser4_stat_znode_add( zload );
 	if( ! ZF_ISSET( node, ZNODE_LOADED ) ) {
 		reiser4_tree *tree;
@@ -612,56 +653,36 @@ int zload( znode *node /* znode to load */ )
 			node -> data = data;
 			node -> size = result;
 			ZF_SET( node, ZNODE_LOADED );
-			result = 0;
-			atomic_inc( &node -> d_count );
+			add_d_ref( node );
+			result = zparse( node );
+			if( unlikely( result != 0 ) ) {
+				zrelse_nolock( node );
+			}
 		}
-	} else {
-		atomic_inc( &node -> d_count );
-	}
+	} else
+		add_d_ref( node );
 	spin_unlock_znode( node );
 	assert( "nikita-1378", znode_invariant( node ) );
-	return result;
-}
-
-/** parse node header and install ->node_plugin */
-int zparse( znode *node /* znode to parse */ )
-{
-	int result;
-
-	assert( "nikita-1233", node != NULL );
-	assert( "nikita-1379", znode_invariant( node ) );
-
-	result = zload( node );
-	if( result != 0 )
-		return result;
-	if( ! ZF_ISSET( node, ZNODE_PLUGIN ) ) {
-		node_plugin *nplug;
-
-		assert( "nikita-1047", node -> nplug == NULL );
-		nplug = znode_guess_plugin( node );
-		if( nplug != NULL ) {
-			node -> nplug = nplug;
-			result = nplug -> init_znode/*parse*/( node );
-			if( result == 0 ) {
-				ZF_SET( node, ZNODE_PLUGIN );
-			}
-		} else {
-			result = -EIO;
-		}
-	}
-	zrelse( node, 1 );
-	assert( "nikita-1380", znode_invariant( node ) );
 	return result;
 }
 
 /** call node plugin to initialise newly allocated node. */
 int zinit_new( znode *node /* znode to initialise */ )
 {
-	assert( "nikita-1234", node != NULL );
-	assert( "nikita-1235", znode_is_loaded( node ) );
-	assert( "nikita-1236", node_plugin_by_node( node ) != NULL );
+	int result;
 
-	return node_plugin_by_node( node ) -> init( node );
+	assert( "nikita-1234", node != NULL );
+	assert( "nikita-1908", current_tree -> allocate_node != NULL );
+
+	result = current_tree -> allocate_node( node );
+	if( result == 0 ) {
+		ZF_SET( node, ZNODE_LOADED );
+		add_d_ref( node );
+		assert( "nikita-1235", znode_is_loaded( node ) );
+		assert( "nikita-1236", node_plugin_by_node( node ) != NULL );
+		result = node_plugin_by_node( node ) -> init( node );
+	}
+	return result;
 }
 
 /**
@@ -673,36 +694,52 @@ int zunload( znode *node UNUSED_ARG /* znode to unload */ )
 	assert( "nikita-485", node != NULL );
 	assert( "nikita-486", atomic_read( &node -> d_count ) == 0 );
 
+	/* ZF_CLR( node, ZNODE_LOADED ); ? */
+	/*
+	 * FIXME-NIKITA not very impressive...
+	 */
+	/* node -> data = NULL; ? */
 	/* unload data... */
 
 	return 0;
 }
 
+/** just like zrelse, but assume znode is already spin-locked */
+static int zrelse_nolock( znode *node /* znode to release references to */ )
+{
+	assert( "nikita-487", node != NULL );
+	assert( "nikita-489", atomic_read( &node -> d_count ) > 0 );
+	assert( "nikita-1906", spin_znode_is_locked( node ) );
+
+	ON_DEBUG( -- lock_counters() -> d_refs );
+	if( atomic_dec_and_test( &node -> d_count ) ) {
+		/* unload data, or done some sort of lazy unloading */
+		/* spinlock needed to protect another d_count increment while
+		 * zunloading, thus semantically equivalent to
+		 * atomic_dec_and_lock().  same implementation as
+		 * atomic_dec_and_lock() as well, although comments in
+		 * atomic.h suggest a more efficient implementation is
+		 * possible on some architectures. */
+		return zunload( node );
+	}
+	return 0;
+}
+
 /**
- * drop reference to node data. When last rederence is dropped, data are
+ * drop reference to node data. When last reference is dropped, data are
  * unloaded.
  */
-int zrelse( znode *node /* znode to release references to */, 
-	    int count /* how many references to release */ )
+int zrelse( znode *node /* znode to release references to */ )
 {
 	int ret = 0;
 	
 	assert( "nikita-487", node != NULL );
-	assert( "nikita-488", count >= 0 );
-	assert( "nikita-489", atomic_read( &node -> d_count ) >= count );
+	assert( "nikita-489", atomic_read( &node -> d_count ) > 0 );
+//	assert( "nikita-1907", !spin_znode_is_locked( node ) );
 
 	assert( "nikita-1381", znode_invariant( node ) );
 	spin_lock_znode( node );
-	if( atomic_sub_and_test( count, &node -> d_count ) ) {
-		/* unload data, or done some sort of lazy unloading */
-		/* spinlock needed to protect another d_count increment while zunloading,
-		 * thus semantically equivalent to atomic_dec_and_lock().  same
-		 * implementation as atomic_dec_and_lock() as well, although comments in
-		 * atomic.h suggest a more efficient implementation is possible on some
-		 * architectures. */
-		ret = zunload( node );
-	}
-
+	ret = zrelse_nolock( node );
 	spin_unlock_znode( node );
 	assert( "nikita-1382", znode_invariant( node ) );
 	return ret;
@@ -782,9 +819,7 @@ int znode_contains_key( znode *node /* znode to look in */,
 	assert( "nikita-1237", node != NULL );
 	assert( "nikita-1238", key != NULL );
 
-	/*
-	 * left_delimiting_key <= key <= right_delimiting_key
-	 */
+	/* left_delimiting_key <= key <= right_delimiting_key */
 	return 
 		( keycmp( znode_get_ld_key( node ), key ) != GREATER_THAN ) &&
 		( keycmp( key, znode_get_rd_key( node ) ) != GREATER_THAN );
@@ -892,10 +927,7 @@ static int znode_invariant_f( const znode *node /* znode to check */,
 
 		_ergo( atomic_read( &node -> d_count ) > 0, 
 		      ZF_ISSET( node, ZNODE_LOADED ) ) &&
-		_equi( node -> nplug != NULL, 
-		      ZF_ISSET( node, ZNODE_PLUGIN ) ) &&
 
-		zergo( ZNODE_PLUGIN, ZF_ISSET( node, ZNODE_LOADED ) ) &&
 		_ergo( !znode_above_root( node ) && 
 		      ZF_ISSET( node, ZNODE_LOADED ), 
 		      !disk_addr_eq( znode_get_block( node ), 
@@ -1015,11 +1047,10 @@ void info_jnode( const char *prefix /* prefix to print */,
 		return;
 	}
 
-	info( "%s: %p: state: %x: [%s%s%s%s%s%s%s%s%s%s%s%s], level: %i, ",
+	info( "%s: %p: state: %x: [%s%s%s%s%s%s%s%s%s%s%s], level: %i, ",
 	      prefix, node, node -> state, 
 
 	      jnode_state_name( node, ZNODE_LOADED ),
-	      jnode_state_name( node, ZNODE_PLUGIN ),
 	      jnode_state_name( node, ZNODE_HEARD_BANSHEE ),
 	      jnode_state_name( node, ZNODE_LEFT_CONNECTED ),
 	      jnode_state_name( node, ZNODE_RIGHT_CONNECTED ),
