@@ -660,7 +660,11 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 
 	if (*atom_alloc == NULL) {
 		(*atom_alloc) = kmem_cache_alloc(_atom_slab, GFP_KERNEL);
+
+		if (*atom_alloc == NULL)
+			return ERR_PTR(-ENOMEM);
 	}
+
 	/* and, also, txnmgr spin lock should be taken before jnode and txnh
 	   locks. */
 	mgr = &get_super_private(reiser4_get_current_sb())->tmgr;
@@ -669,15 +673,16 @@ atom_begin_andlock(txn_atom ** atom_alloc, jnode * node, txn_handle * txnh)
 	spin_lock_jnode(node);
 	spin_lock_txnh(txnh);
 
-	if (*atom_alloc == NULL) {
-		return ERR_PTR(-ENOMEM);
-	}
-
 	/* Check if both atom pointers are still NULL... */
 	if (node->atom != NULL || txnh->atom != NULL) {
 		trace_on(TRACE_TXN, "alloc atom race\n");
 		/* NOTE-NIKITA probably it is rather better to free
 		 * atom_alloc here than thread it up to try_capture(). */
+
+		spin_unlock_txnh(txnh);
+		spin_unlock_jnode(node);
+		spin_unlock_txnmgr(mgr);
+
 		return ERR_PTR(-EAGAIN);
 	}
 
@@ -1618,9 +1623,7 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 
 				spin_unlock_atom(block_atom);
 			} else {
-				/* Release locks and fail */
-				spin_unlock_jnode(node);
-				spin_unlock_txnh(txnh);
+				/* all locks are released already */
 				return PTR_ERR(block_atom);
 			}
 
