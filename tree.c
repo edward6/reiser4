@@ -223,8 +223,7 @@ It is questionable whether (1) needs to precede (3).  If (3) was performed first
  * Invalid block addresses are 0 by tradition.
  *
  */
-/* FIXME-VS: fake bit set */
-const reiser4_block_nr FAKE_TREE_ADDR = (0 | REISER4_FAKE_BLOCKNR_BIT_MASK);
+const reiser4_block_nr FAKE_TREE_ADDR = 0ull;
 
 #if REISER4_DEBUG
 /* This list and the two fields that follow maintain the currently active
