@@ -1645,6 +1645,7 @@ cut_tree_object(reiser4_tree * tree UNUSED_ARG, const reiser4_key * from_key,
 			    break;
 		    case -E_DEADLOCK:
 			    result = -E_REPEAT;
+		    case -E_REPEAT:
 			    break;
 		    default:
 			    warning("nikita-2861", "failure: %i", result);
