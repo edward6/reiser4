@@ -112,7 +112,7 @@ sd_print(const char *prefix /* prefix to print */ ,
 #endif
 
 void
-sd_item_stat(const coord_t * coord, void *vp)
+item_stat_static_sd(const coord_t * coord, void *vp)
 {
 	reiser4_stat_data_base *sd;
 	mode_t mode;
@@ -181,8 +181,9 @@ align(struct inode *inode /* object being processed */ ,
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c).
     Copies data from on-disk stat-data format into inode.
     Handles stat-data extensions. */
+/* was sd_load */
 int
-sd_load(struct inode *inode /* object being processed */ ,
+init_inode_static_sd(struct inode *inode /* object being processed */ ,
 	char *sd /* stat-data body */ ,
 	int len /* length of stat-data */ )
 {
@@ -269,8 +270,9 @@ sd_load(struct inode *inode /* object being processed */ ,
 /* estimates size of stat-data required to store inode.
     Installed as ->save_len() method of
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). */
+/* was sd_len */
 int
-sd_len(struct inode *inode /* object being processed */ )
+save_len_static_sd(struct inode *inode /* object being processed */ )
 {
 	unsigned int result;
 	__u64 mask;
@@ -299,9 +301,10 @@ sd_len(struct inode *inode /* object being processed */ )
 /* saves inode into stat-data.
     Installed as ->save() method of
     item_plugins[ STATIC_STAT_DATA_IT ] (fs/reiser4/plugin/item/item.c). */
+/* was sd_save */
 int
-sd_save(struct inode *inode /* object being processed */ ,
-	char **area /* where to save stat-data */ )
+save_static_sd(struct inode *inode /* object being processed */ ,
+	       char **area /* where to save stat-data */ )
 {
 	int result;
 	__u64 emask;

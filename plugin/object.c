@@ -453,7 +453,7 @@ update_sd(struct inode *inode /* inode to update sd for */ )
 
 /* save object's stat-data to disk */
 int
-common_file_save(struct inode *inode /* object to save */)
+write_sd_by_inode_common(struct inode *inode /* object to save */)
 {
 	int result;
 
@@ -473,7 +473,7 @@ common_file_save(struct inode *inode /* object to save */)
 
 /* checks whether yet another hard links to this object can be added */
 int
-common_file_can_add_link(const struct inode *object /* object to check */ )
+can_add_link_common(const struct inode *object /* object to check */ )
 {
 	assert("nikita-732", object != NULL);
 
@@ -512,7 +512,7 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */ )
 
 /* common_file_delete() - delete object stat-data. This is to be used when file deletion turns into stat data removal */
 int
-common_file_delete(struct inode *inode /* object to remove */ )
+delete_file_common(struct inode *inode /* object to remove */ )
 {
 	int result;
 
@@ -536,7 +536,7 @@ common_file_delete(struct inode *inode /* object to remove */ )
 }
 
 /* common directory consists of two items: stat data and one item containing "." and ".." */
-static int common_delete_directory(struct inode *inode)
+static int delete_directory_common(struct inode *inode)
 {
 	int result;
 	dir_plugin *dplug;
@@ -557,10 +557,10 @@ static int common_delete_directory(struct inode *inode)
 
 /* ->set_plug_in_inode() default method. */
 static int
-common_set_plug(struct inode *object /* inode to set plugin on */ ,
-		struct inode *parent /* parent object */ ,
-		reiser4_object_create_data * data	/* creational
-							 * data */ )
+set_plug_in_inode_common(struct inode *object /* inode to set plugin on */ ,
+			 struct inode *parent /* parent object */ ,
+			 reiser4_object_create_data * data	/* creational
+								 * data */ )
 {
 	__u64 mask;
 
@@ -647,22 +647,22 @@ guess_plugin_by_mode(struct inode *inode	/* object to guess plugins
 
 /* this comon implementation of create estimation function may be used when object creation involves insertion of one item
    (usualy stat data) into tree */
-static reiser4_block_nr common_estimate_create(struct inode *object)
+static reiser4_block_nr estimate_create_file_common(struct inode *object)
 {
 	return estimate_one_insert_item(tree_by_inode(object)->height);
 }
 
 /* this comon implementation of create directory estimation function may be used when directory creation involves
    insertion of two items (usualy stat data and item containing "." and "..") into tree */
-static reiser4_block_nr common_estimate_create_dir(struct inode *object)
+static reiser4_block_nr estimate_create_dir_common(struct inode *object)
 {
 	return 2 * estimate_one_insert_item(tree_by_inode(object)->height);
 }
 
 /* ->create method of object plugin */
 static int
-common_file_create(struct inode *object, struct inode *parent, 
-		   reiser4_object_create_data * data)
+create_common(struct inode *object, struct inode *parent, 
+	      reiser4_object_create_data * data)
 {
 	reiser4_block_nr reserve;
 	assert("nikita-744", object != NULL);
@@ -671,18 +671,18 @@ common_file_create(struct inode *object, struct inode *parent,
 	assert("nikita-748", inode_get_flag(object, REISER4_NO_SD));
 
 	if (reiser4_grab_space(reserve = 
-			       common_estimate_create(object), BA_CAN_COMMIT, "common_file_create")) {
+			       estimate_create_file_common(object), BA_CAN_COMMIT, "common_file_create")) {
 		return RETERR(-ENOSPC);
 	}
-	return common_file_save(object);
+	return write_sd_by_inode_common(object);
 }
 
 /* standard implementation of ->owns_item() plugin method: compare objectids
     of keys in inode and coord */
 int
-common_file_owns_item(const struct inode *inode	/* object to check
+owns_item_common(const struct inode *inode	/* object to check
 						 * against */ ,
-		      const coord_t * coord /* coord to check */ )
+		 const coord_t * coord /* coord to check */ )
 {
 	reiser4_key item_key;
 	reiser4_key file_key;
@@ -708,7 +708,7 @@ move_flow_forward(flow_t * f, unsigned count)
 
 /* default ->add_link() method of file plugin */
 static int
-common_add_link(struct inode *object, struct inode *parent UNUSED_ARG)
+add_link_common(struct inode *object, struct inode *parent UNUSED_ARG)
 {
 	INODE_INC_FIELD(object, i_nlink);
 	object->i_ctime = CURRENT_TIME;
@@ -717,7 +717,7 @@ common_add_link(struct inode *object, struct inode *parent UNUSED_ARG)
 
 /* default ->rem_link() method of file plugin */
 static int
-common_rem_link(struct inode *object, struct inode *parent UNUSED_ARG)
+rem_link_common(struct inode *object, struct inode *parent UNUSED_ARG)
 {
 	assert("nikita-2021", object != NULL);
 	assert("nikita-2163", object->i_nlink > 0);
@@ -729,7 +729,7 @@ common_rem_link(struct inode *object, struct inode *parent UNUSED_ARG)
 
 /* ->not_linked() method for file plugins */
 static int
-common_not_linked(const struct inode *inode)
+not_linked_common(const struct inode *inode)
 {
 	assert("nikita-2007", inode != NULL);
 	return (inode->i_nlink == 0);
@@ -737,7 +737,7 @@ common_not_linked(const struct inode *inode)
 
 /* ->not_linked() method the for directory file plugin */
 static int
-dir_not_linked(const struct inode *inode)
+not_linked_dir(const struct inode *inode)
 {
 	assert("nikita-2008", inode != NULL);
 	/* one link from dot */
@@ -746,7 +746,7 @@ dir_not_linked(const struct inode *inode)
 
 /* ->adjust_to_parent() method for regular files */
 static int
-common_adjust_to_parent(struct inode *object /* new object */ ,
+adjust_to_parent_common(struct inode *object /* new object */ ,
 			struct inode *parent /* parent directory */ ,
 			struct inode *root /* root directory */ )
 {
@@ -770,7 +770,7 @@ common_adjust_to_parent(struct inode *object /* new object */ ,
 
 /* ->adjust_to_parent() method for directory files */
 static int
-dir_adjust_to_parent(struct inode *object /* new object */ ,
+adjust_to_parent_dir(struct inode *object /* new object */ ,
 		     struct inode *parent /* parent directory */ ,
 		     struct inode *root /* root directory */ )
 {
@@ -797,7 +797,7 @@ dir_adjust_to_parent(struct inode *object /* new object */ ,
 
 /* simplest implementation of ->getattr() method. Completely static. */
 static int
-common_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct kstat *stat)
+getattr_common(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct kstat *stat)
 {
 	struct inode *obj;
 
@@ -829,7 +829,7 @@ common_getattr(struct vfsmount *mnt UNUSED_ARG, struct dentry *dentry, struct ks
 
 /* plugin->u.file.release */
 static int
-dir_release(struct file *file)
+release_dir(struct file *file)
 {
 	if (file->private_data != NULL)
 		readdir_list_remove(reiser4_get_file_fsdata(file));
@@ -837,7 +837,7 @@ dir_release(struct file *file)
 }
 
 static loff_t
-dir_seek(struct file *file, loff_t off, int origin)
+seek_dir(struct file *file, loff_t off, int origin)
 {
 	loff_t result;
 
@@ -865,15 +865,15 @@ dir_seek(struct file *file, loff_t off, int origin)
 
 /* default implementation of ->bind() method of file plugin */
 static int
-common_bind(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
+bind_common(struct inode *child UNUSED_ARG, struct inode *parent UNUSED_ARG)
 {
 	return 0;
 }
 
-#define common_detach common_bind
+#define detach_common bind_common
 
 static int
-dir_detach(struct inode *child, struct inode *parent)
+detach_dir(struct inode *child, struct inode *parent)
 {
 	dir_plugin *dplug;
 
@@ -887,19 +887,19 @@ dir_detach(struct inode *child, struct inode *parent)
 /* this common implementation of update estimation function may be used when stat data update does not do more than
    inserting a unit into a stat data item which is probably true for most cases */
 reiser4_block_nr 
-common_estimate_update(const struct inode *inode)
+estimate_update_common(const struct inode *inode)
 {
 	return estimate_one_insert_into_item(tree_by_inode(inode)->height);
 }
 
 static reiser4_block_nr 
-common_estimate_unlink(struct inode *object, struct inode *parent)
+estimate_unlink_common(struct inode *object, struct inode *parent)
 {
 	return 0;
 }
 
 static reiser4_block_nr 
-dir_estimate_unlink(struct inode *object, struct inode *parent)
+estimate_unlink_dir_common(struct inode *object, struct inode *parent)
 {
 	dir_plugin *dplug;
 
@@ -911,7 +911,7 @@ dir_estimate_unlink(struct inode *object, struct inode *parent)
 
 /* implementation of ->bind() method for file plugin of directory file */
 static int
-dir_bind(struct inode *child, struct inode *parent)
+bind_dir(struct inode *child, struct inode *parent)
 {
 	dir_plugin *dplug;
 
@@ -921,7 +921,7 @@ dir_bind(struct inode *child, struct inode *parent)
 }
 
 int
-common_setattr(struct inode *inode /* Object to change attributes */,
+setattr_common(struct inode *inode /* Object to change attributes */,
 	       struct iattr *attr /* change description */)
 {
 	int   result;
@@ -959,230 +959,230 @@ perm(void)
 
 file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 	[UNIX_FILE_PLUGIN_ID] = {
-				    .h = {
-					  .type_id = REISER4_FILE_PLUGIN_TYPE,
-					  .id = UNIX_FILE_PLUGIN_ID,
-					  .pops = NULL,
-					  .label = "reg",
-					  .desc = "regular file",
-					  .linkage = TS_LIST_LINK_ZERO
-				    },
-				    .truncate = unix_file_truncate,
-				    .write_sd_by_inode = common_file_save,
-				    .readpage = unix_file_readpage,
-				    .writepage = unix_file_writepage,
-				    .read = unix_file_read,
-				    .write = unix_file_write,
-				    .release = unix_file_release,
-				    .ioctl = unix_file_ioctl,
-				    .mmap = unix_file_mmap,
-				    .get_block = unix_file_get_block,
-				    .flow_by_inode = unix_file_build_flow,
-				    .key_by_inode = unix_file_key_by_inode,
-				    .set_plug_in_inode = common_set_plug,
-				    .adjust_to_parent = common_adjust_to_parent,
-				    .create = common_file_create,
-				    .delete = unix_file_delete,
-				    .add_link = common_add_link,
-				    .rem_link = common_rem_link,
-				    .owns_item = unix_file_owns_item,
-				    .can_add_link = common_file_can_add_link,
-				    .can_rem_link = NULL,
-				    .not_linked = common_not_linked,
-				    .setattr = unix_file_setattr,
-				    .getattr = common_getattr,
-				    .seek = NULL,
-				    .detach = common_detach,
-				    .bind = common_bind,
-				    .estimate = {
-					    .create = common_estimate_create,
-					    .update = common_estimate_update,
-					    .unlink = common_estimate_unlink
-				    },
-				    .readpages = unix_file_readpages,
-				    .init_inode_data = unix_file_init_inode,
-				    .pre_delete = unix_file_pre_delete
+		.h = {
+			.type_id = REISER4_FILE_PLUGIN_TYPE,
+			.id = UNIX_FILE_PLUGIN_ID,
+			.pops = NULL,
+			.label = "reg",
+			.desc = "regular file",
+			.linkage = TS_LIST_LINK_ZERO
+		},
+		.truncate = truncate_unix_file,
+		.write_sd_by_inode = write_sd_by_inode_common,
+		.readpage = readpage_unix_file,
+		.writepage = writepage_unix_file,
+		.read = read_unix_file,
+		.write = write_unix_file,
+		.release = release_unix_file,
+		.ioctl = ioctl_unix_file,
+		.mmap = mmap_unix_file,
+		.get_block = get_block_unix_file,
+		.flow_by_inode = flow_by_inode_unix_file,
+		.key_by_inode = key_by_inode_unix_file,
+		.set_plug_in_inode = set_plug_in_inode_common,
+		.adjust_to_parent = adjust_to_parent_common,
+		.create = create_common,
+		.delete = delete_unix_file,
+		.add_link = add_link_common,
+		.rem_link = rem_link_common,
+		.owns_item = owns_item_unix_file,
+		.can_add_link = can_add_link_common,
+		.can_rem_link = NULL,
+		.not_linked = not_linked_common,
+		.setattr = setattr_unix_file,
+		.getattr = getattr_common,
+		.seek = NULL,
+		.detach = detach_common,
+		.bind = bind_common,
+		.estimate = {
+			.create = estimate_create_file_common,
+			.update = estimate_update_common,
+			.unlink = estimate_unlink_common
+		},
+		.readpages = readpages_unix_file,
+		.init_inode_data = init_inode_data_unix_file,
+		.pre_delete = pre_delete_unix_file
 	},
 	[DIRECTORY_FILE_PLUGIN_ID] = {
-				      .h = {
-					    .type_id = REISER4_FILE_PLUGIN_TYPE,
-					    .id = DIRECTORY_FILE_PLUGIN_ID,
-					    .pops = NULL,
-					    .label = "dir",
-					    .desc = "directory",
-					    .linkage = TS_LIST_LINK_ZERO},
-				      .truncate = eisdir,
-				      .write_sd_by_inode = common_file_save,
-				      .readpage = eisdir,
-				      .writepage = eisdir,
-				      .read = eisdir,
-				      .write = eisdir,
-				      .release = dir_release,
-				      .ioctl = eisdir,
-				      .mmap = eisdir,
-				      .get_block = NULL,
-				      .flow_by_inode = NULL,
-				      .key_by_inode = NULL,
-				      .set_plug_in_inode = common_set_plug,
-				      .adjust_to_parent = dir_adjust_to_parent,
-				      .create = common_file_create,
-				      .delete = common_delete_directory,
-				      .add_link = common_add_link,
-				      .rem_link = common_rem_link,
-				      .owns_item = hashed_owns_item,
-				      .can_add_link = common_file_can_add_link,
-				      .can_rem_link = is_dir_empty,
-				      .not_linked = dir_not_linked,
-				      .setattr = common_setattr,
-				      .getattr = common_getattr,
-				      .seek = dir_seek,
-				      .detach = dir_detach,
-				      .bind = dir_bind,
-				      .estimate = {
-					    .create = common_estimate_create_dir,
-					    .update = common_estimate_update,
-					    .unlink = dir_estimate_unlink
-				      },
-				      .readpages = NULL,
-				      .init_inode_data = NULL,
-				      .pre_delete = NULL
+		.h = {
+			.type_id = REISER4_FILE_PLUGIN_TYPE,
+			.id = DIRECTORY_FILE_PLUGIN_ID,
+			.pops = NULL,
+			.label = "dir",
+			.desc = "directory",
+			.linkage = TS_LIST_LINK_ZERO},
+		.truncate = eisdir,
+		.write_sd_by_inode = write_sd_by_inode_common,/*common_file_save,*/
+		.readpage = eisdir,
+		.writepage = eisdir,
+		.read = eisdir,
+		.write = eisdir,
+		.release = release_dir,
+		.ioctl = eisdir,
+		.mmap = eisdir,
+		.get_block = NULL,
+		.flow_by_inode = NULL,
+		.key_by_inode = NULL,
+		.set_plug_in_inode = set_plug_in_inode_common,/*common_set_plug,*/
+		.adjust_to_parent = adjust_to_parent_dir,
+		.create = create_common, /*common_file_create,*/
+		.delete = delete_directory_common,
+		.add_link = add_link_common,
+		.rem_link = rem_link_common,
+		.owns_item = owns_item_hashed,
+		.can_add_link = can_add_link_common,
+		.can_rem_link = is_dir_empty,
+		.not_linked = not_linked_dir,
+		.setattr = setattr_common,
+		.getattr = getattr_common,
+		.seek = seek_dir,
+		.detach = detach_dir,
+		.bind = bind_dir,
+		.estimate = {
+			.create = estimate_create_dir_common,
+			.update = estimate_update_common,
+			.unlink = estimate_unlink_dir_common
+		},
+		.readpages = NULL,
+		.init_inode_data = NULL,
+		.pre_delete = NULL
 	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
-				    .h = {
-					  .type_id = REISER4_FILE_PLUGIN_TYPE,
-					  .id = SYMLINK_FILE_PLUGIN_ID,
-					  .pops = NULL,
-					  .label = "symlink",
-					  .desc = "symbolic link",
-					  .linkage = TS_LIST_LINK_ZERO}
-				    ,
-				    .truncate = eperm,
-				    .write_sd_by_inode = common_file_save,
-				    .readpage = eperm,
-				    .writepage = eperm,
-				    .read = eperm,
-				    .write = eperm,
-				    .release = NULL,
-				    .ioctl = eperm,
-				    .mmap = eperm,
-				    .get_block = NULL,
-				    .flow_by_inode = NULL,
-				    .key_by_inode = NULL,
-				    .set_plug_in_inode = common_set_plug,
-				    .adjust_to_parent = common_adjust_to_parent,
-				    .create = symlink_create,
-				    /* FIXME-VS: symlink should probably have its own destroy method */
-				    .delete = common_file_delete,
-				    .add_link = common_add_link,
-				    .rem_link = common_rem_link,
-				    .owns_item = NULL,
-				    .can_add_link = common_file_can_add_link,
-				    .can_rem_link = NULL,
-				    .not_linked = common_not_linked,
-				    .setattr = common_setattr,
-				    .getattr = common_getattr,
-				    .seek = NULL,
-				    .detach = common_detach,
-				    .bind = common_bind,
-				    .estimate = {
-					    .create = common_estimate_create,
-					    .update = common_estimate_update,
-					    .unlink = common_estimate_unlink
-				    },
-				    .readpages = NULL,
-				    .init_inode_data = NULL,
-				    .pre_delete = NULL
+		.h = {
+			.type_id = REISER4_FILE_PLUGIN_TYPE,
+			.id = SYMLINK_FILE_PLUGIN_ID,
+			.pops = NULL,
+			.label = "symlink",
+			.desc = "symbolic link",
+			.linkage = TS_LIST_LINK_ZERO}
+		,
+		.truncate = eperm,
+		.write_sd_by_inode = write_sd_by_inode_common,
+		.readpage = eperm,
+		.writepage = eperm,
+		.read = eperm,
+		.write = eperm,
+		.release = NULL,
+		.ioctl = eperm,
+		.mmap = eperm,
+		.get_block = NULL,
+		.flow_by_inode = NULL,
+		.key_by_inode = NULL,
+		.set_plug_in_inode = set_plug_in_inode_common,/*common_set_plug,*/
+		.adjust_to_parent = adjust_to_parent_common,
+		.create = create_symlink,
+		/* FIXME-VS: symlink should probably have its own destroy method */
+		.delete = delete_file_common,
+		.add_link = add_link_common,
+		.rem_link = rem_link_common,
+		.owns_item = NULL,
+		.can_add_link = can_add_link_common,
+		.can_rem_link = NULL,
+		.not_linked = not_linked_common,
+		.setattr = setattr_common,
+		.getattr = getattr_common,
+		.seek = NULL,
+		.detach = detach_common,
+		.bind = bind_common,
+		.estimate = {
+			.create = estimate_create_file_common,
+			.update = estimate_update_common,
+			.unlink = estimate_unlink_common
+		},
+		.readpages = NULL,
+		.init_inode_data = NULL,
+		.pre_delete = NULL
 	},
 	[SPECIAL_FILE_PLUGIN_ID] = {
-				    .h = {
-					  .type_id = REISER4_FILE_PLUGIN_TYPE,
-					  .id = SPECIAL_FILE_PLUGIN_ID,
-					  .pops = NULL,
-					  .label = "special",
-					  .desc = "special: fifo, device or socket",
-					  .linkage = TS_LIST_LINK_ZERO}
-				    ,
-				    .truncate = eperm,
-				    .create = common_file_create,
-				    .write_sd_by_inode = common_file_save,
-				    .readpage = eperm,
-				    .writepage = eperm,
-				    .read = eperm,
-				    .write = eperm,
-				    .release = NULL,
-				    .ioctl = eperm,
-				    .mmap = eperm,
-				    .get_block = NULL,
-				    .flow_by_inode = NULL,
-				    .key_by_inode = NULL,
-				    .set_plug_in_inode = common_set_plug,
-				    .adjust_to_parent = common_adjust_to_parent,
-				    .delete = common_file_delete,
-				    .add_link = common_add_link,
-				    .rem_link = common_rem_link,
-				    .owns_item = common_file_owns_item,
-				    .can_add_link = common_file_can_add_link,
-				    .can_rem_link = NULL,
-				    .not_linked = common_not_linked,
-				    .setattr = common_setattr,
-				    .getattr = common_getattr,
-				    .seek = NULL,
-				    .detach = common_detach,
-				    .bind = common_bind,
-				    .estimate = {
-					    .create = common_estimate_create,
-					    .update = common_estimate_update,
-					    .unlink = common_estimate_unlink
-				    },
-				    .readpages = NULL,
-				    .init_inode_data = NULL,
-				    .pre_delete = NULL
+		.h = {
+			.type_id = REISER4_FILE_PLUGIN_TYPE,
+			.id = SPECIAL_FILE_PLUGIN_ID,
+			.pops = NULL,
+			.label = "special",
+			.desc = "special: fifo, device or socket",
+			.linkage = TS_LIST_LINK_ZERO}
+		,
+		.truncate = eperm,
+		.create = create_common,
+		.write_sd_by_inode = write_sd_by_inode_common,
+		.readpage = eperm,
+		.writepage = eperm,
+		.read = eperm,
+		.write = eperm,
+		.release = NULL,
+		.ioctl = eperm,
+		.mmap = eperm,
+		.get_block = NULL,
+		.flow_by_inode = NULL,
+		.key_by_inode = NULL,
+		.set_plug_in_inode = set_plug_in_inode_common,
+		.adjust_to_parent = adjust_to_parent_common,
+		.delete = delete_file_common,
+		.add_link = add_link_common,
+		.rem_link = rem_link_common,
+		.owns_item = owns_item_common,
+		.can_add_link = can_add_link_common,
+		.can_rem_link = NULL,
+		.not_linked = not_linked_common,
+		.setattr = setattr_common,
+		.getattr = getattr_common,
+		.seek = NULL,
+		.detach = detach_common,
+		.bind = bind_common,
+		.estimate = {
+			.create = estimate_create_file_common,
+			.update = estimate_update_common,
+			.unlink = estimate_unlink_common
+		},
+		.readpages = NULL,
+		.init_inode_data = NULL,
+		.pre_delete = NULL
 	},
 	[PSEUDO_FILE_PLUGIN_ID] = {
-				    .h = {
-					  .type_id = REISER4_FILE_PLUGIN_TYPE,
-					  .id = PSEUDO_FILE_PLUGIN_ID,
-					  .pops = NULL,
-					  .label = "pseudo",
-					  .desc = "pseudo file",
-					  .linkage = TS_LIST_LINK_ZERO
-				    },
+		.h = {
+			.type_id = REISER4_FILE_PLUGIN_TYPE,
+			.id = PSEUDO_FILE_PLUGIN_ID,
+			.pops = NULL,
+			.label = "pseudo",
+			.desc = "pseudo file",
+			.linkage = TS_LIST_LINK_ZERO
+		},
 #if 0
-				    .truncate          = ,
-				    .write_sd_by_inode = ,
-				    .readpage          = ,
-				    .writepage         = ,
-				    .read              = ,
-				    .write             = ,
-				    .release           = ,
-				    .ioctl             = ,
-				    .mmap              = ,
-				    .get_block         = ,
-				    .flow_by_inode     = ,
-				    .key_by_inode      = ,
-				    .set_plug_in_inode = ,
-				    .adjust_to_parent  = ,
-				    .create            = ,
-				    .delete            = ,
-				    .add_link          = ,
-				    .rem_link          = ,
-				    .owns_item         = ,
-				    .can_add_link      = ,
-				    .can_rem_link      = ,
-				    .not_linked        = ,
-				    .setattr           = ,
-				    .getattr           = ,
-				    .seek              = ,
-				    .detach            = ,
-				    .bind              = ,
-				    .estimate = {
-					    .create = ,
-					    .update = ,
-					    .unlink = 
-				    },
-				    .readpages = ,
-				    .init_inode_data,
-				    .pre_delete = NULL
+		.truncate          = ,
+		.write_sd_by_inode = ,
+		.readpage          = ,
+		.writepage         = ,
+		.read              = ,
+		.write             = ,
+		.release           = ,
+		.ioctl             = ,
+		.mmap              = ,
+		.get_block         = ,
+		.flow_by_inode     = ,
+		.key_by_inode      = ,
+		.set_plug_in_inode = ,
+		.adjust_to_parent  = ,
+		.create            = ,
+		.delete            = ,
+		.add_link          = ,
+		.rem_link          = ,
+		.owns_item         = ,
+		.can_add_link      = ,
+		.can_rem_link      = ,
+		.not_linked        = ,
+		.setattr           = ,
+		.getattr           = ,
+		.seek              = ,
+		.detach            = ,
+		.bind              = ,
+		.estimate = {
+			.create = ,
+			.update = ,
+			.unlink = 
+		},
+		.readpages = ,
+		.init_inode_data,
+		.pre_delete = NULL
 #endif
 	}
 };

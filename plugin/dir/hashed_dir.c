@@ -179,7 +179,7 @@ hashed_detach(struct inode *object, struct inode *parent)
 
 /* ->owns_item() for hashed directory object plugin. */
 int
-hashed_owns_item(const struct inode *inode /* object to check against */ ,
+owns_item_hashed(const struct inode *inode /* object to check against */ ,
 		 const coord_t * coord /* coord of item to check */ )
 {
 	reiser4_key item_key;
@@ -190,7 +190,7 @@ hashed_owns_item(const struct inode *inode /* object to check against */ ,
 	if (item_type_by_coord(coord) == DIR_ENTRY_ITEM_TYPE)
 		return get_key_locality(item_key_by_coord(coord, &item_key)) == get_inode_oid(inode);
 	else
-		return common_file_owns_item(inode, coord);
+		return owns_item_common(inode, coord);
 }
 
 /* helper function for directory_file_create(). Create "." and ".." */

@@ -258,7 +258,7 @@ cut_tail_items(struct inode *inode, loff_t offset, int count)
 	/* AUDIT: How about putting an assertion here, what would check
 	   all provided range is covered by tail items only? */
 	/* key of first byte in the range to be cut  */
-	unix_file_key_by_inode(inode, offset, &from);
+	key_by_inode_unix_file(inode, offset, &from);
 
 	/* key of last byte in that range */
 	to = from;
@@ -378,7 +378,7 @@ tail2extent(struct inode *inode)
 	reiser4_stat_inc(file.tail2extent);
 
 	/* get key of first byte of a file */
-	unix_file_key_by_inode(inode, 0ull, &key);
+	key_by_inode_unix_file(inode, 0ull, &key);
 
 	done = 0;
 	result = 0;
@@ -430,7 +430,7 @@ tail2extent(struct inode *inode)
 					done_lh(&lh);
 					goto error;
 				}
-				assert("vs-562", unix_file_owns_item(inode, &coord));
+				assert("vs-562", owns_item_unix_file(inode, &coord));
 				assert("vs-856", coord.between == AT_UNIT);
 				assert("green-11", keyeq(&key, unit_key_by_coord(&coord, &tmp)));
 				assert("vs-1170", item_id_by_coord(&coord) == FROZEN_TAIL_ID);
@@ -642,13 +642,13 @@ extent2tail(struct inode *inode)
 	/* number of pages in the file */
 	num_pages = (inode->i_size + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE;
 
-	unix_file_key_by_inode(inode, 0ull, &from);
+	key_by_inode_unix_file(inode, 0ull, &from);
 	to = from;
 
 	result = 0;
 
 	for (i = 0; i < num_pages; i++) {
-		page = read_cache_page(inode->i_mapping, (unsigned) i, unix_file_readpage/*filler*/, 0);
+		page = read_cache_page(inode->i_mapping, (unsigned) i, readpage_unix_file/*filler*/, 0);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
 			break;

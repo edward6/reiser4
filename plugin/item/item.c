@@ -120,9 +120,9 @@ unit_key_by_coord(const coord_t * coord /* coord to query */ ,
 /* ->max_key_inside() method for items consisting of exactly one key (like
     stat-data) */
 static reiser4_key *
-single_key(const coord_t * coord /* coord of item */ ,
-	   reiser4_key * result /* resulting key */,
-	   void *p UNUSED_ARG)
+max_key_inside_single_key(const coord_t * coord /* coord of item */ ,
+			  reiser4_key * result /* resulting key */,
+			  void *p UNUSED_ARG)
 {
 	assert("nikita-604", coord != NULL);
 
@@ -133,17 +133,15 @@ single_key(const coord_t * coord /* coord of item */ ,
 
 /* ->nr_units() method for items consisting of exactly one unit always */
 static unsigned int
-single_unit(const coord_t * coord UNUSED_ARG	/* coord
-						   of
-						   item */ )
+nr_units_single_unit(const coord_t * coord UNUSED_ARG	/* coord of item */ )
 {
 	return 1;
 }
 
 static int
-no_paste(coord_t * coord UNUSED_ARG, 
-	 reiser4_item_data * data UNUSED_ARG, 
-	 carry_plugin_info * info UNUSED_ARG)
+paste_no_paste(coord_t * coord UNUSED_ARG, 
+	       reiser4_item_data * data UNUSED_ARG, 
+	       carry_plugin_info * info UNUSED_ARG)
 {
 	return 0;
 }
@@ -250,7 +248,7 @@ item_is_statdata(const coord_t * item)
 */
 
 static int
-frozen_mergeable(const coord_t * p1 UNUSED_ARG, const coord_t * p2 UNUSED_ARG)
+mergeable_frozen(const coord_t * p1 UNUSED_ARG, const coord_t * p2 UNUSED_ARG)
 {
 	return 0;
 }
@@ -258,7 +256,7 @@ frozen_mergeable(const coord_t * p1 UNUSED_ARG, const coord_t * p2 UNUSED_ARG)
 /* plugin->u.item.b.paste
    this should not be called */
 static int
-frozen_paste(coord_t * coord UNUSED_ARG, reiser4_item_data * data UNUSED_ARG, carry_plugin_info * info UNUSED_ARG)
+paste_frozen(coord_t * coord UNUSED_ARG, reiser4_item_data * data UNUSED_ARG, carry_plugin_info * info UNUSED_ARG)
 {
 	impossible("vs-1122", "pasting into partially converted file\n");
 	return 0;
@@ -266,7 +264,7 @@ frozen_paste(coord_t * coord UNUSED_ARG, reiser4_item_data * data UNUSED_ARG, ca
 
 /* plugin->u.item.b.can_shift */
 static int
-frozen_can_shift(unsigned free_space UNUSED_ARG, coord_t * source UNUSED_ARG,
+can_shift_frozen(unsigned free_space UNUSED_ARG, coord_t * source UNUSED_ARG,
 		 znode * target UNUSED_ARG, shift_direction direction UNUSED_ARG,
 		 unsigned *size, unsigned want UNUSED_ARG)
 {
@@ -286,18 +284,18 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.b = {
 			.item_type = STAT_DATA_ITEM_TYPE,
-			.max_key_inside = single_key,
+			.max_key_inside = max_key_inside_single_key,
 			.can_contain_key = NULL,
 			.mergeable = NULL,
 #if REISER4_DEBUG_OUTPUT
 			.print = sd_print,
 #endif
 			.check = NULL,
-			.nr_units = single_unit,
+			.nr_units = nr_units_single_unit,
 			/* to need for ->lookup method */
 			.lookup = NULL,
 			.init = NULL,
-			.paste = no_paste,
+			.paste = paste_no_paste,
 			.fast_paste = NULL,
 			.can_shift = NULL,
 			.copy_units = NULL,
@@ -309,7 +307,7 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.unit_key = NULL,
 			.estimate = NULL,
 			.item_data_by_flow = NULL,
-			.item_stat = sd_item_stat
+			.item_stat = item_stat_static_sd/*sd_item_stat*/
 		},
 		.f = {
 			.utmost_child            = NULL,
@@ -318,9 +316,9 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.s = {
 			.sd = {
-				.init_inode = sd_load,
-				.save_len = sd_len,
-				.save = sd_save
+				.init_inode = init_inode_static_sd,/*sd_load,*/
+				.save_len = save_len_static_sd,/*sd_len,*/
+				.save = save_static_sd/*sd_save*/
 			}
 		}
 	},
@@ -335,14 +333,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.b = {
 			.item_type = DIR_ENTRY_ITEM_TYPE,
-			.max_key_inside = single_key,
+			.max_key_inside = max_key_inside_single_key,
 			.can_contain_key = NULL,
 			.mergeable = NULL,
 #if REISER4_DEBUG_OUTPUT
-			.print = de_print,
+			.print = print_de,
 #endif
 			.check = NULL,
-			.nr_units = single_unit,
+			.nr_units = nr_units_single_unit,
 			/* to need for ->lookup method */
 			.lookup = NULL,
 			.init = NULL,
@@ -367,13 +365,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.s = {
 			.dir = {
-				.extract_key = de_extract_key,
-				.update_key = de_update_key,
-				.extract_name = de_extract_name,
-				.extract_file_type = de_extract_file_type,
-				.add_entry = de_add_entry,
-				.rem_entry = de_rem_entry,
-				.max_name_len = de_max_name_len
+				.extract_key = extract_key_de,
+				.update_key = update_key_de,
+				.extract_name = extract_name_de,
+				.extract_file_type = extract_file_type_de,
+				.add_entry = add_entry_de,
+				.rem_entry = rem_entry_de,
+				.max_name_len = max_name_len_de
 			}
 		}
 	},
@@ -388,27 +386,27 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.b = {
 			.item_type = DIR_ENTRY_ITEM_TYPE,
-			.max_key_inside = cde_max_key_inside,
-			.can_contain_key = cde_can_contain_key,
-			.mergeable = cde_mergeable,
+			.max_key_inside = max_key_inside_cde,
+			.can_contain_key = can_contain_key_cde,
+			.mergeable = mergeable_cde,
 #if REISER4_DEBUG_OUTPUT
-			.print = cde_print,
+			.print = print_cde,
 #endif
-			.check = cde_check,
-			.nr_units = cde_nr_units,
-			.lookup = cde_lookup,
-			.init = cde_init,
-			.paste = cde_paste,
+			.check = check_cde,
+			.nr_units = nr_units_cde,
+			.lookup = lookup_cde,
+			.init = init_cde,
+			.paste = paste_cde,
 			.fast_paste = agree_to_fast_op,
-			.can_shift = cde_can_shift,
-			.copy_units = cde_copy_units,
+			.can_shift = can_shift_cde,
+			.copy_units = copy_units_cde,
 			.create_hook = NULL,
 			.kill_hook = NULL,
 			.shift_hook = NULL,
-			.cut_units = cde_cut_units,
-			.kill_units = cde_cut_units,
-			.unit_key = cde_unit_key,
-			.estimate = cde_estimate,
+			.cut_units = cut_units_cde,
+			.kill_units = cut_units_cde,
+			.unit_key = unit_key_cde,
+			.estimate = estimate_cde,
 			.item_data_by_flow = NULL,
 			.item_stat = NULL
 		},
@@ -419,13 +417,13 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.s = {
 			.dir = {
-				.extract_key = cde_extract_key,
-				.update_key = cde_update_key,
-				.extract_name = cde_extract_name,
-				.extract_file_type = de_extract_file_type,
-				.add_entry = cde_add_entry,
-				.rem_entry = cde_rem_entry,
-				.max_name_len = cde_max_name_len
+				.extract_key = extract_key_cde,
+				.update_key = update_key_cde,
+				.extract_name = extract_name_cde,
+				.extract_file_type = extract_file_type_de,
+				.add_entry = add_entry_cde,
+				.rem_entry = rem_entry_cde,
+				.max_name_len = max_name_len_cde
 			}
 		}
 	},
@@ -442,21 +440,21 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.item_type = INTERNAL_ITEM_TYPE,
 			.max_key_inside = NULL,
 			.can_contain_key = NULL,
-			.mergeable = internal_mergeable,
+			.mergeable = mergeable_internal,
 #if REISER4_DEBUG_OUTPUT
-			.print = internal_print,
+			.print = print_internal,
 #endif
-			.check = internal_check,
-			.nr_units = single_unit,
-			.lookup = internal_lookup,
+			.check = check__internal,
+			.nr_units = nr_units_single_unit,
+			.lookup = lookup_internal,
 			.init = NULL,
 			.paste = NULL,
 			.fast_paste = NULL,
 			.can_shift = NULL,
 			.copy_units = NULL,
-			.create_hook = internal_create_hook,
-			.kill_hook = internal_kill_hook,
-			.shift_hook = internal_shift_hook,
+			.create_hook = create_hook_internal,
+			.kill_hook = kill_hook_internal,
+			.shift_hook = shift_hook_internal,
 			.cut_units = NULL,
 			.kill_units = NULL,
 			.unit_key = NULL,
@@ -465,14 +463,14 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 			.item_stat = NULL
 		},
 		.f = {
-			.utmost_child            = internal_utmost_child,
-			.utmost_child_real_block = internal_utmost_child_real_block,
-			.update                  = internal_update
+			.utmost_child            = utmost_child_internal,
+			.utmost_child_real_block = utmost_child_real_block_internal,
+			.update                  = update_internal
 		},
 		.s = {
 			.internal = {
-				.down_link = internal_down_link,
-				.has_pointer_to = internal_has_pointer_to
+				.down_link = down_link_internal,
+				.has_pointer_to = has_pointer_to_internal
 			}
 		}
 	},
@@ -487,47 +485,47 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.b = {
 			.item_type = ORDINARY_FILE_METADATA_TYPE,
-			.max_key_inside = extent_max_key_inside,
-			.can_contain_key = extent_can_contain_key,
-			.mergeable = extent_mergeable,
+			.max_key_inside = max_key_inside_extent,
+			.can_contain_key = can_contain_key_extent,
+			.mergeable = mergeable_extent,
 #if REISER4_DEBUG_OUTPUT
-			.print = extent_print,
+			.print = print_extent,
 #endif
-			.check = extent_check,
-			.nr_units = extent_nr_units,
-			.lookup = extent_lookup,
+			.check = check_extent,
+			.nr_units = nr_units_extent,
+			.lookup = lookup_extent,
 			.init = NULL,
-			.paste = extent_paste,
+			.paste = paste_extent,
 			.fast_paste = agree_to_fast_op,
-			.can_shift = extent_can_shift,
-			.create_hook = extent_create_hook,
-			.copy_units = extent_copy_units,
-			.kill_hook = extent_kill_item_hook,
+			.can_shift = can_shift_extent,
+			.create_hook = create_hook_extent,
+			.copy_units = copy_units_extent,
+			.kill_hook = kill_hook_extent,
 			.shift_hook = NULL,
-			.cut_units = extent_cut_units,
-			.kill_units = extent_kill_units,
-			.unit_key = extent_unit_key,
+			.cut_units = cut_units_extent,
+			.kill_units = kill_units_extent,
+			.unit_key = unit_key_extent,
 			.estimate = NULL,
 			.item_data_by_flow = NULL,
-			.item_stat = extent_item_stat
+			.item_stat = item_stat_extent
 		},
 		.f = {
-			.utmost_child            = extent_utmost_child,
-			.utmost_child_real_block = extent_utmost_child_real_block,
+			.utmost_child            = utmost_child_extent,
+			.utmost_child_real_block = utmost_child_real_block_extent,
 			.update                  = NULL
 		},
 		.s = {
 			.file = {
-				.write = extent_write,
-				.read = extent_read,
-				.readpage = extent_readpage,
-				.writepage = extent_writepage,
+				.write = write_extent,
+				.read = read_extent,
+				.readpage = readpage_extent,
+				.writepage = writepage_extent,
 				.page_cache_readahead = NULL,
-				.get_block = extent_get_block_address,
+				.get_block = get_block_address_extent,
 				/*extent_page_cache_readahead */
-				.readpages = extent_readpages,
-				.append_key = extent_append_key,
-				.key_in_item = extent_key_in_item
+				.readpages = readpages_extent,
+				.append_key = append_key_extent,
+				.key_in_item = key_in_item_extent
 			}
 		}
 	},
@@ -542,26 +540,26 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.b = {
 			.item_type = ORDINARY_FILE_METADATA_TYPE,
-			.max_key_inside = tail_max_key_inside,
-			.can_contain_key = tail_can_contain_key,
-			.mergeable = tail_mergeable,
+			.max_key_inside = max_key_inside_tail,
+			.can_contain_key = can_contain_key_tail,
+			.mergeable = mergeable_tail,
 #if REISER4_DEBUG_OUTPUT
 			.print = NULL,
 #endif
 			.check = NULL,
-			.nr_units = tail_nr_units,
-			.lookup = tail_lookup,
+			.nr_units = nr_units_tail,
+			.lookup = lookup_tail,
 			.init = NULL,
-			.paste = tail_paste,
+			.paste = paste_tail,
 			.fast_paste = agree_to_fast_op,
-			.can_shift = tail_can_shift,
+			.can_shift = can_shift_tail,
 			.create_hook = NULL,
-			.copy_units = tail_copy_units,
+			.copy_units = copy_units_tail,
 			.kill_hook = NULL,
 			.shift_hook = NULL,
-			.cut_units = tail_cut_units,
-			.kill_units = tail_cut_units,
-			.unit_key = tail_unit_key,
+			.cut_units = cut_units_tail,
+			.kill_units = cut_units_tail,
+			.unit_key = unit_key_tail,
 			.estimate = NULL,
 			.item_data_by_flow = NULL,
 			.item_stat = NULL
@@ -573,15 +571,15 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.s = {
 			.file = {
-				.write = tail_write,
-				.read = tail_read,
+				.write = write_tail,
+				.read = read_tail,
 				.readpage = NULL,
 				.writepage = NULL,
 				.page_cache_readahead = NULL,
 				.get_block = NULL,
 				.readpages = NULL,
-				.append_key = tail_append_key,
-				.key_in_item = tail_key_in_item
+				.append_key = append_key_tail,
+				.key_in_item = key_in_item_tail
 			}
 		}
 	},
@@ -596,27 +594,27 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.b = {
 			.item_type = ORDINARY_FILE_METADATA_TYPE,
-			.max_key_inside = tail_max_key_inside,
-			.can_contain_key = tail_can_contain_key,
-			.mergeable = ctail_mergeable,
+			.max_key_inside = max_key_inside_tail,
+			.can_contain_key = can_contain_key_tail,
+			.mergeable = mergeable_ctail,
 #if REISER4_DEBUG_OUTPUT
-			.print = ctail_print,
+			.print = print_ctail,
 #endif
 			.check = NULL,
-			.nr_units = ctail_nr_units,
-			.lookup = tail_lookup,
+			.nr_units = nr_units_ctail,
+			.lookup = lookup_tail,
 			.init = NULL,
-			.paste = ctail_paste,
+			.paste = paste_ctail,
 			.fast_paste = agree_to_fast_op,
-			.can_shift = ctail_can_shift,
+			.can_shift = can_shift_ctail,
 			.create_hook = NULL,
-			.copy_units = ctail_copy_units,
+			.copy_units = copy_units_ctail,
 			.kill_hook = NULL,
 			.shift_hook = NULL,
-			.cut_units = ctail_cut_units,
-			.kill_units = ctail_cut_units,
-			.unit_key = tail_unit_key,
-			.estimate = ctail_estimate,
+			.cut_units = cut_units_ctail,
+			.kill_units = cut_units_ctail,
+			.unit_key = unit_key_tail,
+			.estimate = estimate_ctail,
 			.item_data_by_flow = NULL,
 			.item_stat = NULL
 		},
@@ -627,15 +625,15 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.s = {
 			.file = {
-				.write = ctail_write,
-				.read = ctail_read,
-				.readpage = ctail_readpage,
-				.writepage = ctail_writepage,
+				.write = write_ctail,
+				.read = read_ctail,
+				.readpage = readpage_ctail,
+				.writepage = writepage_ctail,
 				.page_cache_readahead = NULL,
 				.get_block = NULL,
-				.readpages = ctail_readpages,
-				.append_key = ctail_append_key,
-				.key_in_item = ctail_key_in_item
+				.readpages = readpages_ctail,
+				.append_key = append_key_ctail,
+				.key_in_item = key_in_item_ctail
 			}
 		}
 	},	
@@ -653,26 +651,26 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.b = {
 			.item_type = ORDINARY_FILE_METADATA_TYPE,
-			.max_key_inside = tail_max_key_inside,
-			.can_contain_key = tail_can_contain_key,
-			.mergeable = frozen_mergeable,
+			.max_key_inside = max_key_inside_tail,
+			.can_contain_key = can_contain_key_tail,
+			.mergeable = mergeable_frozen,
 #if REISER4_DEBUG_OUTPUT
 			.print = NULL,
 #endif
 			.check = NULL,
-			.nr_units = tail_nr_units,
-			.lookup = tail_lookup,
+			.nr_units = nr_units_tail,
+			.lookup = lookup_tail,
 			.init = NULL,
-			.paste = frozen_paste,
+			.paste = paste_frozen,
 			.fast_paste = agree_to_fast_op,
-			.can_shift = frozen_can_shift,
+			.can_shift = can_shift_frozen,
 			.create_hook = NULL,
-			.copy_units = tail_copy_units,
+			.copy_units = copy_units_tail,
 			.kill_hook = NULL,
 			.shift_hook = NULL,
-			.cut_units = tail_cut_units,
-			.kill_units = tail_cut_units,
-			.unit_key = tail_unit_key,
+			.cut_units = cut_units_tail,
+			.kill_units = cut_units_tail,
+			.unit_key = unit_key_tail,
 			.estimate = NULL,
 			.item_data_by_flow = NULL,
 			.item_stat = NULL
@@ -691,8 +689,8 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 				.readpages = NULL,
 				.page_cache_readahead = NULL,
 				.get_block = NULL,
-				.append_key = tail_append_key,
-				.key_in_item = tail_key_in_item
+				.append_key = append_key_tail,
+				.key_in_item = key_in_item_tail
 			}
 		}
 	},
@@ -707,46 +705,46 @@ item_plugin item_plugins[LAST_ITEM_ID] = {
 		},
 		.b = {
 			.item_type = ORDINARY_FILE_METADATA_TYPE,
-			.max_key_inside = extent_max_key_inside,
-			.can_contain_key = extent_can_contain_key,
-			.mergeable = frozen_mergeable,
+			.max_key_inside = max_key_inside_extent,
+			.can_contain_key = can_contain_key_extent,
+			.mergeable = mergeable_frozen,
 #if REISER4_DEBUG_OUTPUT
-			.print = extent_print,
+			.print = print_extent,
 #endif
-			.check = extent_check,
-			.nr_units = extent_nr_units,
-			.lookup = extent_lookup,
+			.check = check_extent,
+			.nr_units = nr_units_extent,
+			.lookup = lookup_extent,
 			.init = NULL,
-			.paste = frozen_paste,
+			.paste = paste_frozen,
 			.fast_paste = agree_to_fast_op,
-			.can_shift = frozen_can_shift,
-			.create_hook = extent_create_hook,
-			.copy_units = extent_copy_units,
-			.kill_hook = extent_kill_item_hook,
+			.can_shift = can_shift_frozen,
+			.create_hook = create_hook_extent,
+			.copy_units = copy_units_extent,
+			.kill_hook = kill_hook_extent,
 			.shift_hook = NULL,
-			.cut_units = extent_cut_units,
-			.kill_units = extent_kill_units,
-			.unit_key = extent_unit_key,
+			.cut_units = cut_units_extent,
+			.kill_units = kill_units_extent,
+			.unit_key = unit_key_extent,
 			.estimate = NULL,
 			.item_data_by_flow = NULL,
-			.item_stat = extent_item_stat
+			.item_stat = item_stat_extent
 		},
 		.f = {
-			.utmost_child = extent_utmost_child,
-			.utmost_child_real_block = extent_utmost_child_real_block,
+			.utmost_child = utmost_child_extent,
+			.utmost_child_real_block = utmost_child_real_block_extent,
 			.update                  = NULL
 		},
 		.s = {
 			.file = {
 				.write = NULL,
 				.read = NULL,
-				.readpage = extent_readpage,
+				.readpage = readpage_extent,
 				.readpages = NULL,
 				.writepage = NULL,
 				.page_cache_readahead = NULL,
 				.get_block = NULL,
-				.append_key = extent_append_key,
-				.key_in_item = extent_key_in_item
+				.append_key = append_key_extent,
+				.key_in_item = key_in_item_extent
 			}
 		}
 	}

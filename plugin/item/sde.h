@@ -28,15 +28,16 @@ typedef struct directory_entry_format {
 	d8 name[0];
 } directory_entry_format;
 
-void de_print(const char *prefix, coord_t * coord);
-int de_extract_key(const coord_t * coord, reiser4_key * key);
-int de_update_key(const coord_t * coord, const reiser4_key * key, lock_handle * lh);
-char *de_extract_name(const coord_t * coord, char *buf);
-unsigned de_extract_file_type(const coord_t * coord);
-int de_add_entry(struct inode *dir, coord_t * coord,
+void print_de(const char *prefix, coord_t * coord);
+int extract_key_de(const coord_t * coord, reiser4_key * key);
+int update_key_de(const coord_t * coord, const reiser4_key * key, lock_handle * lh);
+char *extract_name_de(const coord_t * coord, char *buf);
+unsigned extract_file_type_de(const coord_t * coord);
+int add_entry_de(struct inode *dir, coord_t * coord,
 		 lock_handle * lh, const struct dentry *name, reiser4_dir_entry_desc * entry);
-int de_rem_entry(struct inode *dir, const struct qstr * name, coord_t * coord, lock_handle * lh, reiser4_dir_entry_desc * entry);
-int de_max_name_len(const struct inode *dir);
+int rem_entry_de(struct inode *dir, const struct qstr * name, coord_t * coord, lock_handle * lh, reiser4_dir_entry_desc * entry);
+int max_name_len_de(const struct inode *dir);
+
 
 int de_rem_and_shrink(struct inode *dir, coord_t * coord, int length);
 

@@ -20,7 +20,7 @@
 
 #if REISER4_DEBUG_OUTPUT
 void
-de_print(const char *prefix /* prefix to print */ ,
+print_de(const char *prefix /* prefix to print */ ,
 	 coord_t * coord /* item to print */ )
 {
 	assert("nikita-1456", prefix != NULL);
@@ -33,8 +33,8 @@ de_print(const char *prefix /* prefix to print */ ,
 		char *name;
 		char buf[DE_NAME_BUF_LEN];
 
-		de_extract_key(coord, &sdkey);
-		name = de_extract_name(coord, buf);
+		extract_key_de(coord, &sdkey);
+		name = extract_name_de(coord, buf);
 		printk("%s: name: %s\n", prefix, name);
 		print_key("\tsdkey", &sdkey);
 	}
@@ -43,7 +43,7 @@ de_print(const char *prefix /* prefix to print */ ,
 
 /* ->extract_key() method of simple directory item plugin. */
 int
-de_extract_key(const coord_t * coord /* coord of item */ ,
+extract_key_de(const coord_t * coord /* coord of item */ ,
 	       reiser4_key * key /* resulting key */ )
 {
 	directory_entry_format *dent;
@@ -57,7 +57,7 @@ de_extract_key(const coord_t * coord /* coord of item */ ,
 }
 
 int
-de_update_key(const coord_t * coord, const reiser4_key * key, lock_handle * lh UNUSED_ARG)
+update_key_de(const coord_t * coord, const reiser4_key * key, lock_handle * lh UNUSED_ARG)
 {
 	directory_entry_format *dent;
 	obj_key_id obj_id;
@@ -92,7 +92,7 @@ extract_dent_name(const coord_t * coord, directory_entry_format *dent, char *buf
 
 /* ->extract_name() method of simple directory item plugin. */
 char *
-de_extract_name(const coord_t * coord /* coord of item */, char *buf)
+extract_name_de(const coord_t * coord /* coord of item */, char *buf)
 {
 	directory_entry_format *dent;
 
@@ -104,7 +104,7 @@ de_extract_name(const coord_t * coord /* coord of item */, char *buf)
 
 /* ->extract_file_type() method of simple directory item plugin. */
 unsigned
-de_extract_file_type(const coord_t * coord UNUSED_ARG	/* coord of
+extract_file_type_de(const coord_t * coord UNUSED_ARG	/* coord of
 							   * item */ )
 {
 	assert("nikita-1764", coord != NULL);
@@ -116,7 +116,7 @@ de_extract_file_type(const coord_t * coord UNUSED_ARG	/* coord of
 }
 
 int
-de_add_entry(struct inode *dir /* directory of item */ ,
+add_entry_de(struct inode *dir /* directory of item */ ,
 	     coord_t * coord /* coord of item */ ,
 	     lock_handle * lh /* insertion lock handle */ ,
 	     const struct dentry *de /* name to add */ ,
@@ -162,7 +162,7 @@ de_add_entry(struct inode *dir /* directory of item */ ,
 }
 
 int
-de_rem_entry(struct inode *dir /* directory of item */ ,
+rem_entry_de(struct inode *dir /* directory of item */ ,
 	     const struct qstr * name UNUSED_ARG,
 	     coord_t * coord /* coord of item */ ,
 	     lock_handle * lh UNUSED_ARG	/* lock handle for
@@ -196,7 +196,7 @@ de_rem_entry(struct inode *dir /* directory of item */ ,
 }
 
 int
-de_max_name_len(const struct inode *dir)
+max_name_len_de(const struct inode *dir)
 {
 	return tree_by_inode(dir)->nplug->max_item_size() - sizeof (directory_entry_format) - 2;
 }

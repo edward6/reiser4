@@ -4,26 +4,26 @@
 #define __REISER4_FILE_H__
 
 /* declarations of functions implementing file plugin for unix file plugin */
-int unix_file_truncate(struct inode *, loff_t size);
-int unix_file_readpage(void *, struct page *);
-void unix_file_readpages(struct file *, struct address_space *,
+int truncate_unix_file(struct inode *, loff_t size);
+int readpage_unix_file(void *, struct page *);
+void readpages_unix_file(struct file *, struct address_space *,
 			 struct list_head *pages);
-void unix_file_init_inode(struct inode *inode, int create);
-int unix_file_pre_delete(struct inode *inode);
+void init_inode_data_unix_file(struct inode *, int create);
+int pre_delete_unix_file(struct inode *);
 
-int unix_file_writepage(struct page *);
-ssize_t unix_file_read(struct file *, char *buf, size_t size, loff_t * off);
-ssize_t unix_file_write(struct file *, const char *buf, size_t size, loff_t * off);
-int unix_file_release(struct file *);
-int unix_file_ioctl(struct inode *, struct file *, unsigned int cmd, unsigned long arg);
-int unix_file_mmap(struct file *, struct vm_area_struct *vma);
-int unix_file_get_block(struct inode *, sector_t block, struct buffer_head *bh_result, int create);
-int unix_file_build_flow(struct inode *, char *buf, int user, size_t, loff_t, rw_op, flow_t *);
-int unix_file_key_by_inode(struct inode *, loff_t off, reiser4_key *);
-int unix_file_delete(struct inode *);
-int unix_file_create(struct inode *object, struct inode *parent, reiser4_object_create_data * data);
-int unix_file_owns_item(const struct inode *, const coord_t *);
-int unix_file_setattr(struct inode *inode, struct iattr *attr);
+int writepage_unix_file(struct page *);
+ssize_t read_unix_file(struct file *, char *buf, size_t size, loff_t * off);
+ssize_t write_unix_file(struct file *, const char *buf, size_t size, loff_t * off);
+int release_unix_file(struct file *);
+int ioctl_unix_file(struct inode *, struct file *, unsigned int cmd, unsigned long arg);
+int mmap_unix_file(struct file *, struct vm_area_struct *vma);
+int get_block_unix_file(struct inode *, sector_t block, struct buffer_head *bh_result, int create);
+int flow_by_inode_unix_file(struct inode *, char *buf, int user, size_t, loff_t, rw_op, flow_t *);
+int key_by_inode_unix_file(struct inode *, loff_t off, reiser4_key *);
+int delete_unix_file(struct inode *);
+int create_unix_file(struct inode *object, struct inode *parent, reiser4_object_create_data * data);
+int owns_item_unix_file(const struct inode *, const coord_t *);
+int setattr_unix_file(struct inode *inode, struct iattr *attr);
 
 /* these are used by item methods */
 typedef enum {

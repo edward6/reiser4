@@ -34,33 +34,33 @@ typedef struct cde_entry_data {
 } cde_entry_data;
 
 /* plugin->item.b.* */
-reiser4_key *cde_max_key_inside(const coord_t * coord, reiser4_key * result, void *);
-int cde_can_contain_key(const coord_t * coord, const reiser4_key * key, const reiser4_item_data *);
-int cde_mergeable(const coord_t * p1, const coord_t * p2);
-unsigned cde_nr_units(const coord_t * coord);
-reiser4_key *cde_unit_key(const coord_t * coord, reiser4_key * key);
-int cde_estimate(const coord_t * coord, const reiser4_item_data * data);
-void cde_print(const char *prefix, coord_t * coord);
-int cde_init(coord_t * coord, reiser4_item_data * data);
-lookup_result cde_lookup(const reiser4_key * key, lookup_bias bias, coord_t * coord);
-int cde_paste(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG);
-int cde_can_shift(unsigned free_space, coord_t * coord,
+reiser4_key *max_key_inside_cde(const coord_t * coord, reiser4_key * result, void *);
+int can_contain_key_cde(const coord_t * coord, const reiser4_key * key, const reiser4_item_data *);
+int mergeable_cde(const coord_t * p1, const coord_t * p2);
+unsigned nr_units_cde(const coord_t * coord);
+reiser4_key *unit_key_cde(const coord_t * coord, reiser4_key * key);
+int estimate_cde(const coord_t * coord, const reiser4_item_data * data);
+void print_cde(const char *prefix, coord_t * coord);
+int init_cde(coord_t * coord, reiser4_item_data * data);
+lookup_result lookup_cde(const reiser4_key * key, lookup_bias bias, coord_t * coord);
+int paste_cde(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG);
+int can_shift_cde(unsigned free_space, coord_t * coord,
 		  znode * target, shift_direction pend, unsigned *size, unsigned want);
-void cde_copy_units(coord_t * target, coord_t * source,
+void copy_units_cde(coord_t * target, coord_t * source,
 		    unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
-int cde_cut_units(coord_t * coord, unsigned *from, unsigned *to,
+int cut_units_cde(coord_t * coord, unsigned *from, unsigned *to,
 		  const reiser4_key * from_key, const reiser4_key * to_key, reiser4_key * smallest_removed, void *);
-void cde_print(const char *prefix, coord_t * coord);
-int cde_check(const coord_t * coord, const char **error);
+void print_cde(const char *prefix, coord_t * coord);
+int check_cde(const coord_t * coord, const char **error);
 
 /* plugin->u.item.s.dir.* */
-int cde_extract_key(const coord_t * coord, reiser4_key * key);
-int cde_update_key(const coord_t * coord, const reiser4_key * key, lock_handle * lh);
-char *cde_extract_name(const coord_t * coord, char *buf);
-int cde_add_entry(struct inode *dir, coord_t * coord,
+int extract_key_cde(const coord_t * coord, reiser4_key * key);
+int update_key_cde(const coord_t * coord, const reiser4_key * key, lock_handle * lh);
+char *extract_name_cde(const coord_t * coord, char *buf);
+int add_entry_cde(struct inode *dir, coord_t * coord,
 		  lock_handle * lh, const struct dentry *name, reiser4_dir_entry_desc * entry);
-int cde_rem_entry(struct inode *dir, const struct qstr * name, coord_t * coord, lock_handle * lh, reiser4_dir_entry_desc * entry);
-int cde_max_name_len(const struct inode *dir);
+int rem_entry_cde(struct inode *dir, const struct qstr * name, coord_t * coord, lock_handle * lh, reiser4_dir_entry_desc * entry);
+int max_name_len_cde(const struct inode *dir);
 
 /* __FS_REISER4_PLUGIN_COMPRESSED_DE_H__ */
 #endif

@@ -310,7 +310,7 @@ paste_entry(const coord_t * coord /* coord of item */ ,
 /* estimate how much space is necessary in item to insert/paste set of entries
    described in @data. */
 int
-cde_estimate(const coord_t * coord /* coord of item */ ,
+estimate_cde(const coord_t * coord /* coord of item */ ,
 	     const reiser4_item_data * data /* parameters for new item */ )
 {
 	cde_entry_data *e;
@@ -347,14 +347,14 @@ cde_estimate(const coord_t * coord /* coord of item */ ,
 
 /* ->nr_units() method for this item plugin. */
 unsigned
-cde_nr_units(const coord_t * coord /* coord of item */ )
+nr_units_cde(const coord_t * coord /* coord of item */ )
 {
 	return units(coord);
 }
 
 /* ->unit_key() method for this item plugin. */
 reiser4_key *
-cde_unit_key(const coord_t * coord /* coord of item */ ,
+unit_key_cde(const coord_t * coord /* coord of item */ ,
 	     reiser4_key * key /* resulting key */ )
 {
 	assert("nikita-1452", coord != NULL);
@@ -366,14 +366,14 @@ cde_unit_key(const coord_t * coord /* coord of item */ ,
 	return key;
 }
 
-/* cde_mergeable(): implementation of ->mergeable() item method.
+/* mergeable_cde(): implementation of ->mergeable() item method.
   
    Two directory items are mergeable iff they are from the same
    directory. That simple.
   
 */
 int
-cde_mergeable(const coord_t * p1 /* coord of first item */ ,
+mergeable_cde(const coord_t * p1 /* coord of first item */ ,
 	      const coord_t * p2 /* coord of second item */ )
 {
 	reiser4_key k1;
@@ -391,7 +391,7 @@ cde_mergeable(const coord_t * p1 /* coord of first item */ ,
 
 /* ->max_key_inside() method for this item plugin. */
 reiser4_key *
-cde_max_key_inside(const coord_t * coord /* coord of item */ ,
+max_key_inside_cde(const coord_t * coord /* coord of item */ ,
 		   reiser4_key * result /* resulting key */,
 		   void *p UNUSED_ARG)
 {
@@ -405,7 +405,7 @@ cde_max_key_inside(const coord_t * coord /* coord of item */ ,
 
 /* @data contains data which are to be put into tree */
 int
-cde_can_contain_key(const coord_t * coord /* coord of item */ ,
+can_contain_key_cde(const coord_t * coord /* coord of item */ ,
 		    const reiser4_key * key /* key to check */ ,
 		    const reiser4_item_data * data	/* parameters of new
 							 * item/unit being
@@ -426,7 +426,7 @@ cde_can_contain_key(const coord_t * coord /* coord of item */ ,
 #if REISER4_DEBUG_OUTPUT
 /* ->print() method for this item plugin. */
 void
-cde_print(const char *prefix /* prefix to print */ ,
+print_cde(const char *prefix /* prefix to print */ ,
 	  coord_t * coord /* coord of item to print */ )
 {
 	assert("nikita-1077", prefix != NULL);
@@ -447,7 +447,7 @@ cde_print(const char *prefix /* prefix to print */ ,
 		item_key_by_coord(coord, &key);
 		dirid = extract_dir_id_from_key(&key);
 
-		printk("%s: units: %i\n", prefix, cde_nr_units(coord));
+		printk("%s: units: %i\n", prefix, nr_units_cde(coord));
 		for (i = 0; i < units(coord); ++i) {
 			cde_unit_header *header;
 
@@ -473,8 +473,8 @@ cde_print(const char *prefix /* prefix to print */ ,
 				printk("out of bounds: %p [%p, %p]\n", entry, start, end);
 			} else {
 				coord->unit_pos = i;
-				cde_extract_key(coord, &key);
-				name = cde_extract_name(coord, buf);
+				extract_key_cde(coord, &key);
+				name = extract_name_cde(coord, buf);
 				printk("at %i, name: %s, ", (char *) entry - start, name);
 				print_key("sdkey", &key);
 			}
@@ -490,7 +490,7 @@ cde_print(const char *prefix /* prefix to print */ ,
    construct 
 */
 int
-cde_check(const coord_t * coord /* coord of item to check */ ,
+check_cde(const coord_t * coord /* coord of item to check */ ,
 	  const char **error /* where to store error message */ )
 {
 	int i;
@@ -534,7 +534,7 @@ cde_check(const coord_t * coord /* coord of item to check */ ,
 
 /* ->init() method for this item plugin. */
 int
-cde_init(coord_t * coord /* coord of item */ ,
+init_cde(coord_t * coord /* coord of item */ ,
 	 reiser4_item_data * data	/* structure used for insertion */
 	 UNUSED_ARG)
 {
@@ -543,7 +543,7 @@ cde_init(coord_t * coord /* coord of item */ ,
 }
 
 /* ->lookup() method for this item plugin. */
-lookup_result cde_lookup(const reiser4_key * key /* key to search for */ ,
+lookup_result lookup_cde(const reiser4_key * key /* key to search for */ ,
 			 lookup_bias bias /* search bias */ ,
 			 coord_t * coord /* coord of item to lookup in */ )
 {
@@ -557,7 +557,7 @@ lookup_result cde_lookup(const reiser4_key * key /* key to search for */ ,
 
 	CHECKME(coord);
 
-	if (keygt(key, cde_max_key_inside(coord, &utmost_key, 0))) {
+	if (keygt(key, max_key_inside_cde(coord, &utmost_key, 0))) {
 		/* @key is from another directory item */
 		coord->unit_pos = units(coord) - 1;
 		coord->between = AFTER_UNIT;
@@ -592,7 +592,7 @@ lookup_result cde_lookup(const reiser4_key * key /* key to search for */ ,
 
 /* ->paste() method for this item plugin. */
 int
-cde_paste(coord_t * coord /* coord of item */ ,
+paste_cde(coord_t * coord /* coord of item */ ,
 	  reiser4_item_data * data	/* parameters of new unit being
 					 * inserted */ ,
 	  carry_plugin_info * info UNUSED_ARG /* todo carry queue */ )
@@ -644,7 +644,7 @@ part_size(const coord_t * coord /* coord of item */ ,
    node has @free_space bytes of free space. Total size of those units
    are returned via @size */
 int
-cde_can_shift(unsigned free_space /* free space in item */ ,
+can_shift_cde(unsigned free_space /* free space in item */ ,
 	      coord_t * coord /* coord of source item */ ,
 	      znode * target /* target node */ ,
 	      shift_direction pend /* shift direction */ ,
@@ -692,7 +692,7 @@ cde_can_shift(unsigned free_space /* free space in item */ ,
 
 /* ->copy_units() method for this item plugin. */
 void
-cde_copy_units(coord_t * target /* coord of target item */ ,
+copy_units_cde(coord_t * target /* coord of target item */ ,
 	       coord_t * source /* coord of source item */ ,
 	       unsigned from /* starting unit */ ,
 	       unsigned count /* how many units to copy */ ,
@@ -766,7 +766,7 @@ cde_copy_units(coord_t * target /* coord of target item */ ,
 
 /* ->cut_units() method for this item plugin. */
 int
-cde_cut_units(coord_t * coord /* coord of item */ ,
+cut_units_cde(coord_t * coord /* coord of item */ ,
 	      unsigned *from /* start unit pos */ ,
 	      unsigned *to /* stop unit pos */ ,
 	      const reiser4_key * from_key UNUSED_ARG /* start key */ ,
@@ -853,7 +853,7 @@ cde_cut_units(coord_t * coord /* coord of item */ ,
 
 /* ->s.dir.extract_key() method for this item plugin. */
 int
-cde_extract_key(const coord_t * coord /* coord of item */ ,
+extract_key_cde(const coord_t * coord /* coord of item */ ,
 		reiser4_key * key /* resulting key */ )
 {
 	directory_entry_format *dent;
@@ -866,7 +866,7 @@ cde_extract_key(const coord_t * coord /* coord of item */ ,
 }
 
 int
-cde_update_key(const coord_t * coord, const reiser4_key * key, lock_handle * lh UNUSED_ARG)
+update_key_cde(const coord_t * coord, const reiser4_key * key, lock_handle * lh UNUSED_ARG)
 {
 	directory_entry_format *dent;
 	obj_key_id obj_id;
@@ -886,7 +886,7 @@ cde_update_key(const coord_t * coord, const reiser4_key * key, lock_handle * lh 
 
 /* ->s.dir.extract_name() method for this item plugin. */
 char *
-cde_extract_name(const coord_t * coord /* coord of item */, char *buf)
+extract_name_cde(const coord_t * coord /* coord of item */, char *buf)
 {
 	directory_entry_format *dent;
 
@@ -898,7 +898,7 @@ cde_extract_name(const coord_t * coord /* coord of item */, char *buf)
 
 /* ->s.dir.add_entry() method for this item plugin */
 int
-cde_add_entry(struct inode *dir /* directory object */ ,
+add_entry_cde(struct inode *dir /* directory object */ ,
 	      coord_t * coord /* coord of item */ ,
 	      lock_handle * lh /* lock handle for insertion */ ,
 	      const struct dentry *name /* name to insert */ ,
@@ -927,7 +927,7 @@ cde_add_entry(struct inode *dir /* directory object */ ,
 	assert("nikita-1302", data.iplug != NULL);
 
 	result = is_dot_key(&dir_entry->key);
-	data.length = cde_estimate(result ? coord : NULL, &data);
+	data.length = estimate_cde(result ? coord : NULL, &data);
 
 	/* NOTE-NIKITA quota plugin? */
 	if (DQUOT_ALLOC_SPACE_NODIRTY(dir, data.length))
@@ -943,7 +943,7 @@ cde_add_entry(struct inode *dir /* directory object */ ,
 
 /* ->s.dir.rem_entry() */
 int
-cde_rem_entry(struct inode *dir /* directory of item */ ,
+rem_entry_cde(struct inode *dir /* directory of item */ ,
 	      const struct qstr * name,
 	      coord_t * coord /* coord of item */ ,
 	      lock_handle * lh UNUSED_ARG	/* lock handle for
@@ -958,7 +958,7 @@ cde_rem_entry(struct inode *dir /* directory of item */ ,
 	ON_DEBUG(char buf[DE_NAME_BUF_LEN]);
 
 	assert("nikita-2870", strlen(name->name) == name->len);
-	assert("nikita-2869", !strcmp(name->name, cde_extract_name(coord, buf)));
+	assert("nikita-2869", !strcmp(name->name, extract_name_cde(coord, buf)));
 
 	length = sizeof (directory_entry_format) + sizeof (cde_unit_header);
 	if (is_longname(name->name, name->len))
@@ -985,7 +985,7 @@ cde_rem_entry(struct inode *dir /* directory of item */ ,
 
 /* ->s.dir.max_name_len() method for this item plugin */
 int
-cde_max_name_len(const struct inode *dir /* directory */ )
+max_name_len_cde(const struct inode *dir /* directory */ )
 {
 	return
 	    tree_by_inode(dir)->nplug->max_item_size() -

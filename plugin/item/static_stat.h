@@ -192,12 +192,12 @@ typedef struct sd_stat {
 
 /* plugin->item.common.* */
 extern void sd_print(const char *prefix, coord_t * coord);
-extern void sd_item_stat(const coord_t * coord, void *vp);
+extern void item_stat_static_sd(const coord_t * coord, void *vp);
 
 /* plugin->item.s.sd.* */
-extern int sd_load(struct inode *inode, char *sd, int len);
-extern int sd_len(struct inode *inode);
-extern int sd_save(struct inode *inode, char **area);
+extern int init_inode_static_sd(struct inode *inode, char *sd, int len);
+extern int save_len_static_sd(struct inode *inode);
+extern int save_static_sd(struct inode *inode, char **area);
 
 /* __FS_REISER4_PLUGIN_ITEM_STATIC_STAT_H__ */
 #endif

@@ -7,15 +7,15 @@
 #include "../tree.h"
 #include "../vfs_ops.h"
 #include "../inode.h"
+#include "object.h"
 
 #include <linux/types.h>
 #include <linux/fs.h>		/* for struct inode */
 
-extern int common_file_save(struct inode *inode);
 /* symlink plugin's specific functions */
 
 int
-symlink_create(struct inode *symlink,	/* inode of symlink */
+create_symlink(struct inode *symlink,	/* inode of symlink */
 	       struct inode *dir UNUSED_ARG,	/* parent directory */
 	       reiser4_object_create_data * data	/* info passed
 							   * to us, this
@@ -45,7 +45,7 @@ symlink_create(struct inode *symlink,	/* inode of symlink */
 	INODE_SET_FIELD(symlink, i_size, strlen(data->name));
 
 	/* insert stat data appended with data->name */
-	result = common_file_save(symlink);
+	result = write_sd_by_inode_common(symlink);
 	if (result) {
 		/* FIXME-VS: Make sure that symlink->u.generic_ip is not attached
 		   to kmalloced data */

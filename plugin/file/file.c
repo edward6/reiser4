@@ -388,8 +388,8 @@ find_file_size(struct inode *inode, loff_t *file_size)
 	lock_handle lh;
 	item_plugin *iplug;
 
-	assert("vs-1247", inode_file_plugin(inode)->key_by_inode == unix_file_key_by_inode);
-	unix_file_key_by_inode(inode, get_key_offset(max_key()), &key);
+	assert("vs-1247", inode_file_plugin(inode)->key_by_inode == key_by_inode_unix_file);
+	key_by_inode_unix_file(inode, get_key_offset(max_key()), &key);
 
 	coord_init_zero(&coord);
 	result = find_file_item(0, &key, &coord, &lh, ZNODE_READ_LOCK, CBK_UNIQUE, 0/* ra_info */, inode);
@@ -460,8 +460,8 @@ cut_file_items(struct inode *inode, loff_t new_size, int update_sd)
 	int result;
 	znode *loaded;
 
-	assert("vs-1248", inode_file_plugin(inode)->key_by_inode == unix_file_key_by_inode);
-	unix_file_key_by_inode(inode, new_size, &from_key);
+	assert("vs-1248", inode_file_plugin(inode)->key_by_inode == key_by_inode_unix_file);
+	key_by_inode_unix_file(inode, new_size, &from_key);
 	to_key = from_key;
 	set_key_offset(&to_key, get_key_offset(max_key()));
 
@@ -599,7 +599,7 @@ shorten_file(struct inode *inode, loff_t new_size, int update_sd)
 
 	/* last page is partially truncated - zero its content */
 	index = (inode->i_size >> PAGE_CACHE_SHIFT);
-	page = read_cache_page(inode->i_mapping, index, unix_file_readpage/*filler*/, 0);
+	page = read_cache_page(inode->i_mapping, index, readpage_unix_file/*filler*/, 0);
 	if (IS_ERR(page)) {
 		all_grabbed2free("shorten_file: read_cache_page failed");
 		reiser4_release_reserved(inode->i_sb);
@@ -703,7 +703,7 @@ truncate_file(struct inode *inode, loff_t new_size, int update_sd)
 			3. unix_file_truncate (this function)
 */
 int
-unix_file_truncate(struct inode *inode, loff_t new_size)
+truncate_unix_file(struct inode *inode, loff_t new_size)
 {
 	INODE_SET_FIELD(inode, i_size, new_size);
 	inode->i_mtime = inode->i_ctime = CURRENT_TIME;
@@ -711,7 +711,7 @@ unix_file_truncate(struct inode *inode, loff_t new_size)
 	return reiser4_mark_inode_dirty(inode);		
 }
 
-/* plugin->u.write_sd_by_inode = common_file_save */
+/* plugin->u.write_sd_by_inode = write_sd_by_inode_common */
 
 /* get access hint (seal, coord, key, level) stored in reiser4 private part of
    struct file if it was stored in a previous access to the file */
@@ -812,7 +812,7 @@ unix_file_writepage_nolock(struct page *page)
 	assert("vs-1065", page->mapping && page->mapping->host);
 
 	/* get key of first byte of the page */
-	unix_file_key_by_inode(page->mapping->host, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
+	key_by_inode_unix_file(page->mapping->host, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
 
 	coord_init_zero(&coord);
 	result = find_file_item(0, &key, &coord, &lh, ZNODE_WRITE_LOCK, CBK_UNIQUE | CBK_FOR_INSERT, 0/*ra_info*/, 0/* inode */);
@@ -835,7 +835,7 @@ unix_file_writepage_nolock(struct page *page)
 /* plugin->u.file.writepage this does not start i/o against this page. It just must garantee that tree has a pointer to
    this page */
 int
-unix_file_writepage(struct page *page)
+writepage_unix_file(struct page *page)
 {
 	int result;
 	struct inode *inode;
@@ -904,7 +904,7 @@ unix_file_writepage(struct page *page)
 /* plugin->u.file.readpage page must be not out of file. This is always called
    with NEA (reiser4's NonExclusive Access) obtained */
 int
-unix_file_readpage(void *vp, struct page *page)
+readpage_unix_file(void *vp, struct page *page)
 {
 	int result;
 	coord_t coord;
@@ -921,7 +921,7 @@ unix_file_readpage(void *vp, struct page *page)
 	assert("vs-1078", (page->mapping->host->i_size > ((loff_t) page->index << PAGE_CACHE_SHIFT)));
 
 	/* get key of first byte of the page */
-	unix_file_key_by_inode(page->mapping->host, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
+	key_by_inode_unix_file(page->mapping->host, (loff_t) page->index << PAGE_CACHE_SHIFT, &key);
 
 	/* look for file metadata corresponding to first byte of page
 	   FIXME-VS: seal might be used here */
@@ -1009,8 +1009,8 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
 {
     	/* We should reserve one block, because of updating of the stat data
 	   item */
-	assert("vs-1249", inode_file_plugin(inode)->estimate.update == common_estimate_update);
-	return common_estimate_update(inode);
+	assert("vs-1249", inode_file_plugin(inode)->estimate.update == estimate_update_common);
+	return estimate_update_common(inode);
 }
 
 /* plugin->u.file.read 
@@ -1018,7 +1018,7 @@ static reiser4_block_nr unix_file_estimate_read(struct inode *inode,
    the read method for the unix_file plugin 
 
 */
-ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t * off)
+ssize_t read_unix_file(struct file * file, char *buf, size_t read_amount, loff_t * off)
 {
 	int result;
 	struct inode *inode;
@@ -1058,8 +1058,8 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 			/*PROF_BEGIN(build_flow);*/
 
 			/* build flow */
-			assert("vs-1250", inode_file_plugin(inode)->flow_by_inode == unix_file_build_flow);
-			result = unix_file_build_flow(inode, buf, 1 /* user space */ , read_amount, *off, READ_OP, &f);
+			assert("vs-1250", inode_file_plugin(inode)->flow_by_inode == flow_by_inode_unix_file);
+			result = flow_by_inode_unix_file(inode, buf, 1 /* user space */ , read_amount, *off, READ_OP, &f);
 			if (unlikely(result)) {
 				drop_nonexclusive_access(inode);
 				return result;
@@ -1262,9 +1262,9 @@ write_flow(struct file *file, struct inode *inode, const char *buf, size_t count
 	int result;
 	flow_t f;
 
-	assert("vs-1251", inode_file_plugin(inode)->flow_by_inode == unix_file_build_flow);
+	assert("vs-1251", inode_file_plugin(inode)->flow_by_inode == flow_by_inode_unix_file);
 	
-	result = unix_file_build_flow(inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &f);
+	result = flow_by_inode_unix_file(inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &f);
 	if (result)
 		return result;
 
@@ -1371,7 +1371,6 @@ drop_access(struct inode * inode, int ea)
 		drop_nonexclusive_access(inode);
 }
 
-/* plugin->u.file.write */
 static ssize_t
 write_file(struct file * file, /* file to write to */
 	   struct inode *inode, /* inode */
@@ -1439,7 +1438,7 @@ write_file(struct file * file, /* file to write to */
 
 /* plugin->u.file.write */
 ssize_t
-unix_file_write(struct file * file, /* file to write to */
+write_unix_file(struct file * file, /* file to write to */
 		const char *buf, /* address of user-space buffer */
 		size_t count, /* number of bytes to write */
 		loff_t * off /* position to write which */)
@@ -1458,7 +1457,7 @@ unix_file_write(struct file * file, /* file to write to */
 /* plugin->u.file.release
    convert all extent items into tail items if necessary */
 int
-unix_file_release(struct file *file)
+release_unix_file(struct file *file)
 {
 	struct inode *inode;
 	int result;
@@ -1544,7 +1543,7 @@ unpack(struct inode *inode, int forever)
 
 /* plugin->u.file.ioctl */
 int
-unix_file_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
+ioctl_unix_file(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int result;
 
@@ -1563,7 +1562,7 @@ unix_file_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsign
 /* plugin->u.file.mmap
    make sure that file is built of extent blocks. An estimation is in tail2extent */
 int
-unix_file_mmap(struct file *file, struct vm_area_struct *vma)
+mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 {
 	struct inode *inode;
 	int result;
@@ -1583,7 +1582,7 @@ unix_file_mmap(struct file *file, struct vm_area_struct *vma)
 
 /* plugin->u.file.get_block */
 int
-unix_file_get_block(struct inode *inode,
+get_block_unix_file(struct inode *inode,
 		    sector_t block, struct buffer_head *bh_result, int create UNUSED_ARG)
 {
 	int result;
@@ -1593,7 +1592,7 @@ unix_file_get_block(struct inode *inode,
 	item_plugin *iplug;
 	     
 	assert("vs-1091", create == 0);
-	unix_file_key_by_inode(inode, (loff_t) block * current_blocksize, &key);
+	key_by_inode_unix_file(inode, (loff_t) block * current_blocksize, &key);
 
 	coord_init_zero(&coord);
 
@@ -1620,14 +1619,13 @@ unix_file_get_block(struct inode *inode,
 
 /* plugin->u.file.flow_by_inode */
 int
-unix_file_build_flow(struct inode *inode /* file to build flow for */ ,
-		     char *buf /* user level buffer */ ,
-		     int user	/* 1 if @buf is of user space, 0 - if it is
-				   kernel space */ ,
-		     size_t size /* buffer size */ ,
-		     loff_t off /* offset to start io from */ ,
-		     rw_op op /* READ or WRITE */ ,
-		     flow_t * f /* resulting flow */ )
+flow_by_inode_unix_file(struct inode *inode /* file to build flow for */ ,
+			char *buf /* user level buffer */ ,
+			int user  /* 1 if @buf is of user space, 0 - if it is kernel space */ ,
+			size_t size /* buffer size */ ,
+			loff_t off /* offset to start io from */ ,
+			rw_op op /* READ or WRITE */ ,
+			flow_t * f /* resulting flow */ )
 {
 	assert("nikita-1100", inode != NULL);
 
@@ -1636,13 +1634,13 @@ unix_file_build_flow(struct inode *inode /* file to build flow for */ ,
 	f->user = user;
 	f->op = op;
 	assert("nikita-1931", inode_file_plugin(inode) != NULL);
-	assert("nikita-1932", inode_file_plugin(inode)->key_by_inode == unix_file_key_by_inode);
-	return unix_file_key_by_inode(inode, off, &f->key);
+	assert("nikita-1932", inode_file_plugin(inode)->key_by_inode == key_by_inode_unix_file);
+	return key_by_inode_unix_file(inode, off, &f->key);
 }
 
 /* plugin->u.file.key_by_inode */
 int
-unix_file_key_by_inode(struct inode *inode, loff_t off, reiser4_key *key)
+key_by_inode_unix_file(struct inode *inode, loff_t off, reiser4_key *key)
 {
 	key_init(key);
 	set_key_locality(key, reiser4_inode_data(inode)->locality_id);
@@ -1658,7 +1656,7 @@ unix_file_key_by_inode(struct inode *inode, loff_t off, reiser4_key *key)
 
 /* plugin->u.file.delete */
 int
-unix_file_delete(struct inode *inode)
+delete_unix_file(struct inode *inode)
 {
 	int result;
 
@@ -1673,24 +1671,24 @@ unix_file_delete(struct inode *inode)
 			return result;
 		}
 	}
-	return common_file_delete(inode);
+	return delete_file_common(inode);
 }
 
 /*
-   plugin->u.file.add_link = NULL
+   plugin->u.file.add_link = add_link_common
    plugin->u.file.rem_link = NULL */
 
 /* plugin->u.file.owns_item 
    this is common_file_owns_item with assertion */
 /* Audited by: green(2002.06.15) */
 int
-unix_file_owns_item(const struct inode *inode	/* object to check
+owns_item_unix_file(const struct inode *inode	/* object to check
 						 * against */ ,
 		    const coord_t * coord /* coord to check */ )
 {
 	int result;
 
-	result = common_file_owns_item(inode, coord);
+	result = owns_item_common(inode, coord);
 	if (!result)
 		return 0;
 	if (item_type_by_coord(coord) != ORDINARY_FILE_METADATA_TYPE)
@@ -1711,7 +1709,7 @@ setattr_reserve(tree_level height)
 /* This calls inode_setattr and if truncate is in effect it also takes
    exclusive inode access to avoid races */
 int
-unix_file_setattr(struct inode *inode,	/* Object to change attributes */
+setattr_unix_file(struct inode *inode,	/* Object to change attributes */
 		  struct iattr *attr /* change description */ )
 {
 	int result;
@@ -1757,7 +1755,7 @@ unix_file_setattr(struct inode *inode,	/* Object to change attributes */
 
 /* plugin->u.file.readpages method */
 void
-unix_file_readpages(struct file *file, struct address_space *mapping,
+readpages_unix_file(struct file *file, struct address_space *mapping,
 		    struct list_head *pages)
 {
 	reiser4_file_fsdata *fsdata;
@@ -1778,7 +1776,7 @@ unix_file_readpages(struct file *file, struct address_space *mapping,
 
 /* plugin->u.file.init_inode_data */
 void
-unix_file_init_inode(struct inode *inode, int create)
+init_inode_data_unix_file(struct inode *inode, int create)
 {
 	unix_file_info_t *data;
 
@@ -1790,9 +1788,9 @@ unix_file_init_inode(struct inode *inode, int create)
 #endif
 }
 
-/* plugin->u.file.init_inode_data */
+/* plugin->u.file.pre_delete */
 int
-unix_file_pre_delete(struct inode *inode)
+pre_delete_unix_file(struct inode *inode)
 {
 	return truncate_file(inode, 0/* size */, 0/* no stat data update */);
 }

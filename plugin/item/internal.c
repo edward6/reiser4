@@ -23,7 +23,7 @@
 
 /* plugin->u.item.b.mergeable */
 int
-internal_mergeable(const coord_t * p1 UNUSED_ARG /* first item */ ,
+mergeable_internal(const coord_t * p1 UNUSED_ARG /* first item */ ,
 		   const coord_t * p2 UNUSED_ARG /* second item */ )
 {
 	/* internal items are not mergeable */
@@ -31,7 +31,7 @@ internal_mergeable(const coord_t * p1 UNUSED_ARG /* first item */ ,
 }
 
 /* ->lookup() method for internal items */
-lookup_result internal_lookup(const reiser4_key * key /* key to look up */ ,
+lookup_result lookup_internal(const reiser4_key * key /* key to look up */ ,
 			      lookup_bias bias UNUSED_ARG /* lookup bias */ ,
 			      coord_t * coord /* coord of item */ )
 {
@@ -63,7 +63,7 @@ internal_at(const coord_t * coord	/* coord of
 }
 
 void
-internal_update(const coord_t * coord, const reiser4_block_nr * blocknr)
+update_internal(const coord_t * coord, const reiser4_block_nr * blocknr)
 {
 	internal_item_layout *item = internal_at(coord);
 	assert("nikita-2959", reiser4_blocknr_is_sane(blocknr));
@@ -90,7 +90,7 @@ znode_at(const coord_t * item /* coord of item */ ,
 /* store pointer from internal item into "block". Implementation of
     ->down_link() method */
 void
-internal_down_link(const coord_t * coord /* coord of item */ ,
+down_link_internal(const coord_t * coord /* coord of item */ ,
 		   const reiser4_key * key UNUSED_ARG	/* key to get
 							 * pointer for */ ,
 		   reiser4_block_nr * block /* resulting block number */ )
@@ -109,7 +109,7 @@ internal_down_link(const coord_t * coord /* coord of item */ ,
 
 /* Get the child's block number, or 0 if the block is unallocated. */
 int
-internal_utmost_child_real_block(const coord_t * coord, sideof side UNUSED_ARG, reiser4_block_nr * block)
+utmost_child_real_block_internal(const coord_t * coord, sideof side UNUSED_ARG, reiser4_block_nr * block)
 {
 	assert("jmacd-2059", coord != NULL);
 
@@ -125,7 +125,7 @@ internal_utmost_child_real_block(const coord_t * coord, sideof side UNUSED_ARG, 
 
 /* Return the child. */
 int
-internal_utmost_child(const coord_t * coord, sideof side UNUSED_ARG, jnode ** childp)
+utmost_child_internal(const coord_t * coord, sideof side UNUSED_ARG, jnode ** childp)
 {
 	reiser4_block_nr block = pointer_at(coord);
 	znode *child;
@@ -144,7 +144,7 @@ internal_utmost_child(const coord_t * coord, sideof side UNUSED_ARG, jnode ** ch
 	return 0;
 }
 
-int internal_check(const coord_t * coord, const char **error)
+int check__internal(const coord_t * coord, const char **error)
 {
 	reiser4_block_nr blk;
 
@@ -160,7 +160,7 @@ int internal_check(const coord_t * coord, const char **error)
 /* debugging aid: print human readable information about internal item at
    @coord  */
 void
-internal_print(const char *prefix /* prefix to print */ ,
+print_internal(const char *prefix /* prefix to print */ ,
 	       coord_t * coord /* coord of item to print  */ )
 {
 	reiser4_block_nr blk;
@@ -174,7 +174,7 @@ internal_print(const char *prefix /* prefix to print */ ,
 /* return true only if this item really points to "block" */
 /* Audited by: green(2002.06.14) */
 int
-internal_has_pointer_to(const coord_t * coord /* coord of item */ ,
+has_pointer_to_internal(const coord_t * coord /* coord of item */ ,
 			const reiser4_block_nr * block	/* block number to
 							 * check */ )
 {
@@ -192,7 +192,7 @@ internal_has_pointer_to(const coord_t * coord /* coord of item */ ,
   
 */
 int
-internal_create_hook(const coord_t * item /* coord of item */ ,
+create_hook_internal(const coord_t * item /* coord of item */ ,
 		     void *arg /* child's left neighbor, if any */ )
 {
 	znode *child;
@@ -252,7 +252,7 @@ internal_create_hook(const coord_t * item /* coord of item */ ,
   
 */
 int
-internal_kill_hook(const coord_t * item /* coord of item */ ,
+kill_hook_internal(const coord_t * item /* coord of item */ ,
 		   unsigned from UNUSED_ARG /* start unit */ ,
 		   unsigned count UNUSED_ARG /* stop unit */,
 		   void *p UNUSED_ARG)
@@ -294,7 +294,7 @@ internal_kill_hook(const coord_t * item /* coord of item */ ,
   
 */
 int
-internal_shift_hook(const coord_t * item /* coord of item */ ,
+shift_hook_internal(const coord_t * item /* coord of item */ ,
 		    unsigned from UNUSED_ARG /* start unit */ ,
 		    unsigned count UNUSED_ARG /* stop unit */ ,
 		    znode * old_node /* old parent */ )

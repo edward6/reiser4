@@ -15,7 +15,7 @@
 extern int hashed_init(struct inode *object, struct inode *parent, reiser4_object_create_data *);
 extern int hashed_done(struct inode *object);
 extern int hashed_detach(struct inode *object, struct inode *parent);
-extern int hashed_owns_item(const struct inode *inode, const coord_t * coord);
+extern int owns_item_hashed(const struct inode *inode, const coord_t * coord);
 extern file_lookup_result hashed_lookup(struct inode *inode, struct dentry *dentry);
 /*					     const struct qstr *name, name_t *,
 					     reiser4_key *key, 
