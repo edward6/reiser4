@@ -261,13 +261,6 @@ static ssize_t reiser4_write( struct file *file /* file to write on */,
 	} else {
 		result = -EPERM;
 	}
-	if( result > 0 ) {
-		/* something was written. Update stat data */
-		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
-		if( fplug -> write_sd_by_inode )
-			if( fplug -> write_sd_by_inode( inode ) )
-				info("reiser4_write: updating stat data failed\n");
-	}
 	REISER4_EXIT( result );
 }
 
@@ -280,10 +273,6 @@ static void reiser4_truncate( struct inode *inode /* inode to truncate */)
 	 * for mysterious reasons ->truncate() VFS call doesn't return
 	 * value 
 	 */
-	if( inode_file_plugin( inode ) -> write_sd_by_inode )
-		if( inode_file_plugin( inode ) -> write_sd_by_inode( inode ) )
-			info( "reiser4_truncate: updating stat "
-			      "data failed\n" );
 
 	__REISER4_EXIT( &__context );
 	return;
@@ -989,10 +978,11 @@ static void reiser4_destroy_inode( struct inode *inode /* inode being
 const char *REISER4_SUPER_MAGIC_STRING = "R4Sb";
 const int REISER4_MAGIC_OFFSET = 16 * 4096; /* offset to magic string from the
 					     * beginning of device */
+
 static int reiser4_fill_super (struct super_block * s, void * data,
 			       int silent UNUSED_ARG)
 {
-	struct buffer_head * super_bh;
+	struct buffer_head super_bh;
 	struct reiser4_master_sb * master_sb;
 	int plugin_id;
 	layout_plugin * lplug;
@@ -1002,28 +992,33 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
  read_super_block:
 	/* look for reiser4 magic at hardcoded place */
-	super_bh = sb_bread (s, (int)(REISER4_MAGIC_OFFSET / s->s_blocksize));
-	if (!super_bh)
-		REISER4_EXIT (-EIO);
+	super_bh.b_blocknr = (int)(REISER4_MAGIC_OFFSET / s->s_blocksize);
+	super_bh.b_data = 0;
+	super_bh.b_count = 0;
+	super_bh.b_size = s->s_blocksize;
+	result = reiser4_sb_bread (s, &super_bh);
+	if (result)
+		REISER4_EXIT (result);
 	
-	master_sb = (struct reiser4_master_sb *)super_bh->b_data;
+	master_sb = (struct reiser4_master_sb *)super_bh.b_data;
 	/* check reiser4 magic string */
 	if (!strncmp (master_sb->magic, REISER4_SUPER_MAGIC_STRING, 4)) {
 		/* reset block size if it is not a right one FIXME-VS: better comment is needed */
 		if (d16tocpu (&master_sb->blocksize) != s->s_blocksize) {
-			brelse (super_bh);
+			reiser4_sb_brelse (&super_bh);
 			if (!sb_set_blocksize (s, d16tocpu (&master_sb->blocksize)))
 				REISER4_EXIT (-EINVAL);
 			goto read_super_block;
 		}
 		plugin_id = d16tocpu (&master_sb->disk_plugin_id);
 		/* only one plugin is available for now */
-		assert ("vs-476", plugin_id == LAYOUT_40_ID);
+		assert ("vs-476", (plugin_id == LAYOUT_40_ID ||
+				   plugin_id == TEST_LAYOUT_ID));
 		lplug = layout_plugin_by_id (plugin_id);
-		brelse (super_bh);
+		reiser4_sb_brelse (&super_bh);
 	} else {
 		/* no standard reiser4 super block found */
-		brelse (super_bh);
+		reiser4_sb_brelse (&super_bh);
 		/* FIXME-VS: call guess method for all available layout plugins */
 		return -EINVAL;
 	}
@@ -1035,7 +1030,7 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	s->u.generic_sbp = kmalloc (sizeof (reiser4_super_info_data),
 				    GFP_KERNEL);
 	if (!s->u.generic_sbp) {
-		brelse (super_bh);
+		reiser4_sb_brelse (&super_bh);
 		REISER4_EXIT (-ENOMEM);
 	}
 	memset (s->u.generic_sbp, 0, sizeof (reiser4_super_info_data));
@@ -1049,12 +1044,13 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 	txn_mgr_init (&get_super_private (s)->tmgr);
 
 	/* call disk format plugin method to do all the preparations like
-	 * journal replay, reiser4_super_info_data initialization, read oid allocator, etc */
+	 * journal replay, reiser4_super_info_data initialization, read oid
+	 * allocator, etc */
 	result = lplug->get_ready (s, data);
 	if (result)
 		REISER4_EXIT (result);
 
-	inode = reiser4_iget (s, lplug->root_dir_key ());
+	inode = reiser4_iget (s, lplug->root_dir_key (s));
 	if (inode) {
 		/* allocate dentry for root inode, It works with inode == 0 */
 		s->s_root = d_alloc_root (inode);
@@ -1099,6 +1095,20 @@ static int reiser4_fill_super (struct super_block * s, void * data,
 
 	REISER4_EXIT (0);
 }
+
+
+static void reiser4_put_super (struct super_block * s)
+{
+	if (get_super_private (s)->lplug->release)
+		get_super_private (s)->lplug->release (s);
+
+	kfree(s->u.generic_sbp);
+	s->u.generic_sbp = NULL;
+
+	return;
+}
+
+
 
 /** ->get_sb() method of file_system operations. */
 static struct super_block *reiser4_get_sb( struct file_system_type *fs_type /* file
@@ -1249,7 +1259,7 @@ struct super_operations reiser4_super_operations = {
 /* 	.write_inode        = reiser4_write_inode, */
 /* 	.put_inode          = reiser4_put_inode, */
 /* 	.delete_inode       = reiser4_delete_inode, */
-/* 	.put_super          = reiser4_put_super, */
+	.put_super          = reiser4_put_super,
 /* 	.write_super        = reiser4_write_super, */
 /* 	.write_super_lockfs = reiser4_write_super_lockfs, */
 /* 	.unlockfs           = reiser4_unlockfs, */
