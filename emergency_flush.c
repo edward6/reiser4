@@ -245,6 +245,8 @@
 #include <linux/vmalloc.h>
 #include <linux/swap.h>
 
+#if REISER4_USE_EFLUSH
+
 static int flushable(const jnode * node, struct page *page, int);
 static int needs_allocation(const jnode * node);
 static eflush_node_t *ef_alloc(int flags);
@@ -899,6 +901,8 @@ ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **efnode, reiser4_b
 	LOCK_JLOAD(node);
 	return result;
 }
+
+#endif /* REISER4_USE_EFLUSH */
 
 /* Make Linus happy.
    Local variables:

@@ -261,8 +261,9 @@ struct reiser4_super_info_data {
 	/* see emergency_flush.c for details */
 	reiser4_spin_data eflush_guard;
 	int               eflushed;
+#if REISER4_USE_EFLUSH
 	ef_hash_table     efhash_table;
-
+#endif
 	/* pointers to jnodes for journal header and footer */
 	jnode *journal_header;
 	jnode *journal_footer;

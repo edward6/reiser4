@@ -5,6 +5,7 @@
 #ifndef __EMERGENCY_FLUSH_H__
 #define __EMERGENCY_FLUSH_H__
 
+#if REISER4_USE_EFLUSH
 
 /* this bit is set when inode gets first eflushed jnode (eflush_add()). It is cleared when last eflushed jnode is
    eunflushed (eflush_del()). It solely exists to prevent inodes having eflushed jnodes from being pruned
@@ -40,9 +41,24 @@ extern void eflush_done_at(struct super_block *super);
 extern reiser4_block_nr *eflush_get(const jnode *node);
 extern void eflush_del(jnode *node, int page_locked);
 
-int emergency_flush(struct page *page);
-int emergency_unflush(jnode *node);
+extern int emergency_flush(struct page *page);
+extern int emergency_unflush(jnode *node);
 
+#else /* REISER4_USE_EFLUSH */
+
+#define eflush_init()  (0)
+#define eflush_done()  (0)
+
+#define eflush_init_at(super) (0)
+#define eflush_done_at(super) (0)
+
+#define eflush_get(node)  NULL
+#define eflush_del(node, flag) do{}while(0)
+
+#define emergency_unflush(node) (0)
+#define emergency_flush(page) (1)
+
+#endif  /* REISER4_USE_EFLUSH */
 
 /* __EMERGENCY_FLUSH_H__ */
 #endif

@@ -1018,6 +1018,8 @@ static int capture_anonymous_page(struct page *pg, int keepme)
 #define CAPTURE_AJNODE_BURST     (128)
 #define CAPTURE_APAGE_BURST      (1024)
 
+#if REISER4_USE_EFLUSH
+
 static int capture_anonymous_jnodes(struct inode *inode)
 {
 	struct list_head *tmp, *next;
@@ -1095,6 +1097,8 @@ static int capture_anonymous_jnodes(struct inode *inode)
 	return result;
 }
 
+#endif /* REISER4_USE_EFLUSH */
+
 static int capture_anonymous_pages(struct address_space * mapping)
 {
 	struct list_head *mpages;
@@ -1128,8 +1132,10 @@ static int capture_anonymous_pages(struct address_space * mapping)
 	if (nr >= CAPTURE_APAGE_BURST)
 		redirty_inode(mapping->host);
 
+#if REISER4_USE_EFLUSH
 	if (result == 0)
 		result = capture_anonymous_jnodes(mapping->host);
+#endif /* REISER4_USE_EFLUSH */
 
 	if (result != 0)
 		warning("nikita-3328", "Cannot capture anon pages: %i\n", result);
