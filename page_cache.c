@@ -286,6 +286,8 @@ struct page *reiser4_lock_page( struct address_space *mapping,
 	assert( "nikita-2408", mapping != NULL );
 	ON_DEBUG_CONTEXT( assert( "nikita-2409", 
 				  lock_counters() -> spin_locked == 0 ) );
+	ON_DEBUG_CONTEXT( assert( "nikita-2655", 
+				  lock_counters() -> long_term_locked_znode == 0 ) );
 	page = find_lock_page( mapping, index );
 	if( page ) {
 		ON_DEBUG_CONTEXT( ++ lock_counters() -> page_locked );
