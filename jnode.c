@@ -885,8 +885,10 @@ int jdelete( jnode *node /* jnode to finish with */ )
 		spin_unlock_jnode( node );
 		result = jplug -> delete( node, tree );
 	} else {
-		spin_unlock_jnode( node );
 		JF_CLR( node, JNODE_RIP );
+		spin_unlock_jnode( node );
+		if( page != NULL )
+			unlock_page( page );
 	}
 	spin_unlock_tree( tree );
 	return result;
@@ -902,7 +904,7 @@ int jdelete( jnode *node /* jnode to finish with */ )
  *  0:       successfully dropped jnode
  *
  */
-int jdrop_in_tree( jnode *node, reiser4_tree *tree, int drop_page_p )
+int jdrop_in_tree( jnode *node, reiser4_tree *tree )
 {
 	struct page  *page;
 	jnode_plugin *jplug;
@@ -926,22 +928,19 @@ int jdrop_in_tree( jnode *node, reiser4_tree *tree, int drop_page_p )
 	if( !result ) {
 		assert( "nikita-2488", page == node -> pg );
 		if( page != NULL ) { 
-			if( drop_page_p ) {
-				assert( "nikita-2126", !PageDirty( page ) );
-				assert( "nikita-2127", PageUptodate( page ) );
-				assert( "nikita-2181", PageLocked( page ) );
-				remove_inode_page( page );
-				page_clear_jnode_nolock( page, node );
-				unlock_page( page );
-				page_cache_release( page );
-			} else
-				unlock_page( page );
+			assert( "nikita-2126", !PageDirty( page ) );
+			assert( "nikita-2127", PageUptodate( page ) );
+			assert( "nikita-2181", PageLocked( page ) );
+			remove_inode_page( page );
+			page_clear_jnode_nolock( page, node );
+			unlock_page( page );
+			page_cache_release( page );
 		}
 		spin_unlock_jnode( node );
 		result = jplug -> remove( node, tree );
 	} else {
-		spin_unlock_jnode( node );
 		JF_CLR( node, JNODE_RIP );
+		spin_unlock_jnode( node );
 		if( page != NULL )
 			unlock_page( page );
 	}
@@ -955,7 +954,7 @@ int jdrop_in_tree( jnode *node, reiser4_tree *tree, int drop_page_p )
  */
 void jdrop (jnode * node)
 {
-	jdrop_in_tree (node, current_tree, 1);
+	jdrop_in_tree (node, current_tree);
 }
 
 int jwait_io (jnode * node, int rw)

@@ -2167,7 +2167,7 @@ int reiser4_releasepage( struct page *page, int gfp UNUSED_ARG )
 	 * we are under memory pressure so release jnode
 	 * also. jdrop() internally re-checks x_count.
 	 */
-	jdrop_in_tree( node, tree, 0 );
+	jdrop_in_tree( node, tree );
 
 	/*
 	 * return with page still locked. shrink_cache() expects this.

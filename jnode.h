@@ -352,7 +352,7 @@ extern void add_d_ref( jnode *node );
 extern int jload(jnode * node);
 extern int jinit_new( jnode *node );
 
-extern int  jdrop_in_tree     (jnode *node, reiser4_tree *tree, int drop_page_p);
+extern int  jdrop_in_tree     (jnode *node, reiser4_tree *tree);
 extern void jdrop             (jnode* node);
 extern int  jwait_io          (jnode* node, int rw);
 
