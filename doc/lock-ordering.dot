@@ -101,6 +101,8 @@ subgraph spin {
 	RSPIN(fq_lock);
 	RSPIN(jload_lock);
 	RSPIN(super_guard);
+    RSPIN(eflush_guard);
+    RSPIN(d_lock);
 
 	//RSPIN(stack_lock);
 	//RSPIN(lnode_guard);
@@ -268,4 +270,7 @@ ARC(jnode_lock, zone_lock, "page_clear_jnode()"); // uncapture_page, extent_writ
 ARC(jnode_lock, zone_lru_lock, "page_clear_jnode()"); // uncapture_page, extent_write_flow
 ARC(jnode_lock, jload_lock, "reiser4_releasepage()");
 ARC(atom_lock, super_guard, "grabbed2flush_reserved_nolock()");
+
+ARC(jnode_lock, eflush_guard, "eflush_add()");
+ARC(inode_guard, d_lock, "detach_fsdata()");
 }

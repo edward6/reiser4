@@ -129,6 +129,9 @@ Reiser4 introduces following locks:
     table, ->eflushed, and ->eflushed_anon counters in inode, and ->flushed
     counter in atom.                                            (eflush_guard)
 
+42. Per-super-block spin lock protecting detached directory cursors for
+    stateless readdir                                           (d_lock)
+
 99. Various locks used by the user level simulator
 
 Locks marked by (*) after label, are accessed through spin lock macros,
@@ -244,6 +247,15 @@ LABEL AND DESCRIPTION                                 LOCKS
 
     (Checked by znode_invariant_f().)
 
+[znode-modify]                                        zlock_lock(read),
+                                                      jnode_lock, tree_lock
+
+    /* if znode is not write-locked, its checksum remains
+     * invariant */
+	!znode_is_wlocked(node) => znode_at_read(node)
+
+    (Checked by znode_invariant_f().)
+
 [znode-refs]                                          jnode_lock, tree_lock
 
     /* only referenced znode can be long-term locked */
@@ -352,6 +364,7 @@ i_sem
 ................mapping->i_shared_sem
 ................kalloc
 ....................inode_guard
+......................d_lock
 ....................txnmgr_lock
 ......................atom_lock
 ..........................super_guard
@@ -553,6 +566,10 @@ jnode_lock->eflush_guard
 atom_lock->super_guard
 
     grabbed2flush_reserved_nolock()
+
+inode_guard->d_lock
+
+    detach_fsdata()
 
 ----------------------------------DEADLOCKS-------------------------------------
 
