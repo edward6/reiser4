@@ -174,6 +174,11 @@ void kfree( void *addr )
 	free( check );
 }
 
+/* 
+    Audited by umka (2002.06.13)
+    Here in kmalloc request should be exactly specified the kind of request
+    GFP_KERNEL, etc.
+*/
 kmem_cache_t *kmem_cache_create( const char *name, 
 				 size_t size UNUSED_ARG, 
 				 size_t offset UNUSED_ARG,
