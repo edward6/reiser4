@@ -348,7 +348,7 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags)
 	}
 
 	if (ret != 0) {
-		warning ("jmacd-16739", "flush failed: %d\n", ret);
+		warning ("jmacd-16739", "flush failed: %d", ret);
 	}
 
 	flush_pos_done (& flush_pos);
@@ -1827,7 +1827,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			bio->bi_size   = blksz * nr;
 			bio->bi_end_io = flush_bio_write;
 
-			trace_on (TRACE_FLUSH, "flush_empty_queue writes");
+			trace_on (TRACE_FLUSH_VERB, "flush_empty_queue writes");
 
 			for (c = 0, j = i; c < nr; c += 1, j += 1) {
 
@@ -1838,7 +1838,7 @@ static int flush_empty_queue (flush_position *pos, int finish)
 
 				JF_CLR (node, ZNODE_FLUSH_QUEUED);
 
-				trace_on (TRACE_FLUSH, " %s", flush_jnode_tostring (node));
+				trace_on (TRACE_FLUSH_VERB, " %s", flush_jnode_tostring (node));
 
 				assert ("jmacd-71442", super == pg->mapping->host->i_sb);
 
@@ -1863,7 +1863,8 @@ static int flush_empty_queue (flush_position *pos, int finish)
 			i = j;
 			pos->enqueue_cnt += nr;
 
-			trace_on (TRACE_FLUSH, "\nflush_empty_queue %u consecutive blocks: BIO %p\n", nr, bio);
+			trace_on (TRACE_FLUSH_VERB, "\n");
+			trace_on (TRACE_FLUSH, "flush_empty_queue %u consecutive blocks: BIO %p\n", nr, bio);
 
 			submit_bio (WRITE, bio);
 
@@ -2259,7 +2260,7 @@ static int flush_scan_extent_coord (flush_scan *scan, const coord_t *in_coord)
 		pg = find_get_page (ino->i_mapping, scan_max);
 
 		if (pg == NULL) {
-			warning ("jmacd-8337", "unallocated node not in memory!");
+			impossible ("jmacd-8337", "unallocated node index %lu ino %lu not in memory", scan_max, ino->i_ino);
 			ret = -EIO;
 			goto exit;
 		}
