@@ -405,10 +405,7 @@ renew_sibling_link(coord_t * coord, lock_handle * handle, znode * child, tree_le
 		WLOCK_TREE(tree);
 	}
 
-	/* Under tree lock we check that another thread did not allocate new
-	 * znode and has not connected it to `child'. */
-	if (!(to_left ? znode_is_left_connected(child) : znode_is_right_connected(child)))
-		link_znodes(child, neighbor, to_left);
+	link_znodes(child, neighbor, to_left);
 
 	WUNLOCK_TREE(tree);
 
