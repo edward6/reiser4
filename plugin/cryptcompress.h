@@ -16,6 +16,7 @@
 #define DEFAULT_CLUSTER_SHIFT 0
 #define DC_CHECKSUM_SIZE 4
 #define MIN_CRYPTO_BLOCKSIZE 8
+ //#define LAZY_COMPRESSION_MODE
 
 typedef unsigned long cloff_t;
 
