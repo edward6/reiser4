@@ -13,8 +13,8 @@ Unresolved issues:
 #include "plugin/plugin.h"
 #include <linux/types.h>
 #include <linux/random.h>
-#define MAX_CRYPTO_BLOCKSIZE 256
-#define NONE_KEY_SIZE 8
+#define MAX_CRYPTO_BLOCKSIZE 128
+#define NONE_EXPKEY_WORDS 8
 #define NONE_BLOCKSIZE 8
 
 /* default align() method of the crypto-plugin
@@ -39,14 +39,22 @@ static int common_align_cluster (__u8 *tail, int clust_size, int blocksize)
 	return tail_size;
 }
 
-static int none_blocksize (struct inode * inode UNUSED_ARG /* inode to operate on */)
+/* use this only for symmetric algorithms */
+static loff_t common_scale(struct inode * inode UNUSED_ARG,
+			   size_t blocksize UNUSED_ARG,
+			   loff_t src_off)
+{
+	return src_off;
+}
+
+static size_t none_blocksize (__u16 keysize UNUSED_ARG /* keysize bits */)
 {
 	return NONE_BLOCKSIZE;
 }
 
-static int none_set_key (__u32 *expkey, const __u8 *key)
+static int none_set_key (__u32 *expkey, const __u8 *key UNUSED_ARG)
 {
-	memcpy(expkey, key, NONE_KEY_SIZE);
+	memset(expkey, 0, NONE_EXPKEY_WORDS * sizeof(__u32));
 	return 0;	
 }
 
@@ -69,8 +77,9 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 			.desc = "Id rearrangement",
 			.linkage = TS_LIST_LINK_ZERO}
 		,
-		.keysize = NONE_KEY_SIZE,
+		.nr_keywords = NONE_EXPKEY_WORDS,
 		.blocksize = none_blocksize,
+		.scale = common_scale,
 	        .align = common_align_cluster,
 	        .set_key = none_set_key,
 	        .encrypt = none_crypt,
