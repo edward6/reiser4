@@ -216,6 +216,7 @@ static int read_inode( struct inode * inode /* inode to read from disk */ )
 	reiser4_key         key;
 	lock_handle         lh;
 	reiser4_inode_info *info;
+	tree_coord          coord;
 
 	assert( "nikita-298", inode != NULL );
 	
@@ -230,33 +231,32 @@ static int read_inode( struct inode * inode /* inode to read from disk */ )
 		return -EINVAL;
 	}
 
-	/* Release inode lock during io. */
-	reiser4_unlock_inode( inode );
-	init_coord( &info -> sd_coord );
+	init_coord( &coord );
 	init_lh( &lh );
 	/* locate stat-data in a tree and return znode locked */
-	result = lookup_sd( inode, ZNODE_READ_LOCK, 
-			    &info -> sd_coord, &lh, &key );
-	reiser4_lock_inode( inode );
+	result = lookup_sd( inode, ZNODE_READ_LOCK, &coord, &lh, &key );
 	if( ( result == 0 ) && ! is_inode_loaded( inode ) ) {
 		*reiser4_inode_flags( inode ) |= REISER4_LOADED;
 		assert( "nikita-301", is_inode_loaded( inode ) );
 		/* use stat-data plugin to load sd into inode. */
-		result = init_inode( inode, &info -> sd_coord );
+		result = init_inode( inode, &coord );
 		if( result == 0 ) {
 			/* setup inode number and locality id from key. */
 			inode -> i_ino = get_key_objectid( &key );
 			assert( "nikita-1271", 
 				info -> locality_id == get_key_locality( &key ) );
 			/* initialise stat-data seal */
-			seal_init( &info -> sd_seal, &info -> sd_coord, &key );
+			spin_lock_inode( info );
+			seal_init( &info -> sd_seal, &coord, &key );
+			info -> sd_coord = coord;
+			spin_unlock_inode( info );
 		}
 	}
 	/* lookup_sd() doesn't release coord because we want znode
 	   stay read-locked while stat-data fields are accessed in
 	   init_inode() */
 	done_lh( &lh );
-	done_coord( &info -> sd_coord );
+	done_coord( &coord );
 	if( result != 0 ) {
 		if( inode != NULL )
 			make_bad_inode( inode );

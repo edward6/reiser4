@@ -131,6 +131,8 @@ int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */,
 		   the key we've been looking for */
 		assert( "nikita-722", 
 			keyeq( unit_key_by_coord( coord, &key_found ), key ) );
+		assert( "nikita-1897", 
+			znode_get_level( coord -> node ) == LEAF_LEVEL );
 		/* check that what we really found is stat data */
 		if( !item_is_statdata( coord ) ) {
 			error_message = "sd found, but it doesn't look like sd ";
@@ -238,8 +240,11 @@ static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 			if( result == 0 ) {
 				/* object has stat-data now */
 				*reiser4_inode_flags( inode ) &= ~REISER4_NO_STAT_DATA;
+				spin_lock_inode( ref );
 				/* initialise stat-data seal */
 				seal_init( &ref -> sd_seal, &coord, &key );
+				ref -> sd_coord = coord;
+				spin_unlock_inode( ref );
 			} else {
 				error_message = "cannot save sd of";
 				result = -EIO;
@@ -261,7 +266,8 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 {
 	int result;
 	reiser4_key key;
-	tree_coord *coord;
+	tree_coord  coord;
+	seal_t      seal;
 	reiser4_item_data  data;
 	const char *error_message;
 	reiser4_inode_info *state;
@@ -276,20 +282,23 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 	init_lh( &lh );
 
 	state = reiser4_inode_data( inode );
-	coord = &state -> sd_coord;
+	spin_lock_inode( state );
+	coord = state -> sd_coord;
+	seal  = state -> sd_seal;
+	spin_unlock_inode( state );
 
-	if( seal_is_set( &state -> sd_seal ) ) {
+	if( seal_is_set( &seal ) ) {
 		/* first, try to use seal */
 		build_sd_key( inode, &key );
-		result = seal_validate( &state -> sd_seal, coord, 
+		result = seal_validate( &seal, &coord, 
 					&key, LEAF_LEVEL, &lh, FIND_EXACT, 
 					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI );
 	} else
 		result = -EAGAIN;
 
 	if( result != 0 ) {
-		init_coord( coord );
-		result = lookup_sd( inode, ZNODE_WRITE_LOCK, coord, &lh, &key );
+		init_coord( &coord );
+		result = lookup_sd( inode, ZNODE_WRITE_LOCK, &coord, &lh, &key );
 	}
 	error_message = NULL;
 	/* we don't want to re-check that somebody didn't remove stat-data
@@ -309,7 +318,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		}
 		/* data.length is how much space to add to (or remove
 		   from if negative) sd */
-		data.length = state -> sd_len - item_length_by_coord( coord );
+		data.length = state -> sd_len - item_length_by_coord( &coord );
 
 		/* if on-disk stat data is of different length than required
 		   for this inode, resize it */
@@ -318,7 +327,7 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 			/*
 			 * FIXME-NIKITA resize can create new item.
 			 */
-			result = resize_item( coord, &data, &key,
+			result = resize_item( &coord, &data, &key,
 					      0/*FIXME-NIKITA lh?*/, 
 					      0/*flags*/ );
 			switch( result ) {
@@ -338,17 +347,20 @@ static int update_sd( struct inode *inode /* inode to update sd for */ )
 		}
 		if( result == 0 ) {
 			assert( "nikita-729", 
-				item_length_by_coord( coord ) == state -> sd_len );
-			area = item_body_by_coord( coord );
+				item_length_by_coord( &coord ) == state -> sd_len );
+			area = item_body_by_coord( &coord );
 			result = state -> sd -> s.sd.save( inode, &area );
 			/* re-initialise stat-data seal */
-			seal_init( &state -> sd_seal, coord, &key );
+			spin_lock_inode( state );
+			seal_init( &state -> sd_seal, &coord, &key );
+			state -> sd_coord = coord;
+			spin_unlock_inode( state );
 		} else {
 			key_warning( error_message, &key, result );
 		}
 	}
 	done_lh( &lh );
-	done_coord( coord );
+	done_coord( &coord );
 	return result;
 }
 

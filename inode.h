@@ -31,6 +31,7 @@ typedef struct reiser4_inode_info {
 	hash_plugin            *hash;
 	/** plugin of stat-data */
 	item_plugin            *sd;
+	spinlock_t              guard;
 	/** seal for stat-data */
 	seal_t                    sd_seal;
 	/** coord of stat-data in sealed node */
@@ -52,11 +53,12 @@ typedef struct reiser4_inode_info {
 	inter_syscall_rap          ra;
 	/** locality id for this file */
 	oid_t                      locality_id;
-	/**
-	 * generic fields not specific to reiserfs but used by all linux filesystems
-	 */
+	/** generic fields not specific to reiser4, but used by VFS */
 	struct inode       vfs_inode;
 } reiser4_inode_info;
+
+#define spin_ordering_pred_inode( inode )   (1)
+SPIN_LOCK_FUNCTIONS( inode, reiser4_inode_info, guard );
 
 extern reiser4_tree *tree_by_inode( const struct inode *inode );
 extern reiser4_inode_info *reiser4_inode_data( const struct inode *inode );
