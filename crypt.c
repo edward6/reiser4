@@ -3,17 +3,18 @@
 
 #include "debug.h"
 #include "plugin/plugin.h"
+#include "plugin/cryptcompress.h"
 #include <linux/types.h>
 #include <linux/random.h>
+
 #define MAX_CRYPTO_BLOCKSIZE 128
 #define NONE_EXPKEY_WORDS 8
 #define NONE_BLOCKSIZE 8
 
-/*   
-     
-Default align() method of the crypto-plugin (look for description of this method
-in plugin/plugin.h)  
-
+/*
+  Default align() method of the crypto-plugin (look for description of this method
+  in plugin/plugin.h)  
+  
 1) creates the aligning armored format of the input flow before encryption.
    "armored" means that padding is filled by private data (for example,
    pseudo-random sequence of bytes is not private data).   
@@ -50,33 +51,7 @@ static loff_t scale_common(struct inode * inode UNUSED_ARG,
 	return src_off;
 }
 
-/* blocksize method (look for description of this method in plugin/plugin.h)
-   for none crypto plugin */
-static size_t blocksize_none (__u16 keysize UNUSED_ARG /* size of private key, bits */)
-{
-	return NONE_BLOCKSIZE;
-}
-
-/* set_key (look for description of this method in plugin/plugin.h)
-   for none crypto plugin */
-static int set_key_none(__u32 *expkey /* cpu key */, 
-			const __u8 *key UNUSED_ARG)
-{
-	memset(expkey, 0, NONE_EXPKEY_WORDS * sizeof(__u32));
-	return 0;	
-}
-
-/* plugin->encrypt,
-   plugin->decrypt for none crypto plugin
-   (look for description of this methods in plugin/plugin.h)
-*/
-static void crypt_none (__u32 *expkey UNUSED_ARG, __u8 *dst, const __u8 *src)
-{
-	assert("edward-04", dst != NULL);
-	assert("edward-05", src != NULL);
-
-	memcpy(dst, src, NONE_BLOCKSIZE);
-}
+REGISTER_NONE_ALG(crypt, CRYPTO)
 
 /* EDWARD-FIXME-HANS: why is this not in the plugin directory? */
 
@@ -87,20 +62,20 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 			.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
 			.id = NONE_CRYPTO_ID,
 			.pops = NULL,
-			/* this is a special crypto algorithm which
-			   doesn't change data, this is useful for
-			   debuging purposes and various benchmarks */
+			/* If you wanna your files to not be crypto
+			   transformed, specify this crypto pluigin */
 			.label = "none",
-			.desc = "Id rearrangement",
+			.desc = "absence of crypto transform",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
+		.alloc = alloc_none_crypt,
+		.free = free_none_crypt,
 		.nr_keywords = NONE_EXPKEY_WORDS,
-		.blocksize = blocksize_none,
 		.scale = scale_common,
-	        .align_cluster = align_cluster_common,
-	        .set_key = set_key_none,
-	        .encrypt = crypt_none,
-	        .decrypt = crypt_none
+	        .align_cluster = NULL,
+	        .setkey = NULL,
+	        .encrypt = NULL,
+	        .decrypt = NULL
 	}
 };
 
