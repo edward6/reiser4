@@ -252,7 +252,6 @@ void zfree( znode *node /* znode to free */ )
 /* Audited by: umka (2002.06.11) */
 void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 {
-	znode       **bucket;
 	znode        *node;
 	znode        *next;
 	int           parents;
@@ -281,7 +280,7 @@ void znodes_tree_done( reiser4_tree *tree /* tree to finish with znodes of */ )
 	do {
 		parents = 0;
 		killed  = 0;
-		for_all_in_htable( ztable, bucket, node, next, zjnode.link.z ) {
+		for_all_in_htable( ztable, z, node, next ) {
 			if( atomic_read( &node -> c_count ) != 0 ) {
 				++ parents;
 				continue;
@@ -904,13 +903,13 @@ int znode_io_hook( jnode *node, struct page *page UNUSED_ARG, int rw )
 	return 0;
 }
 
-void init_lc( load_count *dh )
+void init_load_count( load_count *dh )
 {
 	assert( "nikita-2105", dh != NULL );
 	xmemset( dh, 0, sizeof *dh );
 }
 
-void done_lc( load_count *dh )
+void done_load_count( load_count *dh )
 {
 	assert( "nikita-2106", dh != NULL );
 	if( dh -> node != NULL ) {
@@ -919,17 +918,17 @@ void done_lc( load_count *dh )
 	}
 }
 
-int load_lc_znode( load_count *dh, znode *node )
+int incr_load_count_znode( load_count *dh, znode *node )
 {
 	assert( "nikita-2107", dh != NULL );
 	assert( "nikita-2158", node != NULL );
 	assert( "nikita-2109", ergo( dh -> node != NULL, ( dh -> node == node ) || ( dh -> d_ref == 0 ) ) );
 
 	dh -> node = node;
-	return load_lc( dh );
+	return incr_load_count( dh );
 }
 
-int load_lc( load_count *dh )
+int incr_load_count( load_count *dh )
 {
 	int result;
 
@@ -942,29 +941,29 @@ int load_lc( load_count *dh )
 	return result;
 }
 
-int load_lc_jnode( load_count *dh, jnode *node )
+int incr_load_count_jnode( load_count *dh, jnode *node )
 {
 	if( jnode_is_znode( node ) ) {
-		return load_lc_znode( dh, JZNODE( node ) );
+		return incr_load_count_znode( dh, JZNODE( node ) );
 	}
 	return 0;
 }
 
-void copy_lc( load_count *new, load_count *old )
+void copy_load_count( load_count *new, load_count *old )
 {
 	int ret = 0;
-	done_lc( new );
+	done_load_count( new );
 	new -> node  = old -> node;
 	new -> d_ref = 0;
 
-	while( (new -> d_ref < old -> d_ref) && ( ret = load_lc( new ) ) == 0 ) { }
+	while( (new -> d_ref < old -> d_ref) && ( ret = incr_load_count( new ) ) == 0 ) { }
 
 	assert( "jmacd-87589", ret == 0 );
 }
 
-void move_lc( load_count *new, load_count *old )
+void move_load_count( load_count *new, load_count *old )
 {
-	done_lc( new );
+	done_load_count( new );
 	new -> node  = old -> node;
 	new -> d_ref = old -> d_ref;
 	old -> node  = NULL;
@@ -1159,7 +1158,6 @@ void info_znode( const char *prefix /* prefix to print */,
 
 void print_znodes( const char *prefix, reiser4_tree *tree )
 {
-	znode       **bucket;
 	znode        *node;
 	znode        *next;
 	z_hash_table *htable;
@@ -1176,7 +1174,7 @@ void print_znodes( const char *prefix, reiser4_tree *tree )
 	tree_lock_taken = spin_trylock_tree( tree );
 	htable = &tree -> zhash_table;
 
-	for_all_in_htable( htable, bucket, node, next, zjnode.link.z ) {
+	for_all_in_htable( htable, z, node, next ) {
 		info_znode( prefix, node );
 	}
 	if( tree_lock_taken )
