@@ -1456,7 +1456,7 @@ kill_node40(struct carry_kill_data *kdata, carry_plugin_info *info)
 
 	node_check(node, 0);
 	znode_make_dirty(node);
-	return cinfo.removed_count == MAX_POS_IN_NODE ? 0 : cinfo.removed_count ;
+	return cinfo.removed_count == MAX_POS_IN_NODE ? 0 : cinfo.removed_count;
 }
 
 /* plugin->u.node.cut
