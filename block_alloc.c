@@ -26,8 +26,6 @@
  * that it is impossible to overload this counter during one transaction life.
  */
 
-/** is it a real block number from real block device or fake block number for
- * not-yet-mapped object? */
 
 /* Initialize a blocknr hint. */
 void blocknr_hint_init (reiser4_blocknr_hint *hint)
@@ -41,6 +39,8 @@ void blocknr_hint_done (reiser4_blocknr_hint *hint UNUSED_ARG)
 	/* FIXME: relase bitmap lock. */
 }
 
+/** is it a real block number from real block device or fake block number for
+ * not-yet-mapped object? */
 int blocknr_is_fake(const reiser4_block_nr * da)
 {
 	return (*da & REISER4_FAKE_BLOCKNR_BIT_MASK) ? 1 : 0;
@@ -87,10 +87,26 @@ int reiser4_alloc_blocks (reiser4_blocknr_hint *preceder, reiser4_block_nr *blk,
 				    preceder, needed, blk, len);
 }
 
-int reiser4_alloc_block( znode *neighbor UNUSED_ARG, reiser4_block_nr *blocknr )
+/** obtain block number for formatted node */
+int alloc_blocknr (znode *neighbor, reiser4_block_nr *blocknr)
 {
-	get_next_fake_blocknr (blocknr);
-	return 0;
+	if (0) {
+		space_allocator_plugin * splug;
+		reiser4_blocknr_hint preceder;
+		reiser4_block_nr one;
+
+		if (neighbor)
+			preceder.blk = ZJNODE (neighbor)->blocknr;
+		else
+			preceder.blk = 0;
+
+		splug = get_current_super_private ()->space_plug;	
+		return splug->alloc_blocks (get_space_allocator (reiser4_get_current_sb ()),
+					    &preceder, 1, blocknr, &one);
+	} else {
+		get_next_fake_blocknr (blocknr);
+		return 0;
+	}
 }
 
 /* 
