@@ -9,14 +9,15 @@
 #include "reiser4.h"
 
 /** return pointer to reiser4-specific part of inode */
-reiser4_inode_info *reiser4_inode_data( const struct inode *inode )
+reiser4_inode_info *reiser4_inode_data( const struct inode *inode /* inode
+								   * queried */ )
 {
 	assert( "nikita-254", inode != NULL );
 	return list_entry( inode, reiser4_inode_info, vfs_inode );
 }
 
 /** return reiser4 internal tree which inode belongs to */
-reiser4_tree *tree_by_inode( const struct inode *inode )
+reiser4_tree *tree_by_inode( const struct inode *inode /* inode queried */ )
 {
 	assert( "nikita-256", inode != NULL );
 	assert( "nikita-257", inode -> i_sb != NULL );
@@ -25,7 +26,8 @@ reiser4_tree *tree_by_inode( const struct inode *inode )
 
 /** main function for external code to get plugins associated with 
     given file-system object */
-inodes_plugins *get_inode_plugin_data( const struct inode *inode )
+reiser4_plugin_ref *get_object_state( const struct inode *inode /* inode
+								 * queried */)
 {
 	assert( "nikita-264", inode != NULL );
 	return &reiser4_inode_data( inode ) -> plugin;
@@ -33,7 +35,7 @@ inodes_plugins *get_inode_plugin_data( const struct inode *inode )
 
 /** return internal reiser4 inode flags, stored as part of object plugin
     state in reiser4-specific part of inode */
-__u32 *reiser4_inode_flags( const struct inode *inode )
+__u32 *reiser4_inode_flags( const struct inode *inode /* inode queried */ )
 {
 	assert( "nikita-267", inode != NULL );
 
@@ -41,7 +43,7 @@ __u32 *reiser4_inode_flags( const struct inode *inode )
 }
 
 /** file plugin for @inode */
-file_plugin *get_file_plugin( const struct inode *inode )
+file_plugin *get_file_plugin( const struct inode *inode /* inode queried */ )
 {
 	assert( "nikita-269", inode != NULL );
 	assert( "nikita-270", is_reiser4_inode( inode ) );
@@ -50,7 +52,7 @@ file_plugin *get_file_plugin( const struct inode *inode )
 }
 
 /** dir plugin for @inode */
-dir_plugin *get_dir_plugin( const struct inode *inode )
+dir_plugin *get_dir_plugin( const struct inode *inode /* inode queried */ )
 {
 	assert( "vs-385", inode != NULL );
 	assert( "vs-386", is_reiser4_inode( inode ) );
@@ -75,7 +77,7 @@ dir_plugin *get_dir_plugin( const struct inode *inode )
  * FIXME-NIKITA ->i_sem is not we actually won't. May be spinlock is better
  * after all.
  */
-void reiser4_lock_inode( struct inode *inode )
+void reiser4_lock_inode( struct inode *inode /* inode to lock */ )
 {
 	assert( "nikita-272", inode != NULL );
 
@@ -91,7 +93,7 @@ void reiser4_lock_inode( struct inode *inode )
  * inconvenient.
  *
  */
-int reiser4_lock_inode_interruptible( struct inode *inode )
+int reiser4_lock_inode_interruptible( struct inode *inode /* inode to lock */ )
 {
 	assert( "nikita-1270", inode != NULL );
 
@@ -102,7 +104,7 @@ int reiser4_lock_inode_interruptible( struct inode *inode )
  * Release lock on inode.
  *
  */
-void reiser4_unlock_inode( struct inode *inode )
+void reiser4_unlock_inode( struct inode *inode /* inode to unlock */ )
 {
 	assert( "nikita-277", inode != NULL );
 
@@ -110,7 +112,7 @@ void reiser4_unlock_inode( struct inode *inode )
 }
 
 /** check that "inode" is on reiser4 file-system */
-int is_reiser4_inode( const struct inode *inode )
+int is_reiser4_inode( const struct inode *inode /* inode queried */ )
 {
 	return( ( inode != NULL ) && 
 		( is_reiser4_super( inode -> i_sb ) ||
@@ -123,7 +125,7 @@ int is_reiser4_inode( const struct inode *inode )
  *
  * This is used in check during file creation and lookup.
  */
-int reiser4_max_filename_len( const struct inode *inode )
+int reiser4_max_filename_len( const struct inode *inode /* inode queried */ )
 {
 	assert( "nikita-287", is_reiser4_inode( inode ) );
 	assert( "nikita-1710", 
@@ -136,7 +138,7 @@ int reiser4_max_filename_len( const struct inode *inode )
 /**
  * Maximal number of hash collisions for this directory.
  */
-int max_hash_collisions( const struct inode *dir )
+int max_hash_collisions( const struct inode *dir /* inode queried */ )
 {
 	assert( "nikita-1711", dir != NULL );
 #if REISER4_USE_COLLISION_LIMIT
@@ -148,7 +150,8 @@ int max_hash_collisions( const struct inode *dir )
 
 /** return plugin that should be used to create stat-data for this
     file */
-item_plugin *get_sd_plugin( const struct inode *inode UNUSED_ARG )
+item_plugin *get_sd_plugin( const struct inode *inode UNUSED_ARG /* inode
+								  * queried */ )
 {
 	assert( "nikita-288", is_reiser4_inode( inode ) );
 	return item_plugin_by_id( STATIC_STAT_DATA_IT );
@@ -156,7 +159,8 @@ item_plugin *get_sd_plugin( const struct inode *inode UNUSED_ARG )
 
 /** return information about "repetitive access" (ra) patterns,
     accumulated in inode. */
-inter_syscall_ra_hint *inter_syscall_ra( const struct inode *inode )
+inter_syscall_ra_hint *inter_syscall_ra( const struct inode *inode /* inode
+								    * queried */ )
 {
 	assert( "nikita-289", is_reiser4_inode( inode ) );
 	return &get_object_state( inode ) -> ra;
@@ -165,7 +169,7 @@ inter_syscall_ra_hint *inter_syscall_ra( const struct inode *inode )
 /* should be moved into .h */
 
 /*  has inode been initialized? */
-static int is_inode_loaded( const struct inode *inode )
+static int is_inode_loaded( const struct inode *inode /* inode queried */ )
 {
 	assert( "nikita-1120", inode != NULL );
 	return get_object_state( inode ) -> flags & REISER4_LOADED;
@@ -175,7 +179,7 @@ static int is_inode_loaded( const struct inode *inode )
  * Install file, inode, and address_space operation on @inode, depending on
  * its mode.
  */
-int setup_inode_ops( struct inode *inode )
+int setup_inode_ops( struct inode *inode /* inode to intialise */ )
 {
 	switch( inode -> i_mode & S_IFMT ) {
 	case S_IFSOCK:
@@ -209,7 +213,8 @@ int setup_inode_ops( struct inode *inode )
 
 /** initialise inode from disk data. Called with inode locked.
     Return inode locked. */
-int init_inode( struct inode *inode, tree_coord *coord )
+int init_inode( struct inode *inode /* inode to intialise */, 
+		tree_coord *coord /* coord of stat data */ )
 {
 	int result;
 	item_plugin *iplug;
@@ -240,7 +245,7 @@ int init_inode( struct inode *inode, tree_coord *coord )
 
    Must be called with inode locked. Return inode still locked.
 */
-static int read_inode( struct inode * inode )
+static int read_inode( struct inode * inode /* inode to read from disk */ )
 {
 	int          result;
 	reiser4_key  key;
@@ -300,9 +305,9 @@ static int read_inode( struct inode * inode )
     This will be called by reiser4_lookup() and reiser4_read_super().
     Return inode locked.
 */
-struct inode * reiser4_iget( struct super_block *super, 
-			     const reiser4_key *key /* key of inode's stat-data */
-			     )
+struct inode *reiser4_iget( struct super_block *super /* super block  */, 
+			    const reiser4_key *key /* key of inode's
+						    * stat-data */ )
 {
 	struct inode *inode;
 	int failed;
@@ -395,10 +400,9 @@ struct inode * reiser4_iget( struct super_block *super,
 		return inode;
 }
 
-/**
- * Debugging aid: print information about inode.
- */
-void print_inode( const char *prefix, const struct inode *i )
+/** Debugging aid: print information about inode. */
+void print_inode( const char *prefix /* prefix to print */, 
+		  const struct inode *i /* inode to print */ )
 {
 	reiser4_key         inode_key;
 	inodes_plugins *ref;

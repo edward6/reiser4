@@ -57,86 +57,10 @@
 #include "../reiser4.h"
 
 
-#ifdef INHERIT_EXISTS
-
-/** inheritance function for objects that have nothing to inherit from
-    parents */
-static int no_inheritance( struct inode *inode UNUSED_ARG,
-			   struct inode *parent UNUSED_ARG, 
-			   struct inode *root UNUSED_ARG )
-{
-	return 0;
-}
-
-/** inheritance function for objects that inherit everything from their parents.
-    There is a small overhead, because regular files don't need hash
-    at all. Just one assignment. */
-int total_inheritance( struct inode *inode, 
-		       struct inode *parent, struct inode *root )
-{
-	inodes_plugins *self;
-	inodes_plugins *ancestor;
-	int changed;
-
-	assert( "nikita-702", inode != NULL );
-	assert( "nikita-703", ( parent != NULL ) || ( root != NULL ) );
-	assert( "nikita-705", ( parent == NULL ) || S_ISDIR( parent -> i_mode ) );
-	assert( "nikita-706", ( root == NULL ) || S_ISDIR( root -> i_mode ) );
-
-	self = get_object_state( inode );
-	ancestor = get_object_state( parent ? : root );
-	changed = 0;
-
-	changed |= inherit_if_nil( &self -> hash, &ancestor -> hash );
-	changed |= inherit_if_nil( &self -> tail, &ancestor -> tail );
-	changed |= inherit_if_nil( &self -> perm, &ancestor -> perm );
-
-	/* all plugins should be initialised at this point */
-	assert( "nikita-707", self -> hash != NULL );
-	assert( "nikita-708", self -> tail != NULL );
-	assert( "nikita-709", self -> perm != NULL );
-
-	return changed;
-}
-#endif
-
-
-#ifdef INSTALL_EXISTS
-
-/** part of initialisation of new inode common for all types of objects */
-int common_file_install( struct inode *inode, reiser4_plugin *plug,
-			 struct inode *parent, reiser4_object_create_data *data )
-{
-	assert( "nikita-711", inode != NULL );
-	assert( "nikita-712", parent != NULL );
-	assert( "nikita-713", plug != NULL );
-	assert( "nikita-714", data != NULL );
-	assert( "nikita-715", plug -> h.type_id == REISER4_FILE_PLUGIN_TYPE );
-
-	inode -> i_mode = data -> mode;
-	inode -> i_generation = new_inode_generation( inode -> i_sb );
-	/* this should be plugin decision */
-	inode -> i_uid = current -> fsuid;
-	inode -> i_mtime = inode -> i_atime = inode -> i_ctime = CURRENT_TIME;
-	
-	if( parent -> i_mode & S_ISGID )
-		inode -> i_gid = parent -> i_gid;
-	else
-		inode -> i_gid = current -> fsgid;
-
-	get_object_state( inode ) -> file = plug;
-
-	/* this object doesn't have stat-data yet */
-	*reiser4_inode_flags( inode ) |= REISER4_NO_STAT_DATA;
-	/* setup inode and file-operations for this inode */
-	setup_inode_ops( inode );
-	/* i_nlink is left 0 here. It'll be increased by ->add_link() */
-	return 0;
-}
-#endif
-
 /** helper function to print errors */
-static void key_warning( const char *error_message, reiser4_key *key, int code )
+static void key_warning( const char *error_message /* message to print */, 
+			 reiser4_key *key /* key to print */, 
+			 int code /* error code to print */)
 {
 	assert( "nikita-716", key != NULL );
 	
@@ -146,8 +70,11 @@ static void key_warning( const char *error_message, reiser4_key *key, int code )
 
 
 /** find sd of inode in a tree, deal with errors */
-int lookup_sd( struct inode *inode, znode_lock_mode lock_mode, 
-	       tree_coord *coord, reiser4_lock_handle *lh, reiser4_key *key )
+int lookup_sd( struct inode *inode /* inode to look sd for */, 
+	       znode_lock_mode lock_mode /* lock mode */, 
+	       tree_coord *coord /* resulting coord */, 
+	       reiser4_lock_handle *lh /* resulting lock handle */, 
+	       reiser4_key *key /* resulting key */ )
 {
 	assert( "nikita-1692", inode != NULL );
 	assert( "nikita-1693", coord != NULL );
@@ -159,9 +86,12 @@ int lookup_sd( struct inode *inode, znode_lock_mode lock_mode,
 }
 
 /** find sd of inode in a tree, deal with errors */
-int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode, 
-		      tree_coord *coord, reiser4_lock_handle *lh, 
-		      reiser4_key *key )
+int lookup_sd_by_key( reiser4_tree *tree /* tree to look in */, 
+		      znode_lock_mode lock_mode /* lock mode */, 
+		      tree_coord *coord /* resulting coord */, 
+		      reiser4_lock_handle *lh /* resulting lock handle */, 
+		      reiser4_key *key /* resulting key */ )
+
 {
 	int   result;
 	const char *error_message;
@@ -219,7 +149,7 @@ int lookup_sd_by_key( reiser4_tree *tree, znode_lock_mode lock_mode,
 
 /** insert new stat-data into tree. Called with inode state
     locked. Return inode state locked. */
-static int insert_new_sd( struct inode *inode )
+static int insert_new_sd( struct inode *inode /* inode to create sd for */ )
 {
 	int result;
 	reiser4_key key;
@@ -331,7 +261,7 @@ static int insert_new_sd( struct inode *inode )
 
 /** Update existing stat-data in a tree. Called with inode state
     locked. Return inode state locked. */
-static int update_sd( struct inode *inode )
+static int update_sd( struct inode *inode /* inode to update sd for */ )
 {
 	int result;
 	reiser4_key key;
@@ -412,7 +342,7 @@ static int update_sd( struct inode *inode )
 }
 
 /** save object's stat-data to disk */
-int common_file_save( struct inode *inode )
+int common_file_save( struct inode *inode /* object to save */ )
 {
 	int result;
 
@@ -434,18 +364,16 @@ int common_write_inode( struct inode *inode UNUSED_ARG )
 
 
 /** checks whether yet another hard links to this object can be added */
-int common_file_can_add_link( const struct inode *object )
+int common_file_can_add_link( const struct inode *object /* object to check */ )
 {
 	assert( "nikita-732", object != NULL );
 
 	return object -> i_nlink < ( ( nlink_t ) ~0 );
 }
 
-/**
- * common_file_delete() - delete object stat-data
- *
- */
-int common_file_delete( struct inode *inode, struct inode *parent UNUSED_ARG )
+/** common_file_delete() - delete object stat-data */
+int common_file_delete( struct inode *inode /* object to remove */, 
+			struct inode *parent UNUSED_ARG /* parent object */ )
 {
 	int result;
 
@@ -464,14 +392,6 @@ int common_file_delete( struct inode *inode, struct inode *parent UNUSED_ARG )
 }
 
 
-file_lookup_result noent( struct inode *inode UNUSED_ARG, 
-			  const struct qstr *name UNUSED_ARG,
-			  reiser4_key *key UNUSED_ARG, 
-			  reiser4_dir_entry_desc *entry UNUSED_ARG )
-{
-	return FILE_NAME_NOTFOUND;
-}
-
 /**
  * Determine object plugin for @inode based on i_mode.
  *
@@ -483,7 +403,8 @@ file_lookup_result noent( struct inode *inode UNUSED_ARG,
  * is encoded (see stat(2)).
  *
  */
-int guess_plugin_by_mode( struct inode *inode )
+int guess_plugin_by_mode( struct inode *inode /* object to guess plugins
+					       * for */ )
 {
 	int fplug_id;
 	int dplug_id;
@@ -522,7 +443,9 @@ int guess_plugin_by_mode( struct inode *inode )
 
 /** standard implementation of ->owns_item() plugin method: compare objectids
     of keys in inode and coord */
-int common_file_owns_item( const struct inode *inode, const tree_coord *coord )
+int common_file_owns_item( const struct inode *inode /* object to check
+						      * against */, 
+			   const tree_coord *coord /* coord to check */ )
 {
 	reiser4_key item_key;
 	reiser4_key file_key;
@@ -540,8 +463,12 @@ int common_file_owns_item( const struct inode *inode, const tree_coord *coord )
  * Default method to construct flow into @f according to user-supplied
  * data.
  */
-int common_build_flow( struct file *file, char *buf, size_t size, 
-		       const loff_t *off, rw_op op UNUSED_ARG, flow_t *f )
+int common_build_flow( struct file *file /* file to build flow for */, 
+		       char *buf /* user level buffer */, 
+		       size_t size /* buffer size */, 
+		       const loff_t *off /* offset to start io from */, 
+		       rw_op op UNUSED_ARG /* io operation */, 
+		       flow_t *f /* resulting flow */ )
 {
 	assert( "nikita-1100", f != NULL );
 	assert( "nikita-1101", file != NULL );
