@@ -75,10 +75,6 @@
 
 #if defined( CONFIG_REISER4_DEBUG_NODE )
 /** check consistency of internal node structures */
-/*
- * FIXME-VS: do not set this. It gets confused with allocate_and_copy_extent
- * which copies extents to left without updating delimting keys
- */
 #define REISER4_DEBUG_NODE (1)
 #else
 #define REISER4_DEBUG_NODE (0)

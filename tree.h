@@ -517,6 +517,9 @@ struct reiser4_context {
 	int                   nr_children; /* number of child contexts */
 	struct task_struct    *task; /* so we can easily find owner of the stack */
 #endif
+#if REISER4_DEBUG_NODE
+	int disable_node_check;
+#endif
 };
 
 extern reiser4_context * get_context_by_lock_stack (lock_stack*);

@@ -2080,6 +2080,8 @@ static int squalloc_right_twig (znode    *left,
 	 * was copied (and there is nothing to cut). */
 	stop_key = *min_key ();
 
+	DISABLE_NODE_CHECK;
+
 	trace_on (TRACE_FLUSH_VERB, "sq_twig before copy extents: left %s\n", flush_znode_tostring (left));
 	trace_on (TRACE_FLUSH_VERB, "sq_twig before copy extents: right %s\n", flush_znode_tostring (right));
 	/*trace_if (TRACE_FLUSH_VERB, print_node_content ("left", left, ~0u));*/
@@ -2093,6 +2095,7 @@ static int squalloc_right_twig (znode    *left,
 
 		last_stop_key = stop_key;
 		if ((ret = allocate_and_copy_extent (left, &coord, pos, &stop_key)) < 0) {
+			ENABLE_NODE_CHECK;
 			return ret;
 		}
 
@@ -2133,13 +2136,16 @@ static int squalloc_right_twig (znode    *left,
 
 		/* Helper function to do the cutting. */
 		if ((cut_ret = squalloc_right_twig_cut (&stop_coord, &stop_key, left))) {
-			warning ("jmacd-87113", "cut_node failed: %d", cut_ret);
 			assert ("jmacd-6443", cut_ret < 0);
-			return cut_ret;
+			rpanic ("jmacd-87113", "cut_node failed: %d", cut_ret);
 		}
 
 		/*trace_if (TRACE_FLUSH_VERB, print_node_content ("right_after_cut", right, ~0u));*/
 	}
+
+	ENABLE_NODE_CHECK;
+	node_check( left, REISER4_NODE_DKEYS | REISER4_NODE_PANIC );
+	node_check( right, REISER4_NODE_DKEYS | REISER4_NODE_PANIC );
 
 	if (ret == SQUEEZE_TARGET_FULL) { goto out; }
 

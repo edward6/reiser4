@@ -268,8 +268,20 @@ extern void indent_znode( const znode *node );
 
 #if REISER4_DEBUG_NODE
 extern void node_check( const znode *node, __u32 flags );
+#define DISABLE_NODE_CHECK				\
+({							\
+	++ get_current_context() -> disable_node_check;	\
+})
+
+#define ENABLE_NODE_CHECK				\
+({							\
+	-- get_current_context() -> disable_node_check;	\
+})
+
 #else
-#define node_check( n, f )noop
+#define node_check( n, f ) noop
+#define DISABLE_NODE_CHECK noop
+#define ENABLE_NODE_CHECK noop
 #endif
 
 extern void indent_znode( const znode *node );

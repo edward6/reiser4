@@ -204,7 +204,8 @@ void node_check( const znode *node /* node to check */,
 {
 	const char * mes;
 	
-	if( znode_is_loaded( node ) && 
+	if( znode_is_loaded( node ) &&
+	    !get_current_context() -> disable_node_check &&
 	    ( node_plugin_by_node( node ) -> check ) &&
 	    node_plugin_by_node( node ) -> check( node, flags, &mes ) ) {
 		info( "%s\n", mes );
