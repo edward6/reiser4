@@ -2602,8 +2602,7 @@ do_jnode_make_dirty(jnode * node, txn_atom * atom)
 		int level = jnode_get_level(node);
 
 		assert("nikita-3152", !JF_ISSET(node, JNODE_OVRWR));
-		assert("zam-654", !(JF_ISSET(node, JNODE_OVRWR)
-				    && atom->stage >= ASTAGE_PRE_COMMIT));
+		assert("zam-654", atom->stage < ASTAGE_PRE_COMMIT);
 		assert("nikita-2607", 0 <= level);
 		assert("nikita-2606", level <= REAL_MAX_ZTREE_HEIGHT);
 
