@@ -63,8 +63,8 @@ struct flush_position {
 	load_handle           parent_load;
 	reiser4_blocknr_hint  preceder;
 	int                   leaf_relocate;
-	ON_DEBUG (int alloc_cnt;)
-	ON_DEBUG (int enqueue_cnt;)
+	ON_DEBUG (int alloc_cnt);
+	ON_DEBUG (int enqueue_cnt);
 };
 
 typedef enum {
@@ -1184,7 +1184,7 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 	
 	/* This is the new preceder. */
 	pos->preceder.blk = *znode_get_block (node);
-	pos->alloc_cnt += 1;
+	ON_DEBUG (pos->alloc_cnt += 1);
 
 	assert ("jmacd-4277", ! blocknr_is_fake (& pos->preceder.blk));
 
@@ -1208,7 +1208,7 @@ static int flush_enqueue_jnode (jnode *node, flush_position *pos)
 	lock_page (pg);
 	ret = page_io (pg, WRITE, GFP_NOIO);
 
-	pos->enqueue_cnt += 1;
+	ON_DEBUG (pos->enqueue_cnt += 1);
 	jnode_set_clean (node);
 
 	//info ("enqueue node: %p block %llu level %u\n", node, *jnode_get_block (node), jnode_get_level (node));
@@ -1356,7 +1356,9 @@ static int znode_same_parents (znode *a, znode *b)
 	assert ("jmacd-7012", znode_is_write_locked (b));
 
 	/* The assumption here could be broken if the "hint" actually becomes one... */
-	/* FIXME: Ask Nikita, do we need the tree lock here? */
+	/*
+	 * FIXIME:NIKITA->JMACD ->ptr_in_parent_hint is protected by tree lock.
+	 */
 	return a->ptr_in_parent_hint.node == b->ptr_in_parent_hint.node;
 }
 
