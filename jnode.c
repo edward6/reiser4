@@ -436,8 +436,6 @@ int jload_and_lock( jnode *node )
 		 * kmapped, it will kunmapped in zunload
 		 */
 		result = tree -> ops -> read_node( tree, node );
-		assert( "nikita-2239", ergo( jnode_page( node ) != NULL,
-					     ! PageLocked( jnode_page( node ) ) ) );
 		reiser4_stat_znode_add( zload_read );
 
 		if( likely( result >= 0 ) ) {
@@ -511,8 +509,6 @@ int jwait_io (jnode * node, int rw)
 	}
 	if (PageError(page))
 		result = -EIO;
-
-	assert ("nikita-2228", !PageLocked (page));
 
 	return result;
 }

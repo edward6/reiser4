@@ -624,9 +624,13 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	reiser4_super_info_data *sdata;
 	__u32 tid;
 
-	if (context == NULL || super == NULL) {
-		BUG ();
+	if( context == NULL || super == NULL ) {
+		BUG();
 	}
+
+	if( ( super -> s_op != NULL ) &&
+	    ( super -> s_op != &reiser4_super_operations ) )
+		BUG();
 
 	xmemset( context, 0, sizeof *context );
 
@@ -660,7 +664,6 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
 	context_list_check (& active_contexts);
 	context_list_push_front (& active_contexts, context);
 	spin_unlock (& active_contexts_lock);
-	register_thread();
 #endif
 	return 0;
 }
@@ -673,8 +676,6 @@ int init_context( reiser4_context *context /* pointer to the reiser4 context
  *
  * This is good place to put some degugging consistency checks, like that
  * thread released all locks and closed transcrash etc.
- *
- * Call to this function is optional.
  *
  */
 /* Audited by: umka (2002.06.16) */
@@ -700,7 +701,6 @@ void done_context( reiser4_context *context /* context being released */ )
 		assert( "jmacd-1002", lock_stack_isclean (& parent->stack));
 		assert( "nikita-1936", no_counters_are_held() );
 #if REISER4_DEBUG
-		deregister_thread();
 		/* remove from active contexts */
 		spin_lock (& active_contexts_lock);
 		context_list_remove (parent);
