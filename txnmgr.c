@@ -2498,17 +2498,6 @@ void jnode_make_wander (jnode * node)
 	assert ("zam-913", atom != NULL);
 	assert ("zam-914", !JF_ISSET(node, JNODE_RELOC));
 
-	/*XXXX*/
-	ON_DEBUG(
-		if (!JF_ISSET(node, JNODE_OVRWR) && jnode_is_leaf(node)) {
-			/* node is not yet on overwrite list. Make sure that
-			   atom has reserved enough blocks for flush */
-			assert("vs-1432", atom->flush_reserved > atom->leaves_in_ovrwr_list);
-			atom->leaves_in_ovrwr_list ++;
-		}
-		);
-	/*XXXX*/
-
 	jnode_make_wander_nolock(node);
 	UNLOCK_ATOM(atom);
 	UNLOCK_JNODE(node);
@@ -3131,8 +3120,6 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	/* Merge blocks reserved for overwrite set. */
 	large->flush_reserved += small->flush_reserved;
 	small->flush_reserved = 0;
-	ON_DEBUG((large->leaves_in_ovrwr_list += small->leaves_in_ovrwr_list,
-		  small->leaves_in_ovrwr_list = 0));
 
 	/* Notify any waiters--small needs to unload its wait lists.  Waiters actually remove
 	   themselves from the list before returning from the fuse_wait function. */
@@ -3336,7 +3323,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 		/*XXXX*/ON_DEBUG(atomic_inc(&atom->coc_reloc));
 		preempt_point();
 		ON_TRACE(TRACE_CAPTURE_COPY, "end\n");
-		return -EAGAIN;
+		return RETERR(-E_REPEAT);
 	}
 
 	/* FIXME: reloc can not be flush queued? */
@@ -3404,6 +3391,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 						ON_TRACE(TRACE_CAPTURE_COPY, "copy: %s\n", jnode_tostring(copy));
 						ON_TRACE(TRACE_CAPTURE_COPY, "end\n");
 						IF_TRACE(TRACE_CAPTURE_COPY, coc_info());
+						jput(copy);
 						return RETERR(-E_REPEAT);
 					} else {
 						/* FIXME: if this is too often - have similar check at the very beginning */
@@ -3424,7 +3412,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 			kunmap(new_page);
 			page_cache_release(new_page);
 		}
-		jdrop(copy);			
+		jput(copy);			
 	}
 
 	atomic_dec(&atom->refcount);
@@ -3433,7 +3421,7 @@ create_copy_and_replace(jnode *node, txn_atom *atom)
 	return result;
 }
 
-#endif
+#endif /* REISER4_COPY_ON_CAPTURE */
 
 /* Perform copy-on-capture of a block.  INCOMPLETE CODE. 
 
