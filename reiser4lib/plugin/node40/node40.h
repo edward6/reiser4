@@ -9,6 +9,7 @@
 
 #include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
+#include <misc/misc.h>
 
 /* (*(__u32 *)"R4FS"); */
 static uint32_t reiserfs_node_magic = 0x52344653;

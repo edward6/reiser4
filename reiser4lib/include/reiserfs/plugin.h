@@ -9,6 +9,8 @@
 
 #include <aal/aal.h>
 
+typedef void reiserfs_opaque_t;
+
 typedef void reiserfs_params_opaque_t;
 
 enum reiserfs_plugin_type {

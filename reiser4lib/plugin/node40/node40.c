@@ -6,7 +6,8 @@
 
 #include "node40.h"
 
-static error_t reiserfs_node40_insert(reiserfs_coord_t *insert_into, reiserfs_item_data_t *item_data) 
+static error_t reiserfs_node40_insert(reiserfs_coord_t *insert_into, 
+    reiserfs_item_data_t *item_data) 
 {
     if (!insert_into || !insert_into->node || !item_data) 
 	return -1;
@@ -22,68 +23,10 @@ static error_t reiserfs_node40_insert(reiserfs_coord_t *insert_into, reiserfs_it
 #define node40_item_plugin_id_at(node, pos) \
     node40_ih_at(node, pos)->plugin_id
     
-typedef void reiserfs_opaque_t; 
-
 static reiserfs_opaque_t *node40_key_at(reiserfs_opaque_t *node, int64_t pos) {
     reiserfs_node40_t *node40 = node;
 
     return &(node40_ih_at(node40, pos)->key);
-}
-
-typedef reiserfs_opaque_t *(get_element_to_comp_t)(reiserfs_opaque_t *, int64_t);
-typedef int (comp_function_t)(reiserfs_opaque_t *, reiserfs_opaque_t *);
-
-/* 
-    this implements binary search for 'find_it' among 'count' elements.
-    return values: 
-    1 - key on *ppos  found exact key on *ppos position; 
-    0 - exect key has not been found. key on *ppos < then 
-*/
-int reiserfs_bin_search (
-    void * find_it,                 /* element to be found */
-    int64_t * ppos,                 /* return position */
-    uint32_t count,                 /* count of elements to look through */
-    reiserfs_opaque_t *entity,      /* whose elements we are looking through */
-    get_element_to_comp_t get_elem, /* function to get element */
-    comp_function_t comp_func)      /* function to compare elements */
-{
-    int64_t rbound, lbound, j;
-    int ret = 0;
-
-    if (count == 0) {
-        *ppos = -1;
-        return 0;
-    }
-
-    lbound = 0;
-    rbound = count - 1;
-
-    for (j = (rbound + lbound) / 2; lbound <= rbound; j = (rbound + lbound) / 2) {
-        ret =  comp_func (get_elem(entity, j), find_it);
-        if (ret < 0) { /* second is greater */
-            lbound = j + 1;
-            continue;
-
-        } else if (ret > 0) { /* first is greater */
-            if (j == 0)
-                break;
-            rbound = j - 1;
-            continue;
-        } else { /* equal */
-            *ppos = j;
-            return 1;
-        }
-    }
-
-    /* lbound == j, set *ppos on the position which element less than 'find_it' 
-       on the base of the last search  */
-    *ppos = lbound - (ret >= 0);
-
-    return 0;
-}
-
-static int comp_keys40 (reiserfs_opaque_t *key1, reiserfs_opaque_t *key2) {
-    return -1;
 }
 
 static error_t reiserfs_node40_remove(aal_block_t *block, reiserfs_key_t *start_key, 
@@ -94,7 +37,7 @@ static error_t reiserfs_node40_remove(aal_block_t *block, reiserfs_key_t *start_
     if (!block || !start_key || !end_key) 
 	return -1;
   
-    if (comp_keys40(start_key, end_key) > 0) {
+    if (reiserfs_comp_keys(start_key, end_key) > 0) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Keys do not make up an interval. Removing skipped.");	
 	return -1;
@@ -234,7 +177,7 @@ static reiserfs_coord_t *lookup (reiserfs_node40_t *node, reiserfs_key_t *key) {
     coord->node = node;
     
     ret = reiserfs_bin_search (key, &pos, reiserfs_node40_count(node), 
-	node, node40_key_at, comp_keys40);
+	node, node40_key_at, reiserfs_comp_keys);
 
     coord->item_pos = pos;
     coord->unit_pos = 0;
