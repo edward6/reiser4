@@ -352,6 +352,11 @@
 
 #include <linux/spinlock.h>
 
+#if REISER4_DEBUG
+static int request_is_deadlock_safe(znode *, znode_lock_mode, 
+				    znode_lock_request);
+#endif
+
 #define ADDSTAT(node, counter) 						\
 	reiser4_stat_inc_at_level(znode_get_level(node), znode.counter)
 
@@ -939,6 +944,7 @@ longterm_lock_znode(
 	/* Check that the lock handle is initialized and isn't already being used. */
 	assert("jmacd-808", handle->owner == NULL);
 	assert("nikita-3026", schedulable());
+	assert("nikita-3219", request_is_deadlock_safe(node, mode, request));
 
 	if (request & ZNODE_LOCK_NONBLOCK) {
 		cap_flags |= TXN_CAPTURE_NONBLOCKING;
@@ -1478,6 +1484,29 @@ check_lock_node_data(znode * node)
 	owners_list_check(&node->lock.owners);
 	requestors_list_check(&node->lock.requestors);
 	UNLOCK_ZLOCK(&node->lock);
+}
+
+static int
+request_is_deadlock_safe(znode * node, znode_lock_mode mode,
+			 znode_lock_request request)
+{
+	lock_stack *owner;
+
+	owner = get_current_lock_stack();
+	if (request & ZNODE_LOCK_HIPRI && !(request & ZNODE_LOCK_NONBLOCK) &&
+	    znode_get_level(node) != 0) {
+		lock_handle *item;
+
+		for_all_tslist(locks, &owner->locks, item) {
+			znode *other = item->node;
+
+			if (znode_get_level(other) == 0)
+				continue;
+			if (znode_get_level(other) > znode_get_level(node))
+				return 0;
+		}
+	}
+	return 1;
 }
 
 #endif
