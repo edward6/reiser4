@@ -1,3 +1,109 @@
+
+/*
+
+The use of atomic commits dramatically impacts the use of LRU as the
+basis for page cleaning (though using it for clean page discarding is
+still effective.)
+
+The use of write clustering dramatically impacts the use of LRU as the
+basis for page cleaning.
+
+ReiserFS v4 uses both.
+
+We will not use LRU in v4.0 of reiserfs, and then in later versions we
+may gradually partially reintroduce it.
+
+Optimizations to make on flush:
+
+* block (re)allocation
+
+* tail conversion
+
+* extent formation
+
+* node repacking
+
+* wandering log definition
+
+
+Memory Pressure:
+
+There are kinds of memory pressure:
+
+* general lack of memory for processes requesting it
+
+* too much dirty memory
+
+* dirty memory is too old and should be more permanently preserved on disk
+
+* particular page needs freeing for DMA setup
+
+[All programmers should understand that I expect strict observance of the
+following taboo: you will not add an unnecessary copying of data, while coding
+this.  I cannot understand why there is resistance to this, but I keep seeing
+code which ignores this.]
+
+
+Unlike clean pages, dirty memory must be written to disk before being
+freed for other use.  It also may require processing that will require
+more memory before it can be cleaned by writing it to disk.  This
+processing makes it vulnerable to deadlocks in extreme cases.
+Precisely reserving enough memory to allow that extra processing
+without deadlock is often difficult.
+
+reiser4 limits its usage of dirty pages to 75%, which is enough to
+ensure that the extra processing will not cause the system to run out
+of memory.  More safeguards are possible, including letting commit
+choose to swap, but we will wait until this rather simple mechanism
+has a problem in practice before elaborating it.
+
+reiser4 supports the reiserfs_flush(page) command for cleaning pages
+
+If the Linux VM system was properly designed, it would be based upon
+memory sub-managers each reflecting some common principles of
+responding to pressure that is in proportion to their size.  Linux
+used to have multiple caches, these caches had no understand of how
+large they were, they made no attempt to proportionalize the pressure
+upon each cache, and their management was generally badly designed
+without any effective mechanism for ensuring that the caches did not
+get out of balance with each other.  From this it was concluded that
+there should be only one unified cache, rather than designing an
+effective mechanism for expressing to each subcache a sense of
+pressure in proportion to the size of the subcache, and requiring that
+the subcache embody some effective mechanism for responding to that
+sense of pressure.
+
+The unified cache is indeed better than badly designed multiple
+caches.  It does however perform very poorly at handling caches of
+objects that are not page sized.
+
+Linus says it already has a subcache manager design, we just need to
+use writepage.  Ok, fine, we will be the first subcache.
+
+So, understand that in reiserfs, writepage does not write pages, it
+pressures the reiserfs memory manager, and understand that the place a
+page has on the various mm lists does not determine when it gets
+written out, it merely determines when it triggers the next pressure
+on the reiserfs memory manager.
+
+What reiser4 does is interpret pressure on a page as pressure on a
+subcache within reiserfs.
+
+Write clustering, transaction commits, objects whose value to cache is
+out of proportion to the number of bytes consumed by them, caches
+whose working set size and pattern of access is known to the
+application, and those occasions when other factors knowable to the
+filesystem or application but not the OS generally are important to
+deciding what to eject, and objects much smaller than a page with no
+correlation of references for objects on the same page, or larger than
+a page with a complete correlation between their pages, are good example of when cache
+submanagers should be employed.
+
+ */
+
+/* You should read crypt.c and then return. */
+/* You should read block_alloc.c and then return. */
+
 current_leaf = find_leftmost_leaf_in_slum();
 /* current_leaf is locked */
 parent = parent(current_leaf);

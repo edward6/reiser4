@@ -36,8 +36,8 @@
 static int lock_neighbor (reiser4_lock_handle * result /* resulting lock
 							* handle*/, 
 			  znode * node /* node to lock */,
-			  int dir, /* I have no understanding of why this is named this, and it seems like it should be more strongly typed. -Hans */
-			           /* I don't have strong objections to the lack of strong types, but I agree that the
+			  int dir, /* FIXME: I have no understanding of why this is named this, and it seems like it should be more strongly typed. -Hans */
+			           /* FIXME: I don't have strong objections to the lack of strong types, but I agree that the
 				    * name is very bad.  Reame "dir" to "field_offset", perhaps?  You could do it w/
 				    * strong types by passing a function pointer, or by passing an enumerated type
 				    * value, then using a switch() to select the field based on that. -josh */
