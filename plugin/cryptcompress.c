@@ -1148,6 +1148,29 @@ set_cluster_pages_dirty(reiser4_cluster_t * clust)
 	}
 }
 
+static void
+clear_cluster_pages_dirty(reiser4_cluster_t * clust)
+{
+	int i;
+	assert("edward-1275", clust != NULL);
+	
+	for (i = 0; i < clust->nr_pages; i++) {
+		assert("edward-1276", clust->pages[i] != NULL);
+		
+		lock_page(clust->pages[i]);
+		assert("edward-1277", PageUptodate(clust->pages[i]));
+		
+		if (!PageDirty(clust->pages[i])) {
+			warning("edward-985", "Page of index %lu (inode %llu)"
+				" is not dirty\n", clust->pages[i]->index,
+				(unsigned long long)get_inode_oid(clust->pages[i]->mapping->host));
+		}
+		else
+			reiser4_clear_page_dirty(clust->pages[i]);
+		unlock_page(clust->pages[i]);
+	}
+}
+
 /* update i_size by window */
 static void
 inode_set_new_size(reiser4_cluster_t * clust, struct inode * inode)
@@ -1224,8 +1247,7 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 		assert("edward-975", clust->pages[i]);
 		assert("edward-976", old_refcnt < inode_cluster_size(inode));
 		assert("edward-1185", PageUptodate(clust->pages[i]));
-		assert("edward-977", PageDirty(clust->pages[i]));
-		
+
 		page_cache_release(clust->pages[i]);
 	}
 	/* truncate old references */
@@ -1372,13 +1394,13 @@ set_cluster_unlinked(reiser4_cluster_t * clust, struct inode * inode)
 }
 
 /* put cluster pages */
-reiser4_internal void
+static void
 release_cluster_pages(reiser4_cluster_t * clust, int from)
 {
 	int i;
 
 	assert("edward-447", clust != NULL);
-	assert("edward-448", from < clust->nr_pages);
+	assert("edward-448", from <= clust->nr_pages);
 
 	for (i = from; i < clust->nr_pages; i++) {
 
@@ -1386,6 +1408,21 @@ release_cluster_pages(reiser4_cluster_t * clust, int from)
 
 		page_cache_release(clust->pages[i]);
 	}
+}
+
+static void
+release_cluster_pages_capture(reiser4_cluster_t * clust)
+{
+	assert("edward-1278", clust != NULL);
+	assert("edward-1279", clust->nr_pages != 0);
+	
+	return release_cluster_pages(clust, 1);
+}
+
+reiser4_internal void
+release_cluster_pages_nocapture(reiser4_cluster_t * clust)
+{
+	return release_cluster_pages(clust, 0);
 }
 
 static void
@@ -1535,27 +1572,22 @@ forget_cluster_pages(struct page ** pages, int nr)
 	for (i = 0; i < nr; i++) {
 		
 		assert("edward-1045", pages[i] != NULL);
-		assert("edward-1046", PageUptodate(pages[i]));
-		
 		page_cache_release(pages[i]);
 	}
 }
 
-/* . first, make cluster's jnode clean (the order is essential to
-     avoid synchronization issues)
-   . prepare input tfm-stream that we should transform if at least
-     one attached page is dirty.
+/* Prepare input stream for transform operations.
+   Try to do it in one step. Return -E_REPEAT when it is
+   impossible because of races with concurrent processes.
 */
-
 reiser4_internal int
 flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
-struct inode * inode)
+		    struct inode * inode)
 {
 	int result = 0;
 	int i;
 	int nr_pages = 0;
-	int do_transform = 0;
-	tfm_cluster_t * tc;
+	tfm_cluster_t * tc = &clust->tc;
 	
 	assert("edward-980", node != NULL);
 	assert("edward-236", inode != NULL);
@@ -1564,8 +1596,6 @@ struct inode * inode)
 	assert("edward-241", schedulable());
 	assert("edward-718", crc_inode_ok(inode));
 	
-	tc = &clust->tc;
-
 	LOCK_JNODE(node);
 	
 	if (!jnode_is_dirty(node)) {
@@ -1577,9 +1607,8 @@ struct inode * inode)
 
 		/* race with another flush */
 		UNLOCK_JNODE(node);
-		return -E_REPEAT;
+		return RETERR(-E_REPEAT);
 	}
-	
 	tc->len = fsize_to_count(clust, inode);
 	clust->nr_pages = count_to_nrpages(tc->len);
 	
@@ -1590,37 +1619,66 @@ struct inode * inode)
 	cluster_reserved2grabbed(estimate_insert_cluster(inode, 0));
 	uncapture_cluster_jnode(node);
 	
+	/* Try to create input stream for the found size (tc->len).
+	   Starting from this point the page cluster can be modified
+	   (truncated, appended) by concurrent processes, so we need
+	   to worry if the constructed stream is valid */
+	
 	assert("edward-1224", schedulable());
 
 	result = grab_tfm_stream(inode, tc, TFM_WRITE, INPUT_STREAM);
 	if (result)
 		return result;
-
+	
 	nr_pages = find_get_pages(inode->i_mapping, clust_to_pg(clust->index, inode),
 				clust->nr_pages, clust->pages);
 	
-	assert("edward-1047", nr_pages == clust->nr_pages);
- 		
+	if (nr_pages != clust->nr_pages) {
+		/* the page cluster get truncated, try again */
+		assert("edward-1280", nr_pages < clust->nr_pages);
+		warning("edward-1281", "Page cluster of index %lu (inode %llu)"
+			" get truncated from %u to %u pages\n",
+			clust->index,
+			(unsigned long long)get_inode_oid(inode),
+			clust->nr_pages,
+			nr_pages);
+		forget_cluster_pages(clust->pages, nr_pages);
+		return RETERR(-E_REPEAT);
+	}
 	for (i = 0; i < clust->nr_pages; i++){
 		char * data;
 		
 		assert("edward-242", clust->pages[i] != NULL);
 		
-		lock_page(clust->pages[i]);
-
-		assert("edward-1048", 
-		       clust->pages[i]->index == clust_to_pg(clust->index, inode) + i);
-		assert("edward-1049", PageLocked(clust->pages[i]));
-		assert("edward-1050", PageUptodate(clust->pages[i]));
-		
-		if (!PageDirty(clust->pages[i]))
-			warning("edward-985", "Page of index %lu (inode %llu)"
-				" is already flushed\n", clust->pages[i]->index,
-				(unsigned long long)get_inode_oid(inode));
-		else {
-			reiser4_clear_page_dirty(clust->pages[i]);
-			do_transform = 1;
+		if (clust->pages[i]->index != clust_to_pg(clust->index, inode) + i) {
+			/* holes in the indices of found group of pages:
+			   page cluster get truncated, transform impossible */
+			warning("edward-1282", 
+				"Hole in the indices: "
+				"Page %d in the cluster of index %lu "
+				"(inode %llu) has index %lu\n",
+				i, clust->index,
+				(unsigned long long)get_inode_oid(inode),
+				clust->pages[i]->index);
+			
+			forget_cluster_pages(clust->pages, nr_pages);
+			result = RETERR(-E_REPEAT);
+			goto finish;
 		}
+		if (!PageUptodate(clust->pages[i])) {
+			/* page cluster get truncated, transform impossible */
+			assert("edward-1283", !PageDirty(clust->pages[i]));
+			warning("edward-1284", 
+				"Page of index %lu (inode %llu) "
+				"is not uptodate\n", clust->pages[i]->index,
+				(unsigned long long)get_inode_oid(inode));
+			
+			forget_cluster_pages(clust->pages, nr_pages);
+			result = RETERR(-E_REPEAT);
+			goto finish;
+		}
+		/* ok with this page, flush it to the input stream */
+		lock_page(clust->pages[i]);
 		data = kmap(clust->pages[i]);
 		
 		assert("edward-986", off_to_pgcount(tc->len, i) != 0);
@@ -1629,18 +1687,12 @@ struct inode * inode)
 		       data, off_to_pgcount(tc->len, i));
 		kunmap(clust->pages[i]);
 		unlock_page(clust->pages[i]);
-		if (i)
-			/* do not touch jnode's page */
-			page_cache_release(clust->pages[i]);
 	}
-	if (!do_transform) {
-		/* rare case: all the attached pages are clean */
-		warning("edward-987", "Nothing to update in disk cluster"
-			" (index %lu, inode %llu\n)",
-			clust->index, (unsigned long long)get_inode_oid(inode));
-		forget_cluster_pages(clust->pages, clust->nr_pages);
-		result = -E_REPEAT;
-	}
+	/* input stream is ready for transform */
+	
+	clear_cluster_pages_dirty(clust);
+ finish:
+	release_cluster_pages_capture(clust);
 	return result;
 }
 
@@ -2109,7 +2161,7 @@ truncate_page_cluster(struct inode *inode, cloff_t index)
 	if (!node) {
 		truncate_inode_pages_range(inode->i_mapping,
 					   clust_to_off(index, inode),
-					   pg_to_off(pages[found - 1]->index) + PAGE_CACHE_SIZE - 1);
+					   clust_to_off(index, inode) + inode_cluster_size(inode) - 1);
 		return;
 	}
 	/* jnode is present and may be dirty, if so, put
@@ -2151,7 +2203,7 @@ truncate_page_cluster(struct inode *inode, cloff_t index)
 	forget_cluster_pages(pages, found);
 	truncate_inode_pages_range(inode->i_mapping,
 				   clust_to_off(index, inode),
-				   pg_to_off(pages[found - 1]->index) + PAGE_CACHE_SIZE - 1);
+				   clust_to_off(index, inode) + inode_cluster_size(inode) - 1);
 	assert("edward-1201", jnode_truncate_ok(inode, index));
 	return;
 }
