@@ -1502,7 +1502,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 	uf_info = unix_file_inode_data(inode);
 
-	if (inode_get_flag(inode, REISER4_PART_CONV)) {
+	if (inode_get_flag(inode, REISER4_PART_CONV) && !IS_RDONLY(inode)) {
 		get_exclusive_access(uf_info);
 		result = finish_conversion(inode);
 		if (result != 0) {
