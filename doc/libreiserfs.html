@@ -1,9 +1,9 @@
 <html>
-<head><title>Reiser4 libreiserfs Architecture Document.</title></head>
+<head><title>Reiser4 Libreiserfs Architecture Document.</title></head>
 <body>
 
 <table width=70%><tr><td align=center>
-<h1>Reiser4 libreiserfs Architercure Document.</h1>
+<h1>Reiser4 Libreiserfs Architercure Document.</h1>
 <h3>24 May 2002</h2>
 </td></tr></table>
 
@@ -958,26 +958,10 @@ strlen(), strcmp(), strncmp(), strncat(), strchr().
 </p>
 
 <p>Or we may follow yet another way. This way is to delegate these functions (see above) to be
-implemented by the "master" project.We have to discuss it.</p>
+implemented by the "master" project. We have to discuss it.</p>
 
 </td</tr></table>
 	
-<h3>Compact building.</h3>
-
-<table width=70%><tr><td align=justify>
-<p>As libreiserfs will be used by "alone" applications (some bootloaders), 
-we need a mechanism for building libreiserfs in "compact" maner needed by 
-bootloadeds.</p>
-
-<p>In compact building mode libreiserfs will contain: filesystem opening code, 
-file and directory access code. All modifying code (resizing, copying, tree 
-modifying, etc), block allocator code, oid allocator code will be skiped. 
-The acceptable size for libreiserfs built in compact maner and without libc code 
-should be about 10k.</p>
-
-<p>Compact building will be turned on by some option in configure time.</p>
-</td></tr></table>
-
 <h3>Filesystem API.</h3>
 
 <table width=70%><tr><td align=justify>
@@ -1005,6 +989,13 @@ read the root block, and check it for validness; return initialized filesystem i
 
 <p>And closing will include such actions: calling for free all filesystem objects 
 (journal, oid allocator, allocator, etc), freeing all internal structures.</p>
+
+<p>After a filesystem was opened by "reiserfs_fs_open" function, returned descriptor 
+may be used for working with corresponding filesystem. It may be resized, copied, tuned, etc.
+Also filesystem may be checked for errors on it. Checking for errors on the underlying 
+filesystem may be performed by "reiserfs_fs_check" function. This function may perform
+basic checks or more complex checks or even filesystem rebuilding.
+</p>
 
 <p>Filesystem initialization (opening) and finalization will roughly look:</p>
 
@@ -1135,7 +1126,7 @@ struct reiserfs_journal_plug {
 	int (*alterable) (reiserfs_opaque_t *);
 
 	/* Journal routines which are specific for reiser3 journal format */
-	void (*switch) (dal_t *dal);
+	int (*switch) (dal_t *dal);
 	
 	blk_t (*get_start) (reisrefs_opaque_t *);
 	void (*set_start) (reiserfs_opaque_t *, blk_t start);
@@ -1171,9 +1162,10 @@ and returns initialized journal instance.</p>
 
 <p>Returns "bool" value that means whether journal can be resized, tuned or not.</p>
 
-<b>void (*switch) (dal_t *dal)</b>
+<b>int (*switch) (dal_t *dal)</b>
 
-<p>Switches journal in reiser3 onto specified device.</p>
+<p>Switches journal in reiser3 onto specified device. Returns "true" on success
+or "false" on failure.</p>
 
 <b>blk_t (*get_start) (reisrefs_opaque_t *)<br>
 void (*set_start) (reiserfs_opaque_t *, blk_t start)</b>
@@ -1196,7 +1188,7 @@ There following: reiserfs_journal_create, reiserfs_journal_open,
 reiserfs_journal_close, reiserfs_journal_replay, reiserfs_journal_resize, 
 etc.</p>
 
-<p>Also it will contain common code for all journal formats.</p>
+<p>Also journal API will contain common code for all journal formats.</p>
 
 <pre>
 struct reiserfs_journal {
@@ -1270,18 +1262,23 @@ void reiserfs_journal_close(reiserfs_journal_t *journal) {
 <h3>Disk-Format plugin. Superblock API.</h3>
 
 <table width=70%><tr><td align=justify>
-<p>Disk-Format plugin defines filesystem layout at general. First of all 
-it defines where the superblock lies and what the format this superblock has.</p>
+<p>Disk-Format plugin defines following components of the filesystem:</p>
+		
+<ul>
+	<li>Where the superblock lies on device. What the format the superblock has.
+	<li>Where is journal header block and what is the format of the journal. What
+is journal plugin using at the moment.
+	<li>Where is root node block.
+	<li>What the plugin is usined for oid allocator.
+</ul>
 
-<p>Also it exports interface for getting/setting values from/to superblock.</p>
+<p>As opening the filesystem directly dependends on disk-format, all available 
+disk-format plugins must be loaded during library initialization time, just after 
+plugin cache will be initialized in order to be able to find any superblock at 
+filesystem opening time. Or they might be loaded on first attempt to open filesystem 
+on someone device.</p>
 
-<p>Therefore all available disk-format plugins must be loaded during library 
-initialization time, just after plugin cache will be initialized in order to be 
-able to find any superblock at filesystem opening time. Or they might be loaded
-on first attempt to open filesystem on someone device.</p>
-
-<p>Also disk-format plugin defines where root block is placed, etc. It will look 
-like this:</p>
+<p>Disk-Format plugin will look:</p>
 
 <pre>
 struct reiserfs_layout_plug {
@@ -1442,7 +1439,7 @@ reiserfs_alloc_resize, reiserfs_alloc_copy, reiserfs_alloc_clone.</p>
 
 <h3>Balanced Tree API.</h3>
 
-<table width=70%><tr><td alalign=justify>
+<table width=70%><tr><td align=justify>
 <p>There functions for working with b*tree. There following:</p>
 
 <b>reiserfs_tree_t *reiserfs_tree_open(reiserfs_fs_t *fs)</b>
@@ -1696,6 +1693,22 @@ loaded plugin in the cache.</p>
 <p>Unloads plugin, unregisters it from cache if "plugin_nlink" field reaches zero.</p>
 
 <p>In the finalization time, plugin factory will release all plugins.</p>
+</td></tr></table>
+
+<h3>Compact building.</h3>
+
+<table width=70%><tr><td align=justify>
+<p>As libreiserfs will be used by "alone" applications (some bootloaders), 
+we need a mechanism for building libreiserfs in "compact" maner needed by 
+bootloadeds.</p>
+
+<p>In compact building mode libreiserfs will contain: filesystem opening code, 
+file and directory access code. All modifying code (resizing, copying, tree 
+modifying, etc), block allocator code, oid allocator code will be skiped. 
+The acceptable size for libreiserfs built in compact maner and without libc code 
+should be about 10k.</p>
+
+<p>Compact building will be turned on by some option in configure time.</p>
 </td></tr></table>
 
 <h3>Builtin plugins.</h3>
