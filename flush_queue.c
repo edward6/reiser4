@@ -809,9 +809,9 @@ static int get_enough_fq (txn_atom * atom, flush_queue_t ** result_list, int how
 /* Submit nodes to write from single-linked list of flush queues until number
  * of submitted nodes is equal to or greater than @how_many nodes requested
  * for submission */
-static int write_list_fq (flush_queue_t * first, int how_many)
+static long write_list_fq (flush_queue_t * first, long how_many)
 {
-	int nr_submitted = 0;
+	long nr_submitted = 0;
 
 	while (first != NULL ) {
 		int ret;
@@ -838,11 +838,11 @@ static int write_list_fq (flush_queue_t * first, int how_many)
 }
 
 /* A response to memory pressure */
-int fq_writeback (struct super_block *s, jnode * node, int how_many)
+int fq_writeback (struct super_block *s, jnode * node, struct writeback_control * wbc)
 {
 
 	txn_atom * atom;
-	int total_est = 0;
+	long total_est = 0;
 	flush_queue_t * list_fq_to_write = NULL;
 
 	assert ("zam-747", how_many > 0);
@@ -853,7 +853,7 @@ int fq_writeback (struct super_block *s, jnode * node, int how_many)
 	atom = atom_get_locked_by_jnode (node);
 
 	if (atom != NULL && atom_has_queues_to_write(atom)) {
-		total_est = get_enough_fq (atom, &list_fq_to_write, how_many);
+		total_est = get_enough_fq (atom, &list_fq_to_write, wbc->nr_to_write);
 		spin_unlock_atom (atom);
 	}
 
@@ -867,11 +867,11 @@ int fq_writeback (struct super_block *s, jnode * node, int how_many)
 		spin_lock_txnmgr (mgr);
 
 		for (atom = atom_list_front (&mgr->atoms_list);
-		     ! atom_list_end (&mgr->atoms_list, atom) && total_est < how_many;
+		     ! atom_list_end (&mgr->atoms_list, atom) && total_est < wbc->nr_to_write;
 		     atom = atom_list_next (atom))
 		{
 			spin_lock_atom (atom);
-			total_est += get_enough_fq (atom, &list_fq_to_write, how_many);
+			total_est += get_enough_fq (atom, &list_fq_to_write, wbc->nr_to_write - total_est);
 			spin_unlock_atom (atom);
 		}
 
@@ -880,17 +880,18 @@ int fq_writeback (struct super_block *s, jnode * node, int how_many)
 
 	/* Write collected flush queues  */
 	if (list_fq_to_write) {
-		int nr_submitted;
+		long nr_submitted;
 
-		nr_submitted = write_list_fq (list_fq_to_write, how_many);
+		nr_submitted = write_list_fq (list_fq_to_write, wbc->nr_to_write);
 
 		if (nr_submitted < 0)
-			return nr_submitted;
+			return (int)nr_submitted;
 
-		if (nr_submitted >= how_many)
-			return nr_submitted;
-
-		how_many -= nr_submitted;
+		if (nr_submitted >= wbc->nr_to_write) {
+			wbc->nr_to_write = 0;
+		} else {
+			wbc->nr_to_Write -= nr_submitted;
+		}
 	}
 
 	/* Could write nothing */

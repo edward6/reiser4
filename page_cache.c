@@ -585,6 +585,7 @@ int page_common_writeback( struct page *page /* page to start writeback from */,
 {
 	jnode *node;
 	txn_atom * atom;
+	int flush_some = 0;
 	struct super_block *s = page -> mapping -> host -> i_sb;
 
 	REISER4_ENTRY (s);
@@ -596,21 +597,14 @@ int page_common_writeback( struct page *page /* page to start writeback from */,
 
 	reiser4_unlock_page( page );
 
-	spin_lock_jnode (node);
-	atom = atom_get_locked_by_jnode (node);
+	if (JF_ISSET (node, JNODE_FLUSH_QUEUED))
+		flush_some = 1;
 
-	if (atom) {
-		atom->flags |= ATOM_FORCE_COMMIT;
+	fq_writeback (node, wbc);
 
-		spin_unlock_atom (atom);
+	if (flush_some) {
+		ktxnmgr_writeback (wbc);
 	}
-
-	spin_unlock_jnode (node);
-
-	/*
-	 * all flushing is done outside of kswapd context (in "ent" thread).
-	 */
-	ktxnmgrd_kick (get_super_private (s)->tmgr.daemon, MEMORY_PRESSURE);
 
 	jput (node);
 	REISER4_EXIT (0);

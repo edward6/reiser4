@@ -244,9 +244,23 @@ void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason )
 	}
 }
 
+/* Did somebody ask us to flush nodes? */
+static int need_flush (txn_mgr * tmgr)
+{
+	int ret;
+
+	spin_lock_txnmgr (tmgr);
+	ret = (tmgr->flush_control.nr_to_flush != 0);
+	spin_unlock_txnmgr (tmgr);
+
+	return ret;
+}
+
 /** scan one transaction manager for old atoms */
 static int scan_mgr( txn_mgr *mgr )
 {
+	int ret;
+
 	reiser4_tree *tree;
 	assert( "nikita-2454", mgr != NULL );
 
@@ -257,10 +271,41 @@ static int scan_mgr( txn_mgr *mgr )
 	assert( "nikita-2455", tree != NULL );
 	assert( "nikita-2456", tree -> super != NULL );
 
+
 	{
 		REISER4_ENTRY( tree -> super );
-		REISER4_EXIT ( txn_commit_some( mgr ) );
+
+		ret = txn_commit_some( mgr );
+
+		if (ret)
+			goto out;
+
+		if (need_flush( mgr )) {
+			ret = txn_flush_one (mgr);
+
+			if (ret)
+				goto out;
+		}
+	out:
+		REISER4_EXIT (ret);
 	}
+}
+
+/* */
+int ktxnmgr_writeback (struct super_block * s, struct writeback_control *wbc)
+{
+	txn_mgr *tmgr = &get_super_private (s)->tmgr;
+	
+	spin_lock_txnmgr (tmgr);
+
+	if (tmgr->flush_control.nr_to_flush) {
+		tmgr->flush_control.nr_to_flush += wbc->nr_to_write * 2;
+		ktxnmgrd_kick (tmgr->daemon, 0);
+	}
+
+	spin_unlock_txnmgr (tmgr);
+
+	return 0;
 }
 
 /*

@@ -45,6 +45,8 @@ extern int ktxnmgrd_attach( ktxnmgrd_context *ctx, txn_mgr *mgr );
 extern void ktxnmgrd_detach( txn_mgr *mgr );
 
 extern void ktxnmgrd_kick( ktxnmgrd_context *ctx, ktxnmgrd_wake reason );
+extern void ktxnmgr_writeback (struct super_block * s, struct writeback_control *);
+
 
 /* __KTXNMGRD_H__ */
 #endif
