@@ -281,6 +281,8 @@ read_inode(struct inode *inode /* inode to read from disk */ ,
 				inode_file_plugin(inode)->init_inode_data(inode,
 									  NULL,
 									  0);
+			/* Check the opened inode for consistency. */
+			result = get_super_private(inode->i_sb)->df_plug->check_open(inode);
 		}
 	}
 	/* lookup_sd() doesn't release coord because we want znode
