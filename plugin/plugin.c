@@ -418,10 +418,17 @@ grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb)
 static void
 update_plugin_mask(reiser4_inode *info, pset_member memb)
 {
+	struct inode *rootdir;
 	reiser4_inode *root;
 
-	root = reiser4_inode_data(inode_by_reiser4_inode(info)->i_sb->s_root->d_inode);
-	if (pset_get(info->pset, memb) != pset_get(root->pset, memb))
+	rootdir = inode_by_reiser4_inode(info)->i_sb->s_root->d_inode;
+	root = reiser4_inode_data(rootdir);
+	/*
+	 * if inode is different from the default one, or we are changing
+	 * plugin of root directory, update plugin_mask
+	 */
+	if (pset_get(info->pset, memb) != pset_get(root->pset, memb) ||
+	    info == root)
 		info->plugin_mask |= (1 << memb);
 }
 
