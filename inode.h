@@ -16,6 +16,7 @@
 #include "plugin/cryptcompress.h"
 #include "plugin/plugin_set.h"
 #include "plugin/security/perm.h"
+#include "plugin/pseudo/pseudo.h"
 #include "vfs_ops.h"
 #include "jnode.h"
 
@@ -122,6 +123,7 @@ struct reiser4_inode {
 	union {
 		unix_file_info_t unix_file_info;
 		cryptcompress_info_t cryptcompress_info;
+		pseudo_info_t pseudo_info;
 	} file_plugin_data;
 
 	struct list_head eflushed_jnodes;
