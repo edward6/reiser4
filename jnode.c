@@ -1075,7 +1075,7 @@ static int znode_remove_op( jnode *node, reiser4_tree *tree )
 		/*
 		 * detach znode from sibling list.
 		 */
-		siblink_list_drop( z );
+		sibling_list_drop( z );
 		/*
 		 * this is called with tree spin-lock held, so call
 		 * znode_remove() directly (rather than znode_lock_remove()).

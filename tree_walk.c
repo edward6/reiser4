@@ -686,7 +686,7 @@ void sibling_list_remove (znode * node)
 }
 
 /** disconnect node from sibling list */
-void siblink_list_drop (znode *node)
+void sibling_list_drop (znode *node)
 {
 	znode *right;
 	znode *left;
