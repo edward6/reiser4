@@ -373,6 +373,11 @@ static int carry_on_level( carry_level *doing /* queue of carry operations to
 
 	trace_stamp( TRACE_CARRY );
 
+	/*
+	 * node can be inconsistent while in-transit
+	 */
+	DISABLE_NODE_CHECK;
+
 	/* @doing->nodes are locked. */
 
 	/*
@@ -445,6 +450,7 @@ static int carry_on_level( carry_level *doing /* queue of carry operations to
 			}
 		}
 	}
+	ENABLE_NODE_CHECK;
 	return result;
 }
 
