@@ -634,14 +634,14 @@ int block_alloc_pre_commit_hook (txn_atom * atom)
 		if (node->atom == NULL) { 
 			/* capture a commit bitmap block */
 			/* Is there an interface to node capture another that
-			   reiser4_lock_znode() ? */
+			   longterm_lock_znode() ? */
 			reiser4_lock_handle lh;
 
 			reiser4_init_lh(&lh);
 
-			ret = reiser4_lock_znode(&lh, bnode->commit, 
-						 ZNODE_WRITE_LOCK, 
-						 ZNODE_LOCK_NONBLOCK | ZNODE_LOCK_HIPRI);
+			ret = longterm_lock_znode(&lh, bnode->commit, 
+						  ZNODE_WRITE_LOCK, 
+						  ZNODE_LOCK_NONBLOCK | ZNODE_LOCK_HIPRI);
 
 			/* there should be no problem with adding of bitmap
 			 * block to the transaction */
@@ -649,7 +649,7 @@ int block_alloc_pre_commit_hook (txn_atom * atom)
 
 			if (ret) break;
 
-			reiser4_unlock_znode(&lh);
+			longterm_unlock_znode(&lh);
 
 			spin_lock_atom(atom);
 		}
