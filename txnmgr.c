@@ -1536,7 +1536,7 @@ txn_try_capture (jnode           *node,
 
 	if (ret != 0) {
 		/* Failure means jnode is not locked.  FIXME_LATER_JMACD May want to fix
-		 * the above code to avoid releasing the lock and reaquiring it, but there
+		 * the above code to avoid releasing the lock and re-acquiring it, but there
 		 * are cases were failure occurs when the lock is not held, and those
 		 * cases would need to be modified to re-take the lock. */
 		spin_lock_jnode (node);
@@ -1655,15 +1655,12 @@ txn_try_capture_page  (struct page        *pg,
 	}
 	
 	spin_lock_jnode (node);
+	unlock_page (pg);
 
 	ret = txn_try_capture (node, lock_mode, non_blocking ? TXN_CAPTURE_NONBLOCKING : 0);
 	if (ret == 0) {
 		spin_unlock_jnode (node);
 	}
-	/*
-	 * jput() requires unlocked page
-	 */
-	unlock_page (pg);
 	jput (node);
 	lock_page (pg);
 	return ret;
@@ -1755,7 +1752,7 @@ void txn_delete_page (struct page *pg)
 			}
 			
 			ret = blocknr_set_add_block (atom, & atom->delete_set, & blocknr_entry, jnode_get_block (node));
-			
+
 			if (ret == -EAGAIN) {
 				/* Jnode is still locked, which atom_get_locked_by_jnode expects. */
 				goto repeat;
