@@ -60,10 +60,10 @@ static error_t reiserfs_master_open(reiserfs_fs_t *fs) {
 #ifndef ENABLE_COMPACT    
 	reiserfs_plugin_t *format36;
 	
-	if (!(format36 = libreiser4_plugins_find_by_coords(REISERFS_FORMAT_PLUGIN, 0x1)))
+	if (!(format36 = libreiser4_factory_find_by_coord(REISERFS_FORMAT_PLUGIN, 0x1)))
 	    goto error_free_block;
 	
-	if (!libreiser4_plugins_call(goto error_free_block, format36->format, confirm, 
+	if (!libreiser4_plugin_call(goto error_free_block, format36->format, confirm, 
 		fs->host_device))
 	    goto error_free_block;
 		

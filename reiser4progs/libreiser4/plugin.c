@@ -26,8 +26,8 @@ typedef struct walk_desc walk_desc_t;
 aal_list_t *plugins = NULL;
 
 reiserfs_plugin_factory_t factory = {
-    libreiser4_plugins_find_by_coords,
-    libreiser4_plugins_find_by_label
+    libreiser4_factory_find_by_coord,
+    libreiser4_factory_find_by_label
 };
 
 static int callback_match_coords(reiserfs_plugin_t *plugin, walk_desc_t *desc) {
@@ -40,7 +40,7 @@ static int callback_match_label(reiserfs_plugin_t *plugin, const char *label) {
 
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
 
-reiserfs_plugin_t *libreiser4_plugins_load_by_name(const char *name) {
+reiserfs_plugin_t *libreiser4_plugin_load_by_name(const char *name) {
     void *handle, *addr;
     reiserfs_plugin_t *plugin;
     reiserfs_plugin_entry_t entry;
@@ -75,7 +75,7 @@ error:
 
 #endif
 
-reiserfs_plugin_t *libreiser4_plugins_load_by_entry(reiserfs_plugin_entry_t entry) {
+reiserfs_plugin_t *libreiser4_plugin_load_by_entry(reiserfs_plugin_entry_t entry) {
     reiserfs_plugin_t *plugin;
     
     aal_assert("umka-259", entry != NULL, return NULL);
@@ -92,7 +92,7 @@ reiserfs_plugin_t *libreiser4_plugins_load_by_entry(reiserfs_plugin_entry_t entr
     return plugin;
 }
 
-void libreiser4_plugins_unload(reiserfs_plugin_t *plugin) {
+void libreiser4_plugin_unload(reiserfs_plugin_t *plugin) {
     aal_assert("umka-158", plugin != NULL, return);
     aal_assert("umka-166", plugins != NULL, return);
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
@@ -101,7 +101,7 @@ void libreiser4_plugins_unload(reiserfs_plugin_t *plugin) {
     aal_list_remove(plugins, plugin);
 }
 
-error_t libreiser4_plugins_init(void) {
+error_t libreiser4_factory_init(void) {
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
     DIR *dir;
     struct dirent *ent;
@@ -142,26 +142,26 @@ error_t libreiser4_plugins_init(void) {
 #else
     /* FIXME-umka: The following code is not 64-bit safe */
     for (entry = (uint32_t *)(&__plugin_start) + 1; entry < (uint32_t *)(&__plugin_end); entry++) {
-	if (entry) libreiser4_plugins_load_by_entry((reiserfs_plugin_entry_t)*entry);
+	if (entry) libreiser4_plugin_load_by_entry((reiserfs_plugin_entry_t)*entry);
     }
 #endif
     return -(aal_list_length(plugins) == 0);
 }
 
-void libreiser4_plugins_fini(void) {
+void libreiser4_factory_done(void) {
     aal_list_t *walk;
 
     aal_assert("umka-335", plugins != NULL, return);
     
     for (walk = aal_list_last(plugins); walk; ) {
 	aal_list_t *temp = aal_list_prev(walk);
-	libreiser4_plugins_unload((reiserfs_plugin_t *)walk->data);
+	libreiser4_plugin_unload((reiserfs_plugin_t *)walk->data);
 	walk = temp;
     }
     plugins = NULL;
 }
 
-reiserfs_plugin_t *libreiser4_plugins_find_by_label(const char *label) {
+reiserfs_plugin_t *libreiser4_factory_find_by_label(const char *label) {
     aal_list_t *found;
 
     aal_assert("umka-155", plugins != NULL, return NULL);
@@ -171,7 +171,7 @@ reiserfs_plugin_t *libreiser4_plugins_find_by_label(const char *label) {
 	(comp_func_t)callback_match_label)) ? (reiserfs_plugin_t *)found->data : NULL;
 }
 
-reiserfs_plugin_t *libreiser4_plugins_find_by_coords(reiserfs_plugin_id_t type, 
+reiserfs_plugin_t *libreiser4_factory_find_by_coord(reiserfs_plugin_id_t type, 
     reiserfs_plugin_id_t id) 
 {
     aal_list_t *found;

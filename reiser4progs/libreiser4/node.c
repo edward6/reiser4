@@ -32,7 +32,7 @@ reiserfs_node_t *reiserfs_node_create(aal_device_t *device, blk_t blk,
     }
     
     set_le16((reiserfs_node_header_t *)node->block->data, plugin_id, plugin_id);
-    if (!(node->plugin = libreiser4_plugins_find_by_coords(REISERFS_NODE_PLUGIN, 
+    if (!(node->plugin = libreiser4_factory_find_by_coord(REISERFS_NODE_PLUGIN, 
 	plugin_id))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -82,7 +82,7 @@ reiserfs_node_t *reiserfs_node_open(aal_device_t *device, blk_t blk,
     if (plugin_id == REISERFS_GUESS_PLUGIN_ID) 
 	plugin_id = reiserfs_node_get_plugin_id(node);
     
-    if (!(node->plugin = libreiser4_plugins_find_by_coords(REISERFS_NODE_PLUGIN, 
+    if (!(node->plugin = libreiser4_factory_find_by_coord(REISERFS_NODE_PLUGIN, 
 	plugin_id))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -141,7 +141,7 @@ error_t reiserfs_node_close(reiserfs_node_t *node) {
 
 error_t reiserfs_node_check(reiserfs_node_t *node, int flags) {
     aal_assert("umka-123", node != NULL, return -1);
-    return libreiser4_plugins_call(return -1, node->plugin->node, 
+    return libreiser4_plugin_call(return -1, node->plugin->node, 
 	check, node->block, flags);
 }
 
@@ -162,13 +162,13 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key,
     aal_assert("umka-476", key != NULL, return -1);
     aal_assert("vpf-048", node != NULL, return -1);
 
-    if (!(key_plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
+    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find key plugin by its id %x.", 0x0);
 	return -2;
     }
     
-    if ((found = libreiser4_plugins_call(return -1, node->plugin->node, 
+    if ((found = libreiser4_plugin_call(return -1, node->plugin->node, 
 	lookup, node->block, coord, key, key_plugin)) == -1) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -204,7 +204,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key,
 	the item or after the item.
     */
     aal_memcpy(&max_key_inside, reiserfs_node_item_key_at(node, coord->item_pos), 
-	libreiser4_plugins_call(return -1, key_plugin->key, size,));
+	libreiser4_plugin_call(return -1, key_plugin->key, size,));
 
     if (item_plugin->item.common.max_key_inside) {
 	if (item_plugin->item.common.max_key_inside(&max_key_inside, key_plugin) == -1) {
@@ -214,7 +214,7 @@ int reiserfs_node_lookup(reiserfs_node_t *node, void *key,
 	    return -1;
 	}
 	
-	if (libreiser4_plugins_call(return -1, key_plugin->key, compare, 
+	if (libreiser4_plugin_call(return -1, key_plugin->key, compare, 
 		key, &max_key_inside) > 0)
 	    goto after_item;
     }
@@ -244,7 +244,7 @@ static int reiserfs_node_cmp_key(reiserfs_plugin_t *plugin,
     aal_assert("umka-651", key1 != NULL, return -2);
     aal_assert("umka-652", key2 != NULL, return -2);
 
-    return libreiser4_plugins_call(return -2, plugin->key, compare, 
+    return libreiser4_plugin_call(return -2, plugin->key, compare, 
 	key1, key2);
 }
 
@@ -268,7 +268,7 @@ static int callback_comp_for_insert(reiserfs_node_t *node1,
 	FIXME-UMKA: We should avoid hardcoded magic numbers.
 	Here should be passed plugin id number for key plugin.
     */
-    if (!(plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
+    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find key plugin by its id %x.", 0x0);
 	return -2;
@@ -294,7 +294,7 @@ static int callback_comp_for_find(reiserfs_node_t *node, void *key) {
 	FIXME-UMKA: We should avoid hardcoded magic numbers.
 	Here should be passed plugin id number for key plugin.
     */
-    if (!(plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
+    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find key plugin by its id %x.", 0x0);
 	return -2;
@@ -427,14 +427,14 @@ void reiserfs_node_set_level(reiserfs_node_t *node, uint8_t level) {
 uint16_t reiserfs_node_get_free_space(reiserfs_node_t *node) {
     aal_assert("umka-455", node != NULL, return 0);
     
-    return libreiser4_plugins_call(return 0, node->plugin->node, 
+    return libreiser4_plugin_call(return 0, node->plugin->node, 
 	get_free_space, node->block);
 }
 
 void reiserfs_node_set_free_space(reiserfs_node_t *node, uint32_t value) {
     aal_assert("umka-456", node != NULL, return);
     
-    return libreiser4_plugins_call(return, node->plugin->node, 
+    return libreiser4_plugin_call(return, node->plugin->node, 
 	set_free_space, node->block, value);
 }
 
@@ -452,42 +452,42 @@ void reiserfs_node_set_plugin_id(reiserfs_node_t *node, reiserfs_plugin_id_t plu
 uint16_t reiserfs_node_item_overhead(reiserfs_node_t *node) {
     aal_assert("vpf-066", node != NULL, return 0);
 
-    return libreiser4_plugins_call(return 0, node->plugin->node, 
+    return libreiser4_plugin_call(return 0, node->plugin->node, 
 	item_overhead, node->block);
 }
 
 uint16_t reiserfs_node_item_maxsize(reiserfs_node_t *node) {
     aal_assert("umka-125", node != NULL, return 0);
     
-    return libreiser4_plugins_call(return 0, node->plugin->node, 
+    return libreiser4_plugin_call(return 0, node->plugin->node, 
 	item_maxsize, node->block);
 }
     
 uint16_t reiserfs_node_item_maxnum(reiserfs_node_t *node) {
     aal_assert("umka-452", node != NULL, return 0);
     
-    return libreiser4_plugins_call(return 0, node->plugin->node,
+    return libreiser4_plugin_call(return 0, node->plugin->node,
 	item_maxnum, node->block);
 }
 
 uint16_t reiserfs_node_item_count(reiserfs_node_t *node) {
     aal_assert("umka-453", node != NULL, return 0);
     
-    return libreiser4_plugins_call(return 0, node->plugin->node, 
+    return libreiser4_plugin_call(return 0, node->plugin->node, 
 	item_count, node->block);
 }
 
 void *reiserfs_node_item_at(reiserfs_node_t *node, uint32_t pos) {
     aal_assert("umka-554", node != NULL, return NULL);
     
-    return libreiser4_plugins_call(return NULL, node->plugin->node, 
+    return libreiser4_plugin_call(return NULL, node->plugin->node, 
 	item_at, node->block, pos);
 }
 
 void *reiserfs_node_item_key_at(reiserfs_node_t *node, uint32_t pos) {
     aal_assert("umka-565", node != NULL, return NULL);
     
-    return libreiser4_plugins_call(return NULL, node->plugin->node, 
+    return libreiser4_plugin_call(return NULL, node->plugin->node, 
 	item_key_at, node->block, pos);
 }
 
@@ -510,7 +510,7 @@ blk_t reiserfs_node_item_get_pointer(reiserfs_node_t *node, uint32_t pos) {
 	return 0;
     }
     
-    return libreiser4_plugins_call(return 0, plugin->item.specific.internal, 
+    return libreiser4_plugin_call(return 0, plugin->item.specific.internal, 
 	get_pointer, body);
 }
 
@@ -535,7 +535,7 @@ void reiserfs_node_item_set_pointer(reiserfs_node_t *node,
 	return;
     }
     
-    libreiser4_plugins_call(return, plugin->item.specific.internal, 
+    libreiser4_plugin_call(return, plugin->item.specific.internal, 
 	set_pointer, body, blk);
 }
 
@@ -560,7 +560,7 @@ int reiserfs_node_item_has_pointer(reiserfs_node_t *node,
 	return 0;
     }
     
-    return libreiser4_plugins_call(return 0, plugin->item.specific.internal, 
+    return libreiser4_plugin_call(return 0, plugin->item.specific.internal, 
 	has_pointer, body, blk);
 }
 
@@ -574,7 +574,7 @@ int reiserfs_node_item_internal(reiserfs_node_t *node, uint32_t pos) {
 	    "Can't find item plugin.");
 	return 0;
     }
-    return libreiser4_plugins_call(return 0, plugin->item.common, internal,);
+    return libreiser4_plugin_call(return 0, plugin->item.common, internal,);
 }
 
 /*
@@ -623,7 +623,7 @@ error_t reiserfs_node_item_estimate(reiserfs_node_t *node,
 	return 0;
     
     /* Estimate for the 2nd and for the 4th cases */
-    return libreiser4_plugins_call(return -1, item_info->plugin->item.common, estimate, 
+    return libreiser4_plugin_call(return -1, item_info->plugin->item.common, estimate, 
 	item_info, coord);
 }
 
@@ -654,11 +654,11 @@ error_t reiserfs_node_item_insert(reiserfs_node_t *node, reiserfs_coord_t *coord
     }
 
     if (coord->unit_pos == -1) {
-	if ((ret = libreiser4_plugins_call(return -1, node->plugin->node, item_insert, 
+	if ((ret = libreiser4_plugin_call(return -1, node->plugin->node, item_insert, 
 		node->block, coord, key, item_info)) != 0)
 	    return ret;
     } else {
-	if ((ret = libreiser4_plugins_call(return -1, node->plugin->node, item_paste, 
+	if ((ret = libreiser4_plugin_call(return -1, node->plugin->node, item_paste, 
 		node->block, coord, key, item_info)) != 0)
 	    return ret;
     }
@@ -671,7 +671,7 @@ error_t reiserfs_node_item_insert(reiserfs_node_t *node, reiserfs_coord_t *coord
         aal_memcpy(coord->node->plugin->node.item(coord->node, coord->item_pos),
             item_info->data, item_info->length);
     } else {
-        libreiser4_plugins_call(return -1, item_info->plugin->item.common, create, 
+        libreiser4_plugin_call(return -1, item_info->plugin->item.common, create, 
 	    coord, item_info);
     }
 */
@@ -682,7 +682,7 @@ reiserfs_plugin_id_t reiserfs_node_item_get_plugin_id(reiserfs_node_t *node,
     uint32_t pos)
 {
     aal_assert("vpf-047", node != NULL, return 0);
-    return libreiser4_plugins_call(return 0, node->plugin->node, 
+    return libreiser4_plugin_call(return 0, node->plugin->node, 
 	item_get_plugin_id, node->block, pos);
 }
 
@@ -690,7 +690,7 @@ reiserfs_plugin_t *reiserfs_node_item_get_plugin(reiserfs_node_t *node,
     uint32_t pos)
 {
     aal_assert("umka-542", node != NULL, return 0);
-    return libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, 
+    return libreiser4_factory_find_by_coord(REISERFS_ITEM_PLUGIN, 
 	reiserfs_node_item_get_plugin_id(node, pos)); 
 }
 
@@ -698,7 +698,7 @@ void reiserfs_node_item_set_plugin_id(reiserfs_node_t *node,
     uint32_t pos, reiserfs_plugin_id_t plugin_id)
 {
     aal_assert("umka-551", node != NULL, return);
-    libreiser4_plugins_call(return, node->plugin->node, item_set_plugin_id, 
+    libreiser4_plugin_call(return, node->plugin->node, item_set_plugin_id, 
 	node->block, pos, plugin_id);
 }
 

@@ -261,7 +261,7 @@ int main(int argc, char *argv[]) {
     fprintf(stderr, "done\n");
     
     reiserfs_fs_close(fs);
-    libreiser4_fini();
+    libreiser4_done();
     aal_file_close(device);
     
     return 0;
@@ -271,7 +271,7 @@ error_free_fs:
 error_free_device:
     aal_file_close(device);
 error_free_libreiser4:
-    libreiser4_fini();
+    libreiser4_done();
 error:
     return 0xff;
 }

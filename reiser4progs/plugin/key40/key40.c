@@ -345,5 +345,5 @@ static reiserfs_plugin_t *key40_entry(reiserfs_plugin_factory_t *f) {
     return &key40_plugin;
 }
 
-libreiser4_plugins_register(key40_entry);
+libreiser4_factory_register(key40_entry);
 

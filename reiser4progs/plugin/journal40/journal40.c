@@ -194,5 +194,5 @@ static reiserfs_plugin_t *journal40_entry(reiserfs_plugin_factory_t *f) {
     return &journal40_plugin;
 }
 
-libreiser4_plugins_register(journal40_entry);
+libreiser4_factory_register(journal40_entry);
 

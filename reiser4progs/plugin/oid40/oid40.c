@@ -100,5 +100,5 @@ static reiserfs_plugin_t *oid40_entry(reiserfs_plugin_factory_t *f) {
     return &oid40_plugin;
 }
 
-libreiser4_plugins_register(oid40_entry);
+libreiser4_factory_register(oid40_entry);
 

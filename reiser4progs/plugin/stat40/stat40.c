@@ -113,5 +113,5 @@ static reiserfs_plugin_t *stat40_entry(reiserfs_plugin_factory_t *f) {
     return &stat40_plugin;
 }
 
-libreiser4_plugins_register(stat40_entry);
+libreiser4_factory_register(stat40_entry);
 

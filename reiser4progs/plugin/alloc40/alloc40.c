@@ -184,5 +184,5 @@ static reiserfs_plugin_t *alloc40_entry(reiserfs_plugin_factory_t *f) {
     return &alloc40_plugin;
 }
 
-libreiser4_plugins_register(alloc40_entry);
+libreiser4_factory_register(alloc40_entry);
 

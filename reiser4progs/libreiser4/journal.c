@@ -27,7 +27,7 @@ error_t reiserfs_journal_open(reiserfs_fs_t *fs, int replay) {
 	return -1;
 	
     id = reiserfs_format_journal_plugin_id(fs);
-    if (!(plugin = libreiser4_plugins_find_by_coords(REISERFS_JOURNAL_PLUGIN, id))) {
+    if (!(plugin = libreiser4_factory_find_by_coord(REISERFS_JOURNAL_PLUGIN, id))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find journal plugin by its identifier %x.", id);
 	goto error_free_journal;
@@ -42,7 +42,7 @@ error_t reiserfs_journal_open(reiserfs_fs_t *fs, int replay) {
     }
 	
     /* Optional replaying the journal */
-    if (replay && libreiser4_plugins_call(goto error_free_entity, 
+    if (replay && libreiser4_plugin_call(goto error_free_entity, 
 	plugin->journal, replay, fs->journal->entity)) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -53,7 +53,7 @@ error_t reiserfs_journal_open(reiserfs_fs_t *fs, int replay) {
     return 0;
 
 error_free_entity:
-    libreiser4_plugins_call(goto error_free_journal, plugin->journal, 
+    libreiser4_plugin_call(goto error_free_journal, plugin->journal, 
 	close, fs->journal);
 error_free_journal:
     aal_free(fs->journal);
@@ -68,7 +68,7 @@ error_t reiserfs_journal_sync(reiserfs_fs_t *fs) {
     aal_assert("umka-099", fs != NULL, return -1);
     aal_assert("umka-100", fs->journal != NULL, return -1);
 
-    return libreiser4_plugins_call(return -1, fs->journal->plugin->journal, 
+    return libreiser4_plugin_call(return -1, fs->journal->plugin->journal, 
 	sync, fs->journal->entity);
 }
 

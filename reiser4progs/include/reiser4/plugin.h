@@ -470,26 +470,26 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
     
     (1) Create the description of the data being inserted.
     (2) Ask item plugin how much space is needed for the 
-    data, described in 1.
+	data, described in 1.
     
     (3) Free needed space for data being inserted.
     (4) Ask item plugin to create an item (to paste into 
-    the item) on the base of description from 1.
+	the item) on the base of description from 1.
 
     For such purposes we have:
     
     (1) Fixed description structures for all item types (stat, 
-    diritem, internal, etc).
+	diritem, internal, etc).
     
     (2) Estimate common item method which gets coord of where 
-    to insert into (NULL or unit_pos == -1 for insertion, 
-    otherwise it is pasting) and data description from 1.
+	to insert into (NULL or unit_pos == -1 for insertion, 
+	otherwise it is pasting) and data description from 1.
     
     (3) Insert node methods prepare needed space and call 
-    Create/Paste item methods if data description is specified.
+	Create/Paste item methods if data description is specified.
     
     (4) Create/Paste item methods if data description has not 
-    beed specified on 3. 
+	beed specified on 3. 
 */
 
 /* 
@@ -562,7 +562,7 @@ struct reiserfs_coord {
 typedef struct reiserfs_coord reiserfs_coord_t;
 
 struct reiserfs_plugin_factory {
-    reiserfs_plugin_t *(*find_by_coords)(reiserfs_plugin_id_t, reiserfs_plugin_id_t);
+    reiserfs_plugin_t *(*find_by_coord)(reiserfs_plugin_id_t, reiserfs_plugin_id_t);
     reiserfs_plugin_t *(*find_by_label)(const char *);
 };
 
@@ -571,9 +571,10 @@ typedef struct reiserfs_plugin_factory reiserfs_plugin_factory_t;
 typedef reiserfs_plugin_t *(*reiserfs_plugin_entry_t) (reiserfs_plugin_factory_t *);
 typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 
+/* Plugin functions and macros */
 #ifndef ENABLE_COMPACT
 
-#define libreiser4_plugins_call(action, ops, method, args...)	    \
+#define libreiser4_plugin_call(action, ops, method, args...)	    \
     ({								    \
 	if (!ops.##method##) {					    \
 	    aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,	    \
@@ -586,40 +587,42 @@ typedef error_t (*reiserfs_plugin_func_t) (reiserfs_plugin_t *, void *);
 
 #else
 
-#define libreiser4_plugins_call(action, ops, method, args...)	    \
+#define libreiser4_plugin_call(action, ops, method, args...)	    \
     ({ops.##method##(##args);})					    \
-    
-#endif
-
-#if defined(ENABLE_COMPACT) || defined(ENABLE_MONOLITHIC)
-    
-#define libreiser4_plugins_register(entry)			    \
-    static reiserfs_plugin_entry_t __plugin_entry		    \
-	__attribute__((__section__(".plugins"))) = entry
-#else
-
-#define libreiser4_plugins_register(entry)			    \
-    reiserfs_plugin_entry_t __plugin_entry = entry
     
 #endif
 
 #define REISERFS_GUESS_PLUGIN_ID 0xff
 
-extern error_t libreiser4_plugins_init(void);
-extern void libreiser4_plugins_fini(void);
-
 #if !defined(ENABLE_COMPACT) && !defined(ENABLE_MONOLITHIC)
-extern reiserfs_plugin_t *libreiser4_plugins_load_by_name(const char *name);
+extern reiserfs_plugin_t *libreiser4_plugin_load_by_name(const char *name);
+#endif
+extern reiserfs_plugin_t *libreiser4_plugin_load_by_entry(reiserfs_plugin_entry_t entry);
+
+extern void libreiser4_plugin_unload(reiserfs_plugin_t *plugin);
+
+/* Factory functions */
+extern error_t libreiser4_factory_init(void);
+extern void libreiser4_factory_done(void);
+
+#if defined(ENABLE_COMPACT) || defined(ENABLE_MONOLITHIC)
+    
+#define libreiser4_factory_register(entry)			    \
+    static reiserfs_plugin_entry_t __plugin_entry		    \
+	__attribute__((__section__(".plugins"))) = entry
+#else
+
+#define libreiser4_factory_register(entry)			    \
+    reiserfs_plugin_entry_t __plugin_entry = entry
+    
 #endif
 
-extern reiserfs_plugin_t *libreiser4_plugins_load_by_entry(reiserfs_plugin_entry_t entry);
-extern void libreiser4_plugins_unload(reiserfs_plugin_t *plugin);
-
-extern reiserfs_plugin_t *libreiser4_plugins_find_by_coords(reiserfs_plugin_id_t type,
+extern reiserfs_plugin_t *libreiser4_factory_find_by_coord(reiserfs_plugin_id_t type,
     reiserfs_plugin_id_t id);
 
-extern reiserfs_plugin_t *libreiser4_plugins_find_by_label(const char *label);
-extern error_t libreiser4_plugins_foreach(reiserfs_plugin_func_t plugin_func, void *data);
+extern reiserfs_plugin_t *libreiser4_factory_find_by_label(const char *label);
+
+extern error_t libreiser4_factory_foreach(reiserfs_plugin_func_t plugin_func, void *data);
 
 #endif
 

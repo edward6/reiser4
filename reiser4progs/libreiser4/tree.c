@@ -95,7 +95,7 @@ error:
     aal_assert("vpf-115", profile != NULL, return -1);
     aal_assert("umka-130", fs->format != NULL, return -1);
 
-    if (!(key_plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 
+    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 
 	profile->key))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -132,15 +132,15 @@ error:
     /* Initialize internal item. */
 /*    internal_info.blk = block_nr;
   
-    libreiser4_plugins_call(goto error_free_squeeze, key_plugin->key, clean, &key);
-    libreiser4_plugins_call(goto error_free_squeeze, key_plugin->key, 
+    libreiser4_plugin_call(goto error_free_squeeze, key_plugin->key, clean, &key);
+    libreiser4_plugin_call(goto error_free_squeeze, key_plugin->key, 
 	build_file_key, &key, KEY40_STATDATA_MINOR, reiserfs_oid_root_parent_objectid(fs),
 	reiserfs_oid_root_objectid(fs), 0);
     
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &internal_info;
     
-    if (!(item_info.plugin = libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, 
+    if (!(item_info.plugin = libreiser4_factory_find_by_coord(REISERFS_ITEM_PLUGIN, 
 	profile->item.internal))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -181,7 +181,7 @@ error:
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &stat_info;
     
-    if (!(item_info.plugin = libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN,
+    if (!(item_info.plugin = libreiser4_factory_find_by_coord(REISERFS_ITEM_PLUGIN,
 	profile->item.statdata)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -205,9 +205,9 @@ error:
     direntry_info.key_plugin = key_plugin;
     direntry_info.hash_plugin = NULL;
     
-    libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, clean, &key);
+    libreiser4_plugin_call(goto error_free_leaf, key_plugin->key, clean, &key);
     
-    if (libreiser4_plugins_call(goto error_free_leaf, key_plugin->key, build_dir_key, 
+    if (libreiser4_plugin_call(goto error_free_leaf, key_plugin->key, build_dir_key, 
 	&key, direntry_info.hash_plugin, direntry_info.parent_id, direntry_info.object_id, "."))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -221,7 +221,7 @@ error:
     coord.item_pos = 1;
     coord.unit_pos = -1;
 
-    if (!(item_info.plugin = libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, 
+    if (!(item_info.plugin = libreiser4_factory_find_by_coord(REISERFS_ITEM_PLUGIN, 
 	profile->item.direntry))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -273,7 +273,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     aal_assert("vpf-115", profile != NULL, return -1);
     aal_assert("umka-130", fs->format != NULL, return -1);
 
-    if (!(key_plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 
+    if (!(key_plugin = libreiser4_factory_find_by_coord(REISERFS_KEY_PLUGIN, 
 	profile->key))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -310,16 +310,16 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     /* Initialize internal item. */
     internal_info.blk = block_nr;
   
-    libreiser4_plugins_call(goto error_free_squeeze, key_plugin->key, clean, &key);
+    libreiser4_plugin_call(goto error_free_squeeze, key_plugin->key, clean, &key);
 
-    libreiser4_plugins_call(goto error_free_squeeze, key_plugin->key, 
+    libreiser4_plugin_call(goto error_free_squeeze, key_plugin->key, 
 	build_file_key, &key, KEY40_STATDATA_MINOR, reiserfs_oid_root_parent_objectid(fs),
 	reiserfs_oid_root_objectid(fs), 0);
     
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &internal_info;
     
-    if (!(item_info.plugin = libreiser4_plugins_find_by_coords(REISERFS_ITEM_PLUGIN, 
+    if (!(item_info.plugin = libreiser4_factory_find_by_coord(REISERFS_ITEM_PLUGIN, 
 	profile->item.internal))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -355,7 +355,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
 	goto error_free_leaf;
     }
 
-    if (!(dir_plugin = libreiser4_plugins_find_by_coords(REISERFS_DIR_PLUGIN, 
+    if (!(dir_plugin = libreiser4_factory_find_by_coord(REISERFS_DIR_PLUGIN, 
 	profile->dir)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -368,7 +368,7 @@ error_t reiserfs_tree_create(reiserfs_fs_t *fs,
     coord.block = leaf->block;
 
     /* Creating root directory */    
-    if (!(fs->tree->root_dir = libreiser4_plugins_call(goto error_free_leaf, 
+    if (!(fs->tree->root_dir = libreiser4_plugin_call(goto error_free_leaf, 
 	dir_plugin->dir, create, &coord, profile->key, profile->item.statdata, 
 	profile->item.direntry, profile->oid, profile->node)))
     {
@@ -430,7 +430,7 @@ void reiserfs_tree_close(reiserfs_fs_t *fs) {
 
     if (fs->tree->root_dir && fs->tree->dir_plugin) {
 	/* Here will be calling dir API method */    
-	libreiser4_plugins_call(goto error_free_root_node, fs->tree->dir_plugin->dir, 
+	libreiser4_plugin_call(goto error_free_root_node, fs->tree->dir_plugin->dir, 
 	    close, fs->tree->root_dir);
     }
 

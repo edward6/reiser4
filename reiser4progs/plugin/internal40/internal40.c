@@ -125,5 +125,5 @@ static reiserfs_plugin_t *internal40_entry(reiserfs_plugin_factory_t *f) {
     return &internal40_plugin;
 }
 
-libreiser4_plugins_register(internal40_entry);
+libreiser4_factory_register(internal40_entry);
 

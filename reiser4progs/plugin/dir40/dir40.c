@@ -27,7 +27,7 @@ static error_t dir40_item_insert(reiserfs_item_info_t *item_info,
 {
     uint32_t overhead, free_space;
 
-    if (libreiser4_plugins_call(return -1, item_info->plugin->item.common, estimate, 
+    if (libreiser4_plugin_call(return -1, item_info->plugin->item.common, estimate, 
 	item_info, item_coord))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -35,10 +35,10 @@ static error_t dir40_item_insert(reiserfs_item_info_t *item_info,
 	return -1;
     }
 
-    overhead = libreiser4_plugins_call(return -1, node_plugin->node, item_overhead, 
+    overhead = libreiser4_plugin_call(return -1, node_plugin->node, item_overhead, 
 	dir_coord->block);
     
-    free_space = libreiser4_plugins_call(return -1, node_plugin->node, get_free_space, 
+    free_space = libreiser4_plugin_call(return -1, node_plugin->node, get_free_space, 
 	dir_coord->block);
     
     if (item_info->length + overhead > free_space) {
@@ -48,7 +48,7 @@ static error_t dir40_item_insert(reiserfs_item_info_t *item_info,
 	return -1;
     }
     
-    return libreiser4_plugins_call(return -1, node_plugin->node, item_insert, 
+    return libreiser4_plugin_call(return -1, node_plugin->node, item_insert, 
 	dir_coord->block, item_coord, key, item_info);
 }
 
@@ -78,7 +78,7 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
     aal_assert("umka-672", dir_coord->block != NULL, return NULL);
 
     /* Initialize plugins */
-    if (!(key_plugin = libreiser4_plugins_find_by_coords(REISERFS_KEY_PLUGIN, 
+    if (!(key_plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 
 	key_plugin_id))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -86,7 +86,7 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
 	return NULL;
     }
     
-    if (!(node_plugin = factory->find_by_coords(REISERFS_NODE_PLUGIN,
+    if (!(node_plugin = factory->find_by_coord(REISERFS_NODE_PLUGIN,
 	node_plugin_id)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -94,7 +94,7 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
 	return NULL;
     }
     
-    if (!(oid_plugin = factory->find_by_coords(REISERFS_OID_PLUGIN, 
+    if (!(oid_plugin = factory->find_by_coord(REISERFS_OID_PLUGIN, 
 	oid_plugin_id)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -102,13 +102,13 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
 	return NULL;
     }
     
-    root_parent_objectid = libreiser4_plugins_call(return NULL, 
+    root_parent_objectid = libreiser4_plugin_call(return NULL, 
 	oid_plugin->oid, root_parent_objectid,);
     
-    root_parent_locality = libreiser4_plugins_call(return NULL, 
+    root_parent_locality = libreiser4_plugin_call(return NULL, 
 	oid_plugin->oid, root_parent_locality,);
     
-    root_objectid = libreiser4_plugins_call(return NULL, 
+    root_objectid = libreiser4_plugin_call(return NULL, 
 	oid_plugin->oid, root_objectid,);
     
     if (!(dir = aal_calloc(sizeof(*dir), 0)))
@@ -128,11 +128,11 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
     item_coord.item_pos = 0;
     item_coord.unit_pos = -1;
     
-    libreiser4_plugins_call(goto error_free_dir, key_plugin->key, clean, &key);
-    libreiser4_plugins_call(goto error_free_dir, key_plugin->key, build_file_key, 
+    libreiser4_plugin_call(goto error_free_dir, key_plugin->key, clean, &key);
+    libreiser4_plugin_call(goto error_free_dir, key_plugin->key, build_file_key, 
 	&key, KEY40_STATDATA_MINOR, root_parent_objectid, root_objectid, 0);
     
-    if (!(item_info.plugin = factory->find_by_coords(REISERFS_ITEM_PLUGIN,
+    if (!(item_info.plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN,
 	stat_plugin_id)))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
@@ -171,15 +171,15 @@ static reiserfs_dir40_t *dir40_create(reiserfs_coord_t *dir_coord, uint16_t key_
     aal_memset(&item_info, 0, sizeof(item_info));
     item_info.info = &direntry_info;
 
-    libreiser4_plugins_call(goto error_free_dir, key_plugin->key, clean, &key);
-    libreiser4_plugins_call(goto error_free_dir, key_plugin->key, build_dir_key, 
+    libreiser4_plugin_call(goto error_free_dir, key_plugin->key, clean, &key);
+    libreiser4_plugin_call(goto error_free_dir, key_plugin->key, build_dir_key, 
 	&key, direntry_info.hash_plugin, direntry_info.parent_id, 
 	direntry_info.object_id, ".");
      
     item_coord.item_pos = 1;
     item_coord.unit_pos = -1;
 
-    if (!(item_info.plugin = factory->find_by_coords(REISERFS_ITEM_PLUGIN, 
+    if (!(item_info.plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN, 
 	direntry_plugin_id))) 
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
@@ -238,4 +238,4 @@ static reiserfs_plugin_t *dir40_entry(reiserfs_plugin_factory_t *f) {
     return &dir40_plugin;
 }
 
-libreiser4_plugins_register(dir40_entry);
+libreiser4_factory_register(dir40_entry);

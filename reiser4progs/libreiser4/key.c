@@ -13,7 +13,7 @@ error_t reiserfs_key_build_file_key(reiserfs_key_t *key,
     aal_assert("umka-665", key != NULL, return -1);
     aal_assert("umka-666", key_plugin != NULL, return -1);
 
-    return libreiser4_plugins_call(return -1, key_plugin->key, build_file_key, 
+    return libreiser4_plugin_call(return -1, key_plugin->key, build_file_key, 
 	key, type, locality, objectid, offset);
 }
 
@@ -25,7 +25,7 @@ error_t reiserfs_key_build_dir_key(reiserfs_key_t *key,
     aal_assert("umka-669", key_plugin != NULL, return -1);
     aal_assert("umka-670", name != NULL, return -1);
     
-    return libreiser4_plugins_call(return -1, key_plugin->key, build_dir_key, 
+    return libreiser4_plugin_call(return -1, key_plugin->key, build_dir_key, 
 	key, hash_plugin, locality, objectid, name);
 }
 

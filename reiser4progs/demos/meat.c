@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
     meat_print_fs(fs);
 
     reiserfs_fs_close(fs);
-    libreiser4_fini();
+    libreiser4_done();
     aal_file_close(device);
 
     return 0;
@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
 error_free_device:
     aal_file_close(device);
 error_free_libreiser4:
-    libreiser4_fini();
+    libreiser4_done();
 error:
     
 #endif

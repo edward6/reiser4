@@ -72,12 +72,12 @@ static uint16_t node40_item_maxnum(aal_block_t *block) {
    
     for (i = 0; i < nh40_get_num_items(reiserfs_nh40(block)); i++) {
 	uint16_t plugin_id = ih40_get_plugin_id(node40_ih_at(block, i));
-	if (!(plugin = factory->find_by_coords(REISERFS_ITEM_PLUGIN, plugin_id))) {
+	if (!(plugin = factory->find_by_coord(REISERFS_ITEM_PLUGIN, plugin_id))) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 		"Can't find item plugin by its id %x.", plugin_id);
 	    return 0;
 	}
-	total_size += libreiser4_plugins_call(return 0, plugin->item.common, 
+	total_size += libreiser4_plugin_call(return 0, plugin->item.common, 
 	    minsize,) + sizeof(reiserfs_ih40_t);
     }
     return (block->size - sizeof(reiserfs_nh40_t)) / total_size;
@@ -183,14 +183,14 @@ static error_t node40_prepare_space(aal_block_t *block,
     if (!is_new_item)	
 	return 0;
     
-    if (!(plugin = factory->find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
+    if (!(plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find key plugin by its id %x.", 0x0);
 	return -1;
     }
 
     /* Create a new item header */
-    aal_memcpy(&ih->key, key, libreiser4_plugins_call(return -1, 
+    aal_memcpy(&ih->key, key, libreiser4_plugin_call(return -1, 
 	plugin->key, size,));
     
     ih40_set_offset(ih, offset);
@@ -214,7 +214,7 @@ static error_t node40_item_insert(aal_block_t *block,
     nh = reiserfs_nh40(block);
     nh40_set_num_items(nh, nh40_get_num_items(nh) + 1);
     
-    return libreiser4_plugins_call(return -1, info->plugin->item.common,
+    return libreiser4_plugin_call(return -1, info->plugin->item.common,
 	create, node40_item_at_pos(block, coord->item_pos), info);
 }
 
@@ -227,7 +227,7 @@ static error_t node40_item_paste(aal_block_t *block,
     if (node40_prepare_space(block, coord, key, info))
 	return -1;
 
-    return libreiser4_plugins_call(return -1, info->plugin->item.common,
+    return libreiser4_plugin_call(return -1, info->plugin->item.common,
 	unit_add, node40_item_at_pos(block, coord->item_pos), coord, info);
 }
 
@@ -340,7 +340,7 @@ static int callback_compare_for_lookup(const void *key1,
 
     plugin = (reiserfs_plugin_t *)data;
 
-    return libreiser4_plugins_call(return -2, plugin->key, 
+    return libreiser4_plugin_call(return -2, plugin->key, 
 	compare, key1, key2);
 }
 
@@ -447,5 +447,5 @@ static reiserfs_plugin_t *node40_entry(reiserfs_plugin_factory_t *f) {
     return &node40_plugin;
 }
 
-libreiser4_plugins_register(node40_entry);
+libreiser4_factory_register(node40_entry);
 

@@ -105,5 +105,5 @@ static reiserfs_plugin_t *alloc36_entry(reiserfs_plugin_factory_t *f) {
     return &alloc36_plugin;
 }
 
-libreiser4_plugins_register(alloc36_entry);
+libreiser4_factory_register(alloc36_entry);
 

@@ -305,5 +305,5 @@ static reiserfs_plugin_t *format36_entry(reiserfs_plugin_factory_t *f) {
     return &format36_plugin;
 }
 
-libreiser4_plugins_register(format36_entry);
+libreiser4_factory_register(format36_entry);
 

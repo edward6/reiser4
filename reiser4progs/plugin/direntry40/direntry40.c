@@ -30,12 +30,12 @@ static void direntry40_build_key_by_objid(void *key, reiserfs_plugin_t *plugin,
     aal_assert("vpf-124", key != NULL, return);
     aal_assert("umka-660", plugin != NULL, return);
 
-    libreiser4_plugins_call(return, plugin->key, clean, key);
-    libreiser4_plugins_call(return, plugin->key, set_locality, key, 
+    libreiser4_plugin_call(return, plugin->key, clean, key);
+    libreiser4_plugin_call(return, plugin->key, set_locality, key, 
 	objid_get_locality(id));
-    libreiser4_plugins_call(return, plugin->key, set_objectid, key, 
+    libreiser4_plugin_call(return, plugin->key, set_objectid, key, 
 	objid_get_objectid(id));
-    libreiser4_plugins_call(return, plugin->key, set_type, key, 
+    libreiser4_plugin_call(return, plugin->key, set_type, key, 
 	KEY40_SD_MINOR);
 }
 */
@@ -82,11 +82,11 @@ static error_t direntry40_create(reiserfs_direntry40_t *direntry,
     for (i = 0; i < direntry_info->count; i++) {	
 	e40_set_offset(&direntry->entry[i], offset);
 
-	libreiser4_plugins_call(return -1, key_plugin->key, build_dir_short_key, 
+	libreiser4_plugin_call(return -1, key_plugin->key, build_dir_short_key, 
 	    &direntry->entry[i].entryid, direntry_info->entry[i].name, 
 	    direntry_info->hash_plugin, sizeof(reiserfs_entryid_t));
 
-	libreiser4_plugins_call(return -1, key_plugin->key, build_file_short_key, 
+	libreiser4_plugin_call(return -1, key_plugin->key, build_file_short_key, 
 	    (reiserfs_objid_t *)((char *)direntry + offset), KEY40_STATDATA_MINOR, 
 	    direntry_info->entry[i].locality, direntry_info->entry[i].objectid, 
 	    sizeof(reiserfs_objid_t));
@@ -171,18 +171,18 @@ static int callback_cmp_for_lookup(const void *key1, const void *key2,
     
     plugin = (reiserfs_plugin_t *)data;
     
-    locality = libreiser4_plugins_call(return -2, plugin->key, 
+    locality = libreiser4_plugin_call(return -2, plugin->key, 
 	get_locality, (void *)key2);
    
     objectid = entryid_get_objectid(((reiserfs_entryid_t *)key1));
     offset = entryid_get_offset(((reiserfs_entryid_t *)key1));
     
     /* FIXME-UMKA: Here should be not hardcoded key parameters */
-    libreiser4_plugins_call(return -2, plugin->key, clean, &key);
-    libreiser4_plugins_call(return -2, plugin->key, build_file_key, 
+    libreiser4_plugin_call(return -2, plugin->key, clean, &key);
+    libreiser4_plugin_call(return -2, plugin->key, build_file_key, 
 	&key, 0, locality, objectid, offset);
     
-    return libreiser4_plugins_call(return -2, plugin->key, compare, &key, key2);
+    return libreiser4_plugin_call(return -2, plugin->key, compare, &key, key2);
 }
 
 static int direntry40_lookup(reiserfs_direntry40_t *direntry, 
@@ -196,7 +196,7 @@ static int direntry40_lookup(reiserfs_direntry40_t *direntry,
     aal_assert("umka-610", key != NULL, return -2);
     aal_assert("umka-629", coord != NULL, return -2);
     
-    if (!(plugin = factory->find_by_coords(REISERFS_KEY_PLUGIN, 0x0))) {
+    if (!(plugin = factory->find_by_coord(REISERFS_KEY_PLUGIN, 0x0))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't find key plugin by its id %x.", 0x0);
 	return -2;
@@ -271,5 +271,5 @@ static reiserfs_plugin_t *direntry40_entry(reiserfs_plugin_factory_t *f) {
     return &direntry40_plugin;
 }
 
-libreiser4_plugins_register(direntry40_entry);
+libreiser4_factory_register(direntry40_entry);
 
