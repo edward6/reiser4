@@ -54,7 +54,8 @@ typedef enum {
 	/* reiser4_inode->cluster_shift makes sense */
 	REISER4_CLUSTER_KNOWN = 8,
 	/* cryptcompress_inode_data points to the secret key */
-	REISER4_SECRET_KEY_INSTALLED = 9
+	REISER4_SECRET_KEY_INSTALLED = 9,
+	REISER4_DEC_UNUSED = 10
 } reiser4_file_plugin_flags;
 
 #if BITS_PER_LONG == 64

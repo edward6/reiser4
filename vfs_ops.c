@@ -1034,6 +1034,7 @@ init_committed_sb_counters(const struct super_block *s)
 	sbinfo->nr_files_committed = oids_used(s);
 }
 
+DEFINE_SPIN_PROFREGIONS(zgen);
 DEFINE_SPIN_PROFREGIONS(epoch);
 DEFINE_SPIN_PROFREGIONS(jnode);
 DEFINE_SPIN_PROFREGIONS(stack);
@@ -1071,6 +1072,7 @@ static int register_profregions(void)
 #endif
 	register_zlock_profregion();
 	register_super_eflush_profregion();
+	register_zgen_profregion();
 	register_epoch_profregion();
 	register_jnode_profregion();
 	register_stack_profregion();
@@ -1093,6 +1095,7 @@ static void unregister_profregions(void)
 {
 	unregister_zlock_profregion();
 	unregister_super_eflush_profregion();
+	unregister_zgen_profregion();
 	unregister_epoch_profregion();
 	unregister_jnode_profregion();
 	unregister_stack_profregion();
