@@ -192,6 +192,10 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 		reiser4_object_create_data * data	/* parameters to create
 							 * object */ )
 {
+	reiser4_super_info_data *sinfo;
+
+	sinfo = get_super_private(inode->i_sb);
+
 	switch (inode->i_mode & S_IFMT) {
 	case S_IFSOCK:
 	case S_IFBLK:
@@ -211,15 +215,19 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 			break;
 		}
 	case S_IFLNK:
-		inode->i_op = &reiser4_symlink_inode_operations;
+		inode->i_op = &sinfo->ops.symlink;
 		inode->i_fop = NULL;
-		inode->i_mapping->a_ops = &reiser4_as_operations;
+		inode->i_mapping->a_ops = &sinfo->ops.as;
 		break;
 	case S_IFDIR:
+		inode->i_op = &sinfo->ops.dir;
+		inode->i_fop = &sinfo->ops.file;
+		inode->i_mapping->a_ops = &sinfo->ops.as;
+		break;
 	case S_IFREG:
-		inode->i_op = &reiser4_inode_operations;
-		inode->i_fop = &reiser4_file_operations;
-		inode->i_mapping->a_ops = &reiser4_as_operations;
+		inode->i_op = &sinfo->ops.regular;
+		inode->i_fop = &sinfo->ops.file;
+		inode->i_mapping->a_ops = &sinfo->ops.as;
 		break;
 	default:
 		warning("nikita-291", "wrong file mode: %o for %llu", inode->i_mode, get_inode_oid(inode));

@@ -428,6 +428,24 @@ int reiser4_blocknr_is_sane(const reiser4_block_nr *blk)
 	return reiser4_blocknr_is_sane_for(reiser4_get_current_sb(), blk);
 }
 
+void build_object_ops(struct super_block *super, object_ops *ops)
+{
+	assert("nikita-3248", super != NULL);
+	assert("nikita-3249", ops   != NULL);
+
+	ops->file    = reiser4_file_operations;
+	ops->regular = reiser4_inode_operations;
+	ops->dir     = reiser4_inode_operations;
+	ops->symlink = reiser4_symlink_inode_operations;
+	ops->dentry  = reiser4_dentry_operation;
+	ops->as      = reiser4_as_operations;
+
+	if (reiser4_is_set(super, REISER4_NO_PSEUDO)) {
+		ops->regular.lookup = NULL;
+		ops->file.open = NULL;
+	}
+}
+
 #if REISER4_DEBUG_OUTPUT
 void
 print_fs_info(const char *prefix, const struct super_block *s)
