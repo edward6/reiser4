@@ -126,6 +126,8 @@ txn_done_static (void)
 {
 	int ret1, ret2;
 
+	ret1 = ret2 = 0;
+
 	if (_atom_slab != NULL) {
 		ret1 = kmem_cache_destroy (_atom_slab);
 		_atom_slab = NULL;
