@@ -1592,8 +1592,11 @@ try_capture_block(txn_handle * txnh, jnode * node, txn_capture mode, txn_atom **
 			/* Either the txnh is now assigned to the block's atom or the read-request was
 			   granted because the block is committing.  Locks still held. */
 		} else {
-			if (mode & TXN_CAPTURE_DONT_FUSE)
+			if (mode & TXN_CAPTURE_DONT_FUSE) {
+				spin_unlock_txnh(txnh);
+				spin_unlock_jnode(node);
 				return -ENAVAIL;
+			}
 
 			/* In this case, both txnh and node belong to different atoms.  This function
 			   returns -EAGAIN on successful fusion, 0 on the fall-through case. */
@@ -1716,6 +1719,9 @@ repeat:
 	*/
 	assert("nikita-2674", ergo(ret == 0, spin_jnode_is_locked(node)));
 	assert("nikita-2675", ergo(ret != 0, spin_jnode_is_not_locked(node)));
+
+	assert("nikita-2973", ergo(ret == 0, spin_txnh_is_locked(txnh)));
+	assert("nikita-2974", ergo(ret != 0, spin_txnh_is_not_locked(txnh)));
 
 	if (ret == -EAGAIN && !non_blocking) {
 		/* EAGAIN implies all locks were released, therefore we need to take the
@@ -2111,7 +2117,7 @@ jnode_set_dirty(jnode * node)
 		tree = jnode_get_tree(node);
 		z = JZNODE(node);
 		/* bump version counter in znode */
-		z->version = UNDER_SPIN(tree, tree, ++tree->znode_epoch);
+		z->version = UNDER_RW(tree, tree, write, ++tree->znode_epoch);
 		/* FIXME: This makes no sense, delete it, reenable nikita-1900:
 
 		   the flush code sets a node dirty even though it is read locked... but
