@@ -378,7 +378,7 @@ static void tree_rec_dot( reiser4_tree *tree /* tree to print */,
 		 sprintf_key( buffer_l, &node -> ld_key ),
 		 sprintf_key( buffer_r, &node -> rd_key ) );
 
-	for( coord_init_first_unit( &coord, node ); coord_next_item( &coord ) == 0; ) {
+	for( coord_init_before_first_item( &coord, node ); coord_next_item( &coord ) == 0; ) {
 
 		if( item_is_internal( &coord ) ) {
 			znode *child;
@@ -435,7 +435,7 @@ static void tree_rec( reiser4_tree *tree /* tree to print */,
 		print_address( "children of node", znode_get_block( node ) );
 	}
 
-	for( coord_init_first_unit( &coord, node ); coord_next_item( &coord ) == 0; ) {
+	for( coord_init_before_first_item( &coord, node ); coord_next_item( &coord ) == 0; ) {
 
 		if( item_is_internal(&coord ) ) {
 			znode *child;
