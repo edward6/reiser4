@@ -191,6 +191,7 @@
 #include "page_cache.h"
 #include "reiser4.h"
 #include "vfs_ops.h"
+#include "inode.h"
 
 #include <asm/atomic.h>
 #include <linux/types.h>
@@ -377,6 +378,7 @@ atom_init(txn_atom * atom)
 	capture_list_init(&atom->clean_nodes);
 	capture_list_init(&atom->ovrwr_nodes);
 	capture_list_init(&atom->writeback_nodes);
+	capture_list_init(&atom->inodes);
 	spin_atom_init(atom);
 	txnh_list_init(&atom->txnh_list);
 	atom_list_clean(atom);
@@ -930,6 +932,42 @@ static int submit_wb_list (void)
 	return ret;
 }
 
+/* when during system call inode is "captured" (by reiser4_mark_inode_dirty) - blocks grabbed for stat data update are
+   moved to atom's flush_reserved bucket. On commit time (right before updating stat datas of all captured inodes) those
+   blocks are moved to grabbed. This function is used to calculate number of blocks reserved for stat data update when
+   those blocks get mover back and forwward between buckets of grabbed and flush_reserved blocks */
+static reiser4_block_nr reserved_for_sd_update(struct inode *inode)
+{
+	return inode_file_plugin(inode)->estimate.update(inode);
+}
+
+static void atom_update_stat_data(txn_atom **atom)
+{
+	jnode *j;
+	
+	assert ("vs-1241", spin_atom_is_locked(*atom));
+	while (!capture_list_empty(&(*atom)->inodes)) {
+		struct inode *inode;
+
+		j = capture_list_front(&((*atom)->inodes));
+		
+		inode = inode_by_reiser4_inode(container_of(j, reiser4_inode, inode_jnode));
+
+		/* move blocks grabbed for stat data update back from atom's flush_reserved to grabbed */
+		flush_reserved2grabbed(*atom, reserved_for_sd_update(inode));
+
+		capture_list_remove_clean(j);			
+		capture_list_push_back(&(*atom)->clean_nodes, j);
+		UNLOCK_ATOM(*atom);
+
+		/* FIXME: it is not clear what to do if update sd fails. A warning will be issued (nikita-2221) */
+		reiser4_update_sd(inode);
+		*atom = get_current_atom_locked();
+	}
+
+	assert("vs-1231", capture_list_empty(&((*atom)->inodes)));
+}
+
 /* Wait completion of all writes, re-submit atom writeback list if needed. */
 static int current_atom_complete_writes (void)
 {
@@ -972,7 +1010,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 {
 	reiser4_super_info_data * sbinfo = get_current_super_private ();
 	long ret;
-
+	
 	assert ("zam-888", atom != NULL && *atom != NULL);
 	assert ("zam-886", spin_atom_is_locked(*atom));
 	assert ("zam-887", get_current_context()->trans->atom == *atom);
@@ -980,6 +1018,9 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 
 	trace_on(TRACE_TXN, "atom %u trying to commit %u: CAPTURE_WAIT\n", 
 		 (*atom)->atom_id, current->pid);
+
+	/* call reiser4_update_sd for all atom's inodes */
+	atom_update_stat_data(atom);
 
 	while (1) {
 		ret = flush_current_atom(JNODE_FLUSH_WRITE_BLOCKS | JNODE_FLUSH_COMMIT, nr_submitted, atom);
@@ -1010,8 +1051,10 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	UNLOCK_ATOM(*atom);
 
 	ret = current_atom_complete_writes();
-	if (ret)
+	if (ret) {
+		printk("complete_writes: %ld\n", ret);
 		return ret;
+	}
 
 	assert ("zam-906", capture_list_empty(&(*atom)->writeback_nodes));
 	trace_on(TRACE_FLUSH, "everything written back atom %u\n", 
@@ -1030,6 +1073,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 	invalidate_list(&(*atom)->clean_nodes);
 	invalidate_list(&(*atom)->ovrwr_nodes);
 	invalidate_list(&(*atom)->writeback_nodes);
+	invalidate_list(&(*atom)->inodes);
 
 	up(&sbinfo->tmgr.commit_semaphore);
 
@@ -1886,6 +1930,50 @@ try_capture_page(struct page *pg, znode_lock_mode lock_mode, int non_blocking)
 	return ret;
 }
 
+/* this is to prevent captured inodes from being pruned. FIXME: maybe we could use I_DIRTY*/
+#define I_CAPTURED 512
+
+/* this is called by reiser4_mark_inode_dirty */
+int capture_inode(struct inode *inode)
+{
+	int result;
+	jnode *j;
+
+	j = &(reiser4_inode_by_inode(inode)->inode_jnode);
+	LOCK_JNODE(j);
+	result = try_capture(j, ZNODE_WRITE_LOCK, 0);
+	if (result)
+		warning("vs-1249", "Failed to capture inode: ino %llu\n", get_inode_oid(inode));
+	else
+		inode->i_state |= I_CAPTURED;
+		
+	UNLOCK_JNODE(j);
+	return result;
+}
+
+int uncapture_inode(struct inode *inode)
+{
+	txn_atom *atom;
+	jnode *j;
+
+	j = &(reiser4_inode_by_inode(inode)->inode_jnode);
+
+	LOCK_JNODE(j);
+
+	inode->i_state &= ~I_CAPTURED;
+	assert("vs-1244", !jnode_is_dirty(j));
+	atom = atom_locked_by_jnode(j);
+	UNLOCK_JNODE (j);
+
+	if (atom == NULL)
+		return 0;
+
+	uncapture_block(atom, j);
+
+	UNLOCK_ATOM(atom);
+	return 0;
+}
+
 /* This interface is used by flush routines when they need to prevent an atom from
    committing while they perform early flushing.  The node is already captured but the
    txnh is not. */
@@ -2054,7 +2142,15 @@ capture_assign_block_nolock(txn_atom * atom, jnode * node)
 	/* Pointer from jnode to atom is not counted in atom->refcount. */
 	node->atom = atom;
 
-	if (jnode_is_dirty(node)) {
+	if (jnode_is_inode(node)) {
+		struct inode *inode;
+
+		capture_list_push_back(&atom->inodes, node);
+		inode = inode_by_reiser4_inode(container_of(node, reiser4_inode, inode_jnode));
+		grabbed2flush_reserved_nolock(atom, reserved_for_sd_update(inode), "capture_inode");
+		/*printk("capture inode %p, atom %p (reserved %llu)\n", inode, atom, atom->flush_reserved);*/
+		
+	} else if (jnode_is_dirty(node)) {
 		capture_list_push_back(&atom->dirty_nodes[jnode_get_level(node)], node);
 	} else {
 		capture_list_push_back(&atom->clean_nodes, node);
@@ -2702,6 +2798,7 @@ capture_fuse_into(txn_atom * small, txn_atom * large)
 	zcount += capture_fuse_jnode_lists(large, &large->clean_nodes, &small->clean_nodes);
 	zcount += capture_fuse_jnode_lists(large, &large->ovrwr_nodes, &small->ovrwr_nodes);
 	zcount += capture_fuse_jnode_lists(large, &large->writeback_nodes, &small->writeback_nodes);
+	zcount += capture_fuse_jnode_lists(large, &large->inodes, &small->inodes);
 	tcount += capture_fuse_txnh_lists(large, &large->txnh_list, &small->txnh_list);
 
 	/* Check our accounting. */
@@ -2886,6 +2983,112 @@ jnodes_of_one_atom(jnode * j1, jnode * j2)
 
 	return ret;
 }
+
+#if 0
+/* this is called in reiser4_mark_inode_dirty */
+int capture_inode(txn_handle * txnh, struct inode *inode)
+{
+	int result;
+	txn_atom *atom;
+	reiser4_inode *r4_inode;
+
+	r4_inode = reiser4_inode_by_inode(inode);
+	atom = atom_get_locked_with_txnh_locked_nocheck(txnh);
+	protect_inode_atom_pointer(r4_inode);
+
+	if (r4_inode->atom && (atom == 0 || atom == r4_inode->atom)) {
+		/* inode is already captured and there is no need to fuse */
+		assert("vs-1234", inode->i_state & I_CAPTURED);
+		assert("vs-1235", !list_empty(&r4_inode->atom_link));
+		unprotect_inode_atom_pointer(r4_inode);
+		UNLOCK_TXNH(txnh);
+		if (atom)
+			UNLOCK_ATOM(atom);
+		return 0;
+	}
+	
+	if (r4_inode->atom == 0 && atom) {
+		/* "capture" inode */
+		printk("capture: inode %p (%llu), atom %p [%p %p %p %p]\n", inode, get_inode_oid(inode), atom,
+		       __builtin_return_address(0), __builtin_return_address(1), __builtin_return_address(2), __builtin_return_address(3));
+		assert("vs-1236", !(inode->i_state & I_CAPTURED));
+		assert("vs-1237", list_empty(&r4_inode->atom_link));		
+
+		inode->i_state |= I_CAPTURED;
+		
+		list_add(&r4_inode->atom_link, &atom->inodes);
+		assert("", !list_empty(&r4_inode->atom_link));
+		atom->nr_inodes ++;
+		r4_inode->atom = atom;
+		grabbed2flush_reserved_nolock(atom, reserved_for_sd_update(inode), "capture_inode");
+
+		unprotect_inode_atom_pointer(r4_inode);
+		UNLOCK_TXNH(txnh);
+		if (atom)
+			UNLOCK_ATOM(atom);
+		return 0;
+	}
+
+	/* can not "capture" */
+	unprotect_inode_atom_pointer(r4_inode);
+	UNLOCK_TXNH(txnh);
+	if (atom)
+		UNLOCK_ATOM(atom);
+	result = reiser4_update_sd(inode);
+	return result;
+}
+
+/* do not confuse with atom_locked_by_jnode */
+txn_atom *atom_locked_by_inode(reiser4_inode *r4_inode)
+{
+	txn_atom *atom;
+
+	while (1) {
+		atom = r4_inode->atom;
+		if (atom == 0)
+			break;
+		if (spin_trylock_atom(atom))
+			break;
+		atomic_inc(&atom->refcount);
+		unprotect_inode_atom_pointer(r4_inode);
+		LOCK_ATOM(atom);
+		protect_inode_atom_pointer(r4_inode);
+		if (r4_inode->atom == atom) {
+			atomic_dec(&atom->refcount);
+			break;
+		}		
+		unprotect_inode_atom_pointer(r4_inode);
+		atom_dec_and_unlock(atom);
+		protect_inode_atom_pointer(r4_inode);
+	}
+	return atom;
+}
+
+/* called by reiser4_drop_inode */
+int uncapture_inode(struct inode *inode)
+{
+	txn_atom *atom;
+	reiser4_inode *r4_inode;
+
+	r4_inode = reiser4_inode_by_inode(inode);
+
+	protect_inode_atom_pointer(r4_inode);
+	atom = atom_locked_by_inode(r4_inode);
+	if (!atom) {
+		assert("vs-1237", list_empty(&r4_inode->atom_link));
+		unprotect_inode_atom_pointer(r4_inode);
+	} else {
+		remove_inode_from_atom_list(atom, inode);
+		unprotect_inode_atom_pointer(r4_inode);
+
+		flush_reserved2grabbed(atom, reserved_for_sd_update(inode));
+		grabbed2free(reserved_for_sd_update(inode), "uncapture_inode");
+		UNLOCK_ATOM(atom);
+	}
+	return 0;
+}
+
+#endif
 
 /* DEBUG HELP */
 
