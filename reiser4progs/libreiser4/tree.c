@@ -247,6 +247,12 @@ int reiserfs_tree_lookup(
 	    coord->pos.item--;
 	}
 
+	if (!reiserfs_node_item_internal(coord->cache->node, coord->pos.item)) {
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, "Not internal item was found on" 
+		" the twig level. Sorry, drilling doesn't supported yet!");
+	    return 0;
+	}
+
 	/* Getting the node pointer from internal item */
 	if (!(block_nr = reiserfs_node_get_pointer(coord->cache->node, 
 	    coord->pos.item))) 

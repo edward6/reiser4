@@ -66,6 +66,8 @@ static errno_t dir40_rewind(reiserfs_dir40_t *dir) {
 static errno_t dir40_realize(reiserfs_dir40_t *dir) {
     aal_assert("umka-857", dir != NULL, return -1);	
 
+//    aal_printf(ERR, "%llu, %llu\n", dir40_locality(dir), dir40_objectid(dir));
+    
     /* FIXME-UMKA: Here should not be hardcoded key minor */
     libreiser4_plugin_call(return -1, dir->key.plugin->key_ops, build_generic_full, 
 	dir->key.body, KEY40_STATDATA_MINOR, dir40_locality(dir), dir40_objectid(dir), 0);

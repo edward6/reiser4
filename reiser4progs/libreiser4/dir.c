@@ -57,7 +57,7 @@ reiserfs_object_t *reiserfs_dir_create(
 
 	if (reiserfs_dir_add(parent, &entry)) {
 	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-		"Can't add entry into parent object.");
+		"Can't add entry \"%s\".", name);
 	    goto error_free_object;
 	}
     }
