@@ -1054,7 +1054,7 @@ DEFINE_SPIN_PROFREGIONS(zlock);
 DEFINE_RW_PROFREGIONS(dk);
 DEFINE_RW_PROFREGIONS(tree);
 
-#if REISER4_LOCKPROF
+#if 0 && REISER4_LOCKPROF
 
 static void echo_jnode(const char *prefix, const jnode *j)
 {
@@ -1097,7 +1097,7 @@ static void zlock_most_held(struct profregion * preg)
 
 static int register_profregions(void)
 {
-#if REISER4_LOCKPROF
+#if 0 && REISER4_LOCKPROF
 	pregion_spin_jnode_held.champion = jnode_most_held;
 	pregion_spin_jnode_trying.champion = jnode_most_wanted;
 
