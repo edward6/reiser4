@@ -25,8 +25,8 @@ static void none_compress (__u8 *buf, __u8 *src_first, unsigned *src_len,
 compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 		[NONE_COMPRESSION_ID] = {
 		.h = {
-			.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
-			.id = NONE_CRYPTO_ID,
+			.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
+			.id = NONE_COMPRESSION_ID,
 			.pops = NULL,
 			.label = "none",
 			.desc = "Null compression",
