@@ -1645,7 +1645,7 @@ typedef enum {
 
 #define NFSERROR (255)
 
-/* this returns number of 32 bit long numbers encoded in @data. 255 is
+/* this returns number of 32 bit long numbers encoded in @lenp. 255 is
  * returned if file handle can not be stored */
 static int
 reiser4_encode_fh(struct dentry *dentry, __u32 *data, int *lenp, int need_parent)
@@ -1840,7 +1840,7 @@ struct export_operations reiser4_export_operations = {
 	.decode_fh = reiser4_decode_fh,
 	.get_parent = reiser4_get_dentry_parent,
 	.get_dentry = reiser4_get_dentry
-} ;
+};
 
 struct dentry_operations reiser4_dentry_operations = {
 	.d_revalidate = NULL,
