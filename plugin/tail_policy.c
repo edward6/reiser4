@@ -24,83 +24,26 @@
 /* Never store file's tail as direct item */
 /* Audited by: green(2002.06.12) */
 static int
-never_tail(const struct inode *inode UNUSED_ARG	/* inode to
-						 * operate on */ ,
-	   loff_t size UNUSED_ARG /* new object size */ )
+have_tail_never(const struct inode *inode UNUSED_ARG /* inode to operate on */ ,
+		loff_t size UNUSED_ARG /* new object size */ )
 {
 	return 0;
 }
 
-#if 0
-static reiser4_block_nr never_tail_estimate ( const struct inode *inode, loff_t size,
-	int is_hole) 
-{
-	/* Estimating the number of blocks for extents. Here is handled the both
-	   cases: request for allocating fake allocated extents and real allocated 
-	   ones */
-	
-	assert("umka-1245", inode != NULL);
-	if (is_hole) {
-	    reiser4_block_nr amount;
-	    
-	    /* In the case of unallocated extent (truncate does) we are counting 
-	       the overhead for one balancing, stat data update and three blocks
-	       may become dirty in the worse case on the twig level */
-	    amount = estimate_internal_amount(1, tree_by_inode(inode)->height);
-	    return inode_file_plugin(inode)->estimate.update(inode) + amount + 3;
-	} else {
-	    /* Here we are counting the number of blocks needed for creating of the
-	       allocated extent(s). The digit 3 is the number of dirty nodes on 
-	       the twing level. */
-	    return ((size + (current_blocksize - 1)) >> 
-		    reiser4_get_current_sb()->s_blocksize_bits) +
-		    inode_file_plugin(inode)->estimate.update(inode) + 3;
-	}
-}
-#endif
-
 /* Always store file's tail as direct item */
 /* Audited by: green(2002.06.12) */
 static int
-always_tail(const struct inode *inode UNUSED_ARG	/* inode to
-							 * operate on */ ,
-	    loff_t size UNUSED_ARG /* new object size */ )
+have_tail_always(const struct inode *inode UNUSED_ARG	/* inode to operate on */ ,
+		 loff_t size UNUSED_ARG /* new object size */ )
 {
 	return 1;
 }
 
-#if 0
-static reiser4_block_nr always_tail_estimate ( const struct inode *inode, loff_t size,
-	int is_hole) 
-{
-	reiser4_block_nr amount;
-	__u32 max_item_size, block_nr;
-	
-	assert("umka-1244", inode != NULL);
-
-        max_item_size = tree_by_inode(inode)->nplug->max_item_size();
-
-	/* Here 2 is the worse node packing factor */
-	max_item_size >>= 1;
-	
-	block_nr = div64_32(size + (max_item_size - 1), max_item_size, NULL);
-	
-	/* write_flow writes in small pieces and every write starts it own balancing. 
-	   Early flush may clean dirty nodes and they can become dirty again during
-	   futher writes. */
-	amount = estimate_internal_amount(1, tree_by_inode(inode)->height);
-
-	return block_nr + (block_nr * amount) + 
-		inode_file_plugin(inode)->estimate.update(inode) + 1;
-}
-#endif
-
 /* This function makes test if we should store file denoted @inode as tails only or
    as extents only. */
 static int
-test_tail(const struct inode *inode UNUSED_ARG	/* inode to operate
-						 * on */ ,
-	  loff_t size /* new object size */ )
+have_tail_default(const struct inode *inode UNUSED_ARG	/* inode to operate on */ ,
+		  loff_t size /* new object size */ )
 {
 	assert("umka-1253", inode != NULL);
 	
@@ -109,17 +52,6 @@ test_tail(const struct inode *inode UNUSED_ARG	/* inode to operate
 	
 	return 1;
 }
-
-#if 0
-static reiser4_block_nr test_tail_estimate ( const struct inode *inode, loff_t size,
-	int is_hole) 
-{
-	assert("umka-1243", inode != NULL);
-
-	return test_tail(inode, size) ? always_tail_estimate(inode, size, is_hole) : 
-		never_tail_estimate(inode, size, is_hole);
-}
-#endif
 
 /* tail plugins */
 tail_plugin tail_plugins[LAST_TAIL_ID] = {
@@ -132,10 +64,7 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 			.desc = "Never store file's tail",
 			.linkage = TS_LIST_LINK_ZERO
 		},
-		.have_tail = never_tail
-		/*,
-		  .estimate = never_tail_estimate
-		*/
+		.have_tail = have_tail_never
 	},
 	[ALWAYS_TAIL_ID] = {
 		.h = {
@@ -146,24 +75,18 @@ tail_plugin tail_plugins[LAST_TAIL_ID] = {
 			.desc = "Always store file's tail",
 			.linkage = TS_LIST_LINK_ZERO
 		},
-		.have_tail = always_tail
-		/*,
-		  .estimate = always_tail_estimate
-		*/
+		.have_tail = have_tail_always
 	},
-	[TEST_TAIL_ID] = {
+	[DEFAULT_TAIL_ID] = {
 		.h = {
 			.type_id = REISER4_TAIL_PLUGIN_TYPE,
-			.id = TEST_TAIL_ID,
+			.id = DEFAULT_TAIL_ID,
 			.pops = NULL,
-			.label = "test",
-			.desc = "store files shorter than 2 blocks in tail items",
+			.label = "default tail policy plugin",
+			.desc = "store files shorter than 4 blocks in tail items",
 			.linkage = TS_LIST_LINK_ZERO
 		},
-		.have_tail = test_tail
-		/*,
-		  .estimate = test_tail_estimate
-		*/
+		.have_tail = have_tail_default
 	}
 };
 
