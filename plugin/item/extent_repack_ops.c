@@ -370,7 +370,9 @@ static int find_relocatable_extent (struct inode * inode, coord_t * coord,
 	return ret;
 }
 
-static int find_and_relocate_end_of_extent (struct inode * inode, coord_t * coord, struct repacker_cursor * cursor, int * done)
+static int find_and_relocate_end_of_extent (
+	struct inode * inode, coord_t * coord, 
+	struct repacker_cursor * cursor, int * done)
 {
 	reiser4_block_nr len;
 	int ret;
@@ -410,7 +412,7 @@ int process_extent_backward_for_repacking (tap_t * tap, struct repacker_cursor *
 
 	ret = get_reiser4_inode_by_tap(&inode, tap);
 
-	while (ret && !done)
+	while (!ret && !done)
 		ret = find_and_relocate_end_of_extent(inode, coord, cursor, &done);
 
 	iput(inode);
