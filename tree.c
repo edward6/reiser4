@@ -606,15 +606,12 @@ forget_znode(lock_handle * handle)
 
 	invalidate_lock(handle);
 
-	/* FIXME:NIKITA->ZAM node is not spin locked at this point. */
-	assert ("zam-941", get_current_context()->trans->atom == ZJNODE(node)->atom);
-
 	/* Get e-flush block allocation back before deallocating node's
 	 * block number. */
 #ifdef REISER4_USE_EFLUSH
 	spin_lock_znode(node);
-		if (ZF_ISSET(node, JNODE_EFLUSH))
-			eflush_del(ZJNODE(node), 0);
+	if (ZF_ISSET(node, JNODE_EFLUSH))
+		eflush_del(ZJNODE(node), 0);
 	spin_unlock_znode(node);
 #endif
 
