@@ -820,6 +820,15 @@ carry_insert(carry_op * op /* operation to perform */ ,
 #define flow_insert_flow(op) ( ( op ) -> u.insert_flow.flow )
 #define flow_insert_data(op) ( ( op ) -> u.insert_flow.data )
 
+static size_t
+item_data_overhead(carry_op * op)
+{
+	if (flow_insert_data(op)->iplug->b.estimate == NULL)
+		return 0;
+	return (flow_insert_data(op)->iplug->b.estimate(NULL /* estimate insertion */, flow_insert_data(op)) -
+		flow_insert_data(op)->length);
+}
+
 /* FIXME-VS: this is called several times during one make_flow_for_insertion
    and it will always return the same result. Some optimization could be made
    by calculating this value once at the beginning and passing it around. That
@@ -835,8 +844,8 @@ flow_insertion_overhead(carry_op * op)
 	node = flow_insert_point(op)->node;
 	insertion_overhead = 0;
 	if (node->nplug->item_overhead &&
-	    !can_paste(flow_insert_point(op), &flow_insert_flow(op)->key,
-		       flow_insert_data(op))) insertion_overhead = node->nplug->item_overhead(node, 0);
+	    !can_paste(flow_insert_point(op), &flow_insert_flow(op)->key, flow_insert_data(op)))
+		insertion_overhead = node->nplug->item_overhead(node, 0) + item_data_overhead(op);
 	return insertion_overhead;
 }
 
