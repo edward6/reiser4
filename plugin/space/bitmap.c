@@ -365,7 +365,7 @@ int bitmap_destroy_allocator (reiser4_space_allocator * allocator,
 	bitmap_blocks_nr = get_nr_bmap(super);
 
 	for (i = 0; i < bitmap_blocks_nr; i ++) {
-		struct bnode * bnode = data -> bitmap + i;
+		ON_DEBUG (struct bnode * bnode = data -> bitmap + i);
 
 		assert ("zam-378", equi(bnode -> wpage == NULL, bnode -> cpage == NULL));
 
