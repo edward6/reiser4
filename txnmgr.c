@@ -2055,6 +2055,33 @@ capture_assign_txnh (jnode       *node,
 	return 0;
 }
 
+
+int capture_super_block (struct super_block * s)
+{
+	int result;
+	znode * fake;
+	lock_handle lh;
+
+
+	fake = zget (current_tree, &FAKE_TREE_ADDR,
+		     NULL, 0, GFP_KERNEL);
+	if (IS_ERR (fake))
+		return PTR_ERR (fake);
+
+	init_lh (&lh);
+	result = longterm_lock_znode (&lh, fake, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+	if (result)
+		return result;
+	zput (fake);
+
+	znode_set_dirty (fake);
+
+	done_lh (&lh);
+	return 0;
+}
+
+
+
 /* Wakeup every handle on the atom's WAITFOR list */
 /* Audited by: umka (2002.06.13) */
 static void
