@@ -20,10 +20,14 @@
 .debug.o.cmd
 .depend
 .dependencies
+.eottl.o.cmd
 .flush.o.cmd
+.flush.o.d
+.flush.o.tmp
 .gdbinit
 .hdepend
 .inode.o.cmd
+.jnode.o.cmd
 .kassign.o.cmd
 .kcond.o.cmd
 .key.o.cmd
@@ -47,6 +51,8 @@
 .znode.o.cmd
 11459
 BitKeeper/*/*
+Ennio_Morricone_-_Chi_Mai.s3m
+Ennio_Morricone_-_Theme_from_Professional.mp3
 GPATH
 GRTAGS
 GSYMS
@@ -89,6 +95,7 @@ josh-test.2
 josh-test.4
 josh-test.5
 josh-test.6
+kernel.loop
 mkfs
 oid.c.old
 oid.h.old
@@ -101,6 +108,8 @@ plugin/dir/.built-in.o.cmd
 plugin/dir/.dir.o.cmd
 plugin/dir/.hashed_dir.o.cmd
 plugin/disk_format/.built-in.o.cmd
+plugin/disk_format/.disk_format.o.cmd
+plugin/disk_format/.disk_format_40.o.cmd
 plugin/disk_format/.layout.o.cmd
 plugin/disk_format/.layout_40.o.cmd
 plugin/disk_format/.test.o.cmd
@@ -131,6 +140,7 @@ plugin/space/.built-in.o.cmd
 plugin/space/.space_allocator.o.cmd
 plugin/space/.test.o.cmd
 read
+read-test
 read.c
 regression.sh2
 regression.sh3
@@ -723,7 +733,3 @@ testdir/file
 testdir/s1/file
 ulevel/#ulevel.h#
 vs-pub-key
-read-test
-Ennio_Morricone_-_Chi_Mai.s3m
-Ennio_Morricone_-_Theme_from_Professional.mp3
-kernel.loop
