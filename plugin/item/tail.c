@@ -234,7 +234,7 @@ void tail_copy_units (tree_coord * target, tree_coord * source,
  * plugin->u.item.b.cut_units
  * plugin->u.item.b.kill_units
  */
-int tail_cut_units (tree_coord * item, unsigned from, unsigned count,
+int tail_cut_units (tree_coord * coord, unsigned from, unsigned count,
 		    shift_direction where_to_move_free_space,
 		    const reiser4_key * from_key UNUSED_ARG,
 		    const reiser4_key * to_key UNUSED_ARG,
@@ -245,11 +245,11 @@ int tail_cut_units (tree_coord * item, unsigned from, unsigned count,
 	 * item - we have nothing to do
 	 */
 	assert ("vs-374", count > 0 &&
-		count <= (unsigned)item_length_by_coord (item));
+		count <= (unsigned)item_length_by_coord (coord));
 
 	if (where_to_move_free_space == SHIFT_APPEND) {
 		assert ("vs-371", 
-			from + count == (unsigned)item_length_by_coord (item));
+			from + count == (unsigned)item_length_by_coord (coord));
 	} else {
 		assert ("vs-372", from == 0);
 	}
@@ -258,9 +258,19 @@ int tail_cut_units (tree_coord * item, unsigned from, unsigned count,
 		/*
 		 * store smallest key removed
 		 */
-		item_key_by_coord (item, smallest_removed);
+		item_key_by_coord (coord, smallest_removed);
 		set_key_offset (smallest_removed,
 				get_key_offset (smallest_removed) + from);
+	}
+	if (from == 0) {
+		/*
+		 * head of item is removed, update item key therefore
+		 */
+		reiser4_key key;
+		
+		item_key_by_coord (coord, &key);
+		set_key_offset (&key, get_key_offset (&key) + count);
+		node_plugin_by_node (coord->node)->update_item_key (coord, &key, 0/*todo*/);
 	}
 	return count;
 }
@@ -339,8 +349,13 @@ static tail_write_todo what_todo (struct inode * inode, tree_coord * coord,
 			return RESEARCH;
 	}
 
-	assert ("vs-380", coord->between == AFTER_UNIT);
-	assert ("vs-381", coord->unit_pos == last_unit_pos (coord));
+	if (coord->between != AFTER_UNIT ||
+	    coord->unit_pos != last_unit_pos (coord)) {
+		/*
+		 * FIXME-VS: we could try to adjust coord
+		 */
+		return RESEARCH;
+	}	
 
 	if (get_key_offset (key) == (get_key_offset (&item_key) +
 				     coord->unit_pos + 1))
