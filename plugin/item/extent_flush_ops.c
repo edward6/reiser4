@@ -231,8 +231,10 @@ repeat:
 
 		ON_TRACE(TRACE_FLUSH_VERB, "unalloc scan index %lu: %s\n", scan_index, jnode_tostring(neighbor));
 
-		assert("jmacd-3551", !jnode_check_flushprepped(neighbor)
-		       && same_slum_check(neighbor, scan->node, 0, 0));
+		/* XXX commented assertion out, because it is inherently
+		 * racy */
+		/* assert("jmacd-3551", !jnode_check_flushprepped(neighbor)
+		   && same_slum_check(neighbor, scan->node, 0, 0)); */
 
 		ret = scan_set_current(scan, neighbor, scan_dist, &coord);
 		if (ret != 0) {
