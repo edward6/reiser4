@@ -258,6 +258,9 @@ struct reiser4_super_info_data {
 	/* committed number of files (oid allocator state variable ) */
 	__u64 nr_files_committed;
 
+#if REISER4_USE_SYSFS
+	struct kobject kobj;
+#endif
 #if REISER4_STATS
 	struct kobject stats_kobj;
 	reiser4_level_stats_kobj level[REISER4_MAX_ZTREE_HEIGHT];

@@ -20,7 +20,10 @@ to_kattr(struct attribute *attr)
 static inline struct super_block *
 to_super(struct kobject *kobj)
 {
-	return container_of(kobj, struct super_block, kobj);
+	reiser4_super_info_data *sbinfo;
+
+	sbinfo = container_of(kobj, reiser4_super_info_data, kobj);
+	return sbinfo->tree.super;
 }
 
 static ssize_t
@@ -292,6 +295,27 @@ static int register_level_attrs(reiser4_super_info_data *sbinfo, int i)
 }
 #endif
 
+static decl_subsys(fs, NULL, NULL);
+static decl_subsys(reiser4, &ktype_reiser4, NULL);
+
+int reiser4_sysfs_init_once(void)
+{
+	int result;
+
+	result = subsystem_register(&fs_subsys);
+	if (result == 0) {
+		kset_set_kset_s(&reiser4_subsys, fs_subsys);
+		result = subsystem_register(&reiser4_subsys);
+	}
+	return result;
+}
+
+void reiser4_sysfs_done_once(void)
+{
+	subsystem_unregister(&reiser4_subsys);
+	subsystem_unregister(&fs_subsys);
+}
+
 int init_prof_kobject(struct super_block *super);
 
 int reiser4_sysfs_init(struct super_block *super)
@@ -303,10 +327,10 @@ int reiser4_sysfs_init(struct super_block *super)
 
 	sbinfo = get_super_private(super);
 
-	kobj = &super->kobj;
+	kobj = &sbinfo->kobj;
 
 	snprintf(kobj->name, KOBJ_NAME_LEN, "%s", super->s_id);
-	kobj_set_kset_s(super, super->s_type->subsys);
+	kobj_set_kset_s(sbinfo, reiser4_subsys);
 	result = kobject_register(kobj);
 	if (result != 0)
 		return result;
@@ -353,6 +377,14 @@ int reiser4_sysfs_init(struct super_block *super)
 }
 
 void reiser4_sysfs_done(struct super_block *super)
+{}
+
+int reiser4_sysfs_init_once(void)
+{
+	return 0;
+}
+
+void reiser4_sysfs_done_once(void)
 {}
 
 #endif

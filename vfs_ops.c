@@ -1524,6 +1524,7 @@ typedef enum {
 	INIT_EFLUSH,
 	INIT_SCINT,
 	INIT_SPINPROF,
+	INIT_SYSFS,
 	INIT_FS_REGISTERED
 } reiser4_init_stage;
 
@@ -1540,6 +1541,7 @@ shutdown_reiser4(void)
 	}
 
 	DONE_IF(INIT_FS_REGISTERED, unregister_filesystem(&reiser4_fs_type));
+	DONE_IF(INIT_SYSFS, reiser4_sysfs_done_once());
 	DONE_IF(INIT_SPINPROF, unregister_profregions());
 	DONE_IF(INIT_SCINT, scint_done_once());
 	DONE_IF(INIT_EFLUSH, eflush_done());
@@ -1591,6 +1593,7 @@ init_reiser4(void)
 	CHECK_INIT_RESULT(eflush_init());
 	CHECK_INIT_RESULT(scint_init_once());
 	CHECK_INIT_RESULT(register_profregions());
+	CHECK_INIT_RESULT(reiser4_sysfs_init_once());
 	CHECK_INIT_RESULT(register_filesystem(&reiser4_fs_type));
 
 	calibrate_prof();
@@ -1637,13 +1640,6 @@ MODULE_LICENSE("GPL");
 static struct file_system_type reiser4_fs_type = {
 	.owner = THIS_MODULE,
 	.name = "reiser4",
-#if REISER4_USE_SYSFS
-	.subsys = {
-		.kset = {
-			.ktype = &ktype_reiser4
-		}
-	},
-#endif
 	.fs_flags = FS_REQUIRES_DEV,
 	.get_sb = reiser4_get_sb,
 	.kill_sb = reiser4_kill_super,
