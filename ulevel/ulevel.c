@@ -1301,6 +1301,22 @@ void call_truncate (struct inode * inode, loff_t size);
 static int call_readdir (struct inode * dir, const char *prefix);
 static struct inode * create_root_dir (znode * root);
 
+static int create_twig( reiser4_tree *tree, struct inode *root )
+{
+	int i;
+
+	for( i = 0 ; tree -> height < TWIG_LEVEL ; ++ i ) {
+		int result;
+		char name[ 100 ];
+
+		sprintf( name, "__pad-%i", i );
+		result = call_create ( root, name );
+		if( ( result != 0 ) && ( result != -EEXIST ) )
+			return result;
+	}
+	info( "%i files inserted to create twig level\n", i );
+	return 0;
+}
 
 static void call_umount (struct super_block * sb)
 {
@@ -1700,6 +1716,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		char name[ 30 ];
 
 		f = sandbox( create_root_dir( root ) );
+		create_twig( tree, f );
 		call_readdir( f, "unlink-start" );
 		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
 			sprintf( name, "%x-%x", i, i*10 );
@@ -1726,6 +1743,7 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 		struct inode *f;
 
 		f = sandbox( create_root_dir( root ) );
+		create_twig( tree, f );
 		threads = atoi( argv[ 3 ] );
 		assert( "nikita-1494", threads > 0 );
 		tid = xmalloc( threads * sizeof tid[ 0 ] );
@@ -1824,8 +1842,8 @@ int nikita_test( int argc UNUSED_ARG, char **argv UNUSED_ARG,
 			reiser4_stat_data_base base;
 			reiser4_unix_stat      un;
 		} sd;
-
-		for( i = 0 ; i < atoi( argv[ 3 ] ) ; ++ i ) {
+		for( i = 0 ; ( i < atoi( argv[ 3 ] ) ) ||
+			     ( tree -> height < TWIG_LEVEL ) ; ++ i ) {
 			lock_handle lh;
 
 			init_coord( &coord );
