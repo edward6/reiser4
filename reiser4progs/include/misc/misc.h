@@ -15,8 +15,8 @@
 #include <stdlib.h>
 #include <errno.h>
 
-extern long int reiserfs_misc_strtol(const char *str, int *error);
-extern char *reiserfs_misc_strcat(char *dest, size_t n, const char *src, ...) 
+extern long int reiser4_misc_strtol(const char *str, int *error);
+extern char *reiser4_misc_strcat(char *dest, size_t n, const char *src, ...) 
     __check_format__(printf, 3, 4);
 #endif
 

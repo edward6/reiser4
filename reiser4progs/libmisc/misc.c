@@ -62,7 +62,7 @@ int reiser4_misc_bin_search(
 
 #ifndef ENABLE_COMPACT
 
-long int reiserfs_misc_strtol(
+long int reiser4_misc_strtol(
     const char *str,	    /* string to be converted */
     int *error		    /* error will be stored here */
 ) {
@@ -87,7 +87,7 @@ long int reiserfs_misc_strtol(
     return result;
 }
 
-char *reiserfs_misc_strcat(char *dest, size_t n, const char *src, ...) 
+char *reiser4_misc_strcat(char *dest, size_t n, const char *src, ...) 
 {
     va_list arg_list;
     

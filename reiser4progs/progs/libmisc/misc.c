@@ -51,7 +51,7 @@ unsigned long long progs_misc_size_parse(
     else
 	label = 0;	
 	
-    if ((size = reiserfs_misc_strtol(number, error)) == 0 && *error)
+    if ((size = reiser4_misc_strtol(number, error)) == 0 && *error)
 	return 0;
 	
     if (label == 0 || toupper(label) == toupper('m'))

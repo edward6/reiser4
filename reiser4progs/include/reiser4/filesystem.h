@@ -302,7 +302,7 @@ extern errno_t reiser4_fs_sync(reiser4_fs_t *fs);
 
 extern const char *reiser4_fs_name(reiser4_fs_t *fs);
 extern uint16_t reiser4_fs_blocksize(reiser4_fs_t *fs);
-extern errno_t reiserfs_fs_build_root_key(reiserfs_fs_t *fs, reiserfs_id_t pid);
+extern errno_t reiser4_fs_build_root_key(reiser4_fs_t *fs, reiser4_id_t pid);
 
 extern reiser4_id_t reiser4_fs_format_pid(reiser4_fs_t *fs);
 extern aal_device_t *reiser4_fs_host_device(reiser4_fs_t *fs);

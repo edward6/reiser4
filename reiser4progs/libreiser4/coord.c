@@ -1,9 +1,9 @@
 /*
     coord.c -- reiser4 tree coord functions. Coord contains full information
     about smaller tree element position in the tree. The instance of structure 
-    reiserfs_coord_t contains pointer to cache where needed unit or item lies,
+    reiser4_coord_t contains pointer to cache where needed unit or item lies,
     item position and unit position in specified item. As cache is wrapper for 
-    reiserfs_node_t, we are able to access nodes stored in cache by nodes funcs.
+    reiser4_node_t, we are able to access nodes stored in cache by nodes funcs.
     
     Copyright (C) 1996-2002 Hans Reiser.
     Author Yury Umanets.

@@ -124,8 +124,8 @@ error:
     return NULL;
 }
 
-extern errno_t format40_check(reiserfs_entity_t *entity, uint16_t options);
-extern void format40_print(char *buf, size_t n, reiserfs_entity_t *entity, uint16_t options);
+extern errno_t format40_check(reiser4_entity_t *entity, uint16_t options);
+extern void format40_print(char *buf, size_t n, reiser4_entity_t *entity, uint16_t options);
 
 /* This function should update all copies of the super block */
 static errno_t format40_sync(reiser4_entity_t *entity) {

@@ -98,7 +98,7 @@ static void fsck_init_streams(repair_data_t *data) {
     data->logfile = NULL;
 }
 
-uint16_t fsck_callback_blocksize_from_user(reiserfs_fs_t *fs, int *error) {
+uint16_t fsck_callback_blocksize_from_user(reiser4_fs_t *fs, int *error) {
     char *answer = NULL;
     int n = 0;
     uint16_t blocksize;    
@@ -109,7 +109,7 @@ uint16_t fsck_callback_blocksize_from_user(reiserfs_fs_t *fs, int *error) {
 
     getline(&answer, &n, stdin);
     if (aal_strncmp(answer, "\n", 1)) {
-        if ((!(blocksize = (uint16_t)reiserfs_misc_strtol(answer, error)) && *error) || 
+        if ((!(blocksize = (uint16_t)reiser4_misc_strtol(answer, error)) && *error) || 
 	    !aal_pow_of_two(blocksize)) 
 	{
             aal_exception_fatal("Invalid blocksize was specified (%d).", blocksize);
@@ -117,7 +117,7 @@ uint16_t fsck_callback_blocksize_from_user(reiserfs_fs_t *fs, int *error) {
 	    blocksize = 0;
         }
     } else 
-	blocksize = REISERFS_DEFAULT_BLOCKSIZE;
+	blocksize = REISER4_DEFAULT_BLOCKSIZE;
 
     if (answer)
 	free(answer);
@@ -261,7 +261,7 @@ static int fsck_init(repair_data_t *data, int argc, char *argv[])
 	}
     }
     
-    if (!(data->host_device = aal_file_open(argv[optind], REISERFS_DEFAULT_BLOCKSIZE, 
+    if (!(data->host_device = aal_file_open(argv[optind], REISER4_DEFAULT_BLOCKSIZE, 
 	O_RDWR))) 
     {
 	aal_exception_fatal("Cannot open the partition (%s): %s.\n", argv[optind], 
@@ -290,7 +290,7 @@ int fsck_check_fs(reiser4_fs_t *fs) {
     return NO_ERROR;
 }
 
-int fsck_rebuild_fs(reiserfs_fs_t *fs) {
+int fsck_rebuild_fs(reiser4_fs_t *fs) {
 
     if (repair_fs_sync(fs)) {
 	aal_exception_fatal("Cannot synchronize the filesystem.\n");
