@@ -371,27 +371,16 @@ int jload (jnode * node)
 	assert ("zam-441", tree->ops);
 	assert ("zam-442", tree->ops->read_node != NULL);
 
-	spin_lock_jnode (node);
-
 	if (JF_ISSET(node, ZNODE_LOADED)) {
-		jkmap_nolock (node);
 		return 1;
 	}
-
-	spin_unlock_jnode(node);
 
 	ret = tree->ops->read_node (tree, node);
 
 	if (ret) return ret;
 
-	if (JF_ISSET(node, ZNODE_LOADED)) {
-		assert ("zam-474", tree->ops->release_node != NULL);
-		tree->ops->release_node(tree, node);
-
-		return 1;
-	} else {
-		JF_SET (node, ZNODE_LOADED);
-	}
+	JF_SET (node, ZNODE_LOADED);
+	spin_unlock_jnode(node);
 
 	return 0;
 }
@@ -405,7 +394,7 @@ int jwrite (jnode * node)
 
 	page = jnode_page (node);
 
-	assert ("zam-450", blocknr_is_fake (jnode_get_block (node)));
+	assert ("zam-450", !blocknr_is_fake (jnode_get_block (node)));
 
 	return page_io (page, WRITE, GFP_NOIO);
 }
