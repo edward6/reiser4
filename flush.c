@@ -194,11 +194,12 @@ int jnode_flush (jnode *node, int *nr_to_flush, int flags UNUSED_ARG)
 		/* Already has been assigned a block number, just write it again? */
 		ret = flush_rewrite_jnode (node);
 
+		assert ("jmacd-97755", spin_jnode_is_not_locked (node));
+
 		if (nr_to_flush != NULL) {
 			(*nr_to_flush) = 1;
 		}
 
-		spin_unlock_jnode (node);
 		trace_on (TRACE_FLUSH_VERB, "flush_jnode rewrite\n");
 		return ret;
 	}
@@ -1841,18 +1842,11 @@ static int flush_rewrite_jnode (jnode *node)
 		return 0;
 	}
 
+	spin_unlock_jnode (node);
+
 	if ((pg = jnode_page (node)) == NULL) {
 		return -ENOMEM;
 	}
-
-	/*
-	 * FIXME:NIKITA->JMACD unlock jnode here because:
-	 * 
-	 * 1. jnode_set_clean() wants in unlocked
-	 * 
-	 * 2. lock_page() may sleep
-	 */
-	spin_unlock_jnode (node);
 
 	jnode_set_clean (node);
 
@@ -1867,7 +1861,7 @@ static int flush_rewrite_jnode (jnode *node)
 	ret = write_one_page (pg, 0 /* no wait */);
 
 	trace_on (TRACE_FLUSH, "rewrite: %s\n", flush_jnode_tostring (node));
-	spin_lock_jnode (node);
+
 	return ret;
 }
 
