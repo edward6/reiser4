@@ -62,31 +62,9 @@ struct reiser4_syscall_w_space
 //	struct path_walk path_walk;
 };
 
-static struct
-{
-	char    *       wrd;
-	int             class;
-}
-key [] =
-	{
-		{ "and"         ,    AND            },
-		{ "else"        ,    ELSE           },
-		{ "eq"          ,    EQ             },
-		{ "ge"          ,    GE             },
-		{ "gt"          ,    GT             },
-		{ "if"          ,    IF             },
-		{ "le"          ,    LE             },
-		{ "lt"          ,    LT             },
-		{ "ne"          ,    NE             },
-		{ "not"         ,    NOT            },
-		{ "or"          ,    OR             },
-		{ "then"        ,    THEN           },
-		{ "tw/"         ,    TRANSCRASH     }
-	};
 
 
-
-#define printf prink
+//#define printf prink
 
 /* 
  * Make Linus happy.

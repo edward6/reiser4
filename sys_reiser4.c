@@ -64,9 +64,9 @@ sys_reiser4(char *p_string)
 {
 	long ret;
 	int *Gencode;
-
+	char * str;
 	struct reiser4_syscall_w_space *work_space;
-
+	str=getname(p_string);
 
 	reiser4_current_trace_flags |= TRACE_PARSE;
 
@@ -84,6 +84,7 @@ sys_reiser4(char *p_string)
 	PTRACE(work_space, "%s", "begin parsing");
 	ret = yyparse(work_space);	/* parse command */
 	reiser4_pars_free(work_space);
+	putname(str);
 	return ret;
 }
 

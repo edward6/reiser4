@@ -133,8 +133,6 @@ tw/transcrash_33[ /home/reiser/(a <- b, c <- d) ]
 %left USLASH              /* / */
 
 
-
-
 /*
 For bison:
 %pure_parser

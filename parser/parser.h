@@ -58,7 +58,9 @@ typedef enum
 	UNORDERED
 } def;
 
+#define printf(p1,...) PTRACE(ws,p1,...)  
 #define yylex()  reiser4_lex(ws)
+#define register
 #define  yyacc
 //#define  bizon
 

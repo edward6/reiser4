@@ -20,6 +20,124 @@ static void yy_exit()
  * people. I think this should be changed. 
  * OK. But after it's works*/
 
+static struct
+{
+	char    *       wrd;
+	int             class;
+}
+pars_key [] =
+	{
+		{ "and"         ,    AND            },
+		{ "else"        ,    ELSE           },
+		{ "eq"          ,    EQ             },
+		{ "ge"          ,    GE             },
+		{ "gt"          ,    GT             },
+		{ "if"          ,    IF             },
+		{ "le"          ,    LE             },
+		{ "lt"          ,    LT             },
+		{ "ne"          ,    NE             },
+		{ "not"         ,    NOT            },
+		{ "or"          ,    OR             },
+		{ "then"        ,    THEN           },
+		{ "tw/"         ,    TRANSCRASH     }
+	};
+
+
+struct lexcls lexcls[64]={
+/*
+..   a   1       _   `   '     (   )   ,   -   <   /   [   ]     \   {   }   |   ;   :   .   =     >   ?   +       
+Blk Wrd Int Ptr Pru Stb Ste   Lpr Rpr Com Mns Les Slh Lsq Rsq   Bsl Lfl Rfl Pip Sp1 Sp2 Dot Sp4   Sp5 Sp6 Pls ...  */
+[Blk]={ 0, {0, 
+Blk,Wrd,Int,Ptr,Pru,Str,ERR,  Lpr,Rpr,Com,Mns,Les,Slh,Lsq,Rsq,  Bsl,Lfl,Rfl,Pip,Sp1,Sp2,Dot,Sp4,  Sp5,Sp6,ERR,ERR,ERR,ERR,ERR,ERR}},
+[Wrd]={  WORD, {0,  
+OK ,Wrd,Wrd,Wrd,Wrd,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  Bsl,OK ,OK ,OK ,OK ,OK ,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+
+[Int]={  WORD, {0,  
+OK ,Wrd,Int,Wrd,Wrd,OK ,OK ,  OK ,OK ,OK ,Wrd,OK ,OK ,OK ,OK ,  Wrd,OK ,OK ,OK ,OK ,OK ,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+
+[Ptr]={  WORD,{0, 
+OK ,Wrd,Wrd,Wrd,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  Wrd,OK ,OK ,OK ,OK ,OK ,Wrd,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Pru]={  P_RUNNER,{0, 
+OK ,Pru,Pru,Pru,Pru,OK ,OK ,  OK ,OK ,OK ,Pru,OK ,OK ,OK ,OK ,  Pru,OK ,OK ,OK ,OK ,OK ,Pru,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+
+[Stb]={  STRING_CONSTANT_EMPTY, {1, 
+Str,Str,Str,Str,Str,Str,OK ,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str}},
+[Ste]={  0, {0, 
+ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR}},
+[Lpr]={  L_BRACKET /*L_PARENT*/,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Rpr]={  R_BRACKET,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Com]={  COMMA,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Mns]={  0,{0, 
+ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  Lnk,ERR,ERR,ERR,ERR,ERR,ERR,ERR}},
+[Les]{  LT,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,ASG,App,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+
+[Slh]={  SLASH,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,Slh,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+
+[Lsq]={  0/*L_SKW_PARENT*/,{0,           /*mast removed*/
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Rsq]={  0/*R_SKW_PARENT*/,{0,            /*mast removed*/
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Bsl]={  0,{0, 
+Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,  Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd,Wrd}},
+[Lfl]={  0 /*L_FLX_PARENT*/,{0,            /*mast removed*/
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Rfl]={  0 /*R_FLX_PARENT*/,{0,            /*mast removed*/
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Pip]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Sp1]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Sp2]={  SEMICOLON,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Dot]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Sp4]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Sp5]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+
+[Sp6]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Pls]={  PLUS,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Res]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Res]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Res]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Res]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Res]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Res]={  0,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+
+[Str]={  STRING_CONSTANT,{1, 
+OK ,Str,Str,Str,Str,Str,OK ,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str,  Str,Str,Str,Str,Str,Str,Str,Str}},
+[ASG]={  L_ASSIGN,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[App]={  L_ASSIGN,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,Ap2,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }},
+[Lnk]={ L_SYMLINK,{0, 
+ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  ERR,ERR,ERR,ERR,ERR,ERR,ERR,ERR,  OK ,ERR,ERR,ERR,ERR,ERR,ERR,ERR}},
+
+[Ap2]={  L_APPEND,{0, 
+OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK ,  OK ,OK ,OK ,OK ,OK ,OK ,OK ,OK }}
+
+};
+
+
+
+
+
+
+
 static void yyerror( struct reiser4_syscall_w_space *ws, int msgnum , ...)
 {
 	printk("\nreiser4 parser: error # %d\n", msgnum);
@@ -244,7 +362,7 @@ static  void  level_down(struct reiser4_syscall_w_space * ws, int type1, int typ
 }
 
 #define curr_symbol(ws) ((ws)->ws_pline)
-#define next_symbol(ws) ((*(curr_symbol(ws)++))?curr_symbol(ws):NULL)
+#define next_symbol(ws)  (++curr_symbol(ws))
 #define tolower(a) a
 #define isdigit(a) ((a)>=0 && (a)<=9)
 
@@ -254,11 +372,11 @@ static  void  level_down(struct reiser4_syscall_w_space * ws, int type1, int typ
  *  freeSpace is a kernel space no need make getnam().
  * exclude is for special for string: store without ''
  */
+
 static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude )
 {
 	int i;
 	/*	char * s= ws->ws_pline;*/
-
 	if (exclude)
 		{
 			ws->yytext++;
@@ -347,6 +465,7 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 			ws->tmpWrdEnd--;
 		}
 	*ws->tmpWrdEnd++ = '\0';
+	PTRACE(ws, "term is---->%s<----", ws->freeSpCur->freeSpace);
 }
 
 
@@ -354,18 +473,23 @@ static void move_selected_word(struct reiser4_syscall_w_space * ws, int exclude 
 static int b_check_word(struct reiser4_syscall_w_space * ws )
 {
 	int i, j, l;
-	j=sizeof(key)/4;
+	j=sizeof(pars_key)/(sizeof(char*)+sizeof(int))-1;
 	l=0;
+	PTRACE(ws," word for check is------->%s<-------j=%d", ws->freeSpCur->freeSpace, j);
 	while( ( j - l ) >= 0 )
 		{
-			i  =  ( j + l + 1 ) >> 1;
-			switch( strcmp( key[i].wrd, ws->freeSpCur->freeSpace ) )
+			i  =  ( j + l /*+ 1*/ ) >> 1;
+			switch( strcmp( pars_key[i].wrd, ws->freeSpCur->freeSpace ) )
 				{
-				case  0: return( key[i].class );  break;
+				case  0: 
+					PTRACE(ws,"founded: i=%d, %s, %d", i, pars_key[i].wrd, pars_key[i].class);
+					return( pars_key[i].class );  
+					break;
 				case  1: j = i - 1;               break;
 				default: l = i + 1;               break;
 				}
 		}
+	PTRACE(ws,"%s", "false");
 	return(0);
 }
 
@@ -382,7 +506,7 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 #else
 	len = ws->tmpWrdEnd - ws->freeSpCur->freeSpace - 1 ;
 #endif
-        PTRACE( ws, "wrd %s len=%d wrdHead=%p", ws->tmpWrdEnd, len ,ws->wrdHead );
+        PTRACE( ws, "wrd %s len=%d wrdHead=%p", ws->freeSpCur->freeSpace, len ,ws->wrdHead );
 	cur_wrd = NULL;
 	while ( !( new_wrd == NULL ) )
 		{
@@ -390,8 +514,9 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 			if ( cur_wrd->u.len == len )
 				{
 					if( !memcmp( cur_wrd->u.name, ws->freeSpCur->freeSpace, cur_wrd->u.len ) )
+
 						{
-							PTRACE( ws, "wrd %s len=%d founded=%p", ws->tmpWrdEnd, len ,cur_wrd );
+							PTRACE( ws, "wrd %s len=%d founded=%p", ws->freeSpCur->freeSpace, len ,cur_wrd );
 							return cur_wrd;
 						}
 				}
@@ -410,7 +535,7 @@ static __inline__ wrd_t * _wrd_inittab(struct reiser4_syscall_w_space * ws )
 		{
 			cur_wrd->next = new_wrd;
 		}
-							PTRACE( ws, "wrd %s len=%d new=%p", ws->tmpWrdEnd, len , new_wrd );
+	PTRACE( ws, "wrd  len=%d new=%p", len , new_wrd );
 	return new_wrd;
 }
 
@@ -420,17 +545,21 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 	int ret;
 	char lcls;
 	char * s ;
+	PTRACE(ws, "%s", "lex1");
 
-	if ( ( s = curr_symbol(ws) ) == NULL ) return(0);  /* first symbol or Last readed symbol of the previous token parsing */
+	if ( ( s = curr_symbol(ws) ) == 0 ) return EOF;  /* first symbol or Last readed symbol of the previous token parsing */
 
-	lcls    =       ncl[*s] ;
+	lcls    =       ncl[*s];
 	ws->yytext  = s;
 	term = 1;
 	while( term )
 		{
-			while ( ( n = lexcls[ lcls ].c[ i=ncl[ * ( s = next_symbol(ws) ) ] ] ) > 0   )
+//			PTRACE(ws, "while1: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*s);
+			while ( ( n = lexcls[ lcls ].c[ i=ncl[ * ( s ) ] ] ) > 0   )
 				{
+					PTRACE(ws, "while2: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*s);
 					lcls=n;
+					s = next_symbol(ws);
 				}
 			if ( n == OK )
 				{
@@ -438,10 +567,12 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 				}
 			else 
 				{
+					PTRACE(ws, "error: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*s);
 					yyerror ( ws, 2222, (lcls-1)* 20+i, s );
 					return(0);
 				}
 		}
+	PTRACE(ws, "lex2: lcls=%d,n=%d,i=%d,%c",lcls,n,i,*s);
 	switch (lcls)
 		{
 		case Blk:
@@ -452,6 +583,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 			move_selected_word( ws, lexcls[ lcls ].c[0] );
 			if ( !(ret = b_check_word(ws)) )   /* if ret>0 this is keyword */
 				{                          /*  this is not keyword. tray check in worgs. ret = Wrd */
+					PTRACE(ws, "%s ", "no keyword");
 					ret=lexcls[ lcls ].term;
 					ws->ws_yyval.wrd = _wrd_inittab(ws);
 				}
@@ -496,6 +628,7 @@ static int reiser4_lex( struct reiser4_syscall_w_space * ws )
 			ret=*ws->yytext;
 			break;
 		}
+    PTRACE(ws, "ret=%d", ret);
 	return ret;
 }
 
