@@ -22,6 +22,9 @@ static reiser4_cache_t *reiser4_tree_alloc(
     uint8_t level		    /* level of new node */
 ) {
     blk_t blk;
+    aal_block_t *block;
+    
+    reiser4_id_t pid;
     reiser4_node_t *node;
     reiser4_cache_t *cache;
     
@@ -34,10 +37,23 @@ static reiser4_cache_t *reiser4_tree_alloc(
 	return NULL;
     }
 
-    /* Creating new node */
-    if (!(node = reiser4_node_create(tree->fs->format->device, blk,
-	    reiser4_node_get_pid(tree->cache->node), level)))
+    if (!(block = aal_block_alloc(tree->fs->format->device, blk, 0))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't allocate block %llu in memory.", blk);
 	return NULL;
+    }
+    
+    if ((pid = reiser4_node_get_pid(tree->cache->node)) == 
+	INVALID_PLUGIN_ID) 
+    {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Invalid node plugin has been detected.");
+	goto error_free_block;
+    }
+    
+    /* Creating new node */
+    if (!(node = reiser4_node_create(block, pid, level)))
+	goto error_free_block;
 
     if (!(cache = reiser4_cache_create(node))) {
 	reiser4_node_close(node);
@@ -45,6 +61,10 @@ static reiser4_cache_t *reiser4_tree_alloc(
     }
     
     return cache;
+    
+error_free_block:
+    aal_block_free(block);
+    return NULL;
 }
 
 #endif
@@ -64,18 +84,29 @@ static void reiser4_tree_dealloc(reiser4_tree_t *tree,
 static reiser4_cache_t *reiser4_tree_load(reiser4_tree_t *tree, 
     blk_t blk) 
 {
+    aal_block_t *block;
     reiser4_node_t *node;
     reiser4_cache_t *cache;
-    
-    if (!(node = reiser4_node_open(tree->fs->format->device, blk))) 
+
+    if (!(block = aal_block_read(tree->fs->format->device, blk))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
+	    "Can't allocate block %llu in memory.", blk);
 	return NULL;
+    }
+    
+    if (!(node = reiser4_node_open(block))) 
+	goto error_free_block;
 	    
     if (!(cache = reiser4_cache_create(node))) {
 	reiser4_node_close(node);
 	return NULL;
     }
-    
+
     return cache;
+    
+error_free_block:
+    aal_block_free(block);
+    return NULL;
 }
 
 /* Setting up the tree cache limit */
@@ -142,7 +173,8 @@ reiser4_tree_t *reiser4_tree_create(
     reiser4_fs_t *fs,		    /* filesystem new tree will be created on */
     reiser4_profile_t *profile	    /* profile to be used */
 ) {
-    blk_t block_nr;
+    blk_t blk;
+    aal_block_t *block;
     reiser4_node_t *node;
     reiser4_tree_t *tree;
 
@@ -156,19 +188,25 @@ reiser4_tree_t *reiser4_tree_create(
     tree->fs = fs;
 
     /* Getting free block from block allocator for place root block in it */
-    if (!(block_nr = reiser4_alloc_alloc(fs->alloc))) {
+    if (!(blk = reiser4_alloc_alloc(fs->alloc))) {
         aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	   "Can't allocate block for the root node.");
 	goto error_free_tree;
     }
 
+    if (!(block = aal_block_alloc(fs->format->device, blk, 0))) {
+        aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	   "Can't allocate in memory root block.");
+	goto error_free_tree;
+    }
+    
     /* Creating root node */
-    if (!(node = reiser4_node_create(fs->format->device, block_nr,
-        profile->node, reiser4_format_get_height(fs->format))))
+    if (!(node = reiser4_node_create(block, profile->node, 
+	reiser4_format_get_height(fs->format))))
     {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
 	    "Can't create root node.");
-	goto error_free_tree;
+	goto error_free_block;
     }
 
     /* Creating cache for root node */
@@ -180,7 +218,8 @@ reiser4_tree_t *reiser4_tree_create(
     /* Setting up tree cahce limits */
     if (reiser4_tree_setup(tree)) {
 	aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_OK, 
-	    "Can't initialize cache limits. Cache limit spying will be disables.");
+	    "Can't initialize cache limits. Cache limit spying "
+	    "will be disables.");
 	tree->limit.enabled = 0;
     }
     
@@ -188,6 +227,8 @@ reiser4_tree_t *reiser4_tree_create(
 
 error_free_node:
     reiser4_node_close(node);
+error_free_block:
+    aal_block_free(block);
 error_free_tree:
     aal_free(tree);
     return NULL;
@@ -241,8 +282,8 @@ int reiser4_tree_lookup(
     reiser4_coord_t *coord	/* coord of found item */
 ) {
     blk_t blk;
-    int lookup;
     reiser4_key_t ikey;
+    int lookup, real_level;
     reiser4_cache_t *parent;
 
     aal_assert("umka-742", key != NULL, return -1);
@@ -259,7 +300,15 @@ int reiser4_tree_lookup(
 	    return -1;
 
 	/* Checking for level */
-	if (reiser4_node_get_level(coord->cache->node) <= level)
+	if ((real_level = reiser4_node_get_level(coord->cache->node)) > 
+	    reiser4_format_get_height(tree->fs->format))
+	{
+	    aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+		"Invalid node level %u has been detected.", real_level);
+	    return -1;
+	}
+	
+	if (real_level <= level)
 	    return lookup;
        	
 	/* 
@@ -1062,4 +1111,73 @@ errno_t reiser4_tree_move(
 }
 
 #endif
+
+/* This function makes travers of the tree */
+errno_t reiser4_tree_traverse(
+    reiser4_tree_t *tree,		/* tree to be traversed */
+    aal_block_t *block,			/* root block traverse will be going from */
+    reiser4_open_func_t open_func,	/* callback will be used for opening node */
+    reiser4_edge_func_t before_func,	/* callback will be called before node */
+    reiser4_setup_func_t setup_func,	/* callback will be called on node */
+    reiser4_update_func_t update_func,	/* callback will be called on child */
+    reiser4_edge_func_t after_func,	/* callback will be called after node */
+    void *data				/* user-spacified data */
+) {
+    errno_t result = 0;
+    reiser4_node_t *node;
+    
+    aal_assert("umka-1023", tree != NULL, return -1);
+    aal_assert("umka-1029", block != NULL, return -1);
+    aal_assert("umka-1024", open_func != NULL, return -1);
+
+    if (!(node = open_func(block, data))) {
+	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+	    "Can't open node on block %llu.", aal_block_get_nr(block));
+	return -1;
+    }
+    
+    if (before_func && (result = before_func(node, data)))
+        goto error_free_node;
+
+    if ((setup_func && !(result = setup_func(node, data))) || !setup_func) {
+	int level;
+	reiser4_pos_t pos;
+
+	if ((level = reiser4_node_get_level(node)) > REISER4_LEAF_LEVEL) {
+	    reiser4_pos_init(&pos, 0, ~0ul);
+
+	    for (; pos.item <= reiser4_node_count(node); pos.item++) {
+		blk_t blk;
+		aal_block_t *block;
+		
+		if ((blk = reiser4_node_get_pointer(node, &pos)) > 0) {
+
+		    if (!(block = aal_block_read(tree->fs->format->device, blk))) {
+			aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
+			    "Can't read block %llu. %s.", blk, 
+			    tree->fs->format->device->error);
+			goto error_free_node;
+		    }
+		
+		    result = reiser4_tree_traverse(tree, block, open_func, 
+			before_func, setup_func, update_func, after_func, data);
+
+		    if (update_func && !update_func(node, pos.item, data))
+			goto error_free_node;
+		}
+	    }
+	}
+    }
+
+    if (after_func && !(result = after_func(node, data)))
+	goto error_free_node;
+
+    reiser4_node_close(node);
+    return result;
+
+error_free_node:
+    reiser4_node_close(node);
+error:
+    return result;
+}
 

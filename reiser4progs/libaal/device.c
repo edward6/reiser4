@@ -328,10 +328,9 @@ errno_t aal_block_write(
 /*    if (aal_block_is_clean(block))
 	return 0;*/
 
-    if((error = aal_device_write(block->device, block->data, 
-	aal_block_get_nr(block), 1)))
-
-    aal_block_clean(block);
+    if ((error = aal_device_write(block->device, block->data, 
+	    aal_block_get_nr(block), 1)))
+	aal_block_clean(block);
     
     return error;
 }

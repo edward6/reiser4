@@ -55,8 +55,8 @@ typedef struct format40_super format40_super_t;
 #define get_sb_flushes(sb)			aal_get_le64(sb, sb_flushes)
 #define set_sb_flushes(sb, val)			aal_set_le64(sb, sb_flushes, val)
 
-#define get_sb_tree_height(sb)			aal_get_le64(sb, sb_tree_height)
-#define set_sb_tree_height(sb, val)		aal_set_le64(sb, sb_tree_height, val)
+#define get_sb_tree_height(sb)			aal_get_le16(sb, sb_tree_height)
+#define set_sb_tree_height(sb, val)		aal_set_le16(sb, sb_tree_height, val)
 
 struct format40 {
     aal_device_t *device;

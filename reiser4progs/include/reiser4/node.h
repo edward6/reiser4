@@ -15,9 +15,7 @@
 #include <reiser4/key.h>
 #include <reiser4/plugin.h>
 
-extern reiser4_node_t *reiser4_node_open(aal_device_t *device, 
-    blk_t blk);
-
+extern reiser4_node_t *reiser4_node_open(aal_block_t *block);
 extern errno_t reiser4_node_close(reiser4_node_t *node);
 
 extern errno_t reiser4_node_valid(reiser4_node_t *node,
@@ -65,8 +63,8 @@ extern int reiser4_node_item_internal(reiser4_node_t *node,
 
 #ifndef ENABLE_COMPACT
 
-extern reiser4_node_t *reiser4_node_create(aal_device_t *device, 
-    blk_t blk, reiser4_id_t pid, uint8_t level);
+extern reiser4_node_t *reiser4_node_create(aal_block_t *block, 
+    reiser4_id_t pid, uint16_t level);
 
 extern errno_t reiser4_node_sync(reiser4_node_t *node);
 extern errno_t reiser4_node_flush(reiser4_node_t *node);

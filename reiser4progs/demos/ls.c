@@ -29,6 +29,10 @@ static void ls_setup_streams(void) {
 	progs_exception_set_stream(i, stderr);
 }
 
+static reiser4_node_t *__node_open(aal_block_t *block, void *data) {
+    return reiser4_node_open(block);
+}
+
 int main(int argc, char *argv[]) {
     reiser4_fs_t *fs;
     aal_device_t *device;
@@ -43,6 +47,7 @@ int main(int argc, char *argv[]) {
     }
 	
     ls_setup_streams();
+    progs_exception_init();
     aal_exception_set_handler(progs_exception_handler);
 
     if (libreiser4_init(0)) {
@@ -70,6 +75,11 @@ int main(int argc, char *argv[]) {
     }
     
     {
+	reiser4_tree_traverse(fs->tree, fs->tree->cache->node->block, 
+	    __node_open, NULL, NULL, NULL, NULL, NULL);
+    }
+    
+    {
 	reiser4_plugin_t *dir_plugin;
 	reiser4_object_hint_t dir_hint;
 	
@@ -86,11 +96,11 @@ int main(int argc, char *argv[]) {
 	    int i;
 	    char name[256];
 
-	    for (i = 0; i < 100; i++) {
+	    for (i = 0; i < 89; i++) {
 		aal_memset(name, 0, sizeof(name));
 		aal_snprintf(name, 256, "testdir%d", i);
-		reiser4_dir_close(reiser4_dir_create(fs, 
-		    &dir_hint, dir_plugin, object, name));
+/*		reiser4_dir_close(reiser4_dir_create(fs, 
+		    &dir_hint, dir_plugin, object, name));*/
 	    }
 	}
     }
@@ -112,7 +122,8 @@ int main(int argc, char *argv[]) {
     reiser4_fs_close(fs);
     libreiser4_done();
     aal_file_close(device);
-
+    progs_exception_done();
+    
     return 0;
 
 error_free_object:
@@ -124,6 +135,7 @@ error_free_device:
 error_free_libreiser4:
     libreiser4_done();
 error:
+    progs_exception_done();
     
 #endif
     
