@@ -488,9 +488,9 @@ int reiser4_iterate_tree( reiser4_tree *tree, tree_coord *coord,
 					reiser4_move_lh( lh, &couple );
 				} else
 					return result;
-			} while( is_empty_node( coord -> node ) );
+			} while( node_is_empty( coord -> node ) );
 		} else if( through_units_p )
-			coord_next( coord );
+			coord_next_unit( coord );
 		else
 			++ coord -> item_pos;
 		assert( "nikita-1149", coord_of_unit( coord ) );
