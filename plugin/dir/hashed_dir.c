@@ -290,6 +290,7 @@ int hashed_add_entry( struct inode *object /* directory to add new name
 	 * check for this entry in a directory. This is plugin method.
 	 */
 	result = find_entry( object, where, &lh, ZNODE_WRITE_LOCK, entry );
+	assert( "nikita-2230", coord -> node == lh.node );
 	if( result == -ENOENT ) {
 		/*
 		 * add new entry. Just pass control to the directory
