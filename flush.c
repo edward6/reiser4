@@ -1235,7 +1235,7 @@ static int get_leftmost_child_of_unit (flush_pos_t * pos, jnode ** child)
 		return ret;
 
 	if (IS_ERR(*child))
-		return PTR_ERR(child);
+		return PTR_ERR(*child);
 
 	return 0;
 }
