@@ -615,6 +615,7 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 			 * the calling function.  Could be done here without a second
 			 * test, except that complicates the recursion here. */
 			ret = 0;
+			trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] EINVAL: %s\n", call_depth, flush_pos_tostring (pos));
 		}
 		/* Otherwise error. */
 		goto exit;
@@ -655,6 +656,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	/* any_shifted may be true but we still may have allocated to the end of a twig
 	 * (via extent_copy_and_allocate), in which case we should unset it. */
 	if (any_shifted && flush_pos_unformatted (pos)) {
+
+		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] before (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
 		/* We reached this point because we were at the end of a twig, and now we
 		 * have shifted new contents into that twig.  Skip past any allocated
 		 * extents.  If we are still at the end of the node, unset any_shifted. */
@@ -671,12 +674,15 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		if (! coord_is_existing_unit (& pos->parent_coord)) {
 			any_shifted = 0;
 		}
+
+		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] after (shifted & unformatted): %s\n", call_depth, flush_pos_tostring (pos));
 	}
 
 	/* If anything is shifted at an upper level, we should not allocate any further
 	 * because the child is no longer rightmost. */
 	if (any_shifted && znode_get_level (node) != LEAF_LEVEL) {
 		ret = 0;
+		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] shifted & not leaf: %s\n", call_depth, flush_pos_tostring (pos));
 		goto exit;
 	}
 
@@ -684,6 +690,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	 * positions, but first we have to check for ancestor changes and squeeze going
 	 * upward. */
 	if (! (same_parents = znode_same_parents (node, right_lock.node))) {
+
+		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] before (not same parents): %s\n", call_depth, flush_pos_tostring (pos));
 
 		/* Recurse upwards on parent of node. */
 		if ((ret = reiser4_get_parent (& parent_lock, node, ZNODE_WRITE_LOCK, 1 /*only_connected*/))) {
@@ -695,7 +703,11 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 		}
 
 		done_lh (& parent_lock);
+
+		trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] after (not same parents): %s\n", call_depth, flush_pos_tostring (pos));
 	}
+
+	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] ready to enqueue: %s\n", call_depth, flush_pos_tostring (pos));
 
 	/* Now finished with node. */
 	if ((ret = flush_enqueue_jnode (ZJNODE (node), pos))) {
@@ -716,6 +728,8 @@ static int flush_squalloc_one_changed_ancestor (znode *node, int call_depth, flu
 	 * parents after shifting. */
 
 	/* Allocate the right node. */
+	trace_on (TRACE_FLUSH, "sq1_changed_ancestor[%u] ready to allocate: %s\n", call_depth, flush_pos_tostring (pos));
+
 	if ((ret = jnode_lock_parent_coord (ZJNODE (right_lock.node), & right_parent_coord, & parent_lock, & parent_load, ZNODE_WRITE_LOCK))) {
 		goto exit;
 	}
