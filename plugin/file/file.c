@@ -989,9 +989,9 @@ item_to_operate_on(struct inode *inode, flow_t * f, coord_t * coord)
 	}
 
 	if (f->op == READ_OP) {
-		assert("", coord_is_existing_item(coord));
+		assert("vs-1121", coord_is_existing_item(coord));
 		assert("vs-1083", item_contains_key(coord, &f->key));
-		return TAIL_ID;	
+		return TAIL_ID;
 	}
 
 	new_size = get_key_offset(&f->key) + f->length;
@@ -1027,7 +1027,7 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	item_plugin *iplug;
 	flow_t f;
 	struct sealed_coord hint;
-
+	size_t read;
 	reiser4_block_nr needed;
 
 	if (unlikely(!read_amount))
@@ -1038,14 +1038,13 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	assert("vs-972", !inode_get_flag(inode, REISER4_NO_SD));
 
 	get_nonexclusive_access(inode);
+
 	needed = unix_file_estimate_read(inode, read_amount);
-	result = reiser4_grab_space_exact(needed, BA_CAN_COMMIT);
-	
+	result = reiser4_grab_space_exact(needed, BA_CAN_COMMIT);	
 	if (result != 0) {
-	    drop_nonexclusive_access(inode);
-	    return -ENOSPC;
+		drop_nonexclusive_access(inode);
+		return -ENOSPC;
 	}
-	
 	trace_on(TRACE_RESERVE, "file read grabs %llu blocks.\n", needed);
 
 	/* build flow */
@@ -1104,13 +1103,13 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 		}
 
 		id = item_to_operate_on(inode, &f, &coord);
-		zrelse(coord.node);
 		
 		assert("vs-1088", id == EXTENT_POINTER_ID || id == TAIL_ID);
 		iplug = item_plugin_by_id(id);
 
 		/* call read method of found item */
 		result = iplug->s.file.read(inode, &coord, &f);
+		zrelse(coord.node);
 		if (result == -EAGAIN) {
 			info("zam-830: unix_file_read: key was not found in item, repeat search\n");
 			unset_hint(&hint);
@@ -1128,7 +1127,8 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 
 	save_file_hint(file, &hint);
 
-	if (read_amount - f.length) {
+	read = read_amount - f.length;
+	if (read) {
 		/* something was read. Update stat data */
 		UPDATE_ATIME(inode);
 	}
@@ -1136,10 +1136,10 @@ ssize_t unix_file_read(struct file * file, char *buf, size_t read_amount, loff_t
 	drop_nonexclusive_access(inode);
 
 	/* update position in a file */
-	*off += (read_amount - f.length);
+	*off += read;
 
 	/* return number of read bytes or error code if nothing is read */
-	return (read_amount - f.length) ? (read_amount - f.length) : result;
+	return read ?: result;
 }
 
 /* This searches for write position in the tree and calls write method of
@@ -1526,7 +1526,8 @@ unix_file_owns_item(const struct inode *inode	/* object to check
 		return 0;
 	if (item_type_by_coord(coord) != ORDINARY_FILE_METADATA_TYPE)
 		return 0;
-	assert("vs-547", (item_id_by_coord(coord) == EXTENT_POINTER_ID || item_id_by_coord(coord) == TAIL_ID));
+	assert("vs-547", (item_id_by_coord(coord) == EXTENT_POINTER_ID || item_id_by_coord(coord) == TAIL_ID ||
+			  item_id_by_coord(coord) == FROZEN_EXTENT_POINTER_ID || item_id_by_coord(coord) == FROZEN_TAIL_ID));
 	return 1;
 }
 
