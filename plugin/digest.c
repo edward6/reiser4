@@ -1,7 +1,7 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 /* reiser4 digest transform plugin (is used by cryptcompress object plugin) */
-
+/* EDWARD-FIXME-HANS: and it does what? a digest is a what? */
 #include "../debug.h"
 #include "plugin_header.h"
 #include "plugin.h"
