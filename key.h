@@ -203,8 +203,6 @@ typedef enum { LESS_THAN = -1,	/* if first key is less than second */
 	       GREATER_THAN = +1 /* if first key is greater than second */
 } cmp_t;
 
-/* FIXME_JMACD This should probably be named reiser4_init_key, in keeping with
- * the convention of reiser4_init_lh, reiser4_init_coord, etc. -josh */
 void key_init( reiser4_key *key );
 
 /** minimal possible key in the tree. Return pointer to the static storage. */
