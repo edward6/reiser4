@@ -9,6 +9,215 @@
  * - file_plugin methods of reiser4 unix file (REGULAR_FILE_PLUGIN_ID)
  */
 
+/*
+ * look for item of file @inode corresponding to @key
+ */
+
+#ifdef PSEUDO_CODE_CAN_COMPILE
+find_item ()
+{
+	if (!coord && seal)
+		set coord based on seal;
+	if (coord) {
+		if (key_in_coord(coord))
+			return coord;
+		coord = get_next_item(coord);
+		if (key_in_coord(coord))
+			return coord;
+	}
+	coord_by_key();
+}
+#endif
+
+
+/* check whether coord is set as if it was just set by node's lookup with
+ * @key. If yes - 1 is returned. If it is not - check whether @key is inside of
+ * this node, if yes - call node lookup. Otherwise - return 0 */
+static int coord_set_properly (const reiser4_key * key, coord_t * coord)
+{
+	int result;
+
+	result = zload (coord->node);
+	if (result)
+		return 0;
+	if (ncoord_is_existing_unit (coord)) {
+		/* check whether @key is inside of this unit */
+		item_plugin * iplug;
+
+		iplug = item_plugin_by_coord (coord);
+		assert ("vs-716", iplug && iplug->common.key_in_coord);
+
+		if (iplug->common.key_in_coord (coord, key)) {
+			zrelse (coord->node);
+			return 1;
+		}
+	} else {
+		/* when coord is set after last unit in an item - it is very
+		 * often exactly what we need */
+		if (ncoord_is_after_last_unit (coord)) {
+			/* just check key of next item before using that
+			 * coord */
+			reiser4_key tmp_key; /* will be used for various purposes */
+
+			if (coord->item_pos == node_num_items (coord->node) - 1) {
+				/* get key of next item if it is in right
+				 * neighbor */
+				spin_lock_dk (current_tree);
+				tmp_key = *znode_get_rd_key (coord->node);
+				spin_unlock_dk (current_tree);
+			} else {
+				/* get key of next item if it is in the same
+				 * node */
+				coord_t next;
+
+				ncoord_dup (&next, coord);
+				check_me ("vs-730", ncoord_set_to_right (&next));
+				item_key_by_coord (&next, &tmp_key);
+			}
+			if (keygt (&tmp_key, key)) {
+				/* make sure that we can append into coord */
+				item_plugin * iplug;
+
+				iplug = item_plugin_by_coord (coord);
+				if (iplug && iplug->common.max_key_inside) {
+					if (keyge (key, item_key_by_coord (coord, &tmp_key)) &&
+					    keyle (key,
+						   iplug->common.max_key_inside (coord, &tmp_key))) {
+						/* we can use @coord writing to
+						 * position @key */
+						zrelse (coord->node);
+						return 1;
+					}
+				}
+			}
+		}
+	}
+
+	/* @coord requires re-setting, check whether @key is in this node
+	 * before calling node's lookup */
+	/*
+	 * FIXME-VS: znode_contains_key is not appropriate here because it
+	 * does: left delimiting key <= key <= right delimiting key. We need
+	 * here: left_delimiting key <= key < right delimiting key
+	 */
+	spin_lock_dk (current_tree);
+	result = (keyle (znode_get_ld_key (coord->node), key) &&
+		  keylt (key, znode_get_rd_key (coord->node)));
+	spin_unlock_dk (current_tree);
+	
+	if (!result) {
+		/* node does not contain @key */
+		zrelse (coord->node);
+		return 0;
+	}
+	/*
+	 * We assume that this function is being used for the unix file plugin,
+	 * that no two items of this file exist in the same node, and that we
+	 * always go to the next node to find the item.  If this is not true,
+	 * then the optimization needs changing here, and we should try
+	 * incrementing the item_pos and seeing if it contains what we are
+	 * looking for instead of searching within the node.
+	 */
+	impossible ("vs-725", "do we ever get here?");
+	node_plugin_by_node (coord->node)->lookup (coord->node, key,
+						   FIND_MAX_NOT_MORE_THAN,
+						   coord);
+	zrelse (coord->node);
+	return 1;
+}
+
+
+/* get right neighbor and set coord to first unit in it */
+static int get_next_item (coord_t * coord, lock_handle * lh,
+			  znode_lock_mode lock_mode)
+{
+	int result;
+	lock_handle lh_right_neighbor;
+
+	init_lh (&lh_right_neighbor);
+	result = reiser4_get_right_neighbor (&lh_right_neighbor,
+					     coord->node, (int)lock_mode,
+					     GN_DO_READ );
+	if (result == 0) {
+		zrelse (coord->node);
+		done_lh (lh);
+		
+		result = zload (lh_right_neighbor.node);
+		if (result != 0)
+			return result;
+		ncoord_init_first_unit (coord, lh_right_neighbor.node);
+		move_lh (lh, &lh_right_neighbor);
+	}
+	return result;	
+}
+
+
+int find_next_item (struct file * file,
+		    const reiser4_key * key, /* key of position in a file of
+					      * next read/write */
+		    coord_t * coord, /* on entry - initilized by 0s or
+					coordinate (locked node and position in
+					it) on which previous read/write
+					operated, on exit - coordinate of
+					position specified by @key */
+		    lock_handle * lh, /* initialized by 0s if @coord is zeroed
+				       * or othewise lock handle of locked node
+				       * in @coord, on exit - lock handle of
+				       * locked node in @coord */
+		    znode_lock_mode lock_mode /* which lock (read/write) to put
+					       * on returned node */)
+{
+	int result;
+	reiser4_file_fsdata * fdata;
+	seal_t * seal;
+	coord_t * sealed_coord;
+
+
+	/* collect statistics on the number of calls to this function */
+	reiser4_stat_file_add (find_items);
+
+	if (!coord->node && file) {
+		/* try to use seal which might be set in previous access to the
+		 * file */
+		fdata = reiser4_get_file_fsdata (file);
+		if (!IS_ERR (fdata)) {
+			seal = &fdata->reg.last_access;
+			if (seal_is_set (seal)) {
+				sealed_coord = &fdata->reg.coord;
+				result = seal_validate (seal, sealed_coord, key,
+							znode_get_level (sealed_coord->node),
+							lh, FIND_MAX_NOT_MORE_THAN, lock_mode,
+							ZNODE_LOCK_LOPRI);
+				if (result == 0) {
+					/* set coord based on seal */
+					ncoord_dup (coord, sealed_coord);
+				}
+			}
+		}
+	}
+
+	if (coord->node) {
+		if (coord_set_properly (key, coord))
+			return 0;
+		result = get_next_item (coord, lh, lock_mode);
+		if (!result)
+			if (coord_set_properly (key, coord))
+				return 0;
+		/**/
+		done_lh (lh);
+
+		ncoord_init_zero (coord);
+		init_lh (lh);
+	}
+
+	/* collect statistics on the number of calls to this function which did
+	 * not get optimized */
+	reiser4_stat_file_add (full_find_items);
+	return coord_by_key (current_tree, key, coord, lh,
+			     lock_mode, FIND_MAX_NOT_MORE_THAN,
+			     TWIG_LEVEL, LEAF_LEVEL, CBK_UNIQUE | CBK_FOR_INSERT);
+}
+
 
 /* plugin->u.file.write_flow = NULL
  * plugin->u.file.read_flow = NULL
@@ -61,7 +270,7 @@ int unix_file_truncate (struct inode * inode, loff_t size UNUSED_ARG)
  * grabbed
  */
 /* Audited by: green(2002.06.15) */
-int unix_file_readpage_nolock (struct file * file UNUSED_ARG, struct page * page)
+int unix_file_readpage_nolock (struct file * file, struct page * page)
 {
 	int result;
 	coord_t coord;
@@ -79,7 +288,7 @@ int unix_file_readpage_nolock (struct file * file UNUSED_ARG, struct page * page
 	init_lh (&lh);
 
 	/* look for file metadata corresponding to first byte of page */
-	result = find_item (&key, &coord, &lh, ZNODE_READ_LOCK);
+	result = find_next_item (file, &key, &coord, &lh, ZNODE_READ_LOCK);
 	if (result != CBK_COORD_FOUND) {
 		warning ("vs-280", "No file items found\n");
 		done_lh (&lh);
@@ -139,70 +348,55 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t size,
 	/* build flow */
 	assert ("vs-528",
 		inode_file_plugin (inode)->flow_by_inode == common_build_flow);
-/* this should now be called userspace_sink_build, now that we have both sinks and flows.  See discussion of sinks and flows in www.namesys.com/v4/v4.html */
+	/* this should now be called userspace_sink_build, now that we have
+	 * both sinks and flows.  See discussion of sinks and flows in
+	 * www.namesys.com/v4/v4.html */
 	result = common_build_flow (inode, buf, 1/* user space */, size,
 				    *off, READ_OP, &f);
 	if (result)
 		return result;
 
 	get_nonexclusive_access (inode);
-
+	
 #if YOU_CAN_COMPILE_PSEUDO_CODE
-		call_code resembling generic_readahead in its algorithms but which modifies to_read
+	call_code resembling generic_readahead in its algorithms but which modifies to_read;
 #endif
+	
+	ncoord_init_zero (&coord);
+	init_lh (&lh);
 
 	to_read = f.length;
 	while (f.length) {
 		if ((loff_t)get_key_offset (&f.key) >= inode->i_size)
 			/* do not read out of file */
 			break;
-/* AUDIT: lock handle not initialized */
-#if YOU_CAN_COMPILE_PSEUDO_CODE
-		
 
-		/* look for file metadata corresponding to position we read
-		 * from */
-		if (finding_first_item && inode contains valid seal for where we want to write) {
-			use seal pointed to by struct file to try to find first item;
-		}
-				/* on entry, lh should be lock on current node, on exit lh should be lock of node for item found */
-		result = next_item_by_locked_coord_of_current_item_and_key(&f.key, &coord, &lh,
-						   ZNODE_READ_LOCK, coord_of_current_item);
-#endif
-		result = find_item (&f.key, &coord, &lh,
-				    ZNODE_READ_LOCK);
-		switch (result) {
-		case CBK_COORD_FOUND:
-			/* call read method of found item */
-			iplug = item_plugin_by_coord (&coord);
-			if (!iplug->s.file.read)
-				result = -EINVAL;
-			else {
-				/* use generic read ahead if item has readpage
-				 * method */
-				if (iplug->s.file.readpage)
-					page_cache_readahead (file,
-							      (unsigned long)(get_key_offset (&f.key) >> PAGE_CACHE_SHIFT));
-					
-				result = iplug->s.file.read (inode, &coord,
-							     &lh, &f);
-			}
-			break;
-
-		case CBK_COORD_NOTFOUND:
+		/* find_next_item tries hard to avoid tree traversal */
+		result = find_next_item (file, &f.key, &coord, &lh,
+					 ZNODE_READ_LOCK);
+		if (result != CBK_COORD_FOUND)
 			/* item had to be found, as it was not - we have
 			 * -EIO */
-			result = -EIO;
-		default:
+			break;
+
+		/* call read method of found item */
+		iplug = item_plugin_by_coord (&coord);
+		if (!iplug->s.file.read) {
+			result = -EINVAL;
 			break;
 		}
-		done_lh (&lh);
-
-		if (!result)
-			continue;
-		break;
+		/* use generic read ahead if item has readpage
+		 * method */
+		if (iplug->s.file.readpage)
+			page_cache_readahead (file,
+					      (unsigned long)(get_key_offset (&f.key) >> PAGE_CACHE_SHIFT));
+		
+		result = iplug->s.file.read (inode, &coord, &lh, &f);
+		if (result)
+			break;
 	}
 
+	done_lh (&lh);
 	if( to_read - f.length ) {
 		/* something was read. Update stat data */
 		UPDATE_ATIME (inode);
@@ -233,7 +427,6 @@ typedef enum {
 static write_todo unix_file_how_to_write (struct inode *, flow_t *, coord_t *);
 
 /* plugin->u.file.write */
-/* Audited by: green(2002.06.15) */
 ssize_t unix_file_write (struct file * file, /* file to write to */
 			 const char * buf, /* comments are needed */
 			 size_t size, /* number of bytes ot write */
@@ -264,17 +457,18 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 
 	get_nonexclusive_access (inode);
 
+	init_lh (&lh);
+	ncoord_init_zero (&coord);
+
 	to_write = f.length;
 	while (f.length) {
 		znode * loaded;
 
 		/* look for file metadata corresponding to position we write
 		 * to */
-		/* AUDIT: lock handle used uninitialised here */
-		result = find_item (&f.key, &coord, &lh, ZNODE_WRITE_LOCK);
+		result = find_next_item (file, &f.key, &coord, &lh, ZNODE_WRITE_LOCK);
 		if (result != CBK_COORD_FOUND && result != CBK_COORD_NOTFOUND) {
 			/* error occured */
-			done_lh (&lh);
 			break;
 		}
 
@@ -282,7 +476,6 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 		loaded = coord.node;
 		result = zload (loaded);
 		if (result) {
-			done_lh (&lh);
 			break;
 		}
 
@@ -309,17 +502,34 @@ ssize_t unix_file_write (struct file * file, /* file to write to */
 				drop_nonexclusive_access (inode);
 				return result;
 			}
+			init_lh (&lh);
+			ncoord_init_zero (&coord);
 			continue;
 
 		default:
 			impossible ("vs-293", "unknown write mode");
 		}
 		zrelse (loaded);
-		done_lh (&lh);
-		if (!result || result == -EAGAIN)
-			continue;
-		break;
+
+		if (result && result != -EAGAIN)
+			/* error */
+			break;
+		if ((loff_t)get_key_offset (&f.key) > inode->i_size)
+			/* file got longer */
+			inode->i_size = get_key_offset (&f.key);
 	}
+	if (coord_set_properly (&f.key, &coord)) {
+		reiser4_file_fsdata * fdata;
+		seal_t * seal;
+
+		fdata = reiser4_get_file_fsdata (file);
+		if (!IS_ERR (fdata)) {
+			seal = &fdata->reg.last_access;
+			seal_init (seal, &coord, &f.key);
+		}
+	}
+	done_lh (&lh);
+
 	if( to_write - f.length ) {
 		/* something was written. Update stat data */
 		inode->i_ctime = inode->i_mtime = CURRENT_TIME;
@@ -456,6 +666,17 @@ int unix_file_mmap (struct file * file, struct vm_area_struct * vma)
 		return result;
 	return generic_file_mmap (file, vma);
 }
+
+/* plugin->u.file.get_block */
+int unix_file_get_block(struct inode *inode UNUSED_ARG,
+			sector_t block UNUSED_ARG,
+			struct buffer_head *bh_result UNUSED_ARG,
+			int create UNUSED_ARG)
+{
+	/* FIXME-VS: not ready */
+	return -EINVAL;
+}
+
 
 
 /* plugin->u.file.flow_by_inode  = common_build_flow */
