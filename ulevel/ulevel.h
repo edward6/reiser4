@@ -1606,6 +1606,8 @@ extern int init_MUTEX( semaphore *sem );
 extern struct file *filp_open(const char * filename, int flags, int mode);
 extern int filp_close(struct file *filp, fl_owner_t id);
 
+#define BITS_PER_LONG (32)
+
 /* __REISER4_ULEVEL_H__ */
 #endif
 

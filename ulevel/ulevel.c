@@ -149,7 +149,7 @@ kcond_t memory_pressure_done;
 
 static void *xxmalloc( size_t size )
 {
-	char * addr;
+	__u32 * addr;
 
 	if( KMEM_FAILURES && ( rand() < kmalloc_failure_rate ) ) {
 		info( "xxmalloc failed at its discretion\n" );
@@ -178,9 +178,15 @@ static void *xxmalloc( size_t size )
 		}
 	}
 
-	addr = malloc( size );
-	if (addr)
+	addr = malloc( size + sizeof (__u32) * 3 );
+	if (addr) {
 		total_allocations += size;
+		*addr = KMEM_MAGIC;
+		*(addr + 1) = size;
+		*((__u32 *) ((char *)addr + size + sizeof (__u32) * 2)) = KMEM_MAGIC;
+		addr += 2;
+		xx_check_mem (addr);
+	}
 	return addr;
 }
 
@@ -190,29 +196,19 @@ static void xxfree( void *addr )
 
 	assert ("vs-819", total_allocations >= xx_get_size (addr));
 	total_allocations -= xx_get_size (addr);
+	memset( addr, 0xf0, xx_get_size (addr) );
 	free( (char *)addr - sizeof (__u32) * 2);
 }
 
 void *kmalloc( size_t size, int flag UNUSE )
 {
-	__u32 *addr;
-
-
-	addr = xxmalloc( size + sizeof (__u32) * 3 );
-	if (addr != NULL) {
-		*addr = KMEM_MAGIC;
-		*(addr + 1) = size;
-		*((__u32 *) ((char *)addr + size + sizeof (__u32) * 2)) = KMEM_MAGIC;
-		addr += 2;
-	}
-
-	xx_check_mem (addr);
-	return addr;
+	return xxmalloc( size );
 }
 
 void kfree( void *addr )
 {
-	xxfree( addr );
+	if( addr != NULL )
+		xxfree( addr );
 }
 
 /* 
@@ -4783,7 +4779,7 @@ void declare_memory_pressure( void )
 	is_mp = 1;
 	spin_unlock( &mp_guard );
 	kcond_broadcast( &memory_pressed );
-	dinfo( "nikita-1940", "Memory pressure declared: %lli", 
+	dinfo( "nikita-1940", "Memory pressure declared: %lli",
 	       total_allocations );
 	/*total_allocations = 0;*/
 }
