@@ -4,7 +4,17 @@
 #ifndef __REISER4_TXNMGR_H__
 #define __REISER4_TXNMGR_H__
 
+#include "forward.h"
+#include "spin_macros.h"
+#include "dformat.h"
+#include "tslist.h"
 
+#include <linux/fs.h>
+#include <linux/mm.h>
+#include <linux/types.h>
+#include <linux/spinlock.h>
+#include <asm/atomic.h>
+#include <asm/semaphore.h>
 
 /*****************************************************************************************
 				        LIST TYPES

@@ -179,7 +179,24 @@
  * steps will prevent the BLOCKED_IN_CAPTURE thread from ever blocking.
  */
 
+#include "debug.h"
+#include "tslist.h"
+#include "txnmgr.h"
+#include "jnode.h"
+#include "znode.h"
+#include "block_alloc.h"
+#include "tree.h"
+#include "wander.h"
+#include "ktxnmgrd.h"
+#include "super.h"
 #include "reiser4.h"
+
+#include <asm/atomic.h>
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/mm.h>
+#include <linux/slab.h>
+#include <linux/pagemap.h>
 
 static void   atom_free                       (txn_atom   *atom);
 
