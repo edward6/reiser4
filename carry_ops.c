@@ -1381,7 +1381,7 @@ static carry_node *find_dir_carry( carry_node *node /* node to start scanning
  */
 static __u64 common_estimate( carry_op *op, carry_level *doing )
 {
-	__u64 result;
+	__u64 result = 0; /* to keep gcc happy */
 	reiser4_tree *tree;
 
 	assert( "nikita-2310", op != NULL );
