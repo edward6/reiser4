@@ -1037,13 +1037,13 @@ static int overwrite_one_block (tree_coord * coord, reiser4_lock_handle * lh,
 
 
 typedef enum {
-	CREATE_HOLE,
-	APPEND_HOLE,
-	FIRST_BLOCK,
-	APPEND_BLOCK,
-	OVERWRITE_BLOCK,
-	RESEARCH,
-	CANT_CONTINUE
+	EXTENT_CREATE_HOLE,
+	EXTENT_APPEND_HOLE,
+	EXTENT_FIRST_BLOCK,
+	EXTENT_APPEND_BLOCK,
+	EXTENT_OVERWRITE_BLOCK,
+	EXTENT_RESEARCH,
+	EXTENT_CANT_CONTINUE
 } extent_write_todo;
 
 
@@ -1062,12 +1062,12 @@ static int add_hole (tree_coord * coord, reiser4_lock_handle * lh,
 	reiser4_key last_key;
 
 
-	if (todo == CREATE_HOLE) {
+	if (todo == EXTENT_CREATE_HOLE) {
 		/* there are no items of this file yet. First item will be
 		   hole extent inserted here */
 		hole_off = 0;
 	} else {
-		assert ("vs-251", todo == APPEND_HOLE);
+		assert ("vs-251", todo == EXTENT_APPEND_HOLE);
 		hole_off = get_key_offset (last_key_in_extent(coord, &last_key));
 	}
 
@@ -1083,7 +1083,7 @@ static int add_hole (tree_coord * coord, reiser4_lock_handle * lh,
 	item.arg = 0;
 
 	result = 0;
-	if (todo == CREATE_HOLE) {
+	if (todo == EXTENT_CREATE_HOLE) {
 		reiser4_key hole_key;
 
 		hole_key = *key;
@@ -1156,7 +1156,7 @@ static int key_in_item (tree_coord * coord, reiser4_key * key)
 /* this is todo for regular reiser4 files which are made of extents
    only. Extents represent every byte of file body. One node may not have more
    than one extent item of one file */
-static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
+static extent_write_todo extent_what_todo (tree_coord * coord, reiser4_key * key)
 {
 	reiser4_key coord_key;
 	tree_coord left, right;
@@ -1165,12 +1165,12 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 	spin_lock_dk (current_tree);
 	if (!znode_contains_key (coord->node, key)) {
 		spin_unlock_dk (current_tree);
-		return RESEARCH;
+		return EXTENT_RESEARCH;
 	}
 	spin_unlock_dk (current_tree);
 
 	if (coord_of_unit (coord))
-		return key_in_extent (coord, key) ? OVERWRITE_BLOCK : RESEARCH;
+		return key_in_extent (coord, key) ? EXTENT_OVERWRITE_BLOCK : EXTENT_RESEARCH;
 
 	if (coord_between_items (coord)) {
 		__u64 fbb_offset; /* offset of First Byte of Block */
@@ -1179,9 +1179,9 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 		fbb_offset = get_key_offset (key) & ~(reiser4_get_current_sb ()->s_blocksize - 1);
 		if (is_empty_node (coord->node)) {
 			if (fbb_offset == 0)
-				return FIRST_BLOCK;
+				return EXTENT_FIRST_BLOCK;
 			else
-				return CREATE_HOLE;
+				return EXTENT_CREATE_HOLE;
 		}
 
 		right = *coord;
@@ -1194,7 +1194,7 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 				info ("extent_todo: "
 				      "there is item of this file to the right "
 				      "of insertion coord\n");
-				return CANT_CONTINUE;
+				return EXTENT_CANT_CONTINUE;
 			}
 		} else {
 			spin_lock_dk (current_tree);
@@ -1203,7 +1203,7 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 				info ("extent_todo: there is item of this file "
 				      "in right neighbor\n");
 				spin_unlock_dk (current_tree);
-				return CANT_CONTINUE;
+				return EXTENT_CANT_CONTINUE;
 			}
 			spin_unlock_dk (current_tree);
 		}
@@ -1212,7 +1212,7 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 		if (coord_set_to_left (&left)) {
 			info ("extent_todo: "
 			      "no item to the left of insertion coord\n");
-			return RESEARCH;
+			return EXTENT_RESEARCH;
 		}
 
 		item_key_by_coord (&left, &coord_key);
@@ -1221,23 +1221,23 @@ static extent_write_todo what_todo (tree_coord * coord, reiser4_key * key)
 		    item_plugin_id (item_plugin_by_coord (&left)) != EXTENT_ITEM_ID) {
 			/* @coord is set between items of other files */
 			if (fbb_offset == 0)
-				return FIRST_BLOCK;
+				return EXTENT_FIRST_BLOCK;
 			else
-				return CREATE_HOLE;
+				return EXTENT_CREATE_HOLE;
 		}
 
 		/* item to the left of @coord is extent item of this file */
 		if (fbb_offset < get_key_offset (&coord_key) +
 		    extent_size (&left, (unsigned)-1))
-			return RESEARCH;
+			return EXTENT_RESEARCH;
 		if (fbb_offset == get_key_offset (&coord_key) +
 		    extent_size (&left, (unsigned)-1))
-			return APPEND_BLOCK;
+			return EXTENT_APPEND_BLOCK;
 		else
-			return APPEND_HOLE;
+			return EXTENT_APPEND_HOLE;
 	}
 
-	return RESEARCH;
+	return EXTENT_RESEARCH;
 }
 
 
@@ -1311,26 +1311,26 @@ static int prepare_write (tree_coord * coord, reiser4_lock_handle * lh,
 			continue;
 
 		if (!buffer_mapped (bh)) {
-			todo = what_todo (coord, &tmp_key);
+			todo = extent_what_todo (coord, &tmp_key);
 			switch (todo) {
-			case CREATE_HOLE:
-			case APPEND_HOLE:
+			case EXTENT_CREATE_HOLE:
+			case EXTENT_APPEND_HOLE:
 				return add_hole (coord, lh, &tmp_key,
 						 todo);
 
-			case FIRST_BLOCK:
+			case EXTENT_FIRST_BLOCK:
 				/* create first item of the file */
 				result = insert_first_block (coord, lh,
 							     &tmp_key, bh);
 				assert ("vs-252", buffer_new (bh));
 				break;
 
-			case APPEND_BLOCK:
+			case EXTENT_APPEND_BLOCK:
 				result = append_one_block (coord, lh, bh);
 				assert ("vs-253", buffer_new (bh));		
 				break;
 
-			case OVERWRITE_BLOCK:
+			case EXTENT_OVERWRITE_BLOCK:
 				/* there is found extent (possibly hole
 				   one) */
 				result = overwrite_one_block (coord, lh,
@@ -1340,11 +1340,11 @@ static int prepare_write (tree_coord * coord, reiser4_lock_handle * lh,
 				}
 				break;
 
-			case CANT_CONTINUE:
+			case EXTENT_CANT_CONTINUE:
 				result = -EIO;
 				break;
 
-			case RESEARCH:
+			case EXTENT_RESEARCH:
 				/* @coord is not set to a place in a file we
 				   have to write to, so, coord_by_key must be
 				   called to find that place */

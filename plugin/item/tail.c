@@ -329,17 +329,17 @@ reiser4_key * tail_unit_key (const tree_coord * coord, reiser4_key * key)
 
 
 typedef enum {
-	CREATE_HOLE,
-	APPEND_HOLE,
-	FIRST_ITEM,
-	OVERWRITE,
-	APPEND,
-	RESEARCH,
-	CANT_CONTINUE
+	TAIL_CREATE_HOLE,
+	TAIL_APPEND_HOLE,
+	TAIL_FIRST_ITEM,
+	TAIL_OVERWRITE,
+	TAIL_APPEND,
+	TAIL_RESEARCH,
+	TAIL_CANT_CONTINUE
 } tail_write_todo;
 
 
-static tail_write_todo what_todo (struct inode * inode, tree_coord * coord,
+static tail_write_todo tail_what_todo (struct inode * inode, tree_coord * coord,
 				  reiser4_key * key)
 {
 	reiser4_key item_key;
@@ -348,7 +348,7 @@ static tail_write_todo what_todo (struct inode * inode, tree_coord * coord,
 	spin_lock_dk (current_tree);
 	if (!znode_contains_key (coord->node, key)) {
 		spin_unlock_dk (current_tree);
-		return RESEARCH;
+		return TAIL_RESEARCH;
 	}
 	spin_unlock_dk (current_tree);
 
@@ -358,17 +358,17 @@ static tail_write_todo what_todo (struct inode * inode, tree_coord * coord,
 		 * no items of this file in tree yet
 		 */
 		if (get_key_offset (key) == 0)
-			return FIRST_ITEM;
+			return TAIL_FIRST_ITEM;
 		else
-			return CREATE_HOLE;
+			return TAIL_CREATE_HOLE;
 	}
 
 	if (item_plugin_id (item_plugin_by_coord (coord)) != BODY_ITEM_ID)
-		return CANT_CONTINUE;
+		return TAIL_CANT_CONTINUE;
 
 	item_key_by_coord (coord, &item_key);
 	if (get_key_objectid (key) != get_key_objectid (&item_key))
-		return CANT_CONTINUE;
+		return TAIL_CANT_CONTINUE;
 
 	if (coord_of_unit (coord)) {
 		/*
@@ -376,9 +376,9 @@ static tail_write_todo what_todo (struct inode * inode, tree_coord * coord,
 		 */
 		if (get_key_offset (key) ==
 		    get_key_offset (unit_key_by_coord (coord, &item_key)))
-			return OVERWRITE;
+			return TAIL_OVERWRITE;
 		else
-			return RESEARCH;
+			return TAIL_RESEARCH;
 	}
 
 	if (coord->between != AFTER_UNIT ||
@@ -386,13 +386,13 @@ static tail_write_todo what_todo (struct inode * inode, tree_coord * coord,
 		/*
 		 * FIXME-VS: we could try to adjust coord
 		 */
-		return RESEARCH;
+		return TAIL_RESEARCH;
 	}	
 
 	if (get_key_offset (key) == (get_key_offset (&item_key) +
 				     coord->unit_pos + 1))
-		return APPEND;
-	return APPEND_HOLE;
+		return TAIL_APPEND;
+	return TAIL_APPEND_HOLE;
 }
 
 
@@ -557,26 +557,26 @@ int tail_write (struct inode * inode, tree_coord * coord,
 
 
 	while (f->length) {
-		switch (what_todo (inode, coord, &f->key)) {
-		case CREATE_HOLE:
+		switch (tail_what_todo (inode, coord, &f->key)) {
+		case TAIL_CREATE_HOLE:
 			result = create_hole (coord, lh, f);
 			break;
-		case APPEND_HOLE:
+		case TAIL_APPEND_HOLE:
 			result = append_hole (coord, lh, f);
 			break;
-		case FIRST_ITEM:
+		case TAIL_FIRST_ITEM:
 			result = insert_first_item (coord, lh, f);
 			break;
-		case OVERWRITE:
+		case TAIL_OVERWRITE:
 			result = overwrite_tail (coord, f);
 			break;
-		case APPEND:
+		case TAIL_APPEND:
 			result = append_tail (coord, lh, f);
 			break;
-		case RESEARCH:
+		case TAIL_RESEARCH:
 			result = -EAGAIN;
 			break;
-		case CANT_CONTINUE:
+		case TAIL_CANT_CONTINUE:
 		default:
 			result = -EIO;
 			break;
