@@ -291,7 +291,7 @@ static int entry_actor( reiser4_tree *tree,
 typedef struct entry_actor_args {
 	const char  *name;
 	reiser4_key *key;
-#if REISER4_USE_COLLISION_LIMIT
+#if REISER4_USE_COLLISION_LIMIT || REISER4_STATS
 	int          max_non_uniq;
 	int          non_uniq;
 #endif
