@@ -75,17 +75,21 @@ typedef enum {
 
 /* EDWARD-FIXME-HANS: use an ifdef and macros instead */
 typedef struct tree_operations {
-	/** read given tree node from persistent storage */
+	/** read given tree node from persistent storage. This is called from
+	 * zload() */
 	int ( *read_node )( reiser4_tree *tree, jnode *node );
-	/** allocate memory for newly created znode */
+	/** allocate memory for newly created znode. This is called from
+	 * zinit_new() */
 	int ( *allocate_node )( reiser4_tree *tree, jnode *node );
-	/** called when node is deleted from the tree. */
+	/** called when node is deleted from the tree. This is called from
+	 * zdestroy(). */
 	int ( *delete_node )( reiser4_tree *tree, jnode *node );
-	/** called when node's data are no longer needed */
+	/** called when node's data are no longer needed. This is called from
+	 * zunload(). */
 	int ( *release_node )( reiser4_tree *tree, jnode *node );
 	/** called when node is removed from the memory */
 	int ( *drop_node )( reiser4_tree *tree, jnode *node );
-	/** mark node dirty */
+	/** mark node dirty. This is called from jnode_set_dirty(). */
 	int ( *dirty_node )( reiser4_tree *tree, jnode *node );
 } tree_operations;
 
