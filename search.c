@@ -810,6 +810,8 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 {
 	int ret;
 	int setdk;
+	reiser4_key ldkey;
+	reiser4_key key;
 	znode *active;
 
 	assert("nikita-3025", schedulable());
@@ -843,7 +845,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 	if (h->flags & CBK_DKSET) {
 		setdk = setup_delimiting_keys(h);
 		h->flags &= ~CBK_DKSET;
-	} else if (!ZF_ISSET(active, JNODE_DKSET)) {
+	} else {
 		znode *parent;
 
 		parent = h->parent_lh->node;
@@ -851,8 +853,15 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 		if (unlikely(h->result != 0))
 			goto fail_or_restart;
 
-		setdk = set_child_delimiting_keys(parent, h->coord, active);
+		if (!ZF_ISSET(active, JNODE_DKSET))
+			setdk = set_child_delimiting_keys(parent,
+							  h->coord, active);
+		else
+			find_child_delimiting_keys(parent, h->coord,
+						   &ldkey, &key);
 		zrelse(parent);
+		if (unlikely(h->result != 0))
+			goto fail_or_restart;
 	}
 
 	/* this is ugly kludge. Reminder: this is necessary, because
@@ -920,6 +929,20 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 
 	/* sanity checks */
 	if (sanity_check(h)) {
+		zrelse(active);
+		return LOOKUP_DONE;
+	}
+
+	/* check that key of leftmost item in the @active is the same as in
+	 * its parent */
+	if (!node_is_empty(active) &&
+	    !keyeq(leftmost_key_in_node(active, &key), &ldkey)) {
+		warning("vs-3533", "Keys are inconsistent. Fsck?");
+		print_node("parent", parent);
+		print_node("child", active);
+		print_key("inparent", &ldkey);
+		print_key("inchild", &key);
+		h->result = RETERR(-EIO);
 		zrelse(active);
 		return LOOKUP_DONE;
 	}
@@ -1277,7 +1300,7 @@ reiser4_internal znode_lock_mode cbk_lock_mode(tree_level level, cbk_handle * h)
    @parent_coord.
 
 */
-static int
+static void
 find_child_delimiting_keys(znode * parent	/* parent znode, passed
 						 * locked */ ,
 			   const coord_t * parent_coord	/* coord where
@@ -1290,36 +1313,29 @@ find_child_delimiting_keys(znode * parent	/* parent znode, passed
 						 * delimiting key */ )
 {
 	coord_t neighbor;
-	int result;
 
 	assert("nikita-1484", parent != NULL);
 	assert("nikita-1485", rw_dk_is_locked(znode_get_tree(parent)));
 
 	coord_dup(&neighbor, parent_coord);
 
-	result = 0;
 	if (neighbor.between == AT_UNIT)
 		/* imitate item ->lookup() behavior. */
 		neighbor.between = AFTER_UNIT;
 
-	if (coord_is_existing_unit(&neighbor) || (coord_set_to_left(&neighbor) == 0))
+	if (coord_is_existing_unit(&neighbor) ||
+	    coord_set_to_left(&neighbor) == 0)
 		unit_key_by_coord(&neighbor, ld);
-	else {
+	else
 		*ld = *znode_get_ld_key(parent);
-		result = 1;
-	}
 
 	coord_dup(&neighbor, parent_coord);
 	if (neighbor.between == AT_UNIT)
 		neighbor.between = AFTER_UNIT;
 	if (coord_set_to_right(&neighbor) == 0)
 		unit_key_by_coord(&neighbor, rd);
-	else {
+	else
 		*rd = *znode_get_rd_key(parent);
-		result = 1;
-	}
-
-	return result;
 }
 
 /*
@@ -1348,11 +1364,11 @@ set_child_delimiting_keys(znode * parent,
 	if (!ZF_ISSET(child, JNODE_DKSET)) {
 		WLOCK_DK(tree);
 		if (likely(!ZF_ISSET(child, JNODE_DKSET))) {
-			result = find_child_delimiting_keys
-				(parent, coord,
-				 znode_get_ld_key(child),
-				 znode_get_rd_key(child));
+			find_child_delimiting_keys(parent, coord,
+						   znode_get_ld_key(child),
+						   znode_get_rd_key(child));
 			ZF_SET(child, JNODE_DKSET);
+			result = 1;
 		}
 		WUNLOCK_DK(tree);
 	}
