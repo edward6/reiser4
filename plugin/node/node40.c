@@ -179,19 +179,14 @@ ih40_get_offset(item_header40 * ih)
 
 /* plugin->u.node.item_overhead
    look for description of this method in plugin/node/node.h */
-size_t node40_item_overhead(const znode * node UNUSED_ARG, flow_t * f UNUSED_ARG)
+size_t item_overhead_node40(const znode * node UNUSED_ARG, flow_t * f UNUSED_ARG)
 {
 	return sizeof (item_header40);
 }
 
-/* int           ( *move_items )( znode *source, pos_in_node source_pos_in_node, znode *target, pos_in_node target_pos_in_node, int item_count );
-  size_t           ( *create_body_space)( znode *node, int byte_count, pos_in_node pos );
-  size_t           ( *create )( znode *node, pos_in_node pos, flow *a_flow );
-*/
-
 /* plugin->u.node.free_space
    look for description of this method in plugin/node/node.h */
-size_t node40_free_space(znode * node)
+size_t free_space_node40(znode * node)
 {
 	assert("nikita-577", node != NULL);
 	assert("nikita-578", znode_is_loaded(node));
@@ -225,7 +220,7 @@ static inline void check_num_items(const znode *node)
 /* plugin->u.node.num_of_items
    look for description of this method in plugin/node/node.h */
 int
-node40_num_of_items(const znode * node)
+num_of_items_node40(const znode * node)
 {
 	trace_stamp(TRACE_NODES);
 	return node40_num_of_items_internal(node);
@@ -246,7 +241,7 @@ node40_set_num_items(znode * node, node40_header * nh, unsigned value)
 /* plugin->u.node.item_by_coord
    look for description of this method in plugin/node/node.h */
 char *
-node40_item_by_coord(const coord_t * coord)
+item_by_coord_node40(const coord_t * coord)
 {
 	item_header40 *ih;
 
@@ -261,7 +256,7 @@ node40_item_by_coord(const coord_t * coord)
 /* plugin->u.node.length_by_coord
    look for description of this method in plugin/node/node.h */
 int
-node40_length_by_coord(const coord_t * coord)
+length_by_coord_node40(const coord_t * coord)
 {
 	item_header40 *ih;
 	int result;
@@ -282,7 +277,7 @@ node40_length_by_coord(const coord_t * coord)
 /* plugin->u.node.plugin_by_coord
    look for description of this method in plugin/node/node.h */
 item_plugin *
-node40_plugin_by_coord(const coord_t * coord)
+plugin_by_coord_node40(const coord_t * coord)
 {
 	item_header40 *ih;
 	item_plugin   *result;
@@ -300,7 +295,7 @@ node40_plugin_by_coord(const coord_t * coord)
 /* plugin->u.node.key_at
    look for description of this method in plugin/node/node.h */
 reiser4_key *
-node40_key_at(const coord_t * coord, reiser4_key * key)
+key_at_node40(const coord_t * coord, reiser4_key * key)
 {
 	item_header40 *ih;
 
@@ -314,7 +309,7 @@ node40_key_at(const coord_t * coord, reiser4_key * key)
 
 /* plugin->u.node.lookup
    look for description of this method in plugin/node/node.h */
-node_search_result node40_lookup(znode * node /* node to query */ ,
+node_search_result lookup_node40(znode * node /* node to query */ ,
 				 const reiser4_key * key /* key to look for */ ,
 				 lookup_bias bias /* search bias */ ,
 				 coord_t * coord /* resulting coord */ )
@@ -505,13 +500,13 @@ node_search_result node40_lookup(znode * node /* node to query */ ,
 
 /* plugin->u.node.estimate
    look for description of this method in plugin/node/node.h */
-size_t node40_estimate(znode * node)
+size_t estimate_node40(znode * node)
 {
 	size_t result;
 
 	assert("nikita-597", node != NULL);
 
-	result = node40_free_space(node) - sizeof (item_header40);
+	result = free_space_node40(node) - sizeof(item_header40);
 
 	return (result > 0) ? result : 0;
 }
@@ -519,7 +514,7 @@ size_t node40_estimate(znode * node)
 /* plugin->u.node.check
    look for description of this method in plugin/node/node.h */
 int
-node40_check(const znode * node /* node to check */ ,
+check_node40(const znode * node /* node to check */ ,
 	     __u32 flags /* check flags */ ,
 	     const char **error /* where to store error message */ )
 {
@@ -698,7 +693,7 @@ node40_check(const znode * node /* node to check */ ,
 /* plugin->u.node.parse
    look for description of this method in plugin/node/node.h */
 int
-node40_parse(znode * node /* node to parse */ )
+parse_node40(znode * node /* node to parse */ )
 {
 	node40_header *header;
 	int result;
@@ -723,7 +718,7 @@ node40_parse(znode * node /* node to parse */ )
 /* plugin->u.node.init
    look for description of this method in plugin/node/node.h */
 int
-node40_init(znode * node /* node to initialise */ )
+init_node40(znode * node /* node to initialise */ )
 {
 	node40_header *header;
 
@@ -750,7 +745,7 @@ node40_init(znode * node /* node to initialise */ )
 }
 
 int
-node40_guess(const znode * node /* node to guess plugin of */ )
+guess_node40(const znode * node /* node to guess plugin of */ )
 {
 	node40_header *nethack;
 
@@ -764,7 +759,7 @@ node40_guess(const znode * node /* node to guess plugin of */ )
 
 #if REISER4_DEBUG_OUTPUT
 void
-node40_print(const char *prefix, const znode * node /* node to print */ ,
+print_node40(const char *prefix, const znode * node /* node to print */ ,
 	     __u32 flags UNUSED_ARG /* print flags */ )
 {
 	node40_header *header;
@@ -779,7 +774,7 @@ node40_print(const char *prefix, const znode * node /* node to print */ ,
 /* plugin->u.node.chage_item_size
    look for description of this method in plugin/node/node.h */
 void
-node40_change_item_size(coord_t * coord, int by)
+change_item_size_node40(coord_t * coord, int by)
 {
 	node40_header *nh;
 	item_header40 *ih;
@@ -794,8 +789,8 @@ node40_change_item_size(coord_t * coord, int by)
 
 	nh = node40_node_header(coord->node);
 
-	item_data = node40_item_by_coord(coord);
-	item_length = node40_length_by_coord(coord);
+	item_data = item_by_coord_node40(coord);
+	item_length = length_by_coord_node40(coord);
 
 	/* move item bodies */
 	ih = node40_ih_at_coord(coord);
@@ -823,7 +818,7 @@ should_notify_parent(const znode * node)
 /* plugin->u.node.create_item
    look for description of this method in plugin/node/node.h */
 int
-node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data * data, carry_plugin_info * info)
+create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data * data, carry_plugin_info * info)
 {
 	node40_header *nh;
 	item_header40 *ih;
@@ -836,7 +831,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 
 	assert("vs-212", coord_is_between_items(target));
 	/* node must have enough free space */
-	assert("vs-254", node40_free_space(target->node) >= data->length + sizeof (item_header40));
+	assert("vs-254", free_space_node40(target->node) >= data->length + sizeof(item_header40));
 
 	if (coord_set_to_right(target))
 		/* there are not items to the right of @target, so, new item
@@ -918,7 +913,7 @@ node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data 
 /* plugin->u.node.update_item_key
    look for description of this method in plugin/node/node.h */
 void
-node40_update_item_key(coord_t * target, const reiser4_key * key, carry_plugin_info * info)
+update_item_key_node40(coord_t * target, const reiser4_key * key, carry_plugin_info * info)
 {
 	item_header40 *ih;
 
@@ -1079,7 +1074,7 @@ cut_or_kill(struct cut_list *params, int cut)
 			rightmost_not_moved--;
 		}
 		ih = node40_ih_at(node, (unsigned) params->from->item_pos);
-		freed_space_start = ih40_get_offset(ih) + node40_length_by_coord(params->from) - cut_size;
+		freed_space_start = ih40_get_offset(ih) + length_by_coord_node40(params->from) - cut_size;
 
 		/* cut @to item */
 		from_unit = 0;
@@ -1133,7 +1128,7 @@ cut_or_kill(struct cut_list *params, int cut)
 		coord.unit_pos = 0;
 		coord.between = AT_UNIT;
 		unit_key_by_coord(&coord, &unit_key);
-		node40_update_item_key(&coord, &unit_key, 0);
+		update_item_key_node40(&coord, &unit_key, 0);
 	}
 
 	if (params->info) {
@@ -1141,7 +1136,7 @@ cut_or_kill(struct cut_list *params, int cut)
 		   of changes on upper levels */
 		if (node_is_empty(node) && !(params->flags & DELETE_RETAIN_EMPTY))
 			/* all contents of node is deleted */
-			node40_prepare_for_removal(node, params->info);
+			prepare_removal_node40(node, params->info);
 		else if (!keyeq(&node40_ih_at(node, 0)->key, &old_first_key)) {
 			/* first key changed */
 			prepare_for_update(NULL, node, params->info);
@@ -1157,20 +1152,14 @@ cut_or_kill(struct cut_list *params, int cut)
 
 /* plugin->u.node.cut_and_kill */
 int
-node40_cut_and_kill(struct cut_list *params)
-/*
-                    coord_t * from, coord_t * to,
-		    const reiser4_key * from_key,
-		    const reiser4_key * to_key,
-		    reiser4_key * smallest_removed, carry_plugin_info * info, void *kill_params, __u32 flags)
-*/
+cut_and_kill_node40(struct cut_list *params)
 {
-	return cut_or_kill(params, 0 /* kill */);
+	return cut_or_kill(params, 0 /* kill (as regards - not cut) */);
 }
 
 /* plugin->u.node.cut */
 int
-node40_cut(struct cut_list *params)
+cut_node40(struct cut_list *params)
 {
 	return cut_or_kill(params, 1 /* cut */);
 }
@@ -1247,7 +1236,7 @@ wanted_units(coord_t * source, coord_t * stop_coord, shift_direction pend)
 /* this calculates what can be copied from @shift->wish_stop.node to
    @shift->target */
 static void
-node40_estimate_shift(struct shift_params *shift)
+estimate_shift(struct shift_params *shift)
 {
 	unsigned target_free_space, size;
 	pos_in_node stop_item;	/* item which estimating should not consider */
@@ -1430,8 +1419,8 @@ copy_units(coord_t * target, coord_t * source, unsigned from, unsigned count, sh
 /* copy part of @shift->real_stop.node starting either from its beginning or
    from its end and ending at @shift->real_stop to either the end or the
    beginning of @shift->target */
-void
-node40_copy(struct shift_params *shift)
+static void
+copy(struct shift_params *shift)
 {
 	node40_header *nh;
 	coord_t from;
@@ -1622,7 +1611,7 @@ node40_copy(struct shift_params *shift)
 /* remove everything either before or after @fact_stop. Number of items
    removed completely is returned */
 static int
-node40_delete_copied(struct shift_params *shift)
+delete_copied(struct shift_params *shift)
 {
 	coord_t from;
 	coord_t to;
@@ -1659,7 +1648,7 @@ node40_delete_copied(struct shift_params *shift)
 	params.smallest_removed = 0;
 	params.info = 0;
 	params.flags = 0;
-	return node40_cut(&params);
+	return cut_node40(&params);
 }
 
 /* znode has left and right delimiting keys. We moved data between nodes,
@@ -1759,10 +1748,11 @@ prepare_for_update(znode * left, znode * right, carry_plugin_info * info)
 	return 0;
 }
 
-/* to delete a pointer to @empty from the tree add corresponding carry
+/* plugin->u.node.prepare_removal
+   to delete a pointer to @empty from the tree add corresponding carry
    operation (delete) to @info list */
 int
-node40_prepare_for_removal(znode * empty, carry_plugin_info * info)
+prepare_removal_node40(znode * empty, carry_plugin_info * info)
 {
 	carry_op *op;
 
@@ -2079,7 +2069,7 @@ update_taps(const struct shift_params *shift)
 /* plugin->u.node.shift
    look for description of this method in plugin/node/node.h */
 int
-node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,	/* if @from->node becomes empty - it will
+shift_node40(coord_t * from, znode * to, shift_direction pend, int delete_child,	/* if @from->node becomes empty - it will
 											   be deleted from the tree if this is set
 											   to 1 */
 	     int including_stop_coord /* */ ,
@@ -2139,7 +2129,7 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 
 	/* shift->stop_coord is updated to last unit which really will be
 	   shifted */
-	node40_estimate_shift(&shift);
+	estimate_shift(&shift);
 	if (!shift.shift_bytes) {
 		/* we could not shift anything */
 		assert("nikita-2079", coord_check(from));
@@ -2148,9 +2138,9 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 
 	trace_if(TRACE_COORDS, print_coord("shift->wish_stop before copy:", &shift.wish_stop, 0));
 
-	node40_copy(&shift);
+	copy(&shift);
 
-	result = node40_delete_copied(&shift);
+	result = delete_copied(&shift);
 	if (result < 0)
 		return result;
 
@@ -2172,7 +2162,7 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 		/* all contents of @from->node is moved to @to and @from->node
 		   has to be removed from the tree, so, on higher level we
 		   will be removing the pointer to node @from->node */
-		result = node40_prepare_for_removal(source, info);
+		result = prepare_removal_node40(source, info);
 	}
 #ifdef DEBUGGING_SHIFT
 	dinfo("SHIFT TO %s: merging %d, entire %d, part %d, size %d\n",
@@ -2194,7 +2184,7 @@ node40_shift(coord_t * from, znode * to, shift_direction pend, int delete_child,
 /* plugin->u.node.fast_insert() 
    look for description of this method in plugin/node/node.h */
 int
-node40_fast_insert(const coord_t * coord UNUSED_ARG /* node to query */ )
+fast_insert_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
 }
@@ -2202,7 +2192,7 @@ node40_fast_insert(const coord_t * coord UNUSED_ARG /* node to query */ )
 /* plugin->u.node.fast_paste() 
    look for description of this method in plugin/node/node.h */
 int
-node40_fast_paste(const coord_t * coord UNUSED_ARG /* node to query */ )
+fast_paste_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
 }
@@ -2210,7 +2200,7 @@ node40_fast_paste(const coord_t * coord UNUSED_ARG /* node to query */ )
 /* plugin->u.node.fast_cut() 
    look for description of this method in plugin/node/node.h */
 int
-node40_fast_cut(const coord_t * coord UNUSED_ARG /* node to query */ )
+fast_cut_node40(const coord_t * coord UNUSED_ARG /* node to query */ )
 {
 	return 1;
 }
@@ -2219,14 +2209,14 @@ node40_fast_cut(const coord_t * coord UNUSED_ARG /* node to query */ )
 
 /* plugin->u.node.max_item_size */
 int
-node40_max_item_size(void)
+max_item_size_node40(void)
 {
 	return reiser4_get_current_sb()->s_blocksize - sizeof (node40_header) - sizeof (item_header40);
 }
 
 /* plugin->u.node.set_item_plugin */
 int
-node40_set_item_plugin(coord_t *coord, item_id id)
+set_item_plugin_node40(coord_t *coord, item_id id)
 {
 	item_header40 *ih;
 

@@ -70,40 +70,40 @@ typedef struct item_header40 {
 	/* 28 */ d16 plugin_id;
 } item_header40;
 
-size_t node40_item_overhead(const znode * node, flow_t * aflow);
-size_t node40_free_space(znode * node);
-node_search_result node40_lookup(znode * node, const reiser4_key * key, lookup_bias bias, coord_t * coord);
-int node40_num_of_items(const znode * node);
-char *node40_item_by_coord(const coord_t * coord);
-int node40_length_by_coord(const coord_t * coord);
-item_plugin *node40_plugin_by_coord(const coord_t * coord);
-reiser4_key *node40_key_at(const coord_t * coord, reiser4_key * key);
-size_t node40_estimate(znode * node);
-int node40_check(const znode * node, __u32 flags, const char **error);
-int node40_parse(znode * node);
+size_t item_overhead_node40(const znode * node, flow_t * aflow);
+size_t free_space_node40(znode * node);
+node_search_result lookup_node40(znode * node, const reiser4_key * key, lookup_bias bias, coord_t * coord);
+int num_of_items_node40(const znode * node);
+char *item_by_coord_node40(const coord_t * coord);
+int length_by_coord_node40(const coord_t * coord);
+item_plugin *plugin_by_coord_node40(const coord_t * coord);
+reiser4_key *key_at_node40(const coord_t * coord, reiser4_key * key);
+size_t estimate_node40(znode * node);
+int check_node40(const znode * node, __u32 flags, const char **error);
+int parse_node40(znode * node);
 #if REISER4_DEBUG_OUTPUT
-void node40_print(const char *prefix, const znode * node, __u32 flags);
+void print_node40(const char *prefix, const znode * node, __u32 flags);
 #endif
-int node40_init(znode * node);
-int node40_guess(const znode * node);
-void node40_change_item_size(coord_t * coord, int by);
-int node40_create_item(coord_t * target, const reiser4_key * key, reiser4_item_data * data, carry_plugin_info * info);
-void node40_update_item_key(coord_t * target, const reiser4_key * key, carry_plugin_info * info);
-int node40_cut_and_kill(struct cut_list *);
-int node40_cut(struct cut_list *);
-int node40_shift(coord_t * from, znode * to, shift_direction pend,
+int init_node40(znode * node);
+int guess_node40(const znode * node);
+void change_item_size_node40(coord_t * coord, int by);
+int create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data * data, carry_plugin_info * info);
+void update_item_key_node40(coord_t * target, const reiser4_key * key, carry_plugin_info * info);
+int cut_and_kill_node40(struct cut_list *);
+int cut_node40(struct cut_list *);
+int shift_node40(coord_t * from, znode * to, shift_direction pend,
 		 /* if @from->node becomes
 		    empty - it will be deleted from
 		    the tree if this is set to 1 
 		 */
 		 int delete_child, int including_stop_coord, carry_plugin_info * info);
 
-int node40_fast_insert(const coord_t * coord);
-int node40_fast_paste(const coord_t * coord);
-int node40_fast_cut(const coord_t * coord);
-int node40_max_item_size(void);
-int node40_prepare_for_removal(znode * empty, carry_plugin_info * info);
-int node40_set_item_plugin(coord_t * coord, item_id id);
+int fast_insert_node40(const coord_t * coord);
+int fast_paste_node40(const coord_t * coord);
+int fast_cut_node40(const coord_t * coord);
+int max_item_size_node40(void);
+int prepare_removal_node40(znode * empty, carry_plugin_info * info);
+int set_item_plugin_node40(coord_t * coord, item_id id);
 
 void update_znode_dkeys(znode * left, znode * right);
 
