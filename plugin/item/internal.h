@@ -29,6 +29,8 @@ typedef struct internal_item_layout {
 	/*  4 */
 } internal_item_layout;
 
+lookup_result internal_lookup (const reiser4_key * key, lookup_bias bias,
+			       tree_coord * coord);
 /** store pointer from internal item into "block". Implementation of
     ->down_link() method */
 extern void internal_down_link    ( const tree_coord *coord, 

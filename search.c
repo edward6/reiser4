@@ -867,6 +867,7 @@ static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
 
 	reiser4_init_carry_pool( &pool );
 	reiser4_init_carry_level( &todo, &pool );
+	ON_STATS( todo.level_no = TWIG_LEVEL );
 
 	node = new_node( insert_coord -> node, LEAF_LEVEL );	
 	if( IS_ERR( node ) )
@@ -886,6 +887,7 @@ static int add_empty_leaf( tree_coord *insert_coord, reiser4_lock_handle *lh,
 	op -> u.insert.coord = insert_coord;
 	op -> u.insert.type = COPT_ITEM_DATA;
 	build_child_ptr_data( node, &item );
+	item.arg = NULL;
 	op -> u.insert.data = &item;
 	op -> u.insert.key = key;
 	/*
@@ -931,14 +933,7 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 	 * return item from "active" node with maximal key not greater than
 	 * "key" 
 	 */
-	/*
-	 * FIXME-NIKITA this is not quite right, because of the problems with twig
-	 * level. We don't known in advance where to switch from one bias to
-	 * another. Probably, it's better to just get rid of the whole bias
-	 * thing.
-	 */
-	node_bias = ( h -> level <= h -> llevel ) ?
-		h -> bias : FIND_MAX_NOT_MORE_THAN;
+	node_bias = h -> bias;
 	result = nplug -> lookup( active, h -> key,
 				  node_bias, h -> coord );
 	if( result != NS_FOUND && result != NS_NOT_FOUND ) {
@@ -964,7 +959,6 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 		return LLR_DONE;
 	}
 
-
 	if( h -> level > TWIG_LEVEL && result == NS_NOT_FOUND ) {
 		h -> error = "not found on internal node";
 		h -> result = result;
@@ -979,6 +973,16 @@ static level_lookup_result cbk_node_lookup( cbk_handle *h )
 		   horrors? */
 		assert( "vs-356", h -> level == TWIG_LEVEL );
 		assert( "vs-357", item_plugin_id (iplug) == EXTENT_ITEM_ID );
+
+		if( result == NS_FOUND ) {
+			/*
+			 * we have found desired key on twig level in extent item
+			 */
+			h -> result = CBK_COORD_FOUND;
+			reiser4_stat_tree_add( cbk_found );
+			return LLR_DONE;
+		}
+
 		/*
 		 * take a look at the item to the right of h -> coord
 		 */

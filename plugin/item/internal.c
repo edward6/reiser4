@@ -10,6 +10,26 @@
 
 /* see internal.h for explanation */
 
+
+/*
+ *
+ */
+lookup_result internal_lookup (const reiser4_key * key, lookup_bias bias UNUSED_ARG,
+			       tree_coord * coord)
+{
+	reiser4_key ukey;
+
+	switch( keycmp( unit_key_by_coord( coord, &ukey ), key ) ) {
+	default: impossible( "", "keycmp()?!" );
+	case LESS_THAN:
+		coord -> between = AFTER_ITEM;
+	case EQUAL_TO:
+		return CBK_COORD_FOUND;
+	case GREATER_THAN:
+		return CBK_COORD_NOTFOUND;
+	}
+}
+
 /** return body of internal item at @coord */
 static internal_item_layout *internal_at( const tree_coord *coord )
 {

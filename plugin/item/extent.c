@@ -206,6 +206,10 @@ lookup_result extent_lookup (const reiser4_key * key, lookup_bias bias,
 	/* set coord after last unit */
 	coord->unit_pos = nr - 1;
 	coord->between = AFTER_UNIT;
+	return CBK_COORD_FOUND;
+	/*
+	 * FIXME-VS: find better solution on monday
+	 */
 	return bias == FIND_MAX_NOT_MORE_THAN ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
 }
 
