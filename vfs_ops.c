@@ -85,7 +85,6 @@ static int reiser4_fill_super(struct super_block *s, void *data, int silent);
 
 static int reiser4_writepage(struct page *);
 static int reiser4_readpage(struct file *, struct page *);
-static int reiser4_sync_page(struct page *);
 static int reiser4_vm_writeback( struct page *page, 
 				 struct writeback_control *wbc );
 /*
@@ -585,7 +584,7 @@ static int reiser4_vm_writeback( struct page *page,
 	return page_common_writeback( page, wbc, JNODE_FLUSH_MEMORY_UNFORMATTED);
 }
 
-/* ->sync_page()
+/* 
    ->writepages()
    ->vm_writeback()
    ->set_page_dirty()
@@ -1729,6 +1728,7 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 		PLUG_OPT( "plugin.dir",      dir,  &info -> plug.d ),
 		PLUG_OPT( "plugin.hash",     hash, &info -> plug.h ),
 
+#if REISER4_BSD_PORT
 		{
 			/*
 			 * turn on BSD-style gid assignment
@@ -1742,6 +1742,7 @@ static int reiser4_parse_options( struct super_block * s, char *opt_string )
 				}
 			}
 		},
+#endif
 
 #if REISER4_TRACE_TREE
 		{
@@ -2174,7 +2175,9 @@ static struct super_block *reiser4_get_sb( struct file_system_type *fs_type /* f
 /** ->invalidatepage method for reiser4 */
 int reiser4_invalidatepage( struct page *page, unsigned long offset )
 {
+	int ret = 0;
 	REISER4_ENTRY( page -> mapping -> host -> i_sb );
+
 	if( offset == 0 ) {
 		jnode *node;
 
@@ -2184,34 +2187,39 @@ int reiser4_invalidatepage( struct page *page, unsigned long offset )
 		 */
 		node = jnode_by_page( page );
 		if( node != NULL ) {
-			int ret;
 			jref( node );
 			unlock_page( page );
 try_to_lock:
 			spin_lock_jnode( node );
+			unlock_page( page );
 			ret = txn_try_capture( node, ZNODE_WRITE_LOCK, 0 );
+			/*
+			 * return with page still
+			 * locked. truncate_list_pages() expects this.
+			 */
+			lock_page( page );
+			assert( "nikita-2676", jprivate( page ) == node );
 			if ( ret ) {
-				info("green-20: txn_try_capture returned %d", ret);
-				if ( (ret == -EAGAIN) || (ret == -EDEADLK) ||
-				     (ret == -EINTR) ) {
-					/* Safe to schedule since txn_try_capture unlocks jnode on error */
+				warning( "green-20", 
+					 "txn_try_capture returned %d", ret );
+				if( ( ret == -EAGAIN ) || ( ret == -EDEADLK ) ||
+				    ( ret == -EINTR ) ) {
+					/* Safe to schedule since
+					 * txn_try_capture unlocks jnode on
+					 * error */
 					preempt_point();
 					goto try_to_lock;
-				} else {
-					lock_page(page);
-					jput( node );
-					return ret;
 				}
+			} else {
+				spin_unlock_jnode( node );
+
+				txn_delete_page( page );
+
+				UNDER_SPIN_VOID( jnode, node,
+						 page_clear_jnode( page, 
+								   node ) );
+				JF_SET( node, JNODE_HEARD_BANSHEE );
 			}
-			spin_unlock_jnode( node );
-
-			txn_delete_page( page );
-
-			lock_page(page);
-			UNDER_SPIN_VOID( jnode, node,
-					 page_clear_jnode( page, node ) );
-
-			JF_SET( node, JNODE_HEARD_BANSHEE );
 			/*
 			 * can safely call jput() under page lock, because
 			 * page was just detached from jnode.
@@ -2219,10 +2227,7 @@ try_to_lock:
 			jput( node );
 		}
 	}
-	/*
-	 * return with page still locked. truncate_list_pages() expects this.
-	 */
-	REISER4_EXIT( 0 );
+	REISER4_EXIT( ret );
 }
 
 /** ->releasepage method for reiser4 */
