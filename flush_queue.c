@@ -425,7 +425,7 @@ static int fq_submit_write (flush_queue_t * fq, jnode * first, int nr)
 
 		pg = jnode_page (first);
 		/* FIXME-ZAM: What we should do to protect this page from
-		 * being remobved from memory? I think that reiser4
+		 * being removed from memory? I think that reiser4
 		 * releasepage() should look at JNODE_WRITEBACK bit */
 		assert ("zam-727", pg != NULL);
 
