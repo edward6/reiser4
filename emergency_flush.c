@@ -385,14 +385,14 @@ flushable(const jnode * node, struct page *page)
 		return 0;
 	if (JF_ISSET(node, JNODE_EPROTECTED))   /* protected from e-flush */
 		return 0;
+	if (page == NULL)           		/* nothing to flush */
+		return 0;
 	if (PageWriteback(page))                /* already under io */
 		return 0;
 	/* don't flush bitmaps or journal records */
 	if (!jnode_is_znode(node) && !jnode_is_unformatted(node))
 		return 0;
 	if (JF_ISSET(node, JNODE_EFLUSH))       /* already flushed */
-		return 0;
-	if (jnode_page(node) == NULL)           /* nothing to flush */
 		return 0;
 	return 1;
 }
@@ -488,22 +488,6 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 
 	tree = jnode_get_tree(node);
 
-	if (jnode_is_unformatted(node)) {
-		struct inode  *inode;
-		reiser4_inode *info;
-
-		inode = jnode_mapping(node)->host;
-		info = reiser4_inode_data(inode);
-		spin_lock(&eflushed_guard);
-		++ info->eflushed;
-
-		/* this is to make inode not freeable */
-		inode->i_state |= I_EFLUSH;
-		/* add eflush node to inode's list */
-		list_add(&ef->inode_link, &info->eflushed_jnodes);			
-		spin_unlock(&eflushed_guard);
-	}
-
 	ef->node = node;
 	ef->blocknr = *blocknr;
 	jref(node);
@@ -518,8 +502,28 @@ eflush_add(jnode *node, reiser4_block_nr *blocknr, eflush_node_t *ef)
 	 * locked.
 	 */
 	JF_SET(node, JNODE_EFLUSH);
-	UNLOCK_JNODE(node);
 
+	if (jnode_is_unformatted(node)) {
+		struct inode  *inode;
+		reiser4_inode *info;
+
+		spin_lock_eflush(tree->super);
+
+		inode = jnode_mapping(node)->host;
+		info = reiser4_inode_data(inode);
+		++ info->eflushed;
+
+		/* this is to make inode not freeable */
+		inode->i_state |= I_EFLUSH;
+		/* add eflush node to inode's list */
+		list_add(&ef->inode_link, &info->eflushed_jnodes);
+
+		/*printk("eflush_add: j %p, inode %llu, index %lu, atom %p\n", node, get_inode_oid(inode),
+		  jnode_index(node), node->atom);*/
+		spin_unlock_eflush(tree->super);
+	}
+
+	UNLOCK_JNODE(node);
 	return 0;
 }
 
@@ -605,22 +609,26 @@ eflush_del(jnode *node, int page_locked)
 
 		assert("vs-1215", JF_ISSET(node, JNODE_EFLUSH));
 		JF_CLR(node, JNODE_EFLUSH);
-		UNLOCK_JNODE(node);
 
 		if (jnode_is_unformatted(node)) {
 			reiser4_inode *info;
 
+			spin_lock_eflush(tree->super);
+
 			inode = jnode_mapping(node)->host;
 			info = reiser4_inode_data(inode);
-			spin_lock(&eflushed_guard);
 			assert("vs-1194", info->eflushed > 0);
 			-- info->eflushed;
 			/* remove eflush node from inode's list of eflush nodes */
 			list_del(&ef->inode_link);
 			if (info->eflushed == 0)
 				inode->i_state &= ~I_EFLUSH;
-			spin_unlock(&eflushed_guard);
+
+			/*printk("eflush_del: j %p, inode %llu, index %lu atom %p\n", node, get_inode_oid(inode),
+			  jnode_index(node), node->atom);*/
+			spin_unlock_eflush(tree->super);
 		}
+		UNLOCK_JNODE(node);
 
 #if REISER4_DEBUG
 		if (blocknr_is_fake(jnode_get_block(node))) {
