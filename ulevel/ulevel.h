@@ -1387,7 +1387,7 @@ static inline void read_unlock (spinlock_t * lock)
 	spin_unlock (lock);
 }
 
-
+extern int block_sync_page(struct page *page);
 
 /* __REISER4_ULEVEL_H__ */
 #endif
