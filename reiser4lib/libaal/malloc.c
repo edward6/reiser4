@@ -10,7 +10,7 @@
 #  include <config.h>
 #endif
 
-#ifndef ENABLE_ALONE
+#ifndef ENABLE_COMPACT
 
 #include <stdlib.h>
 static aal_malloc_handler_t malloc_handler = malloc;

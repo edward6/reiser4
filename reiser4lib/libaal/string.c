@@ -39,33 +39,41 @@ int aal_memcmp(const void *s1, const void *s2, size_t n) {
 }
 
 /* String-working functions */
+size_t aal_strlen(const char *s) {
+    size_t len = 0;
+
+    while (*s++) len++;
+    
+    return len;
+}
+
+int aal_strncmp(const char *s1, const char *s2, size_t n) {
+    size_t len = aal_strlen(s1) < n ? aal_strlen(s1) : n;
+    len = aal_strlen(s2) < len ? aal_strlen(s2) : len;
+
+    return aal_memcmp((const void *)s1, (const void *)s2, len);
+}
+
 char *aal_strncpy(char *dest, const char *src, size_t n) {
-    size_t len = strlen(src) < n ? strlen(src) : n;
+    size_t len = aal_strlen(src) < n ? aal_strlen(src) : n;
 	
     aal_memcpy((void *)dest, (const void *)src, len);
 	
     if (len < n) 
-	*(dest + strlen(dest)) = '\0';
+	*(dest + aal_strlen(dest)) = '\0';
 	
     return dest;
 }
 
 char *aal_strncat(char *dest, const char *src, size_t n) {
-    size_t len = strlen(src) < n ? strlen(src) : n;
+    size_t len = aal_strlen(src) < n ? aal_strlen(src) : n;
 	
-    aal_memcpy(dest + strlen(dest), src, len);
+    aal_memcpy(dest + aal_strlen(dest), src, len);
 	
     if (len < n) 
-	*(dest + strlen(dest)) = '\0';
+	*(dest + aal_strlen(dest)) = '\0';
 	
     return dest;
-}
-
-int aal_strncmp(const char *s1, const char *s2, size_t n) {
-    size_t len = strlen(s1) < n ? strlen(s1) : n;
-    len = strlen(s2) < len ? strlen(s2) : len;
-
-    return aal_memcmp((const void *)s1, (const void *)s2, len);
 }
 
 /* Longint to string convertation function */

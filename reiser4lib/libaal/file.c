@@ -8,7 +8,7 @@
 #  include <config.h>
 #endif
 
-#ifndef ENABLE_ALONE
+#ifndef ENABLE_COMPACT
 
 #ifndef _GNU_SOURCE
 #  define _GNU_SOURCE
@@ -127,7 +127,7 @@ aal_device_t *aal_file_open(const char *file, uint32_t blocksize, int flags) {
 	return NULL;
 	
     device = aal_device_open(&ops, blocksize, flags, (void *)file);
-    aal_strncpy(device->name, file, strlen(file));
+    aal_strncpy(device->name, file, aal_strlen(file));
 
     if (!(device->entity = aal_calloc(sizeof(int), 0)))
 	goto error_free_device;

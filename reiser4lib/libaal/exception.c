@@ -11,11 +11,6 @@
 #include <aal/aal.h>
 #include <stdarg.h>
 
-#ifndef ENABLE_ALONE
-#  include <stdio.h>
-#  include <string.h>
-#endif
-
 static aal_exception_option_t default_handler(aal_exception_t *exception);
 static aal_exception_handler_t exception_handler = default_handler;
 

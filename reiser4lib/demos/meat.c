@@ -4,8 +4,14 @@
     Author Yury Umanets.
 */
 
-#include <stdio.h>
-#include <fcntl.h>
+#ifdef HAVE_CONFIG_H
+#  include <config.h>
+#endif
+
+#ifndef ENABLE_COMPACT
+#  include <stdio.h>
+#  include <fcntl.h>
+#endif
 
 #include <aal/aal.h>
 #include <reiserfs/reiserfs.h>
@@ -14,6 +20,8 @@ int main(int argc, char *argv[]) {
     reiserfs_fs_t *fs;
     aal_device_t *device;
 
+#ifndef ENABLE_COMPACT    
+    
     if (argc < 2) {
     	fprintf(stderr, "Usage: %s DEV\n", argv[0]);
 	return 0xfe;
@@ -50,6 +58,9 @@ int main(int argc, char *argv[]) {
 error_free_device:
     aal_file_close(device);
 error:
+    
+#endif
+    
     return 0xff;
 }
 

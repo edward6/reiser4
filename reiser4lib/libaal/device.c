@@ -200,7 +200,7 @@ blk_t aal_device_get_block_location(aal_device_t *device, aal_block_t *block) {
     if (!block || !device)
 	return 0;
 
-    return (blk_t)(block->offset / aal_device_get_blocksize(device));
+    return (blk_t)(block->offset << aal_log2(aal_device_get_blocksize(device)));
 }
 
 void aal_device_set_block_location(aal_device_t *device, aal_block_t *block, blk_t blk) {

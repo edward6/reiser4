@@ -16,6 +16,7 @@ extern int aal_memcmp(const void *s1, const void *s2, size_t n);
 extern char *aal_strncpy(char *dest, const char *src, size_t n);
 extern char *aal_strncat(char *dest, const char *src, size_t n);
 extern int aal_strncmp(const char *s1, const char *s2, size_t n);
+extern size_t aal_strlen(const char *s);
 
 extern int aal_ltos(long int d, size_t n, char *a, int base);
 	

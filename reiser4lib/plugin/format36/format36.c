@@ -11,17 +11,17 @@
 
 static int reiserfs_format36_3_5_signature(const char *signature) {
     return(!aal_strncmp(signature, REISERFS_3_5_SUPER_SIGNATURE,
-	strlen(REISERFS_3_5_SUPER_SIGNATURE)));
+	aal_strlen(REISERFS_3_5_SUPER_SIGNATURE)));
 }
 
 static int reiserfs_format36_3_6_signature(const char *signature) {
     return(!aal_strncmp(signature, REISERFS_3_6_SUPER_SIGNATURE,
-	strlen(REISERFS_3_6_SUPER_SIGNATURE)));
+	aal_strlen(REISERFS_3_6_SUPER_SIGNATURE)));
 }
 
 static int reiserfs_format36_journal_signature(const char *signature) {
     return(!aal_strncmp(signature, REISERFS_JR_SUPER_SIGNATURE,
-	strlen(REISERFS_JR_SUPER_SIGNATURE)));
+	aal_strlen(REISERFS_JR_SUPER_SIGNATURE)));
 }
 
 static int reiserfs_format36_signature(reiserfs_format36_super_t *super) {
@@ -182,7 +182,7 @@ static reiserfs_plugin_t format36_plugin = {
 	    .handle = NULL,
 	    .id = 0x2,
 	    .type = REISERFS_FORMAT_PLUGIN,
-	    .label = "format36",
+	    .label = "Format36",
 	    .desc = "Disk-layout for reiserfs 3.6.x, ver. 0.1, "
 		"Copyright (C) 1996-2002 Hans Reiser",
 	},

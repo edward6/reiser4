@@ -11,11 +11,11 @@
 #include <stdarg.h>
 #include <aal/aal.h>
 
-#ifndef ENABLE_ALONE
+#ifndef ENABLE_COMPACT
 #  include <stdio.h>
 #endif
 
-#ifndef ENABLE_ALONE
+#ifndef ENABLE_COMPACT
 static aal_printf_handler_t printf_handler = (aal_printf_handler_t)printf;
 #else
 static aal_printf_handler_t printf_handler = NULL;
@@ -60,12 +60,12 @@ int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
 		char c = *(fmt + 1);
 		
 		if (fmt - format > 0)
-		    aal_memcpy(buff + strlen(buff), old, fmt - old);
+		    aal_memcpy(buff + aal_strlen(buff), old, fmt - old);
 				
 		switch (c) {
 		    case 's': {
 			char *s = va_arg(arg_list, char *);
-			aal_strncat(buff, s, n - strlen(buff));
+			aal_strncat(buff, s, n - aal_strlen(buff));
 			break;
 		    }
 		    case 'd':
@@ -77,7 +77,7 @@ int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
 			
 			d = va_arg(arg_list, int);
 			aal_ltos(d, sizeof(s), s, c == 'd' ? 10 : 16);
-			aal_strncat(buff, s, n - strlen(buff));
+			aal_strncat(buff, s, n - aal_strlen(buff));
 		    }
 		}
 		fmt += 2;
@@ -87,9 +87,11 @@ int aal_vsnprintf(char *buff, size_t n, const char *format, va_list arg_list) {
 	    default: fmt++;
 	}
     }
+
     if (fmt - format > 0)
-	aal_memcpy(buff + strlen(buff), old, fmt - old);
-    return strlen(buff);
+	aal_memcpy(buff + aal_strlen(buff), old, fmt - old);
+
+    return aal_strlen(buff);
 }
 
 int aal_snprintf(char *buff, size_t n, const char *format, ...) {

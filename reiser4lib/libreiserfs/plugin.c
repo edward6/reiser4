@@ -8,13 +8,15 @@
 #  include <config.h>
 #endif
 
-#ifndef ENABLE_ALONE
+#ifndef ENABLE_COMPACT
 #  include <dlfcn.h>
 #  include <sys/types.h>
 #  include <dirent.h>
 #endif
 
 #include <reiserfs/reiserfs.h>
+
+#define ENTRY "reiserfs_plugin_entry"
 
 aal_list_t *plugins = NULL;
 
@@ -28,14 +30,14 @@ static int callback_match_plugin(reiserfs_plugin_t *plugin, struct walk_desc *de
 }
 
 error_t reiserfs_plugins_init(void) {
-#ifndef ENABLE_ALONE
+#ifndef ENABLE_COMPACT
     DIR *dir;
     struct dirent *ent;
 #endif	
 
     aal_assert("umka-159", plugins == NULL, return -1);
     
-#ifndef ENABLE_ALONE
+#ifndef ENABLE_COMPACT
     if (!(dir = opendir(PLUGIN_DIR))) {
     	aal_exception_throw(EXCEPTION_FATAL, EXCEPTION_OK,
 	    "Can't open directory %s.", PLUGIN_DIR);
@@ -44,26 +46,24 @@ error_t reiserfs_plugins_init(void) {
 	
     while ((ent = readdir(dir))) {
 	char name[4096];
-	reiserfs_plugin_t *plugin;
 
-	if ((strlen(ent->d_name) == 1 && aal_strncmp(ent->d_name, ".", 1)) ||
-		(strlen(ent->d_name) == 2 && aal_strncmp(ent->d_name, "..", 2)))
+	if ((aal_strlen(ent->d_name) == 1 && aal_strncmp(ent->d_name, ".", 1)) ||
+		(aal_strlen(ent->d_name) == 2 && aal_strncmp(ent->d_name, "..", 2)))
 	    continue;	
 	
-	if (strlen(ent->d_name) <= 2)
+	if (aal_strlen(ent->d_name) <= 2)
 	    continue;
 		
-	if (ent->d_name[strlen(ent->d_name) - 2] != 's' || 
-		ent->d_name[strlen(ent->d_name) - 1] != 'o')
+	if (ent->d_name[aal_strlen(ent->d_name) - 2] != 's' || 
+		ent->d_name[aal_strlen(ent->d_name) - 1] != 'o')
 	    continue;
 		
 	aal_memset(name, 0, sizeof(name));
 	aal_snprintf(name, sizeof(name), "%s/%s", PLUGIN_DIR, ent->d_name);
 	
-	if (!(plugin = reiserfs_plugins_load(name))) {
+	if (!reiserfs_plugins_load(name)) {
 	    aal_exception_throw(EXCEPTION_WARNING, EXCEPTION_IGNORE,
 		"Plugin %s was not loaded.", name);
-	    continue;
 	}
     }
     closedir(dir);
@@ -92,47 +92,44 @@ void reiserfs_plugins_fini(void) {
 reiserfs_plugin_t *reiserfs_plugins_find(reiserfs_plugin_type_t type, 
     reiserfs_plugin_id_t id) 
 {
+    aal_list_t *found;
     struct walk_desc desc;
-    reiserfs_plugin_t *plugin;
 
     aal_assert("umka-155", plugins != NULL, return NULL);    
 	
     desc.type = type;
     desc.id = id;
 	
-    if (!(plugin = (reiserfs_plugin_t *)aal_list_find_custom(plugins, (void *)&desc, 
-	    (comp_func_t)callback_match_plugin)->data))
-	return NULL;
-	
-    return plugin;
+    return (found = aal_list_find_custom(aal_list_first(plugins), (void *)&desc, 
+	(comp_func_t)callback_match_plugin)) ? (reiserfs_plugin_t *)found->data : NULL;
 }
 
 reiserfs_plugin_t *reiserfs_plugins_load(const char *name) {
-#ifndef ENABLE_ALONE
+#ifndef ENABLE_COMPACT
     void *handle, *entry;
 #endif
     reiserfs_plugin_t *plugin;
     
     aal_assert("umka-156", name != NULL, return NULL);
     
-#ifndef ENABLE_ALONE
+#ifndef ENABLE_COMPACT
     if (!(handle = dlopen(name, RTLD_NOW))) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK,
 	    "Can't load plugin %s.", name);
 	return NULL;
     }
-    
-    entry = dlsym(handle, PLUGIN_ENTRY);
+
+    entry = dlsym(handle, ENTRY);
     if (dlerror() != NULL || entry == NULL) {
 	aal_exception_throw(EXCEPTION_ERROR, EXCEPTION_OK, 
-	    "Can't find symbol \"%s\" in plugin %s.", PLUGIN_ENTRY, name);
+	    "Can't find symbol \"%s\" in plugin %s.", ENTRY, name);
 	goto error_free_handle;
     }
     
     plugin = *((reiserfs_plugin_t **)entry);
     plugin->h.handle = handle;
-    
-    plugins = aal_list_append(plugins, (void *)plugin);
+
+    plugins = aal_list_append(plugins, plugin);
 	
     return plugin;
 	
@@ -148,7 +145,7 @@ error:
 void reiserfs_plugins_unload(reiserfs_plugin_t *plugin) {
     aal_assert("umka-158", plugin != NULL, return);
     aal_assert("umka-166", plugins != NULL, return);
-#ifndef ENABLE_ALONE	
+#ifndef ENABLE_COMPACT	
     if (!plugins)
 	return;
 	

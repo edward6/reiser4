@@ -14,7 +14,7 @@ static error_t reiserfs_master_create(reiserfs_fs_t *fs, reiserfs_plugin_id_t fo
     if (!(fs->master = aal_calloc(REISERFS_DEFAULT_BLOCKSIZE, 0)))
 	return -1;
     
-    aal_strncpy(fs->master->mr_magic, REISERFS_MASTER_MAGIC, strlen(REISERFS_MASTER_MAGIC));
+    aal_strncpy(fs->master->mr_magic, REISERFS_MASTER_MAGIC, aal_strlen(REISERFS_MASTER_MAGIC));
     aal_strncpy(fs->master->mr_uuid, uuid, sizeof(fs->master->mr_uuid));
     aal_strncpy(fs->master->mr_label, uuid, sizeof(fs->master->mr_label));
 	
@@ -217,6 +217,8 @@ error:
 }
 
 error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
+    aal_assert("umka-231", fs != NULL, return -1);
+    
     return !reiserfs_master_sync(fs) && !reiserfs_super_sync(fs) && 
 	((fs->journal && !reiserfs_journal_sync(fs)) || !fs->journal) && 
 	!reiserfs_alloc_sync(fs) && !reiserfs_tree_sync(fs);
@@ -227,6 +229,9 @@ error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
     routine for every plugin and frees all assosiated memory. 
 */
 void reiserfs_fs_close(reiserfs_fs_t *fs, int sync) {
+    
+    aal_assert("umka-230", fs != NULL, return);
+    
     reiserfs_tree_close(fs, sync);
     reiserfs_alloc_close(fs, sync);
     

@@ -11,7 +11,7 @@
 #  include <config.h>
 #endif
 
-#ifndef ENABLE_ALONE
+#ifndef ENABLE_COMPACT
 
 #include <aal/device.h>
 

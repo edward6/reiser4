@@ -206,14 +206,13 @@ typedef union reiserfs_plugin reiserfs_plugin_t;
     Here will be some plugin entry point 
     initialization for alone mode too.
 */
-#define PLUGIN_ENTRY "reiserfs_plugin_entry"
 
-#ifndef ENABLE_ALONE
+#ifndef ENABLE_COMPACT
 #   define reiserfs_plugin_register(plugin) \
 	reiserfs_plugin_t *reiserfs_plugin_entry = &plugin
 #else
-#   define reiserfs_plugin_register(plugin, name) \
-	while(0) {}
+#   define reiserfs_plugin_register(plugin) \
+	
 #endif
 
 extern error_t reiserfs_plugins_init(void);
