@@ -38,8 +38,8 @@ typedef enum {
 	   its parent */
        ZNODE_NEW               = (1 << 6),
 
-       /** znode free_space is being changed, used to track slum free space. */
-       ZNODE_FREE_SPACE        = (1 << 7),
+       /* The jnode is a unformatted node.  False for all znodes.  */
+       ZNODE_UNFORMATTED       = (1 << 7),
 
        /** this node was allocated by its txn */
        ZNODE_ALLOC             = (1 << 10),
@@ -180,8 +180,10 @@ struct jnode
 	__u32        level : 5;
 
 	/* lock, protecting jnode's fields. */
+	 /* FIXME_JMACD: Can be probably combined with spinning atomic ops on STATE. */
 	spinlock_t   guard;
 
+	/* the struct page pointer */
 	struct page *pg;
 
 	/* atom the block is in, if any */
@@ -548,9 +550,13 @@ static inline int jnode_is_dirty( const jnode *node )
 	return JF_ISSET( node, ZNODE_DIRTY );
 }
 
+/* Macros to convert from jnode to znode, znode to jnode.  These are macros because C
+ * doesn't allow overloading of const prototypes. */
+#define ZJNODE(x) (& (x) -> zjnode)
+#define JZNODE(x) (assert ("jmacd-1300", !JF_ISSET (x, ZNODE_UNFORMATTED)), (znode*) x)
+
 /* Make it look like various znode functions exist instead of treating znodes as
  * jnodes in znode-specific code. */
-#define ZJNODE(x) (& (x) -> zjnode)
 
 #define znode_get_level(x)          jnode_get_level ( ZJNODE(x) )
 #define znode_set_level(x,l)        jnode_set_level ( ZJNODE(x), (l) )
