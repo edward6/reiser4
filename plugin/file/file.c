@@ -1172,8 +1172,10 @@ ssize_t unix_file_read (struct file * file, char * buf, size_t read_amount,
 	init_lh (&lh);
 
 	/*
-	 * get seal and coord sealed with it from reiser4 private data of struct file.  The coord will tell us where our
-	 * last read of this file finished, and the seal will help us determine if that location is still valid.
+	 * get seal and coord sealed with it from reiser4 private data of
+	 * struct file.  The coord will tell us where our last read of this
+	 * file finished, and the seal will help us determine if that location
+	 * is still valid.
 	 */
 	result = load_file_hint (file, &hint);
 	if (unlikely(result))
