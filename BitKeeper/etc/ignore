@@ -723,3 +723,4 @@ testdir/file
 testdir/s1/file
 ulevel/#ulevel.h#
 vs-pub-key
+read-test
