@@ -31,6 +31,7 @@ typedef enum {
  * of specifying the sense of betweenness.
  */
 typedef enum {
+	INVALID_COORD,
 	EMPTY_NODE,
 	BEFORE_UNIT,
 	AT_UNIT,
@@ -134,11 +135,16 @@ extern unsigned coord_last_unit_pos (const tree_coord *coord);
 extern int  coord_check (const tree_coord *coord);
 #endif
 
+/* Returns true if two coordinates are consider equal.  Coordinates that are between units
+ * or items are considered equal. */
+extern int coord_eq (const tree_coord *c1, const tree_coord *c2);
+
+/* For debugging, error messages. */
+extern void coord_print (const char * mes, const tree_coord * coord, int print_node);
+
 /* ??? */
 extern coord_wrt_node coord_wrt (const tree_coord *coord);
-extern int  coord_are_neighbors( tree_coord *c1, tree_coord *c2 );
-extern int coord_eq( const tree_coord *c1, const tree_coord *c2 );
-extern void coord_print (const char * mes, const tree_coord * coord, int print_node);
+extern int  coord_are_neighbors (tree_coord *c1, tree_coord *c2);
 
 /*****************************************************************************************/
 /*				     COORD PREDICATES                                    */
@@ -181,7 +187,7 @@ extern int coord_is_after_rightmost (const tree_coord *coord);
 /* Returns true if the coordinate is positioned BEFORE THE FIRST ITEM. */
 extern int coord_is_before_leftmost (const tree_coord *coord);
 
-/* Calls either coord_is_before_first_unit or coord_is_after_last_unit depending on sideof
+/* Calls either coord_is_before_leftmost or coord_is_after_rightmost depending on sideof
  * argument. */
 extern int coord_is_after_sideof_unit (tree_coord *coord, sideof dir);
 

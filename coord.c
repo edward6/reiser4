@@ -7,17 +7,6 @@
 
 #if 1
 
-#if REISER4_DEBUG
-/* Checks that EMPTY_NODE settings are correct. */
-static int coord_empty_check (const tree_coord *coord)
-{
-	return (coord->node != NULL &&
-		coord->between == EMPTY_NODE &&
-		coord->item_pos == 0 &&
-		coord->unit_pos == 0);
-}
-#endif
-
 /* Internal constructor. */
 static inline void coord_init_values (tree_coord  *coord,
 				      znode       *node,
@@ -44,7 +33,7 @@ void coord_dup (tree_coord *new_coord, const tree_coord *old_coord)
 /* Initialize an invalid coordinate. */
 void coord_init_invalid (tree_coord *coord, znode *node)
 {
-	coord_init_values (coord, node, ~0U, 0, AT_UNIT);
+	coord_init_values (coord, node, 0, 0, INVALID_COORD);
 }
 
 /* Initialize a coordinate to point at the first unit of the first item.  If the node is
@@ -113,6 +102,12 @@ unsigned coord_last_unit_pos (const tree_coord * coord)
 	return coord_num_units (coord) - 1;
 }
 
+/* Returns true if the coord was initializewd by coord_init_invalid (). */
+int coord_is_invalid (const tree_coord *coord)
+{
+	return coord->between == INVALID_COORD;
+}
+
 /* Returns true if the coordinate is positioned at an existing item, not before or after
  * an item.  It may be placed at, before, or after any unit within the item, whether
  * existing or not. */
@@ -120,17 +115,15 @@ int coord_is_existing_item (const tree_coord * coord)
 {
 	switch (coord->between) {
 	case EMPTY_NODE:
-		assert ("jmacd-9807", coord_empty_check (coord));
+	case BEFORE_ITEM:
+	case AFTER_ITEM:
+	case INVALID_COORD:
 		return 0;
 
 	case BEFORE_UNIT:
 	case AT_UNIT:
 	case AFTER_UNIT:
 		return coord->item_pos < coord_num_items (coord);
-
-	case BEFORE_ITEM:
-	case AFTER_ITEM:
-		return 0;
 	}
 
 	impossible ("jmacd-9900", "unreachable");
@@ -142,18 +135,16 @@ int coord_is_existing_unit (const tree_coord *coord)
 {
 	switch (coord->between) {
 	case EMPTY_NODE:
-		assert ("jmacd-9807", coord_empty_check (coord));
+	case BEFORE_UNIT:
+	case AFTER_UNIT:
+	case BEFORE_ITEM:
+	case AFTER_ITEM:
+	case INVALID_COORD:
 		return 0;
 
 	case AT_UNIT:
 		return (coord->item_pos < coord_num_items (coord) &&
 			coord->unit_pos < coord_num_units (coord));
-
-	case BEFORE_UNIT:
-	case AFTER_UNIT:
-	case BEFORE_ITEM:
-	case AFTER_ITEM:
-		return 0;
 	}
 
 	impossible ("jmacd-9902", "unreachable");
@@ -179,12 +170,64 @@ int coord_is_rightmost_unit (const tree_coord *coord)
 		coord->unit_pos == coord_last_unit_pos (coord));
 }
 
-/* Advances the coordinate by one unit to the right.  If empty, no change.  If
- * coord_is_rightmost_unit, advances to AFTER THE LAST ITEM.  Returns 0 if new position is an
- * existing unit. */
-int coord_next_unit (tree_coord *coord)
+/* Returns true if the coordinate is positioned at any unit of the last item.  Not true
+ * for empty nodes nor coordinates positioned after the last item. */
+int coord_is_rightmost_item (const tree_coord *coord)
 {
-	unsigned items = coord_num_items (coord);
+	assert ("jmacd-9820", coord_is_existing_item (coord));
+	return (coord->between == AT_UNIT &&
+		coord->item_pos == coord_num_units (coord) - 1);
+}
+
+#if REISER4_DEBUG
+/* For assertions only, checks for a valid coordinate. */
+int coord_check (const tree_coord *coord)
+{
+	if (coord->node == NULL) { return 0; }
+
+	switch (coord->between) {
+	default:
+	case INVALID_COORD:
+		return 0;
+	case EMPTY_NODE:
+		if (! node_is_empty (coord->node)) {
+			return 0;
+		}
+		return coord->item_pos == 0 && coord->unit_pos == 0;
+
+	case BEFORE_UNIT:
+	case AFTER_UNIT:
+	case AT_UNIT:
+		break;
+	case AFTER_ITEM:
+	case BEFORE_ITEM:
+		/* before/after item should not set unit_pos. */
+		if (coord->unit_pos != 0) {
+			return 0;
+		}
+		break;
+	}
+
+	if (coord->item_pos >= node_num_items (coord->node)) {
+		return 0;
+	}
+
+	if (coord->unit_pos > coord_last_unit_pos (coord)) {
+		return 0;
+	}
+
+	return 1;
+}
+#endif
+
+/* Adjust coordinate boundaries based on the number of items prior to coord_next/prev.
+ * Returns 1 if the new position is does not exist. */
+static int coord_adjust_items (tree_coord *coord, unsigned items, int is_next)
+{
+	/* If the node is invalid, leave it. */
+	if (coord->between == INVALID_COORD) {
+		return 1;
+	}
 
 	/* If the node is empty, set it appropriately. */
 	if (items == 0) {
@@ -194,20 +237,36 @@ int coord_next_unit (tree_coord *coord)
 		return 1;
 	}
 
+	/* If it was empty and it no longer is, set to BEFORE/AFTER_ITEM. */
+	if (coord->between == EMPTY_NODE) {
+		coord->between  = (is_next ? BEFORE_ITEM : AFTER_ITEM);
+		coord->item_pos = 0;
+		coord->unit_pos = 0;
+		return 0;
+	}
+
 	/* If the item_pos is out-of-range, set it appropriatly. */
 	if (coord->item_pos >= items) {
 		coord->between  = AFTER_ITEM;
 		coord->item_pos = items - 1;
 		coord->unit_pos = 0;
-		return 1;
+		/* If is_next, return 1 (can't go any further). */
+		return is_next;
 	}
 
-	switch (coord->between) {
-	case EMPTY_NODE:
-		/* The node has changed, change state as if it was before the first unit. */
-		assert ("jmacd-9810", coord_empty_check (coord));
-		/* FALLTHROUGH */
+	return 0;
+}
 
+/* Advances the coordinate by one unit to the right.  If empty, no change.  If
+ * coord_is_rightmost_unit, advances to AFTER THE LAST ITEM.  Returns 0 if new position is an
+ * existing unit. */
+int coord_next_unit (tree_coord *coord)
+{
+	unsigned items = coord_num_items (coord);
+
+	if (coord_adjust_items (coord, items, 1) == 1) { return 1; }
+
+	switch (coord->between) {
 	case BEFORE_UNIT:
 		/* Now it is positioned at the same unit. */
 		coord->between = AT_UNIT;
@@ -241,10 +300,15 @@ int coord_next_unit (tree_coord *coord)
 		return 0;
 
 	case BEFORE_ITEM:
-		/* The out-of-range check ensures that we are valid here. */
+		/* The adjust_items checks ensure that we are valid here. */
 		coord->unit_pos = 0;
 		coord->between  = AT_UNIT;
 		return 0;
+
+	case INVALID_COORD:
+	case EMPTY_NODE:
+		/* Handled in coord_adjust_items(). */
+		break;
 	}
 
 	impossible ("jmacd-9902", "unreachable");
@@ -257,49 +321,24 @@ int coord_next_item (tree_coord *coord)
 {
 	unsigned items = coord_num_items (coord);
 
-	/* If the node is empty, set it appropriately. */
-	if (items == 0) {
-		coord->between  = EMPTY_NODE;
-		coord->item_pos = 0;
-		coord->unit_pos = 0;
-		return 1;
-	}
-
-	/* If the item_pos is out-of-range, set it appropriatly. */
-	if (coord->item_pos >= items) {
-		coord->between  = AFTER_ITEM;
-		coord->item_pos = items - 1;
-		coord->unit_pos = 0;
-		return 1;
-	}
+	if (coord_adjust_items (coord, items, 1) == 1) { return 1; }
 
 	switch (coord->between) {
-	case EMPTY_NODE:
-		/* The node has changed, now position at the first unit. */
-		assert ("jmacd-9810", coord_empty_check (coord));
-		coord->between  = AT_UNIT;
-		coord->item_pos = 0;
-		coord->unit_pos = 0;
-		return 0;
-
 	case AFTER_UNIT:
 	case AT_UNIT:
 	case BEFORE_UNIT:
+	case AFTER_ITEM:
+		/* Check for end-of-node. */
+		if (coord->item_pos == items - 1) {
+			coord->between   = AFTER_ITEM;
+			coord->unit_pos  = 0;
+			return 1;
+		}
+
 		/* Anywhere in an item, go to the next one. */
 		coord->between   = AT_UNIT;
 		coord->item_pos += 1;
 		coord->unit_pos  = 0;
-		return 0;
-
-	case AFTER_ITEM:
-		/* Check for end-of-node. */
-		if (coord->item_pos == items - 1) {
-			return 1;
-		}
-
-		coord->item_pos += 1;
-		coord->unit_pos  = 0;
-		coord->between   = AT_UNIT;
 		return 0;
 
 	case BEFORE_ITEM:
@@ -307,12 +346,188 @@ int coord_next_item (tree_coord *coord)
 		coord->unit_pos = 0;
 		coord->between  = AT_UNIT;
 		return 0;
+	case INVALID_COORD:
+	case EMPTY_NODE:
+		/* Handled in coord_adjust_items(). */
+		break;
 	}
 
-	impossible ("jmacd-9902", "unreachable");
+	impossible ("jmacd-9903", "unreachable");
 }
 
+/* Advances the coordinate by one unit to the left.  If empty, no change.  If
+ * coord_is_leftmost_unit, advances to BEFORE THE FIRST ITEM.  Returns 0 if new position
+ * is an existing unit. */
+int coord_prev_unit (tree_coord *coord)
+{
+	unsigned items = coord_num_items (coord);
 
+	if (coord_adjust_items (coord, items, 0) == 1) { return 1; }
+
+	switch (coord->between) {
+	case AT_UNIT:
+	case BEFORE_UNIT:
+		if (coord->unit_pos > 0) {
+			coord->unit_pos -= 1;
+			coord->between   = AT_UNIT;
+			return 0;
+		}
+
+		if (coord->item_pos == 0) {
+			coord->between = BEFORE_ITEM;
+			return 1;
+		}
+
+		coord->item_pos -= 1;
+		coord->unit_pos  = coord_last_unit_pos (coord);
+		coord->between   = AT_UNIT;
+		return 0;
+
+	case AFTER_UNIT:
+		/* What if unit_pos is out-of-range? */
+		assert ("jmacd-5442", coord->unit_pos <= coord_last_unit_pos (coord));
+		coord->between = AT_UNIT;
+		return 0;
+
+	case BEFORE_ITEM:
+		if (coord->item_pos == 0) {
+			return 1;
+		}
+
+		coord->item_pos -= 1;
+		/* FALLTHROUGH */
+
+	case AFTER_ITEM:
+		coord->between  = AT_UNIT;
+		coord->unit_pos = coord_last_unit_pos (coord);
+		return 0;
+
+	case INVALID_COORD:
+	case EMPTY_NODE:
+		break;
+	}
+
+	impossible ("jmacd-9904", "unreachable");
+}
+
+/* Advances the coordinate by one item to the left.  If empty, no change.  If
+ * coord_is_leftmost_unit, advances to BEFORE THE FIRST ITEM.  Returns 0 if new position
+ * is an existing item. */
+int coord_prev_item (tree_coord *coord)
+{
+	unsigned items = coord_num_items (coord);
+
+	if (coord_adjust_items (coord, items, 0) == 1) { return 1; }
+
+	switch (coord->between) {
+	case AT_UNIT:
+	case AFTER_UNIT:
+	case BEFORE_UNIT:
+	case BEFORE_ITEM:
+
+		if (coord->item_pos == 0) {
+			coord->between  = BEFORE_ITEM;
+			coord->unit_pos = 0;
+			return 1;
+		}
+
+		coord->item_pos -= 1;
+		coord->unit_pos  = 0;
+		coord->between   = AT_UNIT;
+		return 0;
+
+	case AFTER_ITEM:
+		coord->between  = AT_UNIT;
+		coord->unit_pos = 0;
+		return 0;
+
+	case INVALID_COORD:
+	case EMPTY_NODE:
+		break;
+	}
+
+	impossible ("jmacd-9905", "unreachable");
+}
+
+/* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
+void coord_init_sideof_unit (tree_coord *coord, znode *node, sideof dir)
+{
+	assert ("jmacd-9821", dir == LEFT_SIDE || dir == RIGHT_SIDE);
+	if (dir == LEFT_SIDE) {
+		coord_init_first_unit (coord, node);
+	} else {
+		coord_init_last_unit (coord, node);
+	}
+}
+
+/* Calls either coord_is_before_leftmost or coord_is_after_rightmost depending on sideof
+ * argument. */
+int coord_is_after_sideof_unit (tree_coord *coord, sideof dir)
+{
+	assert ("jmacd-9822", dir == LEFT_SIDE || dir == RIGHT_SIDE);
+	if (dir == LEFT_SIDE) {
+		return coord_is_before_leftmost (coord);
+	} else {
+		return coord_is_after_rightmost (coord);
+	}
+}
+
+/* Calls either coord_next_unit or coord_prev_unit depending on sideof argument. */
+int coord_sideof_unit (tree_coord *coord, sideof dir)
+{
+	assert ("jmacd-9823", dir == LEFT_SIDE || dir == RIGHT_SIDE);
+	if (dir == LEFT_SIDE) {
+		return coord_prev_unit (coord);
+	} else {
+		return coord_next_unit (coord);
+	}
+}
+
+/* Returns true if two coordinates are consider equal.  Coordinates that are between units
+ * or items are considered equal. */
+int coord_eq (const tree_coord *c1, const tree_coord *c2)
+{
+	assert ("nikita-1807", c1 != NULL);
+	assert ("nikita-1808", c2 != NULL);
+
+	if (memcmp (c1, c2, sizeof (*c1)) == 0) {
+		return 1;
+	}
+	if (c1->node != c2->node) {
+		return 0;
+	}
+
+	switch (c1->between) {
+	case INVALID_COORD:
+	case EMPTY_NODE:
+	case AT_UNIT:
+		return 0;
+
+	case BEFORE_UNIT:
+		/* c2 must be after the previous unit. */
+		return (c1->item_pos == c2->item_pos &&
+			c2->between == AFTER_UNIT &&
+			c2->unit_pos == c1->unit_pos - 1);
+
+	case AFTER_UNIT:
+		/* c2 must be before the next unit. */
+		return (c1->item_pos == c2->item_pos &&
+			c2->between == BEFORE_UNIT &&
+			c2->unit_pos == c1->unit_pos + 1);
+
+	case BEFORE_ITEM:
+		/* c2 must be after the previous item. */
+		return (c1->item_pos == c2->item_pos - 1 &&
+			c2->between == AFTER_ITEM);
+
+	case AFTER_ITEM:
+		/* c2 must be before the next item. */
+		return (c1->item_pos == c2->item_pos + 1 &&
+			c2->between == BEFORE_ITEM);
+	}
+
+	impossible ("jmacd-9906", "unreachable");
+}
 
 
 
