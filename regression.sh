@@ -13,7 +13,7 @@ function run()
 {
 #   do_mkfs
 	echo -n $* "..."
-	/usr/bin/time -f " T: %e/%S/%U F: %F/%R" $* >/dev/null || exit 1
+	( /usr/bin/time -f " T: %e/%S/%U F: %F/%R" $* >/dev/null ) || exit 1 
 #	shift
 #	shift
 	RNAME=`echo $* | sed 's/[ \/]/./g'`.$r
@@ -29,7 +29,7 @@ function do_mkfs()
 export REISER4_PRINT_STATS=1
 export REISER4_CRASH_MODE=suspend
 export REISER4_TRAP=1
-export REISER4_SWAPD=1
+#export REISER4_SWAPD=1
 
 rm -f gmon.out.*
 
