@@ -106,62 +106,30 @@ ino_t oid_to_uino( oid_t oid )
 		 * living objects with which we don't want to collide.
 		 */
 		return REISER4_UINO_SHIFT + 
-			(( oid - max_ino ) & ( max_ino >> 1));
+			( ( oid - max_ino ) & ( max_ino >> 1 ) );
 }
 
-/** lock inode. We lock file-system wide spinlock, because we have to lock
- *  inode _before_ we have actually read and initialised it and we cannot rely
- *  on memset() in fs/inode.c to initialise spinlock. Alternative is to grab
- *  i_sem, but it's semaphore rather than spinlock, so it's not clear what
- *  would be more effective.
+/** 
+ * INODE LOCKING: not sure what to do.
  *
- *  Taking inode->i_sem is simple and scalable, but taking and releasing
- *  semaphore is much more expensive than taking spin-lock. So, for the time
- *  being, let's just pile a number of possible locking schemes here and
- *  choose best (or leave them as options) after benchmarking.
+ * lock inode. We lock file-system wide spinlock, because we have to lock
+ * inode _before_ we have actually read and initialised it and we cannot rely
+ * on memset() in fs/inode.c to initialise spinlock. Alternative is to grab
+ * i_sem, but it's semaphore rather than spinlock, so it's not clear what
+ * would be more effective.
  *
- *  This is because we dont't have enough empirical evidence about scalability
- *  of each scheme.
+ * Taking inode->i_sem is simple and scalable, but taking and releasing
+ * semaphore is much more expensive than taking spin-lock. So, for the time
+ * being, let's just pile a number of possible locking schemes here and choose
+ * best (or leave them as options) after benchmarking.
+ *
+ * This is because we dont't have enough empirical evidence about scalability
+ * of each scheme.
  *
  * FIXME-NIKITA ->i_sem is not we actually won't. May be spinlock is better
  * after all.
  */
-/* Audited by: green(2002.06.17) */
-void reiser4_lock_inode( struct inode *inode /* inode to lock */ )
-{
-	assert( "nikita-272", inode != NULL );
 
-	down( &inode -> i_sem );
-}
-
-/**
- * Same as reiser4_lock_inode(), but signals are allowed to wake current
- * thread up while it is sleeping waiting for the inode lock.
- *
- * This is preferrable approach as it allows user to kill process stuck in "D"
- * state waiting for inode. Unfortunately there are situations when it is
- * inconvenient.
- *
- */
-/* Audited by: green(2002.06.17) */
-int reiser4_lock_inode_interruptible( struct inode *inode /* inode to lock */ )
-{
-	assert( "nikita-1270", inode != NULL );
-
-	return down_interruptible( &inode -> i_sem );
-}
-
-/**
- * Release lock on inode.
- *
- */
-/* Audited by: green(2002.06.17) */
-void reiser4_unlock_inode( struct inode *inode /* inode to unlock */ )
-{
-	assert( "nikita-277", inode != NULL );
-
-	up( &inode -> i_sem );
-}
 
 /** check that "inode" is on reiser4 file-system */
 /* Audited by: green(2002.06.17) */

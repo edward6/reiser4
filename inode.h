@@ -131,15 +131,6 @@ extern struct inode * reiser4_iget            ( struct super_block * super,
 extern int            reiser4_inode_find_actor( struct inode *inode, 
 						void *opaque);
 
-extern void           reiser4_lock_inode              ( struct inode *inode );
-extern int            reiser4_lock_inode_interruptible( struct inode *inode );
-
-#if REISER4_DEBUG
-extern void print_inode( const char *prefix, const struct inode *i );
-#else
-#define print_inode( p, i ) noop
-#endif
-
 extern void inode_set_flag( struct inode *inode, reiser4_file_plugin_flags f );
 extern void inode_clr_flag( struct inode *inode, reiser4_file_plugin_flags f );
 extern int  inode_get_flag( const struct inode *inode, reiser4_file_plugin_flags f );
@@ -154,6 +145,11 @@ extern item_plugin *inode_dir_item_plugin( const struct inode *inode );
 
 extern void reiser4_make_bad_inode( struct inode *inode );
 
+#if REISER4_DEBUG
+extern void print_inode( const char *prefix, const struct inode *i );
+#else
+#define print_inode( p, i ) noop
+#endif
 
 /* __REISER4_INODE_H__ */
 #endif
