@@ -6,8 +6,8 @@
 #include "plugin/cryptcompress.h"
 #include <linux/types.h>
 
-static void none_compress (__u8 *buf, __u8 *src_first, unsigned src_len,
-			    __u8 *dst_first, unsigned *dst_len)
+static void compress_none(__u8 *buf, __u8 *src_first, unsigned src_len,
+			  __u8 *dst_first, unsigned *dst_len)
 {
 	assert("edward-17", buf != NULL);
 	assert("edward-18", src_first != NULL);
@@ -21,16 +21,17 @@ static void none_compress (__u8 *buf, __u8 *src_first, unsigned src_len,
 			   
 /* compression plugins */
 compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
-		[NONE_COMPRESSION_ID] = {
+	[NONE_COMPRESSION_ID] = {
 		.h = {
 			.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
 			.id = NONE_COMPRESSION_ID,
 			.pops = NULL,
 			.label = "none",
 			.desc = "Null compression",
-			.linkage = TS_LIST_LINK_ZERO}
-		,
+			.linkage = TS_LIST_LINK_ZERO
+		},
 		.mem_req = MIN_CLUSTER_SIZE,
-	        .compress = none_compress,
-	        .decompress = none_compress}
+	        .compress = compress_none,
+	        .decompress = compress_none
+	}
 };

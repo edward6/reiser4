@@ -26,7 +26,7 @@ Unresolved issues:
             @tail
    returns length of tail
 */
-static int common_align_cluster (__u8 *tail, int clust_size, int blocksize)
+static int align_cluster_common(__u8 *tail, int clust_size, int blocksize)
 {
 	int tail_size;
 	
@@ -40,25 +40,25 @@ static int common_align_cluster (__u8 *tail, int clust_size, int blocksize)
 }
 
 /* use this only for symmetric algorithms */
-static loff_t common_scale(struct inode * inode UNUSED_ARG,
+static loff_t scale_common(struct inode * inode UNUSED_ARG,
 			   size_t blocksize UNUSED_ARG,
 			   loff_t src_off)
 {
 	return src_off;
 }
 
-static size_t none_blocksize (__u16 keysize UNUSED_ARG /* keysize bits */)
+static size_t blocksize_none (__u16 keysize UNUSED_ARG /* keysize bits */)
 {
 	return NONE_BLOCKSIZE;
 }
 
-static int none_set_key (__u32 *expkey, const __u8 *key UNUSED_ARG)
+static int set_key_none(__u32 *expkey, const __u8 *key UNUSED_ARG)
 {
 	memset(expkey, 0, NONE_EXPKEY_WORDS * sizeof(__u32));
 	return 0;	
 }
 
-static void none_crypt (__u32 *expkey UNUSED_ARG, __u8 *dst, const __u8 *src)
+static void crypt_none (__u32 *expkey UNUSED_ARG, __u8 *dst, const __u8 *src)
 {
 	assert("edward-04", dst != NULL);
 	assert("edward-05", src != NULL);
@@ -75,15 +75,16 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 			.pops = NULL,
 			.label = "none",
 			.desc = "Id rearrangement",
-			.linkage = TS_LIST_LINK_ZERO}
-		,
+			.linkage = TS_LIST_LINK_ZERO
+		},
 		.nr_keywords = NONE_EXPKEY_WORDS,
-		.blocksize = none_blocksize,
-		.scale = common_scale,
-	        .align = common_align_cluster,
-	        .set_key = none_set_key,
-	        .encrypt = none_crypt,
-	        .decrypt = none_crypt}
+		.blocksize = blocksize_none,
+		.scale = scale_common,
+	        .align_cluster = align_cluster_common,
+	        .set_key = set_key_none,
+	        .encrypt = crypt_none,
+	        .decrypt = crypt_none
+	}
 };
 
 /* Make Linus happy.
