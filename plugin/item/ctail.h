@@ -10,6 +10,7 @@ typedef struct ctail_item_format {
 	d8 body[0];
 } __attribute__((packed)) ctail_item_format;
 
+#define CTAIL_MIN_BODY_SIZE MIN_CRYPTO_BLOCKSIZE  
 
 /* plugin->item.b.* */
 int ctail_mergeable(const coord_t * p1, const coord_t * p2);
@@ -41,6 +42,11 @@ size_t inode_cluster_size (struct inode *);
 
 void put_cluster_data(reiser4_cluster_t *, struct inode *);
 int cluster_is_required (reiser4_cluster_t *);
+loff_t inode_scaled_offset(struct inode *, const loff_t);
+size_t inode_scaled_cluster_size(struct inode *);
+loff_t cluster_offset_by_page(struct page *, struct inode *);
+int process_cluster(reiser4_cluster_t *, struct inode *, rw_op);
+int find_cluster_item(const reiser4_key *, coord_t *, lock_handle *, ra_info_t *);
 
 /* Make Linus happy.
    Local variables:
