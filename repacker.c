@@ -84,7 +84,7 @@ static void repacker_cursor_init (struct repacker_cursor * cursor, struct repack
 	cursor->hint.backward = backward;
 
 	if (backward)
-		cursor->hint.blk = get_current_super_private()->block_count;
+		cursor->hint.blk = get_current_super_private()->block_count - 1;
 	else
 		cursor->hint.blk = 0;
 }
@@ -257,7 +257,14 @@ static int relocate_extent (tap_t * tap, void * arg)
 	struct repacker_cursor * cursor = arg;
 	int ret;
 
-	ret = process_extent(tap, arg);
+	ret = process_extent_backward_for_repacking(tap, cursor->count, &cursor->hint);
+	if (ret > 0) {
+		cursor->stats.jnodes_dirtied += ret;
+		cursor->count -= ret;
+		if (cursor->count <= 0)
+			     return -EAGAIN;
+		return 0;
+	}
 	return ret;
 }
 

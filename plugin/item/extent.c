@@ -3407,6 +3407,91 @@ exit:
 	return ret;
 }
 
+static int get_reiser4_inode_by_tap (struct inode ** result, tap_t * tap)
+{
+	/* We cannot read unformatted data if corresponding inode is
+	 * unknown or not in cache. Here we build stat data key and
+	 * search in the inode cache. */
+
+	/* FIXME(Zam). We have a problem because a reiser4 inode
+	 * initialization cannot be completed.  Some inode properties
+	 * are inherited from a parent directory, unlike
+	 * reiser4_lookup() a parent directory is unknown here.  
+
+	 * The reiser4 file inheritance may be fixed by implementing a
+	 * copying of parent directory properties at the moment of new
+	 * file creation. But, still we do not know what to do with
+	 * light-weight files which have no stat data and all their
+	 * properties are inherited from parent directory. 
+
+	 * I think this problem is from bad layering of reiser4 tree
+	 * access. The repacker is for dealing with reiser4 tree, not
+	 * with files, but it has to take care about reading reiser4
+	 * inodes and proper initialization of their fields.  A layer of
+	 * accessing only tree nodes is just missing in reiser4.
+
+	 * The solution could be in to allow read of unformatted data
+	 * without having fully initialized inode. Actually no
+	 * reiser4-specific fields are needed for accessing of
+	 * unformatted data and repacking them.  The repacker may use
+	 * not-initialized inode for its needs until somebody else
+	 * completes inode initialization in reiser4_lookup().
+
+	 * Another problem is that we cannot construct SD key from a key
+	 * of arbitrary file item.  The key transformation which is done
+	 * here (type := KEY_SD_MINOR, offset := 0). It is OK for
+	 * current key assignment scheme but it is not valid in general
+	 * case.  Using of not-initialized reiser4 inodes can solve this
+	 * problem too. */
+
+	reiser4_key sd_key;
+	struct super_block * super = reiser4_get_current_sb();
+	const coord_t * coord = tap->coord;
+	struct inode * inode;
+
+	unit_key_by_coord(coord, &sd_key);
+	set_key_type(&sd_key, KEY_SD_MINOR);
+	set_key_offset(&sd_key, (__u64) 0);
+
+	inode = ilookup5(super, (unsigned long)get_key_objectid(&sd_key),
+			 reiser4_inode_find_actor, &sd_key);
+	if (inode == NULL) {
+		/* Inode was not found in cache. We have to release all
+		 * locks before CBK. */
+		tap_done(tap);
+		inode = reiser4_iget(super, &sd_key);
+		if (IS_ERR(inode))
+			return PTR_ERR(inode);
+		if (inode->i_state & I_NEW)
+			unlock_new_inode(inode);
+		iput(inode);
+		/* Expect the inode to be in cache when we come here
+		 * next time. */
+		return -EAGAIN;
+	}
+
+	if (is_bad_inode(inode)) {
+		iput(inode);
+		return -EIO;
+	}
+
+	*result = inode;
+	return 0;
+}
+
+static jnode * get_jnode_by_mapping (struct inode * inode, long index)
+{
+	struct page * page;
+	jnode * node;
+
+	page = grab_cache_page(inode->i_mapping, index);
+	if (page == NULL)
+		return ERR_PTR(-ENOMEM);
+	node = jnode_of_page(page);
+	unlock_page(page);
+	return node;
+}
+
 /* 
    Mark jnodes of given extent for repacking.
    @tap : lock, coord and load status for the tree traversal position,
@@ -3421,7 +3506,7 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 	struct inode * inode;
 	unsigned long index, i;
 	reiser4_block_nr width, start;
-	int ret = 0;
+	int ret;
 
 	ext = extent_by_coord(coord);
 
@@ -3432,86 +3517,14 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 	start = extent_get_start(ext);
 	index = extent_unit_index(coord);
 
-	{
-		/* We cannot read unformatted data if corresponding inode is
-		 * unknown or not in cache. Here we build stat data key and
-		 * search in the inode cache. */
-
-		/* FIXME(Zam). We have a problem because a reiser4 inode
-		 * initialization cannot be completed.  Some inode properties
-		 * are inherited from a parent directory, unlike
-		 * reiser4_lookup() a parent directory is unknown here.  
-
-		 * The reiser4 file inheritance may be fixed by implementing a
-		 * copying of parent directory properties at the moment of new
-		 * file creation. But, still we do not know what to do with
-		 * light-weight files which have no stat data and all their
-		 * properties are inherited from parent directory. 
-
-		 * I think this problem is from bad layering of reiser4 tree
-		 * access. The repacker is for dealing with reiser4 tree, not
-		 * with files, but it has to take care about reading reiser4
-		 * inodes and proper initialization of their fields.  A layer of
-		 * accessing only tree nodes is just missing in reiser4.
-
-		 * The solution could be in to allow read of unformatted data
-		 * without having fully initialized inode. Actually no
-		 * reiser4-specific fields are needed for accessing of
-		 * unformatted data and repacking them.  The repacker may use
-		 * not-initialized inode for its needs until somebody else
-		 * completes inode initialization in reiser4_lookup().
-
-		 * Another problem is that we cannot construct SD key from a key
-		 * of arbitrary file item.  The key transformation which is done
-		 * here (type := KEY_SD_MINOR, offset := 0). It is OK for
-		 * current key assignment scheme but it is not valid in general
-		 * case.  Using of not-initialized reiser4 inodes can solve this
-		 * problem too. */
-
-		reiser4_key sd_key;
-		struct super_block * super = reiser4_get_current_sb();
-
-		unit_key_by_coord(coord, &sd_key);
-		set_key_type(&sd_key, KEY_SD_MINOR);
-		set_key_offset(&sd_key, (__u64) 0);
-
-		inode = ilookup5(super, (unsigned long)get_key_objectid(&sd_key),
-				 reiser4_inode_find_actor, &sd_key);
-		if (inode == NULL) {
-			/* Inode was not found in cache. We have to release all
-			 * locks before CBK. */
-			tap_done(tap);
-			inode = reiser4_iget(super, &sd_key);
-			if (IS_ERR(inode))
-				return PTR_ERR(inode);
-			if (inode->i_state & I_NEW)
-				unlock_new_inode(inode);
-			iput(inode);
-			/* Expect the inode to be in cache when we come here
-			 * next time. */
-			return -EAGAIN;
-		}
-
-		if (is_bad_inode(inode)) {
-			iput(inode);
-			return -EIO;
-		}
-	}
+	ret = get_reiser4_inode_by_tap(&inode, tap);
+	if (ret)
+		return ret;
 
 	for (nr_marked = 0, i = 0; nr_marked < max_nr_marked && i < width; i++) {
 		jnode * node;
-		struct page * page;
 
-		ret = 0;
-		/* Jnodes could not be available  */
-		page = grab_cache_page(inode->i_mapping, index + i);
-		if (page == NULL) {
-			ret = -ENOMEM;
-			break;
-		}
-		
-		node = jnode_of_page(page);
-		unlock_page(page);
+		node = get_jnode_by_mapping(inode, index + i);
 		if (IS_ERR(node)) {
 			ret = PTR_ERR(node);
 			break;
@@ -3553,6 +3566,68 @@ int mark_extent_for_repacking (tap_t * tap, int max_nr_marked)
 	if (ret)
 		return ret;
 	return nr_marked;
+}
+
+/*  */
+int process_extent_backward_for_repacking (tap_t * tap, int max_nr_processed, reiser4_blocknr_hint * hint)
+{
+	coord_t * coord = tap->coord;
+	reiser4_extent *ext;
+	int nr_processed = 0;
+	struct inode * inode;
+	unsigned long ext_index, i;
+	reiser4_block_nr ext_width, ext_start;
+	int ret;
+
+	ext = extent_by_coord(coord);
+
+	if (state_of_extent(ext) == HOLE_EXTENT)
+		return 0;
+
+	ext_width = extent_get_width(ext);
+	ext_start = extent_get_start(ext);
+	ext_index = extent_unit_index(coord);
+
+	ret = get_reiser4_inode_by_tap(&inode, tap);
+	if (ret)
+		return ret;
+
+	for (i = ext_width - 1; i >= 0; i --) {
+		jnode * node;
+		long j;
+
+		node = get_jnode_by_mapping(inode, i);
+		if (IS_ERR(node)) {
+			ret = PTR_ERR(node);
+			break;
+		}
+
+		if (JF_ISSET(node, JNODE_RELOC) || JF_ISSET(node, JNODE_OVRWR)) {
+			jput(node);
+			continue;
+		}
+		
+		for (j = i; j >= 0; j --) {
+			jnode * check;
+
+			check = get_jnode_by_mapping(inode, j);
+			if (IS_ERR(check)) {
+				ret = PTR_ERR(check);
+				jput(node);
+				break;
+			}
+
+			if (JF_ISSET(check, JNODE_RELOC) || JF_ISSET(check, JNODE_OVRWR))
+				break;
+		}
+		if (ret)
+			break;
+	}
+	
+	iput(inode);
+	if (ret)
+		return ret;
+	return nr_processed;
 }
 
 /*

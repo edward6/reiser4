@@ -138,7 +138,7 @@ reiser4_block_nr extent_unit_start(const coord_t * item);	/* Starting block loca
 int scan_extent (flush_scan * scan, const coord_t * in_coord);
 
 extern int mark_extent_for_repacking (tap_t *, int);
-
+extern int process_extent_backward_for_repacking (tap_t *, int, reiser4_blocknr_hint *);
 /* __REISER4_EXTENT_H__ */
 #endif
 /*
