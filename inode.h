@@ -146,6 +146,9 @@ struct reiser4_inode {
 			       tries to unmap page for which it is called. This prevents process from using page which
 			       was copied on capture */
 
+	/* number of unformatted node jnodes of this file in jnode hash table */
+	unsigned long jnodes;
+	
 	/* tree of eflushed jnodes. Eflushed jnode may be "anonymous" (having no atom) and "captured". Jnodes in this
 	   tree are distinguished by radix tree tags */
 	struct radix_tree_root ef_nodes;
@@ -162,7 +165,8 @@ struct reiser4_inode {
 };
 
 #define I_EFLUSH (256)
-#define I_JNODES (512)
+#define I_JNODES (512)	/* inode state bit. Set when in hash table there are more than 0 jnodes of unformatted nodes of
+			   an inode */
 
 typedef struct reiser4_inode_object {
 	/* private part */
