@@ -202,16 +202,19 @@ int format_40_get_ready (struct super_block * s, void * data UNUSED_ARG)
 	/* initialize reiser4_super_info_data */
 	private = get_super_private (s);
 
+	init_tree_ops (&private->tree, s, &page_cache_tops);
+	
+
+
 	super_bh = find_a_disk_format_40_super_block (s);
 	if (IS_ERR (super_bh))
 		return PTR_ERR (super_bh);
 	brelse (super_bh);
 
-	init_tree_0(&private->tree, s, &page_cache_tops);
 
-	result = init_journal_info (s); /* map jnodes for journal control
-					    * blocks (header, footer) to
-					    * disk  */
+	result = init_journal_info (s); /* map jnodes for journal
+					 * control blocks (header,
+					 * footer) to disk  */
 
 	if (result)
 		return result;
