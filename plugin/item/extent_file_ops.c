@@ -623,9 +623,9 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 		/* if page is not completely overwritten - read it if it is not new or fill by zeros otherwise */
 		result = prepare_page(inode, page, file_off, page_off, count);
-		JF_CLR(j, JNODE_NEW);
 		if (result) {
-			JF_SET(j, JNODE_HEARD_BANSHEE);
+			if (JF_ISSET(j, JNODE_NEW))
+				JF_SET(j, JNODE_HEARD_BANSHEE);
 			goto exit3;
 		}
 
@@ -635,11 +635,14 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		result = __copy_from_user((char *)kmap(page) + page_off, flow->data - count, count);
 		kunmap(page);
 		if (unlikely(result)) {
-			/* FIXME: write(fd, 0, 10); to empty will write no data but file will get increased size. */
-			JF_SET(j, JNODE_HEARD_BANSHEE);
+			/* FIXME: write(fd, 0, 10); to empty file will write no data but file will get increased
+			   size. */
+			if (JF_ISSET(j, JNODE_NEW))
+				JF_SET(j, JNODE_HEARD_BANSHEE);
 			result = RETERR(-EFAULT);
 			goto exit3;
 		}
+		JF_CLR(j, JNODE_NEW);
 
 		set_page_dirty_internal(page);
 		SetPageUptodate(page);
@@ -654,10 +657,9 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		   to dirty list */
 		LOCK_JNODE(j);
 		result = try_capture(j, ZNODE_WRITE_LOCK, 0, 1/* can_coc */);
-		if (!result)
-			jnode_make_dirty_locked(j);
-		else
-			assert("", 0);
+		if (result)
+			goto exit2;
+		jnode_make_dirty_locked(j);
 		UNLOCK_JNODE(j);
 
 		jput(j);
