@@ -288,6 +288,7 @@ extern void jnode_set_block(jnode * node, const reiser4_block_nr * blocknr);
 extern int jnode_io_hook(jnode *node, struct page *page, int rw);
 
 extern struct page *jnode_lock_page(jnode *);
+extern struct address_space *jnode_get_mapping(const jnode * node);
 
 /* block number of node */
 static inline const reiser4_block_nr *
