@@ -8,7 +8,6 @@
 
 #include <linux/config.h>
 #include <linux/zlib.h>
-#include <linux/vmalloc.h>
 #include <linux/types.h>
 #include <linux/hardirq.h>
 
