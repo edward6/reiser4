@@ -219,6 +219,7 @@ static void parse_blocknr (const reiser4_block_nr *block, int *bmap, int *offset
 void get_working_bitmap_blocknr (int bmap, reiser4_block_nr *bnr)
 {
 	/* FIXME: what's this 0xF0000000LL?  Name it. */
+/* yes, name it -Hans */
 	*bnr = (reiser4_block_nr) bmap | 0xF0000000LL;
 }
 
