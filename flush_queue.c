@@ -494,8 +494,15 @@ write_fq(flush_queue_t * fq, long * nr_submitted)
 	int ret;
 	txn_atom * atom;
 	
-	atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
-	assert ("zam-924", atom);
+	while (1) {
+		atom = UNDER_SPIN(fq, fq, atom_get_locked_by_fq(fq));
+		assert ("zam-924", atom);
+		/* do not write fq in parallel. */
+		if (atom->nr_running_queues == 0)
+			break;
+		atom_wait_event(atom);
+	}
+	
 	atom->nr_running_queues ++;
 	UNLOCK_ATOM(atom);
 	
