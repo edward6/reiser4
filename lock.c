@@ -499,6 +499,8 @@ int znode_is_write_locked( const znode *node )
 {
 	lock_stack  *stack;
 	lock_handle *handle;
+
+	assert ("jmacd-8765", node != NULL);
 	
 	if( ! znode_is_wlocked( node ) ) {
 		return 0;
@@ -718,6 +720,11 @@ void longterm_unlock_znode (lock_handle *handle)
 
 	spin_unlock_znode(node);
 
+	/* FIXME: kludge described below. */
+	if (! znode_above_root (node)) {
+		zrelse(node);
+	}
+
 	/* minus one reference from lh->node */
 	zput(node);
 }
@@ -730,7 +737,7 @@ int longterm_lock_znode (
 	lock_handle *handle,
 	/* znode we want to lock. */
 	znode               *node ,
-	/* {ZNODE_READ_LOCK, ZNODE_WRITE_LOCK, ZNODE_WRITE_IF_DIRTY}; */
+	/* {ZNODE_READ_LOCK, ZNODE_WRITE_LOCK}; */
 	znode_lock_mode      mode ,
 	/* {0, -EINVAL, -EDEADLK}, see return codes description. */ 
 	znode_lock_request   request)
@@ -759,11 +766,6 @@ int longterm_lock_znode (
 	reiser4_stat_znode_add(lock_znode);
 	/* Synchronize on node's guard lock. */
 	spin_lock_znode(node);
-
-	/* With spinlock first acquired, convert IF_DIRTY mode to read or write. */
-	if (mode == ZNODE_WRITE_IF_DIRTY) {
-		mode = znode_is_dirty (node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK;
-	}
 
 	/* Fill request structure with our values. */
 	owner->request.mode   = mode;
@@ -894,8 +896,13 @@ int longterm_lock_znode (
 
 	spin_unlock_znode(node);
 
+	if (ret == 0 && ! znode_above_root (node)) {
+		/* FIXME: This is a short-term kludge.  zload() and zrelse()
+		 * automatically.  Flush was hitting this... */
+		ret = zload (node);
+	}
 
-	if (!ret) {
+	if (ret == 0) {
 		/* count a reference from lockhandle->node */
 		zref (node);
 
@@ -956,52 +963,6 @@ void invalidate_lock (lock_handle *handle /* path to lock
 	spin_unlock_znode(node);
 }
 
-#if 0
-
-/**
- * User visible znode locking function. Differs from internal lock_znode() in incrementing
- * znode usage counter.  A lock handle counts its own znode reference (in some situations
- * it could be the only reference). */
-int reiser4_lock_znode (lock_handle *handle,
-			znode               *node, /* it locks this node? */
-			znode_lock_mode      mode, /* read or write */
-			znode_lock_request   request)
-{
-	int ret;
-
-	/* this assertion was failing due to pbk cache.
-	 * assert ("jmacd-1044", atomic_read (& node->x_count) > 0); */
-	zref (node);
-
-	assert("nikita-1974", lock_counters()->spin_locked == 0);
-	if ((ret = internal_lock_znode(handle, node, mode, request)) != 0) {
-		zput(node);
-	} else
-		ON_DEBUG(++ lock_counters()->long_term_locked_znode);
-
-	return ret;
-}
-
-/**
- * User visible znode unlocking function. Differs from internal unlock_znode()
- * in decrementing znode usage counter.
- */
-void reiser4_unlock_znode (lock_handle *handle)
-{
-	znode *node;
-
-	assert ("jmacd-1021", handle != NULL);
-	assert ("jmacd-1022", handle->owner != NULL);
-	assert ("nikita-1975", lock_counters()->long_term_locked_znode > 0);
-
-	node = handle->node;
-	internal_unlock_znode(handle);
-	zput(node);
-	ON_DEBUG(-- lock_counters()->long_term_locked_znode);
-}
-
-#endif
-
 /**
  * Initializes lock_stack.
  */
@@ -1045,6 +1006,18 @@ void done_lh (lock_handle *handle)
 		longterm_unlock_znode(handle);
 }
 
+/* What kind of lock? */
+znode_lock_mode lock_mode (lock_handle *handle)
+{
+	if (handle->owner == NULL) {
+		return ZNODE_NO_LOCK;
+	} else if (znode_is_rlocked (handle->node)) {
+		return ZNODE_READ_LOCK;
+	} else {
+		return ZNODE_WRITE_LOCK;
+	}
+}
+
 /**
  * Transfer a lock handle (presumably so that variables can be moved between stack and
  * heap locations).
@@ -1070,6 +1043,17 @@ void move_lh_internal (lock_handle * new, lock_handle * old, int unlink_old)
 	signaled = old->signaled;
 	if( unlink_old ) {
 		unlink_object( old );
+	} else {
+		if (node->lock.nr_readers > 0) {
+			node->lock.nr_readers += 1;
+		} else {
+			node->lock.nr_readers -= 1;
+		}
+		if (signaled) {
+			atomic_inc (& owner->nr_signaled);
+		}
+		ON_DEBUG(++ lock_counters()->long_term_locked_znode);
+		zref (node);
 	}
 	link_object( new, owner, node );
 	new->signaled = signaled;
