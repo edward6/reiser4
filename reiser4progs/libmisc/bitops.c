@@ -1,5 +1,5 @@
 /*
-    bitops.c -- bitops functions.
+    bitops.c -- bitops functions. They are used for working with bitmap.
     Copyright (C) 1996-2002 Hans Reiser.
     Some parts of this code stolen somewhere from linux.
 */
