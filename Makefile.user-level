@@ -156,8 +156,9 @@ SRC             := \
                    vfs_ops.c \
                    plugin/item/extent.c \
                    plugin/file/file.c \
-		   ulevel/uabend.c \
-		   ulevel/ulevel.c
+				   ulevel/uabend.c \
+				   ulevel/ulevel.c \
+                   memory.c
 
 OBJ             := $(SRC:.c=.o)
 
