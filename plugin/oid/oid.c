@@ -22,7 +22,8 @@ reiser4_plugin oid_plugins[ LAST_OID_ALLOCATOR_ID ] = {
 			.allocate_oid         = oid_40_allocate,
 			.release_oid          = oid_40_release,
 			.oid_reserve_allocate = oid_40_reserve_allocate,
-			.oid_reserve_release  = oid_40_reserve_release
+			.oid_reserve_release  = oid_40_reserve_release,
+			.print_info           = oid_40_print_info
 		}
 	}
 };

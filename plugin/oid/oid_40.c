@@ -137,3 +137,12 @@ int oid_40_reserve_release( reiser4_oid_allocator *map UNUSED_ARG )
 {
 	return 1;
 }
+
+/* plugin->u.oid_allocator.pritn_info */
+void oid_40_print_info (reiser4_oid_allocator *map)
+{
+	lock (map);
+	info ("oid40 oid allocator: next free objectid %lli\n",
+	      map -> u.oid_40.next_to_use);
+	unlock (map);
+}
