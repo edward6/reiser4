@@ -39,7 +39,7 @@ struct coord {
 	/* position of item within node */
 	/*  4 */ pos_in_node_t item_pos;
 	/* position of unit within item */
-	/*  6 */ pos_in_item_t unit_pos;
+	/*  6 */ pos_in_node_t unit_pos;
 	/* optimization: plugin of item is stored in coord_t. Until this was
 	   implemented, item_plugin_by_coord() was major CPU consumer. ->iplugid
 	   is invalidated (set to 0xff) on each modification of ->item_pos,

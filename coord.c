@@ -11,7 +11,7 @@
 /* Internal constructor. */
 static inline void
 coord_init_values(coord_t *coord, const znode *node, pos_in_node_t item_pos,
-		  pos_in_item_t unit_pos, between_enum between)
+		  pos_in_node_t unit_pos, between_enum between)
 {
 	coord->node = (znode *) node;
 	coord_set_item_pos(coord, item_pos);
