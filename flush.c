@@ -798,6 +798,7 @@ long jnode_flush(jnode * node, long *nr_to_flush, int flags)
 	/* The following code gets a fq attached to the atom and takes spin
 	   locks on both atom and jnode */
 
+	spin_lock_jnode(node);
 	ret = fq_by_jnode(node, &fq);
 	if (ret || !fq)
 		goto clean_out;
