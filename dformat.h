@@ -115,6 +115,49 @@ extern int get_nr_bmap (struct super_block * super);
 
 extern void get_bitmap_blocknr (struct super_block *, int, reiser4_block_nr *);
 
+
+
+/* structure of master reiser4 super block */
+typedef struct reiser4_master_sb {
+	char magic [4];     /* "R4Sb" */
+	d16 disk_plugin_id; /* id of disk layout plugin */
+	d16 blocksize;
+	char uuid [16];     /* unique id */
+} reiser4_master_sb;
+
+
+/* identifiers for disk layouts, they are also used as indexes in array of disk
+ * plugins */
+typedef enum { 
+	/* standard reiser4 disk layout plugin id */
+	LAYOUT_40_ID,
+	LAST_LAYOUT_ID
+} disk_layout_id;
+
+extern reiser4_plugin layout_plugins [];
+
+
+
+/* super block for standard reiser 40 disk layout */
+typedef struct layout_40_disk_super_block {
+	reiser4_master_sb master;
+	
+} layout_40_disk_super_block;
+
+
+#include "oid.h"
+
+/* layout 40 specific part of reiser4_super_info_data */
+typedef struct layout_40_super_info_data {
+	/**
+	 * allocator used to allocate new object ids for objects in the file
+	 * system. Current default implementation of object id allocator is
+	 * just counter and
+	 */
+	reiser4_oid_allocator_t oid_allocator;	
+} layout_40_super_info_data;
+
+
 /* __FS_REISER4_DFORMAT_H__ */
 #endif
 
