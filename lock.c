@@ -765,7 +765,7 @@ longterm_unlock_znode(lock_handle * handle)
 	zput(node);
 }
 
-/* final portion of longterm-unlock*/
+/* final portion of longterm-lock*/
 static int
 lock_tail(lock_stack *owner, int wake_up_next, int ok, znode_lock_mode mode)
 {
