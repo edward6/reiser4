@@ -1,6 +1,7 @@
 /* Copyright 2001, 2002 by Hans Reiser, licensing governed by reiser4/README */
 
-/* The object plugin of reiser4 crypto-compressed (crc-)files. */
+/* The object plugin of reiser4 crypto-compressed (crc-)files (see
+   http://www.namesys.com/cryptcompress_design.txt for details). */
 
 /* We store all the cryptcompress-specific attributes as following
    non-default plugins in plugin stat-data extension:
