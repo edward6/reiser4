@@ -395,6 +395,13 @@ typedef struct { int foo; } PREFIX##_hash_dummy_decl
 	    item = prefix ## _list_next(item), 			\
 		    prefetch(prefix ## _list_next(item)))
 
+#define for_all_tslist_safe(prefix, head, item, next)	\
+	for(item = prefix ## _list_front(head),		\
+            next = prefix ## _list_next(item);		\
+	    !prefix ## _list_end(head, item) ;		\
+	    item = next,				\
+	    next = prefix ## _list_next(item))
+
 #endif				/* __REISER4_TSLIST_H__ */
 
 /*
