@@ -1,0 +1,17 @@
+#! /bin/sh
+
+# take lockmeter (http://oss.sgi.com/projects/lockmeter) output as input
+
+# add missing optional fields
+awk '/^.............              / { print substr($0, 0, 14) "0.0us( 0.0us)" substr($0, 28); next } { print $0 }' | \
+awk '/^..................................               / { print substr($0, 0, 34) "( 0.0us)(0.00%)" substr($0, 49); next } { print $0 }' | \
+# convert optional fields HOLD MAX and WAIT MAX
+sed 's/(\(.....\)s)/ \1s /g' | \
+# convert WAIT CPU field
+sed 's/(\(....\)%)/ \1% /g' | \
+# strip microsecond suffix
+sed 's/\([0-9]\)us /\1   /g' | \
+# convert milliseconds to microseconds
+sed 's/\([0-9]\)ms /\1000 /g' | \
+# add "total waited" and "total held" fields
+awk '{ if (NF == 12) { printf "%10li %10li %s\n", $3 * $8, $5 * $8, $0} }'

@@ -1,0 +1,14 @@
+#! /bin/sh
+
+#
+# strip trailing spaces
+#
+
+find . -type f -follow -name '*.[chS]' | egrep -v SCCS | \
+while read
+do
+    f=$REPLY
+    cat $f | sed 's/ *$//g' > /tmp/ttt && \
+    mv /tmp/ttt $f && \
+    echo $f
+done
