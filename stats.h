@@ -8,6 +8,7 @@
 #include "forward.h"
 #include "reiser4.h"
 #include "debug.h"
+#include "statcnt.h"
 
 #ifdef __KERNEL__
 /* for __u?? types */
@@ -19,7 +20,6 @@
 #endif
 
 #include <linux/sched.h>
-#include <linux/percpu_counter.h>
 
 #if REISER4_STATS
 
@@ -31,164 +31,161 @@
 
 #define REISER4_STATS_STRICT (0)
 
-/* type of statistics counters */
-typedef struct percpu_counter stat_cnt;
-
 typedef struct reiser4_level_statistics {
 	/* carries restarted due to deadlock avoidance algorithm */
-	stat_cnt carry_restart;
+	statcnt_t carry_restart;
 	/* carries performed */
-	stat_cnt carry_done;
+	statcnt_t carry_done;
 	/* how many times carry, trying to find left neighbor of a given node,
 	   found it already in a carry set. */
-	stat_cnt carry_left_in_carry;
+	statcnt_t carry_left_in_carry;
 	/* how many times carry, trying to find left neighbor of a given node,
 	   found it already in a memory. */
-	stat_cnt carry_left_in_cache;
+	statcnt_t carry_left_in_cache;
 	/* how many times carry, trying to find left neighbor of a given node,
 	   found it is not in a memory. */
-	stat_cnt carry_left_missed;
+	statcnt_t carry_left_missed;
 	/* how many times carry, trying to find left neighbor of a given node,
 	   found that left neighbor either doesn't exist (we are at the left
 	   border of the tree already), or that there is extent on the left.
 	*/
-	stat_cnt carry_left_not_avail;
+	statcnt_t carry_left_not_avail;
 	/* how many times carry, trying to find left neighbor of a given node,
 	   gave this up to avoid deadlock */
-	stat_cnt carry_left_refuse;
+	statcnt_t carry_left_refuse;
 	/* how many times carry, trying to find right neighbor of a given
 	   node, found it already in a carry set. */
-	stat_cnt carry_right_in_carry;
+	statcnt_t carry_right_in_carry;
 	/* how many times carry, trying to find right neighbor of a given
 	   node, found it already in a memory. */
-	stat_cnt carry_right_in_cache;
+	statcnt_t carry_right_in_cache;
 	/* how many times carry, trying to find right neighbor of a given
 	   node, found it is not in a memory. */
-	stat_cnt carry_right_missed;
+	statcnt_t carry_right_missed;
 	/* how many times carry, trying to find right neighbor of a given
 	   node, found that right neighbor either doesn't exist (we are at the
 	   right border of the tree already), or that there is extent on the
 	   right.
 	*/
-	stat_cnt carry_right_not_avail;
+	statcnt_t carry_right_not_avail;
 	/* how many times insertion has to look into the left neighbor,
 	   searching for the free space. */
-	stat_cnt insert_looking_left;
+	statcnt_t insert_looking_left;
 	/* how many times insertion has to look into the right neighbor,
 	   searching for the free space. */
-	stat_cnt insert_looking_right;
+	statcnt_t insert_looking_right;
 	/* how many times insertion has to allocate new node, searching for
 	   the free space. */
-	stat_cnt insert_alloc_new;
+	statcnt_t insert_alloc_new;
 	/* how many times insertion has to allocate several new nodes in a
 	   row, searching for the free space. */
-	stat_cnt insert_alloc_many;
+	statcnt_t insert_alloc_many;
 	/* how many insertions were performed by carry. */
-	stat_cnt insert;
+	statcnt_t insert;
 	/* how many deletions were performed by carry. */
-	stat_cnt delete;
+	statcnt_t delete;
 	/* how many cuts were performed by carry. */
-	stat_cnt cut;
+	statcnt_t cut;
 	/* how many pastes (insertions into existing items) were performed by
 	   carry. */
-	stat_cnt paste;
+	statcnt_t paste;
 	/* how many extent insertions were done by carry. */
-	stat_cnt extent;
+	statcnt_t extent;
 	/* how many paste operations were restarted as insert. */
-	stat_cnt paste_restarted;
+	statcnt_t paste_restarted;
 	/* how many updates of delimiting keys were performed by carry. */
-	stat_cnt update;
+	statcnt_t update;
 	/* how many times carry notified parent node about updates in its
 	   child. */
-	stat_cnt modify;
+	statcnt_t modify;
 	/* how many times node was found reparented at the time when its
 	   parent has to be updated. */
-	stat_cnt half_split_race;
+	statcnt_t half_split_race;
 	/* how many times new node was inserted into sibling list after
 	   concurrent balancing modified right delimiting key if its left
 	   neighbor.
 	*/
-	stat_cnt dk_vs_create_race;
+	statcnt_t dk_vs_create_race;
 	/* how many times insert or paste ultimately went into node different
 	   from original target */
-	stat_cnt track_lh;
+	statcnt_t track_lh;
 	/* how many times sibling lookup required getting that high in a
 	   tree */
-	stat_cnt sibling_search;
+	statcnt_t sibling_search;
 	/* key was moved out of node while thread was waiting for the lock */
-	stat_cnt cbk_key_moved;
+	statcnt_t cbk_key_moved;
 	/* node was moved out of tree while thread was waiting for the lock */
-	stat_cnt cbk_met_ghost;
+	statcnt_t cbk_met_ghost;
 	/* for how many pages on this level ->releasepage() was called. */
-	stat_cnt page_try_release;
+	statcnt_t page_try_release;
 	/* how many pages were released on this level */
-	stat_cnt page_released;
+	statcnt_t page_released;
 	/* how many times emergency flush was invoked on this level */
-	stat_cnt emergency_flush;
+	statcnt_t emergency_flush;
 	struct {
 		/* calls to jload() */
-		stat_cnt jload;
+		statcnt_t jload;
 		/* calls to jload() that found jnode already loaded */
-		stat_cnt jload_already;
+		statcnt_t jload_already;
 		/* calls to jload() that found page already in memory */
-		stat_cnt jload_page;
+		statcnt_t jload_page;
 		/* calls to jload() that found jnode with asynchronous io
 		 * started */
-		stat_cnt jload_async;
+		statcnt_t jload_async;
 		/* calls to jload() that actually had to read data */
-		stat_cnt jload_read;
+		statcnt_t jload_read;
 		/* calls to jput() */
-		stat_cnt jput;
+		statcnt_t jput;
 		/* calls to jput() that released last reference */
-		stat_cnt jputlast;
+		statcnt_t jputlast;
 	} jnode;
 	struct {
 		/* calls to lock_znode() */
-		stat_cnt lock;
+		statcnt_t lock;
 		/* number of times loop inside lock_znode() was executed */
-		stat_cnt lock_iteration;
+		statcnt_t lock_iteration;
 		/* calls to lock_neighbor() */
-		stat_cnt lock_neighbor;
+		statcnt_t lock_neighbor;
 		/* number of times loop inside lock_neighbor() was executed */
-		stat_cnt lock_neighbor_iteration;
-		stat_cnt lock_read;
-		stat_cnt lock_write;
-		stat_cnt lock_lopri;
-		stat_cnt lock_hipri;
+		statcnt_t lock_neighbor_iteration;
+		statcnt_t lock_read;
+		statcnt_t lock_write;
+		statcnt_t lock_lopri;
+		statcnt_t lock_hipri;
 		/* how many requests for znode long term lock couldn't succeed
 		 * immediately. */
-		stat_cnt lock_contented;
+		statcnt_t lock_contented;
 		/* how many requests for znode long term lock managed to
 		 * succeed immediately. */
-		stat_cnt lock_uncontented;
-		stat_cnt unlock;
-		stat_cnt wakeup;
-		stat_cnt wakeup_found;
-		stat_cnt wakeup_found_read;
-		stat_cnt wakeup_scan;
-		stat_cnt wakeup_convoy;
+		statcnt_t lock_uncontented;
+		statcnt_t unlock;
+		statcnt_t wakeup;
+		statcnt_t wakeup_found;
+		statcnt_t wakeup_found_read;
+		statcnt_t wakeup_scan;
+		statcnt_t wakeup_convoy;
 	} znode;
 	struct {
 		struct {
-			stat_cnt calls;
-			stat_cnt items;
-			stat_cnt binary;
-			stat_cnt seq;
-			stat_cnt found;
-			stat_cnt pos;
-			stat_cnt posrelative;
-			stat_cnt samepos;
+			statcnt_t calls;
+			statcnt_t items;
+			statcnt_t binary;
+			statcnt_t seq;
+			statcnt_t found;
+			statcnt_t pos;
+			statcnt_t posrelative;
+			statcnt_t samepos;
 		} lookup;
 	} node;
-	stat_cnt total_hits_at_level;
-	stat_cnt time_slept;
+	statcnt_t total_hits_at_level;
+	statcnt_t time_slept;
 } reiser4_level_stat;
 
 typedef struct tshash_stat {
-	stat_cnt lookup;
-	stat_cnt insert;
-	stat_cnt remove;
-	stat_cnt scanned;
+	statcnt_t lookup;
+	statcnt_t insert;
+	statcnt_t remove;
+	statcnt_t scanned;
 } tshash_stat;
 
 #define TSHASH_LOOKUP(stat) ({ if(stat) percpu_counter_inc(&stat->lookup); })
@@ -201,102 +198,102 @@ typedef struct tshash_stat {
 typedef struct reiser4_statistics {
 	struct {
 		/* calls to coord_by_key */
-		stat_cnt cbk;
+		statcnt_t cbk;
 		/* calls to coord_by_key that found requested key */
-		stat_cnt cbk_found;
+		statcnt_t cbk_found;
 		/* calls to coord_by_key that didn't find requested key */
-		stat_cnt cbk_notfound;
+		statcnt_t cbk_notfound;
 		/* number of times calls to coord_by_key restarted */
-		stat_cnt cbk_restart;
+		statcnt_t cbk_restart;
 		/* calls to coord_by_key that found key in coord cache */
-		stat_cnt cbk_cache_hit;
+		statcnt_t cbk_cache_hit;
 		/* calls to coord_by_key that didn't find key in coord
 		   cache */
-		stat_cnt cbk_cache_miss;
+		statcnt_t cbk_cache_miss;
 		/* cbk cache search found wrong node */
-		stat_cnt cbk_cache_wrong_node;
+		statcnt_t cbk_cache_wrong_node;
 		/* search for key in coord cache raced against parallel
 		   balancing and lose. This should be rare. If not,
 		   update cbk_cache_search() according to comment
 		   therewithin.
 		*/
-		stat_cnt cbk_cache_race;
+		statcnt_t cbk_cache_race;
 		/* number of times coord of child in its parent, cached
 		   in a former, was reused. */
-		stat_cnt pos_in_parent_hit;
+		statcnt_t pos_in_parent_hit;
 		/* number of time binary search for child position in
 		   its parent had to be redone. */
-		stat_cnt pos_in_parent_miss;
+		statcnt_t pos_in_parent_miss;
 		/* number of times position of child in its parent was
 		   cached in the former */
-		stat_cnt pos_in_parent_set;
+		statcnt_t pos_in_parent_set;
 		/* how many times carry() was skipped by doing "fast
 		   insertion path". See
 		   fs/reiser4/plugin/node/node.h:->fast_insert() method.
 		*/
-		stat_cnt fast_insert;
+		statcnt_t fast_insert;
 		/* how many times carry() was skipped by doing "fast
 		   paste path". See
 		   fs/reiser4/plugin/node/node.h:->fast_paste() method.
 		*/
-		stat_cnt fast_paste;
+		statcnt_t fast_paste;
 		/* how many times carry() was skipped by doing "fast
 		   cut path". See
 		   fs/reiser4/plugin/node/node.h:->cut_insert() method.
 		*/
-		stat_cnt fast_cut;
+		statcnt_t fast_cut;
 		/* children reparented due to shifts at the parent level */
-		stat_cnt reparenting;
+		statcnt_t reparenting;
 		/* right delimiting key is not exact */
-		stat_cnt rd_key_skew;
+		statcnt_t rd_key_skew;
 		/* how many times lookup_multikey() has to restart from the
 		   beginning because of the broken seal. */
-		stat_cnt multikey_restart;
-		stat_cnt check_left_nonuniq;
-		stat_cnt left_nonuniq_found;
+		statcnt_t multikey_restart;
+		statcnt_t check_left_nonuniq;
+		statcnt_t left_nonuniq_found;
 	} tree;
 	reiser4_level_stat level[REAL_MAX_ZTREE_HEIGHT];
 	struct {
-		stat_cnt lookup;
-		stat_cnt create;
-		stat_cnt mkdir;
-		stat_cnt symlink;
-		stat_cnt mknod;
-		stat_cnt rename;
-		stat_cnt readlink;
-		stat_cnt follow_link;
-		stat_cnt setattr;
-		stat_cnt getattr;
-		stat_cnt read;
-		stat_cnt write;
-		stat_cnt truncate;
-		stat_cnt statfs;
-		stat_cnt bmap;
-		stat_cnt link;
-		stat_cnt llseek;
-		stat_cnt readdir;
-		stat_cnt ioctl;
-		stat_cnt mmap;
-		stat_cnt unlink;
-		stat_cnt rmdir;
-		stat_cnt alloc_inode;
-		stat_cnt destroy_inode;
-		stat_cnt delete_inode;
-		stat_cnt write_super;
-		stat_cnt private_data_alloc; /* allocations of either per struct dentry or per struct file data */
+		statcnt_t lookup;
+		statcnt_t create;
+		statcnt_t mkdir;
+		statcnt_t symlink;
+		statcnt_t mknod;
+		statcnt_t rename;
+		statcnt_t readlink;
+		statcnt_t follow_link;
+		statcnt_t setattr;
+		statcnt_t getattr;
+		statcnt_t read;
+		statcnt_t write;
+		statcnt_t truncate;
+		statcnt_t statfs;
+		statcnt_t bmap;
+		statcnt_t link;
+		statcnt_t llseek;
+		statcnt_t readdir;
+		statcnt_t ioctl;
+		statcnt_t mmap;
+		statcnt_t unlink;
+		statcnt_t rmdir;
+		statcnt_t alloc_inode;
+		statcnt_t destroy_inode;
+		statcnt_t delete_inode;
+		statcnt_t write_super;
+		statcnt_t private_data_alloc; /* allocations of either per struct dentry or per struct file data */
 	} vfs_calls;
 	struct {
 		struct {
-			stat_cnt calls;
-			stat_cnt reset;
-			stat_cnt rewind_left;
-			stat_cnt left_non_uniq;
-			stat_cnt left_restart;
-			stat_cnt rewind_right;
-			stat_cnt adjust_pos;
-			stat_cnt adjust_lt;
-			stat_cnt adjust_gt;
-			stat_cnt adjust_eq;
+			statcnt_t calls;
+			statcnt_t reset;
+			statcnt_t rewind_left;
+			statcnt_t left_non_uniq;
+			statcnt_t left_restart;
+			statcnt_t rewind_right;
+			statcnt_t adjust_pos;
+			statcnt_t adjust_lt;
+			statcnt_t adjust_gt;
+			statcnt_t adjust_eq;
 		} readdir;
 	} dir;
 
@@ -304,109 +301,109 @@ typedef struct reiser4_statistics {
 	struct {
 		
 		struct {
-			stat_cnt readpage_calls;
-			stat_cnt writepage_calls;
+			statcnt_t readpage_calls;
+			statcnt_t writepage_calls;
 		} page_ops;
 
 		/* number of tail conversions */
-		stat_cnt tail2extent;
-		stat_cnt extent2tail;
+		statcnt_t tail2extent;
+		statcnt_t extent2tail;
 
 		/* find_next_item statistic */
-		stat_cnt find_file_item;
-		stat_cnt find_file_item_via_seal;
-		stat_cnt find_file_item_via_right_neighbor;
-		stat_cnt find_file_item_via_cbk;
+		statcnt_t find_file_item;
+		statcnt_t find_file_item_via_seal;
+		statcnt_t find_file_item_via_right_neighbor;
+		statcnt_t find_file_item_via_cbk;
 		
 	} file;
 	struct {
 		/* how many unformatted nodes were read */
-		stat_cnt unfm_block_reads;
+		statcnt_t unfm_block_reads;
 
 		/* extent_write seals and unlock znode before locking/capturing
 		   page which is to be modified. After page is locked/captured
 		   it validates a seal. Number of found broken seals is stored
 		   here
 		*/
-		stat_cnt broken_seals;
+		statcnt_t broken_seals;
 
 		/* extent_write calls balance_dirty_pages after it modifies every page. Before that it seals node it
 		   currently holds and uses seal_validate to lock it again. This field stores how many times
 		   balance_dirty_pages broke that seal and caused to repease search tree traversal
 		*/
-		stat_cnt bdp_caused_repeats;
+		statcnt_t bdp_caused_repeats;
 		/* how many times extent_write could not write a coord and had to ask for research */
-		stat_cnt repeats;
+		statcnt_t repeats;
 	} extent;
 	struct { /* stats on tail items */		
 		/* tail_write calls balance_dirty_pages after every call to insert_flow. Before that it seals node it
 		   currently holds and uses seal_validate to lock it again. This field stores how many times
 		   balance_dirty_pages broke that seal and caused to repease search tree traversal
 		*/
-		stat_cnt bdp_caused_repeats;
+		statcnt_t bdp_caused_repeats;
 	} tail;
 	struct {
 		/* jiffies, spent in atom_wait_event() */
-		stat_cnt slept_in_wait_event;
+		statcnt_t slept_in_wait_event;
 		/* jiffies, spent in capture_fuse_wait (wait for atom state change) */
-		stat_cnt slept_in_wait_atom;
+		statcnt_t slept_in_wait_atom;
 		/* number of commits */
-		stat_cnt commits;
+		statcnt_t commits;
 		/*number of post commit writes */
-		stat_cnt post_commit_writes;
+		statcnt_t post_commit_writes;
 		/* jiffies, spent in commits and post commit writes */
-		stat_cnt time_spent_in_commits;
-		stat_cnt raced_with_truncate;
-		stat_cnt empty_bio;
-		stat_cnt commit_from_writepage;
+		statcnt_t time_spent_in_commits;
+		statcnt_t raced_with_truncate;
+		statcnt_t empty_bio;
+		statcnt_t commit_from_writepage;
 
-		stat_cnt capture_equal;
-		stat_cnt capture_both;
-		stat_cnt capture_block;
-		stat_cnt capture_txnh;
-		stat_cnt capture_none;
+		statcnt_t capture_equal;
+		statcnt_t capture_both;
+		statcnt_t capture_block;
+		statcnt_t capture_txnh;
+		statcnt_t capture_none;
 	} txnmgr;
 	struct {
 		/* how many nodes were squeezed to left neighbor completely */
-		stat_cnt squeezed_completely;
+		statcnt_t squeezed_completely;
 		/* how many times nodes with unallocated children are written */
-		stat_cnt flushed_with_unallocated;
+		statcnt_t flushed_with_unallocated;
 		/* how many leaves were squeezed to left */
-		stat_cnt squeezed_leaves;
+		statcnt_t squeezed_leaves;
 		/* how many items were squeezed on leaf level */
-		stat_cnt squeezed_leaf_items;
+		statcnt_t squeezed_leaf_items;
 		/* how mnay bytes were squeezed on leaf level */
-		stat_cnt squeezed_leaf_bytes;
+		statcnt_t squeezed_leaf_bytes;
 		/* how many times jnode_flush was called */
-		stat_cnt flush;
+		statcnt_t flush;
 		/* how many nodes were scanned by scan_left() */
-		stat_cnt left;
+		statcnt_t left;
 		/* how many nodes were scanned by scan_right() */
-		stat_cnt right;
+		statcnt_t right;
 		/* an overhead of MTFLUSH semaphore */
-		stat_cnt slept_in_mtflush_sem;
+		statcnt_t slept_in_mtflush_sem;
 	} flush;
 	struct {
 		/* how many carry objects were allocated */
-		stat_cnt alloc;
+		statcnt_t alloc;
 		/* how many "extra" carry objects were allocated by
 		   kmalloc. */
-		stat_cnt kmalloc;
+		statcnt_t kmalloc;
 	} pool;
 	struct {
 		/* seals that were found pristine */
-		stat_cnt perfect_match;
+		statcnt_t perfect_match;
 		/* how many times key drifted from sealed node */
-		stat_cnt key_drift;
+		statcnt_t key_drift;
 		/* how many times node under seal was out of cache */
-		stat_cnt out_of_cache;
+		statcnt_t out_of_cache;
 		/* how many times wrong node was found under seal */
-		stat_cnt wrong_node;
+		statcnt_t wrong_node;
 		/* how many times coord was found in exactly the same position
 		   under seal */
-		stat_cnt didnt_move;
+		statcnt_t didnt_move;
 		/* how many times key was actually found under seal */
-		stat_cnt found;
+		statcnt_t found;
 	} seal;
 	struct {
 		tshash_stat znode;
@@ -416,33 +413,33 @@ typedef struct reiser4_statistics {
 		tshash_stat eflush;
 	} hashes;
 	struct {
-		stat_cnt asked;
-		stat_cnt iteration;
-		stat_cnt wait_flush;
-		stat_cnt wait_congested;
-		stat_cnt kicked;
-		stat_cnt cleaned;
-		stat_cnt skipped_ent;
-		stat_cnt skipped_last;
-		stat_cnt skipped_congested;
-		stat_cnt low_priority;
-		stat_cnt removed;
-		stat_cnt toolong;
+		statcnt_t asked;
+		statcnt_t iteration;
+		statcnt_t wait_flush;
+		statcnt_t wait_congested;
+		statcnt_t kicked;
+		statcnt_t cleaned;
+		statcnt_t skipped_ent;
+		statcnt_t skipped_last;
+		statcnt_t skipped_congested;
+		statcnt_t low_priority;
+		statcnt_t removed;
+		statcnt_t toolong;
 	} wff;
 	/* how many non-unique keys were scanned into tree */
-	stat_cnt non_uniq;
+	statcnt_t non_uniq;
 
 	/* page_common_writeback stats */
-	stat_cnt pcwb_calls;
-	stat_cnt pcwb_formatted;
-	stat_cnt pcwb_unformatted;
-	stat_cnt pcwb_no_jnode;
-	stat_cnt pcwb_ented;
-	stat_cnt pcwb_written;
-	stat_cnt pcwb_not_written;
+	statcnt_t pcwb_calls;
+	statcnt_t pcwb_formatted;
+	statcnt_t pcwb_unformatted;
+	statcnt_t pcwb_no_jnode;
+	statcnt_t pcwb_ented;
+	statcnt_t pcwb_written;
+	statcnt_t pcwb_not_written;
 
-	stat_cnt pages_dirty;
-	stat_cnt pages_clean;
+	statcnt_t pages_dirty;
+	statcnt_t pages_clean;
 } reiser4_stat;
 
 #define get_current_stat() 					\
@@ -455,13 +452,13 @@ typedef struct reiser4_statistics {
 #define	reiser4_stat(sb, cnt) (&get_super_private_nocheck(sb)->stats->cnt)
 
 #define	reiser4_stat_inc_at(sb, counter)					\
-	percpu_counter_inc(&get_super_private_nocheck(sb)->stats->counter)
+	statcnt_inc(&get_super_private_nocheck(sb)->stats->counter)
 
 #define	reiser4_stat_inc(counter)				\
-	percpu_counter_inc(&get_current_stat()->counter)
+	statcnt_inc(&get_current_stat()->counter)
 
 #define reiser4_stat_add(counter, delta) 			\
-	percpu_counter_mod(&get_current_stat()->counter, delta)
+	statcnt_add(&get_current_stat()->counter, delta)
 
 #define	reiser4_stat_inc_at_level(lev, stat)					\
 ({										\

@@ -5,6 +5,7 @@
 #include "kattr.h"
 #include "reiser4.h"
 #include "stats.h"
+#include "statcnt.h"
 #include "super.h"
 #include "debug.h"
 
@@ -22,7 +23,7 @@ typedef struct reiser4_stats_cnt {
 #define getptrat(type, ptr, offset) ((type *)(((char *)(ptr)) + (offset)))
 #define getat(type, ptr, offset) (*getptrat(type, ptr, offset))
 
-#define DEFINE_STAT_CNT_0(aname, afield, atype, afmt, aproc)	\
+#define DEFINE_STATCNT_T_0(aname, afield, atype, afmt, aproc)	\
 {							\
 	.kattr = {					\
 		.attr = {				\
@@ -45,14 +46,14 @@ show_stat_attr(struct super_block * s, reiser4_kattr * kattr,
 {
 	char *p;
 	reiser4_stats_cnt *cnt;
-	stat_cnt *val;
+	statcnt_t *val;
 
 	(void)opaque;
 
 	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
-	val = getptrat(stat_cnt, &get_super_private(s)->stats, cnt->offset);
+	val = getptrat(statcnt_t, &get_super_private(s)->stats, cnt->offset);
 	p = buf;
-	KATTR_PRINT(p, buf, cnt->format, percpu_counter_read(val));
+	KATTR_PRINT(p, buf, cnt->format, statcnt_get(val));
 	return (p - buf);
 }
 
@@ -62,176 +63,176 @@ show_stat_level_attr(struct super_block * s, reiser4_kattr * kattr,
 {
 	char *p;
 	reiser4_stats_cnt *cnt;
-	stat_cnt *val;
+	statcnt_t *val;
 	int level;
 
 	level = *(int *)da;
 	cnt = container_of(kattr, reiser4_stats_cnt, kattr);
-	val = getptrat(stat_cnt, &get_super_private(s)->stats->level[level],
+	val = getptrat(statcnt_t, &get_super_private(s)->stats->level[level],
 		       cnt->offset);
 	p = buf;
-	KATTR_PRINT(p, buf, cnt->format, percpu_counter_read(val));
+	KATTR_PRINT(p, buf, cnt->format, statcnt_get(val));
 	return (p - buf);
 }
 
-#define DEFINE_STAT_CNT(field)						\
-	DEFINE_STAT_CNT_0(#field, field, reiser4_stat, "%lu", show_stat_attr)
+#define DEFINE_STATCNT_T(field)						\
+	DEFINE_STATCNT_T_0(#field, field, reiser4_stat, "%lu", show_stat_attr)
 
 reiser4_stats_cnt reiser4_stat_defs[] = {
-	DEFINE_STAT_CNT(tree.cbk),
-	DEFINE_STAT_CNT(tree.cbk_found),
-	DEFINE_STAT_CNT(tree.cbk_notfound),
-	DEFINE_STAT_CNT(tree.cbk_restart),
-	DEFINE_STAT_CNT(tree.cbk_cache_hit),
-	DEFINE_STAT_CNT(tree.cbk_cache_miss),
-	DEFINE_STAT_CNT(tree.cbk_cache_wrong_node),
-	DEFINE_STAT_CNT(tree.cbk_cache_race),
-	DEFINE_STAT_CNT(tree.pos_in_parent_hit),
-	DEFINE_STAT_CNT(tree.pos_in_parent_miss),
-	DEFINE_STAT_CNT(tree.pos_in_parent_set),
-	DEFINE_STAT_CNT(tree.fast_insert),
-	DEFINE_STAT_CNT(tree.fast_paste),
-	DEFINE_STAT_CNT(tree.fast_cut),
-	DEFINE_STAT_CNT(tree.reparenting),
-	DEFINE_STAT_CNT(tree.rd_key_skew),
-	DEFINE_STAT_CNT(tree.multikey_restart),
-	DEFINE_STAT_CNT(tree.check_left_nonuniq),
-	DEFINE_STAT_CNT(tree.left_nonuniq_found),
+	DEFINE_STATCNT_T(tree.cbk),
+	DEFINE_STATCNT_T(tree.cbk_found),
+	DEFINE_STATCNT_T(tree.cbk_notfound),
+	DEFINE_STATCNT_T(tree.cbk_restart),
+	DEFINE_STATCNT_T(tree.cbk_cache_hit),
+	DEFINE_STATCNT_T(tree.cbk_cache_miss),
+	DEFINE_STATCNT_T(tree.cbk_cache_wrong_node),
+	DEFINE_STATCNT_T(tree.cbk_cache_race),
+	DEFINE_STATCNT_T(tree.pos_in_parent_hit),
+	DEFINE_STATCNT_T(tree.pos_in_parent_miss),
+	DEFINE_STATCNT_T(tree.pos_in_parent_set),
+	DEFINE_STATCNT_T(tree.fast_insert),
+	DEFINE_STATCNT_T(tree.fast_paste),
+	DEFINE_STATCNT_T(tree.fast_cut),
+	DEFINE_STATCNT_T(tree.reparenting),
+	DEFINE_STATCNT_T(tree.rd_key_skew),
+	DEFINE_STATCNT_T(tree.multikey_restart),
+	DEFINE_STATCNT_T(tree.check_left_nonuniq),
+	DEFINE_STATCNT_T(tree.left_nonuniq_found),
 
-	DEFINE_STAT_CNT(vfs_calls.lookup),
-	DEFINE_STAT_CNT(vfs_calls.create),
-	DEFINE_STAT_CNT(vfs_calls.mkdir),
-	DEFINE_STAT_CNT(vfs_calls.symlink),
-	DEFINE_STAT_CNT(vfs_calls.mknod),
-	DEFINE_STAT_CNT(vfs_calls.rename),
-	DEFINE_STAT_CNT(vfs_calls.readlink),
-	DEFINE_STAT_CNT(vfs_calls.follow_link),
-	DEFINE_STAT_CNT(vfs_calls.setattr),
-	DEFINE_STAT_CNT(vfs_calls.getattr),
-	DEFINE_STAT_CNT(vfs_calls.read),
-	DEFINE_STAT_CNT(vfs_calls.write),
-	DEFINE_STAT_CNT(vfs_calls.truncate),
-	DEFINE_STAT_CNT(vfs_calls.statfs),
-	DEFINE_STAT_CNT(vfs_calls.bmap),
-	DEFINE_STAT_CNT(vfs_calls.link),
-	DEFINE_STAT_CNT(vfs_calls.llseek),
-	DEFINE_STAT_CNT(vfs_calls.readdir),
-	DEFINE_STAT_CNT(vfs_calls.ioctl),
-	DEFINE_STAT_CNT(vfs_calls.mmap),
-	DEFINE_STAT_CNT(vfs_calls.unlink),
-	DEFINE_STAT_CNT(vfs_calls.rmdir),
-	DEFINE_STAT_CNT(vfs_calls.alloc_inode),
-	DEFINE_STAT_CNT(vfs_calls.destroy_inode),
-	DEFINE_STAT_CNT(vfs_calls.delete_inode),
-	DEFINE_STAT_CNT(vfs_calls.write_super),
-	DEFINE_STAT_CNT(vfs_calls.private_data_alloc),
+	DEFINE_STATCNT_T(vfs_calls.lookup),
+	DEFINE_STATCNT_T(vfs_calls.create),
+	DEFINE_STATCNT_T(vfs_calls.mkdir),
+	DEFINE_STATCNT_T(vfs_calls.symlink),
+	DEFINE_STATCNT_T(vfs_calls.mknod),
+	DEFINE_STATCNT_T(vfs_calls.rename),
+	DEFINE_STATCNT_T(vfs_calls.readlink),
+	DEFINE_STATCNT_T(vfs_calls.follow_link),
+	DEFINE_STATCNT_T(vfs_calls.setattr),
+	DEFINE_STATCNT_T(vfs_calls.getattr),
+	DEFINE_STATCNT_T(vfs_calls.read),
+	DEFINE_STATCNT_T(vfs_calls.write),
+	DEFINE_STATCNT_T(vfs_calls.truncate),
+	DEFINE_STATCNT_T(vfs_calls.statfs),
+	DEFINE_STATCNT_T(vfs_calls.bmap),
+	DEFINE_STATCNT_T(vfs_calls.link),
+	DEFINE_STATCNT_T(vfs_calls.llseek),
+	DEFINE_STATCNT_T(vfs_calls.readdir),
+	DEFINE_STATCNT_T(vfs_calls.ioctl),
+	DEFINE_STATCNT_T(vfs_calls.mmap),
+	DEFINE_STATCNT_T(vfs_calls.unlink),
+	DEFINE_STATCNT_T(vfs_calls.rmdir),
+	DEFINE_STATCNT_T(vfs_calls.alloc_inode),
+	DEFINE_STATCNT_T(vfs_calls.destroy_inode),
+	DEFINE_STATCNT_T(vfs_calls.delete_inode),
+	DEFINE_STATCNT_T(vfs_calls.write_super),
+	DEFINE_STATCNT_T(vfs_calls.private_data_alloc),
 
-	DEFINE_STAT_CNT(dir.readdir.calls),
-	DEFINE_STAT_CNT(dir.readdir.reset),
-	DEFINE_STAT_CNT(dir.readdir.rewind_left),
-	DEFINE_STAT_CNT(dir.readdir.left_non_uniq),
-	DEFINE_STAT_CNT(dir.readdir.left_restart),
-	DEFINE_STAT_CNT(dir.readdir.rewind_right),
-	DEFINE_STAT_CNT(dir.readdir.adjust_pos),
-	DEFINE_STAT_CNT(dir.readdir.adjust_lt),
-	DEFINE_STAT_CNT(dir.readdir.adjust_gt),
-	DEFINE_STAT_CNT(dir.readdir.adjust_eq),
+	DEFINE_STATCNT_T(dir.readdir.calls),
+	DEFINE_STATCNT_T(dir.readdir.reset),
+	DEFINE_STATCNT_T(dir.readdir.rewind_left),
+	DEFINE_STATCNT_T(dir.readdir.left_non_uniq),
+	DEFINE_STATCNT_T(dir.readdir.left_restart),
+	DEFINE_STATCNT_T(dir.readdir.rewind_right),
+	DEFINE_STATCNT_T(dir.readdir.adjust_pos),
+	DEFINE_STATCNT_T(dir.readdir.adjust_lt),
+	DEFINE_STATCNT_T(dir.readdir.adjust_gt),
+	DEFINE_STATCNT_T(dir.readdir.adjust_eq),
 
-	DEFINE_STAT_CNT(file.page_ops.readpage_calls),
-	DEFINE_STAT_CNT(file.page_ops.writepage_calls),
-	DEFINE_STAT_CNT(file.tail2extent),
-	DEFINE_STAT_CNT(file.extent2tail),
-	DEFINE_STAT_CNT(file.find_file_item),
-	DEFINE_STAT_CNT(file.find_file_item_via_seal),
-	DEFINE_STAT_CNT(file.find_file_item_via_right_neighbor),
-	DEFINE_STAT_CNT(file.find_file_item_via_cbk),
+	DEFINE_STATCNT_T(file.page_ops.readpage_calls),
+	DEFINE_STATCNT_T(file.page_ops.writepage_calls),
+	DEFINE_STATCNT_T(file.tail2extent),
+	DEFINE_STATCNT_T(file.extent2tail),
+	DEFINE_STATCNT_T(file.find_file_item),
+	DEFINE_STATCNT_T(file.find_file_item_via_seal),
+	DEFINE_STATCNT_T(file.find_file_item_via_right_neighbor),
+	DEFINE_STATCNT_T(file.find_file_item_via_cbk),
 
-	DEFINE_STAT_CNT(extent.unfm_block_reads),
-	DEFINE_STAT_CNT(extent.broken_seals),
-	DEFINE_STAT_CNT(extent.bdp_caused_repeats),
+	DEFINE_STATCNT_T(extent.unfm_block_reads),
+	DEFINE_STATCNT_T(extent.broken_seals),
+	DEFINE_STATCNT_T(extent.bdp_caused_repeats),
 
-	DEFINE_STAT_CNT(tail.bdp_caused_repeats),
+	DEFINE_STATCNT_T(tail.bdp_caused_repeats),
 
-	DEFINE_STAT_CNT(txnmgr.slept_in_wait_atom),
-	DEFINE_STAT_CNT(txnmgr.slept_in_wait_event),
-	DEFINE_STAT_CNT(txnmgr.commits),
-	DEFINE_STAT_CNT(txnmgr.post_commit_writes),
-	DEFINE_STAT_CNT(txnmgr.time_spent_in_commits),
-	DEFINE_STAT_CNT(txnmgr.raced_with_truncate),
-	DEFINE_STAT_CNT(txnmgr.empty_bio),
-	DEFINE_STAT_CNT(txnmgr.commit_from_writepage),
-	DEFINE_STAT_CNT(txnmgr.capture_equal),
-	DEFINE_STAT_CNT(txnmgr.capture_both),
-	DEFINE_STAT_CNT(txnmgr.capture_block),
-	DEFINE_STAT_CNT(txnmgr.capture_txnh),
-	DEFINE_STAT_CNT(txnmgr.capture_none),
+	DEFINE_STATCNT_T(txnmgr.slept_in_wait_atom),
+	DEFINE_STATCNT_T(txnmgr.slept_in_wait_event),
+	DEFINE_STATCNT_T(txnmgr.commits),
+	DEFINE_STATCNT_T(txnmgr.post_commit_writes),
+	DEFINE_STATCNT_T(txnmgr.time_spent_in_commits),
+	DEFINE_STATCNT_T(txnmgr.raced_with_truncate),
+	DEFINE_STATCNT_T(txnmgr.empty_bio),
+	DEFINE_STATCNT_T(txnmgr.commit_from_writepage),
+	DEFINE_STATCNT_T(txnmgr.capture_equal),
+	DEFINE_STATCNT_T(txnmgr.capture_both),
+	DEFINE_STATCNT_T(txnmgr.capture_block),
+	DEFINE_STATCNT_T(txnmgr.capture_txnh),
+	DEFINE_STATCNT_T(txnmgr.capture_none),
 
-	DEFINE_STAT_CNT(flush.squeezed_completely),
-	DEFINE_STAT_CNT(flush.flushed_with_unallocated),
-	DEFINE_STAT_CNT(flush.squeezed_leaves),
-	DEFINE_STAT_CNT(flush.squeezed_leaf_items),
-	DEFINE_STAT_CNT(flush.squeezed_leaf_bytes),
-	DEFINE_STAT_CNT(flush.flush),
-	DEFINE_STAT_CNT(flush.left),
-	DEFINE_STAT_CNT(flush.right),
-	DEFINE_STAT_CNT(flush.slept_in_mtflush_sem),
+	DEFINE_STATCNT_T(flush.squeezed_completely),
+	DEFINE_STATCNT_T(flush.flushed_with_unallocated),
+	DEFINE_STATCNT_T(flush.squeezed_leaves),
+	DEFINE_STATCNT_T(flush.squeezed_leaf_items),
+	DEFINE_STATCNT_T(flush.squeezed_leaf_bytes),
+	DEFINE_STATCNT_T(flush.flush),
+	DEFINE_STATCNT_T(flush.left),
+	DEFINE_STATCNT_T(flush.right),
+	DEFINE_STATCNT_T(flush.slept_in_mtflush_sem),
 
-	DEFINE_STAT_CNT(pool.alloc),
-	DEFINE_STAT_CNT(pool.kmalloc),
+	DEFINE_STATCNT_T(pool.alloc),
+	DEFINE_STATCNT_T(pool.kmalloc),
 
-	DEFINE_STAT_CNT(seal.perfect_match),
-	DEFINE_STAT_CNT(seal.key_drift),
-	DEFINE_STAT_CNT(seal.out_of_cache),
-	DEFINE_STAT_CNT(seal.wrong_node),
-	DEFINE_STAT_CNT(seal.didnt_move),
-	DEFINE_STAT_CNT(seal.found),
+	DEFINE_STATCNT_T(seal.perfect_match),
+	DEFINE_STATCNT_T(seal.key_drift),
+	DEFINE_STATCNT_T(seal.out_of_cache),
+	DEFINE_STATCNT_T(seal.wrong_node),
+	DEFINE_STATCNT_T(seal.didnt_move),
+	DEFINE_STATCNT_T(seal.found),
 
-	DEFINE_STAT_CNT(hashes.znode.lookup),
-	DEFINE_STAT_CNT(hashes.znode.insert),
-	DEFINE_STAT_CNT(hashes.znode.remove),
-	DEFINE_STAT_CNT(hashes.znode.scanned),
-	DEFINE_STAT_CNT(hashes.zfake.lookup),
-	DEFINE_STAT_CNT(hashes.zfake.insert),
-	DEFINE_STAT_CNT(hashes.zfake.remove),
-	DEFINE_STAT_CNT(hashes.zfake.scanned),
-	DEFINE_STAT_CNT(hashes.jnode.lookup),
-	DEFINE_STAT_CNT(hashes.jnode.insert),
-	DEFINE_STAT_CNT(hashes.jnode.remove),
-	DEFINE_STAT_CNT(hashes.jnode.scanned),
-	DEFINE_STAT_CNT(hashes.lnode.lookup),
-	DEFINE_STAT_CNT(hashes.lnode.insert),
-	DEFINE_STAT_CNT(hashes.lnode.remove),
-	DEFINE_STAT_CNT(hashes.lnode.scanned),
-	DEFINE_STAT_CNT(hashes.eflush.lookup),
-	DEFINE_STAT_CNT(hashes.eflush.insert),
-	DEFINE_STAT_CNT(hashes.eflush.remove),
-	DEFINE_STAT_CNT(hashes.eflush.scanned),
+	DEFINE_STATCNT_T(hashes.znode.lookup),
+	DEFINE_STATCNT_T(hashes.znode.insert),
+	DEFINE_STATCNT_T(hashes.znode.remove),
+	DEFINE_STATCNT_T(hashes.znode.scanned),
+	DEFINE_STATCNT_T(hashes.zfake.lookup),
+	DEFINE_STATCNT_T(hashes.zfake.insert),
+	DEFINE_STATCNT_T(hashes.zfake.remove),
+	DEFINE_STATCNT_T(hashes.zfake.scanned),
+	DEFINE_STATCNT_T(hashes.jnode.lookup),
+	DEFINE_STATCNT_T(hashes.jnode.insert),
+	DEFINE_STATCNT_T(hashes.jnode.remove),
+	DEFINE_STATCNT_T(hashes.jnode.scanned),
+	DEFINE_STATCNT_T(hashes.lnode.lookup),
+	DEFINE_STATCNT_T(hashes.lnode.insert),
+	DEFINE_STATCNT_T(hashes.lnode.remove),
+	DEFINE_STATCNT_T(hashes.lnode.scanned),
+	DEFINE_STATCNT_T(hashes.eflush.lookup),
+	DEFINE_STATCNT_T(hashes.eflush.insert),
+	DEFINE_STATCNT_T(hashes.eflush.remove),
+	DEFINE_STATCNT_T(hashes.eflush.scanned),
 
-	DEFINE_STAT_CNT(wff.asked),
-	DEFINE_STAT_CNT(wff.iteration),
-	DEFINE_STAT_CNT(wff.wait_flush),
-	DEFINE_STAT_CNT(wff.kicked),
-	DEFINE_STAT_CNT(wff.cleaned),
-	DEFINE_STAT_CNT(wff.skipped_ent),
-	DEFINE_STAT_CNT(wff.skipped_last),
-	DEFINE_STAT_CNT(wff.skipped_congested),
-	DEFINE_STAT_CNT(wff.low_priority),
-	DEFINE_STAT_CNT(wff.removed),
-	DEFINE_STAT_CNT(wff.toolong),
+	DEFINE_STATCNT_T(wff.asked),
+	DEFINE_STATCNT_T(wff.iteration),
+	DEFINE_STATCNT_T(wff.wait_flush),
+	DEFINE_STATCNT_T(wff.kicked),
+	DEFINE_STATCNT_T(wff.cleaned),
+	DEFINE_STATCNT_T(wff.skipped_ent),
+	DEFINE_STATCNT_T(wff.skipped_last),
+	DEFINE_STATCNT_T(wff.skipped_congested),
+	DEFINE_STATCNT_T(wff.low_priority),
+	DEFINE_STATCNT_T(wff.removed),
+	DEFINE_STATCNT_T(wff.toolong),
 
-	DEFINE_STAT_CNT(non_uniq),
+	DEFINE_STATCNT_T(non_uniq),
 
-	DEFINE_STAT_CNT(pcwb_calls),
-	DEFINE_STAT_CNT(pcwb_formatted),
-	DEFINE_STAT_CNT(pcwb_unformatted),
-	DEFINE_STAT_CNT(pcwb_no_jnode),
-	DEFINE_STAT_CNT(pcwb_ented),
-	DEFINE_STAT_CNT(pcwb_not_written),
-	DEFINE_STAT_CNT(pcwb_written)
+	DEFINE_STATCNT_T(pcwb_calls),
+	DEFINE_STATCNT_T(pcwb_formatted),
+	DEFINE_STATCNT_T(pcwb_unformatted),
+	DEFINE_STATCNT_T(pcwb_no_jnode),
+	DEFINE_STATCNT_T(pcwb_ented),
+	DEFINE_STATCNT_T(pcwb_not_written),
+	DEFINE_STATCNT_T(pcwb_written)
 };
 
 #define DEFINE_STAT_LEVEL_CNT(field)						\
-	DEFINE_STAT_CNT_0(#field, field, 					\
+	DEFINE_STATCNT_T_0(#field, field, 					\
 			  reiser4_level_stat, "%lu", show_stat_level_attr)
 
 reiser4_stats_cnt reiser4_stat_level_defs[] = {
@@ -310,7 +311,7 @@ print_cnt(reiser4_stats_cnt * cnt, const char * prefix, void * base)
 {
 	printk("%s%s:\t ", prefix, cnt->kattr.attr.name);
 	printk(cnt->format, 
-	       percpu_counter_read(getptrat(stat_cnt, base, cnt->offset)));
+	       statcnt_get(getptrat(statcnt_t, base, cnt->offset)));
 }
 
 /* Print statistical data accumulated so far. */
@@ -327,7 +328,7 @@ reiser4_print_stats()
 	for (i = 0; i < REAL_MAX_ZTREE_HEIGHT; ++i) {
 		int j;
 
-		if (percpu_counter_read(&s->level[i].total_hits_at_level) <= 0)
+		if (statcnt_get(&s->level[i].total_hits_at_level) <= 0)
 			continue;
 		printk("tree: at level: %i\n", i +  LEAF_LEVEL);
 		for(j = 0 ; j < sizeof_array(reiser4_stat_level_defs) ; ++ j)
@@ -354,7 +355,7 @@ reiser4_populate_kattr_level_dir(struct kobject * kobj)
 int reiser4_stat_init(reiser4_stat ** storehere)
 {
 	reiser4_stat *stats;
-	stat_cnt *cnt;
+	statcnt_t *cnt;
 	int num;
 
 	cassert((sizeof *stats) / (sizeof *cnt) * (sizeof *cnt) == (sizeof *stats));
@@ -366,9 +367,9 @@ int reiser4_stat_init(reiser4_stat ** storehere)
 	*storehere = stats;
 
 	num = (sizeof *stats) / (sizeof *cnt);
-	cnt = (stat_cnt *)stats;
+	cnt = (statcnt_t *)stats;
 	for (; num >= 0 ; --num, ++cnt)
-		percpu_counter_init(cnt);
+		statcnt_init(cnt);
 	return 0;
 }
 
