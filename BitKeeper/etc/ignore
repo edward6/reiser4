@@ -185,6 +185,7 @@ page_cache.bbg
 plugin/.built-in.o.cmd
 plugin/.crypo_compressed.o.cmd
 plugin/.cryptcompress.o.cmd
+plugin/.digest.o.cmd
 plugin/.hash.o.cmd
 plugin/.object.o.cmd
 plugin/.object.o.d
@@ -1319,4 +1320,3 @@ write-test.1
 write-test.2
 znode.bb
 znode.bbg
-plugin/.digest.o.cmd
