@@ -13,11 +13,13 @@ __u32 reiser4_current_trace_flags = 0;
 extern void show_stack( unsigned long * esp );
 extern void cond_resched( void );
 
+static char panic_buf[ REISER4_PANIC_MSG_BUFFER_SIZE ];
+static spinlock_t panic_guard = SPIN_LOCK_UNLOCKED;
+
 /** Your best friend. Call it on each occasion.  This is called by
     fs/reiser4/debug.h:rpanic(). */
 void reiser4_panic( const char *format /* format string */, ... /* rest */ )
 {
-	static char buf[ REISER4_PANIC_MSG_BUFFER_SIZE ];
 	va_list args;
 
 	++ get_current_context() -> in_panic;
@@ -29,18 +31,20 @@ void reiser4_panic( const char *format /* format string */, ... /* rest */ )
 		 * prevent oops, die(), BUG() and panic() information
 		 * from reaching the user.
 		 */
+		spin_lock( &panic_guard );
 		va_start( args, format );
-		vsprintf( buf, format, args );
+		vsprintf( panic_buf, format, args );
 		va_end( args );
+		spin_unlock( &panic_guard );
 		
 		/* print back-trace */
 		show_stack( NULL );
 		/* do something more impressive here, print content of
 		   get_current_context() */
+		panic( "reiser4 panicked cowardly: %s", panic_buf );
 	} else {
 		BUG(); /* push it down harder */
 	}
-	panic( "reiser4 panicked cowardly: %s", buf );
 }
 
 /**
