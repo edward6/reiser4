@@ -496,7 +496,7 @@ dealloc_wmap_actor(txn_atom * atom UNUSED_ARG,
 	assert("zam-500", *b != 0);
 	assert("zam-501", !blocknr_is_fake(b));
 
-	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, 0);
+	reiser4_dealloc_block(b, BLOCK_NOT_COUNTED, BA_FORMATTED);
 	return 0;
 }
 
@@ -526,7 +526,7 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	blocknr_hint_init(&hint);
 	hint.block_stage = BLOCK_GRABBED;
 	
-	ret = reiser4_alloc_blocks (&hint, start, &wide_len,
+	ret = reiser4_alloc_blocks(&hint, start, &wide_len,
 		BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START);
 
 	*len = (int) wide_len;
