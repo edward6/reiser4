@@ -1040,7 +1040,12 @@ failed:
 		}
 	}
 
-	if (ret == -EINVAL || ret == -E_DEADLOCK || ret == -E_NO_NEIGHBOR || ret == -ENOENT) {
+	switch (ret) {
+	    case -E_REPEAT:
+	    case -EINVAL: 
+	    case -E_DEADLOCK:
+	    case -E_NO_NEIGHBOR: 
+	    case -ENOENT:
 		/* FIXME(C): Except for E_DEADLOCK, these should probably be handled properly
 		   in each case.  They already are handled in many cases. */
 		/* Something bad happened, but difficult to avoid...  Try again! */
@@ -3611,8 +3616,9 @@ scan_by_coord(flush_scan * scan)
 			 * to race with extent->tail conversion.  */
 			if (iplug->f.scan == NULL) {
 				scan->stop = 1;
-				ret = 0;
-				goto exit;
+				ret = -E_REPEAT;
+				/* skip the check at the end. */
+				goto race;
 			}
 
 			ret = iplug->f.scan(scan);
@@ -3713,7 +3719,7 @@ scan_by_coord(flush_scan * scan)
 	assert("jmacd-6233", scan_finished(scan) || jnode_is_znode(scan->node));
  exit:
 	checkchild(scan);
-
+ race: /* skip the above check  */
 	if (jnode_is_znode(scan->node)) {
 		done_lh(&scan->parent_lock);
 		done_load_count(&scan->parent_load);
