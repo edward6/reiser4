@@ -17,15 +17,7 @@
 #define MIN_CRYPTO_BLOCKSIZE 8
 #define CLUSTER_MAGIC_SIZE (MIN_CRYPTO_BLOCKSIZE >> 1)
 
-/* cluster status */
-typedef enum {
-	DATA_CLUSTER = 0, /* default value */
-	HOLE_CLUSTER = 1, /* this is set when we wanna write a hole */
-	FAKE_CLUSTER = 2  /* disk cluster is absent within a file, 
-			     so unprepped one should be created */
-} reiser4_cluster_state;
-
-/* Set of transform id supported by reiser4, 
+/* Set of transform id's supported by reiser4, 
    each transform is implemented by appropriate transform plugin: */
 typedef enum {
 	CRYPTO_TFM,       /* crypto plugin */  
@@ -318,6 +310,12 @@ alternate_streams(tfm_cluster_t * tc)
 	set_tfm_stream(tc, OUTPUT_STREAM, tmp);
 }
 
+/* a kind of data that we can write to the window */
+typedef enum {
+	DATA_WINDOW, /* the data we copy form user space */
+	HOLE_WINDOW  /* zeroes if we write hole */
+} window_stat;
+
 /* Sliding window of cluster size which should be set to the approprite position 
    (defined by cluster index) in a file before page cluster modification by 
    file_write. Then we translate file size, offset to write from, number of
@@ -325,10 +323,19 @@ alternate_streams(tfm_cluster_t * tc)
    number of pages to read before write, etc...
 */
 typedef struct reiser4_slide {
-	unsigned off;    /* offset we start to write/truncate from */
-	unsigned count;  /* number of bytes (zeroes) to write/truncate */
-	unsigned delta;  /* number of bytes to append to the hole */
+	unsigned off;      /* offset we start to write/truncate from */
+	unsigned count;    /* number of bytes (zeroes) to write/truncate */
+	unsigned delta;    /* number of bytes to append to the hole */
+	window_stat stat;  /* a kind of data to write to the window */
 } reiser4_slide_t;
+
+/* The following is a set of possible disk cluster states */
+typedef enum {
+	INVAL_DISK_CLUSTER,/* unknown state */ 
+	REAL_DISK_CLUSTER, /* disk cluster exists either in memory or on disk */
+	FAKE_DISK_CLUSTER  /* disk cluster doesn't exist neither in memory nor
+			      on disk */
+} disk_cluster_stat;
 
 /* 
    While implementing all transforms (from page to disk cluster, and back)
@@ -341,7 +348,7 @@ typedef struct reiser4_cluster{
 	struct page ** pages;         /* page cluster */
 	struct file * file;
 	hint_t * hint;                /* disk cluster item for traversal */
-	reiser4_cluster_state stat;
+	disk_cluster_stat dstat;      /* state of the current disk cluster */
 	unsigned long index;          /* cluster index */
 	reiser4_slide_t * win;        /* sliding window of cluster size */
 	int reserved;                 /* this indicates that space for disk
@@ -395,6 +402,7 @@ typedef struct crypto_stat {
 
 /* cryptcompress specific part of reiser4_inode */
 typedef struct cryptcompress_info {
+	struct rw_semaphore lock;
 	struct crypto_tfm *tfm[LAST_TFM];
 	__u32 * expkey;
 } cryptcompress_info_t;
