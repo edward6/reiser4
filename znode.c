@@ -262,8 +262,6 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 {
 	znode *node;
 	znode *next;
-	int parents;
-	int killed;
 	z_hash_table *ztable;
 
 	assert("nikita-795", tree != NULL);
@@ -272,23 +270,12 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 
 	ztable = &tree->zhash_table;
 
-	/* Remove all znodes.
-	  
-	   Stupid and slow, but simple algorithm. Umount is not time-critical
-	   anyway.
-	*/
-	do {
-		parents = 0;
-		killed = 0;
-		for_all_in_htable(ztable, z, node, next) {
-			atomic_set(&node->c_count, 0);
-			node->in_parent.node = NULL;
-			assert("nikita-2179", atomic_read(&ZJNODE(node)->x_count) == 0);
-			zdrop(node);
-			++killed;
-		}
-		assert("nikita-2178", (parents == 0) || (killed > 0));
-	} while (parents + killed > 0);
+	for_all_in_htable(ztable, z, node, next) {
+		atomic_set(&node->c_count, 0);
+		node->in_parent.node = NULL;
+		assert("nikita-2179", atomic_read(&ZJNODE(node)->x_count) == 0);
+		zdrop(node);
+	}
 
 	z_hash_done(&tree->zhash_table);
 }
