@@ -488,7 +488,7 @@ static int reiser4_readdir( struct file *f /* directory file being read */,
 			f -> f_pos = arg.offset_hi;
 			fsdata = reiser4_get_file_fsdata( f );
 			if( ! IS_ERR( fsdata ) )
-				fsdata -> readdir_offset = arg.offset_lo;
+				fsdata -> readdir_offset = arg.offset_lo + 1;
 			else
 				result = PTR_ERR( fsdata );
 		}
