@@ -509,7 +509,8 @@ common_file_delete_no_reserve(struct inode *inode /* object to remove */,
 	return result;
 }
 
-/* delete_file_common() - delete object stat-data. This is to be used when file deletion turns into stat data removal */
+/* delete_object() - delete object stat-data. This is to be used when file
+ * deletion turns into stat data removal */
 reiser4_internal int
 delete_object(struct inode *inode /* object to remove */, int mode /* cut mode */)
 {
