@@ -956,6 +956,7 @@ static int __init init_reiser4()
 {
 	int result;
 
+	info( KERN_INFO "Loading Reiser4.\n" );
 	result = init_inodecache();
 	if( result == 0 ) {
 		reiser4_init_context_mgr();
