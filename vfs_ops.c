@@ -1446,6 +1446,7 @@ out:
 
 	phash_super_destroy(s);
 
+	synchronize_kernel();
 	kfree(sbinfo);
 	s->s_fs_info = NULL;
 }
