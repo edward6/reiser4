@@ -236,14 +236,15 @@ check_block_counters(const struct super_block *super)
 		       "used %llu, free %llu, "
 		       "grabbed %llu, fake allocated (formatetd %llu, unformatted %llu), "
 		       "reserved %llu, clustered %llu, sum %llu, must be (block count) %llu\n",
-		       reiser4_data_blocks(super),
-		       reiser4_free_blocks(super),
-		       reiser4_grabbed_blocks(super),
-		       reiser4_fake_allocated(super),
-		       reiser4_fake_allocated_unformatted(super),
-		       flush_reserved(super),
-		       reiser4_clustered_blocks(super),
-		       sum, reiser4_block_count(super));
+		       (unsigned long long)reiser4_data_blocks(super),
+		       (unsigned long long)reiser4_free_blocks(super),
+		       (unsigned long long)reiser4_grabbed_blocks(super),
+		       (unsigned long long)reiser4_fake_allocated(super),
+		       (unsigned long long)reiser4_fake_allocated_unformatted(super),
+		       (unsigned long long)flush_reserved(super),
+		       (unsigned long long)reiser4_clustered_blocks(super),
+		       (unsigned long long)sum, 
+		       (unsigned long long)reiser4_block_count(super));
 		return 0;
 	}
 	return 1;

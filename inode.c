@@ -180,7 +180,8 @@ setup_inode_ops(struct inode *inode /* inode to intialise */ ,
 		inode->i_mapping->a_ops = &sinfo->ops.as;
 		break;
 	default:
-		warning("nikita-291", "wrong file mode: %o for %llu", inode->i_mode, get_inode_oid(inode));
+		warning("nikita-291", "wrong file mode: %o for %llu", inode->i_mode,
+			(unsigned long long)get_inode_oid(inode));
 		reiser4_make_bad_inode(inode);
 		return RETERR(-EINVAL);
 	}
@@ -238,7 +239,7 @@ init_inode(struct inode *inode /* inode to intialise */ ,
 			if (result != 0) {
 				warning("nikita-3447",
 					"Cannot set up plugins for %lli",
-					get_inode_oid(inode));
+					(unsigned long long)get_inode_oid(inode));
 			}
 		}
 	}
@@ -437,7 +438,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 		}
 		if (inode_file_plugin(inode)->not_linked(inode)) {
 			warning("nikita-3559", "Unlinked inode found: %llu\n",
-				get_inode_oid(inode));
+				(unsigned long long)get_inode_oid(inode));
 			print_inode("inode", inode);
 		}
 	}

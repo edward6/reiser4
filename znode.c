@@ -564,7 +564,7 @@ zget(reiser4_tree * tree,
 	if (unlikely(znode_get_level(result) != level)) {
 		warning("jmacd-504",
 			"Wrong level for cached block %llu: %i expecting %i",
-			*blocknr, znode_get_level(result), level);
+			(unsigned long long)(*blocknr), znode_get_level(result), level);
 		zput(result);
 		return ERR_PTR(RETERR(-EIO));
 	}

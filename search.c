@@ -1592,9 +1592,9 @@ sprint_address(const reiser4_block_nr * block /* block number to print */ )
 	if (block == NULL)
 		sprintf(address, "null");
 	else if (blocknr_is_fake(block))
-		sprintf(address, "%llx", *block);
+		sprintf(address, "%llx", (unsigned long long)(*block));
 	else
-		sprintf(address, "%llu", *block);
+		sprintf(address, "%llu", (unsigned long long)(*block));
 	return address;
 }
 

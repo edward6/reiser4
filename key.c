@@ -142,19 +142,19 @@ sprintf_key(char *buffer /* buffer to print key into */ ,
 {
 	if (REISER4_LARGE_KEY)
 		return sprintf(buffer, "(%Lx:%x:%Lx:%Lx:%Lx:%Lx)",
-			       get_key_locality(key),
+			       (unsigned long long)get_key_locality(key),
 			       get_key_type(key),
-			       get_key_ordering(key),
-			       get_key_band(key),
-			       get_key_objectid(key),
-			       get_key_offset(key));
+			       (unsigned long long)get_key_ordering(key),
+			       (unsigned long long)get_key_band(key),
+			       (unsigned long long)get_key_objectid(key),
+			       (unsigned long long)get_key_offset(key));
 	else
 		return sprintf(buffer, "(%Lx:%x:%Lx:%Lx:%Lx)",
-			       get_key_locality(key),
+			       (unsigned long long)get_key_locality(key),
 			       get_key_type(key),
-			       get_key_band(key),
-			       get_key_objectid(key),
-			       get_key_offset(key));
+			       (unsigned long long)get_key_band(key),
+			       (unsigned long long)get_key_objectid(key),
+			       (unsigned long long)get_key_offset(key));
 }
 
 /* Make Linus happy.

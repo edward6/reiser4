@@ -277,7 +277,8 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 			result = fplug->safelink(inode, link, size);
 		else {
 			warning("nikita-3430",
-				"Cannot handle safelink for %lli", oid);
+				"Cannot handle safelink for %lli", 
+				(unsigned long long)oid);
 			print_key("key", sdkey);
 			print_inode("inode", inode);
 			result = 0;
@@ -285,7 +286,7 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 		if (result != 0) {
 			warning("nikita-3431",
 				"Error processing safelink for %lli: %i",
-				oid, result);
+				(unsigned long long)oid, result);
 		}
 		reiser4_iget_complete(inode);
 		iput(inode);

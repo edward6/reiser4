@@ -59,7 +59,8 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 		}
 		/* cheap test, can be executed even when debugging is off */
 		if (!znode_just_created(result)) {
-			warning("nikita-2213", "Allocated already existing block: %llu", blocknr);
+			warning("nikita-2213", "Allocated already existing block: %llu", 
+				(unsigned long long)blocknr);
 			zput(result);
 			return ERR_PTR(RETERR(-EIO));
 		}
