@@ -430,17 +430,10 @@ insert_by_coord(coord_t * coord	/* coord where to
 
 /* @coord is set to leaf level and @data is to be inserted to twig level */
 reiser4_internal insert_result
-insert_extent_by_coord(coord_t * coord	/* coord where to
-							   * insert. coord->node
-							   * has to be write
-							   * locked by caller */ ,
-				     reiser4_item_data * data	/* data to be
-								 * inserted */ ,
-				     const reiser4_key * key /* key of new item */ ,
-				     lock_handle * lh	/* lock handle of
-							   * write lock on
-							   * node */
-    )
+insert_extent_by_coord(coord_t * coord	/* coord where to insert. coord->node * has to be write * locked by caller */ ,
+		       reiser4_item_data * data	/* data to be inserted */ ,
+		       const reiser4_key * key /* key of new item */ ,
+		       lock_handle * lh	/* lock handle of write lock on * node */)
 {
 	assert("vs-405", coord != NULL);
 	assert("vs-406", data != NULL);
