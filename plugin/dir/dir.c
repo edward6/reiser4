@@ -479,8 +479,11 @@ create_child_common(reiser4_object_create_data * data	/* parameters
 			*/
 			/* @object times are already updated by
 			   reiser4_add_nlink() */
-			if (result == 0)
+			if (result == 0) {
 				result = reiser4_update_dir(parent);
+				if (result != 0)
+					reiser4_del_nlink(object, parent, 1);
+			}
 			if (result != 0)
 				/* cleanup failure to update times */
 				par_dir->rem_entry(parent, dentry, &entry);
