@@ -432,15 +432,13 @@ typedef struct digest_plugin {
 typedef struct compression_plugin {
 	/* generic fields */
 	plugin_header h;
-	int (*alloc) (struct inode * inode);
-	void (*free) (struct inode * inode);
 	/* the maximum number of bytes the size of the "compressed" data can
 	 * exceed the uncompressed data. */
 	unsigned overrun;	
 	/* main text processing procedures */
-	void (*compress) (__u8 *buf, __u8 *src_first, unsigned src_len,
+	void (*compress) (__u8 *src_first, unsigned src_len,
 			  __u8 *dst_first, unsigned *dst_len);
-	void (*decompress) (__u8 *buf, __u8 *src_first, unsigned src_len,
+	void (*decompress) (__u8 *src_first, unsigned src_len,
 			    __u8 *dst_first, unsigned *dst_len);
 }compression_plugin;
 
@@ -660,7 +658,7 @@ typedef enum {
 
 typedef enum {
 	NONE_COMPRESSION_ID,
-	GZIP_COMPRESSION_ID,
+	LZRW1_COMPRESSION_ID,
 	LAST_COMPRESSION_ID
 } reiser4_compression_id;
 
