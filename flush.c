@@ -79,7 +79,7 @@ static int           squalloc_parent_first_recursive (flush_position *pos, znode
 static int           squalloc_children            (flush_position *pos);
 /*static*/ int       squalloc_right_neighbor      (znode *left, znode *right, reiser4_blocknr_hint *preceder);
 static int           squalloc_right_twig          (znode *left, znode *right, reiser4_blocknr_hint *preceder);
-static int           squalloc_right_twig_cut      (tree_coord * to, reiser4_key * to_key);
+static int           squalloc_right_twig_cut      (tree_coord * to, reiser4_key * to_key, znode *left);
 static int           squeeze_right_leaf           (znode *right, znode *left);
 static int           shift_one_internal_unit      (znode *left, znode *right);
 
@@ -862,7 +862,9 @@ static int squalloc_parent_first (flush_position *pos)
 		assert ("vs-442", item_is_internal (& crd));
 
 		/* FIXME: Only want this child if it is in the same atom! */
+		spin_lock_dk (current_tree);
 		child = child_znode (& crd, 1/*set delim key*/);
+		spin_unlock_dk (current_tree);
 		if (IS_ERR (child)) {
 			ret = PTR_ERR (child);
 			goto cleanup;
@@ -1115,7 +1117,7 @@ static int squeeze_right_leaf (znode * right, znode * left)
 }
 
 /* Copy as much of the leading extents from @right to @left, allocating
- * unallocated extents as they are copied.  Returns SQUEEZE_TARGET_FILL or
+ * unallocated extents as they are copied.  Returns SQUEEZE_TARGET_FULL or
  * SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
  * internal item it calls shift_one_internal_unit and may then return
  * SUBTREE_MOVED. */
@@ -1169,7 +1171,7 @@ static int squalloc_right_twig (znode    *left,
 		}
 
 		/* Helper function to do the cutting. */
-		if ((cut_ret = squalloc_right_twig_cut (&coord, &stop_key))) {
+		if ((cut_ret = squalloc_right_twig_cut (&coord, &stop_key, left))) {
 			return cut_ret;
 		}
 	}
@@ -1195,7 +1197,7 @@ static int squalloc_right_twig (znode    *left,
 
 /* squalloc_right_twig helper function, cut a range of extent items from
  * cut node to->node from the beginning up to coord @to. */
-static int squalloc_right_twig_cut (tree_coord * to, reiser4_key * to_key)
+static int squalloc_right_twig_cut (tree_coord * to, reiser4_key * to_key, znode * left)
 {
 	tree_coord from;
 	reiser4_key from_key;
@@ -1203,7 +1205,8 @@ static int squalloc_right_twig_cut (tree_coord * to, reiser4_key * to_key)
 	coord_first_unit (&from, to->node);
 	item_key_by_coord (&from, &from_key);
 
-	return cut_node (&from, to, &from_key, to_key, NULL /* smallest_removed */, DELETE_DONT_COMPACT);
+	return cut_node (&from, to, &from_key, to_key,
+			 NULL /* smallest_removed */, DELETE_DONT_COMPACT, left);
 }
 
 /* Shift first unit of first item if it is an internal one.  Return

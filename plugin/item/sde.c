@@ -122,7 +122,8 @@ int de_rem_entry( const struct inode *dir UNUSED_ARG /* directory of item */,
 	 * of @coord.
 	 */
 	dup_coord( &coord_shadow, coord );
-	result = cut_node( coord, coord, NULL, NULL, NULL, DELETE_KILL/*flags*/ );
+	result = cut_node( coord, coord, NULL, NULL, NULL, DELETE_KILL/*flags*/,
+			   0 );
 	done_coord( &coord_shadow );
 	return result;
 }

@@ -1172,7 +1172,8 @@ static int item_removed_completely (tree_coord * from,
  */
 static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 			     const reiser4_key * from_key, 
-			     const reiser4_key * to_key)
+			     const reiser4_key * to_key,
+			     znode * locked_left_neighbor)
 {
 	int result;
 	reiser4_key key;
@@ -1198,27 +1199,31 @@ static int prepare_twig_cut (tree_coord * from, tree_coord * to,
 	dup_coord (&left_coord, from);
 	init_lh (&left_lh);
 	if (coord_prev_unit (&left_coord)) {
-		/* @from is leftmost item in its node */
-		result = reiser4_get_left_neighbor (&left_lh, from->node,
-						    ZNODE_READ_LOCK,
-						    GN_DO_READ);
-		switch (result) {
-		case 0:
-			break;
-		case -ENAVAIL:
-			/* there is no formatted node to the left of
-			 * from->node */
-			warning ("vs-605", "extent item has smallest key in "
-				 "the tree and it is about to be removed");
-			return 0;
-		case -EDEADLK:
-			/* need to restart */
-		default:
-			return result;
-		}
+		if (!locked_left_neighbor) {
+			/* @from is leftmost item in its node */
+			result = reiser4_get_left_neighbor (&left_lh, from->node,
+							    ZNODE_READ_LOCK,
+							    GN_DO_READ);
+			switch (result) {
+			case 0:
+				break;
+			case -ENAVAIL:
+				/* there is no formatted node to the left of
+				 * from->node */
+				warning ("vs-605", "extent item has smallest key in "
+					 "the tree and it is about to be removed");
+				return 0;
+			case -EDEADLK:
+				/* need to restart */
+			default:
+				return result;
+			}
 
-		/* we have acquired left neighbor of from->node */
-		coord_last_unit (&left_coord, left_lh.node);
+			/* we have acquired left neighbor of from->node */
+			coord_last_unit (&left_coord, left_lh.node);
+		} else {
+			coord_last_unit (&left_coord, locked_left_neighbor);
+		}
 	}
 
 	if (!item_is_internal (&left_coord)) {
@@ -1340,7 +1345,11 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 	      const reiser4_key * to_key /* last key to be removed */,
 	      reiser4_key * smallest_removed /* smallest key actually
 					      * removed */,
-	      unsigned flags /* cut flags */ )
+	      unsigned flags /* cut flags */,
+	      znode * locked_left_neighbor /* this is set when cut_node is
+					    * called with left neighbor locked
+					    * (in squalloc_right_twig_cut,
+					    * namely) */)
 {
 	int result;
 	carry_pool  pool;
@@ -1370,7 +1379,8 @@ int cut_node (tree_coord * from /* coord of the first unit/item that will be
 		/* left child of extent item may have to get updated right
 		 * delimiting key and to get linked with right child of extent
 		 * @from if it will be removed completely */
-		result = prepare_twig_cut (from, to, from_key, to_key);
+		result = prepare_twig_cut (from, to, from_key, to_key,
+					   locked_left_neighbor);
 		if (result)
 			return result;
 	}
@@ -1477,7 +1487,7 @@ int cut_tree (reiser4_tree * tree,
 						     an output, with output
 						     being a hint used by next
 						     loop iteration */
-				   from_key, to_key, &smallest_removed, DELETE_KILL/*flags*/);
+				   from_key, to_key, &smallest_removed, DELETE_KILL/*flags*/, 0);
 		if (result)
 			break;
 		assert ("vs-301", !keyeq (&smallest_removed, min_key ()));

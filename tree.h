@@ -308,7 +308,8 @@ insert_result insert_extent_by_coord( tree_coord  *coord,
 int cut_node (tree_coord * from, tree_coord * to,
 	      const reiser4_key * from_key,
 	      const reiser4_key * to_key,
-	      reiser4_key * smallest_removed, unsigned flags);
+	      reiser4_key * smallest_removed, unsigned flags,
+	      znode * left);
 
 resize_result resize_item( tree_coord *coord, reiser4_item_data *data,
 			   reiser4_key *key, lock_handle *lh,
