@@ -5,6 +5,7 @@
 #include "../../page_cache.h"
 #include "../../carry.h"
 #include "../../lib.h"
+#include "../../safe_link.h"
 #include "funcs.h"
 
 /* this file contains:
@@ -59,142 +60,6 @@ drop_nonexclusive_access(unix_file_info_t *uf_info)
 	assert("vs-1160", !ea_obtained(uf_info));
 	rw_latch_up_read(&uf_info->latch);
 	LOCK_CNT_DEC(inode_sem_r);
-}
-
-static int
-file_continues_in_right_neighbor(const struct inode *inode, znode *node)
-{
-	return UNDER_RW(dk, current_tree, read,
-			get_inode_oid(inode) == get_key_objectid(znode_get_rd_key(node)));
-}
-
-/* the below two functions are helpers for prepare_tail2extent and prepare_extent2tail. They are to be used like:
-   nodes = nodes_spanned();
-   calculate and reserve space necessary for whole operation;
-   mark_frozen();
-*/
-
-/* Lock the leftmost of nodes containing file items and calculate amount of nodes spanned by the file. Return keeping
-   first node locked */
-static int
-nodes_spanned(struct inode *inode, reiser4_block_nr *blocks, hint_t *hint)
-{
-	int result;
-	reiser4_key key;
-	lock_handle lh;
-	coord_t coord;
-
-	inode_file_plugin(inode)->key_by_inode(inode, 0, &key);
-
-	result = find_file_item(hint, &key, ZNODE_WRITE_LOCK, CBK_UNIQUE, 0/* ra_info */,
-				unix_file_inode_data(inode));
-	if (result != CBK_COORD_FOUND) {
-		/* error occured */
-		done_lh(hint->coord.lh);
-		return result;
-	}
-
-	coord_dup_nocheck(&coord, &hint->coord.base_coord);
-	init_lh(&lh);
-	result = longterm_lock_znode(&lh, coord.node, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
-	if (unlikely(result)) {
-		/* error occured */
-		done_lh(hint->coord.lh);
-		return result;
-	}
-	*blocks = 1;
-	while (1) {
-		if (!file_continues_in_right_neighbor(inode, coord.node))
-			break;
-		result = goto_right_neighbor(&coord, &lh);
-		if (result) {
-			done_lh(&lh);
-			done_lh(hint->coord.lh);
-			return result;
-		}
-		(*blocks) ++;
-	}
-
-	done_lh(&lh);
-	return 0;
-}
-
-/* Scan all nodes spanned by the file and mark all items of file as frozen. */
-static int
-mark_frozen(const struct inode *inode, reiser4_block_nr spanned_blocks UNUSED_ARG, coord_t *coord, lock_handle *lh)
-{
-	int result;
-	coord_t twin;
-	item_id id;
-	reiser4_block_nr blocks;
-
-	coord_dup_nocheck(&twin, coord);
-	id =  znode_get_level(twin.node) == LEAF_LEVEL ? FROZEN_FORMATTING_ID : FROZEN_EXTENT_POINTER_ID;
-	blocks = 1;
-
-	result = 0;
-	while (1) {
-		result = zload(twin.node);
-		if (result)
-			break;
-
-		result = twin.node->nplug->set_item_plugin(&twin, id);
-		if (result) {
-			zrelse(twin.node);
-			break;
-		}
-
-		znode_make_dirty(twin.node);
-		zrelse(twin.node);
-		assert("vs-1124", blocks <= spanned_blocks);
-		if (!file_continues_in_right_neighbor(inode, twin.node))
-			break;
-		result = goto_right_neighbor(&twin, lh);
-		if (result)
-			break;
-		blocks ++;
-	}
-	if (result)
-		warning("vs-1126", "tail conversion not completed. File (ino=%llu) may be unreachable\n", get_inode_oid(inode));
-	done_lh(lh);
-	return result;
-}
-
-static int
-prepare_tail2extent(struct inode *inode)
-{
-	int result;
-	reiser4_block_nr formatted_nodes, unformatted_nodes;
-	hint_t hint;
-	lock_handle first_lh;
-	coord_t *coord;
-	reiser4_tree *tree;
-
-	tree = tree_by_inode(inode);
-
-	/* number of leaf formatted nodes file spans */
-	hint_init_zero(&hint, &first_lh);
-	result = nodes_spanned(inode, &formatted_nodes, &hint);
-	if (result)
-		return result;
-	/* number of unformatted nodes which will be created */
-	unformatted_nodes = (inode->i_size + inode->i_sb->s_blocksize - 1) >> inode->i_sb->s_blocksize_bits;
-
-	/* space necessary for tail2extent conversion: space for @formatted_nodes removals from tree, @unformatted_nodes blocks
-	   for unformatted nodes, and space for @unformatted_nodes insertions into item (extent insertions) */
-	/*
-	 * if grab_space would try to commit current transaction at this point
-	 * we are stymied, because long term lock is held in @first_lh. I
-	 * removed BA_CAN_COMMIT from grabbing flags.
-	 */
-	result = reiser4_grab_space_force(formatted_nodes * estimate_one_item_removal(tree) + unformatted_nodes +
-					  unformatted_nodes * estimate_one_insert_into_item(tree), 0);
-	if (result) {
-		done_lh(&first_lh);
-		return result;
-	}
-	coord = &hint.coord.base_coord;
-	return mark_frozen(inode, formatted_nodes, coord, &first_lh);
 }
 
 /* part of tail2extent. Cut all items covering @count bytes starting from
@@ -283,10 +148,94 @@ replace(struct inode *inode, struct page **pages, unsigned nr_pages, int count)
 #define TAIL2EXTENT_PAGE_NUM 3	/* number of pages to fill before cutting tail
 				 * items */
 
+static int
+reserve_tail2extent_iteration(struct inode *inode)
+{
+	reiser4_block_nr unformatted_nodes;
+	reiser4_tree *tree;
+
+	tree = tree_by_inode(inode);
+
+	/* number of unformatted nodes which will be created */
+	unformatted_nodes = TAIL2EXTENT_PAGE_NUM;
+
+	/*
+	 * space required for one iteration of extent->tail conversion:
+	 *
+	 *     1. kill N tail items
+	 *
+	 *     2. insert TAIL2EXTENT_PAGE_NUM unformatted nodes
+	 *
+	 *     3. insert TAIL2EXTENT_PAGE_NUM (worst-case single-block
+	 *     extents) extent units.
+	 *
+	 *     4. drilling to the leaf level by coord_by_key()
+	 *
+	 *     5. possible update of stat-data
+	 *
+	 *     6. removal of safe-link
+	 *
+	 */
+	grab_space_enable();
+	return reiser4_grab_space
+		(2 * tree->height +
+		 TAIL2EXTENT_PAGE_NUM +
+		 TAIL2EXTENT_PAGE_NUM * estimate_one_insert_into_item(tree) +
+		 1 + estimate_one_insert_item(tree) +
+		 inode_file_plugin(inode)->estimate.update(inode) +
+		 safe_link_tograb(tree),
+		 BA_CAN_COMMIT);
+}
+
+static int
+find_start(struct inode *object, reiser4_plugin_id id, __u64 *offset)
+{
+	int               result;
+	lock_handle       lh;
+	unix_file_info_t *ufo;
+	int               found;
+	reiser4_key       key;
+
+	ufo = unix_file_inode_data(object);
+	init_lh(&lh);
+	result = 0;
+	found = 0;
+	key_by_inode_unix_file(object, *offset, &key);
+	do {
+		hint_t      hint;
+
+		hint_init_zero(&hint, &lh);
+		result = find_file_item(&hint, &key,
+					ZNODE_READ_LOCK, CBK_UNIQUE, 0, ufo);
+
+		if (result == CBK_COORD_FOUND) {
+			coord_t    *coord;
+
+			coord = &hint.coord.base_coord;
+			if (coord->between == AT_UNIT) {
+				coord_clear_iplug(coord);
+				result = zload(coord->node);
+				if (result == 0) {
+					if (item_id_by_coord(coord) == id)
+						found = 1;
+					else
+						item_plugin_by_coord(coord)->s.file.append_key(coord, &key);
+					zrelse(coord->node);
+				}
+			} else
+				result = RETERR(-ENOENT);
+		}
+	} while (result == 0 && !found);
+	done_lh(&lh);
+	*offset = get_key_offset(&key);
+	return result;
+}
+
 int
 tail2extent(unix_file_info_t *uf_info)
 {
 	int result;
+	int s_result;
 	reiser4_key key;	/* key of next byte to be moved to page */
 	ON_DEBUG(reiser4_key tmp;)
 	char *p_data;		/* data of page */
@@ -297,35 +246,59 @@ tail2extent(unix_file_info_t *uf_info)
 	int done;		/* set to 1 when all file is read */
 	char *item;
 	int i;
+	struct inode *inode;
+	__u64 offset;
 
 	assert("nikita-3362", ea_obtained(uf_info));
+
+	inode = unix_file_info_to_inode(uf_info);
+
+	assert("nikita-3412", !IS_RDONLY(inode));
 
 	if (uf_info->container == UF_CONTAINER_EXTENTS) {
 		warning("vs-1171",
 			"file %llu is built of tails already. Should not happen",
-			get_inode_oid(unix_file_info_to_inode(uf_info)));
+			get_inode_oid(inode));
 		return 0;
-	}
-
-	result = prepare_tail2extent(unix_file_info_to_inode(uf_info));
-	if (result) {
-		return result;
 	}
 
 	/* collect statistics on the number of tail2extent conversions */
 	reiser4_stat_inc(file.tail2extent);
 
+	offset = 0;
+	if (inode_get_flag(inode, REISER4_PART_CONV)) {
+		/* find_start() doesn't need block reservation */
+		result = find_start(inode, FORMATTING_ID, &offset);
+		if (result == -ENOENT)
+			/* no extent found, everything is converted */
+			return 0;
+		else if (result != 0)
+			/* some other error */
+			return result;
+	}
+
+	result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
+	if (result == 0) {
+		result = safe_link_add(inode, SAFE_T2E);
+		if (result != 0)
+			return result;
+	} else if (result != -EEXIST)
+		return result;
+
 	/* get key of first byte of a file */
-	key_by_inode_unix_file(unix_file_info_to_inode(uf_info), 0ull, &key);
+	key_by_inode_unix_file(inode, offset, &key);
 
 	done = 0;
 	result = 0;
 	while (!done) {
+		all_grabbed2free();
+		result = reserve_tail2extent_iteration(inode);
+		if (result != 0)
+			break;
 		xmemset(pages, 0, sizeof (pages));
 		for (i = 0; i < sizeof_array(pages) && !done; i++) {
 			assert("vs-598", (get_key_offset(&key) & ~PAGE_CACHE_MASK) == 0);
-			pages[i] = grab_cache_page(unix_file_info_to_inode(uf_info)->i_mapping, (unsigned long) (get_key_offset(&key)
-											       >> PAGE_CACHE_SHIFT));
+			pages[i] = grab_cache_page(inode->i_mapping, (unsigned long) (get_key_offset(&key) >> PAGE_CACHE_SHIFT));
 			if (!pages[i]) {
 				result = RETERR(-ENOMEM);
 				goto error;
@@ -371,24 +344,9 @@ tail2extent(unix_file_info_t *uf_info)
 					done_lh(&lh);
 					goto error;
 				}
-				assert("vs-562", owns_item_unix_file(unix_file_info_to_inode(uf_info), coord));
+				assert("vs-562", owns_item_unix_file(inode, coord));
 				assert("vs-856", coord->between == AT_UNIT);
 				assert("green-11", keyeq(&key, unit_key_by_coord(coord, &tmp)));
-				assert("vs-1170", item_id_by_coord(coord) == FROZEN_FORMATTING_ID);
-#if 0
-				if (item_id_by_coord(coord) != FORMATTING_ID && item_id_by_coord(coord) != FROZEN_FORMATTING_ID) {
-					/* something other than tail found. This is only possible when first item of a
-					   file found during call to reiser4_mmap.
-					*/
-					result = RETERR(-EIO);
-					if (get_key_offset(&key) == 0 && item_id_by_coord(coord) == EXTENT_POINTER_ID)
-						result = 0;
-
-					zrelse(coord->node);
-					done_lh(&lh);
-					goto error;
-				}
-#endif
 				item = ((char *)item_body_by_coord(coord)) + coord->unit_pos;
 
 				/* how many bytes to copy */
@@ -427,31 +385,46 @@ tail2extent(unix_file_info_t *uf_info)
 		   znode lock */
 		for_all_pages(pages, sizeof_array(pages), UNLOCK);
 
-		result = replace(unix_file_info_to_inode(uf_info), pages, i, (int) ((i - 1) * PAGE_CACHE_SIZE + page_off));
+		result = replace(inode, pages, i, (int) ((i - 1) * PAGE_CACHE_SIZE + page_off));
 		for_all_pages(pages, sizeof_array(pages), RELEASE);
 		if (result)
 			goto exit;
+		/* throttle the conversion */
+		balance_dirty_page_unix_file(inode);
 	}
-	/* tail converted */
-	uf_info->container = UF_CONTAINER_EXTENTS;
 
-	for_all_pages(pages, sizeof_array(pages), RELEASE);
+	if (result == 0) {
+		/* tail converted */
+		uf_info->container = UF_CONTAINER_EXTENTS;
 
-	/* It is advisable to check here that all grabbed pages were freed */
+		for_all_pages(pages, sizeof_array(pages), RELEASE);
 
-	/* file could not be converted back to tails while we did not
-	   have neither NEA nor EA to the file */
-	assert("vs-830", uf_info->container == UF_CONTAINER_EXTENTS);
-	assert("vs-1083", result == 0);
-	all_grabbed2free();
-	return 0;
-
+		if (inode_get_flag(inode, REISER4_PART_CONV)) {
+			inode_clr_flag(inode, REISER4_PART_CONV);
+			reiser4_update_sd(inode);
+		}
+		/* It is advisable to check here that all grabbed pages were
+		 * freed */
+	} else {
 error:
-	for_all_pages(pages, sizeof_array(pages), DROP);
+		for_all_pages(pages, sizeof_array(pages), DROP);
 exit:
+		warning("nikita-2282", "Partial conversion of %llu: %i",
+			get_inode_oid(inode), result);
+		print_inode("inode", inode);
+		inode_set_flag(inode, REISER4_PART_CONV);
+		reiser4_update_sd(inode);
+	}
+
+	s_result = safe_link_del(inode, SAFE_T2E);
+	if (s_result != 0)
+		warning("nikita-3425", "Cannot kill safe-link %lli: %i",
+			get_inode_oid(inode), s_result);
+
 	all_grabbed2free();
 	return result;
 }
+
 
 /* part of extent2tail. Page contains data which are to be put into tree by
    tail items. Use tail_write for this. flow is composed like in
@@ -522,41 +495,33 @@ int min_bytes_per_flow(void)
 	return CARRY_FLOW_NEW_NODES_LIMIT * current_tree->nplug->max_item_size();
 }
 
-static int prepare_extent2tail(struct inode *inode)
+static int
+reserve_extent2tail_iteration(struct inode *inode)
 {
-	int result;
-	reiser4_block_nr twig_nodes, flow_insertions;
-	hint_t hint;
-	lock_handle first_lh;
-	coord_t *coord;
 	reiser4_tree *tree;
 
 	tree = tree_by_inode(inode);
-
-	/* number of twig nodes file spans */
-	hint_init_zero(&hint, &first_lh);
-	result = nodes_spanned(inode, &twig_nodes, &hint);
-	if (result)
-		return result;
-	/* number of "flow insertions" which will be needed */
-	flow_insertions = div64_32(inode->i_size + min_bytes_per_flow() - 1, min_bytes_per_flow(), NULL);
-
-	/* space necessary for extent2tail convertion: space for @nodes removals from tree and space for calculated
-	 * amount of flow insertions and 1 node and one insertion into tree for search_by_key(CBK_FOR_INSERT) */
 	/*
-	 * if grab_space would try to commit current transaction at this point
-	 * we are stymied, because long term lock is held in @first_lh. I
-	 * removed BA_CAN_COMMIT from garbbing flags.
+	 * reserve blocks for (in this order):
+	 *
+	 *     1. removal of extent item
+	 *
+	 *     2. insertion of tail by insert_flow()
+	 *
+	 *     3. drilling to the leaf level by coord_by_key()
+	 *
+	 *     4. possible update of stat-data
+	 *
+	 *     5. removal of safe-link
 	 */
-	result = reiser4_grab_space(twig_nodes * estimate_one_item_removal(tree) +
-				    flow_insertions * estimate_insert_flow(tree->height) +
-				    1 + estimate_one_insert_item(tree), 0);
-	if (result) {
-		done_lh(&first_lh);
-		return result;
-	}
-	coord = &hint.coord.base_coord;
-	return mark_frozen(inode, twig_nodes, coord, &first_lh);
+	grab_space_enable();
+	return reiser4_grab_space
+		(estimate_one_item_removal(tree) +
+		 estimate_insert_flow(tree->height) +
+		 1 + estimate_one_insert_item(tree) +
+		 inode_file_plugin(inode)->estimate.update(inode) +
+		 safe_link_tograb(tree),
+		 BA_CAN_COMMIT);
 }
 
 /* for every page of file: read page, cut part of extent pointing to this page,
@@ -565,33 +530,63 @@ int
 extent2tail(unix_file_info_t *uf_info)
 {
 	int result;
+	int s_result;
 	struct inode *inode;
 	struct page *page;
 	unsigned long num_pages, i;
+	unsigned long start_page;
 	reiser4_key from;
 	reiser4_key to;
 	unsigned count;
+	__u64 offset;
 
 	/* collect statistics on the number of extent2tail conversions */
 	reiser4_stat_inc(file.extent2tail);
 
 	inode = unix_file_info_to_inode(uf_info);
-	result = prepare_extent2tail(inode);
-	if (result) {
-		/* no space? Leave file stored in extent state */
-		return 0;
+	assert("nikita-3412", !IS_RDONLY(inode));
+
+	offset = 0;
+	if (inode_get_flag(inode, REISER4_PART_CONV)) {
+		/* find_start() doesn't need block reservation */
+		result = find_start(inode, EXTENT_POINTER_ID, &offset);
+		if (result == -ENOENT)
+			/* no extent found, everything is converted */
+			return 0;
+		else if (result != 0)
+			/* some other error */
+			return result;
 	}
 
-	/* number of pages in the file */
-	num_pages = (inode->i_size + PAGE_CACHE_SIZE - 1) / PAGE_CACHE_SIZE;
+	result = safe_link_grab(tree_by_inode(inode), BA_CAN_COMMIT);
+	if (result == 0) {
+		result = safe_link_add(inode, SAFE_E2T);
+		if (result != 0)
+			return result;
+	} else if (result != -EEXIST)
+		return result;
 
-	key_by_inode_unix_file(inode, 0ull, &from);
+	/* number of pages in the file */
+	num_pages =
+		(inode->i_size - offset + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	start_page = offset >> PAGE_CACHE_SHIFT;
+
+	key_by_inode_unix_file(inode, offset, &from);
 	to = from;
 
 	result = 0;
 
 	for (i = 0; i < num_pages; i++) {
-		page = read_cache_page(inode->i_mapping, (unsigned) i, readpage_unix_file/*filler*/, 0);
+		__u64 start_byte;
+
+		all_grabbed2free();
+		result = reserve_extent2tail_iteration(inode);
+		if (result != 0)
+			break;
+
+		page = read_cache_page(inode->i_mapping,
+				       (unsigned) (i + start_page),
+				       readpage_unix_file/*filler*/, 0);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
 			break;
@@ -606,8 +601,9 @@ extent2tail(unix_file_info_t *uf_info)
 		}
 
 		/* cut part of file we have read */
-		set_key_offset(&from, (__u64) (i << PAGE_CACHE_SHIFT));
-		set_key_offset(&to, (__u64) ((i << PAGE_CACHE_SHIFT) + PAGE_CACHE_SIZE - 1));
+		start_byte = (__u64) (i << PAGE_CACHE_SHIFT) + offset;
+		set_key_offset(&from, start_byte);
+		set_key_offset(&to, start_byte + PAGE_CACHE_SIZE - 1);
 		/*
 		 * cut_tree_object() returns -E_REPEAT to allow atom
 		 * commits during over-long truncates. But
@@ -646,17 +642,40 @@ extent2tail(unix_file_info_t *uf_info)
 
 	assert("vs-1260", reiser4_inode_data(inode)->eflushed == 0);
 
-	if (i == num_pages)
+	if (i == num_pages) {
 		/* FIXME-VS: not sure what to do when conversion did
 		   not complete */
 		uf_info->container = UF_CONTAINER_TAILS;
-	else {
+		if (inode_get_flag(inode, REISER4_PART_CONV)) {
+			inode_clr_flag(inode, REISER4_PART_CONV);
+			reiser4_update_sd(inode);
+		}
+	} else {
 		warning("nikita-2282",
 			"Partial conversion of %llu: %lu of %lu: %i",
 			get_inode_oid(inode), i, num_pages, result);
 		print_inode("inode", inode);
+		inode_set_flag(inode, REISER4_PART_CONV);
+		reiser4_update_sd(inode);
+	}
+	s_result = safe_link_del(inode, SAFE_E2T);
+	if (s_result != 0) {
+		warning("nikita-3422", "Cannot kill safe-link %lli: %i",
+			get_inode_oid(inode), s_result);
 	}
 	all_grabbed2free();
+	return result ? : s_result;
+}
+
+int
+finish_conversion(struct inode *inode)
+{
+	int result;
+
+	if (inode_get_flag(inode, REISER4_PART_CONV)) {
+		result = tail2extent(unix_file_inode_data(inode));
+	} else
+		result = 0;
 	return result;
 }
 
