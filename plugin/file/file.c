@@ -957,6 +957,7 @@ redirty_inode(struct inode *inode)
 	spin_unlock(&inode_lock);
 }
 
+#if 0
 /* this returns 1 if it captured page */
 static int
 capture_anonymous_page(struct page *pg, int keepme)
@@ -1003,7 +1004,8 @@ capture_anonymous_page(struct page *pg, int keepme)
 
 	return result;
 }
-#if 0
+#endif
+#if 1
 /* this returns 1 if it captured page */
 static int
 capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
@@ -1019,12 +1021,9 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 	mapping = page->mapping;
 	assert("vs-1667", mapping != NULL);
 
-	if (PageWriteback(page)) {
+	if (PageWriteback(page))
 		/* FIXME: do nothing? */
-		warning("vs-1666", "page (%llu, %lu) under writeback",
-			get_inode_oid(mapping->host), page->index);
 		return 0;
-	}
 
 	/* lookup several pages to the right of current one */
 	pagevec_init(&pvec, 0);
@@ -1056,7 +1055,7 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 	}
 
 	/* jnodes of all nr_pages pages are jloaded, we can call capture_page_and_create_extent */
-	for (i = 0; nr_pages; i ++) {
+	for (i = 0; i < nr_pages; i ++) {
 		result = capture_page_and_create_extent(pvec.pages[i]);
 		if (result == 0) {
 			/*
@@ -1067,6 +1066,7 @@ capture_anonymous_page(struct page *page, int keepme UNUSED_ARG)
 			 * truncated, because we have non-exclusive
 			 * access to the file.
 			 */
+			node = jprivate(pvec.pages[i]);
 			assert("nikita-3327", node->atom != NULL);
 			JF_CLR(node, JNODE_KEEPME);
 			
