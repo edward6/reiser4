@@ -1706,6 +1706,7 @@ static void reiser4_kill_super (struct super_block *s)
 		/* mount failed */
 		s->s_op = 0;
 		kill_block_super(s);
+		__REISER4_EXIT (&__context);
 		return;
 	}
 
