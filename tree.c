@@ -1561,7 +1561,7 @@ void print_inode( const char *prefix /* prefix to print */,
 	      i -> i_atime, i -> i_mtime, i -> i_ctime );
 	info( "\tblkbits: %i, blksize: %lu, blocks: %lu\n",
 	      i -> i_blkbits, i -> i_blksize, i -> i_blocks );
-	info( "\tversion: %lu, generation: %i, state: %u, flags: %u\n",
+	info( "\tversion: %lu, generation: %i, state: %lu, flags: %u\n",
 	      i -> i_version, i -> i_generation, i -> i_state,
 	      i -> i_flags );
 	info( "\tis_reiser4_inode: %i\n", is_reiser4_inode( i ) );
