@@ -158,6 +158,12 @@ reiserfs_fs_t *reiserfs_fs_open(aal_device_t *host_device,
 	if (reiserfs_super_journal_plugin(fs) != -1 && 
 		reiserfs_journal_open(fs, journal_device, replay))
 	    goto error_free_alloc;
+	
+	/* Reopening recent superblock */
+	if (replay) {
+	    if (reiserfs_super_reopen(fs))
+		goto error_free_journal;
+	}
     }
 	
     if (reiserfs_tree_open(fs))
@@ -252,8 +258,8 @@ error_t reiserfs_fs_sync(reiserfs_fs_t *fs) {
     if (reiserfs_alloc_sync(fs))
 	return -1;
 
-/*    if (reiserfs_tree_sync(fs))
-	return -1;*/
+    if (reiserfs_tree_sync(fs))
+	return -1;
     
     return 0;
 }

@@ -99,6 +99,14 @@ error_t reiserfs_super_sync(reiserfs_fs_t *fs) {
 
 #endif
 
+error_t reiserfs_super_reopen(reiserfs_fs_t *fs) {
+    aal_assert("umka-427", fs != NULL, return -1);
+    aal_assert("umka-428", fs->super != NULL, return -1);
+
+    reiserfs_super_close(fs);
+    return reiserfs_super_open(fs);
+}
+
 void reiserfs_super_close(reiserfs_fs_t *fs) {
     aal_assert("umka-108", fs != NULL, return);
     aal_assert("umka-109", fs->super != NULL, return);

@@ -19,7 +19,7 @@ struct aal_device {
     void *data;
     void *entity;
     char name[256];
-    uint32_t blocksize;
+    uint16_t blocksize;
     struct aal_device_ops *ops;
 };
 
@@ -44,13 +44,13 @@ struct aal_block {
 
 typedef struct aal_block aal_block_t;
 
-extern aal_device_t *aal_device_open(struct aal_device_ops *ops, uint32_t blocksize, 
+extern aal_device_t *aal_device_open(struct aal_device_ops *ops, uint16_t blocksize, 
     int flags, void *data);
 
 extern void aal_device_close(aal_device_t *device);
 
-extern error_t aal_device_set_blocksize(aal_device_t *device, uint32_t blocksize);
-extern uint32_t aal_device_get_blocksize(aal_device_t *device);
+extern error_t aal_device_set_blocksize(aal_device_t *device, uint16_t blocksize);
+extern uint16_t aal_device_get_blocksize(aal_device_t *device);
 
 extern error_t aal_device_read(aal_device_t *device, void *buff, blk_t block, count_t count);
 extern error_t aal_device_write(aal_device_t *device, void *buff, blk_t block, count_t count);
@@ -71,9 +71,9 @@ extern void aal_device_free_block(aal_block_t *block);
 
 #define B_DIRTY 0 
 
-#define aal_block_dirty(block)         ( block->flags &   (1 << B_DIRTY))	
-#define aal_block_mark_dirty(block) do { block->flags |=  (1 << B_DIRTY); } while (0)
-#define aal_block_mark_clean(block) do { block->flags &= ~(1 << B_DIRTY); } while (0)
+#define aal_block_dirty(block)      block->flags & (1 << B_DIRTY)
+#define aal_block_mark_dirty(block) block->flags |=  (1 << B_DIRTY)
+#define aal_block_mark_clean(block) block->flags &= ~(1 << B_DIRTY)
 
 #endif
 

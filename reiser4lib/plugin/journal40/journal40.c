@@ -24,7 +24,7 @@ static reiserfs_journal40_t *reiserfs_journal40_open(aal_device_t *device) {
     
     if (!(journal = aal_calloc(sizeof(*journal), 0)))
 	return NULL;
-	
+
 /*    if (!(journal->header = aal_device_read_block(device, 
 	(blk_t)(REISERFS_JOURNAL40_OFFSET / aal_device_get_blocksize(device)))))
     {

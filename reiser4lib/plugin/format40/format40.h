@@ -11,21 +11,22 @@
 
 #define REISERFS_FORMAT40_MAGIC "R4Sb-Default"
 #define REISERFS_FORMAT40_OFFSET (65536 + 4096)
-#define REISERFS_FORMAT40_JOURNAL_LEN 8192
 
 struct reiserfs_format40_super {
     uint64_t sb_block_count;
     uint64_t sb_free_blocks;
     uint64_t sb_root_block;
-    uint16_t sb_tree_height;
-    uint16_t sb_padd[3];
     uint64_t sb_oid;
     uint64_t sb_file_count;
     uint64_t sb_flushes;
     char sb_magic[16];
+    uint16_t sb_tree_height;
+    
     uint16_t sb_journal_plugin_id;
     uint16_t sb_alloc_plugin_id;
-    char sb_unused[440];
+
+    uint16_t sb_padd[3];
+    char sb_unused[428];
 };
 
 typedef struct reiserfs_format40_super reiserfs_format40_super_t;

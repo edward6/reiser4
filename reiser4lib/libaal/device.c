@@ -15,11 +15,11 @@
 	} \
     } while (0)
 
-aal_device_t *aal_device_open(struct aal_device_ops *ops, uint32_t blocksize, 
+aal_device_t *aal_device_open(struct aal_device_ops *ops, uint16_t blocksize, 
     int flags, void *data) 
 {
     aal_device_t *device;
-	
+
     if (!ops) return NULL;
     
     if (!aal_pow_of_two(blocksize)) {
@@ -47,7 +47,7 @@ void aal_device_close(aal_device_t *device) {
     aal_free(device);
 }
 
-error_t aal_device_set_blocksize(aal_device_t *device, uint32_t blocksize) {
+error_t aal_device_set_blocksize(aal_device_t *device, uint16_t blocksize) {
 
     if (!device) 
 	return 0;
@@ -62,7 +62,7 @@ error_t aal_device_set_blocksize(aal_device_t *device, uint32_t blocksize) {
     return 0;
 }
 
-uint32_t aal_device_get_blocksize(aal_device_t *device) {
+uint16_t aal_device_get_blocksize(aal_device_t *device) {
 
     if (!device) 
 	return 0;
@@ -194,22 +194,29 @@ error_t aal_device_write_block(aal_device_t *device, aal_block_t *block) {
     if (!device || !block)
 	return -1;
 
-//    if (!aal_block_dirty(block))
-//	return 0;
+    if (!aal_block_dirty(block))
+	return 0;
 
     if((error = aal_device_write(device, block->data, 
-	    aal_device_get_block_location(device, block), 1)))
-	aal_block_mark_clean(block);
+	aal_device_get_block_location(device, block), 1)))
+
+    aal_block_mark_clean(block);
     
     return error;
 }
 
+#include <stdio.h>
+
 blk_t aal_device_get_block_location(aal_device_t *device, aal_block_t *block) {
     if (!block || !device)
 	return 0;
-    
-//    return (blk_t)(block->offset << aal_log2(aal_device_get_blocksize(device)));
-    return (blk_t)(block->offset / aal_device_get_blocksize(device));
+   
+    printf("%d\n", block->offset);
+    printf("%d\n", aal_log2(device->blocksize));
+    printf("%d\n", 65536 << aal_log2(device->blocksize));
+    printf("%d\n", 65536 << 12);
+    return (blk_t)(block->offset << aal_log2(aal_device_get_blocksize(device)));
+//    return (blk_t)(block->offset / aal_device_get_blocksize(device));
 }
 
 void aal_device_set_block_location(aal_device_t *device, aal_block_t *block, blk_t blk) {

@@ -131,6 +131,7 @@ static reiserfs_format40_t *reiserfs_format40_create(aal_device_t *device,
     /* The same as smallest oid */
     set_sb_file_count(super, 2);
     set_sb_flushes(super, 0);
+
     set_sb_journal_plugin_id(super, 0x01);
     set_sb_alloc_plugin_id(super, 0x01);
 
