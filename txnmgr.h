@@ -209,7 +209,8 @@ struct txn_atom {
 	/* Start time. */
 	unsigned long start_time;
 
-	/* The atom's delete set. ZAM-FIXME-HANS: define this. */
+	/* The atom's delete set. It collects block numbers of the nodes
+	   which were deleted during the transaction. */
 	blocknr_set delete_set;
 
 	/* The atom's wandered_block mapping. */
@@ -245,27 +246,25 @@ struct txn_atom {
 
 	/* Numbers of objects which were deleted/created in this transaction
 	   thereby numbers of objects IDs where released/deallocated. */
-	/* FIXME-ZAM: It looks like a temporary solution until logical logging
-	   is implemented */
 	int nr_objects_deleted;
 	int nr_objects_created;
-
+	/* number of blocks allocated during the transaction */
 	__u64 nr_blocks_allocated; 
-
-	int num_queued;		/* number of jnodes which were removed from
-				 * atom's lists and put on flush_queue */
-	/* ZAM-FIXME-HANS unclear: all flush queue objects that flush this atom are on this list  */
+	/* Number of jnodes which were removed from atom's lists and put
+	   on flush_queue */
+	int num_queued;
+	/* All atom's flush queue objects are on this list  */
 	fq_list_head flush_queues;
-	int nr_flush_queues; /* FIXME: debugging code. number of elements on a list */
-
+#if REISER4_DEBUG
+	/* number of flush queues for this atom. */
+	int nr_flush_queues; 
+#endif
 	/* number of threads who waits this atom commit completion */
 	int nr_waiters;
-
 	/* number of treads which do jnode_flush() over this atom */
 	int nr_flushers;
-
 	/* number of flush queues which are IN_USE and jnodes from fq->prepped
-	 * are submitted to disk by the write_fq() routine. */
+	   are submitted to disk by the write_fq() routine. */
 	int nr_running_queues;
 
 	/* A counter of grabbed unformatted nodes. */

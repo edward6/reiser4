@@ -141,7 +141,7 @@ attach_fq(txn_atom * atom, flush_queue_t * fq)
 	assert("zam-718", spin_atom_is_locked(atom));
 	fq_list_push_front(&atom->flush_queues, fq);
 	fq->atom = atom;
-	atom->nr_flush_queues++;
+	ON_DEBUG(atom->nr_flush_queues++);
 }
 
 static void
@@ -151,7 +151,7 @@ detach_fq(flush_queue_t * fq)
 
 	spin_lock_fq(fq);
 	fq_list_remove_clean(fq);
-	fq->atom->nr_flush_queues--;
+	ON_DEBUG(fq->atom->nr_flush_queues--);
 	fq->atom = NULL;
 	spin_unlock_fq(fq);
 }
