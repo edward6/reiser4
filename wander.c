@@ -395,7 +395,7 @@ static int write_tx (capture_list_head * tx_list)
 
 	cur = capture_list_back (tx_list);
 
-	while (capture_list_end (tx_list, cur)) {
+	while (!capture_list_end (tx_list, cur)) {
 		ret = jwait_io (cur);
 
 		junload (cur);	/* free jnode page */
@@ -404,10 +404,28 @@ static int write_tx (capture_list_head * tx_list)
 	}
 
 	/* update journal header */
+	{
+		struct reiser4_super_info_data * private = get_current_super_private();
+		jnode * head = capture_list_back(tx_list);
+		struct journal_header * h;
+
+		assert ("zam-470", private != NULL);
+		assert ("zam-471", private->journal_header != NULL);
+		assert ("zam-472", jdata(private->journal_header) != NULL);
+
+		h = (struct journal_header *)jdata(private->journal_header);
+
+		cputod64(*jnode_get_block(head), &h->last_committed_tx);
+
+		ret = jwrite(private->journal_header);
+
+		if (ret) return ret;
+
+		ret = jwait_io (private->journal_header);
+
+	}
 	
-
-
-	return 0;
+	return ret;
 }
 
 /* we assume that at this moment that all captured blocks from RELOCATE SET are
@@ -416,7 +434,7 @@ static int write_tx (capture_list_head * tx_list)
 
 int reiser4_write_logs (void)
 {
-	capture_list_head tx_list;
+	txn_atom        * atom;
 
 	int               tx_size;
 	int               ret;
@@ -427,18 +445,24 @@ int reiser4_write_logs (void)
 
 	get_space_for_tx(tx_size);
 
-	/* allocate all space in journal area that we need, connect jnode into
-	 * a list using capture link fields */
+	/* allocate all space in journal area that we need, connect jnodes
+	 * into a list using capture link fields */
+	atom = get_current_atom_locked();
 
-	capture_list_init (&tx_list);
 
-	ret = alloc_tx (&tx_list, tx_size);
+	/* FIXME: I think atom in commit stage is stable, regardless on its
+	 * spin lock status */
+	capture_list_init (&atom->tx_list);
+
+	spin_unlock_atom(atom);
+
+	ret = alloc_tx (&atom->tx_list, tx_size);
 
 	if (ret) return ret;
 
-	fill_tx (&tx_list, super);
+	fill_tx (&atom->tx_list, super);
 
-	ret = write_tx (&tx_list);
+	ret = write_tx (&atom->tx_list);
 
 	if (ret != 0) return ret;
 
