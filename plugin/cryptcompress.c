@@ -25,6 +25,7 @@
 
 #include <linux/writeback.h>
 #include <linux/pagemap.h>
+#include <linux/swap.h>
 
 int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
 int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
@@ -1266,7 +1267,7 @@ set_cluster_pages_dirty(reiser4_cluster_t * clust, int * num)
 		
 		set_page_dirty_internal(pg);
 		SetPageUptodate(pg);
-		mark_page_accessed(pg);	
+		mark_page_acessed(pg);	
 		
 		unlock_page(pg);
 		
