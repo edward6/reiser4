@@ -58,7 +58,11 @@ typedef enum {
 	REISER4_CLUSTER_KNOWN = 8,
 	/* cryptcompress_inode_data points to the secret key */
 	REISER4_SECRET_KEY_INSTALLED = 9,
-	/* file is mapped */
+	/* File (possibly) has pages corresponding to the tail items, that
+	 * were created by ->readpage. It is set by mmap_unix_file() and
+	 * sendfile_unix_file(). This bit is inspected by write_unix_file and
+	 * kill-hook of tail items. It is never cleared once set. This bit is
+	 * modified and inspected under i_sem. */
 	REISER4_HAS_MMAP = 10,
 	REISER4_PART_CONV = 11
 } reiser4_file_plugin_flags;
