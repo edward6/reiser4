@@ -1995,14 +1995,6 @@ static int flush_allocate_znode_update (znode *node, coord_t *parent_coord, flus
 	reiser4_block_nr len = 1;
 	lock_handle fake_lock;
 
-	/* FIXME(D): Need a spinlock in here. */
-	/* FIXME:NIKITA->JMACD this repeatedly fails on umount with @node
-	 * being tree root:
-	 * [LOADED|LEFT_CONNECTED|RIGHT_CONNECTED|CREATED|RELOC|DIRTY|],
-	 * blocknr: f00000000000005a,
-	 */
-	// assert ("jmacd-67851", ! znode_check_flushprepped (node));
-
 	pos->preceder.block_stage = BLOCK_NOT_COUNTED;
 
 	if ((ret = reiser4_alloc_blocks (& pos->preceder, & blk, & len))) {
@@ -2059,8 +2051,8 @@ static int flush_allocate_znode (znode *node, coord_t *parent_coord, flush_posit
 {
 	int ret;
 
-	/* We have the node write-locked and should have checked for ! allocated()
-	 * somewhere before reaching this point. */
+	/* FIXME(D): We have the node write-locked and should have checked for ! 
+	 * allocated() somewhere before reaching this point. */
 	assert ("jmacd-7987", ! jnode_check_flushprepped (ZJNODE (node)));
 	assert ("jmacd-7988", znode_is_write_locked (node));
 	assert ("jmacd-7989", coord_is_invalid (parent_coord) || znode_is_write_locked (parent_coord->node));
