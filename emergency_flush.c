@@ -295,7 +295,6 @@ emergency_flush(struct page *page)
 
 	result = 0;
 	LOCK_JNODE(node);
-	clog_op(EFLUSH_START, node);
 	/*
 	 * page was dirty and under eflush. This is (only?) possible if page
 	 * was re-dirtied through mmap(2) after eflush IO was submitted, but
@@ -329,7 +328,6 @@ emergency_flush(struct page *page)
 				result = page_io(page, node, WRITE,
 						 GFP_NOFS | __GFP_HIGH);
 				INC_STAT(node, vm.eflush.ok);
-				clog_op(EFLUSH_DONE, node);
 			} else {
 				JF_CLR(node, JNODE_EFLUSH);
 				UNLOCK_JLOAD(node);
@@ -342,7 +340,6 @@ emergency_flush(struct page *page)
 				ON_TRACE(TRACE_EFLUSH, "failure-2\n");
 				result = 1;
 				INC_STAT(node, vm.eflush.nolonger);
-				clog_op(EFLUSH_FAILED, node);
 			}
 
 			blocknr_hint_done(&hint);
@@ -367,7 +364,6 @@ emergency_flush(struct page *page)
 				UNLOCK_JNODE(node);
 				UNLOCK_ATOM(atom);
 				fq_put(fq);
-				clog_op(EFLUSH_FAILED, node);
 				return 1;
 			}
 
@@ -388,7 +384,6 @@ emergency_flush(struct page *page)
 			/* Even if we wrote nothing, We unlocked the page, so let know to the caller that page should
 			   not be unlocked again */
 			fq_put(fq);
-			clog_op(EFLUSH_RELOC, node);
 		}
 		
 	} else {
@@ -396,7 +391,6 @@ emergency_flush(struct page *page)
 		UNLOCK_JNODE(node);
 		ON_TRACE(TRACE_EFLUSH, "failure-1\n");
 		result = 1;
-		clog_op(EFLUSH_FAILED, node);
 	}
 
 	jput(node);
@@ -773,7 +767,6 @@ reiser4_internal void eflush_del (jnode * node, int page_locked)
         /* release allocated disk block and in-memory structures  */
         eflush_free(node);
         JF_CLR(node, JNODE_EFLUSH);
-	clog_op(EFLUSH_DEL, node);
  out:
         if (!page_locked)
                 unlock_page(page);

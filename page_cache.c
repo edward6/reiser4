@@ -577,9 +577,6 @@ reiser4_internal void capture_reiser4_inodes (
 			break;
 		}
 	}
-	if (captured)
-		ON_TRACE(TRACE_WRITEOUT, "%s: captured %ld pages\n",
-			 current->comm, captured);
 }
 
 
