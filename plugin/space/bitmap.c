@@ -372,7 +372,7 @@ adler32(char *data, __u32 len)
 */
 
 static __u32
-checksum_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 tail)
+adler32_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 tail)
 {
 	__u32 delta = data - old_data + 2 * ADLER_BASE;
 	__u32 s1 = adler & 0xffff;
@@ -1058,10 +1058,8 @@ pre_commit_hook_bitmap(void)
 				reiser4_set_bit(offset, bnode_commit_data(bn));
 
 				*bnode_commit_crc(bn) =
-				    checksum_recalc(*bnode_commit_crc(bn), byte,
+				    adler32_recalc(*bnode_commit_crc(bn), byte,
 						    *(bnode_commit_data(bn) + offset / 8), size - offset / 8);
-
-//                              *bnode_commit_crc(bn) = adler32(bnode_commit_data(bn), size); 
 
 				release_and_unlock_bnode(bn);
 
