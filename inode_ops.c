@@ -174,7 +174,7 @@ reiser4_rename(struct inode *old_dir, struct dentry *old, struct inode *new_dir,
 		if (dplug->rename != NULL)
 			result = dplug->rename(old_dir, old, new_dir, new);
 		else
-			result = -EPERM;
+			result = RETERR(-EPERM);
 	}
 	reiser4_exit_context(&ctx);
 	return result;
@@ -409,7 +409,7 @@ unlink_file(struct inode *parent /* parent directory */ ,
 	if (dplug->unlink != NULL)
 		result = dplug->unlink(parent, victim);
 	else
-		result = -EPERM;
+		result = RETERR(-EPERM);
 	write_syscall_trace("ex");
 	/* @victim can be already removed from the disk by this time. Inode is
 	   then marked so that iput() wouldn't try to remove stat data. But
@@ -500,7 +500,7 @@ reiser4_link(struct dentry *existing	/* dentry of existing
 			d_instantiate(where, existing->d_inode);
 		}
 	} else {
-		result = -EPERM;
+		result = RETERR(-EPERM);
 	}
 	up(&existing->d_inode->i_sem);
 	up(&parent->i_sem);
@@ -553,7 +553,7 @@ invoke_create_method(struct inode *parent /* parent directory */ ,
 				 data->mode, get_inode_oid(child));
 		}
 	} else
-		result = -EPERM;
+		result = RETERR(-EPERM);
 
 	write_syscall_trace("ex");
 
