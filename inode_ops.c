@@ -396,7 +396,7 @@ reiser4_permission(struct inode *inode /* object */ ,
 	   Permission plugin have to create context itself if necessary. */
 	assert("nikita-1687", inode != NULL);
 
-	return perm_chk(inode, mask, inode, mask) ? -EACCES : 0;;
+	return perm_chk(inode, mask, inode, mask);
 }
 
 /* common part of both unlink and rmdir. */
