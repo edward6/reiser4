@@ -215,6 +215,7 @@ static int page_cache_delete_node( reiser4_tree *tree UNUSED_ARG, jnode *node )
 
 	trace_on( TRACE_PCACHE, "delete node: %p\n", node );
 	page = jnode_page( node );
+	assert( "nikita-2108", page != NULL );
 
 	/* FIXME-NIKITA locking? */
 	ClearPageDirty( page );
@@ -390,6 +391,17 @@ static int formatted_writepage( struct page *page /* page to write */ )
 	return page_io( page, WRITE, GFP_NOIO );
 }
 
+/** ->invalidatepage() method for formatted nodes */
+static int formatted_invalidatepage( struct page *page /* page to write */,
+				     unsigned long offset /*  truncate offset */ )
+{
+	assert( "nikita-2109", jprivate( page ) == NULL );
+	assert( "nikita-2110", offset == 0 );
+	assert( "nikita-2111", !PageDirty( page ) );
+	assert( "nikita-2112", PageUptodate( page ) );
+	return 0;
+}
+
 int page_io( struct page *page, int rw, int gfp )
 {
 	struct bio *bio;
@@ -481,15 +493,12 @@ define_never_ever_op( readpages )
 define_never_ever_op( prepare_write )
 define_never_ever_op( commit_write )
 define_never_ever_op( bmap )
+define_never_ever_op( invalidatepage )
 define_never_ever_op( direct_IO )
 
 #define V( func ) ( ( void * ) ( func ) )
 
 /** place holder for methods that doesn't make sense for fake inode */
-static int ok( void )
-{
-	return 0;
-}
 
 /**
  * address space operations for the fake inode
@@ -516,7 +525,8 @@ static struct address_space_operations formatted_fake_as_ops = {
 	.prepare_write  = V( never_ever_prepare_write ),
 	.commit_write   = V( never_ever_commit_write ),
 	.bmap           = V( never_ever_bmap ),
-	.invalidatepage = V( ok ),
+	/* called on umount */
+	.invalidatepage = formatted_invalidatepage,
 	.releasepage    = NULL,
 	.direct_IO      = V( never_ever_direct_IO )
 };

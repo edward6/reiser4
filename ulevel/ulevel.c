@@ -673,8 +673,6 @@ void remove_inode_page (struct page * page)
 	/* assert ("vs-618", atomic_read (&page->count) == 2); */
 
 	page->mapping = 0;
-
-	txn_delete_page (page);
 }
 
 
@@ -715,6 +713,7 @@ static void truncate_inode_pages (struct address_space * mapping,
 			if (page->index >= ind) {
 				spin_lock (&page->lock2);
 				atomic_inc (&page->count);
+				mapping->a_ops->invalidatepage (page, 0);
 				remove_inode_page (page);
 				atomic_dec (&page->count);
 				if (!atomic_read (&page->count)) {

@@ -1688,8 +1688,12 @@ define_never_ever_op( direct_IO_vfs )
 
 #define V( func ) ( ( void * ) ( func ) )
 
-static int invalidatepage(struct page *p UNUSED_ARG, unsigned long o UNUSED_ARG)
+/** ->invalidatepage method for unformatted pages */
+static int reiser4_invalidatepage( struct page *page, unsigned long offset )
 {
+	assert( "nikita-2107", offset == 0 ); /* FIXME */
+	txn_delete_page( page );
+	page_detach_jnode( page );
 	return 0;
 }
 
@@ -1706,7 +1710,7 @@ struct address_space_operations reiser4_as_operations = {
 	/*reiser4_commit_write,*/
 	.commit_write   = V( never_ever_commit_write_vfs ),
  	.bmap           = reiser4_bmap,
-	.invalidatepage = invalidatepage,
+	.invalidatepage = reiser4_invalidatepage,
 	.releasepage    = NULL,
  	/*reiser4_direct_IO*/
 	.direct_IO      = V( never_ever_direct_IO_vfs )
