@@ -20,14 +20,14 @@
 
 static reiser4_core_t *core = NULL;
 
-static oid_t dir40_objectid(reiser4_dir40_t *dir) {
+static oid_t dir40_objectid(dir40_t *dir) {
     aal_assert("umka-839", dir != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, dir->key.plugin->key_ops, 
 	get_objectid, dir->key.body);
 }
 
-static oid_t dir40_locality(reiser4_dir40_t *dir) {
+static oid_t dir40_locality(dir40_t *dir) {
     aal_assert("umka-839", dir != NULL, return 0);
     
     return libreiser4_plugin_call(return 0, dir->key.plugin->key_ops, 
@@ -36,7 +36,7 @@ static oid_t dir40_locality(reiser4_dir40_t *dir) {
 
 static errno_t dir40_rewind(reiser4_entity_t *entity) {
     reiser4_key_t key;
-    reiser4_dir40_t *dir = (reiser4_dir40_t *)entity;
+    dir40_t *dir = (dir40_t *)entity;
     
     aal_assert("umka-864", dir != NULL, return -1);
     
@@ -63,7 +63,7 @@ static errno_t dir40_rewind(reiser4_entity_t *entity) {
 }
 
 /* This function grabs the stat data of directory */
-static errno_t dir40_realize(reiser4_dir40_t *dir) {
+static errno_t dir40_realize(dir40_t *dir) {
     aal_assert("umka-857", dir != NULL, return -1);	
 
     /* FIXME-UMKA: Here should not be hardcoded key minor */
@@ -88,7 +88,7 @@ static errno_t dir40_read(reiser4_entity_t *entity,
 {
     uint32_t count;
     reiser4_item_ops_t *item_ops;
-    reiser4_dir40_t *dir = (reiser4_dir40_t *)entity;
+    dir40_t *dir = (dir40_t *)entity;
     
     aal_assert("umka-844", dir != NULL, return -1);
     aal_assert("umka-845", entry != NULL, return -1);
@@ -155,7 +155,7 @@ static reiser4_entity_t *dir40_open(const void *tree,
     reiser4_key_t *object) 
 {
     uint32_t key_size;
-    reiser4_dir40_t *dir;
+    dir40_t *dir;
     reiser4_id_t statdata_pid;
     reiser4_id_t direntry_pid;
 
@@ -255,7 +255,7 @@ static reiser4_entity_t *dir40_create(const void *tree,
     reiser4_object_hint_t *hint) 
 {
     uint32_t key_size;
-    reiser4_dir40_t *dir;
+    dir40_t *dir;
     reiser4_stat_hint_t stat;
     reiser4_item_hint_t stat_item;
     reiser4_item_hint_t direntry_item;
@@ -429,7 +429,7 @@ static errno_t dir40_add(reiser4_entity_t *entity,
 {
     reiser4_item_hint_t item;
     reiser4_direntry_hint_t direntry_hint;
-    reiser4_dir40_t *dir = (reiser4_dir40_t *)entity;
+    dir40_t *dir = (dir40_t *)entity;
     
     aal_assert("umka-844", dir != NULL, return -1);
     aal_assert("umka-845", entry != NULL, return -1);
@@ -487,7 +487,7 @@ static void dir40_close(reiser4_entity_t *entity) {
 
 static uint32_t dir40_tell(reiser4_entity_t *entity) {
     aal_assert("umka-874", entity != NULL, return 0);
-    return ((reiser4_dir40_t *)entity)->pos;
+    return ((dir40_t *)entity)->pos;
 }
 
 static reiser4_plugin_t dir40_plugin = {

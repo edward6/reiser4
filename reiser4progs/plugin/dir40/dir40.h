@@ -8,7 +8,7 @@
 #define DIR40_H
 
 /* Compaund directory structure */
-struct reiser4_dir40 {
+struct dir40 {
     /* 
 	Poiter to the instance of internal libreiser4 b*tree, dir opened on stored here 
 	for lookup and modiying purposes. It is passed by libreiser4 durring initialization
@@ -45,7 +45,7 @@ struct reiser4_dir40 {
     reiser4_plugin_t *hash_plugin;
 };
 
-typedef struct reiser4_dir40 reiser4_dir40_t;
+typedef struct dir40 dir40_t;
 
 #endif
 
