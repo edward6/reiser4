@@ -9,12 +9,12 @@
  */
 
 /* functions to access fields of layout_40_disk_super_block */
-static __u64 get_layout_40_block_count (const format_40_disk_super_block * sb)
+static __u64 get_format_40_block_count (const format_40_disk_super_block * sb)
 {
 	return d64tocpu (&sb->block_count);
 }
 
-static __u64 get_layout_40_free_blocks (const format_40_disk_super_block * sb)
+static __u64 get_format_40_free_blocks (const format_40_disk_super_block * sb)
 {
 	return d64tocpu (&sb->free_blocks);
 }

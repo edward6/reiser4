@@ -15,15 +15,15 @@
 /* magic for default reiser4 layout */
 #define LAYOUT_40_MAGIC "R4Sb-Default"
 
-/* ondisk super block for layout 40. It is 512 bytes long */
-typedef struct layout_40_disk_super_block {	
+/* ondisk super block for format 40. It is 512 bytes long */
+typedef struct format_40_disk_super_block {	
 	/*   0 */ d64 block_count; /* number of block in a filesystem */
 	/*   8 */ d64 free_blocks; /* number of free blocks */
 	/*  16 */ d64 root_block;  /* filesystem tree root block */
 	/*  32 */ d64 oid;	   /* smallest free objectid */
 	/*  40 */ d64 file_count;  /* number of files in a filesystem */
 	/*  48 */ d64 flushes;	   /* number of times super block was
-				    * flushed. Needed if layout 40
+				    * flushed. Needed if format 40
 				    * will have few super blocks */
 	/*  56 */ char magic[16];  /* magic string R4Sb-Default */
 	/*  72 */ d16 tree_height; /* height of filesystem tree */
@@ -33,17 +33,17 @@ typedef struct layout_40_disk_super_block {
 	
 	/*  78 */ d16 padd [3];
 	/*  84 */ char not_used [428];
-} layout_40_disk_super_block;
+} format_40_disk_super_block;
 
 
-/* layout 40 specific part of reiser4_super_info_data */
-typedef struct layout_40_super_info {
-	layout_40_disk_super_block actual_sb;
-} layout_40_super_info;
+/* format 40 specific part of reiser4_super_info_data */
+typedef struct format_40_super_info {
+	format_40_disk_super_block actual_sb;
+} format_40_super_info;
 
 
 /* declarations of functions implementing methods of layout plugin for
- * layout 40. The functions theirself are in layout_40.c */
-int                 layout_40_get_ready    (struct super_block *, void * data);
-const reiser4_key * layout_40_root_dir_key (const struct super_block *);
+ * format 40. The functions theirself are in disk_format_40.c */
+int                 format_40_get_ready    (struct super_block *, void * data);
+const reiser4_key * format_40_root_dir_key (const struct super_block *);
 

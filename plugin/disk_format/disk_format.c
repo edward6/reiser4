@@ -17,8 +17,8 @@ reiser4_plugin layout_plugins[ LAST_LAYOUT_ID ] = {
 				.desc    = "standard disk layout for reiser40",
 				.linkage = TS_LIST_LINK_ZERO,
 			},
-			.get_ready     = layout_40_get_ready,
-			.root_dir_key  = layout_40_root_dir_key,
+			.get_ready     = format_40_get_ready,
+			.root_dir_key  = format_40_root_dir_key,
 			.release       = NULL,
 			.print_info    = NULL
 		}
