@@ -12,7 +12,6 @@
  * handler, and all of the item specific portions of the item handler are put
  * into a union. */
 
-/* plugin_id-s for plugin_type_id of REISER4_ITEM_PLUGIN_TYPE */
 typedef enum { 
 	STAT_DATA_ITEM_TYPE,
 	DIR_ENTRY_ITEM_TYPE,
