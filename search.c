@@ -330,11 +330,9 @@ coord_by_handle(cbk_handle * handle)
 	write_tree_trace(handle->tree, tree_lookup, handle->key);
 
 	/* first check whether "key" is in cache of recent lookups. */
-/*
 	if (cbk_cache_search(handle) == 0)
 		return handle->result;
 	else
-*/
 		return traverse_tree(handle);
 }
 
