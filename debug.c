@@ -481,6 +481,12 @@ reiser4_stats_cnt reiser4_stat_level_defs[] = {
 	DEFINE_STAT_LEVEL_CNT(znode.lock_znode_iteration),
 	DEFINE_STAT_LEVEL_CNT(znode.lock_neighbor),
 	DEFINE_STAT_LEVEL_CNT(znode.lock_neighbor_iteration),
+	DEFINE_STAT_LEVEL_CNT(znode.unlock_znode),
+	DEFINE_STAT_LEVEL_CNT(znode.wakeup),
+	DEFINE_STAT_LEVEL_CNT(znode.wakeup_found),
+	DEFINE_STAT_LEVEL_CNT(znode.wakeup_found_read),
+	DEFINE_STAT_LEVEL_CNT(znode.wakeup_scan),
+	DEFINE_STAT_LEVEL_CNT(znode.wakeup_convoy),
 	DEFINE_STAT_LEVEL_CNT(time_slept),
 	DEFINE_STAT_LEVEL_CNT(total_hits_at_level)
 };

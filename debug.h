@@ -530,6 +530,12 @@ typedef struct reiser4_level_statistics {
 		stat_cnt lock_neighbor;
 		/* number of times loop inside lock_neighbor() was executed */
 		stat_cnt lock_neighbor_iteration;
+		stat_cnt unlock_znode;
+		stat_cnt wakeup;
+		stat_cnt wakeup_found;
+		stat_cnt wakeup_found_read;
+		stat_cnt wakeup_scan;
+		stat_cnt wakeup_convoy;
 	} znode;
 	stat_cnt total_hits_at_level;
 	stat_cnt time_slept;

@@ -158,6 +158,10 @@ done_context(reiser4_context * context /* context being released */)
 		if (context->grabbed_blocks != 0)
 			all_grabbed2free("done_context: free grabbed blocks");
 		
+		/* synchronize against longterm_unlock_znode(). */
+		spin_lock_stack(&context->stack);
+		spin_unlock_stack(&context->stack);
+
 #if REISER4_DEBUG
 		/* remove from active contexts */
 		spin_lock(&active_contexts_lock);
@@ -212,9 +216,7 @@ print_contexts(void)
 
 	spin_lock(&active_contexts_lock);
 
-	for (context = context_list_front(&active_contexts);
-	     !context_list_end(&active_contexts, context); context = context_list_next(context)) {
-
+	for_all_tslist(context, &active_contexts, context) {
 		print_context("context", context);
 	}
 

@@ -23,7 +23,9 @@
 #include <asm/semaphore.h>
 
 /* per-znode lock requests queue; list items are lock owner objects
-   which want to lock given znode */
+   which want to lock given znode. 
+
+   Locking: protected by znode spin lock. */
 TS_LIST_DECLARE(requestors);
 /* per-znode list of lock handles for this znode
    
@@ -40,7 +42,7 @@ TS_LIST_DECLARE(locks);
 /* Per-znode lock object */
 struct zlock {
 	/* The number of readers if positive; the number of recursively taken
-	   write locks if negative */
+	   write locks if negative. Protected by znode spin lock. */
 	/*  0 */ int nr_readers;
 	/* A number of processes (lock_stacks) that have this object
 	   locked with high priority */
@@ -104,7 +106,7 @@ struct lock_stack {
 	/* number of znodes which were requested by high priority processes */
 	atomic_t nr_signaled;
 	/* Current priority of a process 
-	  
+
 	   This is only accessed by the current thread and thus requires no
 	   locking.
 	*/
