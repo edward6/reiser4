@@ -254,6 +254,9 @@ file_lookup_result hashed_lookup( struct inode *parent /* inode of directory to
 	return result;
 }
 
+#if 0
+static const char *possible_leak = "Possible disk space leak.";
+
 /**
  * re-bind existing name at @new_coord in @new_dir to point to @old_inode.
  *
@@ -309,8 +312,8 @@ static int replace_name( struct inode *to_inode /* inode where @from_coord is
 		result = reiser4_del_nlink( from_inode, 0 );
 		if( result != 0 ) {
 			warning( "nikita-2330", 
-				 "Cannot remove link from source: %i. "
-				 "Possible disk space leak", result );
+				 "Cannot remove link from source: %i. %s",
+				 result, possible_leak );
 			/*
 			 * Has to return success, because entry is already
 			 * modified.
@@ -326,7 +329,7 @@ static int replace_name( struct inode *to_inode /* inode where @from_coord is
 		from_inode -> i_ctime = CURRENT_TIME;
 	} else {
 		warning( "nikita-2326", "Unexpected item type" );
-		print_plugin( "item", from_item );
+		print_plugin( "item", item_plugin_to_plugin( from_item ) );
 		result = -EIO;
 	}
 	return result;
@@ -334,13 +337,58 @@ static int replace_name( struct inode *to_inode /* inode where @from_coord is
 
 /**
  * add new entry pointing to @inode into @dir at @coord, locked by @lh
+ *
+ * Helper function used by hashed_rename().
  */
 static int add_name( struct inode *inode /* inode where @coord is to be
 					  * re-targeted at */,
 		     struct inode *dir /* directory where @coord lives */,
 		     coord_t *coord /* where directory entry is in the tree */,
-		     lock_handle *lh /* lock handle on @coord */ )
+		     lock_handle *lh /* lock handle on @coord */,
+		     int is_dir /* true, if @inode is directory */)
 {
+	int result;
+
+	if( is_dir )
+		/*
+		 * ext2 does this in different order: first inserts new entry,
+		 * then increases directory nlink. We don't want do this,
+		 * because reiser4_add_nlink() calls ->add_link() plugin
+		 * method that can fail for whatever reason, leaving as with
+		 * cleanup problems.
+		 */
+		result = reiser4_add_nlink( new_dir, 0 );
+	if( result == 0 ) {
+		/*
+		 * @old_inode is getting new name
+		 */
+		reiser4_add_nlink( old_inode, 0 );
+		/*
+		 * create @new_name in @new_dir pointing to
+		 * @old_inode
+		 */
+		result = hashed_add_entry( new_dir, new_name, NULL, &new_entry );
+		if( result != 0 ) {
+			result = reiser4_del_nlink( old_inode, 0 );
+			if( result != 0 ) {
+				warning( "nikita-2327", 
+					 "Cannot drop link on source: %i. %s",
+					 possible_leak, result );
+			}
+			result = reiser4_del_nlink( new_dir, 0 );
+			if( result != 0 ) {
+				warning( "nikita-2328", 
+					 "Cannot drop link on target dir %i. %s",
+					 possible_leak, result );
+			}
+			/*
+			 * Has to return success, because entry is already
+			 * created.
+			 */
+			result = 0;
+		}
+	}
+	return result;
 }
 
 /**
@@ -526,6 +574,10 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 		return result;
 	}
 
+	/*
+	 * not finished. Has to scan right-ward 
+	 */
+
 	if( old_result == CBK_COORD_FOUND ) {
 		int is_dir; /* is @old directory */
 
@@ -554,40 +606,9 @@ int hashed_rename( struct inode  *old_dir  /* directory where @old is located */
 			/*
 			 * target (@new_name) doesn't exists.
 			 */
-			if( is_dir )
-				/*
-				 * ext2 does this in different order: first
-				 * inserts new entry, then increases directory
-				 * nlink. We don't want do this, because
-				 * reiser4_add_nlink() calls ->add_link()
-				 * plugin method that can fail for whatever
-				 * reason, leaving as with cleanup problems.
-				 */
-				result = reiser4_add_nlink( new_dir, 0 );
-			if( result == 0 ) {
-				/*
-				 * @old_inode is getting new name
-				 */
-				reiser4_add_nlink( old_inode, 0 );
-				/*
-				 * create @new_name in @new_dir pointing to
-				 * @old_inode
-				 */
-				result = hashed_add_entry( new_dir, new_name,
-							   NULL, &new_entry );
-				if( result != 0 ) {
-					result = reiser4_del_nlink( old_inode, 0 );
-					if( result != 0 ) {
-						warning( "nikita-2327", "Cannot drop link on source: %i. Possible disk space leak",
-							 result );
-					}
-					result = reiser4_del_nlink( new_dir, 0 );
-					if( result != 0 ) {
-						warning( "nikita-2328", "Cannot drop link on target dir: %i. Possible disk space leak",
-							 result );
-					}
-				}
-			}
+			result = add_name( old_inode, new_dir, 
+					   new_inode, new_coord, 
+					   new_lh, is_dir );
 		}
 	} else {
 		warning( "nikita-2323", "Cannot find old entry %i", old_result );
@@ -661,6 +682,8 @@ out_old:
 out:
 	return err;
 }
+
+#endif
 
 /**
  * ->add_entry() method for hashed directory object plugin.
