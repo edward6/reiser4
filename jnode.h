@@ -206,6 +206,7 @@ typedef enum {
 	JNODE_NEW = 19,
 	/* async io request was issued */
 	JNODE_ASYNC = 20,
+	JNODE_DKSET = 21
 } reiser4_znode_state;
 
 /* Macros for accessing the jnode state. */
