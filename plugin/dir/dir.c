@@ -938,7 +938,7 @@ feed_entry(readdir_pos * pos, tap_t *tap, filldir_t filldir, void *dirent)
 
 	if (result < 0) {
 		tap_relse(tap);
-		longterm_unlock_znode(tap->lh);
+		done_lh(tap->lh);
 	}
 
 	return result;
