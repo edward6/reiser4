@@ -131,14 +131,15 @@ typedef enum {
 	   atoms in the CAPTURE_FUSE stage. */
 	ASTAGE_CAPTURE_WAIT = 2,
 
-	/* Waiting for I/O before commit.  Copy-on-capture. */
+	/* Waiting for I/O before commit.  Copy-on-capture (see
+	   http://namesys.com/v4/v4.html). */
 	ASTAGE_PRE_COMMIT = 3,
 
-	/* ZAM-FIXME-HANS: define steal vs. copy. */
 	/* Post-commit overwrite I/O.  Steal-on-capture. */
 	ASTAGE_POST_COMMIT = 4,
 
-	/* Atom which waits for the removal of the last reference to (it? ) to be deleted from memory  */
+	/* Atom which waits for the removal of the last reference to (it? ) to
+	 * be deleted from memory  */
 	ASTAGE_DONE = 5,
 
 	/* invalid atom. */
