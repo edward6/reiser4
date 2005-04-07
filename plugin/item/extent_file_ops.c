@@ -1173,6 +1173,10 @@ extent_readpage_filler(void *data, struct page *page)
 
 	hint = (hint_t *)data;
 	ext_coord = &hint->ext_coord;
+
+	BUG_ON(PageUptodate(page));
+	unlock_page(page);
+
 	if (hint_validate(hint, &key, 1/* check key */, ZNODE_READ_LOCK) != 0) {
 		result = coord_by_key(current_tree, &key, &ext_coord->coord,
 				      ext_coord->lh, ZNODE_READ_LOCK,
@@ -1180,6 +1184,7 @@ extent_readpage_filler(void *data, struct page *page)
 				      TWIG_LEVEL, CBK_UNIQUE, NULL);
 		if (result != CBK_COORD_FOUND) {
 			unset_hint(hint);
+			lock_page(page);
 			return result;
 		}
 		ext_coord->valid = 0;
@@ -1188,6 +1193,7 @@ extent_readpage_filler(void *data, struct page *page)
 	if (zload(ext_coord->coord.node)) {
 		unset_hint(hint);
 		done_lh(ext_coord->lh);
+		lock_page(page);
 		return RETERR(-EIO);
 	}
 
@@ -1197,6 +1203,14 @@ extent_readpage_filler(void *data, struct page *page)
 	assert("", (coord_extension_is_ok(ext_coord) &&
 		    coord_extension_is_ok2(ext_coord, &key)));
 
+	lock_page(page);
+	if (!PageUptodate(page))
+		result = do_readpage_extent(ext_by_ext_coord(ext_coord),
+					    ext_coord->extension.extent.pos_in_unit, page);
+	else {
+		unlock_page(page);
+		result = 0;
+	}
 	result = do_readpage_extent(ext_by_ext_coord(ext_coord),
 				    ext_coord->extension.extent.pos_in_unit, page);
 	if (!result && move_coord_forward(ext_coord) == 0) {
@@ -1217,7 +1231,7 @@ extent_readpages_hook(struct address_space *mapping, struct list_head *pages, vo
 	read_cache_pages(mapping, pages, extent_readpage_filler, data);
 }
 
-static void
+static int
 call_page_cache_readahead(struct address_space *mapping, struct file *file,
 			  hint_t *hint,
 			  unsigned long page_nr,
@@ -1226,13 +1240,14 @@ call_page_cache_readahead(struct address_space *mapping, struct file *file,
 	reiser4_file_fsdata *fsdata;
 
 	fsdata = reiser4_get_file_fsdata(file);
-	if (fsdata == NULL)
-		return;
+	if (IS_ERR(fsdata))
+		return page_nr;
 	fsdata->ra2.data = hint;
 	fsdata->ra2.readpages = extent_readpages_hook;
 
-	page_cache_readahead(mapping, &file->f_ra, file, page_nr, ra_pages);
+	result = page_cache_readahead(mapping, &file->f_ra, file, page_nr, ra_pages);
 	fsdata->ra2.readpages = NULL;
+	return result;
 }
 
 /* Implements plugin->u.item.s.file.read operation for extent items. */
@@ -1241,14 +1256,14 @@ read_extent(struct file *file, flow_t *flow, hint_t *hint)
 {
 	int result;
 	struct page *page;
-	unsigned long page_nr;
+	unsigned long cur_page, next_page;
 	unsigned long page_off, count;
 	struct address_space *mapping;
 	loff_t file_off;
 	uf_coord_t *uf_coord;
 	coord_t *coord;
 	extent_coord_extension_t *ext_coord;
-	unsigned long ra_pages;
+	unsigned long nr_pages;
 
 	assert("vs-1353", current_blocksize == PAGE_CACHE_SIZE);
 	assert("vs-572", flow->user == 1);
@@ -1267,14 +1282,16 @@ read_extent(struct file *file, flow_t *flow, hint_t *hint)
 
 	/* offset in a file to start read from */
 	file_off = get_key_offset(&flow->key);
-	/* index of page containing that offset */
-	page_nr = (unsigned long)(file_off >> PAGE_CACHE_SHIFT);
 	/* offset within the page to start read from */
 	page_off = (unsigned long)(file_off & (PAGE_CACHE_SIZE - 1));
 	/* bytes which can be read from the page which contains file_off */
 	count = PAGE_CACHE_SIZE - page_off;
+
+	/* index of page containing offset read is to start from */
+	cur_page = (unsigned long)(file_off >> PAGE_CACHE_SHIFT);
+	next_page = cur_page;
 	/* number of pages flow spans over */
-	ra_pages = (flow->length + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	nr_pages = ((file_off + flow->length + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT) - cur_page;
 
 	/* we start having twig node read locked. However, we do not want to
 	   keep that lock all the time readahead works. So, set a sel and
@@ -1283,18 +1300,19 @@ read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	longterm_unlock_znode(hint->ext_coord.lh);
 
 	do {
-		call_page_cache_readahead(mapping, file, hint, page_nr, ra_pages);
+		if (next_page == cur_page)
+			next_page = call_page_cache_readahead(mapping, file, hint, cur_page, nr_pages);
 
 		/* this will return page if it exists and is uptodate,
 		   otherwise it will allocate page and call readpage_extent to
 		   fill it */
-		page = read_cache_page(mapping, page_nr, readpage_unix_file, file);
+		page = read_cache_page(mapping, cur_page, readpage_unix_file, file);
 		if (IS_ERR(page))
 			return PTR_ERR(page);
 
 		wait_on_page_locked(page);
 		if (!PageUptodate(page)) {
-			page_detach_jnode(page, mapping, page_nr);
+			page_detach_jnode(page, mapping, cur_page);
 			page_cache_release(page);
 			warning("jmacd-97178", "extent_read: page is not up to date");
 			return RETERR(-EIO);
@@ -1324,9 +1342,9 @@ read_extent(struct file *file, flow_t *flow, hint_t *hint)
 		move_flow_forward(flow, count);
 
 		page_off = 0;
-		page_nr ++;
+		cur_page ++;
 		count = PAGE_CACHE_SIZE;
-		ra_pages --;
+		nr_pages --;
 	} while (flow->length);
 
 	return 0;
