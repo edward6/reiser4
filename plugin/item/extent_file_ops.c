@@ -1238,6 +1238,7 @@ call_page_cache_readahead(struct address_space *mapping, struct file *file,
 			  unsigned long ra_pages)
 {
 	reiser4_file_fsdata *fsdata;
+	int result;
 
 	fsdata = reiser4_get_file_fsdata(file);
 	if (IS_ERR(fsdata))
