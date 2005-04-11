@@ -453,6 +453,9 @@ typedef struct digest_plugin {
 typedef struct compression_plugin {
 	/* generic fields */
 	plugin_header h;
+	/* pointer to the dual plugin id */
+	reiser4_compression_id antiplugin;
+	int (*init) (void);
 	/* the maximum number of bytes the size of the "compressed" data can
 	 * exceed the uncompressed data. */
 	int (*overrun) (unsigned src_len);
