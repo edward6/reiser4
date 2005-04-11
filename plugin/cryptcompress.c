@@ -2623,7 +2623,8 @@ set_append_cluster_key(const coord_t *coord, reiser4_key *key, struct inode *ino
    It succes was returned:
    (@index == 0 && @found == 0) means that the object doesn't have real disk
    clusters.
-   (@index != 0 && @found == 0) means that disk cluster of @index doesn't exist.
+   (@index != 0 && @found == 0) means that disk cluster of (@index -1 ) doesn't
+   exist.
 */
 static int
 find_real_disk_cluster(struct inode * inode, cloff_t * found, cloff_t index)
@@ -3036,12 +3037,12 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	assert("edward-1191", inode->i_size == new_size);
 	assert("edward-1206", body_truncate_ok(inode, fidx));
  finish:
-	/* drop all the pages that don't have jnodes
-	   because of holes represented by fake disk clusters
-	   including the pages of partially truncated cluster
-	   which was released by prepare_cluster() */
-	truncate_inode_pages(inode->i_mapping,
-			     pg_to_off(count_to_nrpages(new_size)));
+	/* drop all the pages that don't have jnodes (i.e. pages
+	   which can not be truncated by cut_file_items() because
+	   of holes represented by fake disk clusters) including
+	   the pages of partially truncated cluster which was
+	   released by prepare_cluster() */
+	truncate_inode_pages(inode->i_mapping, new_size);
 	INODE_SET_FIELD(inode, i_size, new_size);
  out:
 	done_lh(&lh);
@@ -3080,13 +3081,20 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 	       ergo(aidx > 0, inode->i_size > clust_to_off(aidx - 1, inode)));
 
 	if (truncating_last_fake_dc(inode, aidx, new_size)) {
-		/* we do not need to truncate items, so just drop pages
-		   which can not acquire jnodes because of exclusive access */
-
+		/* The last page cluster we truncate (fully or partially)
+		   is fake (don't have disk cluster) */
 		INODE_SET_FIELD(inode, i_size, new_size);
 		if (old_size > new_size) {
-			truncate_inode_pages(inode->i_mapping,
-					     pg_to_off(count_to_nrpages(new_size)));
+			/* Drop page cluster. 
+			   There are only 2 cases for partially truncated page:
+			   1. If is is dirty, therefore it is anonymous 
+			      (was dirtied via mmap), and will be captured
+			      later via ->capture().
+			   2. If is clean, therefore it is filled by zeroes.
+                           In both cases we don't need to make it dirty and
+			   capture here.
+			*/
+			truncate_inode_pages(inode->i_mapping, new_size);
 			assert("edward-663", ergo(!new_size,
 						  reiser4_inode_data(inode)->anonymous_eflushed == 0 &&
 						  reiser4_inode_data(inode)->captured_eflushed == 0));
