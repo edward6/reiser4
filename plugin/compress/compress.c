@@ -2,6 +2,7 @@
 /* reiser4 compression transform plugins */
 
 #include "../../debug.h"
+#include "../../reiser4.h"
 #include "../plugin.h"
 #include "../cryptcompress.h"
 #include "minilzo.h"
@@ -12,48 +13,22 @@
 #include <linux/hardirq.h>
 
 /******************************************************************************/
-/*                         null compression                                   */
-/******************************************************************************/
-
-#define NONE_NRCOPY 1
-
-static int
-null_min_tfm_size(void)
-{
-	return 1;
-}
-
-static void
-null_compress(coa_t coa, __u8 * src_first, unsigned src_len,
-	      __u8 * dst_first, unsigned *dst_len)
-{
-	int i;
-	assert("edward-793", coa == NULL);
-	assert("edward-794", src_first != NULL);
-	assert("edward-795", dst_first != NULL);
-	assert("edward-796", src_len != 0);
-	assert("edward-797", dst_len != NULL);
-
-	for (i = 0; i < NONE_NRCOPY; i++)
-		memcpy(dst_first, src_first, src_len);
-	*dst_len = src_len;
-	return;
-}
-
-static void
-null_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
-		__u8 * dst_first, unsigned *dst_len)
-{
-	impossible("edward-798", "trying to decompress uncompressed data");
-}
-
-/******************************************************************************/
 /*                         gzip1 compression                                  */
 /******************************************************************************/
 
 #define GZIP1_DEF_LEVEL		        Z_BEST_SPEED
 #define GZIP1_DEF_WINBITS		15
 #define GZIP1_DEF_MEMLEVEL		MAX_MEM_LEVEL
+
+static int
+gzip1_init(void)
+{
+	int ret = -ENOSYS;
+#if REISER4_GZIP_TFM
+	ret = 0;
+#endif
+	return ret;
+}
 
 static int gzip1_overrun(unsigned src_len UNUSED_ARG)
 {
@@ -64,9 +39,8 @@ static coa_t
 gzip1_alloc(tfm_action act)
 {
 	coa_t coa = NULL;
-	int ret = -ENXIO;
 #if REISER4_GZIP_TFM
-	ret = 0;
+	int ret = 0;
 	switch (act) {
 	case TFM_WRITE:	/* compress */
 		coa = vmalloc(zlib_deflate_workspacesize());
@@ -74,7 +48,38 @@ gzip1_alloc(tfm_action act)
 			ret = -ENOMEM;
 			break;
 		}
-		xmemset(coa, 0, zlib_deflate_workspacesize());
+		memset(coa, 0, zlib_deflate_workspacesize());
+		break;
+	case TFM_READ:	/* decompress */
+		coa = vmalloc(zlib_inflate_workspacesize());
+		if (!coa) {
+			ret = -ENOMEM;
+			break;
+		}
+		memset(coa, 0, zlib_inflate_workspacesize());
+		break;
+	default:
+		impossible("edward-767",
+			   "trying to alloc workspace for unknown tfm action");
+	}
+	if (ret) {
+		warning("edward-768",
+			"alloc workspace for gzip1 (tfm action = %d) failed\n",
+			act);
+		return ERR_PTR(ret);
+	}
+#endif
+	return coa;
+}
+
+static coa_t
+gzip1_nocompress_alloc(tfm_action act)
+{
+	coa_t coa = NULL;
+#if REISER4_GZIP_TFM
+	int ret = 0;
+	switch (act) {
+	case TFM_WRITE:	/* compress */
 		break;
 	case TFM_READ:	/* decompress */
 		coa = vmalloc(zlib_inflate_workspacesize());
@@ -85,22 +90,20 @@ gzip1_alloc(tfm_action act)
 		xmemset(coa, 0, zlib_inflate_workspacesize());
 		break;
 	default:
-		impossible("edward-767",
-			   "trying to alloc workspace for unknown tfm action");
+		impossible("edward-1299", "unknown tfm action");
 	}
-#endif
 	if (ret) {
-		warning("edward-768",
+		warning("edward-1300",
 			"alloc workspace for gzip1 (tfm action = %d) failed\n",
 			act);
 		return ERR_PTR(ret);
 	}
+#endif
 	return coa;
 }
 
 static void gzip1_free(coa_t coa, tfm_action act)
 {
-#if REISER4_GZIP_TFM
 	assert("edward-769", coa != NULL);
 
 	switch (act) {
@@ -111,10 +114,24 @@ static void gzip1_free(coa_t coa, tfm_action act)
 		vfree(coa);
 		break;
 	default:
-		impossible("edward-770",
-			   "free workspace for unknown tfm action");
+		impossible("edward-770", "unknown tfm action");
 	}
-#endif
+	return;
+}
+
+static void gzip1_nocompress_free(coa_t coa, tfm_action act)
+{
+	assert("edward-1301", coa != NULL);
+	
+	switch (act) {
+	case TFM_READ:	/* decompress */
+		vfree(coa);
+	case TFM_WRITE:	/* compress */	
+		impossible("edward-1302",
+			   "trying to free non-allocated workspace");
+	default:
+		impossible("edward-1303", "unknown tfm action");
+	}
 	return;
 }
 
@@ -128,7 +145,7 @@ static void
 gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	       __u8 * dst_first, unsigned *dst_len)
 {
-#if REISER4_GZIP_TFM
+#if REISER4_GZIP_TFM	
 	int ret = 0;
 	struct z_stream_s stream;
 
@@ -172,7 +189,7 @@ static void
 gzip1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 		 __u8 * dst_first, unsigned *dst_len)
 {
-#if REISER4_GZIP_TFM
+#if REISER4_GZIP_TFM 
 	int ret = 0;
 	struct z_stream_s stream;
 
@@ -277,11 +294,12 @@ lzo1_free(coa_t coa, tfm_action act)
 	switch (act) {
 	case TFM_WRITE:	/* compress */
 		vfree(coa);
-	case TFM_READ:	/* decompress */
 		break;
+	case TFM_READ:	/* decompress */
+		impossible("edward-1304",
+			   "trying to free non-allocated workspace");
 	default:
-		impossible("edward-880",
-			   "trying to free workspace for unknown tfm action");
+		impossible("edward-880", "unknown tfm action");
 	}
 	return;
 }
@@ -358,29 +376,14 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				       "absence of any compression transform",
 				       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				 ,
+				 .antiplugin = NONE_COMPRESSION_ID,
+				 .init = NULL,
 				 .overrun = none_overrun,
 				 .alloc = NULL,
 				 .free = NULL,
 				 .min_tfm_size = NULL,
 				 .compress = NULL,
 				 .decompress = NULL}
-	,
-	[NULL_COMPRESSION_ID] = {
-				 .h = {
-				       .type_id =
-				       REISER4_COMPRESSION_PLUGIN_TYPE,
-				       .id = NULL_COMPRESSION_ID,
-				       .pops = NULL,
-				       .label = "null",
-				       .desc = "NONE_NRCOPY times of memcpy",
-				       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
-				 ,
-				 .overrun = none_overrun,
-				 .alloc = NULL,
-				 .free = NULL,
-				 .min_tfm_size = null_min_tfm_size,
-				 .compress = null_compress,
-				 .decompress = null_decompress}
 	,
 	[LZO1_COMPRESSION_ID] = {
 				 .h = {
@@ -392,11 +395,32 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				       .desc = "lzo1 compression transform",
 				       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				 ,
+				 .antiplugin = LZO1_NO_COMPRESSION_ID,
+				 .init = NULL,
 				 .overrun = lzo1_overrun,
 				 .alloc = lzo1_alloc,
 				 .free = lzo1_free,
 				 .min_tfm_size = lzo1_min_tfm_size,
 				 .compress = lzo1_compress,
+				 .decompress = lzo1_decompress}
+	,
+	[LZO1_NO_COMPRESSION_ID] = {
+				 .h = {
+				       .type_id =
+				       REISER4_COMPRESSION_PLUGIN_TYPE,
+				       .id = LZO1_COMPRESSION_ID,
+				       .pops = NULL,
+				       .label = "lzo1",
+				       .desc = "lzo1 compression transform",
+				       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
+				 ,
+				 .antiplugin = LZO1_COMPRESSION_ID,
+				 .init = NULL,
+				 .overrun = NULL,
+				 .alloc = NULL,
+				 .free = NULL,
+				 .min_tfm_size = NULL,
+				 .compress = NULL,
 				 .decompress = lzo1_decompress}
 	,
 	[GZIP1_COMPRESSION_ID] = {
@@ -409,11 +433,32 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 					.desc = "gzip1 compression transform",
 					.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				  ,
+				  .antiplugin = GZIP1_NO_COMPRESSION_ID,
+				  .init = gzip1_init,
 				  .overrun = gzip1_overrun,
 				  .alloc = gzip1_alloc,
 				  .free = gzip1_free,
 				  .min_tfm_size = gzip1_min_tfm_size,
 				  .compress = gzip1_compress,
+				  .decompress = gzip1_decompress}
+	,
+	[GZIP1_NO_COMPRESSION_ID] = {
+				  .h = {
+					.type_id =
+					REISER4_COMPRESSION_PLUGIN_TYPE,
+					.id = GZIP1_COMPRESSION_ID,
+					.pops = NULL,
+					.label = "gzip1",
+					.desc = "gzip1 compression transform",
+					.linkage = TYPE_SAFE_LIST_LINK_ZERO}
+				  ,
+				  .antiplugin = GZIP1_COMPRESSION_ID,
+				  .init = gzip1_init,
+				  .overrun = NULL,
+				  .alloc = gzip1_nocompress_alloc,
+				  .free = gzip1_nocompress_free,
+				  .min_tfm_size = NULL,
+				  .compress = NULL,
 				  .decompress = gzip1_decompress}
 };
 
