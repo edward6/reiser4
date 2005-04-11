@@ -1211,8 +1211,6 @@ extent_readpage_filler(void *data, struct page *page)
 		unlock_page(page);
 		result = 0;
 	}
-	result = do_readpage_extent(ext_by_ext_coord(ext_coord),
-				    ext_coord->extension.extent.pos_in_unit, page);
 	if (!result && move_coord_forward(ext_coord) == 0) {
 		set_key_offset(&key, offset + PAGE_CACHE_SIZE);
 		set_hint(hint, &key, ZNODE_READ_LOCK);
