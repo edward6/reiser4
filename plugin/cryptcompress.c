@@ -33,6 +33,7 @@ Cryptcompress specific fields of reiser4 inode/stat-data:
 #include "../super.h"
 #include "../context.h"
 #include "../cluster.h"
+#include "../reiser4.h"
 #include "../seal.h"
 #include "../vfs_ops.h"
 #include "plugin.h"
@@ -106,6 +107,18 @@ crc_inode_ok(struct inode * inode)
 	return 0;
 }
 #endif
+
+static int
+check_cryptcompress(struct inode * inode)
+{
+	/* FIXME-EDWARD: Add check of cipher support here */
+	int result = 0;
+
+	assert("edward-1307", inode_compression_plugin(inode) != NULL);
+	if (inode_compression_plugin(inode)->init)
+		result = inode_compression_plugin(inode)->init();
+	return result;
+}
 
 static crypto_stat_t * inode_crypto_stat (struct inode * inode)
 {
@@ -311,9 +324,10 @@ inode_set_crypto(struct inode * object, crypto_data_t * data)
 	return result;
 }
 
-static void
+static int
 inode_set_compression(struct inode * object, compression_data_t * data)
 {
+	int result = 0;
 	compression_data_t def;
 	reiser4_inode * info = reiser4_inode_data(object);
 
@@ -321,10 +335,15 @@ inode_set_compression(struct inode * object, compression_data_t * data)
 		init_default_compression(&def);
 		data = &def;
 	}
+	if (compression_plugin_by_id(data->coa)->init) {
+		result = compression_plugin_by_id(data->coa)->init();
+		if (result)
+			return result;
+	}
 	plugin_set_compression(&info->pset, compression_plugin_by_id(data->coa));
 	info->plugin_mask |= (1 << PSET_COMPRESSION);
 
-	return;
+	return 0;
 }
 
 static int
@@ -388,8 +407,9 @@ create_cryptcompress(struct inode *object, struct inode *parent, reiser4_object_
 		goto error;
 
 	/* set compression */
-	inode_set_compression(object, data->compression);
-
+	result = inode_set_compression(object, data->compression);
+	if (result)
+		goto error;
 	/* set cluster info */
 	result = inode_set_cluster(object, data->cluster);
 	if (result)
@@ -799,11 +819,9 @@ min_size_to_compress(struct inode * inode)
 static int
 try_compress(tfm_cluster_t * tc, cloff_t index, struct inode * inode)
 {
-	assert("edward-1037", min_size_to_compress(inode) > 0 &&
-	       min_size_to_compress(inode) < inode_cluster_size(inode));
-
-	return (inode_compression_plugin(inode) != compression_plugin_by_id(NONE_COMPRESSION_ID)) &&
-		SHOULD_COMPRESS_CLUSTER(index) && (tc->len >= min_size_to_compress(inode));
+	return (inode_compression_plugin(inode)->compress != NULL) &&
+		SHOULD_COMPRESS_CLUSTER(index) && 
+		(tc->len >= min_size_to_compress(inode));
 }
 
 static int
@@ -828,13 +846,14 @@ need_decompression(reiser4_cluster_t * clust, struct inode * inode,
 		   int encrypted /* is cluster encrypted */)
 {
 	tfm_cluster_t * tc = &clust->tc;
-
+	
 	assert("edward-142", tc != 0);
 	assert("edward-143", inode != NULL);
 
-	return (inode_compression_plugin(inode) != compression_plugin_by_id(NONE_COMPRESSION_ID)) &&
-		(tc->len < (encrypted ? inode_scaled_offset(inode, fsize_to_count(clust, inode)) : fsize_to_count(clust, inode)));
-
+	return tc->len < 
+		(encrypted ?
+		 inode_scaled_offset(inode, fsize_to_count(clust, inode)) :
+		 fsize_to_count(clust, inode));
 }
 
 static void set_compression_magic(__u8 * magic)
@@ -975,6 +994,7 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		result = grab_tfm_stream(inode, tc, TFM_READ, OUTPUT_STREAM);
 		if (result)
 			return result;
+		assert("edward-1305", cplug->decompress != NULL);
 		assert("edward-910", tfm_cluster_is_set(tc));
 
 		/* Check compression magic for possible IO errors.
@@ -1037,11 +1057,14 @@ readpage_cryptcompress(void *vp, struct page *page)
 
 	assert("edward-88", PageLocked(page));
 	assert("edward-89", page->mapping && page->mapping->host);
-
+	
+	result = check_cryptcompress(page->mapping->host);
+	if (result)
+		return result;
 	file = vp;
 	if (file)
 		assert("edward-113", page->mapping == file->f_dentry->d_inode->i_mapping);
-
+	
 	if (PageUptodate(page)) {
 		printk("readpage_cryptcompress: page became already uptodate\n");
 		unlock_page(page);
@@ -1076,6 +1099,8 @@ readpages_cryptcompress(struct file *file, struct address_space *mapping,
 	assert("edward-1112", mapping != NULL);
 	assert("edward-1113", mapping->host != NULL);
 
+	if (check_cryptcompress(mapping->host))
+		return;
 	fplug = inode_file_plugin(mapping->host);
 
 	assert("edward-1114", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
@@ -2363,7 +2388,10 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	assert("edward-159", current_blocksize == PAGE_CACHE_SIZE);
 	assert("edward-749", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
 	assert("edward-1274", get_current_context()->grabbed_blocks == 0);
-
+	
+	result = check_cryptcompress(inode);
+	if (result)
+		return result;
 	result = load_file_hint(file, &hint);
 	if (result)
 		return result;
@@ -3367,6 +3395,9 @@ setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 {
 	int result;
 
+	result = check_cryptcompress(inode);
+	if (result)
+		return result;
 	if (attr->ia_valid & ATTR_SIZE) {
 		/* EDWARD-FIXME-HANS: VS-FIXME-HANS:
 		   Q: this case occurs when? truncate?
