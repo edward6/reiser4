@@ -269,9 +269,13 @@ move_cluster_forward(reiser4_cluster_t * clust, struct inode * inode,
 
 	reset_cluster_params(clust);
 	if (*progress &&
-	    /* hole in the indices */
-	    pg_to_clust(pgidx, inode) != clust->index + 1)
+	    /* Hole in the indices. Hint became invalid and can not be
+	       used by find_cluster_item() even if seal/node versions
+	       will coincide */
+	    pg_to_clust(pgidx, inode) != clust->index + 1) {
+		unset_hint(clust->hint);
 		invalidate_hint_cluster(clust);
+	}
 	*progress = 1;
 	clust->index = pg_to_clust(pgidx, inode);
 }
