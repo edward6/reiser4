@@ -2,7 +2,6 @@
 /* reiser4 compression transform plugins */
 
 #include "../../debug.h"
-#include "../../reiser4.h"
 #include "../plugin.h"
 #include "../cryptcompress.h"
 #include "minilzo.h"
@@ -87,7 +86,7 @@ gzip1_nocompress_alloc(tfm_action act)
 			ret = -ENOMEM;
 			break;
 		}
-		xmemset(coa, 0, zlib_inflate_workspacesize());
+		memset(coa, 0, zlib_inflate_workspacesize());
 		break;
 	default:
 		impossible("edward-1299", "unknown tfm action");
@@ -149,7 +148,7 @@ gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	int ret = 0;
 	struct z_stream_s stream;
 
-	xmemset(&stream, 0, sizeof(stream));
+	memset(&stream, 0, sizeof(stream));
 
 	assert("edward-842", coa != NULL);
 	assert("edward-875", src_len != 0);
@@ -193,7 +192,7 @@ gzip1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 	int ret = 0;
 	struct z_stream_s stream;
 
-	xmemset(&stream, 0, sizeof(stream));
+	memset(&stream, 0, sizeof(stream));
 
 	assert("edward-843", coa != NULL);
 	assert("edward-876", src_len != 0);
