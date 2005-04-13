@@ -33,7 +33,6 @@ Cryptcompress specific fields of reiser4 inode/stat-data:
 #include "../super.h"
 #include "../context.h"
 #include "../cluster.h"
-#include "../reiser4.h"
 #include "../seal.h"
 #include "../vfs_ops.h"
 #include "plugin.h"
@@ -1886,7 +1885,12 @@ find_cluster(reiser4_cluster_t * clust,
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
 
 	while (f.length) {
-		result = find_cluster_item(hint, &f.key, (write ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK), NULL, FIND_EXACT, 0);
+		result = find_cluster_item(hint, 
+					   &f.key, 
+					   (write ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK), 
+					   NULL, 
+					   FIND_EXACT, 
+					   (write ? CBK_FOR_INSERT : 0));
 		switch (result) {
 		case CBK_COORD_NOTFOUND:
 			if (inode_scaled_offset(inode, clust_to_off(cl_idx, inode)) == get_key_offset(&f.key)) {
