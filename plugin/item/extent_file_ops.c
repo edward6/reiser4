@@ -1204,10 +1204,10 @@ extent_readpage_filler(void *data, struct page *page)
 		    coord_extension_is_ok2(ext_coord, &key)));
 
 	lock_page(page);
-	if (!PageUptodate(page))
+	if (!PageUptodate(page)) {
 		result = do_readpage_extent(ext_by_ext_coord(ext_coord),
 					    ext_coord->extension.extent.pos_in_unit, page);
-	else {
+	} else {
 		unlock_page(page);
 		result = 0;
 	}
@@ -1233,7 +1233,8 @@ static int
 call_page_cache_readahead(struct address_space *mapping, struct file *file,
 			  hint_t *hint,
 			  unsigned long page_nr,
-			  unsigned long ra_pages)
+			  unsigned long ra_pages,
+			  struct file_ra_state *ra)
 {
 	reiser4_file_fsdata *fsdata;
 	int result;
@@ -1244,7 +1245,7 @@ call_page_cache_readahead(struct address_space *mapping, struct file *file,
 	fsdata->ra2.data = hint;
 	fsdata->ra2.readpages = extent_readpages_hook;
 
-	result = page_cache_readahead(mapping, &file->f_ra, file, page_nr, ra_pages);
+	result = page_cache_readahead(mapping, ra, file, page_nr, ra_pages);
 	fsdata->ra2.readpages = NULL;
 	return result;
 }
@@ -1263,6 +1264,9 @@ read_extent(struct file *file, flow_t *flow, hint_t *hint)
 	coord_t *coord;
 	extent_coord_extension_t *ext_coord;
 	unsigned long nr_pages;
+	struct file_ra_state ra;
+
+	ra = file->f_ra;
 
 	assert("vs-1353", current_blocksize == PAGE_CACHE_SIZE);
 	assert("vs-572", flow->user == 1);
@@ -1300,14 +1304,15 @@ read_extent(struct file *file, flow_t *flow, hint_t *hint)
 
 	do {
 		if (next_page == cur_page)
-			next_page = call_page_cache_readahead(mapping, file, hint, cur_page, nr_pages);
+			next_page = call_page_cache_readahead(mapping, file, hint, cur_page, nr_pages, &ra);
 
-		/* this will return page if it exists and is uptodate,
-		   otherwise it will allocate page and call readpage_extent to
-		   fill it */
-		page = read_cache_page(mapping, cur_page, readpage_unix_file, file);
-		if (IS_ERR(page))
-			return PTR_ERR(page);
+		page = find_get_page(mapping, cur_page);
+		if (unlikely(page == NULL)) {
+			handle_ra_miss(mapping, &ra, cur_page);
+			page = read_cache_page(mapping, cur_page, readpage_unix_file, file);
+			if (IS_ERR(page))
+				return PTR_ERR(page);
+		}
 
 		wait_on_page_locked(page);
 		if (!PageUptodate(page)) {
@@ -1346,6 +1351,7 @@ read_extent(struct file *file, flow_t *flow, hint_t *hint)
 		nr_pages --;
 	} while (flow->length);
 
+	file->f_ra = ra;
 	return 0;
 }
 
