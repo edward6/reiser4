@@ -121,11 +121,11 @@ static void gzip1_free(coa_t coa, tfm_action act)
 static void gzip1_nocompress_free(coa_t coa, tfm_action act)
 {
 	assert("edward-1301", coa != NULL);
-	
+
 	switch (act) {
 	case TFM_READ:	/* decompress */
 		vfree(coa);
-	case TFM_WRITE:	/* compress */	
+	case TFM_WRITE:	/* compress */
 		impossible("edward-1302",
 			   "trying to free non-allocated workspace");
 	default:
@@ -144,7 +144,7 @@ static void
 gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	       __u8 * dst_first, unsigned *dst_len)
 {
-#if REISER4_GZIP_TFM	
+#if REISER4_GZIP_TFM
 	int ret = 0;
 	struct z_stream_s stream;
 
@@ -188,7 +188,7 @@ static void
 gzip1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 		 __u8 * dst_first, unsigned *dst_len)
 {
-#if REISER4_GZIP_TFM 
+#if REISER4_GZIP_TFM
 	int ret = 0;
 	struct z_stream_s stream;
 

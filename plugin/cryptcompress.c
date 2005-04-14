@@ -819,7 +819,7 @@ static int
 try_compress(tfm_cluster_t * tc, cloff_t index, struct inode * inode)
 {
 	return (inode_compression_plugin(inode)->compress != NULL) &&
-		SHOULD_COMPRESS_CLUSTER(index) && 
+		SHOULD_COMPRESS_CLUSTER(index) &&
 		(tc->len >= min_size_to_compress(inode));
 }
 
@@ -845,11 +845,11 @@ need_decompression(reiser4_cluster_t * clust, struct inode * inode,
 		   int encrypted /* is cluster encrypted */)
 {
 	tfm_cluster_t * tc = &clust->tc;
-	
+
 	assert("edward-142", tc != 0);
 	assert("edward-143", inode != NULL);
 
-	return tc->len < 
+	return tc->len <
 		(encrypted ?
 		 inode_scaled_offset(inode, fsize_to_count(clust, inode)) :
 		 fsize_to_count(clust, inode));
@@ -1056,14 +1056,14 @@ readpage_cryptcompress(void *vp, struct page *page)
 
 	assert("edward-88", PageLocked(page));
 	assert("edward-89", page->mapping && page->mapping->host);
-	
+
 	result = check_cryptcompress(page->mapping->host);
 	if (result)
 		return result;
 	file = vp;
 	if (file)
 		assert("edward-113", page->mapping == file->f_dentry->d_inode->i_mapping);
-	
+
 	if (PageUptodate(page)) {
 		printk("readpage_cryptcompress: page became already uptodate\n");
 		unlock_page(page);
@@ -1885,11 +1885,11 @@ find_cluster(reiser4_cluster_t * clust,
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
 
 	while (f.length) {
-		result = find_cluster_item(hint, 
-					   &f.key, 
-					   (write ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK), 
-					   NULL, 
-					   FIND_EXACT, 
+		result = find_cluster_item(hint,
+					   &f.key,
+					   (write ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK),
+					   NULL,
+					   FIND_EXACT,
 					   (write ? CBK_FOR_INSERT : 0));
 		switch (result) {
 		case CBK_COORD_NOTFOUND:
@@ -2392,7 +2392,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	assert("edward-159", current_blocksize == PAGE_CACHE_SIZE);
 	assert("edward-749", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
 	assert("edward-1274", get_current_context()->grabbed_blocks == 0);
-	
+
 	result = check_cryptcompress(inode);
 	if (result)
 		return result;
@@ -3117,9 +3117,9 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 		   is fake (don't have disk cluster) */
 		INODE_SET_FIELD(inode, i_size, new_size);
 		if (old_size > new_size) {
-			/* Drop page cluster. 
+			/* Drop page cluster.
 			   There are only 2 cases for partially truncated page:
-			   1. If is is dirty, therefore it is anonymous 
+			   1. If is is dirty, therefore it is anonymous
 			      (was dirtied via mmap), and will be captured
 			      later via ->capture().
 			   2. If is clean, therefore it is filled by zeroes.
