@@ -323,6 +323,31 @@ inode_set_crypto(struct inode * object, crypto_data_t * data)
 	return result;
 }
 
+static compression_plugin *
+dual_compression(compression_plugin * cplug)
+{
+	assert("edward-130", cplug != NULL);
+	return compression_plugin_by_id(cplug->dual);
+}
+
+/* set dual compression plugin */
+static int
+inode_invert_compression(struct inode * inode)
+{
+	int result;
+
+	assert("edward-1308", inode != NULL);
+
+	result = force_plugin(inode, 
+			      PSET_COMPRESSION,
+			      compression_plugin_to_plugin
+			      (dual_compression(inode_compression_plugin(inode))));
+	if (result)
+		return result;
+	mark_inode_dirty(inode);
+	return 0;
+}
+
 static int
 inode_set_compression(struct inode * object, compression_data_t * data)
 {
@@ -795,7 +820,9 @@ max_crypto_overhead(struct inode * inode)
 static unsigned
 compress_overhead(struct inode * inode, int in_len)
 {
-	return inode_compression_plugin(inode)->overrun(in_len);
+	return (inode_compression_plugin(inode)->overrun != NULL ?
+		inode_compression_plugin(inode)->overrun(in_len) :
+		0);
 }
 
 /* Since small input stream can not get compressed,
@@ -886,8 +913,9 @@ grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc,
 	return 0;
 }
 
-/* Common deflate cluster manager */
+#define SMART_COMPRESSION_MODE
 
+/* Common deflate cluster manager */
 reiser4_internal int
 deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 {
@@ -923,11 +951,20 @@ deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		if (save_compressed(tc->len, dst_len, inode)) {
 			/* accept */
 			tc->len = dst_len;
-
+			
 			set_compression_magic(tfm_stream_data(tc, OUTPUT_STREAM) + tc->len);
 			tc->len += DC_CHECKSUM_SIZE;
 			transformed = 1;
 		}
+#if defined(SMART_COMPRESSION_MODE)
+		else {
+			/* discard */
+			inode_invert_compression(inode);
+			warning("edward-1309",
+				"incompressible data: inode %llu, cluster %lu",
+				(unsigned long long)get_inode_oid(inode), clust->index);
+		}
+#endif
 	}
 	if (try_encrypt(inode)) {
 		crypto_plugin * cplug;
@@ -1291,16 +1328,13 @@ try_capture_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-1033", clust->pages[0] != NULL);
 
 	node = jprivate(clust->pages[0]);
-
+	
 	assert("edward-1035", node != NULL);
-
-	if (clust->win) {
-		spin_lock_inode(inode);
-		LOCK_JNODE(node);
+	
+	LOCK_JNODE(node);
+	if (clust->win)
 		inode_set_new_size(clust, inode);
-	}
-	else
-		LOCK_JNODE(node);
+	
 	result = try_capture(node, ZNODE_WRITE_LOCK, 0, 0);
 	if (result)
 		goto exit;
@@ -1308,8 +1342,6 @@ try_capture_cluster(reiser4_cluster_t * clust, struct inode * inode)
  exit:
 	assert("edward-1034", !result);
 	UNLOCK_JNODE(node);
-	if (clust->win)
-		spin_unlock_inode(inode);
 	jput(node);
 	return result;
 }
@@ -2341,10 +2373,6 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust,
 		loff_t hole_size;
 		hole_size = file_off - inode->i_size;
 
-		printk("edward-176, Warning: Hole of size %llu in "
-		       "cryptcompress file (inode %llu, offset %llu) \n",
-		       hole_size, (unsigned long long)get_inode_oid(inode), file_off);
-
 		set_window(clust, win, inode, inode->i_size, file_off);
 		win->stat = HOLE_WINDOW;
 		if (win->off + hole_size < inode_cluster_size(inode))
@@ -2902,13 +2930,9 @@ cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
 	win.stat = HOLE_WINDOW;
 
 	assert("edward-1137", clust.index == off_to_clust(inode->i_size, inode));
-#if REISER4_DEBUG
-	printk("edward-1138, Warning: Hole of size %llu in "
-	       "cryptcompress file (inode %llu); "
-	       "%u zeroes appended to cluster (index = %lu) \n",
-	       hole_size, (unsigned long long)get_inode_oid(inode), nr_zeroes, clust.index);
-#endif
+
 	result = prepare_cluster(inode, 0, 0, &clust, PCL_APPEND);
+
 	assert("edward-1271", !result);
 	if (result)
 		goto out;
