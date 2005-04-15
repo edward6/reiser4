@@ -236,15 +236,6 @@ gzip1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 }
 
 /******************************************************************************/
-/*                            none compression                                */
-/******************************************************************************/
-
-static int none_overrun(unsigned src_len UNUSED_ARG)
-{
-	return 0;
-}
-
-/******************************************************************************/
 /*                            lzo1 compression                                */
 /******************************************************************************/
 
@@ -375,9 +366,9 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				       "absence of any compression transform",
 				       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				 ,
-				 .antiplugin = NONE_COMPRESSION_ID,
+				 .dual = NONE_COMPRESSION_ID,
 				 .init = NULL,
-				 .overrun = none_overrun,
+				 .overrun = NULL,
 				 .alloc = NULL,
 				 .free = NULL,
 				 .min_tfm_size = NULL,
@@ -394,7 +385,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				       .desc = "lzo1 compression transform",
 				       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				 ,
-				 .antiplugin = LZO1_NO_COMPRESSION_ID,
+				 .dual = LZO1_NO_COMPRESSION_ID,
 				 .init = NULL,
 				 .overrun = lzo1_overrun,
 				 .alloc = lzo1_alloc,
@@ -413,7 +404,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				       .desc = "lzo1 compression transform",
 				       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				 ,
-				 .antiplugin = LZO1_COMPRESSION_ID,
+				 .dual = LZO1_COMPRESSION_ID,
 				 .init = NULL,
 				 .overrun = NULL,
 				 .alloc = NULL,
@@ -432,7 +423,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 					.desc = "gzip1 compression transform",
 					.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				  ,
-				  .antiplugin = GZIP1_NO_COMPRESSION_ID,
+				  .dual = GZIP1_NO_COMPRESSION_ID,
 				  .init = gzip1_init,
 				  .overrun = gzip1_overrun,
 				  .alloc = gzip1_alloc,
@@ -451,7 +442,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 					.desc = "gzip1 compression transform",
 					.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				  ,
-				  .antiplugin = GZIP1_COMPRESSION_ID,
+				  .dual = GZIP1_COMPRESSION_ID,
 				  .init = gzip1_init,
 				  .overrun = NULL,
 				  .alloc = gzip1_nocompress_alloc,
