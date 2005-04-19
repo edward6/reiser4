@@ -1380,6 +1380,50 @@ commit_some_atoms(txn_mgr * mgr)
 	return 0;
 }
 
+static int txn_try_to_fuse_small_atom (txn_mgr * tmgr, txn_atom * atom)
+{
+	int atom_stage;
+	txn_atom *atom_2;
+	int repeat;
+	
+	assert ("zam-1051", atom->stage < ASTAGE_PRE_COMMIT);
+
+	atom_stage = atom->stage;
+	repeat = 0;
+
+	if (!spin_trylock_txnmgr(tmgr)) {
+		UNLOCK_ATOM(atom);
+		spin_lock_txnmgr(tmgr);
+		LOCK_ATOM(atom);
+		repeat = 1;
+		if (atom->stage != atom_stage)
+			goto out;
+	}
+
+	for_all_type_safe_list(atom, &tmgr->atoms_list, atom_2) {
+		if (atom == atom_2)
+			continue;
+		/* if trylock does not succeed we just do not fuse with that
+		 * atom. */
+		if (spin_trylock_atom(atom_2)) {
+			if (atom_2->stage < ASTAGE_PRE_COMMIT) {
+				spin_unlock_txnmgr(tmgr);
+				capture_fuse_into(atom_2, atom);
+				goto out;
+			}
+			UNLOCK_ATOM(atom_2);
+		}
+	}
+	spin_unlock_txnmgr(tmgr);
+	atom->flags |= ATOM_CANCEL_FUSION;
+ out: 
+	if (repeat) {
+		UNLOCK_ATOM(atom);
+		return -E_REPEAT;
+	}
+	return 0;
+}
+
 /* Calls jnode_flush for current atom if it exists; if not, just take another
    atom and call jnode_flush() for him.  If current transaction handle has
    already assigned atom (current atom) we have to close current transaction
@@ -1397,6 +1441,7 @@ reiser4_internal int
 flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int flags)
 {
 	reiser4_context *ctx = get_current_context();
+	txn_mgr *tmgr = &get_super_private(ctx->super)->tmgr;
 	txn_handle *txnh = ctx->trans;
 	txn_atom *atom;
 	int ret;
@@ -1406,8 +1451,6 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
  repeat:
 	if (txnh->atom == NULL) {
 		/* current atom is available, take first from txnmgr */
-		txn_mgr *tmgr = &get_super_private(ctx->super)->tmgr;
-
 		spin_lock_txnmgr(tmgr);
 
 		/* traverse the list of all atoms */
@@ -1463,6 +1506,12 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 	ret = flush_current_atom(flags, nr_submitted, &atom);
 	if (ret == 0) {
 		if (*nr_submitted == 0 || atom_should_commit_asap(atom)) {
+			if (atom->capture_count < tmgr->atom_min_size && 
+			    !(atom->flags & ATOM_CANCEL_FUSION)) {
+				ret =txn_try_to_fuse_small_atom(tmgr, atom);
+				if (ret == -E_REPEAT)
+					goto repeat;
+			}
 			/* if early flushing could not make more nodes clean,
 			 * or atom is too old/large,
 			 * we force current atom to commit */

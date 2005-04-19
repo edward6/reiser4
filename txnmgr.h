@@ -161,7 +161,10 @@ typedef enum {
 /* Certain flags may be set in the txn_atom->flags field. */
 typedef enum {
 	/* Indicates that the atom should commit as soon as possible. */
-	ATOM_FORCE_COMMIT = (1 << 0)
+	ATOM_FORCE_COMMIT = (1 << 0),
+	/* to avoid endless loop, mark the atom (which was considered as too
+	 * small) after failed attempt to fuse it. */
+	ATOM_CANCEL_FUSION = (1 << 1)
 } txn_flags;
 
 /* Flags for controlling commit_txnh */
@@ -434,6 +437,7 @@ struct txn_mgr {
 	/* parameters. Adjustable through mount options. */
 	unsigned int atom_max_size;
 	unsigned int atom_max_age;
+	unsigned int atom_min_size;
 	/* max number of concurrent flushers for one atom, 0 - unlimited.  */
 	unsigned int atom_max_flushers;
 };

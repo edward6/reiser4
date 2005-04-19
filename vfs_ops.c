@@ -955,6 +955,12 @@ do {						\
 	decimal.
 	*/
 	PUSH_SB_FIELD_OPT(tmgr.atom_max_age, "%u");
+	/* tmgr.atom_min_size=N
+
+	In committing an atom to free dirty pages, force the atom less than N in
+	size to fuse with another one.
+	 */
+	PUSH_SB_FIELD_OPT(tmgr.atom_min_size, "%u");
 	/* tmgr.atom_max_flushers=N
 
 	limit of concurrent flushers for one atom. 0 means no limit.
@@ -1047,6 +1053,7 @@ do {						\
 
 	sbinfo->tmgr.atom_max_size = txnmgr_get_max_atom_size(s);
 	sbinfo->tmgr.atom_max_age = REISER4_ATOM_MAX_AGE / HZ;
+	sbinfo->tmgr.atom_min_size = 256;
 	sbinfo->tmgr.atom_max_flushers = ATOM_MAX_FLUSHERS;
 
 	sbinfo->tree.cbk_cache.nr_slots = CBK_CACHE_SLOTS;
