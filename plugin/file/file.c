@@ -2578,13 +2578,30 @@ init_inode_data_unix_file(struct inode *inode,
 	init_inode_ordering(inode, crd, create);
 }
 
-/* VS-FIXME-HANS: what is pre deleting all about? */
-/* plugin->u.file.pre_delete */
+/* plugin->u.file.pre_delete 
+
+   We need this because generic_delete_inode calls truncate_inode_pages before
+   filesystem's delete_inode method. As result of this, reiser4 tree may have
+   unallocated extents which do not have pages pointed by them (those pages are
+   removed by truncate_inode_pages), which may confuse flush code. The solution
+   for this problem is to call pre_delete method from reiser4_put_inode to
+   remove file items together with corresponding pages. Generic_delete_inode
+   will call truncate_inode_pages which will do nothing and
+   reiser4_delete_inode which completes file deletion by removing stat data
+   from the tree.
+   This method is to be called from reiser4_put_inode when file is already
+   unlinked and iput is about to drop last reference to inode.  If nfsd manages
+   to iget the file after pre_delete started, it will either be able to access
+   a file content (if it will get access to file earlier than pre_delete) or it
+   will get file truncated to 0 size if pre_delete goes first
+*/
 reiser4_internal int
 pre_delete_unix_file(struct inode *inode)
 {
 	unix_file_info_t *uf_info;
 	int result;
+
+	txn_restart_current();
 
 	/* FIXME: put comment here */
 	uf_info = unix_file_inode_data(inode);

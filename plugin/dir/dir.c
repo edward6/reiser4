@@ -141,7 +141,7 @@ link_common(struct inode *parent /* parent directory */ ,
 	 * For such inode we have to undo special processing done in
 	 * reiser4_unlink() viz. creation of safe-link.
 	 */
-	if (unlikely(inode_file_plugin(object)->not_linked(object))) {
+	if (unlikely(object->i_nlink == 0)) {
 		result = safe_link_del(tree_by_inode(object),
 				       get_inode_oid(object), SAFE_UNLINK);
 		if (result != 0)
@@ -291,7 +291,7 @@ unlink_common(struct inode *parent /* parent object */ ,
 			   marked for update. --SUS */
 			reiser4_update_dir(parent);
 			/* add safe-link for this file */
-			if (fplug->not_linked(object))
+			if (object->i_nlink == 0)
 				safe_link_add(object, SAFE_UNLINK);
 		}
 	}

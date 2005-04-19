@@ -56,14 +56,14 @@
 
 /* super operations */
 
-static struct inode *reiser4_alloc_inode(struct super_block *super);
-static void reiser4_destroy_inode(struct inode *inode);
-static void reiser4_drop_inode(struct inode *);
+static struct inode *reiser4_alloc_inode(struct super_block *);
+static void reiser4_destroy_inode(struct inode *);
+static void reiser4_put_inode(struct inode *);
 static void reiser4_delete_inode(struct inode *);
 static void reiser4_write_super(struct super_block *);
 static int reiser4_statfs(struct super_block *, struct kstatfs *);
 static int reiser4_show_options(struct seq_file *m, struct vfsmount *mnt);
-static void reiser4_sync_inodes(struct super_block *s, struct writeback_control * wbc);
+static void reiser4_sync_inodes(struct super_block *, struct writeback_control *);
 
 extern struct dentry_operations reiser4_dentry_operation;
 
@@ -530,25 +530,29 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	kmem_cache_free(inode_cache, container_of(info, reiser4_inode_object, p));
 }
 
-/* our ->drop_inode() method. This is called by iput_final() when last
- * reference on inode is released */
+/* put_inode of super_operations 
+
+   we use put_inode to call pre_delete method of file plugin if it is defined
+   and if inode is unlinked and if it is about to drop inode reference count to
+   0. */
 static void
-reiser4_drop_inode(struct inode *object)
+reiser4_put_inode(struct inode *inode)
 {
+	reiser4_context ctx;
 	file_plugin *fplug;
 
-	assert("nikita-2643", object != NULL);
+	fplug = inode_file_plugin(inode);
+	if (fplug == NULL || 
+	    inode->i_nlink != 0 ||
+	    atomic_read(&inode->i_count) > 1 ||
+	    fplug->pre_delete == NULL)
+		return;
 
-	/* -not- creating context in this method, because it is frequently
-	   called and all existing ->not_linked() methods are one liners. */
-
-	fplug = inode_file_plugin(object);
-	/* fplug is NULL for fake inode */
-	if (fplug != NULL) {
-		assert("nikita-3251", fplug->drop != NULL);
-		fplug->drop(object);
-	} else
-		generic_forget_inode(object);
+	init_context(&ctx, inode->i_sb);
+	/* kill cursors which might be attached to inode if it were a directory one */
+	kill_cursors(inode);
+	fplug->pre_delete(inode);	
+	reiser4_exit_context(&ctx);
 }
 
 /*
@@ -1358,8 +1362,8 @@ struct super_operations reiser4_super_operations = {
 	.read_inode = noop_read_inode,
 	.dirty_inode = NULL,
  	.write_inode = NULL,
- 	.put_inode = NULL,
-	.drop_inode = reiser4_drop_inode,
+ 	.put_inode = reiser4_put_inode,
+	.drop_inode = NULL,
 	.delete_inode = reiser4_delete_inode,
 	.put_super = reiser4_put_super,
 	.write_super = reiser4_write_super,

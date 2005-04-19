@@ -473,7 +473,7 @@ reiser4_iget(struct super_block *super /* super block  */ ,
 			print_key("sought for", key);
 			print_key("found", &found_key);
 		}
-		if (inode_file_plugin(inode)->not_linked(inode)) {
+		if (inode->i_nlink == 0) {
 			warning("nikita-3559", "Unlinked inode found: %llu\n",
 				(unsigned long long)get_inode_oid(inode));
 		}

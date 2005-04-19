@@ -743,21 +743,21 @@ rem_link_common(struct inode *object, struct inode *parent UNUSED_ARG)
 	return 0;
 }
 
-/* ->not_linked() method for file plugins */
+/* default (for directories) ->rem_link() method of file plugin */
 static int
-not_linked_common(const struct inode *inode)
+rem_link_common_dir(struct inode *object, struct inode *parent UNUSED_ARG)
 {
-	assert("nikita-2007", inode != NULL);
-	return (inode->i_nlink == 0);
-}
+	assert("nikita-20211", object != NULL);
+	assert("nikita-21631", object->i_nlink > 0);
 
-/* ->not_linked() method the for directory file plugin */
-static int
-not_linked_dir(const struct inode *inode)
-{
-	assert("nikita-2008", inode != NULL);
-	/* one link from dot */
-	return (inode->i_nlink == 1);
+	/*
+	 * decrement ->i_nlink and update ->i_ctime
+	 */
+	INODE_DEC_FIELD(object, i_nlink);
+	if (object->i_nlink == 1)
+		INODE_DEC_FIELD(object, i_nlink);
+	object->i_ctime = CURRENT_TIME;
+	return 0;
 }
 
 /* ->adjust_to_parent() method for regular files */
@@ -954,102 +954,6 @@ setattr_common(struct inode *inode /* Object to change attributes */,
 
 	all_grabbed2free();
 	return result;
-}
-
-/* doesn't seem to be exported in headers. */
-extern spinlock_t inode_lock;
-
-/* ->delete_inode() method. This is called by
- * iput()->iput_final()->drop_inode() when last reference to inode is released
- * and inode has no names. */
-static void delete_inode_common(struct inode *object)
-{
-	/* create context here.
-	 *
-	 * removal of inode from the hash table (done at the very beginning of
-	 * generic_delete_inode(), truncate of pages, and removal of file's
-	 * extents has to be performed in the same atom. Otherwise, it may so
-	 * happen, that twig node with unallocated extent will be flushed to
-	 * the disk.
-	 */
-	reiser4_context ctx;
-
-	/*
-	 * FIXME: this resembles generic_delete_inode
-	 */
-	list_del_init(&object->i_list);
-	list_del_init(&object->i_sb_list);
-	object->i_state |= I_FREEING;
-	inodes_stat.nr_inodes--;
-	spin_unlock(&inode_lock);
-
-	init_context(&ctx, object->i_sb);
-
-	kill_cursors(object);
-
-	if (!is_bad_inode(object)) {
-		file_plugin *fplug;
-
-		/* truncate object body */
-		fplug = inode_file_plugin(object);
-		if (fplug->pre_delete != NULL && fplug->pre_delete(object) != 0)
-			warning("vs-1216", "Failed to delete file body %llu",
-				(unsigned long long)get_inode_oid(object));
-		else
-			assert("vs-1430",
-			       reiser4_inode_data(object)->anonymous_eflushed == 0 &&
-			       reiser4_inode_data(object)->captured_eflushed == 0);
-	}
-
-	if (object->i_data.nrpages) {
-		warning("vs-1434", "nrpages %ld\n", object->i_data.nrpages);
-		truncate_inode_pages(&object->i_data, 0);
-	}
-	security_inode_delete(object);
-	if (!is_bad_inode(object))
-		DQUOT_INIT(object);
-
-	object->i_sb->s_op->delete_inode(object);
-
-	spin_lock(&inode_lock);
-	hlist_del_init(&object->i_hash);
-	spin_unlock(&inode_lock);
-	wake_up_inode(object);
-	if (object->i_state != I_CLEAR)
-		BUG();
-	destroy_inode(object);
-	reiser4_exit_context(&ctx);
-}
-
-/*
- * ->forget_inode() method. Called by iput()->iput_final()->drop_inode() when
- * last reference to inode with names is released
- */
-static void forget_inode_common(struct inode *object)
-{
-	generic_forget_inode(object);
-}
-
-/* ->drop_inode() method. Called by iput()->iput_final() when last reference
- * to inode is released */
-static void drop_common(struct inode * object)
-{
-	file_plugin *fplug;
-
-	assert("nikita-2643", object != NULL);
-
-	/* -not- creating context in this method, because it is frequently
-	   called and all existing ->not_linked() methods are one liners. */
-
-	fplug = inode_file_plugin(object);
-	/* fplug is NULL for fake inode */
-	if (fplug != NULL && fplug->not_linked(object)) {
-		assert("nikita-3231", fplug->delete_inode != NULL);
-		fplug->delete_inode(object);
-	} else {
-		assert("nikita-3232", fplug->forget_inode != NULL);
-		fplug->forget_inode(object);
-	}
 }
 
 static ssize_t
@@ -1295,7 +1199,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.owns_item = owns_item_unix_file,
 		.can_add_link = can_add_link_common,
 		.can_rem_link = NULL,
-		.not_linked = not_linked_common,
 		.setattr = setattr_unix_file,
 		.getattr = getattr_common,
 		.seek = NULL,
@@ -1317,10 +1220,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.init_inode_data = init_inode_data_unix_file,
 		.pre_delete = pre_delete_unix_file,
 		.cut_tree_worker = cut_tree_worker_common,
-		.drop = drop_common,
-		.delete_inode = delete_inode_common,
 		.destroy_inode = NULL,
-		.forget_inode = forget_inode_common,
 		.sendfile = sendfile_unix_file,
 		.prepare_write = prepare_write_unix_file
 	},
@@ -1352,11 +1252,10 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.delete = delete_directory_common,
 		.sync = sync_common,
 		.add_link = add_link_common,
-		.rem_link = rem_link_common,
+		.rem_link = rem_link_common_dir,
 		.owns_item = owns_item_hashed,
 		.can_add_link = can_add_link_common,
 		.can_rem_link = can_rem_dir,
-		.not_linked = not_linked_dir,
 		.setattr = setattr_common,
 		.getattr = getattr_common,
 		.seek = seek_dir,
@@ -1378,10 +1277,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.cut_tree_worker = cut_tree_worker_common,
-		.drop = drop_common,
-		.delete_inode = delete_inode_common,
 		.destroy_inode = NULL,
-		.forget_inode = forget_inode_common,
 	},
 	[SYMLINK_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1418,7 +1314,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.owns_item = NULL,
 		.can_add_link = can_add_link_common,
 		.can_rem_link = NULL,
-		.not_linked = not_linked_common,
 		.setattr = setattr_common,
 		.getattr = getattr_common,
 		.seek = NULL,
@@ -1440,10 +1335,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.cut_tree_worker = cut_tree_worker_common,
-		.drop = drop_common,
-		.delete_inode = delete_inode_common,
 		.destroy_inode = destroy_inode_symlink,
-		.forget_inode = forget_inode_common,
 	},
 	[SPECIAL_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1478,7 +1370,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.owns_item = owns_item_common,
 		.can_add_link = can_add_link_common,
 		.can_rem_link = NULL,
-		.not_linked = not_linked_common,
 		.setattr = setattr_common,
 		.getattr = getattr_common,
 		.seek = NULL,
@@ -1500,10 +1391,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.init_inode_data = init_inode_ordering,
 		.pre_delete = NULL,
 		.cut_tree_worker = cut_tree_worker_common,
-		.drop = drop_common,
-		.delete_inode = delete_inode_common,
 		.destroy_inode = NULL,
-		.forget_inode = forget_inode_common,
 	},
 	[PSEUDO_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1538,7 +1426,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.owns_item         = NULL,
 		.can_add_link      = cannot,
 		.can_rem_link      = cannot,
-		.not_linked        = NULL,
 		.setattr           = inode_setattr,
 		.getattr           = getattr_common,
 		.seek              = seek_pseudo,
@@ -1560,10 +1447,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.init_inode_data = NULL,
 		.pre_delete = NULL,
 		.cut_tree_worker = cut_tree_worker_common,
-		.drop = drop_pseudo,
-		.delete_inode = NULL,
 		.destroy_inode = NULL,
-		.forget_inode = NULL,
 	},
 	[CRC_FILE_PLUGIN_ID] = {
 		.h = {
@@ -1599,7 +1483,6 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.owns_item = owns_item_common,
 		.can_add_link = can_add_link_common,
 		.can_rem_link = NULL,
-		.not_linked = not_linked_common,
 		.setattr = setattr_cryptcompress,
 		.getattr = getattr_common,
 		.seek = NULL,
@@ -1622,10 +1505,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.init_inode_data = init_inode_data_cryptcompress,
 		.pre_delete = pre_delete_cryptcompress,
 		.cut_tree_worker = cut_tree_worker_cryptcompress,
-		.drop = drop_common,
-		.delete_inode = delete_inode_common,
 		.destroy_inode = destroy_inode_cryptcompress,
-		.forget_inode = forget_inode_common,
 		.sendfile = sendfile_common,
 		.prepare_write = prepare_write_common
 	}

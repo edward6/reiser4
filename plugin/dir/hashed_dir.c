@@ -1032,7 +1032,7 @@ rename_hashed(struct inode *old_dir /* directory where @old is located */ ,
 			/* add safe-link for target file (in case we removed
 			 * last reference to the poor fellow */
 			fplug = inode_file_plugin(new_inode);
-			if (fplug->not_linked(new_inode))
+			if (new_inode->i_nlink == 0)
 				result = safe_link_add(new_inode, SAFE_UNLINK);
 		}
 	}

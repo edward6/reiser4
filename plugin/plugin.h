@@ -238,8 +238,6 @@ Elena doing this for you if that helps.  Email me the list of the top 10, with t
 	int (*can_add_link) (const struct inode * inode);
 	/* checks whether hard links to this object can be removed */
 	int (*can_rem_link) (const struct inode * inode);
-	/* true if there is only one link (aka name) for this file */
-	int (*not_linked) (const struct inode * inode);
 
 	/* change inode attributes. */
 	int (*setattr) (struct inode * inode, struct iattr * attr);
@@ -293,16 +291,9 @@ Elena doing this for you if that helps.  Email me the list of the top 10, with t
 	/* truncate file to zero size. called by reiser4_drop_inode before truncate_inode_pages */
 	int (*pre_delete)(struct inode *);
 
-	/* called from reiser4_drop_inode() */
-	void (*drop)(struct inode *);
-
-	/* called from ->drop() when there are no links, and object should be
-	 * garbage collected. */
-	void (*delete_inode)(struct inode *);
-
 	/* called from ->destroy_inode() */
 	void (*destroy_inode)(struct inode *);
-	void (*forget_inode)(struct inode *);
+
 	ssize_t (*sendfile)(struct file *, loff_t *, size_t, read_actor_t, void __user *);
 	/*
 	 * methods to serialize object identify. This is used, for example, by
