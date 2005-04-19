@@ -1409,7 +1409,8 @@ static int txn_try_to_fuse_small_atom (txn_mgr * tmgr, txn_atom * atom)
 			if (atom_2->stage < ASTAGE_PRE_COMMIT) {
 				spin_unlock_txnmgr(tmgr);
 				capture_fuse_into(atom_2, atom);
-				goto out;
+				/* all locks are lost we can only repeat here */
+				return -E_REPEAT;
 			}
 			UNLOCK_ATOM(atom_2);
 		}
