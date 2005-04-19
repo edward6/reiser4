@@ -137,27 +137,6 @@ reiser4_get_parent_flags(lock_handle * result	/* resulting lock handle */,
 				      ZNODE_LOCK_HIPRI, flags, 1));
 }
 
-/* A wrapper for reiser4_get_parent_flags(). */
-reiser4_internal int
-reiser4_get_parent(lock_handle * result	/* resulting lock
-					   * handle */ ,
-		   znode * node /* child node */ ,
-		   znode_lock_mode mode /* type of lock: read or write */ ,
-		   int only_connected_p	/* if this is true, parent is
-					 * only returned when it is
-					 * connected. If parent is
-					 * unconnected, -E_NO_NEIGHBOR is
-					 * returned. Normal users should
-					 * pass 1 here. Only during carry
-					 * we want to access still
-					 * unconnected parents. */ )
-{
-	assert("umka-238", znode_get_tree(node) != NULL);
-
-	return reiser4_get_parent_flags(result, node, mode,
-					only_connected_p ? 0 : GN_ALLOW_NOT_CONNECTED);
-}
-
 /* wrapper function to lock right or left neighbor depending on GN_GO_LEFT
    bit in @flags parameter  */
 /* Audited by: umka (2002.06.14) */
@@ -705,7 +684,7 @@ again:
 	/* before establishing of sibling link we lock parent node; it is
 	   required by renew_neighbor() to work.  */
 	init_lh(&path[0]);
-	ret = reiser4_get_parent(&path[0], node, ZNODE_READ_LOCK, 1);
+	ret = reiser4_get_parent(&path[0], node, ZNODE_READ_LOCK);
 	if (ret)
 		return ret;
 	if (znode_above_root(path[0].node)) {
@@ -753,7 +732,7 @@ again:
 			/* sibling link is not available -- we go
 			   upward. */
 			init_lh(&path[h + 1]);
-			ret = reiser4_get_parent(&path[h + 1], parent, ZNODE_READ_LOCK, 1);
+			ret = reiser4_get_parent(&path[h + 1], parent, ZNODE_READ_LOCK);
 			if (ret)
 				goto fail;
 			++h;
@@ -1034,7 +1013,7 @@ static int tw_up (struct tw_handle * h)
 	init_load_count(&load);
 
 	do {
-		ret = reiser4_get_parent(&lock, h->tap.lh->node, ZNODE_WRITE_LOCK, 0);
+		ret = reiser4_get_parent(&lock, h->tap.lh->node, ZNODE_WRITE_LOCK);
 		if (ret)
 			break;
 		if (znode_above_root(lock.node)) {

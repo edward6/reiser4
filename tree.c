@@ -1400,7 +1400,7 @@ reiser4_internal int delete_node (znode * node, reiser4_key * smallest_removed,
 
 	init_lh(&parent_lock);
 
-	ret = reiser4_get_parent(&parent_lock, node, ZNODE_WRITE_LOCK, 0);
+	ret = reiser4_get_parent(&parent_lock, node, ZNODE_WRITE_LOCK);
 	if (ret)
 		return ret;
 

@@ -37,8 +37,6 @@ int
 reiser4_get_parent_flags(lock_handle * result, znode * node,
 			 znode_lock_mode mode, int flags);
 
-int reiser4_get_parent(lock_handle * result, znode * node, znode_lock_mode mode, int only_connected_p);
-
 /* bits definition for reiser4_get_neighbor function `flags' arg. */
 typedef enum {
 	/* If sibling pointer is NULL, this flag allows get_neighbor() to try to
@@ -61,6 +59,13 @@ typedef enum {
 	/*  Avoid synchronous jload, instead, call jstartio() and return -E_REPEAT. */
 	GN_ASYNC = 0x80
 } znode_get_neigbor_flags;
+
+/* A commonly used wrapper for reiser4_get_parent_flags(). */
+static inline int reiser4_get_parent(
+	lock_handle * result, znode * node, znode_lock_mode mode)
+{
+	return reiser4_get_parent_flags(result, node, mode, GN_ALLOW_NOT_CONNECTED);
+}
 
 int reiser4_get_neighbor(lock_handle * neighbor, znode * node, znode_lock_mode lock_mode, int flags);
 

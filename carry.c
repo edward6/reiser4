@@ -966,7 +966,7 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
 		assert("nikita-1186", reference_point != NULL);
 	}
 	if (node->parent && (result == 0)) {
-		result = reiser4_get_parent(&tmp_lh, reference_point, ZNODE_WRITE_LOCK, 0);
+		result = reiser4_get_parent(&tmp_lh, reference_point, ZNODE_WRITE_LOCK);
 		if (result != 0) {
 			;	/* nothing */
 		} else if (znode_get_level(tmp_lh.node) == 0) {

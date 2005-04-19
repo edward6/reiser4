@@ -1191,7 +1191,7 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 	} else {
 		if (!znode_is_root(pos->lock.node)) {
 			/* all formatted nodes except tree root */
-			ret = reiser4_get_parent(&plock, pos->lock.node, ZNODE_WRITE_LOCK, 0);
+			ret = reiser4_get_parent(&plock, pos->lock.node, ZNODE_WRITE_LOCK);
 			if (ret)
 				goto exit;
 
@@ -1704,11 +1704,11 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	init_load_count(&left_parent_load);
 	init_load_count(&right_parent_load);
 
- 	ret = reiser4_get_parent(&left_parent_lock, left, ZNODE_WRITE_LOCK, 0);
+ 	ret = reiser4_get_parent(&left_parent_lock, left, ZNODE_WRITE_LOCK);
 	if (ret)
 		goto out;
 
-	ret = reiser4_get_parent(&right_parent_lock, right, ZNODE_WRITE_LOCK, 0);
+	ret = reiser4_get_parent(&right_parent_lock, right, ZNODE_WRITE_LOCK);
 	if (ret)
 		goto out;
 
@@ -1811,7 +1811,7 @@ static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
 	init_lh(&parent_lock);
 	init_load_count(&parent_load);
 
-	ret = reiser4_get_parent(&parent_lock, node, ZNODE_WRITE_LOCK, 0);
+	ret = reiser4_get_parent(&parent_lock, node, ZNODE_WRITE_LOCK);
 	if (ret)
 		goto out;
 
@@ -2224,7 +2224,7 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 	init_lh(&parent_lock);
 	init_load_count(&parent_load);
 
-	ret = reiser4_get_parent(&parent_lock, pos->lock.node, ZNODE_WRITE_LOCK, 0);
+	ret = reiser4_get_parent(&parent_lock, pos->lock.node, ZNODE_WRITE_LOCK);
 	if (ret)
 		goto out;
 
