@@ -279,7 +279,9 @@ exit:
 /* ask block allocator for some blocks */
 static void
 extent_allocate_blocks(reiser4_blocknr_hint *preceder,
-		       reiser4_block_nr wanted_count, reiser4_block_nr *first_allocated, reiser4_block_nr *allocated, block_stage_t block_stage)
+		       reiser4_block_nr wanted_count,
+		       reiser4_block_nr *first_allocated, reiser4_block_nr *allocated,
+		       block_stage_t block_stage)
 {
 	*allocated = wanted_count;
 	preceder->max_dist = 0;	/* scan whole disk, if needed */
@@ -288,7 +290,7 @@ extent_allocate_blocks(reiser4_blocknr_hint *preceder,
 	preceder->block_stage = block_stage;
 
 	/* FIXME: we do not handle errors here now */
-	check_me("vs-420", reiser4_alloc_blocks (preceder, first_allocated, allocated, BA_PERMANENT) == 0);
+	check_me("vs-420", reiser4_alloc_blocks(preceder, first_allocated, allocated, BA_PERMANENT) == 0);
 	/* update flush_pos's preceder to last allocated block number */
 	preceder->blk = *first_allocated + *allocated - 1;
 }
@@ -795,6 +797,10 @@ alloc_extent(flush_pos_t *flush_pos)
 		else
 			block_stage = BLOCK_UNALLOCATED;
 
+		/* look at previous unit if possible. If it is allocated, make preceder more precise */
+		if (coord->unit_pos && (state_of_extent(ext - 1) == ALLOCATED_EXTENT))
+			pos_hint(flush_pos)->blk = extent_get_start(ext - 1) + extent_get_width(ext - 1);
+
 		/* allocate new block numbers for protected nodes */
 		extent_allocate_blocks(pos_hint(flush_pos), protected, &first_allocated, &allocated, block_stage);
 
@@ -933,6 +939,10 @@ squalloc_extent(znode *left, const coord_t *coord, flush_pos_t *flush_pos, reise
 			block_stage = BLOCK_FLUSH_RESERVED;
 		else
 			block_stage = BLOCK_UNALLOCATED;
+
+		/* look at previous unit if possible. If it is allocated, make preceder more precise */
+		if (coord->unit_pos && (state_of_extent(ext - 1) == ALLOCATED_EXTENT))
+			pos_hint(flush_pos)->blk = extent_get_start(ext - 1) + extent_get_width(ext - 1);
 
 		/* allocate new block numbers for protected nodes */
 		extent_allocate_blocks(pos_hint(flush_pos), protected, &first_allocated, &allocated, block_stage);
