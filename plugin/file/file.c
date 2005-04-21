@@ -733,8 +733,10 @@ load_file_hint(struct file *file, hint_t *hint)
 		if (IS_ERR(fsdata))
 			return PTR_ERR(fsdata);
 
+		spin_lock_inode(file->f_dentry->d_inode);
 		if (seal_is_set(&fsdata->reg.hint.seal)) {
 			*hint = fsdata->reg.hint;
+			spin_unlock_inode(file->f_dentry->d_inode);
 			/* force re-validation of the coord on the first
 			 * iteration of the read/write loop. */
 			hint->ext_coord.valid = 0;
@@ -743,6 +745,7 @@ load_file_hint(struct file *file, hint_t *hint)
 			return 0;
 		}
 		memset(&fsdata->reg.hint, 0, sizeof(hint_t));
+		spin_unlock_inode(file->f_dentry->d_inode);
 	}
 	hint_init_zero(hint);
 	return 0;
@@ -762,7 +765,10 @@ save_file_hint(struct file *file, const hint_t *hint)
 	assert("vs-965", !IS_ERR(fsdata));
 	assert("nikita-19891",
 	       coords_equal(&hint->seal.coord1, &hint->ext_coord.coord));
+
+	spin_lock_inode(file->f_dentry->d_inode);
 	fsdata->reg.hint = *hint;
+	spin_unlock_inode(file->f_dentry->d_inode);
 	return;
 }
 
@@ -2299,9 +2305,9 @@ write_unix_file(struct file *file, /* file to write to */
 				(unsigned long long)get_inode_oid(inode));
 	}
 
+	save_file_hint(file, &hint);
 	up(&uf_info->write);
  	current->backing_dev_info = 0;
-	save_file_hint(file, &hint);
 
 	return count ? count : result;
 }
