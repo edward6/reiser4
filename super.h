@@ -63,7 +63,9 @@ typedef enum {
 	 * directories. */
 	REISER4_NO_PSEUDO = 5,
 	/* load all bitmap blocks at mount time */
-	REISER4_DONT_LOAD_BITMAP = 6
+	REISER4_DONT_LOAD_BITMAP = 6,
+	/* enforce atomicity during write(2) */
+	REISER4_ATOMIC_WRITE = 7
 } reiser4_fs_flag;
 
 /*

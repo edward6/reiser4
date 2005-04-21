@@ -562,13 +562,15 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 		/* FIXME: do not rely on a coord yet */
 		unset_hint(hint);
 
-		/* throttle the writer */
-		result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
 		if (!grabbed)
 			all_grabbed2free();
-		if (result) {
-			// reiser4_stat_tail_add(bdp_caused_repeats);
-			break;
+		/* throttle the writer, if allowed */
+		if (!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE)) {
+			result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
+			if (result) {
+				// reiser4_stat_tail_add(bdp_caused_repeats);
+				break;
+			}
 		}
 	}
 

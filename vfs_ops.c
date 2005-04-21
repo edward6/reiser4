@@ -1022,6 +1022,8 @@ do {						\
 	/* Don't load all bitmap blocks at mount time, it is useful
 	   for machines with tiny RAM and large disks. */
 	PUSH_BIT_OPT("dont_load_bitmap", REISER4_DONT_LOAD_BITMAP);
+	/* disable transaction commits during write() */
+	PUSH_BIT_OPT("atomic_write", REISER4_ATOMIC_WRITE);
 
 	PUSH_OPT ({
 		/* tree traversal readahead parameters:
