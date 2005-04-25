@@ -238,6 +238,16 @@ link_left_and_right(znode * left, znode * right)
 
 			ON_DEBUG(left->right_version = atomic_inc_return(&delim_key_version););
 
+		} else if (ZF_ISSET(left->right, JNODE_HEARD_BANSHEE) && left->right != right) {
+
+			ON_DEBUG(
+				left->right->left_version = atomic_inc_return(&delim_key_version);
+				left->right_version = atomic_inc_return(&delim_key_version);
+				);
+
+			left->right->left = NULL;
+			left->right = right;
+			ZF_SET(left, JNODE_RIGHT_CONNECTED);
 		} else
 			/*
 			 * there is a race condition in renew_sibling_link()
@@ -260,6 +270,17 @@ link_left_and_right(znode * left, znode * right)
 			ZF_SET(right, JNODE_LEFT_CONNECTED);
 
 			ON_DEBUG(right->left_version = atomic_inc_return(&delim_key_version););
+
+		} else if (ZF_ISSET(right->left, JNODE_HEARD_BANSHEE) && right->left != left) {
+
+			ON_DEBUG(
+				right->left->right_version = atomic_inc_return(&delim_key_version);
+				right->left_version = atomic_inc_return(&delim_key_version);
+				);
+
+			right->left->right = NULL;
+			right->left = left;
+			ZF_SET(right, JNODE_LEFT_CONNECTED);
 
 		} else
 			assert("nikita-3303",
