@@ -1415,9 +1415,9 @@ static int txn_try_to_fuse_small_atom (txn_mgr * tmgr, txn_atom * atom)
 			UNLOCK_ATOM(atom_2);
 		}
 	}
-	spin_unlock_txnmgr(tmgr);
 	atom->flags |= ATOM_CANCEL_FUSION;
  out: 
+	spin_unlock_txnmgr(tmgr);
 	if (repeat) {
 		UNLOCK_ATOM(atom);
 		return -E_REPEAT;
