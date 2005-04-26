@@ -475,12 +475,13 @@ tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 			return result;
 	}
 
-	/* FIXME-VS: this is temporary: the problem is that bdp takes inodes
-	   from sb's dirty list and it looks like nobody puts there inodes of
-	   files which are built of tails */
-	move_inode_out_from_sync_inodes_loop(mapping);
-
-	reiser4_throttle_write(inode);
+	if (!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE)) {
+		/* FIXME-VS: this is temporary: the problem is that bdp takes inodes
+		   from sb's dirty list and it looks like nobody puts there inodes of
+		   files which are built of tails */
+		move_inode_out_from_sync_inodes_loop(mapping);
+		reiser4_throttle_write(inode);
+	}
 	return 0;
 }
 
@@ -562,15 +563,13 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 		/* FIXME: do not rely on a coord yet */
 		unset_hint(hint);
 
+		/* throttle the writer, if allowed */
+		result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
 		if (!grabbed)
 			all_grabbed2free();
-		/* throttle the writer, if allowed */
-		if (!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE)) {
-			result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
-			if (result) {
-				// reiser4_stat_tail_add(bdp_caused_repeats);
-				break;
-			}
+		if (result) {
+			// reiser4_stat_tail_add(bdp_caused_repeats);
+			break;
 		}
 	}
 

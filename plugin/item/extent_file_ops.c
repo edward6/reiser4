@@ -666,7 +666,8 @@ extent_balance_dirty_pages(struct inode *inode, const flow_t *f,
 			return result;
 	}
 
-	reiser4_throttle_write(inode);
+	if (!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE))
+		reiser4_throttle_write(inode);
 	return 0;
 }
 
@@ -853,15 +854,13 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		move_flow_forward(flow, count);
 		write_move_coord(coord, uf_coord, mode, page_off + count == PAGE_CACHE_SIZE);
 
+		/* set seal, drop long term lock, throttle the writer */
+		result = extent_balance_dirty_pages(inode, flow, hint);
 		if (!grabbed)
 			all_grabbed2free();
-		/* set seal, drop long term lock, throttle the writer */
-		if (!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE)) {
-			result = extent_balance_dirty_pages(inode, flow, hint);
-			if (result) {
-				err = 9;
-				break;
-			}
+		if (result) {
+			err = 9;
+			break;
 		}
 
 		page_off = 0;
