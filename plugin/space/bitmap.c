@@ -461,11 +461,11 @@ reiser4_set_bits(char *addr, bmap_off_t start, bmap_off_t end)
     Jean-loup Gailly        Mark Adler
     jloup@gzip.org          madler@alumni.caltech.edu
 
-    The above comment applies only to the adler32 function.
+    The above comment applies only to the reiser4_adler32 function.
 */
 
-static __u32
-adler32(char *data, __u32 len)
+reiser4_internal __u32
+reiser4_adler32(char *data, __u32 len)
 {
 	unsigned char *t = data;
 	__u32 s1 = 1;
@@ -493,7 +493,7 @@ adler32(char *data, __u32 len)
 static __u32
 bnode_calc_crc(const struct bitmap_node *bnode, unsigned long size)
 {
-	return adler32(bnode_commit_data(bnode), bmap_size(size));
+	return reiser4_adler32(bnode_commit_data(bnode), bmap_size(size));
 }
 
 
