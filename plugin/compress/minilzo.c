@@ -1110,16 +1110,6 @@ _lzo_config_check(void)
 
     COMPILE_TIME_ASSERT(lzo_sizeof_dict_t == sizeof(lzo_dict_t));
 
-#if defined(__LZO_IN_MINLZO)
-    if (r == 1)
-    {
-	lzo_uint32 adler;
-	adler = lzo_adler32(0, NULL, 0);
-	adler = lzo_adler32(adler, lzo_copyright(), 200);
-	r &= __lzo_assert(adler == 0xc76f1751L);
-    }
-#endif
-
     if (r == 1)
     {
 	r &= __lzo_assert(!schedule_insns_bug());
