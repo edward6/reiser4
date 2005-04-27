@@ -863,7 +863,7 @@ try_encrypt(struct inode * inode)
 static int
 save_compressed(int old_size, int new_size, struct inode * inode)
 {
-	return (new_size + DC_CHECKSUM_SIZE + max_crypto_overhead(inode) < old_size);
+	return (new_size + (int)DC_CHECKSUM_SIZE + max_crypto_overhead(inode) < old_size);
 }
 
 /* guess if the cluster was compressed */
@@ -882,11 +882,40 @@ need_decompression(reiser4_cluster_t * clust, struct inode * inode,
 		 fsize_to_count(clust, inode));
 }
 
-static void set_compression_magic(__u8 * magic)
+/* append checksum at the end of input transform stream
+   and increment its length */
+static void
+dc_set_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
 {
-	/* FIXME-EDWARD: Use a checksum here */
-	assert("edward-279", magic != NULL);
-	memset(magic, 0, DC_CHECKSUM_SIZE);
+	__u32 checksum;
+	
+	assert("edward-1309", tc != NULL);
+	assert("edward-1310", tc->len > 0);
+	assert("edward-1311", cplug->checksum != NULL);
+	
+	checksum = cplug->checksum(tfm_stream_data(tc, OUTPUT_STREAM), tc->len);
+	cputod32(checksum, (d32 *)(tfm_stream_data(tc, OUTPUT_STREAM) + tc->len));
+	tc->len += (int)DC_CHECKSUM_SIZE;
+}
+
+/* returns 0 if checksums coincide, otherwise returns 1,
+   decremrnt the length of input transform stream */
+static int
+dc_check_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
+{
+	assert("edward-1312", tc != NULL);
+	assert("edward-1313", tc->len > (int)DC_CHECKSUM_SIZE);
+	assert("edward-1314", cplug->checksum != NULL);
+
+	if (cplug->checksum(tfm_stream_data(tc, INPUT_STREAM),  tc->len - (int)DC_CHECKSUM_SIZE) !=
+	    d32tocpu((d32 *)(tfm_stream_data(tc, INPUT_STREAM) + tc->len - (int)DC_CHECKSUM_SIZE))) {
+		warning("edward-156", "bad disk cluster checksum %d, (should be %d)\n",
+			(int)d32tocpu((d32 *)(tfm_stream_data(tc, INPUT_STREAM) + tc->len - (int)DC_CHECKSUM_SIZE)),
+			(int)cplug->checksum(tfm_stream_data(tc, INPUT_STREAM),  tc->len - (int)DC_CHECKSUM_SIZE));
+		return 1;
+	}
+	tc->len -= (int)DC_CHECKSUM_SIZE;
+	return 0;
 }
 
 reiser4_internal int
@@ -951,9 +980,8 @@ deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		if (save_compressed(tc->len, dst_len, inode)) {
 			/* accept */
 			tc->len = dst_len;
-			
-			set_compression_magic(tfm_stream_data(tc, OUTPUT_STREAM) + tc->len);
-			tc->len += DC_CHECKSUM_SIZE;
+			if (cplug->checksum != NULL)
+				dc_set_checksum(cplug, tc);
 			transformed = 1;
 		}
 #if defined(SMART_COMPRESSION_MODE)
@@ -1020,10 +1048,9 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		transformed = 1;
 	}
 	if (need_decompression(clust, inode, 0)) {
-		__u8 magic[DC_CHECKSUM_SIZE];
 		unsigned dst_len = inode_cluster_size(inode);
 		compression_plugin * cplug = inode_compression_plugin(inode);
-
+		
 		if(transformed)
 			alternate_streams(tc);
 
@@ -1033,12 +1060,12 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		assert("edward-1305", cplug->decompress != NULL);
 		assert("edward-910", tfm_cluster_is_set(tc));
 
-		/* Check compression magic for possible IO errors.
+		/* Check compression checksum for possible IO errors.
 
 		   End-of-cluster format created before encryption:
 
 		   data
-		   compression_magic  (4)   Indicates presence of compression
+		   checksum           (4)   Indicates presence of compression
 		                            infrastructure, should be private.
 		                            Can be absent.
 		   crypto_overhead          Created by ->align() method of crypto-plugin,
@@ -1050,17 +1077,11 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		   tail_size           (1)   size of aligning tail,
 		                             1 <= tail_size <= blksize
 		*/
-		set_compression_magic(magic);
-
-		if (memcmp(tfm_stream_data(tc, INPUT_STREAM) + (tc->len - (size_t)DC_CHECKSUM_SIZE),
-			   magic, (size_t)DC_CHECKSUM_SIZE)) {
-			printk("edward-156: wrong compression magic %d (should be %d)\n",
-			       *((int *)(tfm_stream_data(tc, INPUT_STREAM) + (tc->len - (size_t)DC_CHECKSUM_SIZE))), *((int *)magic));
-			result = -EIO;
-			return result;
+		if (cplug->checksum != NULL) {
+			result = dc_check_checksum(cplug, tc);
+			if (result)
+				return RETERR(-EIO);
 		}
-		tc->len -= (size_t)DC_CHECKSUM_SIZE;
-
 		/* decompress cluster */
 		cplug->decompress(get_coa(tc, cplug->h.id),
 				  tfm_stream_data(tc, INPUT_STREAM), tc->len,
@@ -2183,8 +2204,10 @@ jnode_truncate_ok(struct inode *inode, cloff_t index)
 {
 	jnode * node;
 	node = jlookup(current_tree, get_inode_oid(inode), clust_to_pg(index, inode));
-	if (node)
+	if (node) {
+		warning("edward-1315", "jnode %p is untruncated\n", node);
 		jput(node);
+	}
 	return (node == NULL);
 }
 #endif
