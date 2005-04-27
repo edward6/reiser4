@@ -23,6 +23,8 @@ typedef enum {
 typedef void * coa_t;
 typedef coa_t coa_set[LAST_COMPRESSION_ID];
 
+__u32 reiser4_adler32(char * data, __u32 len);
+
 #endif /* __FS_REISER4_COMPRESS_H__ */
 
 /* Make Linus happy.
