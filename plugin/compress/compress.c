@@ -372,6 +372,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				 .alloc = NULL,
 				 .free = NULL,
 				 .min_tfm_size = NULL,
+				 .checksum = NULL,
 				 .compress = NULL,
 				 .decompress = NULL}
 	,
@@ -391,6 +392,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				 .alloc = lzo1_alloc,
 				 .free = lzo1_free,
 				 .min_tfm_size = lzo1_min_tfm_size,
+				 .checksum = reiser4_adler32,
 				 .compress = lzo1_compress,
 				 .decompress = lzo1_decompress}
 	,
@@ -410,6 +412,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				 .alloc = NULL,
 				 .free = NULL,
 				 .min_tfm_size = NULL,
+				 .checksum = reiser4_adler32,
 				 .compress = NULL,
 				 .decompress = lzo1_decompress}
 	,
@@ -429,6 +432,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				  .alloc = gzip1_alloc,
 				  .free = gzip1_free,
 				  .min_tfm_size = gzip1_min_tfm_size,
+				  .checksum = NULL,
 				  .compress = gzip1_compress,
 				  .decompress = gzip1_decompress}
 	,
@@ -448,6 +452,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				  .alloc = gzip1_nocompress_alloc,
 				  .free = gzip1_nocompress_free,
 				  .min_tfm_size = NULL,
+				  .checksum = NULL,
 				  .compress = NULL,
 				  .decompress = gzip1_decompress}
 };
