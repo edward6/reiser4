@@ -1347,6 +1347,9 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 		 * this function is out of reiser4 context and may safely
 		 * sleep on semaphore.
 		 */
+		assert("", LOCK_CNT_NIL(inode_sem_w));
+		assert("", LOCK_CNT_NIL(inode_sem_r));
+#if 0
 		if (is_in_reiser4_context()) {
 			if (down_read_trylock(&uf_info->latch) == 0) {
 /* ZAM-FIXME-HANS: please explain this error handling here, grep for
@@ -1354,6 +1357,7 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
  * represent busy loops that we should recode.  Also tell me whether
  * any of them fail to return EBUSY to user space, and if yes, then
  * recode them to not use the EBUSY macro.*/
+				warning("", "does this ever happen?");
 				result = RETERR(-EBUSY);
 				reiser4_exit_context(&ctx);
 				break;
@@ -1361,7 +1365,9 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 		} else
 			down_read(&uf_info->latch);
 		LOCK_CNT_INC(inode_sem_r);
-
+#endif
+		txn_restart_current();
+		get_nonexclusive_access(uf_info, 0);
 		while (to_capture > 0) {
 			pgoff_t start;
 
@@ -1396,8 +1402,11 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 			/* there may be left more pages */
 			redirty_inode(inode);
 
+		drop_nonexclusive_access(uf_info);
+/*
 		up_read(&uf_info->latch);
 		LOCK_CNT_DEC(inode_sem_r);
+*/
 		if (result < 0) {
 			/* error happened */
 			reiser4_exit_context(&ctx);
@@ -1637,7 +1646,7 @@ reiser4_put_user_pages(struct page **pages, int nr_pages)
 
 /* this is called with nonexclusive access obtained, file's container can not change */
 static size_t
-read_file(hint_t *hint, file_container_t container,
+read_file(hint_t *hint,
 	  struct file *file, /* file to write to */
 	  char *buf, /* address of user-space buffer */
 	  size_t count, /* number of bytes to write */
@@ -1652,33 +1661,6 @@ read_file(hint_t *hint, file_container_t container,
 
 	inode = file->f_dentry->d_inode;
 
-	/* we have nonexclusive access (NA) obtained. File's container may not
-	   change until we drop NA. If possible - calculate read function
-	   beforehand */
-	switch(container) {
-	case UF_CONTAINER_EXTENTS:
-		read_f = item_plugin_by_id(EXTENT_POINTER_ID)->s.file.read;
-		break;
-
-	case UF_CONTAINER_TAILS:
-		/* this is read-ahead for tails-only files */
-		result = reiser4_file_readahead(file, *off, count);
-		if (result)
-			return result;
-
-		read_f = item_plugin_by_id(FORMATTING_ID)->s.file.read;
-		break;
-
-	case UF_CONTAINER_UNKNOWN:
-		read_f = 0;
-		break;
-
-	case UF_CONTAINER_EMPTY:
-	default:
-		warning("vs-1297", "File (ino %llu) has unexpected state: %d\n",
-			(unsigned long long)get_inode_oid(inode), container);
-		return RETERR(-EIO);
-	}
 
 	/* build flow */
 	assert("vs-1250", inode_file_plugin(inode)->flow_by_inode == flow_by_inode_unix_file);
@@ -1710,9 +1692,9 @@ read_file(hint_t *hint, file_container_t container,
 		if (hint->ext_coord.valid == 0)
 			validate_extended_coord(&hint->ext_coord, get_key_offset(&flow.key));
 
+		assert("vs-4", hint->ext_coord.valid == 1);
 		/* call item's read method */
-		if (!read_f)
-			read_f = item_plugin_by_coord(coord)->s.file.read;
+		read_f = item_plugin_by_coord(coord)->s.file.read;
 		result = read_f(file, &flow, hint);
 		zrelse(loaded);
 		done_lh(hint->ext_coord.lh);
@@ -1813,7 +1795,7 @@ read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 			to_read = inode->i_size - *off;
 
 		assert("vs-1706", to_read <= left);
-		read = read_file(&hint, uf_info->container, file, buf, to_read, off);
+		read = read_file(&hint, file, buf, to_read, off);
 
 		if (user_space)
 			reiser4_put_user_pages(pages, nr_pages);
@@ -2065,6 +2047,7 @@ mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 	inode = file->f_dentry->d_inode;
 	uf_info = unix_file_inode_data(inode);
 
+  	down(&uf_info->write);
 	get_exclusive_access(uf_info);
 
 	if (!IS_RDONLY(inode) && (vma->vm_flags & (VM_MAYWRITE | VM_SHARED))) {
@@ -2073,12 +2056,14 @@ mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 		result = finish_conversion(inode);
 		if (result) {
 			drop_exclusive_access(uf_info);
+			up(&uf_info->write);
 			return result;
 		}
 
 		result = find_file_state(uf_info);
 		if (result != 0) {
 			drop_exclusive_access(uf_info);
+			up(&uf_info->write);
 			return result;
 		}
 
@@ -2090,6 +2075,7 @@ mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 			result = check_pages_unix_file(inode);
 			if (result) {
 				drop_exclusive_access(uf_info);
+				up(&uf_info->write);
 				return result;
 			}
 		}
@@ -2103,6 +2089,7 @@ mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 	}
 
 	drop_exclusive_access(uf_info);
+	up(&uf_info->write);
 	return result;
 }
 
@@ -2323,6 +2310,7 @@ release_unix_file(struct inode *object, struct file *file)
 	uf_info = unix_file_inode_data(object);
 	result = 0;
 
+  	down(&uf_info->write);
 	get_exclusive_access(uf_info);
 	if (atomic_read(&file->f_dentry->d_count) == 1 &&
 	    uf_info->container == UF_CONTAINER_EXTENTS &&
@@ -2335,6 +2323,7 @@ release_unix_file(struct inode *object, struct file *file)
 		}
 	}
 	drop_exclusive_access(uf_info);
+	up(&uf_info->write);
 	return 0;
 }
 

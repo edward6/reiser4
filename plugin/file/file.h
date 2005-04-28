@@ -85,6 +85,10 @@ typedef struct unix_file_info {
 } unix_file_info_t;
 
 struct unix_file_info *unix_file_inode_data(const struct inode * inode);
+void get_exclusive_access(unix_file_info_t *);
+void drop_exclusive_access(unix_file_info_t *);
+void get_nonexclusive_access(unix_file_info_t *, int);
+void drop_nonexclusive_access(unix_file_info_t *);
 
 #include "../item/extent.h"
 #include "../item/tail.h"

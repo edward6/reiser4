@@ -644,6 +644,8 @@ extent_balance_dirty_pages(struct inode *inode, const flow_t *f,
 			   hint_t *hint)
 {
 	int result;
+	int excl;
+	unix_file_info_t *uf_info;
 
 	if (hint->ext_coord.valid)
 		set_hint(hint, &f->key, ZNODE_WRITE_LOCK);
@@ -666,8 +668,19 @@ extent_balance_dirty_pages(struct inode *inode, const flow_t *f,
 			return result;
 	}
 
-	if (!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE))
+	if (!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE)) {
+		uf_info = unix_file_inode_data(inode);
+		excl = unix_file_inode_data(inode)->exclusive_use;
+		if (excl)
+			drop_exclusive_access(uf_info);
+		else
+			drop_nonexclusive_access(uf_info);
 		reiser4_throttle_write(inode);
+		if (excl)
+			get_exclusive_access(uf_info);
+		else
+			get_nonexclusive_access(uf_info, 0);
+	}
 	return 0;
 }
 
@@ -1193,6 +1206,13 @@ extent_readpage_filler(void *data, struct page *page)
 	}
 
 	if (zload(ext_coord->coord.node)) {
+		unset_hint(hint);
+		done_lh(ext_coord->lh);
+		lock_page(page);
+		return RETERR(-EIO);
+	}
+	if (!item_is_extent(&ext_coord->coord)) {
+		/* tail conversion is running in parallel */
 		unset_hint(hint);
 		done_lh(ext_coord->lh);
 		lock_page(page);

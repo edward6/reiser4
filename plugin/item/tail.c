@@ -454,6 +454,8 @@ tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 {
 	int result;
 	struct inode *inode;
+	int excl;
+	unix_file_info_t *uf_info;
 
 	if (hint->ext_coord.valid)
 		set_hint(hint, &f->key, ZNODE_WRITE_LOCK);
@@ -476,11 +478,22 @@ tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 	}
 
 	if (!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE)) {
-		/* FIXME-VS: this is temporary: the problem is that bdp takes inodes
-		   from sb's dirty list and it looks like nobody puts there inodes of
-		   files which are built of tails */
+		/* FIXME-VS: this is temporary: the problem is that bdp takes
+		   inodes from sb's dirty list and it looks like nobody puts
+		   there inodes of files which are built of tails */
 		move_inode_out_from_sync_inodes_loop(mapping);
+		
+		uf_info = unix_file_inode_data(inode);
+		excl = unix_file_inode_data(inode)->exclusive_use;
+		if (excl)
+			drop_exclusive_access(uf_info);
+		else
+			drop_nonexclusive_access(uf_info);
 		reiser4_throttle_write(inode);
+		if (excl)
+			get_exclusive_access(uf_info);
+		else
+			get_nonexclusive_access(uf_info, 0);
 	}
 	return 0;
 }
@@ -563,7 +576,7 @@ write_tail(struct inode *inode, flow_t *f, hint_t *hint,
 		/* FIXME: do not rely on a coord yet */
 		unset_hint(hint);
 
-		/* throttle the writer, if allowed */
+		/* throttle the writer */
 		result = tail_balance_dirty_pages(inode->i_mapping, f, hint);
 		if (!grabbed)
 			all_grabbed2free();

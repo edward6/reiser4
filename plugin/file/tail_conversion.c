@@ -32,6 +32,7 @@ get_exclusive_access(unix_file_info_t *uf_info)
 	BUG_ON(get_current_context()->trans->atom != NULL);
 	LOCK_CNT_INC(inode_sem_w);
 	down_write(&uf_info->latch);
+	uf_info->exclusive_use = 1;
 	assert("vs-1713", uf_info->ea_owner == NULL);
 	assert("vs-1713", atomic_read(&uf_info->nr_neas) == 0);
 	ON_DEBUG(uf_info->ea_owner = current);
@@ -43,6 +44,7 @@ drop_exclusive_access(unix_file_info_t *uf_info)
 	assert("vs-1714", uf_info->ea_owner == current);
 	assert("vs-1715", atomic_read(&uf_info->nr_neas) == 0);
 	ON_DEBUG(uf_info->ea_owner = NULL);
+	uf_info->exclusive_use = 0;
 	up_write(&uf_info->latch);
 	assert("nikita-3049", LOCK_CNT_NIL(inode_sem_r));
 	assert("nikita-3049", LOCK_CNT_GTZ(inode_sem_w));
@@ -408,8 +410,19 @@ tail2extent(unix_file_info_t *uf_info)
 			release_all_pages(pages, sizeof_array(pages));
 			if (result)
 				goto error;
+			/* we have to drop exclusive access to avoid deadlock
+			 * which may happen because called by
+			 * reiser4_writepages capture_unix_file requires to get
+			 * non-exclusive access to a file. It is safe to drop
+			 * EA in the middle of tail2extent conversion because
+			 * write_unix_file/unix_setattr(truncate)/release_unix_file(extent2tail)
+			 * are serialized by uf_info->write semaphore and
+			 * because read_unix_file works (should at least) on
+			 * partially converted files */
+			drop_exclusive_access(uf_info);
 			/* throttle the conversion */
 			reiser4_throttle_write(inode);
+			get_exclusive_access(uf_info);
 		}
 	}
 
