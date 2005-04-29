@@ -3,7 +3,6 @@
 
 /* Functions that deal with reiser4 status block, query status and update it, if needed */
 
-#include <linux/page-flags.h>
 #include <linux/bio.h>
 #include <linux/highmem.h>
 #include <linux/fs.h>
