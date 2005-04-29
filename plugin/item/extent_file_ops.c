@@ -1199,7 +1199,6 @@ extent_readpage_filler(void *data, struct page *page)
 				      TWIG_LEVEL, CBK_UNIQUE, NULL);
 		if (result != CBK_COORD_FOUND) {
 			unset_hint(hint);
-			lock_page(page);
 			return result;
 		}
 		ext_coord->valid = 0;
@@ -1208,14 +1207,12 @@ extent_readpage_filler(void *data, struct page *page)
 	if (zload(ext_coord->coord.node)) {
 		unset_hint(hint);
 		done_lh(ext_coord->lh);
-		lock_page(page);
 		return RETERR(-EIO);
 	}
 	if (!item_is_extent(&ext_coord->coord)) {
 		/* tail conversion is running in parallel */
 		unset_hint(hint);
 		done_lh(ext_coord->lh);
-		lock_page(page);
 		return RETERR(-EIO);
 	}
 
@@ -1229,6 +1226,8 @@ extent_readpage_filler(void *data, struct page *page)
 	if (!PageUptodate(page)) {
 		result = do_readpage_extent(ext_by_ext_coord(ext_coord),
 					    ext_coord->extension.extent.pos_in_unit, page);
+		if (result)
+			unlock_page(page); 			
 	} else {
 		unlock_page(page);
 		result = 0;
