@@ -98,7 +98,7 @@ crc_inode_ok(struct inode * inode)
 	reiser4_inode * info = reiser4_inode_data(inode);
 	cryptcompress_info_t * data = cryptcompress_inode_data(inode);
 
-	if ((info->cluster_shift <= MAX_CLUSTER_SHIFT) &&
+	if (cluster_shift_ok(info->cluster_shift) &&
 	    (data->tfm[CRYPTO_TFM] == NULL) &&
 	    (data->tfm[DIGEST_TFM] == NULL))
 		return 1;
@@ -386,12 +386,12 @@ inode_set_cluster(struct inode * object, cluster_data_t * data)
 		   this is a necessary parameter for cryptcompress object */
 		warning("edward-418", "create_cryptcompress: default cluster size"
 			" (%u) was assigned for the object %llu\n",
-			(1U << PAGE_CACHE_SHIFT << DEFAULT_CLUSTER_SHIFT),
+			(1U << DEFAULT_CLUSTER_SHIFT),
 			(unsigned long long)get_inode_oid(object));
 		init_default_cluster(&def);
 		data = &def;
 	}
-	assert("edward-697", *data <= MAX_CLUSTER_SHIFT);
+	assert("edward-697", cluster_shift_ok(*data));
 
 	info->cluster_shift = *data;
 	info->extmask |= (1 << CLUSTER_STAT);
@@ -2385,7 +2385,7 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust,
 	assert("edward-197", clust != NULL);
 	assert("edward-1072", win != NULL);
 	assert("edward-198", inode != NULL);
-	assert("edward-747", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
+	assert("edward-747", cluster_shift_ok(reiser4_inode_data(inode)->cluster_shift));
 
 	result = alloc_cluster_pgset(clust, cluster_nrpages(inode));
 	if (result)
@@ -2441,7 +2441,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	assert("edward-161", schedulable());
 	assert("edward-748", crc_inode_ok(inode));
 	assert("edward-159", current_blocksize == PAGE_CACHE_SIZE);
-	assert("edward-749", reiser4_inode_data(inode)->cluster_shift <= MAX_CLUSTER_SHIFT);
+	assert("edward-749", cluster_shift_ok(reiser4_inode_data(inode)->cluster_shift));
 	assert("edward-1274", get_current_context()->grabbed_blocks == 0);
 
 	result = check_cryptcompress(inode);
@@ -2697,7 +2697,7 @@ static void
 set_append_cluster_key(const coord_t *coord, reiser4_key *key, struct inode *inode)
 {
 	item_key_by_coord(coord, key);
-	set_key_offset(key, ((__u64)(clust_by_coord(coord, inode)) + 1) << inode_cluster_shift(inode) << PAGE_CACHE_SHIFT);
+	set_key_offset(key, clust_to_off(clust_by_coord(coord, inode) + 1, inode));
 }
 
 /* If @index > 0, find real disk cluster of the index (@index - 1),
@@ -3309,7 +3309,7 @@ capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
 		return 0;
 
 	info = cryptcompress_inode_data(inode);
-	nrpages = (i_size_read(inode) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
+	nrpages = count_to_nrpages(i_size_read(inode));
 
 	if (wbc->sync_mode != WB_SYNC_ALL)
 		to_capture = min_count(wbc->nr_to_write, MAX_CLUSTERS_TO_CAPTURE(inode));

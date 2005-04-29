@@ -11,12 +11,21 @@
 #include <linux/vmalloc.h>
 
 #define MIN_CLUSTER_SIZE PAGE_CACHE_SIZE
-#define MAX_CLUSTER_SHIFT 4
-#define MAX_CLUSTER_NRPAGES (1 << MAX_CLUSTER_SHIFT)
+#define MIN_CLUSTER_SHIFT PAGE_CACHE_SHIFT
+#define MAX_CLUSTER_SHIFT 16
+#define MAX_CLUSTER_NRPAGES (1U << MAX_CLUSTER_SHIFT >> PAGE_CACHE_SHIFT)
 #define DEFAULT_CLUSTER_SHIFT 0
 #define DC_CHECKSUM_SIZE 4
 #define MIN_CRYPTO_BLOCKSIZE 8
  //#define LAZY_COMPRESSION_MODE
+
+#if REISER4_DEBUG
+static inline int
+cluster_shift_ok (int shift)
+{
+	return (shift >= MIN_CLUSTER_SHIFT) && (shift <= MAX_CLUSTER_SHIFT);
+}
+#endif
 
 typedef unsigned long cloff_t;
 

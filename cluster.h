@@ -26,34 +26,34 @@ static inline int inode_cluster_shift (struct inode * inode)
 }
 
 static inline unsigned
-page_cluster_shift(struct inode * inode)
+cluster_nrpages_shift(struct inode * inode)
 {
-	return inode_cluster_shift(inode) + PAGE_CACHE_SHIFT;
+	return inode_cluster_shift(inode) - PAGE_CACHE_SHIFT;
 }
 
 /* cluster size in page units */
 static inline unsigned cluster_nrpages (struct inode * inode)
 {
-	return (1U << inode_cluster_shift(inode));
+	return 1U << cluster_nrpages_shift(inode);
 }
 
 static inline size_t inode_cluster_size (struct inode * inode)
 {
 	assert("edward-96", inode != NULL);
 
-	return (PAGE_CACHE_SIZE << inode_cluster_shift(inode));
+	return 1U << inode_cluster_shift(inode);
 }
 
 static inline unsigned long
 pg_to_clust(unsigned long idx, struct inode * inode)
 {
-	return idx >> inode_cluster_shift(inode);
+	return idx >> cluster_nrpages_shift(inode);
 }
 
 static inline unsigned long
 clust_to_pg(unsigned long idx, struct inode * inode)
 {
-	return idx << inode_cluster_shift(inode);
+	return idx << cluster_nrpages_shift(inode);
 }
 
 static inline unsigned long
@@ -103,14 +103,14 @@ count_to_nrpages(loff_t count)
 static inline unsigned long
 count_to_nrclust(loff_t count, struct inode * inode)
 {
-	return count_to_nr(count, page_cluster_shift(inode));
+	return count_to_nr(count, inode_cluster_shift(inode));
 }
 
 /* number of clusters occupied by @count pages */
 static inline cloff_t
 pgcount_to_nrclust(pgoff_t count, struct inode * inode)
 {
-	return count_to_nr(count, inode_cluster_shift(inode));
+	return count_to_nr(count, cluster_nrpages_shift(inode));
 }
 
 static inline loff_t

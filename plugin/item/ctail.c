@@ -54,11 +54,10 @@ cluster_shift_by_coord(const coord_t * coord)
 }
 
 static unsigned long
-pg_by_coord(const coord_t * coord)
+off_by_coord(const coord_t * coord)
 {
 	reiser4_key  key;
-
-	return get_key_offset(item_key_by_coord(coord, &key)) >> PAGE_CACHE_SHIFT;
+	return get_key_offset(item_key_by_coord(coord, &key));
 }
 
 static int
@@ -88,7 +87,7 @@ clust_by_coord(const coord_t * coord, struct inode * inode)
 		assert("edward-1237", !coord_is_unprepped_ctail(coord));
 		shift = cluster_shift_by_coord(coord);
 	}
-	return pg_by_coord(coord) >> shift;
+	return off_by_coord(coord) >> shift;
 }
 
 static int unsigned long
@@ -100,7 +99,7 @@ disk_cluster_size (const coord_t * coord)
 	   is meaninless if ctail is unprepped */
 	assert("edward-1238", !coord_is_unprepped_ctail(coord));
 
-	return PAGE_CACHE_SIZE << cluster_shift_by_coord(coord);
+	return 1 << cluster_shift_by_coord(coord);
 }
 
 /* true if the key is of first disk cluster item */
@@ -235,15 +234,18 @@ init_ctail(coord_t * to /* coord of item */,
 	return 0;
 }
 
+/* plugin->u.item.b.lookup:
+   NULL: We are looking for item keys only */
+
+#if REISER4_DEBUG
 reiser4_internal int
 ctail_ok (const coord_t *coord)
 {
 	return coord_is_unprepped_ctail(coord) ||
-		(cluster_shift_by_coord(coord) <= MAX_CLUSTER_SHIFT);
+		cluster_shift_ok(cluster_shift_by_coord(coord));
 }
 
-/* plugin->u.item.b.lookup:
-   NULL: We are looking for item keys only */
+/* plugin->u.item.b.check */
 reiser4_internal int
 check_ctail (const coord_t * coord, const char **error)
 {
@@ -254,9 +256,7 @@ check_ctail (const coord_t * coord, const char **error)
 	}
 	return 0;
 }
-
-/* plugin->u.item.b.check */
-
+#endif
 
 /* plugin->u.item.b.paste */
 reiser4_internal int
@@ -860,7 +860,7 @@ reiser4_internal reiser4_key *
 append_key_ctail(const coord_t *coord, reiser4_key *key)
 {
 	assert("edward-1241", item_id_by_coord(coord) == CTAIL_ID);
-	assert("edward-1242", cluster_shift_by_coord(coord) <= MAX_CLUSTER_SHIFT);
+	assert("edward-1242", cluster_shift_ok(cluster_shift_by_coord(coord)));
 
 	item_key_by_coord(coord, key);
 	set_key_offset(key, ((__u64)(clust_by_coord(coord, NULL)) + 1) << cluster_shift_by_coord(coord) << PAGE_CACHE_SHIFT);
@@ -1067,7 +1067,7 @@ do_convert_ctail(flush_pos_t * pos, crc_write_mode_t mode)
 	switch (mode) {
 	case CRC_APPEND_ITEM:
 		assert("edward-1229", info->flow.length != 0);
-		assert("edward-1256", cluster_shift_by_coord(&pos->coord) <= MAX_CLUSTER_SHIFT);
+		assert("edward-1256", cluster_shift_ok(cluster_shift_by_coord(&pos->coord)));
 		result = insert_crc_flow_in_place(&pos->coord, &pos->lock, &info->flow, info->inode);
 		break;
 	case CRC_OVERWRITE_ITEM:
@@ -1360,7 +1360,9 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 	if (!is_disk_cluster_key(&key, coord))
 		*child = NULL;
 	else
-		*child = jlookup(current_tree, get_key_objectid(item_key_by_coord(coord, &key)), pg_by_coord(coord));
+		*child = jlookup(current_tree, 
+				 get_key_objectid(item_key_by_coord(coord, &key)), 
+				 off_to_pg(get_key_offset(&key)));
 	return 0;
 }
 
@@ -1601,7 +1603,7 @@ convert_ctail(flush_pos_t * pos)
 			/* convert unpprepped ctail to prepped one */
 			int shift;
 			shift = inode_cluster_shift(item_convert_data(pos)->inode);
-			assert("edward-1259", shift <= MAX_CLUSTER_SHIFT);
+			assert("edward-1259", cluster_shift_ok(shift));
 			cputod8(shift, &ctail_formatted_at(&pos->coord)->cluster_shift);
 		}
 		break;
