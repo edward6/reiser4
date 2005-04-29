@@ -1360,8 +1360,8 @@ utmost_child_ctail(const coord_t * coord, sideof side, jnode ** child)
 	if (!is_disk_cluster_key(&key, coord))
 		*child = NULL;
 	else
-		*child = jlookup(current_tree, 
-				 get_key_objectid(item_key_by_coord(coord, &key)), 
+		*child = jlookup(current_tree,
+				 get_key_objectid(item_key_by_coord(coord, &key)),
 				 off_to_pg(get_key_offset(&key)));
 	return 0;
 }

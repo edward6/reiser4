@@ -1385,7 +1385,7 @@ static int txn_try_to_fuse_small_atom (txn_mgr * tmgr, txn_atom * atom)
 	int atom_stage;
 	txn_atom *atom_2;
 	int repeat;
-	
+
 	assert ("zam-1051", atom->stage < ASTAGE_PRE_COMMIT);
 
 	atom_stage = atom->stage;
@@ -1416,7 +1416,7 @@ static int txn_try_to_fuse_small_atom (txn_mgr * tmgr, txn_atom * atom)
 		}
 	}
 	atom->flags |= ATOM_CANCEL_FUSION;
- out: 
+ out:
 	spin_unlock_txnmgr(tmgr);
 	if (repeat) {
 		UNLOCK_ATOM(atom);
@@ -1507,7 +1507,7 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 	ret = flush_current_atom(flags, nr_submitted, &atom);
 	if (ret == 0) {
 		if (*nr_submitted == 0 || atom_should_commit_asap(atom)) {
-			if (atom->capture_count < tmgr->atom_min_size && 
+			if (atom->capture_count < tmgr->atom_min_size &&
 			    !(atom->flags & ATOM_CANCEL_FUSION)) {
 				ret =txn_try_to_fuse_small_atom(tmgr, atom);
 				if (ret == -E_REPEAT)

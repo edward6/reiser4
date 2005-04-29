@@ -530,7 +530,7 @@ reiser4_destroy_inode(struct inode *inode /* inode being destroyed */)
 	kmem_cache_free(inode_cache, container_of(info, reiser4_inode_object, p));
 }
 
-/* put_inode of super_operations 
+/* put_inode of super_operations
 
    we use put_inode to call pre_delete method of file plugin if it is defined
    and if inode is unlinked and if it is about to drop inode reference count to
@@ -542,7 +542,7 @@ reiser4_put_inode(struct inode *inode)
 	file_plugin *fplug;
 
 	fplug = inode_file_plugin(inode);
-	if (fplug == NULL || 
+	if (fplug == NULL ||
 	    inode->i_nlink != 0 ||
 	    atomic_read(&inode->i_count) > 1 ||
 	    fplug->pre_delete == NULL)
@@ -551,7 +551,7 @@ reiser4_put_inode(struct inode *inode)
 	init_context(&ctx, inode->i_sb);
 	/* kill cursors which might be attached to inode if it were a directory one */
 	kill_cursors(inode);
-	fplug->pre_delete(inode);	
+	fplug->pre_delete(inode);
 	reiser4_exit_context(&ctx);
 }
 

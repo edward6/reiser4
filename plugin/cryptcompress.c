@@ -338,7 +338,7 @@ inode_invert_compression(struct inode * inode)
 
 	assert("edward-1308", inode != NULL);
 
-	result = force_plugin(inode, 
+	result = force_plugin(inode,
 			      PSET_COMPRESSION,
 			      compression_plugin_to_plugin
 			      (dual_compression(inode_compression_plugin(inode))));
@@ -888,11 +888,11 @@ static void
 dc_set_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
 {
 	__u32 checksum;
-	
+
 	assert("edward-1309", tc != NULL);
 	assert("edward-1310", tc->len > 0);
 	assert("edward-1311", cplug->checksum != NULL);
-	
+
 	checksum = cplug->checksum(tfm_stream_data(tc, OUTPUT_STREAM), tc->len);
 	cputod32(checksum, (d32 *)(tfm_stream_data(tc, OUTPUT_STREAM) + tc->len));
 	tc->len += (int)DC_CHECKSUM_SIZE;
@@ -1050,7 +1050,7 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	if (need_decompression(clust, inode, 0)) {
 		unsigned dst_len = inode_cluster_size(inode);
 		compression_plugin * cplug = inode_compression_plugin(inode);
-		
+
 		if(transformed)
 			alternate_streams(tc);
 
@@ -1349,13 +1349,13 @@ try_capture_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-1033", clust->pages[0] != NULL);
 
 	node = jprivate(clust->pages[0]);
-	
+
 	assert("edward-1035", node != NULL);
-	
+
 	LOCK_JNODE(node);
 	if (clust->win)
 		inode_set_new_size(clust, inode);
-	
+
 	result = try_capture(node, ZNODE_WRITE_LOCK, 0, 0);
 	if (result)
 		goto exit;

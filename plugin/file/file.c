@@ -2579,7 +2579,7 @@ init_inode_data_unix_file(struct inode *inode,
 	init_inode_ordering(inode, crd, create);
 }
 
-/* plugin->u.file.pre_delete 
+/* plugin->u.file.pre_delete
 
    We need this because generic_delete_inode calls truncate_inode_pages before
    filesystem's delete_inode method. As result of this, reiser4 tree may have

@@ -1227,7 +1227,7 @@ extent_readpage_filler(void *data, struct page *page)
 		result = do_readpage_extent(ext_by_ext_coord(ext_coord),
 					    ext_coord->extension.extent.pos_in_unit, page);
 		if (result)
-			unlock_page(page); 			
+			unlock_page(page);
 	} else {
 		unlock_page(page);
 		result = 0;
@@ -1367,7 +1367,7 @@ read_extent(struct file *file, flow_t *flow, hint_t *hint)
 		} else {
 			if (!PageUptodate(page)) {
 				lock_page(page);
-				
+
 				assert("", page->mapping == mapping);
 				if (PageUptodate(page))
 					unlock_page(page);
