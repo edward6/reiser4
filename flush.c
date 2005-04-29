@@ -440,9 +440,6 @@ assert("nikita-3435",							\
 ON_DEBUG(atomic_t flush_cnt;)
 
 
-/* FIXME: remove me */#define FLUSH_CHECKS_CONGESTION 1
-
-#if defined (FLUSH_CHECKS_CONGESTION)
 /* check fs backing device for write congestion */
 static int check_write_congestion (void)
 {
@@ -453,10 +450,9 @@ static int check_write_congestion (void)
 	bdi = get_super_fake(sb)->i_mapping->backing_dev_info;
 	return  bdi_write_congested(bdi);
 }
-#endif /* FLUSH_CHECKS_CONGESTION */
 
 /* conditionally write flush queue */
-static int write_prepped_nodes (flush_pos_t * pos, int check_congestion)
+static int write_prepped_nodes (flush_pos_t * pos)
 {
 	int ret;
 
@@ -466,10 +462,8 @@ static int write_prepped_nodes (flush_pos_t * pos, int check_congestion)
 	if (!(pos->flags & JNODE_FLUSH_WRITE_BLOCKS))
 		return 0;
 
-#if defined (FLUSH_CHECKS_CONGESTION)
-	if (check_congestion && check_write_congestion())
+	if (check_write_congestion())
 		return 0;
-#endif /* FLUSH_CHECKS_CONGESTION */
 
 	ret = write_fq(pos->fq, pos->nr_written,
 		       WRITEOUT_SINGLE_STREAM | WRITEOUT_FOR_PAGE_RECLAIM);
@@ -889,7 +883,7 @@ static int rapid_flush (flush_pos_t * pos)
 	if (!wbq_available())
 		return 0;
 
-	return write_prepped_nodes(pos, 1);
+	return write_prepped_nodes(pos);
 }
 
 #else
@@ -1483,7 +1477,7 @@ out:
 		int ret1;
 
 		/* NOTE: seems like io is done under long term locks. */
-		ret1 = write_prepped_nodes(pos, 1);
+		ret1 = write_prepped_nodes(pos);
 		if (ret1 < 0)
 			return ret1;
 	}
