@@ -1282,16 +1282,14 @@ call_readpage(struct file *file, struct page *page)
 	if (result)
 		return result;
 
+	lock_page(page);
 	if (!PageUptodate(page)) {
-		lock_page(page);
-		if (!PageUptodate(page)) {
-			unlock_page(page);
-			page_detach_jnode(page, page->mapping, page->index);
-			warning("jmacd-97178", "page is not up to date");
-			return RETERR(-EIO);
-		}
 		unlock_page(page);
+		page_detach_jnode(page, page->mapping, page->index);
+		warning("jmacd-97178", "page is not up to date");
+		return RETERR(-EIO);
 	}
+	unlock_page(page);
 	return 0;
 }
 

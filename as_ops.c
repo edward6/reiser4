@@ -158,13 +158,9 @@ reiser4_readpage(struct file *f /* file to read from */ ,
 		result = fplug->readpage(f, page);
 	else
 		result = RETERR(-EINVAL);
-	if (result != 0) {
-		SetPageError(page);
-		unlock_page(page);
-	}
 
 	reiser4_exit_context(&ctx);
-	return 0;
+	return result;
 }
 
 static int filler(void *vp, struct page *page)

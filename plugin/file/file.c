@@ -1517,12 +1517,13 @@ readpage_unix_file(void *vp, struct page *page)
 	if (result != CBK_COORD_FOUND) {
 		/* this indicates file corruption */
 		done_lh(&lh);
+ 		unlock_page(page);
 		return result;
 	}
 
 	if (PageUptodate(page)) {
 		done_lh(&lh);
-		unlock_page(page);
+ 		unlock_page(page);
 		return 0;
 	}
 
@@ -1530,6 +1531,7 @@ readpage_unix_file(void *vp, struct page *page)
 	result = zload(coord->node);
 	if (result) {
 		done_lh(&lh);
+ 		unlock_page(page);
 		return result;
 	}
 
@@ -1546,6 +1548,7 @@ readpage_unix_file(void *vp, struct page *page)
 
 		zrelse(coord->node);
 		done_lh(&lh);
+ 		unlock_page(page);
 		return RETERR(-EIO);
 	}
 
@@ -1561,14 +1564,17 @@ readpage_unix_file(void *vp, struct page *page)
 		set_key_offset(&key, (loff_t) (page->index + 1) << PAGE_CACHE_SHIFT);
 		/* FIXME should call set_hint() */
 		unset_hint(&hint);
-	} else
+	} else {
+ 		unlock_page(page);
 		unset_hint(&hint);
+	}
 	zrelse(coord->node);
 	done_lh(&lh);
 
 	save_file_hint(file, &hint);
 
-	assert("vs-979", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
+ 	assert("vs-979", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
+ 	assert("vs-9791", ergo(result != 0, !PageLocked(page)));
 
 	return result;
 }
