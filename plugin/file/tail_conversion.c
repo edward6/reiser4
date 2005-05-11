@@ -336,7 +336,7 @@ tail2extent(unix_file_info_t *uf_info)
 			   not risk deadlock appearance
 			*/
 			assert("vs-983", !PagePrivate(page));
-
+			reiser4_invalidate_pages(inode->i_mapping, page->index, 1, 0);
 			for (page_off = 0; page_off < PAGE_CACHE_SIZE;) {
 				coord_t coord;
 				lock_handle lh;

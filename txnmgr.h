@@ -459,7 +459,7 @@ extern int txnmgr_done(txn_mgr * mgr);
 extern int txn_reserve(int reserved);
 
 extern void txn_begin(reiser4_context * context);
-extern long txn_end(reiser4_context * context);
+extern int txn_end(reiser4_context * context);
 
 extern void txn_restart(reiser4_context * context);
 extern void txn_restart_current(void);

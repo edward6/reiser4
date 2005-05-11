@@ -38,9 +38,12 @@ extern int reiser4_invalidatepage(struct page *page, unsigned long offset);
 extern int reiser4_releasepage(struct page *page, int gfp);
 extern int reiser4_writepages(struct address_space *, struct writeback_control *wbc);
 extern int reiser4_start_up_io(struct page *page);
-extern void move_inode_out_from_sync_inodes_loop(struct address_space * mapping);
 extern void reiser4_clear_page_dirty(struct page *);
 extern void reiser4_throttle_write(struct inode*);
+
+#define CAPTURE_APAGE_BURST (1024l)
+void writeout(struct super_block *, struct writeback_control *);
+
 /*
  * this is used to speed up lookups for directory entry: on initial call to
  * ->lookup() seal and coord of directory entry (if found, that is) are stored

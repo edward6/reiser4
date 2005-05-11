@@ -559,7 +559,7 @@ reiser4_put_inode(struct inode *inode)
  * Called by reiser4_sync_inodes(), during speculative write-back (through
  * pdflush, or balance_dirty_pages()).
  */
-static void
+void
 writeout(struct super_block *sb, struct writeback_control *wbc)
 {
 	long written = 0;
@@ -569,10 +569,6 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 	 * Performs early flushing, trying to free some memory. If there is
 	 * nothing to flush, commits some atoms.
 	 */
-
-	/* reiser4 has its own means of periodical write-out */
-	if (wbc->for_kupdate)
-		return;
 
 	/* Commit all atoms if reiser4_writepages() is called from sys_sync() or
 	   sys_fsync(). */
@@ -593,9 +589,7 @@ writeout(struct super_block *sb, struct writeback_control *wbc)
 			/* do not put more requests to overload write queue */
 			if (wbc->nonblocking &&
 			    bdi_write_congested(mapping->backing_dev_info)) {
-
 				blk_run_address_space(mapping);
-				/*blk_run_queues();*/
 				wbc->encountered_congestion = 1;
 				break;
 			}
@@ -620,21 +614,26 @@ reiser4_sync_inodes(struct super_block * sb, struct writeback_control * wbc)
 {
 	reiser4_context ctx;
 
+	/* reiser4 has its own means of periodical write-out */
+	if (wbc->for_kupdate)
+		return;
+
+	assert("", wbc->older_than_this == NULL);
+
 	init_context(&ctx, sb);
-	wbc->older_than_this = NULL;
 
 	/*
-	 * What we are trying to do here is to capture all "anonymous" pages.
+	 * call reiser4_writepages for each of dirty inodes to turn dirty pages
+	 * into transactions if they were not yet.
 	 */
 	generic_sync_sb_inodes(sb, wbc);
-	/*capture_reiser4_inodes(sb, wbc);*/
-	spin_unlock(&inode_lock);
+
+	/* flush goes here */
 	writeout(sb, wbc);
 
 	/* avoid recursive calls to ->sync_inodes */
 	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
-	spin_lock(&inode_lock);
 }
 
 void reiser4_throttle_write(struct inode * inode)

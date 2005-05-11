@@ -103,8 +103,6 @@ struct flush_position {
 	reiser4_blocknr_hint preceder;	/* The flush 'hint' state. */
 	int leaf_relocate;	/* True if enough leaf-level nodes were
 				 * found to suggest a relocate policy. */
-	long *nr_to_flush;	/* If called under memory pressure,
-				 * indicates how many nodes the VM asked to flush. */
 	int alloc_cnt;		/* The number of nodes allocated during squeeze and allococate. */
 	int prep_or_free_cnt;	/* The number of nodes prepared for write (allocate) or squeezed and freed. */
 	flush_queue_t *fq;

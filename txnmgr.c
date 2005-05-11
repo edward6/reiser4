@@ -245,7 +245,7 @@ year old --- define all technical terms used.
 
 static void atom_free(txn_atom * atom);
 
-static long commit_txnh(txn_handle * txnh);
+static int commit_txnh(txn_handle * txnh);
 
 static void wakeup_atom_waitfor_list(txn_atom * atom);
 static void wakeup_atom_waiting_list(txn_atom * atom);
@@ -487,7 +487,7 @@ txn_begin(reiser4_context * context)
 }
 
 /* Finish a transaction handle context. */
-reiser4_internal long
+reiser4_internal int
 txn_end(reiser4_context * context)
 {
 	long ret = 0;
@@ -1446,7 +1446,6 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 	txn_handle *txnh = ctx->trans;
 	txn_atom *atom;
 	int ret;
-	int ret1;
 
 	assert("zam-1042", txnh != NULL);
  repeat:
@@ -1529,11 +1528,9 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 		ret = 0;
 	}
 
-	ret1 = txn_end(ctx);
-	assert("vs-1692", ret1 == 0);
-	if (ret1 > 0)
-		*nr_submitted += ret1;
-	txn_begin(ctx);
+	if (*nr_submitted > wbc->nr_to_write)
+		warning("", "asked for %ld, written %ld\n", wbc->nr_to_write, *nr_submitted);
+	txn_restart(ctx);
 
 	return ret;
 }
@@ -1787,7 +1784,7 @@ try_commit_txnh(commit_data *cd)
 /* Called to commit a transaction handle.  This decrements the atom's number of open
    handles and if it is the last handle to commit and the atom should commit, initiates
    atom commit. if commit does not fail, return number of written blocks */
-static long
+static int
 commit_txnh(txn_handle * txnh)
 {
 	commit_data cd;

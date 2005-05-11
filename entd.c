@@ -242,14 +242,6 @@ static void kick_entd(entd_context * ent)
 	kcond_signal(&ent->wait);
 }
 
-static void entd_capture_anonymous_pages(
-	struct super_block * super, struct writeback_control * wbc)
-{
-	spin_lock(&inode_lock);
-	generic_sync_sb_inodes(super, wbc);
-	spin_unlock(&inode_lock);
-}
-
 static void entd_flush(struct super_block *super)
 {
 	long            nr_submitted = 0;
@@ -267,7 +259,7 @@ static void entd_flush(struct super_block *super)
 
 	ctx.entd = 1;
 
-	entd_capture_anonymous_pages(super, &wbc);
+	generic_sync_sb_inodes(super, &wbc);
 	result = flush_some_atom(&nr_submitted, &wbc, JNODE_FLUSH_WRITE_BLOCKS);
 	if (result != 0)
 		warning("nikita-3100", "Flush failed: %i", result);

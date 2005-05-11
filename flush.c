@@ -631,7 +631,8 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
    audit.
 */
 
-static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush_queue_t * fq, int flags)
+static int
+jnode_flush(jnode *node, long *nr_written, flush_queue_t *fq, int flags)
 {
 	long ret = 0;
 	flush_scan right_scan;
@@ -665,7 +666,6 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	/* Initialize a flush position. */
 	pos_init(&flush_pos);
 
-	flush_pos.nr_to_flush = nr_to_flush;
 	flush_pos.nr_written = nr_written;
 	flush_pos.fq = fq;
 	flush_pos.flags = flags;
@@ -829,14 +829,6 @@ static int jnode_flush(jnode * node, long *nr_to_flush, long * nr_written, flush
 	/* Any failure reaches this point. */
 failed:
 
-	if (nr_to_flush != NULL) {
-		if (ret >= 0) {
-			(*nr_to_flush) = flush_pos.prep_or_free_cnt;
-		} else {
-			(*nr_to_flush) = 0;
-		}
-	}
-
 	switch (ret) {
 	    case -E_REPEAT:
 	    case -EINVAL:
@@ -985,7 +977,7 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 		jref(node);
 		UNLOCK_ATOM(*atom);
 		UNLOCK_JNODE(node);
-		ret = jnode_flush(node, NULL, nr_submitted, fq, flags);
+		ret = jnode_flush(node, nr_submitted, fq, flags);
 		jput(node);
 	}
 

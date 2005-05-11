@@ -478,11 +478,6 @@ tail_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
 	}
 
 	if (!reiser4_is_set(inode->i_sb, REISER4_ATOMIC_WRITE)) {
-		/* FIXME-VS: this is temporary: the problem is that bdp takes
-		   inodes from sb's dirty list and it looks like nobody puts
-		   there inodes of files which are built of tails */
-		move_inode_out_from_sync_inodes_loop(mapping);
-
 		uf_info = unix_file_inode_data(inode);
 		excl = unix_file_inode_data(inode)->exclusive_use;
 		if (excl)

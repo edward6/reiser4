@@ -492,7 +492,6 @@ reiser4_internal int
 reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 {
 	jnode *node;
-	void *oid;
 
 	assert("nikita-2257", PagePrivate(page));
 	assert("nikita-2259", PageLocked(page));
@@ -507,8 +506,6 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 	assert("nikita-2258", node != NULL);
 	assert("reiser4-4", page->mapping != NULL);
 	assert("reiser4-5", page->mapping->host != NULL);
-
-	oid = (void *)(unsigned long)get_inode_oid(page->mapping->host);
 
 	/* is_page_cache_freeable() check
 	   (mapping + private + page_cache_get() by shrink_cache()) */
@@ -557,19 +554,6 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 #undef INC_NSTAT
 #undef INC_STAT
 
-reiser4_internal void
-move_inode_out_from_sync_inodes_loop(struct address_space * mapping)
-{
-	/* work around infinite loop in pdflush->sync_sb_inodes. */
-	/* Problem: ->writepages() is supposed to submit io for the pages from
-	 * ->io_pages list and to clean this list. */
-	mapping->host->dirtied_when = jiffies;
-	spin_lock(&inode_lock);
-	list_move(&mapping->host->i_list, &mapping->host->i_sb->s_dirty);
-	spin_unlock(&inode_lock);
-
-}
-
 /* reiser4 writepages() address space operation this captures anonymous pages
    and anonymous jnodes. Anonymous pages are pages which are dirtied via
    mmapping. Anonymous jnodes are ones which were created by reiser4_writepage
@@ -584,12 +568,21 @@ reiser4_writepages(struct address_space *mapping,
 
 	inode = mapping->host;
 	fplug = inode_file_plugin(inode);
-	if (fplug != NULL && fplug->capture != NULL)
+	if (fplug != NULL && fplug->capture != NULL) {
 		/* call file plugin method to capture anonymous pages and
 		   anonymous jnodes */
 		ret = fplug->capture(inode, wbc);
-
-	move_inode_out_from_sync_inodes_loop(mapping);
+		if (is_in_reiser4_context()) {			
+			if (get_current_context()->nr_captured >= CAPTURE_APAGE_BURST) {
+				/* there are already pages to flush, flush them
+				   out, do not delay until end of
+				   reiser4_sync_inodes */
+				writeout(inode->i_sb, wbc);
+				get_current_context()->nr_captured = 0;
+			}
+		}
+	}
+	
 	return ret;
 }
 

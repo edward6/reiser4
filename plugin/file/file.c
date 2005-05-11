@@ -938,9 +938,7 @@ capturepage_unix_file(struct page * page) {
 static void
 redirty_inode(struct inode *inode)
 {
-	spin_lock(&inode_lock);
-	inode->i_state |= I_DIRTY;
-	spin_unlock(&inode_lock);
+	__mark_inode_dirty(inode, I_DIRTY_PAGES);
 }
 
 /*
@@ -1014,9 +1012,6 @@ capture_anonymous_page(struct page *pg, int keepme)
 
 	return result;
 }
-
-
-#define CAPTURE_APAGE_BURST      (1024l)
 
 /* look for pages tagged REISER4_MOVED starting from the index-th page, return
    number of captured pages, update index to next page after the last found
@@ -1349,23 +1344,7 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 		 */
 		assert("", LOCK_CNT_NIL(inode_sem_w));
 		assert("", LOCK_CNT_NIL(inode_sem_r));
-#if 0
-		if (is_in_reiser4_context()) {
-			if (down_read_trylock(&uf_info->latch) == 0) {
-/* ZAM-FIXME-HANS: please explain this error handling here, grep for
- * all instances of returning EBUSY, and tell me whether any of them
- * represent busy loops that we should recode.  Also tell me whether
- * any of them fail to return EBUSY to user space, and if yes, then
- * recode them to not use the EBUSY macro.*/
-				warning("", "does this ever happen?");
-				result = RETERR(-EBUSY);
-				reiser4_exit_context(&ctx);
-				break;
-			}
-		} else
-			down_read(&uf_info->latch);
-		LOCK_CNT_INC(inode_sem_r);
-#endif
+
 		txn_restart_current();
 		get_nonexclusive_access(uf_info, 0);
 		while (to_capture > 0) {
@@ -1391,7 +1370,7 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 			if (result < 0)
 				break;
 			to_capture -= result;
-			wbc->nr_to_write -= result;
+			get_current_context()->nr_captured -= result;
 
 			if (jindex == (pgoff_t)-1) {
 				assert("vs-1728", pindex == (pgoff_t)-1);
@@ -1403,10 +1382,6 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 			redirty_inode(inode);
 
 		drop_nonexclusive_access(uf_info);
-/*
-		up_read(&uf_info->latch);
-		LOCK_CNT_DEC(inode_sem_r);
-*/
 		if (result < 0) {
 			/* error happened */
 			reiser4_exit_context(&ctx);
