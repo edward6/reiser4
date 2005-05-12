@@ -12,14 +12,15 @@ typedef enum {
 /* builtin compression plugins */
 
 typedef enum {
-	NONE_COMPRESSION_ID,
 	LZO1_COMPRESSION_ID,
 	LZO1_NO_COMPRESSION_ID,
 	GZIP1_COMPRESSION_ID,
 	GZIP1_NO_COMPRESSION_ID,
+	NONE_COMPRESSION_ID,
 	LAST_COMPRESSION_ID,
 } reiser4_compression_id;
 
+typedef unsigned long cloff_t;
 typedef void * coa_t;
 typedef coa_t coa_set[LAST_COMPRESSION_ID];
 
