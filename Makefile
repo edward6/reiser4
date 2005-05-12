@@ -44,6 +44,7 @@ reiser4-y := \
 		   emergency_flush.o \
 		   entd.o\
 		   readahead.o \
+		   cluster.o \
 		   crypt.o \
 		   status_flags.o \
 		   init_super.o \
@@ -60,6 +61,7 @@ reiser4-y := \
            \
 		   plugin/compress/minilzo.o \
 		   plugin/compress/compress.o \
+		   plugin/compress/compress_mode.o \
            \
 		   plugin/item/static_stat.o \
 		   plugin/item/sde.o \
@@ -93,4 +95,5 @@ reiser4-y := \
            \
 		   plugin/file/pseudo.o \
 		   plugin/file/file.o \
+		   plugin/file/regular.o \
 		   plugin/file/tail_conversion.o
