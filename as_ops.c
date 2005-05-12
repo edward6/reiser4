@@ -572,7 +572,7 @@ reiser4_writepages(struct address_space *mapping,
 		/* call file plugin method to capture anonymous pages and
 		   anonymous jnodes */
 		ret = fplug->capture(inode, wbc);
-		if (is_in_reiser4_context()) {			
+		if (is_in_reiser4_context()) {
 			if (get_current_context()->nr_captured >= CAPTURE_APAGE_BURST) {
 				/* there are already pages to flush, flush them
 				   out, do not delay until end of
@@ -582,7 +582,7 @@ reiser4_writepages(struct address_space *mapping,
 			}
 		}
 	}
-	
+
 	return ret;
 }
 
