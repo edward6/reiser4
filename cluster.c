@@ -3,6 +3,10 @@
 /* Contains cluster operations for cryptcompress object plugin (see
    http://www.namesys.com/cryptcompress_design.txt for details). */
 
+#include "plugin/plugin_header.h"
+#include "plugin/plugin.h"
+#include "inode.h"
+
 /*         Concepts of clustering. Definition of cluster size.
 	   Data clusters, page clusters, disk clusters.
 
@@ -68,4 +72,62 @@
    For the same index we use one structure (type reiser4_cluster_t) to
    represent all data/page/disk clusters.  (EDWARD-FIXME-HANS: are you
    sure that is good style? and where is the code that goes with this comment....;-) )
+*/
+
+static int
+change_cluster(struct inode * inode, reiser4_plugin * plugin)
+{
+	int result = 0;
+
+	assert("edward-1324", inode != NULL);
+	assert("edward-1325", plugin != NULL);
+	assert("edward-1326", is_reiser4_inode(inode));
+	assert("edward-1327", plugin->h.type_id == REISER4_CLUSTER_PLUGIN_TYPE);
+	
+	if (inode_file_plugin(inode)->h.id == DIRECTORY_FILE_PLUGIN_ID)
+		result = plugin_set_cluster(&reiser4_inode_data(inode)->pset,
+					    &plugin->clust);
+	else
+		result = RETERR(-EINVAL);
+	return result;
+}
+
+static reiser4_plugin_ops cluster_plugin_ops = {
+	.init     = NULL,
+	.load     = NULL,
+	.save_len = NULL,
+	.save     = NULL,
+	.change   = &change_cluster
+};
+
+#define SUPPORT_CLUSTER(SHIFT, ID, LABEL, DESC)                    \
+	[CLUSTER_ ## ID ## _ID] = {                                \
+		.h = {                                             \
+			.type_id = REISER4_CLUSTER_PLUGIN_TYPE,    \
+			.id = CLUSTER_ ## ID ## _ID,               \
+			.pops = &cluster_plugin_ops,               \
+			.label = LABEL,                            \
+			.desc = DESC,                              \
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO        \
+		},                                                 \
+		.shift = SHIFT                                     \
+	}
+
+cluster_plugin cluster_plugins[LAST_CLUSTER_ID] = {
+	SUPPORT_CLUSTER(12, 4K, "4K", "Minimal"),
+	SUPPORT_CLUSTER(13, 8K, "8K", "Small"),
+	SUPPORT_CLUSTER(14, 16K, "16K", "Average"),
+	SUPPORT_CLUSTER(15, 32K, "32K", "Big"),
+	SUPPORT_CLUSTER(16, 64K, "64K", "Large")
+};
+
+/*
+  Local variables:
+  c-indentation-style: "K&R"
+  mode-name: "LC"
+  c-basic-offset: 8
+  tab-width: 8
+  fill-column: 120
+  scroll-step: 1
+  End:
 */
