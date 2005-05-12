@@ -938,6 +938,9 @@ static plugin_entry pentry[] = {
 	PLUGIN_ENTRY(crypto, PSET_CRYPTO),
 	PLUGIN_ENTRY(digest, PSET_DIGEST),
 	PLUGIN_ENTRY(compression, PSET_COMPRESSION),
+	PLUGIN_ENTRY(compression_mode, PSET_COMPRESSION_MODE),
+	PLUGIN_ENTRY(cluster, PSET_CLUSTER),
+	PLUGIN_ENTRY(regular, PSET_REGULAR_ENTRY),
 	{
 		.name = NULL,
 	}

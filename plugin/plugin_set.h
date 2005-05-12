@@ -39,21 +39,30 @@ struct plugin_set {
 	digest_plugin      *digest;
 	/* compression plugin */
 	compression_plugin *compression;
+	/* compression mode plugin */
+	compression_mode_plugin * compression_mode;
+	/* cluster plugin */
+	cluster_plugin     *cluster;
+	/* plugin of regular child should be created */
+	regular_plugin     *regular_entry;
 	ps_hash_link        link;
 };
 
 extern plugin_set *plugin_set_get_empty(void);
 extern void        plugin_set_put(plugin_set *set);
 
-extern int plugin_set_file       (plugin_set **set, file_plugin *file);
-extern int plugin_set_dir        (plugin_set **set, dir_plugin *file);
-extern int plugin_set_formatting (plugin_set **set, formatting_plugin *file);
-extern int plugin_set_hash       (plugin_set **set, hash_plugin *file);
-extern int plugin_set_fibration  (plugin_set **set, fibration_plugin *file);
-extern int plugin_set_sd         (plugin_set **set, item_plugin *file);
-extern int plugin_set_crypto     (plugin_set **set, crypto_plugin *file);
-extern int plugin_set_digest     (plugin_set **set, digest_plugin *file);
-extern int plugin_set_compression(plugin_set **set, compression_plugin *file);
+extern int plugin_set_file            (plugin_set **set, file_plugin *plug);
+extern int plugin_set_dir             (plugin_set **set, dir_plugin *plug);
+extern int plugin_set_formatting      (plugin_set **set, formatting_plugin *plug);
+extern int plugin_set_hash            (plugin_set **set, hash_plugin *plug);
+extern int plugin_set_fibration       (plugin_set **set, fibration_plugin *plug);
+extern int plugin_set_sd              (plugin_set **set, item_plugin *plug);
+extern int plugin_set_crypto          (plugin_set **set, crypto_plugin *plug);
+extern int plugin_set_digest          (plugin_set **set, digest_plugin *plug);
+extern int plugin_set_compression     (plugin_set **set, compression_plugin *plug);
+extern int plugin_set_compression_mode(plugin_set **set, compression_mode_plugin *plug);
+extern int plugin_set_cluster         (plugin_set **set, cluster_plugin *plug);
+extern int plugin_set_regular         (plugin_set **set, regular_plugin *plug);
 
 extern int  plugin_set_init(void);
 extern void plugin_set_done(void);

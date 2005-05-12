@@ -139,6 +139,27 @@ typedef struct reiser4_object_on_wire reiser4_object_on_wire;
  plugins.
 
 */
+
+/* builtin file-plugins */
+typedef enum {
+	/* regular file */
+	UNIX_FILE_PLUGIN_ID,
+	/* directory */
+	DIRECTORY_FILE_PLUGIN_ID,
+	/* symlink */
+	SYMLINK_FILE_PLUGIN_ID,
+	/* for objects completely handled by the VFS: fifos, devices,
+	   sockets  */
+	SPECIAL_FILE_PLUGIN_ID,
+	/* Plugin id for crypto-compression objects */
+	CRC_FILE_PLUGIN_ID,
+	/* pseudo file */
+	PSEUDO_FILE_PLUGIN_ID,
+        /* number of file plugins. Used as size of arrays to hold
+	   file plugins. */
+	LAST_FILE_PLUGIN_ID
+} reiser4_file_id;
+
 typedef struct file_plugin {
 
 	/* generic fields */
@@ -424,7 +445,7 @@ typedef struct crypto_plugin {
 	   size. This method is to align any flow up to crypto block size when
 	   we pass it to crypto algorithm. To align means to append padding of
 	   special format specific to the crypto algorithm */
-	int (*align_cluster)(__u8 *tail, int clust_size, int blocksize);
+	int (*align_stream)(__u8 *tail, int clust_size, int blocksize);
 	/* low-level key manager (check, install, etc..) */
 	int (*setkey) (struct crypto_tfm *tfm, const __u8 *key, unsigned int keylen);
 	/* main text processing procedures */
@@ -453,7 +474,7 @@ typedef struct compression_plugin {
 	coa_t (*alloc) (tfm_action act);
 	void (*free) (coa_t coa, tfm_action act);
 	/* minimal size of the flow we still try to compress */
-	int (*min_tfm_size) (void);
+	int (*min_size_deflate) (void);
 	__u32 (*checksum) (char * data, __u32 length);
 	/* main transform procedures */
 	void (*compress)   (coa_t coa, __u8 *src_first, unsigned src_len,
@@ -461,6 +482,30 @@ typedef struct compression_plugin {
 	void (*decompress) (coa_t coa, __u8 *src_first, unsigned src_len,
 			    __u8 *dst_first, unsigned *dst_len);
 }compression_plugin;
+
+typedef struct compression_mode_plugin {
+	/* generic fields */
+	plugin_header h;
+	/* called before compression transform */
+	int (*should_deflate) (cloff_t index);
+	/* called when results of compression should be saved */
+	void (*save_deflate) (struct inode * inode);
+	/* called when results of compression should be discarded */
+	int (*discard_deflate) (struct inode * inode, cloff_t index);
+} compression_mode_plugin;
+
+typedef struct regular_plugin {
+	/* generic fields */
+	plugin_header h;
+	/* file plugin id which implements regular file */
+	reiser4_file_id id;
+}regular_plugin;
+
+typedef struct cluster_plugin {
+	/* generic fields */
+	plugin_header h;
+	int shift;
+}cluster_plugin;
 
 typedef struct sd_ext_plugin {
 	/* generic fields */
@@ -574,6 +619,12 @@ union reiser4_plugin {
 	jnode_plugin jnode;
 	/* plugin for pseudo files */
 	pseudo_plugin pseudo;
+	/* compression_mode_plugin, used by object plugin */
+	compression_mode_plugin compression_mode;
+	/* cluster_plugin, used by object plugin */
+	cluster_plugin clust;
+	/* regular plugin, used by directory plugin */
+	regular_plugin regular;
 	/* place-holder for new plugin types that can be registered
 	   dynamically, and used by other dynamically loaded plugins.  */
 	void *generic;
@@ -617,26 +668,6 @@ void move_flow_forward(flow_t * f, unsigned count);
 
 /* builtin plugins */
 
-/* builtin file-plugins */
-typedef enum {
-	/* regular file */
-	UNIX_FILE_PLUGIN_ID,
-	/* directory */
-	DIRECTORY_FILE_PLUGIN_ID,
-	/* symlink */
-	SYMLINK_FILE_PLUGIN_ID,
-	/* for objects completely handled by the VFS: fifos, devices,
-	   sockets  */
-	SPECIAL_FILE_PLUGIN_ID,
-	/* Plugin id for crypto-compression objects */
-	CRC_FILE_PLUGIN_ID,
-	/* pseudo file */
-	PSEUDO_FILE_PLUGIN_ID,
-        /* number of file plugins. Used as size of arrays to hold
-	   file plugins. */
-	LAST_FILE_PLUGIN_ID
-} reiser4_file_id;
-
 /* builtin dir-plugins */
 typedef enum {
 	HASHED_DIR_PLUGIN_ID,
@@ -669,6 +700,31 @@ typedef enum {
 	NONE_DIGEST_ID,
 	LAST_DIGEST_ID
 } reiser4_digest_id;
+
+/* builtin compression mode plugins */
+typedef enum {
+	SMART_COMPRESSION_MODE_ID,
+	FORCE_COMPRESSION_MODE_ID,
+	LAZY_COMPRESSION_MODE_ID,
+	LAST_COMPRESSION_MODE_ID
+} reiser4_compression_mode_id;
+
+/* builtin cluster plugins */
+typedef enum {
+	CLUSTER_4K_ID,
+	CLUSTER_8K_ID,
+	CLUSTER_16K_ID,
+	CLUSTER_32K_ID,
+	CLUSTER_64K_ID,
+	LAST_CLUSTER_ID
+} reiser4_cluster_id;
+
+/* builtin regular plugins */
+typedef enum {
+	UF_REGULAR_ID,
+	CRC_REGULAR_ID,
+	LAST_REGULAR_ID
+} reiser4_regular_id;
 
 /* builtin tail-plugins */
 
@@ -779,6 +835,9 @@ PLUGIN_BY_ID(formatting_plugin, REISER4_FORMATTING_PLUGIN_TYPE, formatting);
 PLUGIN_BY_ID(disk_format_plugin, REISER4_FORMAT_PLUGIN_TYPE, format);
 PLUGIN_BY_ID(jnode_plugin, REISER4_JNODE_PLUGIN_TYPE, jnode);
 PLUGIN_BY_ID(pseudo_plugin, REISER4_PSEUDO_PLUGIN_TYPE, pseudo);
+PLUGIN_BY_ID(compression_mode_plugin, REISER4_COMPRESSION_MODE_PLUGIN_TYPE, compression_mode);
+PLUGIN_BY_ID(cluster_plugin, REISER4_CLUSTER_PLUGIN_TYPE, clust);
+PLUGIN_BY_ID(regular_plugin, REISER4_REGULAR_PLUGIN_TYPE, regular);
 
 extern int save_plugin_id(reiser4_plugin * plugin, d16 * area);
 
@@ -806,6 +865,9 @@ typedef enum {
 	PSET_CRYPTO,
 	PSET_DIGEST,
 	PSET_COMPRESSION,
+	PSET_COMPRESSION_MODE,
+	PSET_CLUSTER,
+	PSET_REGULAR_ENTRY,
 	PSET_LAST
 } pset_member;
 

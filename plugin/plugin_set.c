@@ -67,7 +67,10 @@ pseq(const unsigned long * a1, const unsigned long * a2)
 		sizeof set1->dir_item +
 		sizeof set1->crypto +
 		sizeof set1->digest +
-		sizeof set1->compression);
+		sizeof set1->compression +
+		sizeof set1->compression_mode +
+		sizeof set1->cluster +
+		sizeof set1->regular_entry);
 
 	set1 = cast_to(a1);
 	set2 = cast_to(a2);
@@ -84,7 +87,10 @@ pseq(const unsigned long * a1, const unsigned long * a2)
 		set1->dir_item == set2->dir_item &&
 		set1->crypto == set2->crypto &&
 		set1->digest == set2->digest &&
-		set1->compression == set2->compression;
+		set1->compression == set2->compression &&
+		set1->compression_mode == set2->compression_mode &&
+		set1->cluster == set2->cluster &&
+		set1->regular_entry == set2->regular_entry;
 }
 
 #define HASH_FIELD(hash, set, field)		\
@@ -108,6 +114,9 @@ static inline unsigned long calculate_hash(const plugin_set *set)
 	HASH_FIELD(result, set, crypto);
 	HASH_FIELD(result, set, digest);
 	HASH_FIELD(result, set, compression);
+	HASH_FIELD(result, set, compression_mode);
+	HASH_FIELD(result, set, cluster);
+	HASH_FIELD(result, set, regular_entry);
 	return result & (PS_TABLE_SIZE - 1);
 }
 
@@ -138,6 +147,9 @@ static plugin_set empty_set = {
 	.crypto             = NULL,
 	.digest             = NULL,
 	.compression        = NULL,
+	.compression_mode   = NULL,
+	.cluster            = NULL,
+	.regular_entry      = NULL,
 	.link               = { NULL }
 };
 
@@ -248,6 +260,18 @@ static struct {
 	[PSET_COMPRESSION] = {
 		.offset = offsetof(plugin_set, compression),
 		.type   = REISER4_COMPRESSION_PLUGIN_TYPE
+	},
+	[PSET_COMPRESSION_MODE] = {
+		.offset = offsetof(plugin_set, compression_mode),
+		.type   = REISER4_COMPRESSION_MODE_PLUGIN_TYPE
+	},
+	[PSET_CLUSTER] = {
+		.offset = offsetof(plugin_set, cluster),
+		.type   = REISER4_CLUSTER_PLUGIN_TYPE
+	},
+	[PSET_REGULAR_ENTRY] = {
+		.offset = offsetof(plugin_set, regular_entry),
+		.type   = REISER4_REGULAR_PLUGIN_TYPE
 	}
 };
 
@@ -306,6 +330,9 @@ DEFINE_PLUGIN_SET(item_plugin, sd)
 DEFINE_PLUGIN_SET(crypto_plugin, crypto)
 DEFINE_PLUGIN_SET(digest_plugin, digest)
 DEFINE_PLUGIN_SET(compression_plugin, compression)
+DEFINE_PLUGIN_SET(compression_mode_plugin, compression_mode)
+DEFINE_PLUGIN_SET(cluster_plugin, cluster)
+DEFINE_PLUGIN_SET(regular_plugin, regular_entry)
 
 reiser4_internal int plugin_set_init(void)
 {

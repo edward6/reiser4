@@ -455,8 +455,14 @@ extern fibration_plugin fibration_plugins[LAST_FIBRATION_ID];
 extern crypto_plugin crypto_plugins[LAST_CRYPTO_ID];
 /* defined in fs/reiser4/plugin/digest.c */
 extern digest_plugin digest_plugins[LAST_DIGEST_ID];
-/* defined in fs/reiser4/plugin/compress.c */
+/* defined in fs/reiser4/plugin/compress/compress.c */
 extern compression_plugin compression_plugins[LAST_COMPRESSION_ID];
+/* defined in fs/reiser4/plugin/compress/compression_mode.c */
+extern compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID];
+/* defined in fs/reiser4/plugin/cluster.c */
+extern cluster_plugin cluster_plugins[LAST_CLUSTER_ID];
+/* defined in fs/reiser4/plugin/file/regular.c */
+extern regular_plugin regular_plugins[LAST_REGULAR_ID];
 /* defined in fs/reiser4/plugin/tail.c */
 extern formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID];
 /* defined in fs/reiser4/plugin/security/security.c */
@@ -609,6 +615,33 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin = pseudo_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
 		.size = sizeof (pseudo_plugin)
+	},
+	[REISER4_COMPRESSION_MODE_PLUGIN_TYPE] = {
+		.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+		.label = "compression_mode",
+		.desc = "Defines compression mode",
+		.builtin_num = sizeof_array(compression_mode_plugins),
+		.builtin = compression_mode_plugins,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
+		.size = sizeof (compression_mode_plugin)
+	},
+	[REISER4_CLUSTER_PLUGIN_TYPE] = {
+		.type_id = REISER4_CLUSTER_PLUGIN_TYPE,
+		.label = "cluster",
+		.desc = "Defines cluster size",
+		.builtin_num = sizeof_array(cluster_plugins),
+		.builtin = cluster_plugins,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
+		.size = sizeof (cluster_plugin)
+	},
+	[REISER4_REGULAR_PLUGIN_TYPE] = {
+		.type_id = REISER4_REGULAR_PLUGIN_TYPE,
+		.label = "regular",
+		.desc = "Defines kind of regular file",
+		.builtin_num = sizeof_array(regular_plugins),
+		.builtin = regular_plugins,
+		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
+		.size = sizeof (regular_plugin)
 	}
 };
 
