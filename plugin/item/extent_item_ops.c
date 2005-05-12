@@ -349,10 +349,9 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 			 */
 			/* if neighbors of item being removed are znodes -
 			 * link them */
-			UNDER_RW_VOID(tree, tree,
-				      write, link_left_and_right(left, right));
-
+			WLOCK_TREE(tree);
 			WLOCK_DK(tree);
+			link_left_and_right(left, right);
 			if (left) {
 				/* update right delimiting key of left
 				 * neighbor of extent item */
@@ -368,6 +367,7 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 				znode_set_rd_key(left, &key);
 			}
  			WUNLOCK_DK(tree);
+			WUNLOCK_TREE(tree);
 
 			from_off = get_key_offset(&min_item_key) >> PAGE_CACHE_SHIFT;
 			to_off = (get_key_offset(&max_item_key) + 1) >> PAGE_CACHE_SHIFT;
