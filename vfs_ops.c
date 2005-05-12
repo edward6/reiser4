@@ -486,8 +486,6 @@ reiser4_alloc_inode(struct super_block *super UNUSED_ARG	/* super block new
 #endif
 		seal_init(&info->sd_seal, NULL, NULL);
 		coord_init_invalid(&info->sd_coord, NULL);
-		info->cluster_shift = 0;
-		info->crypt = NULL;
 		info->flags = 0;
 		spin_inode_object_init(info);
 		/* this deals with info's loading semaphore */
