@@ -3219,14 +3219,6 @@ capture_anonymous_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	return result;
 }
 
-static void
-redirty_inode(struct inode *inode)
-{
-	spin_lock(&inode_lock);
-	inode->i_state |= I_DIRTY;
-	spin_unlock(&inode_lock);
-}
-
 #define MAX_CLUSTERS_TO_CAPTURE(inode)      (1024 >> inode_cluster_shift(inode))
 
 /* read lock should be acquired */
@@ -3278,7 +3270,7 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index, int 
 		assert("edward-1078", to_capture <= MAX_CLUSTERS_TO_CAPTURE(mapping->host));
 		if (to_capture <= 0)
 			/* there may be left more pages */
-			redirty_inode(mapping->host);
+			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
  out:
 	done_lh(&lh);

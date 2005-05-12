@@ -935,12 +935,6 @@ capturepage_unix_file(struct page * page) {
 	return result;
 }
 
-static void
-redirty_inode(struct inode *inode)
-{
-	__mark_inode_dirty(inode, I_DIRTY_PAGES);
-}
-
 /*
  * Support for "anonymous" pages and jnodes.
  *
@@ -1379,7 +1373,7 @@ capture_unix_file(struct inode *inode, struct writeback_control *wbc)
 		}
 		if (to_capture <= 0)
 			/* there may be left more pages */
-			redirty_inode(inode);
+			__mark_inode_dirty(inode, I_DIRTY_PAGES);
 
 		drop_nonexclusive_access(uf_info);
 		if (result < 0) {
