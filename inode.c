@@ -560,6 +560,27 @@ inode_compression_plugin(const struct inode * inode)
 	return reiser4_inode_data(inode)->pset->compression;
 }
 
+reiser4_internal compression_mode_plugin *
+inode_compression_mode_plugin(const struct inode * inode)
+{
+	assert("edward-1330", inode != NULL);
+	return reiser4_inode_data(inode)->pset->compression_mode;
+}
+
+reiser4_internal cluster_plugin *
+inode_cluster_plugin(const struct inode * inode)
+{
+	assert("edward-1328", inode != NULL);
+	return reiser4_inode_data(inode)->pset->cluster;
+}
+
+reiser4_internal regular_plugin *
+inode_regular_plugin(const struct inode * inode)
+{
+	assert("edward-1329", inode != NULL);
+	return reiser4_inode_data(inode)->pset->regular_entry;
+}
+
 reiser4_internal digest_plugin *
 inode_digest_plugin(const struct inode * inode)
 {
