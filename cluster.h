@@ -20,9 +20,8 @@ static inline int inode_cluster_shift (struct inode * inode)
 {
 	assert("edward-92", inode != NULL);
 	assert("edward-93", reiser4_inode_data(inode) != NULL);
-	assert("edward-94", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 
-	return reiser4_inode_data(inode)->cluster_shift;
+	return inode_cluster_plugin(inode)->shift;
 }
 
 static inline unsigned

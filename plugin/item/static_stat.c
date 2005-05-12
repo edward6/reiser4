@@ -952,26 +952,27 @@ save_plugin_sd(struct inode *inode /* object being processed */ ,
    Allocates memory for crypto stat, keyid and attaches it to the inode */
 
 static int crypto_stat_to_inode (struct inode *inode,
-				 crypto_stat_t * tmp,
+				 reiser4_crypto_stat * sd,
 				 unsigned int size /* fingerprint size */)
 {
 	crypto_stat_t * stat;
 
-	assert ("edward-11", (reiser4_inode_data(inode))->crypt == NULL);
+	assert ("edward-11", (cryptcompress_inode_data(inode))->crypt == NULL);
 	assert ("edward-33", !inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED));
 
 	stat = reiser4_kmalloc(sizeof(*stat), GFP_KERNEL);
 	if (!stat)
 		return RETERR(-ENOMEM);
+	memset(stat, 0, sizeof *stat);
 	stat->keyid = reiser4_kmalloc((size_t)size, GFP_KERNEL);
 	if (!stat->keyid) {
 		reiser4_kfree(stat);
 		return RETERR(-ENOMEM);
 	}
 	/* load inode crypto-stat */
-	stat->keysize = tmp->keysize;
-	memcpy(stat->keyid, tmp->keyid, (size_t)size);
-	reiser4_inode_data(inode)->crypt = stat;
+	stat->keysize = d16tocpu(&sd->keysize);
+	memcpy(stat->keyid, sd->keyid, (size_t)size);
+	cryptcompress_inode_data(inode)->crypt = stat;
 
 	inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
 	return 0;
@@ -983,9 +984,7 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 {
 	int result;
 	reiser4_crypto_stat *sd;
-	crypto_stat_t stat;
 	digest_plugin * dplug = inode_digest_plugin(inode);
-
 	unsigned int keyid_size;
 
 	assert("edward-06", dplug != NULL);
@@ -1004,10 +1003,8 @@ static int present_crypto_sd(struct inode *inode, char **area, int *len)
 	assert("edward-75", sizeof(*sd) + keyid_size <= *len);
 
 	sd = (reiser4_crypto_stat *) * area;
-	stat.keysize = d16tocpu(&sd->keysize);
-	stat.keyid = (__u8 *)sd->keyid;
 
-	result = crypto_stat_to_inode(inode, &stat, keyid_size);
+	result = crypto_stat_to_inode(inode, sd, keyid_size);
 	move_on(len, area, sizeof(*sd) + keyid_size);
 	return result;
 }
@@ -1036,11 +1033,12 @@ static int save_crypto_sd(struct inode *inode, char **area)
 	sd = (reiser4_crypto_stat *) *area;
 	if (!inode_get_flag(inode, REISER4_CRYPTO_STAT_LOADED)) {
 		/* file is just created */
-		crypto_stat_t * stat = reiser4_inode_data(inode)->crypt;
+		crypto_stat_t * stat;
+		stat = cryptcompress_inode_data(inode)->crypt;
 
 		assert("edward-15", stat != NULL);
 
-		/* copy inode crypto-stat to the disk stat-data */
+		/* copy everything but private key to the disk stat-data */
 		cputod16(stat->keysize, &sd->keysize);
 		memcpy(sd->keyid, stat->keyid, (size_t)dplug->dsize);
 		inode_set_flag(inode, REISER4_CRYPTO_STAT_LOADED);
@@ -1062,76 +1060,6 @@ print_crypto_sd(const char *prefix, char **area /* position in stat-data */ ,
 
 	printk("%s: keysize: %u keyid: \"%llx\"\n", prefix, d16tocpu(&sd->keysize), *(__u64 *)(sd->keyid));
 	move_on(len, area, sizeof(*sd) + dplug->dsize);
-}
-#endif
-
-/* cluster stat-data extension */
-
-static int present_cluster_sd(struct inode *inode, char **area, int *len)
-{
-	reiser4_inode * info;
-
-	assert("edward-77", inode != NULL);
-	assert("edward-78", area != NULL);
-	assert("edward-79", *area != NULL);
-	assert("edward-80", len != NULL);
-	assert("edward-81", !inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
-
-	info = reiser4_inode_data(inode);
-
-	assert("edward-82", info != NULL);
-
-	if (*len >= (int) sizeof (reiser4_cluster_stat)) {
-		reiser4_cluster_stat *sd;
-		sd = (reiser4_cluster_stat *) * area;
-		info->cluster_shift = d8tocpu(&sd->cluster_shift);
-		inode_set_flag(inode, REISER4_CLUSTER_KNOWN);
-		move_on(len, area, sizeof *sd);
-		return 0;
-	}
-	else
-		return not_enough_space(inode, "cluster sd");
-}
-
-static int absent_cluster_sd(struct inode * inode)
-{
-	return -EIO;
-}
-
-static int save_len_cluster_sd(struct inode *inode UNUSED_ARG)
-{
-	return sizeof (reiser4_cluster_stat);
-}
-
-static int save_cluster_sd(struct inode *inode, char **area)
-{
-	reiser4_cluster_stat *sd;
-
-	assert("edward-106", inode != NULL);
-	assert("edward-107", area != NULL);
-	assert("edward-108", *area != NULL);
-
-	sd = (reiser4_cluster_stat *) * area;
-	if (!inode_get_flag(inode, REISER4_CLUSTER_KNOWN)) {
-		cputod8(reiser4_inode_data(inode)->cluster_shift, &sd->cluster_shift);
-		inode_set_flag(inode, REISER4_CLUSTER_KNOWN);
-	}
-	else {
-		/* do nothing */
-	}
-	*area += sizeof *sd;
-	return 0;
-}
-
-#if REISER4_DEBUG_OUTPUT
-static void
-print_cluster_sd(const char *prefix, char **area /* position in stat-data */,
-		 int *len /* remaining length */ )
-{
-	reiser4_cluster_stat *sd = (reiser4_cluster_stat *) * area;
-
-	printk("%s: %u\n", prefix, d8tocpu(&sd->cluster_shift));
-	move_on(len, area, sizeof *sd);
 }
 #endif
 
@@ -1265,25 +1193,6 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				.save = save_flags_sd,
 #if REISER4_DEBUG_OUTPUT
 				.print = NULL,
-#endif
-				.alignment = 8
-	},
-	[CLUSTER_STAT] = {
-				.h = {
-				      .type_id = REISER4_SD_EXT_PLUGIN_TYPE,
-				      .id = CLUSTER_STAT,
-				      .pops = NULL,
-				      .label = "cluster-sd",
-				      .desc = "cluster shift",
-				      .linkage = TYPE_SAFE_LIST_LINK_ZERO}
-				,
-				.present = present_cluster_sd,
-				.absent = absent_cluster_sd,
-				/* return IO_ERROR if smthng is wrong */
-				.save_len = save_len_cluster_sd,
-				.save = save_cluster_sd,
-#if REISER4_DEBUG_OUTPUT
-				.print = print_cluster_sd,
 #endif
 				.alignment = 8
 	},

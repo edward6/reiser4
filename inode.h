@@ -49,19 +49,17 @@ typedef enum {
 	REISER4_SDLEN_KNOWN   = 5,
 	/* reiser4_inode->crypt points to the crypto stat */
 	REISER4_CRYPTO_STAT_LOADED = 6,
-	/* reiser4_inode->cluster_shift makes sense */
-	REISER4_CLUSTER_KNOWN = 7,
 	/* cryptcompress_inode_data points to the secret key */
-	REISER4_SECRET_KEY_INSTALLED = 8,
+	REISER4_SECRET_KEY_INSTALLED = 7,
 	/* File (possibly) has pages corresponding to the tail items, that
 	 * were created by ->readpage. It is set by mmap_unix_file() and
 	 * sendfile_unix_file(). This bit is inspected by write_unix_file and
 	 * kill-hook of tail items. It is never cleared once set. This bit is
 	 * modified and inspected under i_sem. */
-	REISER4_HAS_MMAP = 9,
+	REISER4_HAS_MMAP = 8,
 	/* file was partially converted. It's body consists of a mix of tail
 	 * and extent items. */
-	REISER4_PART_CONV = 10,
+	REISER4_PART_CONV = 9,
 } reiser4_file_plugin_flags;
 
 /* state associated with each inode.
@@ -123,11 +121,6 @@ struct reiser4_inode {
 	__u64 extmask;
 	/* bitmask of non-default plugins for this inode */
 	__u16 plugin_mask;
-	/* cluster parameter for crypto and compression */
-	__u8 cluster_shift;
-	/* secret key parameter for crypto */
-	crypto_stat_t *crypt;
-
 	union {
 		readdir_list_head readdir_list;
 		struct list_head not_used;
@@ -342,6 +335,9 @@ extern fibration_plugin *inode_fibration_plugin(const struct inode *inode);
 extern crypto_plugin *inode_crypto_plugin(const struct inode *inode);
 extern digest_plugin *inode_digest_plugin(const struct inode *inode);
 extern compression_plugin *inode_compression_plugin(const struct inode *inode);
+extern compression_mode_plugin *inode_compression_mode_plugin(const struct inode *inode);
+extern cluster_plugin *inode_cluster_plugin(const struct inode *inode);
+extern regular_plugin *inode_regular_plugin(const struct inode *inode);
 extern item_plugin *inode_sd_plugin(const struct inode *inode);
 extern item_plugin *inode_dir_item_plugin(const struct inode *inode);
 

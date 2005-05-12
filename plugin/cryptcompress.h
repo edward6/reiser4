@@ -17,7 +17,6 @@
 #define DEFAULT_CLUSTER_SHIFT 0
 #define DC_CHECKSUM_SIZE 4
 #define MIN_CRYPTO_BLOCKSIZE 8
- //#define LAZY_COMPRESSION_MODE
 
 #if REISER4_DEBUG
 static inline int
@@ -26,8 +25,6 @@ cluster_shift_ok (int shift)
 	return (shift >= MIN_CLUSTER_SHIFT) && (shift <= MAX_CLUSTER_SHIFT);
 }
 #endif
-
-typedef unsigned long cloff_t;
 
 /* Set of transform id's supported by reiser4,
    each transform is implemented by appropriate transform plugin: */
@@ -422,13 +419,14 @@ put_cluster_handle(reiser4_cluster_t * clust, tfm_action act)
 typedef struct crypto_stat {
 	__u8 * keyid;  /* pointer to a fingerprint */
 	__u16 keysize; /* key size, bits */
+	__u32 * expkey;
 } crypto_stat_t;
 
 /* cryptcompress specific part of reiser4_inode */
 typedef struct cryptcompress_info {
 	struct rw_semaphore lock;
 	struct crypto_tfm *tfm[LAST_TFM];
-	__u32 * expkey;
+	crypto_stat_t * crypt;
 } cryptcompress_info_t;
 
 cryptcompress_info_t *cryptcompress_inode_data(const struct inode * inode);
@@ -487,6 +485,12 @@ crypto_blocksize(struct inode * inode)
 {
 	assert("edward-758", inode_get_tfm(inode, CRYPTO_TFM) != NULL);
 	return crypto_tfm_alg_blocksize(inode_get_tfm(inode, CRYPTO_TFM));
+}
+
+static inline compression_plugin *
+dual_compression_plugin(compression_plugin * cplug)
+{
+	return compression_plugin_by_id(cplug->dual);
 }
 
 #define REGISTER_NONE_ALG(ALG, TFM)                                  \

@@ -26,7 +26,17 @@ digest_plugin digest_plugins[LAST_DIGEST_ID] = {
 		},
 		.dsize = NONE_DIGEST_SIZE,
 		.alloc = alloc_none_digest,
-		.free = free_none_digest,
+		.free = free_none_digest
 	}
 };
 
+/*
+  Local variables:
+  c-indentation-style: "K&R"
+  mode-name: "LC"
+  c-basic-offset: 8
+  tab-width: 8
+  fill-column: 120
+  scroll-step: 1
+  End:
+*/

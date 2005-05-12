@@ -26,7 +26,7 @@
 	  @pad
 */
 UNUSED_ARG static int
-align_cluster_common(__u8 *pad /* pointer to the first byte of aligning format */,
+align_stream_common(__u8 *pad /* pointer to the first byte of aligning format */,
 		     int flow_size /* size of non-aligned flow */,
 				int blocksize /* crypto-block size */)
 {
@@ -73,7 +73,7 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 		.free = free_none_crypt,
 		.nr_keywords = NONE_EXPKEY_WORDS,
 		.scale = scale_common,
-	        .align_cluster = NULL,
+	        .align_stream = NULL,
 	        .setkey = NULL,
 	        .encrypt = NULL,
 	        .decrypt = NULL

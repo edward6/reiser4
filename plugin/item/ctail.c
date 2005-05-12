@@ -564,7 +564,6 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	assert("edward-671", clust->hint != NULL);
 	assert("edward-140", clust->dstat == INVAL_DISK_CLUSTER);
 	assert("edward-672", crc_inode_ok(inode));
-	assert("edward-145", inode_get_flag(inode, REISER4_CLUSTER_KNOWN));
 
 	/* set input stream */
 	result = grab_tfm_stream(inode, &clust->tc, TFM_READ, INPUT_STREAM);
@@ -1329,8 +1328,6 @@ detach_convert_idata(convert_info_t * sq)
 
 	info = sq->itm;
 	assert("edward-255", info->inode != NULL);
-	assert("edward-1175",
-	       inode_get_flag(info->inode, REISER4_CLUSTER_KNOWN));
 	assert("edward-1212", info->flow.length == 0);
 
 	/* the final release of pages */
