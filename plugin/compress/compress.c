@@ -21,7 +21,7 @@ change_compression(struct inode * inode, reiser4_plugin * plugin)
 	assert("edward-1319", plugin->h.type_id == REISER4_COMPRESSION_PLUGIN_TYPE);
 
 	if (inode_file_plugin(inode)->h.id != DIRECTORY_FILE_PLUGIN_ID)
-		if (inode_compression_plugin(inode) != 
+		if (inode_compression_plugin(inode) !=
 		    dual_compression_plugin(&plugin->compression))
 			return RETERR(-EINVAL);
 	return plugin_set_compression(&reiser4_inode_data(inode)->pset,

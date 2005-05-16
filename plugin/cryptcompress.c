@@ -232,7 +232,7 @@ detach_crypto_stat(struct inode * object)
 /*  1) fill crypto specific part of inode
     2) set inode crypto stat which is supposed to be saved in stat-data */
 static int
-inode_set_crypto(struct inode * object, struct inode * parent, 
+inode_set_crypto(struct inode * object, struct inode * parent,
 		 crypto_data_t * data)
 {
 	int result;
@@ -296,7 +296,7 @@ inode_set_compression(struct inode * object, struct inode * parent)
 	reiser4_inode * info = reiser4_inode_data(object);
 
 	cplug = inode_compression_plugin(parent);
-	
+
 	if (cplug->init != NULL) {
 		result = cplug->init();
 		if (result)
@@ -313,9 +313,9 @@ inode_set_compression_mode(struct inode * object, struct inode * parent)
 {
 	compression_mode_plugin * mplug;
 	reiser4_inode * info = reiser4_inode_data(object);
-	
+
 	mplug = inode_compression_mode_plugin(parent);
-	
+
 	plugin_set_compression_mode(&info->pset, mplug);
 	info->plugin_mask |= (1 << PSET_COMPRESSION_MODE);
 	return;
@@ -328,12 +328,12 @@ inode_set_cluster(struct inode * object, struct inode * parent)
 	cluster_plugin * cplug;
 
 	assert("edward-696", object != NULL);
-	
+
 	info = reiser4_inode_data(object);
 	cplug = inode_cluster_plugin(parent);
 
 	if (cplug->shift < PAGE_CACHE_SHIFT) {
-		warning("edward-1320", 
+		warning("edward-1320",
 			"Can not support cluster size %p",
 			cplug->h.label);
 		return RETERR(-EINVAL);
@@ -352,7 +352,7 @@ inode_set_cluster(struct inode * object, struct inode * parent)
 . attach cluster info
 */
 reiser4_internal int
-create_cryptcompress(struct inode *object, struct inode *parent, 
+create_cryptcompress(struct inode *object, struct inode *parent,
 		     reiser4_object_create_data * data)
 {
 	int result;
@@ -782,7 +782,7 @@ try_compress(tfm_cluster_t * tc, cloff_t index, struct inode * inode)
 {
 	compression_plugin * cplug = inode_compression_plugin(inode);
 	compression_mode_plugin * mplug = inode_compression_mode_plugin(inode);
-	
+
 	assert("edward-1321", tc->len != 0);
 	assert("edward-1322", cplug != NULL);
 	assert("edward-1323", mplug != NULL);
@@ -897,7 +897,7 @@ deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		/* try to compress, discard bad results */
 		__u32 dst_len;
 		compression_plugin * cplug = inode_compression_plugin(inode);
-		compression_mode_plugin * mplug = 
+		compression_mode_plugin * mplug =
 			inode_compression_mode_plugin(inode);
 		assert("edward-602", cplug != NULL);
 
@@ -2327,7 +2327,7 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust,
 	assert("edward-197", clust != NULL);
 	assert("edward-1072", win != NULL);
 	assert("edward-198", inode != NULL);
-	
+
 	result = alloc_cluster_pgset(clust, cluster_nrpages(inode));
 	if (result)
 		return result;

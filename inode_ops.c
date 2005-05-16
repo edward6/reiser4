@@ -87,7 +87,7 @@ reiser4_create(struct inode *parent	/* inode of parent
 	       struct nameidata *nameidata)
 {
 	reiser4_object_create_data data;
-	
+
 	memset(&data, 0, sizeof data);
 	data.mode = S_IFREG | mode;
 	data.id = inode_regular_plugin(parent)->id;

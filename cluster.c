@@ -83,7 +83,7 @@ change_cluster(struct inode * inode, reiser4_plugin * plugin)
 	assert("edward-1325", plugin != NULL);
 	assert("edward-1326", is_reiser4_inode(inode));
 	assert("edward-1327", plugin->h.type_id == REISER4_CLUSTER_PLUGIN_TYPE);
-	
+
 	if (inode_file_plugin(inode)->h.id == DIRECTORY_FILE_PLUGIN_ID)
 		result = plugin_set_cluster(&reiser4_inode_data(inode)->pset,
 					    &plugin->clust);

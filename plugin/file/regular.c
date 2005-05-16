@@ -1,7 +1,7 @@
 /* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
 /* Contains Reiser4 regular plugins which:
-   . specify a set of reiser4 regular object plugins, 
+   . specify a set of reiser4 regular object plugins,
    . used by directory plugin to create entries powered by specified
      regular plugins */
 
