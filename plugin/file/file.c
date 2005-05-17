@@ -1906,7 +1906,7 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 			return result;
 		}
 		loaded = lh.node;
-
+		assert("vs-11", hint->ext_coord.coord.node == loaded);
 		result = write_f(inode,
 				 flow,
 				 hint,

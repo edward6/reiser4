@@ -987,9 +987,7 @@ cbk_level_lookup(cbk_handle * h /* search handle */ )
 
 	ret = cbk_node_lookup(h);
 
-	/* reget @active from handle, because it can change in
-	   cbk_node_lookup()  */
-	/*active = h->active_lh->node;*/
+	/* h->active_lh->node might change, but active is yet to be zrelsed */
 	zrelse(active);
 
 	return ret;
@@ -1115,17 +1113,16 @@ cbk_node_lookup(cbk_handle * h /* search handle */ )
 	assert("vs-361", h->level > h->stop_level);
 
 	if (handle_eottl(h, &result)) {
-		/**/
 		assert("vs-1674", result == LOOKUP_DONE || result == LOOKUP_REST);
 		return result;
 	}
 
+	/* go down to next level */
+	check_me("vs-12", zload(h->coord->node) == 0);
 	assert("nikita-2116", item_is_internal(h->coord));
 	iplug = item_plugin_by_coord(h->coord);
-
-	/* go down to next level */
-	assert("vs-515", item_is_internal(h->coord));
 	iplug->s.internal.down_link(h->coord, h->key, &h->block);
+	zrelse(h->coord->node);
 	--h->level;
 	return LOOKUP_CONT;	/* continue */
 }

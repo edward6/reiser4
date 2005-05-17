@@ -106,41 +106,77 @@
    restarted with lock_level modified so that next time we hit this
    problem, write lock will be held. Once we have write lock, balancing
    will be performed.
-
-
-
-
-
-
 */
 
-/* look to the right of @coord. If it is an item of internal type - 1 is
-   returned. If that item is in right neighbor and it is internal - @coord and
-   @lh are switched to that node: move lock handle, zload right neighbor and
-   zrelse znode coord was set to at the beginning
+
+/* look to an unit next to @coord. If it is an internal one - 1 is returned,
+   @coord is set to that unit. If that unit is in right neighbor, @lh is moved,
+   neighbor is loaded, original node is zrelsed, @coord is set to first unit
+   of neighbor. Otherwise, 0 is returned, @coord and @lh are left unchanged.
 */
-/* Audited by: green(2002.06.15) */
 static int
-is_next_item_internal(coord_t * coord)
+is_next_item_internal(coord_t *coord, lock_handle *lh)
 {
-	if (coord->item_pos != node_num_items(coord->node) - 1) {
-		/* next item is in the same node */
-		coord_t right;
+	coord_t next;
+	lock_handle rn;
+	int result;
 
-		coord_dup(&right, coord);
-		check_me("vs-742", coord_next_item(&right) == 0);
-		if (item_is_internal(&right)) {
-			coord_dup(coord, &right);
+	coord_dup(&next, coord);
+	if (coord_next_unit(&next) == 0) {
+		/* next unit is int this node */
+		if (item_is_internal(&next)) {
+			coord_dup(coord, &next);
 			return 1;
 		}
+		assert("vs-3", item_is_extent(&next));
+		return 0;
 	}
+
+	/* next unit either does not exist or is in right neighbor */
+	init_lh(&rn);
+	result = reiser4_get_right_neighbor(&rn, coord->node,
+					    znode_is_wlocked(coord->node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK,
+					    GN_CAN_USE_UPPER_LEVELS);
+	if (result == -E_NO_NEIGHBOR){
+		done_lh(&rn);
+		return 0;
+	}
+
+	if (result) {
+		assert("vs-4", result < 0);
+		done_lh(&rn);
+		return result;
+	}
+
+	result = zload(rn.node);
+	if (result) {
+		assert("vs-5", result < 0);
+		done_lh(&rn);
+		return result;
+	}
+
+	coord_init_first_unit(&next, rn.node);
+	if (item_is_internal(&next)) {
+		coord_dup(coord, &next);
+		zrelse(rn.node);
+		done_lh(lh);
+		move_lh(lh, &rn);
+		/* coord and lock handle changed. Original node is not zrelsed,
+		   though */
+		return 1;
+	}
+
+	/* next item is extent */
+	assert("vs-6", item_is_extent(&next));
+	zrelse(rn.node);
+	done_lh(&rn);
 	return 0;
 }
 
 /* inserting empty leaf after (or between) item of not internal type we have to
    know which right delimiting key corresponding znode has to be inserted with */
 static reiser4_key *
-rd_key(coord_t * coord, reiser4_key * key)
+rd_key(coord_t *coord, reiser4_key *key)
 {
 	coord_t dup;
 
@@ -166,7 +202,7 @@ ON_DEBUG(void check_dkeys(const znode *);)
 /* this is used to insert empty node into leaf level if tree lookup can not go
    further down because it stopped between items of not internal type */
 static int
-add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key, const reiser4_key * rdkey)
+add_empty_leaf(coord_t *insert_coord, lock_handle *lh, const reiser4_key *key, const reiser4_key *rdkey)
 {
 	int result;
 	carry_pool *pool;
@@ -272,7 +308,7 @@ add_empty_leaf(coord_t * insert_coord, lock_handle * lh, const reiser4_key * key
 
 /* handle extent-on-the-twig-level cases in tree traversal */
 reiser4_internal int
-handle_eottl(cbk_handle * h /* cbk handle */ ,
+handle_eottl(cbk_handle *h /* cbk handle */ ,
 	     int *outcome /* how traversal should proceed */ )
 {
 	int result;
@@ -311,8 +347,15 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 	}
 
 	/* take a look at the item to the right of h -> coord */
-	result = is_next_item_internal(coord);
+	result = is_next_item_internal(coord, h->active_lh);
+	if (result < 0) {
+		h->error = "get_right_neighbor failed";
+		h->result = result;
+		*outcome = LOOKUP_DONE;
+		return 1;
+	}
 	if (result == 0) {
+		znode *loaded;
 		/* item to the right is also an extent one. Allocate a new node
 		   and insert pointer to it after item h -> coord.
 
@@ -329,6 +372,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 			return 1;
 		}
 
+		loaded = coord->node;
 		result = add_empty_leaf(coord, h->active_lh, h->key, rd_key(coord, &key));
 		if (result) {
 			h->error = "could not add empty leaf";
@@ -336,12 +380,16 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 			*outcome = LOOKUP_DONE;
 			return 1;
 		}
-		/* added empty leaf is locked, its parent node is unlocked,
-		   coord is set as EMPTY */
+		/* added empty leaf is locked (h->active_lh), its parent node
+		   is unlocked, h->coord is set as EMPTY */
+		assert("vs-13", coord->between == EMPTY_NODE);
+		assert("vs-14", znode_is_write_locked(coord->node));
+		assert("vs-15", WITH_DATA(coord->node, node_is_empty(coord->node)));
+		assert("vs-16", jnode_is_leaf(ZJNODE(coord->node)));
+		assert("vs-17", coord->node == h->active_lh->node);
 		*outcome = LOOKUP_DONE;
 		h->result = CBK_COORD_NOTFOUND;
 		return 1;
-		/*assert("vs-358", keyeq(h->key, item_key_by_coord(coord, &key)));*/
 	} else {
 		/* this is special case mentioned in the comment on
 		   tree.h:cbk_flags. We have found internal item immediately
@@ -357,7 +405,7 @@ handle_eottl(cbk_handle * h /* cbk handle */ ,
 		*/
 		h->flags &= ~CBK_TRUST_DK;
 	}
-	assert("vs-362", item_is_internal(coord));
+	assert("vs-362", WITH_DATA(coord->node, item_is_internal(coord)));
 	return 0;
 }
 
