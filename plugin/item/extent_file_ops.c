@@ -705,9 +705,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 	reiser4_key page_key;
 	reiser4_block_nr blocknr;
 	int created;
-	int err;
-
-	err = 0;
 
 	assert("nikita-3139", !inode_get_flag(inode, REISER4_NO_SD));
 	assert("vs-885", current_blocksize == PAGE_CACHE_SIZE);
@@ -741,16 +738,13 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			count = flow->length;
 
 		result = make_extent(&page_key, uf_coord, mode, &blocknr, &created, inode/* check quota */);
-		if (result) {
-			err = 2;
+		if (result)
 			goto exit1;
-		}
 
 		/* look for jnode and create it if it does not exist yet */
 		j = find_get_jnode(tree, inode->i_mapping, oid, page_nr);
 		if (IS_ERR(j)) {
 			result = PTR_ERR(j);
-			err = 3;
 			goto exit1;
 		}
 
@@ -758,7 +752,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		page = jnode_get_page_locked(j, GFP_KERNEL);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
-			err = 4;
 			goto exit2;
 		}
 
@@ -789,15 +782,12 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 						UNLOCK_JNODE(j);
 					}
 					result = page_io(page, j, READ, GFP_KERNEL);
-					if (result) {
-						err = 5;
+					if (result)
 						goto exit3;
-					}
+
 					lock_page(page);
-					if (!PageUptodate(page)) {
-						err = 6;
+					if (!PageUptodate(page))
 						goto exit3;
-					}
 				} else {
 					zero_around(page, page_off, count);
 				}
@@ -838,7 +828,6 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 			/* FIXME: write(fd, 0, 10); to empty file will write no
 			   data but file will get increased size. */
 			result = RETERR(-EFAULT);
-			err = 7;
 			goto exit3;
 		}
 
@@ -846,9 +835,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		SetPageUptodate(page);
 		if (!PageReferenced(page))
 			SetPageReferenced(page);
-
 		unlock_page(page);
-		page_cache_release(page);
 
 		/* FIXME: possible optimization: if jnode is not dirty yet - it
 		   gets into clean list in try_capture and then in
@@ -858,12 +845,13 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		result = try_capture(j, ZNODE_WRITE_LOCK, 0, 1/* can_coc */);
 		if (result) {
 			UNLOCK_JNODE(j);
-			err = 8;
+			page_cache_release(page);
 			goto exit2;
 		}
 		jnode_make_dirty_locked(j);
 		UNLOCK_JNODE(j);
 
+		page_cache_release(page);
 		jput(j);
 
 		move_flow_forward(flow, count);
@@ -873,10 +861,8 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		result = extent_balance_dirty_pages(inode, flow, hint);
 		if (!grabbed)
 			all_grabbed2free();
-		if (result) {
-			err = 9;
+		if (result)
 			break;
-		}
 
 		page_off = 0;
 		page_nr ++;
@@ -911,13 +897,13 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 
 	} while (1);
 
-	if (err) {
-		assert("", !hint_is_set(hint));
-	} else
-		assert("", ergo(hint_is_set(hint),
+	if (result && result != -E_REPEAT)
+		assert("vs-18", !hint_is_set(hint));
+	else
+		assert("vs-19", ergo(hint_is_set(hint),
 				coords_equal(&hint->ext_coord.coord, &hint->seal.coord1) &&
 				keyeq(&flow->key, &hint->seal.key)));
-	assert("", lock_stack_isclean(get_current_lock_stack()));
+	assert("vs-20", lock_stack_isclean(get_current_lock_stack()));
 	return result;
 }
 
