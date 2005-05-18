@@ -803,7 +803,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 				LOCK_JNODE(cur);
 				JF_SET(cur, JNODE_WRITEBACK);
 				JF_CLR(cur, JNODE_DIRTY);
-				ON_DEBUG(jnode->written ++);
+				ON_DEBUG(cur->written ++);
 				UNLOCK_JNODE(cur);
 
 				SetPageWriteback(pg);
@@ -1231,7 +1231,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			assert("nikita-3165", !jnode_is_releasable(cur));
 			JF_SET(cur, JNODE_WRITEBACK);
 			JF_CLR(cur, JNODE_DIRTY);
-			ON_DEBUG(jnode->written ++);
+			ON_DEBUG(cur->written ++);
 			UNLOCK_JNODE(cur);
 
 			set_page_writeback(pg);
