@@ -1527,9 +1527,10 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 			goto repeat;
 		ret = 0;
 	}
-
+/*
 	if (*nr_submitted > wbc->nr_to_write)
 		warning("", "asked for %ld, written %ld\n", wbc->nr_to_write, *nr_submitted);
+*/
 	txn_restart(ctx);
 
 	return ret;
