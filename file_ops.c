@@ -221,6 +221,7 @@ reiser4_read(struct file *file /* file to read from */ ,
 		/* unix_file_read is one method that might be invoked below */
 		result = fplug->read(file, buf, count, off);
 	}
+	context_set_commit_async(&ctx);
 	reiser4_exit_context(&ctx);
 	return result;
 }
