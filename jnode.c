@@ -266,8 +266,6 @@ jnode_init(jnode * node, reiser4_tree * tree, jnode_type type)
 		spin_lock_irq(&sbinfo->all_guard);
 		list_add(&node->jnodes, &sbinfo->all_jnodes);
 		spin_unlock_irq(&sbinfo->all_guard);
-		/* link with which jnode is attached to reiser4_inode */
-		inode_jnodes_list_clean(node);
 	}
 #endif
 }
