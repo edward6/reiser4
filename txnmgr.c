@@ -1509,8 +1509,10 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 			if (atom->capture_count < tmgr->atom_min_size &&
 			    !(atom->flags & ATOM_CANCEL_FUSION)) {
 				ret =txn_try_to_fuse_small_atom(tmgr, atom);
-				if (ret == -E_REPEAT)
+				if (ret == -E_REPEAT) {
+					preempt_point();
 					goto repeat;
+				}
 			}
 			/* if early flushing could not make more nodes clean,
 			 * or atom is too old/large,
@@ -1523,8 +1525,12 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 		}
 		UNLOCK_ATOM(atom);
 	} else if (ret == -E_REPEAT) {
-		if (*nr_submitted == 0)
+		if (*nr_submitted == 0) {
+			/* let others who hampers flushing (hold longterm locks,
+			   for instance) to free the way for flush */
+			preempt_point();
 			goto repeat;
+		}
 		ret = 0;
 	}
 /*
