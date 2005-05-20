@@ -1698,7 +1698,7 @@ try_commit_txnh(commit_data *cd)
 		return 0;
 
 	if (atom_should_commit(cd->atom)) {
-		/* if atom is  _very_ large schedule it for  common as soon as
+		/* if atom is  _very_ large schedule it for  commit as soon as
 		 * possible. */
 		if (atom_should_commit_asap(cd->atom)) {
 			/*
