@@ -13,7 +13,7 @@ regular_plugin regular_plugins[LAST_REGULAR_ID] = {
 			.type_id = REISER4_REGULAR_PLUGIN_TYPE,
 			.id = UF_REGULAR_ID,
 			.pops = NULL,
-			.label = "uf",
+			.label = "unixfile",
 			.desc = "Unix file regular plugin",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
@@ -24,7 +24,7 @@ regular_plugin regular_plugins[LAST_REGULAR_ID] = {
 			.type_id = REISER4_REGULAR_PLUGIN_TYPE,
 			.id = CRC_REGULAR_ID,
 			.pops = NULL,
-			.label = "crc",
+			.label = "cryptcompress",
 			.desc = "Cryptcompress regular plugin",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
