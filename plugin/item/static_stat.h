@@ -77,9 +77,6 @@ typedef enum {
 	/* this extension contains capabilities sets, associated with this
 	    file. Layout is in reiser4_capabilities_stat */
 	CAPABILITIES_STAT,
-        /* this extension contains the information about minimal unit size for
-	   file data processing. Layout is in reiser4_cluster_stat */
-	CLUSTER_STAT,
 	/* this extension contains size and public id of the secret key.
 	   Layout is in reiser4_crypto_stat */
 	CRYPTO_STAT,
