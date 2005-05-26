@@ -1531,7 +1531,8 @@ get_block_address_extent(const coord_t *coord, sector_t block, struct buffer_hea
 {
 	reiser4_extent *ext;
 
-	assert("vs-1321", coord_is_existing_unit(coord));
+	if (!coord_is_existing_unit(coord))
+		return RETERR(-EINVAL);
 
 	ext = extent_by_coord(coord);
 
