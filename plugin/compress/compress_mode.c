@@ -18,6 +18,10 @@ static int
 discard_deflate_smart (struct inode * inode, cloff_t index)
 {
 	int result = 0;
+#if REISER4_DEBUG
+	compression_plugin * cplug;
+	cplug = inode_compression_plugin(inode);
+#endif
 	assert("edward-1308", inode != NULL);
 
 	if (index == 0)
@@ -29,6 +33,9 @@ discard_deflate_smart (struct inode * inode, cloff_t index)
 	if (result)
 		return result;
 	mark_inode_dirty(inode);
+
+	assert("edward-1331", ergo(index == 0, inode_compression_plugin(inode) ==
+				  compression_plugin_by_id(cplug->dual)));
 	return 0;
 }
 
@@ -39,8 +46,8 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 			.id = SMART_COMPRESSION_MODE_ID,
 			.pops = NULL,
-			.label = "smart",
-			.desc = "First cluster heuristic",
+			.label = "ifcompressible",
+			.desc = "If first cluster compressible heuristic",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
 		.should_deflate = NULL,
@@ -65,7 +72,7 @@ compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
 			.id = LAZY_COMPRESSION_MODE_ID,
 			.pops = NULL,
-			.label = "lazy",
+			.label = "test", /* This mode is only for benchmarks */
 			.desc = "Don't compress odd clusters",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
