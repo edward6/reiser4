@@ -1450,7 +1450,7 @@ flush_some_atom(long *nr_submitted, const struct writeback_control *wbc, int fla
 	assert("zam-1042", txnh != NULL);
  repeat:
 	if (txnh->atom == NULL) {
-		/* current atom is available, take first from txnmgr */
+		/* current atom is not available, take first from txnmgr */
 		spin_lock_txnmgr(tmgr);
 
 		/* traverse the list of all atoms */
