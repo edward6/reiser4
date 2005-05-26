@@ -204,6 +204,9 @@ insert_new_sd(struct inode *inode /* inode to create sd for */ )
 	ref = reiser4_inode_data(inode);
 	spin_lock_inode(inode);
 
+	if (ref->plugin_mask != 0)
+		/* inode has non-standard plugins */
+		inode_set_extension(inode, PLUGIN_STAT);
 	/*
 	 * prepare specification of new item to be inserted
 	 */
