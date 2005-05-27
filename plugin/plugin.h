@@ -704,8 +704,9 @@ typedef enum {
 /* builtin compression mode plugins */
 typedef enum {
 	SMART_COMPRESSION_MODE_ID,
-	FORCE_COMPRESSION_MODE_ID,
 	LAZY_COMPRESSION_MODE_ID,
+	FORCE_COMPRESSION_MODE_ID,
+	TEST_COMPRESSION_MODE_ID,
 	LAST_COMPRESSION_MODE_ID
 } reiser4_compression_mode_id;
 

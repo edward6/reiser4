@@ -1431,17 +1431,21 @@ next_item_dc_stat(flush_pos_t * pos)
 			item_convert_data(pos)->d_next = DC_CHAINED_ITEM;
 
 			if (!znode_is_dirty(lh.node)) {
-				warning("edward-1024",
-					"next slum item mergeable, "
-					"but znode %p isn't dirty\n",
-					lh.node);
+				/*
+				  warning("edward-1024",
+				  "next slum item mergeable, "
+				  "but znode %p isn't dirty\n",
+				  lh.node);
+				*/
 				znode_make_dirty(lh.node);
 			}
 			if (!znode_convertible(lh.node)) {
-				warning("edward-1272",
-					"next slum item mergeable, "
-					"but znode %p isn't convertible\n",
-					lh.node);
+				/*
+				  warning("edward-1272",
+				  "next slum item mergeable, "
+				  "but znode %p isn't convertible\n",
+				  lh.node);
+				*/
 				znode_set_convertible(lh.node);
 			}
 			stop = 1;
