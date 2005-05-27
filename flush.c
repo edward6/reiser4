@@ -408,7 +408,7 @@ static int jnode_lock_parent_coord(jnode         * node,
 				   lock_handle   * parent_lh,
 				   load_count    * parent_zh,
 				   znode_lock_mode mode, int try);
-static int neighbor_in_slum(znode * node, lock_handle * right_lock, sideof side, znode_lock_mode mode);
+static int neighbor_in_slum(znode * node, lock_handle * right_lock, sideof side, znode_lock_mode mode, int check_dirty);
 static int znode_same_parents(znode * a, znode * b);
 
 static int
@@ -1835,7 +1835,8 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 	}
 
 	while (1) {
-		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK);
+		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK,
+				       !should_convert_next_node(pos, right_lock.node));
 		if (ret)
 			break;
 
@@ -2846,7 +2847,8 @@ jnode_lock_parent_coord(jnode         * node,
 
 /* Get the (locked) next neighbor of a znode which is dirty and a member of the same atom.
    If there is no next neighbor or the neighbor is not in memory or if there is a
-   neighbor but it is not dirty or not in the same atom, -E_NO_NEIGHBOR is returned. */
+   neighbor but it is not dirty or not in the same atom, -E_NO_NEIGHBOR is returned. 
+   In some cases the slum may include nodes which are not dirty, if so @check_dirty should be 0 */
 static int
 neighbor_in_slum(
 
@@ -2856,8 +2858,9 @@ neighbor_in_slum(
 
 	sideof side, 			/* left or right direction we seek the next node in */
 
-	znode_lock_mode mode		/* kind of lock we want */
+	znode_lock_mode mode,		/* kind of lock we want */
 
+	int check_dirty                 /* true if the neighbor should be dirty */ 
 	)
 {
 	int ret;
@@ -2875,7 +2878,8 @@ neighbor_in_slum(
 
 		return ret;
 	}
-
+	if (!check_dirty)
+		return 0;
 	/* Check dirty bit of locked znode, no races here */
 	if (znode_check_dirty(lock->node))
 		return 0;
@@ -3324,7 +3328,7 @@ scan_by_coord(flush_scan * scan)
 		if (coord_is_after_sideof_unit(&next_coord, scan->direction)) {
 			/* We take the write lock because we may start flushing from this
 			 * coordinate. */
-			ret = neighbor_in_slum(next_coord.node, &next_lock, scan->direction, ZNODE_WRITE_LOCK);
+			ret = neighbor_in_slum(next_coord.node, &next_lock, scan->direction, ZNODE_WRITE_LOCK, 1 /* check dirty */);
 
 			if (ret == -E_NO_NEIGHBOR) {
 				scan->stop = 1;
