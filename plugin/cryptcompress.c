@@ -109,10 +109,16 @@ crc_inode_ok(struct inode * inode)
 static int
 check_cryptcompress(struct inode * inode)
 {
-	/* FIXME-EDWARD: Add check of cipher support here */
 	int result = 0;
 
 	assert("edward-1307", inode_compression_plugin(inode) != NULL);
+
+	if (inode_cluster_size(inode) < PAGE_CACHE_SIZE) {
+		warning("edward-1331", 
+			"%s clusters are unsupported",
+			inode_cluster_plugin(inode)->h.label);
+		return RETERR(-EINVAL);
+	}
 	if (inode_compression_plugin(inode)->init)
 		result = inode_compression_plugin(inode)->init();
 	return result;
