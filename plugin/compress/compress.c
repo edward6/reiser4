@@ -44,16 +44,6 @@ static reiser4_plugin_ops compression_plugin_ops = {
 #define GZIP1_DEF_WINBITS		15
 #define GZIP1_DEF_MEMLEVEL		MAX_MEM_LEVEL
 
-static int
-gzip1_init(void)
-{
-	int ret = -ENOSYS;
-#if REISER4_GZIP_TFM
-	ret = 0;
-#endif
-	return ret;
-}
-
 static int gzip1_overrun(unsigned src_len UNUSED_ARG)
 {
 	return 0;
@@ -63,7 +53,6 @@ static coa_t
 gzip1_alloc(tfm_action act)
 {
 	coa_t coa = NULL;
-#if REISER4_GZIP_TFM
 	int ret = 0;
 	switch (act) {
 	case TFM_WRITE:	/* compress */
@@ -92,7 +81,6 @@ gzip1_alloc(tfm_action act)
 			act);
 		return ERR_PTR(ret);
 	}
-#endif
 	return coa;
 }
 
@@ -100,7 +88,6 @@ static coa_t
 gzip1_nocompress_alloc(tfm_action act)
 {
 	coa_t coa = NULL;
-#if REISER4_GZIP_TFM
 	int ret = 0;
 	switch (act) {
 	case TFM_WRITE:	/* compress */
@@ -122,7 +109,6 @@ gzip1_nocompress_alloc(tfm_action act)
 			act);
 		return ERR_PTR(ret);
 	}
-#endif
 	return coa;
 }
 
@@ -169,7 +155,6 @@ static void
 gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	       __u8 * dst_first, unsigned *dst_len)
 {
-#if REISER4_GZIP_TFM
 	int ret = 0;
 	struct z_stream_s stream;
 
@@ -205,7 +190,6 @@ gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	return;
  rollback:
 	*dst_len = src_len;
-#endif
 	return;
 }
 
@@ -213,7 +197,6 @@ static void
 gzip1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 		 __u8 * dst_first, unsigned *dst_len)
 {
-#if REISER4_GZIP_TFM
 	int ret = 0;
 	struct z_stream_s stream;
 
@@ -256,7 +239,6 @@ gzip1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 		return;
 	}
 	*dst_len = stream.total_out;
-#endif
 	return;
 }
 
@@ -431,7 +413,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 					.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				  ,
 				  .dual = GZIP1_NO_COMPRESSION_ID,
-				  .init = gzip1_init,
+				  .init = NULL,
 				  .overrun = gzip1_overrun,
 				  .alloc = gzip1_alloc,
 				  .free = gzip1_free,
@@ -451,7 +433,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 					.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				  ,
 				  .dual = GZIP1_COMPRESSION_ID,
-				  .init = gzip1_init,
+				  .init = NULL,
 				  .overrun = NULL,
 				  .alloc = gzip1_nocompress_alloc,
 				  .free = gzip1_nocompress_free,
