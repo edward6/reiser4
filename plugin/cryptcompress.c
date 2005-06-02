@@ -2158,6 +2158,25 @@ jnode_truncate_ok(struct inode *inode, cloff_t index)
 	}
 	return (node == NULL);
 }
+
+static int
+jnodes_truncate_ok(struct inode * inode, cloff_t start)
+{
+	int result;
+	jnode * node;
+	reiser4_inode *info = reiser4_inode_data(inode);
+	reiser4_tree * tree = tree_by_inode(inode);
+
+	RLOCK_TREE(tree);
+
+	result = radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(info), (void **)&node,
+					clust_to_pg(start, inode), 1);
+	RUNLOCK_TREE(tree);
+	if (result)
+		warning("edward-1332", "Untruncated jnode %p\n", node);
+	return !result;
+}
+
 #endif
 
 /* Collect unlocked cluster pages and jnode (the last is in the
@@ -2716,7 +2735,7 @@ find_real_disk_cluster(struct inode * inode, cloff_t * found, cloff_t index)
 }
 
 static int
-find_actual_cloff(struct inode *inode, cloff_t * index)
+find_fake_appended(struct inode *inode, cloff_t *index)
 {
 	return find_real_disk_cluster(inode, index, 0 /* find last real one */);
 }
@@ -2855,7 +2874,7 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 }
 
 /* Append or expand hole in two steps (exclusive access should be aquired!)
-   1) write zeroes to the last existing cluster,
+   1) write zeroes to the current real cluster,
    2) expand hole via fake clusters (just increase i_size) */
 static int
 cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
@@ -2873,6 +2892,7 @@ cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
 	assert("edward-1134", schedulable());
 	assert("edward-1135", crc_inode_ok(inode));
 	assert("edward-1136", current_blocksize == PAGE_CACHE_SIZE);
+	assert("edward-1333", off_to_cloff(inode->i_size, inode) != 0);
 
 	init_lh(&lh);
 	hint_init_zero(&hint);
@@ -2882,12 +2902,7 @@ cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
 	reiser4_cluster_init(&clust, &win);
 	clust.hint = &hint;
 
-	if (off_to_cloff(inode->i_size, inode) == 0)
-		/* appending hole to cluster boundary */
-		goto fake_append;
-
 	/* set cluster handle */
-
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
 	if (result)
 		goto out;
@@ -2912,8 +2927,8 @@ cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
 	if (!hole_size)
 		/* nothing to append anymore */
 		goto out;
- fake_append:
 
+	/* fake_append: */
 	INODE_SET_FIELD(inode, i_size, new_size);
  out:
 	done_lh(&lh);
@@ -2923,7 +2938,7 @@ cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
 
 #if REISER4_DEBUG
 static int
-page_truncate_ok(struct inode * inode, loff_t old_size, pgoff_t start)
+pages_truncate_ok(struct inode * inode, loff_t old_size, pgoff_t start)
 {
 	struct pagevec pvec;
 	int i;
@@ -2960,7 +2975,7 @@ body_truncate_ok(struct inode * inode, cloff_t aidx)
 	int result;
 	cloff_t raidx;
 
-	result = find_actual_cloff(inode, &raidx);
+	result = find_fake_appended(inode, &raidx);
 	return !result && (aidx == raidx);
 }
 #endif
@@ -2986,14 +3001,14 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	unsigned nr_zeroes;
 	loff_t to_prune;
 	loff_t old_size;
-	cloff_t fidx;
+	cloff_t ridx;
 
 	hint_t hint;
 	lock_handle lh;
 	reiser4_slide_t win;
 	reiser4_cluster_t clust;
 
-	assert("edward-1140", inode->i_size > new_size);
+	assert("edward-1140", inode->i_size >= new_size);
 	assert("edward-1141", schedulable());
 	assert("edward-1142", crc_inode_ok(inode));
 	assert("edward-1143", current_blocksize == PAGE_CACHE_SIZE);
@@ -3006,14 +3021,14 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	reiser4_cluster_init(&clust, &win);
 	clust.hint = &hint;
 
-	/* first completely truncated cluster */
-	fidx = count_to_nrclust(new_size, inode);
+	/* rightmost completely truncated cluster */
+	ridx = count_to_nrclust(new_size, inode);
 
-	assert("edward-1174", fidx <= aidx);
+	assert("edward-1174", ridx <= aidx);
 	old_size = inode->i_size;
-	if (fidx != aidx) {
+	if (ridx != aidx) {
 		result = cut_file_items(inode,
-					clust_to_off(fidx, inode),
+					clust_to_off(ridx, inode),
 					update_sd,
 					clust_to_off(aidx, inode),
 					update_cryptcompress_size);
@@ -3030,14 +3045,14 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	to_prune = inode->i_size - new_size;
 
 	/* check if partially truncated cluster is fake */
-	result = find_real_disk_cluster(inode, &aidx, fidx);
+	result = find_real_disk_cluster(inode, &aidx, ridx);
 	if (result)
 		goto out;
 	if (!aidx)
 		/* yup, this is fake one */
 		goto finish;
 
-	assert("edward-1148", aidx == fidx);
+	assert("edward-1148", aidx == ridx);
 
 	/* try to capture partially truncated page cluster */
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
@@ -3049,7 +3064,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	set_window(&clust, &win, inode, new_size, new_size + nr_zeroes);
 	win.stat = HOLE_WINDOW;
 
-	assert("edward-1149", clust.index == fidx - 1);
+	assert("edward-1149", clust.index == ridx - 1);
 
 	result = prepare_cluster(inode, 0, 0, &clust, PCL_TRUNCATE);
 	if (result)
@@ -3059,7 +3074,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	       clust.dstat == UNPR_DISK_CLUSTER);
 
 	assert("edward-1191", inode->i_size == new_size);
-	assert("edward-1206", body_truncate_ok(inode, fidx));
+	assert("edward-1206", body_truncate_ok(inode, ridx));
  finish:
 	/* drop all the pages that don't have jnodes (i.e. pages
 	   which can not be truncated by cut_file_items() because
@@ -3069,70 +3084,82 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	truncate_inode_pages(inode->i_mapping, new_size);
 	INODE_SET_FIELD(inode, i_size, new_size);
  out:
+	assert("edward-1334", !result);
+	assert("edward-1209", 
+	       pages_truncate_ok(inode, old_size, count_to_nrpages(new_size)));
+	assert("edward-1335",
+	       jnodes_truncate_ok(inode, count_to_nrclust(new_size, inode)));
 	done_lh(&lh);
 	put_cluster_handle(&clust, TFM_READ);
 	return result;
 }
 
-/* returns true if the cluster we prune or append to is fake */
 static int
-truncating_last_fake_dc(struct inode * inode, cloff_t aidx, loff_t new_size)
+start_truncate_fake(struct inode *inode, cloff_t aidx, loff_t new_size, int update_sd)
 {
-	return aidx == 0  /* no items */||
-		(aidx <= off_to_clust(inode->i_size, inode) &&
-		 aidx <= off_to_clust(new_size, inode));
-}
+	int result = 0;
+	int bytes;
 
+	if (new_size > inode->i_size) {
+		/* append */
+		if (inode->i_size < clust_to_off(aidx, inode))
+			/* no fake bytes */
+			return 0;
+		bytes = new_size - inode->i_size;
+		INODE_SET_FIELD(inode, i_size, inode->i_size + bytes);
+	} 
+	else {
+		/* prune */
+		if (inode->i_size <= clust_to_off(aidx, inode))
+			/* no fake bytes */
+			return 0;
+		bytes = inode->i_size - max_count(new_size, clust_to_off(aidx, inode));
+		if (!bytes) 
+			return 0;
+		INODE_SET_FIELD(inode, i_size, inode->i_size - bytes);
+		/* In the case of fake prune we need to drop page cluster.
+		   There are only 2 cases for partially truncated page:
+		   1. If is is dirty, therefore it is anonymous
+		   (was dirtied via mmap), and will be captured
+		   later via ->capture().
+		   2. If is clean, therefore it is filled by zeroes.
+		   In both cases we don't need to make it dirty and
+		   capture here.
+		*/
+		truncate_inode_pages(inode->i_mapping, inode->i_size);
+		assert("edward-1336",
+		       jnodes_truncate_ok(inode, count_to_nrclust(inode->i_size, inode)));
+	}
+	if (update_sd)
+		result = update_sd_cryptcompress(inode);
+	return result;
+}
+	
 /* This is called in setattr_cryptcompress when it is used to truncate,
    and in delete_cryptcompress */
-
 static int
 cryptcompress_truncate(struct inode *inode, /* old size */
 		       loff_t new_size, /* new size */
 		       int update_sd)
 {
 	int result;
-	cloff_t aidx; /* appended index to the last actual one */
-	loff_t old_size = inode->i_size;
+	cloff_t aidx;
 
-	assert("edward-1167", (new_size != old_size) || (!new_size && !old_size));
-
-	result = find_actual_cloff(inode, &aidx);
+	result = find_fake_appended(inode, &aidx);
 	if (result)
 		return result;
-
 	assert("edward-1208",
 	       ergo(aidx > 0, inode->i_size > clust_to_off(aidx - 1, inode)));
 
-	if (truncating_last_fake_dc(inode, aidx, new_size)) {
-		/* The last page cluster we truncate (fully or partially)
-		   is fake (don't have disk cluster) */
-		INODE_SET_FIELD(inode, i_size, new_size);
-		if (old_size > new_size) {
-			/* Drop page cluster.
-			   There are only 2 cases for partially truncated page:
-			   1. If is is dirty, therefore it is anonymous
-			      (was dirtied via mmap), and will be captured
-			      later via ->capture().
-			   2. If is clean, therefore it is filled by zeroes.
-                           In both cases we don't need to make it dirty and
-			   capture here.
-			*/
-			truncate_inode_pages(inode->i_mapping, new_size);
-			assert("edward-663", ergo(!new_size,
-						  reiser4_inode_data(inode)->anonymous_eflushed == 0 &&
-						  reiser4_inode_data(inode)->captured_eflushed == 0));
-		}
-		if (update_sd)
-			result = update_sd_cryptcompress(inode);
+	result = start_truncate_fake(inode, aidx, new_size, update_sd);
+	if (result)
 		return result;
-	}
-	result = (old_size < new_size ? cryptcompress_append_hole(inode, new_size) :
-		  prune_cryptcompress(inode, new_size, update_sd, aidx));
-
-	assert("edward-1209",
-	       page_truncate_ok(inode, old_size, count_to_nrpages(new_size)));
-	return result;
+	if (inode->i_size == new_size)
+		/* nothing to truncate anymore */
+		return 0;
+	return (inode->i_size < new_size ? 
+		cryptcompress_append_hole(inode, new_size) :
+		prune_cryptcompress(inode, new_size, update_sd, aidx));
 }
 
 /* plugin->u.file.truncate */
