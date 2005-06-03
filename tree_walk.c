@@ -765,7 +765,10 @@ fail:
 
 	/* unlock path */
 	do {
-		longterm_unlock_znode(&path[h]);
+		/* FIXME-Zam: when we get here from case -E_DEADLOCK's goto
+		   fail; path[0] is already done_lh-ed, therefore
+		   longterm_unlock_znode(&path[h]); is not applicable */
+		done_lh(&path[h]);
 		--h;
 	} while (h + 1 != 0);
 
