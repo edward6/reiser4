@@ -160,10 +160,6 @@ void loading_init_once(reiser4_inode *);
 void loading_alloc(reiser4_inode *);
 void loading_destroy(reiser4_inode *);
 
-
-#define I_JNODES (512)	/* inode state bit. Set when in hash table there are more than 0 jnodes of unformatted nodes of
-			   an inode */
-
 typedef struct reiser4_inode_object {
 	/* private part */
 	reiser4_inode p;

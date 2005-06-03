@@ -443,21 +443,24 @@ jfind(struct address_space *mapping, unsigned long index)
 
 static void inode_attach_jnode(jnode *node)
 {
-	struct inode * inode;
-	reiser4_inode * info;
-	struct radix_tree_root * rtree;
+	struct inode *inode;
+	reiser4_inode *info;
+	struct radix_tree_root *rtree;
 
+	assert("nikita-34391", rw_tree_is_write_locked(jnode_get_tree(node)));
 	assert ("zam-1043", node->key.j.mapping != NULL);
 	inode = node->key.j.mapping->host;
 	info = reiser4_inode_data(inode);
 	rtree = jnode_tree_by_reiser4_inode(info);
-
-	spin_lock(&inode_lock);
+ 	if (rtree->height == 0) {
+		/* prevent inode from being pruned when it has jnodes attached to it */
+		write_lock_irq(&inode->i_data.tree_lock);
+		inode->i_data.nrpages ++;
+		write_unlock_irq(&inode->i_data.tree_lock);
+	}
 	assert("zam-1049", equi(rtree->rnode != NULL, info->nr_jnodes != 0));
 	check_me("zam-1045", !radix_tree_insert(rtree, node->key.j.index, node));
 	ON_DEBUG(info->nr_jnodes ++);
-	inode->i_state |= I_JNODES;
-	spin_unlock(&inode_lock);
 }
 
 static void inode_detach_jnode(jnode *node)
@@ -466,12 +469,12 @@ static void inode_detach_jnode(jnode *node)
 	reiser4_inode *info;
 	struct radix_tree_root *rtree;
 
+	assert("nikita-34392", rw_tree_is_write_locked(jnode_get_tree(node)));
 	assert ("zam-1044", node->key.j.mapping != NULL);
 	inode = node->key.j.mapping->host;
 	info = reiser4_inode_data(inode);
 	rtree = jnode_tree_by_reiser4_inode(info);
 
-	spin_lock(&inode_lock);
 	assert("zam-1051", info->nr_jnodes != 0);
 	assert("zam-1052", rtree->rnode != NULL);
 	assert("vs-1730", !JF_ISSET(node, JNODE_EFLUSH));
@@ -479,10 +482,12 @@ static void inode_detach_jnode(jnode *node)
 
 	/* delete jnode from inode's radix tree of jnodes */
 	check_me("zam-1046", radix_tree_delete(rtree, node->key.j.index));
-	if (rtree->rnode == NULL) {
-		inode->i_state &= ~I_JNODES;
-	}
-	spin_unlock(&inode_lock);
+ 	if (rtree->height == 0) {
+		/* inode can be pruned now */
+		write_lock_irq(&inode->i_data.tree_lock);
+		inode->i_data.nrpages --;
+		write_unlock_irq(&inode->i_data.tree_lock);
+	}	
 }
 
 /* put jnode into hash table (where they can be found by flush who does not know
