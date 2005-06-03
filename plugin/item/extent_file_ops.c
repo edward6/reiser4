@@ -448,28 +448,28 @@ check_make_extent_result(int result, write_mode_t mode, const reiser4_key *key,
 		return;
 
 	assert("vs-960", znode_is_write_locked(lh->node));
-	if (znode_is_loaded(lh->node)) {
-		/*zload(lh->node);*/
-		result = lh->node->nplug->lookup(lh->node, key, FIND_EXACT, &coord);
-		assert("vs-1502", result == NS_FOUND);
-		assert("vs-1656", coord_is_existing_unit(&coord));
 
-		if (blocknr_is_fake(&block)) {
-			assert("vs-1657", state_of_extent(extent_by_coord(&coord)) == UNALLOCATED_EXTENT);
-		} else if (block == 0) {
-			assert("vs-1660", mode == OVERWRITE_ITEM);
-			assert("vs-1657", state_of_extent(extent_by_coord(&coord)) == UNALLOCATED_EXTENT);
-		} else {
-			reiser4_key tmp;
-			reiser4_block_nr pos_in_unit;
-
-			assert("vs-1658", state_of_extent(extent_by_coord(&coord)) == ALLOCATED_EXTENT);
-			unit_key_by_coord(&coord, &tmp);
-			pos_in_unit = (get_key_offset(key) - get_key_offset(&tmp)) >> current_blocksize_bits;
-			assert("vs-1659", block == extent_get_start(extent_by_coord(&coord)) + pos_in_unit);
-		}
-		/*zrelse(lh->node);*/
+	check_me("vs-9", zload(lh->node) == 0);
+	result = lh->node->nplug->lookup(lh->node, key, FIND_EXACT, &coord);
+	assert("vs-1502", result == NS_FOUND);
+	assert("vs-16561", coord.node == lh->node);
+	assert("vs-1656", coord_is_existing_unit(&coord));
+	
+	if (blocknr_is_fake(&block)) {
+		assert("vs-1657", state_of_extent(extent_by_coord(&coord)) == UNALLOCATED_EXTENT);
+	} else if (block == 0) {
+		assert("vs-1660", mode == OVERWRITE_ITEM);
+		assert("vs-1657", state_of_extent(extent_by_coord(&coord)) == UNALLOCATED_EXTENT);
+	} else {
+		reiser4_key tmp;
+		reiser4_block_nr pos_in_unit;
+		
+		assert("vs-1658", state_of_extent(extent_by_coord(&coord)) == ALLOCATED_EXTENT);
+		unit_key_by_coord(&coord, &tmp);
+		pos_in_unit = (get_key_offset(key) - get_key_offset(&tmp)) >> current_blocksize_bits;
+		assert("vs-1659", block == extent_get_start(extent_by_coord(&coord)) + pos_in_unit);
 	}
+	zrelse(lh->node);
 }
 
 #endif
@@ -1199,6 +1199,7 @@ extent_readpage_filler(void *data, struct page *page)
 	}
 	if (!item_is_extent(&ext_coord->coord)) {
 		/* tail conversion is running in parallel */
+		zrelse(ext_coord->coord.node);
 		unset_hint(hint);
 		done_lh(ext_coord->lh);
 		return RETERR(-EIO);
