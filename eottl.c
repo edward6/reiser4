@@ -113,9 +113,10 @@
    @coord is set to that unit. If that unit is in right neighbor, @lh is moved,
    neighbor is loaded, original node is zrelsed, @coord is set to first unit
    of neighbor. Otherwise, 0 is returned, @coord and @lh are left unchanged.
+   2 is returned to restart search.
 */
 static int
-is_next_item_internal(coord_t *coord, lock_handle *lh)
+is_next_item_internal(coord_t *coord, const reiser4_key *key, lock_handle *lh)
 {
 	coord_t next;
 	lock_handle rn;
@@ -132,6 +133,8 @@ is_next_item_internal(coord_t *coord, lock_handle *lh)
 		return 0;
 	}
 
+	assert("vs-5", UNDER_RW(dk, current_tree, read, keylt(key, znode_get_rd_key(coord->node))));
+
 	/* next unit either does not exist or is in right neighbor */
 	init_lh(&rn);
 	result = reiser4_get_right_neighbor(&rn, coord->node,
@@ -146,6 +149,15 @@ is_next_item_internal(coord_t *coord, lock_handle *lh)
 		assert("vs-4", result < 0);
 		done_lh(&rn);
 		return result;
+	}
+
+	/* check where anything managed to happen with right neighbor */
+	result = UNDER_RW(dk, current_tree, read, keycmp(key, znode_get_ld_key(rn.node)));
+	assert("vs-6", result != EQUAL_TO);
+	if (result == GREATER_THAN) {
+		warning("vs-7", "smaller keys managed to get inserted to the right neighbor");
+		done_lh(&rn);
+		return 2;
 	}
 
 	result = zload(rn.node);
@@ -347,8 +359,8 @@ handle_eottl(cbk_handle *h /* cbk handle */ ,
 	}
 
 	/* take a look at the item to the right of h -> coord */
-	result = is_next_item_internal(coord, h->active_lh);
-	if (result < 0) {
+	result = is_next_item_internal(coord, h->key, h->active_lh);
+	if (unlikely(result < 0)) {
 		h->error = "get_right_neighbor failed";
 		h->result = result;
 		*outcome = LOOKUP_DONE;
@@ -390,7 +402,7 @@ handle_eottl(cbk_handle *h /* cbk handle */ ,
 		*outcome = LOOKUP_DONE;
 		h->result = CBK_COORD_NOTFOUND;
 		return 1;
-	} else {
+	} else if (result == 1) {
 		/* this is special case mentioned in the comment on
 		   tree.h:cbk_flags. We have found internal item immediately
 		   on the right of extent, and we are going to insert new item
@@ -404,6 +416,10 @@ handle_eottl(cbk_handle *h /* cbk handle */ ,
 		   is_next_item_internal().
 		*/
 		h->flags &= ~CBK_TRUST_DK;
+	} else {
+		assert("vs-8", result == 2);
+		*outcome = LOOKUP_REST;
+		return 1;
 	}
 	assert("vs-362", WITH_DATA(coord->node, item_is_internal(coord)));
 	return 0;
