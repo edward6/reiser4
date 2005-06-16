@@ -88,3 +88,15 @@ config REISER4_DEBUG
 	  again.  Include a description of what you did to test it.  All
 	  reiser4 code must be tested, reviewed, and signed off on by two
 	  persons before it will be accepted into a stable kernel by Hans.
+
+config REISER4_ZLIB
+        bool "Enable reiser4 compression plugins of gzip family"
+        depends on REISER4_FS
+        help
+          This is the algorithms of gzip family (aka zlib), specified for use
+          in reiser4 compression transform plugins. If you need best
+          performance, your choice should be lzo1 default plugin which is
+          unconditionally supported, so you will most probably want to say N
+          here. But if you need best compression ratio, say Y.
+        select ZLIB_INFLATE
+        select ZLIB_DEFLATE
