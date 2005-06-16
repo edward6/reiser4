@@ -417,7 +417,7 @@ flushable(const jnode * node, struct page *page, int check_eflush)
 		return 0;
 	}
 	/* don't flush cluster pages */
-	if (jnode_is_cluster_page(node)) {
+	if (jnode_of_cluster(node, page)) {
 		return 0;
 	}
 	if (check_eflush && JF_ISSET(node, JNODE_EFLUSH)) {      /* already flushed */
