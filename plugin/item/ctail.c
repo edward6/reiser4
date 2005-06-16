@@ -1108,7 +1108,7 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 	if (!znode_convertible(scan->parent_lock.node)) {
 		LOCK_JNODE(scan->node);
 		if (jnode_is_dirty(scan->node)) {
-			warning("edward-873", "child is dirty but parent not squeezable");
+			//warning("edward-873", "child is dirty but parent not squeezable");
 			znode_set_convertible(scan->parent_lock.node);
 		} else {
 			warning("edward-681", "cluster page is already processed");
