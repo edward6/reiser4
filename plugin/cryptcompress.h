@@ -462,6 +462,8 @@ void hint_init_zero(hint_t *);
 void destroy_inode_cryptcompress(struct inode * inode);
 int crc_inode_ok(struct inode * inode);
 
+int jnode_of_cluster(const jnode * node, struct page * page);
+
 static inline struct crypto_tfm *
 inode_get_tfm (struct inode * inode, reiser4_tfm tfm)
 {
