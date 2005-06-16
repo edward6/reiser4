@@ -224,8 +224,6 @@ detach_crypto_stat(struct inode * object)
 
 	stat = inode_crypto_stat(object);
 
-	assert("edward-691", crc_inode_ok(object));
-
 	if (!inode_get_crypto(object))
 		return;
 
@@ -930,8 +928,8 @@ deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		}
 		else {
 			/* bad result, discard */
-#if REISER4_DEBUG
-			warning("edward-1309",
+#if 0
+			warning("edward-1338",
 				"incompressible data: inode %llu, cluster %lu",
 				(unsigned long long)get_inode_oid(inode), clust->index);
 #endif
@@ -1341,11 +1339,15 @@ grab_cluster_pages_jnode(struct inode * inode, reiser4_cluster_t * clust)
 		}
 		if (i == 0) {
 			node = jnode_of_page(clust->pages[i]);
-			unlock_page(clust->pages[i]);
 			if (IS_ERR(node)) {
 				result = PTR_ERR(node);
+				unlock_page(clust->pages[i]);
 				break;
 			}
+			LOCK_JNODE(node);
+			JF_SET(node, JNODE_CLUSTER_PAGE);
+			UNLOCK_JNODE(node);
+			unlock_page(clust->pages[i]);
 			assert("edward-919", node);
 			continue;
 		}
@@ -1359,9 +1361,6 @@ grab_cluster_pages_jnode(struct inode * inode, reiser4_cluster_t * clust)
 		return result;
 	}
 	assert("edward-920", jprivate(clust->pages[0]));
-	LOCK_JNODE(node);
-	JF_SET(node, JNODE_CLUSTER_PAGE);
-	UNLOCK_JNODE(node);
 	return 0;
 }
 
@@ -1389,6 +1388,38 @@ grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 		while(i)
 			page_cache_release(clust->pages[--i]);
 	return result;
+}
+
+/* Since reiser4_writepage() attaches jnode to the page we start
+   writeback from, each cluster page may become private. Emergency
+   flush should understand that cluster page is not flushable, this
+   is the purpose of the following function.
+*/
+reiser4_internal int
+jnode_of_cluster(const jnode * node, struct page * page)
+{
+	assert("edward-1339", node != NULL);
+	assert("edward-1340", page != NULL);
+	assert("edward-1341", page->mapping != NULL);
+	assert("edward-1342", page->mapping->host != NULL);
+	assert("edward-1343", 
+	       ergo(jnode_is_unformatted(node),
+		    get_inode_oid(page->mapping->host) == node->key.j.objectid));
+
+	if (inode_cluster_plugin(page->mapping->host) != NULL) {
+		assert("edward-1344",
+		       inode_file_plugin(page->mapping->host) == 
+		       file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+#if REISER4_DEBUG
+		if (!jnode_is_cluster_page(node))
+			warning("edward-1345",
+				"inode %llu: cluster page of index %lu became private", 
+				(unsigned long long)get_inode_oid(page->mapping->host),
+				page->index);
+#endif
+		return 1;
+	}
+	return 0;
 }
 
 /* put cluster pages */
@@ -2163,7 +2194,7 @@ static int
 jnodes_truncate_ok(struct inode * inode, cloff_t start)
 {
 	int result;
-	jnode * node;
+	jnode * node = NULL;
 	reiser4_inode *info = reiser4_inode_data(inode);
 	reiser4_tree * tree = tree_by_inode(inode);
 
@@ -2171,9 +2202,9 @@ jnodes_truncate_ok(struct inode * inode, cloff_t start)
 
 	result = radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(info), (void **)&node,
 					clust_to_pg(start, inode), 1);
-	RUNLOCK_TREE(tree);
 	if (result)
 		warning("edward-1332", "Untruncated jnode %p\n", node);
+	RUNLOCK_TREE(tree);
 	return !result;
 }
 
@@ -3087,8 +3118,10 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	assert("edward-1334", !result);
 	assert("edward-1209", 
 	       pages_truncate_ok(inode, old_size, count_to_nrpages(new_size)));
-	assert("edward-1335",
-	       jnodes_truncate_ok(inode, count_to_nrclust(new_size, inode)));
+#if REISER4_DEBUG
+	result = !jnodes_truncate_ok(inode, count_to_nrclust(new_size, inode));
+	assert("edward-1346", !result);
+#endif
 	done_lh(&lh);
 	put_cluster_handle(&clust, TFM_READ);
 	return result;
@@ -3134,7 +3167,7 @@ start_truncate_fake(struct inode *inode, cloff_t aidx, loff_t new_size, int upda
 		result = update_sd_cryptcompress(inode);
 	return result;
 }
-	
+
 /* This is called in setattr_cryptcompress when it is used to truncate,
    and in delete_cryptcompress */
 static int
@@ -3157,7 +3190,7 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 	if (inode->i_size == new_size)
 		/* nothing to truncate anymore */
 		return 0;
-	return (inode->i_size < new_size ? 
+	return (inode->i_size < new_size ?
 		cryptcompress_append_hole(inode, new_size) :
 		prune_cryptcompress(inode, new_size, update_sd, aidx));
 }
@@ -3327,14 +3360,14 @@ mmap_cryptcompress(struct file * file, struct vm_area_struct * vma)
 	//return generic_file_mmap(file, vma);
 }
 
-
 /* plugin->u.file.release */
 /* plugin->u.file.get_block */
 /* This function is used for ->bmap() VFS method in reiser4 address_space_operations */
 reiser4_internal int
 get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head *bh_result, int create UNUSED_ARG)
 {
-	if (current_blocksize != inode_cluster_size(inode))
+	if (off_to_cloff ((loff_t)block * current_blocksize, inode))
+		/* mapping not cluster offsets is meaningless */
 		return RETERR(-EINVAL);
 	else {
 		int result;
@@ -3343,7 +3376,6 @@ get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head 
 		lock_handle lh;
 		item_plugin *iplug;
 
-		assert("edward-1166", 0);
 		assert("edward-420", create == 0);
 		key_by_inode_cryptcompress(inode, (loff_t)block * current_blocksize, &key);
 		init_lh(&lh);
@@ -3399,6 +3431,8 @@ delete_cryptcompress(struct inode *inode)
 reiser4_internal int
 pre_delete_cryptcompress(struct inode *inode)
 {
+	if (is_bad_inode(inode))
+		return 0;
 	return cryptcompress_truncate(inode, 0, 0);
 }
 
