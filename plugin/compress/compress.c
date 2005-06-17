@@ -153,6 +153,7 @@ static void gzip1_nocompress_free(coa_t coa, tfm_action act)
 	switch (act) {
 	case TFM_READ:	/* decompress */
 		vfree(coa);
+		break;
 	case TFM_WRITE:	/* compress */
 		impossible("edward-1302",
 			   "trying to free non-allocated workspace");
