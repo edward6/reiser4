@@ -3224,7 +3224,7 @@ capture_anonymous_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	return result;
 }
 
-#define MAX_CLUSTERS_TO_CAPTURE(inode)      (1024 >> inode_cluster_shift(inode))
+#define MAX_CLUSTERS_TO_CAPTURE(inode)      (1024 >> cluster_nrpages_shift(inode))
 
 /* read lock should be acquired */
 static int
