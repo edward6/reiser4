@@ -966,6 +966,7 @@ insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f, struct i
 	ret = insert_crc_flow(&pos, &lock, f, inode);
 	done_lh(&lock);
 
+	assert("edward-1347", znode_is_write_locked(lh->node));
 	assert("edward-1228", !ret);
 	return ret;
 }
