@@ -1,28 +1,8 @@
-/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README
+/* Copyright 2001, 2002, 2003 by Hans Reiser, licensing governed by reiser4/README */
 
-This file contains all cluster operations and methods of the reiser4
-cryptcompress object plugin (see http://www.namesys.com/cryptcompress_design.html
-for details).
+/* This file contains methods of the reiser4 cryptcompress object plugin 
+   (see http://www.namesys.com/cryptcompress_design.html for details). */
 
-Cryptcompress specific fields of reiser4 inode/stat-data:
-
-                 Incore inode                               Disk stat-data
-********************************************************************************************
-* data structure       *         field        * data structure       *          field      *
-********************************************************************************************
-* plugin_set           *file plugin id        * reiser4_plugin_stat  *file plugin id       *
-*                      *crypto plugin id      *                      *crypto plugin id     *
-*                      *digest plugin id      *                      *digest plugin id     *
-*                      *compression plugin id *                      *compression plugin id*
-********************************************************************************************
-* crypto_stat_t        *      keysize         * reiser4_crypto_stat  *      keysize        *
-*                      *      keyid           *                      *      keyid          *
-********************************************************************************************
-* cluster_stat_t       *      cluster_shift   * reiser4_cluster_stat *      cluster_shift  *
-********************************************************************************************
-* cryptcompress_info_t *      crypto_tfm      *                      *                     *
-********************************************************************************************
-*/
 #include "../debug.h"
 #include "../inode.h"
 #include "../jnode.h"
@@ -50,16 +30,12 @@ Cryptcompress specific fields of reiser4 inode/stat-data:
 
 int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
 int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
-reiser4_key * append_cluster_key_ctail(const coord_t *, reiser4_key *);
-int setattr_reserve(reiser4_tree *);
-int writepage_ctail(struct page *);
+int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
 int update_file_size(struct inode * inode, reiser4_key * key, int update_sd);
 int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size,
 		   int (*update_actor)(struct inode *, reiser4_key *, int));
 int delete_object(struct inode *inode, int mode);
-int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
 int hint_is_set(const hint_t *hint);
-reiser4_plugin * get_default_plugin(pset_member memb);
 void inode_check_scale_nolock(struct inode * inode, __u64 old, __u64 new);
 
 /* get cryptcompress specific portion of inode */
