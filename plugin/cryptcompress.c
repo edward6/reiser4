@@ -553,19 +553,17 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 	}
 	assert("edward-442", jprivate(clust->pages[0]) != NULL);
 
-	result = reiser4_grab_space_force(/* for prepped disk cluster */
-					  estimate_insert_cluster(inode, 0) +
-					  /* for unprepped disk cluster */
-					  estimate_insert_cluster(inode, 1),
+	result = reiser4_grab_space_force(estimate_insert_cluster(inode) +
+					  estimate_update_cluster(inode),
 					  BA_CAN_COMMIT);
 	if (result)
 		return result;
 	clust->reserved = 1;
-	grabbed2cluster_reserved(estimate_insert_cluster(inode, 0) +
-				 estimate_insert_cluster(inode, 1));
+	grabbed2cluster_reserved(estimate_insert_cluster(inode) +
+				 estimate_update_cluster(inode));
 #if REISER4_DEBUG
-	clust->reserved_prepped = estimate_insert_cluster(inode, 0);
-	clust->reserved_unprepped = estimate_insert_cluster(inode, 1);
+	clust->reserved_prepped = estimate_update_cluster(inode);
+	clust->reserved_unprepped = estimate_insert_cluster(inode);
 #endif
 	assert("edward-1262", get_current_context()->grabbed_blocks == 0);
 	return 0;
@@ -1206,7 +1204,7 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 	assert("edward-971", clust->reserved == 1);
 	assert("edward-1028", spin_jnode_is_locked(node));
 	assert("edward-972", node->page_count < cluster_nrpages(inode));
-	assert("edward-1263", clust->reserved_prepped ==  estimate_insert_cluster(inode, 0));
+	assert("edward-1263", clust->reserved_prepped ==  estimate_update_cluster(inode));
 	assert("edward-1264", clust->reserved_unprepped == 0);
 
 
@@ -1216,7 +1214,7 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 		old_refcnt = count_to_nrpages(off_to_count(*old_isize, clust->index, inode)) - 1;
 		/* space for the disk cluster is already reserved */
 
-		free_reserved4cluster(inode, clust, estimate_insert_cluster(inode, 0));
+		free_reserved4cluster(inode, clust, estimate_update_cluster(inode));
 	}
 	else {
 		/* there is only one page referenced by this jnode */
@@ -1226,7 +1224,7 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 		clust->reserved = 0;
 	}
 #if REISER4_DEBUG
-	clust->reserved_prepped -=  estimate_insert_cluster(inode, 0);
+	clust->reserved_prepped -=  estimate_update_cluster(inode);
 #endif
 	new_refcnt = cluster_nrpages_to_capture(clust) - 1;
 
@@ -1621,7 +1619,7 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 #if REISER4_DEBUG
 	node->page_count = 0;
 #endif
-	cluster_reserved2grabbed(estimate_insert_cluster(inode, 0));
+	cluster_reserved2grabbed(estimate_update_cluster(inode));
 	uncapture_cluster_jnode(node);
 
 	/* Try to create input stream for the found size (tc->len).
@@ -1883,7 +1881,8 @@ find_cluster(reiser4_cluster_t * clust,
 	if (write) {
 		/* reserve for flush to make dirty all the leaf nodes
 		   which contain disk cluster */
-		result = reiser4_grab_space_force(estimate_disk_cluster(inode), BA_CAN_COMMIT);
+		result = reiser4_grab_space_force(estimate_dirty_cluster(inode),
+						  BA_CAN_COMMIT);
 		assert("edward-990", !result);
 		if (result)
 			goto out2;
@@ -2128,10 +2127,10 @@ crc_make_unprepped_cluster (reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-1266", get_current_context()->grabbed_blocks == 0);
 
 	if (clust->reserved){
-		cluster_reserved2grabbed(estimate_insert_cluster(inode, 1));
+		cluster_reserved2grabbed(estimate_insert_cluster(inode));
 #if REISER4_DEBUG
-		assert("edward-1267", clust->reserved_unprepped == estimate_insert_cluster(inode, 1));
-		clust->reserved_unprepped -= estimate_insert_cluster(inode, 1);
+		assert("edward-1267", clust->reserved_unprepped == estimate_insert_cluster(inode));
+		clust->reserved_unprepped -= estimate_insert_cluster(inode);
 #endif
 	}
 	if (!should_create_unprepped_cluster(clust, inode)) {
@@ -2232,10 +2231,10 @@ truncate_page_cluster(struct inode *inode, cloff_t index)
 	if (jnode_is_dirty(node)) {
 		/* jnode is dirty => space for disk cluster
 		   conversion grabbed */
-		cluster_reserved2grabbed(estimate_insert_cluster(inode, 0));
+		cluster_reserved2grabbed(estimate_update_cluster(inode));
 		grabbed2free(get_current_context(),
 			     get_current_super_private(),
-			     estimate_insert_cluster(inode, 0));
+			     estimate_update_cluster(inode));
 
 		assert("edward-1198", found == nr_pages);
 		/* This will clear dirty bit so concurrent flush
@@ -2305,8 +2304,8 @@ prepare_cluster(struct inode *inode,
 	if (result) {
 		free_reserved4cluster(inode,
 				      clust,
-				      estimate_insert_cluster(inode, 0) +
-				      estimate_insert_cluster(inode, 1));
+				      estimate_update_cluster(inode) +
+				      estimate_insert_cluster(inode));
 		goto err1;
 	}
 	assert("edward-1124", clust->dstat != INVAL_DISK_CLUSTER);
@@ -2323,7 +2322,7 @@ prepare_cluster(struct inode *inode,
  err2:
 	free_reserved4cluster(inode,
 			      clust,
-			      estimate_insert_cluster(inode, 0));
+			      estimate_update_cluster(inode));
  err1:
 	page_cache_release(clust->pages[0]);
 	release_cluster_pages_and_jnode(clust);
@@ -2518,7 +2517,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		if (clust.reserved)
 			free_reserved4cluster(inode,
 					      &clust,
-					      estimate_insert_cluster(inode, 0));
+					      estimate_update_cluster(inode));
 		break;
 	} while (f.length);
  out:

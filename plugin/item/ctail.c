@@ -1026,7 +1026,7 @@ int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * ino
 	assert("edward-1246", clust->dstat == FAKE_DISK_CLUSTER);
 	assert("edward-1247", clust->reserved == 1);
 	assert("edward-1248",  get_current_context()->grabbed_blocks ==
-	       estimate_insert_cluster(inode, 1));
+	       estimate_insert_cluster(inode));
 
 	result = get_disk_cluster_locked(clust, inode, ZNODE_WRITE_LOCK);
 	if (cbk_errored(result))
