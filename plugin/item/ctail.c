@@ -566,7 +566,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	assert("edward-672", crc_inode_ok(inode));
 
 	/* set input stream */
-	result = grab_tfm_stream(inode, &clust->tc, TFM_READ, INPUT_STREAM);
+	result = grab_tfm_stream(inode, &clust->tc, INPUT_STREAM);
 	if (result)
 		return result;
 
@@ -587,7 +587,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	}
  	cplug = inode_compression_plugin(inode);
 	if (cplug->alloc && !get_coa(&clust->tc, cplug->h.id)) {
-		result = alloc_coa(&clust->tc, cplug, TFM_READ);
+		result = alloc_coa(&clust->tc, cplug);
 		if (result)
 			return result;
 	}
@@ -782,7 +782,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 				  pages->next != pages->prev,
 				  list_to_page(pages)->index < list_to_next_page(pages)->index));
 	pagevec_init(&lru_pvec, 0);
-	reiser4_cluster_init(&clust, NULL);
+	cluster_init_read(&clust, NULL);
 	clust.file = vp;
 	clust.hint = &hint;
 
@@ -846,7 +846,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
  out:
 	done_lh(&lh);
 	hint.ext_coord.valid = 0;
-	put_cluster_handle(&clust, TFM_READ);
+	put_cluster_handle(&clust);
 	pagevec_lru_add(&lru_pvec);
 	return;
 }
@@ -1196,6 +1196,7 @@ alloc_convert_data(flush_pos_t * pos)
 	if (!pos->sq)
 		return RETERR(-ENOMEM);
 	memset(pos->sq, 0, sizeof(*pos->sq));
+	cluster_init_write(&pos->sq->clust, 0);
 	return 0;
 }
 
@@ -1210,7 +1211,7 @@ free_convert_data(flush_pos_t * pos)
 	sq = pos->sq;
 	if (sq->itm)
 		free_item_convert_data(sq);
-	put_cluster_handle(&sq->clust, TFM_WRITE);
+	put_cluster_handle(&sq->clust);
 	reiser4_kfree(pos->sq);
 	pos->sq = NULL;
 	return;
@@ -1229,6 +1230,7 @@ init_item_convert_data(flush_pos_t * pos, struct inode * inode)
 	sq = pos->sq;
 
 	memset(sq->itm, 0, sizeof(*sq->itm));
+	
 
 	/* iplug->init_convert_data() */
 	return init_convert_data_ctail(sq->itm, inode);
@@ -1259,7 +1261,7 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 	}
 	clust = &pos->sq->clust;
 	if (cplug->alloc && !get_coa(&clust->tc, cplug->h.id)) {
-		ret = alloc_coa(&clust->tc, cplug, TFM_WRITE);
+		ret = alloc_coa(&clust->tc, cplug);
 		if (ret)
 			goto err;
 	}
