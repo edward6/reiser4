@@ -122,7 +122,6 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 				/* znodes... */
 				print_znodes("znodes", current_tree);
 			{
-				extern spinlock_t active_contexts_lock;
 
 				/*
 				 * remove context from the list of active
@@ -326,7 +325,7 @@ reiser4_is_debugged(struct super_block *super, __u32 flag)
    block. */
 reiser4_internal void *
 reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
-		int gfp_flag /* allocation flag */ )
+		unsigned int gfp_flag /* allocation flag */ )
 {
 	void *result;
 

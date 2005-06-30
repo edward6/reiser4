@@ -252,12 +252,19 @@ int scan_set_current(flush_scan * scan, jnode * node, unsigned add_size, const c
 int scan_finished(flush_scan * scan);
 int scanning_left(flush_scan * scan);
 int scan_goto(flush_scan * scan, jnode * tonode);
-txn_atom *atom_locked_by_fq(flush_queue_t * fq);
+extern txn_atom *atom_locked_by_fq(flush_queue_t * fq);
+extern int alloc_extent(flush_pos_t *flush_pos);
+extern squeeze_result squalloc_extent(znode *left, const coord_t *, flush_pos_t *, reiser4_key *stop_key);
+
+ON_DEBUG(extern atomic_t flush_cnt;)
 
 int init_fqs(void);
 void done_fqs(void);
 
 #if REISER4_DEBUG
+
+extern void check_fq(const txn_atom *atom);
+
 #define check_preceder(blk) \
 assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
 extern void check_pos(flush_pos_t *pos);

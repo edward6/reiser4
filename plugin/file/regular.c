@@ -7,6 +7,8 @@
 
 #include "../plugin.h"
 
+extern regular_plugin regular_plugins[LAST_REGULAR_ID];
+
 regular_plugin regular_plugins[LAST_REGULAR_ID] = {
 	[UF_REGULAR_ID] = {
 		.h = {

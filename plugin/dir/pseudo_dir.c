@@ -6,6 +6,7 @@
 #include "../../inode.h"
 #include "../pseudo/pseudo.h"
 #include "dir.h"
+#include "pseudo_dir.h"
 
 #include <linux/fs.h>		/* for struct inode */
 #include <linux/dcache.h>	/* for struct dentry */

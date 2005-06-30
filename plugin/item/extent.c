@@ -20,7 +20,7 @@ init_new_extent(reiser4_item_data *data, void *ext_unit, int nr_extents)
 	/* data->data is kernel space */
 	data->user = 0;
 	data->length = sizeof(reiser4_extent) * nr_extents;
-	data->arg = 0;
+	data->arg = NULL;
 	data->iplug = item_plugin_by_id(EXTENT_POINTER_ID);
 	return data;
 }
@@ -117,7 +117,7 @@ replace_extent(coord_t *un_extent, lock_handle *lh,
 	un_extent->between = AFTER_UNIT;
 
 	result = insert_into_item(un_extent,
-				  return_inserted_position ? lh : 0,
+				  return_inserted_position ? lh : NULL,
 				  /*(flags == COPI_DONT_SHIFT_LEFT) ? 0 : lh,*/ key, exts_to_add, flags);
 	if (!result) {
 		/* now we have to replace the unit after which new units were inserted. Its position is tracked by

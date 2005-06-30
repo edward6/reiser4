@@ -82,6 +82,9 @@ TYPE_SAFE_HASH_DECLARE(d_cursor, dir_cursor);
 int d_cursor_init_at(struct super_block *s);
 void d_cursor_done_at(struct super_block *s);
 
+extern int d_cursor_init(void);
+extern void d_cursor_done(void);
+
 /*
  * information about d_cursors (detached readdir state) maintained in reiser4
  * specific portion of reiser4 super-block. See dir.c for more information on

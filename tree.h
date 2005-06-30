@@ -421,6 +421,7 @@ extern char *sprint_address(const reiser4_block_nr * block);
 extern void print_coord_content(const char *prefix, coord_t * p);
 extern void print_address(const char *prefix, const reiser4_block_nr * block);
 extern void print_tree_rec(const char *prefix, reiser4_tree * tree, __u32 flags);
+extern void check_dkeys(znode *node);
 #else
 #define print_coord_content(p, c) noop
 #define print_address(p, b) noop

@@ -103,6 +103,11 @@ int prepare_removal_node40(znode * empty, carry_plugin_info * info);
 int set_item_plugin_node40(coord_t * coord, item_id id);
 int shrink_item_node40(coord_t *coord, int delta);
 
+#if REISER4_DEBUG
+void *shift_check_prepare(const znode *left, const znode *right);
+void shift_check(void *vp, const znode *left, const znode *right);
+#endif
+
 /* __REISER4_NODE40_H__ */
 #endif
 /*

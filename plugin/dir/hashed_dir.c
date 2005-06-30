@@ -620,7 +620,7 @@ hashed_estimate_rename(
 	if (new_name->d_inode)
 		p_child_new = inode_file_plugin(new_name->d_inode);
 	else
-		p_child_new = 0;
+		p_child_new = NULL;
 
 	/* find_entry - can insert one leaf. */
 	res1 = res2 = 1;
@@ -1095,6 +1095,36 @@ add_entry_hashed(struct inode *object	/* directory to add new name
 	return result;
 }
 
+static int rem_entry(struct inode *object, struct dentry *where, 
+		     reiser4_dir_entry_desc * entry, coord_t *coord,
+		     lock_handle *lh) {
+	item_plugin *iplug;
+	struct inode *child;
+
+	iplug = inode_dir_item_plugin(object);
+	child = where->d_inode;
+	assert("nikita-3399", child != NULL);
+
+	/* check that we are really destroying an entry for @child */
+	if (REISER4_DEBUG) {
+		int result;
+		reiser4_key key;
+
+		result = iplug->s.dir.extract_key(coord, &key);
+		if (result != 0)
+			return result;
+		if (get_key_objectid(&key) != get_inode_oid(child)) {
+			warning("nikita-3397",
+				"rem_entry: %#llx != %#llx\n",
+				get_key_objectid(&key),
+				(unsigned long long)get_inode_oid(child));
+			return RETERR(-EIO);
+		}
+	}
+	return iplug->s.dir.rem_entry(object,
+				      &where->d_name, coord, lh, entry);
+}
+
 /* ->rem_entry() method for hashed directory object plugin.
    plugin->u.dir.rem_entry
  */
@@ -1111,35 +1141,6 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 	lock_handle lh;
 	reiser4_dentry_fsdata *fsdata;
 	__u64 tograb;
-
-	/* yes, nested function, so what? Sue me. */
-	int rem_entry(void) {
-		item_plugin *iplug;
-		struct inode *child;
-
-		iplug = inode_dir_item_plugin(object);
-		child = where->d_inode;
-		assert("nikita-3399", child != NULL);
-
-		/* check that we are really destroying an entry for @child */
-		if (REISER4_DEBUG) {
-			int result;
-			reiser4_key key;
-
-			result = iplug->s.dir.extract_key(coord, &key);
-			if (result != 0)
-				return result;
-			if (get_key_objectid(&key) != get_inode_oid(child)) {
-				warning("nikita-3397",
-					"rem_entry: %#llx != %#llx\n",
-					get_key_objectid(&key),
-					(unsigned long long)get_inode_oid(child));
-				return RETERR(-EIO);
-			}
-		}
-		return iplug->s.dir.rem_entry(object,
-					      &where->d_name, coord, &lh, entry);
-	}
 
 	assert("nikita-1124", object != NULL);
 	assert("nikita-1125", where != NULL);
@@ -1170,7 +1171,7 @@ rem_entry_hashed(struct inode *object	/* directory from which entry
 		assert("vs-542", inode_dir_item_plugin(object));
 		seal_done(&fsdata->dec.entry_seal);
 		adjust_dir_file(object, where, fsdata->dec.pos, -1);
-		result = WITH_COORD(coord, rem_entry());
+		result = WITH_COORD(coord, rem_entry(object, where, entry, coord, &lh));
 		if (result == 0) {
 			if (object->i_size >= 1)
 				INODE_DEC_FIELD(object, i_size);
@@ -1303,7 +1304,7 @@ find_entry(struct inode *dir /* directory to scan */,
 			       LEAF_LEVEL,
 			       LEAF_LEVEL,
 			       flags,
-			       0/*ra_info*/);
+			       NULL/*ra_info*/);
 
 	if (result == CBK_COORD_FOUND) {
 		entry_actor_args arg;

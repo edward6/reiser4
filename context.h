@@ -19,8 +19,9 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>	/* for struct task_struct */
 
-/* list of active lock stacks */
 #if REISER4_DEBUG
+extern spinlock_t active_contexts_lock;
+/* list of active lock stacks */
 TYPE_SAFE_LIST_DECLARE(context);
 #endif
 
@@ -107,17 +108,17 @@ struct reiser4_context {
 	tap_list_head taps;
 
 	/* grabbing space is enabled */
-	int grab_enabled  :1;
+	unsigned int grab_enabled  :1;
     	/* should be set when we are write dirty nodes to disk in jnode_flush or
 	 * reiser4_write_logs() */
-	int writeout_mode :1;
+	unsigned int writeout_mode :1;
 	/* true, if current thread is an ent thread */
-	int entd          :1;
+	unsigned int entd          :1;
 	/* true, if balance_dirty_pages() should not be run when leaving this
 	 * context. This is used to avoid lengthly balance_dirty_pages()
 	 * operation when holding some important resource, like directory
 	 * ->i_sem */
-	int nobalance     :1;
+	unsigned int nobalance     :1;
 
 	/* count non-trivial jnode_set_dirty() calls */
 	unsigned long nr_marked_dirty;

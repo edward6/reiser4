@@ -59,7 +59,7 @@ static int reiser4_symlink(struct inode *, struct dentry *, const char *);
 static int reiser4_mkdir(struct inode *, struct dentry *, int);
 static int reiser4_mknod(struct inode *, struct dentry *, int, dev_t);
 static int reiser4_rename(struct inode *, struct dentry *, struct inode *, struct dentry *);
-static int reiser4_readlink(struct dentry *, char *, int);
+static int reiser4_readlink(struct dentry *, char __user *, int);
 static int reiser4_follow_link(struct dentry *, struct nameidata *);
 static void reiser4_truncate(struct inode *);
 static int reiser4_permission(struct inode *, int, struct nameidata *);
@@ -262,7 +262,7 @@ reiser4_lookup(struct inode *parent,	/* directory within which we are to
 
 /* ->readlink() inode method, returns content of symbolic link */
 static int
-reiser4_readlink(struct dentry *dentry, char *buf, int buflen)
+reiser4_readlink(struct dentry *dentry, char __user *buf, int buflen)
 {
 	assert("vs-852", S_ISLNK(dentry->d_inode->i_mode));
 	if (!dentry->d_inode->u.generic_ip || !inode_get_flag(dentry->d_inode, REISER4_GENERIC_PTR_USED))

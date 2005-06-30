@@ -100,6 +100,8 @@
 
 #include "pseudo.h"
 
+extern pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID];
+
 static int init_pseudo(struct inode *parent, struct inode *pseudo,
 		       pseudo_plugin *pplug, const char *name);
 
@@ -693,9 +695,6 @@ static void * bmap_next(struct seq_file *m, void *v, loff_t *pos)
 	++ (*pos);
 	return bmap_start(m, pos);
 }
-
-extern int reiser4_lblock_to_blocknr(struct address_space *mapping,
-				     sector_t lblock, reiser4_block_nr *blocknr);
 
 /*
  * output information about single block number allocated for the host file

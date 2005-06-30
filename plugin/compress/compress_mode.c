@@ -6,6 +6,8 @@
 #include "../plugin.h"
 #include "../cryptcompress.h"
 
+extern compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID];
+
 /* plugin->should_deflate() */
 static int
 should_deflate_test(cloff_t index)

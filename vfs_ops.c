@@ -330,7 +330,7 @@ done_file_fsdata(void)
  * Create reiser4 specific per-file data: reiser4_file_fsdata.
  */
 reiser4_internal reiser4_file_fsdata *
-create_fsdata(struct file *file, int gfp)
+create_fsdata(struct file *file, unsigned int gfp)
 {
 	reiser4_file_fsdata *fsdata;
 
@@ -1195,9 +1195,6 @@ reiser4_get_sb(struct file_system_type *fs_type	/* file
 {
 	return get_sb_bdev(fs_type, flags, dev_name, data, reiser4_fill_super);
 }
-
-int d_cursor_init(void);
-void d_cursor_done(void);
 
 /*
  * Reiser4 initialization/shutdown.

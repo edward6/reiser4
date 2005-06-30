@@ -17,6 +17,8 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 
+extern sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION];
+
 /* see static_stat.h for explanation */
 
 /* helper function used while we are dumping/loading inode/plugin state
@@ -658,7 +660,7 @@ save_symlink_sd(struct inode *inode, char **area)
 		const char *target;
 
 		target = (const char *) (inode->u.generic_ip);
-		inode->u.generic_ip = 0;
+		inode->u.generic_ip = NULL;
 
 		result = symlink_target_to_inode(inode, target, length);
 

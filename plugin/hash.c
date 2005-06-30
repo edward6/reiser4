@@ -12,6 +12,8 @@
 
 #include <linux/types.h>
 
+extern hash_plugin hash_plugins[LAST_HASH_ID];
+
 /* old rupasov (yura) hash */
 static __u64
 hash_rupasov(const unsigned char *name /* name to hash */ ,

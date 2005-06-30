@@ -28,16 +28,6 @@
 #include <linux/hardirq.h>
 #include <linux/pagevec.h>
 
-int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
-int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
-int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
-int update_file_size(struct inode * inode, reiser4_key * key, int update_sd);
-int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size,
-		   int (*update_actor)(struct inode *, reiser4_key *, int));
-int delete_object(struct inode *inode, int mode);
-int hint_is_set(const hint_t *hint);
-void inode_check_scale_nolock(struct inode * inode, __u64 old, __u64 new);
-
 /* get cryptcompress specific portion of inode */
 reiser4_internal cryptcompress_info_t *
 cryptcompress_inode_data(const struct inode * inode)
@@ -483,7 +473,7 @@ key_by_inode_cryptcompress(struct inode *inode, loff_t off, reiser4_key * key)
 /* plugin->flow_by_inode */
 reiser4_internal int
 flow_by_inode_cryptcompress(struct inode *inode /* file to build flow for */ ,
-			    char *buf /* user level buffer */ ,
+			    const char __user *buf /* user level buffer */ ,
 			    int user	/* 1 if @buf is of user space, 0 - if it is
 					   kernel space */ ,
 			    loff_t size /* buffer size */ ,
@@ -496,9 +486,8 @@ flow_by_inode_cryptcompress(struct inode *inode /* file to build flow for */ ,
 	assert("edward-150", inode_file_plugin(inode) != NULL);
 	assert("edward-151", inode_file_plugin(inode)->key_by_inode == key_by_inode_cryptcompress);
 
-
 	f->length = size;
-	f->data = buf;
+	memcpy(&f->data, &buf, sizeof(buf));
 	f->user = user;
 	f->op = op;
 
@@ -1047,7 +1036,7 @@ readpage_cryptcompress(void *vp, struct page *page)
 		unlock_page(page);
 		return 0;
 	}
-	reiser4_cluster_init(&clust, 0);
+	reiser4_cluster_init(&clust, NULL);
 	clust.file = file;
 	iplug = item_plugin_by_id(CTAIL_ID);
 	if (!iplug->s.file.readpage) {
@@ -1874,7 +1863,7 @@ find_cluster(reiser4_cluster_t * clust,
 
 	/* set key of the first disk cluster item */
 	fplug->flow_by_inode(inode,
-			     (read ? tfm_stream_data(tc, INPUT_STREAM) : 0),
+			     (read ? (char __user *)tfm_stream_data(tc, INPUT_STREAM) : NULL),
 			     0 /* kernel space */,
 			     inode_scaled_cluster_size(inode),
 			     clust_to_off(cl_idx, inode), READ_OP, &f);
@@ -2398,7 +2387,8 @@ reset_cluster_params(reiser4_cluster_t * clust)
 /* FIXME_EDWARD replace flow by something lightweigth */
 
 static loff_t
-write_cryptcompress_flow(struct file * file , struct inode * inode, const char *buf, size_t count, loff_t pos)
+write_cryptcompress_flow(struct file * file , struct inode * inode, 
+			 const char __user *buf, size_t count, loff_t pos)
 {
 	int i;
 	flow_t f;
@@ -2424,7 +2414,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	init_lh(&lh);
 	hint.ext_coord.lh = &lh;
 
-	result = flow_by_inode_cryptcompress(inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &f);
+	result = flow_by_inode_cryptcompress(inode, buf, 1 /* user space */, count, pos, WRITE_OP, &f);
 	if (result)
 		goto out;
 	to_write = f.length;
@@ -2472,7 +2462,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 			assert("edward-287", clust.pages[i] != NULL);
 
 			lock_page(clust.pages[i]);
-			result = __copy_from_user((char *)kmap(clust.pages[i]) + page_off, src, page_count);
+			result = __copy_from_user((char *)kmap(clust.pages[i]) + page_off, (char __user *)src, page_count);
 			kunmap(clust.pages[i]);
 			if (unlikely(result)) {
 				unlock_page(clust.pages[i]);
@@ -2538,7 +2528,7 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 static ssize_t
 write_crc_file(struct file * file, /* file to write to */
 	   struct inode *inode, /* inode */
-	   const char *buf, /* address of user-space buffer */
+	   const char __user *buf, /* address of user-space buffer */
 	   size_t count, /* number of bytes to write */
 	   loff_t * off /* position to write which */)
 {
@@ -2563,7 +2553,7 @@ write_crc_file(struct file * file, /* file to write to */
 	LOCK_CNT_INC(inode_sem_w);
 
 	pos = *off;
-	written = write_cryptcompress_flow(file, inode, (char *)buf, count, pos);
+	written = write_cryptcompress_flow(file, inode, buf, count, pos);
 	if (written < 0) {
 		if (written == -EEXIST)
 			printk("write_crc_file returns EEXIST!\n");
@@ -2583,7 +2573,7 @@ write_crc_file(struct file * file, /* file to write to */
 /* plugin->u.file.write */
 reiser4_internal ssize_t
 write_cryptcompress(struct file * file, /* file to write to */
-		    const char *buf, /* address of user-space buffer */
+		    const char __user *buf, /* address of user-space buffer */
 		    size_t count, /* number of bytes to write */
 		    loff_t * off /* position to write which */)
 {
@@ -2628,7 +2618,7 @@ cryptcompress_estimate_read(struct inode *inode)
 }
 
 /* plugin->u.file.read */
-ssize_t read_cryptcompress(struct file * file, char *buf, size_t size, loff_t * off)
+ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size, loff_t * off)
 {
 	ssize_t result;
 	struct inode *inode;
@@ -2705,7 +2695,7 @@ find_real_disk_cluster(struct inode * inode, cloff_t * found, cloff_t index)
 	fplug->key_by_inode(inode, offset, &key);
 
 	/* find the last item of this object */
-	result = find_cluster_item(&hint, &key, ZNODE_READ_LOCK, 0/* ra_info */, bias, 0);
+	result = find_cluster_item(&hint, &key, ZNODE_READ_LOCK, NULL/* ra_info */, bias, 0);
 	if (cbk_errored(result)) {
 		done_lh(&lh);
 		return result;
@@ -3219,7 +3209,7 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index, int 
 	init_lh(&lh);
 	hint_init_zero(&hint);
 	hint.ext_coord.lh = &lh;
-	reiser4_cluster_init(&clust, 0);
+	reiser4_cluster_init(&clust, NULL);
 	clust.hint = &hint;
 
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(mapping->host));
@@ -3356,7 +3346,7 @@ get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head 
 		init_lh(&lh);
 		hint_init_zero(&hint);
 		hint.ext_coord.lh = &lh;
-		result = find_cluster_item(&hint, &key, ZNODE_READ_LOCK, 0, FIND_EXACT, 0);
+		result = find_cluster_item(&hint, &key, ZNODE_READ_LOCK, NULL, FIND_EXACT, 0);
 		if (result != CBK_COORD_FOUND) {
 			done_lh(&lh);
 			return result;
@@ -3398,7 +3388,7 @@ delete_cryptcompress(struct inode *inode)
 			return result;
 		}
 	}
-	return delete_object(inode, 0);
+	return delete_object(inode);
 }
 
 /* plugin->u.file.pre_delete method

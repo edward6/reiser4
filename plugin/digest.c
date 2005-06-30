@@ -11,6 +11,8 @@
 
 #define NONE_DIGEST_SIZE 0
 
+extern digest_plugin digest_plugins[LAST_DIGEST_ID];
+
 REGISTER_NONE_ALG(digest, DIGEST)
 
 /* digest plugins */

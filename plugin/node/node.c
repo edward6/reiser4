@@ -56,6 +56,8 @@
 #include "../../super.h"
 #include "../../reiser4.h"
 
+extern node_plugin node_plugins[LAST_NODE_ID];
+
 /* return starting key of the leftmost item in the @node */
 reiser4_internal reiser4_key *
 leftmost_key_in_node(const znode * node /* node to query */ ,

@@ -770,7 +770,6 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 		bio->bi_sector = block * (super->s_blocksize >> 9);
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
-			ON_DEBUG(int jnode_is_releasable(jnode *));
 
 			assert("vs-1423", ergo(jnode_is_znode(cur) || jnode_is_unformatted(cur),  JF_ISSET(cur, JNODE_SCANNED)));
 			pg = jnode_page(cur);
@@ -1879,7 +1878,7 @@ replay_transaction(const struct super_block *s,
 	}
 
 	{			/* write wandered set in place */
-		write_jnode_list(ch.overwrite_set, 0, NULL, 0);
+		write_jnode_list(ch.overwrite_set, NULL, NULL, 0);
 		ret = wait_on_jnode_list(ch.overwrite_set);
 
 		if (ret) {

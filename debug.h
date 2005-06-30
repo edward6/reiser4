@@ -219,7 +219,7 @@ extern void reiser4_print_prefix(const char *level, int reperr, const char *mid,
 extern int preempt_point(void);
 extern void reiser4_print_stats(void);
 
-extern void *reiser4_kmalloc(size_t size, int gfp_flag);
+extern void *reiser4_kmalloc(size_t size, unsigned int gfp_flag);
 extern void reiser4_kfree(void *area);
 extern void reiser4_kfree_in_sb(void *area, struct super_block *sb);
 
@@ -246,14 +246,15 @@ extern int commit_check_locks(void);
 #define KERNEL_DEBUGGER (1)
 
 #if KERNEL_DEBUGGER
+
+extern void debugtrap(void);
+
 /*
  * Check condition @cond and drop into kernel debugger (kgdb) if it's true. If
  * kgdb is not compiled in, do nothing.
  */
 #define DEBUGON(cond)				\
 ({						\
-	extern void debugtrap(void);		\
-						\
 	if (unlikely(cond))			\
 		debugtrap();			\
 })

@@ -32,6 +32,8 @@
 #include <linux/quotaops.h>
 #include <linux/dcache.h>	/* for struct dentry */
 
+extern dir_plugin dir_plugins[LAST_DIR_ID];
+
 /* helper function. Standards require that for many file-system operations
    on success ctime and mtime of parent directory is to be updated. */
 reiser4_internal int

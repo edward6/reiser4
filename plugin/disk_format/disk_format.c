@@ -6,6 +6,8 @@
 #include "disk_format.h"
 #include "../plugin.h"
 
+extern disk_format_plugin format_plugins[LAST_FORMAT_ID];
+	
 /* initialization of disk layout plugins */
 disk_format_plugin format_plugins[LAST_FORMAT_ID] = {
 	[FORMAT40_ID] = {

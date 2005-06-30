@@ -249,7 +249,7 @@
 
 static int flushable(const jnode * node, struct page *page, int);
 static int needs_allocation(const jnode * node);
-static eflush_node_t *ef_alloc(int flags);
+static eflush_node_t *ef_alloc(unsigned int flags);
 static reiser4_ba_flags_t ef_block_flags(const jnode *node);
 static int ef_free_block(jnode *node, const reiser4_block_nr *blk, block_stage_t stage, eflush_node_t *ef);
 static int ef_prepare(jnode *node, reiser4_block_nr *blk, eflush_node_t **enode, reiser4_blocknr_hint *hint);
@@ -508,7 +508,7 @@ eflush_done_at(struct super_block *super)
 }
 
 static eflush_node_t *
-ef_alloc(int flags)
+ef_alloc(unsigned int flags)
 {
 	return kmem_cache_alloc(eflush_slab, flags);
 }

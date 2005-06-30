@@ -68,7 +68,7 @@ destroy_inode_symlink(struct inode * inode)
 	assert("vs-839", S_ISLNK(inode->i_mode));
 
 	reiser4_kfree_in_sb(inode->u.generic_ip, inode->i_sb);
-	inode->u.generic_ip = 0;
+	inode->u.generic_ip = NULL;
 	inode_clr_flag(inode, REISER4_GENERIC_PTR_USED);
 }
 

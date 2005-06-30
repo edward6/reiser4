@@ -727,7 +727,7 @@ coord_are_neighbors(coord_t * c1, coord_t * c2)
 	assert("nikita-1244", coord_is_existing_unit(c1));
 	assert("nikita-1245", coord_is_existing_unit(c2));
 
-	left = right = 0;
+	left = right = NULL;
 	switch (coord_compare(c1, c2)) {
 	case COORD_CMP_ON_LEFT:
 		left = c1;
@@ -895,7 +895,7 @@ coord_set_to_left(coord_t * coord)
 	return 0;
 }
 
-reiser4_internal const char *
+static reiser4_internal const char *
 coord_tween_tostring(between_enum n)
 {
 	switch (n) {

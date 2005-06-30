@@ -226,7 +226,7 @@ copy_units_extent(coord_t *target, coord_t *source,
 		coord.unit_pos = from;
 		unit_key_extent(&coord, &key);
 
-		node_plugin_by_node(target->node)->update_item_key(target, &key, 0/*info */);
+		node_plugin_by_node(target->node)->update_item_key(target, &key, NULL/*info */);
 	}
 
 	memcpy(to_ext, from_ext, free_space);

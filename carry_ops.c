@@ -283,7 +283,7 @@ space_needed(const znode * node	/* node data are inserted or
 		nplug = node->nplug;
 		/* and add node overhead */
 		if (nplug->item_overhead != NULL) {
-			result += nplug->item_overhead(node, 0);
+			result += nplug->item_overhead(node, NULL);
 		}
 	}
 	return result;
@@ -880,7 +880,7 @@ flow_insertion_overhead(carry_op * op)
 	insertion_overhead = 0;
 	if (node->nplug->item_overhead &&
 	    !can_paste(flow_insert_point(op), &flow_insert_flow(op)->key, flow_insert_data(op)))
-		insertion_overhead = node->nplug->item_overhead(node, 0) + item_data_overhead(op);
+		insertion_overhead = node->nplug->item_overhead(node, NULL) + item_data_overhead(op);
 	return insertion_overhead;
 }
 
@@ -1285,9 +1285,9 @@ carry_delete(carry_op * op /* operation to be performed */ ,
 		kdata.params.smallest_removed = NULL;
 		kdata.params.truncate = 1;
 		kdata.flags = op->u.delete.flags;
-		kdata.inode = 0;
-		kdata.left = 0;
-		kdata.right = 0;
+		kdata.inode = NULL;
+		kdata.left = NULL;
+		kdata.right = NULL;
 		/* ... and call it. */
 		result = node_plugin_by_node(parent)->cut_and_kill(&kdata,
 								   &info);

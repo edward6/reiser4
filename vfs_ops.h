@@ -40,6 +40,11 @@ extern int reiser4_writepages(struct address_space *, struct writeback_control *
 extern int reiser4_start_up_io(struct page *page);
 extern void reiser4_clear_page_dirty(struct page *);
 extern void reiser4_throttle_write(struct inode*);
+extern reiser4_internal int 
+reiser4_lblock_to_blocknr(struct address_space *mapping, 
+			  sector_t lblock, reiser4_block_nr *blocknr);
+
+ON_DEBUG(int jnode_is_releasable(jnode *));
 
 #define CAPTURE_APAGE_BURST (1024l)
 void writeout(struct super_block *, struct writeback_control *);
@@ -122,7 +127,7 @@ extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
 extern void reiser4_free_file_fsdata(struct file *f);
 extern void reiser4_free_fsdata(reiser4_file_fsdata *fsdata);
 
-extern reiser4_file_fsdata *create_fsdata(struct file *file, int gfp);
+extern reiser4_file_fsdata *create_fsdata(struct file *file, unsigned int gfp);
 
 extern void reiser4_handle_error(void);
 extern int reiser4_parse_options (struct super_block *, char *);

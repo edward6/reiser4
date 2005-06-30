@@ -139,7 +139,9 @@ paste_tail(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UNUS
 			assert("nikita-3035", schedulable());
 			/* AUDIT: return result is not checked! */
 			/* copy from user space */
-			__copy_from_user(item + coord->unit_pos, data->data, (unsigned) data->length);
+			__copy_from_user(item + coord->unit_pos, 
+					 (const char __user *)data->data, 
+					 (unsigned) data->length);
 		} else
 			/* copy from kernel space */
 			memcpy(item + coord->unit_pos, data->data, (unsigned) data->length);
@@ -193,7 +195,7 @@ copy_units_tail(coord_t *target, coord_t *source,
 		item_key_by_coord(source, &key);
 		set_key_offset(&key, get_key_offset(&key) + from);
 
-		node_plugin_by_node(target->node)->update_item_key(target, &key, 0 /*info */);
+		node_plugin_by_node(target->node)->update_item_key(target, &key, NULL /*info */);
 	}
 }
 
@@ -303,8 +305,11 @@ overwrite_tail(coord_t *coord, flow_t *f)
 	if (count > f->length)
 		count = f->length;
 
-	if (__copy_from_user((char *) item_body_by_coord(coord) + coord->unit_pos, f->data, count))
+	if (__copy_from_user((char *) item_body_by_coord(coord) + coord->unit_pos, 
+			     (const void __user *)f->data, count))
+	{
 		return RETERR(-EFAULT);
+	}
 
 	znode_make_dirty(coord->node);
 
@@ -630,8 +635,12 @@ read_tail(struct file *file UNUSED_ARG, flow_t *f, hint_t *hint)
 
 	/* FIXME: unlock long term lock ! */
 
-	if (__copy_to_user(f->data, ((char *) item_body_by_coord(coord) + coord->unit_pos), count))
+	if (__copy_to_user((char __user *)f->data, 
+			   ((char *) item_body_by_coord(coord) + coord->unit_pos), 
+			   count))
+	{
 		return RETERR(-EFAULT);
+	}
 
 	/* probably mark_page_accessed() should only be called if
 	 * coord->unit_pos is zero. */

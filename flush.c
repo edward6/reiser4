@@ -1395,11 +1395,6 @@ static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * l
    SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
    internal item it calls shift_one_internal_unit and may then return
    SUBTREE_MOVED. */
-squeeze_result squalloc_extent(znode *left, const coord_t *, flush_pos_t *, reiser4_key *stop_key);
-#if REISER4_DEBUG
-void *shift_check_prepare(const znode *left, const znode *right);
-void shift_check(void *vp, const znode *left, const znode *right);
-#endif
 static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 {
 	int ret = SUBTREE_MOVED;
@@ -1985,8 +1980,6 @@ static int squalloc_extent_should_stop (flush_pos_t * pos)
 
 	return leftmost_child_of_unit_check_flushprepped(&pos->coord);
 }
-
-int alloc_extent(flush_pos_t *flush_pos);
 
 /* Handle the case when regular reiser4 tree (znodes connected one to its
  * neighbors by sibling pointers) is interrupted on leaf level by one or more
@@ -2772,7 +2765,7 @@ jnode_lock_parent_coord(jnode         * node,
 		assert("jmacd-1812", coord != NULL);
 
 		ret = coord_by_key(jnode_get_tree(node), &key, coord, parent_lh,
-				   parent_mode, bias, stop_level, stop_level, CBK_UNIQUE, 0/*ra_info*/);
+				   parent_mode, bias, stop_level, stop_level, CBK_UNIQUE, NULL/*ra_info*/);
 		switch (ret) {
 		case CBK_COORD_NOTFOUND:
 			assert("edward-1038",

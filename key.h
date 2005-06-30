@@ -108,24 +108,27 @@ union reiser4_key {
 	int pad;
 };
 
-/* bitmasks showing where within reiser4_key particular key is
-    stored. */
-typedef enum {
-	/* major locality occupies higher 60 bits of the first element */
-	KEY_LOCALITY_MASK = 0xfffffffffffffff0ull,
-	/* minor locality occupies lower 4 bits of the first element */
-	KEY_TYPE_MASK = 0xfull,
-	/* controversial band occupies higher 4 bits of the 2nd element */
-	KEY_BAND_MASK = 0xf000000000000000ull,
-	/* objectid occupies lower 60 bits of the 2nd element */
-	KEY_OBJECTID_MASK = 0x0fffffffffffffffull,
-	/* full 64bit objectid*/
-	KEY_FULLOID_MASK = 0xffffffffffffffffull,
-	/* offset is just 3rd L.M.Nt itself */
-	KEY_OFFSET_MASK = 0xffffffffffffffffull,
-	/* ordering is whole second element */
-	KEY_ORDERING_MASK = 0xffffffffffffffffull,
-} reiser4_key_field_mask;
+/* bitmasks showing where within reiser4_key particular key is stored. */
+/* major locality occupies higher 60 bits of the first element */
+#define KEY_LOCALITY_MASK 0xfffffffffffffff0ull
+
+/* minor locality occupies lower 4 bits of the first element */
+#define KEY_TYPE_MASK 0xfull
+
+/* controversial band occupies higher 4 bits of the 2nd element */
+#define KEY_BAND_MASK 0xf000000000000000ull
+
+/* objectid occupies lower 60 bits of the 2nd element */
+#define KEY_OBJECTID_MASK 0x0fffffffffffffffull
+
+/* full 64bit objectid*/
+#define KEY_FULLOID_MASK 0xffffffffffffffffull
+
+/* offset is just 3rd L.M.Nt itself */
+#define KEY_OFFSET_MASK 0xffffffffffffffffull
+
+/* ordering is whole second element */
+#define KEY_ORDERING_MASK 0xffffffffffffffffull
 
 /* how many bits key element should be shifted to left to get particular field */
 typedef enum {

@@ -73,7 +73,7 @@ estimate_insert_flow(tree_level height)
 }
 
 /* how many nodes might get dirty and added during insertion of a disk cluster */
-reiser4_internal reiser4_block_nr
+static reiser4_internal reiser4_block_nr
 estimate_cluster(struct inode * inode, int unprepped)
 {
 	int per_cluster;

@@ -216,6 +216,8 @@ znode_is_connected(const znode * node)
 	return znode_is_right_connected(node) && znode_is_left_connected(node);
 }
 
+extern int znode_shift_order;
+
 extern int znode_rehash(znode * node, const reiser4_block_nr * new_block_nr);
 extern void znode_remove(znode *, reiser4_tree *);
 extern znode *znode_parent(const znode * node);
@@ -229,6 +231,10 @@ extern int znode_contains_key(znode * node, const reiser4_key * key);
 extern int znode_contains_key_lock(znode * node, const reiser4_key * key);
 extern unsigned znode_save_free_space(znode * node);
 extern unsigned znode_recover_free_space(znode * node);
+extern znode *zalloc(unsigned int gfp_flag);
+void zinit(znode *, const znode * parent, reiser4_tree *);
+extern int zparse(znode * node);
+
 
 extern int znode_just_created(const znode * node);
 

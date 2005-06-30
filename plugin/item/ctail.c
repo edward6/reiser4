@@ -363,7 +363,7 @@ copy_units_ctail(coord_t * target, coord_t * source,
 		item_key_by_coord(source, &key);
 		set_key_offset(&key, get_key_offset(&key) + from);
 
-		node_plugin_by_node(target->node)->update_item_key(target, &key, 0 /*info */);
+		node_plugin_by_node(target->node)->update_item_key(target, &key, NULL /*info */);
 	}
 }
 
@@ -485,7 +485,7 @@ cut_or_kill_ctail_units(coord_t * coord, pos_in_node_t from, pos_in_node_t to, i
 			memcpy(item + to + 1, item, sizeof(ctail_item_format));
 			item_key_by_coord(coord, &key);
 			set_key_offset(&key, get_key_offset(&key) + count);
-			node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
+			node_plugin_by_node(coord->node)->update_item_key(coord, &key, NULL /*info */ );
 		}
 		else {
 			/* cut_units should not be called to cut evrything */
@@ -782,7 +782,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 				  pages->next != pages->prev,
 				  list_to_page(pages)->index < list_to_next_page(pages)->index));
 	pagevec_init(&lru_pvec, 0);
-	reiser4_cluster_init(&clust, 0);
+	reiser4_cluster_init(&clust, NULL);
 	clust.file = vp;
 	clust.hint = &hint;
 
@@ -927,7 +927,7 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 	data.arg = &cluster_shift;
 
 	data.length = 0;
-	data.data = 0;
+	data.data = NULL;
 
 	op->u.insert_flow.flags = COPI_DONT_SHIFT_LEFT | COPI_DONT_SHIFT_RIGHT;
 	op->u.insert_flow.insert_point = coord;
@@ -938,7 +938,7 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 	lowest_level.track_type = CARRY_TRACK_CHANGE;
 	lowest_level.tracked = lh;
 
-	result = carry(&lowest_level, 0);
+	result = carry(&lowest_level, NULL);
 	done_carry_pool(pool);
 
 	return result;
@@ -1302,7 +1302,7 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 
 	/* make flow by transformed stream */
 	fplug->flow_by_inode(info->inode,
-			     tfm_stream_data(&clust->tc, OUTPUT_STREAM),
+			     (const char __user *)tfm_stream_data(&clust->tc, OUTPUT_STREAM),
 			     0/* kernel space */,
 			     clust->tc.len,
 			     clust_to_off(clust->index, inode),

@@ -12,6 +12,8 @@
 #include <linux/types.h>
 #include <linux/hardirq.h>
 
+extern compression_plugin compression_plugins[LAST_COMPRESSION_ID];
+
 static int
 change_compression(struct inode * inode, reiser4_plugin * plugin)
 {

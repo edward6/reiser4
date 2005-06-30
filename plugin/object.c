@@ -83,6 +83,8 @@ NIKITA-FIXME-HANS: period?
 #include <linux/xattr_acl.h>
 #include <linux/xattr.h>
 
+extern file_plugin file_plugins[LAST_FILE_PLUGIN_ID];
+
 /* helper function to print errors */
 static void
 key_warning(const reiser4_key * key /* key to print */,
@@ -175,7 +177,7 @@ lookup_sd(struct inode *inode /* inode to look sd for */ ,
 			       LEAF_LEVEL,
 			       LEAF_LEVEL,
 			       flags,
-			       0);
+			       NULL);
 	if (REISER4_DEBUG && result == 0)
 		check_sd_coord(coord, key);
 

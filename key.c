@@ -74,8 +74,6 @@ type_name(unsigned int key_type /* key type */ )
 	}
 }
 
-extern char *unpack_string(__u64 value, char *buf);
-
 /* debugging aid: print human readable information about key */
 reiser4_internal void
 print_key(const char *prefix /* prefix to print */ ,

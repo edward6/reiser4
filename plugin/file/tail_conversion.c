@@ -471,7 +471,7 @@ write_page_by_tail(struct inode *inode, struct page *page, unsigned count)
 
 	/* build flow */
 	/* FIXME: do not kmap here */
-	flow_by_inode_unix_file(inode, kmap(page), 0 /* not user space */ ,
+	flow_by_inode_unix_file(inode, (char __user *)kmap(page), 0 /* not user space */ ,
 				count, (loff_t) (page->index << PAGE_CACHE_SHIFT), WRITE_OP, &f);
 	iplug = item_plugin_by_id(FORMATTING_ID);
 	hint_init_zero(&hint);
@@ -595,7 +595,7 @@ extent2tail(unix_file_info_t *uf_info)
 
 		page = read_cache_page(inode->i_mapping,
 				       (unsigned) (i + start_page),
-				       readpage_unix_file/*filler*/, 0);
+				       readpage_unix_file/*filler*/, NULL);
 		if (IS_ERR(page)) {
 			result = PTR_ERR(page);
 			break;
