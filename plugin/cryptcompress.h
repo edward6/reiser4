@@ -138,6 +138,7 @@ typedef enum {
 typedef struct tfm_cluster{
 	coa_set coa;
 	tfm_unit tun;
+	tfm_action act;
 	int uptodate;
 	int len;
 } tfm_cluster_t;
@@ -155,11 +156,13 @@ set_coa(tfm_cluster_t * tc, reiser4_compression_id id, coa_t coa)
 }
 
 static inline int
-alloc_coa(tfm_cluster_t * tc, compression_plugin * cplug, tfm_action act)
+alloc_coa(tfm_cluster_t * tc, compression_plugin * cplug)
 {
 	coa_t coa;
 
-	coa = cplug->alloc(act);
+	assert("edward-1354", tc->act != TFM_INVAL);
+
+	coa = cplug->alloc(tc->act);
 	if (IS_ERR(coa))
 		return PTR_ERR(coa);
 	set_coa(tc, cplug->h.id, coa);
@@ -167,7 +170,7 @@ alloc_coa(tfm_cluster_t * tc, compression_plugin * cplug, tfm_action act)
 }
 
 static inline void
-free_coa_set(tfm_cluster_t * tc, tfm_action act)
+free_coa_set(tfm_cluster_t * tc)
 {
 	reiser4_compression_id i;
 	compression_plugin * cplug;
@@ -177,9 +180,10 @@ free_coa_set(tfm_cluster_t * tc, tfm_action act)
 	for(i = 0; i < LAST_COMPRESSION_ID; i++) {
 		if (!get_coa(tc, i))
 			continue;
+		assert("edward-1355", tc->act != TFM_INVAL);
 		cplug = compression_plugin_by_id(i);
 		assert("edward-812", cplug->free != NULL);
-		cplug->free(get_coa(tc, i), act);
+		cplug->free(get_coa(tc, i), tc->act);
 		set_coa(tc, i, 0);
 	}
 	return;
@@ -262,10 +266,10 @@ free_tfm_unit(tfm_cluster_t * tc)
 }
 
 static inline void
-put_tfm_cluster(tfm_cluster_t * tc, tfm_action act)
+put_tfm_cluster(tfm_cluster_t * tc)
 {
 	assert("edward-942", tc != NULL);
-	free_coa_set(tc, act);
+	free_coa_set(tc);
 	free_tfm_unit(tc);
 }
 
@@ -404,11 +408,11 @@ free_cluster_pgset(reiser4_cluster_t * clust)
 }
 
 static inline void
-put_cluster_handle(reiser4_cluster_t * clust, tfm_action act)
+put_cluster_handle(reiser4_cluster_t * clust)
 {
 	assert("edward-435", clust != NULL);
 
-	put_tfm_cluster(&clust->tc, act);
+	put_tfm_cluster(&clust->tc);
 	if (clust->pages)
 		free_cluster_pgset(clust);
 	memset(clust, 0, sizeof *clust);
@@ -441,13 +445,15 @@ int create_cryptcompress(struct inode *, struct inode *, reiser4_object_create_d
 int open_cryptcompress(struct inode * inode, struct file * file);
 int truncate_cryptcompress(struct inode *, loff_t size);
 int readpage_cryptcompress(void *, struct page *);
+int capturepage_cryptcompress(struct page *);
 int capture_cryptcompress(struct inode *inode, struct writeback_control *wbc);
-extern ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size, loff_t * off);
-extern ssize_t write_cryptcompress(struct file *, const char __user *buf, size_t size, loff_t *off);
+ssize_t read_cryptcompress(struct file * file, char *buf, size_t size, loff_t * off);
+ssize_t write_cryptcompress(struct file *, const char *buf, size_t size, loff_t *off);
+
 int release_cryptcompress(struct inode *inode, struct file *);
 int mmap_cryptcompress(struct file *, struct vm_area_struct *vma);
 int get_block_cryptcompress(struct inode *, sector_t block, struct buffer_head *bh_result, int create);
-extern int flow_by_inode_cryptcompress(struct inode *, const char __user *buf, int user, loff_t, loff_t, rw_op, flow_t *);
+int flow_by_inode_cryptcompress(struct inode *, char *buf, int user, loff_t, loff_t, rw_op, flow_t *);
 int key_by_inode_cryptcompress(struct inode *, loff_t off, reiser4_key *);
 int delete_cryptcompress(struct inode *);
 int owns_item_cryptcompress(const struct inode *, const coord_t *);
@@ -463,10 +469,6 @@ void destroy_inode_cryptcompress(struct inode * inode);
 int crc_inode_ok(struct inode * inode);
 
 int jnode_of_cluster(const jnode * node, struct page * page);
-
-extern int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
-extern int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
-extern int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
 
 static inline struct crypto_tfm *
 inode_get_tfm (struct inode * inode, reiser4_tfm tfm)

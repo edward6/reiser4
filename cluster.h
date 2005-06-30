@@ -194,11 +194,32 @@ reiser4_slide_init (reiser4_slide_t * win){
 }
 
 static inline void
-reiser4_cluster_init (reiser4_cluster_t * clust, reiser4_slide_t * window){
+tfm_cluster_init_act(tfm_cluster_t * tc, tfm_action act)
+{
+	assert("edward-1356", tc != NULL);
+	assert("edward-1357", act != TFM_INVAL);
+	tc->act = act;
+}
+
+static inline void
+cluster_init_act (reiser4_cluster_t * clust, tfm_action act, reiser4_slide_t * window){
 	assert("edward-84", clust != NULL);
 	memset(clust, 0, sizeof *clust);
+	tfm_cluster_init_act(&clust->tc, act);
 	clust->dstat = INVAL_DISK_CLUSTER;
 	clust->win = window;
+}
+
+static inline void
+cluster_init_read(reiser4_cluster_t * clust, reiser4_slide_t * window)
+{
+	cluster_init_act (clust, TFM_READ, window);
+}
+
+static inline void
+cluster_init_write(reiser4_cluster_t * clust, reiser4_slide_t * window)
+{
+	cluster_init_act (clust, TFM_WRITE, window);
 }
 
 static inline int
@@ -249,8 +270,8 @@ int get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode, zno
 void reset_cluster_params(reiser4_cluster_t * clust);
 int prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture);
 void release_cluster_pages_nocapture(reiser4_cluster_t *);
-void put_cluster_handle(reiser4_cluster_t * clust, tfm_action act);
-int grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc, tfm_action act, tfm_stream_id id);
+void put_cluster_handle(reiser4_cluster_t * clust);
+int grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc, tfm_stream_id id);
 int tfm_cluster_is_uptodate (tfm_cluster_t * tc);
 void tfm_cluster_set_uptodate (tfm_cluster_t * tc);
 void tfm_cluster_clr_uptodate (tfm_cluster_t * tc);
