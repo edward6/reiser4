@@ -5,6 +5,7 @@
 #include <linux/string.h>
 
 typedef enum {
+	TFM_INVAL,
 	TFM_READ,
 	TFM_WRITE
 } tfm_action;
