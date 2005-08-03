@@ -421,7 +421,6 @@ extern char *sprint_address(const reiser4_block_nr * block);
 extern void print_coord_content(const char *prefix, coord_t * p);
 extern void print_address(const char *prefix, const reiser4_block_nr * block);
 extern void print_tree_rec(const char *prefix, reiser4_tree * tree, __u32 flags);
-extern void check_dkeys(znode *node);
 #else
 #define print_coord_content(p, c) noop
 #define print_address(p, b) noop
@@ -526,9 +525,8 @@ reiser4_block_nr estimate_one_insert_into_item(reiser4_tree *);
 reiser4_block_nr estimate_insert_flow(tree_level);
 reiser4_block_nr estimate_one_item_removal(reiser4_tree *);
 reiser4_block_nr calc_estimate_one_insert(tree_level);
-reiser4_block_nr estimate_dirty_cluster(struct inode *);
-reiser4_block_nr estimate_insert_cluster(struct inode *);
-reiser4_block_nr estimate_update_cluster(struct inode *);
+reiser4_block_nr estimate_disk_cluster(struct inode *);
+reiser4_block_nr estimate_insert_cluster(struct inode *, int);
 
 /* take read or write tree lock, depending on @takeread argument */
 #define XLOCK_TREE(tree, takeread)				\

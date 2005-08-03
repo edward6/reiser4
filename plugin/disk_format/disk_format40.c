@@ -347,7 +347,7 @@ try_init_format40(struct super_block *s, format40_init_stage *stage)
 #endif
 
 	/* init disk space allocator */
-	result = sa_init_allocator(get_space_allocator(s), s, NULL);
+	result = sa_init_allocator(get_space_allocator(s), s, 0);
 	if (result)
 		return result;
 	*stage = INIT_SA;

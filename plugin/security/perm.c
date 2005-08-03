@@ -11,8 +11,6 @@
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
 
-extern perm_plugin perm_plugins[LAST_PERM_ID];
-
 static int
 mask_ok_common(struct inode *inode, int mask)
 {
@@ -45,14 +43,14 @@ setattr_ok_common(struct dentry *dentry, struct iattr *attr)
 
 static int
 read_ok_common(
-	struct file * file, const char __user *buf, size_t size, loff_t *off)
+	struct file * file, const char *buf, size_t size, loff_t *off)
 {
 	return access_ok(VERIFY_WRITE, buf, size) ? 0 : -EFAULT;
 }
 
 static int
 write_ok_common(
-	struct file * file, const char __user *buf, size_t size, loff_t *off)
+	struct file * file, const char *buf, size_t size, loff_t *off)
 {
 	return access_ok(VERIFY_READ, buf, size) ? 0 : -EFAULT;
 }

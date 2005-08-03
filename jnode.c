@@ -123,8 +123,6 @@
 #include <linux/fs.h>		/* for struct address_space  */
 #include <linux/writeback.h>	/* for inode_lock */
 
-extern jnode_plugin jnode_plugins[LAST_JNODE_TYPE];
-
 static kmem_cache_t *_jnode_slab = NULL;
 
 static void jnode_set_type(jnode * node, jnode_type type);
@@ -382,7 +380,7 @@ jnew_unformatted(void)
 		return NULL;
 
 	jnode_init(jal, current_tree, JNODE_UNFORMATTED_BLOCK);
-	jal->key.j.mapping = NULL;
+	jal->key.j.mapping = 0;
 	jal->key.j.index = (unsigned long)-1;
 	jal->key.j.objectid = 0;
 	return jal;
@@ -489,7 +487,7 @@ static void inode_detach_jnode(jnode *node)
 		write_lock_irq(&inode->i_data.tree_lock);
 		inode->i_data.nrpages --;
 		write_unlock_irq(&inode->i_data.tree_lock);
-	}	
+	}
 }
 
 /* put jnode into hash table (where they can be found by flush who does not know
@@ -534,7 +532,7 @@ unhash_unformatted_node_nolock(jnode *node)
 	/* remove jnode from hash-table */
 	j_hash_remove_rcu(&node->tree->jhash_table, node);
 	inode_detach_jnode(node);
-	node->key.j.mapping = NULL;
+	node->key.j.mapping = 0;
 	node->key.j.index = (unsigned long)-1;
 	node->key.j.objectid = 0;
 
@@ -1220,6 +1218,7 @@ mapping_znode(const jnode * node)
 	return get_super_fake(jnode_get_tree(node)->super)->i_mapping;
 }
 
+extern int znode_shift_order;
 /* ->index() method for znodes */
 static unsigned long
 index_znode(const jnode * node)
@@ -1321,6 +1320,8 @@ jnode_build_key(const jnode * node, reiser4_key * key)
 	return key;
 }
 
+extern int zparse(znode * node);
+
 /* ->parse() method for formatted nodes */
 static int
 parse_znode(jnode * node)
@@ -1378,6 +1379,8 @@ init_znode(jnode * node)
 }
 
 /* jplug->clone for formatted nodes (znodes) */
+znode *zalloc(int gfp_flag);
+void zinit(znode *, const znode * parent, reiser4_tree *);
 
 /* ->clone() method for formatted nodes */
 static jnode *
@@ -1389,7 +1392,7 @@ clone_formatted(jnode *node)
 	clone = zalloc(GFP_KERNEL);
 	if (clone == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
-	zinit(clone, NULL, current_tree);
+	zinit(clone, 0, current_tree);
 	jnode_set_block(ZJNODE(clone), jnode_get_block(node));
 	/* ZJNODE(clone)->key.z is not initialized */
 	clone->level = JZNODE(node)->level;

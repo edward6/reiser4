@@ -12,8 +12,6 @@
 #include <linux/types.h>
 #include <linux/hardirq.h>
 
-extern compression_plugin compression_plugins[LAST_COMPRESSION_ID];
-
 static int
 change_compression(struct inode * inode, reiser4_plugin * plugin)
 {
@@ -46,19 +44,6 @@ static reiser4_plugin_ops compression_plugin_ops = {
 #define GZIP1_DEF_WINBITS		15
 #define GZIP1_DEF_MEMLEVEL		MAX_MEM_LEVEL
 
-static int
-gzip1_init(void)
-{
-	int ret = -EINVAL;
-#if REISER4_ZLIB
-	ret = 0;
-#endif
-	if (ret == -EINVAL)
-		warning("edward-1337",
-			"Zlib not compiled into kernel, see reiser4 related kernel compilation configuration options.");
-	return ret;
-}
-
 static int gzip1_overrun(unsigned src_len UNUSED_ARG)
 {
 	return 0;
@@ -68,7 +53,6 @@ static coa_t
 gzip1_alloc(tfm_action act)
 {
 	coa_t coa = NULL;
-#if REISER4_ZLIB
 	int ret = 0;
 	switch (act) {
 	case TFM_WRITE:	/* compress */
@@ -97,7 +81,6 @@ gzip1_alloc(tfm_action act)
 			act);
 		return ERR_PTR(ret);
 	}
-#endif
 	return coa;
 }
 
@@ -105,7 +88,6 @@ static coa_t
 gzip1_nocompress_alloc(tfm_action act)
 {
 	coa_t coa = NULL;
-#if REISER4_ZLIB
 	int ret = 0;
 	switch (act) {
 	case TFM_WRITE:	/* compress */
@@ -127,7 +109,6 @@ gzip1_nocompress_alloc(tfm_action act)
 			act);
 		return ERR_PTR(ret);
 	}
-#endif
 	return coa;
 }
 
@@ -155,7 +136,6 @@ static void gzip1_nocompress_free(coa_t coa, tfm_action act)
 	switch (act) {
 	case TFM_READ:	/* decompress */
 		vfree(coa);
-		break;
 	case TFM_WRITE:	/* compress */
 		impossible("edward-1302",
 			   "trying to free non-allocated workspace");
@@ -175,7 +155,6 @@ static void
 gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	       __u8 * dst_first, unsigned *dst_len)
 {
-#if REISER4_ZLIB
 	int ret = 0;
 	struct z_stream_s stream;
 
@@ -211,7 +190,6 @@ gzip1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	return;
  rollback:
 	*dst_len = src_len;
-#endif
 	return;
 }
 
@@ -219,7 +197,6 @@ static void
 gzip1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 		 __u8 * dst_first, unsigned *dst_len)
 {
-#if REISER4_ZLIB
 	int ret = 0;
 	struct z_stream_s stream;
 
@@ -262,22 +239,12 @@ gzip1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 		return;
 	}
 	*dst_len = stream.total_out;
-#endif
 	return;
 }
 
 /******************************************************************************/
 /*                            lzo1 compression                                */
 /******************************************************************************/
-
-static int lzo1_init(void)
-{
-	int ret;
-	ret = lzo_init();
-	if (ret != LZO_E_OK) 
-		warning("edward-848", "lzo_init() failed with ret = %d\n", ret);
-	return ret;
-}
 
 static int lzo1_overrun(unsigned in_len)
 {
@@ -290,8 +257,8 @@ static int lzo1_overrun(unsigned in_len)
 static coa_t
 lzo1_alloc(tfm_action act)
 {
-	coa_t coa = NULL;
 	int ret = 0;
+	coa_t coa = NULL;
 
 	switch (act) {
 	case TFM_WRITE:	/* compress */
@@ -349,6 +316,13 @@ lzo1_compress(coa_t coa, __u8 * src_first, unsigned src_len,
 	assert("edward-846", coa != NULL);
 	assert("edward-847", src_len != 0);
 
+	result = lzo_init();
+
+	if (result != LZO_E_OK) {
+		warning("edward-848", "lzo_init() failed\n");
+		goto out;
+	}
+
 	result =
 		lzo1x_1_compress(src_first, src_len, dst_first, dst_len, coa);
 	if (result != LZO_E_OK) {
@@ -374,6 +348,13 @@ lzo1_decompress(coa_t coa, __u8 * src_first, unsigned src_len,
 	assert("edward-851", coa == NULL);
 	assert("edward-852", src_len != 0);
 
+	result = lzo_init();
+
+	if (result != LZO_E_OK) {
+		warning("edward-888", "lzo_init() failed\n");
+		return;
+	}
+
 	result = lzo1x_decompress(src_first, src_len, dst_first, dst_len, NULL);
 	if (result != LZO_E_OK)
 		warning("edward-853", "lzo1x_1_decompress failed\n");
@@ -392,7 +373,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				 ,
 				 .dual = LZO1_NO_COMPRESSION_ID,
-				 .init = lzo1_init,
+				 .init = NULL,
 				 .overrun = lzo1_overrun,
 				 .alloc = lzo1_alloc,
 				 .free = lzo1_free,
@@ -412,7 +393,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 				       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				 ,
 				 .dual = LZO1_COMPRESSION_ID,
-				 .init = lzo1_init,
+				 .init = NULL,
 				 .overrun = NULL,
 				 .alloc = NULL,
 				 .free = NULL,
@@ -432,7 +413,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 					.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				  ,
 				  .dual = GZIP1_NO_COMPRESSION_ID,
-				  .init = gzip1_init,
+				  .init = NULL,
 				  .overrun = gzip1_overrun,
 				  .alloc = gzip1_alloc,
 				  .free = gzip1_free,
@@ -452,7 +433,7 @@ compression_plugin compression_plugins[LAST_COMPRESSION_ID] = {
 					.linkage = TYPE_SAFE_LIST_LINK_ZERO}
 				  ,
 				  .dual = GZIP1_COMPRESSION_ID,
-				  .init = gzip1_init,
+				  .init = NULL,
 				  .overrun = NULL,
 				  .alloc = gzip1_nocompress_alloc,
 				  .free = gzip1_nocompress_free,

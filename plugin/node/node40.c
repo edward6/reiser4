@@ -915,9 +915,7 @@ create_item_node40(coord_t * target, const reiser4_key * key, reiser4_item_data 
 			   without this check? */
 			assert("nikita-3038", schedulable());
 			/* copy data from user space */
-			__copy_from_user(zdata(target->node) + offset, 
-					 (const char __user *)data->data, 
-					 (unsigned) data->length);
+			__copy_from_user(zdata(target->node) + offset, data->data, (unsigned) data->length);
 		} else
 			/* copy from kernel space */
 			memcpy(zdata(target->node) + offset, data->data, (unsigned) data->length);
@@ -1199,7 +1197,7 @@ kill_tail(coord_t *coord, void *data, reiser4_key *smallest_removed)
 
 	kdata = data;
 	to = coord_last_unit_pos(coord);
-	return kill_units(coord, coord->unit_pos, to, kdata, smallest_removed, NULL);
+	return kill_units(coord, coord->unit_pos, to, kdata, smallest_removed, 0);
 }
 
 /* call item plugin to cut head of item */
@@ -1232,7 +1230,7 @@ cut_tail(coord_t *coord, void *data, reiser4_key *smallest_removed)
 
 	cdata = data;
 	to = coord_last_unit_pos(cdata->params.from);
-	return cut_units(coord, coord->unit_pos, to, data, smallest_removed, NULL);
+	return cut_units(coord, coord->unit_pos, to, data, smallest_removed, 0);
 }
 
 /* call item plugin to cut head of item */
@@ -1347,7 +1345,7 @@ prepare_for_compact(struct cut40_info *cinfo, const struct cut_kill_params *para
 			coord_set_item_pos(&coord, item_pos);
 			coord.unit_pos = 0;
 			coord.between = AT_UNIT;
-			update_item_key_node40(&coord, &new_first_key, NULL);
+			update_item_key_node40(&coord, &new_first_key, 0);
 			if (item_pos == 0)
 				/* key of first item of the node changes */
 				retval = 1;
@@ -1391,7 +1389,7 @@ prepare_for_compact(struct cut40_info *cinfo, const struct cut_kill_params *para
 			if (params->smallest_removed)
 				memcpy(params->smallest_removed, &ih->key, sizeof (reiser4_key));
 
-			freed = kill_head_f(params->to, data, NULL, &new_first_key);
+			freed = kill_head_f(params->to, data, 0, &new_first_key);
 
 			cinfo->freed_space_start = ih40_get_offset(ih);
 
@@ -1407,7 +1405,7 @@ prepare_for_compact(struct cut40_info *cinfo, const struct cut_kill_params *para
 			coord_set_item_pos(&coord, cinfo->head_removed);
 			coord.unit_pos = 0;
 			coord.between = AT_UNIT;
-			update_item_key_node40(&coord, &new_first_key, NULL);
+			update_item_key_node40(&coord, &new_first_key, 0);
 
 			assert("vs-1579", cinfo->first_removed == 0);
 			/* key of first item of the node changes */
@@ -1539,7 +1537,7 @@ struct shift_params {
 static int
 item_creation_overhead(coord_t * item)
 {
-	return node_plugin_by_coord(item)->item_overhead(item->node, NULL);
+	return node_plugin_by_coord(item)->item_overhead(item->node, 0);
 }
 
 /* how many units are there in @source starting from source->unit_pos
@@ -1689,7 +1687,7 @@ estimate_shift(struct shift_params *shift, const reiser4_context *ctx)
 			target_free_space -= item_creation_overhead(&source);
 			iplug = item_plugin_by_coord(&source);
 			if (iplug->b.can_shift) {
-				shift->part_units = iplug->b.can_shift(target_free_space, &source, NULL	/*target */
+				shift->part_units = iplug->b.can_shift(target_free_space, &source, 0	/*target */
 								       , shift->pend, &size, want);
 			} else {
 				target_free_space = 0;
@@ -1742,7 +1740,7 @@ copy_units(coord_t * target, coord_t * source, unsigned from, unsigned count, sh
 		assert("nikita-1469", target->unit_pos == 0);
 
 		unit_key_by_coord(target, &split_key);
-		node_plugin_by_coord(target)->update_item_key(target, &split_key, NULL);
+		node_plugin_by_coord(target)->update_item_key(target, &split_key, 0);
 	}
 }
 
@@ -1843,7 +1841,7 @@ copy(struct shift_params *shift)
 			memcpy(to_ih, from_ih, sizeof (item_header40));
 			ih40_set_offset(to_ih, nh40_get_free_space_start(nh) - shift->part_bytes);
 			if (item_plugin_by_coord(&to)->b.init)
-				item_plugin_by_coord(&to)->b.init(&to, &from, NULL);
+				item_plugin_by_coord(&to)->b.init(&to, &from, 0);
 			copy_units(&to, &from, 0, shift->part_units, SHIFT_LEFT, shift->part_bytes);
 		}
 
@@ -1926,7 +1924,7 @@ copy(struct shift_params *shift)
 			memcpy(to_ih, from_ih, sizeof (item_header40));
 			ih40_set_offset(to_ih, sizeof (node40_header));
 			if (item_plugin_by_coord(&to)->b.init)
-				item_plugin_by_coord(&to)->b.init(&to, &from, NULL);
+				item_plugin_by_coord(&to)->b.init(&to, &from, 0);
 			copy_units(&to, &from,
 				   coord_last_unit_pos(&from) -
 				   shift->part_units + 1, shift->part_units, SHIFT_RIGHT, shift->part_bytes);
@@ -1969,10 +1967,10 @@ delete_copied(struct shift_params *shift)
 
 	cdata.params.from = &from;
 	cdata.params.to = &to;
-	cdata.params.from_key = NULL;
-	cdata.params.to_key = NULL;
-	cdata.params.smallest_removed = NULL;
-	return cut_node40(&cdata, NULL);
+	cdata.params.from_key = 0;
+	cdata.params.to_key = 0;
+	cdata.params.smallest_removed = 0;
+	return cut_node40(&cdata, 0);
 }
 
 /* something was moved between @left and @right. Add carry operation to @info
@@ -2033,7 +2031,7 @@ prepare_removal_node40(znode * empty, carry_plugin_info * info)
 	if (IS_ERR(op) || op == NULL)
 		return RETERR(op ? PTR_ERR(op) : -EIO);
 
-	op->u.delete.child = NULL;
+	op->u.delete.child = 0;
 	op->u.delete.flags = 0;
 
 	/* fare thee well */

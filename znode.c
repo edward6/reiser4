@@ -306,7 +306,7 @@ znodes_tree_done(reiser4_tree * tree /* tree to finish with znodes of */ )
 
 /* allocate fresh znode */
 reiser4_internal znode *
-zalloc(unsigned int gfp_flag /* allocation flag */ )
+zalloc(int gfp_flag /* allocation flag */ )
 {
 	znode *node;
 
@@ -646,7 +646,7 @@ zload_ra(znode * node /* znode to load */, ra_info_t *info)
 /* load content of node into memory */
 reiser4_internal int zload(znode * node)
 {
-	return zload_ra(node, NULL);
+	return zload_ra(node, 0);
 }
 
 /* call node plugin to initialise newly allocated node. */
@@ -726,7 +726,7 @@ znode_set_ld_key(znode * node, const reiser4_key * key)
 	assert("nikita-2940", node != NULL);
 	assert("nikita-2941", key != NULL);
 	assert("nikita-2942", rw_dk_is_write_locked(znode_get_tree(node)));
-	assert("nikita-3070", LOCK_CNT_GTZ(write_locked_dk));
+	assert("nikita-3070", LOCK_CNT_GTZ(write_locked_dk > 0));
 	assert("nikita-2943",
 	       znode_is_any_locked(node) ||
 	       keyeq(&node->ld_key, min_key()));
@@ -935,6 +935,8 @@ init_parent_coord(parent_coord_t * pcoord, const znode * node)
 
 
 #if REISER4_DEBUG
+int jnode_invariant_f(const jnode * node, char const **msg);
+
 /* debugging aid: znode invariant */
 static int
 znode_invariant_f(const znode * node /* znode to check */ ,

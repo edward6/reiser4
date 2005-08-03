@@ -34,9 +34,9 @@ struct ktxnmgrd_context {
 	/* list of all file systems served by this ktxnmgrd */
 	txn_mgrs_list_head queue;
 	/* is ktxnmgrd being shut down? */
-	unsigned int done:1;
+	int done:1;
 	/* should ktxnmgrd repeat scanning of atoms? */
-	unsigned int rescan:1;
+	int rescan:1;
 };
 
 extern int  init_ktxnmgrd_context(txn_mgr *);

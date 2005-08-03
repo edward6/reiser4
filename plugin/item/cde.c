@@ -902,7 +902,7 @@ kill_units_cde(coord_t * coord /* coord of item */ ,
 	       struct carry_kill_data *kdata UNUSED_ARG, reiser4_key *smallest_removed,
 	       reiser4_key *new_first)
 {
-	return cut_units_cde(coord, from, to, NULL, smallest_removed, new_first);
+	return cut_units_cde(coord, from, to, 0, smallest_removed, new_first);
 }
 
 /* ->s.dir.extract_key() method for this item plugin. */

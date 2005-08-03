@@ -6,8 +6,6 @@
 #include "../plugin.h"
 #include "../cryptcompress.h"
 
-extern compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID];
-
 /* plugin->should_deflate() */
 static int
 should_deflate_test(cloff_t index)
@@ -17,11 +15,11 @@ should_deflate_test(cloff_t index)
 
 /* plugin->discard_deflate() */
 
-static int 
+static int
 discard_deflate_nocond(struct inode * inode, cloff_t index)
 {
 	int result;
-	
+
 	result = force_plugin(inode,
 			      PSET_COMPRESSION,
 			      compression_plugin_to_plugin
@@ -37,7 +35,7 @@ static int
 discard_deflate_first(struct inode * inode, cloff_t index)
 {
 	assert("edward-1308", inode != NULL);
-	
+
 	return (index ? 0 : discard_deflate_nocond(inode, index));
 }
 

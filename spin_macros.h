@@ -173,7 +173,7 @@ static inline int  spin_trylock_ ## NAME (TYPE *x)				\
 static inline void spin_unlock_ ## NAME (TYPE *x)				\
 {										\
 	__ODCA("nikita-1375", LOCK_CNT_GTZ(spin_locked_ ## NAME));		\
-	__ODCA("nikita-1376", LOCK_CNT_GTZ(spin_locked));			\
+	__ODCA("nikita-1376", LOCK_CNT_GTZ(spin_locked > 0));			\
 	__ODCA("nikita-2703", spin_ ## NAME ## _is_locked(x));			\
 										\
 	spin_ ## NAME ## _dec();						\

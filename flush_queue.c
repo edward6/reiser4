@@ -16,7 +16,6 @@
 #include <linux/pagemap.h>
 #include <linux/blkdev.h>
 #include <linux/writeback.h>
-#include "flush.h"
 
 /* A flush queue object is an accumulator for keeping jnodes prepared
    by the jnode_flush() function for writing to disk. Those "queued" jnodes are
@@ -134,7 +133,7 @@ reiser4_internal void done_fqs(void)
 
 /* create new flush queue object */
 static flush_queue_t *
-create_fq(unsigned int gfp)
+create_fq(int gfp)
 {
 	flush_queue_t *fq;
 

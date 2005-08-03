@@ -187,8 +187,8 @@ typedef struct file_plugin {
 	int (*capture) (struct inode *inode, struct writeback_control *wbc);
 	/* these should be implemented using body_read_flow and body_write_flow
 	   builtins */
-	ssize_t(*read) (struct file * file, char __user *buf, size_t size, loff_t * off);
-	ssize_t(*write) (struct file * file, const char __user *buf, size_t size, loff_t * off);
+	 ssize_t(*read) (struct file * file, char *buf, size_t size, loff_t * off);
+	 ssize_t(*write) (struct file * file, const char *buf, size_t size, loff_t * off);
 
 	int (*release) (struct inode *inode, struct file * file);
 	int (*ioctl) (struct inode *, struct file *, unsigned int cmd, unsigned long arg);
@@ -209,7 +209,7 @@ NIKITA-FIXME-HANS: please create statistics on what functions are
 dereferenced how often for the mongo benchmark.  You can supervise
 Elena doing this for you if that helps.  Email me the list of the top 10, with their counts, and an estimate of the total number of CPU cycles spent dereferencing as a percentage of CPU cycles spent processing (non-idle processing).  If the total percent is, say, less than 1%, it will make our coding discussions much easier, and keep me from questioning whether functions like the below are too frequently called to be dereferenced.  If the total percent is more than 1%, perhaps private methods should be listed in a "required" comment at the top of each plugin (with stern language about how if the comment is missing it will not be accepted by the maintainer), and implemented using macros not dereferenced functions.  How about replacing this whole private methods part of the struct with a thorough documentation of what the standard helper functions are for use in constructing plugins?  I think users have been asking for that, though not in so many words.
 	*/
-	int (*flow_by_inode) (struct inode *, const char __user *buf, int user, loff_t size, loff_t off, rw_op op, flow_t *);
+	int (*flow_by_inode) (struct inode *, char *buf, int user, loff_t size, loff_t off, rw_op op, flow_t *);
 
 	/* Return the key used to retrieve an offset of a file. It is used by
 	   default implementation of ->flow_by_inode() method
@@ -788,6 +788,12 @@ typedef struct plugin_locator {
 } plugin_locator;
 
 extern int locate_plugin(struct inode *inode, plugin_locator * loc);
+
+static inline reiser4_plugin *
+plugin_by_id(reiser4_plugin_type type_id, reiser4_plugin_id id);
+
+static inline reiser4_plugin *
+plugin_by_disk_id(reiser4_tree * tree, reiser4_plugin_type type_id, d16 * did);
 
 #define PLUGIN_BY_ID(TYPE,ID,FIELD)					\
 static inline TYPE *TYPE ## _by_id( reiser4_plugin_id id )		\

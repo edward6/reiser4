@@ -18,8 +18,6 @@
 #include "../../context.h"
 #include "ctail.h"
 
-extern item_plugin item_plugins[LAST_ITEM_ID];
-
 /* return pointer to item body */
 reiser4_internal void
 item_body_by_coord_hard(coord_t * coord /* coord to query */ )

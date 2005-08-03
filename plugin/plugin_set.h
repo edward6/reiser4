@@ -62,7 +62,7 @@ extern int plugin_set_digest          (plugin_set **set, digest_plugin *plug);
 extern int plugin_set_compression     (plugin_set **set, compression_plugin *plug);
 extern int plugin_set_compression_mode(plugin_set **set, compression_mode_plugin *plug);
 extern int plugin_set_cluster         (plugin_set **set, cluster_plugin *plug);
-extern int plugin_set_regular_entry   (plugin_set **set, regular_plugin *plug);
+extern int plugin_set_regular         (plugin_set **set, regular_plugin *plug);
 
 extern int  plugin_set_init(void);
 extern void plugin_set_done(void);

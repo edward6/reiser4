@@ -293,6 +293,8 @@ static kmem_cache_t *_atom_slab = NULL;
 /* this is for user-visible, cross system-call transactions. */
 static kmem_cache_t *_txnh_slab = NULL;
 
+ON_DEBUG(extern atomic_t flush_cnt;)
+
 /* TXN_INIT */
 /* Initialize static variables in this file. */
 reiser4_internal int
@@ -1194,7 +1196,7 @@ static int commit_current_atom (long *nr_submitted, txn_atom ** atom)
 
 	LOCK_ATOM(*atom);
 	atom_set_stage(*atom, ASTAGE_DONE);
-	ON_DEBUG((*atom)->committer = NULL);
+	ON_DEBUG((*atom)->committer = 0);
 
 	/* Atom's state changes, so wake up everybody waiting for this
 	   event. */
@@ -2656,6 +2658,8 @@ sync_atom(txn_atom *atom)
 }
 
 #if REISER4_DEBUG
+
+void check_fq(const txn_atom *atom);
 
 /* move jnode form one list to another
    call this after atom->capture_count is updated */

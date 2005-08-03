@@ -11,8 +11,6 @@
 #define NONE_EXPKEY_WORDS 8
 #define NONE_BLOCKSIZE 8
 
-extern crypto_plugin crypto_plugins[LAST_CRYPTO_ID];
-
 /*
   Default align() method of the crypto-plugin (look for description of this method
   in plugin/plugin.h)

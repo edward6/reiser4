@@ -80,10 +80,7 @@ NIKITA-FIXME-HANS: period?
 #include <linux/quotaops.h>
 #include <linux/security.h> /* security_inode_delete() */
 #include <linux/writeback.h> /* wake_up_inode() */
-#include <linux/xattr_acl.h>
 #include <linux/xattr.h>
-
-extern file_plugin file_plugins[LAST_FILE_PLUGIN_ID];
 
 /* helper function to print errors */
 static void
@@ -177,7 +174,7 @@ lookup_sd(struct inode *inode /* inode to look sd for */ ,
 			       LEAF_LEVEL,
 			       LEAF_LEVEL,
 			       flags,
-			       NULL);
+			       0);
 	if (REISER4_DEBUG && result == 0)
 		check_sd_coord(coord, key);
 
@@ -1468,7 +1465,7 @@ file_plugin file_plugins[LAST_FILE_PLUGIN_ID] = {
 		.truncate = truncate_cryptcompress,
 		.write_sd_by_inode = write_sd_by_inode_common,
 		.readpage = readpage_cryptcompress,
-		.capturepage = capturepage_cryptcompress,
+		.capturepage = NULL,
 		.capture = capture_cryptcompress,
 		.read = read_cryptcompress,
 		.write = write_cryptcompress,

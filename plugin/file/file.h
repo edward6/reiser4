@@ -9,21 +9,18 @@ int truncate_unix_file(struct inode *, loff_t size);
 int readpage_unix_file(void *, struct page *);
 int capturepage_unix_file(struct page *);
 int capture_unix_file(struct inode *, struct writeback_control *);
-extern ssize_t read_unix_file(struct file *, char __user *buf, size_t size, loff_t *off);
-extern ssize_t write_unix_file(struct file *, const char __user *buf, size_t size, loff_t *off);
+ssize_t read_unix_file(struct file *, char *buf, size_t size, loff_t *off);
+ssize_t write_unix_file(struct file *, const char *buf, size_t size, loff_t *off);
 int release_unix_file(struct inode *inode, struct file *);
 int ioctl_unix_file(struct inode *, struct file *, unsigned int cmd, unsigned long arg);
 int mmap_unix_file(struct file *, struct vm_area_struct *vma);
 int get_block_unix_file(struct inode *, sector_t block, struct buffer_head *bh_result, int create);
-extern int flow_by_inode_unix_file(struct inode *, const char __user *buf, int user, loff_t, loff_t, rw_op, flow_t *);
+int flow_by_inode_unix_file(struct inode *, char *buf, int user, loff_t, loff_t, rw_op, flow_t *);
 int key_by_inode_unix_file(struct inode *, loff_t off, reiser4_key *);
 int owns_item_unix_file(const struct inode *, const coord_t *);
 int setattr_unix_file(struct inode *, struct iattr *);
 void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *, int create);
 int pre_delete_unix_file(struct inode *);
-extern int update_file_size(struct inode * inode, reiser4_key * key, int update_sd);
-extern int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size,
-			  int (*update_actor)(struct inode *, reiser4_key *, int));
 
 extern ssize_t sendfile_common (
 	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target);

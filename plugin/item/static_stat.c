@@ -17,8 +17,6 @@
 #include <linux/types.h>
 #include <linux/fs.h>
 
-extern sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION];
-
 /* see static_stat.h for explanation */
 
 /* helper function used while we are dumping/loading inode/plugin state
@@ -38,7 +36,7 @@ move_on(int *length /* space remaining in stat-data */ ,
 	assert("nikita-617", *length >= 0);
 }
 
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 /* ->print() method of static sd item. Prints human readable information about
    sd at @coord */
 reiser4_internal void
@@ -417,7 +415,7 @@ save_lw_sd(struct inode *inode /* object being processed */ ,
 	return 0;
 }
 
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 static void
 print_lw_sd(const char *prefix, char **area /* position in stat-data */ ,
 	    int *len /* remaining length */ )
@@ -507,7 +505,7 @@ save_unix_sd(struct inode *inode /* object being processed */ ,
 	return 0;
 }
 
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 static void
 print_unix_sd(const char *prefix, char **area /* position in stat-data */ ,
 	      int *len /* remaining length */ )
@@ -571,7 +569,7 @@ save_large_times_sd(struct inode *inode /* object being processed */ ,
 	return 0;
 }
 
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 static void
 print_large_times_sd(const char *prefix, char **area /* position in stat-data */,
 		     int *len /* remaining length */ )
@@ -660,7 +658,7 @@ save_symlink_sd(struct inode *inode, char **area)
 		const char *target;
 
 		target = (const char *) (inode->u.generic_ip);
-		inode->u.generic_ip = NULL;
+		inode->u.generic_ip = 0;
 
 		result = symlink_target_to_inode(inode, target, length);
 
@@ -676,7 +674,7 @@ save_symlink_sd(struct inode *inode, char **area)
 	return result;
 }
 
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 static void
 print_symlink_sd(const char *prefix, char **area /* position in stat-data */ ,
 		 int *len /* remaining length */ )
@@ -1051,7 +1049,7 @@ static int save_crypto_sd(struct inode *inode, char **area)
 	return result;
 }
 
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 static void
 print_crypto_sd(const char *prefix, char **area /* position in stat-data */ ,
 		 int *len /* remaining length */ )
@@ -1084,7 +1082,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			       .absent = NULL,
 			       .save_len = save_len_lw_sd,
 			       .save = save_lw_sd,
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 			       .print = print_lw_sd,
 #endif
 			       .alignment = 8
@@ -1102,7 +1100,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 		       .absent = absent_unix_sd,
 		       .save_len = save_len_unix_sd,
 		       .save = save_unix_sd,
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 		       .print = print_unix_sd,
 #endif
 		       .alignment = 8
@@ -1120,7 +1118,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 		       .absent = NULL,
 		       .save_len = save_len_large_times_sd,
 		       .save = save_large_times_sd,
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 		       .print = print_large_times_sd,
 #endif
 		       .alignment = 8
@@ -1139,7 +1137,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			  .absent = NULL,
 			  .save_len = save_len_symlink_sd,
 			  .save = save_symlink_sd,
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 			  .print = print_symlink_sd,
 #endif
 			  .alignment = 8
@@ -1157,7 +1155,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 			 .absent = absent_plugin_sd,
 			 .save_len = save_len_plugin_sd,
 			 .save = save_plugin_sd,
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 			 .print = NULL,
 #endif
 			 .alignment = 8
@@ -1175,7 +1173,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				.absent = NULL,
 				.save_len = save_len_flags_sd,
 				.save = save_flags_sd,
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 				.print = NULL,
 #endif
 				.alignment = 8
@@ -1193,7 +1191,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				.absent = NULL,
 				.save_len = save_len_flags_sd,
 				.save = save_flags_sd,
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 				.print = NULL,
 #endif
 				.alignment = 8
@@ -1212,7 +1210,7 @@ sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION] = {
 				/* return IO_ERROR if smthng is wrong */
 				.save_len = save_len_crypto_sd,
 				.save = save_crypto_sd,
-#if REISER4_DEBUG_OUTPUT
+#ifdef REISER4_DEBUG_OUTPUT
 				.print = print_crypto_sd,
 #endif
 				.alignment = 8

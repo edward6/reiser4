@@ -29,8 +29,6 @@ GREV-FIXME-HANS: why the references to tails above?  fix comments and website...
 #include <linux/pagemap.h>
 #include <linux/fs.h>		/* For struct inode */
 
-extern formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID];
-
 /* Never store file's tail as direct item */
 /* Audited by: green(2002.06.12) */
 static int

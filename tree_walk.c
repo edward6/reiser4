@@ -899,13 +899,13 @@ struct tw_handle {
 	 * unformatted nodes processing. */
 	struct tree_walk_actor * actor;
 	/* It is passed to actor functions as is. */
-	void                   * opaque;
+	void                 * opaque;
 	/* A direction of a tree traversal: 1 if going from right to left. */
-	unsigned int           go_left:1;
+	int                    go_left:1;
 	/* "Done" flag */
-	unsigned int           done:1;
+	int                    done:1;
 	/* Current node was processed completely */
-	unsigned int           node_completed:1;
+	int                    node_completed:1;
 };
 
 /* it locks the root node, handles the restarts inside */

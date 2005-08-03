@@ -31,8 +31,6 @@
 
 #include <linux/types.h>
 
-extern fibration_plugin fibration_plugins[LAST_FIBRATION_ID];
-
 static const int fibre_shift = 57;
 
 #define FIBRE_NO(n) (((__u64)(n)) << fibre_shift)

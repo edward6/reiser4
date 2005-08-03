@@ -208,6 +208,9 @@ rd_key(coord_t *coord, reiser4_key *key)
 	return key;
 }
 
+
+ON_DEBUG(void check_dkeys(const znode *);)
+
 /* this is used to insert empty node into leaf level if tree lookup can not go
    further down because it stopped between items of not internal type */
 static int
@@ -258,7 +261,7 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh, const reiser4_key *key, c
 		todo.track_type = CARRY_TRACK_CHANGE;
 		todo.tracked = lh;
 
-		result = carry(&todo, NULL);
+		result = carry(&todo, 0);
 		if (result == 0) {
 			/*
 			 * pin node in memory. This is necessary for

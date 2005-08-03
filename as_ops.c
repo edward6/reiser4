@@ -406,6 +406,8 @@ reiser4_invalidatepage(struct page *page /* page to invalidate */,
 
 #define INC_NSTAT(node, counter) INC_STAT(jnode_page(node), node, counter)
 
+int is_cced(const jnode *node);
+
 /* help function called from reiser4_releasepage(). It returns true if jnode
  * can be detached from its page and page released. */
 static int

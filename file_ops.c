@@ -58,8 +58,8 @@
 /* file operations */
 
 static loff_t reiser4_llseek(struct file *, loff_t, int);
-static ssize_t reiser4_read(struct file *, char __user *, size_t, loff_t *);
-static ssize_t reiser4_write(struct file *, const char __user *, size_t, loff_t *);
+static ssize_t reiser4_read(struct file *, char *, size_t, loff_t *);
+static ssize_t reiser4_write(struct file *, const char *, size_t, loff_t *);
 static int reiser4_readdir(struct file *, void *, filldir_t);
 static int reiser4_ioctl(struct inode *, struct file *, unsigned int cmd, unsigned long arg);
 static int reiser4_mmap(struct file *, struct vm_area_struct *);
@@ -193,10 +193,10 @@ reiser4_mmap(struct file *file, struct vm_area_struct *vma)
 
 */
 static ssize_t
-reiser4_read(struct file *file	/* file to read from */ ,
-	     char __user *buf	/* user-space buffer to put data read
+reiser4_read(struct file *file /* file to read from */ ,
+	     char *buf		/* user-space buffer to put data read
 				 * from the file */ ,
-	     size_t count	/* bytes to read */ ,
+	     size_t count /* bytes to read */ ,
 	     loff_t * off	/* current position within the file, which needs to be increased by the act of reading. Reads
 				 * start from here. */ )
 {
@@ -228,13 +228,13 @@ reiser4_read(struct file *file	/* file to read from */ ,
 
 /* ->write() VFS method in reiser4 file_operations */
 static ssize_t
-reiser4_write(struct file *file		/* file to write on */ ,
-	      const char __user *buf	/* user-space buffer to get data
-					 * to write into the file */ ,
-	      size_t size		/* bytes to write */ ,
-	      loff_t * off		/* offset to start writing
-					 * from. This is updated to indicate
-					 * actual number of bytes written */ )
+reiser4_write(struct file *file /* file to write on */ ,
+	      const char *buf	/* user-space buffer to get data
+				 * to write into the file */ ,
+	      size_t size /* bytes to write */ ,
+	      loff_t * off	/* offset to start writing
+				 * from. This is updated to indicate
+				 * actual number of bytes written */ )
 {
 	struct inode *inode;
 	ssize_t result;

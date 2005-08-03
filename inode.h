@@ -343,7 +343,6 @@ extern void reiser4_make_bad_inode(struct inode *inode);
 
 extern void inode_set_extension(struct inode *inode, sd_ext_bits ext);
 extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
-extern void inode_check_scale_nolock(struct inode * inode, __u64 old, __u64 new);
 
 /*
  * update field @field in inode @i to contain value @value.

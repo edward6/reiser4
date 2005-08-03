@@ -7,8 +7,6 @@
 #include "plugin/plugin.h"
 #include "inode.h"
 
-extern cluster_plugin cluster_plugins[LAST_CLUSTER_ID];
-
 /*         Concepts of clustering. Definition of cluster size.
 	   Data clusters, page clusters, disk clusters.
 

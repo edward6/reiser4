@@ -84,6 +84,8 @@ reiser4_get_right_neighbor(lock_handle * result, znode * node, int lock_mode, in
 	return reiser4_get_neighbor(result, node, lock_mode, flags & (~GN_GO_LEFT));
 }
 
+extern void invalidate_lock(lock_handle * _link);
+
 extern void sibling_list_remove(znode * node);
 extern void sibling_list_drop(znode * node);
 extern void sibling_list_insert_nolock(znode * new, znode * before);

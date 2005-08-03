@@ -618,7 +618,7 @@ shorten_file(struct inode *inode, loff_t new_size)
 
 	/* last page is partially truncated - zero its content */
 	index = (inode->i_size >> PAGE_CACHE_SHIFT);
-	page = read_cache_page(inode->i_mapping, index, readpage_unix_file/*filler*/, NULL);
+	page = read_cache_page(inode->i_mapping, index, readpage_unix_file/*filler*/, 0);
 	if (IS_ERR(page)) {
 		all_grabbed2free();
 		reiser4_release_reserved(inode->i_sb);
@@ -661,7 +661,7 @@ shorten_file(struct inode *inode, loff_t new_size)
 }
 
 static loff_t
-write_flow(hint_t *, struct file *, struct inode *, const char __user *buf, loff_t count, loff_t pos, int exclusive);
+write_flow(hint_t *, struct file *, struct inode *, const char *buf, loff_t count, loff_t pos, int exclusive);
 
 /* it is called when truncate is used to make file longer and when write position is set past real end of file. It
    appends file which has size @cur_size with hole of certain size (@hole_size). It returns 0 on success, error code
@@ -1481,7 +1481,7 @@ readpage_unix_file(void *vp, struct page *page)
 
 	/* look for file metadata corresponding to first byte of page */
 	unlock_page(page);
-	result = find_file_item(&hint, &key, ZNODE_READ_LOCK, NULL/* ra_info */, inode);
+	result = find_file_item(&hint, &key, ZNODE_READ_LOCK, 0/* ra_info */, inode);
 	lock_page(page);
 	if (result != CBK_COORD_FOUND) {
 		/* this indicates file corruption */
@@ -1623,7 +1623,7 @@ reiser4_put_user_pages(struct page **pages, int nr_pages)
 static size_t
 read_file(hint_t *hint,
 	  struct file *file, /* file to write to */
-	  char __user *buf, /* address of user-space buffer */
+	  char *buf, /* address of user-space buffer */
 	  size_t count, /* number of bytes to write */
 	  loff_t *off)
 {
@@ -1678,7 +1678,7 @@ read_file(hint_t *hint,
 	return (count - flow.length) ? (count - flow.length) : result;
 }
 
-static int is_user_space(const char __user *buf)
+static int is_user_space(const char *buf)
 {
 	return (unsigned long)buf < PAGE_OFFSET;
 }
@@ -1689,7 +1689,7 @@ static int is_user_space(const char __user *buf)
 
 */
 reiser4_internal ssize_t
-read_unix_file(struct file *file, char __user *buf, size_t read_amount, loff_t *off)
+read_unix_file(struct file *file, char *buf, size_t read_amount, loff_t *off)
 {
 	int result;
 	struct inode *inode;
@@ -1944,7 +1944,7 @@ append_and_or_overwrite(hint_t *hint, struct file *file, struct inode *inode, fl
 /* make flow and write data (@buf) to the file. If @buf == 0 - hole of size @count will be created. This is called with
    uf_info->latch either read- or write-locked */
 static loff_t
-write_flow(hint_t *hint, struct file *file, struct inode *inode, const char __user *buf, loff_t count, loff_t pos,
+write_flow(hint_t *hint, struct file *file, struct inode *inode, const char *buf, loff_t count, loff_t pos,
 	   int exclusive)
 {
 	int result;
@@ -1953,7 +1953,7 @@ write_flow(hint_t *hint, struct file *file, struct inode *inode, const char __us
 	assert("vs-1251", inode_file_plugin(inode)->flow_by_inode == flow_by_inode_unix_file);
 
 	result = flow_by_inode_unix_file(inode,
-					 buf, 1 /* user space */, count, pos, WRITE_OP, &flow);
+					 (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &flow);
 	if (result)
 		return result;
 
@@ -1975,7 +1975,7 @@ unix_file_filemap_nopage(struct vm_area_struct *area, unsigned long address, int
 	/* second argument is to note that current atom may exist */
 	get_nonexclusive_access(unix_file_inode_data(inode), 1);
 
-	page = filemap_nopage(area, address, NULL);
+	page = filemap_nopage(area, address, 0);
 
 	drop_nonexclusive_access(unix_file_inode_data(inode));
 	up_read(&reiser4_inode_data(inode)->coc_sem);
@@ -2071,7 +2071,7 @@ mmap_unix_file(struct file *file, struct vm_area_struct *vma)
 static ssize_t
 write_file(hint_t *hint,
 	   struct file *file, /* file to write to */
-	   const char __user *buf, /* address of user-space buffer */
+	   const char *buf, /* address of user-space buffer */
 	   size_t count, /* number of bytes to write */
 	   loff_t *off /* position in file to write to */,
 	   int exclusive)
@@ -2106,7 +2106,7 @@ write_file(hint_t *hint,
 /* plugin->u.file.write */
 reiser4_internal ssize_t
 write_unix_file(struct file *file, /* file to write to */
-		const char __user *buf, /* address of user-space buffer */
+		const char *buf, /* address of user-space buffer */
 		size_t write_amount, /* number of bytes to write */
 		loff_t *off /* position in file to write to */)
 {
@@ -2269,7 +2269,7 @@ write_unix_file(struct file *file, /* file to write to */
 
 	save_file_hint(file, &hint);
 	up(&uf_info->write);
- 	current->backing_dev_info = NULL;
+ 	current->backing_dev_info = 0;
 
 	return count ? count : result;
 }
@@ -2410,7 +2410,7 @@ get_block_unix_file(struct inode *inode,
    initialize flow (key, length, buf, etc) */
 reiser4_internal int
 flow_by_inode_unix_file(struct inode *inode /* file to build flow for */ ,
-			const char __user *buf /* user level buffer */ ,
+			char *buf /* user level buffer */ ,
 			int user  /* 1 if @buf is of user space, 0 - if it is kernel space */ ,
 			loff_t size /* buffer size */ ,
 			loff_t off /* offset to start operation(read/write) from */ ,
@@ -2420,7 +2420,7 @@ flow_by_inode_unix_file(struct inode *inode /* file to build flow for */ ,
 	assert("nikita-1100", inode != NULL);
 
 	flow->length = size;
-	memcpy(&flow->data, &buf, sizeof(buf));
+	flow->data = buf;
 	flow->user = user;
 	flow->op = op;
 	assert("nikita-1931", inode_file_plugin(inode) != NULL);
@@ -2542,7 +2542,7 @@ init_inode_data_unix_file(struct inode *inode,
 	data->exclusive_use = 0;
 
 #if REISER4_DEBUG
-	data->ea_owner = NULL;
+	data->ea_owner = 0;
 	atomic_set(&data->nr_neas, 0);
 #endif
 	init_inode_ordering(inode, crd, create);
@@ -2598,7 +2598,7 @@ reiser4_internal ssize_t sendfile_common (
 
 	desc.error = 0;
 	desc.written = 0;
-	memcpy(&desc.arg.data, &target, sizeof(target));
+	desc.arg.data = target;
 	desc.count = count;
 
 	fplug = inode_file_plugin(inode);

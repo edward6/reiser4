@@ -32,8 +32,8 @@ typedef struct perm_plugin {
 	plugin_header h;
 
 	/* check permissions for read/write */
-	int (*read_ok) (struct file * file, const char __user *buf, size_t size, loff_t * off);
-	int (*write_ok) (struct file * file, const char __user *buf, size_t size, loff_t * off);
+	int (*read_ok) (struct file * file, const char *buf, size_t size, loff_t * off);
+	int (*write_ok) (struct file * file, const char *buf, size_t size, loff_t * off);
 
 	/* check permissions for lookup */
 	int (*lookup_ok) (struct inode * parent, struct dentry * dentry);

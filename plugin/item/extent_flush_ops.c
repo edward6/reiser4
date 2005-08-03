@@ -865,8 +865,7 @@ put_unit_to_end(znode *node, const reiser4_key *key, reiser4_extent *copy_ext)
 
 	flags = COPI_DONT_SHIFT_LEFT | COPI_DONT_SHIFT_RIGHT | COPI_DONT_ALLOCATE;
 	if (must_insert(&coord, key)) {
-		result = insert_by_coord(&coord, init_new_extent(&data, copy_ext, 1), 
-					 key, NULL /*lh */ , flags);
+		result = insert_by_coord(&coord, init_new_extent(&data, copy_ext, 1), key, 0 /*lh */ , flags);
 
 	} else {
 		/* try to glue with last unit */
@@ -880,8 +879,7 @@ put_unit_to_end(znode *node, const reiser4_key *key, reiser4_extent *copy_ext)
 		}
 
 		/* FIXME: put an assertion here that we can not merge last unit in @node and new unit */
-		result = insert_into_item(&coord, NULL /*lh */ , key, 
-					  init_new_extent(&data, copy_ext, 1), flags);
+		result = insert_into_item(&coord, 0 /*lh */ , key, init_new_extent(&data, copy_ext, 1), flags);
 	}
 
 	assert("vs-438", result == 0 || result == -E_NODE_FULL);

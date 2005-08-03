@@ -186,7 +186,7 @@ can_shift_extent(unsigned free_space, coord_t *source,
 		*size = want * sizeof (reiser4_extent);
 
 	if (*size % sizeof (reiser4_extent) != 0)
-		impossible("vs-119", "Wrong extent size: %i %i", *size, sizeof (reiser4_extent));
+		impossible("vs-119", "Wrong extent size: %i %zd", *size, sizeof (reiser4_extent));
 	return *size / sizeof (reiser4_extent);
 
 }
@@ -226,7 +226,7 @@ copy_units_extent(coord_t *target, coord_t *source,
 		coord.unit_pos = from;
 		unit_key_extent(&coord, &key);
 
-		node_plugin_by_node(target->node)->update_item_key(target, &key, NULL/*info */);
+		node_plugin_by_node(target->node)->update_item_key(target, &key, 0/*info */);
 	}
 
 	memcpy(to_ext, from_ext, free_space);

@@ -237,7 +237,7 @@ insert_by_key(reiser4_tree * tree	/* tree to insert new item
 	assert("nikita-360", coord != NULL);
 
 	result = coord_by_key(tree, key, coord, lh, ZNODE_WRITE_LOCK,
-			      FIND_EXACT, stop_level, stop_level, flags | CBK_FOR_INSERT, NULL/*ra_info*/);
+			      FIND_EXACT, stop_level, stop_level, flags | CBK_FOR_INSERT, 0/*ra_info*/);
 	switch (result) {
 	default:
 		break;
@@ -290,14 +290,14 @@ insert_with_carry_by_coord(coord_t * coord /* coord where to insert */ ,
 		flags = znode_get_tree(coord->node)->carry.insert_flags;
 	op->u.insert.flags = flags;
 	op->u.insert.type = COPT_ITEM_DATA;
-	op->u.insert.child = NULL;
+	op->u.insert.child = 0;
 	if (lh != NULL) {
 		assert("nikita-3245", lh->node == coord->node);
 		lowest_level.track_type = CARRY_TRACK_CHANGE;
 		lowest_level.tracked = lh;
 	}
 
-	result = carry(&lowest_level, NULL);
+	result = carry(&lowest_level, 0);
 	done_carry_pool(pool);
 
 	return result;
@@ -352,7 +352,7 @@ paste_with_carry(coord_t * coord /* coord of paste */ ,
 		lowest_level.tracked = lh;
 	}
 
-	result = carry(&lowest_level, NULL);
+	result = carry(&lowest_level, 0);
 	done_carry_pool(pool);
 
 	return result;
@@ -574,11 +574,11 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	/* these are permanent during insert_flow */
 	data.user = 1;
 	data.iplug = item_plugin_by_id(FORMATTING_ID);
-	data.arg = NULL;
+	data.arg = 0;
 	/* data.length and data.data will be set before calling paste or
 	   insert */
 	data.length = 0;
-	data.data = NULL;
+	data.data = 0;
 
 	op->u.insert_flow.flags = 0;
 	op->u.insert_flow.insert_point = coord;
@@ -589,7 +589,7 @@ insert_flow(coord_t * coord, lock_handle * lh, flow_t * f)
 	lowest_level.track_type = CARRY_TRACK_CHANGE;
 	lowest_level.tracked = lh;
 
-	result = carry(&lowest_level, NULL);
+	result = carry(&lowest_level, 0);
 	done_carry_pool(pool);
 
 	return result;
@@ -1168,7 +1168,7 @@ prepare_twig_kill(carry_kill_data *kdata, znode * locked_left_neighbor)
 				   from->node */
 				UNDER_RW_VOID(dk, tree, read,
 					      key = *znode_get_rd_key(from->node));
-				right_coord.node = NULL;
+				right_coord.node = 0;
 				result = 0;
 				break;
 			default:
@@ -1253,7 +1253,7 @@ cut_node_content(coord_t *from, coord_t *to,
 	op->u.cut_or_kill.is_cut = 1;
 	op->u.cut_or_kill.u.cut = &cut_data;
 
-	result = carry(&lowest_level, NULL);
+	result = carry(&lowest_level, 0);
 	done_carry_pool(pool);
 
 	return result;
@@ -1336,7 +1336,7 @@ kill_node_content(coord_t * from /* coord of the first unit/item that will be
 	op->u.cut_or_kill.is_cut = 0;
 	op->u.cut_or_kill.u.kill = &kdata;
 
-	result = carry(&lowest_level, NULL);
+	result = carry(&lowest_level, 0);
 
 	done_carry_pool(pool);
 	done_children(&kdata);
@@ -1690,7 +1690,7 @@ cut_tree_object(reiser4_tree * tree, const reiser4_key * from_key,
 		result = object_lookup(
 			object, to_key, &right_coord, &lock,
 			ZNODE_WRITE_LOCK, FIND_MAX_NOT_MORE_THAN, TWIG_LEVEL,
-			LEAF_LEVEL, CBK_UNIQUE, NULL/*ra_info*/);
+			LEAF_LEVEL, CBK_UNIQUE, 0/*ra_info*/);
 		if (result != CBK_COORD_FOUND)
 			break;
 		if (object == NULL || inode_file_plugin(object)->cut_tree_worker == NULL)

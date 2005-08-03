@@ -753,10 +753,6 @@ jnode_rip_check(reiser4_tree *tree, jnode * node)
 
 extern reiser4_key * jnode_build_key(const jnode * node, reiser4_key * key);
 
-#if REISER4_DEBUG
-extern int jnode_invariant_f(const jnode * node, char const **msg);
-#endif
-
 /* __JNODE_H__ */
 #endif
 

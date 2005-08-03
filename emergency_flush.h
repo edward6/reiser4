@@ -20,9 +20,9 @@ struct eflush_node {
 	ef_hash_link     linkage;
 	struct list_head inode_link; /* for per inode list of eflush nodes */
 	struct list_head inode_anon_link;
-	unsigned int     hadatom :1;
-	unsigned int     incatom :1;
-	unsigned int     reserve :1;
+	int              hadatom :1;
+	int              incatom :1;
+	int              reserve :1;
 #if REISER4_DEBUG
 	block_stage_t    initial_stage;
 #endif

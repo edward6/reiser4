@@ -363,7 +363,7 @@ copy_units_ctail(coord_t * target, coord_t * source,
 		item_key_by_coord(source, &key);
 		set_key_offset(&key, get_key_offset(&key) + from);
 
-		node_plugin_by_node(target->node)->update_item_key(target, &key, NULL /*info */);
+		node_plugin_by_node(target->node)->update_item_key(target, &key, 0 /*info */);
 	}
 }
 
@@ -485,7 +485,7 @@ cut_or_kill_ctail_units(coord_t * coord, pos_in_node_t from, pos_in_node_t to, i
 			memcpy(item + to + 1, item, sizeof(ctail_item_format));
 			item_key_by_coord(coord, &key);
 			set_key_offset(&key, get_key_offset(&key) + count);
-			node_plugin_by_node(coord->node)->update_item_key(coord, &key, NULL /*info */ );
+			node_plugin_by_node(coord->node)->update_item_key(coord, &key, 0 /*info */ );
 		}
 		else {
 			/* cut_units should not be called to cut evrything */
@@ -566,7 +566,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	assert("edward-672", crc_inode_ok(inode));
 
 	/* set input stream */
-	result = grab_tfm_stream(inode, &clust->tc, INPUT_STREAM);
+	result = grab_tfm_stream(inode, &clust->tc, TFM_READ, INPUT_STREAM);
 	if (result)
 		return result;
 
@@ -587,7 +587,7 @@ ctail_read_cluster (reiser4_cluster_t * clust, struct inode * inode, int write)
 	}
  	cplug = inode_compression_plugin(inode);
 	if (cplug->alloc && !get_coa(&clust->tc, cplug->h.id)) {
-		result = alloc_coa(&clust->tc, cplug);
+		result = alloc_coa(&clust->tc, cplug, TFM_READ);
 		if (result)
 			return result;
 	}
@@ -782,7 +782,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
 				  pages->next != pages->prev,
 				  list_to_page(pages)->index < list_to_next_page(pages)->index));
 	pagevec_init(&lru_pvec, 0);
-	cluster_init_read(&clust, NULL);
+	reiser4_cluster_init(&clust, 0);
 	clust.file = vp;
 	clust.hint = &hint;
 
@@ -846,7 +846,7 @@ readpages_ctail(void *vp, struct address_space *mapping, struct list_head *pages
  out:
 	done_lh(&lh);
 	hint.ext_coord.valid = 0;
-	put_cluster_handle(&clust);
+	put_cluster_handle(&clust, TFM_READ);
 	pagevec_lru_add(&lru_pvec);
 	return;
 }
@@ -927,7 +927,7 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 	data.arg = &cluster_shift;
 
 	data.length = 0;
-	data.data = NULL;
+	data.data = 0;
 
 	op->u.insert_flow.flags = COPI_DONT_SHIFT_LEFT | COPI_DONT_SHIFT_RIGHT;
 	op->u.insert_flow.insert_point = coord;
@@ -938,7 +938,7 @@ insert_crc_flow(coord_t * coord, lock_handle * lh, flow_t * f, struct inode * in
 	lowest_level.track_type = CARRY_TRACK_CHANGE;
 	lowest_level.tracked = lh;
 
-	result = carry(&lowest_level, NULL);
+	result = carry(&lowest_level, 0);
 	done_carry_pool(pool);
 
 	return result;
@@ -966,7 +966,6 @@ insert_crc_flow_in_place(coord_t * coord, lock_handle * lh, flow_t * f, struct i
 	ret = insert_crc_flow(&pos, &lock, f, inode);
 	done_lh(&lock);
 
-	assert("edward-1347", znode_is_write_locked(lh->node));
 	assert("edward-1228", !ret);
 	return ret;
 }
@@ -1026,7 +1025,7 @@ int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * ino
 	assert("edward-1246", clust->dstat == FAKE_DISK_CLUSTER);
 	assert("edward-1247", clust->reserved == 1);
 	assert("edward-1248",  get_current_context()->grabbed_blocks ==
-	       estimate_insert_cluster(inode));
+	       estimate_insert_cluster(inode, 1));
 
 	result = get_disk_cluster_locked(clust, inode, ZNODE_WRITE_LOCK);
 	if (cbk_errored(result))
@@ -1109,7 +1108,7 @@ reiser4_internal int scan_ctail(flush_scan * scan)
 	if (!znode_convertible(scan->parent_lock.node)) {
 		LOCK_JNODE(scan->node);
 		if (jnode_is_dirty(scan->node)) {
-			//warning("edward-873", "child is dirty but parent not squeezable");
+			warning("edward-873", "child is dirty but parent not squeezable");
 			znode_set_convertible(scan->parent_lock.node);
 		} else {
 			warning("edward-681", "cluster page is already processed");
@@ -1196,7 +1195,6 @@ alloc_convert_data(flush_pos_t * pos)
 	if (!pos->sq)
 		return RETERR(-ENOMEM);
 	memset(pos->sq, 0, sizeof(*pos->sq));
-	cluster_init_write(&pos->sq->clust, 0);
 	return 0;
 }
 
@@ -1211,7 +1209,7 @@ free_convert_data(flush_pos_t * pos)
 	sq = pos->sq;
 	if (sq->itm)
 		free_item_convert_data(sq);
-	put_cluster_handle(&sq->clust);
+	put_cluster_handle(&sq->clust, TFM_WRITE);
 	reiser4_kfree(pos->sq);
 	pos->sq = NULL;
 	return;
@@ -1230,7 +1228,6 @@ init_item_convert_data(flush_pos_t * pos, struct inode * inode)
 	sq = pos->sq;
 
 	memset(sq->itm, 0, sizeof(*sq->itm));
-	
 
 	/* iplug->init_convert_data() */
 	return init_convert_data_ctail(sq->itm, inode);
@@ -1261,7 +1258,7 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 	}
 	clust = &pos->sq->clust;
 	if (cplug->alloc && !get_coa(&clust->tc, cplug->h.id)) {
-		ret = alloc_coa(&clust->tc, cplug);
+		ret = alloc_coa(&clust->tc, cplug, TFM_WRITE);
 		if (ret)
 			goto err;
 	}
@@ -1304,7 +1301,7 @@ attach_convert_idata(flush_pos_t * pos, struct inode * inode)
 
 	/* make flow by transformed stream */
 	fplug->flow_by_inode(info->inode,
-			     (const char __user *)tfm_stream_data(&clust->tc, OUTPUT_STREAM),
+			     tfm_stream_data(&clust->tc, OUTPUT_STREAM),
 			     0/* kernel space */,
 			     clust->tc.len,
 			     clust_to_off(clust->index, inode),

@@ -330,7 +330,7 @@ done_file_fsdata(void)
  * Create reiser4 specific per-file data: reiser4_file_fsdata.
  */
 reiser4_internal reiser4_file_fsdata *
-create_fsdata(struct file *file, unsigned int gfp)
+create_fsdata(struct file *file, int gfp)
 {
 	reiser4_file_fsdata *fsdata;
 
@@ -645,6 +645,8 @@ static void
 reiser4_delete_inode(struct inode *object)
 {
 	reiser4_context ctx;
+
+	truncate_inode_pages(&object->i_data, 0);
 
 	init_context(&ctx, object->i_sb);
 	if (is_inode_loaded(object)) {
@@ -1196,6 +1198,9 @@ reiser4_get_sb(struct file_system_type *fs_type	/* file
 	return get_sb_bdev(fs_type, flags, dev_name, data, reiser4_fill_super);
 }
 
+int d_cursor_init(void);
+void d_cursor_done(void);
+
 /*
  * Reiser4 initialization/shutdown.
  *
@@ -1330,7 +1335,7 @@ reiser4_internal void reiser4_handle_error(void)
 		sb->s_flags |= MS_RDONLY;
 		break;
 	case 2:
-		machine_restart(NULL);
+		kernel_restart(NULL);
 	}
 }
 

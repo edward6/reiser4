@@ -454,7 +454,7 @@ check_make_extent_result(int result, write_mode_t mode, const reiser4_key *key,
 	assert("vs-1502", result == NS_FOUND);
 	assert("vs-16561", coord.node == lh->node);
 	assert("vs-1656", coord_is_existing_unit(&coord));
-	
+
 	if (blocknr_is_fake(&block)) {
 		assert("vs-1657", state_of_extent(extent_by_coord(&coord)) == UNALLOCATED_EXTENT);
 	} else if (block == 0) {
@@ -463,7 +463,7 @@ check_make_extent_result(int result, write_mode_t mode, const reiser4_key *key,
 	} else {
 		reiser4_key tmp;
 		reiser4_block_nr pos_in_unit;
-		
+
 		assert("vs-1658", state_of_extent(extent_by_coord(&coord)) == ALLOCATED_EXTENT);
 		unit_key_by_coord(&coord, &tmp);
 		pos_in_unit = (get_key_offset(key) - get_key_offset(&tmp)) >> current_blocksize_bits;
@@ -822,8 +822,7 @@ extent_write_flow(struct inode *inode, flow_t *flow, hint_t *hint,
 		assert("nikita-3033", schedulable());
 
 		/* copy user data into page */
-		result = __copy_from_user((char *)kmap(page) + page_off, 
-					  (const char __user *)flow->data, count);
+		result = __copy_from_user((char *)kmap(page) + page_off, flow->data, count);
 		kunmap(page);
 		if (unlikely(result)) {
 			/* FIXME: write(fd, 0, 10); to empty file will write no
@@ -1388,8 +1387,7 @@ read_extent(struct file *file, flow_t *flow, hint_t *hint)
 			count = flow->length;
 		/* user area is already get_user_pages-ed in read_unix_file,
 		   which makes major page faults impossible */
-		result = __copy_to_user((char __user *)flow->data, 
-					(char *)kmap(page) + page_off, count);
+		result = __copy_to_user(flow->data, (char *)kmap(page) + page_off, count);
 		kunmap(page);
 
 		page_cache_release(page);

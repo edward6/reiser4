@@ -198,8 +198,6 @@ extern int lock_stack_isclean(lock_stack * owner);
    lock is held by the current thread. */
 extern int znode_is_write_locked(const znode * node);
 
-extern void invalidate_lock(lock_handle * _link);
-
 #if REISER4_DEBUG
 #define spin_ordering_pred_stack_addendum (1)
 #else

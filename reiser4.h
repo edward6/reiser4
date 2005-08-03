@@ -25,12 +25,6 @@
 #define REISER4_DEBUG (0)
 #endif
 
-#if defined(CONFIG_REISER4_ZLIB)
-/* turn on zlib support */
-#define REISER4_ZLIB (1)
-#else
-#define REISER4_ZLIB (0)
-#endif
 
 #if defined(CONFIG_REISER4_COPY_ON_CAPTURE)
 /*

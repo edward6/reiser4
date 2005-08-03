@@ -192,7 +192,7 @@
 #include <linux/writeback.h>
 #include <linux/blkdev.h>
 
-static struct bio *page_bio(struct page *page, jnode * node, int rw, unsigned int gfp);
+static struct bio *page_bio(struct page *page, jnode * node, int rw, int gfp);
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -202,7 +202,7 @@ static const oid_t cc_ino = 0x3;
 
 /* one-time initialization of fake inodes handling functions. */
 reiser4_internal int
-init_fakes(void)
+init_fakes()
 {
 	return 0;
 }
@@ -406,7 +406,7 @@ page_io(struct page *page /* page to perform io for */ ,
 
 /* helper function to construct bio for page */
 static struct bio *
-page_bio(struct page *page, jnode * node, int rw, unsigned int gfp)
+page_bio(struct page *page, jnode * node, int rw, int gfp)
 {
 	struct bio *bio;
 	assert("nikita-2092", page != NULL);

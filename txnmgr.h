@@ -447,8 +447,6 @@ TYPE_SAFE_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
 
 /* FUNCTION DECLARATIONS */
 
-extern int is_cced(const jnode *node);
-
 /* These are the externally (within Reiser4) visible transaction functions, therefore they
    are prefixed with "txn_".  For comments, see txnmgr.c. */
 
