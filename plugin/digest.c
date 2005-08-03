@@ -5,7 +5,7 @@
 #include "../debug.h"
 #include "plugin_header.h"
 #include "plugin.h"
-#include "cryptcompress.h"
+#include "file/cryptcompress.h"
 
 #include <linux/types.h>
 

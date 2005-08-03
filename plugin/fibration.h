@@ -12,7 +12,7 @@ typedef struct fibration_plugin {
 	/* generic fields */
 	plugin_header h;
 
-	__u64 (*fibre)(const struct inode *dir, const char *name, int len);
+	 __u64(*fibre) (const struct inode * dir, const char *name, int len);
 } fibration_plugin;
 
 typedef enum {

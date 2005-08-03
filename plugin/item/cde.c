@@ -86,35 +86,31 @@
 #define CHECKME(coord) noop
 #endif
 
-
 /* return body of compound directory item at @coord */
-static inline cde_item_format *
-formatted_at(const coord_t * coord)
+static inline cde_item_format *formatted_at(const coord_t * coord)
 {
 	assert("nikita-1282", coord != NULL);
 	return item_body_by_coord(coord);
 }
 
 /* return entry header at @coord */
-static inline cde_unit_header *
-header_at(const coord_t * coord /* coord of item */ ,
-	  int idx /* index of unit */ )
+static inline cde_unit_header *header_at(const coord_t *
+					 coord /* coord of item */ ,
+					 int idx /* index of unit */ )
 {
 	assert("nikita-1283", coord != NULL);
 	return &formatted_at(coord)->entry[idx];
 }
 
 /* return number of units in compound directory item at @coord */
-static int
-units(const coord_t * coord /* coord of item */ )
+static int units(const coord_t * coord /* coord of item */ )
 {
 	return d16tocpu(&formatted_at(coord)->num_of_entries);
 }
 
 /* return offset of the body of @idx-th entry in @coord */
-static unsigned int
-offset_of(const coord_t * coord /* coord of item */ ,
-	  int idx /* index of unit */ )
+static unsigned int offset_of(const coord_t * coord /* coord of item */ ,
+			      int idx /* index of unit */ )
 {
 	if (idx < units(coord))
 		return d16tocpu(&header_at(coord, idx)->offset);
@@ -126,20 +122,18 @@ offset_of(const coord_t * coord /* coord of item */ ,
 }
 
 /* set offset of the body of @idx-th entry in @coord */
-static void
-set_offset(const coord_t * coord /* coord of item */ ,
-	   int idx /* index of unit */ ,
-	   unsigned int offset /* new offset */ )
+static void set_offset(const coord_t * coord /* coord of item */ ,
+		       int idx /* index of unit */ ,
+		       unsigned int offset /* new offset */ )
 {
 	cputod16((__u16) offset, &header_at(coord, idx)->offset);
 }
 
-static void
-adj_offset(const coord_t * coord /* coord of item */ ,
-	   int idx /* index of unit */ ,
-	   int delta /* offset change */ )
+static void adj_offset(const coord_t * coord /* coord of item */ ,
+		       int idx /* index of unit */ ,
+		       int delta /* offset change */ )
 {
-	d16  *doffset;
+	d16 *doffset;
 	__u16 offset;
 
 	doffset = &header_at(coord, idx)->offset;
@@ -149,35 +143,32 @@ adj_offset(const coord_t * coord /* coord of item */ ,
 }
 
 /* return pointer to @offset-th byte from the beginning of @coord */
-static char *
-address(const coord_t * coord /* coord of item */ ,
-	int offset)
+static char *address(const coord_t * coord /* coord of item */ ,
+		     int offset)
 {
-	return ((char *) item_body_by_coord(coord)) + offset;
+	return ((char *)item_body_by_coord(coord)) + offset;
 }
 
 /* return pointer to the body of @idx-th entry in @coord */
-static directory_entry_format *
-entry_at(const coord_t * coord	/* coord of
-				 * item */ ,
-	 int idx /* index of unit */ )
+static directory_entry_format *entry_at(const coord_t * coord	/* coord of
+								 * item */ ,
+					int idx /* index of unit */ )
 {
-	return (directory_entry_format *) address(coord, (int) offset_of(coord, idx));
+	return (directory_entry_format *) address(coord,
+						  (int)offset_of(coord, idx));
 }
 
 /* return number of unit referenced by @coord */
-static int
-idx_of(const coord_t * coord /* coord of item */ )
+static int idx_of(const coord_t * coord /* coord of item */ )
 {
 	assert("nikita-1285", coord != NULL);
 	return coord->unit_pos;
 }
 
 /* find position where entry with @entry_key would be inserted into @coord */
-static int
-find(const coord_t * coord /* coord of item */ ,
-     const reiser4_key * entry_key /* key to look for */ ,
-     cmp_t * last /* result of last comparison */ )
+static int find(const coord_t * coord /* coord of item */ ,
+		const reiser4_key * entry_key /* key to look for */ ,
+		cmp_t * last /* result of last comparison */ )
 {
 	int entries;
 
@@ -207,19 +198,19 @@ find(const coord_t * coord /* coord of item */ ,
 		case GREATER_THAN:
 			right = median;
 			break;
-		case EQUAL_TO: {
-			do {
-				median --;
-				header --;
-			} while (median >= 0 &&
-				 de_id_key_cmp(&header->hash,
-					       entry_key) == EQUAL_TO);
-			return median + 1;
-		}
+		case EQUAL_TO:{
+				do {
+					median--;
+					header--;
+				} while (median >= 0 &&
+					 de_id_key_cmp(&header->hash,
+						       entry_key) == EQUAL_TO);
+				return median + 1;
+			}
 		}
 	}
 	header = header_at(coord, left);
-	for (; left < entries; ++ left, ++ header) {
+	for (; left < entries; ++left, ++header) {
 		prefetch(header + 1);
 		*last = de_id_key_cmp(&header->hash, entry_key);
 		if (*last != LESS_THAN)
@@ -234,13 +225,12 @@ find(const coord_t * coord /* coord of item */ ,
 
 /* expand @coord as to accommodate for insertion of @no new entries starting
    from @pos, with total bodies size @size. */
-static int
-expand_item(const coord_t * coord /* coord of item */ ,
-	    int pos /* unit position */ , int no	/* number of new
-							 * units*/ ,
-	    int size /* total size of new units' data */ ,
-	    unsigned int data_size	/* free space already reserved
-					 * in the item for insertion */ )
+static int expand_item(const coord_t * coord /* coord of item */ ,
+		       int pos /* unit position */ , int no	/* number of new
+								 * units*/ ,
+		       int size /* total size of new units' data */ ,
+		       unsigned int data_size	/* free space already reserved
+						 * in the item for insertion */ )
 {
 	int entries;
 	cde_unit_header *header;
@@ -250,29 +240,33 @@ expand_item(const coord_t * coord /* coord of item */ ,
 	assert("nikita-1310", coord != NULL);
 	assert("nikita-1311", pos >= 0);
 	assert("nikita-1312", no > 0);
-	assert("nikita-1313", data_size >= no * sizeof (directory_entry_format));
-	assert("nikita-1343", item_length_by_coord(coord) >= (int) (size + data_size + no * sizeof *header));
+	assert("nikita-1313", data_size >= no * sizeof(directory_entry_format));
+	assert("nikita-1343",
+	       item_length_by_coord(coord) >=
+	       (int)(size + data_size + no * sizeof *header));
 
 	entries = units(coord);
 
 	if (pos == entries)
 		dent = address(coord, size);
 	else
-		dent = (char *) entry_at(coord, pos);
+		dent = (char *)entry_at(coord, pos);
 	/* place where new header will be in */
 	header = header_at(coord, pos);
 	/* free space for new entry headers */
-	memmove(header + no, header, (unsigned) (address(coord, size) - (char *) header));
+	memmove(header + no, header,
+		(unsigned)(address(coord, size) - (char *)header));
 	/* if adding to the end initialise first new header */
 	if (pos == entries) {
-		set_offset(coord, pos, (unsigned) size);
+		set_offset(coord, pos, (unsigned)size);
 	}
 
 	/* adjust entry pointer and size */
 	dent = dent + no * sizeof *header;
 	size += no * sizeof *header;
 	/* free space for new entries */
-	memmove(dent + data_size, dent, (unsigned) (address(coord, size) - dent));
+	memmove(dent + data_size, dent,
+		(unsigned)(address(coord, size) - dent));
 
 	/* increase counter */
 	entries += no;
@@ -290,41 +284,40 @@ expand_item(const coord_t * coord /* coord of item */ ,
 }
 
 /* insert new @entry into item */
-static int
-expand(const coord_t * coord /* coord of item */ ,
-       cde_entry * entry /* entry to insert */ ,
-       int len /* length of @entry data */ ,
-       int *pos /* position to insert */ ,
-       reiser4_dir_entry_desc * dir_entry	/* parameters for new
-						 * entry */ )
+static int expand(const coord_t * coord /* coord of item */ ,
+		  cde_entry * entry /* entry to insert */ ,
+		  int len /* length of @entry data */ ,
+		  int *pos /* position to insert */ ,
+		  reiser4_dir_entry_desc * dir_entry	/* parameters for new
+							 * entry */ )
 {
 	cmp_t cmp_res;
-	int   datasize;
+	int datasize;
 
 	*pos = find(coord, &dir_entry->key, &cmp_res);
 	if (*pos < 0)
 		*pos = units(coord);
 
-	datasize = sizeof (directory_entry_format);
+	datasize = sizeof(directory_entry_format);
 	if (is_longname(entry->name->name, entry->name->len))
 		datasize += entry->name->len + 1;
 
-	expand_item(coord, *pos, 1, item_length_by_coord(coord) - len, datasize);
+	expand_item(coord, *pos, 1, item_length_by_coord(coord) - len,
+		    datasize);
 	return 0;
 }
 
 /* paste body of @entry into item */
-static int
-paste_entry(const coord_t * coord /* coord of item */ ,
-	    cde_entry * entry /* new entry */ ,
-	    int pos /* position to insert */ ,
-	    reiser4_dir_entry_desc * dir_entry	/* parameters for
-						 * new entry */ )
+static int paste_entry(const coord_t * coord /* coord of item */ ,
+		       cde_entry * entry /* new entry */ ,
+		       int pos /* position to insert */ ,
+		       reiser4_dir_entry_desc * dir_entry	/* parameters for
+								 * new entry */ )
 {
 	cde_unit_header *header;
 	directory_entry_format *dent;
 	const char *name;
-	int   len;
+	int len;
 
 	header = header_at(coord, pos);
 	dent = entry_at(coord, pos);
@@ -339,9 +332,9 @@ paste_entry(const coord_t * coord /* coord of item */ ,
 	   amount of space in dent -> name and be able to check that we are
 	   not going to overwrite more than we supposed to */
 	name = entry->name->name;
-	len  = entry->name->len;
+	len = entry->name->len;
 	if (is_longname(name, len)) {
-		strcpy((unsigned char *) dent->name, name);
+		strcpy((unsigned char *)dent->name, name);
 		cputod8(0, &dent->name[len]);
 	}
 	return 0;
@@ -349,9 +342,8 @@ paste_entry(const coord_t * coord /* coord of item */ ,
 
 /* estimate how much space is necessary in item to insert/paste set of entries
    described in @data. */
-reiser4_internal int
-estimate_cde(const coord_t * coord /* coord of item */ ,
-	     const reiser4_item_data * data /* parameters for new item */ )
+int estimate_cde(const coord_t * coord /* coord of item */ ,
+		 const reiser4_item_data * data /* parameters for new item */ )
 {
 	cde_entry_data *e;
 	int result;
@@ -364,19 +356,19 @@ estimate_cde(const coord_t * coord /* coord of item */ ,
 
 	if (coord == NULL)
 		/* insert */
-		result = sizeof (cde_item_format);
+		result = sizeof(cde_item_format);
 	else
 		/* paste */
 		result = 0;
 
 	result += e->num_of_entries *
-		(sizeof (cde_unit_header) + sizeof (directory_entry_format));
+	    (sizeof(cde_unit_header) + sizeof(directory_entry_format));
 	for (i = 0; i < e->num_of_entries; ++i) {
 		const char *name;
-		int   len;
+		int len;
 
 		name = e->entry[i].name->name;
-		len  = e->entry[i].name->len;
+		len = e->entry[i].name->len;
 		assert("nikita-2054", strlen(name) == len);
 		if (is_longname(name, len))
 			result += len + 1;
@@ -386,23 +378,22 @@ estimate_cde(const coord_t * coord /* coord of item */ ,
 }
 
 /* ->nr_units() method for this item plugin. */
-reiser4_internal pos_in_node_t
-nr_units_cde(const coord_t * coord /* coord of item */ )
+pos_in_node_t nr_units_cde(const coord_t * coord /* coord of item */ )
 {
 	return units(coord);
 }
 
 /* ->unit_key() method for this item plugin. */
-reiser4_internal reiser4_key *
-unit_key_cde(const coord_t * coord /* coord of item */ ,
-	     reiser4_key * key /* resulting key */ )
+reiser4_key *unit_key_cde(const coord_t * coord /* coord of item */ ,
+			  reiser4_key * key /* resulting key */ )
 {
 	assert("nikita-1452", coord != NULL);
 	assert("nikita-1345", idx_of(coord) < units(coord));
 	assert("nikita-1346", key != NULL);
 
 	item_key_by_coord(coord, key);
-	extract_key_from_de_id(extract_dir_id_from_key(key), &header_at(coord, idx_of(coord))->hash, key);
+	extract_key_from_de_id(extract_dir_id_from_key(key),
+			       &header_at(coord, idx_of(coord))->hash, key);
 	return key;
 }
 
@@ -412,9 +403,8 @@ unit_key_cde(const coord_t * coord /* coord of item */ ,
    directory. That simple.
 
 */
-reiser4_internal int
-mergeable_cde(const coord_t * p1 /* coord of first item */ ,
-	      const coord_t * p2 /* coord of second item */ )
+int mergeable_cde(const coord_t * p1 /* coord of first item */ ,
+		  const coord_t * p2 /* coord of second item */ )
 {
 	reiser4_key k1;
 	reiser4_key k2;
@@ -430,9 +420,8 @@ mergeable_cde(const coord_t * p1 /* coord of first item */ ,
 }
 
 /* ->max_key_inside() method for this item plugin. */
-reiser4_internal reiser4_key *
-max_key_inside_cde(const coord_t * coord /* coord of item */ ,
-		   reiser4_key * result /* resulting key */)
+reiser4_key *max_key_inside_cde(const coord_t * coord /* coord of item */ ,
+				reiser4_key * result /* resulting key */ )
 {
 	assert("nikita-1342", coord != NULL);
 
@@ -444,10 +433,9 @@ max_key_inside_cde(const coord_t * coord /* coord of item */ ,
 }
 
 /* @data contains data which are to be put into tree */
-reiser4_internal int
-can_contain_key_cde(const coord_t * coord /* coord of item */ ,
-		    const reiser4_key * key /* key to check */ ,
-		    const reiser4_item_data * data	/* parameters of new
+int can_contain_key_cde(const coord_t * coord /* coord of item */ ,
+			const reiser4_key * key /* key to check */ ,
+			const reiser4_item_data * data	/* parameters of new
 							 * item/unit being
 							 * created */ )
 {
@@ -460,68 +448,9 @@ can_contain_key_cde(const coord_t * coord /* coord of item */ ,
 	item_key_by_coord(coord, &item_key);
 
 	return (item_plugin_by_coord(coord) == data->iplug) &&
-	    (extract_dir_id_from_key(&item_key) == extract_dir_id_from_key(key));
+	    (extract_dir_id_from_key(&item_key) ==
+	     extract_dir_id_from_key(key));
 }
-
-#if REISER4_DEBUG_OUTPUT
-/* ->print() method for this item plugin. */
-reiser4_internal void
-print_cde(const char *prefix /* prefix to print */ ,
-	  coord_t * coord /* coord of item to print */ )
-{
-	assert("nikita-1077", prefix != NULL);
-	assert("nikita-1078", coord != NULL);
-
-	if (item_length_by_coord(coord) < (int) sizeof (cde_item_format)) {
-		printk("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof (cde_item_format));
-	} else {
-		char *name;
-		char *end;
-		char *start;
-		int i;
-		oid_t dirid;
-		reiser4_key key;
-
-		start = address(coord, 0);
-		end = address(coord, item_length_by_coord(coord));
-		item_key_by_coord(coord, &key);
-		dirid = extract_dir_id_from_key(&key);
-
-		printk("%s: units: %i\n", prefix, nr_units_cde(coord));
-		for (i = 0; i < units(coord); ++i) {
-			cde_unit_header *header;
-
-			header = header_at(coord, i);
-			indent_znode(coord->node);
-			printk("\theader %i: ", i);
-			if ((char *) (header + 1) > end) {
-				printk("out of bounds: %p [%p, %p]\n", header, start, end);
-			} else {
-				extract_key_from_de_id(dirid, &header->hash, &key);
-				printk("%i: at %i, offset: %i, ", i, i * sizeof (*header), d16tocpu(&header->offset));
-				print_key("key", &key);
-			}
-		}
-		for (i = 0; i < units(coord); ++i) {
-			directory_entry_format *entry;
-			char buf[DE_NAME_BUF_LEN];
-
-			entry = entry_at(coord, i);
-			indent_znode(coord->node);
-			printk("\tentry: %i: ", i);
-			if (((char *) (entry + 1) > end) || ((char *) entry < start)) {
-				printk("out of bounds: %p [%p, %p]\n", entry, start, end);
-			} else {
-				coord->unit_pos = i;
-				extract_key_cde(coord, &key);
-				name = extract_name_cde(coord, buf);
-				printk("at %i, name: %s, ", (char *) entry - start, name);
-				print_key("sdkey", &key);
-			}
-		}
-	}
-}
-#endif
 
 #if REISER4_DEBUG
 /* cde_check ->check() method for compressed directory items
@@ -530,9 +459,8 @@ print_cde(const char *prefix /* prefix to print */ ,
    possible check of the consistency of the item that the inventor can
    construct
 */
-reiser4_internal int
-check_cde(const coord_t * coord /* coord of item to check */ ,
-	  const char **error /* where to store error message */ )
+int check_cde(const coord_t * coord /* coord of item to check */ ,
+	      const char **error /* where to store error message */ )
 {
 	int i;
 	int result;
@@ -558,18 +486,19 @@ check_cde(const coord_t * coord /* coord of item to check */ ,
 	for (i = 0; i < units(coord); ++i) {
 		directory_entry_format *entry;
 
-		if ((char *) (header_at(coord, i) + 1) > item_end - units(coord) * sizeof *entry) {
+		if ((char *)(header_at(coord, i) + 1) >
+		    item_end - units(coord) * sizeof *entry) {
 			*error = "CDE header is out of bounds";
 			result = -1;
 			break;
 		}
 		entry = entry_at(coord, i);
-		if ((char *) entry < item_start + sizeof (cde_item_format)) {
+		if ((char *)entry < item_start + sizeof(cde_item_format)) {
 			*error = "CDE header is too low";
 			result = -1;
 			break;
 		}
-		if ((char *) (entry + 1) > item_end) {
+		if ((char *)(entry + 1) > item_end) {
 			*error = "CDE header is too high";
 			result = -1;
 			break;
@@ -581,21 +510,18 @@ check_cde(const coord_t * coord /* coord of item to check */ ,
 #endif
 
 /* ->init() method for this item plugin. */
-reiser4_internal int
-init_cde(coord_t * coord /* coord of item */ ,
-	 coord_t * from UNUSED_ARG,
-	 reiser4_item_data * data	/* structure used for insertion */
-	 UNUSED_ARG)
+int init_cde(coord_t * coord /* coord of item */ ,
+	     coord_t * from UNUSED_ARG, reiser4_item_data * data	/* structure used for insertion */
+	     UNUSED_ARG)
 {
 	cputod16(0u, &formatted_at(coord)->num_of_entries);
 	return 0;
 }
 
 /* ->lookup() method for this item plugin. */
-reiser4_internal lookup_result
-lookup_cde(const reiser4_key * key /* key to search for */ ,
-	   lookup_bias bias /* search bias */ ,
-	   coord_t * coord /* coord of item to lookup in */ )
+lookup_result lookup_cde(const reiser4_key * key /* key to search for */ ,
+			 lookup_bias bias /* search bias */ ,
+			 coord_t * coord /* coord of item to lookup in */ )
 {
 	cmp_t last_comp;
 	int pos;
@@ -614,7 +540,7 @@ lookup_cde(const reiser4_key * key /* key to search for */ ,
 	}
 	pos = find(coord, key, &last_comp);
 	if (pos >= 0) {
-		coord->unit_pos = (int) pos;
+		coord->unit_pos = (int)pos;
 		switch (last_comp) {
 		case EQUAL_TO:
 			coord->between = AT_UNIT;
@@ -630,16 +556,17 @@ lookup_cde(const reiser4_key * key /* key to search for */ ,
 	} else {
 		coord->unit_pos = units(coord) - 1;
 		coord->between = AFTER_UNIT;
-		return (bias == FIND_MAX_NOT_MORE_THAN) ? CBK_COORD_FOUND : CBK_COORD_NOTFOUND;
+		return (bias ==
+			FIND_MAX_NOT_MORE_THAN) ? CBK_COORD_FOUND :
+		    CBK_COORD_NOTFOUND;
 	}
 }
 
 /* ->paste() method for this item plugin. */
-reiser4_internal int
-paste_cde(coord_t * coord /* coord of item */ ,
-	  reiser4_item_data * data	/* parameters of new unit being
+int paste_cde(coord_t * coord /* coord of item */ ,
+	      reiser4_item_data * data	/* parameters of new unit being
 					 * inserted */ ,
-	  carry_plugin_info * info UNUSED_ARG /* todo carry queue */ )
+	      carry_plugin_info * info UNUSED_ARG /* todo carry queue */ )
 {
 	cde_entry_data *e;
 	int result;
@@ -655,9 +582,10 @@ paste_cde(coord_t * coord /* coord of item */ ,
 
 		phantom_size = data->length;
 		if (units(coord) == 0)
-			phantom_size -= sizeof (cde_item_format);
+			phantom_size -= sizeof(cde_item_format);
 
-		result = expand(coord, e->entry + i, phantom_size, &pos, data->arg);
+		result =
+		    expand(coord, e->entry + i, phantom_size, &pos, data->arg);
 		if (result != 0)
 			break;
 		result = paste_entry(coord, e->entry + i, pos, data->arg);
@@ -670,15 +598,16 @@ paste_cde(coord_t * coord /* coord of item */ ,
 
 /* amount of space occupied by all entries starting from @idx both headers and
    bodies. */
-static unsigned int
-part_size(const coord_t * coord /* coord of item */ ,
-	  int idx /* index of unit */ )
+static unsigned int part_size(const coord_t * coord /* coord of item */ ,
+			      int idx /* index of unit */ )
 {
 	assert("nikita-1299", coord != NULL);
-	assert("nikita-1300", idx < (int) units(coord));
+	assert("nikita-1300", idx < (int)units(coord));
 
-	return sizeof (cde_item_format) +
-	    (idx + 1) * sizeof (cde_unit_header) + offset_of(coord, idx + 1) - offset_of(coord, 0);
+	return sizeof(cde_item_format) +
+	    (idx + 1) * sizeof(cde_unit_header) + offset_of(coord,
+							    idx + 1) -
+	    offset_of(coord, 0);
 }
 
 /* how many but not more than @want units of @source can be merged with
@@ -687,13 +616,12 @@ part_size(const coord_t * coord /* coord of item */ ,
    "prepend" first item in @target by last units of @source. @target
    node has @free_space bytes of free space. Total size of those units
    are returned via @size */
-reiser4_internal int
-can_shift_cde(unsigned free_space /* free space in item */ ,
-	      coord_t * coord /* coord of source item */ ,
-	      znode * target /* target node */ ,
-	      shift_direction pend /* shift direction */ ,
-	      unsigned *size /* resulting number of shifted bytes */ ,
-	      unsigned want /* maximal number of bytes to shift */ )
+int can_shift_cde(unsigned free_space /* free space in item */ ,
+		  coord_t * coord /* coord of source item */ ,
+		  znode * target /* target node */ ,
+		  shift_direction pend /* shift direction */ ,
+		  unsigned *size /* resulting number of shifted bytes */ ,
+		  unsigned want /* maximal number of bytes to shift */ )
 {
 	int shift;
 
@@ -705,10 +633,11 @@ can_shift_cde(unsigned free_space /* free space in item */ ,
 
 	/* pend == SHIFT_LEFT <==> shifting to the left */
 	if (pend == SHIFT_LEFT) {
-		for (shift = min((int) want - 1, units(coord)); shift >= 0; --shift) {
+		for (shift = min((int)want - 1, units(coord)); shift >= 0;
+		     --shift) {
 			*size = part_size(coord, shift);
 			if (target != NULL)
-				*size -= sizeof (cde_item_format);
+				*size -= sizeof(cde_item_format);
 			if (*size <= free_space)
 				break;
 		}
@@ -719,10 +648,11 @@ can_shift_cde(unsigned free_space /* free space in item */ ,
 		assert("nikita-1301", pend == SHIFT_RIGHT);
 
 		total_size = item_length_by_coord(coord);
-		for (shift = units(coord) - want - 1; shift < units(coord) - 1; ++shift) {
+		for (shift = units(coord) - want - 1; shift < units(coord) - 1;
+		     ++shift) {
 			*size = total_size - part_size(coord, shift);
 			if (target == NULL)
-				*size += sizeof (cde_item_format);
+				*size += sizeof(cde_item_format);
 			if (*size <= free_space)
 				break;
 		}
@@ -735,13 +665,12 @@ can_shift_cde(unsigned free_space /* free space in item */ ,
 }
 
 /* ->copy_units() method for this item plugin. */
-reiser4_internal void
-copy_units_cde(coord_t * target /* coord of target item */ ,
-	       coord_t * source /* coord of source item */ ,
-	       unsigned from /* starting unit */ ,
-	       unsigned count /* how many units to copy */ ,
-	       shift_direction where_is_free_space /* shift direction */ ,
-	       unsigned free_space /* free space in item */ )
+void copy_units_cde(coord_t * target /* coord of target item */ ,
+		    coord_t * source /* coord of source item */ ,
+		    unsigned from /* starting unit */ ,
+		    unsigned count /* how many units to copy */ ,
+		    shift_direction where_is_free_space /* shift direction */ ,
+		    unsigned free_space /* free space in item */ )
 {
 	char *header_from;
 	char *header_to;
@@ -756,58 +685,64 @@ copy_units_cde(coord_t * target /* coord of target item */ ,
 
 	assert("nikita-1303", target != NULL);
 	assert("nikita-1304", source != NULL);
-	assert("nikita-1305", (int) from < units(source));
-	assert("nikita-1307", (int) (from + count) <= units(source));
+	assert("nikita-1305", (int)from < units(source));
+	assert("nikita-1307", (int)(from + count) <= units(source));
 
 	if (where_is_free_space == SHIFT_LEFT) {
 		assert("nikita-1453", from == 0);
 		pos_in_target = units(target);
 	} else {
-		assert("nikita-1309", (int) (from + count) == units(source));
+		assert("nikita-1309", (int)(from + count) == units(source));
 		pos_in_target = 0;
 		memmove(item_body_by_coord(target),
-			(char *) item_body_by_coord(target) + free_space, item_length_by_coord(target) - free_space);
+			(char *)item_body_by_coord(target) + free_space,
+			item_length_by_coord(target) - free_space);
 	}
 
 	CHECKME(target);
 	CHECKME(source);
 
 	/* expand @target */
-	data_size = offset_of(source, (int) (from + count)) - offset_of(source, (int) from);
+	data_size =
+	    offset_of(source, (int)(from + count)) - offset_of(source,
+							       (int)from);
 
 	if (units(target) == 0)
-		free_space -= sizeof (cde_item_format);
+		free_space -= sizeof(cde_item_format);
 
-	expand_item(target, pos_in_target, (int) count,
-		    (int) (item_length_by_coord(target) - free_space), (unsigned) data_size);
+	expand_item(target, pos_in_target, (int)count,
+		    (int)(item_length_by_coord(target) - free_space),
+		    (unsigned)data_size);
 
 	/* copy first @count units of @source into @target */
-	data_delta = offset_of(target, pos_in_target) - offset_of(source, (int) from);
+	data_delta =
+	    offset_of(target, pos_in_target) - offset_of(source, (int)from);
 
 	/* copy entries */
-	entry_from = (char *) entry_at(source, (int) from);
-	entry_to = (char *) entry_at(source, (int) (from + count));
-	memmove(entry_at(target, pos_in_target), entry_from, (unsigned) (entry_to - entry_from));
+	entry_from = (char *)entry_at(source, (int)from);
+	entry_to = (char *)entry_at(source, (int)(from + count));
+	memmove(entry_at(target, pos_in_target), entry_from,
+		(unsigned)(entry_to - entry_from));
 
 	/* copy headers */
-	header_from = (char *) header_at(source, (int) from);
-	header_to = (char *) header_at(source, (int) (from + count));
-	memmove(header_at(target, pos_in_target), header_from, (unsigned) (header_to - header_from));
+	header_from = (char *)header_at(source, (int)from);
+	header_to = (char *)header_at(source, (int)(from + count));
+	memmove(header_at(target, pos_in_target), header_from,
+		(unsigned)(header_to - header_from));
 
 	/* update offsets */
-	for (i = pos_in_target; i < (int) (pos_in_target + count); ++i)
+	for (i = pos_in_target; i < (int)(pos_in_target + count); ++i)
 		adj_offset(target, i, data_delta);
 	CHECKME(target);
 	CHECKME(source);
 }
 
 /* ->cut_units() method for this item plugin. */
-reiser4_internal int
-cut_units_cde(coord_t * coord /* coord of item */ ,
-	      pos_in_node_t from /* start unit pos */ ,
-	      pos_in_node_t to /* stop unit pos */ ,
-	      struct carry_cut_data *cdata UNUSED_ARG, reiser4_key *smallest_removed,
-	      reiser4_key *new_first)
+int cut_units_cde(coord_t * coord /* coord of item */ ,
+		  pos_in_node_t from /* start unit pos */ ,
+		  pos_in_node_t to /* stop unit pos */ ,
+		  struct carry_cut_data *cdata UNUSED_ARG,
+		  reiser4_key * smallest_removed, reiser4_key * new_first)
 {
 	char *header_from;
 	char *header_to;
@@ -827,7 +762,7 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 	count = to - from + 1;
 
 	assert("nikita-1454", coord != NULL);
-	assert("nikita-1455", (int) (from + count) <= units(coord));
+	assert("nikita-1455", (int)(from + count) <= units(coord));
 
 	if (smallest_removed)
 		unit_key_by_coord(coord, smallest_removed);
@@ -840,23 +775,24 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 		assert("vs-1528", to < units(coord) - 1);
 
 		coord_dup(&next, coord);
-		next.unit_pos ++;
+		next.unit_pos++;
 		unit_key_by_coord(&next, new_first);
 	}
 
 	size = item_length_by_coord(coord);
-	if (count == (unsigned) units(coord)) {
+	if (count == (unsigned)units(coord)) {
 		return size;
 	}
 
-	header_from = (char *) header_at(coord, (int) from);
-	header_to = (char *) header_at(coord, (int) (from + count));
+	header_from = (char *)header_at(coord, (int)from);
+	header_to = (char *)header_at(coord, (int)(from + count));
 
-	entry_from = (char *) entry_at(coord, (int) from);
-	entry_to = (char *) entry_at(coord, (int) (from + count));
+	entry_from = (char *)entry_at(coord, (int)from);
+	entry_to = (char *)entry_at(coord, (int)(from + count));
 
 	/* move headers */
-	memmove(header_from, header_to, (unsigned) (address(coord, size) - header_to));
+	memmove(header_from, header_to,
+		(unsigned)(address(coord, size) - header_to));
 
 	header_delta = header_to - header_from;
 
@@ -865,50 +801,53 @@ cut_units_cde(coord_t * coord /* coord of item */ ,
 	size -= header_delta;
 
 	/* copy entries */
-	memmove(entry_from, entry_to, (unsigned) (address(coord, size) - entry_to));
+	memmove(entry_from, entry_to,
+		(unsigned)(address(coord, size) - entry_to));
 
 	entry_delta = entry_to - entry_from;
 	size -= entry_delta;
 
 	/* update offsets */
 
-	for (i = 0; i < (int) from; ++i)
-		adj_offset(coord, i, - header_delta);
+	for (i = 0; i < (int)from; ++i)
+		adj_offset(coord, i, -header_delta);
 
-	for (i = from; i < units(coord) - (int) count; ++i)
-		adj_offset(coord, i, - header_delta - entry_delta);
+	for (i = from; i < units(coord) - (int)count; ++i)
+		adj_offset(coord, i, -header_delta - entry_delta);
 
-	cputod16((__u16) units(coord) - count, &formatted_at(coord)->num_of_entries);
+	cputod16((__u16) units(coord) - count,
+		 &formatted_at(coord)->num_of_entries);
 
 	if (from == 0) {
 		/* entries from head was removed - move remaining to right */
-		memmove((char *) item_body_by_coord(coord) +
-			 header_delta + entry_delta, item_body_by_coord(coord), (unsigned) size);
+		memmove((char *)item_body_by_coord(coord) +
+			header_delta + entry_delta, item_body_by_coord(coord),
+			(unsigned)size);
 		if (REISER4_DEBUG)
-			memset(item_body_by_coord(coord), 0, (unsigned) header_delta + entry_delta);
+			memset(item_body_by_coord(coord), 0,
+			       (unsigned)header_delta + entry_delta);
 	} else {
 		/* freed space is already at the end of item */
 		if (REISER4_DEBUG)
-			memset((char *) item_body_by_coord(coord) + size, 0, (unsigned) header_delta + entry_delta);
+			memset((char *)item_body_by_coord(coord) + size, 0,
+			       (unsigned)header_delta + entry_delta);
 	}
 
 	return header_delta + entry_delta;
 }
 
-reiser4_internal int
-kill_units_cde(coord_t * coord /* coord of item */ ,
-	       pos_in_node_t from /* start unit pos */ ,
-	       pos_in_node_t to /* stop unit pos */ ,
-	       struct carry_kill_data *kdata UNUSED_ARG, reiser4_key *smallest_removed,
-	       reiser4_key *new_first)
+int kill_units_cde(coord_t * coord /* coord of item */ ,
+		   pos_in_node_t from /* start unit pos */ ,
+		   pos_in_node_t to /* stop unit pos */ ,
+		   struct carry_kill_data *kdata UNUSED_ARG,
+		   reiser4_key * smallest_removed, reiser4_key * new_first)
 {
-	return cut_units_cde(coord, from, to, 0, smallest_removed, new_first);
+	return cut_units_cde(coord, from, to, NULL, smallest_removed, new_first);
 }
 
 /* ->s.dir.extract_key() method for this item plugin. */
-reiser4_internal int
-extract_key_cde(const coord_t * coord /* coord of item */ ,
-		reiser4_key * key /* resulting key */ )
+int extract_key_cde(const coord_t * coord /* coord of item */ ,
+		    reiser4_key * key /* resulting key */ )
 {
 	directory_entry_format *dent;
 
@@ -919,8 +858,9 @@ extract_key_cde(const coord_t * coord /* coord of item */ ,
 	return extract_key_from_id(&dent->id, key);
 }
 
-reiser4_internal int
-update_key_cde(const coord_t * coord, const reiser4_key * key, lock_handle * lh UNUSED_ARG)
+int
+update_key_cde(const coord_t * coord, const reiser4_key * key,
+	       lock_handle * lh UNUSED_ARG)
 {
 	directory_entry_format *dent;
 	obj_key_id obj_id;
@@ -939,8 +879,7 @@ update_key_cde(const coord_t * coord, const reiser4_key * key, lock_handle * lh 
 }
 
 /* ->s.dir.extract_name() method for this item plugin. */
-reiser4_internal char *
-extract_name_cde(const coord_t * coord /* coord of item */, char *buf)
+char *extract_name_cde(const coord_t * coord /* coord of item */ , char *buf)
 {
 	directory_entry_format *dent;
 
@@ -950,24 +889,22 @@ extract_name_cde(const coord_t * coord /* coord of item */, char *buf)
 	return extract_dent_name(coord, dent, buf);
 }
 
-static int
-cde_bytes(int pasting, const reiser4_item_data * data)
+static int cde_bytes(int pasting, const reiser4_item_data * data)
 {
 	int result;
 
 	result = data->length;
 	if (!pasting)
-		result -= sizeof (cde_item_format);
+		result -= sizeof(cde_item_format);
 	return result;
 }
 
 /* ->s.dir.add_entry() method for this item plugin */
-reiser4_internal int
-add_entry_cde(struct inode *dir /* directory object */ ,
-	      coord_t * coord /* coord of item */ ,
-	      lock_handle * lh /* lock handle for insertion */ ,
-	      const struct dentry *name /* name to insert */ ,
-	      reiser4_dir_entry_desc * dir_entry	/* parameters of new
+int add_entry_cde(struct inode *dir /* directory object */ ,
+		  coord_t * coord /* coord of item */ ,
+		  lock_handle * lh /* lock handle for insertion */ ,
+		  const struct dentry *name /* name to insert */ ,
+		  reiser4_dir_entry_desc * dir_entry	/* parameters of new
 							 * directory entry */ )
 {
 	reiser4_item_data data;
@@ -985,7 +922,7 @@ add_entry_cde(struct inode *dir /* directory object */ ,
 	entry.obj = dir_entry->obj;
 	entry.name = &name->d_name;
 
-	data.data = (char *) &edata;
+	data.data = (char *)&edata;
 	data.user = 0;		/* &edata is not user space */
 	data.iplug = item_plugin_by_id(COMPOUND_DIR_ID);
 	data.arg = dir_entry;
@@ -1006,15 +943,13 @@ add_entry_cde(struct inode *dir /* directory object */ ,
 }
 
 /* ->s.dir.rem_entry() */
-reiser4_internal int
-rem_entry_cde(struct inode *dir /* directory of item */ ,
-	      const struct qstr * name,
-	      coord_t * coord /* coord of item */ ,
-	      lock_handle * lh UNUSED_ARG	/* lock handle for
+int rem_entry_cde(struct inode *dir /* directory of item */ ,
+		  const struct qstr *name, coord_t * coord /* coord of item */ ,
+		  lock_handle * lh UNUSED_ARG	/* lock handle for
 						 * removal */ ,
-	      reiser4_dir_entry_desc * entry UNUSED_ARG	/* parameters of
-							 * directory entry
-							 * being removed */ )
+		  reiser4_dir_entry_desc * entry UNUSED_ARG	/* parameters of
+								 * directory entry
+								 * being removed */ )
 {
 	coord_t shadow;
 	int result;
@@ -1022,9 +957,10 @@ rem_entry_cde(struct inode *dir /* directory of item */ ,
 	ON_DEBUG(char buf[DE_NAME_BUF_LEN]);
 
 	assert("nikita-2870", strlen(name->name) == name->len);
-	assert("nikita-2869", !strcmp(name->name, extract_name_cde(coord, buf)));
+	assert("nikita-2869",
+	       !strcmp(name->name, extract_name_cde(coord, buf)));
 
-	length = sizeof (directory_entry_format) + sizeof (cde_unit_header);
+	length = sizeof(directory_entry_format) + sizeof(cde_unit_header);
 	if (is_longname(name->name, name->len))
 		length += name->len + 1;
 
@@ -1040,9 +976,10 @@ rem_entry_cde(struct inode *dir /* directory of item */ ,
 	   coords, because it will modify them without respect to
 	   possible aliasing. To work around this, create temporary copy
 	   of @coord.
-	*/
+	 */
 	coord_dup(&shadow, coord);
-	result = kill_node_content(coord, &shadow, NULL, NULL, NULL, NULL, NULL, 0);
+	result =
+	    kill_node_content(coord, &shadow, NULL, NULL, NULL, NULL, NULL, 0);
 	if (result == 0) {
 		/* NOTE-NIKITA quota plugin? */
 		DQUOT_FREE_SPACE_NODIRTY(dir, length);
@@ -1051,12 +988,12 @@ rem_entry_cde(struct inode *dir /* directory of item */ ,
 }
 
 /* ->s.dir.max_name_len() method for this item plugin */
-reiser4_internal int
-max_name_len_cde(const struct inode *dir /* directory */ )
+int max_name_len_cde(const struct inode *dir /* directory */ )
 {
 	return
 	    tree_by_inode(dir)->nplug->max_item_size() -
-	    sizeof (directory_entry_format) - sizeof (cde_item_format) - sizeof (cde_unit_header) - 2;
+	    sizeof(directory_entry_format) - sizeof(cde_item_format) -
+	    sizeof(cde_unit_header) - 2;
 }
 
 /* Make Linus happy.

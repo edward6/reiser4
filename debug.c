@@ -16,9 +16,6 @@
  *     reiser4_is_debugged(), get_current_trace_flags(),
  *     get_current_log_flags().
  *
- *     kmalloc/kfree leak detection: reiser4_kmalloc(), reiser4_kfree(),
- *     reiser4_kfree_in_sb().
- *
  *     error code monitoring (see comment before RETERR macro): return_err(),
  *     report_err().
  *
@@ -62,14 +59,12 @@ static char panic_buf[REISER4_PANIC_MSG_BUFFER_SIZE];
 static spinlock_t panic_guard = SPIN_LOCK_UNLOCKED;
 
 #if REISER4_DEBUG
-static int
-reiser4_is_debugged(struct super_block *super, __u32 flag);
+static int reiser4_is_debugged(struct super_block *super, __u32 flag);
 #endif
 
 /* Your best friend. Call it on each occasion.  This is called by
     fs/reiser4/debug.h:reiser4_panic(). */
-reiser4_internal void
-reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
+void reiser4_do_panic(const char *format /* format string */ , ... /* rest */ )
 {
 	static int in_panic = 0;
 	va_list args;
@@ -112,7 +107,8 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 			 */
 
 			/* lock counters... */
-			ON_DEBUG(print_lock_counters("pins held", lock_counters()));
+			ON_DEBUG(print_lock_counters
+				 ("pins held", lock_counters()));
 			/* other active contexts... */
 			ON_DEBUG(print_contexts());
 			ctx = get_current_context();
@@ -122,8 +118,6 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 				/* znodes... */
 				print_znodes("znodes", current_tree);
 			{
-				extern spinlock_t active_contexts_lock;
-
 				/*
 				 * remove context from the list of active
 				 * contexts. This is precaution measure:
@@ -132,7 +126,7 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 				 * corrupted.
 				 */
 				spin_lock(&active_contexts_lock);
-				context_list_remove(ctx->parent);
+				context_list_remove(ctx);
 				spin_unlock(&active_contexts_lock);
 			}
 		}
@@ -143,19 +137,19 @@ reiser4_do_panic(const char *format /* format string */ , ... /* rest */)
 	panic("%s", panic_buf);
 }
 
-reiser4_internal void
+void
 reiser4_print_prefix(const char *level, int reperr, const char *mid,
 		     const char *function, const char *file, int lineno)
 {
 	const char *comm;
-	int   pid;
+	int pid;
 
 	if (unlikely(in_interrupt() || in_irq())) {
 		comm = "interrupt";
-		pid  = 0;
+		pid = 0;
 	} else {
 		comm = current->comm;
-		pid  = current->pid;
+		pid = current->pid;
 	}
 	printk("%sreiser4[%.16s(%i)]: %s (%s:%i)[%s]:\n",
 	       level, comm, pid, function, file, lineno, mid);
@@ -165,8 +159,7 @@ reiser4_print_prefix(const char *level, int reperr, const char *mid,
 
 /* Preemption point: this should be called periodically during long running
    operations (carry, allocate, and squeeze are best examples) */
-reiser4_internal int
-preempt_point(void)
+int preempt_point(void)
 {
 	assert("nikita-3008", schedulable());
 	cond_resched();
@@ -195,8 +188,7 @@ int schedulable(void)
    constraints and various assertions.
 
 */
-lock_counters_info *
-lock_counters(void)
+lock_counters_info *lock_counters(void)
 {
 	reiser4_context *ctx = get_current_context();
 	assert("jmacd-1123", ctx != NULL);
@@ -206,8 +198,7 @@ lock_counters(void)
 /*
  * print human readable information about locks held by the reiser4 context.
  */
-void
-print_lock_counters(const char *prefix, const lock_counters_info * info)
+void print_lock_counters(const char *prefix, const lock_counters_info * info)
 {
 	printk("%s: jnode: %i, tree: %i (r:%i,w:%i), dk: %i (r:%i,w:%i)\n"
 	       "jload: %i, "
@@ -222,27 +213,21 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 	       info->spin_locked_jnode,
 	       info->rw_locked_tree, info->read_locked_tree,
 	       info->write_locked_tree,
-
 	       info->rw_locked_dk, info->read_locked_dk, info->write_locked_dk,
-
 	       info->spin_locked_jload,
 	       info->spin_locked_txnh,
 	       info->spin_locked_atom, info->spin_locked_stack,
 	       info->spin_locked_txnmgr, info->spin_locked_ktxnmgrd,
 	       info->spin_locked_fq, info->spin_locked_super,
 	       info->spin_locked_inode_object,
-
 	       info->rw_locked_cbk_cache,
 	       info->read_locked_cbk_cache,
 	       info->write_locked_cbk_cache,
-
 	       info->spin_locked_epoch,
 	       info->spin_locked_super_eflush,
-
 	       info->rw_locked_zlock,
 	       info->read_locked_zlock,
 	       info->write_locked_zlock,
-
 	       info->spin_locked,
 	       info->long_term_locked_znode,
 	       info->inode_sem_r, info->inode_sem_w,
@@ -252,40 +237,38 @@ print_lock_counters(const char *prefix, const lock_counters_info * info)
 /*
  * return true, iff no locks are held.
  */
-int
-no_counters_are_held(void)
+int no_counters_are_held(void)
 {
 	lock_counters_info *counters;
 
 	counters = lock_counters();
 	return
-		(counters->rw_locked_zlock == 0) &&
-		(counters->read_locked_zlock == 0) &&
-		(counters->write_locked_zlock == 0) &&
-		(counters->spin_locked_jnode == 0) &&
-		(counters->rw_locked_tree == 0) &&
-		(counters->read_locked_tree == 0) &&
-		(counters->write_locked_tree == 0) &&
-		(counters->rw_locked_dk == 0) &&
-		(counters->read_locked_dk == 0) &&
-		(counters->write_locked_dk == 0) &&
-		(counters->spin_locked_txnh == 0) &&
-		(counters->spin_locked_atom == 0) &&
-		(counters->spin_locked_stack == 0) &&
-		(counters->spin_locked_txnmgr == 0) &&
-		(counters->spin_locked_inode_object == 0) &&
-		(counters->spin_locked == 0) &&
-		(counters->long_term_locked_znode == 0) &&
-		(counters->inode_sem_r == 0) &&
-		(counters->inode_sem_w == 0);
+	    (counters->rw_locked_zlock == 0) &&
+	    (counters->read_locked_zlock == 0) &&
+	    (counters->write_locked_zlock == 0) &&
+	    (counters->spin_locked_jnode == 0) &&
+	    (counters->rw_locked_tree == 0) &&
+	    (counters->read_locked_tree == 0) &&
+	    (counters->write_locked_tree == 0) &&
+	    (counters->rw_locked_dk == 0) &&
+	    (counters->read_locked_dk == 0) &&
+	    (counters->write_locked_dk == 0) &&
+	    (counters->spin_locked_txnh == 0) &&
+	    (counters->spin_locked_atom == 0) &&
+	    (counters->spin_locked_stack == 0) &&
+	    (counters->spin_locked_txnmgr == 0) &&
+	    (counters->spin_locked_inode_object == 0) &&
+	    (counters->spin_locked == 0) &&
+	    (counters->long_term_locked_znode == 0) &&
+	    (counters->inode_sem_r == 0) &&
+	    (counters->inode_sem_w == 0) && (counters->d_refs == 0);
 }
 
 /*
  * return true, iff transaction commit can be done under locks held by the
  * current thread.
  */
-int
-commit_check_locks(void)
+int commit_check_locks(void)
 {
 	lock_counters_info *counters;
 	int inode_sem_r;
@@ -312,78 +295,16 @@ commit_check_locks(void)
  * check that some bits specified by @flags are set in ->debug_flags of the
  * super block.
  */
-static int
-reiser4_is_debugged(struct super_block *super, __u32 flag)
+static int reiser4_is_debugged(struct super_block *super, __u32 flag)
 {
 	return get_super_private(super)->debug_flags & flag;
 }
-
-/* REISER4_DEBUG */
-#endif
-
-/* allocate memory. This calls kmalloc(), performs some additional checks, and
-   keeps track of how many memory was allocated on behalf of current super
-   block. */
-reiser4_internal void *
-reiser4_kmalloc(size_t size /* number of bytes to allocate */ ,
-		int gfp_flag /* allocation flag */ )
-{
-	void *result;
-
-	assert("nikita-3009", ergo(gfp_flag & __GFP_WAIT, schedulable()));
-
-	result = kmalloc(size, gfp_flag);
-#if REISER4_DEBUG
-	if (result != NULL) {
-		reiser4_super_info_data *sbinfo;
-
-		sbinfo = get_current_super_private();
-		assert("nikita-1407", sbinfo != NULL);
-		reiser4_spin_lock_sb(sbinfo);
-		sbinfo->kmallocs ++;
-		reiser4_spin_unlock_sb(sbinfo);
-	}
-#endif
-	return result;
-}
-
-/* release memory allocated by reiser4_kmalloc() and update counter. */
-reiser4_internal void
-reiser4_kfree(void *area /* memory to from */)
-{
-	assert("nikita-1410", area != NULL);
-	return reiser4_kfree_in_sb(area, reiser4_get_current_sb());
-}
-
-/* release memory allocated by reiser4_kmalloc() for the specified
- * super-block. This is useful when memory is released outside of reiser4
- * context */
-reiser4_internal void
-reiser4_kfree_in_sb(void *area /* memory to from */, struct super_block *sb)
-{
-	assert("nikita-2729", area != NULL);
-#if REISER4_DEBUG
-	{
-		reiser4_super_info_data *sbinfo;
-
-		sbinfo = get_super_private(sb);
-		reiser4_spin_lock_sb(sbinfo);
-		assert("nikita-2730", sbinfo->kmallocs > 0);
-		sbinfo->kmallocs --;
-		reiser4_spin_unlock_sb(sbinfo);
-	}
-#endif
-	kfree(area);
-}
-
-#if REISER4_DEBUG
 
 /*
  * fill "error site" in the current reiser4 context. See comment before RETERR
  * macro for more details.
  */
-void
-return_err(int code, const char *file, int line)
+void return_err(int code, const char *file, int line)
 {
 	if (code < 0 && is_in_reiser4_context()) {
 		reiser4_context *ctx = get_current_context();
@@ -392,13 +313,6 @@ return_err(int code, const char *file, int line)
 			ctx->err.code = code;
 			ctx->err.file = file;
 			ctx->err.line = line;
-#ifdef CONFIG_FRAME_POINTER
-			ctx->err.bt[0] =__builtin_return_address(0);
-			ctx->err.bt[1] =__builtin_return_address(1);
-			ctx->err.bt[2] =__builtin_return_address(2);
-			ctx->err.bt[3] =__builtin_return_address(3);
-			ctx->err.bt[4] =__builtin_return_address(4);
-#endif
 		}
 	}
 }
@@ -406,8 +320,7 @@ return_err(int code, const char *file, int line)
 /*
  * report error information recorder by return_err().
  */
-static void
-report_err(void)
+static void report_err(void)
 {
 	reiser4_context *ctx = get_current_context_check();
 
@@ -419,9 +332,10 @@ report_err(void)
 	}
 }
 
-#endif /* REISER4_DEBUG */
+#endif				/* REISER4_DEBUG */
 
 #if KERNEL_DEBUGGER
+
 /*
  * this functions just drops into kernel debugger. It is a convenient place to
  * put breakpoint in.

@@ -2,15 +2,14 @@
 
 #include "item.h"
 #include "../../inode.h"
-#include "../../tree_walk.h" /* check_sibling_list() */
+#include "../../tree_walk.h"	/* check_sibling_list() */
 #include "../../page_cache.h"
 #include "../../carry.h"
 
 #include <linux/quotaops.h>
 
 /* item_plugin->b.max_key_inside */
-reiser4_internal reiser4_key *
-max_key_inside_extent(const coord_t *coord, reiser4_key *key)
+reiser4_key *max_key_inside_extent(const coord_t * coord, reiser4_key * key)
 {
 	item_key_by_coord(coord, key);
 	set_key_offset(key, get_key_offset(max_key()));
@@ -19,8 +18,9 @@ max_key_inside_extent(const coord_t *coord, reiser4_key *key)
 
 /* item_plugin->b.can_contain_key
    this checks whether @key of @data is matching to position set by @coord */
-reiser4_internal int
-can_contain_key_extent(const coord_t *coord, const reiser4_key *key, const reiser4_item_data *data)
+int
+can_contain_key_extent(const coord_t * coord, const reiser4_key * key,
+		       const reiser4_item_data * data)
 {
 	reiser4_key item_key;
 
@@ -30,7 +30,8 @@ can_contain_key_extent(const coord_t *coord, const reiser4_key *key, const reise
 	item_key_by_coord(coord, &item_key);
 	if (get_key_locality(key) != get_key_locality(&item_key) ||
 	    get_key_objectid(key) != get_key_objectid(&item_key) ||
-	    get_key_ordering(key) != get_key_ordering(&item_key)) return 0;
+	    get_key_ordering(key) != get_key_ordering(&item_key))
+		return 0;
 
 	return 1;
 }
@@ -38,8 +39,7 @@ can_contain_key_extent(const coord_t *coord, const reiser4_key *key, const reise
 /* item_plugin->b.mergeable
    first item is of extent type */
 /* Audited by: green(2002.06.13) */
-reiser4_internal int
-mergeable_extent(const coord_t *p1, const coord_t *p2)
+int mergeable_extent(const coord_t * p1, const coord_t * p2)
 {
 	reiser4_key key1, key2;
 
@@ -56,23 +56,25 @@ mergeable_extent(const coord_t *p1, const coord_t *p2)
 	    get_key_ordering(&key1) != get_key_ordering(&key2) ||
 	    get_key_type(&key1) != get_key_type(&key2))
 		return 0;
-	if (get_key_offset(&key1) + extent_size(p1, nr_units_extent(p1)) != get_key_offset(&key2))
+	if (get_key_offset(&key1) + extent_size(p1, nr_units_extent(p1)) !=
+	    get_key_offset(&key2))
 		return 0;
 	return 1;
 }
 
 /* item_plugin->b.nr_units */
-reiser4_internal pos_in_node_t
-nr_units_extent(const coord_t *coord)
+pos_in_node_t nr_units_extent(const coord_t * coord)
 {
 	/* length of extent item has to be multiple of extent size */
-	assert("vs-1424", (item_length_by_coord(coord) % sizeof (reiser4_extent)) == 0);
-	return item_length_by_coord(coord) / sizeof (reiser4_extent);
+	assert("vs-1424",
+	       (item_length_by_coord(coord) % sizeof(reiser4_extent)) == 0);
+	return item_length_by_coord(coord) / sizeof(reiser4_extent);
 }
 
 /* item_plugin->b.lookup */
-reiser4_internal lookup_result
-lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coord)
+lookup_result
+lookup_extent(const reiser4_key * key, lookup_bias bias UNUSED_ARG,
+	      coord_t * coord)
 {				/* znode and item_pos are
 				   set to an extent item to
 				   look through */
@@ -90,7 +92,7 @@ lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coor
 	assert("vs-414", keygt(key, &item_key));
 
 	assert("umka-99945",
-	        !keygt(key, max_key_inside_extent(coord, &item_key)));
+	       !keygt(key, max_key_inside_extent(coord, &item_key)));
 
 	ext = extent_item(coord);
 	assert("vs-1350", (char *)ext == (zdata(coord->node) + coord->offset));
@@ -125,8 +127,9 @@ lookup_extent(const reiser4_key *key, lookup_bias bias UNUSED_ARG, coord_t *coor
    @coord->in_item.unit_pos. It must fit into that free space.
    @coord must be set between units.
 */
-reiser4_internal int
-paste_extent(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UNUSED_ARG)
+int
+paste_extent(coord_t * coord, reiser4_item_data * data,
+	     carry_plugin_info * info UNUSED_ARG)
 {
 	unsigned old_nr_units;
 	reiser4_extent *ext;
@@ -134,14 +137,16 @@ paste_extent(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UN
 
 	ext = extent_item(coord);
 	item_length = item_length_by_coord(coord);
-	old_nr_units = (item_length - data->length) / sizeof (reiser4_extent);
+	old_nr_units = (item_length - data->length) / sizeof(reiser4_extent);
 
 	/* this is also used to copy extent into newly created item, so
 	   old_nr_units could be 0 */
 	assert("vs-260", item_length >= data->length);
 
 	/* make sure that coord is set properly */
-	assert("vs-35", ((!coord_is_existing_unit(coord)) || (!old_nr_units && !coord->unit_pos)));
+	assert("vs-35",
+	       ((!coord_is_existing_unit(coord))
+		|| (!old_nr_units && !coord->unit_pos)));
 
 	/* first unit to be moved */
 	switch (coord->between) {
@@ -158,47 +163,53 @@ paste_extent(coord_t *coord, reiser4_item_data *data, carry_plugin_info *info UN
 	}
 
 	/* prepare space for new units */
-	memmove(ext + coord->unit_pos + data->length / sizeof (reiser4_extent),
-		ext + coord->unit_pos, (old_nr_units - coord->unit_pos) * sizeof (reiser4_extent));
+	memmove(ext + coord->unit_pos + data->length / sizeof(reiser4_extent),
+		ext + coord->unit_pos,
+		(old_nr_units - coord->unit_pos) * sizeof(reiser4_extent));
 
 	/* copy new data from kernel space */
 	assert("vs-556", data->user == 0);
-	memcpy(ext + coord->unit_pos, data->data, (unsigned) data->length);
+	memcpy(ext + coord->unit_pos, data->data, (unsigned)data->length);
 
 	/* after paste @coord is set to first of pasted units */
 	assert("vs-332", coord_is_existing_unit(coord));
-	assert("vs-333", !memcmp(data->data, extent_by_coord(coord), (unsigned) data->length));
+	assert("vs-333",
+	       !memcmp(data->data, extent_by_coord(coord),
+		       (unsigned)data->length));
 	return 0;
 }
 
 /* item_plugin->b.can_shift */
-reiser4_internal int
-can_shift_extent(unsigned free_space, coord_t *source,
-		 znode *target UNUSED_ARG, shift_direction pend UNUSED_ARG, unsigned *size, unsigned want)
+int
+can_shift_extent(unsigned free_space, coord_t * source,
+		 znode * target UNUSED_ARG, shift_direction pend UNUSED_ARG,
+		 unsigned *size, unsigned want)
 {
 	*size = item_length_by_coord(source);
 	if (*size > free_space)
 		/* never split a unit of extent item */
-		*size = free_space - free_space % sizeof (reiser4_extent);
+		*size = free_space - free_space % sizeof(reiser4_extent);
 
 	/* we can shift *size bytes, calculate how many do we want to shift */
-	if (*size > want * sizeof (reiser4_extent))
-		*size = want * sizeof (reiser4_extent);
+	if (*size > want * sizeof(reiser4_extent))
+		*size = want * sizeof(reiser4_extent);
 
-	if (*size % sizeof (reiser4_extent) != 0)
-		impossible("vs-119", "Wrong extent size: %i %zd", *size, sizeof (reiser4_extent));
-	return *size / sizeof (reiser4_extent);
+	if (*size % sizeof(reiser4_extent) != 0)
+		impossible("vs-119", "Wrong extent size: %i %zd", *size,
+			   sizeof(reiser4_extent));
+	return *size / sizeof(reiser4_extent);
 
 }
 
 /* item_plugin->b.copy_units */
-reiser4_internal void
-copy_units_extent(coord_t *target, coord_t *source,
-		  unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space)
+void
+copy_units_extent(coord_t * target, coord_t * source,
+		  unsigned from, unsigned count,
+		  shift_direction where_is_free_space, unsigned free_space)
 {
 	char *from_ext, *to_ext;
 
-	assert("vs-217", free_space == count * sizeof (reiser4_extent));
+	assert("vs-217", free_space == count * sizeof(reiser4_extent));
 
 	from_ext = item_body_by_coord(source);
 	to_ext = item_body_by_coord(target);
@@ -210,13 +221,15 @@ copy_units_extent(coord_t *target, coord_t *source,
 		   header by shifting code, hence nr_units_extent() will
 		   return "new" number of units---one we obtain after copying
 		   units.
-		*/
-		to_ext += (nr_units_extent(target) - count) * sizeof (reiser4_extent);
+		 */
+		to_ext +=
+		    (nr_units_extent(target) - count) * sizeof(reiser4_extent);
 	} else {
 		reiser4_key key;
 		coord_t coord;
 
-		assert("vs-216", from + count == coord_last_unit_pos(source) + 1);
+		assert("vs-216",
+		       from + count == coord_last_unit_pos(source) + 1);
 
 		from_ext += item_length_by_coord(source) - free_space;
 
@@ -226,7 +239,8 @@ copy_units_extent(coord_t *target, coord_t *source,
 		coord.unit_pos = from;
 		unit_key_extent(&coord, &key);
 
-		node_plugin_by_node(target->node)->update_item_key(target, &key, 0/*info */);
+		node_plugin_by_node(target->node)->update_item_key(target, &key,
+								   NULL /*info */);
 	}
 
 	memcpy(to_ext, from_ext, free_space);
@@ -234,8 +248,7 @@ copy_units_extent(coord_t *target, coord_t *source,
 
 /* item_plugin->b.create_hook
    @arg is znode of leaf node for which we need to update right delimiting key */
-reiser4_internal int
-create_hook_extent(const coord_t *coord, void *arg)
+int create_hook_extent(const coord_t * coord, void *arg)
 {
 	coord_t *child_coord;
 	znode *node;
@@ -269,10 +282,10 @@ create_hook_extent(const coord_t *coord, void *arg)
 		assert("nikita-3282", check_sibling_list(node));
 		/* break sibling links */
 		if (ZF_ISSET(node, JNODE_RIGHT_CONNECTED) && node->right) {
-			ON_DEBUG(
-				node->right->left_version = atomic_inc_return(&delim_key_version);
-				node->right_version = atomic_inc_return(&delim_key_version);
-				);
+			ON_DEBUG(node->right->left_version =
+				 atomic_inc_return(&delim_key_version);
+				 node->right_version =
+				 atomic_inc_return(&delim_key_version););
 
 			node->right->left = NULL;
 			node->right = NULL;
@@ -283,7 +296,6 @@ create_hook_extent(const coord_t *coord, void *arg)
 	return 0;
 }
 
-
 #define ITEM_TAIL_KILLED 0
 #define ITEM_HEAD_KILLED 1
 #define ITEM_KILLED 2
@@ -291,47 +303,59 @@ create_hook_extent(const coord_t *coord, void *arg)
 /* item_plugin->b.kill_hook
    this is called when @count units starting from @from-th one are going to be removed
    */
-reiser4_internal int
-kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, struct carry_kill_data *kdata)
+int
+kill_hook_extent(const coord_t * coord, pos_in_node_t from, pos_in_node_t count,
+		 struct carry_kill_data *kdata)
 {
 	reiser4_extent *ext;
 	reiser4_block_nr start, length;
-	reiser4_key min_item_key, max_item_key;
-	reiser4_key from_key, to_key;
 	const reiser4_key *pfrom_key, *pto_key;
 	struct inode *inode;
 	reiser4_tree *tree;
 	pgoff_t from_off, to_off, offset, skip;
 	int retval;
 
-	assert ("zam-811", znode_is_write_locked(coord->node));
-	assert("nikita-3315", kdata != NULL);
+	/* these are located in memory kmalloc-ed by kill_node_content */
+	reiser4_key *min_item_key, *max_item_key, *from_key, *to_key, *key;
+	coord_t *dup, *next;
 
-	item_key_by_coord(coord, &min_item_key);
-	max_item_key_by_coord(coord, &max_item_key);
+	assert("zam-811", znode_is_write_locked(coord->node));
+	assert("nikita-3315", kdata != NULL);
+	assert("vs-34", kdata->buf != NULL);
+
+	/* map structures to kdata->buf */
+	min_item_key = (reiser4_key *) (kdata->buf);
+	max_item_key = min_item_key + 1;
+	from_key = max_item_key + 1;
+	to_key = from_key + 1;
+	key = to_key + 1;
+	dup = (coord_t *) (key + 1);
+	next = dup + 1;
+
+	item_key_by_coord(coord, min_item_key);
+	max_item_key_by_coord(coord, max_item_key);
 
 	if (kdata->params.from_key) {
 		pfrom_key = kdata->params.from_key;
 		pto_key = kdata->params.to_key;
 	} else {
-		coord_t dup;
-
 		assert("vs-1549", from == coord->unit_pos);
-		unit_key_by_coord(coord, &from_key);
-		pfrom_key = &from_key;
+		unit_key_by_coord(coord, from_key);
+		pfrom_key = from_key;
 
-		coord_dup(&dup, coord);
-		dup.unit_pos = from + count - 1;
-		max_unit_key_by_coord(&dup, &to_key);
-		pto_key = &to_key;
+		coord_dup(dup, coord);
+		dup->unit_pos = from + count - 1;
+		max_unit_key_by_coord(dup, to_key);
+		pto_key = to_key;
 	}
 
-	if (!keylt(pto_key, &max_item_key)) {
-		if (!keygt(pfrom_key, &min_item_key)) {
+	if (!keylt(pto_key, max_item_key)) {
+		if (!keygt(pfrom_key, min_item_key)) {
 			znode *left, *right;
 
 			/* item is to be removed completely */
-			assert("nikita-3316", kdata->left != NULL && kdata->right != NULL);
+			assert("nikita-3316", kdata->left != NULL
+			       && kdata->right != NULL);
 
 			left = kdata->left->node;
 			right = kdata->right->node;
@@ -355,43 +379,55 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 			if (left) {
 				/* update right delimiting key of left
 				 * neighbor of extent item */
-				coord_t next;
-				reiser4_key key;
+				/*coord_t next;
+				   reiser4_key key; */
 
-				coord_dup(&next, coord);
+				coord_dup(next, coord);
 
-				if (coord_next_item(&next))
-					key = *znode_get_rd_key(coord->node);
+				if (coord_next_item(next))
+					*key = *znode_get_rd_key(coord->node);
 				else
-					item_key_by_coord(&next, &key);
-				znode_set_rd_key(left, &key);
+					item_key_by_coord(next, key);
+				znode_set_rd_key(left, key);
 			}
- 			WUNLOCK_DK(tree);
+			WUNLOCK_DK(tree);
 			WUNLOCK_TREE(tree);
 
-			from_off = get_key_offset(&min_item_key) >> PAGE_CACHE_SHIFT;
-			to_off = (get_key_offset(&max_item_key) + 1) >> PAGE_CACHE_SHIFT;
+			from_off =
+			    get_key_offset(min_item_key) >> PAGE_CACHE_SHIFT;
+			to_off =
+			    (get_key_offset(max_item_key) +
+			     1) >> PAGE_CACHE_SHIFT;
 			retval = ITEM_KILLED;
 		} else {
 			/* tail of item is to be removed */
-			from_off = (get_key_offset(pfrom_key) + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT;
-			to_off = (get_key_offset(&max_item_key) + 1) >> PAGE_CACHE_SHIFT;
+			from_off =
+			    (get_key_offset(pfrom_key) + PAGE_CACHE_SIZE -
+			     1) >> PAGE_CACHE_SHIFT;
+			to_off =
+			    (get_key_offset(max_item_key) +
+			     1) >> PAGE_CACHE_SHIFT;
 			retval = ITEM_TAIL_KILLED;
 		}
 	} else {
 		/* head of item is to be removed */
-		assert("vs-1571", keyeq(pfrom_key, &min_item_key));
-		assert("vs-1572", (get_key_offset(pfrom_key) & (PAGE_CACHE_SIZE - 1)) == 0);
-		assert("vs-1573", ((get_key_offset(pto_key) + 1) & (PAGE_CACHE_SIZE - 1)) == 0);
+		assert("vs-1571", keyeq(pfrom_key, min_item_key));
+		assert("vs-1572",
+		       (get_key_offset(pfrom_key) & (PAGE_CACHE_SIZE - 1)) ==
+		       0);
+		assert("vs-1573",
+		       ((get_key_offset(pto_key) + 1) & (PAGE_CACHE_SIZE -
+							 1)) == 0);
 
 		if (kdata->left->node) {
 			/* update right delimiting key of left neighbor of extent item */
-			reiser4_key key;
+			/*reiser4_key key; */
 
-			key = *pto_key;
-			set_key_offset(&key, get_key_offset(pto_key) + 1);
+			*key = *pto_key;
+			set_key_offset(key, get_key_offset(pto_key) + 1);
 
-			UNDER_RW_VOID(dk, current_tree, write, znode_set_rd_key(kdata->left->node, &key));
+			UNDER_RW_VOID(dk, current_tree, write,
+				      znode_set_rd_key(kdata->left->node, key));
 		}
 
 		from_off = get_key_offset(pfrom_key) >> PAGE_CACHE_SHIFT;
@@ -403,12 +439,14 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 	assert("vs-1545", inode != NULL);
 	if (inode != NULL)
 		/* take care of pages and jnodes corresponding to part of item being killed */
-		reiser4_invalidate_pages(
-			inode->i_mapping, from_off, to_off - from_off,
-			kdata->params.truncate);
+		reiser4_invalidate_pages(inode->i_mapping, from_off,
+					 to_off - from_off,
+					 kdata->params.truncate);
 
 	ext = extent_item(coord) + from;
-	offset = (get_key_offset(&min_item_key) + extent_size(coord, from)) >> PAGE_CACHE_SHIFT;
+	offset =
+	    (get_key_offset(min_item_key) +
+	     extent_size(coord, from)) >> PAGE_CACHE_SHIFT;
 
 	assert("vs-1551", from_off >= offset);
 	assert("vs-1552", from_off - offset <= extent_get_width(ext));
@@ -420,7 +458,7 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 		if (state_of_extent(ext) == HOLE_EXTENT) {
 			skip = 0;
 			offset += length;
-			ext ++;
+			ext++;
 			continue;
 		}
 
@@ -432,12 +470,11 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
 			/* some jnodes corresponding to this unallocated extent */
-			fake_allocated2free(length,
-					    0 /* unformatted */);
+			fake_allocated2free(length, 0 /* unformatted */ );
 
 			skip = 0;
 			offset += length;
-			ext ++;
+			ext++;
 			continue;
 		}
 
@@ -448,31 +485,36 @@ kill_hook_extent(const coord_t *coord, pos_in_node_t from, pos_in_node_t count, 
 
 			/* BA_DEFER bit parameter is turned on because blocks which get freed are not safe to be freed
 			   immediately */
-			reiser4_dealloc_blocks(&start, &length, 0 /* not used */,
-					       BA_DEFER/* unformatted with defer */);
+			reiser4_dealloc_blocks(&start, &length,
+					       0 /* not used */ ,
+					       BA_DEFER
+					       /* unformatted with defer */ );
 		}
 		skip = 0;
 		offset += length;
-		ext ++;
+		ext++;
 	}
 	return retval;
 }
 
 /* item_plugin->b.kill_units */
-reiser4_internal int
-kill_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to, struct carry_kill_data *kdata,
-		  reiser4_key *smallest_removed, reiser4_key *new_first)
+int
+kill_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
+		  struct carry_kill_data *kdata, reiser4_key * smallest_removed,
+		  reiser4_key * new_first)
 {
 	reiser4_extent *ext;
 	reiser4_key item_key;
-        pos_in_node_t count;
+	pos_in_node_t count;
 	reiser4_key from_key, to_key;
 	const reiser4_key *pfrom_key, *pto_key;
 	loff_t off;
 	int result;
 
-	assert("vs-1541", ((kdata->params.from_key == NULL && kdata->params.to_key == NULL) ||
-			   (kdata->params.from_key != NULL && kdata->params.to_key != NULL)));
+	assert("vs-1541",
+	       ((kdata->params.from_key == NULL && kdata->params.to_key == NULL)
+		|| (kdata->params.from_key != NULL
+		    && kdata->params.to_key != NULL)));
 
 	if (kdata->params.from_key) {
 		pfrom_key = kdata->params.from_key;
@@ -516,21 +558,29 @@ kill_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to, struct c
 
 	if (new_first) {
 		/* item head is cut. Item key will change. This new key is calculated here */
-		assert("vs-1556", (get_key_offset(pto_key) & (PAGE_CACHE_SIZE - 1)) == (PAGE_CACHE_SIZE - 1));
+		assert("vs-1556",
+		       (get_key_offset(pto_key) & (PAGE_CACHE_SIZE - 1)) ==
+		       (PAGE_CACHE_SIZE - 1));
 		*new_first = *pto_key;
 		set_key_offset(new_first, get_key_offset(new_first) + 1);
 	}
 
 	count = to - from + 1;
- 	result = kill_hook_extent(coord, from, count, kdata);
+	result = kill_hook_extent(coord, from, count, kdata);
 	if (result == ITEM_TAIL_KILLED) {
-		assert("vs-1553", get_key_offset(pfrom_key) >= get_key_offset(&item_key) + extent_size(coord, from));
-		off = get_key_offset(pfrom_key) - (get_key_offset(&item_key) + extent_size(coord, from));
+		assert("vs-1553",
+		       get_key_offset(pfrom_key) >=
+		       get_key_offset(&item_key) + extent_size(coord, from));
+		off =
+		    get_key_offset(pfrom_key) - (get_key_offset(&item_key) +
+						 extent_size(coord, from));
 		if (off) {
 			/* unit @from is to be cut partially. Its width decreases */
 			ext = extent_item(coord) + from;
-			extent_set_width(ext, (off + PAGE_CACHE_SIZE - 1) >> PAGE_CACHE_SHIFT);
-			count --;
+			extent_set_width(ext,
+					 (off + PAGE_CACHE_SIZE -
+					  1) >> PAGE_CACHE_SHIFT);
+			count--;
 		}
 	} else {
 		__u64 max_to_offset;
@@ -538,12 +588,19 @@ kill_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to, struct c
 
 		assert("vs-1575", result == ITEM_HEAD_KILLED);
 		assert("", from == 0);
-		assert("", ((get_key_offset(pto_key) + 1) & (PAGE_CACHE_SIZE - 1)) == 0);
-		assert("", get_key_offset(pto_key) + 1 > get_key_offset(&item_key) + extent_size(coord, to));
-		max_to_offset = get_key_offset(&item_key) + extent_size(coord, to + 1) - 1;
+		assert("",
+		       ((get_key_offset(pto_key) + 1) & (PAGE_CACHE_SIZE -
+							 1)) == 0);
+		assert("",
+		       get_key_offset(pto_key) + 1 >
+		       get_key_offset(&item_key) + extent_size(coord, to));
+		max_to_offset =
+		    get_key_offset(&item_key) + extent_size(coord, to + 1) - 1;
 		assert("", get_key_offset(pto_key) <= max_to_offset);
 
-		rest = (max_to_offset - get_key_offset(pto_key)) >> PAGE_CACHE_SHIFT;
+		rest =
+		    (max_to_offset -
+		     get_key_offset(pto_key)) >> PAGE_CACHE_SHIFT;
 		if (rest) {
 			/* unit @to is to be cut partially */
 			ext = extent_item(coord) + to;
@@ -551,10 +608,13 @@ kill_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to, struct c
 			assert("", extent_get_width(ext) > rest);
 
 			if (state_of_extent(ext) == ALLOCATED_EXTENT)
-				extent_set_start(ext, extent_get_start(ext) + (extent_get_width(ext) - rest));
+				extent_set_start(ext,
+						 extent_get_start(ext) +
+						 (extent_get_width(ext) -
+						  rest));
 
 			extent_set_width(ext, rest);
-			count --;
+			count--;
 		}
 	}
 	return count * sizeof(reiser4_extent);
@@ -562,19 +622,22 @@ kill_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to, struct c
 
 /* item_plugin->b.cut_units
    this is too similar to kill_units_extent */
-reiser4_internal int
-cut_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to, struct carry_cut_data *cdata,
-		 reiser4_key *smallest_removed, reiser4_key *new_first)
+int
+cut_units_extent(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
+		 struct carry_cut_data *cdata, reiser4_key * smallest_removed,
+		 reiser4_key * new_first)
 {
 	reiser4_extent *ext;
 	reiser4_key item_key;
-        pos_in_node_t count;
+	pos_in_node_t count;
 	reiser4_key from_key, to_key;
 	const reiser4_key *pfrom_key, *pto_key;
 	loff_t off;
 
-	assert("vs-1541", ((cdata->params.from_key == NULL && cdata->params.to_key == NULL) ||
-			   (cdata->params.from_key != NULL && cdata->params.to_key != NULL)));
+	assert("vs-1541",
+	       ((cdata->params.from_key == NULL && cdata->params.to_key == NULL)
+		|| (cdata->params.from_key != NULL
+		    && cdata->params.to_key != NULL)));
 
 	if (cdata->params.from_key) {
 		pfrom_key = cdata->params.from_key;
@@ -594,8 +657,11 @@ cut_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to, struct ca
 		pto_key = &to_key;
 	}
 
-	assert("vs-1555", (get_key_offset(pfrom_key) & (PAGE_CACHE_SIZE - 1)) == 0);
-	assert("vs-1556", (get_key_offset(pto_key) & (PAGE_CACHE_SIZE - 1)) == (PAGE_CACHE_SIZE - 1));
+	assert("vs-1555",
+	       (get_key_offset(pfrom_key) & (PAGE_CACHE_SIZE - 1)) == 0);
+	assert("vs-1556",
+	       (get_key_offset(pto_key) & (PAGE_CACHE_SIZE - 1)) ==
+	       (PAGE_CACHE_SIZE - 1));
 
 	item_key_by_coord(coord, &item_key);
 
@@ -603,10 +669,17 @@ cut_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to, struct ca
 	{
 		reiser4_key max_item_key;
 
-		assert("vs-1584", get_key_locality(pfrom_key) ==  get_key_locality(&item_key));
-		assert("vs-1585", get_key_type(pfrom_key) ==  get_key_type(&item_key));
-		assert("vs-1586", get_key_objectid(pfrom_key) ==  get_key_objectid(&item_key));
-		assert("vs-1587", get_key_ordering(pfrom_key) ==  get_key_ordering(&item_key));
+		assert("vs-1584",
+		       get_key_locality(pfrom_key) ==
+		       get_key_locality(&item_key));
+		assert("vs-1585",
+		       get_key_type(pfrom_key) == get_key_type(&item_key));
+		assert("vs-1586",
+		       get_key_objectid(pfrom_key) ==
+		       get_key_objectid(&item_key));
+		assert("vs-1587",
+		       get_key_ordering(pfrom_key) ==
+		       get_key_ordering(&item_key));
 
 		max_item_key_by_coord(coord, &max_item_key);
 
@@ -633,52 +706,65 @@ cut_units_extent(coord_t *coord, pos_in_node_t from, pos_in_node_t to, struct ca
 
 	count = to - from + 1;
 
-	assert("vs-1553", get_key_offset(pfrom_key) >= get_key_offset(&item_key) + extent_size(coord, from));
-	off = get_key_offset(pfrom_key) - (get_key_offset(&item_key) + extent_size(coord, from));
+	assert("vs-1553",
+	       get_key_offset(pfrom_key) >=
+	       get_key_offset(&item_key) + extent_size(coord, from));
+	off =
+	    get_key_offset(pfrom_key) - (get_key_offset(&item_key) +
+					 extent_size(coord, from));
 	if (off) {
 		/* tail of unit @from is to be cut partially. Its width decreases */
 		assert("vs-1582", new_first == NULL);
 		ext = extent_item(coord) + from;
 		extent_set_width(ext, off >> PAGE_CACHE_SHIFT);
-		count --;
+		count--;
 	}
 
-	assert("vs-1554", get_key_offset(pto_key) <= get_key_offset(&item_key) + extent_size(coord, to + 1) - 1);
-	off = (get_key_offset(&item_key) + extent_size(coord, to + 1) - 1) - get_key_offset(pto_key);
+	assert("vs-1554",
+	       get_key_offset(pto_key) <=
+	       get_key_offset(&item_key) + extent_size(coord, to + 1) - 1);
+	off =
+	    (get_key_offset(&item_key) + extent_size(coord, to + 1) - 1) -
+	    get_key_offset(pto_key);
 	if (off) {
 		/* @to_key is smaller than max key of unit @to. Unit @to will not be removed. It gets start increased
 		   and width decreased. */
 		assert("vs-1583", (off & (PAGE_CACHE_SIZE - 1)) == 0);
 		ext = extent_item(coord) + to;
 		if (state_of_extent(ext) == ALLOCATED_EXTENT)
-			extent_set_start(ext, extent_get_start(ext) + (extent_get_width(ext) - (off >> PAGE_CACHE_SHIFT)));
+			extent_set_start(ext,
+					 extent_get_start(ext) +
+					 (extent_get_width(ext) -
+					  (off >> PAGE_CACHE_SHIFT)));
 
 		extent_set_width(ext, (off >> PAGE_CACHE_SHIFT));
-		count --;
+		count--;
 	}
 	return count * sizeof(reiser4_extent);
 }
 
 /* item_plugin->b.unit_key */
-reiser4_internal reiser4_key *
-unit_key_extent(const coord_t *coord, reiser4_key *key)
+reiser4_key *unit_key_extent(const coord_t * coord, reiser4_key * key)
 {
 	assert("vs-300", coord_is_existing_unit(coord));
 
 	item_key_by_coord(coord, key);
-	set_key_offset(key, (get_key_offset(key) + extent_size(coord, coord->unit_pos)));
+	set_key_offset(key,
+		       (get_key_offset(key) +
+			extent_size(coord, coord->unit_pos)));
 
 	return key;
 }
 
 /* item_plugin->b.max_unit_key */
-reiser4_internal reiser4_key *
-max_unit_key_extent(const coord_t *coord, reiser4_key *key)
+reiser4_key *max_unit_key_extent(const coord_t * coord, reiser4_key * key)
 {
 	assert("vs-300", coord_is_existing_unit(coord));
 
 	item_key_by_coord(coord, key);
-	set_key_offset(key, (get_key_offset(key) + extent_size(coord, coord->unit_pos + 1) - 1));
+	set_key_offset(key,
+		       (get_key_offset(key) +
+			extent_size(coord, coord->unit_pos + 1) - 1));
 	return key;
 }
 
@@ -692,9 +778,8 @@ max_unit_key_extent(const coord_t *coord, reiser4_key *key)
    possible check of the consistency of the item that the inventor can
    construct
 */
-int
-check_extent(const coord_t *coord /* coord of item to check */ ,
-	     const char **error /* where to store error message */ )
+int check_extent(const coord_t * coord /* coord of item to check */ ,
+		 const char **error /* where to store error message */ )
 {
 	reiser4_extent *ext, *first;
 	unsigned i, j;
@@ -711,7 +796,7 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 		*error = "Extent on the wrong level";
 		return -1;
 	}
-	if (item_length_by_coord(coord) % sizeof (reiser4_extent) != 0) {
+	if (item_length_by_coord(coord) % sizeof(reiser4_extent) != 0) {
 		*error = "Wrong item size";
 		return -1;
 	}
@@ -733,7 +818,7 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 		/* check that all jnodes are present for the unallocated
 		 * extent */
 		if (state_of_extent(ext) == UNALLOCATED_EXTENT) {
-			for (j = 0; j < extent_get_width(ext); j ++) {
+			for (j = 0; j < extent_get_width(ext); j++) {
 				jnode *node;
 
 				node = jlookup(tree, oid, index + j);
@@ -765,8 +850,13 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 		for (j = 0; j < i; j++) {
 			if (state_of_extent(first + j) != ALLOCATED_EXTENT)
 				continue;
-			if (!((extent_get_start(ext) >= extent_get_start(first + j) + extent_get_width(first + j))
-			      || (extent_get_start(ext) + extent_get_width(ext) <= extent_get_start(first + j)))) {
+			if (!
+			    ((extent_get_start(ext) >=
+			      extent_get_start(first + j) +
+			      extent_get_width(first + j))
+			     || (extent_get_start(ext) +
+				 extent_get_width(ext) <=
+				 extent_get_start(first + j)))) {
 				*error = "Extent overlaps with others";
 				return -1;
 			}
@@ -777,7 +867,7 @@ check_extent(const coord_t *coord /* coord of item to check */ ,
 	return 0;
 }
 
-#endif /* REISER4_DEBUG */
+#endif				/* REISER4_DEBUG */
 
 /*
    Local variables:

@@ -30,28 +30,28 @@ typedef struct carry_node {
 	reiser4_pool_header header;
 
 	/* base node from which real_node is calculated. See
-	    fs/reiser4/carry.c:lock_carry_node(). */
+	   fs/reiser4/carry.c:lock_carry_node(). */
 	znode *node;
 
 	/* how to get ->real_node */
-	/* to get ->real_node obtain parent of ->node*/
+	/* to get ->real_node obtain parent of ->node */
 	__u32 parent:1;
 	/* to get ->real_node obtain left neighbor of parent of
-	    ->node*/
+	   ->node */
 	__u32 left:1;
 	__u32 left_before:1;
 
 	/* locking */
 
 	/* this node was locked by carry process and should be
-	    unlocked when carry leaves a level */
+	   unlocked when carry leaves a level */
 	__u32 unlock:1;
 
 	/* disk block for this node was allocated by carry process and
-	    should be deallocated when carry leaves a level */
+	   should be deallocated when carry leaves a level */
 	__u32 deallocate:1;
 	/* this carry node was allocated by carry process and should be
-	    freed when carry leaves a level */
+	   freed when carry leaves a level */
 	__u32 free:1;
 
 	/* type of lock we want to take on this node */
@@ -84,7 +84,7 @@ typedef enum {
 	/* update delimiting key in least common ancestor of two
 	   nodes. This is performed when items are moved between two
 	   nodes.
-	*/
+	 */
 	COP_UPDATE,
 	/* insert flow */
 	COP_INSERT_FLOW,
@@ -130,7 +130,7 @@ typedef enum {
 	 * is used when carry() client doesn't initially possess lock handle
 	 * on the insertion point node, for example, by extent insertion
 	 * code. See carry_extent(). */
-	CARRY_TRACK_NODE   = 2
+	CARRY_TRACK_NODE = 2
 } carry_track_type;
 
 /* data supplied to COP_{INSERT|PASTE} by callers */
@@ -171,7 +171,7 @@ struct carry_kill_data {
 	struct cut_kill_params params;
 	/* parameter to be passed to the ->kill_hook() method of item
 	 * plugin */
-	/*void *iplug_params;*/ /* FIXME: unused currently */
+	/*void *iplug_params; *//* FIXME: unused currently */
 	/* if not NULL---inode whose items are being removed. This is needed
 	 * for ->kill_hook() of extent item to update VM structures when
 	 * removing pages. */
@@ -188,6 +188,7 @@ struct carry_kill_data {
 	lock_handle *right;
 	/* flags modifying behavior of kill. Currently, it may have DELETE_RETAIN_EMPTY set. */
 	unsigned flags;
+	char *buf;
 };
 
 /* &carry_tree_op - operation to "carry" upward.
@@ -226,7 +227,7 @@ typedef struct carry_op {
 
 	   for modify: parent of modified node
 
-	*/
+	 */
 	carry_node *node;
 	union {
 		struct {
@@ -314,7 +315,7 @@ struct carry_level {
 	/* This is set by caller (insert_by_key(), resize_item(), etc.) when
 	   they want ->tracked to automagically wander to the node where
 	   insertion point moved after insert or paste.
-	*/
+	 */
 	carry_track_type track_type;
 	/* lock handle supplied by user that we are tracking. See
 	   above. */
@@ -330,21 +331,26 @@ struct carry_plugin_info {
 
 int carry(carry_level * doing, carry_level * done);
 
-carry_node *add_carry(carry_level * level, pool_ordering order, carry_node * reference);
-carry_node *add_carry_skip(carry_level * level, pool_ordering order, carry_node * reference);
+carry_node *add_carry(carry_level * level, pool_ordering order,
+		      carry_node * reference);
+carry_node *add_carry_skip(carry_level * level, pool_ordering order,
+			   carry_node * reference);
 
 extern carry_node *insert_carry_node(carry_level * doing,
 				     carry_level * todo, const znode * node);
 
-extern carry_pool *init_carry_pool(void);
+extern carry_pool *init_carry_pool(int);
 extern void done_carry_pool(carry_pool * pool);
 
 extern void init_carry_level(carry_level * level, carry_pool * pool);
 
-extern carry_op *post_carry(carry_level * level, carry_opcode op, znode * node, int apply_to_parent);
-extern carry_op *node_post_carry(carry_plugin_info * info, carry_opcode op, znode * node, int apply_to_parent_p);
+extern carry_op *post_carry(carry_level * level, carry_opcode op, znode * node,
+			    int apply_to_parent);
+extern carry_op *node_post_carry(carry_plugin_info * info, carry_opcode op,
+				 znode * node, int apply_to_parent_p);
 
-carry_node *add_new_znode(znode * brother, carry_node * reference, carry_level * doing, carry_level * todo);
+carry_node *add_new_znode(znode * brother, carry_node * reference,
+			  carry_level * doing, carry_level * todo);
 
 carry_node *find_carry_node(carry_level * level, const znode * node);
 

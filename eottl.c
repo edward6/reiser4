@@ -108,7 +108,6 @@
    will be performed.
 */
 
-
 /* look to an unit next to @coord. If it is an internal one - 1 is returned,
    @coord is set to that unit. If that unit is in right neighbor, @lh is moved,
    neighbor is loaded, original node is zrelsed, @coord is set to first unit
@@ -116,7 +115,8 @@
    2 is returned to restart search.
 */
 static int
-is_next_item_internal(coord_t *coord, const reiser4_key *key, lock_handle *lh)
+is_next_item_internal(coord_t * coord, const reiser4_key * key,
+		      lock_handle * lh)
 {
 	coord_t next;
 	lock_handle rn;
@@ -133,14 +133,18 @@ is_next_item_internal(coord_t *coord, const reiser4_key *key, lock_handle *lh)
 		return 0;
 	}
 
-	assert("vs-5", UNDER_RW(dk, current_tree, read, keylt(key, znode_get_rd_key(coord->node))));
+	assert("vs-5",
+	       UNDER_RW(dk, current_tree, read,
+			keylt(key, znode_get_rd_key(coord->node))));
 
 	/* next unit either does not exist or is in right neighbor */
 	init_lh(&rn);
 	result = reiser4_get_right_neighbor(&rn, coord->node,
-					    znode_is_wlocked(coord->node) ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK,
+					    znode_is_wlocked(coord->
+							     node) ?
+					    ZNODE_WRITE_LOCK : ZNODE_READ_LOCK,
 					    GN_CAN_USE_UPPER_LEVELS);
-	if (result == -E_NO_NEIGHBOR){
+	if (result == -E_NO_NEIGHBOR) {
 		done_lh(&rn);
 		return 0;
 	}
@@ -152,10 +156,11 @@ is_next_item_internal(coord_t *coord, const reiser4_key *key, lock_handle *lh)
 	}
 
 	/* check where anything managed to happen with right neighbor */
-	result = UNDER_RW(dk, current_tree, read, keycmp(key, znode_get_ld_key(rn.node)));
+	result =
+	    UNDER_RW(dk, current_tree, read,
+		     keycmp(key, znode_get_ld_key(rn.node)));
 	assert("vs-6", result != EQUAL_TO);
 	if (result == GREATER_THAN) {
-		warning("vs-7", "smaller keys managed to get inserted to the right neighbor");
 		done_lh(&rn);
 		return 2;
 	}
@@ -187,8 +192,7 @@ is_next_item_internal(coord_t *coord, const reiser4_key *key, lock_handle *lh)
 
 /* inserting empty leaf after (or between) item of not internal type we have to
    know which right delimiting key corresponding znode has to be inserted with */
-static reiser4_key *
-rd_key(coord_t *coord, reiser4_key *key)
+static reiser4_key *rd_key(coord_t * coord, reiser4_key * key)
 {
 	coord_t dup;
 
@@ -208,35 +212,26 @@ rd_key(coord_t *coord, reiser4_key *key)
 	return key;
 }
 
-
-ON_DEBUG(void check_dkeys(const znode *);)
-
 /* this is used to insert empty node into leaf level if tree lookup can not go
    further down because it stopped between items of not internal type */
 static int
-add_empty_leaf(coord_t *insert_coord, lock_handle *lh, const reiser4_key *key, const reiser4_key *rdkey)
+add_empty_leaf(coord_t * insert_coord, lock_handle * lh,
+	       const reiser4_key * key, const reiser4_key * rdkey)
 {
 	int result;
 	carry_pool *pool;
-	carry_level todo;
+	carry_level *todo;
+	reiser4_item_data *item;
+	carry_insert_data *cdata;
 	carry_op *op;
 	znode *node;
-	reiser4_item_data item;
-	carry_insert_data cdata;
 	reiser4_tree *tree;
 
-	pool = init_carry_pool();
-	if (IS_ERR(pool))
-		return PTR_ERR(pool);
-	init_carry_level(&todo, pool);
 	assert("vs-49827", znode_contains_key_lock(insert_coord->node, key));
-
 	tree = znode_get_tree(insert_coord->node);
 	node = new_node(insert_coord->node, LEAF_LEVEL);
-	if (IS_ERR(node)) {
-		done_carry_pool(pool);
+	if (IS_ERR(node))
 		return PTR_ERR(node);
-	}
 
 	/* setup delimiting keys for node being inserted */
 	WLOCK_DK(tree);
@@ -247,21 +242,33 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh, const reiser4_key *key, c
 	WUNLOCK_DK(tree);
 
 	ZF_SET(node, JNODE_ORPHAN);
-	op = post_carry(&todo, COP_INSERT, insert_coord->node, 0);
+
+	/* allocate carry_pool, 3 carry_level-s, reiser4_item_data and carry_insert_data */
+	pool = init_carry_pool(sizeof(*pool) + 3 * sizeof(*todo) +
+			       sizeof(*item) + sizeof(*cdata));
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	todo = (carry_level *) (pool + 1);
+	init_carry_level(todo, pool);
+
+	item = (reiser4_item_data *) (todo + 3);
+	cdata = (carry_insert_data *) (item + 1);
+
+	op = post_carry(todo, COP_INSERT, insert_coord->node, 0);
 	if (!IS_ERR(op)) {
-		cdata.coord = insert_coord;
-		cdata.key = key;
-		cdata.data = &item;
-		op->u.insert.d = &cdata;
+		cdata->coord = insert_coord;
+		cdata->key = key;
+		cdata->data = item;
+		op->u.insert.d = cdata;
 		op->u.insert.type = COPT_ITEM_DATA;
-		build_child_ptr_data(node, &item);
-		item.arg = NULL;
+		build_child_ptr_data(node, item);
+		item->arg = NULL;
 		/* have @insert_coord to be set at inserted item after
 		   insertion is done */
-		todo.track_type = CARRY_TRACK_CHANGE;
-		todo.tracked = lh;
+		todo->track_type = CARRY_TRACK_CHANGE;
+		todo->tracked = lh;
 
-		result = carry(&todo, 0);
+		result = carry(todo, NULL);
 		if (result == 0) {
 			/*
 			 * pin node in memory. This is necessary for
@@ -290,18 +297,22 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh, const reiser4_key *key, c
 					   neighbor was not known. Do it
 					   here */
 					WLOCK_TREE(tree);
-					assert("nikita-3312", znode_is_right_connected(node));
-					assert("nikita-2984", node->right == NULL);
+					assert("nikita-3312",
+					       znode_is_right_connected(node));
+					assert("nikita-2984",
+					       node->right == NULL);
 					ZF_CLR(node, JNODE_RIGHT_CONNECTED);
 					WUNLOCK_TREE(tree);
-					result = connect_znode(insert_coord, node);
+					result =
+					    connect_znode(insert_coord, node);
 					if (result == 0)
 						ON_DEBUG(check_dkeys(node));
 
 					done_lh(lh);
 					move_lh(lh, &local_lh);
 					assert("vs-1676", node_is_empty(node));
-					coord_init_first_unit(insert_coord, node);
+					coord_init_first_unit(insert_coord,
+							      node);
 				} else {
 					warning("nikita-3136",
 						"Cannot lock child");
@@ -319,9 +330,8 @@ add_empty_leaf(coord_t *insert_coord, lock_handle *lh, const reiser4_key *key, c
 }
 
 /* handle extent-on-the-twig-level cases in tree traversal */
-reiser4_internal int
-handle_eottl(cbk_handle *h /* cbk handle */ ,
-	     int *outcome /* how traversal should proceed */ )
+int handle_eottl(cbk_handle * h /* cbk handle */ ,
+		 int *outcome /* how traversal should proceed */ )
 {
 	int result;
 	reiser4_key key;
@@ -329,7 +339,8 @@ handle_eottl(cbk_handle *h /* cbk handle */ ,
 
 	coord = h->coord;
 
-	if (h->level != TWIG_LEVEL || (coord_is_existing_item(coord) && item_is_internal(coord))) {
+	if (h->level != TWIG_LEVEL
+	    || (coord_is_existing_item(coord) && item_is_internal(coord))) {
 		/* Continue to traverse tree downward. */
 		return 0;
 	}
@@ -340,7 +351,8 @@ handle_eottl(cbk_handle *h /* cbk handle */ ,
 			  coord_t lcoord;
 			  coord_dup(&lcoord, coord);
 			  check_me("vs-733", coord_set_to_left(&lcoord) == 0);
-			  item_is_extent(&lcoord);}
+			  item_is_extent(&lcoord);
+			  }
 	       ));
 
 	if (*outcome == NS_FOUND) {
@@ -374,7 +386,7 @@ handle_eottl(cbk_handle *h /* cbk handle */ ,
 		   This is a result of extents being located at the twig
 		   level. For explanation, see comment just above
 		   is_next_item_internal().
-		*/
+		 */
 		if (cbk_lock_mode(h->level, h) != ZNODE_WRITE_LOCK) {
 			/* we got node read locked, restart coord_by_key to
 			   have write lock on twig level */
@@ -385,7 +397,9 @@ handle_eottl(cbk_handle *h /* cbk handle */ ,
 		}
 
 		loaded = coord->node;
-		result = add_empty_leaf(coord, h->active_lh, h->key, rd_key(coord, &key));
+		result =
+		    add_empty_leaf(coord, h->active_lh, h->key,
+				   rd_key(coord, &key));
 		if (result) {
 			h->error = "could not add empty leaf";
 			h->result = result;
@@ -396,7 +410,8 @@ handle_eottl(cbk_handle *h /* cbk handle */ ,
 		   is unlocked, h->coord is set as EMPTY */
 		assert("vs-13", coord->between == EMPTY_NODE);
 		assert("vs-14", znode_is_write_locked(coord->node));
-		assert("vs-15", WITH_DATA(coord->node, node_is_empty(coord->node)));
+		assert("vs-15",
+		       WITH_DATA(coord->node, node_is_empty(coord->node)));
 		assert("vs-16", jnode_is_leaf(ZJNODE(coord->node)));
 		assert("vs-17", coord->node == h->active_lh->node);
 		*outcome = LOOKUP_DONE;
@@ -414,7 +429,7 @@ handle_eottl(cbk_handle *h /* cbk handle */ ,
 		   This is a result of extents being located at the twig
 		   level. For explanation, see comment just above
 		   is_next_item_internal().
-		*/
+		 */
 		h->flags &= ~CBK_TRUST_DK;
 	} else {
 		assert("vs-8", result == 2);

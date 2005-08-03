@@ -61,30 +61,34 @@ typedef enum {
 } znode_get_neigbor_flags;
 
 /* A commonly used wrapper for reiser4_get_parent_flags(). */
-static inline int reiser4_get_parent(
-	lock_handle * result, znode * node, znode_lock_mode mode)
+static inline int reiser4_get_parent(lock_handle * result, znode * node,
+				     znode_lock_mode mode)
 {
-	return reiser4_get_parent_flags(result, node, mode, GN_ALLOW_NOT_CONNECTED);
+	return reiser4_get_parent_flags(result, node, mode,
+					GN_ALLOW_NOT_CONNECTED);
 }
 
-int reiser4_get_neighbor(lock_handle * neighbor, znode * node, znode_lock_mode lock_mode, int flags);
+int reiser4_get_neighbor(lock_handle * neighbor, znode * node,
+			 znode_lock_mode lock_mode, int flags);
 
 /* there are wrappers for most common usages of reiser4_get_neighbor() */
 static inline int
-reiser4_get_left_neighbor(lock_handle * result, znode * node, int lock_mode, int flags)
+reiser4_get_left_neighbor(lock_handle * result, znode * node, int lock_mode,
+			  int flags)
 {
-	return reiser4_get_neighbor(result, node, lock_mode, flags | GN_GO_LEFT);
+	return reiser4_get_neighbor(result, node, lock_mode,
+				    flags | GN_GO_LEFT);
 }
 
 static inline int
-reiser4_get_right_neighbor(lock_handle * result, znode * node, int lock_mode, int flags)
+reiser4_get_right_neighbor(lock_handle * result, znode * node, int lock_mode,
+			   int flags)
 {
 	ON_DEBUG(check_lock_node_data(node));
 	ON_DEBUG(check_lock_data());
-	return reiser4_get_neighbor(result, node, lock_mode, flags & (~GN_GO_LEFT));
+	return reiser4_get_neighbor(result, node, lock_mode,
+				    flags & (~GN_GO_LEFT));
 }
-
-extern void invalidate_lock(lock_handle * _link);
 
 extern void sibling_list_remove(znode * node);
 extern void sibling_list_drop(znode * node);
@@ -94,14 +98,15 @@ extern void link_left_and_right(znode * left, znode * right);
 /* Functions called by tree_walk() when tree_walk() ...  */
 struct tree_walk_actor {
 	/* ... meets a formatted node, */
-	int (*process_znode)(tap_t* , void*);
+	int (*process_znode) (tap_t *, void *);
 	/* ... meets an extent, */
-	int (*process_extent)(tap_t*, void*);
+	int (*process_extent) (tap_t *, void *);
 	/* ... begins tree traversal or repeats it after -E_REPEAT was returned by
 	 * node or extent processing functions. */
-	int (*before)(void *);
+	int (*before) (void *);
 };
-extern int tree_walk(const reiser4_key *, int, struct tree_walk_actor *, void *);
+extern int tree_walk(const reiser4_key *, int, struct tree_walk_actor *,
+		     void *);
 
 #if REISER4_DEBUG
 int check_sibling_list(znode * node);

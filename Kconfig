@@ -1,6 +1,6 @@
 config REISER4_FS
 	tristate "Reiser4 (EXPERIMENTAL)"
-	depends on EXPERIMENTAL && !4KSTACKS
+	depends on EXPERIMENTAL
 	select ZLIB_INFLATE
 	select ZLIB_DEFLATE
 	help

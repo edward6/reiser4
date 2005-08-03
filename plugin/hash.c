@@ -8,14 +8,12 @@
 #include "plugin.h"
 #include "../super.h"
 #include "../inode.h"
-#include "../plugin/dir/dir.h"
 
 #include <linux/types.h>
 
 /* old rupasov (yura) hash */
-static __u64
-hash_rupasov(const unsigned char *name /* name to hash */ ,
-	     int len /* @name's length */ )
+static __u64 hash_rupasov(const unsigned char *name /* name to hash */ ,
+			  int len /* @name's length */ )
 {
 	int i;
 	int j;
@@ -59,9 +57,8 @@ hash_rupasov(const unsigned char *name /* name to hash */ ,
 }
 
 /* r5 hash */
-static __u64
-hash_r5(const unsigned char *name /* name to hash */ ,
-	int len UNUSED_ARG /* @name's length */ )
+static __u64 hash_r5(const unsigned char *name /* name to hash */ ,
+		     int len UNUSED_ARG /* @name's length */ )
 {
 	__u64 a = 0;
 
@@ -89,9 +86,8 @@ hash_r5(const unsigned char *name /* name to hash */ ,
 
    This code was blindly upgraded to __u64 by s/__u32/__u64/g.
 */
-static __u64
-hash_tea(const unsigned char *name /* name to hash */ ,
-	 int len /* @name's length */ )
+static __u64 hash_tea(const unsigned char *name /* name to hash */ ,
+		      int len /* @name's length */ )
 {
 	__u64 k[] = { 0x9464a485u, 0x542e1a94u, 0x3e846bffu, 0xb75bcfc3u };
 
@@ -132,10 +128,14 @@ hash_tea(const unsigned char *name /* name to hash */ ,
 	pad |= pad << 16;
 
 	while (len >= 16) {
-		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] << 16 | (__u64) name[3] << 24;
-		b = (__u64) name[4] | (__u64) name[5] << 8 | (__u64) name[6] << 16 | (__u64) name[7] << 24;
-		c = (__u64) name[8] | (__u64) name[9] << 8 | (__u64) name[10] << 16 | (__u64) name[11] << 24;
-		d = (__u64) name[12] | (__u64) name[13] << 8 | (__u64) name[14] << 16 | (__u64) name[15] << 24;
+		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] <<
+		    16 | (__u64) name[3] << 24;
+		b = (__u64) name[4] | (__u64) name[5] << 8 | (__u64) name[6] <<
+		    16 | (__u64) name[7] << 24;
+		c = (__u64) name[8] | (__u64) name[9] << 8 | (__u64) name[10] <<
+		    16 | (__u64) name[11] << 24;
+		d = (__u64) name[12] | (__u64) name[13] << 8 | (__u64) name[14]
+		    << 16 | (__u64) name[15] << 24;
 
 		TEACORE(PARTROUNDS);
 
@@ -146,11 +146,14 @@ hash_tea(const unsigned char *name /* name to hash */ ,
 	if (len >= 12) {
 		//assert(len < 16);
 		if (len >= 16)
-			*(int *) 0 = 0;
+			*(int *)0 = 0;
 
-		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] << 16 | (__u64) name[3] << 24;
-		b = (__u64) name[4] | (__u64) name[5] << 8 | (__u64) name[6] << 16 | (__u64) name[7] << 24;
-		c = (__u64) name[8] | (__u64) name[9] << 8 | (__u64) name[10] << 16 | (__u64) name[11] << 24;
+		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] <<
+		    16 | (__u64) name[3] << 24;
+		b = (__u64) name[4] | (__u64) name[5] << 8 | (__u64) name[6] <<
+		    16 | (__u64) name[7] << 24;
+		c = (__u64) name[8] | (__u64) name[9] << 8 | (__u64) name[10] <<
+		    16 | (__u64) name[11] << 24;
 
 		d = pad;
 		for (i = 12; i < len; i++) {
@@ -160,9 +163,11 @@ hash_tea(const unsigned char *name /* name to hash */ ,
 	} else if (len >= 8) {
 		//assert(len < 12);
 		if (len >= 12)
-			*(int *) 0 = 0;
-		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] << 16 | (__u64) name[3] << 24;
-		b = (__u64) name[4] | (__u64) name[5] << 8 | (__u64) name[6] << 16 | (__u64) name[7] << 24;
+			*(int *)0 = 0;
+		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] <<
+		    16 | (__u64) name[3] << 24;
+		b = (__u64) name[4] | (__u64) name[5] << 8 | (__u64) name[6] <<
+		    16 | (__u64) name[7] << 24;
 
 		c = d = pad;
 		for (i = 8; i < len; i++) {
@@ -172,8 +177,9 @@ hash_tea(const unsigned char *name /* name to hash */ ,
 	} else if (len >= 4) {
 		//assert(len < 8);
 		if (len >= 8)
-			*(int *) 0 = 0;
-		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] << 16 | (__u64) name[3] << 24;
+			*(int *)0 = 0;
+		a = (__u64) name[0] | (__u64) name[1] << 8 | (__u64) name[2] <<
+		    16 | (__u64) name[3] << 24;
 
 		b = c = d = pad;
 		for (i = 4; i < len; i++) {
@@ -183,7 +189,7 @@ hash_tea(const unsigned char *name /* name to hash */ ,
 	} else {
 		//assert(len < 4);
 		if (len >= 4)
-			*(int *) 0 = 0;
+			*(int *)0 = 0;
 		a = b = c = d = pad;
 		for (i = 0; i < len; i++) {
 			a <<= 8;
@@ -213,9 +219,8 @@ hash_tea(const unsigned char *name /* name to hash */ ,
      domain.
 
 */
-static __u64
-hash_fnv1(const unsigned char *name /* name to hash */ ,
-	  int len UNUSED_ARG /* @name's length */ )
+static __u64 hash_fnv1(const unsigned char *name /* name to hash */ ,
+		       int len UNUSED_ARG /* @name's length */ )
 {
 	unsigned long long a = 0xcbf29ce484222325ull;
 	const unsigned long long fnv_64_prime = 0x100000001b3ull;
@@ -228,7 +233,7 @@ hash_fnv1(const unsigned char *name /* name to hash */ ,
 		/* multiply by the 32 bit FNV magic prime mod 2^64 */
 		a *= fnv_64_prime;
 		/* xor the bottom with the current octet */
-		a ^= (unsigned long long) (*name);
+		a ^= (unsigned long long)(*name);
 	}
 	/* return our new hash value */
 	return a;
@@ -236,15 +241,13 @@ hash_fnv1(const unsigned char *name /* name to hash */ ,
 
 /* degenerate hash function used to simplify testing of non-unique key
    handling */
-static __u64
-hash_deg(const unsigned char *name UNUSED_ARG /* name to hash */ ,
-	 int len UNUSED_ARG /* @name's length */ )
+static __u64 hash_deg(const unsigned char *name UNUSED_ARG /* name to hash */ ,
+		      int len UNUSED_ARG /* @name's length */ )
 {
 	return 0xc0c0c0c010101010ull;
 }
 
-static int
-change_hash(struct inode * inode, reiser4_plugin * plugin)
+static int change_hash(struct inode *inode, reiser4_plugin * plugin)
 {
 	int result;
 
@@ -259,8 +262,9 @@ change_hash(struct inode * inode, reiser4_plugin * plugin)
 	if (inode_hash_plugin(inode) == NULL ||
 	    inode_hash_plugin(inode)->h.id != plugin->h.id) {
 		if (is_dir_empty(inode) == 0)
-			result = plugin_set_hash(&reiser4_inode_data(inode)->pset,
-						 &plugin->hash);
+			result =
+			    plugin_set_hash(&reiser4_inode_data(inode)->pset,
+					    &plugin->hash);
 		else
 			result = RETERR(-ENOTEMPTY);
 
@@ -269,70 +273,66 @@ change_hash(struct inode * inode, reiser4_plugin * plugin)
 }
 
 static reiser4_plugin_ops hash_plugin_ops = {
-	.init     = NULL,
-	.load     = NULL,
+	.init = NULL,
+	.load = NULL,
 	.save_len = NULL,
-	.save     = NULL,
-	.change   = change_hash
+	.save = NULL,
+	.change = change_hash
 };
 
 /* hash plugins */
 hash_plugin hash_plugins[LAST_HASH_ID] = {
 	[RUPASOV_HASH_ID] = {
-		.h = {
-			.type_id = REISER4_HASH_PLUGIN_TYPE,
-			.id = RUPASOV_HASH_ID,
-			.pops = &hash_plugin_ops,
-			.label = "rupasov",
-			.desc = "Original Yura's hash",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
-		,
-		.hash = hash_rupasov
-	},
+			     .h = {
+				   .type_id = REISER4_HASH_PLUGIN_TYPE,
+				   .id = RUPASOV_HASH_ID,
+				   .pops = &hash_plugin_ops,
+				   .label = "rupasov",
+				   .desc = "Original Yura's hash",
+				   .linkage = TYPE_SAFE_LIST_LINK_ZERO}
+			     ,
+			     .hash = hash_rupasov},
 	[R5_HASH_ID] = {
-		.h = {
-			.type_id = REISER4_HASH_PLUGIN_TYPE,
-			.id = R5_HASH_ID,
-			.pops = &hash_plugin_ops,
-			.label = "r5",
-			.desc = "r5 hash",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
-		,
-		.hash = hash_r5
-	},
+			.h = {
+			      .type_id = REISER4_HASH_PLUGIN_TYPE,
+			      .id = R5_HASH_ID,
+			      .pops = &hash_plugin_ops,
+			      .label = "r5",
+			      .desc = "r5 hash",
+			      .linkage = TYPE_SAFE_LIST_LINK_ZERO}
+			,
+			.hash = hash_r5},
 	[TEA_HASH_ID] = {
-		.h = {
-			.type_id = REISER4_HASH_PLUGIN_TYPE,
-			.id = TEA_HASH_ID,
-			.pops = &hash_plugin_ops,
-			.label = "tea",
-			.desc = "tea hash",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
-		,
-		.hash = hash_tea
-	},
+			 .h = {
+			       .type_id = REISER4_HASH_PLUGIN_TYPE,
+			       .id = TEA_HASH_ID,
+			       .pops = &hash_plugin_ops,
+			       .label = "tea",
+			       .desc = "tea hash",
+			       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
+			 ,
+			 .hash = hash_tea},
 	[FNV1_HASH_ID] = {
-		.h = {
-			.type_id = REISER4_HASH_PLUGIN_TYPE,
-			.id = FNV1_HASH_ID,
-			.pops = &hash_plugin_ops,
-			.label = "fnv1",
-			.desc = "fnv1 hash",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
-		,
-		.hash = hash_fnv1
-	},
+			  .h = {
+				.type_id = REISER4_HASH_PLUGIN_TYPE,
+				.id = FNV1_HASH_ID,
+				.pops = &hash_plugin_ops,
+				.label = "fnv1",
+				.desc = "fnv1 hash",
+				.linkage = TYPE_SAFE_LIST_LINK_ZERO}
+			  ,
+			  .hash = hash_fnv1},
 	[DEGENERATE_HASH_ID] = {
-		.h = {
-			.type_id = REISER4_HASH_PLUGIN_TYPE,
-			.id = DEGENERATE_HASH_ID,
-			.pops = &hash_plugin_ops,
-			.label = "degenerate hash",
-			.desc = "Degenerate hash: only for testing",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
-		,
-		.hash = hash_deg
-	}
+				.h = {
+				      .type_id = REISER4_HASH_PLUGIN_TYPE,
+				      .id = DEGENERATE_HASH_ID,
+				      .pops = &hash_plugin_ops,
+				      .label = "degenerate hash",
+				      .desc =
+				      "Degenerate hash: only for testing",
+				      .linkage = TYPE_SAFE_LIST_LINK_ZERO}
+				,
+				.hash = hash_deg}
 };
 
 /* Make Linus happy.

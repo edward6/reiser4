@@ -18,19 +18,25 @@ typedef struct internal_item_layout {
 struct cut_list;
 
 int mergeable_internal(const coord_t * p1, const coord_t * p2);
-lookup_result lookup_internal(const reiser4_key * key, lookup_bias bias, coord_t * coord);
+lookup_result lookup_internal(const reiser4_key * key, lookup_bias bias,
+			      coord_t * coord);
 /* store pointer from internal item into "block". Implementation of
     ->down_link() method */
-extern void down_link_internal(const coord_t * coord, const reiser4_key * key, reiser4_block_nr * block);
-extern int has_pointer_to_internal(const coord_t * coord, const reiser4_block_nr * block);
+extern void down_link_internal(const coord_t * coord, const reiser4_key * key,
+			       reiser4_block_nr * block);
+extern int has_pointer_to_internal(const coord_t * coord,
+				   const reiser4_block_nr * block);
 extern int create_hook_internal(const coord_t * item, void *arg);
-extern int kill_hook_internal(const coord_t * item, pos_in_node_t from, pos_in_node_t count,
-			      struct carry_kill_data *);
-extern int shift_hook_internal(const coord_t * item, unsigned from, unsigned count, znode * old_node);
+extern int kill_hook_internal(const coord_t * item, pos_in_node_t from,
+			      pos_in_node_t count, struct carry_kill_data *);
+extern int shift_hook_internal(const coord_t * item, unsigned from,
+			       unsigned count, znode * old_node);
 extern void print_internal(const char *prefix, coord_t * coord);
 
-extern int utmost_child_internal(const coord_t * coord, sideof side, jnode ** child);
-int utmost_child_real_block_internal(const coord_t * coord, sideof side, reiser4_block_nr * block);
+extern int utmost_child_internal(const coord_t * coord, sideof side,
+				 jnode ** child);
+int utmost_child_real_block_internal(const coord_t * coord, sideof side,
+				     reiser4_block_nr * block);
 
 extern void update_internal(const coord_t * coord,
 			    const reiser4_block_nr * blocknr);

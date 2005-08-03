@@ -28,65 +28,55 @@
 #define RELEASE_RESERVED 4
 
 /* functions to access fields of format40_disk_super_block */
-static __u64
-get_format40_block_count(const format40_disk_super_block * sb)
+static __u64 get_format40_block_count(const format40_disk_super_block * sb)
 {
 	return d64tocpu(&sb->block_count);
 }
 
-static __u64
-get_format40_free_blocks(const format40_disk_super_block * sb)
+static __u64 get_format40_free_blocks(const format40_disk_super_block * sb)
 {
 	return d64tocpu(&sb->free_blocks);
 }
 
-static __u64
-get_format40_root_block(const format40_disk_super_block * sb)
+static __u64 get_format40_root_block(const format40_disk_super_block * sb)
 {
 	return d64tocpu(&sb->root_block);
 }
 
-static __u16
-get_format40_tree_height(const format40_disk_super_block * sb)
+static __u16 get_format40_tree_height(const format40_disk_super_block * sb)
 {
 	return d16tocpu(&sb->tree_height);
 }
 
-static __u64
-get_format40_file_count(const format40_disk_super_block * sb)
+static __u64 get_format40_file_count(const format40_disk_super_block * sb)
 {
 	return d64tocpu(&sb->file_count);
 }
 
-static __u64
-get_format40_oid(const format40_disk_super_block * sb)
+static __u64 get_format40_oid(const format40_disk_super_block * sb)
 {
 	return d64tocpu(&sb->oid);
 }
 
-static __u32
-get_format40_mkfs_id(const format40_disk_super_block * sb)
+static __u32 get_format40_mkfs_id(const format40_disk_super_block * sb)
 {
 	return d32tocpu(&sb->mkfs_id);
 }
 
-static __u64
-get_format40_flags(const format40_disk_super_block * sb)
+static __u64 get_format40_flags(const format40_disk_super_block * sb)
 {
 	return d64tocpu(&sb->flags);
 }
 
-static format40_super_info *
-get_sb_info(struct super_block *super)
+static format40_super_info *get_sb_info(struct super_block *super)
 {
 	return &get_super_private(super)->u.format40;
 }
 
-static int
-consult_diskmap(struct super_block *s)
+static int consult_diskmap(struct super_block *s)
 {
 	format40_super_info *info;
-	journal_location    *jloc;
+	journal_location *jloc;
 
 	info = get_sb_info(s);
 	jloc = &get_super_private(s)->jloc;
@@ -96,11 +86,11 @@ consult_diskmap(struct super_block *s)
 	jloc->header = FORMAT40_JOURNAL_HEADER_BLOCKNR;
 	info->loc.super = FORMAT40_OFFSET / s->s_blocksize;
 #ifdef CONFIG_REISER4_BADBLOCKS
-        reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JF,
+	reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JF,
 				  &jloc->footer);
-        reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JH,
+	reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_JH,
 				  &jloc->header);
-        reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_SUPER,
+	reiser4_get_diskmap_value(FORMAT40_PLUGIN_DISKMAP_ID, FORMAT40_SUPER,
 				  &info->loc.super);
 #endif
 	return 0;
@@ -109,8 +99,8 @@ consult_diskmap(struct super_block *s)
 /* find any valid super block of disk_format40 (even if the first
    super block is destroyed), will change block numbers of actual journal header/footer (jf/jh)
    if needed */
-static struct buffer_head *
-find_a_disk_format40_super_block(struct super_block *s)
+static struct buffer_head *find_a_disk_format40_super_block(struct super_block
+							    *s)
 {
 	struct buffer_head *super_bh;
 	format40_disk_super_block *disk_sb;
@@ -140,8 +130,7 @@ find_a_disk_format40_super_block(struct super_block *s)
 
 /* find the most recent version of super block. This is called after journal is
    replayed */
-static struct buffer_head *
-read_super_block(struct super_block *s UNUSED_ARG)
+static struct buffer_head *read_super_block(struct super_block *s UNUSED_ARG)
 {
 	/* Here the most recent superblock copy has to be read. However, as
 	   journal replay isn't complete, we are using
@@ -149,8 +138,7 @@ read_super_block(struct super_block *s UNUSED_ARG)
 	return find_a_disk_format40_super_block(s);
 }
 
-static int
-get_super_jnode(struct super_block *s)
+static int get_super_jnode(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	jnode *sb_jnode;
@@ -173,8 +161,7 @@ get_super_jnode(struct super_block *s)
 	return 0;
 }
 
-static void
-done_super_jnode(struct super_block *s)
+static void done_super_jnode(struct super_block *s)
 {
 	jnode *sb_jnode = get_super_private(s)->u.format40.sb_jnode;
 
@@ -202,20 +189,15 @@ typedef enum format40_init_stage {
 	ALL_DONE
 } format40_init_stage;
 
-static int
-try_init_format40(struct super_block *s, format40_init_stage *stage)
+static int try_init_format40(struct super_block *s, format40_init_stage * stage)
 {
 	int result;
 	struct buffer_head *super_bh;
 	reiser4_super_info_data *sbinfo;
-	format40_disk_super_block  sb;
-	/* FIXME-NIKITA ugly work-around: keep copy of on-disk super-block */
-	format40_disk_super_block *sb_copy = &sb;
+	format40_disk_super_block *sb_copy;
 	tree_level height;
 	reiser4_block_nr root_block;
 	node_plugin *nplug;
-
-	cassert(sizeof sb == 512);
 
 	assert("vs-475", s != NULL);
 	assert("vs-474", get_super_private(s));
@@ -260,7 +242,8 @@ try_init_format40(struct super_block *s, format40_init_stage *stage)
 	if (result == REISER4_STATUS_MOUNT_WARN)
 		printk("Warning, mounting filesystem with errors\n");
 	if (result == REISER4_STATUS_MOUNT_RO) {
-		printk("Warning, mounting filesystem with fatal errors, forcing read-only mount\n");
+		printk
+		    ("Warning, mounting filesystem with fatal errors, forcing read-only mount\n");
 		/* FIXME: here we should actually enforce read-only mount,
 		 * only it is unsupported yet. */
 	}
@@ -275,7 +258,13 @@ try_init_format40(struct super_block *s, format40_init_stage *stage)
 		return PTR_ERR(super_bh);
 	*stage = READ_SUPER;
 
-	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data), sizeof (*sb_copy));
+	sb_copy = kmalloc(sizeof(*sb_copy), GFP_KERNEL);
+	if (sb_copy == NULL) {
+		brelse(super_bh);
+		return RETERR(-ENOMEM);
+	}
+	memcpy(sb_copy, ((format40_disk_super_block *) super_bh->b_data),
+	       sizeof(*sb_copy));
 	brelse(super_bh);
 
 	if (!equi(REISER4_LARGE_KEY,
@@ -283,13 +272,18 @@ try_init_format40(struct super_block *s, format40_init_stage *stage)
 		warning("nikita-3228", "Key format mismatch. "
 			"Only %s keys are supported.",
 			REISER4_LARGE_KEY ? "large" : "small");
+		kfree(sb_copy);
 		return RETERR(-EINVAL);
 	}
 	*stage = KEY_CHECK;
 
-	result = oid_init_allocator(s, get_format40_file_count(sb_copy), get_format40_oid(sb_copy));
-	if (result)
+	result =
+	    oid_init_allocator(s, get_format40_file_count(sb_copy),
+			       get_format40_oid(sb_copy));
+	if (result) {
+		kfree(sb_copy);
 		return result;
+	}
 	*stage = INIT_OID;
 
 	/* get things necessary to init reiser4_tree */
@@ -300,8 +294,10 @@ try_init_format40(struct super_block *s, format40_init_stage *stage)
 	sbinfo->tree.super = s;
 	/* init reiser4_tree for the filesystem */
 	result = init_tree(&sbinfo->tree, &root_block, height, nplug);
-	if (result)
+	if (result) {
+		kfree(sb_copy);
 		return result;
+	}
 	*stage = INIT_TREE;
 
 	/* initialize reiser4_super_info_data */
@@ -311,10 +307,11 @@ try_init_format40(struct super_block *s, format40_init_stage *stage)
 	reiser4_set_mkfs_id(s, get_format40_mkfs_id(sb_copy));
 	reiser4_set_block_count(s, get_format40_block_count(sb_copy));
 	reiser4_set_free_blocks(s, get_format40_free_blocks(sb_copy));
+	kfree(sb_copy);
 
 	sbinfo->fsuid = 0;
 	sbinfo->fs_flags |= (1 << REISER4_ADG);	/* hard links for directories
-							 * are not supported */
+						 * are not supported */
 	sbinfo->fs_flags |= (1 << REISER4_ONE_NODE_PLUGIN);	/* all nodes in
 								 * layout 40 are
 								 * of one
@@ -337,17 +334,17 @@ try_init_format40(struct super_block *s, format40_init_stage *stage)
 	   set in the reiser4 super block (in-memory structure) and we can
 	   calculate number of used blocks from them. */
 	reiser4_set_data_blocks(s,
-				reiser4_block_count(s) - reiser4_free_blocks(s));
+				reiser4_block_count(s) -
+				reiser4_free_blocks(s));
 
 #if REISER4_DEBUG
-	sbinfo->min_blocks_used =
-		16 /* reserved area */ +
-		2 /* super blocks */ +
-		2 /* journal footer and header */;
+	sbinfo->min_blocks_used = 16 /* reserved area */  +
+	    2 /* super blocks */  +
+	    2 /* journal footer and header */ ;
 #endif
 
 	/* init disk space allocator */
-	result = sa_init_allocator(get_space_allocator(s), s, 0);
+	result = sa_init_allocator(get_space_allocator(s), s, NULL);
 	if (result)
 		return result;
 	*stage = INIT_SA;
@@ -359,8 +356,7 @@ try_init_format40(struct super_block *s, format40_init_stage *stage)
 }
 
 /* plugin->u.format.get_ready */
-reiser4_internal int
-get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
+int get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 {
 	int result;
 	format40_init_stage stage;
@@ -401,10 +397,10 @@ get_ready_format40(struct super_block *s, void *data UNUSED_ARG)
 	return result;
 }
 
-static void
-pack_format40_super(const struct super_block *s, char *data)
+static void pack_format40_super(const struct super_block *s, char *data)
 {
-	format40_disk_super_block *super_data = (format40_disk_super_block *) data;
+	format40_disk_super_block *super_data =
+	    (format40_disk_super_block *) data;
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 
 	assert("zam-591", data != NULL);
@@ -421,8 +417,7 @@ pack_format40_super(const struct super_block *s, char *data)
 /* plugin->u.format.log_super
    return a jnode which should be added to transaction when the super block
    gets logged */
-reiser4_internal jnode *
-log_super_format40(struct super_block *s)
+jnode *log_super_format40(struct super_block *s)
 {
 	jnode *sb_jnode;
 
@@ -438,8 +433,7 @@ log_super_format40(struct super_block *s)
 }
 
 /* plugin->u.format.release */
-reiser4_internal int
-release_format40(struct super_block *s)
+int release_format40(struct super_block *s)
 {
 	int ret;
 	reiser4_super_info_data *sbinfo;
@@ -450,7 +444,8 @@ release_format40(struct super_block *s)
 	if (!rofs_super(s)) {
 		ret = capture_super_block(s);
 		if (ret != 0)
-			warning("vs-898", "capture_super_block failed: %d", ret);
+			warning("vs-898", "capture_super_block failed: %d",
+				ret);
 
 		ret = txnmgr_force_commit_all(s, 1);
 		if (ret != 0)
@@ -471,8 +466,8 @@ release_format40(struct super_block *s)
 #define FORMAT40_ROOT_OBJECTID 42
 
 /* plugin->u.format.root_dir_key */
-reiser4_internal const reiser4_key *
-root_dir_key_format40(const struct super_block *super UNUSED_ARG)
+const reiser4_key *root_dir_key_format40(const struct super_block *super
+					 UNUSED_ARG)
 {
 	static const reiser4_key FORMAT40_ROOT_DIR_KEY = {
 		.el = {{(FORMAT40_ROOT_LOCALITY << 4) | KEY_SD_MINOR},
@@ -486,8 +481,7 @@ root_dir_key_format40(const struct super_block *super UNUSED_ARG)
 }
 
 /* plugin->u.format.print_info */
-reiser4_internal void
-print_info_format40(const struct super_block *s)
+void print_info_format40(const struct super_block *s)
 {
 #if 0
 	format40_disk_super_block *sb_copy;
@@ -504,8 +498,10 @@ print_info_format40(const struct super_block *s)
 	       get_format40_block_count(sb_copy),
 	       get_format40_free_blocks(sb_copy),
 	       get_format40_root_block(sb_copy),
-	       formatting_plugin_by_id(get_format40_formatting_policy(sb_copy))->h.label,
-	       get_format40_oid(sb_copy), get_format40_file_count(sb_copy), get_format40_tree_height(sb_copy));
+	       formatting_plugin_by_id(get_format40_formatting_policy
+				       (sb_copy))->h.label,
+	       get_format40_oid(sb_copy), get_format40_file_count(sb_copy),
+	       get_format40_tree_height(sb_copy));
 #endif
 }
 
@@ -513,8 +509,8 @@ print_info_format40(const struct super_block *s)
    Check the opened object for validness. For now it checks for the valid oid &
    locality only, can be improved later and it its work may depend on the mount
    options. */
-reiser4_internal int
-check_open_format40(const struct inode *object) {
+int check_open_format40(const struct inode *object)
+{
 	oid_t max, oid;
 
 	max = oid_next(object->i_sb) - 1;
@@ -524,8 +520,7 @@ check_open_format40(const struct inode *object) {
 	if (oid > max) {
 		warning("vpf-1360", "The object with the oid %llu "
 			"greater then the max used oid %llu found.",
-			(unsigned long long)oid,
-			(unsigned long long)max);
+			(unsigned long long)oid, (unsigned long long)max);
 
 		return RETERR(-EIO);
 	}
@@ -535,8 +530,7 @@ check_open_format40(const struct inode *object) {
 	if (oid > max) {
 		warning("vpf-1360", "The object with the locality %llu "
 			"greater then the max used oid %llu found.",
-			(unsigned long long)oid,
-			(unsigned long long)max);
+			(unsigned long long)oid, (unsigned long long)max);
 
 		return RETERR(-EIO);
 	}

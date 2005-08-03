@@ -5,7 +5,7 @@
 #if !defined(__REISER4_FLUSH_H__)
 #define __REISER4_FLUSH_H__
 
-#include "plugin/cryptcompress.h"
+#include "cluster.h"
 
 /* The flush_scan data structure maintains the state of an in-progress flush-scan on a
    single level of the tree.  A flush-scan is used for counting the number of adjacent
@@ -57,17 +57,17 @@ struct flush_scan {
 };
 
 typedef struct convert_item_info {
-	dc_item_stat d_cur;     /* disk cluster state of the current item */
-	dc_item_stat d_next;    /* disk cluster state of the next slum item */
-	struct inode * inode;
+	dc_item_stat d_cur;	/* disk cluster state of the current item */
+	dc_item_stat d_next;	/* disk cluster state of the next slum item */
+	struct inode *inode;
 	flow_t flow;
 } convert_item_info_t;
 
 typedef struct convert_info {
-	int                    count; /* for squalloc terminating */
-	reiser4_cluster_t      clust;   /* transform cluster */
-	item_plugin *          iplug; /* current item plugin */
-	convert_item_info_t *  itm;   /* current item info */
+	int count;		/* for squalloc terminating */
+	reiser4_cluster_t clust;	/* transform cluster */
+	item_plugin *iplug;	/* current item plugin */
+	convert_item_info_t *itm;	/* current item info */
 } convert_info_t;
 
 typedef enum flush_position_state {
@@ -82,10 +82,7 @@ typedef enum flush_position_state {
 	POS_END_OF_TWIG,	/* special case of POS_ON_TWIG, when coord is after
 				 * rightmost unit of the current twig */
 	POS_ON_INTERNAL		/* same as POS_ON_LEAF, but points to internal node */
-
 } flushpos_state_t;
-
-
 
 /* An encapsulation of the current flush point and all the parameters that are passed
    through the entire squeeze-and-allocate stage of the flush routine.  A single
@@ -97,7 +94,7 @@ struct flush_position {
 	lock_handle lock;	/* current lock we hold */
 	load_count load;	/* load status for current locked formatted node  */
 
-	jnode * child;          /* for passing a reference to unformatted child
+	jnode *child;		/* for passing a reference to unformatted child
 				 * across pos state changes */
 
 	reiser4_blocknr_hint preceder;	/* The flush 'hint' state. */
@@ -109,64 +106,56 @@ struct flush_position {
 	long *nr_written;	/* number of nodes submitted to disk */
 	int flags;		/* a copy of jnode_flush flags argument */
 
-	znode * prev_twig;	/* previous parent pointer value, used to catch
+	znode *prev_twig;	/* previous parent pointer value, used to catch
 				 * processing of new twig node */
-	convert_info_t * sq;    /* convert info */
+	convert_info_t *sq;	/* convert info */
 
-	unsigned long pos_in_unit; /* for extents only. Position
-				      within an extent unit of first
-				      jnode of slum */
+	unsigned long pos_in_unit;	/* for extents only. Position
+					   within an extent unit of first
+					   jnode of slum */
+	long nr_to_write;	/* number of unformatted nodes to handle on flush */
 };
 
-static inline int
-item_convert_count (flush_pos_t * pos)
+static inline int item_convert_count(flush_pos_t * pos)
 {
 	return pos->sq->count;
 }
-static inline void
-inc_item_convert_count (flush_pos_t * pos)
+static inline void inc_item_convert_count(flush_pos_t * pos)
 {
 	pos->sq->count++;
 }
-static inline void
-set_item_convert_count (flush_pos_t * pos, int count)
+static inline void set_item_convert_count(flush_pos_t * pos, int count)
 {
 	pos->sq->count = count;
 }
-static inline item_plugin *
-item_convert_plug (flush_pos_t * pos)
+static inline item_plugin *item_convert_plug(flush_pos_t * pos)
 {
 	return pos->sq->iplug;
 }
 
-static inline convert_info_t *
-convert_data (flush_pos_t * pos)
+static inline convert_info_t *convert_data(flush_pos_t * pos)
 {
 	return pos->sq;
 }
 
-static inline convert_item_info_t *
-item_convert_data (flush_pos_t * pos)
+static inline convert_item_info_t *item_convert_data(flush_pos_t * pos)
 {
 	assert("edward-955", convert_data(pos));
 	return pos->sq->itm;
 }
 
-static inline tfm_cluster_t *
-tfm_cluster_sq (flush_pos_t * pos)
+static inline tfm_cluster_t *tfm_cluster_sq(flush_pos_t * pos)
 {
 	return &pos->sq->clust.tc;
 }
 
-static inline tfm_stream_t *
-tfm_stream_sq (flush_pos_t * pos, tfm_stream_id id)
+static inline tfm_stream_t *tfm_stream_sq(flush_pos_t * pos, tfm_stream_id id)
 {
 	assert("edward-854", pos->sq != NULL);
 	return tfm_stream(tfm_cluster_sq(pos), id);
 }
 
-static inline int
-chaining_data_present (flush_pos_t * pos)
+static inline int chaining_data_present(flush_pos_t * pos)
 {
 	return convert_data(pos) && item_convert_data(pos);
 }
@@ -174,8 +163,8 @@ chaining_data_present (flush_pos_t * pos)
 /* Returns true if next node contains next item of the disk cluster
    so item convert data should be moved to the right slum neighbor.
 */
-static inline int
-should_chain_next_node(flush_pos_t * pos) {
+static inline int should_chain_next_node(flush_pos_t * pos)
+{
 	int result = 0;
 
 	assert("edward-1007", chaining_data_present(pos));
@@ -194,8 +183,8 @@ should_chain_next_node(flush_pos_t * pos) {
 
 /* update item state in a disk cluster to assign conversion mode */
 static inline void
-move_chaining_data(flush_pos_t * pos,
-		       int this_node /* where is next item */) {
+move_chaining_data(flush_pos_t * pos, int this_node /* where is next item */ )
+{
 
 	assert("edward-1010", chaining_data_present(pos));
 
@@ -223,44 +212,48 @@ move_chaining_data(flush_pos_t * pos,
 	}
 }
 
-static inline int
-should_convert_node(flush_pos_t * pos, znode * node)
+static inline int should_convert_node(flush_pos_t * pos, znode * node)
 {
 	return znode_convertible(node);
 }
 
 /* true if there is attached convert item info */
-static inline int
-should_convert_next_node(flush_pos_t * pos, znode * node)
+static inline int should_convert_next_node(flush_pos_t * pos, znode * node)
 {
 	return convert_data(pos) && item_convert_data(pos);
 }
 
 #define SQUALLOC_THRESHOLD 256
 
-static inline int
-should_terminate_squalloc(flush_pos_t * pos)
+static inline int should_terminate_squalloc(flush_pos_t * pos)
 {
 	return convert_data(pos) &&
-		!item_convert_data(pos) &&
-		item_convert_count(pos) >= SQUALLOC_THRESHOLD;
+	    !item_convert_data(pos) &&
+	    item_convert_count(pos) >= SQUALLOC_THRESHOLD;
 }
 
 void free_convert_data(flush_pos_t * pos);
 /* used in extent.c */
-int scan_set_current(flush_scan * scan, jnode * node, unsigned add_size, const coord_t * parent);
+int scan_set_current(flush_scan * scan, jnode * node, unsigned add_size,
+		     const coord_t * parent);
 int scan_finished(flush_scan * scan);
 int scanning_left(flush_scan * scan);
 int scan_goto(flush_scan * scan, jnode * tonode);
 txn_atom *atom_locked_by_fq(flush_queue_t * fq);
-
+int alloc_extent(flush_pos_t *flush_pos);
+squeeze_result squalloc_extent(znode *left, const coord_t *, flush_pos_t *,
+			       reiser4_key *stop_key);
 int init_fqs(void);
 void done_fqs(void);
 
 #if REISER4_DEBUG
+
+extern void check_fq(const txn_atom *atom);
+extern atomic_t flush_cnt;
+
 #define check_preceder(blk) \
 assert("nikita-2588", blk < reiser4_block_count(reiser4_get_current_sb()));
-extern void check_pos(flush_pos_t *pos);
+extern void check_pos(flush_pos_t * pos);
 #else
 #define check_preceder(b) noop
 #define check_pos(pos) noop

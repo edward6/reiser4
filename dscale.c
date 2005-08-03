@@ -49,7 +49,7 @@ static int gettag(const unsigned char *address)
 }
 
 /* clear tag from value. Clear tag embedded into @value. */
-static void cleartag(__u64 *value, int tag)
+static void cleartag(__u64 * value, int tag)
 {
 	/*
 	 * W-w-what ?!
@@ -94,7 +94,7 @@ static int dscale_range(__u64 value)
 
 /* restore value stored at @adderss by dscale_write() and return number of
  * bytes consumed */
-reiser4_internal int dscale_read(unsigned char *address, __u64 *value)
+int dscale_read(unsigned char *address, __u64 * value)
 {
 	int tag;
 
@@ -104,7 +104,7 @@ reiser4_internal int dscale_read(unsigned char *address, __u64 *value)
 	case 3:
 		/* In this case tag is stored in an extra byte, skip this byte
 		 * and decode value stored in the next 8 bytes.*/
-		*value = __be64_to_cpu(get_unaligned((__u64 *)(address + 1)));
+		*value = __be64_to_cpu(get_unaligned((__u64 *) (address + 1)));
 		/* worst case: 8 bytes for value itself plus one byte for
 		 * tag. */
 		return 9;
@@ -112,22 +112,22 @@ reiser4_internal int dscale_read(unsigned char *address, __u64 *value)
 		*value = get_unaligned(address);
 		break;
 	case 1:
-		*value = __be16_to_cpu(get_unaligned((__u16 *)address));
+		*value = __be16_to_cpu(get_unaligned((__u16 *) address));
 		break;
 	case 2:
-		*value = __be32_to_cpu(get_unaligned((__u32 *)address));
+		*value = __be32_to_cpu(get_unaligned((__u32 *) address));
 		break;
 	default:
 		return RETERR(-EIO);
 	}
 	/* clear tag embedded into @value */
 	cleartag(value, tag);
-	/* number of bytes consumed is (2 ^ tag)---see table 1.*/
+	/* number of bytes consumed is (2 ^ tag)---see table 1. */
 	return 1 << tag;
 }
 
 /* store @value at @address and return number of bytes consumed */
-reiser4_internal int dscale_write(unsigned char *address, __u64 value)
+int dscale_write(unsigned char *address, __u64 value)
 {
 	int tag;
 	int shift;
@@ -143,20 +143,20 @@ reiser4_internal int dscale_write(unsigned char *address, __u64 value)
 }
 
 /* number of bytes required to store @value */
-reiser4_internal int dscale_bytes(__u64 value)
+int dscale_bytes(__u64 value)
 {
 	int bytes;
 
 	bytes = 1 << dscale_range(value);
 	if (bytes == 8)
-		++ bytes;
+		++bytes;
 	return bytes;
 }
 
 /* returns true if @value and @other require the same number of bytes to be
  * stored. Used by detect when data structure (like stat-data) has to be
  * expanded or contracted. */
-reiser4_internal int dscale_fit(__u64 value, __u64 other)
+int dscale_fit(__u64 value, __u64 other)
 {
 	return dscale_range(value) == dscale_range(other);
 }

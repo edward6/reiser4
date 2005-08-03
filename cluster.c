@@ -10,7 +10,6 @@
 /*         Concepts of clustering. Definition of cluster size.
 	   Data clusters, page clusters, disk clusters.
 
-
    In order to compress plain text we first should split it into chunks.
    Then we process each chunk independently by the following function:
 
@@ -74,8 +73,7 @@
    sure that is good style? and where is the code that goes with this comment....;-) )
 */
 
-static int
-change_cluster(struct inode * inode, reiser4_plugin * plugin)
+static int change_cluster(struct inode *inode, reiser4_plugin * plugin)
 {
 	int result = 0;
 
@@ -93,11 +91,11 @@ change_cluster(struct inode * inode, reiser4_plugin * plugin)
 }
 
 static reiser4_plugin_ops cluster_plugin_ops = {
-	.init     = NULL,
-	.load     = NULL,
+	.init = NULL,
+	.load = NULL,
 	.save_len = NULL,
-	.save     = NULL,
-	.change   = &change_cluster
+	.save = NULL,
+	.change = &change_cluster
 };
 
 #define SUPPORT_CLUSTER(SHIFT, ID, LABEL, DESC)                    \

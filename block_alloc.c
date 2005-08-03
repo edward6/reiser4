@@ -120,23 +120,20 @@
    impossible to overload this counter during one transaction life. */
 
 /* Initialize a blocknr hint. */
-reiser4_internal void
-blocknr_hint_init(reiser4_blocknr_hint * hint)
+void blocknr_hint_init(reiser4_blocknr_hint * hint)
 {
-	memset(hint, 0, sizeof (reiser4_blocknr_hint));
+	memset(hint, 0, sizeof(reiser4_blocknr_hint));
 }
 
 /* Release any resources of a blocknr hint. */
-reiser4_internal void
-blocknr_hint_done(reiser4_blocknr_hint * hint UNUSED_ARG)
+void blocknr_hint_done(reiser4_blocknr_hint * hint UNUSED_ARG)
 {
-	/* No resources should be freed in current blocknr_hint implementation.*/
+	/* No resources should be freed in current blocknr_hint implementation. */
 }
 
 /* see above for explanation of fake block number.  */
 /* Audited by: green(2002.06.11) */
-reiser4_internal int
-blocknr_is_fake(const reiser4_block_nr * da)
+int blocknr_is_fake(const reiser4_block_nr * da)
 {
 	/* The reason for not simply returning result of '&' operation is that
 	   while return value is (possibly 32bit) int,  the reiser4_block_nr is
@@ -148,30 +145,19 @@ blocknr_is_fake(const reiser4_block_nr * da)
 /* Static functions for <reiser4 super block>/<reiser4 context> block counters
    arithmetic. Mostly, they are isolated to not to code same assertions in
    several places. */
-static void
-sub_from_ctx_grabbed(reiser4_context *ctx, __u64 count)
+static void sub_from_ctx_grabbed(reiser4_context * ctx, __u64 count)
 {
 	BUG_ON(ctx->grabbed_blocks < count);
 	assert("zam-527", ctx->grabbed_blocks >= count);
 	ctx->grabbed_blocks -= count;
 }
 
-static void
-add_to_ctx_grabbed(reiser4_context *ctx, __u64 count)
+static void add_to_ctx_grabbed(reiser4_context * ctx, __u64 count)
 {
-#if REISER4_DEBUG
-#ifdef CONFIG_FRAME_POINTER
-	ctx->grabbed_at[0] = __builtin_return_address(0);
-	ctx->grabbed_at[1] = __builtin_return_address(1);
-	ctx->grabbed_at[2] = __builtin_return_address(2);
-	ctx->grabbed_at[3] = __builtin_return_address(3);
-#endif
-#endif
 	ctx->grabbed_blocks += count;
 }
 
-static void
-sub_from_sb_grabbed(reiser4_super_info_data *sbinfo, __u64 count)
+static void sub_from_sb_grabbed(reiser4_super_info_data * sbinfo, __u64 count)
 {
 	assert("zam-525", sbinfo->blocks_grabbed >= count);
 	sbinfo->blocks_grabbed -= count;
@@ -179,69 +165,68 @@ sub_from_sb_grabbed(reiser4_super_info_data *sbinfo, __u64 count)
 
 /* Decrease the counter of block reserved for flush in super block. */
 static void
-sub_from_sb_flush_reserved (reiser4_super_info_data *sbinfo, __u64 count)
+sub_from_sb_flush_reserved(reiser4_super_info_data * sbinfo, __u64 count)
 {
-	assert ("vpf-291", sbinfo->blocks_flush_reserved >= count);
+	assert("vpf-291", sbinfo->blocks_flush_reserved >= count);
 	sbinfo->blocks_flush_reserved -= count;
 }
 
 static void
-sub_from_sb_fake_allocated(reiser4_super_info_data *sbinfo, __u64 count, reiser4_ba_flags_t flags)
+sub_from_sb_fake_allocated(reiser4_super_info_data * sbinfo, __u64 count,
+			   reiser4_ba_flags_t flags)
 {
 	if (flags & BA_FORMATTED) {
 		assert("zam-806", sbinfo->blocks_fake_allocated >= count);
 		sbinfo->blocks_fake_allocated -= count;
 	} else {
-		assert("zam-528", sbinfo->blocks_fake_allocated_unformatted >= count);
+		assert("zam-528",
+		       sbinfo->blocks_fake_allocated_unformatted >= count);
 		sbinfo->blocks_fake_allocated_unformatted -= count;
 	}
 }
 
-static void
-sub_from_sb_used(reiser4_super_info_data *sbinfo, __u64 count)
+static void sub_from_sb_used(reiser4_super_info_data * sbinfo, __u64 count)
 {
-	assert("zam-530", sbinfo->blocks_used >= count + sbinfo->min_blocks_used);
+	assert("zam-530",
+	       sbinfo->blocks_used >= count + sbinfo->min_blocks_used);
 	sbinfo->blocks_used -= count;
 }
 
 static void
-sub_from_cluster_reserved(reiser4_super_info_data *sbinfo, __u64 count)
+sub_from_cluster_reserved(reiser4_super_info_data * sbinfo, __u64 count)
 {
 	assert("edward-501", sbinfo->blocks_clustered >= count);
 	sbinfo->blocks_clustered -= count;
 }
 
 /* Increase the counter of block reserved for flush in atom. */
-static void
-add_to_atom_flush_reserved_nolock (txn_atom * atom, __u32 count)
+static void add_to_atom_flush_reserved_nolock(txn_atom * atom, __u32 count)
 {
-	assert ("zam-772", atom != NULL);
-	assert ("zam-773", spin_atom_is_locked (atom));
+	assert("zam-772", atom != NULL);
+	assert("zam-773", spin_atom_is_locked(atom));
 	atom->flush_reserved += count;
 }
 
 /* Decrease the counter of block reserved for flush in atom. */
-static void
-sub_from_atom_flush_reserved_nolock (txn_atom * atom, __u32 count)
+static void sub_from_atom_flush_reserved_nolock(txn_atom * atom, __u32 count)
 {
-	assert ("zam-774", atom != NULL);
-	assert ("zam-775", spin_atom_is_locked (atom));
-	assert ("nikita-2790", atom->flush_reserved >= count);
+	assert("zam-774", atom != NULL);
+	assert("zam-775", spin_atom_is_locked(atom));
+	assert("nikita-2790", atom->flush_reserved >= count);
 	atom->flush_reserved -= count;
 }
 
 /* super block has 6 counters: free, used, grabbed, fake allocated
    (formatted and unformatted) and flush reserved. Their sum must be
    number of blocks on a device. This function checks this */
-reiser4_internal int
-check_block_counters(const struct super_block *super)
+int check_block_counters(const struct super_block *super)
 {
 	__u64 sum;
 
 	sum = reiser4_grabbed_blocks(super) + reiser4_free_blocks(super) +
-	    	reiser4_data_blocks(super) + reiser4_fake_allocated(super) +
-		reiser4_fake_allocated_unformatted(super) + flush_reserved(super) +
-		reiser4_clustered_blocks(super);
+	    reiser4_data_blocks(super) + reiser4_fake_allocated(super) +
+	    reiser4_fake_allocated_unformatted(super) + flush_reserved(super) +
+	    reiser4_clustered_blocks(super);
 	if (reiser4_block_count(super) != sum) {
 		printk("super block counters: "
 		       "used %llu, free %llu, "
@@ -251,7 +236,8 @@ check_block_counters(const struct super_block *super)
 		       (unsigned long long)reiser4_free_blocks(super),
 		       (unsigned long long)reiser4_grabbed_blocks(super),
 		       (unsigned long long)reiser4_fake_allocated(super),
-		       (unsigned long long)reiser4_fake_allocated_unformatted(super),
+		       (unsigned long long)
+		       reiser4_fake_allocated_unformatted(super),
 		       (unsigned long long)flush_reserved(super),
 		       (unsigned long long)reiser4_clustered_blocks(super),
 		       (unsigned long long)sum,
@@ -274,7 +260,7 @@ check_block_counters(const struct super_block *super)
 */
 
 static int
-reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
+reiser4_grab(reiser4_context * ctx, __u64 count, reiser4_ba_flags_t flags)
 {
 	__u64 free_blocks;
 	int ret = 0, use_reserved = flags & BA_RESERVED;
@@ -314,20 +300,20 @@ reiser4_grab(reiser4_context *ctx, __u64 count, reiser4_ba_flags_t flags)
 	/* disable grab space in current context */
 	ctx->grab_enabled = 0;
 
-unlock_and_ret:
+      unlock_and_ret:
 	reiser4_spin_unlock_sb(sbinfo);
 
 	return ret;
 }
 
-reiser4_internal int
-reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
+int reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
 {
 	int ret;
 	reiser4_context *ctx;
 
 	assert("nikita-2964", ergo(flags & BA_CAN_COMMIT,
-				   lock_stack_isclean(get_current_lock_stack())));
+				   lock_stack_isclean(get_current_lock_stack
+						      ())));
 	ctx = get_current_context();
 	if (!(flags & BA_FORCE) && !is_grab_enabled(ctx)) {
 		return 0;
@@ -367,8 +353,8 @@ reiser4_grab_space(__u64 count, reiser4_ba_flags_t flags)
  *
  */
 
-reiser4_internal int reiser4_grab_reserved(struct super_block *super,
-					   __u64 count, reiser4_ba_flags_t flags)
+int reiser4_grab_reserved(struct super_block *super,
+			  __u64 count, reiser4_ba_flags_t flags)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(super);
 
@@ -377,8 +363,10 @@ reiser4_internal int reiser4_grab_reserved(struct super_block *super,
 	/* Check the delete semaphore already taken by us, we assume that
 	 * reading of machine word is atomic. */
 	if (sbinfo->delete_sema_owner == current) {
-		if (reiser4_grab_space(count, (flags | BA_RESERVED) & ~BA_CAN_COMMIT)) {
-			warning("zam-1003", "nested call of grab_reserved fails count=(%llu)",
+		if (reiser4_grab_space
+		    (count, (flags | BA_RESERVED) & ~BA_CAN_COMMIT)) {
+			warning("zam-1003",
+				"nested call of grab_reserved fails count=(%llu)",
 				(unsigned long long)count);
 			reiser4_release_reserved(super);
 			return RETERR(-ENOSPC);
@@ -393,7 +381,8 @@ reiser4_internal int reiser4_grab_reserved(struct super_block *super,
 
 		if (reiser4_grab_space(count, flags | BA_RESERVED)) {
 			warning("zam-833",
-				"reserved space is not enough (%llu)", (unsigned long long)count);
+				"reserved space is not enough (%llu)",
+				(unsigned long long)count);
 			reiser4_release_reserved(super);
 			return RETERR(-ENOSPC);
 		}
@@ -401,8 +390,7 @@ reiser4_internal int reiser4_grab_reserved(struct super_block *super,
 	return 0;
 }
 
-reiser4_internal void
-reiser4_release_reserved(struct super_block *super)
+void reiser4_release_reserved(struct super_block *super)
 {
 	reiser4_super_info_data *info;
 
@@ -413,8 +401,7 @@ reiser4_release_reserved(struct super_block *super)
 	}
 }
 
-static reiser4_super_info_data *
-grabbed2fake_allocated_head(void)
+static reiser4_super_info_data *grabbed2fake_allocated_head(void)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -432,34 +419,31 @@ grabbed2fake_allocated_head(void)
 
 /* is called after @count fake block numbers are allocated and pointer to
    those blocks are inserted into tree. */
-static void
-grabbed2fake_allocated_formatted(void)
+static void grabbed2fake_allocated_formatted(void)
 {
 	reiser4_super_info_data *sbinfo;
 
 	sbinfo = grabbed2fake_allocated_head();
-	sbinfo->blocks_fake_allocated ++;
+	sbinfo->blocks_fake_allocated++;
 
 	assert("vs-922", check_block_counters(reiser4_get_current_sb()));
 
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
-static void
-grabbed2fake_allocated_unformatted(void)
+static void grabbed2fake_allocated_unformatted(void)
 {
 	reiser4_super_info_data *sbinfo;
 
 	sbinfo = grabbed2fake_allocated_head();
-	sbinfo->blocks_fake_allocated_unformatted ++;
+	sbinfo->blocks_fake_allocated_unformatted++;
 
 	assert("vs-9221", check_block_counters(reiser4_get_current_sb()));
 
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
-reiser4_internal void
-grabbed2cluster_reserved(int count)
+void grabbed2cluster_reserved(int count)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -478,8 +462,7 @@ grabbed2cluster_reserved(int count)
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
-reiser4_internal void
-cluster_reserved2grabbed(int count)
+void cluster_reserved2grabbed(int count)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -498,8 +481,7 @@ cluster_reserved2grabbed(int count)
 	add_to_ctx_grabbed(ctx, count);
 }
 
-reiser4_internal void
-cluster_reserved2free(int count)
+void cluster_reserved2free(int count)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -523,7 +505,7 @@ static reiser4_block_nr fake_gen = 0;
 
 /* obtain a block number for new formatted node which will be used to refer
    to this newly allocated node until real allocation is done */
-static inline void assign_fake_blocknr(reiser4_block_nr *blocknr)
+static inline void assign_fake_blocknr(reiser4_block_nr * blocknr)
 {
 	spin_lock(&fake_lock);
 	*blocknr = fake_gen++;
@@ -534,8 +516,7 @@ static inline void assign_fake_blocknr(reiser4_block_nr *blocknr)
 	assert("zam-394", zlook(current_tree, blocknr) == NULL);
 }
 
-reiser4_internal int
-assign_fake_blocknr_formatted(reiser4_block_nr *blocknr)
+int assign_fake_blocknr_formatted(reiser4_block_nr * blocknr)
 {
 	assign_fake_blocknr(blocknr);
 	grabbed2fake_allocated_formatted();
@@ -544,23 +525,22 @@ assign_fake_blocknr_formatted(reiser4_block_nr *blocknr)
 }
 
 /* return fake blocknr which will be used for unformatted nodes */
-reiser4_internal reiser4_block_nr
-fake_blocknr_unformatted(void)
+reiser4_block_nr fake_blocknr_unformatted(void)
 {
 	reiser4_block_nr blocknr;
 
 	assign_fake_blocknr(&blocknr);
 	grabbed2fake_allocated_unformatted();
 
-	/*XXXXX*/inc_unalloc_unfm_ptr();
+	 /*XXXXX*/ inc_unalloc_unfm_ptr();
 	return blocknr;
 }
-
 
 /* adjust sb block counters, if real (on-disk) block allocation immediately
    follows grabbing of free disk space. */
 static void
-grabbed2used(reiser4_context *ctx, reiser4_super_info_data *sbinfo, __u64 count)
+grabbed2used(reiser4_context * ctx, reiser4_super_info_data * sbinfo,
+	     __u64 count)
 {
 	sub_from_ctx_grabbed(ctx, count);
 
@@ -576,7 +556,8 @@ grabbed2used(reiser4_context *ctx, reiser4_super_info_data *sbinfo, __u64 count)
 
 /* adjust sb block counters when @count unallocated blocks get mapped to disk */
 static void
-fake_allocated2used(reiser4_super_info_data *sbinfo, __u64 count, reiser4_ba_flags_t flags)
+fake_allocated2used(reiser4_super_info_data * sbinfo, __u64 count,
+		    reiser4_ba_flags_t flags)
 {
 	reiser4_spin_lock_sb(sbinfo);
 
@@ -588,15 +569,14 @@ fake_allocated2used(reiser4_super_info_data *sbinfo, __u64 count, reiser4_ba_fla
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
-static void
-flush_reserved2used(txn_atom * atom, __u64 count)
+static void flush_reserved2used(txn_atom * atom, __u64 count)
 {
 	reiser4_super_info_data *sbinfo;
 
 	assert("zam-787", atom != NULL);
 	assert("zam-788", spin_atom_is_locked(atom));
 
-	sub_from_atom_flush_reserved_nolock(atom, (__u32)count);
+	sub_from_atom_flush_reserved_nolock(atom, (__u32) count);
 
 	sbinfo = get_current_super_private();
 	reiser4_spin_lock_sb(sbinfo);
@@ -604,14 +584,15 @@ flush_reserved2used(txn_atom * atom, __u64 count)
 	sub_from_sb_flush_reserved(sbinfo, count);
 	sbinfo->blocks_used += count;
 
-	assert ("zam-789", check_block_counters(reiser4_get_current_sb()));
+	assert("zam-789", check_block_counters(reiser4_get_current_sb()));
 
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
 /* update the per fs  blocknr hint default value. */
-reiser4_internal void
-update_blocknr_hint_default (const struct super_block *s, const reiser4_block_nr * block)
+void
+update_blocknr_hint_default(const struct super_block *s,
+			    const reiser4_block_nr * block)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 
@@ -622,7 +603,8 @@ update_blocknr_hint_default (const struct super_block *s, const reiser4_block_nr
 		sbinfo->blocknr_hint_default = *block;
 	} else {
 		warning("zam-676",
-			"block number %llu is too large to be used in a blocknr hint\n", (unsigned long long) *block);
+			"block number %llu is too large to be used in a blocknr hint\n",
+			(unsigned long long)*block);
 		dump_stack();
 		DEBUGON(1);
 	}
@@ -630,9 +612,9 @@ update_blocknr_hint_default (const struct super_block *s, const reiser4_block_nr
 }
 
 /* get current value of the default blocknr hint. */
-reiser4_internal void get_blocknr_hint_default(reiser4_block_nr * result)
+void get_blocknr_hint_default(reiser4_block_nr * result)
 {
-	reiser4_super_info_data * sbinfo = get_current_super_private();
+	reiser4_super_info_data *sbinfo = get_current_super_private();
 
 	reiser4_spin_lock_sb(sbinfo);
 	*result = sbinfo->blocknr_hint_default;
@@ -657,7 +639,7 @@ reiser4_internal void get_blocknr_hint_default(reiser4_block_nr * result)
  *
  * @return -- 0 if success, error code otherwise.
  */
-reiser4_internal int
+int
 reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 		     reiser4_block_nr * len, reiser4_ba_flags_t flags)
 {
@@ -666,7 +648,7 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 	reiser4_super_info_data *sbinfo;
 	int ret;
 
-	assert ("zam-986", hint != NULL);
+	assert("zam-986", hint != NULL);
 
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
@@ -685,17 +667,20 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 			return ret;
 	}
 
-	ret = sa_alloc_blocks(get_space_allocator(ctx->super), hint, (int) needed, blk, len);
+	ret =
+	    sa_alloc_blocks(get_space_allocator(ctx->super), hint, (int)needed,
+			    blk, len);
 
 	if (!ret) {
 		assert("zam-680", *blk < reiser4_block_count(ctx->super));
-		assert("zam-681", *blk + *len <= reiser4_block_count(ctx->super));
+		assert("zam-681",
+		       *blk + *len <= reiser4_block_count(ctx->super));
 
 		if (flags & BA_PERMANENT) {
 			/* we assume that current atom exists at this moment */
-			txn_atom * atom = get_current_atom_locked ();
-			atom -> nr_blocks_allocated += *len;
-			UNLOCK_ATOM (atom);
+			txn_atom *atom = get_current_atom_locked();
+			atom->nr_blocks_allocated += *len;
+			UNLOCK_ATOM(atom);
 		}
 
 		switch (hint->block_stage) {
@@ -708,16 +693,18 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 			break;
 		case BLOCK_FLUSH_RESERVED:
 			{
-				txn_atom *atom = get_current_atom_locked ();
+				txn_atom *atom = get_current_atom_locked();
 				flush_reserved2used(atom, *len);
-				UNLOCK_ATOM (atom);
+				UNLOCK_ATOM(atom);
 			}
 			break;
 		default:
 			impossible("zam-531", "wrong block stage");
 		}
 	} else {
-		assert ("zam-821", ergo(hint->max_dist == 0 && !hint->backward, ret != -ENOSPC));
+		assert("zam-821",
+		       ergo(hint->max_dist == 0
+			    && !hint->backward, ret != -ENOSPC));
 		if (hint->block_stage == BLOCK_NOT_COUNTED)
 			grabbed2free(ctx, sbinfo, needed);
 	}
@@ -730,7 +717,8 @@ reiser4_alloc_blocks(reiser4_blocknr_hint * hint, reiser4_block_nr * blk,
 /* adjust sb block counters when @count unallocated blocks get unmapped from
    disk */
 static void
-used2fake_allocated(reiser4_super_info_data *sbinfo, __u64 count, int formatted)
+used2fake_allocated(reiser4_super_info_data * sbinfo, __u64 count,
+		    int formatted)
 {
 	reiser4_spin_lock_sb(sbinfo);
 
@@ -747,18 +735,18 @@ used2fake_allocated(reiser4_super_info_data *sbinfo, __u64 count, int formatted)
 }
 
 static void
-used2flush_reserved(reiser4_super_info_data *sbinfo, txn_atom * atom, __u64 count,
-		    reiser4_ba_flags_t flags UNUSED_ARG)
+used2flush_reserved(reiser4_super_info_data * sbinfo, txn_atom * atom,
+		    __u64 count, reiser4_ba_flags_t flags UNUSED_ARG)
 {
 	assert("nikita-2791", atom != NULL);
 	assert("nikita-2792", spin_atom_is_locked(atom));
 
-	add_to_atom_flush_reserved_nolock(atom, (__u32)count);
+	add_to_atom_flush_reserved_nolock(atom, (__u32) count);
 
 	reiser4_spin_lock_sb(sbinfo);
 
 	sbinfo->blocks_flush_reserved += count;
-	/*add_to_sb_flush_reserved(sbinfo, count);*/
+	/*add_to_sb_flush_reserved(sbinfo, count); */
 	sub_from_sb_used(sbinfo, count);
 
 	assert("nikita-2681", check_block_counters(reiser4_get_current_sb()));
@@ -768,7 +756,8 @@ used2flush_reserved(reiser4_super_info_data *sbinfo, txn_atom * atom, __u64 coun
 
 /* disk space, virtually used by fake block numbers is counted as "grabbed" again. */
 static void
-fake_allocated2grabbed(reiser4_context *ctx, reiser4_super_info_data *sbinfo, __u64 count, reiser4_ba_flags_t flags)
+fake_allocated2grabbed(reiser4_context * ctx, reiser4_super_info_data * sbinfo,
+		       __u64 count, reiser4_ba_flags_t flags)
 {
 	add_to_ctx_grabbed(ctx, count);
 
@@ -784,8 +773,7 @@ fake_allocated2grabbed(reiser4_context *ctx, reiser4_super_info_data *sbinfo, __
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
-reiser4_internal void
-fake_allocated2free(__u64 count, reiser4_ba_flags_t flags)
+void fake_allocated2free(__u64 count, reiser4_ba_flags_t flags)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -797,8 +785,7 @@ fake_allocated2free(__u64 count, reiser4_ba_flags_t flags)
 	grabbed2free(ctx, sbinfo, count);
 }
 
-reiser4_internal void
-grabbed2free_mark(__u64 mark)
+void grabbed2free_mark(__u64 mark)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -806,19 +793,17 @@ grabbed2free_mark(__u64 mark)
 	ctx = get_current_context();
 	sbinfo = get_super_private(ctx->super);
 
-	assert("nikita-3007", (__s64)mark >= 0);
-	assert("nikita-3006",
-	       ctx->grabbed_blocks >= mark);
+	assert("nikita-3007", (__s64) mark >= 0);
+	assert("nikita-3006", ctx->grabbed_blocks >= mark);
 	grabbed2free(ctx, sbinfo, ctx->grabbed_blocks - mark);
 }
 
 /* Adjust free blocks count for blocks which were reserved but were not used. */
-reiser4_internal void
-grabbed2free(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
-	       __u64 count)
+void
+grabbed2free(reiser4_context * ctx, reiser4_super_info_data * sbinfo,
+	     __u64 count)
 {
 	sub_from_ctx_grabbed(ctx, count);
-
 
 	reiser4_spin_lock_sb(sbinfo);
 
@@ -829,8 +814,7 @@ grabbed2free(reiser4_context *ctx, reiser4_super_info_data *sbinfo,
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
-reiser4_internal void
-grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
+void grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -849,22 +833,21 @@ grabbed2flush_reserved_nolock(txn_atom * atom, __u64 count)
 	sbinfo->blocks_flush_reserved += count;
 	sub_from_sb_grabbed(sbinfo, count);
 
-	assert ("vpf-292", check_block_counters(ctx->super));
+	assert("vpf-292", check_block_counters(ctx->super));
 
 	reiser4_spin_unlock_sb(sbinfo);
 }
 
-reiser4_internal void
-grabbed2flush_reserved(__u64 count)
+void grabbed2flush_reserved(__u64 count)
 {
-	txn_atom * atom = get_current_atom_locked ();
+	txn_atom *atom = get_current_atom_locked();
 
-	grabbed2flush_reserved_nolock (atom, count);
+	grabbed2flush_reserved_nolock(atom, count);
 
-	UNLOCK_ATOM (atom);
+	UNLOCK_ATOM(atom);
 }
 
-reiser4_internal void flush_reserved2grabbed(txn_atom * atom, __u64 count)
+void flush_reserved2grabbed(txn_atom * atom, __u64 count)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -877,21 +860,20 @@ reiser4_internal void flush_reserved2grabbed(txn_atom * atom, __u64 count)
 
 	add_to_ctx_grabbed(ctx, count);
 
-	sub_from_atom_flush_reserved_nolock(atom, (__u32)count);
+	sub_from_atom_flush_reserved_nolock(atom, (__u32) count);
 
 	reiser4_spin_lock_sb(sbinfo);
 
 	sbinfo->blocks_grabbed += count;
 	sub_from_sb_flush_reserved(sbinfo, count);
 
-	assert ("vpf-292", check_block_counters (ctx->super));
+	assert("vpf-292", check_block_counters(ctx->super));
 
-	reiser4_spin_unlock_sb (sbinfo);
+	reiser4_spin_unlock_sb(sbinfo);
 }
 
 /* release all blocks grabbed in context which where not used. */
-reiser4_internal void
-all_grabbed2free(void)
+void all_grabbed2free(void)
 {
 	reiser4_context *ctx = get_current_context();
 
@@ -901,7 +883,8 @@ all_grabbed2free(void)
 /* adjust sb block counters if real (on-disk) blocks do not become unallocated
    after freeing, @count blocks become "grabbed". */
 static void
-used2grabbed(reiser4_context *ctx, reiser4_super_info_data *sbinfo, __u64 count)
+used2grabbed(reiser4_context * ctx, reiser4_super_info_data * sbinfo,
+	     __u64 count)
 {
 	add_to_ctx_grabbed(ctx, count);
 
@@ -916,8 +899,7 @@ used2grabbed(reiser4_context *ctx, reiser4_super_info_data *sbinfo, __u64 count)
 }
 
 /* this used to be done through used2grabbed and grabbed2free*/
-static void
-used2free(reiser4_super_info_data *sbinfo, __u64 count)
+static void used2free(reiser4_super_info_data * sbinfo, __u64 count)
 {
 	reiser4_spin_lock_sb(sbinfo);
 
@@ -933,14 +915,14 @@ used2free(reiser4_super_info_data *sbinfo, __u64 count)
 
 /* check "allocated" state of given block range */
 static void
-reiser4_check_blocks(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
+reiser4_check_blocks(const reiser4_block_nr * start,
+		     const reiser4_block_nr * len, int desired)
 {
 	sa_check_blocks(start, len, desired);
 }
 
 /* check "allocated" state of given block */
-void
-reiser4_check_block(const reiser4_block_nr * block, int desired)
+void reiser4_check_block(const reiser4_block_nr * block, int desired)
 {
 	const reiser4_block_nr one = 1;
 
@@ -961,7 +943,7 @@ reiser4_check_block(const reiser4_block_nr * block, int desired)
 /* BA_FORMATTED bit is only used when BA_DEFER in not present: it is used to
    distinguish blocks allocated for unformatted and formatted nodes */
 
-reiser4_internal int
+int
 reiser4_dealloc_blocks(const reiser4_block_nr * start,
 		       const reiser4_block_nr * len,
 		       block_stage_t target_stage, reiser4_ba_flags_t flags)
@@ -993,7 +975,9 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 			atom = get_current_atom_locked();
 			assert("zam-430", atom != NULL);
 
-			ret = blocknr_set_add_extent(atom, &atom->delete_set, &bsep, start, len);
+			ret =
+			    blocknr_set_add_extent(atom, &atom->delete_set,
+						   &bsep, start, len);
 
 			if (ret == -ENOMEM)
 				return ret;
@@ -1008,14 +992,15 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 
 	} else {
 		assert("zam-425", get_current_super_private() != NULL);
-		sa_dealloc_blocks(get_space_allocator(ctx->super), *start, *len);
+		sa_dealloc_blocks(get_space_allocator(ctx->super), *start,
+				  *len);
 
 		if (flags & BA_PERMANENT) {
 			/* These blocks were counted as allocated, we have to revert it
 			 * back if allocation is discarded. */
-			txn_atom * atom = get_current_atom_locked ();
+			txn_atom *atom = get_current_atom_locked();
 			atom->nr_blocks_allocated -= *len;
-			UNLOCK_ATOM (atom);
+			UNLOCK_ATOM(atom);
 		}
 
 		switch (target_stage) {
@@ -1033,14 +1018,15 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 			used2fake_allocated(sbinfo, *len, flags & BA_FORMATTED);
 			break;
 
-		case BLOCK_FLUSH_RESERVED: {
-			txn_atom *atom;
+		case BLOCK_FLUSH_RESERVED:{
+				txn_atom *atom;
 
-			atom = get_current_atom_locked();
-			used2flush_reserved(sbinfo, atom, *len, flags & BA_FORMATTED);
-			UNLOCK_ATOM(atom);
-			break;
-		}
+				atom = get_current_atom_locked();
+				used2flush_reserved(sbinfo, atom, *len,
+						    flags & BA_FORMATTED);
+				UNLOCK_ATOM(atom);
+				break;
+			}
 		default:
 			impossible("zam-532", "wrong block stage");
 		}
@@ -1050,8 +1036,7 @@ reiser4_dealloc_blocks(const reiser4_block_nr * start,
 }
 
 /* wrappers for block allocator plugin methods */
-reiser4_internal int
-pre_commit_hook(void)
+int pre_commit_hook(void)
 {
 	assert("zam-502", get_current_super_private() != NULL);
 	sa_pre_commit_hook();
@@ -1060,7 +1045,8 @@ pre_commit_hook(void)
 
 /* an actor which applies delete set to block allocator data */
 static int
-apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4_block_nr * b, void *data UNUSED_ARG)
+apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a,
+	   const reiser4_block_nr * b, void *data UNUSED_ARG)
 {
 	reiser4_context *ctx;
 	reiser4_super_info_data *sbinfo;
@@ -1091,8 +1077,7 @@ apply_dset(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4
 	return 0;
 }
 
-reiser4_internal void
-post_commit_hook(void)
+void post_commit_hook(void)
 {
 	txn_atom *atom;
 
@@ -1108,8 +1093,7 @@ post_commit_hook(void)
 	sa_post_commit_hook();
 }
 
-reiser4_internal void
-post_write_back_hook(void)
+void post_write_back_hook(void)
 {
 	assert("zam-504", get_current_super_private() != NULL);
 

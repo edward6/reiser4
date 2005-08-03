@@ -99,7 +99,7 @@ typedef struct {
 
 struct jnode {
 #if REISER4_DEBUG
-#define JMAGIC 0x52654973 /* "ReIs" */
+#define JMAGIC 0x52654973	/* "ReIs" */
 	int magic;
 #endif
 	/* FIRST CACHE LINE (16 bytes): data used by jload */
@@ -112,13 +112,13 @@ struct jnode {
 
 	/* counter of references to jnode itself. Increased on jref().
 	   Decreased on jput().
-	*/
+	 */
 	/*   8 */ atomic_t x_count;
 
 	/* counter of references to jnode's data. Pin data page(s) in
 	   memory while this is greater than 0. Increased on jload().
 	   Decreased on jrelse().
-	*/
+	 */
 	/*   12 */ atomic_t d_count;
 
 	/* SECOND CACHE LINE: data used by hash table lookups */
@@ -142,7 +142,7 @@ struct jnode {
 	/*   36 */ struct page *pg;
 	/* pointer to node itself. This is page_address(node->pg) when page is
 	   attached to the jnode
-	*/
+	 */
 	/*   40 */ void *data;
 
 	/*   44 */ reiser4_tree *tree;
@@ -159,7 +159,8 @@ struct jnode {
 
 	/* FIFTH CACHE LINE */
 
-	/*   64 */ struct rcu_head rcu; /* crosses cache line */
+					/*   64 */ struct rcu_head rcu;
+					/* crosses cache line */
 
 	/* SIXTH CACHE LINE */
 
@@ -176,23 +177,42 @@ struct jnode {
 	/* list of all jnodes for debugging purposes. */
 	struct list_head jnodes;
 	/* how many times this jnode was written in one transaction */
-	int      written;
+	int written1;
 	/* this indicates which atom's list the jnode is on */
-        atom_list list1;
+	atom_list list1;
 #endif
-} __attribute__((aligned(16)));
+	/*XXXX*/
+	char history[16];
+	int free_slot;
+	/*XXXX*/
+} __attribute__ ((aligned(16)));
+
+/*XXXX*/
+#define JH_MAKE_EXTENT 1 /* capture_extent after make_extent before try_capture */
+#define JH_ASSIGN_REAL_BLOCKNR 2 /* assign_real_blocknrs */
+#define JH_EFLUSH 3 /* emergency_flush after page_io */
+#define JH_UNEFLUSH 4 /* eflush_free after tree tag clearing */
+#define JH_CAJ 5 /* capture_anonymous_jnodes after tag is cleared */
+#define JH_MJD 6 /* do_jnode_make_dirty after moving to dirty list */
+#define JH_WRITE 7 /* write_jnodes_to_disk_extent after clearing dirty bit */
+#define JH_END_READ 8 /* end_bio_single_page_read after successful uptodate check */
+#define JH_END_WRITE 9 /* end_bio_single_page_write after end_page_writeback */
+#define JH_RELEASEPAGE 10 /* reiser4_releasepage after page_clear_jnode */
+#define JH_ATTACHPAGE 11 /* jnode_attach_page after set page private */
+void clog_jnode(jnode *node, int event);
+/*XXXX*/
 
 
 /*
  * jnode types. Enumeration of existing jnode types.
  */
 typedef enum {
-	JNODE_UNFORMATTED_BLOCK, /* unformatted block */
-	JNODE_FORMATTED_BLOCK,   /* formatted block, znode */
-	JNODE_BITMAP,            /* bitmap */
-	JNODE_IO_HEAD,           /* jnode representing a block in the
-				  * wandering log */
-	JNODE_INODE,             /* jnode embedded into inode */
+	JNODE_UNFORMATTED_BLOCK,	/* unformatted block */
+	JNODE_FORMATTED_BLOCK,	/* formatted block, znode */
+	JNODE_BITMAP,		/* bitmap */
+	JNODE_IO_HEAD,		/* jnode representing a block in the
+				 * wandering log */
+	JNODE_INODE,		/* jnode embedded into inode */
 	LAST_JNODE_TYPE
 } jnode_type;
 
@@ -202,29 +222,29 @@ TYPE_SAFE_LIST_DEFINE(capture, jnode, capture_link);
 typedef enum {
 	/* jnode's page is loaded and data checked */
 	JNODE_PARSED = 0,
-       /* node was deleted, not all locks on it were released. This
+	/* node was deleted, not all locks on it were released. This
 	   node is empty and is going to be removed from the tree
 	   shortly. */
 	JNODE_HEARD_BANSHEE = 1,
-       /* left sibling pointer is valid */
+	/* left sibling pointer is valid */
 	JNODE_LEFT_CONNECTED = 2,
-       /* right sibling pointer is valid */
+	/* right sibling pointer is valid */
 	JNODE_RIGHT_CONNECTED = 3,
 
-       /* znode was just created and doesn't yet have a pointer from
+	/* znode was just created and doesn't yet have a pointer from
 	   its parent */
 	JNODE_ORPHAN = 4,
 
-       /* this node was created by its transaction and has not been assigned
-	  a block address. */
+	/* this node was created by its transaction and has not been assigned
+	   a block address. */
 	JNODE_CREATED = 5,
 
-       /* this node is currently relocated */
+	/* this node is currently relocated */
 	JNODE_RELOC = 6,
-       /* this node is currently wandered */
+	/* this node is currently wandered */
 	JNODE_OVRWR = 7,
 
-       /* this znode has been modified */
+	/* this znode has been modified */
 	JNODE_DIRTY = 8,
 
 	/* znode lock is being invalidated */
@@ -242,11 +262,11 @@ typedef enum {
 	JNODE_TYPE_2 = 14,
 	JNODE_TYPE_3 = 15,
 
-       /* jnode is being destroyed */
+	/* jnode is being destroyed */
 	JNODE_RIP = 16,
 
-       /* znode was not captured during locking (it might so be because
-	  ->level != LEAF_LEVEL and lock_mode == READ_LOCK) */
+	/* znode was not captured during locking (it might so be because
+	   ->level != LEAF_LEVEL and lock_mode == READ_LOCK) */
 	JNODE_MISSED_IN_CAPTURE = 17,
 
 	/* write is in progress */
@@ -305,27 +325,23 @@ typedef enum {
 
 /* Macros for accessing the jnode state. */
 
-static inline void
-JF_CLR(jnode * j, int f)
+static inline void JF_CLR(jnode * j, int f)
 {
 	assert("unknown-1", j->magic == JMAGIC);
 	clear_bit(f, &j->state);
 }
-static inline int
-JF_ISSET(const jnode * j, int f)
+static inline int JF_ISSET(const jnode * j, int f)
 {
 	assert("unknown-2", j->magic == JMAGIC);
 	return test_bit(f, &((jnode *) j)->state);
 }
-static inline void
-JF_SET(jnode * j, int f)
+static inline void JF_SET(jnode * j, int f)
 {
 	assert("unknown-3", j->magic == JMAGIC);
 	set_bit(f, &j->state);
 }
 
-static inline int
-JF_TEST_AND_SET(jnode * j, int f)
+static inline int JF_TEST_AND_SET(jnode * j, int f)
 {
 	assert("unknown-4", j->magic == JMAGIC);
 	return test_and_set_bit(f, &j->state);
@@ -354,12 +370,10 @@ SPIN_LOCK_FUNCTIONS(jnode, jnode, guard);
 
 SPIN_LOCK_FUNCTIONS(jload, jnode, load);
 
-static inline int
-jnode_is_in_deleteset(const jnode * node)
+static inline int jnode_is_in_deleteset(const jnode * node)
 {
 	return JF_ISSET(node, JNODE_RELOC);
 }
-
 
 extern int jnode_init_static(void);
 extern int jnode_done_static(void);
@@ -385,9 +399,9 @@ extern void jnode_init(jnode * node, reiser4_tree * tree, jnode_type) NONNULL;
 extern void jnode_make_dirty(jnode * node) NONNULL;
 extern void jnode_make_clean(jnode * node) NONNULL;
 extern void jnode_make_wander_nolock(jnode * node) NONNULL;
-extern void jnode_make_wander(jnode*) NONNULL;
-extern void znode_make_reloc(znode*, flush_queue_t*) NONNULL;
-extern void unformatted_make_reloc(jnode*, flush_queue_t*) NONNULL;
+extern void jnode_make_wander(jnode *) NONNULL;
+extern void znode_make_reloc(znode *, flush_queue_t *) NONNULL;
+extern void unformatted_make_reloc(jnode *, flush_queue_t *) NONNULL;
 
 extern void jnode_set_block(jnode * node,
 			    const reiser4_block_nr * blocknr) NONNULL;
@@ -395,8 +409,9 @@ extern void jnode_set_block(jnode * node,
 extern struct address_space *jnode_get_mapping(const jnode * node) NONNULL;
 
 /* block number of node */
-static inline const reiser4_block_nr *
-jnode_get_block(const jnode * node /* jnode to query */)
+static inline const reiser4_block_nr *jnode_get_block(const jnode *
+						      node /* jnode to query */
+						      )
 {
 	assert("nikita-528", node != NULL);
 
@@ -406,8 +421,7 @@ jnode_get_block(const jnode * node /* jnode to query */)
 /* block number for IO. Usually this is the same as jnode_get_block(), unless
  * jnode was emergency flushed---then block number chosen by eflush is
  * used. */
-static inline const reiser4_block_nr *
-jnode_get_io_block(const jnode * node)
+static inline const reiser4_block_nr *jnode_get_io_block(const jnode * node)
 {
 	assert("nikita-2768", node != NULL);
 	assert("nikita-2769", spin_jnode_is_locked(node));
@@ -420,7 +434,7 @@ jnode_get_io_block(const jnode * node)
 
 /* Jnode flush interface. */
 extern reiser4_blocknr_hint *pos_hint(flush_pos_t * pos);
-extern flush_queue_t * pos_fq(flush_pos_t * pos);
+extern flush_queue_t *pos_fq(flush_pos_t * pos);
 
 /* FIXME-VS: these are used in plugin/item/extent.c */
 
@@ -469,8 +483,7 @@ extern void print_jnode(const char *prefix, const jnode * node);
 int znode_is_root(const znode * node) NONNULL;
 
 /* bump reference counter on @node */
-static inline void
-add_x_ref(jnode * node /* node to increase x_count of */ )
+static inline void add_x_ref(jnode * node /* node to increase x_count of */ )
 {
 	assert("nikita-1911", node != NULL);
 
@@ -478,8 +491,7 @@ add_x_ref(jnode * node /* node to increase x_count of */ )
 	LOCK_CNT_INC(x_refs);
 }
 
-static inline void
-dec_x_ref(jnode * node)
+static inline void dec_x_ref(jnode * node)
 {
 	assert("nikita-3215", node != NULL);
 	assert("nikita-3216", atomic_read(&node->x_count) > 0);
@@ -490,8 +502,7 @@ dec_x_ref(jnode * node)
 }
 
 /* jref() - increase counter of references to jnode/znode (x_count) */
-static inline jnode *
-jref(jnode * node)
+static inline jnode *jref(jnode * node)
 {
 	assert("jmacd-508", (node != NULL) && !IS_ERR(node));
 	add_x_ref(node);
@@ -499,23 +510,20 @@ jref(jnode * node)
 }
 
 /* get the page of jnode */
-static inline struct page *
-jnode_page(const jnode * node)
+static inline struct page *jnode_page(const jnode * node)
 {
 	return node->pg;
 }
 
 /* return pointer to jnode data */
-static inline char *
-jdata(const jnode * node)
+static inline char *jdata(const jnode * node)
 {
 	assert("nikita-1415", node != NULL);
 	assert("nikita-3198", jnode_page(node) != NULL);
 	return node->data;
 }
 
-static inline int
-jnode_is_loaded(const jnode * node)
+static inline int jnode_is_loaded(const jnode * node)
 {
 	assert("zam-506", node != NULL);
 	return atomic_read(&node->d_count) > 0;
@@ -526,23 +534,12 @@ extern void page_detach_jnode(struct page *page,
 			      unsigned long index) NONNULL;
 extern void page_clear_jnode(struct page *page, jnode * node) NONNULL;
 
-static inline void
-jnode_set_reloc(jnode * node)
+static inline void jnode_set_reloc(jnode * node)
 {
 	assert("nikita-2431", node != NULL);
 	assert("nikita-2432", !JF_ISSET(node, JNODE_OVRWR));
 	JF_SET(node, JNODE_RELOC);
 }
-
-/* bump data counter on @node */
-static inline void add_d_ref(jnode * node /* node to increase d_count of */ )
-{
-	assert("nikita-1962", node != NULL);
-
-	atomic_inc(&node->d_count);
-	LOCK_CNT_INC(d_refs);
-}
-
 
 /* jload/jwrite/junload give a bread/bwrite/brelse functionality for jnodes */
 
@@ -564,8 +561,7 @@ void jload_prefetch(jnode *);
 extern jnode *alloc_io_head(const reiser4_block_nr * block) NONNULL;
 extern void drop_io_head(jnode * node) NONNULL;
 
-static inline reiser4_tree *
-jnode_get_tree(const jnode * node)
+static inline reiser4_tree *jnode_get_tree(const jnode * node)
 {
 	assert("nikita-2691", node != NULL);
 	return node->tree;
@@ -574,8 +570,7 @@ jnode_get_tree(const jnode * node)
 extern void pin_jnode_data(jnode *);
 extern void unpin_jnode_data(jnode *);
 
-static inline jnode_type
-jnode_get_type(const jnode * node)
+static inline jnode_type jnode_get_type(const jnode * node)
 {
 	static const unsigned long state_mask =
 	    (1 << JNODE_TYPE_1) | (1 << JNODE_TYPE_2) | (1 << JNODE_TYPE_3);
@@ -590,7 +585,7 @@ jnode_get_type(const jnode * node)
 		/* 010 */
 		[2] = JNODE_BITMAP,
 		/* 011 */
-		[3] = LAST_JNODE_TYPE,  /*invalid */
+		[3] = LAST_JNODE_TYPE,	/*invalid */
 		/* 100 */
 		[4] = JNODE_INODE,
 		/* 101 */
@@ -605,32 +600,29 @@ jnode_get_type(const jnode * node)
 }
 
 /* returns true if node is a znode */
-static inline int
-jnode_is_znode(const jnode * node)
+static inline int jnode_is_znode(const jnode * node)
 {
 	return jnode_get_type(node) == JNODE_FORMATTED_BLOCK;
 }
 
 /* return true if "node" is dirty */
-static inline int
-jnode_is_dirty(const jnode * node)
+static inline int jnode_is_dirty(const jnode * node)
 {
 	assert("nikita-782", node != NULL);
-	assert("jmacd-1800", spin_jnode_is_locked(node) || (jnode_is_znode(node) && znode_is_any_locked(JZNODE(node))));
+	assert("jmacd-1800", spin_jnode_is_locked(node)
+	       || (jnode_is_znode(node) && znode_is_any_locked(JZNODE(node))));
 	return JF_ISSET(node, JNODE_DIRTY);
 }
 
 /* return true if "node" is dirty, node is unlocked */
-static inline int
-jnode_check_dirty(jnode * node)
+static inline int jnode_check_dirty(jnode * node)
 {
 	assert("jmacd-7798", node != NULL);
 	assert("jmacd-7799", spin_jnode_is_not_locked(node));
 	return UNDER_SPIN(jnode, node, jnode_is_dirty(node));
 }
 
-static inline int
-jnode_is_flushprepped(const jnode * node)
+static inline int jnode_is_flushprepped(const jnode * node)
 {
 	assert("jmacd-78212", node != NULL);
 	assert("jmacd-71276", spin_jnode_is_locked(node));
@@ -642,8 +634,7 @@ jnode_is_flushprepped(const jnode * node)
    process.  This implies the block address has been finalized for the
    duration of this atom (or it is clean and will remain in place).  If this
    returns true you may use the block number as a hint. */
-static inline int
-jnode_check_flushprepped(jnode * node)
+static inline int jnode_check_flushprepped(jnode * node)
 {
 	/* It must be clean or relocated or wandered.  New allocations are set to relocate. */
 	assert("jmacd-71275", spin_jnode_is_not_locked(node));
@@ -651,38 +642,33 @@ jnode_check_flushprepped(jnode * node)
 }
 
 /* returns true if node is unformatted */
-static inline int
-jnode_is_unformatted(const jnode * node)
+static inline int jnode_is_unformatted(const jnode * node)
 {
 	assert("jmacd-0123", node != NULL);
 	return jnode_get_type(node) == JNODE_UNFORMATTED_BLOCK;
 }
 
 /* returns true if node represents a cluster cache page */
-static inline int
-jnode_is_cluster_page(const jnode * node)
+static inline int jnode_is_cluster_page(const jnode * node)
 {
 	assert("edward-50", node != NULL);
 	return (JF_ISSET(node, JNODE_CLUSTER_PAGE));
 }
 
 /* returns true is node is builtin inode's jnode */
-static inline int
-jnode_is_inode(const jnode * node)
+static inline int jnode_is_inode(const jnode * node)
 {
 	assert("vs-1240", node != NULL);
 	return jnode_get_type(node) == JNODE_INODE;
 }
 
-static inline jnode_plugin *
-jnode_ops_of(const jnode_type type)
+static inline jnode_plugin *jnode_ops_of(const jnode_type type)
 {
 	assert("nikita-2367", type < LAST_JNODE_TYPE);
 	return jnode_plugin_by_id((reiser4_plugin_id) type);
 }
 
-static inline jnode_plugin *
-jnode_ops(const jnode * node)
+static inline jnode_plugin *jnode_ops(const jnode * node)
 {
 	assert("nikita-2366", node != NULL);
 
@@ -690,25 +676,32 @@ jnode_ops(const jnode * node)
 }
 
 /* Get the index of a block. */
-static inline unsigned long
-jnode_get_index(jnode * node)
+static inline unsigned long jnode_get_index(jnode * node)
 {
 	return jnode_ops(node)->index(node);
 }
 
 /* return true if "node" is the root */
-static inline int
-jnode_is_root(const jnode * node)
+static inline int jnode_is_root(const jnode * node)
 {
 	return jnode_is_znode(node) && znode_is_root(JZNODE(node));
 }
 
-extern struct address_space * mapping_jnode(const jnode * node);
+extern struct address_space *mapping_jnode(const jnode * node);
 extern unsigned long index_jnode(const jnode * node);
 
 static inline void jput(jnode * node);
 extern void jput_final(jnode * node);
 
+/* bump data counter on @node */
+static inline void add_d_ref(jnode * node /* node to increase d_count of */ )
+{
+	assert("nikita-1962", node != NULL);
+
+	atomic_inc(&node->d_count);
+	if (jnode_is_unformatted(node) || jnode_is_znode(node))
+		LOCK_CNT_INC(d_refs);
+}
 
 /* jput() - decrement x_count reference counter on znode.
 
@@ -717,8 +710,7 @@ extern void jput_final(jnode * node);
    pressured out of memory before the parent. The jnode remains hashed as
    long as the VM allows its page to stay in memory.
 */
-static inline void
-jput(jnode * node)
+static inline void jput(jnode * node)
 {
 	assert("jmacd-509", node != NULL);
 	assert("jmacd-510", atomic_read(&node->x_count) > 0);
@@ -740,18 +732,23 @@ jput(jnode * node)
 extern void jrelse(jnode * node);
 extern void jrelse_tail(jnode * node);
 
-extern jnode *jnode_rip_sync(reiser4_tree *t, jnode * node);
+extern jnode *jnode_rip_sync(reiser4_tree * t, jnode * node);
 
 /* resolve race with jput */
-static inline jnode *
-jnode_rip_check(reiser4_tree *tree, jnode * node)
+static inline jnode *jnode_rip_check(reiser4_tree * tree, jnode * node)
 {
 	if (unlikely(JF_ISSET(node, JNODE_RIP)))
 		node = jnode_rip_sync(tree, node);
 	return node;
 }
 
-extern reiser4_key * jnode_build_key(const jnode * node, reiser4_key * key);
+extern reiser4_key *jnode_build_key(const jnode *node, reiser4_key * key);
+
+#if REISER4_DEBUG
+extern int jnode_invariant_f(const jnode *node, char const **msg);
+#endif
+
+extern jnode_plugin jnode_plugins[LAST_JNODE_TYPE];
 
 /* __JNODE_H__ */
 #endif

@@ -37,7 +37,7 @@
 #include "super.h"
 #include "context.h"
 
-#include <linux/writeback.h> /* balance_dirty_pages() */
+#include <linux/writeback.h>	/* balance_dirty_pages() */
 #include <linux/hardirq.h>
 
 #if REISER4_DEBUG
@@ -47,53 +47,25 @@ static context_list_head active_contexts;
 /* lock protecting access to active_contexts. */
 spinlock_t active_contexts_lock;
 
-#endif /* REISER4_DEBUG */
+#endif				/* REISER4_DEBUG */
 
-/* initialise context and bind it to the current thread
-
-   This function should be called at the beginning of reiser4 part of
-   syscall.
-*/
-reiser4_internal int
-init_context(reiser4_context * context	/* pointer to the reiser4 context
-					 * being initalised */ ,
-	     struct super_block *super	/* super block we are going to
-					 * work with */)
+static void _init_context(reiser4_context * context, struct super_block *super)
 {
-	assert("nikita-2662", !in_interrupt() && !in_irq());
-	assert("nikita-3356", context != NULL);
-	assert("nikita-3357", super != NULL);
-	assert("nikita-3358", super->s_op == NULL || is_reiser4_super(super));
-
-	memset(context, 0, sizeof *context);
-
-	if (is_in_reiser4_context()) {
-		reiser4_context *parent;
-
-		parent = (reiser4_context *) current->journal_info;
-		/* NOTE-NIKITA this is dubious */
-		if (parent->super == super) {
-			context->parent = parent;
-#if (REISER4_DEBUG)
-			++context->parent->nr_children;
-#endif
-			return 0;
-		}
-	}
+	memset(context, 0, sizeof(*context));
 
 	context->super = super;
 	context->magic = context_magic;
 	context->outer = current->journal_info;
-	current->journal_info = (void *) context;
+	current->journal_info = (void *)context;
+	context->nr_children = 0;
 
 	init_lock_stack(&context->stack);
 
 	txn_begin(context);
 
-	context->parent = context;
 	tap_list_init(&context->taps);
 #if REISER4_DEBUG
-	context_list_clean(context);	/* to satisfy assertion */
+	context_list_clean(context);
 	spin_lock(&active_contexts_lock);
 	context_list_check(&active_contexts);
 	context_list_push_front(&active_contexts, context);
@@ -101,26 +73,64 @@ init_context(reiser4_context * context	/* pointer to the reiser4 context
 	context->task = current;
 #endif
 	grab_space_enable();
-	return 0;
+}
+
+/* initialize context and bind it to the current thread
+
+   This function should be called at the beginning of reiser4 part of
+   syscall.
+*/
+reiser4_context *init_context(struct super_block *super	/* super block we are going to
+							 * work with */ )
+{
+	reiser4_context *context;
+
+	assert("nikita-2662", !in_interrupt() && !in_irq());
+	assert("nikita-3357", super != NULL);
+	assert("nikita-3358", super->s_op == NULL || is_reiser4_super(super));
+
+	context = get_current_context_check();
+	if (context && context->super == super) {
+		context = (reiser4_context *) current->journal_info;
+		context->nr_children++;
+		return context;
+	}
+
+	context = kmalloc(sizeof(*context), GFP_KERNEL);
+	if (context == NULL)
+		return ERR_PTR(RETERR(-ENOMEM));
+
+	_init_context(context, super);
+	return context;
+}
+
+/* this is used in scan_mgr which is called with spinlock held and in
+   reiser4_fill_super magic */
+void init_stack_context(reiser4_context *context, struct super_block *super)
+{
+	assert("nikita-2662", !in_interrupt() && !in_irq());
+	assert("nikita-3357", super != NULL);
+	assert("nikita-3358", super->s_op == NULL || is_reiser4_super(super));
+	assert("vs-12", !is_in_reiser4_context());
+
+	_init_context(context, super);
+	context->on_stack = 1;
+	return;
 }
 
 /* cast lock stack embedded into reiser4 context up to its container */
-reiser4_internal reiser4_context *
-get_context_by_lock_stack(lock_stack * owner)
+reiser4_context *get_context_by_lock_stack(lock_stack * owner)
 {
 	return container_of(owner, reiser4_context, stack);
 }
 
 /* true if there is already _any_ reiser4 context for the current thread */
-reiser4_internal int
-is_in_reiser4_context(void)
+int is_in_reiser4_context(void)
 {
 	reiser4_context *ctx;
 
 	ctx = current->journal_info;
-	return
-		ctx != NULL &&
-		((unsigned long) ctx->magic) == context_magic;
+	return ctx != NULL && ((unsigned long)ctx->magic) == context_magic;
 }
 
 /*
@@ -140,16 +150,15 @@ is_in_reiser4_context(void)
  * because some important lock (like ->i_sem on the parent directory) is
  * held. To achieve this, ->nobalance flag can be set in the current context.
  */
-static void
-balance_dirty_pages_at(reiser4_context * context)
+static void balance_dirty_pages_at(reiser4_context * context)
 {
-	reiser4_super_info_data * sbinfo = get_super_private(context->super);
+	reiser4_super_info_data *sbinfo = get_super_private(context->super);
 
 	/*
 	 * call balance_dirty_pages_ratelimited() to process formatted nodes
 	 * dirtied during this system call.
 	 */
-	if (context->nr_marked_dirty != 0 &&   /* were any nodes dirtied? */
+	if (context->nr_marked_dirty != 0 &&	/* were any nodes dirtied? */
 	    /* aren't we called early during mount? */
 	    sbinfo->fake &&
 	    /* don't call balance dirty pages from ->writepage(): it's
@@ -164,11 +173,11 @@ balance_dirty_pages_at(reiser4_context * context)
  * exit reiser4 context. Call balance_dirty_pages_at() if necessary. Close
  * transaction. Call done_context() to do context related book-keeping.
  */
-reiser4_internal void reiser4_exit_context(reiser4_context * context)
+void reiser4_exit_context(reiser4_context * context)
 {
 	assert("nikita-3021", schedulable());
 
-	if (context == context->parent) {
+	if (context->nr_children == 0) {
 		if (!context->nobalance) {
 			txn_restart(context);
 			balance_dirty_pages_at(context);
@@ -206,28 +215,24 @@ reiser4_internal void reiser4_exit_context(reiser4_context * context)
    thread released all locks and closed transcrash etc.
 
 */
-reiser4_internal void
-done_context(reiser4_context * context /* context being released */)
+void done_context(reiser4_context * context /* context being released */ )
 {
-	reiser4_context *parent;
 	assert("nikita-860", context != NULL);
-
-	parent = context->parent;
-	assert("nikita-2174", parent != NULL);
-	assert("nikita-2093", parent == parent->parent);
-	assert("nikita-859", parent->magic == context_magic);
-	assert("vs-646", (reiser4_context *) current->journal_info == parent);
+	assert("nikita-859", context->magic == context_magic);
+	assert("vs-646", (reiser4_context *) current->journal_info == context);
 	assert("zam-686", !in_interrupt() && !in_irq());
 
 	/* only do anything when leaving top-level reiser4 context. All nested
 	 * contexts are just dummies. */
-	if (parent == context) {
-		assert("jmacd-673", parent->trans == NULL);
-		assert("jmacd-1002", lock_stack_isclean(&parent->stack));
+	if (context->nr_children == 0) {
+		assert("jmacd-673", context->trans == NULL);
+		assert("jmacd-1002", lock_stack_isclean(&context->stack));
 		assert("nikita-1936", no_counters_are_held());
 		assert("nikita-3403", !delayed_inode_updates(context->dirty));
 		assert("nikita-2626", tap_list_empty(taps_list()));
-		assert("zam-1004", get_super_private(context->super)->delete_sema_owner != current);
+		assert("zam-1004",
+		       get_super_private(context->super)->delete_sema_owner !=
+		       current);
 
 		/* release all grabbed but as yet unused blocks */
 		if (context->grabbed_blocks != 0)
@@ -252,23 +257,24 @@ done_context(reiser4_context * context /* context being released */)
 #if REISER4_DEBUG
 		/* remove from active contexts */
 		spin_lock(&active_contexts_lock);
-		context_list_remove(parent);
+		context_list_remove(context);
 		spin_unlock(&active_contexts_lock);
 #endif
 		assert("zam-684", context->nr_children == 0);
 		/* restore original ->fs_context value */
 		current->journal_info = context->outer;
+		if (context->on_stack == 0)
+			kfree(context);
 	} else {
+		context->nr_children--;
 #if REISER4_DEBUG
-		parent->nr_children--;
-		assert("zam-685", parent->nr_children >= 0);
+		assert("zam-685", context->nr_children >= 0);
 #endif
 	}
 }
 
 /* Initialize list of all contexts */
-reiser4_internal int
-init_context_mgr(void)
+int init_context_mgr(void)
 {
 #if REISER4_DEBUG
 	spin_lock_init(&active_contexts_lock);
@@ -280,8 +286,7 @@ init_context_mgr(void)
 #if REISER4_DEBUG
 /* debugging function: output reiser4 context contexts in the human readable
  * form  */
-static void
-print_context(const char *prefix, reiser4_context * context)
+static void print_context(const char *prefix, reiser4_context * context)
 {
 	if (context == NULL) {
 		printk("%s: null context\n", prefix);
@@ -294,8 +299,7 @@ print_context(const char *prefix, reiser4_context * context)
 }
 
 /* debugging: dump contents of all active contexts */
-void
-print_contexts(void)
+void print_contexts(void)
 {
 	reiser4_context *context;
 

@@ -58,7 +58,7 @@ TYPE_SAFE_LIST_DECLARE(inode_jnodes);
 #endif
 
 TYPE_SAFE_LIST_DECLARE(blocknr_set);	/* Used for the transaction's delete set
-				 * and wandered mapping. */
+					 * and wandered mapping. */
 
 /* list of flush queues attached to a given atom */
 TYPE_SAFE_LIST_DECLARE(fq);
@@ -96,7 +96,8 @@ typedef enum {
 	   exclusive type designation from extra bits that may be supplied -- see
 	   below. */
 	TXN_CAPTURE_TYPES = (TXN_CAPTURE_READ_ATOMIC |
-			     TXN_CAPTURE_READ_NONCOM | TXN_CAPTURE_READ_MODIFY | TXN_CAPTURE_WRITE),
+			     TXN_CAPTURE_READ_NONCOM | TXN_CAPTURE_READ_MODIFY |
+			     TXN_CAPTURE_WRITE),
 
 	/* A subset of CAPTURE_TYPES, CAPTURE_WTYPES is a mask of request types that
 	   indicate modification will occur. */
@@ -110,10 +111,10 @@ typedef enum {
 	TXN_CAPTURE_DONT_FUSE = (1 << 5),
 
 	/* if it is set - copy on capture is allowed */
-	/*TXN_CAPTURE_CAN_COC = (1 << 6)*/
+	/*TXN_CAPTURE_CAN_COC = (1 << 6) */
 
-	    /* This macro selects only the exclusive capture request types, stripping out any
-	       options that were supplied (i.e., NONBLOCKING). */
+	/* This macro selects only the exclusive capture request types, stripping out any
+	   options that were supplied (i.e., NONBLOCKING). */
 #define CAPTURE_TYPE(x) ((x) & TXN_CAPTURE_TYPES)
 } txn_capture;
 
@@ -210,7 +211,6 @@ typedef enum {
 
        ELSE YOU HAVE BOTH ATOM AND OBJ LOCKED
 
-
    It has however been found that this wastes CPU a lot in a manner that is
    hard to profile. So, proper refcounting was added to atoms, and new
    standard locking sequence is like following:
@@ -246,7 +246,7 @@ typedef enum {
 
 /* A block number set consists of only the list head. */
 struct blocknr_set {
-	blocknr_set_list_head entries; /* blocknr_set_list_head defined from a template from tslist.h */
+	blocknr_set_list_head entries;	/* blocknr_set_list_head defined from a template from tslist.h */
 };
 
 /* An atomic transaction: this is the underlying system representation
@@ -269,7 +269,7 @@ struct txn_atom {
 	   Each transaction handle counts in ->refcount. All jnodes count as
 	   one reference acquired in atom_begin_andlock(), released in
 	   commit_current_atom().
-	*/
+	 */
 	atomic_t refcount;
 
 	/* The atom_id identifies the atom in persistent records such as the log. */
@@ -368,6 +368,7 @@ struct txn_atom {
 #if REISER4_DEBUG
 	void *committer;
 #endif
+	struct super_block *super;
 };
 
 #define ATOM_DIRTY_LIST(atom, level) (&(atom)->dirty_nodes1[level])
@@ -378,7 +379,9 @@ struct txn_atom {
 
 #define NODE_LIST(node) (node)->list1
 #define ASSIGN_NODE_LIST(node, list) ON_DEBUG(NODE_LIST(node) = list)
-ON_DEBUG(void count_jnode(txn_atom *, jnode *, atom_list old_list, atom_list new_list, int check_lists));
+ON_DEBUG(void
+	 count_jnode(txn_atom *, jnode *, atom_list old_list,
+		     atom_list new_list, int check_lists));
 
 typedef struct protected_jnodes {
 	prot_list_link inatom;
@@ -447,6 +450,8 @@ TYPE_SAFE_LIST_DEFINE(txn_mgrs, txn_mgr, linkage);
 
 /* FUNCTION DECLARATIONS */
 
+extern int is_cced(const jnode *node);
+
 /* These are the externally (within Reiser4) visible transaction functions, therefore they
    are prefixed with "txn_".  For comments, see txnmgr.c. */
 
@@ -467,19 +472,21 @@ extern void txn_restart_current(void);
 extern int txnmgr_force_commit_all(struct super_block *, int);
 extern int current_atom_should_commit(void);
 
-extern jnode * find_first_dirty_jnode (txn_atom *, int);
+extern jnode *find_first_dirty_jnode(txn_atom *, int);
 
 extern int commit_some_atoms(txn_mgr *);
-extern int flush_current_atom (int, long *, txn_atom **);
+extern int flush_current_atom(int, long, long *, txn_atom **);
 
 extern int flush_some_atom(long *, const struct writeback_control *, int);
 
-extern void atom_set_stage(txn_atom *atom, txn_stage stage);
+extern void atom_set_stage(txn_atom * atom, txn_stage stage);
 
-extern int same_slum_check(jnode * base, jnode * check, int alloc_check, int alloc_value);
+extern int same_slum_check(jnode * base, jnode * check, int alloc_check,
+			   int alloc_value);
 extern void atom_dec_and_unlock(txn_atom * atom);
 
-extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags, int can_coc);
+extern int try_capture(jnode * node, znode_lock_mode mode, txn_capture flags,
+		       int can_coc);
 extern int try_capture_page_to_invalidate(struct page *pg);
 
 extern void uncapture_page(struct page *pg);
@@ -494,8 +501,7 @@ extern txn_atom *get_current_atom_locked_nocheck(void);
 #define atom_is_protected(atom) (spin_atom_is_locked(atom) || (atom)->stage >= ASTAGE_PRE_COMMIT)
 
 /* Get the current atom and spinlock it if current atom present. May not return NULL */
-static inline txn_atom *
-get_current_atom_locked(void)
+static inline txn_atom *get_current_atom_locked(void)
 {
 	txn_atom *atom;
 
@@ -521,14 +527,19 @@ extern void blocknr_set_merge(blocknr_set * from, blocknr_set * into);
 extern int blocknr_set_add_extent(txn_atom * atom,
 				  blocknr_set * bset,
 				  blocknr_set_entry ** new_bsep,
-				  const reiser4_block_nr * start, const reiser4_block_nr * len);
-extern int blocknr_set_add_pair(txn_atom * atom,
-				blocknr_set * bset,
-				blocknr_set_entry ** new_bsep, const reiser4_block_nr * a, const reiser4_block_nr * b);
+				  const reiser4_block_nr * start,
+				  const reiser4_block_nr * len);
+extern int blocknr_set_add_pair(txn_atom * atom, blocknr_set * bset,
+				blocknr_set_entry ** new_bsep,
+				const reiser4_block_nr * a,
+				const reiser4_block_nr * b);
 
-typedef int (*blocknr_set_actor_f) (txn_atom *, const reiser4_block_nr *, const reiser4_block_nr *, void *);
+typedef int (*blocknr_set_actor_f) (txn_atom *, const reiser4_block_nr *,
+				    const reiser4_block_nr *, void *);
 
-extern int blocknr_set_iterator(txn_atom * atom, blocknr_set * bset, blocknr_set_actor_f actor, void *data, int delete);
+extern int blocknr_set_iterator(txn_atom * atom, blocknr_set * bset,
+				blocknr_set_actor_f actor, void *data,
+				int delete);
 
 /* flush code takes care about how to fuse flush queues */
 extern void flush_init_atom(txn_atom * atom);
@@ -613,22 +624,22 @@ extern int current_atom_finish_all_fq(void);
 extern void init_atom_fq_parts(txn_atom *);
 
 extern unsigned int txnmgr_get_max_atom_size(struct super_block *super);
-extern reiser4_block_nr txnmgr_count_deleted_blocks (void);
+extern reiser4_block_nr txnmgr_count_deleted_blocks(void);
 
 extern void znode_make_dirty(znode * node);
 extern void jnode_make_dirty_locked(jnode * node);
 
-extern int sync_atom(txn_atom *atom);
+extern int sync_atom(txn_atom * atom);
 
 #if REISER4_DEBUG
-extern int atom_fq_parts_are_clean (txn_atom *);
+extern int atom_fq_parts_are_clean(txn_atom *);
 #endif
 
 extern void add_fq_to_bio(flush_queue_t *, struct bio *);
 extern flush_queue_t *get_fq_for_current_atom(void);
 
-void protected_jnodes_init(protected_jnodes *list);
-void protected_jnodes_done(protected_jnodes *list);
+void protected_jnodes_init(protected_jnodes * list);
+void protected_jnodes_done(protected_jnodes * list);
 void invalidate_list(capture_list_head * head);
 
 #if REISER4_DEBUG

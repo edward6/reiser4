@@ -12,7 +12,9 @@
 #include "kcond.h"
 #include "seal.h"
 #include "plugin/plugin.h"
-#include "plugin/cryptcompress.h"
+#include "plugin/file/cryptcompress.h"
+#include "plugin/file/file.h"
+#include "plugin/dir/dir.h"
 #include "plugin/plugin_set.h"
 #include "plugin/security/perm.h"
 #include "plugin/pseudo/pseudo.h"
@@ -36,8 +38,8 @@ typedef enum {
 	/* stat data wasn't yet created */
 	REISER4_NO_SD = 1,
 	/* internal immutable flag. Currently is only used
-	    to avoid race condition during file creation.
-	    See comment in create_object(). */
+	   to avoid race condition during file creation.
+	   See comment in create_object(). */
 	REISER4_IMMUTABLE = 2,
 	/* inode was read from storage */
 	REISER4_LOADED = 3,
@@ -46,7 +48,7 @@ typedef enum {
 	REISER4_GENERIC_PTR_USED = 4,
 	/* set if size of stat-data item for this inode is known. If this is
 	 * set we can avoid recalculating size of stat-data on each update. */
-	REISER4_SDLEN_KNOWN   = 5,
+	REISER4_SDLEN_KNOWN = 5,
 	/* reiser4_inode->crypt points to the crypto stat */
 	REISER4_CRYPTO_STAT_LOADED = 6,
 	/* cryptcompress_inode_data points to the secret key */
@@ -70,7 +72,6 @@ typedef enum {
    s_op->allocate_inode() method. So, it is possible to adjust size of inode
    at the time of its creation.
 
-
    Invariants involving parts of this data-type:
 
       [inode->eflushed]
@@ -79,10 +80,8 @@ typedef enum {
 
 typedef struct reiser4_inode reiser4_inode;
 /* return pointer to reiser4-specific part of inode */
-static inline reiser4_inode *
-reiser4_inode_data(const struct inode * inode /* inode queried */);
-
-#include "plugin/file/file.h"
+static inline reiser4_inode *reiser4_inode_data(const struct inode *inode
+						/* inode queried */ );
 
 #if BITS_PER_LONG == 64
 
@@ -135,17 +134,17 @@ struct reiser4_inode {
 		/* fields specific to pseudo file plugin */
 		pseudo_info_t pseudo_info;
 	} file_plugin_data;
-	struct rw_semaphore coc_sem; /* filemap_nopage takes it for read, copy_on_capture - for write. Under this it
-			       tries to unmap page for which it is called. This prevents process from using page which
-			       was copied on capture */
+	struct rw_semaphore coc_sem;	/* filemap_nopage takes it for read, copy_on_capture - for write. Under this it
+					   tries to unmap page for which it is called. This prevents process from using page which
+					   was copied on capture */
 
 	/* tree of jnodes. Phantom jnodes (ones not attched to any atom) are
 	   tagged in that tree by EFLUSH_TAG_ANONYMOUS */
 	struct radix_tree_root jnodes_tree;
 #if REISER4_DEBUG
 	/* numbers of eflushed jnodes of each type in the above tree */
-	int anonymous_eflushed;
-	int captured_eflushed;
+	atomic_t anonymous_eflushed;
+	atomic_t captured_eflushed;
 	/* number of unformatted node jnodes of this file in jnode hash table */
 	unsigned long nr_jnodes;
 #endif
@@ -168,17 +167,18 @@ typedef struct reiser4_inode_object {
 } reiser4_inode_object;
 
 /* return pointer to the reiser4 specific portion of @inode */
-static inline reiser4_inode *
-reiser4_inode_data(const struct inode * inode /* inode queried */)
+static inline reiser4_inode *reiser4_inode_data(const struct inode *inode
+						/* inode queried */ )
 {
 	assert("nikita-254", inode != NULL);
 	return &container_of(inode, reiser4_inode_object, vfs_inode)->p;
 }
 
-static inline struct inode *
-inode_by_reiser4_inode(const reiser4_inode *r4_inode /* inode queried */)
+static inline struct inode *inode_by_reiser4_inode(const reiser4_inode *
+						   r4_inode /* inode queried */
+						   )
 {
-       return &container_of(r4_inode, reiser4_inode_object, p)->vfs_inode;
+	return &container_of(r4_inode, reiser4_inode_object, p)->vfs_inode;
 }
 
 /*
@@ -196,14 +196,12 @@ inode_by_reiser4_inode(const reiser4_inode *r4_inode /* inode queried */)
 
 #if REISER4_INO_IS_OID
 
-static inline oid_t
-get_inode_oid(const struct inode *inode)
+static inline oid_t get_inode_oid(const struct inode *inode)
 {
 	return inode->i_ino;
 }
 
-static inline void
-set_inode_oid(struct inode *inode, oid_t oid)
+static inline void set_inode_oid(struct inode *inode, oid_t oid)
 {
 	inode->i_ino = oid;
 }
@@ -211,19 +209,17 @@ set_inode_oid(struct inode *inode, oid_t oid)
 /* REISER4_INO_IS_OID */
 #else
 
-static inline oid_t
-get_inode_oid(const struct inode *inode)
+static inline oid_t get_inode_oid(const struct inode *inode)
 {
 	return
-		((__u64)reiser4_inode_data(inode)->oid_hi << OID_HI_SHIFT) |
-		inode->i_ino;
+	    ((__u64) reiser4_inode_data(inode)->oid_hi << OID_HI_SHIFT) |
+	    inode->i_ino;
 }
 
-static inline void
-set_inode_oid(struct inode *inode, oid_t oid)
+static inline void set_inode_oid(struct inode *inode, oid_t oid)
 {
 	assert("nikita-2519", inode != NULL);
-	inode->i_ino = (ino_t)(oid);
+	inode->i_ino = (ino_t) (oid);
 	reiser4_inode_data(inode)->oid_hi = (oid) >> OID_HI_SHIFT;
 	assert("nikita-2521", get_inode_oid(inode) == (oid));
 }
@@ -231,8 +227,7 @@ set_inode_oid(struct inode *inode, oid_t oid)
 /* REISER4_INO_IS_OID */
 #endif
 
-static inline oid_t
-get_inode_locality(const struct inode *inode)
+static inline oid_t get_inode_locality(const struct inode *inode)
 {
 	return reiser4_inode_data(inode)->locality_id;
 }
@@ -256,8 +251,8 @@ static inline void set_inode_ordering(const struct inode *inode, __u64 ordering)
 #endif
 
 /* return inode in which @uf_info is embedded */
-static inline struct inode *
-unix_file_info_to_inode(const unix_file_info_t *uf_info)
+static inline struct inode *unix_file_info_to_inode(const unix_file_info_t *
+						    uf_info)
 {
 	return &container_of(uf_info, reiser4_inode_object,
 			     p.file_plugin_data.unix_file_info)->vfs_inode;
@@ -301,18 +296,20 @@ extern int inode_has_no_jnodes(reiser4_inode *);
 })
 
 extern znode *inode_get_vroot(struct inode *inode);
-extern void   inode_set_vroot(struct inode *inode, znode *vroot);
+extern void inode_set_vroot(struct inode *inode, znode * vroot);
 
 extern int reiser4_max_filename_len(const struct inode *inode);
 extern int max_hash_collisions(const struct inode *dir);
 extern void reiser4_unlock_inode(struct inode *inode);
 extern int is_reiser4_inode(const struct inode *inode);
 extern int setup_inode_ops(struct inode *inode, reiser4_object_create_data *);
-extern struct inode *reiser4_iget(struct super_block *super, const reiser4_key * key, int silent);
-extern void reiser4_iget_complete (struct inode * inode);
+extern struct inode *reiser4_iget(struct super_block *super,
+				  const reiser4_key * key, int silent);
+extern void reiser4_iget_complete(struct inode *inode);
 extern void inode_set_flag(struct inode *inode, reiser4_file_plugin_flags f);
 extern void inode_clr_flag(struct inode *inode, reiser4_file_plugin_flags f);
-extern int inode_get_flag(const struct inode *inode, reiser4_file_plugin_flags f);
+extern int inode_get_flag(const struct inode *inode,
+			  reiser4_file_plugin_flags f);
 
 /*  has inode been initialized? */
 static inline int
@@ -331,7 +328,8 @@ extern fibration_plugin *inode_fibration_plugin(const struct inode *inode);
 extern crypto_plugin *inode_crypto_plugin(const struct inode *inode);
 extern digest_plugin *inode_digest_plugin(const struct inode *inode);
 extern compression_plugin *inode_compression_plugin(const struct inode *inode);
-extern compression_mode_plugin *inode_compression_mode_plugin(const struct inode *inode);
+extern compression_mode_plugin *inode_compression_mode_plugin(const struct inode
+							      *inode);
 extern cluster_plugin *inode_cluster_plugin(const struct inode *inode);
 extern regular_plugin *inode_regular_plugin(const struct inode *inode);
 extern item_plugin *inode_sd_plugin(const struct inode *inode);
@@ -343,6 +341,7 @@ extern void reiser4_make_bad_inode(struct inode *inode);
 
 extern void inode_set_extension(struct inode *inode, sd_ext_bits ext);
 extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
+extern void inode_check_scale_nolock(struct inode * inode, __u64 old, __u64 new);
 
 /*
  * update field @field in inode @i to contain value @value.
@@ -377,23 +376,21 @@ extern void inode_check_scale(struct inode *inode, __u64 old, __u64 new);
 })
 
 /* See comment before readdir_common() for description. */
-static inline readdir_list_head *
-get_readdir_list(const struct inode *inode)
+static inline readdir_list_head *get_readdir_list(const struct inode *inode)
 {
 	return &reiser4_inode_data(inode)->lists.readdir_list;
 }
 
 extern void init_inode_ordering(struct inode *inode,
-				reiser4_object_create_data *crd, int create);
+				reiser4_object_create_data * crd, int create);
 
-static inline struct radix_tree_root *
-jnode_tree_by_inode(struct inode *inode)
+static inline struct radix_tree_root *jnode_tree_by_inode(struct inode *inode)
 {
 	return &reiser4_inode_data(inode)->jnodes_tree;
 }
 
-static inline struct radix_tree_root *
-jnode_tree_by_reiser4_inode(reiser4_inode *r4_inode)
+static inline struct radix_tree_root *jnode_tree_by_reiser4_inode(reiser4_inode
+								  * r4_inode)
 {
 	return &r4_inode->jnodes_tree;
 }
@@ -401,6 +398,8 @@ jnode_tree_by_reiser4_inode(reiser4_inode *r4_inode)
 #if REISER4_DEBUG
 extern void print_inode(const char *prefix, const struct inode *i);
 #endif
+
+int is_dir_empty(const struct inode *);
 
 /* __REISER4_INODE_H__ */
 #endif

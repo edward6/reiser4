@@ -66,7 +66,6 @@
 
 typedef unsigned long ulong_t;
 
-
 #define bmap_size(blocksize)	    ((blocksize) - CHECKSUM_SIZE)
 #define bmap_bit_count(blocksize)   (bmap_size(blocksize) << 3)
 
@@ -84,8 +83,7 @@ struct bitmap_node {
 				 * already */
 };
 
-static inline char *
-bnode_working_data(struct bitmap_node *bnode)
+static inline char *bnode_working_data(struct bitmap_node *bnode)
 {
 	char *data;
 
@@ -95,8 +93,7 @@ bnode_working_data(struct bitmap_node *bnode)
 	return data + CHECKSUM_SIZE;
 }
 
-static inline char *
-bnode_commit_data(const struct bitmap_node *bnode)
+static inline char *bnode_commit_data(const struct bitmap_node *bnode)
 {
 	char *data;
 
@@ -106,8 +103,7 @@ bnode_commit_data(const struct bitmap_node *bnode)
 	return data + CHECKSUM_SIZE;
 }
 
-static inline __u32
-bnode_commit_crc(const struct bitmap_node *bnode)
+static inline __u32 bnode_commit_crc(const struct bitmap_node *bnode)
 {
 	char *data;
 
@@ -117,8 +113,7 @@ bnode_commit_crc(const struct bitmap_node *bnode)
 	return d32tocpu((d32 *) data);
 }
 
-static inline void
-bnode_set_commit_crc(struct bitmap_node *bnode, __u32 crc)
+static inline void bnode_set_commit_crc(struct bitmap_node *bnode, __u32 crc)
 {
 	char *data;
 
@@ -148,8 +143,7 @@ struct bitmap_allocator_data {
 #define get_bnode(super, i) (get_barray(super) + i)
 
 /* allocate and initialize jnode with JNODE_BITMAP type */
-static jnode *
-bnew(void)
+static jnode *bnew(void)
 {
 	jnode *jal = jalloc();
 
@@ -164,8 +158,7 @@ bnew(void)
    - all the helper functions like set bit, find_first_zero_bit, etc */
 
 /* Audited by: green(2002.06.12) */
-static int
-find_next_zero_bit_in_word(ulong_t word, int start_bit)
+static int find_next_zero_bit_in_word(ulong_t word, int start_bit)
 {
 	ulong_t mask = 1UL << start_bit;
 	int i = start_bit;
@@ -186,25 +179,27 @@ find_next_zero_bit_in_word(ulong_t word, int start_bit)
 #define OFF(addr)  (((ulong_t)(addr) & (BYTES_PER_LONG - 1)) << 3)
 #define BASE(addr) ((ulong_t*) ((ulong_t)(addr) & ~(BYTES_PER_LONG - 1)))
 
-static inline void reiser4_set_bit(int nr, void * addr)
+static inline void reiser4_set_bit(int nr, void *addr)
 {
 	ext2_set_bit(nr + OFF(addr), BASE(addr));
 }
 
-static inline void reiser4_clear_bit(int nr, void * addr)
+static inline void reiser4_clear_bit(int nr, void *addr)
 {
 	ext2_clear_bit(nr + OFF(addr), BASE(addr));
 }
 
-static inline int reiser4_test_bit(int nr, void * addr)
+static inline int reiser4_test_bit(int nr, void *addr)
 {
 	return ext2_test_bit(nr + OFF(addr), BASE(addr));
 }
-static inline int reiser4_find_next_zero_bit(void * addr, int maxoffset, int offset)
+static inline int reiser4_find_next_zero_bit(void *addr, int maxoffset,
+					     int offset)
 {
 	int off = OFF(addr);
 
-	return ext2_find_next_zero_bit(BASE(addr), maxoffset + off, offset + off) - off;
+	return ext2_find_next_zero_bit(BASE(addr), maxoffset + off,
+				       offset + off) - off;
 }
 
 #else
@@ -220,11 +215,11 @@ ext2_find_next_zero_bit(addr, maxoffset, offset)
 /* Search for a set bit in the bit array [@start_offset, @max_offset[, offsets
  * are counted from @addr, return the offset of the first bit if it is found,
  * @maxoffset otherwise. */
-static bmap_off_t __reiser4_find_next_set_bit(
-	void *addr, bmap_off_t max_offset, bmap_off_t start_offset)
+static bmap_off_t __reiser4_find_next_set_bit(void *addr, bmap_off_t max_offset,
+					      bmap_off_t start_offset)
 {
 	ulong_t *base = addr;
-        /* start_offset is in bits, convert it to byte offset within bitmap. */
+	/* start_offset is in bits, convert it to byte offset within bitmap. */
 	int word_nr = start_offset >> LONG_INT_SHIFT;
 	/* bit number within the byte. */
 	int bit_nr = start_offset & LONG_INT_MASK;
@@ -259,12 +254,13 @@ static bmap_off_t __reiser4_find_next_set_bit(
 
 #if BITS_PER_LONG == 64
 
-static bmap_off_t reiser4_find_next_set_bit(
-	void *addr, bmap_off_t max_offset, bmap_off_t start_offset)
+static bmap_off_t reiser4_find_next_set_bit(void *addr, bmap_off_t max_offset,
+					    bmap_off_t start_offset)
 {
 	bmap_off_t off = OFF(addr);
 
-	return __reiser4_find_next_set_bit(BASE(addr), max_offset + off, start_offset + off) - off;
+	return __reiser4_find_next_set_bit(BASE(addr), max_offset + off,
+					   start_offset + off) - off;
 }
 
 #else
@@ -273,13 +269,13 @@ static bmap_off_t reiser4_find_next_set_bit(
 #endif
 
 /* search for the first set bit in single word. */
-static int find_last_set_bit_in_word (ulong_t word, int start_bit)
+static int find_last_set_bit_in_word(ulong_t word, int start_bit)
 {
 	ulong_t bit_mask;
 	int nr = start_bit;
 
-	assert ("zam-965", start_bit < BITS_PER_LONG);
-	assert ("zam-966", start_bit >= 0);
+	assert("zam-965", start_bit < BITS_PER_LONG);
+	assert("zam-966", start_bit >= 0);
 
 	bit_mask = (1UL << nr);
 
@@ -287,7 +283,7 @@ static int find_last_set_bit_in_word (ulong_t word, int start_bit)
 		if (bit_mask & word)
 			return nr;
 		bit_mask >>= 1;
-		nr --;
+		nr--;
 	}
 	return BITS_PER_LONG;
 }
@@ -303,16 +299,17 @@ static int find_last_set_bit_in_word (ulong_t word, int start_bit)
  * @return: 0 - set bit was found, -1 otherwise.
  */
 static int
-reiser4_find_last_set_bit (bmap_off_t * result, void * addr, bmap_off_t low_off, bmap_off_t high_off)
+reiser4_find_last_set_bit(bmap_off_t * result, void *addr, bmap_off_t low_off,
+			  bmap_off_t high_off)
 {
-	ulong_t * base = addr;
+	ulong_t *base = addr;
 	int last_word;
 	int first_word;
 	int last_bit;
 	int nr;
 
-	assert ("zam-961", high_off >= 0);
-	assert ("zam-962", high_off >= low_off);
+	assert("zam-961", high_off >= 0);
+	assert("zam-962", high_off >= low_off);
 
 	last_word = high_off >> LONG_INT_SHIFT;
 	last_bit = high_off & LONG_INT_MASK;
@@ -324,16 +321,18 @@ reiser4_find_last_set_bit (bmap_off_t * result, void * addr, bmap_off_t low_off,
 			*result = (last_word << LONG_INT_SHIFT) + nr;
 			return 0;
 		}
-		-- last_word;
+		--last_word;
 	}
 	while (last_word >= first_word) {
 		if (base[last_word] != 0x0) {
-			last_bit = find_last_set_bit_in_word(base[last_word], BITS_PER_LONG - 1);
-			assert ("zam-972", last_bit < BITS_PER_LONG);
+			last_bit =
+			    find_last_set_bit_in_word(base[last_word],
+						      BITS_PER_LONG - 1);
+			assert("zam-972", last_bit < BITS_PER_LONG);
 			*result = (last_word << LONG_INT_SHIFT) + last_bit;
 			return 0;
 		}
-		-- last_word;
+		--last_word;
 	}
 
 	return -1;		/* set bit not found */
@@ -342,9 +341,10 @@ reiser4_find_last_set_bit (bmap_off_t * result, void * addr, bmap_off_t low_off,
 /* Search bitmap for a clear bit in backward direction from the end to the
  * beginning of given region */
 static int
-reiser4_find_last_zero_bit (bmap_off_t * result, void * addr, bmap_off_t low_off, bmap_off_t high_off)
+reiser4_find_last_zero_bit(bmap_off_t * result, void *addr, bmap_off_t low_off,
+			   bmap_off_t high_off)
 {
-	ulong_t * base = addr;
+	ulong_t *base = addr;
 	int last_word;
 	int first_word;
 	int last_bit;
@@ -357,26 +357,26 @@ reiser4_find_last_zero_bit (bmap_off_t * result, void * addr, bmap_off_t low_off
 	if (last_bit < BITS_PER_LONG) {
 		nr = find_last_set_bit_in_word(~base[last_word], last_bit);
 		if (nr < BITS_PER_LONG) {
-			 *result = (last_word << LONG_INT_SHIFT) + nr;
-			 return 0;
-		}
-		-- last_word;
-	}
-	while (last_word >= first_word) {
-		if (base[last_word] != (ulong_t)(-1)) {
-			*result =  (last_word << LONG_INT_SHIFT) +
-				find_last_set_bit_in_word(~base[last_word], BITS_PER_LONG - 1);
+			*result = (last_word << LONG_INT_SHIFT) + nr;
 			return 0;
 		}
-		-- last_word;
+		--last_word;
+	}
+	while (last_word >= first_word) {
+		if (base[last_word] != (ulong_t) (-1)) {
+			*result = (last_word << LONG_INT_SHIFT) +
+			    find_last_set_bit_in_word(~base[last_word],
+						      BITS_PER_LONG - 1);
+			return 0;
+		}
+		--last_word;
 	}
 
-	return -1;	/* zero bit not found */
+	return -1;		/* zero bit not found */
 }
 
 /* Audited by: green(2002.06.12) */
-static void
-reiser4_clear_bits(char *addr, bmap_off_t start, bmap_off_t end)
+static void reiser4_clear_bits(char *addr, bmap_off_t start, bmap_off_t end)
 {
 	int first_byte;
 	int last_byte;
@@ -390,7 +390,8 @@ reiser4_clear_bits(char *addr, bmap_off_t start, bmap_off_t end)
 	last_byte = (end - 1) >> 3;
 
 	if (last_byte > first_byte + 1)
-		memset(addr + first_byte + 1, 0, (size_t) (last_byte - first_byte - 1));
+		memset(addr + first_byte + 1, 0,
+		       (size_t) (last_byte - first_byte - 1));
 
 	first_byte_mask >>= 8 - (start & 0x7);
 	last_byte_mask <<= ((end - 1) & 0x7) + 1;
@@ -405,8 +406,7 @@ reiser4_clear_bits(char *addr, bmap_off_t start, bmap_off_t end)
 
 /* Audited by: green(2002.06.12) */
 /* ZAM-FIXME-HANS: comment this */
-static void
-reiser4_set_bits(char *addr, bmap_off_t start, bmap_off_t end)
+static void reiser4_set_bits(char *addr, bmap_off_t start, bmap_off_t end)
 {
 	int first_byte;
 	int last_byte;
@@ -420,7 +420,8 @@ reiser4_set_bits(char *addr, bmap_off_t start, bmap_off_t end)
 	last_byte = (end - 1) >> 3;
 
 	if (last_byte > first_byte + 1)
-		memset(addr + first_byte + 1, 0xFF, (size_t) (last_byte - first_byte - 1));
+		memset(addr + first_byte + 1, 0xFF,
+		       (size_t) (last_byte - first_byte - 1));
 
 	first_byte_mask <<= start & 0x7;
 	last_byte_mask >>= 7 - ((end - 1) & 0x7);
@@ -464,8 +465,7 @@ reiser4_set_bits(char *addr, bmap_off_t start, bmap_off_t end)
     The above comment applies only to the reiser4_adler32 function.
 */
 
-reiser4_internal __u32
-reiser4_adler32(char *data, __u32 len)
+__u32 reiser4_adler32(char *data, __u32 len)
 {
 	unsigned char *t = data;
 	__u32 s1 = 1;
@@ -490,23 +490,22 @@ reiser4_adler32(char *data, __u32 len)
 #define sb_by_bnode(bnode) \
 	((struct super_block *)jnode_get_tree(bnode->wjnode)->super)
 
-static __u32
-bnode_calc_crc(const struct bitmap_node *bnode, unsigned long size)
+static __u32 bnode_calc_crc(const struct bitmap_node *bnode, unsigned long size)
 {
 	return reiser4_adler32(bnode_commit_data(bnode), bmap_size(size));
 }
 
-
 static int
 bnode_check_adler32(const struct bitmap_node *bnode, unsigned long size)
 {
-	if (bnode_calc_crc(bnode, size) != bnode_commit_crc (bnode)) {
+	if (bnode_calc_crc(bnode, size) != bnode_commit_crc(bnode)) {
 		bmap_nr_t bmap;
 
 		bmap = bnode - get_bnode(sb_by_bnode(bnode), 0);
 
 		warning("vpf-263",
-			"Checksum for the bitmap block %llu is incorrect",bmap);
+			"Checksum for the bitmap block %llu is incorrect",
+			bmap);
 
 		return RETERR(-EIO);
 	}
@@ -517,8 +516,7 @@ bnode_check_adler32(const struct bitmap_node *bnode, unsigned long size)
 #define REISER4_CHECK_BMAP_CRC (0)
 
 #if REISER4_CHECK_BMAP_CRC
-static int
-bnode_check_crc(const struct bitmap_node *bnode)
+static int bnode_check_crc(const struct bitmap_node *bnode)
 {
 	return bnode_check_adler32(bnode,
 				   bmap_size(sb_by_bnode(bnode)->s_blocksize));
@@ -541,7 +539,8 @@ bnode_check_crc(const struct bitmap_node *bnode)
 */
 
 static __u32
-adler32_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 tail)
+adler32_recalc(__u32 adler, unsigned char old_data, unsigned char data,
+	       __u32 tail)
 {
 	__u32 delta = data - old_data + 2 * ADLER_BASE;
 	__u32 s1 = adler & 0xffff;
@@ -553,7 +552,6 @@ adler32_recalc(__u32 adler, unsigned char old_data, unsigned char data, __u32 ta
 	return (s2 << 16) | s1;
 }
 
-
 #define LIMIT(val, boundary) ((val) > (boundary) ? (boundary) : (val))
 
 /* A number of bitmap blocks for given fs. This number can be stored on disk
@@ -562,18 +560,19 @@ VS-FIXME-HANS: explain calculation, using device with block count of 8 * 4096 bl
    FIXME-VS: number of blocks in a filesystem is taken from reiser4
    super private data */
 /* Audited by: green(2002.06.12) */
-static bmap_nr_t
-get_nr_bmap(const struct super_block *super)
+static bmap_nr_t get_nr_bmap(const struct super_block *super)
 {
 	assert("zam-393", reiser4_block_count(super) != 0);
 
-	return div64_32(reiser4_block_count(super) - 1, bmap_bit_count(super->s_blocksize), NULL) + 1;
+	return div64_32(reiser4_block_count(super) - 1,
+			bmap_bit_count(super->s_blocksize), NULL) + 1;
 
 }
 
 /* calculate bitmap block number and offset within that bitmap block */
 static void
-parse_blocknr(const reiser4_block_nr * block, bmap_nr_t * bmap, bmap_off_t * offset)
+parse_blocknr(const reiser4_block_nr * block, bmap_nr_t * bmap,
+	      bmap_off_t * offset)
 {
 	struct super_block *super = get_current_context()->super;
 
@@ -602,8 +601,7 @@ check_block_range(const reiser4_block_nr * start, const reiser4_block_nr * len)
 	}
 }
 
-static void
-check_bnode_loaded(const struct bitmap_node *bnode)
+static void check_bnode_loaded(const struct bitmap_node *bnode)
 {
 	assert("zam-485", bnode != NULL);
 	assert("zam-483", jnode_page(bnode->wjnode) != NULL);
@@ -641,7 +639,8 @@ adjust_first_zero_bit(struct bitmap_node *bnode, bmap_off_t offset)
 
 /* Audited by: green(2002.06.12) */
 static void
-get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr * bnr)
+get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap,
+		   reiser4_block_nr * bnr)
 {
 
 	assert("zam-390", bmap < get_nr_bmap(super));
@@ -649,8 +648,8 @@ get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr *
 #ifdef CONFIG_REISER4_BADBLOCKS
 #define BITMAP_PLUGIN_DISKMAP_ID ((0xc0e1<<16) | (0xe0ff))
 	/* Check if the diskmap have this already, first. */
-	if ( reiser4_get_diskmap_value( BITMAP_PLUGIN_DISKMAP_ID, bmap, bnr) == 0 )
-		return; /* Found it in diskmap */
+	if (reiser4_get_diskmap_value(BITMAP_PLUGIN_DISKMAP_ID, bmap, bnr) == 0)
+		return;		/* Found it in diskmap */
 #endif
 	/* FIXME_ZAM: before discussing of disk layouts and disk format
 	   plugins I implement bitmap location scheme which is close to scheme
@@ -664,10 +663,11 @@ get_bitmap_blocknr(struct super_block *super, bmap_nr_t bmap, reiser4_block_nr *
 
 /* construct a fake block number for shadow bitmap (WORKING BITMAP) block */
 /* Audited by: green(2002.06.12) */
-static void
-get_working_bitmap_blocknr(bmap_nr_t bmap, reiser4_block_nr * bnr)
+static void get_working_bitmap_blocknr(bmap_nr_t bmap, reiser4_block_nr * bnr)
 {
-	*bnr = (reiser4_block_nr) ((bmap & ~REISER4_BLOCKNR_STATUS_BIT_MASK) | REISER4_BITMAP_BLOCKS_STATUS_VALUE);
+	*bnr =
+	    (reiser4_block_nr) ((bmap & ~REISER4_BLOCKNR_STATUS_BIT_MASK) |
+				REISER4_BITMAP_BLOCKS_STATUS_VALUE);
 }
 
 /* bnode structure initialization */
@@ -675,14 +675,13 @@ static void
 init_bnode(struct bitmap_node *bnode,
 	   struct super_block *super UNUSED_ARG, bmap_nr_t bmap UNUSED_ARG)
 {
-	memset(bnode, 0, sizeof (struct bitmap_node));
+	memset(bnode, 0, sizeof(struct bitmap_node));
 
 	sema_init(&bnode->sema, 1);
 	atomic_set(&bnode->loaded, 0);
 }
 
-static void
-release(jnode *node)
+static void release(jnode * node)
 {
 	jrelse(node);
 	JF_SET(node, JNODE_HEARD_BANSHEE);
@@ -691,8 +690,7 @@ release(jnode *node)
 
 /* This function is for internal bitmap.c use because it assumes that jnode is
    in under full control of this thread */
-static void
-done_bnode(struct bitmap_node *bnode)
+static void done_bnode(struct bitmap_node *bnode)
 {
 	if (bnode) {
 		atomic_set(&bnode->loaded, 0);
@@ -706,7 +704,8 @@ done_bnode(struct bitmap_node *bnode)
 
 /* ZAM-FIXME-HANS: comment this.  Called only by load_and_lock_bnode()*/
 static int
-prepare_bnode(struct bitmap_node *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
+prepare_bnode(struct bitmap_node *bnode, jnode ** cjnode_ret,
+	      jnode ** wjnode_ret)
 {
 	struct super_block *super;
 	jnode *cjnode;
@@ -750,7 +749,7 @@ prepare_bnode(struct bitmap_node *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 
 	return 0;
 
- error:
+      error:
 	jput(cjnode);
 	jput(wjnode);
 	*wjnode_ret = *cjnode_ret = NULL;
@@ -759,7 +758,8 @@ prepare_bnode(struct bitmap_node *bnode, jnode **cjnode_ret, jnode **wjnode_ret)
 }
 
 /* Check the bnode data on read. */
-static int check_struct_bnode(struct bitmap_node *bnode, __u32 blksize) {
+static int check_struct_bnode(struct bitmap_node *bnode, __u32 blksize)
+{
 	void *data;
 	int ret;
 
@@ -784,8 +784,7 @@ static int check_struct_bnode(struct bitmap_node *bnode, __u32 blksize) {
 }
 
 /* load bitmap blocks "on-demand" */
-static int
-load_and_lock_bnode(struct bitmap_node *bnode)
+static int load_and_lock_bnode(struct bitmap_node *bnode)
 {
 	int ret;
 
@@ -836,17 +835,20 @@ load_and_lock_bnode(struct bitmap_node *bnode)
 			 * busy initializing data. */
 			check_bnode_loaded(bnode);
 	}
-
-	if (wjnode != NULL)
+	
+	if (wjnode != NULL) {
 		release(wjnode);
-	if (cjnode != NULL)
+		bnode->wjnode = NULL;
+	}
+	if (cjnode != NULL) {
 		release(cjnode);
+		bnode->cjnode = NULL;
+	}
 
 	return ret;
 }
 
-static void
-release_and_unlock_bnode(struct bitmap_node *bnode)
+static void release_and_unlock_bnode(struct bitmap_node *bnode)
 {
 	check_bnode_loaded(bnode);
 	up(&bnode->sema);
@@ -859,8 +861,8 @@ release_and_unlock_bnode(struct bitmap_node *bnode)
    have it in v4.x */
 /* ZAM-FIXME-HANS: do you mean search one bitmap block forward? */
 static int
-search_one_bitmap_forward(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_offset,
-			  int min_len, int max_len)
+search_one_bitmap_forward(bmap_nr_t bmap, bmap_off_t * offset,
+			  bmap_off_t max_offset, int min_len, int max_len)
 {
 	struct super_block *super = get_current_context()->super;
 	struct bitmap_node *bnode = get_bnode(super, bmap);
@@ -895,7 +897,8 @@ search_one_bitmap_forward(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_of
 
 	while (start + min_len < max_offset) {
 
-		start = reiser4_find_next_zero_bit((long *) data, max_offset, start);
+		start =
+		    reiser4_find_next_zero_bit((long *)data, max_offset, start);
 		if (set_first_zero_bit) {
 			bnode->first_zero_bit = start;
 			set_first_zero_bit = 0;
@@ -904,7 +907,8 @@ search_one_bitmap_forward(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_of
 			break;
 
 		search_end = LIMIT(start + max_len, max_offset);
-		end = reiser4_find_next_set_bit((long *) data, search_end, start);
+		end =
+		    reiser4_find_next_set_bit((long *)data, search_end, start);
 		if (end >= start + min_len) {
 			/* we can't trust find_next_set_bit result if set bit
 			   was not fount, result may be bigger than
@@ -932,8 +936,8 @@ search_one_bitmap_forward(bmap_nr_t bmap, bmap_off_t * offset, bmap_off_t max_of
 }
 
 static int
-search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_t end_offset,
-			    int min_len, int max_len)
+search_one_bitmap_backward(bmap_nr_t bmap, bmap_off_t * start_offset,
+			   bmap_off_t end_offset, int min_len, int max_len)
 {
 	struct super_block *super = get_current_context()->super;
 	struct bitmap_node *bnode = get_bnode(super, bmap);
@@ -973,14 +977,16 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 		if (reiser4_find_last_set_bit(&end, data, search_end, start))
 			end = search_end;
 		else
-			end ++;
+			end++;
 
 		if (end + min_len <= start + 1) {
 			if (end < search_end)
 				end = search_end;
 			ret = start - end + 1;
-			*start_offset = end; /* `end' is lowest offset */
-			assert ("zam-987", reiser4_find_next_set_bit(data, start + 1, end) >= start + 1);
+			*start_offset = end;	/* `end' is lowest offset */
+			assert("zam-987",
+			       reiser4_find_next_set_bit(data, start + 1,
+							 end) >= start + 1);
 			reiser4_set_bits(data, end, start + 1);
 			break;
 		}
@@ -996,8 +1002,9 @@ search_one_bitmap_backward (bmap_nr_t bmap, bmap_off_t * start_offset, bmap_off_
 }
 
 /* allocate contiguous range of blocks in bitmap */
-static int bitmap_alloc_forward(reiser4_block_nr * start, const reiser4_block_nr * end,
-				int min_len, int max_len)
+static int bitmap_alloc_forward(reiser4_block_nr * start,
+				const reiser4_block_nr * end, int min_len,
+				int max_len)
 {
 	bmap_nr_t bmap, end_bmap;
 	bmap_off_t offset, end_offset;
@@ -1018,21 +1025,26 @@ static int bitmap_alloc_forward(reiser4_block_nr * start, const reiser4_block_nr
 	assert("zam-359", ergo(end_bmap == bmap, end_offset > offset));
 
 	for (; bmap < end_bmap; bmap++, offset = 0) {
-		len = search_one_bitmap_forward(bmap, &offset, max_offset, min_len, max_len);
+		len =
+		    search_one_bitmap_forward(bmap, &offset, max_offset,
+					      min_len, max_len);
 		if (len != 0)
 			goto out;
 	}
 
-	len = search_one_bitmap_forward(bmap, &offset, end_offset, min_len, max_len);
-out:
+	len =
+	    search_one_bitmap_forward(bmap, &offset, end_offset, min_len,
+				      max_len);
+      out:
 	*start = bmap * max_offset + offset;
 	return len;
 }
 
 /* allocate contiguous range of blocks in bitmap (from @start to @end in
  * backward direction) */
-static int bitmap_alloc_backward(reiser4_block_nr * start, const reiser4_block_nr * end,
-				 int min_len, int max_len)
+static int bitmap_alloc_backward(reiser4_block_nr * start,
+				 const reiser4_block_nr * end, int min_len,
+				 int max_len)
 {
 	bmap_nr_t bmap, end_bmap;
 	bmap_off_t offset, end_offset;
@@ -1046,14 +1058,18 @@ static int bitmap_alloc_backward(reiser4_block_nr * start, const reiser4_block_n
 	assert("zam-961", end_bmap <= bmap);
 	assert("zam-962", ergo(end_bmap == bmap, end_offset <= offset));
 
-	for (; bmap > end_bmap; bmap --, offset = max_offset - 1) {
-		len = search_one_bitmap_backward(bmap, &offset, 0, min_len, max_len);
+	for (; bmap > end_bmap; bmap--, offset = max_offset - 1) {
+		len =
+		    search_one_bitmap_backward(bmap, &offset, 0, min_len,
+					       max_len);
 		if (len != 0)
 			goto out;
 	}
 
-	len = search_one_bitmap_backward(bmap, &offset, end_offset, min_len, max_len);
- out:
+	len =
+	    search_one_bitmap_backward(bmap, &offset, end_offset, min_len,
+				       max_len);
+      out:
 	*start = bmap * max_offset + offset;
 	return len;
 }
@@ -1076,22 +1092,26 @@ alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
 	if (hint->max_dist == 0)
 		search_end = reiser4_block_count(super);
 	else
-		search_end = LIMIT(hint->blk + hint->max_dist, reiser4_block_count(super));
+		search_end =
+		    LIMIT(hint->blk + hint->max_dist,
+			  reiser4_block_count(super));
 
 	/* We use @hint -> blk as a search start and search from it to the end
 	   of the disk or in given region if @hint -> max_dist is not zero */
 	search_start = hint->blk;
 
-	actual_len = bitmap_alloc_forward(&search_start, &search_end, 1, needed);
+	actual_len =
+	    bitmap_alloc_forward(&search_start, &search_end, 1, needed);
 
 	/* There is only one bitmap search if max_dist was specified or first
 	   pass was from the beginning of the bitmap. We also do one pass for
 	   scanning bitmap in backward direction. */
-	if (!(actual_len != 0 || hint->max_dist != 0  || search_start == 0)) {
+	if (!(actual_len != 0 || hint->max_dist != 0 || search_start == 0)) {
 		/* next step is a scanning from 0 to search_start */
 		search_end = search_start;
 		search_start = 0;
-		actual_len = bitmap_alloc_forward(&search_start, &search_end, 1, needed);
+		actual_len =
+		    bitmap_alloc_forward(&search_start, &search_end, 1, needed);
 	}
 	if (actual_len == 0)
 		return RETERR(-ENOSPC);
@@ -1102,18 +1122,19 @@ alloc_blocks_forward(reiser4_blocknr_hint * hint, int needed,
 	return 0;
 }
 
-static int alloc_blocks_backward (reiser4_blocknr_hint * hint, int needed,
-				  reiser4_block_nr * start, reiser4_block_nr * len)
+static int alloc_blocks_backward(reiser4_blocknr_hint * hint, int needed,
+				 reiser4_block_nr * start,
+				 reiser4_block_nr * len)
 {
 	reiser4_block_nr search_start;
 	reiser4_block_nr search_end;
 	int actual_len;
 
-	ON_DEBUG(struct super_block * super = reiser4_get_current_sb());
+	ON_DEBUG(struct super_block *super = reiser4_get_current_sb());
 
-	assert ("zam-969", super != NULL);
-	assert ("zam-970", hint != NULL);
-	assert ("zam-971", hint->blk < reiser4_block_count(super));
+	assert("zam-969", super != NULL);
+	assert("zam-970", hint != NULL);
+	assert("zam-971", hint->blk < reiser4_block_count(super));
 
 	search_start = hint->blk;
 	if (hint->max_dist == 0 || search_start <= hint->max_dist)
@@ -1121,7 +1142,8 @@ static int alloc_blocks_backward (reiser4_blocknr_hint * hint, int needed,
 	else
 		search_end = search_start - hint->max_dist;
 
-	actual_len = bitmap_alloc_backward(&search_start, &search_end, 1, needed);
+	actual_len =
+	    bitmap_alloc_backward(&search_start, &search_end, 1, needed);
 	if (actual_len == 0)
 		return RETERR(-ENOSPC);
 	if (actual_len < 0)
@@ -1132,10 +1154,10 @@ static int alloc_blocks_backward (reiser4_blocknr_hint * hint, int needed,
 }
 
 /* plugin->u.space_allocator.alloc_blocks() */
-reiser4_internal int
+int
 alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
-			reiser4_blocknr_hint * hint, int needed,
-			reiser4_block_nr * start, reiser4_block_nr * len)
+		    reiser4_blocknr_hint * hint, int needed,
+		    reiser4_block_nr * start, reiser4_block_nr * len)
 {
 	if (hint->backward)
 		return alloc_blocks_backward(hint, needed, start, len);
@@ -1147,8 +1169,9 @@ alloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
    nodes deletion is deferred until transaction commit.  However, deallocation
    of temporary objects like wandered blocks and transaction commit records
    requires immediate node deletion from WORKING BITMAP.*/
-reiser4_internal void
-dealloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG, reiser4_block_nr start, reiser4_block_nr len)
+void
+dealloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG,
+		      reiser4_block_nr start, reiser4_block_nr len)
 {
 	struct super_block *super = reiser4_get_current_sb();
 
@@ -1172,17 +1195,18 @@ dealloc_blocks_bitmap(reiser4_space_allocator * allocator UNUSED_ARG, reiser4_bl
 	ret = load_and_lock_bnode(bnode);
 	assert("zam-481", ret == 0);
 
-	reiser4_clear_bits(bnode_working_data(bnode), offset, (bmap_off_t) (offset + len));
+	reiser4_clear_bits(bnode_working_data(bnode), offset,
+			   (bmap_off_t) (offset + len));
 
 	adjust_first_zero_bit(bnode, offset);
 
 	release_and_unlock_bnode(bnode);
 }
 
-
 /* plugin->u.space_allocator.check_blocks(). */
-reiser4_internal void
-check_blocks_bitmap(const reiser4_block_nr * start, const reiser4_block_nr * len, int desired)
+void
+check_blocks_bitmap(const reiser4_block_nr * start,
+		    const reiser4_block_nr * len, int desired)
 {
 #if REISER4_DEBUG
 	struct super_block *super = reiser4_get_current_sb();
@@ -1211,10 +1235,14 @@ check_blocks_bitmap(const reiser4_block_nr * start, const reiser4_block_nr * len
 	assert("nikita-2216", jnode_is_loaded(bnode->wjnode));
 
 	if (desired) {
-		assert("zam-623", reiser4_find_next_zero_bit(bnode_working_data(bnode), end_offset, start_offset)
+		assert("zam-623",
+		       reiser4_find_next_zero_bit(bnode_working_data(bnode),
+						  end_offset, start_offset)
 		       >= end_offset);
 	} else {
-		assert("zam-624", reiser4_find_next_set_bit(bnode_working_data(bnode), end_offset, start_offset)
+		assert("zam-624",
+		       reiser4_find_next_set_bit(bnode_working_data(bnode),
+						 end_offset, start_offset)
 		       >= end_offset);
 	}
 
@@ -1223,8 +1251,7 @@ check_blocks_bitmap(const reiser4_block_nr * start, const reiser4_block_nr * len
 }
 
 /* conditional insertion of @node into atom's overwrite set  if it was not there */
-static void
-cond_add_to_overwrite_set (txn_atom * atom, jnode * node)
+static void cond_add_to_overwrite_set(txn_atom * atom, jnode * node)
 {
 	assert("zam-546", atom != NULL);
 	assert("zam-547", atom->stage == ASTAGE_PRE_COMMIT);
@@ -1247,7 +1274,8 @@ cond_add_to_overwrite_set (txn_atom * atom, jnode * node)
 /* an actor which applies delete set to COMMIT bitmap pages and link modified
    pages in a single-linked list */
 static int
-apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const reiser4_block_nr * len, void *data)
+apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start,
+			  const reiser4_block_nr * len, void *data)
 {
 
 	bmap_nr_t bmap;
@@ -1272,13 +1300,13 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 	assert("zam-448", bnode != NULL);
 
 	/* it is safe to unlock atom with is in ASTAGE_PRE_COMMIT */
-	assert ("zam-767", atom->stage == ASTAGE_PRE_COMMIT);
+	assert("zam-767", atom->stage == ASTAGE_PRE_COMMIT);
 	ret = load_and_lock_bnode(bnode);
 	if (ret)
 		return ret;
 
 	/* put bnode into atom's overwrite set */
-	cond_add_to_overwrite_set (atom, bnode->cjnode);
+	cond_add_to_overwrite_set(atom, bnode->cjnode);
 
 	data = bnode_commit_data(bnode);
 
@@ -1288,7 +1316,8 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 
 	if (len != NULL) {
 		/* FIXME-ZAM: a check that all bits are set should be there */
-		assert("zam-443", offset + *len <= bmap_bit_count(sb->s_blocksize));
+		assert("zam-443",
+		       offset + *len <= bmap_bit_count(sb->s_blocksize));
 		reiser4_clear_bits(data, offset, (bmap_off_t) (offset + *len));
 
 		(*blocks_freed_p) += *len;
@@ -1316,20 +1345,17 @@ apply_dset_to_commit_bmap(txn_atom * atom, const reiser4_block_nr * start, const
 
 extern spinlock_t scan_lock;
 
-reiser4_internal int
-pre_commit_hook_bitmap(void)
+int pre_commit_hook_bitmap(void)
 {
-	struct super_block * super = reiser4_get_current_sb();
+	struct super_block *super = reiser4_get_current_sb();
 	txn_atom *atom;
 
 	long long blocks_freed = 0;
 
-	atom = get_current_atom_locked ();
+	atom = get_current_atom_locked();
 	BUG_ON(atom->stage != ASTAGE_PRE_COMMIT);
-	assert ("zam-876", atom->stage == ASTAGE_PRE_COMMIT);
+	assert("zam-876", atom->stage == ASTAGE_PRE_COMMIT);
 	spin_unlock_atom(atom);
-
-
 
 	{			/* scan atom's captured list and find all freshly allocated nodes,
 				 * mark corresponded bits in COMMIT BITMAP as used */
@@ -1360,7 +1386,8 @@ pre_commit_hook_bitmap(void)
 				__u32 crc;
 
 				assert("zam-559", !JF_ISSET(node, JNODE_OVRWR));
-				assert("zam-460", !blocknr_is_fake(&node->blocknr));
+				assert("zam-460",
+				       !blocknr_is_fake(&node->blocknr));
 
 				parse_blocknr(&node->blocknr, &bmap, &offset);
 				bn = get_bnode(super, bmap);
@@ -1382,8 +1409,7 @@ pre_commit_hook_bitmap(void)
 						     *(bnode_commit_data(bn) +
 						       index),
 						     size - index),
-
-				bnode_set_commit_crc(bn, crc);
+				    bnode_set_commit_crc(bn, crc);
 
 				release_and_unlock_bnode(bn);
 
@@ -1395,7 +1421,7 @@ pre_commit_hook_bitmap(void)
 				   new j-node into clean list, because we are
 				   scanning the same list now. It is OK, if
 				   insertion is done to the list front */
-				cond_add_to_overwrite_set (atom, bn->cjnode);
+				cond_add_to_overwrite_set(atom, bn->cjnode);
 			}
 
 			spin_lock(&scan_lock);
@@ -1405,7 +1431,8 @@ pre_commit_hook_bitmap(void)
 		spin_unlock(&scan_lock);
 	}
 
-	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap, &blocks_freed, 0);
+	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap,
+			     &blocks_freed, 0);
 
 	blocks_freed -= atom->nr_blocks_allocated;
 
@@ -1422,18 +1449,17 @@ pre_commit_hook_bitmap(void)
 	return 0;
 }
 
-#else /* ! REISER4_COPY_ON_CAPTURE */
+#else				/* ! REISER4_COPY_ON_CAPTURE */
 
-reiser4_internal int
-pre_commit_hook_bitmap(void)
+int pre_commit_hook_bitmap(void)
 {
-	struct super_block * super = reiser4_get_current_sb();
+	struct super_block *super = reiser4_get_current_sb();
 	txn_atom *atom;
 
 	long long blocks_freed = 0;
 
-	atom = get_current_atom_locked ();
-	assert ("zam-876", atom->stage == ASTAGE_PRE_COMMIT);
+	atom = get_current_atom_locked();
+	assert("zam-876", atom->stage == ASTAGE_PRE_COMMIT);
 	spin_unlock_atom(atom);
 
 	{			/* scan atom's captured list and find all freshly allocated nodes,
@@ -1455,7 +1481,8 @@ pre_commit_hook_bitmap(void)
 				char byte;
 
 				assert("zam-559", !JF_ISSET(node, JNODE_OVRWR));
-				assert("zam-460", !blocknr_is_fake(&node->blocknr));
+				assert("zam-460",
+				       !blocknr_is_fake(&node->blocknr));
 
 				parse_blocknr(&node->blocknr, &bmap, &offset);
 				bn = get_bnode(super, bmap);
@@ -1477,8 +1504,7 @@ pre_commit_hook_bitmap(void)
 						     *(bnode_commit_data(bn) +
 						       index),
 						     size - index),
-
-				bnode_set_commit_crc(bn, crc);
+				    bnode_set_commit_crc(bn, crc);
 
 				release_and_unlock_bnode(bn);
 
@@ -1490,14 +1516,15 @@ pre_commit_hook_bitmap(void)
 				   new j-node into clean list, because we are
 				   scanning the same list now. It is OK, if
 				   insertion is done to the list front */
-				cond_add_to_overwrite_set (atom, bn->cjnode);
+				cond_add_to_overwrite_set(atom, bn->cjnode);
 			}
 
 			node = capture_list_next(node);
 		}
 	}
 
-	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap, &blocks_freed, 0);
+	blocknr_set_iterator(atom, &atom->delete_set, apply_dset_to_commit_bmap,
+			     &blocks_freed, 0);
 
 	blocks_freed -= atom->nr_blocks_allocated;
 
@@ -1513,12 +1540,13 @@ pre_commit_hook_bitmap(void)
 
 	return 0;
 }
-#endif /* ! REISER4_COPY_ON_CAPTURE */
+#endif				/* ! REISER4_COPY_ON_CAPTURE */
 
 /* plugin->u.space_allocator.init_allocator
     constructor of reiser4_space_allocator object. It is called on fs mount */
-reiser4_internal int
-init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *super, void *arg UNUSED_ARG)
+int
+init_allocator_bitmap(reiser4_space_allocator * allocator,
+		      struct super_block *super, void *arg UNUSED_ARG)
 {
 	struct bitmap_allocator_data *data = NULL;
 	bmap_nr_t bitmap_blocks_nr;
@@ -1527,7 +1555,8 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 	assert("nikita-3039", schedulable());
 
 	/* getting memory for bitmap allocator private data holder */
-	data = reiser4_kmalloc(sizeof (struct bitmap_allocator_data), GFP_KERNEL);
+	data =
+		kmalloc(sizeof(struct bitmap_allocator_data), GFP_KERNEL);
 
 	if (data == NULL)
 		return RETERR(-ENOMEM);
@@ -1542,10 +1571,10 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 	   with that storage device, much less reiser4. ;-) -Hans). Kmalloc is not possible and,
 	   probably, another dynamic data structure should replace a static
 	   array of bnodes. */
-	/*data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bitmap_node) * bitmap_blocks_nr), GFP_KERNEL);*/
-	data->bitmap = vmalloc(sizeof (struct bitmap_node) * bitmap_blocks_nr);
+	/*data->bitmap = reiser4_kmalloc((size_t) (sizeof (struct bitmap_node) * bitmap_blocks_nr), GFP_KERNEL); */
+	data->bitmap = vmalloc(sizeof(struct bitmap_node) * bitmap_blocks_nr);
 	if (data->bitmap == NULL) {
-		reiser4_kfree(data);
+		kfree(data);
 		return RETERR(-ENOMEM);
 	}
 
@@ -1559,9 +1588,10 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 #endif
 
 	/* Load all bitmap blocks at mount time. */
-	if (!test_bit(REISER4_DONT_LOAD_BITMAP, &get_super_private(super)->fs_flags)) {
+	if (!test_bit
+	    (REISER4_DONT_LOAD_BITMAP, &get_super_private(super)->fs_flags)) {
 		__u64 start_time, elapsed_time;
-		struct bitmap_node * bnode;
+		struct bitmap_node *bnode;
 		int ret;
 
 		if (REISER4_DEBUG)
@@ -1589,8 +1619,9 @@ init_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *s
 
 /* plugin->u.space_allocator.destroy_allocator
    destructor. It is called on fs unmount */
-reiser4_internal int
-destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block *super)
+int
+destroy_allocator_bitmap(reiser4_space_allocator * allocator,
+			 struct super_block *super)
 {
 	bmap_nr_t bitmap_blocks_nr;
 	bmap_nr_t i;
@@ -1625,9 +1656,8 @@ destroy_allocator_bitmap(reiser4_space_allocator * allocator, struct super_block
 		up(&bnode->sema);
 	}
 
-	/*reiser4_kfree(data->bitmap);*/
 	vfree(data->bitmap);
-	reiser4_kfree(data);
+	kfree(data);
 
 	allocator->u.generic = NULL;
 

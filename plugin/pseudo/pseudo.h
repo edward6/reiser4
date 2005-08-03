@@ -66,8 +66,8 @@ struct pseudo_plugin {
 	/*
 	 * check whether this pseudo file matches name @name within @parent
 	 */
-	int (*try) (pseudo_plugin *pplug,
-		    const struct inode *parent, const char *name);
+	int (*try) (pseudo_plugin * pplug,
+		    const struct inode * parent, const char *name);
 	/*
 	 * true if this pseudo file is visible in readdir.
 	 */
@@ -79,8 +79,8 @@ struct pseudo_plugin {
 	   applicable to "../acl". Once "..acl" is resolved to ACL object,
 	   ->lookup( "dup" ) can be called to get operation.
 
-	*/
-	int (*lookup)(struct inode *parent, struct dentry ** dentry);
+	 */
+	int (*lookup) (struct inode * parent, struct dentry ** dentry);
 
 	/*
 	 * rwx bits returned by stat(2) for this pseudo file
@@ -100,7 +100,8 @@ struct pseudo_plugin {
 		/* for PSEUDO_READ_SINGLE */
 		int (*single_show) (struct seq_file *, void *);
 		/* for PSEUDO_READ_FORWARD */
-		ssize_t (*read)(struct file *, char __user *, size_t , loff_t *);
+		 ssize_t(*read) (struct file *, char __user *, size_t,
+				 loff_t *);
 	} read;
 
 	/*
@@ -109,15 +110,15 @@ struct pseudo_plugin {
 	pseudo_write_type write_type;
 	union {
 		/* for PSEUDO_WRITE_STRING */
-		int (*gets)(struct file *, const char *);
+		int (*gets) (struct file *, const char *);
 		/* for PSEUDO_WRITE_FORWARD */
-		ssize_t (*write)(struct file *,
-				 const char __user *, size_t , loff_t *);
+		 ssize_t(*write) (struct file *,
+				  const char __user *, size_t, loff_t *);
 	} write;
 	/*
 	 * ->readdir method
 	 */
-	int (*readdir)(struct file *f, void *dirent, filldir_t filld);
+	int (*readdir) (struct file * f, void *dirent, filldir_t filld);
 };
 
 /* portion of reiser4_inode specific for pseudo files */
@@ -126,12 +127,12 @@ typedef struct pseudo_info {
 	pseudo_plugin *plugin;
 	/* host object, for /etc/passwd/..oid, this is pointer to inode of
 	 * /etc/passwd */
-	struct inode  *host;
+	struct inode *host;
 	/* immediate parent object. This is different from ->host for deeply
 	 * nested pseudo files like foo/..plugin/foo */
-	struct inode  *parent;
+	struct inode *parent;
 	/* for private use of pseudo file plugin */
-	unsigned long  datum;
+	unsigned long datum;
 } pseudo_info_t;
 
 extern int lookup_pseudo_file(struct inode *parent, struct dentry **dentry);

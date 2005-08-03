@@ -1,44 +1,55 @@
 /* Copyright 2001, 2002, 2003, 2004 by Hans Reiser, licensing governed by
  * reiser4/README */
 
+/* this file contains declarations of methods implementing file plugins
+   (UNIX_FILE_PLUGIN_ID, SYMLINK_FILE_PLUGIN_ID and CRC_FILE_PLUGIN_ID) */
+
 #if !defined( __REISER4_FILE_H__ )
 #define __REISER4_FILE_H__
 
-/* declarations of functions implementing file plugin for unix file plugin */
-int truncate_unix_file(struct inode *, loff_t size);
-int readpage_unix_file(void *, struct page *);
-int capturepage_unix_file(struct page *);
-int capture_unix_file(struct inode *, struct writeback_control *);
-ssize_t read_unix_file(struct file *, char *buf, size_t size, loff_t *off);
-ssize_t write_unix_file(struct file *, const char *buf, size_t size, loff_t *off);
-int release_unix_file(struct inode *inode, struct file *);
-int ioctl_unix_file(struct inode *, struct file *, unsigned int cmd, unsigned long arg);
-int mmap_unix_file(struct file *, struct vm_area_struct *vma);
-int get_block_unix_file(struct inode *, sector_t block, struct buffer_head *bh_result, int create);
-int flow_by_inode_unix_file(struct inode *, char *buf, int user, loff_t, loff_t, rw_op, flow_t *);
-int key_by_inode_unix_file(struct inode *, loff_t off, reiser4_key *);
+/* declarations of functions implementing UNIX_FILE_PLUGIN_ID file plugin */
+
+/* inode operations */
+int setattr_unix_file(struct dentry *, struct iattr *);
+
+/* file operations */
+ssize_t read_unix_file(struct file *, char __user *buf, size_t read_amount,
+		       loff_t *off);
+ssize_t write_unix_file(struct file *, const char __user *buf, size_t write_amount,
+			loff_t * off);
+int ioctl_unix_file(struct inode *, struct file *, unsigned int cmd,
+		    unsigned long arg);
+int mmap_unix_file(struct file *, struct vm_area_struct *);
+int release_unix_file(struct inode *, struct file *);
+int sync_unix_file(struct file *, struct dentry *, int datasync);
+ssize_t sendfile_unix_file(struct file *, loff_t *ppos, size_t count,
+			   read_actor_t, void *target);
+
+/* address space operations */
+int readpage_unix_file(struct file *, struct page *);
+int writepages_unix_file(struct address_space *, struct writeback_control *);
+int prepare_write_unix_file(struct file *, struct page *, unsigned from,
+			    unsigned to);
+int commit_write_unix_file(struct file *, struct page *, unsigned from,
+			   unsigned to);
+sector_t bmap_unix_file(struct address_space *, sector_t lblock);
+
+/* file plugin operations */
+int flow_by_inode_unix_file(struct inode *, const char __user *buf,
+			    int user, loff_t, loff_t, rw_op, flow_t *);
 int owns_item_unix_file(const struct inode *, const coord_t *);
-int setattr_unix_file(struct inode *, struct iattr *);
-void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *, int create);
+void init_inode_data_unix_file(struct inode *, reiser4_object_create_data *,
+			       int create);
 int pre_delete_unix_file(struct inode *);
 
-extern ssize_t sendfile_common (
-	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target);
-extern ssize_t sendfile_unix_file (
-	struct file *file, loff_t *ppos, size_t count, read_actor_t actor, void __user *target);
-extern int prepare_write_unix_file (struct file *, struct page *, unsigned, unsigned);
-
-int sync_unix_file(struct inode *, int datasync);
-
-
-/* all the write into unix file is performed by item write method. Write method of unix file plugin only decides which
-   item plugin (extent or tail) and in which mode (one from the enum below) to call */
+/* all the write into unix file is performed by item write method. Write method
+   of unix file plugin only decides which item plugin (extent or tail) and in
+   which mode (one from the enum below) to call */
 typedef enum {
 	FIRST_ITEM = 1,
 	APPEND_ITEM = 2,
 	OVERWRITE_ITEM = 3
 } write_mode_t;
-
 
 /* unix file may be in one the following states */
 typedef enum {
@@ -78,13 +89,10 @@ typedef struct unix_file_info {
 	void *ea_owner;
 	atomic_t nr_neas;
 	void *last_reader;
-#ifdef CONFIG_FRAME_POINTER
-	void *where[5];
-#endif
 #endif
 } unix_file_info_t;
 
-struct unix_file_info *unix_file_inode_data(const struct inode * inode);
+struct unix_file_info *unix_file_inode_data(const struct inode *inode);
 void get_exclusive_access(unix_file_info_t *);
 void drop_exclusive_access(unix_file_info_t *);
 void get_nonexclusive_access(unix_file_info_t *, int);
@@ -105,7 +113,9 @@ struct uf_coord {
 	} extension;
 };
 
+#include "../../forward.h"
 #include "../../seal.h"
+#include "../../lock.h"
 
 /* structure used to speed up file operations (reads and writes). It contains
  * a seal over last file item accessed. */
@@ -114,21 +124,24 @@ struct hint {
 	uf_coord_t ext_coord;
 	loff_t offset;
 	znode_lock_mode mode;
-#if REISER4_DEBUG && defined(CONFIG_FRAME_POINTER)
-	void *bt[5];
-#endif
+	lock_handle lh;
 };
 
 void set_hint(hint_t *, const reiser4_key *, znode_lock_mode);
 int hint_is_set(const hint_t *);
 void unset_hint(hint_t *);
-int hint_validate(hint_t *, const reiser4_key *, int check_key, znode_lock_mode);
+int hint_validate(hint_t *, const reiser4_key *, int check_key,
+		  znode_lock_mode);
+int update_file_size(struct inode *, reiser4_key *, int update_sd);
+int cut_file_items(struct inode *, loff_t new_size, int update_sd,
+		   loff_t cur_size, int (*update_actor) (struct inode *,
+							 reiser4_key *, int));
 
 
 #if REISER4_DEBUG
 
 /* return 1 is exclusive access is obtained, 0 - otherwise */
-static inline int ea_obtained(unix_file_info_t *uf_info)
+static inline int ea_obtained(unix_file_info_t * uf_info)
 {
 	int ret;
 
@@ -140,6 +153,50 @@ static inline int ea_obtained(unix_file_info_t *uf_info)
 
 #endif
 
+/* declarations of functions implementing SYMLINK_FILE_PLUGIN_ID file plugin */
+int create_symlink(struct inode *symlink, struct inode *dir,
+		   reiser4_object_create_data *);
+void destroy_inode_symlink(struct inode *);
+
+/* declarations of functions implementing CRC_FILE_PLUGIN_ID file plugin */
+
+/* inode operations */
+int setattr_cryptcompress(struct dentry *, struct iattr *);
+
+/* file operations */
+ssize_t read_cryptcompress(struct file *, char __user *buf, size_t read_amount,
+			   loff_t * off);
+ssize_t write_cryptcompress(struct file *, const char __user *buf, size_t write_amount,
+			    loff_t * off);
+int mmap_cryptcompress(struct file *, struct vm_area_struct *);
+
+/* address space operations */
+extern int readpage_cryptcompress(struct file *, struct page *);
+extern int writepages_cryptcompress(struct address_space *,
+				     struct writeback_control *);
+extern void readpages_cryptcompress(struct file *, struct address_space *,
+				    struct list_head *pages);
+extern sector_t bmap_cryptcompress(struct address_space *, sector_t lblock);
+
+
+/* file plugin operations */
+int flow_by_inode_cryptcompress(struct inode *, const char __user *buf,
+				int user, loff_t, loff_t, rw_op, flow_t *);
+int key_by_inode_cryptcompress(struct inode *, loff_t off, reiser4_key *);
+int create_cryptcompress(struct inode *, struct inode *,
+			 reiser4_object_create_data *);
+int delete_cryptcompress(struct inode *);
+void init_inode_data_cryptcompress(struct inode *, reiser4_object_create_data *,
+				   int create);
+int cut_tree_worker_cryptcompress(tap_t *, const reiser4_key * from_key,
+				  const reiser4_key * to_key,
+				  reiser4_key * smallest_removed,
+				  struct inode *object, int truncate,
+				  int *progress);
+int pre_delete_cryptcompress(struct inode *);
+void destroy_inode_cryptcompress(struct inode *);
+
+extern reiser4_plugin_ops cryptcompress_plugin_ops;
 
 /* __REISER4_FILE_H__ */
 #endif

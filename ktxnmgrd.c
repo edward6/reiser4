@@ -37,15 +37,14 @@
 
 static int scan_mgr(txn_mgr * mgr);
 
-reiser4_internal int
-init_ktxnmgrd_context(txn_mgr * mgr)
+int init_ktxnmgrd_context(txn_mgr * mgr)
 {
-	ktxnmgrd_context * ctx;
+	ktxnmgrd_context *ctx;
 
-	assert ("zam-1013", mgr != NULL);
-	assert ("zam-1014", mgr->daemon == NULL);
+	assert("zam-1013", mgr != NULL);
+	assert("zam-1014", mgr->daemon == NULL);
 
-	ctx = reiser4_kmalloc(sizeof(ktxnmgrd_context), GFP_KERNEL);
+	ctx = kmalloc(sizeof(ktxnmgrd_context), GFP_KERNEL);
 	if (ctx == NULL)
 		return RETERR(-ENOMEM);
 
@@ -72,13 +71,12 @@ init_ktxnmgrd_context(txn_mgr * mgr)
 
 /* The background transaction manager daemon, started as a kernel thread
    during reiser4 initialization. */
-static int
-ktxnmgrd(void *arg)
+static int ktxnmgrd(void *arg)
 {
 	struct task_struct *me;
-	struct super_block * super;
+	struct super_block *super;
 	ktxnmgrd_context *ctx;
-	txn_mgr * mgr;
+	txn_mgr *mgr;
 
 	/* standard kernel thread prologue */
 	me = current;
@@ -94,7 +92,7 @@ ktxnmgrd(void *arg)
 	/* do_fork() just copies task_struct into the new
 	   thread. ->fs_context shouldn't be copied of course. This shouldn't
 	   be a problem for the rest of the code though.
-	*/
+	 */
 	me->journal_info = NULL;
 
 	mgr = arg;
@@ -107,7 +105,7 @@ ktxnmgrd(void *arg)
 		int result;
 
 		/* software suspend support. */
-		if (me->flags & PF_FREEZE) {
+		if (freezing(me)) {
 			spin_unlock(&ctx->guard);
 			refrigerator();
 			spin_lock(&ctx->guard);
@@ -120,7 +118,7 @@ ktxnmgrd(void *arg)
 		   by signals so that this thread is not counted in
 		   load-average. This doesn't require any special handling,
 		   because all signals were blocked.
-		*/
+		 */
 		result = kcond_timedwait(&ctx->wait,
 					 &ctx->guard, ctx->timeout, 1);
 
@@ -139,7 +137,7 @@ ktxnmgrd(void *arg)
 		/* wait timed out or ktxnmgrd was woken up by explicit request
 		   to commit something. Scan list of atoms in txnmgr and look
 		   for too old atoms.
-		*/
+		 */
 		do {
 			ctx->rescan = 0;
 			scan_mgr(mgr);
@@ -163,28 +161,25 @@ ktxnmgrd(void *arg)
 
 #undef set_comm
 
-reiser4_internal void
-ktxnmgrd_kick(txn_mgr * mgr)
+void ktxnmgrd_kick(txn_mgr * mgr)
 {
 	assert("nikita-3234", mgr != NULL);
 	assert("nikita-3235", mgr->daemon != NULL);
 	kcond_signal(&mgr->daemon->wait);
 }
 
-reiser4_internal int
-is_current_ktxnmgrd(void)
+int is_current_ktxnmgrd(void)
 {
 	return (get_current_super_private()->tmgr.daemon->tsk == current);
 }
 
 /* scan one transaction manager for old atoms; should be called with ktxnmgrd
  * spinlock, releases this spin lock at exit */
-static int
-scan_mgr(txn_mgr * mgr)
+static int scan_mgr(txn_mgr * mgr)
 {
-	int              ret;
-	reiser4_context  ctx;
-	reiser4_tree    *tree;
+	int ret;
+	reiser4_context ctx;
+	reiser4_tree *tree;
 
 	assert("nikita-2454", mgr != NULL);
 
@@ -193,7 +188,7 @@ scan_mgr(txn_mgr * mgr)
 	assert("nikita-2455", tree != NULL);
 	assert("nikita-2456", tree->super != NULL);
 
-	init_context(&ctx, tree->super);
+	init_stack_context(&ctx, tree->super);
 
 	ret = commit_some_atoms(mgr);
 
@@ -201,10 +196,9 @@ scan_mgr(txn_mgr * mgr)
 	return ret;
 }
 
-
-reiser4_internal int start_ktxnmgrd (txn_mgr * mgr)
+int start_ktxnmgrd(txn_mgr * mgr)
 {
-	ktxnmgrd_context * ctx;
+	ktxnmgrd_context *ctx;
 
 	assert("nikita-2448", mgr != NULL);
 	assert("zam-1015", mgr->daemon != NULL);
@@ -233,12 +227,12 @@ reiser4_internal int start_ktxnmgrd (txn_mgr * mgr)
 	return 0;
 }
 
-reiser4_internal void stop_ktxnmgrd (txn_mgr * mgr)
+void stop_ktxnmgrd(txn_mgr * mgr)
 {
-	ktxnmgrd_context * ctx;
+	ktxnmgrd_context *ctx;
 
-	assert ("zam-1016", mgr != NULL);
-	assert ("zam-1017", mgr->daemon != NULL);
+	assert("zam-1016", mgr != NULL);
+	assert("zam-1017", mgr->daemon != NULL);
 
 	ctx = mgr->daemon;
 
@@ -253,13 +247,12 @@ reiser4_internal void stop_ktxnmgrd (txn_mgr * mgr)
 	wait_for_completion(&ctx->finish);
 }
 
-reiser4_internal void
-done_ktxnmgrd_context (txn_mgr * mgr)
+void done_ktxnmgrd_context(txn_mgr * mgr)
 {
-	assert ("zam-1011", mgr != NULL);
-	assert ("zam-1012", mgr->daemon != NULL);
+	assert("zam-1011", mgr != NULL);
+	assert("zam-1012", mgr->daemon != NULL);
 
-	reiser4_kfree(mgr->daemon);
+	kfree(mgr->daemon);
 	mgr->daemon = NULL;
 }
 

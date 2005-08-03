@@ -52,9 +52,8 @@
 #include <linux/err.h>
 
 /* initialise new pool object */
-static void
-reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
-						 * initialise */ )
+static void reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
+								 * initialise */ )
 {
 	pool_usage_list_clean(h);
 	pool_level_list_clean(h);
@@ -62,11 +61,10 @@ reiser4_init_pool_obj(reiser4_pool_header * h	/* pool object to
 }
 
 /* initialise new pool */
-reiser4_internal void
-reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
-		  size_t obj_size /* size of objects in @pool */ ,
-		  int num_of_objs /* number of preallocated objects */ ,
-		  char *data /* area for preallocated objects */ )
+void reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
+		       size_t obj_size /* size of objects in @pool */ ,
+		       int num_of_objs /* number of preallocated objects */ ,
+		       char *data /* area for preallocated objects */ )
 {
 	reiser4_pool_header *h;
 	int i;
@@ -96,8 +94,7 @@ reiser4_init_pool(reiser4_pool * pool /* pool to initialise */ ,
    allocated objects.
 
 */
-reiser4_internal void
-reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
+void reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
 {
 }
 
@@ -107,9 +104,8 @@ reiser4_done_pool(reiser4_pool * pool UNUSED_ARG /* pool to destroy */ )
    allocation.
 
 */
-static void *
-reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
-					 * from */ )
+static void *reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
+							 * from */ )
 {
 	reiser4_pool_header *result;
 
@@ -122,7 +118,7 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 	} else {
 		/* pool is empty. Extra allocations don't deserve dedicated
 		   slab to be served from, as they are expected to be rare. */
-		result = reiser4_kmalloc(pool->obj_size, GFP_KERNEL);
+		result = kmalloc(pool->obj_size, GFP_KERNEL);
 		if (result != 0) {
 			reiser4_init_pool_obj(result);
 			pool_extra_list_push_front(&pool->extra, result);
@@ -137,15 +133,13 @@ reiser4_pool_alloc(reiser4_pool * pool	/* pool to allocate object
 }
 
 /* return object back to the pool */
-reiser4_internal void
-reiser4_pool_free(reiser4_pool * pool,
-		  reiser4_pool_header * h	/* pool to return object back
-						 * into */ )
+void reiser4_pool_free(reiser4_pool * pool, reiser4_pool_header * h	/* pool to return object back
+									 * into */ )
 {
 	assert("nikita-961", h != NULL);
 	assert("nikita-962", pool != NULL);
 
-	-- pool->objs;
+	--pool->objs;
 	assert("nikita-963", pool->objs >= 0);
 
 	pool_usage_list_remove_clean(h);
@@ -154,7 +148,7 @@ reiser4_pool_free(reiser4_pool * pool,
 		pool_usage_list_push_front(&pool->free, h);
 	else {
 		pool_extra_list_remove_clean(h);
-		reiser4_kfree(h);
+		kfree(h);
 	}
 }
 
@@ -174,17 +168,16 @@ reiser4_pool_free(reiser4_pool * pool,
    (that is "right" node).
 
 */
-reiser4_internal reiser4_pool_header *
-add_obj(reiser4_pool * pool	/* pool from which to
-				 * allocate new object */ ,
-	pool_level_list_head * list	/* list where to add
-					 * object */ ,
-	pool_ordering order /* where to add */ ,
-	reiser4_pool_header * reference	/* after (or
-					 * before) which
-					 * existing
-					 * object to
-					 * add */ )
+reiser4_pool_header *add_obj(reiser4_pool * pool	/* pool from which to
+							 * allocate new object */ ,
+			     pool_level_list_head * list	/* list where to add
+								 * object */ ,
+			     pool_ordering order /* where to add */ ,
+			     reiser4_pool_header * reference	/* after (or
+								 * before) which
+								 * existing
+								 * object to
+								 * add */ )
 {
 	reiser4_pool_header *result;
 

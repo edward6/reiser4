@@ -8,10 +8,10 @@
 
 #include "dformat.h"
 
-extern int dscale_read (unsigned char *address, __u64 *value);
+extern int dscale_read(unsigned char *address, __u64 * value);
 extern int dscale_write(unsigned char *address, __u64 value);
 extern int dscale_bytes(__u64 value);
-extern int dscale_fit  (__u64 value, __u64 other);
+extern int dscale_fit(__u64 value, __u64 other);
 
 /* __FS_REISER4_DSCALE_H__ */
 #endif

@@ -104,20 +104,20 @@ typedef enum {
 #define REISER4_NODE_MAX_OVERHEAD ( sizeof( reiser4_key ) + 32 )
 
 typedef enum {
-	REISER4_NODE_DKEYS       = (1 << 0),
+	REISER4_NODE_DKEYS = (1 << 0),
 	REISER4_NODE_TREE_STABLE = (1 << 1)
 } reiser4_node_check_flag;
 
 /* cut and cut_and_kill have too long list of parameters. This structure is just to safe some space on stack */
 struct cut_list {
-	coord_t * from;
-	coord_t * to;
-	const reiser4_key * from_key;
-	const reiser4_key * to_key;
-	reiser4_key * smallest_removed;
-	carry_plugin_info * info;
+	coord_t *from;
+	coord_t *to;
+	const reiser4_key *from_key;
+	const reiser4_key *to_key;
+	reiser4_key *smallest_removed;
+	carry_plugin_info *info;
 	__u32 flags;
-	struct inode *inode; /* this is to pass list of eflushed jnodes down to extent_kill_hook */
+	struct inode *inode;	/* this is to pass list of eflushed jnodes down to extent_kill_hook */
 	lock_handle *left;
 	lock_handle *right;
 };
@@ -141,9 +141,10 @@ typedef struct node_plugin {
 	   znode->free_space). */
 	 size_t(*free_space) (znode * node);
 	/* search within the node for the one item which might
-	    contain the key, invoking item->search_within to search within
-	    that item to see if it is in there */
-	 node_search_result(*lookup) (znode * node, const reiser4_key * key, lookup_bias bias, coord_t * coord);
+	   contain the key, invoking item->search_within to search within
+	   that item to see if it is in there */
+	 node_search_result(*lookup) (znode * node, const reiser4_key * key,
+				      lookup_bias bias, coord_t * coord);
 	/* number of items in node */
 	int (*num_of_items) (const znode * node);
 
@@ -157,9 +158,9 @@ typedef struct node_plugin {
 	/* store item key in @key */
 	reiser4_key *(*key_at) (const coord_t * coord, reiser4_key * key);
 	/* conservatively estimate whether unit of what size can fit
-	    into node. This estimation should be performed without
-	    actually looking into the node's content (free space is saved in
-	    znode). */
+	   into node. This estimation should be performed without
+	   actually looking into the node's content (free space is saved in
+	   znode). */
 	 size_t(*estimate) (znode * node);
 
 	/* performs every consistency check the node plugin author could
@@ -169,7 +170,7 @@ typedef struct node_plugin {
 	/* Called when node is read into memory and node plugin is
 	   already detected. This should read some data into znode (like free
 	   space counter) and, optionally, check data consistency.
-	*/
+	 */
 	int (*parse) (znode * node);
 	/* This method is called on a new node to initialise plugin specific
 	   data (header, etc.) */
@@ -177,7 +178,7 @@ typedef struct node_plugin {
 	/* Check whether @node content conforms to this plugin format.
 	   Probably only useful after support for old V3.x formats is added.
 	   Uncomment after 4.0 only.
-	*/
+	 */
 	/*      int ( *guess )( const znode *node ); */
 #if REISER4_DEBUG
 	void (*print) (const char *prefix, const znode * node, __u32 flags);
@@ -193,7 +194,8 @@ typedef struct node_plugin {
 			    reiser4_item_data * data, carry_plugin_info * info);
 
 	/* update key of item. */
-	void (*update_item_key) (coord_t * target, const reiser4_key * key, carry_plugin_info * info);
+	void (*update_item_key) (coord_t * target, const reiser4_key * key,
+				 carry_plugin_info * info);
 
 	int (*cut_and_kill) (struct carry_kill_data *, carry_plugin_info *);
 	int (*cut) (struct carry_cut_data *, carry_plugin_info *);
@@ -201,7 +203,7 @@ typedef struct node_plugin {
 	/*
 	 * shrink item pointed to by @coord by @delta bytes.
 	 */
-	int (*shrink_item) (coord_t *coord, int delta);
+	int (*shrink_item) (coord_t * coord, int delta);
 
 	/* copy as much as possible but not more than up to @stop from
 	   @stop->node to @target. If (pend == append) then data from beginning of
@@ -210,7 +212,8 @@ typedef struct node_plugin {
 	   @target. Copied data are removed from @stop->node. Information
 	   about what to do on upper level is stored in @todo */
 	int (*shift) (coord_t * stop, znode * target, shift_direction pend,
-		      int delete_node, int including_insert_coord, carry_plugin_info * info);
+		      int delete_node, int including_insert_coord,
+		      carry_plugin_info * info);
 	/* return true if this node allows skip carry() in some situations
 	   (see fs/reiser4/tree.c:insert_by_coord()). Reiser3.x format
 	   emulation doesn't.
@@ -219,7 +222,7 @@ typedef struct node_plugin {
 	   parent, by bypassing initialisation of carry() structures. It's
 	   believed that majority of insertions will fit there.
 
-	*/
+	 */
 	int (*fast_insert) (const coord_t * coord);
 	int (*fast_paste) (const coord_t * coord);
 	int (*fast_cut) (const coord_t * coord);
@@ -234,14 +237,15 @@ typedef struct node_plugin {
 
 typedef enum {
 	/* standard unified node layout used for both leaf and internal
-	    nodes */
+	   nodes */
 	NODE40_ID,
 	LAST_NODE_ID
 } reiser4_node_id;
 
 extern reiser4_key *leftmost_key_in_node(const znode * node, reiser4_key * key);
 #if REISER4_DEBUG
-extern void print_node_content(const char *prefix, const znode * node, __u32 flags);
+extern void print_node_content(const char *prefix, const znode * node,
+			       __u32 flags);
 #endif
 
 extern void indent_znode(const znode * node);

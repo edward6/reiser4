@@ -3,7 +3,7 @@
 
 #include "debug.h"
 #include "plugin/plugin.h"
-#include "plugin/cryptcompress.h"
+#include "plugin/file/cryptcompress.h"
 #include <linux/types.h>
 #include <linux/random.h>
 
@@ -26,28 +26,29 @@
 	  @pad
 */
 UNUSED_ARG static int
-align_stream_common(__u8 *pad /* pointer to the first byte of aligning format */,
-		     int flow_size /* size of non-aligned flow */,
-				int blocksize /* crypto-block size */)
+align_stream_common(__u8 *
+		    pad /* pointer to the first byte of aligning format */ ,
+		    int flow_size /* size of non-aligned flow */ ,
+		    int blocksize /* crypto-block size */ )
 {
 	int pad_size;
 
 	assert("edward-01", pad != NULL);
 	assert("edward-02", flow_size != 0);
-	assert("edward-03", blocksize != 0 || blocksize <= MAX_CRYPTO_BLOCKSIZE);
+	assert("edward-03", blocksize != 0
+	       || blocksize <= MAX_CRYPTO_BLOCKSIZE);
 
 	pad_size = blocksize - (flow_size % blocksize);
-	get_random_bytes (pad, pad_size);
+	get_random_bytes(pad, pad_size);
 	return pad_size;
 }
 
 /* common scale method (look for description of this method in plugin/plugin.h)
    for all symmetric algorithms which doesn't scale anything
 */
-static loff_t scale_common(struct inode * inode UNUSED_ARG,
-			   size_t blocksize UNUSED_ARG /* crypto block size, which is returned
-							  by blocksize method of crypto plugin */,
-			   loff_t src_off /* offset to scale */)
+static loff_t scale_common(struct inode *inode UNUSED_ARG, size_t blocksize UNUSED_ARG	/* crypto block size, which is returned
+											   by blocksize method of crypto plugin */ ,
+			   loff_t src_off /* offset to scale */ )
 {
 	return src_off;
 }
@@ -55,7 +56,6 @@ static loff_t scale_common(struct inode * inode UNUSED_ARG,
 REGISTER_NONE_ALG(crypt, CRYPTO)
 
 /* EDWARD-FIXME-HANS: why is this not in the plugin directory? */
-
 /* crypto plugins */
 crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 	[NONE_CRYPTO_ID] = {
@@ -73,10 +73,10 @@ crypto_plugin crypto_plugins[LAST_CRYPTO_ID] = {
 		.free = free_none_crypt,
 		.nr_keywords = NONE_EXPKEY_WORDS,
 		.scale = scale_common,
-	        .align_stream = NULL,
-	        .setkey = NULL,
-	        .encrypt = NULL,
-	        .decrypt = NULL
+		.align_stream = NULL,
+		.setkey = NULL,
+		.encrypt = NULL,
+		.decrypt = NULL
 	}
 };
 

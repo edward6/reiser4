@@ -47,25 +47,9 @@
 
 /* address space operations */
 
-static int reiser4_readpage(struct file *, struct page *);
-
-static int reiser4_prepare_write(struct file *,
-				 struct page *, unsigned, unsigned);
-
-static int reiser4_commit_write(struct file *,
-				struct page *, unsigned, unsigned);
-
-static int reiser4_set_page_dirty (struct page *);
-static sector_t reiser4_bmap(struct address_space *, sector_t);
-/* static int reiser4_direct_IO(int, struct inode *,
-			     struct kiobuf *, unsigned long, int); */
-
-/* address space operations */
-
 /* clear PAGECACHE_TAG_DIRTY tag of a page. This is used in uncapture_page.  This resembles test_clear_page_dirty. The
    only difference is that page's mapping exists and REISER4_MOVED tag is checked */
-reiser4_internal void
-reiser4_clear_page_dirty(struct page *page)
+void reiser4_clear_page_dirty(struct page *page)
 {
 	struct address_space *mapping;
 	unsigned long flags;
@@ -83,108 +67,86 @@ reiser4_clear_page_dirty(struct page *page)
 	read_unlock_irqrestore(&mapping->tree_lock, flags);
 }
 
-/* as_ops->set_page_dirty() VFS method in reiser4_address_space_operations.
-
-   It is used by others (except reiser4) to set reiser4 pages dirty. Reiser4
-   itself uses set_page_dirty_internal().
-
-   The difference is that reiser4_set_page_dirty sets MOVED tag on the page and clears DIRTY tag. Pages tagged as MOVED
-   get processed by reiser4_writepages() to do reiser4 specific work over dirty pages (allocation jnode, capturing, atom
-   creation) which cannot be done in the contexts where reiser4_set_page_dirty is called.
-   set_page_dirty_internal sets DIRTY tag and clear MOVED
-*/
-static int reiser4_set_page_dirty(struct page *page /* page to mark dirty */)
+/**
+ * reiser4_set_page_dirty - set dirty bit, tag in page tree, dirty accounting
+ * @page: page to be dirtied
+ *
+ * Operation of struct address_space_operations. This implementation is used by
+ * unix and crc file plugins. 
+ *
+ * This is called when reiser4 page gets dirtied outside of reiser4, for
+ * example, when dirty bit is moved from pte to physical page.
+ *
+ * Tags page in the mapping's page tree with special tag so that it is possible
+ * to do all the reiser4 specific work wrt dirty pages (jnode creation,
+ * capturing by an atom) later because it can not be done in the contexts where
+ * set_page_dirty is called.
+ */
+int reiser4_set_page_dirty(struct page *page)
 {
 	/* this page can be unformatted only */
 	assert("vs-1734", (page->mapping &&
 			   page->mapping->host &&
-			   get_super_fake(page->mapping->host->i_sb) != page->mapping->host &&
-			   get_cc_fake(page->mapping->host->i_sb) != page->mapping->host &&
-			   get_super_private(page->mapping->host->i_sb)->bitmap != page->mapping->host));
+			   get_super_fake(page->mapping->host->i_sb) !=
+			   page->mapping->host
+			   && get_cc_fake(page->mapping->host->i_sb) !=
+			   page->mapping->host
+			   && get_bitmap_fake(page->mapping->host->i_sb) !=
+			   page->mapping->host));
 
 	if (!TestSetPageDirty(page)) {
 		struct address_space *mapping = page->mapping;
 
 		if (mapping) {
-			read_lock_irq(&mapping->tree_lock);
+			write_lock_irq(&mapping->tree_lock);
+
 			/* check for race with truncate */
 			if (page->mapping) {
 				assert("vs-1652", page->mapping == mapping);
 				if (mapping_cap_account_dirty(mapping))
 					inc_page_state(nr_dirty);
 				radix_tree_tag_set(&mapping->page_tree,
-						   page->index, PAGECACHE_TAG_REISER4_MOVED);
+						   page->index,
+						   PAGECACHE_TAG_REISER4_MOVED);
 			}
-			read_unlock_irq(&mapping->tree_lock);
+			write_unlock_irq(&mapping->tree_lock);
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 		}
 	}
 	return 0;
 }
 
-/* ->readpage() VFS method in reiser4 address_space_operations
-   method serving file mmapping
-*/
-static int
-reiser4_readpage(struct file *f /* file to read from */ ,
-		 struct page *page	/* page where to read data
-					 * into */ )
-{
-	struct inode *inode;
-	file_plugin *fplug;
-	int result;
-	reiser4_context ctx;
-
-	/*
-	 * basically calls ->readpage method of object plugin and handles
-	 * errors.
-	 */
-
-	assert("umka-078", f != NULL);
-	assert("umka-079", page != NULL);
-	assert("nikita-2280", PageLocked(page));
-	assert("vs-976", !PageUptodate(page));
-
-	assert("vs-318", page->mapping && page->mapping->host);
-	assert("nikita-1352", (f == NULL) || (f->f_dentry->d_inode == page->mapping->host));
-
-	/* ->readpage can be called from page fault service routine */
-	assert("nikita-3174", schedulable());
-
-	inode = page->mapping->host;
-	init_context(&ctx, inode->i_sb);
-	fplug = inode_file_plugin(inode);
-	if (fplug->readpage != NULL)
-		result = fplug->readpage(f, page);
-	else
-		result = RETERR(-EINVAL);
-
-	reiser4_exit_context(&ctx);
-	return result;
-}
-
 static int filler(void *vp, struct page *page)
 {
-	return reiser4_readpage(vp, page);
+	return page->mapping->a_ops->readpage(vp, page);
 }
 
-/* ->readpages() VFS method in reiser4 address_space_operations
-   method serving page cache readahead
-
-   if readpages hook is set in file data - it is called
-   otherwise read_cache_pages is used
-*/
-static int
+/**
+ * reiser4_readpages - submit read for a set of pages
+ * @file: file to read
+ * @mapping: address space
+ * @pages: list of pages to submit read for
+ * @nr_pages: number of pages no the list
+ *
+ * Operation of struct address_space_operations. This implementation is used by
+ * unix and crc file plugins.
+ *
+ * Calls read_cache_pages or readpages hook if it is set.
+ */
+int
 reiser4_readpages(struct file *file, struct address_space *mapping,
 		  struct list_head *pages, unsigned nr_pages)
 {
-	reiser4_context ctx;
+	reiser4_context *ctx;
 	reiser4_file_fsdata *fsdata;
 
-	init_context(&ctx, mapping->host->i_sb);
+	ctx = init_context(mapping->host->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+
 	fsdata = reiser4_get_file_fsdata(file);
 	if (IS_ERR(fsdata)) {
-		reiser4_exit_context(&ctx);
+		reiser4_exit_context(ctx);
 		return PTR_ERR(fsdata);
 	}
 
@@ -194,116 +156,8 @@ reiser4_readpages(struct file *file, struct address_space *mapping,
 		assert("vs-1738", lock_stack_isclean(get_current_lock_stack()));
 		read_cache_pages(mapping, pages, filler, file);
 	}
-	reiser4_exit_context(&ctx);
+	reiser4_exit_context(ctx);
 	return 0;
-}
-
-/* prepares @page to be written. This means, that if we want to modify only some
-   part of page, page should be read first and than modified. Actually this function
-   almost the same as reiser4_readpage(). The differentce is only that, it does not
-   unlock the page in the case of error. This is needed because loop back device
-   driver expects it locked. */
-static int reiser4_prepare_write(struct file *file, struct page *page,
-				 unsigned from, unsigned to)
-{
-	int result;
-	file_plugin * fplug;
-	struct inode * inode;
-	reiser4_context ctx;
-
-	inode = page->mapping->host;
-	init_context(&ctx, inode->i_sb);
-	fplug = inode_file_plugin(inode);
-
-	if (fplug->prepare_write != NULL)
-		result = fplug->prepare_write(file, page, from, to);
-	else
-		result = RETERR(-EINVAL);
-
-	/* don't commit transaction under inode semaphore */
-	context_set_commit_async(&ctx);
-	reiser4_exit_context(&ctx);
-
-	return result;
-}
-
-/* captures jnode of @page to current atom. */
-static int reiser4_commit_write(struct file *file, struct page *page,
-				unsigned from, unsigned to)
-{
-	int result;
-	file_plugin *fplug;
-	struct inode *inode;
-	reiser4_context ctx;
-
-	assert("umka-3101", file != NULL);
-	assert("umka-3102", page != NULL);
-	assert("umka-3093", PageLocked(page));
-
-	SetPageUptodate(page);
-
-	inode = page->mapping->host;
-	init_context(&ctx, inode->i_sb);
-	fplug = inode_file_plugin(inode);
-
-	if (fplug->capturepage)
-		result = fplug->capturepage(page);
-	else
-		result = RETERR(-EINVAL);
-
-	/* here page is return locked. */
-	assert("umka-3103", PageLocked(page));
-
-	/* don't commit transaction under inode semaphore */
-	context_set_commit_async(&ctx);
-	reiser4_exit_context(&ctx);
-	return result;
-}
-
-/* ->writepages()
-   ->vm_writeback()
-   ->set_page_dirty()
-   ->prepare_write()
-   ->commit_write()
-*/
-
-/* ->bmap() VFS method in reiser4 address_space_operations */
-reiser4_internal int
-reiser4_lblock_to_blocknr(struct address_space *mapping,
-			  sector_t lblock, reiser4_block_nr *blocknr)
-{
-	file_plugin *fplug;
-	int result;
-	reiser4_context ctx;
-
-	init_context(&ctx, mapping->host->i_sb);
-
-	fplug = inode_file_plugin(mapping->host);
-	if (fplug && fplug->get_block) {
-		*blocknr = generic_block_bmap(mapping, lblock, fplug->get_block);
-		result = 0;
-	} else
-		result = RETERR(-EINVAL);
-	reiser4_exit_context(&ctx);
-	return result;
-}
-
-/* ->bmap() VFS method in reiser4 address_space_operations */
-static sector_t
-reiser4_bmap(struct address_space *mapping, sector_t lblock)
-{
-	reiser4_block_nr blocknr;
-	int result;
-
-	result = reiser4_lblock_to_blocknr(mapping, lblock, &blocknr);
-	if (result == 0)
-		if (sizeof blocknr == sizeof(sector_t) ||
-		    !blocknr_is_fake(&blocknr))
-			return blocknr;
-		else
-			return 0;
-	else
-		return result;
 }
 
 /* ->invalidatepage method for reiser4 */
@@ -316,13 +170,12 @@ reiser4_bmap(struct address_space *mapping, sector_t lblock)
  * completed.
  */
 
-reiser4_internal int
-reiser4_invalidatepage(struct page *page /* page to invalidate */,
-		       unsigned long offset /* starting offset for partial
-					     * invalidation */)
+int reiser4_invalidatepage(struct page *page /* page to invalidate */ ,
+			   unsigned long offset	/* starting offset for partial
+						 * invalidation */ )
 {
 	int ret = 0;
-	reiser4_context ctx;
+	reiser4_context *ctx;
 	struct inode *inode;
 
 	/*
@@ -364,9 +217,13 @@ reiser4_invalidatepage(struct page *page /* page to invalidate */,
 		return 0;
 
 	assert("vs-1426", PagePrivate(page));
-	assert("vs-1427", page->mapping == jnode_get_mapping(jnode_by_page(page)));
+	assert("vs-1427",
+	       page->mapping == jnode_get_mapping(jnode_by_page(page)));
 
-	init_context(&ctx, inode->i_sb);
+	ctx = init_context(inode->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+
 	/* capture page being truncated. */
 	ret = try_capture_page_to_invalidate(page);
 	if (ret != 0) {
@@ -382,21 +239,20 @@ reiser4_invalidatepage(struct page *page /* page to invalidate */,
 		if (node != NULL) {
 			assert("vs-1435", !JF_ISSET(node, JNODE_CC));
 			jref(node);
- 			JF_SET(node, JNODE_HEARD_BANSHEE);
+			JF_SET(node, JNODE_HEARD_BANSHEE);
 			/* page cannot be detached from jnode concurrently,
 			 * because it is locked */
 			uncapture_page(page);
 
 			/* this detaches page from jnode, so that jdelete will not try to lock page which is already locked */
 			UNDER_SPIN_VOID(jnode,
-					node,
-					page_clear_jnode(page, node));
+					node, page_clear_jnode(page, node));
 			unhash_unformatted_jnode(node);
 
 			jput(node);
 		}
 	}
-	reiser4_exit_context(&ctx);
+	reiser4_exit_context(ctx);
 	return ret;
 }
 
@@ -406,12 +262,9 @@ reiser4_invalidatepage(struct page *page /* page to invalidate */,
 
 #define INC_NSTAT(node, counter) INC_STAT(jnode_page(node), node, counter)
 
-int is_cced(const jnode *node);
-
 /* help function called from reiser4_releasepage(). It returns true if jnode
  * can be detached from its page and page released. */
-static int
-releasable(const jnode *node /* node to check */)
+static int releasable(const jnode * node /* node to check */ )
 {
 	assert("nikita-2781", node != NULL);
 	assert("nikita-2783", spin_jnode_is_locked(node));
@@ -434,7 +287,7 @@ releasable(const jnode *node /* node to check */)
 	/* emergency flushed page can be released. This is what emergency
 	 * flush is all about after all. */
 	if (JF_ISSET(node, JNODE_EFLUSH)) {
-		return 1; /* yeah! */
+		return 1;	/* yeah! */
 	}
 
 	/* can only release page if real block number is assigned to
@@ -473,7 +326,7 @@ releasable(const jnode *node /* node to check */)
 }
 
 #if REISER4_DEBUG
-int jnode_is_releasable(jnode *node)
+int jnode_is_releasable(jnode * node)
 {
 	return UNDER_SPIN(jload, node, releasable(node));
 }
@@ -488,8 +341,7 @@ int jnode_is_releasable(jnode *node)
  *
  * Check for releasability is done by releasable() function.
  */
-reiser4_internal int
-reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
+int reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 {
 	jnode *node;
 
@@ -528,6 +380,9 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		 * jnode_extent_write() here, because pages seen by
 		 * jnode_extent_write() are !releasable(). */
 		page_clear_jnode(page, node);
+		/*XXXXX*/
+		clog_jnode(node, JH_RELEASEPAGE);
+		/*XXXXX*/
 		UNLOCK_JLOAD(node);
 		UNLOCK_JNODE(node);
 
@@ -550,89 +405,6 @@ reiser4_releasepage(struct page *page, int gfp UNUSED_ARG)
 		return 0;
 	}
 }
-
-#undef INC_NSTAT
-#undef INC_STAT
-
-/* reiser4 writepages() address space operation this captures anonymous pages
-   and anonymous jnodes. Anonymous pages are pages which are dirtied via
-   mmapping. Anonymous jnodes are ones which were created by reiser4_writepage
- */
-reiser4_internal int
-reiser4_writepages(struct address_space *mapping,
-		   struct writeback_control *wbc)
-{
-	int ret = 0;
-	struct inode *inode;
-	file_plugin *fplug;
-
-	inode = mapping->host;
-	fplug = inode_file_plugin(inode);
-	if (fplug != NULL && fplug->capture != NULL) {
-		/* call file plugin method to capture anonymous pages and
-		   anonymous jnodes */
-		ret = fplug->capture(inode, wbc);
-		if (is_in_reiser4_context()) {
-			if (get_current_context()->nr_captured >= CAPTURE_APAGE_BURST) {
-				/* there are already pages to flush, flush them
-				   out, do not delay until end of
-				   reiser4_sync_inodes */
-				writeout(inode->i_sb, wbc);
-				get_current_context()->nr_captured = 0;
-			}
-		}
-	}
-
-	return ret;
-}
-
-/* start actual IO on @page */
-reiser4_internal int reiser4_start_up_io(struct page *page)
-{
-	block_sync_page(page);
-	return 0;
-}
-
-/*
- * reiser4 methods for VM
- */
-struct address_space_operations reiser4_as_operations = {
-	/* called during memory pressure by kswapd */
-	.writepage = reiser4_writepage,
-	/* called to read page from the storage when page is added into page
-	   cache. This is done by page-fault handler. */
-	.readpage = reiser4_readpage,
-	/* Start IO on page. This is called from wait_on_page_bit() and
-	   lock_page() and its purpose is to actually start io by jabbing
-	   device drivers. */
-	.sync_page = reiser4_start_up_io,
-	/* called from
-	 * reiser4_sync_inodes()->generic_sync_sb_inodes()->...->do_writepages()
-	 *
-	 * captures anonymous pages for given inode
-	 */
-	.writepages = reiser4_writepages,
-	/* marks page dirty. Note that this is never called by reiser4
-	 * directly. Reiser4 uses set_page_dirty_internal(). Reiser4 set page
-	 * dirty is called for pages dirtied though mmap and moves dirty page
-	 * to the special ->moved_list in its mapping. */
-	.set_page_dirty = reiser4_set_page_dirty,
-	/* called during read-ahead */
-	.readpages = reiser4_readpages,
-	.prepare_write = reiser4_prepare_write, /* loop back device driver and generic_file_write() call-back */
-	.commit_write = reiser4_commit_write,  /* loop back device driver and generic_file_write() call-back */
-	/* map logical block number to disk block number. Used by FIBMAP ioctl
-	 * and ..bmap pseudo file. */
-	.bmap = reiser4_bmap,
-	/* called just before page is taken out from address space (on
-	   truncate, umount, or similar).  */
-	.invalidatepage = reiser4_invalidatepage,
-	/* called when VM is about to take page from address space (due to
-	   memory pressure). */
-	.releasepage = reiser4_releasepage,
-	/* not yet implemented */
-	.direct_IO = NULL
-};
 
 /* Make Linus happy.
    Local variables:

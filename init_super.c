@@ -16,7 +16,6 @@
 #include "entd.h"
 #include "emergency_flush.h"
 #include "safe_link.h"
-#include "plugin/dir/dir.h"
 
 #include <linux/errno.h>
 #include <linux/types.h>
@@ -45,17 +44,17 @@ _INIT_(mount_flags_check)
 
 _DONE_EMPTY(mount_flags_check)
 
-_INIT_(sinfo)
+    _INIT_(sinfo)
 {
-	reiser4_super_info_data * sbinfo;
+	reiser4_super_info_data *sbinfo;
 
-	sbinfo = kmalloc(sizeof (reiser4_super_info_data), GFP_KERNEL);
+	sbinfo = kmalloc(sizeof(reiser4_super_info_data), GFP_KERNEL);
 	if (!sbinfo)
 		return RETERR(-ENOMEM);
 
 	s->s_fs_info = sbinfo;
 	s->s_op = NULL;
-	memset(sbinfo, 0, sizeof (*sbinfo));
+	memset(sbinfo, 0, sizeof(*sbinfo));
 
 	ON_DEBUG(INIT_LIST_HEAD(&sbinfo->all_jnodes));
 	ON_DEBUG(spin_lock_init(&sbinfo->all_guard));
@@ -78,12 +77,13 @@ _DONE_(sinfo)
 
 _INIT_(context)
 {
-	return init_context(ctx, s);
+	init_stack_context(ctx, s);
+	return 0;
 }
 
 _DONE_(context)
 {
-	reiser4_super_info_data * sbinfo;
+	reiser4_super_info_data *sbinfo;
 
 	sbinfo = get_super_private(s);
 
@@ -129,41 +129,51 @@ _INIT_(object_ops)
 
 _DONE_EMPTY(object_ops)
 
-_INIT_(read_super)
+    _INIT_(read_super)
 {
 	struct buffer_head *super_bh;
 	struct reiser4_master_sb *master_sb;
 	int plugin_id;
-	reiser4_super_info_data * sbinfo = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 	unsigned long blocksize;
 
- read_super_block:
+      read_super_block:
 #ifdef CONFIG_REISER4_BADBLOCKS
-	if ( sbinfo->altsuper )
-		super_bh = sb_bread(s, (sector_t) (sbinfo->altsuper >> s->s_blocksize_bits));
+	if (sbinfo->altsuper)
+		super_bh =
+		    sb_bread(s,
+			     (sector_t) (sbinfo->altsuper >> s->
+					 s_blocksize_bits));
 	else
 #endif
 		/* look for reiser4 magic at hardcoded place */
-		super_bh = sb_bread(s, (sector_t) (REISER4_MAGIC_OFFSET / s->s_blocksize));
+		super_bh =
+		    sb_bread(s,
+			     (sector_t) (REISER4_MAGIC_OFFSET /
+					 s->s_blocksize));
 
 	if (!super_bh)
 		return RETERR(-EIO);
 
-	master_sb = (struct reiser4_master_sb *) super_bh->b_data;
+	master_sb = (struct reiser4_master_sb *)super_bh->b_data;
 	/* check reiser4 magic string */
-	if (!strncmp(master_sb->magic, REISER4_SUPER_MAGIC_STRING, sizeof(REISER4_SUPER_MAGIC_STRING))) {
+	if (!strncmp
+	    (master_sb->magic, REISER4_SUPER_MAGIC_STRING,
+	     sizeof(REISER4_SUPER_MAGIC_STRING))) {
 		/* reset block size if it is not a right one FIXME-VS: better comment is needed */
 		blocksize = d16tocpu(&master_sb->blocksize);
 
 		if (blocksize != PAGE_CACHE_SIZE) {
 			if (!silent)
-				warning("nikita-2609", "%s: wrong block size %ld\n", s->s_id, blocksize);
+				warning("nikita-2609",
+					"%s: wrong block size %ld\n", s->s_id,
+					blocksize);
 			brelse(super_bh);
 			return RETERR(-EINVAL);
 		}
 		if (blocksize != s->s_blocksize) {
 			brelse(super_bh);
-			if (!sb_set_blocksize(s, (int) blocksize)) {
+			if (!sb_set_blocksize(s, (int)blocksize)) {
 				return RETERR(-EINVAL);
 			}
 			goto read_super_block;
@@ -177,7 +187,8 @@ _INIT_(read_super)
 		brelse(super_bh);
 	} else {
 		if (!silent) {
-			warning("nikita-2608", "%s: wrong master super block magic.", s->s_id);
+			warning("nikita-2608",
+				"%s: wrong master super block magic.", s->s_id);
 		}
 
 		/* no standard reiser4 super block found */
@@ -193,9 +204,9 @@ _INIT_(read_super)
 
 _DONE_EMPTY(read_super)
 
-_INIT_(tree0)
+    _INIT_(tree0)
 {
-	reiser4_super_info_data * sbinfo = get_super_private(s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 
 	init_tree_0(&sbinfo->tree);
 	sbinfo->tree.super = s;
@@ -204,7 +215,7 @@ _INIT_(tree0)
 
 _DONE_EMPTY(tree0)
 
-_INIT_(txnmgr)
+    _INIT_(txnmgr)
 {
 	txnmgr_init(&get_super_private(s)->tmgr);
 	return 0;
@@ -242,7 +253,7 @@ _INIT_(formatted_fake)
 
 _DONE_(formatted_fake)
 {
-	reiser4_super_info_data * sbinfo;
+	reiser4_super_info_data *sbinfo;
 
 	sbinfo = get_super_private(s);
 
@@ -297,7 +308,7 @@ _INIT_(sb_counters)
 
 _DONE_EMPTY(sb_counters)
 
-_INIT_(d_cursor)
+    _INIT_(d_cursor)
 {
 	/* this should be done before reading inode of root directory, because
 	 * reiser4_iget() used load_cursors(). */
@@ -311,77 +322,44 @@ _DONE_(d_cursor)
 
 static struct {
 	reiser4_plugin_type type;
-	reiser4_plugin_id   id;
+	reiser4_plugin_id id;
 } default_plugins[PSET_LAST] = {
 	[PSET_FILE] = {
-		.type = REISER4_FILE_PLUGIN_TYPE,
-		.id   = UNIX_FILE_PLUGIN_ID
-	},
-	[PSET_DIR] = {
-		.type = REISER4_DIR_PLUGIN_TYPE,
-		.id   = HASHED_DIR_PLUGIN_ID
-	},
-	[PSET_HASH] = {
-		.type = REISER4_HASH_PLUGIN_TYPE,
-		.id   = R5_HASH_ID
-	},
-	[PSET_FIBRATION] = {
-		.type = REISER4_FIBRATION_PLUGIN_TYPE,
-		.id   = FIBRATION_DOT_O
-	},
-	[PSET_PERM] = {
-		.type = REISER4_PERM_PLUGIN_TYPE,
-		.id   = RWX_PERM_ID
-	},
-	[PSET_FORMATTING] = {
-		.type = REISER4_FORMATTING_PLUGIN_TYPE,
-		.id   = SMALL_FILE_FORMATTING_ID
-	},
-	[PSET_SD] = {
-		.type = REISER4_ITEM_PLUGIN_TYPE,
-		.id   = STATIC_STAT_DATA_ID
-	},
-	[PSET_DIR_ITEM] = {
-		.type = REISER4_ITEM_PLUGIN_TYPE,
-		.id   = COMPOUND_DIR_ID
-	},
-	[PSET_CRYPTO] = {
-		.type = REISER4_CRYPTO_PLUGIN_TYPE,
-		.id   = NONE_CRYPTO_ID
-	},
-	[PSET_DIGEST] = {
-		.type = REISER4_DIGEST_PLUGIN_TYPE,
-		.id   = NONE_DIGEST_ID
-	},
-	[PSET_COMPRESSION] = {
-		.type = REISER4_COMPRESSION_PLUGIN_TYPE,
-		.id   = LZO1_COMPRESSION_ID
-	},
-	[PSET_COMPRESSION_MODE] = {
-		.type = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-		.id   = SMART_COMPRESSION_MODE_ID
-	},
-	[PSET_CLUSTER] = {
-		.type = REISER4_CLUSTER_PLUGIN_TYPE,
-		.id   = CLUSTER_64K_ID
-	},
-	[PSET_REGULAR_ENTRY] = {
-		.type = REISER4_REGULAR_PLUGIN_TYPE,
-		.id   = UF_REGULAR_ID
-	}
+	.type = REISER4_FILE_PLUGIN_TYPE,.id = UNIX_FILE_PLUGIN_ID},[PSET_DIR] = {
+	.type = REISER4_DIR_PLUGIN_TYPE,.id = HASHED_DIR_PLUGIN_ID},
+	    [PSET_HASH] = {
+	.type = REISER4_HASH_PLUGIN_TYPE,.id = R5_HASH_ID},[PSET_FIBRATION] = {
+	.type = REISER4_FIBRATION_PLUGIN_TYPE,.id = FIBRATION_DOT_O},
+	    [PSET_PERM] = {
+	.type = REISER4_PERM_PLUGIN_TYPE,.id = RWX_PERM_ID},[PSET_FORMATTING] = {
+	.type = REISER4_FORMATTING_PLUGIN_TYPE,.id = SMALL_FILE_FORMATTING_ID},
+	    [PSET_SD] = {
+	.type = REISER4_ITEM_PLUGIN_TYPE,.id = STATIC_STAT_DATA_ID},
+	    [PSET_DIR_ITEM] = {
+	.type = REISER4_ITEM_PLUGIN_TYPE,.id = COMPOUND_DIR_ID},[PSET_CRYPTO] = {
+	.type = REISER4_CRYPTO_PLUGIN_TYPE,.id = NONE_CRYPTO_ID},[PSET_DIGEST] = {
+	.type = REISER4_DIGEST_PLUGIN_TYPE,.id = NONE_DIGEST_ID},
+	    [PSET_COMPRESSION] = {
+	.type = REISER4_COMPRESSION_PLUGIN_TYPE,.id = LZO1_COMPRESSION_ID},
+	    [PSET_COMPRESSION_MODE] = {
+	.type = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,.id =
+		    SMART_COMPRESSION_MODE_ID},[PSET_CLUSTER] = {
+	.type = REISER4_CLUSTER_PLUGIN_TYPE,.id =
+		    CLUSTER_64K_ID},[PSET_REGULAR_ENTRY] = {
+	.type = REISER4_REGULAR_PLUGIN_TYPE,.id = UF_REGULAR_ID}
 };
 
 /* access to default plugin table */
-reiser4_internal reiser4_plugin *
-get_default_plugin(pset_member memb)
+reiser4_plugin *get_default_plugin(pset_member memb)
 {
-	return plugin_by_id(default_plugins[memb].type, default_plugins[memb].id);
+	return plugin_by_id(default_plugins[memb].type,
+			    default_plugins[memb].id);
 }
 
 _INIT_(fs_root)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
-	struct inode * inode;
+	struct inode *inode;
 	int result = 0;
 
 	inode = reiser4_iget(s, sbinfo->df_plug->root_dir_key(s), 0);
@@ -397,9 +375,9 @@ _INIT_(fs_root)
 	s->s_root->d_op = &sbinfo->ops.dentry;
 
 	if (!is_inode_loaded(inode)) {
-		pset_member    memb;
+		pset_member memb;
 
-		for (memb = 0; memb < PSET_LAST; ++ memb) {
+		for (memb = 0; memb < PSET_LAST; ++memb) {
 			reiser4_plugin *plug;
 
 			plug = get_default_plugin(memb);
@@ -413,7 +391,7 @@ _INIT_(fs_root)
 				plugin_set *pset;
 
 				pset = reiser4_inode_data(inode)->pset;
-				for (memb = 0; memb < PSET_LAST; ++ memb)
+				for (memb = 0; memb < PSET_LAST; ++memb)
 					assert("nikita-3500",
 					       pset_get(pset, memb) != NULL);
 			}
@@ -457,7 +435,7 @@ _INIT_(exit_context)
 _DONE_EMPTY(exit_context)
 
 struct reiser4_subsys {
-	int  (*init) _INIT_PARAM_LIST;
+	int (*init) _INIT_PARAM_LIST;
 	void (*done) _DONE_PARAM_LIST;
 };
 
@@ -485,7 +463,7 @@ static struct reiser4_subsys subsys_array[] = {
 
 #define REISER4_NR_SUBSYS (sizeof(subsys_array) / sizeof(struct reiser4_subsys))
 
-static void done_super (struct super_block * s, int last_done)
+static void done_super(struct super_block *s, int last_done)
 {
 	int i;
 	for (i = last_done; i >= 0; i--)
@@ -495,14 +473,13 @@ static void done_super (struct super_block * s, int last_done)
 /* read super block from device and fill remaining fields in @s.
 
    This is read_super() of the past.  */
-reiser4_internal int
-reiser4_fill_super (struct super_block * s, void * data, int silent)
+int reiser4_fill_super(struct super_block *s, void *data, int silent)
 {
 	reiser4_context ctx;
 	int i;
 	int ret;
 
-	assert ("zam-989", s != NULL);
+	assert("zam-989", s != NULL);
 
 	for (i = 0; i < REISER4_NR_SUBSYS; i++) {
 		ret = subsys_array[i].init(s, &ctx, data, silent);
@@ -516,7 +493,7 @@ reiser4_fill_super (struct super_block * s, void * data, int silent)
 
 #if 0
 
-int reiser4_done_super (struct super_block * s)
+int reiser4_done_super(struct super_block *s)
 {
 	reiser4_context ctx;
 

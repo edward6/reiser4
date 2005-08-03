@@ -58,19 +58,19 @@
  * On-disk format of safe-link.
  */
 typedef struct safelink {
-	reiser4_key sdkey; /* key of stat-data for the file safe-link is
-			    * for */
-	d64 size;          /* size to which file should be truncated */
+	reiser4_key sdkey;	/* key of stat-data for the file safe-link is
+				 * for */
+	d64 size;		/* size to which file should be truncated */
 } safelink_t;
 
 /*
  * locality where safe-link items are stored. Next to the objectid of root
  * directory.
  */
-static oid_t
-safe_link_locality(reiser4_tree *tree)
+static oid_t safe_link_locality(reiser4_tree * tree)
 {
-	return get_key_objectid(get_super_private(tree->super)->df_plug->root_dir_key(tree->super)) + 1;
+	return get_key_objectid(get_super_private(tree->super)->df_plug->
+				root_dir_key(tree->super)) + 1;
 }
 
 /*
@@ -90,9 +90,8 @@ safe_link_locality(reiser4_tree *tree)
    operations.
 
  */
-static reiser4_key *
-build_link_key(reiser4_tree *tree, oid_t oid, reiser4_safe_link_t link,
-	       reiser4_key *key)
+static reiser4_key *build_link_key(reiser4_tree * tree, oid_t oid,
+				   reiser4_safe_link_t link, reiser4_key * key)
 {
 	reiser4_key_init(key);
 	set_key_locality(key, safe_link_locality(tree));
@@ -105,38 +104,38 @@ build_link_key(reiser4_tree *tree, oid_t oid, reiser4_safe_link_t link,
  * how much disk space is necessary to insert and remove (in the
  * error-handling path) safe-link.
  */
-static __u64
-safe_link_tograb(reiser4_tree *tree)
+static __u64 safe_link_tograb(reiser4_tree * tree)
 {
 	return
-		/* insert safe link */
-		estimate_one_insert_item(tree) +
-		/* remove safe link */
-		estimate_one_item_removal(tree) +
-		/* drill to the leaf level during insertion */
-		1 + estimate_one_insert_item(tree) +
-		/*
-		 * possible update of existing safe-link. Actually, if
-		 * safe-link existed already (we failed to remove it), then no
-		 * insertion is necessary, so this term is already "covered",
-		 * but for simplicity let's left it.
-		 */
-		1;
+	    /* insert safe link */
+	    estimate_one_insert_item(tree) +
+	    /* remove safe link */
+	    estimate_one_item_removal(tree) +
+	    /* drill to the leaf level during insertion */
+	    1 + estimate_one_insert_item(tree) +
+	    /*
+	     * possible update of existing safe-link. Actually, if
+	     * safe-link existed already (we failed to remove it), then no
+	     * insertion is necessary, so this term is already "covered",
+	     * but for simplicity let's left it.
+	     */
+	    1;
 }
 
 /*
  * grab enough disk space to insert and remove (in the error-handling path)
  * safe-link.
  */
-reiser4_internal int safe_link_grab(reiser4_tree *tree, reiser4_ba_flags_t flags)
+int safe_link_grab(reiser4_tree * tree, reiser4_ba_flags_t flags)
 {
-	int   result;
+	int result;
 
 	grab_space_enable();
 	/* The sbinfo->delete semaphore can be taken here.
 	 * safe_link_release() should be called before leaving reiser4
 	 * context. */
-	result = reiser4_grab_reserved(tree->super, safe_link_tograb(tree), flags);
+	result =
+	    reiser4_grab_reserved(tree->super, safe_link_tograb(tree), flags);
 	grab_space_enable();
 	return result;
 }
@@ -144,7 +143,7 @@ reiser4_internal int safe_link_grab(reiser4_tree *tree, reiser4_ba_flags_t flags
 /*
  * release unused disk space reserved by safe_link_grab().
  */
-reiser4_internal void safe_link_release(reiser4_tree * tree)
+void safe_link_release(reiser4_tree * tree)
 {
 	reiser4_release_reserved(tree->super);
 }
@@ -152,7 +151,7 @@ reiser4_internal void safe_link_release(reiser4_tree * tree)
 /*
  * insert into tree safe-link for operation @link on inode @inode.
  */
-reiser4_internal int safe_link_add(struct inode *inode, reiser4_safe_link_t link)
+int safe_link_add(struct inode *inode, reiser4_safe_link_t link)
 {
 	reiser4_key key;
 	safelink_t sl;
@@ -184,13 +183,11 @@ reiser4_internal int safe_link_add(struct inode *inode, reiser4_safe_link_t link
  * remove safe-link corresponding to the operation @link on inode @inode from
  * the tree.
  */
-reiser4_internal int
-safe_link_del(reiser4_tree *tree, oid_t oid, reiser4_safe_link_t link)
+int safe_link_del(reiser4_tree * tree, oid_t oid, reiser4_safe_link_t link)
 {
 	reiser4_key key;
 
-	return kill_black_box(tree,
-			      build_link_key(tree, oid, link, &key));
+	return kill_black_box(tree, build_link_key(tree, oid, link, &key));
 }
 
 /*
@@ -198,18 +195,18 @@ safe_link_del(reiser4_tree *tree, oid_t oid, reiser4_safe_link_t link)
  * used to iterate over all safe-links.
  */
 typedef struct {
-	reiser4_tree       *tree;   /* internal tree */
-	reiser4_key         key;    /* safe-link key*/
-	reiser4_key         sdkey;  /* key of object stat-data */
-	reiser4_safe_link_t link;   /* safe-link type */
-	oid_t               oid;    /* object oid */
-	__u64               size;   /* final size for truncate */
+	reiser4_tree *tree;	/* internal tree */
+	reiser4_key key;	/* safe-link key */
+	reiser4_key sdkey;	/* key of object stat-data */
+	reiser4_safe_link_t link;	/* safe-link type */
+	oid_t oid;		/* object oid */
+	__u64 size;		/* final size for truncate */
 } safe_link_context;
 
 /*
  * start iterating over all safe-links.
  */
-static void safe_link_iter_begin(reiser4_tree *tree, safe_link_context *ctx)
+static void safe_link_iter_begin(reiser4_tree * tree, safe_link_context * ctx)
 {
 	ctx->tree = tree;
 	reiser4_key_init(&ctx->key);
@@ -221,13 +218,12 @@ static void safe_link_iter_begin(reiser4_tree *tree, safe_link_context *ctx)
 /*
  * return next safe-link.
  */
-static int safe_link_iter_next(safe_link_context *ctx)
+static int safe_link_iter_next(safe_link_context * ctx)
 {
 	int result;
 	safelink_t sl;
 
-	result = load_black_box(ctx->tree,
-				&ctx->key, &sl, sizeof sl, 0);
+	result = load_black_box(ctx->tree, &ctx->key, &sl, sizeof sl, 0);
 	if (result == 0) {
 		ctx->oid = get_key_objectid(&ctx->key);
 		ctx->link = get_key_offset(&ctx->key);
@@ -241,16 +237,15 @@ static int safe_link_iter_next(safe_link_context *ctx)
 /*
  * check are there any more safe-links left in the tree.
  */
-static int safe_link_iter_finished(safe_link_context *ctx)
+static int safe_link_iter_finished(safe_link_context * ctx)
 {
 	return get_key_locality(&ctx->key) != safe_link_locality(ctx->tree);
 }
 
-
 /*
  * finish safe-link iteration.
  */
-static void safe_link_iter_end(safe_link_context *ctx)
+static void safe_link_iter_end(safe_link_context * ctx)
 {
 	/* nothing special */
 }
@@ -259,7 +254,7 @@ static void safe_link_iter_end(safe_link_context *ctx)
  * process single safe-link.
  */
 static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
-			    reiser4_key *sdkey, oid_t oid, __u64 size)
+			    reiser4_key * sdkey, oid_t oid, __u64 size)
 {
 	struct inode *inode;
 	int result;
@@ -298,10 +293,10 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 		reiser4_iget_complete(inode);
 		iput(inode);
 		if (result == 0) {
-			result = safe_link_grab(get_tree(super),
-						BA_CAN_COMMIT);
+			result = safe_link_grab(get_tree(super), BA_CAN_COMMIT);
 			if (result == 0)
-				result = safe_link_del(get_tree(super), oid, link);
+				result =
+				    safe_link_del(get_tree(super), oid, link);
 			safe_link_release(get_tree(super));
 			/*
 			 * restart transaction: if there was large number of
@@ -319,7 +314,7 @@ static int process_safelink(struct super_block *super, reiser4_safe_link_t link,
 /*
  * iterate over all safe-links in the file-system processing them one by one.
  */
-reiser4_internal int process_safelinks(struct super_block *super)
+int process_safelinks(struct super_block *super)
 {
 	safe_link_context ctx;
 	int result;
@@ -337,7 +332,8 @@ reiser4_internal int process_safelinks(struct super_block *super)
 		}
 		if (result == 0)
 			result = process_safelink(super, ctx.link,
-						  &ctx.sdkey, ctx.oid, ctx.size);
+						  &ctx.sdkey, ctx.oid,
+						  ctx.size);
 	} while (result == 0);
 	safe_link_iter_end(&ctx);
 	return result;

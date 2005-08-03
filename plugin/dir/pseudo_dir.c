@@ -5,13 +5,13 @@
 #include "../../debug.h"
 #include "../../inode.h"
 #include "../pseudo/pseudo.h"
-#include "dir.h"
+/*#include "dir.h"*/
 
 #include <linux/fs.h>		/* for struct inode */
 #include <linux/dcache.h>	/* for struct dentry */
 
 /* implementation of ->lookup() method for pseudo files. */
-reiser4_internal int lookup_pseudo(struct inode * parent, struct dentry **dentry)
+int lookup_pseudo(struct inode *parent, struct dentry **dentry)
 {
 	pseudo_plugin *pplug;
 	int result;
@@ -28,13 +28,11 @@ reiser4_internal int lookup_pseudo(struct inode * parent, struct dentry **dentry
 	return result;
 }
 
-
 /* ->readdir() method for pseudo file acting like a directory */
-reiser4_internal int
-readdir_pseudo(struct file *f, void *dirent, filldir_t filld)
+int readdir_pseudo(struct file *f, void *dirent, filldir_t filld)
 {
 	pseudo_plugin *pplug;
-	struct inode  *inode;
+	struct inode *inode;
 	struct dentry *dentry;
 	int result = 0;
 
@@ -80,8 +78,7 @@ readdir_pseudo(struct file *f, void *dirent, filldir_t filld)
 
 /* pseudo files are not serializable (currently). So, this should just return an
  * error. */
-reiser4_internal struct dentry *
-get_parent_pseudo(struct inode *child)
+struct dentry *get_parent_pseudo(struct inode *child)
 {
 	return ERR_PTR(RETERR(-ENOTSUPP));
 }

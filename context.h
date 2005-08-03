@@ -19,15 +19,15 @@
 #include <linux/spinlock.h>
 #include <linux/sched.h>	/* for struct task_struct */
 
-/* list of active lock stacks */
 #if REISER4_DEBUG
+/* list of active lock stacks */
+extern spinlock_t active_contexts_lock;
 TYPE_SAFE_LIST_DECLARE(context);
 #endif
 
 ON_DEBUG(TYPE_SAFE_LIST_DECLARE(flushers);)
 
 #if REISER4_DEBUG
-
 /*
  * Stat-data update tracking.
  *
@@ -50,24 +50,20 @@ ON_DEBUG(TYPE_SAFE_LIST_DECLARE(flushers);)
  * all slots are scanned and information about still not forced updates is
  * printed.
  */
-
 /* how many delayed stat data update slots to remember */
 #define TRACKED_DELAYED_UPDATE (0)
-
 typedef struct {
-	ino_t ino;      /* inode number of object with delayed stat data
-			 * update */
-	int   delayed;  /* 1 if update is delayed, 0 if update for forced */
-	void *stack[4]; /* stack back-trace of the call chain where update was
-			 * delayed */
+	ino_t ino;		/* inode number of object with delayed stat data
+				 * update */
+	int delayed;		/* 1 if update is delayed, 0 if update for forced */
 } dirty_inode_info[TRACKED_DELAYED_UPDATE];
 
 extern void mark_inode_update(struct inode *object, int immediate);
-extern int  delayed_inode_updates(dirty_inode_info info);
+extern int delayed_inode_updates(dirty_inode_info info);
 
 #else
-
-typedef struct {} dirty_inode_info;
+typedef struct {
+} dirty_inode_info;
 
 #define mark_inode_update(object, immediate) noop
 #define delayed_inode_updates(info) noop
@@ -100,24 +96,25 @@ struct reiser4_context {
 	/* per-thread grabbed (for further allocation) blocks counter */
 	reiser4_block_nr grabbed_blocks;
 
-	/* parent context */
-	reiser4_context *parent;
-
 	/* list of taps currently monitored. See tap.c */
 	tap_list_head taps;
 
 	/* grabbing space is enabled */
-	int grab_enabled  :1;
-    	/* should be set when we are write dirty nodes to disk in jnode_flush or
+	unsigned int grab_enabled:1;
+	/* should be set when we are write dirty nodes to disk in jnode_flush or
 	 * reiser4_write_logs() */
-	int writeout_mode :1;
+	unsigned int writeout_mode:1;
 	/* true, if current thread is an ent thread */
-	int entd          :1;
+	unsigned int entd:1;
 	/* true, if balance_dirty_pages() should not be run when leaving this
 	 * context. This is used to avoid lengthly balance_dirty_pages()
 	 * operation when holding some important resource, like directory
 	 * ->i_sem */
-	int nobalance     :1;
+	unsigned int nobalance:1;
+
+	/* this bit is used on done_context to decide whether context is
+	   kmalloc-ed and has to be kfree-ed */
+	unsigned int on_stack:1;
 
 	/* count non-trivial jnode_set_dirty() calls */
 	unsigned long nr_marked_dirty;
@@ -128,14 +125,14 @@ struct reiser4_context {
 	 * reiser4_sync_inodes reaches some threshold - some atoms get
 	 * flushed */
 	int nr_captured;
+	int nr_children;	/* number of child contexts */
 #if REISER4_DEBUG
 	/* A link of all active contexts. */
 	context_list_link contexts_link;
 	/* debugging information about reiser4 locks held by the current
 	 * thread */
 	lock_counters_info locks;
-	int nr_children;	/* number of child contexts */
-	struct task_struct *task; /* so we can easily find owner of the stack */
+	struct task_struct *task;	/* so we can easily find owner of the stack */
 
 	/*
 	 * disk space grabbing debugging support
@@ -145,15 +142,11 @@ struct reiser4_context {
 	reiser4_block_nr grabbed_initially;
 
 	/* list of all threads doing flush currently */
-	flushers_list_link  flushers_link;
+	flushers_list_link flushers_link;
 	/* information about last error encountered by reiser4 */
 	err_site err;
 	/* information about delayed stat data updates. See above. */
 	dirty_inode_info dirty;
-
-#ifdef CONFIG_FRAME_POINTER
-	void *grabbed_at[4];
-#endif
 #endif
 };
 
@@ -174,8 +167,10 @@ extern void print_contexts(void);
 #define current_blocksize reiser4_get_current_sb()->s_blocksize
 #define current_blocksize_bits reiser4_get_current_sb()->s_blocksize_bits
 
-extern int init_context(reiser4_context * context, struct super_block *super);
-extern void done_context(reiser4_context * context);
+extern reiser4_context *init_context(struct super_block *);
+extern void init_stack_context(reiser4_context *, struct super_block *);
+extern void done_context(reiser4_context *);
+extern void reiser4_exit_context(reiser4_context *);
 
 /* magic constant we store in reiser4_context allocated at the stack. Used to
    catch accesses to staled or uninitialized contexts. */
@@ -186,18 +181,17 @@ extern int is_in_reiser4_context(void);
 /*
  * return reiser4_context for the thread @tsk
  */
-static inline reiser4_context *
-get_context(const struct task_struct *tsk)
+static inline reiser4_context *get_context(const struct task_struct *tsk)
 {
-	assert("vs-1682", ((reiser4_context *) tsk->journal_info)->magic == context_magic);
+	assert("vs-1682",
+	       ((reiser4_context *) tsk->journal_info)->magic == context_magic);
 	return (reiser4_context *) tsk->journal_info;
 }
 
 /*
  * return reiser4 context of the current thread, or NULL if there is none.
  */
-static inline reiser4_context *
-get_current_context_check(void)
+static inline reiser4_context *get_current_context_check(void)
 {
 	if (is_in_reiser4_context())
 		return get_context(current);
@@ -205,11 +199,10 @@ get_current_context_check(void)
 		return NULL;
 }
 
-static inline reiser4_context * get_current_context(void);/* __attribute__((const));*/
+static inline reiser4_context *get_current_context(void);	/* __attribute__((const)); */
 
 /* return context associated with current thread */
-static inline reiser4_context *
-get_current_context(void)
+static inline reiser4_context *get_current_context(void)
 {
 	return get_context(current);
 }
@@ -251,12 +244,12 @@ static inline void grab_space_disable(void)
 	get_current_context()->grab_enabled = 0;
 }
 
-static inline void grab_space_set_enabled (int enabled)
+static inline void grab_space_set_enabled(int enabled)
 {
 	get_current_context()->grab_enabled = enabled;
 }
 
-static inline int is_grab_enabled(reiser4_context *ctx)
+static inline int is_grab_enabled(reiser4_context * ctx)
 {
 	return ctx->grab_enabled;
 }
@@ -267,12 +260,9 @@ static inline int is_grab_enabled(reiser4_context *ctx)
  * directory. Commit will be performed by ktxnmgrd. */
 static inline void context_set_commit_async(reiser4_context * context)
 {
-	context = context->parent;
 	context->nobalance = 1;
 	context->trans->flags |= TXNH_DONT_COMMIT;
 }
-
-extern void reiser4_exit_context(reiser4_context * context);
 
 /* __REISER4_CONTEXT_H__ */
 #endif

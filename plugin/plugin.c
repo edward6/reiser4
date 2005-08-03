@@ -192,11 +192,11 @@ int locate_plugin(struct inode *inode, plugin_locator * loc);
 /* internal functions. */
 
 static reiser4_plugin_type find_type(const char *label);
-static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype, const char *label);
+static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype,
+				   const char *label);
 
 /* initialise plugin sub-system. Just call this once on reiser4 startup. */
-reiser4_internal int
-init_plugins(void)
+int init_plugins(void)
 {
 	reiser4_plugin_type type_id;
 
@@ -236,8 +236,7 @@ init_plugins(void)
 }
 
 /* true if plugin type id is valid */
-reiser4_internal int
-is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */)
+int is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */ )
 {
 	/* "type_id" is unsigned, so no comparison with 0 is
 	   necessary */
@@ -245,18 +244,16 @@ is_type_id_valid(reiser4_plugin_type type_id /* plugin type id */)
 }
 
 /* true if plugin id is valid */
-reiser4_internal int
-is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
-		   reiser4_plugin_id id /* plugin id */)
+int is_plugin_id_valid(reiser4_plugin_type type_id /* plugin type id */ ,
+		       reiser4_plugin_id id /* plugin id */ )
 {
 	assert("nikita-1653", is_type_id_valid(type_id));
 	return ((id < plugins[type_id].builtin_num) && (id >= 0));
 }
 
 /* lookup plugin by scanning tables */
-reiser4_internal reiser4_plugin *
-lookup_plugin(const char *type_label /* plugin type label */ ,
-	      const char *plug_label /* plugin label */ )
+reiser4_plugin *lookup_plugin(const char *type_label /* plugin type label */ ,
+			      const char *plug_label /* plugin label */ )
 {
 	reiser4_plugin *result;
 	reiser4_plugin_type type_id;
@@ -282,12 +279,11 @@ user space, and passed to the filesystem by use of method files? Your
 comment really confused me on the first reading....
 
 */
-reiser4_internal reiser4_plugin *
-plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
-						 * type id,
-						 * unchecked */ ,
-		    reiser4_plugin_id id	/* plugin id,
-						 * unchecked */ )
+reiser4_plugin *plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
+								 * type id,
+								 * unchecked */ ,
+				    reiser4_plugin_id id	/* plugin id,
+								 * unchecked */ )
 {
 	if (is_type_id_valid(type_id)) {
 		if (is_plugin_id_valid(type_id, id))
@@ -303,9 +299,8 @@ plugin_by_unsafe_id(reiser4_plugin_type type_id	/* plugin
 }
 
 /* convert plugin id to the disk format */
-reiser4_internal int
-save_plugin_id(reiser4_plugin * plugin /* plugin to convert */ ,
-	       d16 * area /* where to store result */ )
+int save_plugin_id(reiser4_plugin * plugin /* plugin to convert */ ,
+		   d16 * area /* where to store result */ )
 {
 	assert("nikita-1261", plugin != NULL);
 	assert("nikita-1262", area != NULL);
@@ -315,39 +310,23 @@ save_plugin_id(reiser4_plugin * plugin /* plugin to convert */ ,
 }
 
 /* list of all plugins of given type */
-reiser4_internal plugin_list_head *
-get_plugin_list(reiser4_plugin_type type_id	/* plugin type
-						 * id */ )
+plugin_list_head *get_plugin_list(reiser4_plugin_type type_id	/* plugin type
+								 * id */ )
 {
 	assert("nikita-1056", is_type_id_valid(type_id));
 	return &plugins[type_id].plugins_list;
 }
 
-#if REISER4_DEBUG_OUTPUT
-/* print human readable plugin information */
-reiser4_internal void
-print_plugin(const char *prefix /* prefix to print */ ,
-	     reiser4_plugin * plugin /* plugin to print */ )
-{
-	if (plugin != NULL) {
-		printk("%s: %s (%s:%i)\n", prefix, plugin->h.desc, plugin->h.label, plugin->h.id);
-	} else
-		printk("%s: (nil)\n", prefix);
-}
-
-#endif
-
 /* find plugin type by label */
-static reiser4_plugin_type
-find_type(const char *label	/* plugin type
-				 * label */ )
+static reiser4_plugin_type find_type(const char *label	/* plugin type
+							 * label */ )
 {
 	reiser4_plugin_type type_id;
 
 	assert("nikita-550", label != NULL);
 
 	for (type_id = 0; type_id < REISER4_PLUGIN_TYPES &&
-		     strcmp(label, plugins[type_id].label); ++type_id) {
+	     strcmp(label, plugins[type_id].label); ++type_id) {
 		;
 	}
 	return type_id;
@@ -356,13 +335,12 @@ find_type(const char *label	/* plugin type
 /* given plugin label find it within given plugin type by scanning
     array. Used to map user-visible symbolic name to internal kernel
     id */
-static reiser4_plugin *
-find_plugin(reiser4_plugin_type_data * ptype	/* plugin
-						 * type to
-						 * find
-						 * plugin
-						 * within */ ,
-	    const char *label /* plugin label */ )
+static reiser4_plugin *find_plugin(reiser4_plugin_type_data * ptype	/* plugin
+									 * type to
+									 * find
+									 * plugin
+									 * within */ ,
+				   const char *label /* plugin label */ )
 {
 	int i;
 	reiser4_plugin *result;
@@ -380,8 +358,7 @@ find_plugin(reiser4_plugin_type_data * ptype	/* plugin
 	return NULL;
 }
 
-int
-grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb)
+int grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb)
 {
 	reiser4_plugin *plug;
 	reiser4_inode *parent;
@@ -391,8 +368,7 @@ grab_plugin(struct inode *self, struct inode *ancestor, pset_member memb)
 	return grab_plugin_from(self, memb, plug);
 }
 
-static void
-update_plugin_mask(reiser4_inode *info, pset_member memb)
+static void update_plugin_mask(reiser4_inode * info, pset_member memb)
 {
 	struct dentry *rootdir;
 	reiser4_inode *root;
@@ -411,10 +387,10 @@ update_plugin_mask(reiser4_inode *info, pset_member memb)
 }
 
 int
-grab_plugin_from(struct inode *self, pset_member memb, reiser4_plugin *plug)
+grab_plugin_from(struct inode *self, pset_member memb, reiser4_plugin * plug)
 {
 	reiser4_inode *info;
-	int            result = 0;
+	int result = 0;
 
 	info = reiser4_inode_data(self);
 	if (pset_get(info->pset, memb) == NULL) {
@@ -425,11 +401,10 @@ grab_plugin_from(struct inode *self, pset_member memb, reiser4_plugin *plug)
 	return result;
 }
 
-int
-force_plugin(struct inode *self, pset_member memb, reiser4_plugin *plug)
+int force_plugin(struct inode *self, pset_member memb, reiser4_plugin * plug)
 {
 	reiser4_inode *info;
-	int            result = 0;
+	int result = 0;
 
 	info = reiser4_inode_data(self);
 	if (plug->h.pops != NULL && plug->h.pops->change != NULL)
@@ -441,43 +416,6 @@ force_plugin(struct inode *self, pset_member memb, reiser4_plugin *plug)
 	return result;
 }
 
-/* defined in fs/reiser4/plugin/file.c */
-extern file_plugin file_plugins[LAST_FILE_PLUGIN_ID];
-/* defined in fs/reiser4/plugin/dir.c */
-extern dir_plugin dir_plugins[LAST_DIR_ID];
-/* defined in fs/reiser4/plugin/item/static_stat.c */
-extern sd_ext_plugin sd_ext_plugins[LAST_SD_EXTENSION];
-/* defined in fs/reiser4/plugin/hash.c */
-extern hash_plugin hash_plugins[LAST_HASH_ID];
-/* defined in fs/reiser4/plugin/fibration.c */
-extern fibration_plugin fibration_plugins[LAST_FIBRATION_ID];
-/* defined in fs/reiser4/plugin/crypt.c */
-extern crypto_plugin crypto_plugins[LAST_CRYPTO_ID];
-/* defined in fs/reiser4/plugin/digest.c */
-extern digest_plugin digest_plugins[LAST_DIGEST_ID];
-/* defined in fs/reiser4/plugin/compress/compress.c */
-extern compression_plugin compression_plugins[LAST_COMPRESSION_ID];
-/* defined in fs/reiser4/plugin/compress/compression_mode.c */
-extern compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID];
-/* defined in fs/reiser4/plugin/cluster.c */
-extern cluster_plugin cluster_plugins[LAST_CLUSTER_ID];
-/* defined in fs/reiser4/plugin/file/regular.c */
-extern regular_plugin regular_plugins[LAST_REGULAR_ID];
-/* defined in fs/reiser4/plugin/tail.c */
-extern formatting_plugin formatting_plugins[LAST_TAIL_FORMATTING_ID];
-/* defined in fs/reiser4/plugin/security/security.c */
-extern perm_plugin perm_plugins[LAST_PERM_ID];
-/* defined in fs/reiser4/plugin/item/item.c */
-extern item_plugin item_plugins[LAST_ITEM_ID];
-/* defined in fs/reiser4/plugin/node/node.c */
-extern node_plugin node_plugins[LAST_NODE_ID];
-/* defined in fs/reiser4/plugin/disk_format/disk_format.c */
-extern disk_format_plugin format_plugins[LAST_FORMAT_ID];
-/* defined in jnode.c */
-extern jnode_plugin jnode_plugins[LAST_JNODE_TYPE];
-/* defined in plugin/pseudo.c */
-extern pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID];
-
 reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 	/* C90 initializers */
 	[REISER4_FILE_PLUGIN_TYPE] = {
@@ -487,7 +425,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(file_plugins),
 		.builtin = file_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (file_plugin)
+		.size = sizeof(file_plugin)
 	},
 	[REISER4_DIR_PLUGIN_TYPE] = {
 		.type_id = REISER4_DIR_PLUGIN_TYPE,
@@ -496,7 +434,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(dir_plugins),
 		.builtin = dir_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (dir_plugin)
+		.size = sizeof(dir_plugin)
 	},
 	[REISER4_HASH_PLUGIN_TYPE] = {
 		.type_id = REISER4_HASH_PLUGIN_TYPE,
@@ -505,16 +443,17 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(hash_plugins),
 		.builtin = hash_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (hash_plugin)
+		.size = sizeof(hash_plugin)
 	},
 	[REISER4_FIBRATION_PLUGIN_TYPE] = {
-		.type_id = REISER4_FIBRATION_PLUGIN_TYPE,
+		.type_id =
+		REISER4_FIBRATION_PLUGIN_TYPE,
 		.label = "fibration",
 		.desc = "Directory fibrations",
 		.builtin_num = sizeof_array(fibration_plugins),
 		.builtin = fibration_plugins,
-		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (fibration_plugin)
+		.plugins_list =	TYPE_SAFE_LIST_HEAD_ZERO,
+		.size = sizeof(fibration_plugin)
 	},
 	[REISER4_CRYPTO_PLUGIN_TYPE] = {
 		.type_id = REISER4_CRYPTO_PLUGIN_TYPE,
@@ -522,8 +461,8 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Crypto plugins",
 		.builtin_num = sizeof_array(crypto_plugins),
 		.builtin = crypto_plugins,
-		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (crypto_plugin)
+		.plugins_list =	TYPE_SAFE_LIST_HEAD_ZERO,
+		.size = sizeof(crypto_plugin)
 	},
 	[REISER4_DIGEST_PLUGIN_TYPE] = {
 		.type_id = REISER4_DIGEST_PLUGIN_TYPE,
@@ -531,8 +470,8 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.desc = "Digest plugins",
 		.builtin_num = sizeof_array(digest_plugins),
 		.builtin = digest_plugins,
-		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (digest_plugin)
+		.plugins_list =	TYPE_SAFE_LIST_HEAD_ZERO,
+		.size = sizeof(digest_plugin)
 	},
 	[REISER4_COMPRESSION_PLUGIN_TYPE] = {
 		.type_id = REISER4_COMPRESSION_PLUGIN_TYPE,
@@ -541,9 +480,8 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(compression_plugins),
 		.builtin = compression_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (compression_plugin)
+		.size = sizeof(compression_plugin)
 	},
-
 	[REISER4_FORMATTING_PLUGIN_TYPE] = {
 		.type_id = REISER4_FORMATTING_PLUGIN_TYPE,
 		.label = "formatting",
@@ -551,7 +489,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(formatting_plugins),
 		.builtin = formatting_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (formatting_plugin)
+		.size = sizeof(formatting_plugin)
 	},
 	[REISER4_PERM_PLUGIN_TYPE] = {
 		.type_id = REISER4_PERM_PLUGIN_TYPE,
@@ -560,7 +498,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(perm_plugins),
 		.builtin = perm_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (perm_plugin)
+		.size = sizeof(perm_plugin)
 	},
 	[REISER4_ITEM_PLUGIN_TYPE] = {
 		.type_id = REISER4_ITEM_PLUGIN_TYPE,
@@ -569,7 +507,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(item_plugins),
 		.builtin = item_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (item_plugin)
+		.size = sizeof(item_plugin)
 	},
 	[REISER4_NODE_PLUGIN_TYPE] = {
 		.type_id = REISER4_NODE_PLUGIN_TYPE,
@@ -578,7 +516,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(node_plugins),
 		.builtin = node_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (node_plugin)
+		.size = sizeof(node_plugin)
 	},
 	[REISER4_SD_EXT_PLUGIN_TYPE] = {
 		.type_id = REISER4_SD_EXT_PLUGIN_TYPE,
@@ -587,7 +525,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(sd_ext_plugins),
 		.builtin = sd_ext_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (sd_ext_plugin)
+		.size = sizeof(sd_ext_plugin)
 	},
 	[REISER4_FORMAT_PLUGIN_TYPE] = {
 		.type_id = REISER4_FORMAT_PLUGIN_TYPE,
@@ -596,7 +534,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(format_plugins),
 		.builtin = format_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (disk_format_plugin)
+		.size = sizeof(disk_format_plugin)
 	},
 	[REISER4_JNODE_PLUGIN_TYPE] = {
 		.type_id = REISER4_JNODE_PLUGIN_TYPE,
@@ -605,16 +543,17 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(jnode_plugins),
 		.builtin = jnode_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (jnode_plugin)
+		.size = sizeof(jnode_plugin)
 	},
 	[REISER4_PSEUDO_PLUGIN_TYPE] = {
 		.type_id = REISER4_PSEUDO_PLUGIN_TYPE,
 		.label = "pseudo_file",
 		.desc = "pseudo file",
-		.builtin_num = sizeof_array(pseudo_plugins),
+		.builtin_num =
+		sizeof_array(pseudo_plugins),
 		.builtin = pseudo_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (pseudo_plugin)
+		.size = sizeof(pseudo_plugin)
 	},
 	[REISER4_COMPRESSION_MODE_PLUGIN_TYPE] = {
 		.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
@@ -623,7 +562,7 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(compression_mode_plugins),
 		.builtin = compression_mode_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (compression_mode_plugin)
+		.size = sizeof(compression_mode_plugin)
 	},
 	[REISER4_CLUSTER_PLUGIN_TYPE] = {
 		.type_id = REISER4_CLUSTER_PLUGIN_TYPE,
@@ -632,16 +571,17 @@ reiser4_plugin_type_data plugins[REISER4_PLUGIN_TYPES] = {
 		.builtin_num = sizeof_array(cluster_plugins),
 		.builtin = cluster_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (cluster_plugin)
+		.size = sizeof(cluster_plugin)
 	},
 	[REISER4_REGULAR_PLUGIN_TYPE] = {
 		.type_id = REISER4_REGULAR_PLUGIN_TYPE,
 		.label = "regular",
 		.desc = "Defines kind of regular file",
-		.builtin_num = sizeof_array(regular_plugins),
+		.builtin_num =
+		sizeof_array(regular_plugins),
 		.builtin = regular_plugins,
 		.plugins_list = TYPE_SAFE_LIST_HEAD_ZERO,
-		.size = sizeof (regular_plugin)
+		.size = sizeof(regular_plugin)
 	}
 };
 

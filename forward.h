@@ -88,7 +88,7 @@ typedef enum {
 	/* search exactly for the coord with key given */
 	FIND_EXACT,
 	/* search for coord with the maximal key not greater than one
-	    given */
+	   given */
 	FIND_MAX_NOT_MORE_THAN	/*LEFT_SLANT_BIAS */
 } lookup_bias;
 
@@ -102,7 +102,7 @@ typedef enum {
 	   It is supposed that internal tree used by reiser4 to store file
 	   system data and meta data will have height 2 initially (when
 	   created by mkfs).
-	*/
+	 */
 	TWIG_LEVEL = 2,
 } tree_level;
 
@@ -113,12 +113,12 @@ typedef enum {
 /* enumeration of possible mutual position of item and coord.  This enum is
     return type of ->is_in_item() item plugin method which see. */
 typedef enum {
-	/* coord is on the left of an item*/
+	/* coord is on the left of an item */
 	IP_ON_THE_LEFT,
 	/* coord is inside item */
 	IP_INSIDE,
 	/* coord is inside item, but to the right of the rightmost unit of
-	    this item */
+	   this item */
 	IP_RIGHT_EDGE,
 	/* coord is on the right of an item */
 	IP_ON_THE_RIGHT
@@ -178,13 +178,13 @@ typedef enum {
 typedef enum {
 	STATIC_STAT_DATA_ID = 0x0,
 	SIMPLE_DIR_ENTRY_ID = 0x1,
-	COMPOUND_DIR_ID     = 0x2,
-	NODE_POINTER_ID     = 0x3,
-	EXTENT_POINTER_ID   = 0x5,
-	FORMATTING_ID       = 0x6,
-	CTAIL_ID            = 0x7,
-	BLACK_BOX_ID        = 0x8,
-	LAST_ITEM_ID        = 0x9
+	COMPOUND_DIR_ID = 0x2,
+	NODE_POINTER_ID = 0x3,
+	EXTENT_POINTER_ID = 0x5,
+	FORMATTING_ID = 0x6,
+	CTAIL_ID = 0x7,
+	BLACK_BOX_ID = 0x8,
+	LAST_ITEM_ID = 0x9
 } item_id;
 
 /* Flags passed to jnode_flush() to allow it to distinguish default settings based on
@@ -229,8 +229,8 @@ typedef enum {
 } cop_insert_flag;
 
 typedef enum {
-	SAFE_UNLINK,   /* safe-link for unlink */
-	SAFE_TRUNCATE  /* safe-link for truncate */
+	SAFE_UNLINK,		/* safe-link for unlink */
+	SAFE_TRUNCATE		/* safe-link for truncate */
 } reiser4_safe_link_t;
 
 /* this is to show on which list of atom jnode is */

@@ -37,10 +37,9 @@ static int add_child_ptr(znode * parent, znode * child);
 		warning( __VA_ARGS__ )
 
 /* allocate new node on the @level and immediately on the right of @brother. */
-reiser4_internal znode *
-new_node(znode * brother /* existing left neighbor of new node */ ,
-	 tree_level level	/* tree level at which new node is to
-				 * be allocated */ )
+znode *new_node(znode * brother /* existing left neighbor of new node */ ,
+		tree_level level	/* tree level at which new node is to
+					 * be allocated */ )
 {
 	znode *result;
 	int retcode;
@@ -51,15 +50,19 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 
 	retcode = assign_fake_blocknr_formatted(&blocknr);
 	if (retcode == 0) {
-		result = zget(znode_get_tree(brother), &blocknr, NULL, level, GFP_KERNEL);
+		result =
+		    zget(znode_get_tree(brother), &blocknr, NULL, level,
+			 GFP_KERNEL);
 		if (IS_ERR(result)) {
 			ewarning(PTR_ERR(result), "nikita-929",
-				 "Cannot allocate znode for carry: %li", PTR_ERR(result));
+				 "Cannot allocate znode for carry: %li",
+				 PTR_ERR(result));
 			return result;
 		}
 		/* cheap test, can be executed even when debugging is off */
 		if (!znode_just_created(result)) {
-			warning("nikita-2213", "Allocated already existing block: %llu",
+			warning("nikita-2213",
+				"Allocated already existing block: %llu",
 				(unsigned long long)blocknr);
 			zput(result);
 			return ERR_PTR(RETERR(-EIO));
@@ -82,7 +85,7 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
 		   This should never happen. Ever. Returning -E_REPEAT
 		   is not viable solution, because "out of disk space"
 		   is not transient error that will go away by itself.
-		*/
+		 */
 		ewarning(retcode, "nikita-928",
 			 "Cannot allocate block for carry: %i", retcode);
 		result = ERR_PTR(retcode);
@@ -96,9 +99,8 @@ new_node(znode * brother /* existing left neighbor of new node */ ,
    This helper function is called by add_new_root().
 
 */
-reiser4_internal znode *
-add_tree_root(znode * old_root /* existing tree root */ ,
-	      znode * fake /* "fake" znode */ )
+znode *add_tree_root(znode * old_root /* existing tree root */ ,
+		     znode * fake /* "fake" znode */ )
 {
 	reiser4_tree *tree = znode_get_tree(old_root);
 	znode *new_root = NULL;	/* to shut gcc up */
@@ -114,7 +116,7 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 	   lock on a root node. This avoids race conditions with root
 	   manipulations.
 
-	*/
+	 */
 	assert("nikita-1348", znode_above_root(fake));
 	assert("nikita-1211", znode_is_root(old_root));
 
@@ -126,21 +128,24 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 		   ENOSPC?
 
 		   -EXFULL? -EINVAL?
-		*/
+		 */
 		result = RETERR(-ENOSPC);
 	} else {
 		/* Allocate block for new root. It's not that
 		   important where it will be allocated, as root is
 		   almost always in memory. Moreover, allocate on
 		   flush can be going here.
-		*/
+		 */
 		assert("nikita-1448", znode_is_root(old_root));
 		new_root = new_node(fake, tree->height + 1);
 		if (!IS_ERR(new_root) && (result = zload(new_root)) == 0) {
 			lock_handle rlh;
 
 			init_lh(&rlh);
-			result = longterm_lock_znode(&rlh, new_root, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+			result =
+			    longterm_lock_znode(&rlh, new_root,
+						ZNODE_WRITE_LOCK,
+						ZNODE_LOCK_LOPRI);
 			if (result == 0) {
 				parent_coord_t *in_parent;
 
@@ -152,7 +157,8 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 				++tree->height;
 
 				/* recalculate max balance overhead */
-				tree->estimate_one_insert = estimate_one_insert_item(tree);
+				tree->estimate_one_insert =
+				    estimate_one_insert_item(tree);
 
 				tree->root_block = *znode_get_block(new_root);
 				in_parent = &new_root->in_parent;
@@ -166,7 +172,9 @@ add_tree_root(znode * old_root /* existing tree root */ ,
 
 				/* insert into new root pointer to the
 				   @old_root. */
-				assert("nikita-1110", WITH_DATA(new_root, node_is_empty(new_root)));
+				assert("nikita-1110",
+				       WITH_DATA(new_root,
+						 node_is_empty(new_root)));
 				WLOCK_DK(tree);
 				znode_set_ld_key(new_root, min_key());
 				znode_set_rd_key(new_root, max_key());
@@ -193,19 +201,18 @@ add_tree_root(znode * old_root /* existing tree root */ ,
    in its parent.
 
 */
-reiser4_internal void
-build_child_ptr_data(znode * child	/* node pointer to which will be
+void build_child_ptr_data(znode * child	/* node pointer to which will be
 					 * inserted */ ,
-		     reiser4_item_data * data /* where to store result */ )
+			  reiser4_item_data * data /* where to store result */ )
 {
 	assert("nikita-1116", child != NULL);
 	assert("nikita-1117", data != NULL);
 
 	/* this is subtle assignment to meditate upon */
-	data->data = (char *) znode_get_block(child);
+	data->data = (char *)znode_get_block(child);
 	/* data -> data is kernel space */
 	data->user = 0;
-	data->length = sizeof (reiser4_block_nr);
+	data->length = sizeof(reiser4_block_nr);
 	/* FIXME-VS: hardcoded internal item? */
 
 	/* AUDIT: Is it possible that "item_plugin_by_id" may find nothing? */
@@ -217,8 +224,7 @@ build_child_ptr_data(znode * child	/* node pointer to which will be
    This is used when pointer to old root is inserted into new root which is
    empty.
 */
-static int
-add_child_ptr(znode * parent, znode * child)
+static int add_child_ptr(znode * parent, znode * child)
 {
 	coord_t coord;
 	reiser4_item_data data;
@@ -227,7 +233,8 @@ add_child_ptr(znode * parent, znode * child)
 
 	assert("nikita-1111", parent != NULL);
 	assert("nikita-1112", child != NULL);
-	assert("nikita-1115", znode_get_level(parent) == znode_get_level(child) + 1);
+	assert("nikita-1115",
+	       znode_get_level(parent) == znode_get_level(child) + 1);
 
 	result = zload(parent);
 	if (result != 0)
@@ -238,22 +245,23 @@ add_child_ptr(znode * parent, znode * child)
 	build_child_ptr_data(child, &data);
 	data.arg = NULL;
 
-	key = UNDER_RW(dk, znode_get_tree(parent), read, znode_get_ld_key(child));
-	result = node_plugin_by_node(parent)->create_item(&coord, key, &data, NULL);
+	key =
+	    UNDER_RW(dk, znode_get_tree(parent), read, znode_get_ld_key(child));
+	result =
+	    node_plugin_by_node(parent)->create_item(&coord, key, &data, NULL);
 	znode_make_dirty(parent);
 	zrelse(parent);
 	return result;
 }
 
 /* actually remove tree root */
-static int
-kill_root(reiser4_tree * tree	/* tree from which root is being
-				 * removed */ ,
-	  znode * old_root /* root node that is being removed */ ,
-	  znode * new_root	/* new root---sole child of *
-				 * @old_root */ ,
-	  const reiser4_block_nr * new_root_blk	/* disk address of
-						 * @new_root */ )
+static int kill_root(reiser4_tree * tree	/* tree from which root is being
+						 * removed */ ,
+		     znode * old_root /* root node that is being removed */ ,
+		     znode * new_root	/* new root---sole child of *
+					 * @old_root */ ,
+		     const reiser4_block_nr * new_root_blk	/* disk address of
+								 * @new_root */ )
 {
 	znode *uber;
 	int result;
@@ -261,11 +269,13 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 
 	assert("umka-265", tree != NULL);
 	assert("nikita-1198", new_root != NULL);
-	assert("nikita-1199", znode_get_level(new_root) + 1 == znode_get_level(old_root));
+	assert("nikita-1199",
+	       znode_get_level(new_root) + 1 == znode_get_level(old_root));
 
 	assert("nikita-1201", znode_is_write_locked(old_root));
 
-	assert("nikita-1203", disk_addr_eq(new_root_blk, znode_get_block(new_root)));
+	assert("nikita-1203",
+	       disk_addr_eq(new_root_blk, znode_get_block(new_root)));
 
 	init_lh(&handle_for_uber);
 	/* obtain and lock "fake" znode protecting changes in tree height. */
@@ -286,11 +296,12 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
 		/* recalculate max balance overhead */
 		tree->estimate_one_insert = estimate_one_insert_item(tree);
 
-		assert("nikita-1202", tree->height == znode_get_level(new_root));
+		assert("nikita-1202",
+		       tree->height == znode_get_level(new_root));
 
 		/* new root is child on "fake" node */
 		init_parent_coord(&new_root->in_parent, uber);
-		++ uber->c_count;
+		++uber->c_count;
 
 		/* sibling_list_insert_nolock(new_root, NULL); */
 		WUNLOCK_TREE(tree);
@@ -325,8 +336,7 @@ kill_root(reiser4_tree * tree	/* tree from which root is being
    to do the actual job.
 
 */
-reiser4_internal int
-kill_tree_root(znode * old_root /* tree root that we are removing */ )
+int kill_tree_root(znode * old_root /* tree root that we are removing */ )
 {
 	int result;
 	coord_t down_link;
@@ -344,7 +354,9 @@ kill_tree_root(znode * old_root /* tree root that we are removing */ )
 	tree = znode_get_tree(old_root);
 	new_root = child_znode(&down_link, old_root, 0, 1);
 	if (!IS_ERR(new_root)) {
-		result = kill_root(tree, old_root, new_root, znode_get_block(new_root));
+		result =
+		    kill_root(tree, old_root, new_root,
+			      znode_get_block(new_root));
 		zput(new_root);
 	} else
 		result = PTR_ERR(new_root);

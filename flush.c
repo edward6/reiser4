@@ -373,7 +373,8 @@ static void scan_init(flush_scan * scan);
 static void scan_done(flush_scan * scan);
 
 /* Flush-scan algorithm. */
-static int scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit);
+static int scan_left(flush_scan * scan, flush_scan * right, jnode * node,
+		     unsigned limit);
 static int scan_right(flush_scan * scan, jnode * node, unsigned limit);
 static int scan_common(flush_scan * scan, flush_scan * other);
 static int scan_formatted(flush_scan * scan);
@@ -393,26 +394,32 @@ static int squeeze_right_non_twig(znode * left, znode * right);
 static int shift_one_internal_unit(znode * left, znode * right);
 
 /* Flush reverse parent-first relocation routines. */
-static int reverse_relocate_if_close_enough(const reiser4_block_nr * pblk, const reiser4_block_nr * nblk);
-static int reverse_relocate_test(jnode * node, const coord_t * parent_coord, flush_pos_t * pos);
-static int reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_coord, flush_pos_t * pos);
+static int reverse_relocate_if_close_enough(const reiser4_block_nr * pblk,
+					    const reiser4_block_nr * nblk);
+static int reverse_relocate_test(jnode * node, const coord_t * parent_coord,
+				 flush_pos_t * pos);
+static int reverse_relocate_check_dirty_parent(jnode * node,
+					       const coord_t * parent_coord,
+					       flush_pos_t * pos);
 
 /* Flush allocate write-queueing functions: */
-static int allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos);
-static int allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * pos);
-static int lock_parent_and_allocate_znode (znode *, flush_pos_t *);
+static int allocate_znode(znode * node, const coord_t * parent_coord,
+			  flush_pos_t * pos);
+static int allocate_znode_update(znode * node, const coord_t * parent_coord,
+				 flush_pos_t * pos);
+static int lock_parent_and_allocate_znode(znode *, flush_pos_t *);
 
 /* Flush helper functions: */
-static int jnode_lock_parent_coord(jnode         * node,
-				   coord_t       * coord,
-				   lock_handle   * parent_lh,
-				   load_count    * parent_zh,
+static int jnode_lock_parent_coord(jnode * node,
+				   coord_t * coord,
+				   lock_handle * parent_lh,
+				   load_count * parent_zh,
 				   znode_lock_mode mode, int try);
-static int neighbor_in_slum(znode * node, lock_handle * right_lock, sideof side, znode_lock_mode mode, int check_dirty);
+static int neighbor_in_slum(znode * node, lock_handle * right_lock, sideof side,
+			    znode_lock_mode mode, int check_dirty);
 static int znode_same_parents(znode * a, znode * b);
 
-static int
-znode_check_flushprepped(znode * node)
+static int znode_check_flushprepped(znode * node)
 {
 	return jnode_check_flushprepped(ZJNODE(node));
 }
@@ -433,26 +440,25 @@ assert("nikita-3435",							\
 	    extent_is_unallocated(&scan->parent_coord),			\
 	    extent_unit_index(&scan->parent_coord) == index_jnode(scan->node)))
 
-
 /* This flush_cnt variable is used to track the number of concurrent flush operations,
    useful for debugging.  It is initialized in txnmgr.c out of laziness (because flush has
    no static initializer function...) */
-ON_DEBUG(atomic_t flush_cnt;)
-
+ON_DEBUG(atomic_t flush_cnt;
+    )
 
 /* check fs backing device for write congestion */
-static int check_write_congestion (void)
+static int check_write_congestion(void)
 {
 	struct super_block *sb;
-	struct backing_dev_info * bdi;
+	struct backing_dev_info *bdi;
 
 	sb = reiser4_get_current_sb();
 	bdi = get_super_fake(sb)->i_mapping->backing_dev_info;
-	return  bdi_write_congested(bdi);
+	return bdi_write_congested(bdi);
 }
 
 /* conditionally write flush queue */
-static int write_prepped_nodes (flush_pos_t * pos)
+static int write_prepped_nodes(flush_pos_t * pos)
 {
 	int ret;
 
@@ -472,13 +478,13 @@ static int write_prepped_nodes (flush_pos_t * pos)
 
 /* Proper release all flush pos. resources then move flush position to new
    locked node */
-static void move_flush_pos (flush_pos_t * pos, lock_handle * new_lock,
-			    load_count * new_load, const coord_t * new_coord)
+static void move_flush_pos(flush_pos_t * pos, lock_handle * new_lock,
+			   load_count * new_load, const coord_t * new_coord)
 {
-	assert ("zam-857", new_lock->node == new_load->node);
+	assert("zam-857", new_lock->node == new_load->node);
 
 	if (new_coord) {
-		assert ("zam-858", new_coord->node == new_lock->node);
+		assert("zam-858", new_coord->node == new_lock->node);
 		coord_dup(&pos->coord, new_coord);
 	} else {
 		coord_init_first_unit(&pos->coord, new_lock->node);
@@ -495,7 +501,7 @@ static void move_flush_pos (flush_pos_t * pos, lock_handle * new_lock,
 }
 
 /* delete empty node which link from the parent still exists. */
-static int delete_empty_node (znode * node)
+static int delete_empty_node(znode * node)
 {
 	reiser4_key smallest_removed;
 
@@ -507,7 +513,7 @@ static int delete_empty_node (znode * node)
 }
 
 /* Prepare flush position for alloc_pos_and_ancestors() and squalloc() */
-static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
+static int prepare_flush_pos(flush_pos_t * pos, jnode * org)
 {
 	int ret;
 	load_count load;
@@ -526,7 +532,9 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 		if (ret)
 			return ret;
 
-		pos->state = (jnode_get_level(org) == LEAF_LEVEL) ? POS_ON_LEAF : POS_ON_INTERNAL;
+		pos->state =
+		    (jnode_get_level(org) ==
+		     LEAF_LEVEL) ? POS_ON_LEAF : POS_ON_INTERNAL;
 		move_flush_pos(pos, &lock, &load, NULL);
 	} else {
 		coord_t parent_coord;
@@ -534,11 +542,18 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 					      &load, ZNODE_WRITE_LOCK, 0);
 		if (ret)
 			goto done;
+		if (!item_is_extent(&parent_coord)) {
+			/* file was converted to tail, org became HB, we found internal
+			   item */
+			ret = -EAGAIN;
+			goto done;
+		}
 
 		pos->state = POS_ON_EPOINT;
 		move_flush_pos(pos, &lock, &load, &parent_coord);
 		pos->child = jref(org);
-		if (extent_is_unallocated(&parent_coord) && extent_unit_index(&parent_coord) != index_jnode(org)) {
+		if (extent_is_unallocated(&parent_coord)
+		    && extent_unit_index(&parent_coord) != index_jnode(org)) {
 			/* @org is not first child of its parent unit. This may happen
 			   because longerm lock of its parent node was released between
 			   scan_left and scan_right. For now work around this having flush to repeat */
@@ -546,7 +561,7 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 		}
 	}
 
- done:
+      done:
 	done_load_count(&load);
 	done_lh(&lock);
 	return ret;
@@ -632,16 +647,17 @@ static int prepare_flush_pos(flush_pos_t *pos, jnode * org)
 */
 
 static int
-jnode_flush(jnode *node, long *nr_written, flush_queue_t *fq, int flags)
+jnode_flush(jnode * node, long nr_to_write, long *nr_written,
+	    flush_queue_t * fq, int flags)
 {
 	long ret = 0;
-	flush_scan right_scan;
-	flush_scan left_scan;
-	flush_pos_t flush_pos;
+	flush_scan *right_scan;
+	flush_scan *left_scan;
+	flush_pos_t *flush_pos;
 	int todo;
 	struct super_block *sb;
 	reiser4_super_info_data *sbinfo;
-	jnode * leftmost_in_slum = NULL;
+	jnode *leftmost_in_slum = NULL;
 
 	assert("jmacd-76619", lock_stack_isclean(get_current_lock_stack()));
 	assert("nikita-3022", schedulable());
@@ -649,6 +665,14 @@ jnode_flush(jnode *node, long *nr_written, flush_queue_t *fq, int flags)
 	/* lock ordering: delete_sema and flush_sema are unordered */
 	assert("nikita-3185",
 	       get_current_super_private()->delete_sema_owner != current);
+
+	/* allocate right_scan, left_scan and flush_pos */
+	right_scan =
+	    kmalloc(2 * sizeof(*right_scan) + sizeof(*flush_pos), GFP_KERNEL);
+	if (right_scan == NULL)
+		return RETERR(-ENOMEM);
+	left_scan = right_scan + 1;
+	flush_pos = (flush_pos_t *) (left_scan + 1);
 
 	sb = reiser4_get_current_sb();
 	sbinfo = get_super_private(sb);
@@ -664,17 +688,15 @@ jnode_flush(jnode *node, long *nr_written, flush_queue_t *fq, int flags)
 	enter_flush(sb);
 
 	/* Initialize a flush position. */
-	pos_init(&flush_pos);
+	pos_init(flush_pos);
 
-	flush_pos.nr_written = nr_written;
-	flush_pos.fq = fq;
-	flush_pos.flags = flags;
+	flush_pos->nr_written = nr_written;
+	flush_pos->fq = fq;
+	flush_pos->flags = flags;
+	flush_pos->nr_to_write = nr_to_write;
 
-	scan_init(&right_scan);
-	scan_init(&left_scan);
-
-	/*IF_TRACE (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_BRIEF)); */
-	/*IF_TRACE (TRACE_FLUSH_VERB, print_tree_rec ("parent_first", current_tree, REISER4_TREE_CHECK)); */
+	scan_init(right_scan);
+	scan_init(left_scan);
 
 	/* First scan left and remember the leftmost scan position.  If the leftmost
 	   position is unformatted we remember its parent_coord.  We scan until counting
@@ -687,14 +709,14 @@ jnode_flush(jnode *node, long *nr_written, flush_queue_t *fq, int flags)
 	   scan without redoing the tree traversal (necessary to find parent)
 	   and, hence, is kept during leftward scan. As a result, we have to
 	   use try-lock when taking long term locks during the leftward scan.
-	*/
-	ret = scan_left(&left_scan, &right_scan,
+	 */
+	ret = scan_left(left_scan, right_scan,
 			node, sbinfo->flush.scan_maxnodes);
 	if (ret != 0)
 		goto failed;
 
-	leftmost_in_slum = jref(left_scan.node);
-	scan_done(&left_scan);
+	leftmost_in_slum = jref(left_scan->node);
+	scan_done(left_scan);
 
 	/* Then possibly go right to decide if we will use a policy of relocating leaves.
 	   This is only done if we did not scan past (and count) enough nodes during the
@@ -702,23 +724,24 @@ jnode_flush(jnode *node, long *nr_written, flush_queue_t *fq, int flags)
 	   that at least FLUSH_RELOCATE_THRESHOLD number of nodes are being flushed.  The
 	   scan limit is the difference between left_scan.count and the threshold. */
 
-	todo = sbinfo->flush.relocate_threshold - left_scan.count;
+	todo = sbinfo->flush.relocate_threshold - left_scan->count;
 	/* scan right is inherently deadlock prone, because we are
 	 * (potentially) holding a lock on the twig node at this moment.
 	 * FIXME: this is incorrect comment: lock is not held */
 	if (todo > 0) {
-		ret = scan_right(&right_scan, node, (unsigned)todo);
+		ret = scan_right(right_scan, node, (unsigned)todo);
 		if (ret != 0)
 			goto failed;
 	}
 
 	/* Only the right-scan count is needed, release any rightward locks right away. */
-	scan_done(&right_scan);
+	scan_done(right_scan);
 
 	/* ... and the answer is: we should relocate leaf nodes if at least
 	   FLUSH_RELOCATE_THRESHOLD nodes were found. */
-	flush_pos.leaf_relocate = JF_ISSET(node, JNODE_REPACK) ||
-		(left_scan.count + right_scan.count >= sbinfo->flush.relocate_threshold);
+	flush_pos->leaf_relocate = JF_ISSET(node, JNODE_REPACK) ||
+	    (left_scan->count + right_scan->count >=
+	     sbinfo->flush.relocate_threshold);
 
 	/* Funny business here.  We set the 'point' in the flush_position at prior to
 	   starting squalloc regardless of whether the first point is
@@ -744,38 +767,40 @@ jnode_flush(jnode *node, long *nr_written, flush_queue_t *fq, int flags)
 	/* Check jnode state after flush_scan completed. Having a lock on this
 	   node or its parent (in case of unformatted) helps us in case of
 	   concurrent flushing. */
-	if (jnode_check_flushprepped(leftmost_in_slum) && !jnode_convertible(leftmost_in_slum)) {
+	if (jnode_check_flushprepped(leftmost_in_slum)
+	    && !jnode_convertible(leftmost_in_slum)) {
 		ret = 0;
 		goto failed;
 	}
 
 	/* Now setup flush_pos using scan_left's endpoint. */
-	ret = prepare_flush_pos(&flush_pos, leftmost_in_slum);
+	ret = prepare_flush_pos(flush_pos, leftmost_in_slum);
 	if (ret)
 		goto failed;
 
-	if (znode_get_level(flush_pos.coord.node) == LEAF_LEVEL
-	    && node_is_empty(flush_pos.coord.node)) {
-		znode * empty = flush_pos.coord.node;
+	if (znode_get_level(flush_pos->coord.node) == LEAF_LEVEL
+	    && node_is_empty(flush_pos->coord.node)) {
+		znode *empty = flush_pos->coord.node;
 
-		assert ("zam-1022", !ZF_ISSET(empty, JNODE_HEARD_BANSHEE));
+		assert("zam-1022", !ZF_ISSET(empty, JNODE_HEARD_BANSHEE));
 		ret = delete_empty_node(empty);
 		goto failed;
 	}
 
-	if (jnode_check_flushprepped(leftmost_in_slum) && !jnode_convertible(leftmost_in_slum)) {
+	if (jnode_check_flushprepped(leftmost_in_slum)
+	    && !jnode_convertible(leftmost_in_slum)) {
 		ret = 0;
 		goto failed;
 	}
 
 	/* Set pos->preceder and (re)allocate pos and its ancestors if it is needed  */
-	ret = alloc_pos_and_ancestors(&flush_pos);
+	ret = alloc_pos_and_ancestors(flush_pos);
 	if (ret)
 		goto failed;
 
 	/* Do the main rightward-bottom-up squeeze and allocate loop. */
-	ret = squalloc(&flush_pos);
-	pos_stop(&flush_pos);
+	ret = squalloc(flush_pos);
+	pos_stop(flush_pos);
 	if (ret)
 		goto failed;
 
@@ -813,7 +838,7 @@ jnode_flush(jnode *node, long *nr_written, flush_queue_t *fq, int flags)
 	   starting point.  That should be stored away in the flush_handle using a seal, I
 	   believe.  Holding a jref() on the future starting point may break other code
 	   that deletes that node.
-	*/
+	 */
 
 	/* FIXME_NFQUCMPD: Also, we don't want to do any flushing when flush is called
 	   above the twig level.  If the VM calls flush above the twig level, do nothing
@@ -824,17 +849,17 @@ jnode_flush(jnode *node, long *nr_written, flush_queue_t *fq, int flags)
 	   level, the remaining unallocated nodes should be given write-optimized
 	   locations.  (Possibly, the remaining unallocated twigs should be allocated just
 	   before their leftmost child.)
-	*/
+	 */
 
 	/* Any failure reaches this point. */
-failed:
+      failed:
 
 	switch (ret) {
-	    case -E_REPEAT:
-	    case -EINVAL:
-	    case -E_DEADLOCK:
-	    case -E_NO_NEIGHBOR:
-	    case -ENOENT:
+	case -E_REPEAT:
+	case -EINVAL:
+	case -E_DEADLOCK:
+	case -E_NO_NEIGHBOR:
+	case -ENOENT:
 		/* FIXME(C): Except for E_DEADLOCK, these should probably be handled properly
 		   in each case.  They already are handled in many cases. */
 		/* Something bad happened, but difficult to avoid...  Try again! */
@@ -844,9 +869,10 @@ failed:
 	if (leftmost_in_slum)
 		jput(leftmost_in_slum);
 
-	pos_done(&flush_pos);
-	scan_done(&left_scan);
-	scan_done(&right_scan);
+	pos_done(flush_pos);
+	scan_done(left_scan);
+	scan_done(right_scan);
+	kfree(right_scan);
 
 	ON_DEBUG(atomic_dec(&flush_cnt));
 
@@ -870,7 +896,7 @@ failed:
  * turn rapid flush mode off.
  */
 
-static int rapid_flush (flush_pos_t * pos)
+static int rapid_flush(flush_pos_t * pos)
 {
 	if (!wbq_available())
 		return 0;
@@ -882,34 +908,35 @@ static int rapid_flush (flush_pos_t * pos)
 
 #define rapid_flush(pos) (0)
 
-#endif /* REISER4_USE_RAPID_FLUSH */
+#endif				/* REISER4_USE_RAPID_FLUSH */
 
 /* Flush some nodes of current atom, usually slum, return -E_REPEAT if there are more nodes
  * to flush, return 0 if atom's dirty lists empty and keep current atom locked, return
  * other errors as they are. */
-reiser4_internal int
-flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
+int
+flush_current_atom(int flags, long nr_to_write, long *nr_submitted,
+		   txn_atom ** atom)
 {
-	reiser4_super_info_data * sinfo = get_current_super_private();
+	reiser4_super_info_data *sinfo = get_current_super_private();
 	flush_queue_t *fq = NULL;
-	jnode * node;
+	jnode *node;
 	int nr_queued;
 	int ret;
 
-	assert ("zam-889", atom != NULL && *atom != NULL);
-	assert ("zam-890", spin_atom_is_locked(*atom));
-	assert ("zam-892", get_current_context()->trans->atom == *atom);
+	assert("zam-889", atom != NULL && *atom != NULL);
+	assert("zam-890", spin_atom_is_locked(*atom));
+	assert("zam-892", get_current_context()->trans->atom == *atom);
 
-	while(1) {
+	while (1) {
 		ret = fq_by_atom(*atom, &fq);
 		if (ret != -E_REPEAT)
 			break;
 		*atom = get_current_atom_locked();
 	}
-        if (ret)
+	if (ret)
 		return ret;
 
-	assert ("zam-891", spin_atom_is_locked(*atom));
+	assert("zam-891", spin_atom_is_locked(*atom));
 
 	/* parallel flushers limit */
 	if (sinfo->tmgr.atom_max_flushers != 0) {
@@ -935,15 +962,18 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 	while ((node = find_first_dirty_jnode(*atom, flags))) {
 		LOCK_JNODE(node);
 
-		assert ("zam-881", jnode_is_dirty(node));
-		assert ("zam-898", !JF_ISSET(node, JNODE_OVRWR));
+		assert("zam-881", jnode_is_dirty(node));
+		assert("zam-898", !JF_ISSET(node, JNODE_OVRWR));
 
 		if (JF_ISSET(node, JNODE_WRITEBACK)) {
 			capture_list_remove_clean(node);
 			capture_list_push_back(ATOM_WB_LIST(*atom), node);
-			/*XXXX*/ON_DEBUG(count_jnode(*atom, node, DIRTY_LIST, WB_LIST, 1));
+			 /*XXXX*/
+			    ON_DEBUG(count_jnode
+				     (*atom, node, DIRTY_LIST, WB_LIST, 1));
 
-		} else if (jnode_is_znode(node) && znode_above_root(JZNODE(node))) {
+		} else if (jnode_is_znode(node)
+			   && znode_above_root(JZNODE(node))) {
 			/* A special case for znode-above-root.  The above-root (fake)
 			   znode is captured and dirtied when the tree height changes or
 			   when the root node is relocated.  This causes atoms to fuse so
@@ -956,7 +986,7 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 			jnode_make_wander_nolock(node);
 		} else if (JF_ISSET(node, JNODE_RELOC)) {
 			queue_jnode(fq, node);
-			++ nr_queued;
+			++nr_queued;
 		} else
 			break;
 
@@ -965,26 +995,30 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
 
 	if (node == NULL) {
 		if (nr_queued == 0) {
-			writeout_mode_disable();
-			(*atom)->nr_flushers --;
-			atom_send_event(*atom);
+			(*atom)->nr_flushers--;
 			fq_put_nolock(fq);
+			atom_send_event(*atom);
 			/* current atom remains locked */
+			writeout_mode_disable();
 			return 0;
 		}
 		UNLOCK_ATOM(*atom);
 	} else {
 		jref(node);
+		BUG_ON((*atom)->super != node->tree->super);
 		UNLOCK_ATOM(*atom);
 		UNLOCK_JNODE(node);
-		ret = jnode_flush(node, nr_submitted, fq, flags);
+		BUG_ON(nr_to_write == 0);
+		ret = jnode_flush(node, nr_to_write, nr_submitted, fq, flags);
 		jput(node);
 	}
 
-	ret = write_fq(fq, nr_submitted, WRITEOUT_SINGLE_STREAM | WRITEOUT_FOR_PAGE_RECLAIM);
+	ret =
+	    write_fq(fq, nr_submitted,
+		     WRITEOUT_SINGLE_STREAM | WRITEOUT_FOR_PAGE_RECLAIM);
 
 	*atom = get_current_atom_locked();
-	(*atom)->nr_flushers --;
+	(*atom)->nr_flushers--;
 	fq_put_nolock(fq);
 	atom_send_event(*atom);
 	UNLOCK_ATOM(*atom);
@@ -1006,7 +1040,8 @@ flush_current_atom (int flags, long *nr_submitted, txn_atom ** atom)
    In the _forward_ parent-first relocate context (not here) we actually call the block
    allocator to try and find a closer location. */
 static int
-reverse_relocate_if_close_enough(const reiser4_block_nr * pblk, const reiser4_block_nr * nblk)
+reverse_relocate_if_close_enough(const reiser4_block_nr * pblk,
+				 const reiser4_block_nr * nblk)
 {
 	reiser4_block_nr dist;
 
@@ -1033,7 +1068,8 @@ reverse_relocate_if_close_enough(const reiser4_block_nr * pblk, const reiser4_bl
    (not here), relocation decisions are handled in two places: allocate_znode() and
    extent_needs_allocation(). */
 static int
-reverse_relocate_test(jnode * node, const coord_t * parent_coord, flush_pos_t * pos)
+reverse_relocate_test(jnode * node, const coord_t * parent_coord,
+		      flush_pos_t * pos)
 {
 	reiser4_block_nr pblk = 0;
 	reiser4_block_nr nblk = 0;
@@ -1083,7 +1119,8 @@ reverse_relocate_test(jnode * node, const coord_t * parent_coord, flush_pos_t * 
 /* This function calls reverse_relocate_test to make a reverse-parent-first
    relocation decision and then, if yes, it marks the parent dirty. */
 static int
-reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_coord, flush_pos_t * pos)
+reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_coord,
+				    flush_pos_t * pos)
 {
 	int ret;
 
@@ -1100,11 +1137,13 @@ reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_coord, 
 			int grabbed;
 
 			grabbed = get_current_context()->grabbed_blocks;
-			if (reiser4_grab_space_force((__u64)1, BA_RESERVED) != 0)
-			    reiser4_panic("umka-1250",
-					  "No space left during flush.");
+			if (reiser4_grab_space_force((__u64) 1, BA_RESERVED) !=
+			    0)
+				reiser4_panic("umka-1250",
+					      "No space left during flush.");
 
-			assert("jmacd-18923", znode_is_write_locked(parent_coord->node));
+			assert("jmacd-18923",
+			       znode_is_write_locked(parent_coord->node));
 			znode_make_dirty(parent_coord->node);
 			grabbed2free_mark(grabbed);
 		}
@@ -1117,7 +1156,7 @@ reverse_relocate_check_dirty_parent(jnode * node, const coord_t * parent_coord, 
    PARENT-FIRST LOOP BEGINS) */
 
 /* Get the leftmost child for given coord. */
-static int get_leftmost_child_of_unit (const coord_t * coord, jnode ** child)
+static int get_leftmost_child_of_unit(const coord_t * coord, jnode ** child)
 {
 	int ret;
 
@@ -1161,7 +1200,9 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 		/* The parent may not be dirty, in which case we should decide
 		   whether to relocate the child now. If decision is made to
 		   relocate the child, the parent is marked dirty. */
-		ret = reverse_relocate_check_dirty_parent(pos->child, &pos->coord, pos);
+		ret =
+		    reverse_relocate_check_dirty_parent(pos->child, &pos->coord,
+							pos);
 		if (ret)
 			goto exit;
 
@@ -1177,7 +1218,9 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 	} else {
 		if (!znode_is_root(pos->lock.node)) {
 			/* all formatted nodes except tree root */
-			ret = reiser4_get_parent(&plock, pos->lock.node, ZNODE_WRITE_LOCK);
+			ret =
+			    reiser4_get_parent(&plock, pos->lock.node,
+					       ZNODE_WRITE_LOCK);
 			if (ret)
 				goto exit;
 
@@ -1185,11 +1228,16 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 			if (ret)
 				goto exit;
 
-			ret = find_child_ptr(plock.node, pos->lock.node, &pcoord);
+			ret =
+			    find_child_ptr(plock.node, pos->lock.node, &pcoord);
 			if (ret)
 				goto exit;
 
-			ret = reverse_relocate_check_dirty_parent(ZJNODE(pos->lock.node), &pcoord, pos);
+			ret =
+			    reverse_relocate_check_dirty_parent(ZJNODE
+								(pos->lock.
+								 node), &pcoord,
+								pos);
 			if (ret)
 				goto exit;
 
@@ -1200,7 +1248,7 @@ static int alloc_pos_and_ancestors(flush_pos_t * pos)
 
 		ret = allocate_znode(pos->lock.node, &pcoord, pos);
 	}
-exit:
+      exit:
 	done_load_count(&pload);
 	done_lh(&plock);
 	return ret;
@@ -1229,7 +1277,8 @@ static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos)
 
 	/* If the ancestor is clean or already allocated, or if the child is not a
 	   leftmost child, stop going up, even leaving coord->node not flushprepped. */
-	if (znode_check_flushprepped(coord->node)|| !coord_is_leftmost_unit(coord))
+	if (znode_check_flushprepped(coord->node)
+	    || !coord_is_leftmost_unit(coord))
 		return 0;
 
 	init_lh(&alock);
@@ -1240,14 +1289,18 @@ static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos)
 	   parent in case we will relocate the child. */
 	if (!znode_is_root(coord->node)) {
 
-		ret = jnode_lock_parent_coord(
-			ZJNODE(coord->node), &acoord, &alock, &aload, ZNODE_WRITE_LOCK, 0);
+		ret =
+		    jnode_lock_parent_coord(ZJNODE(coord->node), &acoord,
+					    &alock, &aload, ZNODE_WRITE_LOCK,
+					    0);
 		if (ret != 0) {
 			/* FIXME(C): check EINVAL, E_DEADLOCK */
 			goto exit;
 		}
 
-		ret = reverse_relocate_check_dirty_parent(ZJNODE(coord->node), &acoord, pos);
+		ret =
+		    reverse_relocate_check_dirty_parent(ZJNODE(coord->node),
+							&acoord, pos);
 		if (ret != 0) {
 			goto exit;
 		}
@@ -1265,7 +1318,7 @@ static int alloc_one_ancestor(const coord_t * coord, flush_pos_t * pos)
 	   call. */
 	ret = allocate_znode(coord->node, &acoord, pos);
 
-exit:
+      exit:
 	done_load_count(&aload);
 	done_lh(&alock);
 	return ret;
@@ -1285,13 +1338,12 @@ exit:
    There is one other place where we may set the flush_position's preceder hint, which is
    during scan-left.
 */
-static int
-set_preceder(const coord_t * coord_in, flush_pos_t * pos)
+static int set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 {
 	int ret;
 	coord_t coord;
 	lock_handle left_lock;
-	load_count  left_load;
+	load_count left_load;
 
 #if 0
 	/* do not trust to allocation of nodes above twigs, use the block number of last
@@ -1314,14 +1366,16 @@ set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 	if (!coord_is_leftmost_unit(&coord)) {
 		coord_prev_unit(&coord);
 	} else {
-		ret = reiser4_get_left_neighbor(&left_lock, coord.node, ZNODE_READ_LOCK, GN_SAME_ATOM);
+		ret =
+		    reiser4_get_left_neighbor(&left_lock, coord.node,
+					      ZNODE_READ_LOCK, GN_SAME_ATOM);
 		if (ret) {
 			/* If we fail for any reason it doesn't matter because the
 			   preceder is only a hint.  We are low-priority at this point, so
 			   this must be the case. */
 			if (ret == -E_REPEAT || ret == -E_NO_NEIGHBOR ||
-			    ret == -ENOENT || ret == -EINVAL || ret == -E_DEADLOCK)
-			{
+			    ret == -ENOENT || ret == -EINVAL
+			    || ret == -E_DEADLOCK) {
 				ret = 0;
 			}
 			goto exit;
@@ -1334,8 +1388,10 @@ set_preceder(const coord_t * coord_in, flush_pos_t * pos)
 		coord_init_last_unit(&coord, left_lock.node);
 	}
 
-	ret = item_utmost_child_real_block(&coord, RIGHT_SIDE, &pos->preceder.blk);
-exit:
+	ret =
+	    item_utmost_child_real_block(&coord, RIGHT_SIDE,
+					 &pos->preceder.blk);
+      exit:
 	check_preceder(pos->preceder.blk);
 	done_load_count(&left_load);
 	done_lh(&left_lock);
@@ -1376,10 +1432,10 @@ exit:
 
 /* SQUEEZE CODE */
 
-
 /* squalloc_right_twig helper function, cut a range of extent items from
    cut node to->node from the beginning up to coord @to. */
-static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * left)
+static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key,
+				   znode * left)
 {
 	coord_t from;
 	reiser4_key from_key;
@@ -1395,11 +1451,6 @@ static int squalloc_right_twig_cut(coord_t * to, reiser4_key * to_key, znode * l
    SQUEEZE_SOURCE_EMPTY when no more can be shifted.  If the next item is an
    internal item it calls shift_one_internal_unit and may then return
    SUBTREE_MOVED. */
-squeeze_result squalloc_extent(znode *left, const coord_t *, flush_pos_t *, reiser4_key *stop_key);
-#if REISER4_DEBUG
-void *shift_check_prepare(const znode *left, const znode *right);
-void shift_check(void *vp, const znode *left, const znode *right);
-#endif
 static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 {
 	int ret = SUBTREE_MOVED;
@@ -1420,14 +1471,15 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 		stop_key = *min_key();
 		ret = squalloc_extent(left, &coord, pos, &stop_key);
 		if (ret != SQUEEZE_CONTINUE) {
-			ON_DEBUG(reiser4_kfree(vp));
+			ON_DEBUG(kfree(vp));
 			break;
 		}
 		assert("vs-1465", !keyeq(&stop_key, min_key()));
 
 		/* Helper function to do the cutting. */
 		set_key_offset(&stop_key, get_key_offset(&stop_key) - 1);
-		check_me("vs-1466", squalloc_right_twig_cut(&coord, &stop_key, left) == 0);
+		check_me("vs-1466",
+			 squalloc_right_twig_cut(&coord, &stop_key, left) == 0);
 
 		ON_DEBUG(shift_check(vp, left, coord.node));
 	}
@@ -1459,7 +1511,7 @@ static int squeeze_right_twig(znode * left, znode * right, flush_pos_t * pos)
 	   extents, so we stop here. */
 	ret = shift_one_internal_unit(left, right);
 
-out:
+      out:
 	assert("jmacd-8612", ret < 0 || ret == SQUEEZE_TARGET_FULL
 	       || ret == SUBTREE_MOVED || ret == SQUEEZE_SOURCE_EMPTY);
 
@@ -1478,17 +1530,16 @@ out:
 }
 
 #if REISER4_DEBUG
-static void
-item_convert_invariant(flush_pos_t * pos)
+static void item_convert_invariant(flush_pos_t * pos)
 {
 	assert("edward-1225", coord_is_existing_item(&pos->coord));
 	if (chaining_data_present(pos)) {
-		item_plugin * iplug  = item_convert_plug(pos);
+		item_plugin *iplug = item_convert_plug(pos);
 
-		assert("edward-1000", iplug == item_plugin_by_coord(&pos->coord));
+		assert("edward-1000",
+		       iplug == item_plugin_by_coord(&pos->coord));
 		assert("edward-1001", iplug->f.convert != NULL);
-	}
-	else
+	} else
 		assert("edward-1226", pos->child == NULL);
 }
 #else
@@ -1504,7 +1555,7 @@ item_convert_invariant(flush_pos_t * pos)
 static int convert_node(flush_pos_t * pos, znode * node)
 {
 	int ret = 0;
-	item_plugin * iplug;
+	item_plugin *iplug;
 
 	assert("edward-304", pos != NULL);
 	assert("edward-305", pos->child == NULL);
@@ -1541,18 +1592,18 @@ static int convert_node(flush_pos_t * pos, znode * node)
 				break;
 			if (should_chain_next_node(pos)) {
 				/* go to next node */
-				move_chaining_data(pos, 0 /* to next node */);
+				move_chaining_data(pos, 0 /* to next node */ );
 				break;
 			}
 			/* repeat this node */
-			move_chaining_data(pos, 1 /* this node */);
+			move_chaining_data(pos, 1 /* this node */ );
 			continue;
 		}
 		/* Node is not over.
 		   Check if there is attached convert data.
 		   If so roll one item position back and repeat
 		   on this node
-		*/
+		 */
 		if (chaining_data_present(pos)) {
 
 			if (iplug != item_plugin_by_coord(&pos->coord))
@@ -1561,12 +1612,12 @@ static int convert_node(flush_pos_t * pos, znode * node)
 			ret = coord_prev_item(&pos->coord);
 			assert("edward-1003", !ret);
 
-			move_chaining_data(pos, 1 /* this node */);
+			move_chaining_data(pos, 1 /* this node */ );
 		}
 	}
 	JF_CLR(ZJNODE(node), JNODE_CONVERTIBLE);
 	znode_make_dirty(node);
- exit:
+      exit:
 	assert("edward-1004", !ret);
 	return ret;
 }
@@ -1591,7 +1642,8 @@ static int convert_node(flush_pos_t * pos, znode * node)
    is returned.
 */
 
-static int squeeze_right_neighbor(flush_pos_t * pos, znode * left, znode * right)
+static int squeeze_right_neighbor(flush_pos_t * pos, znode * left,
+				  znode * right)
 {
 	int ret;
 
@@ -1617,11 +1669,14 @@ static int squeeze_right_neighbor(flush_pos_t * pos, znode * left, znode * right
 	}
 
 	assert("jmacd-2011", (ret < 0 ||
-			      ret == SQUEEZE_SOURCE_EMPTY || ret == SQUEEZE_TARGET_FULL || ret == SUBTREE_MOVED));
+			      ret == SQUEEZE_SOURCE_EMPTY
+			      || ret == SQUEEZE_TARGET_FULL
+			      || ret == SUBTREE_MOVED));
 	return ret;
 }
 
-static int squeeze_right_twig_and_advance_coord (flush_pos_t * pos, znode * right)
+static int squeeze_right_twig_and_advance_coord(flush_pos_t * pos,
+						znode * right)
 {
 	int ret;
 
@@ -1639,9 +1694,9 @@ static int squeeze_right_twig_and_advance_coord (flush_pos_t * pos, znode * righ
 
 #if 0
 /* "prepped" check for parent node without long-term locking it */
-static inline int fast_check_parent_flushprepped (znode * node)
+static inline int fast_check_parent_flushprepped(znode * node)
 {
-	reiser4_tree * tree = current_tree;
+	reiser4_tree *tree = current_tree;
 	int prepped = 1;
 
 	RLOCK_TREE(tree);
@@ -1656,11 +1711,13 @@ static inline int fast_check_parent_flushprepped (znode * node)
 #endif
 
 /* forward declaration */
-static int squalloc_upper_levels (flush_pos_t *, znode *, znode *);
+static int squalloc_upper_levels(flush_pos_t *, znode *, znode *);
 
 /* do a fast check for "same parents" condition before calling
  * squalloc_upper_levels() */
-static inline int check_parents_and_squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
+static inline int check_parents_and_squalloc_upper_levels(flush_pos_t * pos,
+							  znode * left,
+							  znode * right)
 {
 	if (znode_same_parents(left, right))
 		return 0;
@@ -1673,7 +1730,7 @@ static inline int check_parents_and_squalloc_upper_levels (flush_pos_t * pos, zn
    share at least the parent of the @right is after the @left but before the
    @right in parent-first order, we have to (re)allocate it before the @right
    gets (re)allocated. */
-static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
+static int squalloc_upper_levels(flush_pos_t * pos, znode * left, znode * right)
 {
 	int ret;
 
@@ -1683,14 +1740,13 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	load_count left_parent_load;
 	load_count right_parent_load;
 
-
 	init_lh(&left_parent_lock);
 	init_lh(&right_parent_lock);
 
 	init_load_count(&left_parent_load);
 	init_load_count(&right_parent_load);
 
- 	ret = reiser4_get_parent(&left_parent_lock, left, ZNODE_WRITE_LOCK);
+	ret = reiser4_get_parent(&left_parent_lock, left, ZNODE_WRITE_LOCK);
 	if (ret)
 		goto out;
 
@@ -1715,7 +1771,8 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 		   allocated.  So, only twigs are used as a preceder for allocating of the
 		   rest of the slum. */
 		if (znode_get_level(right_parent_lock.node) == TWIG_LEVEL) {
-			pos->preceder.blk = *znode_get_block(right_parent_lock.node);
+			pos->preceder.blk =
+			    *znode_get_block(right_parent_lock.node);
 			check_preceder(pos->preceder.blk);
 		}
 		goto out;
@@ -1729,7 +1786,9 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 	if (ret)
 		goto out;
 
-	ret = squeeze_right_neighbor(pos, left_parent_lock.node, right_parent_lock.node);
+	ret =
+	    squeeze_right_neighbor(pos, left_parent_lock.node,
+				   right_parent_lock.node);
 	/* We stop if error. We stop if some items/units were shifted (ret == 0)
 	 * and thus @right changed its parent. It means we have not process
 	 * right_parent node prior to processing of @right. Positive return
@@ -1740,14 +1799,16 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 
 	/* parent(@left) and parent(@right) may have different parents also. We
 	 * do a recursive call for checking that. */
-	ret = check_parents_and_squalloc_upper_levels(pos, left_parent_lock.node, right_parent_lock.node);
+	ret =
+	    check_parents_and_squalloc_upper_levels(pos, left_parent_lock.node,
+						    right_parent_lock.node);
 	if (ret)
 		goto out;
 
 	/* allocate znode when going down */
 	ret = lock_parent_and_allocate_znode(right_parent_lock.node, pos);
 
- out:
+      out:
 	done_load_count(&left_parent_load);
 	done_load_count(&right_parent_load);
 
@@ -1759,12 +1820,12 @@ static int squalloc_upper_levels (flush_pos_t * pos, znode *left, znode * right)
 
 /* Check the leftmost child "flushprepped" status, also returns true if child
  * node was not found in cache.  */
-static int leftmost_child_of_unit_check_flushprepped (const coord_t *coord)
+static int leftmost_child_of_unit_check_flushprepped(const coord_t * coord)
 {
 	int ret;
 	int prepped;
 
-	jnode * child;
+	jnode *child;
 
 	ret = get_leftmost_child_of_unit(coord, &child);
 
@@ -1785,14 +1846,14 @@ static int leftmost_child_of_unit_check_flushprepped (const coord_t *coord)
 }
 
 /* (re)allocate znode with automated getting parent node */
-static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
+static int lock_parent_and_allocate_znode(znode * node, flush_pos_t * pos)
 {
 	int ret;
 	lock_handle parent_lock;
 	load_count parent_load;
 	coord_t pcoord;
 
-	assert ("zam-851", znode_is_write_locked(node));
+	assert("zam-851", znode_is_write_locked(node));
 
 	init_lh(&parent_lock);
 	init_load_count(&parent_load);
@@ -1811,7 +1872,7 @@ static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
 
 	ret = allocate_znode(node, &pcoord, pos);
 
- out:
+      out:
 	done_load_count(&parent_load);
 	done_lh(&parent_lock);
 	return ret;
@@ -1819,7 +1880,7 @@ static int lock_parent_and_allocate_znode (znode * node, flush_pos_t * pos)
 
 /* Process nodes on leaf level until unformatted node or rightmost node in the
  * slum reached.  */
-static int handle_pos_on_formatted (flush_pos_t * pos)
+static int handle_pos_on_formatted(flush_pos_t * pos)
 {
 	int ret;
 	lock_handle right_lock;
@@ -1835,8 +1896,12 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 	}
 
 	while (1) {
-		ret = neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE, ZNODE_WRITE_LOCK,
-				       !should_convert_next_node(pos, right_lock.node));
+		ret =
+		    neighbor_in_slum(pos->lock.node, &right_lock, RIGHT_SIDE,
+				     ZNODE_WRITE_LOCK,
+				     !should_convert_next_node(pos,
+							       right_lock.
+							       node));
 		if (ret)
 			break;
 
@@ -1844,8 +1909,10 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 		 * can be optimal.  For now we choose to live with the risk that it will
 		 * be suboptimal because it would be quite complex to code it to be
 		 * smarter. */
-		if (znode_check_flushprepped(right_lock.node) && !znode_convertible(right_lock.node)) {
-			assert("edward-1005", !should_convert_next_node(pos, right_lock.node));
+		if (znode_check_flushprepped(right_lock.node)
+		    && !znode_convertible(right_lock.node)) {
+			assert("edward-1005",
+			       !should_convert_next_node(pos, right_lock.node));
 			pos_stop(pos);
 			break;
 		}
@@ -1866,8 +1933,10 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 			}
 		}
 
-                /* squeeze _before_ going upward. */
-		ret = squeeze_right_neighbor(pos, pos->lock.node, right_lock.node);
+		/* squeeze _before_ going upward. */
+		ret =
+		    squeeze_right_neighbor(pos, pos->lock.node,
+					   right_lock.node);
 		if (ret < 0)
 			break;
 
@@ -1881,9 +1950,9 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 				if (node_is_empty(right_lock.node)) {
 					done_load_count(&right_load);
 					done_lh(&right_lock);
-				}
-				else
-					move_flush_pos(pos, &right_lock, &right_load, NULL);
+				} else
+					move_flush_pos(pos, &right_lock,
+						       &right_load, NULL);
 				continue;
 			}
 			pos_stop(pos);
@@ -1899,7 +1968,9 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 
 		/* parent(right_lock.node) has to be processed before
 		 * (right_lock.node) due to "parent-first" allocation order. */
-		ret = check_parents_and_squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
+		ret =
+		    check_parents_and_squalloc_upper_levels(pos, pos->lock.node,
+							    right_lock.node);
 		if (ret)
 			break;
 		/* (re)allocate _after_ going upward */
@@ -1933,11 +2004,11 @@ static int handle_pos_on_formatted (flush_pos_t * pos)
 
 /* Process nodes on leaf level until unformatted node or rightmost node in the
  * slum reached.  */
-static int handle_pos_on_leaf (flush_pos_t * pos)
+static int handle_pos_on_leaf(flush_pos_t * pos)
 {
 	int ret;
 
-	assert ("zam-845", pos->state == POS_ON_LEAF);
+	assert("zam-845", pos->state == POS_ON_LEAF);
 
 	ret = handle_pos_on_formatted(pos);
 
@@ -1951,14 +2022,14 @@ static int handle_pos_on_leaf (flush_pos_t * pos)
 }
 
 /* Process slum on level > 1 */
-static int handle_pos_on_internal (flush_pos_t * pos)
+static int handle_pos_on_internal(flush_pos_t * pos)
 {
-	assert ("zam-850", pos->state == POS_ON_INTERNAL);
+	assert("zam-850", pos->state == POS_ON_INTERNAL);
 	return handle_pos_on_formatted(pos);
 }
 
 /* check whether squalloc should stop before processing given extent */
-static int squalloc_extent_should_stop (flush_pos_t * pos)
+static int squalloc_extent_should_stop(flush_pos_t * pos)
 {
 	assert("zam-869", item_is_extent(&pos->coord));
 
@@ -1969,10 +2040,14 @@ static int squalloc_extent_should_stop (flush_pos_t * pos)
 
 		assert("vs-1383", jnode_is_unformatted(pos->child));
 		prepped = jnode_check_flushprepped(pos->child);
-		pos->pos_in_unit = jnode_get_index(pos->child) - extent_unit_index(&pos->coord);
-		assert("vs-1470", pos->pos_in_unit < extent_unit_width(&pos->coord));
-		assert("nikita-3434", ergo(extent_is_unallocated(&pos->coord),
-					   pos->pos_in_unit == 0));
+		pos->pos_in_unit =
+		    jnode_get_index(pos->child) -
+		    extent_unit_index(&pos->coord);
+		assert("vs-1470",
+		       pos->pos_in_unit < extent_unit_width(&pos->coord));
+		assert("nikita-3434",
+		       ergo(extent_is_unallocated(&pos->coord),
+			    pos->pos_in_unit == 0));
 		jput(pos->child);
 		pos->child = NULL;
 
@@ -1986,19 +2061,17 @@ static int squalloc_extent_should_stop (flush_pos_t * pos)
 	return leftmost_child_of_unit_check_flushprepped(&pos->coord);
 }
 
-int alloc_extent(flush_pos_t *flush_pos);
-
 /* Handle the case when regular reiser4 tree (znodes connected one to its
  * neighbors by sibling pointers) is interrupted on leaf level by one or more
  * unformatted nodes.  By having a lock on twig level and use extent code
  * routines to process unformatted nodes we swim around an irregular part of
  * reiser4 tree. */
-static int handle_pos_on_twig (flush_pos_t * pos)
+static int handle_pos_on_twig(flush_pos_t * pos)
 {
 	int ret;
 
-	assert ("zam-844", pos->state == POS_ON_EPOINT);
-	assert ("zam-843", item_is_extent(&pos->coord));
+	assert("zam-844", pos->state == POS_ON_EPOINT);
+	assert("zam-843", item_is_extent(&pos->coord));
 
 	/* We decide should we continue slum processing with current extent
 	   unit: if leftmost child of current extent unit is flushprepped
@@ -2013,7 +2086,8 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 		return ret;
 	}
 
-	while (pos_valid(pos) && coord_is_existing_unit(&pos->coord) && item_is_extent(&pos->coord)) {
+	while (pos_valid(pos) && coord_is_existing_unit(&pos->coord)
+	       && item_is_extent(&pos->coord)) {
 		ret = alloc_extent(pos);
 		if (ret) {
 			break;
@@ -2030,7 +2104,7 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 		return 0;
 	}
 
-	assert ("zam-860", item_is_extent(&pos->coord));
+	assert("zam-860", item_is_extent(&pos->coord));
 
 	/* "slum" is over */
 	pos->state = POS_INVALID;
@@ -2040,17 +2114,16 @@ static int handle_pos_on_twig (flush_pos_t * pos)
 /* When we about to return flush position from twig to leaf level we can process
  * the right twig node or move position to the leaf.  This processes right twig
  * if it is possible and jump to leaf level if not. */
-static int handle_pos_end_of_twig (flush_pos_t * pos)
+static int handle_pos_end_of_twig(flush_pos_t * pos)
 {
 	int ret;
 	lock_handle right_lock;
 	load_count right_load;
 	coord_t at_right;
-	jnode * child = NULL;
+	jnode *child = NULL;
 
-
-	assert ("zam-848", pos->state == POS_END_OF_TWIG);
-	assert ("zam-849", coord_is_after_rightmost(&pos->coord));
+	assert("zam-848", pos->state == POS_END_OF_TWIG);
+	assert("zam-849", coord_is_after_rightmost(&pos->coord));
 
 	init_lh(&right_lock);
 	init_load_count(&right_load);
@@ -2058,7 +2131,9 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 	/* We get a lock on the right twig node even it is not dirty because
 	 * slum continues or discontinues on leaf level not on next twig. This
 	 * lock on the right twig is needed for getting its leftmost child. */
-	ret = reiser4_get_right_neighbor(&right_lock, pos->lock.node, ZNODE_WRITE_LOCK, GN_SAME_ATOM);
+	ret =
+	    reiser4_get_right_neighbor(&right_lock, pos->lock.node,
+				       ZNODE_WRITE_LOCK, GN_SAME_ATOM);
 	if (ret)
 		goto out;
 
@@ -2070,9 +2145,10 @@ static int handle_pos_end_of_twig (flush_pos_t * pos)
 	if (znode_check_dirty(right_lock.node)) {
 		/* If right twig node is dirty we always attempt to squeeze it
 		 * content to the left... */
-became_dirty:
-		ret = squeeze_right_twig_and_advance_coord(pos, right_lock.node);
-		if (ret <=0) {
+	      became_dirty:
+		ret =
+		    squeeze_right_twig_and_advance_coord(pos, right_lock.node);
+		if (ret <= 0) {
 			/* pos->coord is on internal item, go to leaf level, or
 			 * we have an error which will be caught in squalloc() */
 			pos->state = POS_TO_LEAF;
@@ -2087,13 +2163,20 @@ became_dirty:
 
 		/* ... and prep it if it is not yet prepped */
 		if (!znode_check_flushprepped(right_lock.node)) {
-			/* As usual, process parent before ...*/
-			ret = check_parents_and_squalloc_upper_levels(pos, pos->lock.node, right_lock.node);
+			/* As usual, process parent before ... */
+			ret =
+			    check_parents_and_squalloc_upper_levels(pos,
+								    pos->lock.
+								    node,
+								    right_lock.
+								    node);
 			if (ret)
 				goto out;
 
 			/* ... processing the child */
-			ret = lock_parent_and_allocate_znode(right_lock.node, pos);
+			ret =
+			    lock_parent_and_allocate_znode(right_lock.node,
+							   pos);
 			if (ret)
 				goto out;
 		}
@@ -2109,7 +2192,9 @@ became_dirty:
 
 		/* check clean twig for possible relocation */
 		if (!znode_check_flushprepped(right_lock.node)) {
-			ret = reverse_relocate_check_dirty_parent(child, &at_right, pos);
+			ret =
+			    reverse_relocate_check_dirty_parent(child,
+								&at_right, pos);
 			if (ret)
 				goto out;
 			if (znode_check_dirty(right_lock.node))
@@ -2117,7 +2202,7 @@ became_dirty:
 		}
 	}
 
-	assert ("zam-875", znode_check_flushprepped(right_lock.node));
+	assert("zam-875", znode_check_flushprepped(right_lock.node));
 
 	/* Update the preceder by a block number of just processed right twig
 	 * node. The code above could miss the preceder updating because
@@ -2131,7 +2216,7 @@ became_dirty:
 	pos->state = item_is_extent(&at_right) ? POS_ON_EPOINT : POS_TO_LEAF;
 	move_flush_pos(pos, &right_lock, &right_load, &at_right);
 
- out:
+      out:
 	done_load_count(&right_load);
 	done_lh(&right_lock);
 
@@ -2143,15 +2228,15 @@ became_dirty:
 
 /* Move the pos->lock to leaf node pointed by pos->coord, check should we
  * continue there. */
-static int handle_pos_to_leaf (flush_pos_t * pos)
+static int handle_pos_to_leaf(flush_pos_t * pos)
 {
 	int ret;
 	lock_handle child_lock;
 	load_count child_load;
-	jnode * child;
+	jnode *child;
 
-	assert ("zam-846", pos->state == POS_TO_LEAF);
-	assert ("zam-847", item_is_internal(&pos->coord));
+	assert("zam-846", pos->state == POS_TO_LEAF);
+	assert("zam-847", item_is_internal(&pos->coord));
 
 	init_lh(&child_lock);
 	init_load_count(&child_load);
@@ -2169,7 +2254,9 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 		goto out;
 	}
 
-	ret = longterm_lock_znode(&child_lock, JZNODE(child), ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+	ret =
+	    longterm_lock_znode(&child_lock, JZNODE(child), ZNODE_WRITE_LOCK,
+				ZNODE_LOCK_LOPRI);
 	if (ret)
 		goto out;
 
@@ -2189,16 +2276,17 @@ static int handle_pos_to_leaf (flush_pos_t * pos)
 		ret = delete_empty_node(JZNODE(child));
 		pos->state = POS_INVALID;
 	}
- out:
+      out:
 	done_load_count(&child_load);
 	done_lh(&child_lock);
 	jput(child);
 
 	return ret;
 }
+
 /* move pos from leaf to twig, and move lock from leaf to twig. */
 /* Move pos->lock to upper (twig) level */
-static int handle_pos_to_twig (flush_pos_t * pos)
+static int handle_pos_to_twig(flush_pos_t * pos)
 {
 	int ret;
 
@@ -2206,12 +2294,13 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 	load_count parent_load;
 	coord_t pcoord;
 
-	assert ("zam-852", pos->state == POS_TO_TWIG);
+	assert("zam-852", pos->state == POS_TO_TWIG);
 
 	init_lh(&parent_lock);
 	init_load_count(&parent_load);
 
-	ret = reiser4_get_parent(&parent_lock, pos->lock.node, ZNODE_WRITE_LOCK);
+	ret =
+	    reiser4_get_parent(&parent_lock, pos->lock.node, ZNODE_WRITE_LOCK);
 	if (ret)
 		goto out;
 
@@ -2223,7 +2312,7 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 	if (ret)
 		goto out;
 
-	assert ("zam-870", item_is_internal(&pcoord));
+	assert("zam-870", item_is_internal(&pcoord));
 	coord_next_item(&pcoord);
 
 	if (coord_is_after_rightmost(&pcoord))
@@ -2240,25 +2329,25 @@ static int handle_pos_to_twig (flush_pos_t * pos)
 
 	move_flush_pos(pos, &parent_lock, &parent_load, &pcoord);
 
- out:
+      out:
 	done_load_count(&parent_load);
 	done_lh(&parent_lock);
 
 	return ret;
 }
 
-typedef int (*pos_state_handle_t)(flush_pos_t*);
+typedef int (*pos_state_handle_t) (flush_pos_t *);
 static pos_state_handle_t flush_pos_handlers[] = {
 	/* process formatted nodes on leaf level, keep lock on a leaf node */
-	[POS_ON_LEAF]     = handle_pos_on_leaf,
+	[POS_ON_LEAF] = handle_pos_on_leaf,
 	/* process unformatted nodes, keep lock on twig node, pos->coord points to extent currently
 	 * being processed */
-	[POS_ON_EPOINT]     = handle_pos_on_twig,
+	[POS_ON_EPOINT] = handle_pos_on_twig,
 	/* move a lock from leaf node to its parent for further processing of unformatted nodes */
-	[POS_TO_TWIG]     = handle_pos_to_twig,
+	[POS_TO_TWIG] = handle_pos_to_twig,
 	/* move a lock from twig to leaf level when a processing of unformatted nodes finishes,
 	 * pos->coord points to the leaf node we jump to */
-	[POS_TO_LEAF]     = handle_pos_to_leaf,
+	[POS_TO_LEAF] = handle_pos_to_leaf,
 	/* after processing last extent in the twig node, attempting to shift items from the twigs
 	 * right neighbor and process them while shifting */
 	[POS_END_OF_TWIG] = handle_pos_end_of_twig,
@@ -2268,14 +2357,14 @@ static pos_state_handle_t flush_pos_handlers[] = {
 
 /* Advance flush position horizontally, prepare for flushing ((re)allocate, squeeze,
  * encrypt) nodes and their ancestors in "parent-first" order */
-static int squalloc (flush_pos_t * pos)
+static int squalloc(flush_pos_t * pos)
 {
 	int ret = 0;
 
 	/* maybe needs to be made a case statement with handle_pos_on_leaf as first case, for
 	 * greater CPU efficiency? Measure and see.... -Hans */
 	while (pos_valid(pos)) {
-		ret = flush_pos_handlers[pos->state](pos);
+		ret = flush_pos_handlers[pos->state] (pos);
 		if (ret < 0)
 			break;
 
@@ -2292,7 +2381,7 @@ static int squalloc (flush_pos_t * pos)
 	return ret;
 }
 
-static void update_ldkey(znode *node)
+static void update_ldkey(znode * node)
 {
 	reiser4_key ldkey;
 
@@ -2306,11 +2395,11 @@ static void update_ldkey(znode *node)
 /* this is to be called after calling of shift node's method to shift data from @right to
    @left. It sets left delimiting keys of @left and @right to keys of first items of @left
    and @right correspondingly and sets right delimiting key of @left to first key of @right */
-static void
-update_znode_dkeys(znode *left, znode *right)
+static void update_znode_dkeys(znode * left, znode * right)
 {
 	assert("nikita-1470", rw_dk_is_write_locked(znode_get_tree(right)));
-	assert("vs-1629", znode_is_write_locked(left) && znode_is_write_locked(right));
+	assert("vs-1629", znode_is_write_locked(left)
+	       && znode_is_write_locked(right));
 
 	/* we need to update left delimiting of left if it was empty before shift */
 	update_ldkey(left);
@@ -2336,32 +2425,34 @@ shift_everything_left(znode * right, znode * left, carry_level * todo)
 	info.doing = NULL;
 	info.todo = todo;
 	return nplug->shift(&from, left, SHIFT_LEFT,
-			    1 /* delete @right if it becomes empty */,
-			    1 /* move coord @from to node @left if everything will be shifted */,
+			    1 /* delete @right if it becomes empty */ ,
+			    1
+			    /* move coord @from to node @left if everything will be shifted */
+			    ,
 			    &info);
 }
 
 /* Shift as much as possible from @right to @left using the memcpy-optimized
    shift_everything_left.  @left and @right are formatted neighboring nodes on
    leaf level. */
-static int
-squeeze_right_non_twig(znode * left, znode * right)
+static int squeeze_right_non_twig(znode * left, znode * right)
 {
 	int ret;
 	carry_pool *pool;
-	carry_level todo;
+	carry_level *todo;
 
 	assert("nikita-2246", znode_get_level(left) == znode_get_level(right));
 
 	if (!znode_is_dirty(left) || !znode_is_dirty(right))
 		return SQUEEZE_TARGET_FULL;
 
-	pool = init_carry_pool();
+	pool = init_carry_pool(sizeof(*pool) + 3 * sizeof(*todo));
 	if (IS_ERR(pool))
 		return PTR_ERR(pool);
-	init_carry_level(&todo, pool);
+	todo = (carry_level *) (pool + 1);
+	init_carry_level(todo, pool);
 
-	ret = shift_everything_left(right, left, &todo);
+	ret = shift_everything_left(right, left, todo);
 	if (ret > 0) {
 		/* something was shifted */
 		reiser4_tree *tree;
@@ -2381,12 +2472,14 @@ squeeze_right_non_twig(znode * left, znode * right)
 		   node. */
 		grabbed = get_current_context()->grabbed_blocks;
 		ret = reiser4_grab_space_force(tree->height, BA_RESERVED);
-		assert("nikita-3003", ret == 0); /* reserved space is exhausted. Ask Hans. */
-		ret = carry(&todo, NULL /* previous level */ );
+		assert("nikita-3003", ret == 0);	/* reserved space is exhausted. Ask Hans. */
+		ret = carry(todo, NULL /* previous level */ );
 		grabbed2free_mark(grabbed);
 	} else {
 		/* Shifting impossible, we return appropriate result code */
-		ret = node_is_empty(right) ? SQUEEZE_SOURCE_EMPTY : SQUEEZE_TARGET_FULL;
+		ret =
+		    node_is_empty(right) ? SQUEEZE_SOURCE_EMPTY :
+		    SQUEEZE_TARGET_FULL;
 	}
 
 	done_carry_pool(pool);
@@ -2397,51 +2490,69 @@ squeeze_right_non_twig(znode * left, znode * right)
 /* Shift first unit of first item if it is an internal one.  Return
    SQUEEZE_TARGET_FULL if it fails to shift an item, otherwise return
    SUBTREE_MOVED. */
-static int
-shift_one_internal_unit(znode * left, znode * right)
+static int shift_one_internal_unit(znode * left, znode * right)
 {
 	int ret;
 	carry_pool *pool;
-	carry_level todo;
-	coord_t coord;
+	carry_level *todo;
+	coord_t *coord;
+	carry_plugin_info *info;
 	int size, moved;
-	carry_plugin_info info;
 
 	assert("nikita-2247", znode_get_level(left) == znode_get_level(right));
 	assert("nikita-2435", znode_is_write_locked(left));
 	assert("nikita-2436", znode_is_write_locked(right));
-	assert("nikita-2434", UNDER_RW(tree, znode_get_tree(left), read, left->right == right));
+	assert("nikita-2434",
+	       UNDER_RW(tree, znode_get_tree(left), read,
+			left->right == right));
 
-	coord_init_first_unit(&coord, right);
+	pool =
+	    init_carry_pool(sizeof(*pool) + 3 * sizeof(*todo) + sizeof(*coord) +
+			    sizeof(*info)
+#if REISER4_DEBUG
+			    + sizeof(*coord) + 2 * sizeof(reiser4_key)
+#endif
+	    );
+	if (IS_ERR(pool))
+		return PTR_ERR(pool);
+	todo = (carry_level *) (pool + 1);
+	init_carry_level(todo, pool);
+
+	coord = (coord_t *) (todo + 3);
+	coord_init_first_unit(coord, right);
+	info = (carry_plugin_info *) (coord + 1);
 
 #if REISER4_DEBUG
 	if (!node_is_empty(left)) {
-		coord_t last;
-		reiser4_key right_key;
-		reiser4_key left_key;
+		coord_t *last;
+		reiser4_key *right_key;
+		reiser4_key *left_key;
 
-		coord_init_last_unit(&last, left);
+		last = (coord_t *) (info + 1);
+		right_key = (reiser4_key *) (last + 1);
+		left_key = right_key + 1;
+		coord_init_last_unit(last, left);
 
 		assert("nikita-2463",
-		       keyle(item_key_by_coord(&last, &left_key), item_key_by_coord(&coord, &right_key)));
+		       keyle(item_key_by_coord(last, left_key),
+			     item_key_by_coord(coord, right_key)));
 	}
 #endif
 
-	assert("jmacd-2007", item_is_internal(&coord));
+	assert("jmacd-2007", item_is_internal(coord));
 
-	pool = init_carry_pool();
-	if (IS_ERR(pool))
-		return PTR_ERR(pool);
-	init_carry_level(&todo, pool);
+	size = item_length_by_coord(coord);
+	info->todo = todo;
+	info->doing = NULL;
 
-	size = item_length_by_coord(&coord);
-	info.todo = &todo;
-	info.doing = NULL;
-
-	ret = node_plugin_by_node(left)->shift(&coord, left, SHIFT_LEFT,
-					       1 /* delete @right if it becomes empty */,
-					       0 /* do not move coord @coord to node @left */,
-					       &info);
+	ret = node_plugin_by_node(left)->shift(coord, left, SHIFT_LEFT,
+					       1
+					       /* delete @right if it becomes empty */
+					       ,
+					       0
+					       /* do not move coord @coord to node @left */
+					       ,
+					       info);
 
 	/* If shift returns positive, then we shifted the item. */
 	assert("vs-423", ret <= 0 || size == ret);
@@ -2460,9 +2571,9 @@ shift_one_internal_unit(znode * left, znode * right)
 		/* reserve space for delimiting keys after shifting */
 		grabbed = get_current_context()->grabbed_blocks;
 		ret = reiser4_grab_space_force(tree->height, BA_RESERVED);
-		assert("nikita-3003", ret == 0); /* reserved space is exhausted. Ask Hans. */
+		assert("nikita-3003", ret == 0);	/* reserved space is exhausted. Ask Hans. */
 
-		ret = carry(&todo, NULL /* previous level */ );
+		ret = carry(todo, NULL /* previous level */ );
 		grabbed2free_mark(grabbed);
 	}
 
@@ -2479,14 +2590,15 @@ shift_one_internal_unit(znode * left, znode * right)
 
 /* ALLOCATE INTERFACE */
 /* Audited by: umka (2002.06.11) */
-reiser4_internal void
-jnode_set_block(jnode * node /* jnode to update */ ,
-		const reiser4_block_nr * blocknr /* new block nr */ )
+void jnode_set_block(jnode * node /* jnode to update */ ,
+		     const reiser4_block_nr * blocknr /* new block nr */ )
 {
 	assert("nikita-2020", node != NULL);
 	assert("umka-055", blocknr != NULL);
-	assert("zam-819", ergo(JF_ISSET(node, JNODE_EFLUSH), node->blocknr == 0));
-	assert("vs-1453", ergo(JF_ISSET(node, JNODE_EFLUSH), jnode_is_unformatted(node)));
+	assert("zam-819",
+	       ergo(JF_ISSET(node, JNODE_EFLUSH), node->blocknr == 0));
+	assert("vs-1453",
+	       ergo(JF_ISSET(node, JNODE_EFLUSH), jnode_is_unformatted(node)));
 	node->blocknr = *blocknr;
 }
 
@@ -2497,7 +2609,7 @@ allocate_znode_loaded(znode * node,
 		      const coord_t * parent_coord, flush_pos_t * pos)
 {
 	int ret;
-	reiser4_super_info_data * sbinfo = get_current_super_private();
+	reiser4_super_info_data *sbinfo = get_current_super_private();
 	/* FIXME(D): We have the node write-locked and should have checked for !
 	   allocated() somewhere before reaching this point, but there can be a race, so
 	   this assertion is bogus. */
@@ -2506,10 +2618,10 @@ allocate_znode_loaded(znode * node,
 	assert("jmacd-7989", coord_is_invalid(parent_coord)
 	       || znode_is_write_locked(parent_coord->node));
 
-	if (ZF_ISSET(node, JNODE_REPACK) || znode_created(node) || znode_is_root(node) ||
+	if (ZF_ISSET(node, JNODE_REPACK) || znode_created(node)
+	    || znode_is_root(node) ||
 	    /* We have enough nodes to relocate no matter what. */
-	    (pos->leaf_relocate != 0 && znode_get_level(node) == LEAF_LEVEL))
-	{
+	    (pos->leaf_relocate != 0 && znode_get_level(node) == LEAF_LEVEL)) {
 		/* No need to decide with new nodes, they are treated the same as
 		   relocate. If the root node is dirty, relocate. */
 		if (pos->preceder.blk == 0) {
@@ -2539,10 +2651,16 @@ allocate_znode_loaded(znode * node,
 			jnode_make_wander(ZJNODE(node));
 		} else {
 
-			dist = (nblk < pos->preceder.blk) ? (pos->preceder.blk - nblk) : (nblk - pos->preceder.blk);
+			dist =
+			    (nblk <
+			     pos->preceder.blk) ? (pos->preceder.blk -
+						   nblk) : (nblk -
+							    pos->preceder.blk);
 
 			/* See if we can find a closer block (forward direction only). */
-			pos->preceder.max_dist = min((reiser4_block_nr)sbinfo->flush.relocate_distance, dist);
+			pos->preceder.max_dist =
+			    min((reiser4_block_nr) sbinfo->flush.
+				relocate_distance, dist);
 			pos->preceder.level = znode_get_level(node);
 
 			ret = allocate_znode_update(node, parent_coord, pos);
@@ -2561,7 +2679,9 @@ allocate_znode_loaded(znode * node,
 			} else {
 				/* Otherwise, try to relocate to the best position. */
 			      best_reloc:
-				ret = allocate_znode_update(node, parent_coord, pos);
+				ret =
+				    allocate_znode_update(node, parent_coord,
+							  pos);
 				if (ret != 0)
 					return ret;
 
@@ -2576,7 +2696,7 @@ allocate_znode_loaded(znode * node,
 	check_preceder(pos->preceder.blk);
 	pos->alloc_cnt += 1;
 
-	assert ("jmacd-4277", !blocknr_is_fake(&pos->preceder.blk));
+	assert("jmacd-4277", !blocknr_is_fake(&pos->preceder.blk));
 
 	return 0;
 }
@@ -2592,13 +2712,13 @@ allocate_znode(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
 	return WITH_DATA(node, allocate_znode_loaded(node, parent_coord, pos));
 }
 
-
 /* A subroutine of allocate_znode, this is called first to see if there is a close
    position to relocate to.  It may return ENOSPC if there is no close position.  If there
    is no close position it may not relocate.  This takes care of updating the parent node
    with the relocated block address. */
 static int
-allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * pos)
+allocate_znode_update(znode * node, const coord_t * parent_coord,
+		      flush_pos_t * pos)
 {
 	int ret;
 	reiser4_block_nr blk;
@@ -2616,7 +2736,7 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 		return ret;
 
 	if (ZF_ISSET(node, JNODE_CREATED)) {
-		assert ("zam-816", blocknr_is_fake(znode_get_block(node)));
+		assert("zam-816", blocknr_is_fake(znode_get_block(node)));
 		pos->preceder.block_stage = BLOCK_UNALLOCATED;
 	} else {
 		pos->preceder.block_stage = BLOCK_GRABBED;
@@ -2630,10 +2750,10 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 			 * that @node can possibly go into overwrite set and
 			 * reserved block for its wandering location.
 			 */
-			txn_atom * atom = get_current_atom_locked();
+			txn_atom *atom = get_current_atom_locked();
 			assert("nikita-3449",
 			       ZF_ISSET(node, JNODE_FLUSH_RESERVED));
-			flush_reserved2grabbed(atom, (__u64)1);
+			flush_reserved2grabbed(atom, (__u64) 1);
 			spin_unlock_atom(atom);
 			/*
 			 * we are trying to move node into relocate
@@ -2643,20 +2763,23 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 			ZF_CLR(node, JNODE_FLUSH_RESERVED);
 			flush_reserved_used = 1;
 		} else {
-			ret = reiser4_grab_space_force((__u64)1, BA_RESERVED);
+			ret = reiser4_grab_space_force((__u64) 1, BA_RESERVED);
 			if (ret != 0)
 				goto exit;
 		}
 	}
 
-        /* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
-        ret = reiser4_alloc_block(&pos->preceder, &blk, BA_FORMATTED | BA_PERMANENT);
-	if(ret)
+	/* We may do not use 5% of reserved disk space here and flush will not pack tightly. */
+	ret =
+	    reiser4_alloc_block(&pos->preceder, &blk,
+				BA_FORMATTED | BA_PERMANENT);
+	if (ret)
 		goto exit;
 
-
 	if (!ZF_ISSET(node, JNODE_CREATED) &&
-	    (ret = reiser4_dealloc_block(znode_get_block(node), 0, BA_DEFER | BA_FORMATTED)))
+	    (ret =
+	     reiser4_dealloc_block(znode_get_block(node), 0,
+				   BA_DEFER | BA_FORMATTED)))
 		goto exit;
 
 	if (likely(!znode_is_root(node))) {
@@ -2692,8 +2815,8 @@ allocate_znode_update(znode * node, const coord_t * parent_coord, flush_pos_t * 
 	}
 
 	ret = znode_rehash(node, &blk);
-exit:
-	if(ret) {
+      exit:
+	if (ret) {
 		/* Get flush reserved block back if something fails, because
 		 * callers assume that on error block wasn't relocated and its
 		 * flush reserved block wasn't used. */
@@ -2702,7 +2825,7 @@ exit:
 			 * ok, we failed to move node into relocate
 			 * set. Restore status quo.
 			 */
-			grabbed2flush_reserved((__u64)1);
+			grabbed2flush_reserved((__u64) 1);
 			ZF_SET(node, JNODE_FLUSH_RESERVED);
 		}
 	}
@@ -2722,21 +2845,21 @@ exit:
 /* Hans adds this note: remember to ask how expensive this operation is vs. storing parent
    pointer in jnodes. */
 static int
-jnode_lock_parent_coord(jnode         * node,
-			coord_t       * coord,
-			lock_handle   * parent_lh,
-			load_count    * parent_zh,
-			znode_lock_mode parent_mode,
-			int             try)
+jnode_lock_parent_coord(jnode * node,
+			coord_t * coord,
+			lock_handle * parent_lh,
+			load_count * parent_zh,
+			znode_lock_mode parent_mode, int try)
 {
 	int ret;
 
 	assert("edward-53", jnode_is_unformatted(node) || jnode_is_znode(node));
-	assert("edward-54", jnode_is_unformatted(node) || znode_is_any_locked(JZNODE(node)));
+	assert("edward-54", jnode_is_unformatted(node)
+	       || znode_is_any_locked(JZNODE(node)));
 
 	if (!jnode_is_znode(node)) {
 		reiser4_key key;
-		tree_level stop_level = TWIG_LEVEL ;
+		tree_level stop_level = TWIG_LEVEL;
 		lookup_bias bias = FIND_EXACT;
 
 		assert("edward-168", !(jnode_get_type(node) == JNODE_BITMAP));
@@ -2772,11 +2895,13 @@ jnode_lock_parent_coord(jnode         * node,
 		assert("jmacd-1812", coord != NULL);
 
 		ret = coord_by_key(jnode_get_tree(node), &key, coord, parent_lh,
-				   parent_mode, bias, stop_level, stop_level, CBK_UNIQUE, 0/*ra_info*/);
+				   parent_mode, bias, stop_level, stop_level,
+				   CBK_UNIQUE, NULL /*ra_info */ );
 		switch (ret) {
 		case CBK_COORD_NOTFOUND:
 			assert("edward-1038",
-			       ergo(jnode_is_cluster_page(node), JF_ISSET(node, JNODE_HEARD_BANSHEE)));
+			       ergo(jnode_is_cluster_page(node),
+				    JF_ISSET(node, JNODE_HEARD_BANSHEE)));
 			if (!JF_ISSET(node, JNODE_HEARD_BANSHEE)) {
 				warning("nikita-3177", "Parent not found");
 				print_jnode("node", node);
@@ -2801,7 +2926,7 @@ jnode_lock_parent_coord(jnode         * node,
 			   races with write() are possible
 			   check_child_cluster (parent_lh->node);
 			   }
-			*/
+			 */
 			break;
 		default:
 			return ret;
@@ -2819,7 +2944,8 @@ jnode_lock_parent_coord(jnode         * node,
 		if (try)
 			flags |= GN_TRY_LOCK;
 
-		ret = reiser4_get_parent_flags(parent_lh, z, parent_mode, flags);
+		ret =
+		    reiser4_get_parent_flags(parent_lh, z, parent_mode, flags);
 		if (ret != 0)
 			/* -E_REPEAT is ok here, it is handled by the caller. */
 			return ret;
@@ -2830,13 +2956,16 @@ jnode_lock_parent_coord(jnode         * node,
 
 			ret = incr_load_count_znode(parent_zh, parent_lh->node);
 			if (ret != 0) {
-				warning("jmacd-976812386", "incr_load_count_znode failed: %d", ret);
+				warning("jmacd-976812386",
+					"incr_load_count_znode failed: %d",
+					ret);
 				return ret;
 			}
 
 			ret = find_child_ptr(parent_lh->node, z, coord);
 			if (ret != 0) {
-				warning("jmacd-976812", "find_child_ptr failed: %d", ret);
+				warning("jmacd-976812",
+					"find_child_ptr failed: %d", ret);
 				return ret;
 			}
 		}
@@ -2849,25 +2978,20 @@ jnode_lock_parent_coord(jnode         * node,
    If there is no next neighbor or the neighbor is not in memory or if there is a
    neighbor but it is not dirty or not in the same atom, -E_NO_NEIGHBOR is returned.
    In some cases the slum may include nodes which are not dirty, if so @check_dirty should be 0 */
-static int
-neighbor_in_slum(
-
-	znode * node, 		/* starting point */
-
-	lock_handle * lock, 		/* lock on starting point */
-
-	sideof side, 			/* left or right direction we seek the next node in */
-
-	znode_lock_mode mode,		/* kind of lock we want */
-
-	int check_dirty                 /* true if the neighbor should be dirty */
-	)
-{
+static int neighbor_in_slum(znode * node,	/* starting point */
+			    lock_handle * lock,	/* lock on starting point */
+			    sideof side,	/* left or right direction we seek the next node in */
+			    znode_lock_mode mode,	/* kind of lock we want */
+			    int check_dirty)
+{				/* true if the neighbor should be dirty */
 	int ret;
 
 	assert("jmacd-6334", znode_is_connected(node));
 
-	ret = reiser4_get_neighbor(lock, node, mode, GN_SAME_ATOM | (side == LEFT_SIDE ? GN_GO_LEFT : 0));
+	ret =
+	    reiser4_get_neighbor(lock, node, mode,
+				 GN_SAME_ATOM | (side ==
+						 LEFT_SIDE ? GN_GO_LEFT : 0));
 
 	if (ret) {
 		/* May return -ENOENT or -E_NO_NEIGHBOR. */
@@ -2890,8 +3014,7 @@ neighbor_in_slum(
 
 /* Return true if two znodes have the same parent.  This is called with both nodes
    write-locked (for squeezing) so no tree lock is needed. */
-static int
-znode_same_parents(znode * a, znode * b)
+static int znode_same_parents(znode * a, znode * b)
 {
 	assert("jmacd-7011", znode_is_write_locked(a));
 	assert("jmacd-7012", znode_is_write_locked(b));
@@ -2905,10 +3028,9 @@ znode_same_parents(znode * a, znode * b)
 /* FLUSH SCAN */
 
 /* Initialize the flush_scan data structure. */
-static void
-scan_init(flush_scan * scan)
+static void scan_init(flush_scan * scan)
 {
-	memset(scan, 0, sizeof (*scan));
+	memset(scan, 0, sizeof(*scan));
 	init_lh(&scan->node_lock);
 	init_lh(&scan->parent_lock);
 	init_load_count(&scan->parent_load);
@@ -2917,8 +3039,7 @@ scan_init(flush_scan * scan)
 }
 
 /* Release any resources held by the flush scan, e.g., release locks, free memory, etc. */
-static void
-scan_done(flush_scan * scan)
+static void scan_done(flush_scan * scan)
 {
 	done_load_count(&scan->node_load);
 	if (scan->node != NULL) {
@@ -2931,8 +3052,7 @@ scan_done(flush_scan * scan)
 }
 
 /* Returns true if flush scanning is finished. */
-reiser4_internal int
-scan_finished(flush_scan * scan)
+int scan_finished(flush_scan * scan)
 {
 	return scan->stop || (scan->direction == RIGHT_SIDE &&
 			      scan->count >= scan->max_count);
@@ -2940,8 +3060,7 @@ scan_finished(flush_scan * scan)
 
 /* Return true if the scan should continue to the @tonode.  True if the node meets the
    same_slum_check condition.  If not, deref the "left" node and stop the scan. */
-reiser4_internal int
-scan_goto(flush_scan * scan, jnode * tonode)
+int scan_goto(flush_scan * scan, jnode * tonode)
 {
 	int go = same_slum_check(scan->node, tonode, 1, 0);
 
@@ -2956,8 +3075,9 @@ scan_goto(flush_scan * scan, jnode * tonode)
 /* Set the current scan->node, refcount it, increment count by the @add_count (number to
    count, e.g., skipped unallocated nodes), deref previous current, and copy the current
    parent coordinate. */
-reiser4_internal int
-scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, const coord_t * parent)
+int
+scan_set_current(flush_scan * scan, jnode * node, unsigned add_count,
+		 const coord_t * parent)
 {
 	/* Release the old references, take the new reference. */
 	done_load_count(&scan->node_load);
@@ -2982,8 +3102,7 @@ scan_set_current(flush_scan * scan, jnode * node, unsigned add_count, const coor
 }
 
 /* Return true if scanning in the leftward direction. */
-reiser4_internal int
-scanning_left(flush_scan * scan)
+int scanning_left(flush_scan * scan)
 {
 	return scan->direction == LEFT_SIDE;
 }
@@ -3060,8 +3179,7 @@ scan_left(flush_scan * scan, flush_scan * right, jnode * node, unsigned limit)
    FLUSH_RELOCATE_THRESHOLD nodes for flushing.  Otherwise, the limit parameter is set to
    the difference between scan-left's count and FLUSH_RELOCATE_THRESHOLD, meaning
    scan-right counts as high as FLUSH_RELOCATE_THRESHOLD and then stops. */
-static int
-scan_right(flush_scan * scan, jnode * node, unsigned limit)
+static int scan_right(flush_scan * scan, jnode * node, unsigned limit)
 {
 	int ret;
 
@@ -3077,13 +3195,13 @@ scan_right(flush_scan * scan, jnode * node, unsigned limit)
 }
 
 /* Common code to perform left or right scanning. */
-static int
-scan_common(flush_scan * scan, flush_scan * other)
+static int scan_common(flush_scan * scan, flush_scan * other)
 {
 	int ret;
 
 	assert("nikita-2376", scan->node != NULL);
-	assert("edward-54", jnode_is_unformatted(scan->node) || jnode_is_znode(scan->node));
+	assert("edward-54", jnode_is_unformatted(scan->node)
+	       || jnode_is_znode(scan->node));
 
 	/* Special case for starting at an unformatted node.  Optimization: we only want
 	   to search for the parent (which requires a tree traversal) once.  Obviously, we
@@ -3108,8 +3226,7 @@ scan_common(flush_scan * scan, flush_scan * other)
 	return 0;
 }
 
-static int
-scan_unformatted(flush_scan * scan, flush_scan * other)
+static int scan_unformatted(flush_scan * scan, flush_scan * other)
 {
 	int ret = 0;
 	int try = 0;
@@ -3117,9 +3234,9 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 	if (!coord_is_invalid(&scan->parent_coord))
 		goto scan;
 
-        /* set parent coord from */
+	/* set parent coord from */
 	if (!jnode_is_unformatted(scan->node)) {
-		/* formatted position*/
+		/* formatted position */
 
 		lock_handle lock;
 		assert("edward-301", jnode_is_znode(scan->node));
@@ -3135,12 +3252,16 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 		 * there is already lock held by this thread,
 		 * jnode_lock_parent_coord() should use try-lock.
 		 */
-		try = scanning_left(scan) && !lock_stack_isclean(get_current_lock_stack());
+		try = scanning_left(scan)
+		    && !lock_stack_isclean(get_current_lock_stack());
 		/* Need the node locked to get the parent lock, We have to
 		   take write lock since there is at least one call path
 		   where this znode is already write-locked by us. */
-		ret = longterm_lock_znode(&lock, JZNODE(scan->node), ZNODE_WRITE_LOCK,
-					  scanning_left(scan) ? ZNODE_LOCK_LOPRI : ZNODE_LOCK_HIPRI);
+		ret =
+		    longterm_lock_znode(&lock, JZNODE(scan->node),
+					ZNODE_WRITE_LOCK,
+					scanning_left(scan) ? ZNODE_LOCK_LOPRI :
+					ZNODE_LOCK_HIPRI);
 		if (ret != 0)
 			/* EINVAL or E_DEADLOCK here mean... try again!  At this point we've
 			   scanned too far and can't back out, just start over. */
@@ -3164,8 +3285,11 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 	} else {
 		/* unformatted position */
 
-		ret = jnode_lock_parent_coord(scan->node, &scan->parent_coord, &scan->parent_lock,
-					      &scan->parent_load, ZNODE_WRITE_LOCK, try);
+		ret =
+		    jnode_lock_parent_coord(scan->node, &scan->parent_coord,
+					    &scan->parent_lock,
+					    &scan->parent_load,
+					    ZNODE_WRITE_LOCK, try);
 
 		if (IS_CBKERR(ret))
 			return ret;
@@ -3181,7 +3305,7 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
 		copy_lh(&other->parent_lock, &scan->parent_lock);
 		copy_load_count(&other->parent_load, &scan->parent_load);
 	}
- scan:
+      scan:
 	return scan_by_coord(scan);
 }
 
@@ -3193,8 +3317,7 @@ scan_unformatted(flush_scan * scan, flush_scan * other)
    - node->left/right belongs to the same atom
    - scan has not reached maximum count
 */
-static int
-scan_formatted(flush_scan * scan)
+static int scan_formatted(flush_scan * scan)
 {
 	int ret;
 	znode *neighbor = NULL;
@@ -3247,7 +3370,8 @@ scan_formatted(flush_scan * scan)
 	/* If neighbor is NULL then we reached the end of a formatted region, or else the
 	   sibling is out of memory, now check for an extent to the left (as long as
 	   LEAF_LEVEL). */
-	if (neighbor != NULL || jnode_get_level(scan->node) != LEAF_LEVEL || scan_finished(scan)) {
+	if (neighbor != NULL || jnode_get_level(scan->node) != LEAF_LEVEL
+	    || scan_finished(scan)) {
 		scan->stop = 1;
 		return 0;
 	}
@@ -3265,8 +3389,7 @@ scan_formatted(flush_scan * scan)
    When called from scan_formatted, we skip first iteration (to make sure that
    right(left)most item of the left(right) neighbor on the parent level is of the same
    type and set appropriate coord). */
-static int
-scan_by_coord(flush_scan * scan)
+static int scan_by_coord(flush_scan * scan)
 {
 	int ret = 0;
 	int scan_this_coord;
@@ -3280,7 +3403,7 @@ scan_by_coord(flush_scan * scan)
 	init_load_count(&next_load);
 	scan_this_coord = (jnode_is_unformatted(scan->node) ? 1 : 0);
 
-        /* set initial item id */
+	/* set initial item id */
 	iplug = item_plugin_by_coord(&scan->parent_coord);
 
 	for (; !scan_finished(scan); scan_this_coord = 1) {
@@ -3308,12 +3431,18 @@ scan_by_coord(flush_scan * scan)
 
 			/* NOTE-JMACD: In this case, apply the same end-of-node logic but don't scan
 			   the first coordinate. */
-			assert("jmacd-1231", item_is_internal(&scan->parent_coord));
+			assert("jmacd-1231",
+			       item_is_internal(&scan->parent_coord));
 		}
 
-		if(iplug->f.utmost_child == NULL || znode_get_level(scan->parent_coord.node) != TWIG_LEVEL) {
+		if (iplug->f.utmost_child == NULL
+		    || znode_get_level(scan->parent_coord.node) != TWIG_LEVEL) {
 			/* stop this coord and continue on parrent level */
-			ret = scan_set_current(scan, ZJNODE(zref(scan->parent_coord.node)), 1, NULL);
+			ret =
+			    scan_set_current(scan,
+					     ZJNODE(zref
+						    (scan->parent_coord.node)),
+					     1, NULL);
 			if (ret != 0)
 				goto exit;
 			break;
@@ -3328,8 +3457,10 @@ scan_by_coord(flush_scan * scan)
 		if (coord_is_after_sideof_unit(&next_coord, scan->direction)) {
 			/* We take the write lock because we may start flushing from this
 			 * coordinate. */
-			ret = neighbor_in_slum(next_coord.node, &next_lock, scan->direction, ZNODE_WRITE_LOCK, 1 /* check dirty */);
-
+			ret =
+			    neighbor_in_slum(next_coord.node, &next_lock,
+					     scan->direction, ZNODE_WRITE_LOCK,
+					     1 /* check dirty */ );
 			if (ret == -E_NO_NEIGHBOR) {
 				scan->stop = 1;
 				ret = 0;
@@ -3345,13 +3476,17 @@ scan_by_coord(flush_scan * scan)
 				goto exit;
 			}
 
-			coord_init_sideof_unit(&next_coord, next_lock.node, sideof_reverse(scan->direction));
+			coord_init_sideof_unit(&next_coord, next_lock.node,
+					       sideof_reverse(scan->direction));
 		}
 
 		iplug = item_plugin_by_coord(&next_coord);
 
 		/* Get the next child. */
-		ret = iplug->f.utmost_child(&next_coord, sideof_reverse(scan->direction), &child);
+		ret =
+		    iplug->f.utmost_child(&next_coord,
+					  sideof_reverse(scan->direction),
+					  &child);
 		if (ret != 0)
 			goto exit;
 		/* If the next child is not in memory, or, item_utmost_child
@@ -3363,7 +3498,8 @@ scan_by_coord(flush_scan * scan)
 			break;
 		}
 
-		assert("nikita-2374", jnode_is_unformatted(child) || jnode_is_znode(child));
+		assert("nikita-2374", jnode_is_unformatted(child)
+		       || jnode_is_znode(child));
 
 		/* See if it is dirty, part of the same atom. */
 		if (!scan_goto(scan, child)) {
@@ -3390,9 +3526,9 @@ scan_by_coord(flush_scan * scan)
 	}
 
 	assert("jmacd-6233", scan_finished(scan) || jnode_is_znode(scan->node));
- exit:
+      exit:
 	checkchild(scan);
- race: /* skip the above check  */
+      race:			/* skip the above check  */
 	if (jnode_is_znode(scan->node)) {
 		done_lh(&scan->parent_lock);
 		done_load_count(&scan->parent_load);
@@ -3406,8 +3542,7 @@ scan_by_coord(flush_scan * scan)
 /* FLUSH POS HELPERS */
 
 /* Initialize the fields of a flush_position. */
-static void
-pos_init(flush_pos_t * pos)
+static void pos_init(flush_pos_t * pos)
 {
 	memset(pos, 0, sizeof *pos);
 
@@ -3431,15 +3566,13 @@ pos_init(flush_pos_t * pos)
    flush order is either non-existant, not dirty, or not in the same atom.
 */
 
-
-static int pos_valid (flush_pos_t * pos)
+static int pos_valid(flush_pos_t * pos)
 {
 	return pos->state != POS_INVALID;
 }
 
 /* Release any resources of a flush_position.  Called when jnode_flush finishes. */
-static void
-pos_done(flush_pos_t * pos)
+static void pos_done(flush_pos_t * pos)
 {
 	pos_stop(pos);
 	blocknr_hint_done(&pos->preceder);
@@ -3449,8 +3582,7 @@ pos_done(flush_pos_t * pos)
 
 /* Reset the point and parent.  Called during flush subroutines to terminate the
    squalloc loop. */
-static int
-pos_stop(flush_pos_t * pos)
+static int pos_stop(flush_pos_t * pos)
 {
 	pos->state = POS_INVALID;
 	done_lh(&pos->lock);
@@ -3466,13 +3598,12 @@ pos_stop(flush_pos_t * pos)
 }
 
 /* Return the flush_position's block allocator hint. */
-reiser4_internal reiser4_blocknr_hint *
-pos_hint(flush_pos_t * pos)
+reiser4_blocknr_hint *pos_hint(flush_pos_t * pos)
 {
 	return &pos->preceder;
 }
 
-reiser4_internal flush_queue_t * pos_fq(flush_pos_t * pos)
+flush_queue_t *pos_fq(flush_pos_t * pos)
 {
 	return pos->fq;
 }

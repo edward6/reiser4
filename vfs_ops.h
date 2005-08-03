@@ -10,7 +10,6 @@
 #include "coord.h"
 #include "seal.h"
 #include "type_safe_list.h"
-#include "plugin/dir/dir.h"
 #include "plugin/file/file.h"
 #include "super.h"
 #include "readahead.h"
@@ -21,28 +20,60 @@
 #include <linux/mm.h>
 #include <linux/backing-dev.h>
 
+/* address space operations */
+int reiser4_writepage(struct page *, struct writeback_control *);
+int reiser4_set_page_dirty(struct page *);
+int reiser4_readpages(struct file *, struct address_space *,
+		      struct list_head *pages, unsigned nr_pages);
+int reiser4_invalidatepage(struct page *, unsigned long offset);
+int reiser4_releasepage(struct page *, int gfp);
+
 extern int reiser4_mark_inode_dirty(struct inode *object);
 extern int reiser4_update_sd(struct inode *object);
 extern int reiser4_add_nlink(struct inode *, struct inode *, int);
 extern int reiser4_del_nlink(struct inode *, struct inode *, int);
 
-extern struct file_operations reiser4_file_operations;
-extern struct inode_operations reiser4_inode_operations;
-extern struct inode_operations reiser4_symlink_inode_operations;
-extern struct inode_operations reiser4_special_inode_operations;
 extern struct super_operations reiser4_super_operations;
 extern struct export_operations reiser4_export_operations;
-extern struct address_space_operations reiser4_as_operations;
 extern struct dentry_operations reiser4_dentry_operations;
-extern int reiser4_invalidatepage(struct page *page, unsigned long offset);
-extern int reiser4_releasepage(struct page *page, int gfp);
-extern int reiser4_writepages(struct address_space *, struct writeback_control *wbc);
+
 extern int reiser4_start_up_io(struct page *page);
 extern void reiser4_clear_page_dirty(struct page *);
-extern void reiser4_throttle_write(struct inode*);
+extern void reiser4_throttle_write(struct inode *);
+ON_DEBUG(int jnode_is_releasable(jnode *));
 
 #define CAPTURE_APAGE_BURST (1024l)
 void writeout(struct super_block *, struct writeback_control *);
+
+/* locking: fields of per file descriptor readdir_pos and ->f_pos are
+ * protected by ->i_sem on inode. Under this lock following invariant
+ * holds:
+ *
+ *     file descriptor is "looking" at the entry_no-th directory entry from
+ *     the beginning of directory. This entry has key dir_entry_key and is
+ *     pos-th entry with duplicate-key sequence.
+ *
+ */
+
+/* logical position within directory */
+typedef struct {
+	/* key of directory entry (actually, part of a key sufficient to
+	   identify directory entry)  */
+	de_id dir_entry_key;
+	/* ordinal number of directory entry among all entries with the same
+	   key. (Starting from 0.) */
+	unsigned pos;
+} dir_pos;
+
+typedef struct {
+	/* f_pos corresponding to this readdir position */
+	__u64 fpos;
+	/* logical position within directory */
+	dir_pos position;
+	/* logical number of directory entry within
+	   directory  */
+	__u64 entry_no;
+} readdir_pos;
 
 /*
  * this is used to speed up lookups for directory entry: on initial call to
@@ -70,10 +101,10 @@ typedef struct reiser4_dentry_fsdata {
 	/* here will go fields filled by ->lookup() to speedup next
 	   create/unlink, like blocknr of znode with stat-data, or key
 	   of stat-data.
-	*/
+	 */
 	de_location dec;
-	int stateless; /* created through reiser4_decode_fh, needs special
-			* treatment in readdir. */
+	int stateless;		/* created through reiser4_decode_fh, needs special
+				 * treatment in readdir. */
 } reiser4_dentry_fsdata;
 
 /* declare data types and manipulation functions for readdir list. */
@@ -103,9 +134,8 @@ struct reiser4_file_fsdata {
 	/* */
 	struct {
 		/* this is called by reiser4_readpages if set */
-		void (*readpages)(struct address_space *,
-				 struct list_head *pages,
-				 void *data);
+		void (*readpages) (struct address_space *,
+				   struct list_head * pages, void *data);
 		/* reiser4_readpaextended coord. It is set by read_extent before
 		   calling page_cache_readahead */
 		void *data;
@@ -120,12 +150,15 @@ extern reiser4_dentry_fsdata *reiser4_get_dentry_fsdata(struct dentry *dentry);
 extern reiser4_file_fsdata *reiser4_get_file_fsdata(struct file *f);
 extern void reiser4_free_dentry_fsdata(struct dentry *dentry);
 extern void reiser4_free_file_fsdata(struct file *f);
-extern void reiser4_free_fsdata(reiser4_file_fsdata *fsdata);
+extern void reiser4_free_fsdata(reiser4_file_fsdata * fsdata);
 
-extern reiser4_file_fsdata *create_fsdata(struct file *file, int gfp);
+extern reiser4_file_fsdata *create_fsdata(struct file *file, unsigned int gfp);
 
 extern void reiser4_handle_error(void);
-extern int reiser4_parse_options (struct super_block *, char *);
+extern int reiser4_parse_options(struct super_block *, char *);
+
+extern int d_cursor_init(void);
+extern void d_cursor_done(void);
 
 /* __FS_REISER4_VFS_OPS_H__ */
 #endif

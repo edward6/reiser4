@@ -42,7 +42,6 @@
 
    5. kmapping/kunmapping of unformatted pages is done by read/write methods.
 
-
    DEADLOCKS RELATED TO MEMORY PRESSURE. [OUTDATED. Only interesting
    historically.]
 
@@ -86,13 +85,6 @@
 
    When there is more than one reiser4 mount in a system, condition (c) makes
    reclaim-ability not easily verifiable beyond trivial cases mentioned above.
-
-
-
-
-
-
-
 
    THIS COMMENT IS VALID FOR "MANY BLOCKS ON PAGE" CASE
 
@@ -192,7 +184,7 @@
 #include <linux/writeback.h>
 #include <linux/blkdev.h>
 
-static struct bio *page_bio(struct page *page, jnode * node, int rw, int gfp);
+static struct bio *page_bio(struct page *, jnode *, int rw, unsigned int gfp);
 
 static struct address_space_operations formatted_fake_as_ops;
 
@@ -201,14 +193,14 @@ static const oid_t bitmap_ino = 0x2;
 static const oid_t cc_ino = 0x3;
 
 /* one-time initialization of fake inodes handling functions. */
-reiser4_internal int
-init_fakes()
+int init_fakes(void)
 {
 	return 0;
 }
 
 static void
-init_fake_inode(struct super_block *super, struct inode *fake, struct inode **pfake)
+init_fake_inode(struct super_block *super, struct inode *fake,
+		struct inode **pfake)
 {
 	assert("nikita-2168", fake->i_state & I_NEW);
 	fake->i_mapping->a_ops = &formatted_fake_as_ops;
@@ -222,8 +214,7 @@ init_fake_inode(struct super_block *super, struct inode *fake, struct inode **pf
 }
 
 /* initialize fake inode to which formatted nodes are bound in the page cache. */
-reiser4_internal int
-init_formatted_fake(struct super_block *super)
+int init_formatted_fake(struct super_block *super)
 {
 	struct inode *fake;
 	struct inode *bitmap;
@@ -261,8 +252,7 @@ init_formatted_fake(struct super_block *super)
 }
 
 /* release fake inode for @super */
-reiser4_internal int
-done_formatted_fake(struct super_block *super)
+int done_formatted_fake(struct super_block *super)
 {
 	reiser4_super_info_data *sinfo;
 
@@ -286,9 +276,9 @@ done_formatted_fake(struct super_block *super)
 	return 0;
 }
 
-reiser4_internal void reiser4_wait_page_writeback (struct page * page)
+void reiser4_wait_page_writeback(struct page *page)
 {
-	assert ("zam-783", PageLocked(page));
+	assert("zam-783", PageLocked(page));
 
 	do {
 		unlock_page(page);
@@ -298,8 +288,7 @@ reiser4_internal void reiser4_wait_page_writeback (struct page * page)
 }
 
 /* return tree @page is in */
-reiser4_internal reiser4_tree *
-tree_by_page(const struct page *page /* page to query */ )
+reiser4_tree *tree_by_page(const struct page *page /* page to query */ )
 {
 	assert("nikita-2461", page != NULL);
 	return &get_super_private(page->mapping->host->i_sb)->tree;
@@ -311,7 +300,8 @@ tree_by_page(const struct page *page /* page to query */ )
 
 */
 static int
-end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
+end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
+			 int err UNUSED_ARG)
 {
 	struct page *page;
 
@@ -323,9 +313,9 @@ end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, in
 
 	page = bio->bi_io_vec[0].bv_page;
 
-	if (test_bit(BIO_UPTODATE, &bio->bi_flags))
+	if (test_bit(BIO_UPTODATE, &bio->bi_flags)) {
 		SetPageUptodate(page);
-	else {
+	} else {
 		ClearPageUptodate(page);
 		SetPageError(page);
 	}
@@ -340,7 +330,8 @@ end_bio_single_page_read(struct bio *bio, unsigned int bytes_done UNUSED_ARG, in
 
 */
 static int
-end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG, int err UNUSED_ARG)
+end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG,
+			  int err UNUSED_ARG)
 {
 	struct page *page;
 
@@ -355,23 +346,33 @@ end_bio_single_page_write(struct bio *bio, unsigned int bytes_done UNUSED_ARG, i
 	if (!test_bit(BIO_UPTODATE, &bio->bi_flags))
 		SetPageError(page);
 	end_page_writeback(page);
+	/*XXXXX*/
+	if (jprivate(page))
+		clog_jnode(jprivate(page), JH_END_WRITE);
+	/*XXXXX*/
 	bio_put(bio);
 	return 0;
 }
 
 /* ->readpage() method for formatted nodes */
 static int
-formatted_readpage(struct file *f UNUSED_ARG, struct page *page /* page to read */ )
+formatted_readpage(struct file *f UNUSED_ARG,
+		   struct page *page /* page to read */ )
 {
 	assert("nikita-2412", PagePrivate(page) && jprivate(page));
 	return page_io(page, jprivate(page), READ, GFP_KERNEL);
 }
 
-/* submit single-page bio request */
-reiser4_internal int
-page_io(struct page *page /* page to perform io for */ ,
-	jnode * node /* jnode of page */ ,
-	int rw /* read or write */ , int gfp /* GFP mask */ )
+/**
+ * page_io - submit single-page bio request
+ * @page: page to perform io for
+ * @node: jnode of page
+ * @rw: read or write
+ * @gfp: gfp mask for bio allocation
+ *
+ * Submits single page read or write.
+ */
+int page_io(struct page *page, jnode *node, int rw, int gfp)
 {
 	struct bio *bio;
 	int result;
@@ -405,8 +406,8 @@ page_io(struct page *page /* page to perform io for */ ,
 }
 
 /* helper function to construct bio for page */
-static struct bio *
-page_bio(struct page *page, jnode * node, int rw, int gfp)
+static struct bio *page_bio(struct page *page, jnode * node, int rw,
+			    unsigned int gfp)
 {
 	struct bio *bio;
 	assert("nikita-2092", page != NULL);
@@ -416,7 +417,7 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 
 	   We only have to submit one block, but submit_bh() will allocate bio
 	   anyway, so lets use all the bells-and-whistles of bio code.
-	*/
+	 */
 
 	bio = bio_alloc(gfp, 1);
 	if (bio != NULL) {
@@ -427,7 +428,7 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 		super = page->mapping->host->i_sb;
 		assert("nikita-2029", super != NULL);
 		blksz = super->s_blocksize;
-		assert("nikita-2028", blksz == (int) PAGE_CACHE_SIZE);
+		assert("nikita-2028", blksz == (int)PAGE_CACHE_SIZE);
 
 		blocknr = *UNDER_SPIN(jnode, node, jnode_get_io_block(node));
 
@@ -448,16 +449,15 @@ page_bio(struct page *page, jnode * node, int rw, int gfp)
 
 		/* bio -> bi_idx is filled by bio_init() */
 		bio->bi_end_io = (rw == READ) ?
-			end_bio_single_page_read : end_bio_single_page_write;
+		    end_bio_single_page_read : end_bio_single_page_write;
 
 		return bio;
 	} else
 		return ERR_PTR(RETERR(-ENOMEM));
 }
 
-
 /* this function is internally called by jnode_make_dirty() */
-int set_page_dirty_internal (struct page * page, int tag_as_moved)
+int set_page_dirty_internal(struct page *page, int tag_as_moved)
 {
 	struct address_space *mapping;
 
@@ -468,53 +468,57 @@ int set_page_dirty_internal (struct page * page, int tag_as_moved)
 		if (mapping_cap_account_dirty(mapping))
 			inc_page_state(nr_dirty);
 
-		write_lock_irq(&mapping->tree_lock);
-		BUG_ON(page->mapping != mapping);
-		if (tag_as_moved) {
-			/* write_page_by_ent wants to set this bit on. FIXME:
-			 * MOVED bit must be set already */
-			assert("vs-1731", REISER4_USE_ENTD);
-			radix_tree_tag_set(
-				&mapping->page_tree, page->index,
-				PAGECACHE_TAG_REISER4_MOVED);
-		} else {
-			radix_tree_tag_clear(
-				&mapping->page_tree, page->index,
-				PAGECACHE_TAG_REISER4_MOVED);
-		}
-		write_unlock_irq(&mapping->tree_lock);
 		__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
 	return 0;
 }
 
+static int can_hit_entd(reiser4_context * ctx, struct super_block *s)
+{
+	if (get_super_private(s)->entd.tsk == current)
+		return 0;
+	if (ctx == NULL || ((unsigned long)ctx->magic) != context_magic)
+		return 1;
+	if (ctx->super != s)
+		return 1;
+	return 0;
+}
 
+/**
+ * reiser4_writepage -
+ * @page: page to write
+ * @wbc:
+ */
 /* Common memory pressure notification. */
-reiser4_internal int
-reiser4_writepage(struct page *page /* page to start writeback from */,
-		  struct writeback_control *wbc)
+int reiser4_writepage(struct page *page /* page to start writeback from */ ,
+		      struct writeback_control *wbc)
 {
 	struct super_block *s;
-	reiser4_context ctx;
+	reiser4_context *ctx;
 	reiser4_tree *tree;
-	txn_atom * atom;
+	txn_atom *atom;
 	jnode *node;
 	int result;
 
-	s = page->mapping->host->i_sb;
-	init_context(&ctx, s);
-
 	assert("vs-828", PageLocked(page));
 
-#if REISER4_USE_ENTD
+	s = page->mapping->host->i_sb;
+	ctx = get_current_context_check();
 
-	/* Throttle memory allocations if we were not in reiser4 */
-	if (ctx.parent == &ctx) {
+#if REISER4_USE_ENTD
+	if (can_hit_entd(ctx, s) ||
+	    (ctx && lock_stack_isclean(get_current_lock_stack()) &&
+	     ctx->trans->atom == NULL && ctx->entd == 0)) {
+		/* Throttle memory allocations if we were not in reiser4 or if
+		   lock stack is clean and atom is not opened */
 		write_page_by_ent(page, wbc);
-		result = 1;
-		goto out;
+		/* FIXME: return 0 if ent thread sent page for write */
+		return WRITEPAGE_ACTIVATE;
 	}
-#endif /* REISER4_USE_ENTD */
+#endif				/* REISER4_USE_ENTD */
+
+	BUG_ON(ctx == NULL);
+	BUG_ON(s != ctx->super);
 
 	tree = &get_super_private(s)->tree;
 	node = jnode_of_page(page);
@@ -557,18 +561,25 @@ reiser4_writepage(struct page *page /* page to start writeback from */,
 		set_page_dirty_internal(page, 0);
 		unlock_page(page);
 	}
- out:
-	reiser4_exit_context(&ctx);
 	return result;
 }
 
 /* ->set_page_dirty() method of formatted address_space */
-static int
-formatted_set_page_dirty(struct page *page	/* page to mark
-						 * dirty */ )
+static int formatted_set_page_dirty(struct page *page)
 {
 	assert("nikita-2173", page != NULL);
 	return __set_page_dirty_nobuffers(page);
+}
+
+/* writepages method of address space operations in reiser4 is used to involve
+   into transactions pages which are dirtied via mmap. Only regular files can
+   have such pages. Fake inode is used to access formatted nodes via page
+   cache. As formatted nodes can never be mmaped, fake inode's writepages has
+   nothing to do */
+static int
+writepages_fake(struct address_space *mapping, struct writeback_control *wbc)
+{
+	return 0;
 }
 
 /* address space operations for the fake inode */
@@ -584,11 +595,11 @@ static struct address_space_operations formatted_fake_as_ops = {
 	   This is most annoyingly misnomered method. Actually it is called
 	   from wait_on_page_bit() and lock_page() and its purpose is to
 	   actually start io by jabbing device drivers.
-	*/
-	.sync_page = reiser4_start_up_io,
+	 */
+	.sync_page = block_sync_page,
 	/* Write back some dirty pages from this mapping. Called from sync.
 	   called during sync (pdflush) */
-	.writepages = reiser4_writepages,
+	.writepages = writepages_fake,
 	/* Set a page dirty */
 	.set_page_dirty = formatted_set_page_dirty,
 	/* used for read-ahead. Not applicable */
@@ -603,15 +614,14 @@ static struct address_space_operations formatted_fake_as_ops = {
 	/* this is called by shrink_cache() so that file system can try to
 	   release objects (jnodes, buffers, journal heads) attached to page
 	   and, may be made page itself free-able.
-	*/
+	 */
 	.releasepage = reiser4_releasepage,
 	.direct_IO = NULL
 };
 
 /* called just before page is released (no longer used by reiser4). Callers:
    jdelete() and extent2tail(). */
-reiser4_internal void
-drop_page(struct page *page)
+void drop_page(struct page *page)
 {
 	assert("nikita-2181", PageLocked(page));
 	clear_page_dirty(page);
@@ -627,14 +637,12 @@ drop_page(struct page *page)
 		unlock_page(page);
 }
 
-
 /* this is called by truncate_jnodes_range which in its turn is always called
    after truncate_mapping_pages_range. Therefore, here jnode can not have
    page. New pages can not be created because truncate_jnodes_range goes under
    exclusive access on file obtained, where as new page creation requires
    non-exclusive access obtained */
-static void
-invalidate_unformatted(jnode *node)
+static void invalidate_unformatted(jnode * node)
 {
 	struct page *page;
 
@@ -646,7 +654,7 @@ invalidate_unformatted(jnode *node)
 		page_cache_get(page);
 		UNLOCK_JNODE(node);
 		/* FIXME: use truncate_complete_page instead */
-		from = (loff_t)page->index << PAGE_CACHE_SHIFT;
+		from = (loff_t) page->index << PAGE_CACHE_SHIFT;
 		to = from + PAGE_CACHE_SIZE - 1;
 		truncate_inode_pages_range(page->mapping, from, to);
 		page_cache_release(page);
@@ -675,19 +683,21 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 	tree = tree_by_inode(inode);
 
 	index = from;
-	end   = from + count;
+	end = from + count;
 
 	while (1) {
 		jnode *gang[JNODE_GANG_SIZE];
-		int    taken;
-		int    i;
+		int taken;
+		int i;
 		jnode *node;
 
 		assert("nikita-3466", index <= end);
 
 		RLOCK_TREE(tree);
-		taken = radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(info), (void **)gang,
-					       index, JNODE_GANG_SIZE);
+		taken =
+		    radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(info),
+					   (void **)gang, index,
+					   JNODE_GANG_SIZE);
 		for (i = 0; i < taken; ++i) {
 			node = gang[i];
 			if (index_jnode(node) < end)
@@ -702,7 +712,7 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 			if (node != NULL) {
 				index = max(index, index_jnode(node));
 				invalidate_unformatted(node);
-				truncated_jnodes ++;
+				truncated_jnodes++;
 				jput(node);
 			} else
 				break;
@@ -713,7 +723,7 @@ truncate_jnodes_range(struct inode *inode, pgoff_t from, pgoff_t count)
 	return truncated_jnodes;
 }
 
-reiser4_internal void
+void
 reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from,
 			 unsigned long count, int even_cows)
 {
@@ -721,42 +731,39 @@ reiser4_invalidate_pages(struct address_space *mapping, pgoff_t from,
 
 	if (count == 0)
 		return;
-	from_bytes = ((loff_t)from) << PAGE_CACHE_SHIFT;
-	count_bytes = ((loff_t)count) << PAGE_CACHE_SHIFT;
+	from_bytes = ((loff_t) from) << PAGE_CACHE_SHIFT;
+	count_bytes = ((loff_t) count) << PAGE_CACHE_SHIFT;
 
 	unmap_mapping_range(mapping, from_bytes, count_bytes, even_cows);
-	truncate_inode_pages_range(mapping, from_bytes, from_bytes + count_bytes - 1);
+	truncate_inode_pages_range(mapping, from_bytes,
+				   from_bytes + count_bytes - 1);
 	truncate_jnodes_range(mapping->host, from, count);
 }
-
 
 #if REISER4_DEBUG
 
 #define page_flag_name( page, flag )			\
 	( test_bit( ( flag ), &( page ) -> flags ) ? ((#flag "|")+3) : "" )
 
-reiser4_internal void
-print_page(const char *prefix, struct page *page)
+void print_page(const char *prefix, struct page *page)
 {
 	if (page == NULL) {
 		printk("null page\n");
 		return;
 	}
 	printk("%s: page index: %lu mapping: %p count: %i private: %lx\n",
-	       prefix, page->index, page->mapping, page_count(page), page->private);
+	       prefix, page->index, page->mapping, page_count(page),
+	       page->private);
 	printk("\tflags: %s%s%s%s %s%s%s %s%s%s %s%s\n",
-	       page_flag_name(page, PG_locked),
-	       page_flag_name(page, PG_error),
-	       page_flag_name(page, PG_referenced),
-	       page_flag_name(page, PG_uptodate),
-
-	       page_flag_name(page, PG_dirty),
-	       page_flag_name(page, PG_lru),
-	       page_flag_name(page, PG_slab),
-
-	       page_flag_name(page, PG_checked),
-	       page_flag_name(page, PG_reserved),
-	       page_flag_name(page, PG_private), page_flag_name(page, PG_writeback), page_flag_name(page, PG_nosave));
+	       page_flag_name(page, PG_locked), page_flag_name(page, PG_error),
+	       page_flag_name(page, PG_referenced), page_flag_name(page,
+								   PG_uptodate),
+	       page_flag_name(page, PG_dirty), page_flag_name(page, PG_lru),
+	       page_flag_name(page, PG_slab), page_flag_name(page, PG_checked),
+	       page_flag_name(page, PG_reserved), page_flag_name(page,
+								 PG_private),
+	       page_flag_name(page, PG_writeback), page_flag_name(page,
+								  PG_nosave));
 	if (jprivate(page) != NULL) {
 		print_jnode("\tpage jnode", jprivate(page));
 		printk("\n");
@@ -764,6 +771,7 @@ print_page(const char *prefix, struct page *page)
 }
 
 #endif
+
 
 /* Make Linus happy.
    Local variables:

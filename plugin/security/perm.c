@@ -11,14 +11,12 @@
 #include <linux/quotaops.h>
 #include <asm/uaccess.h>
 
-static int
-mask_ok_common(struct inode *inode, int mask)
+static int mask_ok_common(struct inode *inode, int mask)
 {
 	return generic_permission(inode, mask, NULL);
 }
 
-static int
-setattr_ok_common(struct dentry *dentry, struct iattr *attr)
+static int setattr_ok_common(struct dentry *dentry, struct iattr *attr)
 {
 	int result;
 	struct inode *inode;
@@ -36,21 +34,19 @@ setattr_ok_common(struct dentry *dentry, struct iattr *attr)
 		valid = attr->ia_valid;
 		if ((valid & ATTR_UID && attr->ia_uid != inode->i_uid) ||
 		    (valid & ATTR_GID && attr->ia_gid != inode->i_gid))
-			    result = DQUOT_TRANSFER(inode, attr) ? -EDQUOT : 0;
+			result = DQUOT_TRANSFER(inode, attr) ? -EDQUOT : 0;
 	}
 	return result;
 }
 
 static int
-read_ok_common(
-	struct file * file, const char *buf, size_t size, loff_t *off)
+read_ok_common(struct file *file, const char __user *buf, size_t size, loff_t * off)
 {
 	return access_ok(VERIFY_WRITE, buf, size) ? 0 : -EFAULT;
 }
 
 static int
-write_ok_common(
-	struct file * file, const char *buf, size_t size, loff_t *off)
+write_ok_common(struct file *file, const char __user *buf, size_t size, loff_t * off)
 {
 	return access_ok(VERIFY_READ, buf, size) ? 0 : -EFAULT;
 }
@@ -64,8 +60,8 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
 			       .pops = NULL,
 			       .label = "rwx",
 			       .desc = "standard UNIX permissions",
-			       .linkage = TYPE_SAFE_LIST_LINK_ZERO
-			 },
+			       .linkage = TYPE_SAFE_LIST_LINK_ZERO}
+			 ,
 			 .read_ok = read_ok_common,
 			 .write_ok = write_ok_common,
 			 .lookup_ok = NULL,
@@ -77,7 +73,8 @@ perm_plugin perm_plugins[LAST_PERM_ID] = {
 			 .setattr_ok = setattr_ok_common,
 			 .getattr_ok = NULL,
 			 .rename_ok = NULL,
-	},
+			 }
+	,
 };
 
 /* Make Linus happy.

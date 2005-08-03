@@ -33,7 +33,7 @@
    http://www.oberhumer.com/opensource/lzo/
  */
 
-#include <linux/kernel.h> /* for UINT_MAX, ULONG_MAX - edward */
+#include <linux/kernel.h>	/* for UINT_MAX, ULONG_MAX - edward */
 
 #ifndef __LZOCONF_H
 #define __LZOCONF_H
@@ -50,15 +50,14 @@
 extern "C" {
 #endif
 
-
 /***********************************************************************
 // LZO requires a conforming <limits.h>
 ************************************************************************/
 
-#define CHAR_BIT  8 /* -edward */
-#define USHRT_MAX 0xffff /* -edward */
+#define CHAR_BIT  8		/* -edward */
+#define USHRT_MAX 0xffff	/* -edward */
 
-#if 0 /* -edward */
+#if 0				/* -edward */
 #if !defined(CHAR_BIT) || (CHAR_BIT != 8)
 #  error "invalid CHAR_BIT"
 #endif
@@ -68,11 +67,11 @@ extern "C" {
 #if (USHRT_MAX < 1) || (UINT_MAX < 1) || (ULONG_MAX < 1)
 #  error "your limits.h macros are broken"
 #endif
-#endif /* -edward */
+#endif				/* -edward */
 /* workaround a cpp bug under hpux 10.20 */
 #define LZO_0xffffffffL         4294967295ul
 
-#if 0 /* -edward */
+#if 0				/* -edward */
 #if !defined(LZO_UINT32_C)
 #  if (UINT_MAX < LZO_0xffffffffL)
 #    define LZO_UINT32_C(c)     c ## UL
@@ -80,7 +79,7 @@ extern "C" {
 #    define LZO_UINT32_C(c)     c ## U
 #  endif
 #endif
-#endif /* -edward */
+#endif				/* -edward */
 
 /***********************************************************************
 // architecture defines
@@ -115,8 +114,8 @@ extern "C" {
 #    define __LZO_TOS16
 #  elif defined(__C166__)
 #  else
-     /* porting hint: for pure 16-bit architectures try compiling
-      * everything with -D__LZO_STRICT_16BIT */
+	/* porting hint: for pure 16-bit architectures try compiling
+	 * everything with -D__LZO_STRICT_16BIT */
 #    error "16-bit target not supported - contact me for porting hints"
 #  endif
 #endif
@@ -148,7 +147,6 @@ extern "C" {
 #  endif
 #endif
 
-
 /***********************************************************************
 // integral and pointer types
 ************************************************************************/
@@ -156,14 +154,14 @@ extern "C" {
 /* Integral types with 32 bits or more */
 #if !defined(LZO_UINT32_MAX)
 #  if (UINT_MAX >= LZO_0xffffffffL)
-     typedef unsigned int       lzo_uint32;
-     typedef int                lzo_int32;
+	typedef unsigned int lzo_uint32;
+	typedef int lzo_int32;
 #    define LZO_UINT32_MAX      UINT_MAX
 #    define LZO_INT32_MAX       INT_MAX
 #    define LZO_INT32_MIN       INT_MIN
 #  elif (ULONG_MAX >= LZO_0xffffffffL)
-     typedef unsigned long      lzo_uint32;
-     typedef long               lzo_int32;
+	typedef unsigned long lzo_uint32;
+	typedef long lzo_int32;
 #    define LZO_UINT32_MAX      ULONG_MAX
 #    define LZO_INT32_MAX       LONG_MAX
 #    define LZO_INT32_MIN       LONG_MIN
@@ -175,14 +173,14 @@ extern "C" {
 /* lzo_uint is used like size_t */
 #if !defined(LZO_UINT_MAX)
 #  if (UINT_MAX >= LZO_0xffffffffL)
-     typedef unsigned int       lzo_uint;
-     typedef int                lzo_int;
+	typedef unsigned int lzo_uint;
+	typedef int lzo_int;
 #    define LZO_UINT_MAX        UINT_MAX
 #    define LZO_INT_MAX         INT_MAX
 #    define LZO_INT_MIN         INT_MIN
 #  elif (ULONG_MAX >= LZO_0xffffffffL)
-     typedef unsigned long      lzo_uint;
-     typedef long               lzo_int;
+	typedef unsigned long lzo_uint;
+	typedef long lzo_int;
 #    define LZO_UINT_MAX        ULONG_MAX
 #    define LZO_INT_MAX         LONG_MAX
 #    define LZO_INT_MIN         LONG_MIN
@@ -191,8 +189,7 @@ extern "C" {
 #  endif
 #endif
 
-typedef int lzo_bool;
-
+	typedef int lzo_bool;
 
 /***********************************************************************
 // memory models
@@ -252,7 +249,6 @@ typedef int lzo_bool;
 #  define lzo_sizeof_dict_t     sizeof(lzo_bytep)
 #endif
 
-
 /***********************************************************************
 // calling conventions and function types
 ************************************************************************/
@@ -290,50 +286,54 @@ typedef int lzo_bool;
 #  define LZO_NOTHROW
 #endif
 
+	typedef int
+	 (__LZO_ENTRY * lzo_compress_t) (const lzo_byte * src, lzo_uint src_len,
+					 lzo_byte * dst, lzo_uintp dst_len,
+					 lzo_voidp wrkmem);
 
-typedef int
-(__LZO_ENTRY *lzo_compress_t)   ( const lzo_byte *src, lzo_uint  src_len,
-                                        lzo_byte *dst, lzo_uintp dst_len,
-                                        lzo_voidp wrkmem );
+	typedef int
+	 (__LZO_ENTRY * lzo_decompress_t) (const lzo_byte * src,
+					   lzo_uint src_len, lzo_byte * dst,
+					   lzo_uintp dst_len, lzo_voidp wrkmem);
 
-typedef int
-(__LZO_ENTRY *lzo_decompress_t) ( const lzo_byte *src, lzo_uint  src_len,
-                                        lzo_byte *dst, lzo_uintp dst_len,
-                                        lzo_voidp wrkmem );
+	typedef int
+	 (__LZO_ENTRY * lzo_optimize_t) (lzo_byte * src, lzo_uint src_len,
+					 lzo_byte * dst, lzo_uintp dst_len,
+					 lzo_voidp wrkmem);
 
-typedef int
-(__LZO_ENTRY *lzo_optimize_t)   (       lzo_byte *src, lzo_uint  src_len,
-                                        lzo_byte *dst, lzo_uintp dst_len,
-                                        lzo_voidp wrkmem );
+	typedef int
+	 (__LZO_ENTRY * lzo_compress_dict_t) (const lzo_byte * src,
+					      lzo_uint src_len, lzo_byte * dst,
+					      lzo_uintp dst_len,
+					      lzo_voidp wrkmem,
+					      const lzo_byte * dict,
+					      lzo_uint dict_len);
 
-typedef int
-(__LZO_ENTRY *lzo_compress_dict_t)(const lzo_byte *src, lzo_uint  src_len,
-                                        lzo_byte *dst, lzo_uintp dst_len,
-                                        lzo_voidp wrkmem,
-                                  const lzo_byte *dict, lzo_uint dict_len );
-
-typedef int
-(__LZO_ENTRY *lzo_decompress_dict_t)(const lzo_byte *src, lzo_uint  src_len,
-                                        lzo_byte *dst, lzo_uintp dst_len,
-                                        lzo_voidp wrkmem,
-                                  const lzo_byte *dict, lzo_uint dict_len );
-
+	typedef int
+	 (__LZO_ENTRY * lzo_decompress_dict_t) (const lzo_byte * src,
+						lzo_uint src_len,
+						lzo_byte * dst,
+						lzo_uintp dst_len,
+						lzo_voidp wrkmem,
+						const lzo_byte * dict,
+						lzo_uint dict_len);
 
 /* assembler versions always use __cdecl */
-typedef int
-(__LZO_CDECL *lzo_compress_asm_t)( const lzo_byte *src, lzo_uint  src_len,
-                                        lzo_byte *dst, lzo_uintp dst_len,
-                                        lzo_voidp wrkmem );
+	typedef int
+	 (__LZO_CDECL * lzo_compress_asm_t) (const lzo_byte * src,
+					     lzo_uint src_len, lzo_byte * dst,
+					     lzo_uintp dst_len,
+					     lzo_voidp wrkmem);
 
-typedef int
-(__LZO_CDECL *lzo_decompress_asm_t)( const lzo_byte *src, lzo_uint  src_len,
-                                        lzo_byte *dst, lzo_uintp dst_len,
-                                        lzo_voidp wrkmem );
-
+	typedef int
+	 (__LZO_CDECL * lzo_decompress_asm_t) (const lzo_byte * src,
+					       lzo_uint src_len, lzo_byte * dst,
+					       lzo_uintp dst_len,
+					       lzo_voidp wrkmem);
 
 /* a progress indicator callback function */
-typedef void (__LZO_ENTRY *lzo_progress_callback_t) (lzo_uint, lzo_uint);
-
+	typedef void (__LZO_ENTRY * lzo_progress_callback_t) (lzo_uint,
+							      lzo_uint);
 
 /***********************************************************************
 // export information
@@ -378,7 +378,6 @@ typedef void (__LZO_ENTRY *lzo_progress_callback_t) (lzo_uint, lzo_uint);
 #  define LZO_EXTERN_VAR(_type)         extern LZO_PUBLIC_VAR(_type)
 #endif
 
-
 /***********************************************************************
 // error codes and prototypes
 ************************************************************************/
@@ -389,14 +388,13 @@ typedef void (__LZO_ENTRY *lzo_progress_callback_t) (lzo_uint, lzo_uint);
  */
 #define LZO_E_OK                    0
 #define LZO_E_ERROR                 (-1)
-#define LZO_E_OUT_OF_MEMORY         (-2)    /* not used right now */
-#define LZO_E_NOT_COMPRESSIBLE      (-3)    /* not used right now */
+#define LZO_E_OUT_OF_MEMORY         (-2)	/* not used right now */
+#define LZO_E_NOT_COMPRESSIBLE      (-3)	/* not used right now */
 #define LZO_E_INPUT_OVERRUN         (-4)
 #define LZO_E_OUTPUT_OVERRUN        (-5)
 #define LZO_E_LOOKBEHIND_OVERRUN    (-6)
 #define LZO_E_EOF_NOT_FOUND         (-7)
 #define LZO_E_INPUT_NOT_CONSUMED    (-8)
-
 
 /* lzo_init() should be the first function you call.
  * Check the return code !
@@ -408,16 +406,28 @@ typedef void (__LZO_ENTRY *lzo_progress_callback_t) (lzo_uint, lzo_uint);
     (int)sizeof(long),(int)sizeof(lzo_uint32),(int)sizeof(lzo_uint),\
     (int)lzo_sizeof_dict_t,(int)sizeof(char *),(int)sizeof(lzo_voidp),\
     (int)sizeof(lzo_compress_t))
-LZO_EXTERN(int) __lzo_init2(unsigned,int,int,int,int,int,int,int,int,int);
+	 LZO_EXTERN(int) __lzo_init2(unsigned, int, int, int, int, int, int,
+				     int, int, int);
 
 /* checksum functions */
-LZO_EXTERN(lzo_uint32)
-lzo_crc32(lzo_uint32 _c, const lzo_byte *_buf, lzo_uint _len);
+	 LZO_EXTERN(lzo_uint32)
+	 lzo_crc32(lzo_uint32 _c, const lzo_byte * _buf, lzo_uint _len);
 
 /* misc. */
-typedef union { lzo_bytep p; lzo_uint u; } __lzo_pu_u;
-typedef union { lzo_bytep p; lzo_uint32 u32; } __lzo_pu32_u;
-typedef union { void *vp; lzo_bytep bp; lzo_uint32 u32; long l; } lzo_align_t;
+	typedef union {
+		lzo_bytep p;
+		lzo_uint u;
+	} __lzo_pu_u;
+	typedef union {
+		lzo_bytep p;
+		lzo_uint32 u32;
+	} __lzo_pu32_u;
+	typedef union {
+		void *vp;
+		lzo_bytep bp;
+		lzo_uint32 u32;
+		long l;
+	} lzo_align_t;
 
 #define LZO_PTR_ALIGN_UP(_ptr,_size) \
     ((_ptr) + (lzo_uint) __lzo_align_gap((const lzo_voidp)(_ptr),(lzo_uint)(_size)))
@@ -425,10 +435,7 @@ typedef union { void *vp; lzo_bytep bp; lzo_uint32 u32; long l; } lzo_align_t;
 /* deprecated - only for backward compatibility */
 #define LZO_ALIGN(_ptr,_size) LZO_PTR_ALIGN_UP(_ptr,_size)
 
-
 #ifdef __cplusplus
-} /* extern "C" */
+}				/* extern "C" */
 #endif
-
-#endif /* already included */
-
+#endif				/* already included */

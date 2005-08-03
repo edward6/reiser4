@@ -11,13 +11,19 @@
 /* EDWARD-FIXME-HANS: write something as informative as the below for every .h file lacking it. */
 /* declarations of functions implementing methods of space allocator plugin for
    bitmap based allocator. The functions themselves are in bitmap.c */
-extern int init_allocator_bitmap(reiser4_space_allocator *, struct super_block *, void *);
-extern int destroy_allocator_bitmap(reiser4_space_allocator *, struct super_block *);
+extern int init_allocator_bitmap(reiser4_space_allocator *,
+				 struct super_block *, void *);
+extern int destroy_allocator_bitmap(reiser4_space_allocator *,
+				    struct super_block *);
 extern int alloc_blocks_bitmap(reiser4_space_allocator *,
-			       reiser4_blocknr_hint *, int needed, reiser4_block_nr * start, reiser4_block_nr * len);
-extern void check_blocks_bitmap(const reiser4_block_nr *, const reiser4_block_nr *, int);
+			       reiser4_blocknr_hint *, int needed,
+			       reiser4_block_nr * start,
+			       reiser4_block_nr * len);
+extern void check_blocks_bitmap(const reiser4_block_nr *,
+				const reiser4_block_nr *, int);
 
-extern void dealloc_blocks_bitmap(reiser4_space_allocator *, reiser4_block_nr, reiser4_block_nr);
+extern void dealloc_blocks_bitmap(reiser4_space_allocator *, reiser4_block_nr,
+				  reiser4_block_nr);
 extern int pre_commit_hook_bitmap(void);
 
 #define post_commit_hook_bitmap() do{}while(0)

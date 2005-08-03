@@ -18,33 +18,9 @@
 #include <linux/dcache.h>	/* for struct dentry */
 #include <linux/quotaops.h>
 
-#if REISER4_DEBUG_OUTPUT
-reiser4_internal void
-print_de(const char *prefix /* prefix to print */ ,
-	 coord_t * coord /* item to print */ )
-{
-	assert("nikita-1456", prefix != NULL);
-	assert("nikita-1457", coord != NULL);
-
-	if (item_length_by_coord(coord) < (int) sizeof (directory_entry_format)) {
-		printk("%s: wrong size: %i < %i\n", prefix, item_length_by_coord(coord), sizeof (directory_entry_format));
-	} else {
-		reiser4_key sdkey;
-		char *name;
-		char buf[DE_NAME_BUF_LEN];
-
-		extract_key_de(coord, &sdkey);
-		name = extract_name_de(coord, buf);
-		printk("%s: name: %s\n", prefix, name);
-		print_key("\tsdkey", &sdkey);
-	}
-}
-#endif
-
 /* ->extract_key() method of simple directory item plugin. */
-reiser4_internal int
-extract_key_de(const coord_t * coord /* coord of item */ ,
-	       reiser4_key * key /* resulting key */ )
+int extract_key_de(const coord_t * coord /* coord of item */ ,
+		   reiser4_key * key /* resulting key */ )
 {
 	directory_entry_format *dent;
 
@@ -52,12 +28,13 @@ extract_key_de(const coord_t * coord /* coord of item */ ,
 	assert("nikita-1459", key != NULL);
 
 	dent = (directory_entry_format *) item_body_by_coord(coord);
-	assert("nikita-1158", item_length_by_coord(coord) >= (int) sizeof *dent);
+	assert("nikita-1158", item_length_by_coord(coord) >= (int)sizeof *dent);
 	return extract_key_from_id(&dent->id, key);
 }
 
-reiser4_internal int
-update_key_de(const coord_t * coord, const reiser4_key * key, lock_handle * lh UNUSED_ARG)
+int
+update_key_de(const coord_t * coord, const reiser4_key * key,
+	      lock_handle * lh UNUSED_ARG)
 {
 	directory_entry_format *dent;
 	obj_key_id obj_id;
@@ -75,8 +52,8 @@ update_key_de(const coord_t * coord, const reiser4_key * key, lock_handle * lh U
 	return 0;
 }
 
-reiser4_internal char *
-extract_dent_name(const coord_t * coord, directory_entry_format *dent, char *buf)
+char *extract_dent_name(const coord_t * coord, directory_entry_format * dent,
+			char *buf)
 {
 	reiser4_key key;
 
@@ -85,16 +62,15 @@ extract_dent_name(const coord_t * coord, directory_entry_format *dent, char *buf
 		print_address("oops", znode_get_block(coord->node));
 	if (!is_longname_key(&key)) {
 		if (is_dot_key(&key))
-			return (char *) ".";
+			return (char *)".";
 		else
 			return extract_name_from_key(&key, buf);
 	} else
-		return (char *) dent->name;
+		return (char *)dent->name;
 }
 
 /* ->extract_name() method of simple directory item plugin. */
-reiser4_internal char *
-extract_name_de(const coord_t * coord /* coord of item */, char *buf)
+char *extract_name_de(const coord_t * coord /* coord of item */ , char *buf)
 {
 	directory_entry_format *dent;
 
@@ -105,24 +81,22 @@ extract_name_de(const coord_t * coord /* coord of item */, char *buf)
 }
 
 /* ->extract_file_type() method of simple directory item plugin. */
-reiser4_internal unsigned
-extract_file_type_de(const coord_t * coord UNUSED_ARG	/* coord of
-							   * item */ )
+unsigned extract_file_type_de(const coord_t * coord UNUSED_ARG	/* coord of
+								 * item */ )
 {
 	assert("nikita-1764", coord != NULL);
 	/* we don't store file type in the directory entry yet.
 
 	   But see comments at kassign.h:obj_key_id
-	*/
+	 */
 	return DT_UNKNOWN;
 }
 
-reiser4_internal int
-add_entry_de(struct inode *dir /* directory of item */ ,
-	     coord_t * coord /* coord of item */ ,
-	     lock_handle * lh /* insertion lock handle */ ,
-	     const struct dentry *de /* name to add */ ,
-	     reiser4_dir_entry_desc * entry	/* parameters of new directory
+int add_entry_de(struct inode *dir /* directory of item */ ,
+		 coord_t * coord /* coord of item */ ,
+		 lock_handle * lh /* insertion lock handle */ ,
+		 const struct dentry *de /* name to add */ ,
+		 reiser4_dir_entry_desc * entry	/* parameters of new directory
 						 * entry */ )
 {
 	reiser4_item_data data;
@@ -133,7 +107,7 @@ add_entry_de(struct inode *dir /* directory of item */ ,
 	int longname;
 
 	name = de->d_name.name;
-	len  = de->d_name.len;
+	len = de->d_name.len;
 	assert("nikita-1163", strlen(name) == len);
 
 	longname = is_longname(name, len);
@@ -162,15 +136,14 @@ add_entry_de(struct inode *dir /* directory of item */ ,
 	return 0;
 }
 
-reiser4_internal int
-rem_entry_de(struct inode *dir /* directory of item */ ,
-	     const struct qstr * name UNUSED_ARG,
-	     coord_t * coord /* coord of item */ ,
-	     lock_handle * lh UNUSED_ARG	/* lock handle for
-						   * removal */ ,
-	     reiser4_dir_entry_desc * entry UNUSED_ARG	/* parameters of
-							 * directory entry
-							 * being removed */ )
+int rem_entry_de(struct inode *dir /* directory of item */ ,
+		 const struct qstr *name UNUSED_ARG,
+		 coord_t * coord /* coord of item */ ,
+		 lock_handle * lh UNUSED_ARG	/* lock handle for
+						 * removal */ ,
+		 reiser4_dir_entry_desc * entry UNUSED_ARG	/* parameters of
+								 * directory entry
+								 * being removed */ )
 {
 	coord_t shadow;
 	int result;
@@ -189,9 +162,10 @@ rem_entry_de(struct inode *dir /* directory of item */ ,
 	   coords, because it will modify them without respect to
 	   possible aliasing. To work around this, create temporary copy
 	   of @coord.
-	*/
+	 */
 	coord_dup(&shadow, coord);
-	result = kill_node_content(coord, &shadow, NULL, NULL, NULL, NULL, NULL, 0);
+	result =
+	    kill_node_content(coord, &shadow, NULL, NULL, NULL, NULL, NULL, 0);
 	if (result == 0) {
 		/* NOTE-NIKITA quota plugin */
 		DQUOT_FREE_SPACE_NODIRTY(dir, length);
@@ -199,10 +173,10 @@ rem_entry_de(struct inode *dir /* directory of item */ ,
 	return result;
 }
 
-reiser4_internal int
-max_name_len_de(const struct inode *dir)
+int max_name_len_de(const struct inode *dir)
 {
-	return tree_by_inode(dir)->nplug->max_item_size() - sizeof (directory_entry_format) - 2;
+	return tree_by_inode(dir)->nplug->max_item_size() -
+	    sizeof(directory_entry_format) - 2;
 }
 
 /* Make Linus happy.

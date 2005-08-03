@@ -7,8 +7,7 @@
    include/sound/pcm.h */
 
 /* Helper function for 64 bits numbers division. */
-static inline void
-divl(__u32 high, __u32 low, __u32 div, __u32 * q, __u32 * r)
+static inline void divl(__u32 high, __u32 low, __u32 div, __u32 * q, __u32 * r)
 {
 	__u64 n = (__u64) high << 32 | low;
 	__u64 d = (__u64) div << 31;
@@ -39,8 +38,7 @@ divl(__u32 high, __u32 low, __u32 div, __u32 * q, __u32 * r)
 }
 
 /* Function for 64 bits numbers division. */
-static inline __u64
-div64_32(__u64 n, __u32 div, __u32 * rem)
+static inline __u64 div64_32(__u64 n, __u32 div, __u32 * rem)
 {
 	__u32 low, high;
 
@@ -61,7 +59,7 @@ div64_32(__u64 n, __u32 div, __u32 * rem)
 	return 0;
 }
 
-#endif /* __FS_REISER4_LIB_H__ */
+#endif				/* __FS_REISER4_LIB_H__ */
 
 /* Make Linus happy.
    Local variables:

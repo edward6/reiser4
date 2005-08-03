@@ -8,7 +8,6 @@
 #include "forward.h"
 #include "reiser4.h"
 
-
 /* generic function to produce formatted output, decorating it with
    whatever standard prefixes/postfixes we want. "Fun" is a function
    that will be actually called, can be printk, panic etc.
@@ -145,7 +144,7 @@ extern lock_counters_info *lock_counters(void);
  * assertions */
 #define LOCK_CNT_GTZ(counter) IN_CONTEXT(lock_counters()->counter > 0, 1)
 
-#else /* REISER4_DEBUG */
+#else				/* REISER4_DEBUG */
 
 /* no-op versions on the above */
 
@@ -158,8 +157,7 @@ typedef struct lock_counters_info {
 #define LOCK_CNT_NIL(counter) (1)
 #define LOCK_CNT_GTZ(counter) (1)
 
-#endif /* REISER4_DEBUG */
-
+#endif				/* REISER4_DEBUG */
 
 /* flags controlling debugging behavior. Are set through debug_flags=N mount
    option. */
@@ -210,7 +208,7 @@ extern int is_in_reiser4_context(void);
 	reiser4_panic( label, "NOT YET IMPLEMENTED: " format , ## __VA_ARGS__ )
 
 extern void reiser4_do_panic(const char *format, ...)
-__attribute__ ((noreturn, format(printf, 1, 2)));
+    __attribute__ ((noreturn, format(printf, 1, 2)));
 
 extern void reiser4_print_prefix(const char *level, int reperr, const char *mid,
 				 const char *function,
@@ -219,20 +217,16 @@ extern void reiser4_print_prefix(const char *level, int reperr, const char *mid,
 extern int preempt_point(void);
 extern void reiser4_print_stats(void);
 
-extern void *reiser4_kmalloc(size_t size, int gfp_flag);
-extern void reiser4_kfree(void *area);
-extern void reiser4_kfree_in_sb(void *area, struct super_block *sb);
 
 #if REISER4_DEBUG
 extern void print_lock_counters(const char *prefix,
-                                const lock_counters_info * info);
+				const lock_counters_info * info);
 extern int no_counters_are_held(void);
 extern int commit_check_locks(void);
 #else
 #define no_counters_are_held() (1)
 #define commit_check_locks() (1)
 #endif
-
 
 /* true if @i is power-of-two. Useful for rate-limited warnings, etc. */
 #define IS_POW(i) 				\
@@ -246,14 +240,15 @@ extern int commit_check_locks(void);
 #define KERNEL_DEBUGGER (1)
 
 #if KERNEL_DEBUGGER
+
+extern void debugtrap(void);
+
 /*
  * Check condition @cond and drop into kernel debugger (kgdb) if it's true. If
  * kgdb is not compiled in, do nothing.
  */
 #define DEBUGON(cond)				\
 ({						\
-	extern void debugtrap(void);		\
-						\
 	if (unlikely(cond))			\
 		debugtrap();			\
 })
@@ -296,12 +291,9 @@ extern int commit_check_locks(void);
  * data-type to store information about where error happened ("error site").
  */
 typedef struct err_site {
-	int            code; /* error code */
-	const char    *file; /* source file, filled by __FILE__ */
-	int            line; /* source file line, filled by __LINE__ */
-#ifdef CONFIG_FRAME_POINTER
-	void *bt[5];
-#endif
+	int code;		/* error code */
+	const char *file;	/* source file, filled by __FILE__ */
+	int line;		/* source file line, filled by __LINE__ */
 } err_site;
 
 extern void return_err(int code, const char *file, int line);
@@ -324,7 +316,8 @@ extern void return_err(int code, const char *file, int line);
  * no-op versions of the above
  */
 
-typedef struct err_site {} err_site;
+typedef struct err_site {
+} err_site;
 #define RETERR(code) code
 #endif
 
@@ -336,8 +329,6 @@ typedef struct err_site {} err_site;
 #else
 #define ON_LARGE_KEY(...)
 #endif
-
-#define reiser4_internal
 
 /* __FS_REISER4_DEBUG_H__ */
 #endif

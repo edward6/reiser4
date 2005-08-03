@@ -13,7 +13,7 @@
 #include "coord.h"
 #include "type_safe_list.h"
 #include "plugin/node/node.h"
-#include "jnode.h"
+#include "txnmgr.h"
 #include "readahead.h"
 
 #include <linux/types.h>
@@ -72,7 +72,6 @@ RW_LOCK_FUNCTIONS(zlock, zlock, guard);
              (((mode) == ZNODE_WRITE_LOCK && !lock_is_locked(lock)) \
            || ((mode) == ZNODE_READ_LOCK && lock_can_be_rlocked(lock)))
 
-
 /* Since we have R/W znode locks we need additional bidirectional `link'
    objects to implement n<->m relationship between lock owners and lock
    objects. We call them `lock handles'.
@@ -84,7 +83,7 @@ struct lock_handle {
 	   lock owner and counted in owner->nr_signalled
 
 	   Locking: this is accessed under spin lock on ->node.
-	*/
+	 */
 	int signaled;
 	/* A link to owner of a lock */
 	lock_stack *owner;
@@ -115,13 +114,13 @@ struct lock_stack {
 
 	   This is only accessed by the current thread and thus requires no
 	   locking.
-	*/
+	 */
 	int curpri;
 	/* A list of all locks owned by this process. Elements can be added to
 	 * this list only by the current thread. ->node pointers in this list
 	 * can be only changed by the current thread. */
 	locks_list_head locks;
-	int nr_locks; /* number of lock handles in the above list */
+	int nr_locks;		/* number of lock handles in the above list */
 	/* When lock_stack waits for the lock, it puts itself on double-linked
 	   requestors list of that lock */
 	requestors_list_link requestors_link;
@@ -129,7 +128,7 @@ struct lock_stack {
 
 	   This is only accessed by the current thread and thus requires no
 	   locking.
-	*/
+	 */
 	lock_request request;
 	/* It is a lock_stack's synchronization object for when process sleeps
 	   when requested lock not on this lock_stack but which it wishes to
@@ -169,10 +168,10 @@ TYPE_SAFE_LIST_DEFINE(locks, lock_handle, locks_link);
   User-visible znode locking functions
 */
 
-extern int longterm_lock_znode   (lock_handle * handle,
-				  znode * node,
-				  znode_lock_mode mode,
-				  znode_lock_request request);
+extern int longterm_lock_znode(lock_handle * handle,
+			       znode * node,
+			       znode_lock_mode mode,
+			       znode_lock_request request);
 
 extern void longterm_unlock_znode(lock_handle * handle);
 
@@ -196,7 +195,8 @@ extern int lock_stack_isclean(lock_stack * owner);
 
 /* zlock object state check macros: only used in assertions.  Both forms imply that the
    lock is held by the current thread. */
-extern int znode_is_write_locked(const znode * node);
+extern int znode_is_write_locked(const znode *);
+extern void invalidate_lock(lock_handle *);
 
 #if REISER4_DEBUG
 #define spin_ordering_pred_stack_addendum (1)
@@ -219,8 +219,7 @@ extern int znode_is_write_locked(const znode * node);
 /* Same for lock_stack */
 SPIN_LOCK_FUNCTIONS(stack, lock_stack, sguard);
 
-static inline void
-reiser4_wake_up(lock_stack * owner)
+static inline void reiser4_wake_up(lock_stack * owner)
 {
 	spin_lock_stack(owner);
 	__reiser4_wake_up(owner);

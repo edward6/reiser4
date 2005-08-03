@@ -27,8 +27,8 @@
 /* znode tracks its position within parent (internal item in a parent node,
  * that contains znode's block number). */
 typedef struct parent_coord {
-	znode       *node;
-	pos_in_node_t  item_pos;
+	znode *node;
+	pos_in_node_t item_pos;
 } parent_coord_t;
 
 /* &znode - node in a reiser4 tree.
@@ -94,7 +94,7 @@ struct znode {
 
 	   in_parent->node points to the parent of this node, and is NOT a
 	   hint.
-	*/
+	 */
 	parent_coord_t in_parent;
 
 	/*
@@ -108,7 +108,7 @@ struct znode {
 
 	/* long term lock on node content. This lock supports deadlock
 	   detection. See lock.c
-	*/
+	 */
 	zlock lock;
 
 	/* You cannot remove from memory a node that has children in
@@ -118,7 +118,7 @@ struct znode {
 	   removing it from memory you must decrease the c_count.  This makes
 	   the code simpler, and the cases where it is suboptimal are truly
 	   obscure.
-	*/
+	 */
 	int c_count;
 
 	/* plugin of node attached to this znode. NULL if znode is not
@@ -145,15 +145,16 @@ struct znode {
 	void *creator;
 	reiser4_key first_key;
 	unsigned long times_locked;
-	int left_version;   /* when node->left was updated */
-	int right_version;  /* when node->right was updated */
-	int ld_key_version; /* when node->ld_key was updated */
-	int rd_key_version; /* when node->rd_key was updated */
+	int left_version;	/* when node->left was updated */
+	int right_version;	/* when node->right was updated */
+	int ld_key_version;	/* when node->ld_key was updated */
+	int rd_key_version;	/* when node->rd_key was updated */
 #endif
 
-} __attribute__((aligned(16)));
+} __attribute__ ((aligned(16)));
 
-ON_DEBUG(extern atomic_t delim_key_version;)
+ON_DEBUG(extern atomic_t delim_key_version;
+    )
 
 /* In general I think these macros should not be exposed. */
 #define znode_is_locked(node)          (lock_is_locked(&node->lock))
@@ -162,17 +163,15 @@ ON_DEBUG(extern atomic_t delim_key_version;)
 #define znode_is_wlocked_once(node)    (lock_is_wlocked_once(&node->lock))
 #define znode_can_be_rlocked(node)     (lock_can_be_rlocked(&node->lock))
 #define is_lock_compatible(node, mode) (lock_mode_compatible(&node->lock, mode))
-
 /* Macros for accessing the znode state. */
 #define	ZF_CLR(p,f)	        JF_CLR  (ZJNODE(p), (f))
 #define	ZF_ISSET(p,f)	        JF_ISSET(ZJNODE(p), (f))
 #define	ZF_SET(p,f)		JF_SET  (ZJNODE(p), (f))
-
 extern znode *zget(reiser4_tree * tree, const reiser4_block_nr * const block,
 		   znode * parent, tree_level level, int gfp_flag);
 extern znode *zlook(reiser4_tree * tree, const reiser4_block_nr * const block);
 extern int zload(znode * node);
-extern int zload_ra(znode * node, ra_info_t *info);
+extern int zload_ra(znode * node, ra_info_t * info);
 extern int zinit_new(znode * node, int gfp_flags);
 extern void zrelse(znode * node);
 extern void znode_change_parent(znode * new_parent, reiser4_block_nr * block);
@@ -185,8 +184,10 @@ znode_size(const znode * node UNUSED_ARG /* znode to query */ )
 	return PAGE_CACHE_SIZE;
 }
 
-extern void parent_coord_to_coord(const parent_coord_t *pcoord, coord_t *coord);
-extern void coord_to_parent_coord(const coord_t *coord, parent_coord_t *pcoord);
+extern void parent_coord_to_coord(const parent_coord_t * pcoord,
+				  coord_t * coord);
+extern void coord_to_parent_coord(const coord_t * coord,
+				  parent_coord_t * pcoord);
 extern void init_parent_coord(parent_coord_t * pcoord, const znode * node);
 
 extern unsigned znode_free_space(znode * node);
@@ -198,24 +199,22 @@ extern reiser4_key *znode_set_rd_key(znode * node, const reiser4_key * key);
 extern reiser4_key *znode_set_ld_key(znode * node, const reiser4_key * key);
 
 /* `connected' state checks */
-static inline int
-znode_is_right_connected(const znode * node)
+static inline int znode_is_right_connected(const znode * node)
 {
 	return ZF_ISSET(node, JNODE_RIGHT_CONNECTED);
 }
 
-static inline int
-znode_is_left_connected(const znode * node)
+static inline int znode_is_left_connected(const znode * node)
 {
 	return ZF_ISSET(node, JNODE_LEFT_CONNECTED);
 }
 
-static inline int
-znode_is_connected(const znode * node)
+static inline int znode_is_connected(const znode * node)
 {
 	return znode_is_right_connected(node) && znode_is_left_connected(node);
 }
 
+extern int znode_shift_order;
 extern int znode_rehash(znode * node, const reiser4_block_nr * new_block_nr);
 extern void znode_remove(znode *, reiser4_tree *);
 extern znode *znode_parent(const znode * node);
@@ -229,17 +228,14 @@ extern int znode_contains_key(znode * node, const reiser4_key * key);
 extern int znode_contains_key_lock(znode * node, const reiser4_key * key);
 extern unsigned znode_save_free_space(znode * node);
 extern unsigned znode_recover_free_space(znode * node);
+extern znode *zalloc(unsigned int gfp_flag);
+extern void zinit(znode *, const znode * parent, reiser4_tree *);
+extern int zparse(znode * node);
+
 
 extern int znode_just_created(const znode * node);
 
 extern void zfree(znode * node);
-
-/*
-#define znode_pre_write(n) noop
-#define znode_post_write(n) noop
-#define znode_set_checksum(n, l) noop
-#define znode_at_read(n) (1)
-*/
 
 #if REISER4_DEBUG
 extern void print_znode(const char *prefix, const znode * node);
@@ -278,31 +274,27 @@ extern int znode_invariant(const znode * node);
 #endif
 
 /* acquire reference to @node */
-static inline znode *
-zref(znode * node)
+static inline znode *zref(znode * node)
 {
 	/* change of x_count from 0 to 1 is protected by tree spin-lock */
 	return JZNODE(jref(ZJNODE(node)));
 }
 
 /* release reference to @node */
-static inline void
-zput(znode * node)
+static inline void zput(znode * node)
 {
 	assert("nikita-3564", znode_invariant(node));
 	jput(ZJNODE(node));
 }
 
 /* get the level field for a znode */
-static inline tree_level
-znode_get_level(const znode * node)
+static inline tree_level znode_get_level(const znode * node)
 {
 	return node->level;
 }
 
 /* get the level field for a jnode */
-static inline tree_level
-jnode_get_level(const jnode * node)
+static inline tree_level jnode_get_level(const jnode * node)
 {
 	if (jnode_is_znode(node))
 		return znode_get_level(JZNODE(node));
@@ -323,16 +315,14 @@ static inline int jnode_is_leaf(const jnode * node)
 }
 
 /* return znode's tree */
-static inline reiser4_tree *
-znode_get_tree(const znode * node)
+static inline reiser4_tree *znode_get_tree(const znode * node)
 {
 	assert("nikita-2692", node != NULL);
 	return jnode_get_tree(ZJNODE(node));
 }
 
 /* resolve race with zput */
-static inline znode *
-znode_rip_check(reiser4_tree *tree, znode * node)
+static inline znode *znode_rip_check(reiser4_tree * tree, znode * node)
 {
 	jnode *j;
 
@@ -344,7 +334,7 @@ znode_rip_check(reiser4_tree *tree, znode * node)
 	return node;
 }
 
-#if defined(REISER4_DEBUG) || defined(REISER4_DEBUG_MODIFY) || defined(REISER4_DEBUG_OUTPUT)
+#if defined(REISER4_DEBUG)
 int znode_is_loaded(const znode * node /* znode to query */ );
 #endif
 
@@ -367,8 +357,8 @@ extern void init_load_count(load_count * lc);	/* Initialize a load_count set the
 extern void done_load_count(load_count * dh);	/* Finalize a load_count: call zrelse() if necessary */
 extern int incr_load_count_znode(load_count * dh, znode * node);	/* Set the argument znode to the current node, call zload(). */
 extern int incr_load_count_jnode(load_count * dh, jnode * node);	/* If the argument jnode is formatted, do the same as
-									   * incr_load_count_znode, otherwise do nothing (unformatted nodes
-									   * don't require zload/zrelse treatment). */
+									 * incr_load_count_znode, otherwise do nothing (unformatted nodes
+									 * don't require zload/zrelse treatment). */
 extern void move_load_count(load_count * new, load_count * old);	/* Move the contents of a load_count.  Old handle is released. */
 extern void copy_load_count(load_count * new, load_count * old);	/* Copy the contents of a load_count.  Old handle remains held. */
 
@@ -416,7 +406,6 @@ extern void copy_load_count(load_count * new, load_count * old);	/* Copy the con
 	coord_clear_iplug(__coord);		\
 	WITH_DATA(__coord->node, exp);		\
 })
-
 
 #if REISER4_DEBUG
 #define STORE_COUNTERS						\

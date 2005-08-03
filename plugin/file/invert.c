@@ -155,7 +155,6 @@ Then a read will return:
   The other parsing results give malformed signature that aborts READ method
   and releases all resources.
 
-
   Format of subfile (entry) signature:
 
   "START_MAGIC"<>(TYPE="...",LOOKUP_ARG="...")SUBFILE_BODY"END_MAGIC"
@@ -251,69 +250,57 @@ typedef struct subfile_header {
 
 /* functions to get/set fields of flow header */
 
-static void
-fl_set_magic(flow_header * fh, __u32 value)
+static void fl_set_magic(flow_header * fh, __u32 value)
 {
 	cputod32(value, &fh->fh_magic);
 }
 
-static __u32
-fl_get_magic(flow_header * fh)
+static __u32 fl_get_magic(flow_header * fh)
 {
 	return d32tocpu(&fh->fh_magic);
 }
-static void
-fl_set_number(flow_header * fh, __u16 value)
+static void fl_set_number(flow_header * fh, __u16 value)
 {
 	cputod16(value, &fh->fh_nr);
 }
-static unsigned
-fl_get_number(flow_header * fh)
+static unsigned fl_get_number(flow_header * fh)
 {
 	return d16tocpu(&fh->fh_nr);
 }
 
 /* functions to get/set fields of subfile header */
 
-static void
-sh_set_magic(subfile_header * sh, __u32 value)
+static void sh_set_magic(subfile_header * sh, __u32 value)
 {
 	cputod32(value, &sh->sh_magic);
 }
 
-static __u32
-sh_get_magic(subfile_header * sh)
+static __u32 sh_get_magic(subfile_header * sh)
 {
 	return d32tocpu(&sh->sh_magic);
 }
-static void
-sh_set_type(subfile_header * sh, __u16 value)
+static void sh_set_type(subfile_header * sh, __u16 value)
 {
 	cputod16(value, &sh->sh_magic);
 }
-static unsigned
-sh_get_type(subfile_header * sh)
+static unsigned sh_get_type(subfile_header * sh)
 {
 	return d16tocpu(&sh->sh_magic);
 }
-static void
-sh_set_arg_len(subfile_header * sh, __u16 value)
+static void sh_set_arg_len(subfile_header * sh, __u16 value)
 {
 	cputod16(value, &sh->sh_arg_len);
 }
-static unsigned
-sh_get_arg_len(subfile_header * sh)
+static unsigned sh_get_arg_len(subfile_header * sh)
 {
 	return d16tocpu(&sh->sh_arg_len);
 }
-static void
-sh_set_body_len(subfile_header * sh, __u32 value)
+static void sh_set_body_len(subfile_header * sh, __u32 value)
 {
 	cputod32(value, &sh->sh_body_len);
 }
 
-static __u32
-sh_get_body_len(subfile_header * sh)
+static __u32 sh_get_body_len(subfile_header * sh)
 {
 	return d32tocpu(&sh->sh_body_len);
 }
@@ -339,12 +326,11 @@ struct inv_entry {
 
 /* allocate and init invert entry */
 
-static struct inv_entry *
-allocate_inv_entry(void)
+static struct inv_entry *allocate_inv_entry(void)
 {
 	struct inv_entry *inv_entry;
 
-	inv_entry = reiser4_kmalloc(sizeof (struct inv_entry), GFP_KERNEL);
+	inv_entry = reiser4_kmalloc(sizeof(struct inv_entry), GFP_KERNEL);
 	if (!inv_entry)
 		return ERR_PTR(RETERR(-ENOMEM));
 	inv_entry->ie_file = NULL;
@@ -353,8 +339,7 @@ allocate_inv_entry(void)
 	return inv_entry;
 }
 
-static int
-put_inv_entry(struct inv_entry *ientry)
+static int put_inv_entry(struct inv_entry *ientry)
 {
 	int result = 0;
 
@@ -371,14 +356,13 @@ put_inv_entry(struct inv_entry *ientry)
 	return result;
 }
 
-static int
-allocate_incore_sd_base(struct inv_entry *inv_entry)
+static int allocate_incore_sd_base(struct inv_entry *inv_entry)
 {
 	struct incore_sd_base *isd_base assert("edward-98", inv_entry != NULL);
 	assert("edward-99", inv_entry->ie_inode = NULL);
 	assert("edward-100", inv_entry->ie_sd = NULL);
 
-	isd_base = reiser4_kmalloc(sizeof (struct incore_sd_base), GFP_KERNEL);
+	isd_base = reiser4_kmalloc(sizeof(struct incore_sd_base), GFP_KERNEL);
 	if (!isd_base)
 		return RETERR(-ENOMEM);
 	inv_entry->ie_sd = isd_base;
@@ -390,8 +374,7 @@ allocate_incore_sd_base(struct inv_entry *inv_entry)
    Copies data from on-disk stat-data format into light-weight analog of inode .
    Doesn't hanlde stat-data extensions. */
 
-static void
-sd_base_load(struct inv_entry *inv_entry, char *sd)
+static void sd_base_load(struct inv_entry *inv_entry, char *sd)
 {
 	reiser4_stat_data_base *sd_base;
 
@@ -408,8 +391,7 @@ sd_base_load(struct inv_entry *inv_entry, char *sd)
 
 /* initialise incore stat-data */
 
-static void
-init_incore_sd_base(struct inv_entry *inv_entry, coord_t * coord)
+static void init_incore_sd_base(struct inv_entry *inv_entry, coord_t * coord)
 {
 	reiser4_plugin *plugin = item_plugin_by_coord(coord);
 	void *body = item_body_by_coord(coord);
@@ -425,12 +407,11 @@ init_incore_sd_base(struct inv_entry *inv_entry, coord_t * coord)
    init and adds it into the list,
    we use lookup_sd_by_key() for light-weight files and VFS lookup by filename */
 
-int
-get_inv_entry(struct inode *invert_inode,	/* inode of invert's body */
-	      inv_entry_type type,	/* LIGHT-WEIGHT or ORDINARY */
-	      const reiser4_key * key,	/* key of invert entry stat-data */
-	      char *filename,	/* filename of the file to be opened */
-	      int flags, int mode)
+int get_inv_entry(struct inode *invert_inode,	/* inode of invert's body */
+		  inv_entry_type type,	/* LIGHT-WEIGHT or ORDINARY */
+		  const reiser4_key * key,	/* key of invert entry stat-data */
+		  char *filename,	/* filename of the file to be opened */
+		  int flags, int mode)
 {
 	int result;
 	struct inv_entry *ientry;
@@ -449,7 +430,9 @@ get_inv_entry(struct inode *invert_inode,	/* inode of invert's body */
 
 		init_coord(&coord);
 		init_lh(&lh);
-		result = lookup_sd_by_key(tree_by_inode(invert_inode), ZNODE_READ_LOCK, &coord, &lh, key);
+		result =
+		    lookup_sd_by_key(tree_by_inode(invert_inode),
+				     ZNODE_READ_LOCK, &coord, &lh, key);
 		if (result == 0)
 			init_incore_sd_base(ientry, coord);
 
@@ -473,8 +456,7 @@ get_inv_entry(struct inode *invert_inode,	/* inode of invert's body */
 /* takes inode of invert, reads the body of this invert, parses it,
    opens all invert entries and return pointer on the first inv_entry */
 
-struct inv_entry *
-open_invert(struct file *invert_file)
+struct inv_entry *open_invert(struct file *invert_file)
 {
 
 }

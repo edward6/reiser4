@@ -15,10 +15,9 @@
 #include "item.h"
 #include "../plugin.h"
 
-
-reiser4_internal int
-store_black_box(reiser4_tree *tree,
-		const reiser4_key *key, void *data, int length)
+int
+store_black_box(reiser4_tree * tree,
+		const reiser4_key * key, void *data, int length)
 {
 	int result;
 	reiser4_item_data idata;
@@ -38,15 +37,16 @@ store_black_box(reiser4_tree *tree,
 
 	assert("nikita-3413",
 	       ergo(result == 0,
-		    WITH_COORD(&coord, item_length_by_coord(&coord) == length)));
+		    WITH_COORD(&coord,
+			       item_length_by_coord(&coord) == length)));
 
 	done_lh(&lh);
 	return result;
 }
 
-reiser4_internal int
-load_black_box(reiser4_tree *tree,
-	       reiser4_key *key, void *data, int length, int exact)
+int
+load_black_box(reiser4_tree * tree,
+	       reiser4_key * key, void *data, int length, int exact)
 {
 	int result;
 	coord_t coord;
@@ -89,9 +89,9 @@ load_black_box(reiser4_tree *tree,
 
 }
 
-reiser4_internal int
-update_black_box(reiser4_tree *tree,
-		 const reiser4_key *key, void *data, int length)
+int
+update_black_box(reiser4_tree * tree,
+		 const reiser4_key * key, void *data, int length)
 {
 	int result;
 	coord_t coord;
@@ -109,7 +109,8 @@ update_black_box(reiser4_tree *tree,
 		if (result == 0) {
 			ilen = item_length_by_coord(&coord);
 			if (length <= ilen) {
-				memcpy(item_body_by_coord(&coord), data, length);
+				memcpy(item_body_by_coord(&coord), data,
+				       length);
 			} else {
 				warning("nikita-3437",
 					"Wrong black box length: %i < %i",
@@ -125,11 +126,10 @@ update_black_box(reiser4_tree *tree,
 
 }
 
-reiser4_internal int kill_black_box(reiser4_tree *tree, const reiser4_key *key)
+int kill_black_box(reiser4_tree * tree, const reiser4_key * key)
 {
 	return cut_tree(tree, key, key, NULL, 1);
 }
-
 
 /* Make Linus happy.
    Local variables:

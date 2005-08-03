@@ -43,10 +43,12 @@
 
 */
 typedef struct obj_key_id {
-	d8 locality[sizeof (__u64)];
-	ON_LARGE_KEY(d8 ordering[sizeof (__u64)];)
-	d8 objectid[sizeof (__u64)];
-} obj_key_id;
+	d8 locality[sizeof(__u64)];
+	 ON_LARGE_KEY(d8 ordering[sizeof(__u64)];
+	    )
+	d8 objectid[sizeof(__u64)];
+}
+obj_key_id;
 
 /* Information sufficient to uniquely identify directory entry within
    compressed directory item.
@@ -54,10 +56,12 @@ typedef struct obj_key_id {
    For alignment issues see &obj_key_id above.
 */
 typedef struct de_id {
-	ON_LARGE_KEY(d8 ordering[sizeof (__u64)];)
-	d8 objectid[sizeof (__u64)];
-	d8 offset[sizeof (__u64)];
-} de_id;
+	ON_LARGE_KEY(d8 ordering[sizeof(__u64)];
+	    )
+	d8 objectid[sizeof(__u64)];
+	d8 offset[sizeof(__u64)];
+}
+de_id;
 
 extern int inode_onwire_size(const struct inode *obj);
 extern char *build_inode_onwire(const struct inode *obj, char *area);
@@ -67,21 +71,31 @@ extern int build_inode_key_id(const struct inode *obj, obj_key_id * id);
 extern int extract_key_from_id(const obj_key_id * id, reiser4_key * key);
 extern int build_obj_key_id(const reiser4_key * key, obj_key_id * id);
 extern oid_t extract_dir_id_from_key(const reiser4_key * de_key);
-extern int build_de_id(const struct inode *dir, const struct qstr *name, de_id * id);
+extern int build_de_id(const struct inode *dir, const struct qstr *name,
+		       de_id * id);
 extern int build_de_id_by_key(const reiser4_key * entry_key, de_id * id);
-extern int extract_key_from_de_id(const oid_t locality, const de_id * id, reiser4_key * key);
+extern int extract_key_from_de_id(const oid_t locality, const de_id * id,
+				  reiser4_key * key);
 extern cmp_t de_id_cmp(const de_id * id1, const de_id * id2);
 extern cmp_t de_id_key_cmp(const de_id * id, const reiser4_key * key);
 
 extern int build_readdir_key_common(struct file *dir, reiser4_key * result);
-extern void build_entry_key_common(const struct inode *dir, const struct qstr *name, reiser4_key * result);
-extern void build_entry_key_stable_entry(const struct inode *dir, const struct qstr *name, reiser4_key * result);
+extern void build_entry_key_common(const struct inode *dir,
+				   const struct qstr *name,
+				   reiser4_key * result);
+extern void build_entry_key_stable_entry(const struct inode *dir,
+					 const struct qstr *name,
+					 reiser4_key * result);
 extern int is_dot_key(const reiser4_key * key);
-extern reiser4_key *build_sd_key(const struct inode *target, reiser4_key * result);
+extern reiser4_key *build_sd_key(const struct inode *target,
+				 reiser4_key * result);
 
-extern int is_longname_key(const reiser4_key *key);
+extern int is_longname_key(const reiser4_key * key);
 extern int is_longname(const char *name, int len);
-extern char *extract_name_from_key(const reiser4_key *key, char *buf);
+extern char *extract_name_from_key(const reiser4_key * key, char *buf);
+extern char *unpack_string(__u64 value, char *buf);
+extern void complete_entry_key(const struct inode *dir, const char *name,
+			       int len, reiser4_key *result);
 
 /* __KASSIGN_H__ */
 #endif

@@ -38,8 +38,6 @@ reiser4-y := \
 		   tree_walk.o \
 		   inode.o \
 		   vfs_ops.o \
-		   inode_ops.o \
-		   file_ops.o \
 		   as_ops.o \
 		   emergency_flush.o \
 		   entd.o\
@@ -54,8 +52,19 @@ reiser4-y := \
 		   plugin/plugin_set.o \
 		   plugin/node/node.o \
 		   plugin/object.o \
-		   plugin/symlink.o \
-		   plugin/cryptcompress.o \
+		   plugin/inode_ops.o \
+		   plugin/inode_ops_rename.o \
+		   plugin/file_ops.o \
+		   plugin/file_ops_readdir.o \
+		   plugin/file_plugin_common.o \
+		   plugin/file/file.o \
+		   plugin/file/pseudo.o \
+		   plugin/file/tail_conversion.o \
+		   plugin/file/symlink.o \
+		   plugin/file/cryptcompress.o \
+		   plugin/dir_plugin_common.o \
+		   plugin/dir/hashed_dir.o \
+		   plugin/dir/seekable_dir.o \
 		   plugin/digest.o \
 		   plugin/node/node40.o \
            \
@@ -80,10 +89,6 @@ reiser4-y := \
 		   plugin/tail_policy.o \
 		   plugin/item/item.o \
            \
-		   plugin/dir/hashed_dir.o \
-		   plugin/dir/pseudo_dir.o \
-		   plugin/dir/dir.o \
-           \
 		   plugin/security/perm.o \
            \
 		   plugin/pseudo/pseudo.o \
@@ -92,8 +97,6 @@ reiser4-y := \
            \
 		   plugin/disk_format/disk_format40.o \
 		   plugin/disk_format/disk_format.o \
-           \
-		   plugin/file/pseudo.o \
-		   plugin/file/file.o \
-		   plugin/file/regular.o \
-		   plugin/file/tail_conversion.o
+	   \
+		   plugin/regular.o
+

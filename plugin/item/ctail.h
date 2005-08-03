@@ -13,7 +13,7 @@ typedef struct ctail_item_format {
 	d8 cluster_shift;
 	/* ctail body */
 	d8 body[0];
-} __attribute__((packed)) ctail_item_format;
+} __attribute__ ((packed)) ctail_item_format;
 
 /* The following is a set of various item states in a disk cluster.
    Disk cluster is a set of items whose keys belong to the interval
@@ -26,30 +26,36 @@ typedef enum {
 } dc_item_stat;
 
 typedef struct {
-	int shift; /* we keep here a cpu value of cluster_shift field
-		      of ctail_item_format (see above) */
+	int shift;		/* we keep here a cpu value of cluster_shift field
+				   of ctail_item_format (see above) */
 } ctail_coord_extension_t;
 
 struct cut_list;
 
 /* plugin->item.b.* */
-int can_contain_key_ctail(const coord_t *, const reiser4_key *, const reiser4_item_data *);
+int can_contain_key_ctail(const coord_t *, const reiser4_key *,
+			  const reiser4_item_data *);
 int mergeable_ctail(const coord_t * p1, const coord_t * p2);
 pos_in_node_t nr_units_ctail(const coord_t * coord);
 int estimate_ctail(const coord_t * coord, const reiser4_item_data * data);
 void print_ctail(const char *prefix, coord_t * coord);
 lookup_result lookup_ctail(const reiser4_key *, lookup_bias, coord_t *);
 
-int paste_ctail(coord_t * coord, reiser4_item_data * data, carry_plugin_info * info UNUSED_ARG);
+int paste_ctail(coord_t * coord, reiser4_item_data * data,
+		carry_plugin_info * info UNUSED_ARG);
 int init_ctail(coord_t *, coord_t *, reiser4_item_data *);
 int can_shift_ctail(unsigned free_space, coord_t * coord,
-		  znode * target, shift_direction pend, unsigned *size, unsigned want);
-void copy_units_ctail(coord_t * target, coord_t * source,
-		    unsigned from, unsigned count, shift_direction where_is_free_space, unsigned free_space);
-int cut_units_ctail(coord_t *coord, pos_in_node_t from, pos_in_node_t to,
-		    carry_cut_data *, reiser4_key * smallest_removed, reiser4_key *new_first);
+		    znode * target, shift_direction pend, unsigned *size,
+		    unsigned want);
+void copy_units_ctail(coord_t * target, coord_t * source, unsigned from,
+		      unsigned count, shift_direction where_is_free_space,
+		      unsigned free_space);
+int cut_units_ctail(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
+		    carry_cut_data *, reiser4_key * smallest_removed,
+		    reiser4_key * new_first);
 int kill_units_ctail(coord_t * coord, pos_in_node_t from, pos_in_node_t to,
-		     carry_kill_data *, reiser4_key * smallest_removed, reiser4_key *new_first);
+		     carry_kill_data *, reiser4_key * smallest_removed,
+		     reiser4_key * new_first);
 int ctail_ok(const coord_t * coord);
 int check_ctail(const coord_t * coord, const char **error);
 
@@ -58,8 +64,9 @@ int read_ctail(struct file *, flow_t *, hint_t *);
 int readpage_ctail(void *, struct page *);
 void readpages_ctail(void *, struct address_space *, struct list_head *);
 reiser4_key *append_key_ctail(const coord_t *, reiser4_key *);
-int create_hook_ctail (const coord_t * coord, void * arg);
-int kill_hook_ctail(const coord_t *, pos_in_node_t, pos_in_node_t, carry_kill_data *);
+int create_hook_ctail(const coord_t * coord, void *arg);
+int kill_hook_ctail(const coord_t *, pos_in_node_t, pos_in_node_t,
+		    carry_kill_data *);
 int shift_hook_ctail(const coord_t *, unsigned, unsigned, znode *);
 
 /* plugin->u.item.f */
@@ -69,7 +76,7 @@ int convert_ctail(flush_pos_t *);
 size_t inode_scaled_cluster_size(struct inode *);
 int cluster_shift_by_coord(const coord_t * coord);
 
-#endif /* __FS_REISER4_CTAIL_H__ */
+#endif				/* __FS_REISER4_CTAIL_H__ */
 
 /* Make Linus happy.
    Local variables:

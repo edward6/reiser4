@@ -5,7 +5,7 @@
    . used by directory plugin to create entries powered by specified
      regular plugins */
 
-#include "../plugin.h"
+#include "plugin.h"
 
 regular_plugin regular_plugins[LAST_REGULAR_ID] = {
 	[UF_REGULAR_ID] = {

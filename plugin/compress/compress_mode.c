@@ -4,19 +4,16 @@
 
 #include "../../inode.h"
 #include "../plugin.h"
-#include "../cryptcompress.h"
 
 /* plugin->should_deflate() */
-static int
-should_deflate_test(cloff_t index)
+static int should_deflate_test(cloff_t index)
 {
 	return !test_bit(0, &index);
 }
 
 /* plugin->discard_deflate() */
 
-static int
-discard_deflate_nocond(struct inode * inode, cloff_t index)
+static int discard_deflate_nocond(struct inode *inode, cloff_t index)
 {
 	int result;
 
@@ -31,8 +28,7 @@ discard_deflate_nocond(struct inode * inode, cloff_t index)
 	return 0;
 }
 
-static int
-discard_deflate_first(struct inode * inode, cloff_t index)
+static int discard_deflate_first(struct inode *inode, cloff_t index)
 {
 	assert("edward-1308", inode != NULL);
 
@@ -42,59 +38,64 @@ discard_deflate_first(struct inode * inode, cloff_t index)
 /* compression mode_plugins */
 compression_mode_plugin compression_mode_plugins[LAST_COMPRESSION_MODE_ID] = {
 	[SMART_COMPRESSION_MODE_ID] = {
-		.h = {
-			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-			.id = SMART_COMPRESSION_MODE_ID,
-			.pops = NULL,
-			.label = "if-0-compressible",
-			.desc = "If-first-cluster-compressible heuristic",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
-		},
-		.should_deflate = NULL,
-		.save_deflate = NULL,
-		.discard_deflate = discard_deflate_first
-	},
+				       .h = {
+					     .type_id =
+					     REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+					     .id = SMART_COMPRESSION_MODE_ID,
+					     .pops = NULL,
+					     .label = "if-0-compressible",
+					     .desc =
+					     "If-first-cluster-compressible heuristic",
+					     .linkage = TYPE_SAFE_LIST_LINK_ZERO}
+				       ,
+				       .should_deflate = NULL,
+				       .save_deflate = NULL,
+				       .discard_deflate = discard_deflate_first}
+	,
 	[LAZY_COMPRESSION_MODE_ID] = {
-		.h = {
-			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-			.id = LAZY_COMPRESSION_MODE_ID,
-			.pops = NULL,
-			.label = "if-all-compressible",
-			.desc = "If-all-compressible heuristic",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
-		},
-		.should_deflate = NULL,
-		.save_deflate = NULL,
-		.discard_deflate = discard_deflate_nocond
-	},
+				      .h = {
+					    .type_id =
+					    REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+					    .id = LAZY_COMPRESSION_MODE_ID,
+					    .pops = NULL,
+					    .label = "if-all-compressible",
+					    .desc =
+					    "If-all-compressible heuristic",
+					    .linkage = TYPE_SAFE_LIST_LINK_ZERO}
+				      ,
+				      .should_deflate = NULL,
+				      .save_deflate = NULL,
+				      .discard_deflate = discard_deflate_nocond}
+	,
 	[FORCE_COMPRESSION_MODE_ID] = {
-		.h = {
-			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-			.id = FORCE_COMPRESSION_MODE_ID,
-			.pops = NULL,
-			.label = "force",
-			.desc = "Compress everything",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
-		},
-		.should_deflate = NULL,
-		.save_deflate = NULL,
-		.discard_deflate = NULL
-	},
+				       .h = {
+					     .type_id =
+					     REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+					     .id = FORCE_COMPRESSION_MODE_ID,
+					     .pops = NULL,
+					     .label = "force",
+					     .desc = "Compress everything",
+					     .linkage = TYPE_SAFE_LIST_LINK_ZERO}
+				       ,
+				       .should_deflate = NULL,
+				       .save_deflate = NULL,
+				       .discard_deflate = NULL}
+	,
 	[TEST_COMPRESSION_MODE_ID] = {
-		.h = {
-			.type_id = REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
-			.id = TEST_COMPRESSION_MODE_ID,
-			.pops = NULL,
-			.label = "test", /* This mode is only for benchmarks */
-			.desc = "Don't compress odd clusters",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
-		},
-		.should_deflate = should_deflate_test,
-		.save_deflate = NULL,
-		.discard_deflate = NULL
-	}
+				      .h = {
+					    .type_id =
+					    REISER4_COMPRESSION_MODE_PLUGIN_TYPE,
+					    .id = TEST_COMPRESSION_MODE_ID,
+					    .pops = NULL,
+					    .label = "test",	/* This mode is only for benchmarks */
+					    .desc =
+					    "Don't compress odd clusters",
+					    .linkage = TYPE_SAFE_LIST_LINK_ZERO}
+				      ,
+				      .should_deflate = should_deflate_test,
+				      .save_deflate = NULL,
+				      .discard_deflate = NULL}
 };
-
 
 /*
   Local variables:

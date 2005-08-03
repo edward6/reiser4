@@ -101,10 +101,10 @@
 #include "pseudo.h"
 
 static int init_pseudo(struct inode *parent, struct inode *pseudo,
-		       pseudo_plugin *pplug, const char *name);
+		       pseudo_plugin * pplug, const char *name);
 
 static struct inode *add_pseudo(struct inode *parent,
-				pseudo_plugin *pplug, struct dentry **d);
+				pseudo_plugin * pplug, struct dentry **d);
 
 /*
  * helper method: set ->datum field in the pseudo file specific portion of
@@ -138,10 +138,10 @@ static int pseudo_id(struct inode *p)
 static int
 lookup_of_plugin(struct inode *parent, int id, struct dentry **dentry)
 {
-	const char     *name;
-	struct inode   *pseudo;
+	const char *name;
+	struct inode *pseudo;
 	reiser4_plugin *plugin;
-	int             result;
+	int result;
 
 	name = (*dentry)->d_name.name;
 	pseudo = ERR_PTR(-ENOENT);
@@ -168,7 +168,7 @@ lookup_of_plugin(struct inode *parent, int id, struct dentry **dentry)
  * implement ->lookup() method using convention described in the comment for
  * lookup_of_plugin() function.
  */
-static int lookup_table(struct inode *parent, struct dentry ** dentry)
+static int lookup_table(struct inode *parent, struct dentry **dentry)
 {
 	assert("nikita-3511", parent != NULL);
 	assert("nikita-3512", dentry != NULL);
@@ -186,13 +186,12 @@ static int lookup_table(struct inode *parent, struct dentry ** dentry)
  * helper to implement ->readdir() method for the pseudo files. It uses the
  * same convention as lookup_of_plugin() function.
  */
-static int
-readdir_table(struct file *f, void *dirent, filldir_t filld)
+static int readdir_table(struct file *f, void *dirent, filldir_t filld)
 {
 	loff_t off;
-	ino_t  ino;
-	int    skip;
-	int    id;
+	ino_t ino;
+	int skip;
+	int id;
 
 	struct inode *inode;
 	reiser4_plugin *plugin;
@@ -210,13 +209,13 @@ readdir_table(struct file *f, void *dirent, filldir_t filld)
 		ino = inode->i_ino;
 		if (filld(dirent, ".", 1, off, ino, DT_DIR) < 0)
 			break;
-		++ off;
+		++off;
 		/* fallthrough */
 	case 1:
 		ino = parent_ino(f->f_dentry);
 		if (filld(dirent, "..", 2, off, ino, DT_DIR) < 0)
 			break;
-		++ off;
+		++off;
 		/* fallthrough */
 	default:
 		skip = off - 2;
@@ -239,9 +238,9 @@ readdir_table(struct file *f, void *dirent, filldir_t filld)
 						  off,
 						  off + (long)f, DT_REG) < 0)
 						break;
-					++ off;
+					++off;
 				} else
-					-- skip;
+					--skip;
 			}
 		}
 	}
@@ -258,15 +257,14 @@ readdir_table(struct file *f, void *dirent, filldir_t filld)
 /*
  * try to look up built-in pseudo file by its name.
  */
-reiser4_internal int
-lookup_pseudo_file(struct inode *parent, struct dentry **dentry)
+int lookup_pseudo_file(struct inode *parent, struct dentry **dentry)
 {
 	assert("nikita-2999", parent != NULL);
 	assert("nikita-3000", dentry != NULL);
 
 #if !ENABLE_REISER4_PSEUDO
 	return RETERR(-ENOENT);
-#endif /* ENABLE_REISER4_PSEUDO */
+#endif				/* ENABLE_REISER4_PSEUDO */
 	/* if pseudo files are disabled for this file system bail out */
 	if (reiser4_is_set(parent->i_sb, REISER4_NO_PSEUDO))
 		return RETERR(-ENOENT);
@@ -277,7 +275,7 @@ lookup_pseudo_file(struct inode *parent, struct dentry **dentry)
 /* create inode for pseudo file with plugin @pplug, and add it to the @parent
  * under name @d */
 static struct inode *add_pseudo(struct inode *parent,
-				pseudo_plugin *pplug, struct dentry **d)
+				pseudo_plugin * pplug, struct dentry **d)
 {
 	struct inode *pseudo;
 
@@ -294,7 +292,6 @@ static struct inode *add_pseudo(struct inode *parent,
 		pseudo = ERR_PTR(RETERR(-ENOMEM));
 	return pseudo;
 }
-
 
 /* helper function: return host object of @inode pseudo file */
 static struct inode *get_inode_host(struct inode *inode)
@@ -318,10 +315,10 @@ static struct inode *get_inode_parent(struct inode *inode)
  */
 static int
 init_pseudo(struct inode *parent, struct inode *pseudo,
-	    pseudo_plugin *pplug, const char *name)
+	    pseudo_plugin * pplug, const char *name)
 {
 	int result;
-	struct inode  *host;
+	struct inode *host;
 	reiser4_inode *idata;
 	reiser4_object_create_data data;
 	static const oid_t pseudo_locality = 0x0ull;
@@ -340,11 +337,11 @@ init_pseudo(struct inode *parent, struct inode *pseudo,
 		/* host of "a/...." is "a" */
 		host = parent;
 
-	idata->file_plugin_data.pseudo_info.host   = host;
+	idata->file_plugin_data.pseudo_info.host = host;
 	idata->file_plugin_data.pseudo_info.parent = parent;
 	idata->file_plugin_data.pseudo_info.plugin = pplug;
 
-	data.id   = PSEUDO_FILE_PLUGIN_ID;
+	data.id = PSEUDO_FILE_PLUGIN_ID;
 	data.mode = pplug->lookup_mode;
 
 	plugin_set_file(&idata->pset, file_plugin_by_id(PSEUDO_FILE_PLUGIN_ID));
@@ -395,7 +392,7 @@ static struct inode *get_seq_pseudo_host(struct seq_file *seq)
 /*
  * implementation of ->try method for pseudo files with fixed names.
  */
-static int try_by_label(pseudo_plugin *pplug,
+static int try_by_label(pseudo_plugin * pplug,
 			const struct inode *parent, const char *name)
 {
 	return !strcmp(name, pplug->h.label);
@@ -434,17 +431,17 @@ static int update_ugid(struct dentry *dentry, struct inode *inode,
 	if (result == 0) {
 		struct iattr newattrs;
 
-		newattrs.ia_valid =  ATTR_CTIME;
-		if (uid != (uid_t) -1) {
+		newattrs.ia_valid = ATTR_CTIME;
+		if (uid != (uid_t) - 1) {
 			newattrs.ia_valid |= ATTR_UID;
 			newattrs.ia_uid = uid;
 		}
-		if (gid != (uid_t) -1) {
+		if (gid != (uid_t) - 1) {
 			newattrs.ia_valid |= ATTR_GID;
 			newattrs.ia_gid = gid;
 		}
 		if (!S_ISDIR(inode->i_mode))
-			newattrs.ia_valid |= ATTR_KILL_SUID|ATTR_KILL_SGID;
+			newattrs.ia_valid |= ATTR_KILL_SUID | ATTR_KILL_SGID;
 		down(&inode->i_sem);
 		result = notify_change(dentry, &newattrs);
 		up(&inode->i_sem);
@@ -506,7 +503,8 @@ static int get_gid(struct file *file, const char *buf)
  */
 static int show_oid(struct seq_file *seq, void *cookie)
 {
-	seq_printf(seq, "%llu", (unsigned long long)get_inode_oid(get_seq_pseudo_host(seq)));
+	seq_printf(seq, "%llu",
+		   (unsigned long long)get_inode_oid(get_seq_pseudo_host(seq)));
 	return 0;
 }
 
@@ -547,7 +545,8 @@ static int show_nlink(struct seq_file *seq, void *cookie)
 static int show_locality(struct seq_file *seq, void *cookie)
 {
 	seq_printf(seq, "%llu",
-		   (unsigned long long)reiser4_inode_data(get_seq_pseudo_host(seq))->locality_id);
+		   (unsigned long long)
+		   reiser4_inode_data(get_seq_pseudo_host(seq))->locality_id);
 	return 0;
 }
 
@@ -556,12 +555,11 @@ static int show_locality(struct seq_file *seq, void *cookie)
  */
 static int show_rwx(struct seq_file *seq, void *cookie)
 {
-	umode_t      m;
+	umode_t m;
 
 	m = get_seq_pseudo_host(seq)->i_mode;
 	seq_printf(seq, "%#ho %c%c%c%c%c%c%c%c%c%c",
 		   m,
-
 		   S_ISREG(m) ? '-' :
 		   S_ISDIR(m) ? 'd' :
 		   S_ISCHR(m) ? 'c' :
@@ -569,18 +567,14 @@ static int show_rwx(struct seq_file *seq, void *cookie)
 		   S_ISFIFO(m) ? 'p' :
 		   S_ISLNK(m) ? 'l' :
 		   S_ISSOCK(m) ? 's' : '?',
-
 		   m & S_IRUSR ? 'r' : '-',
 		   m & S_IWUSR ? 'w' : '-',
 		   m & S_IXUSR ? 'x' : '-',
-
 		   m & S_IRGRP ? 'r' : '-',
 		   m & S_IWGRP ? 'w' : '-',
 		   m & S_IXGRP ? 'x' : '-',
-
 		   m & S_IROTH ? 'r' : '-',
-		   m & S_IWOTH ? 'w' : '-',
-		   m & S_IXOTH ? 'x' : '-');
+		   m & S_IWOTH ? 'w' : '-', m & S_IXOTH ? 'x' : '-');
 	return 0;
 }
 
@@ -602,13 +596,14 @@ static int get_rwx(struct file *file, const char *buf)
 			struct iattr newattrs;
 
 			down(&host->i_sem);
-			if (rwx == (umode_t)~0)
+			if (rwx == (umode_t) ~ 0)
 				rwx = host->i_mode;
 			newattrs.ia_mode =
-				(rwx & S_IALLUGO) | (host->i_mode & ~S_IALLUGO);
+			    (rwx & S_IALLUGO) | (host->i_mode & ~S_IALLUGO);
 			newattrs.ia_valid = ATTR_MODE | ATTR_CTIME;
-			result = notify_change(file->f_dentry->d_parent->d_parent,
-					       &newattrs);
+			result =
+			    notify_change(file->f_dentry->d_parent->d_parent,
+					  &newattrs);
 			up(&host->i_sem);
 		}
 	} else
@@ -623,7 +618,7 @@ static int get_rwx(struct file *file, const char *buf)
 /*
  * start iteration over all pseudo files
  */
-static void * pseudos_start(struct seq_file *m, loff_t *pos)
+static void *pseudos_start(struct seq_file *m, loff_t * pos)
 {
 	if (*pos >= LAST_PSEUDO_ID)
 		return NULL;
@@ -640,9 +635,9 @@ static void pseudos_stop(struct seq_file *m, void *v)
 /*
  * go to next pseudo file in the sequence
  */
-static void * pseudos_next(struct seq_file *m, void *v, loff_t *pos)
+static void *pseudos_next(struct seq_file *m, void *v, loff_t * pos)
 {
-	++ (*pos);
+	++(*pos);
 	return pseudos_start(m, pos);
 }
 
@@ -666,7 +661,7 @@ static int pseudos_show(struct seq_file *m, void *v)
 /*
  * start iteration over all blocks allocated for the host file
  */
-static void * bmap_start(struct seq_file *m, loff_t *pos)
+static void *bmap_start(struct seq_file *m, loff_t * pos)
 {
 	struct inode *host;
 
@@ -688,14 +683,11 @@ static void bmap_stop(struct seq_file *m, void *v)
  * go to the next block in the sequence of blocks allocated for the host
  * file.
  */
-static void * bmap_next(struct seq_file *m, void *v, loff_t *pos)
+static void *bmap_next(struct seq_file *m, void *v, loff_t * pos)
 {
-	++ (*pos);
+	++(*pos);
 	return bmap_start(m, pos);
 }
-
-extern int reiser4_lblock_to_blocknr(struct address_space *mapping,
-				     sector_t lblock, reiser4_block_nr *blocknr);
 
 /*
  * output information about single block number allocated for the host file
@@ -703,20 +695,20 @@ extern int reiser4_lblock_to_blocknr(struct address_space *mapping,
  */
 static int bmap_show(struct seq_file *m, void *v)
 {
-	sector_t lblock;
-	int result;
+	sector_t lblock, block;
 	reiser4_block_nr blocknr;
 
-	lblock = ((sector_t)(unsigned long)v) - 1;
-	result = reiser4_lblock_to_blocknr(get_seq_pseudo_host(m)->i_mapping,
-					   lblock, &blocknr);
-	if (result == 0) {
+	lblock = ((sector_t) (unsigned long)v) - 1;
+	block =
+	    get_seq_pseudo_host(m)->i_mapping->a_ops->
+	    bmap(get_seq_pseudo_host(m)->i_mapping, lblock);
+	if (block > 0) {
 		if (blocknr_is_fake(&blocknr))
 			seq_printf(m, "%#llx\n", (unsigned long long)blocknr);
 		else
 			seq_printf(m, "%llu\n", (unsigned long long)blocknr);
 	}
-	return result;
+	return 0;
 }
 
 /*
@@ -726,15 +718,15 @@ static int bmap_show(struct seq_file *m, void *v)
 /* "cursor" used to iterate over all directory entries for the host file */
 typedef struct readdir_cookie {
 	/* position within the tree */
-	tap_t       tap;
+	tap_t tap;
 	/* coord used by ->tap */
-	coord_t     coord;
+	coord_t coord;
 	/* lock handle used by ->tap */
 	lock_handle lh;
 } readdir_cookie;
 
 /* true if @coord stores directory entries for @host */
-static int is_host_item(struct inode *host, coord_t *coord)
+static int is_host_item(struct inode *host, coord_t * coord)
 {
 	if (item_type_by_coord(coord) != DIR_ENTRY_ITEM_TYPE)
 		return 0;
@@ -745,7 +737,7 @@ static int is_host_item(struct inode *host, coord_t *coord)
 
 /* helper function to release resources allocated to iterate over directory
  * entries for the host file */
-static void finish(readdir_cookie *c)
+static void finish(readdir_cookie * c)
 {
 	if (c != NULL && !IS_ERR(c)) {
 		/* release c->tap->lh long term lock... */
@@ -758,15 +750,15 @@ static void finish(readdir_cookie *c)
 /*
  * start iterating over directory entries for the host file
  */
-static void * readdir_start(struct seq_file *m, loff_t *pos)
+static void *readdir_start(struct seq_file *m, loff_t * pos)
 {
-	struct inode   *host;
+	struct inode *host;
 	readdir_cookie *c;
-	dir_plugin     *dplug;
-	reiser4_key     dotkey;
-	struct qstr     dotname;
-	int             result;
-	loff_t          entryno;
+	dir_plugin *dplug;
+	reiser4_key dotkey;
+	struct qstr dotname;
+	int result;
+	loff_t entryno;
 
 	/*
 	 * first, lookup item containing dot of the host
@@ -776,7 +768,7 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 	dplug = inode_dir_plugin(host);
 
 	dotname.name = ".";
-	dotname.len  = 1;
+	dotname.len = 1;
 
 	down(&host->i_sem);
 	if (dplug == NULL || dplug->build_entry_key == NULL) {
@@ -801,10 +793,7 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 			       &c->lh,
 			       ZNODE_READ_LOCK,
 			       FIND_EXACT,
-			       LEAF_LEVEL,
-			       LEAF_LEVEL,
-			       CBK_READDIR_RA,
-			       NULL);
+			       LEAF_LEVEL, LEAF_LEVEL, CBK_READDIR_RA, NULL);
 
 	tap_init(&c->tap, &c->coord, &c->lh, ZNODE_READ_LOCK);
 	if (result == 0)
@@ -816,7 +805,7 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 		 */
 		result = tap_load(&c->tap); {
 		if (result == 0) {
-			for (entryno = 0; entryno != *pos; ++ entryno) {
+			for (entryno = 0; entryno != *pos; ++entryno) {
 				result = go_next_unit(&c->tap);
 				if (result == -E_NO_NEIGHBOR) {
 					finish(c);
@@ -830,12 +819,12 @@ static void * readdir_start(struct seq_file *m, loff_t *pos)
 				}
 			}
 		}
-	}
-	if (result != 0) {
-		finish(c);
-		return ERR_PTR(result);
-	} else
-		return c;
+		}
+		if (result != 0) {
+			finish(c);
+			return ERR_PTR(result);
+		} else
+			return c;
 }
 
 /*
@@ -850,14 +839,14 @@ static void readdir_stop(struct seq_file *m, void *v)
 /*
  * go to the next entry in the host directory
  */
-static void * readdir_next(struct seq_file *m, void *v, loff_t *pos)
+static void *readdir_next(struct seq_file *m, void *v, loff_t * pos)
 {
 	readdir_cookie *c;
-	struct inode   *host;
+	struct inode *host;
 	int result;
 
 	c = v;
-	++ (*pos);
+	++(*pos);
 	host = get_seq_pseudo_host(m);
 	/* next entry is in the next unit */
 	result = go_next_unit(&c->tap);
@@ -942,22 +931,22 @@ static plugin_entry pentry[] = {
 	PLUGIN_ENTRY(cluster, PSET_CLUSTER),
 	PLUGIN_ENTRY(regular, PSET_REGULAR_ENTRY),
 	{
-		.name = NULL,
-	}
+	 .name = NULL,
+	 }
 };
 
 /*
  * enumeration of files available under "a/..../plugin/foo"
  */
 typedef enum {
-	PFIELD_TYPEID, /* "a/..../plugin/foo/type_id" contains type id of the
-			* plugin foo */
-	PFIELD_ID,     /* "a/..../plugin/foo/id" contains id of the plugin
-			* foo */
-	PFIELD_LABEL,  /* "a/..../plugin/foo/label" contains label of the
-			* plugin foo */
-	PFIELD_DESC    /* "a/..../plugin/foo/desc" contains description of
-			* the plugin foo */
+	PFIELD_TYPEID,		/* "a/..../plugin/foo/type_id" contains type id of the
+				 * plugin foo */
+	PFIELD_ID,		/* "a/..../plugin/foo/id" contains id of the plugin
+				 * foo */
+	PFIELD_LABEL,		/* "a/..../plugin/foo/label" contains label of the
+				 * plugin foo */
+	PFIELD_DESC		/* "a/..../plugin/foo/desc" contains description of
+				 * the plugin foo */
 } plugin_field;
 
 /* map pseudo files under "a/..../plugin/foo" to their names */
@@ -967,29 +956,28 @@ static plugin_entry fentry[] = {
 	PSEUDO_ARRAY_ENTRY(PFIELD_LABEL, "label"),
 	PSEUDO_ARRAY_ENTRY(PFIELD_DESC, "desc"),
 	{
-		.name   = NULL
-	},
+	 .name = NULL},
 };
 
 /* read method for "a/..../plugin/foo" */
 static int show_plugin(struct seq_file *seq, void *cookie)
 {
-	struct inode   *host;
-	struct file    *file;
-	struct inode   *inode;
+	struct inode *host;
+	struct file *file;
+	struct inode *inode;
 	reiser4_plugin *plug;
-	plugin_entry   *entry;
-	int             idx;
-	plugin_set     *pset;
+	plugin_entry *entry;
+	int idx;
+	plugin_set *pset;
 
-	file  = seq->private;
+	file = seq->private;
 	inode = file->f_dentry->d_inode;
 
-	host  = get_inode_host(inode);
-	idx   = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.datum;
+	host = get_inode_host(inode);
+	idx = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.datum;
 	entry = &pentry[idx];
-	pset  = reiser4_inode_data(host)->pset;
-	plug  = pset_get(pset, entry->memb);
+	pset = reiser4_inode_data(host)->pset;
+	plug = pset_get(pset, entry->memb);
 
 	if (plug != NULL)
 		seq_printf(seq, "%i %s %s",
@@ -1003,22 +991,24 @@ static int show_plugin(struct seq_file *seq, void *cookie)
  */
 static int set_plugin(struct file *file, const char *buf)
 {
-	struct inode   *host;
-	struct inode   *inode;
+	struct inode *host;
+	struct inode *inode;
 	reiser4_plugin *plug;
-	plugin_entry   *entry;
-	int             idx;
-	plugin_set     *pset;
-	int             result;
-	reiser4_context ctx;
+	plugin_entry *entry;
+	int idx;
+	plugin_set *pset;
+	int result;
+	reiser4_context *ctx;
 
 	inode = file->f_dentry->d_inode;
-	init_context(&ctx, inode->i_sb);
+	ctx = init_context(inode->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
 
-	host  = get_inode_host(inode);
-	idx   = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.datum;
+	host = get_inode_host(inode);
+	idx = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.datum;
 	entry = &pentry[idx];
-	pset  = reiser4_inode_data(host)->pset;
+	pset = reiser4_inode_data(host)->pset;
 
 	plug = lookup_plugin(entry->name, buf);
 	if (plug != NULL) {
@@ -1037,8 +1027,8 @@ static int set_plugin(struct file *file, const char *buf)
 		}
 	} else
 		result = RETERR(-ENOENT);
-	context_set_commit_async(&ctx);
-	reiser4_exit_context(&ctx);
+	context_set_commit_async(ctx);
+	reiser4_exit_context(ctx);
 	return result;
 }
 
@@ -1059,8 +1049,8 @@ static int set_plugin(struct file *file, const char *buf)
  * "datum". All child objects are handled by the same pseudo plugin, and are
  * differentiated by the datum installed into pseudo file inode.
  */
-static int array_lookup_pseudo(struct inode *parent, struct dentry ** dentry,
-			       plugin_entry *array, pseudo_plugin *pplug)
+static int array_lookup_pseudo(struct inode *parent, struct dentry **dentry,
+			       plugin_entry * array, pseudo_plugin * pplug)
 {
 	int result;
 	int idx;
@@ -1068,7 +1058,7 @@ static int array_lookup_pseudo(struct inode *parent, struct dentry ** dentry,
 
 	pseudo = ERR_PTR(-ENOENT);
 	/* search for the given name in the array */
-	for (idx = 0; array[idx].name != NULL; ++ idx) {
+	for (idx = 0; array[idx].name != NULL; ++idx) {
 		if (!strcmp((*dentry)->d_name.name, array[idx].name)) {
 			pseudo = add_pseudo(parent, pplug, dentry);
 			break;
@@ -1090,10 +1080,10 @@ static int array_lookup_pseudo(struct inode *parent, struct dentry ** dentry,
  * array_lookup_pseudo().
  */
 static int array_readdir_pseudo(struct file *f, void *dirent, filldir_t filld,
-				plugin_entry *array, int size)
+				plugin_entry * array, int size)
 {
 	loff_t off;
-	ino_t  ino;
+	ino_t ino;
 
 	off = f->f_pos;
 	if (off < 0)
@@ -1105,17 +1095,17 @@ static int array_readdir_pseudo(struct file *f, void *dirent, filldir_t filld,
 		ino = f->f_dentry->d_inode->i_ino;
 		if (filld(dirent, ".", 1, off, ino, DT_DIR) < 0)
 			break;
-		++ off;
+		++off;
 		/* fallthrough */
 	case 1:
 		ino = parent_ino(f->f_dentry);
 		if (filld(dirent, "..", 2, off, ino, DT_DIR) < 0)
 			break;
-		++ off;
+		++off;
 		/* fallthrough */
 	default:
 		/* scan array for the names */
-		for (; off < size + 1; ++ off) {
+		for (; off < size + 1; ++off) {
 			const char *name;
 
 			name = array[off - 2].name;
@@ -1128,13 +1118,12 @@ static int array_readdir_pseudo(struct file *f, void *dirent, filldir_t filld,
 	return 0;
 }
 
-
 /*
  * ->lookup() method for the "a/..../plugin/foo/" directory. It uses array
  * representation of child objects, described in the comment for
  * array_lookup_pseudo().
  */
-static int lookup_plugin_field(struct inode *parent, struct dentry ** dentry)
+static int lookup_plugin_field(struct inode *parent, struct dentry **dentry)
 {
 	return array_lookup_pseudo(parent, dentry, fentry,
 				   pseudo_plugin_by_id(PSEUDO_PLUGIN_FIELD_ID));
@@ -1145,26 +1134,26 @@ static int lookup_plugin_field(struct inode *parent, struct dentry ** dentry)
  */
 static int show_plugin_field(struct seq_file *seq, void *cookie)
 {
-	struct inode   *parent;
-	struct inode   *host;
-	struct file    *file;
-	struct inode   *inode;
+	struct inode *parent;
+	struct inode *host;
+	struct file *file;
+	struct inode *inode;
 	reiser4_plugin *plug;
-	plugin_entry   *entry;
-	int             pidx;
-	int             idx;
-	plugin_set     *pset;
+	plugin_entry *entry;
+	int pidx;
+	int idx;
+	plugin_set *pset;
 
-	file  = seq->private;
+	file = seq->private;
 	inode = file->f_dentry->d_inode;
 
-	parent  = get_inode_parent(inode);
-	host  = get_inode_host(inode);
-	pidx  = reiser4_inode_data(parent)->file_plugin_data.pseudo_info.datum;
-	idx   = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.datum;
+	parent = get_inode_parent(inode);
+	host = get_inode_host(inode);
+	pidx = reiser4_inode_data(parent)->file_plugin_data.pseudo_info.datum;
+	idx = reiser4_inode_data(inode)->file_plugin_data.pseudo_info.datum;
 	entry = &pentry[pidx];
-	pset  = reiser4_inode_data(host)->pset;
-	plug  = pset_get(pset, entry->memb);
+	pset = reiser4_inode_data(host)->pset;
+	plug = pset_get(pset, entry->memb);
 
 	if (plug != NULL) {
 		switch (idx) {
@@ -1201,7 +1190,7 @@ static int readdir_plugin_field(struct file *f, void *dirent, filldir_t filld)
  * representation of child objects, described in the comment for
  * array_lookup_pseudo().
  */
-static int lookup_plugins(struct inode *parent, struct dentry ** dentry)
+static int lookup_plugins(struct inode *parent, struct dentry **dentry)
 {
 	return array_lookup_pseudo(parent, dentry, pentry,
 				   pseudo_plugin_by_id(PSEUDO_PLUGIN_ID));
@@ -1225,14 +1214,14 @@ static int readdir_plugins(struct file *f, void *dirent, filldir_t filld)
  * start iteration over a sequence of items for the host file. This iterator
  * uses the same cursor as a readdir iterator above.
  */
-static void * items_start(struct seq_file *m, loff_t *pos)
+static void *items_start(struct seq_file *m, loff_t * pos)
 {
-	struct inode   *host;
+	struct inode *host;
 	readdir_cookie *c;
-	file_plugin    *fplug;
-	reiser4_key     headkey;
-	int             result;
-	loff_t          entryno;
+	file_plugin *fplug;
+	reiser4_key headkey;
+	int result;
+	loff_t entryno;
 
 	/*
 	 * first, find first item in the file, then, scan to the *pos-th one.
@@ -1263,10 +1252,7 @@ static void * items_start(struct seq_file *m, loff_t *pos)
 			       &c->lh,
 			       ZNODE_READ_LOCK,
 			       FIND_MAX_NOT_MORE_THAN,
-			       TWIG_LEVEL,
-			       LEAF_LEVEL,
-			       0,
-			       NULL);
+			       TWIG_LEVEL, LEAF_LEVEL, 0, NULL);
 
 	tap_init(&c->tap, &c->coord, &c->lh, ZNODE_READ_LOCK);
 	if (result == 0)
@@ -1275,7 +1261,7 @@ static void * items_start(struct seq_file *m, loff_t *pos)
 			/*
 			 * skip @pos items
 			 */
-			for (entryno = 0; entryno != *pos; ++ entryno) {
+			for (entryno = 0; entryno != *pos; ++entryno) {
 				result = go_next_unit(&c->tap);
 				if (result == -E_NO_NEIGHBOR) {
 					finish(c);
@@ -1289,12 +1275,12 @@ static void * items_start(struct seq_file *m, loff_t *pos)
 				}
 			}
 		}
-	}
-	if (result != 0) {
-		finish(c);
-		return ERR_PTR(result);
-	} else
-		return c;
+		}
+		if (result != 0) {
+			finish(c);
+			return ERR_PTR(result);
+		} else
+			return c;
 }
 
 /*
@@ -1307,14 +1293,14 @@ static void items_stop(struct seq_file *m, void *v)
 }
 
 /* go to the next item in the host file */
-static void * items_next(struct seq_file *m, void *v, loff_t *pos)
+static void *items_next(struct seq_file *m, void *v, loff_t * pos)
 {
 	readdir_cookie *c;
-	struct inode   *host;
+	struct inode *host;
 	int result;
 
 	c = v;
-	++ (*pos);
+	++(*pos);
 	host = get_seq_pseudo_host(m);
 	result = go_next_unit(&c->tap);
 	if (result == 0) {
@@ -1333,10 +1319,9 @@ static void * items_next(struct seq_file *m, void *v, loff_t *pos)
 static int items_show(struct seq_file *m, void *v)
 {
 	readdir_cookie *c;
-	item_plugin    *iplug;
-	char            buf[KEY_BUF_LEN];
-	reiser4_key     key;
-
+	item_plugin *iplug;
+	char buf[KEY_BUF_LEN];
+	reiser4_key key;
 
 	c = v;
 	iplug = item_plugin_by_coord(&c->coord);
@@ -1348,9 +1333,8 @@ static int items_show(struct seq_file *m, void *v)
 	return 0;
 }
 
-extern int
-invoke_create_method(struct inode *, struct dentry *,
-		     reiser4_object_create_data *);
+int create_vfs_object(struct inode *, struct dentry *,
+		      reiser4_object_create_data *);
 
 /*
  * write method for the "a/..../new" file. Extract file name from the user
@@ -1365,13 +1349,13 @@ static int get_new(struct file *file, const char *buf)
 	if (strchr(buf, '/') == NULL) {
 		struct dentry *d;
 		struct qstr name;
-		unsigned int  c;
+		unsigned int c;
 		unsigned long hash;
 
 		reiser4_object_create_data data;
 		memset(&data, 0, sizeof data);
 
-		data.mode = S_IFREG | 0 /* mode */;
+		data.mode = S_IFREG | 0 /* mode */ ;
 		data.id = UNIX_FILE_PLUGIN_ID;
 
 		name.name = buf;
@@ -1384,7 +1368,7 @@ static int get_new(struct file *file, const char *buf)
 			hash = partial_name_hash(c, hash);
 			c = *(const unsigned char *)buf;
 		} while (c);
-		name.len = buf - (const char *) name.name;
+		name.len = buf - (const char *)name.name;
 		name.hash = end_name_hash(hash);
 
 		/* allocate dentry */
@@ -1393,8 +1377,8 @@ static int get_new(struct file *file, const char *buf)
 			result = RETERR(-ENOMEM);
 		else {
 			/* call ->create() method of the host directory */
-			result = invoke_create_method(get_pseudo_host(file),
-						      d, &data);
+			result =
+			    create_vfs_object(get_pseudo_host(file), d, &data);
 			reiser4_free_dentry_fsdata(d);
 		}
 	} else
@@ -1415,14 +1399,14 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "meta-files",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = TOP_LEVEL,
-		.try         = try_by_label,
+		.parent = TOP_LEVEL,
+		.try = try_by_label,
 		.readdirable = 0,
-		.lookup      = lookup_table,
+		.lookup = lookup_table,
 		.lookup_mode = S_IFDIR | S_IRUGO | S_IXUGO,
-		.read_type   = PSEUDO_READ_NONE,
-		.write_type  = PSEUDO_WRITE_NONE,
-		.readdir     = readdir_table
+		.read_type = PSEUDO_READ_NONE,
+		.write_type = PSEUDO_WRITE_NONE,
+		.readdir = readdir_table
 	},
 	[PSEUDO_UID_ID] = {
 		.h = {
@@ -1433,19 +1417,19 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "returns owner",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO | S_IWUSR,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_uid
-		 },
-		.write_type  = PSEUDO_WRITE_STRING,
-		.write       = {
-			 .gets        = store_uid
-		 }
+		.read_type = PSEUDO_READ_SINGLE,
+		.read = {
+			.single_show = show_uid
+		},
+		.write_type = PSEUDO_WRITE_STRING,
+		.write = {
+			.gets = store_uid
+		}
 	},
 	[PSEUDO_GID_ID] = {
 		.h = {
@@ -1456,19 +1440,19 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "returns group",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO | S_IWUSR,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_gid
-		 },
-		.write_type  = PSEUDO_WRITE_STRING,
-		.write       = {
-			 .gets        = get_gid
-		 }
+		.read_type = PSEUDO_READ_SINGLE,
+		.read = {
+			.single_show = show_gid
+		},
+		.write_type = PSEUDO_WRITE_STRING,
+		.write = {
+			.gets = get_gid
+		}
 	},
 	[PSEUDO_RWX_ID] = {
 		.h = {
@@ -1479,19 +1463,19 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "returns rwx permissions",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO | S_IWUSR,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_rwx
-		 },
-		.write_type  = PSEUDO_WRITE_STRING,
-		.write       = {
-			 .gets        = get_rwx
-		 }
+		.read_type = PSEUDO_READ_SINGLE,
+		.read = {
+			.single_show = show_rwx
+		},
+		.write_type = PSEUDO_WRITE_STRING,
+		.write = {
+			.gets = get_rwx
+		}
 	},
 	[PSEUDO_OID_ID] = {
 		.h = {
@@ -1502,16 +1486,16 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "returns object id",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_oid
-		 },
-		.write_type  = PSEUDO_WRITE_NONE
+		.read_type = PSEUDO_READ_SINGLE,
+		.read = {
+			.single_show = show_oid
+		},
+		.write_type = PSEUDO_WRITE_NONE
 	},
 	[PSEUDO_KEY_ID] = {
 		.h = {
@@ -1520,18 +1504,18 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.pops = NULL,
 			.label = "key",
 			.desc = "returns object's key",
-			.linkage = TYPE_SAFE_LIST_LINK_ZERO
-		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+			.linkage = TYPE_SAFE_LIST_LINK_ZERO}
+		,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_key
-		 },
-		.write_type  = PSEUDO_WRITE_NONE
+		.read_type = PSEUDO_READ_SINGLE,
+		.read = {
+			.single_show = show_key
+		},
+		.write_type = PSEUDO_WRITE_NONE
 	},
 	[PSEUDO_SIZE_ID] = {
 		.h = {
@@ -1542,16 +1526,16 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "returns object's size",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_size
-		 },
-		.write_type  = PSEUDO_WRITE_NONE
+		.read_type = PSEUDO_READ_SINGLE,
+		.read = {
+			.single_show = show_size
+		},
+		.write_type = PSEUDO_WRITE_NONE
 	},
 	[PSEUDO_NLINK_ID] = {
 		.h = {
@@ -1562,16 +1546,16 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "returns nlink count",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_nlink
-		 },
-		.write_type  = PSEUDO_WRITE_NONE
+		.read_type = PSEUDO_READ_SINGLE,
+		.read = {
+			.single_show = show_nlink
+		},
+		.write_type = PSEUDO_WRITE_NONE
 	},
 	[PSEUDO_LOCALITY_ID] = {
 		.h = {
@@ -1582,16 +1566,16 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "returns object's locality",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_locality
-		 },
-		.write_type  = PSEUDO_WRITE_NONE
+		.read_type = PSEUDO_READ_SINGLE,
+		.read = {
+			.single_show = show_locality
+		},
+		.write_type = PSEUDO_WRITE_NONE
 	},
 	[PSEUDO_PSEUDOS_ID] = {
 		.h = {
@@ -1602,21 +1586,21 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "returns a list of pseudo files",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO,
-		.read_type   = PSEUDO_READ_SEQ,
-		.read        = {
-			 .ops = {
-				 .start = pseudos_start,
-				 .stop  = pseudos_stop,
-				 .next  = pseudos_next,
-				 .show  = pseudos_show
-			 }
-		 },
-		.write_type  = PSEUDO_WRITE_NONE
+		.read_type = PSEUDO_READ_SEQ,
+		.read = {
+			.ops = {
+				.start = pseudos_start,
+				.stop = pseudos_stop,
+				.next = pseudos_next,
+				.show = pseudos_show
+			}
+		},
+		.write_type = PSEUDO_WRITE_NONE
 	},
 	[PSEUDO_BMAP_ID] = {
 		.h = {
@@ -1627,21 +1611,21 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "returns a list blocks for this file",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO,
-		.read_type   = PSEUDO_READ_SEQ,
-		.read        = {
-			 .ops = {
-				 .start = bmap_start,
-				 .stop  = bmap_stop,
-				 .next  = bmap_next,
-				 .show  = bmap_show
-			 }
-		 },
-		.write_type  = PSEUDO_WRITE_NONE
+		.read_type = PSEUDO_READ_SEQ,
+		.read = {
+			.ops = {
+				.start = bmap_start,
+				.stop = bmap_stop,
+				.next = bmap_next,
+				.show = bmap_show
+			}
+		},
+		.write_type = PSEUDO_WRITE_NONE
 	},
 	[PSEUDO_READDIR_ID] = {
 		.h = {
@@ -1649,24 +1633,25 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.id = PSEUDO_READDIR_ID,
 			.pops = NULL,
 			.label = "readdir",
-			.desc = "returns a list of names in the dir",
+			.desc =
+			"returns a list of names in the dir",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO,
-		.read_type   = PSEUDO_READ_SEQ,
-		.read        = {
-			 .ops = {
-				 .start = readdir_start,
-				 .stop  = readdir_stop,
-				 .next  = readdir_next,
-				 .show  = readdir_show
-			 }
-		 },
-		.write_type  = PSEUDO_WRITE_NONE
+		.read_type = PSEUDO_READ_SEQ,
+		.read = {
+			.ops = {
+				.start = readdir_start,
+				.stop = readdir_stop,
+				.next = readdir_next,
+				.show = readdir_show
+			}
+		},
+		.write_type = PSEUDO_WRITE_NONE
 	},
 	[PSEUDO_PLUGIN_ID] = {
 		.h = {
@@ -1677,10 +1662,10 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "plugin",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_PLUGINS_ID,
-		.try         = NULL,
+		.parent = PSEUDO_PLUGINS_ID,
+		.try = NULL,
 		.readdirable = 0,
-		.lookup      = lookup_plugin_field,
+		.lookup = lookup_plugin_field,
 		/*
 		 * foo/..../plugin/bar is much like a directory. So, why
 		 * there is no S_IFDIR term in the .lookup_mode, you ask?
@@ -1692,16 +1677,17 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 		 *
 		 * Directory cannot be opened for write. How smart.
 		 */
-		.lookup_mode = S_IFREG | S_IRUGO | S_IWUSR | S_IXUGO,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_plugin
-		 },
-		.write_type  = PSEUDO_WRITE_STRING,
-		.write       = {
-			 .gets        = set_plugin
-		 },
-		.readdir     = readdir_plugin_field
+		.lookup_mode =
+		S_IFREG | S_IRUGO | S_IWUSR | S_IXUGO,
+		.read_type = PSEUDO_READ_SINGLE,
+		.read = {
+			.single_show = show_plugin
+		},
+		.write_type = PSEUDO_WRITE_STRING,
+		.write = {
+			.gets = set_plugin
+		},
+		.readdir = readdir_plugin_field
 	},
 	[PSEUDO_PLUGINS_ID] = {
 		.h = {
@@ -1712,14 +1698,14 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "list of plugins",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = lookup_plugins,
+		.lookup = lookup_plugins,
 		.lookup_mode = S_IFDIR | S_IRUGO | S_IXUGO,
-		.read_type   = PSEUDO_READ_NONE,
-		.write_type  = PSEUDO_WRITE_NONE,
-		.readdir     = readdir_plugins
+		.read_type = PSEUDO_READ_NONE,
+		.write_type = PSEUDO_WRITE_NONE,
+		.readdir = readdir_plugins
 	},
 	[PSEUDO_PLUGIN_FIELD_ID] = {
 		.h = {
@@ -1730,17 +1716,17 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "plugin field",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_PLUGIN_ID,
-		.try         = NULL,
+		.parent = PSEUDO_PLUGIN_ID,
+		.try = NULL,
 		.readdirable = 0,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO,
-		.read_type   = PSEUDO_READ_SINGLE,
-		.read        = {
-			 .single_show = show_plugin_field
-		 },
-		.write_type  = PSEUDO_WRITE_NONE,
-		.readdir     = NULL
+		.read_type = PSEUDO_READ_SINGLE,
+		.read = {
+			.single_show = show_plugin_field
+		},
+		.write_type = PSEUDO_WRITE_NONE,
+		.readdir = NULL
 	},
 	[PSEUDO_ITEMS_ID] = {
 		.h = {
@@ -1748,24 +1734,25 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.id = PSEUDO_ITEMS_ID,
 			.pops = NULL,
 			.label = "items",
-			.desc = "returns a list of items for this file",
+			.desc =
+			"returns a list of items for this file",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IRUGO,
-		.read_type   = PSEUDO_READ_SEQ,
-		.read        = {
-			 .ops = {
-				 .start = items_start,
-				 .stop  = items_stop,
-				 .next  = items_next,
-				 .show  = items_show
-			 }
-		 },
-		.write_type  = PSEUDO_WRITE_NONE
+		.read_type = PSEUDO_READ_SEQ,
+		.read = {
+			.ops = {
+				.start = items_start,
+				.stop = items_stop,
+				.next = items_next,
+				.show = items_show
+			}
+		},
+		.write_type = PSEUDO_WRITE_NONE
 	},
 	[PSEUDO_NEW_ID] = {
 		.h = {
@@ -1776,20 +1763,20 @@ pseudo_plugin pseudo_plugins[LAST_PSEUDO_ID] = {
 			.desc = "creates new file in the host",
 			.linkage = TYPE_SAFE_LIST_LINK_ZERO
 		},
-		.parent      = PSEUDO_METAS_ID,
-		.try         = try_by_label,
+		.parent = PSEUDO_METAS_ID,
+		.try = try_by_label,
 		.readdirable = 1,
-		.lookup      = NULL,
+		.lookup = NULL,
 		.lookup_mode = S_IFREG | S_IWUSR,
-		.read_type   = PSEUDO_READ_NONE,
-		.read        = {
-			 .single_show = show_rwx
-		 },
-		.write_type  = PSEUDO_WRITE_STRING,
-		.write       = {
-			 .gets        = get_new
-		 }
-	},
+		.read_type = PSEUDO_READ_NONE,
+		.read = {
+			.single_show = show_rwx
+		},
+		.write_type = PSEUDO_WRITE_STRING,
+		.write = {
+			.gets = get_new
+		}
+	}
 };
 
 /* Make Linus happy.

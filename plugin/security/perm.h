@@ -32,17 +32,21 @@ typedef struct perm_plugin {
 	plugin_header h;
 
 	/* check permissions for read/write */
-	int (*read_ok) (struct file * file, const char *buf, size_t size, loff_t * off);
-	int (*write_ok) (struct file * file, const char *buf, size_t size, loff_t * off);
+	int (*read_ok) (struct file *file, const char __user *buf,
+			size_t size, loff_t *off);
+	int (*write_ok) (struct file *file, const char __user *buf,
+			 size_t size, loff_t *off);
 
 	/* check permissions for lookup */
 	int (*lookup_ok) (struct inode * parent, struct dentry * dentry);
 
 	/* check permissions for create */
-	int (*create_ok) (struct inode * parent, struct dentry * dentry, reiser4_object_create_data * data);
+	int (*create_ok) (struct inode * parent, struct dentry * dentry,
+			  reiser4_object_create_data * data);
 
 	/* check permissions for linking @where to @existing */
-	int (*link_ok) (struct dentry * existing, struct inode * parent, struct dentry * where);
+	int (*link_ok) (struct dentry * existing, struct inode * parent,
+			struct dentry * where);
 
 	/* check permissions for unlinking @victim from @parent */
 	int (*unlink_ok) (struct inode * parent, struct dentry * victim);
@@ -55,7 +59,8 @@ typedef struct perm_plugin {
 	int (*setattr_ok) (struct dentry * dentry, struct iattr * attr);
 
 	/* check whether stat(2) is allowed */
-	int (*getattr_ok) (struct vfsmount * mnt UNUSED_ARG, struct dentry * dentry, struct kstat * stat);
+	int (*getattr_ok) (struct vfsmount * mnt UNUSED_ARG,
+			   struct dentry * dentry, struct kstat * stat);
 	/* check whether rename(2) is allowed */
 	int (*rename_ok) (struct inode * old_dir, struct dentry * old,
 			  struct inode * new_dir, struct dentry * new);

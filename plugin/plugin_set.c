@@ -39,24 +39,20 @@ static spinlock_t plugin_set_lock[8] __cacheline_aligned_in_smp = {
 
 #define PS_TABLE_SIZE (32)
 
-static inline plugin_set *
-cast_to(const unsigned long * a)
+static inline plugin_set *cast_to(const unsigned long *a)
 {
 	return container_of(a, plugin_set, hashval);
 }
 
-static inline int
-pseq(const unsigned long * a1, const unsigned long * a2)
+static inline int pseq(const unsigned long *a1, const unsigned long *a2)
 {
 	plugin_set *set1;
 	plugin_set *set2;
 
 	/* make sure fields are not missed in the code below */
 	cassert(sizeof *set1 ==
-
 		sizeof set1->hashval +
 		sizeof set1->link +
-
 		sizeof set1->file +
 		sizeof set1->dir +
 		sizeof set1->perm +
@@ -69,28 +65,26 @@ pseq(const unsigned long * a1, const unsigned long * a2)
 		sizeof set1->digest +
 		sizeof set1->compression +
 		sizeof set1->compression_mode +
-		sizeof set1->cluster +
-		sizeof set1->regular_entry);
+		sizeof set1->cluster + sizeof set1->regular_entry);
 
 	set1 = cast_to(a1);
 	set2 = cast_to(a2);
 	return
-		set1->hashval == set2->hashval &&
-
-		set1->file == set2->file &&
-		set1->dir == set2->dir &&
-		set1->perm == set2->perm &&
-		set1->formatting == set2->formatting &&
-		set1->hash == set2->hash &&
-		set1->fibration == set2->fibration &&
-		set1->sd == set2->sd &&
-		set1->dir_item == set2->dir_item &&
-		set1->crypto == set2->crypto &&
-		set1->digest == set2->digest &&
-		set1->compression == set2->compression &&
-		set1->compression_mode == set2->compression_mode &&
-		set1->cluster == set2->cluster &&
-		set1->regular_entry == set2->regular_entry;
+	    set1->hashval == set2->hashval &&
+	    set1->file == set2->file &&
+	    set1->dir == set2->dir &&
+	    set1->perm == set2->perm &&
+	    set1->formatting == set2->formatting &&
+	    set1->hash == set2->hash &&
+	    set1->fibration == set2->fibration &&
+	    set1->sd == set2->sd &&
+	    set1->dir_item == set2->dir_item &&
+	    set1->crypto == set2->crypto &&
+	    set1->digest == set2->digest &&
+	    set1->compression == set2->compression &&
+	    set1->compression_mode == set2->compression_mode &&
+	    set1->cluster == set2->cluster &&
+	    set1->regular_entry == set2->regular_entry;
 }
 
 #define HASH_FIELD(hash, set, field)		\
@@ -98,7 +92,7 @@ pseq(const unsigned long * a1, const unsigned long * a2)
         (hash) += (unsigned long)(set)->field >> 2;	\
 })
 
-static inline unsigned long calculate_hash(const plugin_set *set)
+static inline unsigned long calculate_hash(const plugin_set * set)
 {
 	unsigned long result;
 
@@ -121,7 +115,7 @@ static inline unsigned long calculate_hash(const plugin_set *set)
 }
 
 static inline unsigned long
-pshash(ps_hash_table *table, const unsigned long * a)
+pshash(ps_hash_table * table, const unsigned long *a)
 {
 	return *a;
 }
@@ -129,50 +123,51 @@ pshash(ps_hash_table *table, const unsigned long * a)
 /* The hash table definition */
 #define KMALLOC(size) kmalloc((size), GFP_KERNEL)
 #define KFREE(ptr, size) kfree(ptr)
-TYPE_SAFE_HASH_DEFINE(ps, plugin_set, unsigned long, hashval, link, pshash, pseq);
+TYPE_SAFE_HASH_DEFINE(ps, plugin_set, unsigned long, hashval, link, pshash,
+		      pseq);
 #undef KFREE
 #undef KMALLOC
 
 static ps_hash_table ps_table;
 static plugin_set empty_set = {
-	.hashval            = 0,
-	.file               = NULL,
-	.dir                = NULL,
-	.perm               = NULL,
-	.formatting         = NULL,
-	.hash               = NULL,
-	.fibration          = NULL,
-	.sd                 = NULL,
-	.dir_item           = NULL,
-	.crypto             = NULL,
-	.digest             = NULL,
-	.compression        = NULL,
-	.compression_mode   = NULL,
-	.cluster            = NULL,
-	.regular_entry      = NULL,
-	.link               = { NULL }
+	.hashval = 0,
+	.file = NULL,
+	.dir = NULL,
+	.perm = NULL,
+	.formatting = NULL,
+	.hash = NULL,
+	.fibration = NULL,
+	.sd = NULL,
+	.dir_item = NULL,
+	.crypto = NULL,
+	.digest = NULL,
+	.compression = NULL,
+	.compression_mode = NULL,
+	.cluster = NULL,
+	.regular_entry = NULL,
+	.link = {NULL}
 };
 
-reiser4_internal plugin_set *plugin_set_get_empty(void)
+plugin_set *plugin_set_get_empty(void)
 {
 	return &empty_set;
 }
 
-reiser4_internal void plugin_set_put(plugin_set *set)
+void plugin_set_put(plugin_set * set)
 {
 }
 
-static inline unsigned long *
-pset_field(plugin_set *set, int offset)
+static inline unsigned long *pset_field(plugin_set * set, int offset)
 {
 	return (unsigned long *)(((char *)set) + offset);
 }
 
-static int plugin_set_field(plugin_set **set, const unsigned long val, const int offset)
+static int plugin_set_field(plugin_set ** set, const unsigned long val,
+			    const int offset)
 {
-	unsigned long      *spot;
+	unsigned long *spot;
 	spinlock_t *lock;
-	plugin_set  replica;
+	plugin_set replica;
 	plugin_set *twin;
 	plugin_set *psal;
 	plugin_set *orig;
@@ -214,78 +209,49 @@ static int plugin_set_field(plugin_set **set, const unsigned long val, const int
 }
 
 static struct {
-	int                 offset;
+	int offset;
 	reiser4_plugin_type type;
 } pset_descr[PSET_LAST] = {
 	[PSET_FILE] = {
-		.offset = offsetof(plugin_set, file),
-		.type   = REISER4_FILE_PLUGIN_TYPE
-	},
-	[PSET_DIR] = {
-		.offset = offsetof(plugin_set, dir),
-		.type   = REISER4_DIR_PLUGIN_TYPE
-	},
-	[PSET_PERM] = {
-		.offset = offsetof(plugin_set, perm),
-		.type   = REISER4_PERM_PLUGIN_TYPE
-	},
-	[PSET_FORMATTING] = {
-		.offset = offsetof(plugin_set, formatting),
-		.type   = REISER4_FORMATTING_PLUGIN_TYPE
-	},
-	[PSET_HASH] = {
-		.offset = offsetof(plugin_set, hash),
-		.type   = REISER4_HASH_PLUGIN_TYPE
-	},
-	[PSET_FIBRATION] = {
-		.offset = offsetof(plugin_set, fibration),
-		.type   = REISER4_FIBRATION_PLUGIN_TYPE
-	},
-	[PSET_SD] = {
-		.offset = offsetof(plugin_set, sd),
-		.type   = REISER4_ITEM_PLUGIN_TYPE
-	},
-	[PSET_DIR_ITEM] = {
-		.offset = offsetof(plugin_set, dir_item),
-		.type   = REISER4_ITEM_PLUGIN_TYPE
-	},
-	[PSET_CRYPTO] = {
-		.offset = offsetof(plugin_set, crypto),
-		.type   = REISER4_CRYPTO_PLUGIN_TYPE
-	},
-	[PSET_DIGEST] = {
-		.offset = offsetof(plugin_set, digest),
-		.type   = REISER4_DIGEST_PLUGIN_TYPE
-	},
-	[PSET_COMPRESSION] = {
-		.offset = offsetof(plugin_set, compression),
-		.type   = REISER4_COMPRESSION_PLUGIN_TYPE
-	},
-	[PSET_COMPRESSION_MODE] = {
-		.offset = offsetof(plugin_set, compression_mode),
-		.type   = REISER4_COMPRESSION_MODE_PLUGIN_TYPE
-	},
-	[PSET_CLUSTER] = {
-		.offset = offsetof(plugin_set, cluster),
-		.type   = REISER4_CLUSTER_PLUGIN_TYPE
-	},
-	[PSET_REGULAR_ENTRY] = {
-		.offset = offsetof(plugin_set, regular_entry),
-		.type   = REISER4_REGULAR_PLUGIN_TYPE
-	}
+	.offset = offsetof(plugin_set, file),.type = REISER4_FILE_PLUGIN_TYPE},
+	    [PSET_DIR] = {
+	.offset = offsetof(plugin_set, dir),.type = REISER4_DIR_PLUGIN_TYPE},
+	    [PSET_PERM] = {
+	.offset = offsetof(plugin_set, perm),.type = REISER4_PERM_PLUGIN_TYPE},
+	    [PSET_FORMATTING] = {
+	.offset = offsetof(plugin_set, formatting),.type =
+		    REISER4_FORMATTING_PLUGIN_TYPE},[PSET_HASH] = {
+	.offset = offsetof(plugin_set, hash),.type =
+		    REISER4_HASH_PLUGIN_TYPE},[PSET_FIBRATION] = {
+	.offset = offsetof(plugin_set, fibration),.type =
+		    REISER4_FIBRATION_PLUGIN_TYPE},[PSET_SD] = {
+	.offset = offsetof(plugin_set, sd),.type =
+		    REISER4_ITEM_PLUGIN_TYPE},[PSET_DIR_ITEM] = {
+	.offset = offsetof(plugin_set, dir_item),.type =
+		    REISER4_ITEM_PLUGIN_TYPE},[PSET_CRYPTO] = {
+	.offset = offsetof(plugin_set, crypto),.type =
+		    REISER4_CRYPTO_PLUGIN_TYPE},[PSET_DIGEST] = {
+	.offset = offsetof(plugin_set, digest),.type =
+		    REISER4_DIGEST_PLUGIN_TYPE},[PSET_COMPRESSION] = {
+	.offset = offsetof(plugin_set, compression),.type =
+		    REISER4_COMPRESSION_PLUGIN_TYPE},[PSET_COMPRESSION_MODE] = {
+	.offset = offsetof(plugin_set, compression_mode),.type =
+		    REISER4_COMPRESSION_MODE_PLUGIN_TYPE},[PSET_CLUSTER] = {
+	.offset = offsetof(plugin_set, cluster),.type =
+		    REISER4_CLUSTER_PLUGIN_TYPE},[PSET_REGULAR_ENTRY] = {
+	.offset = offsetof(plugin_set, regular_entry),.type =
+		    REISER4_REGULAR_PLUGIN_TYPE}
 };
 
 #if REISER4_DEBUG
-static reiser4_plugin_type
-pset_member_to_type(pset_member memb)
+static reiser4_plugin_type pset_member_to_type(pset_member memb)
 {
 	assert("nikita-3501", 0 <= memb && memb < PSET_LAST);
 	return pset_descr[memb].type;
 }
 #endif
 
-reiser4_plugin_type
-pset_member_to_type_unsafe(pset_member memb)
+reiser4_plugin_type pset_member_to_type_unsafe(pset_member memb)
 {
 	if (0 <= memb && memb < PSET_LAST)
 		return pset_descr[memb].type;
@@ -293,7 +259,7 @@ pset_member_to_type_unsafe(pset_member memb)
 		return REISER4_PLUGIN_TYPES;
 }
 
-int pset_set(plugin_set **set, pset_member memb, reiser4_plugin *plugin)
+int pset_set(plugin_set ** set, pset_member memb, reiser4_plugin * plugin)
 {
 	assert("nikita-3492", set != NULL);
 	assert("nikita-3493", *set != NULL);
@@ -305,16 +271,16 @@ int pset_set(plugin_set **set, pset_member memb, reiser4_plugin *plugin)
 				(unsigned long)plugin, pset_descr[memb].offset);
 }
 
-reiser4_plugin *pset_get(plugin_set *set, pset_member memb)
+reiser4_plugin *pset_get(plugin_set * set, pset_member memb)
 {
 	assert("nikita-3497", set != NULL);
 	assert("nikita-3498", 0 <= memb && memb < PSET_LAST);
 
-	return *(reiser4_plugin **)(((char *)set) + pset_descr[memb].offset);
+	return *(reiser4_plugin **) (((char *)set) + pset_descr[memb].offset);
 }
 
 #define DEFINE_PLUGIN_SET(type, field)					\
-reiser4_internal int plugin_set_ ## field(plugin_set **set, type *val)	\
+int plugin_set_ ## field(plugin_set **set, type *val)	\
 {									\
 	cassert(sizeof val == sizeof(unsigned long));			\
 	return plugin_set_field(set, (unsigned long)val,		\
@@ -322,26 +288,26 @@ reiser4_internal int plugin_set_ ## field(plugin_set **set, type *val)	\
 }
 
 DEFINE_PLUGIN_SET(file_plugin, file)
-DEFINE_PLUGIN_SET(dir_plugin, dir)
-DEFINE_PLUGIN_SET(formatting_plugin, formatting)
-DEFINE_PLUGIN_SET(hash_plugin, hash)
-DEFINE_PLUGIN_SET(fibration_plugin, fibration)
-DEFINE_PLUGIN_SET(item_plugin, sd)
-DEFINE_PLUGIN_SET(crypto_plugin, crypto)
-DEFINE_PLUGIN_SET(digest_plugin, digest)
-DEFINE_PLUGIN_SET(compression_plugin, compression)
-DEFINE_PLUGIN_SET(compression_mode_plugin, compression_mode)
-DEFINE_PLUGIN_SET(cluster_plugin, cluster)
-DEFINE_PLUGIN_SET(regular_plugin, regular_entry)
+    DEFINE_PLUGIN_SET(dir_plugin, dir)
+    DEFINE_PLUGIN_SET(formatting_plugin, formatting)
+    DEFINE_PLUGIN_SET(hash_plugin, hash)
+    DEFINE_PLUGIN_SET(fibration_plugin, fibration)
+    DEFINE_PLUGIN_SET(item_plugin, sd)
+    DEFINE_PLUGIN_SET(crypto_plugin, crypto)
+    DEFINE_PLUGIN_SET(digest_plugin, digest)
+    DEFINE_PLUGIN_SET(compression_plugin, compression)
+    DEFINE_PLUGIN_SET(compression_mode_plugin, compression_mode)
+    DEFINE_PLUGIN_SET(cluster_plugin, cluster)
+    DEFINE_PLUGIN_SET(regular_plugin, regular_entry)
 
-reiser4_internal int plugin_set_init(void)
+int plugin_set_init(void)
 {
 	int result;
 
 	result = ps_hash_init(&ps_table, PS_TABLE_SIZE);
 	if (result == 0) {
 		plugin_set_slab = kmem_cache_create("plugin_set",
-						    sizeof (plugin_set), 0,
+						    sizeof(plugin_set), 0,
 						    SLAB_HWCACHE_ALIGN,
 						    NULL, NULL);
 		if (plugin_set_slab == NULL)
@@ -350,9 +316,9 @@ reiser4_internal int plugin_set_init(void)
 	return result;
 }
 
-reiser4_internal void plugin_set_done(void)
+void plugin_set_done(void)
 {
-	plugin_set * cur, * next;
+	plugin_set *cur, *next;
 
 	for_all_in_htable(&ps_table, ps, cur, next) {
 		ps_hash_remove(&ps_table, cur);
@@ -361,7 +327,6 @@ reiser4_internal void plugin_set_done(void)
 	kmem_cache_destroy(plugin_set_slab);
 	ps_hash_done(&ps_table);
 }
-
 
 /* Make Linus happy.
    Local variables:

@@ -15,36 +15,36 @@ typedef struct eflush_node eflush_node_t;
 TYPE_SAFE_HASH_DECLARE(ef, eflush_node_t);
 
 struct eflush_node {
-	jnode           *node;
+	jnode *node;
 	reiser4_block_nr blocknr;
-	ef_hash_link     linkage;
-	struct list_head inode_link; /* for per inode list of eflush nodes */
+	ef_hash_link linkage;
+	struct list_head inode_link;	/* for per inode list of eflush nodes */
 	struct list_head inode_anon_link;
-	int              hadatom :1;
-	int              incatom :1;
-	int              reserve :1;
+	unsigned int hadatom:1;
+	unsigned int incatom:1;
+	unsigned int reserve:1;
 #if REISER4_DEBUG
-	block_stage_t    initial_stage;
+	block_stage_t initial_stage;
 #endif
 };
 
 int eflush_init(void);
 int eflush_done(void);
 
-extern int  eflush_init_at(struct super_block *super);
+extern int eflush_init_at(struct super_block *super);
 extern void eflush_done_at(struct super_block *super);
 
-extern reiser4_block_nr *eflush_get(const jnode *node);
-extern void eflush_del(jnode *node, int page_locked);
+extern reiser4_block_nr *eflush_get(const jnode * node);
+extern void eflush_del(jnode * node, int page_locked);
 extern void eflush_free(jnode *);
 
 extern int emergency_flush(struct page *page);
-extern int emergency_unflush(jnode *node);
+extern int emergency_unflush(jnode * node);
 
 /* tag to tag eflushed anonymous jnodes in reiser4_inode's radix tree of jnodes */
 #define EFLUSH_TAG_ANONYMOUS PAGECACHE_TAG_DIRTY
 
-#else /* REISER4_USE_EFLUSH */
+#else				/* REISER4_USE_EFLUSH */
 
 #define eflush_init()  (0)
 #define eflush_done()  (0)
@@ -59,7 +59,7 @@ extern int emergency_unflush(jnode *node);
 #define emergency_unflush(node) (0)
 #define emergency_flush(page) (1)
 
-#endif  /* REISER4_USE_EFLUSH */
+#endif				/* REISER4_USE_EFLUSH */
 
 /* __EMERGENCY_FLUSH_H__ */
 #endif

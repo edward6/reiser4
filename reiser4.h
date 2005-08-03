@@ -25,7 +25,6 @@
 #define REISER4_DEBUG (0)
 #endif
 
-
 #if defined(CONFIG_REISER4_COPY_ON_CAPTURE)
 /*
  * Turns on copy-on-capture (COC) optimization. See
@@ -63,11 +62,12 @@
  */
 #define ENABLE_REISER4_PSEUDO (0)
 
+#define GUESS_EXISTS (0)
+
 /*
  * PLEASE update fs/reiser4/kattr.c:show_options() when adding new compilation
  * option
  */
-
 
 extern const char *REISER4_SUPER_MAGIC_STRING;
 extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
@@ -234,7 +234,6 @@ extern const int REISER4_MAGIC_OFFSET;	/* offset to magic string from the
 #define equi( p1, p2 ) ( ergo( ( p1 ), ( p2 ) ) && ergo( ( p2 ), ( p1 ) ) )
 
 #define sizeof_array(x) ((int) (sizeof(x) / sizeof(x[0])))
-
 
 #define NOT_YET                       (0)
 

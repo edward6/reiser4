@@ -50,8 +50,7 @@ static void kcond_remove(kcond_t * cvar, kcond_queue_link_t * link);
 
 /* initialize condition variable. Initializer for global condition variables
    is macro in kcond.h  */
-reiser4_internal kcond_t *
-kcond_init(kcond_t * cvar /* cvar to init */ )
+kcond_t *kcond_init(kcond_t * cvar /* cvar to init */ )
 {
 	assert("nikita-1868", cvar != NULL);
 
@@ -91,10 +90,9 @@ kcond_init(kcond_t * cvar /* cvar to init */ )
    step (5) would return immediately.
 
 */
-reiser4_internal int
-kcond_wait(kcond_t * cvar /* cvar to wait for */ ,
-	   spinlock_t * lock /* lock to use */ ,
-	   int signl /* if 0, ignore signals during sleep */ )
+int kcond_wait(kcond_t * cvar /* cvar to wait for */ ,
+	       spinlock_t * lock /* lock to use */ ,
+	       int signl /* if 0, ignore signals during sleep */ )
 {
 	kcond_queue_link_t qlink;
 	int result;
@@ -126,7 +124,7 @@ kcond_wait(kcond_t * cvar /* cvar to wait for */ ,
 	   finishes. Otherwise down() could interleave with up() in such a way
 	   that, that kcond_wait() would exit and up() would see garbage in a
 	   semaphore.
-	*/
+	 */
 	spin_unlock(&cvar->lock);
 	spin_lock(lock);
 	return result;
@@ -138,11 +136,10 @@ typedef struct {
 } kcond_timer_arg;
 
 /* like kcond_wait(), but with timeout */
-reiser4_internal int
-kcond_timedwait(kcond_t * cvar /* cvar to wait for */ ,
-		spinlock_t * lock /* lock to use */ ,
-		signed long timeout /* timeout in jiffies */ ,
-		int signl /* if 0, ignore signals during sleep */ )
+int kcond_timedwait(kcond_t * cvar /* cvar to wait for */ ,
+		    spinlock_t * lock /* lock to use */ ,
+		    signed long timeout /* timeout in jiffies */ ,
+		    int signl /* if 0, ignore signals during sleep */ )
 {
 	struct timer_list timer;
 	kcond_queue_link_t qlink;
@@ -166,7 +163,7 @@ kcond_timedwait(kcond_t * cvar /* cvar to wait for */ ,
 	/* prepare timer */
 	init_timer(&timer);
 	timer.expires = jiffies + timeout;
-	timer.data = (unsigned long) &targ;
+	timer.data = (unsigned long)&targ;
 	timer.function = kcond_timeout;
 
 	woken_up = 0;
@@ -202,8 +199,7 @@ kcond_timedwait(kcond_t * cvar /* cvar to wait for */ ,
 }
 
 /* Signal condition variable: wake up one waiter, if any. */
-reiser4_internal int
-kcond_signal(kcond_t * cvar /* cvar to signal */ )
+int kcond_signal(kcond_t * cvar /* cvar to signal */ )
 {
 	kcond_queue_link_t *queue_head;
 
@@ -221,8 +217,7 @@ kcond_signal(kcond_t * cvar /* cvar to signal */ )
 }
 
 /* Broadcast condition variable: wake up all waiters. */
-reiser4_internal int
-kcond_broadcast(kcond_t * cvar /* cvar to broadcast */ )
+int kcond_broadcast(kcond_t * cvar /* cvar to broadcast */ )
 {
 	kcond_queue_link_t *queue_head;
 
@@ -230,7 +225,8 @@ kcond_broadcast(kcond_t * cvar /* cvar to broadcast */ )
 
 	spin_lock(&cvar->lock);
 
-	for (queue_head = cvar->queue; queue_head != NULL; queue_head = queue_head->next)
+	for (queue_head = cvar->queue; queue_head != NULL;
+	     queue_head = queue_head->next)
 		up(&queue_head->wait);
 
 	cvar->queue = NULL;
@@ -239,8 +235,7 @@ kcond_broadcast(kcond_t * cvar /* cvar to broadcast */ )
 }
 
 /* timer expiration function used by kcond_timedwait */
-static void
-kcond_timeout(unsigned long datum)
+static void kcond_timeout(unsigned long datum)
 {
 	kcond_timer_arg *arg;
 
@@ -250,9 +245,8 @@ kcond_timeout(unsigned long datum)
 }
 
 /* helper function to remove @link from @cvar queue */
-static void
-kcond_remove(kcond_t * cvar /* cvar to operate on */ ,
-	     kcond_queue_link_t * link /* link to remove */ )
+static void kcond_remove(kcond_t * cvar /* cvar to operate on */ ,
+			 kcond_queue_link_t * link /* link to remove */ )
 {
 	kcond_queue_link_t *scan;
 	kcond_queue_link_t *prev;
@@ -260,7 +254,8 @@ kcond_remove(kcond_t * cvar /* cvar to operate on */ ,
 	assert("nikita-2440", cvar != NULL);
 	assert("nikita-2441", check_spin_is_locked(&cvar->lock));
 
-	for (scan = cvar->queue, prev = NULL; scan != NULL; prev = scan, scan = scan->next) {
+	for (scan = cvar->queue, prev = NULL; scan != NULL;
+	     prev = scan, scan = scan->next) {
 		if (scan == link) {
 			if (prev == NULL)
 				cvar->queue = scan->next;

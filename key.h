@@ -81,8 +81,8 @@ typedef enum {
 	/* minor "locale", aka item type. Sits in 1st element */
 	KEY_TYPE_INDEX = 0,
 	ON_LARGE_KEY(KEY_ORDERING_INDEX,)
-	/* "object band". Sits in 2nd element */
-	KEY_BAND_INDEX,
+	    /* "object band". Sits in 2nd element */
+	    KEY_BAND_INDEX,
 	/* objectid. Sits in 2nd element */
 	KEY_OBJECTID_INDEX = KEY_BAND_INDEX,
 	/* full objectid. Sits in 2nd element */
@@ -108,24 +108,27 @@ union reiser4_key {
 	int pad;
 };
 
-/* bitmasks showing where within reiser4_key particular key is
-    stored. */
-typedef enum {
-	/* major locality occupies higher 60 bits of the first element */
-	KEY_LOCALITY_MASK = 0xfffffffffffffff0ull,
-	/* minor locality occupies lower 4 bits of the first element */
-	KEY_TYPE_MASK = 0xfull,
-	/* controversial band occupies higher 4 bits of the 2nd element */
-	KEY_BAND_MASK = 0xf000000000000000ull,
-	/* objectid occupies lower 60 bits of the 2nd element */
-	KEY_OBJECTID_MASK = 0x0fffffffffffffffull,
-	/* full 64bit objectid*/
-	KEY_FULLOID_MASK = 0xffffffffffffffffull,
-	/* offset is just 3rd L.M.Nt itself */
-	KEY_OFFSET_MASK = 0xffffffffffffffffull,
-	/* ordering is whole second element */
-	KEY_ORDERING_MASK = 0xffffffffffffffffull,
-} reiser4_key_field_mask;
+/* bitmasks showing where within reiser4_key particular key is stored. */
+/* major locality occupies higher 60 bits of the first element */
+#define KEY_LOCALITY_MASK 0xfffffffffffffff0ull
+
+/* minor locality occupies lower 4 bits of the first element */
+#define KEY_TYPE_MASK 0xfull
+
+/* controversial band occupies higher 4 bits of the 2nd element */
+#define KEY_BAND_MASK 0xf000000000000000ull
+
+/* objectid occupies lower 60 bits of the 2nd element */
+#define KEY_OBJECTID_MASK 0x0fffffffffffffffull
+
+/* full 64bit objectid*/
+#define KEY_FULLOID_MASK 0xffffffffffffffffull
+
+/* offset is just 3rd L.M.Nt itself */
+#define KEY_OFFSET_MASK 0xffffffffffffffffull
+
+/* ordering is whole second element */
+#define KEY_ORDERING_MASK 0xffffffffffffffffull
 
 /* how many bits key element should be shifted to left to get particular field */
 typedef enum {
@@ -204,12 +207,12 @@ DEFINE_KEY_FIELD(offset, OFFSET, __u64);
 /* define get_key_ordering(), set_key_ordering() */
 DEFINE_KEY_FIELD(ordering, ORDERING, __u64);
 #else
-static inline __u64 get_key_ordering(const reiser4_key *key)
+static inline __u64 get_key_ordering(const reiser4_key * key)
 {
 	return 0;
 }
 
-static inline void set_key_ordering(reiser4_key *key, __u64 val)
+static inline void set_key_ordering(reiser4_key * key, __u64 val)
 {
 }
 #endif
@@ -253,9 +256,8 @@ extern const reiser4_key *max_key(void);
 /* compare `k1' and `k2'.  This function is a heart of "key allocation
     policy". All you need to implement new policy is to add yet another
     clause here. */
-static inline cmp_t
-keycmp(const reiser4_key * k1 /* first key to compare */ ,
-       const reiser4_key * k2 /* second key to compare */ )
+static inline cmp_t keycmp(const reiser4_key * k1 /* first key to compare */ ,
+			   const reiser4_key * k2 /* second key to compare */ )
 {
 	cmp_t result;
 
@@ -306,9 +308,8 @@ keycmp(const reiser4_key * k1 /* first key to compare */ ,
 }
 
 /* true if @k1 equals @k2 */
-static inline int
-keyeq(const reiser4_key * k1 /* first key to compare */ ,
-      const reiser4_key * k2 /* second key to compare */ )
+static inline int keyeq(const reiser4_key * k1 /* first key to compare */ ,
+			const reiser4_key * k2 /* second key to compare */ )
 {
 	assert("nikita-1879", k1 != NULL);
 	assert("nikita-1880", k2 != NULL);
@@ -316,9 +317,8 @@ keyeq(const reiser4_key * k1 /* first key to compare */ ,
 }
 
 /* true if @k1 is less than @k2 */
-static inline int
-keylt(const reiser4_key * k1 /* first key to compare */ ,
-      const reiser4_key * k2 /* second key to compare */ )
+static inline int keylt(const reiser4_key * k1 /* first key to compare */ ,
+			const reiser4_key * k2 /* second key to compare */ )
 {
 	assert("nikita-1952", k1 != NULL);
 	assert("nikita-1953", k2 != NULL);
@@ -326,9 +326,8 @@ keylt(const reiser4_key * k1 /* first key to compare */ ,
 }
 
 /* true if @k1 is less than or equal to @k2 */
-static inline int
-keyle(const reiser4_key * k1 /* first key to compare */ ,
-      const reiser4_key * k2 /* second key to compare */ )
+static inline int keyle(const reiser4_key * k1 /* first key to compare */ ,
+			const reiser4_key * k2 /* second key to compare */ )
 {
 	assert("nikita-1954", k1 != NULL);
 	assert("nikita-1955", k2 != NULL);
@@ -336,9 +335,8 @@ keyle(const reiser4_key * k1 /* first key to compare */ ,
 }
 
 /* true if @k1 is greater than @k2 */
-static inline int
-keygt(const reiser4_key * k1 /* first key to compare */ ,
-      const reiser4_key * k2 /* second key to compare */ )
+static inline int keygt(const reiser4_key * k1 /* first key to compare */ ,
+			const reiser4_key * k2 /* second key to compare */ )
 {
 	assert("nikita-1959", k1 != NULL);
 	assert("nikita-1960", k2 != NULL);
@@ -346,9 +344,8 @@ keygt(const reiser4_key * k1 /* first key to compare */ ,
 }
 
 /* true if @k1 is greater than or equal to @k2 */
-static inline int
-keyge(const reiser4_key * k1 /* first key to compare */ ,
-      const reiser4_key * k2 /* second key to compare */ )
+static inline int keyge(const reiser4_key * k1 /* first key to compare */ ,
+			const reiser4_key * k2 /* second key to compare */ )
 {
 	assert("nikita-1956", k1 != NULL);
 	assert("nikita-1957", k2 != NULL);	/* October  4: sputnik launched
@@ -356,8 +353,7 @@ keyge(const reiser4_key * k1 /* first key to compare */ ,
 	return keycmp(k1, k2) != LESS_THAN;
 }
 
-static inline void
-prefetchkey(reiser4_key *key)
+static inline void prefetchkey(reiser4_key * key)
 {
 	prefetch(key);
 	prefetch(&key->el[KEY_CACHELINE_END]);

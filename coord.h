@@ -8,6 +8,7 @@
 #include "forward.h"
 #include "debug.h"
 #include "dformat.h"
+#include "key.h"
 
 /* insertions happen between coords in the tree, so we need some means
    of specifying the sense of betweenness. */
@@ -45,11 +46,11 @@ struct coord {
 	   is invalidated (set to 0xff) on each modification of ->item_pos,
 	   and all such modifications are funneled through coord_*_item_pos()
 	   functions below.
-	*/
+	 */
 	/*  8 */ char iplugid;
 	/* position of coord w.r.t. to neighboring items and/or units.
 	   Values are taken from &between_enum above.
-	*/
+	 */
 	/*  9 */ char between;
 	/* padding. It will be added by the compiler anyway to conform to the
 	 * C language alignment requirements. We keep it here to be on the
@@ -66,55 +67,48 @@ struct coord {
 #define INVALID_PLUGID  ((char)((1 << 8) - 1))
 #define INVALID_OFFSET -1
 
-static inline void
-coord_clear_iplug(coord_t * coord)
+static inline void coord_clear_iplug(coord_t * coord)
 {
 	assert("nikita-2835", coord != NULL);
 	coord->iplugid = INVALID_PLUGID;
-	coord->offset  = INVALID_OFFSET;
+	coord->offset = INVALID_OFFSET;
 }
 
-static inline int
-coord_is_iplug_set(const coord_t * coord)
+static inline int coord_is_iplug_set(const coord_t * coord)
 {
 	assert("nikita-2836", coord != NULL);
 	return coord->iplugid != INVALID_PLUGID;
 }
 
-static inline void
-coord_set_item_pos(coord_t * coord, pos_in_node_t pos)
+static inline void coord_set_item_pos(coord_t * coord, pos_in_node_t pos)
 {
 	assert("nikita-2478", coord != NULL);
 	coord->item_pos = pos;
 	coord_clear_iplug(coord);
 }
 
-static inline void
-coord_dec_item_pos(coord_t * coord)
+static inline void coord_dec_item_pos(coord_t * coord)
 {
 	assert("nikita-2480", coord != NULL);
 	--coord->item_pos;
 	coord_clear_iplug(coord);
 }
 
-static inline void
-coord_inc_item_pos(coord_t * coord)
+static inline void coord_inc_item_pos(coord_t * coord)
 {
 	assert("nikita-2481", coord != NULL);
 	++coord->item_pos;
 	coord_clear_iplug(coord);
 }
 
-static inline void
-coord_add_item_pos(coord_t * coord, int delta)
+static inline void coord_add_item_pos(coord_t * coord, int delta)
 {
 	assert("nikita-2482", coord != NULL);
 	coord->item_pos += delta;
 	coord_clear_iplug(coord);
 }
 
-static inline void
-coord_invalid_item_pos(coord_t * coord)
+static inline void coord_invalid_item_pos(coord_t * coord)
 {
 	assert("nikita-2832", coord != NULL);
 	coord->item_pos = (unsigned short)~0;
@@ -122,8 +116,7 @@ coord_invalid_item_pos(coord_t * coord)
 }
 
 /* Reverse a direction. */
-static inline sideof
-sideof_reverse(sideof side)
+static inline sideof sideof_reverse(sideof side)
 {
 	return side == LEFT_SIDE ? RIGHT_SIDE : LEFT_SIDE;
 }
@@ -171,7 +164,8 @@ void coord_init_before_item(coord_t *);
 void coord_init_after_item(coord_t *);
 
 /* Calls either coord_init_first_unit or coord_init_last_unit depending on sideof argument. */
-extern void coord_init_sideof_unit(coord_t * coord, const znode * node, sideof dir);
+extern void coord_init_sideof_unit(coord_t * coord, const znode * node,
+				   sideof dir);
 
 /* Initialize a coordinate by 0s. Used in places where init_coord was used and
    it was not clear how actually
@@ -194,8 +188,7 @@ unsigned coord_num_units(const coord_t * coord);
 
 /* Return the last valid unit number at the present item (i.e.,
    coord_num_units() - 1). */
-static inline unsigned
-coord_last_unit_pos(const coord_t * coord)
+static inline unsigned coord_last_unit_pos(const coord_t * coord)
 {
 	return coord_num_units(coord) - 1;
 }
@@ -204,10 +197,9 @@ coord_last_unit_pos(const coord_t * coord)
 /* For assertions only, checks for a valid coordinate. */
 extern int coord_check(const coord_t * coord);
 
-extern unsigned long znode_times_locked(const znode *z);
+extern unsigned long znode_times_locked(const znode * z);
 
-static inline void
-coord_update_v(coord_t * coord)
+static inline void coord_update_v(coord_t * coord)
 {
 	coord->plug_v = coord->body_v = znode_times_locked(coord->node);
 }
@@ -313,14 +305,74 @@ extern int coord_sideof_unit(coord_t * coord, sideof dir);
 	for( coord_init_before_first_item( ( coord ), ( node ) ) ; 	\
 	     coord_next_item( coord ) == 0 ; )
 
-#if REISER4_DEBUG
-extern const char *coord_tween_tostring(between_enum n);
-#endif
-
 /* COORD/ITEM METHODS */
 
-extern int item_utmost_child_real_block(const coord_t * coord, sideof side, reiser4_block_nr * blk);
-extern int item_utmost_child(const coord_t * coord, sideof side, jnode ** child);
+extern int item_utmost_child_real_block(const coord_t * coord, sideof side,
+					reiser4_block_nr * blk);
+extern int item_utmost_child(const coord_t * coord, sideof side,
+			     jnode ** child);
+
+/* a flow is a sequence of bytes being written to or read from the tree.  The
+   tree will slice the flow into items while storing it into nodes, but all of
+   that is hidden from anything outside the tree.  */
+
+struct flow {
+	reiser4_key key;	/* key of start of flow's sequence of bytes */
+	loff_t length;		/* length of flow's sequence of bytes */
+	char *data;		/* start of flow's sequence of bytes */
+	int user;		/* if 1 data is user space, 0 - kernel space */
+	rw_op op;		/* NIKITA-FIXME-HANS: comment is where?  */
+};
+
+void move_flow_forward(flow_t * f, unsigned count);
+
+/* &reiser4_item_data - description of data to be inserted or pasted
+
+   Q: articulate the reasons for the difference between this and flow.
+
+   A: Becides flow we insert into tree other things: stat data, directory
+   entry, etc.  To insert them into tree one has to provide this structure. If
+   one is going to insert flow - he can use insert_flow, where this structure
+   does not have to be created
+*/
+struct reiser4_item_data {
+	/* actual data to be inserted. If NULL, ->create_item() will not
+	   do xmemcpy itself, leaving this up to the caller. This can
+	   save some amount of unnecessary memory copying, for example,
+	   during insertion of stat data.
+
+	 */
+	char *data;
+	/* 1 if 'char * data' contains pointer to user space and 0 if it is
+	   kernel space */
+	int user;
+	/* amount of data we are going to insert or paste */
+	int length;
+	/* "Arg" is opaque data that is passed down to the
+	   ->create_item() method of node layout, which in turn
+	   hands it to the ->create_hook() of item being created. This
+	   arg is currently used by:
+
+	   .  ->create_hook() of internal item
+	   (fs/reiser4/plugin/item/internal.c:internal_create_hook()),
+	   . ->paste() method of directory item.
+	   . ->create_hook() of extent item
+
+	   For internal item, this is left "brother" of new node being
+	   inserted and it is used to add new node into sibling list
+	   after parent to it was just inserted into parent.
+
+	   While ->arg does look somewhat of unnecessary compication,
+	   it actually saves a lot of headache in many places, because
+	   all data necessary to insert or paste new data into tree are
+	   collected in one place, and this eliminates a lot of extra
+	   argument passing and storing everywhere.
+
+	 */
+	void *arg;
+	/* plugin of item we are inserting */
+	item_plugin *iplug;
+};
 
 /* __REISER4_COORD_H__ */
 #endif

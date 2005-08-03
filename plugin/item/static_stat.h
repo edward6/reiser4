@@ -23,23 +23,25 @@ reiser4 is working, then fix it...:-)
 
 /* Stat data layout: goals and implementation.
 
-We want to be able to have lightweight files which have complete flexibility in what semantic metadata is attached to
-them, including not having semantic metadata attached to them.
+   We want to be able to have lightweight files which have complete flexibility in what semantic metadata is attached to
+   them, including not having semantic metadata attached to them.
 
-There is one problem with doing that, which is that if in fact you have exactly the same metadata for most files you want to store, then it takes more space to store that metadata in a dynamically sized structure than in a statically sized structure because the statically sized structure knows without recording it what the names and lengths of the attributes are.
+   There is one problem with doing that, which is that if in fact you have exactly the same metadata for most files you
+   want to store, then it takes more space to store that metadata in a dynamically sized structure than in a statically
+   sized structure because the statically sized structure knows without recording it what the names and lengths of the
+   attributes are.
 
-This leads to a natural compromise, which is to special case those files which have simply the standard unix file
-attributes, and only employ the full dynamic stat data mechanism for those files that differ from the standard unix file
-in their use of file attributes.
+   This leads to a natural compromise, which is to special case those files which have simply the standard unix file
+   attributes, and only employ the full dynamic stat data mechanism for those files that differ from the standard unix
+   file in their use of file attributes.
 
-Yet this compromise deserves to be compromised a little.
+   Yet this compromise deserves to be compromised a little.
 
-We accommodate the case where you have no more than the standard unix file attributes by using an "extension bitmask":
-each bit in it indicates presence or absence of or particular stat data extension (see sd_ext_bits enum).
+   We accommodate the case where you have no more than the standard unix file attributes by using an "extension
+   bitmask": each bit in it indicates presence or absence of or particular stat data extension (see sd_ext_bits enum).
 
-  If the first
-bit of the extension bitmask bit is 0, we have light-weight file whose attributes are either inherited from parent
-directory (as uid, gid) or initialised to some sane values.
+   If the first bit of the extension bitmask bit is 0, we have light-weight file whose attributes are either inherited
+   from parent directory (as uid, gid) or initialised to some sane values.
 
    To capitalize on existing code infrastructure, extensions are
    implemented as plugins of type REISER4_SD_EXT_PLUGIN_TYPE.
@@ -58,7 +60,7 @@ typedef enum {
 	/* support for light-weight files */
 	LIGHT_WEIGHT_STAT,
 	/* data required to implement unix stat(2) call. Layout is in
-	    reiser4_unix_stat. If this is not present, file is light-weight */
+	   reiser4_unix_stat. If this is not present, file is light-weight */
 	UNIX_STAT,
 	/* this contains additional set of 32bit [anc]time fields to implement
 	   nanosecond resolution. Layout is in reiser4_large_times_stat. Usage
@@ -67,15 +69,15 @@ typedef enum {
 	/* stat data has link name included */
 	SYMLINK_STAT,
 	/* if this is present, file is controlled by non-standard
-	    plugin (that is, plugin that cannot be deduced from file
-	    mode bits), for example, aggregation, interpolation etc. */
+	   plugin (that is, plugin that cannot be deduced from file
+	   mode bits), for example, aggregation, interpolation etc. */
 	PLUGIN_STAT,
 	/* this extension contains persistent inode flags. These flags are
 	   single bits: immutable, append, only, etc. Layout is in
 	   reiser4_flags_stat. */
 	FLAGS_STAT,
 	/* this extension contains capabilities sets, associated with this
-	    file. Layout is in reiser4_capabilities_stat */
+	   file. Layout is in reiser4_capabilities_stat */
 	CAPABILITIES_STAT,
 	/* this extension contains size and public id of the secret key.
 	   Layout is in reiser4_crypto_stat */
@@ -122,10 +124,10 @@ typedef struct reiser4_unix_stat {
 	/* change time */
 	/* 16 */ d32 ctime;
 	union {
-	/* minor:major for device files */
-	/* 20 */         d64 rdev;
-	/* bytes used by file */
-	/* 20 */         d64 bytes;
+		/* minor:major for device files */
+		/* 20 */ d64 rdev;
+		/* bytes used by file */
+		/* 20 */ d64 bytes;
 	} u;
 	/* 28 */
 } PACKED reiser4_unix_stat;
@@ -138,7 +140,7 @@ typedef struct reiser4_symlink_stat {
 typedef struct reiser4_plugin_slot {
 	/*  0 */ d16 pset_memb;
 	/*  2 */ d16 id;
-/*  4 *//* here plugin stores its persistent state */
+	/*  4 *//* here plugin stores its persistent state */
 } PACKED reiser4_plugin_slot;
 
 /* stat-data extension for files with non-standard plugin. */

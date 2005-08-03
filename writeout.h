@@ -7,8 +7,7 @@
 
 extern int get_writeout_flags(void);
 
-#endif /* __FS_REISER4_WRITEOUT_H__ */
-
+#endif				/* __FS_REISER4_WRITEOUT_H__ */
 
 /* Make Linus happy.
    Local variables:

@@ -183,13 +183,14 @@
 #include <linux/bio.h>		/* for struct bio */
 #include <linux/blkdev.h>
 
-static int write_jnodes_to_disk_extent(
-	capture_list_head * head, jnode *, int, const reiser4_block_nr *, flush_queue_t *, int );
+static int write_jnodes_to_disk_extent(capture_list_head * head, jnode *, int,
+				       const reiser4_block_nr *,
+				       flush_queue_t *, int);
 
 /* The commit_handle is a container for objects needed at atom commit time  */
 struct commit_handle {
 	/* A pointer to the list of OVRWR nodes */
-	capture_list_head * overwrite_set;
+	capture_list_head *overwrite_set;
 	/* atom's overwrite set size */
 	int overwrite_set_size;
 	/* jnodes for wander record blocks */
@@ -209,25 +210,22 @@ struct commit_handle {
 	reiser4_block_nr nr_bitmap;
 };
 
-static void
-init_commit_handle(struct commit_handle *ch, txn_atom * atom)
+static void init_commit_handle(struct commit_handle *ch, txn_atom * atom)
 {
-	memset(ch, 0, sizeof (struct commit_handle));
+	memset(ch, 0, sizeof(struct commit_handle));
 	capture_list_init(&ch->tx_list);
 
 	ch->atom = atom;
 	ch->super = reiser4_get_current_sb();
 }
 
-static void
-done_commit_handle(struct commit_handle *ch UNUSED_ARG)
+static void done_commit_handle(struct commit_handle *ch UNUSED_ARG)
 {
 	assert("zam-690", capture_list_empty(&ch->tx_list));
 }
 
 /* fill journal header block data  */
-static void
-format_journal_header(struct commit_handle *ch)
+static void format_journal_header(struct commit_handle *ch)
 {
 	struct reiser4_super_info_data *sbinfo;
 	struct journal_header *header;
@@ -241,7 +239,7 @@ format_journal_header(struct commit_handle *ch)
 
 	jload(sbinfo->journal_header);
 
-	header = (struct journal_header *) jdata(sbinfo->journal_header);
+	header = (struct journal_header *)jdata(sbinfo->journal_header);
 	assert("zam-484", header != NULL);
 
 	cputod64(*jnode_get_block(txhead), &header->last_committed_tx);
@@ -250,8 +248,7 @@ format_journal_header(struct commit_handle *ch)
 }
 
 /* fill journal footer block data */
-static void
-format_journal_footer(struct commit_handle *ch)
+static void format_journal_footer(struct commit_handle *ch)
 {
 	struct reiser4_super_info_data *sbinfo;
 	struct journal_footer *footer;
@@ -267,7 +264,7 @@ format_journal_footer(struct commit_handle *ch)
 
 	check_me("zam-691", jload(sbinfo->journal_footer) == 0);
 
-	footer = (struct journal_footer *) jdata(sbinfo->journal_footer);
+	footer = (struct journal_footer *)jdata(sbinfo->journal_footer);
 	assert("zam-495", footer != NULL);
 
 	cputod64(*jnode_get_block(tx_head), &footer->last_flushed_tx);
@@ -280,15 +277,15 @@ format_journal_footer(struct commit_handle *ch)
 }
 
 /* wander record capacity depends on current block size */
-static int
-wander_record_capacity(const struct super_block *super)
+static int wander_record_capacity(const struct super_block *super)
 {
-	return (super->s_blocksize - sizeof (struct wander_record_header)) / sizeof (struct wander_entry);
+	return (super->s_blocksize -
+		sizeof(struct wander_record_header)) /
+	    sizeof(struct wander_entry);
 }
 
 /* Fill first wander record (tx head) in accordance with supplied given data */
-static void
-format_tx_head(struct commit_handle *ch)
+static void format_tx_head(struct commit_handle *ch)
 {
 	jnode *tx_head;
 	jnode *next;
@@ -301,16 +298,17 @@ format_tx_head(struct commit_handle *ch)
 	if (capture_list_end(&ch->tx_list, next))
 		next = tx_head;
 
-	header = (struct tx_header *) jdata(tx_head);
+	header = (struct tx_header *)jdata(tx_head);
 
 	assert("zam-460", header != NULL);
-	assert("zam-462", ch->super->s_blocksize >= sizeof (struct tx_header));
+	assert("zam-462", ch->super->s_blocksize >= sizeof(struct tx_header));
 
 	memset(jdata(tx_head), 0, (size_t) ch->super->s_blocksize);
 	memcpy(jdata(tx_head), TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE);
 
 	cputod32((__u32) ch->tx_size, &header->total);
-	cputod64(get_super_private(ch->super)->last_committed_tx, &header->prev_tx);
+	cputod64(get_super_private(ch->super)->last_committed_tx,
+		 &header->prev_tx);
 	cputod64(*jnode_get_block(next), &header->next_block);
 
 	cputod64(ch->free_blocks, &header->free_blocks);
@@ -327,14 +325,15 @@ format_wander_record(struct commit_handle *ch, jnode * node, int serial)
 
 	assert("zam-464", node != NULL);
 
-	LRH = (struct wander_record_header *) jdata(node);
+	LRH = (struct wander_record_header *)jdata(node);
 	next = capture_list_next(node);
 
 	if (capture_list_end(&ch->tx_list, next))
 		next = capture_list_front(&ch->tx_list);
 
 	assert("zam-465", LRH != NULL);
-	assert("zam-463", ch->super->s_blocksize > sizeof (struct wander_record_header));
+	assert("zam-463",
+	       ch->super->s_blocksize > sizeof(struct wander_record_header));
 
 	memset(jdata(node), 0, (size_t) ch->super->s_blocksize);
 	memcpy(jdata(node), WANDER_RECORD_MAGIC, WANDER_RECORD_MAGIC_SIZE);
@@ -346,7 +345,8 @@ format_wander_record(struct commit_handle *ch, jnode * node, int serial)
 
 /* add one wandered map entry to formatted wander record */
 static void
-store_entry(jnode * node, int index, const reiser4_block_nr * a, const reiser4_block_nr * b)
+store_entry(jnode * node, int index, const reiser4_block_nr * a,
+	    const reiser4_block_nr * b)
 {
 	char *data;
 	struct wander_entry *pairs;
@@ -354,7 +354,8 @@ store_entry(jnode * node, int index, const reiser4_block_nr * a, const reiser4_b
 	data = jdata(node);
 	assert("zam-451", data != NULL);
 
-	pairs = (struct wander_entry *) (data + sizeof (struct wander_record_header));
+	pairs =
+	    (struct wander_entry *)(data + sizeof(struct wander_record_header));
 
 	cputod64(*a, &pairs[index].original);
 	cputod64(*b, &pairs[index].wandered);
@@ -362,8 +363,7 @@ store_entry(jnode * node, int index, const reiser4_block_nr * a, const reiser4_b
 
 /* currently, wander records contains contain only wandered map, which depend on
    overwrite set size */
-static void
-get_tx_size(struct commit_handle *ch)
+static void get_tx_size(struct commit_handle *ch)
 {
 	assert("zam-440", ch->overwrite_set_size != 0);
 	assert("zam-695", ch->tx_size == 0);
@@ -371,7 +371,9 @@ get_tx_size(struct commit_handle *ch)
 	/* count all ordinary wander records
 	   (<overwrite_set_size> - 1) / <wander_record_capacity> + 1 and add one
 	   for tx head block */
-	ch->tx_size = (ch->overwrite_set_size - 1) / wander_record_capacity(ch->super) + 2;
+	ch->tx_size =
+	    (ch->overwrite_set_size - 1) / wander_record_capacity(ch->super) +
+	    2;
 }
 
 /* A special structure for using in store_wmap_actor() for saving its state
@@ -389,14 +391,16 @@ struct store_wmap_params {
 /* an actor for use in blocknr_set_iterator routine which populates the list
    of pre-formatted wander records by wandered map info */
 static int
-store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const reiser4_block_nr * b, void *data)
+store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a,
+		 const reiser4_block_nr * b, void *data)
 {
 	struct store_wmap_params *params = data;
 
 	if (params->idx >= params->capacity) {
 		/* a new wander record should be taken from the tx_list */
 		params->cur = capture_list_next(params->cur);
-		assert("zam-454", !capture_list_end(params->tx_list, params->cur));
+		assert("zam-454",
+		       !capture_list_end(params->tx_list, params->cur));
 
 		params->idx = 0;
 	}
@@ -411,8 +415,7 @@ store_wmap_actor(txn_atom * atom UNUSED_ARG, const reiser4_block_nr * a, const r
    set is written to wandered locations and all wander records are written
    also. Updated journal header blocks contains a pointer (block number) to
    first wander record of the just written transaction */
-static int
-update_journal_header(struct commit_handle *ch)
+static int update_journal_header(struct commit_handle *ch)
 {
 	struct reiser4_super_info_data *sbinfo = get_super_private(ch->super);
 
@@ -423,13 +426,15 @@ update_journal_header(struct commit_handle *ch)
 
 	format_journal_header(ch);
 
-	ret = write_jnodes_to_disk_extent(&ch->tx_list, jh, 1, jnode_get_block(jh), NULL, 0);
+	ret =
+	    write_jnodes_to_disk_extent(&ch->tx_list, jh, 1,
+					jnode_get_block(jh), NULL, 0);
 
 	if (ret)
 		return ret;
 
 	blk_run_address_space(sbinfo->fake->i_mapping);
-	/*blk_run_queues();*/
+	/*blk_run_queues(); */
 
 	ret = jwait_io(jh, WRITE);
 
@@ -444,8 +449,7 @@ update_journal_header(struct commit_handle *ch)
 /* This function is called after write-back is finished. We update journal
    footer block and free blocks which were occupied by wandered blocks and
    transaction wander records */
-static int
-update_journal_footer(struct commit_handle *ch)
+static int update_journal_footer(struct commit_handle *ch)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(ch->super);
 
@@ -455,12 +459,14 @@ update_journal_footer(struct commit_handle *ch)
 
 	format_journal_footer(ch);
 
-	ret = write_jnodes_to_disk_extent(&ch->tx_list, jf, 1, jnode_get_block(jf), NULL, 0);
+	ret =
+	    write_jnodes_to_disk_extent(&ch->tx_list, jf, 1,
+					jnode_get_block(jf), NULL, 0);
 	if (ret)
 		return ret;
 
 	blk_run_address_space(sbinfo->fake->i_mapping);
-	/*blk_run_queue();*/
+	/*blk_run_queue(); */
 
 	ret = jwait_io(jf, WRITE);
 	if (ret)
@@ -470,14 +476,14 @@ update_journal_footer(struct commit_handle *ch)
 }
 
 /* free block numbers of wander records of already written in place transaction */
-static void
-dealloc_tx_list(struct commit_handle *ch)
+static void dealloc_tx_list(struct commit_handle *ch)
 {
 	while (!capture_list_empty(&ch->tx_list)) {
 		jnode *cur = capture_list_pop_front(&ch->tx_list);
 
 		ON_DEBUG(capture_list_clean(cur));
-		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED, BA_FORMATTED);
+		reiser4_dealloc_block(jnode_get_block(cur), BLOCK_NOT_COUNTED,
+				      BA_FORMATTED);
 
 		unpin_jnode_data(cur);
 		drop_io_head(cur);
@@ -488,7 +494,8 @@ dealloc_tx_list(struct commit_handle *ch)
    from atom's overwrite set. */
 static int
 dealloc_wmap_actor(txn_atom * atom UNUSED_ARG,
-		   const reiser4_block_nr * a UNUSED_ARG, const reiser4_block_nr * b, void *data UNUSED_ARG)
+		   const reiser4_block_nr * a UNUSED_ARG,
+		   const reiser4_block_nr * b, void *data UNUSED_ARG)
 {
 
 	assert("zam-499", b != NULL);
@@ -500,12 +507,12 @@ dealloc_wmap_actor(txn_atom * atom UNUSED_ARG,
 }
 
 /* free wandered block locations of already written in place transaction */
-static void
-dealloc_wmap(struct commit_handle *ch)
+static void dealloc_wmap(struct commit_handle *ch)
 {
 	assert("zam-696", ch->atom != NULL);
 
-	blocknr_set_iterator(ch->atom, &ch->atom->wandered_map, dealloc_wmap_actor, NULL, 1);
+	blocknr_set_iterator(ch->atom, &ch->atom->wandered_map,
+			     dealloc_wmap_actor, NULL, 1);
 }
 
 /* helper function for alloc wandered blocks, which refill set of block
@@ -526,9 +533,9 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 	hint.block_stage = BLOCK_GRABBED;
 
 	ret = reiser4_alloc_blocks(&hint, start, &wide_len,
-		BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START);
+				   BA_FORMATTED | BA_USE_DEFAULT_SEARCH_START);
 
-	*len = (int) wide_len;
+	*len = (int)wide_len;
 
 	return ret;
 }
@@ -536,8 +543,7 @@ get_more_wandered_blocks(int count, reiser4_block_nr * start, int *len)
 /*
  * roll back changes made before issuing BIO in the case of IO error.
  */
-static void
-undo_bio(struct bio *bio)
+static void undo_bio(struct bio *bio)
 {
 	int i;
 
@@ -561,9 +567,9 @@ undo_bio(struct bio *bio)
 extern spinlock_t scan_lock;
 
 /* put overwrite set back to atom's clean list */
-static void put_overwrite_set(struct commit_handle * ch)
+static void put_overwrite_set(struct commit_handle *ch)
 {
-	jnode * cur;
+	jnode *cur;
 
 	spin_lock(&scan_lock);
 	cur = capture_list_front(ch->overwrite_set);
@@ -584,8 +590,7 @@ static void put_overwrite_set(struct commit_handle * ch)
    Since we have a separate list for atom's overwrite set we just scan the list,
    count bitmap and other not leaf nodes which wandered blocks allocation we
    have to grab space for. */
-static int
-get_overwrite_set(struct commit_handle *ch)
+static int get_overwrite_set(struct commit_handle *ch)
 {
 	int ret;
 	jnode *cur;
@@ -594,7 +599,6 @@ get_overwrite_set(struct commit_handle *ch)
 	__u64 nr_formatted_leaves = 0;
 	__u64 nr_unformatted_leaves = 0;
 #endif
-
 
 	assert("zam-697", ch->overwrite_set_size == 0);
 
@@ -615,15 +619,17 @@ get_overwrite_set(struct commit_handle *ch)
 		spin_unlock(&scan_lock);
 
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
-			ON_TRACE(TRACE_LOG, "fake znode found , WANDER=(%d)\n", JF_ISSET(cur, JNODE_OVRWR));
+			ON_TRACE(TRACE_LOG, "fake znode found , WANDER=(%d)\n",
+				 JF_ISSET(cur, JNODE_OVRWR));
 		}
 
 		/* Count bitmap locks for getting correct statistics what number
 		 * of blocks were cleared by the transaction commit. */
 		if (jnode_get_type(cur) == JNODE_BITMAP)
-			ch->nr_bitmap ++;
+			ch->nr_bitmap++;
 
-		assert("zam-939", JF_ISSET(cur, JNODE_OVRWR) || jnode_get_type(cur) == JNODE_BITMAP);
+		assert("zam-939", JF_ISSET(cur, JNODE_OVRWR)
+		       || jnode_get_type(cur) == JNODE_BITMAP);
 
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
 			/* we replace fake znode by another (real)
@@ -635,7 +641,8 @@ get_overwrite_set(struct commit_handle *ch)
 			   disk_layout. */
 
 			struct super_block *s = reiser4_get_current_sb();
-			reiser4_super_info_data *sbinfo = get_current_super_private();
+			reiser4_super_info_data *sbinfo =
+			    get_current_super_private();
 
 			if (sbinfo->df_plug->log_super) {
 				jnode *sj = sbinfo->df_plug->log_super(s);
@@ -666,13 +673,15 @@ get_overwrite_set(struct commit_handle *ch)
 			spin_lock(&scan_lock);
 			JF_CLR(cur, JNODE_SCANNED);
 			cur = next;
-			nr_not_leaves ++;
+			nr_not_leaves++;
 		} else {
 			int ret;
 			ch->overwrite_set_size++;
 			ret = jload_gfp(cur, GFP_KERNEL, 0);
 			if (ret)
-				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
+				reiser4_panic("zam-783",
+					      "cannot load e-flushed jnode back (ret = %d)\n",
+					      ret);
 
 			/* Count not leaves here because we have to grab disk
 			 * space for wandered blocks. They were not counted as
@@ -681,7 +690,7 @@ get_overwrite_set(struct commit_handle *ch)
 			 * flush. Counting should be done _after_ nodes are
 			 * pinned * into memory by jload(). */
 			if (!jnode_is_leaf(cur))
-				nr_not_leaves ++;
+				nr_not_leaves++;
 			/* this is to check atom's flush reserved space for
 			 * overwritten leaves */
 			else {
@@ -691,9 +700,9 @@ get_overwrite_set(struct commit_handle *ch)
 				 * eflushed. Locking is not strong enough to
 				 * write an assertion checking for this. */
 				if (jnode_is_znode(cur))
-					nr_formatted_leaves ++;
+					nr_formatted_leaves++;
 				else
-					nr_unformatted_leaves ++;
+					nr_unformatted_leaves++;
 #endif
 				JF_CLR(cur, JNODE_FLUSH_RESERVED);
 			}
@@ -716,7 +725,9 @@ get_overwrite_set(struct commit_handle *ch)
 	/* Disk space for allocation of wandered blocks of leaf nodes already
 	 * reserved as "flush reserved", move it to grabbed space counter. */
 	spin_lock_atom(ch->atom);
-	assert("zam-940", nr_formatted_leaves + nr_unformatted_leaves <= ch->atom->flush_reserved);
+	assert("zam-940",
+	       nr_formatted_leaves + nr_unformatted_leaves <=
+	       ch->atom->flush_reserved);
 	flush_reserved2grabbed(ch->atom, ch->atom->flush_reserved);
 	spin_unlock_atom(ch->atom);
 
@@ -737,7 +748,8 @@ Why that layer needed? Why BIOs cannot be constructed here?
 */
 static int
 write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
-			    const reiser4_block_nr * block_p, flush_queue_t * fq, int flags)
+			    const reiser4_block_nr * block_p,
+			    flush_queue_t * fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int for_reclaim = flags & WRITEOUT_FOR_PAGE_RECLAIM;
@@ -751,10 +763,13 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 
 	block = *block_p;
 
-	ON_TRACE (TRACE_IO_W, "write of %d blocks starting from %llu\n",
-		  nr, (unsigned long long)block);
+	ON_TRACE(TRACE_IO_W, "write of %d blocks starting from %llu\n",
+		 nr, (unsigned long long)block);
 
-	max_blocks = bdev_get_queue(super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9);
+	max_blocks =
+	    bdev_get_queue(super->s_bdev)->max_sectors >> (super->
+							   s_blocksize_bits -
+							   9);
 
 	while (nr > 0) {
 		struct bio *bio;
@@ -770,9 +785,11 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 		bio->bi_sector = block * (super->s_blocksize >> 9);
 		for (nr_used = 0, i = 0; i < nr_blocks; i++) {
 			struct page *pg;
-			ON_DEBUG(int jnode_is_releasable(jnode *));
 
-			assert("vs-1423", ergo(jnode_is_znode(cur) || jnode_is_unformatted(cur),  JF_ISSET(cur, JNODE_SCANNED)));
+			assert("vs-1423",
+			       ergo(jnode_is_znode(cur)
+				    || jnode_is_unformatted(cur), JF_ISSET(cur,
+									   JNODE_SCANNED)));
 			pg = jnode_page(cur);
 			assert("zam-573", pg != NULL);
 
@@ -785,9 +802,11 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			assert("nikita-3554", jprivate(pg) == cur);
 
 			assert("nikita-3166",
-			       ergo(!JF_ISSET(cur, JNODE_CC), pg->mapping == jnode_get_mapping(cur)));
+			       ergo(!JF_ISSET(cur, JNODE_CC),
+				    pg->mapping == jnode_get_mapping(cur)));
 			if (!JF_ISSET(cur, JNODE_WRITEBACK)) {
-				assert("nikita-3165", !jnode_is_releasable(cur));
+				assert("nikita-3165",
+				       !jnode_is_releasable(cur));
 				UNLOCK_JNODE(cur);
 				if (!bio_add_page(bio,
 						  pg, super->s_blocksize, 0)) {
@@ -803,7 +822,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 				LOCK_JNODE(cur);
 				JF_SET(cur, JNODE_WRITEBACK);
 				JF_CLR(cur, JNODE_DIRTY);
-				ON_DEBUG(cur->written ++);
+				ON_DEBUG(cur->written++);
 				UNLOCK_JNODE(cur);
 
 				SetPageWriteback(pg);
@@ -823,7 +842,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 
 				spin_unlock(&pg->mapping->page_lock);
 
-				nr_used ++;
+				nr_used++;
 			} else {
 				/* jnode being WRITEBACK might be replaced on
 				   ovrwr_nodes list with jnode CC. We just
@@ -834,7 +853,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			}
 			unlock_page(pg);
 
-			nr --;
+			nr--;
 			cur = capture_list_next(cur);
 		}
 		if (nr_used > 0) {
@@ -851,7 +870,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			}
 
 			block += nr_used - 1;
-			update_blocknr_hint_default (super, &block);
+			update_blocknr_hint_default(super, &block);
 			block += 1;
 		} else {
 			reiser4_stat_inc(txnmgr.empty_bio);
@@ -863,20 +882,18 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 
 /* @nr jnodes starting from @j are marked as JNODE_SCANNED. Clear this bit for
    all those jnodes */
-static void
-unscan_sequence_nolock(jnode *j, int nr)
+static void unscan_sequence_nolock(jnode * j, int nr)
 {
 	int i;
 
-	for (i = 0; i < nr; i ++) {
+	for (i = 0; i < nr; i++) {
 		assert("vs-1631", JF_ISSET(j, JNODE_SCANNED));
 		JF_CLR(j, JNODE_SCANNED);
 		j = capture_list_next(j);
 	}
 }
 
-static void
-unscan_sequence(jnode *j, int nr)
+static void unscan_sequence(jnode * j, int nr)
 {
 	spin_lock(&scan_lock);
 	unscan_sequence_nolock(j, nr);
@@ -886,8 +903,9 @@ unscan_sequence(jnode *j, int nr)
 /* This is a procedure which recovers a contiguous sequences of disk block
    numbers in the given list of j-nodes and submits write requests on this
    per-sequence basis */
-reiser4_internal int
-write_jnode_list(capture_list_head *head, flush_queue_t *fq, long *nr_submitted, int flags)
+int
+write_jnode_list(capture_list_head * head, flush_queue_t * fq,
+		 long *nr_submitted, int flags)
 {
 	int ret;
 	jnode *beg, *end;
@@ -908,13 +926,16 @@ write_jnode_list(capture_list_head *head, flush_queue_t *fq, long *nr_submitted,
 				break;
 
 			JF_SET(cur, JNODE_SCANNED);
-			++ nr;
+			++nr;
 			end = cur;
 			cur = capture_list_next(cur);
 		}
 		spin_unlock(&scan_lock);
 
-		ret = write_jnodes_to_disk_extent(head, beg, nr, jnode_get_block(beg), fq, flags);
+		ret =
+		    write_jnodes_to_disk_extent(head, beg, nr,
+						jnode_get_block(beg), fq,
+						flags);
 		if (ret) {
 			unscan_sequence(beg, nr);
 			return ret;
@@ -952,8 +973,12 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 
 		do {
 			atom = get_current_atom_locked();
-			assert("zam-536", !blocknr_is_fake(jnode_get_block(cur)));
-			ret = blocknr_set_add_pair(atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block);
+			assert("zam-536",
+			       !blocknr_is_fake(jnode_get_block(cur)));
+			ret =
+			    blocknr_set_add_pair(atom, &atom->wandered_map,
+						 &new_bsep,
+						 jnode_get_block(cur), &block);
 		} while (ret == -E_REPEAT);
 
 		if (ret) {
@@ -961,8 +986,10 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			   map */
 			reiser4_block_nr wide_len = len;
 
-			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
-				BA_FORMATTED/* formatted, without defer */);
+			reiser4_dealloc_blocks(&block, &wide_len,
+					       BLOCK_NOT_COUNTED,
+					       BA_FORMATTED
+					       /* formatted, without defer */ );
 
 			return ret;
 		}
@@ -980,8 +1007,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
    submit IO for allocated blocks.  We assume that current atom is in a stage
    when any atom fusion is impossible and atom is unlocked and it is safe. */
-static int
-alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
+static int alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 {
 	reiser4_block_nr block;
 
@@ -1012,8 +1038,9 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 		beg = cur;
 
 		/* mark @len jnodes starting from @cur as scanned */
-		for (i = 0; i < len; i ++) {
-			assert("vs-1633", !capture_list_end(ch->overwrite_set, cur));
+		for (i = 0; i < len; i++) {
+			assert("vs-1633",
+			       !capture_list_end(ch->overwrite_set, cur));
 			assert("vs-1632", !JF_ISSET(cur, JNODE_SCANNED));
 			JF_SET(cur, JNODE_SCANNED);
 			end = cur;
@@ -1027,7 +1054,9 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 			unscan_sequence(beg, len);
 			return ret;
 		}
-		ret = write_jnodes_to_disk_extent(ch->overwrite_set, beg, len, &block, fq, 0);
+		ret =
+		    write_jnodes_to_disk_extent(ch->overwrite_set, beg, len,
+						&block, fq, 0);
 		if (ret) {
 			unscan_sequence(beg, len);
 			return ret;
@@ -1044,23 +1073,22 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 	return 0;
 }
 
-#else /* !REISER4_COPY_ON_CAPTURE */
+#else				/* !REISER4_COPY_ON_CAPTURE */
 
 /* put overwrite set back to atom's clean list */
-static void put_overwrite_set(struct commit_handle * ch)
+static void put_overwrite_set(struct commit_handle *ch)
 {
-	jnode * cur;
+	jnode *cur;
 
 	for_all_type_safe_list(capture, ch->overwrite_set, cur)
-		jrelse_tail(cur);
+	    jrelse_tail(cur);
 }
 
 /* Count overwrite set size, grab disk space for wandered blocks allocation.
    Since we have a separate list for atom's overwrite set we just scan the list,
    count bitmap and other not leaf nodes which wandered blocks allocation we
    have to grab space for. */
-static int
-get_overwrite_set(struct commit_handle *ch)
+static int get_overwrite_set(struct commit_handle *ch)
 {
 	int ret;
 	jnode *cur;
@@ -1069,7 +1097,6 @@ get_overwrite_set(struct commit_handle *ch)
 	__u64 nr_formatted_leaves = 0;
 	__u64 nr_unformatted_leaves = 0;
 #endif
-
 
 	assert("zam-697", ch->overwrite_set_size == 0);
 
@@ -1082,9 +1109,10 @@ get_overwrite_set(struct commit_handle *ch)
 		/* Count bitmap locks for getting correct statistics what number
 		 * of blocks were cleared by the transaction commit. */
 		if (jnode_get_type(cur) == JNODE_BITMAP)
-			ch->nr_bitmap ++;
+			ch->nr_bitmap++;
 
-		assert("zam-939", JF_ISSET(cur, JNODE_OVRWR) || jnode_get_type(cur) == JNODE_BITMAP);
+		assert("zam-939", JF_ISSET(cur, JNODE_OVRWR)
+		       || jnode_get_type(cur) == JNODE_BITMAP);
 
 		if (jnode_is_znode(cur) && znode_above_root(JZNODE(cur))) {
 			/* we replace fake znode by another (real)
@@ -1096,7 +1124,8 @@ get_overwrite_set(struct commit_handle *ch)
 			   disk_layout. */
 
 			struct super_block *s = reiser4_get_current_sb();
-			reiser4_super_info_data *sbinfo = get_current_super_private();
+			reiser4_super_info_data *sbinfo =
+			    get_current_super_private();
 
 			if (sbinfo->df_plug->log_super) {
 				jnode *sj = sbinfo->df_plug->log_super(s);
@@ -1125,7 +1154,9 @@ get_overwrite_set(struct commit_handle *ch)
 			ch->overwrite_set_size++;
 			ret = jload_gfp(cur, GFP_KERNEL, 0);
 			if (ret)
-				reiser4_panic("zam-783", "cannot load e-flushed jnode back (ret = %d)\n", ret);
+				reiser4_panic("zam-783",
+					      "cannot load e-flushed jnode back (ret = %d)\n",
+					      ret);
 		}
 
 		/* Count not leaves here because we have to grab disk space
@@ -1133,16 +1164,16 @@ get_overwrite_set(struct commit_handle *ch)
 		 * reserved". Counting should be done _after_ nodes are pinned
 		 * into memory by jload(). */
 		if (!jnode_is_leaf(cur))
-			nr_not_leaves ++;
+			nr_not_leaves++;
 		else {
 #if REISER4_DEBUG
 			/* at this point @cur either has JNODE_FLUSH_RESERVED
 			 * or is eflushed. Locking is not strong enough to
 			 * write an assertion checking for this. */
 			if (jnode_is_znode(cur))
-				nr_formatted_leaves ++;
+				nr_formatted_leaves++;
 			else
-				nr_unformatted_leaves ++;
+				nr_unformatted_leaves++;
 #endif
 			JF_CLR(cur, JNODE_FLUSH_RESERVED);
 		}
@@ -1159,25 +1190,42 @@ get_overwrite_set(struct commit_handle *ch)
 	/* Disk space for allocation of wandered blocks of leaf nodes already
 	 * reserved as "flush reserved", move it to grabbed space counter. */
 	spin_lock_atom(ch->atom);
-	assert("zam-940", nr_formatted_leaves + nr_unformatted_leaves <= ch->atom->flush_reserved);
+	assert("zam-940",
+	       nr_formatted_leaves + nr_unformatted_leaves <=
+	       ch->atom->flush_reserved);
 	flush_reserved2grabbed(ch->atom, ch->atom->flush_reserved);
 	spin_unlock_atom(ch->atom);
 
 	return ch->overwrite_set_size;
 }
 
-/* Submit a write request for @nr jnodes beginning from the @first, other jnodes
-   are after the @first on the double-linked "capture" list.  All jnodes will be
-   written to the disk region of @nr blocks starting with @block_p block number.
-   If @fq is not NULL it means that waiting for i/o completion will be done more
-   efficiently by using flush_queue_t objects.
-
-   This function is the one which writes list of jnodes in batch mode. It does
-   all low-level things as bio construction and page states manipulation.
-*/
+/**
+ * write_jnodes_to_disk_extent - submit write request
+ * @head:
+ * @first: first jnode of the list 
+ * @nr: number of jnodes on the list
+ * @block_p: 
+ * @fq:
+ * @flags: used to decide whether page is to get PG_reclaim flag
+ *
+ * Submits a write request for @nr jnodes beginning from the @first, other
+ * jnodes are after the @first on the double-linked "capture" list.  All jnodes
+ * will be written to the disk region of @nr blocks starting with @block_p block
+ * number.  If @fq is not NULL it means that waiting for i/o completion will be
+ * done more efficiently by using flush_queue_t objects.
+ * This function is the one which writes list of jnodes in batch mode. It does
+ * all low-level things as bio construction and page states manipulation.
+ *
+ * ZAM-FIXME-HANS: brief me on why this function exists, and why bios are
+ * aggregated in this function instead of being left to the layers below
+ *
+ * FIXME: ZAM->HANS: What layer are you talking about? Can you point me to that?
+ * Why that layer needed? Why BIOs cannot be constructed here?
+ */
 static int
-write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
-			    const reiser4_block_nr * block_p, flush_queue_t * fq, int flags)
+write_jnodes_to_disk_extent(capture_list_head *head, jnode *first, int nr,
+			    const reiser4_block_nr *block_p,
+			    flush_queue_t *fq, int flags)
 {
 	struct super_block *super = reiser4_get_current_sb();
 	int for_reclaim = flags & WRITEOUT_FOR_PAGE_RECLAIM;
@@ -1190,7 +1238,10 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 	assert("zam-570", nr > 0);
 
 	block = *block_p;
-	max_blocks = bdev_get_queue(super->s_bdev)->max_sectors >> (super->s_blocksize_bits - 9);
+	max_blocks =
+	    bdev_get_queue(super->s_bdev)->max_sectors >> (super->
+							   s_blocksize_bits -
+							   9);
 
 	while (nr > 0) {
 		struct bio *bio;
@@ -1226,16 +1277,17 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			}
 
 			LOCK_JNODE(cur);
-			assert("nikita-3166", pg->mapping == jnode_get_mapping(cur));
+			assert("nikita-3166",
+			       pg->mapping == jnode_get_mapping(cur));
 			assert("zam-912", !JF_ISSET(cur, JNODE_WRITEBACK));
 			assert("nikita-3165", !jnode_is_releasable(cur));
 			JF_SET(cur, JNODE_WRITEBACK);
 			JF_CLR(cur, JNODE_DIRTY);
-			ON_DEBUG(cur->written ++);
+			ON_DEBUG(cur->written1++);
 			UNLOCK_JNODE(cur);
 
 			set_page_writeback(pg);
-                        if (for_reclaim)
+			if (for_reclaim)
 				ent_writes_page(super, pg);
 			/* clear DIRTY or REISER4_MOVED tag if it is set */
 			reiser4_clear_page_dirty(pg);
@@ -1243,7 +1295,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			unlock_page(pg);
 
 			cur = capture_list_next(cur);
-			nr_used ++;
+			nr_used++;
 		}
 		if (nr_used > 0) {
 			assert("nikita-3453",
@@ -1259,7 +1311,7 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 			}
 
 			block += nr_used - 1;
-			update_blocknr_hint_default (super, &block);
+			update_blocknr_hint_default(super, &block);
 			block += 1;
 		} else {
 			bio_put(bio);
@@ -1273,8 +1325,9 @@ write_jnodes_to_disk_extent(capture_list_head * head, jnode * first, int nr,
 /* This is a procedure which recovers a contiguous sequences of disk block
    numbers in the given list of j-nodes and submits write requests on this
    per-sequence basis */
-reiser4_internal int
-write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitted, int flags)
+int
+write_jnode_list(capture_list_head * head, flush_queue_t * fq,
+		 long *nr_submitted, int flags)
 {
 	int ret;
 	jnode *beg = capture_list_front(head);
@@ -1290,7 +1343,10 @@ write_jnode_list (capture_list_head * head, flush_queue_t * fq, long *nr_submitt
 			cur = capture_list_next(cur);
 		}
 
-		ret = write_jnodes_to_disk_extent(head, beg, nr, jnode_get_block(beg), fq, flags);
+		ret =
+		    write_jnodes_to_disk_extent(head, beg, nr,
+						jnode_get_block(beg), fq,
+						flags);
 		if (ret)
 			return ret;
 
@@ -1320,8 +1376,12 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 	while ((len--) > 0) {
 		do {
 			atom = get_current_atom_locked();
-			assert("zam-536", !blocknr_is_fake(jnode_get_block(cur)));
-			ret = blocknr_set_add_pair(atom, &atom->wandered_map, &new_bsep, jnode_get_block(cur), &block);
+			assert("zam-536",
+			       !blocknr_is_fake(jnode_get_block(cur)));
+			ret =
+			    blocknr_set_add_pair(atom, &atom->wandered_map,
+						 &new_bsep,
+						 jnode_get_block(cur), &block);
 		} while (ret == -E_REPEAT);
 
 		if (ret) {
@@ -1329,8 +1389,10 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 			   map */
 			reiser4_block_nr wide_len = len;
 
-			reiser4_dealloc_blocks(&block, &wide_len, BLOCK_NOT_COUNTED,
-				BA_FORMATTED/* formatted, without defer */);
+			reiser4_dealloc_blocks(&block, &wide_len,
+					       BLOCK_NOT_COUNTED,
+					       BA_FORMATTED
+					       /* formatted, without defer */ );
 
 			return ret;
 		}
@@ -1347,8 +1409,7 @@ add_region_to_wmap(jnode * cur, int len, const reiser4_block_nr * block_p)
 /* Allocate wandered blocks for current atom's OVERWRITE SET and immediately
    submit IO for allocated blocks.  We assume that current atom is in a stage
    when any atom fusion is impossible and atom is unlocked and it is safe. */
-static int
-alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
+static int alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 {
 	reiser4_block_nr block;
 
@@ -1376,12 +1437,15 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 		if (ret)
 			return ret;
 
-		ret = write_jnodes_to_disk_extent(ch->overwrite_set, cur, len, &block, fq, 0);
+		ret =
+		    write_jnodes_to_disk_extent(ch->overwrite_set, cur, len,
+						&block, fq, 0);
 		if (ret)
 			return ret;
 
 		while ((len--) > 0) {
-			assert("zam-604", !capture_list_end(ch->overwrite_set, cur));
+			assert("zam-604",
+			       !capture_list_end(ch->overwrite_set, cur));
 			cur = capture_list_next(cur);
 		}
 	}
@@ -1389,12 +1453,11 @@ alloc_wandered_blocks(struct commit_handle *ch, flush_queue_t * fq)
 	return 0;
 }
 
-#endif /* ! REISER4_COPY_ON_CAPTURE */
+#endif				/* ! REISER4_COPY_ON_CAPTURE */
 
 /* allocate given number of nodes over the journal area and link them into a
    list, return pointer to the first jnode in the list */
-static int
-alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
+static int alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 {
 	reiser4_blocknr_hint hint;
 
@@ -1408,7 +1471,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 	assert("zam-698", ch->tx_size > 0);
 	assert("zam-699", capture_list_empty(&ch->tx_list));
 
-	while (allocated < (unsigned) ch->tx_size) {
+	while (allocated < (unsigned)ch->tx_size) {
 		len = (ch->tx_size - allocated);
 
 		blocknr_hint_init(&hint);
@@ -1420,8 +1483,9 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 		/* We assume that disk space for wandered record blocks can be
 		 * taken from reserved area. */
-		ret = reiser4_alloc_blocks (&hint, &first, &len,
-			BA_FORMATTED | BA_RESERVED | BA_USE_DEFAULT_SEARCH_START);
+		ret = reiser4_alloc_blocks(&hint, &first, &len,
+					   BA_FORMATTED | BA_RESERVED |
+					   BA_USE_DEFAULT_SEARCH_START);
 
 		blocknr_hint_done(&hint);
 
@@ -1475,10 +1539,12 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 		params.cur = capture_list_next(txhead);
 
 		params.idx = 0;
-		params.capacity = wander_record_capacity(reiser4_get_current_sb());
+		params.capacity =
+		    wander_record_capacity(reiser4_get_current_sb());
 
 		atom = get_current_atom_locked();
-		blocknr_set_iterator(atom, &atom->wandered_map, &store_wmap_actor, &params, 0);
+		blocknr_set_iterator(atom, &atom->wandered_map,
+				     &store_wmap_actor, &params, 0);
 		UNLOCK_ATOM(atom);
 	}
 
@@ -1494,7 +1560,7 @@ alloc_tx(struct commit_handle *ch, flush_queue_t * fq)
 
 	return ret;
 
-free_not_assigned:
+      free_not_assigned:
 	/* We deallocate blocks not yet assigned to jnodes on tx_list. The
 	   caller takes care about invalidating of tx list  */
 	reiser4_dealloc_blocks(&first, &len, BLOCK_NOT_COUNTED, BA_FORMATTED);
@@ -1507,7 +1573,7 @@ free_not_assigned:
    are submitted to write.
 */
 
-reiser4_internal int reiser4_write_logs(long * nr_submitted)
+int reiser4_write_logs(long *nr_submitted)
 {
 	txn_atom *atom;
 	struct super_block *super = reiser4_get_current_sb();
@@ -1543,15 +1609,16 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	UNLOCK_ATOM(atom);
 
 	if (REISER4_DEBUG) {
-		 int level;
+		int level;
 
-		 for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; ++ level)
-			  assert("nikita-3352",
-				 capture_list_empty(ATOM_DIRTY_LIST(atom, level)));
+		for (level = 0; level < REAL_MAX_ZTREE_HEIGHT + 1; ++level)
+			assert("nikita-3352",
+			       capture_list_empty(ATOM_DIRTY_LIST
+						  (atom, level)));
 	}
 
-	sbinfo->nr_files_committed += (unsigned) atom->nr_objects_created;
-	sbinfo->nr_files_committed -= (unsigned) atom->nr_objects_deleted;
+	sbinfo->nr_files_committed += (unsigned)atom->nr_objects_created;
+	sbinfo->nr_files_committed -= (unsigned)atom->nr_objects_deleted;
 
 	init_commit_handle(&ch, atom);
 
@@ -1578,7 +1645,7 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 	get_tx_size(&ch);
 
 	/* Grab more space for wandered records. */
-	ret = reiser4_grab_space_force((__u64)(ch.tx_size), BA_RESERVED);
+	ret = reiser4_grab_space_force((__u64) (ch.tx_size), BA_RESERVED);
 	if (ret)
 		goto up_and_ret;
 
@@ -1603,7 +1670,6 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 			if (ret)
 				break;
 		} while (0);
-
 
 		/* Release all grabbed space if it was not fully used for
 		 * wandered blocks/records allocation. */
@@ -1639,7 +1705,9 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 
 		UNLOCK_ATOM(fq->atom);
 
-		ret = write_jnode_list(ch.overwrite_set, fq, NULL, WRITEOUT_FOR_PAGE_RECLAIM);
+		ret =
+		    write_jnode_list(ch.overwrite_set, fq, NULL,
+				     WRITEOUT_FOR_PAGE_RECLAIM);
 
 		fq_put(fq);
 
@@ -1657,7 +1725,7 @@ reiser4_internal int reiser4_write_logs(long * nr_submitted)
 
 	post_write_back_hook();
 
-up_and_ret:
+      up_and_ret:
 	if (ret) {
 		/* there could be fq attached to current atom; the only way to
 		   remove them is: */
@@ -1680,16 +1748,14 @@ up_and_ret:
 /* consistency checks for journal data/control blocks: header, footer, log
    records, transactions head blocks. All functions return zero on success. */
 
-static int
-check_journal_header(const jnode * node UNUSED_ARG)
+static int check_journal_header(const jnode * node UNUSED_ARG)
 {
 	/* FIXME: journal header has no magic field yet. */
 	return 0;
 }
 
 /* wait for write completion for all jnodes from given list */
-static int
-wait_on_jnode_list(capture_list_head * head)
+static int wait_on_jnode_list(capture_list_head * head)
 {
 	jnode *scan;
 	int ret = 0;
@@ -1709,33 +1775,34 @@ wait_on_jnode_list(capture_list_head * head)
 	return ret;
 }
 
-static int
-check_journal_footer(const jnode * node UNUSED_ARG)
+static int check_journal_footer(const jnode * node UNUSED_ARG)
 {
 	/* FIXME: journal footer has no magic field yet. */
 	return 0;
 }
 
-static int
-check_tx_head(const jnode * node)
+static int check_tx_head(const jnode * node)
 {
-	struct tx_header *header = (struct tx_header *) jdata(node);
+	struct tx_header *header = (struct tx_header *)jdata(node);
 
 	if (memcmp(&header->magic, TX_HEADER_MAGIC, TX_HEADER_MAGIC_SIZE) != 0) {
-		warning("zam-627", "tx head at block %s corrupted\n", sprint_address(jnode_get_block(node)));
+		warning("zam-627", "tx head at block %s corrupted\n",
+			sprint_address(jnode_get_block(node)));
 		return RETERR(-EIO);
 	}
 
 	return 0;
 }
 
-static int
-check_wander_record(const jnode * node)
+static int check_wander_record(const jnode * node)
 {
-	struct wander_record_header *RH = (struct wander_record_header *) jdata(node);
+	struct wander_record_header *RH =
+	    (struct wander_record_header *)jdata(node);
 
-	if (memcmp(&RH->magic, WANDER_RECORD_MAGIC, WANDER_RECORD_MAGIC_SIZE) != 0) {
-		warning("zam-628", "wander record at block %s corrupted\n", sprint_address(jnode_get_block(node)));
+	if (memcmp(&RH->magic, WANDER_RECORD_MAGIC, WANDER_RECORD_MAGIC_SIZE) !=
+	    0) {
+		warning("zam-628", "wander record at block %s corrupted\n",
+			sprint_address(jnode_get_block(node)));
 		return RETERR(-EIO);
 	}
 
@@ -1743,8 +1810,7 @@ check_wander_record(const jnode * node)
 }
 
 /* fill commit_handler structure by everything what is needed for update_journal_footer */
-static int
-restore_commit_handle(struct commit_handle *ch, jnode * tx_head)
+static int restore_commit_handle(struct commit_handle *ch, jnode * tx_head)
 {
 	struct tx_header *TXH;
 	int ret;
@@ -1754,7 +1820,7 @@ restore_commit_handle(struct commit_handle *ch, jnode * tx_head)
 	if (ret)
 		return ret;
 
-	TXH = (struct tx_header *) jdata(tx_head);
+	TXH = (struct tx_header *)jdata(tx_head);
 
 	ch->free_blocks = d64tocpu(&TXH->free_blocks);
 	ch->nr_files = d64tocpu(&TXH->nr_files);
@@ -1772,7 +1838,8 @@ static int
 replay_transaction(const struct super_block *s,
 		   jnode * tx_head,
 		   const reiser4_block_nr * log_rec_block_p,
-		   const reiser4_block_nr * end_block, unsigned int nr_wander_records)
+		   const reiser4_block_nr * end_block,
+		   unsigned int nr_wander_records)
 {
 	reiser4_block_nr log_rec_block = *log_rec_block_p;
 	struct commit_handle ch;
@@ -1794,7 +1861,8 @@ replay_transaction(const struct super_block *s,
 
 		if (nr_wander_records == 0) {
 			warning("zam-631",
-				"number of wander records in the linked list" " greater than number stored in tx head.\n");
+				"number of wander records in the linked list"
+				" greater than number stored in tx head.\n");
 			ret = RETERR(-EIO);
 			goto free_ow_set;
 		}
@@ -1816,10 +1884,10 @@ replay_transaction(const struct super_block *s,
 			return ret;
 		}
 
-		header = (struct wander_record_header *) jdata(log);
+		header = (struct wander_record_header *)jdata(log);
 		log_rec_block = d64tocpu(&header->next_block);
 
-		entry = (struct wander_entry *) (header + 1);
+		entry = (struct wander_entry *)(header + 1);
 
 		/* restore overwrite set from wander record content */
 		for (i = 0; i < wander_record_capacity(s); i++) {
@@ -1879,7 +1947,7 @@ replay_transaction(const struct super_block *s,
 	}
 
 	{			/* write wandered set in place */
-		write_jnode_list(ch.overwrite_set, 0, NULL, 0);
+		write_jnode_list(ch.overwrite_set, NULL, NULL, 0);
 		ret = wait_on_jnode_list(ch.overwrite_set);
 
 		if (ret) {
@@ -1890,16 +1958,16 @@ replay_transaction(const struct super_block *s,
 
 	ret = update_journal_footer(&ch);
 
-free_ow_set:
+      free_ow_set:
 
 	while (!capture_list_empty(ch.overwrite_set)) {
 		jnode *cur = capture_list_front(ch.overwrite_set);
-		capture_list_remove_clean (cur);
+		capture_list_remove_clean(cur);
 		jrelse(cur);
 		drop_io_head(cur);
 	}
 
-	capture_list_remove_clean (tx_head);
+	capture_list_remove_clean(tx_head);
 
 	done_commit_handle(&ch);
 
@@ -1912,8 +1980,7 @@ free_ow_set:
  * footer block were not completed. This function completes the process by
  * recovering the atom's overwrite set from their wandered locations and writes
  * them in-place and updating the journal footer. */
-static int
-replay_oldest_transaction(struct super_block *s)
+static int replay_oldest_transaction(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	jnode *jf = sbinfo->journal_footer;
@@ -1932,7 +1999,7 @@ replay_oldest_transaction(struct super_block *s)
 	if ((ret = jload(jf)) < 0)
 		return ret;
 
-	F = (struct journal_footer *) jdata(jf);
+	F = (struct journal_footer *)jdata(jf);
 
 	last_flushed_tx = d64tocpu(&F->last_flushed_tx);
 
@@ -1964,7 +2031,7 @@ replay_oldest_transaction(struct super_block *s)
 			return ret;
 		}
 
-		T = (struct tx_header *) jdata(tx_head);
+		T = (struct tx_header *)jdata(tx_head);
 
 		prev_tx = d64tocpu(&T->prev_tx);
 
@@ -1981,7 +2048,9 @@ replay_oldest_transaction(struct super_block *s)
 	pin_jnode_data(tx_head);
 	jrelse(tx_head);
 
-	ret = replay_transaction(s, tx_head, &log_rec_block, jnode_get_block(tx_head), total - 1);
+	ret =
+	    replay_transaction(s, tx_head, &log_rec_block,
+			       jnode_get_block(tx_head), total - 1);
 
 	unpin_jnode_data(tx_head);
 	drop_io_head(tx_head);
@@ -2003,8 +2072,7 @@ replay_oldest_transaction(struct super_block *s)
 */
 
 /* get the information from journal footer in-memory super block */
-reiser4_internal int
-reiser4_journal_recover_sb_data(struct super_block *s)
+int reiser4_journal_recover_sb_data(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	struct journal_footer *jf;
@@ -2020,7 +2088,7 @@ reiser4_journal_recover_sb_data(struct super_block *s)
 	if (ret != 0)
 		goto out;
 
-	jf = (struct journal_footer *) jdata(sbinfo->journal_footer);
+	jf = (struct journal_footer *)jdata(sbinfo->journal_footer);
 
 	/* was there at least one flushed transaction?  */
 	if (d64tocpu(&jf->last_flushed_tx)) {
@@ -2033,14 +2101,13 @@ reiser4_journal_recover_sb_data(struct super_block *s)
 				   d64tocpu(&jf->nr_files),
 				   d64tocpu(&jf->next_oid));
 	}
-out:
+      out:
 	jrelse(sbinfo->journal_footer);
 	return ret;
 }
 
 /* reiser4 replay journal procedure */
-reiser4_internal int
-reiser4_journal_replay(struct super_block *s)
+int reiser4_journal_replay(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	jnode *jh, *jf;
@@ -2090,7 +2157,7 @@ reiser4_journal_replay(struct super_block *s)
 		return ret;
 	}
 
-	header = (struct journal_header *) jdata(jh);
+	header = (struct journal_header *)jdata(jh);
 	sbinfo->last_committed_tx = d64tocpu(&header->last_committed_tx);
 
 	jrelse(jh);
@@ -2101,6 +2168,7 @@ reiser4_journal_replay(struct super_block *s)
 
 	return ret;
 }
+
 /* load journal control block (either journal header or journal footer block) */
 static int
 load_journal_control_block(jnode ** node, const reiser4_block_nr * block)
@@ -2126,8 +2194,7 @@ load_journal_control_block(jnode ** node, const reiser4_block_nr * block)
 }
 
 /* unload journal header or footer and free jnode */
-static void
-unload_journal_control_block(jnode ** node)
+static void unload_journal_control_block(jnode ** node)
 {
 	if (*node) {
 		unpin_jnode_data(*node);
@@ -2137,8 +2204,7 @@ unload_journal_control_block(jnode ** node)
 }
 
 /* release journal control blocks */
-reiser4_internal void
-done_journal_info(struct super_block *s)
+void done_journal_info(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 
@@ -2149,8 +2215,7 @@ done_journal_info(struct super_block *s)
 }
 
 /* load journal control blocks */
-reiser4_internal int
-init_journal_info(struct super_block *s)
+int init_journal_info(struct super_block *s)
 {
 	reiser4_super_info_data *sbinfo = get_super_private(s);
 	journal_location *loc;

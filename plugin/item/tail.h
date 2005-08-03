@@ -9,23 +9,27 @@ typedef struct {
 
 struct cut_list;
 
-
 /* plugin->u.item.b.* */
 reiser4_key *max_key_inside_tail(const coord_t *, reiser4_key *);
-int can_contain_key_tail(const coord_t * coord, const reiser4_key * key, const reiser4_item_data *);
+int can_contain_key_tail(const coord_t * coord, const reiser4_key * key,
+			 const reiser4_item_data *);
 int mergeable_tail(const coord_t * p1, const coord_t * p2);
 pos_in_node_t nr_units_tail(const coord_t *);
 lookup_result lookup_tail(const reiser4_key *, lookup_bias, coord_t *);
 int paste_tail(coord_t *, reiser4_item_data *, carry_plugin_info *);
 int can_shift_tail(unsigned free_space, coord_t * source,
-		   znode * target, shift_direction, unsigned *size, unsigned want);
-void copy_units_tail(coord_t * target, coord_t * source,
-		     unsigned from, unsigned count, shift_direction, unsigned free_space);
-int kill_hook_tail(const coord_t *, pos_in_node_t from, pos_in_node_t count, struct carry_kill_data *);
+		   znode * target, shift_direction, unsigned *size,
+		   unsigned want);
+void copy_units_tail(coord_t * target, coord_t * source, unsigned from,
+		     unsigned count, shift_direction, unsigned free_space);
+int kill_hook_tail(const coord_t *, pos_in_node_t from, pos_in_node_t count,
+		   struct carry_kill_data *);
 int cut_units_tail(coord_t *, pos_in_node_t from, pos_in_node_t to,
-		   struct carry_cut_data *, reiser4_key *smallest_removed, reiser4_key *new_first);
+		   struct carry_cut_data *, reiser4_key * smallest_removed,
+		   reiser4_key * new_first);
 int kill_units_tail(coord_t *, pos_in_node_t from, pos_in_node_t to,
-		    struct carry_kill_data *, reiser4_key *smallest_removed, reiser4_key *new_first);
+		    struct carry_kill_data *, reiser4_key * smallest_removed,
+		    reiser4_key * new_first);
 reiser4_key *unit_key_tail(const coord_t *, reiser4_key *);
 
 /* plugin->u.item.s.* */
@@ -34,10 +38,9 @@ int read_tail(struct file *, flow_t *, hint_t *);
 int readpage_tail(void *vp, struct page *page);
 reiser4_key *append_key_tail(const coord_t *, reiser4_key *);
 void init_coord_extension_tail(uf_coord_t *, loff_t offset);
-int get_block_address_tail(const coord_t *coord,
-			   sector_t block, struct buffer_head *bh);
-int item_balance_dirty_pages(struct address_space *mapping, const flow_t *f,
-			     hint_t *hint, int back_to_dirty, int set_hint);
+int get_block_address_tail(const coord_t *, sector_t, sector_t *);
+int item_balance_dirty_pages(struct address_space *, const flow_t *,
+			     hint_t *, int back_to_dirty, int set_hint);
 
 /* __REISER4_TAIL_H__ */
 #endif

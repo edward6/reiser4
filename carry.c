@@ -38,7 +38,6 @@
 
    USAGE:
 
-
     int some_tree_operation( znode *node, ... )
     {
        // Allocate on a stack pool of carry objects: operations and nodes.
@@ -161,7 +160,8 @@ int lock_carry_node_tail(carry_node * node);
 /* carry processing proper */
 static int carry_on_level(carry_level * doing, carry_level * todo);
 
-static carry_op *add_op(carry_level * level, pool_ordering order, carry_op * reference);
+static carry_op *add_op(carry_level * level, pool_ordering order,
+			carry_op * reference);
 
 /* handlers for carry operations. */
 
@@ -180,19 +180,16 @@ typedef enum {
 static int carry_level_invariant(carry_level * level, carry_queue_state state);
 #endif
 
-static int
-perthread_pages_reserve(int nrpages, int gfp)
+static int perthread_pages_reserve(int nrpages, int gfp)
 {
 	return 0;
 }
 
-static void
-perthread_pages_release(int nrpages)
+static void perthread_pages_release(int nrpages)
 {
 }
 
-static int
-perthread_pages_count(void)
+static int perthread_pages_count(void)
 {
 	return 0;
 }
@@ -208,29 +205,26 @@ perthread_pages_count(void)
    For usage, see comment at the top of fs/reiser4/carry.c
 
 */
-reiser4_internal int
-carry(carry_level * doing /* set of carry operations to be performed */ ,
-      carry_level * done	/* set of nodes, already performed at the
+int carry(carry_level * doing /* set of carry operations to be performed */ ,
+	  carry_level * done	/* set of nodes, already performed at the
 				 * previous level. NULL in most cases */ )
 {
 	int result = 0;
-	carry_level done_area;
-	carry_level todo_area;
 	/* queue of new requests */
 	carry_level *todo;
 	int wasreserved;
 	int reserve;
-	ON_DEBUG(STORE_COUNTERS;)
+	ON_DEBUG(STORE_COUNTERS);
 
 	assert("nikita-888", doing != NULL);
+	BUG_ON(done != NULL);
 
-	todo = &todo_area;
+	todo = doing + 1;
 	init_carry_level(todo, doing->pool);
-	if (done == NULL) {
-		/* queue of requests performed on the previous level */
-		done = &done_area;
-		init_carry_level(done, doing->pool);
-	}
+
+	/* queue of requests preformed on the previous level */
+	done = todo + 1;
+	init_carry_level(done, doing->pool);
 
 	wasreserved = perthread_pages_count();
 	reserve = carry_estimate_reserve(doing);
@@ -253,7 +247,7 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 		   (3) some unexpected error occurred while balancing on the
 		   upper levels. In this case all changes are rolled back.
 
-		*/
+		 */
 		while (1) {
 			result = lock_carry_level(doing);
 			if (result == 0) {
@@ -274,7 +268,7 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 					   all pending transcrashes and thus
 					   pushing tree back to the consistent
 					   state. Alternatvely, just panic.
-					*/
+					 */
 					fatal_carry_error(doing, result);
 					return result;
 				}
@@ -304,7 +298,7 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
 
 	/* all counters, but x_refs should remain the same. x_refs can change
 	   owing to transaction manager */
-	ON_DEBUG(CHECK_COUNTERS;)
+	ON_DEBUG(CHECK_COUNTERS);
 	return result;
 }
 
@@ -321,14 +315,13 @@ carry(carry_level * doing /* set of carry operations to be performed */ ,
    node and counter and operations carried upward from this node.
 
 */
-static int
-carry_on_level(carry_level * doing	/* queue of carry operations to
-					 * do on this level */ ,
-	       carry_level * todo	/* queue where new carry
-					 * operations to be performed on
-					 * the * parent level are
-					 * accumulated during @doing
-					 * processing. */ )
+static int carry_on_level(carry_level * doing	/* queue of carry operations to
+						 * do on this level */ ,
+			  carry_level * todo	/* queue where new carry
+						 * operations to be performed on
+						 * the * parent level are
+						 * accumulated during @doing
+						 * processing. */ )
 {
 	int result;
 	int (*f) (carry_op *, carry_level *, carry_level *);
@@ -353,7 +346,7 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 	   more efficiently when batched together.
 
 	   Above is an optimization left for the future.
-	*/
+	 */
 	/* Important, but delayed optimization: it's possible to batch
 	   operations together and perform them more efficiently as a
 	   result. For example, deletion of several neighboring items from a
@@ -361,7 +354,7 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 
 	   Before processing queue, it should be scanned and "mergeable"
 	   operations merged.
-	*/
+	 */
 	result = 0;
 	for_all_ops(doing, op, tmp_op) {
 		carry_opcode opcode;
@@ -373,7 +366,7 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 		result = f(op, doing, todo);
 		/* locking can fail with -E_REPEAT. Any different error is fatal
 		   and will be handled by fatal_carry_error() sledgehammer.
-		*/
+		 */
 		if (result != 0)
 			break;
 	}
@@ -385,14 +378,17 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
 		info.doing = doing;
 		info.todo = todo;
 
-		assert("nikita-3002", carry_level_invariant(doing, CARRY_DOING));
+		assert("nikita-3002",
+		       carry_level_invariant(doing, CARRY_DOING));
 		for_all_nodes(doing, scan, tmp_scan) {
 			znode *node;
 
 			node = carry_real(scan);
 			assert("nikita-2547", node != NULL);
 			if (node_is_empty(node)) {
-				result = node_plugin_by_node(node)->prepare_removal(node, &info);
+				result =
+				    node_plugin_by_node(node)->
+				    prepare_removal(node, &info);
 				if (result != 0)
 					break;
 			}
@@ -415,15 +411,14 @@ carry_on_level(carry_level * doing	/* queue of carry operations to
    caller to guarantee proper ordering of node queue.
 
 */
-reiser4_internal carry_op *
-post_carry(carry_level * level	/* queue where new operation is to
-				 * be posted at */ ,
-	   carry_opcode op /* opcode of operation */ ,
-	   znode * node		/* node on which this operation
-				 * will operate */ ,
-	   int apply_to_parent_p	/* whether operation will operate
-					 * directly on @node or on it
-					 * parent. */ )
+carry_op *post_carry(carry_level * level	/* queue where new operation is to
+						 * be posted at */ ,
+		     carry_opcode op /* opcode of operation */ ,
+		     znode * node	/* node on which this operation
+					 * will operate */ ,
+		     int apply_to_parent_p	/* whether operation will operate
+						 * directly on @node or on it
+						 * parent. */ )
 {
 	carry_op *result;
 	carry_node *child;
@@ -449,9 +444,8 @@ post_carry(carry_level * level	/* queue where new operation is to
 }
 
 /* initialise carry queue */
-reiser4_internal void
-init_carry_level(carry_level * level /* level to initialise */ ,
-		 carry_pool * pool	/* pool @level will allocate objects
+void init_carry_level(carry_level * level /* level to initialise */ ,
+		      carry_pool * pool	/* pool @level will allocate objects
 					 * from */ )
 {
 	assert("nikita-1045", level != NULL);
@@ -465,23 +459,24 @@ init_carry_level(carry_level * level /* level to initialise */ ,
 }
 
 /* allocate carry pool and initialise pools within queue */
-reiser4_internal carry_pool *
-init_carry_pool(void)
+carry_pool *init_carry_pool(int size)
 {
-	carry_pool * pool;
+	carry_pool *pool;
 
-	pool = kmalloc(sizeof(carry_pool), GFP_KERNEL);
+	assert("", size >= sizeof(carry_pool) + 3 * sizeof(carry_level));
+	pool = kmalloc(size, GFP_KERNEL);
 	if (pool == NULL)
 		return ERR_PTR(RETERR(-ENOMEM));
 
-	reiser4_init_pool(&pool->op_pool, sizeof (carry_op), CARRIES_POOL_SIZE, (char *) pool->op);
-	reiser4_init_pool(&pool->node_pool, sizeof (carry_node), NODES_LOCKED_POOL_SIZE, (char *) pool->node);
+	reiser4_init_pool(&pool->op_pool, sizeof(carry_op), CARRIES_POOL_SIZE,
+			  (char *)pool->op);
+	reiser4_init_pool(&pool->node_pool, sizeof(carry_node),
+			  NODES_LOCKED_POOL_SIZE, (char *)pool->node);
 	return pool;
 }
 
 /* finish with queue pools */
-reiser4_internal void
-done_carry_pool(carry_pool * pool /* pool to destroy */ )
+void done_carry_pool(carry_pool * pool /* pool to destroy */ )
 {
 	reiser4_done_pool(&pool->op_pool);
 	reiser4_done_pool(&pool->node_pool);
@@ -497,16 +492,15 @@ done_carry_pool(carry_pool * pool /* pool to destroy */ )
    automatically. To control ordering use @order and @reference parameters.
 
 */
-reiser4_internal carry_node *
-add_carry_skip(carry_level * level	/* &carry_level to add node
-					 * to */ ,
-	       pool_ordering order	/* where to insert: at the
-					 * beginning of @level,
-					 * before @reference, after
-					 * @reference, at the end
-					 * of @level */ ,
-	       carry_node * reference	/* reference node for
-					 * insertion */ )
+carry_node *add_carry_skip(carry_level * level	/* &carry_level to add node
+						 * to */ ,
+			   pool_ordering order	/* where to insert: at the
+						 * beginning of @level,
+						 * before @reference, after
+						 * @reference, at the end
+						 * of @level */ ,
+			   carry_node * reference	/* reference node for
+							 * insertion */ )
 {
 	ON_DEBUG(carry_node * orig_ref = reference);
 
@@ -529,19 +523,20 @@ add_carry_skip(carry_level * level	/* &carry_level to add node
 	return add_carry(level, order, reference);
 }
 
-reiser4_internal carry_node *
-add_carry(carry_level * level	/* &carry_level to add node
-				 * to */ ,
-	  pool_ordering order	/* where to insert: at the
-				 * beginning of @level, before
-				 * @reference, after @reference,
-				 * at the end of @level */ ,
-	  carry_node * reference	/* reference node for
-					 * insertion */ )
+carry_node *add_carry(carry_level * level	/* &carry_level to add node
+						 * to */ ,
+		      pool_ordering order	/* where to insert: at the
+						 * beginning of @level, before
+						 * @reference, after @reference,
+						 * at the end of @level */ ,
+		      carry_node * reference	/* reference node for
+						 * insertion */ )
 {
 	carry_node *result;
 
-	result = (carry_node *) add_obj(&level->pool->node_pool, &level->nodes, order, &reference->header);
+	result =
+	    (carry_node *) add_obj(&level->pool->node_pool, &level->nodes,
+				   order, &reference->header);
 	if (!IS_ERR(result) && (result != NULL))
 		++level->nodes_num;
 	return result;
@@ -554,16 +549,18 @@ add_carry(carry_level * level	/* &carry_level to add node
    @order and @reference parameters.
 
 */
-static carry_op *
-add_op(carry_level * level /* &carry_level to add node to */ ,
-       pool_ordering order	/* where to insert: at the beginning of
-				 * @level, before @reference, after
-				 * @reference, at the end of @level */ ,
-       carry_op * reference /* reference node for insertion */ )
+static carry_op *add_op(carry_level * level /* &carry_level to add node to */ ,
+			pool_ordering order	/* where to insert: at the beginning of
+						 * @level, before @reference, after
+						 * @reference, at the end of @level */ ,
+			carry_op *
+			reference /* reference node for insertion */ )
 {
 	carry_op *result;
 
-	result = (carry_op *) add_obj(&level->pool->op_pool, &level->ops, order, &reference->header);
+	result =
+	    (carry_op *) add_obj(&level->pool->op_pool, &level->ops, order,
+				 &reference->header);
 	if (!IS_ERR(result) && (result != NULL))
 		++level->ops_num;
 	return result;
@@ -578,11 +575,10 @@ add_op(carry_level * level /* &carry_level to add node to */ ,
    parent, it has corresponding bit (JNODE_ORPHAN) set in zstate.
 
 */
-static carry_node *
-find_begetting_brother(carry_node * node	/* node to start search
-						 * from */ ,
-		       carry_level * kin UNUSED_ARG	/* level to
-							 * scan */ )
+static carry_node *find_begetting_brother(carry_node * node	/* node to start search
+								 * from */ ,
+					  carry_level * kin UNUSED_ARG	/* level to
+									 * scan */ )
 {
 	carry_node *scan;
 
@@ -594,7 +590,8 @@ find_begetting_brother(carry_node * node	/* node to start search
 
 	for (scan = node;; scan = carry_node_prev(scan)) {
 		assert("nikita-1617", !carry_node_end(kin, scan));
-		if ((scan->node != node->node) && !ZF_ISSET(scan->node, JNODE_ORPHAN)) {
+		if ((scan->node != node->node)
+		    && !ZF_ISSET(scan->node, JNODE_ORPHAN)) {
 			assert("nikita-1618", carry_real(scan) != NULL);
 			break;
 		}
@@ -620,8 +617,7 @@ carry_node_cmp(carry_level * level, carry_node * n1, carry_node * n2)
 	impossible("nikita-2201", "End of level reached");
 }
 
-reiser4_internal carry_node *
-find_carry_node(carry_level * level, const znode * node)
+carry_node *find_carry_node(carry_level * level, const znode * node)
 {
 	carry_node *scan;
 	carry_node *tmp_scan;
@@ -636,16 +632,15 @@ find_carry_node(carry_level * level, const znode * node)
 	return NULL;
 }
 
-reiser4_internal znode *
-carry_real(const carry_node * node)
+znode *carry_real(const carry_node * node)
 {
 	assert("nikita-3061", node != NULL);
 
 	return node->lock_handle.node;
 }
 
-reiser4_internal carry_node *
-insert_carry_node(carry_level * doing, carry_level * todo, const znode * node)
+carry_node *insert_carry_node(carry_level * doing, carry_level * todo,
+			      const znode * node)
 {
 	carry_node *base;
 	carry_node *scan;
@@ -664,8 +659,8 @@ insert_carry_node(carry_level * doing, carry_level * todo, const znode * node)
 	return scan;
 }
 
-static carry_node *
-add_carry_atplace(carry_level *doing, carry_level *todo, znode *node)
+static carry_node *add_carry_atplace(carry_level * doing, carry_level * todo,
+				     znode * node)
 {
 	carry_node *reference;
 
@@ -682,16 +677,15 @@ add_carry_atplace(carry_level *doing, carry_level *todo, znode *node)
 /* like post_carry(), but designed to be called from node plugin methods.
    This function is different from post_carry() in that it finds proper place
    to insert node in the queue. */
-reiser4_internal carry_op *
-node_post_carry(carry_plugin_info * info	/* carry parameters
-						 * passed down to node
-						 * plugin */ ,
-		carry_opcode op /* opcode of operation */ ,
-		znode * node	/* node on which this
-				 * operation will operate */ ,
-		int apply_to_parent_p	/* whether operation will
-					 * operate directly on @node
-					 * or on it parent. */ )
+carry_op *node_post_carry(carry_plugin_info * info	/* carry parameters
+							 * passed down to node
+							 * plugin */ ,
+			  carry_opcode op /* opcode of operation */ ,
+			  znode * node	/* node on which this
+					 * operation will operate */ ,
+			  int apply_to_parent_p	/* whether operation will
+						 * operate directly on @node
+						 * or on it parent. */ )
 {
 	carry_op *result;
 	carry_node *child;
@@ -720,8 +714,7 @@ node_post_carry(carry_plugin_info * info	/* carry parameters
 }
 
 /* lock all carry nodes in @level */
-static int
-lock_carry_level(carry_level * level /* level to lock */ )
+static int lock_carry_level(carry_level * level /* level to lock */ )
 {
 	int result;
 	carry_node *node;
@@ -751,10 +744,10 @@ lock_carry_level(carry_level * level /* level to lock */ )
 
 */
 
-ON_DEBUG(extern atomic_t delim_key_version;)
+ON_DEBUG(extern atomic_t delim_key_version;
+    )
 
-static void
-sync_dkeys(znode *spot /* node to update */)
+static void sync_dkeys(znode * spot /* node to update */ )
 {
 	reiser4_key pivot;
 	reiser4_tree *tree;
@@ -780,7 +773,7 @@ sync_dkeys(znode *spot /* node to update */)
 	   @spot. Scan them and update their left and right delimiting keys to
 	   match left delimiting key of @spot. Also, update right delimiting
 	   key of first non-empty left neighbor.
-	*/
+	 */
 	while (1) {
 		if (!ZF_ISSET(spot, JNODE_LEFT_CONNECTED))
 			break;
@@ -812,13 +805,10 @@ sync_dkeys(znode *spot /* node to update */)
 	RUNLOCK_TREE(tree);
 }
 
-ON_DEBUG(void check_dkeys(const znode *);)
-
 /* unlock all carry nodes in @level */
-static void
-unlock_carry_level(carry_level * level /* level to unlock */ ,
-		   int failure	/* true if unlocking owing to
-				 * failure */ )
+static void unlock_carry_level(carry_level * level /* level to unlock */ ,
+			       int failure	/* true if unlocking owing to
+						 * failure */ )
 {
 	carry_node *node;
 	carry_node *tmp_node;
@@ -841,7 +831,7 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 	/* nodes can be unlocked in arbitrary order.  In preemptible
 	   environment it's better to unlock in reverse order of locking,
 	   though.
-	*/
+	 */
 	for_all_nodes_back(level, node, tmp_node) {
 		/* all allocated nodes should be already linked to their
 		   parents at this moment. */
@@ -856,8 +846,7 @@ unlock_carry_level(carry_level * level /* level to unlock */ ,
 /* finish with @level
 
    Unlock nodes and release all allocated resources */
-static void
-done_carry_level(carry_level * level /* level to finish */ )
+static void done_carry_level(carry_level * level /* level to finish */ )
 {
 	carry_node *node;
 	carry_node *tmp_node;
@@ -886,8 +875,7 @@ done_carry_level(carry_level * level /* level to finish */ )
    fills ->real_node from this lock handle.
 
 */
-reiser4_internal int
-lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
+int lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
 {
 	assert("nikita-1052", node != NULL);
 	assert("nikita-1187", carry_real(node) != NULL);
@@ -901,7 +889,7 @@ lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
 	   already in memory.
 
 	   Corresponding zrelse() is in unlock_carry_node()
-	*/
+	 */
 	return zload(carry_real(node));
 }
 
@@ -922,9 +910,8 @@ lock_carry_node_tail(carry_node * node /* node to complete locking of */ )
    operation (->real_node field of carry_node) from base.
 
 */
-reiser4_internal int
-lock_carry_node(carry_level * level /* level @node is in */ ,
-		carry_node * node /* node to lock */ )
+int lock_carry_node(carry_level * level /* level @node is in */ ,
+		    carry_node * node /* node to lock */ )
 {
 	int result;
 	znode *reference_point;
@@ -959,14 +946,16 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
 		   find_begetting_brother() are write-locked by this thread,
 		   and thus, their sibling linkage cannot change.
 
-		*/
+		 */
 		reference_point = UNDER_RW
 		    (tree, znode_get_tree(reference_point), read,
 		     find_begetting_brother(node, level)->node);
 		assert("nikita-1186", reference_point != NULL);
 	}
 	if (node->parent && (result == 0)) {
-		result = reiser4_get_parent(&tmp_lh, reference_point, ZNODE_WRITE_LOCK);
+		result =
+		    reiser4_get_parent(&tmp_lh, reference_point,
+				       ZNODE_WRITE_LOCK);
 		if (result != 0) {
 			;	/* nothing */
 		} else if (znode_get_level(tmp_lh.node) == 0) {
@@ -976,7 +965,9 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
 				reference_point = level->new_root;
 				move_lh(&lh, &node->lock_handle);
 			}
-		} else if ((level->new_root != NULL) && (level->new_root != znode_parent_nolock(reference_point))) {
+		} else if ((level->new_root != NULL)
+			   && (level->new_root !=
+			       znode_parent_nolock(reference_point))) {
 			/* parent of node exists, but this level aready
 			   created different new root, so */
 			warning("nikita-1109",
@@ -992,8 +983,10 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
 	if (node->left && (result == 0)) {
 		assert("nikita-1183", node->parent);
 		assert("nikita-883", reference_point != NULL);
-		result = reiser4_get_left_neighbor(
-			&tmp_lh, reference_point, ZNODE_WRITE_LOCK, GN_CAN_USE_UPPER_LEVELS);
+		result =
+		    reiser4_get_left_neighbor(&tmp_lh, reference_point,
+					      ZNODE_WRITE_LOCK,
+					      GN_CAN_USE_UPPER_LEVELS);
 		if (result == 0) {
 			done_lh(&lh);
 			move_lh(&lh, &tmp_lh);
@@ -1001,7 +994,9 @@ lock_carry_node(carry_level * level /* level @node is in */ ,
 		}
 	}
 	if (!node->parent && !node->left && !node->left_before) {
-		result = longterm_lock_znode(&lh, reference_point, ZNODE_WRITE_LOCK, ZNODE_LOCK_HIPRI);
+		result =
+		    longterm_lock_znode(&lh, reference_point, ZNODE_WRITE_LOCK,
+					ZNODE_LOCK_HIPRI);
 	}
 	if (result == 0) {
 		move_lh(&node->lock_handle, &lh);
@@ -1042,13 +1037,16 @@ unlock_carry_node(carry_level * level,
 
 			   Prepare node for removal. Last zput() will finish
 			   with it.
-			*/
+			 */
 			ZF_SET(real_node, JNODE_HEARD_BANSHEE);
 		}
 		if (node->free) {
-			assert("nikita-2177", locks_list_is_clean(&node->lock_handle));
-			assert("nikita-2112", owners_list_is_clean(&node->lock_handle));
-			reiser4_pool_free(&level->pool->node_pool, &node->header);
+			assert("nikita-2177",
+			       locks_list_is_clean(&node->lock_handle));
+			assert("nikita-2112",
+			       owners_list_is_clean(&node->lock_handle));
+			reiser4_pool_free(&level->pool->node_pool,
+					  &node->header);
 		}
 	}
 }
@@ -1085,7 +1083,6 @@ factors means rolling back to a consistent state.
 It would be a nice feature though to support rollback without rebooting
 followed by remount, but this can wait for later versions.
 
-
    2. once isolated transactions will be implemented it will be possible to
    roll back offending transaction.
 
@@ -1093,13 +1090,12 @@ followed by remount, but this can wait for later versions.
 it more before deciding if it should be done.  -Hans
 
 */
-static void
-fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
-							 * where
-							 * unrecoverable
-							 * error
-							 * occurred */ ,
-		  int ecode /* error code */ )
+static void fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
+								 * where
+								 * unrecoverable
+								 * error
+								 * occurred */ ,
+			      int ecode /* error code */ )
 {
 	assert("nikita-1230", doing != NULL);
 	assert("nikita-1231", ecode < 0);
@@ -1117,12 +1113,11 @@ fatal_carry_error(carry_level * doing UNUSED_ARG	/* carry level
    locked.
 
 */
-static int
-add_new_root(carry_level * level	/* carry level in context of which
-					 * operation is performed */ ,
-	     carry_node * node /* carry node for existing root */ ,
-	     znode * fake	/* "fake" znode already locked by
-				 * us */ )
+static int add_new_root(carry_level * level	/* carry level in context of which
+						 * operation is performed */ ,
+			carry_node * node /* carry node for existing root */ ,
+			znode * fake	/* "fake" znode already locked by
+					 * us */ )
 {
 	int result;
 
@@ -1136,13 +1131,15 @@ add_new_root(carry_level * level	/* carry level in context of which
 	/* @node is root and it's already locked by us. This
 	   means that nobody else can be trying to add/remove
 	   tree root right now.
-	*/
+	 */
 	if (level->new_root == NULL)
 		level->new_root = add_tree_root(node->node, fake);
 	if (!IS_ERR(level->new_root)) {
 		assert("nikita-1210", znode_is_root(level->new_root));
 		node->deallocate = 1;
-		result = longterm_lock_znode(&node->lock_handle, level->new_root, ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
+		result =
+		    longterm_lock_znode(&node->lock_handle, level->new_root,
+					ZNODE_WRITE_LOCK, ZNODE_LOCK_LOPRI);
 		if (result == 0)
 			zput(level->new_root);
 	} else {
@@ -1161,18 +1158,17 @@ add_new_root(carry_level * level	/* carry level in context of which
    This is carry related routing that calls new_node() to allocate new
    node.
 */
-reiser4_internal carry_node *
-add_new_znode(znode * brother	/* existing left neighbor of new
-				 * node */ ,
-	      carry_node * ref	/* carry node after which new
-				 * carry node is to be inserted
-				 * into queue. This affects
-				 * locking. */ ,
-	      carry_level * doing	/* carry queue where new node is
-					 * to be added */ ,
-	      carry_level * todo	/* carry queue where COP_INSERT
-					 * operation to add pointer to
-					 * new node will ne added */ )
+carry_node *add_new_znode(znode * brother	/* existing left neighbor of new
+						 * node */ ,
+			  carry_node * ref	/* carry node after which new
+						 * carry node is to be inserted
+						 * into queue. This affects
+						 * locking. */ ,
+			  carry_level * doing	/* carry queue where new node is
+						 * to be added */ ,
+			  carry_level * todo	/* carry queue where COP_INSERT
+						 * operation to add pointer to
+						 * new node will ne added */ )
 {
 	carry_node *fresh;
 	znode *new_znode;
@@ -1190,7 +1186,7 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 
 	   (2) new node is added on the right of @brother
 
-	*/
+	 */
 
 	fresh = add_carry_skip(doing, ref ? POOLO_AFTER : POOLO_LAST, ref);
 	if (IS_ERR(fresh))
@@ -1231,7 +1227,8 @@ add_new_znode(znode * brother	/* existing left neighbor of new
 	/* initially new node spawns empty key range */
 	WLOCK_DK(znode_get_tree(brother));
 	znode_set_ld_key(new_znode,
-			 znode_set_rd_key(new_znode, znode_get_rd_key(brother)));
+			 znode_set_rd_key(new_znode,
+					  znode_get_rd_key(brother)));
 	WUNLOCK_DK(znode_get_tree(brother));
 	return fresh;
 }
@@ -1248,7 +1245,7 @@ static int carry_estimate_reserve(carry_level * level)
 
 	result = 0;
 	for_all_ops(level, op, tmp_op)
-		result += op_dispatch_table[op->op].estimate(op, level);
+	    result += op_dispatch_table[op->op].estimate(op, level);
 	return result;
 }
 
@@ -1258,8 +1255,7 @@ static int carry_estimate_reserve(carry_level * level)
    debugging is turned off to print dumps at errors.
 */
 #if REISER4_DEBUG
-static int
-carry_level_invariant(carry_level * level, carry_queue_state state)
+static int carry_level_invariant(carry_level * level, carry_queue_state state)
 {
 	carry_node *node;
 	carry_node *tmp_node;
@@ -1305,15 +1301,13 @@ carry_level_invariant(carry_level * level, carry_queue_state state)
 #endif
 
 /* get symbolic name for boolean */
-static const char *
-tf(int boolean /* truth value */ )
+static const char *tf(int boolean /* truth value */ )
 {
 	return boolean ? "t" : "f";
 }
 
 /* symbolic name for carry operation */
-static const char *
-carry_op_name(carry_opcode op /* carry opcode */ )
+static const char *carry_op_name(carry_opcode op /* carry opcode */ )
 {
 	switch (op) {
 	case COP_INSERT:
@@ -1341,24 +1335,24 @@ carry_op_name(carry_opcode op /* carry opcode */ )
 }
 
 /* dump information about carry node */
-static void
-print_carry(const char *prefix /* prefix to print */ ,
-	    carry_node * node /* node to print */ )
+static void print_carry(const char *prefix /* prefix to print */ ,
+			carry_node * node /* node to print */ )
 {
 	if (node == NULL) {
 		printk("%s: null\n", prefix);
 		return;
 	}
-	printk("%s: %p parent: %s, left: %s, unlock: %s, free: %s, dealloc: %s\n",
-	       prefix, node, tf(node->parent), tf(node->left), tf(node->unlock), tf(node->free), tf(node->deallocate));
+	printk
+	    ("%s: %p parent: %s, left: %s, unlock: %s, free: %s, dealloc: %s\n",
+	     prefix, node, tf(node->parent), tf(node->left), tf(node->unlock),
+	     tf(node->free), tf(node->deallocate));
 	print_znode("\tnode", node->node);
 	print_znode("\treal_node", carry_real(node));
 }
 
 /* dump information about carry operation */
-static void
-print_op(const char *prefix /* prefix to print */ ,
-	 carry_op * op /* operation to print */ )
+static void print_op(const char *prefix /* prefix to print */ ,
+		     carry_op * op /* operation to print */ )
 {
 	if (op == NULL) {
 		printk("%s: null\n", prefix);
@@ -1369,7 +1363,8 @@ print_op(const char *prefix /* prefix to print */ ,
 	switch (op->op) {
 	case COP_INSERT:
 	case COP_PASTE:
-		print_coord("\tcoord", op->u.insert.d ? op->u.insert.d->coord : NULL, 0);
+		print_coord("\tcoord",
+			    op->u.insert.d ? op->u.insert.d->coord : NULL, 0);
 		print_key("\tkey", op->u.insert.d ? op->u.insert.d->key : NULL);
 		print_carry("\tchild", op->u.insert.child);
 		break;
@@ -1378,11 +1373,15 @@ print_op(const char *prefix /* prefix to print */ ,
 		break;
 	case COP_CUT:
 		if (op->u.cut_or_kill.is_cut) {
-			print_coord("\tfrom", op->u.cut_or_kill.u.kill->params.from, 0);
-			print_coord("\tto", op->u.cut_or_kill.u.kill->params.to, 0);
+			print_coord("\tfrom",
+				    op->u.cut_or_kill.u.kill->params.from, 0);
+			print_coord("\tto", op->u.cut_or_kill.u.kill->params.to,
+				    0);
 		} else {
-			print_coord("\tfrom", op->u.cut_or_kill.u.cut->params.from, 0);
-			print_coord("\tto", op->u.cut_or_kill.u.cut->params.to, 0);
+			print_coord("\tfrom",
+				    op->u.cut_or_kill.u.cut->params.from, 0);
+			print_coord("\tto", op->u.cut_or_kill.u.cut->params.to,
+				    0);
 		}
 		break;
 	case COP_UPDATE:
@@ -1395,9 +1394,8 @@ print_op(const char *prefix /* prefix to print */ ,
 }
 
 /* dump information about all nodes and operations in a @level */
-static void
-print_level(const char *prefix /* prefix to print */ ,
-	    carry_level * level /* level to print */ )
+static void print_level(const char *prefix /* prefix to print */ ,
+			carry_level * level /* level to print */ )
 {
 	carry_node *node;
 	carry_node *tmp_node;

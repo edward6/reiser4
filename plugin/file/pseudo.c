@@ -13,17 +13,16 @@
 #include <linux/fs.h>
 
 /* extract pseudo file plugin, stored in @file */
-static pseudo_plugin *
-get_pplug(struct file * file)
+static pseudo_plugin *get_pplug(struct file *file)
 {
-	struct inode  *inode;
+	struct inode *inode;
 
 	inode = file->f_dentry->d_inode;
 	return reiser4_inode_data(inode)->file_plugin_data.pseudo_info.plugin;
 }
 
 /* common routine to open pseudo file. */
-reiser4_internal int open_pseudo(struct inode * inode, struct file * file)
+int open_pseudo(struct inode *inode, struct file *file)
 {
 	int result;
 	pseudo_plugin *pplug;
@@ -49,8 +48,8 @@ reiser4_internal int open_pseudo(struct inode * inode, struct file * file)
 }
 
 /* common read method for pseudo files */
-reiser4_internal ssize_t read_pseudo(struct file *file,
-				     char __user *buf, size_t size, loff_t *ppos)
+ssize_t read_pseudo(struct file * file,
+		    char __user * buf, size_t size, loff_t * ppos)
 {
 	switch (get_pplug(file)->read_type) {
 	case PSEUDO_READ_SEQ:
@@ -66,7 +65,7 @@ reiser4_internal ssize_t read_pseudo(struct file *file,
 }
 
 /* common seek method for pseudo files */
-reiser4_internal loff_t seek_pseudo(struct file *file, loff_t offset, int origin)
+loff_t seek_pseudo(struct file * file, loff_t offset, int origin)
 {
 	switch (get_pplug(file)->read_type) {
 	case PSEUDO_READ_SEQ:
@@ -78,7 +77,7 @@ reiser4_internal loff_t seek_pseudo(struct file *file, loff_t offset, int origin
 }
 
 /* common release method for pseudo files */
-reiser4_internal int release_pseudo(struct inode *inode, struct file *file)
+int release_pseudo(struct inode *inode, struct file *file)
 {
 	int result;
 
@@ -96,33 +95,34 @@ reiser4_internal int release_pseudo(struct inode *inode, struct file *file)
 
 /* pseudo files need special ->drop() method, because they don't have nlink
  * and only exist while host object does. */
-reiser4_internal void drop_pseudo(struct inode * object)
+void drop_pseudo(struct inode *object)
 {
 	/* pseudo files are not protected from deletion by their ->i_nlink */
 	generic_delete_inode(object);
 }
 
 /* common write method for pseudo files */
-reiser4_internal ssize_t
+ssize_t
 write_pseudo(struct file *file,
-	     const char __user *buf, size_t size, loff_t *ppos)
+	     const char __user * buf, size_t size, loff_t * ppos)
 {
 	ssize_t result;
 
 	switch (get_pplug(file)->write_type) {
-	case PSEUDO_WRITE_STRING: {
-		char * inkernel;
+	case PSEUDO_WRITE_STRING:{
+			char *inkernel;
 
-		inkernel = getname(buf);
-		if (!IS_ERR(inkernel)) {
-			result = get_pplug(file)->write.gets(file, inkernel);
-			putname(inkernel);
-			if (result == 0)
-				result = size;
-		} else
-			result = PTR_ERR(inkernel);
-		break;
-	}
+			inkernel = getname(buf);
+			if (!IS_ERR(inkernel)) {
+				result =
+				    get_pplug(file)->write.gets(file, inkernel);
+				putname(inkernel);
+				if (result == 0)
+					result = size;
+			} else
+				result = PTR_ERR(inkernel);
+			break;
+		}
 	case PSEUDO_WRITE_FORWARD:
 		result = get_pplug(file)->write.write(file, buf, size, ppos);
 		break;
@@ -137,36 +137,31 @@ write_pseudo(struct file *file,
 /* this is not implemented so far (and, hence, pseudo files are not accessible
  * over NFS, closing remote exploits a fortiori */
 
-reiser4_internal int
-wire_size_pseudo(struct inode *inode)
+int wire_size_pseudo(struct inode *inode)
 {
 	return RETERR(-ENOTSUPP);
 }
 
-reiser4_internal char *
-wire_write_pseudo(struct inode *inode, char *start)
+char *wire_write_pseudo(struct inode *inode, char *start)
 {
 	return ERR_PTR(RETERR(-ENOTSUPP));
 }
 
-reiser4_internal char *
-wire_read_pseudo(char *addr, reiser4_object_on_wire *obj)
+char *wire_read_pseudo(char *addr, reiser4_object_on_wire * obj)
 {
 	return ERR_PTR(RETERR(-ENOTSUPP));
 }
 
-reiser4_internal void
-wire_done_pseudo(reiser4_object_on_wire *obj)
+void wire_done_pseudo(reiser4_object_on_wire * obj)
 {
 	/* nothing to do */
 }
 
-reiser4_internal struct dentry *
-wire_get_pseudo(struct super_block *sb, reiser4_object_on_wire *obj)
+struct dentry *wire_get_pseudo(struct super_block *sb,
+			       reiser4_object_on_wire * obj)
 {
 	return ERR_PTR(RETERR(-ENOTSUPP));
 }
-
 
 /* Make Linus happy.
    Local variables:

@@ -34,29 +34,25 @@ max_balance_overhead(reiser4_block_nr childen, tree_level tree_height)
 /* this returns maximal possible number of nodes which can be modified plus number of new nodes which can be required to
    perform insertion of one item into the tree */
 /* it is only called when tree height changes, or gets initialized */
-reiser4_internal reiser4_block_nr
-calc_estimate_one_insert(tree_level height)
+reiser4_block_nr calc_estimate_one_insert(tree_level height)
 {
 	return 1 + max_balance_overhead(1, height);
 }
 
-reiser4_internal reiser4_block_nr
-estimate_one_insert_item(reiser4_tree *tree)
+reiser4_block_nr estimate_one_insert_item(reiser4_tree * tree)
 {
 	return tree->estimate_one_insert;
 }
 
 /* this returns maximal possible number of nodes which can be modified plus number of new nodes which can be required to
    perform insertion of one unit into an item in the tree */
-reiser4_internal reiser4_block_nr
-estimate_one_insert_into_item(reiser4_tree *tree)
+reiser4_block_nr estimate_one_insert_into_item(reiser4_tree * tree)
 {
 	/* estimate insert into item just like item insertion */
 	return tree->estimate_one_insert;
 }
 
-reiser4_internal reiser4_block_nr
-estimate_one_item_removal(reiser4_tree *tree)
+reiser4_block_nr estimate_one_item_removal(reiser4_tree * tree)
 {
 	/* on item removal reiser4 does not try to pack nodes more complact, so, only one node may be dirtied on leaf
 	   level */
@@ -66,27 +62,27 @@ estimate_one_item_removal(reiser4_tree *tree)
 /* on leaf level insert_flow may add CARRY_FLOW_NEW_NODES_LIMIT new nodes and dirty 3 existing nodes (insert point and
    both its neighbors). Max_balance_overhead should estimate number of blocks which may change/get added on internal
    levels */
-reiser4_internal reiser4_block_nr
-estimate_insert_flow(tree_level height)
+reiser4_block_nr estimate_insert_flow(tree_level height)
 {
-	return 3 + CARRY_FLOW_NEW_NODES_LIMIT + max_balance_overhead(3 + CARRY_FLOW_NEW_NODES_LIMIT, height);
+	return 3 + CARRY_FLOW_NEW_NODES_LIMIT + max_balance_overhead(3 +
+								     CARRY_FLOW_NEW_NODES_LIMIT,
+								     height);
 }
 
 /* returnes max number of nodes can be occupied by disk cluster */
-reiser4_internal reiser4_block_nr
-estimate_disk_cluster(struct inode * inode)
+reiser4_block_nr estimate_disk_cluster(struct inode * inode)
 {
 	return 2 + cluster_nrpages(inode);
 }
 
 /* how many nodes might get dirty and added nodes during insertion of a disk cluster */
-reiser4_internal reiser4_block_nr
-estimate_insert_cluster(struct inode * inode, int unprepped)
+reiser4_block_nr estimate_insert_cluster(struct inode * inode, int unprepped)
 {
 	int per_cluster;
 	per_cluster = (unprepped ? 1 : cluster_nrpages(inode));
 
-	return 3 + per_cluster + max_balance_overhead(3 + per_cluster, REISER4_MAX_ZTREE_HEIGHT);
+	return 3 + per_cluster + max_balance_overhead(3 + per_cluster,
+						      REISER4_MAX_ZTREE_HEIGHT);
 }
 
 /* Make Linus happy.

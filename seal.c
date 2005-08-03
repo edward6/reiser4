@@ -48,11 +48,10 @@ static int seal_matches(const seal_t * seal, znode * node);
 
 /* initialise seal. This can be called several times on the same seal. @coord
    and @key can be NULL.  */
-reiser4_internal void
-seal_init(seal_t * seal /* seal to initialise */ ,
-	  const coord_t * coord /* coord @seal will be attached to */ ,
-	  const reiser4_key * key UNUSED_ARG	/* key @seal will be
-						 * attached to */ )
+void seal_init(seal_t * seal /* seal to initialise */ ,
+	       const coord_t * coord /* coord @seal will be attached to */ ,
+	       const reiser4_key * key UNUSED_ARG	/* key @seal will be
+							 * attached to */ )
 {
 	assert("nikita-1886", seal != NULL);
 	memset(seal, 0, sizeof *seal);
@@ -69,29 +68,20 @@ seal_init(seal_t * seal /* seal to initialise */ ,
 		seal->coord1 = *coord;
 		if (key != NULL)
 			seal->key = *key;
-#ifdef CONFIG_FRAME_POINTER
- 		seal->bt[0] = __builtin_return_address(0);
- 		seal->bt[1] = __builtin_return_address(1);
- 		seal->bt[2] = __builtin_return_address(2);
- 		seal->bt[3] = __builtin_return_address(3);
- 		seal->bt[4] = __builtin_return_address(4);
-#endif
 #endif
 		spin_unlock_znode(node);
 	}
 }
 
 /* finish with seal */
-reiser4_internal void
-seal_done(seal_t * seal /* seal to clear */)
+void seal_done(seal_t * seal /* seal to clear */ )
 {
 	assert("nikita-1887", seal != NULL);
 	seal->version = 0;
 }
 
 /* true if seal was initialised */
-reiser4_internal int
-seal_is_set(const seal_t * seal /* seal to query */ )
+int seal_is_set(const seal_t * seal /* seal to query */ )
 {
 	assert("nikita-1890", seal != NULL);
 	return seal->version != 0;
@@ -101,20 +91,21 @@ seal_is_set(const seal_t * seal /* seal to query */ )
 /* helper function for seal_validate(). It checks that item at @coord has
  * expected key. This is to detect cases where node was modified but wasn't
  * marked dirty. */
-static inline int
-check_seal_match(const coord_t * coord /* coord to check */,
-		 const reiser4_key * k /* expected key */)
+static inline int check_seal_match(const coord_t * coord /* coord to check */ ,
+				   const reiser4_key * k /* expected key */ )
 {
 	reiser4_key ukey;
 
 	return (coord->between != AT_UNIT) ||
-		/* FIXME-VS: we only can compare keys for items whose units
-		   represent exactly one key */
-		((coord_is_existing_unit(coord)) && (item_is_extent(coord) || keyeq(k, unit_key_by_coord(coord, &ukey)))) ||
-		((coord_is_existing_unit(coord)) && (item_is_ctail(coord)) && keyge(k, unit_key_by_coord(coord, &ukey)));
+	    /* FIXME-VS: we only can compare keys for items whose units
+	       represent exactly one key */
+	    ((coord_is_existing_unit(coord))
+	     && (item_is_extent(coord)
+		 || keyeq(k, unit_key_by_coord(coord, &ukey))))
+	    || ((coord_is_existing_unit(coord)) && (item_is_ctail(coord))
+		&& keyge(k, unit_key_by_coord(coord, &ukey)));
 }
 #endif
-
 
 /* this is used by seal_validate. It accepts return value of
  * longterm_lock_znode and returns 1 if it can be interpreted as seal
@@ -122,8 +113,7 @@ check_seal_match(const coord_t * coord /* coord to check */,
  * seal_validate returns -E_REPEAT and caller will call tre search. We cannot
  * do this in longterm_lock_znode(), because sometimes we want to distinguish
  * between -EINVAL and -E_REPEAT. */
-static int
-should_repeat(int return_code)
+static int should_repeat(int return_code)
 {
 	return return_code == -EINVAL;
 }
@@ -140,13 +130,12 @@ should_repeat(int return_code)
    case, but this would complicate callers logic.
 
 */
-reiser4_internal int
-seal_validate(seal_t * seal /* seal to validate */ ,
-	      coord_t * coord /* coord to validate against */ ,
-	      const reiser4_key * key /* key to validate against */ ,
-	      lock_handle * lh /* resulting lock handle */ ,
-	      znode_lock_mode mode /* lock node */ ,
-	      znode_lock_request request /* locking priority */ )
+int seal_validate(seal_t * seal /* seal to validate */ ,
+		  coord_t * coord /* coord to validate against */ ,
+		  const reiser4_key * key /* key to validate against */ ,
+		  lock_handle * lh /* resulting lock handle */ ,
+		  znode_lock_mode mode /* lock node */ ,
+		  znode_lock_request request /* locking priority */ )
 {
 	znode *node;
 	int result;
@@ -170,8 +159,12 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 				/* if seal version and znode version
 				   coincide */
 				ON_DEBUG(coord_update_v(coord));
-				assert("nikita-1990", node == seal->coord1.node);
-				assert("nikita-1898", WITH_DATA_RET(coord->node, 1, check_seal_match(coord, key)));
+				assert("nikita-1990",
+				       node == seal->coord1.node);
+				assert("nikita-1898",
+				       WITH_DATA_RET(coord->node, 1,
+						     check_seal_match(coord,
+								      key)));
 			} else
 				result = RETERR(-E_REPEAT);
 		}
@@ -191,40 +184,22 @@ seal_validate(seal_t * seal /* seal to validate */ ,
 /* helpers functions */
 
 /* obtain reference to znode seal points to, if in cache */
-static znode *
-seal_node(const seal_t * seal /* seal to query */ )
+static znode *seal_node(const seal_t * seal /* seal to query */ )
 {
 	assert("nikita-1891", seal != NULL);
 	return zlook(current_tree, &seal->block);
 }
 
 /* true if @seal version and @node version coincide */
-static int
-seal_matches(const seal_t * seal /* seal to check */ ,
-	     znode * node /* node to check */ )
+static int seal_matches(const seal_t * seal /* seal to check */ ,
+			znode * node /* node to check */ )
 {
 	assert("nikita-1991", seal != NULL);
 	assert("nikita-1993", node != NULL);
 
-	return UNDER_SPIN(jnode, ZJNODE(node), (seal->version == node->version));
+	return UNDER_SPIN(jnode, ZJNODE(node),
+			  (seal->version == node->version));
 }
-
-#if REISER4_DEBUG_OUTPUT
-/* debugging function: print human readable form of @seal. */
-reiser4_internal void
-print_seal(const char *prefix, const seal_t * seal)
-{
-	if (seal == NULL) {
-		printk("%s: null seal\n", prefix);
-	} else {
-		printk("%s: version: %llu, block: %llu\n", prefix, seal->version, seal->block);
-#if REISER4_DEBUG
-		print_key("seal key", &seal->key);
-		print_coord("seal coord", &seal->coord1, 0);
-#endif
-	}
-}
-#endif
 
 /* Make Linus happy.
    Local variables:

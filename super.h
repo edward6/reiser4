@@ -6,27 +6,11 @@
 #if !defined( __REISER4_SUPER_H__ )
 #define __REISER4_SUPER_H__
 
-#include "forward.h"
-#include "debug.h"
 #include "tree.h"
-#include "context.h"
 #include "entd.h"
-#include "plugin/plugin.h"
 #include "wander.h"
-
+#include "plugin/object.h"
 #include "plugin/space/space_allocator.h"
-
-#include "plugin/disk_format/disk_format40.h"
-#include "plugin/security/perm.h"
-#include "plugin/dir/dir.h"
-
-#include "emergency_flush.h"
-
-#include <linux/spinlock.h>
-#include <linux/types.h>	/* for __u??, etc.  */
-#include <linux/fs.h>		/* for struct super_block, etc.  */
-#include <linux/list.h>		/* for struct list_head */
-#include <linux/kobject.h>      /* for kobject */
 
 /*
  * Flush algorithms parameters.
@@ -46,12 +30,12 @@ typedef enum {
 	   Acyclic Directed Graph (modulo dot, and dotdot, of course).
 
 	   This is used by reiser4_link().
-	*/
+	 */
 	REISER4_ADG = 0,
 	/* set if all nodes in internal tree have the same node layout plugin.
 	   If so, znode_guess_plugin() will return tree->node_plugin in stead
 	   of guessing plugin by plugin id stored in the node.
-	*/
+	 */
 	REISER4_ONE_NODE_PLUGIN = 1,
 	/* if set, bsd gid assignment is supported. */
 	REISER4_BSD_GID = 2,
@@ -79,17 +63,17 @@ typedef enum {
  *
  */
 typedef struct object_ops {
-	struct super_operations         super;
-	struct file_operations          file;
-	struct dentry_operations        dentry;
-	struct address_space_operations as;
+	struct super_operations super;
+	/*struct file_operations          file; */
+	struct dentry_operations dentry;
+	/*struct address_space_operations as; */
 
-	struct inode_operations         regular;
-	struct inode_operations         dir;
-	struct inode_operations         symlink;
-	struct inode_operations		special;
+	/*struct inode_operations         regular;
+	   struct inode_operations         dir;
+	   struct inode_operations         symlink;
+	   struct inode_operations              special; */
 
-	struct export_operations        export;
+	struct export_operations export;
 } object_ops;
 
 /* reiser4-specific part of super block
@@ -149,7 +133,7 @@ struct reiser4_super_info_data {
 	/* guard spinlock which protects reiser4 super
 	   block fields (currently blocks_free,
 	   blocks_free_committed)
-	*/
+	 */
 	reiser4_spin_data guard;
 
 	/*
@@ -205,7 +189,7 @@ struct reiser4_super_info_data {
 	/* number of blocks reserved for flush operations. */
 	__u64 blocks_flush_reserved;
 
-        /* number of blocks reserved for cluster operations. */
+	/* number of blocks reserved for cluster operations. */
 	__u64 blocks_clustered;
 
 	/* unique file-system identifier */
@@ -262,10 +246,10 @@ struct reiser4_super_info_data {
 	/* see emergency_flush.c for details */
 	reiser4_spin_data eflush_guard;
 	/* number of emergency flushed nodes */
-	int               eflushed;
+	int eflushed;
 #if REISER4_USE_EFLUSH
 	/* hash table used by emergency flush. Protected by ->eflush_guard */
-	ef_hash_table     efhash_table;
+	ef_hash_table efhash_table;
 #endif
 	/* pointers to jnodes for journal header and footer */
 	jnode *journal_header;
@@ -331,15 +315,13 @@ struct reiser4_super_info_data {
 	struct list_head all_jnodes;
 
 	/*XXX debugging code */
-	__u64 eflushed_unformatted; /* number of eflushed unformatted nodes */
-	__u64 unalloc_extent_pointers; /* number of unallocated extent pointers in the tree */
+	__u64 eflushed_unformatted;	/* number of eflushed unformatted nodes */
+	__u64 unalloc_extent_pointers;	/* number of unallocated extent pointers in the tree */
 #endif
-	struct repacker * repacker;
-	struct page * status_page;
-	struct bio * status_bio;
+	struct repacker *repacker;
+	struct page *status_page;
+	struct bio *status_bio;
 };
-
-
 
 extern reiser4_super_info_data *get_super_private_nocheck(const struct
 							  super_block *super);
@@ -347,8 +329,8 @@ extern reiser4_super_info_data *get_super_private_nocheck(const struct
 extern struct super_operations reiser4_super_operations;
 
 /* Return reiser4-specific part of super block */
-static inline reiser4_super_info_data *
-get_super_private(const struct super_block * super)
+static inline reiser4_super_info_data *get_super_private(const struct
+							 super_block *super)
 {
 	assert("nikita-447", super != NULL);
 
@@ -357,8 +339,7 @@ get_super_private(const struct super_block * super)
 
 /* "Current" super-block: main super block used during current system
    call. Reference to this super block is stored in reiser4_context. */
-static inline struct super_block *
-reiser4_get_current_sb(void)
+static inline struct super_block *reiser4_get_current_sb(void)
 {
 	return get_current_context()->super;
 }
@@ -366,14 +347,12 @@ reiser4_get_current_sb(void)
 /* Reiser4-specific part of "current" super-block: main super block used
    during current system call. Reference to this super block is stored in
    reiser4_context. */
-static inline reiser4_super_info_data *
-get_current_super_private(void)
+static inline reiser4_super_info_data *get_current_super_private(void)
 {
 	return get_super_private(reiser4_get_current_sb());
 }
 
-static inline ra_params_t *
-get_current_super_ra_params(void)
+static inline ra_params_t *get_current_super_ra_params(void)
 {
 	return &(get_current_super_private()->ra_params);
 }
@@ -389,7 +368,7 @@ static inline int rofs_super(struct super_block *super)
 /*
  * true, if @tree represents read-only file system
  */
-static inline int rofs_tree(reiser4_tree *tree)
+static inline int rofs_tree(reiser4_tree * tree)
 {
 	return rofs_super(tree->super);
 }
@@ -405,16 +384,16 @@ static inline int rofs_inode(struct inode *inode)
 /*
  * true, if file system where @node lives on, is read-only
  */
-static inline int rofs_jnode(jnode *node)
+static inline int rofs_jnode(jnode * node)
 {
 	return rofs_tree(jnode_get_tree(node));
 }
 
 extern __u64 reiser4_current_block_count(void);
 
-extern void build_object_ops(struct super_block *super, object_ops *ops);
+extern void build_object_ops(struct super_block *super, object_ops * ops);
 
-#define REISER4_SUPER_MAGIC 0x52345362 	/* (*(__u32 *)"R4Sb"); */
+#define REISER4_SUPER_MAGIC 0x52345362	/* (*(__u32 *)"R4Sb"); */
 
 #define spin_ordering_pred_super(private) (1)
 SPIN_LOCK_FUNCTIONS(super, reiser4_super_info_data, guard);
@@ -425,7 +404,7 @@ SPIN_LOCK_FUNCTIONS(super_eflush, reiser4_super_info_data, eflush_guard);
 /*
  * lock reiser4-specific part of super block
  */
-static inline void reiser4_spin_lock_sb(reiser4_super_info_data *sbinfo)
+static inline void reiser4_spin_lock_sb(reiser4_super_info_data * sbinfo)
 {
 	spin_lock_super(sbinfo);
 }
@@ -433,7 +412,7 @@ static inline void reiser4_spin_lock_sb(reiser4_super_info_data *sbinfo)
 /*
  * unlock reiser4-specific part of super block
  */
-static inline void reiser4_spin_unlock_sb(reiser4_super_info_data *sbinfo)
+static inline void reiser4_spin_unlock_sb(reiser4_super_info_data * sbinfo)
 {
 	spin_unlock_super(sbinfo);
 }
@@ -441,23 +420,22 @@ static inline void reiser4_spin_unlock_sb(reiser4_super_info_data *sbinfo)
 /*
  * lock emergency flush data-structures for super block @s
  */
-static inline void spin_lock_eflush(const struct super_block * s)
+static inline void spin_lock_eflush(const struct super_block *s)
 {
-	reiser4_super_info_data * sbinfo = get_super_private (s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 	spin_lock_super_eflush(sbinfo);
 }
 
 /*
  * unlock emergency flush data-structures for super block @s
  */
-static inline void spin_unlock_eflush(const struct super_block * s)
+static inline void spin_unlock_eflush(const struct super_block *s)
 {
-	reiser4_super_info_data * sbinfo = get_super_private (s);
+	reiser4_super_info_data *sbinfo = get_super_private(s);
 	spin_unlock_super_eflush(sbinfo);
 }
 
-
-extern __u64 flush_reserved        ( const struct super_block*);
+extern __u64 flush_reserved(const struct super_block *);
 extern int reiser4_is_set(const struct super_block *super, reiser4_fs_flag f);
 extern long statfs_type(const struct super_block *super);
 extern __u64 reiser4_block_count(const struct super_block *super);
@@ -476,7 +454,8 @@ extern __u64 reiser4_fake_allocated(const struct super_block *);
 extern __u64 reiser4_fake_allocated_unformatted(const struct super_block *);
 extern __u64 reiser4_clustered_blocks(const struct super_block *);
 
-extern long reiser4_reserved_blocks(const struct super_block *super, uid_t uid, gid_t gid);
+extern long reiser4_reserved_blocks(const struct super_block *super, uid_t uid,
+				    gid_t gid);
 
 extern reiser4_space_allocator *get_space_allocator(const struct super_block
 						    *super);
@@ -484,12 +463,18 @@ extern reiser4_oid_allocator *get_oid_allocator(const struct super_block
 						*super);
 extern struct inode *get_super_fake(const struct super_block *super);
 extern struct inode *get_cc_fake(const struct super_block *super);
+extern struct inode *get_bitmap_fake(const struct super_block *super);
 extern reiser4_tree *get_tree(const struct super_block *super);
 extern int is_reiser4_super(const struct super_block *super);
 
-extern int reiser4_blocknr_is_sane(const reiser4_block_nr *blk);
+extern int reiser4_blocknr_is_sane(const reiser4_block_nr * blk);
 extern int reiser4_blocknr_is_sane_for(const struct super_block *super,
-				       const reiser4_block_nr *blk);
+				       const reiser4_block_nr * blk);
+extern int reiser4_fill_super(struct super_block *s, void *data, int silent);
+extern int reiser4_done_super(struct super_block *s);
+extern reiser4_plugin * get_default_plugin(pset_member memb);
+
+
 
 /* Maximal possible object id. */
 #define  ABSOLUTE_MAX_OID ((oid_t)~0)
@@ -503,7 +488,6 @@ void oid_count_allocated(void);
 void oid_count_released(void);
 long oids_used(const struct super_block *);
 long oids_free(const struct super_block *);
-
 
 #if REISER4_DEBUG
 void print_fs_info(const char *prefix, const struct super_block *);
@@ -524,7 +508,6 @@ void dec_unfm_ef(void);
 #define dec_unfm_ef() noop
 
 #endif
-
 
 /* __REISER4_SUPER_H__ */
 #endif

@@ -23,91 +23,61 @@ Cryptcompress specific fields of reiser4 inode/stat-data:
 * cryptcompress_info_t *      crypto_tfm      *                      *                     *
 ********************************************************************************************
 */
-#include "../debug.h"
-#include "../inode.h"
-#include "../jnode.h"
-#include "../tree.h"
-#include "../page_cache.h"
-#include "../readahead.h"
-#include "../forward.h"
-#include "../super.h"
-#include "../context.h"
-#include "../cluster.h"
-#include "../seal.h"
-#include "../vfs_ops.h"
-#include "plugin.h"
-#include "object.h"
-#include "../tree_walk.h"
-#include "file/funcs.h"
+
+#include "../../page_cache.h"
+#include "../../inode.h"
+#include "../../cluster.h"
+#include "../object.h"
+#include "../../tree_walk.h"
+#include "funcs.h"
 
 #include <asm/scatterlist.h>
-#include <linux/writeback.h>
-#include <linux/pagemap.h>
-#include <linux/crypto.h>
-#include <linux/swap.h>
-#include <linux/hardirq.h>
 #include <linux/pagevec.h>
-
-int do_readpage_ctail(reiser4_cluster_t *, struct page * page);
-int ctail_read_cluster (reiser4_cluster_t *, struct inode *, int);
-reiser4_key * append_cluster_key_ctail(const coord_t *, reiser4_key *);
-int setattr_reserve(reiser4_tree *);
-int writepage_ctail(struct page *);
-int update_file_size(struct inode * inode, reiser4_key * key, int update_sd);
-int cut_file_items(struct inode *inode, loff_t new_size, int update_sd, loff_t cur_size,
-		   int (*update_actor)(struct inode *, reiser4_key *, int));
-int delete_object(struct inode *inode, int mode);
-int ctail_insert_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode);
-int hint_is_set(const hint_t *hint);
-reiser4_plugin * get_default_plugin(pset_member memb);
-void inode_check_scale_nolock(struct inode * inode, __u64 old, __u64 new);
+#include <asm/uaccess.h>
+#include <linux/swap.h>
+#include <linux/writeback.h>
 
 /* get cryptcompress specific portion of inode */
-reiser4_internal cryptcompress_info_t *
-cryptcompress_inode_data(const struct inode * inode)
+cryptcompress_info_t *cryptcompress_inode_data(const struct inode *inode)
 {
 	return &reiser4_inode_data(inode)->file_plugin_data.cryptcompress_info;
 }
 
 /* plugin->u.file.init_inode_data */
-reiser4_internal void
+void
 init_inode_data_cryptcompress(struct inode *inode,
-			      reiser4_object_create_data *crd, int create)
+			      reiser4_object_create_data * crd, int create)
 {
-	cryptcompress_info_t * data;
+	cryptcompress_info_t *data;
 
 	data = cryptcompress_inode_data(inode);
 	assert("edward-685", data != NULL);
 
-	memset(data, 0, sizeof (*data));
+	memset(data, 0, sizeof(*data));
 
 	init_rwsem(&data->lock);
 	init_inode_ordering(inode, crd, create);
 }
 
 #if REISER4_DEBUG
-static int
-crc_generic_check_ok(void)
+static int crc_generic_check_ok(void)
 {
 	return MIN_CRYPTO_BLOCKSIZE == DC_CHECKSUM_SIZE << 1;
 }
 
-reiser4_internal int
-crc_inode_ok(struct inode * inode)
+int crc_inode_ok(struct inode *inode)
 {
-	cryptcompress_info_t * data = cryptcompress_inode_data(inode);
+	cryptcompress_info_t *data = cryptcompress_inode_data(inode);
 
 	if (cluster_shift_ok(inode_cluster_shift(inode)) &&
-	    (data->tfm[CRYPTO_TFM] == NULL) &&
-	    (data->tfm[DIGEST_TFM] == NULL))
+	    (data->tfm[CRYPTO_TFM] == NULL) && (data->tfm[DIGEST_TFM] == NULL))
 		return 1;
 	assert("edward-686", 0);
 	return 0;
 }
 #endif
 
-static int
-check_cryptcompress(struct inode * inode)
+static int check_cryptcompress(struct inode *inode)
 {
 	int result = 0;
 
@@ -119,12 +89,14 @@ check_cryptcompress(struct inode * inode)
 			inode_cluster_plugin(inode)->h.label);
 		return RETERR(-EINVAL);
 	}
+
+	/* FIXME-EDWARD: init? or check? */
 	if (inode_compression_plugin(inode)->init)
 		result = inode_compression_plugin(inode)->init();
 	return result;
 }
 
-static crypto_stat_t * inode_crypto_stat (struct inode * inode)
+static crypto_stat_t *inode_crypto_stat(struct inode *inode)
 {
 	assert("edward-90", inode != NULL);
 	assert("edward-91", reiser4_inode_data(inode) != NULL);
@@ -133,12 +105,11 @@ static crypto_stat_t * inode_crypto_stat (struct inode * inode)
 }
 
 /* NOTE-EDWARD: Do not use crypto without digest */
-static int
-alloc_crypto_tfm(struct inode * inode, struct inode * parent)
+static int alloc_crypto_tfm(struct inode *inode, struct inode *parent)
 {
 	int result;
-	crypto_plugin * cplug = inode_crypto_plugin(parent);
-	digest_plugin * dplug = inode_digest_plugin(parent);
+	crypto_plugin *cplug = inode_crypto_plugin(parent);
+	digest_plugin *dplug = inode_digest_plugin(parent);
 
 	assert("edward-414", dplug != NULL);
 	assert("edward-415", cplug != NULL);
@@ -154,10 +125,9 @@ alloc_crypto_tfm(struct inode * inode, struct inode * parent)
 	return 0;
 }
 
-static void
-free_crypto_tfm(struct inode * inode)
+static void free_crypto_tfm(struct inode *inode)
 {
-	reiser4_inode * info;
+	reiser4_inode *info;
 
 	assert("edward-410", inode != NULL);
 
@@ -173,54 +143,54 @@ free_crypto_tfm(struct inode * inode)
 	inode_digest_plugin(inode)->free(inode);
 }
 
-static int
-attach_crypto_stat(struct inode * inode, crypto_data_t * data)
+static int attach_crypto_stat(struct inode *inode, crypto_data_t * data)
 {
-	__u8 * txt;
+	__u8 *txt;
 
-	crypto_stat_t * stat;
+	crypto_stat_t *stat;
 	struct scatterlist sg;
-	struct crypto_tfm * dtfm;
+	struct crypto_tfm *dtfm;
 
 	assert("edward-690", inode_get_crypto(inode));
 	assert("edward-766", inode_get_digest(inode));
 
-	dtfm =  inode_get_digest(inode);
+	dtfm = inode_get_digest(inode);
 
-	stat = reiser4_kmalloc(sizeof(*stat), GFP_KERNEL);
+	stat = kmalloc(sizeof(*stat), GFP_KERNEL);
 	if (!stat)
 		return -ENOMEM;
 
-	stat->keyid = reiser4_kmalloc((size_t)crypto_tfm_alg_digestsize(dtfm), GFP_KERNEL);
+	stat->keyid =
+		kmalloc((size_t) crypto_tfm_alg_digestsize(dtfm),
+			GFP_KERNEL);
 	if (!stat->keyid) {
-		reiser4_kfree(stat);
+		kfree(stat);
 		return -ENOMEM;
 	}
-	txt = reiser4_kmalloc(data->keyid_size, GFP_KERNEL);
+	txt = kmalloc(data->keyid_size, GFP_KERNEL);
 	if (!txt) {
-		reiser4_kfree(stat->keyid);
-		reiser4_kfree(stat);
+		kfree(stat->keyid);
+		kfree(stat);
 		return -ENOMEM;
 	}
 	memcpy(txt, data->keyid, data->keyid_size);
-	sg.page = virt_to_page (txt);
-	sg.offset = offset_in_page (txt);
+	sg.page = virt_to_page(txt);
+	sg.offset = offset_in_page(txt);
 	sg.length = data->keyid_size;
 
-	crypto_digest_init (dtfm);
-	crypto_digest_update (dtfm, &sg, 1);
-	crypto_digest_final (dtfm, stat->keyid);
+	crypto_digest_init(dtfm);
+	crypto_digest_update(dtfm, &sg, 1);
+	crypto_digest_final(dtfm, stat->keyid);
 
 	cryptcompress_inode_data(inode)->crypt = stat;
-	reiser4_kfree(txt);
+	kfree(txt);
 
 	return 0;
 }
 
-static void
-detach_crypto_stat(struct inode * object)
+static void detach_crypto_stat(struct inode *object)
 {
-	crypto_stat_t * stat;
+	crypto_stat_t *stat;
 
 	stat = inode_crypto_stat(object);
 
@@ -231,21 +201,21 @@ detach_crypto_stat(struct inode * object)
 
 	assert("edward-412", stat != NULL);
 
-	reiser4_kfree(stat->keyid);
-	reiser4_kfree(stat);
+	kfree(stat->keyid);
+	kfree(stat);
 }
 
 /*  1) fill crypto specific part of inode
     2) set inode crypto stat which is supposed to be saved in stat-data */
 static int
-inode_set_crypto(struct inode * object, struct inode * parent,
+inode_set_crypto(struct inode *object, struct inode *parent,
 		 crypto_data_t * data)
 {
 	int result;
-	struct crypto_tfm * tfm;
-	crypto_plugin * cplug;
-	digest_plugin * dplug;
-	reiser4_inode * info = reiser4_inode_data(object);
+	struct crypto_tfm *tfm;
+	crypto_plugin *cplug;
+	digest_plugin *dplug;
+	reiser4_inode *info = reiser4_inode_data(object);
 
 	cplug = inode_crypto_plugin(parent);
 	dplug = inode_digest_plugin(parent);
@@ -263,7 +233,7 @@ inode_set_crypto(struct inode * object, struct inode * parent,
 
 	assert("edward-414", dplug != NULL);
 	assert("edward-415", cplug != NULL);
-	assert("edward-417", data->key!= NULL);
+	assert("edward-417", data->key != NULL);
 	assert("edward-88", data->keyid != NULL);
 	assert("edward-83", data->keyid_size != 0);
 	assert("edward-89", data->keysize != 0);
@@ -276,7 +246,8 @@ inode_set_crypto(struct inode * object, struct inode * parent,
 		free_crypto_tfm(object);
 		return result;
 	}
-	assert ("edward-34", !inode_get_flag(object, REISER4_SECRET_KEY_INSTALLED));
+	assert("edward-34",
+	       !inode_get_flag(object, REISER4_SECRET_KEY_INSTALLED));
 	inode_set_flag(object, REISER4_SECRET_KEY_INSTALLED);
 
 	info->extmask |= (1 << CRYPTO_STAT);
@@ -288,18 +259,17 @@ inode_set_crypto(struct inode * object, struct inode * parent,
 	info->plugin_mask |= (1 << PSET_CRYPTO) | (1 << PSET_DIGEST);
 
 	return 0;
- error:
+      error:
 	free_crypto_tfm(object);
 	inode_clr_flag(object, REISER4_SECRET_KEY_INSTALLED);
 	return result;
 }
 
-static int
-inode_set_compression(struct inode * object, struct inode * parent)
+static int inode_set_compression(struct inode *object, struct inode *parent)
 {
 	int result = 0;
-	compression_plugin * cplug;
-	reiser4_inode * info = reiser4_inode_data(object);
+	compression_plugin *cplug;
+	reiser4_inode *info = reiser4_inode_data(object);
 
 	cplug = inode_compression_plugin(parent);
 
@@ -315,10 +285,10 @@ inode_set_compression(struct inode * object, struct inode * parent)
 }
 
 static void
-inode_set_compression_mode(struct inode * object, struct inode * parent)
+inode_set_compression_mode(struct inode *object, struct inode *parent)
 {
-	compression_mode_plugin * mplug;
-	reiser4_inode * info = reiser4_inode_data(object);
+	compression_mode_plugin *mplug;
+	reiser4_inode *info = reiser4_inode_data(object);
 
 	mplug = inode_compression_mode_plugin(parent);
 
@@ -327,11 +297,10 @@ inode_set_compression_mode(struct inode * object, struct inode * parent)
 	return;
 }
 
-static int
-inode_set_cluster(struct inode * object, struct inode * parent)
+static int inode_set_cluster(struct inode *object, struct inode *parent)
 {
-	reiser4_inode * info;
-	cluster_plugin * cplug;
+	reiser4_inode *info;
+	cluster_plugin *cplug;
 
 	assert("edward-696", object != NULL);
 
@@ -340,8 +309,7 @@ inode_set_cluster(struct inode * object, struct inode * parent)
 
 	if (cplug->shift < PAGE_CACHE_SHIFT) {
 		warning("edward-1320",
-			"Can not support cluster size %p",
-			cplug->h.label);
+			"Can not support cluster size %p", cplug->h.label);
 		return RETERR(-EINVAL);
 	}
 	plugin_set_cluster(&info->pset, cplug);
@@ -357,12 +325,12 @@ inode_set_cluster(struct inode * object, struct inode * parent)
 . attach compression info if specified
 . attach cluster info
 */
-reiser4_internal int
+int
 create_cryptcompress(struct inode *object, struct inode *parent,
 		     reiser4_object_create_data * data)
 {
 	int result;
-	reiser4_inode * info;
+	reiser4_inode *info;
 
 	assert("edward-23", object != NULL);
 	assert("edward-24", parent != NULL);
@@ -401,25 +369,19 @@ create_cryptcompress(struct inode *object, struct inode *parent,
 		return 0;
 	/* save() method failed, release attached crypto info */
 	inode_clr_flag(object, REISER4_CRYPTO_STAT_LOADED);
- error:
+      error:
 	free_crypto_tfm(object);
 	detach_crypto_stat(object);
 	inode_clr_flag(object, REISER4_SECRET_KEY_INSTALLED);
 	return result;
 }
 
-reiser4_internal int open_cryptcompress(struct inode * inode, struct file * file)
-{
-	/* FIXME-EDWARD: should be powered by key management */
-	assert("edward-698", inode_file_plugin(inode) == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
-	return 0;
-}
-
 /* plugin->destroy_inode() */
-reiser4_internal void
-destroy_inode_cryptcompress(struct inode * inode)
+void destroy_inode_cryptcompress(struct inode *inode)
 {
-	assert("edward-802", inode_file_plugin(inode) == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	assert("edward-802",
+	       inode_file_plugin(inode) ==
+	       file_plugin_by_id(CRC_FILE_PLUGIN_ID));
 	assert("edward-803", !is_bad_inode(inode) && is_inode_loaded(inode));
 
 	free_crypto_tfm(inode);
@@ -431,37 +393,35 @@ destroy_inode_cryptcompress(struct inode * inode)
 }
 
 /* returns translated offset */
-static loff_t inode_scaled_offset (struct inode * inode,
-				   const loff_t src_off /* input offset */)
+static loff_t inode_scaled_offset(struct inode *inode,
+				  const loff_t src_off /* input offset */ )
 {
 	assert("edward-97", inode != NULL);
 
 	if (!inode_get_crypto(inode) || src_off == get_key_offset(max_key()))
 		return src_off;
 
-	return inode_crypto_plugin(inode)->scale(inode, crypto_blocksize(inode), src_off);
+	return inode_crypto_plugin(inode)->scale(inode, crypto_blocksize(inode),
+						 src_off);
 }
 
 /* returns disk cluster size */
-reiser4_internal size_t
-inode_scaled_cluster_size (struct inode * inode)
+size_t inode_scaled_cluster_size(struct inode * inode)
 {
 	assert("edward-110", inode != NULL);
 
 	return inode_scaled_offset(inode, inode_cluster_size(inode));
 }
 
-static int
-new_cluster(reiser4_cluster_t * clust, struct inode * inode)
+static int new_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
 	return (clust_to_off(clust->index, inode) >= inode->i_size);
 }
 
 /* set number of cluster pages */
-static void
-set_cluster_nrpages(reiser4_cluster_t * clust, struct inode * inode)
+static void set_cluster_nrpages(reiser4_cluster_t * clust, struct inode *inode)
 {
-	reiser4_slide_t * win;
+	reiser4_slide_t *win;
 
 	assert("edward-180", clust != NULL);
 	assert("edward-1040", inode != NULL);
@@ -469,62 +429,68 @@ set_cluster_nrpages(reiser4_cluster_t * clust, struct inode * inode)
 	win = clust->win;
 	if (!win) {
 		/* FIXME-EDWARD: i_size should be protected */
-		clust->nr_pages = count_to_nrpages(fsize_to_count(clust, inode));
+		clust->nr_pages =
+		    count_to_nrpages(fsize_to_count(clust, inode));
 		return;
 	}
 	assert("edward-1176", clust->op != PCL_UNKNOWN);
 	assert("edward-1064", win->off + win->count + win->delta != 0);
 
 	if (win->stat == HOLE_WINDOW &&
-	    win->off == 0 &&
-	    win->count == inode_cluster_size(inode)) {
+	    win->off == 0 && win->count == inode_cluster_size(inode)) {
 		/* special case: we start write hole from fake cluster */
 		clust->nr_pages = 0;
 		return;
 	}
 	clust->nr_pages =
-		count_to_nrpages(max_count(win->off + win->count + win->delta,
-					   fsize_to_count(clust, inode)));
+	    count_to_nrpages(max_count(win->off + win->count + win->delta,
+				       fsize_to_count(clust, inode)));
 	return;
 }
 
 /* plugin->key_by_inode() */
 /* see plugin/plugin.h for details */
-reiser4_internal int
+int
 key_by_inode_cryptcompress(struct inode *inode, loff_t off, reiser4_key * key)
 {
 	loff_t clust_off;
 
 	assert("edward-64", inode != 0);
-	//	assert("edward-112", ergo(off != get_key_offset(max_key()), !off_to_cloff(off, inode)));
+	//      assert("edward-112", ergo(off != get_key_offset(max_key()), !off_to_cloff(off, inode)));
 	/* don't come here with other offsets */
 
-	clust_off = (off == get_key_offset(max_key()) ? get_key_offset(max_key()) : off_to_clust_to_off(off, inode));
+	clust_off =
+	    (off ==
+	     get_key_offset(max_key())? get_key_offset(max_key()) :
+	     off_to_clust_to_off(off, inode));
 
 	key_by_inode_and_offset_common(inode, 0, key);
-	set_key_offset(key, (__u64) (!inode_crypto_stat(inode) ? clust_off : inode_scaled_offset(inode, clust_off)));
+	set_key_offset(key,
+		       (__u64) (!inode_crypto_stat(inode) ? clust_off :
+				inode_scaled_offset(inode, clust_off)));
 	return 0;
 }
 
 /* plugin->flow_by_inode */
-reiser4_internal int
+int
 flow_by_inode_cryptcompress(struct inode *inode /* file to build flow for */ ,
-			    char *buf /* user level buffer */ ,
+			    const char __user *buf /* user level buffer */ ,
 			    int user	/* 1 if @buf is of user space, 0 - if it is
 					   kernel space */ ,
 			    loff_t size /* buffer size */ ,
 			    loff_t off /* offset to start io from */ ,
 			    rw_op op /* READ or WRITE */ ,
-			    flow_t * f /* resulting flow */)
+			    flow_t * f /* resulting flow */ )
 {
 	assert("edward-436", f != NULL);
 	assert("edward-149", inode != NULL);
 	assert("edward-150", inode_file_plugin(inode) != NULL);
-	assert("edward-151", inode_file_plugin(inode)->key_by_inode == key_by_inode_cryptcompress);
-
+	assert("edward-151",
+	       inode_file_plugin(inode)->key_by_inode ==
+	       key_by_inode_cryptcompress);
 
 	f->length = size;
-	f->data = buf;
+	memcpy(&f->data, &buf, sizeof(buf));
 	f->user = user;
 	f->op = op;
 
@@ -534,13 +500,14 @@ flow_by_inode_cryptcompress(struct inode *inode /* file to build flow for */ ,
 }
 
 static int
-crc_hint_validate(hint_t *hint, const reiser4_key *key, znode_lock_mode lock_mode)
+crc_hint_validate(hint_t * hint, const reiser4_key * key,
+		  znode_lock_mode lock_mode)
 {
-	coord_t * coord;
+	coord_t *coord;
 
 	assert("edward-704", hint != NULL);
 	assert("edward-1089", !hint->ext_coord.valid);
-	assert("edward-706", hint->ext_coord.lh->owner == NULL);
+	assert("edward-706", hint->lh.owner == NULL);
 
 	coord = &hint->ext_coord.coord;
 
@@ -555,13 +522,10 @@ crc_hint_validate(hint_t *hint, const reiser4_key *key, znode_lock_mode lock_mod
 	assert("edward-707", schedulable());
 
 	return seal_validate(&hint->seal, &hint->ext_coord.coord,
-			     key, hint->ext_coord.lh,
-			     lock_mode,
-			     ZNODE_LOCK_LOPRI);
+			     key, &hint->lh, lock_mode, ZNODE_LOCK_LOPRI);
 }
 
-static int
-__reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
+static int reserve4cluster(struct inode *inode, reiser4_cluster_t *clust)
 {
 	int result = 0;
 
@@ -579,11 +543,13 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 	}
 	assert("edward-442", jprivate(clust->pages[0]) != NULL);
 
-	result = reiser4_grab_space_force(/* for prepped disk cluster */
-					  estimate_insert_cluster(inode, 0) +
-					  /* for unprepped disk cluster */
-					  estimate_insert_cluster(inode, 1),
-					  BA_CAN_COMMIT);
+	result = reiser4_grab_space_force(	/* for prepped disk cluster */
+						 estimate_insert_cluster(inode,
+									 0) +
+						 /* for unprepped disk cluster */
+						 estimate_insert_cluster(inode,
+									 1),
+						 BA_CAN_COMMIT);
 	if (result)
 		return result;
 	clust->reserved = 1;
@@ -597,42 +563,33 @@ __reserve4cluster(struct inode * inode, reiser4_cluster_t * clust)
 	return 0;
 }
 
-#if REISER4_TRACE
-#define reserve4cluster(inode, clust, msg)    __reserve4cluster(inode, clust)
-#else
-#define reserve4cluster(inode, clust, msg)    __reserve4cluster(inode, clust)
-#endif
-
 static void
-free_reserved4cluster(struct inode * inode, reiser4_cluster_t * clust, int count)
+free_reserved4cluster(struct inode *inode, reiser4_cluster_t * clust, int count)
 {
 	assert("edward-967", clust->reserved == 1);
 
 	cluster_reserved2free(count);
 	clust->reserved = 0;
 }
+
 #if REISER4_DEBUG
-static int
-eq_to_ldk(znode *node, const reiser4_key *key)
+static int eq_to_ldk(znode * node, const reiser4_key * key)
 {
-	return UNDER_RW(dk, current_tree, read, keyeq(key, znode_get_ld_key(node)));
+	return UNDER_RW(dk, current_tree, read,
+			keyeq(key, znode_get_ld_key(node)));
 }
 #endif
 
 /* The core search procedure.
    If returned value is not cbk_errored, current znode is locked */
-static int
-find_cluster_item(hint_t * hint,
-		  const reiser4_key *key,   /* key of the item we are
-					       looking for */
-		  znode_lock_mode lock_mode /* which lock */,
-		  ra_info_t *ra_info,
-		  lookup_bias bias,
-		  __u32 flags)
+static int find_cluster_item(hint_t * hint, const reiser4_key * key,	/* key of the item we are
+									   looking for */
+			     znode_lock_mode lock_mode /* which lock */ ,
+			     ra_info_t * ra_info, lookup_bias bias, __u32 flags)
 {
 	int result;
 	reiser4_key ikey;
-	coord_t * coord = &hint->ext_coord.coord;
+	coord_t *coord = &hint->ext_coord.coord;
 	coord_t orig = *coord;
 
 	assert("edward-152", hint != NULL);
@@ -653,7 +610,7 @@ find_cluster_item(hint_t * hint,
 	   check if next item of the @coord match to the @keyhint) */
 
 	if (equal_to_rdk(coord->node, key)) {
-		result = goto_right_neighbor(coord, hint->ext_coord.lh);
+		result = goto_right_neighbor(coord, &hint->lh);
 		if (result == -E_NO_NEIGHBOR) {
 			assert("edward-1217", 0);
 			return RETERR(-EIO);
@@ -661,8 +618,7 @@ find_cluster_item(hint_t * hint,
 		if (result)
 			return result;
 		assert("edward-1218", eq_to_ldk(coord->node, key));
-	}
-	else {
+	} else {
 		coord->item_pos++;
 		coord->unit_pos = 0;
 		coord->between = AT_UNIT;
@@ -682,7 +638,7 @@ find_cluster_item(hint_t * hint,
 		goto not_found;
 	return CBK_COORD_FOUND;
 
- not_found:
+      not_found:
 	assert("edward-1220", coord->item_pos > 0);
 	//coord->item_pos--;
 	/* roll back */
@@ -690,13 +646,13 @@ find_cluster_item(hint_t * hint,
 	ON_DEBUG(coord_update_v(coord));
 	return CBK_COORD_NOTFOUND;
 
- traverse_tree:
-	assert("edward-713", hint->ext_coord.lh->owner == NULL);
+      traverse_tree:
+	assert("edward-713", hint->lh.owner == NULL);
 	assert("edward-714", schedulable());
 
 	unset_hint(hint);
 	coord_init_zero(coord);
-	result = coord_by_key(current_tree, key, coord, hint->ext_coord.lh,
+	result = coord_by_key(current_tree, key, coord, &hint->lh,
 			      lock_mode, bias, LEAF_LEVEL, LEAF_LEVEL,
 			      CBK_UNIQUE | flags, ra_info);
 	if (cbk_errored(result))
@@ -705,132 +661,76 @@ find_cluster_item(hint_t * hint,
 	return result;
 }
 
-/* FIXME-EDWARD */
-#if 0
-/* This represent reiser4 crypto alignment policy.
-   Returns the size > 0 of aligning overhead, if we should align/cut,
-   returns 0, if we shouldn't (alignment assumes appending an overhead of the size > 0) */
-static int
-crypto_overhead(size_t len /* advised length */,
-		reiser4_cluster_t * clust,
-		struct inode * inode, rw_op rw)
-{
-	size_t size = 0;
-	int result = 0;
-	int oh;
-
-	assert("edward-486", clust != 0);
-
-	if (!inode_get_crypto(inode) || !inode_crypto_plugin(inode)->align_stream)
-		return 0;
-	if (!len)
-		size = clust->len;
-
-	assert("edward-615", size != 0);
-	assert("edward-489", crypto_blocksize(inode) != 0);
-
-	switch (rw) {
-	case WRITE_OP: /* align */
-		assert("edward-488", size <= inode_cluster_size(inode));
-
-		oh = size % crypto_blocksize(inode);
-
-		if (!oh && size == fsize_to_count(clust, inode))
-			/* cluster don't need alignment and didn't get compressed */
-			return 0;
-		result = (crypto_blocksize(inode) - oh);
-		break;
-	case READ_OP: /* cut */
-		assert("edward-490", size <= inode_scaled_cluster_size(inode));
-		if (size >= inode_scaled_offset(inode, fsize_to_count(clust, inode)))
-			/* cluster didn't get aligned */
-			return 0;
-		assert("edward-491", tfm_stream_data(clust, OUTPUT_STREAM) != NULL);
-		assert("edward-900", 0);
-		/* FIXME-EDWARD: the stuff above */
-		result = *(tfm_stream_data(clust, OUTPUT_STREAM) + size - 1);
-		break;
-	default:
-		impossible("edward-493", "bad option for getting alignment");
-	}
-	return result;
-}
-#endif
-
 /* the following two functions are to evaluate results
    of compression transform */
-static unsigned
-max_crypto_overhead(struct inode * inode)
+static unsigned max_crypto_overhead(struct inode *inode)
 {
-	if (!inode_get_crypto(inode) || !inode_crypto_plugin(inode)->align_stream)
+	if (!inode_get_crypto(inode)
+	    || !inode_crypto_plugin(inode)->align_stream)
 		return 0;
 	return crypto_blocksize(inode);
 }
 
-static int
-deflate_overhead(struct inode * inode)
+static int deflate_overhead(struct inode *inode)
 {
-	return (inode_compression_plugin(inode)->checksum ? DC_CHECKSUM_SIZE : 0);
+	return (inode_compression_plugin(inode)->
+		checksum ? DC_CHECKSUM_SIZE : 0);
 }
 
 /* to estimate size of allocating transform stream */
-static unsigned
-deflate_overrun(struct inode * inode, int in_len)
+static unsigned deflate_overrun(struct inode *inode, int in_len)
 {
 	return (inode_compression_plugin(inode)->overrun != NULL ?
-		inode_compression_plugin(inode)->overrun(in_len) :
-		0);
+		inode_compression_plugin(inode)->overrun(in_len) : 0);
 }
 
 /* The following two functions represent reiser4 compression policy */
-static int
-try_compress(tfm_cluster_t * tc, cloff_t index, struct inode * inode)
+static int try_compress(tfm_cluster_t * tc, cloff_t index, struct inode *inode)
 {
-	compression_plugin * cplug = inode_compression_plugin(inode);
-	compression_mode_plugin * mplug = inode_compression_mode_plugin(inode);
+	compression_plugin *cplug = inode_compression_plugin(inode);
+	compression_mode_plugin *mplug = inode_compression_mode_plugin(inode);
 
 	assert("edward-1321", tc->len != 0);
 	assert("edward-1322", cplug != NULL);
 	assert("edward-1323", mplug != NULL);
 
 	return (cplug->compress != NULL) &&
-		(mplug->should_deflate != NULL ? mplug->should_deflate(index) : 1) &&
-		(cplug->min_size_deflate != NULL ?  tc->len >= cplug->min_size_deflate() : 1);
+	    (mplug->should_deflate != NULL ? mplug->should_deflate(index) : 1)
+	    && (cplug->min_size_deflate != NULL ? tc->len >=
+		cplug->min_size_deflate() : 1);
 }
 
-static int
-try_encrypt(struct inode * inode)
+static int try_encrypt(struct inode *inode)
 {
 	return inode_get_crypto(inode) != NULL;
 }
 
 /* Evaluation results of compression transform. */
-static int
-save_compressed(int old_size, int new_size, struct inode * inode)
+static int save_compressed(int old_size, int new_size, struct inode *inode)
 {
-	return (new_size + deflate_overhead(inode) + max_crypto_overhead(inode) < old_size);
+	return (new_size + deflate_overhead(inode) +
+		max_crypto_overhead(inode) < old_size);
 }
 
 /* Guess result of the evaluation above */
 static int
-need_inflate(reiser4_cluster_t * clust, struct inode * inode,
-	     int encrypted /* is cluster encrypted */)
+need_inflate(reiser4_cluster_t * clust, struct inode *inode,
+	     int encrypted /* is cluster encrypted */ )
 {
-	tfm_cluster_t * tc = &clust->tc;
+	tfm_cluster_t *tc = &clust->tc;
 
 	assert("edward-142", tc != 0);
 	assert("edward-143", inode != NULL);
 
 	return tc->len <
-		(encrypted ?
-		 inode_scaled_offset(inode, fsize_to_count(clust, inode)) :
-		 fsize_to_count(clust, inode));
+	    (encrypted ?
+	     inode_scaled_offset(inode, fsize_to_count(clust, inode)) :
+	     fsize_to_count(clust, inode));
 }
 
 /* append checksum at the end of input transform stream
    and increase its length */
-static void
-dc_set_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
+static void dc_set_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
 {
 	__u32 checksum;
 
@@ -839,32 +739,39 @@ dc_set_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
 	assert("edward-1311", cplug->checksum != NULL);
 
 	checksum = cplug->checksum(tfm_stream_data(tc, OUTPUT_STREAM), tc->len);
-	cputod32(checksum, (d32 *)(tfm_stream_data(tc, OUTPUT_STREAM) + tc->len));
+	cputod32(checksum,
+		 (d32 *) (tfm_stream_data(tc, OUTPUT_STREAM) + tc->len));
 	tc->len += (int)DC_CHECKSUM_SIZE;
 }
 
 /* returns 0 if checksums coincide, otherwise returns 1,
    increase the length of input transform stream */
-static int
-dc_check_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
+static int dc_check_checksum(compression_plugin * cplug, tfm_cluster_t * tc)
 {
 	assert("edward-1312", tc != NULL);
 	assert("edward-1313", tc->len > (int)DC_CHECKSUM_SIZE);
 	assert("edward-1314", cplug->checksum != NULL);
 
-	if (cplug->checksum(tfm_stream_data(tc, INPUT_STREAM),  tc->len - (int)DC_CHECKSUM_SIZE) !=
-	    d32tocpu((d32 *)(tfm_stream_data(tc, INPUT_STREAM) + tc->len - (int)DC_CHECKSUM_SIZE))) {
-		warning("edward-156", "bad disk cluster checksum %d, (should be %d)\n",
-			(int)d32tocpu((d32 *)(tfm_stream_data(tc, INPUT_STREAM) + tc->len - (int)DC_CHECKSUM_SIZE)),
-			(int)cplug->checksum(tfm_stream_data(tc, INPUT_STREAM),  tc->len - (int)DC_CHECKSUM_SIZE));
+	if (cplug->
+	    checksum(tfm_stream_data(tc, INPUT_STREAM),
+		     tc->len - (int)DC_CHECKSUM_SIZE) !=
+	    d32tocpu((d32 *) (tfm_stream_data(tc, INPUT_STREAM) + tc->len -
+			      (int)DC_CHECKSUM_SIZE))) {
+		warning("edward-156",
+			"bad disk cluster checksum %d, (should be %d)\n",
+			(int)
+			d32tocpu((d32 *) (tfm_stream_data(tc, INPUT_STREAM) +
+					  tc->len - (int)DC_CHECKSUM_SIZE)),
+			(int)cplug->checksum(tfm_stream_data(tc, INPUT_STREAM),
+					     tc->len - (int)DC_CHECKSUM_SIZE));
 		return 1;
 	}
 	tc->len -= (int)DC_CHECKSUM_SIZE;
 	return 0;
 }
 
-reiser4_internal int
-grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc,
+int
+grab_tfm_stream(struct inode *inode, tfm_cluster_t * tc,
 		tfm_action act, tfm_stream_id id)
 {
 	size_t size = inode_scaled_cluster_size(inode);
@@ -888,12 +795,11 @@ grab_tfm_stream(struct inode * inode, tfm_cluster_t * tc,
 }
 
 /* Common deflate cluster manager */
-reiser4_internal int
-deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
+int deflate_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
 	int result = 0;
 	int transformed = 0;
-	tfm_cluster_t * tc = &clust->tc;
+	tfm_cluster_t *tc = &clust->tc;
 
 	assert("edward-401", inode != NULL);
 	assert("edward-903", tfm_stream_is_set(tc, INPUT_STREAM));
@@ -902,9 +808,9 @@ deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	if (try_compress(tc, clust->index, inode)) {
 		/* try to compress, discard bad results */
 		__u32 dst_len;
-		compression_plugin * cplug = inode_compression_plugin(inode);
-		compression_mode_plugin * mplug =
-			inode_compression_mode_plugin(inode);
+		compression_plugin *cplug = inode_compression_plugin(inode);
+		compression_mode_plugin *mplug =
+		    inode_compression_mode_plugin(inode);
 		assert("edward-602", cplug != NULL);
 
 		result = grab_tfm_stream(inode, tc, TFM_WRITE, OUTPUT_STREAM);
@@ -916,7 +822,8 @@ deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 				tfm_stream_data(tc, OUTPUT_STREAM), &dst_len);
 
 		/* make sure we didn't overwrite extra bytes */
-		assert("edward-603", dst_len <= tfm_stream_size(tc, OUTPUT_STREAM));
+		assert("edward-603",
+		       dst_len <= tfm_stream_size(tc, OUTPUT_STREAM));
 
 		/* evaluate results of compression transform */
 		if (save_compressed(tc->len, dst_len, inode)) {
@@ -927,23 +834,24 @@ deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 			transformed = 1;
 			if (mplug->save_deflate != NULL)
 				mplug->save_deflate(inode);
-		}
-		else {
+		} else {
 			/* bad result, discard */
 #if REISER4_DEBUG
 			warning("edward-1309",
 				"incompressible data: inode %llu, cluster %lu",
-				(unsigned long long)get_inode_oid(inode), clust->index);
+				(unsigned long long)get_inode_oid(inode),
+				clust->index);
 #endif
 			if (mplug->discard_deflate != NULL) {
-				result = mplug->discard_deflate(inode, clust->index);
+				result =
+				    mplug->discard_deflate(inode, clust->index);
 				if (result)
 					return result;
 			}
 		}
 	}
 	if (try_encrypt(inode)) {
-		crypto_plugin * cplug;
+		crypto_plugin *cplug;
 		/* FIXME-EDWARD */
 		assert("edward-904", 0);
 
@@ -964,13 +872,12 @@ deflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 /* Common inflate cluster manager.
    Is used in readpage() or readpages() methods of
    cryptcompress object plugins. */
-reiser4_internal int
-inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
+int inflate_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
 	int result = 0;
 	int transformed = 0;
 
-	tfm_cluster_t * tc = &clust->tc;
+	tfm_cluster_t *tc = &clust->tc;
 
 	assert("edward-905", inode != NULL);
 	assert("edward-1178", clust->dstat == PREP_DISK_CLUSTER);
@@ -978,7 +885,7 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-907", !tfm_cluster_is_uptodate(tc));
 
 	if (inode_get_crypto(inode) != NULL) {
-		crypto_plugin * cplug;
+		crypto_plugin *cplug;
 
 		/* FIXME-EDWARD: isn't supported yet */
 		assert("edward-908", 0);
@@ -997,9 +904,9 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	}
 	if (need_inflate(clust, inode, 0)) {
 		unsigned dst_len = inode_cluster_size(inode);
-		compression_plugin * cplug = inode_compression_plugin(inode);
+		compression_plugin *cplug = inode_compression_plugin(inode);
 
-		if(transformed)
+		if (transformed)
 			alternate_streams(tc);
 
 		result = grab_tfm_stream(inode, tc, TFM_READ, OUTPUT_STREAM);
@@ -1014,17 +921,17 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
 
 		   data
 		   checksum           (4)   Indicates presence of compression
-		                            infrastructure, should be private.
-		                            Can be absent.
+		   infrastructure, should be private.
+		   Can be absent.
 		   crypto_overhead          Created by ->align() method of crypto-plugin,
-		                            Can be absent.
+		   Can be absent.
 
 		   Crypto overhead format:
 
 		   data
 		   tail_size           (1)   size of aligning tail,
-		                             1 <= tail_size <= blksize
-		*/
+		   1 <= tail_size <= blksize
+		 */
 		if (cplug->checksum != NULL) {
 			result = dc_check_checksum(cplug, tc);
 			if (result)
@@ -1052,49 +959,59 @@ inflate_cluster(reiser4_cluster_t * clust, struct inode * inode)
  * right from mapping to the address space (this is precisely what filemap
  * generic method does) */
 /* plugin->readpage() */
-reiser4_internal int
-readpage_cryptcompress(void *vp, struct page *page)
+int readpage_cryptcompress(struct file *file, struct page *page)
 {
+	reiser4_context *ctx;
 	reiser4_cluster_t clust;
-	struct file * file;
-	item_plugin * iplug;
+	item_plugin *iplug;
 	int result;
 
 	assert("edward-88", PageLocked(page));
+	assert("vs-976", !PageUptodate(page));
 	assert("edward-89", page->mapping && page->mapping->host);
 
+	ctx = init_context(page->mapping->host->i_sb);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
 	result = check_cryptcompress(page->mapping->host);
-	if (result)
+	if (result) {
+		reiser4_exit_context(ctx);
 		return result;
-	file = vp;
+	}
 	if (file)
-		assert("edward-113", page->mapping == file->f_dentry->d_inode->i_mapping);
+		assert("edward-113",
+		       page->mapping == file->f_dentry->d_inode->i_mapping);
 
 	if (PageUptodate(page)) {
-		printk("readpage_cryptcompress: page became already uptodate\n");
+		printk
+		    ("readpage_cryptcompress: page became already uptodate\n");
 		unlock_page(page);
+		reiser4_exit_context(ctx);
 		return 0;
 	}
-	reiser4_cluster_init(&clust, 0);
+	reiser4_cluster_init(&clust, NULL);
 	clust.file = file;
 	iplug = item_plugin_by_id(CTAIL_ID);
 	if (!iplug->s.file.readpage) {
 		put_cluster_handle(&clust, TFM_READ);
+		reiser4_exit_context(ctx);
 		return -EINVAL;
 	}
 	result = iplug->s.file.readpage(&clust, page);
 
-	assert("edward-64", ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
+	assert("edward-64",
+	       ergo(result == 0, (PageLocked(page) || PageUptodate(page))));
 	/* if page has jnode - that jnode is mapped
 	   assert("edward-65", ergo(result == 0 && PagePrivate(page),
 	   jnode_mapped(jprivate(page))));
-	*/
+	 */
 	put_cluster_handle(&clust, TFM_READ);
+	reiser4_exit_context(ctx);
 	return result;
 }
 
 /* plugin->readpages() */
-reiser4_internal void
+void
 readpages_cryptcompress(struct file *file, struct address_space *mapping,
 			struct list_head *pages)
 {
@@ -1118,8 +1035,7 @@ readpages_cryptcompress(struct file *file, struct address_space *mapping,
 }
 
 /* how much pages will be captured */
-static int
-cluster_nrpages_to_capture(reiser4_cluster_t * clust)
+static int cluster_nrpages_to_capture(reiser4_cluster_t * clust)
 {
 	switch (clust->op) {
 	case PCL_APPEND:
@@ -1128,19 +1044,18 @@ cluster_nrpages_to_capture(reiser4_cluster_t * clust)
 		assert("edward-1179", clust->win != NULL);
 		return count_to_nrpages(clust->win->off + clust->win->count);
 	default:
-		impossible("edward-1180","bad page cluster option");
+		impossible("edward-1180", "bad page cluster option");
 		return 0;
 	}
 }
 
-static void
-set_cluster_pages_dirty(reiser4_cluster_t * clust)
+static void set_cluster_pages_dirty(reiser4_cluster_t * clust)
 {
 	int i;
-	struct page * pg;
+	struct page *pg;
 	int nrpages = cluster_nrpages_to_capture(clust);
 
-	for (i=0; i < nrpages; i++) {
+	for (i = 0; i < nrpages; i++) {
 
 		pg = clust->pages[i];
 
@@ -1160,8 +1075,7 @@ set_cluster_pages_dirty(reiser4_cluster_t * clust)
 	}
 }
 
-static void
-clear_cluster_pages_dirty(reiser4_cluster_t * clust)
+static void clear_cluster_pages_dirty(reiser4_cluster_t * clust)
 {
 	int i;
 	assert("edward-1275", clust != NULL);
@@ -1173,9 +1087,11 @@ clear_cluster_pages_dirty(reiser4_cluster_t * clust)
 		if (!PageDirty(clust->pages[i])) {
 			warning("edward-985", "Page of index %lu (inode %llu)"
 				" is not dirty\n", clust->pages[i]->index,
-				(unsigned long long)get_inode_oid(clust->pages[i]->mapping->host));
-		}
-		else {
+				(unsigned long long)get_inode_oid(clust->
+								  pages[i]->
+								  mapping->
+								  host));
+		} else {
 			assert("edward-1277", PageUptodate(clust->pages[i]));
 			reiser4_clear_page_dirty(clust->pages[i]);
 		}
@@ -1184,11 +1100,10 @@ clear_cluster_pages_dirty(reiser4_cluster_t * clust)
 }
 
 /* update i_size by window */
-static void
-inode_set_new_size(reiser4_cluster_t * clust, struct inode * inode)
+static void inode_set_new_size(reiser4_cluster_t * clust, struct inode *inode)
 {
 	loff_t size;
-	reiser4_slide_t * win;
+	reiser4_slide_t *win;
 
 	assert("edward-1181", clust != NULL);
 	assert("edward-1182", inode != NULL);
@@ -1222,7 +1137,7 @@ inode_set_new_size(reiser4_cluster_t * clust, struct inode * inode)
 */
 static void
 make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
-				loff_t * old_isize, struct inode * inode)
+				loff_t * old_isize, struct inode *inode)
 {
 	int i;
 	int old_refcnt;
@@ -1232,19 +1147,23 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 	assert("edward-971", clust->reserved == 1);
 	assert("edward-1028", spin_jnode_is_locked(node));
 	assert("edward-972", node->page_count < cluster_nrpages(inode));
-	assert("edward-1263", clust->reserved_prepped ==  estimate_insert_cluster(inode, 0));
+	assert("edward-1263",
+	       clust->reserved_prepped == estimate_insert_cluster(inode, 0));
 	assert("edward-1264", clust->reserved_unprepped == 0);
-
 
 	if (jnode_is_dirty(node)) {
 		/* there are >= 1 pages already referenced by this jnode */
-		assert("edward-973", count_to_nrpages(off_to_count(*old_isize, clust->index, inode)));
-		old_refcnt = count_to_nrpages(off_to_count(*old_isize, clust->index, inode)) - 1;
+		assert("edward-973",
+		       count_to_nrpages(off_to_count
+					(*old_isize, clust->index, inode)));
+		old_refcnt =
+		    count_to_nrpages(off_to_count
+				     (*old_isize, clust->index, inode)) - 1;
 		/* space for the disk cluster is already reserved */
 
-		free_reserved4cluster(inode, clust, estimate_insert_cluster(inode, 0));
-	}
-	else {
+		free_reserved4cluster(inode, clust,
+				      estimate_insert_cluster(inode, 0));
+	} else {
 		/* there is only one page referenced by this jnode */
 		assert("edward-1043", node->page_count == 0);
 		old_refcnt = 0;
@@ -1252,7 +1171,7 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 		clust->reserved = 0;
 	}
 #if REISER4_DEBUG
-	clust->reserved_prepped -=  estimate_insert_cluster(inode, 0);
+	clust->reserved_prepped -= estimate_insert_cluster(inode, 0);
 #endif
 	new_refcnt = cluster_nrpages_to_capture(clust) - 1;
 
@@ -1283,12 +1202,11 @@ make_cluster_jnode_dirty_locked(reiser4_cluster_t * clust, jnode * node,
 /* This is the interface to capture page cluster.
    All the cluster pages contain dependent modifications
    and should be committed at the same time */
-static int
-try_capture_cluster(reiser4_cluster_t * clust, struct inode * inode)
+static int try_capture_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
 	int result = 0;
 	loff_t old_size = inode->i_size;
-	jnode * node;
+	jnode *node;
 
 	assert("edward-1029", clust != NULL);
 	assert("edward-1030", clust->reserved == 1);
@@ -1308,7 +1226,7 @@ try_capture_cluster(reiser4_cluster_t * clust, struct inode * inode)
 	if (result)
 		goto exit;
 	make_cluster_jnode_dirty_locked(clust, node, &old_size, inode);
- exit:
+      exit:
 	assert("edward-1034", !result);
 	UNLOCK_JNODE(node);
 	jput(node);
@@ -1317,11 +1235,11 @@ try_capture_cluster(reiser4_cluster_t * clust, struct inode * inode)
 
 /* Collect unlocked cluster pages and jnode */
 static int
-grab_cluster_pages_jnode(struct inode * inode, reiser4_cluster_t * clust)
+grab_cluster_pages_jnode(struct inode *inode, reiser4_cluster_t * clust)
 {
 	int i;
 	int result = 0;
-	jnode * node = NULL;
+	jnode *node = NULL;
 
 	assert("edward-182", clust != NULL);
 	assert("edward-183", clust->pages != NULL);
@@ -1334,7 +1252,9 @@ grab_cluster_pages_jnode(struct inode * inode, reiser4_cluster_t * clust)
 
 		assert("edward-1044", clust->pages[i] == NULL);
 
-		clust->pages[i] = grab_cache_page(inode->i_mapping, clust_to_pg(clust->index, inode) + i);
+		clust->pages[i] =
+		    grab_cache_page(inode->i_mapping,
+				    clust_to_pg(clust->index, inode) + i);
 		if (!clust->pages[i]) {
 			result = RETERR(-ENOMEM);
 			break;
@@ -1352,7 +1272,7 @@ grab_cluster_pages_jnode(struct inode * inode, reiser4_cluster_t * clust)
 		unlock_page(clust->pages[i]);
 	}
 	if (result) {
-		while(i)
+		while (i)
 			page_cache_release(clust->pages[--i]);
 		if (node && !IS_ERR(node))
 			jput(node);
@@ -1366,8 +1286,7 @@ grab_cluster_pages_jnode(struct inode * inode, reiser4_cluster_t * clust)
 }
 
 /* collect unlocked cluster pages */
-static int
-grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
+static int grab_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 {
 	int i;
 	int result = 0;
@@ -1378,7 +1297,9 @@ grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 	assert("edward-790", clust->nr_pages <= cluster_nrpages(inode));
 
 	for (i = 0; i < clust->nr_pages; i++) {
-		clust->pages[i] = grab_cache_page(inode->i_mapping, clust_to_pg(clust->index, inode) + i);
+		clust->pages[i] =
+		    grab_cache_page(inode->i_mapping,
+				    clust_to_pg(clust->index, inode) + i);
 		if (!clust->pages[i]) {
 			result = RETERR(-ENOMEM);
 			break;
@@ -1386,14 +1307,13 @@ grab_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 		unlock_page(clust->pages[i]);
 	}
 	if (result)
-		while(i)
+		while (i)
 			page_cache_release(clust->pages[--i]);
 	return result;
 }
 
 /* put cluster pages */
-static void
-release_cluster_pages(reiser4_cluster_t * clust, int from)
+static void release_cluster_pages(reiser4_cluster_t * clust, int from)
 {
 	int i;
 
@@ -1408,8 +1328,7 @@ release_cluster_pages(reiser4_cluster_t * clust, int from)
 	}
 }
 
-static void
-release_cluster_pages_capture(reiser4_cluster_t * clust)
+static void release_cluster_pages_capture(reiser4_cluster_t * clust)
 {
 	assert("edward-1278", clust != NULL);
 	assert("edward-1279", clust->nr_pages != 0);
@@ -1417,16 +1336,14 @@ release_cluster_pages_capture(reiser4_cluster_t * clust)
 	return release_cluster_pages(clust, 1);
 }
 
-reiser4_internal void
-release_cluster_pages_nocapture(reiser4_cluster_t * clust)
+void release_cluster_pages_nocapture(reiser4_cluster_t * clust)
 {
 	return release_cluster_pages(clust, 0);
 }
 
-static void
-release_cluster_pages_and_jnode(reiser4_cluster_t * clust)
+static void release_cluster_pages_and_jnode(reiser4_cluster_t * clust)
 {
-	jnode * node;
+	jnode *node;
 
 	assert("edward-445", clust != NULL);
 	assert("edward-922", clust->pages != NULL);
@@ -1442,18 +1359,16 @@ release_cluster_pages_and_jnode(reiser4_cluster_t * clust)
 }
 
 #if REISER4_DEBUG
-static int
-window_ok(reiser4_slide_t * win, struct inode * inode)
+static int window_ok(reiser4_slide_t * win, struct inode *inode)
 {
-	assert ("edward-1115", win != NULL);
-	assert ("edward-1116", ergo(win->delta, win->stat == HOLE_WINDOW));
+	assert("edward-1115", win != NULL);
+	assert("edward-1116", ergo(win->delta, win->stat == HOLE_WINDOW));
 
 	return (win->off != inode_cluster_size(inode)) &&
-		(win->off + win->count + win->delta <= inode_cluster_size(inode));
+	    (win->off + win->count + win->delta <= inode_cluster_size(inode));
 }
 
-static int
-cluster_ok(reiser4_cluster_t * clust, struct inode * inode)
+static int cluster_ok(reiser4_cluster_t * clust, struct inode *inode)
 {
 	assert("edward-279", clust != NULL);
 
@@ -1464,23 +1379,23 @@ cluster_ok(reiser4_cluster_t * clust, struct inode * inode)
 #endif
 
 /* guess next window stat */
-static inline window_stat
-next_window_stat(reiser4_slide_t * win)
+static inline window_stat next_window_stat(reiser4_slide_t * win)
 {
-	assert ("edward-1130", win != NULL);
+	assert("edward-1130", win != NULL);
 	return ((win->stat == HOLE_WINDOW && win->delta == 0) ?
 		HOLE_WINDOW : DATA_WINDOW);
 }
 
 /* guess next cluster index and window params */
 static void
-update_cluster(struct inode * inode, reiser4_cluster_t * clust, loff_t file_off, loff_t to_file)
+update_cluster(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off,
+	       loff_t to_file)
 {
-	reiser4_slide_t * win;
+	reiser4_slide_t *win;
 
-	assert ("edward-185", clust != NULL);
-	assert ("edward-438", clust->pages != NULL);
-	assert ("edward-281", cluster_ok(clust, inode));
+	assert("edward-185", clust != NULL);
+	assert("edward-438", clust->pages != NULL);
+	assert("edward-281", cluster_ok(clust, inode));
 
 	win = clust->win;
 	if (!win)
@@ -1495,14 +1410,16 @@ update_cluster(struct inode * inode, reiser4_cluster_t * clust, loff_t file_off,
 		win->count = min_count(inode_cluster_size(inode), to_file);
 		break;
 	case HOLE_WINDOW:
-		switch(next_window_stat(win)) {
+		switch (next_window_stat(win)) {
 		case HOLE_WINDOW:
 			/* set window to fit the offset we start write from */
 			clust->index = off_to_clust(file_off, inode);
 			win->stat = HOLE_WINDOW;
 			win->off = 0;
 			win->count = off_to_cloff(file_off, inode);
-			win->delta = min_count(inode_cluster_size(inode) - win->count, to_file);
+			win->delta =
+			    min_count(inode_cluster_size(inode) - win->count,
+				      to_file);
 			break;
 		case DATA_WINDOW:
 			/* do not move the window, just change its state,
@@ -1513,26 +1430,25 @@ update_cluster(struct inode * inode, reiser4_cluster_t * clust, loff_t file_off,
 			win->delta = 0;
 			break;
 		default:
-			impossible ("edward-282", "wrong next window state");
+			impossible("edward-282", "wrong next window state");
 		}
 		break;
 	default:
-		impossible ("edward-283", "wrong current window state");
+		impossible("edward-283", "wrong current window state");
 	}
-	assert ("edward-1068", cluster_ok(clust, inode));
+	assert("edward-1068", cluster_ok(clust, inode));
 }
 
-static int
-update_sd_cryptcompress(struct inode *inode)
+static int update_sd_cryptcompress(struct inode *inode)
 {
 	int result = 0;
 
 	assert("edward-978", schedulable());
 	assert("edward-1265", get_current_context()->grabbed_blocks == 0);
 
-	result = reiser4_grab_space_force(/* one for stat data update */
-					  estimate_update_common(inode),
-					  BA_CAN_COMMIT);
+	result = reiser4_grab_space_force(	/* one for stat data update */
+						 estimate_update_common(inode),
+						 BA_CAN_COMMIT);
 	assert("edward-979", !result);
 	if (result)
 		return result;
@@ -1543,18 +1459,17 @@ update_sd_cryptcompress(struct inode *inode)
 	return result;
 }
 
-static void
-uncapture_cluster_jnode(jnode *node)
+static void uncapture_cluster_jnode(jnode * node)
 {
 	txn_atom *atom;
 
 	assert("edward-1023", spin_jnode_is_locked(node));
 
-	/*jnode_make_clean(node);*/
+	/*jnode_make_clean(node); */
 	atom = jnode_get_atom(node);
 	if (atom == NULL) {
 		assert("jmacd-7111", !jnode_is_dirty(node));
-		UNLOCK_JNODE (node);
+		UNLOCK_JNODE(node);
 		return;
 	}
 
@@ -1563,8 +1478,7 @@ uncapture_cluster_jnode(jnode *node)
 	jput(node);
 }
 
-reiser4_internal void
-forget_cluster_pages(struct page ** pages, int nr)
+void forget_cluster_pages(struct page **pages, int nr)
 {
 	int i;
 	for (i = 0; i < nr; i++) {
@@ -1578,14 +1492,14 @@ forget_cluster_pages(struct page ** pages, int nr)
    Try to do it in one step. Return -E_REPEAT when it is
    impossible because of races with concurrent processes.
 */
-reiser4_internal int
+int
 flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
-		    struct inode * inode)
+		    struct inode *inode)
 {
 	int result = 0;
 	int i;
 	int nr_pages = 0;
-	tfm_cluster_t * tc = &clust->tc;
+	tfm_cluster_t *tc = &clust->tc;
 
 	assert("edward-980", node != NULL);
 	assert("edward-236", inode != NULL);
@@ -1628,8 +1542,9 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 	if (result)
 		return result;
 
-	nr_pages = find_get_pages(inode->i_mapping, clust_to_pg(clust->index, inode),
-				clust->nr_pages, clust->pages);
+	nr_pages =
+	    find_get_pages(inode->i_mapping, clust_to_pg(clust->index, inode),
+			   clust->nr_pages, clust->pages);
 
 	if (nr_pages != clust->nr_pages) {
 		/* the page cluster get truncated, try again */
@@ -1638,17 +1553,17 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 			" get truncated from %u to %u pages\n",
 			clust->index,
 			(unsigned long long)get_inode_oid(inode),
-			clust->nr_pages,
-			nr_pages);
+			clust->nr_pages, nr_pages);
 		forget_cluster_pages(clust->pages, nr_pages);
 		return RETERR(-E_REPEAT);
 	}
-	for (i = 0; i < clust->nr_pages; i++){
-		char * data;
+	for (i = 0; i < clust->nr_pages; i++) {
+		char *data;
 
 		assert("edward-242", clust->pages[i] != NULL);
 
-		if (clust->pages[i]->index != clust_to_pg(clust->index, inode) + i) {
+		if (clust->pages[i]->index !=
+		    clust_to_pg(clust->index, inode) + i) {
 			/* holes in the indices of found group of pages:
 			   page cluster get truncated, transform impossible */
 			warning("edward-1282",
@@ -1689,39 +1604,42 @@ flush_cluster_pages(reiser4_cluster_t * clust, jnode * node,
 	/* input stream is ready for transform */
 
 	clear_cluster_pages_dirty(clust);
- finish:
+      finish:
 	release_cluster_pages_capture(clust);
 	return result;
 }
 
 /* set hint for the cluster of the index @index */
-reiser4_internal void
-set_hint_cluster(struct inode * inode, hint_t * hint,
+void
+set_hint_cluster(struct inode *inode, hint_t * hint,
 		 cloff_t index, znode_lock_mode mode)
 {
 	reiser4_key key;
 	assert("edward-722", crc_inode_ok(inode));
-	assert("edward-723", inode_file_plugin(inode) == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	assert("edward-723",
+	       inode_file_plugin(inode) ==
+	       file_plugin_by_id(CRC_FILE_PLUGIN_ID));
 
-	inode_file_plugin(inode)->key_by_inode(inode, clust_to_off(index, inode), &key);
+	inode_file_plugin(inode)->key_by_inode(inode,
+					       clust_to_off(index, inode),
+					       &key);
 
 	seal_init(&hint->seal, &hint->ext_coord.coord, &key);
 	hint->offset = get_key_offset(&key);
 	hint->mode = mode;
 }
 
-reiser4_internal void
-invalidate_hint_cluster(reiser4_cluster_t * clust)
+void invalidate_hint_cluster(reiser4_cluster_t * clust)
 {
 	assert("edward-1291", clust != NULL);
 	assert("edward-1292", clust->hint != NULL);
 
-	done_lh(clust->hint->ext_coord.lh);
+	done_lh(&clust->hint->lh);
 	clust->hint->ext_coord.valid = 0;
 }
 
 static void
-put_hint_cluster(reiser4_cluster_t * clust, struct inode * inode,
+put_hint_cluster(reiser4_cluster_t * clust, struct inode *inode,
 		 znode_lock_mode mode)
 {
 	assert("edward-1286", clust != NULL);
@@ -1732,7 +1650,7 @@ put_hint_cluster(reiser4_cluster_t * clust, struct inode * inode,
 }
 
 static int
-balance_dirty_page_cluster(reiser4_cluster_t * clust, struct inode * inode,
+balance_dirty_page_cluster(reiser4_cluster_t * clust, struct inode *inode,
 			   loff_t off, loff_t to_file)
 {
 	int result;
@@ -1748,7 +1666,7 @@ balance_dirty_page_cluster(reiser4_cluster_t * clust, struct inode * inode,
 	assert("edward-988", !result);
 	if (result)
 		return result;
-	assert("edward-726", clust->hint->ext_coord.lh->owner == NULL);
+	assert("edward-726", clust->hint->lh.owner == NULL);
 
 	reiser4_throttle_write(inode);
 	all_grabbed2free();
@@ -1757,42 +1675,43 @@ balance_dirty_page_cluster(reiser4_cluster_t * clust, struct inode * inode,
 
 /* set zeroes to the cluster, update it, and maybe, try to capture its pages */
 static int
-write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff_t to_file)
+write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off,
+	   loff_t to_file)
 {
-	char * data;
+	char *data;
 	int result = 0;
 	unsigned cl_off, cl_count = 0;
 	unsigned to_pg, pg_off;
-	reiser4_slide_t * win;
+	reiser4_slide_t *win;
 
-	assert ("edward-190", clust != NULL);
-	assert ("edward-1069", clust->win != NULL);
-	assert ("edward-191", inode != NULL);
-	assert ("edward-727", crc_inode_ok(inode));
-	assert ("edward-1171", clust->dstat != INVAL_DISK_CLUSTER);
-	assert ("edward-1154",
-		ergo(clust->dstat != FAKE_DISK_CLUSTER, clust->reserved == 1));
+	assert("edward-190", clust != NULL);
+	assert("edward-1069", clust->win != NULL);
+	assert("edward-191", inode != NULL);
+	assert("edward-727", crc_inode_ok(inode));
+	assert("edward-1171", clust->dstat != INVAL_DISK_CLUSTER);
+	assert("edward-1154",
+	       ergo(clust->dstat != FAKE_DISK_CLUSTER, clust->reserved == 1));
 
 	win = clust->win;
 
-	assert ("edward-1070", win != NULL);
-	assert ("edward-201", win->stat == HOLE_WINDOW);
-	assert ("edward-192", cluster_ok(clust, inode));
+	assert("edward-1070", win != NULL);
+	assert("edward-201", win->stat == HOLE_WINDOW);
+	assert("edward-192", cluster_ok(clust, inode));
 
 	if (win->off == 0 && win->count == inode_cluster_size(inode)) {
 		/* the hole will be represented by fake disk cluster */
 		update_cluster(inode, clust, file_off, to_file);
 		return 0;
 	}
-	cl_count = win->count; /* number of zeroes to write */
+	cl_count = win->count;	/* number of zeroes to write */
 	cl_off = win->off;
 	pg_off = off_to_pgoff(win->off);
 
 	while (cl_count) {
-		struct page * page;
+		struct page *page;
 		page = clust->pages[off_to_pg(cl_off)];
 
-		assert ("edward-284", page != NULL);
+		assert("edward-284", page != NULL);
 
 		to_pg = min_count(PAGE_CACHE_SIZE - pg_off, cl_count);
 		lock_page(page);
@@ -1815,9 +1734,9 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
 		if (result)
 			return result;
 		put_hint_cluster(clust, inode, ZNODE_WRITE_LOCK);
-		result = balance_dirty_page_cluster(clust, inode, file_off, to_file);
-	}
-	else
+		result =
+		    balance_dirty_page_cluster(clust, inode, file_off, to_file);
+	} else
 		update_cluster(inode, clust, file_off, to_file);
 	return result;
 }
@@ -1831,20 +1750,18 @@ write_hole(struct inode *inode, reiser4_cluster_t * clust, loff_t file_off, loff
   NOTE-EDWARD: Callers should handle the case when disk cluster
   is incomplete (-EIO)
 */
-reiser4_internal int
+int
 find_cluster(reiser4_cluster_t * clust,
-	     struct inode * inode,
-	     int read,
-	     int write)
+	     struct inode *inode, int read, int write)
 {
 	flow_t f;
-	hint_t * hint;
+	hint_t *hint;
 	int result;
 	unsigned long cl_idx;
 	ra_info_t ra_info;
-	file_plugin * fplug;
-	item_plugin * iplug;
-	tfm_cluster_t * tc;
+	file_plugin *fplug;
+	item_plugin *iplug;
+	tfm_cluster_t *tc;
 
 #if REISER4_DEBUG
 	reiser4_context *ctx;
@@ -1869,14 +1786,16 @@ find_cluster(reiser4_cluster_t * clust,
 
 	/* set key of the first disk cluster item */
 	fplug->flow_by_inode(inode,
-			     (read ? tfm_stream_data(tc, INPUT_STREAM) : 0),
-			     0 /* kernel space */,
+			     (read ? (char __user *)tfm_stream_data(tc, INPUT_STREAM) : NULL),
+			     0 /* kernel space */ ,
 			     inode_scaled_cluster_size(inode),
 			     clust_to_off(cl_idx, inode), READ_OP, &f);
 	if (write) {
 		/* reserve for flush to make dirty all the leaf nodes
 		   which contain disk cluster */
-		result = reiser4_grab_space_force(estimate_disk_cluster(inode), BA_CAN_COMMIT);
+		result =
+		    reiser4_grab_space_force(estimate_disk_cluster(inode),
+					     BA_CAN_COMMIT);
 		assert("edward-990", !result);
 		if (result)
 			goto out2;
@@ -1888,13 +1807,15 @@ find_cluster(reiser4_cluster_t * clust,
 	while (f.length) {
 		result = find_cluster_item(hint,
 					   &f.key,
-					   (write ? ZNODE_WRITE_LOCK : ZNODE_READ_LOCK),
-					   NULL,
-					   FIND_EXACT,
+					   (write ? ZNODE_WRITE_LOCK :
+					    ZNODE_READ_LOCK), NULL, FIND_EXACT,
 					   (write ? CBK_FOR_INSERT : 0));
 		switch (result) {
 		case CBK_COORD_NOTFOUND:
-			if (inode_scaled_offset(inode, clust_to_off(cl_idx, inode)) == get_key_offset(&f.key)) {
+			if (inode_scaled_offset
+			    (inode,
+			     clust_to_off(cl_idx,
+					  inode)) == get_key_offset(&f.key)) {
 				/* first item not found, this is treated
 				   as disk cluster is absent */
 				clust->dstat = FAKE_DISK_CLUSTER;
@@ -1902,11 +1823,14 @@ find_cluster(reiser4_cluster_t * clust,
 				goto out2;
 			}
 			/* we are outside the cluster, stop search here */
-			assert("edward-146", f.length != inode_scaled_cluster_size(inode));
+			assert("edward-146",
+			       f.length != inode_scaled_cluster_size(inode));
 			goto ok;
 		case CBK_COORD_FOUND:
-			assert("edward-148", hint->ext_coord.coord.between == AT_UNIT);
-			assert("edward-460", hint->ext_coord.coord.unit_pos == 0);
+			assert("edward-148",
+			       hint->ext_coord.coord.between == AT_UNIT);
+			assert("edward-460",
+			       hint->ext_coord.coord.unit_pos == 0);
 
 			coord_clear_iplug(&hint->ext_coord.coord);
 			result = zload_ra(hint->ext_coord.coord.node, &ra_info);
@@ -1914,14 +1838,16 @@ find_cluster(reiser4_cluster_t * clust,
 				goto out2;
 			iplug = item_plugin_by_coord(&hint->ext_coord.coord);
 			assert("edward-147",
-			       item_id_by_coord(&hint->ext_coord.coord) == CTAIL_ID);
+			       item_id_by_coord(&hint->ext_coord.coord) ==
+			       CTAIL_ID);
 
 			result = iplug->s.file.read(NULL, &f, hint);
 			if (result)
 				goto out;
 			if (write) {
 				znode_make_dirty(hint->ext_coord.coord.node);
-				znode_set_convertible(hint->ext_coord.coord.node);
+				znode_set_convertible(hint->ext_coord.coord.
+						      node);
 			}
 			zrelse(hint->ext_coord.coord.node);
 			break;
@@ -1929,7 +1855,7 @@ find_cluster(reiser4_cluster_t * clust,
 			goto out2;
 		}
 	}
- ok:
+      ok:
 	/* at least one item was found  */
 	/* NOTE-EDWARD: Callers should handle the case when disk cluster is incomplete (-EIO) */
 	tc->len = inode_scaled_cluster_size(inode) - f.length;
@@ -1941,15 +1867,15 @@ find_cluster(reiser4_cluster_t * clust,
 		clust->dstat = PREP_DISK_CLUSTER;
 	all_grabbed2free();
 	return 0;
- out:
+      out:
 	zrelse(hint->ext_coord.coord.node);
- out2:
+      out2:
 	all_grabbed2free();
 	return result;
 }
 
-reiser4_internal int
-get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode,
+int
+get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode *inode,
 			znode_lock_mode lock_mode)
 {
 	reiser4_key key;
@@ -1961,15 +1887,20 @@ get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode,
 
 	if (clust->hint->ext_coord.valid) {
 		assert("edward-1293", clust->dstat != INVAL_DISK_CLUSTER);
-		assert("edward-1294", znode_is_write_locked(clust->hint->ext_coord.lh->node));
+		assert("edward-1294",
+		       znode_is_write_locked(clust->hint->lh.node));
 		/* already have a valid locked position */
-		return (clust->dstat == FAKE_DISK_CLUSTER ? CBK_COORD_NOTFOUND : CBK_COORD_FOUND);
+		return (clust->dstat ==
+			FAKE_DISK_CLUSTER ? CBK_COORD_NOTFOUND :
+			CBK_COORD_FOUND);
 	}
-	key_by_inode_cryptcompress(inode, clust_to_off(clust->index, inode), &key);
+	key_by_inode_cryptcompress(inode, clust_to_off(clust->index, inode),
+				   &key);
 	ra_info.key_to_stop = key;
 	set_key_offset(&ra_info.key_to_stop, get_key_offset(max_key()));
 
-	return find_cluster_item(clust->hint, &key, lock_mode, NULL, FIND_EXACT, CBK_FOR_INSERT);
+	return find_cluster_item(clust->hint, &key, lock_mode, NULL, FIND_EXACT,
+				 CBK_FOR_INSERT);
 }
 
 /* Read needed cluster pages before modifying.
@@ -1979,12 +1910,12 @@ get_disk_cluster_locked(reiser4_cluster_t * clust, struct inode * inode,
    . make disk cluster dirty if its state is not FAKE_DISK_CLUSTER.
 */
 static int
-read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
+read_some_cluster_pages(struct inode *inode, reiser4_cluster_t * clust)
 {
 	int i;
 	int result = 0;
-	item_plugin * iplug;
-	reiser4_slide_t * win = clust->win;
+	item_plugin *iplug;
+	reiser4_slide_t *win = clust->win;
 
 	iplug = item_plugin_by_id(CTAIL_ID);
 
@@ -2002,24 +1933,24 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 	if (new_cluster(clust, inode)) {
 		/*
 		   new page cluster is about to be written, nothing to read,
-		*/
+		 */
 		assert("edward-734", schedulable());
-		assert("edward-735", clust->hint->ext_coord.lh->owner == NULL);
+		assert("edward-735", clust->hint->lh.owner == NULL);
 
 		clust->dstat = FAKE_DISK_CLUSTER;
 		return 0;
 	}
 	/*
-	  Here we should search for disk cluster to figure out its real state.
-	  Also there is one more important reason to do disk search: we need
-	  to make disk cluster _dirty_ if it exists
-	*/
+	   Here we should search for disk cluster to figure out its real state.
+	   Also there is one more important reason to do disk search: we need
+	   to make disk cluster _dirty_ if it exists
+	 */
 
 	/* if windows is specified, read the only pages
 	   that will be modified partially */
 
 	for (i = 0; i < clust->nr_pages; i++) {
-		struct page * pg = clust->pages[i];
+		struct page *pg = clust->pages[i];
 
 		lock_page(pg);
 		if (PageUptodate(pg)) {
@@ -2040,15 +1971,17 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 		    (count_to_nrpages(inode->i_size) <= pg->index)) {
 			/* .. and appended,
 			   so set zeroes to the rest */
-			char * data;
+			char *data;
 			int offset;
 			lock_page(pg);
 			data = kmap_atomic(pg, KM_USER0);
 
 			assert("edward-1260",
-			       count_to_nrpages(win->off + win->count + win->delta) - 1 == i);
+			       count_to_nrpages(win->off + win->count +
+						win->delta) - 1 == i);
 
-			offset = off_to_pgoff(win->off + win->count + win->delta);
+			offset =
+			    off_to_pgoff(win->off + win->count + win->delta);
 			memset(data + offset, 0, PAGE_CACHE_SIZE - offset);
 			flush_dcache_page(pg);
 			kunmap_atomic(data, KM_USER0);
@@ -2057,36 +1990,41 @@ read_some_cluster_pages(struct inode * inode, reiser4_cluster_t * clust)
 			break;
 		}
 		if (!tfm_cluster_is_uptodate(&clust->tc)) {
-			result = ctail_read_cluster(clust, inode, 1 /* write */);
+			result =
+			    ctail_read_cluster(clust, inode, 1 /* write */ );
 			assert("edward-992", !result);
 			if (result)
 				goto out;
-			assert("edward-925", tfm_cluster_is_uptodate(&clust->tc));
+			assert("edward-925",
+			       tfm_cluster_is_uptodate(&clust->tc));
 		}
 		lock_page(pg);
-		result =  do_readpage_ctail(clust, pg);
+		result = do_readpage_ctail(clust, pg);
 		unlock_page(pg);
 		assert("edward-993", !result);
 		if (result) {
-			impossible("edward-219", "do_readpage_ctail returned crap");
+			impossible("edward-219",
+				   "do_readpage_ctail returned crap");
 			goto out;
 		}
 	}
 	if (!tfm_cluster_is_uptodate(&clust->tc)) {
 		/* disk cluster unclaimed, but we need to make its znodes dirty
 		   to make flush update convert its content */
-		result = find_cluster(clust, inode, 0 /* do not read */, 1 /*write */);
+		result =
+		    find_cluster(clust, inode, 0 /* do not read */ ,
+				 1 /*write */ );
 		assert("edward-994", !cbk_errored(result));
 		if (!cbk_errored(result))
 			result = 0;
 	}
- out:
+      out:
 	tfm_cluster_clr_uptodate(&clust->tc);
 	return result;
 }
 
 static int
-should_create_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode)
+should_create_unprepped_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
 	assert("edward-737", clust != NULL);
 
@@ -2096,8 +2034,7 @@ should_create_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode)
 		return 0;
 	case FAKE_DISK_CLUSTER:
 		if (clust->win &&
-		    clust->win->stat == HOLE_WINDOW &&
-		    clust->nr_pages == 0) {
+		    clust->win->stat == HOLE_WINDOW && clust->nr_pages == 0) {
 			assert("edward-1172", new_cluster(clust, inode));
 			return 0;
 		}
@@ -2109,7 +2046,7 @@ should_create_unprepped_cluster(reiser4_cluster_t * clust, struct inode * inode)
 }
 
 static int
-crc_make_unprepped_cluster (reiser4_cluster_t * clust, struct inode * inode)
+crc_make_unprepped_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
 	int result;
 
@@ -2120,10 +2057,12 @@ crc_make_unprepped_cluster (reiser4_cluster_t * clust, struct inode * inode)
 	assert("edward-1053", clust->hint != NULL);
 	assert("edward-1266", get_current_context()->grabbed_blocks == 0);
 
-	if (clust->reserved){
+	if (clust->reserved) {
 		cluster_reserved2grabbed(estimate_insert_cluster(inode, 1));
 #if REISER4_DEBUG
-		assert("edward-1267", clust->reserved_unprepped == estimate_insert_cluster(inode, 1));
+		assert("edward-1267",
+		       clust->reserved_unprepped ==
+		       estimate_insert_cluster(inode, 1));
 		clust->reserved_unprepped -= estimate_insert_cluster(inode, 1);
 #endif
 	}
@@ -2140,18 +2079,19 @@ crc_make_unprepped_cluster (reiser4_cluster_t * clust, struct inode * inode)
 
 	assert("edward-743", crc_inode_ok(inode));
 	assert("edward-1269", get_current_context()->grabbed_blocks == 0);
-	assert("edward-744", znode_is_write_locked(clust->hint->ext_coord.lh->node));
+	assert("edward-744", znode_is_write_locked(clust->hint->lh.node));
 
 	clust->dstat = UNPR_DISK_CLUSTER;
 	return 0;
 }
 
 #if REISER4_DEBUG
-static int
-jnode_truncate_ok(struct inode *inode, cloff_t index)
+static int jnode_truncate_ok(struct inode *inode, cloff_t index)
 {
-	jnode * node;
-	node = jlookup(current_tree, get_inode_oid(inode), clust_to_pg(index, inode));
+	jnode *node;
+	node =
+	    jlookup(current_tree, get_inode_oid(inode),
+		    clust_to_pg(index, inode));
 	if (node) {
 		warning("edward-1315", "jnode %p is untruncated\n", node);
 		jput(node);
@@ -2159,18 +2099,19 @@ jnode_truncate_ok(struct inode *inode, cloff_t index)
 	return (node == NULL);
 }
 
-static int
-jnodes_truncate_ok(struct inode * inode, cloff_t start)
+static int jnodes_truncate_ok(struct inode *inode, cloff_t start)
 {
 	int result;
-	jnode * node;
+	jnode *node;
 	reiser4_inode *info = reiser4_inode_data(inode);
-	reiser4_tree * tree = tree_by_inode(inode);
+	reiser4_tree *tree = tree_by_inode(inode);
 
 	RLOCK_TREE(tree);
 
-	result = radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(info), (void **)&node,
-					clust_to_pg(start, inode), 1);
+	result =
+	    radix_tree_gang_lookup(jnode_tree_by_reiser4_inode(info),
+				   (void **)&node, clust_to_pg(start, inode),
+				   1);
 	RUNLOCK_TREE(tree);
 	if (result)
 		warning("edward-1332", "Untruncated jnode %p\n", node);
@@ -2181,8 +2122,9 @@ jnodes_truncate_ok(struct inode * inode, cloff_t start)
 
 /* Collect unlocked cluster pages and jnode (the last is in the
    case when the page cluster will be modified and captured) */
-reiser4_internal int
-prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture)
+int
+prepare_page_cluster(struct inode *inode, reiser4_cluster_t * clust,
+		     int capture)
 {
 	assert("edward-177", inode != NULL);
 	assert("edward-741", crc_inode_ok(inode));
@@ -2192,26 +2134,29 @@ prepare_page_cluster(struct inode *inode, reiser4_cluster_t *clust, int capture)
 	reset_cluster_pgset(clust, cluster_nrpages(inode));
 	return (capture ?
 		grab_cluster_pages_jnode(inode, clust) :
-		grab_cluster_pages      (inode, clust));
+		grab_cluster_pages(inode, clust));
 }
 
 /* Truncate all the pages and jnode bound with the cluster of index @index */
-reiser4_internal void
-truncate_page_cluster(struct inode *inode, cloff_t index)
+void truncate_page_cluster(struct inode *inode, cloff_t index)
 {
 	int i;
 	int found = 0;
 	int nr_pages;
-	jnode * node;
-	struct page * pages[MAX_CLUSTER_NRPAGES];
+	jnode *node;
+	struct page *pages[MAX_CLUSTER_NRPAGES];
 
-	node = jlookup(current_tree, get_inode_oid(inode), clust_to_pg(index, inode));
+	node =
+	    jlookup(current_tree, get_inode_oid(inode),
+		    clust_to_pg(index, inode));
 	/* jnode is absent, just drop pages which can not
 	   acquire jnode because of exclusive access */
 	if (!node) {
 		truncate_inode_pages_range(inode->i_mapping,
 					   clust_to_off(index, inode),
-					   clust_to_off(index, inode) + inode_cluster_size(inode) - 1);
+					   clust_to_off(index,
+							inode) +
+					   inode_cluster_size(inode) - 1);
 		return;
 	}
 	/* jnode is present and may be dirty, if so, put
@@ -2236,13 +2181,12 @@ truncate_page_cluster(struct inode *inode, cloff_t index)
 		assert("edward-1199", PageUptodate(pages[0]));
 		uncapture_cluster_jnode(node);
 
-		for (i = 1; i < nr_pages ; i++) {
+		for (i = 1; i < nr_pages; i++) {
 			assert("edward-1200", PageUptodate(pages[i]));
 
 			page_cache_release(pages[i]);
 		}
-	}
-	else
+	} else
 		UNLOCK_JNODE(node);
 	/* now drop pages and jnode */
 	/* FIXME-EDWARD: Use truncate_complete_page in the loop above instead */
@@ -2251,7 +2195,9 @@ truncate_page_cluster(struct inode *inode, cloff_t index)
 	forget_cluster_pages(pages, found);
 	truncate_inode_pages_range(inode->i_mapping,
 				   clust_to_off(index, inode),
-				   clust_to_off(index, inode) + inode_cluster_size(inode) - 1);
+				   clust_to_off(index,
+						inode) +
+				   inode_cluster_size(inode) - 1);
 	assert("edward-1201", jnode_truncate_ok(inode, index));
 	return;
 }
@@ -2270,14 +2216,12 @@ truncate_page_cluster(struct inode *inode, cloff_t index)
 
 static int
 prepare_cluster(struct inode *inode,
-		loff_t file_off /* write position in the file */,
-		loff_t to_file, /* bytes of users data to write to the file */
-		reiser4_cluster_t *clust,
-		page_cluster_op op)
-
+		loff_t file_off /* write position in the file */ ,
+		loff_t to_file,	/* bytes of users data to write to the file */
+		reiser4_cluster_t * clust, page_cluster_op op)
 {
 	int result = 0;
-	reiser4_slide_t * win = clust->win;
+	reiser4_slide_t *win = clust->win;
 
 	assert("edward-1273", get_current_context()->grabbed_blocks == 0);
 	reset_cluster_params(clust);
@@ -2291,7 +2235,7 @@ prepare_cluster(struct inode *inode,
 	result = prepare_page_cluster(inode, clust, 1);
 	if (result)
 		return result;
-	result = reserve4cluster(inode, clust, msg);
+	result = reserve4cluster(inode, clust);
 	if (result)
 		goto err1;
 	result = read_some_cluster_pages(inode, clust);
@@ -2308,16 +2252,14 @@ prepare_cluster(struct inode *inode,
 	if (result)
 		goto err2;
 	if (win && win->stat == HOLE_WINDOW) {
- 		result = write_hole(inode, clust, file_off, to_file);
- 		if (result)
+		result = write_hole(inode, clust, file_off, to_file);
+		if (result)
 			goto err2;
 	}
 	return 0;
- err2:
-	free_reserved4cluster(inode,
-			      clust,
-			      estimate_insert_cluster(inode, 0));
- err1:
+      err2:
+	free_reserved4cluster(inode, clust, estimate_insert_cluster(inode, 0));
+      err1:
 	page_cache_release(clust->pages[0]);
 	release_cluster_pages_and_jnode(clust);
 	assert("edward-1125", 0);
@@ -2327,7 +2269,7 @@ prepare_cluster(struct inode *inode,
 /* set window by two offsets */
 static void
 set_window(reiser4_cluster_t * clust, reiser4_slide_t * win,
-	   struct inode * inode, loff_t o1, loff_t o2)
+	   struct inode *inode, loff_t o1, loff_t o2)
 {
 	assert("edward-295", clust != NULL);
 	assert("edward-296", inode != NULL);
@@ -2344,7 +2286,7 @@ set_window(reiser4_cluster_t * clust, reiser4_slide_t * win,
 }
 
 static int
-set_cluster_params(struct inode * inode, reiser4_cluster_t * clust,
+set_cluster_params(struct inode *inode, reiser4_cluster_t * clust,
 		   reiser4_slide_t * win, flow_t * f, loff_t file_off)
 {
 	int result;
@@ -2366,7 +2308,9 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust,
 		win->stat = HOLE_WINDOW;
 		if (win->off + hole_size < inode_cluster_size(inode))
 			/* there is also user's data to append to the hole */
-			win->delta = min_count(inode_cluster_size(inode) - (win->off + win->count), f->length);
+			win->delta =
+			    min_count(inode_cluster_size(inode) -
+				      (win->off + win->count), f->length);
 		return 0;
 	}
 	set_window(clust, win, inode, file_off, file_off + f->length);
@@ -2375,8 +2319,7 @@ set_cluster_params(struct inode * inode, reiser4_cluster_t * clust,
 }
 
 /* reset all the params that not get updated */
-reiser4_internal void
-reset_cluster_params(reiser4_cluster_t * clust)
+void reset_cluster_params(reiser4_cluster_t * clust)
 {
 	assert("edward-197", clust != NULL);
 
@@ -2392,12 +2335,12 @@ reset_cluster_params(reiser4_cluster_t * clust)
 /* FIXME_EDWARD replace flow by something lightweigth */
 
 static loff_t
-write_cryptcompress_flow(struct file * file , struct inode * inode, const char *buf, size_t count, loff_t pos)
+write_cryptcompress_flow(struct file *file, struct inode *inode,
+			 const char __user *buf, size_t count, loff_t pos)
 {
 	int i;
 	flow_t f;
-	hint_t hint;
-	lock_handle lh;
+	hint_t *hint;
 	int result = 0;
 	size_t to_write = 0;
 	loff_t file_off;
@@ -2412,29 +2355,37 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	result = check_cryptcompress(inode);
 	if (result)
 		return result;
-	result = load_file_hint(file, &hint);
-	if (result)
-		return result;
-	init_lh(&lh);
-	hint.ext_coord.lh = &lh;
+	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	if (hint == NULL)
+		return RETERR(-ENOMEM);
 
-	result = flow_by_inode_cryptcompress(inode, (char *)buf, 1 /* user space */, count, pos, WRITE_OP, &f);
+	result = load_file_hint(file, hint);
+	if (result) {
+		kfree(hint);
+		return result;
+	}
+
+	result =
+	    flow_by_inode_cryptcompress(inode, buf, 1 /* user space */ ,
+					count, pos, WRITE_OP, &f);
 	if (result)
 		goto out;
 	to_write = f.length;
 
-        /* current write position in file */
+	/* current write position in file */
 	file_off = pos;
 	reiser4_slide_init(&win);
 	reiser4_cluster_init(&clust, &win);
-	clust.hint = &hint;
+	clust.hint = hint;
 
 	result = set_cluster_params(inode, &clust, &win, &f, file_off);
 	if (result)
 		goto out;
 
 	if (next_window_stat(&win) == HOLE_WINDOW) {
-		result = prepare_cluster(inode, file_off, f.length, &clust, PCL_APPEND);
+		result =
+		    prepare_cluster(inode, file_off, f.length, &clust,
+				    PCL_APPEND);
 		if (result)
 			goto out;
 	}
@@ -2444,29 +2395,38 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 
 		assert("edward-750", schedulable());
 
-		result = prepare_cluster(inode, file_off, f.length, &clust, PCL_APPEND);
+		result =
+		    prepare_cluster(inode, file_off, f.length, &clust,
+				    PCL_APPEND);
 		if (result)
 			goto out;
 
 		assert("edward-751", crc_inode_ok(inode));
 		assert("edward-204", win.stat == DATA_WINDOW);
 		assert("edward-1288", clust.hint->ext_coord.valid);
-		assert("edward-752", znode_is_write_locked(hint.ext_coord.coord.node));
+		assert("edward-752",
+		       znode_is_write_locked(hint->ext_coord.coord.node));
 
 		put_hint_cluster(&clust, inode, ZNODE_WRITE_LOCK);
 
 		/* set write position in page */
 		page_off = off_to_pgoff(win.off);
 
-                /* copy user's data to cluster pages */
-		for (i = off_to_pg(win.off), src = f.data; i < count_to_nrpages(win.off + win.count); i++, src += page_count) {
-			page_count = off_to_pgcount(win.off + win.count, i) - page_off;
+		/* copy user's data to cluster pages */
+		for (i = off_to_pg(win.off), src = f.data;
+		     i < count_to_nrpages(win.off + win.count);
+		     i++, src += page_count) {
+			page_count =
+			    off_to_pgcount(win.off + win.count, i) - page_off;
 
-			assert("edward-1039", page_off + page_count <= PAGE_CACHE_SIZE);
+			assert("edward-1039",
+			       page_off + page_count <= PAGE_CACHE_SIZE);
 			assert("edward-287", clust.pages[i] != NULL);
 
 			lock_page(clust.pages[i]);
-			result = __copy_from_user((char *)kmap(clust.pages[i]) + page_off, src, page_count);
+			result =
+			    __copy_from_user((char *)kmap(clust.pages[i]) +
+					     page_off, (char __user *)src, page_count);
 			kunmap(clust.pages[i]);
 			if (unlikely(result)) {
 				unlock_page(clust.pages[i]);
@@ -2496,31 +2456,33 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 		   . unlock znode
 		   . update inode
 		   . balance dirty pages
-		*/
+		 */
 		result = balance_dirty_page_cluster(&clust, inode, 0, f.length);
-		if(result)
+		if (result)
 			goto err1;
-		assert("edward-755", hint.ext_coord.lh->owner == NULL);
+		assert("edward-755", hint->lh.owner == NULL);
 		reset_cluster_params(&clust);
 		continue;
-	err3:
+	      err3:
 		page_cache_release(clust.pages[0]);
-	err2:
+	      err2:
 		release_cluster_pages_and_jnode(&clust);
-	err1:
+	      err1:
 		if (clust.reserved)
 			free_reserved4cluster(inode,
 					      &clust,
-					      estimate_insert_cluster(inode, 0));
+					      estimate_insert_cluster(inode,
+								      0));
 		break;
 	} while (f.length);
- out:
-	done_lh(&lh);
- 	if (result == -EEXIST)
+      out:
+	done_lh(&hint->lh);
+	if (result == -EEXIST)
 		printk("write returns EEXIST!\n");
 
 	put_cluster_handle(&clust, TFM_READ);
-	save_file_hint(file, &hint);
+	save_file_hint(file, hint);
+	kfree(hint);
 	if (buf) {
 		/* if nothing were written - there must be an error */
 		assert("edward-195", ergo((to_write == f.length), result < 0));
@@ -2529,18 +2491,17 @@ write_cryptcompress_flow(struct file * file , struct inode * inode, const char *
 	return result;
 }
 
-static ssize_t
-write_crc_file(struct file * file, /* file to write to */
-	   struct inode *inode, /* inode */
-	   const char *buf, /* address of user-space buffer */
-	   size_t count, /* number of bytes to write */
-	   loff_t * off /* position to write which */)
+static ssize_t write_crc_file(struct file *file,	/* file to write to */
+			      struct inode *inode,	/* inode */
+			      const char __user *buf,	/* address of user-space buffer */
+			      size_t count,	/* number of bytes to write */
+			      loff_t * off /* position to write which */ )
 {
 
 	int result;
 	loff_t pos;
 	ssize_t written;
-	cryptcompress_info_t * info = cryptcompress_inode_data(inode);
+	cryptcompress_info_t *info = cryptcompress_inode_data(inode);
 
 	assert("edward-196", crc_inode_ok(inode));
 
@@ -2551,20 +2512,21 @@ write_crc_file(struct file * file, /* file to write to */
 	if (unlikely(count == 0))
 		return 0;
 
-        /* FIXME-EDWARD: other UNIX features */
+	/* FIXME-EDWARD: other UNIX features */
 
 	down_write(&info->lock);
 	LOCK_CNT_INC(inode_sem_w);
 
 	pos = *off;
-	written = write_cryptcompress_flow(file, inode, (char *)buf, count, pos);
+	written =
+	    write_cryptcompress_flow(file, inode, buf, count, pos);
 	if (written < 0) {
 		if (written == -EEXIST)
 			printk("write_crc_file returns EEXIST!\n");
 		return written;
 	}
 
-        /* update position in a file */
+	/* update position in a file */
 	*off = pos + written;
 
 	up_write(&info->lock);
@@ -2574,12 +2536,18 @@ write_crc_file(struct file * file, /* file to write to */
 	return written;
 }
 
-/* plugin->u.file.write */
-reiser4_internal ssize_t
-write_cryptcompress(struct file * file, /* file to write to */
-		    const char *buf, /* address of user-space buffer */
-		    size_t count, /* number of bytes to write */
-		    loff_t * off /* position to write which */)
+/**
+ * write_cryptcompress - write of struct file_operations
+ * @file: file to write to
+ * @buf: address of user-space buffer
+ * @read_amount: number of bytes to write
+ * @off: position in file to write to
+ *
+ * This is implementation of vfs's write method of struct file_operations for
+ * cryptcompress plugin.
+ */
+ssize_t write_cryptcompress(struct file *file, const char __user *buf,
+			    size_t count, loff_t *off)
 {
 	ssize_t result;
 	struct inode *inode;
@@ -2595,7 +2563,8 @@ write_cryptcompress(struct file * file, /* file to write to */
 }
 
 static void
-readpages_crc(struct address_space *mapping, struct list_head *pages, void *data)
+readpages_crc(struct address_space *mapping, struct list_head *pages,
+	      void *data)
 {
 	file_plugin *fplug;
 	item_plugin *iplug;
@@ -2612,22 +2581,32 @@ readpages_crc(struct address_space *mapping, struct list_head *pages, void *data
 	return;
 }
 
-static reiser4_block_nr
-cryptcompress_estimate_read(struct inode *inode)
+static reiser4_block_nr cryptcompress_estimate_read(struct inode *inode)
 {
-    	/* reserve one block to update stat data item */
+	/* reserve one block to update stat data item */
 	assert("edward-1193",
-	       inode_file_plugin(inode)->estimate.update == estimate_update_common);
+	       inode_file_plugin(inode)->estimate.update ==
+	       estimate_update_common);
 	return estimate_update_common(inode);
 }
 
-/* plugin->u.file.read */
-ssize_t read_cryptcompress(struct file * file, char *buf, size_t size, loff_t * off)
+/**
+ * read_cryptcompress - read of struct file_operations
+ * @file: file to read from
+ * @buf: address of user-space buffer
+ * @read_amount: number of bytes to read
+ * @off: position in file to read from
+ *
+ * This is implementation of vfs's read method of struct file_operations for
+ * cryptcompress plugin.
+ */
+ssize_t read_cryptcompress(struct file * file, char __user *buf, size_t size,
+			   loff_t * off)
 {
 	ssize_t result;
 	struct inode *inode;
-	reiser4_file_fsdata * fsdata;
-	cryptcompress_info_t * info;
+	reiser4_file_fsdata *fsdata;
+	cryptcompress_info_t *info;
 	reiser4_block_nr needed;
 
 	inode = file->f_dentry->d_inode;
@@ -2658,10 +2637,12 @@ ssize_t read_cryptcompress(struct file * file, char *buf, size_t size, loff_t * 
 }
 
 static void
-set_append_cluster_key(const coord_t *coord, reiser4_key *key, struct inode *inode)
+set_append_cluster_key(const coord_t * coord, reiser4_key * key,
+		       struct inode *inode)
 {
 	item_key_by_coord(coord, key);
-	set_key_offset(key, clust_to_off(clust_by_coord(coord, inode) + 1, inode));
+	set_key_offset(key,
+		       clust_to_off(clust_by_coord(coord, inode) + 1, inode));
 }
 
 /* If @index > 0, find real disk cluster of the index (@index - 1),
@@ -2670,52 +2651,61 @@ set_append_cluster_key(const coord_t *coord, reiser4_key *key, struct inode *ino
    It succes was returned:
    (@index == 0 && @found == 0) means that the object doesn't have real disk
    clusters.
-   (@index != 0 && @found == 0) means that disk cluster of (@index -1 ) doesn't
+   (@index != 0 && @found == 0) means that disk cluster of (@index -1) doesn't
    exist.
 */
 static int
-find_real_disk_cluster(struct inode * inode, cloff_t * found, cloff_t index)
+find_real_disk_cluster(struct inode *inode, cloff_t * found, cloff_t index)
 {
 	int result;
 	reiser4_key key;
 	loff_t offset;
-	hint_t hint;
+	hint_t *hint;
+	lock_handle *lh;
 	lookup_bias bias;
 	coord_t *coord;
-	lock_handle lh;
 	item_plugin *iplug;
 	file_plugin *fplug = inode_file_plugin(inode);
 
 	assert("edward-1131", fplug == file_plugin_by_id(CRC_FILE_PLUGIN_ID));
 	assert("edward-95", crc_inode_ok(inode));
 
-	init_lh(&lh);
-	hint_init_zero(&hint);
-	hint.ext_coord.lh = &lh;
+	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	if (hint == NULL)
+		return RETERR(-ENOMEM);
+	hint_init_zero(hint);
+	lh = &hint->lh;
 
-	bias =   (index ? FIND_EXACT : FIND_MAX_NOT_MORE_THAN);
-	offset = (index ? clust_to_off(index, inode) - 1 : get_key_offset(max_key()));
+	bias = (index ? FIND_EXACT : FIND_MAX_NOT_MORE_THAN);
+	offset =
+	    (index ? clust_to_off(index, inode) -
+	     1 : get_key_offset(max_key()));
 
 	fplug->key_by_inode(inode, offset, &key);
 
 	/* find the last item of this object */
-	result = find_cluster_item(&hint, &key, ZNODE_READ_LOCK, 0/* ra_info */, bias, 0);
+	result =
+	    find_cluster_item(hint, &key, ZNODE_READ_LOCK, NULL /* ra_info */,
+			      bias, 0);
 	if (cbk_errored(result)) {
-		done_lh(&lh);
+		done_lh(lh);
+		kfree(hint);
 		return result;
 	}
 	if (result == CBK_COORD_NOTFOUND) {
 		/* no real disk clusters */
-		done_lh(&lh);
+		done_lh(lh);
+		kfree(hint);
 		*found = 0;
 		return 0;
 	}
 	/* disk cluster is found */
-	coord = &hint.ext_coord.coord;
+	coord = &hint->ext_coord.coord;
 	coord_clear_iplug(coord);
 	result = zload(coord->node);
 	if (unlikely(result)) {
-		done_lh(&lh);
+		done_lh(lh);
+		kfree(hint);
 		return result;
 	}
 	iplug = item_plugin_by_coord(coord);
@@ -2729,25 +2719,24 @@ find_real_disk_cluster(struct inode * inode, cloff_t * found, cloff_t index)
 	assert("edward-1132", ergo(index, index == *found));
 
 	zrelse(coord->node);
-	done_lh(&lh);
-
+	done_lh(lh);
+	kfree(hint);
 	return 0;
 }
 
-static int
-find_fake_appended(struct inode *inode, cloff_t *index)
+static int find_fake_appended(struct inode *inode, cloff_t * index)
 {
-	return find_real_disk_cluster(inode, index, 0 /* find last real one */);
+	return find_real_disk_cluster(inode, index,
+				      0 /* find last real one */ );
 }
 
 /* Set left coord when unit is not found after node_lookup()
    This takes into account that there can be holes in a sequence
    of disk clusters */
 
-static void
-adjust_left_coord(coord_t * left_coord)
+static void adjust_left_coord(coord_t * left_coord)
 {
-	switch(left_coord->between) {
+	switch (left_coord->between) {
 	case AFTER_UNIT:
 		left_coord->between = AFTER_ITEM;
 	case AFTER_ITEM:
@@ -2760,10 +2749,11 @@ adjust_left_coord(coord_t * left_coord)
 }
 
 #define CRC_CUT_TREE_MIN_ITERATIONS 64
-reiser4_internal int
+int
 cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
-			      const reiser4_key * to_key, reiser4_key * smallest_removed,
-			      struct inode * object, int truncate, int *progress)
+			      const reiser4_key * to_key,
+			      reiser4_key * smallest_removed,
+			      struct inode *object, int truncate, int *progress)
 {
 	lock_handle next_node_lock;
 	coord_t left_coord;
@@ -2777,14 +2767,16 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 	init_lh(&next_node_lock);
 
 	while (1) {
-		znode       *node;  /* node from which items are cut */
-		node_plugin *nplug; /* node plugin for @node */
+		znode *node;	/* node from which items are cut */
+		node_plugin *nplug;	/* node plugin for @node */
 
 		node = tap->coord->node;
 
 		/* Move next_node_lock to the next node on the left. */
-		result = reiser4_get_left_neighbor(
-			&next_node_lock, node, ZNODE_WRITE_LOCK, GN_CAN_USE_UPPER_LEVELS);
+		result =
+		    reiser4_get_left_neighbor(&next_node_lock, node,
+					      ZNODE_WRITE_LOCK,
+					      GN_CAN_USE_UPPER_LEVELS);
 		if (result != 0 && result != -E_NO_NEIGHBOR)
 			break;
 		/* FIXME-EDWARD: Check can we delete the node as a whole. */
@@ -2792,7 +2784,7 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 		if (result)
 			return result;
 
-			/* Prepare the second (right) point for cut_node() */
+		/* Prepare the second (right) point for cut_node() */
 		if (*progress)
 			coord_init_last_unit(tap->coord, node);
 
@@ -2806,8 +2798,7 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 		assert("edward-1162", nplug->lookup);
 
 		/* left_coord is leftmost unit cut from @node */
-		result = nplug->lookup(node, from_key,
-				       FIND_EXACT, &left_coord);
+		result = nplug->lookup(node, from_key, FIND_EXACT, &left_coord);
 
 		if (IS_CBKERR(result))
 			break;
@@ -2816,12 +2807,14 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 			adjust_left_coord(&left_coord);
 
 		/* adjust coordinates so that they are set to existing units */
-		if (coord_set_to_right(&left_coord) || coord_set_to_left(tap->coord)) {
+		if (coord_set_to_right(&left_coord)
+		    || coord_set_to_left(tap->coord)) {
 			result = 0;
 			break;
 		}
 
-		if (coord_compare(&left_coord, tap->coord) == COORD_CMP_ON_RIGHT) {
+		if (coord_compare(&left_coord, tap->coord) ==
+		    COORD_CMP_ON_RIGHT) {
 			/* keys from @from_key to @to_key are not in the tree */
 			result = 0;
 			break;
@@ -2837,20 +2830,20 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 					   next_node_lock.node,
 					   object, truncate);
 #if REISER4_DEBUG
-		/*node_check(node, ~0U);*/
+		/*node_check(node, ~0U); */
 #endif
 		tap_relse(tap);
 
 		if (result)
 			break;
 
-		++ (*progress);
+		++(*progress);
 
 		/* Check whether all items with keys >= from_key were removed
 		 * from the tree. */
 		if (keyle(smallest_removed, from_key))
-			/* result = 0;*/
-				break;
+			/* result = 0; */
+			break;
 
 		if (next_node_lock.node == NULL)
 			break;
@@ -2863,11 +2856,10 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
 		/* Break long cut_tree operation (deletion of a large file) if
 		 * atom requires commit. */
 		if (*progress > CRC_CUT_TREE_MIN_ITERATIONS
-		    && current_atom_should_commit())
-			{
-				result = -E_REPEAT;
-				break;
-			}
+		    && current_atom_should_commit()) {
+			result = -E_REPEAT;
+			break;
+		}
 	}
 	done_lh(&next_node_lock);
 	return result;
@@ -2877,14 +2869,14 @@ cut_tree_worker_cryptcompress(tap_t * tap, const reiser4_key * from_key,
    1) write zeroes to the current real cluster,
    2) expand hole via fake clusters (just increase i_size) */
 static int
-cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
+cryptcompress_append_hole(struct inode *inode /*contains old i_size */ ,
 			  loff_t new_size)
 {
 	int result = 0;
-	hint_t hint;
+	hint_t *hint;
+	lock_handle *lh;
 	loff_t hole_size;
 	int nr_zeroes;
-	lock_handle lh;
 	reiser4_slide_t win;
 	reiser4_cluster_t clust;
 
@@ -2894,25 +2886,31 @@ cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
 	assert("edward-1136", current_blocksize == PAGE_CACHE_SIZE);
 	assert("edward-1333", off_to_cloff(inode->i_size, inode) != 0);
 
-	init_lh(&lh);
-	hint_init_zero(&hint);
-	hint.ext_coord.lh = &lh;
+	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	if (hint == NULL)
+		return RETERR(-ENOMEM);
+	hint_init_zero(hint);
+	lh = &hint->lh;
 
 	reiser4_slide_init(&win);
 	reiser4_cluster_init(&clust, &win);
-	clust.hint = &hint;
+	clust.hint = hint;
 
 	/* set cluster handle */
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(inode));
 	if (result)
 		goto out;
 	hole_size = new_size - inode->i_size;
-	nr_zeroes = min_count(inode_cluster_size(inode) - off_to_cloff(inode->i_size, inode), hole_size);
+	nr_zeroes =
+	    min_count(inode_cluster_size(inode) -
+		      off_to_cloff(inode->i_size, inode), hole_size);
 
-	set_window(&clust, &win, inode, inode->i_size, inode->i_size + nr_zeroes);
+	set_window(&clust, &win, inode, inode->i_size,
+		   inode->i_size + nr_zeroes);
 	win.stat = HOLE_WINDOW;
 
-	assert("edward-1137", clust.index == off_to_clust(inode->i_size, inode));
+	assert("edward-1137",
+	       clust.index == off_to_clust(inode->i_size, inode));
 
 	result = prepare_cluster(inode, 0, 0, &clust, PCL_APPEND);
 
@@ -2930,15 +2928,16 @@ cryptcompress_append_hole(struct inode * inode /*contains old i_size */,
 
 	/* fake_append: */
 	INODE_SET_FIELD(inode, i_size, new_size);
- out:
-	done_lh(&lh);
+      out:
+	done_lh(lh);
+	kfree(hint);
 	put_cluster_handle(&clust, TFM_READ);
 	return result;
 }
 
 #if REISER4_DEBUG
 static int
-pages_truncate_ok(struct inode * inode, loff_t old_size, pgoff_t start)
+pages_truncate_ok(struct inode *inode, loff_t old_size, pgoff_t start)
 {
 	struct pagevec pvec;
 	int i;
@@ -2953,7 +2952,7 @@ pages_truncate_ok(struct inode * inode, loff_t old_size, pgoff_t start)
 	while (rest) {
 		count = min_count(pagevec_space(&pvec), rest);
 		pvec.nr = find_get_pages(inode->i_mapping, start,
-					  count, pvec.pages);
+					 count, pvec.pages);
 		for (i = 0; i < pagevec_count(&pvec); i++) {
 			if (PageUptodate(pvec.pages[i])) {
 				warning("edward-1205",
@@ -2969,8 +2968,7 @@ pages_truncate_ok(struct inode * inode, loff_t old_size, pgoff_t start)
 	return 1;
 }
 
-static int
-body_truncate_ok(struct inode * inode, cloff_t aidx)
+static int body_truncate_ok(struct inode *inode, cloff_t aidx)
 {
 	int result;
 	cloff_t raidx;
@@ -2981,11 +2979,10 @@ body_truncate_ok(struct inode * inode, cloff_t aidx)
 #endif
 
 static int
-update_cryptcompress_size(struct inode * inode, reiser4_key * key, int update_sd)
+update_cryptcompress_size(struct inode *inode, reiser4_key * key, int update_sd)
 {
-	return (get_key_offset(key) & ((loff_t)(inode_cluster_size(inode)) - 1) ?
-		0 :
-		update_file_size(inode, key, update_sd));
+	return (get_key_offset(key) & ((loff_t) (inode_cluster_size(inode)) - 1)
+		? 0 : update_file_size(inode, key, update_sd));
 }
 
 /* prune cryptcompress file in two steps (exclusive access should be acquired!)
@@ -2994,8 +2991,8 @@ update_cryptcompress_size(struct inode * inode, reiser4_key * key, int update_sd
       one exists, otherwise truncate via prune fake cluster (just decrease i_size)
 */
 static int
-prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
-		      cloff_t aidx)
+prune_cryptcompress(struct inode *inode, loff_t new_size, int update_sd,
+		    cloff_t aidx)
 {
 	int result = 0;
 	unsigned nr_zeroes;
@@ -3003,8 +3000,8 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	loff_t old_size;
 	cloff_t ridx;
 
-	hint_t hint;
-	lock_handle lh;
+	hint_t *hint;
+	lock_handle *lh;
 	reiser4_slide_t win;
 	reiser4_cluster_t clust;
 
@@ -3013,13 +3010,15 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	assert("edward-1142", crc_inode_ok(inode));
 	assert("edward-1143", current_blocksize == PAGE_CACHE_SIZE);
 
-	init_lh(&lh);
-	hint_init_zero(&hint);
-	hint.ext_coord.lh = &lh;
+	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	if (hint == NULL)
+		return RETERR(-ENOMEM);
+	hint_init_zero(hint);
+	lh = &hint->lh;
 
 	reiser4_slide_init(&win);
 	reiser4_cluster_init(&clust, &win);
-	clust.hint = &hint;
+	clust.hint = hint;
 
 	/* rightmost completely truncated cluster */
 	ridx = count_to_nrclust(new_size, inode);
@@ -3059,8 +3058,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	if (result)
 		goto out;
 	nr_zeroes = (off_to_pgoff(new_size) ?
-		     PAGE_CACHE_SIZE - off_to_pgoff(new_size) :
-		     0);
+		     PAGE_CACHE_SIZE - off_to_pgoff(new_size) : 0);
 	set_window(&clust, &win, inode, new_size, new_size + nr_zeroes);
 	win.stat = HOLE_WINDOW;
 
@@ -3075,7 +3073,7 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 
 	assert("edward-1191", inode->i_size == new_size);
 	assert("edward-1206", body_truncate_ok(inode, ridx));
- finish:
+      finish:
 	/* drop all the pages that don't have jnodes (i.e. pages
 	   which can not be truncated by cut_file_items() because
 	   of holes represented by fake disk clusters) including
@@ -3083,19 +3081,21 @@ prune_cryptcompress(struct inode * inode, loff_t new_size, int update_sd,
 	   released by prepare_cluster() */
 	truncate_inode_pages(inode->i_mapping, new_size);
 	INODE_SET_FIELD(inode, i_size, new_size);
- out:
+      out:
 	assert("edward-1334", !result);
 	assert("edward-1209",
 	       pages_truncate_ok(inode, old_size, count_to_nrpages(new_size)));
 	assert("edward-1335",
 	       jnodes_truncate_ok(inode, count_to_nrclust(new_size, inode)));
-	done_lh(&lh);
+	done_lh(lh);
+	kfree(lh);
 	put_cluster_handle(&clust, TFM_READ);
 	return result;
 }
 
 static int
-start_truncate_fake(struct inode *inode, cloff_t aidx, loff_t new_size, int update_sd)
+start_truncate_fake(struct inode *inode, cloff_t aidx, loff_t new_size,
+		    int update_sd)
 {
 	int result = 0;
 	int bytes;
@@ -3107,13 +3107,14 @@ start_truncate_fake(struct inode *inode, cloff_t aidx, loff_t new_size, int upda
 			return 0;
 		bytes = new_size - inode->i_size;
 		INODE_SET_FIELD(inode, i_size, inode->i_size + bytes);
-	}
-	else {
+	} else {
 		/* prune */
 		if (inode->i_size <= clust_to_off(aidx, inode))
 			/* no fake bytes */
 			return 0;
-		bytes = inode->i_size - max_count(new_size, clust_to_off(aidx, inode));
+		bytes =
+		    inode->i_size - max_count(new_size,
+					      clust_to_off(aidx, inode));
 		if (!bytes)
 			return 0;
 		INODE_SET_FIELD(inode, i_size, inode->i_size - bytes);
@@ -3125,10 +3126,12 @@ start_truncate_fake(struct inode *inode, cloff_t aidx, loff_t new_size, int upda
 		   2. If is clean, therefore it is filled by zeroes.
 		   In both cases we don't need to make it dirty and
 		   capture here.
-		*/
+		 */
 		truncate_inode_pages(inode->i_mapping, inode->i_size);
 		assert("edward-1336",
-		       jnodes_truncate_ok(inode, count_to_nrclust(inode->i_size, inode)));
+		       jnodes_truncate_ok(inode,
+					  count_to_nrclust(inode->i_size,
+							   inode)));
 	}
 	if (update_sd)
 		result = update_sd_cryptcompress(inode);
@@ -3137,10 +3140,9 @@ start_truncate_fake(struct inode *inode, cloff_t aidx, loff_t new_size, int upda
 
 /* This is called in setattr_cryptcompress when it is used to truncate,
    and in delete_cryptcompress */
-static int
-cryptcompress_truncate(struct inode *inode, /* old size */
-		       loff_t new_size, /* new size */
-		       int update_sd)
+static int cryptcompress_truncate(struct inode *inode,	/* old size */
+				  loff_t new_size,	/* new size */
+				  int update_sd)
 {
 	int result;
 	cloff_t aidx;
@@ -3162,16 +3164,9 @@ cryptcompress_truncate(struct inode *inode, /* old size */
 		prune_cryptcompress(inode, new_size, update_sd, aidx));
 }
 
-/* plugin->u.file.truncate */
-reiser4_internal int
-truncate_cryptcompress(struct inode *inode, loff_t new_size)
-{
-	return 0;
-}
-
 /* page cluser is anonymous if it contains at least one anonymous page */
 static int
-capture_anonymous_cluster(reiser4_cluster_t * clust, struct inode * inode)
+capture_anonymous_cluster(reiser4_cluster_t * clust, struct inode *inode)
 {
 	int result;
 
@@ -3195,57 +3190,68 @@ capture_anonymous_cluster(reiser4_cluster_t * clust, struct inode * inode)
 
 /* read lock should be acquired */
 static int
-capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index, int to_capture)
+capture_anonymous_clusters(struct address_space *mapping, pgoff_t * index,
+			   int to_capture)
 {
 	int result = 0;
 	int found;
 	int progress = 0;
-	struct page * page = NULL;
-	hint_t hint;
-	lock_handle lh;
+	struct page *page = NULL;
+	hint_t *hint;
+	lock_handle *lh;
 	reiser4_cluster_t clust;
 
 	assert("edward-1127", mapping != NULL);
 	assert("edward-1128", mapping->host != NULL);
 
-	init_lh(&lh);
-	hint_init_zero(&hint);
-	hint.ext_coord.lh = &lh;
-	reiser4_cluster_init(&clust, 0);
-	clust.hint = &hint;
+	hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+	if (hint == NULL)
+		return RETERR(-ENOMEM);
+	hint_init_zero(hint);
+	lh = &hint->lh;
+
+	reiser4_cluster_init(&clust, NULL);
+	clust.hint = hint;
 
 	result = alloc_cluster_pgset(&clust, cluster_nrpages(mapping->host));
 	if (result)
 		goto out;
 
 	while (to_capture > 0) {
-		found = find_get_pages_tag(mapping, index, PAGECACHE_TAG_REISER4_MOVED, 1, &page);
+		found =
+		    find_get_pages_tag(mapping, index,
+				       PAGECACHE_TAG_REISER4_MOVED, 1, &page);
 		if (!found) {
 			*index = (pgoff_t) - 1;
 			break;
 		}
 		assert("edward-1109", page != NULL);
 
-		move_cluster_forward(&clust, mapping->host, page->index, &progress);
+		move_cluster_forward(&clust, mapping->host, page->index,
+				     &progress);
 		result = capture_anonymous_cluster(&clust, mapping->host);
 		page_cache_release(page);
 		if (result)
 			break;
-		to_capture --;
+		to_capture--;
 	}
 	if (result) {
-		warning("edward-1077", "Cannot capture anon pages: result=%i (captured=%d)\n",
+		warning("edward-1077",
+			"Cannot capture anon pages: result=%i (captured=%d)\n",
 			result,
-			((__u32)MAX_CLUSTERS_TO_CAPTURE(mapping->host)) - to_capture);
+			((__u32) MAX_CLUSTERS_TO_CAPTURE(mapping->host)) -
+			to_capture);
 	} else {
 		/* something had to be found */
-		assert("edward-1078", to_capture <= MAX_CLUSTERS_TO_CAPTURE(mapping->host));
+		assert("edward-1078",
+		       to_capture <= MAX_CLUSTERS_TO_CAPTURE(mapping->host));
 		if (to_capture <= 0)
 			/* there may be left more pages */
 			__mark_inode_dirty(mapping->host, I_DIRTY_PAGES);
 	}
- out:
-	done_lh(&lh);
+      out:
+	done_lh(lh);
+	kfree(hint);
 	put_cluster_handle(&clust, TFM_READ);
 	return result;
 }
@@ -3253,34 +3259,40 @@ capture_anonymous_clusters(struct address_space * mapping, pgoff_t * index, int 
 /* Check mapping for existence of not captured dirty pages.
    This returns !0 if either page tree contains pages tagged
    PAGECACHE_TAG_REISER4_MOVED */
-static int
-crc_inode_has_anon_pages(struct inode *inode)
+static int crc_inode_has_anon_pages(struct inode *inode)
 {
 	return mapping_tagged(inode->i_mapping, PAGECACHE_TAG_REISER4_MOVED);
 }
 
-/* plugin->u.file.capture */
-reiser4_internal int
-capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
+/* this is implementation of vfs's writepages method of struct
+   address_space_operations */
+int
+writepages_cryptcompress(struct address_space *mapping,
+			 struct writeback_control *wbc)
 {
 	int result;
 	int to_capture;
 	pgoff_t nrpages;
 	pgoff_t index = 0;
-	cryptcompress_info_t * info;
+	cryptcompress_info_t *info;
+	struct inode *inode;
 
-	if (!crc_inode_has_anon_pages(inode))
-		return 0;
+	inode = mapping->host;
+	if (!crc_inode_has_anon_pages(inode)) {
+		result = 0;
+		goto end;
+	}
 
 	info = cryptcompress_inode_data(inode);
 	nrpages = count_to_nrpages(i_size_read(inode));
 
 	if (wbc->sync_mode != WB_SYNC_ALL)
-		to_capture = min_count(wbc->nr_to_write, MAX_CLUSTERS_TO_CAPTURE(inode));
+		to_capture =
+		    min_count(wbc->nr_to_write, MAX_CLUSTERS_TO_CAPTURE(inode));
 	else
 		to_capture = MAX_CLUSTERS_TO_CAPTURE(inode);
 	do {
-		reiser4_context ctx;
+		reiser4_context *ctx;
 
 		if (is_in_reiser4_context()) {
 			/* FIXME-EDWARD: REMOVEME */
@@ -3295,89 +3307,121 @@ capture_cryptcompress(struct inode *inode, struct writeback_control *wbc)
 		} else
 			down_read(&info->lock);
 
-		init_context(&ctx, inode->i_sb);
-		ctx.nobalance = 1;
+		ctx = init_context(inode->i_sb);
+		if (IS_ERR(ctx)) {
+			result = PTR_ERR(ctx);
+			break;
+		}
+		ctx->nobalance = 1;
 
-		assert("edward-1079", lock_stack_isclean(get_current_lock_stack()));
+		assert("edward-1079",
+		       lock_stack_isclean(get_current_lock_stack()));
 
 		LOCK_CNT_INC(inode_sem_r);
 
-		result = capture_anonymous_clusters(inode->i_mapping, &index, to_capture);
+		result =
+		    capture_anonymous_clusters(inode->i_mapping, &index,
+					       to_capture);
 
 		up_read(&info->lock);
 
 		LOCK_CNT_DEC(inode_sem_r);
 
 		if (result != 0 || wbc->sync_mode != WB_SYNC_ALL) {
-			reiser4_exit_context(&ctx);
+			reiser4_exit_context(ctx);
 			break;
 		}
 		result = txnmgr_force_commit_all(inode->i_sb, 0);
-		reiser4_exit_context(&ctx);
+		reiser4_exit_context(ctx);
 	} while (result == 0 && index < nrpages);
 
+      end:
+	if (is_in_reiser4_context()) {
+		if (get_current_context()->nr_captured >= CAPTURE_APAGE_BURST) {
+			/* there are already pages to flush, flush them out, do
+			   not delay until end of reiser4_sync_inodes */
+			writeout(inode->i_sb, wbc);
+			get_current_context()->nr_captured = 0;
+		}
+	}
 	return result;
 }
 
 /* plugin->u.file.mmap */
-reiser4_internal int
-mmap_cryptcompress(struct file * file, struct vm_area_struct * vma)
+int mmap_cryptcompress(struct file *file, struct vm_area_struct *vma)
 {
 	return -ENOSYS;
 	//return generic_file_mmap(file, vma);
 }
 
-
 /* plugin->u.file.release */
 /* plugin->u.file.get_block */
-/* This function is used for ->bmap() VFS method in reiser4 address_space_operations */
-reiser4_internal int
-get_block_cryptcompress(struct inode *inode, sector_t block, struct buffer_head *bh_result, int create UNUSED_ARG)
+
+/* implentation of vfs' bmap method of struct address_space_operations for
+   cryptcompress plugin
+*/
+sector_t bmap_cryptcompress(struct address_space * mapping, sector_t lblock)
 {
+	struct inode *inode;
+	sector_t block;
+
+	inode = mapping->host;
 	if (current_blocksize != inode_cluster_size(inode))
 		return RETERR(-EINVAL);
 	else {
 		int result;
 		reiser4_key key;
-		hint_t hint;
-		lock_handle lh;
+		hint_t *hint;
+		lock_handle *lh;
 		item_plugin *iplug;
 
 		assert("edward-1166", 0);
-		assert("edward-420", create == 0);
-		key_by_inode_cryptcompress(inode, (loff_t)block * current_blocksize, &key);
-		init_lh(&lh);
-		hint_init_zero(&hint);
-		hint.ext_coord.lh = &lh;
-		result = find_cluster_item(&hint, &key, ZNODE_READ_LOCK, 0, FIND_EXACT, 0);
+		key_by_inode_cryptcompress(inode,
+					   (loff_t) block * current_blocksize,
+					   &key);
+
+		hint = kmalloc(sizeof(*hint), GFP_KERNEL);
+		if (IS_ERR(hint))
+			return RETERR(-ENOMEM);
+		hint_init_zero(hint);
+		lh = &hint->lh;
+		result =
+		    find_cluster_item(hint, &key, ZNODE_READ_LOCK, NULL,
+				      FIND_EXACT, 0);
 		if (result != CBK_COORD_FOUND) {
-			done_lh(&lh);
+			done_lh(lh);
+			kfree(hint);
 			return result;
 		}
-		result = zload(hint.ext_coord.coord.node);
+		result = zload(hint->ext_coord.coord.node);
 		if (unlikely(result)) {
-			done_lh(&lh);
+			done_lh(lh);
+			kfree(hint);
 			return result;
 		}
-		iplug = item_plugin_by_coord(&hint.ext_coord.coord);
+		iplug = item_plugin_by_coord(&hint->ext_coord.coord);
 
 		assert("edward-421", iplug == item_plugin_by_id(CTAIL_ID));
 
-		if (iplug->s.file.get_block)
-			result = iplug->s.file.get_block(&hint.ext_coord.coord, block, bh_result);
-		else
+		if (iplug->s.file.get_block) {
+			result =
+			    iplug->s.file.get_block(&hint->ext_coord.coord,
+						    lblock, &block);
+			if (result == 0)
+				result = block;
+		} else
 			result = RETERR(-EINVAL);
 
-		zrelse(hint.ext_coord.coord.node);
-		done_lh(&lh);
+		zrelse(hint->ext_coord.coord.node);
+		done_lh(lh);
+		kfree(hint);
 		return result;
 	}
 }
 
-/* plugin->u.file.delete method
-   see plugin.h for description */
-reiser4_internal int
-delete_cryptcompress(struct inode *inode)
+/* this is implementation of delete method of file plugin for cryptcompress
+ */
+int delete_cryptcompress(struct inode *inode)
 {
 	int result;
 
@@ -3386,30 +3430,33 @@ delete_cryptcompress(struct inode *inode)
 	if (inode->i_size) {
 		result = cryptcompress_truncate(inode, 0, 0);
 		if (result) {
-			warning("edward-430", "cannot truncate cryptcompress file  %lli: %i",
-				(unsigned long long)get_inode_oid(inode), result);
+			warning("edward-430",
+				"cannot truncate cryptcompress file  %lli: %i",
+				(unsigned long long)get_inode_oid(inode),
+				result);
 			return result;
 		}
 	}
-	return delete_object(inode, 0);
+	/* and remove stat data */
+	return delete_object_common(inode);
 }
 
 /* plugin->u.file.pre_delete method
    see plugin.h for description */
-reiser4_internal int
-pre_delete_cryptcompress(struct inode *inode)
+int pre_delete_cryptcompress(struct inode *inode)
 {
 	return cryptcompress_truncate(inode, 0, 0);
 }
 
 /* plugin->u.file.setattr method
    see plugin.h for description */
-reiser4_internal int
-setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
-		      struct iattr *attr /* change description */ )
+int setattr_cryptcompress(struct dentry *dentry,	/* Object to change attributes */
+			  struct iattr *attr /* change description */ )
 {
 	int result;
+	struct inode *inode;
 
+	inode = dentry->d_inode;
 	result = check_cryptcompress(inode);
 	if (result)
 		return result;
@@ -3431,12 +3478,13 @@ setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 		   and vfs needs improving, or is there some sense in which this is a good design?
 
 		   A: VS-FIXME-HANS:
-		*/
+		 */
 
 		/* truncate does reservation itself and requires exclusive access obtained */
 		if (inode->i_size != attr->ia_size) {
 			loff_t old_size;
-			cryptcompress_info_t * info = cryptcompress_inode_data(inode);
+			cryptcompress_info_t *info =
+			    cryptcompress_inode_data(inode);
 
 			down_write(&info->lock);
 			LOCK_CNT_INC(inode_sem_w);
@@ -3445,24 +3493,28 @@ setattr_cryptcompress(struct inode *inode,	/* Object to change attributes */
 
 			old_size = inode->i_size;
 
-			result = cryptcompress_truncate(inode, attr->ia_size, 1/* update stat data */);
+			result =
+			    cryptcompress_truncate(inode, attr->ia_size,
+						   1 /* update stat data */ );
 			if (result) {
-				warning("edward-1192", "truncate_cryptcompress failed: oid %lli, "
+				warning("edward-1192",
+					"truncate_cryptcompress failed: oid %lli, "
 					"old size %lld, new size %lld, retval %d",
-					(unsigned long long)get_inode_oid(inode),
-					old_size, attr->ia_size, result);
+					(unsigned long long)
+					get_inode_oid(inode), old_size,
+					attr->ia_size, result);
 			}
 			up_write(&info->lock);
 			LOCK_CNT_DEC(inode_sem_w);
 		} else
 			result = 0;
 	} else
-		result = setattr_common(inode, attr);
+		result = setattr_common(dentry, attr);
 	return result;
 }
 
 static int
-save_len_cryptcompress_plugin(struct inode * inode, reiser4_plugin * plugin)
+save_len_cryptcompress_plugin(struct inode *inode, reiser4_plugin * plugin)
 {
 	assert("edward-457", inode != NULL);
 	assert("edward-458", plugin != NULL);
@@ -3471,28 +3523,29 @@ save_len_cryptcompress_plugin(struct inode * inode, reiser4_plugin * plugin)
 }
 
 static int
-load_cryptcompress_plugin(struct inode * inode, reiser4_plugin * plugin, char **area, int *len)
+load_cryptcompress_plugin(struct inode *inode, reiser4_plugin * plugin,
+			  char **area, int *len)
 {
 	assert("edward-455", inode != NULL);
 	assert("edward-456", (reiser4_inode_data(inode)->pset != NULL));
 
-	plugin_set_file(&reiser4_inode_data(inode)->pset, file_plugin_by_id(CRC_FILE_PLUGIN_ID));
+	plugin_set_file(&reiser4_inode_data(inode)->pset,
+			file_plugin_by_id(CRC_FILE_PLUGIN_ID));
 	return 0;
 }
 
-static int
-change_crypto_file(struct inode * inode, reiser4_plugin * plugin)
+static int change_crypto_file(struct inode *inode, reiser4_plugin * plugin)
 {
 	/* cannot change object plugin of already existing object */
 	return RETERR(-EINVAL);
 }
 
 struct reiser4_plugin_ops cryptcompress_plugin_ops = {
-	.load      = load_cryptcompress_plugin,
-	.save_len  = save_len_cryptcompress_plugin,
-	.save      = NULL,
+	.load = load_cryptcompress_plugin,
+	.save_len = save_len_cryptcompress_plugin,
+	.save = NULL,
 	.alignment = 8,
-	.change    = change_crypto_file
+	.change = change_crypto_file
 };
 
 /*
