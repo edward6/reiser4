@@ -799,7 +799,7 @@ static int extent_write_flow(struct inode *inode, flow_t * flow, hint_t * hint,
 
 	/* key of first byte of page */
 	h->u.replace.key = flow->key;
-	set_key_offset(h->u.replace.pkey, file_off & ~(PAGE_CACHE_SIZE - 1));
+	set_key_offset(h->u.replace.pkey, file_off & ~((loff_t)(PAGE_CACHE_SIZE - 1)));
 
 	tree = tree_by_inode(inode);
 	oid = get_inode_oid(inode);
